@@ -21,14 +21,6 @@ MODULE MOD_RayTracing_Init
 IMPLICIT NONE
 PRIVATE
 
-INTERFACE InitRayTracing
-  MODULE PROCEDURE InitRayTracing
-END INTERFACE
-
-!INTERFACE FinalizeRadiationTransport
-!  MODULE PROCEDURE FinalizeRadiationTransport
-!END INTERFACE
-
 PUBLIC::InitRayTracing, DefineParametersRayTracing
 !===================================================================================================================================
 
@@ -48,15 +40,17 @@ CALL prms%CreateIntOption(      'RayTracing-PartBound'    , 'TODO' , '0')
 CALL prms%CreateLogicalOption(  'RayTracing-AdaptiveRays' , 'TODO' , '.FALSE.')
 CALL prms%CreateIntOption(      'RayTracing-NumRays'      , 'TODO' , '1')
 CALL prms%CreateIntOption(      'RayTracing-RayPosModel'  , 'TODO' , '1')
-CALL prms%CreateRealArrayOption('RayTracing-RayDirection' , 'TODO' , no=3)
+CALL prms%CreateRealArrayOption('RayTracing-RayDirection' , 'Direction vector for ray emission. Will be normalized after read-in.' , no=3)
+CALL prms%CreateIntOption(      'RayTracing-PartBound'    , 'Particle boundary ID where rays are emitted from' , '0')
 
-CALL prms%CreateRealOption('     RayTracing-PulseDuration'  , 'Pulse duration tau for a Gaussian-type pulse with I~exp(-(t/tau)^2) [s]'                        , numberedmulti=.TRUE.)
-CALL prms%CreateRealOption('     RayTracing-WaistRadius'    , 'Beam waist radius (in focal spot) w_b for Gaussian-type pulse with I~exp(-(r/w_b)^2) [m]'       , numberedmulti=.TRUE.)
-CALL prms%CreateRealOption('     RayTracing-WaveLength'     , 'Beam wavelength [m]'                                                                            , numberedmulti=.TRUE.)
-CALL prms%CreateRealOption('     RayTracing-RepetitionRate' , 'Pulse repetition rate (pulses per second) [Hz]'                                                 , numberedmulti=.TRUE.)
-CALL prms%CreateRealOption('     RayTracing-Power'          , 'Average pulse power (energy of a single pulse times repetition rate) [W]'                       , '-1.0'                , numberedmulti=.TRUE.)
+CALL prms%CreateRealOption(     'RayTracing-PulseDuration'  , 'Pulse duration tau for a Gaussian-type pulse with I~exp(-(t/tau)^2) [s]'                  )
+CALL prms%CreateRealOption(     'RayTracing-WaistRadius'    , 'Beam waist radius (in focal spot) w_b for Gaussian-type pulse with I~exp(-(r/w_b)^2) [m]' , '0.0')
+CALL prms%CreateRealOption(     'RayTracing-WaveLength'     , 'Beam wavelength [m]'                                                                      )
+CALL prms%CreateRealOption(     'RayTracing-RepetitionRate' , 'Pulse repetition rate (pulses per second) [Hz]'                                           )
+CALL prms%CreateRealOption(     'RayTracing-Power'          , 'Average pulse power (energy of a single pulse times repetition rate) [W]'                 )
 
 END SUBROUTINE DefineParametersRayTracing
+
 
 SUBROUTINE InitRayTracing()
 !===================================================================================================================================
@@ -66,8 +60,10 @@ SUBROUTINE InitRayTracing()
 USE MOD_Globals
 USE MOD_ReadInTools
 USE MOD_RayTracing_Vars
-USE MOD_Particle_Boundary_Vars, ONLY : nComputeNodeSurfTotalSides
-USE MOD_Mesh_Vars,              ONLY : nGlobalElems
+USE MOD_Mesh_Vars              ,ONLY: nGlobalElems
+USE MOD_Globals_Vars           ,ONLY: Pi
+USE MOD_Particle_Mesh_Vars     ,ONLY: GEO
+USE MOD_Particle_Boundary_Vars ,ONLY: nComputeNodeSurfTotalSides
 #if USE_MPI
 USE MOD_MPI_Shared_Vars
 USE MOD_MPI_Shared
@@ -80,17 +76,13 @@ USE MOD_MPI_Shared
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER               :: iWave, iElem, firstElem, lastElem, ElemDisp, DisplRank, iSpec, currentRank
-REAL                  :: LocTemp, ObsLengt, MaxSumTemp(2), GlobalMaxTemp(2), hilf
-LOGICAL               :: ElemInCone
-REAL,ALLOCATABLE      :: Radiation_ShockTube_Spec(:,:)
-INTEGER               :: w, io_error
 !===================================================================================================================================
 SWRITE(UNIT_StdOut,'(132("-"))')
 SWRITE(UNIT_stdOut,'(A)') ' INIT RAY TRACING SOLVER ...'
 
 RayPartBound = GETINT('RayTracing-PartBound')
 IF(RayPartBound.EQ.0) RETURN
+IF(RayPartBound.LT.0) CALL CollectiveStop(__STAMP__,'RayTracing-PartBound must be > 0!')
 
 ! Get ray parameters
 Ray%PulseDuration    = GETREAL('RayTracing-PulseDuration')
@@ -99,12 +91,25 @@ Ray%WaveLength       = GETREAL('RayTracing-WaveLength')
 Ray%RepetitionRate   = GETREAL('RayTracing-RepetitionRate')
 Ray%Power            = GETREAL('RayTracing-Power')
 
+ASSOCIATE( &
+      E0   => Ray%Energy             ,&
+      wb   => Ray%WaistRadius        ,&
+      tau  => Ray%PulseDuration      ,&
+      I0   => Ray%IntensityAmplitude ,&
+      A    => Ray%Area               )
+  ! Derived quantities
+  E0 = Ray%Power / Ray%RepetitionRate
+  ! Rectangle
+  A  = (GEO%xmaxglob-GEO%xminglob) * (GEO%ymaxglob-GEO%xminglob)
+  I0 = E0 / (SQRT(PI)*tau*A)
+END ASSOCIATE
+
 ALLOCATE(RayElemPassedEnergy(1:nGlobalElems))
 RayElemPassedEnergy=0.0
 
 AdaptiveRays = GETLOGICAL('RayTracing-AdaptiveRays')
 NumRays      = GETINT('RayTracing-NumRays')
-RayPosModel  = GETINT('RayTracing-RayDirection')
+RayPosModel  = GETINT('RayTracing-RayPosModel')
 RayDirection = GETREALARRAY('RayTracing-RayDirection',3)
 
 #if USE_MPI

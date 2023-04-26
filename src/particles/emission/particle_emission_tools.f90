@@ -2179,28 +2179,42 @@ END FUNCTION pointDet
 !===================================================================================================================================
 !> Check if x,y is inside side
 !===================================================================================================================================
-PPURE LOGICAL FUNCTION InsideQuadrilateral(X,SideID) RESULT(L)
+PPURE LOGICAL FUNCTION InsideQuadrilateral(X,NonUniqueGlobalSideID) RESULT(L)
 ! MODULES
+USE MOD_Particle_Mesh_Vars ,ONLY: NodeCoords_Shared,SideInfo_Shared,ElemSideNodeID_Shared
+USE MOD_Mesh_Tools         ,ONLY: GetCNElemID
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-REAL,INTENT(IN)    :: x(2)
-INTEGER,INTENT(IN) :: SideID
+REAL,INTENT(IN)    :: X(2)
+INTEGER,INTENT(IN) :: NonUniqueGlobalSideID
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 LOGICAL         :: pos,neg
-INTEGER         :: iNode,ElemID,locSideID
+INTEGER         :: iNode,CNElemID,locSideID
 REAL            :: normal(2),corner(2),P(1:2,1:4),d(3)
 !===================================================================================================================================
-ElemID    = SideToElem(S2E_ELEM_ID,SideID)
-locSideID = SideToElem(S2E_LOC_SIDE_ID,SideID)
+CNElemID  = GetCNElemID(SideInfo_Shared(SIDE_ELEMID,NonUniqueGlobalSideID))
+locSideID = SideInfo_Shared(SIDE_LOCALID,NonUniqueGlobalSideID)
 
 DO iNode = 1,4
-  P(1:2,iNode) = NodeCoords_Shared(1:2,ElemSideNodeID_Shared(iNode,locSideID,ElemID)+1)
+  P(1:2,iNode) = NodeCoords_Shared(1:2,ElemSideNodeID_Shared(iNode,locSideID,CNElemID)+1)
 END DO
+
+! sorted
+P(1:2,1) = (/0,0/)
+P(1:2,2) = (/1,0/)
+P(1:2,3) = (/1,1/)
+P(1:2,4) = (/0,1/)
+
+! not sorted
+P(1:2,1) = (/0,0/)
+P(1:2,2) = (/1,1/)
+P(1:2,3) = (/1,0/)
+P(1:2,4) = (/0,1/)
 
 d(1) = pointDet(X,P(1:2,1),P(1:2,2))
 d(2) = pointDet(X,P(1:2,2),P(1:2,3))

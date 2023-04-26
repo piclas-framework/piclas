@@ -41,20 +41,24 @@ SUBROUTINE RayTracing()
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_Mesh_Vars               ,ONLY : nElems
-USE MOD_Particle_Mesh_Vars      ,ONLY : GEO, nComputeNodeElems, ElemMidPoint_Shared, ElemVolume_Shared
-USE MOD_RadiationTrans_Vars     ,ONLY : Radiation_Emission_Spec_Total, RadTrans, RadEmiAdaptPhotonNum, RadTransObsVolumeFrac
-USE MOD_RadiationTrans_Vars     ,ONLY : PhotonProps, RadiationDirectionModel, RadTransPhotPerCellLoc, RadObservationPoint
-USE MOD_RadiationTrans_Vars     ,ONLY : RadTransPhotPerCell, RadTransPhotPerCell_Shared_Win, RadiationPhotonWaveLengthModel
-USE MOD_RadiationTrans_Vars     ,ONLY : RadObservationPointMethod
-USE MOD_Photon_Tracking         ,ONLY : PhotonTriaTracking, Photon2DSymTracking
-USE MOD_Radiation_Vars          ,ONLY : RadiationSwitches
-USE MOD_DSMC_Vars               ,ONLY : RadialWeighting
-USE MOD_Mesh_Tools              ,ONLY: GetGlobalElemID
-USE MOD_Output                  ,ONLY: PrintStatusLineRadiation
+!USE MOD_Mesh_Vars              ,ONLY: nElems
+!USE MOD_Particle_Mesh_Vars     ,ONLY: GEO, nComputeNodeElems, ElemMidPoint_Shared, ElemVolume_Shared
+!USE MOD_RadiationTrans_Vars     ,ONLY : Radiation_Emission_Spec_Total, RadTrans, RadEmiAdaptPhotonNum, RadTransObsVolumeFrac                                                                                                                       ! USE MOD_RadiationTrans_Vars     ,ONLY : Radiation_Emission_Spec_Total, RadTrans, RadEmiAdaptPhotonNum, RadTransObsVolumeFrac
+USE MOD_RayTracing_Vars        ,ONLY: PhotonProps,RayPartBound,NumRays
+!USE MOD_RadiationTrans_Vars     ,ONLY : RadTransPhotPerCell, RadTransPhotPerCell_Shared_Win, RadiationPhotonWaveLengthModel                                                                                                                       ! USE MOD_RadiationTrans_Vars     ,ONLY : RadTransPhotPerCell, RadTransPhotPerCell_Shared_Win, RadiationPhotonWaveLengthModel
+!USE MOD_RadiationTrans_Vars     ,ONLY : RadObservationPointMethod                                                                                                                       ! USE MOD_RadiationTrans_Vars     ,ONLY : RadObservationPointMethod
+USE MOD_Photon_Tracking        ,ONLY: PhotonTriaTracking
+!USE MOD_Radiation_Vars         ,ONLY: RadiationSwitches
+!USE MOD_DSMC_Vars              ,ONLY: RadialWeighting
+USE MOD_Mesh_Tools             ,ONLY: GetGlobalElemID
+USE MOD_Output                 ,ONLY: PrintStatusLineRadiation
 USE MOD_MPI_Shared_Vars
 USE MOD_MPI_Shared
-USE MOD_Particle_Vars           ,ONLY: Symmetry
+!USE MOD_Particle_Vars          ,ONLY: Symmetry
+USE MOD_Mesh_Tools             ,ONLY: GetCNElemID
+USE MOD_part_emission_tools    ,ONLY: InsideQuadrilateral
+USE MOD_Particle_Boundary_Vars ,ONLY: nComputeNodeSurfSides,PartBound,SurfSide2GlobalSide
+USE MOD_Particle_Mesh_Vars     ,ONLY: SideInfo_Shared
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -63,24 +67,34 @@ USE MOD_Particle_Vars           ,ONLY: Symmetry
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER             :: iElem, nPhotons, iRay, nPhotonsCN, photonCount, iPhotLoc, RayVisCount, LocRayNum, RayDisp
-INTEGER             :: firstElem, lastElem, firstPhoton, lastPhoton
-REAL                :: Bounds(1:2,1:3) ! Bounds(1,1:3) --> maxCoords , Bounds(2,1:3) --> minCoords
-REAL                :: RandRot(3,3) !, PartPos(1:3)
+INTEGER             :: NonUniqueGlobalSideID,iSurfSide,iBC
+INTEGER             :: CNElemID, iRay, photonCount, iPhot, iPhotLoc, RayVisCount, LocRayNum, RayDisp
+!INTEGER             :: firstElem, lastElem, firstPhoton, lastPhoton
+!REAL                :: Bounds(1:2,1:3) ! Bounds(1,1:3) --> maxCoords , Bounds(2,1:3) --> minCoords
+!REAL                :: RandRot(3,3) !, PartPos(1:3)
+LOGICAL :: found
 !===================================================================================================================================
 
 SWRITE(UNIT_stdOut,'(A)') ' Start Ray Tracing Calculation ...'
 
-
-
 photonCount = 0
 RayVisCount = 0
-IF(nProcs.GT.NumRays) CALL abort(__STAMP__,'Use more rays!')
-LocRayNum = NumRays/nProcs
-IF(myrank.LT.MOD(NumRays,nProcs)) LocRayNum = LocRayNum + 1
+IF(nProcessors.GT.NumRays) CALL abort(__STAMP__,'Use more rays! Number of processes > Number of rays')
+LocRayNum = NumRays/nProcessors
+IF(myrank.LT.MOD(NumRays,nProcessors)) LocRayNum = LocRayNum + 1
+! Output to screen every 20 rays to show that the tool is still running
 RayDisp = INT(LocRayNum/20)
 
 
+PhotonProps%PhotonPos(1:3) = (/0.5,0.01,0.99/)
+found = InsideQuadrilateral(PhotonProps%PhotonPos(1:2),1)
+WRITE (*,*) "PhotonProps%PhotonPos(1:3),found =", PhotonProps%PhotonPos(1:3),found
+
+
+
+
+write(*,*) "DONE"
+IF(myrank.eq.0) read*; CALL MPI_BARRIER(MPI_COMM_WORLD,iError)
 
 DO iRay = 1, LocRayNum
   IF(MPIroot.AND.(MOD(RayVisCount,RayDisp).EQ.0)) CALL PrintStatusLineRadiation(REAL(RayVisCount),REAL(1),REAL(LocRayNum),.TRUE.)
@@ -89,40 +103,57 @@ DO iRay = 1, LocRayNum
   PhotonProps%PhotonLastPos(1:3) = PhotonProps%PhotonPos(1:3)
 
   ! Loop over all sides of a specific iPartBoundary and find the side where the ray enters the domain
-  ! Loop nBCSides
   ! count number of nSides connected to iPartBoundary BCSideID
-  nElem (local)
-  1:nBCSides
-  SideID -> elemID -> glboalElemID->NonUniqueGlobalSideID
-  NonUniqueGlobalSideID
-  SideInfo_Shared(SIDE_BCID,NonUniqueGlobalSideID)
+
+  PhotonProps%ElemID = -1 ! Initialize
+
+  SurfLoop: DO iSurfSide = 1,nComputeNodeSurfSides
+    NonUniqueGlobalSideID = SurfSide2GlobalSide(SURF_SIDEID,iSurfSide)
+    ! Check if the surface side has a neighbor (and is therefore an inner BCs)
+    IF(SideInfo_Shared(SIDE_NBSIDEID,NonUniqueGlobalSideID).LE.0) THEN ! BC side
+      ! Get field BC index of side and compare with BC index of the corresponding particle boundary index of the emission side
+      iBC = SideInfo_Shared(SIDE_BCID,NonUniqueGlobalSideID) ! Get field BC index from non-unique global side index
+      IF(iBC.NE.PartBound%MapToFieldBC(RayPartBound)) CYCLE SurfLoop ! Correct BC not found, check next side
+      ! Check if ray starting position is within the quadrilateral that is spanned by the four corner nodes of the side
+      IF(InsideQuadrilateral(PhotonProps%PhotonPos(1:2),NonUniqueGlobalSideID))THEN
+        ! Found CN element index
+        CNElemID = GetCNElemID(SideInfo_Shared(SIDE_ELEMID,NonUniqueGlobalSideID))
+        ! Set global element index for current ray
+        PhotonProps%ElemID = GetGlobalElemID(CNElemID)
+        EXIT SurfLoop
+      END IF ! InsideQuadrilateral(X,NonUniqueGlobalSideID)
+    END IF ! SideInfo_Shared(SIDE_NBSIDEID,NonUniqueGlobalSideID).LE.0
+  END DO SurfLoop! iSurfSide = 1,nComputeNodeSurfSides
+
+  ! Sanity check
+  IF(PhotonProps%ElemID.LE.0) CALL abort(__STAMP__,'Ray starting element not found!')
 
 
-  PhotonProps%ElemID = GetGlobalElemID(iElem)
-  IF ((photonCount.LT.firstPhoton)) THEN
-    iPhotLoc = firstPhoton - photonCount + iPhot - 1
-  ELSE
+
+  !IF ((photonCount.LT.firstPhoton)) THEN
+    !iPhotLoc = firstPhoton - photonCount + iPhot - 1
+  !ELSE
     iPhotLoc = iPhot
-  END IF
-  PhotonProps%PhotonDirection(1:3) = SetPhotonStartDirection(iElem, iPhotLoc, RandRot)
-  IF ((RadObservationPointMethod.EQ.2).AND.RadObservationPoint%CalcFullSpectra) THEN
+  !END IF
+  PhotonProps%PhotonDirection(1:3) = (/0,0,-1/)! SetPhotonStartDirection(iCNElem, iPhotLoc, RandRot)
+  !IF ((RadObservationPointMethod.EQ.2).AND.RadObservationPoint%CalcFullSpectra) THEN
     PhotonProps%WaveLength = iPhotLoc
-  ELSE
-    IF (RadiationPhotonWaveLengthModel.EQ.1) THEN
-      PhotonProps%WaveLength = SetParticleWavelengthAR(iElem)
-    ELSE
-      PhotonProps%WaveLength = SetParticleWavelengthBiSec(iElem)
-    END IF
-  END IF
-  PhotonProps%PhotonEnergy = SetPhotonEnergy(iElem,PhotonProps%PhotonPos(1:3), PhotonProps%WaveLength) 
+  !ELSE
+    !IF (RadiationPhotonWaveLengthModel.EQ.1) THEN
+      !PhotonProps%WaveLength = SetParticleWavelengthAR(iCNElem)
+    !ELSE
+      !PhotonProps%WaveLength = SetParticleWavelengthBiSec(iCNElem)
+    !END IF
+  !END IF
+  PhotonProps%PhotonEnergy = SetPhotonEnergy(CNElemID,PhotonProps%PhotonPos(1:3), PhotonProps%WaveLength) 
   CALL PhotonTriaTracking()
 END DO
-photonCount = photonCount + RadTransPhotPerCell(iELem)
+!photonCount = photonCount + RadTransPhotPerCell(iELem)
 
 END SUBROUTINE RayTracing
 
 
-FUNCTION SetPhotonEnergy(iElem, Point, iWave)
+FUNCTION SetPhotonEnergy(iCNElem, Point, iWave)
 !===================================================================================================================================
 !> Calculation of the vibrational temperature (zero-point search) for the TSHO (Truncated Simple Harmonic Oscillator)
 !===================================================================================================================================
@@ -137,7 +168,7 @@ USE MOD_Radiation_Vars          ,ONLY : RadiationParameter,Radiation_Emission_sp
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES  
-INTEGER, INTENT(IN)       :: iElem       
+INTEGER, INTENT(IN)       :: iCNElem       
 REAL, INTENT(IN)          :: Point(3)
 INTEGER, INTENT(IN), OPTIONAL :: iWave       
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -149,9 +180,9 @@ REAL                      :: SetPhotonEnergy
 REAL               :: cosTheta, Dist(3), DistNorm(3), spaceangle, absdistnorm
 !===================================================================================================================================
 IF (RadEmiAdaptPhotonNum) THEN
-  SetPhotonEnergy = Radiation_Emission_Spec_Total(iElem)*ElemVolume_Shared(iElem)*RadTransObsVolumeFrac(iElem) / RadTransPhotPerCell(iElem)
+  SetPhotonEnergy = Radiation_Emission_Spec_Total(iCNElem)*ElemVolume_Shared(iCNElem)*RadTransObsVolumeFrac(iCNElem) / RadTransPhotPerCell(iCNElem)
 ELSE
-  SetPhotonEnergy = Radiation_Emission_Spec_Total(iElem)*ElemVolume_Shared(iElem)*RadTransObsVolumeFrac(iElem) / (RadTrans%NumPhotonsPerCell)
+  SetPhotonEnergy = Radiation_Emission_Spec_Total(iCNElem)*ElemVolume_Shared(iCNElem)*RadTransObsVolumeFrac(iCNElem) / (RadTrans%NumPhotonsPerCell)
 END IF
 
 IF (RadObservationPointMethod.EQ.1) THEN  
@@ -169,29 +200,22 @@ IF (RadObservationPointMethod.EQ.1) THEN
   SetPhotonEnergy = SetPhotonEnergy * spaceangle/(4.*Pi)
 ELSEIF (RadObservationPointMethod.EQ.2) THEN
   IF (RadObservationPoint%CalcFullSpectra) THEN
-    SetPhotonEnergy = Radiation_Emission_Spec(iWave, iElem) * RadiationParameter%WaveLenIncr*RadiationParameter%WaveLenReductionFactor &
-        *ElemVolume_Shared(iElem)*RadTransObsVolumeFrac(iElem)
+    SetPhotonEnergy = Radiation_Emission_Spec(iWave, iCNElem) * RadiationParameter%WaveLenIncr*RadiationParameter%WaveLenReductionFactor &
+        *ElemVolume_Shared(iCNElem)*RadTransObsVolumeFrac(iCNElem)
   ELSE
     SetPhotonEnergy = SetPhotonEnergy /(4.*Pi)
   END IF
-  SetPhotonEnergy = SetPhotonEnergy / (ElemVolume_Shared(iElem)*RadTransObsVolumeFrac(iElem))*RadObservationPOI(7, iElem)
+  SetPhotonEnergy = SetPhotonEnergy / (ElemVolume_Shared(iCNElem)*RadTransObsVolumeFrac(iCNElem))*RadObservationPOI(7, iCNElem)
 END IF
 
 END FUNCTION SetPhotonEnergy
+
 
 FUNCTION SetRayPos()
 !===================================================================================================================================
 !> Calculation of the vibrational temperature (zero-point search) for the TSHO (Truncated Simple Harmonic Oscillator)
 !===================================================================================================================================
 ! MODULES
-USE MOD_Globals
-USE MOD_RadiationTrans_Vars  ,ONLY: RadiationPhotonPosModel, RadObservationPointMethod, RadObservationPOI
-USE MOD_Particle_Mesh_Tools  ,ONLY: ParticleInsideQuad3D
-USE MOD_RadiationTrans_Init  ,ONLY: HALTON
-!USE MOD_PARTICLE_Vars,         ONLY : Symmetry2DAxisymmetric                                                                                                            ! USE MOD_PARTICLE_Vars,         ONLY : Symmetry2DAxisymmetric
-USE MOD_Particle_Mesh_Vars   ,ONLY: BoundsOfElem_Shared
-USE MOD_Mesh_Tools           ,ONLY: GetGlobalElemID
-USE MOD_Photon_TrackingTools ,ONLY: PointInObsCone
 USE MOD_Particle_Mesh_Vars   ,ONLY: GEO
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -199,21 +223,18 @@ IMPLICIT NONE
 ! INPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
-REAL                      :: SetPhotonPos(3)
+REAL :: SetRayPos(3)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-REAL                    :: Particle_pos(3),radius
-INTEGER                 :: i
-LOGICAL                 :: ARM_Gauss
-REAL                    :: RandVal(2),RandVal1
+REAL :: RandVal(2)
 !===================================================================================================================================
 CALL RANDOM_NUMBER(RandVal)
-SetPhotonPos = (/RandVal(1)*(GEO%xmaxglob-GEO%xminglob)+GEO%xminglob,&
-                 RandVal(2)*(GEO%ymaxglob-GEO%yminglob)+GEO%yminglob,&
-                 GEO%zmaxglob/)
+SetRayPos = (/RandVal(1)*(GEO%xmaxglob-GEO%xminglob)+GEO%xminglob,&
+              RandVal(2)*(GEO%ymaxglob-GEO%yminglob)+GEO%yminglob,&
+              GEO%zmaxglob/)
 END FUNCTION SetRayPos
 
-FUNCTION SetPhotonStartDirection(iElem, iPhot, RandRot)
+FUNCTION SetPhotonStartDirection(iCNElem, iPhot, RandRot)
 !===================================================================================================================================
 ! modified particle emmission for LD case
 !===================================================================================================================================
@@ -226,7 +247,7 @@ USE MOD_RadiationTrans_Vars  ,ONLY : PhotonProps
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-INTEGER, INTENT(IN)             :: iElem, iPhot
+INTEGER, INTENT(IN)             :: iCNElem, iPhot
 REAL, INTENT(IN)                :: RandRot(3,3)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INOUTPUT VARIABLES
@@ -242,7 +263,7 @@ INTEGER                          :: RadMod
   CASE(1)
     RadMod = RadiationDirectionModel
   CASE(2)
-    IF (RadTransPhotPerCell(iElem).EQ.1) THEN
+    IF (RadTransPhotPerCell(iCNElem).EQ.1) THEN
       RadMod = 1
     ELSE
       RadMod = RadiationDirectionModel
@@ -280,9 +301,9 @@ INTEGER                          :: RadMod
       SetPhotonStartDirection(2)  = COS(RandomDirection(2))*SQRT(1.-RandomDirection(1)**2.)
       SetPhotonStartDirection(3)  = RandomDirection(1)
     CASE(2)  
-      SpiralStep = 0.1+1.2*REAL(RadTransPhotPerCell(iElem))
-      start = (-1. + 1./(REAL(RadTransPhotPerCell(iElem))-1.))
-      incr = (2.-2./(REAL(RadTransPhotPerCell(iElem))-1.))/(REAL(RadTransPhotPerCell(iElem))-1.)
+      SpiralStep = 0.1+1.2*REAL(RadTransPhotPerCell(iCNElem))
+      start = (-1. + 1./(REAL(RadTransPhotPerCell(iCNElem))-1.))
+      incr = (2.-2./(REAL(RadTransPhotPerCell(iCNElem))-1.))/(REAL(RadTransPhotPerCell(iCNElem))-1.)
       SpiralPos = start + (REAL(iPhot)-1.) *incr
       X_new = SpiralPos * SpiralStep
       Y_new = Pi/2.*SIGN(1.,SpiralPos)*(1.-SQRT(1.-ABS(SpiralPos)))
@@ -327,7 +348,7 @@ FUNCTION RandomRotMatrix()
 END FUNCTION RandomRotMatrix
 
 
-FUNCTION SetParticleWavelengthAR(iElem)
+FUNCTION SetParticleWavelengthAR(iCNElem)
 !===================================================================================================================================
 ! modified particle emmission for LD case
 !===================================================================================================================================
@@ -340,7 +361,7 @@ USE MOD_Radiation_Vars,        ONLY: Radiation_Emission_spec, RadiationParameter
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-INTEGER, INTENT(IN)           :: iElem
+INTEGER, INTENT(IN)           :: iCNElem
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INOUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -348,7 +369,7 @@ INTEGER, INTENT(IN)           :: iElem
 INTEGER                         :: SetParticleWavelengthAR
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                          :: iWaveLength, iWave
+INTEGER                          :: iWaveLength
 REAL                             :: iRan, iRadPower
 !===================================================================================================================================
  
@@ -356,27 +377,27 @@ REAL                             :: iRan, iRadPower
   iWaveLength = INT(RadiationParameter%WaveLenDiscrCoarse*iRan) + 1
   IF ((RadiationParameter%WaveLenReductionFactor.GT.1).AND.(iWaveLength.EQ.RadiationParameter%WaveLenDiscrCoarse)) THEN
     IF (MOD(RadiationParameter%WaveLenDiscr,RadiationParameter%WaveLenDiscrCoarse).NE.0) THEN
-      iRadPower = 4.*Pi*Radiation_Emission_Spec(RadiationParameter%WaveLenDiscrCoarse, iElem) * RadiationParameter%WaveLenIncr &
+      iRadPower = 4.*Pi*Radiation_Emission_Spec(RadiationParameter%WaveLenDiscrCoarse, iCNElem) * RadiationParameter%WaveLenIncr &
          * (1.+RadiationParameter%WaveLenReductionFactor)
     ELSE 
-      iRadPower = 4.*Pi*Radiation_Emission_Spec(iWaveLength,iElem)*RadiationParameter%WaveLenIncr*RadiationParameter%WaveLenReductionFactor       
+      iRadPower = 4.*Pi*Radiation_Emission_Spec(iWaveLength,iCNElem)*RadiationParameter%WaveLenIncr*RadiationParameter%WaveLenReductionFactor       
     END IF
   ELSE
-    iRadPower = 4.*Pi*Radiation_Emission_Spec(iWaveLength,iElem)*RadiationParameter%WaveLenIncr*RadiationParameter%WaveLenReductionFactor 
+    iRadPower = 4.*Pi*Radiation_Emission_Spec(iWaveLength,iCNElem)*RadiationParameter%WaveLenIncr*RadiationParameter%WaveLenReductionFactor 
   END IF
   CALL RANDOM_NUMBER(iRan) 
-  DO WHILE (iRan.GT.(iRadPower/Radiation_Emission_Spec_Max(iElem)))
+  DO WHILE (iRan.GT.(iRadPower/Radiation_Emission_Spec_Max(iCNElem)))
     CALL RANDOM_NUMBER(iRan)
     iWaveLength = INT(RadiationParameter%WaveLenDiscrCoarse*iRan) + 1
     IF ((RadiationParameter%WaveLenReductionFactor.GT.1).AND.(iWaveLength.EQ.RadiationParameter%WaveLenDiscrCoarse)) THEN
       IF (MOD(RadiationParameter%WaveLenDiscr,RadiationParameter%WaveLenDiscrCoarse).NE.0) THEN
-        iRadPower = 4.*Pi*Radiation_Emission_Spec(RadiationParameter%WaveLenDiscrCoarse, iElem) * RadiationParameter%WaveLenIncr &
+        iRadPower = 4.*Pi*Radiation_Emission_Spec(RadiationParameter%WaveLenDiscrCoarse, iCNElem) * RadiationParameter%WaveLenIncr &
            * (1.+RadiationParameter%WaveLenReductionFactor)
       ELSE
-        iRadPower = 4.*Pi*Radiation_Emission_Spec(iWaveLength,iElem)*RadiationParameter%WaveLenIncr*RadiationParameter%WaveLenReductionFactor       
+        iRadPower = 4.*Pi*Radiation_Emission_Spec(iWaveLength,iCNElem)*RadiationParameter%WaveLenIncr*RadiationParameter%WaveLenReductionFactor       
       END IF
     ELSE
-      iRadPower = 4.*Pi*Radiation_Emission_Spec(iWaveLength,iElem)*RadiationParameter%WaveLenIncr*RadiationParameter%WaveLenReductionFactor 
+      iRadPower = 4.*Pi*Radiation_Emission_Spec(iWaveLength,iCNElem)*RadiationParameter%WaveLenIncr*RadiationParameter%WaveLenReductionFactor 
     END IF
     CALL RANDOM_NUMBER(iRan)
   END DO
@@ -385,7 +406,7 @@ REAL                             :: iRan, iRadPower
 END FUNCTION SetParticleWavelengthAR
 
 
-FUNCTION SetParticleWavelengthBiSec(iElem)
+FUNCTION SetParticleWavelengthBiSec(iCNElem)
 !===================================================================================================================================
 ! modified particle emmission for LD case
 !===================================================================================================================================
@@ -398,7 +419,7 @@ USE MOD_Radiation_Vars,        ONLY: Radiation_Emission_spec, RadiationParameter
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-INTEGER, INTENT(IN)           :: iElem
+INTEGER, INTENT(IN)           :: iCNElem
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INOUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -416,16 +437,16 @@ REAL                             :: iRan, iRadPower, iRadPower2
   iWaveMin = 1
   iWaveMax = RadiationParameter%WaveLenDiscrCoarse
   IF (iWaveLength.EQ.RadiationParameter%WaveLenDiscrCoarse) THEN
-    iRadPower = Radiation_Emission_Spec_Total(iElem)
+    iRadPower = Radiation_Emission_Spec_Total(iCNElem)
   ELSE
     iRadPower = 0.0
     DO iWave = 1,  iWaveLength
-      iRadPower = iRadPower + 4.*Pi*Radiation_Emission_Spec(iWave,iElem)*RadiationParameter%WaveLenIncr*RadiationParameter%WaveLenReductionFactor 
+      iRadPower = iRadPower + 4.*Pi*Radiation_Emission_Spec(iWave,iCNElem)*RadiationParameter%WaveLenIncr*RadiationParameter%WaveLenReductionFactor 
     END DO
   END IF
   
   DO  
-    IF (iRan.GT.(iRadPower/Radiation_Emission_Spec_Total(iElem)))THEN
+    IF (iRan.GT.(iRadPower/Radiation_Emission_Spec_Total(iCNElem)))THEN
       iWaveMin = iWaveLength
     ELSE
       iWaveMax = iWaveLength
@@ -433,11 +454,11 @@ REAL                             :: iRan, iRadPower, iRadPower2
     iWaveOld = iWaveLength
     iWaveLength = INT((iWaveMax+iWaveMin)/2)
     IF (iWaveLength.EQ.RadiationParameter%WaveLenDiscrCoarse) THEN
-      iRadPower = Radiation_Emission_Spec_Total(iElem)
+      iRadPower = Radiation_Emission_Spec_Total(iCNElem)
     ELSE
       iRadPower = 0.0
       DO iWave = 1,  iWaveLength
-        iRadPower = iRadPower + 4.*Pi*Radiation_Emission_Spec(iWave,iElem)*RadiationParameter%WaveLenIncr*RadiationParameter%WaveLenReductionFactor 
+        iRadPower = iRadPower + 4.*Pi*Radiation_Emission_Spec(iWave,iCNElem)*RadiationParameter%WaveLenIncr*RadiationParameter%WaveLenReductionFactor 
       END DO
     END IF  
     IF (ABS(iWaveOld-iWaveLength).LE.1) EXIT
@@ -445,16 +466,16 @@ REAL                             :: iRan, iRadPower, iRadPower2
   END DO
   
   iWaveOld = iWaveLength
-  IF (iRan.LT.(iRadPower/Radiation_Emission_Spec_Total(iElem))) THEN
+  IF (iRan.LT.(iRadPower/Radiation_Emission_Spec_Total(iCNElem))) THEN
     IF (iWaveLength.EQ.1) THEN
       iWaveLength = iWaveLength
     ELSE
       iWaveLength = iWaveLength - 1
       iRadPower2 = 0.0
       DO iWave = 1,  iWaveLength
-        iRadPower2 = iRadPower2 + 4.*Pi*Radiation_Emission_Spec(iWave,iElem)*RadiationParameter%WaveLenIncr*RadiationParameter%WaveLenReductionFactor 
+        iRadPower2 = iRadPower2 + 4.*Pi*Radiation_Emission_Spec(iWave,iCNElem)*RadiationParameter%WaveLenIncr*RadiationParameter%WaveLenReductionFactor 
       END DO
-      IF (ABS(iRan-(iRadPower/Radiation_Emission_Spec_Total(iElem))).LT.ABS(iRan-(iRadPower2/Radiation_Emission_Spec_Total(iElem)))) THEN
+      IF (ABS(iRan-(iRadPower/Radiation_Emission_Spec_Total(iCNElem))).LT.ABS(iRan-(iRadPower2/Radiation_Emission_Spec_Total(iCNElem)))) THEN
         iWaveLength = iWaveOld
       END IF
     END IF
@@ -462,9 +483,9 @@ REAL                             :: iRan, iRadPower, iRadPower2
     iWaveLength = iWaveLength + 1
     iRadPower2 = 0.0
     DO iWave = 1,  iWaveLength
-      iRadPower2 = iRadPower2 + 4.*Pi*Radiation_Emission_Spec(iWave,iElem)*RadiationParameter%WaveLenIncr*RadiationParameter%WaveLenReductionFactor 
+      iRadPower2 = iRadPower2 + 4.*Pi*Radiation_Emission_Spec(iWave,iCNElem)*RadiationParameter%WaveLenIncr*RadiationParameter%WaveLenReductionFactor 
     END DO
-    IF (ABS(iRan-(iRadPower/Radiation_Emission_Spec_Total(iElem))).LT.ABS(iRan-(iRadPower2/Radiation_Emission_Spec_Total(iElem)))) THEN
+    IF (ABS(iRan-(iRadPower/Radiation_Emission_Spec_Total(iCNElem))).LT.ABS(iRan-(iRadPower2/Radiation_Emission_Spec_Total(iCNElem)))) THEN
       iWaveLength = iWaveOld
     END IF
   END IF  

@@ -22,50 +22,54 @@ IMPLICIT NONE
 PUBLIC
 SAVE
 !-----------------------------------------------------------------------------------------------------------------------------------
-! GLOBAL VARIABLES 
+! GLOBAL RAY TRACING VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 TYPE tRayTrace
-  REAL  :: PulseDuration
-  REAL  :: WaistRadius
-  REAL  :: WaveLength
-  REAL  :: RepetitionRate
-  REAL  :: Power
+  REAL  :: PulseDuration                               !>
+  REAL  :: WaistRadius                                 !>
+  REAL  :: WaveLength                                  !>
+  REAL  :: RepetitionRate                              !>
+  REAL  :: Power                                       !>
+  REAL  :: Area                                        !>
+  REAL  :: Energy                                      !>
+  REAL  :: IntensityAmplitude                          !>
 END TYPE
 
-TYPE (tRayTrace)     :: Ray
+TYPE (tRayTrace)     :: Ray                            !>
 
 TYPE tRadTrans
-  INTEGER            :: NumPhotonsPerCell
-  REAL               :: GlobalRadiationPower
-  REAL               :: ScaledGlobalRadiationPower
-  INTEGER            :: GlobalPhotonNum
+  INTEGER            :: NumPhotonsPerCell              !>
+  REAL               :: GlobalRadiationPower           !>
+  REAL               :: ScaledGlobalRadiationPower     !>
+  INTEGER            :: GlobalPhotonNum                !>
 END TYPE
 
-TYPE (tRadTrans)     :: RadTrans
+TYPE (tRadTrans)     :: RadTrans                       !>
 
 TYPE tPhotonProps
-  REAL               :: PhotonPos(3)
-  REAL               :: PhotonLastPos(3)
-  REAL               :: PhotonDirection(3)
-  REAL               :: PhotonEnergy
-  INTEGER            :: ElemID
-  INTEGER            :: WaveLength
+  REAL               :: PhotonPos(3)                   !>
+  REAL               :: PhotonLastPos(3)               !>
+  REAL               :: PhotonDirection(3)             !>
+  REAL               :: PhotonEnergy                   !>
+  INTEGER            :: ElemID                         !>
+  INTEGER            :: WaveLength                     !>
 END TYPE
 
-TYPE (tPhotonProps)  :: PhotonProps
+TYPE (tPhotonProps)  :: PhotonProps                    !>
 
-LOGICAL              :: AdaptiveRays
-INTEGER              :: NumRays
-INTEGER              :: RayPosModel
-REAL                 :: RayDirection(3)
+LOGICAL              :: AdaptiveRays                   !>
+INTEGER              :: NumRays                        !>
+INTEGER              :: RayPosModel                    !>
+INTEGER              :: RayPartBound                   !> Particle boundary ID where rays are emitted from
+REAL                 :: RayDirection(3)                !>
 
-REAL, ALLOCATABLE    :: RayElemPassedEnergy(:)
-REAL, ALLOCATABLE    :: RaySampWall(:,:)
+REAL, ALLOCATABLE    :: RayElemPassedEnergy(:)         !>
+REAL, ALLOCATABLE    :: RaySampWall(:,:)               !>
 #if USE_MPI
-INTEGER              :: RaySampWall_Shared_Win
-REAL,POINTER         :: RaySampWall_Shared(:,:)
-INTEGER              :: RayElemPassedEnergy_Shared_Win
-REAL,POINTER         :: RayElemPassedEnergy_Shared(:)
+INTEGER              :: RaySampWall_Shared_Win         !>
+REAL,POINTER         :: RaySampWall_Shared(:,:)        !>
+INTEGER              :: RayElemPassedEnergy_Shared_Win !>
+REAL,POINTER         :: RayElemPassedEnergy_Shared(:)  !>
 #endif
 !===================================================================================================================================
 END MODULE MOD_RayTracing_Vars

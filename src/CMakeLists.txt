@@ -437,7 +437,11 @@ FILE(GLOB_RECURSE piclasF90 ./src/init/*.f90
                             ./src/utils/*.f90
                             ./unitTests/unittest.f90
                             ./unitTests/unittest_vars.f90
-                            ./src/radiation/ray_tracing/*.f90)
+                            ./src/radiation/ray_tracing/*.f90
+                            ./src/radiation/radiative_transfer/tracking/radtrans_tracking.f90
+                            ./src/radiation/radiative_transfer/radtrans_vars.f90
+                            ./src/radiation/radiative_transfer/tracking/radtrans_tools.f90
+                            ./src/radiation/radiation_solver/radiation_vars.f90)
 
 LIST(APPEND timediscF90 ${timediscF90}
                         ./src/timedisc/timedisc.f90
