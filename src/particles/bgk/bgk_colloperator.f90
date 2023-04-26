@@ -572,7 +572,7 @@ ELSE IF (BGKCollModel.EQ.3) THEN
   dens = AverageValues(1)
   u2 = AverageValues(2)
 END IF
- CellTemp = Species(1)%MassIC * u2 / (3.0*BoltzmannConst)
+CellTemp = Species(1)%MassIC * u2 / (3.0*BoltzmannConst)
 
 END SUBROUTINE DoAveraging
 
@@ -818,17 +818,16 @@ REAL, INTENT(OUT)             :: betaR(nSpecies), betaV(nSpecies)
 ! LOCAL VARIABLES
 INTEGER                       :: iSpec, iDOF, iPolyatMole
 REAL                          :: RotFracSpec(nSpecies), VibFracSpec(nSpecies)
-REAL                          :: ERotSpecMean(nSpecies), EVibSpecMean(nSpecies), EVibTtransPoly, ETransRelMean
+REAL                          :: ERotSpecMean(nSpecies), EVibSpecMean(nSpecies), ETransRelMean
 REAL                          :: ERotTtransSpecMean(nSpecies), EVibTtransSpecMean(nSpecies)
 REAL                          :: TEqui_Old, TEqui_Old2, TEquiNum, TEquiDenom, exparg
-REAL                          :: eps_prec=1.0E-1
+REAL                          :: eps_prec=1.0E-0
 !===================================================================================================================================
 ! According to J. Mathiaud et. al., "An ES-BGK model for diatomic gases with correct relaxation rates for internal energies",
 ! European Journal of Mechanics - B/Fluids, 96, pp. 65-77, 2022
 
-RotFracSpec=0.0; VibFracSpec=0.0
-ERotSpecMean=0.0; ERotTtransSpecMean=0.0; EVibSpecMean=0.0; EVibTtransSpecMean=0.0; Xi_vib_DOF=0.0; Xi_VibSpecNew=0.0
-ETransRelMean=0.0; CellTempRel=0.0
+RotFracSpec=0.0; VibFracSpec=0.0; Xi_vib_DOF=0.0; Xi_VibSpecNew=0.0; betaR=1.0; betaV=1.0
+ERotSpecMean=0.0; ERotTtransSpecMean=0.0; EVibSpecMean=0.0; EVibTtransSpecMean=0.0; ETransRelMean=0.0; CellTempRel=0.0
 
 DO iSpec = 1, nSpecies
   IF((SpecDSMC(iSpec)%InterID.EQ.2).OR.(SpecDSMC(iSpec)%InterID.EQ.20)) THEN ! molecules
@@ -842,45 +841,21 @@ DO iSpec = 1, nSpecies
     IF(BGKDoVibRelaxation) THEN
       ! Mean vibrational energy per particle of a species
       EVibSpecMean(iSpec) = EVibSpec(iSpec)/totalWeightSpec(iSpec)
-
       IF(SpecDSMC(iSpec)%PolyatomicMol) THEN ! polyatomic
         iPolyatMole = SpecDSMC(iSpec)%SpecToPolyArray
         ! Loop over all vibrational DOF
         DO iDOF = 1, PolyatomMolDSMC(iPolyatMole)%VibDOF
-          ! Mean vibrational energy per DOF for the mixture translational temperature, EVib(Ttrans)
-          EVibTtransPoly = BoltzmannConst * PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iDOF) / &
-            (EXP(PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iDOF)/CellTemp) - 1.)
           ! Mean vibrational energy per particle of a species for the mixture translational temperature, EVib(Ttrans)
-          EVibTtransSpecMean(iSpec) = EVibTtransSpecMean(iSpec) + EVibTtransPoly
-          ! ! Mean vibrational temperature per DOF to satisfy the Landau-Teller equation
-          ! TVibRelPoly = EVibTtransPoly / (BoltzmannConst*PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iDOF))
-          ! IF (TVibRelPoly.GT.0.0) THEN
-          !   TVibRelPoly = PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iDOF)/LOG(1. + 1./TVibRelPoly)
-          !   ! Calculation of the vibrational degrees of freedom to satisfy the Landau-Teller equation
-          !   Xi_vib_DOF(iPolyatMole,iDOF) = 2.* EVibTtransPoly / (BoltzmannConst*TVibRelPoly)
-          ! ELSE
-          !   Xi_vib_DOF(iPolyatMole,iDOF) = 0.0
-          ! END IF
+          EVibTtransSpecMean(iSpec) = EVibTtransSpecMean(iSpec) + BoltzmannConst*PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iDOF) / &
+            (EXP(PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iDOF)/CellTemp) - 1.)
         END DO
-
       ELSE ! diatomic
         ! Mean vibrational energy per particle of a species for the mixture translational temperature, EVib(Ttrans)
         EVibTtransSpecMean(iSpec) = BoltzmannConst * SpecDSMC(iSpec)%CharaTVib / (EXP(SpecDSMC(iSpec)%CharaTVib/CellTemp) - 1.) 
-        ! ! Mean vibrational temperature per particle of a species to satisfy the Landau-Teller equation
-        ! TVibRelSpecMean = EVibTtransSpecMean(iSpec) / (BoltzmannConst*SpecDSMC(iSpec)%CharaTVib)
-        ! IF (TVibRelSpecMean.GT.0.0) THEN
-        !   TVibRelSpecMean = SpecDSMC(iSpec)%CharaTVib/LOG(1. + 1./(TVibRelSpecMean))
-        !   ! Calculation of the vibrational degrees of freedom to satisfy the Landau-Teller equation
-        !   Xi_VibRelSpec(iSpec) = 2.* EVibTtransSpecMean(iSpec) / (BoltzmannConst*TVibRelSpecMean)
-        ! ! No negative temperature possible
-        ! ELSE
-        !   Xi_VibRelSpec(iSpec) = 0.0
-        ! END IF
       END IF
       ! Calculate number of vibrational relaxing molecules
       VibFracSpec(iSpec) = totalWeightSpec(iSpec)*(vibrelaxfreqSpec(iSpec)/relaxfreq)*(1.-EXP(-relaxfreq*dtCell))
     END IF
-    ! - tbd - Calculation xi necessary here? -----------------------------------------------------------------------------
 
     ! Mean translational energy per particle to satisfy the Landau-Teller equation
     ETransRelMean = ETransRelMean + (3./2. * BoltzmannConst * CellTemp - (rotrelaxfreqSpec(iSpec)/relaxfreq) * &
@@ -947,8 +922,8 @@ DO WHILE ( ABS( TEqui - TEqui_Old ) .GT. eps_prec )
           DO iDOF = 1, PolyatomMolDSMC(iPolyatMole)%VibDOF
             exparg = PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iDOF)/TEqui
             ! Check if the exponent is within the range of machine precision for calculation of vibrational degrees of freedom
-            IF(CHECKEXP(exparg))THEN
-              IF(exparg.gt.0.)THEN ! positive overflow: exp -> inf
+            IF(CHECKEXP(exparg)) THEN
+              IF(exparg.gt.0.) THEN ! positive overflow: exp -> inf
                 Xi_vib_DOF(iSpec,iDOF) = 2.*exparg/(EXP(exparg)-1.)
               ELSE ! negative overflow: exp -> 0
                 Xi_vib_DOF(iSpec,iDOF) = 2.*exparg/(-1.)
@@ -961,7 +936,7 @@ DO WHILE ( ABS( TEqui - TEqui_Old ) .GT. eps_prec )
         ELSE ! diatomic
           exparg = SpecDSMC(iSpec)%CharaTVib/TEqui
           ! Check if the exponent is within the range of machine precision for calculation of vibrational degrees of freedom
-          IF(CHECKEXP(exparg))THEN
+          IF(CHECKEXP(exparg)) THEN
             Xi_VibSpecNew(iSpec) = 2.*SpecDSMC(iSpec)%CharaTVib/TEqui/(EXP(exparg)-1.)
           ELSE
             Xi_VibSpecNew(iSpec) = 0.0
@@ -998,8 +973,8 @@ DO WHILE ( ABS( TEqui - TEqui_Old ) .GT. eps_prec )
             DO iDOF = 1, PolyatomMolDSMC(iPolyatMole)%VibDOF
               exparg = PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iDOF)/TEqui
               ! Check if the exponent is within the range of machine precision for calculation of vibrational degrees of freedom
-              IF(CHECKEXP(exparg))THEN
-                IF(exparg.gt.0.)THEN ! positive overflow: exp -> inf
+              IF(CHECKEXP(exparg)) THEN
+                IF(exparg.gt.0.) THEN ! positive overflow: exp -> inf
                   Xi_vib_DOF(iSpec,iDOF) = 2.*exparg/(EXP(exparg)-1.)
                 ELSE ! negative overflow: exp -> 0
                   Xi_vib_DOF(iSpec,iDOF) = 2.*exparg/(-1.)
@@ -1012,7 +987,7 @@ DO WHILE ( ABS( TEqui - TEqui_Old ) .GT. eps_prec )
           ELSE ! diatomic
             exparg = SpecDSMC(iSpec)%CharaTVib/TEqui
             ! Check if the exponent is within the range of machine precision for calculation of vibrational degrees of freedom
-            IF(CHECKEXP(exparg))THEN
+            IF(CHECKEXP(exparg)) THEN
               Xi_VibSpecNew(iSpec) = 2.*SpecDSMC(iSpec)%CharaTVib/TEqui/(EXP(exparg)-1.)
             ELSE
               Xi_VibSpecNew(iSpec) = 0.0
@@ -1220,6 +1195,7 @@ USE MOD_Particle_Vars         ,ONLY: PartSpecies, Species, PartState
 USE MOD_BGK_Vars              ,ONLY: BGKCollModel, ESBGKModel
 USE MOD_part_tools            ,ONLY: GetParticleWeight
 USE MOD_Globals_Vars          ,ONLY: BoltzmannConst
+USE MOD_Globals               ,ONLY: abort
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1241,15 +1217,15 @@ IF (nRelax.GT.0) THEN
   CASE (1)  ! Ellipsoidal Statistical BGK
     IF (ESBGKModel.EQ.1) THEN
       ! Approximated solution
-      DO fillMa1 =1, 3
-        DO fillMa2 =fillMa1, 3
+      DO fillMa1 = 1, 3
+        DO fillMa2 = fillMa1, 3
           IF (fillMa1.EQ.fillMa2) THEN
             KronDelta = 1.0
           ELSE
             KronDelta = 0.0
           END IF
           ! Fill symmetric transformation matrix SMat with anisotopic matrix A = SS
-          SMat(fillMa1, fillMa2)= KronDelta*CellTempRel/CellTemp - (1.-Prandtl)/(2.*Prandtl) &
+          SMat(fillMa1, fillMa2) = KronDelta - (1.-Prandtl)/(2.*Prandtl) &
             *(3./u2*u0ij(fillMa1, fillMa2)-KronDelta)
         END DO
       END DO
@@ -1259,8 +1235,8 @@ IF (nRelax.GT.0) THEN
       ! Generate random normals for the sampling of new velocities of all relaxing particles
       CALL BGK_BuildTransGaussNums(nRelax, iRanPart)
     ELSE
-      DO fillMa1 =1, 3
-        DO fillMa2 =fillMa1, 3
+      DO fillMa1 = 1, 3
+        DO fillMa2 = fillMa1, 3
           IF (fillMa1.EQ.fillMa2) THEN
             KronDelta = 1.0
           ELSE
@@ -1278,22 +1254,23 @@ IF (nRelax.GT.0) THEN
         CALL DSYEV('V','U',3,A,3,W,Work,100,INFO)
         SMat = 0.0
         IF (W(3).LT.0.0) THEN
-          ! Due to ascending order of eigenvalues, all three eigenvalues are lower than zero here
-          ! Same calculation as for approximate solution (ESBGKModel.EQ.1)
-          DO fillMa1 =1, 3
-            DO fillMa2 =fillMa1, 3
-              IF (fillMa1.EQ.fillMa2) THEN
-                KronDelta = 1.0
-              ELSE
-                KronDelta = 0.0
-              END IF
-              SMat(fillMa1, fillMa2)= KronDelta*CellTempRel*BoltzmannConst/MassIC_Mixture - (1.-Prandtl)/(2.*Prandtl) &
-                *(u0ij(fillMa1, fillMa2)-KronDelta*CellTemp*BoltzmannConst/MassIC_Mixture)
-            END DO
-          END DO
-          SMat(2,1)=SMat(1,2)
-          SMat(3,1)=SMat(1,3)
-          SMat(3,2)=SMat(2,3)
+          ! ! Due to ascending order of eigenvalues, all three eigenvalues are lower than zero here
+          ! ! Same calculation as for approximate solution (ESBGKModel.EQ.1)
+          ! DO fillMa1 = 1, 3
+          !   DO fillMa2 = fillMa1, 3
+          !     IF (fillMa1.EQ.fillMa2) THEN
+          !       KronDelta = 1.0
+          !     ELSE
+          !       KronDelta = 0.0
+          !     END IF
+          !     SMat(fillMa1, fillMa2) = KronDelta*CellTempRel*BoltzmannConst/MassIC_Mixture - (1.-Prandtl)/(2.*Prandtl) &
+          !       *(u0ij(fillMa1, fillMa2)-KronDelta*CellTemp*BoltzmannConst/MassIC_Mixture)
+          !   END DO
+          ! END DO
+          ! SMat(2,1)=SMat(1,2)
+          ! SMat(3,1)=SMat(1,3)
+          ! SMat(3,2)=SMat(2,3)
+          CALL abort(__STAMP__,'Sampling ESBGK 2')
         ELSE
           ! At least W(3) is not negative
           ! Set negative eigenvalues to zero
