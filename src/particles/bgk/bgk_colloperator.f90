@@ -1243,8 +1243,8 @@ IF (nRelax.GT.0) THEN
             KronDelta = 0.0
           END IF
           ! Fill anisotopic matrix A
-          A(fillMa1, fillMa2) = KronDelta*CellTempRel*BoltzmannConst/MassIC_Mixture - (1.-Prandtl)/Prandtl*(u0ij(fillMa1, fillMa2) &
-            - KronDelta*CellTemp*BoltzmannConst/MassIC_Mixture)
+          A(fillMa1, fillMa2) = KronDelta*CellTempRel*BoltzmannConst/MassIC_Mixture - (1.-Prandtl)/Prandtl * &
+            (CellTempRel/CellTemp*u0ij(fillMa1, fillMa2) - KronDelta*CellTempRel*BoltzmannConst/MassIC_Mixture)
         END DO
       END DO
       IF (ESBGKModel.EQ.2) THEN
