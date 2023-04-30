@@ -123,6 +123,7 @@ USE MOD_Particle_Mesh_Vars     ,ONLY: offsetComputeNodeElem,nComputeNodeSides,FI
 USE MOD_Particle_Mesh_Vars     ,ONLY: FIBGM_offsetElem_Shared_Win,FIBGMToProc_Shared_Win,FIBGM_Element_Shared_Win
 USE MOD_Particle_Mesh_Vars     ,ONLY: FIBGM_nTotalElems_Shared_Win,BoundsOfElem_Shared_Win,ElemToBGM_Shared_Win
 USE MOD_Particle_Mesh_Vars     ,ONLY: FIBGM_nTotalElems,FIBGM_nTotalElems_Shared
+USE MOD_Particle_Mesh_Vars     ,ONLY: FIBGMToProcExtent,FIBGMToProcExtent_Shared,FIBGMToProcExtent_Shared_Win
 USE MOD_Particle_Mesh_Vars     ,ONLY: GlobalSide2CNTotalSide_Shared,GlobalSide2CNTotalSide_Shared_Win
 USE MOD_Particle_Mesh_Vars     ,ONLY: CNTotalSide2GlobalSide_Shared,CNTotalSide2GlobalSide_Shared_Win
 USE MOD_Particle_Mesh_Vars     ,ONLY: GlobalElem2CNTotalElem_Shared,GlobalElem2CNTotalElem_Shared_Win
@@ -144,7 +145,7 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                        :: iElem,iHaloElem,iLocSide,SideID
+INTEGER                        :: iElem,iLocSide,SideID
 INTEGER                        :: FirstElem,LastElem
 INTEGER                        :: firstNodeID,lastNodeID
 INTEGER                        :: offsetNodeID,nNodeIDs,currentOffset
@@ -155,7 +156,7 @@ INTEGER                        :: BGMimax,BGMimin,BGMjmax,BGMjmin,BGMkmax,BGMkmi
 INTEGER                        :: BGMCellXmax,BGMCellXmin,BGMCellYmax,BGMCellYmin,BGMCellZmax,BGMCellZmin
 INTEGER                        :: BGMiminglob,BGMimaxglob,BGMjminglob,BGMjmaxglob,BGMkminglob,BGMkmaxglob
 #if USE_MPI
-INTEGER                        :: iSide
+INTEGER                        :: iSide,iHaloElem
 INTEGER                        :: ElemID,ElemDone
 REAL                           :: deltaT
 REAL                           :: globalDiag,maxCellRadius
@@ -191,6 +192,7 @@ INTEGER                        :: CNElemID
 LOGICAL                        :: EnlargeBGM ! Flag used for enlarging the BGM if RefMapping and/or shape function is used
 INTEGER                        :: offsetElemCNProc
 REAL                           :: BoundingBoxVolume
+CHARACTER(LEN=255)             :: hilf
 ! Mortar
 INTEGER                        :: iMortar,NbElemID,NbSideID,nMortarElems!,nFoundSides,nlocSides,i
 #else
@@ -200,7 +202,6 @@ REAL                           :: halo_eps
 INTEGER,ALLOCATABLE            :: NumberOfElements(:)
 #endif /*CODE_ANALYZE*/
 REAL                           :: StartT,EndT ! Timer
-CHARACTER(LEN=255)             :: hilf
 !===================================================================================================================================
 
 ! Read parameter for FastInitBackgroundMesh (FIBGM)
@@ -227,9 +228,9 @@ GEO%FIBGMkminglob = BGMkminglob
 GEO%FIBGMkmaxglob = BGMkmaxglob
 
 LBWRITE(UNIT_stdOut,'(A,I18,A,I18,A,I18)') ' | Total FIBGM Cells(x,y,z): '                                     &
-                                          , BGMimaxglob - BGMiminglob                                    ,', '&
-                                          , BGMjmaxglob - BGMjminglob                                    ,', '&
-                                          , BGMkmaxglob - BGMkminglob
+                                          , BGMimaxglob - BGMiminglob + 1                                 ,', '&
+                                          , BGMjmaxglob - BGMjminglob + 1                                 ,', '&
+                                          , BGMkmaxglob - BGMkminglob + 1
 
 ! Read periodic vectors from parameter file
 CALL InitPeriodicBC()
@@ -1206,17 +1207,22 @@ CALL MPI_WIN_LOCK_ALL(0,FIBGM_nTotalElems_Shared_Win,IERROR)
 
 ! Allocate flags which procs belong to which FIGBM cell
 CALL Allocate_Shared((/(BGMiglobDelta+1)*(BGMjglobDelta+1)*(BGMkglobDelta+1)*nComputeNodeProcessors/),FIBGMToProcFlag_Shared_Win,FIBGMToProcFlag_Shared)
-CALL MPI_WIN_LOCK_ALL(0,FIBGMToProcFlag_Shared_Win,IERROR)
+CALL Allocate_Shared((/2*3*nComputeNodeProcessors/),FIBGMToProcExtent_Shared_Win,FIBGMToProcExtent_Shared)
+CALL MPI_WIN_LOCK_ALL(0,FIBGMToProcFlag_Shared_Win  ,iError)
+CALL MPI_WIN_LOCK_ALL(0,FIBGMToProcExtent_Shared_Win,iError)
 FIBGM_nTotalElems(BGMiminglob:BGMimaxglob,BGMjminglob:BGMjmaxglob,BGMkminglob:BGMkmaxglob)                            => FIBGM_nTotalElems_Shared
-FIBGMToProcFlag  (BGMiminglob:BGMimaxglob,BGMjminglob:BGMjmaxglob,BGMkminglob:BGMkmaxglob,0:nComputeNodeProcessors-1) => FIBGMToProcFlag_Shared
-
+FIBGMToProcFlag(  BGMiminglob:BGMimaxglob,BGMjminglob:BGMjmaxglob,BGMkminglob:BGMkmaxglob,0:nComputeNodeProcessors-1) => FIBGMToProcFlag_Shared
+FIBGMToProcExtent(1:2                    ,1:3                    ,                        0:nComputeNodeProcessors-1) => FIBGMToProcExtent_Shared
 IF (myComputeNodeRank.EQ.0) THEN
-  FIBGMToProcFlag   = .FALSE.
-  FIBGM_nTotalElems = 0
+  FIBGMToProcFlag          = .FALSE.
+  FIBGM_nTotalElems        = 0
+  FIBGMToProcExtent(1,:,:) =  HUGE(1)
+  FIBGMToProcExtent(2,:,:) = -HUGE(1)
 END IF
 
 CALL BARRIER_AND_SYNC(FIBGM_nTotalElems_Shared_Win,MPI_COMM_SHARED)
 CALL BARRIER_AND_SYNC(FIBGMToProcFlag_Shared_Win  ,MPI_COMM_SHARED)
+CALL BARRIER_AND_SYNC(FIBGMToProcExtent_Shared_Win,MPI_COMM_SHARED)
 
 ! 1.1) Count number of elements on compute node
 DO iElem = offsetElem+1,offsetElem+nElems
@@ -1233,6 +1239,14 @@ DO iElem = offsetElem+1,offsetElem+nElems
           ! Perform logical OR and place data on CN root
           CALL MPI_FETCH_AND_OP(.TRUE.   ,dummyLog,MPI_LOGICAL,0,INT(posRank*SIZE_INT,MPI_ADDRESS_KIND),MPI_LOR,FIBGMToProcFlag_Shared_Win  ,IERROR)
         END ASSOCIATE
+
+        ! Store the min/max extent
+        CALL MPI_FETCH_AND_OP(iBGM,dummyInt,MPI_INTEGER,0,INT(((ProcRank)*(3)*(2) + (1-1)*(2) + (1-1))*SIZE_INT,MPI_ADDRESS_KIND),MPI_MIN,FIBGMToProcExtent_Shared_Win,IERROR)
+        CALL MPI_FETCH_AND_OP(jBGM,dummyInt,MPI_INTEGER,0,INT(((ProcRank)*(3)*(2) + (2-1)*(2) + (1-1))*SIZE_INT,MPI_ADDRESS_KIND),MPI_MIN,FIBGMToProcExtent_Shared_Win,IERROR)
+        CALL MPI_FETCH_AND_OP(kBGM,dummyInt,MPI_INTEGER,0,INT(((ProcRank)*(3)*(2) + (3-1)*(2) + (1-1))*SIZE_INT,MPI_ADDRESS_KIND),MPI_MIN,FIBGMToProcExtent_Shared_Win,IERROR)
+        CALL MPI_FETCH_AND_OP(iBGM,dummyInt,MPI_INTEGER,0,INT(((ProcRank)*(3)*(2) + (1-1)*(2) + (2-1))*SIZE_INT,MPI_ADDRESS_KIND),MPI_MAX,FIBGMToProcExtent_Shared_Win,IERROR)
+        CALL MPI_FETCH_AND_OP(jBGM,dummyInt,MPI_INTEGER,0,INT(((ProcRank)*(3)*(2) + (2-1)*(2) + (2-1))*SIZE_INT,MPI_ADDRESS_KIND),MPI_MAX,FIBGMToProcExtent_Shared_Win,IERROR)
+        CALL MPI_FETCH_AND_OP(kBGM,dummyInt,MPI_INTEGER,0,INT(((ProcRank)*(3)*(2) + (3-1)*(2) + (2-1))*SIZE_INT,MPI_ADDRESS_KIND),MPI_MAX,FIBGMToProcExtent_Shared_Win,IERROR)
       END DO
     END DO
   END DO
@@ -1240,7 +1254,9 @@ END DO
 
 CALL MPI_WIN_FLUSH(0,FIBGM_nTotalElems_Shared_Win,iError)
 CALL MPI_WIN_FLUSH(0,FIBGMToProcFlag_Shared_Win  ,iError)
+CALL MPI_WIN_FLUSH(0,FIBGMToProcExtent_Shared_Win,iError)
 CALL BARRIER_AND_SYNC(FIBGMToProcFlag_Shared_Win  ,MPI_COMM_SHARED)
+CALL BARRIER_AND_SYNC(FIBGMToProcExtent_Shared_Win,MPI_COMM_SHARED)
 CALL BARRIER_AND_SYNC(FIBGM_nTotalElems_Shared_Win,MPI_COMM_SHARED)
 
 ! 1.2) FIBGM_nTotalElems can just be added up
@@ -1265,11 +1281,12 @@ IF (myComputeNodeRank.EQ.0) THEN
   FIBGM_LocalProcs = 0
 
   ! 2.1) Count the number of procs on the current root
-  DO kBGM = BGMkminglob,BGMkmaxglob
-    DO jBGM = BGMjminglob,BGMjmaxglob
-      DO iBGM = BGMiminglob,BGMimaxglob
-        ! Save number of procs per FIBGM element
-        DO iProc = 0,nComputeNodeProcessors-1
+  DO iProc = 0,nComputeNodeProcessors-1
+    ! Save number of procs per FIBGM element
+    DO kBGM = FIBGMToProcExtent(1,3,iProc),FIBGMToProcExtent(2,3,iProc)
+      DO jBGM = FIBGMToProcExtent(1,2,iProc),FIBGMToProcExtent(2,2,iProc)
+        DO iBGM = FIBGMToProcExtent(1,1,iProc),FIBGMToProcExtent(2,1,iProc)
+
           ! Proc belongs to current FIBGM cell
           IF (FIBGMToProcFlag(iBGM,jBGM,kBGM,iProc)) THEN
             FIBGM_LocalProcs(FIBGM_NLOCALPROCS,iBGM,jBGM,kBGM) = FIBGM_LocalProcs(FIBGM_NLOCALPROCS,iBGM,jBGM,kBGM) + 1
@@ -1356,11 +1373,14 @@ END IF ! myComputeNodeRank.EQ.0
 ! De-allocate FLAG array
 CALL MPI_BARRIER(MPI_COMM_SHARED,iERROR)
 CALL UNLOCK_AND_FREE(FIBGMToProcFlag_Shared_Win)
+CALL UNLOCK_AND_FREE(FIBGMToProcExtent_Shared_Win)
 CALL MPI_BARRIER(MPI_COMM_SHARED,iERROR)
 
 ! Then, free the pointers or arrays
 ADEALLOCATE(FIBGMToProcFlag_Shared)
+ADEALLOCATE(FIBGMToProcExtent_Shared)
 ADEALLOCATE(FIBGMToProcFlag)
+ADEALLOCATE(FIBGMToProcExtent)
 
 CALL BARRIER_AND_SYNC(FIBGMProcs_Shared_Win ,MPI_COMM_SHARED)
 CALL BARRIER_AND_SYNC(FIBGMToProc_Shared_Win,MPI_COMM_SHARED)
@@ -1547,6 +1567,7 @@ ADEALLOCATE(FIBGMToProc)
 ADEALLOCATE(FIBGMToProc_Shared)
 ADEALLOCATE(FIBGMProcs)
 ADEALLOCATE(FIBGMProcs_Shared)
+#if USE_MPI
 ! Mapping arrays are only allocated if not running on one node
 IF (nComputeNodeProcessors.NE.nProcessors_Global) THEN
   ADEALLOCATE(CNTotalElem2GlobalElem)
@@ -1554,6 +1575,7 @@ IF (nComputeNodeProcessors.NE.nProcessors_Global) THEN
 END IF ! nComputeNodeProcessors.NE.nProcessors_Global
 ADEALLOCATE(CNTotalSide2GlobalSide)
 ADEALLOCATE(CNTotalSide2GlobalSide_Shared)
+#endif /*USE_MPI*/
 
 #if USE_MPI
 CALL FinalizeHaloInfo()

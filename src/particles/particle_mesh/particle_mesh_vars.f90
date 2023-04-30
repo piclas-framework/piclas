@@ -95,6 +95,7 @@ INTEGER,ALLOCPOINT,DIMENSION(:)          :: ElemToElemInfo   , ElemToElemInfo_Sh
 ! FIBGM to proc mapping
 INTEGER,ALLOCPOINT,DIMENSION(:,:,:,:)    :: FIBGMToProc
 LOGICAL,ALLOCPOINT,DIMENSION(:,:,:,:)    :: FIBGMToProcFlag
+INTEGER,ALLOCPOINT,DIMENSION(:,:,:)      :: FIBGMToProcExtent
 INTEGER,ALLOCPOINT,DIMENSION(:)          :: FIBGMProcs
 
 ! Shared arrays containing information for complete mesh
@@ -126,6 +127,7 @@ INTEGER,ALLOCPOINT :: FIBGM_offsetElem_Shared(:)
 
 INTEGER,ALLOCPOINT :: FIBGMToProc_Shared(:,:,:,:)
 LOGICAL,ALLOCPOINT :: FIBGMToProcFlag_Shared(:)
+INTEGER,ALLOCPOINT :: FIBGMToProcExtent_Shared(:)
 INTEGER,ALLOCPOINT :: FIBGMProcs_Shared(:)
 
 INTEGER,ALLOCPOINT :: CNTotalElem2GlobalElem_Shared(:)         !> Compute Nodes mapping 1:nTotal -> 1:nGlobal
@@ -208,6 +210,7 @@ INTEGER         :: FIBGM_offsetElem_Shared_Win
 
 INTEGER         :: FIBGMToProc_Shared_Win
 INTEGER         :: FIBGMToProcFlag_Shared_Win
+INTEGER           :: FIBGMToProcExtent_Shared_Win
 INTEGER         :: FIBGMProcs_Shared_Win
 
 INTEGER         :: CNTotalElem2GlobalElem_Shared_Win
