@@ -46,9 +46,6 @@ END INTERFACE
 
 PUBLIC :: InitEquation,ExactFunc,CalcSource,FinalizeEquation, CalcSourceHDG,DivCleaningDamping
 #if USE_MPI && defined(PARTICLES)
-INTERFACE SynchronizeCPP
-  MODULE PROCEDURE SynchronizeCPP
-END INTERFACE
 PUBLIC :: SynchronizeCPP
 #endif /*USE_MPI && defined(PARTICLES)*/
 !===================================================================================================================================
@@ -62,6 +59,10 @@ SUBROUTINE DefineParametersEquation()
 ! MODULES
 USE MOD_Globals
 USE MOD_ReadInTools ,ONLY: prms
+#if defined(PARTICLES)
+USE MOD_HDG_Vars    ,ONLY: CPPDataLength
+USE MOD_ReadInTools ,ONLY: addStrListEntry
+#endif /*defined(PARTICLES)*/
 IMPLICIT NONE
 !==================================================================================================================================
 CALL prms%SetSection("Equation")
@@ -88,9 +89,18 @@ CALL prms%CreateRealOption(     'LinPhi'           , 'Potential(s) for ramping f
 
 #if defined(PARTICLES)
 ! Special BC with floating potential that is defined by the absorbed power of the charged particles
-CALL prms%CreateRealArrayOption('CoupledPowerPotential' , 'Controlled power input: Supply vector of form (/min, start, max/) for the minimum, start (t=0) and maximum electric potential that is applied at BoundaryType = (/2,2/).', no=3 )
+CALL prms%CreateRealArrayOption('CoupledPowerPotential' , 'Controlled power input: Supply vector of form (/min, start, max/) for the minimum, start (t=0) and maximum electric potential that is applied at BoundaryType = (/2,2/).', no=CPPDataLength )
 CALL prms%CreateRealOption(     'CoupledPowerTarget'    , 'Controlled power input: Target input power to which the electric potential is adjusted for BoundaryType = (/2,2/)' )
 CALL prms%CreateRealOption(     'CoupledPowerRelaxFac'  , 'Relaxation factor for calculation of new electric potential due to defined Target input power. Default = 0.05 (which is 5%)', '0.05' )
+CALL prms%CreateRealOption(     'CoupledPowerFrequency' , 'Adaption frequency for coupled power using the integrated power for adjustment', '0.0' )
+
+CALL prms%CreateIntFromStringOption('CoupledPowerMode', 'Define mode used for coupled power adjustment:\n'//&
+                                                        ' instantaneous (1): xxx\n'//&
+                                                        ' moving-average (2): xxx\n'//&
+                                                        ' integrated (3): xxx\n','instantaneous')
+CALL addStrListEntry('CoupledPowerMode' , 'instantaneous' , 1)
+CALL addStrListEntry('CoupledPowerMode' , 'moving-average', 2)
+CALL addStrListEntry('CoupledPowerMode' , 'integrated'    , 3)
 #endif /*defined(PARTICLES)*/
 
 END SUBROUTINE DefineParametersEquation
@@ -128,7 +138,7 @@ INTEGER            :: i,BCType,BCState
 CHARACTER(LEN=255) :: BCName
 INTEGER            :: nRefStateMax
 INTEGER            :: nLinState,nLinStateMax
-INTEGER,PARAMETER  :: BYTypeRefstate(1:2)=(/5,51/)
+INTEGER,PARAMETER  :: BYTypeRefstate(1:4)=(/5,51,52,60/)
 CHARACTER(LEN=32)  :: hilf
 !===================================================================================================================================
 IF((.NOT.InterpolationInitIsDone).OR.EquationInitIsDone)THEN
@@ -275,8 +285,9 @@ SUBROUTINE InitCoupledPowerPotential()
 USE MOD_LoadBalance_Vars ,ONLY: PerformLoadBalance
 #endif /*USE_LOADBALANCE*/
 USE MOD_Globals          ,ONLY: CollectiveStop
-USE MOD_HDG_Vars         ,ONLY: CalcPCouplElectricPotential,CoupledPowerPotential,CoupledPowerTarget,CoupledPowerRelaxFac
-USE MOD_ReadInTools      ,ONLY: GETREALARRAY,GETREAL,GETINT,CountOption
+USE MOD_HDG_Vars         ,ONLY: UseCoupledPowerPotential,CoupledPowerPotential,CoupledPowerTarget,CoupledPowerRelaxFac
+USE MOD_HDG_Vars         ,ONLY: CPPDataLength,CoupledPowerMode,CoupledPowerFrequency
+USE MOD_ReadInTools      ,ONLY: GETREALARRAY,GETREAL,GETINTFROMSTR,CountOption
 USE MOD_Mesh_Vars        ,ONLY: BoundaryType,nBCs
 #if USE_MPI
 USE MOD_Globals          ,ONLY: IERROR,MPI_COMM_NULL,MPI_DOUBLE_PRECISION,MPI_COMM_WORLD,MPI_INFO_NULL,MPI_UNDEFINED,MPIRoot
@@ -289,9 +300,10 @@ IMPLICIT NONE
 ! INPUT / OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER, PARAMETER :: BCTypeCPP(1:2) = (/2,52/) ! BCType which allows coupled power potential control
-!                                               !  2: DC potential adjustment
-!                                               ! 52: bias voltage + cos(wt) function + coupled power for AC potential adjustment
+INTEGER, PARAMETER :: BCTypeCPP(1:3) = (/2,52,60/) ! BCType which allows coupled power potential control
+!                                                  !  2: DC + coupled power for DC potential adjustment
+!                                                  ! 52: AC with cos(wt) + coupled power for AC potential adjustment + bias voltage
+!                                                  ! 60: AC with cos(wt) + coupled power for AC potential adjustment
 INTEGER            :: iBC,CPPBoundaries,BCType,BCState
 #if USE_MPI
 LOGICAL            :: BConProc
@@ -300,7 +312,7 @@ INTEGER            :: color,SideID
 !===================================================================================================================================
 
 ! 1.) Get global number of coupled power potential boundaries in [1:nBCs]
-CalcPCouplElectricPotential = .FALSE.
+UseCoupledPowerPotential = .FALSE.
 CPPBoundaries = 0
 ! Loop over global BC list
 DO iBC=1,nBCs
@@ -314,7 +326,7 @@ END DO
 
 IF(CPPBoundaries.EQ.0) RETURN ! Already determined in HDG initialization
 
-CalcPCouplElectricPotential = .TRUE.
+UseCoupledPowerPotential = .TRUE.
 
 ! 2.) Get parameters
 #if USE_LOADBALANCE
@@ -322,13 +334,24 @@ CalcPCouplElectricPotential = .TRUE.
 IF(.NOT.PerformLoadBalance)THEN
 #endif /*USE_LOADBALANCE*/
   ! Electric potential (/min, start, max/) Note that start is only required at t=0 and is used for the BC potential
-  CoupledPowerPotential = GETREALARRAY('CoupledPowerPotential',3)
+  CoupledPowerPotential = 0.
+  CoupledPowerPotential(1:3) = GETREALARRAY('CoupledPowerPotential',3)
   ! Get target power value
   CoupledPowerTarget = GETREAL('CoupledPowerTarget')
   IF(CoupledPowerTarget.LE.0.) CALL CollectiveStop(__STAMP__,'CoupledPowerTarget must be > 0.')
   ! Get relaxation factor
   CoupledPowerRelaxFac = GETREAL('CoupledPowerRelaxFac')
   IF(CoupledPowerRelaxFac.LE.0.) CALL CollectiveStop(__STAMP__,'CoupledPowerRelaxFac must be > 0.')
+  ! Get frequency within which the integrated power is calculated
+  CoupledPowerFrequency = GETREAL('CoupledPowerFrequency')
+  IF(CoupledPowerFrequency.LT.0.) CALL CollectiveStop(__STAMP__,'CoupledPowerFrequency must be >= 0.')
+  ! Sanity check
+  CoupledPowerMode = GETINTFROMSTR('CoupledPowerMode')
+  IF(.NOT.ANY(CoupledPowerMode.EQ.(/1,2,3/))) CALL CollectiveStop(__STAMP__,'CoupledPowerMode with unknown value!')
+  IF((CoupledPowerMode.EQ.3).AND.(ABS(CoupledPowerFrequency).LE.0.))&
+      CALL CollectiveStop(__STAMP__,'CoupledPowerMode=3 requires a positive value for CoupledPowerFrequency!')
+  ! Update time
+  IF(CoupledPowerFrequency.GT.0.0) CoupledPowerPotential(5) = 1.0 / CoupledPowerFrequency
 #if USE_LOADBALANCE
 END IF ! .NOT.PerformLoadBalance
 #endif /*USE_LOADBALANCE*/
@@ -339,7 +362,7 @@ BConProc = .FALSE.
 IF(MPIRoot)THEN
   BConProc = .TRUE.
 ELSE
-  CoupledPowerPotential(1:3) = 0.
+  CoupledPowerPotential(1:CPPDataLength) = 0.
   ! Check local sides
   DO SideID=1,nBCSides
     iBC    = BC(SideID)
@@ -397,7 +420,7 @@ USE MOD_LoadBalance_Vars ,ONLY: PerformLoadBalance,UseH5IOLoadBalance
 USE MOD_IO_HDF5          ,ONLY: OpenDataFile,CloseDataFile,File_ID
 USE MOD_Restart_Vars     ,ONLY: DoRestart,RestartFile
 USE MOD_HDF5_Input       ,ONLY: DatasetExists,ReadArray,GetDataSize
-USE MOD_HDG_Vars         ,ONLY: CoupledPowerPotential
+USE MOD_HDG_Vars         ,ONLY: CoupledPowerPotential,CPPDataLength
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! INPUT / OUTPUT VARIABLES
@@ -405,7 +428,7 @@ IMPLICIT NONE
 ! LOCAL VARIABLES
 CHARACTER(255) :: ContainerName
 LOGICAL        :: CPPExists
-REAL           :: CPPDataHDF5(1:3)
+REAL           :: CPPDataHDF5(1:CPPDataLength)
 !===================================================================================================================================
 ! Only required during restart
 IF(.NOT.DoRestart) RETURN
@@ -424,9 +447,14 @@ IF(MPIRoot)THEN
   CALL DatasetExists(File_ID,TRIM(ContainerName),CPPExists)
   ! Check for new parameter name
   IF(CPPExists)THEN
-    CALL ReadArray(TRIM(ContainerName) , 2 , (/1_IK , 3_IK/) , 0_IK , 1 , RealArray=CPPDataHDF5)
-    WRITE(UNIT_stdOut,'(3(A,ES10.2E3))') " Read CoupledPowerPotential from restart file ["//TRIM(RestartFile)//"] min[V]: ",&
-        CPPDataHDF5(1),", current[V]: ",CPPDataHDF5(2),", max[V]: ",CPPDataHDF5(3)
+    CALL ReadArray(TRIM(ContainerName) , 2 , (/1_IK , INT(CPPDataLength,IK)/) , 0_IK , 1 , RealArray=CPPDataHDF5)
+    WRITE(UNIT_stdOut,'(6(A,ES10.2E3))') " Read CoupledPowerPotential from restart file ["//TRIM(RestartFile)//&
+        "] min[V]: "                 ,CPPDataHDF5(1),&
+        ", current[V]: "             ,CPPDataHDF5(2),&
+        ", max[V]: "                 ,CPPDataHDF5(3),&
+        ", intPower[Ws]: "           ,CPPDataHDF5(4),&
+        ", next adjustment time[s]: ",CPPDataHDF5(5),&
+        ", last-energy[J]: "         ,CPPDataHDF5(6)
     CoupledPowerPotential = CPPDataHDF5
   END IF ! CPPExists
   CALL CloseDataFile()
@@ -448,7 +476,7 @@ SUBROUTINE SynchronizeCPP()
 ! MODULES
 USE MOD_Globals  ,ONLY: IERROR,MPI_COMM_NULL,MPI_DOUBLE_PRECISION
 USE MOD_HDG_Vars ,ONLY: CPPCOMM
-USE MOD_HDG_Vars ,ONLY: CoupledPowerPotential
+USE MOD_HDG_Vars ,ONLY: CoupledPowerPotential,CPPDataLength
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! INPUT / OUTPUT VARIABLES
@@ -457,7 +485,7 @@ IMPLICIT NONE
 !===================================================================================================================================
 IF(CPPCOMM%UNICATOR.NE.MPI_COMM_NULL)THEN
   ! Broadcast from root to other processors on the sub-communicator
-  CALL MPI_BCAST(CoupledPowerPotential, 3, MPI_DOUBLE_PRECISION, 0, CPPCOMM%UNICATOR, IERROR)
+  CALL MPI_BCAST(CoupledPowerPotential, CPPDataLength, MPI_DOUBLE_PRECISION, 0, CPPCOMM%UNICATOR, IERROR)
 END IF
 END SUBROUTINE SynchronizeCPP
 #endif /*USE_MPI*/
@@ -473,7 +501,7 @@ USE MOD_Globals         ,ONLY: Abort,mpiroot
 USE MOD_Globals_Vars    ,ONLY: PI,ElementaryCharge,eps0
 USE MOD_Equation_Vars   ,ONLY: IniCenter,IniHalfwidth,IniAmplitude,RefState,LinPhi,LinPhiHeight,LinPhiNormal,LinPhiBasePoint
 #if defined(PARTICLES)
-USE MOD_HDG_Vars        ,ONLY: CoupledPowerPotential,BiasVoltage
+USE MOD_HDG_Vars        ,ONLY: CoupledPowerPotential,UseCoupledPowerPotential,BiasVoltage,UseBiasVoltage
 USE MOD_Particle_Vars   ,ONLY: Species,nSpecies
 #endif /*defined(PARTICLES)*/
 USE MOD_Dielectric_Vars ,ONLY: DielectricRatio,Dielectric_E_0,DielectricRadiusValue,DielectricEpsR
@@ -528,15 +556,22 @@ CASE(-2) ! Signal without zero-crossing (always positive or negative), otherwise
   Omega   = 2.*PI*RefState(2,iRefState)
   r1      = RefState(1,iRefState) / 2.0
   Resu(:) = r1*(COS(Omega*t+RefState(3,iRefState)) + 1.0)
-CASE(-1,51) ! Signal with zero-crossing: Amplitude, Frequency and Phase Shift supplied by RefState
+CASE(-1) ! Signal with zero-crossing: Amplitude, Frequency and Phase Shift supplied by RefState
   ! RefState(1,iRefState): amplitude
   ! RefState(2,iRefState): frequency
   ! RefState(3,iRefState): phase shift
   Omega   = 2.*PI*RefState(2,iRefState)
-  Resu(:) = RefState(1,iRefState)*COS(Omega*t+RefState(3,iRefState))
 #if defined(PARTICLES)
-  ! Add bias potential (only if bias voltage model is activated)
-  IF(ExactFunction.EQ.51) Resu(:) = Resu(:) + BiasVoltage%BVData(1)
+  ! Match coupled power by adjusting the coefficient of the cos function
+  IF(UseCoupledPowerPotential)THEN
+    Resu(:) = CoupledPowerPotential(2)*COS(Omega*t+RefState(3,iRefState))
+  ELSE
+#endif /*defined(PARTICLES)*/
+    Resu(:) = RefState(1,iRefState)*COS(Omega*t+RefState(3,iRefState))
+#if defined(PARTICLES)
+  END IF ! UseCoupledPowerPotential
+  ! Add bias potential (only if bias voltage model is activated, BYType is 51 for DC or 52 for AC)
+  IF(UseBiasVoltage) Resu(:) = Resu(:) + BiasVoltage%BVData(1)
 #endif /*defined(PARTICLES)*/
 CASE(0) ! constant 0.
     Resu(:)=0.
