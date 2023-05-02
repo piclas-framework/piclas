@@ -123,7 +123,7 @@ USE MOD_Particle_Mesh_Vars     ,ONLY: offsetComputeNodeElem,nComputeNodeSides,FI
 USE MOD_Particle_Mesh_Vars     ,ONLY: FIBGM_offsetElem_Shared_Win,FIBGMToProc_Shared_Win,FIBGM_Element_Shared_Win
 USE MOD_Particle_Mesh_Vars     ,ONLY: FIBGM_nTotalElems_Shared_Win,BoundsOfElem_Shared_Win,ElemToBGM_Shared_Win
 USE MOD_Particle_Mesh_Vars     ,ONLY: FIBGM_nTotalElems,FIBGM_nTotalElems_Shared
-USE MOD_Particle_Mesh_Vars     ,ONLY: MeshHasPeriodic,MeshHasRotPeriodic,MeshHasInterPlanes
+USE MOD_Particle_Mesh_Vars     ,ONLY: MeshHasPeriodic
 #endif /*USE_MPI*/
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Vars       ,ONLY: PerformLoadBalance
@@ -235,8 +235,6 @@ firstElem = INT(REAL( myComputeNodeRank   )*REAL(nGlobalElems)/REAL(nComputeNode
 lastElem  = INT(REAL((myComputeNodeRank+1))*REAL(nGlobalElems)/REAL(nComputeNodeProcessors))
 ! Periodic Sides
 MeshHasPeriodic    = MERGE(.TRUE.,.FALSE.,GEO%nPeriodicVectors.GT.0)
-MeshHasRotPeriodic = GEO%RotPeriodicBC
-MeshHasInterPlanes = GEO%InterPlaneBC
 #else
 ! In order to use only one type of variables VarName_Shared in code structure such as tracking etc. for NON_MPI
 ! the same variables are allocated on the single proc and used from mesh_vars instead of mpi_shared_vars
@@ -700,9 +698,9 @@ ELSE
 
   IF (MeshHasPeriodic)    CALL CheckPeriodicSides   (EnlargeBGM)
   CALL BARRIER_AND_SYNC(ElemInfo_Shared_Win,MPI_COMM_SHARED)
-  IF (MeshHasRotPeriodic) CALL CheckRotPeriodicSides(EnlargeBGM)
+  IF (GEO%RotPeriodicBC) CALL CheckRotPeriodicSides(EnlargeBGM)
   CALL BARRIER_AND_SYNC(ElemInfo_Shared_Win,MPI_COMM_SHARED) 
-  IF (MeshHasInterPlanes) CALL CheckInterPlaneSides(EnlargeBGM)
+  IF (GEO%InterPlaneBC) CALL CheckInterPlaneSides(EnlargeBGM)
   CALL BARRIER_AND_SYNC(ElemInfo_Shared_Win,MPI_COMM_SHARED)
 
   ! Remove elements if the halo proc contains only internal elements, i.e. we cannot possibly reach the halo element

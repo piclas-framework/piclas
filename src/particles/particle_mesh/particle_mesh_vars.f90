@@ -245,9 +245,7 @@ INTEGER         :: ElemCharLengthY_Shared_Win
 INTEGER         :: ElemCharLengthZ_Shared_Win
 
 ! periodic sides
-LOGICAL         :: MeshHasPeriodic,MeshHasRotPeriodic
-! intermediate planes
-LOGICAL         :: MeshHasInterPlanes
+LOGICAL         :: MeshHasPeriodic
 #endif
 
 ! ElemID for WriteHaloInfo

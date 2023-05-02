@@ -56,7 +56,7 @@ USE MOD_MPI_Shared
 USE MOD_MPI_Shared_Vars
 USE MOD_MPI_Vars                ,ONLY: offsetElemMPI
 USE MOD_Particle_Mesh_Tools     ,ONLY: GetGlobalNonUniqueSideID
-USE MOD_Particle_Mesh_Vars      ,ONLY: GEO,MeshHasRotPeriodic,nComputeNodeElems
+USE MOD_Particle_Mesh_Vars      ,ONLY: GEO,nComputeNodeElems
 USE MOD_Particle_Mesh_Vars      ,ONLY: ElemInfo_Shared,SideInfo_Shared,BoundsOfElem_Shared,NodeCoords_Shared
 USE MOD_Particle_MPI_Vars       ,ONLY: SafetyFactor,halo_eps,halo_eps_velo,MPI_halo_eps,halo_eps_woshape
 USE MOD_Particle_MPI_Vars       ,ONLY: nExchangeProcessors,ExchangeProcToGlobalProc,GlobalProcToExchangeProc,CheckExchangeProcs
@@ -593,7 +593,7 @@ ElemLoop:  DO iElem = 1,nComputeNodeTotalElems
           END SELECT
 
           ! Check rot periodic Elems and if iSide is on rot periodic BC
-          IF(MeshHasRotPeriodic) THEN
+          IF(GEO%RotPeriodicBC) THEN
             DO iPartBound = 1, nPartBound
               IF(PartBound%TargetBoundCond(iPartBound).NE.PartBound%RotPeriodicBC) CYCLE
               ASSOCIATE( alpha => PartBound%RotPeriodicAngle(iPartBound) * RotPeriodicTol)
@@ -880,7 +880,7 @@ ElemLoop:  DO iElem = 1,nComputeNodeTotalElems
       END SELECT
 
       ! Check rot periodic Elems and if iSide is on rot periodic BC
-      IF(MeshHasRotPeriodic) THEN
+      IF(GEO%RotPeriodicBC) THEN
         DO iPartBound = 1, nPartBound
           ASSOCIATE( alpha => PartBound%RotPeriodicAngle(iPartBound) * RotPeriodicTol)
             SELECT CASE(GEO%RotPeriodicAxi)
