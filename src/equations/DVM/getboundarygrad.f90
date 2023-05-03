@@ -135,7 +135,7 @@ USE MOD_PreProc
 USE MOD_Globals       ,ONLY: Abort
 USE MOD_Mesh_Vars     ,ONLY: BoundaryType,BC
 USE MOD_Equation     ,ONLY: ExactFunc
-USE MOD_Equation_Vars ,ONLY: IniExactFunc, RefState, DVMBGKModel, DVMVelos, DVMnVelos, DVMSpeciesData
+USE MOD_Equation_Vars ,ONLY: IniExactFunc, RefState, DVMBGKModel, DVMVelos, DVMnVelos, DVMSpeciesData, DVMVeloDisc, DVMVeloMax, DVMVeloMin
 USE MOD_TimeDisc_Vars, ONLY : dt, time
 USE MOD_DistFunc      ,ONLY: MaxwellDistribution, ShakhovDistribution, MacroValuesFromDistribution, MaxwellScattering
 IMPLICIT NONE
@@ -190,57 +190,38 @@ CASE(2) ! exact BC = Dirichlet BC !!
     END IF
   END DO; END DO; END DO
 
-CASE(3) ! specular
-  fplus(:)=UPrim_master(:)-dx_Face*gradUinside(:)
-  ! f0outgoing(:)=UPrim_master(:)-2*dx_Face*gradUinside(:)
-  IF (ABS(NormVec(1)).EQ.1.) THEN !x-perpendicular boundary
-    DO kVel=1, DVMnVelos(3);   DO jVel=1, DVMnVelos(2);   DO iVel=1, DVMnVelos(1)
-      upos= iVel+(jVel-1)*DVMnVelos(1)+(kVel-1)*DVMnVelos(1)*DVMnVelos(2)
-      upos_sp=(DVMnVelos(1)+1-iVel)+(jVel-1)*DVMnVelos(1)+(kVel-1)*DVMnVelos(1)*DVMnVelos(2)
-      UPrim_boundary(upos_sp)=fplus(upos)
-      IF (DVMSpeciesData%Internal_DOF .GT.0.0) THEN
-        UPrim_boundary(PP_nVar/2+upos_sp)=fplus(PP_nVar/2+upos)
-      END IF
-    END DO; END DO; END DO
-  ELSE IF (ABS(NormVec(2)).EQ.1.) THEN !y-perpendicular boundary
-    DO kVel=1, DVMnVelos(3);   DO jVel=1, DVMnVelos(2);   DO iVel=1, DVMnVelos(1)
-      upos= iVel+(jVel-1)*DVMnVelos(1)+(kVel-1)*DVMnVelos(1)*DVMnVelos(2)
-      upos_sp=iVel+(DVMnVelos(2)-jVel)*DVMnVelos(1)+(kVel-1)*DVMnVelos(1)*DVMnVelos(2)
-      UPrim_boundary(upos_sp)=fplus(upos)
-      IF (DVMSpeciesData%Internal_DOF .GT.0.0) THEN
-        UPrim_boundary(PP_nVar/2+upos_sp)=fplus(PP_nVar/2+upos)
-      END IF
-    END DO; END DO; END DO
-  ELSE IF (ABS(NormVec(3)).EQ.1.) THEN !z-perpendicular boundary
-    DO kVel=1, DVMnVelos(3);   DO jVel=1, DVMnVelos(2);   DO iVel=1, DVMnVelos(1)
-      upos= iVel+(jVel-1)*DVMnVelos(1)+(kVel-1)*DVMnVelos(1)*DVMnVelos(2)
-      upos_sp=iVel+(jVel-1)*DVMnVelos(1)+(DVMnVelos(3)-kVel)*DVMnVelos(1)*DVMnVelos(2)
-      UPrim_boundary(upos_sp)=fplus(upos)
-      IF (DVMSpeciesData%Internal_DOF .GT.0.0) THEN
-        UPrim_boundary(PP_nVar/2+upos_sp)=fplus(PP_nVar/2+upos)
-      END IF
-    END DO; END DO; END DO
-  ELSE
-    CALL abort(__STAMP__,'Specular reflection only implemented for boundaries perpendicular to velocity grid')
+
+CASE(3) ! specular reflection
+  UPrim_boundary(:)=UPrim_master(:)-dx_Face*gradUinside(:)
+  IF(DVMVeloDisc.EQ.2.AND.ANY((DVMVeloMin+DVMVeloMax).NE.0.)) THEN
+    CALL abort(__STAMP__,'Specular reflection only implemented for zero-centered velocity grid')
   END IF
-  ! f0incoming=2*UPrim_boundary-UPrim_master
   DO kVel=1, DVMnVelos(3);   DO jVel=1, DVMnVelos(2);   DO iVel=1, DVMnVelos(1)
     upos= iVel+(jVel-1)*DVMnVelos(1)+(kVel-1)*DVMnVelos(1)*DVMnVelos(2)
     vnormal = DVMVelos(iVel,1)*NormVec(1) + DVMVelos(jVel,2)*NormVec(2) + DVMVelos(kVel,3)*NormVec(3)
-    IF (vnormal.LT.0.) THEN
-      ! gradU(upos) = (UPrim_master(upos) - f0incoming(upos))/dx_Face/2.
-      gradU(upos) = (UPrim_master(upos) - UPrim_boundary(upos))/dx_Face
+    ! weight = DVMWeights(iVel,1)*DVMWeights(jVel,2)*DVMWeights(kVel,3)
+    IF (ABS(NormVec(1)).EQ.1.) THEN !x-perpendicular boundary
+      upos_sp=(DVMnVelos(1)+1-iVel)+(jVel-1)*DVMnVelos(1)+(kVel-1)*DVMnVelos(1)*DVMnVelos(2)
+    ELSE IF (ABS(NormVec(2)).EQ.1.) THEN !y-perpendicular boundary
+      upos_sp=iVel+(DVMnVelos(2)-jVel)*DVMnVelos(1)+(kVel-1)*DVMnVelos(1)*DVMnVelos(2)
+    ELSE IF (ABS(NormVec(3)).EQ.1.) THEN !z-perpendicular boundary
+      upos_sp=iVel+(jVel-1)*DVMnVelos(1)+(DVMnVelos(3)-kVel)*DVMnVelos(1)*DVMnVelos(2)
+    ELSE
+      CALL abort(__STAMP__,'Specular reflection only implemented for boundaries perpendicular to velocity grid')
+    END IF
+    IF (vnormal.LT.0.) THEN !inflow
+      gradU(upos) = (UPrim_master(upos) - UPrim_boundary(upos_sp))/dx_Face
       IF (DVMSpeciesData%Internal_DOF .GT.0.0) THEN
-        gradU(PP_nVar/2+upos) = (UPrim_master(PP_nVar/2+upos) - UPrim_boundary(PP_nVar/2+upos))/dx_Face
+        gradU(PP_nVar/2+upos) = (UPrim_master(PP_nVar/2+upos) - UPrim_boundary(PP_nVar/2+upos_sp))/dx_Face
       END IF
     ELSE
-      ! gradU(upos) = (UPrim_master(upos) - f0outgoing(upos))/dx_Face/2.
       gradU(upos) = gradUinside(upos)
       IF (DVMSpeciesData%Internal_DOF .GT.0.0) THEN
         gradU(PP_nVar/2+upos) = gradUinside(PP_nVar/2+upos)
       END IF
     END IF
   END DO; END DO; END DO
+
 
 CASE(4) ! diffusive
   fplus(:)=UPrim_master(:)-dx_Face*gradUinside(:)

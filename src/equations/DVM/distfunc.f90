@@ -80,7 +80,7 @@ DO kVel=1, DVMnVelos(3);   DO jVel=1, DVMnVelos(2);   DO iVel=1, DVMnVelos(1)
   cVel(1) = DVMVelos(iVel,1) - uVelo(1)
   cVel(2) = DVMVelos(jVel,2) - uVelo(2)
   cVel(3) = DVMVelos(kVel,3) - uVelo(3)
-  cMag = cVel(1)*cVel(1) + cVel(2)*cVel(2)+ cVel(3)*cVel(3)
+  cMag = DOT_PRODUCT(cVel,cVel)
   IF (DVMSpeciesData%Internal_DOF .GT.0.0) THEN
     Heatflux(1) = Heatflux(1) + weight*0.5*cVel(1)*(U(upos)*cMag+U(PP_nVar/2+upos))
     Heatflux(2) = Heatflux(2) + weight*0.5*cVel(2)*(U(upos)*cMag+U(PP_nVar/2+upos))
@@ -94,7 +94,7 @@ END DO; END DO; END DO
 
 MacroVal(1) = rho
 MacroVal(2:4) = uVelo
-MacroVal(5) = (rhoE - 0.5*(rhoU(1)*rhoU(1)+rhoU(2)*rhoU(2)+rhoU(3)*rhoU(3))/rho)/cV
+MacroVal(5) = (rhoE - 0.5*(DOT_PRODUCT(rhoU,rhoU))/rho)/cV
 pressure = DVMSpeciesData%R_S*MacroVal(1)*MacroVal(5)
 ! IF (MacroVal(5).LE.0) print*, MacroVal(5)
 mu = DVMSpeciesData%mu_Ref*(MacroVal(5)/DVMSpeciesData%T_Ref)**DVMSpeciesData%omegaVHS
@@ -119,6 +119,103 @@ ELSE
 END IF
 
 END SUBROUTINE
+
+! SUBROUTINE MaxwellDistributionCons(MacroVal,fMaxwell)
+! !===================================================================================================================================
+! ! conservative maxwell
+! !===================================================================================================================================
+! ! MODULES
+! USE MOD_Equation_Vars         ,ONLY: DVMnVelos, DVMVelos, DVMSpeciesData, DVMDim, Pi, DVMWeights
+! USE MOD_PreProc
+! USE MOD_Globals
+! ! IMPLICIT VARIABLE HANDLING
+! IMPLICIT NONE
+! !-----------------------------------------------------------------------------------------------------------------------------------
+! ! INPUT VARIABLES
+! REAL,INTENT(OUT)                 :: fMaxwell(PP_nVar)
+! REAL, INTENT(IN)                 :: MacroVal(8)
+! !-----------------------------------------------------------------------------------------------------------------------------------
+! ! OUTPUT VARIABLES
+! !-----------------------------------------------------------------------------------------------------------------------------------
+! ! LOCAL VARIABLES
+! REAL                            :: rho, Temp, uVelo(DVMDim), vMag, gM, weight
+! REAL,DIMENSION(2+DVMDim)        :: alpha, psi, rhovec
+! REAL                            :: J(2+DVMDim,2+DVMDim), B(2+DVMDim,1)
+! INTEGER                         :: iVel,jVel,kVel, upos, countz, IPIV(2+DVMDim), info_dgesv
+! !===================================================================================================================================
+! rho = MacroVal(1)
+! uVelo(1:DVMDim) = MacroVal(2:1+DVMDim)
+! Temp = MacroVal(5)
+! rhovec(1) = rho
+! rhovec(2:1+DVMDim)=rho*uVelo(:)
+! rhovec(2+DVMDim)=rho*(3*DVMSpeciesData%R_S*Temp+DOT_PRODUCT(uVelo,uVelo))/2.
+! countz=0
+! ! print*, 'rhovec', rhovec
+
+! alpha(1) = LOG(rho/(2.*Pi*DVMSpeciesData%R_S*Temp)**(DVMDim/2.))-DOT_PRODUCT(uVelo,uVelo)/2./DVMSpeciesData%R_S/Temp
+! alpha(2:1+DVMDim) = uVelo(1:DVMDim)/DVMSpeciesData%R_S/Temp
+! alpha(2+DVMDim) = -1/DVMSpeciesData%R_S/Temp
+
+! DO WHILE (countz.LT.1000)
+!   countz=countz+1
+!   ! print*, countz
+!   ! read*
+!   J = 0.
+!   DO kVel=1, DVMnVelos(3);   DO jVel=1, DVMnVelos(2);   DO iVel=1, DVMnVelos(1)
+!     weight = DVMWeights(iVel,1)*DVMWeights(jVel,2)*DVMWeights(kVel,3)
+!     vMag = DVMVelos(iVel,1)**2 + DVMVelos(jVel,2)**2 + DVMVelos(kVel,3)**2
+!     psi(1)=1
+!     psi(2)=DVMVelos(iVel,1)
+!     IF (DVMDim.GT.1) psi(3)=DVMVelos(jVel,2)
+!     IF (DVMDim.GT.2) psi(4)=DVMVelos(kVel,3)
+!     psi(2+DVMDim) = vMag/2.
+!     gM = EXP(DOT_PRODUCT(alpha,psi))
+!     J(:,1) = J(:,1)+weight*gM*psi(:)
+!     J(:,2) = J(:,2)+weight*gM*psi(2)*psi(:)
+!     IF (DVMDim.GT.1) J(:,3) = J(:,3)+weight*gM*psi(3)*psi(:)
+!     IF (DVMDim.GT.2) J(:,4) = J(:,4)+weight*gM*psi(4)*psi(:)
+!     J(:,2+DVMDim) = J(:,2+DVMDim)+weight*gM*psi(2+DVMDim)*psi(:)
+!   END DO; END DO; END DO
+  
+!   B(:,1) = rhovec(:) - J(:,1)
+!   ! print*, 'J', J(:,1)
+!   ! read*
+!   CALL DGESV(2+DVMDim,1,J,2+DVMDim,IPIV,B,2+DVMDim,info_dgesv)
+!   ! print*, 'B', B
+!   ! read*
+!   IF(info_dgesv.NE.0) CALL abort(__STAMP__,'Newton DGESV fail')
+!   IF (.NOT.(ANY(ABS(B(:,1)).GT.(1e-5*ABS(alpha)+1e-12)))) EXIT
+!   ! IF (.NOT.(ANY(ABS(B(:,1)).GT.(1e-6*ABS(alpha)+1e-16)))) EXIT
+!   alpha = alpha + B(:,1)
+! END DO
+! IF (countz.GE.1000) print*, 'Newton max iter reached'
+
+! ! print*, 'exit'
+! ! read*
+! J=0.
+
+! alpha = alpha + B(:,1)
+! DO kVel=1, DVMnVelos(3);   DO jVel=1, DVMnVelos(2);   DO iVel=1, DVMnVelos(1)
+!   weight = DVMWeights(iVel,1)*DVMWeights(jVel,2)*DVMWeights(kVel,3)
+!   upos= iVel+(jVel-1)*DVMnVelos(1)+(kVel-1)*DVMnVelos(1)*DVMnVelos(2)
+!   vMag = DVMVelos(iVel,1)**2 + DVMVelos(jVel,2)**2 + DVMVelos(kVel,3)**2
+!   psi(1)=1
+!   psi(2)=DVMVelos(iVel,1)
+!   IF (DVMDim.GT.1) psi(3)=DVMVelos(jVel,2)
+!   IF (DVMDim.GT.2) psi(4)=DVMVelos(kVel,3)
+!   psi(2+DVMDim) = vMag/2.
+!   gM = EXP(DOT_PRODUCT(alpha,psi))
+!   fMaxwell(upos)= gM
+!   J(:,1) = J(:,1)+weight*gM*psi(:)
+!   IF (DVMSpeciesData%Internal_DOF .GT.0.0) THEN
+!     fMaxwell(PP_nVar/2+upos) = gM*DVMSpeciesData%R_S*Temp*DVMSpeciesData%Internal_DOF
+!   END IF
+! END DO; END DO; END DO
+
+! ! print*, 'newJ', J(:,1)
+! ! print*, ''
+
+! END SUBROUTINE
 
 SUBROUTINE MaxwellDistribution(MacroVal,fMaxwell)
 !===================================================================================================================================

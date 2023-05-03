@@ -235,7 +235,7 @@ REAL,INTENT(OUT)                     :: Flux( PP_nVar,0:PP_N,0:PP_N,1:nBCSides)
 INTEGER                              :: iBC,iSide,SideID
 INTEGER                              :: BCType,BCState,nBCLoc
 REAL                                 :: UPrim_boundary(PP_nVar,0:PP_N,0:PP_N)
-REAL                                 :: MacroVal(8), tau
+REAL                                 :: MacroVal(8), tau, vnormal
 INTEGER                              :: p,q
 INTEGER                              :: i,j,k,iVel,jVel,kVel,upos, upos_sp
 !==================================================================================================================================
@@ -275,41 +275,31 @@ DO iBC=1,nBCs
     END IF
     DO iSide=1,nBCLoc
       SideID=BCSideID(iBC,iSide)
+      DO kVel=1, DVMnVelos(3);   DO jVel=1, DVMnVelos(2);   DO iVel=1, DVMnVelos(1)
+        upos= iVel+(jVel-1)*DVMnVelos(1)+(kVel-1)*DVMnVelos(1)*DVMnVelos(2)
+        vnormal = DVMVelos(iVel,1)*NormVec(1,0,0,SideID) + DVMVelos(jVel,2)*NormVec(2,0,0,SideID) + DVMVelos(kVel,3)*NormVec(3,0,0,SideID)
+        ! weight = DVMWeights(iVel,1)*DVMWeights(jVel,2)*DVMWeights(kVel,3)
       IF (ABS(NormVec(1,0,0,SideID)).EQ.1.) THEN !x-perpendicular boundary
-        DO kVel=1, DVMnVelos(3);   DO jVel=1, DVMnVelos(2);   DO iVel=1, DVMnVelos(1)
-          upos= iVel+(jVel-1)*DVMnVelos(1)+(kVel-1)*DVMnVelos(1)*DVMnVelos(2)
-          upos_sp=(DVMnVelos(1)+1-iVel)+(jVel-1)*DVMnVelos(1)+(kVel-1)*DVMnVelos(1)*DVMnVelos(2)
-          ! print*, DVMVelos(iVel,1), DVMVelos(DVMnVelos(1)+1-iVel,1)
-          ! read*
-          UPrim_boundary(upos_sp,:,:)=UPrim_master(upos,:,:,SideID)
-          IF (DVMSpeciesData%Internal_DOF .GT.0.0) THEN
-            UPrim_boundary(PP_nVar/2+upos_sp,:,:)=UPrim_master(PP_nVar/2+upos,:,:,SideID)
-          END IF
-        END DO; END DO; END DO
+        upos_sp=(DVMnVelos(1)+1-iVel)+(jVel-1)*DVMnVelos(1)+(kVel-1)*DVMnVelos(1)*DVMnVelos(2)
       ELSE IF (ABS(NormVec(2,0,0,SideID)).EQ.1.) THEN !y-perpendicular boundary
-        DO kVel=1, DVMnVelos(3);   DO jVel=1, DVMnVelos(2);   DO iVel=1, DVMnVelos(1)
-          upos= iVel+(jVel-1)*DVMnVelos(1)+(kVel-1)*DVMnVelos(1)*DVMnVelos(2)
-          upos_sp=iVel+(DVMnVelos(2)-jVel)*DVMnVelos(1)+(kVel-1)*DVMnVelos(1)*DVMnVelos(2)
-          ! print*, DVMnVelos(2), DVMVelos(jVel,2), DVMVelos(DVMnVelos(2)+1-jVel,2)
-          ! print*, upos, upos_sp
-          ! read*
-          UPrim_boundary(upos_sp,:,:)=UPrim_master(upos,:,:,SideID)
-          IF (DVMSpeciesData%Internal_DOF .GT.0.0) THEN
-            UPrim_boundary(PP_nVar/2+upos_sp,:,:)=UPrim_master(PP_nVar/2+upos,:,:,SideID)
-          END IF
-        END DO; END DO; END DO
+        upos_sp=iVel+(DVMnVelos(2)-jVel)*DVMnVelos(1)+(kVel-1)*DVMnVelos(1)*DVMnVelos(2)
       ELSE IF (ABS(NormVec(3,0,0,SideID)).EQ.1.) THEN !z-perpendicular boundary
-        DO kVel=1, DVMnVelos(3);   DO jVel=1, DVMnVelos(2);   DO iVel=1, DVMnVelos(1)
-          upos= iVel+(jVel-1)*DVMnVelos(1)+(kVel-1)*DVMnVelos(1)*DVMnVelos(2)
-          upos_sp=iVel+(jVel-1)*DVMnVelos(1)+(DVMnVelos(3)-kVel)*DVMnVelos(1)*DVMnVelos(2)
-          UPrim_boundary(upos_sp,:,:)=UPrim_master(upos,:,:,SideID)
-          IF (DVMSpeciesData%Internal_DOF .GT.0.0) THEN
-            UPrim_boundary(PP_nVar/2+upos_sp,:,:)=UPrim_master(PP_nVar/2+upos,:,:,SideID)
-          END IF
-        END DO; END DO; END DO
+        upos_sp=iVel+(jVel-1)*DVMnVelos(1)+(DVMnVelos(3)-kVel)*DVMnVelos(1)*DVMnVelos(2)
       ELSE
         CALL abort(__STAMP__,'Specular reflection only implemented for boundaries perpendicular to velocity grid')
       END IF
+      IF (vnormal.LT.0.) THEN !inflow
+        UPrim_boundary(upos,:,:)=UPrim_master(upos_sp,:,:,SideID)
+        IF (DVMSpeciesData%Internal_DOF .GT.0.0) THEN
+          UPrim_boundary(PP_nVar/2+upos,:,:)=UPrim_master(PP_nVar/2+upos_sp,:,:,SideID)
+        END IF
+        ELSE
+          UPrim_boundary(upos,:,:)=UPrim_master(upos,:,:,SideID)
+          IF (DVMSpeciesData%Internal_DOF .GT.0.0) THEN
+            UPrim_boundary(PP_nVar/2+upos,:,:)=UPrim_master(PP_nVar/2+upos,:,:,SideID)
+          END IF
+        END IF
+      END DO; END DO; END DO
       CALL Riemann(Flux(:,:,:,SideID),UPrim_master(:,:,:,SideID),UPrim_boundary,NormVec(:,:,:,SideID))
     END DO
 
