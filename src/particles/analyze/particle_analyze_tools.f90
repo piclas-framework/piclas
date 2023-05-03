@@ -3093,25 +3093,64 @@ END SUBROUTINE CalcCoupledPowerPart
 !===================================================================================================================================
 SUBROUTINE CalculatePCouplElectricPotential()
 ! MODULES
-USE MOD_Globals
-USE MOD_Equation_Vars         ,ONLY: CoupledPowerPotential,CoupledPowerTarget,CoupledPowerRelaxFac
-USE MOD_Particle_Analyze_Vars ,ONLY: PCoupl
+USE MOD_Globals               ,ONLY: MPIRoot
+USE MOD_HDG_Vars              ,ONLY: CoupledPowerPotential,CoupledPowerTarget,CoupledPowerRelaxFac,CoupledPowerFrequency
+USE MOD_HDG_Vars              ,ONLY: CoupledPowerMode
+USE MOD_Particle_Analyze_Vars ,ONLY: PCoupl,PCouplAverage,PCouplIntAverage
+USE MOD_Restart_Vars          ,ONLY: RestartTime
+USE MOD_TimeDisc_Vars         ,ONLY: Time
+#if USE_MPI
+USE MOD_Equation              ,ONLY: SynchronizeCPP
+#endif /*USE_MPI*/
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! INPUT / OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-REAL           :: PowerRatio
+REAL :: PowerRatio
 !===================================================================================================================================
-! Adjust electric potential depending on the instantaneous coupled power
-PowerRatio = CoupledPowerTarget / PCoupl
+IF(MPIRoot)THEN
+  ASSOCIATE(&
+        Vmin => CoupledPowerPotential(1),&
+           V => CoupledPowerPotential(2),&
+        Vmax => CoupledPowerPotential(3),&
+        VInt => CoupledPowerPotential(4),&
+        tCPP => CoupledPowerPotential(5) &
+        )
 
-! Relaxation factor
-CoupledPowerPotential(2) = CoupledPowerPotential(2) * (1.0 + CoupledPowerRelaxFac * (PowerRatio - 1.0))
+    PowerRatio = 1.0 ! Default
+    SELECT CASE(CoupledPowerMode)
+    CASE(1)
+      ! Adjust electric potential depending on the instantaneous coupled power
+      PowerRatio = CoupledPowerTarget / PCoupl
+    CASE(2)
+      ! Use moving average power
+      IF(ABS(Time-RestartTime).GT.0.0) PowerRatio = CoupledPowerTarget / PCouplAverage
+    CASE(3)
+      ! Use integrated power (via user-defined frequency)
+      IF(time.GE.tCPP)THEN ! Simulation time threshold reached
+        ! Update time
+        IF(CoupledPowerFrequency.GT.0.0) tCPP = tCPP + 1.0 / CoupledPowerFrequency
+        ! Update Voltage
+        PowerRatio = CoupledPowerTarget / PCouplIntAverage ! PCouplIntAverage is the running integrated average
+        ! Reset integrated power value
+        VInt = 0.
+      END IF ! time.GE.tBV
+    END SELECT
 
-! Keep boundaries
-IF(CoupledPowerPotential(2).GT.CoupledPowerPotential(3)) CoupledPowerPotential(2) = CoupledPowerPotential(3)
-IF(CoupledPowerPotential(2).LT.CoupledPowerPotential(1)) CoupledPowerPotential(2) = CoupledPowerPotential(1)
+    ! Relaxation factor
+    V = V * (1.0 + CoupledPowerRelaxFac * (PowerRatio - 1.0))
+
+    ! Keep boundaries
+    IF(V.GT.Vmax) V = Vmax
+    IF(V.LT.Vmin) V = Vmin
+  END ASSOCIATE
+END IF ! MPIRoot
+
+#if USE_MPI
+! Synchronize CoupledPowerPotential from MPIRoot to all processors on the sub-communicator
+CALL SynchronizeCPP()
+#endif /*USE_MPI*/
 
 END SUBROUTINE CalculatePCouplElectricPotential
 #endif /*USE_HDG*/

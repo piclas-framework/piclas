@@ -259,6 +259,7 @@ TYPE tPartBoundary
   INTEGER              , ALLOCATABLE     :: TargetBoundCond(:)           ! Link part 2 for mapping PICLas BCs to Particle BC
 !  INTEGER              , ALLOCATABLE     :: Map(:)                      ! Map from PICLas BCindex to Particle BC
   INTEGER              , ALLOCATABLE     :: MapToPartBC(:)               ! Map from PICLas BCindex to Particle BC (NOT TO TYPE!)
+  INTEGER              , ALLOCATABLE     :: MapToFieldBC(:)              ! Map from Particle BC (NOT TO TYPE!) to PICLas BCindex
   !!INTEGER              , ALLOCATABLE     :: SideBCType(:)              ! list with boundary condition for each side
   INTEGER , ALLOCATABLE                  :: AssociatedPlane(:)           ! Link between both coressponding intermediate planes
   INTEGER , ALLOCATABLE                  :: nSidesOnInterPlane(:)        ! Number of Sides on intermediate plane
@@ -275,7 +276,6 @@ TYPE tPartBoundary
   REAL    , ALLOCATABLE                  :: RotACC(:)
   REAL    , ALLOCATABLE                  :: ElecACC(:)
   REAL    , ALLOCATABLE                  :: WallVelo(:,:)
-  REAL    , ALLOCATABLE                  :: Voltage(:)
   LOGICAL , ALLOCATABLE                  :: RotVelo(:)                    ! Flag for rotating walls
   REAL    , ALLOCATABLE                  :: RotOmega(:,:)                 ! Angular velocity
   REAL    , ALLOCATABLE                  :: RotPeriodicAngle(:)           ! Angle and Direction of rotation

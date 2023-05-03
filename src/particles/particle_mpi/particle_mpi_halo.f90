@@ -101,7 +101,6 @@ LOGICAL,ALLOCATABLE            :: MPISideElem(:)
 LOGICAL                        :: ProcHasExchangeElem
 ! halo_eps reconstruction
 REAL                           :: MPI_halo_eps_velo,MPI_halo_diag,vec(1:3),deltaT, MPI_halo_eps_woshape
-LOGICAL                        :: fullMesh
 #if (PP_TimeDiscMethod==501) || (PP_TimeDiscMethod==502) || (PP_TimeDiscMethod==506)
 INTEGER                        :: iStage
 #endif
@@ -370,7 +369,6 @@ END DO
 !>>> MPI-surface (local proc MPI sides)
 
 ! if running on one node, halo_eps is meaningless. Get a representative MPI_halo_eps for MPI proc identification
-fullMesh = .FALSE.
 IF (halo_eps.LE.0.) THEN
   ! reconstruct halo_eps_velo
   IF (halo_eps_velo.EQ.0.) THEN
@@ -419,12 +417,10 @@ IF (halo_eps.LE.0.) THEN
   IF (.NOT.ALMOSTZERO(MPI_halo_eps).AND.(MPI_halo_diag.GE.MPI_halo_eps)) THEN
     LBWRITE(UNIT_stdOUt,'(A,E11.3)') ' | No halo_eps given. Reconstructed to ',MPI_halo_eps
   ELSEIF (.NOT.ALMOSTZERO(MPI_halo_eps).AND.(MPI_halo_diag.LT.MPI_halo_eps)) THEN
-    fullMesh = .TRUE.
     MPI_halo_eps = MPI_halo_diag
     LBWRITE(UNIT_stdOUt,'(A,E11.3)') ' | No halo_eps given. Reconstructed to global diag with ',MPI_halo_eps
   ! halo_eps still at zero. Set it to global diagonal
   ELSE
-    fullMesh = .TRUE.
     MPI_halo_eps = MPI_halo_diag
     LBWRITE(UNIT_stdOUt,'(A,F11.3)') ' | No halo_eps given and could not be reconstructed. Using global diag with ',MPI_halo_eps
   END IF
@@ -434,7 +430,6 @@ ELSE
   vec(3)   = GEO%zmaxglob-GEO%zminglob
   MPI_halo_diag = VECNORM(vec)
 
-  IF (MPI_halo_diag.LE.halo_eps) fullMesh = .TRUE.
   MPI_halo_eps = halo_eps
   MPI_halo_eps_woshape = halo_eps_woshape
 END IF

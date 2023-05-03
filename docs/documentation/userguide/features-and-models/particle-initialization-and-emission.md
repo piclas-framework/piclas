@@ -67,7 +67,9 @@ Different `SpaceIC` are available and an overview is given in the table below.
 |    ---------------   | -------------------------------------------------------------------------------- |  ------------------------------------------  |
 |      cell_local      |         Particles are inserted in every cell at a constant number density        |                                              |
 |         disc         |                     Particles are inserted on a circular disc                    |     Section {ref}`sec:particle-disk-init`    |
+|        cuboid        |  Particles are inserted in the given cuboid volume at a constant number density  |    Section {ref}`sec:particle-cuboid-init`   |
 |       cylinder       | Particles are inserted in the given cylinder volume at a constant number density |   Section {ref}`sec:particle-cylinder-init`  |
+|        sphere        |  Particles are inserted in the given sphere volume at a constant number density  |    Section {ref}`sec:particle-sphere-init`   |
 |    photon_cylinder   |   Ionization of a background gas through photon impact (cylinder distribution)   | Section {ref}`sec:particle-photo-ionization` |
 |    photon_SEE_disc   |       Secondary electron emission through photon impact (disk distribution)      | Section {ref}`sec:particle-photo-ionization` |
 |   photon_honeycomb   |   Ionization of a background gas through photon impact (honeycomb distribution)  | Section {ref}`sec:particle-photo-ionization` |
@@ -112,6 +114,23 @@ To define the circular disc the following parameters are required:
 
 The first and second base vector span a plane, where a circle with the given radius will be defined at the base point.
 
+(sec:particle-cuboid-init)=
+### Cuboid
+
+To define the cuboid the following parameters are required:
+
+    Part-Species1-Init1-SpaceIC               = cuboid
+    Part-Species1-Init1-RadiusIC              = 1
+    Part-Species1-Init1-CuboidHeightIC        = 1
+    Part-Species1-Init1-BasePointIC           = (/ 0.0, 0.0, 0.0 /)
+    Part-Species1-Init1-BaseVector1IC         = (/ 1.0, 0.0, 0.0 /)
+    Part-Species1-Init1-BaseVector2IC         = (/ 0.0, 1.0, 0.0 /)
+    Part-Species1-Init1-NormalIC              = (/ 0.0, 0.0, 1.0 /)
+
+The first and second base vector span a side of the cuboid, and then its extruded in the normal direction up to the cuboid height.
+
+For symmetric simulations `Part-Species1-Init1-BaseVector2IC` is set in direction of the symmetry `(/ 0.0, 0.0, 1.0 /)`
+
 (sec:particle-cylinder-init)=
 ### Cylinder
 
@@ -127,6 +146,19 @@ To define the cylinder the following parameters are required:
 
 The first and second base vector span a plane, where a circle with the given radius will be defined at the base point and then
 extruded in the normal direction up to the cylinder height.
+
+For symmetric simulations `Part-Species1-Init1-BaseVector2IC` is set in direction of the symmetry `(/ 0.0, 1.0, 0.0 /)` for 2D planar simulations,
+and `(/ 0.0, 0.0, 1.0 /)` for axisymmetric ones.
+
+(sec:particle-sphere-init)=
+### Sphere
+
+To define the cuboid the following parameters are required:
+
+    Part-Species1-Init1-SpaceIC               = sphere
+    Part-Species1-Init1-RadiusIC              = 1
+    Part-Species1-Init1-BasePointIC           = (/ 0.0, 0.0, 0.0 /)
+    Part-Species1-Init1-NormalIC              = (/ 0.0, 0.0, 1.0 /)
 
 (sec:particle-photo-ionization)=
 ### Photo-ionization

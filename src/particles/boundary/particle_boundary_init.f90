@@ -56,7 +56,7 @@ CALL prms%CreateStringOption(   'Part-Boundary[$]-Condition', &
                                   '- simple_cathode.\n'//&
                                   '- rot_periodic.\n'//&
                                   'If condition=reflective (Part-Boundary[$]-=PB): PB-MomentumACC,PB-WallTemp,PB-TransACC,PB-VibACC,PB-RotACC,'//&
-                                  'PB-WallVelo,Voltage,SpeciesSwaps.\nIf condition=periodic:Part-nPeriodicVectors', 'open', numberedmulti=.TRUE.)
+                                  'PB-WallVelo,SpeciesSwaps.\nIf condition=periodic:Part-nPeriodicVectors', 'open', numberedmulti=.TRUE.)
 CALL prms%CreateLogicalOption('Part-Boundary[$]-Dielectric' , 'Define if particle boundary [$] is a '//&
                               'dielectric interface, i.e. an interface between a dielectric and a non-dielectric or a between two'//&
                               ' different dielectrics [.TRUE.] or not [.FALSE.] (requires reflective BC and species swap for nSpecies)'&
@@ -461,9 +461,11 @@ IF(DoBoundaryParticleOutputHDF5)THEN
   END IF ! .NOT.ALLOCATED(PartStateBoundary)
 END IF
 
-! Set mapping from field boundary to particle boundary index
+! Set mapping from field boundary to particle boundary index and vice versa
 ALLOCATE(PartBound%MapToPartBC(1:nBCs))
 PartBound%MapToPartBC(:)=-10
+ALLOCATE(PartBound%MapToFieldBC(1:nPartBound))
+PartBound%MapToFieldBC=-1
 DO iPBC=1,nPartBound
   DO iBC = 1, nBCs
     IF (BoundaryType(iBC,BC_TYPE).EQ.0) THEN
@@ -478,6 +480,7 @@ DO iPBC=1,nPartBound
     END IF
     IF (TRIM(BoundaryName(iBC)).EQ.TRIM(PartBound%SourceBoundName(iPBC))) THEN
       PartBound%MapToPartBC(iBC) = iPBC !PartBound%TargetBoundCond(iPBC)
+      PartBound%MapToFieldBC(iPBC) = iBC ! part BC to field BC
       LBWRITE(*,*)"... Mapped PartBound",iPBC,"on FieldBound", iBC,",i.e.:",TRIM(BoundaryName(iBC))
     END IF
   END DO
@@ -1411,11 +1414,11 @@ SDEALLOCATE(PartBound%RotPeriodicMax)
 SDEALLOCATE(PartBound%AssociatedPlane)
 SDEALLOCATE(PartBound%AngleRatioOfInterPlanes)
 SDEALLOCATE(PartBound%nSidesOnInterPlane)
-SDEALLOCATE(PartBound%Voltage)
 SDEALLOCATE(PartBound%NbrOfSpeciesSwaps)
 SDEALLOCATE(PartBound%ProbOfSpeciesSwaps)
 SDEALLOCATE(PartBound%SpeciesSwaps)
 SDEALLOCATE(PartBound%MapToPartBC)
+SDEALLOCATE(PartBound%MapToFieldBC)
 SDEALLOCATE(PartBound%SurfaceModel)
 SDEALLOCATE(PartBound%Reactive)
 SDEALLOCATE(PartBound%Dielectric)

@@ -130,19 +130,19 @@ crossedBC=.TRUE.
 
 IF(.NOT.ALLOCATED(PartBound%MapToPartBC)) CALL abort(__STAMP__,' ERROR: PartBound not allocated!.')
 
-ASSOCIATE( iBC => PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID)) )
+ASSOCIATE( iPartBound => PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID)) )
   ! Surface particle output to .h5
-  IF(DoBoundaryParticleOutputHDF5.AND.PartBound%BoundaryParticleOutputHDF5(iBC))THEN
-    CALL StoreBoundaryParticleProperties(iPart,PartSpecies(iPart), &
-            LastPartPos(1:3,iPart)+TrackInfo%PartTrajectory(1:3)*TrackInfo%alpha,TrackInfo%PartTrajectory(1:3),n_loc,iBC=iBC,mode=1)
+  IF(DoBoundaryParticleOutputHDF5.AND.PartBound%BoundaryParticleOutputHDF5(iPartBound))THEN
+    CALL StoreBoundaryParticleProperties(iPart,PartSpecies(iPart), LastPartPos(1:3,iPart)+&
+        TrackInfo%PartTrajectory(1:3)*TrackInfo%alpha,TrackInfo%PartTrajectory(1:3),n_loc,iPartBound=iPartBound,mode=1)
   END IF
 
   ! Select the corresponding boundary condition and calculate particle treatment
-  SELECT CASE(PartBound%TargetBoundCond(iBC))
+  SELECT CASE(PartBound%TargetBoundCond(iPartBound))
   !-----------------------------------------------------------------------------------------------------------------------------------
   CASE(1) ! PartBound%OpenBC
   !----------------------------------------------------------------------------------------------------------------------------------
-    CALL RemoveParticle(iPart,BCID=iBC)
+    CALL RemoveParticle(iPart,BCID=iPartBound)
   !-----------------------------------------------------------------------------------------------------------------------------------
   CASE(2) ! PartBound%ReflectiveBC
   !-----------------------------------------------------------------------------------------------------------------------------------
@@ -171,7 +171,7 @@ ASSOCIATE( iBC => PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID)) )
           CALL StoreLostParticleProperties(iPart,ElemID)
           NbrOfLostParticles=NbrOfLostParticles+1
         END IF ! CountNbrOfLostParts
-        CALL RemoveParticle(iPart,BCID=iBC)
+        CALL RemoveParticle(iPart,BCID=iPartBound)
       END IF ! PDM%ParticleInside(iPart).AND.(isDielectricElem(PEM%LocalElemID(iPart)))
     END IF ! DoDdielectric
   !-----------------------------------------------------------------------------------------------------------------------------------
