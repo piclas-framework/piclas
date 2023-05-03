@@ -487,7 +487,7 @@ SUBROUTINE RotPeriodicInterPlaneBC(PartID,SideID,ElemID,IsInterPlanePart)
 !===================================================================================================================================
 ! Execution of the rotation periodic inter plane condition:
 ! (1) Evaluate the probability of deletion or duplication and create inter particles or delete particle
-! (2) Calc POI and calc new random POI on correspondig inter plane with  random angle within the periodic segment
+! (2) Calc POI and calc new random POI on corresponding inter plane with  random angle within the periodic segment
 ! (3) Change velocity accordingly
 ! (4) Calc particle position after random new POI according new velo and remaining time
 ! (5) move particle from old element to new element
@@ -624,7 +624,7 @@ END IF
 ! Species-specific time step
 IF(VarTimeStep%UseSpeciesSpecific) dtVar = dtVar * Species(PartSpecies(PartID))%TimeStepFactor
 
-! (2) Calc POI and calc new random POI on correspondig inter plane with random angle within the periodic segment
+! (2) Calc POI and calc new random POI on corresponding inter plane with random angle within the periodic segment
 ! (2.a) Calc POI
 LastPartPos(1:3,PartID) = LastPartPos(1:3,PartID) + TrackInfo%PartTrajectory(1:3)*TrackInfo%alpha
 LastPartPos_old(1:3) = LastPartPos(1:3,PartID)

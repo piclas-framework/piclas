@@ -207,6 +207,24 @@ IF (.NOT.(PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance))) THEN
 END IF
 #endif /*USE_LOADBALANCE*/
 
+! CornerNodeSwitch: a mapping is required for Ngeo > 1 as the corner nodes are not the first 8 entries of NodeInfo array
+CNS(1)=1
+CNS(2)=(Ngeo+1)
+CNS(3)=(Ngeo+1)**2
+CNS(4)=(Ngeo+1)*Ngeo+1
+CNS(5)=(Ngeo+1)**2*Ngeo+1
+CNS(6)=(Ngeo+1)**2*Ngeo+(Ngeo+1)
+CNS(7)=(Ngeo+1)**2*Ngeo+(Ngeo+1)**2
+CNS(8)=(Ngeo+1)**2*Ngeo+(Ngeo+1)*Ngeo+1
+
+! Set the corresponding mapping for HOPR coordinates in CGNS format
+NodeMap(:,1)=(/CNS(1),CNS(4),CNS(3),CNS(2)/)
+NodeMap(:,2)=(/CNS(1),CNS(2),CNS(6),CNS(5)/)
+NodeMap(:,3)=(/CNS(2),CNS(3),CNS(7),CNS(6)/)
+NodeMap(:,4)=(/CNS(3),CNS(4),CNS(8),CNS(7)/)
+NodeMap(:,5)=(/CNS(1),CNS(5),CNS(8),CNS(4)/)
+NodeMap(:,6)=(/CNS(5),CNS(6),CNS(7),CNS(8)/)
+
 IF(useCurveds)THEN
   IF(PP_N.LT.NGeo)THEN
     LBWRITE(UNIT_stdOut,'(A)') 'WARNING: N<NGeo, for curved hexa normals are only approximated,&

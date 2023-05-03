@@ -161,7 +161,7 @@ USE MOD_Globals_Vars           ,ONLY: PI
 USE MOD_ReadInTools
 USE MOD_Dielectric_Vars        ,ONLY: DoDielectricSurfaceCharge
 USE MOD_DSMC_Vars              ,ONLY: useDSMC, BGGas
-USE MOD_Mesh_Vars              ,ONLY: BoundaryName,BoundaryType, nBCs
+USE MOD_Mesh_Vars              ,ONLY: BoundaryName,BoundaryType, nBCs, NodeMap
 USE MOD_Particle_Vars          ,ONLY: PDM, nSpecies, PartMeshHasPeriodicBCs, RotRefFrameAxis, SpeciesDatabase, Species
 USE MOD_SurfaceModel_Vars      ,ONLY: nPorousBC
 USE MOD_Particle_Boundary_Vars ,ONLY: PartBound,nPartBound,DoBoundaryParticleOutputHDF5,PartStateBoundary, AdaptWallTemp
@@ -180,7 +180,6 @@ USE MOD_Particle_Vars          ,ONLY: PartMeshHasReflectiveBCs
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Vars       ,ONLY: PerformLoadBalance
 #endif /*USE_LOADBALANCE*/
-USE MOD_Mesh_Vars              ,ONLY: NGeo
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -198,7 +197,7 @@ CHARACTER(LEN=64)     :: dsetname
 LOGICAL               :: StickingCoefficientExists,FoundPartBoundSEE
 INTEGER               :: iInit,iSpec
 INTEGER, ALLOCATABLE  :: InterPlanePositionCount(:)
-INTEGER               :: LocSideID, nStart, NodeMap(4,6), CNS(8)
+INTEGER               :: LocSideID, nStart
 !===================================================================================================================================
 ! Read in boundary parameters
 dummy_int  = CountOption('Part-nBounds') ! check if Part-nBounds is present in .ini file
@@ -489,27 +488,6 @@ END DO
 DO iBC = 1,nBCs
   IF (PartBound%MapToPartBC(iBC).EQ.-10) CALL abort(__STAMP__,' PartBound%MapToPartBC for Boundary is not set. iBC: :',iBC)
 END DO
-
-IF(GEO%RotPeriodicBC.OR.GEO%InterPlaneBC) THEN
-  ! the cornernodes are not the first 8 entries (for Ngeo>1) of nodeinfo array so mapping is built
-  CNS(1)=1
-  CNS(2)=(Ngeo+1)
-  CNS(3)=(Ngeo+1)**2
-  CNS(4)=(Ngeo+1)*Ngeo+1
-  CNS(5)=(Ngeo+1)**2*Ngeo+1
-  CNS(6)=(Ngeo+1)**2*Ngeo+(Ngeo+1)
-  CNS(7)=(Ngeo+1)**2*Ngeo+(Ngeo+1)**2
-  CNS(8)=(Ngeo+1)**2*Ngeo+(Ngeo+1)*Ngeo+1
-
-! New crazy corner node switch (philipesque)
-! CGNS Mapping
-  NodeMap(:,1)=(/CNS(1),CNS(4),CNS(3),CNS(2)/)
-  NodeMap(:,2)=(/CNS(1),CNS(2),CNS(6),CNS(5)/)
-  NodeMap(:,3)=(/CNS(2),CNS(3),CNS(7),CNS(6)/)
-  NodeMap(:,4)=(/CNS(3),CNS(4),CNS(8),CNS(7)/)
-  NodeMap(:,5)=(/CNS(1),CNS(5),CNS(8),CNS(4)/)
-  NodeMap(:,6)=(/CNS(5),CNS(6),CNS(7),CNS(8)/)
-END IF
 
 IF(GEO%RotPeriodicBC) THEN
   GEO%RotPeriodicAxi   = GETINT('Part-RotPeriodicAxi')

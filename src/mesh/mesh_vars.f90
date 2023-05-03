@@ -239,6 +239,9 @@ TYPE(tElemPtr),POINTER         :: Elems(:)
 TYPE(tNodePtr),POINTER         :: Nodes(:)
 !-----------------------------------------------------------------------------------------------------------------------------------
 LOGICAL          :: MeshInitIsDone =.FALSE.
+INTEGER                        :: CNS(8)          !< CornerNodeSwitch: a mapping is required for Ngeo > 1 as the corner nodes are
+                                                  !< not the first 8 entries of NodeInfo array
+INTEGER                        :: NodeMap(4,6)    !< Mapping for HOPR coordinates in CGNS format
 !===================================================================================================================================
 
 INTERFACE getNewSide

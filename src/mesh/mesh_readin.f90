@@ -978,7 +978,6 @@ INTEGER                        :: nNodeIDs,offsetNodeID
 INTEGER,ALLOCATABLE            :: NodeInfo(:),NodeInfoTmp(:,:)
 REAL,ALLOCATABLE               :: NodeCoords_indx(:,:)
 INTEGER                        :: nNodeInfoIDs,NodeID,NodeCounter
-INTEGER                        :: CornerNodeIDswitch(8)
 !===================================================================================================================================
 
 ! calculate all offsets
@@ -1089,45 +1088,30 @@ ELSE ! .NOT. (useCurveds.OR.NGeo.EQ.1)
   ALLOCATE(NodeInfo_Shared(8*nGlobalElems))
 #endif /*USE_MPI*/
 
-  ! the cornernodes are not the first 8 entries (for Ngeo>1) of nodeinfo array so mapping is built
-  CornerNodeIDswitch(1)=1
-  CornerNodeIDswitch(2)=(Ngeo+1)
-  CornerNodeIDswitch(3)=(Ngeo+1)*Ngeo+1
-  CornerNodeIDswitch(4)=(Ngeo+1)**2
-  CornerNodeIDswitch(5)=(Ngeo+1)**2*Ngeo+1
-  CornerNodeIDswitch(6)=(Ngeo+1)**2*Ngeo+(Ngeo+1)
-  CornerNodeIDswitch(7)=(Ngeo+1)**2*Ngeo+(Ngeo+1)*Ngeo+1
-  CornerNodeIDswitch(8)=(Ngeo+1)**2*Ngeo+(Ngeo+1)**2
-
-  ! New crazy corner node switch (philipesque)
-  ASSOCIATE(CNS => CornerNodeIDswitch)
-
-    ! Only the 8 corner nodes count for nodes. (NGeo+1)**2 = 8
-    nComputeNodeNodes = 8*nComputeNodeElems
+  ! Only the 8 corner nodes count for nodes. (NGeo+1)**2 = 8
+  nComputeNodeNodes = 8*nComputeNodeElems
 
 #if USE_MPI
-    CALL Allocate_Shared((/3,8*nGlobalElems/),NodeCoords_Shared_Win,NodeCoords_Shared)
-    CALL MPI_WIN_LOCK_ALL(0,NodeCoords_Shared_Win,IERROR)
+  CALL Allocate_Shared((/3,8*nGlobalElems/),NodeCoords_Shared_Win,NodeCoords_Shared)
+  CALL MPI_WIN_LOCK_ALL(0,NodeCoords_Shared_Win,IERROR)
 #else
-    ALLOCATE(NodeCoords_Shared(3,8*nGlobalElems))
+  ALLOCATE(NodeCoords_Shared(3,8*nGlobalElems))
 #endif  /*USE_MPI*/
 
-    ! throw away all nodes except the 8 corner nodes of each hexa
-    nNonUniqueGlobalNodes = 8*nGlobalElems
+  ! throw away all nodes except the 8 corner nodes of each hexa
+  nNonUniqueGlobalNodes = 8*nGlobalElems
 
-    DO iElem = FirstElemInd,LastElemInd
-      FirstNodeInd = ElemInfo_Shared(ELEM_FIRSTNODEIND,iElem) - offsetNodeID
-      ElemInfo_Shared(ELEM_FIRSTNODEIND,iElem) = 8*(iElem-1)
-      ElemInfo_Shared(ELEM_LASTNODEIND ,iElem) = 8* iElem
-      DO iNode = 1,8
-        NodeCoords_Shared(:,8*(iElem-1) + iNode) = NodeCoords_indx(:,FirstNodeInd+CNS(iNode))
-        NodeInfo_Shared  (  8*(iElem-1) + iNode) = NodeInfoTmp(2,NodeInfo(FirstNodeInd+offsetNodeID+CNS(iNode)))
-      END DO
+  DO iElem = FirstElemInd,LastElemInd
+    FirstNodeInd = ElemInfo_Shared(ELEM_FIRSTNODEIND,iElem) - offsetNodeID
+    ElemInfo_Shared(ELEM_FIRSTNODEIND,iElem) = 8*(iElem-1)
+    ElemInfo_Shared(ELEM_LASTNODEIND ,iElem) = 8* iElem
+    DO iNode = 1,8
+      NodeCoords_Shared(:,8*(iElem-1) + iNode) = NodeCoords_indx(:,FirstNodeInd+CNS(iNode))
+      NodeInfo_Shared  (  8*(iElem-1) + iNode) = NodeInfoTmp(2,NodeInfo(FirstNodeInd+offsetNodeID+CNS(iNode)))
     END DO
+  END DO
 
-    DEALLOCATE(NodeInfoTmp)
-
-  END ASSOCIATE
+  DEALLOCATE(NodeInfoTmp)
 
 END IF ! useCurveds.OR.NGeo.EQ.1
 
