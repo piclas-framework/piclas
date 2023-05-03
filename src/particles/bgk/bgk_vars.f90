@@ -60,6 +60,7 @@ INTEGER                                        :: BGK_SwitchIter
 INTEGER, ALLOCATABLE                           :: BGK_Iter_Count(:)
 REAL, ALLOCATABLE                              :: BGK_Avg_SwitchFactor(:)
 LOGICAL,ALLOCATABLE                            :: DoElementDSMC(:)
+REAL, ALLOCATABLE                              :: BGK_OutputKnudsen(:,:)
 
 TYPE tNodeAverage
     TYPE (tNodeAverage), POINTER               :: SubNode(:) => null()

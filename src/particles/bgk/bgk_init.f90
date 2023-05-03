@@ -129,6 +129,9 @@ DO iSpec=1, nSpecies
   END DO
 END DO
 
+ALLOCATE(BGK_OutputKnudsen(5,nElems))
+BGK_OutputKnudsen = 0.0
+
 BGKCollModel = GETINT('Particles-BGK-CollModel')
 IF ((nSpecies.GT.1).AND.(BGKCollModel.GT.1)) THEN
       CALL abort(__STAMP__,' ERROR Multispec only with ESBGK model!')

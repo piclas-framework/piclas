@@ -48,6 +48,7 @@ CALL prms%CreateRealOption(   'Part-AdaptMPF-MaxMPFRatio', 'Maximum deviation, a
 CALL prms%CreateIntOption(    'Part-AdaptMPF-RefinementNumber', 'Number of times the MPF filter is applied', '5')
 
 CALL prms%CreateIntOption(    'Part-AdaptMPF-SymAxis-MinPartNum', 'Target minimum particle number close to the symmetry axis', '10')
+CALL prms%CreateIntOption(    'Part-AdaptMPF-Cat-MinPartNum', 'Target minimum particle number close to catalytic boundaries', '10')
 
 END SUBROUTINE DefineParametersAdaptMPF
 
@@ -89,9 +90,6 @@ CHARACTER(LEN=255),ALLOCATABLE      :: VarNames_tmp(:)
 SWRITE(UNIT_StdOut,'(132("-"))')
 SWRITE(UNIT_stdOut,'(A)') ' INIT ADAPTIVE PARTICLE WEIGHTS...'
 
-ALLOCATE(TestVar(nElems))
-TestVar = 0.
-
 CALL InitNodeMapping
 
 IF(DoMacroscopicRestart) THEN
@@ -106,7 +104,8 @@ IF(DoMacroscopicRestart) THEN
     AdaptMPF%MinPartNum         = GETREAL('Part-AdaptMPF-MinParticleNumber')
     AdaptMPF%MaxPartNum         = GETREAL('Part-AdaptMPF-MaxParticleNumber')
     ! Parameters for the filtering subroutine
-    AdaptMPF%SymAxis_MinPartNum = GETREAL('Part-AdaptMPF-SymAxis-MinPartNum')
+    AdaptMPF%SymAxis_MinPartNum = GETINT('Part-AdaptMPF-SymAxis-MinPartNum')
+    AdaptMPF%Cat_MinPartNum     = GETINT('Part-AdaptMPF-Cat-MinPartNum')
     IF (AdaptMPF%UseMedianFilter) THEN
       AdaptMPF%MaxRatio         = GETREAL('Part-AdaptMPF-MaxMPFRatio')
       AdaptMPF%nRefine          = GETINT('Part-AdaptMPF-RefinementNumber')
@@ -252,11 +251,15 @@ USE MOD_PreProc
 USE MOD_MPI_Shared    
 USE MOD_MPI_Shared_Vars   
 USE MOD_DSMC_Symmetry
-USE MOD_Mesh_Vars               ,ONLY: nGlobalElems
+USE MOD_Restart_Vars            ,ONLY: DoCatalyticRestart
+USE MOD_SurfaceModel_Vars       ,ONLY: SurfChemReac
+USE MOD_Mesh_Vars               ,ONLY: nGlobalElems, offSetElem, SideToElem, nBCSides, BC
 USE MOD_Globals_Vars            ,ONLY: Pi
 USE MOD_Mesh_Tools              ,ONLY: GetCNElemID, GetGlobalElemID
 USE MOD_Particle_Vars           ,ONLY: Symmetry, Species
 USE MOD_Particle_Mesh_Vars      ,ONLY: ElemVolume_Shared, ElemMidPoint_Shared, nComputeNodeElems, GEO
+USE MOD_Particle_Boundary_Vars  ,ONLY: nPartBound, PartBound
+USE MOD_Particle_Surfaces_Vars  ,ONLY: BCdata_auxSF
 USE MOD_DSMC_Vars               
 USE MOD_part_tools              ,ONLY: CalcVarWeightMPF, CalcRadWeightMPF
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -266,7 +269,9 @@ IMPLICIT NONE
 ! LOCAL VARIABLES
 INTEGER                           :: iCNElem, firstElem, lastElem, offSetLocal, ReadInElems
 INTEGER                           :: iRefine
-REAL                              :: MinPartNum
+INTEGER                           :: iBound, iSide, ElemID, CNElemId
+REAL                              :: MinPartNum, MaxPartNum
+LOGICAL, ALLOCATABLE              :: RefineCatElem(:)
 !===================================================================================================================================
 #if USE_MPI
 firstElem = INT(REAL(myComputeNodeRank)*REAL(nComputeNodeElems)/REAL(nComputeNodeProcessors))+1
@@ -279,6 +284,19 @@ lastElem = nGlobalElems
 offSetLocal = 0
 ReadInElems = nGlobalElems
 #endif
+
+IF (DoCatalyticRestart) THEN
+  ALLOCATE(RefineCatElem(1:nGlobalElems))
+  RefineCatElem = .FALSE.
+  DO iSide=1,nBCSides
+    iBound = PartBound%MapToPartBC(BC(iSide))
+    IF (PartBound%TargetBoundCond(iBound).EQ.PartBound%ReflectiveBC) THEN
+      ElemID = SideToElem(S2E_ELEM_ID,iSide)
+      CNElemId = GetCNElemID(ElemID + offSetElem)
+      RefineCatElem(CNElemID) = .TRUE.
+    END IF
+  END DO
+END IF
 
 ! ! Determine the MPF based on the particle number from the reference simulation
 DO iCNElem = firstElem, lastElem
@@ -300,15 +318,25 @@ DO iCNElem = firstElem, lastElem
     ! Adaption based on the particle number per simulation cell  
     ELSE ! BGKQualityFactors
       ! Further refinement for the elements close to the symmetry axis in the axisymmetric case
-      IF ((Symmetry%Axisymmetric).AND.(ElemMidPoint_Shared(2,iCNElem).LE.(GEO%ymaxglob*0.05))) THEN
+      IF (DoCatalyticRestart) THEN
+        IF (RefineCatElem(iCNElem)) THEN
+          MinPartNum = AdaptMPF%Cat_MinPartNum
+        ELSE
+          MinPartNum = AdaptMPF%MinPartNum
+        END IF
+      ELSE IF ((Symmetry%Axisymmetric).AND.(ElemMidPoint_Shared(2,iCNElem).LE.(GEO%ymaxglob*0.05))) THEN
         MinPartNum = AdaptMPF%SymAxis_MinPartNum
       ELSE 
         MinPartNum = AdaptMPF%MinPartNum
       END IF
-      MinPartNum = AdaptMPF%MinPartNum
+      IF (MinPartNum.GT.AdaptMPF%MaxPartNum) THEN
+        MaxPartNum = MinPartNum*10.
+      ELSE 
+        MaxPartNum = AdaptMPF%MaxPartNum
+      END IF
       IF(AdaptMPFInfo_Shared(1,iCNElem).LT.MinPartNum) THEN
         OptimalMPF_Shared(iCNElem) = AdaptMPFInfo_Shared(2,iCNElem)*ElemVolume_Shared(iCNElem)/MinPartNum
-      ELSE IF(AdaptMPFInfo_Shared(1,iCNElem).GT.AdaptMPF%MaxPartNum) THEN
+      ELSE IF(AdaptMPFInfo_Shared(1,iCNElem).GT.MaxPartNum) THEN
         OptimalMPF_Shared(iCNElem) = AdaptMPFInfo_Shared(2,iCNElem)*ElemVolume_Shared(iCNElem)/AdaptMPF%MaxPartNum
       ELSE 
         OptimalMPF_Shared(iCNElem) = AdaptMPFInfo_Shared(6,iCNElem)
@@ -325,15 +353,25 @@ DO iCNElem = firstElem, lastElem
       END IF
     ! Adaption based on the particle number per simulation cell
     ELSE ! DSMCQualityFactors
-      IF ((Symmetry%Axisymmetric).AND.(ElemMidPoint_Shared(2,iCNElem).LE.(GEO%ymaxglob*0.05))) THEN
+      IF (DoCatalyticRestart) THEN
+        IF (RefineCatElem(iCNElem)) THEN
+          MinPartNum = AdaptMPF%Cat_MinPartNum
+        ELSE
+          MinPartNum = AdaptMPF%MinPartNum
+        END IF
+      ELSE IF ((Symmetry%Axisymmetric).AND.(ElemMidPoint_Shared(2,iCNElem).LE.(GEO%ymaxglob*0.05))) THEN
         MinPartNum = AdaptMPF%SymAxis_MinPartNum
       ELSE 
         MinPartNum = AdaptMPF%MinPartNum
       END IF
-      MinPartNum = AdaptMPF%MinPartNum
+      IF (MinPartNum.GT.AdaptMPF%MaxPartNum) THEN
+        MaxPartNum = MinPartNum*10.
+      ELSE 
+        MaxPartNum = AdaptMPF%MaxPartNum
+      END IF
       IF(AdaptMPFInfo_Shared(1,iCNElem).LT.MinPartNum) THEN
         OptimalMPF_Shared(iCNElem) = AdaptMPFInfo_Shared(2,iCNElem)*ElemVolume_Shared(iCNElem)/MinPartNum
-      ELSE IF(AdaptMPFInfo_Shared(1,iCNElem).GT.AdaptMPF%MaxPartNum) THEN
+      ELSE IF(AdaptMPFInfo_Shared(1,iCNElem).GT.MaxPartNum) THEN
         OptimalMPF_Shared(iCNElem) = AdaptMPFInfo_Shared(2,iCNElem)*ElemVolume_Shared(iCNElem)/AdaptMPF%MaxPartNum 
       ELSE
         OptimalMPF_Shared(iCNElem) = AdaptMPFInfo_Shared(6,iCNElem)
@@ -373,6 +411,8 @@ ADEALLOCATE(AdaptMPFInfo_Shared)
 CALL UNLOCK_AND_FREE(OptimalMPF_Shared_Win)
 #endif
 ADEALLOCATE(OptimalMPF_Shared)
+
+SDEALLOCATE(RefineCatElem)
 
 END SUBROUTINE DSMC_AdaptiveWeights
   

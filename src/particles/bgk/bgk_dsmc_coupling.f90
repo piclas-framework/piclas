@@ -46,7 +46,7 @@ USE MOD_Particle_Mesh_Vars     ,ONLY: ElemVolume_Shared, ElemToElemMapping, Elem
 USE MOD_Mesh_Vars              ,ONLY: offsetElem, nElems
 USE MOD_Mesh_Tools             ,ONLY: GetCNElemID, GetGlobalElemID
 USE MOD_part_tools             ,ONLY: GetParticleWeight
-USE MOD_DSMC_Vars              ,ONLY: DSMC, SpecDSMC, CollisMode, PartStateIntEn, RadialWeighting, VarWeighting, TestVar, PolyatomMolDSMC
+USE MOD_DSMC_Vars              ,ONLY: DSMC, SpecDSMC, CollisMode, PartStateIntEn, RadialWeighting, VarWeighting, PolyatomMolDSMC
 USE MOD_Particle_Analyze_Tools ,ONLY: CalcTelec,CalcTVibPoly
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -276,8 +276,15 @@ END IF
 ! Total temperature and comparison to the mean translational temperature
 TempTotal = (RefTempTotal*3. + DoF_Vib*TempVib + DoF_Rot*TempRot) / (3. + DoF_Vib + DoF_Rot)
 
- Knudsen_NonEq = SQRT(((TempTrans(1)-TempTotal)**2 + (TempTrans(2)-TempTotal)**2 + (TempTrans(3)-TempTotal)**2 &
-               + DoF_Rot*(TempRot-TempTotal)**2 + DoF_Vib*(TempVib-TempTotal)**2 )/((3. + DoF_Vib + DoF_Rot)*TempTotal**2))
+Knudsen_NonEq = SQRT(((TempTrans(1)-TempTotal)**2 + (TempTrans(2)-TempTotal)**2 + (TempTrans(3)-TempTotal)**2 &
+              + DoF_Rot*(TempRot-TempTotal)**2 + DoF_Vib*(TempVib-TempTotal)**2 )/((3. + DoF_Vib + DoF_Rot)*TempTotal**2))
+
+! Write out the non-equilibrium parameters
+BGK_OutputKnudsen(1,iElem) = MFP/0.00255
+BGK_OutputKnudsen(2,iElem) = Knudsen_Dens
+BGK_OutputKnudsen(3,iElem) = Knudsen_Velo
+BGK_OutputKnudsen(4,iElem) = Knudsen_Temp
+BGK_OutputKnudsen(5,iElem) = Knudsen_NonEq
 
 ! Definition of continuum-breakdown in the cell and swtich between BGK and DSMC
 SELECT CASE (TRIM(BGKDSMC_SwitchCriterium))
