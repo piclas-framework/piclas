@@ -365,7 +365,6 @@ END IF ! MaxPartDisplacement
 ! L_cell:   Characteristic ceill length -> V_cell^(1/3)
 CalcPointsPerDebyeLength       = GETLOGICAL('CalcPointsPerDebyeLength','.FALSE.')
 IF(CalcPointsPerDebyeLength)THEN
-  PPDCellResolved = 0
   ! value in 3D estimated with the characteristic length of the cell
   ALLOCATE( PPDCell(1:PP_nElems) )
   PPDCell=0.0
@@ -424,7 +423,6 @@ END IF
 ! PIC Time Step Approximation
 CalcPICTimeStep = GETLOGICAL('CalcPICTimeStep')
 IF(CalcPICTimeStep)THEN
-  PICTimeCellResolved = 0
   ALLOCATE( PICTimeStepCell(1:PP_nElems) )
   PICTimeStepCell=0.0
   CALL AddToElemData(ElementOut,'PICTimeStepCell',RealArray=PICTimeStepCell(1:PP_nElems))
