@@ -121,6 +121,9 @@ USE MOD_HDG_Vars               ,ONLY: CalcBRVariableElectronTemp
 #if defined(MEASURE_MPI_WAIT)
 USE MOD_MPI_Vars               ,ONLY: MPIW8TimeSim
 #endif /*defined(MEASURE_MPI_WAIT)*/
+#if defined(PARTICLES)
+USE MOD_Particle_Analyze_Vars  ,ONLY: CalcPointsPerDebyeLength,CalcPICTimeStep
+#endif
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -206,6 +209,11 @@ CALL PrintStatusLine(time,dt,tStart,tEnd,1)
 CALL InitAnalyticalParticleState() ! Requires dt
 #endif /*defined(PARTICLES) && defined(CODE_ANALYZE)*/
 
+#if defined(PARTICLES)
+IF(CalcPointsPerDebyeLength.OR.CalcPICTimeStep)THEN
+  CALL CountPartsPerElem(ResetNumberOfParticles=.TRUE.) !for scaling of tParts of LB
+END IF ! CalcPointsPerDebyeLength.OR.CalcPICTimeStep
+#endif
 CALL PerformAnalyze(time,FirstOrLastIter=.TRUE.,OutPutHDF5=.FALSE.)
 
 #ifdef PARTICLES
@@ -363,10 +371,10 @@ DO !iter_t=0,MaxIter
     MPIW8TimeSim = MPIW8TimeSim + (WallTimeEnd-WallTimeStart)
 #endif /*defined(MEASURE_MPI_WAIT)*/
 
-#if USE_MPI
 #if defined(PARTICLES) && !defined(LSERK) && !defined(IMPA) && !defined(ROS)
     CALL CountPartsPerElem(ResetNumberOfParticles=.TRUE.) !for scaling of tParts of LB
 #endif
+#if USE_MPI
 
 #if USE_LOADBALANCE
 #ifdef PARTICLES
@@ -405,7 +413,12 @@ DO !iter_t=0,MaxIter
     IF(MOD(iAnalyze,nSkipAnalyze).EQ.0 .OR. finalIter)THEN
 #endif /*USE_LOADBALANCE*/
       ! Analyze for output
-      CALL PerformAnalyze(time, FirstOrLastIter=finalIter, OutPutHDF5=.TRUE.) ! analyze routines are not called here in last iter
+#if defined(PARTICLES)
+      IF(CalcPointsPerDebyeLength.OR.CalcPICTimeStep)THEN
+        CALL CountPartsPerElem(ResetNumberOfParticles=.TRUE.) !for scaling of tParts of LB
+      END IF ! CalcPointsPerDebyeLength.OR.CalcPICTimeStep
+#endif
+      CALL PerformAnalyze(time, FirstOrLastIter=finalIter, OutPutHDF5=.TRUE.) ! analyze routines are called here in last iter
       ! write information out to std-out of console
       CALL PrintStatusLine(time,dt,tStart,tEnd,2)
       CALL WriteInfoStdOut()

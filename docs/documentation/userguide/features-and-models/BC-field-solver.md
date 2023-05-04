@@ -208,7 +208,7 @@ The resulting current $I$ and voltage $U$ are automatically written to *FieldAna
 ### Power control
 
 An automatic adjustment of a *DC* electric potential to ensure that a fixed power absorbed by the charged particles of the system is
-achieved requires the following parameters
+achieved, requires the following parameters
 
     BoundaryName = BC_WALL ! BC name in the mesh.h5 file
     BoundaryType = (/2,2/) ! all BCs with this type will be adjusted to the same electric potential that is adjusted over time
@@ -230,6 +230,17 @@ When a simulation is restarted from a state file, the last known value of the BC
 is only applied when starting a fresh simulation from scratch.
 Note that in the case of an AC boundary, the amplitude defined in the `RefState` will be overwritten with the initial value given in
 `CoupledPowerPotential`.
+
+There are three models implemented by which the power control adjusts the electric potential (or peak potential in case of AC)
+
+    CoupledPowerMode = 3 ! 1: instantaneous power (default value), 2: moving average, 3: integrated and averaged over 1 cycle
+    CoupledPowerFrequency = 13.56e6 ! Frequency with which the coupled power voltage is adapte
+
+where `CoupledPowerMode` selects the model and `CoupledPowerFrequency` defines the adaption frequency and corresponding period over
+which the power is integrated but only when model 3 is used. Model 1 uses the instantaneously determined absorbed power that inherently
+oscillates, model 2 uses an averaged value (that is reset during every load balance or normal restart event) and model 3 integrated
+the power linearly between particle analysis steps and adjusts the power after each period of the user-defined frequency
+`CoupledPowerFrequency`.
 
 ### Zero potential enforcement
 
