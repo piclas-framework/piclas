@@ -44,6 +44,7 @@ CALL prms%CreateRealArrayOption('RayTracing-RayDirection' , 'Direction vector fo
 CALL prms%CreateIntOption(      'RayTracing-PartBound'    , 'Particle boundary ID where rays are emitted from' , '0')
 
 CALL prms%CreateRealOption(     'RayTracing-PulseDuration'  , 'Pulse duration tau for a Gaussian-type pulse with I~exp(-(t/tau)^2) [s]'                  )
+CALL prms%CreateIntOption(      'RayTracing-NbrOfPulses'    , 'Number of pulses [-]','1')
 CALL prms%CreateRealOption(     'RayTracing-WaistRadius'    , 'Beam waist radius (in focal spot) w_b for Gaussian-type pulse with I~exp(-(r/w_b)^2) [m]' , '0.0')
 CALL prms%CreateRealOption(     'RayTracing-WaveLength'     , 'Beam wavelength [m]'                                                                      )
 CALL prms%CreateRealOption(     'RayTracing-RepetitionRate' , 'Pulse repetition rate (pulses per second) [Hz]'                                           )
@@ -76,6 +77,7 @@ USE MOD_MPI_Shared
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
+REAL              :: factor
 !===================================================================================================================================
 SWRITE(UNIT_StdOut,'(132("-"))')
 SWRITE(UNIT_stdOut,'(A)') ' INIT RAY TRACING SOLVER ...'
@@ -86,23 +88,51 @@ IF(RayPartBound.LT.0) CALL CollectiveStop(__STAMP__,'RayTracing-PartBound must b
 
 ! Get ray parameters
 Ray%PulseDuration    = GETREAL('RayTracing-PulseDuration')
+Ray%NbrOfPulses      = GETINT('RayTracing-NbrOfPulses')
+Ray%tShift           = SQRT(8.0) * Ray%PulseDuration
 Ray%WaistRadius      = GETREAL('RayTracing-WaistRadius')
 Ray%WaveLength       = GETREAL('RayTracing-WaveLength')
 Ray%RepetitionRate   = GETREAL('RayTracing-RepetitionRate')
+Ray%Period           = 1./Ray%RepetitionRate
 Ray%Power            = GETREAL('RayTracing-Power')
 
 ASSOCIATE( &
-      E0   => Ray%Energy             ,&
-      wb   => Ray%WaistRadius        ,&
-      tau  => Ray%PulseDuration      ,&
-      I0   => Ray%IntensityAmplitude ,&
-      A    => Ray%Area               )
+      E0      => Ray%Energy             ,&
+      wb      => Ray%WaistRadius        ,&
+      tau     => Ray%PulseDuration      ,&
+      I0      => Ray%IntensityAmplitude ,&
+      tShift  => Ray%tShift             ,&
+      Period  => Ray%Period             ,&
+      tActive => Ray%tActive            ,&
+      A       => Ray%Area               )
   ! Derived quantities
   E0 = Ray%Power / Ray%RepetitionRate
   ! Rectangle
-  A  = (GEO%xmaxglob-GEO%xminglob) * (GEO%ymaxglob-GEO%xminglob)
+  A  = (GEO%xmaxglob-GEO%xminglob) * (GEO%ymaxglob-GEO%yminglob)
   I0 = E0 / (SQRT(PI)*tau*A)
+
+  ! Correction factor due to temporal cut-off of the Gaussian pulse
+  ! no need for correction in space because the function is not cut-off in space
+  ! just consider the temporal cut-off for the rectangle
+  factor = ERF(tShift/tau)
+  factor = SQRT(PI)*tau*A
+  I0 = E0 / factor
+
+  ! Sanity check: overlapping of pulses is not implemented (use multiple emissions for this)
+  IF(2.0*tShift.GT.Period) CALL abort(__STAMP__,'Pulse length (2*tShift) is greater than the pulse period. This is not implemented!')
+  
+  ! Active pulse time
+  tActive = REAL(Ray%NbrOfPulses - 1)*Period + 2.0*tShift
 END ASSOCIATE
+
+CALL PrintOption('Rectangular ray emission area: A [m2]'                 , 'CALCUL.' , RealOpt=Ray%Area)
+CALL PrintOption('Single pulse energy [J]'                               , 'CALCUL.' , RealOpt=Ray%Energy)
+CALL PrintOption('Intensity amplitude: I0 [W/m^2]'                       , 'CALCUL.' , RealOpt=Ray%IntensityAmplitude)
+CALL PrintOption('Corrected Intensity amplitude: I0_corr [W/m^2]'        , 'CALCUL.' , RealOpt=Ray%IntensityAmplitude)
+CALL PrintOption('Pulse period (Time between maximum of two pulses) [s]' , 'CALCUL.' , RealOpt=Ray%Period)
+CALL PrintOption('Temporal pulse width (pulse time 2x tShift) [s]'       , 'CALCUL.' , RealOpt=2.0*Ray%tShift)
+CALL PrintOption('Pulse will end at tActive (pulse final time) [s]'      , 'CALCUL.' , RealOpt=Ray%tActive)
+
 
 ALLOCATE(RayElemPassedEnergy(1:nGlobalElems))
 RayElemPassedEnergy=0.0

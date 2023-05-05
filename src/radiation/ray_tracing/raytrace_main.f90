@@ -59,6 +59,8 @@ USE MOD_Mesh_Tools             ,ONLY: GetCNElemID
 USE MOD_part_emission_tools    ,ONLY: InsideQuadrilateral
 USE MOD_Particle_Boundary_Vars ,ONLY: nComputeNodeSurfSides,PartBound,SurfSide2GlobalSide
 USE MOD_Particle_Mesh_Vars     ,ONLY: SideInfo_Shared
+USE MOD_Particle_Boundary_Tools,ONLY: StoreBoundaryParticleProperties
+USE MOD_Particle_Boundary_Vars ,ONLY: PartStateBoundary,nVarPartStateBoundary
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -73,6 +75,8 @@ INTEGER             :: CNElemID, iRay, photonCount, iPhot, iPhotLoc, RayVisCount
 !REAL                :: Bounds(1:2,1:3) ! Bounds(1,1:3) --> maxCoords , Bounds(2,1:3) --> minCoords
 !REAL                :: RandRot(3,3) !, PartPos(1:3)
 LOGICAL :: found
+LOGICAL :: FoundComputeNodeSurfSide
+INTEGER :: ALLOCSTAT
 !===================================================================================================================================
 
 SWRITE(UNIT_stdOut,'(A)') ' Start Ray Tracing Calculation ...'
@@ -86,15 +90,23 @@ IF(myrank.LT.MOD(NumRays,nProcessors)) LocRayNum = LocRayNum + 1
 RayDisp = INT(LocRayNum/20)
 
 
-PhotonProps%PhotonPos(1:3) = (/0.5,0.01,0.99/)
-found = InsideQuadrilateral(PhotonProps%PhotonPos(1:2),1)
-WRITE (*,*) "PhotonProps%PhotonPos(1:3),found =", PhotonProps%PhotonPos(1:3),found
+!PhotonProps%PhotonPos(1:3) = (/0.5,0.01,0.99/)
+!found = InsideQuadrilateral(PhotonProps%PhotonPos(1:2),1)
+!WRITE (*,*) "PhotonProps%PhotonPos(1:3),found =", PhotonProps%PhotonPos(1:3),found
 
 
 
+PhotonProps%PhotonDirection(1:3) = (/0.0,0.0,-1.0/)! SetPhotonStartDirection(iCNElem, iPhotLoc, RandRot)
 
-write(*,*) "DONE"
-IF(myrank.eq.0) read*; CALL MPI_BARRIER(MPI_COMM_WORLD,iError)
+!write(*,*) "DONE"
+!IF(myrank.eq.0) read*; CALL MPI_BARRIER(MPI_COMM_WORLD,iError)
+
+  ! This array is not de-allocated during load balance as it is only written to .h5 during WriteStateToHDF5()
+  IF(.NOT.ALLOCATED(PartStateBoundary))THEN
+    ALLOCATE(PartStateBoundary(1:nVarPartStateBoundary,1:LocRayNum), STAT=ALLOCSTAT)
+    IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__,'ERROR in particle_init.f90: Cannot allocate PartStateBoundary array!')
+    PartStateBoundary=0.
+  END IF ! .NOT.ALLOCATED(PartStateBoundary)
 
 DO iRay = 1, LocRayNum
   IF(MPIroot.AND.(MOD(RayVisCount,RayDisp).EQ.0)) CALL PrintStatusLineRadiation(REAL(RayVisCount),REAL(1),REAL(LocRayNum),.TRUE.)
@@ -107,6 +119,7 @@ DO iRay = 1, LocRayNum
 
   PhotonProps%ElemID = -1 ! Initialize
 
+  FoundComputeNodeSurfSide = .FALSE.
   SurfLoop: DO iSurfSide = 1,nComputeNodeSurfSides
     NonUniqueGlobalSideID = SurfSide2GlobalSide(SURF_SIDEID,iSurfSide)
     ! Check if the surface side has a neighbor (and is therefore an inner BCs)
@@ -114,6 +127,7 @@ DO iRay = 1, LocRayNum
       ! Get field BC index of side and compare with BC index of the corresponding particle boundary index of the emission side
       iBC = SideInfo_Shared(SIDE_BCID,NonUniqueGlobalSideID) ! Get field BC index from non-unique global side index
       IF(iBC.NE.PartBound%MapToFieldBC(RayPartBound)) CYCLE SurfLoop ! Correct BC not found, check next side
+      FoundComputeNodeSurfSide = .TRUE.
       ! Check if ray starting position is within the quadrilateral that is spanned by the four corner nodes of the side
       IF(InsideQuadrilateral(PhotonProps%PhotonPos(1:2),NonUniqueGlobalSideID))THEN
         ! Found CN element index
@@ -125,8 +139,30 @@ DO iRay = 1, LocRayNum
     END IF ! SideInfo_Shared(SIDE_NBSIDEID,NonUniqueGlobalSideID).LE.0
   END DO SurfLoop! iSurfSide = 1,nComputeNodeSurfSides
 
+  ! Sanity check: nComputeNodeSurfSides > 0 and the correct PartBCIndex for those sides
+  IF(.NOT.FoundComputeNodeSurfSide)THEN
+    IPWRITE(UNIT_StdOut,*) ": nComputeNodeSurfSides =", nComputeNodeSurfSides
+    IPWRITE(UNIT_StdOut,*) ": RayPartBound          =", RayPartBound         
+    !IPWRITE(UNIT_StdOut,'(I0,A,I0,A)') ": Set Part-Boundary",RayPartBound,"-BoundaryParticleOutput = T"
+    IPWRITE(UNIT_StdOut,*) ": Set Particles-DSMC-CalcSurfaceVal = T"
+    CALL abort(__STAMP__,'No boundary found in list of nComputeNodeSurfSides for defined RayPartBound!')
+  END IF ! FoundComputeNodeSurfSide
+
   ! Sanity check
-  IF(PhotonProps%ElemID.LE.0) CALL abort(__STAMP__,'Ray starting element not found!')
+  IF(PhotonProps%ElemID.LE.0)THEN
+    IPWRITE(UNIT_StdOut,*) "PhotonProps%PhotonPos(1:3) =", PhotonProps%PhotonPos(1:3)
+    CALL abort(__STAMP__,'Ray starting element not found!')
+  ELSE
+    ! Output to .h5 for debugging
+    CALL StoreBoundaryParticleProperties(iRay,&
+         999,&
+         PhotonProps%PhotonPos(1:3),&
+         UNITVECTOR(PhotonProps%PhotonDirection(1:3)),(/0.0,0.0,1.0/),&
+         iPartBound=RayPartBound,&
+         mode=2,&
+         MPF_optIN=0.0,&
+         Velo_optIN=PhotonProps%PhotonDirection(1:3))
+  END IF !PhotonProps%ElemID.LE.0
 
 
 
@@ -135,7 +171,6 @@ DO iRay = 1, LocRayNum
   !ELSE
     iPhotLoc = iPhot
   !END IF
-  PhotonProps%PhotonDirection(1:3) = (/0,0,-1/)! SetPhotonStartDirection(iCNElem, iPhotLoc, RandRot)
   !IF ((RadObservationPointMethod.EQ.2).AND.RadObservationPoint%CalcFullSpectra) THEN
     PhotonProps%WaveLength = iPhotLoc
   !ELSE
@@ -145,8 +180,8 @@ DO iRay = 1, LocRayNum
       !PhotonProps%WaveLength = SetParticleWavelengthBiSec(iCNElem)
     !END IF
   !END IF
-  PhotonProps%PhotonEnergy = SetPhotonEnergy(CNElemID,PhotonProps%PhotonPos(1:3), PhotonProps%WaveLength) 
-  CALL PhotonTriaTracking()
+  !PhotonProps%PhotonEnergy = SetPhotonEnergy(CNElemID,PhotonProps%PhotonPos(1:3), PhotonProps%WaveLength) 
+  !CALL PhotonTriaTracking()
 END DO
 !photonCount = photonCount + RadTransPhotPerCell(iELem)
 

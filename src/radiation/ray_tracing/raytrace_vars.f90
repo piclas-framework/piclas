@@ -25,14 +25,18 @@ SAVE
 ! GLOBAL RAY TRACING VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 TYPE tRayTrace
-  REAL  :: PulseDuration                               !>
-  REAL  :: WaistRadius                                 !>
-  REAL  :: WaveLength                                  !>
-  REAL  :: RepetitionRate                              !>
-  REAL  :: Power                                       !>
-  REAL  :: Area                                        !>
-  REAL  :: Energy                                      !>
-  REAL  :: IntensityAmplitude                          !>
+  REAL    :: PulseDuration      !>
+  REAL    :: tShift             !>
+  REAL    :: tActive            !>
+  REAL    :: Period             !>
+  INTEGER :: NbrOfPulses        !>
+  REAL    :: WaistRadius        !>
+  REAL    :: WaveLength         !>
+  REAL    :: RepetitionRate     !>
+  REAL    :: Power              !>
+  REAL    :: Area               !>
+  REAL    :: Energy             !>
+  REAL    :: IntensityAmplitude !>
 END TYPE
 
 TYPE (tRayTrace)     :: Ray                            !>

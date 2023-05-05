@@ -221,7 +221,7 @@ SampWallImpactNumber(SpecID,SubP,SubQ,SurfSideID) = SampWallImpactNumber(SpecID,
 END SUBROUTINE SampleImpactProperties
 
 
-SUBROUTINE StoreBoundaryParticleProperties(iPart,SpecID,PartPos,PartTrajectory,SurfaceNormal,iPartBound,mode,MPF_optIN)
+SUBROUTINE StoreBoundaryParticleProperties(iPart,SpecID,PartPos,PartTrajectory,SurfaceNormal,iPartBound,mode,MPF_optIN,Velo_optIN)
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! Save particle position, velocity and species to PartDataBoundary container for writing to .h5 later
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -244,6 +244,7 @@ INTEGER,INTENT(IN) :: iPartBound  ! Part-BoundaryX on which the impact occurs
 INTEGER,INTENT(IN) :: mode ! 1: particle impacts on BC (species is stored as positive value)
                            ! 2: particles is emitted from the BC into the simulation domain (species is stored as negative value)
 REAL,INTENT(IN),OPTIONAL :: MPF_optIN ! Supply the MPF in special cases
+REAL,INTENT(IN),OPTIONAL :: Velo_optIN(1:3) ! Supply the velocity in special cases
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 REAL                 :: MPF
@@ -291,7 +292,11 @@ ASSOCIATE( iMax => PartStateBoundaryVecLength )
   END IF
 
   PartStateBoundary(1:3,iMax) = PartPos
-  PartStateBoundary(4:6,iMax) = PartState(4:6,iPart)
+  IF(PRESENT(Velo_optIN))THEN
+    PartStateBoundary(4:6,iMax) = Velo_optIN
+  ELSE
+    PartStateBoundary(4:6,iMax) = PartState(4:6,iPart)
+  END IF ! PRESENT(Velo_optIN)
   ! Mode 1: store normal species ID, mode 2: store negative species ID (special analysis of emitted particles in/from volume/surface)
   IF(mode.EQ.1)THEN
     PartStateBoundary(7  ,iMax) = REAL(SpecID)
