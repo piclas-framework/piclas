@@ -79,12 +79,12 @@ USE MOD_Globals
 USE MOD_PreProc
 USE MOD_ReadInTools        ,ONLY: GETLOGICAL, GETINT, GETREALARRAY
 USE MOD_FV_Vars
-USE MOD_FV_Metrics         ,ONLY: InitFV_Metrics
+USE MOD_FV_Metrics         ,ONLY: InitFV_Metrics, Build_FVSideMatrix
 USE MOD_FV_Limiter         ,ONLY: InitFV_Limiter
 USE MOD_IO_HDF5            ,ONLY: AddToElemData,ElementOut
 USE MOD_Restart_Vars       ,ONLY: DoRestart,RestartInitIsDone
 USE MOD_Interpolation_Vars ,ONLY: InterpolationInitIsDone
-USE MOD_Mesh_Vars          ,ONLY: nSides, nElems, Face_xGP, NormVec
+USE MOD_Mesh_Vars          ,ONLY: nSides, Face_xGP, NormVec
 USE MOD_Mesh_Vars          ,ONLY: MeshInitIsDone
 USE MOD_FillMortar         ,ONLY: L_Mortar
 #if USE_LOADBALANCE
@@ -105,7 +105,7 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-REAL                      :: dx_slave_temp(PP_nVar+1,1:nSides), dx_master_temp(PP_nVar+1,1:nSides)
+REAL                      :: dx_slave_temp(3,PP_nVar+1,1:nSides), dx_master_temp(3,PP_nVar+1,1:nSides)
 #if USE_MPI
 REAL                      :: Geotemp(6,1:nSides)
 #endif /*USE_MPI*/
@@ -167,15 +167,15 @@ Flux_Master=0.
 Flux_Slave=0.
 
 #if (PP_TimeDiscMethod==600) /*DVM*/
-ALLOCATE(DVM_ElemData1(1:nElems))
-ALLOCATE(DVM_ElemData2(1:nElems))
-ALLOCATE(DVM_ElemData3(1:nElems))
-ALLOCATE(DVM_ElemData4(1:nElems))
-ALLOCATE(DVM_ElemData5(1:nElems))
-ALLOCATE(DVM_ElemData6(1:nElems))
-ALLOCATE(DVM_ElemData7(1:nElems))
-ALLOCATE(DVM_ElemData8(1:nElems))
-ALLOCATE(DVM_ElemData9(1:nElems))
+ALLOCATE(DVM_ElemData1(1:PP_nElems))
+ALLOCATE(DVM_ElemData2(1:PP_nElems))
+ALLOCATE(DVM_ElemData3(1:PP_nElems))
+ALLOCATE(DVM_ElemData4(1:PP_nElems))
+ALLOCATE(DVM_ElemData5(1:PP_nElems))
+ALLOCATE(DVM_ElemData6(1:PP_nElems))
+ALLOCATE(DVM_ElemData7(1:PP_nElems))
+ALLOCATE(DVM_ElemData8(1:PP_nElems))
+ALLOCATE(DVM_ElemData9(1:PP_nElems))
 CALL AddToElemData(ElementOut,'DVM_Density',RealArray=DVM_ElemData1(:))
 CALL AddToElemData(ElementOut,'DVM_VeloX',RealArray=DVM_ElemData2(:))
 CALL AddToElemData(ElementOut,'DVM_VeloY',RealArray=DVM_ElemData3(:))
@@ -194,14 +194,20 @@ IF (doFVReconstruction) THEN
   LimiterType = GETINT('FV-LimiterType')
   CALL InitFV_Limiter()
 
-  ALLOCATE(FV_dx_slave(1:nSides))
-  ALLOCATE(FV_dx_master(1:nSides))
+  ALLOCATE(FV_dx_slave(3,1:nSides))
+  ALLOCATE(FV_dx_master(3,1:nSides))
+  ALLOCATE(FV_SysSol_slave(3,1:nSides))
+  ALLOCATE(FV_SysSol_master(3,1:nSides))
+  FV_SysSol_slave = 0.
+  FV_SysSol_master = 0.
 #if (PP_TimeDiscMethod==600) /*DVM*/
-  ALLOCATE(DVMtraj_slave(PP_nVar,1:nSides))
-  ALLOCATE(DVMtraj_master(PP_nVar,1:nSides))
+  ALLOCATE(DVMtraj_slave(3,PP_nVar,1:nSides))
+  ALLOCATE(DVMtraj_master(3,PP_nVar,1:nSides))
 #endif
 
-  ALLOCATE(FV_gradU(1:PP_nVar,0:PP_N,0:PP_N,1:nSides))
+  ALLOCATE(FV_gradU_side(1:PP_nVar,0:PP_N,0:PP_N,1:nSides))
+  ALLOCATE(FV_gradU_elem(3,1:PP_nVar,1:PP_nElems))
+
 
   !calculate face to center distances for reconstruction
 #if USE_MPI
@@ -216,23 +222,28 @@ IF (doFVReconstruction) THEN
   NormVec(:,0,0,1:nSides)=Geotemp(4:6,:)
 
   ! distances for MPI sides - send direction
-  CALL StartReceiveMPIData(PP_nVar+1,dx_slave_temp,1,nSides,RecRequest_U,SendID=2) ! Receive MINE
+  CALL StartReceiveMPIData(PP_nVar+1,dx_slave_temp,1,nSides,RecRequest_U,SendID=1) ! Receive MINE
+  CALL StartReceiveMPIData(PP_nVar+1,dx_master_temp,1,nSides,RecRequest_U2,SendID=2)! Receive YOUR
   CALL InitFV_Metrics(dx_master_temp,dx_slave_temp,doMPISides=.TRUE.)
   CALL L_Mortar(dx_master_temp,dx_slave_temp,doMPISides=.TRUE.)
-  CALL StartSendMPIData(PP_nVar+1,dx_slave_temp,1,nSides,SendRequest_U,SendID=2) ! Send YOUR
+  CALL StartSendMPIData(PP_nVar+1,dx_slave_temp,1,nSides,SendRequest_U,SendID=1) ! Send YOUR
+  CALL StartSendMPIData(PP_nVar+1,dx_master_temp,1,nSides,SendRequest_U2,SendID=2) ! Send MINE
 #endif /*USE_MPI*/
   ! distances for BCSides, InnerSides and MPI sides - receive direction
   CALL InitFV_Metrics(dx_master_temp,dx_slave_temp,doMPISides=.FALSE.)
   CALL L_Mortar(dx_master_temp,dx_slave_temp,doMPISides=.FALSE.)
 #if USE_MPI
-  CALL FinishExchangeMPIData(SendRequest_U,RecRequest_U,SendID=2)
+  CALL FinishExchangeMPIData(SendRequest_U,RecRequest_U,SendID=1)
+  CALL FinishExchangeMPIData(SendRequest_U2,RecRequest_U2,SendID=2)
 #endif /*USE_MPI*/
-  FV_dx_master(:)=dx_master_temp(PP_nVar+1,:)
-  FV_dx_slave(:)=dx_slave_temp(PP_nVar+1,:)
+  FV_dx_master(:,:)=dx_master_temp(:,PP_nVar+1,:)
+  FV_dx_slave(:,:)=dx_slave_temp(:,PP_nVar+1,:)
 #if (PP_TimeDiscMethod==600)
-  DVMtraj_master(1:PP_nVar,:)=dx_master_temp(1:PP_nVar,:)
-  DVMtraj_slave(1:PP_nVar,:)=dx_slave_temp(1:PP_nVar,:)
+  DVMtraj_master(:,1:PP_nVar,:)=dx_master_temp(:,1:PP_nVar,:)
+  DVMtraj_slave(:,1:PP_nVar,:)=dx_slave_temp(:,1:PP_nVar,:)
 #endif
+  ! build neighbour-side matrices and invert them
+  CALL Build_FVSideMatrix(FV_dx_master,FV_dx_slave)
 END IF
 
 FVInitIsDone=.TRUE.
@@ -251,9 +262,10 @@ USE MOD_Globals
 USE MOD_Preproc
 USE MOD_Vector
 USE MOD_FV_Vars           ,ONLY: U,Ut,Flux_Master,Flux_Slave, doFVReconstruction
-USE MOD_FV_Vars           ,ONLY: U_master, U_slave, FV_gradU
-USE MOD_SurfInt            ,ONLY: SurfInt
-USE MOD_ProlongToFace     ,ONLY: ProlongToFace, CalcFVGradients
+USE MOD_FV_Vars           ,ONLY: U_master, U_slave, FV_gradU_side, FV_gradU_elem
+USE MOD_SurfInt           ,ONLY: SurfInt
+USE MOD_ProlongToFace     ,ONLY: ProlongToFace
+USE MOD_FV_Gradients      ,ONLY: CalcFVGradients, SumFVGradients
 USE MOD_FillFlux          ,ONLY: FillFlux
 USE MOD_Equation          ,ONLY: CalcSource
 USE MOD_Interpolation     ,ONLY: ApplyJacobian
@@ -342,7 +354,7 @@ IF (doFVReconstruction) THEN
   CALL FinishExchangeMPIData(SendRequest_U,RecRequest_U,SendID=2)
 
   ! Gradient calculation for reconstruction
-  CALL StartReceiveMPIData(PP_nVar,FV_gradU,1,nSides,RecRequest_gradUx,SendID=1) ! Receive YOUR
+  CALL StartReceiveMPIData(PP_nVar,FV_gradU_side,1,nSides,RecRequest_gradUx,SendID=1) ! Receive YOUR
 #if USE_LOADBALANCE
   CALL LBSplitTime(LB_DGCOMM,tLBStart)
 #endif /*USE_LOADBALANCE*/
@@ -352,7 +364,7 @@ IF (doFVReconstruction) THEN
   CALL LBSplitTime(LB_DG,tLBStart)
 #endif /*USE_LOADBALANCE*/
 
-  CALL StartSendMPIData(PP_nVar,FV_gradU,1,nSides,SendRequest_gradUx,SendID=1) ! Send MINE
+  CALL StartSendMPIData(PP_nVar,FV_gradU_side,1,nSides,SendRequest_gradUx,SendID=1) ! Send MINE
 
   ! Complete send / receive of gradients (before mpiFALSE gradients because bc grads need further grads)
   CALL FinishExchangeMPIData(SendRequest_gradUx,RecRequest_gradUx,SendID=1)
@@ -363,7 +375,9 @@ IF (doFVReconstruction) THEN
 
   ! fill the all gradients on this proc
   CALL CalcFVGradients(doMPISides=.FALSE.)
-  CALL Flux_Mortar(FV_gradU,FV_gradU,doMPISides=.FALSE.)
+  CALL Flux_Mortar(FV_gradU_side,FV_gradU_side,doMPISides=.FALSE.)
+
+  CALL SumFVGradients()
 
 ! prolong the solution to the faces by applying reconstruction gradients
 #if USE_MPI
@@ -372,14 +386,14 @@ IF (doFVReconstruction) THEN
   CALL LBStartTime(tLBStart)
 #endif /*USE_LOADBALANCE*/
 
-  CALL Flux_Mortar(FV_gradU,FV_gradU,doMPISides=.TRUE.)
+  CALL Flux_Mortar(FV_gradU_side,FV_gradU_side,doMPISides=.TRUE.)
 
   ! prolong the solution to the faces by applying reconstruction gradients
   CALL StartReceiveMPIData(PP_nVar,U_slave,1,nSides,RecRequest_U,SendID=2) ! Receive MINE
 #if USE_LOADBALANCE
   CALL LBSplitTime(LB_DGCOMM,tLBStart)
 #endif /*USE_LOADBALANCE*/
-  CALL ProlongToFace(U,U_master,U_slave,FV_gradU,doMPISides=.TRUE.)
+  CALL ProlongToFace(U,U_master,U_slave,FV_gradU_elem,doMPISides=.TRUE.)
   CALL U_Mortar(U_master,U_slave,doMPISides=.TRUE.)
 #if USE_LOADBALANCE
   CALL LBSplitTime(LB_DG,tLBStart)
@@ -391,7 +405,7 @@ IF (doFVReconstruction) THEN
 #endif /*USE_MPI*/
 
   ! Prolong to face for BCSides, InnerSides and MPI sides - receive direction
-  CALL ProlongToFace(U,U_master,U_slave,FV_gradU,doMPISides=.FALSE.)
+  CALL ProlongToFace(U,U_master,U_slave,FV_gradU_elem,doMPISides=.FALSE.)
   CALL U_Mortar(U_master,U_slave,doMPISides=.FALSE.)
 
 END IF ! end of reconstruction
@@ -546,7 +560,10 @@ SDEALLOCATE(DVM_ElemData9)
 IF (doFVReconstruction) THEN
   SDEALLOCATE(FV_dx_slave)
   SDEALLOCATE(FV_dx_master)
-  SDEALLOCATE(FV_gradU)
+  SDEALLOCATE(FV_SysSol_slave)
+  SDEALLOCATE(FV_SysSol_master)
+  SDEALLOCATE(FV_gradU_elem)
+  SDEALLOCATE(FV_gradU_side)
 #if (PP_TimeDiscMethod==600) /*DVM*/
   SDEALLOCATE(DVMtraj_slave)
   SDEALLOCATE(DVMtraj_master)

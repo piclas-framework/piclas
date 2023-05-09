@@ -30,10 +30,6 @@ INTERFACE ProlongToFace
   MODULE PROCEDURE ProlongToFace_FV
 END INTERFACE
 
-INTERFACE CalcFVGradients
-  MODULE PROCEDURE CalcFVGradients
-END INTERFACE
-
 #else
 INTERFACE ProlongToFace
   MODULE PROCEDURE ProlongToFace_sideBased
@@ -53,97 +49,13 @@ PUBLIC::ProlongToFace
 PUBLIC::ProlongToFace_BC
 PUBLIC::ProlongToFace_Elementlocal
 #if USE_FV
-PUBLIC::CalcFVGradients
+PUBLIC::ProlongToFace_FV
 #endif
 !===================================================================================================================================
 
 CONTAINS
 
 #if USE_FV
-SUBROUTINE CalcFVGradients(doMPISides)
-!===================================================================================================================================
-! Compute gradients for fv reconstruction
-!===================================================================================================================================
-! MODULES
-
-USE MOD_PreProc
-USE MOD_FV_Vars                  ,ONLY: U_master, U_slave, FV_dx_slave, FV_dx_master, FV_gradU
-USE MOD_Mesh_Vars                ,ONLY: NormVec,TangVec1,TangVec2,Face_xGP
-USE MOD_GetBoundaryGrad          ,ONLY: GetBoundaryGrad, GetBoundaryGrad2
-USE MOD_Mesh_Vars                ,ONLY: firstBCSide,lastBCSide,firstInnerSide, lastInnerSide
-USE MOD_Mesh_Vars                ,ONLY: firstMPISide_MINE,lastMPISide_MINE, SideToElem, ElemToSide
-! IMPLICIT VARIABLE HANDLING
-IMPLICIT NONE
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
-LOGICAL,INTENT(IN)              :: doMPISides
-!-----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-INTEGER                         :: SideID, SideID_2, lastSideID, firstSideID_wo_BC, ElemID, locSideID
-REAL                            :: gradUinside(PP_nVar)
-!===================================================================================================================================
-
-! Set the side range according to MPI or no MPI
-IF(doMPISides)THEN
-  ! fill only flux for MINE MPISides (where the local proc is master)
-  firstSideID_wo_BC = firstMPISide_MINE
-  lastSideID =  lastMPISide_MINE
-ELSE
-  ! fill only InnerSides that do not need communication
-  firstSideID_wo_BC = firstInnerSide ! for fluxes
-  lastSideID = lastInnerSide
-END IF
-
-DO SideID=firstSideID_wo_BC,lastSideID
-  FV_gradU(:,0,0,SideID) = (U_master(:,0,0,SideID) - U_slave(:,0,0,SideID))/(FV_dx_master(SideID)+FV_dx_slave(SideID))
-END DO
-
-! 2. Compute the gradients at the boundary conditions: 1..nBCSides
-IF(.NOT.doMPISides)THEN
-  DO SideID=firstBCSide,lastBCSide
-    ! CALL GetBoundaryGrad(SideID,FV_gradU(:,0,0,SideID),&
-    !                                     U_master(:,0,0,SideID),&
-    !                                       NormVec(:,0,0,SideID),&
-    !                                       Face_xGP(:,0,0,SideID),&
-    !                                       FV_dx_master(SideID))
-
-    ElemID     = SideToElem(S2E_ELEM_ID,SideID)  !element is always master (slave=boundary ghost cell)
-    IF (ElemID.LT.0) print*, 'aaaaaaaaaaaaaaaaaaaaaaaaaaa'
-    locSideID  = SideToElem(S2E_LOC_SIDE_ID,SideID)
-    SELECT CASE(locSideID)
-      !get opposite SideID
-      CASE(1)
-        SideID_2=ElemToSide(E2S_SIDE_ID,6,ElemID)
-      CASE(2)
-        SideID_2=ElemToSide(E2S_SIDE_ID,4,ElemID)
-      CASE(3)
-        SideID_2=ElemToSide(E2S_SIDE_ID,5,ElemID)
-      CASE(4)
-        SideID_2=ElemToSide(E2S_SIDE_ID,2,ElemID)
-      CASE(5)
-        SideID_2=ElemToSide(E2S_SIDE_ID,3,ElemID)
-      CASE(6)
-        SideID_2=ElemToSide(E2S_SIDE_ID,1,ElemID)
-    END SELECT
-    IF (SideToElem(S2E_NB_ELEM_ID,SideID_2).EQ.ElemID) THEN
-    !this element is the slave for the opposite side (master/slave case)
-      gradUinside(:)=FV_gradU(:,0,0,SideID_2)
-    ELSE
-    ! master/master case-> flip gradient
-      gradUinside(:)=-FV_gradU(:,0,0,SideID_2)
-    END IF
-    CALL GetBoundaryGrad2(SideID,FV_gradU(:,0,0,SideID),gradUinside,&
-                                        U_master(:,0,0,SideID),&
-                                        NormVec(:,0,0,SideID),&
-                                        Face_xGP(:,0,0,SideID),&
-                                        FV_dx_master(SideID))
-  END DO
-END IF
-
-END SUBROUTINE CalcFVGradients
-
 
 SUBROUTINE ProlongToFace_FV(Uvol,Uface_master,Uface_slave,FV_gradU,doMPISides)
 !===================================================================================================================================
@@ -152,7 +64,6 @@ SUBROUTINE ProlongToFace_FV(Uvol,Uface_master,Uface_slave,FV_gradU,doMPISides)
 !===================================================================================================================================
 ! MODULES
 USE MOD_PreProc
-USE MOD_FV_Limiter,         ONLY: FV_Limiter
 USE MOD_FV_Vars,            ONLY: FV_dx_slave, FV_dx_master
 USE MOD_Mesh_Vars,          ONLY: nSides, SideToElem, ElemToSide
 USE MOD_Mesh_Vars,          ONLY: firstBCSide,firstInnerSide
@@ -167,15 +78,14 @@ IMPLICIT NONE
 ! INPUT VARIABLES
 LOGICAL,INTENT(IN)              :: doMPISides  != .TRUE. only YOUR MPISides are filled, =.FALSE. BCSides +InnerSides +MPISides MINE
 REAL,INTENT(IN)                 :: Uvol(PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
-REAL,INTENT(IN),OPTIONAL        :: FV_gradU(PP_nVar,0:PP_N,0:PP_N,1:nSides)
+REAL,INTENT(IN),OPTIONAL        :: FV_gradU(3,PP_nVar,1:PP_nElems)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 REAL,INTENT(INOUT)              :: Uface_master(PP_nVar,0:PP_N,0:PP_N,1:nSides)
 REAL,INTENT(INOUT)              :: Uface_slave(PP_nVar,0:PP_N,0:PP_N,1:nSides)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                         :: ElemID,SideID,firstSideID,lastSideID,SideID_2,locSideID
-REAL                            :: gradUlimited(PP_nVar)
+INTEGER                         :: ElemID,SideID,firstSideID,lastSideID
 !===================================================================================================================================
 IF(doMPISides)THEN
   ! only YOUR MPI Sides are filled
@@ -192,35 +102,18 @@ DO SideID=firstSideID,lastSideID
   ElemID     = SideToElem(S2E_NB_ELEM_ID,SideID)
   IF (ElemID.LT.0) CYCLE
   IF (PRESENT(FV_gradU)) THEN
-    locSideID  = SideToElem(S2E_NB_LOC_SIDE_ID,SideID)
-    SELECT CASE(locSideID)
-      !get opposite SideID
-      CASE(1)
-        SideID_2=ElemToSide(E2S_SIDE_ID,6,ElemID)
-      CASE(2)
-        SideID_2=ElemToSide(E2S_SIDE_ID,4,ElemID)
-      CASE(3)
-        SideID_2=ElemToSide(E2S_SIDE_ID,5,ElemID)
-      CASE(4)
-        SideID_2=ElemToSide(E2S_SIDE_ID,2,ElemID)
-      CASE(5)
-        SideID_2=ElemToSide(E2S_SIDE_ID,3,ElemID)
-      CASE(6)
-        SideID_2=ElemToSide(E2S_SIDE_ID,1,ElemID)
-    END SELECT
-    IF (SideToElem(S2E_NB_ELEM_ID,SideID_2).EQ.ElemID) THEN
-      !this element is also the slave for the opposite side (slave/slave case)-> flip gradient
-      CALL FV_Limiter(FV_gradU(:,0,0,SideID),-FV_gradU(:,0,0,SideID_2),gradULimited)
-    ELSE
-      !slave/master case
-      CALL FV_Limiter(FV_gradU(:,0,0,SideID),FV_gradU(:,0,0,SideID_2),gradULimited)
-    END IF
+    !!!!!!!!!! ici limit gradient
 #if (PP_TimeDiscMethod==600)
     !DVM specific reconstruction
     Uface_slave(:,0,0,SideID) = Uvol(:,0,0,0,ElemID) &
-                              + gradUlimited(:)*(FV_dx_slave(SideID)+DVMtraj_slave(:,SideID)*dt/2.)
+                              + FV_gradU(1,:,ElemID)*(FV_dx_slave(1,SideID)-DVMtraj_slave(1,:,SideID)*dt/2.) &
+                              + FV_gradU(2,:,ElemID)*(FV_dx_slave(2,SideID)-DVMtraj_slave(2,:,SideID)*dt/2.) &
+                              + FV_gradU(3,:,ElemID)*(FV_dx_slave(3,SideID)-DVMtraj_slave(3,:,SideID)*dt/2.)
 #else
-    Uface_slave(:,0,0,SideID) = Uvol(:,0,0,0,ElemID)+gradUlimited(:)*FV_dx_slave(SideID)
+  Uface_slave(:,0,0,SideID) = Uvol(:,0,0,0,ElemID) &
+                            + FV_gradU(1,:,ElemID)*FV_dx_slave(1,SideID) &
+                            + FV_gradU(2,:,ElemID)*FV_dx_slave(2,SideID) &
+                            + FV_gradU(3,:,ElemID)*FV_dx_slave(3,SideID)
 #endif
   ELSE
     Uface_slave(:,0,0,SideID) = Uvol(:,0,0,0,ElemID)
@@ -243,35 +136,18 @@ DO SideID=firstSideID,lastSideID
   ElemID    = SideToElem(S2E_ELEM_ID,SideID)
   IF (ElemID.LT.0) CYCLE !for small mortar sides without info on big master element
   IF (PRESENT(FV_gradU)) THEN
-    locSideID  = SideToElem(S2E_LOC_SIDE_ID,SideID)
-    SELECT CASE(locSideID)
-      !get opposite SideID
-      CASE(1)
-        SideID_2=ElemToSide(E2S_SIDE_ID,6,ElemID)
-      CASE(2)
-        SideID_2=ElemToSide(E2S_SIDE_ID,4,ElemID)
-      CASE(3)
-        SideID_2=ElemToSide(E2S_SIDE_ID,5,ElemID)
-      CASE(4)
-        SideID_2=ElemToSide(E2S_SIDE_ID,2,ElemID)
-      CASE(5)
-        SideID_2=ElemToSide(E2S_SIDE_ID,3,ElemID)
-      CASE(6)
-        SideID_2=ElemToSide(E2S_SIDE_ID,1,ElemID)
-    END SELECT
-    IF (SideToElem(S2E_NB_ELEM_ID,SideID_2).EQ.ElemID) THEN
-      !this element is the slave for the opposite side (master/slave case)
-      CALL FV_Limiter(FV_gradU(:,0,0,SideID),FV_gradU(:,0,0,SideID_2),gradULimited)
-    ELSE
-      ! master/master case-> flip gradient
-      CALL FV_Limiter(FV_gradU(:,0,0,SideID),-FV_gradU(:,0,0,SideID_2),gradULimited)
-    END IF
+    !!!!!!!!!! ici limit gradient
 #if (PP_TimeDiscMethod==600)
     !DVM specific reconstruction
-    Uface_master(:,0,0,SideID) = Uvol(:,0,0,0,ElemID) &
-                              - gradUlimited(:)*(FV_dx_master(SideID)-DVMtraj_master(:,SideID)*dt/2.)
+  Uface_master(:,0,0,SideID) = Uvol(:,0,0,0,ElemID) &
+                            + FV_gradU(1,:,ElemID)*(FV_dx_master(1,SideID)-DVMtraj_master(1,:,SideID)*dt/2.) &
+                            + FV_gradU(2,:,ElemID)*(FV_dx_master(2,SideID)-DVMtraj_master(2,:,SideID)*dt/2.) &
+                            + FV_gradU(3,:,ElemID)*(FV_dx_master(3,SideID)-DVMtraj_master(3,:,SideID)*dt/2.)
 #else
-    Uface_master(:,0,0,SideID) = Uvol(:,0,0,0,ElemID)-gradUlimited(:)*FV_dx_master(SideID)
+  Uface_master(:,0,0,SideID) = Uvol(:,0,0,0,ElemID) &
+                             + FV_gradU(1,:,ElemID)*FV_dx_master(1,SideID) &
+                             + FV_gradU(2,:,ElemID)*FV_dx_master(2,SideID) &
+                             + FV_gradU(3,:,ElemID)*FV_dx_master(3,SideID)
 #endif
   ELSE
     Uface_master(:,0,0,SideID)=Uvol(:,0,0,0,ElemID)

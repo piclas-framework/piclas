@@ -40,11 +40,13 @@ REAL,ALLOCATABLE                      :: Flux_Slave(:,:,:,:)
 ! REAL,ALLOCATABLE                      :: Flux_loc(:,:,:)
 
 ! Distances for reconstruction
-REAL,ALLOCATABLE                      :: FV_dx_slave(:)
-REAL,ALLOCATABLE                      :: FV_dx_master(:)
+REAL,ALLOCATABLE                      :: FV_dx_slave(:,:)
+REAL,ALLOCATABLE                      :: FV_dx_master(:,:)
+REAL,ALLOCATABLE                      :: FV_SysSol_slave(:,:)
+REAL,ALLOCATABLE                      :: FV_SysSol_master(:,:)
 #if (PP_TimeDiscMethod==600)
-REAL,ALLOCATABLE                      :: DVMtraj_slave(:,:)
-REAL,ALLOCATABLE                      :: DVMtraj_master(:,:)
+REAL,ALLOCATABLE                      :: DVMtraj_slave(:,:,:)
+REAL,ALLOCATABLE                      :: DVMtraj_master(:,:,:)
 ! Output
 REAL,ALLOCATABLE                      :: DVM_ElemData1(:)
 REAL,ALLOCATABLE                      :: DVM_ElemData2(:)
@@ -59,7 +61,8 @@ REAL,ALLOCATABLE                      :: DVM_ElemData9(:)
 
 REAL                                  :: FV_PerBoxMin(3),FV_PerBoxMax(3)
 
-REAL,ALLOCATABLE                      :: FV_gradU(:,:,:,:)
+REAL,ALLOCATABLE                      :: FV_gradU_side(:,:,:,:)
+REAL,ALLOCATABLE                      :: FV_gradU_elem(:,:,:)
 
 INTEGER                               :: LimiterType
 REAL                                  :: FV_sweby_beta
