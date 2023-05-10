@@ -105,10 +105,6 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-REAL                      :: dx_slave_temp(3,PP_nVar+1,1:nSides), dx_master_temp(3,PP_nVar+1,1:nSides)
-#if USE_MPI
-REAL                      :: Geotemp(6,1:nSides)
-#endif /*USE_MPI*/
 !===================================================================================================================================
 IF((.NOT.InterpolationInitIsDone).OR.(.NOT.MeshInitIsDone).OR.(.NOT.RestartInitIsDone).OR.FVInitIsDone) CALL abort(__STAMP__,&
     'InitFV not ready to be called or already called.')
@@ -194,56 +190,42 @@ IF (doFVReconstruction) THEN
   LimiterType = GETINT('FV-LimiterType')
   CALL InitFV_Limiter()
 
-  ALLOCATE(FV_dx_slave(3,1:nSides))
-  ALLOCATE(FV_dx_master(3,1:nSides))
+  ALLOCATE(FV_dx_slave(3,0:PP_N,0:PP_N,1:nSides))
+  ALLOCATE(FV_dx_master(3,0:PP_N,0:PP_N,1:nSides))
   ALLOCATE(FV_SysSol_slave(3,1:nSides))
   ALLOCATE(FV_SysSol_master(3,1:nSides))
+  FV_dx_slave = 0.
+  FV_dx_master = 0.
   FV_SysSol_slave = 0.
   FV_SysSol_master = 0.
-#if (PP_TimeDiscMethod==600) /*DVM*/
-  ALLOCATE(DVMtraj_slave(3,PP_nVar,1:nSides))
-  ALLOCATE(DVMtraj_master(3,PP_nVar,1:nSides))
-#endif
 
   ALLOCATE(FV_gradU_side(1:PP_nVar,0:PP_N,0:PP_N,1:nSides))
   ALLOCATE(FV_gradU_elem(3,1:PP_nVar,1:PP_nElems))
 
-
   !calculate face to center distances for reconstruction
 #if USE_MPI
   !send face coordinates because MPI slave sides don't have them
-  Geotemp=0.
-  Geotemp(1:3,:)=Face_xGP(:,0,0,1:nSides)
-  Geotemp(4:6,:)=NormVec(:,0,0,1:nSides)
-  CALL StartReceiveMPIData(6,Geotemp,1,nSides,RecRequest_Geo,SendID=1) ! Receive YOUR
-  CALL StartSendMPIData(6,Geotemp,1,nSides,SendRequest_Geo,SendID=1) ! Send MINE
+  CALL StartReceiveMPIData(3,Face_xGP,1,nSides,RecRequest_Geo,SendID=1) ! Receive YOUR
+  CALL StartSendMPIData(3,Face_xGP,1,nSides,SendRequest_Geo,SendID=1) ! Send MINE
   CALL FinishExchangeMPIData(SendRequest_Geo,RecRequest_Geo,SendID=1)
-  Face_xGP(:,0,0,1:nSides)=Geotemp(1:3,:)
-  NormVec(:,0,0,1:nSides)=Geotemp(4:6,:)
 
   ! distances for MPI sides - send direction
-  CALL StartReceiveMPIData(PP_nVar+1,dx_slave_temp,1,nSides,RecRequest_U,SendID=1) ! Receive MINE
-  CALL StartReceiveMPIData(PP_nVar+1,dx_master_temp,1,nSides,RecRequest_U2,SendID=2)! Receive YOUR
-  CALL InitFV_Metrics(dx_master_temp,dx_slave_temp,doMPISides=.TRUE.)
-  CALL L_Mortar(dx_master_temp,dx_slave_temp,doMPISides=.TRUE.)
-  CALL StartSendMPIData(PP_nVar+1,dx_slave_temp,1,nSides,SendRequest_U,SendID=1) ! Send YOUR
-  CALL StartSendMPIData(PP_nVar+1,dx_master_temp,1,nSides,SendRequest_U2,SendID=2) ! Send MINE
+  CALL StartReceiveMPIData(3,FV_dx_slave,1,nSides,RecRequest_U,SendID=2) ! Receive MINE
+  CALL StartReceiveMPIData(3,FV_dx_master,1,nSides,RecRequest_U2,SendID=1)! Receive YOUR
+  CALL InitFV_Metrics(FV_dx_master,FV_dx_slave,doMPISides=.TRUE.)
+  CALL L_Mortar(FV_dx_master,FV_dx_slave,doMPISides=.TRUE.)
+  CALL StartSendMPIData(3,FV_dx_slave,1,nSides,SendRequest_U,SendID=2) ! Send YOUR
+  CALL StartSendMPIData(3,FV_dx_master,1,nSides,SendRequest_U2,SendID=1) ! Send MINE
 #endif /*USE_MPI*/
   ! distances for BCSides, InnerSides and MPI sides - receive direction
-  CALL InitFV_Metrics(dx_master_temp,dx_slave_temp,doMPISides=.FALSE.)
-  CALL L_Mortar(dx_master_temp,dx_slave_temp,doMPISides=.FALSE.)
+  CALL InitFV_Metrics(FV_dx_master,FV_dx_slave,doMPISides=.FALSE.)
+  CALL L_Mortar(FV_dx_master,FV_dx_slave,doMPISides=.FALSE.)
 #if USE_MPI
-  CALL FinishExchangeMPIData(SendRequest_U,RecRequest_U,SendID=1)
-  CALL FinishExchangeMPIData(SendRequest_U2,RecRequest_U2,SendID=2)
+  CALL FinishExchangeMPIData(SendRequest_U,RecRequest_U,SendID=2)
+  CALL FinishExchangeMPIData(SendRequest_U2,RecRequest_U2,SendID=1)
 #endif /*USE_MPI*/
-  FV_dx_master(:,:)=dx_master_temp(:,PP_nVar+1,:)
-  FV_dx_slave(:,:)=dx_slave_temp(:,PP_nVar+1,:)
-#if (PP_TimeDiscMethod==600)
-  DVMtraj_master(:,1:PP_nVar,:)=dx_master_temp(:,1:PP_nVar,:)
-  DVMtraj_slave(:,1:PP_nVar,:)=dx_slave_temp(:,1:PP_nVar,:)
-#endif
   ! build neighbour-side matrices and invert them
-  CALL Build_FVSideMatrix(FV_dx_master,FV_dx_slave)
+  CALL Build_FVSideMatrix(FV_dx_master(:,0,0,:),FV_dx_slave(:,0,0,:))
 END IF
 
 FVInitIsDone=.TRUE.
@@ -564,10 +546,6 @@ IF (doFVReconstruction) THEN
   SDEALLOCATE(FV_SysSol_master)
   SDEALLOCATE(FV_gradU_elem)
   SDEALLOCATE(FV_gradU_side)
-#if (PP_TimeDiscMethod==600) /*DVM*/
-  SDEALLOCATE(DVMtraj_slave)
-  SDEALLOCATE(DVMtraj_master)
-#endif
 END IF
 
 

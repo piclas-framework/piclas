@@ -38,7 +38,7 @@ CONTAINS
 !==================================================================================================================================
 !> Compute the distance FV_dx from interface to cell center of the master/slave element
 !==================================================================================================================================
-SUBROUTINE InitFV_Metrics(dx_master_temp,dx_slave_temp,doMPISides)
+SUBROUTINE InitFV_Metrics(FV_dx_master,FV_dx_slave,doMPISides)
 ! MODULES
 USE MOD_Globals
 USE MOD_PreProc
@@ -53,8 +53,8 @@ USE MOD_Equation_Vars,      ONLY: DVMnVelos, DVMVelos, DVMSpeciesData
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT / OUTPUT VARIABLES
-REAL, INTENT(OUT)                      :: dx_master_temp(3,1:PP_nVar+1,1:nSides)
-REAL, INTENT(OUT)                      :: dx_slave_temp(3,1:PP_nVar+1,1:nSides)
+REAL, INTENT(OUT)                      :: FV_dx_master(3,0:PP_N,0:PP_N,1:nSides)
+REAL, INTENT(OUT)                      :: FV_dx_slave(3,0:PP_N,0:PP_N,1:nSides)
 LOGICAL, INTENT(IN)                    :: doMPISides
 !----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
@@ -77,11 +77,8 @@ ELSE
 END IF
 
 DO SideID=firstSideID,lastSideID
-  ! neighbor side !ElemID=-1 if not existing
   ElemID     = SideToElem(S2E_NB_ELEM_ID,SideID)
-  IF (ElemID.LT.0) print*, 'fvmetrics buuuuuuug'
-  ! IF (SideID.EQ.9) print*, myRank, 'SIDE9slave', Face_xGP(:,0,0,SideID)
-  ! IF (SideID.EQ.9) print*, myRank, 'SIDE9slave', ElemID, Elem_xGP(:,0,0,0,ElemID)
+  IF (ElemID.LT.0) CALL abort(__STAMP__,'FV metrics error')
   DO iCoord=1,3
     IF (Face_xGP(iCoord,0,0,SideID).GE.FV_PerBoxMax(iCoord))  THEN
       Face_temp(iCoord) = Face_xGP(iCoord,0,0,SideID)+FV_PerBoxMin(iCoord)-FV_PerBoxMax(iCoord)
@@ -91,19 +88,7 @@ DO SideID=firstSideID,lastSideID
       Face_temp(iCoord) = Face_xGP(iCoord,0,0,SideID)
     END IF
   END DO
-  dx_slave_temp(:,PP_nVar+1,SideID)=Face_temp(:)-Elem_xGP(:,0,0,0,ElemID)
-
-#if (PP_TimeDiscMethod==600)
-  DO kVel=1, DVMnVelos(3); DO jVel=1, DVMnVelos(2);   DO iVel=1, DVMnVelos(1)
-    upos= iVel+(jVel-1)*DVMnVelos(1)+(kVel-1)*DVMnVelos(1)*DVMnVelos(2)
-    dx_slave_temp(1,upos,SideID) = DVMVelos(iVel,1)
-    dx_slave_temp(2,upos,SideID) = DVMVelos(jVel,2)                                             ! remove normvec communication
-    dx_slave_temp(3,upos,SideID) = DVMVelos(kVel,3)                                             ! change the velo storage
-    IF (DVMSpeciesData%Internal_DOF .GT.0.0) THEN
-      dx_slave_temp(:,PP_nVar/2+upos,SideID)=dx_slave_temp(:,upos,SideID)
-    END IF
-  END DO; END DO; END DO
-#endif
+  FV_dx_slave(:,0,0,SideID)=Face_temp(:)-Elem_xGP(:,0,0,0,ElemID)
 END DO
 
 ! Second process Minus/Master sides, U_Minus is always MINE
@@ -120,24 +105,10 @@ END IF
 
 DO SideID=firstSideID,lastSideID
   ElemID    = SideToElem(S2E_ELEM_ID,SideID)
-  ! IF (SideID.EQ.9) print*, myRank, 'SIDE9master', Face_xGP(:,0,0,SideID), firstBCSide, lastBCSide, firstMPISide_MINE
-  ! IF (SideID.EQ.9) print*, myRank, 'SIDE9master', ElemID, Elem_xGP(:,0,0,0,ElemID)
   IF (ElemID.LT.0) CYCLE !small mortar sides don't have info of the big master element + skip MPI_YOUR sides
-  dx_master_temp(:,PP_nVar+1,SideID)=Face_xGP(:,0,0,SideID)-Elem_xGP(:,0,0,0,ElemID)
-
-#if (PP_TimeDiscMethod==600)
-  DO kVel=1, DVMnVelos(3); DO jVel=1, DVMnVelos(2);   DO iVel=1, DVMnVelos(1)
-    upos= iVel+(jVel-1)*DVMnVelos(1)+(kVel-1)*DVMnVelos(1)*DVMnVelos(2)
-    dx_master_temp(1,upos,SideID) = DVMVelos(iVel,1)
-    dx_master_temp(2,upos,SideID) = DVMVelos(jVel,2)
-    dx_master_temp(3,upos,SideID) = DVMVelos(kVel,3)
-    IF (DVMSpeciesData%Internal_DOF .GT.0.0) THEN
-      dx_master_temp(:,PP_nVar/2+upos,SideID)=dx_master_temp(:,upos,SideID)
-    END IF
-  END DO; END DO; END DO
-#endif
+  FV_dx_master(:,0,0,SideID)=Face_xGP(:,0,0,SideID)-Elem_xGP(:,0,0,0,ElemID)
   ! mirror distance for ghost cells
-  IF (SideID.LE.lastBCSide) dx_slave_temp(:,:,SideID) = -dx_master_temp(:,:,SideID)
+  IF (SideID.LE.lastBCSide) FV_dx_slave(:,0,0,SideID) = -FV_dx_master(:,0,0,SideID)
 END DO !SideID
 
 SWRITE(UNIT_stdOut,'(A)')' Done !'
@@ -172,21 +143,8 @@ DO ElemID = 1, nElems
   DO locSideID=2,5
 #endif
     SideID=ElemToSide(E2S_SIDE_ID,locSideID,ElemID)
-    ! print*, myRank, ElemID, SideID  
-    ! print*, myRank, 'slave', SideID, dslave(:,SideID)
-    ! print*, myRank, 'master', SideID, dmaster(:,SideID)
     dElem(:) = dslave(:,SideID) - dmaster(:,SideID) !doesnt matter if elem is slave or master, dElem is always "squared"
     gradWeight = 1/VECNORM(dElem)**2
-    ! print*, 'elem', ElemID
-    ! print*, 'side', SideID
-    ! print*, 'dslave', dslave(:,SideID)
-    ! print*, 'dmaster', dmaster(:,SideID)
-    ! print*, 'dELem', dElem
-    ! print*, 'gradweight', gradWeight
-    ! print*, 'dMatrix', dMatrix(1,:)
-    ! print*, '       ', dMatrix(2,:)
-    ! ! print*, '       ', dMatrix(3,:)
-    ! read*
     dMatrix(1:PP_dim,1) = dMatrix(1:PP_dim,1) + gradWeight*dElem(1)*dElem(1:PP_dim)
     dMatrix(1:PP_dim,2) = dMatrix(1:PP_dim,2) + gradWeight*dElem(2)*dElem(1:PP_dim)
 #if PP_dim == 3
@@ -203,12 +161,10 @@ DO ElemID = 1, nElems
     !FV_SysSol needs to be calculated with elem -> neighbour direction
     IF (flip.EQ.0) THEN
       FV_SysSol_master(:,SideID) = dmaster(:,SideID) - dslave(:,SideID)
-      ! print*, 'master', SideID, FV_SysSol_master(:,SideID)
       CALL DGESV(PP_dim,1,dMatrix,PP_dim,IPIV,FV_SysSol_master(1:PP_dim,SideID),PP_dim,info_dgesv)
       IF(info_dgesv.NE.0) CALL abort(__STAMP__,'FV metrics error')
     ELSE
       FV_SysSol_slave(:,SideID) = dslave(:,SideID) - dmaster(:,SideID)
-      ! print*, 'slave', SideID, FV_SysSol_slave(:,SideID)
       CALL DGESV(PP_dim,1,dMatrix,PP_dim,IPIV,FV_SysSol_slave(1:PP_dim,SideID),PP_dim,info_dgesv)
       IF(info_dgesv.NE.0) CALL abort(__STAMP__,'FV metrics error')
     END IF

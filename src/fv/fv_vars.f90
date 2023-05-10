@@ -40,13 +40,11 @@ REAL,ALLOCATABLE                      :: Flux_Slave(:,:,:,:)
 ! REAL,ALLOCATABLE                      :: Flux_loc(:,:,:)
 
 ! Distances for reconstruction
-REAL,ALLOCATABLE                      :: FV_dx_slave(:,:)
-REAL,ALLOCATABLE                      :: FV_dx_master(:,:)
+REAL,ALLOCATABLE                      :: FV_dx_slave(:,:,:,:)
+REAL,ALLOCATABLE                      :: FV_dx_master(:,:,:,:)
 REAL,ALLOCATABLE                      :: FV_SysSol_slave(:,:)
 REAL,ALLOCATABLE                      :: FV_SysSol_master(:,:)
 #if (PP_TimeDiscMethod==600)
-REAL,ALLOCATABLE                      :: DVMtraj_slave(:,:,:)
-REAL,ALLOCATABLE                      :: DVMtraj_master(:,:,:)
 ! Output
 REAL,ALLOCATABLE                      :: DVM_ElemData1(:)
 REAL,ALLOCATABLE                      :: DVM_ElemData2(:)

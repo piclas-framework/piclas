@@ -70,7 +70,6 @@ ELSE
 END IF
 
 DO SideID=firstSideID_wo_BC,lastSideID
-  ! FV_gradU_side(:,0,0,SideID) = (U_master(:,0,0,SideID) - U_slave(:,0,0,SideID))/VECNORM(FV_dx_master(:,SideID)-FV_dx_slave(:,SideID))
   FV_gradU_side(:,0,0,SideID) = U_master(:,0,0,SideID) - U_slave(:,0,0,SideID)
 END DO
 
@@ -109,8 +108,8 @@ IF(.NOT.doMPISides)THEN
                                         U_master(:,0,0,SideID),&
                                         NormVec(:,0,0,SideID),&
                                         Face_xGP(:,0,0,SideID),&
-                                        VECNORM(FV_dx_master(:,SideID)),&
-                                        VECNORM(FV_dx_master(:,SideID_2)-FV_dx_slave(:,SideID_2)))
+                                        VECNORM(FV_dx_master(:,0,0,SideID)),&
+                                        VECNORM(FV_dx_master(:,0,0,SideID_2)-FV_dx_slave(:,0,0,SideID_2)))
   END DO
 END IF
 
@@ -147,7 +146,7 @@ DO ElemID = 1, nElems
 #endif
     SideID=ElemToSide(E2S_SIDE_ID,locSideID,ElemID)
     flip=ElemToSide(E2S_FLIP,locSideID,ElemID)
-    gradWeight = 1/VECNORM(FV_dx_master(:,SideID)-FV_dx_slave(:,SideID))**2
+    gradWeight = 1/VECNORM(FV_dx_master(:,0,0,SideID)-FV_dx_slave(:,0,0,SideID))**2
     IF (flip.EQ.0) THEN !master
       FV_gradU_elem(1,:,ElemID) = FV_gradU_elem(1,:,ElemID) &
                                           - gradWeight*FV_SysSol_master(1,SideID)*FV_gradU_side(:,0,0,SideID)
