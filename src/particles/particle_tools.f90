@@ -587,9 +587,8 @@ REAL                 :: PosIn, RelPos, TempPartPos(3)
 REAL                 :: PartDistDepo(8), DistSum, norm, MPFSum
 LOGICAL              :: SucRefPos
 REAL                 :: alpha1, alpha2, alpha3
-INTEGER              :: NodeID(1:8), iNode
+INTEGER              :: NodeID(1:8), iNode, iScale
 REAL                 :: PosMax, PosMin, MaxWeight, MinWeight
-INTEGER              :: iScale, CNElemID
 !===================================================================================================================================
 IF (AdaptMPF%UseOptMPF.AND.PRESENT(iElem)) THEN
   ! determine the adaptive MPF

@@ -77,11 +77,17 @@ CALL prms%CreateLogicalOption('Particles-BGK-UseQuantVibEn',        'Enable quan
                                                                     '.TRUE.')
 CALL prms%CreateLogicalOption('Particles-CoupledBGKDSMC',           'Perform a coupled DSMC-BGK simulation with a given number '//&
                                                                     'density as a switch parameter','.FALSE.')
-CALL prms%CreateStringOption('Particles-BGK-DSMC-SwitchCriterium',  'Continuum-breakdown criterium used for the coupling: Density&
-                                                                     GlobalKnudsen/LocalKnudsen/ThermNonEq/Combination', 'none')
+CALL prms%CreateStringOption('Particles-BGK-DSMC-SwitchCriterium',  'Continuum-breakdown criterium used for the coupling: Density'//&
+                                                                     'GlobalKnudsen/LocalKnudsen/ThermNonEq/Combination', 'none')
 CALL prms%CreateIntOption(   'Particles-BGK-DSMC-SampleIter',       'Iteration number after which a DSMC-BGK switch can be performed','1')
 CALL prms%CreateRealOption(  'Particles-BGK-DSMC-SwitchDens',       'Number density [1/m3], above which the BGK method is used, '//&
                                                                     'below which DSMC is performed','0.0')
+CALL prms%CreateRealOption(  'Particles-BGK-DSMC-CharLength',       'Characteristic length of the simulation domain for the calculation '//&
+                                                                    'of the global Knudsen number','1.0')
+CALL prms%CreateRealOption(  'Particles-BGK-DSMC-MaxGlobalKnudsen', 'Global Knudsen number above which DSMC is used instead of BGK','0.1')
+CALL prms%CreateRealOption(  'Particles-BGK-DSMC-MaxLocalKnudsen',  'Local Knudsen number above which DSMC is used instaed of BGK','0.1')
+CALL prms%CreateRealOption(  'Particles-BGK-DSMC-MaxThermNonEq',    'Maximum value for the thermal non-equilibrium, above which '//&
+                                                                    'DSMC is used instead of BGK','0.05')
 
 END SUBROUTINE DefineParametersBGK
 
@@ -129,8 +135,8 @@ DO iSpec=1, nSpecies
   END DO
 END DO
 
-ALLOCATE(BGK_OutputKnudsen(5,nElems))
-BGK_OutputKnudsen = 0.0
+ALLOCATE(CBC%OutputKnudsen(7,nElems))
+CBC%OutputKnudsen = 0.0
 
 BGKCollModel = GETINT('Particles-BGK-CollModel')
 IF ((nSpecies.GT.1).AND.(BGKCollModel.GT.1)) THEN
@@ -141,26 +147,38 @@ BGKMixtureModel = GETINT('Particles-BGK-MixtureModel')
 ESBGKModel = GETINT('Particles-ESBGK-Model')         ! 1: Approximative, 2: Exact, 3: MetropolisHastings
 ! Coupled BGK with DSMC, use a number density as limit above which BGK is used, and below which DSMC is used
 CoupledBGKDSMC = GETLOGICAL('Particles-CoupledBGKDSMC')
-ALLOCATE(DoElementDSMC(nElems))
-DoElementDSMC = .FALSE.
+ALLOCATE(CBC%DoElementDSMC(nElems))
+CBC%DoElementDSMC = .FALSE.
 IF(CoupledBGKDSMC) THEN
   IF (DoVirtualCellMerge) THEN  
     CALL abort(__STAMP__,' Virtual cell merge not implemented for coupled DSMC-BGK simulations!')
   END IF
   ! Coupling criteria DSMC
-  BGKDSMC_SwitchCriterium    = TRIM(GETSTR('Particles-BGK-DSMC-SwitchCriterium'))
-  SELECT CASE (TRIM(BGKDSMC_SwitchCriterium))
+  CBC%SwitchCriterium    = TRIM(GETSTR('Particles-BGK-DSMC-SwitchCriterium'))
+  CBC%CharLength         = GETREAL('Particles-BGK-DSMC-CharLength')
+  SELECT CASE (TRIM(CBC%SwitchCriterium))
   CASE('Density')
-    BGKDSMCSwitchDens        = GETREAL('Particles-BGK-DSMC-SwitchDens')
+    CBC%SwitchDens       = GETREAL('Particles-BGK-DSMC-SwitchDens')
+  CASE('GlobalKnudsen')
+    CBC%MaxGlobalKnudsen = GETREAL('Particles-BGK-DSMC-MaxGlobalKnudsen')
+  CASE('LocalKnudsen')
+    CBC%MaxLocalKnudsen  = GETREAL('Particles-BGK-DSMC-MaxLocalKnudsen')
+  CASE('ThermNonEq')
+    CBC%MaxThermNonEq    = GETREAL('Particles-BGK-DSMC-MaxThermNonEq')
+  CASE('Combination')
+    CBC%MaxLocalKnudsen  = GETREAL('Particles-BGK-DSMC-MaxLocalKnudsen')
+    CBC%MaxThermNonEq    = GETREAL('Particles-BGK-DSMC-MaxThermNonEq')
   CASE DEFAULT
+    SWRITE(*,*) ' Coupling criterium is not defined or does not exist: ', TRIM(CBC%SwitchCriterium)
+    CALL abort(__STAMP__,'Wrong coupling criterium given')
   END SELECT
 
   ! Number of iterations between a possible BGK-DSMC switch
-  BGK_SwitchIter = GETINT('Particles-BGK-DSMC-SampleIter')
-  ALLOCATE(BGK_Avg_SwitchFactor(nElems))
-  BGK_Avg_SwitchFactor = 0.0
-  ALLOCATE(BGK_Iter_Count(nElems))
-  BGK_Iter_Count = 0
+  CBC%SwitchIter = GETINT('Particles-BGK-DSMC-SampleIter')
+  ALLOCATE(CBC%Avg_SwitchFactor(nElems))
+  CBC%Avg_SwitchFactor = 0.0
+  ALLOCATE(CBC%Iter_Count(nElems))
+  CBC%Iter_Count = 0
 ELSE
   IF(RadialWeighting%DoRadialWeighting) THEN
     RadialWeighting%PerformCloning = .TRUE.
@@ -258,10 +276,11 @@ IMPLICIT NONE
 
 SDEALLOCATE(SpecBGK)
 SDEALLOCATE(BGK_QualityFacSamp)
-SDEALLOCATE(DoElementDSMC)
+SDEALLOCATE(CBC%DoElementDSMC)
+SDEALLOCATE(CBC%OutputKnudsen)
 IF (CoupledBGKDSMC) THEN
-  SDEALLOCATE(BGK_Avg_SwitchFactor)
-  SDEALLOCATE(BGK_Iter_Count)
+  SDEALLOCATE(CBC%Avg_SwitchFactor)
+  SDEALLOCATE(CBC%Iter_Count)
 END IF
 IF(BGKMovingAverage) CALL DeleteElemNodeAverage()
 

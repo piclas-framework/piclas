@@ -54,14 +54,6 @@ TYPE tElemNodeAveraging
     TYPE (tNodeAverage), POINTER               :: Root => null()
 END TYPE
 
-CHARACTER(LEN=50)                              :: BGKDSMC_SwitchCriterium
-REAL                                           :: BGKDSMCSwitchDens
-INTEGER                                        :: BGK_SwitchIter
-INTEGER, ALLOCATABLE                           :: BGK_Iter_Count(:)
-REAL, ALLOCATABLE                              :: BGK_Avg_SwitchFactor(:)
-LOGICAL,ALLOCATABLE                            :: DoElementDSMC(:)
-REAL, ALLOCATABLE                              :: BGK_OutputKnudsen(:,:)
-
 TYPE tNodeAverage
     TYPE (tNodeAverage), POINTER               :: SubNode(:) => null()
     REAL, ALLOCATABLE                          :: AverageValues(:)
@@ -69,5 +61,23 @@ TYPE tNodeAverage
 END TYPE
 
 TYPE (tElemNodeAveraging), ALLOCATABLE         :: ElemNodeAveraging(:)
+
+TYPE tCouplingCriteria
+  CHARACTER(LEN=50)                            :: SwitchCriterium
+  REAL                                         :: SwitchDens
+  REAL                                         :: CharLength
+  REAL                                         :: MaxGlobalKnudsen
+  REAL                                         :: MaxLocalKnudsen
+  REAL                                         :: MaxThermNonEq
+  REAL                                         :: MaxStressTens
+  REAL                                         :: MaxHeatVec
+  INTEGER                                      :: SwitchIter
+  INTEGER, ALLOCATABLE                         :: Iter_Count(:)
+  REAL, ALLOCATABLE                            :: Avg_SwitchFactor(:)
+  LOGICAL,ALLOCATABLE                          :: DoElementDSMC(:)
+  REAL, ALLOCATABLE                            :: OutputKnudsen(:,:)
+END TYPE
+
+TYPE (tCouplingCriteria)                       :: CBC
 !===================================================================================================================================
 END MODULE MOD_BGK_Vars

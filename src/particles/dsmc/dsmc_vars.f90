@@ -116,10 +116,11 @@ TYPE tAdaptMPF
   LOGICAL                     :: DoAdaptMPF                  ! Enables an automatic adaption of the MPF in each cell
   LOGICAL                     :: UseOptMPF                   ! Changes between the CalcVarMPF, CalcAdaptMPF routine
   LOGICAL                     :: UseMedianFilter             ! Applies median filter to the distribution of the optimal MPF
+  LOGICAL                     :: IncludeMaxPartNum           ! Enables the refinement based on the max. particle number
   REAL, ALLOCATABLE           :: ScaleFactorAdapt(:)         ! Comparison of new and old MPF
   REAL                        :: MinPartNum                  ! Target minimum number of simulation particles per sub-cell
   REAL                        :: MaxPartNum                  ! Target maximum number of simulation particles per sub-cell
-  REAL                        :: MaxRatio                    ! Maximum deviation between the particle weights of two neighbouring cells
+  REAL                        :: BGKFactor                   ! Ratio between the BGK- and DSMC-MPF for further refinement of BGK simulations
   INTEGER                     :: SymAxis_MinPartNum          ! Target minimum number of simulation particles close to the symmetry axis
   INTEGER                     :: Cat_MinPartNum              ! Target minimum number of simulation particles close to catalytic surfaces
   INTEGER                     :: nRefine                     ! Number of times the MPF filter routine is called

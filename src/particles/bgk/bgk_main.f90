@@ -45,11 +45,6 @@ USE MOD_Globals
 USE MOD_BGK_DSMC_Coupling
 USE MOD_BGK_Adaptation      ,ONLY: BGK_octree_adapt, BGK_quadtree_adapt
 USE MOD_Particle_Vars       ,ONLY: PEM, Species, WriteMacroVolumeValues, Symmetry, usevMPF
-! USE MOD_BGK_Vars            ,ONLY: DoBGKCellAdaptation,BGKDSMCSwitchDens
-! USE MOD_BGK_Vars            ,ONLY: BGKMovingAverage,ElemNodeAveraging
-! USE MOD_BGK_Vars            ,ONLY: BGK_MeanRelaxFactor,BGK_MeanRelaxFactorCounter,BGK_MaxRelaxFactor,BGK_QualityFacSamp
-! USE MOD_BGK_Vars            ,ONLY: BGK_MaxRotRelaxFactor, BGK_PrandtlNumber, BGK_ExpectedPrandtlNumber
-! USE MOD_BGK_Vars            ,ONLY: BGK_Viscosity, BGK_ThermalConductivity
 USE MOD_BGK_Vars           
 USE MOD_BGK_CollOperator    ,ONLY: BGK_CollisionOperator
 USE MOD_DSMC                ,ONLY: DSMC_main
@@ -107,45 +102,56 @@ DO iElem = 1, nElems
     dens = totalWeight * Species(1)%MacroParticleFactor / ElemVolume_Shared(CNElemID)
   END IF
 
-  SELECT CASE (TRIM(BGKDSMC_SwitchCriterium))
+  SELECT CASE (TRIM(CBC%SwitchCriterium))
   CASE('Density')
-    BGK_Avg_SwitchFactor(iElem) = BGK_Avg_SwitchFactor(iElem) + dens 
-    BGK_Iter_Count(iElem) = BGK_Iter_Count(iElem) + 1
+    ! CBC%Avg_SwitchFactor(iElem) = CBC%Avg_SwitchFactor(iElem) + dens 
+    ! CBC%Iter_Count(iElem) = CBC%Iter_Count(iElem) + 1
 
-    ! Add up the density/quality factor to only sample every certain number of iterations
-    IF (BGK_Iter_Count(iElem).GE.BGK_SwitchIter) THEN
-      ! Check if the average density is smaller than the BGK-DSMC switch criterium
-      IF ((BGK_Avg_SwitchFactor(iElem)/REAL(BGK_Iter_Count(iElem))).LT.BGKDSMCSwitchDens) THEN
-        DoElementDSMC(iElem) = .TRUE.
-      ELSE
-        DoElementDSMC(iElem) = .FALSE.
-      END IF
-      ! reset the counter values
-      BGK_Iter_Count(iElem) = 0
-      BGK_Avg_SwitchFactor(iElem) = 0.
+    ! ! Add up the density/quality factor to only sample every certain number of iterations
+    ! IF (CBC%Iter_Count(iElem).GE.CBC%SwitchIter) THEN
+    !   ! Check if the average density is smaller than the BGK-DSMC switch criterium
+    !   IF ((CBC%Avg_SwitchFactor(iElem)/REAL(CBC%Iter_Count(iElem))).LT.CBC%SwitchDens) THEN
+    !     CBC%DoElementDSMC(iElem) = .TRUE.
+    !   ELSE
+    !     CBC%DoElementDSMC(iElem) = .FALSE.
+    !   END IF
+    !   ! reset the counter values
+    !   CBC%Iter_Count(iElem) = 0
+    !   CBC%Avg_SwitchFactor(iElem) = 0.
+    ! END IF
+
+    IF ((CBC%Avg_SwitchFactor(iElem)/REAL(CBC%Iter_Count(iElem))).LT.CBC%SwitchDens) THEN
+      CBC%DoElementDSMC(iElem) = .TRUE.
+    ELSE
+      CBC%DoElementDSMC(iElem) = .FALSE.
     END IF
 
-  CASE('LocalKnudsen', 'GlobalKnudsen', 'ThermNonEq', 'Combination')
-    IF (CBC_DoDSMC(iElem)) THEN
-      BGK_Avg_SwitchFactor(iElem) = BGK_Avg_SwitchFactor(iElem) + 1. 
-    END IF
-    BGK_Iter_Count(iElem) = BGK_Iter_Count(iElem) + 1
+  CASE('LocalKnudsen', 'GlobalKnudsen', 'ThermNonEq', 'Combination', 'ChapmanEnskog')
+    ! IF (CBC_DoDSMC(iElem)) THEN
+    !   CBC%Avg_SwitchFactor(iElem) = CBC%Avg_SwitchFactor(iElem) + 1. 
+    ! END IF
+    ! CBC%Iter_Count(iElem) = CBC%Iter_Count(iElem) + 1
   
-    ! Add up the density/quality factor to only sample every certain number of iterations
-    IF (BGK_Iter_Count(iElem).GE.BGK_SwitchIter) THEN
-      ! Check if the average density is smaller than the BGK-DSMC switch criterium
-      IF (NINT(BGK_Avg_SwitchFactor(iElem)/REAL(BGK_Iter_Count(iElem))).EQ.1) THEN
-        DoElementDSMC(iElem) = .TRUE.
-      ELSE
-        DoElementDSMC(iElem) = .FALSE.
-      END IF
-      ! reset the counter values
-      BGK_Iter_Count(iElem) = 0
-      BGK_Avg_SwitchFactor(iElem) = 0.
-    END IF
+    ! ! Add up the density/quality factor to only sample every certain number of iterations
+    ! IF (CBC%Iter_Count(iElem).GE.CBC%SwitchIter) THEN
+    !   ! Check if the average density is smaller than the BGK-DSMC switch criterium
+    !   IF (NINT(CBC%Avg_SwitchFactor(iElem)/REAL(CBC%Iter_Count(iElem))).EQ.1) THEN
+    !     CBC%DoElementDSMC(iElem) = .TRUE.
+    !   ELSE
+    !     CBC%DoElementDSMC(iElem) = .FALSE.
+    !   END IF
+    !   ! reset the counter values
+    !   CBC%Iter_Count(iElem) = 0
+    !   CBC%Avg_SwitchFactor(iElem) = 0.
+    ! END IF
+
+    CBC%DoElementDSMC(iElem) = CBC_DoDSMC(iElem)
+
+  CASE DEFAULT
+    CBC%DoElementDSMC(iELem) = .FALSE.
   END SELECT
 
-  IF (DoElementDSMC(iElem)) CYCLE
+  IF (CBC%DoElementDSMC(iElem)) CYCLE
 
   IF (DoBGKCellAdaptation) THEN
     IF(Symmetry%Order.EQ.2) THEN
@@ -187,7 +193,7 @@ DO iElem = 1, nElems
   END IF
 END DO
 
-CALL DSMC_main(DoElementDSMC)
+CALL DSMC_main(CBC%DoElementDSMC)
 
 END SUBROUTINE BGK_DSMC_main
 

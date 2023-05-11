@@ -119,10 +119,8 @@ IMPLICIT NONE
 CHARACTER(LEN=64)     :: dsetname
 CHARACTER(LEN=64)     :: AttribName
 INTEGER(HID_T)        :: file_id_specdb                       ! File identifier
-INTEGER(HID_T)        :: dset_id_specdb                       ! Dataset identifier
 LOGICAL               :: DataSetFound
 LOGICAL               :: Attr_Exists
-INTEGER(HID_T)        :: Loc_ID, Attr_ID
 CHARACTER(LEN=32)     :: hilf
 INTEGER               :: iReac, iReac2, iSpec, iBound, iVal, err
 INTEGER               :: ReadInNumOfReact
