@@ -44,6 +44,7 @@ REAL,ALLOCATABLE                      :: FV_dx_slave(:,:,:,:)
 REAL,ALLOCATABLE                      :: FV_dx_master(:,:,:,:)
 REAL,ALLOCATABLE                      :: FV_SysSol_slave(:,:)
 REAL,ALLOCATABLE                      :: FV_SysSol_master(:,:)
+REAL,ALLOCATABLE                      :: FV_SysSol_BC(:,:)
 #if (PP_TimeDiscMethod==600)
 ! Output
 REAL,ALLOCATABLE                      :: DVM_ElemData1(:)
@@ -64,6 +65,7 @@ REAL,ALLOCATABLE                      :: FV_gradU_elem(:,:,:)
 
 INTEGER                               :: LimiterType
 REAL                                  :: FV_sweby_beta
+REAL                                  :: FV_VktK
 
 LOGICAL                               :: FVInitIsDone=.FALSE.
 LOGICAL                               :: doFVReconstruction

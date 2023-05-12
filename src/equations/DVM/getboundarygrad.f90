@@ -41,7 +41,7 @@ CONTAINS
 !==================================================================================================================================
 !> Computes the gradient at a boundary for Finite Volumes reconstruction (2nd order version).
 !==================================================================================================================================
-SUBROUTINE GetBoundaryGrad(SideID,gradU,gradUinside,UPrim_master,NormVec,Face_xGP,dx_Face,dx_ElemIn)
+SUBROUTINE GetBoundaryGrad(SideID,gradU,gradUinside,UPrim_master,NormVec,Face_xGP,dx_Face)
 ! MODULES
 USE MOD_PreProc
 USE MOD_Globals       ,ONLY: Abort
@@ -61,7 +61,7 @@ REAL,INTENT(IN)   :: UPrim_master(PP_nVar)
 REAL,INTENT(IN)   :: NormVec (3)
 REAL,INTENT(IN)   :: Face_xGP(3)
 REAL,INTENT(IN)   :: dx_Face
-REAL,INTENT(IN)   :: dx_ElemIn
+! REAL,INTENT(IN)   :: dx_ElemIn
 
 !----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
@@ -77,7 +77,7 @@ SELECT CASE(BCType)
 CASE(1) !Periodic already filled!
 
 CASE(2) ! exact BC = Dirichlet BC !!
-  fplus(:)=UPrim_master(:)-gradUinside(:)*dx_Face/dx_ElemIn
+  fplus(:)=UPrim_master(:)-gradUinside(:)*dx_Face
   MacroVal(:) = RefState(:,BCState)
   IF(BCState.EQ.0) THEN ! Determine the exact BC state
     CALL ExactFunc(IniExactFunc,time,0,Face_xGP,UPrim_boundary)
@@ -93,16 +93,16 @@ CASE(2) ! exact BC = Dirichlet BC !!
         gradU(PP_nVar/2+upos) = 2.*(UPrim_master(PP_nVar/2+upos) - UPrim_boundary(PP_nVar/2+upos))
       END IF
     ELSE
-      gradU(upos) = 2.*gradUinside(upos)*dx_Face/dx_ElemIn
+      gradU(upos) = 2.*gradUinside(upos)*dx_Face
       IF (DVMSpeciesData%Internal_DOF .GT.0.0) THEN
-        gradU(PP_nVar/2+upos) = 2.*gradUinside(PP_nVar/2+upos)*dx_Face/dx_ElemIn
+        gradU(PP_nVar/2+upos) = 2.*gradUinside(PP_nVar/2+upos)*dx_Face
       END IF
     END IF
   END DO; END DO; END DO
 
 
 CASE(3) ! specular reflection
-  UPrim_boundary(:)=UPrim_master(:)-gradUinside(:)*dx_Face/dx_ElemIn
+  UPrim_boundary(:)=UPrim_master(:)-gradUinside(:)*dx_Face
   IF(DVMVeloDisc.EQ.2.AND.ANY((DVMVeloMin+DVMVeloMax).NE.0.)) THEN
     CALL abort(__STAMP__,'Specular reflection only implemented for zero-centered velocity grid')
   END IF
@@ -152,16 +152,16 @@ CASE(3) ! specular reflection
         gradU(PP_nVar/2+upos) = 2.*(UPrim_master(PP_nVar/2+upos) - UPrim_boundary(PP_nVar/2+upos_sp)- MovTerm)
       END IF
     ELSE
-      gradU(upos) = 2.*gradUinside(upos)*dx_Face/dx_ElemIn
+      gradU(upos) = 2.*gradUinside(upos)*dx_Face
       IF (DVMSpeciesData%Internal_DOF .GT.0.0) THEN
-        gradU(PP_nVar/2+upos) = 2.*gradUinside(PP_nVar/2+upos)*dx_Face/dx_ElemIn
+        gradU(PP_nVar/2+upos) = 2.*gradUinside(PP_nVar/2+upos)*dx_Face
       END IF
     END IF
   END DO; END DO; END DO
 
 
 CASE(4) ! diffusive
-  fplus(:)=UPrim_master(:)-gradUinside(:)*dx_Face/dx_ElemIn
+  fplus(:)=UPrim_master(:)-gradUinside(:)*dx_Face
   MacroVal(:) = RefState(:,BCState)
   CALL MaxwellDistribution(MacroVal,UPrim_boundary)
   CALL MaxwellScattering(UPrim_boundary,fplus,NormVec,2,dt/2.)
@@ -174,12 +174,18 @@ CASE(4) ! diffusive
         gradU(PP_nVar/2+upos) = 2.*(UPrim_master(PP_nVar/2+upos) - UPrim_boundary(PP_nVar/2+upos))
       END IF
     ELSE
-      gradU(upos) = 2.*gradUinside(upos)*dx_Face/dx_ElemIn
+      gradU(upos) = 2.*gradUinside(upos)*dx_Face
       IF (DVMSpeciesData%Internal_DOF .GT.0.0) THEN
-        gradU(PP_nVar/2+upos) = 2.*gradUinside(PP_nVar/2+upos)*dx_Face/dx_ElemIn
+        gradU(PP_nVar/2+upos) = 2.*gradUinside(PP_nVar/2+upos)*dx_Face
       END IF
     END IF
   END DO; END DO; END DO
+
+CASE(14) ! diffusive order 1
+  MacroVal(:) = RefState(:,BCState)
+  CALL MaxwellDistribution(MacroVal,UPrim_boundary)
+  CALL MaxwellScattering(UPrim_boundary,UPrim_master,NormVec,2,dt/2.)
+  gradU = 2.*(UPrim_master-UPrim_boundary)
 
 
 CASE DEFAULT ! unknown BCType

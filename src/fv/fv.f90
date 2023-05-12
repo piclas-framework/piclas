@@ -64,6 +64,7 @@ CALL prms%SetSection("Finite Volumes")
 
 CALL prms%CreateLogicalOption('FV-Reconstruction' , 'Use reconstruction for finite volumes', '.TRUE.')
 CALL prms%CreateIntOption('FV-LimiterType',"Type of slope limiter of second order reconstruction", '1')
+CALL prms%CreateRealOption('FV-VktK',"K parameter for Venkatakrishnan limiter", '1.')
 CALL prms%CreateRealArrayOption('FV-PeriodicBoxMin', "Minimum coordinates of the periodic box", "(/-Inf, -Inf, -Inf/)")
 CALL prms%CreateRealArrayOption('FV-PeriodicBoxMax', "Maximum coordinates of the periodic box", "(/Inf, Inf, Inf/)")
 
@@ -77,7 +78,7 @@ SUBROUTINE InitFV()
 ! MODULES
 USE MOD_Globals
 USE MOD_PreProc
-USE MOD_ReadInTools        ,ONLY: GETLOGICAL, GETINT, GETREALARRAY
+USE MOD_ReadInTools        ,ONLY: GETLOGICAL, GETINT, GETREALARRAY, GETREAL
 USE MOD_FV_Vars
 USE MOD_FV_Metrics         ,ONLY: InitFV_Metrics, Build_FVSideMatrix
 USE MOD_FV_Limiter         ,ONLY: InitFV_Limiter
@@ -112,6 +113,7 @@ LBWRITE(UNIT_StdOut,'(132("-"))')
 LBWRITE(UNIT_stdOut,'(A)') ' INIT FV...'
 
 doFVReconstruction=GETLOGICAL('FV-Reconstruction')
+FV_VktK=GETREAL('FV-VktK')
 FV_PerBoxMin(:)=GETREALARRAY('FV-PeriodicBoxMin',3)
 FV_PerBoxMax(:)=GETREALARRAY('FV-PeriodicBoxMax',3)
 
@@ -194,10 +196,12 @@ IF (doFVReconstruction) THEN
   ALLOCATE(FV_dx_master(3,0:PP_N,0:PP_N,1:nSides))
   ALLOCATE(FV_SysSol_slave(3,1:nSides))
   ALLOCATE(FV_SysSol_master(3,1:nSides))
+  ALLOCATE(FV_SysSol_BC(3,1:nSides))
   FV_dx_slave = 0.
   FV_dx_master = 0.
   FV_SysSol_slave = 0.
   FV_SysSol_master = 0.
+  FV_SysSol_BC = 0.
 
   ALLOCATE(FV_gradU_side(1:PP_nVar,0:PP_N,0:PP_N,1:nSides))
   ALLOCATE(FV_gradU_elem(3,1:PP_nVar,1:PP_nElems))
@@ -544,6 +548,7 @@ IF (doFVReconstruction) THEN
   SDEALLOCATE(FV_dx_master)
   SDEALLOCATE(FV_SysSol_slave)
   SDEALLOCATE(FV_SysSol_master)
+  SDEALLOCATE(FV_SysSol_BC)
   SDEALLOCATE(FV_gradU_elem)
   SDEALLOCATE(FV_gradU_side)
 END IF

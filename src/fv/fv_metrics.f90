@@ -122,8 +122,8 @@ SUBROUTINE Build_FVSideMatrix(dmaster,dslave)
   ! MODULES
 USE MOD_Globals
 USE MOD_PreProc
-USE MOD_Mesh_Vars          ,ONLY: nElems, nSides, ElemToSide
-USE MOD_FV_Vars            ,ONLY: FV_SysSol_slave, FV_SysSol_master
+USE MOD_Mesh_Vars          ,ONLY: nElems, nSides, ElemToSide, lastBCSide
+USE MOD_FV_Vars            ,ONLY: FV_SysSol_slave, FV_SysSol_master, FV_SysSol_BC
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT / OUTPUT VARIABLES
@@ -132,11 +132,14 @@ REAL, INTENT(IN)                      :: dslave(3,1:nSides)
 !----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER                                :: SideID, ElemID, locSideID, flip, info_dgesv, IPIV(PP_dim)
-REAL                                   :: gradWeight, dElem(3), dMatrix(PP_dim,PP_dim)
+REAL                                   :: gradWeight, dElem(3), dMatrix(PP_dim,PP_dim), dMatrixBC(PP_dim,PP_dim)
+LOGICAL                                :: BCelem
 !==================================================================================================================================
 
 DO ElemID = 1, nElems
+
   dMatrix = 0.
+  dMatrixBC = 0.
 #if PP_dim == 3
   DO locSideID=1,6
 #else
@@ -150,7 +153,16 @@ DO ElemID = 1, nElems
 #if PP_dim == 3
     dMatrix(1:PP_dim,3) = dMatrix(1:PP_dim,3) + gradWeight*dElem(3)*dElem(1:PP_dim)
 #endif
+    IF (SideID.LE.lastBCSide) THEN
+      BCelem = .TRUE.
+      dMatrixBC(1:PP_dim,1) = dMatrixBC(1:PP_dim,1) + gradWeight*dElem(1)*dElem(1:PP_dim)
+      dMatrixBC(1:PP_dim,2) = dMatrixBC(1:PP_dim,2) + gradWeight*dElem(2)*dElem(1:PP_dim)
+#if PP_dim == 3
+      dMatrixBC(1:PP_dim,3) = dMatrixBC(1:PP_dim,3) + gradWeight*dElem(3)*dElem(1:PP_dim)
+#endif
+    END IF
   END DO
+
 #if PP_dim == 3
   DO locSideID=1,6
 #else
@@ -169,8 +181,24 @@ DO ElemID = 1, nElems
       IF(info_dgesv.NE.0) CALL abort(__STAMP__,'FV metrics error')
     END IF
   END DO
-END DO
 
+
+  IF (BCelem) THEN
+    dMatrixBC = dMatrix - dMatrixBC
+#if PP_dim == 3
+    DO locSideID=1,6
+#else
+    DO locSideID=2,5
+#endif
+      SideID=ElemToSide(E2S_SIDE_ID,locSideID,ElemID)
+      !FV_SysSol_BC calculated with slave -> master direction
+      FV_SysSol_BC(:,SideID) = dslave(:,SideID) - dmaster(:,SideID)
+      CALL DGESV(PP_dim,1,dMatrixBC,PP_dim,IPIV,FV_SysSol_BC(1:PP_dim,SideID),PP_dim,info_dgesv)
+      IF(info_dgesv.NE.0) CALL abort(__STAMP__,'FV metrics BC error')
+    END DO
+  END IF
+
+END DO
 END SUBROUTINE Build_FVSideMatrix
 
 END MODULE MOD_FV_Metrics

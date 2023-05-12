@@ -233,7 +233,7 @@ DO iBC=1,nBCs
       CALL Riemann(Flux(:,:,:,SideID),UPrim_master(:,:,:,SideID),UPrim_boundary,NormVec(:,:,:,SideID))
     END DO
   
-  CASE(4) ! maxwell scattering
+  CASE(4,14) ! maxwell scattering
     DO iSide=1,nBCLoc
       SideID=BCSideID(iBC,iSide)
       MacroVal(:) = RefState(:,BCState)
