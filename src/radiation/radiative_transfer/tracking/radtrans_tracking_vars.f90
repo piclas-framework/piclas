@@ -12,7 +12,7 @@
 !==================================================================================================================================
 #include "piclas.h"
 
-MODULE MOD_RayTracing_Vars
+MODULE MOD_Photon_TrackingVars
 !===================================================================================================================================
 ! Contains the tadiation transport variables
 !===================================================================================================================================
@@ -24,42 +24,22 @@ SAVE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! GLOBAL RAY TRACING VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
-TYPE tRayTrace
-  REAL    :: PulseDuration      !>
-  REAL    :: tShift             !>
-  REAL    :: tActive            !>
-  REAL    :: Period             !>
-  INTEGER :: NbrOfPulses        !>
-  REAL    :: WaistRadius        !>
-  REAL    :: WaveLength         !>
-  REAL    :: RepetitionRate     !>
-  REAL    :: Power              !>
-  REAL    :: Area               !>
-  REAL    :: Energy             !>
-  REAL    :: IntensityAmplitude !>
-  REAL    :: Direction(3)       !>
+TYPE tPhotonProps
+  REAL               :: PhotonPos(3)                   !>
+  REAL               :: PhotonLastPos(3)               !>
+  REAL               :: PhotonDirection(3)             !>
+  REAL               :: PhotonEnergy                   !>
+  INTEGER            :: ElemID                         !>
+  INTEGER            :: WaveLength                     !>
 END TYPE
 
-TYPE (tRayTrace)     :: Ray                            !>
+TYPE (tPhotonProps)  :: PhotonProps                    !>
 
-TYPE tRadTrans
-  INTEGER            :: NumPhotonsPerCell              !>
-  REAL               :: GlobalRadiationPower           !>
-  REAL               :: ScaledGlobalRadiationPower     !>
-  INTEGER            :: GlobalPhotonNum                !>
-END TYPE
+REAL, ALLOCATABLE    :: PhotonSampWall(:,:)
 
-TYPE (tRadTrans)     :: RadTrans                       !>
-
-LOGICAL              :: AdaptiveRays                   !>
-INTEGER              :: NumRays                        !>
-INTEGER              :: RayPosModel                    !>
-INTEGER              :: RayPartBound                   !> Particle boundary ID where rays are emitted from
-
-REAL, ALLOCATABLE    :: RayElemPassedEnergy(:)         !>
 #if USE_MPI
-INTEGER              :: RayElemPassedEnergy_Shared_Win !>
-REAL,POINTER         :: RayElemPassedEnergy_Shared(:)  !>
-#endif
+INTEGER              :: PhotonSampWall_Shared_Win
+REAL,POINTER         :: PhotonSampWall_Shared(:,:)
+#endif /*USE_MPI*/
 !===================================================================================================================================
-END MODULE MOD_RayTracing_Vars
+END MODULE MOD_Photon_TrackingVars

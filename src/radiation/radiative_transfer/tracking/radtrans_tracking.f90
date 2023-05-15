@@ -51,10 +51,12 @@ USE MOD_Preproc
 USE MOD_Globals
 USE MOD_Particle_Mesh_Vars
 USE MOD_Particle_Boundary_Vars,      ONLY:PartBound
-USE MOD_RadiationTrans_Vars,         ONLY:PhotonProps,RadObservation_Emission, RadObservationPointMethod, RadObservation_EmissionPart
+USE MOD_Photon_TrackingVars,         ONLY:PhotonProps
+USE MOD_RadiationTrans_Vars,         ONLY:RadObservation_Emission, RadObservationPointMethod, RadObservation_EmissionPart
 USE MOD_Photon_TrackingTools,        ONLY:PhotonThroughSideCheck3DFast, PhotonIntersectionWithSide,CalcAbsoprtion,PhotonOnLineOfSight
 USE MOD_Photon_TrackingTools,        ONLY:PerfectPhotonReflection, DiffusePhotonReflection, CalcWallAbsoprtion, PointInObsCone
 USE MOD_Photon_TrackingTools,        ONLY:PhotonIntersectSensor
+USE MOD_Particle_Boundary_Tools,ONLY: StoreBoundaryParticleProperties
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
@@ -74,10 +76,11 @@ LOGICAL                          :: ThroughSide, Done
 LOGICAL                          :: oldElemIsMortar, isMortarSideTemp(1:6), doCheckSide
 REAL                             :: minRatio, intersecDist, intersecDistVec(3)
 REAL                             :: IntersectionPos(1:3), IntersectionPosTemp(1:3)
-
+!INTEGER                          :: StartElemID
 !===================================================================================================================================
 Done = .FALSE.
 ElemID = PhotonProps%ElemID
+!StartElemID = ElemID
 SideID = 0
 DoneLastElem(:,:) = 0
 ! 1) Loop tracking until Photon is considered "done" (either absorbed or deleted)
@@ -257,9 +260,7 @@ DO WHILE (.NOT.Done)
         IF (.NOT.DONE) CALL CalcWallAbsoprtion(SideID, DONE)
       END IF
     CASE DEFAULT
-      CALL abort(&
-      __STAMP__&
-      ,' ERROR: PartBound not associated!. (unknown case)',BCType,999.)
+      CALL abort(__STAMP__,' ERROR: PartBound not associated!. (unknown case)',BCType,999.)
     END SELECT !PartBound%MapToPartBC(BC(SideID)
 
 
@@ -292,11 +293,18 @@ DO WHILE (.NOT.Done)
       ElemID = SideInfo_Shared(SIDE_NBELEMID,SideID)
     END IF
   END IF  ! BC(SideID).GT./.LE. 0
-  IF (ElemID.LT.1) THEN
-    CALL abort(&
-     __STAMP__ &
-     ,'ERROR: Element not defined! Please increase the size of the halo region (HaloEpsVelo)!')
-  END IF
+  !IF(StartElemID.EQ.125)THEN
+    CALL StoreBoundaryParticleProperties(0,&
+         999,&
+         IntersectionPos,&
+         UNITVECTOR(PhotonProps%PhotonDirection(1:3)),(/0.0,0.0,1.0/),&
+         iPartBound=0,&
+         mode=2,&
+         MPF_optIN=0.0,&
+         Velo_optIN=PhotonProps%PhotonDirection(1:3))
+  !END IF ! StartElemID.EQ.125
+  !IPWRITE(UNIT_StdOut,*) "ElemID =", ElemID
+  IF (ElemID.LT.1) CALL abort(__STAMP__ ,'ERROR: Element not defined! Please increase the size of the halo region (HaloEpsVelo)!')
 END DO  ! .NOT.PartisDone
 
 
@@ -323,7 +331,8 @@ USE MOD_Preproc
 USE MOD_Globals
 USE MOD_Particle_Mesh_Vars
 USE MOD_Particle_Boundary_Vars,      ONLY:PartBound
-USE MOD_RadiationTrans_Vars,         ONLY:PhotonProps, RadObservation_Emission, RadObservationPointMethod,RadObservation_EmissionPart
+USE MOD_Photon_TrackingVars,         ONLY:PhotonProps
+USE MOD_RadiationTrans_Vars,         ONLY:RadObservation_Emission, RadObservationPointMethod,RadObservation_EmissionPart
 USE MOD_Photon_TrackingTools,        ONLY:CalcAbsoprtion, CalcWallAbsoprtion, DiffusePhotonReflection2D, PointInObsCone
 USE MOD_Photon_TrackingTools,        ONLY:PhotonIntersectionWithSide2D, RotatePhotonIn2DPlane, PerfectPhotonReflection2D
 USE MOD_Photon_TrackingTools,        ONLY:PhotonIntersectSensor, PhotonOnLineOfSight
@@ -377,7 +386,7 @@ DO WHILE (.NOT.Done)
         ! If small mortar element not defined, abort. Every available information on the compute-node is kept in shared memory, so
         ! no way to recover it during runtime
         IF (LastSide.EQ.nbSideID) isLastSide = .TRUE.
-        IF (NbElemID.LT.1) CALL ABORT(__STAMP__,'Small mortar element not defined!',ElemID)
+        IF (NbElemID.LT.1) CALL abort(__STAMP__,'Small mortar element not defined!',ElemID)
         ! For small mortar sides, SIDE_NBSIDEID contains the SideID of the corresponding big mortar side
         nbSideID = SideInfo_Shared(SIDE_NBSIDEID,nbSideID)
         NblocSideID =  SideInfo_Shared(SIDE_LOCALID,nbSideID)
@@ -468,9 +477,7 @@ DO WHILE (.NOT.Done)
       END IF
       LastSide = SideID
     CASE DEFAULT
-      CALL abort(&
-      __STAMP__&
-      ,' ERROR: PartBound not associated!. (unknown case)',999,999.)
+      CALL abort(__STAMP__,' ERROR: PartBound not associated!. (unknown case)',999,999.)
     END SELECT !PartBound%MapToPartBC(BC(SideID) 
   ELSE  ! BC(SideID).LE.0
     IF (oldElemIsMortar) THEN
@@ -486,9 +493,7 @@ DO WHILE (.NOT.Done)
   
   IF (.NOT.DONE) CALL RotatePhotonIn2DPlane(IntersectionPos(1:3))
   IF (ElemID.LT.1) THEN
-    CALL abort(&
-     __STAMP__ &
-     ,'ERROR: Element not defined! Please increase the size of the halo region (HaloEpsVelo)!')
+    CALL abort(__STAMP__ ,'ERROR: Element not defined! Please increase the size of the halo region (HaloEpsVelo)!')
   END IF
 END DO  ! .NOT.PartisDone
 END SUBROUTINE Photon2DSymTracking

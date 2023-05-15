@@ -55,18 +55,6 @@ END TYPE
 
 TYPE (tRadTrans)           :: RadTrans
 
-
-TYPE tPhotonProps
-  REAL                        :: PhotonPos(3)
-  REAL                        :: PhotonLastPos(3)
-  REAL                        :: PhotonDirection(3)
-  REAL                        :: PhotonEnergy
-  INTEGER                     :: ElemID
-  INTEGER                     :: WaveLength
-END TYPE
-
-TYPE (tPhotonProps)           :: PhotonProps
-
 INTEGER               :: RadiationAbsorptionModel
 INTEGER               :: RadiationDirectionModel
 INTEGER               :: RadiationPhotonPosModel
@@ -79,7 +67,6 @@ REAL,ALLOCPOINT                 :: Radiation_Emission_Spec_Max(:)
 INTEGER,ALLOCPOINT              :: RadTransPhotPerCell(:)     ! (WaveLen(:), number of mesh elements)
 INTEGER, ALLOCATABLE            :: RadTransPhotPerCellLoc(:)
 REAL, ALLOCPOINT                :: RadTransObsVolumeFrac(:)
-REAL, ALLOCATABLE               :: PhotonSampWall(:,:)
 REAL, ALLOCPOINT                :: RadObservationPOI(:,:)
 #if USE_MPI
 INTEGER                         :: RadTransPhotPerCell_Shared_Win
@@ -90,8 +77,6 @@ INTEGER                         :: Radiation_Emission_Spec_Total_Shared_Win
 REAL,ALLOCPOINT                 :: Radiation_Emission_Spec_Total_Shared(:)
 INTEGER                         :: Radiation_Emission_Spec_Max_Shared_Win
 REAL,ALLOCPOINT                 :: Radiation_Emission_Spec_Max_Shared(:)
-INTEGER                         :: PhotonSampWall_Shared_Win
-REAL,POINTER                    :: PhotonSampWall_Shared(:,:)
 INTEGER                         :: RadiationElemAbsEnergy_Shared_Win
 REAL,POINTER                    :: RadiationElemAbsEnergy_Shared(:)
 INTEGER                         :: RadObservationPOI_Shared_Win

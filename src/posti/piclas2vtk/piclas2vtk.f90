@@ -1061,8 +1061,8 @@ IF(TRIM(File_Type).NE.'RadiationSurfState') THEN
 ELSE
   nSurfSample = 1
 END IF
-CALL ReadAttribute(File_ID,'Time',1,RealScalar=OutputTime)
-CALL ReadAttribute(File_ID,'DSMC_nSurfSample',1,IntScalar=nSurfSample)
+!CALL ReadAttribute(File_ID,'Time',1,RealScalar=OutputTime)
+!CALL ReadAttribute(File_ID,'DSMC_nSurfSample',1,IntScalar=nSurfSample)
 IF(nSurfSample.NE.1) THEN
   CALL abort(&
       __STAMP__&

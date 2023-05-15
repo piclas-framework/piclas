@@ -36,19 +36,18 @@ IMPLICIT NONE
 !==================================================================================================================================
 CALL prms%SetSection("Ray Tracing")
 
-CALL prms%CreateIntOption(      'RayTracing-PartBound'    , 'TODO' , '0')
-CALL prms%CreateLogicalOption(  'RayTracing-AdaptiveRays' , 'TODO' , '.FALSE.')
-CALL prms%CreateIntOption(      'RayTracing-NumRays'      , 'TODO' , '1')
-CALL prms%CreateIntOption(      'RayTracing-RayPosModel'  , 'TODO' , '1')
-CALL prms%CreateRealArrayOption('RayTracing-RayDirection' , 'Direction vector for ray emission. Will be normalized after read-in.' , no=3)
-CALL prms%CreateIntOption(      'RayTracing-PartBound'    , 'Particle boundary ID where rays are emitted from' , '0')
-
-CALL prms%CreateRealOption(     'RayTracing-PulseDuration'  , 'Pulse duration tau for a Gaussian-type pulse with I~exp(-(t/tau)^2) [s]'                  )
-CALL prms%CreateIntOption(      'RayTracing-NbrOfPulses'    , 'Number of pulses [-]','1')
-CALL prms%CreateRealOption(     'RayTracing-WaistRadius'    , 'Beam waist radius (in focal spot) w_b for Gaussian-type pulse with I~exp(-(r/w_b)^2) [m]' , '0.0')
-CALL prms%CreateRealOption(     'RayTracing-WaveLength'     , 'Beam wavelength [m]'                                                                      )
-CALL prms%CreateRealOption(     'RayTracing-RepetitionRate' , 'Pulse repetition rate (pulses per second) [Hz]'                                           )
-CALL prms%CreateRealOption(     'RayTracing-Power'          , 'Average pulse power (energy of a single pulse times repetition rate) [W]'                 )
+CALL prms%CreateIntOption(       'RayTracing-PartBound'      , 'TODO' , '0')
+CALL prms%CreateLogicalOption(   'RayTracing-AdaptiveRays'   , 'TODO' , '.FALSE.')
+CALL prms%CreateIntOption(       'RayTracing-NumRays'        , 'TODO' , '1')
+CALL prms%CreateIntOption(       'RayTracing-RayPosModel'    , 'TODO' , '1')
+CALL prms%CreateRealArrayOption( 'RayTracing-RayDirection'   , 'Direction vector for ray emission. Will be normalized after read-in.' , no=3)
+CALL prms%CreateIntOption(       'RayTracing-PartBound'      , 'Particle boundary ID where rays are emitted from' , '0')
+CALL prms%CreateRealOption(      'RayTracing-PulseDuration'  , 'Pulse duration tau for a Gaussian-type pulse with I~exp(-(t/tau)^2) [s]'                  )
+CALL prms%CreateIntOption(       'RayTracing-NbrOfPulses'    , 'Number of pulses [-]'                                                                     , '1')
+CALL prms%CreateRealOption(      'RayTracing-WaistRadius'    , 'Beam waist radius (in focal spot) w_b for Gaussian-type pulse with I~exp(-(r/w_b)^2) [m]' , '0.0')
+CALL prms%CreateRealOption(      'RayTracing-WaveLength'     , 'Beam wavelength [m]'                                                                      )
+CALL prms%CreateRealOption(      'RayTracing-RepetitionRate' , 'Pulse repetition rate (pulses per second) [Hz]'                                           )
+CALL prms%CreateRealOption(      'RayTracing-Power'          , 'Average pulse power (energy of a single pulse times repetition rate) [W]'                 )
 
 END SUBROUTINE DefineParametersRayTracing
 
@@ -68,7 +67,10 @@ USE MOD_Particle_Boundary_Vars ,ONLY: nComputeNodeSurfTotalSides
 #if USE_MPI
 USE MOD_MPI_Shared_Vars
 USE MOD_MPI_Shared
+USE MOD_Photon_TrackingVars    ,ONLY: PhotonSampWall_Shared, PhotonSampWall_Shared_Win
 #endif /*USE_MPI*/
+USE MOD_RadiationTrans_Vars    ,ONLY: RadiationAbsorptionModel,RadObservationPointMethod
+USE MOD_Photon_TrackingVars    ,ONLY: PhotonSampWall
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -81,6 +83,10 @@ REAL              :: factor
 !===================================================================================================================================
 SWRITE(UNIT_StdOut,'(132("-"))')
 SWRITE(UNIT_stdOut,'(A)') ' INIT RAY TRACING SOLVER ...'
+
+! Do not absorb rays within the volume!
+RadiationAbsorptionModel = 0
+RadObservationPointMethod = 0
 
 RayPartBound = GETINT('RayTracing-PartBound')
 IF(RayPartBound.EQ.0) RETURN
@@ -95,6 +101,7 @@ Ray%WaveLength       = GETREAL('RayTracing-WaveLength')
 Ray%RepetitionRate   = GETREAL('RayTracing-RepetitionRate')
 Ray%Period           = 1./Ray%RepetitionRate
 Ray%Power            = GETREAL('RayTracing-Power')
+Ray%Direction        = GETREALARRAY('RayTracing-RayDirection',3)
 
 ASSOCIATE( &
       E0      => Ray%Energy             ,&
@@ -140,7 +147,6 @@ RayElemPassedEnergy=0.0
 AdaptiveRays = GETLOGICAL('RayTracing-AdaptiveRays')
 NumRays      = GETINT('RayTracing-NumRays')
 RayPosModel  = GETINT('RayTracing-RayPosModel')
-RayDirection = GETREALARRAY('RayTracing-RayDirection',3)
 
 #if USE_MPI
 CALL Allocate_Shared((/nGlobalElems/),RayElemPassedEnergy_Shared_Win,RayElemPassedEnergy_Shared)
@@ -149,16 +155,16 @@ IF (myComputeNodeRank.EQ.0) RayElemPassedEnergy_Shared = 0.
 CALL BARRIER_AND_SYNC(RayElemPassedEnergy_Shared_Win,MPI_COMM_SHARED)  
 #endif  /*USE_MPI*/
 
-ALLOCATE(RaySampWall(2,1:nComputeNodeSurfTotalSides))
-RaySampWall=0.0
+ALLOCATE(PhotonSampWall(2,1:nComputeNodeSurfTotalSides))
+PhotonSampWall=0.0
 
 #if USE_MPI
 !> Then shared arrays for boundary sampling
-CALL Allocate_Shared((/2,nComputeNodeSurfTotalSides/),RaySampWall_Shared_Win,RaySampWall_Shared)
-CALL MPI_WIN_LOCK_ALL(0,RaySampWall_Shared_Win,IERROR)
+CALL Allocate_Shared((/2,nComputeNodeSurfTotalSides/),PhotonSampWall_Shared_Win,PhotonSampWall_Shared)
+CALL MPI_WIN_LOCK_ALL(0,PhotonSampWall_Shared_Win,IERROR)
 
-IF (myComputeNodeRank.EQ.0) RaySampWall_Shared = 0.
-CALL BARRIER_AND_SYNC(RaySampWall_Shared_Win,MPI_COMM_SHARED)
+IF (myComputeNodeRank.EQ.0) PhotonSampWall_Shared = 0.
+CALL BARRIER_AND_SYNC(PhotonSampWall_Shared_Win,MPI_COMM_SHARED)
 #endif
 
 SWRITE(UNIT_stdOut,'(A)')' INIT RAY TRACING SOLVER DONE!'

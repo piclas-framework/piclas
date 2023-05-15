@@ -41,20 +41,21 @@ SUBROUTINE RadTrans_main()
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_Mesh_Vars               ,ONLY : nElems
-USE MOD_Particle_Mesh_Vars      ,ONLY : GEO, nComputeNodeElems, ElemMidPoint_Shared, ElemVolume_Shared
-USE MOD_RadiationTrans_Vars     ,ONLY : Radiation_Emission_Spec_Total, RadTrans, RadEmiAdaptPhotonNum, RadTransObsVolumeFrac
-USE MOD_RadiationTrans_Vars     ,ONLY : PhotonProps, RadiationDirectionModel, RadTransPhotPerCellLoc, RadObservationPoint
-USE MOD_RadiationTrans_Vars     ,ONLY : RadTransPhotPerCell, RadTransPhotPerCell_Shared_Win, RadiationPhotonWaveLengthModel
-USE MOD_RadiationTrans_Vars     ,ONLY : RadObservationPointMethod
-USE MOD_Photon_Tracking         ,ONLY : PhotonTriaTracking, Photon2DSymTracking
-USE MOD_Radiation_Vars          ,ONLY : RadiationSwitches
-USE MOD_DSMC_Vars               ,ONLY : RadialWeighting
-USE MOD_Mesh_Tools              ,ONLY: GetGlobalElemID
-USE MOD_Output                  ,ONLY: PrintStatusLineRadiation
+USE MOD_Mesh_Vars           ,ONLY: nElems
+USE MOD_Particle_Mesh_Vars  ,ONLY: GEO, nComputeNodeElems, ElemMidPoint_Shared, ElemVolume_Shared
+USE MOD_RadiationTrans_Vars ,ONLY: Radiation_Emission_Spec_Total, RadTrans, RadEmiAdaptPhotonNum, RadTransObsVolumeFrac
+USE MOD_RadiationTrans_Vars ,ONLY: RadiationDirectionModel, RadTransPhotPerCellLoc, RadObservationPoint
+USE MOD_Photon_TrackingVars ,ONLY: PhotonProps
+USE MOD_RadiationTrans_Vars ,ONLY: RadTransPhotPerCell, RadTransPhotPerCell_Shared_Win, RadiationPhotonWaveLengthModel
+USE MOD_RadiationTrans_Vars ,ONLY: RadObservationPointMethod
+USE MOD_Photon_Tracking     ,ONLY: PhotonTriaTracking, Photon2DSymTracking
+USE MOD_Radiation_Vars      ,ONLY: RadiationSwitches
+USE MOD_DSMC_Vars           ,ONLY: RadialWeighting
+USE MOD_Mesh_Tools          ,ONLY: GetGlobalElemID
+USE MOD_Output              ,ONLY: PrintStatusLineRadiation
 USE MOD_MPI_Shared_Vars
 USE MOD_MPI_Shared
-USE MOD_Particle_Vars           ,ONLY: Symmetry
+USE MOD_Particle_Vars       ,ONLY: Symmetry
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -319,9 +320,9 @@ FUNCTION SetPhotonStartDirection(iElem, iPhot, RandRot)
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_Globals_Vars,         ONLY : Pi 
-USE MOD_RadiationTrans_Vars  ,ONLY : RadiationDirectionModel, RadTransPhotPerCell, RadObservationPointMethod,RadObservationPoint
-USE MOD_RadiationTrans_Vars  ,ONLY : PhotonProps
+USE MOD_Globals_Vars        ,ONLY: Pi 
+USE MOD_RadiationTrans_Vars ,ONLY: RadiationDirectionModel, RadTransPhotPerCell, RadObservationPointMethod,RadObservationPoint
+USE MOD_Photon_TrackingVars ,ONLY: PhotonProps
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------

@@ -44,10 +44,10 @@ SUBROUTINE PhotonThroughSideCheck3DFast(iLocSide,Element,ThroughSide,TriNum, IsM
 !> is reversed.
 !===================================================================================================================================
 ! MODULES
-USE MOD_Globals_Vars              ,ONLY: EpsMach
-USE MOD_Particle_Mesh_Vars, ONLY : NodeCoords_Shared, ElemSideNodeID_Shared
-USE MOD_RadiationTrans_Vars,         ONLY:PhotonProps 
-USE MOD_Mesh_Tools         ,ONLY: GetCNElemID
+USE MOD_Globals_Vars        ,ONLY: EpsMach
+USE MOD_Particle_Mesh_Vars  ,ONLY: NodeCoords_Shared, ElemSideNodeID_Shared
+USE MOD_Photon_TrackingVars ,ONLY: PhotonProps
+USE MOD_Mesh_Tools          ,ONLY: GetCNElemID
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 ! INPUT VARIABLES
@@ -228,9 +228,9 @@ SUBROUTINE PhotonIntersectionWithSide2D(iLocSide,Element,ThroughSide,Intersectio
 !> Routine to check whether a photon crossed the given side.
 !===================================================================================================================================
 ! MODULES
-USE MOD_Particle_Mesh_Vars,          ONLY : ElemSideNodeID2D_Shared, NodeCoords_Shared
-USE MOD_RadiationTrans_Vars,         ONLY : PhotonProps 
-USE MOD_Mesh_Tools         ,ONLY: GetCNElemID
+USE MOD_Particle_Mesh_Vars  ,ONLY: ElemSideNodeID2D_Shared, NodeCoords_Shared
+USE MOD_Photon_TrackingVars ,ONLY: PhotonProps
+USE MOD_Mesh_Tools          ,ONLY: GetCNElemID
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 ! INPUT VARIABLES
@@ -481,7 +481,7 @@ SUBROUTINE RotatePhotonIn2DPlane(IntersectionPos)
 !> Routine to check whether a photon crossed the given side.
 !===================================================================================================================================
 ! MODULES
-USE MOD_RadiationTrans_Vars,         ONLY:PhotonProps 
+USE MOD_Photon_TrackingVars ,ONLY: PhotonProps
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -515,7 +515,7 @@ SUBROUTINE PhotonIntersectionWithSide(iLocSide,Element,TriNum, IntersectionPos, 
 !Based on PerfectReflection3D
 !--------------------------------------------------------------------------------------------------!
 USE MOD_Particle_Mesh_Vars, ONLY : ElemSideNodeID_Shared, NodeCoords_Shared
-USE MOD_RadiationTrans_Vars,         ONLY:PhotonProps 
+USE MOD_Photon_TrackingVars ,ONLY: PhotonProps
 USE MOD_Mesh_Tools         ,ONLY: GetCNElemID
 !--------------------------------------------------------------------------------------------------!
    IMPLICIT NONE                                                                                   !
@@ -611,8 +611,9 @@ SUBROUTINE CalcAbsoprtionMC(IntersectionPos,Element, DONE)
 !--------------------------------------------------------------------------------------------------!
 !Based on PerfectReflection3D
 !--------------------------------------------------------------------------------------------------!
-USE MOD_RadiationTrans_Vars,         ONLY:PhotonProps,RadiationElemAbsEnergy
-USE MOD_Radiation_Vars,              ONLY:Radiation_Absorption_spec
+USE MOD_Photon_TrackingVars ,ONLY: PhotonProps
+USE MOD_RadiationTrans_Vars ,ONLY: RadiationElemAbsEnergy
+USE MOD_Radiation_Vars      ,ONLY: Radiation_Absorption_spec
 !--------------------------------------------------------------------------------------------------!
   IMPLICIT NONE                                                                                    !
 !--------------------------------------------------------------------------------------------------!
@@ -639,7 +640,7 @@ END SUBROUTINE CalcAbsoprtionMC
 SUBROUTINE CalcAbsoprtionAnalytic(IntersectionPos,Element, DONE)
 !DEC$ ATTRIBUTES FORCEINLINE :: ParticleThroughSideLastPosCheck
   USE MOD_Globals
-  USE MOD_RadiationTrans_Vars,         ONLY:PhotonProps, RadTrans
+USE MOD_Photon_TrackingVars ,ONLY: PhotonProps
   USE MOD_RadiationTrans_Vars,         ONLY:RadiationElemAbsEnergy
   USE MOD_Radiation_Vars,              ONLY:Radiation_Absorption_spec
 !--------------------------------------------------------------------------------------------------!
@@ -673,28 +674,26 @@ SUBROUTINE CalcAbsoprtionAnalytic(IntersectionPos,Element, DONE)
 END SUBROUTINE CalcAbsoprtionAnalytic
 
 SUBROUTINE CalcAbsoprtion(IntersectionPos,Element, DONE)
-  USE MOD_Globals
-  USE MOD_RadiationTrans_Vars,    ONLY : RadiationAbsorptionModel
+USE MOD_Globals
+USE MOD_RadiationTrans_Vars ,ONLY: RadiationAbsorptionModel
 !--------------------------------------------------------------------------------------------------!
-  IMPLICIT NONE                                                                                    !
+IMPLICIT NONE                                                                                    !
 !--------------------------------------------------------------------------------------------------!
 ! argument list declaration                                                                        !
-  INTEGER, INTENT(IN)              :: Element
-  REAL, INTENT(IN)                 :: IntersectionPos(3)
-  LOGICAL, INTENT(INOUT)             :: DONE
+INTEGER, INTENT(IN)    :: Element
+REAL, INTENT(IN)       :: IntersectionPos(3)
+LOGICAL, INTENT(INOUT) :: DONE
 ! Local variable declaration                                                                       !
 !--------------------------------------------------------------------------------------------------!
-!--------------------------------------------------------------------------------------------------!
-  IF (RadiationAbsorptionModel.EQ.1) THEN
-    CALL CalcAbsoprtionAnalytic(IntersectionPos,Element, DONE)
-  ELSE IF (RadiationAbsorptionModel.EQ.2) THEN
-    CALL CalcAbsoprtionMC(IntersectionPos,Element, DONE)
-  ELSE
-    CALL Abort(&
-        __STAMP__,&
-        'AbsorptionModel must be 1 or 2!')
-  END IF
-
+IF (RadiationAbsorptionModel.EQ.0) THEN
+  RETURN
+ELSEIF (RadiationAbsorptionModel.EQ.1) THEN
+  CALL CalcAbsoprtionAnalytic(IntersectionPos,Element, DONE)
+ELSEIF (RadiationAbsorptionModel.EQ.2) THEN
+  CALL CalcAbsoprtionMC(IntersectionPos,Element, DONE)
+ELSE
+  CALL Abort(__STAMP__,'AbsorptionModel must be 1 or 2!')
+END IF
 END SUBROUTINE CalcAbsoprtion
 
 SUBROUTINE PerfectPhotonReflection(iLocSide,Element,TriNum, IntersectionPos, IntersecAlreadyCalc)
@@ -702,7 +701,7 @@ SUBROUTINE PerfectPhotonReflection(iLocSide,Element,TriNum, IntersectionPos, Int
 !Based on PerfectReflection3D
 !--------------------------------------------------------------------------------------------------!
   USE MOD_Particle_Mesh_Vars,     ONLY : NodeCoords_Shared, ElemSideNodeID_Shared
-  USE MOD_RadiationTrans_Vars,    ONLY : PhotonProps 
+USE MOD_Photon_TrackingVars ,ONLY: PhotonProps
   USE MOD_Mesh_Tools         ,ONLY: GetCNElemID
 !--------------------------------------------------------------------------------------------------!
   IMPLICIT NONE                                                                                   !
@@ -798,7 +797,7 @@ SUBROUTINE PerfectPhotonReflection2D(iLocSide,Element, IntersectionPos)
 !Based on PerfectReflection3D
 !--------------------------------------------------------------------------------------------------!
   USE MOD_Particle_Mesh_Vars,     ONLY : SideNormalEdge2D_Shared
-  USE MOD_RadiationTrans_Vars,    ONLY : PhotonProps 
+USE MOD_Photon_TrackingVars ,ONLY: PhotonProps
   USE MOD_Mesh_Tools         ,ONLY: GetCNElemID
 !--------------------------------------------------------------------------------------------------!
   IMPLICIT NONE                                                                                   !
@@ -844,7 +843,7 @@ SUBROUTINE DiffusePhotonReflection(iLocSide,Element,TriNum, IntersectionPos, Int
 !Based on PerfectReflection3D
 !--------------------------------------------------------------------------------------------------!
   USE MOD_Particle_Mesh_Vars,     ONLY : ElemSideNodeID_Shared, NodeCoords_Shared
-  USE MOD_RadiationTrans_Vars,    ONLY : PhotonProps 
+USE MOD_Photon_TrackingVars ,ONLY: PhotonProps
   USE Ziggurat
   USE MOD_Mesh_Tools         ,ONLY: GetCNElemID
 !--------------------------------------------------------------------------------------------------!
@@ -952,7 +951,7 @@ SUBROUTINE DiffusePhotonReflection2D(iLocSide,Element, IntersectionPos)
 !Based on PerfectReflection3D
 !--------------------------------------------------------------------------------------------------!
   USE MOD_Particle_Mesh_Vars,     ONLY : SideNormalEdge2D_Shared
-  USE MOD_RadiationTrans_Vars,    ONLY : PhotonProps 
+USE MOD_Photon_TrackingVars ,ONLY: PhotonProps
   USE Ziggurat
   USE MOD_Mesh_Tools         ,ONLY: GetCNElemID
 !--------------------------------------------------------------------------------------------------!
@@ -1002,29 +1001,29 @@ SUBROUTINE DiffusePhotonReflection2D(iLocSide,Element, IntersectionPos)
 END SUBROUTINE DiffusePhotonReflection2D
 
 SUBROUTINE CalcWallAbsoprtion(GlobSideID, DONE)
-  USE MOD_RadiationTrans_Vars,    ONLY : PhotonSampWall, PhotonProps
-  USE MOD_Particle_Boundary_Vars,      ONLY:PartBound, GlobalSide2SurfSide
-  USE MOD_Particle_Mesh_Vars      ,ONLY: SideInfo_Shared
+USE MOD_Photon_TrackingVars    ,ONLY: PhotonProps,PhotonSampWall
+USE MOD_Particle_Boundary_Vars ,ONLY: PartBound, GlobalSide2SurfSide
+USE MOD_Particle_Mesh_Vars     ,ONLY: SideInfo_Shared
 !--------------------------------------------------------------------------------------------------!
-  IMPLICIT NONE                                                                                    !
+IMPLICIT NONE                                                                                    !
 !--------------------------------------------------------------------------------------------------!
 ! argument list declaration                                                                        !
-  INTEGER, INTENT(IN)              :: GlobSideID
-  LOGICAL, INTENT(OUT)             :: DONE
+INTEGER, INTENT(IN)              :: GlobSideID
+LOGICAL, INTENT(OUT)             :: DONE
 ! Local variable declaration                                                                       !
 !--------------------------------------------------------------------------------------------------!
-  REAL                            :: iRan
-  INTEGER                         :: SurfSideID
+REAL                            :: iRan
+INTEGER                         :: SurfSideID
 !--------------------------------------------------------------------------------------------------!
-  SurfSideID = GlobalSide2SurfSide(SURF_SIDEID,GlobSideID)
-  CALL RANDOM_NUMBER(iRan)
-  IF (PartBound%PhotonEnACC(PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,GlobSideID))).GT.iRan) THEN
-    DONE = .TRUE. 
-    PhotonSampWall(1,SurfSideID) = PhotonSampWall(1,SurfSideID) + 1.
-    PhotonSampWall(2,SurfSideID) = PhotonSampWall(2,SurfSideID) + PhotonProps%PhotonEnergy
-  END IF
-
+SurfSideID = GlobalSide2SurfSide(SURF_SIDEID,GlobSideID)
+CALL RANDOM_NUMBER(iRan)
+IF (PartBound%PhotonEnACC(PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,GlobSideID))).GT.iRan) THEN
+  DONE = .TRUE. 
+  PhotonSampWall(1,SurfSideID) = PhotonSampWall(1,SurfSideID) + 1.
+  PhotonSampWall(2,SurfSideID) = PhotonSampWall(2,SurfSideID) + PhotonProps%PhotonEnergy
+END IF
 END SUBROUTINE CalcWallAbsoprtion
+
 
 LOGICAL FUNCTION PointInObsCone(Point)
 !===================================================================================================================================
