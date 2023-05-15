@@ -77,6 +77,9 @@ USE MOD_MPI                    ,ONLY: StartReceiveMPIData,StartSendMPIData,Finis
 USE MOD_HDG                    ,ONLY: SynchronizeVoltageOnEPC
 USE MOD_HDG_Vars               ,ONLY: UseEPC
 #if defined(PARTICLES)
+USE MOD_Equation               ,ONLY: SynchronizeCPP
+USE MOD_HDG                    ,ONLY: SynchronizeBV
+USE MOD_HDG_Vars               ,ONLY: UseBiasVoltage,UseCoupledPowerPotential
 ! TODO: make ElemInfo available with PARTICLES=OFF and remove this preprocessor if/else as soon as possible
 USE MOD_Mesh_Vars              ,ONLY: SideToNonUniqueGlobalSide,nElems
 USE MOD_LoadBalance_Vars       ,ONLY: MPInSideSend,MPInSideRecv,MPIoffsetSideSend,MPIoffsetSideRecv
@@ -96,8 +99,10 @@ USE MOD_HDG_Vars               ,ONLY: lambda_petsc,PETScGlobal,PETScLocalToSideI
 ! Non-HDG stuff
 USE MOD_PML_Vars               ,ONLY: DoPML,PMLToElem,U2,nPMLElems,PMLnVar
 USE MOD_Restart_Vars           ,ONLY: Vdm_GaussNRestart_GaussN
+#if USE_LOADBALANCE
 USE MOD_Mesh_Vars              ,ONLY: nElems
 USE MOD_LoadBalance_Vars       ,ONLY: MPInElemSend,MPInElemRecv,MPIoffsetElemSend,MPIoffsetElemRecv
+#endif /*USE_LOADBALANCE*/
 #endif /*USE_HDG*/
 USE MOD_Mesh_Vars              ,ONLY: OffsetElem
 ! IMPLICIT VARIABLE HANDLING
@@ -129,7 +134,9 @@ PetscErrorCode                     :: ierr
 #endif
 #else /*USE_HDG*/
 INTEGER                            :: iElem
+#if USE_LOADBALANCE
 REAL,ALLOCATABLE                   :: UTmp(:,:,:,:,:)
+#endif /*USE_LOADBALANCE*/
 REAL,ALLOCATABLE                   :: U_local(:,:,:,:,:)
 REAL,ALLOCATABLE                   :: U_local2(:,:,:,:,:)
 INTEGER                            :: iPML
@@ -152,7 +159,6 @@ INTEGER(KIND=MPI_ADDRESS_KIND)     :: MPI_DISPLACEMENT(1)
 #if USE_LOADBALANCE
 IF(PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance))THEN
 #if USE_HDG
-
 #if USE_PETSC
   ! FPC: The MPI root process distributes the information among the sub-communicator processes for each FPC
   !      (before and after load balancing, the root process is always part of each sub-communicator group)
@@ -163,6 +169,14 @@ IF(PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance))THEN
   IF(UseEPC) CALL SynchronizeVoltageOnEPC()
 
 #if defined(PARTICLES)
+  ! Coupled Bias voltage (BV): The MPI root process distributes the information among the sub-communicator processes
+  !      (before and after load balancing, the root process is always part of each sub-communicator group)
+  IF(UseBiasVoltage) CALL SynchronizeBV()
+
+  ! Coupled Power Potential (CPP): The MPI root process distributes the information among the sub-communicator processes
+  !      (before and after load balancing, the root process is always part of each sub-communicator group)
+  IF(UseCoupledPowerPotential) CALL SynchronizeCPP()
+
   !checkRank=MIN(3,nProcessors-1)
   ! Store lambda solution on global non-unique array for MPI communication
   ASSOCIATE( firstSide => ElemInfo_Shared(ELEM_FIRSTSIDEIND,offsetElem+1) + 1       ,&
