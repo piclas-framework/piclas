@@ -40,7 +40,11 @@ USE MOD_Globals
 USE MOD_PreProc
 USE MOD_Mesh_Vars            ,ONLY: nElems,MeshFile,offSetElem
 USE MOD_Globals_Vars         ,ONLY: ProjectName
+#if USE_MPI
 USE MOD_RayTracing_Vars      ,ONLY: RayElemPassedEnergy_Shared
+#else
+USE MOD_RayTracing_Vars      ,ONLY: RayElemPassedEnergy
+#endif /*USE_MPI*/
 USE MOD_io_HDF5
 USE MOD_HDF5_output          ,ONLY: GenerateFileSkeleton
 USE MOD_HDF5_Output_ElemData ,ONLY: WriteAdditionalElemData
@@ -80,7 +84,11 @@ CALL ExchangeRayVolInfo()
 #endif /*USE_MPI*/
 
 DO iElem=1,PP_nElems
+#if USE_MPI
   RayElemPassedEnergyLoc(iElem) = RayElemPassedEnergy_Shared(iElem+offSetElem)
+#else
+  RayElemPassedEnergyLoc(iElem) = RayElemPassedEnergy(iElem+offSetElem)
+#endif /*USE_MPI*/
 END DO
 
 ! Write all 'ElemData' arrays to a single container in the state.h5 file

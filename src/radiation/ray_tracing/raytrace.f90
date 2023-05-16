@@ -43,8 +43,7 @@ SUBROUTINE RayTracing()
 USE MOD_Globals
 USE MOD_MPI_Shared_Vars
 USE MOD_MPI_Shared
-USE MOD_RayTracing_Vars         ,ONLY: RayPartBound,NumRays,Ray,RayElemPassedEnergy,RayElemPassedEnergy_Shared_Win
-USE MOD_RayTracing_Vars         ,ONLY: RayElemPassedEnergy_Shared
+USE MOD_RayTracing_Vars         ,ONLY: RayPartBound,NumRays,Ray,RayElemPassedEnergy
 USE MOD_Photon_TrackingVars     ,ONLY: PhotonProps
 USE MOD_Photon_Tracking         ,ONLY: PhotonTriaTracking
 USE MOD_Mesh_Tools              ,ONLY: GetGlobalElemID
@@ -60,6 +59,7 @@ USE MOD_Photon_TrackingOutput   ,ONLY: WritePhotonSurfSampleToHDF5,WritePhotonVo
 USE MOD_MPI_Shared_Vars
 USE MOD_MPI_Shared
 USE MOD_Photon_TrackingVars     ,ONLY: PhotonSampWall_Shared, PhotonSampWall_Shared_Win
+USE MOD_RayTracing_Vars         ,ONLY: RayElemPassedEnergy_Shared,RayElemPassedEnergy_Shared_Win
 #endif /*USE_MPI*/
 USE MOD_Photon_TrackingVars     ,ONLY: PhotonSampWall
 USE MOD_Mesh_Vars               ,ONLY: nGlobalElems
