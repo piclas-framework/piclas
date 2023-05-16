@@ -99,7 +99,7 @@ DO WHILE (.NOT.Done)
     IF (localSideID.LE.0) CYCLE
     NbElemID = SideInfo_Shared(SIDE_NBELEMID,TempSideID)
     IF (NbElemID.LT.0) THEN ! Mortar side
-      nMortarElems = MERGE(4,2,SideInfo_Shared(SIDE_NBELEMID,TempSideID).EQ.-1)    
+      nMortarElems = MERGE(4,2,SideInfo_Shared(SIDE_NBELEMID,TempSideID).EQ.-1)
       DO ind = 1, nMortarElems
         nbSideID = ElemInfo_Shared(ELEM_FIRSTSIDEIND,ElemID) + iLocSide + ind
         NbElemID = SideInfo_Shared(SIDE_NBELEMID,nbSideID)
@@ -179,7 +179,7 @@ DO WHILE (.NOT.Done)
             CALL PhotonIntersectionWithSide(LocSidesTemp(ind2),NbElemID,TriNumTemp(ind2), IntersectionPosTemp, .TRUE.)
             intersecDistVec(1:3) = IntersectionPosTemp(1:3) - PhotonProps%PhotonLastPos(1:3)
             intersecDist = DOT_PRODUCT(intersecDistVec, intersecDistVec)
-            ! If the particle is inside the neighboring mortar element, it moved through this side            
+            ! If the particle is inside the neighboring mortar element, it moved through this side
             ! Ratio is always negative since detM(=detLastPartPos) is negative or zero, i.e. maximum abs is wanted
             ! The closer the intersected side is to the last particle position the greater the absolute ratio will be
             IF (intersecDist.LT.minRatio) THEN
@@ -246,16 +246,16 @@ DO WHILE (.NOT.Done)
       IF (PartBound%PhotonSpecularReflection(PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID)))) THEN
         IF (NrOfThroughSides.LT.2) THEN
           CALL PerfectPhotonReflection(LocalSide,ElemID,TriNum, IntersectionPos, .FALSE.)
-        ELSE 
+        ELSE
           CALL PerfectPhotonReflection(LocalSide,ElemID,TriNum, IntersectionPos, .TRUE.)
         END IF
         CALL CalcAbsoprtion(IntersectionPos(1:3),ElemID, DONE)
       ELSE
         IF (NrOfThroughSides.LT.2) THEN
           CALL DiffusePhotonReflection(LocalSide,ElemID,TriNum, IntersectionPos, .FALSE.)
-        ELSE 
+        ELSE
           CALL DiffusePhotonReflection(LocalSide,ElemID,TriNum, IntersectionPos, .TRUE.)
-        END IF      
+        END IF
         CALL CalcAbsoprtion(IntersectionPos(1:3),ElemID, DONE)
         IF (.NOT.DONE) CALL CalcWallAbsoprtion(SideID, DONE)
       END IF
@@ -366,7 +366,7 @@ DO WHILE (.NOT.Done)
   isMortarSideTemp = .FALSE.
   nlocSides = ElemInfo_Shared(ELEM_LASTSIDEIND,ElemID) -  ElemInfo_Shared(ELEM_FIRSTSIDEIND,ElemID)
   DO iLocSide=1,nlocSides
-    isLastSide = .FALSE. 
+    isLastSide = .FALSE.
     TempSideID = ElemInfo_Shared(ELEM_FIRSTSIDEIND,ElemID) + iLocSide
     localSideID = SideInfo_Shared(SIDE_LOCALID,TempSideID)
     ! Side is not one of the 6 local sides
@@ -378,9 +378,9 @@ DO WHILE (.NOT.Done)
     IF (LastSide.EQ.TempSideID) isLastSide = .TRUE.
     NbElemID = SideInfo_Shared(SIDE_NBELEMID,TempSideID)
     IF (NbElemID.LT.0) THEN ! Mortar side
-      nMortarElems = MERGE(4,2,SideInfo_Shared(SIDE_NBELEMID,TempSideID).EQ.-1)   
+      nMortarElems = MERGE(4,2,SideInfo_Shared(SIDE_NBELEMID,TempSideID).EQ.-1)
       DO ind = 1, nMortarElems
-        isLastSide = .FALSE. 
+        isLastSide = .FALSE.
         nbSideID = ElemInfo_Shared(ELEM_FIRSTSIDEIND,ElemID) + iLocSide + ind
         NbElemID = SideInfo_Shared(SIDE_NBELEMID,nbSideID)
         ! If small mortar element not defined, abort. Every available information on the compute-node is kept in shared memory, so
@@ -391,8 +391,8 @@ DO WHILE (.NOT.Done)
         nbSideID = SideInfo_Shared(SIDE_NBSIDEID,nbSideID)
         NblocSideID =  SideInfo_Shared(SIDE_LOCALID,nbSideID)
         ThroughSide = .FALSE.
-        CALL PhotonIntersectionWithSide2D(NblocSideID,NbElemID,ThroughSide,IntersectionPos, isLastSide,Distance)          
-        IF (ThroughSide) THEN               
+        CALL PhotonIntersectionWithSide2D(NblocSideID,NbElemID,ThroughSide,IntersectionPos, isLastSide,Distance)
+        IF (ThroughSide) THEN
           ! Store the information for this side for future checks, if this side was already treated
           oldElemIsMortar = .TRUE.
           NrOfThroughSides = NrOfThroughSides + 1
@@ -452,7 +452,7 @@ DO WHILE (.NOT.Done)
     CASE(1) !PartBound%OpenBC)
       CALL CalcAbsoprtion(IntersectionPos(1:3),ElemID, DONE)
       DONE = .TRUE.
-      IF (RadObservationPointMethod.EQ.1) THEN        
+      IF (RadObservationPointMethod.EQ.1) THEN
         IF (PointInObsCone(IntersectionPos(1:3))) THEN
           IF (PhotonIntersectSensor(IntersectionPos(1:3), PhotonProps%PhotonDirection(1:3))) THEN
             RadObservation_Emission(PhotonProps%WaveLength) = RadObservation_Emission(PhotonProps%WaveLength) + PhotonProps%PhotonEnergy
@@ -469,16 +469,16 @@ DO WHILE (.NOT.Done)
     CASE(2)
       IF (PartBound%PhotonSpecularReflection(PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID)))) THEN
         CALL CalcAbsoprtion(IntersectionPos(1:3),ElemID, DONE)
-        IF (.NOT.DONE) CALL PerfectPhotonReflection2D(LocalSide,ElemID, IntersectionPos) 
+        IF (.NOT.DONE) CALL PerfectPhotonReflection2D(LocalSide,ElemID, IntersectionPos)
       ELSE
-        CALL CalcAbsoprtion(IntersectionPos(1:3),ElemID, DONE)      
+        CALL CalcAbsoprtion(IntersectionPos(1:3),ElemID, DONE)
         IF (.NOT.DONE) CALL CalcWallAbsoprtion(SideID, DONE)
-        IF (.NOT.DONE) CALL DiffusePhotonReflection2D(LocalSide,ElemID, IntersectionPos) 
+        IF (.NOT.DONE) CALL DiffusePhotonReflection2D(LocalSide,ElemID, IntersectionPos)
       END IF
       LastSide = SideID
     CASE DEFAULT
       CALL abort(__STAMP__,' ERROR: PartBound not associated!. (unknown case)',999,999.)
-    END SELECT !PartBound%MapToPartBC(BC(SideID) 
+    END SELECT !PartBound%MapToPartBC(BC(SideID)
   ELSE  ! BC(SideID).LE.0
     IF (oldElemIsMortar) THEN
       CALL CalcAbsoprtion(IntersectionPos(1:3),ElemID, DONE)
@@ -490,7 +490,7 @@ DO WHILE (.NOT.Done)
       LastSide = SideInfo_Shared(SIDE_NBSIDEID,SideID)
     END IF
   END IF  ! BC(SideID).GT./.LE. 0
-  
+
   IF (.NOT.DONE) CALL RotatePhotonIn2DPlane(IntersectionPos(1:3))
   IF (ElemID.LT.1) THEN
     CALL abort(__STAMP__ ,'ERROR: Element not defined! Please increase the size of the halo region (HaloEpsVelo)!')
