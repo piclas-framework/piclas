@@ -830,43 +830,45 @@ RotFracSpec=0.0; VibFracSpec=0.0; Xi_vib_DOF=0.0; Xi_VibSpecNew=0.0; betaR=1.0; 
 ERotSpecMean=0.0; ERotTtransSpecMean=0.0; EVibSpecMean=0.0; EVibTtransSpecMean=0.0; ETransRelMean=0.0; CellTempRel=0.0
 
 DO iSpec = 1, nSpecies
-  IF((SpecDSMC(iSpec)%InterID.EQ.2).OR.(SpecDSMC(iSpec)%InterID.EQ.20)) THEN ! molecules
-    ! Mean rotational energy per particle of a species
-    ERotSpecMean(iSpec) = ERotSpec(iSpec)/totalWeightSpec(iSpec)
-    ! Mean rotational energy per particle of a species for the mixture translational temperature, ERot(Ttrans)
-    ERotTtransSpecMean(iSpec) = CellTemp * Xi_RotSpec(iSpec) * BoltzmannConst /2.
-    ! Calculate number of rotational relaxing molecules
-    RotFracSpec(iSpec) = totalWeightSpec(iSpec)*(rotrelaxfreqSpec(iSpec)/relaxfreq)*(1.-EXP(-relaxfreq*dtCell))
+  IF(totalWeightSpec(iSpec).GT.0.) THEN
+    IF((SpecDSMC(iSpec)%InterID.EQ.2).OR.(SpecDSMC(iSpec)%InterID.EQ.20)) THEN ! molecules
+      ! Mean rotational energy per particle of a species
+      ERotSpecMean(iSpec) = ERotSpec(iSpec)/totalWeightSpec(iSpec)
+      ! Mean rotational energy per particle of a species for the mixture translational temperature, ERot(Ttrans)
+      ERotTtransSpecMean(iSpec) = CellTemp * Xi_RotSpec(iSpec) * BoltzmannConst /2.
+      ! Calculate number of rotational relaxing molecules
+      RotFracSpec(iSpec) = totalWeightSpec(iSpec)*(rotrelaxfreqSpec(iSpec)/relaxfreq)*(1.-EXP(-relaxfreq*dtCell))
 
-    IF(BGKDoVibRelaxation) THEN
-      ! Mean vibrational energy per particle of a species
-      EVibSpecMean(iSpec) = EVibSpec(iSpec)/totalWeightSpec(iSpec)
-      IF(SpecDSMC(iSpec)%PolyatomicMol) THEN ! polyatomic
-        iPolyatMole = SpecDSMC(iSpec)%SpecToPolyArray
-        ! Loop over all vibrational DOF
-        DO iDOF = 1, PolyatomMolDSMC(iPolyatMole)%VibDOF
+      IF(BGKDoVibRelaxation) THEN
+        ! Mean vibrational energy per particle of a species
+        EVibSpecMean(iSpec) = EVibSpec(iSpec)/totalWeightSpec(iSpec)
+        IF(SpecDSMC(iSpec)%PolyatomicMol) THEN ! polyatomic
+          iPolyatMole = SpecDSMC(iSpec)%SpecToPolyArray
+          ! Loop over all vibrational DOF
+          DO iDOF = 1, PolyatomMolDSMC(iPolyatMole)%VibDOF
+            ! Mean vibrational energy per particle of a species for the mixture translational temperature, EVib(Ttrans)
+            EVibTtransSpecMean(iSpec) = EVibTtransSpecMean(iSpec) + BoltzmannConst*PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iDOF) / &
+              (EXP(PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iDOF)/CellTemp) - 1.)
+          END DO
+        ELSE ! diatomic
           ! Mean vibrational energy per particle of a species for the mixture translational temperature, EVib(Ttrans)
-          EVibTtransSpecMean(iSpec) = EVibTtransSpecMean(iSpec) + BoltzmannConst*PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iDOF) / &
-            (EXP(PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iDOF)/CellTemp) - 1.)
-        END DO
-      ELSE ! diatomic
-        ! Mean vibrational energy per particle of a species for the mixture translational temperature, EVib(Ttrans)
-        EVibTtransSpecMean(iSpec) = BoltzmannConst * SpecDSMC(iSpec)%CharaTVib / (EXP(SpecDSMC(iSpec)%CharaTVib/CellTemp) - 1.) 
+          EVibTtransSpecMean(iSpec) = BoltzmannConst * SpecDSMC(iSpec)%CharaTVib / (EXP(SpecDSMC(iSpec)%CharaTVib/CellTemp) - 1.)
+        END IF
+        ! Calculate number of vibrational relaxing molecules
+        VibFracSpec(iSpec) = totalWeightSpec(iSpec)*(vibrelaxfreqSpec(iSpec)/relaxfreq)*(1.-EXP(-relaxfreq*dtCell))
       END IF
-      ! Calculate number of vibrational relaxing molecules
-      VibFracSpec(iSpec) = totalWeightSpec(iSpec)*(vibrelaxfreqSpec(iSpec)/relaxfreq)*(1.-EXP(-relaxfreq*dtCell))
-    END IF
 
-    ! Mean translational energy per particle to satisfy the Landau-Teller equation
-    ETransRelMean = ETransRelMean + (3./2. * BoltzmannConst * CellTemp - (rotrelaxfreqSpec(iSpec)/relaxfreq) * &
-      (ERotTtransSpecMean(iSpec)-ERotSpecMean(iSpec))) * totalWeightSpec(iSpec)/totalWeight
-    IF (BGKDoVibRelaxation) THEN
-      ETransRelMean = ETransRelMean - (vibrelaxfreqSpec(iSpec)/relaxfreq)*(EVibTtransSpecMean(iSpec)-EVibSpecMean(iSpec)) * &
-        totalWeightSpec(iSpec)/totalWeight
+      ! Mean translational energy per particle to satisfy the Landau-Teller equation
+      ETransRelMean = ETransRelMean + (3./2. * BoltzmannConst * CellTemp - (rotrelaxfreqSpec(iSpec)/relaxfreq) * &
+        (ERotTtransSpecMean(iSpec)-ERotSpecMean(iSpec))) * totalWeightSpec(iSpec)/totalWeight
+      IF (BGKDoVibRelaxation) THEN
+        ETransRelMean = ETransRelMean - (vibrelaxfreqSpec(iSpec)/relaxfreq)*(EVibTtransSpecMean(iSpec)-EVibSpecMean(iSpec)) * &
+          totalWeightSpec(iSpec)/totalWeight
+      END IF
+    ELSE ! atomic
+      ! Mean translational energy per particle to satisfy the Landau-Teller equation
+      ETransRelMean = ETransRelMean + 3./2. * BoltzmannConst * CellTemp * totalWeightSpec(iSpec)/totalWeight
     END IF
-  ELSE ! atomic
-    ! Mean translational energy per particle to satisfy the Landau-Teller equation
-    ETransRelMean = ETransRelMean + 3./2. * BoltzmannConst * CellTemp * totalWeightSpec(iSpec)/totalWeight
   END IF
 END DO
 
