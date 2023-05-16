@@ -35,15 +35,16 @@ PUBLIC :: RayTracing
 
 CONTAINS
 
-SUBROUTINE RayTracing()
 !===================================================================================================================================
 !> Main routine for the Radiation Transport
 !===================================================================================================================================
+SUBROUTINE RayTracing()
 ! MODULES
 USE MOD_Globals
 USE MOD_MPI_Shared_Vars
 USE MOD_MPI_Shared
-USE MOD_RayTracing_Vars         ,ONLY: RayPartBound,NumRays,Ray
+USE MOD_RayTracing_Vars         ,ONLY: RayPartBound,NumRays,Ray,RayElemPassedEnergy,RayElemPassedEnergy_Shared_Win
+USE MOD_RayTracing_Vars         ,ONLY: RayElemPassedEnergy_Shared
 USE MOD_Photon_TrackingVars     ,ONLY: PhotonProps
 USE MOD_Photon_Tracking         ,ONLY: PhotonTriaTracking
 USE MOD_Mesh_Tools              ,ONLY: GetGlobalElemID
@@ -54,7 +55,14 @@ USE MOD_Particle_Boundary_Vars  ,ONLY: nComputeNodeSurfTotalSides,PartBound,Surf
 USE MOD_Particle_Mesh_Vars      ,ONLY: SideInfo_Shared
 USE MOD_Particle_Boundary_Tools ,ONLY: StoreBoundaryParticleProperties
 USE MOD_Particle_Boundary_Vars  ,ONLY: PartStateBoundary,nVarPartStateBoundary
-USE MOD_Photon_TrackingOutput   ,ONLY: WritePhotonSurfSampleToHDF5
+USE MOD_Photon_TrackingOutput   ,ONLY: WritePhotonSurfSampleToHDF5,WritePhotonVolSampleToHDF5
+#if USE_MPI
+USE MOD_MPI_Shared_Vars
+USE MOD_MPI_Shared
+USE MOD_Photon_TrackingVars     ,ONLY: PhotonSampWall_Shared, PhotonSampWall_Shared_Win
+#endif /*USE_MPI*/
+USE MOD_Photon_TrackingVars     ,ONLY: PhotonSampWall
+USE MOD_Mesh_Vars               ,ONLY: nGlobalElems
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -63,21 +71,36 @@ USE MOD_Photon_TrackingOutput   ,ONLY: WritePhotonSurfSampleToHDF5
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER             :: NonUniqueGlobalSideID,iSurfSide,iBC
-INTEGER             :: CNElemID, iRay, photonCount, iPhot, iPhotLoc, RayVisCount, LocRayNum, RayDisp
-!INTEGER             :: firstElem, lastElem, firstPhoton, lastPhoton
-!REAL                :: Bounds(1:2,1:3) ! Bounds(1,1:3) --> maxCoords , Bounds(2,1:3) --> minCoords
-!REAL                :: RandRot(3,3) !, PartPos(1:3)
-!LOGICAL :: found
+INTEGER :: NonUniqueGlobalSideID,iSurfSide,iBC
+INTEGER :: CNElemID, iRay, photonCount, iPhot, iPhotLoc, RayVisCount, LocRayNum, RayDisp
 LOGICAL :: FoundComputeNodeSurfSide
 INTEGER :: ALLOCSTAT
 REAL    :: RectPower
-REAL    :: StartT,EndT ! Timer
+REAL    :: StartT,EndT                                                                               ! Timer
 !===================================================================================================================================
 
 IF(RayPartBound.EQ.0) RETURN
 GETTIME(StartT)
 SWRITE(UNIT_stdOut,'(A)') ' Start Ray Tracing Calculation ...'
+
+! Allocate arrays
+ALLOCATE(RayElemPassedEnergy(1:nGlobalElems))
+RayElemPassedEnergy=0.0
+ALLOCATE(PhotonSampWall(2,1:nComputeNodeSurfTotalSides))
+PhotonSampWall=0.0
+
+#if USE_MPI
+!> Shared arrays for volume sampling
+CALL Allocate_Shared((/nGlobalElems/),RayElemPassedEnergy_Shared_Win,RayElemPassedEnergy_Shared)
+CALL MPI_WIN_LOCK_ALL(0,RayElemPassedEnergy_Shared_Win,IERROR)
+!> Shared arrays for boundary sampling
+CALL Allocate_Shared((/2,nComputeNodeSurfTotalSides/),PhotonSampWall_Shared_Win,PhotonSampWall_Shared)
+CALL MPI_WIN_LOCK_ALL(0,PhotonSampWall_Shared_Win,IERROR)
+IF (myComputeNodeRank.EQ.0) RayElemPassedEnergy_Shared = 0.
+IF (myComputeNodeRank.EQ.0) PhotonSampWall_Shared = 0.
+CALL BARRIER_AND_SYNC(RayElemPassedEnergy_Shared_Win,MPI_COMM_SHARED)
+CALL BARRIER_AND_SYNC(PhotonSampWall_Shared_Win,MPI_COMM_SHARED)
+#endif
 
 photonCount = 0
 RayVisCount = 0
@@ -155,28 +178,8 @@ DO iRay = 1, LocRayNum
          Velo_optIN=PhotonProps%PhotonDirection(1:3))
   END IF !PhotonProps%ElemID.LE.0
 
-
-
-  !IF ((photonCount.LT.firstPhoton)) THEN
-    !iPhotLoc = firstPhoton - photonCount + iPhot - 1
-  !ELSE
-    iPhotLoc = iPhot
-  !END IF
-  !IF ((RadObservationPointMethod.EQ.2).AND.RadObservationPoint%CalcFullSpectra) THEN
-    !PhotonProps%WaveLength = Ray%WaveLength
-  !ELSE
-    !IF (RadiationPhotonWaveLengthModel.EQ.1) THEN
-      !PhotonProps%WaveLength = SetParticleWavelengthAR(iCNElem)
-    !ELSE
-      !PhotonProps%WaveLength = SetParticleWavelengthBiSec(iCNElem)
-    !END IF
-  !END IF
-  !PhotonProps%PhotonEnergy = SetPhotonEnergy(CNElemID,PhotonProps%PhotonPos(1:3), PhotonProps%WaveLength)
-  !IPWRITE(UNIT_StdOut,*) "iRay =", iRay
   CALL PhotonTriaTracking()
-  !IF(myrank.eq.0) read*
 END DO
-!photonCount = photonCount + RadTransPhotPerCell(iELem)
 
 ! Print 100%
 IF(MPIroot)THEN
@@ -185,6 +188,8 @@ IF(MPIroot)THEN
 END IF
 
 CALL WritePhotonSurfSampleToHDF5()
+
+CALL WritePhotonVolSampleToHDF5()
 
 GETTIME(EndT)
 CALL DisplayMessageAndTime(EndT-StartT, ' DONE!', DisplayDespiteLB=.TRUE., DisplayLine=.FALSE.)

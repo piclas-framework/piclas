@@ -983,6 +983,7 @@ REAL,ALLOCATABLE                :: ElemData(:,:)
 CALL OpenDataFile(InputStateFile,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_WORLD)
 CALL ReadAttribute(File_ID,'Project_Name',1,StrScalar=ProjectName)
 CALL ReadAttribute(File_ID,'File_Type',1,StrScalar=File_Type)
+OutputTime = 0. ! default
 IF(TRIM(File_Type).NE.'RadiationState') CALL ReadAttribute(File_ID,'Time',1,RealScalar=OutputTime)
 CALL GetDataSize(File_ID,TRIM(ArrayName),nDims,HSize)
 nVarAdd=INT(HSize(1),4)

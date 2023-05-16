@@ -223,10 +223,10 @@ RETURN
 END SUBROUTINE PhotonThroughSideCheck3DDir
 
 
-SUBROUTINE PhotonIntersectionWithSide2D(iLocSide,Element,ThroughSide,IntersectionPos,isLastSide,Distance)
 !===================================================================================================================================
 !> Routine to check whether a photon crossed the given side.
 !===================================================================================================================================
+SUBROUTINE PhotonIntersectionWithSide2D(iLocSide,Element,ThroughSide,IntersectionPos,isLastSide,Distance)
 ! MODULES
 USE MOD_Particle_Mesh_Vars  ,ONLY: ElemSideNodeID2D_Shared, NodeCoords_Shared
 USE MOD_Photon_TrackingVars ,ONLY: PhotonProps
@@ -368,10 +368,10 @@ END IF
 END SUBROUTINE PhotonIntersectionWithSide2D
 
 
-SUBROUTINE PhotonIntersectionWithSide2DDir(iLocSide,CNElemID,ThroughSide,StartPoint, Dir, IntersectionPos, Distance)
 !===================================================================================================================================
 !> Routine to check whether a photon crossed the given side.
 !===================================================================================================================================
+SUBROUTINE PhotonIntersectionWithSide2DDir(iLocSide,CNElemID,ThroughSide,StartPoint, Dir, IntersectionPos, Distance)
 ! MODULES
 USE MOD_Particle_Mesh_Vars,          ONLY : ElemSideNodeID2D_Shared, NodeCoords_Shared
 ! IMPLICIT VARIABLE HANDLING
@@ -477,10 +477,10 @@ END IF
 END SUBROUTINE PhotonIntersectionWithSide2DDir
 
 
-SUBROUTINE RotatePhotonIn2DPlane(IntersectionPos)
 !===================================================================================================================================
 !> Routine to check whether a photon crossed the given side.
 !===================================================================================================================================
+SUBROUTINE RotatePhotonIn2DPlane(IntersectionPos)
 ! MODULES
 USE MOD_Photon_TrackingVars ,ONLY: PhotonProps
 ! IMPLICIT VARIABLE HANDLING
@@ -491,7 +491,7 @@ REAL, INTENT(OUT)                :: IntersectionPos(3)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 REAL                             :: NewYPho, NewYVelo
-  !===================================================================================================================================
+!===================================================================================================================================
 PhotonProps%PhotonLastPos(1:3) = IntersectionPos(1:3)
 NewYPho = SQRT(PhotonProps%PhotonLastPos(2)**2 + PhotonProps%PhotonLastPos(3)**2)
 ! Rotation: Vy' =   Vy * cos(alpha) + Vz * sin(alpha) =   Vy * y/y' + Vz * z/y'
@@ -510,10 +510,10 @@ PhotonProps%PhotonPos(1:3) = PhotonProps%PhotonLastPos(1:3)
 END SUBROUTINE RotatePhotonIn2DPlane
 
 
+!===================================================================================================================================
+!>
+!===================================================================================================================================
 SUBROUTINE PhotonIntersectionWithSide(iLocSide,Element,TriNum, IntersectionPos, IsMortar)
-!--------------------------------------------------------------------------------------------------!
-!Based on PerfectReflection3D
-!--------------------------------------------------------------------------------------------------!
 USE MOD_Particle_Mesh_Vars, ONLY : ElemSideNodeID_Shared, NodeCoords_Shared
 USE MOD_Photon_TrackingVars ,ONLY: PhotonProps
 USE MOD_Mesh_Tools         ,ONLY: GetCNElemID
@@ -607,10 +607,27 @@ RETURN
 END SUBROUTINE PhotonIntersectionWithSide
 
 
+!===================================================================================================================================
+!>
+!===================================================================================================================================
+SUBROUTINE CalcAbsorptionRayTrace(GlobalElemID)
+USE MOD_RayTracing_Vars     ,ONLY: RayElemPassedEnergy
+USE MOD_Photon_TrackingVars ,ONLY: PhotonProps
+!--------------------------------------------------------------------------------------------------!
+IMPLICIT NONE
+!--------------------------------------------------------------------------------------------------!
+! argument list declaration
+INTEGER, INTENT(IN)              :: GlobalElemID
+! Local variable declaration
+!--------------------------------------------------------------------------------------------------!
+RayElemPassedEnergy(GlobalElemID) = RayElemPassedEnergy(GlobalElemID) + PhotonProps%PhotonEnergy
+END SUBROUTINE CalcAbsorptionRayTrace
+
+
+!===================================================================================================================================
+!>
+!===================================================================================================================================
 SUBROUTINE CalcAbsoprtionMC(IntersectionPos,Element, DONE)
-!--------------------------------------------------------------------------------------------------!
-!Based on PerfectReflection3D
-!--------------------------------------------------------------------------------------------------!
 USE MOD_Photon_TrackingVars ,ONLY: PhotonProps
 USE MOD_RadiationTrans_Vars ,ONLY: RadiationElemAbsEnergy
 USE MOD_Radiation_Vars      ,ONLY: Radiation_Absorption_spec
@@ -638,6 +655,9 @@ END IF
 END SUBROUTINE CalcAbsoprtionMC
 
 
+!===================================================================================================================================
+!>
+!===================================================================================================================================
 SUBROUTINE CalcAbsoprtionAnalytic(IntersectionPos,Element, DONE)
 !DEC$ ATTRIBUTES FORCEINLINE :: ParticleThroughSideLastPosCheck
 USE MOD_Globals
@@ -675,6 +695,9 @@ PhotonProps%PhotonPos(1:3) = IntersectionPos(1:3)
 END SUBROUTINE CalcAbsoprtionAnalytic
 
 
+!===================================================================================================================================
+!>
+!===================================================================================================================================
 SUBROUTINE CalcAbsoprtion(IntersectionPos,Element, DONE)
 USE MOD_Globals
 USE MOD_RadiationTrans_Vars ,ONLY: RadiationAbsorptionModel
@@ -688,7 +711,7 @@ LOGICAL, INTENT(INOUT) :: DONE
 ! Local variable declaration
 !--------------------------------------------------------------------------------------------------!
 IF (RadiationAbsorptionModel.EQ.0) THEN
-  RETURN
+  CALL CalcAbsorptionRayTrace(Element)
 ELSEIF (RadiationAbsorptionModel.EQ.1) THEN
   CALL CalcAbsoprtionAnalytic(IntersectionPos,Element, DONE)
 ELSEIF (RadiationAbsorptionModel.EQ.2) THEN
@@ -699,10 +722,10 @@ END IF
 END SUBROUTINE CalcAbsoprtion
 
 
+!===================================================================================================================================
+!> Based on PerfectReflection3D
+!===================================================================================================================================
 SUBROUTINE PerfectPhotonReflection(iLocSide,Element,TriNum, IntersectionPos, IntersecAlreadyCalc)
-!--------------------------------------------------------------------------------------------------!
-!Based on PerfectReflection3D
-!--------------------------------------------------------------------------------------------------!
 USE MOD_Particle_Mesh_Vars  ,ONLY: NodeCoords_Shared, ElemSideNodeID_Shared
 USE MOD_Photon_TrackingVars ,ONLY: PhotonProps
 USE MOD_Mesh_Tools          ,ONLY: GetCNElemID
@@ -800,9 +823,9 @@ SUBROUTINE PerfectPhotonReflection2D(iLocSide,Element, IntersectionPos)
 !--------------------------------------------------------------------------------------------------!
 !Based on PerfectReflection3D
 !--------------------------------------------------------------------------------------------------!
-USE MOD_Particle_Mesh_Vars,     ONLY : SideNormalEdge2D_Shared
+USE MOD_Particle_Mesh_Vars  ,ONLY: SideNormalEdge2D_Shared
 USE MOD_Photon_TrackingVars ,ONLY: PhotonProps
-USE MOD_Mesh_Tools         ,ONLY: GetCNElemID
+USE MOD_Mesh_Tools          ,ONLY: GetCNElemID
 !--------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
 !--------------------------------------------------------------------------------------------------!

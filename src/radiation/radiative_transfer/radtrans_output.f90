@@ -27,7 +27,7 @@ END INTERFACE
 
 
 !-----------------------------------------------------------------------------------------------------------------------------------
-! GLOBAL VARIABLES 
+! GLOBAL VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
@@ -117,7 +117,7 @@ SUBROUTINE WriteRadiationToHDF5()
 #endif /*USE_MPI*/
 
   CALL OpenDataFile(FileString,create=.false.,single=.FALSE.,readOnly=.FALSE.,communicatorOpt=MPI_COMM_WORLD)
- 
+
   IF (RadiationSwitches%RadType.EQ.1) THEN
     DO iElem=1,PP_nElems
       CNElemID = GetCNElemID(iElem+offSetElem)
@@ -173,9 +173,7 @@ SUBROUTINE WriteRadiationToHDF5()
       TempOutput(4, iElem) = RadTransPhotPerCell(CNElemID)
     END DO
   ELSE
-    CALL abort(&
-      __STAMP__&
-      ,' ERROR: Radiation type is not implemented! (unknown case)')
+    CALL abort(__STAMP__,' ERROR: Radiation type is not implemented! (unknown case)')
   END IF
 
   nVal=nGlobalElems  ! For the MPI case this must be replaced by the global number of elements (sum over all procs)
@@ -192,10 +190,10 @@ SUBROUTINE WriteRadiationToHDF5()
   END ASSOCIATE
   CALL CloseDataFile()
   SWRITE(*,*) 'DONE'
-  
+
   CALL WritePhotonSurfSampleToHDF5()
-  
-  IF (RadObservationPointMethod.GT.0) THEN    
+
+  IF (RadObservationPointMethod.GT.0) THEN
     IF (myRank.EQ.0) THEN
       CALL MPI_REDUCE(MPI_IN_PLACE,RadObservation_Emission,RadiationParameter%WaveLenDiscrCoarse,MPI_DOUBLE_PRECISION,MPI_SUM,0,MPI_COMM_WORLD,IERROR)
     ELSE
@@ -211,9 +209,9 @@ SUBROUTINE WriteRadiationToHDF5()
         CALL SpectralConvolution(RadObservation_Emission,RadObservation_Emission_Conv)
         OPEN(unit=20,file='Radiation_ObservationPoint.csv', status='replace',action='write')
         WRITE(20,*) 'x,y1,y2,y3'
-        IF (RadObservationPointMethod.EQ.1) THEN    
+        IF (RadObservationPointMethod.EQ.1) THEN
           IF (RadiationParameter%WaveLenReductionFactor.NE.1) THEN
-            DO iWave=1, RadiationParameter%WaveLenDiscrCoarse            
+            DO iWave=1, RadiationParameter%WaveLenDiscrCoarse
               WRITE(20,*) RadiationParameter%WaveLenCoarse(iWave)*1.E10,',',RadObservation_Emission(iWave)/RadObservationPoint%Area,',',RadObservation_EmissionPart(iWave),',',RadObservation_Emission_Conv(iWave)/RadObservationPoint%Area
             END DO
           ELSE
@@ -276,7 +274,7 @@ SUBROUTINE WriteRadiationToHDF5()
       ELSE
         OPEN(unit=20,file='Radiation_ObservationPoint.csv', status='replace',action='write')
         WRITE(20,*) 'x,y1,y2'
-        IF (RadObservationPointMethod.EQ.1) THEN    
+        IF (RadObservationPointMethod.EQ.1) THEN
           IF (RadiationParameter%WaveLenReductionFactor.NE.1) THEN
             DO iWave=1, RadiationParameter%WaveLenDiscrCoarse
               WRITE(20,*) RadiationParameter%WaveLenCoarse(iWave)*1.E10,',',RadObservation_Emission(iWave)/RadObservationPoint%Area,',',RadObservation_EmissionPart(iWave)
@@ -299,7 +297,7 @@ SUBROUTINE WriteRadiationToHDF5()
         END IF
         CLOSE(unit=20)
       END IF
-      
+
     END IF
   END IF
 
@@ -343,7 +341,7 @@ IF(nLeaderGroupProcs.GT.1)THEN
   IF(myComputeNodeRank.EQ.0)THEN
     CALL MPI_ALLREDUCE(MPI_IN_PLACE,RadiationElemAbsEnergy_Shared,MessageSize,MPI_DOUBLE_PRECISION,MPI_SUM,MPI_COMM_LEADERS_SHARED,iError)
   END IF
-  
+
   CALL BARRIER_AND_SYNC(RadiationElemAbsEnergy_Shared_Win    ,MPI_COMM_SHARED)
 END IF
 
@@ -376,7 +374,7 @@ SUBROUTINE SpectralConvolution(RadObservation_Emission, RadObservation_Emission_
     INTEGER            :: io_error, w
     REAL               :: fractionl, fractionr, delta_base, delta_top
   !===================================================================================================================================
- 
+
   topwidth = RadObservationPoint%SlitFunction(1)*1.E-10
   basewidth = RadObservationPoint%SlitFunction(2)*1.E-10
 
@@ -444,7 +442,7 @@ SUBROUTINE SpectralConvolution(RadObservation_Emission, RadObservation_Emission_
 
     END DO
   END DO
-    
+
 END SUBROUTINE SpectralConvolution
 
 END MODULE MOD_RadTrans_Output

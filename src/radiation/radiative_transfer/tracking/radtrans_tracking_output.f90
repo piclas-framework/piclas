@@ -22,14 +22,72 @@ IMPLICIT NONE
 PRIVATE
 
 !-----------------------------------------------------------------------------------------------------------------------------------
-! GLOBAL VARIABLES 
+! GLOBAL VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
-PUBLIC :: WritePhotonSurfSampleToHDF5
+PUBLIC :: WritePhotonSurfSampleToHDF5,WritePhotonVolSampleToHDF5
 !===================================================================================================================================
 
 CONTAINS
+
+SUBROUTINE WritePhotonVolSampleToHDF5()
+!===================================================================================================================================
+! Writes Radiation values to HDF5
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals
+USE MOD_PreProc
+USE MOD_Mesh_Vars            ,ONLY: nElems,MeshFile,offSetElem
+USE MOD_Globals_Vars         ,ONLY: ProjectName
+USE MOD_RayTracing_Vars      ,ONLY: RayElemPassedEnergy_Shared
+USE MOD_io_HDF5
+USE MOD_HDF5_output          ,ONLY: GenerateFileSkeleton
+USE MOD_HDF5_Output_ElemData ,ONLY: WriteAdditionalElemData
+!USE MOD_IO_HDF5                 ,ONLY: AddToElemData,ElementOut
+! IMPLICIT VARIABLE HANDLING
+  IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+CHARACTER(LEN=255)                  :: FileName
+INTEGER                             :: iElem
+INTEGER,PARAMETER                   :: nVar=1
+REAL, ALLOCATABLE                   :: RayElemPassedEnergyLoc(:)
+CHARACTER(LEN=255), ALLOCATABLE     :: StrVarNames(:)
+!===================================================================================================================================
+SWRITE(UNIT_stdOut,'(a)',ADVANCE='NO') ' WRITE Radiation TO HDF5 FILE...'
+
+ALLOCATE(RayElemPassedEnergyLoc(1:nElems))
+RayElemPassedEnergyLoc=-1
+CALL AddToElemData(ElementOut,'RayElemPassedEnergy',RealArray=RayElemPassedEnergyLoc)
+
+ALLOCATE(StrVarNames(1:nVar))
+StrVarNames(1)='dummy'
+
+! Generate skeleton for the file with all relevant data on a single proc (MPIRoot)
+FileName=TRIM(ProjectName)//'_RadiationVolState.h5'
+IF(MPIRoot) CALL GenerateFileSkeleton('RadiationVolState',nVar,StrVarNames,TRIM(MeshFile),0.,FileNameIn=FileName)
+#if USE_MPI
+  CALL MPI_BARRIER(MPI_COMM_WORLD,iError)
+#endif
+#if USE_MPI
+CALL ExchangeRayVolInfo()
+#endif /*USE_MPI*/
+
+DO iElem=1,PP_nElems
+  RayElemPassedEnergyLoc(iElem) = RayElemPassedEnergy_Shared(iElem+offSetElem)
+END DO
+
+! Write all 'ElemData' arrays to a single container in the state.h5 file
+CALL WriteAdditionalElemData(FileName,ElementOut)
+
+SWRITE(*,*) 'DONE'
+END SUBROUTINE WritePhotonVolSampleToHDF5
 
 
 SUBROUTINE WritePhotonSurfSampleToHDF5()
@@ -42,18 +100,20 @@ SUBROUTINE WritePhotonSurfSampleToHDF5()
 USE MOD_Globals
 USE MOD_IO_HDF5
 USE MOD_Globals_Vars,               ONLY:ProjectName
-USE MOD_Particle_Boundary_Vars,     ONLY:SurfSideArea, nComputeNodeSurfOutputSides,noutputsides, nSurfTotalSides, nSurfBC
+USE MOD_Particle_Boundary_Vars,     ONLY:nComputeNodeSurfOutputSides,noutputsides, nSurfTotalSides, nSurfBC
 USE MOD_Particle_Boundary_Vars,     ONLY:offsetComputeNodeSurfOutputSide, SurfBCName, nComputeNodeSurfSides
 USE MOD_Particle_Boundary_Vars,     ONLY:SurfSide2GlobalSide, GlobalSide2SurfSide
 USE MOD_HDF5_Output,                ONLY:WriteAttributeToHDF5,WriteArrayToHDF5,WriteHDF5Header
 USE MOD_Mesh_Vars,                  ONLY:MeshFile
 USE MOD_Particle_Mesh_Vars,         ONLY:SideInfo_Shared
-USE MOD_Photon_TrackingVars,        ONLY:PhotonSampWall
 USE MOD_MPI_Shared_Vars,            ONLY:mySurfRank
 #if USE_MPI
 USE MOD_MPI_Shared_Vars,            ONLY:MPI_COMM_LEADERS_SURF
 USE MOD_Particle_Boundary_Vars,     ONLY:SurfSideArea_Shared
 USE MOD_Photon_TrackingVars,        ONLY:PhotonSampWall_Shared
+#else
+USE MOD_Photon_TrackingVars,        ONLY:PhotonSampWall
+USE MOD_Particle_Boundary_Vars,     ONLY:SurfSideArea
 #endif /*USE_MPI*/
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! IMPLICIT VARIABLE HANDLING
@@ -73,7 +133,7 @@ REAL                                :: tstart,tend
 REAL, ALLOCATABLE                   :: helpArray(:,:)
 !===================================================================================================================================
 #if USE_MPI
-CALL MPI_ExchangeRadiationSurfData()
+CALL ExchangeRadiationSurfData()
 ! Return if not a sampling leader
 IF (MPI_COMM_LEADERS_SURF.EQ.MPI_COMM_NULL) RETURN
 CALL MPI_BARRIER(MPI_COMM_LEADERS_SURF,iERROR)
@@ -124,19 +184,18 @@ CALL OpenDataFile(FileString,create=.FALSE.,single=.FALSE.,readOnly=.FALSE.)
 
 WRITE(H5_Name,'(A)') 'SurfaceData'
 #if USE_MPI
-ASSOCIATE(PhotonSampWall        => PhotonSampWall_Shared           ,&
-          SurfSideArea         => SurfSideArea_Shared)
+ASSOCIATE(PhotonSampWall => PhotonSampWall_Shared ,&
+          SurfSideArea   => SurfSideArea_Shared)
 #endif
 
 ASSOCIATE (&
-      nGlobalSides         => INT(nOutputSides,IK) ,&
-      LocalnBCSides        => INT(nComputeNodeSurfOutputSides,IK)     ,&
-      offsetSurfSide       => INT(offsetComputeNodeSurfOutputSide,IK)        ,&
-      nVar2D               => INT(nVar2D,IK))
+      nGlobalSides   => INT(nOutputSides                    , IK)  , &
+      LocalnBCSides  => INT(nComputeNodeSurfOutputSides     , IK)  , &
+      offsetSurfSide => INT(offsetComputeNodeSurfOutputSide , IK)  , &
+      nVar2D         => INT(nVar2D                          , IK))
 
   ALLOCATE(helpArray(nVar2D,LocalnBCSides))
   OutputCounter = 0
-  IPWRITE(UNIT_StdOut,*) "offsetSurfSide =", offsetSurfSide
   !IF(myrank.eq.0) read*
   DO iSurfSide = 1,nComputeNodeSurfSides
     GlobalSideID = SurfSide2GlobalSide(SURF_SIDEID,iSurfSide)
@@ -150,9 +209,6 @@ ASSOCIATE (&
     END IF
     OutputCounter = OutputCounter + 1
     helpArray(1,OutputCounter)= PhotonSampWall(1,iSurfSide)
-    IF(offsetSurfSide.eq.0)THEN
-      IPWRITE(UNIT_StdOut,*) "iSurfSide,PhotonSampWall(1,iSurfSide) =", iSurfSide,PhotonSampWall(1,iSurfSide)
-    END IF ! offsetSurfSide.eq.0
     !  SurfaceArea should be changed to 1:SurfMesh%nSides if inner sampling sides exist...
     helpArray(2,OutputCounter)= PhotonSampWall(2,iSurfSide)/SurfSideArea(1,1,iSurfSide)
   END DO
@@ -179,7 +235,7 @@ END IF
 END SUBROUTINE WritePhotonSurfSampleToHDF5
 
 #if USE_MPI
-SUBROUTINE MPI_ExchangeRadiationSurfData() 
+SUBROUTINE ExchangeRadiationSurfData()
 !===================================================================================================================================
 ! exchange the surface data
 ! only processes with samling sides in their halo region and the original process participate on the communication
@@ -194,11 +250,11 @@ USE MOD_Particle_Boundary_Vars ,ONLY: SurfOnNode, SurfMapping, nComputeNodeSurfT
 USE MOD_Particle_MPI_Vars      ,ONLY: SurfSendBuf,SurfRecvBuf
 USE MOD_Photon_TrackingVars    ,ONLY: PhotonSampWall, PhotonSampWall_Shared, PhotonSampWall_Shared_Win
 USE MOD_MPI_Shared_Vars        ,ONLY: MPI_COMM_LEADERS_SURF, MPI_COMM_SHARED, nSurfLeaders,myComputeNodeRank,mySurfRank
-USE MOD_MPI_Shared              
+USE MOD_MPI_Shared
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
-! INPUT VARIABLES 
+! INPUT VARIABLES
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -222,7 +278,7 @@ CALL BARRIER_AND_SYNC(PhotonSampWall_Shared_Win         ,MPI_COMM_SHARED)
 ! prepare buffers for surf leader communication
 IF (myComputeNodeRank.EQ.0) THEN
   nValues = 2
-  
+
   ! open receive buffer
   DO iProc = 0,nSurfLeaders-1
     ! ignore myself
@@ -320,7 +376,50 @@ END IF
 
 CALL BARRIER_AND_SYNC(PhotonSampWall_Shared_Win         ,MPI_COMM_SHARED)
 
-END SUBROUTINE MPI_ExchangeRadiationSurfData
+END SUBROUTINE ExchangeRadiationSurfData
+
+
+SUBROUTINE ExchangeRayVolInfo()
+!===================================================================================================================================
+! Writes DSMC state values to HDF5
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals
+USE MOD_PreProc
+USE MOD_MPI_Shared_Vars
+USE MOD_MPI_Shared
+USE MOD_RayTracing_Vars ,ONLY: RayElemPassedEnergy,RayElemPassedEnergy_Shared,RayElemPassedEnergy_Shared_Win
+USE MOD_Mesh_Vars       ,ONLY: nGlobalElems
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+INTEGER :: MessageSize
+!===================================================================================================================================
+! Collect the information from the process-local shadow arrays in the compute-node shared array
+MessageSize = nGlobalElems
+
+IF (myComputeNodeRank.EQ.0) THEN
+  CALL MPI_REDUCE(RayElemPassedEnergy , RayElemPassedEnergy_Shared , MessageSize , MPI_DOUBLE_PRECISION , MPI_SUM , 0 , MPI_COMM_SHARED , IERROR)
+ELSE
+  CALL MPI_REDUCE(RayElemPassedEnergy , 0                          , MessageSize , MPI_DOUBLE_PRECISION , MPI_SUM , 0 , MPI_COMM_SHARED , IERROR)
+ENDIF
+CALL BARRIER_AND_SYNC(RayElemPassedEnergy_Shared_Win, MPI_COMM_SHARED)
+
+IF(nLeaderGroupProcs.GT.1)THEN
+  IF(myComputeNodeRank.EQ.0)THEN
+    CALL MPI_ALLREDUCE(MPI_IN_PLACE,RayElemPassedEnergy_Shared,MessageSize,MPI_DOUBLE_PRECISION,MPI_SUM,MPI_COMM_LEADERS_SHARED,iError)
+  END IF
+
+  CALL BARRIER_AND_SYNC(RayElemPassedEnergy_Shared_Win, MPI_COMM_SHARED)
+END IF
+
+END SUBROUTINE ExchangeRayVolInfo
 #endif /*USE_MPI*/
 
 END MODULE MOD_Photon_TrackingOutput

@@ -60,17 +60,9 @@ SUBROUTINE InitRayTracing()
 USE MOD_Globals
 USE MOD_ReadInTools
 USE MOD_RayTracing_Vars
-USE MOD_Mesh_Vars              ,ONLY: nGlobalElems
 USE MOD_Globals_Vars           ,ONLY: Pi
 USE MOD_Particle_Mesh_Vars     ,ONLY: GEO
-USE MOD_Particle_Boundary_Vars ,ONLY: nComputeNodeSurfTotalSides
-#if USE_MPI
-USE MOD_MPI_Shared_Vars
-USE MOD_MPI_Shared
-USE MOD_Photon_TrackingVars    ,ONLY: PhotonSampWall_Shared, PhotonSampWall_Shared_Win
-#endif /*USE_MPI*/
 USE MOD_RadiationTrans_Vars    ,ONLY: RadiationAbsorptionModel,RadObservationPointMethod
-USE MOD_Photon_TrackingVars    ,ONLY: PhotonSampWall
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -143,29 +135,6 @@ CALL PrintOption('Corrected Intensity amplitude: I0_corr [W/m^2]'        , 'CALC
 CALL PrintOption('Pulse period (Time between maximum of two pulses) [s]' , 'CALCUL.' , RealOpt=Ray%Period)
 CALL PrintOption('Temporal pulse width (pulse time 2x tShift) [s]'       , 'CALCUL.' , RealOpt=2.0*Ray%tShift)
 CALL PrintOption('Pulse will end at tActive (pulse final time) [s]'      , 'CALCUL.' , RealOpt=Ray%tActive)
-
-! Allocate arrays
-ALLOCATE(RayElemPassedEnergy(1:nGlobalElems))
-RayElemPassedEnergy=0.0
-
-#if USE_MPI
-CALL Allocate_Shared((/nGlobalElems/),RayElemPassedEnergy_Shared_Win,RayElemPassedEnergy_Shared)
-CALL MPI_WIN_LOCK_ALL(0,RayElemPassedEnergy_Shared_Win,IERROR)
-IF (myComputeNodeRank.EQ.0) RayElemPassedEnergy_Shared = 0.
-CALL BARRIER_AND_SYNC(RayElemPassedEnergy_Shared_Win,MPI_COMM_SHARED)  
-#endif  /*USE_MPI*/
-
-ALLOCATE(PhotonSampWall(2,1:nComputeNodeSurfTotalSides))
-PhotonSampWall=0.0
-
-#if USE_MPI
-!> Then shared arrays for boundary sampling
-CALL Allocate_Shared((/2,nComputeNodeSurfTotalSides/),PhotonSampWall_Shared_Win,PhotonSampWall_Shared)
-CALL MPI_WIN_LOCK_ALL(0,PhotonSampWall_Shared_Win,IERROR)
-
-IF (myComputeNodeRank.EQ.0) PhotonSampWall_Shared = 0.
-CALL BARRIER_AND_SYNC(PhotonSampWall_Shared_Win,MPI_COMM_SHARED)
-#endif
 
 SWRITE(UNIT_stdOut,'(A)')' INIT RAY TRACING SOLVER DONE!'
 SWRITE(UNIT_StdOut,'(132("-"))')
