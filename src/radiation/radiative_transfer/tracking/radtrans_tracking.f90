@@ -55,6 +55,7 @@ USE MOD_Photon_TrackingVars,         ONLY:PhotonProps
 USE MOD_RadiationTrans_Vars,         ONLY:RadObservation_Emission, RadObservationPointMethod, RadObservation_EmissionPart
 USE MOD_Photon_TrackingTools,        ONLY:PhotonThroughSideCheck3DFast, PhotonIntersectionWithSide,CalcAbsoprtion,PhotonOnLineOfSight
 USE MOD_Photon_TrackingTools,        ONLY:PerfectPhotonReflection, DiffusePhotonReflection, CalcWallAbsoprtion, PointInObsCone
+USE MOD_Photon_TrackingTools,        ONLY:PeriodicPhotonBC
 USE MOD_Photon_TrackingTools,        ONLY:PhotonIntersectSensor
 USE MOD_Particle_Boundary_Tools,ONLY: StoreBoundaryParticleProperties
 IMPLICIT NONE
@@ -242,7 +243,7 @@ DO WHILE (.NOT.Done)
         END IF
       END IF
       DONE = .TRUE.
-    CASE(2)
+    CASE(2) ! PartBound%ReflectiveBC
       IF (PartBound%PhotonSpecularReflection(PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID)))) THEN
         IF (NrOfThroughSides.LT.2) THEN
           CALL PerfectPhotonReflection(LocalSide,ElemID,TriNum, IntersectionPos, .FALSE.)
@@ -259,6 +260,13 @@ DO WHILE (.NOT.Done)
         CALL CalcAbsoprtion(IntersectionPos(1:3),ElemID, DONE)
         IF (.NOT.DONE) CALL CalcWallAbsoprtion(SideID, DONE)
       END IF
+    CASE(3) ! PartBound%PeriodicBC
+        CALL CalcAbsoprtion(IntersectionPos(1:3),ElemID, DONE)
+        IF (NrOfThroughSides.LT.2) THEN
+          CALL PeriodicPhotonBC(LocalSide,ElemID,TriNum,IntersectionPos,.FALSE.,SideID)
+        ELSE
+          CALL PeriodicPhotonBC(LocalSide,ElemID,TriNum,IntersectionPos,.TRUE.,SideID)
+        END IF
     CASE DEFAULT
       CALL abort(__STAMP__,' ERROR: PartBound not associated!. (unknown case)',BCType,999.)
     END SELECT !PartBound%MapToPartBC(BC(SideID)

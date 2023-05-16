@@ -28,6 +28,7 @@ END INTERFACE
 PUBLIC :: PhotonThroughSideCheck3DFast, PhotonIntersectionWithSide, CalcAbsoprtion, PerfectPhotonReflection, DiffusePhotonReflection
 PUBLIC :: CalcWallAbsoprtion, PointInObsCone, PhotonIntersectSensor, PhotonThroughSideCheck3DDir, PhotonIntersectionWithSide2DDir
 PUBLIC :: PhotonIntersectionWithSide2D, RotatePhotonIn2DPlane, PerfectPhotonReflection2D,DiffusePhotonReflection2D, PhotonOnLineOfSight
+PUBLIC :: PeriodicPhotonBC
 !-----------------------------------------------------------------------------------------------------------------------------------
 !-----------------------------------------------------------------------------------------------------------------------------------
 !===================================================================================================================================
@@ -1027,6 +1028,101 @@ PhotonProps%PhotonDirection(2)   = VelY / NormVec
 PhotonProps%PhotonDirection(3)   = VelZ / NormVec
 
 END SUBROUTINE DiffusePhotonReflection2D
+
+
+SUBROUTINE PeriodicPhotonBC(iLocSide, Element, TriNum, IntersectionPos, IntersecAlreadyCalc, SideID)
+!----------------------------------------------------------------------------------------------------------------------------------!
+! Computes the perfect reflection in 3D
+!----------------------------------------------------------------------------------------------------------------------------------!
+! MODULES                                                                                                                          !
+!----------------------------------------------------------------------------------------------------------------------------------!
+USE MOD_Globals
+USE MOD_Particle_Mesh_Vars     ,ONLY: ElemSideNodeID_Shared, NodeCoords_Shared
+USE MOD_Mesh_Vars              ,ONLY: BoundaryType
+USE MOD_Particle_Mesh_Vars     ,ONLY: GEO
+USE MOD_Photon_TrackingVars    ,ONLY: PhotonProps
+USE MOD_Particle_Tracking_Vars ,ONLY: TrackInfo
+USE MOD_Particle_Mesh_Vars     ,ONLY: SideInfo_Shared
+USE MOD_Mesh_Tools             ,ONLY: GetCNElemID
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!----------------------------------------------------------------------------------------------------------------------------------!
+! INPUT VARIABLES
+INTEGER,INTENT(IN)               :: iLocSide
+INTEGER,INTENT(IN)               :: TriNum
+INTEGER,INTENT(IN)               :: SideID
+LOGICAL,INTENT(IN)               :: IntersecAlreadyCalc
+!----------------------------------------------------------------------------------------------------------------------------------!
+! OUTPUT VARIABLES
+INTEGER,INTENT(INOUT)            :: Element
+REAL, INTENT(INOUT)              :: IntersectionPos(1:3)
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER                          :: PVID
+!INTEGER                              :: moved(2),locSideID
+! Local variable declaration
+INTEGER                          :: CNElemID
+INTEGER                          :: Node1, Node2
+REAL                             :: PoldX, PoldY, PoldZ, nx, ny, nz, nVal
+REAL                             :: xNod, yNod, zNod, VecX, VecY, VecZ
+REAL                             :: VelX, VelY, VelZ, VeloCx, VeloCy, VeloCz, NormVec, RanNum
+REAL                             :: Vector1(1:3), Vector2(1:3), POI_fak
+!===================================================================================================================================
+CNElemID = GetCNElemID(Element)
+PoldX = PhotonProps%PhotonLastPos(1)
+PoldY = PhotonProps%PhotonLastPos(2)
+PoldZ = PhotonProps%PhotonLastPos(3)
+
+VelX = PhotonProps%PhotonDirection(1)
+VelY = PhotonProps%PhotonDirection(2)
+VelZ = PhotonProps%PhotonDirection(3)
+
+xNod = NodeCoords_Shared(1,ElemSideNodeID_Shared(1,iLocSide,CNElemID)+1)
+yNod = NodeCoords_Shared(2,ElemSideNodeID_Shared(1,iLocSide,CNElemID)+1)
+zNod = NodeCoords_Shared(3,ElemSideNodeID_Shared(1,iLocSide,CNElemID)+1)
+
+!---- Calculate normal vector:
+
+Node1 = TriNum+1     ! normal = cross product of 1-2 and 1-3 for first triangle
+Node2 = TriNum+2     !          and 1-3 and 1-4 for second triangle
+
+Vector1(1) = NodeCoords_Shared(1,ElemSideNodeID_Shared(Node1,iLocSide,CNElemID)+1) - xNod
+Vector1(2) = NodeCoords_Shared(2,ElemSideNodeID_Shared(Node1,iLocSide,CNElemID)+1) - yNod
+Vector1(3) = NodeCoords_Shared(3,ElemSideNodeID_Shared(Node1,iLocSide,CNElemID)+1) - zNod
+
+Vector2(1) = NodeCoords_Shared(1,ElemSideNodeID_Shared(Node2,iLocSide,CNElemID)+1) - xNod
+Vector2(2) = NodeCoords_Shared(2,ElemSideNodeID_Shared(Node2,iLocSide,CNElemID)+1) - yNod
+Vector2(3) = NodeCoords_Shared(3,ElemSideNodeID_Shared(Node2,iLocSide,CNElemID)+1) - zNod
+
+!---- Calculate Point of Intersection (POI)
+IF (.NOT.IntersecAlreadyCalc) THEN
+  POI_fak = (Vector2(2)*(Vector1(1)*(zNod-PoldZ)+Vector1(3)*(PoldX-xNod)) &
+          +Vector1(2)*(Vector2(1)*(PoldZ-zNod)+Vector2(3)*(xNod-PoldX)) &
+          +yNod*(Vector1(3)*Vector2(1)-Vector1(1)*Vector2(3)) &
+          +PoldY*(Vector1(1)*Vector2(3)-Vector1(3)*Vector2(1))) &
+          /(Vector1(2)*(Vector2(3)*VelX-Vector2(1)*VelZ) &
+          + Vector2(2)*(Vector1(1)*VelZ-Vector1(3)*VelX) &
+          + VelY*(Vector1(3)*Vector2(1)-Vector1(1)*Vector2(3)))
+
+  IntersectionPos(1) = PoldX + POI_fak * VelX
+  IntersectionPos(2) = PoldY + POI_fak * VelY
+  IntersectionPos(3) = PoldZ + POI_fak * VelZ
+END IF
+
+! set last particle position on face
+PhotonProps%PhotonLastPos = IntersectionPos
+! perform the periodic movement
+PVID = BoundaryType(SideInfo_Shared(SIDE_BCID,SideID),BC_ALPHA)
+PhotonProps%PhotonLastPos = PhotonProps%PhotonLastPos + SIGN( GEO%PeriodicVectors(1:3,ABS(PVID)),REAL(PVID))
+! update particle positon after periodic BC
+!PartState(1:3,PartID) = PhotonProps%PhotonLastPos + (TrackInfo%lengthPartTrajectory-TrackInfo%alpha)*TrackInfo%PartTrajectory
+!TrackInfo%lengthPartTrajectory  = TrackInfo%lengthPartTrajectory - TrackInfo%alpha
+
+! refmapping and tracing
+! move particle from old element to new element
+Element = SideInfo_Shared(SIDE_NBELEMID,SideID)
+
+END SUBROUTINE PeriodicPhotonBC
 
 
 SUBROUTINE CalcWallAbsoprtion(GlobSideID, DONE)
