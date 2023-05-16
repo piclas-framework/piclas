@@ -67,7 +67,8 @@ CHARACTER(LEN=255)                  :: FileString,Statedummy
 CHARACTER(LEN=255)                  :: H5_Name
 CHARACTER(LEN=255)                  :: NodeTypeTemp
 CHARACTER(LEN=255),ALLOCATABLE      :: Str2DVarNames(:)
-INTEGER                             :: nVar2D, GlobalSideID, iSurfSide, OutputCounter, SurfSideNb
+INTEGER                             :: GlobalSideID, iSurfSide, OutputCounter, SurfSideNb
+INTEGER,PARAMETER                   :: nVar2D=2
 REAL                                :: tstart,tend
 REAL, ALLOCATABLE                   :: helpArray(:,:)
 !===================================================================================================================================
@@ -86,7 +87,6 @@ IF (mySurfRank.EQ.0) THEN
 END IF
 
 FileString=TRIM(ProjectName)//'_RadiationSurfState.h5'
-nVar2D = 2
 
 ! Generate skeleton for the file with all relevant data on a single proc (MPIRoot)
 #if USE_MPI
@@ -136,6 +136,8 @@ ASSOCIATE (&
 
   ALLOCATE(helpArray(nVar2D,LocalnBCSides))
   OutputCounter = 0
+  IPWRITE(UNIT_StdOut,*) "offsetSurfSide =", offsetSurfSide
+  !IF(myrank.eq.0) read*
   DO iSurfSide = 1,nComputeNodeSurfSides
     GlobalSideID = SurfSide2GlobalSide(SURF_SIDEID,iSurfSide)
     IF(SideInfo_Shared(SIDE_NBSIDEID,GlobalSideID).GT.0) THEN
@@ -148,14 +150,17 @@ ASSOCIATE (&
     END IF
     OutputCounter = OutputCounter + 1
     helpArray(1,OutputCounter)= PhotonSampWall(1,iSurfSide)
+    IF(offsetSurfSide.eq.0)THEN
+      IPWRITE(UNIT_StdOut,*) "iSurfSide,PhotonSampWall(1,iSurfSide) =", iSurfSide,PhotonSampWall(1,iSurfSide)
+    END IF ! offsetSurfSide.eq.0
     !  SurfaceArea should be changed to 1:SurfMesh%nSides if inner sampling sides exist...
     helpArray(2,OutputCounter)= PhotonSampWall(2,iSurfSide)/SurfSideArea(1,1,iSurfSide)
   END DO
-  CALL WriteArrayToHDF5(DataSetName=H5_Name            , rank=4                                     , &
-                        nValGlobal =(/nVar2D     , 1_IK, 1_IK , nGlobalSides/)  , &
-                        nVal       =(/nVar2D           , 1_IK, 1_IK , LocalnBCSides/)        , &
-                        offset     =(/0_IK, 0_IK       , 0_IK        , offsetSurfSide/), &
-                        collective =.TRUE.         ,&
+  CALL WriteArrayToHDF5(DataSetName=H5_Name  , rank=4 , &
+                        nValGlobal =(/nVar2D , 1_IK   , 1_IK , nGlobalSides/)   , &
+                        nVal       =(/nVar2D , 1_IK   , 1_IK , LocalnBCSides/)  , &
+                        offset     =(/0_IK   , 0_IK   , 0_IK , offsetSurfSide/) , &
+                        collective =.FALSE.         ,&
                         RealArray=helpArray(1:nVar2D,1:LocalnBCSides))
   DEALLOCATE(helpArray)
 END ASSOCIATE

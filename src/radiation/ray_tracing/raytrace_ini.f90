@@ -90,7 +90,7 @@ RadObservationPointMethod = 0
 
 RayPartBound = GETINT('RayTracing-PartBound')
 IF(RayPartBound.EQ.0) RETURN
-IF(RayPartBound.LT.0) CALL CollectiveStop(__STAMP__,'RayTracing-PartBound must be > 0!')
+IF(RayPartBound.LT.0) CALL CollectiveStop(__STAMP__,'RayTracing-PartBound must be > 0 to activate ray tracing on this boundary!')
 
 ! Get ray parameters
 Ray%PulseDuration    = GETREAL('RayTracing-PulseDuration')
@@ -102,6 +102,10 @@ Ray%RepetitionRate   = GETREAL('RayTracing-RepetitionRate')
 Ray%Period           = 1./Ray%RepetitionRate
 Ray%Power            = GETREAL('RayTracing-Power')
 Ray%Direction        = GETREALARRAY('RayTracing-RayDirection',3)
+
+AdaptiveRays = GETLOGICAL('RayTracing-AdaptiveRays')
+NumRays      = GETINT('RayTracing-NumRays')
+RayPosModel  = GETINT('RayTracing-RayPosModel')
 
 ASSOCIATE( &
       E0      => Ray%Energy             ,&
@@ -140,13 +144,9 @@ CALL PrintOption('Pulse period (Time between maximum of two pulses) [s]' , 'CALC
 CALL PrintOption('Temporal pulse width (pulse time 2x tShift) [s]'       , 'CALCUL.' , RealOpt=2.0*Ray%tShift)
 CALL PrintOption('Pulse will end at tActive (pulse final time) [s]'      , 'CALCUL.' , RealOpt=Ray%tActive)
 
-
+! Allocate arrays
 ALLOCATE(RayElemPassedEnergy(1:nGlobalElems))
 RayElemPassedEnergy=0.0
-
-AdaptiveRays = GETLOGICAL('RayTracing-AdaptiveRays')
-NumRays      = GETINT('RayTracing-NumRays')
-RayPosModel  = GETINT('RayTracing-RayPosModel')
 
 #if USE_MPI
 CALL Allocate_Shared((/nGlobalElems/),RayElemPassedEnergy_Shared_Win,RayElemPassedEnergy_Shared)

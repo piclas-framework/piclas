@@ -60,7 +60,6 @@ USE MOD_StringTools            ,ONLY: STRICMP, GetFileExtension
 #ifdef PARTICLES
 USE MOD_Particle_Vars          ,ONLY: DoInitialIonization
 USE MOD_ParticleInit           ,ONLY: InitialIonization
-USE MOD_RayTracing_Init        ,ONLY: InitRayTracing
 #endif /*PARTICLES*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -207,7 +206,6 @@ CALL Restart()
 #ifdef PARTICLES
 ! Ionize the current particles
 IF(DoInitialIonization) CALL InitialIonization()
-CALL InitRayTracing()
 #endif /*PARTICLES*/
 
 ! Measure init duration

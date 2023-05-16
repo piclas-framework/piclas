@@ -391,8 +391,7 @@ ELSE
 #if !(USE_HDG)
     deltaT = CalcTimeStep()
 #else
-     CALL abort(__STAMP__&
-  , 'ManualTimeStep.LLE0.0 -> ManualTimeStep is not defined correctly! ManualTimeStep = ',RealInfoOpt=ManualTimeStep)
+     CALL abort(__STAMP__, 'ManualTimeStep<=0.0: time step is not defined correctly! ManualTimeStep = ',RealInfoOpt=ManualTimeStep)
 #endif /*USE_HDG*/
   ELSE
     deltaT=ManualTimeStep
