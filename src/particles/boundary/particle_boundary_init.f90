@@ -209,6 +209,10 @@ ALLOCATE(PartBound%TargetBoundCond(  1:nPartBound))
 PartBound%TargetBoundCond = -1
 ALLOCATE(PartBound%MomentumACC(      1:nPartBound))
 PartBound%MomentumACC = -1
+ALLOCATE(PartBound%OnlySpecular(     1:nPartBound))
+PartBound%OnlySpecular = .FALSE.
+ALLOCATE(PartBound%OnlyDiffuse(      1:nPartBound))
+PartBound%OnlyDiffuse = .FALSE.
 ALLOCATE(PartBound%WallTemp(         1:nPartBound))
 PartBound%WallTemp = -1.
 ALLOCATE(PartBound%WallTemp2(        1:nPartBound))
@@ -299,6 +303,11 @@ DO iPartBound=1,nPartBound
 #endif
     PartBound%TargetBoundCond(iPartBound) = PartBound%ReflectiveBC
     PartBound%MomentumACC(iPartBound)     = GETREAL('Part-Boundary'//TRIM(hilf)//'-MomentumACC')
+    IF(PartBound%MomentumACC(iPartBound).EQ.0.0) THEN
+      PartBound%OnlySpecular(iPartBound) = .TRUE.
+    ELSE IF(PartBound%MomentumACC(iPartBound).EQ.1.0) THEN
+      PartBound%OnlyDiffuse(iPartBound)  = .TRUE.
+    END IF
     PartBound%WallTemp(iPartBound)        = GETREAL('Part-Boundary'//TRIM(hilf)//'-WallTemp')
     PartBound%TransACC(iPartBound)        = GETREAL('Part-Boundary'//TRIM(hilf)//'-TransACC')
     PartBound%VibACC(iPartBound)          = GETREAL('Part-Boundary'//TRIM(hilf)//'-VibACC')
@@ -1122,6 +1131,8 @@ IMPLICIT NONE
 SDEALLOCATE(PartBound%SourceBoundName)
 SDEALLOCATE(PartBound%TargetBoundCond)
 SDEALLOCATE(PartBound%MomentumACC)
+SDEALLOCATE(PartBound%OnlySpecular)
+SDEALLOCATE(PartBound%OnlyDiffuse)
 SDEALLOCATE(PartBound%WallTemp)
 SDEALLOCATE(PartBound%WallTemp2)
 SDEALLOCATE(PartBound%WallTempDelta)

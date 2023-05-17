@@ -89,9 +89,9 @@ USE MOD_Mesh_Tools              ,ONLY: GetCNElemID
 USE MOD_Particle_Mesh_Tools     ,ONLY: GetGlobalNonUniqueSideID
 USE MOD_Particle_Surfaces       ,ONLY: CalcNormAndTangTriangle
 #if USE_MPI
-USE MOD_MPI_Shared              ,ONLY: BARRIER_AND_SYNC
+USE MOD_MPI_Shared
 USE MOD_MPI_Shared_Vars         ,ONLY: MPI_COMM_SHARED
-USE MOD_Particle_Mesh_Vars      ,ONLY: offsetComputeNodeElem
+USE MOD_Particle_Mesh_Vars      ,ONLY: offsetComputeNodeElem,nNonUniqueGlobalSides, SideIsSymSide_Shared, SideIsSymSide_Shared_Win
 USE MOD_Particle_Mesh_Vars      ,ONLY: ElemVolume_Shared_Win,ElemCharLength_Shared_Win
 USE MOD_MPI_Shared_Vars         ,ONLY: myComputeNodeRank,MPI_COMM_LEADERS_SHARED
 #endif /*USE_MPI*/
@@ -113,12 +113,14 @@ INTEGER                         :: firstElem,lastElem
 !===================================================================================================================================
 
 #if USE_MPI
-FirstElem = offsetElem - offsetComputeNodeElem + 1
-LastElem  = offsetElem - offsetComputeNodeElem + nElems
+CALL Allocate_Shared((/nNonUniqueGlobalSides/),SideIsSymSide_Shared_Win,SideIsSymSide_Shared)
+CALL MPI_WIN_LOCK_ALL(0,SideIsSymSide_Shared_Win,IERROR)
 #else
-firstElem = 1
-lastElem  = nElems
+! allocate local array for ElemInfo
+ALLOCATE(SideIsSymSide_Shared(nComputeNodeSides))
 #endif  /*USE_MPI*/
+
+SideIsSymSide_Shared = .FALSE.
 
 SymmetryBCExists = .FALSE.
 ALLOCATE(SymmetrySide(1:nElems,1:2))                ! 1: GlobalSide, 2: LocalSide
@@ -137,6 +139,8 @@ DO BCSideID=1,nBCSides
   iLocSide = SideToElem(S2E_LOC_SIDE_ID,BCSideID)
   SideID=GetGlobalNonUniqueSideID(offsetElem+locElemID,iLocSide)
   IF (PartBound%TargetBoundCond(PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID))).EQ.PartBound%SymmetryBC) THEN
+    ! Mark side to skip in tracking
+    SideIsSymSide_Shared(SideID) = .TRUE.
     CNElemID = GetCNElemID(SideInfo_Shared(SIDE_ELEMID,SideID))
     iLocSide = SideInfo_Shared(SIDE_LOCALID,SideID)
     ! Exclude the symmetry axis (y=0)
@@ -177,14 +181,25 @@ DO BCSideID=1,nBCSides
   END IF
 END DO
 
+
 IF(.NOT.SymmetryBCExists) THEN
   CALL abort(__STAMP__&
     ,'At least one symmetric BC (in the xy-plane) has to be defined for 2D simulations')
 END IF
 
 ! LocalVolume & MeshVolume: Recalculate the volume of the mesh of a single process and the total mesh volume
-LocalVolume = SUM(ElemVolume_Shared(FirstElem:LastElem))
 #if USE_MPI
+FirstElem = offsetElem - offsetComputeNodeElem + 1
+LastElem  = offsetElem - offsetComputeNodeElem + nElems
+#else
+firstElem = 1
+lastElem  = nElems
+#endif  /*USE_MPI*/
+
+LocalVolume = SUM(ElemVolume_Shared(FirstElem:LastElem))
+
+#if USE_MPI
+CALL BARRIER_AND_SYNC(SideIsSymSide_Shared_Win ,MPI_COMM_SHARED)
 CALL BARRIER_AND_SYNC(ElemVolume_Shared_Win    ,MPI_COMM_SHARED)
 CALL BARRIER_AND_SYNC(ElemCharLength_Shared_Win,MPI_COMM_SHARED)
 ! Compute-node mesh volume
