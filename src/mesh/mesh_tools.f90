@@ -55,6 +55,7 @@ PUBLIC :: GetMasteriLocSides
 PUBLIC :: BuildSideToNonUniqueGlobalSide
 #endif /*USE_LOADBALANCE*/
 #endif /*USE_HDG*/
+PUBLIC :: InitElemNodeIDs
 !----------------------------------------------------------------------------------------------------------------------------------
 
 ABSTRACT INTERFACE
@@ -628,6 +629,81 @@ END SUBROUTINE BuildSideToNonUniqueGlobalSide
 #endif /*USE_LOADBALANCE*/
 #endif /*USE_HDG*/
 
+
+SUBROUTINE InitElemNodeIDs()
+!===================================================================================================================================
+!> Subroutine for particle geometry initialization:
+!> - ElemNodeID_Shared(1:8,1:nComputeNodeTotalElems)
+!===================================================================================================================================
+! MODULES
+USE MOD_Preproc
+USE MOD_ReadInTools
+USE MOD_Globals
+USE MOD_Mesh_Vars              ,ONLY: NGeo
+USE MOD_Particle_Mesh_Vars
+#if USE_MPI
+USE MOD_MPI_Shared
+USE MOD_MPI_Shared_Vars
+#else
+USE MOD_Mesh_Vars              ,ONLY: nElems
+#endif
+! IMPLICIT VARIABLE HANDLING
+ IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER            :: iElem,firstElem,lastElem,GlobalElemID
+INTEGER            :: iNode
+INTEGER            :: CornerNodeIDswitch(8)
+!===================================================================================================================================
+
+! the cornernodes are not the first 8 entries (for Ngeo>1) of nodeinfo array so mapping is built
+CornerNodeIDswitch(1)=1
+CornerNodeIDswitch(2)=(Ngeo+1)
+CornerNodeIDswitch(3)=(Ngeo+1)**2
+CornerNodeIDswitch(4)=(Ngeo+1)*Ngeo+1
+CornerNodeIDswitch(5)=(Ngeo+1)**2*Ngeo+1
+CornerNodeIDswitch(6)=(Ngeo+1)**2*Ngeo+(Ngeo+1)
+CornerNodeIDswitch(7)=(Ngeo+1)**2*Ngeo+(Ngeo+1)**2
+CornerNodeIDswitch(8)=(Ngeo+1)**2*Ngeo+(Ngeo+1)*Ngeo+1
+
+! New crazy corner node switch (philipesque)
+ASSOCIATE(CNS => CornerNodeIDswitch )
+#if USE_MPI
+  firstElem = INT(REAL( myComputeNodeRank   )*REAL(nComputeNodeTotalElems)/REAL(nComputeNodeProcessors))+1
+  lastElem  = INT(REAL((myComputeNodeRank+1))*REAL(nComputeNodeTotalElems)/REAL(nComputeNodeProcessors))
+  CALL Allocate_Shared((/8,nComputeNodeTotalElems/),ElemNodeID_Shared_Win,ElemNodeID_Shared)
+  CALL MPI_WIN_LOCK_ALL(0,ElemNodeID_Shared_Win,IERROR)
+#else
+  ALLOCATE(ElemNodeID_Shared(1:8,1:nElems))
+  firstElem = 1
+  lastElem  = nElems
+#endif  /*USE_MPI*/
+
+#if USE_MPI
+  IF (myComputeNodeRank.EQ.0) THEN
+#endif
+    ElemNodeID_Shared = 0
+#if USE_MPI
+  END IF
+  CALL BARRIER_AND_SYNC(ElemNodeID_Shared_Win,MPI_COMM_SHARED)
+#endif
+
+  ! iElem is CNElemID
+  DO iElem = firstElem,lastElem
+    GlobalElemID = GetGlobalElemID(iElem)
+    DO iNode = 1,8
+      ElemNodeID_Shared(iNode,iElem) = ElemInfo_Shared(ELEM_FIRSTNODEIND,GlobalElemID) + CNS(iNode)
+    END DO
+  END DO
+END ASSOCIATE
+#if USE_MPI
+CALL BARRIER_AND_SYNC(ElemNodeID_Shared_Win,MPI_COMM_SHARED)
+#endif
+END SUBROUTINE InitElemNodeIDs
 
 
 END MODULE MOD_Mesh_Tools

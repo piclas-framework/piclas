@@ -183,6 +183,7 @@ USE MOD_PICInterpolation_Vars ,ONLY: useAlgebraicExternalField,AlgebraicExternal
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Vars ,ONLY: PerformLoadBalance
 #endif /*USE_LOADBALANCE*/
+USE MOD_Mesh_Vars             ,ONLY: BoundaryType,BoundaryName
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
@@ -190,7 +191,7 @@ IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 CHARACTER(LEN=40)   :: DefStr
-INTEGER             :: iElem,CNElemID
+INTEGER             :: iElem,CNElemID,iBoundary,BCType,BCState,iBC
 REAL                :: PPWCellMax,PPWCellMin
 !===================================================================================================================================
 IF ((.NOT.InterpolationInitIsDone).OR.AnalyzeInitIsDone) THEN
@@ -287,6 +288,14 @@ IF(CalcBoundaryFieldOutput)THEN
   DoFieldAnalyze = .TRUE.
   BFO%NFieldBoundaries = GETINT('BFO-NFieldBoundaries')
   BFO%FieldBoundaries  = GETINTARRAY('BFO-FieldBoundaries',BFO%NFieldBoundaries)
+  DO iBoundary=1,BFO%NFieldBoundaries
+    iBC = BFO%FieldBoundaries(iBoundary)
+    IF(iBC.GT.SIZE(BoundaryName)) CALL abort(__STAMP__,'BFO-FieldBoundaries BC index is too large: ',IntInfoOpt=iBC)
+    BCType  = BoundaryType(iBC,BC_TYPE)
+    BCState = BoundaryType(iBC,BC_STATE)
+    LBWRITE(UNIT_stdOut,'(A,I0,A,I0,A)')&
+       ' Activated BFO of electric potential for ['//TRIM(BoundaryName(iBC))//'] with BCType [',BCType,'] and BCState [',BCState,']'
+  END DO
 END IF ! CalcBoundaryFieldOutput
 
 ! Get logical for measurement of time spent in analyze routines

@@ -22,18 +22,6 @@ PRIVATE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
-INTERFACE AnalyzeSurface
-  MODULE PROCEDURE AnalyzeSurface
-END INTERFACE
-
-INTERFACE WriteDataHeaderInfo
-  MODULE PROCEDURE WriteDataHeaderInfo
-END INTERFACE
-
-INTERFACE WriteDataInfo
-  MODULE PROCEDURE WriteDataInfo
-END INTERFACE
-
 PUBLIC:: InitSurfModelAnalyze
 PUBLIC:: AnalyzeSurface
 PUBLIC:: DefineParametersSurfModelAnalyze
@@ -165,11 +153,15 @@ USE MOD_Particle_Boundary_Vars    ,ONLY: nComputeNodeSurfSides,PartBound
 #if USE_MPI
 USE MOD_Particle_MPI_Vars         ,ONLY: PartMPI
 #endif /*USE_MPI*/
-USE MOD_SurfaceModel_Vars         ,ONLY: nPorousBC
+USE MOD_SurfaceModel_Vars         ,ONLY: nPorousBC, PorousBC
 USE MOD_Particle_Vars             ,ONLY: nSpecies,UseNeutralization,NeutralizationBalanceGlobal,Species
 #if USE_HDG
 USE MOD_Analyze_Vars              ,ONLY: EDC
 USE MOD_Analyze_Vars              ,ONLY: CalcElectricTimeDerivative
+USE MOD_HDG_Vars                  ,ONLY: UseBiasVoltage,BiasVoltage,BVDataLength
+#if USE_MPI
+USE MOD_HDG                       ,ONLY: SynchronizeBV
+#endif /*USE_MPI*/
 #endif /*USE_HDG*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -184,10 +176,10 @@ LOGICAL             :: isOpen
 CHARACTER(LEN=350)  :: outfile
 INTEGER             :: unit_index, OutputCounter
 INTEGER             :: SurfCollNum(nSpecies),AdsorptionNum(nSpecies),DesorptionNum(nSpecies)
-INTEGER             :: iPartBound,iSEE,iBPO,iSpec
+INTEGER             :: iBC,iPartBound,iSEE,iBPO,iSpec
 REAL                :: charge,TotalElectricCharge
 #if USE_HDG
-INTEGER             :: iBC,iEDCBC
+INTEGER             :: iEDCBC,i,iBoundary,iPartBound2
 #endif /*USE_HDG*/
 !===================================================================================================================================
 IF((nComputeNodeSurfSides.EQ.0).AND.(.NOT.CalcBoundaryParticleOutput).AND.(.NOT.UseNeutralization).AND.(.NOT.CalcElectronSEE)) RETURN
@@ -211,16 +203,23 @@ IF(PartMPI%MPIRoot)THEN
       !--- insert header
       WRITE(unit_index,'(A8)',ADVANCE='NO') '001-TIME'
       IF(CalcSurfCollCounter)THEN
-        CALL WriteDataHeaderInfo(unit_index,'nSurfColl-Spec',OutputCounter,nSpecies)
-        CALL WriteDataHeaderInfo(unit_index,'N_Ads-Spec',OutputCounter,nSpecies)
-        CALL WriteDataHeaderInfo(unit_index,'N_Des-Spec',OutputCounter,nSpecies)
+        CALL WriteDataHeaderInfo(unit_index,'nSurfColl-Spec',OutputCounter,LoopSize=nSpecies)
+        CALL WriteDataHeaderInfo(unit_index,'N_Ads-Spec',OutputCounter,LoopSize=nSpecies)
+        CALL WriteDataHeaderInfo(unit_index,'N_Des-Spec',OutputCounter,LoopSize=nSpecies)
       END IF
-      IF(CalcPorousBCInfo)THEN ! calculate porous boundary condition output (pumping speed, removal probability, pressure)
-                               ! Values are averaged over the whole porous BC
-        CALL WriteDataHeaderInfo(unit_index,'PumpSpeed-Measure-PorousBC',OutputCounter,nPorousBC)
-        CALL WriteDataHeaderInfo(unit_index,'PumpSpeed-Control-PorousBC',OutputCounter,nPorousBC)
-        CALL WriteDataHeaderInfo(unit_index,'RemovalProbability-PorousBC',OutputCounter,nPorousBC)
-        CALL WriteDataHeaderInfo(unit_index,'Pressure-PorousBC',OutputCounter,nPorousBC)
+      ! Calculate porous boundary condition output (pumping speed, removal probability, pressure)
+      ! Values are averaged over the whole porous BC
+      IF(CalcPorousBCInfo)THEN
+        DO iBC = 1, nPorousBC
+          IF(PorousBC(iBC)%Type.EQ.'pump') THEN
+            CALL WriteDataHeaderInfo(unit_index,'PumpSpeed-Measure-Pump',OutputCounter,iLoop_in=iBC)
+            CALL WriteDataHeaderInfo(unit_index,'PumpSpeed-Control-Pump',OutputCounter,iLoop_in=iBC)
+            CALL WriteDataHeaderInfo(unit_index,'RemovalProbability-Pump',OutputCounter,iLoop_in=iBC)
+            CALL WriteDataHeaderInfo(unit_index,'Pressure-Pump',OutputCounter,iLoop_in=iBC)
+          ELSE IF(PorousBC(iBC)%Type.EQ.'sensor') THEN
+            CALL WriteDataHeaderInfo(unit_index,'Pressure-Sensor',OutputCounter,iLoop_in=iBC)
+          END IF
+        END DO
       END IF
       IF(CalcBoundaryParticleOutput)THEN
         ! Output of particle fluxes
@@ -242,9 +241,22 @@ IF(PartMPI%MPIRoot)THEN
           END DO
         END IF ! BPO%OutputTotalElectricCurrent
       END IF
-      IF(UseNeutralization)THEN ! Ion thruster neutralization current (virtual cathode electrons)
-        WRITE(unit_index,'(A1,I3.3,A)',ADVANCE='NO') ',',OutputCounter,'-NeutralizationParticles'
+#if USE_HDG
+      ! Output of bias voltage variables
+      IF(UseBiasVoltage)THEN
+        WRITE(unit_index,'(A1)',ADVANCE='NO') ','
+        WRITE(unit_index,'(I3.3,A)',ADVANCE='NO') OutputCounter,'-BiasVoltage[V]'
         OutputCounter = OutputCounter + 1
+        WRITE(unit_index,'(A1)',ADVANCE='NO') ','
+        WRITE(unit_index,'(I3.3,A)',ADVANCE='NO') OutputCounter,'-BiasVoltageIonExcess[C]'
+        OutputCounter = OutputCounter + 1
+        WRITE(unit_index,'(A1)',ADVANCE='NO') ','
+        WRITE(unit_index,'(I3.3,A)',ADVANCE='NO') OutputCounter,'-BiasVoltageUpdateTime[s]'
+        OutputCounter = OutputCounter + 1
+      END IF ! UseBiasVoltage
+#endif /*USE_HDG*/
+      IF(UseNeutralization)THEN ! Ion thruster neutralization current (virtual cathode electrons)
+        CALL WriteDataHeaderInfo(unit_index,'NeutralizationParticles',OutputCounter)
       END IF ! UseNeutralization
       IF(CalcElectronSEE)THEN
         DO iSEE = 1, SEE%NPartBoundaries
@@ -281,26 +293,30 @@ IF(PartMPI%MPIRoot)THEN
     CALL WriteDataInfo(unit_index,nSpecies,IntegerArray=DesorptionNum(:))
   END IF
   IF(CalcPorousBCInfo)THEN
-    CALL WriteDataInfo(unit_index,nPorousBC,RealArray=PorousBCOutput(2,:))
-    CALL WriteDataInfo(unit_index,nPorousBC,RealArray=PorousBCOutput(3,:))
-    CALL WriteDataInfo(unit_index,nPorousBC,RealArray=PorousBCOutput(4,:))
-    CALL WriteDataInfo(unit_index,nPorousBC,RealArray=PorousBCOutput(5,:))
+    DO iBC = 1, nPorousBC
+      IF(PorousBC(iBC)%Type.EQ.'pump') THEN
+        CALL WriteDataInfo(unit_index,RealScalar=PorousBCOutput(2,iBC))
+        CALL WriteDataInfo(unit_index,RealScalar=PorousBCOutput(3,iBC))
+        CALL WriteDataInfo(unit_index,RealScalar=PorousBCOutput(4,iBC))
+      END IF
+      CALL WriteDataInfo(unit_index,RealScalar=PorousBCOutput(5,iBC))
+    END DO
   END IF
   IF(CalcBoundaryParticleOutput)THEN
     ! Output of particle fluxes
     DO iBPO = 1, BPO%NPartBoundaries
       DO iSpec = 1, BPO%NSpecies
         IF(ABS(SurfModelAnalyzeSampleTime).LE.0.0)THEN
-          CALL WriteDataInfo(unit_index,1,RealArray=(/0.0/))
+          CALL WriteDataInfo(unit_index,RealScalar=0.0)
         ELSE
-          CALL WriteDataInfo(unit_index,1,RealArray=(/BPO%RealPartOut(iBPO,iSpec)/SurfModelAnalyzeSampleTime/))
+          CALL WriteDataInfo(unit_index,RealScalar=BPO%RealPartOut(iBPO,iSpec)/SurfModelAnalyzeSampleTime)
         END IF ! ABS(SurfModelAnalyzeSampleTime).LE.0.0
       END DO
     END DO
     ! Output of total electric current
     IF(BPO%OutputTotalElectricCurrent)THEN
       DO iBPO = 1, BPO%NPartBoundaries
-        TotalElectricCharge = 0. ! initialize
+        TotalElectricCharge = 0. ! Initialize total charge for each boundary
         IF(ABS(SurfModelAnalyzeSampleTime).LE.0.0)THEN
           CALL WriteDataInfo(unit_index,1,RealArray=(/0.0/))
         ELSE
@@ -330,26 +346,87 @@ IF(PartMPI%MPIRoot)THEN
           END IF ! CalcElectricTimeDerivative
 #endif /*USE_HDG*/
           ! Sampling time has already been considered due to the displacement current
-          CALL WriteDataInfo(unit_index,1,RealArray=(/TotalElectricCharge/))
+          CALL WriteDataInfo(unit_index,RealScalar=TotalElectricCharge)
         END IF ! ABS(SurfModelAnalyzeSampleTime).LE.0.0
-      END DO
+      END DO ! iBPO = 1, BPO%NPartBoundaries
     END IF ! BPO%OutputTotalElectricCurrent
-    ! Reset
+#if USE_HDG
+    ! Bias voltage
+    IF(UseBiasVoltage)THEN
+      TotalElectricCharge = 0. ! Initialize sum over all boundaries
+      ! Ion excess
+      DO iBoundary = 1, BiasVoltage%NPartBoundaries
+        iPartBound = BiasVoltage%PartBoundaries(iBoundary)
+        iBPO = BPO%BCIDToBPOBCID(iPartBound)
+        ! Sum over all fluxes (only if the species has a charge)
+        DO iSpec = 1, BPO%NSpecies
+          charge = Species(BPO%Species(iSpec))%ChargeIC
+          ! Impacting charged particles: positive number for positive ions (+) and negative number for electrons (-)
+          IF(ABS(charge).GT.0.0) TotalElectricCharge = TotalElectricCharge + BPO%RealPartOut(iBPO,iSpec)*charge
+        END DO
+        ! Released secondary electrons (always a positive number). SEE%BCIDToSEEBCID(iPartBound) yields the iSEEBCIndex
+        IF(CalcElectronSEE)THEN
+          ! Get particle boundary ID
+          iPartBound2 = BPO%PartBoundaries(iBPO)
+          ! Sanity Check
+          IF(iPartBound.NE.iPartBound2) CALL abort(__STAMP__,'AnalyzeSurface(): Wrong particle boundary encountered!')
+          ! Get SEE ID
+          iSEE = SEE%BCIDToSEEBCID(iPartBound)
+          ! Add SEE current if this BC has secondary electron emission
+          IF(iSEE.GT.0) TotalElectricCharge = TotalElectricCharge + SEE%RealElectronOut(iSEE)
+        END IF ! CalcElectronSEE
+      END DO ! iBoundary = 1, BiasVoltage%NPartBoundaries
+
+      ASSOCIATE( V => BiasVoltage%BVData(1), Q => BiasVoltage%BVData(2), tBV => BiasVoltage%BVData(3) )
+        ! Add total electric charge (without displacement current!)
+        Q = Q + TotalElectricCharge
+
+        ! Simulation time threshold
+        IF(time.GE.tBV)THEN
+          ! Update time
+          IF(BiasVoltage%Frequency.GT.0.0) tBV = tBV + 1.0/BiasVoltage%Frequency
+
+          ! Update Voltage
+          IF(Q.GT.0.0)THEN
+            ! Increase voltage
+            V = V + BiasVoltage%Delta
+          ELSEIF(Q.LT.0.0)THEN
+            ! Decrease voltage
+            V = V - BiasVoltage%Delta
+          ELSE
+            ! do nothing
+          END IF ! Q.LT.0.0
+
+          ! Reset ion excess counter
+          Q = 0.
+        END IF ! time.GE.tBV
+      END ASSOCIATE
+
+      ! Write: Voltage, Ion excess and simulation update time
+      DO i = 1, BVDataLength
+        CALL WriteDataInfo(unit_index, RealScalar=BiasVoltage%BVData(i))
+      END DO ! i = 1, 3
+    END IF ! UseBiasVoltage
+#endif /*USE_HDG*/
+
+    ! Reset BPO containers
     DO iPartBound = 1, BPO%NPartBoundaries
       DO iSpec = 1, BPO%NSpecies
         ! Reset PartMPI%MPIRoot counters after writing the data to the file,
         ! non-PartMPI%MPIRoot are reset in SyncBoundaryParticleOutput()
         BPO%RealPartOut(iPartBound,iSpec) = 0.
-      END DO
-    END DO
-  END IF
-  IF(UseNeutralization) CALL WriteDataInfo(unit_index,1,RealArray=(/REAL(NeutralizationBalanceGlobal)/))
+      END DO ! iSpec = 1, BPO%NSpecies
+    END DO ! iPartBound = 1, BPO%NPartBoundaries
+  END IF ! CalcBoundaryParticleOutput
+
+  IF(UseNeutralization) CALL WriteDataInfo(unit_index,RealScalar=REAL(NeutralizationBalanceGlobal))
+
   IF(CalcElectronSEE)THEN
     DO iPartBound = 1, SEE%NPartBoundaries
       IF(ABS(SurfModelAnalyzeSampleTime).LE.0.0)THEN
-        CALL WriteDataInfo(unit_index,1,RealArray=(/0.0/))
+        CALL WriteDataInfo(unit_index,RealScalar=0.0)
       ELSE
-        CALL WriteDataInfo(unit_index,1,RealArray=(/SEE%RealElectronOut(iPartBound)/SurfModelAnalyzeSampleTime/))
+        CALL WriteDataInfo(unit_index,RealScalar=SEE%RealElectronOut(iPartBound)/SurfModelAnalyzeSampleTime)
       END IF ! ABS(SurfModelAnalyzeSampleTime).LE.0.0
         ! Reset PartMPI%MPIRoot counters after writing the data to the file,
         ! non-PartMPI%MPIRoot are reset in SyncBoundaryParticleOutput()
@@ -359,6 +436,11 @@ IF(PartMPI%MPIRoot)THEN
   WRITE(unit_index,'(A)') ''
 #if USE_MPI
 END IF
+!-----------------------------------------------------------------------------------------------------------------------------------
+#if USE_HDG
+  ! Bias voltage: Update values of sub-communicator processes (broadcast from MPIRoot to all sub-communicator processes)
+  IF(UseBiasVoltage) CALL SynchronizeBV()
+#endif /*USE_HDG*/
 #endif /*USE_MPI*/
 !-----------------------------------------------------------------------------------------------------------------------------------
 SurfModelAnalyzeSampleTime = Time ! Backup "old" time value for next output
@@ -366,9 +448,9 @@ END SUBROUTINE AnalyzeSurface
 
 
 !===================================================================================================================================
-!> writes OutputCounter-AttribNamestring-iLoop into WRITEFORMAT output
+!> Writes OutputCounter-AttribNameString(-iLoop) into WRITEFORMAT output
 !===================================================================================================================================
-SUBROUTINE WriteDataHeaderInfo(unit_index,AttribName,OutputCounter,LoopSize)
+SUBROUTINE WriteDataHeaderInfo(unit_index,AttribName,OutputCounter,LoopSize,iLoop_in)
 ! MODULES                                                                                                                          !
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Globals
@@ -379,22 +461,34 @@ IMPLICIT NONE
 INTEGER,INTENT(IN)          :: unit_index
 CHARACTER(LEN=*),INTENT(IN) :: AttribName
 INTEGER,INTENT(INOUT)       :: OutputCounter
-INTEGER,INTENT(IN)          :: LoopSize
+INTEGER,INTENT(IN),OPTIONAL :: LoopSize
+INTEGER,INTENT(IN),OPTIONAL :: iLoop_in
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! LOCAL VARIABLES
 INTEGER                     :: iLoop
 !===================================================================================================================================
-DO iLoop = 1, LoopSize
+IF(PRESENT(LoopSize))THEN
+  DO iLoop = 1, LoopSize
+    WRITE(unit_index,'(A1)',ADVANCE='NO') ','
+    WRITE(unit_index,'(I3.3,A,A,A,I3.3)',ADVANCE='NO') OutputCounter,'-',TRIM(AttribName),'-',iLoop
+    OutputCounter = OutputCounter + 1
+  END DO
+ELSE IF(PRESENT(iLoop_in)) THEN
+  iLoop = iLoop_in
   WRITE(unit_index,'(A1)',ADVANCE='NO') ','
   WRITE(unit_index,'(I3.3,A,A,A,I3.3)',ADVANCE='NO') OutputCounter,'-',TRIM(AttribName),'-',iLoop
   OutputCounter = OutputCounter + 1
-END DO
+ELSE
+  WRITE(unit_index,'(A1)',ADVANCE='NO') ','
+  WRITE(unit_index,'(I3.3,A,A)',ADVANCE='NO') OutputCounter,'-',TRIM(AttribName)
+  OutputCounter = OutputCounter + 1
+END IF
+
 END SUBROUTINE WriteDataHeaderInfo
 
 
 !===================================================================================================================================
-!> writes INPUTData into unit_index output
-!> only one data input should be given at a time
+!> Writes input data into unit_index output: scalar or array+nVal can be given as input
 !===================================================================================================================================
 SUBROUTINE WriteDataInfo(unit_index,nVal,RealScalar,IntegerScalar,StrScalar,LogicalScalar, &
                                   RealArray,IntegerArray,IntegerK8Array,StrArray)
@@ -406,49 +500,70 @@ USE MOD_Preproc
 IMPLICIT NONE
 ! INPUT / OUTPUT VARIABLES
 INTEGER           ,INTENT(IN)          :: unit_index
-INTEGER           ,INTENT(IN)          :: nVal
+INTEGER           ,INTENT(IN),OPTIONAL :: nVal
 REAL              ,INTENT(IN),OPTIONAL :: RealScalar
 INTEGER           ,INTENT(IN),OPTIONAL :: IntegerScalar
 CHARACTER(LEN=*)  ,INTENT(IN),OPTIONAL :: StrScalar
-REAL              ,INTENT(IN),OPTIONAL :: RealArray(nVal)
-INTEGER           ,INTENT(IN),OPTIONAL :: IntegerArray(nVal)
-INTEGER(KIND=8)   ,INTENT(IN),OPTIONAL :: IntegerK8Array(nVal)
-CHARACTER(LEN=255),INTENT(IN),OPTIONAL :: StrArray(nVal)
+REAL              ,INTENT(IN),OPTIONAL :: RealArray(:)
+INTEGER           ,INTENT(IN),OPTIONAL :: IntegerArray(:)
+INTEGER(KIND=8)   ,INTENT(IN),OPTIONAL :: IntegerK8Array(:)
+CHARACTER(LEN=255),INTENT(IN),OPTIONAL :: StrArray(:)
 LOGICAL           ,INTENT(IN),OPTIONAL :: LogicalScalar
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! LOCAL VARIABLES
 INTEGER                     :: iLoop
 !===================================================================================================================================
+
+! Real
 IF(PRESENT(RealArray))THEN
-  DO iLoop = 1, nVal
-    WRITE (unit_index, CSVFORMAT, ADVANCE='NO') ',',RealArray(iLoop)
-  END DO
+  IF(PRESENT(nVal)) THEN
+    DO iLoop = 1, nVal
+      WRITE (unit_index, CSVFORMAT, ADVANCE='NO') ',',RealArray(iLoop)
+    END DO
+  ELSE
+    CALL abort(__STAMP__,'ERROR WriteDataInfo: nVal required for array output!')
+  END IF
 END IF
+
 IF(PRESENT(RealScalar))THEN
   WRITE (unit_index, CSVFORMAT, ADVANCE='NO') ',',RealScalar
 END IF
 
+! Integer
 IF(PRESENT(IntegerArray))THEN
-  DO iLoop = 1, nVal
-    WRITE (unit_index, CSVFORMAT, ADVANCE='NO') ',',REAL(IntegerArray(iLoop))
-  END DO
+  IF(PRESENT(nVal)) THEN
+    DO iLoop = 1, nVal
+      WRITE (unit_index, CSVFORMAT, ADVANCE='NO') ',',REAL(IntegerArray(iLoop))
+    END DO
+  ELSE
+    CALL abort(__STAMP__,'ERROR WriteDataInfo: nVal required for array output!')
+  END IF
 END IF
 
 IF(PRESENT(IntegerK8Array))THEN
-  DO iLoop = 1, nVal
-    WRITE (unit_index, CSVFORMAT, ADVANCE='NO') ',',REAL(IntegerK8Array(iLoop))
-  END DO
+  IF(PRESENT(nVal)) THEN
+    DO iLoop = 1, nVal
+      WRITE (unit_index, CSVFORMAT, ADVANCE='NO') ',',REAL(IntegerK8Array(iLoop))
+    END DO
+  ELSE
+    CALL abort(__STAMP__,'ERROR WriteDataInfo: nVal required for array output!')
+  END IF
 END IF
 
 IF(PRESENT(IntegerScalar))THEN
   WRITE (unit_index, CSVFORMAT, ADVANCE='NO') ',',REAL(IntegerScalar)
 END IF
 
+! String
 IF(PRESENT(StrArray))THEN
-  DO iLoop = 1, nVal
-    WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-    WRITE(unit_index,'(A)',ADVANCE='NO') TRIM(StrArray(iLoop))
-  END DO
+  IF(PRESENT(nVal)) THEN
+    DO iLoop = 1, nVal
+      WRITE(unit_index,'(A1)',ADVANCE='NO') ','
+      WRITE(unit_index,'(A)',ADVANCE='NO') TRIM(StrArray(iLoop))
+    END DO
+  ELSE
+    CALL abort(__STAMP__,'ERROR WriteDataInfo: nVal required for array output!')
+  END IF
 END IF
 
 IF(PRESENT(StrScalar))THEN
@@ -456,10 +571,12 @@ IF(PRESENT(StrScalar))THEN
   WRITE(unit_index,'(A)',ADVANCE='NO') TRIM(StrScalar)
 END IF
 
+! Logical
 IF(PRESENT(LogicalScalar))THEN
   WRITE(unit_index,'(A1)',ADVANCE='NO') ','
   WRITE(unit_index,'(I1)',ADVANCE='NO') LogicalScalar
 END IF
+
 END SUBROUTINE WriteDataInfo
 
 

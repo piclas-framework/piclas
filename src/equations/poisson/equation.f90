@@ -44,7 +44,10 @@ INTERFACE FinalizeEquation
   MODULE PROCEDURE FinalizeEquation
 END INTERFACE
 
-PUBLIC::InitEquation,ExactFunc,CalcSource,FinalizeEquation, CalcSourceHDG,DivCleaningDamping
+PUBLIC :: InitEquation,ExactFunc,CalcSource,FinalizeEquation, CalcSourceHDG,DivCleaningDamping
+#if USE_MPI && defined(PARTICLES)
+PUBLIC :: SynchronizeCPP
+#endif /*USE_MPI && defined(PARTICLES)*/
 !===================================================================================================================================
 PUBLIC::DefineParametersEquation
 CONTAINS
@@ -56,6 +59,10 @@ SUBROUTINE DefineParametersEquation()
 ! MODULES
 USE MOD_Globals
 USE MOD_ReadInTools ,ONLY: prms
+#if defined(PARTICLES)
+USE MOD_HDG_Vars    ,ONLY: CPPDataLength
+USE MOD_ReadInTools ,ONLY: addStrListEntry
+#endif /*defined(PARTICLES)*/
 IMPLICIT NONE
 !==================================================================================================================================
 CALL prms%SetSection("Equation")
@@ -82,9 +89,18 @@ CALL prms%CreateRealOption(     'LinPhi'           , 'Potential(s) for ramping f
 
 #if defined(PARTICLES)
 ! Special BC with floating potential that is defined by the absorbed power of the charged particles
-CALL prms%CreateRealArrayOption('CoupledPowerPotential' , 'Controlled power input: Supply vector of form (/min, start, max/) for the minimum, start (t=0) and maximum electric potential that is applied at BoundaryType = (/2,2/).', no=3 )
+CALL prms%CreateRealArrayOption('CoupledPowerPotential' , 'Controlled power input: Supply vector of form (/min, start, max/) for the minimum, start (t=0) and maximum electric potential that is applied at BoundaryType = (/2,2/).', no=CPPDataLength )
 CALL prms%CreateRealOption(     'CoupledPowerTarget'    , 'Controlled power input: Target input power to which the electric potential is adjusted for BoundaryType = (/2,2/)' )
-CALL prms%CreateRealOption(     'CoupledPowerRelaxFac'    , 'Relaxation factor for calculation of new electric potential due to defined Target input power. Default = 0.05 (5%)', '0.05' )
+CALL prms%CreateRealOption(     'CoupledPowerRelaxFac'  , 'Relaxation factor for calculation of new electric potential due to defined Target input power. Default = 0.05 (which is 5%)', '0.05' )
+CALL prms%CreateRealOption(     'CoupledPowerFrequency' , 'Adaption frequency for coupled power using the integrated power for adjustment', '0.0' )
+
+CALL prms%CreateIntFromStringOption('CoupledPowerMode', 'Define mode used for coupled power adjustment:\n'//&
+                                                        ' instantaneous (1): xxx\n'//&
+                                                        ' moving-average (2): xxx\n'//&
+                                                        ' integrated (3): xxx\n','instantaneous')
+CALL addStrListEntry('CoupledPowerMode' , 'instantaneous' , 1)
+CALL addStrListEntry('CoupledPowerMode' , 'moving-average', 2)
+CALL addStrListEntry('CoupledPowerMode' , 'integrated'    , 3)
 #endif /*defined(PARTICLES)*/
 
 END SUBROUTINE DefineParametersEquation
@@ -107,11 +123,6 @@ USE MOD_Mesh_Vars          ,ONLY: nSides
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Vars   ,ONLY: PerformLoadBalance
 #endif /*USE_LOADBALANCE*/
-#if defined(PARTICLES)
-USE MOD_IO_HDF5            ,ONLY: OpenDataFile,CloseDataFile,File_ID
-USE MOD_Restart_Vars       ,ONLY: DoRestart,RestartFile
-USE MOD_HDF5_Input         ,ONLY: DatasetExists,ReadArray
-#endif /*defined(PARTICLES)*/
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -127,12 +138,8 @@ INTEGER            :: i,BCType,BCState
 CHARACTER(LEN=255) :: BCName
 INTEGER            :: nRefStateMax
 INTEGER            :: nLinState,nLinStateMax
-LOGICAL            :: PCouplAlreadySet
-#if defined(PARTICLES)
-CHARACTER(255)     :: ContainerName
-LOGICAL            :: CoupledPowerPotentialExists
-REAL               :: TmpArray2(3),CoupledPowerPotentialHDF5(3)
-#endif /*defined(PARTICLES)*/
+INTEGER,PARAMETER  :: BYTypeRefstate(1:4)=(/5,51,52,60/)
+CHARACTER(LEN=32)  :: hilf
 !===================================================================================================================================
 IF((.NOT.InterpolationInitIsDone).OR.EquationInitIsDone)THEN
    LBWRITE(*,*) "InitPoisson not ready to be called or already called."
@@ -148,79 +155,29 @@ IniExactFunc = GETINT('IniExactFunc')
 nRefStateMax = 0
 nLinStateMax = 0
 ! Defaults
-#if defined(PARTICLES)
-#if USE_LOADBALANCE
-IF(.NOT.PerformLoadBalance)&
-#endif /*USE_LOADBALANCE*/
-    CalcPCouplElectricPotential=.FALSE.
-#endif /*defined(PARTICLES)*/
-PCouplAlreadySet=.FALSE.
 DO i=1,nBCs
   BCType  = BoundaryType(i,BC_TYPE)
   BCState = BoundaryType(i,BC_STATE)
   BCName  = BoundaryName(i)
-  IF(BCType.EQ.5.AND.BCState.LE.0) THEN
+  IF(ANY(BCType.EQ.BYTypeRefstate).AND.BCState.LE.0) THEN
     SWRITE(*,'(A)') "Error found for the following boundary condition"
     SWRITE(*,'(A,I0)') "   BC: ",i
     SWRITE(*,'(A,I0)') " Type: ",BCType
     SWRITE(*,'(A,I0)') "State: ",BCState
     SWRITE(*,'(A)')    " Name: "//TRIM(BCName)
-    CALL abort(__STAMP__,'BCState is <= 0 for BCType=5 is not allowed! Set a positive integer for the n-th RefState')
-  ELSEIF(BCType.EQ.5.AND.BCState.GT.0)THEN
+    WRITE(UNIT=hilf,FMT='(I0)') BCType
+    CALL abort(__STAMP__,'BCState is <= 0 for BCType='//TRIM(hilf)//' is not allowed! Set a positive integer for the n-th RefState')
+  ELSEIF(ANY(BCType.EQ.BYTypeRefstate).AND.BCState.GT.0)THEN
     nRefStateMax = MAX(nRefStateMax,BCState)
   ELSEIF(BCType.EQ.7.AND.BCState.GT.0)THEN
     nLinStateMax = MAX(nLinStateMax,BCState)
-  ELSEIF(BCType.EQ.2)THEN
-
-#if defined(PARTICLES)
-    ! Special BC with that adjusts a floating potential in order to meet a user-specified power input
-    ! Only for BoundaryType = (/2,2/)
-    IF(BCState.EQ.2)THEN
-#if USE_LOADBALANCE
-      ! Do not set during load balance in order to keep the old value
-      IF(PerformLoadBalance) CYCLE
-#endif /*USE_LOADBALANCE*/
-      ! Do not set twice
-      IF(PCouplAlreadySet) CYCLE
-      PCouplAlreadySet=.TRUE.
-
-      ! Electric potential (/min, start, max/) Note that start is only required at t=0 and is used for the BC potential
-      CoupledPowerPotential = GETREALARRAY('CoupledPowerPotential',3)
-
-      ! Restart: Only root reads state file to prevent access with a large number of processors
-      IF(DoRestart)THEN
-        ! Only root reads the values and distributes them via MPI Broadcast
-        IF(MPIRoot)THEN
-          CALL OpenDataFile(RestartFile,create=.FALSE.,single=.TRUE.,readOnly=.TRUE.)
-          ! Check old parameter name
-          ContainerName='CoupledPowerPotential'
-          CALL DatasetExists(File_ID,TRIM(ContainerName),CoupledPowerPotentialExists)
-          ! Check for new parameter name
-          IF(CoupledPowerPotentialExists)THEN
-            CALL ReadArray(TRIM(ContainerName) , 2 , (/1_IK , 3_IK/) , 0_IK , 1 , RealArray=TmpArray2)
-            CoupledPowerPotentialHDF5 = TmpArray2
-            WRITE(UNIT_stdOut,'(3(A,ES10.2E3))') " Read CoupledPowerPotential from restart file ["//TRIM(RestartFile)//"] min[V]: ",&
-                CoupledPowerPotentialHDF5(1),", current[V]: ",CoupledPowerPotentialHDF5(2),", max[V]: ",CoupledPowerPotentialHDF5(3)
-          END IF ! CoupledPowerPotentialExists
-          CALL CloseDataFile()
-        END IF ! MPIRoot
-#if USE_MPI
-        ! Broadcast from root to other processors
-        CALL MPI_BCAST(CoupledPowerPotentialHDF5,3, MPI_DOUBLE_PRECISION,0,MPI_COMM_WORLD,iERROR)
-#endif /*USE_MPI*/
-      END IF ! DoRestart
-
-      ! Over-write during restart with values from hdf5 state file
-      IF(DoRestart) CoupledPowerPotential = CoupledPowerPotentialHDF5
-
-      CoupledPowerTarget = GETREAL('CoupledPowerTarget')
-      IF(CoupledPowerTarget.LE.0.) CALL abort(__STAMP__,'CoupledPowerTarget must be > 0.')
-      CalcPCouplElectricPotential = .TRUE.
-      CoupledPowerRelaxFac = GETREAL('CoupledPowerRelaxFac')
-    END IF ! BCState.EQ.1
-#endif /*defined(PARTICLES)*/
   END IF
 END DO
+
+#if defined(PARTICLES)
+! Coupled Power Potential: Adjust the electric potential on a BC to meet a specific power absorbed by the charged particles
+CALL InitCoupledPowerPotential()
+#endif /*defined(PARTICLES)*/
 
 ! Read linear potential boundaries
 nLinState = CountOption('LinPhi')
@@ -312,6 +269,229 @@ LBWRITE(UNIT_StdOut,'(132("-"))')
 END SUBROUTINE InitEquation
 
 
+#if defined(PARTICLES)
+!===================================================================================================================================
+!> Initialize containers for coupled power potential (CPP) for adjusting the electric potential on a BC to meet a specific power
+!> absorbed by the charged particles
+!>
+!> 1.) Get global number of coupled power potential boundaries in [1:nBCs]
+!> 2.) Get parameters
+!> 3.) Establish sub-communicator (all BCs directly connected to a coupled power potential boundary); MPIRoot is always in the group)
+!> 4.) When restarting, load the last known values of CoupledPowerPotential(1:3) from the .h5 state file
+!===================================================================================================================================
+SUBROUTINE InitCoupledPowerPotential()
+! MODULES
+#if USE_LOADBALANCE
+USE MOD_LoadBalance_Vars ,ONLY: PerformLoadBalance
+#endif /*USE_LOADBALANCE*/
+USE MOD_Globals          ,ONLY: CollectiveStop
+USE MOD_HDG_Vars         ,ONLY: UseCoupledPowerPotential,CoupledPowerPotential,CoupledPowerTarget,CoupledPowerRelaxFac
+USE MOD_HDG_Vars         ,ONLY: CPPDataLength,CoupledPowerMode,CoupledPowerFrequency
+USE MOD_ReadInTools      ,ONLY: GETREALARRAY,GETREAL,GETINTFROMSTR,CountOption
+USE MOD_Mesh_Vars        ,ONLY: BoundaryType,nBCs
+#if USE_MPI
+USE MOD_Globals          ,ONLY: IERROR,MPI_COMM_NULL,MPI_DOUBLE_PRECISION,MPI_COMM_WORLD,MPI_INFO_NULL,MPI_UNDEFINED,MPIRoot
+USE MOD_Globals          ,ONLY: UNIT_StdOut
+USE MOD_HDG_Vars         ,ONLY: CPPCOMM
+USE MOD_Mesh_Vars        ,ONLY: nBCSides,BC
+#endif /*USE_MPI*/
+IMPLICIT NONE
+!----------------------------------------------------------------------------------------------------------------------------------!
+! INPUT / OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER, PARAMETER :: BCTypeCPP(1:3) = (/2,52,60/) ! BCType which allows coupled power potential control
+!                                                  !  2: DC + coupled power for DC potential adjustment
+!                                                  ! 52: AC with cos(wt) + coupled power for AC potential adjustment + bias voltage
+!                                                  ! 60: AC with cos(wt) + coupled power for AC potential adjustment
+INTEGER            :: iBC,CPPBoundaries,BCType,BCState
+#if USE_MPI
+LOGICAL            :: BConProc
+INTEGER            :: color,SideID
+#endif /*USE_MPI*/
+!===================================================================================================================================
+
+! 1.) Get global number of coupled power potential boundaries in [1:nBCs]
+UseCoupledPowerPotential = .FALSE.
+CPPBoundaries = 0
+! Loop over global BC list
+DO iBC=1,nBCs
+  BCType = BoundaryType(iBC,BC_TYPE)
+  IF(.NOT.ANY(BCType.EQ.BCTypeCPP)) CYCLE ! Skip non-CPP boundaries
+  BCState = BoundaryType(iBC,BC_STATE) ! BCState of the corresponding BCType
+  IF((BCType.EQ.2).AND.(BCState.NE.2)) CYCLE ! BCType=2 must be combined with BCState=2
+  CPPBoundaries=CPPBoundaries+1
+  IF(BCState.LE.0) CALL CollectiveStop(__STAMP__,' BCState for FPC must be >0! BCState=',IntInfo=BCState)
+END DO
+
+IF(CPPBoundaries.EQ.0) RETURN ! Already determined in HDG initialization
+
+UseCoupledPowerPotential = .TRUE.
+
+! 2.) Get parameters
+#if USE_LOADBALANCE
+! Do not set during load balance in order to keep the old value
+IF(.NOT.PerformLoadBalance)THEN
+#endif /*USE_LOADBALANCE*/
+  ! Electric potential (/min, start, max/) Note that start is only required at t=0 and is used for the BC potential
+  CoupledPowerPotential = 0.
+  CoupledPowerPotential(1:3) = GETREALARRAY('CoupledPowerPotential',3)
+  ! Get target power value
+  CoupledPowerTarget = GETREAL('CoupledPowerTarget')
+  IF(CoupledPowerTarget.LE.0.) CALL CollectiveStop(__STAMP__,'CoupledPowerTarget must be > 0.')
+  ! Get relaxation factor
+  CoupledPowerRelaxFac = GETREAL('CoupledPowerRelaxFac')
+  IF(CoupledPowerRelaxFac.LE.0.) CALL CollectiveStop(__STAMP__,'CoupledPowerRelaxFac must be > 0.')
+  ! Get frequency within which the integrated power is calculated
+  CoupledPowerFrequency = GETREAL('CoupledPowerFrequency')
+  IF(CoupledPowerFrequency.LT.0.) CALL CollectiveStop(__STAMP__,'CoupledPowerFrequency must be >= 0.')
+  ! Sanity check
+  CoupledPowerMode = GETINTFROMSTR('CoupledPowerMode')
+  IF(.NOT.ANY(CoupledPowerMode.EQ.(/1,2,3/))) CALL CollectiveStop(__STAMP__,'CoupledPowerMode with unknown value!')
+  IF((CoupledPowerMode.EQ.3).AND.(ABS(CoupledPowerFrequency).LE.0.))&
+      CALL CollectiveStop(__STAMP__,'CoupledPowerMode=3 requires a positive value for CoupledPowerFrequency!')
+  ! Update time
+  IF(CoupledPowerFrequency.GT.0.0) CoupledPowerPotential(5) = 1.0 / CoupledPowerFrequency
+#if USE_LOADBALANCE
+END IF ! .NOT.PerformLoadBalance
+#endif /*USE_LOADBALANCE*/
+
+#if USE_MPI
+! 3.) Establish sub-communicator (all BCs directly connected to a coupled power potential boundary); MPIRoot is always in the group
+BConProc = .FALSE.
+IF(MPIRoot)THEN
+  BConProc = .TRUE.
+ELSE
+  CoupledPowerPotential(1:CPPDataLength) = 0.
+  ! Check local sides
+  DO SideID=1,nBCSides
+    iBC    = BC(SideID)
+    BCType = BoundaryType(iBC,BC_TYPE)
+    IF(.NOT.ANY(BCType.EQ.BCTypeCPP)) CYCLE ! Skip other boundaries
+    BCState = BoundaryType(iBC,BC_STATE) ! BCState of the corresponding BCType
+    IF((BCType.EQ.2).AND.(BCState.NE.2)) CYCLE ! BCType=2 must be combined with BCState=2
+    BConProc = .TRUE.
+  END DO ! SideID=1,nBCSides
+END IF ! MPIRoot
+
+! create new communicator
+color = MERGE(CPPBoundaries, MPI_UNDEFINED, BConProc)
+
+! set communicator id
+CPPCOMM%ID = CPPBoundaries
+
+! create new emission communicator for electric potential boundary condition communication. Pass MPI_INFO_NULL as rank to follow the original ordering
+CALL MPI_COMM_SPLIT(MPI_COMM_WORLD, color, MPI_INFO_NULL, CPPCOMM%UNICATOR, iError)
+
+! Find my rank on the shared communicator, comm size and proc name
+IF(BConProc)THEN
+  CALL MPI_COMM_RANK(CPPCOMM%UNICATOR, CPPCOMM%MyRank, iError)
+  CALL MPI_COMM_SIZE(CPPCOMM%UNICATOR, CPPCOMM%nProcs, iError)
+
+  ! inform about size of emission communicator
+  IF (CPPCOMM%MyRank.EQ.0) THEN
+#if USE_LOADBALANCE
+    IF(.NOT.PerformLoadBalance)&
+#endif /*USE_LOADBALANCE*/
+        WRITE(UNIT_StdOut,'(A,I0,A)') ' Coupled power potential boundary condition: Emission-Communicator on ',&
+            CPPCOMM%nProcs,' procs'
+  END IF
+END IF ! BConProc
+#endif /*USE_MPI*/
+
+! 4.) When restarting, load the last known values of CoupledPowerPotential(1:3) from the .h5 state file
+CALL ReadCPPDataFromH5()
+
+END SUBROUTINE InitCoupledPowerPotential
+
+
+!===================================================================================================================================
+!> Read the coupled power potential (CPP) data from a .h5 state file.
+!> 1. The MPI root process reads the info and checks data consistency
+!> 2. The MPI root process distributes the information among the sub-communicator processes connected to the CPP boundary.
+!===================================================================================================================================
+SUBROUTINE ReadCPPDataFromH5()
+! MODULES
+USE MOD_io_hdf5
+USE MOD_Globals          ,ONLY: UNIT_stdOut,MPIRoot,IK,abort
+#if USE_LOADBALANCE
+USE MOD_LoadBalance_Vars ,ONLY: PerformLoadBalance,UseH5IOLoadBalance
+#endif /*USE_LOADBALANCE*/
+USE MOD_IO_HDF5          ,ONLY: OpenDataFile,CloseDataFile,File_ID
+USE MOD_Restart_Vars     ,ONLY: DoRestart,RestartFile
+USE MOD_HDF5_Input       ,ONLY: DatasetExists,ReadArray,GetDataSize
+USE MOD_HDG_Vars         ,ONLY: CoupledPowerPotential,CPPDataLength
+IMPLICIT NONE
+!----------------------------------------------------------------------------------------------------------------------------------!
+! INPUT / OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+CHARACTER(255) :: ContainerName
+LOGICAL        :: CPPExists
+REAL           :: CPPDataHDF5(1:CPPDataLength)
+!===================================================================================================================================
+! Only required during restart
+IF(.NOT.DoRestart) RETURN
+
+#if USE_LOADBALANCE
+! Do not try to read the data from .h5 if load balance is performed without creating a .h5 restart file
+IF(PerformLoadBalance.AND..NOT.(UseH5IOLoadBalance)) RETURN
+#endif /*USE_LOADBALANCE*/
+
+! 1. The MPI root process reads the info and checks data consistency
+! Only root reads the values and distributes them via MPI Broadcast
+IF(MPIRoot)THEN
+  CALL OpenDataFile(RestartFile,create=.FALSE.,single=.TRUE.,readOnly=.TRUE.)
+  ! Check old parameter name
+  ContainerName='CoupledPowerPotential'
+  CALL DatasetExists(File_ID,TRIM(ContainerName),CPPExists)
+  ! Check for new parameter name
+  IF(CPPExists)THEN
+    CALL ReadArray(TRIM(ContainerName) , 2 , (/1_IK , INT(CPPDataLength,IK)/) , 0_IK , 1 , RealArray=CPPDataHDF5)
+    WRITE(UNIT_stdOut,'(6(A,ES10.2E3))') " Read CoupledPowerPotential from restart file ["//TRIM(RestartFile)//&
+        "] min[V]: "                 ,CPPDataHDF5(1),&
+        ", current[V]: "             ,CPPDataHDF5(2),&
+        ", max[V]: "                 ,CPPDataHDF5(3),&
+        ", intPower[Ws]: "           ,CPPDataHDF5(4),&
+        ", next adjustment time[s]: ",CPPDataHDF5(5),&
+        ", last-energy[J]: "         ,CPPDataHDF5(6)
+    CoupledPowerPotential = CPPDataHDF5
+  END IF ! CPPExists
+  CALL CloseDataFile()
+END IF ! MPIRoot
+
+#if USE_MPI
+! 2. The MPI root process distributes the information among the sub-communicator processes for each EPC
+CALL SynchronizeCPP()
+#endif /*USE_MPI*/
+
+END SUBROUTINE ReadCPPDataFromH5
+
+
+#if USE_MPI
+!===================================================================================================================================
+!> Communicate the CPP values from MPIRoot to sub-communicator processes
+!===================================================================================================================================
+SUBROUTINE SynchronizeCPP()
+! MODULES
+USE MOD_Globals  ,ONLY: IERROR,MPI_COMM_NULL,MPI_DOUBLE_PRECISION
+USE MOD_HDG_Vars ,ONLY: CPPCOMM
+USE MOD_HDG_Vars ,ONLY: CoupledPowerPotential,CPPDataLength
+IMPLICIT NONE
+!----------------------------------------------------------------------------------------------------------------------------------!
+! INPUT / OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+!===================================================================================================================================
+IF(CPPCOMM%UNICATOR.NE.MPI_COMM_NULL)THEN
+  ! Broadcast from root to other processors on the sub-communicator
+  CALL MPI_BCAST(CoupledPowerPotential, CPPDataLength, MPI_DOUBLE_PRECISION, 0, CPPCOMM%UNICATOR, IERROR)
+END IF
+END SUBROUTINE SynchronizeCPP
+#endif /*USE_MPI*/
+#endif /*defined(PARTICLES)*/
+
+
 SUBROUTINE ExactFunc(ExactFunction,x,resu,t,ElemID,iRefState,iLinState,BCState)
 !===================================================================================================================================
 ! Specifies all the initial conditions. The state in conservative variables is returned.
@@ -321,7 +501,8 @@ USE MOD_Globals         ,ONLY: Abort,mpiroot
 USE MOD_Globals_Vars    ,ONLY: PI,ElementaryCharge,eps0
 USE MOD_Equation_Vars   ,ONLY: IniCenter,IniHalfwidth,IniAmplitude,RefState,LinPhi,LinPhiHeight,LinPhiNormal,LinPhiBasePoint
 #if defined(PARTICLES)
-USE MOD_Equation_Vars   ,ONLY: CoupledPowerPotential
+USE MOD_HDG_Vars        ,ONLY: CoupledPowerPotential,UseCoupledPowerPotential,BiasVoltage,UseBiasVoltage
+USE MOD_Particle_Vars   ,ONLY: Species,nSpecies
 #endif /*defined(PARTICLES)*/
 USE MOD_Dielectric_Vars ,ONLY: DielectricRatio,Dielectric_E_0,DielectricRadiusValue,DielectricEpsR
 USE MOD_Mesh_Vars       ,ONLY: ElemBaryNGeo
@@ -345,6 +526,10 @@ REAL,INTENT(OUT)                :: Resu(1:PP_nVar)    ! state in conservative va
 REAL                            :: Omega,r1,r2,r_2D,r_3D,r_bary,cos_theta,eps1,eps2,xi,a(3),b(3),Q
 !===================================================================================================================================
 SELECT CASE (ExactFunction)
+#if defined(PARTICLES)
+CASE(-5) ! Bias voltage DC boundary
+  Resu(:) = BiasVoltage%BVData(1)
+#endif /*defined(PARTICLES)*/
 CASE(-4) ! Electric potential condition (EPC) where charge accumulated over one time step is removed and creates a voltage
   Resu(:) = EPC%Voltage(EPC%Group(BCState,2))
 CASE(-3) ! linear function with base point, normal vector and heigh: Requires BoundaryType = (/7,X/)
@@ -376,7 +561,18 @@ CASE(-1) ! Signal with zero-crossing: Amplitude, Frequency and Phase Shift suppl
   ! RefState(2,iRefState): frequency
   ! RefState(3,iRefState): phase shift
   Omega   = 2.*PI*RefState(2,iRefState)
-  Resu(:) = RefState(1,iRefState)*COS(Omega*t+RefState(3,iRefState))
+#if defined(PARTICLES)
+  ! Match coupled power by adjusting the coefficient of the cos function
+  IF(UseCoupledPowerPotential)THEN
+    Resu(:) = CoupledPowerPotential(2)*COS(Omega*t+RefState(3,iRefState))
+  ELSE
+#endif /*defined(PARTICLES)*/
+    Resu(:) = RefState(1,iRefState)*COS(Omega*t+RefState(3,iRefState))
+#if defined(PARTICLES)
+  END IF ! UseCoupledPowerPotential
+  ! Add bias potential (only if bias voltage model is activated, BYType is 51 for DC or 52 for AC)
+  IF(UseBiasVoltage) Resu(:) = Resu(:) + BiasVoltage%BVData(1)
+#endif /*defined(PARTICLES)*/
 CASE(0) ! constant 0.
     Resu(:)=0.
 #if defined(PARTICLES)
@@ -519,39 +715,57 @@ CASE(301) ! like CASE=300, but only in positive z-direction the dielectric regio
     CALL abort(__STAMP__,'Dielectric sphere. Invalid radius for exact function!')
   END IF
 
-CASE(400) ! Point Source in Dielectric Region with epsR_1  = 1 for x < 0 (vacuum)
+CASE(400,401) ! Point Source in Dielectric Region with epsR_1  = 1 for x < 0 (vacuum)
   !                                                epsR_2 != 1 for x > 0 (dielectric region)
   ! DielectricRadiusValue is used as distance between dielectric interface and position of charged point particle
   ! set radius and angle for DOF position x(1:3)
   ! Limitations:
-  ! only valid for eps_2 = 1
+  ! only valid for eps_2 = 1*eps0
   ! and q = 1
   r_2D   = SQRT(x(1)**2+x(2)**2)
   r1 = SQRT(r_2D**2 + (DielectricRadiusValue-x(3))**2)
   r2 = SQRT(r_2D**2 + (DielectricRadiusValue+x(3))**2)
 
-  eps2=1.0
-  eps1=DielectricEpsR
-
-  IF(x(3).GT.0.0)THEN
-    IF(ALL((/ x(1).EQ.0.0,  x(2).EQ.0.0, x(3).EQ.DielectricRadiusValue /)))THEN
-      print*, "HERE?!?!?!"
-    END IF
-    IF((r1.LE.0.0).OR.(r2.LE.0.0))THEN
-      SWRITE(*,*) "r1=",r1
-      SWRITE(*,*) "r2=",r2
-      CALL abort(__STAMP__,'ExactFunc=400: Point source in dielectric region. Cannot evaluate the exact function at the singularity!')
-    END IF
-    resu(1:PP_nVar) = (1./eps1)*(&
-                                   1./r1 + ((eps1-eps2)/(eps1+eps2))*&
-                                   1./r2 )/(4*PI)
+  IF(ExactFunction.EQ.400)THEN
+    ! Vacuum bottom, dielectric top
+    eps1 = DielectricEpsR*eps0
+    eps2 = 1.0*eps0
+  ELSEIF(ExactFunction.EQ.401)THEN
+    ! Dielectric bottom, vacuum top
+    eps1 = 1.0*eps0
+    eps2 = DielectricEpsR*eps0
+  END IF ! ExactFunction.EQ.400
+#if defined(PARTICLES)
+  IF(ALLOCATED(Species).AND.(nSpecies.GT.0))THEN
+    IF(ABS(Species(1)%ChargeIC).GT.0.)THEN
+      Q = Species(1)%ChargeIC/(4.0*PI)
+    END IF ! Species(1)%ChargeIC.GT.0
   ELSE
-    IF(r1.LE.0.0)THEN
-      SWRITE(*,*) "r1=",r1
-      CALL abort(__STAMP__,'Point source in dielectric region: Cannot evaluate the exact function at the singularity!')
+    Q = 0.
+  END IF ! ALLOCATED(Species
+#else
+  Q = 1.0/(4.0*PI)
+#endif /*defined(PARTICLES)*/
+  ASSOCIATE( eps12 => eps1+eps2 )
+
+    IF(x(3).GT.0.0)THEN
+      IF(ALL((/ x(1).EQ.0.0,  x(2).EQ.0.0, x(3).EQ.DielectricRadiusValue /)))THEN
+        print*, "HERE?!?!?!"
+      END IF
+      IF((r1.LE.0.0).OR.(r2.LE.0.0))THEN
+        SWRITE(*,*) "r1=",r1
+        SWRITE(*,*) "r2=",r2
+        CALL abort(__STAMP__,'ExactFunc=400: Point source in dielectric region. Cannot evaluate the exact function at the singularity!')
+      END IF
+      resu(1:PP_nVar) = (Q/eps1)*(1./r1 - ((eps2-eps1)/eps12)*(1./r2) )
+    ELSE
+      IF(r1.LE.0.0)THEN
+        SWRITE(*,*) "r1=",r1
+        CALL abort(__STAMP__,'Point source in dielectric region: Cannot evaluate the exact function at the singularity!')
+      END IF
+      resu(1:PP_nVar) = (2.0*Q/eps12) * 1./r1 
     END IF
-    resu(1:PP_nVar) = (2./(eps2+eps1)) * 1./r1 /(4*PI)
-  END IF
+  END ASSOCIATE
 CASE(500) ! Coaxial capacitor with Floating Boundary Condition (FPC) with from
   ! Chen 2020 "A hybridizable discontinuous Galerkin method for simulation of electrostatic problems with floating potential conductors".
   r_2D = SQRT(x(1)**2+x(2)**2)
@@ -785,7 +999,6 @@ END IF
 #endif /*PARTICLES*/
 
 END SUBROUTINE CalcSourceHDG
-
 
 
 FUNCTION shapefunc(r)
