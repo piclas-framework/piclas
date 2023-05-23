@@ -43,6 +43,8 @@ IMPLICIT NONE
 CALL prms%SetSection("Particle Boundaries")
 
 CALL prms%CreateIntOption(      'Part-RotPeriodicAxi' , 'Axis of rotational periodicity: x = 1, y = 2, z = 3')
+CALL prms%CreateRealOption(     'PartBound-RotPeriodicTol' , 'Tolerance for rotationally periodic BCs: symmetry angle is '//&
+                                'multiplied by 1-x to slightly move the particle / cell center into the domain','1E-4')
 CALL prms%CreateIntOption(      'Part-nBounds', 'Number of particle boundaries.', '1')
 CALL prms%CreateStringOption(   'Part-Boundary[$]-SourceName', &
                                   'No Default. Source Name of Boundary[i]. Has to be selected for all'//&
@@ -491,6 +493,7 @@ END DO
 
 IF(GEO%RotPeriodicBC) THEN
   GEO%RotPeriodicAxi   = GETINT('Part-RotPeriodicAxi')
+  PartBound%RotPeriodicTol = 1. - GETREAL('PartBound-RotPeriodicTol')
   IF(MOD(nRotPeriodicBCs,2).NE.0) THEN
     ! Check whether two corresponding RotPeriodic BCs are always set
     CALL abort(__STAMP__,'ERROR: Uneven number of rot_periodic BCs. Check whether two corresponding RotPeriodic BCs are set!')

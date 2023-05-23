@@ -296,11 +296,13 @@ TYPE tPartBoundary
 !                                                                         ! (Default=FALSE.)
   LOGICAL , ALLOCATABLE                  :: BoundaryParticleOutputHDF5(:) ! Save particle position, velocity and species to
 !                                                                         ! PartDataBoundary container for writing to .h5 later
+  ! Multi rotational periodic and interplane BCs
+  REAL                                   :: RotPeriodicTol                ! Tolerance for rotationally periodic BC, angle is
+                                                                          ! multiplied by 1 - RotPeriodicTol
 END TYPE
 
 INTEGER                                  :: nPartBound                    ! number of particle boundaries
 TYPE(tPartBoundary)                      :: PartBound                     ! Boundary Data for Particles
-REAL, PARAMETER                          :: RotPeriodicTol = 0.9999       ! Tolerance for rotationally periodic BC
 
 LOGICAL                                  :: AdaptWallTemp
 

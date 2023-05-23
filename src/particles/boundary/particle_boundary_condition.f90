@@ -285,7 +285,7 @@ USE MOD_Particle_Intersection   ,ONLY: IntersectionWithWall, ParticleThroughSide
 USE MOD_Particle_Mesh_Tools     ,ONLY: ParticleInsideQuad3D
 USE MOD_Particle_Mesh_Vars      ,ONLY: GEO, ElemInfo_Shared, SideInfo_Shared, ElemSideNodeID_Shared, NodeCoords_Shared
 USE MOD_Particle_Vars           ,ONLY: PartState,LastPartPos,Species,PartSpecies
-USE MOD_Particle_Boundary_Vars  ,ONLY: PartBound, RotPeriodicTol
+USE MOD_Particle_Boundary_Vars  ,ONLY: PartBound
 USE MOD_Particle_Boundary_Vars  ,ONLY: RotPeriodicSideMapping, NumRotPeriodicNeigh, SurfSide2RotPeriodicSide, GlobalSide2SurfSide
 USE MOD_Particle_Tracking_Vars  ,ONLY: TrackInfo
 USE MOD_DSMC_Vars               ,ONLY: DSMC, AmbipolElecVelo
@@ -332,7 +332,7 @@ IF (DSMC%DoAmbipolarDiff) THEN
 END IF
 ! (1) perform the rotational periodic movement and adjust velocity vector
 rot_alpha = PartBound%RotPeriodicAngle(PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID)))
-rot_alpha_delta = PartBound%RotPeriodicAngle(PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID))) * RotPeriodicTol
+rot_alpha_delta = PartBound%RotPeriodicAngle(PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID))) * PartBound%RotPeriodicTol
 SELECT CASE(GEO%RotPeriodicAxi)
   CASE(1) ! x-rotation axis
     LastPartPos_rotated(2) = COS(rot_alpha)*LastPartPos(2,PartID) - SIN(rot_alpha)*LastPartPos(3,PartID)
