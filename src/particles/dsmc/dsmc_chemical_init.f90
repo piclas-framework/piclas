@@ -137,7 +137,6 @@ USE MOD_DSMC_Vars               ,ONLY: ChemReac, DSMC, SpecDSMC, BGGas, CollInf
 USE MOD_PARTICLE_Vars           ,ONLY: nSpecies, Species
 USE MOD_Particle_Analyze_Vars   ,ONLY: ChemEnergySum
 USE MOD_DSMC_ChemReact          ,ONLY: CalcPartitionFunction
-USE MOD_part_emission_tools     ,ONLY: CalcPhotonEnergy
 USE MOD_DSMC_QK_Chemistry       ,ONLY: QK_Init
 USE MOD_MCC_Vars                ,ONLY: NbrOfPhotonXsecReactions
 #if USE_LOADBALANCE
@@ -152,10 +151,10 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 CHARACTER(LEN=3)      :: hilf
-INTEGER               :: iReac, iReac2, iSpec, iPart, iReacDiss, iSpec2, iInit
+INTEGER               :: iReac, iReac2, iSpec, iPart, iReacDiss, iSpec2
 INTEGER, ALLOCATABLE  :: DummyRecomb(:,:)
 LOGICAL               :: DoScat
-REAL                  :: BGGasEVib, PhotonEnergy, omega, ChargeProducts, ChargeReactants
+REAL                  :: BGGasEVib, omega, ChargeProducts, ChargeReactants
 INTEGER               :: Reactant1, Reactant2, Reactant3, MaxSpecies, ReadInNumOfReact
 !===================================================================================================================================
 
@@ -407,25 +406,10 @@ DO iReac = 1, ChemReac%NumOfReact
         __STAMP__,'ERROR: Ionization reactions require the definition of at least the ionization energy as electronic level!',iReac)
     END IF
   END DO
-  ! Check whether the photon energy is sufficient to trigger the chemical reaction
-  IF(TRIM(ChemReac%ReactModel(iReac)).EQ.'phIon') THEN
-    PhotonEnergy = 0.
-    DO iSpec = 1, nSpecies
-      DO iInit = 1, Species(iSpec)%NumberOfInits
-        SELECT CASE(TRIM(Species(iSpec)%Init(iInit)%SpaceIC))
-        CASE('photon_cylinder','photon_honeycomb','photon_rectangle')
-          PhotonEnergy = CalcPhotonEnergy(Species(iSpec)%Init(iInit)%WaveLength)
-          EXIT
-        END SELECT
-      END DO
-    END DO
-
-    ChemReac%EForm(iReac) = ChemReac%EForm(iReac) + PhotonEnergy
-    IF(ChemReac%EForm(iReac).LE.0.0) THEN
-      CALL abort(__STAMP__,'ERROR: Photon energy is not sufficient for the given ionization reaction: ',iReac)
-    END IF
-  END IF ! TRIM(ChemReac%ReactModel(iReac)).EQ.'phIon'
 END DO ! iReac = 1, ChemReac%NumOfReact
+
+! Photoionization
+CALL InitPhotonReactions()
 
 ! Populate the background reaction arrays and initialize the required partition functions
 IF(DSMC%BackwardReacRate) THEN
@@ -778,6 +762,58 @@ END DO
 
 END SUBROUTINE DSMC_BackwardRate_init
 
+!===================================================================================================================================
+!> Calculation and sanity check of ChemReac%EForm(iReac) for photoionization reactions, i.e.,  ChemReac%ReactModel(iReac).EQ.'phIon'
+!> The sanity check will determine if the photon energy is sufficient to trigger any reactions.
+!===================================================================================================================================
+SUBROUTINE InitPhotonReactions()
+! MODULES
+USE MOD_Globals             ,ONLY: abort
+USE MOD_DSMC_Vars           ,ONLY: ChemReac,CollisMode,UseDSMC
+USE MOD_part_emission_tools ,ONLY: CalcPhotonEnergy
+USE MOD_PARTICLE_Vars       ,ONLY: nSpecies
+USE MOD_RayTracing_Vars     ,ONLY: RayPartBound,Ray
+USE MOD_Particle_Vars       ,ONLY: Species
+IMPLICIT NONE
+!----------------------------------------------------------------------------------------------------------------------------------!
+! INPUT / OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+REAL    :: PhotonEnergy
+INTEGER :: iInit, iSpec, iReac
+!===================================================================================================================================
+IF(.NOT.UseDSMC) RETURN
+IF(CollisMode.NE.3) RETURN
+
+DO iReac = 1, ChemReac%NumOfReact
+  ! Check whether the photon energy is sufficient to trigger the chemical reaction
+  IF(TRIM(ChemReac%ReactModel(iReac)).EQ.'phIon') THEN
+    PhotonEnergy = 0.
+
+    ! Const. photon energy from wavelength given in ray tracing model
+    IF(RayPartBound.GT.0)THEN
+      PhotonEnergy = CalcPhotonEnergy(Ray%WaveLength)
+    END IF ! RayPartBound.GT.0
+
+    ! Const. photon energy from wavelength given in particle emission model
+    DO iSpec = 1, nSpecies
+      DO iInit = 1, Species(iSpec)%NumberOfInits
+        SELECT CASE(TRIM(Species(iSpec)%Init(iInit)%SpaceIC))
+        CASE('photon_cylinder','photon_honeycomb','photon_rectangle')
+          PhotonEnergy = CalcPhotonEnergy(Species(iSpec)%Init(iInit)%WaveLength)
+          EXIT
+        END SELECT
+      END DO
+    END DO
+
+    ChemReac%EForm(iReac) = ChemReac%EForm(iReac) + PhotonEnergy
+    IF(ChemReac%EForm(iReac).LE.0.0) THEN
+      CALL abort(__STAMP__,'ERROR: Photon energy is not sufficient for the given ionization reaction: ',iReac)
+    END IF
+  END IF ! TRIM(ChemReac%ReactModel(iReac)).EQ.'phIon'
+END DO ! iReac = 1, ChemReac%NumOfReact
+END SUBROUTINE InitPhotonReactions
+
 
 !  SUBROUTINE Init_TLU_Data
 !  !===================================================================================================================================
@@ -788,19 +824,19 @@ END SUBROUTINE DSMC_BackwardRate_init
 !    USE MOD_DSMC_Vars,          ONLY : TLU_Data, ChemReac
 !  ! IMPLICIT VARIABLE HANDLING
 !  IMPLICIT NONE
-!  
+!
 !  !-- parameters
 !  INTEGER,PARAMETER             :: unit1=20
 !  !DOUBLE PRECISION, PARAMETER   :: mass_ion=2.180d-25 !Xenon
 !  !DOUBLE PRECISION, PARAMETER   :: mass_neutral=2.180d-25 !Xenon
-!  
+!
 !  !-- local variables
 !  INTEGER                       :: io_error1,read_error,iLine
 !  CHARACTER(LEN=1000000)        :: string1
 !  INTEGER                       :: N_b, N_E
 !  DOUBLE PRECISION              :: real1, real2
 !  !===================================================================================================================================
-!  
+!
 !  OPEN(UNIT=unit1,file=TRIM(ChemReac%TLU_FileName(ChemReac%NumOfReact)),STATUS='old',ACTION='READ',IOSTAT=io_error1)
 !  IF ( io_error1 .EQ. 0) THEN
 !    !----------------------------------Schleife ueber alle Zeilen in file1----------------------------------!
@@ -846,10 +882,10 @@ END SUBROUTINE DSMC_BackwardRate_init
 !            'Chemistry - Error in Init_TLU_Data, Error while opening of Test_Lookup_komplett.txt, Error:',io_error1)
 !    !WRITE(*,'(A,I0,A)') 'Beim Oeffenen der Datei Test_Lookup_komplett.txt ist Fehler Nr. ', io_error1,' aufgetreten!'
 !  END IF
-!  
+!
 !  ! Force Chi at N_b to be 0
 !  TLU_Data%Chitable(:,N_b) = 0
-!  
+!
 !  CLOSE(unit=unit1)
 !  END SUBROUTINE Init_TLU_Data
 

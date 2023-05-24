@@ -292,6 +292,7 @@ USE MOD_Particle_Vars              ,ONLY: BulkElectronTemp
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Vars           ,ONLY: PerformLoadBalance
 #endif /*USE_LOADBALANCE*/
+USE MOD_RayTracing_Init            ,ONLY: InitRayTracing
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -355,8 +356,11 @@ IF(nPorousBC.GT.0) CALL InitPorousBoundaryCondition()
 ! Allocate sampling of near adaptive boundary element values
 IF(UseAdaptive.OR.(nPorousBC.GT.0)) CALL InitAdaptiveBCSampling()
 
-! Initialize backrgound gas regions (requires completed InitParticleGeometry for ElemMidPoint_Shared)
+! Initialize background gas regions (requires completed InitParticleGeometry for ElemMidPoint_Shared)
 IF(BGGas%UseRegions) CALL BGGas_InitRegions()
+
+! Ray tracing
+CALL InitRayTracing()
 
 IF (useDSMC) THEN
   CALL InitDSMC()

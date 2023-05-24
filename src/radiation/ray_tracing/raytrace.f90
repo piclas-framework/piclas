@@ -72,7 +72,7 @@ USE MOD_Mesh_Vars               ,ONLY: nGlobalElems
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER :: NonUniqueGlobalSideID,iSurfSide,iBC
-INTEGER :: CNElemID, iRay, photonCount, iPhot, iPhotLoc, RayVisCount, LocRayNum, RayDisp
+INTEGER :: CNElemID, iRay, photonCount, RayVisCount, LocRayNum, RayDisp
 LOGICAL :: FoundComputeNodeSurfSide
 INTEGER :: ALLOCSTAT
 REAL    :: RectPower
@@ -108,8 +108,7 @@ IF(nProcessors.GT.NumRays) CALL abort(__STAMP__,'Use more rays! Number of proces
 LocRayNum = NumRays/nProcessors
 IF(myrank.LT.MOD(NumRays,nProcessors)) LocRayNum = LocRayNum + 1
 ! Output to screen every 20 rays to show that the tool is still running
-RayDisp = INT(LocRayNum/20)
-
+RayDisp = MAX(1,INT(LocRayNum/20)) ! This value cannot be zero
 
 RectPower = Ray%IntensityAmplitude * Ray%Area / REAL(NumRays)
 
@@ -121,7 +120,7 @@ IF(.NOT.ALLOCATED(PartStateBoundary))THEN
 END IF ! .NOT.ALLOCATED(PartStateBoundary)
 
 DO iRay = 1, LocRayNum
-  IF(MPIroot.AND.(MOD(RayVisCount,RayDisp).EQ.0)) CALL PrintStatusLineRadiation(REAL(RayVisCount),REAL(1),REAL(LocRayNum),.TRUE.)
+  IF(MPIroot.AND.(MOD(RayVisCount,RayDisp).EQ.0)) CALL PrintStatusLineRadiation(REAL(RayVisCount),0.0,REAL(LocRayNum),.TRUE.)
   RayVisCount = RayVisCount + 1
   PhotonProps%PhotonPos(1:3) = SetRayPos()
   PhotonProps%PhotonLastPos(1:3) = PhotonProps%PhotonPos(1:3)
@@ -167,7 +166,7 @@ DO iRay = 1, LocRayNum
     IPWRITE(UNIT_StdOut,*) "PhotonProps%PhotonPos(1:3) =", PhotonProps%PhotonPos(1:3)
     CALL abort(__STAMP__,'Ray starting element not found!')
   ELSE
-    ! Output to .h5 for debugging
+    ! Output ray starting position and direction vector to .h5 for debugging
     CALL StoreBoundaryParticleProperties(iRay,&
          999,&
          PhotonProps%PhotonPos(1:3),&
@@ -183,7 +182,7 @@ END DO
 
 ! Print 100%
 IF(MPIroot)THEN
-  CALL PrintStatusLineRadiation(REAL(RayVisCount),REAL(1),REAL(LocRayNum),.TRUE.)
+  CALL PrintStatusLineRadiation(REAL(RayVisCount),0.0,REAL(LocRayNum),.TRUE.)
   WRITE(UNIT_StdOut,'(A)') " "
 END IF
 

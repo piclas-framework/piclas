@@ -37,7 +37,7 @@ PUBLIC :: FinalizePartExchangeProcs
 
 CONTAINS
 
-SUBROUTINE IdentifyPartExchangeProcs
+SUBROUTINE IdentifyPartExchangeProcs()
 !===================================================================================================================================
 ! Identifies processors in physical range for particle exchange communication. This communication has to occur at every RK step and
 ! would be too costly if done as an all-to-all communication

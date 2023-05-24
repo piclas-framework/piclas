@@ -83,7 +83,6 @@ USE MOD_Restart_Vars         ,ONLY: N_Restart,InterpolateSolution,RestartNullify
 USE MOD_MPI                  ,ONLY: InitMPIvars
 #endif /*USE_MPI*/
 #ifdef PARTICLES
-USE MOD_RayTracing_Init      ,ONLY: InitRayTracing
 USE MOD_DSMC_Vars            ,ONLY: UseDSMC
 USE MOD_Particle_Vars        ,ONLY: UseVarTimeStep, VarTimeStep
 USE MOD_Particle_TimeStep    ,ONLY: InitPartTimeStep
@@ -219,7 +218,6 @@ END IF
 CALL initReadIMDdata()
 CALL read_IMD_results()
 #endif /* USE_MPI */
-CALL InitRayTracing()
 #endif /*PARTICLES*/
 
 CALL InitInterfaces() ! set Riemann solver identifier for face connectivity (vacuum, dielectric, PML ...)
