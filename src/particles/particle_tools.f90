@@ -77,6 +77,7 @@ PUBLIC :: InitializeParticleMaxwell
 PUBLIC :: InterpolateEmissionDistribution2D
 PUBLIC :: MergeCells,InRotRefFrameCheck
 PUBLIC :: CalcPartSymmetryPos
+PUBLIC :: StoreLostPhotonProperties
 !===================================================================================================================================
 
 CONTAINS
@@ -225,6 +226,81 @@ CALL LBPauseTime(LB_UNFP,tLBStart)
 #endif /*USE_LOADBALANCE*/
 
 END SUBROUTINE UpdateNextFreePosition
+
+
+SUBROUTINE StoreLostPhotonProperties(LastPhotPos,Pos,Dir,ElemID)
+!----------------------------------------------------------------------------------------------------------------------------------!
+! Store information of a lost particle (during restart and during the simulation)
+!----------------------------------------------------------------------------------------------------------------------------------!
+! MODULES                                                                                                                          !
+USE MOD_Globals                ,ONLY: abort,myrank
+USE MOD_Particle_Tracking_Vars ,ONLY: PartStateLost,PartLostDataSize,PartStateLostVecLength
+USE MOD_TimeDisc_Vars          ,ONLY: time
+!----------------------------------------------------------------------------------------------------------------------------------!
+! insert modules here
+!----------------------------------------------------------------------------------------------------------------------------------!
+IMPLICIT NONE
+! INPUT / OUTPUT VARIABLES
+REAL,INTENT(IN)             :: LastPhotPos(1:3)
+REAL,INTENT(IN)             :: Pos(1:3)
+REAL,INTENT(IN)             :: Dir(1:3)
+INTEGER,INTENT(IN)          :: ElemID ! Global element index
+INTEGER                     :: dims(2)
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+! Temporary arrays
+REAL, ALLOCATABLE    :: PartStateLost_tmp(:,:)   ! (1:11,1:NParts) 1st index: x,y,z,vx,vy,vz,SpecID,MPF,time,ElemID,iPart
+!                                                !                 2nd index: 1 to number of lost particles
+INTEGER              :: ALLOCSTAT
+!===================================================================================================================================
+dims = SHAPE(PartStateLost)
+
+ASSOCIATE( iMax => PartStateLostVecLength )
+  ! Increase maximum number of boundary-impact particles
+  iMax = iMax + 1
+
+  ! Check if array maximum is reached.
+  ! If this happens, re-allocate the arrays and increase their size (every time this barrier is reached, double the size)
+  IF(iMax.GT.dims(2))THEN
+
+    ! --- PartStateLost ---
+    ALLOCATE(PartStateLost_tmp(1:PartLostDataSize,1:dims(2)), STAT=ALLOCSTAT)
+    IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__,'ERROR in particle_boundary_tools.f90: Cannot allocate PartStateLost_tmp array!')
+    ! Save old data
+    PartStateLost_tmp(1:PartLostDataSize,1:dims(2)) = PartStateLost(1:PartLostDataSize,1:dims(2))
+
+    ! Re-allocate PartStateLost to twice the size
+    DEALLOCATE(PartStateLost)
+    ALLOCATE(PartStateLost(1:PartLostDataSize,1:2*dims(2)), STAT=ALLOCSTAT)
+    IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__,'ERROR in particle_boundary_tools.f90: Cannot allocate PartStateLost array!')
+    PartStateLost(1:PartLostDataSize,        1:  dims(2)) = PartStateLost_tmp(1:PartLostDataSize,1:dims(2))
+    PartStateLost(1:PartLostDataSize,dims(2)+1:2*dims(2)) = 0.
+
+  END IF
+
+  ! 1-3: Particle position (last valid position)
+  PartStateLost(1:3,iMax) = LastPhotPos(1:3)
+  ! 4-6: Particle velocity
+  PartStateLost(4:6  ,iMax) = Dir(1:3)
+  ! 7: SpeciesID
+  PartStateLost(7    ,iMax) = REAL(999)
+  ! 8: Macro particle factor
+  PartStateLost(8    ,iMax) = 0.0
+  ! 9: time of loss
+  PartStateLost(9    ,iMax) = time
+  ! 10: Global element ID
+  PartStateLost(10   ,iMax) = REAL(ElemID)
+  ! 11: Particle ID
+  PartStateLost(11   ,iMax) = REAL(0)
+  ! 12-14: Particle position (position of loss)
+  PartStateLost(12:14,iMax) = Pos(1:3)
+  ! 15: myrank
+  PartStateLost(15,iMax) = myrank
+  ! 16: missing type, i.e., 0: lost, 1: missing & found once, >1: missing & multiply found
+  PartStateLost(16,iMax) = 0
+END ASSOCIATE
+
+END SUBROUTINE StoreLostPhotonProperties
 
 
 SUBROUTINE StoreLostParticleProperties(iPart,ElemID,UsePartState_opt,PartMissingType_opt)

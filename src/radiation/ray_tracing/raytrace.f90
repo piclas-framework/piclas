@@ -61,7 +61,7 @@ USE MOD_MPI_Shared
 USE MOD_Photon_TrackingVars     ,ONLY: PhotonSampWall_Shared, PhotonSampWall_Shared_Win
 USE MOD_RayTracing_Vars         ,ONLY: RayElemPassedEnergy_Shared,RayElemPassedEnergy_Shared_Win
 #endif /*USE_MPI*/
-USE MOD_Photon_TrackingVars     ,ONLY: PhotonSampWall
+USE MOD_Photon_TrackingVars     ,ONLY: PhotonSampWall,PhotonModeBPO
 USE MOD_Mesh_Vars               ,ONLY: nGlobalElems
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE
@@ -166,15 +166,18 @@ DO iRay = 1, LocRayNum
     IPWRITE(UNIT_StdOut,*) "PhotonProps%PhotonPos(1:3) =", PhotonProps%PhotonPos(1:3)
     CALL abort(__STAMP__,'Ray starting element not found!')
   ELSE
-    ! Output ray starting position and direction vector to .h5 for debugging
-    CALL StoreBoundaryParticleProperties(iRay,&
-         999,&
-         PhotonProps%PhotonPos(1:3),&
-         UNITVECTOR(PhotonProps%PhotonDirection(1:3)),(/0.0,0.0,1.0/),&
-         iPartBound=RayPartBound,&
-         mode=2,&
-         MPF_optIN=0.0,&
-         Velo_optIN=PhotonProps%PhotonDirection(1:3))
+    ! Check if output to PartStateBoundary is activated
+    IF(PhotonModeBPO.GE.1)THEN
+      ! Output ray starting position and direction vector to .h5 for debugging
+      CALL StoreBoundaryParticleProperties(iRay,&
+           999,&
+           PhotonProps%PhotonPos(1:3),&
+           UNITVECTOR(PhotonProps%PhotonDirection(1:3)),(/0.0,0.0,1.0/),&
+           iPartBound=RayPartBound,&
+           mode=2,&
+           MPF_optIN=0.0,&
+           Velo_optIN=PhotonProps%PhotonDirection(1:3))
+    END IF ! PhotonModeBPO.GE.1
   END IF !PhotonProps%ElemID.LE.0
 
   CALL PhotonTriaTracking()

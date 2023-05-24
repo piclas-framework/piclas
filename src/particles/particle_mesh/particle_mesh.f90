@@ -75,14 +75,17 @@ CALL addStrListEntry('TrackingMethod' , 'default'         , TRIATRACKING)
 CALL prms%CreateLogicalOption( 'TriaSurfaceFlux'&
   , 'Using Triangle-aproximation [T] or (bi-)linear and bezier (curved) description [F] of sides for surfaceflux.'//&
   ' Default is set to TriaTracking')
-CALL prms%CreateLogicalOption( 'DisplayLostParticles'&
-  , 'Display position, velocity, species and host element of particles lost during particle tracking (TrackingMethod = '//&
-    'triatracking, tracing)','.FALSE.')
+CALL prms%CreateLogicalOption( 'DisplayLostParticles' , 'Display position, velocity, species and host element of particles lost during particle tracking (TrackingMethod = triatracking, tracing)','.FALSE.')
 CALL prms%CreateLogicalOption( 'CountNbrOfLostParts'&
     , 'Count the number of lost particles during tracking that cannot be found with fallbacks. Additionally, the lost particle '//&
     'information is stored in a PartStateLost*.h5 file. When particles are not found during restart in their host cell '//&
     '(sanity check), they are marked missing and are also written to PartStateLost*.h5 file even if they are re-located '//&
     'on a different processor.','.TRUE.')
+CALL prms%CreateIntOption( 'PhotonModeBPO' , 'Output mode to store position, direction, host element etc. of rays/photons in PartStateBoundary.h5 from radiation transport or ray tracing solver:\n'&
+                                             '0: Output nothing to PartStateBoundary.h5\n'&
+                                             '1: Output the initial position of the rays and their direction vector\n'&
+                                             '2: Output initial position and all calculated intersection points calculated in radtrans tracking\n'&
+                                             ,'0')
 CALL prms%CreateIntOption(     'PartOut'&
   , 'If compiled with CODE_ANALYZE flag: For This particle number every tracking information is written as STDOUT.','0')
 CALL prms%CreateIntOption(     'MPIRankOut'&
@@ -191,6 +194,9 @@ USE MOD_LoadBalance_Vars       ,ONLY: PerformLoadBalance
 USE MOD_PICDepo_Shapefunction_Tools, ONLY:InitShapeFunctionDimensionalty
 USE MOD_IO_HDF5                ,ONLY: AddToElemData,ElementOut
 USE MOD_Mesh_Vars              ,ONLY: nElems
+USE MOD_Particle_Boundary_Init ,ONLY: InitPartStateBoundary
+USE MOD_Particle_Boundary_Vars ,ONLY: DoBoundaryParticleOutputHDF5
+USE MOD_Photon_TrackingVars    ,ONLY: PhotonModeBPO
 !USE MOD_DSMC_Vars              ,ONLY: DSMC
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -290,7 +296,15 @@ IF(.NOT.PerformLoadBalance)THEN
 #if USE_LOADBALANCE
 END IF
 #endif
-DisplayLostParticles    = GETLOGICAL('DisplayLostParticles')
+DisplayLostParticles = GETLOGICAL('DisplayLostParticles')
+
+! Ray tracing information to .h5 for debugging when using the radiation transport model or pure ray tracing
+PhotonModeBPO        = GETINT('PhotonModeBPO')
+! Check if DoBoundaryParticleOutputHDF5 is already activated and PartStateBoundary therefore already allocated
+IF((PhotonModeBPO.GE.1).AND.(.NOT.DoBoundaryParticleOutputHDF5))THEN
+  DoBoundaryParticleOutputHDF5 = .TRUE.
+  CALL InitPartStateBoundary()
+END IF ! (PhotonModeBPO.GE.1
 
 #ifdef CODE_ANALYZE
 PARTOUT            = GETINT('PartOut','0')

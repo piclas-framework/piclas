@@ -28,6 +28,7 @@ PRIVATE
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
 PUBLIC :: DefineParametersParticleBoundary, InitializeVariablesPartBoundary, FinalizeParticleBoundary
 PUBLIC :: InitParticleBoundaryRotPeriodic, InitAdaptiveWallTemp
+PUBLIC :: InitPartStateBoundary
 !===================================================================================================================================
 
 CONTAINS
@@ -171,7 +172,6 @@ USE MOD_Mesh_Vars              ,ONLY: BoundaryName,BoundaryType, nBCs
 USE MOD_Particle_Vars          ,ONLY: PDM, nSpecies, PartMeshHasPeriodicBCs, RotRefFrameAxis, SpeciesDatabase, Species
 USE MOD_SurfaceModel_Vars      ,ONLY: nPorousBC
 USE MOD_Particle_Boundary_Vars ,ONLY: PartBound,nPartBound,DoBoundaryParticleOutputHDF5,PartStateBoundary, AdaptWallTemp
-USE MOD_Particle_Boundary_Vars ,ONLY: nVarPartStateBoundary
 USE MOD_Particle_Tracking_Vars ,ONLY: TrackingMethod
 USE MOD_Particle_Surfaces_Vars ,ONLY: BCdata_auxSF
 USE MOD_Particle_Mesh_Vars     ,ONLY: GEO
@@ -194,7 +194,7 @@ USE MOD_LoadBalance_Vars       ,ONLY: PerformLoadBalance
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER               :: iPartBound, iBC, iPBC, iSwaps, MaxNbrOfSpeciesSwaps, RotAxis, nRotPeriodicBCs
-INTEGER               :: ALLOCSTAT, dummy_int
+INTEGER               :: dummy_int
 REAL                  :: omegaTemp, RotFreq
 CHARACTER(32)         :: hilf , hilf2
 CHARACTER(200)        :: tmpString
@@ -461,14 +461,7 @@ IF(GEO%RotPeriodicBC) THEN
 END IF
 
 ! Surface particle output to .h5
-IF(DoBoundaryParticleOutputHDF5)THEN
-  ! This array is not de-allocated during load balance as it is only written to .h5 during WriteStateToHDF5()
-  IF(.NOT.ALLOCATED(PartStateBoundary))THEN
-    ALLOCATE(PartStateBoundary(1:nVarPartStateBoundary,1:PDM%maxParticleNumber), STAT=ALLOCSTAT)
-    IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__,'ERROR in particle_init.f90: Cannot allocate PartStateBoundary array!')
-    PartStateBoundary=0.
-  END IF ! .NOT.ALLOCATED(PartStateBoundary)
-END IF
+IF(DoBoundaryParticleOutputHDF5) CALL InitPartStateBoundary()
 
 ! Set mapping from field boundary to particle boundary index and vice versa
 ALLOCATE(PartBound%MapToPartBC(1:nBCs))
@@ -528,6 +521,30 @@ IF(ANY(PartBound%SurfaceModel.EQ.1)) THEN
 END IF
 
 END SUBROUTINE InitializeVariablesPartBoundary
+
+
+!===================================================================================================================================
+!> Check if PartStateBoundary is already allocated (e.g. if this routine is called during load balance) and if not allocate it
+!===================================================================================================================================
+SUBROUTINE InitPartStateBoundary()
+! MODULES
+USE MOD_Globals                ,ONLY: abort
+USE MOD_Particle_Boundary_Vars ,ONLY: PartStateBoundary
+USE MOD_Particle_Vars          ,ONLY: PDM
+USE MOD_Particle_Boundary_Vars ,ONLY: nVarPartStateBoundary
+IMPLICIT NONE
+!----------------------------------------------------------------------------------------------------------------------------------!
+! INPUT / OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER :: ALLOCSTAT
+!===================================================================================================================================
+! This array is not de-allocated during load balance as it is only written to .h5 during WriteStateToHDF5()
+IF(ALLOCATED(PartStateBoundary)) RETURN
+ALLOCATE(PartStateBoundary(1:nVarPartStateBoundary,1:PDM%maxParticleNumber), STAT=ALLOCSTAT)
+IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__,'ERROR in particle_init.f90: Cannot allocate PartStateBoundary array!')
+PartStateBoundary=0.
+END SUBROUTINE InitPartStateBoundary
 
 
 !===================================================================================================================================

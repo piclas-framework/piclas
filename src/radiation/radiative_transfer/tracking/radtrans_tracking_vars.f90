@@ -25,17 +25,21 @@ SAVE
 ! GLOBAL RAY TRACING VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 TYPE tPhotonProps
-  REAL               :: PhotonPos(3)                   !>
-  REAL               :: PhotonLastPos(3)               !>
-  REAL               :: PhotonDirection(3)             !>
-  REAL               :: PhotonEnergy                   !>
-  INTEGER            :: ElemID                         !>
-  INTEGER            :: WaveLength                     !>
+  REAL               :: PhotonPos(3)        !>
+  REAL               :: PhotonLastPos(3)    !>
+  REAL               :: PhotonDirection(3)  !>
+  REAL               :: PhotonEnergy        !>
+  INTEGER            :: ElemID              !>
+  INTEGER            :: WaveLength          !>
 END TYPE
 
-TYPE (tPhotonProps)  :: PhotonProps                    !>
+TYPE (tPhotonProps)  :: PhotonProps         !>
 
 REAL, ALLOCATABLE    :: PhotonSampWall(:,:)
+
+INTEGER              :: PhotonModeBPO       !> 0: Output nothing to PartStateBoundary.h5
+                                            !> 1: Output the initial position of the rays and their direction vector
+                                            !> 2: Output initial position and all calculated intersection points calculated in radtrans_tracking.f90
 
 #if USE_MPI
 INTEGER              :: PhotonSampWall_Shared_Win
