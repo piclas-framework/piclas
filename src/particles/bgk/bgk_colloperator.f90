@@ -1046,69 +1046,60 @@ REAL, INTENT(OUT)             :: vBulk(3), OldEnRot, RotRelaxWeightSpec(nSpecies
 REAL, INTENT(INOUT)           :: OldEn
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                       :: iPart, iSpec, iLoop, iPick, iLoopRot, iLoopVib
-REAL                          :: ProbAddPartTrans, iRan, partWeight, ProbAddPartRot, ProbAddPartVib
+INTEGER                       :: iPart, iSpec, iLoop, nNotRelax
+REAL                          :: ProbAddPartTrans, iRan, partWeight, ProbAddPartRot(nSpecies), ProbAddPartVib(nSpecies)
 !===================================================================================================================================
-VibRelaxWeightSpec =0; RotRelaxWeightSpec =0; nRelax=0; vBulk=0.0; nRotRelax=0; nVibRelax=0; OldEnRot=0.0
-iLoopRot=1; iLoopVib=1
+VibRelaxWeightSpec=0.0; RotRelaxWeightSpec=0.0; nRelax=0; nNotRelax=0; vBulk=0.0; nRotRelax=0; nVibRelax=0; OldEnRot=0.0
+
 ! Calculate probability of relaxation of a particle towards the target distribution function
 ProbAddPartTrans = 1.-EXP(-relaxfreq*dtCell)
-CALL RANDOM_NUMBER(iRan)
-! Calculate the number of relaxing particles
-nRelax = INT(REAL(nPart) * ProbAddPartTrans + iRan)
-! List of non-relaxing particles
-iPartIndx_NodeRelaxTemp(:) = iPartIndx_Node(:)
-! Relaxing particles
-DO iLoop = 1, nRelax
-  CALL RANDOM_NUMBER(iRan)
-  iPick = INT(iRan * (nPart-iLoop+1)) + 1
-  iPart = iPartIndx_NodeRelaxTemp(iPick)
-  partWeight = GetParticleWeight(iPart)
+! Calculate probabilities of relaxation of a particle in the rotation and vibration
+ProbAddPartRot(:) = ProbAddPartTrans * rotrelaxfreqSpec(:)/relaxfreq*betaR(:)
+ProbAddPartVib(:) = ProbAddPartTrans * vibrelaxfreqSpec(:)/relaxfreq*betaV(:)
+
+! Loop over all simulation particles
+DO iLoop = 1, nPart
+  iPart = iPartIndx_Node(iLoop)
   iSpec = PartSpecies(iPart)
-  iPartIndx_NodeRelax(iLoop) = iPart
-  iPartIndx_NodeRelaxTemp(iPick) = iPartIndx_NodeRelaxTemp(nPart-iLoop+1)
+  partWeight = GetParticleWeight(iPart)
+  CALL RANDOM_NUMBER(iRan)
+  ! Count particles that are undergoing a relaxation
+  IF (ProbAddPartTrans.GT.iRan) THEN
+    nRelax = nRelax + 1
+    iPartIndx_NodeRelax(nRelax) = iPart
+  ! Count particles that are not undergoing a relaxation
+  ELSE
+    nNotRelax = nNotRelax + 1
+    iPartIndx_NodeRelaxTemp(nNotRelax) = iPart
+    ! Sum up velocities of non-relaxing particles for bulk velocity
+    vBulk(1:3) = vBulk(1:3) + PartState(4:6,iPart)*Species(iSpec)%MassIC*partWeight
+  END IF
+
   ! For molecules: relaxation of inner DOF
   IF((SpecDSMC(iSpec)%InterID.EQ.2).OR.(SpecDSMC(iSpec)%InterID.EQ.20)) THEN
     ! Rotation
     CALL RANDOM_NUMBER(iRan)
-    ! Calculate probability of rotational relaxation of a particle that relaxes towards the target distribution function
-    ProbAddPartRot = rotrelaxfreqSpec(iSpec)/relaxfreq*betaR(iSpec)
-    IF (ProbAddPartRot.GT.iRan) THEN
-      ! relaxation
-      iPartIndx_NodeRelaxRot(iLoopRot) = iPartIndx_NodeRelax(iLoop)
+    ! Count particles that are undergoing a relaxation, in total and per species
+    IF (ProbAddPartRot(iSpec).GT.iRan) THEN
       nRotRelax = nRotRelax + 1
-      iLoopRot = iLoopRot + 1
       RotRelaxWeightSpec(iSpec) = RotRelaxWeightSpec(iSpec) + partWeight
+      iPartIndx_NodeRelaxRot(nRotRelax) = iPart
       ! Sum up total rotational energy
       OldEnRot = OldEnRot + PartStateIntEn(2,iPart) * partWeight
     END IF
     ! Vibration
     IF(BGKDoVibRelaxation) THEN
       CALL RANDOM_NUMBER(iRan)
-      ! Calculate probability of vibrational relaxation of a particle that relaxes towards the target distribution function
-      ProbAddPartVib = vibrelaxfreqSpec(iSpec)/relaxfreq*betaV(iSpec)
-      IF (ProbAddPartVib.GT.iRan) THEN
-        ! relaxation
-        iPartIndx_NodeRelaxVib(iLoopVib) = iPartIndx_NodeRelax(iLoop)
+      ! Count particles that are undergoing a relaxation, in total and per species
+      IF (ProbAddPartVib(iSpec).GT.iRan) THEN
         nVibRelax = nVibRelax + 1
         VibRelaxWeightSpec(iSpec) = VibRelaxWeightSpec(iSpec) + partWeight
+        iPartIndx_NodeRelaxVib(nVibRelax) = iPart
         ! Sum up total vibrational energy of all relaxing particles, considering zero-point energy, and add to translational energy
-        OldEn = OldEn + (PartStateIntEn(1,iPartIndx_NodeRelaxVib(iLoopVib)) - SpecDSMC(iSpec)%EZeroPoint) * partWeight
-        iLoopVib = iLoopVib + 1
+        OldEn = OldEn + (PartStateIntEn(1,iPartIndx_NodeRelaxVib(nVibRelax)) - SpecDSMC(iSpec)%EZeroPoint) * partWeight
       END IF
     END IF
   END IF
-END DO
-
-! Non-relaxing particles
-! nNonRelax = nPart-nRelax
-DO iLoop = 1, nPart-nRelax
-  iPart = iPartIndx_NodeRelaxTemp(iLoop)
-  partWeight = GetParticleWeight(iPart)
-  iSpec = PartSpecies(iPart)
-  ! iPartIndx_NodeNonRelax(iLoop)
-  ! Sum up velocities of non-relaxing particles for bulk velocity
-  vBulk(1:3) = vBulk(1:3) + PartState(4:6,iPart)*Species(iSpec)%MassIC*partWeight
 END DO
 
 END SUBROUTINE DetermineRelaxPart
