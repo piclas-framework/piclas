@@ -46,6 +46,7 @@ SUBROUTINE PhotonThroughSideCheck3DFast(iLocSide,Element,ThroughSide,TriNum, IsM
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals_Vars        ,ONLY: EpsMach
+USE MOD_Globals             ,ONLY: abort
 USE MOD_Particle_Mesh_Vars  ,ONLY: NodeCoords_Shared, ElemSideNodeID_Shared
 USE MOD_Photon_TrackingVars ,ONLY: PhotonProps
 USE MOD_Mesh_Tools          ,ONLY: GetCNElemID
@@ -66,9 +67,13 @@ INTEGER                          :: n, NodeID
 REAL                             :: Px, Py, Pz
 REAL                             :: Vx, Vy, Vz!, Vall
 REAL                             :: xNode(3), yNode(3), zNode(3), Ax(3), Ay(3), Az(3)
-REAL                             :: det(3)
+REAL                             :: det(3),tolerance
 !===================================================================================================================================
 CNElemID = GetCNElemID(Element)
+
+! Sanity check
+IF(CNElemID.LE.0) CALL abort(__STAMP__,'PhotonThroughSideCheck3DFast() found CNElemID<=0')
+
 ThroughSide = .FALSE.
 
 Px = PhotonProps%PhotonLastPos(1)
@@ -131,13 +136,17 @@ det(3) = ((Ay(3) * Vz - Az(3) * Vy) * Ax(2)  + &
           (Az(3) * Vx - Ax(3) * Vz) * Ay(2)  + &
           (Ax(3) * Vy - Ay(3) * Vx) * Az(2))
 
+! Changed tolerance from -epsMach to -0.1*epsMach because this check finds intersections, but when PhotonIntersectionWithSide() is
+! called, the photon vector and the side normal vector are perfectly parallel, e.g.,  v = (/0,0,-1/) and n=(/0,-1,0./), hence, the
+! scalar product is exactly zero and the routine breakes.
+tolerance = -0.1*epsMach
 ! Comparison of the determinants with eps, where a x_photon_startro is stored (due to machine precision)
-IF ((det(1).ge.-epsMach).AND.(det(2).ge.-epsMach).AND.(det(3).ge.-epsMach)) THEN
-  ThroughSide = .TRUE.
-END IF
+IF(det(1).LT.tolerance) RETURN
+IF(det(2).LT.tolerance) RETURN
+IF(det(3).LT.tolerance) RETURN
+ThroughSide = .TRUE.
 
 RETURN
-
 END SUBROUTINE PhotonThroughSideCheck3DFast
 
 
@@ -229,6 +238,7 @@ END SUBROUTINE PhotonThroughSideCheck3DDir
 !===================================================================================================================================
 SUBROUTINE PhotonIntersectionWithSide2D(iLocSide,Element,ThroughSide,IntersectionPos,isLastSide,Distance)
 ! MODULES
+USE MOD_Globals             ,ONLY: abort
 USE MOD_Particle_Mesh_Vars  ,ONLY: ElemSideNodeID2D_Shared, NodeCoords_Shared
 USE MOD_Photon_TrackingVars ,ONLY: PhotonProps
 USE MOD_Mesh_Tools          ,ONLY: GetCNElemID
@@ -250,6 +260,10 @@ REAL                             :: l1,S1,l2,S2,l,S
 REAL                             :: beta, alpha, deltay, a, b, c, tmpsqrt
 !===================================================================================================================================
 CNElemID = GetCNElemID(Element)
+
+! Sanity check
+IF(CNElemID.LE.0) CALL abort(__STAMP__,'PhotonIntersectionWithSide2D() found CNElemID<=0')
+
 ThroughSide = .FALSE.
 
 xNode1 = NodeCoords_Shared(1,ElemSideNodeID2D_Shared(1,iLocSide, CNElemID))
@@ -514,10 +528,11 @@ END SUBROUTINE RotatePhotonIn2DPlane
 !===================================================================================================================================
 !>
 !===================================================================================================================================
-SUBROUTINE PhotonIntersectionWithSide(iLocSide,Element,TriNum, IntersectionPos, IsMortar)
-USE MOD_Particle_Mesh_Vars, ONLY : ElemSideNodeID_Shared, NodeCoords_Shared
+SUBROUTINE PhotonIntersectionWithSide(iLocSide,Element,TriNum, IntersectionPos, PhotonLost, IsMortar)
+USE MOD_Globals             ,ONLY: abort,UNIT_StdOut,myrank
+USE MOD_Particle_Mesh_Vars  ,ONLY: ElemSideNodeID_Shared, NodeCoords_Shared
 USE MOD_Photon_TrackingVars ,ONLY: PhotonProps
-USE MOD_Mesh_Tools         ,ONLY: GetCNElemID
+USE MOD_Mesh_Tools          ,ONLY: GetCNElemID
 !--------------------------------------------------------------------------------------------------!
    IMPLICIT NONE
 !--------------------------------------------------------------------------------------------------!
@@ -525,6 +540,7 @@ USE MOD_Mesh_Tools         ,ONLY: GetCNElemID
 INTEGER,INTENT(IN)                          :: iLocSide
 INTEGER,INTENT(IN)                          :: Element
 INTEGER,INTENT(IN)                          :: TriNum
+LOGICAL,INTENT(OUT)                         :: PhotonLost
 REAL,INTENT(OUT)                            :: IntersectionPos(1:3)
 LOGICAL, INTENT(IN), OPTIONAL    :: IsMortar
 ! Local variable declaration
@@ -538,6 +554,13 @@ REAL                             :: Vector1(1:3), Vector2(1:3), VectorShift(1:3)
 !--------------------------------------------------------------------------------------------------!
 
 CNElemID = GetCNElemID(Element)
+
+! Sanity check
+IF(CNElemID.LE.0) THEN
+  IPWRITE(UNIT_StdOut,*) "Element  =", Element
+  IPWRITE(UNIT_StdOut,*) "CNElemID =", CNElemID
+  CALL abort(__STAMP__,'PhotonIntersectionWithSide() found CNElemID<=0')
+END IF
 
 PoldX = PhotonProps%PhotonLastPos(1)
 PoldY = PhotonProps%PhotonLastPos(2)
@@ -564,6 +587,7 @@ Vector2(1) = NodeCoords_Shared(1,ElemSideNodeID_Shared(Node2,iLocSide,CNElemID)+
 Vector2(2) = NodeCoords_Shared(2,ElemSideNodeID_Shared(Node2,iLocSide,CNElemID)+1) - yNod
 Vector2(3) = NodeCoords_Shared(3,ElemSideNodeID_Shared(Node2,iLocSide,CNElemID)+1) - zNod
 
+! Normal vector of side (one of the two triangles)
 nx = Vector1(2) * Vector2(3) - Vector1(3) * Vector2(2)
 ny = Vector1(3) * Vector2(1) - Vector1(1) * Vector2(3)
 nz = Vector1(1) * Vector2(2) - Vector1(2) * Vector2(1)
@@ -597,8 +621,17 @@ VectorShift(1) = PhotonProps%PhotonDirection(1)
 VectorShift(2) = PhotonProps%PhotonDirection(2)
 VectorShift(3) = PhotonProps%PhotonDirection(3)
 
+! IntersecPara is zero when photon is perfectly perpendicular to side (cannot actually happen)
+PhotonLost=.FALSE.
 IntersecPara = VectorShift(1) * nx + VectorShift(2) * ny + VectorShift(3) * nz
-IntersecPara = dist / IntersecPara
+IF(ABS(IntersecPara).GT.0.0)THEN
+  IntersecPara = dist / IntersecPara
+ELSE
+  ! Mark photon as lost so that it is written to PartStateLost.h5
+  PhotonLost      = .TRUE.
+  IntersectionPos = HUGE(1.0)
+  RETURN
+END IF ! ABS(IntersecPara).GT.0.0
 
 IntersectionPos(1) = PoldX + IntersecPara * VectorShift(1)
 IntersectionPos(2) = PoldY + IntersecPara * VectorShift(2)
@@ -611,17 +644,25 @@ END SUBROUTINE PhotonIntersectionWithSide
 !===================================================================================================================================
 !>
 !===================================================================================================================================
-SUBROUTINE CalcAbsorptionRayTrace(GlobalElemID)
-USE MOD_RayTracing_Vars     ,ONLY: RayElemPassedEnergy
+SUBROUTINE CalcAbsorptionRayTrace(GlobalElemID,PhotonDir)
+USE MOD_RayTracing_Vars     ,ONLY: RayElemPassedEnergy,Ray
 USE MOD_Photon_TrackingVars ,ONLY: PhotonProps
 !--------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
 !--------------------------------------------------------------------------------------------------!
 ! argument list declaration
-INTEGER, INTENT(IN)              :: GlobalElemID
+INTEGER, INTENT(IN) :: GlobalElemID
+REAL, INTENT(IN)    :: PhotonDir(3)
 ! Local variable declaration
 !--------------------------------------------------------------------------------------------------!
-RayElemPassedEnergy(GlobalElemID) = RayElemPassedEnergy(GlobalElemID) + PhotonProps%PhotonEnergy
+! Check primary or secondary direction
+IF(DOT_PRODUCT(PhotonDir,Ray%Direction).GT.0.0)THEN
+  RayElemPassedEnergy(1,GlobalElemID)   = RayElemPassedEnergy(1,GlobalElemID)   + PhotonProps%PhotonEnergy
+ELSE
+  RayElemPassedEnergy(2,GlobalElemID)   = RayElemPassedEnergy(2,GlobalElemID)   + PhotonProps%PhotonEnergy
+  RayElemPassedEnergy(3:5,GlobalElemID) = RayElemPassedEnergy(3:5,GlobalElemID) + PhotonDir(1:3)
+  RayElemPassedEnergy(6,GlobalElemID)   = RayElemPassedEnergy(6,GlobalElemID)   + 1.0
+END IF
 END SUBROUTINE CalcAbsorptionRayTrace
 
 
@@ -699,20 +740,41 @@ END SUBROUTINE CalcAbsoprtionAnalytic
 !===================================================================================================================================
 !>
 !===================================================================================================================================
-SUBROUTINE CalcAbsoprtion(IntersectionPos,Element, DONE)
+SUBROUTINE CalcAbsoprtion(IntersectionPos, Element, DONE, before)
 USE MOD_Globals
 USE MOD_RadiationTrans_Vars ,ONLY: RadiationAbsorptionModel
+USE MOD_Photon_TrackingVars ,ONLY: PhotonProps
 !--------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
 !--------------------------------------------------------------------------------------------------!
 ! argument list declaration
-INTEGER, INTENT(IN)    :: Element
-REAL, INTENT(IN)       :: IntersectionPos(3)
-LOGICAL, INTENT(INOUT) :: DONE
+INTEGER, INTENT(IN)           :: Element
+REAL, INTENT(IN)              :: IntersectionPos(3)
+LOGICAL, INTENT(INOUT)        :: DONE
+LOGICAL, INTENT(IN), OPTIONAL :: before !> before=T (before reflection), before=F (after reflection), before=NOT PRESENT (volume)
 ! Local variable declaration
 !--------------------------------------------------------------------------------------------------!
 IF (RadiationAbsorptionModel.EQ.0) THEN
-  CALL CalcAbsorptionRayTrace(Element)
+  ! For ray tracing, check if routine is called be
+  IF(PRESENT(before))THEN
+    IF(before)THEN
+      ! Before reflection: Nothing to do as it is not yet known if the ray is absorbed at the surface
+      RETURN
+    ELSE
+      ! After reflection: Use old or new ray direction depending on whether the ray was absorbed
+      IF(DONE)THEN
+        ! Ray was absorbed at the wall
+        CALL CalcAbsorptionRayTrace(Element,PhotonProps%PhotonDirectionBeforeReflection)
+      ELSE
+        ! Ray was reflected at the wall
+        ! TODO: Not sure which ray vector should be used
+        !CALL CalcAbsorptionRayTrace(Element,PhotonProps%PhotonDirection)
+        CALL CalcAbsorptionRayTrace(Element,PhotonProps%PhotonDirectionBeforeReflection)
+      END IF ! DONE
+    END IF ! before
+  ELSE
+    CALL CalcAbsorptionRayTrace(Element,PhotonProps%PhotonDirection)
+  END IF ! PRESENT(before)
 ELSEIF (RadiationAbsorptionModel.EQ.1) THEN
   CALL CalcAbsoprtionAnalytic(IntersectionPos,Element, DONE)
 ELSEIF (RadiationAbsorptionModel.EQ.2) THEN
@@ -1125,6 +1187,9 @@ Element = SideInfo_Shared(SIDE_NBELEMID,SideID)
 END SUBROUTINE PeriodicPhotonBC
 
 
+!===================================================================================================================================
+!>
+!===================================================================================================================================
 SUBROUTINE CalcWallAbsoprtion(GlobSideID, DONE)
 USE MOD_Photon_TrackingVars    ,ONLY: PhotonProps,PhotonSampWall
 USE MOD_Particle_Boundary_Vars ,ONLY: PartBound, GlobalSide2SurfSide
@@ -1137,12 +1202,15 @@ INTEGER, INTENT(IN)              :: GlobSideID
 LOGICAL, INTENT(OUT)             :: DONE
 ! Local variable declaration
 !--------------------------------------------------------------------------------------------------!
-REAL                            :: iRan
+REAL                            :: iRan,PhotonEnACC
 INTEGER                         :: SurfSideID
 !--------------------------------------------------------------------------------------------------!
+DONE = .FALSE. ! initialize
+PhotonEnACC = PartBound%PhotonEnACC(PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,GlobSideID)))
+IF(PhotonEnACC.LE.0.0) RETURN ! Skip sides without absorption (pure reflection)
 SurfSideID = GlobalSide2SurfSide(SURF_SIDEID,GlobSideID)
 CALL RANDOM_NUMBER(iRan)
-IF (PartBound%PhotonEnACC(PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,GlobSideID))).GT.iRan) THEN
+IF (PhotonEnACC.GT.iRan) THEN
   DONE = .TRUE.
   PhotonSampWall(1,SurfSideID) = PhotonSampWall(1,SurfSideID) + 1.
   PhotonSampWall(2,SurfSideID) = PhotonSampWall(2,SurfSideID) + PhotonProps%PhotonEnergy

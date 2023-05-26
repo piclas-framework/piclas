@@ -60,6 +60,7 @@ USE MOD_Photon_TrackingTools    ,ONLY: PhotonIntersectSensor
 USE MOD_Particle_Boundary_Tools ,ONLY: StoreBoundaryParticleProperties
 USE MOD_part_tools              ,ONLY: StoreLostPhotonProperties
 USE MOD_Particle_Tracking_Vars  ,ONLY: NbrOfLostParticles,DisplayLostParticles
+USE MOD_RadiationTrans_Vars     ,ONLY: RadiationAbsorptionModel
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
@@ -67,7 +68,7 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                          :: NblocSideID, NbElemID, ind, nbSideID, nMortarElems, BCType, localSideID
+INTEGER                          :: NblocSideID, NbElemID, ind, nbSideID, nMortarElems, BCType, localSideID, iPBC
 INTEGER                          :: ElemID,OldElemID,nlocSides
 INTEGER                          :: LocalSide
 INTEGER                          :: NrOfThroughSides, ind2
@@ -79,6 +80,7 @@ LOGICAL                          :: ThroughSide, Done
 LOGICAL                          :: oldElemIsMortar, isMortarSideTemp(1:6), doCheckSide
 REAL                             :: minRatio, intersecDist, intersecDistVec(3)
 REAL                             :: IntersectionPos(1:3), IntersectionPosTemp(1:3)
+LOGICAL :: PhotonLost
 !===================================================================================================================================
 Done = .FALSE.
 ElemID = PhotonProps%ElemID
@@ -182,16 +184,28 @@ DO WHILE (.NOT.Done)
           END IF
         END DO
         IF (doCheckSide) THEN
-            IF(ind2.gt.6)THEN
-              IPWRITE(UNIT_StdOut,*) "ind2 =", ind2
-            END IF ! ind2.gt.6
           IF (isMortarSideTemp(ind2)) THEN  ! Mortar side
             NbElemID = SideInfo_Shared(SIDE_ELEMID,GlobSideTemp(ind2))
             ! Get the determinant between the old and new particle position and the nodes of the triangle which was crossed
-            IF(ind2.gt.6)THEN
-              IPWRITE(UNIT_StdOut,*) "ind2 =", ind2
-            END IF ! ind2.gt.6
-            CALL PhotonIntersectionWithSide(LocSidesTemp(ind2),NbElemID,TriNumTemp(ind2), IntersectionPosTemp, .TRUE.)
+            CALL PhotonIntersectionWithSide(LocSidesTemp(ind2),NbElemID,TriNumTemp(ind2), IntersectionPosTemp, PhotonLost, .TRUE.)
+            IF(PhotonLost)THEN
+              ASSOCIATE( LastPhotPos => PhotonProps%PhotonLastPos(1:3), &
+                         Pos         => PhotonProps%PhotonPos(1:3), &
+                         Dir         => PhotonProps%PhotonDirection(1:3) )
+                CALL StoreLostPhotonProperties(LastPhotPos,Pos,Dir,ElemID)
+                NbrOfLostParticles=NbrOfLostParticles+1
+                IF(DisplayLostParticles)THEN
+                  IPWRITE(*,*) 'Error in Photon TriaTracking! PhotonIntersectionWithSide() cannot determine intersection'&
+                  //' because photon is parallel to side. NbElemID:', NbElemID
+                  IPWRITE(*,*) 'LastPos:  ', PhotonProps%PhotonLastPos(1:3)
+                  IPWRITE(*,*) 'Pos:      ', PhotonProps%PhotonPos(1:3)
+                  IPWRITE(*,*) 'Direction:', PhotonProps%PhotonDirection(1:3)
+                  IPWRITE(*,*) 'Photon deleted!'
+                END IF ! DisplayLostParticles
+              END ASSOCIATE
+              Done = .TRUE.
+              EXIT
+            END IF ! PhotonLost
             intersecDistVec(1:3) = IntersectionPosTemp(1:3) - PhotonProps%PhotonLastPos(1:3)
             intersecDist = DOT_PRODUCT(intersecDistVec, intersecDistVec)
             ! If the particle is inside the neighboring mortar element, it moved through this side
@@ -207,7 +221,25 @@ DO WHILE (.NOT.Done)
               oldElemIsMortar = .TRUE.
             END IF
           ELSE  ! Regular side
-            CALL PhotonIntersectionWithSide(LocSidesTemp(ind2),NbElemID,TriNumTemp(ind2), IntersectionPosTemp)
+            CALL PhotonIntersectionWithSide(LocSidesTemp(ind2),ElemID,TriNumTemp(ind2), IntersectionPosTemp, PhotonLost)
+            IF(PhotonLost)THEN
+              ASSOCIATE( LastPhotPos => PhotonProps%PhotonLastPos(1:3), &
+                         Pos         => PhotonProps%PhotonPos(1:3), &
+                         Dir         => PhotonProps%PhotonDirection(1:3) )
+                CALL StoreLostPhotonProperties(LastPhotPos,Pos,Dir,ElemID)
+                NbrOfLostParticles=NbrOfLostParticles+1
+                IF(DisplayLostParticles)THEN
+                  IPWRITE(*,*) 'Error in Photon TriaTracking! PhotonIntersectionWithSide() cannot determine intersection'&
+                  //' because photon is parallel to side. ElemID:', ElemID
+                  IPWRITE(*,*) 'LastPos:  ', PhotonProps%PhotonLastPos(1:3)
+                  IPWRITE(*,*) 'Pos:      ', PhotonProps%PhotonPos(1:3)
+                  IPWRITE(*,*) 'Direction:', PhotonProps%PhotonDirection(1:3)
+                  IPWRITE(*,*) 'Photon deleted!'
+                END IF ! DisplayLostParticles
+              END ASSOCIATE
+              Done = .TRUE.
+              EXIT
+            END IF ! PhotonLost
             intersecDistVec(1:3) = IntersectionPosTemp(1:3) - PhotonProps%PhotonLastPos(1:3)
             intersecDist = DOT_PRODUCT(intersecDistVec, intersecDistVec)
             IF (intersecDist.LT.minRatio) THEN
@@ -246,10 +278,31 @@ DO WHILE (.NOT.Done)
   ! 3) In case of a boundary, perform the appropriate boundary interaction
   IF (SideInfo_Shared(SIDE_BCID,SideID).GT.0) THEN
     OldElemID=ElemID
-    BCType = PartBound%TargetBoundCond(PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID)))
+    iPBC = PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID))
+    BCType = PartBound%TargetBoundCond(iPBC)
     SELECT CASE(BCType)
     CASE(1) !PartBound%OpenBC)
-      IF (NrOfThroughSides.LT.2) CALL PhotonIntersectionWithSide(LocalSide,ElemID,TriNum, IntersectionPos)
+      IF(NrOfThroughSides.LT.2)THEN
+        CALL PhotonIntersectionWithSide(LocalSide,ElemID,TriNum, IntersectionPos, PhotonLost)
+        IF(PhotonLost)THEN
+          ASSOCIATE( LastPhotPos => PhotonProps%PhotonLastPos(1:3), &
+                     Pos         => PhotonProps%PhotonPos(1:3), &
+                     Dir         => PhotonProps%PhotonDirection(1:3) )
+            CALL StoreLostPhotonProperties(LastPhotPos,Pos,Dir,ElemID)
+            NbrOfLostParticles=NbrOfLostParticles+1
+            IF(DisplayLostParticles)THEN
+              IPWRITE(*,*) 'Error in Photon TriaTracking! PhotonIntersectionWithSide() cannot determine intersection'&
+              //' because photon is parallel to side. ElemID:', ElemID
+              IPWRITE(*,*) 'LastPos:  ', PhotonProps%PhotonLastPos(1:3)
+              IPWRITE(*,*) 'Pos:      ', PhotonProps%PhotonPos(1:3)
+              IPWRITE(*,*) 'Direction:', PhotonProps%PhotonDirection(1:3)
+              IPWRITE(*,*) 'Photon deleted!'
+            END IF ! DisplayLostParticles
+          END ASSOCIATE
+          Done = .TRUE.
+          EXIT
+        END IF ! PhotonLost
+      END IF ! NrOfThroughSides.LT.2
       CALL CalcAbsoprtion(IntersectionPos(1:3),ElemID, DONE)
       IF (RadObservationPointMethod.EQ.1) THEN
         IF (PointInObsCone(IntersectionPos(1:3))) THEN
@@ -266,25 +319,40 @@ DO WHILE (.NOT.Done)
       END IF
       DONE = .TRUE.
     CASE(2) ! PartBound%ReflectiveBC
-      IF (PartBound%PhotonSpecularReflection(PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID)))) THEN
+      ! Backup photon direction for ray tracing
+      PhotonProps%PhotonDirectionBeforeReflection(1:3) = PhotonProps%PhotonDirection(1:3)
+
+      ! Check if specular of diffuse reflection
+      IF (PartBound%PhotonSpecularReflection(iPBC)) THEN
+        ! Specular reflection
         IF (NrOfThroughSides.LT.2) THEN
           CALL PerfectPhotonReflection(LocalSide,ElemID,TriNum, IntersectionPos, .FALSE.)
         ELSE
           CALL PerfectPhotonReflection(LocalSide,ElemID,TriNum, IntersectionPos, .TRUE.)
         END IF
-        CALL CalcAbsoprtion(IntersectionPos(1:3),ElemID, DONE)
-        IF (.NOT.DONE) CALL CalcWallAbsoprtion(SideID, DONE)
       ELSE
+        ! Diffuse reflection
         IF (NrOfThroughSides.LT.2) THEN
           CALL DiffusePhotonReflection(LocalSide,ElemID,TriNum, IntersectionPos, .FALSE.)
         ELSE
           CALL DiffusePhotonReflection(LocalSide,ElemID,TriNum, IntersectionPos, .TRUE.)
         END IF
-        CALL CalcAbsoprtion(IntersectionPos(1:3),ElemID, DONE)
-        IF (.NOT.DONE) CALL CalcWallAbsoprtion(SideID, DONE)
       END IF
+
+      ! Check if ray tracing is active
+      IF(RadiationAbsorptionModel.EQ.0)THEN
+        CALL CalcAbsoprtion(IntersectionPos(1:3), ElemID, DONE, before = .TRUE.)
+        IF (.NOT.DONE) THEN
+          CALL CalcWallAbsoprtion(SideID, DONE)
+          CALL CalcAbsoprtion(IntersectionPos(1:3), ElemID, DONE, before = .FALSE.)
+        END IF ! .NOT.DONE
+      ELSE
+        CALL CalcAbsoprtion(IntersectionPos(1:3), ElemID, DONE)
+        IF (.NOT.DONE) CALL CalcWallAbsoprtion(SideID, DONE)
+      END IF ! RadiationAbsorptionModel.EQ.0
+
     CASE(3) ! PartBound%PeriodicBC
-        CALL CalcAbsoprtion(IntersectionPos(1:3),ElemID, DONE)
+        CALL CalcAbsoprtion(IntersectionPos(1:3), ElemID, DONE)
         IF (NrOfThroughSides.LT.2) THEN
           CALL PeriodicPhotonBC(LocalSide,ElemID,TriNum,IntersectionPos,.FALSE.,SideID)
         ELSE
@@ -314,15 +382,41 @@ DO WHILE (.NOT.Done)
     DoneLastElem(2,1) = LocalSide
     DoneLastElem(3,1) = TriNum
     DoneLastElem(4,1) = SideID
+
     IF (oldElemIsMortar) THEN
       ElemID = SideInfo_Shared(SIDE_ELEMID,SideID)
-      CALL PhotonIntersectionWithSide(LocalSide,ElemID,TriNum, IntersectionPos,.TRUE.)
-      CALL CalcAbsoprtion(IntersectionPos(1:3),DoneLastElem(1,1), DONE)
+      CALL PhotonIntersectionWithSide(LocalSide,ElemID,TriNum, IntersectionPos, PhotonLost,.TRUE.)
     ELSE
-      CALL PhotonIntersectionWithSide(LocalSide,ElemID,TriNum, IntersectionPos)
-      CALL CalcAbsoprtion(IntersectionPos(1:3),ElemID, DONE)
-      ElemID = SideInfo_Shared(SIDE_NBELEMID,SideID)
+      CALL PhotonIntersectionWithSide(LocalSide,ElemID,TriNum, IntersectionPos, PhotonLost)
     END IF
+
+    ! Check if lost during intersection
+    IF(PhotonLost)THEN
+      ASSOCIATE( LastPhotPos => PhotonProps%PhotonLastPos(1:3), &
+                 Pos         => PhotonProps%PhotonPos(1:3), &
+                 Dir         => PhotonProps%PhotonDirection(1:3) )
+        CALL StoreLostPhotonProperties(LastPhotPos,Pos,Dir,ElemID)
+        NbrOfLostParticles=NbrOfLostParticles+1
+        IF(DisplayLostParticles)THEN
+          IPWRITE(*,*) 'Error in Photon TriaTracking! PhotonIntersectionWithSide() cannot determine intersection'&
+          //' because photon is parallel to side. ElemID:', ElemID
+          IPWRITE(*,*) 'LastPos:  ', PhotonProps%PhotonLastPos(1:3)
+          IPWRITE(*,*) 'Pos:      ', PhotonProps%PhotonPos(1:3)
+          IPWRITE(*,*) 'Direction:', PhotonProps%PhotonDirection(1:3)
+          IPWRITE(*,*) 'Photon deleted!'
+        END IF ! DisplayLostParticles
+      END ASSOCIATE
+      Done = .TRUE.
+      EXIT
+    ELSE
+      ! Absorption
+      IF (oldElemIsMortar) THEN
+        CALL CalcAbsoprtion(IntersectionPos(1:3),DoneLastElem(1,1), DONE)
+      ELSE
+        CALL CalcAbsoprtion(IntersectionPos(1:3),ElemID, DONE)
+        ElemID = SideInfo_Shared(SIDE_NBELEMID,SideID)
+      END IF
+    END IF ! PhotonLost
   END IF  ! BC(SideID).GT./.LE. 0
   ! Check if output to PartStateBoundary is activated
   IF(PhotonModeBPO.EQ.2)THEN

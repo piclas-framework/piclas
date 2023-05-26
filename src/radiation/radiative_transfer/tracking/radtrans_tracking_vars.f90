@@ -28,6 +28,7 @@ TYPE tPhotonProps
   REAL               :: PhotonPos(3)        !>
   REAL               :: PhotonLastPos(3)    !>
   REAL               :: PhotonDirection(3)  !>
+  REAL               :: PhotonDirectionBeforeReflection(3)  !>
   REAL               :: PhotonEnergy        !>
   INTEGER            :: ElemID              !>
   INTEGER            :: WaveLength          !>

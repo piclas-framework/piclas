@@ -43,7 +43,7 @@ SUBROUTINE RayTracing()
 USE MOD_Globals
 USE MOD_MPI_Shared_Vars
 USE MOD_MPI_Shared
-USE MOD_RayTracing_Vars         ,ONLY: RayPartBound,NumRays,Ray,RayElemPassedEnergy
+USE MOD_RayTracing_Vars         ,ONLY: RayPartBound,NumRays,Ray,RayElemPassedEnergy,RayElemSize
 USE MOD_Photon_TrackingVars     ,ONLY: PhotonProps
 USE MOD_Photon_Tracking         ,ONLY: PhotonTriaTracking
 USE MOD_Mesh_Tools              ,ONLY: GetGlobalElemID
@@ -84,14 +84,14 @@ GETTIME(StartT)
 SWRITE(UNIT_stdOut,'(A)') ' Start Ray Tracing Calculation ...'
 
 ! Allocate arrays
-ALLOCATE(RayElemPassedEnergy(1:nGlobalElems))
+ALLOCATE(RayElemPassedEnergy(RayElemSize,1:nGlobalElems))
 RayElemPassedEnergy=0.0
 ALLOCATE(PhotonSampWall(2,1:nComputeNodeSurfTotalSides))
 PhotonSampWall=0.0
 
 #if USE_MPI
 !> Shared arrays for volume sampling
-CALL Allocate_Shared((/nGlobalElems/),RayElemPassedEnergy_Shared_Win,RayElemPassedEnergy_Shared)
+CALL Allocate_Shared((/RayElemSize,nGlobalElems/),RayElemPassedEnergy_Shared_Win,RayElemPassedEnergy_Shared)
 CALL MPI_WIN_LOCK_ALL(0,RayElemPassedEnergy_Shared_Win,IERROR)
 !> Shared arrays for boundary sampling
 CALL Allocate_Shared((/2,nComputeNodeSurfTotalSides/),PhotonSampWall_Shared_Win,PhotonSampWall_Shared)

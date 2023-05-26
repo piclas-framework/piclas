@@ -56,10 +56,11 @@ INTEGER              :: NumRays                        !>
 INTEGER              :: RayPosModel                    !>
 INTEGER              :: RayPartBound                   !> Particle boundary ID where rays are emitted from
 
-REAL, ALLOCATABLE    :: RayElemPassedEnergy(:)         !>
+INTEGER,PARAMETER    :: RayElemSize=6
+REAL, ALLOCATABLE    :: RayElemPassedEnergy(:,:)       !>
 #if USE_MPI
 INTEGER              :: RayElemPassedEnergy_Shared_Win !>
-REAL,POINTER         :: RayElemPassedEnergy_Shared(:)  !>
+REAL,POINTER         :: RayElemPassedEnergy_Shared(:,:)!>
 #endif
 !===================================================================================================================================
 END MODULE MOD_RayTracing_Vars

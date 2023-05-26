@@ -61,14 +61,27 @@ USE MOD_HDF5_Output_ElemData ,ONLY: WriteAdditionalElemData
 CHARACTER(LEN=255)                  :: FileName
 INTEGER                             :: iElem
 INTEGER,PARAMETER                   :: nVar=1
-REAL, ALLOCATABLE                   :: RayElemPassedEnergyLoc(:)
+REAL, ALLOCATABLE                   :: RayElemPassedEnergyLoc1st(:),RayElemPassedEnergyLoc2nd(:)
+REAL, ALLOCATABLE                   :: RaySecondaryVectorX(:),RaySecondaryVectorY(:),RaySecondaryVectorZ(:)
 CHARACTER(LEN=255), ALLOCATABLE     :: StrVarNames(:)
 !===================================================================================================================================
 SWRITE(UNIT_stdOut,'(a)',ADVANCE='NO') ' WRITE Radiation TO HDF5 FILE...'
 
-ALLOCATE(RayElemPassedEnergyLoc(1:nElems))
-RayElemPassedEnergyLoc=-1
-CALL AddToElemData(ElementOut,'RayElemPassedEnergy',RealArray=RayElemPassedEnergyLoc)
+ALLOCATE(RayElemPassedEnergyLoc1st(1:nElems))
+ALLOCATE(RayElemPassedEnergyLoc2nd(1:nElems))
+ALLOCATE(RaySecondaryVectorX(1:nElems))
+ALLOCATE(RaySecondaryVectorY(1:nElems))
+ALLOCATE(RaySecondaryVectorZ(1:nElems))
+RayElemPassedEnergyLoc1st=-1.0
+RayElemPassedEnergyLoc2nd=-1.0
+RaySecondaryVectorX=-1.0
+RaySecondaryVectorY=-1.0
+RaySecondaryVectorZ=-1.0
+CALL AddToElemData(ElementOut,'RayElemPassedEnergy1st',RealArray=RayElemPassedEnergyLoc1st)
+CALL AddToElemData(ElementOut,'RayElemPassedEnergy2nd',RealArray=RayElemPassedEnergyLoc2nd)
+CALL AddToElemData(ElementOut,'RaySecondaryVectorX',RealArray=RaySecondaryVectorX)
+CALL AddToElemData(ElementOut,'RaySecondaryVectorY',RealArray=RaySecondaryVectorY)
+CALL AddToElemData(ElementOut,'RaySecondaryVectorZ',RealArray=RaySecondaryVectorZ)
 
 ALLOCATE(StrVarNames(1:nVar))
 StrVarNames(1)='dummy'
@@ -83,13 +96,30 @@ IF(MPIRoot) CALL GenerateFileSkeleton('RadiationVolState',nVar,StrVarNames,TRIM(
 CALL ExchangeRayVolInfo()
 #endif /*USE_MPI*/
 
-DO iElem=1,PP_nElems
 #if USE_MPI
-  RayElemPassedEnergyLoc(iElem) = RayElemPassedEnergy_Shared(iElem+offSetElem)
-#else
-  RayElemPassedEnergyLoc(iElem) = RayElemPassedEnergy(iElem+offSetElem)
+ASSOCIATE( RayElemPassedEnergy => RayElemPassedEnergy_Shared )
 #endif /*USE_MPI*/
-END DO
+  DO iElem=1,PP_nElems
+    ! Primary energy
+    RayElemPassedEnergyLoc1st(iElem) = RayElemPassedEnergy(1,iElem+offSetElem)
+    ! Secondary energy
+    RayElemPassedEnergyLoc2nd(iElem) = RayElemPassedEnergy(2,iElem+offSetElem)
+    ! Check if secondary energy is greater than zero
+    IF(RayElemPassedEnergyLoc2nd(iElem).GT.0.0)THEN
+      IF(RayElemPassedEnergy(6,iElem+offSetElem).LE.0.0) CALL abort(__STAMP__,'Secondary ray counter is zero but energy is not!')
+      ! x-, y- and z-direction of secondary energy
+      RaySecondaryVectorX(iElem) = RayElemPassedEnergy(3,iElem+offSetElem) / RayElemPassedEnergy(6,iElem+offSetElem)
+      RaySecondaryVectorY(iElem) = RayElemPassedEnergy(4,iElem+offSetElem) / RayElemPassedEnergy(6,iElem+offSetElem)
+      RaySecondaryVectorZ(iElem) = RayElemPassedEnergy(5,iElem+offSetElem) / RayElemPassedEnergy(6,iElem+offSetElem)
+    ELSE
+      RaySecondaryVectorX(iElem) = 0.
+      RaySecondaryVectorY(iElem) = 0.
+      RaySecondaryVectorZ(iElem) = 0.
+    END IF ! RayElemPassedEnergyLoc2nd(iElem).GT.0
+  END DO
+#if USE_MPI
+END ASSOCIATE
+#endif /*USE_MPI*/
 
 ! Write all 'ElemData' arrays to a single container in the state.h5 file
 CALL WriteAdditionalElemData(FileName,ElementOut)
@@ -276,12 +306,13 @@ IF (.NOT.SurfOnNode) RETURN
 
 MessageSize = 2*nComputeNodeSurfTotalSides
 IF (myComputeNodeRank.EQ.0) THEN
-  CALL MPI_REDUCE(PhotonSampWall,PhotonSampWall_Shared,MessageSize,MPI_DOUBLE_PRECISION,MPI_SUM,0,MPI_COMM_SHARED,IERROR)
+  CALL MPI_REDUCE(PhotonSampWall, PhotonSampWall_Shared, MessageSize, MPI_DOUBLE_PRECISION, MPI_SUM, 0, MPI_COMM_SHARED, IERROR)
 ELSE
-  CALL MPI_REDUCE(PhotonSampWall,0                   ,MessageSize,MPI_DOUBLE_PRECISION,MPI_SUM,0,MPI_COMM_SHARED,IERROR)
+  CALL MPI_REDUCE(PhotonSampWall, 0                    , MessageSize, MPI_DOUBLE_PRECISION, MPI_SUM, 0, MPI_COMM_SHARED, IERROR)
 ENDIF
 
-CALL BARRIER_AND_SYNC(PhotonSampWall_Shared_Win         ,MPI_COMM_SHARED)
+! Update
+CALL BARRIER_AND_SYNC(PhotonSampWall_Shared_Win,MPI_COMM_SHARED)
 
 ! prepare buffers for surf leader communication
 IF (myComputeNodeRank.EQ.0) THEN
@@ -396,7 +427,7 @@ USE MOD_Globals
 USE MOD_PreProc
 USE MOD_MPI_Shared_Vars
 USE MOD_MPI_Shared
-USE MOD_RayTracing_Vars ,ONLY: RayElemPassedEnergy,RayElemPassedEnergy_Shared,RayElemPassedEnergy_Shared_Win
+USE MOD_RayTracing_Vars ,ONLY: RayElemPassedEnergy,RayElemPassedEnergy_Shared,RayElemPassedEnergy_Shared_Win,RayElemSize
 USE MOD_Mesh_Vars       ,ONLY: nGlobalElems
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -410,12 +441,12 @@ IMPLICIT NONE
 INTEGER :: MessageSize
 !===================================================================================================================================
 ! Collect the information from the process-local shadow arrays in the compute-node shared array
-MessageSize = nGlobalElems
+MessageSize = RayElemSize*nGlobalElems
 
 IF (myComputeNodeRank.EQ.0) THEN
-  CALL MPI_REDUCE(RayElemPassedEnergy , RayElemPassedEnergy_Shared , MessageSize , MPI_DOUBLE_PRECISION , MPI_SUM , 0 , MPI_COMM_SHARED , IERROR)
+  CALL MPI_REDUCE(RayElemPassedEnergy, RayElemPassedEnergy_Shared, MessageSize, MPI_DOUBLE_PRECISION, MPI_SUM, 0, MPI_COMM_SHARED, IERROR)
 ELSE
-  CALL MPI_REDUCE(RayElemPassedEnergy , 0                          , MessageSize , MPI_DOUBLE_PRECISION , MPI_SUM , 0 , MPI_COMM_SHARED , IERROR)
+  CALL MPI_REDUCE(RayElemPassedEnergy, 0                         , MessageSize, MPI_DOUBLE_PRECISION, MPI_SUM, 0, MPI_COMM_SHARED, IERROR)
 ENDIF
 CALL BARRIER_AND_SYNC(RayElemPassedEnergy_Shared_Win, MPI_COMM_SHARED)
 
