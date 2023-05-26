@@ -523,7 +523,14 @@ CALL BARRIER_AND_SYNC(ElemsJ_Shared_Win,MPI_COMM_SHARED)
 ElemsJ => sJ
 #endif /* USE_MPI*/
 
-IF (TrackingMethod.EQ.TRIATRACKING) RETURN
+! Exit routine here if TriaTracking is active
+IF (TrackingMethod.EQ.TRIATRACKING)THEN
+  IF(MPIRoot)THEN
+    GETTIME(EndT)
+    CALL DisplayMessageAndTime(EndT-StartT, 'DONE!')
+  END IF ! MPIRoot
+  RETURN
+END IF
 
 ! allocate epsOneCell
 #if USE_MPI
