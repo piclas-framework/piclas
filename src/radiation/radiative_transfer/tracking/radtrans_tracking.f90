@@ -61,6 +61,7 @@ USE MOD_Particle_Boundary_Tools ,ONLY: StoreBoundaryParticleProperties
 USE MOD_part_tools              ,ONLY: StoreLostPhotonProperties
 USE MOD_Particle_Tracking_Vars  ,ONLY: NbrOfLostParticles,DisplayLostParticles
 USE MOD_RadiationTrans_Vars     ,ONLY: RadiationAbsorptionModel
+USE MOD_RayTracing_Vars         ,ONLY: RayForceAbsorption
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
@@ -343,7 +344,7 @@ DO WHILE (.NOT.Done)
       IF(RadiationAbsorptionModel.EQ.0)THEN
         CALL CalcAbsoprtion(IntersectionPos(1:3), ElemID, DONE, before = .TRUE.)
         IF (.NOT.DONE) THEN
-          CALL CalcWallAbsoprtion(SideID, DONE)
+          CALL CalcWallAbsoprtion(SideID, DONE, RayForceAbsorption)
           CALL CalcAbsoprtion(IntersectionPos(1:3), ElemID, DONE, before = .FALSE.)
         END IF ! .NOT.DONE
       ELSE

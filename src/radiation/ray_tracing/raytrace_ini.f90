@@ -48,6 +48,7 @@ CALL prms%CreateRealOption(      'RayTracing-WaistRadius'    , 'Beam waist radiu
 CALL prms%CreateRealOption(      'RayTracing-WaveLength'     , 'Beam wavelength [m]'                                                                      )
 CALL prms%CreateRealOption(      'RayTracing-RepetitionRate' , 'Pulse repetition rate (pulses per second) [Hz]'                                           )
 CALL prms%CreateRealOption(      'RayTracing-Power'          , 'Average pulse power (energy of a single pulse times repetition rate) [W]'                 )
+CALL prms%CreateLogicalOption(   'RayTracing-ForceAbsorption', 'Surface photon sampling is performed independent of the actual absorption/reflection outcome (default=T)', '.TRUE.')
 
 END SUBROUTINE DefineParametersRayTracing
 
@@ -96,9 +97,10 @@ Ray%Power          = GETREAL('RayTracing-Power')
 Ray%Direction      = GETREALARRAY('RayTracing-RayDirection',3)
 Ray%Direction      = UNITVECTOR(Ray%Direction)
 
-AdaptiveRays = GETLOGICAL('RayTracing-AdaptiveRays')
-NumRays      = GETINT('RayTracing-NumRays')
-RayPosModel  = GETINT('RayTracing-RayPosModel')
+AdaptiveRays       = GETLOGICAL('RayTracing-AdaptiveRays')
+NumRays            = GETINT('RayTracing-NumRays')
+RayPosModel        = GETINT('RayTracing-RayPosModel')
+RayForceAbsorption = GETLOGICAL('RayTracing-ForceAbsorption')
 
 ASSOCIATE( &
       E0      => Ray%Energy             ,&

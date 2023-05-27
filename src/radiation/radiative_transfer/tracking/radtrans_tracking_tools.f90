@@ -1188,9 +1188,12 @@ END SUBROUTINE PeriodicPhotonBC
 
 
 !===================================================================================================================================
+!> Photon interactions with walls:
+!> Compare random number with photon accommodation and absorb/reflect depending on the outcome
 !>
+!>   ForceWallSample (OPTIONAL): When true, the sampling is performed independent of the actual absorption/reflection outcome
 !===================================================================================================================================
-SUBROUTINE CalcWallAbsoprtion(GlobSideID, DONE)
+SUBROUTINE CalcWallAbsoprtion(GlobSideID, DONE, ForceWallSample)
 USE MOD_Photon_TrackingVars    ,ONLY: PhotonProps,PhotonSampWall
 USE MOD_Particle_Boundary_Vars ,ONLY: PartBound, GlobalSide2SurfSide
 USE MOD_Particle_Mesh_Vars     ,ONLY: SideInfo_Shared
@@ -1200,20 +1203,36 @@ IMPLICIT NONE
 ! argument list declaration
 INTEGER, INTENT(IN)              :: GlobSideID
 LOGICAL, INTENT(OUT)             :: DONE
+LOGICAL, INTENT(IN), OPTIONAL    :: ForceWallSample !>
 ! Local variable declaration
 !--------------------------------------------------------------------------------------------------!
 REAL                            :: iRan,PhotonEnACC
 INTEGER                         :: SurfSideID
+LOGICAL                         :: ForceWallSampleLoc
 !--------------------------------------------------------------------------------------------------!
+SurfSideID = GlobalSide2SurfSide(SURF_SIDEID,GlobSideID)
+! Check if photon is to be added to PhotonSampWall independent of the actual absorption/reflection
+IF(PRESENT(ForceWallSample))THEN
+  ForceWallSampleLoc = ForceWallSample
+  ! Sample impact
+  IF(ForceWallSampleLoc)THEN
+    PhotonSampWall(1,SurfSideID) = PhotonSampWall(1,SurfSideID) + 1.
+    PhotonSampWall(2,SurfSideID) = PhotonSampWall(2,SurfSideID) + PhotonProps%PhotonEnergy
+  END IF ! ForceWallSampleLoc
+ELSE
+  ForceWallSampleLoc = .FALSE.
+END IF ! PRESENT(ForceWallSample)
 DONE = .FALSE. ! initialize
 PhotonEnACC = PartBound%PhotonEnACC(PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,GlobSideID)))
 IF(PhotonEnACC.LE.0.0) RETURN ! Skip sides without absorption (pure reflection)
-SurfSideID = GlobalSide2SurfSide(SURF_SIDEID,GlobSideID)
 CALL RANDOM_NUMBER(iRan)
 IF (PhotonEnACC.GT.iRan) THEN
   DONE = .TRUE.
-  PhotonSampWall(1,SurfSideID) = PhotonSampWall(1,SurfSideID) + 1.
-  PhotonSampWall(2,SurfSideID) = PhotonSampWall(2,SurfSideID) + PhotonProps%PhotonEnergy
+  ! Do not sample twice
+  IF(.NOT.ForceWallSampleLoc)THEN
+    PhotonSampWall(1,SurfSideID) = PhotonSampWall(1,SurfSideID) + 1.
+    PhotonSampWall(2,SurfSideID) = PhotonSampWall(2,SurfSideID) + PhotonProps%PhotonEnergy
+  END IF ! .NOT.ForceWallSampleLoc
 END IF
 END SUBROUTINE CalcWallAbsoprtion
 

@@ -52,6 +52,7 @@ END TYPE
 TYPE (tRadTrans)     :: RadTrans                       !>
 
 LOGICAL              :: AdaptiveRays                   !>
+LOGICAL              :: RayForceAbsorption             !> Surface photon sampling is performed independent of the actual absorption/reflection outcome (default=T)
 INTEGER              :: NumRays                        !>
 INTEGER              :: RayPosModel                    !>
 INTEGER              :: RayPartBound                   !> Particle boundary ID where rays are emitted from
