@@ -153,6 +153,7 @@ REAL                :: RandRot(3,3) !, PartPos(1:3)
   photVisCount = 0
   LocPhotNum = SUM(RadTransPhotPerCellLoc(:))
   PhotDisp = INT(LocPhotNum/20)
+  PhotDisp = MAX(1,PhotDisp)
   DO iElem = 1, nComputeNodeElems
     IF (RadTransPhotPerCellLoc(iElem).GT.0) THEN
       IF (RadiationDirectionModel.EQ.2) RandRot = RandomRotMatrix()

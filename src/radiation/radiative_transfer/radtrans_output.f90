@@ -612,7 +612,7 @@ ASSOCIATE (&
                         nValGlobal =(/nVar2D     , 1_IK, 1_IK , nGlobalSides/)  , &
                         nVal       =(/nVar2D           , 1_IK, 1_IK , LocalnBCSides/)        , &
                         offset     =(/0_IK, 0_IK       , 0_IK        , offsetSurfSide/), &
-                        collective =.TRUE.         ,&
+                        collective =.FALSE.         ,&
                         RealArray=helpArray(1:nVar2D,1:LocalnBCSides))
   DEALLOCATE(helpArray)
 END ASSOCIATE

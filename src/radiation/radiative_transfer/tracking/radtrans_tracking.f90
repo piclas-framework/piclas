@@ -189,7 +189,7 @@ DO WHILE (.NOT.Done)
               oldElemIsMortar = .TRUE.
             END IF
           ELSE  ! Regular side
-            CALL PhotonIntersectionWithSide(LocSidesTemp(ind2),NbElemID,TriNumTemp(ind2), IntersectionPosTemp)
+            CALL PhotonIntersectionWithSide(LocSidesTemp(ind2),ElemID,TriNumTemp(ind2), IntersectionPosTemp)
             intersecDistVec(1:3) = IntersectionPosTemp(1:3) - PhotonProps%PhotonLastPos(1:3)
             intersecDist = DOT_PRODUCT(intersecDistVec, intersecDistVec)
             IF (intersecDist.LT.minRatio) THEN

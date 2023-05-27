@@ -1018,6 +1018,7 @@ SUBROUTINE CalcWallAbsoprtion(GlobSideID, DONE)
 !--------------------------------------------------------------------------------------------------!
   SurfSideID = GlobalSide2SurfSide(SURF_SIDEID,GlobSideID)
   CALL RANDOM_NUMBER(iRan)
+  DONE = .FALSE.
   IF (PartBound%PhotonEnACC(PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,GlobSideID))).GT.iRan) THEN
     DONE = .TRUE. 
     PhotonSampWall(1,SurfSideID) = PhotonSampWall(1,SurfSideID) + 1.
