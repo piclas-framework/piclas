@@ -436,11 +436,7 @@ FILE(GLOB_RECURSE piclasF90 ./src/init/*.f90
                             ./src/restart/*.f90
                             ./src/utils/*.f90
                             ./unitTests/unittest.f90
-                            ./unitTests/unittest_vars.f90
-                            ./src/radiation/ray_tracing/*.f90
-                            ./src/radiation/radiative_transfer/radtrans_vars.f90
-                            ./src/radiation/radiative_transfer/tracking/*.f90
-                            ./src/radiation/radiation_solver/radiation_vars.f90)
+                            ./unitTests/unittest_vars.f90)
 
 LIST(APPEND timediscF90 ${timediscF90}
                         ./src/timedisc/timedisc.f90
@@ -498,7 +494,12 @@ ENDIF()
                   #./src/piclaslib.f90)
 FILE(GLOB_RECURSE particlesF90 ./src/particles/*.f90
                                ./src/posti/superB/*.f90
-                               ./src/interpolation/eval_xyz.f90)
+                               ./src/interpolation/eval_xyz.f90
+                               ./src/radiation/ray_tracing/*.f90
+                               ./src/radiation/radiative_transfer/radtrans_vars.f90
+                               ./src/radiation/radiative_transfer/tracking/*.f90
+                               ./src/radiation/radiation_solver/radiation_vars.f90)
+
 FILE(GLOB noparticlesF90 ./src/particles/analyze/particle_analyze_vars.f90
                          ./src/particles/particle_mesh/particle_surfaces_vars.f90
                          ./src/particles/particle_mesh/particle_mesh_vars.f90
