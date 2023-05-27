@@ -512,7 +512,7 @@ END IF
 
 ParticleMeshInitIsDone=.TRUE.
 
-LBWRITE(UNIT_stdOut,'(A)') " NOW CALLING deleteMeshPointer..."
+LBWRITE(UNIT_stdOut,'(A)') " InitParticleMesh: NOW CALLING deleteMeshPointer..."
 CALL deleteMeshPointer()
 DEALLOCATE(NodeCoords)
 

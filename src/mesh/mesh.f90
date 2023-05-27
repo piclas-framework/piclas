@@ -364,7 +364,7 @@ IF (ABS(meshMode).GT.1) THEN
 
 #ifndef PARTICLES
   ! dealloacte pointers
-  LBWRITE(UNIT_stdOut,'(A)') "NOW CALLING deleteMeshPointer..."
+  LBWRITE(UNIT_stdOut,'(A)') "InitMesh: NOW CALLING deleteMeshPointer..."
   CALL deleteMeshPointer()
 #endif
 

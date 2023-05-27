@@ -1039,7 +1039,7 @@ SUBROUTINE BuildNodeNeighbourhood()
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! MODULES                                                                                                                          !
 !----------------------------------------------------------------------------------------------------------------------------------!
-USE MOD_Globals            ,ONLY: abort!,myRank
+USE MOD_Globals            ,ONLY: abort,MPIRoot,UNIT_stdOUt,DisplayMessageAndTime!,myRank
 USE MOD_Particle_Mesh_Vars ,ONLY: nUniqueGlobalNodes
 USE MOD_Particle_Mesh_Vars ,ONLY: ElemNodeID_Shared,NodeInfo_Shared
 USE MOD_Particle_Mesh_Vars ,ONLY: NodeToElemMapping,NodeToElemInfo,ElemToElemMapping,ElemToElemInfo
@@ -1056,6 +1056,9 @@ USE MOD_Particle_Mesh_Vars ,ONLY: ElemToElemMapping_Shared_Win,ElemToElemInfo_Sh
 #else
 USE MOD_Mesh_Vars          ,ONLY: nElems
 #endif /*USE_MPI*/
+#if USE_LOADBALANCE
+USE MOD_LoadBalance_Vars       ,ONLY: PerformLoadBalance,UseH5IOLoadBalance
+#endif /*USE_LOADBALANCE*/
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
 ! INPUT / OUTPUT VARIABLES
@@ -1069,7 +1072,10 @@ INTEGER,ALLOCATABLE            :: CheckedElemIDs(:)
 #if USE_MPI
 INTEGER                        :: sendbuf,recvbuf,iError
 #endif /*USE_MPI*/
+REAL                           :: StartT,EndT
 !===================================================================================================================================
+LBWRITE(UNIT_StdOut,'(A)',ADVANCE='NO') ' Building node neighbourhood ...'
+GETTIME(StartT)
 
 ! 1.1 Get number of CN elements attached to each UNIQUE node and store in NbrOfElemsOnUniqueNode(UniqueNodeID)
 ! 1.2 Store the total number of counted elements in nNodeToElemMapping = SUM(NbrOfElemsOnUniqueNode)
@@ -1285,9 +1291,7 @@ DO iElem = firstElem, lastElem
       CountElems = CountElems + 1
       OffsetElemToElemCounter = OffsetElemToElemCounter + 1
 
-      IF(CountElems.GT.500) CALL abort(&
-      __STAMP__&
-      ,'CountElems > 500. Inrease the number and try again!')
+      IF(CountElems.GT.500) CALL abort(__STAMP__,'CountElems > 500. Inrease the number and try again!')
 
       CheckedElemIDs(CountElems) = TestElemID
       ElemToElemInfo(OffsetElemToElemCounter) = TestElemID
@@ -1301,6 +1305,9 @@ END DO ! iElem = firstElem, lastElem
 CALL BARRIER_AND_SYNC(ElemToElemInfo_Shared_Win   ,MPI_COMM_SHARED)
 CALL BARRIER_AND_SYNC(ElemToElemMapping_Shared_Win,MPI_COMM_SHARED)
 #endif /*USE_MPI*/
+
+GETTIME(EndT)
+CALL DisplayMessageAndTime(EndT-StartT, 'DONE!')
 
 END SUBROUTINE BuildNodeNeighbourhood
 
