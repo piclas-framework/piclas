@@ -84,15 +84,16 @@ USE MOD_Particle_Boundary_Vars  ,ONLY: PartBound
 USE MOD_Particle_Mesh_Vars      ,ONLY: GEO,LocalVolume,MeshVolume
 USE MOD_DSMC_Vars               ,ONLY: SymmetrySide
 USE MOD_Particle_Mesh_Vars      ,ONLY: ElemVolume_Shared,ElemCharLength_Shared
-USE MOD_Particle_Mesh_Vars      ,ONLY: NodeCoords_Shared,ElemSideNodeID_Shared, SideInfo_Shared
+USE MOD_Particle_Mesh_Vars      ,ONLY: NodeCoords_Shared,ElemSideNodeID_Shared, SideInfo_Shared, SideIsSymSide_Shared
 USE MOD_Mesh_Tools              ,ONLY: GetCNElemID
+USE MOD_Particle_Mesh_Vars      ,ONLY: nNonUniqueGlobalSides
 USE MOD_Particle_Mesh_Tools     ,ONLY: GetGlobalNonUniqueSideID
 USE MOD_Particle_Surfaces       ,ONLY: CalcNormAndTangTriangle
 #if USE_MPI
 USE MOD_MPI_Shared
 USE MOD_MPI_Shared_Vars         ,ONLY: MPI_COMM_SHARED
-USE MOD_Particle_Mesh_Vars      ,ONLY: offsetComputeNodeElem,nNonUniqueGlobalSides, SideIsSymSide_Shared, SideIsSymSide_Shared_Win
-USE MOD_Particle_Mesh_Vars      ,ONLY: ElemVolume_Shared_Win,ElemCharLength_Shared_Win
+USE MOD_Particle_Mesh_Vars      ,ONLY: offsetComputeNodeElem
+USE MOD_Particle_Mesh_Vars      ,ONLY: ElemVolume_Shared_Win,ElemCharLength_Shared_Win,SideIsSymSide_Shared_Win
 USE MOD_MPI_Shared_Vars         ,ONLY: myComputeNodeRank,MPI_COMM_LEADERS_SHARED
 #endif /*USE_MPI*/
 ! IMPLICIT VARIABLE HANDLING
@@ -116,8 +117,7 @@ INTEGER                         :: firstElem,lastElem
 CALL Allocate_Shared((/nNonUniqueGlobalSides/),SideIsSymSide_Shared_Win,SideIsSymSide_Shared)
 CALL MPI_WIN_LOCK_ALL(0,SideIsSymSide_Shared_Win,IERROR)
 #else
-! allocate local array for ElemInfo
-ALLOCATE(SideIsSymSide_Shared(nComputeNodeSides))
+ALLOCATE(SideIsSymSide_Shared(nNonUniqueGlobalSides))
 #endif  /*USE_MPI*/
 
 SideIsSymSide_Shared = .FALSE.
