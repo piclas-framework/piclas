@@ -13,10 +13,10 @@
 #include "piclas.h"
 
 !==================================================================================================================================
-!> Unit test 'ReadInToolsUnitTest'
-!> Test the module: MOD_ReadInTools
+!> Unit test 'MatrixInverseUnitTest'
+!> Test the functions: INVERSE_LU, getSPDInverse
 !==================================================================================================================================
-PROGRAM ReadInToolsUnitTest
+PROGRAM MatrixInverseUnitTest
 ! MODULES
 USE MOD_Globals
 USE MOD_ReadInTools
@@ -220,4 +220,4 @@ CALL MPI_FINALIZE(iError)
 IF(iError.NE.0) CALL abort(__STAMP__,'MPI finalize error')
 #endif
 
-END PROGRAM ReadInToolsUnitTest
+END PROGRAM MatrixInverseUnitTest
