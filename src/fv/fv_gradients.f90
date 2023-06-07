@@ -84,61 +84,20 @@ IF (.NOT.doMPISides) THEN
 #else
     DO locSideID2=2,5
 #endif
-      IF (locSideID2.EQ.locSideID) CYCLE
       SideID2=ElemToSide(E2S_SIDE_ID,locSideID2,ElemID)
+      IF (SideID2.LE.lastBCSide) CYCLE
       gradWeight = 1/VECNORM(FV_dx_master(:,0,0,SideID2)-FV_dx_slave(:,0,0,SideID2))**2
-      ! NormVec in (master) -> out (slave) but FV_gradU slave -> master
-      gradUinside(:) = gradUinside(:) - NormVec(1,0,0,SideID)*gradWeight*FV_SysSol_BC(1,SideID2)*FV_gradU_side(:,0,0,SideID2) &
-                                      - NormVec(2,0,0,SideID)*gradWeight*FV_SysSol_BC(2,SideID2)*FV_gradU_side(:,0,0,SideID2) &
-                                      - NormVec(3,0,0,SideID)*gradWeight*FV_SysSol_BC(3,SideID2)*FV_gradU_side(:,0,0,SideID2)
+      gradUinside(:) = gradUinside(:) - FV_dx_master(1,0,0,SideID)*gradWeight*FV_SysSol_BC(1,SideID2)*FV_gradU_side(:,0,0,SideID2) &
+                                      - FV_dx_master(2,0,0,SideID)*gradWeight*FV_SysSol_BC(2,SideID2)*FV_gradU_side(:,0,0,SideID2) &
+                                      - FV_dx_master(3,0,0,SideID)*gradWeight*FV_SysSol_BC(3,SideID2)*FV_gradU_side(:,0,0,SideID2)
     END DO
+
     CALL GetBoundaryGrad(SideID,FV_gradU_side(:,0,0,SideID),gradUinside,&
           U_master(:,0,0,SideID),&
           NormVec(:,0,0,SideID),&
-          Face_xGP(:,0,0,SideID),&
-          VECNORM(FV_dx_master(:,0,0,SideID)))
+          Face_xGP(:,0,0,SideID))
   END DO
 END IF
-
-! ! 2. Compute the gradients at the boundary conditions: 1..nBCSides
-! IF(.NOT.doMPISides)THEN
-!   DO SideID=firstBCSide,lastBCSide
-!     ! bc grad need info from inside gradients
-!     ! should be changed for unstructured meshes (no opposite side but normal component of summed up gradient)
-!     ElemID     = SideToElem(S2E_ELEM_ID,SideID)  !element is always master (slave=boundary ghost cell)
-!     locSideID  = SideToElem(S2E_LOC_SIDE_ID,SideID)
-!     SELECT CASE(locSideID)
-!       !get opposite SideID+flip
-!       CASE(1)
-!         locSideID2=6
-!       CASE(2)
-!         locSideID2=4
-!       CASE(3)
-!         locSideID2=5
-!       CASE(4)
-!         locSideID2=2
-!       CASE(5)
-!         locSideID2=3
-!       CASE(6)
-!         locSideID2=1
-!     END SELECT
-!     SideID_2=ElemToSide(E2S_SIDE_ID,locSideID2,ElemID)
-!     flip=ElemToSide(E2S_FLIP,locSideID2,ELemID)
-!     IF (flip.EQ.0) THEN
-!     !this element is the master for the opposite side (master/master case-> flip gradient)
-!       gradUinside(:)=-FV_gradU_side(:,0,0,SideID_2)
-!     ELSE
-!     ! master/slave case
-!       gradUinside(:)=FV_gradU_side(:,0,0,SideID_2)
-!     END IF
-!     CALL GetBoundaryGrad(SideID,FV_gradU_side(:,0,0,SideID),gradUinside,&
-!                                         U_master(:,0,0,SideID),&
-!                                         NormVec(:,0,0,SideID),&
-!                                         Face_xGP(:,0,0,SideID),&
-!                                         VECNORM(FV_dx_master(:,0,0,SideID)),&
-!                                         VECNORM(FV_dx_master(:,0,0,SideID_2)-FV_dx_slave(:,0,0,SideID_2)))
-!   END DO
-! END IF
 
 END SUBROUTINE CalcFVGradients
 

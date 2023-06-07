@@ -29,7 +29,7 @@ SUBROUTINE AnalyzeDVM()
 ! MODULES
 USE MOD_PreProc
 USE MOD_FV_Vars
-USE MOD_TimeDisc_Vars         ,ONLY: dt
+USE MOD_TimeDisc_Vars         ,ONLY: dt, dt_Min
 USE MOD_DistFunc              ,ONLY: MacroValuesFromDistribution
 USE MOD_Mesh_Vars             ,ONLY: nElems
 ! IMPLICIT VARIABLE HANDLING
@@ -53,7 +53,7 @@ DO iElem=1,nElems
     DVM_ElemData6(iElem)=MacroVal(6)
     DVM_ElemData7(iElem)=MacroVal(7)
     DVM_ElemData8(iElem)=MacroVal(8)
-    DVM_ElemData9(iElem)=dt/tau
+    DVM_ElemData9(iElem)=dt_Min(DT_MIN)/tau !relaxation factor for regular timesteps, higher than for the actual analyze timestep
 END DO
 
 END SUBROUTINE

@@ -138,6 +138,7 @@ LOGICAL                                :: BCelem
 
 DO ElemID = 1, nElems
 
+  BCelem = .FALSE.
   dMatrix = 0.
   dMatrixBC = 0.
 #if PP_dim == 3
@@ -191,6 +192,7 @@ DO ElemID = 1, nElems
     DO locSideID=2,5
 #endif
       SideID=ElemToSide(E2S_SIDE_ID,locSideID,ElemID)
+      IF (SideID.LE.lastBCSide) CYCLE
       !FV_SysSol_BC calculated with slave -> master direction
       FV_SysSol_BC(:,SideID) = dslave(:,SideID) - dmaster(:,SideID)
       CALL DGESV(PP_dim,1,dMatrixBC,PP_dim,IPIV,FV_SysSol_BC(1:PP_dim,SideID),PP_dim,info_dgesv)

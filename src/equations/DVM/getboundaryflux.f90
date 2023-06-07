@@ -177,31 +177,31 @@ DO iBC=1,nBCs
     DO iSide=1,nBCLoc
       SideID=BCSideID(iBC,iSide)
       DO q=0,PP_N; DO p=0,PP_N
-        IF (BCState.NE.0) THEN
-          IF (DVMVeloDisc.NE.3) CALL abort(__STAMP__,'DVM specular bc error: moving wall only with Gauss-Hermite disc')
-          CALL MacroValuesFromDistribution(MacroVal,UPrim_master(:,p,q,SideID),dt/2.,tau,1)
-          Sin=0.
-          Sout=0.
-          DO kVel=1, DVMnVelos(3);   DO jVel=1, DVMnVelos(2);   DO iVel=1, DVMnVelos(1)
-            upos= iVel+(jVel-1)*DVMnVelos(1)+(kVel-1)*DVMnVelos(1)*DVMnVelos(2)
-            weight = DVMWeights(iVel,1)*DVMWeights(jVel,2)*DVMWeights(kVel,3)
-            vnormal = DVMVelos(iVel,1)*NormVec(1,p,q,SideID) + DVMVelos(jVel,2)*NormVec(2,p,q,SideID) + DVMVelos(kVel,3)*NormVec(3,p,q,SideID)
-            vwall = DVMVelos(iVel,1)*RefState(2,BCState) + DVMVelos(jVel,2)*RefState(3,BCState) + DVMVelos(kVel,3)*RefState(4,BCState)
-            IF (vnormal.LT.0.) THEN !inflow
-              Sin = Sin + 2.*weight*vwall*EXP(-(DVMVelos(iVel,1)**2.+DVMVelos(jVel,2)**2.+DVMVelos(kVel,3)**2.)/DVMSpeciesData%R_S/MacroVal(5)/2.) &
-              /DVMSpeciesData%R_S/MacroVal(5)/(2.*Pi*DVMSpeciesData%R_S*MacroVal(5))**(DVMDim/2.)
-            ELSE IF (vnormal.GT.0.) THEN
-              Sout = Sout + weight*UPrim_master(upos,p,q,SideID)
-            ELSE
-              Sout = Sout + 2.*weight*UPrim_master(upos,p,q,SideID)
-            END IF
-          END DO; END DO; END DO
-          WallDensity = Sout/(1-Sin)
-        END IF
+        IF (BCState.NE.0) CALL abort(__STAMP__,'DVM specular bc with moving wall not working (yet?)') !THEN
+        !   IF (DVMVeloDisc.NE.3) CALL abort(__STAMP__,'DVM specular bc error: moving wall only with Gauss-Hermite disc')
+        !   CALL MacroValuesFromDistribution(MacroVal,UPrim_master(:,p,q,SideID),dt/2.,tau,1)
+        !   Sin=0.
+        !   Sout=0.
+        !   DO kVel=1, DVMnVelos(3);   DO jVel=1, DVMnVelos(2);   DO iVel=1, DVMnVelos(1)
+        !     upos= iVel+(jVel-1)*DVMnVelos(1)+(kVel-1)*DVMnVelos(1)*DVMnVelos(2)
+        !     weight = DVMWeights(iVel,1)*DVMWeights(jVel,2)*DVMWeights(kVel,3)
+        !     vnormal = DVMVelos(iVel,1)*NormVec(1,p,q,SideID) + DVMVelos(jVel,2)*NormVec(2,p,q,SideID) + DVMVelos(kVel,3)*NormVec(3,p,q,SideID)
+        !     vwall = DVMVelos(iVel,1)*RefState(2,BCState) + DVMVelos(jVel,2)*RefState(3,BCState) + DVMVelos(kVel,3)*RefState(4,BCState)
+        !     IF (vnormal.LT.0.) THEN !inflow
+        !       Sin = Sin + 2.*weight*vwall*EXP(-(DVMVelos(iVel,1)**2.+DVMVelos(jVel,2)**2.+DVMVelos(kVel,3)**2.)/DVMSpeciesData%R_S/MacroVal(5)/2.) &
+        !       /DVMSpeciesData%R_S/MacroVal(5)/(2.*Pi*DVMSpeciesData%R_S*MacroVal(5))**(DVMDim/2.)
+        !     ELSE IF (vnormal.GT.0.) THEN
+        !       Sout = Sout + weight*UPrim_master(upos,p,q,SideID)
+        !     ELSE
+        !       Sout = Sout + 2.*weight*UPrim_master(upos,p,q,SideID)
+        !     END IF
+        !   END DO; END DO; END DO
+        !   WallDensity = Sout/(1-Sin)
+        ! END IF
         DO kVel=1, DVMnVelos(3);   DO jVel=1, DVMnVelos(2);   DO iVel=1, DVMnVelos(1)
           upos= iVel+(jVel-1)*DVMnVelos(1)+(kVel-1)*DVMnVelos(1)*DVMnVelos(2)
           vnormal = DVMVelos(iVel,1)*NormVec(1,p,q,SideID) + DVMVelos(jVel,2)*NormVec(2,p,q,SideID) + DVMVelos(kVel,3)*NormVec(3,p,q,SideID)
-          vwall = DVMVelos(iVel,1)*RefState(2,BCState) + DVMVelos(jVel,2)*RefState(3,BCState) + DVMVelos(kVel,3)*RefState(4,BCState)
+          ! vwall = DVMVelos(iVel,1)*RefState(2,BCState) + DVMVelos(jVel,2)*RefState(3,BCState) + DVMVelos(kVel,3)*RefState(4,BCState)
           IF (ABS(NormVec(1,p,q,SideID)).EQ.1.) THEN !x-perpendicular boundary
             upos_sp=(DVMnVelos(1)+1-iVel)+(jVel-1)*DVMnVelos(1)+(kVel-1)*DVMnVelos(1)*DVMnVelos(2)
           ELSE IF (ABS(NormVec(2,p,q,SideID)).EQ.1.) THEN !y-perpendicular boundary
@@ -212,15 +212,15 @@ DO iBC=1,nBCs
             CALL abort(__STAMP__,'Specular reflection only implemented for boundaries perpendicular to velocity grid')
           END IF
           IF (vnormal.LT.0.) THEN !inflow
-            IF (BCState.NE.0) THEN
-              MovTerm = 2.*WallDensity*EXP(-(DVMVelos(iVel,1)**2.+DVMVelos(jVel,2)**2.+DVMVelos(kVel,3)**2.)/DVMSpeciesData%R_S/MacroVal(5)/2.) &
-              /DVMSpeciesData%R_S/MacroVal(5)/(2.*Pi*DVMSpeciesData%R_S*MacroVal(5))**(DVMDim/2.)
-            ELSE
-              MovTerm = 0.
-            END IF
-            UPrim_boundary(upos,p,q)=UPrim_master(upos_sp,p,q,SideID) + MovTerm
+            ! IF (BCState.NE.0) THEN
+            !   MovTerm = 2.*WallDensity*EXP(-(DVMVelos(iVel,1)**2.+DVMVelos(jVel,2)**2.+DVMVelos(kVel,3)**2.)/DVMSpeciesData%R_S/MacroVal(5)/2.) &
+            !   /DVMSpeciesData%R_S/MacroVal(5)/(2.*Pi*DVMSpeciesData%R_S*MacroVal(5))**(DVMDim/2.)
+            ! ELSE
+            !   MovTerm = 0.
+            ! END IF
+            UPrim_boundary(upos,p,q)=UPrim_master(upos_sp,p,q,SideID)! + MovTerm
             IF (DVMSpeciesData%Internal_DOF .GT.0.0) THEN
-              UPrim_boundary(PP_nVar/2+upos,p,q)=UPrim_master(PP_nVar/2+upos_sp,p,q,SideID) + MovTerm
+              UPrim_boundary(PP_nVar/2+upos,p,q)=UPrim_master(PP_nVar/2+upos_sp,p,q,SideID)! + MovTerm
             END IF
           ELSE
             UPrim_boundary(upos,p,q)=UPrim_master(upos,p,q,SideID)
@@ -270,17 +270,7 @@ DO iBC=1,nBCs
   CASE(7) !open outlet
     DO iSide=1,nBCLoc
       SideID=BCSideID(iBC,iSide)
-      DO q=0,PP_N; DO p=0,PP_N
-        CALL MacroValuesFromDistribution(MacroVal,UPrim_master(:,p,q,SideID),dt/2.,tau,1)
-        SELECT CASE (DVMBGKModel)
-          CASE(1)
-            CALL MaxwellDistribution(MacroVal,UPrim_boundary(:,p,q))
-          CASE(2)
-            CALL ShakhovDistribution(MacroVal,UPrim_boundary(:,p,q))
-          CASE DEFAULT
-            CALL abort(__STAMP__,'DVM BGK Model not implemented.',999,999.)
-        END SELECT
-      END DO; END DO
+      UPrim_boundary=UPrim_master(:,:,:,SideID)
       CALL Riemann(Flux(:,:,:,SideID),UPrim_master(:,:,:,SideID),UPrim_boundary,NormVec(:,:,:,SideID))
     END DO
 

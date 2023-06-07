@@ -41,7 +41,7 @@ CONTAINS
 !==================================================================================================================================
 !> Computes the gradient at a boundary for Finite Volumes reconstruction (2nd order version).
 !==================================================================================================================================
-SUBROUTINE GetBoundaryGrad(SideID,gradU,gradUinside,UPrim_master,NormVec,Face_xGP,dx_Face)
+SUBROUTINE GetBoundaryGrad(SideID,gradU,gradUinside,UPrim_master,NormVec,Face_xGP)
 ! MODULES
 USE MOD_PreProc
 USE MOD_Globals       ,ONLY: Abort
@@ -60,8 +60,6 @@ REAL,INTENT(IN)   :: gradUinside (PP_nVar)
 REAL,INTENT(IN)   :: UPrim_master(PP_nVar)
 REAL,INTENT(IN)   :: NormVec (3)
 REAL,INTENT(IN)   :: Face_xGP(3)
-REAL,INTENT(IN)   :: dx_Face
-! REAL,INTENT(IN)   :: dx_ElemIn
 
 !----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
@@ -77,60 +75,44 @@ SELECT CASE(BCType)
 CASE(1) !Periodic already filled!
 
 CASE(2) ! exact BC = Dirichlet BC !!
-  fplus(:)=UPrim_master(:)-gradUinside(:)*dx_Face
-  MacroVal(:) = RefState(:,BCState)
   IF(BCState.EQ.0) THEN ! Determine the exact BC state
     CALL ExactFunc(IniExactFunc,time,0,Face_xGP,UPrim_boundary)
   ELSE
     CALL MaxwellDistribution(RefState(:,BCState),UPrim_boundary)
   END IF
-  DO kVel=1, DVMnVelos(3);   DO jVel=1, DVMnVelos(2);   DO iVel=1, DVMnVelos(1)
-    upos= iVel+(jVel-1)*DVMnVelos(1)+(kVel-1)*DVMnVelos(1)*DVMnVelos(2)
-    vnormal = DVMVelos(iVel,1)*NormVec(1) + DVMVelos(jVel,2)*NormVec(2) + DVMVelos(kVel,3)*NormVec(3)
-    IF (vnormal.LT.0.) THEN
-      gradU(upos) = 2.*(UPrim_master(upos) - UPrim_boundary(upos))
-      IF (DVMSpeciesData%Internal_DOF .GT.0.0) THEN
-        gradU(PP_nVar/2+upos) = 2.*(UPrim_master(PP_nVar/2+upos) - UPrim_boundary(PP_nVar/2+upos))
-      END IF
-    ELSE
-      gradU(upos) = 2.*gradUinside(upos)*dx_Face
-      IF (DVMSpeciesData%Internal_DOF .GT.0.0) THEN
-        gradU(PP_nVar/2+upos) = 2.*gradUinside(PP_nVar/2+upos)*dx_Face
-      END IF
-    END IF
-  END DO; END DO; END DO
+  gradU = UPrim_master - UPrim_boundary
 
 
 CASE(3) ! specular reflection
-  UPrim_boundary(:)=UPrim_master(:)-gradUinside(:)*dx_Face
+  UPrim_boundary(:)=UPrim_master(:)-gradUinside(:)
   IF(DVMVeloDisc.EQ.2.AND.ANY((DVMVeloMin+DVMVeloMax).NE.0.)) THEN
     CALL abort(__STAMP__,'Specular reflection only implemented for zero-centered velocity grid')
   END IF
-  IF (DVMVeloDisc.NE.3) CALL abort(__STAMP__,'DVM specular bc error: moving wall only with Gauss-Hermite disc')
-  IF (BCState.NE.0) THEN
-    CALL MacroValuesFromDistribution(MacroVal,UPrim_boundary(:),dt/2.,tau,2)
-    Sin=0.
-    Sout=0.
-    DO kVel=1, DVMnVelos(3);   DO jVel=1, DVMnVelos(2);   DO iVel=1, DVMnVelos(1)
-      upos= iVel+(jVel-1)*DVMnVelos(1)+(kVel-1)*DVMnVelos(1)*DVMnVelos(2)
-      weight = DVMWeights(iVel,1)*DVMWeights(jVel,2)*DVMWeights(kVel,3)
-      vnormal = DVMVelos(iVel,1)*NormVec(1) + DVMVelos(jVel,2)*NormVec(2) + DVMVelos(kVel,3)*NormVec(3)
-      vwall = DVMVelos(iVel,1)*RefState(2,BCState) + DVMVelos(jVel,2)*RefState(3,BCState) + DVMVelos(kVel,3)*RefState(4,BCState)
-      IF (vnormal.LT.0.) THEN !inflow
-        Sin = Sin + 2.*weight*vwall*EXP(-(DVMVelos(iVel,1)**2.+DVMVelos(jVel,2)**2.+DVMVelos(kVel,3)**2.)/DVMSpeciesData%R_S/MacroVal(5)/2.) &
-        /DVMSpeciesData%R_S/MacroVal(5)/(2.*Pi*DVMSpeciesData%R_S*MacroVal(5))**(DVMDim/2.)
-      ELSE IF (vnormal.GT.0.) THEN
-        Sout = Sout + weight*UPrim_boundary(upos)
-      ELSE
-        Sout = Sout + 2.*weight*UPrim_boundary(upos)
-      END IF
-    END DO; END DO; END DO
-    WallDensity = Sout/(1-Sin)
-  END IF
+  IF (BCState.NE.0) CALL abort(__STAMP__,'DVM specular bc with moving wall not working (yet?)') !THEN
+  !   IF (DVMVeloDisc.NE.3) CALL abort(__STAMP__,'DVM specular bc error: moving wall only with Gauss-Hermite disc')
+  !   CALL MacroValuesFromDistribution(MacroVal,UPrim_boundary(:),dt/2.,tau,2)
+  !   Sin=0.
+  !   Sout=0.
+  !   DO kVel=1, DVMnVelos(3);   DO jVel=1, DVMnVelos(2);   DO iVel=1, DVMnVelos(1)
+  !     upos= iVel+(jVel-1)*DVMnVelos(1)+(kVel-1)*DVMnVelos(1)*DVMnVelos(2)
+  !     weight = DVMWeights(iVel,1)*DVMWeights(jVel,2)*DVMWeights(kVel,3)
+  !     vnormal = DVMVelos(iVel,1)*NormVec(1) + DVMVelos(jVel,2)*NormVec(2) + DVMVelos(kVel,3)*NormVec(3)
+  !     vwall = DVMVelos(iVel,1)*RefState(2,BCState) + DVMVelos(jVel,2)*RefState(3,BCState) + DVMVelos(kVel,3)*RefState(4,BCState)
+  !     IF (vnormal.LT.0.) THEN !inflow
+  !       Sin = Sin + 2.*weight*vwall*EXP(-(DVMVelos(iVel,1)**2.+DVMVelos(jVel,2)**2.+DVMVelos(kVel,3)**2.)/DVMSpeciesData%R_S/MacroVal(5)/2.) &
+  !       /DVMSpeciesData%R_S/MacroVal(5)/(2.*Pi*DVMSpeciesData%R_S*MacroVal(5))**(DVMDim/2.)
+  !     ELSE IF (vnormal.GT.0.) THEN
+  !       Sout = Sout + weight*UPrim_boundary(upos)
+  !     ELSE
+  !       Sout = Sout + 2.*weight*UPrim_boundary(upos)
+  !     END IF
+  !   END DO; END DO; END DO
+  !   WallDensity = Sout/(1-Sin)
+  ! END IF
   DO kVel=1, DVMnVelos(3);   DO jVel=1, DVMnVelos(2);   DO iVel=1, DVMnVelos(1)
     upos= iVel+(jVel-1)*DVMnVelos(1)+(kVel-1)*DVMnVelos(1)*DVMnVelos(2)
     vnormal = DVMVelos(iVel,1)*NormVec(1) + DVMVelos(jVel,2)*NormVec(2) + DVMVelos(kVel,3)*NormVec(3)
-    vwall = DVMVelos(iVel,1)*RefState(2,BCState) + DVMVelos(jVel,2)*RefState(3,BCState) + DVMVelos(kVel,3)*RefState(4,BCState)
+    ! vwall = DVMVelos(iVel,1)*RefState(2,BCState) + DVMVelos(jVel,2)*RefState(3,BCState) + DVMVelos(kVel,3)*RefState(4,BCState)
     IF (ABS(NormVec(1)).EQ.1.) THEN !x-perpendicular boundary
       upos_sp=(DVMnVelos(1)+1-iVel)+(jVel-1)*DVMnVelos(1)+(kVel-1)*DVMnVelos(1)*DVMnVelos(2)
     ELSE IF (ABS(NormVec(2)).EQ.1.) THEN !y-perpendicular boundary
@@ -141,27 +123,27 @@ CASE(3) ! specular reflection
       CALL abort(__STAMP__,'Specular reflection only implemented for boundaries perpendicular to velocity grid')
     END IF
     IF (vnormal.LT.0.) THEN !inflow
-      IF (BCState.NE.0) THEN
-        MovTerm = 2.*WallDensity*EXP(-(DVMVelos(iVel,1)**2.+DVMVelos(jVel,2)**2.+DVMVelos(kVel,3)**2.)/DVMSpeciesData%R_S/MacroVal(5)/2.) &
-        /DVMSpeciesData%R_S/MacroVal(5)/(2.*Pi*DVMSpeciesData%R_S*MacroVal(5))**(DVMDim/2.)
-      ELSE
-        MovTerm = 0.
-      END IF
-      gradU(upos) = 2.*(UPrim_master(upos) - UPrim_boundary(upos_sp) - MovTerm)
+      ! IF (BCState.NE.0) THEN
+      !   MovTerm = 2.*WallDensity*EXP(-(DVMVelos(iVel,1)**2.+DVMVelos(jVel,2)**2.+DVMVelos(kVel,3)**2.)/DVMSpeciesData%R_S/MacroVal(5)/2.) &
+      !   /DVMSpeciesData%R_S/MacroVal(5)/(2.*Pi*DVMSpeciesData%R_S*MacroVal(5))**(DVMDim/2.)
+      ! ELSE
+      !   MovTerm = 0.
+      ! END IF
+      gradU(upos) = 2.*(UPrim_master(upos) - UPrim_boundary(upos_sp))! - MovTerm)
       IF (DVMSpeciesData%Internal_DOF .GT.0.0) THEN
-        gradU(PP_nVar/2+upos) = 2.*(UPrim_master(PP_nVar/2+upos) - UPrim_boundary(PP_nVar/2+upos_sp)- MovTerm)
+        gradU(PP_nVar/2+upos) = 2.*(UPrim_master(PP_nVar/2+upos) - UPrim_boundary(PP_nVar/2+upos_sp))! - MovTerm)
       END IF
     ELSE
-      gradU(upos) = 2.*gradUinside(upos)*dx_Face
+      gradU(upos) = 2.*gradUinside(upos)
       IF (DVMSpeciesData%Internal_DOF .GT.0.0) THEN
-        gradU(PP_nVar/2+upos) = 2.*gradUinside(PP_nVar/2+upos)*dx_Face
+        gradU(PP_nVar/2+upos) = 2.*gradUinside(PP_nVar/2+upos)
       END IF
     END IF
   END DO; END DO; END DO
 
 
 CASE(4) ! diffusive
-  fplus(:)=UPrim_master(:)-gradUinside(:)*dx_Face
+  fplus(:)=UPrim_master(:)-gradUinside(:)
   MacroVal(:) = RefState(:,BCState)
   CALL MaxwellDistribution(MacroVal,UPrim_boundary)
   CALL MaxwellScattering(UPrim_boundary,fplus,NormVec,2,dt/2.)
@@ -174,9 +156,9 @@ CASE(4) ! diffusive
         gradU(PP_nVar/2+upos) = 2.*(UPrim_master(PP_nVar/2+upos) - UPrim_boundary(PP_nVar/2+upos))
       END IF
     ELSE
-      gradU(upos) = 2.*gradUinside(upos)*dx_Face
+      gradU(upos) = 2.*gradUinside(upos)
       IF (DVMSpeciesData%Internal_DOF .GT.0.0) THEN
-        gradU(PP_nVar/2+upos) = 2.*gradUinside(PP_nVar/2+upos)*dx_Face
+        gradU(PP_nVar/2+upos) = 2.*gradUinside(PP_nVar/2+upos)
       END IF
     END IF
   END DO; END DO; END DO
@@ -187,6 +169,8 @@ CASE(14) ! diffusive order 1
   CALL MaxwellScattering(UPrim_boundary,UPrim_master,NormVec,2,dt/2.)
   gradU = 2.*(UPrim_master-UPrim_boundary)
 
+CASE(7) ! open outlet
+  gradU = 0.
 
 CASE DEFAULT ! unknown BCType
   CALL abort(__STAMP__,&
