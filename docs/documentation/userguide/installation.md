@@ -10,6 +10,8 @@ In that case, you can jump directly to the description of the download and insta
 ## AppImage executable download
 
 PICLas and its tools can be installed on a Linux machine without the need of compiling the source code.
+The only requirement is that MPI is pre-installed on the target system and available when running the AppImage executables.
+MPI is not distributed within the AppImage package because of the system-dependent optimizations (e.g. specific InfiniBand settings).
 Currently, PICLas executables are available as *[AppImage](https://appimage.org/)* for Linux.
 Other operating systems, such as Windows or MacOS might be supported in the future.
 
