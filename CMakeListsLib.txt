@@ -470,7 +470,7 @@ IF(LIBS_BUILD_HOPR)
     # Let CMake take care of download, configure and build
     EXTERNALPROJECT_ADD(HOPR
     GIT_REPOSITORY ${HOPR_DOWNLOAD}
-    GIT_TAG v1.1.1
+    GIT_TAG ${HOPR_TAG}
     GIT_PROGRESS FALSE
     ${${GITSHALLOW}}
     PREFIX ${LIBS_HOPR_DIR}
@@ -491,6 +491,38 @@ IF(LIBS_BUILD_HOPR)
     # Make sure that the hopr binary is in the piclas/build/bin/ folder after piclas was build
     ExternalProject_Add_StepDependencies(HOPR install piclas)
     SET(HOPR_FOUND TRUE)
+  ENDIF()
+ENDIF()
+
+# Download the HOPR executable directly and place it in the bin folder
+IF(LIBS_DOWNLOAD_HOPR)
+  MESSAGE(STATUS "HOPR executable download from: ${HOPR_DOWNLOAD_URL}")
+  IF(NOT EXISTS "${CMAKE_CURRENT_BINARY_DIR}/bin/hopr")
+    MESSAGE(STATUS "HOPR executable not found in: ${CMAKE_CURRENT_BINARY_DIR}/bin/hopr. HOPR will be downloaded/extracted.")
+    # Check if .zip file has already been downloaded
+    FILE(GLOB HOPR_ZIP_FILE ${CMAKE_CURRENT_BINARY_DIR}/hopr-*.zip)
+    IF(NOT EXISTS "${HOPR_ZIP_FILE}")
+      EXECUTE_PROCESS(COMMAND curl -L -O ${HOPR_DOWNLOAD_URL})
+      FILE(GLOB HOPR_ZIP_FILE ${CMAKE_CURRENT_BINARY_DIR}/hopr-*.zip)
+    ENDIF()
+    # Check if AppImage has already been extracted
+    FILE(GLOB HOPR_APP_FILE ${CMAKE_CURRENT_BINARY_DIR}/hopr-*.AppImage)
+    IF(NOT EXISTS "${HOPR_APP_FILE}")
+      IF(NOT EXISTS "${HOPR_ZIP_FILE}")
+        MESSAGE(WARNING "FAILED to download hopr .zip file from ${HOPR_DOWNLOAD_URL}")
+      ELSE()
+        EXECUTE_PROCESS(COMMAND unzip ${HOPR_ZIP_FILE})
+        FILE(GLOB HOPR_APP_FILE ${CMAKE_CURRENT_BINARY_DIR}/hopr-*.AppImage)
+      ENDIF()
+    ENDIF()
+    # Check if AppImage file exists and create symbolic link into ./bin
+    IF(NOT EXISTS "${HOPR_APP_FILE}")
+      MESSAGE(WARNING "FAILED to extract hopr .zip file")
+    ELSE()
+      EXECUTE_PROCESS(COMMAND ln -s ${HOPR_APP_FILE} bin/hopr)
+    ENDIF()
+  ELSE()
+    MESSAGE(STATUS "HOPR executable already exists under ${CMAKE_CURRENT_BINARY_DIR}/bin/hopr")
   ENDIF()
 ENDIF()
 

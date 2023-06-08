@@ -27,6 +27,8 @@ For some external libraries and programs that **PICLas** uses, the following opt
 
 * `LIBS_BUILD_HOPR`: Enable the compilation of the mesh pre-processor HOPR during the PICLas compilation. The executable `hopr` will be placed in the build/bin/ folder next to the other executables. For more details, on the utilization of HOPR, see {ref}`sec:mesh-generation`.
 
+* `LIBS_DOWNLOAD_HOPR`: Enable downloading the mesh pre-processor HOPR during the PICLas compilation from GitHub. The executable `hopr` will be linked in the build/bin/ folder next to the other executables. For more details, on the utilization of HOPR, see {ref}`sec:mesh-generation`.
+
 * ``LIBS_BUILD_HDF5``: This will be set to ON if no pre-built HDF5 installation was found on your machine. In this case a HDF5 version
 will be built and used instead. For a detailed description of the installation of HDF5, please refer to Section {ref}`sec:hdf5-installation`.
 
