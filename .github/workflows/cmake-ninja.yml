@@ -19,7 +19,29 @@ jobs:
       options: --privileged
 
     steps:
+    - name: Test loops
+      shell: bash
+      run: |
+        echo "======================================================================="
+        echo "HELLOOOOOOO"
+        echo "======================================================================="
+        # Declare an array of strings
+        declare -a PROGS=("piclas2vtk" "piclas" "superB")
+
+        echo "Name=piclas" > piclasX.desktop
+        cat piclasX.desktop
+        echo "======================================================================="
+        # Iterate the string array
+        for PROG in ${PROGS[@]}; do
+          echo "${PROG}"
+          cp piclasX.desktop ${PROG}.desktop
+          sed -i -e "s/Name=.*/Name=${PROG}/" ${PROG}.desktop
+          cat ${PROG}.desktop
+        echo "-----------------------------------------------------------------------"
+        done
+
     - name: Install GIT
+      shell: bash
       run: |
         yum -y install https://packages.endpointdev.com/rhel/7/os/x86_64/endpoint-repo.x86_64.rpm
         yum -y install git
@@ -31,6 +53,7 @@ jobs:
         fetch-depth: 0
 
     - name: Dependencies
+      shell: bash
       run: |
         git config --global --add safe.directory '*'
         git status
@@ -53,6 +76,7 @@ jobs:
         chmod +x linuxdeploy-x86_64.AppImage
 
     - name: Install GNU GCC 8
+      shell: bash
       run: |
         yum install -y centos-release-scl
         yum install -y devtoolset-8-gcc*
@@ -90,6 +114,7 @@ jobs:
         tar -xvf openmpi-4.1.0.tar.gz
         cd openmpi-4.1.0
         ./configure --enable-static --disable-dlopen --enable-mpi1-compatibility --prefix=/opt/openmpi/4.1.0
+        #./configure --enable-debug --enable-static --disable-dlopen --enable-mpi1-compatibility --prefix=/opt/openmpi/4.1.0
         make -j && make install
         echo "======================================================================="
         MPI_DIR='/opt/openmpi/4.1.0'
@@ -109,6 +134,7 @@ jobs:
         tar -xvf hdf5-1.12.2.tar.gz
         cd hdf5-1.12.2
         ./configure --prefix=/opt/hdf5/1.12.2 --with-pic --enable-fortran --enable-parallel CC=$(which mpicc) CXX=$(which mpicxx) FC=$(which mpifort)
+        #./configure --enable-build-mode=debug --prefix=/opt/hdf5/1.12.2 --with-pic --enable-fortran --enable-parallel CC=$(which mpicc) CXX=$(which mpicxx) FC=$(which mpifort)
         make -j && make install
         echo "======================================================================="
         HDF5_DIR='/opt/hdf5/1.12.2'
@@ -157,13 +183,27 @@ jobs:
         cat ~/.bashrc
         echo "======================================================================="
 
+    - name: Configure CMake Piclas Single-core
+      shell: bash
+      # Configure CMake in a 'build' subdirectory. `CMAKE_BUILD_TYPE` is only required if you are using a single-configuration generator such as make.
+      # See https://cmake.org/cmake/help/latest/variable/CMAKE_BUILD_TYPE.html?highlight=cmake_build_type
+      run: |
+        source ~/.bashrc
+        cmake -G Ninja -B build_single -DPICLAS_INSTRUCTION=-mtune=generic -DCMAKE_BUILD_TYPE=Release -DLIBS_USE_MPI=OFF -DLIBS_BUILD_HDF5=OFF -DPICLAS_BUILD_POSTI=ON -DPOSTI_BUILD_SUPERB=ON -DPICLAS_READIN_CONSTANTS=ON -DCMAKE_INSTALL_PREFIX=/usr
+
+    - name: Build Piclas Single-core
+      shell: bash
+      run: |
+        source ~/.bashrc
+        cmake --build build_single
+
     - name: Configure CMake Piclas DSMC
       shell: bash
       # Configure CMake in a 'build' subdirectory. `CMAKE_BUILD_TYPE` is only required if you are using a single-configuration generator such as make.
       # See https://cmake.org/cmake/help/latest/variable/CMAKE_BUILD_TYPE.html?highlight=cmake_build_type
       run: |
         source ~/.bashrc
-        cmake -G Ninja -B build_DSMC -DPICLAS_TIMEDISCMETHOD=DSMC -DCMAKE_BUILD_TYPE=Release -DLIBS_USE_MPI=ON -DLIBS_BUILD_HDF5=OFF -DPICLAS_BUILD_POSTI=ON -DPOSTI_BUILD_SUPERB=ON -DPICLAS_READIN_CONSTANTS=ON -DCMAKE_INSTALL_PREFIX=/usr
+        cmake -G Ninja -B build_DSMC -DPICLAS_INSTRUCTION=-mtune=generic -DPOSTI_BUILD_PICLAS2VTK=OFF -DPOSTI_BUILD_SUPERB=OFF -DPICLAS_POLYNOMIAL_DEGREE=1 -DPICLAS_TIMEDISCMETHOD=DSMC -DCMAKE_BUILD_TYPE=Release -DLIBS_USE_MPI=ON -DLIBS_BUILD_HDF5=OFF -DPICLAS_READIN_CONSTANTS=ON -DCMAKE_INSTALL_PREFIX=/usr
 
     - name: Build Piclas DSMC
       shell: bash
@@ -177,7 +217,8 @@ jobs:
       # See https://cmake.org/cmake/help/latest/variable/CMAKE_BUILD_TYPE.html?highlight=cmake_build_type
       run: |
         source ~/.bashrc
-        cmake -G Ninja -B build_poisson_leapfrog -DPICLAS_TIMEDISCMETHOD=Leapfrog -DPICLAS_EQNSYSNAME=poisson -DPICLAS_PETSC=ON -DCMAKE_BUILD_TYPE=Release -DLIBS_USE_MPI=ON -DLIBS_BUILD_HDF5=OFF -DPICLAS_BUILD_POSTI=ON -DPOSTI_BUILD_SUPERB=ON -DPICLAS_READIN_CONSTANTS=ON -DCMAKE_INSTALL_PREFIX=/usr
+        cmake -G Ninja -B build_poisson_leapfrog -DPICLAS_INSTRUCTION=-mtune=generic -DPOSTI_BUILD_PICLAS2VTK=OFF -DPOSTI_BUILD_SUPERB=OFF -DPICLAS_TIMEDISCMETHOD=Leapfrog -DPICLAS_EQNSYSNAME=poisson -DPICLAS_PETSC=ON -DCMAKE_BUILD_TYPE=Release -DLIBS_USE_MPI=ON -DLIBS_BUILD_HDF5=OFF -DPICLAS_READIN_CONSTANTS=ON -DCMAKE_INSTALL_PREFIX=/usr
+        #cmake -G Ninja -B build_poisson_leapfrog -DPICLAS_INSTRUCTION=-mtune=generic -DPOSTI_BUILD_PICLAS2VTK=OFF -DPOSTI_BUILD_SUPERB=OFF -DPICLAS_TIMEDISCMETHOD=Leapfrog -DPICLAS_EQNSYSNAME=poisson -DPICLAS_PETSC=OFF -DCMAKE_BUILD_TYPE=Release -DLIBS_USE_MPI=ON -DLIBS_BUILD_HDF5=OFF -DPICLAS_READIN_CONSTANTS=ON -DCMAKE_INSTALL_PREFIX=/usr
 
     - name: Build Piclas Poisson Leapfrog
       shell: bash
@@ -185,67 +226,159 @@ jobs:
         source ~/.bashrc
         cmake --build build_poisson_leapfrog
 
-    - name: Create piclas AppImage
+    - name: Create AppImages
       shell: bash
       run: |
         source ~/.bashrc
+
+        echo "======================================================================="
+        ls -la build_single/bin
+        echo "======================================================================="
+        cd build_single
+
+        # Declare an array of strings
+        declare -a PROGS=("piclas2vtk" "superB")
+
+        # Iterate the string array
+        for PROG in ${PROGS[@]}; do
+          rm -rf AppDir
+          DESTDIR=AppDir ninja install
+          mkdir -p AppDir/usr/share/icons
+          cp ../docs/logo.png AppDir/usr/share/icons/${PROG}.png
+          cp ../.github/workflows/piclas.desktop template.desktop
+          mv template.desktop ${PROG}.desktop
+          sed -i -e "s/Name=.*/Name=${PROG}/" ${PROG}.desktop
+          sed -i -e "s/Exec=.*/Exec=${PROG}/" ${PROG}.desktop
+          sed -i -e "s/Icon=.*/Icon=${PROG}/" ${PROG}.desktop
+          ./../linuxdeploy-x86_64.AppImage --appdir AppDir --output appimage --desktop-file=${PROG}.desktop
+        done
+
+        # Check folder contents
+        ls -la
+        cd ..
+
+
         echo "======================================================================="
         ls -la build_DSMC/bin
         echo "======================================================================="
         cd build_DSMC
-        DESTDIR=AppDir ninja install
-        mkdir -p AppDir/usr/share/icons
-        cp ../docs/logo.png AppDir/usr/share/icons/piclas.png
-        ./../linuxdeploy-x86_64.AppImage --appdir AppDir --output appimage --desktop-file=../.github/workflows/piclas.desktop
 
-    - name: Create piclas2vtk AppImage
-      shell: bash
-      run: |
-        source ~/.bashrc
-        echo "======================================================================="
-        ls -la build_DSMC/bin
-        echo "======================================================================="
-        cd build_DSMC
-        DESTDIR=AppDir ninja install
-        mkdir -p AppDir/usr/share/icons
-        cp ../docs/logo.png AppDir/usr/share/icons/piclas2vtk.png
-        ./../linuxdeploy-x86_64.AppImage --executable bin/piclas2vtk --appdir AppDir --output appimage --desktop-file=../.github/workflows/piclas2vtk.desktop
+        # Declare an array of strings
+        declare -a PROGS=("piclas")
 
-    - name: Set env
-      run: |
-        echo "======================================================================="
-        echo "build_DSMC"
-        ls -la build_DSMC
-        echo "======================================================================="
-        echo "build_DSMC/bin"
-        ls -la build_DSMC/bin
-        echo "======================================================================="
-        echo "PICLAS_BINARYPATH_DMSC=$(ls build_DSMC/piclas-*x86_64.AppImage)" >> $GITHUB_ENV
-        echo "PICLAS_BINARYNAME_DSMC=$(basename $(ls build_DSMC/piclas-*x86_64.AppImage))" >> $GITHUB_ENV
-        echo "PICLAS2VTK_BINARYPATH_DMSC=$(ls build_DSMC/piclas2vtk*x86_64.AppImage)" >> $GITHUB_ENV
-        echo "PICLAS2VTK_BINARYNAME_DSMC=$(basename $(ls build_DSMC/piclas2vtk*x86_64.AppImage))" >> $GITHUB_ENV
+        # Iterate the string array
+        for PROG in ${PROGS[@]}; do
+          rm -rf AppDir
+          DESTDIR=AppDir ninja install
+          mkdir -p AppDir/usr/share/icons
+          cp ../docs/logo.png AppDir/usr/share/icons/${PROG}.png
+          cp ../.github/workflows/piclas.desktop template.desktop
+          mv template.desktop ${PROG}.desktop
+          sed -i -e "s/Name=.*/Name=${PROG}/" ${PROG}.desktop
+          sed -i -e "s/Exec=.*/Exec=${PROG}/" ${PROG}.desktop
+          sed -i -e "s/Icon=.*/Icon=${PROG}/" ${PROG}.desktop
+          ./../linuxdeploy-x86_64.AppImage --appdir AppDir --output appimage --desktop-file=${PROG}.desktop
+        done
 
-    - name: Check file existence
-      id: check_files
-      uses: andstor/file-existence-action@v2
-      with:
-        files: "${{ env.PICLAS_BINARYPATH_DMSC }}"
+        # Check folder contents
+        ls -la
+        cd ..
 
-    - name: Fail if binary does not exist
-      if: steps.check_files.outputs.files_exists == 'false'
-      uses: actions/github-script@v3
-      with:
-        script: |
-          core.setFailed('no binary found under build_DSMC/piclas*x86_64.AppImage.')
+        echo "======================================================================="
+        ls -la build_poisson_leapfrog/bin
+        echo "======================================================================="
+        cd build_poisson_leapfrog
+
+        # Declare an array of strings
+        declare -a PROGS=("piclas")
+
+        # Iterate the string array
+        for PROG in ${PROGS[@]}; do
+          rm -rf AppDir
+          DESTDIR=AppDir ninja install
+          mkdir -p AppDir/usr/share/icons
+          cp ../docs/logo.png AppDir/usr/share/icons/${PROG}.png
+          cp ../.github/workflows/piclas.desktop template.desktop
+          mv template.desktop ${PROG}.desktop
+          sed -i -e "s/Name=.*/Name=${PROG}/" ${PROG}.desktop
+          sed -i -e "s/Exec=.*/Exec=${PROG}/" ${PROG}.desktop
+          sed -i -e "s/Icon=.*/Icon=${PROG}/" ${PROG}.desktop
+          ./../linuxdeploy-x86_64.AppImage --appdir AppDir --output appimage --desktop-file=${PROG}.desktop
+        done
+
+        # Check folder contents
+        ls -la
+        cd ..
+
+#   - name: Create piclas AppImage
+#     shell: bash
+#     run: |
+#       source ~/.bashrc
+#       echo "======================================================================="
+#       ls -la build_DSMC/bin
+#       echo "======================================================================="
+#       cd build_DSMC
+#       DESTDIR=AppDir ninja install
+#       mkdir -p AppDir/usr/share/icons
+#       cp ../docs/logo.png AppDir/usr/share/icons/piclas.png
+#       ./../linuxdeploy-x86_64.AppImage --appdir AppDir --output appimage --desktop-file=../.github/workflows/piclas.desktop
+
+#   - name: Create piclas2vtk AppImage
+#     shell: bash
+#     run: |
+#       source ~/.bashrc
+#       echo "======================================================================="
+#       ls -la build_DSMC/bin
+#       echo "======================================================================="
+#       cd build_DSMC
+#       rm -rf AppDir
+#       DESTDIR=AppDir ninja install
+#       mkdir -p AppDir/usr/share/icons
+#       cp ../docs/logo.png AppDir/usr/share/icons/piclas2vtk.png
+#       #./../linuxdeploy-x86_64.AppImage --executable bin/piclas2vtk --appdir AppDir --output appimage --desktop-file=../.github/workflows/piclas2vtk.desktop
+#       ./../linuxdeploy-x86_64.AppImage --appdir AppDir --output appimage --desktop-file=../.github/workflows/piclas2vtk.desktop
+
+#   - name: Set env
+#     shell: bash
+#     run: |
+#       echo "======================================================================="
+#       echo "build_DSMC"
+#       ls -la build_DSMC
+#       echo "======================================================================="
+#       echo "build_DSMC/bin"
+#       ls -la build_DSMC/bin
+#       echo "======================================================================="
+#       echo "PICLAS_BINARYPATH_DMSC=$(ls build_DSMC/piclas-*x86_64.AppImage)" >> $GITHUB_ENV
+#       echo "PICLAS_BINARYNAME_DSMC=$(basename $(ls build_DSMC/piclas-*x86_64.AppImage))" >> $GITHUB_ENV
+#       echo "PICLAS2VTK_BINARYPATH_DMSC=$(ls build_DSMC/piclas2vtk*x86_64.AppImage)" >> $GITHUB_ENV
+#       echo "PICLAS2VTK_BINARYNAME_DSMC=$(basename $(ls build_DSMC/piclas2vtk*x86_64.AppImage))" >> $GITHUB_ENV
+
+#   - name: Check file existence
+#     id: check_files
+#     uses: andstor/file-existence-action@v2
+#     with:
+#       files: "${{ env.PICLAS_BINARYPATH_DMSC }}"
+
+#   - name: Fail if binary does not exist
+#     if: steps.check_files.outputs.files_exists == 'false'
+#     uses: actions/github-script@v3
+#     with:
+#       script: |
+#         core.setFailed('no binary found under build_DSMC/piclas*x86_64.AppImage.')
 
     - name: Create archives
+      shell: bash
       run: |
         mkdir artifacts
-        mkdir assets
-        cp ${PICLAS_BINARYPATH_DMSC} .
-        #cp ${PICLAS2VTK_BINARYPATH_DMSC} .
-        7z a assets/piclas-linux64.zip ${PICLAS_BINARYNAME_DSMC} ${PICLAS2VTK_BINARYNAME_DSMC}
-        mv ${PICLAS_BINARYNAME_DSMC} ${PICLAS2VTK_BINARYNAME_DSMC} artifacts/.
+        mkdir release-assets
+        cp build_single/piclas2vtk*x86_64.AppImage piclas2vtk
+        cp build_single/superB*x86_64.AppImage superB
+        cp build_DSMC/piclas-*x86_64.AppImage piclasDSMC
+        cp build_poisson_leapfrog/piclas-*x86_64.AppImage piclasLeapfrogHDG
+        7z a release-assets/piclas-linux64.zip piclasDSMC piclasLeapfrogHDG piclas2vtk superB
+        ls -la release-assets
+        mv piclasDSMC piclasLeapfrogHDG piclas2vtk superB artifacts/.
+        ls -la artifacts
 
     - name: Upload artifacts
       uses: actions/upload-artifact@v3
@@ -260,7 +393,7 @@ jobs:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       with:
         upload_url: ${{ github.event.release.upload_url }}
-        asset_path: ./assets/piclas-linux64.zip
+        asset_path: ./release-assets/piclas-linux64.zip
         asset_name: piclas-linux64.zip
         asset_content_type: application/zip
 
