@@ -22,6 +22,8 @@ After downloading the binary files, it has to be checked that all files are exec
     chmod +x piclas*
 
 for all files beginning with piclas (add the other files to the list if required) before they can be used.
+If problems occur when executing the AppImage, check the [troubleshooting]( https://docs.appimage.org/user-guide/troubleshooting/index.html)
+section for possible fixes.
 
 ## Prerequisites
 **PICLas** has been used on various Linux distributions in the past. This includes Ubuntu 16.04 LTS and 18.04 LTS, 20.04 LTS

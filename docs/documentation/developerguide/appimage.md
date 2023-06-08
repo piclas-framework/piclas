@@ -86,3 +86,8 @@ and change the following settings, e.g., for `piclas2vtk`
 This should create
 
     piclas2vtk-ad6830c7a-x86_64.AppImage
+
+## Troubleshooting
+
+If problems occur when executing the AppImage, check the [troubleshooting]( https://docs.appimage.org/user-guide/troubleshooting/index.html)
+section for possible fixes.
