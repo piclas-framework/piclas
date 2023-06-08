@@ -50,6 +50,25 @@ the CMake configuration file for HDF5 (optional).
     * ``PICLAS_SHARED_MEMORY_CORES``: Number of MPI threads per virtual node (default is 2). Assumes that all MPI threads run on the
       same physical node.
 
+Some settings are not shown in the graphical user interface, but can be changed via command line
+
+* ``PICLAS_INSTRUCTION``: Processor instruction settings (mainly depending on the hardware on which the compilation process is
+  performed or the target hardware where piclas will be executed). This variable is set automatically depending on the machine where
+  piclas is compiled. CMake prints the value of this parameter during configuration
+
+      -- Compiling Nitro/Release/Profile with [GNU] (v12.2.0) fortran compiler using PICLAS_INSTRUCTION [-march=native] instructions.
+
+  When compiling piclas on one machine and executing the code on a different one, the instruction setting should be set to
+  `generic`. This can be accomplished by running
+
+      cmake -DPICLAS_INSTRUCTION=-mtune=generic
+
+  To reset the instruction settings, run cmake again but with
+
+      -DPICLAS_INSTRUCTION=
+
+  which resorts to using the automatic determination depending on the detected machine.
+
 (sec:solver-settings)=
 ## Solver settings
 
