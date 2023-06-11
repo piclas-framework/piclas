@@ -115,6 +115,13 @@ REAL,ALLOCPOINT                 :: NodeVolume_Shared(:)
 REAL,ALLOCPOINT                 :: SFElemr2_Shared(:,:) ! index 1: radius, index 2: radius squared
 
 REAL,ALLOCATABLE                :: NodeSource(:,:)
+
+TYPE tPeriodicNodeMap 
+  INTEGER                       :: nPeriodicNodes
+  INTEGER,ALLOCATABLE           :: Mapping(:)
+  INTEGER,ALLOCATABLE           :: Rank(:)
+END TYPE
+TYPE(tPeriodicNodeMap), ALLOCATABLE :: PeriodicNodeMap(:)
 INTEGER,ALLOCATABLE             :: NodeSendDepoRankToGlobalRank(:)
 INTEGER,ALLOCATABLE             :: NodeRecvDepoRankToGlobalRank(:)
 INTEGER,ALLOCATABLE             :: DepoNodetoGlobalNode(:)
@@ -189,7 +196,6 @@ INTEGER                         :: nShapeExchangeProcs
 
 !INTEGER             :: SendRequest
 INTEGER,ALLOCATABLE :: RecvRequest(:), SendRequest(:), CNRankToSendRank(:)
-INTEGER,ALLOCATABLE :: RecvRequestCN(:), SendRequestCN(:)
 #endif
 
 !===================================================================================================================================
