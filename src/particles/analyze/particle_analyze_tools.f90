@@ -3001,6 +3001,7 @@ SUBROUTINE CalculateIonizationCell()
 ! 1.) Count the number of ions per DG cell and divide it by element-volume -> ion density n_i
 ! 2.) Count the number of neutrals per DG cell and divide it by element-volume -> neutral density n_n
 ! 3.) Calculate the ionization degree: alpha = n_i/(n_i + n_n)
+! 4.) Set indicator for valid plasma element: quasi-neutrality is above 0.5 and at least 20 particles are inside the element
 !===================================================================================================================================
 ! MODULES                                                                                                                          !
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -3061,6 +3062,7 @@ DO iElem=1,PP_nElems
       END IF
     END IF
 
+    ! 4.) Set indicator for valid plasma element: quasi-neutrality is above 0.5 and at least 20 particles are inside the element
     ! Set PPD and time step validity flag for elements (otherwise the element is considered not part of a plasma state)
     ! Check that quasi-neutrality is above 0.5 and at least 20 particles are inside the element
     IF((Q.GE.0.5).AND.(nPartsPerElem(iElem).GE.20))THEN
