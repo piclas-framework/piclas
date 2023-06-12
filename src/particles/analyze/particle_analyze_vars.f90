@@ -102,6 +102,8 @@ REAL                          :: LaserInteractionEkinMaxZPosMin      !< minimum 
 !                                                                    !<particle energy per species. Default=.FALSE.
 REAL,ALLOCATABLE              :: IonizationCell(:)                   !< Ionization degree cell value
 REAL,ALLOCATABLE              :: QuasiNeutralityCell(:)              !< QuasiNeutrality degree cell value
+INTEGER                       :: PPDCellResolved(4)                  !> Number of elements with PPD>=1
+INTEGER                       :: PICTimeCellResolved                 !> Number of cells where the time step is resolved
 REAL,ALLOCATABLE              :: PPDCell(:)                          !< Points per Debye length (cell mean value)
 REAL,ALLOCATABLE              :: PPDCellX(:)                         !< Points per Debye length in X (cell mean value)
 REAL,ALLOCATABLE              :: PPDCellY(:)                         !< Points per Debye length in Y (cell mean value)
@@ -130,6 +132,8 @@ REAL,ALLOCATABLE              :: ElectronDensityCell(:)              !< Electron
 REAL,ALLOCATABLE              :: IonDensityCell(:)                   !< Ion density (cell mean value)
 REAL,ALLOCATABLE              :: NeutralDensityCell(:)               !< Neutral density (cell mean value)
 REAL,ALLOCATABLE              :: ChargeNumberCell(:)                 !< Charge number (cell mean value)
+INTEGER,ALLOCATABLE           :: PICValidPlasmaCell(:)               !< Check that quasi-neutrality is above 0.5 and at least 20 particles are inside the element
+INTEGER                       :: PICValidPlasmaCellSum               !< Global number of elements that have quasi-neutrality above 0.5 and at least 20 particles are inside the element
 REAL,ALLOCATABLE              :: ElectronTemperatureCell(:)          !< Electron temperature (cell mean value)
 REAL,ALLOCATABLE              :: ElectronMinEnergyCell(:)            !< Electron minimum cell energy [eV]
 REAL,ALLOCATABLE              :: ElectronMaxEnergyCell(:)            !< Electron maximum cell energy [eV]
