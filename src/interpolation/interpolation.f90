@@ -98,7 +98,7 @@ CALL prms%CreateIntOption('NAnalyze' , 'Polynomial degree at which analysis is p
 END SUBROUTINE DefineParametersInterpolation
 
 
-SUBROUTINE InitInterpolation(NIn_opt)
+SUBROUTINE InitInterpolation(NIn_opt,NAnalyzeIn_opt)
 !============================================================================================================================
 ! Initialize basis for Gauss-points of order N.
 ! Prepares Differentiation matrices D, D_Hat, Basis at the boundaries L(1), L(-1), L_Hat(1), L_Hat(-1)
@@ -113,7 +113,8 @@ USE MOD_ReadInTools        ,ONLY: GETINT,CountOption
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------
 !input parameters
-INTEGER,INTENT(IN),OPTIONAL :: NIn_opt  !< optional polynomial degree
+INTEGER,INTENT(IN),OPTIONAL :: NIn_opt         !< optional polynomial degree
+INTEGER,INTENT(IN),OPTIONAL :: NAnalyzeIn_opt  !< optional analyze polynomial degree
 !----------------------------------------------------------------------------------------------------------------------------
 !output parameters
 !----------------------------------------------------------------------------------------------------------------------------
@@ -184,8 +185,12 @@ DO Nin=Nmin,Nmax
 END DO;END DO
 
 ! Set the default analyze polynomial degree NAnalyze to 2*(N+1)
-WRITE(DefStr,'(i4)') 2*(PP_N+1)
-NAnalyze = GETINT('NAnalyze',DefStr)
+IF(PRESENT(NAnalyzeIn))THEN
+  NAnalyze = NAnalyzeIn
+ELSE
+  WRITE(DefStr,'(i4)') 2*(PP_N+1)
+  NAnalyze = GETINT('NAnalyze',DefStr)
+END IF ! PRESENT(NAnalyzeIn)
 
 ! Initialize the basis functions for the analyze polynomial
 CALL InitAnalyzeBasis(NAnalyze)

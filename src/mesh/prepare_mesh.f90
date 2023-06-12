@@ -1041,7 +1041,7 @@ IF(meshMode.GT.1)THEN
           SELECT CASE(BCType)
           CASE(1) !periodic
             CALL abort(__STAMP__,'SideID.LE.nBCSides and SideID is periodic should not happen')
-          CASE(2,4,5,6,7,8) ! Dirichlet
+          CASE(HDGDIRICHLETBCSIDEIDS) ! Dirichlet
             ! do not consider this side
           CASE(10,11) ! Neumann
             HDGSides = HDGSides + 1
