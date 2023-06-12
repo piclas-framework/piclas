@@ -123,11 +123,19 @@ IMPLICIT NONE
 REAL,ALLOCATABLE          :: xGP_tmp(:),wGP_tmp(:)
 INTEGER                   :: ALLOCSTAT, iElem, i, j, k, kk, ll, mm, iNode, CNElemID, CNNbElemID, iLocSide, jNode, locElemID, kNode
 INTEGER                   :: NbElemID, NbLocSide, PeriodicNode, PVID, SideID, NbSideID, NumPerioNodes, iPeriodNode, zNode,zGlobalNode
+INTEGER                   :: TestNode
 REAL                      :: DetLocal(1,0:PP_N,0:PP_N,0:PP_N), DetJac(1,0:1,0:1,0:1), tmpDist, Dist
 REAL, ALLOCATABLE         :: Vdm_tmp(:,:)
 CHARACTER(255)            :: TimeAverageFile
 LOGICAL                   :: NodeDone(4)
 INTEGER, ALLOCATABLE      :: PeriodicNodeSourceMap(:,:)
+
+TYPE tPeriodicNodeMap 
+  INTEGER                       :: nPeriodicNodes
+  INTEGER,ALLOCATABLE           :: Mapping(:)
+  INTEGER,ALLOCATABLE           :: Rank(:)
+END TYPE
+TYPE(tPeriodicNodeMap), ALLOCATABLE :: PeriodicNodeMap(:)
 #if USE_MPI
 INTEGER, ALLOCATABLE      :: SendPeriodicNodes(:), iSendNode(:), RecvPeriodicNodes(:)
 INTEGER                   :: UniqueNodeID
@@ -255,9 +263,7 @@ CASE('cell_volweight_mean')
     CellVolWeightFac(0:PP_N) = xGP(0:PP_N)
     CellVolWeightFac(0:PP_N) = (CellVolWeightFac(0:PP_N)+1.0)/2.0
   END IF
-
-  ! Initialize sub-cell volumes around nodes
-  CALL CalcCellLocNodeVolumes()
+  
   ALLOCATE(NodeSource(1:4,1:nUniqueGlobalNodes))
   NodeSource=0.0
   IF(DoDielectricSurfaceCharge)THEN
@@ -289,7 +295,10 @@ IF (GEO%nPeriodicVectors.GT.0) THEN
             END IF
           END IF
         END DO       
+        IF (myrank.EQ.1) print*, 'startagain', offsetElem+locElemID, NbElemID, PVID,SideID, NbSideID
         DO iNode=1,4
+          IF (myrank.EQ.1) print*, 'nodesonside',NodeInfo_Shared(ElemSideNodeID_Shared(iNode,iLocSide,CNElemID)+1)
+          IF (myrank.EQ.1) print*, 'nodesonotherside',NodeInfo_Shared(ElemSideNodeID_Shared(iNode,NbLocSide,CNNbElemID)+1)
           IF (PeriodicNodeSourceMap(ABS(PVID),NodeInfo_Shared(ElemSideNodeID_Shared(iNode,iLocSide,CNElemID)+1)).NE.0) CYCLE
           PeriodicNode= 0 
           Dist = HUGE(Dist)
@@ -311,8 +320,6 @@ IF (GEO%nPeriodicVectors.GT.0) THEN
           GlobalElemRank = ElemInfo_Shared(ELEM_RANK,NbElemID)
           IF (GlobalElemRank.NE.myRank) THEN
             PeriodicNodeSourceMap(GEO%nPeriodicVectors+ABS(PVID),NodeInfo_Shared(ElemSideNodeID_Shared(iNode,iLocSide,CNElemID)+1)) = GlobalElemRank
-            SendNode(UniqueNodeID) = .TRUE.
-            DoNodeMapping(GlobalElemRank) = .TRUE.
           END IF
 #endif
         END DO
@@ -324,14 +331,14 @@ IF (GEO%nPeriodicVectors.GT.0) THEN
 !  END DO  
 
 #if USE_MPI
-  IF (GEO%nPeriodicVectors.GT.1) THEN
+  IF (GEO%nPeriodicVectors.GT.0) THEN
     ALLOCATE(SendPeriodicNodes(0:nProcessors_Global-1), PeriodicSendRecv(0:nProcessors_Global-1))
     ALLOCATE(iSendNode(0:nProcessors_Global-1),RecvPeriodicNodes(0:nProcessors_Global-1))
     iSendNode = 0
     SendPeriodicNodes = 0; RecvPeriodicNodes =0
     DO iNode = 1, nUniqueGlobalNodes
       NumPerioNodes = COUNT(PeriodicNodeSourceMap(1:GEO%nPeriodicVectors,iNode).NE.0)
-      IF (NumPerioNodes.GT.1) THEN
+      IF (NumPerioNodes.GT.0) THEN
         DO jNode= 1, GEO%nPeriodicVectors
           IF (PeriodicNodeSourceMap(jNode,iNode).NE.0) THEN
             IF (PeriodicNodeSourceMap(jNode+GEO%nPeriodicVectors,iNode).NE.-1) THEN
@@ -352,7 +359,7 @@ IF (GEO%nPeriodicVectors.GT.0) THEN
     END DO
     DO iNode = 1, nUniqueGlobalNodes
       NumPerioNodes = COUNT(PeriodicNodeSourceMap(1:GEO%nPeriodicVectors,iNode).NE.0)
-      IF (NumPerioNodes.GT.1) THEN
+      IF (NumPerioNodes.GT.0) THEN
         DO jNode= 1, GEO%nPeriodicVectors
           IF (PeriodicNodeSourceMap(jNode,iNode).NE.0) THEN
             iRank = PeriodicNodeSourceMap(jNode+GEO%nPeriodicVectors,iNode)
@@ -519,7 +526,7 @@ IF (GEO%nPeriodicVectors.GT.0) THEN
           PeriodicNodeMap(iNode)%Rank(iPeriodNode) = PeriodicNodeSourceMap(jNode+GEO%nPeriodicVectors,iNode)
         END IF
       END DO
-      IF (NumPerioNodes.GT.1) THEN
+      IF (NumPerioNodes.GT.0) THEN
         DO jNode = 1, 3
           IF (PeriodicNodeSourceMap(jNode,iNode).NE.0) THEN
             DO zNode = 1, 3
@@ -543,7 +550,7 @@ IF (GEO%nPeriodicVectors.GT.0) THEN
     iSendNode = 0
     SendPeriodicNodes = 0; RecvPeriodicNodes =0
     DO iNode = 1, nUniqueGlobalNodes 
-      IF (PeriodicNodeMap(iNode)%nPeriodicNodes.GT.1) THEN
+      IF (PeriodicNodeMap(iNode)%nPeriodicNodes.GT.0) THEN
         IF (ANY(PeriodicNodeMap(iNode)%Mapping.EQ.0)) THEN
           DO jNode = 1, PeriodicNodeMap(iNode)%nPeriodicNodes            
             iRank = PeriodicNodeMap(iNode)%Rank(jNode)
@@ -562,7 +569,7 @@ IF (GEO%nPeriodicVectors.GT.0) THEN
       END IF
     END DO
     DO iNode = 1, nUniqueGlobalNodes 
-      IF (PeriodicNodeMap(iNode)%nPeriodicNodes.GT.1) THEN
+      IF (PeriodicNodeMap(iNode)%nPeriodicNodes.GT.0) THEN
         IF (ANY(PeriodicNodeMap(iNode)%Mapping.EQ.0)) THEN
           DO jNode = 1, PeriodicNodeMap(iNode)%nPeriodicNodes          
             iRank = PeriodicNodeMap(iNode)%Rank(jNode)
@@ -717,7 +724,7 @@ IF (GEO%nPeriodicVectors.GT.0) THEN
   END IF
 #endif
   DO iNode = 1, nUniqueGlobalNodes 
-    IF (PeriodicNodeMap(iNode)%nPeriodicNodes.GT.1) THEN
+    IF (PeriodicNodeMap(iNode)%nPeriodicNodes.GT.0) THEN
       IF (ANY(PeriodicNodeMap(iNode)%Mapping.EQ.0)) THEN
         DO jNode = 1, PeriodicNodeMap(iNode)%nPeriodicNodes
           IF (PeriodicNodeMap(iNode)%Mapping(jNode).EQ.0) THEN
@@ -735,14 +742,28 @@ IF (GEO%nPeriodicVectors.GT.0) THEN
         END DO    
       END IF
     END IF
-  END DO 
-  DO iNode = 1, nUniqueGlobalNodes 
-    IF (ALLOCATED(PeriodicNodeMap(iNode)%Mapping)) IPWRITE(*,*) iNode, 'arg', PeriodicNodeMap(iNode)%Mapping(:)
   END DO
-!  read*
+  DO iNode = 1, nUniqueGlobalNodes
+    IF (myRank.EQ.1) print*, iNode, 'periodicnodes', PeriodicNodeMap(iNode)%nPeriodicNodes  
+    IF (PeriodicNodeMap(iNode)%nPeriodicNodes.GT.0) THEN
+      DO jNode = 1, PeriodicNodeMap(iNode)%nPeriodicNodes
+        TestNode = PeriodicNodeMap(iNode)%Mapping(jNode) 
+        DO jElem = NodeToElemMapping(1,TestNode) + 1, NodeToElemMapping(1,TestNode) + NodeToElemMapping(2,TestNode)
+          TestElemID = GetGlobalElemID(NodeToElemInfo(jElem))
+          IPWRITE(*,*) 'haloflag', ElemInfo_Shared(ELEM_HALOFLAG,TestElemID), ElemInfo_Shared(ELEM_RANK,TestElemID)
+          GlobalElemRank = ElemInfo_Shared(ELEM_RANK,TestElemID)
+          IF (GlobalElemRank.NE.myRank) THEN
+!            IF (myRank.EQ.1) print*, 'periodic', TestNode,TestElemID,  GlobalElemRank
+            SendNode(TestNode) = .TRUE.
+            DoNodeMapping(GlobalElemRank) = .TRUE.
+          END IF
+        END DO        
+      END DO
+!      IF (myRank.EQ.1) print*, 'periodicmap', PeriodicNodeMap(iNode)%Mapping(:)
+    END IF
+  END DO
   DEALLOCATE(PeriodicNodeSourceMap)
 END IF
-
 
 #if USE_MPI
   IF(DoDielectricSurfaceCharge)THEN
@@ -772,11 +793,15 @@ END IF
           ELSE
             IF (GlobalElemRank.EQ.myRank) THEN
               bordersMyrank = .TRUE.
+!              IF (myRank.EQ.1) print*, 'welchernode' , UniqueNodeID
               SendNode(UniqueNodeID) = .TRUE.
             END IF
           END IF
         END DO
-        IF (.NOT.DoHaloDepo.AND.bordersMyrank) DoNodeMapping(GlobalElemRankOrig) = .TRUE.
+        IF (.NOT.DoHaloDepo.AND.bordersMyrank) THEN
+          DoNodeMapping(GlobalElemRankOrig) = .TRUE.
+!          IF (myRank.EQ.1) print*, 'und welcher proc' , GlobalElemRankOrig
+        END IF
       END DO
     END IF
   END DO
@@ -831,14 +856,33 @@ END IF
   ALLOCATE(NodeDepoMapping(1:nNodeSendExchangeProcs, 1:nUniqueGlobalNodes))
   NodeDepoMapping = .FALSE.
 
+!  IF (myRank.eq.1)THEN  
+!    DO jElem = NodeToGlobElemMapping(1,7) + 1, NodeToGlobElemMapping(1,7) + NodeToGlobElemMapping(2,7)
+!      TestElemID = GetGlobalElemID(NodeToGlobElemInfo(jElem))
+!      GlobalElemRank = ElemInfo_Shared(ELEM_RANK,TestElemID)
+!      print*, '  Whatthe', TestElemID, GlobalElemRank
+!    END DO
+!  END IF
+
+!  IF (myRank.eq.1)THEN  
+!    DO jElem = NodeToElemMapping(1,7) + 1, NodeToElemMapping(1,7) + NodeToElemMapping(2,7)
+!      TestElemID = GetGlobalElemID(NodeToElemInfo(jElem))
+!      GlobalElemRank = ElemInfo_Shared(ELEM_RANK,TestElemID)
+!      print*, '  Whatthenochmal', TestElemID, GlobalElemRank
+!    END DO
+!  END IF
+
+
   DO iNode = 1, nUniqueGlobalNodes
     IF (SendNode(iNode)) THEN
       DO jElem = NodeToElemMapping(1,iNode) + 1, NodeToElemMapping(1,iNode) + NodeToElemMapping(2,iNode)
           TestElemID = GetGlobalElemID(NodeToElemInfo(jElem))
           GlobalElemRank = ElemInfo_Shared(ELEM_RANK,TestElemID)
+!          IF (myRank.eq.1) print*, 'schon wieder', iNode, TestElemID, GlobalElemRank, GlobalRankToNodeSendDepoRank(GlobalElemRank)
+!          IF (myRank.eq.1) print*, 'and coords', NodeCoords_Shared(1:3,iNode)
           IF (GlobalElemRank.NE.myRank) THEN
             iRank = GlobalRankToNodeSendDepoRank(GlobalElemRank)
-            IF (iRank.LT.1) CALL ABORT(__STAMP__,'Found not connected Rank!', IERROR)
+            IF (iRank.LT.1) CALL ABORT(__STAMP__,'Found not connected Rank!', myRank)
             NodeDepoMapping(iRank, iNode) = .TRUE.
           END IF
         END DO
@@ -973,6 +1017,8 @@ END IF
   END DO
 #endif /*USE_MPI*/
 
+! Initialize sub-cell volumes around nodes
+  CALL CalcCellLocNodeVolumes()
 
 CASE('shape_function', 'shape_function_cc', 'shape_function_adaptive')
 #if USE_MPI
