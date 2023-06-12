@@ -251,7 +251,7 @@ ELSEIF (CMAKE_Fortran_COMPILER_ID MATCHES "Intel")
   # Compile flags depend on the generator
   IF(NOT "${CMAKE_GENERATOR}" MATCHES "Ninja")
     # add flags only for compiling not linking!
-    SET (PICLAS_COMPILE_FLAGS "-fPIC-fpp -allow nofpp_comments -assume bscc")
+    SET (PICLAS_COMPILE_FLAGS "-fPIC -fpp -allow nofpp_comments -assume bscc")
   ELSE()
     SET (PICLAS_COMPILE_FLAGS "${NINJA_COLOR_DIAGNOSTICS} -allow nofpp_comments -assume bscc")
   ENDIF()

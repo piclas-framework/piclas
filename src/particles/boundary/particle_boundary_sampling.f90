@@ -437,7 +437,7 @@ END IF
 ! Pump capacity (Porous BC)
 IF (nPorousBC.GT.0) SurfOutputSize = SurfOutputSize + nPorousBC
 ! Wall temperature (Adaptive radiative-equilibrium BC)
-IF (ANY(PartBound%UseAdaptedWallTemp)) SurfOutputSize = SurfOutputSize + 1
+IF (PartBound%OutputWallTemp) SurfOutputSize = SurfOutputSize + 1
 !> Additional species-specific output (SurfSpecOutputSize -> MacroSurfaceSpecVal)
 ! Species-specific counter of impacts
 SurfSpecOutputSize = 1
@@ -795,7 +795,7 @@ CALL ExchangeSurfData()
 
 ! Only surface sampling leaders take part in the remainder of this routine
 IF (MPI_COMM_LEADERS_SURF.EQ.MPI_COMM_NULL) THEN
-  IF (ANY(PartBound%UseAdaptedWallTemp)) THEN
+  IF (PartBound%OutputWallTemp) THEN
     CALL BARRIER_AND_SYNC(BoundaryWallTemp_Shared_Win,MPI_COMM_SHARED)
   END IF
   RETURN
@@ -882,7 +882,7 @@ DO iSurfSide = 1,nComputeNodeSurfSides
         END DO
       END IF
       ! Output of the wall temperature
-      IF (ANY(PartBound%UseAdaptedWallTemp)) THEN
+      IF (PartBound%OutputWallTemp) THEN
         IF ((MacroSurfaceVal(4,p,q,OutputCounter).GT.0.0).AND.AdaptWallTemp) THEN
           iBC = PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,GlobalSideID))
           BoundaryWallTemp(p,q,iSurfSide) = (MacroSurfaceVal(4,p,q,OutputCounter) &
@@ -949,7 +949,7 @@ END DO ! iSurfSide=1,nComputeNodeSurfSides
 
 #if USE_MPI
 END ASSOCIATE
-IF (ANY(PartBound%UseAdaptedWallTemp)) THEN
+IF (PartBound%OutputWallTemp) THEN
   CALL BARRIER_AND_SYNC(BoundaryWallTemp_Shared_Win,MPI_COMM_SHARED)
 END IF
 #endif /*USE_MPI*/
@@ -1086,7 +1086,7 @@ IF (mySurfRank.EQ.0) THEN
     END DO
   END IF
 
-  IF (ANY(PartBound%UseAdaptedWallTemp)) CALL AddVarName(Str2DVarNames,nVar2D_Total,nVarCount,'Wall_Temperature')
+  IF (PartBound%OutputWallTemp) CALL AddVarName(Str2DVarNames,nVar2D_Total,nVarCount,'Wall_Temperature')
   IF (ANY(PartBound%SurfaceModel.EQ.1)) CALL AddVarName(Str2DVarNames,nVar2D_Total,nVarCount,'Sticking_Coefficient')
 
   CALL WriteAttributeToHDF5(File_ID,'VarNamesSurface',nVar2D_Total,StrArray=Str2DVarNames)
