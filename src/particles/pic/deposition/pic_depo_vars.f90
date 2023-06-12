@@ -115,13 +115,6 @@ REAL,ALLOCPOINT                 :: NodeVolume_Shared(:)
 REAL,ALLOCPOINT                 :: SFElemr2_Shared(:,:) ! index 1: radius, index 2: radius squared
 
 REAL,ALLOCATABLE                :: NodeSource(:,:)
-
-TYPE tPeriodicNodeMap 
-  INTEGER                       :: nPeriodicNodes
-  INTEGER,ALLOCATABLE           :: Mapping(:)
-  INTEGER,ALLOCATABLE           :: Rank(:)
-END TYPE
-TYPE(tPeriodicNodeMap), ALLOCATABLE :: PeriodicNodeMap(:)
 INTEGER,ALLOCATABLE             :: NodeSendDepoRankToGlobalRank(:)
 INTEGER,ALLOCATABLE             :: NodeRecvDepoRankToGlobalRank(:)
 INTEGER,ALLOCATABLE             :: DepoNodetoGlobalNode(:)
@@ -133,7 +126,17 @@ INTEGER                         :: nNodeRecvExchangeProcs
 ! dielectric interfaces.
 REAL,ALLOCATABLE                :: NodeSourceExt(:) ! It contains the global, synchronized surface charge contribution that is
 !                                                   ! read and written to .h5
+
+INTEGER,ALLOCPOINT :: Periodic_nNodes_Shared(:)             
+INTEGER,ALLOCPOINT :: Periodic_Nodes_Shared(:)              
+INTEGER,ALLOCPOINT :: Periodic_offsetNode_Shared(:)
+
 #if USE_MPI
+
+INTEGER         :: Periodic_nNodes_Shared_Win
+INTEGER         :: Periodic_Nodes_Shared_Win
+INTEGER         :: Periodic_offsetNode_Shared_Win
+
 REAL,ALLOCATABLE                :: NodeSourceExtTmp(:) ! It contains the local non-synchronized surface charge contribution (does
 !                                                      ! not consider the charge contribution from restart files). This
 !                                                      ! contribution accumulates over time, but remains local to each processor
@@ -160,9 +163,7 @@ TYPE tNodeMappingRecv
   INTEGER                       :: nRecvUniqueNodes
 END TYPE
 TYPE (tNodeMappingRecv),ALLOCATABLE      :: NodeMappingRecv(:)
-#endif
 
-#if USE_MPI
 TYPE tShapeMapping
   INTEGER,ALLOCATABLE           :: RecvShapeElemID(:)
   INTEGER                       :: nRecvShapeElems
