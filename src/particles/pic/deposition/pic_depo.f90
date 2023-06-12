@@ -129,7 +129,6 @@ REAL, ALLOCATABLE         :: Vdm_tmp(:,:)
 CHARACTER(255)            :: TimeAverageFile
 LOGICAL                   :: NodeDone(4)
 INTEGER, ALLOCATABLE      :: PeriodicNodeSourceMap(:,:)
-
 TYPE tPeriodicNodeMap 
   INTEGER                       :: nPeriodicNodes
   INTEGER,ALLOCATABLE           :: Mapping(:)
