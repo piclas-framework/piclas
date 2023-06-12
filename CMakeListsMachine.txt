@@ -86,81 +86,91 @@ INCLUDE(GNUInstallDirs)
 # =========================================================================
 # Set machine-specific definitions and settings
 # =========================================================================
-# HLRS HAWK / SuperMUC
-IF ("${CMAKE_HOSTNAME}" MATCHES "login")
-  MARK_AS_ADVANCED(FORCE C_PATH CXX_PATH Fortran_PATH)
+# Revert to default via -DPICLAS_INSTRUCTION= once this value has been changed via, e.g., -DPICLAS_INSTRUCTION=-mtune=generic
+IF(NOT DEFINED PICLAS_INSTRUCTION)
+  SET(PICLAS_INSTRUCTION "")
+ENDIF()
 
-  # HAWK and SuperMUC name their login nodes identically, so use the Fully Qualified Domain Name (FQDN) to identify
-  CMAKE_HOST_SYSTEM_INFORMATION(RESULT FQDN QUERY FQDN)
-  MARK_AS_ADVANCED(FORCE FQDN)
-  # HLRS HAWK
-  IF (FQDN MATCHES "hawk.hww.hlrs.de")
-    MESSAGE(STATUS "Compiling on Hawk")
+# HLRS HAWK / SuperMUC
+IF("${PICLAS_INSTRUCTION}" STREQUAL "")
+  IF ("${CMAKE_HOSTNAME}" MATCHES "login")
+    MARK_AS_ADVANCED(FORCE C_PATH CXX_PATH Fortran_PATH)
+
+    # HAWK and SuperMUC name their login nodes identically, so use the Fully Qualified Domain Name (FQDN) to identify
+    CMAKE_HOST_SYSTEM_INFORMATION(RESULT FQDN QUERY FQDN)
+    MARK_AS_ADVANCED(FORCE FQDN)
+    # HLRS HAWK
+    IF (FQDN MATCHES "hawk.hww.hlrs.de")
+      MESSAGE(STATUS "Compiling on Hawk")
+      # Overwrite compiler target architecture
+      IF (CMAKE_Fortran_COMPILER_ID MATCHES "GNU" OR CMAKE_Fortran_COMPILER_ID MATCHES "Flang")
+        SET(PICLAS_INSTRUCTION "-march=znver2")
+      ELSEIF (CMAKE_Fortran_COMPILER_ID MATCHES "Intel")
+        SET(PICLAS_INSTRUCTION "-xCORE-AVX2")
+      ENDIF()
+      # Use AMD Optimized Lapack/BLAS
+      # SET(BLA_VENDOR "FLAME")
+    # SuperMUC
+    ELSEIF (FQDN MATCHES "sng.lrz.de")
+      MESSAGE(STATUS "Compiling on SuperMUC")
+      # Overwrite compiler target architecture
+      IF (CMAKE_Fortran_COMPILER_ID MATCHES "GNU" OR CMAKE_Fortran_COMPILER_ID MATCHES "Flang")
+        SET(PICLAS_INSTRUCTION "-march=skylake-avx512")
+      ELSEIF (CMAKE_Fortran_COMPILER_ID MATCHES "Intel")
+        SET(PICLAS_INSTRUCTION "-xSKYLAKE-AVX512")
+        # Explicitely enable usage of AVX512 registers
+        SET (CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} -qopt-zmm-usage=high")
+      ENDIF()
+    ENDIF()
+    # Set LUSTRE definition to account for filesystem and MPI implementation
+    ADD_DEFINITIONS(-DLUSTRE)
+
+  # IAG Prandtl
+  ELSEIF("${CMAKE_HOSTNAME}" MATCHES "^prandtl")
+    MESSAGE(STATUS "Compiling on Prandtl")
+    MARK_AS_ADVANCED(FORCE C_PATH CXX_PATH Fortran_PATH)
+    SET(PICLAS_INSTRUCTION "-march=native")
+    # Set LUSTRE definition to account for filesystem
+    ADD_DEFINITIONS(-DLUSTRE)
+
+  # IAG Grafik01/Grafik02
+  ELSEIF ("${CMAKE_HOSTNAME}" MATCHES "^grafik0")
+    MESSAGE(STATUS "Compiling on ${CMAKE_HOSTNAME}")
+    MARK_AS_ADVANCED(FORCE C_PATH CXX_PATH Fortran_PATH)
+    SET(PICLAS_INSTRUCTION "-march=native")
+
+  ELSEIF ("${CMAKE_HOSTNAME}" MATCHES "^ilahead1")
+    MESSAGE(STATUS "Compiling on ILA cluster")
+    MARK_AS_ADVANCED(FORCE C_PATH CXX_PATH Fortran_PATH)
     # Overwrite compiler target architecture
     IF (CMAKE_Fortran_COMPILER_ID MATCHES "GNU" OR CMAKE_Fortran_COMPILER_ID MATCHES "Flang")
-      SET(PICLAS_INSTRUCTION "-march=znver2")
+      SET(PICLAS_INSTRUCTION "-march=core-avx2")
     ELSEIF (CMAKE_Fortran_COMPILER_ID MATCHES "Intel")
       SET(PICLAS_INSTRUCTION "-xCORE-AVX2")
     ENDIF()
-    # Use AMD Optimized Lapack/BLAS
-    # SET(BLA_VENDOR "FLAME")
-  # SuperMUC
-  ELSEIF (FQDN MATCHES "sng.lrz.de")
-    MESSAGE(STATUS "Compiling on SuperMUC")
-    # Overwrite compiler target architecture
-    IF (CMAKE_Fortran_COMPILER_ID MATCHES "GNU" OR CMAKE_Fortran_COMPILER_ID MATCHES "Flang")
-      SET(PICLAS_INSTRUCTION "-march=skylake-avx512")
+    # Work around MPI-IO issue 4446 on machines mounting storage via NFS
+    ADD_DEFINITIONS(-DNFS)
+
+  ELSEIF ("${CMAKE_HOSTNAME}" MATCHES "^xenon")
+    MESSAGE(STATUS "Compiling on ILA student cluster")
+    MARK_AS_ADVANCED(FORCE C_PATH CXX_PATH Fortran_PATH)
+    SET(PICLAS_INSTRUCTION "-march=native")
+    # Work around MPI-IO issue 4446 on machines mountng storage via NFS
+    ADD_DEFINITIONS(-DNFS)
+
+  ELSE()
+    MESSAGE(STATUS "Compiling on a generic machine")
+    # Set compiler target architecture
+    IF (CMAKE_Fortran_COMPILER_ID MATCHES "GNU" OR CMAKE_Fortran_COMPILER_ID MATCHES "Flang" )
+      SET(PICLAS_INSTRUCTION "-march=native")
+      #SET(PICLAS_INSTRUCTION "-mtune=generic")
     ELSEIF (CMAKE_Fortran_COMPILER_ID MATCHES "Intel")
-      SET(PICLAS_INSTRUCTION "-xSKYLAKE-AVX512")
-      # Explicitely enable usage of AVX512 registers
-      SET (CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} -qopt-zmm-usage=high")
+      SET(PICLAS_INSTRUCTION "-xHost")
     ENDIF()
   ENDIF()
-  # Set LUSTRE definition to account for filesystem and MPI implementation
-  ADD_DEFINITIONS(-DLUSTRE)
-
-# IAG Prandtl
-ELSEIF("${CMAKE_HOSTNAME}" MATCHES "^prandtl")
-  MESSAGE(STATUS "Compiling on Prandtl")
-  MARK_AS_ADVANCED(FORCE C_PATH CXX_PATH Fortran_PATH)
-  SET(PICLAS_INSTRUCTION "-march=native")
-  # Set LUSTRE definition to account for filesystem
-  ADD_DEFINITIONS(-DLUSTRE)
-
-# IAG Grafik01/Grafik02
-ELSEIF ("${CMAKE_HOSTNAME}" MATCHES "^grafik0")
-  MESSAGE(STATUS "Compiling on ${CMAKE_HOSTNAME}")
-  MARK_AS_ADVANCED(FORCE C_PATH CXX_PATH Fortran_PATH)
-  SET(PICLAS_INSTRUCTION "-march=native")
-
-ELSEIF ("${CMAKE_HOSTNAME}" MATCHES "^ilahead1")
-  MESSAGE(STATUS "Compiling on ILA cluster")
-  MARK_AS_ADVANCED(FORCE C_PATH CXX_PATH Fortran_PATH)
-  # Overwrite compiler target architecture
-  IF (CMAKE_Fortran_COMPILER_ID MATCHES "GNU" OR CMAKE_Fortran_COMPILER_ID MATCHES "Flang")
-    SET(PICLAS_INSTRUCTION "-march=core-avx2")
-  ELSEIF (CMAKE_Fortran_COMPILER_ID MATCHES "Intel")
-    SET(PICLAS_INSTRUCTION "-xCORE-AVX2")
-  ENDIF()
-  # Work around MPI-IO issue 4446 on machines mounting storage via NFS
-  ADD_DEFINITIONS(-DNFS)
-
-ELSEIF ("${CMAKE_HOSTNAME}" MATCHES "^xenon")
-  MESSAGE(STATUS "Compiling on ILA student cluster")
-  MARK_AS_ADVANCED(FORCE C_PATH CXX_PATH Fortran_PATH)
-  SET(PICLAS_INSTRUCTION "-march=native")
-  # Work around MPI-IO issue 4446 on machines mountng storage via NFS
-  ADD_DEFINITIONS(-DNFS)
-
-ELSE()
-  MESSAGE(STATUS "Compiling on a generic machine")
-  # Set compiler target architecture
-  IF (CMAKE_Fortran_COMPILER_ID MATCHES "GNU" OR CMAKE_Fortran_COMPILER_ID MATCHES "Flang" )
-    SET(PICLAS_INSTRUCTION "-march=native")
-  ELSEIF (CMAKE_Fortran_COMPILER_ID MATCHES "Intel")
-    SET(PICLAS_INSTRUCTION "-xHost")
-  ENDIF()
 ENDIF()
+
+MESSAGE(STATUS "Compiling Nitro/Release/Profile with [${CMAKE_Fortran_COMPILER_ID}] (v${CMAKE_Fortran_COMPILER_VERSION}) fortran compiler using PICLAS_INSTRUCTION [${PICLAS_INSTRUCTION}] instructions.")
 
 # =========================================================================
 # CHECK SUPPORT FOR VARIOUS FORTRAN (2003,2008) FEATURES
@@ -187,8 +197,6 @@ SRC_EXT F90)
 IF(NOT Fortran2003Check)
   MESSAGE(FATAL_ERROR "Failed to compile basic Fortran2003 programm! Please ensure your compiler is up-to-date!")
 ENDIF()
-
-MESSAGE(STATUS "Compiling with [${CMAKE_Fortran_COMPILER_ID}] (v${CMAKE_Fortran_COMPILER_VERSION}) fortran compiler using [${PICLAS_INSTRUCTION}] instruction")
 
 # =========================================================================
 # COMPILER FLAGS
