@@ -909,7 +909,9 @@ INTEGER             :: iRegions
 #if USE_MPI
 REAL                :: tmpArray(1:2)
 #endif /*USE_MPI*/
+#if USE_HDG
 REAL                :: PCouplDelta
+#endif /*USE_HDG*/
 REAL                :: TimeDelta
 !===================================================================================================================================
 IF(DoRestart) isRestart = .true.
