@@ -267,6 +267,14 @@ FOREACH (_var IN LISTS piclasVars piclasVars2 piclasVars3 piclasVars4)
 ENDFOREACH()
 
 # =========================================================================
+# HOPR pre-processor
+# =========================================================================
+OPTION(LIBS_BUILD_HOPR "Build HOPR pre-processor by compiling the source code downloaded from https://github.com/hopr-framework/hopr.git" OFF)
+SET(HOPR_TAG "v1.1.1" CACHE STRING "HOPR version tag for downloading the executable or compiling the source code (from GitHub)")
+SET(HOPR_DOWNLOAD_URL "https://github.com/hopr-framework/hopr/releases/download/${HOPR_TAG}/hopr-linux64.zip")
+OPTION(LIBS_DOWNLOAD_HOPR "Download HOPR pre-processor AppImage executable from ${HOPR_DOWNLOAD_URL}" OFF)
+
+# =========================================================================
 # ADD LIBRARIES
 # =========================================================================
 INCLUDE(${CMAKE_CURRENT_SOURCE_DIR}/CMakeListsLib.txt)
@@ -288,11 +296,6 @@ ELSE()
     UNSET(${_var} CACHE)
   ENDFOREACH()
 ENDIF()
-
-# =========================================================================
-# HOPR pre-processor
-# =========================================================================
-OPTION(LIBS_BUILD_HOPR "Build HOPR pre-processor" OFF)
 
 # =========================================================================
 # Userblock
