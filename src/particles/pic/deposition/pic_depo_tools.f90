@@ -206,7 +206,7 @@ USE MOD_PICDepo_Vars       ,ONLY: NodeVolume_Shared, NodeVolume_Shared_Win
 #else
 USE MOD_Mesh_Vars          ,ONLY: nElems
 #endif
-USE MOD_PICDepo_Vars       ,ONLY: NodeVolume, PeriodicNodeMap
+USE MOD_PICDepo_Vars       ,ONLY: NodeVolume,Periodic_nNodes_Shared,Periodic_offsetNode_Shared,Periodic_Nodes_Shared
 USE MOD_Particle_Mesh_Vars ,ONLY: ElemsJ, ElemNodeID_Shared, nUniqueGlobalNodes, NodeInfo_Shared,GEO
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -219,8 +219,6 @@ IMPLICIT NONE
 REAL                             :: Vdm_loc(0:1,0:PP_N),wGP_loc,xGP_loc(0:1),DetJac(1,0:1,0:1,0:1)
 REAL                             :: DetLocal(1,0:PP_N,0:PP_N,0:PP_N)
 INTEGER                          :: j,k,l,iElem, firstElem, lastElem, iNode, jNode, TestNode
-REAL                             :: NodeVolumeLocPer(1:nUniqueGlobalNodes)
-INTEGER                          :: CountNodeVolLocPer(1:nUniqueGlobalNodes)
 #if USE_MPI
 INTEGER                          :: MessageSize
 REAL                             :: NodeVolumeLoc(1:nUniqueGlobalNodes)
@@ -299,38 +297,18 @@ END IF
 CALL BARRIER_AND_SYNC(NodeVolume_Shared_Win,MPI_COMM_SHARED)
 #endif
 IF (GEO%nPeriodicVectors.GT.0) THEN
-  NodeVolumeLocPer = 0.0
-  CountNodeVolLocPer = 0
-  DO iNode = 1, nUniqueGlobalNodes
-    IF (PeriodicNodeMap(iNode)%nPeriodicNodes.GT.0) THEN
-      DO jNode = 1, PeriodicNodeMap(iNode)%nPeriodicNodes
-        TestNode = PeriodicNodeMap(iNode)%Mapping(jNode) 
-        NodeVolumeLocPer(iNode) = NodeVolumeLocPer(iNode) + NodeVolume(TestNode)
-        CountNodeVolLocPer(iNode) = CountNodeVolLocPer(iNode) + 1
-      END DO
-    END IF
-  END DO
-#if USE_MPI
-  MessageSize = nUniqueGlobalNodes
+  NodeVolumeLoc = 0.
   IF (myComputeNodeRank.EQ.0) THEN
-    CALL MPI_REDUCE(MPI_IN_PLACE , NodeVolumeLocPer , MessageSize , MPI_DOUBLE_PRECISION , MPI_SUM , 0 , MPI_COMM_SHARED , IERROR)
-    CALL MPI_REDUCE(MPI_IN_PLACE , CountNodeVolLocPer , MessageSize , MPI_INTEGER , MPI_SUM , 0 , MPI_COMM_SHARED , IERROR)
-  ELSE
-    CALL MPI_REDUCE(NodeVolumeLocPer , 0          , MessageSize , MPI_DOUBLE_PRECISION , MPI_SUM , 0 , MPI_COMM_SHARED , IERROR)
-    CALL MPI_REDUCE(CountNodeVolLocPer , 0          , MessageSize , MPI_INTEGER , MPI_SUM , 0 , MPI_COMM_SHARED , IERROR)
-  END IF
-#endif
-  IF (myComputeNodeRank.EQ.0) THEN
-    DO iNode = 1, nUniqueGlobalNodes
-      print*, iNode, 'pernodes', NodeVolumeLocPer(iNode), CountNodeVolLocPer(iNode), NodeVolume(iNode)
-      IF (CountNodeVolLocPer(iNode).GT.0) THEN
-        NodeVolumeLocPer(iNode) = NodeVolumeLocPer(iNode)/REAL(CountNodeVolLocPer(iNode))
-        NodeVolume(iNode) = NodeVolume(iNode) + NodeVolumeLocPer(iNode)
+    DO iNode = 1,nUniqueGlobalNodes
+      IF (Periodic_nNodes_Shared(iNode).GT.0) THEN
+        DO jNode = Periodic_offsetNode_Shared(iNode)+1,Periodic_offsetNode_Shared(iNode)+Periodic_nNodes_Shared(iNode)
+          NodeVolumeLoc(iNode) = NodeVolumeLoc(iNode) + NodeVolume(Periodic_Nodes_Shared(jNode))
+        END DO ! jNode
+      END IF ! Periodic_nNodes_Shared(iNode).GT.0
+    END DO ! iNode = nUniqueGlobalNodes
+  END IF ! myComputeNodeRank.EQ.0
 
-      END IF
-        NodeVolume(iNode) = 1.0
-    END DO
-  END IF
+  NodeVolume = NodeVolume + NodeVolumeLoc
 #if USE_MPI
   CALL BARRIER_AND_SYNC(NodeVolume_Shared_Win,MPI_COMM_SHARED)
 #endif

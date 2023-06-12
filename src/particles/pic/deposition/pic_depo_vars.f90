@@ -127,8 +127,9 @@ INTEGER                         :: nNodeRecvExchangeProcs
 REAL,ALLOCATABLE                :: NodeSourceExt(:) ! It contains the global, synchronized surface charge contribution that is
 !                                                   ! read and written to .h5
 
-INTEGER,ALLOCPOINT :: Periodic_nNodes_Shared(:)             
-INTEGER,ALLOCPOINT :: Periodic_Nodes_Shared(:)              
+INTEGER                   :: nTotalPeriodicNodes
+INTEGER,ALLOCPOINT :: Periodic_nNodes_Shared(:)
+INTEGER,ALLOCPOINT :: Periodic_Nodes_Shared(:)
 INTEGER,ALLOCPOINT :: Periodic_offsetNode_Shared(:)
 
 #if USE_MPI
