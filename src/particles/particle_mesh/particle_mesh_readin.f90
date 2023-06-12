@@ -465,6 +465,7 @@ CALL UNLOCK_AND_FREE(ElemCharLength_Shared_Win)
 #endif /*USE_MPI*/
 
 ! Then, free the pointers or arrays
+ADEALLOCATE(SideIsSymSide_Shared)
 ADEALLOCATE(ElemVolume_Shared)
 ADEALLOCATE(ElemCharLength_Shared)
 

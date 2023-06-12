@@ -169,8 +169,10 @@ REAL,ALLOCPOINT    :: ElemCharLength_Shared(:)
 REAL,ALLOCPOINT    :: ElemCharLengthX_Shared(:)
 REAL,ALLOCPOINT    :: ElemCharLengthY_Shared(:)
 REAL,ALLOCPOINT    :: ElemCharLengthZ_Shared(:)
+LOGICAL,ALLOCPOINT :: SideIsSymSide_Shared(:)
 
 #if USE_MPI
+INTEGER            :: SideIsSymSide_Shared_Win
 ! integers to hold shared memory windows
 INTEGER         :: NodeToElemMapping_Shared_Win
 INTEGER         :: NodeToElemInfo_Shared_Win

@@ -257,6 +257,8 @@ TYPE tPartBoundary
   INTEGER              , ALLOCATABLE     :: MapToFieldBC(:)             ! Map from Particle BC (NOT TO TYPE!) to PICLas BCindex
   !!INTEGER              , ALLOCATABLE     :: SideBCType(:)            ! list with boundary condition for each side
   REAL    , ALLOCATABLE                  :: MomentumACC(:)
+  LOGICAL , ALLOCATABLE                  :: OnlySpecular(:)
+  LOGICAL , ALLOCATABLE                  :: OnlyDiffuse(:)
   REAL    , ALLOCATABLE                  :: WallTemp(:), WallTemp2(:), WallTempDelta(:)
   REAL    , ALLOCATABLE                  :: TempGradStart(:,:), TempGradEnd(:,:), TempGradVec(:,:)
   REAL    , ALLOCATABLE                  :: TransACC(:)
