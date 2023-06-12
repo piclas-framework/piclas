@@ -892,6 +892,9 @@ USE MOD_Globals            ,ONLY: abort!,myRank
 USE MOD_Particle_Mesh_Vars ,ONLY: nUniqueGlobalNodes
 USE MOD_Particle_Mesh_Vars ,ONLY: ElemNodeID_Shared,NodeInfo_Shared
 USE MOD_Particle_Mesh_Vars ,ONLY: NodeToElemMapping,NodeToElemInfo,ElemToElemMapping,ElemToElemInfo
+USE MOD_Particle_Mesh_Vars ,ONLY: NodeToGlobElemMapping,NodeToGlobElemInfo, ElemInfo_Shared
+USE MOD_Mesh_Vars              ,ONLY: NGeo, nGlobalElems
+USE MOD_Mesh_Tools             ,ONLY: GetGlobalElemID   
 #if USE_MPI
 USE MPI
 USE MOD_MPI_Shared
@@ -1015,84 +1018,6 @@ END IF ! myComputeNodeRank.EQ.0
 CALL BARRIER_AND_SYNC(NodeToElemInfo_Shared_Win   ,MPI_COMM_SHARED)
 CALL BARRIER_AND_SYNC(NodeToElemMapping_Shared_Win,MPI_COMM_SHARED)
 #endif /*USE_MPI*/
-!BuildGlobNodeToElemMapping = .TRUE.
-!IF (BuildGlobNodeToElemMapping) THEN
-!! Only the node leader fills the arrays
-!#if USE_MPI
-!  IF(myComputeNodeRank.EQ.0)THEN
-!#endif /*USE_MPI*/
-!    CNS(1)=1
-!    CNS(2)=(Ngeo+1)
-!    CNS(3)=(Ngeo+1)**2
-!    CNS(4)=(Ngeo+1)*Ngeo+1
-!    CNS(5)=(Ngeo+1)**2*Ngeo+1
-!    CNS(6)=(Ngeo+1)**2*Ngeo+(Ngeo+1)
-!    CNS(7)=(Ngeo+1)**2*Ngeo+(Ngeo+1)**2
-!    CNS(8)=(Ngeo+1)**2*Ngeo+(Ngeo+1)*Ngeo+1
-!    ALLOCATE(NbrOfGlobElemsOnUniqueNode(nUniqueGlobalNodes))
-!    NbrOfGlobElemsOnUniqueNode=0
-!    ! Loop all CN elements (iElem is CNElemID)
-!    DO iElem = 1,nGlobalElems
-!      ! Loop all local nodes
-!      DO iNode = 1, 8
-!        NonUniqueNodeID = ElemInfo_Shared(ELEM_FIRSTNODEIND,iElem) + CNS(iNode)
-!        UniqueNodeID = NodeInfo_Shared(NonUniqueNodeID)
-!        NbrOfGlobElemsOnUniqueNode(UniqueNodeID) = NbrOfGlobElemsOnUniqueNode(UniqueNodeID) + 1
-!      END DO ! iNode = 1, 8
-!    END DO ! iElem = 1, nComputeNodeTotalElems
-!    nNodeToElemMapping = SUM(NbrOfGlobElemsOnUniqueNode)
-
-!    ALLOCATE(OffsetNodeToGlobElemMapping(nUniqueGlobalNodes))
-!    OffsetNodeToGlobElemMapping = 0
-!    DO iUniqueNode = 2, nUniqueGlobalNodes
-!      OffsetNodeToGlobElemMapping(iUniqueNode) = SUM(NbrOfGlobElemsOnUniqueNode(1:iUniqueNode-1))
-!    END DO ! iUniqueNode = 1, nUniqueGlobalNodes
-!#if USE_MPI
-!  END IF ! myComputeNodeRank.EQ.0
-!  CALL MPI_BCAST(nNodeToElemMapping,1, MPI_INTEGER,0,MPI_COMM_SHARED,iERROR)
-!  ! NodeToElemMapping
-!  CALL Allocate_Shared((/2,nUniqueGlobalNodes/),NodeToGlobElemMapping_Shared_Win,NodeToGlobElemMapping_Shared)
-!  CALL MPI_WIN_LOCK_ALL(0,NodeToGlobElemMapping_Shared_Win,IERROR)
-!  NodeToGlobElemMapping => NodeToGlobElemMapping_Shared
-!  ! NodeToElemInfo
-!  CALL Allocate_Shared((/nNodeToGlobElemMapping/),NodeToGlobElemInfo_Shared_Win,NodeToGlobElemInfo_Shared)
-!  CALL MPI_WIN_LOCK_ALL(0,NodeToGlobElemInfo_Shared_Win,IERROR)
-!  NodeToGlobElemInfo => NodeToGlobElemInfo_Shared
-!#else
-!  ALLOCATE(NodeToGlobElemMapping(2,nUniqueGlobalNodes))
-!  ALLOCATE(NodeToGlobElemInfo(nNodeToElemMapping))
-!#endif /*USE_MPI*/
-
-!#if USE_MPI
-!  IF(myComputeNodeRank.EQ.0)THEN
-!#endif /*USE_MPI*/
-!    NodeToGlobElemMapping = 0
-!    NodeToGlobElemInfo = 0
-
-!    NodeToGlobElemMapping(1,:) = OffsetNodeToGlobElemMapping(:)
-!    DEALLOCATE(OffsetNodeToGlobElemMapping)
-!    NodeToGlobElemMapping(2,:) = NbrOfGlobElemsOnUniqueNode(:)
-
-!    NbrOfGlobElemsOnUniqueNode=0
-!    ! Loop all CN elements (iElem is CNElemID)
-!    DO iElem = 1, nGlobalElems
-!      ! Loop all local nodes
-!      DO iNode = 1, 8
-!        NonUniqueNodeID = ElemInfo_Shared(ELEM_FIRSTNODEIND,iElem) + CNS(iNode)
-!        UniqueNodeID = NodeInfo_Shared(NonUniqueNodeID)
-!        NbrOfGlobElemsOnUniqueNode(UniqueNodeID) = NbrOfGlobElemsOnUniqueNode(UniqueNodeID) + 1
-!        NodeToGlobElemInfo(NodeToElemMapping(1,UniqueNodeID)+NbrOfGlobElemsOnUniqueNode(UniqueNodeID)) = iElem
-!      END DO ! iNode = 1, 8
-!    END DO ! iElem = 1, nComputeNodeTotalElems
-!    DEALLOCATE(NbrOfGlobElemsOnUniqueNode)
-!#if USE_MPI
-!  END IF !  myComputeNodeRank.EQ.0
-
-!  CALL BARRIER_AND_SYNC(NodeToGlobElemInfo_Shared_Win   ,MPI_COMM_SHARED)
-!  CALL BARRIER_AND_SYNC(NodeToGlobElemMapping_Shared_Win,MPI_COMM_SHARED)
-!#endif /*USE_MPI*/
-
-!END IF
 
 ! 4. Allocate shared array for mapping
 !    CN element ID -> all CN element IDs to which it is connected : ElemToElemMapping = [offset, Nbr of CN elements]
