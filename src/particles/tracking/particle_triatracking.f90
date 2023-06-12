@@ -54,6 +54,7 @@ USE MOD_Globals
 USE MOD_Mesh_Tools                  ,ONLY: GetCNElemID
 USE MOD_Particle_Vars               ,ONLY: PEM,PDM,PartSpecies
 USE MOD_Particle_Vars               ,ONLY: PartState,LastPartPos
+USE MOD_Particle_Vars               ,ONLY: Symmetry
 USE MOD_Particle_Mesh_Tools         ,ONLY: ParticleInsideQuad3D
 USE MOD_Particle_Mesh_Vars
 USE MOD_Particle_Tracking_vars      ,ONLY: ntracks,MeasureTrackTime,CountNbrOfLostParts, NbrOfLostParticles, TrackInfo
@@ -154,6 +155,10 @@ DO i = 1,PDM%ParticleVecLength
         nlocSides = ElemInfo_Shared(ELEM_LASTSIDEIND,ElemID) -  ElemInfo_Shared(ELEM_FIRSTSIDEIND,ElemID)
         DO iLocSide=1,nlocSides
           TempSideID = ElemInfo_Shared(ELEM_FIRSTSIDEIND,ElemID) + iLocSide
+          ! Skip symmetry side
+          IF(Symmetry%Order.EQ.2) THEN
+            IF(SideIsSymSide_Shared(TempSideID)) CYCLE
+          END IF
           localSideID = SideInfo_Shared(SIDE_LOCALID,TempSideID)
 
           ! Side is not one of the 6 local sides

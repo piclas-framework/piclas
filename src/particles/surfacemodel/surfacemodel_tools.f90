@@ -26,6 +26,7 @@ PRIVATE
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
 PUBLIC :: SurfaceModel_ParticleEmission, SurfaceModel_EnergyAccommodation, GetWallTemperature, CalcPostWallCollVelo, CalcRotWallVelo
+PUBLIC :: CalcWallTempGradient
 !===================================================================================================================================
 
 CONTAINS
@@ -267,21 +268,11 @@ INTEGER, INTENT(IN)             :: locBCID, PartID, SideID
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-REAL                            :: TempGradLength, POI(3), POI_projected(1:3)
+REAL                            :: POI(3)
 !-----------------------------------------------------------------------------------------------------------------------------------
 IF(PartBound%WallTemp2(locBCID).GT.0.0) THEN
   POI(1:3) = LastPartPos(1:3,PartID) + TrackInfo%PartTrajectory(1:3)*TrackInfo%alpha
-  POI_projected(1:3) = PartBound%TempGradStart(1:3,locBCID) &
-                      + DOT_PRODUCT((POI(1:3) - PartBound%TempGradStart(1:3,locBCID)),PartBound%TempGradVec(1:3,locBCID)) &
-                        / DOTPRODUCT(PartBound%TempGradVec(1:3,locBCID)) * PartBound%TempGradVec(1:3,locBCID)
-  TempGradLength = VECNORM(POI_projected(1:3))/VECNORM(PartBound%TempGradVec(1:3,locBCID))
-  IF(TempGradLength.LT.0.0) THEN
-    GetWallTemperature = PartBound%WallTemp(locBCID)
-  ELSE IF(TempGradLength.GT.1.0) THEN
-    GetWallTemperature = PartBound%WallTemp2(locBCID)
-  ELSE
-    GetWallTemperature = PartBound%WallTemp(locBCID) + TempGradLength * PartBound%WallTempDelta(locBCID)
-  END IF
+  GetWallTemperature = CalcWallTempGradient(POI,locBCID)
 ELSE IF (PartBound%UseAdaptedWallTemp(locBCID)) THEN
   GetWallTemperature = BoundaryWallTemp(TrackInfo%p,TrackInfo%q,GlobalSide2SurfSide(SURF_SIDEID,SideID))
 ELSE
@@ -289,6 +280,60 @@ ELSE
 END IF
 
 END FUNCTION GetWallTemperature
+
+
+PPURE REAL FUNCTION CalcWallTempGradient(PointVec,locBCID)
+!===================================================================================================================================
+!> Calculation of the wall temperature at a specific position due to the imposed temperature gradient (WallTemp2.GT.0)
+!===================================================================================================================================
+USE MOD_Globals                 ,ONLY: DOTPRODUCT, VECNORM
+USE MOD_Globals_Vars            ,ONLY: EpsMach
+USE MOD_Particle_Boundary_Vars  ,ONLY: PartBound
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+REAL, INTENT(IN)                :: PointVec(3)
+INTEGER, INTENT(IN)             :: locBCID
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+REAL                            :: Bounds(1:3), TempGradLength, PointVec_projected(1:3), WallTemp2
+!-----------------------------------------------------------------------------------------------------------------------------------
+ASSOCIATE(PB => PartBound)
+PointVec_projected(1:3) = PB%TempGradStart(1:3,locBCID) + DOT_PRODUCT((PointVec(1:3) - PB%TempGradStart(1:3,locBCID)), &
+                          PB%TempGradVec(1:3,locBCID)) / DOTPRODUCT(PB%TempGradVec(1:3,locBCID)) * PB%TempGradVec(1:3,locBCID)
+TempGradLength = VECNORM(PointVec_projected(1:3)-PB%TempGradStart(1:3,locBCID)) / VECNORM(PB%TempGradVec(1:3,locBCID))
+
+SELECT CASE(PB%TempGradDir(locBCID))
+CASE(0)
+  ! Position is projected onto the gradient vector
+  Bounds(1:3) = PointVec_projected(1:3)
+  ! Wall temperature is set to the end value
+  WallTemp2   = PB%WallTemp2(locBCID)
+CASE(1,2,3)
+  ! Simply using the actual position as bounds
+  Bounds(1:3) = PointVec(1:3)
+  ! Wall temperature is set to the start value as the gradient can be oriented perpendicular
+  WallTemp2   = PB%WallTemp(locBCID)
+END SELECT
+
+IF(MINVAL(Bounds(1:3)-PB%TempGradStart(1:3,locBCID)).LT.-EpsMach) THEN
+  CalcWallTempGradient = PB%WallTemp(locBCID)
+ELSEIF(MINVAL(PB%TempGradEnd(1:3,locBCID)-Bounds(1:3)).LT.-EpsMach) THEN
+  CalcWallTempGradient = WallTemp2
+ELSE
+  IF(TempGradLength.LT.0.0) THEN
+    CalcWallTempGradient = PB%WallTemp(locBCID)
+  ELSE IF(TempGradLength.GT.1.0) THEN
+    CalcWallTempGradient = WallTemp2
+  ELSE
+    CalcWallTempGradient = PB%WallTemp(locBCID) + TempGradLength * PB%WallTempDelta(locBCID)
+  END IF
+END IF
+END ASSOCIATE
+
+END FUNCTION CalcWallTempGradient
 
 
 FUNCTION CalcPostWallCollVelo(SpecID,VeloSquare,WallTemp,TransACC)

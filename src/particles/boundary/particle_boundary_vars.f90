@@ -257,8 +257,11 @@ TYPE tPartBoundary
   INTEGER              , ALLOCATABLE     :: MapToFieldBC(:)             ! Map from Particle BC (NOT TO TYPE!) to PICLas BCindex
   !!INTEGER              , ALLOCATABLE     :: SideBCType(:)            ! list with boundary condition for each side
   REAL    , ALLOCATABLE                  :: MomentumACC(:)
+  LOGICAL , ALLOCATABLE                  :: OnlySpecular(:)
+  LOGICAL , ALLOCATABLE                  :: OnlyDiffuse(:)
   REAL    , ALLOCATABLE                  :: WallTemp(:), WallTemp2(:), WallTempDelta(:)
   REAL    , ALLOCATABLE                  :: TempGradStart(:,:), TempGradEnd(:,:), TempGradVec(:,:)
+  INTEGER , ALLOCATABLE                  :: TempGradDir(:)
   REAL    , ALLOCATABLE                  :: TransACC(:)
   REAL    , ALLOCATABLE                  :: VibACC(:)
   REAL    , ALLOCATABLE                  :: RotACC(:)
@@ -275,7 +278,11 @@ TYPE tPartBoundary
   INTEGER , ALLOCATABLE                  :: SurfaceModel(:)               ! Model used for surface interaction (e.g. SEE models)
   LOGICAL , ALLOCATABLE                  :: Reactive(:)                   ! flag defining if surface is treated reactively
   LOGICAL , ALLOCATABLE                  :: Resample(:)                   ! Resample Equilibrium Distribution with reflection
-  LOGICAL , ALLOCATABLE                  :: UseAdaptedWallTemp(:)         
+  LOGICAL , ALLOCATABLE                  :: UseAdaptedWallTemp(:)
+  LOGICAL                                :: OutputWallTemp                ! Flag to include the wall temperature in the SurfState
+                                                                          ! output, set during InitializeVariablesPartBoundary
+                                                                          ! Required for the initialization of the array for the
+                                                                          ! adaptive wall temperature as well
   REAL    , ALLOCATABLE                  :: RadiativeEmissivity(:)
   LOGICAL , ALLOCATABLE                  :: Dielectric(:)                 ! Define if particle boundary [$] is a dielectric
 !                                                                         ! interface, i.e. an interface between a dielectric and

@@ -287,18 +287,18 @@ iBC = PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID))
 ACC = PartBound%MomentumACC(iBC)
 
 ! Check if optional parameter was supplied
-ASSOCIATE( SpecularReflectionOnly => MERGE(SpecularReflectionOnly_opt, .FALSE., PRESENT(SpecularReflectionOnly_opt)) ) 
-  IF (SpecularReflectionOnly.OR.ACC.EQ.0.0) THEN
+ASSOCIATE( SpecularReflectionOnly => MERGE(SpecularReflectionOnly_opt,PartBound%OnlySpecular(iBC),PRESENT(SpecularReflectionOnly_opt)))
+  IF (SpecularReflectionOnly) THEN
     CALL PerfectReflection(PartID,SideID,n_loc)
-  ELSE IF(ACC.LT.1.0) THEN
+  ELSE IF(PartBound%OnlyDiffuse(iBC)) THEN
+    CALL DiffuseReflection(PartID,SideID,n_loc)
+  ELSE
     CALL RANDOM_NUMBER(RanNum)
     IF(RanNum.GE.ACC) THEN
       CALL PerfectReflection(PartID,SideID,n_loc)
     ELSE
       CALL DiffuseReflection(PartID,SideID,n_loc)
     END IF
-  ELSE
-    CALL DiffuseReflection(PartID,SideID,n_loc)
   END IF
 END ASSOCIATE
 
