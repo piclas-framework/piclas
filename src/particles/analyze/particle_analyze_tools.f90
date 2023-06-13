@@ -1294,6 +1294,7 @@ USE MOD_DSMC_Vars               ,ONLY: RadialWeighting
 USE MOD_Particle_Vars           ,ONLY: Species,nSpecies,usevMPF,VarTimeStep
 USE MOD_Particle_Surfaces_Vars  ,ONLY: BCdata_auxSF, SurfFluxSideSize, SurfMeshSubSideData
 USE MOD_Particle_Sampling_Vars  ,ONLY: UseAdaptive, AdaptBCMacroVal, AdaptBCMapElemToSample, AdaptBCAreaSurfaceFlux
+USE MOD_Particle_Sampling_Vars  ,ONLY: AdaptBCAverageValBC, AdaptBCAverageMacroVal
 USE MOD_Mesh_Vars               ,ONLY: SideToElem
 USE MOD_Particle_MPI_Vars       ,ONLY: PartMPI
 #if USE_MPI
@@ -1340,41 +1341,46 @@ DO iSpec = 1, nSpecies
     END IF
     ! Reset the mass flow rate
     Species(iSpec)%Surfaceflux(iSF)%SampledMassflow = 0.
+    ! Calculate the average pressure
     IF(UseAdaptive) THEN
-      ! Calculate the average pressure
       currentBC = Species(iSpec)%Surfaceflux(iSF)%BC
-      ! Skip processors without a surface flux
-      IF (BCdata_auxSF(currentBC)%SideNumber.EQ.0) CYCLE
-      ! Loop over sides on the surface flux
-      DO iSide=1,BCdata_auxSF(currentBC)%SideNumber
-        SurfSideID = BCdata_auxSF(currentBC)%SideList(iSide)
-        ElemID = SideToElem(S2E_ELEM_ID,SurfSideID)
-        SampleElemID = AdaptBCMapElemToSample(ElemID)
-        IF(SampleElemID.GT.0) THEN
-          ! Sum up the area weighted pressure in each adjacent element
-          DO jSample=1,SurfFluxSideSize(2); DO iSample=1,SurfFluxSideSize(1)
-            PressureAdaptiveBC(iSpec,iSF) = PressureAdaptiveBC(iSpec,iSF) &
-              + AdaptBCMacroVal(6,SampleElemID,iSpec) * SurfMeshSubSideData(iSample,jSample,SurfSideID)%area
-          END DO; END DO
-        END IF
-      END DO
+      ! Average of the BC for the output
+      IF(.NOT.AdaptBCAverageValBC) THEN
+        ! Skip processors without a surface flux
+        IF (BCdata_auxSF(currentBC)%SideNumber.EQ.0) CYCLE
+        ! Average the value of the BC
+        ! Loop over sides on the surface flux
+        DO iSide=1,BCdata_auxSF(currentBC)%SideNumber
+          SurfSideID = BCdata_auxSF(currentBC)%SideList(iSide)
+          ElemID = SideToElem(S2E_ELEM_ID,SurfSideID)
+          SampleElemID = AdaptBCMapElemToSample(ElemID)
+          IF(SampleElemID.GT.0) THEN
+            ! Sum up the area weighted pressure in each adjacent element
+            DO jSample=1,SurfFluxSideSize(2); DO iSample=1,SurfFluxSideSize(1)
+              PressureAdaptiveBC(iSpec,iSF) = PressureAdaptiveBC(iSpec,iSF) &
+                + AdaptBCMacroVal(6,SampleElemID,iSpec) * SurfMeshSubSideData(iSample,jSample,SurfSideID)%area
+            END DO; END DO
+          END IF
+        END DO
+      END IF    ! AdaptBCAverageValBC
     END IF
   END DO
 END DO
 
-! 2) Get the sum of the mass flow rate and the sum of the area-weighted area pressures
+! 2) Get the sum of the mass flow rate and the sum of the area-weighted area pressures (only in case of a cell-local pressure
+!    distribution at the BC, ie. NOT if AdaptBCAverageValBC = T)
 #if USE_MPI
 MaxSurfaceFluxBCs = MAXVAL(Species(:)%nSurfacefluxBCs)
 IF (PartMPI%MPIRoot) THEN
   CALL MPI_REDUCE(MPI_IN_PLACE,FlowRateSurfFlux(1:nSpecAnalyze,1:MaxSurfaceFluxBCs),nSpecAnalyze*MaxSurfaceFluxBCs,&
                   MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,IERROR)
-  IF(UseAdaptive) THEN
+  IF(UseAdaptive.AND.(.NOT.AdaptBCAverageValBC)) THEN
     CALL MPI_REDUCE(MPI_IN_PLACE,PressureAdaptiveBC(1:nSpecAnalyze,1:MaxSurfaceFluxBCs),nSpecAnalyze*MaxSurfaceFluxBCs,&
                     MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,IERROR)
   END IF
 ELSE ! no Root
   CALL MPI_REDUCE(FlowRateSurfFlux,FlowRateSurfFlux,nSpecAnalyze*MaxSurfaceFluxBCs,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,IERROR)
-  IF(UseAdaptive) CALL MPI_REDUCE(PressureAdaptiveBC,PressureAdaptiveBC,nSpecAnalyze*MaxSurfaceFluxBCs,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,IERROR)
+  IF(UseAdaptive.AND.(.NOT.AdaptBCAverageValBC)) CALL MPI_REDUCE(PressureAdaptiveBC,PressureAdaptiveBC,nSpecAnalyze*MaxSurfaceFluxBCs,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,IERROR)
 END IF
 #endif /*USE_MPI*/
 
@@ -1388,16 +1394,20 @@ IF (PartMPI%MPIRoot) THEN
     END IF
   END IF
   IF(UseAdaptive) THEN
-    DO iSpec = 1, nSpecies
-      DO iSF = 1, Species(iSpec)%nSurfacefluxBCs
-        IF(Species(iSpec)%Surfaceflux(iSF)%CircularInflow) THEN
-          ! Use the area sum of the elements included in the sampling, instead of the ideal circular area
-          PressureAdaptiveBC(iSpec,iSF) = PressureAdaptiveBC(iSpec,iSF) / AdaptBCAreaSurfaceFlux(iSpec,iSF)
-        ELSE
-          PressureAdaptiveBC(iSpec,iSF) = PressureAdaptiveBC(iSpec,iSF) / Species(iSpec)%Surfaceflux(iSF)%totalAreaSF
-        END IF
+    IF(AdaptBCAverageValBC) THEN
+      PressureAdaptiveBC(:,:) = AdaptBCAverageMacroVal(3,:,:)
+    ELSE
+      DO iSpec = 1, nSpecies
+        DO iSF = 1, Species(iSpec)%nSurfacefluxBCs
+          IF(Species(iSpec)%Surfaceflux(iSF)%CircularInflow) THEN
+            ! Use the area sum of the elements included in the sampling, instead of the ideal circular area
+            PressureAdaptiveBC(iSpec,iSF) = PressureAdaptiveBC(iSpec,iSF) / AdaptBCAreaSurfaceFlux(iSpec,iSF)
+          ELSE
+            PressureAdaptiveBC(iSpec,iSF) = PressureAdaptiveBC(iSpec,iSF) / Species(iSpec)%Surfaceflux(iSF)%totalAreaSF
+          END IF
+        END DO
       END DO
-    END DO
+    END IF
   END IF
 END IF
 

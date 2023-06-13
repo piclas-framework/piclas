@@ -829,9 +829,8 @@ DO iBC=1,countDataBC
       !----- symmetry specific area calculation end
       IF (TrackingMethod.NE.TRIATRACKING) THEN !check that all sides are planar if TriaSurfaceFlux is used for tracing or refmapping
         CNSideID = GetCNSideID(SideID)
-        IF (SideType(CNSideID).NE.PLANAR_RECT .AND. SideType(CNSideID).NE.PLANAR_NONRECT) CALL abort(&
-__STAMP__&
-,'every surfaceflux-sides must be planar if TriaSurfaceFlux is used for tracing or refmapping!!!')
+        IF (SideType(CNSideID).NE.PLANAR_RECT .AND. SideType(CNSideID).NE.PLANAR_NONRECT) CALL abort(__STAMP__,&
+          'every surfaceflux-sides must be planar if TriaSurfaceFlux is used for tracing or refmapping!!!')
       END IF ! TrackingMethod.NE.TRIATRACKING
 
       DO jSample=1,SurfFluxSideSize(2); DO iSample=1,SurfFluxSideSize(1)
@@ -853,9 +852,7 @@ __STAMP__&
     !-- next Side
     IF (BCSideID .EQ. TmpSideEnd(iBC)) THEN
       IF (TmpSideNumber(iBC).NE.iCount) THEN
-        CALL abort(&
-__STAMP__&
-,'Someting is wrong with TmpSideNumber of iBC',iBC,999.)
+        CALL abort(__STAMP__,'Someting is wrong with TmpSideNumber of iBC',iBC,999.)
       ELSE
 #ifdef CODE_ANALYZE
         IPWRITE(*,'(I4,I7,A53,I0)') iCount,' Sides have been found for Surfaceflux-linked PartBC ',TmpMapToBC(iBC)
@@ -883,8 +880,6 @@ END DO !iBC
 #else
      BCdata_auxSF(iPartBound)%GlobalArea=BCdata_auxSF(iPartBound)%LocalArea
 #endif
-!     IPWRITE(*,'(I4,A,I4,2(x,E16.8))') 'areas:-', &
-!       iPartBound,BCdata_auxSF(iPartBound)%GlobalArea,BCdata_auxSF(iPartBound)%LocalArea
    END DO
 #if USE_MPI
    DEALLOCATE(areasLoc,areasGlob)
