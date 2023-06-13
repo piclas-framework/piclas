@@ -53,7 +53,7 @@ Tetrahedral or mixed meshes are created by default. Hexahedral meshes can be gen
 
     SplitToHex = TRUE
 
-Boundary conditions have to be defined as physical groups. A tutorial for the mesh generation with gmsh can be found in the tutorial {ref}`sec:tutorial-dsmc-cone-3D-gmsh`.
+Boundary conditions have to be defined as physical groups. A tutorial for the mesh generation with gmsh can be found in the tutorial {ref}`sec:tutorial-dsmc-cone-3D-gmsh`, which requires hopr version v.1.1.0 or newer.
 
 ### Mesh generation with Coreform Cubit
 

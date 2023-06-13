@@ -11,6 +11,8 @@ support the project by citing our publications given in [REFERENCE.md](REFERENCE
 
 The documentation of PICLas can be found in the [User Guide](https://piclas.readthedocs.io/), where the installation procedure is
 described in [Chapter 2](https://piclas.readthedocs.io/en/latest/userguide/installation.html).
+Pre-compiled executables (that only require pre-installed MPI for parallel execution) for Linux can directly be downloaded as
+AppImage containers from the [PICLas release tag assets](https://github.com/piclas-framework/piclas/releases).
 
 ## Regression Testing
 

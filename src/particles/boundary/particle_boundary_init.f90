@@ -115,12 +115,15 @@ CALL prms%CreateRealOption(      'Part-Boundary[$]-RotPeriodicMax' , 'Maximum co
 CALL prms%CreateRealOption(     'Part-Boundary[$]-WallTemp2'  &
                                 , 'Second wall temperature (in [K]) of reflective particle boundary for a temperature gradient.' &
                                 , '0.', numberedmulti=.TRUE.)
-CALL prms%CreateRealArrayOption('Part-Boundary[$]-TemperatureGradientStart'  &
+CALL prms%CreateRealArrayOption('Part-Boundary[$]-TempGradStart'  &
                                 , 'Impose a temperature gradient by supplying a start/end vector and a second wall temperature.' &
                                 , '0. , 0. , 0.', numberedmulti=.TRUE.)
-CALL prms%CreateRealArrayOption('Part-Boundary[$]-TemperatureGradientEnd'  &
+CALL prms%CreateRealArrayOption('Part-Boundary[$]-TempGradEnd'  &
                                 , 'Impose a temperature gradient by supplying a start/end vector and a second wall temperature.' &
                                 , '0. , 0. , 0.', numberedmulti=.TRUE.)
+CALL prms%CreateIntOption(      'Part-Boundary[$]-TempGradDir', 'Optional definition of the temperature '//&
+                                'gradient direction along a major axis: x = 1, y = 2, z = 3. Default = 0: Gradient is along '//&
+                                'the vector defined by the start and end values', '0', numberedmulti=.TRUE.)
 CALL prms%CreateIntOption(      'Part-Boundary[$]-SurfaceModel'  &
                                 , 'Defining surface to be treated reactively by defining Model used for particle surface interaction. If any >0 then look in section SurfaceModel.\n'//&
                                 '0: Maxwell scattering\n'//&
@@ -187,7 +190,7 @@ USE MOD_LoadBalance_Vars       ,ONLY: PerformLoadBalance
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER               :: iPartBound, iBC, iPBC, iSwaps, MaxNbrOfSpeciesSwaps, RotAxis, nRotPeriodicBCs
+INTEGER               :: iPartBound, iBC, iPBC, iSwaps, MaxNbrOfSpeciesSwaps, RotAxis, nRotPeriodicBCs, TempGradDir
 INTEGER               :: ALLOCSTAT, dummy_int
 REAL                  :: omegaTemp, RotFreq
 CHARACTER(32)         :: hilf , hilf2
@@ -209,6 +212,10 @@ ALLOCATE(PartBound%TargetBoundCond(  1:nPartBound))
 PartBound%TargetBoundCond = -1
 ALLOCATE(PartBound%MomentumACC(      1:nPartBound))
 PartBound%MomentumACC = -1
+ALLOCATE(PartBound%OnlySpecular(     1:nPartBound))
+PartBound%OnlySpecular = .FALSE.
+ALLOCATE(PartBound%OnlyDiffuse(      1:nPartBound))
+PartBound%OnlyDiffuse = .FALSE.
 ALLOCATE(PartBound%WallTemp(         1:nPartBound))
 PartBound%WallTemp = -1.
 ALLOCATE(PartBound%WallTemp2(        1:nPartBound))
@@ -243,6 +250,8 @@ ALLOCATE(PartBound%TempGradEnd(  1:3,1:nPartBound))
 PartBound%TempGradEnd = 0.
 ALLOCATE(PartBound%TempGradVec(  1:3,1:nPartBound))
 PartBound%TempGradVec = 0.
+ALLOCATE(PartBound%TempGradDir(1:nPartBound))
+PartBound%TempGradDir = 0
 ALLOCATE(PartBound%SurfaceModel(     1:nPartBound))
 PartBound%SurfaceModel = 0
 ALLOCATE(PartBound%Reactive(         1:nPartBound))
@@ -253,6 +262,9 @@ ALLOCATE(PartBound%UseAdaptedWallTemp(1:nPartBound))
 PartBound%UseAdaptedWallTemp = .FALSE.
 ALLOCATE(PartBound%RadiativeEmissivity(1:nPartBound))
 PartBound%RadiativeEmissivity = 1.
+
+! Output of wall temperature per default off
+PartBound%OutputWallTemp = .FALSE.
 
 !--determine MaxNbrOfSpeciesSwaps for correct allocation
 MaxNbrOfSpeciesSwaps=0
@@ -299,6 +311,11 @@ DO iPartBound=1,nPartBound
 #endif
     PartBound%TargetBoundCond(iPartBound) = PartBound%ReflectiveBC
     PartBound%MomentumACC(iPartBound)     = GETREAL('Part-Boundary'//TRIM(hilf)//'-MomentumACC')
+    IF(PartBound%MomentumACC(iPartBound).EQ.0.0) THEN
+      PartBound%OnlySpecular(iPartBound) = .TRUE.
+    ELSE IF(PartBound%MomentumACC(iPartBound).EQ.1.0) THEN
+      PartBound%OnlyDiffuse(iPartBound)  = .TRUE.
+    END IF
     PartBound%WallTemp(iPartBound)        = GETREAL('Part-Boundary'//TRIM(hilf)//'-WallTemp')
     PartBound%TransACC(iPartBound)        = GETREAL('Part-Boundary'//TRIM(hilf)//'-TransACC')
     PartBound%VibACC(iPartBound)          = GETREAL('Part-Boundary'//TRIM(hilf)//'-VibACC')
@@ -322,15 +339,41 @@ DO iPartBound=1,nPartBound
           CALL abort(__STAMP__,'ERROR Rotational Wall Velocity: Axis must be between 1 and 3. Selected axis: ',IntInfoOpt=RotRefFrameAxis)
       END SELECT
     END IF
+    ! Utilize an adaptive wall temparature
     PartBound%UseAdaptedWallTemp(iPartBound) = GETLOGICAL('Part-Boundary'//TRIM(hilf)//'-UseAdaptedWallTemp')
+    ! Activate wall temperature output in the DSMCSurfState, required for the initialization of the array as well
+    IF(PartBound%UseAdaptedWallTemp(iPartBound)) PartBound%OutputWallTemp = .TRUE.
     PartBound%RadiativeEmissivity(iPartBound) = GETREAL('Part-Boundary'//TRIM(hilf)//'-RadiativeEmissivity')
+    ! Selection of the surface model (e.q. SEE, sticking, etc.)
     PartBound%SurfaceModel(iPartBound)    = GETINT('Part-Boundary'//TRIM(hilf)//'-SurfaceModel')
+    ! Impose a wall temperature gradient
     PartBound%WallTemp2(iPartBound)         = GETREAL('Part-Boundary'//TRIM(hilf)//'-WallTemp2')
     IF(PartBound%WallTemp2(iPartBound).GT.0.) THEN
-      PartBound%TempGradStart(1:3,iPartBound) = GETREALARRAY('Part-Boundary'//TRIM(hilf)//'-TemperatureGradientStart',3)
-      PartBound%TempGradEnd(1:3,iPartBound)   = GETREALARRAY('Part-Boundary'//TRIM(hilf)//'-TemperatureGradientEnd',3)
+      ! Activate wall temperature output in the DSMCSurfState
+      PartBound%OutputWallTemp = .TRUE.
+      PartBound%TempGradStart(1:3,iPartBound) = GETREALARRAY('Part-Boundary'//TRIM(hilf)//'-TempGradStart',3)
+      PartBound%TempGradEnd(1:3,iPartBound)   = GETREALARRAY('Part-Boundary'//TRIM(hilf)//'-TempGradEnd',3)
+      PartBound%TempGradDir(iPartBound)   = GETINT('Part-Boundary'//TRIM(hilf)//'-TempGradDir')
+      TempGradDir = PartBound%TempGradDir(iPartBound)
+      IF((TempGradDir.LT.0).AND.(TempGradDir.GT.3)) THEN
+        CALL abort(__STAMP__,'ERROR Wall Temperature Gradient: Input must be between 1 (=x), 2 (=y), 3 (=z) or 0. Input: ', &
+                    IntInfoOpt=TempGradDir)
+      END IF
+      ! Calculate the magnitude of the temperature gradient
       PartBound%WallTempDelta(iPartBound)   = PartBound%WallTemp2(iPartBound) - PartBound%WallTemp(iPartBound)
-      PartBound%TempGradVec(1:3,iPartBound) = PartBound%TempGradEnd(1:3,iPartBound) - PartBound%TempGradStart(1:3,iPartBound)
+      ! Determine the direction of the temperature gradient
+      SELECT CASE(TempGradDir)
+      CASE(0)
+        PartBound%TempGradVec(1:3,iPartBound) = PartBound%TempGradEnd(1:3,iPartBound) - PartBound%TempGradStart(1:3,iPartBound)
+      CASE(1,2,3)
+        PartBound%TempGradVec(TempGradDir,iPartBound) = PartBound%TempGradEnd(TempGradDir,iPartBound) &
+                                                        - PartBound%TempGradStart(TempGradDir,iPartBound)
+      END SELECT
+      ! Sanity check: defined vector shall be above zero
+      IF(ALL(PartBound%TempGradVec(1:3,iPartBound).EQ.0.)) THEN
+        SWRITE(*,*) 'ERROR Temperature gradient vector: ', PartBound%TempGradVec(1:3,iPartBound)
+        CALL abort(__STAMP__,'ERROR Wall Temperature Gradient: gradient vector appears to be zero!')
+      END IF
     END IF
     ! check for correct surfacemodel input
     IF (PartBound%SurfaceModel(iPartBound).GT.0)THEN
@@ -1043,8 +1086,10 @@ END SUBROUTINE BuildParticleBoundaryRotPeriodic
 SUBROUTINE InitAdaptiveWallTemp()
 ! MODULES
 USE MOD_Globals
+USE MOD_Mesh_Tools                ,ONLY: GetCNElemID
 USE MOD_Particle_Boundary_Vars    ,ONLY: PartBound, nComputeNodeSurfTotalSides, BoundaryWallTemp, SurfSide2GlobalSide,nSurfSample
-USE MOD_Particle_Mesh_Vars        ,ONLY: SideInfo_Shared
+USE MOD_Particle_Mesh_Vars        ,ONLY: SideInfo_Shared, NodeCoords_Shared, ElemSideNodeID_Shared
+USE MOD_SurfaceModel_Tools        ,ONLY: CalcWallTempGradient
 #if USE_MPI
 USE MOD_MPI_Shared
 USE MOD_MPI_Shared_Vars           ,ONLY: MPI_COMM_SHARED, myComputeNodeRank, nComputeNodeProcessors
@@ -1059,9 +1104,10 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                           :: firstSide, lastSide, iSide, SideID, iBC
+INTEGER                           :: firstSide, lastSide, iSide, SideID, iBC, ElemID, CNElemID, LocSideID, iNode
+REAL                              :: SideMidpoint(1:3)
 !===================================================================================================================================
-IF (.NOT.(ANY(PartBound%UseAdaptedWallTemp))) RETURN
+IF (.NOT.PartBound%OutputWallTemp) RETURN
 
 #if USE_MPI
 !> Then shared arrays for boundary sampling
@@ -1085,7 +1131,20 @@ DO iSide = firstSide,LastSide
   ! get global SideID. This contains only nonUniqueSide, no special mortar treatment required
   SideID = SurfSide2GlobalSide(SURF_SIDEID,iSide)
   iBC = PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID))
-  IF (PartBound%MomentumACC(iBC).GT.0.0) BoundaryWallTemp(:,:,iSide) = PartBound%WallTemp(iBC)
+  IF (PartBound%MomentumACC(iBC).GT.0.0) THEN
+    IF(PartBound%WallTemp2(iBC).GT.0.) THEN
+      ElemID    = SideInfo_Shared(SIDE_ELEMID ,SideID)
+      CNElemID  = GetCNElemID(ElemID)
+      LocSideID = SideInfo_Shared(SIDE_LOCALID,SideID)
+      SideMidpoint(1:3) = 0.
+      DO iNode = 1,4
+        SideMidpoint(1:3) = SideMidpoint(1:3) + NodeCoords_Shared(1:3,ElemSideNodeID_Shared(iNode,LocSideID,CNElemID)+1) / 4
+      END DO
+      BoundaryWallTemp(:,:,iSide) = CalcWallTempGradient(SideMidpoint,iBC)
+    ELSE
+      BoundaryWallTemp(:,:,iSide) = PartBound%WallTemp(iBC)
+    END IF
+  END IF
 END DO
 
 #if USE_MPI
@@ -1122,12 +1181,15 @@ IMPLICIT NONE
 SDEALLOCATE(PartBound%SourceBoundName)
 SDEALLOCATE(PartBound%TargetBoundCond)
 SDEALLOCATE(PartBound%MomentumACC)
+SDEALLOCATE(PartBound%OnlySpecular)
+SDEALLOCATE(PartBound%OnlyDiffuse)
 SDEALLOCATE(PartBound%WallTemp)
 SDEALLOCATE(PartBound%WallTemp2)
 SDEALLOCATE(PartBound%WallTempDelta)
 SDEALLOCATE(PartBound%TempGradStart)
 SDEALLOCATE(PartBound%TempGradEnd)
 SDEALLOCATE(PartBound%TempGradVec)
+SDEALLOCATE(PartBound%TempGradDir)
 SDEALLOCATE(PartBound%TransACC)
 SDEALLOCATE(PartBound%VibACC)
 SDEALLOCATE(PartBound%RotACC)
@@ -1171,7 +1233,7 @@ IF(GEO%RotPeriodicBC)THEN
 END IF ! GEO%RotPeriodicBC
 
 ! Adaptive wall temperature (e.g. calculate from sampled heat flux)
-IF (ANY(PartBound%UseAdaptedWallTemp)) THEN
+IF (PartBound%OutputWallTemp) THEN
 #if USE_MPI
   CALL MPI_BARRIER(MPI_COMM_SHARED,iERROR)
   CALL UNLOCK_AND_FREE(BoundaryWallTemp_Shared_Win)

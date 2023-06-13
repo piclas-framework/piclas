@@ -105,6 +105,7 @@ STRING(TOLOWER ${LIB_TYPE} SEARCH_TYPE)
 # Use system HDF5
 IF(NOT LIBS_BUILD_HDF5)
   # Unset leftover paths from old CMake runs
+  UNSET(HDF5_VERSION CACHE)
   UNSET(HDF5_LIBRARIES)
   UNSET(HDF5_INCLUDE_DIR_FORTRAN)
   UNSET(HDF5_INCLUDE_DIR)
@@ -167,13 +168,16 @@ ELSE()
   IF(LIBS_USE_MPI)
     # HDF5 1.12.0 and greater is compatible with OpenMPI 4.0.0 and greater
     IF("${LIBS_MPI_NAME}" MATCHES "OpenMPI" AND ${MPI_C_LIBRARY_VERSION} VERSION_GREATER_EQUAL "4.0.0")
-      SET (HDF5_TAG "hdf5-1_12_0" CACHE STRING "HDF5 version tag")
-    ELSE()
-      SET (HDF5_TAG "hdf5-1_10_6" CACHE STRING "HDF5 version tag")
-    ENDIF()
+        SET (HDF5_TAG "hdf5-1_12_0" CACHE STRING   "HDF5 version tag")
+        SET (HDF5_VERSION "1.12"    CACHE INTERNAL "HDF5 version number")
+      ELSE()
+        SET (HDF5_TAG "hdf5-1_10_6" CACHE STRING   "HDF5 version tag")
+        SET (HDF5_VERSION "1.10"    CACHE INTERNAL "HDF5 version number")
+      ENDIF()
     MESSAGE (STATUS "Setting HDF5 to tag ${HDF5_TAG} to be compatible with detected [${LIBS_MPI_NAME}] (v${MPI_C_LIBRARY_VERSION})")
   ELSE()
-    SET (HDF5_TAG "hdf5-1_12_0" CACHE STRING "HDF5 version tag")
+    SET (HDF5_TAG "hdf5-1_12_0" CACHE STRING   "HDF5 version tag")
+    SET (HDF5_VERSION "1.12"    CACHE INTERNAL "HDF5 version number")
     MESSAGE (STATUS "Setting HDF5 to tag ${HDF5_TAG} as no MPI support was requested")
   ENDIF()
   MARK_AS_ADVANCED(FORCE HDF5_TAG)
@@ -260,6 +264,12 @@ ELSE()
   # Add ZLIB to include paths for HDF5 data compression
   FIND_LIBRARY(HDF5_z_LIBRARY_RELEASE z)
   LIST(APPEND HDF5_LIBRARIES ${HDF5_hdf5_fortran_LIBRARY_RELEASE} ${HDF5_hdf5_LIBRARY_RELEASE} ${HDF5_z_LIBRARY_RELEASE} -ldl)
+ENDIF()
+
+# HDF5 1.14 references build directory
+# > https://github.com/HDFGroup/hdf5/issues/2422
+IF(${HDF5_VERSION} VERSION_EQUAL "1.14")
+  LIST(FILTER HDF5_INCLUDE_DIR EXCLUDE REGEX "src/H5FDsubfiling")
 ENDIF()
 
 # Actually add the HDF5 paths (system/custom built) to the linking paths
@@ -470,7 +480,7 @@ IF(LIBS_BUILD_HOPR)
     # Let CMake take care of download, configure and build
     EXTERNALPROJECT_ADD(HOPR
     GIT_REPOSITORY ${HOPR_DOWNLOAD}
-    GIT_TAG v1.1.1
+    GIT_TAG ${HOPR_TAG}
     GIT_PROGRESS FALSE
     ${${GITSHALLOW}}
     PREFIX ${LIBS_HOPR_DIR}
@@ -491,6 +501,38 @@ IF(LIBS_BUILD_HOPR)
     # Make sure that the hopr binary is in the piclas/build/bin/ folder after piclas was build
     ExternalProject_Add_StepDependencies(HOPR install piclas)
     SET(HOPR_FOUND TRUE)
+  ENDIF()
+ENDIF()
+
+# Download the HOPR executable directly and place it in the bin folder
+IF(LIBS_DOWNLOAD_HOPR)
+  MESSAGE(STATUS "HOPR executable download from: ${HOPR_DOWNLOAD_URL}")
+  IF(NOT EXISTS "${CMAKE_CURRENT_BINARY_DIR}/bin/hopr")
+    MESSAGE(STATUS "HOPR executable not found in: ${CMAKE_CURRENT_BINARY_DIR}/bin/hopr. HOPR will be downloaded/extracted.")
+    # Check if .zip file has already been downloaded
+    FILE(GLOB HOPR_ZIP_FILE ${CMAKE_CURRENT_BINARY_DIR}/hopr-*.zip)
+    IF(NOT EXISTS "${HOPR_ZIP_FILE}")
+      EXECUTE_PROCESS(COMMAND curl -L -O ${HOPR_DOWNLOAD_URL})
+      FILE(GLOB HOPR_ZIP_FILE ${CMAKE_CURRENT_BINARY_DIR}/hopr-*.zip)
+    ENDIF()
+    # Check if AppImage has already been extracted
+    FILE(GLOB HOPR_APP_FILE ${CMAKE_CURRENT_BINARY_DIR}/hopr-*.AppImage)
+    IF(NOT EXISTS "${HOPR_APP_FILE}")
+      IF(NOT EXISTS "${HOPR_ZIP_FILE}")
+        MESSAGE(WARNING "FAILED to download hopr .zip file from ${HOPR_DOWNLOAD_URL}")
+      ELSE()
+        EXECUTE_PROCESS(COMMAND unzip ${HOPR_ZIP_FILE})
+        FILE(GLOB HOPR_APP_FILE ${CMAKE_CURRENT_BINARY_DIR}/hopr-*.AppImage)
+      ENDIF()
+    ENDIF()
+    # Check if AppImage file exists and create symbolic link into ./bin
+    IF(NOT EXISTS "${HOPR_APP_FILE}")
+      MESSAGE(WARNING "FAILED to extract hopr .zip file")
+    ELSE()
+      EXECUTE_PROCESS(COMMAND ln -s ${HOPR_APP_FILE} bin/hopr)
+    ENDIF()
+  ELSE()
+    MESSAGE(STATUS "HOPR executable already exists under ${CMAKE_CURRENT_BINARY_DIR}/bin/hopr")
   ENDIF()
 ENDIF()
 
