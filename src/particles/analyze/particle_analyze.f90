@@ -420,6 +420,23 @@ IF(CalcPointsPerDebyeLength.OR.CalcPICCFLCondition.OR.CalcMaxPartDisplacement)TH
 #endif
 END IF
 
+! PIC Time Step Approximation
+CalcPICTimeStep = GETLOGICAL('CalcPICTimeStep')
+IF(CalcPICTimeStep)THEN
+  ALLOCATE( PICTimeStepCell(1:PP_nElems) )
+  PICTimeStepCell=0.0
+  CALL AddToElemData(ElementOut,'PICTimeStepCell',RealArray=PICTimeStepCell(1:PP_nElems))
+END IF
+
+! Plasma Frequency
+CalcPlasmaFrequency = GETLOGICAL('CalcPlasmaFrequency')
+IF(CalcPICTimeStep) CalcPlasmaFrequency=.TRUE.
+IF(CalcPlasmaFrequency)THEN
+  ALLOCATE( PlasmaFrequencyCell(1:PP_nElems) )
+  PlasmaFrequencyCell=0.0
+  CALL AddToElemData(ElementOut,'PlasmaFrequencyCell',RealArray=PlasmaFrequencyCell(1:PP_nElems))
+END IF
+
 ! Plasma parameter
 CalcPlasmaParameter   = GETLOGICAL('CalcPlasmaParameter')
 IF(CalcPlasmaParameter)THEN
@@ -430,7 +447,7 @@ END IF
 
 ! Debye Length
 CalcDebyeLength       = GETLOGICAL('CalcDebyeLength')
-IF(CalcPointsPerDebyeLength.OR.CalcPlasmaParameter) CalcDebyeLength=.TRUE.
+IF(CalcPointsPerDebyeLength.OR.CalcPlasmaParameter.OR.CalcPICTimeStep) CalcDebyeLength=.TRUE.
 IF(CalcDebyeLength)THEN
   ALLOCATE( DebyeLengthCell(1:PP_nElems) )
   DebyeLengthCell=0.0
@@ -449,23 +466,10 @@ IF(CalcIonizationDegree)THEN
   ALLOCATE( QuasiNeutralityCell(1:PP_nElems) )
   QuasiNeutralityCell=0.0
   CALL AddToElemData(ElementOut,'QuasiNeutralityCell',RealArray=QuasiNeutralityCell(1:PP_nElems))
-END IF
-
-! PIC Time Step Approximation
-CalcPICTimeStep = GETLOGICAL('CalcPICTimeStep')
-IF(CalcPICTimeStep)THEN
-  ALLOCATE( PICTimeStepCell(1:PP_nElems) )
-  PICTimeStepCell=0.0
-  CALL AddToElemData(ElementOut,'PICTimeStepCell',RealArray=PICTimeStepCell(1:PP_nElems))
-END IF
-
-! Plasma Frequency
-CalcPlasmaFrequency = GETLOGICAL('CalcPlasmaFrequency')
-IF(CalcPICTimeStep) CalcPlasmaFrequency=.TRUE.
-IF(CalcPlasmaFrequency)THEN
-  ALLOCATE( PlasmaFrequencyCell(1:PP_nElems) )
-  PlasmaFrequencyCell=0.0
-  CALL AddToElemData(ElementOut,'PlasmaFrequencyCell',RealArray=PlasmaFrequencyCell(1:PP_nElems))
+  ! valid PIC cell: Check that quasi-neutrality is above 0.5 and at least 20 particles are inside the element
+  ALLOCATE( PICValidPlasmaCell(1:PP_nElems) )
+  PICValidPlasmaCell=0
+  CALL AddToElemData(ElementOut,'PICValidPlasmaCell',IntArray=PICValidPlasmaCell(1:PP_nElems))
 END IF
 
 ! PIC time step approximation for gyro motion
@@ -528,6 +532,9 @@ IF (PartAnalyzeStep.EQ.0) PartAnalyzeStep = HUGE(PartAnalyzeStep)
 #endif
 
 DoPartAnalyze = .FALSE.
+! PIC PPD and time step criteria: Activate DoPartAnalyze flag
+IF(CalcPointsPerDebyeLength.OR.CalcPICTimeStep) DoPartAnalyze = .TRUE.
+
 ! only verifycharge and CalcCharge if particles are deposited onto the grid
 DoVerifyCharge= .FALSE.
 CalcCharge = .FALSE.
@@ -902,7 +909,9 @@ INTEGER             :: iRegions
 #if USE_MPI
 REAL                :: tmpArray(1:2)
 #endif /*USE_MPI*/
+#if USE_HDG
 REAL                :: PCouplDelta
+#endif /*USE_HDG*/
 REAL                :: TimeDelta
 !===================================================================================================================================
 IF(DoRestart) isRestart = .true.
@@ -1274,6 +1283,20 @@ ParticleAnalyzeSampleTime = Time - ParticleAnalyzeSampleTime ! Set ParticleAnaly
           WRITE(unit_index,'(A1,I3.3,A,I3.3,A)',ADVANCE='NO') ',',OutputCounter,'-BulkElectronTemp-[K]'
           OutputCounter = OutputCounter + 1
         END IF ! CalcBulkElectronTemp
+        IF(CalcPointsPerDebyeLength)THEN
+          WRITE(unit_index,'(A1,I3.3,A,I3.3,A)',ADVANCE='NO') ',',OutputCounter,'-PercentResolvedPPD3D'
+          OutputCounter = OutputCounter + 1
+          WRITE(unit_index,'(A1,I3.3,A,I3.3,A)',ADVANCE='NO') ',',OutputCounter,'-PercentResolvedPPDX'
+          OutputCounter = OutputCounter + 1
+          WRITE(unit_index,'(A1,I3.3,A,I3.3,A)',ADVANCE='NO') ',',OutputCounter,'-PercentResolvedPPDY'
+          OutputCounter = OutputCounter + 1
+          WRITE(unit_index,'(A1,I3.3,A,I3.3,A)',ADVANCE='NO') ',',OutputCounter,'-PercentResolvedPPDZ'
+          OutputCounter = OutputCounter + 1
+        END IF ! CalcPointsPerDebyeLength
+        IF(CalcPICTimeStep)THEN
+          WRITE(unit_index,'(A1,I3.3,A,I3.3,A)',ADVANCE='NO') ',',OutputCounter,'-PercentResolvedPICTimeStep'
+          OutputCounter = OutputCounter + 1
+        END IF ! CalcPICTimeStep
         ! Finish the line with new line character
         WRITE(unit_index,'(A)') ''
       END IF
@@ -1685,6 +1708,26 @@ IF (PartMPI%MPIROOT) THEN
   IF(CalcBulkElectronTemp)THEN
     WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',', BulkElectronTemp*eV2Kelvin ! Temperature in Kelvin
   END IF ! CalcBulkElectronTemp
+  IF(CalcPointsPerDebyeLength)THEN
+    IF(PICValidPlasmaCellSum.GT.0)THEN
+      WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',', REAL(PPDCellResolved(1)) / REAL(PICValidPlasmaCellSum)
+      WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',', REAL(PPDCellResolved(2)) / REAL(PICValidPlasmaCellSum)
+      WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',', REAL(PPDCellResolved(3)) / REAL(PICValidPlasmaCellSum)
+      WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',', REAL(PPDCellResolved(4)) / REAL(PICValidPlasmaCellSum)
+    ELSE
+      WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',', 0.0
+      WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',', 0.0
+      WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',', 0.0
+      WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',', 0.0
+    END IF ! PICValidPlasmaCellSum.GT.0
+  END IF ! CalcPointsPerDebyeLength
+  IF(CalcPICTimeStep)THEN
+    IF(PICValidPlasmaCellSum.GT.0)THEN
+      WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',', REAL(PICTimeCellResolved) / REAL(PICValidPlasmaCellSum)
+    ELSE
+      WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',', 0.0
+    END IF ! PICValidPlasmaCellSum.GT.0
+  END IF ! CalcPICTimeStep
   ! Finish the line with new line character
   WRITE(unit_index,'(A)') ''
 #if USE_MPI
@@ -1761,6 +1804,7 @@ SDEALLOCATE(MaxPartDisplacementCellY)
 SDEALLOCATE(MaxPartDisplacementCellZ)
 SDEALLOCATE(PlasmaParameterCell)
 SDEALLOCATE(QuasiNeutralityCell)
+SDEALLOCATE(PICValidPlasmaCell)
 SDEALLOCATE(IonDensityCell)
 SDEALLOCATE(NeutralDensityCell)
 SDEALLOCATE(ChargeNumberCell)

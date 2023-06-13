@@ -7,6 +7,24 @@ used by the research group are given in Chapter {ref}`userguide/cluster_guide:Cl
 In that case, you can jump directly to the description of the download and installation procedure of PICLas in Section
 {ref}`sec:obtaining-the-source`.
 
+## AppImage executable download
+
+PICLas and its tools can be installed on a Linux machine without the need of compiling the source code.
+The only requirement is that MPI is pre-installed on the target system and available when running the AppImage executables.
+MPI is not distributed within the AppImage package because of the system-dependent optimizations (e.g. specific InfiniBand settings).
+Currently, PICLas executables are available as *[AppImage](https://appimage.org/)* for Linux.
+Other operating systems, such as Windows or MacOS might be supported in the future.
+
+Download the pre-compiled (on Centos7) executables from the [PICLas release tag assets](https://github.com/piclas-framework/piclas/releases).
+Note that versions prior to v3.0.0 are not supported for AppImage download.
+After downloading the binary files, it has to be checked that all files are executable and if not simply run
+
+    chmod +x piclas*
+
+for all files beginning with piclas (add the other files to the list if required) before they can be used.
+If problems occur when executing the AppImage, check the [troubleshooting]( https://docs.appimage.org/user-guide/troubleshooting/index.html)
+section for possible fixes.
+
 ## Prerequisites
 **PICLas** has been used on various Linux distributions in the past. This includes Ubuntu 16.04 LTS and 18.04 LTS, 20.04 LTS
 20.10 and 21.04, OpenSUSE 42.1 and CentOS 7.

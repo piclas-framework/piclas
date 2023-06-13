@@ -44,14 +44,14 @@ USE MOD_PreProc
 USE MOD_Mesh_Vars               ,ONLY: nElems
 USE MOD_Particle_Boundary_Vars  ,ONLY: PartBound
 USE MOD_Particle_Mesh_Vars      ,ONLY: GEO
-USE MOD_Particle_Mesh_Vars      ,ONLY: SideIsSymSide, nComputeNodeSides, ElemBaryNGeo
+USE MOD_Particle_Mesh_Vars      ,ONLY: nComputeNodeSides, ElemBaryNGeo
 USE MOD_Particle_Mesh_Vars      ,ONLY: NodeCoords_Shared,ElemSideNodeID_Shared, SideInfo_Shared, ElemInfo_Shared
 USE MOD_Mesh_Tools              ,ONLY: GetGlobalElemID
 USE MOD_Particle_Mesh_Tools     ,ONLY: GetGlobalNonUniqueSideID
 #if USE_MPI
 USE MOD_MPI_Shared             
 USE MOD_MPI_Shared_Vars         ,ONLY: MPI_COMM_SHARED, nComputeNodeTotalElems
-USE MOD_Particle_Mesh_Vars      ,ONLY: nNonUniqueGlobalSides, SideIsSymSide_Shared, SideIsSymSide_Shared_Win
+USE MOD_Particle_Mesh_Vars      ,ONLY: nNonUniqueGlobalSides
 USE MOD_Particle_Mesh_Vars      ,ONLY: ElemSideNodeID2D_Shared_Win, SideNormalEdge2D_Shared_Win
 USE MOD_MPI_Shared_Vars         ,ONLY: myComputeNodeRank, nComputeNodeProcessors
 #endif /*USE_MPI*/
@@ -69,48 +69,7 @@ REAL                            :: VecCell(2), FaceMidPoint(2), NormVec(2), Edge
 INTEGER                         :: firstElem,lastElem, firstSide, lastSide, GlobalElemID, tmpNode
 LOGICAL                         :: DefineSide
 !===================================================================================================================================
-
 #if USE_MPI
-CALL Allocate_Shared((/nNonUniqueGlobalSides/),SideIsSymSide_Shared_Win,SideIsSymSide_Shared)
-CALL MPI_WIN_LOCK_ALL(0,SideIsSymSide_Shared_Win,IERROR)
-
-SideIsSymSide => SideIsSymSide_Shared
-#else
-! allocate local array for ElemInfo
-ALLOCATE(SideIsSymSide(nComputeNodeSides))
-#endif  /*USE_MPI*/
-
-#if USE_MPI
-  firstSide = INT(REAL( myComputeNodeRank   *nNonUniqueGlobalSides)/REAL(nComputeNodeProcessors))+1
-  lastSide  = INT(REAL((myComputeNodeRank+1)*nNonUniqueGlobalSides)/REAL(nComputeNodeProcessors))
-#else
-  firstSide = 1
-  lastSide  = nComputeNodeSides
-#endif
-
-DO iSide = firstSide, lastSide
-  ! ignore non-BC sides
-  IF (SideInfo_Shared(SIDE_BCID,iSide).LE.0) THEN
-    SideIsSymSide(iSide) = .FALSE.
-    CYCLE
-  END IF
-
-#if USE_MPI
-  ! ignore sides outside of halo region
-  IF (ElemInfo_Shared(ELEM_HALOFLAG,SideInfo_Shared(SIDE_ELEMID,iSide)).EQ.0) THEN
-    SideIsSymSide(iSide) = .FALSE.
-    CYCLE
-  END IF
-#endif /*USE_MPI*/
-  IF (PartBound%TargetBoundCond(PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,iSide))).EQ.PartBound%SymmetryBC) THEN
-    SideIsSymSide(iSide) = .TRUE.
-  ELSE
-    SideIsSymSide(iSide) = .FALSE.
-  END IF
-END DO
-#if USE_MPI
-CALL BARRIER_AND_SYNC(SideIsSymSide_Shared_Win,MPI_COMM_SHARED)
-
 CALL Allocate_Shared((/2,6,nComputeNodeTotalElems/),ElemSideNodeID2D_Shared_Win,ElemSideNodeID2D_Shared)
 CALL MPI_WIN_LOCK_ALL(0,ElemSideNodeID2D_Shared_Win,IERROR)
 CALL Allocate_Shared((/4,6,nComputeNodeTotalElems/),SideNormalEdge2D_Shared_Win,SideNormalEdge2D_Shared)

@@ -92,7 +92,8 @@ fi
 #HDF5VERSION=1.10.6
 #HDF5VERSION=1.12.0 # CAUTION NIG_PIC_maxwell_RK4/TWT_recordpoints fails for: 1) gcc/11.2.0   2) cmake/3.21.3   3) openmpi/4.1.1/gcc/11.2.0   4) hdf5/1.12.0/gcc/11.2.0/openmpi/4.1.1
 #HDF5VERSION=1.12.1
-HDF5VERSION=1.12.2
+#HDF5VERSION=1.12.2
+HDF5VERSION=1.14.0
 
 COMPILERPREFIX=compilers/ # required for modules 5.0.0
 MPIPREFIX=MPI/ # required for modules 5.0.0

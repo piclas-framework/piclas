@@ -1073,7 +1073,7 @@ IF(MOD(iter,PartAnalyzeStep).NE.0 .AND. OutPutHDF5)       DoPerformPartAnalyze=.
 IF(DoRestart .AND. iter.EQ.0) DoPerformPartAnalyze=.FALSE.
 ! Finally, remove duplicates for last iteration
 ! This step is needed, because PerformAnalyze is called twice within the iterations
-IF(FirstOrLastIter .AND. .NOT.OutPutHDF5 .AND.iter.NE.0) DoPerformPartAnalyze=.FALSE.
+IF(FirstOrLastIter.AND.(.NOT.OutPutHDF5).AND.(iter.NE.0)) DoPerformPartAnalyze=.FALSE.
 
 ! SurfaceAnalyzeStep
 ! 2) normal analyze at analyze step
@@ -1161,6 +1161,11 @@ END IF
 ! PIC, DSMC and other Particle-based Solvers
 !----------------------------------------------------------------------------------------------------------------------------------
 #ifdef PARTICLES
+! The following if clause might be simplified
+IF((OutPutHDF5.OR.FirstOrLastIter) .AND. .NOT.(FirstOrLastIter.AND.(.NOT.OutPutHDF5).AND.(iter.NE.0))) CALL CalculatePartElemData()
+#endif /*PARTICLES*/
+
+#ifdef PARTICLES
 IF(DoPartAnalyze.AND.DoPerformPartAnalyze)           CALL AnalyzeParticles(OutputTime)
 IF(DoPerformSurfaceAnalyze)                          CALL AnalyzeSurface(OutputTime)
 IF(TrackParticlePosition.AND.DoPerformPartAnalyze)   CALL WriteParticleTrackingData(OutputTime,iter) ! new function
@@ -1169,10 +1174,6 @@ IF(DoInterpolationAnalytic.AND.DoPerformPartAnalyze) CALL AnalyticParticleMoveme
 #endif /*CODE_ANALYZE*/
 #endif /*PARTICLES*/
 
-#ifdef PARTICLES
-! OutPutHDF5 should be sufficient here
-IF(OutPutHDF5 .OR. FirstOrLastIter) CALL CalculatePartElemData()
-#endif /*PARTICLES*/
 
 !----------------------------------------------------------------------------------------------------------------------------------
 ! DSMC
