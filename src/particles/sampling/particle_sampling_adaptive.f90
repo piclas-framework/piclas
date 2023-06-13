@@ -49,7 +49,20 @@ END SUBROUTINE DefineParametersParticleSamplingAdaptive
 
 SUBROUTINE InitAdaptiveBCSampling()
 !===================================================================================================================================
-!> Routine counts the number of elements, where macroscopic values are to be sampled
+!> Routine to initialize the sampling of elements adjacent to adaptive surface flux and/or porous BCs
+!> 1) Count the number of sample elements and create mapping from ElemID to SampleElemID
+!>  1a) Add elements for the adaptive surface flux
+!>  1b) Add elements for the porous BCs
+!> 2) Allocate the sampling arrays and create mapping from SampleElemID to ElemID
+!>  2a) Initializing the array with the given velocity vector and magnitude
+!> 3) Read-in of the additional variables for sampling and and array allocation
+!> 4) If a restart is performed,
+!>  4a) Check if adaptiveinfo exists in state, read it in and write to AdaptBCMacroValues
+!>  4b) If TruncateRunningAverage: read-in of AdaptiveRunningAverage to continue the sample
+!>  4c) SurfaceFlux, Type=4: read-in of AdaptBCPartNumOut to avoid mass flux jumps
+!> 5) Initialize the macroscopic values from either the macroscopic restart or the surface flux (if no values have been read-in)
+!> 6) Sampling of near adaptive boundary element values in the first time step to get initial distribution
+!> 7) Approximation of particles leaving the domain, assuming zero bulk velocity, using the macrorestart values or init sampling
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
@@ -145,15 +158,6 @@ DO iSpec=1,nSpecies
   END DO
 END DO
 
-! Type=4 requires the number of particles that left through that BC in the previous time step
-! Only allocate and nullify, if new simulation or restart, keep values during load balance step to avoid wrong mass flow during
-IF(.NOT.PerformLoadBalance) THEN
-  ALLOCATE(AdaptBCPartNumOut(1:nSpecies,1:nSurfacefluxBCs))
-  AdaptBCPartNumOut = 0
-  ALLOCATE(AdaptBCAverageMacroVal(1:3,1:nSpecies,1:nSurfacefluxBCs))
-  AdaptBCAverageMacroVal = 0
-END IF
-
 #if USE_MPI
 IF(UseCircularInflow) THEN
   IF(PartMPI%MPIRoot)THEN
@@ -224,7 +228,7 @@ AdaptBCMacroVal(:,:,:) = 0.0
 ALLOCATE(AdaptBCSample(1:8,1:AdaptBCSampleElemNum,1:nSpecies))
 AdaptBCSample = 0.0
 
-! Initializing an array with the given velocity vector and magnitude. It is used as a fallback, when the sampled velocity
+! 2a) Initializing an array with the given velocity vector and magnitude. It is used as a fallback, when the sampled velocity
 ! in the cell is zero (e.g. when starting a simulation with zero particles)
 ALLOCATE(AdaptBCBackupVelocity(1:3,1:AdaptBCSampleElemNum,1:nSpecies))
 AdaptBCBackupVelocity = 0.0
@@ -248,10 +252,23 @@ DO iSpec=1,nSpecies
   END DO
 END DO
 
-! 3) Read-in of the additional variables for sampling
+! 3) Read-in of the additional variables for sampling and array allocation
 AdaptBCAverageValBC = GETLOGICAL('AdaptiveBC-AverageValuesOverBC')
 AdaptBCRelaxFactor = GETREAL('AdaptiveBC-RelaxationFactor')
 AdaptBCSampIter = GETINT('AdaptiveBC-SamplingIteration')
+
+! Type=4 requires the number of particles that left through that BC in the previous time step
+! Only allocate and nullify, if new simulation or restart, keep values during load balance step to avoid wrong mass flow during
+IF(.NOT.PerformLoadBalance) THEN
+  IF(UseAdaptiveType4) THEN
+    ALLOCATE(AdaptBCPartNumOut(1:nSpecies,1:nSurfacefluxBCs))
+    AdaptBCPartNumOut = 0
+  END IF
+  IF(AdaptBCAverageValBC) THEN
+    ALLOCATE(AdaptBCAverageMacroVal(1:3,1:nSpecies,1:nSurfacefluxBCs))
+    AdaptBCAverageMacroVal = 0
+  END IF
+END IF
 
 IF(AdaptBCSampIter.GT.0) THEN
   AdaptBCTruncAverage = GETLOGICAL('AdaptiveBC-TruncateRunningAverage','.TRUE.')
@@ -384,7 +401,7 @@ IF (DoRestart) THEN
   END IF
 END IF
 
-! 4) Initialize the macroscopic values from either the macroscopic restart or the surface flux (if no values have been read-in)
+! 5) Initialize the macroscopic values from either the macroscopic restart or the surface flux (if no values have been read-in)
 IF(AdaptiveDataExists) RETURN
 
 IF (DoMacroscopicRestart) THEN
@@ -424,15 +441,15 @@ ELSE
   SWRITE(*,*) '| Input parameters for the velocity and number density have been utilized.'
 END IF
 
-! Sampling of near adaptive boundary element values in the first time step to get initial distribution
+! 6) Sampling of near adaptive boundary element values in the first time step to get initial distribution
 IF(.NOT.DoRestart.AND..NOT.PerformLoadBalance) THEN
   CALL AdaptiveBCSampling(initSampling_opt=.TRUE.)
   SWRITE(*,*) '| Sampling of inserted particles has been performed for an initial distribution.'
 END IF
 
-! Approximation of particle leaving the domain, assuming a bulk velocity of zero, using the macrorestart values or init sampling
-! Species-specific time step
+! 7) Approximation of particles leaving the domain, assuming zero bulk velocity, using the macrorestart values or init sampling
 IF(UseAdaptiveType4.AND.(.NOT.AdaptBCPartNumOutExists.OR.DoMacroscopicRestart)) THEN
+  ! Species-specific time step
   IF(VarTimeStep%UseSpeciesSpecific) THEN
     dtVar = ManualTimeStep * RKdtFrac * Species(iSpec)%TimeStepFactor
   ELSE
@@ -470,7 +487,19 @@ END SUBROUTINE InitAdaptiveBCSampling
 
 SUBROUTINE AdaptiveBCSampling(initSampling_opt,initTruncAverage_opt)
 !===================================================================================================================================
-! Sampling of variables (part-density and velocity) for adaptive BC and porous BC elements
+!> Sampling of variables (part-density and velocity) for adaptive BC and porous BC elements
+!> 0) Determination whether a calculation of macroscopic values is required and set the counter for AdaptBCTruncAverage
+!> 1) Loop over all particles, while cycling elements which are not at a boundary through AdaptBCMapElemToSample
+!> 2) AdaptBCAverageValBC: Calculate the macroscopic values averaged over the whole BC
+!>  2a) SamplingIteration: use the truncated running average (e.g. sample over the last 100 iterations)
+!>      OR
+!>  2a) RelaxationFactor: update the current values by a certain percentage
+!> 3) Populate the element local arrays for AdaptBCAverageValBC
+!>  3a) AdaptBCAverageValBC: Populate the element local arrays
+!> 4) Calculation of the cell-local values (if not AdaptBCAverageValBC)
+!>  4a) SamplingIteration
+!>      OR
+!>  4b) RelaxationFactor
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
@@ -484,7 +513,6 @@ USE MOD_Particle_Mesh_Vars     ,ONLY: ElemVolume_Shared
 USE MOD_Particle_Vars          ,ONLY: PartState, PDM, PartSpecies, Species, nSpecies, PEM, usevMPF
 USE MOD_Timedisc_Vars          ,ONLY: iter
 USE MOD_Particle_Surfaces_Vars ,ONLY: BCdata_auxSF
-!USE MOD_Particle_Vars          ,ONLY: UseRotRefFrame,RotRefFrameOmega
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Timers     ,ONLY: LBStartTime, LBElemSplitTime, LBPauseTime
 USE MOD_LoadBalance_vars       ,ONLY: nPartsPerBCElem
@@ -533,6 +561,7 @@ nSurfacefluxBCs = MAXVAL(Species(:)%nSurfacefluxBCs)
 ! adaptive inlet surface flux will be overwritten by zero's.
 IF (PDM%ParticleVecLength.LT.1.AND..NOT.initTruncAverage) RETURN
 
+! 0) Determination whether a calculation of macroscopic values is required and set the counter for AdaptBCTruncAverage
 ! Calculate the counter for the truncated moving average
 IF(AdaptBCTruncAverage.AND..NOT.initSampling) THEN
   IF (AdaptBCSampleElemNum.GT.0) THEN
@@ -544,7 +573,27 @@ IF(AdaptBCTruncAverage.AND..NOT.initSampling) THEN
   END IF
 END IF
 
+! Determine whether a calculation of macroscopic values is required and set the appropriate counters
+IF(initSampling) THEN
+  RelaxationFactor = 1
+  SamplingIteration = 1
+  CalcValues = .TRUE.
+ELSE
+  RelaxationFactor = AdaptBCRelaxFactor
+  IF(AdaptBCSampIter.GT.0) THEN
+    IF(AdaptBCTruncAverage.AND.(RestartSampIter.GT.0).AND.(RestartSampIter.LT.AdaptBCSampIter)) THEN
+      ! Truncated average: get the correct number of samples to calculate the average number density while the 
+      ! sampling array is populated
+      SamplingIteration = RestartSampIter
+    ELSE
+      SamplingIteration = AdaptBCSampIter
+    END IF
+    ! Determine whether the macroscopic values shall be calculated from the sample (e.g. every 100 steps)
+    CalcValues = MOD(INT(iter,4),SamplingIteration).EQ.0
+  END IF
+END IF
 
+! 1) Loop over all particles, while cycling elements which are not at a boundary through AdaptBCMapElemToSample
 #if USE_LOADBALANCE
 CALL LBStartTime(tLBStart)
 #endif /*USE_LOADBALANCE*/
@@ -579,30 +628,12 @@ END IF
 CALL LBPauseTime(LB_ADAPTIVE,tLBStart)
 #endif /*USE_LOADBALANCE*/
 
-IF(initSampling) THEN
-  RelaxationFactor = 1
-  SamplingIteration = 1
-  CalcValues = .TRUE.
-ELSE
-  RelaxationFactor = AdaptBCRelaxFactor
-  IF(AdaptBCSampIter.GT.0) THEN
-    IF(AdaptBCTruncAverage.AND.(RestartSampIter.GT.0).AND.(RestartSampIter.LT.AdaptBCSampIter)) THEN
-      ! Truncated average: get the correct number of samples to calculate the average number density while the 
-      ! sampling array is populated
-      SamplingIteration = RestartSampIter
-    ELSE
-      SamplingIteration = AdaptBCSampIter
-    END IF
-    ! Determine whether the macroscopic values shall be calculated from the sample (e.g. every 100 steps)
-    CalcValues = MOD(INT(iter,4),SamplingIteration).EQ.0
-  END IF
-END IF
-
 IF(AdaptBCTruncAverage.AND..NOT.initSampling.AND.AdaptBCSampleElemNum.GT.0) THEN
   ! Sum-up the complete sample over the number of sampling iterations
   AdaptBCSample(1:8,1:AdaptBCSampleElemNum,1:nSpecies) = SUM(AdaptBCAverage(1:8,:,1:AdaptBCSampleElemNum,1:nSpecies),2)
 END IF
 
+! 2) AdaptBCAverageValBC: Calculate the macroscopic values averaged over the whole BC
 IF(AdaptBCAverageValBC) THEN
   IF(CalcValues.OR.AdaptBCTruncAverage.OR.(AdaptBCSampIter.EQ.0)) THEN
     ALLOCATE(AdaptBCMeanValues(1:8,1:nSpecies,1:nSurfacefluxBCs))
@@ -697,6 +728,7 @@ END IF
 
 IF(AdaptBCAverageValBC) THEN
 ! ================================================================
+! 3) Populate the element local arrays
 ! BC-averaged values
   IF(CalcValues.OR.AdaptBCTruncAverage) THEN
     DO iSpec = 1,nSpecies
@@ -727,7 +759,7 @@ IF(AdaptBCAverageValBC) THEN
   END IF          ! CalcValues.OR.AdaptBCTruncAverage
 ELSE              ! .NOT. AdaptBCAverageValBC
 ! ================================================================
-! Cell-local values
+! 4) Calculation of the cell-local values
   IF(AdaptBCSampIter.GT.0) THEN
   ! ================================================================
   ! Sampling iteration: sampling for AdaptBCSampIter iterations, calculating the macro values and resetting sample OR
