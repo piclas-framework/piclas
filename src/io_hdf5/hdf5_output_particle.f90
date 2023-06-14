@@ -1035,6 +1035,8 @@ END IF
 
 iVar = 1
 AdaptiveData = 0.
+UseAdaptiveType4 = .FALSE.
+
 DO iSpec = 1, nSpecies
   IF(ANY(Species(iSpec)%Surfaceflux(:)%AdaptiveType.EQ.4)) UseAdaptiveType4 = .TRUE.
   DO SampleElemID = 1,AdaptBCSampleElemNum
@@ -1168,7 +1170,7 @@ CHARACTER(LEN=255),INTENT(IN)   :: FileName
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                         :: nVar, nSurfacefluxBCs
+INTEGER                         :: nSurfacefluxBCs
 INTEGER, ALLOCATABLE            :: AdaptBCPartNumOutTemp(:,:)
 !===================================================================================================================================
 
@@ -1189,11 +1191,11 @@ END IF
 IF(MPIRoot)THEN
   CALL OpenDataFile(FileName,create=.FALSE.,single=.TRUE.,readOnly=.FALSE.)
   ! Associate construct for integer KIND=8 possibility
-  ASSOCIATE(nVar                          => INT(nVar,IK)            ,&
-            nSpecies                      => INT(nSpecies,IK)        )
-    CALL WriteArrayToHDF5(DataSetName = 'AdaptBCPartNumOut' , rank = 2                   , &
-                          nValGlobal  = (/nSpecies,nSurfacefluxBCs/), &
-                          nVal        = (/nSpecies,nSurfacefluxBCs/), &
+  ASSOCIATE(nSpecies          => INT(nSpecies,IK)            ,&
+            nSurfacefluxBCs   => INT(nSurfacefluxBCs,IK)        )
+    CALL WriteArrayToHDF5(DataSetName = 'AdaptBCPartNumOut' , rank = 2, &
+                          nValGlobal  = (/nSpecies,nSurfacefluxBCs/),   &
+                          nVal        = (/nSpecies,nSurfacefluxBCs/),   &
                           offset      = (/0_IK,0_IK/), &
                           collective  = .FALSE. , IntegerArray_i4 = AdaptBCPartNumOutTemp)
   END ASSOCIATE

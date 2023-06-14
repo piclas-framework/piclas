@@ -438,7 +438,7 @@ ELSE
       END DO
     END DO
   END DO
-  SWRITE(*,*) '| Input parameters for the velocity and number density have been utilized.'
+  SWRITE(*,*) '| Macroscopic values have been initialized with the input parameters for the velocity and number density (fallback).'
 END IF
 
 ! 6) Sampling of near adaptive boundary element values in the first time step to get initial distribution
