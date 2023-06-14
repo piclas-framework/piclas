@@ -25,6 +25,7 @@ INTEGER,PARAMETER :: FV_LIMITERTYPE_NULL    = 0
 INTEGER,PARAMETER :: FV_LIMITERTYPE_MINMOD  = 1
 INTEGER,PARAMETER :: FV_LIMITERTYPE_SWEBY   = 2
 INTEGER,PARAMETER :: FV_LIMITERTYPE_VANLEER = 3
+INTEGER,PARAMETER :: FV_LIMITERTYPE_VKT = 4
 INTEGER,PARAMETER :: FV_LIMITERTYPE_CENTRAL = 9
 
 INTERFACE InitFV_Limiter
@@ -73,6 +74,9 @@ CASE (FV_LIMITERTYPE_SWEBY) ! Sweby
 CASE (FV_LIMITERTYPE_VANLEER) ! Van Leer
   FV_Limiter => VanLeer
   SWRITE(UNIT_stdOut,'(A)') '  Using "van Leer" limiter.'
+CASE (FV_LIMITERTYPE_VKT) ! Venkatakrishnan
+  FV_Limiter => VanLeer
+  SWRITE(UNIT_stdOut,'(A)') '  Using "Venkatakrishnan" limiter.'
 CASE (FV_LIMITERTYPE_CENTRAL) ! Central
   FV_Limiter => CentralLimiter
   SWRITE(UNIT_stdOut,'(A)') '  Using "Central" limiter.'

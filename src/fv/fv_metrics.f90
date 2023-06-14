@@ -131,7 +131,7 @@ REAL, INTENT(IN)                      :: dmaster(3,1:nSides)
 REAL, INTENT(IN)                      :: dslave(3,1:nSides)
 !----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                                :: SideID, ElemID, locSideID, flip, info_dgesv, IPIV(PP_dim)
+INTEGER                                :: SideID, ElemID, locSideID, flip, info_dgesv, IPIV(PP_dim), singleDir
 REAL                                   :: gradWeight, dElem(3), dMatrix(PP_dim,PP_dim), dMatrixBC(PP_dim,PP_dim)
 LOGICAL                                :: BCelem
 !==================================================================================================================================
@@ -185,18 +185,37 @@ DO ElemID = 1, nElems
 
 
   IF (BCelem) THEN
+    singleDir = 0
     dMatrixBC = dMatrix - dMatrixBC
 #if PP_dim == 3
+    IF (dMatrixBC(1,1).EQ.0.) THEN
+      IF (dMatrixBC(2,2).EQ.0.) singleDir = 3
+      IF (dMatrixBC(3,3).EQ.0.) singleDir = 2
+    ELSE IF (dMatrixBC(2,2).EQ.0..AND.dMatrixBC(3,3).EQ.0.) THEN
+      singleDir = 1
+    END IF
     DO locSideID=1,6
 #else
+    IF (dMatrixBC(1,1).EQ.0.) THEN
+      singleDir = 2
+    ELSE IF (dMatrixBC(2,2).EQ.0.) THEN
+      singleDir = 1
+    END IF
     DO locSideID=2,5
 #endif
       SideID=ElemToSide(E2S_SIDE_ID,locSideID,ElemID)
       IF (SideID.LE.lastBCSide) CYCLE
       !FV_SysSol_BC calculated with slave -> master direction
-      FV_SysSol_BC(:,SideID) = dslave(:,SideID) - dmaster(:,SideID)
-      CALL DGESV(PP_dim,1,dMatrixBC,PP_dim,IPIV,FV_SysSol_BC(1:PP_dim,SideID),PP_dim,info_dgesv)
-      IF(info_dgesv.NE.0) CALL abort(__STAMP__,'FV metrics BC error')
+      IF (singleDir.GT.0) THEN
+        FV_SysSol_BC(:,SideID) = 0.
+        IF (dMatrixBC(singleDir,singleDir).GT.0.) THEN
+          FV_SysSol_BC(singleDir,SideID) = (dslave(singleDir,SideID) - dmaster(singleDir,SideID))/dMatrixBC(singleDir,singleDir)
+        END IF
+      ELSE
+        FV_SysSol_BC(:,SideID) = dslave(:,SideID) - dmaster(:,SideID)
+        CALL DGESV(PP_dim,1,dMatrixBC,PP_dim,IPIV,FV_SysSol_BC(1:PP_dim,SideID),PP_dim,info_dgesv)
+        IF(info_dgesv.NE.0) CALL abort(__STAMP__,'FV metrics BC error')
+      END IF
     END DO
   END IF
 

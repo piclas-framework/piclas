@@ -63,7 +63,8 @@ IMPLICIT NONE
 CALL prms%SetSection("Finite Volumes")
 
 CALL prms%CreateLogicalOption('FV-Reconstruction' , 'Use reconstruction for finite volumes', '.TRUE.')
-CALL prms%CreateIntOption('FV-LimiterType',"Type of slope limiter of second order reconstruction", '1')
+CALL prms%CreateIntOption('FV-LimiterType',"Type of slope limiter of second order reconstruction", '9')
+CALL prms%CreateIntOption('FV-LimiterTypeBC',"Type of slope limiter of second order reconstruction for boundary conditions", '9')
 CALL prms%CreateRealOption('FV-VktK',"K parameter for Venkatakrishnan limiter", '1.')
 CALL prms%CreateRealArrayOption('FV-PeriodicBoxMin', "Minimum coordinates of the periodic box", "(/-Inf, -Inf, -Inf/)")
 CALL prms%CreateRealArrayOption('FV-PeriodicBoxMax', "Maximum coordinates of the periodic box", "(/Inf, Inf, Inf/)")
@@ -190,6 +191,7 @@ CALL AddToElemData(ElementOut,'FV_ElemData',RealArray=U(1,0,0,0,:))
 
 IF (doFVReconstruction) THEN
   LimiterType = GETINT('FV-LimiterType')
+  LimiterTypeBC = GETINT('FV-LimiterTypeBC')
   CALL InitFV_Limiter()
 
   ALLOCATE(FV_dx_slave(3,0:PP_N,0:PP_N,1:nSides))

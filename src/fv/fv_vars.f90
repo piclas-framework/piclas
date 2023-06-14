@@ -64,6 +64,7 @@ REAL,ALLOCATABLE                      :: FV_gradU_side(:,:,:,:)
 REAL,ALLOCATABLE                      :: FV_gradU_elem(:,:,:)
 
 INTEGER                               :: LimiterType
+INTEGER                               :: LimiterTypeBC
 REAL                                  :: FV_sweby_beta
 REAL                                  :: FV_VktK
 

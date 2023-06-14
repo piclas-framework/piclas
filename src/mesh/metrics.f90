@@ -624,12 +624,6 @@ DO iElem=1,nElems
 
   ! assign to global Variable sJ
   sJ(0,0,0,iElem)=1./SUM(SUM(SUM(DetJac_N_PP_1(1,:,:,:),3),2),1)
-  ! IF (Elem_xGP(2,0,0,0,iElem).GT.0.966) THEN
-  !   IF (Elem_xGP(1,0,0,0,iElem).LT.0.034.OR.Elem_xGP(1,0,0,0,iElem).GT.0.966) THEN
-  !     print*, 'CORNEEEEEER', iElem, Elem_xGP(:,:,:,:,iElem)
-  !     sJ(0,0,0,iElem)=0.
-  !   END IF
-  ! END IF
 
   ! check for negative Jacobians
   IF(DetJac_N_PP_1(1,0,0,0).LE.0.)&
