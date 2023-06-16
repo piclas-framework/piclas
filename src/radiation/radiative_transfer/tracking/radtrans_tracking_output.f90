@@ -40,6 +40,8 @@ USE MOD_Globals
 USE MOD_PreProc
 USE MOD_Mesh_Vars            ,ONLY: nElems,MeshFile,offSetElem
 USE MOD_Globals_Vars         ,ONLY: ProjectName
+USE MOD_RayTracing_Vars      ,ONLY: Ray,nVarRay,U_N_Ray,N_DG_Ray,PREF_VDM_Ray
+USE MOD_HDF5_output          ,ONLY: GatheredWriteArray
 #if USE_MPI
 USE MOD_RayTracing_Vars      ,ONLY: RayElemPassedEnergy_Shared
 #else
@@ -48,7 +50,8 @@ USE MOD_RayTracing_Vars      ,ONLY: RayElemPassedEnergy
 USE MOD_io_HDF5
 USE MOD_HDF5_output          ,ONLY: GenerateFileSkeleton
 USE MOD_HDF5_Output_ElemData ,ONLY: WriteAdditionalElemData
-!USE MOD_IO_HDF5                 ,ONLY: AddToElemData,ElementOut
+USE MOD_Mesh_Vars            ,ONLY: offsetElem,nGlobalElems
+USE MOD_ChangeBasis          ,ONLY: ChangeBasis3D
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -59,11 +62,12 @@ USE MOD_HDF5_Output_ElemData ,ONLY: WriteAdditionalElemData
 ! LOCAL VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 CHARACTER(LEN=255)                  :: FileName
-INTEGER                             :: iElem
-INTEGER,PARAMETER                   :: nVar=1
+INTEGER                             :: iElem,Nloc
+INTEGER,PARAMETER                   :: nVar=2
 REAL, ALLOCATABLE                   :: RayElemPassedEnergyLoc1st(:),RayElemPassedEnergyLoc2nd(:)
 REAL, ALLOCATABLE                   :: RaySecondaryVectorX(:),RaySecondaryVectorY(:),RaySecondaryVectorZ(:)
 CHARACTER(LEN=255), ALLOCATABLE     :: StrVarNames(:)
+REAL                                :: U(nVarRay,0:Ray%NMax,0:Ray%NMax,0:Ray%NMax,PP_nElems)
 !===================================================================================================================================
 SWRITE(UNIT_stdOut,'(a)',ADVANCE='NO') ' WRITE Radiation TO HDF5 FILE...'
 
@@ -83,8 +87,11 @@ CALL AddToElemData(ElementOut,'RaySecondaryVectorX',RealArray=RaySecondaryVector
 CALL AddToElemData(ElementOut,'RaySecondaryVectorY',RealArray=RaySecondaryVectorY)
 CALL AddToElemData(ElementOut,'RaySecondaryVectorZ',RealArray=RaySecondaryVectorZ)
 
+CALL AddToElemData(ElementOut,'Nloc',IntArray=N_DG_Ray)
+
 ALLOCATE(StrVarNames(1:nVar))
-StrVarNames(1)='dummy'
+StrVarNames(1)='RayElemPassedEnergy1st'
+StrVarNames(2)='RayElemPassedEnergy2nd'
 
 ! Generate skeleton for the file with all relevant data on a single proc (MPIRoot)
 FileName=TRIM(ProjectName)//'_RadiationVolState.h5'
@@ -100,6 +107,8 @@ CALL ExchangeRayVolInfo()
 ASSOCIATE( RayElemPassedEnergy => RayElemPassedEnergy_Shared )
 #endif /*USE_MPI*/
   DO iElem=1,PP_nElems
+
+    ! 1. Elem-constant data
     ! Primary energy
     RayElemPassedEnergyLoc1st(iElem) = RayElemPassedEnergy(1,iElem+offSetElem)
     ! Secondary energy
@@ -116,7 +125,33 @@ ASSOCIATE( RayElemPassedEnergy => RayElemPassedEnergy_Shared )
       RaySecondaryVectorY(iElem) = 0.
       RaySecondaryVectorZ(iElem) = 0.
     END IF ! RayElemPassedEnergyLoc2nd(iElem).GT.0
+
+    ! 2. Variable polynomial degree data
+    Nloc = N_DG_Ray(iElem)
+    !U_N_Ray(iElem)%U(1:1,:,:,:) = RayElemPassedEnergy(1,iElem+offSetElem)
+    !U_N_Ray(iElem)%U(2:2,:,:,:) = RayElemPassedEnergy(2,iElem+offSetElem)
+    IF(Nloc.Eq.Ray%Nmax)THEN
+      U(:,:,:,:,iElem) = U_N_Ray(iElem)%U(:,:,:,:)
+    ELSE
+      CALL ChangeBasis3D(nVarRay, Nloc, Ray%NMax, PREF_VDM_Ray(Nloc,Ray%NMax)%Vdm, U_N_Ray(iElem)%U(:,:,:,:), U(:,:,:,:,iElem))
+    END IF ! Nloc.Eq.Nmax
+
   END DO
+
+  ! Associate construct for integer KIND=8 possibility
+  ASSOCIATE (&
+        nVarRay           => INT(nVarRay,IK)            ,&
+        NMax              => INT(Ray%NMax,IK)           ,&
+        nGlobalElems      => INT(nGlobalElems,IK)       ,&
+        PP_nElems         => INT(PP_nElems,IK)          ,&
+        offsetElem        => INT(offsetElem,IK)         )
+    CALL GatheredWriteArray(FileName,create=.FALSE.,&
+         DataSetName='DG_Solution', rank=5,&
+         nValGlobal=(/nVarRay     , NMax+1_IK , NMax+1_IK , NMax+1_IK , nGlobalElems/) , &
+         nVal=      (/nVarRay     , NMax+1_IK , NMax+1_IK , NMax+1_IK , PP_nElems/)    , &
+         offset=    (/0_IK        , 0_IK      , 0_IK      , 0_IK      , offsetElem/)   , &
+         collective=.TRUE.,RealArray=U)
+  END ASSOCIATE
 #if USE_MPI
 END ASSOCIATE
 #endif /*USE_MPI*/
@@ -138,7 +173,7 @@ SUBROUTINE WritePhotonSurfSampleToHDF5()
 USE MOD_Globals
 USE MOD_IO_HDF5
 USE MOD_Globals_Vars,               ONLY:ProjectName
-USE MOD_Particle_Boundary_Vars,     ONLY:nComputeNodeSurfOutputSides,noutputsides, nSurfTotalSides, nSurfBC
+USE MOD_Particle_Boundary_Vars,     ONLY:nComputeNodeSurfOutputSides,noutputsides, nSurfBC
 USE MOD_Particle_Boundary_Vars,     ONLY:offsetComputeNodeSurfOutputSide, SurfBCName, nComputeNodeSurfSides
 USE MOD_Particle_Boundary_Vars,     ONLY:SurfSide2GlobalSide, GlobalSide2SurfSide
 USE MOD_HDF5_Output,                ONLY:WriteAttributeToHDF5,WriteArrayToHDF5,WriteHDF5Header
@@ -147,7 +182,7 @@ USE MOD_Particle_Mesh_Vars,         ONLY:SideInfo_Shared
 USE MOD_MPI_Shared_Vars,            ONLY:mySurfRank
 #if USE_MPI
 USE MOD_MPI_Shared_Vars,            ONLY:MPI_COMM_LEADERS_SURF
-USE MOD_Particle_Boundary_Vars,     ONLY:SurfSideArea_Shared
+USE MOD_Particle_Boundary_Vars,     ONLY:SurfSideArea_Shared,nSurfTotalSides
 USE MOD_Photon_TrackingVars,        ONLY:PhotonSampWall_Shared
 #else
 USE MOD_Photon_TrackingVars,        ONLY:PhotonSampWall

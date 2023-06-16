@@ -278,7 +278,7 @@ USE MOD_Particle_Boundary_Init     ,ONLY: InitParticleBoundaryRotPeriodic, InitA
 USE MOD_DSMC_BGGas                 ,ONLY: BGGas_InitRegions
 #if USE_MPI
 USE MOD_Particle_MPI               ,ONLY: InitParticleCommSize
-!USE MOD_Particle_MPI_Emission      ,ONLY: InitEmissionParticlesToProcs
+!USE MOD_Particle_MPI_Emission      ,ONLY: InitEmissionParticlesToProcs                                                                                                                      ! USE MOD_Particle_MPI_Emission      ,ONLY: InitEmissionParticlesToProcs
 #endif
 #if (PP_TimeDiscMethod==300)
 USE MOD_FPFlow_Init                ,ONLY: InitFPFlow
@@ -293,6 +293,7 @@ USE MOD_Particle_Vars              ,ONLY: BulkElectronTemp
 USE MOD_LoadBalance_Vars           ,ONLY: PerformLoadBalance
 #endif /*USE_LOADBALANCE*/
 USE MOD_RayTracing_Init            ,ONLY: InitRayTracing
+USE MOD_Mesh_Vars                  ,ONLY: NodeCoords
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -361,6 +362,9 @@ IF(BGGas%UseRegions) CALL BGGas_InitRegions()
 
 ! Ray tracing
 CALL InitRayTracing()
+
+! Was deallocated in InitParticleMesh previously
+DEALLOCATE(NodeCoords)
 
 IF (useDSMC) THEN
   CALL InitDSMC()

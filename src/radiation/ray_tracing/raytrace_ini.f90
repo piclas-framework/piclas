@@ -21,7 +21,7 @@ MODULE MOD_RayTracing_Init
 IMPLICIT NONE
 PRIVATE
 
-PUBLIC::InitRayTracing, DefineParametersRayTracing
+PUBLIC :: InitRayTracing, DefineParametersRayTracing, FinalizeRayTracing
 !===================================================================================================================================
 
 CONTAINS
@@ -36,7 +36,6 @@ IMPLICIT NONE
 !==================================================================================================================================
 CALL prms%SetSection("Ray Tracing")
 
-CALL prms%CreateIntOption(       'RayTracing-PartBound'      , 'TODO' , '0')
 CALL prms%CreateLogicalOption(   'RayTracing-AdaptiveRays'   , 'TODO' , '.FALSE.')
 CALL prms%CreateIntOption(       'RayTracing-NumRays'        , 'TODO' , '1')
 CALL prms%CreateIntOption(       'RayTracing-RayPosModel'    , 'TODO' , '1')
@@ -50,6 +49,8 @@ CALL prms%CreateRealOption(      'RayTracing-RepetitionRate' , 'Pulse repetition
 CALL prms%CreateRealOption(      'RayTracing-Power'          , 'Average pulse power (energy of a single pulse times repetition rate) [W]'                 )
 CALL prms%CreateLogicalOption(   'RayTracing-ForceAbsorption', 'Surface photon sampling is performed independent of the actual absorption/reflection outcome (default=T)', '.TRUE.')
 
+CALL prms%CreateIntOption(      'RayTracing-NMax'            , 'Maximum polynomial degree within refined volume elements for photon tracking (p-adaption)')
+
 END SUBROUTINE DefineParametersRayTracing
 
 
@@ -59,6 +60,7 @@ SUBROUTINE InitRayTracing()
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
+USE MOD_Preproc
 USE MOD_ReadInTools
 USE MOD_RayTracing_Vars
 USE MOD_Globals_Vars           ,ONLY: Pi
@@ -73,6 +75,7 @@ USE MOD_RadiationTrans_Vars    ,ONLY: RadiationAbsorptionModel,RadObservationPoi
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 REAL              :: factor,SurfaceNormal(3),alpha
+CHARACTER(LEN=3)  :: hilf ! auxiliary variable for INTEGER -> CHARACTER conversion
 !===================================================================================================================================
 SWRITE(UNIT_StdOut,'(132("-"))')
 SWRITE(UNIT_stdOut,'(A)') ' INIT RAY TRACING SOLVER ...'
@@ -101,6 +104,14 @@ AdaptiveRays       = GETLOGICAL('RayTracing-AdaptiveRays')
 NumRays            = GETINT('RayTracing-NumRays')
 RayPosModel        = GETINT('RayTracing-RayPosModel')
 RayForceAbsorption = GETLOGICAL('RayTracing-ForceAbsorption')
+
+! Output of high-order p-adaptive info
+Ray%NMin = 1 ! GETINT('RayTracing-NMin')
+WRITE(UNIT=hilf,FMT='(I3)') PP_N
+Ray%Nmax = GETINT('RayTracing-Nmax',hilf)
+
+! Build all mappings
+CALL InitHighOrderRaySampling()
 
 ASSOCIATE( &
       E0      => Ray%Energy             ,&
@@ -152,5 +163,215 @@ SWRITE(UNIT_stdOut,'(A)')' INIT RAY TRACING SOLVER DONE!'
 SWRITE(UNIT_StdOut,'(132("-"))')
 END SUBROUTINE InitRayTracing
 
+
+!===================================================================================================================================
+!> Build all high-order mappings required for ray trace sampling in the volume on a p-adaptive polynomial basis
+!===================================================================================================================================
+SUBROUTINE InitHighOrderRaySampling()
+! MODULES
+USE MOD_PreProc
+USE MOD_Mesh_Vars       ,ONLY: NodeCoords,nElems,ElemBaryNGeo
+USE MOD_RayTracing_Vars ,ONLY: N_VolMesh_Ray,N_DG_Ray,Ray,N_Inter_Ray,PREF_VDM_Ray,U_N_Ray,nVarRay
+USE MOD_Mesh_Tools      ,ONLY: GetCNElemID
+IMPLICIT NONE
+!----------------------------------------------------------------------------------------------------------------------------------!
+! INPUT / OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER           :: Nloc,iElem,CNElemID
+LOGICAL,PARAMETER :: debugRay=.FALSE.
+!===================================================================================================================================
+ALLOCATE(N_DG_Ray(nElems))
+N_DG_Ray = PP_N
+IF(debugRay)THEN
+  N_DG_Ray = Ray%Nmax
+  DO iElem = 1, PP_nElems
+      CNElemID = GetCNElemID(iElem)
+      ASSOCIATE( &
+            x => ElemBaryNGeo(1,CNElemID),&
+            y => ElemBaryNGeo(2,CNElemID),&
+            z => ElemBaryNGeo(3,CNElemID))
+        IF(y+z.GE.1.40)THEN
+            N_DG_Ray(iElem) = 1
+          CYCLE
+        END IF ! y+z.GT.1.5
+
+        IF(y+z.LE.0.6)THEN
+          N_DG_Ray(iElem) = 1
+          CYCLE
+        END IF ! y+z.LT.0.5
+
+        IF(y+z.LT.0.9)THEN
+          N_DG_Ray(iElem) = Ray%Nmax-1
+          CYCLE
+        END IF ! y+z.GT.1.00001
+
+        IF(y+z.GT.1.1)THEN
+          N_DG_Ray(iElem) = Ray%Nmax-1
+          CYCLE
+        END IF ! y+z.GT.1.00001
+      END ASSOCIATE
+  END DO ! iElem = 1, PP_nElems
+  END IF ! debugRay
+
+! Allocate interpolation variables
+ALLOCATE(N_Inter_Ray(Ray%Nmin:Ray%Nmax))
+! Allocate Vandermonde matrices for p-refinement
+ALLOCATE(PREF_VDM_Ray(Ray%Nmin:Ray%Nmax,Ray%Nmin:Ray%Nmax))
+CALL BuildNInterAndVandermonde()
+
+ALLOCATE(N_VolMesh_Ray(1:nElems))
+CALL BuildElem_xGP_RayTrace(NodeCoords)
+
+! the local DG solution in physical and reference space
+ALLOCATE(U_N_Ray(1:PP_nElems))
+DO iElem = 1, PP_nElems
+  Nloc = N_DG_Ray(iElem)
+  ALLOCATE(U_N_Ray(iElem)%U(nVarRay,0:Nloc,0:Nloc,0:Nloc))
+  U_N_Ray(iElem)%U = 0.
+END DO ! iElem = 1, PP_nElems
+
+END SUBROUTINE InitHighOrderRaySampling
+
+
+!==================================================================================================================================
+!> This routine takes the equidistant node coordinates of the mesh (on NGeo+1 points) and uses them to build the coordinates
+!> of solution/interpolation points of type NodeType on polynomial degree Nloc (Nloc+1 points per direction).
+!> Output: Elem_xGP(:,:,:,:) for each element with variably N
+!==================================================================================================================================
+SUBROUTINE BuildElem_xGP_RayTrace(NodeCoords)
+! MODULES
+USE MOD_Globals
+USE MOD_PreProc
+USE MOD_Mesh_Vars          ,ONLY: NGeo,nElems
+USE MOD_Interpolation_Vars ,ONLY: NodeTypeCL,NodeTypeVISU,NodeType
+USE MOD_RayTracing_Vars    ,ONLY: Ray,N_VolMesh_Ray,N_DG_Ray,N_Inter_Ray
+USE MOD_Interpolation      ,ONLY: GetVandermonde,GetNodesAndWeights
+USE MOD_ChangeBasis        ,ONLY: ChangeBasis3D_XYZ, ChangeBasis3D
+USE MOD_Basis              ,ONLY: LagrangeInterpolationPolys
+!----------------------------------------------------------------------------------------------------------------------------------
+IMPLICIT NONE
+!----------------------------------------------------------------------------------------------------------------------------------
+! INPUT/OUTPUT VARIABLES
+REAL,INTENT(IN)               :: NodeCoords(3,0:NGeo,0:NGeo,0:NGeo,nElems)         !< Equidistant mesh coordinates
+!----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER                       :: iElem,Nloc,i
+
+TYPE VdmType
+  REAL, ALLOCATABLE           :: Vdm_EQNGeo_CLNloc(:,:)
+  REAL, ALLOCATABLE           :: Vdm_CLNloc_Nloc  (:,:)
+END TYPE VdmType
+
+TYPE(VdmType), DIMENSION(:), ALLOCATABLE :: Vdm
+
+REAL, DIMENSION(:), ALLOCATABLE :: MappedGauss(:)
+!==================================================================================================================================
+
+! Build Vdm for every degree
+ALLOCATE(Vdm(Ray%Nmin:Ray%Nmax))
+DO Nloc = Ray%Nmin, Ray%Nmax
+  ALLOCATE(Vdm(Nloc)%Vdm_EQNGeo_CLNloc(0:Nloc,0:NGeo))
+  ALLOCATE(Vdm(Nloc)%Vdm_CLNloc_Nloc(0:Nloc,0:Nloc))
+  CALL GetVandermonde(NGeo, NodeTypeVISU, NLoc, NodeTypeCL, Vdm(Nloc)%Vdm_EQNGeo_CLNloc,  modal=.FALSE.)
+  CALL GetVandermonde(Nloc, NodeTypeCL  , Nloc, NodeType  , Vdm(Nloc)%Vdm_CLNloc_Nloc,     modal=.FALSE.)
+
+  ! NOTE: Transform intermediately to CL points, to be consistent with metrics being built with CL
+  !       Important for curved meshes if NGeo<N, no effect for N>=NGeo
+
+  !1.a) Transform from EQUI_NGeo to solution points on Nloc
+  Vdm(Nloc)%Vdm_EQNGeo_CLNloc=MATMUL(Vdm(Nloc)%Vdm_CLNloc_Nloc, Vdm(Nloc)%Vdm_EQNGeo_CLNloc)
+END DO ! Nloc = Ray%Nmin, Ray%Nmax
+
+! Set Elem_xGP for each element
+DO iElem=1,nElems
+  Nloc = N_DG_Ray(iElem)
+
+  ALLOCATE(N_VolMesh_Ray(iElem)%Elem_xGP(3,0:Nloc,0:Nloc,0:Nloc))
+  CALL ChangeBasis3D(3,NGeo,Nloc,Vdm(Nloc)%Vdm_EQNGeo_CLNloc,NodeCoords(:,:,:,:,iElem),N_VolMesh_Ray(iElem)%Elem_xGP(:,:,:,:))
+
+  ! Build variables for nearest Gauss-point (NGP) method
+  ALLOCATE(N_VolMesh_Ray(iElem)%GaussBorder(1:Nloc))
+  ALLOCATE(MappedGauss(1:Nloc+1))
+
+  DO i = 0, Nloc
+    MappedGauss(i+1) = N_Inter_Ray(Nloc)%xGP(i)
+  END DO ! i = 0, Nloc
+
+  DO i = 1, Nloc
+    N_VolMesh_Ray(iElem)%GaussBorder(i) = (MappedGauss(i+1) + MappedGauss(i))/2
+  END DO ! i = 1, Nloc
+
+  DEALLOCATE(MappedGauss)
+
+END DO
+
+END SUBROUTINE BuildElem_xGP_RayTrace
+
+
+!===================================================================================================================================
+!> Builds the interpolation basis N_Inter_Ray and the Vandermonde matrices PREF_VDM_Ray used for high-order volume sampling for the
+!> reay tracing model
+!===================================================================================================================================
+SUBROUTINE BuildNInterAndVandermonde()
+! MODULES
+USE MOD_RayTracing_Vars    ,ONLY: Ray,N_Inter_Ray,PREF_VDM_Ray
+USE MOD_Interpolation      ,ONLY: InitInterpolationBasis,GetVandermonde
+USE MOD_Interpolation_Vars ,ONLY: NodeType
+IMPLICIT NONE
+!----------------------------------------------------------------------------------------------------------------------------------!
+! INPUT / OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER           :: i,j,Nin,Nout,Nloc
+!===================================================================================================================================
+DO Nloc=Ray%Nmin,Ray%Nmax
+  CALL InitInterpolationBasis(Nloc , N_Inter_Ray(Nloc)%xGP     , N_Inter_Ray(Nloc)%wGP     , N_Inter_Ray(Nloc)%wBary , &
+                                     N_Inter_Ray(Nloc)%L_Minus , N_Inter_Ray(Nloc)%L_Plus  , N_Inter_Ray(Nloc)%L_PlusMinus , &
+                                     N_Inter_Ray(Nloc)%swGP    , N_Inter_Ray(Nloc)%wGPSurf , &
+                                     N_Inter_Ray(Nloc)%Vdm_Leg , N_Inter_Ray(Nloc)%sVdm_Leg)
+END DO
+
+! Fill Vandermonde matrices for p-refinement
+DO Nin=Ray%Nmin,Ray%Nmax
+  DO Nout=Ray%Nmin,Ray%Nmax
+    ALLOCATE(PREF_VDM_Ray(Nin,Nout)%Vdm(0:Nin,0:Nout))
+    IF(Nin.EQ.Nout) THEN
+      DO i=0,Nin; DO j=0,Nin
+        IF(i.EQ.j) THEN
+          PREF_VDM_Ray(Nin,Nout)%Vdm(i,j) = 1.
+        ELSE
+          PREF_VDM_Ray(Nin,Nout)%Vdm(i,j) = 0.
+        END IF
+      END DO
+    END DO
+  ELSE IF(Nin.GT.Nout) THEN ! p-coarsening: Project from higher degree to lower degree
+    CALL GetVandermonde(Nin, NodeType, Nout, NodeType, PREF_VDM_Ray(Nin,Nout)%Vdm, modal=.TRUE. )
+  ELSE                   ! p-refinement: Interpolate lower degree to higher degree
+    CALL GetVandermonde(Nin, NodeType, Nout, NodeType, PREF_VDM_Ray(Nin,Nout)%Vdm, modal=.FALSE.)
+  END IF
+END DO;END DO
+
+END SUBROUTINE BuildNInterAndVandermonde
+
+
+!===================================================================================================================================
+!> Deallocate arrays
+!===================================================================================================================================
+SUBROUTINE FinalizeRayTracing()
+! MODULES
+USE MOD_RayTracing_Vars
+IMPLICIT NONE
+!----------------------------------------------------------------------------------------------------------------------------------!
+! INPUT / OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+!===================================================================================================================================
+SDEALLOCATE(N_DG_Ray)
+SDEALLOCATE(N_VolMesh_Ray)
+SDEALLOCATE(N_Inter_Ray)
+SDEALLOCATE(PREF_VDM_Ray)
+SDEALLOCATE(U_N_Ray)
+END SUBROUTINE FinalizeRayTracing
 
 END MODULE MOD_RayTracing_Init

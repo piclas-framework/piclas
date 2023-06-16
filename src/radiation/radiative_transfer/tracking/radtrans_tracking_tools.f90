@@ -529,7 +529,7 @@ END SUBROUTINE RotatePhotonIn2DPlane
 !>
 !===================================================================================================================================
 SUBROUTINE PhotonIntersectionWithSide(iLocSide,Element,TriNum, IntersectionPos, PhotonLost, IsMortar)
-USE MOD_Globals             ,ONLY: abort,UNIT_StdOut,myrank
+USE MOD_Globals             ,ONLY: abort,UNIT_StdOut
 USE MOD_Particle_Mesh_Vars  ,ONLY: ElemSideNodeID_Shared, NodeCoords_Shared
 USE MOD_Photon_TrackingVars ,ONLY: PhotonProps
 USE MOD_Mesh_Tools          ,ONLY: GetCNElemID
@@ -644,16 +644,22 @@ END SUBROUTINE PhotonIntersectionWithSide
 !===================================================================================================================================
 !>
 !===================================================================================================================================
-SUBROUTINE CalcAbsorptionRayTrace(GlobalElemID,PhotonDir)
-USE MOD_RayTracing_Vars     ,ONLY: RayElemPassedEnergy,Ray
+SUBROUTINE CalcAbsorptionRayTrace(IntersectionPos,GlobalElemID,PhotonDir)
+USE MOD_globals                                                                                                                     
+USE MOD_RayTracing_Vars     ,ONLY: RayElemPassedEnergy,Ray,U_N_Ray,N_DG_Ray,N_VolMesh_Ray
 USE MOD_Photon_TrackingVars ,ONLY: PhotonProps
+USE MOD_Eval_xyz            ,ONLY: GetPositionInRefElem
+USE MOD_Mesh_Vars           ,ONLY: nElems
 !--------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
 !--------------------------------------------------------------------------------------------------!
 ! argument list declaration
 INTEGER, INTENT(IN) :: GlobalElemID
 REAL, INTENT(IN)    :: PhotonDir(3)
+REAL, INTENT(IN)    :: IntersectionPos(3)
 ! Local variable declaration
+INTEGER           :: a,b,ii,k,l,m,iElem,Nloc
+REAL              :: IntersectionPosRef(3),scaleFac
 !--------------------------------------------------------------------------------------------------!
 ! Check primary or secondary direction
 IF(DOT_PRODUCT(PhotonDir,Ray%Direction).GT.0.0)THEN
@@ -662,6 +668,61 @@ ELSE
   RayElemPassedEnergy(2,GlobalElemID)   = RayElemPassedEnergy(2,GlobalElemID)   + PhotonProps%PhotonEnergy
   RayElemPassedEnergy(3:5,GlobalElemID) = RayElemPassedEnergy(3:5,GlobalElemID) + PhotonDir(1:3)
   RayElemPassedEnergy(6,GlobalElemID)   = RayElemPassedEnergy(6,GlobalElemID)   + 1.0
+END IF
+
+! High-order sampling: Use nearest Gauss point (NGP) from PIC deposition
+! todo: parallelize this
+IF(GlobalElemID.gt.nelems)THEN
+  CALL abort(__STAMP__,'this works only single-core')
+END IF ! GlobalElemID.gt.nelems
+iElem = GlobalElemID
+Nloc = N_DG_Ray(iElem)
+IF(MOD(Nloc,2).EQ.0) THEN
+  a = Nloc/2
+  b = a
+ELSE
+  a = (Nloc+1)/2
+  b = a-1
+END IF
+
+! Get position in reference element
+CALL GetPositionInRefElem(IntersectionPos(1:3),IntersectionPosRef(1:3),GlobalElemID)
+
+k = a
+DO ii = 0,b-1
+  IF(ABS(IntersectionPosRef(1)).GE.N_VolMesh_Ray(iElem)%GaussBorder(Nloc-ii))THEN
+    k = Nloc-ii
+    EXIT
+  END IF
+END DO
+k = NINT((Nloc+SIGN(2.0*k-Nloc,IntersectionPosRef(1)))/2)
+!! y-direction
+l = a
+DO ii = 0,b-1
+  IF(ABS(IntersectionPosRef(2)).GE.N_VolMesh_Ray(iElem)%GaussBorder(Nloc-ii))THEN
+    l = Nloc-ii
+    EXIT
+  END IF
+END DO
+l = NINT((Nloc+SIGN(2.0*l-Nloc,IntersectionPosRef(2)))/2)
+!! z-direction
+m = a
+DO ii = 0,b-1
+  IF(ABS(IntersectionPosRef(3)).GE.N_VolMesh_Ray(iElem)%GaussBorder(Nloc-ii))THEN
+    m = Nloc-ii
+    EXIT
+  END IF
+END DO
+m = NINT((Nloc+SIGN(2.0*m-Nloc,IntersectionPosRef(3)))/2)
+
+! Scaling factor to ensure that rays that are counted multiple times in high-order elements do not increase the total energy
+! deposited in the corresponding element
+scaleFac = 1./(REAL(Nloc)+1.0)
+scaleFac = 1.
+IF(DOT_PRODUCT(PhotonDir,Ray%Direction).GT.0.0)THEN
+  U_N_Ray(iElem)%U(1,k,l,m) = U_N_Ray(iElem)%U(1,k,l,m) + PhotonProps%PhotonEnergy * scaleFac
+ELSE
+  U_N_Ray(iElem)%U(2,k,l,m) = U_N_Ray(iElem)%U(2,k,l,m) + PhotonProps%PhotonEnergy * scaleFac
 END IF
 END SUBROUTINE CalcAbsorptionRayTrace
 
@@ -700,7 +761,7 @@ END SUBROUTINE CalcAbsoprtionMC
 !===================================================================================================================================
 !>
 !===================================================================================================================================
-SUBROUTINE CalcAbsoprtionAnalytic(IntersectionPos,Element, DONE)
+SUBROUTINE CalcAbsoprtionAnalytic(IntersectionPos,Element)!, DONE)
 !DEC$ ATTRIBUTES FORCEINLINE :: ParticleThroughSideLastPosCheck
 USE MOD_Globals
 USE MOD_Photon_TrackingVars ,ONLY: PhotonProps
@@ -712,7 +773,7 @@ IMPLICIT NONE
 ! argument list declaration
 INTEGER, INTENT(IN)              :: Element
 REAL, INTENT(IN)                 :: IntersectionPos(3)
-LOGICAL, INTENT(OUT)             :: DONE
+!LOGICAL, INTENT(OUT)             :: DONE
 ! Local variable declaration
 !--------------------------------------------------------------------------------------------------!
 REAL                            :: DistanceVec(3), Distance, LostEnergy, maz_photon_startxp, opticalPath
@@ -764,19 +825,19 @@ IF (RadiationAbsorptionModel.EQ.0) THEN
       ! After reflection: Use old or new ray direction depending on whether the ray was absorbed
       IF(DONE)THEN
         ! Ray was absorbed at the wall
-        CALL CalcAbsorptionRayTrace(Element,PhotonProps%PhotonDirectionBeforeReflection)
+        CALL CalcAbsorptionRayTrace(IntersectionPos, Element,PhotonProps%PhotonDirectionBeforeReflection)
       ELSE
         ! Ray was reflected at the wall
         ! TODO: Not sure which ray vector should be used
         !CALL CalcAbsorptionRayTrace(Element,PhotonProps%PhotonDirection)
-        CALL CalcAbsorptionRayTrace(Element,PhotonProps%PhotonDirectionBeforeReflection)
+        CALL CalcAbsorptionRayTrace(IntersectionPos, Element,PhotonProps%PhotonDirectionBeforeReflection)
       END IF ! DONE
     END IF ! before
   ELSE
-    CALL CalcAbsorptionRayTrace(Element,PhotonProps%PhotonDirection)
+    CALL CalcAbsorptionRayTrace(IntersectionPos, Element,PhotonProps%PhotonDirection)
   END IF ! PRESENT(before)
 ELSEIF (RadiationAbsorptionModel.EQ.1) THEN
-  CALL CalcAbsoprtionAnalytic(IntersectionPos,Element, DONE)
+  CALL CalcAbsoprtionAnalytic(IntersectionPos,Element)!, DONE)
 ELSEIF (RadiationAbsorptionModel.EQ.2) THEN
   CALL CalcAbsoprtionMC(IntersectionPos,Element, DONE)
 ELSE
@@ -1103,7 +1164,7 @@ USE MOD_Particle_Mesh_Vars     ,ONLY: ElemSideNodeID_Shared, NodeCoords_Shared
 USE MOD_Mesh_Vars              ,ONLY: BoundaryType
 USE MOD_Particle_Mesh_Vars     ,ONLY: GEO
 USE MOD_Photon_TrackingVars    ,ONLY: PhotonProps
-USE MOD_Particle_Tracking_Vars ,ONLY: TrackInfo
+!USE MOD_Particle_Tracking_Vars ,ONLY: TrackInfo
 USE MOD_Particle_Mesh_Vars     ,ONLY: SideInfo_Shared
 USE MOD_Mesh_Tools             ,ONLY: GetCNElemID
 ! IMPLICIT VARIABLE HANDLING
@@ -1125,9 +1186,9 @@ INTEGER                          :: PVID
 ! Local variable declaration
 INTEGER                          :: CNElemID
 INTEGER                          :: Node1, Node2
-REAL                             :: PoldX, PoldY, PoldZ, nx, ny, nz, nVal
-REAL                             :: xNod, yNod, zNod, VecX, VecY, VecZ
-REAL                             :: VelX, VelY, VelZ, VeloCx, VeloCy, VeloCz, NormVec, RanNum
+REAL                             :: PoldX, PoldY, PoldZ
+REAL                             :: xNod, yNod, zNod
+REAL                             :: VelX, VelY, VelZ
 REAL                             :: Vector1(1:3), Vector2(1:3), POI_fak
 !===================================================================================================================================
 CNElemID = GetCNElemID(Element)
