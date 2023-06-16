@@ -1008,7 +1008,7 @@ CHARACTER(LEN=255),ALLOCATABLE :: StrVarNames(:)
 CHARACTER(LEN=255)             :: H5_Name
 CHARACTER(LEN=255)             :: SpecID
 INTEGER                        :: nVar, nVarTotal
-INTEGER                        :: ElemID,iVar,iSpec,SampleElemID
+INTEGER                        :: ElemID,iVar,iSpec,iSF,SampleElemID
 !===================================================================================================================================
 
 nVar = 7
@@ -1038,7 +1038,9 @@ AdaptiveData = 0.
 UseAdaptiveType4 = .FALSE.
 
 DO iSpec = 1, nSpecies
-  IF(ANY(Species(iSpec)%Surfaceflux(:)%AdaptiveType.EQ.4)) UseAdaptiveType4 = .TRUE.
+  DO iSF = 1, Species(iSpec)%nSurfacefluxBCs
+    IF(Species(iSpec)%Surfaceflux(iSF)%AdaptiveType.EQ.4) UseAdaptiveType4 = .TRUE.
+  END DO
   DO SampleElemID = 1,AdaptBCSampleElemNum
     ElemID = AdaptBCMapSampleToElem(SampleElemID)
     AdaptiveData(iVar:iVar-1+nVar,ElemID) = AdaptBCMacroVal(1:7,SampleElemID,iSpec)
