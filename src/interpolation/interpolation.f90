@@ -46,10 +46,6 @@ INTERFACE GetNodesAndWeights
    MODULE PROCEDURE GetNodesAndWeights
 END INTERFACE
 
-INTERFACE GetVandermonde
-   MODULE PROCEDURE GetVandermonde
-END INTERFACE
-
 INTERFACE GetDerivativeMatrix
    MODULE PROCEDURE GetDerivativeMatrix
 END INTERFACE
@@ -319,8 +315,8 @@ IMPLICIT NONE
 ! INPUT/OUTPUT VARIABLES
 INTEGER,INTENT(IN)                 :: N_in                       !> Input polynomial degree
 INTEGER,INTENT(IN)                 :: N_out                      !> Output polynomial degree
-CHARACTER(LEN=255),INTENT(IN)      :: NodeType_in                !> Type of 1D input points
-CHARACTER(LEN=255),INTENT(IN)      :: NodeType_out               !> Type of 1D output points
+CHARACTER(LEN=*),INTENT(IN)        :: NodeType_in                !> Type of 1D input points
+CHARACTER(LEN=*),INTENT(IN)        :: NodeType_out               !> Type of 1D output points
 LOGICAL,INTENT(IN),OPTIONAL        :: modal                      !> Switch if a modal Vandermonde should be build
 REAL,INTENT(OUT)                   :: Vdm_In_out(0:N_out,0:N_in) !> Vandermonde In->Out
 REAL,INTENT(OUT),OPTIONAL          :: Vdm_Out_In(0:N_in,0:N_out) !> Vandermonde Out->in
