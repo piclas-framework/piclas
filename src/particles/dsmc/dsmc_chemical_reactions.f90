@@ -1931,7 +1931,7 @@ Vabs = VECNORM(VeloVec)
 ARM_SEE_PDF=.TRUE.
 DO WHILE(ARM_SEE_PDF)
   CALL RANDOM_NUMBER(RandVal)
-  Theta_temp = RandVal * 0.5 * PI
+  Theta_temp = PI*(RandVal-0.5)
   PDF_temp = 4.0 / PI * COS(Theta_temp)**2
   CALL RANDOM_NUMBER(RandVal)
   IF ((PDF_temp/PDF_max).GT.RandVal) ARM_SEE_PDF = .FALSE.
