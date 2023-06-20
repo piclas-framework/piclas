@@ -1690,7 +1690,7 @@ DO iSpec = 1, nSpecies
       CellTemptmp = CellTemp(nSpecies+1) ! Cell temperature
     END IF
     ! Calculation of collision integral Sigma_22
-    Sigma_22 = CalcSigma_22VHS(CellTemptmp,InteractDiam,Mass,TVHS, omegaVHS)
+    CALL CalcSigma_22VHS(CellTemptmp, InteractDiam, Mass, TVHS, omegaVHS, Sigma_22)
     IF (iSpec.EQ.jSpec) THEN
       cv= 3./2.*BoltzmannConst/(2.*Mass) ! DOF = 3, translational part
       ! Calculation of the viscosity and thermal conductivity
@@ -1700,14 +1700,14 @@ DO iSpec = 1, nSpecies
       ! results in in same as ThermalCondSpec(iSpec) = (15./4.)*BoltzmannConst/(2.*Mass)*ViscSpec(iSpec)
       ! Additional calculation of Sigma_11VHS and the diffusion coefficient for molecular species
       IF ((SpecDSMC(iSpec)%InterID.EQ.2).OR.(SpecDSMC(iSpec)%InterID.EQ.20)) THEN
-        CALL CalcSigma_11VHS(CellTemp(nSpecies+1),InteractDiam,Mass,TVHS, omegaVHS, Sigma_11)
+        CALL CalcSigma_11VHS(CellTemp(nSpecies+1), InteractDiam, Mass, TVHS, omegaVHS, Sigma_11)
         E_12 = BoltzmannConst*CellTemp(nSpecies+1)/(8.*Species(iSpec)%MassIC*Species(jSpec)%MassIC &
           /(Species(iSpec)%MassIC+Species(jSpec)%MassIC)**2.*Sigma_11)
         DiffCoef(iSpec,jSpec) = 3.*E_12/(2.*(Species(iSpec)%MassIC+Species(jSpec)%MassIC)*dens)
       END IF
     ELSE
       ! Calculation of collision integral Sigma_11
-      CALL CalcSigma_11VHS(CellTemp(nSpecies+1),InteractDiam,Mass,TVHS, omegaVHS, Sigma_11)
+      CALL CalcSigma_11VHS(CellTemp(nSpecies+1), InteractDiam, Mass, TVHS, omegaVHS, Sigma_11)
       ! Parameters for calculation of contribution of species to mixture transport coefficients
       ! Pfeiffer et. al., Physics of Fluids 33, 036106 (2021), "Multi-species modeling in the particle-based ellipsoidal
       ! statistical Bhatnagar-Gross-Krook method for monatomic gas species"
@@ -1803,23 +1803,23 @@ ThermalCond = SUM(RHSSolve) + SUM(ThermalCondSpec_Rot) + SUM(ThermalCondSpec_Vib
 END SUBROUTINE CalcViscosityThermalCondColIntVHS
 
 
-SUBROUTINE CalcSigma_11VHS(CellTemp,Dref,Mass,Tref, omegaVHS, Sigma_11)
+SUBROUTINE CalcSigma_11VHS(CellTemp, Dref, Mass, Tref, omegaVHS, Sigma_11)
 !===================================================================================================================================
 !>
 !===================================================================================================================================
 ! MODULES
-USE MOD_Globals_Vars          ,ONLY: Pi, BoltzmannConst
+USE MOD_Globals_Vars            ,ONLY: Pi, BoltzmannConst
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-REAL, INTENT(IN)                :: CellTemp,Dref,Mass,Tref, omegaVHS
+REAL, INTENT(IN)                :: CellTemp, Dref, Mass, Tref, omegaVHS
 REAL, INTENT(OUT)               :: Sigma_11
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-REAL          :: Prefactor
+REAL                            :: Prefactor
 !===================================================================================================================================
   ! See Stephani et. al., Physics of Fluids 24, 077101 (2012),
   ! “Consistent treatment of transport properties for five-species air direct simulation Monte Carlo/Navier-Stokes applications”
@@ -1829,28 +1829,29 @@ REAL          :: Prefactor
 END SUBROUTINE CalcSigma_11VHS
 
 
-REAL FUNCTION CalcSigma_22VHS(CellTemp,Dref,Mass,Tref, omegaVHS)
+SUBROUTINE CalcSigma_22VHS(CellTemp, Dref, Mass, Tref, omegaVHS, Sigma_22)
 !===================================================================================================================================
 !>
 !===================================================================================================================================
 ! MODULES
-USE MOD_Globals_Vars          ,ONLY: Pi, BoltzmannConst
+USE MOD_Globals_Vars            ,ONLY: Pi, BoltzmannConst
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-REAL, INTENT(IN)                :: CellTemp,Dref,Mass,Tref, omegaVHS
+REAL, INTENT(IN)                :: CellTemp, Dref, Mass, Tref, omegaVHS
+REAL, INTENT(OUT)               :: Sigma_22
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-REAL               :: Prefactor
+REAL                            :: Prefactor
 !===================================================================================================================================
   ! See Stephani et. al., Physics of Fluids 24, 077101 (2012),
   ! “Consistent treatment of transport properties for five-species air direct simulation Monte Carlo/Navier-Stokes applications”
   Prefactor = Pi/3.*Dref*Dref*SQRT(BoltzmannConst/(2.*Pi*Mass))*Tref**omegaVHS*GAMMA(4.-omegaVHS)/GAMMA(2.-omegaVHS)
-  CalcSigma_22VHS = Prefactor*CellTemp**(0.5-omegaVHS)
+  Sigma_22 = Prefactor*CellTemp**(0.5-omegaVHS)
 
-END FUNCTION CalcSigma_22VHS
+END SUBROUTINE CalcSigma_22VHS
 
 END MODULE MOD_BGK_CollOperator
