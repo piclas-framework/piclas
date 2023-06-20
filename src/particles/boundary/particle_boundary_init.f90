@@ -586,6 +586,9 @@ INTEGER               :: iPartBound, ElemID, iSide, LocSideID, nStart
 REAL                  :: Pmax, Pmin
 !===================================================================================================================================
 
+LBWRITE(UNIT_StdOut,'(132("-"))')
+LBWRITE(UNIT_stdOut,'(A)') ' INIT ROTATIONAL PERIODIC BOUNDARY CONDITION...'
+
 ALLOCATE(PartBound%RotPeriodicMin(  1:nPartBound))
 PartBound%RotPeriodicMin = HUGE(1.)
 ALLOCATE(PartBound%RotPeriodicMax(  1:nPartBound))
@@ -642,6 +645,8 @@ ELSE IF(nRotPeriodicBCs.NE.2) THEN
   END DO
 END IF
 
+LBWRITE(UNIT_stdOut,'(A)')' INIT ROTATIONAL PERIODIC BOUNDARY CONDITION DONE!'
+
 END SUBROUTINE InitParticleBoundaryRotPeriodic
 
 
@@ -656,6 +661,9 @@ USE MOD_Mesh_Vars              ,ONLY: NodeMap
 USE MOD_Particle_Boundary_Vars ,ONLY: PartBound,nPartBound
 USE MOD_Particle_Mesh_Vars     ,ONLY: nNonUniqueGlobalSides
 USE MOD_Particle_Mesh_Vars     ,ONLY: ElemInfo_Shared,SideInfo_Shared,NodeCoords_Shared
+#if USE_LOADBALANCE
+USE MOD_LoadBalance_Vars       ,ONLY: PerformLoadBalance
+#endif /*USE_LOADBALANCE*/
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -668,6 +676,9 @@ INTEGER               :: iPartBound, ElemID, iSide
 INTEGER, ALLOCATABLE  :: InterPlanePositionCount(:)
 INTEGER               :: LocSideID, nStart
 !===================================================================================================================================
+
+LBWRITE(UNIT_StdOut,'(132("-"))')
+LBWRITE(UNIT_stdOut,'(A)') ' INIT INTERPLANE BOUNDARY CONDITION...'
 
 IF(.NOT.PartBound%UseRotPeriodicBC) THEN
   CALL abort(__STAMP__,'ERROR: Interplane BCs are currently only implemented in combination with rot_periodic BCs!')
@@ -713,7 +724,7 @@ DO iPartBound=1,nPartBound
       CALL abort(__STAMP__,'ERROR: No sides for the inter-plane BC found, BC ID: ',IntInfoOpt=iPartBound)
     END IF
     PartBound%RotAxisPosition(iPartBound) = PartBound%RotAxisPosition(iPartBound) / InterPlanePositionCount(iPartBound)
-    SWRITE(*,*) 'DEBUG: ', TRIM(PartBound%SourceBoundName(iPartBound)), PartBound%RotAxisPosition(iPartBound)
+    LBWRITE(*,*) '| ', TRIM(PartBound%SourceBoundName(iPartBound)), ' Rotational axis position: ', PartBound%RotAxisPosition(iPartBound)
     IF(iPartBound.GT.PartBound%AssociatedPlane(iPartBound)) THEN
       IF(.NOT.ALMOSTEQUALRELATIVE(PartBound%RotAxisPosition(iPartBound),PartBound%RotAxisPosition(PartBound%AssociatedPlane(iPartBound)),1E-5)) THEN
         IPWRITE(*,*) 'BC 1: ', PartBound%AssociatedPlane(iPartBound), 'BC 2: ', iPartBound
@@ -723,6 +734,9 @@ DO iPartBound=1,nPartBound
     END IF
   END IF
 END DO
+
+LBWRITE(UNIT_stdOut,'(A)')' INIT INTERPLANE BOUNDARY CONDITION DONE!'
+LBWRITE(UNIT_StdOut,'(132("-"))')
 
 END SUBROUTINE InitParticleBoundaryInterPlane
 
@@ -755,7 +769,7 @@ REAL              :: StartT,EndT
 INTEGER           :: notMappedTotal
 !===================================================================================================================================
 
-LBWRITE(UNIT_stdOut,'(A)') ' INIT ROTATIONAL PERIODIC BOUNDARY...'
+LBWRITE(UNIT_stdOut,'(A)') ' INIT ROTATIONAL PERIODIC BOUNDARY MAPPING...'
 !RotPeriodicReBuild = GETLOGICAL('Part-RotPeriodicReBuild')
 GETTIME(StartT)
 
