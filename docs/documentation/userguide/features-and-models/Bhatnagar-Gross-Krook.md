@@ -84,11 +84,11 @@ An option is available to utilize a moving average for the variables used in the
 
     Particles-BGK-MovingAverage = T
 
-The purpose is to increase the sample size and reduce the noise for steady gas flows. For this, a factor 
-0 < Particles-BGK-MovingAverageFac < 1 must be defined with which the old $$M^n$$ and newly sampled moments $$M$$ are weighted 
-to define the moments for the next time step $$M^{n+1}$$:
-
-$$ M^{n+1}=Particles-BGK-MovingAverageFac*M+(1-Particles-BGK-MovingAverageFac)*M^n$$
+The purpose is to increase the sample size and reduce the noise for steady gas flows. For this, the factor $f$
 
     Particles-BGK-MovingAverageFac = 0.01
 
+between zero and one must be defined with which the old $M^n$ and newly sampled moments $M$ are weighted 
+to define the moments for the next time step $M^{n+1}$:
+
+$$ M^{n+1}=f M+(1-f) M^n.$$

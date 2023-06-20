@@ -384,6 +384,11 @@ USE MOD_Particle_Analyze_Vars  ,ONLY: CalcPlasmaFrequency,CalcPICTimeStep,CalcEl
 USE MOD_Particle_Analyze_Vars  ,ONLY: CalcElectronTemperature,CalcDebyeLength,CalcIonizationDegree,CalcPointsPerDebyeLength
 USE MOD_Particle_Analyze_Vars  ,ONLY: CalcPlasmaParameter,CalcPICCFLCondition,CalcMaxPartDisplacement,CalcElectronEnergy
 USE MOD_Particle_Analyze_Vars  ,ONLY: CalcCyclotronFrequency
+#if USE_MPI
+USE MOD_Globals
+USE MOD_Particle_MPI_Vars     ,ONLY: PartMPI
+USE MOD_Particle_Analyze_Vars ,ONLY: PPDCellResolved,PICTimeCellResolved,PICValidPlasmaCellSum
+#endif /*USE_MPI*/
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -392,6 +397,7 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
+INTEGER :: tmpArray(1:6)
 !===================================================================================================================================
 
 ! electron density
@@ -434,6 +440,41 @@ IF(CalcPICCFLCondition) CALL CalculatePICCFL()
 ! Compute the maximum displacement of the fastest particle
 ! MaxPartDisplacement = max(v_iPart)*dT/L_cell <  1.0
 IF(CalcMaxPartDisplacement) CALL CalculateMaxPartDisplacement()
+
+! Communicate data
+#if USE_MPI
+IF(CalcPointsPerDebyeLength.OR.CalcPICTimeStep)THEN
+  tmpArray = 0
+  IF(CalcPointsPerDebyeLength)THEN
+    tmpArray(1) = PPDCellResolved(1)
+    tmpArray(2) = PPDCellResolved(2)
+    tmpArray(3) = PPDCellResolved(3)
+    tmpArray(4) = PPDCellResolved(4)
+  END IF ! CalcPointsPerDebyeLength
+  IF(CalcPICTimeStep)THEN
+    tmpArray(5) = PICTimeCellResolved
+  END IF ! CalcPICTimeStep
+  tmpArray(6) = PICValidPlasmaCellSum
+
+  ! Collect sum on MPIRoot
+  IF(PartMPI%MPIRoot)THEN
+    CALL MPI_REDUCE(MPI_IN_PLACE , tmpArray , 6 , MPI_INTEGER , MPI_SUM , 0 , PartMPI%COMM , IERROR)
+    IF(CalcPointsPerDebyeLength)THEN
+       PPDCellResolved(1) = tmpArray(1)
+       PPDCellResolved(2) = tmpArray(2)
+       PPDCellResolved(3) = tmpArray(3)
+       PPDCellResolved(4) = tmpArray(4)
+    END IF ! CalcPointsPerDebyeLength
+    IF(CalcPICTimeStep)THEN
+      PICTimeCellResolved = tmpArray(5)
+    END IF ! CalcPICTimeStep
+    PICValidPlasmaCellSum = tmpArray(6)
+  ELSE
+    CALL MPI_REDUCE(tmpArray     , 0        , 6 , MPI_INTEGER , MPI_SUM , 0 , PartMPI%COMM , IERROR)
+  END IF ! PartMPI%MPIRoot
+END IF ! CalcPointsPerDebyeLength.OR.CalcPICTimeStep
+
+#endif /*USE_MPI*/
 
 END SUBROUTINE CalculatePartElemData
 
@@ -1253,6 +1294,7 @@ USE MOD_DSMC_Vars               ,ONLY: RadialWeighting
 USE MOD_Particle_Vars           ,ONLY: Species,nSpecies,usevMPF,VarTimeStep
 USE MOD_Particle_Surfaces_Vars  ,ONLY: BCdata_auxSF, SurfFluxSideSize, SurfMeshSubSideData
 USE MOD_Particle_Sampling_Vars  ,ONLY: UseAdaptive, AdaptBCMacroVal, AdaptBCMapElemToSample, AdaptBCAreaSurfaceFlux
+USE MOD_Particle_Sampling_Vars  ,ONLY: AdaptBCAverageValBC, AdaptBCAverageMacroVal
 USE MOD_Mesh_Vars               ,ONLY: SideToElem
 USE MOD_Particle_MPI_Vars       ,ONLY: PartMPI
 #if USE_MPI
@@ -1299,41 +1341,46 @@ DO iSpec = 1, nSpecies
     END IF
     ! Reset the mass flow rate
     Species(iSpec)%Surfaceflux(iSF)%SampledMassflow = 0.
+    ! Calculate the average pressure
     IF(UseAdaptive) THEN
-      ! Calculate the average pressure
       currentBC = Species(iSpec)%Surfaceflux(iSF)%BC
-      ! Skip processors without a surface flux
-      IF (BCdata_auxSF(currentBC)%SideNumber.EQ.0) CYCLE
-      ! Loop over sides on the surface flux
-      DO iSide=1,BCdata_auxSF(currentBC)%SideNumber
-        SurfSideID = BCdata_auxSF(currentBC)%SideList(iSide)
-        ElemID = SideToElem(S2E_ELEM_ID,SurfSideID)
-        SampleElemID = AdaptBCMapElemToSample(ElemID)
-        IF(SampleElemID.GT.0) THEN
-          ! Sum up the area weighted pressure in each adjacent element
-          DO jSample=1,SurfFluxSideSize(2); DO iSample=1,SurfFluxSideSize(1)
-            PressureAdaptiveBC(iSpec,iSF) = PressureAdaptiveBC(iSpec,iSF) &
-              + AdaptBCMacroVal(6,SampleElemID,iSpec) * SurfMeshSubSideData(iSample,jSample,SurfSideID)%area
-          END DO; END DO
-        END IF
-      END DO
+      ! Average of the BC for the output
+      IF(.NOT.AdaptBCAverageValBC) THEN
+        ! Skip processors without a surface flux
+        IF (BCdata_auxSF(currentBC)%SideNumber.EQ.0) CYCLE
+        ! Average the value of the BC
+        ! Loop over sides on the surface flux
+        DO iSide=1,BCdata_auxSF(currentBC)%SideNumber
+          SurfSideID = BCdata_auxSF(currentBC)%SideList(iSide)
+          ElemID = SideToElem(S2E_ELEM_ID,SurfSideID)
+          SampleElemID = AdaptBCMapElemToSample(ElemID)
+          IF(SampleElemID.GT.0) THEN
+            ! Sum up the area weighted pressure in each adjacent element
+            DO jSample=1,SurfFluxSideSize(2); DO iSample=1,SurfFluxSideSize(1)
+              PressureAdaptiveBC(iSpec,iSF) = PressureAdaptiveBC(iSpec,iSF) &
+                + AdaptBCMacroVal(6,SampleElemID,iSpec) * SurfMeshSubSideData(iSample,jSample,SurfSideID)%area
+            END DO; END DO
+          END IF
+        END DO
+      END IF    ! AdaptBCAverageValBC
     END IF
   END DO
 END DO
 
-! 2) Get the sum of the mass flow rate and the sum of the area-weighted area pressures
+! 2) Get the sum of the mass flow rate and the sum of the area-weighted area pressures (only in case of a cell-local pressure
+!    distribution at the BC, ie. NOT if AdaptBCAverageValBC = T)
 #if USE_MPI
 MaxSurfaceFluxBCs = MAXVAL(Species(:)%nSurfacefluxBCs)
 IF (PartMPI%MPIRoot) THEN
   CALL MPI_REDUCE(MPI_IN_PLACE,FlowRateSurfFlux(1:nSpecAnalyze,1:MaxSurfaceFluxBCs),nSpecAnalyze*MaxSurfaceFluxBCs,&
                   MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,IERROR)
-  IF(UseAdaptive) THEN
+  IF(UseAdaptive.AND.(.NOT.AdaptBCAverageValBC)) THEN
     CALL MPI_REDUCE(MPI_IN_PLACE,PressureAdaptiveBC(1:nSpecAnalyze,1:MaxSurfaceFluxBCs),nSpecAnalyze*MaxSurfaceFluxBCs,&
                     MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,IERROR)
   END IF
 ELSE ! no Root
   CALL MPI_REDUCE(FlowRateSurfFlux,FlowRateSurfFlux,nSpecAnalyze*MaxSurfaceFluxBCs,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,IERROR)
-  IF(UseAdaptive) CALL MPI_REDUCE(PressureAdaptiveBC,PressureAdaptiveBC,nSpecAnalyze*MaxSurfaceFluxBCs,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,IERROR)
+  IF(UseAdaptive.AND.(.NOT.AdaptBCAverageValBC)) CALL MPI_REDUCE(PressureAdaptiveBC,PressureAdaptiveBC,nSpecAnalyze*MaxSurfaceFluxBCs,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,IERROR)
 END IF
 #endif /*USE_MPI*/
 
@@ -1347,16 +1394,20 @@ IF (PartMPI%MPIRoot) THEN
     END IF
   END IF
   IF(UseAdaptive) THEN
-    DO iSpec = 1, nSpecies
-      DO iSF = 1, Species(iSpec)%nSurfacefluxBCs
-        IF(Species(iSpec)%Surfaceflux(iSF)%CircularInflow) THEN
-          ! Use the area sum of the elements included in the sampling, instead of the ideal circular area
-          PressureAdaptiveBC(iSpec,iSF) = PressureAdaptiveBC(iSpec,iSF) / AdaptBCAreaSurfaceFlux(iSpec,iSF)
-        ELSE
-          PressureAdaptiveBC(iSpec,iSF) = PressureAdaptiveBC(iSpec,iSF) / Species(iSpec)%Surfaceflux(iSF)%totalAreaSF
-        END IF
+    IF(AdaptBCAverageValBC) THEN
+      PressureAdaptiveBC(:,:) = AdaptBCAverageMacroVal(3,:,:)
+    ELSE
+      DO iSpec = 1, nSpecies
+        DO iSF = 1, Species(iSpec)%nSurfacefluxBCs
+          IF(Species(iSpec)%Surfaceflux(iSF)%CircularInflow) THEN
+            ! Use the area sum of the elements included in the sampling, instead of the ideal circular area
+            PressureAdaptiveBC(iSpec,iSF) = PressureAdaptiveBC(iSpec,iSF) / AdaptBCAreaSurfaceFlux(iSpec,iSF)
+          ELSE
+            PressureAdaptiveBC(iSpec,iSF) = PressureAdaptiveBC(iSpec,iSF) / Species(iSpec)%Surfaceflux(iSF)%totalAreaSF
+          END IF
+        END DO
       END DO
-    END DO
+    END IF
   END IF
 END IF
 
@@ -2736,7 +2787,8 @@ SUBROUTINE CalculatePICTimeStepCell()
 ! MODULES                                                                                                                          !
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Preproc
-USE MOD_Particle_Analyze_Vars ,ONLY: PlasmaFrequencyCell,PICTimeStepCell
+USE MOD_Particle_Analyze_Vars ,ONLY: PlasmaFrequencyCell,PICTimeStepCell,PICValidPlasmaCell,PICTimeCellResolved
+USE MOD_TimeDisc_Vars         ,ONLY: dt
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -2750,11 +2802,13 @@ INTEGER              :: iElem
 
 ! nullify
 PICTimeStepCell=0.
+PICTimeCellResolved=0
 
 ! loop over all elements and compute the PIC-timestep with the plasma frequency
 DO iElem=1,PP_nElems
   IF(PlasmaFrequencyCell(iElem).LE.0.) CYCLE
   PICTimeStepCell(iElem) = 0.2 / PlasmaFrequencyCell(iElem)
+  IF((PICValidPlasmaCell(iElem).EQ.1).AND.(PICTimeStepCell(iElem).GE.dt)) PICTimeCellResolved = PICTimeCellResolved + 1
 END DO ! iElem=1,PP_nElems
 
 END SUBROUTINE CalculatePICTimeStepCell
@@ -2806,7 +2860,7 @@ SUBROUTINE CalculatePPDCell()
 ! MODULES                                                                                                                          !
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Preproc
-USE MOD_Particle_Analyze_Vars ,ONLY: DebyeLengthCell,PPDCell,PPDCellX,PPDCellY,PPDCellZ
+USE MOD_Particle_Analyze_Vars ,ONLY: DebyeLengthCell,PPDCell,PPDCellX,PPDCellY,PPDCellZ,PICValidPlasmaCell,PPDCellResolved
 USE MOD_Particle_Mesh_Vars    ,ONLY: ElemCharLength_Shared,ElemCharLengthX_Shared,ElemCharLengthY_Shared,ElemCharLengthZ_Shared
 USE MOD_Mesh_Vars             ,ONLY: offSetElem
 USE MOD_Mesh_Tools            ,ONLY: GetCNElemID
@@ -2820,14 +2874,23 @@ IMPLICIT NONE
 ! LOCAL VARIABLES
 INTEGER              :: iElem
 !===================================================================================================================================
+! Initialize number of elements with PPD>=1
+PPDCellResolved = 0
 ! loop over all elements
 DO iElem=1,PP_nElems
-  ASSOCIATE( a => (REAL(PP_N)+1.0)*DebyeLengthCell(iElem), &
-             CNElemID => GetCNElemID(iElem+offSetElem) )
-    PPDCell(iElem)  = a/ElemCharLength_Shared(CNElemID) ! determined with characteristic cell length
-    PPDCellX(iElem) = a/ElemCharLengthX_Shared(CNElemID) ! determined from average distance in X
-    PPDCellY(iElem) = a/ElemCharLengthY_Shared(CNElemID) ! determined from average distance in Y
-    PPDCellZ(iElem) = a/ElemCharLengthZ_Shared(CNElemID) ! determined from average distance in Z
+  ASSOCIATE( a        => (REAL(PP_N)+1.0)*DebyeLengthCell(iElem) ,&
+             CNElemID => GetCNElemID(iElem+offSetElem)            )
+    PPDCell(iElem)  = a/ElemCharLength_Shared( CNElemID) ! Determined with characteristic cell length
+    PPDCellX(iElem) = a/ElemCharLengthX_Shared(CNElemID) ! Determined from average distance in X
+    PPDCellY(iElem) = a/ElemCharLengthY_Shared(CNElemID) ! Determined from average distance in Y
+    PPDCellZ(iElem) = a/ElemCharLengthZ_Shared(CNElemID) ! Determined from average distance in Z
+    ! Check PIC quality factors
+    IF((PICValidPlasmaCell(iElem).EQ.1))THEN
+      IF(PPDCell(iElem) .GE.1.0) PPDCellResolved(1) = PPDCellResolved(1) + 1
+      IF(PPDCellX(iElem).GE.1.0) PPDCellResolved(2) = PPDCellResolved(2) + 1
+      IF(PPDCellY(iElem).GE.1.0) PPDCellResolved(3) = PPDCellResolved(3) + 1
+      IF(PPDCellZ(iElem).GE.1.0) PPDCellResolved(4) = PPDCellResolved(4) + 1
+    END IF ! PICValidPlasmaCell(iElem)
   END ASSOCIATE
 END DO ! iElem=1,PP_nElems
 
@@ -2948,15 +3011,17 @@ SUBROUTINE CalculateIonizationCell()
 ! 1.) Count the number of ions per DG cell and divide it by element-volume -> ion density n_i
 ! 2.) Count the number of neutrals per DG cell and divide it by element-volume -> neutral density n_n
 ! 3.) Calculate the ionization degree: alpha = n_i/(n_i + n_n)
+! 4.) Set indicator for valid plasma element: quasi-neutrality is above 0.5 and at least 20 particles are inside the element
 !===================================================================================================================================
 ! MODULES                                                                                                                          !
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Preproc
-USE MOD_Particle_Analyze_Vars  ,ONLY:IonizationCell,QuasiNeutralityCell,NeutralDensityCell,ElectronDensityCell,IonDensityCell
-USE MOD_Particle_Analyze_Vars  ,ONLY:ChargeNumberCell
-USE MOD_Particle_Mesh_Vars     ,ONLY:ElemVolume_Shared
+USE MOD_Particle_Analyze_Vars ,ONLY: IonizationCell,QuasiNeutralityCell,NeutralDensityCell,ElectronDensityCell,IonDensityCell
+USE MOD_Particle_Analyze_Vars ,ONLY: ChargeNumberCell,PICValidPlasmaCell,PICValidPlasmaCellSum
+USE MOD_Particle_Mesh_Vars    ,ONLY: ElemVolume_Shared
 USE MOD_Mesh_Vars             ,ONLY: offSetElem
 USE MOD_Mesh_Tools            ,ONLY: GetCNElemID
+USE MOD_LoadBalance_Vars      ,ONLY: nPartsPerElem
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -2968,8 +3033,9 @@ IMPLICIT NONE
 INTEGER              :: iElem
 !===================================================================================================================================
 ! Nullify
-IonizationCell      = 0.
-QuasiNeutralityCell = 0.
+IonizationCell        = 0.
+QuasiNeutralityCell   = 0.
+PICValidPlasmaCellSum = 0
 
 ! Loop over all elements
 DO iElem=1,PP_nElems
@@ -3005,6 +3071,16 @@ DO iElem=1,PP_nElems
         END IF
       END IF
     END IF
+
+    ! 4.) Set indicator for valid plasma element: quasi-neutrality is above 0.5 and at least 20 particles are inside the element
+    ! Set PPD and time step validity flag for elements (otherwise the element is considered not part of a plasma state)
+    ! Check that quasi-neutrality is above 0.5 and at least 20 particles are inside the element
+    IF((Q.GE.0.5).AND.(nPartsPerElem(iElem).GE.20))THEN
+      PICValidPlasmaCell(iElem) = 1
+      PICValidPlasmaCellSum = PICValidPlasmaCellSum + 1
+    ELSE
+      PICValidPlasmaCell(iElem) = 0
+    END IF ! Q.GE.0.5
   END ASSOCIATE
 END DO ! iElem=1,PP_nElems
 

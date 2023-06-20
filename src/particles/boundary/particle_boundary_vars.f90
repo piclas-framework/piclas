@@ -262,6 +262,8 @@ TYPE tPartBoundary
   ! Constant wall temperature and accommodation coefficients
   REAL    , ALLOCATABLE                  :: WallTemp(:)
   REAL    , ALLOCATABLE                  :: MomentumACC(:)
+  LOGICAL , ALLOCATABLE                  :: OnlySpecular(:)
+  LOGICAL , ALLOCATABLE                  :: OnlyDiffuse(:)
   REAL    , ALLOCATABLE                  :: TransACC(:)
   REAL    , ALLOCATABLE                  :: VibACC(:)
   REAL    , ALLOCATABLE                  :: RotACC(:)
@@ -269,6 +271,7 @@ TYPE tPartBoundary
   ! Temperature gradient across reflective BC
   REAL    , ALLOCATABLE                  :: WallTemp2(:), WallTempDelta(:)
   REAL    , ALLOCATABLE                  :: TempGradStart(:,:), TempGradEnd(:,:), TempGradVec(:,:)
+  INTEGER , ALLOCATABLE                  :: TempGradDir(:)
   ! Linear and rotational wall velocity
   REAL    , ALLOCATABLE                  :: WallVelo(:,:)
   LOGICAL , ALLOCATABLE                  :: RotVelo(:)                    ! Flag for rotating walls
@@ -284,6 +287,10 @@ TYPE tPartBoundary
   ! Radiative-equilibrium BC
   LOGICAL                                :: AdaptWallTemp
   LOGICAL , ALLOCATABLE                  :: UseAdaptedWallTemp(:)
+  LOGICAL                                :: OutputWallTemp                ! Flag to include the wall temperature in the SurfState
+                                                                          ! output, set during InitializeVariablesPartBoundary
+                                                                          ! Required for the initialization of the array for the
+                                                                          ! adaptive wall temperature as well
   REAL    , ALLOCATABLE                  :: RadiativeEmissivity(:)
   ! Dielectric BC
   LOGICAL , ALLOCATABLE                  :: Dielectric(:)                 ! Define if particle boundary [$] is a dielectric

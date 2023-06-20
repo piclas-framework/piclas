@@ -70,14 +70,20 @@ The wall velocity will then be superimposed onto the particle velocity.
 ### Linear temperature gradient
 
 A linear temperature gradient across a boundary can be defined by supplying a second wall temperature and the start and end vector
+as well as an optional direction to which the gradient shall be limited (default: 0, x = 1, y = 2, z = 3)
 
-    Part-Boundary2-WallTemp2=500.
-    Part-Boundary2-TemperatureGradientStart=(/0.,0.,0./)
-    Part-Boundary2-TemperatureGradientEnd=(/0.,0.,1./)
+    Part-Boundary2-WallTemp2      = 500.
+    Part-Boundary2-TempGradStart  = (/0.,0.,0./)
+    Part-Boundary2-TempGradEnd    = (/1.,0.,1./)
+    Part-Boundary2-TempGradDir    = 0
 
-Between these two points the temperature will be interpolated, where the start vector corresponds to the first wall temperature,
-whereas the end vector to the second wall temperature. Beyond these position values, the first and second temperature will be used
-as the constant wall temperature, respectively.
+In the default case of the `TempGradDir = 0`, the temperature will be interpolated between the start and end vector, where the
+start vector corresponds to the first wall temperature `WallTemp`, and the end vector to the second wall temperature `WallTemp2`.
+Position values (which are projected onto the temperature gradient vector) beyond the gradient vector utilize the first (Start) and second temperature (End) as the constant wall temperature, respectively. In the special case of `TempGradDir = 1/2/3`, the temperature gradient will
+only be applied along the chosen the direction. As oppposed to the default case, the positions of the surfaces are not projected
+onto the gradient vector before checking wether they are inside the box spanned by `TempGradStart` and `TempGradEnd`. Outside of
+the defined box, the temperature corresponds to `WallTemp`. The applied surface temperature is output in the `DSMCSurfState` as
+`Wall_Temperature` for verification.
 
 ### Radiative equilibrium
 
