@@ -53,7 +53,7 @@ USE MOD_part_emission_tools     ,ONLY: InsideQuadrilateral
 USE MOD_Particle_Boundary_Vars  ,ONLY: nComputeNodeSurfTotalSides,PartBound,SurfSide2GlobalSide
 USE MOD_Particle_Mesh_Vars      ,ONLY: SideInfo_Shared
 USE MOD_Particle_Boundary_Tools ,ONLY: StoreBoundaryParticleProperties
-USE MOD_Particle_Boundary_Vars  ,ONLY: PartStateBoundary,nVarPartStateBoundary
+USE MOD_Particle_Boundary_Vars  ,ONLY: PartStateBoundary,nVarPartStateBoundary,nSurfSample
 USE MOD_Photon_TrackingOutput   ,ONLY: WritePhotonSurfSampleToHDF5,WritePhotonVolSampleToHDF5
 #if USE_MPI
 USE MOD_MPI_Shared_Vars
@@ -76,7 +76,7 @@ INTEGER :: CNElemID, iRay, photonCount, RayVisCount, LocRayNum, RayDisp
 LOGICAL :: FoundComputeNodeSurfSide
 INTEGER :: ALLOCSTAT
 REAL    :: RectPower
-REAL    :: StartT,EndT                                                                               ! Timer
+REAL    :: StartT,EndT ! Timer
 !===================================================================================================================================
 
 IF(RayPartBound.EQ.0) RETURN
@@ -86,7 +86,7 @@ SWRITE(UNIT_stdOut,'(A)') ' Start Ray Tracing Calculation ...'
 ! Allocate arrays
 ALLOCATE(RayElemPassedEnergy(RayElemSize,1:nGlobalElems))
 RayElemPassedEnergy=0.0
-ALLOCATE(PhotonSampWall(2,1:nComputeNodeSurfTotalSides))
+ALLOCATE(PhotonSampWall(2,1:nSurfSample,1:nSurfSample,1:nComputeNodeSurfTotalSides))
 PhotonSampWall=0.0
 
 #if USE_MPI

@@ -179,40 +179,40 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER           :: Nloc,iElem,CNElemID
-LOGICAL,PARAMETER :: debugRay=.FALSE.
+LOGICAL,PARAMETER :: debugRay=.TRUE.
 !===================================================================================================================================
 ALLOCATE(N_DG_Ray(nElems))
 N_DG_Ray = PP_N
 IF(debugRay)THEN
   N_DG_Ray = Ray%Nmax
   DO iElem = 1, PP_nElems
-      CNElemID = GetCNElemID(iElem)
-      ASSOCIATE( &
-            x => ElemBaryNGeo(1,CNElemID),&
-            y => ElemBaryNGeo(2,CNElemID),&
-            z => ElemBaryNGeo(3,CNElemID))
-        IF(y+z.GE.1.40)THEN
-            N_DG_Ray(iElem) = 1
-          CYCLE
-        END IF ! y+z.GT.1.5
+    CNElemID = GetCNElemID(iElem)
+    ASSOCIATE( &
+          x => ElemBaryNGeo(1,CNElemID),&
+          y => ElemBaryNGeo(2,CNElemID),&
+          z => ElemBaryNGeo(3,CNElemID))
+      IF(y+z.GE.1.40)THEN
+        N_DG_Ray(iElem) = 1
+        CYCLE
+      END IF ! y+z.GT.1.5
 
-        IF(y+z.LE.0.6)THEN
-          N_DG_Ray(iElem) = 1
-          CYCLE
-        END IF ! y+z.LT.0.5
+      IF(y+z.LE.0.6)THEN
+        N_DG_Ray(iElem) = 1
+        CYCLE
+      END IF ! y+z.LT.0.5
 
-        IF(y+z.LT.0.9)THEN
-          N_DG_Ray(iElem) = Ray%Nmax-1
-          CYCLE
-        END IF ! y+z.GT.1.00001
+      IF(y+z.LT.0.9)THEN
+        N_DG_Ray(iElem) = Ray%Nmax-1
+        CYCLE
+      END IF ! y+z.GT.1.00001
 
-        IF(y+z.GT.1.1)THEN
-          N_DG_Ray(iElem) = Ray%Nmax-1
-          CYCLE
-        END IF ! y+z.GT.1.00001
-      END ASSOCIATE
+      IF(y+z.GT.1.1)THEN
+        N_DG_Ray(iElem) = Ray%Nmax-1
+        CYCLE
+      END IF ! y+z.GT.1.00001
+    END ASSOCIATE
   END DO ! iElem = 1, PP_nElems
-  END IF ! debugRay
+END IF ! debugRay
 
 ! Allocate interpolation variables
 ALLOCATE(N_Inter_Ray(Ray%Nmin:Ray%Nmax))

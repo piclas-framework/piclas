@@ -434,7 +434,7 @@ END SELECT
 
 
 !IF (.NOT.ALLOCATED(SurfMesh%SideIDToSurfID)) CALL InitParticleBoundarySampling()
-ALLOCATE(PhotonSampWall(2,1:nComputeNodeSurfTotalSides))
+ALLOCATE(PhotonSampWall(2,1:nSurfSample,1:nSurfSample,1:nComputeNodeSurfTotalSides))
 PhotonSampWall=0.0
 
 #if USE_MPI

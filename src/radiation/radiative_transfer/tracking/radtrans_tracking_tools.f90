@@ -658,8 +658,9 @@ INTEGER, INTENT(IN) :: GlobalElemID
 REAL, INTENT(IN)    :: PhotonDir(3)
 REAL, INTENT(IN)    :: IntersectionPos(3)
 ! Local variable declaration
-INTEGER           :: a,b,ii,k,l,m,iElem,Nloc
-REAL              :: IntersectionPosRef(3),scaleFac
+INTEGER           :: a,b,ii,k,l,m,iElem,Nloc,NbrOfSamples,iIntersec
+REAL              :: IntersectionPosRef(3),scaleFac,SamplePos(3)
+LOGICAL           :: arr(0:Ray%NMax,0:Ray%NMax,0:Ray%NMax)
 !--------------------------------------------------------------------------------------------------!
 ! Check primary or secondary direction
 IF(DOT_PRODUCT(PhotonDir,Ray%Direction).GT.0.0)THEN
@@ -671,7 +672,7 @@ ELSE
 END IF
 
 ! High-order sampling: Use nearest Gauss point (NGP) from PIC deposition
-! todo: parallelize this
+! todo: parallelize this, maybe full mesh already there?
 IF(GlobalElemID.gt.nelems)THEN
   CALL abort(__STAMP__,'this works only single-core')
 END IF ! GlobalElemID.gt.nelems
@@ -685,45 +686,56 @@ ELSE
   b = a-1
 END IF
 
-! Get position in reference element
-CALL GetPositionInRefElem(IntersectionPos(1:3),IntersectionPosRef(1:3),GlobalElemID)
+! Loop over number of sub-samples
+NbrOfSamples = Nloc+3
+!scaleFac = 1./REAL(NbrOfSamples+1)
+scaleFac = 20.
+arr = .FALSE.
 
-k = a
-DO ii = 0,b-1
-  IF(ABS(IntersectionPosRef(1)).GE.N_VolMesh_Ray(iElem)%GaussBorder(Nloc-ii))THEN
-    k = Nloc-ii
-    EXIT
-  END IF
-END DO
-k = NINT((Nloc+SIGN(2.0*k-Nloc,IntersectionPosRef(1)))/2)
-!! y-direction
-l = a
-DO ii = 0,b-1
-  IF(ABS(IntersectionPosRef(2)).GE.N_VolMesh_Ray(iElem)%GaussBorder(Nloc-ii))THEN
-    l = Nloc-ii
-    EXIT
-  END IF
-END DO
-l = NINT((Nloc+SIGN(2.0*l-Nloc,IntersectionPosRef(2)))/2)
-!! z-direction
-m = a
-DO ii = 0,b-1
-  IF(ABS(IntersectionPosRef(3)).GE.N_VolMesh_Ray(iElem)%GaussBorder(Nloc-ii))THEN
-    m = Nloc-ii
-    EXIT
-  END IF
-END DO
-m = NINT((Nloc+SIGN(2.0*m-Nloc,IntersectionPosRef(3)))/2)
+DO iIntersec = 0, NbrOfSamples
+  SamplePos = PhotonProps%PhotonStartPos(1:3) + (IntersectionPos(1:3)-PhotonProps%PhotonStartPos(1:3))*REAL(iIntersec)/REAL(NbrOfSamples)
 
-! Scaling factor to ensure that rays that are counted multiple times in high-order elements do not increase the total energy
-! deposited in the corresponding element
-scaleFac = 1./(REAL(Nloc)+1.0)
-scaleFac = 1.
-IF(DOT_PRODUCT(PhotonDir,Ray%Direction).GT.0.0)THEN
-  U_N_Ray(iElem)%U(1,k,l,m) = U_N_Ray(iElem)%U(1,k,l,m) + PhotonProps%PhotonEnergy * scaleFac
-ELSE
-  U_N_Ray(iElem)%U(2,k,l,m) = U_N_Ray(iElem)%U(2,k,l,m) + PhotonProps%PhotonEnergy * scaleFac
-END IF
+  ! Get position in reference element
+  CALL GetPositionInRefElem(SamplePos(1:3),IntersectionPosRef(1:3),GlobalElemID)
+
+  k = a
+  DO ii = 0,b-1
+    IF(ABS(IntersectionPosRef(1)).GE.N_VolMesh_Ray(iElem)%GaussBorder(Nloc-ii))THEN
+      k = Nloc-ii
+      EXIT
+    END IF
+  END DO
+  k = NINT((Nloc+SIGN(2.0*k-Nloc,IntersectionPosRef(1)))/2)
+  !! y-direction
+  l = a
+  DO ii = 0,b-1
+    IF(ABS(IntersectionPosRef(2)).GE.N_VolMesh_Ray(iElem)%GaussBorder(Nloc-ii))THEN
+      l = Nloc-ii
+      EXIT
+    END IF
+  END DO
+  l = NINT((Nloc+SIGN(2.0*l-Nloc,IntersectionPosRef(2)))/2)
+  !! z-direction
+  m = a
+  DO ii = 0,b-1
+    IF(ABS(IntersectionPosRef(3)).GE.N_VolMesh_Ray(iElem)%GaussBorder(Nloc-ii))THEN
+      m = Nloc-ii
+      EXIT
+    END IF
+  END DO
+  m = NINT((Nloc+SIGN(2.0*m-Nloc,IntersectionPosRef(3)))/2)
+
+  ! Scaling factor to ensure that rays that are counted multiple times in high-order elements do not increase the total energy
+  ! deposited in the corresponding element
+  IF(.NOT.arr(k,l,m))THEN
+    IF(DOT_PRODUCT(PhotonDir,Ray%Direction).GT.0.0)THEN
+      U_N_Ray(iElem)%U(1,k,l,m) = U_N_Ray(iElem)%U(1,k,l,m) + PhotonProps%PhotonEnergy * scaleFac
+    ELSE
+      U_N_Ray(iElem)%U(2,k,l,m) = U_N_Ray(iElem)%U(2,k,l,m) + PhotonProps%PhotonEnergy * scaleFac
+    END IF
+    arr(k,l,m)=.TRUE.
+  END IF ! .NOT.arr(k,l,m)
+END DO ! iIntersec = 1, Nloc+3
 END SUBROUTINE CalcAbsorptionRayTrace
 
 
@@ -1254,21 +1266,23 @@ END SUBROUTINE PeriodicPhotonBC
 !>
 !>   ForceWallSample (OPTIONAL): When true, the sampling is performed independent of the actual absorption/reflection outcome
 !===================================================================================================================================
-SUBROUTINE CalcWallAbsoprtion(GlobSideID, DONE, ForceWallSample)
+SUBROUTINE CalcWallAbsoprtion(IntersectionPos, GlobSideID, DONE, ForceWallSample)
+USE MOD_Globals                ,ONLY: VECNORM
 USE MOD_Photon_TrackingVars    ,ONLY: PhotonProps,PhotonSampWall
-USE MOD_Particle_Boundary_Vars ,ONLY: PartBound, GlobalSide2SurfSide
+USE MOD_Particle_Boundary_Vars ,ONLY: PartBound, GlobalSide2SurfSide, nSurfSample, SurfSideSamplingMidPoints
 USE MOD_Particle_Mesh_Vars     ,ONLY: SideInfo_Shared
 !--------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
 !--------------------------------------------------------------------------------------------------!
 ! argument list declaration
+REAL, INTENT(IN)                 :: IntersectionPos(3)
 INTEGER, INTENT(IN)              :: GlobSideID
 LOGICAL, INTENT(OUT)             :: DONE
 LOGICAL, INTENT(IN), OPTIONAL    :: ForceWallSample !>
 ! Local variable declaration
 !--------------------------------------------------------------------------------------------------!
-REAL                            :: iRan,PhotonEnACC
-INTEGER                         :: SurfSideID
+REAL                            :: iRan,PhotonEnACC,distance,distanceMin
+INTEGER                         :: SurfSideID,p,q,pp,qq
 LOGICAL                         :: ForceWallSampleLoc
 !--------------------------------------------------------------------------------------------------!
 SurfSideID = GlobalSide2SurfSide(SURF_SIDEID,GlobSideID)
@@ -1277,8 +1291,24 @@ IF(PRESENT(ForceWallSample))THEN
   ForceWallSampleLoc = ForceWallSample
   ! Sample impact
   IF(ForceWallSampleLoc)THEN
-    PhotonSampWall(1,SurfSideID) = PhotonSampWall(1,SurfSideID) + 1.
-    PhotonSampWall(2,SurfSideID) = PhotonSampWall(2,SurfSideID) + PhotonProps%PhotonEnergy
+    IF(nSurfSample.GT.1)THEN
+      distanceMin = HUGE(1.)
+      DO pp = 1, nSurfSample
+        DO qq = 1, nSurfSample
+          distance = VECNORM(IntersectionPos(1:3) - SurfSideSamplingMidPoints(1:3,pp,qq,SurfSideID))
+          IF(distance.LT.distanceMin)THEN
+            p = pp
+            q = qq
+            distanceMin = distance
+          END IF ! distance.LT.distanceMin
+        END DO ! q = 1, nSurfSample
+      END DO ! p = 1, nSurfSample
+      PhotonSampWall(1,p,q,SurfSideID) = PhotonSampWall(1,p,q,SurfSideID) + 1.0
+      PhotonSampWall(2,p,q,SurfSideID) = PhotonSampWall(2,p,q,SurfSideID) + PhotonProps%PhotonEnergy
+    ELSE
+      PhotonSampWall(1,1,1,SurfSideID) = PhotonSampWall(1,1,1,SurfSideID) + 1.0
+      PhotonSampWall(2,1,1,SurfSideID) = PhotonSampWall(2,1,1,SurfSideID) + PhotonProps%PhotonEnergy
+    END IF ! nSurfSample.GT.1
   END IF ! ForceWallSampleLoc
 ELSE
   ForceWallSampleLoc = .FALSE.
@@ -1291,8 +1321,23 @@ IF (PhotonEnACC.GT.iRan) THEN
   DONE = .TRUE.
   ! Do not sample twice
   IF(.NOT.ForceWallSampleLoc)THEN
-    PhotonSampWall(1,SurfSideID) = PhotonSampWall(1,SurfSideID) + 1.
-    PhotonSampWall(2,SurfSideID) = PhotonSampWall(2,SurfSideID) + PhotonProps%PhotonEnergy
+    IF(nSurfSample.GT.1)THEN
+      distanceMin = HUGE(1.)
+      DO pp = 1, nSurfSample
+        DO qq = 1, nSurfSample
+          distance = VECNORM(IntersectionPos(1:3) - SurfSideSamplingMidPoints(1:3,pp,qq,SurfSideID))
+          IF(distance.LT.distanceMin)THEN
+            p = pp
+            q = qq
+          END IF ! distance.LT.distanceMin
+        END DO ! q = 1, nSurfSample
+      END DO ! p = 1, nSurfSample
+      PhotonSampWall(1,p,q,SurfSideID) = PhotonSampWall(1,p,q,SurfSideID) + 1.0
+      PhotonSampWall(2,p,q,SurfSideID) = PhotonSampWall(2,p,q,SurfSideID) + PhotonProps%PhotonEnergy
+    ELSE
+      PhotonSampWall(1,1,1,SurfSideID) = PhotonSampWall(1,1,1,SurfSideID) + 1.0
+      PhotonSampWall(2,1,1,SurfSideID) = PhotonSampWall(2,1,1,SurfSideID) + PhotonProps%PhotonEnergy
+    END IF ! nSurfSample.GT.1
   END IF ! .NOT.ForceWallSampleLoc
 END IF
 END SUBROUTINE CalcWallAbsoprtion

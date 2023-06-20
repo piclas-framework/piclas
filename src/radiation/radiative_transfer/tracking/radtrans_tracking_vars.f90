@@ -32,11 +32,13 @@ TYPE tPhotonProps
   REAL               :: PhotonEnergy        !>
   INTEGER            :: ElemID              !>
   INTEGER            :: WaveLength          !>
+  !REAL               :: nSurfSampleFac      !> Scaling factor: nSurfSampleFac= 1.0/(nSurfSample**2)
+  REAL               :: PhotonStartPos(3)   !> super sampled ray path
 END TYPE
 
 TYPE (tPhotonProps)  :: PhotonProps         !>
 
-REAL, ALLOCATABLE    :: PhotonSampWall(:,:)
+REAL, ALLOCATABLE    :: PhotonSampWall(:,:,:,:)
 
 INTEGER              :: PhotonModeBPO       !> 0: Output nothing to PartStateBoundary.h5
                                             !> 1: Output the initial position of the rays and their direction vector

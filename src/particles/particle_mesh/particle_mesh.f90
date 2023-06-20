@@ -195,7 +195,7 @@ USE MOD_PICDepo_Shapefunction_Tools, ONLY:InitShapeFunctionDimensionalty
 USE MOD_IO_HDF5                ,ONLY: AddToElemData,ElementOut
 USE MOD_Mesh_Vars              ,ONLY: nElems
 USE MOD_Particle_Boundary_Init ,ONLY: InitPartStateBoundary
-USE MOD_Particle_Boundary_Vars ,ONLY: DoBoundaryParticleOutputHDF5
+USE MOD_Particle_Boundary_Vars ,ONLY: DoBoundaryParticleOutputHDF5,nSurfSample
 USE MOD_Photon_TrackingVars    ,ONLY: PhotonModeBPO
 !USE MOD_DSMC_Vars              ,ONLY: DSMC
 ! IMPLICIT VARIABLE HANDLING
@@ -217,11 +217,16 @@ INTEGER          :: ALLOCSTAT
 ! TODO
 ! REAL             :: dx,dy,dz
 #endif /*CODE_ANALYZE*/
+LOGICAL           :: nSurfSampleAndTriaTracking
+CHARACTER(3)      :: hilf
 !===================================================================================================================================
 
 LBWRITE(UNIT_StdOut,'(132("-"))')
 LBWRITE(UNIT_stdOut,'(A)')' INIT PARTICLE MESH ...'
 IF(ParticleMeshInitIsDone) CALL abort(__STAMP__, ' Particle-Mesh is already initialized.')
+
+WRITE(UNIT=hilf,FMT='(I0)') NGeo
+nSurfSample = GETINT('DSMC-nSurfSample',TRIM(hilf))
 
 #if USE_MPI
 IF(DoParticleLatencyHiding)THEN
@@ -232,15 +237,19 @@ IF(DoParticleLatencyHiding)THEN
 END IF ! DoParticleLatencyHiding
 #endif /*USE_MPI*/
 
+! Check if Bezier control points are required for high-order surface sampling
+nSurfSampleAndTriaTracking = .FALSE. ! default
+IF((TrackingMethod.EQ.TRIATRACKING).AND.(Symmetry%Order.EQ.3).AND.(nSurfSample.GT.1)) nSurfSampleAndTriaTracking = .TRUE.
+
 ! Potentially curved elements. FIBGM needs to be built on BezierControlPoints rather than NodeCoords to avoid missing elements
-IF (TrackingMethod.EQ.TRACING .OR. TrackingMethod.EQ.REFMAPPING) THEN
+IF (TrackingMethod.EQ.TRACING .OR. TrackingMethod.EQ.REFMAPPING .OR. nSurfSampleAndTriaTracking) THEN
   ! Bezier elevation now more important than ever, also determines size of FIBGM extent
   BezierElevation = GETINT('BezierElevation')
   NGeoElevated    = NGeo + BezierElevation
 
   CALL CalcParticleMeshMetrics() ! Required for Elem_xGP_Shared and dXCL_NGeo_Shared
   CALL CalcXCL_NGeo()            ! Required for XCL_NGeo_Shared
-  CALL CalcBezierControlPoints() ! Required for BezierControlPoints3D and BezierControlPoints3DElevated
+  CALL CalcBezierControlPoints() ! Required for BezierControlPoints3D and BezierControlPoints3DElevated (requires XCL_NGeo_Shared)
 END IF
 
 ! Mesh min/max must be built on BezierControlPoint for possibly curved elements
@@ -376,8 +385,11 @@ SELECT CASE(TrackingMethod)
     ! Interpolation needs coordinates in reference system
     !IF (DoInterpolation.OR.DSMC%UseOctree) THEN ! use this in future if possible
     IF (DoInterpolation.OR.DoDeposition) THEN
-      CALL CalcParticleMeshMetrics()   ! Required for Elem_xGP_Shared and dXCL_NGeo_Shared
-      CALL CalcXCL_NGeo()              ! Required for XCL_NGeo_Shared
+      ! Do not call these functions twice
+      IF(.NOT.nSurfSampleAndTriaTracking)THEN
+        CALL CalcParticleMeshMetrics()   ! Required for Elem_xGP_Shared and dXCL_NGeo_Shared
+        CALL CalcXCL_NGeo()              ! Required for XCL_NGeo_Shared
+      END IF ! .NOT.nSurfSampleAndTriaTracking
       CALL BuildElemTypeAndBasisTria() ! Required for ElemCurved, XiEtaZetaBasis and slenXiEtaZetaBasis. Needs XCL_NGeo_Shared
     END IF ! DoInterpolation.OR.DSMC%UseOctree
 

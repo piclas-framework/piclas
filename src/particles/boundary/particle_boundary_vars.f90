@@ -29,6 +29,7 @@ INTEGER                                 :: SurfSampSize                  !> Ener
 INTEGER                                 :: SurfOutputSize                !> Energy + Force + nSpecies
 INTEGER                                 :: SurfSpecOutputSize            !> Energy + Force + nSpecies
 REAL,ALLOCPOINT,DIMENSION(:,:,:)        :: SurfSideArea                  !> Area of supersampled surface side
+REAL,ALLOCPOINT,DIMENSION(:,:,:,:)      :: SurfSideSamplingMidPoints     !> Mid point of supersampled surface side
 REAL,ALLOCPOINT,DIMENSION(:,:,:)        :: BoundaryWallTemp              !> Wall Temperature for Adaptive Case
 ! ====================================================================
 ! Mesh info

@@ -172,22 +172,23 @@ SUBROUTINE WritePhotonSurfSampleToHDF5()
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Globals
 USE MOD_IO_HDF5
-USE MOD_Globals_Vars,               ONLY:ProjectName
-USE MOD_Particle_Boundary_Vars,     ONLY:nComputeNodeSurfOutputSides,noutputsides, nSurfBC
-USE MOD_Particle_Boundary_Vars,     ONLY:offsetComputeNodeSurfOutputSide, SurfBCName, nComputeNodeSurfSides
-USE MOD_Particle_Boundary_Vars,     ONLY:SurfSide2GlobalSide, GlobalSide2SurfSide
-USE MOD_HDF5_Output,                ONLY:WriteAttributeToHDF5,WriteArrayToHDF5,WriteHDF5Header
-USE MOD_Mesh_Vars,                  ONLY:MeshFile
-USE MOD_Particle_Mesh_Vars,         ONLY:SideInfo_Shared
-USE MOD_MPI_Shared_Vars,            ONLY:mySurfRank
+USE MOD_Globals_Vars           ,ONLY: ProjectName
+USE MOD_Particle_Boundary_Vars ,ONLY: nComputeNodeSurfOutputSides,noutputsides, nSurfBC
+USE MOD_Particle_Boundary_Vars ,ONLY: offsetComputeNodeSurfOutputSide, SurfBCName, nComputeNodeSurfSides
+USE MOD_Particle_Boundary_Vars ,ONLY: SurfSide2GlobalSide, GlobalSide2SurfSide
+USE MOD_HDF5_Output            ,ONLY: WriteAttributeToHDF5,WriteArrayToHDF5,WriteHDF5Header
+USE MOD_Mesh_Vars              ,ONLY: MeshFile
+USE MOD_Particle_Mesh_Vars     ,ONLY: SideInfo_Shared
+USE MOD_MPI_Shared_Vars        ,ONLY: mySurfRank
 #if USE_MPI
-USE MOD_MPI_Shared_Vars,            ONLY:MPI_COMM_LEADERS_SURF
-USE MOD_Particle_Boundary_Vars,     ONLY:SurfSideArea_Shared,nSurfTotalSides
-USE MOD_Photon_TrackingVars,        ONLY:PhotonSampWall_Shared
+USE MOD_MPI_Shared_Vars        ,ONLY: MPI_COMM_LEADERS_SURF
+USE MOD_Particle_Boundary_Vars ,ONLY: SurfSideArea_Shared,nSurfTotalSides
+USE MOD_Photon_TrackingVars    ,ONLY: PhotonSampWall_Shared
 #else
-USE MOD_Photon_TrackingVars,        ONLY:PhotonSampWall
-USE MOD_Particle_Boundary_Vars,     ONLY:SurfSideArea
+USE MOD_Photon_TrackingVars    ,ONLY: PhotonSampWall
+USE MOD_Particle_Boundary_Vars ,ONLY: SurfSideArea
 #endif /*USE_MPI*/
+USE MOD_Particle_Boundary_Vars ,ONLY: nSurfSample
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -198,12 +199,12 @@ IMPLICIT NONE
 ! LOCAL VARIABLES
 CHARACTER(LEN=255)                  :: FileString,Statedummy
 CHARACTER(LEN=255)                  :: H5_Name
-CHARACTER(LEN=255)                  :: NodeTypeTemp
+CHARACTER(LEN=4),PARAMETER          :: NodeTypeTemp = 'VISU'
 CHARACTER(LEN=255),ALLOCATABLE      :: Str2DVarNames(:)
-INTEGER                             :: GlobalSideID, iSurfSide, OutputCounter, SurfSideNb
+INTEGER                             :: GlobalSideID, iSurfSide, OutputCounter, SurfSideNb, p, q
 INTEGER,PARAMETER                   :: nVar2D=2
 REAL                                :: tstart,tend
-REAL, ALLOCATABLE                   :: helpArray(:,:)
+REAL, ALLOCATABLE                   :: helpArray(:,:,:,:)
 !===================================================================================================================================
 #if USE_MPI
 CALL ExchangeRadiationSurfData()
@@ -229,13 +230,12 @@ IF (mySurfRank.EQ.0) THEN
   Statedummy = 'RadiationSurfState'
   ! Write file header
   CALL WriteHDF5Header(Statedummy,File_ID)
-  CALL WriteAttributeToHDF5(File_ID,'RadiationnSurfSample',1,IntegerScalar=1)
-  CALL WriteAttributeToHDF5(File_ID,'MeshFile',1,StrScalar=(/TRIM(MeshFile)/))
-  CALL WriteAttributeToHDF5(File_ID,'BC_Surf',nSurfBC,StrArray=SurfBCName)
-  CALL WriteAttributeToHDF5(File_ID,'N',1,IntegerScalar=1)
-  NodeTypeTemp='VISU'
-  CALL WriteAttributeToHDF5(File_ID,'NodeType',1,StrScalar=(/NodeTypeTemp/))
-  CALL WriteAttributeToHDF5(File_ID,'Time',1,RealScalar=0.)
+  CALL WriteAttributeToHDF5(File_ID , 'DSMC_nSurfSample' , 1       , IntegerScalar = nSurfSample        )
+  CALL WriteAttributeToHDF5(File_ID , 'MeshFile'         , 1       , StrScalar     = (/TRIM(MeshFile)/) )
+  CALL WriteAttributeToHDF5(File_ID , 'BC_Surf'          , nSurfBC , StrArray      = SurfBCName         )
+  CALL WriteAttributeToHDF5(File_ID , 'N'                , 1       , IntegerScalar = nSurfSample        )
+  CALL WriteAttributeToHDF5(File_ID , 'NodeType'         , 1       , StrScalar     = (/NodeTypeTemp/)   )
+  CALL WriteAttributeToHDF5(File_ID , 'Time'             , 1       , RealScalar    = 0.                 )
 
   ALLOCATE(Str2DVarNames(1:nVar2D))
   ! fill varnames for total values
@@ -262,12 +262,13 @@ ASSOCIATE(PhotonSampWall => PhotonSampWall_Shared ,&
 #endif
 
 ASSOCIATE (&
+      nSurfSample    => INT(nSurfSample                     , IK)  , &
       nGlobalSides   => INT(nOutputSides                    , IK)  , &
       LocalnBCSides  => INT(nComputeNodeSurfOutputSides     , IK)  , &
       offsetSurfSide => INT(offsetComputeNodeSurfOutputSide , IK)  , &
       nVar2D         => INT(nVar2D                          , IK))
 
-  ALLOCATE(helpArray(nVar2D,LocalnBCSides))
+  ALLOCATE(helpArray(nVar2D,1:nSurfSample,1:nSurfSample,LocalnBCSides))
   OutputCounter = 0
   !IF(myrank.eq.0) read*
   DO iSurfSide = 1,nComputeNodeSurfSides
@@ -275,22 +276,26 @@ ASSOCIATE (&
     IF(SideInfo_Shared(SIDE_NBSIDEID,GlobalSideID).GT.0) THEN
       IF(GlobalSideID.LT.SideInfo_Shared(SIDE_NBSIDEID,GlobalSideID)) THEN
         SurfSideNb = GlobalSide2SurfSide(SURF_SIDEID,SideInfo_Shared(SIDE_NBSIDEID,GlobalSideID))
-        PhotonSampWall(:,iSurfSide) = PhotonSampWall(:,iSurfSide) + PhotonSampWall(:,SurfSideNb)
+        PhotonSampWall(:,:,:,iSurfSide) = PhotonSampWall(:,:,:,iSurfSide) + PhotonSampWall(:,:,:,SurfSideNb)
       ELSE
         CYCLE
       END IF
     END IF
     OutputCounter = OutputCounter + 1
-    helpArray(1,OutputCounter)= PhotonSampWall(1,iSurfSide)
+    helpArray(1,1:nSurfSample,1:nSurfSample,OutputCounter) = PhotonSampWall(1,1:nSurfSample,1:nSurfSample,iSurfSide)
     !  SurfaceArea should be changed to 1:SurfMesh%nSides if inner sampling sides exist...
-    helpArray(2,OutputCounter)= PhotonSampWall(2,iSurfSide)/SurfSideArea(1,1,iSurfSide)
+    DO p = 1, nSurfSample
+      DO q = 1, nSurfSample
+        helpArray(2,p,q,OutputCounter) = PhotonSampWall(2,p,q,iSurfSide)/SurfSideArea(p,q,iSurfSide)
+      END DO ! q = 1, nSurfSample
+    END DO ! p = 1, nSurfSample
   END DO
-  CALL WriteArrayToHDF5(DataSetName=H5_Name  , rank=4 , &
-                        nValGlobal =(/nVar2D , 1_IK   , 1_IK , nGlobalSides/)   , &
-                        nVal       =(/nVar2D , 1_IK   , 1_IK , LocalnBCSides/)  , &
-                        offset     =(/0_IK   , 0_IK   , 0_IK , offsetSurfSide/) , &
-                        collective =.FALSE.         ,&
-                        RealArray=helpArray(1:nVar2D,1:LocalnBCSides))
+  CALL WriteArrayToHDF5(DataSetName=H5_Name  , rank=4      ,                                  &
+                        nValGlobal =(/nVar2D , nSurfSample , nSurfSample , nGlobalSides/)   , &
+                        nVal       =(/nVar2D , nSurfSample , nSurfSample , LocalnBCSides/)  , &
+                        offset     =(/0_IK   , 0_IK        , 0_IK        , offsetSurfSide/) , &
+                        collective =.FALSE.  ,                                                &
+                        RealArray=helpArray(1:nVar2D,1:nSurfSample,1:nSurfSample,1:LocalnBCSides))
   DEALLOCATE(helpArray)
 END ASSOCIATE
 
@@ -319,7 +324,7 @@ SUBROUTINE ExchangeRadiationSurfData()
 ! MODULES                                                                                                                          !
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Globals
-USE MOD_Particle_Boundary_Vars ,ONLY: SurfOnNode, SurfMapping, nComputeNodeSurfTotalSides, GlobalSide2SurfSide
+USE MOD_Particle_Boundary_Vars ,ONLY: SurfOnNode, SurfMapping, nComputeNodeSurfTotalSides, GlobalSide2SurfSide, nSurfSample
 USE MOD_Particle_MPI_Vars      ,ONLY: SurfSendBuf,SurfRecvBuf
 USE MOD_Photon_TrackingVars    ,ONLY: PhotonSampWall, PhotonSampWall_Shared, PhotonSampWall_Shared_Win
 USE MOD_MPI_Shared_Vars        ,ONLY: MPI_COMM_LEADERS_SURF, MPI_COMM_SHARED, nSurfLeaders,myComputeNodeRank,mySurfRank
@@ -339,7 +344,7 @@ INTEGER                         :: RecvRequest(0:nSurfLeaders-1),SendRequest(0:n
 ! nodes without sampling surfaces do not take part in this routine
 IF (.NOT.SurfOnNode) RETURN
 
-MessageSize = 2*nComputeNodeSurfTotalSides
+MessageSize = 2*nComputeNodeSurfTotalSides*(nSurfSample**2)
 IF (myComputeNodeRank.EQ.0) THEN
   CALL MPI_REDUCE(PhotonSampWall, PhotonSampWall_Shared, MessageSize, MPI_DOUBLE_PRECISION, MPI_SUM, 0, MPI_COMM_SHARED, IERROR)
 ELSE

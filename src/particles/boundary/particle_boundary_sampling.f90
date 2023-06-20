@@ -84,7 +84,7 @@ USE MOD_Particle_Boundary_Vars  ,ONLY: nSurfTotalSides
 USE MOD_Particle_Boundary_Vars  ,ONLY: GlobalSide2SurfSide,SurfSide2GlobalSide
 USE MOD_SurfaceModel_Vars       ,ONLY: nPorousBC
 USE MOD_Particle_Boundary_Vars  ,ONLY: CalcSurfaceImpact
-USE MOD_Particle_Boundary_Vars  ,ONLY: SurfSideArea,SurfSampSize,SurfOutputSize,SurfSpecOutputSize
+USE MOD_Particle_Boundary_Vars  ,ONLY: SurfSideArea,SurfSideSamplingMidPoints,SurfSampSize,SurfOutputSize,SurfSpecOutputSize
 USE MOD_Particle_Boundary_Vars  ,ONLY: SampWallState, SWIVarTimeStep, SWIStickingCoefficient
 USE MOD_Particle_Boundary_Vars  ,ONLY: SampWallPumpCapacity
 USE MOD_Particle_Boundary_Vars  ,ONLY: SampWallImpactEnergy
@@ -129,6 +129,8 @@ USE MOD_Particle_Boundary_Vars  ,ONLY: nOutputSides
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Vars        ,ONLY: PerformLoadBalance
 #endif /*USE_LOADBALANCE*/
+USE MOD_Interpolation_Vars      ,ONLY: NodeTypeVISU
+USE MOD_Interpolation           ,ONLY: GetNodesAndWeights
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -143,7 +145,6 @@ INTEGER                                :: nSurfSidesProc
 INTEGER                                :: offsetSurfTotalSidesProc
 INTEGER,ALLOCATABLE                    :: GlobalSide2SurfSideProc(:,:)
 !INTEGER,ALLOCATABLE                    :: SurfSide2GlobalSideProc(:,:)
-CHARACTER(20)                          :: hilf
 CHARACTER(LEN=255),ALLOCATABLE         :: BCName(:)
 ! surface area
 INTEGER                                :: SideID,ElemID,CNElemID,LocSideID
@@ -153,7 +154,7 @@ REAL                                   :: area,nVal
 REAL,DIMENSION(2,3)                    :: gradXiEta3D
 REAL,DIMENSION(:),ALLOCATABLE          :: Xi_NGeo,wGP_NGeo
 REAL                                   :: XiOut(1:2),E,F,G,D,tmp1,tmpI2,tmpJ2
-REAL                                   :: xNod, zNod, yNod, Vector1(3), Vector2(3), nx, ny, nz
+REAL                                   :: xNod(3), Vector1(3), Vector2(3), nx, ny, nz
 #if USE_MPI
 INTEGER                                :: offsetSurfSidesProc
 INTEGER                                :: GlobalElemID,GlobalElemRank
@@ -161,16 +162,12 @@ INTEGER                                :: sendbuf,recvbuf
 INTEGER                                :: NbGlobalElemID, NbElemRank, NbLeaderID, nSurfSidesTmp
 #endif /*USE_MPI*/
 INTEGER                                :: NbGlobalSideID
+LOGICAL                                :: UseBezierControlPoints
+REAL,ALLOCATABLE                       :: xIP_VISU(:),wIP_VISU(:)
 !===================================================================================================================================
 
 ! Get input parameters
 LBWRITE(UNIT_stdOut,'(A)') ' INIT SURFACE SAMPLING ...'
-
-WRITE(UNIT=hilf,FMT='(I0)') NGeo
-nSurfSample = GETINT('DSMC-nSurfSample',TRIM(hilf))
-
-IF((nSurfSample.GT.1).AND.(TrackingMethod.EQ.TRIATRACKING)) &
-  CALL abort(__STAMP__,'nSurfSample cannot be >1 if TrackingMethod = triatracking')
 
 ! Sampling of impact energy for each species (trans, rot, vib), impact vector (x,y,z) and angle
 CalcSurfaceImpact = GETLOGICAL('CalcSurfaceImpact')
@@ -576,6 +573,7 @@ firstSide = INT(REAL( myComputeNodeRank   )*REAL(nComputeNodeSurfTotalSides)/REA
 lastSide  = INT(REAL((myComputeNodeRank+1))*REAL(nComputeNodeSurfTotalSides)/REAL(nComputeNodeProcessors))
 #else
 ALLOCATE(SurfSideArea(1:nSurfSample,1:nSurfSample,1:nComputeNodeSurfTotalSides))
+ALLOCATE(SurfSideSamplingMidPoints(1:3,1:nSurfSample,1:nSurfSample,1:nComputeNodeSurfTotalSides))
 
 firstSide = 1
 lastSide  = nSurfTotalSides
@@ -585,6 +583,7 @@ lastSide  = nSurfTotalSides
 IF (myComputeNodeRank.EQ.0) THEN
 #endif /*USE_MPI*/
   SurfSideArea=0.
+  SurfSideSamplingMidPoints=0.
 #if USE_MPI
 END IF
 CALL BARRIER_AND_SYNC(SurfSideArea_Shared_Win,MPI_COMM_SHARED)
@@ -605,47 +604,62 @@ CALL LegendreGaussNodesAndWeights(NGeo,Xi_NGeo,wGP_NGeo)
 ! compute area of sub-faces
 tmp1=dXiEQ_SurfSample/2.0 !(b-a)/2
 
+ALLOCATE(xIP_VISU(0:nSurfSample),wIP_VISU(0:nSurfSample))
+CALL GetNodesAndWeights(nSurfSample, NodeTypeVISU, xIP_VISU, wIP=wIP_VISU)
+
 DO iSide = firstSide,LastSide
   ! get global SideID. This contains only nonUniqueSide, no special mortar treatment required
   SideID = SurfSide2GlobalSide(SURF_SIDEID,iSide)
+
+  UseBezierControlPoints = .FALSE.
 
   IF (TrackingMethod.EQ.TRIATRACKING) THEN
     ElemID    = SideInfo_Shared(SIDE_ELEMID ,SideID)
     CNElemID  = GetCNElemID(ElemID)
     LocSideID = SideInfo_Shared(SIDE_LOCALID,SideID)
-    area = 0.
-    xNod = NodeCoords_Shared(1,ElemSideNodeID_Shared(1,LocSideID,CNElemID)+1)
-    yNod = NodeCoords_Shared(2,ElemSideNodeID_Shared(1,LocSideID,CNElemID)+1)
-    zNod = NodeCoords_Shared(3,ElemSideNodeID_Shared(1,LocSideID,CNElemID)+1)
+    IF((Symmetry%Order.NE.3).AND.nSurfSample.GT.1) CALL abort(__STAMP__,'nSurfSample>1 not implemented for this symmetry!')
+
     IF(Symmetry%Order.EQ.3) THEN
-      DO TriNum = 1,2
-        Node1 = TriNum+1     ! normal = cross product of 1-2 and 1-3 for first triangle
-        Node2 = TriNum+2     !          and 1-3 and 1-4 for second triangle
-        Vector1(1) = NodeCoords_Shared(1,ElemSideNodeID_Shared(Node1,LocSideID,CNElemID)+1) - xNod
-        Vector1(2) = NodeCoords_Shared(2,ElemSideNodeID_Shared(Node1,LocSideID,CNElemID)+1) - yNod
-        Vector1(3) = NodeCoords_Shared(3,ElemSideNodeID_Shared(Node1,LocSideID,CNElemID)+1) - zNod
-        Vector2(1) = NodeCoords_Shared(1,ElemSideNodeID_Shared(Node2,LocSideID,CNElemID)+1) - xNod
-        Vector2(2) = NodeCoords_Shared(2,ElemSideNodeID_Shared(Node2,LocSideID,CNElemID)+1) - yNod
-        Vector2(3) = NodeCoords_Shared(3,ElemSideNodeID_Shared(Node2,LocSideID,CNElemID)+1) - zNod
-        nx = - Vector1(2) * Vector2(3) + Vector1(3) * Vector2(2) !NV (inwards)
-        ny = - Vector1(3) * Vector2(1) + Vector1(1) * Vector2(3)
-        nz = - Vector1(1) * Vector2(2) + Vector1(2) * Vector2(1)
-        nVal = SQRT(nx*nx + ny*ny + nz*nz)
-        area = area + nVal/2.
-      END DO
-      SurfSideArea(1,1,iSide) = area
+      ! Check if triangles are used for the calculation of the surface area or not
+      IF(nSurfSample.GT.1)THEN
+        ! Do not use triangles
+        UseBezierControlPoints = .TRUE.
+      ELSE
+        xNod(1:3) = NodeCoords_Shared(1:3,ElemSideNodeID_Shared(1,LocSideID,CNElemID)+1)
+        area = 0.
+        DO TriNum = 1,2
+          Node1 = TriNum+1     ! normal = cross product of 1-2 and 1-3 for first triangle
+          Node2 = TriNum+2     !          and 1-3 and 1-4 for second triangle
+          Vector1(1:3) = NodeCoords_Shared(1:3,ElemSideNodeID_Shared(Node1,LocSideID,CNElemID)+1) - xNod(1:3)
+          Vector2(1:3) = NodeCoords_Shared(1:3,ElemSideNodeID_Shared(Node2,LocSideID,CNElemID)+1) - xNod(1:3)
+          nx = - Vector1(2) * Vector2(3) + Vector1(3) * Vector2(2) !NV (inwards)
+          ny = - Vector1(3) * Vector2(1) + Vector1(1) * Vector2(3)
+          nz = - Vector1(1) * Vector2(2) + Vector1(2) * Vector2(1)
+          nVal = SQRT(nx*nx + ny*ny + nz*nz)
+          area = area + nVal/2.
+        END DO
+        SurfSideArea(1,1,iSide) = area
+      END IF ! nSurfSample.GT.1
     ELSE IF(Symmetry%Order.EQ.2) THEN
       SurfSideArea(1,1,iSide) = DSMC_2D_CalcSymmetryArea(LocSideID, CNElemID)
     ELSE IF(Symmetry%Order.EQ.1) THEN
       SurfSideArea(1,1,iSide) = DSMC_1D_CalcSymmetryArea(LocSideID, CNElemID)
     END IF
   ELSE ! TrackingMethod.NE.TRIATRACKING
-    ! call here stephens algorithm to compute area
+    UseBezierControlPoints = .TRUE.
+  END IF ! TrackingMethod.EQ.TRIATRACKIN
+
+  ! Instead of triangles use Bezier control points (curved or triangle tracking with nSurfSample>1)
+  IF(UseBezierControlPoints)THEN
     DO jSample=1,nSurfSample
       DO iSample=1,nSurfSample
         area=0.
         tmpI2=(XiEQ_SurfSample(iSample-1)+XiEQ_SurfSample(iSample))/2. ! (a+b)/2
         tmpJ2=(XiEQ_SurfSample(jSample-1)+XiEQ_SurfSample(jSample))/2. ! (a+b)/2
+        ASSOCIATE(xi => 0.5*(xIP_VISU(iSample)+xIP_VISU(iSample-1)), eta => 0.5*(xIP_VISU(jSample)+xIP_VISU(jSample-1))  )
+          CALL EvaluateBezierPolynomialAndGradient((/xi,eta/),NGeo,3,BezierControlPoints3D(1:3,0:NGeo,0:NGeo,SideID) &
+              ,Point=SurfSideSamplingMidPoints(1:3,iSample,jSample,iSide))
+        END ASSOCIATE
         DO q=0,NGeo
           DO p=0,NGeo
             XiOut(1)=tmp1*Xi_NGeo(p)+tmpI2
@@ -663,7 +677,8 @@ DO iSide = firstSide,LastSide
         SurfSideArea(iSample,jSample,iSide) = area
       END DO ! iSample=1,nSurfSample
     END DO ! jSample=1,nSurfSample
-  END IF
+  END IF ! UseBezierControlPoints
+
 END DO ! iSide = firstSide,lastSide
 
 #if USE_MPI
@@ -1114,19 +1129,19 @@ ASSOCIATE (&
       SurfOutputSize       => INT(SurfOutputSize,IK)                  , &
       SurfSpecOutputSize   => INT(SurfSpecOutputSize,IK))
   DO iSpec = 1,nSpecies
-    CALL WriteArrayToHDF5(DataSetName=H5_Name             , rank=4                                           , &
-                            nValGlobal =(/nVar2D_Total      , nSurfSample , nSurfSample , nGlobalSides   /)  , &
-                            nVal       =(/SurfSpecOutputSize       , nSurfSample , nSurfSample , nLocalSides/)      , &
-                            offset     =(/INT(nVarCount,IK) , 0_IK        , 0_IK        , offsetSurfSide/)   , &
-                            collective =.FALSE.                                                              , &
+    CALL WriteArrayToHDF5(DataSetName=H5_Name                , rank=4      ,                                                        &
+                            nValGlobal =(/nVar2D_Total       , nSurfSample , nSurfSample , nGlobalSides   /) ,                      &
+                            nVal       =(/SurfSpecOutputSize , nSurfSample , nSurfSample , nLocalSides/)     ,                      &
+                            offset     =(/INT(nVarCount      , IK)         , 0_IK        , 0_IK              , offsetSurfSide/) ,   &
+                            collective =.FALSE.              ,                                                                      &
                             RealArray  = MacroSurfaceSpecVal(1:SurfSpecOutputSize,1:nSurfSample,1:nSurfSample,1:nLocalSides,iSpec))
     nVarCount = nVarCount + INT(SurfSpecOutputSize)
   END DO
-  CALL WriteArrayToHDF5(DataSetName=H5_Name            , rank=4                                              , &
-                        nValGlobal =(/nVar2D_Total     , nSurfSample, nSurfSample , nGlobalSides/)           , &
-                        nVal       =(/SurfOutputSize           , nSurfSample, nSurfSample , nLocalSides/)            , &
-                        offset     =(/INT(nVarCount,IK), 0_IK       , 0_IK        , offsetSurfSide/)         , &
-                        collective =.FALSE.                                                                  , &
+  CALL WriteArrayToHDF5(DataSetName=H5_Name          , rank=4      ,                                                   &
+                        nValGlobal =(/nVar2D_Total   , nSurfSample , nSurfSample , nGlobalSides/) ,                    &
+                        nVal       =(/SurfOutputSize , nSurfSample , nSurfSample , nLocalSides/)  ,                    &
+                        offset     =(/INT(nVarCount  , IK)         , 0_IK        , 0_IK           , offsetSurfSide/) , &
+                        collective =.FALSE.          ,                                                                 &
                         RealArray  = MacroSurfaceVal(1:SurfOutputSize,1:nSurfSample,1:nSurfSample,1:nLocalSides))
 END ASSOCIATE
 

@@ -81,12 +81,15 @@ LOGICAL                          :: ThroughSide, Done
 LOGICAL                          :: oldElemIsMortar, isMortarSideTemp(1:6), doCheckSide
 REAL                             :: minRatio, intersecDist, intersecDistVec(3)
 REAL                             :: IntersectionPos(1:3), IntersectionPosTemp(1:3)
-LOGICAL :: PhotonLost
+LOGICAL                          :: PhotonLost
 !===================================================================================================================================
 Done = .FALSE.
 ElemID = PhotonProps%ElemID
 SideID = 0
 DoneLastElem(:,:) = 0
+
+! Set initial starting position
+PhotonProps%PhotonStartPos = PhotonProps%PhotonPos
 ! 1) Loop tracking until Photon is considered "done" (either absorbed or deleted)
 DO WHILE (.NOT.Done)
   oldElemIsMortar = .FALSE.
@@ -321,7 +324,7 @@ DO WHILE (.NOT.Done)
       DONE = .TRUE.
     CASE(2) ! PartBound%ReflectiveBC
       ! Backup photon direction for ray tracing
-      PhotonProps%PhotonDirectionBeforeReflection(1:3) = PhotonProps%PhotonDirection(1:3)
+      IF(RadiationAbsorptionModel.EQ.0) PhotonProps%PhotonDirectionBeforeReflection(1:3) = PhotonProps%PhotonDirection(1:3)
 
       ! Check if specular of diffuse reflection
       IF (PartBound%PhotonSpecularReflection(iPBC)) THEN
@@ -344,12 +347,12 @@ DO WHILE (.NOT.Done)
       IF(RadiationAbsorptionModel.EQ.0)THEN
         CALL CalcAbsoprtion(IntersectionPos(1:3), ElemID, DONE, before = .TRUE.)
         IF (.NOT.DONE) THEN
-          CALL CalcWallAbsoprtion(SideID, DONE, RayForceAbsorption)
+          CALL CalcWallAbsoprtion(IntersectionPos(1:3),SideID, DONE, RayForceAbsorption)
           CALL CalcAbsoprtion(IntersectionPos(1:3), ElemID, DONE, before = .FALSE.)
         END IF ! .NOT.DONE
       ELSE
         CALL CalcAbsoprtion(IntersectionPos(1:3), ElemID, DONE)
-        IF (.NOT.DONE) CALL CalcWallAbsoprtion(SideID, DONE)
+        IF (.NOT.DONE) CALL CalcWallAbsoprtion(IntersectionPos(1:3),SideID, DONE)
       END IF ! RadiationAbsorptionModel.EQ.0
 
     CASE(3) ! PartBound%PeriodicBC
@@ -419,6 +422,10 @@ DO WHILE (.NOT.Done)
       END IF
     END IF ! PhotonLost
   END IF  ! BC(SideID).GT./.LE. 0
+
+  ! Store new position
+  PhotonProps%PhotonStartPos(1:3) = IntersectionPos(1:3)
+
   ! Check if output to PartStateBoundary is activated
   IF(PhotonModeBPO.EQ.2)THEN
     CALL StoreBoundaryParticleProperties(0,&
@@ -598,7 +605,7 @@ DO WHILE (.NOT.Done)
         IF (.NOT.DONE) CALL PerfectPhotonReflection2D(LocalSide,ElemID, IntersectionPos)
       ELSE
         CALL CalcAbsoprtion(IntersectionPos(1:3),ElemID, DONE)
-        IF (.NOT.DONE) CALL CalcWallAbsoprtion(SideID, DONE)
+        IF (.NOT.DONE) CALL CalcWallAbsoprtion(IntersectionPos(1:3),SideID, DONE)
         IF (.NOT.DONE) CALL DiffusePhotonReflection2D(LocalSide,ElemID, IntersectionPos)
       END IF
       LastSide = SideID

@@ -982,8 +982,8 @@ DO iPart=1,nParts
 END DO
 
 FileString=TRIM(TIMESTAMP(TRIM(ProjectName)//'_visuPart',OutputTime))//'.vtu'
-! CALL WriteDataToVTK_PICLas(1,FileString,nPartsVar,VarNamesParticle,nParts,PartData(1:3,1:nParts),nParts,&
-!                             PartData(4:nPartsVar+3,1:nParts),ConnectInfo(1,1:nParts))
+ CALL WriteDataToVTK_PICLas(1,1,FileString,nPartsVar,VarNamesParticle,nParts,PartData(1:3,1:nParts),nParts,&
+                             PartData(4:nPartsVar+3,1:nParts),ConnectInfo(1,1:nParts))
 
 SDEALLOCATE(VarNamesParticle)
 SDEALLOCATE(tmpArray)
