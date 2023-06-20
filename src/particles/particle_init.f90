@@ -272,9 +272,8 @@ USE MOD_Particle_Emission_Init     ,ONLY: InitialParticleInserting
 USE MOD_Particle_SurfFlux_Init     ,ONLY: InitializeParticleSurfaceflux
 USE MOD_SurfaceModel_Init          ,ONLY: InitSurfaceModel
 USE MOD_Particle_Surfaces          ,ONLY: InitParticleSurfaces
-USE MOD_Particle_Mesh_Vars         ,ONLY: GEO
 USE MOD_Particle_Sampling_Adapt    ,ONLY: InitAdaptiveBCSampling
-USE MOD_Particle_Boundary_Init     ,ONLY: InitParticleBoundaryRotPeriodic, InitAdaptiveWallTemp, InitRotPeriodicInterPlane
+USE MOD_Particle_Boundary_Init     ,ONLY: InitRotPeriodicMapping, InitAdaptiveWallTemp, InitRotPeriodicInterPlaneMapping
 USE MOD_DSMC_BGGas                 ,ONLY: BGGas_InitRegions
 #if USE_MPI
 USE MOD_Particle_MPI               ,ONLY: InitParticleCommSize
@@ -339,10 +338,10 @@ END IF
 
 ! Initialize surface sampling / rotational periodic mapping
 ! (the following IF arguments have to be considered in FinalizeParticleBoundarySampling as well)
-IF (WriteMacroSurfaceValues.OR.DSMC%CalcSurfaceVal.OR.(ANY(PartBound%Reactive)).OR.(nPorousBC.GT.0).OR.GEO%RotPeriodicBC) THEN
+IF (WriteMacroSurfaceValues.OR.DSMC%CalcSurfaceVal.OR.(ANY(PartBound%Reactive)).OR.(nPorousBC.GT.0).OR.PartBound%UseRotPeriodicBC) THEN
   CALL InitParticleBoundarySampling()
-  IF(GEO%RotPeriodicBC) CALL InitParticleBoundaryRotPeriodic()
-  IF(GEO%RotPeriodicBC) CALL InitRotPeriodicInterPlane()
+  IF(PartBound%UseRotPeriodicBC) CALL InitRotPeriodicMapping()
+  IF(PartBound%UseInterPlaneBC)  CALL InitRotPeriodicInterPlaneMapping()
   CALL InitAdaptiveWallTemp()
 END IF
 
@@ -824,7 +823,7 @@ USE MOD_ReadInTools
 USE MOD_Particle_Vars
 USE MOD_DSMC_Vars              ,ONLY: DSMC
 USE MOD_TimeDisc_Vars          ,ONLY: TEnd
-USE MOD_Particle_Boundary_Vars ,ONLY: AdaptWallTemp
+USE MOD_Particle_Boundary_Vars ,ONLY: PartBound
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Vars       ,ONLY: PerformLoadBalance
 #endif /*USE_LOADBALANCE*/
@@ -881,7 +880,7 @@ ELSE
 END IF
 
 ! Adaptive wall temperature should not be used with continuous sampling with multiple outputs as the sample is not reset
-IF(AdaptWallTemp) THEN
+IF(PartBound%AdaptWallTemp) THEN
   IF (DSMC%NumOutput.GT.1) THEN
     CALL abort(__STAMP__, &
       'ERROR: Enabled adaptation of the wall temperature and multiple outputs during a continuous sample is not supported!')

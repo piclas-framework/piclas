@@ -588,12 +588,12 @@ ElemLoop:  DO iElem = 1,nComputeNodeTotalElems
           END SELECT
 
           ! Check rot periodic Elems and if iSide is on rot periodic BC
-          IF(GEO%RotPeriodicBC) THEN
+          IF(PartBound%UseRotPeriodicBC) THEN
             DO iPartBound = 1, nPartBound
               IF(PartBound%TargetBoundCond(iPartBound).NE.PartBound%RotPeriodicBC) CYCLE
                 alpha = PartBound%RotPeriodicAngle(iPartBound) * PartBound%RotPeriodicTol
               ASSOCIATE(RotBoundMin => PartBound%RotPeriodicMin(iPartBound), RotBoundMax => PartBound%RotPeriodicMax(iPartBound))
-                SELECT CASE(GEO%RotPeriodicAxi)
+                SELECT CASE(PartBound%RotPeriodicAxis)
                   CASE(1) ! x-rotation axis
                     IF( (BoundsOfElemCenter(1).GE.RotBoundMax).OR.(BoundsOfElemCenter(1).LE.RotBoundMin) ) CYCLE
                     IF( (MPISideBoundsOfNbElemCenter(1,iSide).GE.RotBoundMax).OR. &
@@ -628,7 +628,7 @@ ElemLoop:  DO iElem = 1,nComputeNodeTotalElems
               END IF
             END DO ! nPartBound
             ! End check rot periodic Elems and if iSide is on rot periodic BC
-          END IF ! GEO%RotPeriodicBC
+          END IF ! PartBound%UseRotPeriodicBC
 
         ! Element is in range of not-periodically displaced MPI side
         ELSE
@@ -648,7 +648,7 @@ ElemLoop:  DO iElem = 1,nComputeNodeTotalElems
     SELECT CASE(GlobalProcToExchangeProc(EXCHANGE_PROC_TYPE,HaloProc))
       ! Proc not previously encountered, check if possibly in range
       CASE(-1)
-        IF(GEO%RotPeriodicBC) THEN
+        IF(PartBound%UseRotPeriodicBC) THEN
           GlobalProcToExchangeProc(EXCHANGE_PROC_TYPE,HaloProc) = 0
         ELSE
           firstElem = offsetElemMPI(HaloProc)+1
@@ -861,10 +861,10 @@ ElemLoop:  DO iElem = 1,nComputeNodeTotalElems
       END SELECT
 
       ! Check rot periodic Elems and if iSide is on rot periodic BC
-      IF(GEO%RotPeriodicBC) THEN
+      IF(PartBound%UseRotPeriodicBC) THEN
         DO iPartBound = 1, nPartBound
           alpha = PartBound%RotPeriodicAngle(iPartBound) * PartBound%RotPeriodicTol
-          SELECT CASE(GEO%RotPeriodicAxi)
+          SELECT CASE(PartBound%RotPeriodicAxis)
             CASE(1) ! x-rotation axis
               RotBoundsOfElemCenter(1) = BoundsOfElemCenter(1)
               RotBoundsOfElemCenter(2) = COS(alpha)*BoundsOfElemCenter(2) - SIN(alpha)*BoundsOfElemCenter(3)
@@ -895,7 +895,7 @@ ElemLoop:  DO iElem = 1,nComputeNodeTotalElems
           END IF
         END DO ! nPartBound
         ! End check rot periodic Elems and if iSide is on rot periodic BC
-      END IF ! GEO%RotPeriodicBC
+      END IF ! PartBound%UseRotPeriodicBC
 
     ! Element is in range of not-periodically displaced MPI side
     ELSE
@@ -978,8 +978,8 @@ ExchangeLoop: DO iElem = offsetElemMPI(iProc)+1,offsetElemMPI(iProc+1)
   END IF
 END DO ! iProc = 1,nExchangeProcessors
 
-IF(GEO%InterPlaneBC) THEN
-  k = GEO%RotPeriodicAxi ! Direction of rotation axis == norm vec for all inter planes
+IF(PartBound%UseInterPlaneBC) THEN
+  k = PartBound%RotPeriodicAxis ! Direction of rotation axis == norm vec for all inter planes
   DO iPartBound = 1,nPartBound
     ! ignore non-Inter-Plane-BCs
     IF(PartBound%TargetBoundCond(iPartBound).NE.PartBound%RotPeriodicInterPlaneBC) CYCLE

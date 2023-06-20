@@ -283,7 +283,7 @@ USE MOD_Globals
 USE MOD_Mesh_Tools              ,ONLY: GetCNElemID
 USE MOD_Particle_Intersection   ,ONLY: IntersectionWithWall, ParticleThroughSideCheck3DFast
 USE MOD_Particle_Mesh_Tools     ,ONLY: ParticleInsideQuad3D
-USE MOD_Particle_Mesh_Vars      ,ONLY: GEO, ElemInfo_Shared, SideInfo_Shared, ElemSideNodeID_Shared, NodeCoords_Shared
+USE MOD_Particle_Mesh_Vars      ,ONLY: ElemInfo_Shared, SideInfo_Shared, ElemSideNodeID_Shared, NodeCoords_Shared
 USE MOD_Particle_Vars           ,ONLY: PartState,LastPartPos,Species,PartSpecies
 USE MOD_Particle_Boundary_Vars  ,ONLY: PartBound
 USE MOD_Particle_Boundary_Vars  ,ONLY: RotPeriodicSideMapping, NumRotPeriodicNeigh, SurfSide2RotPeriodicSide, GlobalSide2SurfSide
@@ -333,7 +333,7 @@ END IF
 ! (1) perform the rotational periodic movement and adjust velocity vector
 rot_alpha = PartBound%RotPeriodicAngle(PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID)))
 rot_alpha_delta = PartBound%RotPeriodicAngle(PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID))) * PartBound%RotPeriodicTol
-SELECT CASE(GEO%RotPeriodicAxi)
+SELECT CASE(PartBound%RotPeriodicAxis)
   CASE(1) ! x-rotation axis
     LastPartPos_rotated(2) = COS(rot_alpha)*LastPartPos(2,PartID) - SIN(rot_alpha)*LastPartPos(3,PartID)
     LastPartPos_rotated(3) = SIN(rot_alpha)*LastPartPos(2,PartID) + COS(rot_alpha)*LastPartPos(3,PartID)
@@ -495,7 +495,6 @@ SUBROUTINE RotPeriodicInterPlaneBC(PartID,SideID,ElemID,IsInterPlanePart)
 ! MODULES
 USE MOD_Globals
 USE MOD_Globals_Vars           ,ONLY: PI
-USE MOD_Particle_Mesh_Vars     ,ONLY: GEO
 USE MOD_Particle_Vars          ,ONLY: PartState,LastPartPos,Species,PartSpecies
 USE MOD_Particle_Mesh_Vars     ,ONLY: SideInfo_Shared
 USE MOD_Particle_Boundary_Vars ,ONLY: PartBound, InterPlaneSideMapping
@@ -633,7 +632,7 @@ IF (DSMC%DoAmbipolarDiff) THEN
   IF(Species(PartSpecies(PartID))%ChargeIC.GT.0.0) Velo_oldAmbi(1:3) = AmbipolElecVelo(PartID)%ElecVelo(1:3)
 END IF
 
-SELECT CASE(GEO%RotPeriodicAxi)
+SELECT CASE(PartBound%RotPeriodicAxis)
   CASE(1) ! x-rotation axis
     k = 1
     l = 2

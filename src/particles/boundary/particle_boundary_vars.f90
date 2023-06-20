@@ -257,54 +257,64 @@ TYPE tPartBoundary
   INTEGER                                :: SymmetryAxis            = 11     ! = 10 (s.u.) Boundary Condition Integer Definition
   CHARACTER(LEN=200)   , ALLOCATABLE     :: SourceBoundName(:)           ! Link part 1 for mapping PICLas BCs to Particle BC
   INTEGER              , ALLOCATABLE     :: TargetBoundCond(:)           ! Link part 2 for mapping PICLas BCs to Particle BC
-!  INTEGER              , ALLOCATABLE     :: Map(:)                      ! Map from PICLas BCindex to Particle BC
   INTEGER              , ALLOCATABLE     :: MapToPartBC(:)               ! Map from PICLas BCindex to Particle BC (NOT TO TYPE!)
   INTEGER              , ALLOCATABLE     :: MapToFieldBC(:)              ! Map from Particle BC (NOT TO TYPE!) to PICLas BCindex
-  !!INTEGER              , ALLOCATABLE     :: SideBCType(:)              ! list with boundary condition for each side
-  INTEGER , ALLOCATABLE                  :: AssociatedPlane(:)           ! Link between both coressponding intermediate planes
-  INTEGER , ALLOCATABLE                  :: nSidesOnInterPlane(:)        ! Number of Sides on intermediate plane
-  REAL    , ALLOCATABLE                  :: NormalizedRadiusDir(:,:)     ! Normalized vector in radius direction that is use to
-                                                                         ! calculate a random position on same radius within the 
-                                                                         ! rot periodic segment
-  REAL    , ALLOCATABLE                  :: RotAxisPosition(:)           ! Position of inter plane at rotation axis
-  REAL    , ALLOCATABLE                  :: AngleRatioOfInterPlanes(:)   ! Ratio of rotation angles for the intermediate planes
+  ! Constant wall temperature and accommodation coefficients
+  REAL    , ALLOCATABLE                  :: WallTemp(:)
   REAL    , ALLOCATABLE                  :: MomentumACC(:)
-  REAL    , ALLOCATABLE                  :: WallTemp(:), WallTemp2(:), WallTempDelta(:)
-  REAL    , ALLOCATABLE                  :: TempGradStart(:,:), TempGradEnd(:,:), TempGradVec(:,:)
   REAL    , ALLOCATABLE                  :: TransACC(:)
   REAL    , ALLOCATABLE                  :: VibACC(:)
   REAL    , ALLOCATABLE                  :: RotACC(:)
   REAL    , ALLOCATABLE                  :: ElecACC(:)
+  ! Temperature gradient across reflective BC
+  REAL    , ALLOCATABLE                  :: WallTemp2(:), WallTempDelta(:)
+  REAL    , ALLOCATABLE                  :: TempGradStart(:,:), TempGradEnd(:,:), TempGradVec(:,:)
+  ! Linear and rotational wall velocity
   REAL    , ALLOCATABLE                  :: WallVelo(:,:)
   LOGICAL , ALLOCATABLE                  :: RotVelo(:)                    ! Flag for rotating walls
   REAL    , ALLOCATABLE                  :: RotOmega(:,:)                 ! Angular velocity
-  REAL    , ALLOCATABLE                  :: RotPeriodicAngle(:)           ! Angle and Direction of rotation
-  REAL    , ALLOCATABLE                  :: RotPeriodicMin(:)             ! Min rot axi value
-  REAL    , ALLOCATABLE                  :: RotPeriodicMax(:)             ! Max rot axi value
+  ! Species swap BCs
   INTEGER , ALLOCATABLE                  :: NbrOfSpeciesSwaps(:)          ! Number of Species to be changed at wall
   REAL    , ALLOCATABLE                  :: ProbOfSpeciesSwaps(:)         ! Probability of SpeciesSwaps at wall
   INTEGER , ALLOCATABLE                  :: SpeciesSwaps(:,:,:)           ! Species to be changed at wall (in, out), out=0: delete
+  ! Surface models
   INTEGER , ALLOCATABLE                  :: SurfaceModel(:)               ! Model used for surface interaction (e.g. SEE models)
   LOGICAL , ALLOCATABLE                  :: Reactive(:)                   ! flag defining if surface is treated reactively
   LOGICAL , ALLOCATABLE                  :: Resample(:)                   ! Resample Equilibrium Distribution with reflection
-  LOGICAL , ALLOCATABLE                  :: UseAdaptedWallTemp(:)         
+  ! Radiative-equilibrium BC
+  LOGICAL                                :: AdaptWallTemp
+  LOGICAL , ALLOCATABLE                  :: UseAdaptedWallTemp(:)
   REAL    , ALLOCATABLE                  :: RadiativeEmissivity(:)
+  ! Dielectric BC
   LOGICAL , ALLOCATABLE                  :: Dielectric(:)                 ! Define if particle boundary [$] is a dielectric
-!                                                                         ! interface, i.e. an interface between a dielectric and
-!                                                                         ! a non-dielectric or a between to different dielectrics
-!                                                                         ! [.TRUE.] or not [.FALSE.] (requires reflective BC)
-!                                                                         ! (Default=FALSE.)
-  LOGICAL , ALLOCATABLE                  :: BoundaryParticleOutputHDF5(:) ! Save particle position, velocity and species to
-!                                                                         ! PartDataBoundary container for writing to .h5 later
+                                                                          ! interface, i.e. an interface between a dielectric and
+                                                                          ! a non-dielectric or a between to different dielectrics
+                                                                          ! [.TRUE.] or not [.FALSE.] (requires reflective BC)
+                                                                          ! (Default=FALSE.)
   ! Multi rotational periodic and interplane BCs
-  REAL                                   :: RotPeriodicTol                ! Tolerance for rotationally periodic BC, angle is
-                                                                          ! multiplied by 1 - RotPeriodicTol
+  LOGICAL                                :: UseRotPeriodicBC            ! Flag for rotational periodicity
+  INTEGER                                :: RotPeriodicAxis             ! Axis of rotational periodicity
+  REAL                                   :: RotPeriodicTol              ! Tolerance for rotationally periodic BC, angle is multiplied
+                                                                        ! by 1 - RotPeriodicTol
+  REAL    , ALLOCATABLE                  :: RotPeriodicAngle(:)         ! Angle and direction of rotation [1:nPartBound]
+  REAL    , ALLOCATABLE                  :: RotPeriodicMin(:)           ! Min rot axi value [1:nPartBound]
+  REAL    , ALLOCATABLE                  :: RotPeriodicMax(:)           ! Max rot axi value [1:nPartBound]
+  LOGICAL                                :: UseInterPlaneBC             ! Flag for inter planes exist
+  INTEGER , ALLOCATABLE                  :: AssociatedPlane(:)          ! Link between both coressponding intermediate planes
+  INTEGER , ALLOCATABLE                  :: nSidesOnInterPlane(:)       ! Number of Sides on intermediate plane
+  REAL    , ALLOCATABLE                  :: NormalizedRadiusDir(:,:)    ! Normalized vector in radius direction that is used to
+                                                                        ! calculate a random position on same radius within the 
+                                                                        ! rot periodic segment
+  REAL    , ALLOCATABLE                  :: RotAxisPosition(:)          ! Position of inter plane at rotation axis
+  REAL    , ALLOCATABLE                  :: AngleRatioOfInterPlanes(:)  ! Ratio of rotation angles for the intermediate planes
+  ! Boundary particle output
+  LOGICAL , ALLOCATABLE                  :: BoundaryParticleOutputHDF5(:) ! Save particle position, velocity and species to
+                                                                          ! PartDataBoundary container for writing to .h5 later
 END TYPE
 
 INTEGER                                  :: nPartBound                    ! number of particle boundaries
 TYPE(tPartBoundary)                      :: PartBound                     ! Boundary Data for Particles
 
-LOGICAL                                  :: AdaptWallTemp
 
 ! Boundary particle output
 LOGICAL              :: DoBoundaryParticleOutputHDF5   ! Flag set automatically if particles crossing specific

@@ -725,7 +725,7 @@ USE MOD_SurfaceModel_Vars          ,ONLY: nPorousBC
 USE MOD_Particle_Boundary_Vars     ,ONLY: nSurfSample,CalcSurfaceImpact
 USE MOD_Particle_Boundary_Vars     ,ONLY: SurfSide2GlobalSide, GlobalSide2SurfSide, PartBound
 USE MOD_Particle_Boundary_Vars     ,ONLY: nComputeNodeSurfSides, BoundaryWallTemp
-USE MOD_Particle_Boundary_Vars     ,ONLY: PorousBCInfo_Shared,MapSurfSideToPorousSide_Shared, AdaptWallTemp
+USE MOD_Particle_Boundary_Vars     ,ONLY: PorousBCInfo_Shared,MapSurfSideToPorousSide_Shared
 USE MOD_Particle_Boundary_vars     ,ONLY: SurfOutputSize, SWIVarTimeStep, SWIStickingCoefficient
 USE MOD_Particle_Boundary_Vars     ,ONLY: MacroSurfaceVal, MacroSurfaceSpecVal
 USE MOD_Particle_Mesh_Vars         ,ONLY: SideInfo_Shared
@@ -888,7 +888,7 @@ DO iSurfSide = 1,nComputeNodeSurfSides
       END IF
       ! Output of the wall temperature
       IF (ANY(PartBound%UseAdaptedWallTemp)) THEN
-        IF ((MacroSurfaceVal(4,p,q,OutputCounter).GT.0.0).AND.AdaptWallTemp) THEN
+        IF ((MacroSurfaceVal(4,p,q,OutputCounter).GT.0.0).AND.PartBound%AdaptWallTemp) THEN
           iBC = PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,GlobalSideID))
           BoundaryWallTemp(p,q,iSurfSide) = (MacroSurfaceVal(4,p,q,OutputCounter) &
               /(StefanBoltzmannConst*PartBound%RadiativeEmissivity(iBC)))**(1./4.)
@@ -1179,7 +1179,6 @@ USE MOD_DSMC_Vars                      ,ONLY: DSMC
 USE MOD_Particle_Boundary_Vars
 USE MOD_Particle_Vars               ,ONLY: WriteMacroSurfaceValues
 USE MOD_SurfaceModel_Vars           ,ONLY: nPorousBC
-USE MOD_Particle_Mesh_Vars          ,ONLY: GEO
 #if USE_MPI
 USE MOD_MPI_Shared_Vars                ,ONLY: MPI_COMM_SHARED,MPI_COMM_LEADERS_SURF
 USE MOD_MPI_Shared
@@ -1196,7 +1195,7 @@ IMPLICIT NONE
 !===================================================================================================================================
 
 ! Return if nothing was allocated
-IF (.NOT.WriteMacroSurfaceValues.AND..NOT.DSMC%CalcSurfaceVal.AND..NOT.(ANY(PartBound%Reactive)).AND..NOT.(nPorousBC.GT.0).AND..NOT.GEO%RotPeriodicBC) RETURN
+IF (.NOT.WriteMacroSurfaceValues.AND..NOT.DSMC%CalcSurfaceVal.AND..NOT.(ANY(PartBound%Reactive)).AND..NOT.(nPorousBC.GT.0).AND..NOT.PartBound%UseRotPeriodicBC) RETURN
 
 ! First, free every shared memory window. This requires MPI_BARRIER as per MPI3.1 specification
 #if USE_MPI

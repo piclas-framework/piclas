@@ -98,6 +98,7 @@ USE MOD_ReadInTools            ,ONLY: GETREAL,GetRealArray,PrintOption
 USE MOD_Particle_Mesh_Vars     ,ONLY: NodeCoords_Shared
 USE MOD_Particle_Mesh_Vars     ,ONLY: ElemInfo_Shared,FIBGM_nElems,ElemToBGM_Shared,FIBGM_offsetElem
 USE MOD_Particle_Mesh_Vars     ,ONLY: BoundsOfElem_Shared,GEO,FIBGM_Element
+USE MOD_Particle_Boundary_Vars ,ONLY: PartBound
 #if (PP_TimeDiscMethod==501) || (PP_TimeDiscMethod==502) || (PP_TimeDiscMethod==506)
 USE MOD_TimeDisc_Vars          ,ONLY: iStage,nRKStages,RK_c
 #endif
@@ -698,9 +699,9 @@ ELSE
 
   IF (MeshHasPeriodic)    CALL CheckPeriodicSides   (EnlargeBGM)
   CALL BARRIER_AND_SYNC(ElemInfo_Shared_Win,MPI_COMM_SHARED)
-  IF (GEO%RotPeriodicBC) CALL CheckRotPeriodicSides(EnlargeBGM)
+  IF (PartBound%UseRotPeriodicBC) CALL CheckRotPeriodicSides(EnlargeBGM)
   CALL BARRIER_AND_SYNC(ElemInfo_Shared_Win,MPI_COMM_SHARED) 
-  IF (GEO%InterPlaneBC) CALL CheckInterPlaneSides(EnlargeBGM)
+  IF (PartBound%UseInterPlaneBC) CALL CheckInterPlaneSides(EnlargeBGM)
   CALL BARRIER_AND_SYNC(ElemInfo_Shared_Win,MPI_COMM_SHARED)
 
   ! Remove elements if the halo proc contains only internal elements, i.e. we cannot possibly reach the halo element
@@ -1798,7 +1799,7 @@ USE MOD_Globals
 USE MOD_Preproc
 USE MOD_MPI_Shared_Vars
 USE MOD_Mesh_Vars              ,ONLY: nGlobalElems
-USE MOD_Particle_Mesh_Vars     ,ONLY: ElemInfo_Shared,BoundsOfElem_Shared,nComputeNodeElems,GEO
+USE MOD_Particle_Mesh_Vars     ,ONLY: ElemInfo_Shared,BoundsOfElem_Shared,nComputeNodeElems
 USE MOD_Particle_MPI_Vars      ,ONLY: halo_eps
 USE MOD_MPI_Vars               ,ONLY: offsetElemMPI
 USE MOD_Particle_Boundary_Vars ,ONLY: PartBound,nPartBound
@@ -1856,7 +1857,7 @@ DO iElem = firstElem ,lastElem
       IF(PartBound%TargetBoundCond(iPartBound).NE.PartBound%RotPeriodicBC) CYCLE
         alpha = PartBound%RotPeriodicAngle(iPartBound) * PartBound%RotPeriodicTol
       ASSOCIATE(RotBoundMin => PartBound%RotPeriodicMin(iPartBound), RotBoundMax => PartBound%RotPeriodicMax(iPartBound))
-        SELECT CASE(GEO%RotPeriodicAxi)
+        SELECT CASE(PartBound%RotPeriodicAxis)
           CASE(1) ! x-rotation axis
             IF( (     BoundsOfElemCenter(1).GE.RotBoundMax).OR.(     BoundsOfElemCenter(1).LE.RotBoundMin) ) CYCLE
             IF( (LocalBoundsOfElemCenter(1).GE.RotBoundMax).OR.(LocalBoundsOfElemCenter(1).LE.RotBoundMin) ) CYCLE
@@ -1907,7 +1908,7 @@ USE MOD_Globals
 USE MOD_Preproc
 USE MOD_MPI_Shared_Vars
 USE MOD_Mesh_Vars              ,ONLY: nGlobalElems
-USE MOD_Particle_Mesh_Vars     ,ONLY: ElemInfo_Shared,BoundsOfElem_Shared,nComputeNodeElems,GEO
+USE MOD_Particle_Mesh_Vars     ,ONLY: ElemInfo_Shared,BoundsOfElem_Shared,nComputeNodeElems
 USE MOD_Particle_MPI_Vars      ,ONLY: halo_eps
 USE MOD_MPI_Vars               ,ONLY: offsetElemMPI
 USE MOD_Particle_Boundary_Vars ,ONLY: PartBound,nPartBound
@@ -1931,7 +1932,7 @@ lastElem  = INT(REAL((myComputeNodeRank+1))*REAL(nGlobalElems)/REAL(nComputeNode
 
 ! The code below changes ElemInfo_Shared, identification of periodic elements must complete before
 ! Direction of rotation axis == norm vec for all inter planes
-k = GEO%RotPeriodicAxi
+k = PartBound%RotPeriodicAxis
 CALL MPI_BARRIER(MPI_COMM_SHARED,IERROR)
 DO iPartBound = 1,nPartBound
   ! ignore non-Inter-Plane-BCs

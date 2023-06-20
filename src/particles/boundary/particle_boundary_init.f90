@@ -27,7 +27,7 @@ PRIVATE
 
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
 PUBLIC :: DefineParametersParticleBoundary, InitializeVariablesPartBoundary, FinalizeParticleBoundary
-PUBLIC :: InitParticleBoundaryRotPeriodic, InitAdaptiveWallTemp, InitRotPeriodicInterPlane
+PUBLIC :: InitAdaptiveWallTemp, InitRotPeriodicMapping, InitRotPeriodicInterPlaneMapping
 !===================================================================================================================================
 
 CONTAINS
@@ -163,15 +163,13 @@ USE MOD_Globals_Vars           ,ONLY: PI
 USE MOD_ReadInTools
 USE MOD_Dielectric_Vars        ,ONLY: DoDielectricSurfaceCharge
 USE MOD_DSMC_Vars              ,ONLY: useDSMC, BGGas
-USE MOD_Mesh_Vars              ,ONLY: BoundaryName,BoundaryType, nBCs, NodeMap
+USE MOD_Mesh_Vars              ,ONLY: BoundaryName,BoundaryType, nBCs
 USE MOD_Particle_Vars          ,ONLY: PDM, nSpecies, PartMeshHasPeriodicBCs, RotRefFrameAxis, SpeciesDatabase, Species
 USE MOD_SurfaceModel_Vars      ,ONLY: nPorousBC
-USE MOD_Particle_Boundary_Vars ,ONLY: PartBound,nPartBound,DoBoundaryParticleOutputHDF5,PartStateBoundary, AdaptWallTemp
+USE MOD_Particle_Boundary_Vars ,ONLY: PartBound,nPartBound,DoBoundaryParticleOutputHDF5,PartStateBoundary
 USE MOD_Particle_Boundary_Vars ,ONLY: nVarPartStateBoundary
 USE MOD_Particle_Tracking_Vars ,ONLY: TrackingMethod
 USE MOD_Particle_Surfaces_Vars ,ONLY: BCdata_auxSF
-USE MOD_Particle_Mesh_Vars     ,ONLY: GEO, nNonUniqueGlobalSides
-USE MOD_Particle_Mesh_Vars     ,ONLY: ElemInfo_Shared,SideInfo_Shared,NodeCoords_Shared
 USE MOD_Particle_Emission_Init ,ONLY: InitializeVariablesSpeciesBoundary
 USE MOD_PICDepo_Vars           ,ONLY: DepositionType,DoHaloDepo
 USE MOD_HDF5_input             ,ONLY: OpenDataFile, ReadArray, DatasetExists, GetDataSize, nDims, HSize, CloseDataFile
@@ -190,16 +188,14 @@ USE MOD_LoadBalance_Vars       ,ONLY: PerformLoadBalance
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER               :: iPartBound, iBC, iPBC, iSwaps, MaxNbrOfSpeciesSwaps, RotAxis, nRotPeriodicBCs, ElemID, iSide
+INTEGER               :: iPartBound, iBC, iPBC, iSwaps, MaxNbrOfSpeciesSwaps, RotAxis, nRotPeriodicBCs
 INTEGER               :: ALLOCSTAT, dummy_int
-REAL                  :: omegaTemp, RotFreq, Pmax, Pmin
+REAL                  :: omegaTemp, RotFreq
 CHARACTER(32)         :: hilf , hilf2
 CHARACTER(200)        :: tmpString
 CHARACTER(LEN=64)     :: dsetname
 LOGICAL               :: StickingCoefficientExists,FoundPartBoundSEE
 INTEGER               :: iInit,iSpec
-INTEGER, ALLOCATABLE  :: InterPlanePositionCount(:)
-INTEGER               :: LocSideID, nStart
 !===================================================================================================================================
 ! Read in boundary parameters
 dummy_int  = CountOption('Part-nBounds') ! check if Part-nBounds is present in .ini file
@@ -238,14 +234,8 @@ ALLOCATE(PartBound%RotOmega(       1:3,1:nPartBound))
 PartBound%RotOmega = 0.
 ALLOCATE(PartBound%NormalizedRadiusDir(1:2, 1:nPartBound))
 PartBound%NormalizedRadiusDir = 0
-ALLOCATE(PartBound%RotAxisPosition(1:nPartBound))
-PartBound%RotAxisPosition = 0
 ALLOCATE(PartBound%RotPeriodicAngle(  1:nPartBound))
 PartBound%RotPeriodicAngle = 0
-ALLOCATE(PartBound%RotPeriodicMin(  1:nPartBound))
-PartBound%RotPeriodicMin = HUGE(1.)
-ALLOCATE(PartBound%RotPeriodicMax(  1:nPartBound))
-PartBound%RotPeriodicMax = -HUGE(1.)
 ALLOCATE(PartBound%AssociatedPlane(  1:nPartBound))
 PartBound%AssociatedPlane = -1
 ALLOCATE(PartBound%AngleRatioOfInterPlanes(  1:nPartBound))
@@ -293,9 +283,9 @@ PartBound%BoundaryParticleOutputHDF5=.FALSE.
 DoBoundaryParticleOutputHDF5=.FALSE.
 
 PartMeshHasPeriodicBCs= .FALSE.
-GEO%RotPeriodicBC     = .FALSE.
+PartBound%UseRotPeriodicBC     = .FALSE.
 nRotPeriodicBCs       = 0
-GEO%InterPlaneBC      = .FALSE.
+PartBound%UseInterPlaneBC      = .FALSE.
 ! TODO: REMOVE THIS CALL WHEN MERGED WITH UNIFIED SPECIES DATABASE BRANCH
 SpeciesDatabase = GETSTR('Particles-Species-Database', 'none')
 
@@ -410,7 +400,7 @@ DO iPartBound=1,nPartBound
     PartBound%TargetBoundCond(iPartBound) = PartBound%SymmetryAxis
     PartBound%WallVelo(1:3,iPartBound)    = (/0.,0.,0./)
   CASE('rot_periodic')
-    GEO%RotPeriodicBC = .TRUE.
+    PartBound%UseRotPeriodicBC = .TRUE.
     nRotPeriodicBCs  = nRotPeriodicBCs + 1
     PartBound%TargetBoundCond(iPartBound)  = PartBound%RotPeriodicBC
     PartBound%RotPeriodicAngle(iPartBound) = GETREAL('Part-Boundary'//TRIM(hilf)//'-RotPeriodicAngle')
@@ -420,7 +410,7 @@ DO iPartBound=1,nPartBound
    ! Rotate the particle slightly inside the domain
     PartBound%RotPeriodicAngle(iPartBound) = PartBound%RotPeriodicAngle(iPartBound) / 180. * PI
   CASE('rot_periodic_inter_plane')
-    GEO%InterPlaneBC = .TRUE.
+    PartBound%UseInterPlaneBC = .TRUE.
     PartBound%TargetBoundCond(iPartBound)  = PartBound%RotPeriodicInterPlaneBC
     PartBound%AssociatedPlane(iPartBound)  = GETINT('Part-Boundary'//TRIM(hilf)//'-AssociatedPlane')
     IF(PartBound%AssociatedPlane(iPartBound).LE.0.OR.PartBound%AssociatedPlane(iPartBound).GT.nPartBound) THEN
@@ -450,7 +440,7 @@ END DO SpecLoop
 ! Connect emission inits to particle boundaries for output
 IF(DoBoundaryParticleOutputHDF5.OR.FoundPartBoundSEE) CALL InitializeVariablesSpeciesBoundary()
 
-AdaptWallTemp = GETLOGICAL('Part-AdaptWallTemp')
+PartBound%AdaptWallTemp = GETLOGICAL('Part-AdaptWallTemp')
 
 ! Surface particle output to .h5
 IF(DoBoundaryParticleOutputHDF5)THEN
@@ -491,112 +481,9 @@ DO iBC = 1,nBCs
   IF (PartBound%MapToPartBC(iBC).EQ.-10) CALL abort(__STAMP__,' PartBound%MapToPartBC for Boundary is not set. iBC: :',iBC)
 END DO
 
-IF(GEO%RotPeriodicBC) THEN
-  GEO%RotPeriodicAxi   = GETINT('Part-RotPeriodicAxi')
-  PartBound%RotPeriodicTol = 1. - GETREAL('PartBound-RotPeriodicTol')
-  IF(MOD(nRotPeriodicBCs,2).NE.0) THEN
-    ! Check whether two corresponding RotPeriodic BCs are always set
-    CALL abort(__STAMP__,'ERROR: Uneven number of rot_periodic BCs. Check whether two corresponding RotPeriodic BCs are set!')
-  ELSE IF(nRotPeriodicBCs.NE.2) THEN
-    ! Determine the min and max values along the rot periodic axis of the BC region
-    ! Loop over all sides
-    DO iSide = 1,nNonUniqueGlobalSides
-      ! Ignore non-BC sides
-      IF (SideInfo_Shared(SIDE_BCID,iSide).LE.0) CYCLE
-      iPartBound = PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,iSide))
-      ! Consider only rotationally periodic BC sides
-      IF (PartBound%TargetBoundCond(iPartBound).EQ.PartBound%RotPeriodicBC)THEN
-        ElemID = SideInfo_Shared(SIDE_ELEMID,iSide)
-        LocSideID = SideInfo_Shared(SIDE_LOCALID,iSide)
-        IF (LocSideID.LE.0) CYCLE
-        ! Find start of CGNS mapping from flip
-        IF (SideInfo_Shared(SIDE_ID,iSide).GT.0) THEN
-          nStart = 0
-        ELSE
-          nStart = MAX(0,MOD(SideInfo_Shared(SIDE_FLIP,iSide),10)-1)
-        END IF
-        ! Get the minimum and maximum coordinate of the side
-        Pmax = MAXVAL(NodeCoords_Shared(GEO%RotPeriodicAxi, (/ElemInfo_Shared(ELEM_FIRSTNODEIND,ElemID)+NodeMap(MOD(nStart  ,4)+1,LocSideID), &
-                                                      ElemInfo_Shared(ELEM_FIRSTNODEIND,ElemID)+NodeMap(MOD(nStart+1,4)+1,LocSideID), &
-                                                      ElemInfo_Shared(ELEM_FIRSTNODEIND,ElemID)+NodeMap(MOD(nStart+2,4)+1,LocSideID), &
-                                                      ElemInfo_Shared(ELEM_FIRSTNODEIND,ElemID)+NodeMap(MOD(nStart+3,4)+1,LocSideID)/)))
-        Pmin = MINVAL(NodeCoords_Shared(GEO%RotPeriodicAxi, (/ElemInfo_Shared(ELEM_FIRSTNODEIND,ElemID)+NodeMap(MOD(nStart  ,4)+1,LocSideID), &
-                                                      ElemInfo_Shared(ELEM_FIRSTNODEIND,ElemID)+NodeMap(MOD(nStart+1,4)+1,LocSideID), &
-                                                      ElemInfo_Shared(ELEM_FIRSTNODEIND,ElemID)+NodeMap(MOD(nStart+2,4)+1,LocSideID), &
-                                                      ElemInfo_Shared(ELEM_FIRSTNODEIND,ElemID)+NodeMap(MOD(nStart+3,4)+1,LocSideID)/)))
-        PartBound%RotPeriodicMax(iPartBound) = MAX(Pmax,PartBound%RotPeriodicMax(iPartBound))
-        PartBound%RotPeriodicMin(iPartBound) = MIN(Pmin,PartBound%RotPeriodicMin(iPartBound))
-      END IF
-    END DO
-    ! Sanity check: is the maximum greater than the minimum
-    DO iPartBound=1,nPartBound
-      WRITE(UNIT=hilf,FMT='(I0)') iPartBound
-      IF(PartBound%TargetBoundCond(iPartBound).EQ.PartBound%RotPeriodicBC) THEN
-        SWRITE(*,*) 'DEBUG: ', TRIM(PartBound%SourceBoundName(iPartBound)), PartBound%RotPeriodicMin(iPartBound), PartBound%RotPeriodicMax(iPartBound)
-        IF(PartBound%RotPeriodicMin(iPartBound).GE.PartBound%RotPeriodicMax(iPartBound)) THEN
-          SWRITE(*,*) 'ERROR: PartBound%RotPeriodicMin(iPartBound) > PartBound%RotPeriodicMax(iPartBound)'
-          SWRITE(*,*) 'Min: ', PartBound%RotPeriodicMin(iPartBound), 'Max: ', PartBound%RotPeriodicMax(iPartBound)
-          CALL abort(__STAMP__,'ERROR: Minimum coordinate at rotational axis is higher than maximum coordinate at BC: ',&
-                      IntInfoOpt=iPartBound)
-        END IF
-      END IF
-    END DO
-  END IF
-END IF
+IF(PartBound%UseRotPeriodicBC) CALL InitParticleBoundaryRotPeriodic(nRotPeriodicBCs)
 
-IF(GEO%InterPlaneBC) THEN
-  IF(.NOT.GEO%RotPeriodicBC) THEN
-    CALL abort(__STAMP__,'ERROR: Interplane BCs are currently only implemented in combination with rot_periodic BCs!')
-  END IF
-
-  ALLOCATE(InterPlanePositionCount(nPartBound))
-  InterPlanePositionCount = 0
-
-  ! check every BC side
-  DO iSide = 1,nNonUniqueGlobalSides
-    ! ignore non-BC sides
-    IF (SideInfo_Shared(SIDE_BCID,iSide).LE.0) CYCLE
-    iPartBound = PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,iSide))
-    ! consider only rotationally periodic BC sides
-    IF (PartBound%TargetBoundCond(iPartBound).EQ.PartBound%RotPeriodicInterPlaneBC)THEN
-      ElemID    = SideInfo_Shared(SIDE_ELEMID ,iSide)
-      LocSideID = SideInfo_Shared(SIDE_LOCALID,iSide)
-      IF (LocSideID.LE.0) CYCLE
-      ! Find start of CGNS mapping from flip
-      IF (SideInfo_Shared(SIDE_ID,iSide).GT.0) THEN
-        nStart = 0
-      ELSE
-        nStart = MAX(0,MOD(SideInfo_Shared(SIDE_FLIP,iSide),10)-1)
-      END IF
-      PartBound%RotAxisPosition(iPartBound) = PartBound%RotAxisPosition(iPartBound) &
-        + SUM(NodeCoords_Shared(GEO%RotPeriodicAxi, (/ElemInfo_Shared(ELEM_FIRSTNODEIND,ElemID)+NodeMap(MOD(nStart  ,4)+1,LocSideID), &
-                                                      ElemInfo_Shared(ELEM_FIRSTNODEIND,ElemID)+NodeMap(MOD(nStart+1,4)+1,LocSideID), &
-                                                      ElemInfo_Shared(ELEM_FIRSTNODEIND,ElemID)+NodeMap(MOD(nStart+2,4)+1,LocSideID), &
-                                                      ElemInfo_Shared(ELEM_FIRSTNODEIND,ElemID)+NodeMap(MOD(nStart+3,4)+1,LocSideID)/))) / 4.
-      InterPlanePositionCount(iPartBound) = InterPlanePositionCount(iPartBound) + 1
-    END IF
-  END DO
-  ! Average of the inter-plane position and sanity check whether the associated BCs have the same position
-  DO iPartBound=1,nPartBound
-    IF(PartBound%TargetBoundCond(iPartBound).EQ.PartBound%RotPeriodicInterPlaneBC) THEN
-      IF(PartBound%AssociatedPlane(iPartBound).LE.0.OR.PartBound%AssociatedPlane(iPartBound).GT.nPartBound) THEN
-        CALL abort(__STAMP__,'ERROR: Associated inter-plane BC number is not defined! BC ID: ',IntInfoOpt=iPartBound)
-      END IF
-      IF(InterPlanePositionCount(iPartBound).EQ.0) THEN
-        CALL abort(__STAMP__,'ERROR: No sides for the inter-plane BC found, BC ID: ',IntInfoOpt=iPartBound)
-      END IF
-      PartBound%RotAxisPosition(iPartBound) = PartBound%RotAxisPosition(iPartBound) / InterPlanePositionCount(iPartBound)
-      SWRITE(*,*) 'DEBUG: ', TRIM(PartBound%SourceBoundName(iPartBound)), PartBound%RotAxisPosition(iPartBound)
-      IF(iPartBound.GT.PartBound%AssociatedPlane(iPartBound)) THEN
-        IF(.NOT.ALMOSTEQUALRELATIVE(PartBound%RotAxisPosition(iPartBound),PartBound%RotAxisPosition(PartBound%AssociatedPlane(iPartBound)),1E-5)) THEN
-          IPWRITE(*,*) 'BC 1: ', PartBound%AssociatedPlane(iPartBound), 'BC 2: ', iPartBound
-          IPWRITE(*,*) 'Position: ', PartBound%RotAxisPosition(PartBound%AssociatedPlane(iPartBound)), 'Max: ', PartBound%RotAxisPosition(iPartBound)
-          CALL abort(__STAMP__,'ERROR: Position of the associated interplane BCs is not almost equal!')
-        END IF
-      END IF
-    END IF
-  END DO
-END IF
+IF(PartBound%UseInterPlaneBC) CALL InitParticleBoundaryInterPlane()
 
 !-- Floating Potential
 ALLOCATE(BCdata_auxSF(1:nPartBound))
@@ -628,11 +515,180 @@ END IF
 END SUBROUTINE InitializeVariablesPartBoundary
 
 
+SUBROUTINE InitParticleBoundaryRotPeriodic(nRotPeriodicBCs)
+!===================================================================================================================================
+!>
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals
+USE MOD_ReadInTools
+USE MOD_Mesh_Vars              ,ONLY: NodeMap
+USE MOD_Particle_Boundary_Vars ,ONLY: PartBound,nPartBound
+USE MOD_Particle_Mesh_Vars     ,ONLY: nNonUniqueGlobalSides
+USE MOD_Particle_Mesh_Vars     ,ONLY: ElemInfo_Shared,SideInfo_Shared,NodeCoords_Shared
+#if USE_LOADBALANCE
+USE MOD_LoadBalance_Vars       ,ONLY: PerformLoadBalance
+#endif /*USE_LOADBALANCE*/
+! IMPLICIT VARIABLE HANDLING
+ IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+INTEGER               :: nRotPeriodicBCs
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+CHARACTER(32)         :: hilf
+INTEGER               :: iPartBound, ElemID, iSide, LocSideID, nStart
+REAL                  :: Pmax, Pmin
+!===================================================================================================================================
+
+ALLOCATE(PartBound%RotPeriodicMin(  1:nPartBound))
+PartBound%RotPeriodicMin = HUGE(1.)
+ALLOCATE(PartBound%RotPeriodicMax(  1:nPartBound))
+PartBound%RotPeriodicMax = -HUGE(1.)
+
+PartBound%RotPeriodicAxis   = GETINT('Part-RotPeriodicAxi')
+PartBound%RotPeriodicTol = 1. - GETREAL('PartBound-RotPeriodicTol')
+IF(MOD(nRotPeriodicBCs,2).NE.0) THEN
+  ! Check whether two corresponding RotPeriodic BCs are always set
+  CALL abort(__STAMP__,'ERROR: Uneven number of rot_periodic BCs. Check whether two corresponding RotPeriodic BCs are set!')
+ELSE IF(nRotPeriodicBCs.NE.2) THEN
+  ! Determine the min and max values along the rot periodic axis of the BC region
+  ! Loop over all sides
+  DO iSide = 1,nNonUniqueGlobalSides
+    ! Ignore non-BC sides
+    IF (SideInfo_Shared(SIDE_BCID,iSide).LE.0) CYCLE
+    iPartBound = PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,iSide))
+    ! Consider only rotationally periodic BC sides
+    IF (PartBound%TargetBoundCond(iPartBound).EQ.PartBound%RotPeriodicBC)THEN
+      ElemID = SideInfo_Shared(SIDE_ELEMID,iSide)
+      LocSideID = SideInfo_Shared(SIDE_LOCALID,iSide)
+      IF (LocSideID.LE.0) CYCLE
+      ! Find start of CGNS mapping from flip
+      IF (SideInfo_Shared(SIDE_ID,iSide).GT.0) THEN
+        nStart = 0
+      ELSE
+        nStart = MAX(0,MOD(SideInfo_Shared(SIDE_FLIP,iSide),10)-1)
+      END IF
+      ! Get the minimum and maximum coordinate of the side
+      Pmax = MAXVAL(NodeCoords_Shared(PartBound%RotPeriodicAxis, (/ElemInfo_Shared(ELEM_FIRSTNODEIND,ElemID)+NodeMap(MOD(nStart  ,4)+1,LocSideID), &
+                                                    ElemInfo_Shared(ELEM_FIRSTNODEIND,ElemID)+NodeMap(MOD(nStart+1,4)+1,LocSideID), &
+                                                    ElemInfo_Shared(ELEM_FIRSTNODEIND,ElemID)+NodeMap(MOD(nStart+2,4)+1,LocSideID), &
+                                                    ElemInfo_Shared(ELEM_FIRSTNODEIND,ElemID)+NodeMap(MOD(nStart+3,4)+1,LocSideID)/)))
+      Pmin = MINVAL(NodeCoords_Shared(PartBound%RotPeriodicAxis, (/ElemInfo_Shared(ELEM_FIRSTNODEIND,ElemID)+NodeMap(MOD(nStart  ,4)+1,LocSideID), &
+                                                    ElemInfo_Shared(ELEM_FIRSTNODEIND,ElemID)+NodeMap(MOD(nStart+1,4)+1,LocSideID), &
+                                                    ElemInfo_Shared(ELEM_FIRSTNODEIND,ElemID)+NodeMap(MOD(nStart+2,4)+1,LocSideID), &
+                                                    ElemInfo_Shared(ELEM_FIRSTNODEIND,ElemID)+NodeMap(MOD(nStart+3,4)+1,LocSideID)/)))
+      PartBound%RotPeriodicMax(iPartBound) = MAX(Pmax,PartBound%RotPeriodicMax(iPartBound))
+      PartBound%RotPeriodicMin(iPartBound) = MIN(Pmin,PartBound%RotPeriodicMin(iPartBound))
+    END IF
+  END DO
+  ! Sanity check: is the maximum greater than the minimum
+  DO iPartBound=1,nPartBound
+    WRITE(UNIT=hilf,FMT='(I0)') iPartBound
+    IF(PartBound%TargetBoundCond(iPartBound).EQ.PartBound%RotPeriodicBC) THEN
+      LBWRITE(*,*) '| ', TRIM(PartBound%SourceBoundName(iPartBound)), ' Min, Max: ', PartBound%RotPeriodicMin(iPartBound), PartBound%RotPeriodicMax(iPartBound)
+      IF(PartBound%RotPeriodicMin(iPartBound).GE.PartBound%RotPeriodicMax(iPartBound)) THEN
+        SWRITE(*,*) 'ERROR: PartBound%RotPeriodicMin(iPartBound) > PartBound%RotPeriodicMax(iPartBound)'
+        SWRITE(*,*) 'Min: ', PartBound%RotPeriodicMin(iPartBound), 'Max: ', PartBound%RotPeriodicMax(iPartBound)
+        CALL abort(__STAMP__,'ERROR: Minimum coordinate at rotational axis is higher than maximum coordinate at BC: ',&
+                    IntInfoOpt=iPartBound)
+      END IF
+    END IF
+  END DO
+END IF
+
+END SUBROUTINE InitParticleBoundaryRotPeriodic
+
+
+SUBROUTINE InitParticleBoundaryInterPlane()
+!===================================================================================================================================
+!>
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals
+USE MOD_Globals_Vars           ,ONLY: PI
+USE MOD_Mesh_Vars              ,ONLY: NodeMap
+USE MOD_Particle_Boundary_Vars ,ONLY: PartBound,nPartBound
+USE MOD_Particle_Mesh_Vars     ,ONLY: nNonUniqueGlobalSides
+USE MOD_Particle_Mesh_Vars     ,ONLY: ElemInfo_Shared,SideInfo_Shared,NodeCoords_Shared
+! IMPLICIT VARIABLE HANDLING
+ IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER               :: iPartBound, ElemID, iSide
+INTEGER, ALLOCATABLE  :: InterPlanePositionCount(:)
+INTEGER               :: LocSideID, nStart
+!===================================================================================================================================
+
+IF(.NOT.PartBound%UseRotPeriodicBC) THEN
+  CALL abort(__STAMP__,'ERROR: Interplane BCs are currently only implemented in combination with rot_periodic BCs!')
+END IF
+
+ALLOCATE(InterPlanePositionCount(nPartBound))
+InterPlanePositionCount = 0
+
+ALLOCATE(PartBound%RotAxisPosition(1:nPartBound))
+PartBound%RotAxisPosition = 0
+
+! check every BC side
+DO iSide = 1,nNonUniqueGlobalSides
+  ! ignore non-BC sides
+  IF (SideInfo_Shared(SIDE_BCID,iSide).LE.0) CYCLE
+  iPartBound = PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,iSide))
+  ! consider only rotationally periodic BC sides
+  IF (PartBound%TargetBoundCond(iPartBound).EQ.PartBound%RotPeriodicInterPlaneBC)THEN
+    ElemID    = SideInfo_Shared(SIDE_ELEMID ,iSide)
+    LocSideID = SideInfo_Shared(SIDE_LOCALID,iSide)
+    IF (LocSideID.LE.0) CYCLE
+    ! Find start of CGNS mapping from flip
+    IF (SideInfo_Shared(SIDE_ID,iSide).GT.0) THEN
+      nStart = 0
+    ELSE
+      nStart = MAX(0,MOD(SideInfo_Shared(SIDE_FLIP,iSide),10)-1)
+    END IF
+    PartBound%RotAxisPosition(iPartBound) = PartBound%RotAxisPosition(iPartBound) &
+      + SUM(NodeCoords_Shared(PartBound%RotPeriodicAxis, (/ElemInfo_Shared(ELEM_FIRSTNODEIND,ElemID)+NodeMap(MOD(nStart  ,4)+1,LocSideID), &
+                                                    ElemInfo_Shared(ELEM_FIRSTNODEIND,ElemID)+NodeMap(MOD(nStart+1,4)+1,LocSideID), &
+                                                    ElemInfo_Shared(ELEM_FIRSTNODEIND,ElemID)+NodeMap(MOD(nStart+2,4)+1,LocSideID), &
+                                                    ElemInfo_Shared(ELEM_FIRSTNODEIND,ElemID)+NodeMap(MOD(nStart+3,4)+1,LocSideID)/))) / 4.
+    InterPlanePositionCount(iPartBound) = InterPlanePositionCount(iPartBound) + 1
+  END IF
+END DO
+! Average of the inter-plane position and sanity check whether the associated BCs have the same position
+DO iPartBound=1,nPartBound
+  IF(PartBound%TargetBoundCond(iPartBound).EQ.PartBound%RotPeriodicInterPlaneBC) THEN
+    IF(PartBound%AssociatedPlane(iPartBound).LE.0.OR.PartBound%AssociatedPlane(iPartBound).GT.nPartBound) THEN
+      CALL abort(__STAMP__,'ERROR: Associated inter-plane BC number is not defined! BC ID: ',IntInfoOpt=iPartBound)
+    END IF
+    IF(InterPlanePositionCount(iPartBound).EQ.0) THEN
+      CALL abort(__STAMP__,'ERROR: No sides for the inter-plane BC found, BC ID: ',IntInfoOpt=iPartBound)
+    END IF
+    PartBound%RotAxisPosition(iPartBound) = PartBound%RotAxisPosition(iPartBound) / InterPlanePositionCount(iPartBound)
+    SWRITE(*,*) 'DEBUG: ', TRIM(PartBound%SourceBoundName(iPartBound)), PartBound%RotAxisPosition(iPartBound)
+    IF(iPartBound.GT.PartBound%AssociatedPlane(iPartBound)) THEN
+      IF(.NOT.ALMOSTEQUALRELATIVE(PartBound%RotAxisPosition(iPartBound),PartBound%RotAxisPosition(PartBound%AssociatedPlane(iPartBound)),1E-5)) THEN
+        IPWRITE(*,*) 'BC 1: ', PartBound%AssociatedPlane(iPartBound), 'BC 2: ', iPartBound
+        IPWRITE(*,*) 'Position: ', PartBound%RotAxisPosition(PartBound%AssociatedPlane(iPartBound)), 'Max: ', PartBound%RotAxisPosition(iPartBound)
+        CALL abort(__STAMP__,'ERROR: Position of the associated interplane BCs is not almost equal!')
+      END IF
+    END IF
+  END IF
+END DO
+
+END SUBROUTINE InitParticleBoundaryInterPlane
+
+
 !===================================================================================================================================
 !> Read mapping for rotational periodicity from mesh file. If it does not yet exist, build the mapping and store in mesh.h5 for
 !> faster initialization later on.
 !===================================================================================================================================
-SUBROUTINE InitParticleBoundaryRotPeriodic()
+SUBROUTINE InitRotPeriodicMapping()
 ! MODULES
 USE MOD_Globals
 USE MOD_HDF5_Input
@@ -643,7 +699,7 @@ USE MOD_TimeDisc_Vars     ,ONLY: ManualTimeStep
 USE MOD_ReadInTools       ,ONLY: GETLOGICAL
 USE MOD_Globals_Vars      ,ONLY: ProjectName
 #if USE_LOADBALANCE
-USE MOD_LoadBalance_Vars  ,ONLY: PerformLoadBalance
+USE MOD_LoadBalance_Vars       ,ONLY: PerformLoadBalance
 #endif /*USE_LOADBALANCE*/
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -702,7 +758,8 @@ END IF ! notMappedTotal.GT.0
 GETTIME(EndT)
 CALL DisplayMessageAndTime(EndT-StartT, 'INIT ROTATIONAL PERIODIC BOUNDARY DONE!')
 
-END SUBROUTINE InitParticleBoundaryRotPeriodic
+END SUBROUTINE InitRotPeriodicMapping
+
 
 !===================================================================================================================================
 !> Build Mapping for rotational periodicity: RotPeriodicSide -> SideID2 (Side on corresponding BC).
@@ -719,7 +776,7 @@ SUBROUTINE BuildParticleBoundaryRotPeriodic(notMappedTotal)
 USE MOD_Globals
 USE MOD_Particle_Boundary_Vars  ,ONLY: nComputeNodeSurfTotalSides,SurfSide2GlobalSide,PartBound
 USE MOD_Particle_Boundary_Vars  ,ONLY: RotPeriodicSideMapping, NumRotPeriodicNeigh, SurfSide2RotPeriodicSide
-USE MOD_Particle_Mesh_Vars      ,ONLY: SideInfo_Shared, NodeCoords_Shared, ElemSideNodeID_Shared, GEO, ElemInfo_Shared
+USE MOD_Particle_Mesh_Vars      ,ONLY: SideInfo_Shared, NodeCoords_Shared, ElemSideNodeID_Shared, ElemInfo_Shared
 USE MOD_Mesh_Tools              ,ONLY: GetCNElemID, GetGlobalElemID
 USE MOD_Particle_Mesh_Vars      ,ONLY: SideInfo_Shared, NodeInfo_Shared, NodeToElemInfo, NodeToElemMapping
 USE MOD_Mesh_Vars               ,ONLY: LostRotPeriodicSides,nElems
@@ -842,7 +899,7 @@ RotPeriodicSideMapping_temp = 0
 notMapped=0
 MaxNumRotPeriodicNeigh = 0
 ! Defining rotation matrix
-SELECT CASE(GEO%RotPeriodicAxi)
+SELECT CASE(PartBound%RotPeriodicAxis)
   CASE(1) ! x-rotation axis
     k = 1
     l = 2
@@ -1148,12 +1205,12 @@ END SUBROUTINE BuildParticleBoundaryRotPeriodic
 !> Build the mapping for the intermediate plane between two rotational periodic segments.
 !> Allocate index list for particles that are created at inter planes
 !===================================================================================================================================
-SUBROUTINE InitRotPeriodicInterPlane()
+SUBROUTINE InitRotPeriodicInterPlaneMapping()
 ! MODULES
 USE MOD_Globals
 USE MOD_Particle_Boundary_Vars    ,ONLY: SurfSide2GlobalSide
 USE MOD_Particle_Boundary_Vars    ,ONLY: PartBound,nPartBound,InterPlaneSideMapping
-USE MOD_Particle_Mesh_Vars        ,ONLY: SideInfo_Shared, GEO, ElemInfo_Shared, ElemSideNodeID_Shared,NodeCoords_Shared
+USE MOD_Particle_Mesh_Vars        ,ONLY: SideInfo_Shared, ElemInfo_Shared, ElemSideNodeID_Shared,NodeCoords_Shared
 USE MOD_Particle_Vars             ,ONLY: InterPlanePartIndx, PDM
 USE MOD_Mesh_Tools                ,ONLY: GetCNElemID
 #if USE_MPI
@@ -1197,7 +1254,7 @@ iBCLoop1: DO iPartBound=1,nPartBound
       PartBound%nSidesOnInterPlane(iPartBound) = PartBound%nSidesOnInterPlane(iPartBound) + 1
     END IF
   END DO iSideLoop1 ! iSide = firstSide, lastSide
-END DO iBCLoop1 ! iBC=1, nBCs
+END DO iBCLoop1 ! iPartBound=1, nPartBound
 
 ! Allocate inter plane mapping array
 MaxNumInterPlaneSide = MAXVAL(PartBound%nSidesOnInterPlane)
@@ -1215,14 +1272,14 @@ iBCLoop2: DO iPartBound=1,nPartBound
       SideCounter(iPartBound) = SideCounter(iPartBound) + 1
     END IF
   END DO iSideLoop2 ! iSide = firstSide, lastSide
-END DO iBCLoop2 ! iBC=1, nBCs
+END DO iBCLoop2 ! iPartBound=1,nPartBound
 
 ! Third loop: Find the r_o vector for the random positioning calculation
 ! InterSideID = GlobalSideID on intermediate plane side
 ! RotSideID   = GlobalSideID on rot periodic side
 ! Find the node that is on both the inter plane and the rot peri side. The coords of this node can be used to
 ! define a nomalized vector in radius direction at the border of the inter plane.
-SELECT CASE(GEO%RotPeriodicAxi)
+SELECT CASE(PartBound%RotPeriodicAxis)
   CASE(1) ! x-rotation axis
     k = 1
     l = 2
@@ -1274,18 +1331,18 @@ iBCLoop3: DO iPartBound=1,nPartBound
       END IF
     END DO LocSideLoop
   END DO interSideLoop ! iSide = firstSide, lastSide
-END DO iBCLoop3 ! iBC=1, nBCs
+END DO iBCLoop3 ! iPartBound=1,nPartBound
 
 ! Fourth loop: Save angleRatioOfInterPlanes
 iBCLoop4: DO iPartBound=1,nPartBound
   IF (PartBound%TargetBoundCond(iPartBound).NE.PartBound%RotPeriodicInterPlaneBC) CYCLE iBCLoop4
   PartBound%AngleRatioOfInterPlanes(iPartBound) = ABS( PartBound%RotPeriodicAngle(PartBound%AssociatedPlane(iPartBound)) &
                                                 / PartBound%RotPeriodicAngle(iPartBound) )
-END DO iBCLoop4 ! iBC=1, nBCs
+END DO iBCLoop4 ! iPartBound=1,nPartBound
 
 DEALLOCATE(SideCounter)
 
-END SUBROUTINE InitRotPeriodicInterPlane
+END SUBROUTINE InitRotPeriodicInterPlaneMapping
 
 
 !===================================================================================================================================
@@ -1361,7 +1418,6 @@ USE MOD_MPI_Shared
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Vars   ,ONLY: PerformLoadBalance,UseH5IOLoadBalance
 #endif /*USE_LOADBALANCE*/
-USE MOD_Particle_Mesh_Vars ,ONLY: GEO
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
 ! INPUT VARIABLES
@@ -1407,7 +1463,7 @@ SDEALLOCATE(PartBound%BoundaryParticleOutputHDF5)
 SDEALLOCATE(PartBound%RadiativeEmissivity)
 
 ! Rotational periodic boundary condition
-IF(GEO%RotPeriodicBC)THEN
+IF(PartBound%UseRotPeriodicBC)THEN
 #if USE_MPI
   CALL MPI_BARRIER(MPI_COMM_SHARED,iERROR)
   CALL UNLOCK_AND_FREE(SurfSide2RotPeriodicSide_Shared_Win)
@@ -1425,7 +1481,7 @@ IF(GEO%RotPeriodicBC)THEN
   SDEALLOCATE(NumRotPeriodicNeigh)
   SDEALLOCATE(RotPeriodicSideMapping)
 #endif
-END IF ! GEO%RotPeriodicBC
+END IF ! PartBound%UseRotPeriodicBC
 
 ! Adaptive wall temperature (e.g. calculate from sampled heat flux)
 IF (ANY(PartBound%UseAdaptedWallTemp)) THEN
