@@ -300,6 +300,8 @@ TYPE tPartBoundary
                                                                           ! (Default=FALSE.)
   ! Multi rotational periodic and interplane BCs
   LOGICAL                                :: UseRotPeriodicBC            ! Flag for rotational periodicity
+  LOGICAL                                :: OutputBCDataForTesting      ! Flag to output boundary parameter which were determined
+                                                                        ! automatically
   INTEGER                                :: RotPeriodicAxis             ! Axis of rotational periodicity
   REAL                                   :: RotPeriodicTol              ! Tolerance for rotationally periodic BC, angle is multiplied
                                                                         ! by 1 - RotPeriodicTol

@@ -20,9 +20,6 @@ The `Part-Boundary1-SourceName=` corresponds to the name given during the prepro
 |  `reflective`  | Allows the definition of specular and diffuse reflection, Section {ref}`sec:particle-boundary-conditions-reflective` |
 | `rot_periodic` | Allows the definition of rotational periodicity, Section {ref}`sec:particle-boundary-conditions-rotBC`               |
 
-For `rot_periodic` exactly two corresponding boundaries must be defined. Every particle crossing one of these boundaries will be
-inserted at the corresponding other boundary that is rotationally shifted.
-
 (sec:particle-boundary-conditions-reflective)=
 ## Reflective Wall
 

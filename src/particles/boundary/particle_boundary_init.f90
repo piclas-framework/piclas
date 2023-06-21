@@ -45,6 +45,9 @@ CALL prms%SetSection("Particle Boundaries")
 CALL prms%CreateIntOption(      'Part-RotPeriodicAxi' , 'Axis of rotational periodicity: x = 1, y = 2, z = 3')
 CALL prms%CreateRealOption(     'PartBound-RotPeriodicTol' , 'Tolerance for rotationally periodic BCs: symmetry angle is '//&
                                 'multiplied by 1-x to slightly move the particle / cell center into the domain','1E-4')
+CALL prms%CreateLogicalOption(  'PartBound-OutputBCDataForTesting' , 'Flag to enable output of information which was automatically '//&
+                                'determined for regression testing purposes, currently: Min/Max of multiple rot periodic BCs, '//&
+                                'interplane positions along RotPeriodicAxi', '.FALSE.')
 CALL prms%CreateIntOption(      'Part-nBounds', 'Number of particle boundaries.', '1')
 CALL prms%CreateStringOption(   'Part-Boundary[$]-SourceName', &
                                   'No Default. Source Name of Boundary[i]. Has to be selected for all'//&
@@ -301,6 +304,9 @@ PartBound%UseInterPlaneBC      = .FALSE.
 ! TODO: REMOVE THIS CALL WHEN MERGED WITH UNIFIED SPECIES DATABASE BRANCH
 SpeciesDatabase = GETSTR('Particles-Species-Database', 'none')
 
+! Read-in flag for output of boundary-related data in a csv for regression testing
+PartBound%OutputBCDataForTesting         = GETLOGICAL('PartBound-OutputBCDataForTesting')
+
 #if defined(IMPA) || defined(ROS)
 PartMeshHasReflectiveBCs=.FALSE.
 #endif
@@ -515,7 +521,7 @@ DO iPBC=1,nPartBound
     IF (TRIM(BoundaryName(iBC)).EQ.TRIM(PartBound%SourceBoundName(iPBC))) THEN
       PartBound%MapToPartBC(iBC) = iPBC !PartBound%TargetBoundCond(iPBC)
       PartBound%MapToFieldBC(iPBC) = iBC ! part BC to field BC
-      LBWRITE(*,*)"... Mapped PartBound",iPBC,"on FieldBound", iBC,",i.e.:",TRIM(BoundaryName(iBC))
+      LBWRITE(*,*) " | Mapped PartBound",iPBC,"on FieldBound", iBC,", i.e.: ",TRIM(BoundaryName(iBC))
     END IF
   END DO
 END DO
@@ -581,9 +587,9 @@ INTEGER               :: nRotPeriodicBCs
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-CHARACTER(32)         :: hilf
-INTEGER               :: iPartBound, ElemID, iSide, LocSideID, nStart
+INTEGER               :: iPartBound, ElemID, iSide, LocSideID, nStart, iPartBound2
 REAL                  :: Pmax, Pmin
+LOGICAL,ALLOCATABLE   :: PartnerFound(:)
 !===================================================================================================================================
 
 LBWRITE(UNIT_StdOut,'(132("-"))')
@@ -593,6 +599,8 @@ ALLOCATE(PartBound%RotPeriodicMin(  1:nPartBound))
 PartBound%RotPeriodicMin = HUGE(1.)
 ALLOCATE(PartBound%RotPeriodicMax(  1:nPartBound))
 PartBound%RotPeriodicMax = -HUGE(1.)
+ALLOCATE(PartnerFound(  1:nPartBound))
+PartnerFound = .FALSE.
 
 PartBound%RotPeriodicAxis   = GETINT('Part-RotPeriodicAxi')
 PartBound%RotPeriodicTol = 1. - GETREAL('PartBound-RotPeriodicTol')
@@ -630,19 +638,36 @@ ELSE IF(nRotPeriodicBCs.NE.2) THEN
       PartBound%RotPeriodicMin(iPartBound) = MIN(Pmin,PartBound%RotPeriodicMin(iPartBound))
     END IF
   END DO
-  ! Sanity check: is the maximum greater than the minimum
+  ! Sanity check: is the maximum greater than the minimum and identification of BCs with the same coordinates
+  LBWRITE(UNIT_stdOut,'(A)') ' | Automatically determined minimal and maximum coordinates along the rotational axis:'
   DO iPartBound=1,nPartBound
-    WRITE(UNIT=hilf,FMT='(I0)') iPartBound
     IF(PartBound%TargetBoundCond(iPartBound).EQ.PartBound%RotPeriodicBC) THEN
-      LBWRITE(*,*) '| ', TRIM(PartBound%SourceBoundName(iPartBound)), ' Min, Max: ', PartBound%RotPeriodicMin(iPartBound), PartBound%RotPeriodicMax(iPartBound)
       IF(PartBound%RotPeriodicMin(iPartBound).GE.PartBound%RotPeriodicMax(iPartBound)) THEN
-        SWRITE(*,*) 'ERROR: PartBound%RotPeriodicMin(iPartBound) > PartBound%RotPeriodicMax(iPartBound)'
-        SWRITE(*,*) 'Min: ', PartBound%RotPeriodicMin(iPartBound), 'Max: ', PartBound%RotPeriodicMax(iPartBound)
-        CALL abort(__STAMP__,'ERROR: Minimum coordinate at rotational axis is higher than maximum coordinate at BC: ',&
+        SWRITE(UNIT_stdOut,*) 'ERROR: PartBound%RotPeriodicMin(iPartBound) > PartBound%RotPeriodicMax(iPartBound)'
+        SWRITE(UNIT_stdOut,*) 'Min: ', PartBound%RotPeriodicMin(iPartBound), 'Max: ', PartBound%RotPeriodicMax(iPartBound)
+        CALL abort(__STAMP__,'ERROR: Minimum coordinate at rotational axis is greater than maximum coordinate at BC: ',&
                     IntInfoOpt=iPartBound)
       END IF
+      IF(PartnerFound(iPartBound)) CYCLE
+      DO iPartBound2=1,nPartBound
+        IF((iPartBound.EQ.iPartBound2).OR.PartnerFound(iPartBound2)) CYCLE
+        IF(PartBound%TargetBoundCond(iPartBound2).EQ.PartBound%RotPeriodicBC) THEN
+          IF(ALMOSTEQUALRELATIVE(PartBound%RotPeriodicMin(iPartBound),PartBound%RotPeriodicMin(iPartBound2),1E-5) &
+            .AND.ALMOSTEQUALRELATIVE(PartBound%RotPeriodicMax(iPartBound),PartBound%RotPeriodicMax(iPartBound2),1E-5)) THEN
+            LBWRITE(UNIT_stdOut,'(A,ES25.14E3,A,ES25.14E3,A,A,A,A)') ' | Minimum: ', PartBound%RotPeriodicMin(iPartBound), &
+              ' Maximum: ',PartBound%RotPeriodicMax(iPartBound), ' for BCs: ', TRIM(PartBound%SourceBoundName(iPartBound)), &
+              ' and ', TRIM(PartBound%SourceBoundName(iPartBound2))
+            PartnerFound(iPartBound) = .TRUE.
+            PartnerFound(iPartBound2) = .TRUE.
+          END IF
+        END IF
+      END DO
     END IF
   END DO
+END IF
+
+IF(PartBound%OutputBCDataForTesting) THEN
+  CALL WriteRotPeriodicMinMax()
 END IF
 
 LBWRITE(UNIT_stdOut,'(A)')' INIT ROTATIONAL PERIODIC BOUNDARY CONDITION DONE!'
@@ -715,6 +740,7 @@ DO iSide = 1,nNonUniqueGlobalSides
   END IF
 END DO
 ! Average of the inter-plane position and sanity check whether the associated BCs have the same position
+LBWRITE(UNIT_stdOut,'(A)') ' | Automatically determined interplane coordinates along the rotational axis:'
 DO iPartBound=1,nPartBound
   IF(PartBound%TargetBoundCond(iPartBound).EQ.PartBound%RotPeriodicInterPlaneBC) THEN
     IF(PartBound%AssociatedPlane(iPartBound).LE.0.OR.PartBound%AssociatedPlane(iPartBound).GT.nPartBound) THEN
@@ -724,21 +750,170 @@ DO iPartBound=1,nPartBound
       CALL abort(__STAMP__,'ERROR: No sides for the inter-plane BC found, BC ID: ',IntInfoOpt=iPartBound)
     END IF
     PartBound%RotAxisPosition(iPartBound) = PartBound%RotAxisPosition(iPartBound) / InterPlanePositionCount(iPartBound)
-    LBWRITE(*,*) '| ', TRIM(PartBound%SourceBoundName(iPartBound)), ' Rotational axis position: ', PartBound%RotAxisPosition(iPartBound)
     IF(iPartBound.GT.PartBound%AssociatedPlane(iPartBound)) THEN
       IF(.NOT.ALMOSTEQUALRELATIVE(PartBound%RotAxisPosition(iPartBound),PartBound%RotAxisPosition(PartBound%AssociatedPlane(iPartBound)),1E-5)) THEN
         IPWRITE(*,*) 'BC 1: ', PartBound%AssociatedPlane(iPartBound), 'BC 2: ', iPartBound
         IPWRITE(*,*) 'Position: ', PartBound%RotAxisPosition(PartBound%AssociatedPlane(iPartBound)), 'Max: ', PartBound%RotAxisPosition(iPartBound)
         CALL abort(__STAMP__,'ERROR: Position of the associated interplane BCs is not almost equal!')
+      ELSE
+        LBWRITE(*,'(A,ES25.14E3,A,A,A,A)') ' | Rotational axis position: ', PartBound%RotAxisPosition(iPartBound), ' for BCs: ', &
+          TRIM(PartBound%SourceBoundName(iPartBound)), ' and ', TRIM(PartBound%SourceBoundName(PartBound%AssociatedPlane(iPartBound)))
       END IF
     END IF
   END IF
 END DO
 
+IF(PartBound%OutputBCDataForTesting) THEN
+  CALL WriteInterPlanePosition()
+END IF
+
 LBWRITE(UNIT_stdOut,'(A)')' INIT INTERPLANE BOUNDARY CONDITION DONE!'
 LBWRITE(UNIT_StdOut,'(132("-"))')
 
 END SUBROUTINE InitParticleBoundaryInterPlane
+
+!===================================================================================================================================
+!> Write the rotational periodic BC min/max values along the rotational symmetry axis for regression testing to RotPeriodicMinMax.csv
+!===================================================================================================================================
+SUBROUTINE WriteRotPeriodicMinMax()
+!----------------------------------------------------------------------------------------------------------------------------------!
+! MODULES                                                                                                                          !
+!----------------------------------------------------------------------------------------------------------------------------------!
+USE MOD_Globals                 ,ONLY: FILEEXISTS,unit_stdout,abort,MPIRoot
+USE MOD_Restart_Vars            ,ONLY: DoRestart
+USE MOD_Particle_Boundary_Vars  ,ONLY: nPartBound, PartBound
+USE MOD_LoadBalance_Vars        ,ONLY: PerformLoadBalance
+!----------------------------------------------------------------------------------------------------------------------------------!
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+CHARACTER(LEN=21),PARAMETER               :: outfile='RotPeriodicMinMax.csv'
+INTEGER                                   :: ioUnit,iVar,iPartBound
+CHARACTER(LEN=150)                        :: formatStr
+INTEGER,PARAMETER                         :: nOutputVar=4
+CHARACTER(LEN=255),DIMENSION(nOutputVar)  :: StrVarNames(nOutputVar)=(/ CHARACTER(LEN=255) :: &
+    'BoundaryIndex',     &
+    'BoundaryName',  &
+    'RotPeriodicBCMin', &
+    'RotPeriodicBCMax' /)
+CHARACTER(LEN=255),DIMENSION(nOutputVar)  :: tmpStr ! needed because PerformAnalyze is called multiple times at the beginning
+CHARACTER(LEN=1000)                       :: tmpStr2
+CHARACTER(LEN=1),PARAMETER                :: delimiter=","
+LOGICAL                                   :: CreateFile
+!===================================================================================================================================
+! only the root shall write this file
+IF(.NOT.MPIRoot)RETURN
+
+! check if file is to be created (for new simulations and manual restarts as input parameters could have been changed)
+CreateFile = .TRUE.
+IF(DoRestart.AND..NOT.PerformLoadBalance) CreateFile = .FALSE.
+
+! create file with header
+IF(CreateFile) THEN
+  OPEN(NEWUNIT=ioUnit,FILE=TRIM(outfile),STATUS="replace")
+  tmpStr=""
+  DO iVar=1,nOutputVar
+    WRITE(tmpStr(iVar),'(A)')delimiter//'"'//TRIM(StrVarNames(iVar))//'"'
+  END DO
+  WRITE(formatStr,'(A1)')'('
+  DO iVar=1,nOutputVar
+    IF(iVar.EQ.nOutputVar)THEN ! skip writing "," and the end of the line
+      WRITE(formatStr,'(A,A1,I2)')TRIM(formatStr),'A',LEN_TRIM(tmpStr(iVar))
+    ELSE
+      WRITE(formatStr,'(A,A1,I2,A1)')TRIM(formatStr),'A',LEN_TRIM(tmpStr(iVar)),','
+    END IF
+  END DO
+
+  WRITE(formatStr,'(A,A1)')TRIM(formatStr),')' ! finish the format
+  WRITE(tmpStr2,formatStr)tmpStr               ! use the format and write the header names to a temporary string
+  tmpStr2(1:1) = " "                           ! remove possible delimiter at the beginning (e.g. a comma)
+  WRITE(ioUnit,'(A)')TRIM(ADJUSTL(tmpStr2))    ! clip away the front and rear white spaces of the temporary string
+
+  DO iPartBound=1,nPartBound
+    IF(PartBound%TargetBoundCond(iPartBound).EQ.PartBound%RotPeriodicBC) THEN
+      WRITE(tmpStr2,'(I3,A1,A,A1,E23.16E3,A1,E23.16E3)')&
+          iPartBound, &                                             ! BoundaryIndex
+          delimiter,TRIM(PartBound%SourceBoundName(iPartBound)), &  ! BoundaryName
+          delimiter,PartBound%RotPeriodicMin(iPartBound), &         ! RotPeriodicBCMin
+          delimiter,PartBound%RotPeriodicMax(iPartBound)            ! RotPeriodicBCMax
+      WRITE(ioUnit,'(A)')TRIM(ADJUSTL(tmpStr2)) ! clip away the front and rear white spaces of the data line
+    END IF
+  END DO
+  CLOSE(ioUnit)
+END IF
+
+END SUBROUTINE WriteRotPeriodicMinMax
+
+
+!===================================================================================================================================
+!> Write the interplane positions values along the rotational symmetry axis for regression testing to InterPlanePosition.csv
+!===================================================================================================================================
+SUBROUTINE WriteInterPlanePosition()
+!----------------------------------------------------------------------------------------------------------------------------------!
+! MODULES                                                                                                                          !
+!----------------------------------------------------------------------------------------------------------------------------------!
+USE MOD_Globals                 ,ONLY: FILEEXISTS,unit_stdout,abort,MPIRoot
+USE MOD_Restart_Vars            ,ONLY: DoRestart
+USE MOD_Particle_Boundary_Vars  ,ONLY: nPartBound, PartBound
+USE MOD_LoadBalance_Vars        ,ONLY: PerformLoadBalance
+!----------------------------------------------------------------------------------------------------------------------------------!
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+CHARACTER(LEN=22),PARAMETER               :: outfile='InterPlanePosition.csv'
+INTEGER                                   :: ioUnit,iVar,iPartBound
+CHARACTER(LEN=150)                        :: formatStr
+INTEGER,PARAMETER                         :: nOutputVar=3
+CHARACTER(LEN=255),DIMENSION(nOutputVar)  :: StrVarNames(nOutputVar)=(/ CHARACTER(LEN=255) :: &
+    'BoundaryIndex',     &
+    'BoundaryName',  &
+    'InterPlanePosition' /)
+CHARACTER(LEN=255),DIMENSION(nOutputVar)  :: tmpStr ! needed because PerformAnalyze is called multiple times at the beginning
+CHARACTER(LEN=1000)                       :: tmpStr2
+CHARACTER(LEN=1),PARAMETER                :: delimiter=","
+LOGICAL                                   :: CreateFile
+!===================================================================================================================================
+! only the root shall write this file
+IF(.NOT.MPIRoot)RETURN
+
+! check if file is to be created (for new simulations and manual restarts as input parameters could have been changed)
+CreateFile = .TRUE.
+IF(DoRestart.AND..NOT.PerformLoadBalance) CreateFile = .FALSE.
+
+! create file with header
+IF(CreateFile) THEN
+  OPEN(NEWUNIT=ioUnit,FILE=TRIM(outfile),STATUS="replace")
+  tmpStr=""
+  DO iVar=1,nOutputVar
+    WRITE(tmpStr(iVar),'(A)')delimiter//'"'//TRIM(StrVarNames(iVar))//'"'
+  END DO
+  WRITE(formatStr,'(A1)')'('
+  DO iVar=1,nOutputVar
+    IF(iVar.EQ.nOutputVar)THEN ! skip writing "," and the end of the line
+      WRITE(formatStr,'(A,A1,I2)')TRIM(formatStr),'A',LEN_TRIM(tmpStr(iVar))
+    ELSE
+      WRITE(formatStr,'(A,A1,I2,A1)')TRIM(formatStr),'A',LEN_TRIM(tmpStr(iVar)),','
+    END IF
+  END DO
+
+  WRITE(formatStr,'(A,A1)')TRIM(formatStr),')' ! finish the format
+  WRITE(tmpStr2,formatStr)tmpStr               ! use the format and write the header names to a temporary string
+  tmpStr2(1:1) = " "                           ! remove possible delimiter at the beginning (e.g. a comma)
+  WRITE(ioUnit,'(A)')TRIM(ADJUSTL(tmpStr2))    ! clip away the front and rear white spaces of the temporary string
+
+  DO iPartBound=1,nPartBound
+    IF(PartBound%TargetBoundCond(iPartBound).EQ.PartBound%RotPeriodicInterPlaneBC) THEN
+      WRITE(tmpStr2,'(I3,A1,A,A1,E23.16E3,A1,E23.16E3)')&
+          iPartBound, &                                             ! BoundaryIndex
+          delimiter,TRIM(PartBound%SourceBoundName(iPartBound)), &  ! BoundaryName
+          delimiter,PartBound%RotAxisPosition(iPartBound)           ! InterPlanePosition
+      WRITE(ioUnit,'(A)')TRIM(ADJUSTL(tmpStr2)) ! clip away the front and rear white spaces of the data line
+    END IF
+  END DO
+  CLOSE(ioUnit)
+END IF
+
+END SUBROUTINE WriteInterPlanePosition
 
 
 !===================================================================================================================================
