@@ -555,7 +555,7 @@ IF(DoCreateParticles) THEN
 ! (1.b) DeletOrCloneProb.LT.1.0 -> Delete particle?
     CALL RANDOM_NUMBER(RanNum)
     IF(RanNum.GT.DeletOrCloneProb) THEN
-      CALL RemoveParticle(PartID)
+      CALL RemoveParticle(PartID,BCID=PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID)))
       RETURN
     END IF
   ELSE IF(DeletOrCloneProb.GT.1.0) THEN
