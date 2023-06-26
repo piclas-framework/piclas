@@ -188,7 +188,7 @@ USE MOD_Photon_TrackingVars    ,ONLY: PhotonSampWall_Shared
 USE MOD_Photon_TrackingVars    ,ONLY: PhotonSampWall
 USE MOD_Particle_Boundary_Vars ,ONLY: SurfSideArea
 #endif /*USE_MPI*/
-USE MOD_Particle_Boundary_Vars ,ONLY: nSurfSample
+USE MOD_Particle_Boundary_Vars ,ONLY: nSurfSample, PartBound
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -202,7 +202,7 @@ CHARACTER(LEN=255)                  :: H5_Name
 CHARACTER(LEN=4),PARAMETER          :: NodeTypeTemp = 'VISU'
 CHARACTER(LEN=255),ALLOCATABLE      :: Str2DVarNames(:)
 INTEGER                             :: GlobalSideID, iSurfSide, OutputCounter, SurfSideNb, p, q
-INTEGER,PARAMETER                   :: nVar2D=2
+INTEGER,PARAMETER                   :: nVar2D=3
 REAL                                :: tstart,tend
 REAL, ALLOCATABLE                   :: helpArray(:,:,:,:)
 !===================================================================================================================================
@@ -241,6 +241,7 @@ IF (mySurfRank.EQ.0) THEN
   ! fill varnames for total values
   Str2DVarNames(1) ='PhotonCount'
   Str2DVarNames(2) ='HeatFlux'
+  Str2DVarNames(3) ='iBC'
 
   CALL WriteAttributeToHDF5(File_ID,'VarNamesSurface',nVar2D,StrArray=Str2DVarNames)
 
@@ -287,6 +288,7 @@ ASSOCIATE (&
     DO p = 1, nSurfSample
       DO q = 1, nSurfSample
         helpArray(2,p,q,OutputCounter) = PhotonSampWall(2,p,q,iSurfSide)/SurfSideArea(p,q,iSurfSide)
+        helpArray(3,p,q,OutputCounter) = PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,GlobalSideID))
       END DO ! q = 1, nSurfSample
     END DO ! p = 1, nSurfSample
   END DO

@@ -1921,7 +1921,7 @@ REAL               :: Vabs ! Absolute velocity
 REAL               :: RandVal, v(1:3)
 REAL               :: Theta, Theta_temp
 REAL               :: PDF_temp
-REAL, PARAMETER    :: PDF_max=4./ACOS(-1.)
+REAL, PARAMETER    :: PDF_max=4./PI
 LOGICAL            :: ARM_SEE_PDF
 !===================================================================================================================================
 v = UNITVECTOR(VeloVec)

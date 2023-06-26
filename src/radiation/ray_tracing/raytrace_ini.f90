@@ -126,7 +126,7 @@ ASSOCIATE( &
   E0 = Ray%Power / Ray%RepetitionRate
 
   ! Rectangle
-  ! Ray emission area
+  ! TODO: Ray emission area from chosen boundary surface?
   A = (GEO%xmaxglob-GEO%xminglob) * (GEO%ymaxglob-GEO%yminglob)
   ! Normal vector of the ray emission area
   SurfaceNormal = (/ 0., 0., 1. /)
@@ -179,7 +179,7 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER           :: Nloc,iElem,CNElemID
-LOGICAL,PARAMETER :: debugRay=.TRUE.
+LOGICAL,PARAMETER :: debugRay=.FALSE.
 !===================================================================================================================================
 ALLOCATE(N_DG_Ray(nElems))
 N_DG_Ray = PP_N

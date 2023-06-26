@@ -74,10 +74,6 @@ INTERFACE CalcIntensity_Gaussian
   MODULE PROCEDURE CalcIntensity_Gaussian
 END INTERFACE
 
-INTERFACE CalcVelocity_FromWorkFuncSEE
-  MODULE PROCEDURE CalcVelocity_FromWorkFuncSEE
-END INTERFACE
-
 INTERFACE DSMC_SetInternalEnr_LauxVFD
   MODULE PROCEDURE DSMC_SetInternalEnr_LauxVFD
 END INTERFACE
@@ -1706,7 +1702,7 @@ CalcPhotonEnergy = PlanckConst * c / lambda
 END FUNCTION CalcPhotonEnergy
 
 
-SUBROUTINE CalcVelocity_FromWorkFuncSEE(FractNbr, Vec3D, iInit)
+SUBROUTINE CalcVelocity_FromWorkFuncSEE(W, m, t_vec, n_vec, Vec3D)
 !===================================================================================================================================
 !> Subroutine to sample photon SEE electrons velocities from given energy distribution based on a work function.
 !> Perform ARM for the energy distribution and a second ARM for the emission angle (between the impacting photon and the emitting
@@ -1719,8 +1715,8 @@ USE MOD_Particle_Vars           ,ONLY: Species
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-INTEGER,INTENT(IN)               :: FractNbr
-INTEGER,INTENT(IN), OPTIONAL     :: iInit
+REAL,INTENT(IN)               :: W, m                 ! Work function, mass
+REAL,INTENT(IN)               :: t_vec(3), n_vec(3)   ! Tangential and normal vector
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 REAL,INTENT(OUT)                 :: Vec3D(3)
@@ -1730,16 +1726,11 @@ REAL               :: RandVal
 REAL               :: E_temp, E_max, VeloABS
 REAL               :: Theta, Chi!, Psi_temp
 REAL               :: PDF_temp, PDF_max
-REAL, PARAMETER    :: PDF_max2=4./ACOS(-1.)
+REAL, PARAMETER    :: PDF_max2=4./PI
 REAL               :: VeloVec_norm(3), RotationAxi(3)
 LOGICAL            :: ARM_SEE_PDF
 REAL               :: Theta_temp
 !===================================================================================================================================
-
-ASSOCIATE( W     => Species(FractNbr)%Init(iInit)%WorkFunctionSEE ,&
-           m     => Species(FractNbr)%MassIC                      ,&
-           t_vec => Species(FractNbr)%Init(iInit)%NormalVector1IC ,&
-           n_vec => Species(FractNbr)%Init(iInit)%NormalIC        )
 
 ! ARM for energy distribution
 E_max = 50.0 ! in eV (arbitrary)
@@ -1784,8 +1775,6 @@ VeloVec_norm = VeloVec_norm * SIN(Theta) + CROSS(RotationAxi,VeloVec_norm) * COS
 
 ! Calc VeloVec
 Vec3D = VeloVec_norm * VeloABS
-
-END ASSOCIATE
 
 END SUBROUTINE CalcVelocity_FromWorkFuncSEE
 

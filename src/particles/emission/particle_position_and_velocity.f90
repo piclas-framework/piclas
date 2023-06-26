@@ -462,7 +462,9 @@ CASE('photon_SEE_energy')
   DO i = 1,NbrOfParticle
     PositionNbr = PDM%nextFreePosition(i+PDM%CurrentNextFreePosition)
     IF (PositionNbr .NE. 0) THEN
-        CALL CalcVelocity_FromWorkFuncSEE(FractNbr, Vec3D, iInit=iInit)
+        CALL CalcVelocity_FromWorkFuncSEE(Species(FractNbr)%Init(iInit)%WorkFunctionSEE, &
+                                          Species(FractNbr)%MassIC, Species(FractNbr)%Init(iInit)%NormalVector1IC, &
+                                          Species(FractNbr)%Init(iInit)%NormalIC, Vec3D(1:3))
         PartState(4:6,PositionNbr) = Vec3D(1:3)
         ASSOCIATE( PartBCIndex => Species(FractNbr)%Init(iInit)%PartBCIndex)
 

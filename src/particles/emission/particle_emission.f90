@@ -60,6 +60,7 @@ USE MOD_ReadInTools            ,ONLY: PrintOption
 USE MOD_Particle_MPI_Vars      ,ONLY: MPIW8TimePart,MPIW8CountPart
 #endif /*defined(MEASURE_MPI_WAIT)*/
 USE MOD_SurfaceModel_Analyze_Vars ,ONLY: SEE,CalcElectronSEE
+USE MOD_Particle_Photoionization  ,ONLY: PhotoIonization_RayTracing_SEE
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -85,6 +86,8 @@ INTEGER(KIND=8)                  :: CounterStart,CounterEnd
 REAL(KIND=8)                     :: Rate
 #endif /*defined(MEASURE_MPI_WAIT)*/
 !===================================================================================================================================
+
+CALL PhotoIonization_RayTracing_SEE()
 
 !---  Emission at time step
 DO i=1,nSpecies

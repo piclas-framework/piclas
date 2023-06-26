@@ -269,6 +269,9 @@ TYPE tPartBoundary
   REAL    , ALLOCATABLE                  :: ElecACC(:)
   REAL    , ALLOCATABLE                  :: WallVelo(:,:)
   REAL    , ALLOCATABLE                  :: PhotonEnACC(:)
+  REAL    , ALLOCATABLE                  :: PhotonSEEYield(:)
+  REAL    , ALLOCATABLE                  :: PhotonSEEWorkFunction(:)
+  INTEGER , ALLOCATABLE                  :: PhotonSEEElectronSpecies(:)
   LOGICAL , ALLOCATABLE                  :: PhotonSpecularReflection(:) 
   LOGICAL , ALLOCATABLE                  :: RotVelo(:)                    ! Flag for rotating walls
   REAL    , ALLOCATABLE                  :: RotOmega(:,:)                 ! Angular velocity
