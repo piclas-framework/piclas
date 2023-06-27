@@ -28,6 +28,11 @@ SAVE
 ! Sampling of elements with a boundary for adaptive surface flux and porous BC
 LOGICAL                                 :: UseAdaptive                    ! Flag is set if an adaptive boundary is present
 LOGICAL                                 :: AdaptBCAverageValBC            ! Flag to enable/disable averaging accross the whole BC
+REAL, ALLOCATABLE                       :: AdaptBCAverageMacroVal(:,:,:)  ! Macroscopic values averaged over BC
+                                                                          ! (1:3, 1:nSpecies, 1:nSurfaceFluxBCs)
+                                                                          !  1: Number density
+                                                                          !  2: Translational temperature [K]
+                                                                          !  3: Statis pressure [Pa]
 REAL                                    :: AdaptBCRelaxFactor             ! weighting factor theta for weighting of average
                                                                           ! instantaneous values with those
                                                                           ! of previous iterations
@@ -50,11 +55,11 @@ REAL, ALLOCATABLE                       :: AdaptBCMacroVal(:,:,:)         ! Macr
                                                                           !  7:  Integral pressure difference [Pa]
 REAL, ALLOCATABLE                       :: AdaptiveData(:,:)              ! Macroscopic value near boundaries (for output)
 REAL, ALLOCATABLE                       :: AdaptBCAreaSurfaceFlux(:,:)    ! UseCircularInflow: Surflux area as the sum of actual elements
+REAL, ALLOCATABLE                       :: AdaptBCVolSurfaceFlux(:,:)     ! AdaptiveBC: Volume of adjacent cells
 REAL, ALLOCATABLE                       :: AdaptBCBackupVelocity(:,:,:)   ! Velocity is stored as backup for iterations without particles
                                                                           ! in the cell [1:3,1:AdaptBCSampleElemNum,1:nSpecies]
-INTEGER, ALLOCATABLE                    :: AdaptBCPartNumOut(:,:)         ! Type 4: Number of particles exiting through the adaptive
-                                                                          ! boundary condition
-REAL, ALLOCATABLE                       :: AdaptBCMeanValues(:,:,:)           !
+INTEGER, ALLOCATABLE                    :: AdaptBCPartNumOut(:,:)         ! SurfaceFlux, Type 4: Number of particles exiting through
+                                                                          ! the adaptive boundary condition
 INTEGER                                 :: offSetElemAdaptBCSample
 INTEGER                                 :: AdaptBCSampleElemNumGlobal
 !-----------------------------------------------------------------------------------------------------------------------------------
