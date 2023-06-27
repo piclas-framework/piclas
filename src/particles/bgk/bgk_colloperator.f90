@@ -611,30 +611,16 @@ DO iSpec = 1, nSpecies
       IF(SpecDSMC(iSpec)%PolyatomicMol) THEN ! polyatomic
         iPolyatMole = SpecDSMC(iSpec)%SpecToPolyArray
         ! Calculation of the vibrational temperature (zero-point search) for polyatomic molecules
-        TVibSpec(iSpec) = CalcTVibPoly(EVibSpec(iSpec)/totalWeightSpec(iSpec), 1)
-        IF (TVibSpec(iSpec).GT.0.0) THEN
-          DO iDOF = 1, PolyatomMolDSMC(iPolyatMole)%VibDOF
-            ! Calculation of vibrational DOFs according to Pfeiffer et. al., AIP Conference Proceedings 2132, 100001 (2019),
-            ! "Extension of particle-based BGK models to polyatomic species in hypersonic flow around a flat-faced cylinder"
-            exparg = PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iDOF)/TVibSpec(iSpec)
-            IF(CHECKEXP(exparg))THEN
-              Xi_VibSpec(iSpec) = Xi_VibSpec(iSpec) + 2.*exparg/(EXP(exparg) - 1.)
-            ELSE
-              Xi_VibSpec(iSpec) = 0.
-            END IF ! CHECKEXP(exparg)
-          END DO
-        END IF
+        TVibSpec(iSpec) = CalcTVibPoly(EVibSpec(iSpec)/totalWeightSpec(iSpec) + SpecDSMC(iSpec)%EZeroPoint, iSpec)
       ELSE ! diatomic
         ! Calculation of vibrational temperature and DOFs from Pfeiffer, Physics of Fluids 30, 116103 (2018), "Extending the
         ! particle ellipsoidal statistical Bhatnagar-Gross-Krook method to diatomic molecules including quantized vibrational
         ! energies"
         ! TVibSpec = vibrational energy without zero-point energy
         TVibSpec(iSpec) = EVibSpec(iSpec) / (totalWeightSpec(iSpec)*BoltzmannConst*SpecDSMC(iSpec)%CharaTVib)
-        IF (TVibSpec(iSpec).GT.0.0) THEN
-          TVibSpec(iSpec) = SpecDSMC(iSpec)%CharaTVib/LOG(1. + 1./(TVibSpec(iSpec)))
-          Xi_VibSpec(iSpec) = 2.* EVibSpec(iSpec) / (totalWeightSpec(iSpec)*BoltzmannConst*TVibSpec(iSpec))
-        END IF
+        IF (TVibSpec(iSpec).GT.0.0) TVibSpec(iSpec) = SpecDSMC(iSpec)%CharaTVib/LOG(1. + 1./(TVibSpec(iSpec)))
       END IF
+      IF (TVibSpec(iSpec).GT.0.0) Xi_VibSpec(iSpec) = 2.* EVibSpec(iSpec) / (totalWeightSpec(iSpec)*BoltzmannConst*TVibSpec(iSpec))
     END IF
     Xi_RotSpec(iSpec) = SpecDSMC(iSpec)%Xi_Rot
     ! Calculation of rotational temperature from Pfeiffer, Physics of Fluids 30, 116103 (2018), "Extending the particle ellipsoidal
