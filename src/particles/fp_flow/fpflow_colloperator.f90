@@ -185,7 +185,7 @@ IF((SpecDSMC(1)%InterID.EQ.2).OR.(SpecDSMC(1)%InterID.EQ.20)) THEN
       nXiVibDOF   = PolyatomMolDSMC(iPolyatMole)%VibDOF
       ALLOCATE(Xi_vib_DOF(nXiVibDOF))
       Xi_vib_DOF(:) = 0.
-      TVib = CalcTVibPoly(Evib/totalWeight + SpecDSMC(iSpec)%EZeroPoint, 1)
+      TVib = CalcTVibPoly(Evib/totalWeight + SpecDSMC(1)%EZeroPoint, 1)
       IF (TVib.GT.0.0) THEN
         DO iDOF = 1, PolyatomMolDSMC(iPolyatMole)%VibDOF
           Xi_vib = Xi_vib + 2.*PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iDOF)/TVib &
