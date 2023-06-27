@@ -38,8 +38,11 @@ IF (nArgs.GT.0) CALL abort(__STAMP__,'ERROR - Unknown command line argument.')
 DO i = 1, MaxPolDeg
   PP_N = i
 #endif
-  WRITE(*,'(A,I0)') " Testing MortarInit for N = ",PP_N
-  CALL InitInterpolation(PP_N,2*(PP_N+1))
+  WRITE(*,'(A,I0,A,I0)') " Testing MortarInit for N = ",PP_N," and NAnalyze = ",2*(PP_N+1)
+  CALL InitInterpolation(          &
+      NIn_opt        = PP_N,       &
+      NAnalyzeIn_opt = 2*(PP_N+1), &
+      Nmax_opt       = 0) ! Set zero to avoid building the costly constructs which let the execution time explode
   CALL InitMortar()
   CALL FinalizeMortar()
   CALL FinalizeInterpolation()

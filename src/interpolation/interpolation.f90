@@ -98,7 +98,7 @@ CALL prms%CreateIntOption('NAnalyze' , 'Polynomial degree at which analysis is p
 END SUBROUTINE DefineParametersInterpolation
 
 
-SUBROUTINE InitInterpolation(NIn_opt,NAnalyzeIn_opt)
+SUBROUTINE InitInterpolation(NIn_opt,NAnalyzeIn_opt,Nmax_opt)
 !============================================================================================================================
 ! Initialize basis for Gauss-points of order N.
 ! Prepares Differentiation matrices D, D_Hat, Basis at the boundaries L(1), L(-1), L_Hat(1), L_Hat(-1)
@@ -115,6 +115,7 @@ IMPLICIT NONE
 !input parameters
 INTEGER,INTENT(IN),OPTIONAL :: NIn_opt         !< optional polynomial degree
 INTEGER,INTENT(IN),OPTIONAL :: NAnalyzeIn_opt  !< optional analyze polynomial degree
+INTEGER,INTENT(IN),OPTIONAL :: Nmax_opt        !< optional maximum polynomial degree
 !----------------------------------------------------------------------------------------------------------------------------
 !output parameters
 !----------------------------------------------------------------------------------------------------------------------------
@@ -149,48 +150,57 @@ IF(PP_N.NE.Ntmp) CALL CollectiveStop(__STAMP__,'N in ini-file is different from 
 
 ! polynomial degree range for p-Refinement
 Nmin = 1
-WRITE(UNIT=hilf,FMT='(I3)') PP_N
-Nmax = GETINT('Nmax',hilf)
+IF(PRESENT(NIn_opt))THEN
+  Nmax = Nmax_opt
+ELSE
+  WRITE(UNIT=hilf,FMT='(I3)') PP_N
+  Nmax = GETINT('Nmax',hilf)
+END IF ! PRESENT(NIn_opt)
 
 SWRITE(UNIT_stdOut,'(A)') ' NodeType: '//NodeType
 
-ALLOCATE(N_Inter(Nmin:Nmax))
-DO Nloc=Nmin,Nmax
-  CALL InitInterpolationBasis(Nloc , N_Inter(Nloc)%xGP     , N_Inter(Nloc)%wGP     , N_Inter(Nloc)%wBary , &
-                                     N_Inter(Nloc)%L_Minus , N_Inter(Nloc)%L_Plus  , N_Inter(Nloc)%L_PlusMinus , &
-                                     N_Inter(Nloc)%swGP    , N_Inter(Nloc)%wGPSurf , &
-                                     N_Inter(Nloc)%Vdm_Leg , N_Inter(Nloc)%sVdm_Leg)
-END DO
+! Check if p-adaption is activated and only build the constructs if Nmax>0
+IF(Nmax.GT.0)THEN
+  ALLOCATE(N_Inter(Nmin:Nmax))
+  DO Nloc=Nmin,Nmax
+    CALL InitInterpolationBasis(Nloc , N_Inter(Nloc)%xGP     , N_Inter(Nloc)%wGP     , N_Inter(Nloc)%wBary , &
+                                       N_Inter(Nloc)%L_Minus , N_Inter(Nloc)%L_Plus  , N_Inter(Nloc)%L_PlusMinus , &
+                                       N_Inter(Nloc)%swGP    , N_Inter(Nloc)%wGPSurf , &
+                                       N_Inter(Nloc)%Vdm_Leg , N_Inter(Nloc)%sVdm_Leg)
+  END DO
 
-! Allocate vandermonde matrices for p-refinement
-ALLOCATE(PREF_VDM(Nmin:Nmax,Nmin:Nmax))
+  ! Allocate vandermonde matrices for p-refinement
+  ALLOCATE(PREF_VDM(Nmin:Nmax,Nmin:Nmax))
 
-DO Nin=Nmin,Nmax
-  DO Nout=Nmin,Nmax
-    ALLOCATE(PREF_VDM(Nin,Nout)%Vdm(0:Nin,0:Nout))
-    IF(Nin.EQ.Nout) THEN
-      DO i=0,Nin; DO j=0,Nin
-        IF(i.EQ.j) THEN
-          PREF_VDM(Nin,Nout)%Vdm(i,j) = 1.
-        ELSE
-          PREF_VDM(Nin,Nout)%Vdm(i,j) = 0.
-        END IF
-      END DO
+  DO Nin=Nmin,Nmax
+    DO Nout=Nmin,Nmax
+      ALLOCATE(PREF_VDM(Nin,Nout)%Vdm(0:Nin,0:Nout))
+      IF(Nin.EQ.Nout) THEN
+        DO i=0,Nin
+          DO j=0,Nin
+            IF(i.EQ.j) THEN
+              PREF_VDM(Nin,Nout)%Vdm(i,j) = 1.
+            ELSE
+              PREF_VDM(Nin,Nout)%Vdm(i,j) = 0.
+            END IF
+          END DO
+        END DO
+      ELSE IF(Nin.GT.Nout) THEN ! p-coarsening: Project from higher degree to lower degree
+        CALL GetVandermonde(Nin, NodeType, Nout, NodeType, PREF_VDM(Nin,Nout)%Vdm, modal=.TRUE. )
+      ELSE                   ! p-refinement: Interpolate lower degree to higher degree
+        CALL GetVandermonde(Nin, NodeType, Nout, NodeType, PREF_VDM(Nin,Nout)%Vdm, modal=.FALSE.)
+      END IF
     END DO
-  ELSE IF(Nin.GT.Nout) THEN ! p-coarsening: Project from higher degree to lower degree
-    CALL GetVandermonde(Nin, NodeType, Nout, NodeType, PREF_VDM(Nin,Nout)%Vdm, modal=.TRUE. )
-  ELSE                   ! p-refinement: Interpolate lower degree to higher degree
-    CALL GetVandermonde(Nin, NodeType, Nout, NodeType, PREF_VDM(Nin,Nout)%Vdm, modal=.FALSE.)
-  END IF
-END DO;END DO
+  END DO
+END IF ! Nmax.GT.0
 
 ! Set the default analyze polynomial degree NAnalyze to 2*(N+1)
-IF(PRESENT(NAnalyzeIn))THEN
-  NAnalyze = NAnalyzeIn
+IF(PRESENT(NAnalyzeIn_opt))THEN
+  NAnalyze = NAnalyzeIn_opt
 ELSE
   WRITE(DefStr,'(i4)') 2*(PP_N+1)
   NAnalyze = GETINT('NAnalyze',DefStr)
-END IF ! PRESENT(NAnalyzeIn)
+END IF ! PRESENT(NAnalyzeIn_opt)
 
 ! Initialize the basis functions for the analyze polynomial
 CALL InitAnalyzeBasis(NAnalyze)
@@ -544,6 +554,7 @@ IMPLICIT NONE
 SDEALLOCATE(N_Inter)
 SDEALLOCATE(N_InterAnalyze)
 SDEALLOCATE(wAnalyze)
+SDEALLOCATE(PREF_VDM)
 
 InterpolationInitIsDone = .FALSE.
 END SUBROUTINE FinalizeInterpolation
