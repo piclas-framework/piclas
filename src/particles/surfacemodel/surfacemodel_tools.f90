@@ -314,8 +314,8 @@ CASE(0)
 CASE(1,2,3)
   ! Simply using the actual position as bounds
   Bounds(1:3) = PointVec(1:3)
-  ! Wall temperature is set to the start value as the gradient can be oriented perpendicular
-  WallTemp2   = PB%WallTemp(locBCID)
+  ! Wall temperature is set to the end value
+  WallTemp2   = PB%WallTemp2(locBCID)
 END SELECT
 
 IF(MINVAL(Bounds(1:3)-PB%TempGradStart(1:3,locBCID)).LT.-EpsMach) THEN
