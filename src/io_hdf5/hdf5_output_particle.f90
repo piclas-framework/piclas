@@ -992,7 +992,7 @@ USE MOD_PreProc
 USE MOD_Globals
 USE MOD_IO_HDF5
 USE MOD_Mesh_Vars              ,ONLY: offsetElem,nGlobalElems, nElems
-USE MOD_Particle_Vars          ,ONLY: nSpecies
+USE MOD_Particle_Vars          ,ONLY: nSpecies, Species
 USE MOD_Particle_Sampling_Vars ,ONLY: AdaptBCMacroVal,AdaptBCSampleElemNum,AdaptBCMapSampleToElem,AdaptiveData,AdaptBCTruncAverage
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -1003,11 +1003,12 @@ CHARACTER(LEN=255),INTENT(IN)  :: FileName
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
+LOGICAL                        :: UseAdaptiveType4
 CHARACTER(LEN=255),ALLOCATABLE :: StrVarNames(:)
 CHARACTER(LEN=255)             :: H5_Name
 CHARACTER(LEN=255)             :: SpecID
 INTEGER                        :: nVar, nVarTotal
-INTEGER                        :: ElemID,iVar,iSpec,SampleElemID
+INTEGER                        :: ElemID,iVar,iSpec,iSF,SampleElemID
 !===================================================================================================================================
 
 nVar = 7
@@ -1021,7 +1022,7 @@ DO iSpec=1,nSpecies
   StrVarNames(iVar+2) = 'Spec'//TRIM(SpecID)//'-VeloZ'
   StrVarNames(iVar+3) = 'Spec'//TRIM(SpecID)//'-Density'
   StrVarNames(iVar+4) = 'Spec'//TRIM(SpecID)//'-PumpVeloPerArea'
-  StrVarNames(iVar+5) = 'Spec'//TRIM(SpecID)//'-PumpPressure'
+  StrVarNames(iVar+5) = 'Spec'//TRIM(SpecID)//'-Pressure'
   StrVarNames(iVar+6) = 'Spec'//TRIM(SpecID)//'-PumpIntegralError'
   iVar = iVar + nVar
 END DO
@@ -1034,7 +1035,12 @@ END IF
 
 iVar = 1
 AdaptiveData = 0.
+UseAdaptiveType4 = .FALSE.
+
 DO iSpec = 1, nSpecies
+  DO iSF = 1, Species(iSpec)%nSurfacefluxBCs
+    IF(Species(iSpec)%Surfaceflux(iSF)%AdaptiveType.EQ.4) UseAdaptiveType4 = .TRUE.
+  END DO
   DO SampleElemID = 1,AdaptBCSampleElemNum
     ElemID = AdaptBCMapSampleToElem(SampleElemID)
     AdaptiveData(iVar:iVar-1+nVar,ElemID) = AdaptBCMacroVal(1:7,SampleElemID,iSpec)
@@ -1062,6 +1068,7 @@ CALL CloseDataFile()
 SDEALLOCATE(StrVarNames)
 
 IF(AdaptBCTruncAverage) CALL WriteAdaptiveRunningAverageToHDF5(FileName)
+IF(UseAdaptiveType4) CALL WriteAdaptBCPartNumOutToHDF5(FileName)
 
 END SUBROUTINE WriteAdaptiveInfoToHDF5
 
@@ -1139,6 +1146,65 @@ CALL CloseDataFile()
 DEALLOCATE(AdaptBCAverageIndex)
 
 END SUBROUTINE WriteAdaptiveRunningAverageToHDF5
+
+
+SUBROUTINE WriteAdaptBCPartNumOutToHDF5(FileName)
+!===================================================================================================================================
+!> Write the number of particles that left the domain in the previous time step to allow the continuation of the simulation
+!===================================================================================================================================
+! MODULES
+USE MOD_PreProc
+USE MOD_Globals
+USE MOD_IO_HDF5
+USE MOD_Timedisc_Vars           ,ONLY: iter
+USE MOD_Restart_Vars            ,ONLY: DoRestart
+USE MOD_Particle_Vars           ,ONLY: nSpecies, Species
+USE MOD_Particle_Sampling_Vars  ,ONLY: AdaptBCPartNumOut
+#if USE_MPI
+USE MOD_Particle_MPI_Vars       ,ONLY: PartMPI
+#endif /*USE_MPI*/
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+CHARACTER(LEN=255),INTENT(IN)   :: FileName
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER                         :: nSurfacefluxBCs
+INTEGER, ALLOCATABLE            :: AdaptBCPartNumOutTemp(:,:)
+!===================================================================================================================================
+
+IF(.NOT.DoRestart.AND.iter.EQ.0) RETURN
+
+nSurfacefluxBCs = MAXVAL(Species(:)%nSurfacefluxBCs)
+
+! Sum-up values across the processors for output in temporary variable
+#if USE_MPI
+IF(MPIRoot)THEN
+  ALLOCATE(AdaptBCPartNumOutTemp(1:nSpecies,1:nSurfacefluxBCs))
+  CALL MPI_REDUCE(AdaptBCPartNumOut,AdaptBCPartNumOutTemp,nSpecies*nSurfacefluxBCs,MPI_INTEGER,MPI_SUM,0,PartMPI%COMM,IERROR)
+ELSE
+  CALL MPI_REDUCE(AdaptBCPartNumOut,MPI_IN_PLACE         ,nSpecies*nSurfacefluxBCs,MPI_INTEGER,MPI_SUM,0,PartMPI%COMM,IERROR)
+END IF
+#endif
+
+IF(MPIRoot)THEN
+  CALL OpenDataFile(FileName,create=.FALSE.,single=.TRUE.,readOnly=.FALSE.)
+  ! Associate construct for integer KIND=8 possibility
+  ASSOCIATE(nSpecies          => INT(nSpecies,IK)            ,&
+            nSurfacefluxBCs   => INT(nSurfacefluxBCs,IK)        )
+    CALL WriteArrayToHDF5(DataSetName = 'AdaptBCPartNumOut' , rank = 2, &
+                          nValGlobal  = (/nSpecies,nSurfacefluxBCs/),   &
+                          nVal        = (/nSpecies,nSurfacefluxBCs/),   &
+                          offset      = (/0_IK,0_IK/), &
+                          collective  = .FALSE. , IntegerArray_i4 = AdaptBCPartNumOutTemp)
+  END ASSOCIATE
+  CALL CloseDataFile()
+END IF
+
+END SUBROUTINE WriteAdaptBCPartNumOutToHDF5
 
 
 SUBROUTINE WriteAdaptiveWallTempToHDF5(FileName)
