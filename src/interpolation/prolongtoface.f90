@@ -101,7 +101,7 @@ END IF
 DO SideID=firstSideID,lastSideID
   ! neighbor side !ElemID=-1 if not existing
   ElemID     = SideToElem(S2E_NB_ELEM_ID,SideID)
-  IF (ElemID.LT.0) CALL abort(__STAMP__,'FV prolongtoface error')
+  IF (ElemID.LT.0) CYCLE !mpi-mortar whatever
   IF (PRESENT(FV_gradU)) THEN
 #if (PP_TimeDiscMethod==600)
     !DVM specific reconstruction

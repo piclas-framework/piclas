@@ -202,11 +202,11 @@ DO iBC=1,nBCs
           upos= iVel+(jVel-1)*DVMnVelos(1)+(kVel-1)*DVMnVelos(1)*DVMnVelos(2)
           vnormal = DVMVelos(iVel,1)*NormVec(1,p,q,SideID) + DVMVelos(jVel,2)*NormVec(2,p,q,SideID) + DVMVelos(kVel,3)*NormVec(3,p,q,SideID)
           ! vwall = DVMVelos(iVel,1)*RefState(2,BCState) + DVMVelos(jVel,2)*RefState(3,BCState) + DVMVelos(kVel,3)*RefState(4,BCState)
-          IF (ABS(NormVec(1,p,q,SideID)).EQ.1.) THEN !x-perpendicular boundary
+          IF (ABS(ABS(NormVec(1,p,q,SideID)) - 1.).LE.1e-6) THEN !x-perpendicular boundary
             upos_sp=(DVMnVelos(1)+1-iVel)+(jVel-1)*DVMnVelos(1)+(kVel-1)*DVMnVelos(1)*DVMnVelos(2)
-          ELSE IF (ABS(NormVec(2,p,q,SideID)).EQ.1.) THEN !y-perpendicular boundary
+          ELSE IF (ABS(ABS(NormVec(2,p,q,SideID)) - 1.).LE.1e-6) THEN !y-perpendicular boundary
             upos_sp=iVel+(DVMnVelos(2)-jVel)*DVMnVelos(1)+(kVel-1)*DVMnVelos(1)*DVMnVelos(2)
-          ELSE IF (ABS(NormVec(3,p,q,SideID)).EQ.1.) THEN !z-perpendicular boundary
+          ELSE IF (ABS(ABS(NormVec(3,p,q,SideID)) - 1.).LE.1e-6) THEN !z-perpendicular boundary
             upos_sp=iVel+(jVel-1)*DVMnVelos(1)+(DVMnVelos(3)-kVel)*DVMnVelos(1)*DVMnVelos(2)
           ELSE
             CALL abort(__STAMP__,'Specular reflection only implemented for boundaries perpendicular to velocity grid')

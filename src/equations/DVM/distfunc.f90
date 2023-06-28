@@ -539,7 +539,7 @@ REAL, INTENT(IN)              :: tDeriv
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-REAL                            :: MacroVal(8), tau, fTarget(PP_nVar), forceTerm, cVel(3)
+REAL                            :: MacroVal(8), tau, fTarget(PP_nVar), forceTerm, cVel(3)!, velodiff, gamma
 INTEGER                         :: i,j,k,iElem,iVel,jVel,kVel,upos !,upos1,upos2
 !===================================================================================================================================
 DO iElem =1, nElems
@@ -552,7 +552,8 @@ DO iElem =1, nElems
     !     CALL ShakhovDistribution(MacroVal,fTarget)
     !   CASE DEFAULT
     !     CALL abort(__STAMP__,'DVM BGK Model not implemented.',999,999.)
-    ! END SELECT
+    !   END SELECT
+    ! gamma = tau*(1.-EXP(-tDeriv/tau))/tDeriv
 
     CALL MaxwellDistribution(MacroVal,fTarget) !equilibrium approximation
 
@@ -579,7 +580,8 @@ DO iElem =1, nElems
       !   upos2 = iVel+1+(jVel-1)*DVMnVelos(1)+(kVel-1)*DVMnVelos(1)*DVMnVelos(2)
       !   velodiff=DVMVelos(iVel+1,1)-DVMVelos(iVel-1,1)
       ! END IF
-      ! forceTerm = -110*(U(upos2,i,j,k,iElem)-U(upos1,i,j,k,iElem))/velodiff
+      ! forceTerm = - DVMForce(1)*(gamma*(U(upos2,i,j,k,iElem)-U(upos1,i,j,k,iElem)) &
+      !                        +(1-gamma)*(fTarget(upos2)-fTarget(upos1)))/velodiff
 
       U(upos,i,j,k,iElem) = U(upos,i,j,k,iElem) + forceTerm*tDeriv/2 !t/2 for strang splitting
     END DO; END DO; END DO

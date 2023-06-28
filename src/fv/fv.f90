@@ -88,7 +88,7 @@ USE MOD_Restart_Vars       ,ONLY: DoRestart,RestartInitIsDone
 USE MOD_Interpolation_Vars ,ONLY: InterpolationInitIsDone
 USE MOD_Mesh_Vars          ,ONLY: nSides, Face_xGP, NormVec
 USE MOD_Mesh_Vars          ,ONLY: MeshInitIsDone
-USE MOD_FillMortar         ,ONLY: L_Mortar
+USE MOD_FillMortar         ,ONLY: Dx_Mortar, Dx_Mortar2
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Vars   ,ONLY: PerformLoadBalance
 #if !(USE_HDG)
@@ -219,13 +219,15 @@ IF (doFVReconstruction) THEN
   CALL StartReceiveMPIData(3,FV_dx_slave,1,nSides,RecRequest_U,SendID=2) ! Receive MINE
   CALL StartReceiveMPIData(3,FV_dx_master,1,nSides,RecRequest_U2,SendID=1)! Receive YOUR
   CALL InitFV_Metrics(FV_dx_master,FV_dx_slave,doMPISides=.TRUE.)
-  CALL L_Mortar(FV_dx_master,FV_dx_slave,doMPISides=.TRUE.)
+  CALL Dx_Mortar(FV_dx_master,FV_dx_slave,doMPISides=.TRUE.)
+  CALL Dx_Mortar2(FV_dx_master,FV_dx_slave,doMPISides=.TRUE.)
   CALL StartSendMPIData(3,FV_dx_slave,1,nSides,SendRequest_U,SendID=2) ! Send YOUR
   CALL StartSendMPIData(3,FV_dx_master,1,nSides,SendRequest_U2,SendID=1) ! Send MINE
 #endif /*USE_MPI*/
   ! distances for BCSides, InnerSides and MPI sides - receive direction
   CALL InitFV_Metrics(FV_dx_master,FV_dx_slave,doMPISides=.FALSE.)
-  CALL L_Mortar(FV_dx_master,FV_dx_slave,doMPISides=.FALSE.)
+  CALL Dx_Mortar(FV_dx_master,FV_dx_slave,doMPISides=.FALSE.)
+  CALL Dx_Mortar2(FV_dx_master,FV_dx_slave,doMPISides=.FALSE.)
 #if USE_MPI
   CALL FinishExchangeMPIData(SendRequest_U,RecRequest_U,SendID=2)
   CALL FinishExchangeMPIData(SendRequest_U2,RecRequest_U2,SendID=1)

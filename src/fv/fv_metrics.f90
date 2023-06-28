@@ -78,7 +78,7 @@ END IF
 
 DO SideID=firstSideID,lastSideID
   ElemID     = SideToElem(S2E_NB_ELEM_ID,SideID)
-  IF (ElemID.LT.0) CALL abort(__STAMP__,'FV metrics error')
+  IF (ElemID.LT.0) CYCLE !mpi-mortar whatever
   DO iCoord=1,3
     IF (Face_xGP(iCoord,0,0,SideID).GE.FV_PerBoxMax(iCoord))  THEN
       Face_temp(iCoord) = Face_xGP(iCoord,0,0,SideID)+FV_PerBoxMin(iCoord)-FV_PerBoxMax(iCoord)
