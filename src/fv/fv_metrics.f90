@@ -131,8 +131,9 @@ REAL, INTENT(IN)                      :: dmaster(3,1:nSides)
 REAL, INTENT(IN)                      :: dslave(3,1:nSides)
 !----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                                :: SideID, ElemID, locSideID, flip, info_dgesv, IPIV(PP_dim), singleDir
+INTEGER                                :: SideID, ElemID, locSideID, flip, info_dgesv, IPIV(PP_dim), singleDir, dblDir1, dblDir2
 REAL                                   :: gradWeight, dElem(3), dMatrix(PP_dim,PP_dim), dMatrixBC(PP_dim,PP_dim)
+REAL                                   :: vector2(2), dMatrixBC2(2,2)
 LOGICAL                                :: BCelem
 !==================================================================================================================================
 
@@ -186,13 +187,22 @@ DO ElemID = 1, nElems
 
   IF (BCelem) THEN
     singleDir = 0
+    dblDir1 = 0
+    dblDir2 = 0
     dMatrixBC = dMatrix - dMatrixBC
 #if PP_dim == 3
     IF (dMatrixBC(1,1).EQ.0.) THEN
+      dblDir1 = 2
+      dblDir2 = 3
       IF (dMatrixBC(2,2).EQ.0.) singleDir = 3
       IF (dMatrixBC(3,3).EQ.0.) singleDir = 2
-    ELSE IF (dMatrixBC(2,2).EQ.0..AND.dMatrixBC(3,3).EQ.0.) THEN
-      singleDir = 1
+    ELSE IF (dMatrixBC(2,2).EQ.0.) THEN
+      dblDir1 = 1
+      dblDir2 = 3
+      IF (dMatrixBC(3,3).EQ.0.) singleDir = 1
+    ELSE IF (dMatrixBC(3,3).EQ.0.) THEN
+      dblDir1 = 1
+      dblDir2 = 2
     END IF
     DO locSideID=1,6
 #else
@@ -211,6 +221,19 @@ DO ElemID = 1, nElems
         IF (dMatrixBC(singleDir,singleDir).GT.0.) THEN
           FV_SysSol_BC(singleDir,SideID) = (dslave(singleDir,SideID) - dmaster(singleDir,SideID))/dMatrixBC(singleDir,singleDir)
         END IF
+      ELSE IF (dblDir1.GT.0) THEN
+        FV_SysSol_BC(:,SideID) = dslave(:,SideID) - dmaster(:,SideID)
+        vector2(1) = FV_SysSol_BC(dblDir1,SideID)
+        vector2(2) = FV_SysSol_BC(dblDir2,SideID)
+        dMatrixBC2(1,1) = dMatrixBC(dblDir1,dblDir1)
+        dMatrixBC2(1,2) = dMatrixBC(dblDir1,dblDir2)
+        dMatrixBC2(2,1) = dMatrixBC(dblDir2,dblDir1)
+        dMatrixBC2(2,2) = dMatrixBC(dblDir2,dblDir2)
+        CALL DGESV(2,1,dMatrixBC2,2,IPIV,vector2,2,info_dgesv)
+        IF(info_dgesv.NE.0) CALL abort(__STAMP__,'FV metrics BC error')
+        FV_SysSol_BC(:,SideID) = 0.
+        FV_SysSol_BC(dblDir1,SideID) = vector2(1)
+        FV_SysSol_BC(dblDir2,SideID) = vector2(2)
       ELSE
         FV_SysSol_BC(:,SideID) = dslave(:,SideID) - dmaster(:,SideID)
         CALL DGESV(PP_dim,1,dMatrixBC,PP_dim,IPIV,FV_SysSol_BC(1:PP_dim,SideID),PP_dim,info_dgesv)
