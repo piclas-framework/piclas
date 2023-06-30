@@ -63,8 +63,8 @@ do
   then
     LOADMODULES=0
     # Set desired versions
-    USECOMPILERVERSION=11.2.0
-    USEMPIVERSION=4.1.1
+    USECOMPILERVERSION=13.1.0
+    USEMPIVERSION=4.1.5
     # Force --rerun via 'set'
     echo ""
     echo "Running '-m' with GCC $USECOMPILERVERSION and  OpenMPI $USEMPIVERSION"
