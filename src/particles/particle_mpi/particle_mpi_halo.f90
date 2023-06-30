@@ -591,36 +591,36 @@ ElemLoop:  DO iElem = 1,nComputeNodeTotalElems
               ASSOCIATE( alpha => PartBound%RotPeriodicAngle(iPartBound) * RotPeriodicTol)
                 SELECT CASE(GEO%RotPeriodicAxi)
                   CASE(1) ! x-rotation axis
-                    IF( (BoundsOfElemCenter(1).GE.PartBound%RotPeriodicMax(iPartBound)).OR. &
-                        (BoundsOfElemCenter(1).LE.PartBound%RotPeriodicMin(iPartBound)) ) THEN
+                    IF( (BoundsOfElemCenter(1)-BoundsOfElemCenter(4).GE.PartBound%RotPeriodicMax(iPartBound)+MPI_halo_eps_woshape).OR. &
+                        (BoundsOfElemCenter(1)+BoundsOfElemCenter(4).LE.PartBound%RotPeriodicMin(iPartBound)-MPI_halo_eps_woshape) ) THEN
                         CYCLE
                     END IF
-                    IF( (MPISideBoundsOfNbElemCenter(1,iSide).GE.PartBound%RotPeriodicMax(iPartBound)).OR. &
-                        (MPISideBoundsOfNbElemCenter(1,iSide).LE.PartBound%RotPeriodicMin(iPartBound)) ) THEN
+                    IF( (MPISideBoundsOfNbElemCenter(1,iSide)-MPISideBoundsOfNbElemCenter(4,iSide).GE.PartBound%RotPeriodicMax(iPartBound)+MPI_halo_eps_woshape).OR. &
+                        (MPISideBoundsOfNbElemCenter(1,iSide)+MPISideBoundsOfNbElemCenter(4,iSide).LE.PartBound%RotPeriodicMin(iPartBound)-MPI_halo_eps_woshape) ) THEN
                         CYCLE
                     END IF
                     RotBoundsOfElemCenter(1) = BoundsOfElemCenter(1)
                     RotBoundsOfElemCenter(2) = COS(alpha)*BoundsOfElemCenter(2) - SIN(alpha)*BoundsOfElemCenter(3)
                     RotBoundsOfElemCenter(3) = SIN(alpha)*BoundsOfElemCenter(2) + COS(alpha)*BoundsOfElemCenter(3)
                   CASE(2) ! y-rotation axis
-                    IF( (BoundsOfElemCenter(2).GE.PartBound%RotPeriodicMax(iPartBound)).OR. &
-                        (BoundsOfElemCenter(2).LE.PartBound%RotPeriodicMin(iPartBound)) ) THEN
+                    IF( (BoundsOfElemCenter(2)-BoundsOfElemCenter(4).GE.PartBound%RotPeriodicMax(iPartBound)+MPI_halo_eps_woshape).OR. &
+                        (BoundsOfElemCenter(2)+BoundsOfElemCenter(4).LE.PartBound%RotPeriodicMin(iPartBound)-MPI_halo_eps_woshape) ) THEN
                         CYCLE
                     END IF
-                    IF( (MPISideBoundsOfNbElemCenter(2,iSide).GE.PartBound%RotPeriodicMax(iPartBound)).OR. &
-                        (MPISideBoundsOfNbElemCenter(2,iSide).LE.PartBound%RotPeriodicMin(iPartBound)) ) THEN
+                    IF( (MPISideBoundsOfNbElemCenter(2,iSide)-MPISideBoundsOfNbElemCenter(4,iSide).GE.PartBound%RotPeriodicMax(iPartBound)+MPI_halo_eps_woshape).OR. &
+                        (MPISideBoundsOfNbElemCenter(2,iSide)+MPISideBoundsOfNbElemCenter(4,iSide).LE.PartBound%RotPeriodicMin(iPartBound)-MPI_halo_eps_woshape) ) THEN
                         CYCLE
                     END IF
                     RotBoundsOfElemCenter(1) = COS(alpha)*BoundsOfElemCenter(1) + SIN(alpha)*BoundsOfElemCenter(3)
                     RotBoundsOfElemCenter(2) = BoundsOfElemCenter(2)
                     RotBoundsOfElemCenter(3) =-SIN(alpha)*BoundsOfElemCenter(1) + COS(alpha)*BoundsOfElemCenter(3)
                   CASE(3) ! z-rotation axis
-                    IF( (BoundsOfElemCenter(3).GE.PartBound%RotPeriodicMax(iPartBound)).OR. &
-                        (BoundsOfElemCenter(3).LE.PartBound%RotPeriodicMin(iPartBound)) ) THEN
+                    IF( (BoundsOfElemCenter(3)-BoundsOfElemCenter(4).GE.PartBound%RotPeriodicMax(iPartBound)+MPI_halo_eps_woshape).OR. &
+                        (BoundsOfElemCenter(3)+BoundsOfElemCenter(4).LE.PartBound%RotPeriodicMin(iPartBound)-MPI_halo_eps_woshape) ) THEN
                         CYCLE
                     END IF
-                    IF( (MPISideBoundsOfNbElemCenter(3,iSide).GE.PartBound%RotPeriodicMax(iPartBound)).OR. &
-                        (MPISideBoundsOfNbElemCenter(3,iSide).LE.PartBound%RotPeriodicMin(iPartBound)) ) THEN
+                    IF( (MPISideBoundsOfNbElemCenter(3,iSide)-MPISideBoundsOfNbElemCenter(4,iSide).GE.PartBound%RotPeriodicMax(iPartBound)+MPI_halo_eps_woshape).OR. &
+                        (MPISideBoundsOfNbElemCenter(3,iSide)+MPISideBoundsOfNbElemCenter(4,iSide).LE.PartBound%RotPeriodicMin(iPartBound)-MPI_halo_eps_woshape) ) THEN
                         CYCLE
                     END IF
                     RotBoundsOfElemCenter(1) = COS(alpha)*BoundsOfElemCenter(1) - SIN(alpha)*BoundsOfElemCenter(2)
