@@ -39,7 +39,7 @@ USE MOD_Globals
 USE MOD_Globals_Vars            ,ONLY: PI
 USE MOD_Timedisc_Vars           ,ONLY: dt,time
 USE MOD_Particle_Boundary_Vars  ,ONLY: nSurfSample, Partbound, SurfSide2GlobalSide, DoBoundaryParticleOutputHDF5
-USE MOD_Particle_Vars           ,ONLY: Species, PartState
+USE MOD_Particle_Vars           ,ONLY: Species, PartState, usevMPF
 USE MOD_RayTracing_Vars         ,ONLY: Ray
 USE MOD_part_emission_tools     ,ONLY: CalcPhotonEnergy
 USE MOD_Particle_Mesh_Vars      ,ONLY: SideInfo_Shared
@@ -73,10 +73,10 @@ IMPLICIT NONE
 ! LOCAL VARIABLES
 REAL                  :: t_1, t_2, E_Intensity
 INTEGER               :: NbrOfRepetitions, firstSide, lastSide, SideID, iSample, GlobElemID, PartID
-INTEGER               :: GlobalSideID, iSurfSide, p, q, BCID, SpecID, iPart
-REAL                  :: NbrOfSEE, TimeScalingFactor
+INTEGER               :: GlobalSideID, iSurfSide, p, q, BCID, SpecID, iPart, NbrOfSEE
+REAL                  :: RealNbrOfSEE, TimeScalingFactor, MPF
 REAL                  :: Particle_pos(1:3), xi(2)
-REAL                  :: RandVal2(2), xiab(1:2,1:2), nVec(3), tang1(3), tang2(3), Velo3D(3)
+REAL                  :: RandVal, RandVal2(2), xiab(1:2,1:2), nVec(3), tang1(3), tang2(3), Velo3D(3)
 #if USE_HDG
 INTEGER               :: iBC,iUniqueFPCBC,iUniqueEPCBC,BCState
 #endif /*USE_HDG*/
@@ -146,12 +146,20 @@ DO iSurfSide = firstSide, lastSide
   SpecID = PartBound%PhotonSEEElectronSpecies(BCID)
   ! Determine which element the particles are going to be inserted
   GlobElemID = SideInfo_Shared(SIDE_ELEMID ,SideID)
+  ! Determine the weighting factor of the electron species
+  IF(usevMPF)THEN
+    MPF = PartBound%PhotonSEEMacroParticleFactor(BCID) ! Use SEE-specific MPF
+  ELSE
+    MPF = Species(SpecID)%MacroParticleFactor ! Use species MPF
+  END IF ! usevMPF
+  ! Loop over the subsides
   DO p = 1, nSurfSample
     DO q = 1, nSurfSample
       ! Calculate the number of SEEs per subside
       E_Intensity = PhotonSampWall(2,p,q,iSurfSide) * TimeScalingFactor
-      NbrOfSEE = E_Intensity / CalcPhotonEnergy(lambda) * PartBound%PhotonSEEYield(BCID) / Species(SpecID)%MacroParticleFactor
-      ! TODO: NINT Correction
+      RealNbrOfSEE = E_Intensity / CalcPhotonEnergy(lambda) * PartBound%PhotonSEEYield(BCID) / MPF
+      CALL RANDOM_NUMBER(RandVal)
+      NbrOfSEE = INT(RealNbrOfSEE+RandVal)
       ! Calculate the normal & tangential vectors
       xi(1)=(BezierSampleXi(p-1)+BezierSampleXi(p))/2. ! (a+b)/2
       xi(2)=(BezierSampleXi(q-1)+BezierSampleXi(q))/2. ! (a+b)/2
@@ -161,7 +169,7 @@ DO iSurfSide = firstSide, lastSide
       ! Normal vector provided by the routine points outside of the domain
       nVec = -nVec
       ! Loop over number of particles to be inserted
-      DO iPart = 1, NINT(NbrOfSEE)
+      DO iPart = 1, NbrOfSEE
         ! Determine particle position within the sub-side
         CALL RANDOM_NUMBER(RandVal2)
         xi=(xiab(:,2)-xiab(:,1))*RandVal2+xiab(:,1)
@@ -169,11 +177,11 @@ DO iSurfSide = firstSide, lastSide
         ! Determine particle velocity
         CALL CalcVelocity_FromWorkFuncSEE(PartBound%PhotonSEEWorkFunction(BCID), Species(SpecID)%MassIC, tang1, nVec, Velo3D)
         ! Create new particle
-        CALL CreateParticle(SpecID,Particle_pos(1:3),GlobElemID,Velo3D(1:3),0.,0.,0.,NewPartID=PartID,NewMPF=Species(SpecID)%MacroParticleFactor)
+        CALL CreateParticle(SpecID,Particle_pos(1:3),GlobElemID,Velo3D(1:3),0.,0.,0.,NewPartID=PartID,NewMPF=MPF)
         ! 1. Store the particle information in PartStateBoundary.h5
         IF(DoBoundaryParticleOutputHDF5) THEN
           CALL StoreBoundaryParticleProperties(PartID,SpecID,PartState(1:3,PartID),&
-                UNITVECTOR(PartState(4:6,PartID)),nVec,iPartBound=BCID,mode=2,MPF_optIN=Species(SpecID)%MacroParticleFactor)
+                UNITVECTOR(PartState(4:6,PartID)),nVec,iPartBound=BCID,mode=2,MPF_optIN=MPF)
         END IF ! DoBoundaryParticleOutputHDF5
 #if USE_HDG
         ! 2. Check if floating boundary conditions (FPC) are used and consider electron holes
@@ -183,7 +191,7 @@ DO iSurfSide = firstSide, lastSide
           IF(BoundaryType(iBC,BC_TYPE).EQ.20)THEN ! BCType = BoundaryType(iBC,BC_TYPE)
             BCState = BoundaryType(iBC,BC_STATE) ! State is iFPC
             iUniqueFPCBC = FPC%Group(BCState,2)
-            FPC%ChargeProc(iUniqueFPCBC) = FPC%ChargeProc(iUniqueFPCBC) - Species(SpecID)%ChargeIC * Species(SpecID)%MacroParticleFactor ! Use negative charge!
+            FPC%ChargeProc(iUniqueFPCBC) = FPC%ChargeProc(iUniqueFPCBC) - Species(SpecID)%ChargeIC * MPF ! Use negative charge!
           END IF ! BCType.EQ.20
         END IF ! UseFPC
         ! 3. Check if electric potential condition (EPC) are used and consider electron holes
@@ -193,7 +201,7 @@ DO iSurfSide = firstSide, lastSide
           IF(BoundaryType(iBC,BC_TYPE).EQ.8)THEN ! BCType = BoundaryType(iBC,BC_TYPE)
             BCState = BoundaryType(iBC,BC_STATE) ! State is iEPC
             iUniqueEPCBC = EPC%Group(BCState,2)
-            EPC%ChargeProc(iUniqueEPCBC) = EPC%ChargeProc(iUniqueEPCBC) - Species(SpecID)%ChargeIC * Species(SpecID)%MacroParticleFactor ! Use negative charge!
+            EPC%ChargeProc(iUniqueEPCBC) = EPC%ChargeProc(iUniqueEPCBC) - Species(SpecID)%ChargeIC * MPF ! Use negative charge!
           END IF ! BCType.EQ.8
         END IF ! UseEPC
 #endif /*USE_HDG*/

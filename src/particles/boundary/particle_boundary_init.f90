@@ -91,21 +91,24 @@ CALL prms%CreateRealOption(     'Part-Boundary[$]-RotACC'  &
 CALL prms%CreateRealOption(     'Part-Boundary[$]-ElecACC '  &
                                 , 'Electronic accommodation coefficient of reflective particle boundary [$].' &
                                 , '0.', numberedmulti=.TRUE.)
+CALL prms%CreateLogicalOption(  'Part-Boundary[$]-PhotonSpecularReflection'  &
+                                , 'Enables a perfect specular reflection for photons (FALSE: diffuse with PhotonEnACC) [$].' &
+                                , '.FALSE.', numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'Part-Boundary[$]-PhotonEnACC'  &
                                 , 'Energy accommodation coefficient of reflective photon boundary [$].' &
                                 , '0.', numberedmulti=.TRUE.)
-CALL prms%CreateRealOption(     'Part-Boundary[$]-PhotonSEEYield'  &
+CALL prms%CreateRealOption(     'Part-Boundary[$]-PhotonSEE-Yield'  &
                                 , 'Secondary photo-electron yield [$].' &
                                 , '0.', numberedmulti=.TRUE.)
-CALL prms%CreateRealOption(     'Part-Boundary[$]-PhotonSEEWorkFunction'  &
+CALL prms%CreateRealOption(     'Part-Boundary[$]-PhotonSEE-WorkFunction'  &
                                 , 'Secondary photo-electron work function [$].' &
                                 , '0.', numberedmulti=.TRUE.)
-CALL prms%CreateIntOption(      'Part-Boundary[$]-PhotonSEEElectronSpecies'  &
+CALL prms%CreateRealOption(     'Part-Boundary[$]-PhotonSEE-MacroParticleFactor'  &
+                                , 'Secondary photo-electron weighting factor, specific for electrons emitted from the boundary [$].' &
+                                , '0.', numberedmulti=.TRUE.)
+CALL prms%CreateIntOption(      'Part-Boundary[$]-PhotonSEE-ElectronSpecies'  &
                                 , 'Secondary photo-electron species index [$].' &
-                                , '0', numberedmulti=.TRUE.)
-CALL prms%CreateLogicalOption(   'Part-Boundary[$]-PhotonSpecularReflection'  &
-                                , 'Momentum accommodation coefficient of reflective particle boundary [$].' &
-                                , '.FALSE.', numberedmulti=.TRUE.)
+                                , numberedmulti=.TRUE.)
 CALL prms%CreateLogicalOption(  'Part-Boundary[$]-Resample', &
                                   'Sample particle properties from equilibrium distribution after reflection', '.FALSE.'&
                                 , numberedmulti=.TRUE.)
@@ -181,7 +184,7 @@ USE MOD_ReadInTools
 USE MOD_Dielectric_Vars        ,ONLY: DoDielectricSurfaceCharge
 USE MOD_DSMC_Vars              ,ONLY: useDSMC, BGGas
 USE MOD_Mesh_Vars              ,ONLY: BoundaryName,BoundaryType, nBCs
-USE MOD_Particle_Vars          ,ONLY: PDM, nSpecies, PartMeshHasPeriodicBCs, RotRefFrameAxis, SpeciesDatabase, Species
+USE MOD_Particle_Vars          ,ONLY: PDM, nSpecies, PartMeshHasPeriodicBCs, RotRefFrameAxis, SpeciesDatabase, Species, usevMPF
 USE MOD_SurfaceModel_Vars      ,ONLY: nPorousBC
 USE MOD_Particle_Boundary_Vars ,ONLY: PartBound,nPartBound,DoBoundaryParticleOutputHDF5,PartStateBoundary, AdaptWallTemp
 USE MOD_Particle_Tracking_Vars ,ONLY: TrackingMethod
@@ -245,23 +248,31 @@ ALLOCATE(PartBound%RotACC(           1:nPartBound))
 PartBound%RotACC = -1.
 ALLOCATE(PartBound%ElecACC(          1:nPartBound))
 PartBound%ElecACC = -1.
+! Photon reflection
+ALLOCATE(PartBound%PhotonSpecularReflection(1:nPartBound))
+PartBound%PhotonSpecularReflection = .FALSE.
 ALLOCATE(PartBound%PhotonEnACC(      1:nPartBound))
 PartBound%PhotonEnACC = -1.
+! Photon SEE
 ALLOCATE(PartBound%PhotonSEEYield(      1:nPartBound))
 PartBound%PhotonSEEYield = 0.
-ALLOCATE(PartBound%PhotonSEEWorkFunction(      1:nPartBound))
+ALLOCATE(PartBound%PhotonSEEWorkFunction(1:nPartBound))
 PartBound%PhotonSEEWorkFunction = 0.
-ALLOCATE(PartBound%PhotonSEEElectronSpecies(      1:nPartBound))
+ALLOCATE(PartBound%PhotonSEEMacroParticleFactor(1:nPartBound))
+PartBound%PhotonSEEMacroParticleFactor = 0.
+ALLOCATE(PartBound%PhotonSEEElectronSpecies(1:nPartBound))
 PartBound%PhotonSEEElectronSpecies = 0
-ALLOCATE(PartBound%PhotonSpecularReflection(1:nPartBound))
 ALLOCATE(PartBound%Resample(         1:nPartBound))
 PartBound%Resample = .FALSE.
+! Linear wall velocity
 ALLOCATE(PartBound%WallVelo(     1:3,1:nPartBound))
 PartBound%WallVelo = 0.
+! Rotational wall velocity
 ALLOCATE(PartBound%RotVelo(          1:nPartBound))
 PartBound%RotVelo = .FALSE.
 ALLOCATE(PartBound%RotOmega(       1:3,1:nPartBound))
 PartBound%RotOmega = 0.
+! Rotational periodic BC
 ALLOCATE(PartBound%RotPeriodicAngle(  1:nPartBound))
 PartBound%RotPeriodicAngle = 0
 ALLOCATE(PartBound%RotPeriodicMin(  1:nPartBound))
@@ -348,11 +359,18 @@ DO iPartBound=1,nPartBound
     PartBound%Resample(iPartBound)        = GETLOGICAL('Part-Boundary'//TRIM(hilf)//'-Resample')
     PartBound%WallVelo(1:3,iPartBound)    = GETREALARRAY('Part-Boundary'//TRIM(hilf)//'-WallVelo',3)
     PartBound%RotVelo(iPartBound)         = GETLOGICAL('Part-Boundary'//TRIM(hilf)//'-RotVelo')
-    PartBound%PhotonEnACC(iPartBound)     = GETREAL('Part-Boundary'//TRIM(hilf)//'-PhotonEnACC')
-    PartBound%PhotonSEEYield(iPartBound)     = GETREAL('Part-Boundary'//TRIM(hilf)//'-PhotonSEEYield')
-    PartBound%PhotonSEEWorkFunction(iPartBound)     = GETREAL('Part-Boundary'//TRIM(hilf)//'-PhotonSEEWorkFunction')
-    PartBound%PhotonSEEElectronSpecies(iPartBound)  = GETINT('Part-Boundary'//TRIM(hilf)//'-PhotonSEEElectronSpecies')
     PartBound%PhotonSpecularReflection(iPartBound)     = GETLOGICAL('Part-Boundary'//TRIM(hilf)//'-PhotonSpecularReflection')
+    PartBound%PhotonEnACC(iPartBound)     = GETREAL('Part-Boundary'//TRIM(hilf)//'-PhotonEnACC')
+    PartBound%PhotonSEEYield(iPartBound)     = GETREAL('Part-Boundary'//TRIM(hilf)//'-PhotonSEE-Yield')
+    IF(PartBound%PhotonSEEYield(iPartBound).GT.0.) THEN
+      PartBound%PhotonSEEWorkFunction(iPartBound)     = GETREAL('Part-Boundary'//TRIM(hilf)//'-PhotonSEE-WorkFunction')
+      PartBound%PhotonSEEElectronSpecies(iPartBound)  = GETINT('Part-Boundary'//TRIM(hilf)//'-PhotonSEE-ElectronSpecies')
+      IF(usevMPF) THEN
+        WRITE(UNIT=hilf2,FMT='(G0)') Species(PartBound%PhotonSEEElectronSpecies(iPartBound))%MacroParticleFactor
+        PartBound%PhotonSEEMacroParticleFactor(iPartBound) = GETREAL('Part-Boundary'//TRIM(hilf)//'-PhotonSEE-MacroParticleFactor',&
+                                                                      TRIM(hilf2))
+      END IF
+    END IF
     IF(PartBound%RotVelo(iPartBound)) THEN
       RotFreq                             = GETREAL('Part-Boundary'//TRIM(hilf)//'-RotFreq')
       RotAxis                             = GETINT('Part-Boundary'//TRIM(hilf)//'-RotAxis')

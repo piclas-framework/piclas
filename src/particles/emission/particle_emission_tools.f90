@@ -1733,7 +1733,7 @@ REAL               :: Theta_temp
 !===================================================================================================================================
 
 ! ARM for energy distribution
-E_max = 25.0*W ! in eV (this yields an integral of 0.9956759, i.e., 95.57% of electrons have this or a lower energy)
+E_max = 25.0*W ! in eV (this yields an integral of 0.9956759, i.e., 99.57% of electrons have this or a lower energy)
 PDF_max = 81.0 / (128.0 * W)  ! PDF_max at E = W/3 (derivation of 6W^2E/(E+W)^4 == 0)
 ARM_SEE_PDF=.TRUE.
 DO WHILE(ARM_SEE_PDF)

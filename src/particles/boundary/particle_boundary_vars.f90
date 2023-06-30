@@ -271,8 +271,9 @@ TYPE tPartBoundary
   REAL    , ALLOCATABLE                  :: PhotonEnACC(:)
   REAL    , ALLOCATABLE                  :: PhotonSEEYield(:)
   REAL    , ALLOCATABLE                  :: PhotonSEEWorkFunction(:)
+  REAL    , ALLOCATABLE                  :: PhotonSEEMacroParticleFactor(:)
   INTEGER , ALLOCATABLE                  :: PhotonSEEElectronSpecies(:)
-  LOGICAL , ALLOCATABLE                  :: PhotonSpecularReflection(:) 
+  LOGICAL , ALLOCATABLE                  :: PhotonSpecularReflection(:)
   LOGICAL , ALLOCATABLE                  :: RotVelo(:)                    ! Flag for rotating walls
   REAL    , ALLOCATABLE                  :: RotOmega(:,:)                 ! Angular velocity
   REAL    , ALLOCATABLE                  :: RotPeriodicAngle(:)           ! Angle and Direction of rotation
