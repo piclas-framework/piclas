@@ -533,6 +533,9 @@ USE MOD_Globals             ,ONLY: abort,UNIT_StdOut
 USE MOD_Particle_Mesh_Vars  ,ONLY: ElemSideNodeID_Shared, NodeCoords_Shared
 USE MOD_Photon_TrackingVars ,ONLY: PhotonProps
 USE MOD_Mesh_Tools          ,ONLY: GetCNElemID
+#if USE_MPI
+USE MOD_Globals             ,ONLY: myRank
+#endif /*USE_MPI*/
 !--------------------------------------------------------------------------------------------------!
    IMPLICIT NONE
 !--------------------------------------------------------------------------------------------------!

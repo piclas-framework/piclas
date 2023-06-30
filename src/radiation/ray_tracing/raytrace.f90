@@ -94,7 +94,7 @@ PhotonSampWall=0.0
 CALL Allocate_Shared((/RayElemSize,nGlobalElems/),RayElemPassedEnergy_Shared_Win,RayElemPassedEnergy_Shared)
 CALL MPI_WIN_LOCK_ALL(0,RayElemPassedEnergy_Shared_Win,IERROR)
 !> Shared arrays for boundary sampling
-CALL Allocate_Shared((/2,nComputeNodeSurfTotalSides/),PhotonSampWall_Shared_Win,PhotonSampWall_Shared)
+CALL Allocate_Shared((/2,nSurfSample,nSurfSample,nComputeNodeSurfTotalSides/),PhotonSampWall_Shared_Win,PhotonSampWall_Shared)
 CALL MPI_WIN_LOCK_ALL(0,PhotonSampWall_Shared_Win,IERROR)
 IF (myComputeNodeRank.EQ.0) RayElemPassedEnergy_Shared = 0.
 IF (myComputeNodeRank.EQ.0) PhotonSampWall_Shared = 0.

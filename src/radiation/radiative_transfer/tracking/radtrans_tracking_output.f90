@@ -340,7 +340,7 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER                         :: MessageSize,nValues,iSurfSide,SurfSideID, SideID
-INTEGER                         :: iPos,iProc
+INTEGER                         :: iPos,iProc,p,q
 INTEGER                         :: RecvRequest(0:nSurfLeaders-1),SendRequest(0:nSurfLeaders-1)
 !===================================================================================================================================
 ! nodes without sampling surfaces do not take part in this routine
@@ -394,9 +394,13 @@ IF (myComputeNodeRank.EQ.0) THEN
       SideID     = SurfMapping(iProc)%SendSurfGlobalID(iSurfSide)
       SurfSideID = GlobalSide2SurfSide(SURF_SIDEID,SideID)
       ! Assemble message
-      SurfSendBuf(iProc)%content(iPos+1:iPos+2) = PhotonSampWall_Shared(:,SurfSideID)
-      iPos = iPos + 2
-      PhotonSampWall_Shared(:,SurfSideID)=0.
+      DO q = 1,nSurfSample
+        DO p = 1,nSurfSample
+        SurfSendBuf(iProc)%content(iPos+1:iPos+2) = PhotonSampWall_Shared(:,p,q,SurfSideID)
+        iPos = iPos + 2
+        END DO ! p=0,nSurfSample
+      END DO ! q=0,nSurfSample
+      PhotonSampWall_Shared(:,:,:,SurfSideID)=0.
     END DO ! iSurfSide = 1,SurfMapping(iProc)%nSendSurfSides
   END DO
 
@@ -446,9 +450,13 @@ IF (myComputeNodeRank.EQ.0) THEN
     DO iSurfSide = 1,SurfMapping(iProc)%nRecvSurfSides
       SideID     = SurfMapping(iProc)%RecvSurfGlobalID(iSurfSide)
       SurfSideID = GlobalSide2SurfSide(SURF_SIDEID,SideID)
-      PhotonSampWall_Shared(:,SurfSideID) = PhotonSampWall_Shared(:,SurfSideID) &
-                                             + SurfRecvBuf(iProc)%content(iPos+1:iPos+2)
-      iPos = iPos + 2
+      DO q = 1,nSurfSample
+        DO p = 1,nSurfSample
+          PhotonSampWall_Shared(:,p,q,SurfSideID) = PhotonSampWall_Shared(:,p,q,SurfSideID) &
+                                                  + SurfRecvBuf(iProc)%content(iPos+1:iPos+2)
+          iPos = iPos + 2
+        END DO ! p=0,nSurfSample
+      END DO ! q=0,nSurfSample
     END DO ! iSurfSide = 1,SurfMapping(iProc)%nRecvSurfSides
      ! Nullify buffer
     SurfRecvBuf(iProc)%content = 0.

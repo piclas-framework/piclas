@@ -40,7 +40,7 @@ USE MOD_Globals_Vars            ,ONLY: PI
 USE MOD_Timedisc_Vars           ,ONLY: dt,time
 USE MOD_Particle_Boundary_Vars  ,ONLY: nSurfSample, Partbound, SurfSide2GlobalSide, DoBoundaryParticleOutputHDF5
 USE MOD_Particle_Vars           ,ONLY: Species, PartState, usevMPF
-USE MOD_RayTracing_Vars         ,ONLY: Ray
+USE MOD_RayTracing_Vars         ,ONLY: Ray,RayPartBound
 USE MOD_part_emission_tools     ,ONLY: CalcPhotonEnergy
 USE MOD_Particle_Mesh_Vars      ,ONLY: SideInfo_Shared
 USE MOD_Particle_Surfaces_Vars  ,ONLY: BezierControlPoints3D, BezierSampleXi
@@ -50,14 +50,15 @@ USE MOD_part_emission_tools     ,ONLY: CalcVelocity_FromWorkFuncSEE
 USE MOD_Particle_Boundary_Tools ,ONLY: StoreBoundaryParticleProperties
 USE MOD_part_operations         ,ONLY: CreateParticle
 #ifdef LSERK
-USE MOD_Timedisc_Vars ,ONLY: iStage, RK_c, nRKStages
+USE MOD_Timedisc_Vars           ,ONLY: iStage, RK_c, nRKStages
 #endif
 #if USE_MPI
-USE MOD_Particle_Boundary_Vars ,ONLY: SurfSideArea_Shared,nComputeNodeSurfTotalSides
-USE MOD_Photon_TrackingVars    ,ONLY: PhotonSampWall_Shared
+USE MOD_Particle_Boundary_Vars  ,ONLY: SurfSideArea_Shared,nComputeNodeSurfTotalSides
+USE MOD_Photon_TrackingVars     ,ONLY: PhotonSampWall_Shared
+USE MOD_MPI_Shared_Vars         ,ONLY: nComputeNodeProcessors,myComputeNodeRank
 #else
-USE MOD_Photon_TrackingVars    ,ONLY: PhotonSampWall
-USE MOD_Particle_Boundary_Vars ,ONLY: SurfSideArea,nSurfTotalSides
+USE MOD_Photon_TrackingVars     ,ONLY: PhotonSampWall
+USE MOD_Particle_Boundary_Vars  ,ONLY: nSurfTotalSides
 #endif /*USE_MPI*/
 #if USE_HDG
 USE MOD_HDG_Vars                ,ONLY: UseFPC,FPC,UseEPC,EPC
@@ -73,7 +74,7 @@ IMPLICIT NONE
 ! LOCAL VARIABLES
 REAL                  :: t_1, t_2, E_Intensity
 INTEGER               :: NbrOfRepetitions, firstSide, lastSide, SideID, iSample, GlobElemID, PartID
-INTEGER               :: GlobalSideID, iSurfSide, p, q, BCID, SpecID, iPart, NbrOfSEE
+INTEGER               :: iSurfSide, p, q, BCID, SpecID, iPart, NbrOfSEE
 REAL                  :: RealNbrOfSEE, TimeScalingFactor, MPF
 REAL                  :: Particle_pos(1:3), xi(2)
 REAL                  :: RandVal, RandVal2(2), xiab(1:2,1:2), nVec(3), tang1(3), tang2(3), Velo3D(3)
@@ -81,6 +82,11 @@ REAL                  :: RandVal, RandVal2(2), xiab(1:2,1:2), nVec(3), tang1(3),
 INTEGER               :: iBC,iUniqueFPCBC,iUniqueEPCBC,BCState
 #endif /*USE_HDG*/
 !===================================================================================================================================
+! Check if ray tracing based SEE is active
+! 1) Boundary from which rays are emitted
+IF(RayPartBound.LE.0) RETURN
+! 2) SEE yield for any BC greater than zero
+IF(.NOT.ANY(PartBound%PhotonSEEYield(:).GT.0.)) RETURN
 
 ! TODO: Copied here from InitParticleMesh, which is only build if not TriaSurfaceFlux
 IF(.NOT.ALLOCATED(BezierSampleXi)) ALLOCATE(BezierSampleXi(0:nSurfSample))
@@ -156,7 +162,11 @@ DO iSurfSide = firstSide, lastSide
   DO p = 1, nSurfSample
     DO q = 1, nSurfSample
       ! Calculate the number of SEEs per subside
+#if USE_MPI
+      E_Intensity = PhotonSampWall_Shared(2,p,q,iSurfSide) * TimeScalingFactor
+#else
       E_Intensity = PhotonSampWall(2,p,q,iSurfSide) * TimeScalingFactor
+#endif /*USE_MPI*/
       RealNbrOfSEE = E_Intensity / CalcPhotonEnergy(lambda) * PartBound%PhotonSEEYield(BCID) / MPF
       CALL RANDOM_NUMBER(RandVal)
       NbrOfSEE = INT(RealNbrOfSEE+RandVal)

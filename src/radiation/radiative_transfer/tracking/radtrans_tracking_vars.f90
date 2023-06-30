@@ -46,7 +46,7 @@ INTEGER              :: PhotonModeBPO       !> 0: Output nothing to PartStateBou
 
 #if USE_MPI
 INTEGER              :: PhotonSampWall_Shared_Win
-REAL,POINTER         :: PhotonSampWall_Shared(:,:)
+REAL,POINTER         :: PhotonSampWall_Shared(:,:,:,:)
 #endif /*USE_MPI*/
 !===================================================================================================================================
 END MODULE MOD_Photon_TrackingVars

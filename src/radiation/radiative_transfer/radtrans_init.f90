@@ -439,7 +439,7 @@ PhotonSampWall=0.0
 
 #if USE_MPI
 !> Then shared arrays for boundary sampling
-CALL Allocate_Shared((/2,nComputeNodeSurfTotalSides/),PhotonSampWall_Shared_Win,PhotonSampWall_Shared)
+CALL Allocate_Shared((/2,1:nSurfSample,1:nSurfSample,nComputeNodeSurfTotalSides/),PhotonSampWall_Shared_Win,PhotonSampWall_Shared)
 CALL MPI_WIN_LOCK_ALL(0,PhotonSampWall_Shared_Win,IERROR)
 
 IF (myComputeNodeRank.EQ.0) PhotonSampWall_Shared = 0.

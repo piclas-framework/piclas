@@ -56,8 +56,6 @@ USE MOD_DSMC_BGGas             ,ONLY: BGGas_PhotoIonization
 USE MOD_DSMC_ChemReact         ,ONLY: CalcPhotoIonizationNumber
 USE MOD_Particle_Mesh_Vars     ,ONLY: GEO
 USE MOD_ReadInTools            ,ONLY: PrintOption
-USE MOD_RayTracing_Vars        ,ONLY: RayPartBound
-USE MOD_Particle_Boundary_Vars ,ONLY: PartBound
 #if defined(MEASURE_MPI_WAIT)
 USE MOD_Particle_MPI_Vars      ,ONLY: MPIW8TimePart,MPIW8CountPart
 #endif /*defined(MEASURE_MPI_WAIT)*/
@@ -89,10 +87,8 @@ REAL(KIND=8)                     :: Rate
 #endif /*defined(MEASURE_MPI_WAIT)*/
 !===================================================================================================================================
 
-! TODO: Eigenen Flag setzen?
-IF(RayPartBound.GT.0) THEN
-  IF(ANY(PartBound%PhotonSEEYield(:).GT.0.)) CALL PhotoIonization_RayTracing_SEE()
-END IF
+!--- Ray tracing based secondary electron emission
+CALL PhotoIonization_RayTracing_SEE()
 
 !---  Emission at time step
 DO i=1,nSpecies
