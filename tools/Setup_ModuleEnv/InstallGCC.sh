@@ -91,7 +91,7 @@ fi
 # 12.2.0: Building GCC requires GMP 4.2+, MPFR 3.1.0+ and MPC 0.8.0+.
 # sudo apt-get install libmpfr-dev
 # sudo apt-get install libmpc-dev
-GCCVERSION='12.2.0'
+#GCCVERSION='12.2.0'
 
 # Check requirements and update the pre-requisites inquiry below if necessary
 GCCVERSION='13.1.0'
