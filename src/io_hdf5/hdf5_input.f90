@@ -372,7 +372,9 @@ LBWRITE(UNIT_stdOut,'(A,A)')' GET SIZE OF DATA IN HDF5 FILE... '
 
 ! Dimensional shift (optional) if arrays with rank > 5 are processed (e.g. DG_Solution from state files with an additional
 ! dimension that corresponds to time)
-nDimsOffset_loc = MERGE(nDimsOffset_opt, 0, PRESENT(nDimsOffset_opt))
+IF (PRESENT(nDimsOffset_opt)) THEN; nDimsOffset_loc = nDimsOffset_opt
+ELSE;                               nDimsOffset_loc = 0
+END IF
 
 ! Read in attributes
 ! Open given dataset with default properties.

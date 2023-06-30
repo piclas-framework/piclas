@@ -176,7 +176,11 @@ DO iBGMElem = 1,nBGMElems
     CASE(REFMAPPING)
       CNElemID = GetCNElemID(ElemID)
       CALL GetPositionInRefElem(Pos3D(1:3),RefPos,ElemID)
-      doEmission = MERGE(doEmission_opt,.FALSE.,PRESENT(doEmission_opt))
+
+      IF (PRESENT(doEmission_opt)) THEN; doEmission = doEmission_opt
+      ELSE;                              doEmission = .FALSE.
+      END IF
+
       IF(doEmission) THEN
         IF (MAXVAL(ABS(RefPos)).LE.1.0) InElementCheck = .TRUE.
       ELSE

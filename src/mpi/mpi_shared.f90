@@ -989,7 +989,9 @@ INTEGER(KIND=8)               :: CounterStart,CounterEnd
 REAL(KIND=8)                  :: Rate
 #endif /*defined(MEASURE_MPI_WAIT)*/
 !==================================================================================================================================
-! Barrier = MERGE(Barrier_Opt,.TRUE.,PRESENT(Barrier_Opt)
+! IF (PRESENT(Barrier_Opt)) THEN; Barrier = Barrier_Opt
+! ELSE;                           Barrier = .TRUE.
+! END IF
 #if defined(MEASURE_MPI_WAIT)
 CALL SYSTEM_CLOCK(count=CounterStart)
 #endif /*defined(MEASURE_MPI_WAIT)*/
