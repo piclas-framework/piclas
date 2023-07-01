@@ -1813,6 +1813,7 @@ INTEGER                        :: iElem,firstElem,lastElem
 REAL                           :: RotBoundsOfElemCenter(3)
 REAL                           :: BoundsOfElemCenter(1:4),LocalBoundsOfElemCenter(1:4)
 INTEGER                        :: iLocElem,iPartBound
+LOGICAL                        :: IsPotentialRotElem(nPartBound)
 !===================================================================================================================================
 
 firstElem = INT(REAL( myComputeNodeRank   )*REAL(nGlobalElems)/REAL(nComputeNodeProcessors))+1
@@ -1836,6 +1837,34 @@ DO iElem = firstElem ,lastElem
                                       BoundsOfElem_Shared(2  ,2,iElem)-BoundsOfElem_Shared(1,2,iElem),                     &
                                       BoundsOfElem_Shared(2  ,3,iElem)-BoundsOfElem_Shared(1,3,iElem) /) / 2.)
 
+  ! Sort out elements which are not at rotationally periodic BC
+  IsPotentialRotElem = .TRUE.
+  DO iPartBound = 1, nPartBound
+    IF(PartBound%TargetBoundCond(iPartBound).NE.PartBound%RotPeriodicBC) THEN
+      IsPotentialRotElem(iPartBound) = .FALSE.
+      CYCLE
+    END IF
+    SELECT CASE(GEO%RotPeriodicAxi)
+      CASE(1) ! x-rotation axis
+        IF( (BoundsOfElemCenter(1)-BoundsOfElemCenter(4).GE.PartBound%RotPeriodicMax(iPartBound)+halo_eps).OR. &
+            (BoundsOfElemCenter(1)+BoundsOfElemCenter(4).LE.PartBound%RotPeriodicMin(iPartBound)-halo_eps) ) THEN
+            IsPotentialRotElem(iPartBound) = .FALSE.
+        END IF
+      CASE(2) ! y-rotation axis
+        IF( (BoundsOfElemCenter(2)-BoundsOfElemCenter(4).GE.PartBound%RotPeriodicMax(iPartBound)+halo_eps).OR. &
+            (BoundsOfElemCenter(2)+BoundsOfElemCenter(4).LE.PartBound%RotPeriodicMin(iPartBound)-halo_eps) ) THEN
+            IsPotentialRotElem(iPartBound) = .FALSE.
+        END IF
+      CASE(3) ! z-rotation axis
+        IF( (BoundsOfElemCenter(3)-BoundsOfElemCenter(4).GE.PartBound%RotPeriodicMax(iPartBound)+halo_eps).OR. &
+            (BoundsOfElemCenter(3)+BoundsOfElemCenter(4).LE.PartBound%RotPeriodicMin(iPartBound)-halo_eps) ) THEN
+            IsPotentialRotElem(iPartBound) = .FALSE.
+        END IF
+    END SELECT
+  END DO
+
+  IF(.NOT.ANY(IsPotentialRotElem)) CYCLE
+
   !   2. Loop over all compute-node elements (every processors loops over all of these elements)
   ! Loop ALL compute-node elements (use global element index)
   DO iLocElem = offsetElemMPI(ComputeNodeRootRank)+1, offsetElemMPI(ComputeNodeRootRank)+nComputeNodeElems
@@ -1851,40 +1880,28 @@ DO iElem = firstElem ,lastElem
     !   3. Rotate the global element and check the distance of all compute-node elements to
     !      this element and flag it with halo flag 3 if the element can be reached by a particle
     DO iPartBound = 1, nPartBound
-      IF(PartBound%TargetBoundCond(iPartBound).NE.PartBound%RotPeriodicBC) CYCLE
+      IF(.NOT.IsPotentialRotElem(iPartBound)) CYCLE
       ASSOCIATE( alpha => PartBound%RotPeriodicAngle(iPartBound) * RotPeriodicTol)
         SELECT CASE(GEO%RotPeriodicAxi)
           CASE(1) ! x-rotation axis
-            IF( (BoundsOfElemCenter(1).GE.PartBound%RotPeriodicMax(iPartBound)).OR. &
-                (BoundsOfElemCenter(1).LE.PartBound%RotPeriodicMin(iPartBound)) ) THEN
-                CYCLE
-            END IF
-            IF( (LocalBoundsOfElemCenter(1).GE.PartBound%RotPeriodicMax(iPartBound)).OR. &
-                (LocalBoundsOfElemCenter(1).LE.PartBound%RotPeriodicMin(iPartBound)) ) THEN
+            IF( (LocalBoundsOfElemCenter(1)-LocalBoundsOfElemCenter(4).GE.PartBound%RotPeriodicMax(iPartBound)+halo_eps).OR. &
+                (LocalBoundsOfElemCenter(1)+LocalBoundsOfElemCenter(4).LE.PartBound%RotPeriodicMin(iPartBound)-halo_eps) ) THEN
                 CYCLE
             END IF
             RotBoundsOfElemCenter(1) = BoundsOfElemCenter(1)
             RotBoundsOfElemCenter(2) = COS(alpha)*BoundsOfElemCenter(2) - SIN(alpha)*BoundsOfElemCenter(3)
             RotBoundsOfElemCenter(3) = SIN(alpha)*BoundsOfElemCenter(2) + COS(alpha)*BoundsOfElemCenter(3)
           CASE(2) ! y-rotation axis
-            IF( (BoundsOfElemCenter(2).GE.PartBound%RotPeriodicMax(iPartBound)).OR. &
-                (BoundsOfElemCenter(2).LE.PartBound%RotPeriodicMin(iPartBound)) ) THEN
-                CYCLE
-            END IF
-            IF( (LocalBoundsOfElemCenter(2).GE.PartBound%RotPeriodicMax(iPartBound)).OR. &
-                (LocalBoundsOfElemCenter(2).LE.PartBound%RotPeriodicMin(iPartBound)) ) THEN
+            IF( (LocalBoundsOfElemCenter(2)-LocalBoundsOfElemCenter(4).GE.PartBound%RotPeriodicMax(iPartBound)+halo_eps).OR. &
+                (LocalBoundsOfElemCenter(2)+LocalBoundsOfElemCenter(4).LE.PartBound%RotPeriodicMin(iPartBound)-halo_eps) ) THEN
                 CYCLE
             END IF
             RotBoundsOfElemCenter(1) = COS(alpha)*BoundsOfElemCenter(1) + SIN(alpha)*BoundsOfElemCenter(3)
             RotBoundsOfElemCenter(2) = BoundsOfElemCenter(2)
             RotBoundsOfElemCenter(3) =-SIN(alpha)*BoundsOfElemCenter(1) + COS(alpha)*BoundsOfElemCenter(3)
           CASE(3) ! z-rotation axis
-            IF( (BoundsOfElemCenter(3).GE.PartBound%RotPeriodicMax(iPartBound)).OR. &
-                (BoundsOfElemCenter(3).LE.PartBound%RotPeriodicMin(iPartBound)) ) THEN
-                CYCLE
-            END IF
-            IF( (LocalBoundsOfElemCenter(3).GE.PartBound%RotPeriodicMax(iPartBound)).OR. &
-                (LocalBoundsOfElemCenter(3).LE.PartBound%RotPeriodicMin(iPartBound)) ) THEN
+            IF( (LocalBoundsOfElemCenter(3)-LocalBoundsOfElemCenter(4).GE.PartBound%RotPeriodicMax(iPartBound)+halo_eps).OR. &
+                (LocalBoundsOfElemCenter(3)+LocalBoundsOfElemCenter(4).LE.PartBound%RotPeriodicMin(iPartBound)-halo_eps) ) THEN
                 CYCLE
             END IF
             RotBoundsOfElemCenter(1) = COS(alpha)*BoundsOfElemCenter(1) - SIN(alpha)*BoundsOfElemCenter(2)
