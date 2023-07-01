@@ -1900,7 +1900,7 @@ END FUNCTION GetRandomVectorInPlane
 
 FUNCTION GetRotatedVector(VeloVec,NormVec)
 !===================================================================================================================================
-! Rotate the vector in the plane set up by VeloVec and NormVec by choosing an angle from a 4.0 / PI * COS(Theta_temp)**2
+! Rotate the vector in the plane set up by VeloVec and NormVec by choosing an angle from a 4.0 / PI * COS(Theta)**2
 ! distribution via the ARM
 !===================================================================================================================================
 ! MODULES
@@ -1921,7 +1921,7 @@ REAL               :: Vabs ! Absolute velocity
 REAL               :: RandVal, v(1:3)
 REAL               :: Theta, Theta_temp
 REAL               :: PDF_temp
-REAL, PARAMETER    :: PDF_max=4./ACOS(-1.)
+REAL, PARAMETER    :: PDF_max=4./PI
 LOGICAL            :: ARM_SEE_PDF
 !===================================================================================================================================
 v = UNITVECTOR(VeloVec)
@@ -1931,7 +1931,7 @@ Vabs = VECNORM(VeloVec)
 ARM_SEE_PDF=.TRUE.
 DO WHILE(ARM_SEE_PDF)
   CALL RANDOM_NUMBER(RandVal)
-  Theta_temp = RandVal * 0.5 * PI
+  Theta_temp = PI*(RandVal-0.5)
   PDF_temp = 4.0 / PI * COS(Theta_temp)**2
   CALL RANDOM_NUMBER(RandVal)
   IF ((PDF_temp/PDF_max).GT.RandVal) ARM_SEE_PDF = .FALSE.
