@@ -79,11 +79,11 @@ as well as an optional direction to which the gradient shall be limited (default
 
 In the default case of the `TempGradDir = 0`, the temperature will be interpolated between the start and end vector, where the
 start vector corresponds to the first wall temperature `WallTemp`, and the end vector to the second wall temperature `WallTemp2`.
-Position values (which are projected onto the temperature gradient vector) beyond the gradient vector utilize the first (Start) and second temperature (End) as the constant wall temperature, respectively. In the special case of `TempGradDir = 1/2/3`, the temperature gradient will
-only be applied along the chosen the direction. As oppposed to the default case, the positions of the surfaces are not projected
-onto the gradient vector before checking wether they are inside the box spanned by `TempGradStart` and `TempGradEnd`. Outside of
-the defined box, the temperature corresponds to `WallTemp`. The applied surface temperature is output in the `DSMCSurfState` as
-`Wall_Temperature` for verification.
+Position values (which are projected onto the temperature gradient vector) beyond the gradient vector utilize the first (Start)
+and second temperature (End) as the constant wall temperature, respectively. In the special case of `TempGradDir = 1/2/3`, the
+temperature gradient will only be applied along the chosen the direction. As oppposed to the default case, the positions of the
+surfaces are not projected onto the gradient vector before checking wether they are inside the box spanned by `TempGradStart` and
+`TempGradEnd`. The applied surface temperature is output in the `DSMCSurfState` as `Wall_Temperature` for verification.
 
 ### Radiative equilibrium
 
