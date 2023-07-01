@@ -242,7 +242,7 @@ END IF
 !===================================================================================================================================
 ! Counter for surface analyze
 IF(CalcSurfCollCounter) THEN
-  ! Old particle was deleted/absorbed/adsorbed at the wall (in case it happend during a surface model and not during the 
+  ! Old particle was deleted/absorbed/adsorbed at the wall (in case it happend during a surface model and not during the
   ! SpeciesSwap routine)
   IF (ProductSpec(1).LE.0) THEN
     SurfAnalyzeNumOfAds(PartSpecImpact) = SurfAnalyzeNumOfAds(PartSpecImpact) + 1
@@ -282,25 +282,28 @@ LOGICAL,INTENT(IN),OPTIONAL :: SpecularReflectionOnly_opt
 ! LOCAL VARIABLES
 REAL    :: RanNum,ACC
 INTEGER :: iBC
+LOGICAL :: SpecularReflectionOnly
 !===================================================================================================================================
 iBC = PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID))
 ACC = PartBound%MomentumACC(iBC)
 
 ! Check if optional parameter was supplied
-ASSOCIATE( SpecularReflectionOnly => MERGE(SpecularReflectionOnly_opt,PartBound%OnlySpecular(iBC),PRESENT(SpecularReflectionOnly_opt)))
-  IF (SpecularReflectionOnly) THEN
+IF (PRESENT(SpecularReflectionOnly_opt)) THEN; SpecularReflectionOnly = SpecularReflectionOnly_opt
+ELSE;                                          SpecularReflectionOnly = PartBound%OnlySpecular(iBC)
+END IF
+
+IF (SpecularReflectionOnly) THEN
+  CALL PerfectReflection(PartID,SideID,n_loc)
+ELSE IF(PartBound%OnlyDiffuse(iBC)) THEN
+  CALL DiffuseReflection(PartID,SideID,n_loc)
+ELSE
+  CALL RANDOM_NUMBER(RanNum)
+  IF(RanNum.GE.ACC) THEN
     CALL PerfectReflection(PartID,SideID,n_loc)
-  ELSE IF(PartBound%OnlyDiffuse(iBC)) THEN
-    CALL DiffuseReflection(PartID,SideID,n_loc)
   ELSE
-    CALL RANDOM_NUMBER(RanNum)
-    IF(RanNum.GE.ACC) THEN
-      CALL PerfectReflection(PartID,SideID,n_loc)
-    ELSE
-      CALL DiffuseReflection(PartID,SideID,n_loc)
-    END IF
+    CALL DiffuseReflection(PartID,SideID,n_loc)
   END IF
-END ASSOCIATE
+END IF
 
 END SUBROUTINE MaxwellScattering
 
@@ -584,7 +587,7 @@ END IF
 IF(VarTimeStep%UseSpeciesSpecific) dtVar = dtVar * Species(SpecID)%TimeStepFactor
 
 IF(UseRotRefFrame) THEN
-  ! In case of RotRefFrame OldVelo must be reconstructed to determin how far the particle has to be pushed after the wall
+  ! In case of RotRefFrame utilize the respective velocity
   OldVelo = PartVeloRotRef(1:3,PartID)
 ELSE
   OldVelo = PartState(4:6,PartID)
