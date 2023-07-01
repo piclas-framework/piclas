@@ -161,7 +161,7 @@ ASSOCIATE( iPartBound => PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID)
   !-----------------------------------------------------------------------------------------------------------------------------------
     CALL abort(__STAMP__,' ERROR: PartBound not associated!. (PartBound%SimpleCathodeBC)')
   !-----------------------------------------------------------------------------------------------------------------------------------
-  CASE(6) ! PartBound%rot_periodic
+  CASE(6) ! PartBound%RotPeriodicBC
   !-----------------------------------------------------------------------------------------------------------------------------------
     CALL RotPeriodicBC(iPart,SideID,ElemID)
     ! Sanity check: During rotational periodic movement, particles may enter a dielectric. Unfortunately, they must be deleted
@@ -284,7 +284,7 @@ USE MOD_Mesh_Tools              ,ONLY: GetCNElemID
 USE MOD_Particle_Intersection   ,ONLY: IntersectionWithWall, ParticleThroughSideCheck3DFast
 USE MOD_Particle_Mesh_Tools     ,ONLY: ParticleInsideQuad3D
 USE MOD_Particle_Mesh_Vars      ,ONLY: ElemInfo_Shared, SideInfo_Shared, ElemSideNodeID_Shared, NodeCoords_Shared
-USE MOD_Particle_Vars           ,ONLY: PartState,LastPartPos,Species,PartSpecies
+USE MOD_Particle_Vars           ,ONLY: PartState,LastPartPos,Species,PartSpecies,PartVeloRotRef,PDM
 USE MOD_Particle_Boundary_Vars  ,ONLY: PartBound
 USE MOD_Particle_Boundary_Vars  ,ONLY: RotPeriodicSideMapping, NumRotPeriodicNeigh, SurfSide2RotPeriodicSide, GlobalSide2SurfSide
 USE MOD_Particle_Tracking_Vars  ,ONLY: TrackInfo
@@ -306,7 +306,7 @@ LOGICAL                         :: ThroughSide, ParticleFound
 INTEGER                         :: iNeigh, RotSideID, newElemID, BCType, nLocSides, newSideID, iLocSide, locSideID, TriNum, NodeNum
 REAL                            :: rot_alpha, rot_alpha_delta
 REAL                            :: LastPartPos_rotated(1:3), PartState_rotated(1:3), PartState_rot_tol(1:3)
-REAL                            :: Velo_old(1:3), Velo_oldAmbi(1:3)
+REAL                            :: Velo_old(1:3), Velo_oldAmbi(1:3), VeloRotRef_old(1:3)
 REAL                            :: det(6,2), A(1:3,1:4), crossP(3)
 REAL, PARAMETER                 :: eps = 0
 !===================================================================================================================================
@@ -326,6 +326,7 @@ PartState_rotated(1:3) = PartState(1:3,PartID)
 LastPartPos_rotated(1:3) = LastPartPos(1:3,PartID)
 PartState_rot_tol(1:3) = PartState(1:3,PartID)
 ! store velocity before rotation
+IF(PDM%InRotRefFrame(PartID)) VeloRotRef_old(1:3) = PartVeloRotRef(1:3,PartID)
 Velo_old(1:3) = PartState(4:6,PartID)
 IF (DSMC%DoAmbipolarDiff) THEN
   IF(Species(PartSpecies(PartID))%ChargeIC.GT.0.0) Velo_oldAmbi(1:3) = AmbipolElecVelo(PartID)%ElecVelo(1:3)
@@ -343,6 +344,10 @@ SELECT CASE(PartBound%RotPeriodicAxis)
     PartState_rotated(3) = SIN(rot_alpha)*PartState(2,PartID) + COS(rot_alpha)*PartState(3,PartID)
     PartState(5,PartID) = COS(rot_alpha)*Velo_old(2) - SIN(rot_alpha)*Velo_old(3)
     PartState(6,PartID) = SIN(rot_alpha)*Velo_old(2) + COS(rot_alpha)*Velo_old(3)
+    IF(PDM%InRotRefFrame(PartID)) THEN
+      PartVeloRotRef(2,PartID) = COS(rot_alpha)*VeloRotRef_old(2) - SIN(rot_alpha)*VeloRotRef_old(3)
+      PartVeloRotRef(3,PartID) = SIN(rot_alpha)*VeloRotRef_old(2) + COS(rot_alpha)*VeloRotRef_old(3)
+    END IF
     IF (DSMC%DoAmbipolarDiff) THEN
       IF(Species(PartSpecies(PartID))%ChargeIC.GT.0.0) THEN
         AmbipolElecVelo(PartID)%ElecVelo(5) = COS(rot_alpha)*Velo_oldAmbi(2) - SIN(rot_alpha)*Velo_oldAmbi(3)
@@ -358,6 +363,10 @@ SELECT CASE(PartBound%RotPeriodicAxis)
     PartState_rotated(3) =-SIN(rot_alpha)*PartState(1,PartID) + COS(rot_alpha)*PartState(3,PartID)
     PartState(4,PartID) = COS(rot_alpha)*Velo_old(1) + SIN(rot_alpha)*Velo_old(3)
     PartState(6,PartID) =-SIN(rot_alpha)*Velo_old(1) + COS(rot_alpha)*Velo_old(3)
+    IF(PDM%InRotRefFrame(PartID)) THEN
+      PartVeloRotRef(1,PartID) = COS(rot_alpha)*VeloRotRef_old(1) + SIN(rot_alpha)*VeloRotRef_old(3)
+      PartVeloRotRef(3,PartID) =-SIN(rot_alpha)*VeloRotRef_old(1) + COS(rot_alpha)*VeloRotRef_old(3)
+    END IF
     IF (DSMC%DoAmbipolarDiff) THEN
       IF(Species(PartSpecies(PartID))%ChargeIC.GT.0.0) THEN
         AmbipolElecVelo(PartID)%ElecVelo(4) = COS(rot_alpha)*Velo_oldAmbi(1) + SIN(rot_alpha)*Velo_oldAmbi(3)
@@ -373,6 +382,10 @@ SELECT CASE(PartBound%RotPeriodicAxis)
     PartState_rotated(2) = SIN(rot_alpha)*PartState(1,PartID) + COS(rot_alpha)*PartState(2,PartID)
     PartState(4,PartID) = COS(rot_alpha)*Velo_old(1) - SIN(rot_alpha)*Velo_old(2)
     PartState(5,PartID) = SIN(rot_alpha)*Velo_old(1) + COS(rot_alpha)*Velo_old(2)
+    IF(PDM%InRotRefFrame(PartID)) THEN
+      PartVeloRotRef(1,PartID) = COS(rot_alpha)*VeloRotRef_old(1) - SIN(rot_alpha)*VeloRotRef_old(2)
+      PartVeloRotRef(2,PartID) = SIN(rot_alpha)*VeloRotRef_old(1) + COS(rot_alpha)*VeloRotRef_old(2)
+    END IF
     IF (DSMC%DoAmbipolarDiff) THEN
       IF(Species(PartSpecies(PartID))%ChargeIC.GT.0.0) THEN
         AmbipolElecVelo(PartID)%ElecVelo(4) = COS(rot_alpha)*Velo_oldAmbi(1) - SIN(rot_alpha)*Velo_oldAmbi(2)

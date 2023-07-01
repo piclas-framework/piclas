@@ -710,19 +710,18 @@ velosq=FieldAtParticle(1) ! dummy statement
 END SUBROUTINE PartRHS_CEM
 
 
-PPURE FUNCTION CalcPartRHSRotRefFrame(PartID,RotRefVelo)
+PPURE FUNCTION CalcPartRHSRotRefFrame(PosRotRef,VeloRotRef)
 !===================================================================================================================================
 !> 
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals       ,ONLY: CROSS
-USE MOD_Particle_Vars ,ONLY: PartState, RotRefFrameOmega
+USE MOD_Particle_Vars ,ONLY: RotRefFrameOmega
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-INTEGER,INTENT(IN)       :: PartID
-REAL,INTENT(IN)          :: RotRefVelo(1:3)
+REAL,INTENT(IN)          :: PosRotRef(1:3), VeloRotRef(1:3)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 REAL                     :: CalcPartRHSRotRefFrame(1:3)
@@ -730,8 +729,12 @@ REAL                     :: CalcPartRHSRotRefFrame(1:3)
 ! LOCAL VARIABLES
 !===================================================================================================================================
 
-CalcPartRHSRotRefFrame(1:3) = - CROSS(RotRefFrameOmega(1:3),CROSS(RotRefFrameOmega(1:3),PartState(1:3,PartID))) &
-                  - 2.*CROSS(RotRefFrameOmega(1:3),RotRefVelo(1:3))
+IF(ALL(ALMOSTZERO(VeloRotRef(1:3)))) THEN
+  CalcPartRHSRotRefFrame(1:3) = - CROSS(RotRefFrameOmega(1:3),CROSS(RotRefFrameOmega(1:3),PosRotRef(1:3)))
+ELSE
+  CalcPartRHSRotRefFrame(1:3) = - CROSS(RotRefFrameOmega(1:3),CROSS(RotRefFrameOmega(1:3),PosRotRef(1:3))) &
+                                - 2.*CROSS(RotRefFrameOmega(1:3),VeloRotRef(1:3))
+END IF
 
 END FUNCTION CalcPartRHSRotRefFrame
 

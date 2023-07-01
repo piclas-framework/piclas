@@ -1386,6 +1386,7 @@ SDEALLOCATE(PartIsImplicit)
 SDEALLOCATE(PartPosRef)
 SDEALLOCATE(PartState)
 SDEALLOCATE(LastPartPos)
+SDEALLOCATE(PartVeloRotRef)
 SDEALLOCATE(PartSpecies)
 SDEALLOCATE(Pt)
 SDEALLOCATE(PDM%ParticleInside)
@@ -1545,6 +1546,8 @@ CHARACTER(LEN=5)   :: hilf
 UseRotRefFrame = GETLOGICAL('Part-UseRotationalReferenceFrame')
 
 IF(UseRotRefFrame) THEN
+  ALLOCATE(PartVeloRotRef(1:3,1:PDM%maxParticleNumber))
+  PartVeloRotRef = 0.0
   RotRefFrameAxis = GETINT('Part-RotRefFrame-Axis')
   RotRefFrameFreq = GETREAL('Part-RotRefFrame-Frequency')
   omegaTemp = 2.*PI*RotRefFrameFreq

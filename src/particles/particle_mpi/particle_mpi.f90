@@ -156,7 +156,7 @@ USE MOD_Globals
 USE MOD_Preproc
 USE MOD_Particle_MPI_Vars
 USE MOD_DSMC_Vars,              ONLY:useDSMC, CollisMode, DSMC
-USE MOD_Particle_Vars,          ONLY:usevMPF, PDM
+USE MOD_Particle_Vars,          ONLY:usevMPF, PDM, UseRotRefFrame
 USE MOD_Particle_Tracking_vars, ONLY:TrackingMethod
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -175,6 +175,8 @@ PartCommSize   = 0
 PartCommSize   = PartCommSize + 6
 ! Tracking: Include Reference coordinates
 IF(TrackingMethod.EQ.REFMAPPING) PartCommSize=PartCommSize+3
+! Velocity (rotational reference frame)
+IF(UseRotRefFrame) PartCommSize = PartCommSize+3
 ! Species-ID
 PartCommSize   = PartCommSize + 1
 ! id of element
@@ -442,6 +444,7 @@ USE MOD_Particle_MPI_Vars,       ONLY:PartMPI,PartMPIExchange,PartCommSize,PartS
 USE MOD_Particle_MPI_Vars,       ONLY:nExchangeProcessors,ExchangeProcToGlobalProc
 USE MOD_Particle_Tracking_Vars,  ONLY:TrackingMethod
 USE MOD_Particle_Vars,           ONLY:PartState,PartSpecies,usevMPF,PartMPF,PEM,PDM,PartPosRef,Species
+USE MOD_Particle_Vars,           ONLY:UseRotRefFrame,PartVeloRotRef
 #if defined(LSERK)
 USE MOD_Particle_Vars,           ONLY:Pt_temp
 #endif
@@ -469,7 +472,7 @@ LOGICAL, INTENT(IN), OPTIONAL :: UseOldVecLength
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                       :: iPart,iPos,iProc,jPos, nPartLenth
+INTEGER                       :: iPart,iPos,iProc,jPos, nPartLength
 INTEGER                       :: recv_status_list(1:MPI_STATUS_SIZE,0:nExchangeProcessors-1)
 INTEGER                       :: MessageSize, nRecvParticles, nSendParticles
 INTEGER                       :: ALLOCSTAT
@@ -502,12 +505,12 @@ MsgLengthAmbi(:) = PartMPIExchange%nPartsSend(4,:)
 
 IF (PRESENT(UseOldVecLength)) THEN
   IF (UseOldVecLength) THEN
-    nPartLenth = PDM%ParticleVecLengthOld
+    nPartLength = PDM%ParticleVecLengthOld
   ELSE
-    nPartLenth = PDM%ParticleVecLength
+    nPartLength = PDM%ParticleVecLength
   END IF
 ELSE
-  nPartLenth = PDM%ParticleVecLength
+  nPartLength = PDM%ParticleVecLength
 END IF
 
 ! 3) Build Message
@@ -548,7 +551,7 @@ DO iProc=0,nExchangeProcessors-1
     CALL ABORT(__STAMP__,'  Cannot allocate PartSendBuf, local ProcId, ALLOCSTAT',iProc,REAL(ALLOCSTAT))
 
   ! build message
-  DO iPart=1,nPartLenth
+  DO iPart=1,nPartLength
 
     ! TODO: This seems like a valid check to me, why is it commented out?
     !IF(.NOT.PDM%ParticleInside(iPart)) CYCLE
@@ -561,6 +564,11 @@ DO iProc=0,nExchangeProcessors-1
       !>> particle position in reference space
       IF(TrackingMethod.EQ.REFMAPPING) THEN
         PartSendBuf(iProc)%content(1+jPos:3+jPos) = PartPosRef(1:3,iPart)
+        jPos=jPos+3
+      END IF
+      !>> particle velocity in rotational reference frame
+      IF(UseRotRefFrame) THEN
+        PartSendBuf(iProc)%content(1+jPos:3+jPos) = PartVeloRotRef(1:3,iPart)
         jPos=jPos+3
       END IF
       !>> particle species
@@ -780,10 +788,11 @@ END DO ! iProc
 PartMPIExchange%nMPIParticles=SUM(PartMPIExchange%nPartsRecv(1,:))
 
 ! nullify data on old particle position for safety
-DO iPart=1,nPartLenth
+DO iPart=1,nPartLength
   IF(PartTargetProc(iPart).EQ.-1) CYCLE
   PartState(1:6,iPart) = 0.
   PartSpecies(iPart)   = 0
+  IF(UseRotRefFrame) PartVeloRotRef(1:3,iPart) = 0.
 #if defined(LSERK)
   Pt_temp(1:6,iPart)   = 0.
 #endif
@@ -890,6 +899,7 @@ USE MOD_Particle_MPI_Vars      ,ONLY: nExchangeProcessors
 USE MOD_Particle_Tracking_Vars ,ONLY: TrackingMethod
 USE MOD_Particle_Vars          ,ONLY: PartState,PartSpecies,usevMPF,PartMPF,PEM,PDM, PartPosRef, Species, LastPartPos
 USE MOD_Particle_Vars          ,ONLY: UseVarTimeStep, PartTimeStep
+USE MOD_Particle_Vars          ,ONLY: UseRotRefFrame, PartVeloRotRef
 USE MOD_Particle_TimeStep      ,ONLY: GetParticleTimeStep
 USE MOD_Particle_Mesh_Vars     ,ONLY: IsExchangeElem
 USE MOD_Particle_MPI_Vars      ,ONLY: ExchangeProcToGlobalProc,DoParticleLatencyHiding
@@ -1034,6 +1044,11 @@ DO iProc=0,nExchangeProcessors-1
     !>> particle position in reference space
     IF(TrackingMethod.EQ.REFMAPPING)THEN
       PartPosRef(1:3,PartID) = PartRecvBuf(iProc)%content(1+jPos: 3+jPos)
+      jPos=jPos+3
+    END IF
+    !>> particle velocity in rotational reference frame
+    IF(UseRotRefFrame) THEN
+      PartVeloRotRef(1:3,PartID) = PartRecvBuf(iProc)%content(1+jPos: 3+jPos)
       jPos=jPos+3
     END IF
     !>> particle species
