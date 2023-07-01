@@ -592,26 +592,30 @@ ElemLoop:  DO iElem = 1,nComputeNodeTotalElems
             DO iPartBound = 1, nPartBound
               IF(PartBound%TargetBoundCond(iPartBound).NE.PartBound%RotPeriodicBC) CYCLE
                 alpha = PartBound%RotPeriodicAngle(iPartBound) * PartBound%RotPeriodicTol
-              ASSOCIATE(RotBoundMin => PartBound%RotPeriodicMin(iPartBound), RotBoundMax => PartBound%RotPeriodicMax(iPartBound))
+              ASSOCIATE(RotBoundMin => PartBound%RotPeriodicMin(iPartBound)-MPI_halo_eps_woshape, &
+                        RotBoundMax => PartBound%RotPeriodicMax(iPartBound)+MPI_halo_eps_woshape)
                 SELECT CASE(PartBound%RotPeriodicAxis)
                   CASE(1) ! x-rotation axis
-                    IF( (BoundsOfElemCenter(1).GE.RotBoundMax).OR.(BoundsOfElemCenter(1).LE.RotBoundMin) ) CYCLE
-                    IF( (MPISideBoundsOfNbElemCenter(1,iSide).GE.RotBoundMax).OR. &
-                        (MPISideBoundsOfNbElemCenter(1,iSide).LE.RotBoundMin) ) CYCLE
+                    IF( (BoundsOfElemCenter(1)-BoundsOfElemCenter(4).GE.RotBoundMax).OR. &
+                        (BoundsOfElemCenter(1)+BoundsOfElemCenter(4).LE.RotBoundMin) ) CYCLE
+                    IF( (MPISideBoundsOfNbElemCenter(1,iSide)-MPISideBoundsOfNbElemCenter(4,iSide).GE.RotBoundMax).OR. &
+                        (MPISideBoundsOfNbElemCenter(1,iSide)+MPISideBoundsOfNbElemCenter(4,iSide).LE.RotBoundMin) ) CYCLE
                     RotBoundsOfElemCenter(1) = BoundsOfElemCenter(1)
                     RotBoundsOfElemCenter(2) = COS(alpha)*BoundsOfElemCenter(2) - SIN(alpha)*BoundsOfElemCenter(3)
                     RotBoundsOfElemCenter(3) = SIN(alpha)*BoundsOfElemCenter(2) + COS(alpha)*BoundsOfElemCenter(3)
                   CASE(2) ! y-rotation axis
-                    IF( (BoundsOfElemCenter(2).GE.RotBoundMax).OR.(BoundsOfElemCenter(2).LE.RotBoundMin) ) CYCLE
-                    IF( (MPISideBoundsOfNbElemCenter(2,iSide).GE.RotBoundMax).OR. &
-                        (MPISideBoundsOfNbElemCenter(2,iSide).LE.RotBoundMin) ) CYCLE
+                    IF( (BoundsOfElemCenter(2)-BoundsOfElemCenter(4).GE.RotBoundMax).OR. &
+                        (BoundsOfElemCenter(2)+BoundsOfElemCenter(4).LE.RotBoundMin) ) CYCLE
+                    IF( (MPISideBoundsOfNbElemCenter(2,iSide)-MPISideBoundsOfNbElemCenter(4,iSide).GE.RotBoundMax).OR. &
+                        (MPISideBoundsOfNbElemCenter(2,iSide)+MPISideBoundsOfNbElemCenter(4,iSide).LE.RotBoundMin) ) CYCLE
                     RotBoundsOfElemCenter(1) = COS(alpha)*BoundsOfElemCenter(1) + SIN(alpha)*BoundsOfElemCenter(3)
                     RotBoundsOfElemCenter(2) = BoundsOfElemCenter(2)
                     RotBoundsOfElemCenter(3) =-SIN(alpha)*BoundsOfElemCenter(1) + COS(alpha)*BoundsOfElemCenter(3)
                   CASE(3) ! z-rotation axis
-                    IF( (BoundsOfElemCenter(3).GE.RotBoundMax).OR. (BoundsOfElemCenter(3).LE.RotBoundMin) ) CYCLE
-                    IF( (MPISideBoundsOfNbElemCenter(3,iSide).GE.RotBoundMax).OR. &
-                        (MPISideBoundsOfNbElemCenter(3,iSide).LE.RotBoundMin) ) CYCLE
+                    IF( (BoundsOfElemCenter(3)-BoundsOfElemCenter(4).GE.RotBoundMax).OR. &
+                        (BoundsOfElemCenter(3)+BoundsOfElemCenter(4).LE.RotBoundMin) ) CYCLE
+                    IF( (MPISideBoundsOfNbElemCenter(3,iSide)-MPISideBoundsOfNbElemCenter(4,iSide).GE.RotBoundMax).OR. &
+                        (MPISideBoundsOfNbElemCenter(3,iSide)+MPISideBoundsOfNbElemCenter(4,iSide).LE.RotBoundMin) ) CYCLE
                     RotBoundsOfElemCenter(1) = COS(alpha)*BoundsOfElemCenter(1) - SIN(alpha)*BoundsOfElemCenter(2)
                     RotBoundsOfElemCenter(2) = SIN(alpha)*BoundsOfElemCenter(1) + COS(alpha)*BoundsOfElemCenter(2)
                     RotBoundsOfElemCenter(3) = BoundsOfElemCenter(3)
