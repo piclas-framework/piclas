@@ -42,7 +42,7 @@ PUBLIC :: DefineParametersHDG
 #if USE_MPI
 PUBLIC :: SynchronizeChargeOnFPC,SynchronizeVoltageOnEPC
 #if defined(PARTICLES)
- PUBLIC :: SynchronizeBV 
+ PUBLIC :: SynchronizeBV
 #endif /*defined(PARTICLES)*/
 #endif /*USE_MPI */
 #endif /*USE_HDG*/
@@ -1791,7 +1791,11 @@ END IF
 #if defined(PARTICLES)
 IF(UseBRElectronFluid) THEN
   IF (HDGNonLinSolver.EQ.1) THEN
-    ForceCGSolverIteration_loc = MERGE(ForceCGSolverIteration_opt, .FALSE., PRESENT(ForceCGSolverIteration_opt))
+
+    IF (PRESENT(ForceCGSolverIteration_opt)) THEN; ForceCGSolverIteration_loc = ForceCGSolverIteration_opt
+    ELSE;                                          ForceCGSolverIteration_loc = .FALSE.
+    END IF
+
     CALL HDGNewton(t, U_out, iter, ForceCGSolverIteration_loc)
   ELSE
     CALL CollectiveStop(__STAMP__,'Defined HDGNonLinSolver not implemented (HDGFixPoint has been removed!) HDGNonLinSolver = ',&

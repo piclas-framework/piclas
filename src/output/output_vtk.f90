@@ -180,11 +180,12 @@ LOGICAL                     :: nValAtLastDimension_loc
 REAL                        :: StartT,EndT ! Timer
 !===================================================================================================================================
 GETTIME(StartT)
-DGFV_loc = MERGE(DGFV, 0, PRESENT(DGFV))
-IF (PRESENT(nValAtLastDimension)) THEN; nValAtLastDimension_loc = PRESENT(nValAtLastDimension)
-ELSE                                  ; nValAtLastDimension_loc = .FALSE.
+IF (PRESENT(DGFV))                THEN; DGFV_loc = DGFV
+ELSE;                                   DGFV_loc = 0
 END IF
-
+IF (PRESENT(nValAtLastDimension)) THEN; nValAtLastDimension_loc = nValAtLastDimension
+ELSE;                                   nValAtLastDimension_loc = .FALSE.
+END IF
 IF (dim.EQ.3) THEN
   NVisu_k = NVisu
   NVisu_j = NVisu
