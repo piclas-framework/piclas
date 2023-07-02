@@ -275,8 +275,10 @@ USE MOD_Globals
 USE MOD_Mesh_Vars              ,ONLY: nGlobalElems, offsetElem
 USE MOD_Particle_Vars          ,ONLY: usevMPF, VarTimeStep
 USE MOD_Particle_Vars          ,ONLY: PartInt,PartData,PartDataSize,locnPart,offsetnPart,PartIntSize
+USE MOD_Particle_Vars          ,ONLY: UseRotRefFrame
 USE MOD_part_tools             ,ONLY: UpdateNextFreePosition
 USE MOD_DSMC_Vars              ,ONLY: UseDSMC, CollisMode,DSMC
+USE MOD_Particle_Restart_Vars  ,ONLY: PartVeloRotRefTmp
 #if USE_MPI
 USE MOD_Particle_MPI_Vars      ,ONLY: PartMPI
 #endif /*USE_MPI*/
@@ -408,6 +410,16 @@ ASSOCIATE (&
                               collective   = UseCollectiveIO , offSetDim = 1 , &
                               communicator = PartMPI%COMM    , RealArray = VarTimeStep%ElemFac)
   END IF
+  ! Output of the particle velocity in the rotational frame of reference
+  IF(UseRotRefFrame) THEN
+    CALL DistributedWriteArray(FileName                                                  , &
+                               DataSetName  = 'PartVeloRotRef', rank= 2                  , &
+                               nValGlobal   = (/3_IK          , nGlobalNbrOfParticles(3) /) , &
+                               nVal         = (/3_IK          , locnPart   /)            , &
+                               offset       = (/0_IK          , offsetnPart/)            , &
+                               collective   = UseCollectiveIO , offSetDim= 2             , &
+                               communicator = PartMPI%COMM    , RealArray= PartVeloRotRefTmp)
+  END IF
 #else
   CALL OpenDataFile(FileName,create=.FALSE.,single=.TRUE.,readOnly=.FALSE.)
   CALL WriteArrayToHDF5(DataSetName = 'PartData'     , rank = 2                 , &
@@ -415,13 +427,21 @@ ASSOCIATE (&
                         nVal        = (/PartDataSize , locnPart   /)            , &
                         offset      = (/0_IK         , offsetnPart/)            , &
                         collective  = .FALSE.        , RealArray = PartData)
-    ! Output of the element-wise time step as a separate container in state file
+  ! Output of the element-wise time step as a separate container in state file
   IF(VarTimeStep%UseDistribution) THEN
     CALL WriteArrayToHDF5(DataSetName = 'ElemTimeStep' , rank=2 , &
                           nValGlobal  = (/nGlobalElems , 1_IK/) , &
                           nVal        = (/PP_nElems    , 1_IK/) , &
                           offset      = (/offsetElem   , 0_IK/) , &
                           collective  = .FALSE.        , RealArray=VarTimeStep%ElemFac)
+  END IF
+  ! Output of the particle velocity in the rotational frame of reference
+  IF(UseRotRefFrame) THEN
+    CALL WriteArrayToHDF5(DataSetName = 'PartVeloRotRef', rank = 2                 , &
+                          nValGlobal  = (/3_IK          , nGlobalNbrOfParticles(3) /) , &
+                          nVal        = (/3_IK          , locnPart   /)            , &
+                          offset      = (/0_IK          , offsetnPart/)            , &
+                          collective  = .FALSE.         , RealArray = PartVeloRotRefTmp)
   END IF
   CALL CloseDataFile()
   DEALLOCATE(StrVarNames)
@@ -1879,9 +1899,11 @@ USE MOD_Particle_Vars          ,ONLY: PartInt,PartData
 USE MOD_Particle_Vars          ,ONLY: locnPart,offsetnPart
 USE MOD_Particle_Vars          ,ONLY: VibQuantData,ElecDistriData,AD_Data,MaxQuantNum,MaxElecQuant
 USE MOD_Particle_Vars          ,ONLY: PartState, PartSpecies, PartMPF, usevMPF, nSpecies, Species
+USE MOD_Particle_Vars          ,ONLY: UseRotRefFrame, PartVeloRotRef
 USE MOD_DSMC_Vars              ,ONLY: UseDSMC, CollisMode,PartStateIntEn, DSMC, PolyatomMolDSMC, SpecDSMC, VibQuantsPar
 USE MOD_DSMC_Vars              ,ONLY: ElectronicDistriPart, AmbipolElecVelo
 USE MOD_LoadBalance_Vars       ,ONLY: nPartsPerElem
+USE MOD_Particle_Restart_Vars  ,ONLY: PartVeloRotRefTmp
 #ifdef CODE_ANALYZE
 USE MOD_Particle_Tracking_Vars ,ONLY: PartOut,MPIRankOut
 #endif /*CODE_ANALYZE*/
@@ -1966,9 +1988,11 @@ CALL GetOffsetAndGlobalNumberOfParts('WriteParticleToHDF5',offsetnPart,nGlobalNb
 ! Arrays might still be allocated from previous loadbalance step
 SDEALLOCATE(PartInt)
 SDEALLOCATE(PartData)
+SDEALLOCATE(PartVeloRotRefTmp)
 #endif /*USE_LOADBALANCE*/
 ALLOCATE(PartInt(     PartIntSize,      offsetElem+1   :offsetElem+PP_nElems))
 ALLOCATE(PartData(INT(PartDataSize,IK),offsetnPart+1_IK:offsetnPart+locnPart), STAT=ALLOCSTAT)
+ALLOCATE(PartVeloRotRefTmp(INT(3,IK),offsetnPart+1_IK:offsetnPart+locnPart), STAT=ALLOCSTAT)
 IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__,'ERROR in hdf5_output.f90: Cannot allocate PartData array for writing particle data to .h5!')
 !!! Kleiner Hack von JN (Teil 1/2):
 
@@ -2007,6 +2031,8 @@ DO iElem_loc=1,PP_nElems
       END IF
 #endif /*(PP_TimeDiscMethod==508) || (PP_TimeDiscMethod==509)*/
       PartData(7,iPart)=REAL(PartSpecies(pcount))
+      ! Rotational frame of reference
+      IF(UseRotRefFrame) PartVeloRotRefTmp(1:3,iPart)=PartVeloRotRef(1:3,pcount)
       ! Sanity check: output of particles with species ID zero is prohibited
       IF(PartData(7,iPart).LE.0) CALL abort(__STAMP__,&
           'Found particle for output to .h5 with species ID zero, which indicates a corrupted simulation.')

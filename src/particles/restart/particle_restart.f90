@@ -82,6 +82,9 @@ USE MOD_Particle_Vars          ,ONLY: VibQuantData,ElecDistriData,AD_Data
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Vars       ,ONLY: PerformLoadBalance
 #endif /*USE_LOADBALANCE*/
+! Rotational frame of reference
+USE MOD_Particle_Vars          ,ONLY: UseRotRefFrame, PartVeloRotRef, RotRefFrameOmega
+USE MOD_Part_Tools             ,ONLY: InRotRefFrameCheck
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -157,6 +160,18 @@ IF(.NOT.DoMacroscopicRestart) THEN
         PartState(5,iPart) = PartData(5,offsetnPart+iLoop)
         PartState(6,iPart) = PartData(6,offsetnPart+iLoop)
         PartSpecies(iPart) = SpecID
+
+        ! Rotational frame of reference: initialize logical and velocity
+        IF(UseRotRefFrame) THEN
+          PDM%InRotRefFrame(iPart) = InRotRefFrameCheck(iPart)
+          IF(PDM%InRotRefFrame(iPart)) THEN
+            IF(PartVeloRotRefExists) THEN
+              PartVeloRotRef(1:3,iPart) = PartVeloRotRefTmp(1:3,offsetnPart+iLoop)
+            ELSE
+              PartVeloRotRef(1:3,iPart) = PartState(4:6,iPart) - CROSS(RotRefFrameOmega(1:3),PartState(1:3,iPart))
+            END IF
+          END IF
+        END IF
 
         IF (useDSMC) THEN
           IF ((CollisMode.GT.1).AND.(usevMPF) .AND. (DSMC%ElectronicModel.GT.0)) THEN
@@ -279,6 +294,7 @@ IF(.NOT.DoMacroscopicRestart) THEN
     END IF ! PartDataExists
     DEALLOCATE(PartInt)
     SDEALLOCATE(readVarFromState)
+    SDEALLOCATE(PartVeloRotRefTmp)
 
     PDM%ParticleVecLength = PDM%ParticleVecLength + iPart
     CALL UpdateNextFreePosition()

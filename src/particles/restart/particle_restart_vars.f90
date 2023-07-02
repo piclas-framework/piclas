@@ -24,8 +24,11 @@ SAVE
 !-----------------------------------------------------------------------------------------------------------------------------------
 LOGICAL                            :: PartIntExists
 LOGICAL                            :: PartDataExists
+LOGICAL                            :: PartVeloRotRefExists
 
 LOGICAL,ALLOCATABLE                :: readVarFromState(:)
+
+REAL,ALLOCATABLE                  :: PartVeloRotRefTmp(:,:)            ! (1:3,1:NParts) Velocity in the rotational reference frame
 
 !===================================================================================================================================
 END MODULE MOD_Particle_Restart_Vars

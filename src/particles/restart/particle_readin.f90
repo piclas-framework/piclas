@@ -78,6 +78,7 @@ USE MOD_TimeDisc_Vars          ,ONLY: time
 #endif /*USE_LOADBALANCE*/
 USE MOD_Particle_Vars          ,ONLY: VibQuantData,ElecDistriData,AD_Data
 USE MOD_Particle_Vars          ,ONLY: PartDataSize,PartIntSize
+USE MOD_Particle_Vars          ,ONLY: UseRotRefFrame, PartVeloRotRef
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -414,6 +415,7 @@ ELSE
   ! FIXME: Deallocate PartInt/PartData until loadbalance is always handled with MPI
    SDEALLOCATE(PartInt)
    SDEALLOCATE(PartData)
+   SDEALLOCATE(PartVeloRotRefTmp)
 
   ! ------------------------------------------------
   ! PartSource
@@ -633,7 +635,17 @@ ELSE
 
       ALLOCATE(PartData(PartDataSize_HDF5,offsetnPart+1_IK:offsetnPart+locnPart))
       CALL ReadArray('PartData',2,(/INT(PartDataSize_HDF5,IK),locnPart/),offsetnPart,2,RealArray=PartData)
-
+      ! ------------------------------------------------
+      ! Read-in of velocity in rotational frame of reference
+      ! ------------------------------------------------
+      IF(UseRotRefFrame) THEN
+        CALL DatasetExists(File_ID,'PartVeloRotRef',PartVeloRotRefExists)
+        IF(PartVeloRotRefExists) THEN
+          ALLOCATE(PartVeloRotRefTmp(1:3,offsetnPart+1_IK:offsetnPart+locnPart))
+          PartVeloRotRefTmp = 0.
+          CALL ReadArray('PartVeloRotRef',2,(/INT(3,IK),locnPart/),offsetnPart,2,RealArray=PartVeloRotRefTmp)
+        END IF
+      END IF
       ! ------------------------------------------------
       ! DSMC-specific arrays
       ! ------------------------------------------------
