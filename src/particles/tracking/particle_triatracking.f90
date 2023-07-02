@@ -128,6 +128,7 @@ USE MOD_Mesh_Tools                  ,ONLY: GetCNElemID
 USE MOD_Particle_Vars               ,ONLY: PEM,PDM,PartSpecies
 USE MOD_Particle_Vars               ,ONLY: PartState,LastPartPos
 USE MOD_Particle_Vars               ,ONLY: Symmetry
+USE MOD_Particle_Vars               ,ONLY: UseRotRefFrame, RotRefFrameOmega, PartVeloRotRef
 USE MOD_Particle_Mesh_Tools         ,ONLY: ParticleInsideQuad3D
 USE MOD_Particle_Mesh_Vars
 USE MOD_Particle_Tracking_vars      ,ONLY: ntracks,MeasureTrackTime,CountNbrOfLostParts, NbrOfLostParticles, TrackInfo
@@ -136,7 +137,7 @@ USE MOD_Part_Tools                  ,ONLY: StoreLostParticleProperties
 USE MOD_Particle_Boundary_Vars      ,ONLY: PartBound
 USE MOD_Particle_Intersection       ,ONLY: ParticleThroughSideCheck3DFast, ParticleThroughSideLastPosCheck, IntersectionWithWall
 USE MOD_Particle_Boundary_Condition ,ONLY: GetBoundaryInteraction
-USE MOD_part_tools                  ,ONLY: ParticleOnProc
+USE MOD_part_tools                  ,ONLY: ParticleOnProc, InRotRefFrameCheck
 #if USE_LOADBALANCE
 USE MOD_Mesh_Vars                   ,ONLY: offsetElem
 USE MOD_LoadBalance_Timers          ,ONLY: LBStartTime, LBElemSplitTime, LBElemPauseTime
@@ -444,6 +445,20 @@ DO WHILE (.NOT.PartisDone)
       CALL abort(&
        __STAMP__ &
        ,'ERROR: Element not defined! Please increase the size of the halo region (HaloEpsVelo)!')
+    END IF
+    IF(UseRotRefFrame) THEN
+      IF(PDM%ParticleInside(i)) THEN
+        IF(InRotRefFrameCheck(i)) THEN
+          ! Particle moved into the rotational frame of reference, initialize velocity
+          IF(.NOT.PDM%InRotRefFrame(i)) THEN
+            PartVeloRotRef(1:3,i) = PartState(4:6,i) - CROSS(RotRefFrameOmega(1:3),PartState(1:3,i))
+          END IF
+        ELSE
+          ! Particle left (or never was in) the rotational frame of reference
+          PartVeloRotRef(1:3,i) = 0.
+        END IF
+        PDM%InRotRefFrame(i) = InRotRefFrameCheck(i)
+      END IF
     END IF
     TrackInfo%CurrElem = ElemID
   END IF  ! InElementCheck = T/F

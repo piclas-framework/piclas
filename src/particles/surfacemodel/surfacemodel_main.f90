@@ -332,9 +332,8 @@ USE MOD_Particle_Mesh_Vars      ,ONLY: SideInfo_Shared
 USE MOD_Particle_Tracking_Vars  ,ONLY: TrackInfo
 USE MOD_Particle_Vars           ,ONLY: UseVarTimeStep, PartTimeStep, VarTimeStep
 USE MOD_TimeDisc_Vars           ,ONLY: dt,RKdtFrac
-USE MOD_Particle_Vars           ,ONLY: UseRotRefFrame, RotRefFrameOmega, PDM, PartVeloRotRef
+USE MOD_Particle_Vars           ,ONLY: PDM, PartVeloRotRef
 USE MOD_part_RHS                ,ONLY: CalcPartRHSRotRefFrame
-USE MOD_part_tools              ,ONLY: InRotRefFrameCheck
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -377,8 +376,8 @@ END IF
 ! Species-specific time step
 IF(VarTimeStep%UseSpeciesSpecific) dtVar = dtVar * Species(SpecID)%TimeStepFactor
 
-IF(UseRotRefFrame) THEN
-  ! In case of RotRefFrame, the velocity in the rotational frame of reference is utilized
+IF(PDM%InRotRefFrame(PartID)) THEN
+  ! In case of RotRefFrame utilize the respective velocity
   OldVelo = PartVeloRotRef(1:3,PartID)
 ELSE
   OldVelo = PartState(4:6,PartID)
@@ -423,33 +422,27 @@ LastPartPos(1:3,PartID) = POI_vec(1:3)
 ! Determine the correct velocity in case of a rotational frame of reference
 NewVeloPush(1:3) = PartState(4:6,PartID)
 ! In case of RotRefFrame, the velocity in the rotational reference frame is mirrored as well
-IF(UseRotRefFrame) THEN
-  IF(PDM%InRotRefFrame(PartID)) THEN
-    ! Mirror the velocity in the rotational frame
-    PartVeloRotRef(1:3,PartID) = PartVeloRotRef(1:3,PartID) - 2.*DOT_PRODUCT(PartVeloRotRef(1:3,PartID),n_loc)*n_loc
-    ! ALTERNATIVE: Transform the inertial velocity (which was mirrored)
-    ! PartVeloRotRef(1:3,PartID) = PartState(4:6,PartID) - CROSS(RotRefFrameOmega(1:3),LastPartPos(1:3,PartID))
-  END IF
+IF(PDM%InRotRefFrame(PartID)) THEN
+  ! Mirror the velocity in the rotational frame
+  PartVeloRotRef(1:3,PartID) = PartVeloRotRef(1:3,PartID) - 2.*DOT_PRODUCT(PartVeloRotRef(1:3,PartID),n_loc)*n_loc
+  ! ALTERNATIVE: Transform the inertial velocity (which was mirrored)
+  ! PartVeloRotRef(1:3,PartID) = PartState(4:6,PartID) - CROSS(RotRefFrameOmega(1:3),LastPartPos(1:3,PartID))
 END IF
 
 TrackInfo%PartTrajectory(1:3)     = TrackInfo%PartTrajectory(1:3)-2.*DOT_PRODUCT(TrackInfo%PartTrajectory(1:3),n_loc)*n_loc
 
 ! Check if rotational frame of reference is used, otherwise mirror the LastPartPos
-IF(UseRotRefFrame) THEN
-  IF(InRotRefFrameCheck(PartID)) THEN
-    POI_fak = 1.- (TrackInfo%lengthPartTrajectory-TrackInfo%alpha) / VECNORM(OldVelo*dtVar)
-    ! Add the acceleration due to new velocity vector at the POI
-    PartVeloRotRef(1:3,PartID) = PartVeloRotRef(1:3,PartID) + CalcPartRHSRotRefFrame(LastPartPos(1:3,PartID),PartVeloRotRef(1:3,PartID)) * dtVar * (1.0 - POI_fak)
-    ! IF(DOT_PRODUCT(PartVeloRotRef(1:3,PartID),n_loc).GT.0.) THEN
-    !   PartVeloRotRef(1:3,PartID) = PartVeloRotRef(1:3,PartID) - 2.*DOT_PRODUCT(PartVeloRotRef(1:3,PartID),n_loc)*n_loc
-    ! END IF
-    PartState(1:3,PartID) = LastPartPos(1:3,PartID) + (1.0 - POI_fak) * dtVar * PartVeloRotRef(1:3,PartID)
-  ELSE
-    PartState(1:3,PartID) = LastPartPos(1:3,PartID) + TrackInfo%PartTrajectory(1:3)*(TrackInfo%lengthPartTrajectory - TrackInfo%alpha)
-  END IF
+IF(PDM%InRotRefFrame(PartID)) THEN
+  POI_fak = 1.- (TrackInfo%lengthPartTrajectory-TrackInfo%alpha) / VECNORM(OldVelo*dtVar)
+  ! Add the acceleration due to new velocity vector at the POI
+  PartVeloRotRef(1:3,PartID) = PartVeloRotRef(1:3,PartID) + CalcPartRHSRotRefFrame(LastPartPos(1:3,PartID),PartVeloRotRef(1:3,PartID)) * dtVar * (1.0 - POI_fak)
+  ! IF(DOT_PRODUCT(PartVeloRotRef(1:3,PartID),n_loc).GT.0.) THEN
+  !   PartVeloRotRef(1:3,PartID) = PartVeloRotRef(1:3,PartID) - 2.*DOT_PRODUCT(PartVeloRotRef(1:3,PartID),n_loc)*n_loc
+  ! END IF
+  PartState(1:3,PartID) = LastPartPos(1:3,PartID) + (1.0 - POI_fak) * dtVar * PartVeloRotRef(1:3,PartID)
 ELSE
   PartState(1:3,PartID) = LastPartPos(1:3,PartID) + TrackInfo%PartTrajectory(1:3)*(TrackInfo%lengthPartTrajectory - TrackInfo%alpha)
-END IF ! UseRotRefFrame
+END IF
 
 ! #if !defined(IMPA) &&  !defined(ROS)
 ! compute moved particle || rest of movement
@@ -526,19 +519,14 @@ USE MOD_Globals                 ,ONLY: ABORT, OrthoNormVec, VECNORM, DOTPRODUCT
 USE MOD_DSMC_Vars               ,ONLY: DSMC, AmbipolElecVelo
 USE MOD_SurfaceModel_Tools      ,ONLY: GetWallTemperature, CalcRotWallVelo
 USE MOD_Particle_Boundary_Vars  ,ONLY: PartBound
-USE MOD_Particle_Vars           ,ONLY: PartState,LastPartPos,Species,PartSpecies,Symmetry,UseRotRefFrame,PartVeloRotRef
+USE MOD_Particle_Vars           ,ONLY: PartState,LastPartPos,Species,PartSpecies,Symmetry,PartVeloRotRef
 USE MOD_Particle_Vars           ,ONLY: UseVarTimeStep, PartTimeStep, VarTimeStep
 USE MOD_TimeDisc_Vars           ,ONLY: dt,RKdtFrac
 USE MOD_Mesh_Tools              ,ONLY: GetCNElemID
-#if defined(LSERK) || (PP_TimeDiscMethod==508) || (PP_TimeDiscMethod==509)
-USE MOD_Particle_Vars           ,ONLY: PDM
-#endif
+USE MOD_Particle_Vars           ,ONLY: PDM, RotRefFrameOmega
 USE MOD_SurfaceModel_Tools      ,ONLY: CalcPostWallCollVelo, SurfaceModel_EnergyAccommodation
 USE MOD_Particle_Tracking_Vars  ,ONLY: TrackInfo
-USE MOD_Particle_Vars          ,ONLY: UseRotRefFrame, RotRefFrameOmega
-USE MOD_part_RHS               ,ONLY: CalcPartRHSRotRefFrame
-USE MOD_part_tools             ,ONLY: InRotRefFrameCheck
-
+USE MOD_part_RHS                ,ONLY: CalcPartRHSRotRefFrame
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -586,7 +574,7 @@ END IF
 ! Species-specific time step
 IF(VarTimeStep%UseSpeciesSpecific) dtVar = dtVar * Species(SpecID)%TimeStepFactor
 
-IF(UseRotRefFrame) THEN
+IF(PDM%InRotRefFrame(PartID)) THEN
   ! In case of RotRefFrame utilize the respective velocity
   OldVelo = PartVeloRotRef(1:3,PartID)
 ELSE
@@ -677,13 +665,11 @@ IF (PartBound%Resample(locBCID)) CALL RANDOM_NUMBER(POI_fak) !Resample Equilibir
 
 ! ! 6a.) Determine the correct velocity for the subsequent push in case of a rotational frame of reference
 NewVeloPush(1:3) = NewVelo(1:3)
-IF(UseRotRefFrame) THEN
-  IF(InRotRefFrameCheck(PartID)) THEN
-    NewVeloPush(1:3) = NewVeloPush(1:3) - CROSS(RotRefFrameOmega(1:3),LastPartPos(1:3,PartID))
-    NewVeloPush(1:3) = NewVeloPush(1:3) + CalcPartRHSRotRefFrame(LastPartPos(1:3,PartID),NewVeloPush(1:3)) * dtVar
-    ! Store the new rotational reference frame velocity
-    PartVeloRotRef(1:3,PartID) = NewVeloPush(1:3)
-  END IF
+IF(PDM%InRotRefFrame(PartID)) THEN
+  NewVeloPush(1:3) = NewVeloPush(1:3) - CROSS(RotRefFrameOmega(1:3),LastPartPos(1:3,PartID))
+  NewVeloPush(1:3) = NewVeloPush(1:3) + CalcPartRHSRotRefFrame(LastPartPos(1:3,PartID),NewVeloPush(1:3)) * dtVar
+  ! Store the new rotational reference frame velocity
+  PartVeloRotRef(1:3,PartID) = NewVeloPush(1:3)
 END IF
 
 PartState(1:3,PartID)   = LastPartPos(1:3,PartID) + (1.0 - POI_fak) * dtVar * NewVeloPush(1:3)
