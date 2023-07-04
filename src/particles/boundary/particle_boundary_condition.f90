@@ -541,7 +541,7 @@ REAL                                 :: LastPartPos_old(1:3),Velo_old(1:3), Velo
 REAL                                 :: RanNum, RadiusPOI,rot_alpha_POIold,AlphaDelta
 REAL                                 :: RadiusInterPlane(1:2)
 INTEGER                              :: iPartBound,k,l,m,NewPartID,NewPartNumber,iNewPart
-REAL                                 :: DeletOrCloneProb,VibEnergy,RotEnergy,ElecEnergy
+REAL                                 :: DeleteOrCloneProb,VibEnergy,RotEnergy,ElecEnergy
 REAL                                 :: VecAngle
 !===================================================================================================================================
 
@@ -563,20 +563,21 @@ END IF
 ! (1.a) Evaluate the probability
 iPartBound=PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID))
 IF(DoCreateParticles) THEN
-  DeletOrCloneProb = PartBound%AngleRatioOfInterPlanes(iPartBound)
-  IF(DeletOrCloneProb.LT.1.0) THEN
-! (1.b) DeletOrCloneProb.LT.1.0 -> Delete particle?
+  DeleteOrCloneProb = PartBound%AngleRatioOfInterPlanes(iPartBound)
+  IF(DeleteOrCloneProb.LT.0.) CALL abort(__STAMP__,' ERROR: DeleteOrCloneProb below zero! Interplane might not be on the processor.')
+  IF(DeleteOrCloneProb.LT.1.0) THEN
+! (1.b) DeleteOrCloneProb.LT.1.0 -> Delete particle?
     CALL RANDOM_NUMBER(RanNum)
-    IF(RanNum.GT.DeletOrCloneProb) THEN
+    IF(RanNum.GT.DeleteOrCloneProb) THEN
       CALL RemoveParticle(PartID,BCID=PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID)))
       RETURN
     END IF
-  ELSE IF(DeletOrCloneProb.GT.1.0) THEN
-! (1.b.I) DeletOrCloneProb.GT.1.0 -> Calc number of inter particles
-    NewPartNumber = INT(DeletOrCloneProb) - 1
-    DeletOrCloneProb = DeletOrCloneProb - INT(DeletOrCloneProb)
+  ELSE IF(DeleteOrCloneProb.GT.1.0) THEN
+! (1.b.I) DeleteOrCloneProb.GT.1.0 -> Calc number of inter particles
+    NewPartNumber = INT(DeleteOrCloneProb) - 1
+    DeleteOrCloneProb = DeleteOrCloneProb - INT(DeleteOrCloneProb)
     CALL RANDOM_NUMBER(RanNum) 
-    IF(RanNum.LE.DeletOrCloneProb) THEN
+    IF(RanNum.LE.DeleteOrCloneProb) THEN
       NewPartNumber = NewPartNumber + 1
     END IF
 ! (1.c.II) Create inter particles
@@ -623,7 +624,7 @@ IF(DoCreateParticles) THEN
       END IF
     END DO
   END IF
-! (1.b.III) IF(DeletOrCloneProb.EQ.1.0) -> continue normally
+! (1.b.III) IF(DeleteOrCloneProb.EQ.1.0) -> continue normally
 END IF
 
 ! Variable time step
