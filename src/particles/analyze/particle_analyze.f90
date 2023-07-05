@@ -1022,9 +1022,15 @@ ParticleAnalyzeSampleTime = Time - ParticleAnalyzeSampleTime ! Set ParticleAnaly
           WRITE(unit_index,'(A1)',ADVANCE='NO') ','
           WRITE(unit_index,'(I3.3,A)',ADVANCE='NO') OutputCounter,'-PCoupledMoAv'
           OutputCounter = OutputCounter + 1
-          WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-          WRITE(unit_index,'(I3.3,A)',ADVANCE='NO') OutputCounter,'-PCoupledIntAv'
-          OutputCounter = OutputCounter + 1
+#if USE_HDG
+          IF(UseCoupledPowerPotential)THEN
+            IF(CoupledPowerMode.EQ.3)THEN
+              WRITE(unit_index,'(A1)',ADVANCE='NO') ','
+              WRITE(unit_index,'(I3.3,A)',ADVANCE='NO') OutputCounter,'-PCoupledIntAv'
+              OutputCounter = OutputCounter + 1
+            END IF ! CoupledPowerMode.EQ.3
+          END IF ! UseCoupledPowerPotential
+#endif /*USE_HDG*/
         END IF
         IF (CalcLaserInteraction) THEN ! computer laser-plasma interaction
           DO iSpec=1, nSpecies
@@ -1401,20 +1407,22 @@ ParticleAnalyzeSampleTime = Time - ParticleAnalyzeSampleTime ! Set ParticleAnaly
 #endif /*USE_MPI*/
 #if USE_HDG
       ! Only required for integrated average over one cycle
-      IF(CoupledPowerMode.EQ.3)THEN
-        PCouplDelta      = PCouplAverage - PCouplAverageOld ! y2 - new value
-        PCouplAverageOld = PCouplAverage
-        CoupledPowerPotential(4) = CoupledPowerPotential(4) + 0.5*(CoupledPowerPotential(6) + PCouplDelta) ! 0.5*dx*(y1+y2)/dx
-        CoupledPowerPotential(6) = PCouplDelta ! y1 = y2 - store old value ("last energy")
-        ! Check sampling frequency
-        IF(CoupledPowerFrequency.GT.0)THEN
-          TimeDelta = (1.0 / CoupledPowerFrequency) + Time - CoupledPowerPotential(5) ! = 1/f + t - tCPP
-        ELSE
-          TimeDelta = ParticleAnalyzeSampleTime
-        END IF ! CoupledPowerFrequency.GT.0
-        ! Check sampling time
-        IF(ABS(TimeDelta).GT.0.) PCouplIntAverage = CoupledPowerPotential(4) / TimeDelta ! Calculate average from integral
-      END IF ! CoupledPowerMode.EQ.3
+      IF(UseCoupledPowerPotential)THEN
+        IF(CoupledPowerMode.EQ.3)THEN
+          PCouplDelta      = PCouplAverage - PCouplAverageOld ! y2 - new value
+          PCouplAverageOld = PCouplAverage
+          CoupledPowerPotential(4) = CoupledPowerPotential(4) + 0.5*(CoupledPowerPotential(6) + PCouplDelta) ! 0.5*dx*(y1+y2)/dx
+          CoupledPowerPotential(6) = PCouplDelta ! y1 = y2 - store old value ("last energy")
+          ! Check sampling frequency
+          IF(CoupledPowerFrequency.GT.0)THEN
+            TimeDelta = (1.0 / CoupledPowerFrequency) + Time - CoupledPowerPotential(5) ! = 1/f + t - tCPP
+          ELSE
+            TimeDelta = ParticleAnalyzeSampleTime
+          END IF ! CoupledPowerFrequency.GT.0
+          ! Check sampling time
+          IF(ABS(TimeDelta).GT.0.) PCouplIntAverage = CoupledPowerPotential(4) / TimeDelta ! Calculate average from integral
+        END IF ! CoupledPowerMode.EQ.3
+      END IF ! UseCoupledPowerPotential
 #endif /*USE_HDG*/
 #if USE_MPI
     ELSE
@@ -1551,7 +1559,13 @@ IF (PartMPI%MPIROOT) THEN
   IF (CalcCoupledPower) THEN
     WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',', PCoupl
     WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',', PCouplAverage
-    WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',', PCouplIntAverage
+#if USE_HDG
+    IF(UseCoupledPowerPotential)THEN
+      IF(CoupledPowerMode.EQ.3)THEN
+        WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',', PCouplIntAverage
+      END IF ! CoupledPowerMode.EQ.3
+    END IF ! UseCoupledPowerPotential
+#endif /*USE_HDG*/
   END IF
   IF (CalcLaserInteraction) THEN
     DO iSpec=1, nSpecies
