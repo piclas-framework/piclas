@@ -913,7 +913,7 @@ USE MOD_Particle_Vars          ,ONLY: PartIsImplicit
 #endif /*IMPA*/
 USE MOD_DSMC_Vars              ,ONLY: RadialWeighting
 USE MOD_DSMC_Symmetry          ,ONLY: DSMC_2D_RadialWeighting
-USE MOD_part_tools             ,ONLY: ParticleOnProc
+USE MOD_part_tools             ,ONLY: ParticleOnProc, InRotRefFrameCheck
 !USE MOD_PICDepo_Tools          ,ONLY: DepositParticleOnNodes
 #if defined(MEASURE_MPI_WAIT)
 USE MOD_Particle_MPI_Vars,       ONLY:MPIW8TimePart,MPIW8CountPart

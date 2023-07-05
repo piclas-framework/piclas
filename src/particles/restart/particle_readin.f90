@@ -237,9 +237,6 @@ IF (PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance)) THEN
   ! Check the PartDataSize
   IF (PartDataSize.EQ.0) CALL Abort(__STAMP__,'PartDataSize.EQ.0 but should have been set before loadbalance!')
 
-  ALLOCATE(readVarFromState(PartDataSize))
-  readVarFromState=.TRUE.
-
   ! Set polyatomic and electronic shell variables
   IF (useDSMC) THEN
     IF (DSMC%NumPolyatomMolecs.GT.0) THEN
