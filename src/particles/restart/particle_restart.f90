@@ -163,11 +163,13 @@ IF(.NOT.DoMacroscopicRestart) THEN
           IF(PDM%InRotRefFrame(iPart)) THEN
             IF(PartVeloRotRefExists) THEN
               PartVeloRotRef(1:3,iPart) = PartData(1+iPos:3+iPos,offsetnPart+iLoop)
-              iPos=iPos+3
             ELSE
               PartVeloRotRef(1:3,iPart) = PartState(4:6,iPart) - CROSS(RotRefFrameOmega(1:3),PartState(1:3,iPart))
             END IF
+          ELSE
+            PartVeloRotRef(1:3,iPart) = 0.
           END IF
+          IF(PartVeloRotRefExists) iPos=iPos+3
         END IF
 
         IF(useDSMC) THEN
@@ -185,7 +187,7 @@ IF(.NOT.DoMacroscopicRestart) THEN
               CALL Abort(__STAMP__,"resetting inner DOF for molecules is not implemented yet!")
             END IF ! readVarFromState
             IF(DSMC%ElectronicModel.GT.0) THEN
-              PartStateIntEn(3,iPart)=PartData(10,offsetnPart+iLoop)
+              PartStateIntEn(3,iPart)=PartData(1+iPos,offsetnPart+iLoop)
               iPos=iPos+1
             END IF
           END IF

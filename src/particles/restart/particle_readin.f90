@@ -455,9 +455,6 @@ ELSE
 
   IF (DoMacroscopicRestart) RETURN
 
-  ALLOCATE(readVarFromState(PartDataSize))
-  readVarFromState=.TRUE.
-
   IF (useDSMC.AND.(DSMC%NumPolyatomMolecs.GT.0)) THEN
     MaxQuantNum = 0
     DO iSpec = 1, nSpecies
@@ -534,6 +531,10 @@ ELSE
       CALL GetDataSize(File_ID,'VarNamesParticles',nDims,HSize,attrib=.TRUE.)
       PartDataSize_HDF5 = INT(HSize(1),4)
       DEALLOCATE(HSize)
+
+      ALLOCATE(readVarFromState(PartDataSize))
+      readVarFromState = .TRUE.
+      IF(UseRotRefFrame) PartVeloRotRefExists = .TRUE.
 
       ALLOCATE(StrVarNames_HDF5(PartDataSize_HDF5))
       CALL ReadAttribute(File_ID,'VarNamesParticles',PartDataSize_HDF5,StrArray=StrVarNames_HDF5)
