@@ -46,11 +46,11 @@ USE MOD_HDF5_Output            ,ONLY: FlushHDF5
 ! Mesh
 USE MOD_Mesh_Vars              ,ONLY: OffsetElem
 ! DSMC
-USE MOD_DSMC_Vars              ,ONLY: UseDSMC,CollisMode,DSMC,PolyatomMolDSMC,SpecDSMC
+USE MOD_DSMC_Vars              ,ONLY: UseDSMC,DSMC,PolyatomMolDSMC,SpecDSMC
 ! Particles
 USE MOD_Dielectric_Vars        ,ONLY: DoDielectricSurfaceCharge
 USE MOD_HDF5_Input_Particles   ,ONLY: ReadEmissionVariablesFromHDF5,ReadNodeSourceExtFromHDF5
-USE MOD_Particle_Vars          ,ONLY: PartInt,PartData,nSpecies,usevMPF
+USE MOD_Particle_Vars          ,ONLY: PartInt,PartData,nSpecies
 USE MOD_PICDepo_Vars           ,ONLY: DoDeposition,RelaxDeposition,PartSourceOld
 ! Restart
 USE MOD_Restart_Vars           ,ONLY: RestartFile,InterpolateSolution,RestartNullifySolution
@@ -77,8 +77,8 @@ USE MOD_PICDepo_Vars           ,ONLY: PartSource
 USE MOD_TimeDisc_Vars          ,ONLY: time
 #endif /*USE_LOADBALANCE*/
 USE MOD_Particle_Vars          ,ONLY: VibQuantData,ElecDistriData,AD_Data
-USE MOD_Particle_Vars          ,ONLY: PartDataSize,PartIntSize
-USE MOD_Particle_Vars          ,ONLY: UseRotRefFrame, PartVeloRotRef
+USE MOD_Particle_Vars          ,ONLY: PartDataSize,PartIntSize,PartDataVarNames
+USE MOD_Particle_Vars          ,ONLY: UseRotRefFrame
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -96,11 +96,10 @@ INTEGER                            :: iElem
 INTEGER                            :: FirstElemInd,LastelemInd,i,j,k
 INTEGER                            :: MaxQuantNum,iPolyatMole,iSpec,iVar,MaxElecQuant
 ! VarNames
-CHARACTER(LEN=255),ALLOCATABLE     :: StrVarNames(:)
 CHARACTER(LEN=255),ALLOCATABLE     :: StrVarNames_HDF5(:)
 ! HDF5 checkes
 LOGICAL                            :: VibQuantDataExists,changedVars,DGSourceExists
-LOGICAL                            :: ElecDistriDataExists,AD_DataExists,implemented
+LOGICAL                            :: ElecDistriDataExists,AD_DataExists
 LOGICAL                            :: FileVersionExists
 REAL                               :: FileVersionHDF5Real
 INTEGER                            :: FileVersionHDF5Int
@@ -415,7 +414,6 @@ ELSE
   ! FIXME: Deallocate PartInt/PartData until loadbalance is always handled with MPI
    SDEALLOCATE(PartInt)
    SDEALLOCATE(PartData)
-   SDEALLOCATE(PartVeloRotRefTmp)
 
   ! ------------------------------------------------
   ! PartSource
@@ -460,60 +458,6 @@ ELSE
 
   IF (DoMacroscopicRestart) RETURN
 
-  ! Reconstruct the VarNames
-  implemented=.FALSE.
-  IF(useDSMC)THEN
-    IF((CollisMode.GT.1).AND.(usevMPF).AND.(DSMC%ElectronicModel.GT.0))THEN
-      PartDataSize=11
-      ALLOCATE(StrVarNames(PartDataSize))
-      StrVarNames( 8)='Vibrational'
-      StrVarNames( 9)='Rotational'
-      StrVarNames(10)='Electronic'
-      StrVarNames(11)='MPF'
-      implemented = .TRUE.
-    ELSE IF ( (CollisMode .GT. 1) .AND. (usevMPF) ) THEN
-      PartDataSize=10
-      ALLOCATE(StrVarNames(PartDataSize))
-      StrVarNames( 8)='Vibrational'
-      StrVarNames( 9)='Rotational'
-      StrVarNames(10)='MPF'
-      implemented = .TRUE.
-    ELSE IF ( (CollisMode .GT. 1) .AND. (DSMC%ElectronicModel.GT.0) ) THEN
-      PartDataSize=10
-      ALLOCATE(StrVarNames(PartDataSize))
-      StrVarNames( 8)='Vibrational'
-      StrVarNames( 9)='Rotational'
-      StrVarNames(10)='Electronic'
-    ELSE IF (CollisMode.GT.1) THEN
-      implemented=.TRUE.
-      PartDataSize=9 !int ener + 2
-      ALLOCATE(StrVarNames(PartDataSize))
-      StrVarNames( 8)='Vibrational'
-      StrVarNames( 9)='Rotational'
-    ELSE IF (usevMPF) THEN
-      PartDataSize=8 !+ 1 vmpf
-      ALLOCATE(StrVarNames(PartDataSize))
-      StrVarNames( 8)='MPF'
-      implemented=.TRUE.
-    ELSE
-      PartDataSize=7 !+ 0
-      ALLOCATE(StrVarNames(PartDataSize))
-    END IF
-  ELSE IF (usevMPF) THEN
-    PartDataSize=8 !vmpf +1
-    ALLOCATE(StrVarNames(PartDataSize))
-    StrVarNames( 8)='MPF'
-  ELSE
-    PartDataSize=7
-    ALLOCATE(StrVarNames(PartDataSize))
-  END IF ! UseDSMC
-  StrVarNames(1)='ParticlePositionX'
-  StrVarNames(2)='ParticlePositionY'
-  StrVarNames(3)='ParticlePositionZ'
-  StrVarNames(4)='VelocityX'
-  StrVarNames(5)='VelocityY'
-  StrVarNames(6)='VelocityZ'
-  StrVarNames(7)='Species'
   ALLOCATE(readVarFromState(PartDataSize))
   readVarFromState=.TRUE.
 
@@ -581,7 +525,6 @@ ELSE
       END IF
     ENDIF
 
-
     ! ------------------------------------------------
     ! PartData
     ! ------------------------------------------------
@@ -600,7 +543,7 @@ ELSE
 
       IF (PartDataSize_HDF5.NE.PartDataSize) THEN
         changedVars=.TRUE.
-      ELSE IF (.NOT.ALL(StrVarNames_HDF5.EQ.StrVarNames)) THEN
+      ELSE IF (.NOT.ALL(StrVarNames_HDF5.EQ.PartDataVarNames)) THEN
         changedVars=.TRUE.
       ELSE
         changedVars=.FALSE.
@@ -608,11 +551,10 @@ ELSE
 
       IF (changedVars) THEN
         SWRITE(*,*) 'WARNING: VarNamesParticles have changed from restart-file'
-        IF (.NOT.implemented) CALL Abort(__STAMP__,"change in VarNamesParticles not implemented yet")
         ! Check which variables were found in the .h5 file and flag the ones that were not found
         readVarFromState=.FALSE.
         DO iVar=1,PartDataSize_HDF5
-          IF (TRIM(StrVarNames(iVar)).EQ.TRIM(StrVarNames_HDF5(iVar))) THEN
+          IF (TRIM(PartDataVarNames(iVar)).EQ.TRIM(StrVarNames_HDF5(iVar))) THEN
             readVarFromState(iVar)=.TRUE.
           ELSE
             CALL Abort(__STAMP__,"not associated VarNamesParticles in HDF5!")
@@ -620,32 +562,34 @@ ELSE
         END DO ! iVar=1,PartDataSize_HDF5
         DO iVar=1,PartDataSize
           IF (.NOT.readVarFromState(iVar)) THEN
-            IF (TRIM(StrVarNames(iVar)).EQ.'Vibrational' .OR. TRIM(StrVarNames(iVar)).EQ.'Rotational') THEN
+            IF (TRIM(PartDataVarNames(iVar)).EQ.'Vibrational' .OR. TRIM(PartDataVarNames(iVar)).EQ.'Rotational') THEN
               WRITE(UNIT=hilf,FMT='(I0)') iVar
-              SWRITE(*,*) 'WARNING: The following VarNamesParticles(iVar='//TRIM(hilf)//') will be set to zero: '//TRIM(StrVarNames(iVar))
-            ELSE IF(TRIM(StrVarNames(iVar)).EQ.'MPF') THEN
+              SWRITE(*,*) 'WARNING: The following VarNamesParticles(iVar='//TRIM(hilf)//') will be set to zero: '//TRIM(PartDataVarNames(iVar))
+            ELSE IF(TRIM(PartDataVarNames(iVar)).EQ.'MPF') THEN
               SWRITE(*,*) 'WARNING: The particle weighting factor will be initialized with the given global weighting factor!'
             ELSE
-              CALL Abort(__STAMP__,"not associated VarNamesParticles to be reset! StrVarNames(iVar)="//TRIM(StrVarNames(iVar))//&
-              '. Note that initializing electronic DOF and vibrational molecular species with zero ist not imeplemted.')
-            END IF ! TRIM(StrVarNames(iVar)).EQ.'Vibrational' .OR. TRIM(StrVarNames(iVar)).EQ.'Rotational'
+              CALL Abort(__STAMP__,"not associated VarNamesParticles to be reset! PartDataVarNames(iVar)="//TRIM(PartDataVarNames(iVar))//&
+              '. Note that initializing electronic DOF and vibrational molecular species with zero ist not implemented.')
+            END IF ! TRIM(PartDataVarNames(iVar)).EQ.'Vibrational' .OR. TRIM(PartDataVarNames(iVar)).EQ.'Rotational'
           END IF ! .NOT.readVarFromState(iVar)
         END DO ! iVar=1,PartDataSize
+        IF(UseRotRefFrame) THEN
+          PartVeloRotRefExists = .FALSE.
+          DO iVar=1,PartDataSize_HDF5
+            IF (TRIM(StrVarNames_HDF5(iVar))  .EQ.'VelocityRotRefX'.AND. &
+                TRIM(StrVarNames_HDF5(iVar+1)).EQ.'VelocityRotRefY'.AND. &
+                TRIM(StrVarNames_HDF5(iVar+2)).EQ.'VelocityRotRefZ'.AND. &
+                readVarFromState(iVar).AND.readVarFromState(iVar+1).AND.readVarFromState(iVar+2)) PartVeloRotRefExists = .TRUE.
+          END DO
+          IF(.NOT.PartVeloRotRefExists) THEN
+            SWRITE(*,*) 'WARNING: Velocity in rotational frame of reference has not been found, will be initialized with the'//&
+                        'PartState transformed into the rotational frame.'
+          END IF
+        END IF
       END IF ! changedVars
 
       ALLOCATE(PartData(PartDataSize_HDF5,offsetnPart+1_IK:offsetnPart+locnPart))
       CALL ReadArray('PartData',2,(/INT(PartDataSize_HDF5,IK),locnPart/),offsetnPart,2,RealArray=PartData)
-      ! ------------------------------------------------
-      ! Read-in of velocity in rotational frame of reference
-      ! ------------------------------------------------
-      IF(UseRotRefFrame) THEN
-        CALL DatasetExists(File_ID,'PartVeloRotRef',PartVeloRotRefExists)
-        IF(PartVeloRotRefExists) THEN
-          ALLOCATE(PartVeloRotRefTmp(1:3,offsetnPart+1_IK:offsetnPart+locnPart))
-          PartVeloRotRefTmp = 0.
-          CALL ReadArray('PartVeloRotRef',2,(/INT(3,IK),locnPart/),offsetnPart,2,RealArray=PartVeloRotRefTmp)
-        END IF
-      END IF
       ! ------------------------------------------------
       ! DSMC-specific arrays
       ! ------------------------------------------------

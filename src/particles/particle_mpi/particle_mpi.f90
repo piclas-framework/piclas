@@ -183,23 +183,11 @@ PartCommSize   = PartCommSize + 1
 PartCommSize   = PartCommSize + 1
 
 IF (useDSMC.AND.(CollisMode.GT.1)) THEN
-  IF (usevMPF .AND. DSMC%ElectronicModel.GT.0) THEN
-    ! vib. , rot and electronic energy and macroparticle factor for each particle
-    PartCommSize = PartCommSize + 4
-  ELSE IF (usevMPF ) THEN
-    ! vib. and rot energy and macroparticle factor for each particle
-    PartCommSize = PartCommSize + 3
-  ELSE IF (DSMC%ElectronicModel.GT.0) THEN
-    ! vib., rot. and electronic energy
-    PartCommSize = PartCommSize + 3
-  ELSE
-    ! vib. and rot. energy
-    PartCommSize = PartCommSize + 2
-  END IF
-ELSE
-  ! PIC simulation with vMPF
-  IF (usevMPF) PartCommSize = PartCommSize+1
+  PartCommSize = PartCommSize + 2
+  IF(DSMC%ElectronicModel.GT.0) PartCommSize   = PartCommSize + 1
 END IF
+! Simulation with variable particle weights
+IF (usevMPF) PartCommSize = PartCommSize+1
 
 ! time integration
 #if defined(LSERK)
@@ -1048,7 +1036,12 @@ DO iProc=0,nExchangeProcessors-1
     END IF
     !>> particle velocity in rotational reference frame
     IF(UseRotRefFrame) THEN
-      PartVeloRotRef(1:3,PartID) = PartRecvBuf(iProc)%content(1+jPos: 3+jPos)
+      PDM%InRotRefFrame(PartID) = InRotRefFrameCheck(PartID)
+      IF(PDM%InRotRefFrame(PartID)) THEN
+        PartVeloRotRef(1:3,PartID) = PartRecvBuf(iProc)%content(1+jPos: 3+jPos)
+      ELSE
+        PartVeloRotRef(1:3,PartID) = 0.
+      END IF
       jPos=jPos+3
     END IF
     !>> particle species
