@@ -1471,12 +1471,15 @@ SUBROUTINE InitCalcElectricTimeDerivativeSurface()
 ! MODULES
 USE MOD_Globals
 USE MOD_Preproc
-USE MOD_Mesh_Vars        ,ONLY: nBCs,BoundaryType,BoundaryName,nBCSides,BC
+USE MOD_Mesh_Vars        ,ONLY: nBCs,BoundaryType
 USE MOD_Analyze_Vars     ,ONLY: DoFieldAnalyze,CalcElectricTimeDerivative,EDC
 USE MOD_Equation_Vars    ,ONLY: Et
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Vars ,ONLY: PerformLoadBalance
 #endif /*USE_LOADBALANCE*/
+#if USE_MPI
+USE MOD_Mesh_Vars        ,ONLY: BoundaryName,nBCSides,BC
+#endif /*USE_MPI*/
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! INPUT / OUTPUT VARIABLES

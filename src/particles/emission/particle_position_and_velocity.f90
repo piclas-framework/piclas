@@ -544,7 +544,10 @@ SUBROUTINE SetPartPosAndVeloEmissionDistribution(iSpec,iInit,NbrOfParticle)
 ! modules
 !USE MOD_Globals
 USE MOD_PreProc
-USE MOD_Globals                ,ONLY: myrank,UNIT_StdOut,MPI_COMM_WORLD,abort
+#if USE_MPI
+USE MOD_Globals                ,ONLY: myrank
+#endif /*USE_MPI*/
+USE MOD_Globals                ,ONLY: UNIT_StdOut,MPI_COMM_WORLD,abort
 USE MOD_part_tools             ,ONLY: InitializeParticleMaxwell,InterpolateEmissionDistribution2D
 USE MOD_Mesh_Vars              ,ONLY: nElems,offsetElem
 USE MOD_Particle_Vars          ,ONLY: Species, PDM, PartState, PEM, LastPartPos

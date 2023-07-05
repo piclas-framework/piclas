@@ -1711,7 +1711,6 @@ SUBROUTINE CalcVelocity_FromWorkFuncSEE(W, m, t_vec, n_vec, Vec3D)
 ! MODULES
 USE MOD_Globals
 USE MOD_Globals_Vars            ,ONLY: PI, ElementaryCharge
-USE MOD_Particle_Vars           ,ONLY: Species
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
@@ -2184,7 +2183,7 @@ INTEGER,INTENT(IN) :: NonUniqueGlobalSideID
 ! LOCAL VARIABLES
 LOGICAL         :: pos,neg
 INTEGER         :: iNode,CNElemID,locSideID
-REAL            :: normal(2),corner(2),P(1:2,1:4),d(3)
+REAL            :: P(1:2,1:4),d(3)
 !===================================================================================================================================
 CNElemID  = GetCNElemID(SideInfo_Shared(SIDE_ELEMID,NonUniqueGlobalSideID))
 locSideID = SideInfo_Shared(SIDE_LOCALID,NonUniqueGlobalSideID)

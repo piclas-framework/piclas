@@ -1164,8 +1164,8 @@ USE MOD_IO_HDF5
 USE MOD_Timedisc_Vars           ,ONLY: iter
 USE MOD_Restart_Vars            ,ONLY: DoRestart
 USE MOD_Particle_Vars           ,ONLY: nSpecies, Species
-USE MOD_Particle_Sampling_Vars  ,ONLY: AdaptBCPartNumOut
 #if USE_MPI
+USE MOD_Particle_Sampling_Vars  ,ONLY: AdaptBCPartNumOut
 USE MOD_Particle_MPI_Vars       ,ONLY: PartMPI
 #endif /*USE_MPI*/
 ! IMPLICIT VARIABLE HANDLING

@@ -815,8 +815,8 @@ IF(CalcBulkElectronTemp)THEN
 #if USE_MPI
   ! Broadcast from root to other processors. Only root knows if BulkElectronTempExists=T/F so always broadcast message
   CALL MPI_BCAST(BulkElectronTemp,1, MPI_DOUBLE_PRECISION,0,MPI_COMM_WORLD,iERROR)
-  IF(SurfModSEEelectronTempAutoamtic) BulkElectronTempSEE = BulkElectronTemp
 #endif /*USE_MPI*/
+  IF(SurfModSEEelectronTempAutoamtic) BulkElectronTempSEE = BulkElectronTemp
 END IF ! CalcBulkElectronTemp
 
 END SUBROUTINE InitBulkElectronTemp

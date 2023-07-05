@@ -44,8 +44,8 @@ USE MOD_PreProc
 USE MOD_Mesh_Vars               ,ONLY: nElems
 USE MOD_Particle_Boundary_Vars  ,ONLY: PartBound
 USE MOD_Particle_Mesh_Vars      ,ONLY: GEO
-USE MOD_Particle_Mesh_Vars      ,ONLY: nComputeNodeSides, ElemBaryNGeo
-USE MOD_Particle_Mesh_Vars      ,ONLY: NodeCoords_Shared,ElemSideNodeID_Shared, SideInfo_Shared, ElemInfo_Shared
+USE MOD_Particle_Mesh_Vars      ,ONLY: ElemBaryNGeo
+USE MOD_Particle_Mesh_Vars      ,ONLY: NodeCoords_Shared,ElemSideNodeID_Shared, SideInfo_Shared
 USE MOD_Mesh_Tools              ,ONLY: GetGlobalElemID
 USE MOD_Particle_Mesh_Tools     ,ONLY: GetGlobalNonUniqueSideID
 #if USE_MPI
@@ -64,9 +64,9 @@ USE MOD_Particle_Mesh_Vars      ,ONLY: ElemSideNodeID2D_Shared, SideNormalEdge2D
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                         :: SideID, iLocSide, iNode, BCSideID, locElemID, CNElemID, iSide, iELem
+INTEGER                         :: SideID, iLocSide, iNode, iELem
 REAL                            :: VecCell(2), FaceMidPoint(2), NormVec(2), EdgeVec(2), nVal
-INTEGER                         :: firstElem,lastElem, firstSide, lastSide, GlobalElemID, tmpNode
+INTEGER                         :: firstElem,lastElem, GlobalElemID, tmpNode
 LOGICAL                         :: DefineSide
 !===================================================================================================================================
 #if USE_MPI
@@ -998,11 +998,12 @@ SUBROUTINE BuildNodeNeighbourhood()
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! MODULES                                                                                                                          !
 !----------------------------------------------------------------------------------------------------------------------------------!
-USE MOD_Globals            ,ONLY: abort,MPIRoot,UNIT_stdOUt,DisplayMessageAndTime!,myRank
+USE MOD_Globals            ,ONLY: abort,UNIT_stdOUt,DisplayMessageAndTime!,myRank
 USE MOD_Particle_Mesh_Vars ,ONLY: nUniqueGlobalNodes
 USE MOD_Particle_Mesh_Vars ,ONLY: ElemNodeID_Shared,NodeInfo_Shared
 USE MOD_Particle_Mesh_Vars ,ONLY: NodeToElemMapping,NodeToElemInfo,ElemToElemMapping,ElemToElemInfo
 #if USE_MPI
+USE MOD_Globals            ,ONLY: MPIRoot
 USE MPI
 USE MOD_MPI_Shared
 USE MOD_MPI_Shared_Vars    ,ONLY: nComputeNodeTotalElems

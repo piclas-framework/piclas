@@ -367,7 +367,9 @@ USE MOD_LoadBalance_Vars ,ONLY: DoLoadBalance,LoadBalanceSample,PerformLBSample
 #endif /*USE_LOADBALANCE*/
 #if (PP_TimeDiscMethod==509)
 USE MOD_TimeDisc_Vars    ,ONLY: iter,dt_old
+#if USE_MPI
 USE MOD_Globals          ,ONLY: MPIRoot
+#endif /*USE_MPI*/
 #endif /*(PP_TimeDiscMethod==509)*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
