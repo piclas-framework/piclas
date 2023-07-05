@@ -293,7 +293,8 @@ ASSOCIATE( iPart => 1 )
     ASSOCIATE(vz_0    => Species(PartSpecies(iPart))%Init(1)%VeloVecIC(3) * Species(PartSpecies(iPart))%Init(1)%VeloIC )
 
               r_0Vec          = (/x_0,y_0,z_0/)
-              v_0Vec          = (/vx_0,vy_0,vz_0/)             
+              v_0Vec          = (/vx_0,vy_0,vz_0/)
+              v_0Vec = v_0Vec - CROSS(RotRefFrameOmega(1:3),r_0Vec)
               r_tVec          = r_0Vec + v_0Vec * t
               OmegaNormVec    = RotRefFrameOmega/omega
               TempArrayCross1 = CROSS(r_tVec,OmegaNormVec)
