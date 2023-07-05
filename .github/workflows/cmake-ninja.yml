@@ -19,26 +19,6 @@ jobs:
       options: --privileged
 
     steps:
-    - name: Test loops
-      shell: bash
-      run: |
-        echo "======================================================================="
-        echo "HELLOOOOOOO"
-        echo "======================================================================="
-        # Declare an array of strings
-        declare -a PROGS=("piclas2vtk" "piclas" "superB")
-
-        echo "Name=piclas" > piclasX.desktop
-        cat piclasX.desktop
-        echo "======================================================================="
-        # Iterate the string array
-        for PROG in ${PROGS[@]}; do
-          echo "${PROG}"
-          cp piclasX.desktop ${PROG}.desktop
-          sed -i -e "s/Name=.*/Name=${PROG}/" ${PROG}.desktop
-          cat ${PROG}.desktop
-        echo "-----------------------------------------------------------------------"
-        done
 
     - name: Install GIT
       shell: bash
@@ -310,62 +290,6 @@ jobs:
         ls -la
         cd ..
 
-#   - name: Create piclas AppImage
-#     shell: bash
-#     run: |
-#       source ~/.bashrc
-#       echo "======================================================================="
-#       ls -la build_DSMC/bin
-#       echo "======================================================================="
-#       cd build_DSMC
-#       DESTDIR=AppDir ninja install
-#       mkdir -p AppDir/usr/share/icons
-#       cp ../docs/logo.png AppDir/usr/share/icons/piclas.png
-#       ./../linuxdeploy-x86_64.AppImage --appdir AppDir --output appimage --desktop-file=../.github/workflows/piclas.desktop
-
-#   - name: Create piclas2vtk AppImage
-#     shell: bash
-#     run: |
-#       source ~/.bashrc
-#       echo "======================================================================="
-#       ls -la build_DSMC/bin
-#       echo "======================================================================="
-#       cd build_DSMC
-#       rm -rf AppDir
-#       DESTDIR=AppDir ninja install
-#       mkdir -p AppDir/usr/share/icons
-#       cp ../docs/logo.png AppDir/usr/share/icons/piclas2vtk.png
-#       #./../linuxdeploy-x86_64.AppImage --executable bin/piclas2vtk --appdir AppDir --output appimage --desktop-file=../.github/workflows/piclas2vtk.desktop
-#       ./../linuxdeploy-x86_64.AppImage --appdir AppDir --output appimage --desktop-file=../.github/workflows/piclas2vtk.desktop
-
-#   - name: Set env
-#     shell: bash
-#     run: |
-#       echo "======================================================================="
-#       echo "build_DSMC"
-#       ls -la build_DSMC
-#       echo "======================================================================="
-#       echo "build_DSMC/bin"
-#       ls -la build_DSMC/bin
-#       echo "======================================================================="
-#       echo "PICLAS_BINARYPATH_DMSC=$(ls build_DSMC/piclas-*x86_64.AppImage)" >> $GITHUB_ENV
-#       echo "PICLAS_BINARYNAME_DSMC=$(basename $(ls build_DSMC/piclas-*x86_64.AppImage))" >> $GITHUB_ENV
-#       echo "PICLAS2VTK_BINARYPATH_DMSC=$(ls build_DSMC/piclas2vtk*x86_64.AppImage)" >> $GITHUB_ENV
-#       echo "PICLAS2VTK_BINARYNAME_DSMC=$(basename $(ls build_DSMC/piclas2vtk*x86_64.AppImage))" >> $GITHUB_ENV
-
-#   - name: Check file existence
-#     id: check_files
-#     uses: andstor/file-existence-action@v2
-#     with:
-#       files: "${{ env.PICLAS_BINARYPATH_DMSC }}"
-
-#   - name: Fail if binary does not exist
-#     if: steps.check_files.outputs.files_exists == 'false'
-#     uses: actions/github-script@v3
-#     with:
-#       script: |
-#         core.setFailed('no binary found under build_DSMC/piclas*x86_64.AppImage.')
-
     - name: Create archives
       shell: bash
       run: |
@@ -375,9 +299,14 @@ jobs:
         cp build_single/superB*x86_64.AppImage superB
         cp build_DSMC/piclas-*x86_64.AppImage piclasDSMC
         cp build_poisson_leapfrog/piclas-*x86_64.AppImage piclasLeapfrogHDG
-        7z a release-assets/piclas-linux64.zip piclasDSMC piclasLeapfrogHDG piclas2vtk superB
+        md5sum piclasDSMC > md5sum.txt
+        md5sum piclasLeapfrogHDG >> md5sum.txt
+        md5sum piclas2vtk >> md5sum.txt
+        md5sum superB >> md5sum.txt
+        cat md5sum.txt
+        7z a release-assets/piclas-linux64.zip piclasDSMC piclasLeapfrogHDG piclas2vtk superB md5sum.txt
         ls -la release-assets
-        mv piclasDSMC piclasLeapfrogHDG piclas2vtk superB artifacts/.
+        mv piclasDSMC piclasLeapfrogHDG piclas2vtk superB md5sum.txt artifacts/.
         ls -la artifacts
 
     - name: Upload artifacts
