@@ -84,6 +84,9 @@ INTEGER                                 :: BoundaryWallTemp_Shared_Win
 REAL,POINTER,DIMENSION(:,:,:)           :: SurfSideArea_Shared           !> Area of supersampled surface side
 INTEGER                                 :: SurfSideArea_Shared_Win
 
+REAL,POINTER,DIMENSION(:,:,:,:)         :: SurfSideSamplingMidPoints_Shared     !> Physical coordinate of the center of supersampled surface side
+INTEGER                                 :: SurfSideSamplingMidPoints_Shared_Win
+
 INTEGER,ALLOCATABLE,DIMENSION(:,:)      :: GlobalSide2SurfHaloSide       ! Mapping Global Side ID to Surf Halo Side ID (exists only on leader procs)
                                                                          !> 1st dim: leader rank
                                                                          !> 2nd dim: Surf SideID

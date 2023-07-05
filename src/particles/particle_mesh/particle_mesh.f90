@@ -81,7 +81,7 @@ CALL prms%CreateLogicalOption( 'CountNbrOfLostParts'&
     'information is stored in a PartStateLost*.h5 file. When particles are not found during restart in their host cell '//&
     '(sanity check), they are marked missing and are also written to PartStateLost*.h5 file even if they are re-located '//&
     'on a different processor.','.TRUE.')
-CALL prms%CreateIntOption( 'PhotonModeBPO' , 'Output mode to store position, direction, host element etc. of rays/photons in PartStateBoundary.h5 from radiation transport or ray tracing solver:\n'&
+CALL prms%CreateIntOption( 'PhotonModeBPO' , 'Output mode to store position, direction, host element etc. of rays/photons in PartStateBoundary.h5 (only radiation transport or ray tracing solver):\n'&
                                              '0: Output nothing to PartStateBoundary.h5\n'&
                                              '1: Output the initial position of the rays and their direction vector\n'&
                                              '2: Output initial position and all calculated intersection points calculated in radtrans tracking\n'&

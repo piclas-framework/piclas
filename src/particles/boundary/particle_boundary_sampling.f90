@@ -113,6 +113,7 @@ USE MOD_MPI_Shared_Vars         ,ONLY: myLeaderGroupRank,nLeaderGroupProcs
 USE MOD_Particle_Boundary_Vars  ,ONLY: GlobalSide2SurfSide_Shared,GlobalSide2SurfSide_Shared_Win
 USE MOD_Particle_Boundary_Vars  ,ONLY: SurfSide2GlobalSide_Shared,SurfSide2GlobalSide_Shared_Win
 USE MOD_Particle_Boundary_Vars  ,ONLY: SurfSideArea_Shared,SurfSideArea_Shared_Win
+USE MOD_Particle_Boundary_Vars  ,ONLY: SurfSideSamplingMidPoints_Shared,SurfSideSamplingMidPoints_Shared_Win
 USE MOD_Particle_Boundary_Vars  ,ONLY: SampWallState_Shared,SampWallState_Shared_Win
 USE MOD_Particle_Boundary_Vars  ,ONLY: SampWallPumpCapacity_Shared,SampWallPumpCapacity_Shared_Win
 USE MOD_Particle_Boundary_Vars  ,ONLY: SampWallImpactEnergy_Shared,SampWallImpactEnergy_Shared_Win
@@ -567,7 +568,10 @@ END IF
 #if USE_MPI
 CALL Allocate_Shared((/nSurfSample,nSurfSample,nComputeNodeSurfTotalSides/),SurfSideArea_Shared_Win,SurfSideArea_Shared)
 CALL MPI_WIN_LOCK_ALL(0,SurfSideArea_Shared_Win,IERROR)
+CALL Allocate_Shared((/3,nSurfSample,nSurfSample,nComputeNodeSurfTotalSides/),SurfSideSamplingMidPoints_Shared_Win,SurfSideSamplingMidPoints_Shared)
+CALL MPI_WIN_LOCK_ALL(0,SurfSideSamplingMidPoints_Shared_Win,IERROR)
 SurfSideArea => SurfSideArea_Shared
+SurfSideSamplingMidPoints => SurfSideSamplingMidPoints_Shared
 
 firstSide = INT(REAL( myComputeNodeRank   )*REAL(nComputeNodeSurfTotalSides)/REAL(nComputeNodeProcessors))+1
 lastSide  = INT(REAL((myComputeNodeRank+1))*REAL(nComputeNodeSurfTotalSides)/REAL(nComputeNodeProcessors))
@@ -1228,6 +1232,7 @@ CALL MPI_BARRIER(MPI_COMM_SHARED,iERROR)
 
 CALL UNLOCK_AND_FREE(SampWallState_Shared_Win)
 CALL UNLOCK_AND_FREE(SurfSideArea_Shared_Win)
+CALL UNLOCK_AND_FREE(SurfSideSamplingMidPoints_Shared_Win)
 IF(nPorousBC.GT.0) CALL UNLOCK_AND_FREE(SampWallPumpCapacity_Shared_Win)
 IF (CalcSurfaceImpact) THEN
   CALL UNLOCK_AND_FREE(SampWallImpactEnergy_Shared_Win)
@@ -1252,6 +1257,7 @@ ADEALLOCATE(SampWallImpactVector_Shared)
 ADEALLOCATE(SampWallImpactAngle_Shared)
 ADEALLOCATE(SampWallImpactNumber_Shared)
 ADEALLOCATE(SurfSideArea_Shared)
+ADEALLOCATE(SurfSideSamplingMidPoints_Shared)
 #endif /*USE_MPI*/
 
 ! Then, free the pointers or arrays
@@ -1264,6 +1270,7 @@ SDEALLOCATE(SampWallImpactVector)
 SDEALLOCATE(SampWallImpactAngle)
 SDEALLOCATE(SampWallImpactNumber)
 ADEALLOCATE(SurfSideArea)
+ADEALLOCATE(SurfSideSamplingMidPoints)
 ADEALLOCATE(GlobalSide2SurfSide)
 ADEALLOCATE(SurfSide2GlobalSide)
 SDEALLOCATE(MacroSurfaceVal)
