@@ -43,6 +43,15 @@ TYPE tRayTrace
   INTEGER :: NMin               !< Minimum polynomial degree for the high-order volume sampling (p-adaption)
   INTEGER :: NMax               !< Maximum polynomial degree for the high-order volume sampling (p-adaption)
 
+  INTEGER :: VolRefineMode      !< High-order ray tracing volume sampling refinement method:
+                                !<  0: do nothing (default)
+                                !<  1: refine below user-defined z-coordinate with NMax
+                                !<  2: scale N according to the mesh element volume between NMin>=1 and NMax>=2
+                                !<  3: refine below user-defined z-coordinate and scale N according to the mesh element volume between NMin>=1 and NMax>=2
+                                !<     (consider only elements below the user-defined z-coordinate for the scaling)
+
+  REAL    :: VolRefineModeZ     !< z-coordinate for switching between NMin and NMax
+
 END TYPE
 
 TYPE (tRayTrace)     :: Ray                            !<

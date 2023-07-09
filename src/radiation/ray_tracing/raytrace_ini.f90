@@ -49,23 +49,32 @@ CALL prms%CreateRealOption(      'RayTracing-RepetitionRate' , 'Pulse repetition
 CALL prms%CreateRealOption(      'RayTracing-Power'          , 'Average pulse power (energy of a single pulse times repetition rate) [W]'                 )
 CALL prms%CreateLogicalOption(   'RayTracing-ForceAbsorption', 'Surface photon sampling is performed independent of the actual absorption/reflection outcome (default=T)', '.TRUE.')
 
-CALL prms%CreateIntOption(      'RayTracing-NMax'            , 'Maximum polynomial degree within refined volume elements for photon tracking (p-adaption)')
+CALL prms%CreateIntOption(       'RayTracing-NMax'            , 'Maximum polynomial degree within refined volume elements for photon tracking (p-adaption)')
+CALL prms%CreateLogicalOption(   'RayTracing-VolRefineMode'   , 'High-order ray tracing volume sampling refinement method:\n'//&
+                                                                ' 0: do nothing (default)\n'//&
+                                                                ' 1: refine below user-defined z-coordinate with NMax\n'//&
+                                                                ' 2: scale N according to the mesh element volume between NMin>=1 and NMax>=2\n'//&
+                                                                ' 3: refine below user-defined z-coordinate and scale N according to the mesh element volume between NMin>=1 and NMax>=2\n'//&
+                                                                '    (consider only elements below the user-defined z-coordinate for the scaling)'&
+                                                                ,'.TRUE.')
+CALL prms%CreateRealOption(      'RayTracing-VolRefineModeZ'    , 'Z-coordinate for switching between NMin (pos>z) and NMax (pos<z) depending on element position for high-order ray tracing')
+
 
 END SUBROUTINE DefineParametersRayTracing
 
 
 SUBROUTINE InitRayTracing()
 !===================================================================================================================================
-! Initialization of the radiation transport solver 
+! Initialization of the radiation transport solver
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
 USE MOD_Preproc
-USE MOD_ReadInTools
 USE MOD_RayTracing_Vars
-USE MOD_Globals_Vars           ,ONLY: Pi
-USE MOD_Particle_Mesh_Vars     ,ONLY: GEO
-USE MOD_RadiationTrans_Vars    ,ONLY: RadiationAbsorptionModel,RadObservationPointMethod
+USE MOD_ReadInTools         ,ONLY: GETREAL,GETREALARRAY,GETINT,GETLOGICAL,PrintOption
+USE MOD_Globals_Vars        ,ONLY: Pi
+USE MOD_Particle_Mesh_Vars  ,ONLY: GEO
+USE MOD_RadiationTrans_Vars ,ONLY: RadiationAbsorptionModel,RadObservationPointMethod
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -105,10 +114,13 @@ NumRays            = GETINT('RayTracing-NumRays')
 RayPosModel        = GETINT('RayTracing-RayPosModel')
 RayForceAbsorption = GETLOGICAL('RayTracing-ForceAbsorption')
 
+Ray%VolRefineMode  = GETINT('RayTracing-VolRefineMode')
+
 ! Output of high-order p-adaptive info
 Ray%NMin = 1 ! GETINT('RayTracing-NMin')
 WRITE(UNIT=hilf,FMT='(I3)') PP_N
 Ray%Nmax = GETINT('RayTracing-Nmax',hilf)
+IF(Ray%Nmax.LT.Ray%Nmax) CALL abort(__STAMP__,'RayTracing-Nmax cannot be smaller than Nmin=',IntInfoOpt=Ray%NMin)
 
 ! Build all mappings
 CALL InitHighOrderRaySampling()
@@ -170,49 +182,134 @@ END SUBROUTINE InitRayTracing
 SUBROUTINE InitHighOrderRaySampling()
 ! MODULES
 USE MOD_PreProc
-USE MOD_Mesh_Vars       ,ONLY: NodeCoords,nElems,ElemBaryNGeo
-USE MOD_RayTracing_Vars ,ONLY: N_VolMesh_Ray,N_DG_Ray,Ray,N_Inter_Ray,PREF_VDM_Ray,U_N_Ray,nVarRay
-USE MOD_Mesh_Tools      ,ONLY: GetCNElemID
+USE MOD_Globals            ,ONLY: abort,IERROR
+USE MOD_Mesh_Vars          ,ONLY: NodeCoords,nElems,ElemBaryNGeo
+USE MOD_RayTracing_Vars    ,ONLY: N_VolMesh_Ray,N_DG_Ray,Ray,N_Inter_Ray,PREF_VDM_Ray,U_N_Ray,nVarRay
+USE MOD_Mesh_Tools         ,ONLY: GetCNElemID
+USE MOD_ReadInTools        ,ONLY: GETREAL
+USE MOD_Particle_Mesh_Vars ,ONLY: ElemVolume_Shared
+#if USE_MPI
+USE MPI
+#endif /*USE_MPI*/
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! INPUT / OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER           :: Nloc,iElem,CNElemID
+REAL              :: VolMin,VolMax,m,NReal
+#if defined(CODE_ANALYZE)
 LOGICAL,PARAMETER :: debugRay=.FALSE.
+#endif /*defined(CODE_ANALYZE)*/
+LOGICAL           :: FoundElem
+CHARACTER(LEN=20) :: hilf
 !===================================================================================================================================
 ALLOCATE(N_DG_Ray(nElems))
-N_DG_Ray = PP_N
-IF(debugRay)THEN
-  N_DG_Ray = Ray%Nmax
-  DO iElem = 1, PP_nElems
-    CNElemID = GetCNElemID(iElem)
-    ASSOCIATE( &
-          x => ElemBaryNGeo(1,CNElemID),&
-          y => ElemBaryNGeo(2,CNElemID),&
-          z => ElemBaryNGeo(3,CNElemID))
-      IF(y+z.GE.1.40)THEN
-        N_DG_Ray(iElem) = 1
-        CYCLE
-      END IF ! y+z.GT.1.5
+N_DG_Ray = Ray%NMin ! default
 
-      IF(y+z.LE.0.6)THEN
-        N_DG_Ray(iElem) = 1
-        CYCLE
-      END IF ! y+z.LT.0.5
+! Select volumetric resolution
+IF(Ray%NMin.NE.Ray%NMax)THEN
+  ! Only set variable N if NMin and NMax are not the same
+  SELECT CASE(Ray%VolRefineMode)
+  CASE(0)
+    ! 0: do nothing (default)
+  CASE(1,2,3)
+    ! 1: refine below user-defined z-coordinate with NMax
+    IF(Ray%VolRefineMode.NE.2)THEN
+      WRITE(UNIT=hilf,FMT=WRITEFORMAT) 1.0E200!HUGE(1.0) -> HUGE produces IEEE overflow
+      Ray%VolRefineModeZ = GETREAL('RayTracing-VolRefineModeZ',hilf)
+      DO iElem = 1, PP_nElems
+        CNElemID = GetCNElemID(iElem)
+        IF(ElemBaryNGeo(3,CNElemID).LT.Ray%VolRefineModeZ)THEN
+          N_DG_Ray(iElem) = Ray%Nmax
+        ELSE
+          N_DG_Ray(iElem) = Ray%Nmin
+        END IF ! ElemBaryNGeo(3,CNElemID).LT.Ray%VolRefineModeZ
+      END DO ! iElem = 1, PP_nElems
+    ELSE
+      Ray%VolRefineModeZ = 1.0E200 ! dummy
+    END IF ! Ray%VolRefineMode.NE.2
 
-      IF(y+z.LT.0.9)THEN
-        N_DG_Ray(iElem) = Ray%Nmax-1
-        CYCLE
-      END IF ! y+z.GT.1.00001
+    ! 2: scale N according to the mesh element volume between NMin>=1 and NMax>=2
+    ! 3: refine below user-defined z-coordinate and scale N according to the mesh element volume between NMin>=1 and NMax>=2
+    !    (consider only elements below the user-defined z-coordinate for the scaling)
+    IF((Ray%VolRefineMode.EQ.2).OR.(Ray%VolRefineMode.EQ.3))THEN
+      ! Get global min and max volume: Only consider elements below the z-coordinate
+      VolMin = HUGE(1.)
+      VolMax = -HUGE(1.)
+      FoundElem = .FALSE.
+      DO iElem = 1, PP_nElems
+        CNElemID = GetCNElemID(iElem)
+        IF((ElemBaryNGeo(3,CNElemID).LT.Ray%VolRefineModeZ).OR.(Ray%VolRefineMode.EQ.2))THEN
+          VolMin = MIN(VolMin, ElemVolume_Shared(CNElemID))
+          VolMax = MAX(VolMax, ElemVolume_Shared(CNElemID))
+          FoundElem = .TRUE.
+        END IF
+      END DO ! iElem = 1, PP_nElems
+#if USE_MPI
+      CALL MPI_ALLREDUCE(MPI_IN_PLACE, VolMin, 1, MPI_DOUBLE_PRECISION, MPI_MIN, MPI_COMM_WORLD, IERROR)
+      CALL MPI_ALLREDUCE(MPI_IN_PLACE, VolMax, 1, MPI_DOUBLE_PRECISION, MPI_MAX, MPI_COMM_WORLD, IERROR)
+#endif /*USE_MPI*/
 
-      IF(y+z.GT.1.1)THEN
-        N_DG_Ray(iElem) = Ray%Nmax-1
-        CYCLE
-      END IF ! y+z.GT.1.00001
-    END ASSOCIATE
-  END DO ! iElem = 1, PP_nElems
-END IF ! debugRay
+      ! Loop over all elements again and scale the polynomial degree using NINT.
+      ! Check if the volumes of the elements are almost equal
+      IF((VolMax.GT.VolMin).AND.(.NOT.ALMOSTEQUALRELATIVE(VolMax,VolMin,1e-2)))THEN
+        ! Get the slope of the linear interpolation function between the maximum and minimum of the element volumes
+        m = REAL(Ray%Nmax-Ray%Nmin)/(VolMax-VolMin)
+        IF(FoundElem)THEN
+          DO iElem = 1, PP_nElems
+            CNElemID = GetCNElemID(iElem)
+            IF(ElemBaryNGeo(3,CNElemID).LT.Ray%VolRefineModeZ)THEN
+              NReal = m * (ElemVolume_Shared(CNElemID)-VolMin) + REAL(Ray%Nmin)
+              N_DG_Ray(iElem) = NINT(NReal)
+            END IF
+          END DO ! iElem = 1, PP_nElems
+        END IF ! FoundElem
+      END IF ! (VolMax.GT.VolMin).AND.(.NOT.ALMOST) 
+
+    END IF ! Ray%VolRefineMode.EQ.3
+  CASE DEFAULT
+    ! Debugging:
+#if defined(CODE_ANALYZE)
+    ! 3D box test case with diagonal rays
+    IF(debugRay)THEN
+      N_DG_Ray = Ray%Nmax
+      DO iElem = 1, PP_nElems
+        CNElemID = GetCNElemID(iElem)
+        ASSOCIATE( &
+              x => ElemBaryNGeo(1,CNElemID),&
+              y => ElemBaryNGeo(2,CNElemID),&
+              z => ElemBaryNGeo(3,CNElemID))
+          IF(y+z.GE.1.40)THEN
+            N_DG_Ray(iElem) = 1
+            CYCLE
+          END IF ! y+z.GT.1.5
+
+          IF(y+z.LE.0.6)THEN
+            N_DG_Ray(iElem) = 1
+            CYCLE
+          END IF ! y+z.LT.0.5
+
+          IF(y+z.LT.0.9)THEN
+            N_DG_Ray(iElem) = Ray%Nmax-1
+            CYCLE
+          END IF ! y+z.GT.1.00001
+
+          IF(y+z.GT.1.1)THEN
+            N_DG_Ray(iElem) = Ray%Nmax-1
+            CYCLE
+          END IF ! y+z.GT.1.00001
+        END ASSOCIATE
+      END DO ! iElem = 1, PP_nElems
+    END IF ! debugRay
+#else
+    CALL abort(__STAMP__,'RayTracing-VolRefineMode unknown: ',IntInfoOpt=Ray%VolRefineMode)
+#endif /*defined(CODE_ANALYZE)*/
+  END SELECT
+END IF ! Ray%NMin.NE.Ray%NMax
+
+! Sanity check
+IF(ANY(N_DG_Ray.LE.0)) CALL abort(__STAMP__,'N_DG_Ray cannot contain zeros!')
 
 ! Allocate interpolation variables
 ALLOCATE(N_Inter_Ray(Ray%Nmin:Ray%Nmax))
