@@ -127,7 +127,7 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT/OUTPUT VARIABLES
 INTEGER,INTENT(IN) :: meshMode !<  0: only read and build Elem_xGP,
-                               !< -1: as 0 + build connectivity and read node info (automatically read for PARTICLES=ON)
+                               !< -1: as 0 + build connectivity and always set ReadNodes=T: read node info (automatically read for PARTICLES=ON) and set BuildFacexGP=T
                                !<  1: as 0 + build connectivity
                                !<  2: as 1 + calc metrics
                                !<  3: as 2 but skip InitParticleMesh
@@ -140,7 +140,7 @@ REAL,POINTER        :: Coords(:,:,:,:,:)
 INTEGER             :: iElem,i,j,k,nElemsLoc
 !CHARACTER(32)       :: hilf2
 CHARACTER(LEN=255)  :: FileName
-LOGICAL             :: validMesh,ExistFile,ReadNodes
+LOGICAL             :: validMesh,ExistFile,ReadNodes,BuildFacexGP
 !===================================================================================================================================
 IF ((.NOT.InterpolationInitIsDone).OR.MeshInitIsDone) THEN
   CALL abort(__STAMP__,'InitMesh not ready to be called or already called.')
@@ -153,6 +153,9 @@ ReadNodes  =.TRUE.
 ReadNodes  =.FALSE.
 IF(meshMode.LT.0) ReadNodes  =.TRUE.
 #endif /*defined(PARTICLES)*/
+
+BuildFacexGP = .FALSE. ! default
+IF(meshMode.LT.0) BuildFacexGP  =.TRUE.
 
 ! Output of myrank, ElemID and tracking info
 CalcMeshInfo = GETLOGICAL('CalcMeshInfo')
@@ -304,7 +307,7 @@ IF (ABS(meshMode).GT.0) THEN
 
 END IF ! meshMode.GT.0
 
-IF (ABS(meshMode).GT.1) THEN
+IF ((ABS(meshMode).GT.1).OR.BuildFacexGP) THEN
 
   ! ----- CONNECTIVITY IS NOW COMPLETE AT THIS POINT -----
 
@@ -377,7 +380,7 @@ IF (ABS(meshMode).GT.1) THEN
   DEALLOCATE(dXCL_N)
   DEALLOCATE(Ja_Face)
 
-  IF(ABS(meshMode).NE.3)THEN
+  IF((ABS(meshMode).NE.3).AND.(.NOT.BuildFacexGP))THEN
 #ifdef PARTICLES
     IF(RadialWeighting%DoRadialWeighting) THEN
       usevMPF = .TRUE.
