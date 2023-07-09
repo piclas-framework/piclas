@@ -237,6 +237,11 @@ IF (PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance)) THEN
   ! Check the PartDataSize
   IF (PartDataSize.EQ.0) CALL Abort(__STAMP__,'PartDataSize.EQ.0 but should have been set before loadbalance!')
 
+  ! Variables will not have changed during the simulation, but flags have to be initialized
+  ALLOCATE(readVarFromState(PartDataSize))
+  readVarFromState = .TRUE.
+  IF(UseRotRefFrame) PartVeloRotRefExists = .TRUE.
+
   ! Set polyatomic and electronic shell variables
   IF (useDSMC) THEN
     IF (DSMC%NumPolyatomMolecs.GT.0) THEN

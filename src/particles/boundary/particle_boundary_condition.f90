@@ -720,9 +720,9 @@ IF(UseRotRefFrame) THEN
     ! Particle moved into a RotRefFrame
     IF(PDM%InRotRefFrame(PartID)) THEN
       ! Particle comes from a RotRefFrame: rotate the old PartVeloRotRef
-      Velo_old(1:3) = PartVeloRotRef(4:6,PartID)
-      PartVeloRotRef(l+3,PartID) = COS(AlphaDelta)*Velo_old(l) - SIN(AlphaDelta)*Velo_old(m)
-      PartVeloRotRef(m+3,PartID) = SIN(AlphaDelta)*Velo_old(l) + COS(AlphaDelta)*Velo_old(m)
+      Velo_old(1:3) = PartVeloRotRef(1:3,PartID)
+      PartVeloRotRef(l,PartID) = COS(AlphaDelta)*Velo_old(l) - SIN(AlphaDelta)*Velo_old(m)
+      PartVeloRotRef(m,PartID) = SIN(AlphaDelta)*Velo_old(l) + COS(AlphaDelta)*Velo_old(m)
     ELSE
       ! Particle comes from an inertial frame
       PartVeloRotRef(1:3,PartID) = PartState(4:6,PartID) - CROSS(RotRefFrameOmega(1:3),PartState(1:3,PartID))
