@@ -607,7 +607,10 @@ PartBound%RotPeriodicTol = 1. - GETREAL('PartBound-RotPeriodicTol')
 IF(MOD(nRotPeriodicBCs,2).NE.0) THEN
   ! Check whether two corresponding RotPeriodic BCs are always set
   CALL abort(__STAMP__,'ERROR: Uneven number of rot_periodic BCs. Check whether two corresponding RotPeriodic BCs are set!')
-ELSE IF(nRotPeriodicBCs.NE.2) THEN
+ELSE IF(nRotPeriodicBCs.EQ.2) THEN
+  PartBound%RotPeriodicMin = -HUGE(1.)
+  PartBound%RotPeriodicMax = HUGE(1.)
+ELSE
   ! Determine the min and max values along the rot periodic axis of the BC region
   ! Loop over all sides
   DO iSide = 1,nNonUniqueGlobalSides
@@ -1039,7 +1042,7 @@ INTEGER,INTENT(OUT)  :: notMappedTotal
 INTEGER                           :: iSide, jSide, nRotPeriodicSides, SideID,SideID2, MaxNumRotPeriodicNeigh, iNode, iNeigh, jNeigh
 INTEGER                           :: NodeID, CNElemID, LocSideID, k, l, m, CNElemID2, LocSideID2, TestElemID, UniqueNodeID
 INTEGER                           :: iElem, jElem, NewNeighNumber, kNeigh
-LOGICAL                           :: mySide, FoundConnection
+LOGICAL                           :: mySide, FoundConnection, abortAfterWriteOut
 REAL                              :: iNodeVec(1:3), jNodeVec(1:3)
 REAL                              :: iNodeR, iNodeH, jNodeR, jNodeH, Node2Rmin, Node2Rmax, Node2Hmin, Node2Hmax, dh, dr
 INTEGER,PARAMETER                 :: NbrOfRotConnections=1000
@@ -1052,6 +1055,7 @@ REAL,ALLOCPOINT,DIMENSION(:,:)    :: BoundingBox
 
 nRotPeriodicSides = 0
 offsetSide        = 0
+abortAfterWriteOut = .FALSE.
 
 ! Surf sides are shared, array calculation can be distributed
 #if USE_MPI
@@ -1207,8 +1211,8 @@ iSideLoop: DO iSide = firstSide, lastSide
     FoundConnection = .FALSE.
 
     ! Check if both sides are on the same boundary, i.e., they cannot be connected
-    IF(PartBound%RotPeriodicAngle(PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID))).EQ. &
-        PartBound%RotPeriodicAngle(PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID2)))) CYCLE jSideLoop
+    IF(PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID)).EQ. &
+        PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID2))) CYCLE jSideLoop
 
     ! Check if jSide is assigned to the proc
     mySide = (jSide.GE.firstSide).AND.(jSide.LE.lastSide)
@@ -1315,16 +1319,14 @@ iSideLoop: DO iSide = firstSide, lastSide
 
   END DO jSideLoop ! jSide = 1, nRotPeriodicSides
 
-  ! Check if iSide could not be mapped to any other side. There should be at least one
+  ! Check if iSide could not be mapped to any other side
   IF(NumRotPeriodicNeigh(iSide).EQ.0) THEN
-    IF(ElemInfo_Shared(ELEM_HALOFLAG,SideInfo_Shared(SIDE_ELEMID,SideID)).NE.3) THEN
-      ! Count number of sides that could not be mapped (warning output + info in h5 file when CalcMeshInfo=T)
-      notMapped = notMapped + 1
-    ELSE
+    IF(ElemInfo_Shared(ELEM_HALOFLAG,SideInfo_Shared(SIDE_ELEMID,SideID)).EQ.3) THEN
       ! Found side on element that is a neighbor element in rot halo region (they have halo flag 3)
+      ! If a particle ends up there, an abort is in place RotPeriodicBC routine, as RotPeriodicSideMapping will get an -1 later
       NumRotPeriodicNeigh(iSide) = 1
       RotPeriodicSideMapping_temp(iSide,NumRotPeriodicNeigh(iSide)) = 0
-    END IF ! ElemInfo_Shared(ELEM_HALOFLAG,SideInfo_Shared(SIDE_ELEMID,SideID)).NE.3
+    END IF
   END IF ! NumRotPeriodicNeigh(iSide).EQ.0
 
 END DO iSideLoop ! iSide = firstSide, lastSide
@@ -1333,6 +1335,7 @@ END DO iSideLoop ! iSide = firstSide, lastSide
 DO iSide = firstSide, lastSide
   NewNeighNumber = NumRotPeriodicNeigh(iSide)
   DO iNeigh=1, NumRotPeriodicNeigh(iSide)
+    IF(RotPeriodicSideMapping_temp(iSide,iNeigh).EQ.0) CYCLE
     SideID = RotPeriodicSideMapping_temp(iSide,iNeigh)
     CNElemID  = GetCNElemID(SideInfo_Shared(SIDE_ELEMID,SideID))
     LocSideID = SideInfo_Shared(SIDE_LOCALID,SideID)
@@ -1364,6 +1367,16 @@ DO iSide = firstSide, lastSide
     END DO kNodeLoop
   END DO
   NumRotPeriodicNeigh(iSide) = NewNeighNumber
+  ! Check if iSide still could not be mapped to any other side.
+  IF(NumRotPeriodicNeigh(iSide).EQ.0) THEN
+    SideID = Rot2Glob_temp(iSide)
+    IF(ElemInfo_Shared(ELEM_HALOFLAG,SideInfo_Shared(SIDE_ELEMID,SideID)).NE.3) THEN
+      ! Count number of sides that could not be mapped (warning output + info in h5 file when CalcMeshInfo=T)
+      ! This is acceptable when the halo region (ELEM_HALOFLAG = 2) of the node merely reaches the rotational BC but does not extend any further.
+      notMapped = notMapped + 1
+      IF(ElemInfo_Shared(ELEM_HALOFLAG,SideInfo_Shared(SIDE_ELEMID,SideID)).EQ.1) abortAfterWriteOut = .TRUE.
+    END IF
+  END IF
 END DO
 
 ! (4) reallocate array due to number of potential rotational periodic sides
@@ -1394,7 +1407,7 @@ DO iSide=1, nRotPeriodicSides
       RotPeriodicSideMapping(iSide,iNeigh) = GlobalElemID
     ELSE IF(SideID.LT.0) THEN
       RotPeriodicSideMapping(iSide,iNeigh) = ABS(SideID)
-    END IF ! SideID.NE.0
+    END IF
   END DO
 END DO
 
@@ -1411,7 +1424,7 @@ IF(notMappedTotal.GT.0)THEN
     CALL AddToElemData(ElementOut,'LostRotPeriodicSides',LongIntArray=LostRotPeriodicSides)
     CALL WriteLostRotPeriodicSidesToHDF5()
   END IF ! CalcMeshInfo
-  !IF(MPIroot) CALL abort(__STAMP__,'At least one rot periodic side did not find a corresponding side.')
+  IF(abortAfterWriteOut) CALL abort(__STAMP__,' ERROR: At least one rot periodic side on the local compute-node did not find a corresponding side.')
 END IF ! notMappedTotal.GT.0
 
 #if USE_MPI
@@ -1464,10 +1477,13 @@ INTEGER                           :: iNode,jNode
 REAL                              :: InterNode_1,RotNode_1,InterNode_2,RotNode_2
 INTEGER,ALLOCATABLE               :: SideCounter(:)
 INTEGER                           :: ALLOCSTAT
+LOGICAL                           :: HasInterPlaneOnProc(nPartBound)
 !===================================================================================================================================
 
 ALLOCATE(InterPlanePartIndx(1:PDM%maxParticleNumber), STAT=ALLOCSTAT)
 IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__,'ERROR in particle_boundary_init.f90: Cannot allocate InterPlanePartIndx array!')
+
+HasInterPlaneOnProc = .FALSE.
 
 #if USE_MPI
 firstSide = 1 ! INT(REAL( myComputeNodeRank   )*REAL(nComputeNodeSurfTotalSides)/REAL(nComputeNodeProcessors))+1
@@ -1541,6 +1557,7 @@ iBCLoop3: DO iPartBound=1,nPartBound
       IF(PartBound%TargetBoundCond(PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,RotSideID))).EQ.PartBound%RotPeriodicBC) THEN
         PartBound%RotPeriodicAngle(iPartBound) = PartBound%RotPeriodicAngle( &
                                                  PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,RotSideID)))
+        HasInterPlaneOnProc(iPartBound) = .TRUE.
         iNodeLoop: DO iNode=1, 4
           InterNode_1 = NodeCoords_Shared(l,ElemSideNodeID_Shared(iNode,InterPlaneLocalSideNum,CNElemID)+1)
           InterNode_2 = NodeCoords_Shared(m,ElemSideNodeID_Shared(iNode,InterPlaneLocalSideNum,CNElemID)+1)
@@ -1553,7 +1570,6 @@ iBCLoop3: DO iPartBound=1,nPartBound
                 ! iNode/jNode is on both BCs
                 PartBound%NormalizedRadiusDir(1,iPartBound) = InterNode_1 / (SQRT(InterNode_1**2 + InterNode_2**2))
                 PartBound%NormalizedRadiusDir(2,iPartBound) = InterNode_2 / (SQRT(InterNode_1**2 + InterNode_2**2))
-!                PartBound%RotAxisPosition(iPartBound)       = NodeCoords_Shared(k,ElemSideNodeID_Shared(iNode,InterPlaneLocalSideNum,CNElemID)+1)
                 EXIT iNodeLoop
               END IF
             END IF
@@ -1568,8 +1584,12 @@ END DO iBCLoop3 ! iPartBound=1,nPartBound
 ! Fourth loop: Save angleRatioOfInterPlanes
 iBCLoop4: DO iPartBound=1,nPartBound
   IF (PartBound%TargetBoundCond(iPartBound).NE.PartBound%RotPeriodicInterPlaneBC) CYCLE iBCLoop4
-  PartBound%AngleRatioOfInterPlanes(iPartBound) = ABS( PartBound%RotPeriodicAngle(PartBound%AssociatedPlane(iPartBound)) &
-                                                / PartBound%RotPeriodicAngle(iPartBound) )
+  IF(HasInterPlaneOnProc(iPartBound)) THEN
+    PartBound%AngleRatioOfInterPlanes(iPartBound) = ABS( PartBound%RotPeriodicAngle(PartBound%AssociatedPlane(iPartBound)) &
+                                                      / PartBound%RotPeriodicAngle(iPartBound) )
+  ELSE
+    PartBound%AngleRatioOfInterPlanes(iPartBound) = -1.
+  END IF
 END DO iBCLoop4 ! iPartBound=1,nPartBound
 
 DEALLOCATE(SideCounter)

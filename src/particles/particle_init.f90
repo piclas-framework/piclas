@@ -370,8 +370,9 @@ ELSE IF (WriteMacroVolumeValues.OR.WriteMacroSurfaceValues) THEN
   DSMC%ElectronicModel = 0
 END IF
 
+! Both routines have to be called AFTER InitializeVariables and InitDSMC
+CALL InitPartDataSize()
 #if USE_MPI
-! has to be called AFTER InitializeVariables and InitDSMC
 CALL InitParticleCommSize()
 #endif
 
@@ -1392,7 +1393,6 @@ SDEALLOCATE(Pt)
 SDEALLOCATE(PDM%ParticleInside)
 SDEALLOCATE(PDM%InRotRefFrame)
 SDEALLOCATE(PDM%nextFreePosition)
-SDEALLOCATE(PDM%nextFreePosition)
 SDEALLOCATE(PDM%dtFracPush)
 SDEALLOCATE(PDM%IsNewPart)
 SDEALLOCATE(vMPFMergeThreshold)
@@ -1418,6 +1418,7 @@ SDEALLOCATE(seeds)
 SDEALLOCATE(PartPosLandmark)
 SDEALLOCATE(RotRefFramRegion)
 SDEALLOCATE(VirtMergedCells)
+SDEALLOCATE(PartDataVarNames)
 #if USE_MPI
 SDEALLOCATE(SendElemShapeID)
 SDEALLOCATE(ShapeMapping)
@@ -1577,5 +1578,77 @@ END IF
 
 END SUBROUTINE InitializeVariablesRotationalRefFrame
 
+
+SUBROUTINE InitPartDataSize()
+!===================================================================================================================================
+!> Initialize the PartDataSize variable (required for output of PartState and other variables within the PartData container)
+!===================================================================================================================================
+! MODULES
+USE MOD_Particle_Vars ,ONLY: PartDataSize, PartDataVarNames, usevMPF, UseRotRefFrame
+USE MOD_DSMC_Vars     ,ONLY: useDSMC, CollisMode, DSMC
+! IMPLICIT VARIABLE HANDLING
+ IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER               :: iPos
+!===================================================================================================================================
+! Position + Velocity + Species Index
+PartDataSize = 7
+! Velocity in rotational frame of reference
+IF(UseRotRefFrame) PartDataSize = PartDataSize + 3
+! DSMC-specific variables
+IF (useDSMC) THEN
+  IF(CollisMode.GT.1) THEN
+    ! Internal energy modelling: vibrational + rotational
+    PartDataSize = PartDataSize + 2
+    ! Electronic energy modelling
+    IF(DSMC%ElectronicModel.GT.0) PartDataSize = PartDataSize + 1
+  END IF
+END IF
+! Variable particle weighting
+IF(usevMPF) PartDataSize = PartDataSize + 1
+
+! Initialize the VarNames
+ALLOCATE(PartDataVarNames(PartDataSize))
+PartDataVarNames(1)='ParticlePositionX'
+PartDataVarNames(2)='ParticlePositionY'
+PartDataVarNames(3)='ParticlePositionZ'
+PartDataVarNames(4)='VelocityX'
+PartDataVarNames(5)='VelocityY'
+PartDataVarNames(6)='VelocityZ'
+PartDataVarNames(7)='Species'
+iPos = 7
+! Velocity in rotational frame of reference
+IF(UseRotRefFrame) THEN
+  PartDataVarNames(1+iPos)='VelocityRotRefX'
+  PartDataVarNames(2+iPos)='VelocityRotRefY'
+  PartDataVarNames(3+iPos)='VelocityRotRefZ'
+  iPos = iPos + 3
+END IF
+! DSMC-specific variables
+IF(useDSMC)THEN
+  IF(CollisMode.GT.1) THEN
+    ! Internal energy modelling: vibrational + rotational
+    PartDataVarNames(1+iPos)='Vibrational'
+    PartDataVarNames(2+iPos)='Rotational'
+    iPos=iPos+2
+    ! Electronic energy modelling
+    IF(DSMC%ElectronicModel.GT.0) THEN
+      PartDataVarNames(1+iPos)='Electronic'
+      iPos=iPos+1
+    END IF
+  END IF
+END IF
+! Variable particle weighting
+IF (usevMPF) THEN
+  PartDataVarNames(1+iPos)='MPF'
+  iPos=iPos+1
+END IF
+
+END SUBROUTINE InitPartDataSize
 
 END MODULE MOD_ParticleInit

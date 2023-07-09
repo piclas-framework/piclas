@@ -35,12 +35,12 @@ CONTAINS
 SUBROUTINE CalcAnalyticalParticleState(t,PartStateAnalytic,alpha_out,theta_out)
 ! MODULES
 USE MOD_Preproc
-USE MOD_Globals               ,ONLY: DOTPRODUCT,abort
+USE MOD_Globals               ,ONLY: DOTPRODUCT,abort,CROSS
 USE MOD_Globals_Vars          ,ONLY: PI,c,c2_inv,c2
 USE MOD_PICInterpolation_Vars ,ONLY: AnalyticInterpolationType,AnalyticInterpolationSubType,AnalyticInterpolationP
 USE MOD_PICInterpolation_Vars ,ONLY: AnalyticInterpolationPhase,AnalyticInterpolationGamma,AnalyticInterpolationE,AnalyticPartDim
 USE MOD_TimeDisc_Vars         ,ONLY: TEnd
-USE MOD_PARTICLE_Vars         ,ONLY: PartSpecies,Species
+USE MOD_PARTICLE_Vars         ,ONLY: PartSpecies,Species,RotRefFrameOmega,RotRefFrameFreq,PartState
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
@@ -62,6 +62,8 @@ REAL    :: v_perp !< Perpendicular velocity
 REAL    :: B_0    !< Magnetic flux density
 REAL    :: c1
 REAL    :: gamma1
+REAL    :: TempArrayCross1(3),TempArrayCross2(3),TempArrayCross3(3),TempArrayCross4(3),TempArrayCross5(3),TempArrayCross6(3)
+REAL    :: r_0Vec(3),v_0Vec(3),r_tVec(3),OmegaNormVec(3)
 !===================================================================================================================================
 PartStateAnalytic=0. ! default
 
@@ -280,7 +282,52 @@ ASSOCIATE( iPart => 1 )
              !WRITE (*,*) "x,v,gamma_0,c =", PartStateAnalytic(1),PartStateAnalytic(4),gamma_0,c
       END ASSOCIATE
     END SELECT
+  ! 5: motion of the particle in RotRefFrame without Collisions
+  CASE(5)
+    ASSOCIATE( omega      => 2.*PI*RotRefFrameFreq ) 
+    ASSOCIATE(x_0    =>  Species(PartSpecies(iPart))%Init(1)%BasePointIC(1), & 
+              y_0    =>  Species(PartSpecies(iPart))%Init(1)%BasePointIC(2), & 
+              z_0    =>  Species(PartSpecies(iPart))%Init(1)%BasePointIC(3))
+    ASSOCIATE(vx_0    => Species(PartSpecies(iPart))%Init(1)%VeloVecIC(1) * Species(PartSpecies(iPart))%Init(1)%VeloIC )
+    ASSOCIATE(vy_0    => Species(PartSpecies(iPart))%Init(1)%VeloVecIC(2) * Species(PartSpecies(iPart))%Init(1)%VeloIC )
+    ASSOCIATE(vz_0    => Species(PartSpecies(iPart))%Init(1)%VeloVecIC(3) * Species(PartSpecies(iPart))%Init(1)%VeloIC )
 
+              r_0Vec          = (/x_0,y_0,z_0/)
+              v_0Vec          = (/vx_0,vy_0,vz_0/)
+              v_0Vec = v_0Vec - CROSS(RotRefFrameOmega(1:3),r_0Vec)
+              r_tVec          = r_0Vec + v_0Vec * t
+              OmegaNormVec    = RotRefFrameOmega/omega
+              TempArrayCross1 = CROSS(r_tVec,OmegaNormVec)
+              TempArrayCross2 = CROSS(OmegaNormVec,TempArrayCross1)
+              TempArrayCross3 = CROSS(r_0Vec,OmegaNormVec)
+              TempArrayCross4 = CROSS(OmegaNormVec,TempArrayCross3)
+              TempArrayCross5 = CROSS(v_0Vec,OmegaNormVec)
+              TempArrayCross6 = CROSS(OmegaNormVec,TempArrayCross5)
+
+              PartStateAnalytic(1) = r_0Vec(1) + v_0Vec(1) * t                                                          &
+                                   - TempArrayCross2(1)                                                                 &
+                                   + SIN(omega * t) * TempArrayCross3(1) + COS(omega * t) * TempArrayCross4(1)          &
+                                   + omega * t * SIN(omega * t) * ( TempArrayCross4(1) + 1/omega * TempArrayCross5(1) ) &
+                                   - omega * t * COS(omega * t) * ( TempArrayCross3(1) - 1/omega * TempArrayCross6(1) )
+
+              PartStateAnalytic(2) = r_0Vec(2) + v_0Vec(2) * t                                                          &
+                                   - TempArrayCross2(2)                                                                 &
+                                   + SIN(omega * t) * TempArrayCross3(2) + COS(omega * t) * TempArrayCross4(2)          &
+                                   + omega * t * SIN(omega * t) * ( TempArrayCross4(2) + 1/omega * TempArrayCross5(2) ) &
+                                   - omega * t * COS(omega * t) * ( TempArrayCross3(2) - 1/omega * TempArrayCross6(2) )
+
+              PartStateAnalytic(3) = r_0Vec(3) + v_0Vec(3) * t                                                          &
+                                   - TempArrayCross2(3)                                                                 &
+                                   + SIN(omega * t) * TempArrayCross3(3) + COS(omega * t) * TempArrayCross4(3)          &
+                                   + omega * t * SIN(omega * t) * ( TempArrayCross4(3) + 1/omega * TempArrayCross5(3) ) &
+                                   - omega * t * COS(omega * t) * ( TempArrayCross3(3) - 1/omega * TempArrayCross6(3) )
+
+              PartStateAnalytic(4:6) = 0.0
+    END ASSOCIATE
+    END ASSOCIATE
+    END ASSOCIATE
+    END ASSOCIATE
+    END ASSOCIATE
   END SELECT
 END ASSOCIATE
 

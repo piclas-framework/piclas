@@ -97,7 +97,7 @@ IMPLICIT NONE
 INTEGER,PARAMETER                  :: ELEM_FirstPartInd = 1
 INTEGER,PARAMETER                  :: ELEM_LastPartInd  = 2
 ! Counters
-INTEGER                            :: iElem
+INTEGER                            :: iElem,iPos
 INTEGER                            :: FirstElemInd,LastelemInd
 INTEGER(KIND=IK)                   :: locnPart,offsetnPart,iLoop
 INTEGER                            :: CounterPoly
@@ -153,70 +153,55 @@ IF(.NOT.DoMacroscopicRestart) THEN
         IF(SpecReset(SpecID)) CYCLE
 
         iPart = iPart + 1
-        PartState(1,iPart) = PartData(1,offsetnPart+iLoop)
-        PartState(2,iPart) = PartData(2,offsetnPart+iLoop)
-        PartState(3,iPart) = PartData(3,offsetnPart+iLoop)
-        PartState(4,iPart) = PartData(4,offsetnPart+iLoop)
-        PartState(5,iPart) = PartData(5,offsetnPart+iLoop)
-        PartState(6,iPart) = PartData(6,offsetnPart+iLoop)
+        PartState(1:6,iPart) = PartData(1:6,offsetnPart+iLoop)
         PartSpecies(iPart) = SpecID
 
+        iPos = 7
         ! Rotational frame of reference: initialize logical and velocity
         IF(UseRotRefFrame) THEN
           PDM%InRotRefFrame(iPart) = InRotRefFrameCheck(iPart)
           IF(PDM%InRotRefFrame(iPart)) THEN
             IF(PartVeloRotRefExists) THEN
-              PartVeloRotRef(1:3,iPart) = PartVeloRotRefTmp(1:3,offsetnPart+iLoop)
+              PartVeloRotRef(1:3,iPart) = PartData(1+iPos:3+iPos,offsetnPart+iLoop)
             ELSE
               PartVeloRotRef(1:3,iPart) = PartState(4:6,iPart) - CROSS(RotRefFrameOmega(1:3),PartState(1:3,iPart))
             END IF
+          ELSE
+            PartVeloRotRef(1:3,iPart) = 0.
           END IF
+          IF(PartVeloRotRefExists) iPos=iPos+3
         END IF
 
-        IF (useDSMC) THEN
-          IF ((CollisMode.GT.1).AND.(usevMPF) .AND. (DSMC%ElectronicModel.GT.0)) THEN
-            PartStateIntEn(1,iPart)=PartData(8,offsetnPart+iLoop)
-            PartStateIntEn(2,iPart)=PartData(9,offsetnPart+iLoop)
-            PartStateIntEn(3,iPart)=PartData(10,offsetnPart+iLoop)
-            ! Check if MPF was read from .h5 (or restarting with vMPF from non-vMPF restart file)
-            IF(readVarFromState(11))THEN
-              PartMPF(iPart)=PartData(11,offsetnPart+iLoop)
-            ELSE
-              PartMPF(iPart)=Species(SpecID)%MacroParticleFactor
-            END IF ! readVarFromState(11)
-          ELSE IF ((CollisMode.GT.1).AND. (usevMPF)) THEN
-            PartStateIntEn(1,iPart)=PartData(8,offsetnPart+iLoop)
-            PartStateIntEn(2,iPart)=PartData(9,offsetnPart+iLoop)
-            ! Check if MPF was read from .h5 (or restarting with vMPF from non-vMPF restart file)
-            IF(readVarFromState(10))THEN
-              PartMPF(iPart)=PartData(10,offsetnPart+iLoop)
-            ELSE
-              PartMPF(iPart)=Species(SpecID)%MacroParticleFactor
-            END IF ! readVarFromState(10)
-          ELSE IF ((CollisMode.GT.1).AND. (DSMC%ElectronicModel.GT.0)) THEN
-            PartStateIntEn(1,iPart)=PartData(8,offsetnPart+iLoop)
-            PartStateIntEn(2,iPart)=PartData(9,offsetnPart+iLoop)
-            PartStateIntEn(3,iPart)=PartData(10,offsetnPart+iLoop)
-          ELSE IF (CollisMode.GT.1) THEN
-            IF (readVarFromState(8).AND.readVarFromState(9)) THEN
-              PartStateIntEn(1,iPart)=PartData(8,offsetnPart+iLoop)
-              PartStateIntEn(2,iPart)=PartData(9,offsetnPart+iLoop)
-            ELSE IF ((SpecDSMC(PartSpecies(iPart))%InterID.EQ.1).OR.&
-                     (SpecDSMC(PartSpecies(iPart))%InterID.EQ.10).OR.&
-                     (SpecDSMC(PartSpecies(iPart))%InterID.EQ.15)) THEN
+        IF(useDSMC) THEN
+          IF(CollisMode.GT.1) THEN
+            IF(readVarFromState(1+iPos).AND.readVarFromState(2+iPos)) THEN
+              PartStateIntEn(1:2,iPart)=PartData(1+iPos:2+iPos,offsetnPart+iLoop)
+              iPos=iPos+2
+            ELSE IF((SpecDSMC(SpecID)%InterID.EQ.1).OR.(SpecDSMC(SpecID)%InterID.EQ.10).OR.(SpecDSMC(SpecID)%InterID.EQ.15)) THEN
               !- setting inner DOF to 0 for atoms
-              PartStateIntEn(1,iPart)=0.
-              PartStateIntEn(2,iPart)=0.
+              PartStateIntEn(1:2,iPart) = 0.
             ELSE
               IPWRITE(UNIT_StdOut,*) "SpecDSMC(PartSpecies(iPart))%InterID =", SpecDSMC(PartSpecies(iPart))%InterID
               IPWRITE(UNIT_StdOut,*) "SpecID =", SpecID
               IPWRITE(UNIT_StdOut,*) "iPart =", iPart
               CALL Abort(__STAMP__,"resetting inner DOF for molecules is not implemented yet!")
-            END IF ! readVarFromState(8).AND.readVarFromState(9)
-          ELSE IF (usevMPF) THEN
-            PartMPF(iPart)=PartData(8,offsetnPart+iLoop)
-          END IF ! (CollisMode.GT.1).AND.(usevMPF) .AND. (DSMC%ElectronicModel.GT.0)
-
+            END IF ! readVarFromState
+            IF(DSMC%ElectronicModel.GT.0) THEN
+              PartStateIntEn(3,iPart)=PartData(1+iPos,offsetnPart+iLoop)
+              iPos=iPos+1
+            END IF
+          END IF
+        END IF
+        IF(usevMPF) THEN
+          ! Check if MPF was read from .h5 (or restarting with vMPF from non-vMPF restart file)
+          IF(readVarFromState(1+iPos))THEN
+            PartMPF(iPart)=PartData(1+iPos,offsetnPart+iLoop)
+            iPos=iPos+1
+          ELSE
+            PartMPF(iPart)=Species(SpecID)%MacroParticleFactor
+          END IF ! readVarFromState
+        END IF
+        IF(useDSMC) THEN
           ! Polyatomic
           IF (DSMC%NumPolyatomMolecs.GT.0) THEN
             IF (SpecDSMC(PartSpecies(iPart))%PolyatomicMol) THEN
@@ -246,10 +231,7 @@ IF(.NOT.DoMacroscopicRestart) THEN
               AmbipolElecVelo(iPart)%ElecVelo(1:3)= AD_Data(1:3,offsetnPart+iLoop)
             END IF
           END IF
-        ELSE IF (usevMPF) THEN
-          PartMPF(iPart)=PartData(8,offsetnPart+iLoop)
-        END IF ! useDSMC
-
+        END IF
         PDM%ParticleInside(iPart) = .TRUE.
       END DO ! iLoop = 1_IK,locnPart
 
@@ -294,7 +276,6 @@ IF(.NOT.DoMacroscopicRestart) THEN
     END IF ! PartDataExists
     DEALLOCATE(PartInt)
     SDEALLOCATE(readVarFromState)
-    SDEALLOCATE(PartVeloRotRefTmp)
 
     PDM%ParticleVecLength = PDM%ParticleVecLength + iPart
     CALL UpdateNextFreePosition()
@@ -510,28 +491,25 @@ IF(.NOT.DoMacroscopicRestart) THEN
         IF (.NOT.PDM%ParticleInside(iPart)) THEN
           RecBuff(1:6,NbrOfMissingParticles) = PartState(1:6,iPart)
           RecBuff(7,NbrOfMissingParticles)   = REAL(PartSpecies(iPart))
+          iPos=7
+          ! Rotational frame of reference
+          IF(UseRotRefFrame) THEN
+            RecBuff(1+iPos:3+iPos,NbrOfMissingParticles) = PartVeloRotRef(1:3,iPart)
+            iPos = iPos + 3
+          END IF
           IF (useDSMC) THEN
-            IF ((CollisMode.GT.1).AND.(usevMPF) .AND. (DSMC%ElectronicModel.GT.0)) THEN
-              RecBuff(8,NbrOfMissingParticles)  = PartStateIntEn(1,iPart)
-              RecBuff(9,NbrOfMissingParticles)  = PartStateIntEn(2,iPart)
-              RecBuff(10,NbrOfMissingParticles) = PartMPF(iPart)
-              RecBuff(11,NbrOfMissingParticles) = PartStateIntEn(3,iPart)
-            ELSE IF ((CollisMode.GT.1).AND. (usevMPF)) THEN
-              RecBuff(8,NbrOfMissingParticles)  = PartStateIntEn(1,iPart)
-              RecBuff(9,NbrOfMissingParticles)  = PartStateIntEn(2,iPart)
-              RecBuff(10,NbrOfMissingParticles) = PartMPF(iPart)
-            ELSE IF ((CollisMode.GT.1).AND. (DSMC%ElectronicModel.GT.0)) THEN
-              RecBuff(8,NbrOfMissingParticles)  = PartStateIntEn(1,iPart)
-              RecBuff(9,NbrOfMissingParticles)  = PartStateIntEn(2,iPart)
-              RecBuff(10,NbrOfMissingParticles) = PartStateIntEn(3,iPart)
-            ELSE IF (CollisMode.GT.1) THEN
-              RecBuff(8,NbrOfMissingParticles)  = PartStateIntEn(1,iPart)
-              RecBuff(9,NbrOfMissingParticles)  = PartStateIntEn(2,iPart)
-            ELSE IF (usevMPF) THEN
-              RecBuff(8,NbrOfMissingParticles)  = PartMPF(iPart)
+            IF (CollisMode.GT.1) THEN
+              RecBuff(1+iPos:2+iPos,NbrOfMissingParticles)  = PartStateIntEn(1:2,iPart)
+              iPos=iPos+2
+              IF(DSMC%ElectronicModel.GT.0) THEN
+                RecBuff(1+iPos,NbrOfMissingParticles) = PartStateIntEn(3,iPart)
+                iPos=iPos+1
+              END IF
             END IF
-          ELSE IF (usevMPF) THEN
-            RecBuff(8,NbrOfMissingParticles) = PartMPF(iPart)
+          END IF
+          IF (usevMPF) THEN
+            RecBuff(1+iPos,NbrOfMissingParticles) = PartMPF(iPart)
+            iPos=iPos+1
           END IF
           NbrOfMissingParticles = NbrOfMissingParticles + 1
 
@@ -661,29 +639,33 @@ IF(.NOT.DoMacroscopicRestart) THEN
 
           ! Set particle properties (if the particle is lost, it's properties are written to a .h5 file)
           PartSpecies(CurrentPartNum) = INT(RecBuff(7,iPart))
-          IF (useDSMC) THEN
-            IF ((CollisMode.GT.1).AND.(usevMPF) .AND. (DSMC%ElectronicModel.GT.0)) THEN
-              PartStateIntEn(1,CurrentPartNum) = RecBuff(8,iPart)
-              PartStateIntEn(2,CurrentPartNum) = RecBuff(9,iPart)
-              PartStateIntEn(3,CurrentPartNum) = RecBuff(11,iPart)
-              PartMPF(CurrentPartNum)          = RecBuff(10,iPart)
-            ELSE IF ((CollisMode.GT.1).AND. (usevMPF)) THEN
-              PartStateIntEn(1,CurrentPartNum) = RecBuff(8,iPart)
-              PartStateIntEn(2,CurrentPartNum) = RecBuff(9,iPart)
-              PartMPF(CurrentPartNum)          = RecBuff(10,iPart)
-            ELSE IF ((CollisMode.GT.1).AND. (DSMC%ElectronicModel.GT.0)) THEN
-              PartStateIntEn(1,CurrentPartNum) = RecBuff(8,iPart)
-              PartStateIntEn(2,CurrentPartNum) = RecBuff(9,iPart)
-              PartStateIntEn(3,CurrentPartNum) = RecBuff(10,iPart)
-            ELSE IF (CollisMode.GT.1) THEN
-              PartStateIntEn(1,CurrentPartNum) = RecBuff(8,iPart)
-              PartStateIntEn(2,CurrentPartNum) = RecBuff(9,iPart)
-            ELSE IF (usevMPF) THEN
-              PartMPF(CurrentPartNum)          = RecBuff(8,iPart)
+          iPos = 7
+          ! Rotational frame of reference
+          IF(UseRotRefFrame) THEN
+            PDM%InRotRefFrame(CurrentPartNum) = InRotRefFrameCheck(CurrentPartNum)
+            IF(PDM%InRotRefFrame(CurrentPartNum)) THEN
+              PartVeloRotRef(1:3,CurrentPartNum) = RecBuff(1+iPos:3+iPos,iPart)
+            ELSE
+              PartVeloRotRef(1:3,CurrentPartNum) = 0.
             END IF
-          ELSE IF (usevMPF) THEN
-            PartMPF(CurrentPartNum)          = RecBuff(8,iPart)
-          END IF ! useDSMC
+            iPos = iPos + 3
+          END IF
+          ! DSMC-specific variables
+          IF (useDSMC) THEN
+            IF (CollisMode.GT.1) THEN
+              PartStateIntEn(1:2,CurrentPartNum) = RecBuff(1+iPos:2+iPos,iPart)
+              iPos = iPos + 2
+              IF(DSMC%ElectronicModel.GT.0) THEN
+                PartStateIntEn(3,CurrentPartNum) = RecBuff(1+iPos,iPart)
+                iPos = iPos + 1
+              END IF
+            END IF
+          END IF
+          ! Variable particle weighting
+          IF (usevMPF) THEN
+            PartMPF(CurrentPartNum) = RecBuff(1+iPos,iPart)
+            iPos = iPos + 1
+          END IF
           NbrOfFoundParts = NbrOfFoundParts + 1
 
           ! Check if particle was found inside of an element

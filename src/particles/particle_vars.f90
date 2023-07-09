@@ -78,6 +78,7 @@ REAL    , ALLOCATABLE :: Pt(:,:)                                             ! D
                                                                              ! PartState(4:6,:) as Pt(1:3)
                                                                              ! (1:NParts,1:6) with 2nd index: x,y,z,vx,vy,vz
 INTEGER               :: PartDataSize                                        ! Number of entries in each line of PartData
+CHARACTER(LEN=255),ALLOCATABLE :: PartDataVarNames(:)                        ! Corrensponding variable names of PartData for output/read-in
 INTEGER,PARAMETER     :: PartIntSize=2                                       ! Number of entries in each line of PartInt
 REAL,ALLOCATABLE      :: PartData(:,:)                                       ! PartState ordered along SFC, particle number per
                                                                              ! element given in PartInt
