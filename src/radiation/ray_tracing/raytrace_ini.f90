@@ -50,13 +50,13 @@ CALL prms%CreateRealOption(      'RayTracing-Power'          , 'Average pulse po
 CALL prms%CreateLogicalOption(   'RayTracing-ForceAbsorption', 'Surface photon sampling is performed independent of the actual absorption/reflection outcome (default=T)', '.TRUE.')
 
 CALL prms%CreateIntOption(       'RayTracing-NMax'            , 'Maximum polynomial degree within refined volume elements for photon tracking (p-adaption)')
-CALL prms%CreateLogicalOption(   'RayTracing-VolRefineMode'   , 'High-order ray tracing volume sampling refinement method:\n'//&
+CALL prms%CreateIntOption(       'RayTracing-VolRefineMode'   , 'High-order ray tracing volume sampling refinement method:\n'//&
                                                                 ' 0: do nothing (default)\n'//&
                                                                 ' 1: refine below user-defined z-coordinate with NMax\n'//&
                                                                 ' 2: scale N according to the mesh element volume between NMin>=1 and NMax>=2\n'//&
                                                                 ' 3: refine below user-defined z-coordinate and scale N according to the mesh element volume between NMin>=1 and NMax>=2\n'//&
                                                                 '    (consider only elements below the user-defined z-coordinate for the scaling)'&
-                                                                ,'.TRUE.')
+                                                                ,'0')
 CALL prms%CreateRealOption(      'RayTracing-VolRefineModeZ'    , 'Z-coordinate for switching between NMin (pos>z) and NMax (pos<z) depending on element position for high-order ray tracing')
 
 
