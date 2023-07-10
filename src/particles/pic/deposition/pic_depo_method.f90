@@ -483,12 +483,6 @@ DO iPart=1,PDM%ParticleVecLength
               NodeSource(SourceDim:4,jGlobNode) = NodeSource(SourceDim:4,jGlobNode) + (TSource(SourceDim:4)*PartDistDepo(iNode))
             END DO ! jNode
           END IF ! Periodic_nNodes_Shared(NodeID(iNode)).GT.0
-          ! IF (PeriodicNodeMap(NodeID(iNode))%nPeriodicNodes.GT.0) THEN
-          !   DO jNode = 1, PeriodicNodeMap(NodeID(iNode))%nPeriodicNodes
-          !     jGlobNode = PeriodicNodeMap(NodeID(iNode))%Mapping(jNode)
-          !     NodeSource(SourceDim:4,jGlobNode) = NodeSource(SourceDim:4,jGlobNode) + (TSource(SourceDim:4)*PartDistDepo(iNode))
-          !   END DO
-          ! END IF
         END IF
       END DO
 
@@ -517,12 +511,6 @@ DO iPart=1,PDM%ParticleVecLength
             END DO ! jNode
           END IF ! Periodic_nNodes_Shared(NodeID(iNode)).GT.0
           END ASSOCIATE
-          !   IF (PeriodicNodeMap(NodeInfo_Shared(NodeID(iNode)))%nPeriodicNodes.GT.0) THEN
-          !     DO jNode = 1, PeriodicNodeMap(NodeInfo_Shared(NodeID(iNode)))%nPeriodicNodes
-          !       jGlobNode = PeriodicNodeMap(NodeInfo_Shared(NodeID(iNode)))%Mapping(jNode)
-          !       NodeSource(SourceDim:4,jGlobNode) = NodeSource(SourceDim:4,jGlobNode) +  PartDistDepo(iNode)/DistSum*TSource(SourceDim:4)
-          !     END DO
-          !   END IF
         END IF
       END DO
     END IF ! SucRefPos
@@ -681,7 +669,6 @@ END IF ! DoDielectricSurfaceCharge
 DO iNode = 1, nDepoNodes
   globalNode = DepoNodetoGlobalNode(iNode)
   IF(NodeVolume(globalNode).GT.0.) NodeSource(SourceDim:4,globalNode) = NodeSource(SourceDim:4,globalNode)/NodeVolume(globalNode)
-  ! NodeSource(SourceDim:4,globalNode) = NodeVolume(globalNode)
 END DO
 
 #if USE_LOADBALANCE
