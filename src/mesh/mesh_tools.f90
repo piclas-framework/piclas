@@ -56,6 +56,7 @@ PUBLIC :: BuildSideToNonUniqueGlobalSide
 #endif /*USE_LOADBALANCE*/
 #endif /*USE_HDG*/
 PUBLIC :: InitElemNodeIDs
+PUBLIC :: InitNodeMap
 !----------------------------------------------------------------------------------------------------------------------------------
 
 ABSTRACT INTERFACE
@@ -690,5 +691,44 @@ CALL BARRIER_AND_SYNC(ElemNodeID_Shared_Win,MPI_COMM_SHARED)
 #endif
 
 END SUBROUTINE InitElemNodeIDs
+
+
+SUBROUTINE InitNodeMap(NgeoLoc)
+!===================================================================================================================================
+!> Initialize the corner node switch and node map, depending on the given NGeo. Routine is called in InitMesh after Ngeo read-in
+!> and potential once more before read-in of NodeCoords, when Ngeo is set to 1 for useCurveds = F
+!===================================================================================================================================
+! MODULES
+USE MOD_Mesh_Vars              ,ONLY: CNS, NodeMap
+! IMPLICIT VARIABLE HANDLING
+ IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+INTEGER,INTENT(IN)             :: NgeoLoc
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+!===================================================================================================================================
+
+! CornerNodeSwitch: a mapping is required for Ngeo > 1 as the corner nodes are not the first 8 entries of NodeInfo array
+CNS(1)=1
+CNS(2)=(NgeoLoc+1)
+CNS(3)=(NgeoLoc+1)**2
+CNS(4)=(NgeoLoc+1)*NgeoLoc+1
+CNS(5)=(NgeoLoc+1)**2*NgeoLoc+1
+CNS(6)=(NgeoLoc+1)**2*NgeoLoc+(NgeoLoc+1)
+CNS(7)=(NgeoLoc+1)**2*NgeoLoc+(NgeoLoc+1)**2
+CNS(8)=(NgeoLoc+1)**2*NgeoLoc+(NgeoLoc+1)*NgeoLoc+1
+
+! Set the corresponding mapping for HOPR coordinates in CGNS format
+NodeMap(:,1)=(/CNS(1),CNS(4),CNS(3),CNS(2)/)
+NodeMap(:,2)=(/CNS(1),CNS(2),CNS(6),CNS(5)/)
+NodeMap(:,3)=(/CNS(2),CNS(3),CNS(7),CNS(6)/)
+NodeMap(:,4)=(/CNS(3),CNS(4),CNS(8),CNS(7)/)
+NodeMap(:,5)=(/CNS(1),CNS(5),CNS(8),CNS(4)/)
+NodeMap(:,6)=(/CNS(5),CNS(6),CNS(7),CNS(8)/)
+
+END SUBROUTINE InitNodeMap
 
 END MODULE MOD_Mesh_Tools
