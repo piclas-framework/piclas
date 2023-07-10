@@ -289,6 +289,7 @@ USE MOD_Particle_Boundary_Vars  ,ONLY: PartBound
 USE MOD_Particle_Boundary_Vars  ,ONLY: RotPeriodicSideMapping, NumRotPeriodicNeigh, SurfSide2RotPeriodicSide, GlobalSide2SurfSide
 USE MOD_Particle_Tracking_Vars  ,ONLY: TrackInfo
 USE MOD_DSMC_Vars               ,ONLY: DSMC, AmbipolElecVelo
+USE MOD_part_tools              ,ONLY: RotateVectorAroundAxis
 #ifdef CODE_ANALYZE
 USE MOD_Particle_Tracking_Vars  ,ONLY: PartOut,MPIRankOut
 #endif /*CODE_ANALYZE*/
@@ -334,65 +335,19 @@ END IF
 ! (1) perform the rotational periodic movement and adjust velocity vector
 rot_alpha = PartBound%RotPeriodicAngle(PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID)))
 rot_alpha_delta = PartBound%RotPeriodicAngle(PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID))) * PartBound%RotPeriodicTol
-SELECT CASE(PartBound%RotPeriodicAxis)
-  CASE(1) ! x-rotation axis
-    LastPartPos_rotated(2) = COS(rot_alpha)*LastPartPos(2,PartID) - SIN(rot_alpha)*LastPartPos(3,PartID)
-    LastPartPos_rotated(3) = SIN(rot_alpha)*LastPartPos(2,PartID) + COS(rot_alpha)*LastPartPos(3,PartID)
-    PartState_rot_tol(2) = COS(rot_alpha_delta)*PartState(2,PartID) - SIN(rot_alpha_delta)*PartState(3,PartID)
-    PartState_rot_tol(3) = SIN(rot_alpha_delta)*PartState(2,PartID) + COS(rot_alpha_delta)*PartState(3,PartID)
-    PartState_rotated(2) = COS(rot_alpha)*PartState(2,PartID) - SIN(rot_alpha)*PartState(3,PartID)
-    PartState_rotated(3) = SIN(rot_alpha)*PartState(2,PartID) + COS(rot_alpha)*PartState(3,PartID)
-    PartState(5,PartID) = COS(rot_alpha)*Velo_old(2) - SIN(rot_alpha)*Velo_old(3)
-    PartState(6,PartID) = SIN(rot_alpha)*Velo_old(2) + COS(rot_alpha)*Velo_old(3)
-    IF(PDM%InRotRefFrame(PartID)) THEN
-      PartVeloRotRef(2,PartID) = COS(rot_alpha)*VeloRotRef_old(2) - SIN(rot_alpha)*VeloRotRef_old(3)
-      PartVeloRotRef(3,PartID) = SIN(rot_alpha)*VeloRotRef_old(2) + COS(rot_alpha)*VeloRotRef_old(3)
-    END IF
-    IF (DSMC%DoAmbipolarDiff) THEN
-      IF(Species(PartSpecies(PartID))%ChargeIC.GT.0.0) THEN
-        AmbipolElecVelo(PartID)%ElecVelo(5) = COS(rot_alpha)*Velo_oldAmbi(2) - SIN(rot_alpha)*Velo_oldAmbi(3)
-        AmbipolElecVelo(PartID)%ElecVelo(6) = SIN(rot_alpha)*Velo_oldAmbi(2) + COS(rot_alpha)*Velo_oldAmbi(3)
-      END IF
-    END IF
-  CASE(2) ! y-rotation axis
-    LastPartPos_rotated(1) = COS(rot_alpha)*LastPartPos(1,PartID) + SIN(rot_alpha)*LastPartPos(3,PartID)
-    LastPartPos_rotated(3) =-SIN(rot_alpha)*LastPartPos(1,PartID) + COS(rot_alpha)*LastPartPos(3,PartID)
-    PartState_rot_tol(1) = COS(rot_alpha_delta)*PartState(1,PartID) + SIN(rot_alpha_delta)*PartState(3,PartID)
-    PartState_rot_tol(3) =-SIN(rot_alpha_delta)*PartState(1,PartID) + COS(rot_alpha_delta)*PartState(3,PartID)
-    PartState_rotated(1) = COS(rot_alpha)*PartState(1,PartID) + SIN(rot_alpha)*PartState(3,PartID)
-    PartState_rotated(3) =-SIN(rot_alpha)*PartState(1,PartID) + COS(rot_alpha)*PartState(3,PartID)
-    PartState(4,PartID) = COS(rot_alpha)*Velo_old(1) + SIN(rot_alpha)*Velo_old(3)
-    PartState(6,PartID) =-SIN(rot_alpha)*Velo_old(1) + COS(rot_alpha)*Velo_old(3)
-    IF(PDM%InRotRefFrame(PartID)) THEN
-      PartVeloRotRef(1,PartID) = COS(rot_alpha)*VeloRotRef_old(1) + SIN(rot_alpha)*VeloRotRef_old(3)
-      PartVeloRotRef(3,PartID) =-SIN(rot_alpha)*VeloRotRef_old(1) + COS(rot_alpha)*VeloRotRef_old(3)
-    END IF
-    IF (DSMC%DoAmbipolarDiff) THEN
-      IF(Species(PartSpecies(PartID))%ChargeIC.GT.0.0) THEN
-        AmbipolElecVelo(PartID)%ElecVelo(4) = COS(rot_alpha)*Velo_oldAmbi(1) + SIN(rot_alpha)*Velo_oldAmbi(3)
-        AmbipolElecVelo(PartID)%ElecVelo(6) = -SIN(rot_alpha)*Velo_oldAmbi(1) + COS(rot_alpha)*Velo_oldAmbi(3)
-      END IF
-    END IF
-  CASE(3) ! z-rotation axis
-    LastPartPos_rotated(1) = COS(rot_alpha)*LastPartPos(1,PartID) - SIN(rot_alpha)*LastPartPos(2,PartID)
-    LastPartPos_rotated(2) = SIN(rot_alpha)*LastPartPos(1,PartID) + COS(rot_alpha)*LastPartPos(2,PartID)
-    PartState_rot_tol(1) = COS(rot_alpha_delta)*PartState(1,PartID) - SIN(rot_alpha_delta)*PartState(2,PartID)
-    PartState_rot_tol(2) = SIN(rot_alpha_delta)*PartState(1,PartID) + COS(rot_alpha_delta)*PartState(2,PartID)
-    PartState_rotated(1) = COS(rot_alpha)*PartState(1,PartID) - SIN(rot_alpha)*PartState(2,PartID)
-    PartState_rotated(2) = SIN(rot_alpha)*PartState(1,PartID) + COS(rot_alpha)*PartState(2,PartID)
-    PartState(4,PartID) = COS(rot_alpha)*Velo_old(1) - SIN(rot_alpha)*Velo_old(2)
-    PartState(5,PartID) = SIN(rot_alpha)*Velo_old(1) + COS(rot_alpha)*Velo_old(2)
-    IF(PDM%InRotRefFrame(PartID)) THEN
-      PartVeloRotRef(1,PartID) = COS(rot_alpha)*VeloRotRef_old(1) - SIN(rot_alpha)*VeloRotRef_old(2)
-      PartVeloRotRef(2,PartID) = SIN(rot_alpha)*VeloRotRef_old(1) + COS(rot_alpha)*VeloRotRef_old(2)
-    END IF
-    IF (DSMC%DoAmbipolarDiff) THEN
-      IF(Species(PartSpecies(PartID))%ChargeIC.GT.0.0) THEN
-        AmbipolElecVelo(PartID)%ElecVelo(4) = COS(rot_alpha)*Velo_oldAmbi(1) - SIN(rot_alpha)*Velo_oldAmbi(2)
-        AmbipolElecVelo(PartID)%ElecVelo(5) = SIN(rot_alpha)*Velo_oldAmbi(1) + COS(rot_alpha)*Velo_oldAmbi(2)
-      END IF
-    END IF
-END SELECT
+
+LastPartPos_rotated(1:3)  = RotateVectorAroundAxis(LastPartPos(1:3,PartID),PartBound%RotPeriodicAxis,rot_alpha)
+PartState_rot_tol(1:3)    = RotateVectorAroundAxis(PartState(1:3,PartID)  ,PartBound%RotPeriodicAxis,rot_alpha_delta)
+PartState_rotated(1:3)    = RotateVectorAroundAxis(PartState(1:3,PartID)  ,PartBound%RotPeriodicAxis,rot_alpha)
+PartState(4:6,PartID)     = RotateVectorAroundAxis(Velo_old(1:3)          ,PartBound%RotPeriodicAxis,rot_alpha)
+IF(PDM%InRotRefFrame(PartID)) THEN
+  PartVeloRotRef(1:3,PartID) = RotateVectorAroundAxis(VeloRotRef_old(1:3),PartBound%RotPeriodicAxis,rot_alpha)
+END IF
+IF (DSMC%DoAmbipolarDiff) THEN
+  IF(Species(PartSpecies(PartID))%ChargeIC.GT.0.0) THEN
+    AmbipolElecVelo(PartID)%ElecVelo(1:3) = RotateVectorAroundAxis(Velo_oldAmbi(1:3),PartBound%RotPeriodicAxis,rot_alpha)
+  END IF
+END IF
 
 ParticleFound = .FALSE.
 ! Track the particle, moving inside the domain through the rot periodic BC
@@ -523,6 +478,7 @@ USE MOD_Particle_Vars           ,ONLY: usevMPF,PartMPF,PDM,InterPlanePartNumber,
 USE MOD_Particle_Vars           ,ONLY: UseRotRefFrame, RotRefFrameOmega, PartVeloRotRef
 USE MOD_Part_Tools              ,ONLY: InRotRefFrameCheck
 USE MOD_part_RHS                ,ONLY: CalcPartRHSRotRefFrame
+USE MOD_part_tools              ,ONLY: RotateVectorAroundAxis
 #ifdef CODE_ANALYZE
 USE MOD_Particle_Tracking_Vars  ,ONLY: PartOut,MPIRankOut
 #endif /*CODE_ANALYZE*/
@@ -673,7 +629,7 @@ SELECT CASE(PartBound%RotPeriodicAxis)
     m = 2
 END SELECT
 LastPartPos(k,PartID) = LastPartPos(k,PartID) + TrackInfo%PartTrajectory(k)*TrackInfo%alpha*0.0000001
-! (2.b) calc random new POI position 
+! (2.b) calc random new POI position
 CALL RANDOM_NUMBER(RanNum)
 rot_alpha = RanNum*PartBound%RotPeriodicAngle(PartBound%AssociatedPlane(iPartBound))* 0.9999999
 RadiusPOI=SQRT( LastPartPos_old(l)*LastPartPos_old(l)+LastPartPos_old(m)*LastPartPos_old(m) )
@@ -700,12 +656,10 @@ END IF
 !       POI_old to POI_new (including sign)
 AlphaDelta = rot_alpha_POIold - ABS(rot_alpha)
 ! (3.c) rotate velocity vector
-PartState(l+3,PartID) = COS(AlphaDelta)*Velo_old(l) - SIN(AlphaDelta)*Velo_old(m)
-PartState(m+3,PartID) = SIN(AlphaDelta)*Velo_old(l) + COS(AlphaDelta)*Velo_old(m)
+PartState(4:6,PartID) = RotateVectorAroundAxis(Velo_old(1:3),PartBound%RotPeriodicAxis,AlphaDelta)
 IF (DSMC%DoAmbipolarDiff) THEN
   IF(Species(PartSpecies(PartID))%ChargeIC.GT.0.0) THEN
-    AmbipolElecVelo(PartID)%ElecVelo(l+3) = COS(AlphaDelta)*Velo_oldAmbi(l) - SIN(AlphaDelta)*Velo_oldAmbi(m)
-    AmbipolElecVelo(PartID)%ElecVelo(m+3) = SIN(AlphaDelta)*Velo_oldAmbi(l) + COS(AlphaDelta)*Velo_oldAmbi(m)
+    AmbipolElecVelo(PartID)%ElecVelo(1:3) = RotateVectorAroundAxis(Velo_oldAmbi(1:3),PartBound%RotPeriodicAxis,AlphaDelta)
   END IF
 END IF
 
@@ -721,8 +675,7 @@ IF(UseRotRefFrame) THEN
     IF(PDM%InRotRefFrame(PartID)) THEN
       ! Particle comes from a RotRefFrame: rotate the old PartVeloRotRef
       Velo_old(1:3) = PartVeloRotRef(1:3,PartID)
-      PartVeloRotRef(l,PartID) = COS(AlphaDelta)*Velo_old(l) - SIN(AlphaDelta)*Velo_old(m)
-      PartVeloRotRef(m,PartID) = SIN(AlphaDelta)*Velo_old(l) + COS(AlphaDelta)*Velo_old(m)
+      PartVeloRotRef(1:3,PartID) = RotateVectorAroundAxis(Velo_old(1:3),PartBound%RotPeriodicAxis,AlphaDelta)
     ELSE
       ! Particle comes from an inertial frame
       PartVeloRotRef(1:3,PartID) = PartState(4:6,PartID) - CROSS(RotRefFrameOmega(1:3),PartState(1:3,PartID))
