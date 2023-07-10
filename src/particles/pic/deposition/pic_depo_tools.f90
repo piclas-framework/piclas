@@ -297,8 +297,8 @@ END IF
 CALL BARRIER_AND_SYNC(NodeVolume_Shared_Win,MPI_COMM_SHARED)
 #endif
 IF (GEO%nPeriodicVectors.GT.0) THEN
-  NodeVolumeLoc = 0.
   IF (myComputeNodeRank.EQ.0) THEN
+    NodeVolumeLoc = 0.
     DO iNode = 1,nUniqueGlobalNodes
       IF (Periodic_nNodes_Shared(iNode).GT.0) THEN
         DO jNode = Periodic_offsetNode_Shared(iNode)+1,Periodic_offsetNode_Shared(iNode)+Periodic_nNodes_Shared(iNode)
@@ -306,15 +306,15 @@ IF (GEO%nPeriodicVectors.GT.0) THEN
         END DO ! jNode
       END IF ! Periodic_nNodes_Shared(iNode).GT.0
     END DO ! iNode = nUniqueGlobalNodes
+    ! Only node root adds contribution
+    NodeVolume = NodeVolume + NodeVolumeLoc
   END IF ! myComputeNodeRank.EQ.0
 
-  NodeVolume = NodeVolume + NodeVolumeLoc
 #if USE_MPI
   CALL BARRIER_AND_SYNC(NodeVolume_Shared_Win,MPI_COMM_SHARED)
 #endif
 END IF
 
-!END DO
 #if USE_MPI
 #if USE_DEBUG
 ! Sanity Check: Only check UniqueGlobalNodes that are on the compute node (total)

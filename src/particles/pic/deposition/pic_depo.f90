@@ -791,12 +791,11 @@ IF(myComputeNodeRank.EQ.0)THEN
     Periodic_nNodes_Shared(    iNode) = PeriodicNodesPerNode(iNode)
     nTotalPeriodicNodes               = nTotalPeriodicNodes + PeriodicNodesPerNode(iNode)
   END DO ! iNode = nUniqueGlobalNodes
-  ! Root knows the global number, now broadcast
-  CALL MPI_BCAST(nTotalPeriodicNodes,1,MPI_INTEGER,0,MPI_COMM_SHARED,iERROR)
 ELSE
   CALL MPI_REDUCE(PeriodicNodesPerNode,0                   ,nUniqueGlobalNodes,MPI_INTEGER,MPI_MAX,0,MPI_COMM_SHARED,IERROR)
-  CALL MPI_BCAST(nTotalPeriodicNodes,1,MPI_INTEGER,0,MPI_COMM_SHARED,iERROR)
 END IF
+! Root knows the global number, now broadcast to other procs
+CALL MPI_BCAST(nTotalPeriodicNodes,1,MPI_INTEGER,0,MPI_COMM_SHARED,iERROR)
 
 CALL BARRIER_AND_SYNC(Periodic_nNodes_Shared_Win    ,MPI_COMM_SHARED)
 CALL BARRIER_AND_SYNC(Periodic_offsetNode_Shared_Win,MPI_COMM_SHARED)
