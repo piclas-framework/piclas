@@ -149,7 +149,7 @@ DO WHILE (.NOT.Done)
   END DO  ! iLocSide=1,6
   TriNum = TriNumTemp(1)
   ! ----------------------------------------------------------------------------
-  ! Addition treatment if particle did not cross any sides or it crossed multiple sides
+  ! Additional treatment if particle did not cross any sides or it crossed multiple sides
   IF (NrOfThroughSides.NE.1) THEN
     ! 2c) If no sides are found, the particle is deleted (very rare case). If multiple possible sides are found, additional
     ! treatment is required, where the particle path is reconstructed (which side was crossed first) by comparing the ratio
@@ -162,7 +162,7 @@ DO WHILE (.NOT.Done)
         CALL StoreLostPhotonProperties(LastPhotPos,Pos,Dir,ElemID)
         NbrOfLostParticles=NbrOfLostParticles+1
         IF(DisplayLostParticles)THEN
-          IPWRITE(*,*) 'Error in Photon TriaTracking! Photon lost. Element:', ElemID
+          IPWRITE(*,*) 'Error in Photon TriaTracking (NrOfThroughSides=0)! Photon lost. Element:', ElemID
           IPWRITE(*,*) 'LastPos:  ', PhotonProps%PhotonLastPos(1:3)
           IPWRITE(*,*) 'Pos:      ', PhotonProps%PhotonPos(1:3)
           IPWRITE(*,*) 'Direction:', PhotonProps%PhotonDirection(1:3)
@@ -278,6 +278,7 @@ DO WHILE (.NOT.Done)
       END IF
     END IF  ! NrOfThroughSides.EQ.0/.GT.1
   END IF  ! NrOfThroughSides.NE.1
+
   ! ----------------------------------------------------------------------------
   ! 3) In case of a boundary, perform the appropriate boundary interaction
   IF (SideInfo_Shared(SIDE_BCID,SideID).GT.0) THEN
@@ -285,6 +286,7 @@ DO WHILE (.NOT.Done)
     iPBC = PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID))
     BCType = PartBound%TargetBoundCond(iPBC)
     SELECT CASE(BCType)
+
     CASE(1) !PartBound%OpenBC)
       IF(NrOfThroughSides.LT.2)THEN
         CALL PhotonIntersectionWithSide(LocalSide,ElemID,TriNum, IntersectionPos, PhotonLost)
@@ -295,7 +297,7 @@ DO WHILE (.NOT.Done)
             CALL StoreLostPhotonProperties(LastPhotPos,Pos,Dir,ElemID)
             NbrOfLostParticles=NbrOfLostParticles+1
             IF(DisplayLostParticles)THEN
-              IPWRITE(*,*) 'Error in Photon TriaTracking! PhotonIntersectionWithSide() cannot determine intersection'&
+              IPWRITE(*,*) 'Error in open BC Photon TriaTracking! PhotonIntersectionWithSide() cannot determine intersection'&
               //' because photon is parallel to side. ElemID:', ElemID
               IPWRITE(*,*) 'LastPos:  ', PhotonProps%PhotonLastPos(1:3)
               IPWRITE(*,*) 'Pos:      ', PhotonProps%PhotonPos(1:3)
@@ -322,6 +324,7 @@ DO WHILE (.NOT.Done)
         END IF
       END IF
       DONE = .TRUE.
+
     CASE(2) ! PartBound%ReflectiveBC
       ! Backup photon direction for ray tracing
       IF(RadiationAbsorptionModel.EQ.0) PhotonProps%PhotonDirectionBeforeReflection(1:3) = PhotonProps%PhotonDirection(1:3)
@@ -356,12 +359,29 @@ DO WHILE (.NOT.Done)
       END IF ! RadiationAbsorptionModel.EQ.0
 
     CASE(3) ! PartBound%PeriodicBC
-        CALL CalcAbsoprtion(IntersectionPos(1:3), ElemID, DONE)
-        IF (NrOfThroughSides.LT.2) THEN
-          CALL PeriodicPhotonBC(LocalSide,ElemID,TriNum,IntersectionPos,.FALSE.,SideID)
-        ELSE
-          CALL PeriodicPhotonBC(LocalSide,ElemID,TriNum,IntersectionPos,.TRUE.,SideID)
-        END IF
+      IF(NrOfThroughSides.LT.2)THEN
+        CALL PhotonIntersectionWithSide(LocalSide,ElemID,TriNum, IntersectionPos, PhotonLost)
+        IF(PhotonLost)THEN
+          ASSOCIATE( LastPhotPos => PhotonProps%PhotonLastPos(1:3), &
+                Pos         => PhotonProps%PhotonPos(1:3), &
+                Dir         => PhotonProps%PhotonDirection(1:3) )
+            CALL StoreLostPhotonProperties(LastPhotPos,Pos,Dir,ElemID)
+            NbrOfLostParticles=NbrOfLostParticles+1
+            IF(DisplayLostParticles)THEN
+              IPWRITE(*,*) 'Error in periodic Photon TriaTracking! PhotonIntersectionWithSide() cannot determine intersection'&
+              //' because photon is parallel to side. ElemID:', ElemID
+              IPWRITE(*,*) 'LastPos:  ', PhotonProps%PhotonLastPos(1:3)
+              IPWRITE(*,*) 'Pos:      ', PhotonProps%PhotonPos(1:3)
+              IPWRITE(*,*) 'Direction:', PhotonProps%PhotonDirection(1:3)
+              IPWRITE(*,*) 'Photon deleted!'
+            END IF ! DisplayLostParticles
+          END ASSOCIATE
+          Done = .TRUE.
+          EXIT
+        END IF ! PhotonLost
+      END IF ! NrOfThroughSides.LT.2
+      CALL CalcAbsoprtion(IntersectionPos(1:3), ElemID, DONE)
+      CALL PeriodicPhotonBC(LocalSide,ElemID,TriNum,IntersectionPos,.TRUE.,SideID)
     CASE DEFAULT
       CALL abort(__STAMP__,' ERROR: PartBound not associated!. (unknown case)',BCType,999.)
     END SELECT !PartBound%MapToPartBC(BC(SideID)
