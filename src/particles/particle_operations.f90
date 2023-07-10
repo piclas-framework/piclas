@@ -50,15 +50,15 @@ USE MOD_Part_Tools              ,ONLY: InRotRefFrameCheck
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
 ! INPUT / OUTPUT VARIABLES
-INTEGER, INTENT(IN)           :: SpecID        !< Species ID
-REAL, INTENT(IN)              :: Pos(1:3)      !< Position (x,y,z)
-INTEGER, INTENT(IN)           :: GlobElemID    !< global element ID
-REAL, INTENT(IN)              :: Velocity(1:3) !< Velocity (vx,vy,vz)
-REAL, INTENT(IN)              :: RotEnergy     !< Rotational energy
-REAL, INTENT(IN)              :: VibEnergy     !< Vibrational energy
-REAL, INTENT(IN)              :: ElecEnergy    !< Electronic energy
-INTEGER, INTENT(OUT),OPTIONAL :: NewPartID     !< ID of newly created particle
-REAL, INTENT(IN),OPTIONAL     :: NewMPF        !< MPF of newly created particle
+INTEGER, INTENT(IN)           :: SpecID           !< Species ID
+REAL, INTENT(IN)              :: Pos(1:3)         !< Position (x,y,z)
+INTEGER, INTENT(IN)           :: GlobElemID       !< global element ID
+REAL, INTENT(IN)              :: Velocity(1:3)    !< Velocity (vx,vy,vz)
+REAL, INTENT(IN)              :: RotEnergy        !< Rotational energy
+REAL, INTENT(IN)              :: VibEnergy        !< Vibrational energy
+REAL, INTENT(IN)              :: ElecEnergy       !< Electronic energy
+INTEGER, INTENT(OUT),OPTIONAL :: NewPartID        !< ID of newly created particle
+REAL, INTENT(IN),OPTIONAL     :: NewMPF           !< MPF of newly created particle
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! LOCAL VARIABLES
 INTEGER :: newParticleID
@@ -125,6 +125,7 @@ END IF ! usevMPF
 IF(UseRotRefFrame) THEN
   PDM%InRotRefFrame(newParticleID) = InRotRefFrameCheck(newParticleID)
   IF(PDM%InRotRefFrame(newParticleID)) THEN
+    ! Initialize the velocity in the RotRefFrame by transforming the regular velocity
     PartVeloRotRef(1:3,newParticleID) = PartState(4:6,newParticleID) - CROSS(RotRefFrameOmega(1:3),PartState(1:3,newParticleID))
   ELSE
     PartVeloRotRef(1:3,newParticleID) = 0.

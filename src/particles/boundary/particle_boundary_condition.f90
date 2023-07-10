@@ -507,21 +507,24 @@ SUBROUTINE RotPeriodicInterPlaneBC(PartID,SideID,ElemID,IsInterPlanePart)
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_Globals_Vars           ,ONLY: PI
-USE MOD_Particle_Vars          ,ONLY: PartState,LastPartPos,Species,PartSpecies
-USE MOD_Particle_Mesh_Vars     ,ONLY: SideInfo_Shared
-USE MOD_Particle_Boundary_Vars ,ONLY: PartBound, InterPlaneSideMapping
-USE MOD_TImeDisc_Vars          ,ONLY: dt,RKdtFrac
-USE MOD_Particle_Vars          ,ONLY: UseVarTimeStep, PartTimeStep, VarTimeStep
-USE MOD_Particle_Mesh_Tools    ,ONLY: ParticleInsideQuad3D
-USE MOD_part_tools             ,ONLY: StoreLostParticleProperties
-USE MOD_Particle_Tracking_Vars ,ONLY: NbrOfLostParticles, TrackInfo, CountNbrOfLostParts,DisplayLostParticles
-USE MOD_DSMC_Vars              ,ONLY: DSMC, AmbipolElecVelo
-USE MOD_part_operations        ,ONLY: CreateParticle, RemoveParticle
-USE MOD_DSMC_Vars              ,ONLY: CollisMode, useDSMC, PartStateIntEn
-USE MOD_Particle_Vars          ,ONLY: usevMPF,PartMPF,PDM,InterPlanePartNumber, InterPlanePartIndx
+USE MOD_Globals_Vars            ,ONLY: PI
+USE MOD_Particle_Vars           ,ONLY: PartState,LastPartPos,Species,PartSpecies
+USE MOD_Particle_Mesh_Vars      ,ONLY: SideInfo_Shared
+USE MOD_Particle_Boundary_Vars  ,ONLY: PartBound, InterPlaneSideMapping
+USE MOD_TImeDisc_Vars           ,ONLY: dt,RKdtFrac
+USE MOD_Particle_Vars           ,ONLY: UseVarTimeStep, PartTimeStep, VarTimeStep
+USE MOD_Particle_Mesh_Tools     ,ONLY: ParticleInsideQuad3D
+USE MOD_part_tools              ,ONLY: StoreLostParticleProperties
+USE MOD_Particle_Tracking_Vars  ,ONLY: NbrOfLostParticles, TrackInfo, CountNbrOfLostParts,DisplayLostParticles
+USE MOD_DSMC_Vars               ,ONLY: DSMC, AmbipolElecVelo
+USE MOD_part_operations         ,ONLY: CreateParticle, RemoveParticle
+USE MOD_DSMC_Vars               ,ONLY: CollisMode, useDSMC, PartStateIntEn
+USE MOD_Particle_Vars           ,ONLY: usevMPF,PartMPF,PDM,InterPlanePartNumber, InterPlanePartIndx
+USE MOD_Particle_Vars           ,ONLY: UseRotRefFrame, RotRefFrameOmega, PartVeloRotRef
+USE MOD_Part_Tools              ,ONLY: InRotRefFrameCheck
+USE MOD_part_RHS                ,ONLY: CalcPartRHSRotRefFrame
 #ifdef CODE_ANALYZE
-USE MOD_Particle_Tracking_Vars ,ONLY: PartOut,MPIRankOut
+USE MOD_Particle_Tracking_Vars  ,ONLY: PartOut,MPIRankOut
 #endif /*CODE_ANALYZE*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -534,15 +537,15 @@ INTEGER,INTENT(INOUT),OPTIONAL    :: ElemID
 LOGICAL,INTENT(IN),OPTIONAL       :: IsInterPlanePart
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                              :: iSide, InterSideID, NumInterPlaneSides,NewElemID
-REAL                                 :: dtVar
-LOGICAL                              :: FoundInElem, DoCreateParticles
-REAL                                 :: LastPartPos_old(1:3),Velo_old(1:3), Velo_oldAmbi(1:3)
-REAL                                 :: RanNum, RadiusPOI,rot_alpha_POIold,AlphaDelta
-REAL                                 :: RadiusInterPlane(1:2)
-INTEGER                              :: iPartBound,k,l,m,NewPartID,NewPartNumber,iNewPart
-REAL                                 :: DeleteOrCloneProb,VibEnergy,RotEnergy,ElecEnergy
-REAL                                 :: VecAngle
+INTEGER                           :: iSide, InterSideID, NumInterPlaneSides,NewElemID
+REAL                              :: dtVar
+LOGICAL                           :: FoundInElem, DoCreateParticles
+REAL                              :: LastPartPos_old(1:3),Velo_old(1:3), Velo_oldAmbi(1:3), VeloPush(1:3)
+REAL                              :: RanNum, RadiusPOI,rot_alpha_POIold,AlphaDelta
+REAL                              :: RadiusInterPlane(1:2)
+INTEGER                           :: iPartBound,k,l,m,NewPartID,NewPartNumber,iNewPart
+REAL                              :: DeleteOrCloneProb,VibEnergy,RotEnergy,ElecEnergy
+REAL                              :: VecAngle, rot_alpha
 !===================================================================================================================================
 
 #ifdef CODE_ANALYZE
@@ -565,22 +568,22 @@ iPartBound=PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID))
 IF(DoCreateParticles) THEN
   DeleteOrCloneProb = PartBound%AngleRatioOfInterPlanes(iPartBound)
   IF(DeleteOrCloneProb.LT.0.) CALL abort(__STAMP__,' ERROR: DeleteOrCloneProb below zero! Interplane might not be on the processor.')
+  ! (1.b) DeleteOrCloneProb.LT.1.0 -> Delete particle?
   IF(DeleteOrCloneProb.LT.1.0) THEN
-! (1.b) DeleteOrCloneProb.LT.1.0 -> Delete particle?
     CALL RANDOM_NUMBER(RanNum)
     IF(RanNum.GT.DeleteOrCloneProb) THEN
       CALL RemoveParticle(PartID,BCID=PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID)))
       RETURN
     END IF
+  ! (1.b.I) DeleteOrCloneProb.GT.1.0 -> Calc number of inter particles
   ELSE IF(DeleteOrCloneProb.GT.1.0) THEN
-! (1.b.I) DeleteOrCloneProb.GT.1.0 -> Calc number of inter particles
     NewPartNumber = INT(DeleteOrCloneProb) - 1
     DeleteOrCloneProb = DeleteOrCloneProb - INT(DeleteOrCloneProb)
     CALL RANDOM_NUMBER(RanNum) 
     IF(RanNum.LE.DeleteOrCloneProb) THEN
       NewPartNumber = NewPartNumber + 1
     END IF
-! (1.c.II) Create inter particles
+    ! (1.c.II) Create inter particles
     DO iNewPart = 1,NewPartNumber
       InterPlanePartNumber = InterPlanePartNumber + 1
       IF (useDSMC.AND.(CollisMode.GT.1)) THEN
@@ -596,11 +599,11 @@ IF(DoCreateParticles) THEN
         RotEnergy = 0.0
         ElecEnergy = 0.0
       END IF
-! For creating inter particles:
-! - LastPartPos(1:3,NewPartID) must be redefined as long as LastPartPos is set to PartState in CreateParticle routine
-! - ParticleInside for InterParticles must be .FALSE. in order to avoid error looping over the original PDM%ParticleVecLength
-!   in ParticleTriaTracking() routine. The inside flag is set to .TRUE. 
-!   when we loop over all inter particle in SingleParticleTriaTracking routine
+      ! For creating inter particles:
+      ! - LastPartPos(1:3,NewPartID) must be redefined as long as LastPartPos is set to PartState in CreateParticle routine
+      ! - ParticleInside for InterParticles must be .FALSE. in order to avoid error looping over the original PDM%ParticleVecLength
+      !   in ParticleTriaTracking() routine. The inside flag is set to .TRUE. 
+      !   when we loop over all inter particle in SingleParticleTriaTracking routine
       IF (usevMPF) THEN   
         CALL CreateParticle( PartSpecies(PartID) &
                            , PartState(1:3,PartID) &
@@ -621,6 +624,15 @@ IF(DoCreateParticles) THEN
         LastPartPos(1:3,NewPartID)    = LastPartPos(1:3,PartID)
         PDM%ParticleInside(NewPartID) = .FALSE.
         InterPlanePartIndx(InterPlanePartNumber) = NewPartID
+      END IF
+      ! Treatment for the rotational frame of reference: stored here, will be rotated together with the regular velocity later
+      IF(UseRotRefFrame) THEN
+        PDM%InRotRefFrame(NewPartID) = PDM%InRotRefFrame(PartID)
+        IF(PDM%InRotRefFrame(NewPartID)) THEN
+          PartVeloRotRef(1:3,NewPartID) = PartVeloRotRef(1:3,PartID)
+        ELSE
+          PartVeloRotRef(1:3,NewPartID) = 0.
+        END IF
       END IF
     END DO
   END IF
@@ -663,43 +675,70 @@ END SELECT
 LastPartPos(k,PartID) = LastPartPos(k,PartID) + TrackInfo%PartTrajectory(k)*TrackInfo%alpha*0.0000001
 ! (2.b) calc random new POI position 
 CALL RANDOM_NUMBER(RanNum)
-ASSOCIATE(rot_alpha => RanNum*PartBound%RotPeriodicAngle(PartBound%AssociatedPlane(iPartBound))* 0.9999999 )
-  RadiusPOI=SQRT( LastPartPos_old(l)*LastPartPos_old(l)+LastPartPos_old(m)*LastPartPos_old(m) )
-  RadiusInterPlane(1) = RadiusPOI * PartBound%NormalizedRadiusDir(1,PartBound%AssociatedPlane(iPartBound))
-  RadiusInterPlane(2) = RadiusPOI * PartBound%NormalizedRadiusDir(2,PartBound%AssociatedPlane(iPartBound))
-  LastPartPos(l,PartID) = COS(rot_alpha)*RadiusInterPlane(1) - SIN(rot_alpha)*RadiusInterPlane(2)
-  LastPartPos(m,PartID) = SIN(rot_alpha)*RadiusInterPlane(1) + COS(rot_alpha)*RadiusInterPlane(2)
+rot_alpha = RanNum*PartBound%RotPeriodicAngle(PartBound%AssociatedPlane(iPartBound))* 0.9999999
+RadiusPOI=SQRT( LastPartPos_old(l)*LastPartPos_old(l)+LastPartPos_old(m)*LastPartPos_old(m) )
+RadiusInterPlane(1) = RadiusPOI * PartBound%NormalizedRadiusDir(1,PartBound%AssociatedPlane(iPartBound))
+RadiusInterPlane(2) = RadiusPOI * PartBound%NormalizedRadiusDir(2,PartBound%AssociatedPlane(iPartBound))
+LastPartPos(l,PartID) = COS(rot_alpha)*RadiusInterPlane(1) - SIN(rot_alpha)*RadiusInterPlane(2)
+LastPartPos(m,PartID) = SIN(rot_alpha)*RadiusInterPlane(1) + COS(rot_alpha)*RadiusInterPlane(2)
 
 ! (3) Change velocity accordingly
 ! (3.a) calc alpha between POI_old and PartBound%NormalizedRadiusDir
-  VecAngle = (LastPartPos_old(l) * PartBound%NormalizedRadiusDir(1,PartBound%AssociatedPlane(iPartBound))   &
-           +  LastPartPos_old(m) * PartBound%NormalizedRadiusDir(2,PartBound%AssociatedPlane(iPartBound)) ) &
-           / RadiusPOI
-  IF(ABS(VecAngle) - 1.0.LE. 1.0E-6) THEN
-    IF(VecAngle.GT.0.0) THEN
-      rot_alpha_POIold = 0.0
-    ELSE
-      rot_alpha_POIold = PI       !   ACOS(-1.0)
-    END IF
+VecAngle = (LastPartPos_old(l) * PartBound%NormalizedRadiusDir(1,PartBound%AssociatedPlane(iPartBound))   &
+          + LastPartPos_old(m) * PartBound%NormalizedRadiusDir(2,PartBound%AssociatedPlane(iPartBound)) ) &
+          / RadiusPOI
+IF(ABS(VecAngle) - 1.0.LE. 1.0E-6) THEN
+  IF(VecAngle.GT.0.0) THEN
+    rot_alpha_POIold = 0.0
   ELSE
-    rot_alpha_POIold = ACOS( VecAngle )
+    rot_alpha_POIold = PI       !   ACOS(-1.0)
   END IF
+ELSE
+  rot_alpha_POIold = ACOS( VecAngle )
+END IF
 ! (3.b) calc difference between alpha to POI_old and rot_alpha to get the rotating angle from
 !       POI_old to POI_new (including sign)
-  AlphaDelta = rot_alpha_POIold - ABS(rot_alpha)
+AlphaDelta = rot_alpha_POIold - ABS(rot_alpha)
 ! (3.c) rotate velocity vector
-  PartState(l+3,PartID) = COS(AlphaDelta)*Velo_old(l) - SIN(AlphaDelta)*Velo_old(m)
-  PartState(m+3,PartID) = SIN(AlphaDelta)*Velo_old(l) + COS(AlphaDelta)*Velo_old(m)
-  IF (DSMC%DoAmbipolarDiff) THEN
-    IF(Species(PartSpecies(PartID))%ChargeIC.GT.0.0) THEN
-      AmbipolElecVelo(PartID)%ElecVelo(l+3) = COS(AlphaDelta)*Velo_oldAmbi(l) - SIN(AlphaDelta)*Velo_oldAmbi(m)
-      AmbipolElecVelo(PartID)%ElecVelo(m+3) = SIN(AlphaDelta)*Velo_oldAmbi(l) + COS(AlphaDelta)*Velo_oldAmbi(m)
-    END IF
+PartState(l+3,PartID) = COS(AlphaDelta)*Velo_old(l) - SIN(AlphaDelta)*Velo_old(m)
+PartState(m+3,PartID) = SIN(AlphaDelta)*Velo_old(l) + COS(AlphaDelta)*Velo_old(m)
+IF (DSMC%DoAmbipolarDiff) THEN
+  IF(Species(PartSpecies(PartID))%ChargeIC.GT.0.0) THEN
+    AmbipolElecVelo(PartID)%ElecVelo(l+3) = COS(AlphaDelta)*Velo_oldAmbi(l) - SIN(AlphaDelta)*Velo_oldAmbi(m)
+    AmbipolElecVelo(PartID)%ElecVelo(m+3) = SIN(AlphaDelta)*Velo_oldAmbi(l) + COS(AlphaDelta)*Velo_oldAmbi(m)
   END IF
-END ASSOCIATE
+END IF
 
-! (4) Calc particle position after random new POI according new velo and remaining time
-PartState(1:3,PartID) = LastPartPos(1:3,PartID) + (1.0 - TrackInfo%alpha/TrackInfo%lengthPartTrajectory)*dtVar*PartState(4:6,PartID)
+VeloPush(1:3) = PartState(4:6,PartID)
+
+! (4) Treatment of velocity in rotational frame of reference
+IF(UseRotRefFrame) THEN
+  ! Setting the PartState to the POI to determine whether the particle moved into a RotRefFrame (is later overwritten anyway)
+  PartState(1:3,PartID) = LastPartPos(1:3,PartID)
+  ! Check is repeated in the FUNCTION InRotRefFrameCheck at the current PartState(1:3)
+  IF(InRotRefFrameCheck(PartID)) THEN
+    ! Particle moved into a RotRefFrame
+    IF(PDM%InRotRefFrame(PartID)) THEN
+      ! Particle comes from a RotRefFrame: rotate the old PartVeloRotRef
+      Velo_old(1:3) = PartVeloRotRef(1:3,PartID)
+      PartVeloRotRef(l,PartID) = COS(AlphaDelta)*Velo_old(l) - SIN(AlphaDelta)*Velo_old(m)
+      PartVeloRotRef(m,PartID) = SIN(AlphaDelta)*Velo_old(l) + COS(AlphaDelta)*Velo_old(m)
+    ELSE
+      ! Particle comes from an inertial frame
+      PartVeloRotRef(1:3,PartID) = PartState(4:6,PartID) - CROSS(RotRefFrameOmega(1:3),PartState(1:3,PartID))
+    END IF
+    ! Calculate the acceleration
+    PartVeloRotRef(1:3,PartID) = PartVeloRotRef(1:3,PartID) + CalcPartRHSRotRefFrame(PartState(1:3,PartID),PartVeloRotRef(1:3,PartID)) &
+                                                              * dtVar * (1.0 - TrackInfo%alpha/TrackInfo%lengthPartTrajectory)
+    VeloPush(1:3) = PartVeloRotRef(1:3,PartID)
+  ELSE
+    PartVeloRotRef(1:3,PartID) = 0.
+  END IF
+  PDM%InRotRefFrame(PartID) = InRotRefFrameCheck(PartID)
+END IF
+
+! (5) Calc particle position after random new POI according new velo and remaining time
+PartState(1:3,PartID) = LastPartPos(1:3,PartID) + (1.0 - TrackInfo%alpha/TrackInfo%lengthPartTrajectory)*dtVar*VeloPush(1:3)
 ! compute moved particle || rest of movement
 TrackInfo%PartTrajectory=PartState(1:3,PartID) - LastPartPos(1:3,PartID)
 TrackInfo%lengthPartTrajectory= VECNORM(TrackInfo%PartTrajectory)
@@ -708,6 +747,7 @@ IF(ALMOSTZERO(TrackInfo%lengthPartTrajectory))THEN
 ELSE
   TrackInfo%PartTrajectory=TrackInfo%PartTrajectory/TrackInfo%lengthPartTrajectory
 END IF
+
 #ifdef CODE_ANALYZE
 IF(PARTOUT.GT.0 .AND. MPIRANKOUT.EQ.MyRank)THEN
   IF(PartID.EQ.PARTOUT)THEN
