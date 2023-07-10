@@ -39,8 +39,9 @@ USE MOD_Globals               ,ONLY: DOTPRODUCT,abort,CROSS
 USE MOD_Globals_Vars          ,ONLY: PI,c,c2_inv,c2
 USE MOD_PICInterpolation_Vars ,ONLY: AnalyticInterpolationType,AnalyticInterpolationSubType,AnalyticInterpolationP
 USE MOD_PICInterpolation_Vars ,ONLY: AnalyticInterpolationPhase,AnalyticInterpolationGamma,AnalyticInterpolationE,AnalyticPartDim
+USE MOD_PICInterpolation_Vars ,ONLY: TimeReset,r_WallVec,v_WallVec
 USE MOD_TimeDisc_Vars         ,ONLY: TEnd
-USE MOD_PARTICLE_Vars         ,ONLY: PartSpecies,Species,RotRefFrameOmega,RotRefFrameFreq,PartState
+USE MOD_PARTICLE_Vars         ,ONLY: PartSpecies,Species,RotRefFrameOmega,RotRefFrameFreq,PartVeloRotRef
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
@@ -64,6 +65,7 @@ REAL    :: c1
 REAL    :: gamma1
 REAL    :: TempArrayCross1(3),TempArrayCross2(3),TempArrayCross3(3),TempArrayCross4(3),TempArrayCross5(3),TempArrayCross6(3)
 REAL    :: r_0Vec(3),v_0Vec(3),r_tVec(3),OmegaNormVec(3)
+REAL    :: New_t
 !===================================================================================================================================
 PartStateAnalytic=0. ! default
 
@@ -322,7 +324,128 @@ ASSOCIATE( iPart => 1 )
                                    + omega * t * SIN(omega * t) * ( TempArrayCross4(3) + 1/omega * TempArrayCross5(3) ) &
                                    - omega * t * COS(omega * t) * ( TempArrayCross3(3) - 1/omega * TempArrayCross6(3) )
 
-              PartStateAnalytic(4:6) = 0.0
+              PartStateAnalytic(4) = v_0Vec(1)           &
+                                   - TempArrayCross6(1)  &
+                                   + omega * ( COS(omega * t) * TempArrayCross3(1) - SIN(omega * t) * TempArrayCross4(1) ) &
+                                   + ( omega * (SIN(omega * t) + omega * t * COS(omega * t) ) ) &
+                                                                    * ( TempArrayCross4(1) + 1/omega * TempArrayCross5(1) ) &
+                                   - ( omega * (COS(omega * t) - omega * t * SIN(omega * t) ) ) &
+                                                                    * ( TempArrayCross3(1) - 1/omega * TempArrayCross6(1) )
+
+              PartStateAnalytic(5) = v_0Vec(2)           &
+                                   - TempArrayCross6(2)  &
+                                   + omega * ( COS(omega * t) * TempArrayCross3(2) - SIN(omega * t) * TempArrayCross4(2) ) &
+                                   + ( omega * (SIN(omega * t) + omega * t * COS(omega * t) ) ) &
+                                                                    * ( TempArrayCross4(2) + 1/omega * TempArrayCross5(2) ) &
+                                   - ( omega * (COS(omega * t) - omega * t * SIN(omega * t) ) ) &
+                                                                    * ( TempArrayCross3(2) - 1/omega * TempArrayCross6(2) )
+
+              PartStateAnalytic(6) = v_0Vec(3)           &
+                                   - TempArrayCross6(3)  &
+                                   + omega * ( COS(omega * t) * TempArrayCross3(3) - SIN(omega * t) * TempArrayCross4(3) ) &
+                                   + ( omega * (SIN(omega * t) + omega * t * COS(omega * t) ) ) &
+                                                                    * ( TempArrayCross4(3) + 1/omega * TempArrayCross5(3) ) &
+                                   - ( omega * (COS(omega * t) - omega * t * SIN(omega * t) ) ) &
+                                                                    * ( TempArrayCross3(3) - 1/omega * TempArrayCross6(3) )
+
+!              PartStateAnalytic(4:6) = 0.0
+    END ASSOCIATE
+    END ASSOCIATE
+    END ASSOCIATE
+    END ASSOCIATE
+    END ASSOCIATE
+  ! 51: motion of the particle in RotRefFrame with wall collisions at x=0
+  CASE(51)
+    ASSOCIATE( omega      => 2.*PI*RotRefFrameFreq ) 
+    ASSOCIATE(x_0    =>  Species(PartSpecies(iPart))%Init(1)%BasePointIC(1), & 
+              y_0    =>  Species(PartSpecies(iPart))%Init(1)%BasePointIC(2), & 
+              z_0    =>  Species(PartSpecies(iPart))%Init(1)%BasePointIC(3))
+    ASSOCIATE(vx_0    => Species(PartSpecies(iPart))%Init(1)%VeloVecIC(1) * Species(PartSpecies(iPart))%Init(1)%VeloIC )
+    ASSOCIATE(vy_0    => Species(PartSpecies(iPart))%Init(1)%VeloVecIC(2) * Species(PartSpecies(iPart))%Init(1)%VeloIC )
+    ASSOCIATE(vz_0    => Species(PartSpecies(iPart))%Init(1)%VeloVecIC(3) * Species(PartSpecies(iPart))%Init(1)%VeloIC )
+
+
+
+
+              IF(TimeReset.GT.0.0) THEN
+                r_0Vec          = r_WallVec
+                v_0Vec          = v_WallVec
+                New_t           = t - TimeReset
+              ELSE
+                r_0Vec          = (/x_0,y_0,z_0/)
+                v_0Vec          = (/vx_0,vy_0,vz_0/)
+                New_t           = t
+                v_0Vec = v_0Vec - CROSS(RotRefFrameOmega(1:3),r_0Vec)
+              END IF
+
+
+
+              r_tVec          = r_0Vec + v_0Vec * New_t
+              OmegaNormVec    = RotRefFrameOmega/omega
+              TempArrayCross1 = CROSS(r_tVec,OmegaNormVec)
+              TempArrayCross2 = CROSS(OmegaNormVec,TempArrayCross1)
+              TempArrayCross3 = CROSS(r_0Vec,OmegaNormVec)
+              TempArrayCross4 = CROSS(OmegaNormVec,TempArrayCross3)
+              TempArrayCross5 = CROSS(v_0Vec,OmegaNormVec)
+              TempArrayCross6 = CROSS(OmegaNormVec,TempArrayCross5)
+
+              PartStateAnalytic(1) = r_0Vec(1) + v_0Vec(1) * New_t                                                          &
+                                   - TempArrayCross2(1)                                                                 &
+                                   + SIN(omega * New_t) * TempArrayCross3(1) + COS(omega * New_t) * TempArrayCross4(1)          &
+                                   + omega * New_t * SIN(omega * New_t) * ( TempArrayCross4(1) + 1/omega * TempArrayCross5(1) ) &
+                                   - omega * New_t * COS(omega * New_t) * ( TempArrayCross3(1) - 1/omega * TempArrayCross6(1) )
+
+              PartStateAnalytic(2) = r_0Vec(2) + v_0Vec(2) * New_t                                                          &
+                                   - TempArrayCross2(2)                                                                 &
+                                   + SIN(omega * New_t) * TempArrayCross3(2) + COS(omega * New_t) * TempArrayCross4(2)          &
+                                   + omega * New_t * SIN(omega * New_t) * ( TempArrayCross4(2) + 1/omega * TempArrayCross5(2) ) &
+                                   - omega * New_t * COS(omega * New_t) * ( TempArrayCross3(2) - 1/omega * TempArrayCross6(2) )
+
+              PartStateAnalytic(3) = r_0Vec(3) + v_0Vec(3) * New_t                                                          &
+                                   - TempArrayCross2(3)                                                                 &
+                                   + SIN(omega * New_t) * TempArrayCross3(3) + COS(omega * New_t) * TempArrayCross4(3)          &
+                                   + omega * New_t * SIN(omega * New_t) * ( TempArrayCross4(3) + 1/omega * TempArrayCross5(3) ) &
+                                   - omega * New_t * COS(omega * New_t) * ( TempArrayCross3(3) - 1/omega * TempArrayCross6(3) )
+
+
+              PartStateAnalytic(4) = v_0Vec(1)           &
+                                   - TempArrayCross6(1)  &
+                                   + omega * ( COS(omega * New_t) * TempArrayCross3(1) - SIN(omega * New_t) * TempArrayCross4(1) ) &
+                                   + ( omega * (SIN(omega * New_t) + omega * New_t * COS(omega * New_t) ) ) &
+                                                                    * ( TempArrayCross4(1) + 1/omega * TempArrayCross5(1) ) &
+                                   - ( omega * (COS(omega * New_t) - omega * New_t * SIN(omega * New_t) ) ) &
+                                                                    * ( TempArrayCross3(1) - 1/omega * TempArrayCross6(1) )
+
+              PartStateAnalytic(5) = v_0Vec(2)           &
+                                   - TempArrayCross6(2)  &
+                                   + omega * ( COS(omega * New_t) * TempArrayCross3(2) - SIN(omega * New_t) * TempArrayCross4(2) ) &
+                                   + ( omega * (SIN(omega * New_t) + omega * New_t * COS(omega * New_t) ) ) &
+                                                                    * ( TempArrayCross4(2) + 1/omega * TempArrayCross5(2) ) &
+                                   - ( omega * (COS(omega * New_t) - omega * New_t * SIN(omega * New_t) ) ) &
+                                                                    * ( TempArrayCross3(2) - 1/omega * TempArrayCross6(2) )
+
+              PartStateAnalytic(6) = v_0Vec(3)           &
+                                   - TempArrayCross6(3)  &
+                                   + omega * ( COS(omega * New_t) * TempArrayCross3(3) - SIN(omega * New_t) * TempArrayCross4(3) ) &
+                                   + ( omega * (SIN(omega * New_t) + omega * New_t * COS(omega * New_t) ) ) &
+                                                                    * ( TempArrayCross4(3) + 1/omega * TempArrayCross5(3) ) &
+                                   - ( omega * (COS(omega * New_t) - omega * New_t * SIN(omega * New_t) ) ) &
+                                                                    * ( TempArrayCross3(3) - 1/omega * TempArrayCross6(3) )
+
+
+!              IF((PartStateAnalytic(1).GE.0.0).AND.(TimeReset.LE.0.0)) THEN
+              IF(PartStateAnalytic(1).GT.1E-6) THEN
+                TimeReset    = t
+                r_WallVec    = PartStateAnalytic(1:3)
+                v_WallVec(1) = -PartStateAnalytic(4)
+                v_WallVec(2) = PartStateAnalytic(5)
+                v_WallVec(3) = PartStateAnalytic(6)
+              END IF
+
+
+
+
+!              PartStateAnalytic(4:6) = 0.0
     END ASSOCIATE
     END ASSOCIATE
     END ASSOCIATE
