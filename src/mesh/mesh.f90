@@ -882,7 +882,7 @@ LocalVolume = SUM(ElemVolume_Shared(offsetElemCNProc+1:offsetElemCNProc+nElems))
 #if USE_MPI
 #ifdef PARTICLES
 ! Compute-node mesh volume
-CNVolume = SUM(ElemVolume_Shared(:))
+CALL MPI_ALLREDUCE(LocalVolume,CNVolume,1,MPI_DOUBLE_PRECISION,MPI_SUM,MPI_COMM_SHARED,IERROR)
 IF (myComputeNodeRank.EQ.0) THEN
   ! All-reduce between node leaders
   CALL MPI_ALLREDUCE(CNVolume,MeshVolume,1,MPI_DOUBLE_PRECISION,MPI_SUM,MPI_COMM_LEADERS_SHARED,IERROR)
