@@ -347,8 +347,6 @@ ASSOCIATE( iPart => 1 )
                                                                     * ( TempArrayCross4(3) + 1/omega * TempArrayCross5(3) ) &
                                    - ( omega * (COS(omega * t) - omega * t * SIN(omega * t) ) ) &
                                                                     * ( TempArrayCross3(3) - 1/omega * TempArrayCross6(3) )
-
-!              PartStateAnalytic(4:6) = 0.0
     END ASSOCIATE
     END ASSOCIATE
     END ASSOCIATE
@@ -434,7 +432,7 @@ ASSOCIATE( iPart => 1 )
 
 
 !              IF((PartStateAnalytic(1).GE.0.0).AND.(TimeReset.LE.0.0)) THEN
-              IF(PartStateAnalytic(1).GT.1E-6) THEN
+              IF(ABS(PartStateAnalytic(1)).LT.1E-8) THEN
                 TimeReset    = t
                 r_WallVec    = PartStateAnalytic(1:3)
                 v_WallVec(1) = -PartStateAnalytic(4)
@@ -488,7 +486,7 @@ END SUBROUTINE CalcAnalyticalParticleState
 SUBROUTINE CalcErrorParticle(t,iter,PartStateAnalytic)
 ! MODULES
 USE MOD_PICInterpolation_Vars ,ONLY: L_2_Error_Part,AnalyticPartDim,L_2_Error_Part_time
-USE MOD_Particle_Vars         ,ONLY: PartState, PDM
+USE MOD_Particle_Vars         ,ONLY: PartState, PDM, PartVeloRotRef, UseRotRefFrame
 USE MOD_Globals_Vars          ,ONLY: c2_inv
 USE MOD_globals               ,ONLY: DOTPRODUCT
 #if (PP_TimeDiscMethod==508) || (PP_TimeDiscMethod==509)
@@ -534,6 +532,13 @@ ELSE
       ! Store particle state in temp. variable
       PartStateLoc(1:6) = PartState(1:6,iPart)
 
+      !-- Only for DSMC timedisk method for testing rotational reference
+      ! Use PartVeloRotRef for comparison with analytical solution
+#if (PP_TimeDiscMethod==4)
+      IF(UseRotRefFrame) THEN
+        PartStateLoc(4:6) = PartVeloRotRef(1:3,iPart)
+      END IF
+#endif /*(PP_TimeDiscMethod==4)*/
       !-- Only for time-staggered methods (Leapfrog and Boris-Leapfrog):
       ! Set analytic velocity at v(n-0.5) from analytic particle solution
 #if (PP_TimeDiscMethod==508) || (PP_TimeDiscMethod==509)
