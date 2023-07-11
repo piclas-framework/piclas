@@ -88,7 +88,7 @@ INTEGER               :: iMom
 REAL,PARAMETER        :: RelMomTol=1e-6  ! Relative tolerance applied to conservation of momentum before/after reaction
 REAL,PARAMETER        :: RelEneTol=1e-12 ! Relative tolerance applied to conservation of energy before/after reaction
 #endif /* CODE_ANALYZE */
-REAL                  :: totalWeightSpec(nSpecies), totalWeight, partWeight, CellTemptmp, MassIC_Mixture
+REAL                  :: totalWeightSpec(nSpecies), totalWeight, totalWeight2, partWeight, CellTemptmp, MassIC_Mixture
 REAL                  :: EVibSpec(nSpecies), Xi_VibSpec(nSpecies), Xi_VibSpecNew(nSpecies)
 REAL                  :: ERotSpec(nSpecies), Xi_RotSpec(nSpecies), Xi_RotTotal
 REAL                  :: CellTempRel, TEqui
@@ -115,7 +115,7 @@ END DO
 IF(nPart.LE.2) RETURN
 
 ! 1.) Moment calculation: Summing up the relative velocities and their squares
-CALL CalcMoments(nPart, iPartIndx_Node, nSpec, vBulkAll, totalWeight, totalWeightSpec, TotalMass,  u2, u2Spec, u0ij, &
+CALL CalcMoments(nPart, iPartIndx_Node, nSpec, vBulkAll, totalWeight, totalWeight2, totalWeightSpec, TotalMass,  u2, u2Spec, u0ij, &
                  u2i, OldEn, EVibSpec, ERotSpec, CellTemp, SpecTemp, dtCell)
 
 IF((CellTemp.LE.0.0).OR.(MAXVAL(nSpec(:)).EQ.1).OR.(totalWeight.LE.0.0)) RETURN
@@ -199,8 +199,9 @@ IF(BGKDoVibRelaxation) THEN
   END IF
 END IF
 
-CALL CalcTRelax(ERotSpec, Xi_RotSpec, Xi_VibSpec, EVibSpec, totalWeightSpec, totalWeight, nPart, dtCell, CellTemp, TRotSpec, &
-    TVibSpec, relaxfreq, rotrelaxfreqSpec, vibrelaxfreqSpec, Xi_VibSpecNew, Xi_vib_DOF, nXiVibDOF, CellTempRel, TEqui, betaR, betaV)
+CALL CalcTRelax(ERotSpec, Xi_RotSpec, Xi_VibSpec, EVibSpec, totalWeightSpec, totalWeight, totalWeight2, nPart, dtCell, CellTemp, &
+    TRotSpec, TVibSpec, relaxfreq, rotrelaxfreqSpec, vibrelaxfreqSpec, Xi_VibSpecNew, Xi_vib_DOF, nXiVibDOF, CellTempRel, TEqui, &
+    betaR, betaV)
 
 CALL DetermineRelaxPart(nPart, iPartIndx_Node, relaxfreq, dtCell, nRelax, nRotRelax, nVibRelax, &
     RotRelaxWeightSpec, VibRelaxWeightSpec, iPartIndx_NodeRelax, iPartIndx_NodeRelaxTemp, iPartIndx_NodeRelaxRot, &
@@ -360,7 +361,7 @@ END DO
 END SUBROUTINE BGK_CollisionOperator
 
 
-SUBROUTINE CalcMoments(nPart, iPartIndx_Node, nSpec, vBulkAll, totalWeight, totalWeightSpec, TotalMass, u2, u2Spec, &
+SUBROUTINE CalcMoments(nPart, iPartIndx_Node, nSpec, vBulkAll, totalWeight, totalWeight2, totalWeightSpec, TotalMass, u2, u2Spec, &
                        u0ij, u2i, OldEn, EVibSpec, ERotSpec, CellTemp, SpecTemp, dtCell)
 !===================================================================================================================================
 !> Moment calculation: Summing up the relative velocities and their squares
@@ -382,12 +383,12 @@ INTEGER, INTENT(IN)           :: nPart, iPartIndx_Node(nPart)
 INTEGER, INTENT(OUT)          :: nSpec(nSpecies)
 REAL, INTENT(OUT)             :: u2Spec(nSpecies),u0ij(3,3), OldEn, EVibSpec(nSpecies), ERotSpec(nSpecies), u2i(3), u2
 REAL, INTENT(OUT)             :: CellTemp, SpecTemp(nSpecies), totalWeightSpec(nSpecies)
-REAL, INTENT(OUT)             :: vBulkAll(3), totalWeight, TotalMass, dtCell
+REAL, INTENT(OUT)             :: vBulkAll(3), totalWeight, totalWeight2, TotalMass, dtCell
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER                       :: iLoop, iPart, iSpec, fillMa1, fillMa2
 REAL                          :: V_rel(1:3), vmag2, EnerTotal, ThermEner, totalWeightSpec2(nSpecies), vBulkSpec(3,nSpecies)
-REAL                          :: partWeight, tempweight, tempweight2, tempmass, vBulkTemp(3), totalWeight2, totalWeight3
+REAL                          :: partWeight, tempweight, tempweight2, tempmass, vBulkTemp(3), totalWeight3
 LOGICAL                       :: validSpec(nSpecies)
 !===================================================================================================================================
 totalWeightSpec = 0.0; totalWeightSpec2=0.0; vBulkAll=0.0; TotalMass=0.0; vBulkSpec=0.0; nSpec=0; dtCell=0.0
@@ -583,7 +584,7 @@ SUBROUTINE CalcInnerDOFs(nSpec, EVibSpec, ERotSpec, totalWeightSpec, TVibSpec, T
 !===================================================================================================================================
 ! MODULES
 USE MOD_Particle_Vars          ,ONLY: nSpecies
-USE MOD_DSMC_Vars              ,ONLY: SpecDSMC, PolyatomMolDSMC
+USE MOD_DSMC_Vars              ,ONLY: SpecDSMC
 USE MOD_BGK_Vars               ,ONLY: BGKDoVibRelaxation
 USE MOD_Globals_Vars           ,ONLY: BoltzmannConst
 USE MOD_Particle_Analyze_Tools ,ONLY: CalcTVibPoly
@@ -599,8 +600,7 @@ REAL, INTENT(OUT)             :: TVibSpec(nSpecies), TRotSpec(nSpecies), InnerDO
 REAL, INTENT(OUT)             :: Xi_RotSpec(nSpecies)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                       :: iPolyatMole, iSpec, iDOF
-REAL                          :: exparg
+INTEGER                       :: iSpec
 !===================================================================================================================================
 Xi_VibSpec=0.; InnerDOF=0.; Xi_RotSpec=0.; TVibSpec=0.; TRotSpec=0.
 DO iSpec = 1, nSpecies
@@ -609,7 +609,6 @@ DO iSpec = 1, nSpecies
   IF((SpecDSMC(iSpec)%InterID.EQ.2).OR.(SpecDSMC(iSpec)%InterID.EQ.20)) THEN
     IF(BGKDoVibRelaxation) THEN
       IF(SpecDSMC(iSpec)%PolyatomicMol) THEN ! polyatomic
-        iPolyatMole = SpecDSMC(iSpec)%SpecToPolyArray
         ! Calculation of the vibrational temperature (zero-point search) for polyatomic molecules
         TVibSpec(iSpec) = CalcTVibPoly(EVibSpec(iSpec)/totalWeightSpec(iSpec) + SpecDSMC(iSpec)%EZeroPoint, iSpec)
       ELSE ! diatomic
@@ -746,14 +745,6 @@ IF (nSpecies.GT.1) THEN ! gas mixture
 
   IF(DSMC%CalcQualityFactors) BGK_ExpectedPrandtlNumber = BGK_ExpectedPrandtlNumber + Prandtl
 
-  ! Ensure anisotropic matrix to be positive definite - gas mixtures only for ESBGK by now
-  A = u0ij ! pressure tensor
-  CALL DSYEV('N','U',3,A,3,W,Work,100,INFO) ! calculate eigenvalues, W(3) is maximum eigenvalue
-  Theta = u2 / 3. ! kB*T/m
-  nu = 1.-1./Prandtl
-  nu= MAX(nu,-Theta/(W(3)-Theta))
-  Prandtl = 1./(1.-nu)
-
   ! Calculation of relaxation frequency
   relaxfreq = Prandtl*dens*BoltzmannConst*CellTemp/dynamicvis
 
@@ -776,8 +767,9 @@ END IF
 END SUBROUTINE CalcGasProperties
 
 
-SUBROUTINE CalcTRelax(ERotSpec, Xi_RotSpec, Xi_VibSpec, EVibSpec, totalWeightSpec, totalWeight, nPart, dtCell, CellTemp, TRotSpec, &
-    TVibSpec, relaxfreq, rotrelaxfreqSpec, vibrelaxfreqSpec, Xi_VibSpecNew, Xi_vib_DOF, nXiVibDOF, CellTempRel, TEqui, betaR, betaV)
+SUBROUTINE CalcTRelax(ERotSpec, Xi_RotSpec, Xi_VibSpec, EVibSpec, totalWeightSpec, totalWeight, totalWeight2, nPart, dtCell, &
+    CellTemp, TRotSpec, TVibSpec, relaxfreq, rotrelaxfreqSpec, vibrelaxfreqSpec, Xi_VibSpecNew, Xi_vib_DOF, nXiVibDOF, &
+    CellTempRel, TEqui, betaR, betaV)
 !===================================================================================================================================
 !> Calculate the relaxation energies and temperatures
 !===================================================================================================================================
@@ -794,7 +786,7 @@ USE MOD_Globals               ,ONLY: abort
 INTEGER, INTENT(IN)           :: nPart, nXiVibDOF
 REAL, INTENT(IN)              :: TRotSpec(nSpecies), ERotSpec(nSpecies), Xi_RotSpec(nSpecies)
 REAL, INTENT(IN)              :: TVibSpec(nSpecies), EVibSpec(nSpecies), Xi_VibSpec(nSpecies)
-REAL, INTENT(IN)              :: totalWeightSpec(nSpecies), totalWeight, CellTemp, dtCell
+REAL, INTENT(IN)              :: totalWeightSpec(nSpecies), totalWeight, totalWeight2, CellTemp, dtCell
 REAL, INTENT(IN)              :: relaxfreq, rotrelaxfreqSpec(nSpecies), vibrelaxfreqSpec(nSpecies)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
@@ -821,7 +813,7 @@ DO iSpec = 1, nSpecies
       ! Mean rotational energy per particle of a species
       ERotSpecMean(iSpec) = ERotSpec(iSpec)/totalWeightSpec(iSpec)
       ! Mean rotational energy per particle of a species for the mixture translational temperature, ERot(Ttrans)
-      ERotTtransSpecMean(iSpec) = CellTemp * Xi_RotSpec(iSpec) * BoltzmannConst /2.
+      ERotTtransSpecMean(iSpec) = CellTemp * Xi_RotSpec(iSpec) * BoltzmannConst / 2.
       ! Calculate number of rotational relaxing molecules
       RotFracSpec(iSpec) = totalWeightSpec(iSpec)*(rotrelaxfreqSpec(iSpec)/relaxfreq)*(1.-EXP(-relaxfreq*dtCell))
 
@@ -833,8 +825,8 @@ DO iSpec = 1, nSpecies
           ! Loop over all vibrational DOF
           DO iDOF = 1, PolyatomMolDSMC(iPolyatMole)%VibDOF
             ! Mean vibrational energy per particle of a species for the mixture translational temperature, EVib(Ttrans)
-            EVibTtransSpecMean(iSpec) = EVibTtransSpecMean(iSpec) + BoltzmannConst*PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iDOF) / &
-              (EXP(PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iDOF)/CellTemp) - 1.)
+            EVibTtransSpecMean(iSpec) = EVibTtransSpecMean(iSpec) + BoltzmannConst*PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iDOF) &
+              / (EXP(PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iDOF)/CellTemp) - 1.)
           END DO
         ELSE ! diatomic
           ! Mean vibrational energy per particle of a species for the mixture translational temperature, EVib(Ttrans)
@@ -862,19 +854,22 @@ END DO
 IF (ETransRelMean.GT.0.0) THEN
   CellTempRel = 2. * ETransRelMean / (3. * BoltzmannConst)
 ELSE
-  CALL abort(__STAMP__,'Negative energy for relaxation')
+  CellTempRel = CellTemp
 END IF
 
 ! Calculation of equilibrium temperature for relaxation and energy conservation
 TEqui_Old = 0.0
-TEquiNum = 3.*(nPart-1.)*CellTemp
-TEquiDenom = 3.*(nPart-1.)
+TEquiNum = 3.*(totalWeight - totalWeight2/totalWeight)*CellTemp
+TEquiDenom = 3.*(totalWeight - totalWeight2/totalWeight)
 ! Sum up over all species
 DO iSpec = 1, nSpecies
   IF((SpecDSMC(iSpec)%InterID.EQ.2).OR.(SpecDSMC(iSpec)%InterID.EQ.20)) THEN
-    TEquiNum = TEquiNum + Xi_RotSpec(iSpec)*RotFracSpec(iSpec)*TRotSpec(iSpec) + &
-      Xi_VibSpec(iSpec)*VibFracSpec(iSpec)*TVibSpec(iSpec)
-    TEquiDenom = TEquiDenom + Xi_RotSpec(iSpec)*RotFracSpec(iSpec) + Xi_VibSpec(iSpec)*VibFracSpec(iSpec)
+    TEquiNum = TEquiNum + Xi_RotSpec(iSpec)*RotFracSpec(iSpec)*TRotSpec(iSpec)
+    TEquiDenom = TEquiDenom + Xi_RotSpec(iSpec)*RotFracSpec(iSpec)
+    IF(BGKDoVibRelaxation) THEN
+      TEquiNum = TEquiNum + Xi_VibSpec(iSpec)*VibFracSpec(iSpec)*TVibSpec(iSpec)
+      TEquiDenom = TEquiDenom + Xi_VibSpec(iSpec)*VibFracSpec(iSpec)
+    END IF
   END IF
 END DO
 TEqui = TEquiNum/TEquiDenom
@@ -899,7 +894,7 @@ DO WHILE ( ABS( TEqui - TEqui_Old ) .GT. eps_prec )
           IF (betaV(iSpec).LT.0.0) THEN
             betaV(iSpec) = 1.
           END IF
-          ! new calculation of number of rotational relaxing molecules
+          ! new calculation of number of vibrational relaxing molecules
           VibFracSpec(iSpec) = totalWeightSpec(iSpec)*(vibrelaxfreqSpec(iSpec)/relaxfreq)*(1.-EXP(-relaxfreq*dtCell))*betaV(iSpec)
         END IF
 
@@ -936,14 +931,17 @@ DO WHILE ( ABS( TEqui - TEqui_Old ) .GT. eps_prec )
   TEqui_Old = TEqui
   TEqui_Old2 = TEqui
   ! new calculation of equilibrium temperature with new RotFracSpec, new VibFracSpec, new VibDOF(TEqui) in denominator
-  TEquiNum = 3.*(nPart-1.)*CellTemp
-  TEquiDenom = 3.*(nPart-1.)
+  TEquiNum = 3.*(totalWeight - totalWeight2/totalWeight)*CellTemp
+  TEquiDenom = 3.*(totalWeight - totalWeight2/totalWeight)
   ! Sum up over all species
   DO iSpec = 1, nSpecies
     IF((SpecDSMC(iSpec)%InterID.EQ.2).OR.(SpecDSMC(iSpec)%InterID.EQ.20)) THEN
-      TEquiNum = TEquiNum + Xi_RotSpec(iSpec)*RotFracSpec(iSpec)*TRotSpec(iSpec) + &
-        Xi_VibSpec(iSpec)*VibFracSpec(iSpec)*TVibSpec(iSpec)
-      TEquiDenom = TEquiDenom + Xi_RotSpec(iSpec)*RotFracSpec(iSpec) + Xi_VibSpecNew(iSpec)*VibFracSpec(iSpec)
+      TEquiNum = TEquiNum + Xi_RotSpec(iSpec)*RotFracSpec(iSpec)*TRotSpec(iSpec)
+      TEquiDenom = TEquiDenom + Xi_RotSpec(iSpec)*RotFracSpec(iSpec)
+      IF(BGKDoVibRelaxation) THEN
+        TEquiNum = TEquiNum + Xi_VibSpec(iSpec)*VibFracSpec(iSpec)*TVibSpec(iSpec)
+        TEquiDenom = TEquiDenom + Xi_VibSpecNew(iSpec)*VibFracSpec(iSpec)
+      END IF
     END IF
   END DO
   TEqui = TEquiNum/TEquiDenom
@@ -985,8 +983,8 @@ DO WHILE ( ABS( TEqui - TEqui_Old ) .GT. eps_prec )
       END DO
       TEqui_Old2 = TEqui
       ! new calculation of equilibrium temperature with new RotFracSpec, new VibFracSpec, new VibDOF(TEqui) in denominator
-      TEquiNum = 3.*(nPart-1.)*CellTemp
-      TEquiDenom = 3.*(nPart-1.)
+      TEquiNum = 3.*(totalWeight - totalWeight2/totalWeight)*CellTemp
+      TEquiDenom = 3.*(totalWeight - totalWeight2/totalWeight)
       ! Sum up over all species
       DO iSpec = 1, nSpecies
         IF((SpecDSMC(iSpec)%InterID.EQ.2).OR.(SpecDSMC(iSpec)%InterID.EQ.20)) THEN
@@ -1233,26 +1231,14 @@ IF (nRelax.GT.0) THEN
         CALL DSYEV('V','U',3,A,3,W,Work,100,INFO)
         SMat = 0.0
         IF (W(3).LT.0.0) THEN
-          ! ! Due to ascending order of eigenvalues, all three eigenvalues are lower than zero here
-          ! ! Same calculation as for approximate solution (ESBGKModel.EQ.1)
-          ! DO fillMa1 = 1, 3
-          !   DO fillMa2 = fillMa1, 3
-          !     IF (fillMa1.EQ.fillMa2) THEN
-          !       KronDelta = 1.0
-          !     ELSE
-          !       KronDelta = 0.0
-          !     END IF
-          !     SMat(fillMa1, fillMa2) = KronDelta*CellTempRel*BoltzmannConst/MassIC_Mixture - (1.-Prandtl)/(2.*Prandtl) &
-          !       *(u0ij(fillMa1, fillMa2)-KronDelta*CellTemp*BoltzmannConst/MassIC_Mixture)
-          !   END DO
-          ! END DO
-          ! SMat(2,1)=SMat(1,2)
-          ! SMat(3,1)=SMat(1,3)
-          ! SMat(3,2)=SMat(2,3)
-          CALL abort(__STAMP__,'Sampling ESBGK 2')
+          ! Due to ascending order of eigenvalues, all three eigenvalues are lower than zero here
+          ! Fallback to Maxwell BGK
+          SMat(1,1) = SQRT(BoltzmannConst*CellTempRel/MassIC_Mixture)
+          SMat(2,2) = SQRT(BoltzmannConst*CellTempRel/MassIC_Mixture)
+          SMat(3,3) = SQRT(BoltzmannConst*CellTempRel/MassIC_Mixture)
         ELSE
           ! At least W(3) is not negative
-          ! Set negative eigenvalues to zero
+          ! Set negative eigenvalues to zero to get positive semidefinite matrix
           IF (W(1).LT.0.0) THEN
             W(1) = 0.0
             IF (W(2).LT.0.0) W(2) = 0.0
