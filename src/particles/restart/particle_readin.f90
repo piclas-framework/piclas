@@ -78,7 +78,6 @@ USE MOD_TimeDisc_Vars          ,ONLY: time
 #endif /*USE_LOADBALANCE*/
 USE MOD_Particle_Vars          ,ONLY: VibQuantData,ElecDistriData,AD_Data
 USE MOD_Particle_Vars          ,ONLY: PartDataSize,PartIntSize,PartDataVarNames
-USE MOD_Particle_Vars          ,ONLY: UseRotRefFrame
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -94,9 +93,10 @@ INTEGER,PARAMETER                  :: ELEM_LastPartInd  = 2
 INTEGER(KIND=IK)                   :: locnPart,offsetnPart
 INTEGER                            :: iElem
 INTEGER                            :: FirstElemInd,LastelemInd,i,j,k
-INTEGER                            :: MaxQuantNum,iPolyatMole,iSpec,iVar,MaxElecQuant
+INTEGER                            :: MaxQuantNum,iPolyatMole,iSpec,iVar,MaxElecQuant,iRead
 ! VarNames
 CHARACTER(LEN=255),ALLOCATABLE     :: StrVarNames_HDF5(:)
+LOGICAL,ALLOCATABLE                :: VariableMapped(:)
 ! HDF5 checkes
 LOGICAL                            :: VibQuantDataExists,changedVars,DGSourceExists
 LOGICAL                            :: ElecDistriDataExists,AD_DataExists
@@ -237,10 +237,13 @@ IF (PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance)) THEN
   ! Check the PartDataSize
   IF (PartDataSize.EQ.0) CALL Abort(__STAMP__,'PartDataSize.EQ.0 but should have been set before loadbalance!')
 
-  ! Variables will not have changed during the simulation, but flags have to be initialized
+  ! Variables will not have changed during the simulation, but flags and mapping have to be initialized
   ALLOCATE(readVarFromState(PartDataSize))
   readVarFromState = .TRUE.
-  IF(UseRotRefFrame) PartVeloRotRefExists = .TRUE.
+  ALLOCATE(MapPartDataToReadin(PartDataSize))
+  DO iVar=1,PartDataSize
+    MapPartDataToReadin(iVar) = iVar
+  END DO
 
   ! Set polyatomic and electronic shell variables
   IF (useDSMC) THEN
@@ -539,7 +542,8 @@ ELSE
 
       ALLOCATE(readVarFromState(PartDataSize))
       readVarFromState = .TRUE.
-      IF(UseRotRefFrame) PartVeloRotRefExists = .TRUE.
+      ALLOCATE(MapPartDataToReadin(PartDataSize))
+      MapPartDataToReadin = 0
 
       ALLOCATE(StrVarNames_HDF5(PartDataSize_HDF5))
       CALL ReadAttribute(File_ID,'VarNamesParticles',PartDataSize_HDF5,StrArray=StrVarNames_HDF5)
@@ -550,46 +554,56 @@ ELSE
         changedVars=.TRUE.
       ELSE
         changedVars=.FALSE.
+        DO iVar=1,PartDataSize
+          MapPartDataToReadin(iVar) = iVar
+        END DO
       END IF ! PartDataSize_HDF5.NE.PartDataSize
 
       IF (changedVars) THEN
-        SWRITE(*,*) 'WARNING: VarNamesParticles have changed from restart-file'
-        ! Check which variables were found in the .h5 file and flag the ones that were not found
-        readVarFromState=.FALSE.
-        DO iVar=1,PartDataSize_HDF5
-          IF (TRIM(PartDataVarNames(iVar)).EQ.TRIM(StrVarNames_HDF5(iVar))) THEN
-            readVarFromState(iVar)=.TRUE.
-          ELSE
-            CALL Abort(__STAMP__,"not associated VarNamesParticles in HDF5!")
-          END IF
-        END DO ! iVar=1,PartDataSize_HDF5
+        ALLOCATE(VariableMapped(PartDataSize_HDF5))
+        VariableMapped = .FALSE.
+        SWRITE(*,*) 'WARNING: VarNamesParticles have changed from restart file'
+        ! Loop over all the expected variables in the simulation (determined in InitPartDataSize)
         DO iVar=1,PartDataSize
-          IF (.NOT.readVarFromState(iVar)) THEN
+          readVarFromState(iVar)=.FALSE.
+          ! Loop over all the read-in variables from the state file
+          DO iRead=1,PartDataSize_HDF5
+            ! Map variables found in the read-in PartData to the required
+            IF (TRIM(PartDataVarNames(iVar)).EQ.TRIM(StrVarNames_HDF5(iRead))) THEN
+              MapPartDataToReadin(iVar) = iRead
+              readVarFromState(iVar)=.TRUE.
+              VariableMapped(iRead) = .TRUE.
+              SWRITE(*,*) 'Mapped '//TRIM(StrVarNames_HDF5(iRead))//' to following position in the state file: ', iRead
+            END IF
+          END DO
+          ! Variable has not been found, which is supported for a few variables
+          IF(MapPartDataToReadin(iVar).EQ.0) THEN
             IF (TRIM(PartDataVarNames(iVar)).EQ.'Vibrational' .OR. TRIM(PartDataVarNames(iVar)).EQ.'Rotational') THEN
               WRITE(UNIT=hilf,FMT='(I0)') iVar
               SWRITE(*,*) 'WARNING: The following VarNamesParticles(iVar='//TRIM(hilf)//') will be set to zero: '//TRIM(PartDataVarNames(iVar))
             ELSE IF(TRIM(PartDataVarNames(iVar)).EQ.'MPF') THEN
               SWRITE(*,*) 'WARNING: The particle weighting factor will be initialized with the given global weighting factor!'
+            ELSE IF(StringBeginsWith(PartDataVarNames(iVar),'VelocityRotRef')) THEN
+              IF(TRIM(PartDataVarNames(iVar)).EQ.'VelocityRotRefX') THEN
+                SWRITE(*,*) 'WARNING: Velocity in rotational frame of reference has not been found, will be initialized with the '//&
+                            'PartState transformed into the rotational frame.'
+              END IF
             ELSE
-              CALL Abort(__STAMP__,"not associated VarNamesParticles to be reset! PartDataVarNames(iVar)="//TRIM(PartDataVarNames(iVar))//&
-              '. Note that initializing electronic DOF and vibrational molecular species with zero ist not implemented.')
-            END IF ! TRIM(PartDataVarNames(iVar)).EQ.'Vibrational' .OR. TRIM(PartDataVarNames(iVar)).EQ.'Rotational'
-          END IF ! .NOT.readVarFromState(iVar)
-        END DO ! iVar=1,PartDataSize
-        IF(UseRotRefFrame) THEN
-          PartVeloRotRefExists = .FALSE.
-          DO iVar=1,PartDataSize_HDF5
-            IF (TRIM(StrVarNames_HDF5(iVar))  .EQ.'VelocityRotRefX'.AND. &
-                TRIM(StrVarNames_HDF5(iVar+1)).EQ.'VelocityRotRefY'.AND. &
-                TRIM(StrVarNames_HDF5(iVar+2)).EQ.'VelocityRotRefZ'.AND. &
-                readVarFromState(iVar).AND.readVarFromState(iVar+1).AND.readVarFromState(iVar+2)) PartVeloRotRefExists = .TRUE.
-          END DO
-          IF(.NOT.PartVeloRotRefExists) THEN
-            SWRITE(*,*) 'WARNING: Velocity in rotational frame of reference has not been found, will be initialized with the'//&
-                        'PartState transformed into the rotational frame.'
+              CALL Abort(__STAMP__,"ERROR: Not associated VarNamesParticles! PartDataVarNames(iVar)="//TRIM(PartDataVarNames(iVar)))
+            END IF
           END IF
+        END DO
+        ! Inform user about variables that have been dropped from the state file
+        IF(ANY(.NOT.VariableMapped(:))) THEN
+          SWRITE(*,*) 'The following variables have been dropped from the state file:'
+          DO iRead=1,PartDataSize_HDF5
+            IF(.NOT.VariableMapped(iRead)) THEN
+              SWRITE(*,*) ' '//TRIM(StrVarNames_HDF5(iRead))
+            END IF
+          END DO
         END IF
-      END IF ! changedVars
+        DEALLOCATE(VariableMapped)
+      END IF
 
       ALLOCATE(PartData(PartDataSize_HDF5,offsetnPart+1_IK:offsetnPart+locnPart))
       CALL ReadArray('PartData',2,(/INT(PartDataSize_HDF5,IK),locnPart/),offsetnPart,2,RealArray=PartData)

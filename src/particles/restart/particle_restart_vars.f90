@@ -24,9 +24,10 @@ SAVE
 !-----------------------------------------------------------------------------------------------------------------------------------
 LOGICAL                            :: PartIntExists
 LOGICAL                            :: PartDataExists
-LOGICAL                            :: PartVeloRotRefExists
 
-LOGICAL,ALLOCATABLE                :: readVarFromState(:)
+LOGICAL,ALLOCATABLE                :: readVarFromState(:)       !> Flag whether variable has been found in the read-in PartData
+
+INTEGER,ALLOCATABLE                :: MapPartDataToReadin(:)    !> Mapping from expected to the read-in variables in PartData
 
 !===================================================================================================================================
 END MODULE MOD_Particle_Restart_Vars

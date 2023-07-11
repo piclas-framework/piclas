@@ -161,21 +161,21 @@ IF(.NOT.DoMacroscopicRestart) THEN
         IF(UseRotRefFrame) THEN
           PDM%InRotRefFrame(iPart) = InRotRefFrameCheck(iPart)
           IF(PDM%InRotRefFrame(iPart)) THEN
-            IF(PartVeloRotRefExists) THEN
-              PartVeloRotRef(1:3,iPart) = PartData(1+iPos:3+iPos,offsetnPart+iLoop)
+            IF(readVarFromState(1+iPos).AND.readVarFromState(2+iPos).AND.readVarFromState(3+iPos)) THEN
+              PartVeloRotRef(1:3,iPart) = PartData(MapPartDataToReadin(1+iPos):MapPartDataToReadin(3+iPos),offsetnPart+iLoop)
             ELSE
               PartVeloRotRef(1:3,iPart) = PartState(4:6,iPart) - CROSS(RotRefFrameOmega(1:3),PartState(1:3,iPart))
             END IF
           ELSE
             PartVeloRotRef(1:3,iPart) = 0.
           END IF
-          IF(PartVeloRotRefExists) iPos=iPos+3
+          iPos=iPos+3
         END IF
 
         IF(useDSMC) THEN
           IF(CollisMode.GT.1) THEN
             IF(readVarFromState(1+iPos).AND.readVarFromState(2+iPos)) THEN
-              PartStateIntEn(1:2,iPart)=PartData(1+iPos:2+iPos,offsetnPart+iLoop)
+              PartStateIntEn(1:2,iPart)=PartData(MapPartDataToReadin(1+iPos):MapPartDataToReadin(2+iPos),offsetnPart+iLoop)
               iPos=iPos+2
             ELSE IF((SpecDSMC(SpecID)%InterID.EQ.1).OR.(SpecDSMC(SpecID)%InterID.EQ.10).OR.(SpecDSMC(SpecID)%InterID.EQ.15)) THEN
               !- setting inner DOF to 0 for atoms
@@ -187,7 +187,7 @@ IF(.NOT.DoMacroscopicRestart) THEN
               CALL Abort(__STAMP__,"resetting inner DOF for molecules is not implemented yet!")
             END IF ! readVarFromState
             IF(DSMC%ElectronicModel.GT.0) THEN
-              PartStateIntEn(3,iPart)=PartData(1+iPos,offsetnPart+iLoop)
+              PartStateIntEn(3,iPart)=PartData(MapPartDataToReadin(1+iPos),offsetnPart+iLoop)
               iPos=iPos+1
             END IF
           END IF
@@ -195,7 +195,7 @@ IF(.NOT.DoMacroscopicRestart) THEN
         IF(usevMPF) THEN
           ! Check if MPF was read from .h5 (or restarting with vMPF from non-vMPF restart file)
           IF(readVarFromState(1+iPos))THEN
-            PartMPF(iPart)=PartData(1+iPos,offsetnPart+iLoop)
+            PartMPF(iPart)=PartData(MapPartDataToReadin(1+iPos),offsetnPart+iLoop)
             iPos=iPos+1
           ELSE
             PartMPF(iPart)=Species(SpecID)%MacroParticleFactor
@@ -276,6 +276,7 @@ IF(.NOT.DoMacroscopicRestart) THEN
     END IF ! PartDataExists
     DEALLOCATE(PartInt)
     SDEALLOCATE(readVarFromState)
+    SDEALLOCATE(MapPartDataToReadin)
 
     PDM%ParticleVecLength = PDM%ParticleVecLength + iPart
     CALL UpdateNextFreePosition()
