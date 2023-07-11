@@ -1197,7 +1197,6 @@ SUBROUTINE BuildSurfMeshConnectivity(InputStateFile)
 USE MOD_Globals
 USE MOD_IO_HDF5            ,ONLY: HSize
 USE MOD_HDF5_Input         ,ONLY: OpenDataFile,CloseDataFile,ReadAttribute,GetDataSize,File_ID,ReadArray,GetDataSize
-USE MOD_Mesh_ReadIn        ,ONLY: readMesh
 USE MOD_Mesh_Tools         ,ONLY: GetCNElemID
 USE MOD_Mesh_Vars          ,ONLY: BoundaryName
 USE MOD_Mesh_Vars          ,ONLY: nBCSides, BC, SideToElem, offsetElem
