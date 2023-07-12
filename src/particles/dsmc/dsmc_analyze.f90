@@ -468,7 +468,7 @@ USE MOD_Globals
 USE MOD_MPI_Shared    
 USE MOD_Globals_Vars           ,ONLY: BoltzmannConst
 USE MOD_part_tools             ,ONLY: CalcVarWeightMPF, CalcRadWeightMPF
-USE MOD_BGK_Vars               ,ONLY: BGKInitDone, BGK_QualityFacSamp, CBC
+USE MOD_BGK_Vars               ,ONLY: BGKInitDone, BGK_QualityFacSamp, CBC, CoupledBGKDSMC
 USE MOD_DSMC_Vars              ,ONLY: DSMC_Solution, CollisMode, SpecDSMC, DSMC, useDSMC, BGGas
 USE MOD_DSMC_Vars              ,ONLY: RadialWeighting, VarWeighting, AdaptMPF, OptimalMPF_Shared
 USE MOD_FPFlow_Vars            ,ONLY: FPInitDone, FP_QualityFacSamp
@@ -743,15 +743,14 @@ IF (DSMC%CalcQualityFactors) THEN
         DSMC_MacroVal(nVarCount+7,iElem) = BGK_QualityFacSamp(5,iElem) / BGK_QualityFacSamp(4,iElem)
       END IF
       ! Ratio between BGK and DSMC usage per cell
-      DSMC_MacroVal(nVarCount+8,iElem) = BGK_QualityFacSamp(4,iElem) / iter_loc
-      DSMC_MacroVal(nVarCount+9,iElem) = CBC%OutputKnudsen(1,iElem)
-      DSMC_MacroVal(nVarCount+10,iElem) = CBC%OutputKnudsen(2,iElem)
-      DSMC_MacroVal(nVarCount+11,iElem) = CBC%OutputKnudsen(3,iElem)
-      DSMC_MacroVal(nVarCount+12,iElem) = CBC%OutputKnudsen(4,iElem)
-      DSMC_MacroVal(nVarCount+13,iElem) = CBC%OutputKnudsen(5,iElem)
-      DSMC_MacroVal(nVarCount+14,iElem) = CBC%OutputKnudsen(6,iElem)
-      DSMC_MacroVal(nVarCount+15,iElem) = CBC%OutputKnudsen(7,iElem)
-      nVarCount = nVarCount + 15
+      IF (CoupledBGKDSMC) THEN
+        DSMC_MacroVal(nVarCount+8,iElem) = BGK_QualityFacSamp(4,iElem) / iter_loc
+        DSMC_MacroVal(nVarCount+9:nVarCount+17,iElem) = CBC%OutputKnudsen(1:9,iElem)
+        nVarCount = nVarCount + 17
+      ELSE 
+        DSMC_MacroVal(nVarCount+8,iElem) = 1.
+        nVarCount = nVarCount + 8
+      END IF
     END IF
     ! variable rotation and vibration relaxation
     IF(Collismode.GT.1) THEN
@@ -901,7 +900,7 @@ USE MOD_Mesh_Vars     ,ONLY: offsetElem,nGlobalElems, nElems
 USE MOD_io_HDF5
 USE MOD_HDF5_Output   ,ONLY: WriteAttributeToHDF5, WriteHDF5Header, WriteArrayToHDF5
 USE MOD_Particle_Vars ,ONLY: nSpecies, UseVarTimeStep, SampleElecExcitation, ExcitationLevelCounter, DoVirtualCellMerge
-USE MOD_BGK_Vars      ,ONLY: BGKInitDone
+USE MOD_BGK_Vars      ,ONLY: BGKInitDone, CoupledBGKDSMC
 USE MOD_FPFlow_Vars   ,ONLY: FPInitDone
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -948,7 +947,13 @@ IF (DSMC%CalcQualityFactors) THEN
   IF(DoVirtualCellMerge) nVar_quality = nVar_quality + 1
   IF(RadialWeighting%PerformCloning) nVar_quality = nVar_quality + 2
   IF(VarWeighting%PerformCloning) nVar_quality = nVar_quality + 2
-  IF(BGKInitDone) nVar_quality = nVar_quality + 15
+  IF(BGKInitDone) THEN
+    IF(CoupledBGKDSMC) THEN
+      nVar_quality = nVar_quality + 17
+    ELSE 
+      nVar_quality = nVar_quality + 8
+    END IF
+  END IF
   IF(FPInitDone) nVar_quality = nVar_quality + 5
 ELSE
   nVar_quality=0
@@ -1057,15 +1062,20 @@ IF (DSMC%CalcQualityFactors) THEN
     StrVarNames(nVarCount+6) ='BGK_MaxRelaxationFactor'
     StrVarNames(nVarCount+7) ='BGK_MaxRotationRelaxFactor'
     StrVarNames(nVarCount+8) ='BGK_DSMC_Ratio'
-    StrVarNames(nVarCount+9) = 'Global_Knudsen'
-    StrVarNames(nVarCount+10) = 'Knudsen_Dens'
-    StrVarNames(nVarCount+11) = 'Knudsen_Velo'
-    StrVarNames(nVarCount+12) = 'Knudsen_Temp'    
-    StrVarNames(nVarCount+13) = 'Thermal_NonEquilibrium'
-    StrVarNames(nVarCount+14) = 'Chapman_Enskog_Tens'
-    StrVarNames(nVarCount+15) = 'Chapman_Enskog_Vec'
-
-    nVarCount=nVarCount+15
+    IF (CoupledBGKDSMC) THEN
+      StrVarNames(nVarCount+9) = 'Global_Knudsen'
+      StrVarNames(nVarCount+10) = 'Knudsen_Dens'
+      StrVarNames(nVarCount+11) = 'Knudsen_Velo'
+      StrVarNames(nVarCount+12) = 'Knudsen_Temp'    
+      StrVarNames(nVarCount+13) = 'Knudsen_Local'
+      StrVarNames(nVarCount+14) = 'Thermal_NonEquilibrium'
+      StrVarNames(nVarCount+15) = 'Chapman_Enskog_Tens'
+      StrVarNames(nVarCount+16) = 'Chapman_Enskog_Vec'
+      StrVarNames(nVarCount+17) = 'Chapman_Enskog_Total'
+      nVarCount=nVarCount+17
+    ELSE 
+      nVarCount=nVarCount+8
+    END IF
   END IF
   IF(FPInitDone) THEN
     StrVarNames(nVarCount+1) ='FP_MeanRelaxationFactor'

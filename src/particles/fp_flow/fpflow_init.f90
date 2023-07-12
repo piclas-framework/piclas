@@ -40,23 +40,34 @@ IMPLICIT NONE
 !==================================================================================================================================
 CALL prms%SetSection("FP-Flow")
 
-CALL prms%CreateIntOption(    'Particles-FP-CollModel',       'Select the Fokker-Planck method:\n'//&
-                                                              '1: Cubic (only atomic species)\n'//&
-                                                              '2: Ellipsoidal Statistical (ESFP)')
-CALL prms%CreateIntOption(    'Particles-ESFP-Model',         'Select the ESFP model:\n'//&
-                                                              '1: Exact\n'//&
-                                                              '2: Approximative', '1')
-CALL prms%CreateLogicalOption('Particles-FP-DoVibRelaxation', 'Enable modelling of vibrational excitation','.TRUE.')
-CALL prms%CreateLogicalOption('Particles-FP-UseQuantVibEn',   'Enable quantized modelling of vibrational energy levels','.TRUE.')
-CALL prms%CreateLogicalOption('Particles-FP-DoCellAdaptation','Enables octree cell refinement until the given number of '//&
-                                                              'particles is reached. Equal refinement in all three '//&
-                                                              'directions (x,y,z)','.FALSE.')
-CALL prms%CreateIntOption(    'Particles-FP-MinPartsPerCell', 'Define minimum number of particles per cell for octree '//&
-                                                              'cell refinement')
-CALL prms%CreateLogicalOption('Particles-CoupledFPDSMC',      'Perform a coupled DSMC-FP simulation with a given number density'//&
-                                                              'as a switch parameter','.FALSE.')
-CALL prms%CreateRealOption(   'Particles-FP-DSMC-SwitchDens', 'Number density [1/m3] above which the FP method is used, below'//&
-                                                              'which DSMC is performed.','0.0')
+CALL prms%CreateIntOption(    'Particles-FP-CollModel',            'Select the Fokker-Planck method:\n'//&
+                                                                   '1: Cubic (only atomic species)\n'//&
+                                                                   '2: Ellipsoidal Statistical (ESFP)')
+CALL prms%CreateIntOption(    'Particles-ESFP-Model',              'Select the ESFP model:\n'//&
+                                                                   '1: Exact\n'//&
+                                                                   '2: Approximative', '1')
+CALL prms%CreateLogicalOption('Particles-FP-DoVibRelaxation',      'Enable modelling of vibrational excitation','.TRUE.')
+CALL prms%CreateLogicalOption('Particles-FP-UseQuantVibEn',        'Enable quantized modelling of vibrational energy levels','.TRUE.')
+CALL prms%CreateLogicalOption('Particles-FP-DoCellAdaptation',     'Enables octree cell refinement until the given number of '//&
+                                                                   'particles is reached. Equal refinement in all three '//&
+                                                                   'directions (x,y,z)','.FALSE.')
+CALL prms%CreateIntOption(    'Particles-FP-MinPartsPerCell',      'Define minimum number of particles per cell for octree '//&
+                                                                   'cell refinement')
+CALL prms%CreateLogicalOption('Particles-CoupledFPDSMC',           'Perform a coupled DSMC-FP simulation with a given number density'//&
+                                                                   'as a switch parameter','.FALSE.')
+CALL prms%CreateStringOption( 'Particles-FP-DSMC-SwitchCriterium', 'Continuum-breakdown criterium used for the coupling: Density'//&
+                                                                   'GlobalKnudsen/LocalKnudsen/ThermNonEq/Combination', 'none')
+CALL prms%CreateIntOption(    'Particles-FP-DSMC-SampleIter',      'Iteration number after which a DSMC-FP switch can be performed','1')
+CALL prms%CreateRealOption(   'Particles-FP-DSMC-SwitchDens',      'Number density [1/m3] above which the FP method is used, below'//&
+                                                                   'which DSMC is performed.','0.0')
+CALL prms%CreateRealOption(   'Particles-FP-DSMC-CharLength',      'Characteristic length of the simulation domain for the calculation '//&
+                                                                   'of the global Knudsen number','1.0')
+CALL prms%CreateRealOption(   'Particles-FP-DSMC-MaxGlobalKnudsen','Global Knudsen number above which DSMC is used instead of FP','0.1')
+CALL prms%CreateRealOption(   'Particles-FP-DSMC-MaxLocalKnudsen', 'Local Knudsen number above which DSMC is used instaed of FP','0.1')
+CALL prms%CreateRealOption(   'Particles-FP-DSMC-MaxThermNonEq',   'Maximum value for the thermal non-equilibrium, above which '//&
+                                                                   'DSMC is used instead of FP','0.05')
+CALL prms%CreateRealOption(   'Particles-FP-DSMC-MaxChapmanEnskog','Maximum value for the Chapman-Enskog parameter, above which '//&
+                                                                   'DSMC is used instead of FP','1.0')
 
 END SUBROUTINE DefineParametersFPFlow
 
@@ -101,6 +112,9 @@ DO iSpec = 1, nSpecies
   END DO
 END DO
 
+ALLOCATE(FP_CBC%OutputKnudsen(9,nElems))
+FP_CBC%OutputKnudsen = 0.0
+
 FPCollModel = GETINT('Particles-FP-CollModel')
 ESFPModel = GETINT('Particles-ESFP-Model')
 DoBGKCellAdaptation = GETLOGICAL('Particles-FP-DoCellAdaptation')
@@ -123,11 +137,40 @@ END IF
 FPDoVibRelaxation = GETLOGICAL('Particles-FP-DoVibRelaxation')
 FPUseQuantVibEn = GETLOGICAL('Particles-FP-UseQuantVibEn')
 CoupledFPDSMC = GETLOGICAL('Particles-CoupledFPDSMC')
+ALLOCATE(FP_CBC%DoElementDSMC(nElems))
+FP_CBC%DoElementDSMC = .FALSE.
 IF(CoupledFPDSMC) THEN
   IF (DoVirtualCellMerge) THEN  
     CALL abort(__STAMP__,' Virtual cell merge not implemented for coupled DSMC-FP simulations!')
   END IF
-  FPDSMCSwitchDens = GETREAL('Particles-FP-DSMC-SwitchDens')
+  ! Coupling criteria DSMC
+  FP_CBC%SwitchCriterium   = TRIM(GETSTR('Particles-FP-DSMC-SwitchCriterium'))
+  FP_CBC%CharLength        = GETREAL('Particles-FP-DSMC-CharLength')
+  SELECT CASE (TRIM(FP_CBC%SwitchCriterium))
+  CASE('Density')
+    FP_CBC%SwitchDens       = GETREAL('Particles-FP-DSMC-SwitchDens')
+  CASE('GlobalKnudsen')
+    FP_CBC%MaxGlobalKnudsen = GETREAL('Particles-FP-DSMC-MaxGlobalKnudsen')
+  CASE('LocalKnudsen')
+    FP_CBC%MaxLocalKnudsen  = GETREAL('Particles-FP-DSMC-MaxLocalKnudsen')
+  CASE('ThermNonEq')
+    FP_CBC%MaxThermNonEq    = GETREAL('Particles-FP-DSMC-MaxThermNonEq')
+  CASE('Combination')
+    FP_CBC%MaxLocalKnudsen  = GETREAL('Particles-FP-DSMC-MaxLocalKnudsen')
+    FP_CBC%MaxThermNonEq    = GETREAL('Particles-FP-DSMC-MaxThermNonEq')
+  CASE('ChapmanEnskog')
+    FP_CBC%MaxChapmanEnskog = GETREAL('Particles-FP-DSMC-MaxChapmanEnskog')
+  CASE('Output')
+    SWRITE(*,*) 'Switch-Criterium = Output, FP is used for the simulation'
+  CASE DEFAULT
+    SWRITE(*,*) ' Coupling criterium is not defined or does not exist: ', TRIM(FP_CBC%SwitchCriterium)
+    CALL abort(__STAMP__,'Wrong coupling criterium given')
+  END SELECT
+
+  ! Number of iterations between a possible FP-DSMC switch
+  FP_CBC%SwitchIter = GETINT('Particles-FP-DSMC-SampleIter')
+  ALLOCATE(FP_CBC%Iter_Count(nElems))
+  FP_CBC%Iter_Count = 0
 END IF
 
 FPInitDone = .TRUE.
@@ -153,6 +196,9 @@ IMPLICIT NONE
 
 SDEALLOCATE(SpecFP)
 SDEALLOCATE(FP_QualityFacSamp)
+IF (CoupledFPDSMC) THEN
+  SDEALLOCATE(FP_CBC%Iter_Count)
+END IF
 
 END SUBROUTINE FinalizeFPFlow
 

@@ -45,12 +45,12 @@ SUBROUTINE FP_DSMC_main()
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
+USE MOD_FP_DSMC_Coupling
 USE MOD_TimeDisc_Vars       ,ONLY: TEnd, Time
 USE MOD_Mesh_Vars           ,ONLY: nElems, offsetElem
 USE MOD_Particle_Vars       ,ONLY: PEM, Species, WriteMacroVolumeValues, Symmetry, usevMPF
 USE MOD_FP_CollOperator     ,ONLY: FP_CollisionOperator
-USE MOD_FPFlow_Vars         ,ONLY: FPDSMCSwitchDens, FP_QualityFacSamp, FP_PrandtlNumber
-USE MOD_FPFlow_Vars         ,ONLY: FP_MaxRelaxFactor, FP_MaxRotRelaxFactor, FP_MeanRelaxFactor, FP_MeanRelaxFactorCounter
+USE MOD_FPFlow_Vars         
 USE MOD_DSMC_Vars           ,ONLY: DSMC, RadialWeighting, VarWeighting
 USE MOD_BGK_Vars            ,ONLY: DoBGKCellAdaptation
 USE MOD_BGK_Adaptation      ,ONLY: BGK_octree_adapt, BGK_quadtree_adapt
@@ -71,8 +71,6 @@ INTEGER, ALLOCATABLE  :: iPartIndx_Node(:)
 LOGICAL               :: DoElement(nElems)
 REAL                  :: dens, partWeight, totalWeight
 !===================================================================================================================================
-DoElement = .FALSE.
-
 DO iElem = 1, nElems
   CNElemID = GetCNElemID(iElem + offsetElem)
   nPart = PEM%pNumber(iElem)
@@ -89,10 +87,36 @@ DO iElem = 1, nElems
   ELSE
     dens = totalWeight * Species(1)%MacroParticleFactor / ElemVolume_Shared(CNElemID)
   END IF
-  IF (dens.LT.FPDSMCSwitchDens) THEN
-    DoElement(iElem) = .TRUE.
-    CYCLE
-  END IF
+
+  SELECT CASE (TRIM(FP_CBC%SwitchCriterium))
+  CASE('Density')
+    FP_CBC%Iter_Count(iElem) = FP_CBC%Iter_Count(iElem) + 1
+    IF (FP_CBC%Iter_Count(iElem).GE.FP_CBC%SwitchIter) THEN
+      ! Check if the particle number density is smaller than the BGK-DSMC switch criterium
+      IF (dens.LT.FP_CBC%SwitchDens) THEN
+        FP_CBC%DoElementDSMC(iElem) = .TRUE.
+      ELSE
+        FP_CBC%DoElementDSMC(iElem) = .FALSE.
+      END IF
+      ! reset the counter values
+      FP_CBC%Iter_Count(iElem) = 0
+    END IF
+
+  CASE('LocalKnudsen', 'GlobalKnudsen', 'ThermNonEq', 'Combination', 'ChapmanEnskog', 'Output')
+    FP_CBC%Iter_Count(iElem) = FP_CBC%Iter_Count(iElem) + 1
+    IF (FP_CBC%Iter_Count(iElem).GE.FP_CBC%SwitchIter) THEN
+      ! Call the subroutine to decide between FP and DSMC for the element
+      FP_CBC%DoElementDSMC(iElem) = FP_CBC_DoDSMC(iElem)
+      ! reset the counter values
+      FP_CBC%Iter_Count(iElem) = 0
+    END IF
+
+  CASE DEFAULT
+    FP_CBC%DoElementDSMC(iELem) = .FALSE.
+  END SELECT
+
+  IF (FP_CBC%DoElementDSMC(iElem)) CYCLE
+
   IF (nPart.LT.3) CYCLE
 
   IF (DoBGKCellAdaptation) THEN

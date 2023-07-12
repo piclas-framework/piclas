@@ -69,11 +69,9 @@ TYPE tCouplingCriteria
   REAL                                         :: MaxGlobalKnudsen
   REAL                                         :: MaxLocalKnudsen
   REAL                                         :: MaxThermNonEq
-  REAL                                         :: MaxStressTens
-  REAL                                         :: MaxHeatVec
+  REAL                                         :: MaxChapmanEnskog
   INTEGER                                      :: SwitchIter
   INTEGER, ALLOCATABLE                         :: Iter_Count(:)
-  REAL, ALLOCATABLE                            :: Avg_SwitchFactor(:)
   LOGICAL,ALLOCATABLE                          :: DoElementDSMC(:)
   REAL, ALLOCATABLE                            :: OutputKnudsen(:,:)
 END TYPE

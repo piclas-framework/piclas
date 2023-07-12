@@ -53,7 +53,7 @@ USE MOD_TimeDisc_Vars             ,ONLY: dt
 USE MOD_Particle_Vars             ,ONLY: PartSpecies,WriteMacroSurfaceValues,Species,usevMPF,PartMPF,PEM
 USE MOD_Particle_Tracking_Vars    ,ONLY: TrackingMethod, TrackInfo
 USE MOD_Particle_Boundary_Vars    ,ONLY: PartBound, GlobalSide2SurfSide, dXiEQ_SurfSample,SurfSideArea_Shared
-USE MOD_SurfaceModel_Vars         ,ONLY: nPorousBC, SurfChemReac , ChemWallProp, ChemSampWall !, ChemCountReacWall 
+USE MOD_SurfaceModel_Vars         ,ONLY: nPorousBC, SurfChemReac , ChemWallProp, ChemSampWall, ChemCountReacWall 
 USE MOD_Particle_Mesh_Vars        ,ONLY: SideInfo_Shared, BoundsOfElem_Shared
 USE MOD_Particle_Vars             ,ONLY: PDM, LastPartPos,PartState 
 USE MOD_Particle_Vars             ,ONLY: UseCircularInflow
@@ -410,7 +410,7 @@ CASE(20)  ! Adsorption or Eley-Rideal reaction
     END IF
 
     ! Count the number of surface reactions
-    ! ChemCountReacWall(iReac, 1, SubP, SubQ, SurfSideID) = ChemCountReacWall(iReac, 1, SubP, SubQ, SurfSideID) + partWeight
+    ChemCountReacWall(iReac, 1, SubP, SubQ, SurfSideID) = ChemCountReacWall(iReac, 1, SubP, SubQ, SurfSideID) + 1
 
   ! 4b.) ER: delete the incoming particle, update the surface values and create the gas phase products
   CASE('ER')
@@ -469,7 +469,7 @@ CASE(20)  ! Adsorption or Eley-Rideal reaction
     END IF
 
     ! Count the number of surface reactions
-    ! ChemCountReacWall(iReac, 1, SubP, SubQ, SurfSideID) = ChemCountReacWall(iReac, 1, SubP, SubQ, SurfSideID) + partWeight
+    ChemCountReacWall(iReac, 1, SubP, SubQ, SurfSideID) = ChemCountReacWall(iReac, 1, SubP, SubQ, SurfSideID) + 1
 
   CASE DEFAULT
     CALL MaxwellScattering(PartID,SideID,n_Loc)

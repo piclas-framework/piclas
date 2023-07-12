@@ -520,7 +520,7 @@ IF(VarWeighting%DoVariableWeighting) THEN
 END IF
 
 ! Initialization of the automatically adapted particle weights
-IF(DoMacroscopicRestart) AdaptMPF%DoAdaptMPF = GETLOGICAL('Part-Adaptive-weighting')
+AdaptMPF%DoAdaptMPF = GETLOGICAL('Part-Adaptive-weighting')
 
 IF (AdaptMPF%DoAdaptMPF) THEN
   CALL DSMC_InitAdaptiveWeights()

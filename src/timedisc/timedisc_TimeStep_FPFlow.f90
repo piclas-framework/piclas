@@ -48,6 +48,7 @@ USE MOD_Restart_Vars           ,ONLY: DoRestart
 USE MOD_Part_Tools             ,ONLY: CalcPartSymmetryPos
 #if USE_MPI
 USE MOD_Particle_MPI           ,ONLY: IRecvNbOfParticles, MPIParticleSend,MPIParticleRecv,SendNbOfparticles
+USE MOD_Particle_MPI_Boundary_Sampling, ONLY: ExchangeChemSurfData
 #endif /*USE_MPI*/
 USE MOD_FPFlow                 ,ONLY: FPFlow_main, FP_DSMC_main
 USE MOD_FPFlow_Vars            ,ONLY: CoupledFPDSMC

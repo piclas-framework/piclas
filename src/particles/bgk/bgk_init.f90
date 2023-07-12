@@ -88,6 +88,8 @@ CALL prms%CreateRealOption(  'Particles-BGK-DSMC-MaxGlobalKnudsen', 'Global Knud
 CALL prms%CreateRealOption(  'Particles-BGK-DSMC-MaxLocalKnudsen',  'Local Knudsen number above which DSMC is used instaed of BGK','0.1')
 CALL prms%CreateRealOption(  'Particles-BGK-DSMC-MaxThermNonEq',    'Maximum value for the thermal non-equilibrium, above which '//&
                                                                     'DSMC is used instead of BGK','0.05')
+CALL prms%CreateRealOption(  'Particles-BGK-DSMC-MaxChapmanEnskog', 'Maximum value for the Chapman-Enskog parameter, above which '//&
+                                                                    'DSMC is used instead of BGK','1.0')
 
 END SUBROUTINE DefineParametersBGK
 
@@ -135,7 +137,7 @@ DO iSpec=1, nSpecies
   END DO
 END DO
 
-ALLOCATE(CBC%OutputKnudsen(7,nElems))
+ALLOCATE(CBC%OutputKnudsen(9,nElems))
 CBC%OutputKnudsen = 0.0
 
 BGKCollModel = GETINT('Particles-BGK-CollModel')
@@ -155,7 +157,7 @@ IF(CoupledBGKDSMC) THEN
   END IF
   ! Coupling criteria DSMC
   CBC%SwitchCriterium    = TRIM(GETSTR('Particles-BGK-DSMC-SwitchCriterium'))
-  CBC%CharLength         = GETREAL('Particles-BGK-DSMC-CharLength')
+  CBC%CharLength        = GETREAL('Particles-BGK-DSMC-CharLength')
   SELECT CASE (TRIM(CBC%SwitchCriterium))
   CASE('Density')
     CBC%SwitchDens       = GETREAL('Particles-BGK-DSMC-SwitchDens')
@@ -168,6 +170,10 @@ IF(CoupledBGKDSMC) THEN
   CASE('Combination')
     CBC%MaxLocalKnudsen  = GETREAL('Particles-BGK-DSMC-MaxLocalKnudsen')
     CBC%MaxThermNonEq    = GETREAL('Particles-BGK-DSMC-MaxThermNonEq')
+  CASE('ChapmanEnskog')
+    CBC%MaxChapmanEnskog = GETREAL('Particles-BGK-DSMC-MaxChapmanEnskog')
+  CASE('Output')
+    SWRITE(*,*) 'Switch-Criterium = Output, BGK is used for the simulation'
   CASE DEFAULT
     SWRITE(*,*) ' Coupling criterium is not defined or does not exist: ', TRIM(CBC%SwitchCriterium)
     CALL abort(__STAMP__,'Wrong coupling criterium given')
@@ -175,17 +181,16 @@ IF(CoupledBGKDSMC) THEN
 
   ! Number of iterations between a possible BGK-DSMC switch
   CBC%SwitchIter = GETINT('Particles-BGK-DSMC-SampleIter')
-  ALLOCATE(CBC%Avg_SwitchFactor(nElems))
-  CBC%Avg_SwitchFactor = 0.0
   ALLOCATE(CBC%Iter_Count(nElems))
   CBC%Iter_Count = 0
-ELSE
-  IF(RadialWeighting%DoRadialWeighting) THEN
-    RadialWeighting%PerformCloning = .TRUE.
-  ELSE IF(VarWeighting%DoVariableWeighting) THEN
-    VarWeighting%PerformCloning = .TRUE.
-  END IF
 END IF
+
+IF(RadialWeighting%DoRadialWeighting) THEN
+  RadialWeighting%PerformCloning = .TRUE.
+ELSE IF(VarWeighting%DoVariableWeighting) THEN
+  VarWeighting%PerformCloning = .TRUE.
+END IF
+
 ! Octree-based cell refinement, up to a certain number of particles
 DoBGKCellAdaptation = GETLOGICAL('Particles-BGK-DoCellAdaptation')
 IF(DoBGKCellAdaptation) THEN
@@ -279,7 +284,6 @@ SDEALLOCATE(BGK_QualityFacSamp)
 SDEALLOCATE(CBC%DoElementDSMC)
 SDEALLOCATE(CBC%OutputKnudsen)
 IF (CoupledBGKDSMC) THEN
-  SDEALLOCATE(CBC%Avg_SwitchFactor)
   SDEALLOCATE(CBC%Iter_Count)
 END IF
 IF(BGKMovingAverage) CALL DeleteElemNodeAverage()

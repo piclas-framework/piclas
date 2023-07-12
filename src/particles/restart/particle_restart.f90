@@ -1122,9 +1122,10 @@ USE MOD_PreProc
 USE MOD_io_hdf5
 USE MOD_HDF5_Input              ,ONLY: OpenDataFile,ReadArray,GetDataSize,ReadAttribute
 USE MOD_HDF5_Input              ,ONLY: HSize,File_ID,GetDataProps
-USE MOD_Restart_Vars            ,ONLY: CatalyticFileName, CatRestartValues
-USE MOD_SurfaceModel_Vars       ,ONLY: ChemWallProp_Shared_Win, ChemWallProp, SurfChemReac
-USE MOD_Particle_Boundary_Vars  ,ONLY: SurfSideArea
+USE MOD_Restart_Vars            ,ONLY: CatalyticFileName
+USE MOD_SurfaceModel_Vars       ,ONLY: ChemWallProp
+USE MOD_Particle_Boundary_Vars  ,ONLY: SurfSideArea_Shared
+USE MOD_Particle_Boundary_Vars  ,ONLY: nComputeNodeSurfSides, nComputeNodeSurfOutputSides, offsetComputeNodeSurfSide
 USE MOD_Particle_Vars           ,ONLY: nSpecies
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -1139,8 +1140,7 @@ CHARACTER(LEN=255),ALLOCATABLE  :: VarNamesSurf_HDF5(:)
 INTEGER                         :: iSpec, nVarSurf, nSurfSample, nSurfaceSidesReadin
 REAL, ALLOCATABLE               :: tempSurfData(:,:,:,:), SurfData(:,:)
 REAL                            :: OutputTime
-INTEGER                         :: iSide
-LOGICAL                         :: FileTypeExists
+INTEGER                         :: iSide, ReadInSide
 !===================================================================================================================================
 
 SWRITE(UNIT_stdOut,*) 'Using catalytic values from file: ',TRIM(CatalyticFileName)
@@ -1182,14 +1182,13 @@ END DO
 CALL CloseDataFile()
 
 ! Read-In of the coverage values per species
-DO iSpec=1, nSpecies
-  ChemWallProp(iSpec,1,1,1,:) = SurfData(iSpec,:)
-END DO
-
-! Read-In of the heat flux
-DO iSide = 1, nSurfaceSidesReadin
-  ! All of the heat flux is attributed to species 1 in the macroscopic restart
-  ChemWallProp(1,2,1,1,iSide) = SurfData(nSpecies+1,iSide)*OutputTime*SurfSideArea(1,1,iSide)
+DO iSide = 1, nComputeNodeSurfSides
+  ReadInSide = iSide + offsetComputeNodeSurfSide
+  DO iSpec = 1, nSpecies
+  ! Initial surface coverage
+    ChemWallProp(iSpec,1,1,1,iSide) = SurfData(iSpec,ReadInSide)
+  END DO
+  ChemWallProp(1,2,1,1,iSide) = SurfData(nSpecies+1,ReadInSide)*OutputTime*SurfSideArea_Shared(1,1,iSide)
 END DO
 
 SDEALLOCATE(VarNamesSurf_HDF5)

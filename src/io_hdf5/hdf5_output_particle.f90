@@ -275,8 +275,10 @@ USE MOD_Globals
 USE MOD_Mesh_Vars              ,ONLY: nGlobalElems, offsetElem
 USE MOD_Particle_Vars          ,ONLY: usevMPF, VarTimeStep
 USE MOD_Particle_Vars          ,ONLY: PartInt,PartData,PartDataSize,locnPart,offsetnPart,PartIntSize
-USE MOD_part_tools             ,ONLY: UpdateNextFreePosition
-USE MOD_DSMC_Vars              ,ONLY: UseDSMC, CollisMode,DSMC
+USE MOD_part_tools             ,ONLY: UpdateNextFreePosition, CalcVarWeightMPF
+USE MOD_DSMC_Vars              ,ONLY: UseDSMC, CollisMode,DSMC, AdaptMPF
+USE MOD_Mesh_Tools             ,ONLY: GetCNElemID
+USE MOD_Particle_Mesh_Vars     ,ONLY: ElemMidPoint_Shared
 #if USE_MPI
 USE MOD_Particle_MPI_Vars      ,ONLY: PartMPI
 #endif /*USE_MPI*/
@@ -296,6 +298,8 @@ CHARACTER(LEN=255),INTENT(IN)  :: FileName
 CHARACTER(LEN=255),ALLOCATABLE :: StrVarNames(:)
 LOGICAL                        :: reSwitch
 LOGICAL                        :: withDSMC=.FALSE.
+REAL, ALLOCATABLE              :: AdaptMPF_Output(:)
+INTEGER                        :: iElem, CNElemID
 !===================================================================================================================================
 withDSMC=useDSMC
 
@@ -330,6 +334,15 @@ ASSOCIATE (&
       PP_nElems             => INT(PP_nElems,IK)             ,&
       offsetElem            => INT(offsetElem,IK)            ,&
       PartDataSize          => INT(PartDataSize,IK)          )
+
+
+  IF (AdaptMPF%DoAdaptMPF) THEN
+    ALLOCATE(AdaptMPF_Output(PP_nElems))
+    DO iElem = 1, PP_nElems
+      CNElemID = GetCNElemID(iElem + offsetElem)
+      AdaptMPF_Output(iElem) = CalcVarWeightMPF(ElemMidPoint_Shared(:,CNElemID),1,iElem)
+    END DO
+  END IF
 
   CALL GatheredWriteArray(FileName                    , create = .FALSE.            , &
                           DataSetName     = 'PartInt' , rank   = 2                  , &
@@ -408,6 +421,16 @@ ASSOCIATE (&
                               collective   = UseCollectiveIO , offSetDim = 1 , &
                               communicator = PartMPI%COMM    , RealArray = VarTimeStep%ElemFac)
   END IF
+  ! Output of the element-wise adapted MPF as a separate container in state file
+  IF(AdaptMPF%DoAdaptMPF) THEN
+    CALL DistributedWriteArray(FileName                                      , &
+                              DataSetName  = 'AdaptMPF'  , rank = 2      , &
+                              nValGlobal   = (/nGlobalElems  , 1_IK/)        , &
+                              nVal         = (/PP_nElems     , 1_IK/)        , &
+                              offset       = (/offsetElem    , 0_IK/)        , &
+                              collective   = UseCollectiveIO , offSetDim = 1 , &
+                              communicator = PartMPI%COMM    , RealArray = AdaptMPF_Output)
+  END IF
 #else
   CALL OpenDataFile(FileName,create=.FALSE.,single=.TRUE.,readOnly=.FALSE.)
   CALL WriteArrayToHDF5(DataSetName = 'PartData'     , rank = 2                 , &
@@ -423,8 +446,17 @@ ASSOCIATE (&
                           offset      = (/offsetElem   , 0_IK/) , &
                           collective  = .FALSE.        , RealArray=VarTimeStep%ElemFac)
   END IF
+  ! Output of the element-wise time step as a separate container in state file
+  IF(AdaptMPF%DoAdaptMPF) THEN
+    CALL WriteArrayToHDF5(DataSetName = 'AdaptMPF' , rank=2 , &
+                          nValGlobal  = (/nGlobalElems , 1_IK/) , &
+                          nVal        = (/PP_nElems    , 1_IK/) , &
+                          offset      = (/offsetElem   , 0_IK/) , &
+                          collective  = .FALSE.        , RealArray= AdaptMPF_Output)
+  END IF
   CALL CloseDataFile()
   DEALLOCATE(StrVarNames)
+  DEALLOCATE(AdaptMPF_Output)
 #endif /*USE_MPI*/
 END ASSOCIATE
 

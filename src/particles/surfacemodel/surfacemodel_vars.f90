@@ -118,7 +118,7 @@ END TYPE
 REAL,ALLOCATABLE                         :: ChemSampWall(:,:,:,:,:)         ! Sampling direct impact mechanism
 REAL,ALLOCATABLE                         :: ChemDesorpWall(:,:,:,:,:)       ! Desorption numbers
 REAL,ALLOCPOINT                          :: ChemWallProp(:,:,:,:,:)         ! Adsorption count / heat flux
-! INTEGER,ALLOCATABLE                      :: ChemCountReacWall(:,:,:,:,:)    ! Count the number of catalytic reactions on the subside
+INTEGER,ALLOCATABLE                      :: ChemCountReacWall(:,:,:,:,:)    ! Count the number of catalytic reactions on the subside
 
 #if USE_MPI
 INTEGER                                  :: ChemWallProp_Shared_Win         ! Adsorption count / heat flux

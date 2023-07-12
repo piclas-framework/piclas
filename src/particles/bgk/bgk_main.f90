@@ -104,48 +104,26 @@ DO iElem = 1, nElems
 
   SELECT CASE (TRIM(CBC%SwitchCriterium))
   CASE('Density')
-    ! CBC%Avg_SwitchFactor(iElem) = CBC%Avg_SwitchFactor(iElem) + dens 
-    ! CBC%Iter_Count(iElem) = CBC%Iter_Count(iElem) + 1
-
-    ! ! Add up the density/quality factor to only sample every certain number of iterations
-    ! IF (CBC%Iter_Count(iElem).GE.CBC%SwitchIter) THEN
-    !   ! Check if the average density is smaller than the BGK-DSMC switch criterium
-    !   IF ((CBC%Avg_SwitchFactor(iElem)/REAL(CBC%Iter_Count(iElem))).LT.CBC%SwitchDens) THEN
-    !     CBC%DoElementDSMC(iElem) = .TRUE.
-    !   ELSE
-    !     CBC%DoElementDSMC(iElem) = .FALSE.
-    !   END IF
-    !   ! reset the counter values
-    !   CBC%Iter_Count(iElem) = 0
-    !   CBC%Avg_SwitchFactor(iElem) = 0.
-    ! END IF
-
-    IF ((CBC%Avg_SwitchFactor(iElem)/REAL(CBC%Iter_Count(iElem))).LT.CBC%SwitchDens) THEN
-      CBC%DoElementDSMC(iElem) = .TRUE.
-    ELSE
-      CBC%DoElementDSMC(iElem) = .FALSE.
+    CBC%Iter_Count(iElem) = CBC%Iter_Count(iElem) + 1
+    IF (CBC%Iter_Count(iElem).GE.CBC%SwitchIter) THEN
+      ! Check if the particle number density is smaller than the BGK-DSMC switch criterium
+      IF (dens.LT.CBC%SwitchDens) THEN
+        CBC%DoElementDSMC(iElem) = .TRUE.
+      ELSE
+        CBC%DoElementDSMC(iElem) = .FALSE.
+      END IF
+      ! reset the counter values
+      CBC%Iter_Count(iElem) = 0
     END IF
 
-  CASE('LocalKnudsen', 'GlobalKnudsen', 'ThermNonEq', 'Combination', 'ChapmanEnskog')
-    ! IF (CBC_DoDSMC(iElem)) THEN
-    !   CBC%Avg_SwitchFactor(iElem) = CBC%Avg_SwitchFactor(iElem) + 1. 
-    ! END IF
-    ! CBC%Iter_Count(iElem) = CBC%Iter_Count(iElem) + 1
-  
-    ! ! Add up the density/quality factor to only sample every certain number of iterations
-    ! IF (CBC%Iter_Count(iElem).GE.CBC%SwitchIter) THEN
-    !   ! Check if the average density is smaller than the BGK-DSMC switch criterium
-    !   IF (NINT(CBC%Avg_SwitchFactor(iElem)/REAL(CBC%Iter_Count(iElem))).EQ.1) THEN
-    !     CBC%DoElementDSMC(iElem) = .TRUE.
-    !   ELSE
-    !     CBC%DoElementDSMC(iElem) = .FALSE.
-    !   END IF
-    !   ! reset the counter values
-    !   CBC%Iter_Count(iElem) = 0
-    !   CBC%Avg_SwitchFactor(iElem) = 0.
-    ! END IF
-
-    CBC%DoElementDSMC(iElem) = CBC_DoDSMC(iElem)
+  CASE('LocalKnudsen', 'GlobalKnudsen', 'ThermNonEq', 'Combination', 'ChapmanEnskog', 'Output')
+    CBC%Iter_Count(iElem) = CBC%Iter_Count(iElem) + 1
+    IF (CBC%Iter_Count(iElem).GE.CBC%SwitchIter) THEN
+      ! Call the subroutine to decide between BGK and DSMC for the element
+      CBC%DoElementDSMC(iElem) = CBC_DoDSMC(iElem)
+      ! reset the counter values
+      CBC%Iter_Count(iElem) = 0
+    END IF
 
   CASE DEFAULT
     CBC%DoElementDSMC(iELem) = .FALSE.

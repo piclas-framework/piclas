@@ -46,17 +46,19 @@ USE MOD_part_tools              ,ONLY: CalcRadWeightMPF, CalcVarWeightMPF
 USE MOD_DSMC_Vars               ,ONLY: useDSMC, CollisMode, RadialWeighting, VarWeighting
 USE MOD_Eval_xyz                ,ONLY: GetPositionInRefElem
 USE MOD_Mesh_Vars               ,ONLY: SideToElem, offsetElem
+USE MOD_Mesh_Tools              ,ONLY: GetCNElemID
 USE MOD_Part_Tools              ,ONLY: GetParticleWeight
 USE MOD_Part_Emission_Tools     ,ONLY: SetParticleChargeAndMass, SetParticleMPF
 USE MOD_Particle_Analyze_Vars   ,ONLY: CalcPartBalance, nPartIn, PartEkinIn
 USE MOD_Particle_Analyze_Tools  ,ONLY: CalcEkinPart
 USE MOD_Particle_Mesh_Tools     ,ONLY: GetGlobalNonUniqueSideID
+USE MOD_Particle_Mesh_Vars      ,ONLY: ElemMidPoint_Shared
 USE MOD_Timedisc_Vars           ,ONLY: dt
 USE MOD_Particle_Surfaces_Vars
 USE MOD_Particle_Boundary_Vars 
-USE MOD_SurfaceModel_Vars       ,ONLY: ChemWallProp_Shared_Win,SurfChemReac, ChemWallProp, ChemDesorpWall !, ChemCountReacWall
+USE MOD_SurfaceModel_Vars       ,ONLY: ChemWallProp_Shared_Win,SurfChemReac, ChemWallProp, ChemDesorpWall, ChemCountReacWall
 USE MOD_Particle_Surfaces       ,ONLY: CalcNormAndTangTriangle
-USE MOD_Particle_SurfFlux       ,ONLY: SetSurfacefluxVelocities, CalcPartPosTriaSurface
+USE MOD_Particle_SurfFlux       ,ONLY: SetSurfChemfluxVelocities, CalcPartPosTriaSurface, DefineSideDirectVec2D
 #if USE_MPI
 USE MOD_MPI_Shared_vars         ,ONLY: MPI_COMM_SHARED
 USE MOD_MPI_Shared              ,ONLY: BARRIER_AND_SYNC
@@ -76,15 +78,15 @@ IMPLICIT NONE
 ! Local variable declaration
 INTEGER                     :: iSpec , PositionNbr, iSF, iSide, SideID, NbrOfParticle, ParticleIndexNbr
 INTEGER                     :: BCSideID, ElemID, iLocSide, iSample, jSample, PartInsSubSide, iPart, iPartTotal
-INTEGER                     :: PartsEmitted, Node1, Node2, globElemId
-REAL                        :: xyzNod(3), Vector1(3), Vector2(3), ndist(3), midpoint(3)
+INTEGER                     :: PartsEmitted, Node1, Node2, globElemId, CNElemID
+REAL                        :: xyzNod(3), Vector1(3), Vector2(3), ndist(3), midpoint(3), RVec(2), minPos(2)
 REAL                        :: ReacHeat, DesHeat
 REAL                        :: DesCount
 REAL                        :: nu, E_act, Coverage, Rate, DissOrder, AdCount
 REAL                        :: BetaCoeff
 REAL                        :: WallTemp
 REAL                        :: SurfMol
-REAL                        :: MPF
+REAL                        :: MPF, SurfElemMPF
 INTEGER                     :: SurfNumOfReac, iReac, ReactantCount, BoundID, nSF
 INTEGER                     :: iVal, iReactant, iValReac, SurfSideID, iBias
 INTEGER                     :: SubP, SubQ
@@ -107,8 +109,17 @@ DO iSF = 1, nSF
       ElemID = SideToElem(S2E_ELEM_ID,BCSideID)
       iLocSide = SideToElem(S2E_LOC_SIDE_ID,BCSideID)
       globElemId = ElemID + offSetElem
+      CNElemID = GetCNElemID(globElemId)
       SideID=GetGlobalNonUniqueSideID(globElemId,iLocSide)
       SurfSideID = GlobalSide2SurfSide(SURF_SIDEID,SideID)
+
+      IF (RadialWeighting%DoRadialWeighting) THEN
+        SurfElemMPF = CalcRadWeightMPF(ElemMidPoint_Shared(2,CNElemID), iSpec, ElemID)
+      ELSE IF (VarWeighting%DoVariableWeighting) THEN
+        SurfElemMPF = CalcVarWeightMPF(ElemMidPoint_Shared(:,CNElemID), iSpec, ElemID)
+      ELSE 
+        SurfElemMPF = Species(1)%MacroParticleFactor
+      END IF
 
       IF (SurfSideID.LT.1) CALL abort(__STAMP__,'Chemical Surface Flux is not allowed on non-sampling sides!')
 
@@ -200,7 +211,7 @@ DO iSF = 1, nSF
                     END IF
                   END DO ! iValReac
                   ! Count the number of surface reactions
-                  !ChemCountReacWall(iReac, 1, SubP, SubQ, SurfSideID) = ChemCountReacWall(iReac, 1, SubP, SubQ, SurfSideID) + INT(ChemDesorpWall(iSpec,1, SubP, SubQ, SurfSideID)/MPF) 
+                  ChemCountReacWall(iReac, 1, SubP, SubQ, SurfSideID) = ChemCountReacWall(iReac, 1, SubP, SubQ, SurfSideID) + INT(ChemDesorpWall(iSpec,1, SubP, SubQ, SurfSideID)/SurfElemMPF) 
                 END IF !ChemDesorpWall.GE.1
               END IF ! iVal in Products 
             END DO ! iVal            
@@ -213,7 +224,6 @@ DO iSF = 1, nSF
 
               IF(SurfChemReac%Reactants(iReac,iVal).GT.0) THEN
                 iSpec = SurfChemReac%Reactants(iReac,iVal)
-                MPF = Species(iSpec)%MacroParticleFactor
                 IF(iSpec.NE.SurfChemReac%SurfSpecies) THEN
                   Coverage = Coverage * ChemWallProp(iSpec,1,SubP,SubQ,SurfSideID)
                 END IF
@@ -272,7 +282,7 @@ DO iSF = 1, nSF
                   END IF
                 END DO ! iValReac    
                 ! Count the number of surface reactions
-                !ChemCountReacWall(iReac, 1, SubP, SubQ, SurfSideID) = ChemCountReacWall(iReac, 1, SubP, SubQ, SurfSideID) + INT(DesCount/MPF)
+                ChemCountReacWall(iReac, 1, SubP, SubQ, SurfSideID) = ChemCountReacWall(iReac, 1, SubP, SubQ, SurfSideID) + INT(DesCount/SurfElemMPF)
               END IF ! iVal in Products
             END DO ! iVal    
 
@@ -282,7 +292,6 @@ DO iSF = 1, nSF
             DO iVal=1, SIZE(SurfChemReac%Products(iReac,:))
               IF (SurfChemReac%Products(iReac,iVal).NE.0) THEN
                 iSpec = SurfChemReac%Products(iReac,iVal)
-                MPF = Species(iSpec)%MacroParticleFactor
                 
                 ! Number of adsorbed particles on the subside
                 IF(ANY(SurfChemReac%Reactants(iReac,:).NE.0)) THEN
@@ -351,7 +360,7 @@ DO iSF = 1, nSF
                                                         - DissOrder*INT(ChemDesorpWall(iSpec,1, SubP, SubQ, SurfSideID),8)/SurfMol
                   END IF
                   ! Count the number of surface reactions
-                  !ChemCountReacWall(iReac, 1, SubP, SubQ, SurfSideID) = ChemCountReacWall(iReac, 1, SubP, SubQ, SurfSideID) + INT(ChemDesorpWall(iSpec,1, SubP, SubQ, SurfSideID)/MPF)  
+                  ChemCountReacWall(iReac, 1, SubP, SubQ, SurfSideID) = ChemCountReacWall(iReac, 1, SubP, SubQ, SurfSideID) + INT(ChemDesorpWall(iSpec,1, SubP, SubQ, SurfSideID)/SurfElemMPF)  
                 END IF !ChemDesorbWall .GE. 1
               END IF ! Products .NE. 1
             END DO !iSpec
@@ -371,7 +380,7 @@ DO iSF = 1, nSF
       ! 3.) Insert the product species into the gas phase
       DO iSpec = 1, nSpecies
 
-        IF (INT(ChemDesorpWall(iSpec,1, SubP, SubQ, SurfSideID)/Species(iSpec)%MacroParticleFactor,8).GE.1) THEN
+        IF (INT(ChemDesorpWall(iSpec,1, SubP, SubQ, SurfSideID)/SurfElemMPF,8).GE.1) THEN
 
           ! Define the necessary variables
           xyzNod(1:3) = BCdata_auxSF(BoundID)%TriaSideGeo(iSide)%xyzNod(1:3)
@@ -384,7 +393,10 @@ DO iSF = 1, nSF
             midpoint(1:3) = BCdata_auxSF(BoundID)%TriaSwapGeo(iSample,jSample,iSide)%midpoint(1:3)
             ndist(1:3) = BCdata_auxSF(BoundID)%TriaSwapGeo(iSample,jSample,iSide)%ndist(1:3)
 
-            PartInsSubSide = INT(ChemDesorpWall(iSpec,1, SubP, SubQ, SurfSideID)/Species(iSpec)%MacroParticleFactor)
+            ! REQUIRED LATER FOR THE POSITION START
+            IF(Symmetry%Axisymmetric) CALL DefineSideDirectVec2D(SideID, xyzNod, minPos, RVec)
+
+            PartInsSubSide = INT(ChemDesorpWall(iSpec,1, SubP, SubQ, SurfSideID)/SurfElemMPF,8)
 
             ChemDesorpWall(iSpec,1, SubP, SubQ, SurfSideID) = ChemDesorpWall(iSpec,1, SubP, SubQ, SurfSideID) &
                                                             - INT(ChemDesorpWall(iSpec,1, SubP, SubQ, SurfSideID),8)
@@ -396,26 +408,32 @@ DO iSF = 1, nSF
               IF ((iPart.EQ.1).OR.PDM%ParticleInside(ParticleIndexNbr)) THEN
                 ParticleIndexNbr = PDM%nextFreePosition(iPartTotal + 1 + PDM%CurrentNextFreePosition)
               END IF
-              IF (ParticleIndexNbr .ne. 0) THEN
-                PartState(1:3,ParticleIndexNbr) = CalcPartPosTriaSurface(xyzNod, Vector1, Vector2, ndist, midpoint)
-                LastPartPos(1:3,ParticleIndexNbr)=PartState(1:3,ParticleIndexNbr)
+              IF (ParticleIndexNbr .NE. 0) THEN
+                IF(Symmetry%Axisymmetric) THEN
+                  PartState(1:3,ParticleIndexNbr) = CalcPartPosAxisym(iSpec, iSF, iSide, minPos, RVec)
+                ELSE
+                  PartState(1:3,ParticleIndexNbr) = CalcPartPosTriaSurface(xyzNod, Vector1, Vector2, ndist, midpoint)
+                END IF
+                LastPartPos(1:3,ParticleIndexNbr) = PartState(1:3,ParticleIndexNbr)
                 PDM%ParticleInside(ParticleIndexNbr) = .TRUE.
                 PDM%dtFracPush(ParticleIndexNbr) = .TRUE.
                 PDM%IsNewPart(ParticleIndexNbr) = .TRUE.
                 PEM%GlobalElemID(ParticleIndexNbr) = globElemId
                 PEM%LastGlobalElemID(ParticleIndexNbr) = globElemId 
                 iPartTotal = iPartTotal + 1
-                IF (RadialWeighting%DoRadialWeighting) THEN
-                  PartMPF(ParticleIndexNbr) = CalcRadWeightMPF(PartState(2,ParticleIndexNbr), iSpec,ParticleIndexNbr)
-                ELSE IF (VarWeighting%DoVariableWeighting) THEN
-                  PartMPF(ParticleIndexNbr) = CalcVarWeightMPF(PartState(:,ParticleIndexNbr), iSpec, ElemID, ParticleIndexNbr)
-                END IF
+                PartMPF(ParticleIndexNbr) = SurfElemMPF
+                ! IF (RadialWeighting%DoRadialWeighting) THEN
+                !   PartMPF(ParticleIndexNbr) = CalcRadWeightMPF(PartState(2,ParticleIndexNbr), iSpec,ParticleIndexNbr)
+                ! ELSE IF (VarWeighting%DoVariableWeighting) THEN
+                !   PartMPF(ParticleIndexNbr) = CalcVarWeightMPF(PartState(:,ParticleIndexNbr), iSpec, ElemID, ParticleIndexNbr)
+                ! END IF
               ELSE
                 CALL abort(__STAMP__,'ERROR in ParticleSurfChemFlux: ParticleIndexNbr.EQ.0 - maximum nbr of particles reached?')
               END IF
             END DO
             
-            CALL SetSurfacefluxVelocities(2,iSpec,iSF,iSample,jSample,iSide,BCSideID,SideID,NbrOfParticle,PartInsSubSide)
+            CALL SetSurfChemfluxVelocities(iSpec,iSF,iSample,jSample,iSide,BCSideID,SideID,ElemID,NbrOfParticle,PartInsSubSide)
+
             PartsEmitted = PartsEmitted + PartInsSubSide
           END DO; END DO !jSample=1,SurfFluxSideSize(2); iSample=1,SurfFluxSideSize(1)
         END IF ! iSide
@@ -449,7 +467,6 @@ DO iSF = 1, nSF
           CALL abort(__STAMP__,'ERROR in ParticleSurfChemFlux: NbrOfParticle.NE.PartsEmitted')
         END IF
       END DO ! iSpec
-
 
     END DO !iSide
 
@@ -632,5 +649,47 @@ END IF !Diffusion
 #endif
 
 END SUBROUTINE ParticleSurfDiffusion
+
+!===================================================================================================================================
+!> 
+!===================================================================================================================================
+FUNCTION CalcPartPosAxisym(iSpec,iSF,iSide,minPos,RVec)
+! MODULES
+! IMPLICIT VARIABLE HANDLING
+USE MOD_Globals
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+INTEGER, INTENT(IN)         :: iSpec, iSF, iSide
+REAL, INTENT(IN)            :: minPos(2), RVec(2)
+REAL                        :: CalcPartPosAxisym(1:3)
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+REAL                        :: RandVal1, PminTemp, PmaxTemp, Particle_pos(3)
+!===================================================================================================================================
+IF ((.NOT.(ALMOSTEQUAL(minPos(2),minPos(2)+RVec(2))))) THEN
+  CALL RANDOM_NUMBER(RandVal1)
+  Particle_pos(2) = minPos(2) + RandVal1 * RVec(2)
+  ! x-position depending on the y-location
+  Particle_pos(1) = minPos(1) + (Particle_pos(2)-minPos(2)) * RVec(1) / RVec(2)
+  Particle_pos(3) = 0.
+ELSE
+  CALL RANDOM_NUMBER(RandVal1)
+  IF (ALMOSTEQUAL(minPos(2),minPos(2)+RVec(2))) THEN
+    ! y_min = y_max, faces parallel to x-direction, constant distribution
+    Particle_pos(1:2) = minPos(1:2) + RVec(1:2) * RandVal1
+  ELSE
+  ! No VarWeighting, regular linear distribution of particle positions
+    Particle_pos(1:2) = minPos(1:2) + RVec(1:2) &
+        * ( SQRT(RandVal1*((minPos(2) + RVec(2))**2-minPos(2)**2)+minPos(2)**2) - minPos(2) ) / (RVec(2))
+  END IF
+  Particle_pos(3) = 0.
+END IF
+
+CalcPartPosAxisym = Particle_pos
+
+END FUNCTION CalcPartPosAxisym
 
 END MODULE MOD_Particle_SurfChemFlux

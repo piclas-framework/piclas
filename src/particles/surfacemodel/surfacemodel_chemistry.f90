@@ -477,8 +477,8 @@ ALLOCATE( ChemSampWall(1:nSpecies,2,1:nSurfSample,1:nSurfSample,1:nComputeNodeSu
 ChemSampWall = 0.0
 ALLOCATE(ChemDesorpWall(1:nSpecies,1,1:nSurfSample,1:nSurfSample,1:nComputeNodeSurfTotalSides))
 ChemDesorpWall = 0.0
-! ALLOCATE(ChemCountReacWall(1:ReadInNumOfReact,1,1:nSurfSample,1:nSurfSample,1:nComputeNodeSurfTotalSides))
-! ChemCountReacWall = 0.0
+ALLOCATE(ChemCountReacWall(1:ReadInNumOfReact,1,1:nSurfSample,1:nSurfSample,1:nComputeNodeSurfTotalSides))
+ChemCountReacWall = 0.0
 
 #if USE_MPI
   CALL Allocate_Shared((/nSpecies,2,nSurfSample,nSurfSample,nComputeNodeSurfTotalSides/),ChemSampWall_Shared_Win,ChemSampWall_Shared)

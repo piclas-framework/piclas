@@ -28,7 +28,6 @@ INTEGER               :: FPCollModel
 INTEGER               :: ESFPModel
 LOGICAL               :: FPDoVibRelaxation
 LOGICAL               :: FPUseQuantVibEn
-REAL                  :: FPDSMCSwitchDens
 LOGICAL               :: CoupledFPDSMC
 
 TYPE tSpecFP
@@ -44,5 +43,20 @@ REAL                  :: FP_MaxRelaxFactor
 REAL                  :: FP_MaxRotRelaxFactor
 REAL                  :: FP_PrandtlNumber
 
+TYPE tCouplingCriteria
+  CHARACTER(LEN=50)                            :: SwitchCriterium
+  REAL                                         :: SwitchDens
+  REAL                                         :: CharLength
+  REAL                                         :: MaxGlobalKnudsen
+  REAL                                         :: MaxLocalKnudsen
+  REAL                                         :: MaxThermNonEq
+  REAL                                         :: MaxChapmanEnskog
+  INTEGER                                      :: SwitchIter
+  INTEGER, ALLOCATABLE                         :: Iter_Count(:)
+  LOGICAL,ALLOCATABLE                          :: DoElementDSMC(:)
+  REAL, ALLOCATABLE                            :: OutputKnudsen(:,:)
+END TYPE
+
+TYPE (tCouplingCriteria)                       :: FP_CBC
 !===================================================================================================================================
 END MODULE MOD_FPFlow_Vars
