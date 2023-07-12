@@ -675,8 +675,8 @@ IF (DSMC%CalcQualityFactors) THEN
       IF (VirtMergedCells(iElem)%isMerged) CYCLE
     END IF
     nVarCount = nVar
-    IF(DSMC%QualityFacSamp(iElem,4).GT.0.0) THEN
-      DSMC_MacroVal(nVarCount+1:nVarCount+3,iElem) = DSMC%QualityFacSamp(iElem,1:3) / DSMC%QualityFacSamp(iElem,4)
+    IF(DSMC%QualityFacSamp(iElem,5).GT.0.0) THEN
+      DSMC_MacroVal(nVarCount+1:nVarCount+4,iElem) = DSMC%QualityFacSamp(iElem,1:4) / DSMC%QualityFacSamp(iElem,5)
     END IF
     nVarCount = nVar + 3
     IF(UseVarTimeStep) THEN
@@ -696,13 +696,13 @@ IF (DSMC%CalcQualityFactors) THEN
       nVarCount = nVarCount + 1
     END IF
     IF(RadialWeighting%PerformCloning) THEN
-      IF(DSMC%QualityFacSamp(iElem,4).GT.0.0) THEN
-        DSMC_MacroVal(nVarCount+1:nVarCount+2,iElem)=DSMC%QualityFacSamp(iElem,5:6) / DSMC%QualityFacSamp(iElem,4)
+      IF(DSMC%QualityFacSamp(iElem,5).GT.0.0) THEN
+        DSMC_MacroVal(nVarCount+1:nVarCount+2,iElem)=DSMC%QualityFacSamp(iElem,6:7) / DSMC%QualityFacSamp(iElem,5)
       END IF
       nVarCount = nVarCount + 2
     ELSE IF(VarWeighting%PerformCloning) THEN
-      IF(DSMC%QualityFacSamp(iElem,4).GT.0.0) THEN
-          DSMC_MacroVal(nVarCount+1:nVarCount+2,iElem)=DSMC%QualityFacSamp(iElem,5:6) / DSMC%QualityFacSamp(iElem,4)
+      IF(DSMC%QualityFacSamp(iElem,5).GT.0.0) THEN
+          DSMC_MacroVal(nVarCount+1:nVarCount+2,iElem)=DSMC%QualityFacSamp(iElem,6:7) / DSMC%QualityFacSamp(iElem,5)
         END IF
       nVarCount = nVarCount + 2
     END IF
@@ -942,7 +942,7 @@ END IF
 nVar=(nVarloc+nVarRelax)*nSpecOut
 
 IF (DSMC%CalcQualityFactors) THEN
-  nVar_quality=3
+  nVar_quality=4
   IF(UseVarTimeStep) nVar_quality = nVar_quality + 1
   IF(DoVirtualCellMerge) nVar_quality = nVar_quality + 1
   IF(RadialWeighting%PerformCloning) nVar_quality = nVar_quality + 2
@@ -1034,7 +1034,8 @@ IF (DSMC%CalcQualityFactors) THEN
   StrVarNames(nVarCount+1) ='DSMC_MaxCollProb'
   StrVarNames(nVarCount+2) ='DSMC_MeanCollProb'
   StrVarNames(nVarCount+3) ='DSMC_MCS_over_MFP'
-  nVarCount=nVarCount+3
+  StrVarNames(nVarCount+4) ='DSMC_MeanMCSMFP'
+  nVarCount=nVarCount+4
   IF(UseVarTimeStep) THEN
     StrVarNames(nVarCount+1) ='VariableTimeStep'
     nVarCount = nVarCount + 1
@@ -1291,9 +1292,12 @@ IF((Time.GE.(1-DSMC%TimeFracSamp)*TEnd).OR.WriteMacroVolumeValues) THEN
     DSMC%QualityFacSamp(iElem,2) = DSMC%QualityFacSamp(iElem,2) + DSMC%CollProbMean / REAL(DSMC%CollProbMeanCount)
   END IF
   ! mean collision separation distance of actual collisions
-  IF(DSMC%CollSepCount.GT.0) DSMC%QualityFacSamp(iElem,3) = DSMC%QualityFacSamp(iElem,3) + DSMC%MCSoverMFP
+  IF(DSMC%CollSepCount.GT.0) THEN
+    DSMC%QualityFacSamp(iElem,3) = DSMC%QualityFacSamp(iElem,3) + DSMC%MCSoverMFP
+    DSMC%QualityFacSamp(iElem,4) = DSMC%QualityFacSamp(iElem,4) + DSMC%MCSMFP_Mean / DSMC%MCSMFP_MeanCount
+  END IF
   ! Counting sample size
-  DSMC%QualityFacSamp(iElem,4) = DSMC%QualityFacSamp(iElem,4) + 1.
+  DSMC%QualityFacSamp(iElem,5) = DSMC%QualityFacSamp(iElem,5) + 1.
   ! Sample rotation relaxation probability
   IF((DSMC%RotRelaxProb.EQ.2).OR.(DSMC%VibRelaxProb.EQ.2)) CALL SamplingRotVibRelaxProb(iElem)
 END IF

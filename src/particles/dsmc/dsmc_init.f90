@@ -395,8 +395,9 @@ IF(DSMC%CalcQualityFactors) THEN
   ! 1: Maximal collision probability per cell/subcells (octree)
   ! 2: Mean collision probability within cell
   ! 3: Mean collision separation distance over mean free path
-  ! 4: Counter (is not simply the number of iterations in case of a coupled BGK/FP-DSMC simulation)
-  VarNum = 4
+  ! 4: Mean value of the mean collision separation distance over the mean free path
+  ! 5: Counter (is not simply the number of iterations in case of a coupled BGK/FP-DSMC simulation)
+  VarNum = 5
   ! VarNum + 1: Number of cloned particles per cell
   ! VarNum + 2: Number of identical particles (no relative velocity)
   IF(RadialWeighting%PerformCloning) VarNum = VarNum + 2

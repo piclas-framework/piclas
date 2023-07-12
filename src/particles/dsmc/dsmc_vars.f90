@@ -262,6 +262,8 @@ TYPE tDSMC
                                                             !     3: Sample size
   REAL                          :: MeanFreePath
   REAL                          :: MCSoverMFP               ! Subcell local mean collision distance over mean free path
+  REAL                          :: MCSMFP_Mean              ! Summation of MCSoverMFP
+  REAL                          :: MCSMFP_MeanCount         ! counter of MCSoverMFP sampling
   INTEGER                       :: CollProbMeanCount        ! counter of possible collision pairs
   INTEGER                       :: CollSepCount             ! counter of actual collision pairs
   REAL                          :: CollSepDist              ! Summation of mean collision separation distance

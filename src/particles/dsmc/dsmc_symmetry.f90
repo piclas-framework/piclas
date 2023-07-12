@@ -1224,7 +1224,7 @@ DO iPart = 1, VarWeighting%ClonePartNum(DelayCounter)
   END IF
   ! Counting the number of clones per cell
   IF(SamplingActive.OR.WriteMacroVolumeValues) THEN
-    IF(DSMC%CalcQualityFactors) DSMC%QualityFacSamp(locElemID,5) = DSMC%QualityFacSamp(locElemID,5) + 1
+    IF(DSMC%CalcQualityFactors) DSMC%QualityFacSamp(locElemID,6) = DSMC%QualityFacSamp(locElemID,6) + 1
   END IF
   IF(CalcPartBalance) THEN
     nPartIn(PartSpecies(PositionNbr))=nPartIn(PartSpecies(PositionNbr)) + 1
@@ -1318,7 +1318,7 @@ IF (Coll_pData(iPair)%CRela2.EQ.0.0) THEN
       IF(Coll_pData(iPair)%CRela2.EQ.0.0) THEN
         ! If the relative velocity is still zero, add the pair to the identical particles count
         IF(SamplingActive.OR.WriteMacroVolumeValues) THEN
-          IF(DSMC%CalcQualityFactors) DSMC%QualityFacSamp(iElem,6) = DSMC%QualityFacSamp(iElem,6) + 1
+          IF(DSMC%CalcQualityFactors) DSMC%QualityFacSamp(iElem,7) = DSMC%QualityFacSamp(iElem,7) + 1
         END IF
       END IF
       ! Increase the appropriate case number and set the right pair type
@@ -1342,7 +1342,7 @@ IF (Coll_pData(iPair)%CRela2.EQ.0.0) THEN
                                + (PartState(6,iPart_p1) - PartState(6,iPart_p2))**2
       ! Add the pair to the number of identical particles output
       IF(SamplingActive.OR.WriteMacroVolumeValues) THEN
-        IF(DSMC%CalcQualityFactors) DSMC%QualityFacSamp(iElem,6) = DSMC%QualityFacSamp(iElem,6) + 1
+        IF(DSMC%CalcQualityFactors) DSMC%QualityFacSamp(iElem,7) = DSMC%QualityFacSamp(iElem,7) + 1
       END IF
     END IF  ! nPart.EQ.1/iPair.LT.nPair
   ELSE
@@ -1354,7 +1354,7 @@ IF (Coll_pData(iPair)%CRela2.EQ.0.0) THEN
                              + (PartState(6,iPart_p1) - PartState(6,iPart_p2))**2
     ! Add the pair to the number of identical particles output
     IF(SamplingActive.OR.WriteMacroVolumeValues) THEN
-      IF(DSMC%CalcQualityFactors) DSMC%QualityFacSamp(iElem,6) = DSMC%QualityFacSamp(iElem,6) + 1
+      IF(DSMC%CalcQualityFactors) DSMC%QualityFacSamp(iElem,7) = DSMC%QualityFacSamp(iElem,7) + 1
     END IF
   END IF  ! nPart.EQ.1/iPair.LT.nPair
 END IF    ! Coll_pData(iPair)%CRela2.EQ.0.0

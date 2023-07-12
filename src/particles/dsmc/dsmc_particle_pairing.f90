@@ -618,8 +618,11 @@ IF(DSMC%CalcQualityFactors) THEN
     DSMC%MeanFreePath = CalcMeanFreePath(REAL(CollInf%Coll_SpecPartNum), REAL(SUM(CollInf%Coll_SpecPartNum)), NodeVolume, &
                                           DSMC%InstantTransTemp(nSpecies+1))
     ! Determination of the maximum MCS/MFP for the cell
-    IF((DSMC%CollSepCount.GT.0).AND.(DSMC%MeanFreePath.GT.0.0)) DSMC%MCSoverMFP = &
-                                                    MAX(DSMC%MCSoverMFP,(DSMC%CollSepDist/DSMC%CollSepCount)/DSMC%MeanFreePath)
+    IF((DSMC%CollSepCount.GT.0).AND.(DSMC%MeanFreePath.GT.0.0)) THEN
+      DSMC%MCSoverMFP = MAX(DSMC%MCSoverMFP,(DSMC%CollSepDist/DSMC%CollSepCount)/DSMC%MeanFreePath)
+      DSMC%MCSMFP_Mean = DSMC%MCSMFP_Mean + (DSMC%CollSepDist/DSMC%CollSepCount)/DSMC%MeanFreePath
+      DSMC%MCSMFP_MeanCount = DSMC%MCSMFP_Mean + 1.
+    END IF
   END IF
 END IF
 
