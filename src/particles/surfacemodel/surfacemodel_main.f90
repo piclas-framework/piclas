@@ -667,7 +667,7 @@ IF (PartBound%Resample(locBCID)) CALL RANDOM_NUMBER(POI_fak) !Resample Equilibir
 NewVeloPush(1:3) = NewVelo(1:3)
 IF(PDM%InRotRefFrame(PartID)) THEN
   NewVeloPush(1:3) = NewVeloPush(1:3) - CROSS(RotRefFrameOmega(1:3),LastPartPos(1:3,PartID))
-  NewVeloPush(1:3) = NewVeloPush(1:3) + CalcPartRHSRotRefFrame(LastPartPos(1:3,PartID),NewVeloPush(1:3)) * dtVar
+  NewVeloPush(1:3) = NewVeloPush(1:3) + CalcPartRHSRotRefFrame(LastPartPos(1:3,PartID),NewVeloPush(1:3)) * (1.0 - POI_fak) * dtVar
   ! Store the new rotational reference frame velocity
   PartVeloRotRef(1:3,PartID) = NewVeloPush(1:3)
 END IF
