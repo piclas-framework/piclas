@@ -144,13 +144,6 @@ USE MOD_LoadBalance_Timers          ,ONLY: LBStartTime, LBElemSplitTime, LBElemP
 #endif /*USE_LOADBALANCE*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
-#ifdef IMPA
-LOGICAL,INTENT(IN),OPTIONAL      :: doParticle_In(1:PDM%ParticleVecLength)
-#endif /*IMPA*/
-
-
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! INPUT VARIABLES
 INTEGER,INTENT(IN)                :: i
@@ -159,10 +152,6 @@ INTEGER,INTENT(IN)                :: i
 LOGICAL,INTENT(IN),OPTIONAL       :: IsInterPlanePart
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-#ifdef IMPA
-LOGICAL                          :: doParticle
-LOGICAL                          :: doPartInExists
-#endif
 INTEGER                          :: NblocSideID, NbElemID, CNElemID, ind, nbSideID, nMortarElems,BCType
 INTEGER                          :: ElemID,flip,OldElemID,nlocSides
 INTEGER                          :: LocalSide
