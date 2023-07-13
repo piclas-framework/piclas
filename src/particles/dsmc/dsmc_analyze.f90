@@ -678,7 +678,7 @@ IF (DSMC%CalcQualityFactors) THEN
     IF(DSMC%QualityFacSamp(iElem,5).GT.0.0) THEN
       DSMC_MacroVal(nVarCount+1:nVarCount+4,iElem) = DSMC%QualityFacSamp(iElem,1:4) / DSMC%QualityFacSamp(iElem,5)
     END IF
-    nVarCount = nVar + 3
+    nVarCount = nVar + 4
     IF(UseVarTimeStep) THEN
       IF(VarTimeStep%UseLinearScaling.OR.VarTimeStep%UseDistribution) THEN
         IF(VarTimeStep%UseLinearScaling.AND.(Symmetry%Order.EQ.2)) THEN
