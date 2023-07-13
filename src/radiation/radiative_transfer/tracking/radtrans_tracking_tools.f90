@@ -649,10 +649,9 @@ END SUBROUTINE PhotonIntersectionWithSide
 !===================================================================================================================================
 SUBROUTINE CalcAbsorptionRayTrace(IntersectionPos,GlobalElemID,PhotonDir)
 USE MOD_globals                                                                                                                     
-USE MOD_RayTracing_Vars     ,ONLY: RayElemPassedEnergy,Ray,U_N_Ray,N_DG_Ray,N_VolMesh_Ray
+USE MOD_RayTracing_Vars     ,ONLY: RayElemPassedEnergy,Ray,U_N_Ray,N_DG_Ray,N_Inter_Ray
 USE MOD_Photon_TrackingVars ,ONLY: PhotonProps
 USE MOD_Eval_xyz            ,ONLY: GetPositionInRefElem
-USE MOD_Mesh_Vars           ,ONLY: nElems
 !--------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
 !--------------------------------------------------------------------------------------------------!
@@ -661,7 +660,7 @@ INTEGER, INTENT(IN) :: GlobalElemID
 REAL, INTENT(IN)    :: PhotonDir(3)
 REAL, INTENT(IN)    :: IntersectionPos(3)
 ! Local variable declaration
-INTEGER           :: a,b,ii,k,l,m,iElem,Nloc,NbrOfSamples,iIntersec
+INTEGER           :: a,b,ii,k,l,m,Nloc,NbrOfSamples,iIntersec
 REAL              :: IntersectionPosRef(3),scaleFac,SamplePos(3)
 LOGICAL           :: arr(0:Ray%NMax,0:Ray%NMax,0:Ray%NMax)
 !--------------------------------------------------------------------------------------------------!
@@ -675,12 +674,7 @@ ELSE
 END IF
 
 ! High-order sampling: Use nearest Gauss point (NGP) from PIC deposition
-! todo: parallelize this, maybe full mesh already there?
-IF(GlobalElemID.gt.nelems)THEN
-  CALL abort(__STAMP__,'this works only single-core')
-END IF ! GlobalElemID.gt.nelems
-iElem = GlobalElemID
-Nloc = N_DG_Ray(iElem)
+Nloc = N_DG_Ray(GlobalElemID)
 IF(MOD(Nloc,2).EQ.0) THEN
   a = Nloc/2
   b = a
@@ -690,20 +684,20 @@ ELSE
 END IF
 
 ! Loop over number of sub-samples
-NbrOfSamples = Nloc+3
-!scaleFac = 1./REAL(NbrOfSamples+1)
-scaleFac = 20.
+NbrOfSamples = Nloc+5 ! must be at least 2!
+scaleFac = 1./REAL(NbrOfSamples)
+!scaleFac = 1.
 arr = .FALSE.
 
-DO iIntersec = 0, NbrOfSamples
-  SamplePos = PhotonProps%PhotonStartPos(1:3) + (IntersectionPos(1:3)-PhotonProps%PhotonStartPos(1:3))*REAL(iIntersec)/REAL(NbrOfSamples)
+DO iIntersec = 1, NbrOfSamples
+  SamplePos = PhotonProps%PhotonStartPos(1:3) + (IntersectionPos(1:3)-PhotonProps%PhotonStartPos(1:3))*REAL(iIntersec-1)/REAL(NbrOfSamples-1)
 
   ! Get position in reference element
   CALL GetPositionInRefElem(SamplePos(1:3),IntersectionPosRef(1:3),GlobalElemID)
 
   k = a
   DO ii = 0,b-1
-    IF(ABS(IntersectionPosRef(1)).GE.N_VolMesh_Ray(iElem)%GaussBorder(Nloc-ii))THEN
+    IF(ABS(IntersectionPosRef(1)).GE.N_Inter_Ray(Nloc)%GaussBorder(Nloc-ii))THEN
       k = Nloc-ii
       EXIT
     END IF
@@ -712,7 +706,7 @@ DO iIntersec = 0, NbrOfSamples
   !! y-direction
   l = a
   DO ii = 0,b-1
-    IF(ABS(IntersectionPosRef(2)).GE.N_VolMesh_Ray(iElem)%GaussBorder(Nloc-ii))THEN
+    IF(ABS(IntersectionPosRef(2)).GE.N_Inter_Ray(Nloc)%GaussBorder(Nloc-ii))THEN
       l = Nloc-ii
       EXIT
     END IF
@@ -721,7 +715,7 @@ DO iIntersec = 0, NbrOfSamples
   !! z-direction
   m = a
   DO ii = 0,b-1
-    IF(ABS(IntersectionPosRef(3)).GE.N_VolMesh_Ray(iElem)%GaussBorder(Nloc-ii))THEN
+    IF(ABS(IntersectionPosRef(3)).GE.N_Inter_Ray(Nloc)%GaussBorder(Nloc-ii))THEN
       m = Nloc-ii
       EXIT
     END IF
@@ -732,11 +726,11 @@ DO iIntersec = 0, NbrOfSamples
   ! deposited in the corresponding element
   IF(.NOT.arr(k,l,m))THEN
     IF(DOT_PRODUCT(PhotonDir,Ray%Direction).GT.0.0)THEN
-      U_N_Ray(iElem)%U(1,k,l,m) = U_N_Ray(iElem)%U(1,k,l,m) + PhotonProps%PhotonEnergy * scaleFac
+      U_N_Ray(GlobalElemID)%U(1,k,l,m) = U_N_Ray(GlobalElemID)%U(1,k,l,m) + PhotonProps%PhotonEnergy * scaleFac
     ELSE
-      U_N_Ray(iElem)%U(2,k,l,m) = U_N_Ray(iElem)%U(2,k,l,m) + PhotonProps%PhotonEnergy * scaleFac
+      U_N_Ray(GlobalElemID)%U(2,k,l,m) = U_N_Ray(GlobalElemID)%U(2,k,l,m) + PhotonProps%PhotonEnergy * scaleFac
     END IF
-    arr(k,l,m)=.TRUE.
+    !arr(k,l,m)=.TRUE.
   END IF ! .NOT.arr(k,l,m)
 END DO ! iIntersec = 1, Nloc+3
 END SUBROUTINE CalcAbsorptionRayTrace

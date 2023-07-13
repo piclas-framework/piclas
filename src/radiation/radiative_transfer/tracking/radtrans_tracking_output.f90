@@ -40,10 +40,12 @@ USE MOD_Globals
 USE MOD_PreProc
 USE MOD_Mesh_Vars            ,ONLY: nElems,MeshFile,offSetElem
 USE MOD_Globals_Vars         ,ONLY: ProjectName
-USE MOD_RayTracing_Vars      ,ONLY: Ray,nVarRay,U_N_Ray,N_DG_Ray,PREF_VDM_Ray
+USE MOD_RayTracing_Vars      ,ONLY: Ray,nVarRay,U_N_Ray,N_DG_Ray,PREF_VDM_Ray,N_DG_Ray_loc
+USE MOD_RayTracing_Vars      ,ONLY: RayElemPassedEnergyLoc1st,RayElemPassedEnergyLoc2nd
+USE MOD_RayTracing_Vars      ,ONLY: RaySecondaryVectorX,RaySecondaryVectorY,RaySecondaryVectorZ
 USE MOD_HDF5_output          ,ONLY: GatheredWriteArray
 #if USE_MPI
-USE MOD_RayTracing_Vars      ,ONLY: RayElemPassedEnergy_Shared
+USE MOD_RayTracing_Vars      ,ONLY: RayElemPassedEnergy_Shared,RayElemOffset,RayElemPassedEnergyHO_Shared
 #else
 USE MOD_RayTracing_Vars      ,ONLY: RayElemPassedEnergy
 #endif /*USE_MPI*/
@@ -62,12 +64,13 @@ USE MOD_ChangeBasis          ,ONLY: ChangeBasis3D
 ! LOCAL VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 CHARACTER(LEN=255)                  :: FileName
-INTEGER                             :: iElem,Nloc
+INTEGER                             :: iElem,iGlobalElem,Nloc
 INTEGER,PARAMETER                   :: nVar=2
-REAL, ALLOCATABLE                   :: RayElemPassedEnergyLoc1st(:),RayElemPassedEnergyLoc2nd(:)
-REAL, ALLOCATABLE                   :: RaySecondaryVectorX(:),RaySecondaryVectorY(:),RaySecondaryVectorZ(:)
 CHARACTER(LEN=255), ALLOCATABLE     :: StrVarNames(:)
 REAL                                :: U(nVarRay,0:Ray%NMax,0:Ray%NMax,0:Ray%NMax,PP_nElems)
+#if USE_MPI
+INTEGER                             :: NlocOffset
+#endif /*USE_MPI*/
 !===================================================================================================================================
 SWRITE(UNIT_stdOut,'(a)',ADVANCE='NO') ' WRITE Radiation TO HDF5 FILE...'
 
@@ -83,11 +86,16 @@ RaySecondaryVectorY=-1.0
 RaySecondaryVectorZ=-1.0
 CALL AddToElemData(ElementOut,'RayElemPassedEnergy1st',RealArray=RayElemPassedEnergyLoc1st)
 CALL AddToElemData(ElementOut,'RayElemPassedEnergy2nd',RealArray=RayElemPassedEnergyLoc2nd)
-CALL AddToElemData(ElementOut,'RaySecondaryVectorX',RealArray=RaySecondaryVectorX)
-CALL AddToElemData(ElementOut,'RaySecondaryVectorY',RealArray=RaySecondaryVectorY)
-CALL AddToElemData(ElementOut,'RaySecondaryVectorZ',RealArray=RaySecondaryVectorZ)
+CALL AddToElemData(ElementOut,'RaySecondaryVectorX'   ,RealArray=RaySecondaryVectorX)
+CALL AddToElemData(ElementOut,'RaySecondaryVectorY'   ,RealArray=RaySecondaryVectorY)
+CALL AddToElemData(ElementOut,'RaySecondaryVectorZ'   ,RealArray=RaySecondaryVectorZ)
 
-CALL AddToElemData(ElementOut,'Nloc',IntArray=N_DG_Ray)
+! Copy data from shared array
+ALLOCATE(N_DG_Ray_loc(1:nElems))
+DO iElem = 1, nElems
+  N_DG_Ray_loc(iElem) = N_DG_Ray(iElem + offsetElem)
+END DO ! iElem = 1, nElems
+CALL AddToElemData(ElementOut,'Nloc',IntArray=N_DG_Ray_loc)
 
 ALLOCATE(StrVarNames(1:nVar))
 StrVarNames(1)='RayElemPassedEnergy1st'
@@ -107,19 +115,20 @@ CALL ExchangeRayVolInfo()
 ASSOCIATE( RayElemPassedEnergy => RayElemPassedEnergy_Shared )
 #endif /*USE_MPI*/
   DO iElem=1,PP_nElems
+    iGlobalElem = iElem+offSetElem
 
     ! 1. Elem-constant data
     ! Primary energy
-    RayElemPassedEnergyLoc1st(iElem) = RayElemPassedEnergy(1,iElem+offSetElem)
+    RayElemPassedEnergyLoc1st(iElem) = RayElemPassedEnergy(1,iGlobalElem)
     ! Secondary energy
-    RayElemPassedEnergyLoc2nd(iElem) = RayElemPassedEnergy(2,iElem+offSetElem)
+    RayElemPassedEnergyLoc2nd(iElem) = RayElemPassedEnergy(2,iGlobalElem)
     ! Check if secondary energy is greater than zero
     IF(RayElemPassedEnergyLoc2nd(iElem).GT.0.0)THEN
-      IF(RayElemPassedEnergy(6,iElem+offSetElem).LE.0.0) CALL abort(__STAMP__,'Secondary ray counter is zero but energy is not!')
+      IF(RayElemPassedEnergy(6,iGlobalElem).LE.0.0) CALL abort(__STAMP__,'Secondary ray counter is zero but energy is not!')
       ! x-, y- and z-direction of secondary energy
-      RaySecondaryVectorX(iElem) = RayElemPassedEnergy(3,iElem+offSetElem) / RayElemPassedEnergy(6,iElem+offSetElem)
-      RaySecondaryVectorY(iElem) = RayElemPassedEnergy(4,iElem+offSetElem) / RayElemPassedEnergy(6,iElem+offSetElem)
-      RaySecondaryVectorZ(iElem) = RayElemPassedEnergy(5,iElem+offSetElem) / RayElemPassedEnergy(6,iElem+offSetElem)
+      RaySecondaryVectorX(iElem) = RayElemPassedEnergy(3,iGlobalElem) / RayElemPassedEnergy(6,iGlobalElem)
+      RaySecondaryVectorY(iElem) = RayElemPassedEnergy(4,iGlobalElem) / RayElemPassedEnergy(6,iGlobalElem)
+      RaySecondaryVectorZ(iElem) = RayElemPassedEnergy(5,iGlobalElem) / RayElemPassedEnergy(6,iGlobalElem)
     ELSE
       RaySecondaryVectorX(iElem) = 0.
       RaySecondaryVectorY(iElem) = 0.
@@ -128,9 +137,19 @@ ASSOCIATE( RayElemPassedEnergy => RayElemPassedEnergy_Shared )
 
     ! 2. Variable polynomial degree data
     Nloc = N_DG_Ray(iElem)
-    !U_N_Ray(iElem)%U(1:1,:,:,:) = RayElemPassedEnergy(1,iElem+offSetElem)
-    !U_N_Ray(iElem)%U(2:2,:,:,:) = RayElemPassedEnergy(2,iElem+offSetElem)
-    IF(Nloc.Eq.Ray%Nmax)THEN
+    !U_N_Ray(iElem)%U(1:1,:,:,:) = RayElemPassedEnergy(1,iGlobalElem)
+    !U_N_Ray(iElem)%U(2:2,:,:,:) = RayElemPassedEnergy(2,iGlobalElem)
+#if USE_MPI
+    IF(nProcessors.GT.1)THEN
+      ! Get data from shared array
+      NlocOffset = (Nloc+1)**3
+      ASSOCIATE( i => RayElemOffset(iGlobalElem))
+        U_N_Ray(iElem)%U(1,:,:,:) = RESHAPE(RayElemPassedEnergyHO_Shared(1, i+1:i+NlocOffset), (/Nloc+1, Nloc+1, Nloc+1/))
+        U_N_Ray(iElem)%U(2,:,:,:) = RESHAPE(RayElemPassedEnergyHO_Shared(2, i+1:i+NlocOffset), (/Nloc+1, Nloc+1, Nloc+1/))
+      END ASSOCIATE
+    END IF ! nProcessors.GT.1
+#endif /*USE_MPI*/
+    IF(Nloc.EQ.Ray%Nmax)THEN
       U(:,:,:,:,iElem) = U_N_Ray(iElem)%U(:,:,:,:)
     ELSE
       CALL ChangeBasis3D(nVarRay, Nloc, Ray%NMax, PREF_VDM_Ray(Nloc,Ray%NMax)%Vdm, U_N_Ray(iElem)%U(:,:,:,:), U(:,:,:,:,iElem))
@@ -468,16 +487,19 @@ CALL BARRIER_AND_SYNC(PhotonSampWall_Shared_Win         ,MPI_COMM_SHARED)
 END SUBROUTINE ExchangeRadiationSurfData
 
 
+!===================================================================================================================================
+! Exchanges and add up the volume ray tracing data between all processes to have the global data available on each process
+! 1. Exchange the low-order data
+! 2. Exchange the high-order data
+!===================================================================================================================================
 SUBROUTINE ExchangeRayVolInfo()
-!===================================================================================================================================
-! Writes DSMC state values to HDF5
-!===================================================================================================================================
 ! MODULES
 USE MOD_Globals
 USE MOD_PreProc
 USE MOD_MPI_Shared_Vars
 USE MOD_MPI_Shared
 USE MOD_RayTracing_Vars ,ONLY: RayElemPassedEnergy,RayElemPassedEnergy_Shared,RayElemPassedEnergy_Shared_Win,RayElemSize
+USE MOD_RayTracing_Vars ,ONLY: nVarRay,RayElemPassedEnergyHO_Shared,RayElemPassedEnergyHO_Shared_Win,N_DG_Ray,U_N_Ray,RayElemOffset
 USE MOD_Mesh_Vars       ,ONLY: nGlobalElems
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -488,11 +510,17 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
-INTEGER :: MessageSize
+INTEGER           :: MessageSize,offset,NlocOffset
+INTEGER(KIND=8)   :: nGlobalEntries
+REAL, ALLOCATABLE :: RayElemPassedEnergyHO(:,:) ! <
+INTEGER           :: iElem,Nloc
+CHARACTER(LEN=255):: hilf
 !===================================================================================================================================
 ! Collect the information from the process-local shadow arrays in the compute-node shared array
 MessageSize = RayElemSize*nGlobalElems
 
+! 1. Exchange the low-order data
+! Reduce data to each node leader
 IF (myComputeNodeRank.EQ.0) THEN
   CALL MPI_REDUCE(RayElemPassedEnergy, RayElemPassedEnergy_Shared, MessageSize, MPI_DOUBLE_PRECISION, MPI_SUM, 0, MPI_COMM_SHARED, IERROR)
 ELSE
@@ -500,13 +528,76 @@ ELSE
 ENDIF
 CALL BARRIER_AND_SYNC(RayElemPassedEnergy_Shared_Win, MPI_COMM_SHARED)
 
+! Synchronize data between node leaders with all-reduce
 IF(nLeaderGroupProcs.GT.1)THEN
   IF(myComputeNodeRank.EQ.0)THEN
     CALL MPI_ALLREDUCE(MPI_IN_PLACE,RayElemPassedEnergy_Shared,MessageSize,MPI_DOUBLE_PRECISION,MPI_SUM,MPI_COMM_LEADERS_SHARED,iError)
   END IF
 
+  ! Synchronize data from node leaders to node workers
   CALL BARRIER_AND_SYNC(RayElemPassedEnergy_Shared_Win, MPI_COMM_SHARED)
 END IF
+
+! 2. Exchange the high-order data
+! Only duplicate and reduce the data when more than one process are used
+IF(nProcessors.GT.1)THEN
+
+  nGlobalEntries = 0
+  DO iElem = 1, nGlobalElems
+    Nloc = N_DG_Ray(iElem)
+    nGlobalEntries = nGlobalEntries + INT((Nloc+1)**3,8)
+  END DO ! iElem = 1, nGlobalElems
+
+  ! Sanity check
+  IF(nGlobalEntries * INT(nVarRay,8).GT.INT(HUGE(1_4),8))THEN
+    IF(MPIRoot)THEN
+      WRITE(UNIT=hilf,FMT='(A,I0,A,I0)') "Number of entries in RayElemPassedEnergyHO(1:nVarRay,1:nGlobalEntries) "&
+          ,nGlobalEntries * INT(nVarRay,8)," is larger than ",HUGE(1_4)
+      CALL abort(__STAMP__,TRIM(hilf))
+    END IF
+  END IF
+
+  ALLOCATE(RayElemPassedEnergyHO(nVarRay,nGlobalEntries))
+  ALLOCATE(RayElemOffset(nGlobalElems))
+  !> Shared arrays for high-order volume sampling
+  CALL Allocate_Shared((/nVarRay,INT(nGlobalEntries,4)/),RayElemPassedEnergyHO_Shared_Win,RayElemPassedEnergyHO_Shared)
+  CALL MPI_WIN_LOCK_ALL(0,RayElemPassedEnergyHO_Shared_Win,IERROR)
+  CALL BARRIER_AND_SYNC(RayElemPassedEnergyHO_Shared_Win,MPI_COMM_SHARED)
+
+  ! Store data in local array
+  offset = 0
+  DO iElem = 1, nGlobalElems
+    Nloc = N_DG_Ray(iElem)
+    NlocOffset = (Nloc+1)**3
+    RayElemOffset(iElem) = offset
+    RayElemPassedEnergyHO(1,offset+1:offset+NlocOffset) = RESHAPE(U_N_Ray(iElem)%U(1,:,:,:),(/(Nloc+1)**3/))
+    RayElemPassedEnergyHO(2,offset+1:offset+NlocOffset) = RESHAPE(U_N_Ray(iElem)%U(2,:,:,:),(/(Nloc+1)**3/))
+    offset = offset + NlocOffset
+  END DO ! iElem = 1, nGlobalElems
+
+  MessageSize = nVarRay * INT(nGlobalEntries,4)
+
+  ! Reduce data to each node leader
+  IF (myComputeNodeRank.EQ.0) THEN
+    CALL MPI_REDUCE(RayElemPassedEnergyHO, RayElemPassedEnergyHO_Shared, MessageSize, MPI_DOUBLE_PRECISION, MPI_SUM, 0, MPI_COMM_SHARED, IERROR)
+  ELSE
+    CALL MPI_REDUCE(RayElemPassedEnergyHO, 0                           , MessageSize, MPI_DOUBLE_PRECISION, MPI_SUM, 0, MPI_COMM_SHARED, IERROR)
+  ENDIF
+  CALL BARRIER_AND_SYNC(RayElemPassedEnergyHO_Shared_Win, MPI_COMM_SHARED)
+
+  ! Synchronize data between node leaders with all-reduce
+  IF(nLeaderGroupProcs.GT.1)THEN
+    IF(myComputeNodeRank.EQ.0)THEN
+      CALL MPI_ALLREDUCE(MPI_IN_PLACE,RayElemPassedEnergyHO_Shared,MessageSize,MPI_DOUBLE_PRECISION,MPI_SUM,MPI_COMM_LEADERS_SHARED,iError)
+    END IF
+
+    ! Synchronize data from node leaders to node workers
+    CALL BARRIER_AND_SYNC(RayElemPassedEnergyHO_Shared_Win, MPI_COMM_SHARED)
+  END IF
+
+  DEALLOCATE(RayElemPassedEnergyHO)
+
+END IF ! nProcessors.GT.1
 
 END SUBROUTINE ExchangeRayVolInfo
 #endif /*USE_MPI*/

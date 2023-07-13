@@ -75,13 +75,27 @@ INTEGER              :: RayPartBound                   !< Particle boundary ID w
 INTEGER,PARAMETER    :: RayElemSize=6
 REAL, ALLOCATABLE    :: RayElemPassedEnergy(:,:)       !<
 #if USE_MPI
-INTEGER              :: RayElemPassedEnergy_Shared_Win !<
-REAL,POINTER         :: RayElemPassedEnergy_Shared(:,:)!<
+INTEGER              :: RayElemPassedEnergy_Shared_Win    !<
+REAL,POINTER         :: RayElemPassedEnergy_Shared(:,:)   !<
+INTEGER              :: RayElemPassedEnergyHO_Shared_Win  !< high-order sampling
+REAL,POINTER         :: RayElemPassedEnergyHO_Shared(:,:) !< high-order sampling
+INTEGER,ALLOCATABLE  :: RayElemOffset(:)                  !< Entry offset for high-order sampling
 #endif
+REAL, ALLOCATABLE    :: RayElemPassedEnergyLoc1st(:)
+REAL, ALLOCATABLE    :: RayElemPassedEnergyLoc2nd(:)
+REAL, ALLOCATABLE    :: RaySecondaryVectorX(:)
+REAL, ALLOCATABLE    :: RaySecondaryVectorY(:)
+REAL, ALLOCATABLE    :: RaySecondaryVectorZ(:)
 
 ! Output of high-order p-adaptive info
 INTEGER,PARAMETER    :: nVarRay=2                      !< Number of variables for higher-order sampling for volume ray tracing
-INTEGER,ALLOCATABLE  :: N_DG_Ray(:)                    !< polynomial degree inside DG element for higher-order sampling for volume ray tracing, size(nElems)
+
+INTEGER,ALLOCATABLE  :: N_DG_Ray_loc(:)                !< for output to ElemData
+INTEGER,ALLOCPOINT   :: N_DG_Ray(:)                    !< polynomial degree inside DG element for higher-order sampling for volume ray tracing, size(nElems)
+#if USE_MPI
+INTEGER              :: N_DG_Ray_Shared_Win
+INTEGER,ALLOCPOINT   :: N_DG_Ray_Shared(:)
+#endif
 
 ! DG solution volume
 TYPE N_U_Vol
@@ -96,16 +110,6 @@ TYPE(N_U_Vol),ALLOCATABLE :: U_N_Ray(:)                !< Solution variable for 
 !-----------------------------------------------------------------------------------------------------------------------------------
 TYPE, PUBLIC :: VolMesh
   REAL,ALLOCATABLE :: Elem_xGP(:,:,:,:) !< XYZ positions (first index 1:3) of the volume Gauss Point
-  
-  REAL,ALLOCATABLE :: GaussBorder(:)    !< Variable required for Nearest Gauss Point (NGP) assignment
-
-  ! Metrics on GaussPoints
-  !REAL,ALLOCATABLE :: dXCL_N(:,:,:,:,:)    !< Jacobi matrix of the mapping P\in NGeo
-  !REAL,ALLOCATABLE :: Metrics_fTilde(:,:,:,:) !< Metric Terms (first indices 3) on each GaussPoint
-  !REAL,ALLOCATABLE :: Metrics_gTilde(:,:,:,:)
-  !REAL,ALLOCATABLE :: Metrics_hTilde(:,:,:,:)
-  !REAL,ALLOCATABLE :: sJ(:,:,:)     !< 1/DetJac for each Gauss Point
-
 END TYPE VolMesh
 
 TYPE(VolMesh),ALLOCATABLE  :: N_VolMesh_Ray(:) !< Array to store Mesh metrics object "VolMesh"
@@ -115,16 +119,17 @@ TYPE(VolMesh),ALLOCATABLE  :: N_VolMesh_Ray(:) !< Array to store Mesh metrics ob
 !-----------------------------------------------------------------------------------------------------------------------------------
 TYPE, PUBLIC :: Interpolation
   ! reserved for Gauss Points with polynomial degree N, all allocated (0:N)
-  REAL,ALLOCATABLE  :: L_Plus(:)                   !< L for boundary flux computation at plus side  (1)
-  REAL,ALLOCATABLE  :: L_Minus(:)                  !< L for boundary flux computation at minus side (-1)
-  REAL,ALLOCATABLE  :: L_PlusMinus(:,:)            !< L for boundary flux computation at both sides (-1,1)
-  REAL,ALLOCATABLE  :: xGP(:)                      !< Gauss point coordinates
-  REAL,ALLOCATABLE  :: wGP(:)                      !< GP integration weights
-  REAL,ALLOCATABLE  :: swGP(:)                     !< 1.0/ GP integration weights
-  REAL,ALLOCATABLE  :: wBary(:)                    !< barycentric weights
-  REAL,ALLOCATABLE  :: wGPSurf(:,:)                !< wGPSurf(i,j)=wGP(i)*wGP(j)
-  REAL,ALLOCATABLE  :: NChooseK(:,:)               !< array n over n
-  REAL,ALLOCATABLE  :: Vdm_Leg(:,:), sVdm_Leg(:,:) !< Legendre Vandermonde matrix
+  REAL,ALLOCATABLE :: L_Plus(:)                   !< L for boundary flux computation at plus side  (1)
+  REAL,ALLOCATABLE :: L_Minus(:)                  !< L for boundary flux computation at minus side (-1)
+  REAL,ALLOCATABLE :: L_PlusMinus(:,:)            !< L for boundary flux computation at both sides (-1,1)
+  REAL,ALLOCATABLE :: xGP(:)                      !< Gauss point coordinates
+  REAL,ALLOCATABLE :: wGP(:)                      !< GP integration weights
+  REAL,ALLOCATABLE :: swGP(:)                     !< 1.0/ GP integration weights
+  REAL,ALLOCATABLE :: wBary(:)                    !< barycentric weights
+  REAL,ALLOCATABLE :: wGPSurf(:,:)                !< wGPSurf(i,j)=wGP(i)*wGP(j)
+  REAL,ALLOCATABLE :: NChooseK(:,:)               !< array n over n
+  REAL,ALLOCATABLE :: Vdm_Leg(:,:), sVdm_Leg(:,:) !< Legendre Vandermonde matrix
+  REAL,ALLOCATABLE :: GaussBorder(:)              !< Variable required for Nearest Gauss Point (NGP) assignment
 END TYPE Interpolation
 
 TYPE(Interpolation),ALLOCATABLE    :: N_Inter_Ray(:)      !< Array of prebuild interpolation matrices

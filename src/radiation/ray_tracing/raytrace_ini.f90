@@ -182,30 +182,53 @@ END SUBROUTINE InitRayTracing
 SUBROUTINE InitHighOrderRaySampling()
 ! MODULES
 USE MOD_PreProc
-USE MOD_Globals            ,ONLY: abort,IERROR
-USE MOD_Mesh_Vars          ,ONLY: NodeCoords,nElems,ElemBaryNGeo
+USE MOD_Globals            ,ONLY: abort,IERROR,myrank,UNIT_StdOut
+USE MOD_Mesh_Vars          ,ONLY: ElemBaryNGeo,nGlobalElems
 USE MOD_RayTracing_Vars    ,ONLY: N_VolMesh_Ray,N_DG_Ray,Ray,N_Inter_Ray,PREF_VDM_Ray,U_N_Ray,nVarRay
-USE MOD_Mesh_Tools         ,ONLY: GetCNElemID
+USE MOD_Mesh_Tools         ,ONLY: GetCNElemID,GetGlobalElemID
 USE MOD_ReadInTools        ,ONLY: GETREAL
 USE MOD_Particle_Mesh_Vars ,ONLY: ElemVolume_Shared
 #if USE_MPI
 USE MPI
+USE MOD_Particle_Mesh_Vars ,ONLY: NodeCoords_Shared
+USE MOD_RayTracing_Vars    ,ONLY: N_DG_Ray_Shared,N_DG_Ray_Shared_Win
+#else
+USE MOD_Mesh_Vars          ,ONLY: NodeCoords,nElems
 #endif /*USE_MPI*/
+#if defined(CODE_ANALYZE)
+USE MOD_Globals            ,ONLY: nProcessors
+#endif /*defined(CODE_ANALYZE)*/
+#if USE_LOADBALANCE
+USE MOD_MPI_Shared
+USE MOD_MPI_Shared_Vars   ,ONLY: MPI_COMM_SHARED,myComputeNodeRank,nComputeNodeProcessors,nComputeNodeTotalElems
+#endif /*USE_LOADBALANCE*/
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! INPUT / OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER           :: Nloc,iElem,CNElemID
+INTEGER           :: Nloc,iCNElem,firstElem,lastElem,iGlobalElem
 REAL              :: VolMin,VolMax,m,NReal
 #if defined(CODE_ANALYZE)
+INTEGER           :: iElem
 LOGICAL,PARAMETER :: debugRay=.FALSE.
 #endif /*defined(CODE_ANALYZE)*/
 LOGICAL           :: FoundElem
 CHARACTER(LEN=20) :: hilf
 !===================================================================================================================================
-ALLOCATE(N_DG_Ray(nElems))
+#if USE_MPI
+CALL Allocate_Shared((/nGlobalElems/),N_DG_Ray_Shared_Win,N_DG_Ray_Shared)
+CALL MPI_WIN_LOCK_ALL(0,N_DG_Ray_Shared_Win,IERROR)
+N_DG_Ray => N_DG_Ray_Shared
+! only CN root initializes
+IF (myComputeNodeRank.EQ.0) N_DG_Ray = Ray%NMin ! default
+! This sync/barrier is required as it cannot be guaranteed that the zeros have been written to memory by the time the MPI_REDUCE
+! is executed (see MPI specification). Until the Sync is complete, the status is undefined, i.e., old or new value or utter nonsense.
+CALL BARRIER_AND_SYNC(N_DG_Ray_Shared_Win,MPI_COMM_SHARED)
+#else
+ALLOCATE(N_DG_Ray(nGlobalElems))
 N_DG_Ray = Ray%NMin ! default
+#endif /*USE_MPI*/
 
 ! Select volumetric resolution
 IF(Ray%NMin.NE.Ray%NMax)THEN
@@ -214,18 +237,27 @@ IF(Ray%NMin.NE.Ray%NMax)THEN
   CASE(0)
     ! 0: do nothing (default)
   CASE(1,2,3)
+    ! Set first and last elem loop indices
+#if USE_MPI
+    firstElem = INT(REAL( myComputeNodeRank   )*REAL(nComputeNodeTotalElems)/REAL(nComputeNodeProcessors))+1
+    lastElem  = INT(REAL((myComputeNodeRank+1))*REAL(nComputeNodeTotalElems)/REAL(nComputeNodeProcessors))
+#else
+    firstElem = 1
+    lastElem  = nElems
+#endif
     ! 1: refine below user-defined z-coordinate with NMax
     IF(Ray%VolRefineMode.NE.2)THEN
       WRITE(UNIT=hilf,FMT=WRITEFORMAT) 1.0E200!HUGE(1.0) -> HUGE produces IEEE overflow
       Ray%VolRefineModeZ = GETREAL('RayTracing-VolRefineModeZ',hilf)
-      DO iElem = 1, PP_nElems
-        CNElemID = GetCNElemID(iElem)
-        IF(ElemBaryNGeo(3,CNElemID).LT.Ray%VolRefineModeZ)THEN
-          N_DG_Ray(iElem) = Ray%Nmax
+      DO iCNElem = firstElem, lastElem
+        iGlobalElem = GetGlobalElemID(iCNElem)
+        !IPWRITE(UNIT_StdOut,*) "iCNElem,iGlobalElem =", iCNElem,iGlobalElem
+        IF(ElemBaryNGeo(3,iCNElem).LT.Ray%VolRefineModeZ)THEN
+          N_DG_Ray(iGlobalElem) = Ray%Nmax
         ELSE
-          N_DG_Ray(iElem) = Ray%Nmin
-        END IF ! ElemBaryNGeo(3,CNElemID).LT.Ray%VolRefineModeZ
-      END DO ! iElem = 1, PP_nElems
+          N_DG_Ray(iGlobalElem) = Ray%Nmin
+        END IF ! ElemBaryNGeo(3,iCNElem).LT.Ray%VolRefineModeZ
+      END DO ! iCNElem = firstElem, lastElem
     ELSE
       Ray%VolRefineModeZ = 1.0E200 ! dummy
     END IF ! Ray%VolRefineMode.NE.2
@@ -238,14 +270,14 @@ IF(Ray%NMin.NE.Ray%NMax)THEN
       VolMin = HUGE(1.)
       VolMax = -HUGE(1.)
       FoundElem = .FALSE.
-      DO iElem = 1, PP_nElems
-        CNElemID = GetCNElemID(iElem)
-        IF((ElemBaryNGeo(3,CNElemID).LT.Ray%VolRefineModeZ).OR.(Ray%VolRefineMode.EQ.2))THEN
-          VolMin = MIN(VolMin, ElemVolume_Shared(CNElemID))
-          VolMax = MAX(VolMax, ElemVolume_Shared(CNElemID))
+      DO iCNElem = firstElem, lastElem
+        iGlobalElem = GetGlobalElemID(iCNElem)
+        IF((ElemBaryNGeo(3,iCNElem).LT.Ray%VolRefineModeZ).OR.(Ray%VolRefineMode.EQ.2))THEN
+          VolMin = MIN(VolMin, ElemVolume_Shared(iCNElem))
+          VolMax = MAX(VolMax, ElemVolume_Shared(iCNElem))
           FoundElem = .TRUE.
         END IF
-      END DO ! iElem = 1, PP_nElems
+      END DO ! iCNElem = firstElem, lastElem
 #if USE_MPI
       CALL MPI_ALLREDUCE(MPI_IN_PLACE, VolMin, 1, MPI_DOUBLE_PRECISION, MPI_MIN, MPI_COMM_WORLD, IERROR)
       CALL MPI_ALLREDUCE(MPI_IN_PLACE, VolMax, 1, MPI_DOUBLE_PRECISION, MPI_MAX, MPI_COMM_WORLD, IERROR)
@@ -257,13 +289,14 @@ IF(Ray%NMin.NE.Ray%NMax)THEN
         ! Get the slope of the linear interpolation function between the maximum and minimum of the element volumes
         m = REAL(Ray%Nmax-Ray%Nmin)/(VolMax-VolMin)
         IF(FoundElem)THEN
-          DO iElem = 1, PP_nElems
-            CNElemID = GetCNElemID(iElem)
-            IF(ElemBaryNGeo(3,CNElemID).LT.Ray%VolRefineModeZ)THEN
-              NReal = m * (ElemVolume_Shared(CNElemID)-VolMin) + REAL(Ray%Nmin)
-              N_DG_Ray(iElem) = NINT(NReal)
+          ! Loop over process elements
+          DO iCNElem = firstElem, lastElem
+            iGlobalElem = GetGlobalElemID(iCNElem)
+            IF(ElemBaryNGeo(3,iCNElem).LT.Ray%VolRefineModeZ)THEN
+              NReal = m * (ElemVolume_Shared(iCNElem)-VolMin) + REAL(Ray%Nmin)
+              N_DG_Ray(iGlobalElem) = NINT(NReal)
             END IF
-          END DO ! iElem = 1, PP_nElems
+          END DO ! iCNElem = firstElem, lastElem
         END IF ! FoundElem
       END IF ! (VolMax.GT.VolMin).AND.(.NOT.ALMOST) 
 
@@ -271,6 +304,7 @@ IF(Ray%NMin.NE.Ray%NMax)THEN
   CASE DEFAULT
     ! Debugging:
 #if defined(CODE_ANALYZE)
+    IF(nProcessors.GT.1) CALL abort(__STAMP__,'This only works for single-core runs')
     ! 3D box test case with diagonal rays
     IF(debugRay)THEN
       N_DG_Ray = Ray%Nmax
@@ -306,6 +340,10 @@ IF(Ray%NMin.NE.Ray%NMax)THEN
     CALL abort(__STAMP__,'RayTracing-VolRefineMode unknown: ',IntInfoOpt=Ray%VolRefineMode)
 #endif /*defined(CODE_ANALYZE)*/
   END SELECT
+
+#if USE_MPI
+  CALL BARRIER_AND_SYNC(N_DG_Ray_Shared_Win,MPI_COMM_SHARED)
+#endif /*USE_MPI*/
 END IF ! Ray%NMin.NE.Ray%NMax
 
 ! Sanity check
@@ -317,16 +355,20 @@ ALLOCATE(N_Inter_Ray(Ray%Nmin:Ray%Nmax))
 ALLOCATE(PREF_VDM_Ray(Ray%Nmin:Ray%Nmax,Ray%Nmin:Ray%Nmax))
 CALL BuildNInterAndVandermonde()
 
-ALLOCATE(N_VolMesh_Ray(1:nElems))
+ALLOCATE(N_VolMesh_Ray(1:nGlobalElems))
+#if USE_MPI
+CALL BuildElem_xGP_RayTrace(NodeCoords_Shared)
+#else
 CALL BuildElem_xGP_RayTrace(NodeCoords)
+#endif /*USE_MPI*/
 
 ! the local DG solution in physical and reference space
-ALLOCATE(U_N_Ray(1:PP_nElems))
-DO iElem = 1, PP_nElems
-  Nloc = N_DG_Ray(iElem)
-  ALLOCATE(U_N_Ray(iElem)%U(nVarRay,0:Nloc,0:Nloc,0:Nloc))
-  U_N_Ray(iElem)%U = 0.
-END DO ! iElem = 1, PP_nElems
+ALLOCATE(U_N_Ray(1:nGlobalElems))
+DO iGlobalElem = 1, nGlobalElems
+  Nloc = N_DG_Ray(iGlobalElem)
+  ALLOCATE(U_N_Ray(iGlobalElem)%U(nVarRay,0:Nloc,0:Nloc,0:Nloc))
+  U_N_Ray(iGlobalElem)%U = 0.
+END DO ! iGlobalElem = 1, nGlobalElems
 
 END SUBROUTINE InitHighOrderRaySampling
 
@@ -340,9 +382,9 @@ SUBROUTINE BuildElem_xGP_RayTrace(NodeCoords)
 ! MODULES
 USE MOD_Globals
 USE MOD_PreProc
-USE MOD_Mesh_Vars          ,ONLY: NGeo,nElems
+USE MOD_Mesh_Vars          ,ONLY: NGeo,nGlobalElems
 USE MOD_Interpolation_Vars ,ONLY: NodeTypeCL,NodeTypeVISU,NodeType
-USE MOD_RayTracing_Vars    ,ONLY: Ray,N_VolMesh_Ray,N_DG_Ray,N_Inter_Ray
+USE MOD_RayTracing_Vars    ,ONLY: Ray,N_VolMesh_Ray,N_DG_Ray
 USE MOD_Interpolation      ,ONLY: GetVandermonde,GetNodesAndWeights
 USE MOD_ChangeBasis        ,ONLY: ChangeBasis3D_XYZ, ChangeBasis3D
 USE MOD_Basis              ,ONLY: LagrangeInterpolationPolys
@@ -350,10 +392,10 @@ USE MOD_Basis              ,ONLY: LagrangeInterpolationPolys
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT/OUTPUT VARIABLES
-REAL,INTENT(IN)               :: NodeCoords(3,0:NGeo,0:NGeo,0:NGeo,nElems)         !< Equidistant mesh coordinates
+REAL,INTENT(IN)               :: NodeCoords(3,0:NGeo,0:NGeo,0:NGeo,nGlobalElems)         !< Equidistant mesh coordinates
 !----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                       :: iElem,Nloc,i
+INTEGER                       :: iGlobalElem,Nloc
 
 TYPE VdmType
   REAL, ALLOCATABLE           :: Vdm_EQNGeo_CLNloc(:,:)
@@ -362,7 +404,6 @@ END TYPE VdmType
 
 TYPE(VdmType), DIMENSION(:), ALLOCATABLE :: Vdm
 
-REAL, DIMENSION(:), ALLOCATABLE :: MappedGauss(:)
 !==================================================================================================================================
 
 ! Build Vdm for every degree
@@ -381,25 +422,13 @@ DO Nloc = Ray%Nmin, Ray%Nmax
 END DO ! Nloc = Ray%Nmin, Ray%Nmax
 
 ! Set Elem_xGP for each element
-DO iElem=1,nElems
-  Nloc = N_DG_Ray(iElem)
+DO iGlobalElem=1,nGlobalElems
+  Nloc = N_DG_Ray(iGlobalElem)
 
-  ALLOCATE(N_VolMesh_Ray(iElem)%Elem_xGP(3,0:Nloc,0:Nloc,0:Nloc))
-  CALL ChangeBasis3D(3,NGeo,Nloc,Vdm(Nloc)%Vdm_EQNGeo_CLNloc,NodeCoords(:,:,:,:,iElem),N_VolMesh_Ray(iElem)%Elem_xGP(:,:,:,:))
-
-  ! Build variables for nearest Gauss-point (NGP) method
-  ALLOCATE(N_VolMesh_Ray(iElem)%GaussBorder(1:Nloc))
-  ALLOCATE(MappedGauss(1:Nloc+1))
-
-  DO i = 0, Nloc
-    MappedGauss(i+1) = N_Inter_Ray(Nloc)%xGP(i)
-  END DO ! i = 0, Nloc
-
-  DO i = 1, Nloc
-    N_VolMesh_Ray(iElem)%GaussBorder(i) = (MappedGauss(i+1) + MappedGauss(i))/2
-  END DO ! i = 1, Nloc
-
-  DEALLOCATE(MappedGauss)
+  ! TODO: Currently each process has all global xGP (maybe put unrolled into a shared array)
+  ALLOCATE(N_VolMesh_Ray(iGlobalElem)%Elem_xGP(3,0:Nloc,0:Nloc,0:Nloc))
+  CALL ChangeBasis3D(3,NGeo,Nloc,Vdm(Nloc)%Vdm_EQNGeo_CLNloc,NodeCoords(:,:,:,:,iGlobalElem),&
+                     N_VolMesh_Ray(iGlobalElem)%Elem_xGP(:,:,:,:))
 
 END DO
 
@@ -421,13 +450,31 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER           :: i,j,Nin,Nout,Nloc
+REAL, DIMENSION(:), ALLOCATABLE :: MappedGauss(:)
 !===================================================================================================================================
 DO Nloc=Ray%Nmin,Ray%Nmax
+  ! Build basis for polynomial of degree Nloc
   CALL InitInterpolationBasis(Nloc , N_Inter_Ray(Nloc)%xGP     , N_Inter_Ray(Nloc)%wGP     , N_Inter_Ray(Nloc)%wBary , &
                                      N_Inter_Ray(Nloc)%L_Minus , N_Inter_Ray(Nloc)%L_Plus  , N_Inter_Ray(Nloc)%L_PlusMinus , &
                                      N_Inter_Ray(Nloc)%swGP    , N_Inter_Ray(Nloc)%wGPSurf , &
                                      N_Inter_Ray(Nloc)%Vdm_Leg , N_Inter_Ray(Nloc)%sVdm_Leg)
+
+  ! Build variables for nearest Gauss-point (NGP) method
+  ALLOCATE(N_Inter_Ray(Nloc)%GaussBorder(1:Nloc))
+  ALLOCATE(MappedGauss(1:Nloc+1))
+
+  DO i = 0, Nloc
+    MappedGauss(i+1) = N_Inter_Ray(Nloc)%xGP(i)
+  END DO ! i = 0, Nloc
+
+  DO i = 1, Nloc
+    N_Inter_Ray(Nloc)%GaussBorder(i) = (MappedGauss(i+1) + MappedGauss(i))/2
+  END DO ! i = 1, Nloc
+
+  DEALLOCATE(MappedGauss)
+
 END DO
+
 
 ! Fill Vandermonde matrices for p-refinement
 DO Nin=Ray%Nmin,Ray%Nmax
@@ -457,18 +504,51 @@ END SUBROUTINE BuildNInterAndVandermonde
 !===================================================================================================================================
 SUBROUTINE FinalizeRayTracing()
 ! MODULES
+USE MOD_Globals
 USE MOD_RayTracing_Vars
+USE MOD_Photon_TrackingVars ,ONLY: PhotonSampWall
+#if USE_MPI
+USE MOD_MPI_Shared_Vars     ,ONLY: MPI_COMM_SHARED
+USE MOD_MPI_Shared
+#endif /*USE_MPI*/
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! INPUT / OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 !===================================================================================================================================
-SDEALLOCATE(N_DG_Ray)
 SDEALLOCATE(N_VolMesh_Ray)
 SDEALLOCATE(N_Inter_Ray)
 SDEALLOCATE(PREF_VDM_Ray)
 SDEALLOCATE(U_N_Ray)
+SDEALLOCATE(RayElemPassedEnergy)
+! TODO: call this finalize with 2 modes (1. after ray tracing, 2. after plasma simulation)
+!SDEALLOCATE(PhotonSampWall)
+! TODO: see above: deallocate these arrays after simulation end because otherwise these fields will be corrupt in the state file
+! and that canc ause confusion
+!SDEALLOCATE(N_DG_Ray_loc)
+!SDEALLOCATE(RayElemPassedEnergyLoc1st)
+!SDEALLOCATE(RayElemPassedEnergyLoc2nd)
+!SDEALLOCATE(RaySecondaryVectorX)
+!SDEALLOCATE(RaySecondaryVectorY)
+!SDEALLOCATE(RaySecondaryVectorZ)
+IF(nProcessors.GT.1)THEN
+#if USE_MPI
+  SDEALLOCATE(RayElemOffset)
+  CALL MPI_BARRIER(MPI_COMM_SHARED,iError)
+  CALL UNLOCK_AND_FREE(RayElemPassedEnergy_Shared_Win)
+  CALL UNLOCK_AND_FREE(RayElemPassedEnergyHO_Shared_Win)
+  CALL MPI_BARRIER(MPI_COMM_SHARED,iError)
+  ADEALLOCATE(RayElemPassedEnergy_Shared)
+  ADEALLOCATE(RayElemPassedEnergyHO_Shared)
+#endif /*USE_MPI*/
+END IF ! nProcessors.GT.1
+#if USE_MPI
+CALL MPI_BARRIER(MPI_COMM_SHARED,iError)
+CALL UNLOCK_AND_FREE(N_DG_Ray_Shared_Win)
+CALL MPI_BARRIER(MPI_COMM_SHARED,iError)
+ADEALLOCATE(N_DG_Ray_Shared)
+#endif /*USE_MPI*/
 END SUBROUTINE FinalizeRayTracing
 
 END MODULE MOD_RayTracing_Init
