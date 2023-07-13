@@ -223,7 +223,7 @@ END FUNCTION GetGlobalSideID_iSide
 !==================================================================================================================================!
 PPURE INTEGER FUNCTION GetGlobalElemID_fromTotalElem(iElem)
 ! MODULES
-USE MOD_MPI_Shared_Vars, ONLY:CNTotalElem2GlobalElem
+USE MOD_Particle_Mesh_Vars, ONLY:CNTotalElem2GlobalElem
 ! INPUT / OUTPUT VARIABLES
 INTEGER,INTENT(IN)              :: iElem
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -243,7 +243,7 @@ END FUNCTION GetGlobalElemID_fromTotalElem
 !==================================================================================================================================!
 PPURE INTEGER FUNCTION GetGlobalSideID_fromTotalSide(iSide)
 ! MODULES
-USE MOD_MPI_Shared_Vars, ONLY:CNTotalSide2GlobalSide
+USE MOD_Particle_Mesh_Vars, ONLY:CNTotalSide2GlobalSide
 ! INPUT / OUTPUT VARIABLES
 INTEGER,INTENT(IN)              :: iSide
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -365,7 +365,7 @@ END FUNCTION CNSideID_is_iSide
 !==================================================================================================================================!
 PPURE INTEGER FUNCTION GetGlobalElem2CNTotalElem(iElem)
 ! MODULES
-USE MOD_MPI_Shared_Vars, ONLY:GlobalElem2CNTotalElem
+USE MOD_Particle_Mesh_Vars, ONLY:GlobalElem2CNTotalElem
 ! INPUT / OUTPUT VARIABLES
 INTEGER,INTENT(IN)              :: iElem ! Global element ID
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -385,7 +385,7 @@ END FUNCTION GetGlobalElem2CNTotalElem
 !==================================================================================================================================!
 PPURE INTEGER FUNCTION GetGlobalSide2CNTotalSide(iSide)
 ! MODULES
-USE MOD_MPI_Shared_Vars, ONLY:GlobalSide2CNTotalSide
+USE MOD_Particle_Mesh_Vars, ONLY:GlobalSide2CNTotalSide
 ! INPUT / OUTPUT VARIABLES
 INTEGER,INTENT(IN)              :: iSide ! Global element ID
 !-----------------------------------------------------------------------------------------------------------------------------------
