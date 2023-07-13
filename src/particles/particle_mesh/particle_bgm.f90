@@ -129,7 +129,7 @@ USE MOD_Particle_Mesh_Vars     ,ONLY: GlobalSide2CNTotalSide_Shared,GlobalSide2C
 USE MOD_Particle_Mesh_Vars     ,ONLY: CNTotalSide2GlobalSide_Shared,CNTotalSide2GlobalSide_Shared_Win
 USE MOD_Particle_Mesh_Vars     ,ONLY: GlobalElem2CNTotalElem_Shared,GlobalElem2CNTotalElem_Shared_Win
 USE MOD_Particle_Mesh_Vars     ,ONLY: CNTotalElem2GlobalElem_Shared,CNTotalElem2GlobalElem_Shared_Win
-USE MOD_Particle_Mesh_Vars     ,ONLY: MeshHasPeriodic,MeshHasRotPeriodic
+USE MOD_Particle_Mesh_Vars     ,ONLY: MeshHasPeriodic
 USE MOD_Particle_Mesh_Vars     ,ONLY: GlobalSide2CNTotalSide
 USE MOD_Particle_Mesh_Vars     ,ONLY: CNTotalSide2GlobalSide
 USE MOD_Particle_Mesh_Vars     ,ONLY: GlobalElem2CNTotalElem
