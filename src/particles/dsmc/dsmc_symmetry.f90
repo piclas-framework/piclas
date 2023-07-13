@@ -110,6 +110,7 @@ INTEGER                         :: SideID, iLocSide, iNode, BCSideID, locElemID,
 REAL                            :: radius, triarea(2)
 #if USE_MPI
 REAL                            :: CNVolume
+INTEGER                         :: offsetElemCNProc
 #endif /*USE_MPI*/
 LOGICAL                         :: SymmetryBCExists
 INTEGER                         :: firstElem, lastElem, firstSide, lastSide
@@ -223,7 +224,9 @@ CALL BARRIER_AND_SYNC(SideIsSymSide_Shared_Win ,MPI_COMM_SHARED)
 CALL BARRIER_AND_SYNC(ElemVolume_Shared_Win    ,MPI_COMM_SHARED)
 CALL BARRIER_AND_SYNC(ElemCharLength_Shared_Win,MPI_COMM_SHARED)
 ! Compute-node mesh volume
-CNVolume = SUM(ElemVolume_Shared(:))
+offsetElemCNProc = offsetElem - offsetComputeNodeElem
+CNVolume = SUM(ElemVolume_Shared(offsetElemCNProc+1:offsetElemCNProc+nElems))
+CALL MPI_ALLREDUCE(MPI_IN_PLACE,CNVolume,1,MPI_DOUBLE_PRECISION,MPI_SUM,MPI_COMM_SHARED,iError)
 IF (myComputeNodeRank.EQ.0) THEN
   ! All-reduce between node leaders
   CALL MPI_ALLREDUCE(CNVolume,MeshVolume,1,MPI_DOUBLE_PRECISION,MPI_SUM,MPI_COMM_LEADERS_SHARED,IERROR)
@@ -630,7 +633,7 @@ DO iPart = 1, RadialWeighting%ClonePartNum(DelayCounter)
     PartStateIntEn(1:2,PositionNbr) = ClonedParticles(iPart,DelayCounter)%PartStateIntEn(1:2)
     IF(DSMC%ElectronicModel.GT.0) THEN
       PartStateIntEn(3,PositionNbr) = ClonedParticles(iPart,DelayCounter)%PartStateIntEn(3)
-      IF ((DSMC%ElectronicModel.EQ.2).AND.(.NOT.((SpecDSMC(ClonedParticles(iPart,DelayCounter)%Species)%InterID.EQ.4) & 
+      IF ((DSMC%ElectronicModel.EQ.2).AND.(.NOT.((SpecDSMC(ClonedParticles(iPart,DelayCounter)%Species)%InterID.EQ.4) &
           .OR.SpecDSMC(ClonedParticles(iPart,DelayCounter)%Species)%FullyIonized))) THEN
         IF(ALLOCATED(ElectronicDistriPart(PositionNbr)%DistriFunc)) DEALLOCATE(ElectronicDistriPart(PositionNbr)%DistriFunc)
         ALLOCATE(ElectronicDistriPart(PositionNbr)%DistriFunc(1:SpecDSMC(ClonedParticles(iPart,DelayCounter)%Species)%MaxElecQuant))
@@ -921,7 +924,7 @@ IF (Coll_pData(iPair)%CRela2.EQ.0.0) THEN
                              + (PartState(5,iPart_p1) - PartState(5,iPart_p2))**2 &
                              + (PartState(6,iPart_p1) - PartState(6,iPart_p2))**2
   ELSE IF (iPair.LT.nPair) THEN
-    IF (.NOT.Coll_pData(iPair+1)%NeedForRec) THEN 
+    IF (.NOT.Coll_pData(iPair+1)%NeedForRec) THEN
     ! "Partner-Tausch": if there are pairs ahead in the pairing list, the next is pair is broken up and collision partners
     ! are swapped
       CollInf%Coll_CaseNum(Coll_pData(iPair)%PairType) = CollInf%Coll_CaseNum(Coll_pData(iPair)%PairType) - 1

@@ -17,6 +17,18 @@ Other operating systems, such as Windows or MacOS might be supported in the futu
 
 Download the pre-compiled (on Centos7) executables from the [PICLas release tag assets](https://github.com/piclas-framework/piclas/releases).
 Note that versions prior to v3.0.0 are not supported for AppImage download.
+Unzip the files, switch into the directory an then and check their MD5 hashes by running
+
+    md5sum -c md5sum.txt
+
+which should produce output looking like
+
+    piclasDSMC: OK
+    piclasLeapfrogHDG: OK
+    piclas2vtk: OK
+    superB: OK
+
+indicating that everything is fine.
 After downloading the binary files, it has to be checked that all files are executable and if not simply run
 
     chmod +x piclas*
