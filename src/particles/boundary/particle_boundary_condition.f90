@@ -151,7 +151,7 @@ ASSOCIATE( iPartBound => PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID)
   !-----------------------------------------------------------------------------------------------------------------------------------
   CASE(3) ! PartBound%PeriodicBC
   !-----------------------------------------------------------------------------------------------------------------------------------
-    CALL PeriodicBC(iPart,SideID,ElemID)
+    CALL PeriodicBoundary(iPart,SideID,ElemID)
   !-----------------------------------------------------------------------------------------------------------------------------------
   CASE(4) ! PartBound%SimpleAnodeBC
   !-----------------------------------------------------------------------------------------------------------------------------------
@@ -163,12 +163,12 @@ ASSOCIATE( iPartBound => PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID)
   !-----------------------------------------------------------------------------------------------------------------------------------
   CASE(6) ! PartBound%RotPeriodicBC
   !-----------------------------------------------------------------------------------------------------------------------------------
-    CALL RotPeriodicBC(iPart,SideID,ElemID)
+    CALL RotPeriodicBoundary(iPart,SideID,ElemID)
     ! Sanity check: During rotational periodic movement, particles may enter a dielectric. Unfortunately, they must be deleted
     IF(DoDielectric)THEN
       IF(PDM%ParticleInside(iPart).AND.(isDielectricElem(PEM%LocalElemID(iPart))))THEN
         IF(CountNbrOfLostParts)THEN
-          CALL StoreLostParticleProperties(iPart,ElemID)
+          CALL StoreLostParticleProperties(iPart,ElemID,PartMissingType_opt=PartBound%RotPeriodicBC)
           NbrOfLostParticles=NbrOfLostParticles+1
         END IF ! CountNbrOfLostParts
         CALL RemoveParticle(iPart,BCID=iPartBound)
@@ -177,9 +177,9 @@ ASSOCIATE( iPartBound => PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID)
   !-----------------------------------------------------------------------------------------------------------------------------------
   CASE(7) ! PartBound%RotPeriodicInterPlaneBC
     IF(PRESENT(IsInterPlanePart)) THEN
-      CALL RotPeriodicInterPlaneBC(iPart,SideID,ElemID,IsInterplanePart)
+      CALL RotPeriodicInterPlaneBoundary(iPart,SideID,ElemID,IsInterplanePart)
     ELSE
-      CALL RotPeriodicInterPlaneBC(iPart,SideID,ElemID)
+      CALL RotPeriodicInterPlaneBoundary(iPart,SideID,ElemID)
     END IF
   !-----------------------------------------------------------------------------------------------------------------------------------
   CASE(10,11) ! PartBound%SymmetryBC
@@ -193,7 +193,7 @@ END ASSOCIATE
 END SUBROUTINE GetBoundaryInteraction
 
 
-SUBROUTINE PeriodicBC(PartID,SideID,ElemID)
+SUBROUTINE PeriodicBoundary(PartID,SideID,ElemID)
 !===================================================================================================================================
 !> Move the particle through the periodic BC to the neighbor element
 !===================================================================================================================================
@@ -234,7 +234,7 @@ PVID = BoundaryType(SideInfo_Shared(SIDE_BCID,SideID),BC_ALPHA)
 #ifdef CODE_ANALYZE
 IF(PARTOUT.GT.0 .AND. MPIRANKOUT.EQ.MyRank)THEN
   IF(PartID.EQ.PARTOUT)THEN
-    IPWRITE(UNIT_stdout,'(I0,A)') '     PeriodicBC: '
+    IPWRITE(UNIT_stdout,'(I0,A)') '     PeriodicBoundary: '
     IPWRITE(UNIT_stdout,'(I0,A,3(1X,G0))') ' ParticlePosition: ',PartState(1:3,PartID)
     IPWRITE(UNIT_stdout,'(I0,A,3(1X,G0))') ' LastPartPos:      ',LastPartPos(1:3,PartID)
   END IF
@@ -252,7 +252,7 @@ TrackInfo%lengthPartTrajectory  = TrackInfo%lengthPartTrajectory - TrackInfo%alp
 #ifdef CODE_ANALYZE
 IF(PARTOUT.GT.0 .AND. MPIRANKOUT.EQ.MyRank)THEN
   IF(PartID.EQ.PARTOUT)THEN
-    IPWRITE(UNIT_stdout,'(I0,A)') '     PeriodicBC: '
+    IPWRITE(UNIT_stdout,'(I0,A)') '     PeriodicBoundary: '
     IPWRITE(UNIT_stdout,'(I0,A,3(1X,G0))') ' ParticlePosition-pp: ',PartState(1:3,PartID)
     IPWRITE(UNIT_stdout,'(I0,A,3(1X,G0))') ' LastPartPo-pp:       ',LastPartPos(1:3,PartID)
   END IF
@@ -267,10 +267,10 @@ PEM%PeriodicMoved(PartID)=.TRUE.
 ! move particle from old element to new element
 ElemID = SideInfo_Shared(SIDE_NBELEMID,SideID)
 
-END SUBROUTINE PeriodicBC
+END SUBROUTINE PeriodicBoundary
 
 
-SUBROUTINE RotPeriodicBC(PartID,SideID,ElemID)
+SUBROUTINE RotPeriodicBoundary(PartID,SideID,ElemID)
 !===================================================================================================================================
 !> Execution of the rotation periodic boundary condition:
 !> (1) Rotate the last and current particle position and velocity vector
@@ -315,7 +315,7 @@ REAL, PARAMETER                 :: eps = 0
 #ifdef CODE_ANALYZE
 IF(PARTOUT.GT.0 .AND. MPIRANKOUT.EQ.MyRank)THEN
   IF(PartID.EQ.PARTOUT)THEN
-    IPWRITE(UNIT_stdout,'(I0,A)') '     RotPeriodicBC: '
+    IPWRITE(UNIT_stdout,'(I0,A)') '     RotPeriodicBoundary: '
     IPWRITE(UNIT_stdout,'(I0,A,3(1X,G0))') ' ParticlePosition: ',PartState(1:3,PartID)
     IPWRITE(UNIT_stdout,'(I0,A,3(1X,G0))') ' LastPartPos:      ',LastPartPos(1:3,PartID)
   END IF
@@ -377,7 +377,7 @@ DO iNeigh=1,NumRotPeriodicNeigh(RotSideID)
     locSideID = SideInfo_Shared(SIDE_LOCALID,newSideID)
     ! Side is not one of the 6 local sides
     IF (locSideID.LE.0) CYCLE
-    ! Calculte the determinant
+    ! Calculate the determinant
     DO NodeNum = 1,4
       !--- A = vector from particle to node coords
       A(:,NodeNum) = NodeCoords_Shared(:,ElemSideNodeID_Shared(NodeNum,locSideID,GetCNElemID(newElemID))+1) - PartState(1:3,PartID)
@@ -441,34 +441,41 @@ END IF
 #ifdef CODE_ANALYZE
 IF(PARTOUT.GT.0 .AND. MPIRANKOUT.EQ.MyRank)THEN
   IF(PartID.EQ.PARTOUT)THEN
-    IPWRITE(UNIT_stdout,'(I0,A)') '     RotPeriodicBC: '
+    IPWRITE(UNIT_stdout,'(I0,A)') '     RotPeriodicBoundary: '
     IPWRITE(UNIT_stdout,'(I0,A,3(1X,G0))') ' ParticlePosition-pp: ',PartState(1:3,PartID)
     IPWRITE(UNIT_stdout,'(I0,A,3(1X,G0))') ' LastPartPosition-pp: ',LastPartPos(1:3,PartID)
   END IF
 END IF
 #endif /*CODE_ANALYZE*/
 
-END SUBROUTINE RotPeriodicBC
+END SUBROUTINE RotPeriodicBoundary
 
 
-SUBROUTINE RotPeriodicInterPlaneBC(PartID,SideID,ElemID,IsInterPlanePart)
+SUBROUTINE RotPeriodicInterPlaneBoundary(PartID,SideID,ElemID,IsInterPlanePart)
 !===================================================================================================================================
-! Execution of the rotation periodic inter plane condition:
-! (1) Evaluate the probability of deletion or duplication and create inter particles or delete particle
-! (2) Calc POI and calc new random POI on corresponding inter plane with  random angle within the periodic segment
-! (3) Change velocity accordingly
-! (4) Calc particle position after random new POI according new velo and remaining time
-! (5) move particle from old element to new element
+! Execution of the rotation periodic inter plane condition.
+! IsInterPlanePart flag is provided in that case to avoid duplicate creation of particles, since the new inter plane particles
+! enter the domain through this BC and undergo the same rotation.
+! (1) [IsInterPlanePart=F -> DoCreateParticles=T] Evaluate the probability of deletion or creation of new inter plane particles
+! (2) Calc POI and calc new random POI on corresponding inter plane with random angle within the periodic segment
+! (3) Determine the angle between the old and new POI
+! (4) Rotate the velocity vector, the last and current particle position
+! (5) Treatment of velocity in rotational frame of reference
+! (6) move particle from old element to new element
+! (7) Track the particle, moving inside the domain through the interplane BC
+! (8) Fallback: utilize the rotated POI with a slightly shifted coordinate along the rotational axis
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
 USE MOD_Globals_Vars            ,ONLY: PI
+USE MOD_Mesh_Tools              ,ONLY: GetCNElemID
 USE MOD_Particle_Vars           ,ONLY: PartState,LastPartPos,Species,PartSpecies
-USE MOD_Particle_Mesh_Vars      ,ONLY: SideInfo_Shared
+USE MOD_Particle_Mesh_Vars      ,ONLY: ElemInfo_Shared, SideInfo_Shared, ElemSideNodeID_Shared, NodeCoords_Shared
 USE MOD_Particle_Boundary_Vars  ,ONLY: PartBound, InterPlaneSideMapping
 USE MOD_TImeDisc_Vars           ,ONLY: dt,RKdtFrac
 USE MOD_Particle_Vars           ,ONLY: UseVarTimeStep, PartTimeStep, VarTimeStep
 USE MOD_Particle_Mesh_Tools     ,ONLY: ParticleInsideQuad3D
+USE MOD_Particle_Intersection   ,ONLY: IntersectionWithWall, ParticleThroughSideCheck3DFast
 USE MOD_part_tools              ,ONLY: StoreLostParticleProperties
 USE MOD_Particle_Tracking_Vars  ,ONLY: NbrOfLostParticles, TrackInfo, CountNbrOfLostParts,DisplayLostParticles
 USE MOD_DSMC_Vars               ,ONLY: DSMC, AmbipolElecVelo
@@ -493,21 +500,24 @@ INTEGER,INTENT(INOUT),OPTIONAL    :: ElemID
 LOGICAL,INTENT(IN),OPTIONAL       :: IsInterPlanePart
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                           :: iSide, InterSideID, NumInterPlaneSides,NewElemID
+INTEGER                           :: iSide, InterSideID, NumInterPlaneSides,NewElemID, neighPartBound
+INTEGER                           :: BCType, nLocSides, newSideID, iLocSide, locSideID, TriNum, NodeNum
 REAL                              :: dtVar
-LOGICAL                           :: FoundInElem, DoCreateParticles
-REAL                              :: LastPartPos_old(1:3),Velo_old(1:3), Velo_oldAmbi(1:3), VeloPush(1:3)
-REAL                              :: RanNum, RadiusPOI,rot_alpha_POIold,AlphaDelta
+LOGICAL                           :: ParticleFound, DoCreateParticles, ThroughSide
+REAL                              :: Velo_old(1:3), Velo_oldAmbi(1:3)
+REAL                              :: POI(1:3), POI_rotated(1:3), LastPartPos_rotated(1:3), PartState_rotated(1:3)
+REAL                              :: RanNum, RadiusPOI, RanAlpha, RotAlpha, RotDir
 REAL                              :: RadiusInterPlane(1:2)
 INTEGER                           :: iPartBound,k,l,m,NewPartID,NewPartNumber,iNewPart
 REAL                              :: DeleteOrCloneProb,VibEnergy,RotEnergy,ElecEnergy
-REAL                              :: VecAngle, rot_alpha
+REAL                              :: det(6,2), A(1:3,1:4), crossP(3)
+REAL, PARAMETER                   :: eps = 0
 !===================================================================================================================================
 
 #ifdef CODE_ANALYZE
 IF(PARTOUT.GT.0 .AND. MPIRANKOUT.EQ.MyRank)THEN
   IF(PartID.EQ.PARTOUT)THEN
-    IPWRITE(UNIT_stdout,'(I0,A)') '     RotPeriodicInterPlaneBC: '
+    IPWRITE(UNIT_stdout,'(I0,A)') '     RotPeriodicInterPlaneBoundary: '
     IPWRITE(UNIT_stdout,'(I0,A,3(1X,G0))') ' ParticlePosition: ',PartState(1:3,PartID)
     IPWRITE(UNIT_stdout,'(I0,A,3(1X,G0))') ' LastPartPos:      ',LastPartPos(1:3,PartID)
   END IF
@@ -521,6 +531,7 @@ END IF
 ! (1) Evaluate the probability of deletion or duplication and create inter particles or delete particle
 ! (1.a) Evaluate the probability
 iPartBound=PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID))
+neighPartBound=PartBound%AssociatedPlane(iPartBound)
 IF(DoCreateParticles) THEN
   DeleteOrCloneProb = PartBound%AngleRatioOfInterPlanes(iPartBound)
   IF(DeleteOrCloneProb.LT.0.) CALL abort(__STAMP__,' ERROR: DeleteOrCloneProb below zero! Interplane might not be on the processor.')
@@ -561,20 +572,14 @@ IF(DoCreateParticles) THEN
       !   in ParticleTriaTracking() routine. The inside flag is set to .TRUE. 
       !   when we loop over all inter particle in SingleParticleTriaTracking routine
       IF (usevMPF) THEN   
-        CALL CreateParticle( PartSpecies(PartID) &
-                           , PartState(1:3,PartID) &
-                           , ElemID,PartState(4:6,PartID) &
+        CALL CreateParticle( PartSpecies(PartID), PartState(1:3,PartID), ElemID, PartState(4:6,PartID) &
                            , RotEnergy=RotEnergy,VibEnergy=VibEnergy,ElecEnergy=ElecEnergy &
-                           , NewPartID=NewPartID &
-                           , NewMPF=PartMPF(PartID) )
-
+                           , NewPartID=NewPartID, NewMPF=PartMPF(PartID) )
         LastPartPos(1:3,NewPartID)    = LastPartPos(1:3,PartID)
         PDM%ParticleInside(NewPartID) = .FALSE.
         InterPlanePartIndx(InterPlanePartNumber) = NewPartID
       ELSE
-        CALL CreateParticle( PartSpecies(PartID) &
-                           , PartState(1:3,PartID) &
-                           , ElemID,PartState(4:6,PartID) &
+        CALL CreateParticle( PartSpecies(PartID), PartState(1:3,PartID), ElemID,PartState(4:6,PartID) &
                            , RotEnergy=RotEnergy,VibEnergy=VibEnergy,ElecEnergy=ElecEnergy &
                            , NewPartID=NewPartID )
         LastPartPos(1:3,NewPartID)    = LastPartPos(1:3,PartID)
@@ -605,11 +610,8 @@ END IF
 ! Species-specific time step
 IF(VarTimeStep%UseSpeciesSpecific) dtVar = dtVar * Species(PartSpecies(PartID))%TimeStepFactor
 
-! (2) Calc POI and calc new random POI on corresponding inter plane with random angle within the periodic segment
-! (2.a) Calc POI
-LastPartPos(1:3,PartID) = LastPartPos(1:3,PartID) + TrackInfo%PartTrajectory(1:3)*TrackInfo%alpha
-LastPartPos_old(1:3) = LastPartPos(1:3,PartID)
-Velo_old(1:3) = PartState(4:6,PartID)
+! (2) Calculate the POI and a new random POI on corresponding inter plane using a random angle within the periodic segment
+POI(1:3) = LastPartPos(1:3,PartID) + TrackInfo%PartTrajectory(1:3)*TrackInfo%alpha
 IF (DSMC%DoAmbipolarDiff) THEN
   IF(Species(PartSpecies(PartID))%ChargeIC.GT.0.0) Velo_oldAmbi(1:3) = AmbipolElecVelo(PartID)%ElecVelo(1:3)
 END IF
@@ -628,116 +630,202 @@ SELECT CASE(PartBound%RotPeriodicAxis)
     l = 1
     m = 2
 END SELECT
-LastPartPos(k,PartID) = LastPartPos(k,PartID) + TrackInfo%PartTrajectory(k)*TrackInfo%alpha*0.0000001
-! (2.b) calc random new POI position
-CALL RANDOM_NUMBER(RanNum)
-rot_alpha = RanNum*PartBound%RotPeriodicAngle(PartBound%AssociatedPlane(iPartBound))* 0.9999999
-RadiusPOI=SQRT( LastPartPos_old(l)*LastPartPos_old(l)+LastPartPos_old(m)*LastPartPos_old(m) )
-RadiusInterPlane(1) = RadiusPOI * PartBound%NormalizedRadiusDir(1,PartBound%AssociatedPlane(iPartBound))
-RadiusInterPlane(2) = RadiusPOI * PartBound%NormalizedRadiusDir(2,PartBound%AssociatedPlane(iPartBound))
-LastPartPos(l,PartID) = COS(rot_alpha)*RadiusInterPlane(1) - SIN(rot_alpha)*RadiusInterPlane(2)
-LastPartPos(m,PartID) = SIN(rot_alpha)*RadiusInterPlane(1) + COS(rot_alpha)*RadiusInterPlane(2)
 
-! (3) Change velocity accordingly
-! (3.a) calc alpha between POI_old and PartBound%NormalizedRadiusDir
-VecAngle = (LastPartPos_old(l) * PartBound%NormalizedRadiusDir(1,PartBound%AssociatedPlane(iPartBound))   &
-          + LastPartPos_old(m) * PartBound%NormalizedRadiusDir(2,PartBound%AssociatedPlane(iPartBound)) ) &
-          / RadiusPOI
-IF(ABS(VecAngle) - 1.0.LE. 1.0E-6) THEN
-  IF(VecAngle.GT.0.0) THEN
-    rot_alpha_POIold = 0.0
+POI_rotated(1:3) = POI(1:3)
+! The POI coordinate along the rotational axis is slightly shifted along the trajectory, does influence the following calculation,
+! but is utilized later for the fallback tracking
+POI_rotated(k) = POI_rotated(k) + TrackInfo%PartTrajectory(k)*TrackInfo%alpha*(1. - PartBound%RotPeriodicTol)
+! (2.b) calc random new POI position through random angle between 0 and RotPeriodicAngle (can be negative, depending on the rot BC)
+CALL RANDOM_NUMBER(RanNum)
+RanAlpha = RanNum*PartBound%RotPeriodicAngle(neighPartBound)*PartBound%RotPeriodicTol
+! Calculate the radius of the POI in the plane perpendicular to the rotational axis
+RadiusPOI=SQRT( POI(l)*POI(l)+POI(m)*POI(m) )
+! Determine the two vectors spanning the neighboring segment in the perpendicular plane
+RadiusInterPlane(1) = RadiusPOI * PartBound%NormalizedRadiusDir(1,neighPartBound)
+RadiusInterPlane(2) = RadiusPOI * PartBound%NormalizedRadiusDir(2,neighPartBound)
+! Determine the new POI
+POI_rotated(l) = COS(RanAlpha)*RadiusInterPlane(1) - SIN(RanAlpha)*RadiusInterPlane(2)
+POI_rotated(m) = SIN(RanAlpha)*RadiusInterPlane(1) + COS(RanAlpha)*RadiusInterPlane(2)
+
+! (3.a) Determine the angle between the old and new POI, COS(RotAlpha)
+RotAlpha = (POI(l) * POI_rotated(l) + POI(m) * POI_rotated(m)) /(RadiusPOI*SQRT(POI_rotated(l)**2+POI_rotated(m)**2))
+
+! Treatment if COS(alpha) is above 1.0 or below -1.0
+IF(ABS(RotAlpha).GT.1.0) THEN
+  IF(RotAlpha.GT.0.0) THEN
+    RotAlpha = 0.0      !   ACOS( 1.0)
   ELSE
-    rot_alpha_POIold = PI       !   ACOS(-1.0)
+    RotAlpha = PI       !   ACOS(-1.0)
   END IF
 ELSE
-  rot_alpha_POIold = ACOS( VecAngle )
+  RotAlpha = ACOS(RotAlpha)
 END IF
-! (3.b) calc difference between alpha to POI_old and rot_alpha to get the rotating angle from
-!       POI_old to POI_new (including sign)
-AlphaDelta = rot_alpha_POIold - ABS(rot_alpha)
-! (3.c) rotate velocity vector
-PartState(4:6,PartID) = RotateVectorAroundAxis(Velo_old(1:3),PartBound%RotPeriodicAxis,AlphaDelta)
+
+! (3.b) Determine the direction of the rotation as the cross-product of the radii perpendicular to the rotation axis, only looking
+! at the 3. component of the cross-product vector. Result of cross-product RotDir gives the normalized direction (-1 or 1) in a right-hand system
+RotDir = POI(l)*POI_rotated(m)-POI(m)*POI_rotated(l)
+RotDir = RotDir / SQRT(RotDir*RotDir)
+
+! Multiply by the normalized direction to get the same orientation
+RotAlpha = RotAlpha*RotDir
+
+! (4) Rotate the velocity vector, the last and current particle position to track particle entering the new region
+Velo_old(1:3) = PartState(4:6,PartID)
+PartState(4:6,PartID) = RotateVectorAroundAxis(Velo_old(1:3),PartBound%RotPeriodicAxis,RotAlpha)
 IF (DSMC%DoAmbipolarDiff) THEN
   IF(Species(PartSpecies(PartID))%ChargeIC.GT.0.0) THEN
-    AmbipolElecVelo(PartID)%ElecVelo(1:3) = RotateVectorAroundAxis(Velo_oldAmbi(1:3),PartBound%RotPeriodicAxis,AlphaDelta)
+    AmbipolElecVelo(PartID)%ElecVelo(1:3) = RotateVectorAroundAxis(Velo_oldAmbi(1:3),PartBound%RotPeriodicAxis,RotAlpha)
   END IF
 END IF
 
-VeloPush(1:3) = PartState(4:6,PartID)
+LastPartPos_rotated(1:3)  = LastPartPos(1:3,PartID)
+LastPartPos_rotated(1:3)  = RotateVectorAroundAxis(LastPartPos(1:3,PartID),PartBound%RotPeriodicAxis,RotAlpha)
+PartState_rotated(1:3)    = PartState(1:3,PartID)
+PartState_rotated(1:3)    = RotateVectorAroundAxis(PartState(1:3,PartID)  ,PartBound%RotPeriodicAxis,RotAlpha)
 
-! (4) Treatment of velocity in rotational frame of reference
+! (5) Treatment of velocity in rotational frame of reference
 IF(UseRotRefFrame) THEN
   ! Setting the PartState to the POI to determine whether the particle moved into a RotRefFrame (is later overwritten anyway)
-  PartState(1:3,PartID) = LastPartPos(1:3,PartID)
+  PartState(1:3,PartID) = POI_rotated(1:3)
   ! Check is repeated in the FUNCTION InRotRefFrameCheck at the current PartState(1:3)
   IF(InRotRefFrameCheck(PartID)) THEN
     ! Particle moved into a RotRefFrame
     IF(PDM%InRotRefFrame(PartID)) THEN
       ! Particle comes from a RotRefFrame: rotate the old PartVeloRotRef
       Velo_old(1:3) = PartVeloRotRef(1:3,PartID)
-      PartVeloRotRef(1:3,PartID) = RotateVectorAroundAxis(Velo_old(1:3),PartBound%RotPeriodicAxis,AlphaDelta)
+      PartVeloRotRef(1:3,PartID) = RotateVectorAroundAxis(Velo_old(1:3),PartBound%RotPeriodicAxis,RotAlpha)
     ELSE
-      ! Particle comes from an inertial frame
+      ! Particle comes from an inertial frame: initialize the new PartVeloRotRef
       PartVeloRotRef(1:3,PartID) = PartState(4:6,PartID) - CROSS(RotRefFrameOmega(1:3),PartState(1:3,PartID))
     END IF
     ! Calculate the acceleration
     PartVeloRotRef(1:3,PartID) = PartVeloRotRef(1:3,PartID) + CalcPartRHSRotRefFrame(PartState(1:3,PartID),PartVeloRotRef(1:3,PartID)) &
                                                               * dtVar * (1.0 - TrackInfo%alpha/TrackInfo%lengthPartTrajectory)
-    VeloPush(1:3) = PartVeloRotRef(1:3,PartID)
   ELSE
     PartVeloRotRef(1:3,PartID) = 0.
   END IF
   PDM%InRotRefFrame(PartID) = InRotRefFrameCheck(PartID)
 END IF
 
-! (5) Calc particle position after random new POI according new velo and remaining time
-PartState(1:3,PartID) = LastPartPos(1:3,PartID) + (1.0 - TrackInfo%alpha/TrackInfo%lengthPartTrajectory)*dtVar*VeloPush(1:3)
-! compute moved particle || rest of movement
-TrackInfo%PartTrajectory=PartState(1:3,PartID) - LastPartPos(1:3,PartID)
-TrackInfo%lengthPartTrajectory= VECNORM(TrackInfo%PartTrajectory)
+! (7) Track the particle, moving inside the domain through the interplane BC
+ParticleFound = .FALSE.
+PartState(1:3,PartID) = PartState_rotated(1:3)
+LastPartPos(1:3,PartID) = LastPartPos_rotated(1:3)
+! Compute the new, rotated PartTrajectory
+TrackInfo%PartTrajectory = PartState(1:3,PartID) - LastPartPos(1:3,PartID)
+TrackInfo%lengthPartTrajectory = VECNORM(TrackInfo%PartTrajectory)
 IF(ALMOSTZERO(TrackInfo%lengthPartTrajectory))THEN
   TrackInfo%lengthPartTrajectory= 0.0
 ELSE
   TrackInfo%PartTrajectory=TrackInfo%PartTrajectory/TrackInfo%lengthPartTrajectory
 END IF
 
+! Loop through all the possible sides of the interplane and find intersection
+NumInterPlaneSides = PartBound%nSidesOnInterPlane(neighPartBound)
+DO iSide = 1, NumInterPlaneSides
+  InterSideID = InterPlaneSideMapping(neighPartBound,iSide)  ! GlobalSideID!
+  NewElemID = SideInfo_Shared(SIDE_ELEMID,InterSideID)
+  IF(newElemID.EQ.-1) CALL abort(__STAMP__,' ERROR: Halo-inter-plane side has no corresponding element.')
+  ! Loop over the local sides of the element to only treat interplane BC sides
+  nLocSides = ElemInfo_Shared(ELEM_LASTSIDEIND,newElemID) -  ElemInfo_Shared(ELEM_FIRSTSIDEIND,newElemID)
+  locSideLoop: DO iLocSide = 1,nLocSides
+    newSideID = ElemInfo_Shared(ELEM_FIRSTSIDEIND,newElemID) + iLocSide
+    ! Cycle over non-BC sides
+    IF (SideInfo_Shared(SIDE_BCID,newSideID).LE.0) CYCLE
+    BCType = PartBound%TargetBoundCond(PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,newSideID)))
+    ! Cycle over non-interPlaneBC sides
+    IF(BCType.NE.PartBound%RotPeriodicInterPlaneBC) CYCLE
+
+    locSideID = SideInfo_Shared(SIDE_LOCALID,newSideID)
+    ! Side is not one of the 6 local sides
+    IF (locSideID.LE.0) CYCLE
+    ! Calculate the determinant
+    DO NodeNum = 1,4
+      !--- A = vector from particle to node coords
+      A(:,NodeNum) = NodeCoords_Shared(:,ElemSideNodeID_Shared(NodeNum,locSideID,GetCNElemID(newElemID))+1) - PartState(1:3,PartID)
+    END DO
+    !--- compute cross product for vector 1 and 3
+    crossP(1:3) = CROSS(A(1:3,1),A(1:3,3))
+    !--- negative determinant of triangle 1 (points 1,3,2):
+    Det(locSideID,1) = crossP(1) * A(1,2) + crossP(2) * A(2,2) + crossP(3) * A(3,2)
+    Det(locSideID,1) = -det(locSideID,1)
+    !--- determinant of triangle 2 (points 1,3,4):
+    Det(locSideID,2) = crossP(1) * A(1,4) + crossP(2) * A(2,4) + crossP(3) * A(3,4)
+    ThroughSide = .FALSE.
+    DO TriNum = 1,2
+      ! Treat the side as if it were a mortar side, since the particle is entering the domain from the outside after the rotation
+      IF (det(locSideID,TriNum).GT.-eps) THEN
+        CALL ParticleThroughSideCheck3DFast(PartID,locSideID,newElemID,ThroughSide,TriNum,.TRUE.)
+        IF (ThroughSide) EXIT locSideLoop
+      END IF
+    END DO
+  END DO locSideLoop ! iLocSide=1,6
+
+  ! Check the next element if no intersection has been found
+  IF (.NOT.ThroughSide) CYCLE
+
+  ! Calculate the intersection with the wall and determine alpha (= fraction of trajectory to the intersection)
+  CALL IntersectionWithWall(PartID,locSideID,newElemID,TriNum)
+
+  ! Move the last part pos to the new POI
+  LastPartPos(1:3,PartID) = LastPartPos(1:3,PartID) + TrackInfo%PartTrajectory(1:3)*TrackInfo%alpha
+  ElemID = newElemID
+  ParticleFound = .TRUE.
+
+  ! Sanity check: is the element on the compute node?
+  IF (GetCNElemID(ElemID).LT.1) THEN
+    IPWRITE(UNIT_StdOut,*) "VECNORM(PartState(1:3,PartID)-LastPartPos(1:3,PartID)): ", VECNORM(PartState(1:3,PartID)-LastPartPos(1:3,PartID))
+    IPWRITE(UNIT_StdOut,*) " PartState(1:3,PartID)  : ", PartState(1:3,PartID)
+    IPWRITE(UNIT_StdOut,*) " LastPartPos(1:3,PartID): ", LastPartPos(1:3,PartID)
+    IPWRITE(UNIT_StdOut,*) " PartState(4:6,PartID)  : ", PartState(4:6,PartID)
+    IPWRITE(UNIT_StdOut,*) "           ElemID: ", ElemID
+    IPWRITE(UNIT_StdOut,*) "         CNElemID: ", GetCNElemID(ElemID)
+    IPWRITE(UNIT_stdout,*) 'Particle Velocity: ',SQRT(DOTPRODUCT(PartState(4:6,PartID)))
+    CALL abort(__STAMP__ ,'ERROR in RotPeriodicInterPlaneBoundary: Element not defined! Please increase the size of the halo region (HaloEpsVelo)!')
+  END IF
+  ! Exit the loop over the potential elements
+  EXIT
+END DO
+
+IF(.NOT.ParticleFound) THEN
+  DO iSide = 1, NumInterPlaneSides
+    InterSideID = InterPlaneSideMapping(neighPartBound,iSide)  ! GlobalSideID!
+    NewElemID = SideInfo_Shared(SIDE_ELEMID,InterSideID)
+    IF(NewElemID.EQ.-1) CALL abort(__STAMP__,' ERROR: Halo-inter-plane side has no corresponding element.')
+    CALL ParticleInsideQuad3D(POI_rotated(1:3),NewElemID,ParticleFound)
+    IF(ParticleFound) THEN
+      LastPartPos(1:3,PartID) = POI_rotated(1:3)
+      ElemID = NewElemID
+      EXIT
+    END IF
+  END DO
+  IF(.NOT.ParticleFound) THEN
+    ! Particle appears to have not crossed any of the checked sides. Deleted!
+    IF(DisplayLostParticles)THEN
+      IPWRITE(*,*) 'Error in RotPeriodicInterPlaneBoundary! Particle Number',PartID,'lost. Element:', ElemID,'(species:',PartSpecies(PartID),')'
+      IPWRITE(*,*) 'LastPos: ', LastPartPos(1:3,PartID)
+      IPWRITE(*,*) 'Pos:     ', PartState(1:3,PartID)
+      IPWRITE(*,*) 'Velo:    ', PartState(4:6,PartID)
+      IPWRITE(*,*) 'Particle deleted!'
+    END IF ! DisplayLostParticles
+    IF(CountNbrOfLostParts)THEN
+      CALL StoreLostParticleProperties(PartID,ElemID,PartMissingType_opt=PartBound%RotPeriodicInterPlaneBC)
+      NbrOfLostParticles=NbrOfLostParticles+1
+    END IF ! CountNbrOfLostParts
+    CALL RemoveParticle(PartID,BCID=PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID)))
+  END IF
+END IF
+
 #ifdef CODE_ANALYZE
 IF(PARTOUT.GT.0 .AND. MPIRANKOUT.EQ.MyRank)THEN
   IF(PartID.EQ.PARTOUT)THEN
-    IPWRITE(UNIT_stdout,'(I0,A)') '     RotPeriodicInterPlaneBC: '
+    IPWRITE(UNIT_stdout,'(I0,A)') '     RotPeriodicInterPlaneBoundary: '
     IPWRITE(UNIT_stdout,'(I0,A,3(1X,G0))') ' ParticlePosition-pp: ',PartState(1:3,PartID)
     IPWRITE(UNIT_stdout,'(I0,A,3(1X,G0))') ' LastPartPosition-pp: ',LastPartPos(1:3,PartID)
   END IF
 END IF
 #endif /*CODE_ANALYZE*/
-! (5) move particle from old element to new element
-NumInterPlaneSides = PartBound%nSidesOnInterPlane(PartBound%AssociatedPlane(iPartBound))
-DO iSide = 1, NumInterPlaneSides
-  InterSideID = InterPlaneSideMapping(PartBound%AssociatedPlane(iPartBound),iSide)  ! GlobalSideID!
-  NewElemID = SideInfo_Shared(SIDE_ELEMID,InterSideID)
-  IF(NewElemID.EQ.-1) CALL abort(__STAMP__,' ERROR: Halo-inter-plane side has no corresponding element.')
-  CALL ParticleInsideQuad3D(LastPartPos(1:3,PartID),NewElemID,FoundInElem)
-  IF(FoundInElem) THEN
-    ElemID = NewElemID
-    EXIT
-  END IF
-END DO
-IF(.NOT.FoundInElem) THEN
-  ! Particle appears to have not crossed any of the checked sides. Deleted!
-  IF(DisplayLostParticles)THEN
-    IPWRITE(*,*) 'Error in RotPeriodicInterPlaneBC! Particle Number',PartID,'lost. Element:', ElemID,'(species:',PartSpecies(PartID),')'
-    IPWRITE(*,*) 'LastPos: ', LastPartPos(1:3,PartID)
-    IPWRITE(*,*) 'Pos:     ', PartState(1:3,PartID)
-    IPWRITE(*,*) 'Velo:    ', PartState(4:6,PartID)
-    IPWRITE(*,*) 'Particle deleted!'
-  END IF ! DisplayLostParticles
-  IF(CountNbrOfLostParts)THEN
-    CALL StoreLostParticleProperties(PartID,ElemID)
-    NbrOfLostParticles=NbrOfLostParticles+1
-  END IF ! CountNbrOfLostParts
-  CALL RemoveParticle(PartID,BCID=PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID)))
-END IF
 
-END SUBROUTINE RotPeriodicInterPlaneBC
+END SUBROUTINE RotPeriodicInterPlaneBoundary
 
 END MODULE MOD_Particle_Boundary_Condition

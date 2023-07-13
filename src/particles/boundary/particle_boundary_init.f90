@@ -998,8 +998,8 @@ END SUBROUTINE InitRotPeriodicMapping
 
 !===================================================================================================================================
 !> Build Mapping for rotational periodicity: RotPeriodicSide -> SideID2 (Side on corresponding BC).
-!> In RotPeriodicBC (particle_boundary_condition.f90): SideID -> SurfSideID -> RotPeriodicSide
-!>                                                     RotPeriodicSide -> SideID2
+!> In RotPeriodicBoundary (particle_boundary_condition.f90): SideID -> SurfSideID -> RotPeriodicSide
+!>                                                           RotPeriodicSide -> SideID2
 !> (1) counting rotational periodic sides and build mapping from SurfSideID -> RotPeriodicSide
 !> (2) Build bounding boxes (in 2D reference system) for all nRotPeriodicSides
 !> (3) find Side on corresponding BC and build mapping RotPeriodicSide -> SideID2 (and vice versa)
@@ -1323,7 +1323,7 @@ iSideLoop: DO iSide = firstSide, lastSide
   IF(NumRotPeriodicNeigh(iSide).EQ.0) THEN
     IF(ElemInfo_Shared(ELEM_HALOFLAG,SideInfo_Shared(SIDE_ELEMID,SideID)).EQ.3) THEN
       ! Found side on element that is a neighbor element in rot halo region (they have halo flag 3)
-      ! If a particle ends up there, an abort is in place RotPeriodicBC routine, as RotPeriodicSideMapping will get an -1 later
+      ! If a particle ends up there, an abort is in place RotPeriodicBoundary routine, as RotPeriodicSideMapping will get an -1 later
       NumRotPeriodicNeigh(iSide) = 1
       RotPeriodicSideMapping_temp(iSide,NumRotPeriodicNeigh(iSide)) = 0
     END IF
