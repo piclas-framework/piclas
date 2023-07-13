@@ -172,7 +172,7 @@ CALL DisplayMessageAndTime(EndT-StartT, 'DONE', DisplayDespiteLB=.TRUE., Display
 END SUBROUTINE WriteTimeAverage
 
 
-SUBROUTINE GenerateFileSkeleton(TypeString,nVar,StrVarNames,MeshFileName,OutputTime,FileNameIn,WriteUserblockIn)
+SUBROUTINE GenerateFileSkeleton(TypeString,nVar,StrVarNames,MeshFileName,OutputTime,FileNameIn,WriteUserblockIn,NIn,NodeType_in)
 !===================================================================================================================================
 ! Subroutine that generates the output file on a single processor and writes all the necessary attributes (better MPI performance)
 !===================================================================================================================================
@@ -200,10 +200,12 @@ IMPLICIT NONE
 CHARACTER(LEN=*),INTENT(IN)          :: TypeString
 CHARACTER(LEN=*),INTENT(IN),OPTIONAL :: FileNameIn
 INTEGER,INTENT(IN)                   :: nVar
+INTEGER,INTENT(IN),OPTIONAL          :: NIn
 CHARACTER(LEN=255)                   :: StrVarNames(nVar)
 CHARACTER(LEN=*),INTENT(IN)          :: MeshFileName
 REAL,INTENT(IN)                      :: OutputTime
 LOGICAL,INTENT(IN),OPTIONAL          :: WriteUserblockIn
+CHARACTER(LEN=*),INTENT(IN),OPTIONAL :: NodeType_in        !< Type of 1D points
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -215,7 +217,14 @@ CHARACTER(LEN=255)                           :: FileName
 CHARACTER(LEN=255), DIMENSION(1:3),PARAMETER :: TrackingString = (/'refmapping  ', 'tracing     ', 'triatracking'/)
 #endif /*PARTICLES*/
 LOGICAL                                      :: WriteUserblock
+INTEGER                                      :: Nloc
 !===================================================================================================================================
+! Check if NIn is to be used
+IF(PRESENT(NIn))THEN
+  Nloc = NIn
+ELSE
+  Nloc = PP_N
+END IF ! PRESENT(NIn)
 ! Create file
 IF(PRESENT(FileNameIn))THEN
   FileName=FileNameIn
@@ -228,7 +237,7 @@ CALL OpenDataFile(TRIM(FileName),create=.TRUE.,single=.TRUE.,readOnly=.FALSE.,us
 CALL WriteHDF5Header(TRIM(TypeString),File_ID)
 
 ! Preallocate the data space for the dataset.
-Dimsf=(/nVar,PP_N+1,PP_N+1,PP_N+1,nGlobalElems/)
+Dimsf=(/nVar,Nloc+1,Nloc+1,Nloc+1,nGlobalElems/)
 CALL H5SCREATE_SIMPLE_F(5, Dimsf, FileSpace, iError)
 ! Create the dataset with default properties.
 HDF5DataType=H5T_NATIVE_DOUBLE
@@ -238,13 +247,17 @@ CALL H5DCLOSE_F(Dset_id, iError)
 CALL H5SCLOSE_F(FileSpace, iError)
 
 ! Write dataset properties "Time","MeshFile","NextFile","NodeType","VarNames"
-CALL WriteAttributeToHDF5(File_ID,'N',1,IntegerScalar=PP_N)
+CALL WriteAttributeToHDF5(File_ID,'N',1,IntegerScalar=Nloc)
 CALL WriteAttributeToHDF5(File_ID,'Time',1,RealScalar=OutputTime)
 CALL WriteAttributeToHDF5(File_ID,'MeshFile',1,StrScalar=(/TRIM(MeshFileName)/))
-CALL WriteAttributeToHDF5(File_ID,'NodeType',1,StrScalar=(/NodeType/))
+IF(PRESENT(NodeType_in))THEN
+  CALL WriteAttributeToHDF5(File_ID,'NodeType',1,StrScalar=(/NodeType_in/))
+ELSE
+  CALL WriteAttributeToHDF5(File_ID,'NodeType',1,StrScalar=(/NodeType/))
+END IF ! PRESENT(NodeType_in)
 CALL WriteAttributeToHDF5(File_ID,'VarNames',nVar,StrArray=StrVarNames)
 
-CALL WriteAttributeToHDF5(File_ID,'NComputation',1,IntegerScalar=PP_N)
+CALL WriteAttributeToHDF5(File_ID,'NComputation',1,IntegerScalar=Nloc)
 
 #ifdef PARTICLES
 CALL WriteAttributeToHDF5(File_ID,'TrackingMethod',1,StrScalar=(/TRIM(TrackingString(TrackingMethod))/))

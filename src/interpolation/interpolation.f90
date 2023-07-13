@@ -162,7 +162,7 @@ SWRITE(UNIT_StdOut,'(132("-"))')
 END SUBROUTINE InitInterpolation
 
 
-SUBROUTINE InitInterpolationBasis(N_in, xGP ,wGP, wBary ,L_Minus ,L_Plus , L_PlusMinus,swGP, wGPSurf, Vdm_Leg ,sVdm_Leg)
+SUBROUTINE InitInterpolationBasis(N_in, xGP ,wGP, wBary ,L_Minus ,L_Plus , L_PlusMinus,swGP, wGPSurf, Vdm_Leg ,sVdm_Leg, NodeType_in)
 !============================================================================================================================
 ! Initialize basis for Gauss-points of order N.
 ! Calculate positions of Gauss-points, integration weights and barycentric weights. Prepare basis evaluation at -1 and +1.
@@ -188,6 +188,7 @@ REAL,ALLOCATABLE,DIMENSION(:),  INTENT(OUT),OPTIONAL:: swGP                !< In
 REAL,ALLOCATABLE,DIMENSION(:,:),INTENT(OUT),OPTIONAL:: wGPSurf            !< Vandermonde Nodal->Modal
 REAL,ALLOCATABLE,DIMENSION(:,:),INTENT(OUT),OPTIONAL:: Vdm_Leg            !< Vandermonde Nodal->Modal
 REAL,ALLOCATABLE,DIMENSION(:,:),INTENT(OUT),OPTIONAL:: sVdm_Leg           !< Vandermonde Modal->Nodal
+CHARACTER(LEN=*),INTENT(IN),OPTIONAL                :: NodeType_in        !< Type of 1D points
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -199,7 +200,11 @@ ALLOCATE(xGP(0:N_in), wGP(0:N_in), wBary(0:N_in))
 ALLOCATE(L_Minus(0:N_in), L_Plus(0:N_in))
 ALLOCATE(L_PlusMinus(0:N_in,6))
 
-CALL GetNodesAndWeights(N_in,NodeType,xGP,wGP,wBary)
+IF(PRESENT(NodeType_in))THEN
+  CALL GetNodesAndWeights(N_in , NodeType_in , xGP , wGP , wBary)
+ELSE
+  CALL GetNodesAndWeights(N_in , NodeType    , xGP , wGP , wBary)
+END IF ! PRESENT(NodeType_in)
 
 IF(PRESENT(wGPSurf))THEN
   ALLOCATE(wGPSurf(0:N_in,0:N_in))

@@ -661,7 +661,7 @@ REAL, INTENT(IN)    :: PhotonDir(3)
 REAL, INTENT(IN)    :: IntersectionPos(3)
 ! Local variable declaration
 INTEGER           :: a,b,ii,k,l,m,Nloc,NbrOfSamples,iIntersec
-REAL              :: IntersectionPosRef(3),scaleFac,SamplePos(3)
+REAL              :: IntersectionPosRef(3),scaleFac,SamplePos(3),weight
 LOGICAL           :: arr(0:Ray%NMax,0:Ray%NMax,0:Ray%NMax)
 !--------------------------------------------------------------------------------------------------!
 ! Check primary or secondary direction
@@ -684,9 +684,9 @@ ELSE
 END IF
 
 ! Loop over number of sub-samples
-NbrOfSamples = Nloc+5 ! must be at least 2!
-scaleFac = 1./REAL(NbrOfSamples)
-!scaleFac = 1.
+NbrOfSamples = Nloc+1 ! must be at least 2!
+!scaleFac = 1./REAL(NbrOfSamples)
+scaleFac = 1.
 arr = .FALSE.
 
 DO iIntersec = 1, NbrOfSamples
@@ -724,13 +724,18 @@ DO iIntersec = 1, NbrOfSamples
 
   ! Scaling factor to ensure that rays that are counted multiple times in high-order elements do not increase the total energy
   ! deposited in the corresponding element
+  weight = 1.0
+  !IF((k.eq.0.or.k.eq.Nloc).OR.&
+     !(l.eq.0.or.l.eq.Nloc).OR.&
+     !(m.eq.0.or.m.eq.Nloc)) weight = weight * 0.5
+  !weight = N_Inter_Ray(Nloc)%wGP(k)*N_Inter_Ray(Nloc)%wGP(l)*N_Inter_Ray(Nloc)%wGP(m)
   IF(.NOT.arr(k,l,m))THEN
     IF(DOT_PRODUCT(PhotonDir,Ray%Direction).GT.0.0)THEN
-      U_N_Ray(GlobalElemID)%U(1,k,l,m) = U_N_Ray(GlobalElemID)%U(1,k,l,m) + PhotonProps%PhotonEnergy * scaleFac
+      U_N_Ray(GlobalElemID)%U(1,k,l,m) = U_N_Ray(GlobalElemID)%U(1,k,l,m) + PhotonProps%PhotonEnergy * scaleFac * weight
     ELSE
-      U_N_Ray(GlobalElemID)%U(2,k,l,m) = U_N_Ray(GlobalElemID)%U(2,k,l,m) + PhotonProps%PhotonEnergy * scaleFac
+      U_N_Ray(GlobalElemID)%U(2,k,l,m) = U_N_Ray(GlobalElemID)%U(2,k,l,m) + PhotonProps%PhotonEnergy * scaleFac * weight
     END IF
-    !arr(k,l,m)=.TRUE.
+    arr(k,l,m)=.TRUE.
   END IF ! .NOT.arr(k,l,m)
 END DO ! iIntersec = 1, Nloc+3
 END SUBROUTINE CalcAbsorptionRayTrace

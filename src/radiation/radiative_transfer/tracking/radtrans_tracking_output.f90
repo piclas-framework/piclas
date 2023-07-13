@@ -38,9 +38,9 @@ SUBROUTINE WritePhotonVolSampleToHDF5()
 ! MODULES
 USE MOD_Globals
 USE MOD_PreProc
-USE MOD_Mesh_Vars            ,ONLY: nElems,MeshFile,offSetElem
+USE MOD_Mesh_Vars            ,ONLY: nElems,MeshFile,offSetElem,sJ
 USE MOD_Globals_Vars         ,ONLY: ProjectName
-USE MOD_RayTracing_Vars      ,ONLY: Ray,nVarRay,U_N_Ray,N_DG_Ray,PREF_VDM_Ray,N_DG_Ray_loc
+USE MOD_RayTracing_Vars      ,ONLY: Ray,nVarRay,U_N_Ray,N_DG_Ray,PREF_VDM_Ray,N_DG_Ray_loc,N_Inter_Ray
 USE MOD_RayTracing_Vars      ,ONLY: RayElemPassedEnergyLoc1st,RayElemPassedEnergyLoc2nd
 USE MOD_RayTracing_Vars      ,ONLY: RaySecondaryVectorX,RaySecondaryVectorY,RaySecondaryVectorZ
 USE MOD_HDF5_output          ,ONLY: GatheredWriteArray
@@ -54,6 +54,8 @@ USE MOD_HDF5_output          ,ONLY: GenerateFileSkeleton
 USE MOD_HDF5_Output_ElemData ,ONLY: WriteAdditionalElemData
 USE MOD_Mesh_Vars            ,ONLY: offsetElem,nGlobalElems
 USE MOD_ChangeBasis          ,ONLY: ChangeBasis3D
+USE MOD_Interpolation_Vars ,ONLY: NodeType
+USE MOD_Interpolation      ,ONLY: GetVandermonde
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -64,13 +66,16 @@ USE MOD_ChangeBasis          ,ONLY: ChangeBasis3D
 ! LOCAL VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 CHARACTER(LEN=255)                  :: FileName
-INTEGER                             :: iElem,iGlobalElem,Nloc
-INTEGER,PARAMETER                   :: nVar=2
+INTEGER                             :: iElem,iGlobalElem,Nloc,k,l,m
 CHARACTER(LEN=255), ALLOCATABLE     :: StrVarNames(:)
 REAL                                :: U(nVarRay,0:Ray%NMax,0:Ray%NMax,0:Ray%NMax,PP_nElems)
 #if USE_MPI
 INTEGER                             :: NlocOffset
 #endif /*USE_MPI*/
+REAL                                :: J_N(1,0:PP_N,0:PP_N,0:PP_N)
+REAL                                :: J_Nmax(1:1,0:Ray%NMax,0:Ray%NMax,0:Ray%NMax)
+REAL                                :: IntegrationWeight
+REAL                                :: Vdm_GaussN_Nloc(0:PP_N,0:Ray%NMax)    !< for interpolation to Analyze points (from NodeType nodes to Gauss-Lobatto nodes)
 !===================================================================================================================================
 SWRITE(UNIT_stdOut,'(a)',ADVANCE='NO') ' WRITE Radiation TO HDF5 FILE...'
 
@@ -97,19 +102,22 @@ DO iElem = 1, nElems
 END DO ! iElem = 1, nElems
 CALL AddToElemData(ElementOut,'Nloc',IntArray=N_DG_Ray_loc)
 
-ALLOCATE(StrVarNames(1:nVar))
+ALLOCATE(StrVarNames(1:nVarRay))
 StrVarNames(1)='RayElemPassedEnergy1st'
 StrVarNames(2)='RayElemPassedEnergy2nd'
 
 ! Generate skeleton for the file with all relevant data on a single proc (MPIRoot)
 FileName=TRIM(ProjectName)//'_RadiationVolState.h5'
-IF(MPIRoot) CALL GenerateFileSkeleton('RadiationVolState',nVar,StrVarNames,TRIM(MeshFile),0.,FileNameIn=FileName)
+IF(MPIRoot) CALL GenerateFileSkeleton('RadiationVolState',nVarRay,StrVarNames,TRIM(MeshFile),0.,FileNameIn=FileName,NIn=Ray%NMax,NodeType_in=Ray%NodeType)
 #if USE_MPI
   CALL MPI_BARRIER(MPI_COMM_WORLD,iError)
 #endif
 #if USE_MPI
 CALL ExchangeRayVolInfo()
 #endif /*USE_MPI*/
+
+! p-refinement: Interpolate lower degree to higher degree (other way around would require model=T)
+CALL GetVandermonde(PP_N, NodeType, Ray%NMax, Ray%NodeType, Vdm_GaussN_Nloc, modal=.FALSE.)
 
 #if USE_MPI
 ASSOCIATE( RayElemPassedEnergy => RayElemPassedEnergy_Shared )
@@ -155,7 +163,25 @@ ASSOCIATE( RayElemPassedEnergy => RayElemPassedEnergy_Shared )
       CALL ChangeBasis3D(nVarRay, Nloc, Ray%NMax, PREF_VDM_Ray(Nloc,Ray%NMax)%Vdm, U_N_Ray(iElem)%U(:,:,:,:), U(:,:,:,:,iElem))
     END IF ! Nloc.Eq.Nmax
 
-  END DO
+    ! Apply integration weights and the Jacobian
+    ! Interpolate the Jacobian to the analyze grid: be careful we interpolate the inverse of the inverse of the Jacobian ;-)
+    J_N(1,0:PP_N,0:PP_N,0:PP_N)=1./sJ(:,:,:,iElem)
+    CALL ChangeBasis3D(1,PP_N,Ray%NMax,Vdm_GaussN_Nloc,J_N(1:1,0:PP_N,0:PP_N,0:PP_N),J_Nmax(1:1,:,:,:))
+    DO m=0,Ray%NMax
+      DO l=0,Ray%NMax
+        DO k=0,Ray%NMax
+          IntegrationWeight = N_Inter_Ray(Ray%NMax)%wGP(k)*&
+                              N_Inter_Ray(Ray%NMax)%wGP(l)*&
+                              N_Inter_Ray(Ray%NMax)%wGP(m)*J_Nmax(1,k,l,m)
+          U(1:2,k,l,m,iElem) = U(1:2,k,l,m,iElem) * IntegrationWeight
+          !U(1:2,k,l,m,iElem) = U(1:2,k,l,m,iElem) / IntegrationWeight
+          !U(1:2,k,l,m,iElem) = U(1:2,k,l,m,iElem) * J_Nmax(1,k,l,m)
+          !U(1:2,k,l,m,iElem) = U(1:2,k,l,m,iElem) / J_Nmax(1,k,l,m)
+        END DO ! k
+      END DO ! l
+    END DO ! m
+
+  END DO ! iElem=1,PP_nElems
 
   ! Associate construct for integer KIND=8 possibility
   ASSOCIATE (&

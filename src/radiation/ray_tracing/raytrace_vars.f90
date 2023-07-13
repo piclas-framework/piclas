@@ -52,6 +52,8 @@ TYPE tRayTrace
 
   REAL    :: VolRefineModeZ     !< z-coordinate for switching between NMin and NMax
 
+  CHARACTER(LEN=255) :: NodeType  !< equidistant or Gauss nodes [-1,1]
+
 END TYPE
 
 TYPE (tRayTrace)     :: Ray                            !<

@@ -75,6 +75,7 @@ USE MOD_ReadInTools         ,ONLY: GETREAL,GETREALARRAY,GETINT,GETLOGICAL,PrintO
 USE MOD_Globals_Vars        ,ONLY: Pi
 USE MOD_Particle_Mesh_Vars  ,ONLY: GEO
 USE MOD_RadiationTrans_Vars ,ONLY: RadiationAbsorptionModel,RadObservationPointMethod
+USE MOD_Interpolation_Vars  ,ONLY: NodeType,NodeTypeVISU
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -115,6 +116,8 @@ RayPosModel        = GETINT('RayTracing-RayPosModel')
 RayForceAbsorption = GETLOGICAL('RayTracing-ForceAbsorption')
 
 Ray%VolRefineMode  = GETINT('RayTracing-VolRefineMode')
+
+Ray%NodeType = NodeTypeVISU
 
 ! Output of high-order p-adaptive info
 Ray%NMin = 1 ! GETINT('RayTracing-NMin')
@@ -183,11 +186,11 @@ SUBROUTINE InitHighOrderRaySampling()
 ! MODULES
 USE MOD_PreProc
 USE MOD_Globals            ,ONLY: abort,IERROR,myrank,UNIT_StdOut
-USE MOD_Mesh_Vars          ,ONLY: ElemBaryNGeo,nGlobalElems
+USE MOD_Mesh_Vars          ,ONLY: nGlobalElems
 USE MOD_RayTracing_Vars    ,ONLY: N_VolMesh_Ray,N_DG_Ray,Ray,N_Inter_Ray,PREF_VDM_Ray,U_N_Ray,nVarRay
 USE MOD_Mesh_Tools         ,ONLY: GetCNElemID,GetGlobalElemID
 USE MOD_ReadInTools        ,ONLY: GETREAL
-USE MOD_Particle_Mesh_Vars ,ONLY: ElemVolume_Shared
+USE MOD_Particle_Mesh_Vars ,ONLY: ElemVolume_Shared,ElemBaryNGeo
 #if USE_MPI
 USE MPI
 USE MOD_Particle_Mesh_Vars ,ONLY: NodeCoords_Shared
@@ -201,6 +204,7 @@ USE MOD_Globals            ,ONLY: nProcessors
 #if USE_LOADBALANCE
 USE MOD_MPI_Shared
 USE MOD_MPI_Shared_Vars   ,ONLY: MPI_COMM_SHARED,myComputeNodeRank,nComputeNodeProcessors,nComputeNodeTotalElems
+!USE MOD_Particle_Mesh_Vars,ONLY: ElemBaryNGeo_Shared
 #endif /*USE_LOADBALANCE*/
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -214,7 +218,7 @@ INTEGER           :: iElem
 LOGICAL,PARAMETER :: debugRay=.FALSE.
 #endif /*defined(CODE_ANALYZE)*/
 LOGICAL           :: FoundElem
-CHARACTER(LEN=20) :: hilf
+CHARACTER(LEN=40) :: hilf
 !===================================================================================================================================
 #if USE_MPI
 CALL Allocate_Shared((/nGlobalElems/),N_DG_Ray_Shared_Win,N_DG_Ray_Shared)
@@ -248,7 +252,7 @@ IF(Ray%NMin.NE.Ray%NMax)THEN
     ! 1: refine below user-defined z-coordinate with NMax
     IF(Ray%VolRefineMode.NE.2)THEN
       WRITE(UNIT=hilf,FMT=WRITEFORMAT) 1.0E200!HUGE(1.0) -> HUGE produces IEEE overflow
-      Ray%VolRefineModeZ = GETREAL('RayTracing-VolRefineModeZ',hilf)
+      Ray%VolRefineModeZ = GETREAL('RayTracing-VolRefineModeZ',TRIM(hilf))
       DO iCNElem = firstElem, lastElem
         iGlobalElem = GetGlobalElemID(iCNElem)
         !IPWRITE(UNIT_StdOut,*) "iCNElem,iGlobalElem =", iCNElem,iGlobalElem
@@ -443,13 +447,12 @@ SUBROUTINE BuildNInterAndVandermonde()
 ! MODULES
 USE MOD_RayTracing_Vars    ,ONLY: Ray,N_Inter_Ray,PREF_VDM_Ray
 USE MOD_Interpolation      ,ONLY: InitInterpolationBasis,GetVandermonde
-USE MOD_Interpolation_Vars ,ONLY: NodeType
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! INPUT / OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER           :: i,j,Nin,Nout,Nloc
+INTEGER                         :: i,j,Nin,Nout,Nloc
 REAL, DIMENSION(:), ALLOCATABLE :: MappedGauss(:)
 !===================================================================================================================================
 DO Nloc=Ray%Nmin,Ray%Nmax
@@ -457,7 +460,7 @@ DO Nloc=Ray%Nmin,Ray%Nmax
   CALL InitInterpolationBasis(Nloc , N_Inter_Ray(Nloc)%xGP     , N_Inter_Ray(Nloc)%wGP     , N_Inter_Ray(Nloc)%wBary , &
                                      N_Inter_Ray(Nloc)%L_Minus , N_Inter_Ray(Nloc)%L_Plus  , N_Inter_Ray(Nloc)%L_PlusMinus , &
                                      N_Inter_Ray(Nloc)%swGP    , N_Inter_Ray(Nloc)%wGPSurf , &
-                                     N_Inter_Ray(Nloc)%Vdm_Leg , N_Inter_Ray(Nloc)%sVdm_Leg)
+                                     N_Inter_Ray(Nloc)%Vdm_Leg , N_Inter_Ray(Nloc)%sVdm_Leg, NodeType_in = Ray%NodeType)
 
   ! Build variables for nearest Gauss-point (NGP) method
   ALLOCATE(N_Inter_Ray(Nloc)%GaussBorder(1:Nloc))
@@ -490,9 +493,9 @@ DO Nin=Ray%Nmin,Ray%Nmax
       END DO
     END DO
   ELSE IF(Nin.GT.Nout) THEN ! p-coarsening: Project from higher degree to lower degree
-    CALL GetVandermonde(Nin, NodeType, Nout, NodeType, PREF_VDM_Ray(Nin,Nout)%Vdm, modal=.TRUE. )
+    CALL GetVandermonde(Nin, Ray%NodeType, Nout, Ray%NodeType, PREF_VDM_Ray(Nin,Nout)%Vdm, modal=.TRUE. )
   ELSE                   ! p-refinement: Interpolate lower degree to higher degree
-    CALL GetVandermonde(Nin, NodeType, Nout, NodeType, PREF_VDM_Ray(Nin,Nout)%Vdm, modal=.FALSE.)
+    CALL GetVandermonde(Nin, Ray%NodeType, Nout, Ray%NodeType, PREF_VDM_Ray(Nin,Nout)%Vdm, modal=.FALSE.)
   END IF
 END DO;END DO
 
