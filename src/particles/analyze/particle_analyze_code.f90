@@ -41,7 +41,7 @@ USE MOD_PICInterpolation_Vars ,ONLY: AnalyticInterpolationType,AnalyticInterpola
 USE MOD_PICInterpolation_Vars ,ONLY: AnalyticInterpolationPhase,AnalyticInterpolationGamma,AnalyticInterpolationE,AnalyticPartDim
 USE MOD_PICInterpolation_Vars ,ONLY: TimeReset,r_WallVec,v_WallVec
 USE MOD_TimeDisc_Vars         ,ONLY: TEnd
-USE MOD_PARTICLE_Vars         ,ONLY: PartSpecies,Species,RotRefFrameOmega,RotRefFrameFreq,PartVeloRotRef
+USE MOD_PARTICLE_Vars         ,ONLY: PartSpecies,Species,RotRefFrameOmega,RotRefFrameFreq
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
@@ -64,394 +64,359 @@ REAL    :: B_0    !< Magnetic flux density
 REAL    :: c1
 REAL    :: gamma1
 REAL    :: TempArrayCross1(3),TempArrayCross2(3),TempArrayCross3(3),TempArrayCross4(3),TempArrayCross5(3),TempArrayCross6(3)
-REAL    :: r_0Vec(3),v_0Vec(3),r_tVec(3),OmegaNormVec(3)
+REAL    :: r_0Vec(3),v_0Vec(3),r_tVec(3),OmegaNormVec(3),omega
 REAL    :: New_t
+INTEGER :: iPart, iSpec
 !===================================================================================================================================
 PartStateAnalytic=0. ! default
 
-ASSOCIATE( iPart => 1 )
-  ! Select analytical solution depending on the type of the selected (analytic) interpolation
-  SELECT CASE(AnalyticInterpolationType)
+iPart = 1
+iSpec = PartSpecies(iPart)
+! Select analytical solution depending on the type of the selected (analytic) interpolation
+SELECT CASE(AnalyticInterpolationType)
 
-  ! 0: const. magnetostatic field: B = B_z = (/ 0 , 0 , 1 T /) = const.
-  CASE(0)
-    ! 0: non-relativistic, 1: relativistic
-    SELECT CASE(AnalyticInterpolationSubType)
-    CASE(0) ! 0: non-relativistic
-      ASSOCIATE( B_0    => 1.0                                    ,& ! [T] cons. magnetic field
-                 v_perp => 1.0                                    ,& ! [m/s] perpendicular velocity (to guiding center)
-                 m      => Species(PartSpecies(iPart))%MassIC     ,& ! [kg] particle mass
-                 q      => Species(PartSpecies(iPart))%ChargeIC   ,& ! [C] particle charge
-                 phi    => AnalyticInterpolationPhase             )  ! [rad] phase shift
-        ASSOCIATE( omega_c => ABS(q)*B_0/m )
-          ASSOCIATE( r_c => v_perp/omega_c )
-            PartStateAnalytic(1) = COS(omega_c*t + phi)*r_c
-            PartStateAnalytic(2) = SIN(omega_c*t + phi)*r_c
-            PartStateAnalytic(3) = 0.
-            PartStateAnalytic(4) = -SIN(omega_c*t + phi)*v_perp
-            PartStateAnalytic(5) =  COS(omega_c*t + phi)*v_perp
-            PartStateAnalytic(6) = 0.
-          END ASSOCIATE
-        END ASSOCIATE
-      END ASSOCIATE
-    CASE(1) ! 1: relativistic
-      ASSOCIATE( gamma1 => AnalyticInterpolationGamma ,& ! Lorentz factor
-                 m      => 1.0                        ,& ! [kg] particle mass
-                 q      => 1.0                        ,& ! [C] particle charge
-                 phi    => AnalyticInterpolationPhase )  ! [rad] phase shift
-        !-- get Lorentz factor gamma1(n)
-        v_perp = c*SQRT(1.0 - 1/(gamma1**2))
-        !v_perp = 2.99792457999850103770999962525942749e8
-        IF(v_perp.GE.c) CALL abort(__STAMP__,'Velocity is geater than c',RealInfoOpt=v_perp)
-        !-- Set const. magnetic field [T]
-        B_0 = gamma1*v_perp
-        !IPWRITE(UNIT_StdOut,*) "v_perp,v_perp/c,B_0 =", v_perp,v_perp/c,B_0
-
-        !write(*,*) gamma1,v_perp,v_perp/c,B_0,B_0/c,1.0/SQRT(1.0-v_perp**2*c2_inv)
-        ASSOCIATE( omega_c => ABS(q)*B_0/(gamma1*m) )
-          !WRITE (*,*) "omega_c =", omega_c
-          ASSOCIATE( r_c => v_perp/omega_c )
-            PartStateAnalytic(1) = COS(omega_c*t + phi)*r_c
-            PartStateAnalytic(2) = SIN(omega_c*t + phi)*r_c
-            PartStateAnalytic(3) = 0.
-            PartStateAnalytic(4) = -SIN(omega_c*t + phi)*v_perp
-            PartStateAnalytic(5) =  COS(omega_c*t + phi)*v_perp
-            PartStateAnalytic(6) = 0.
-          END ASSOCIATE
-        END ASSOCIATE
-      END ASSOCIATE
-    END SELECT
-
-  ! 1: magnetostatic field: B = B_z = (/ 0 , 0 , B_0 * EXP(x/l) /) = const.
-  CASE(1)
-    SELECT CASE(AnalyticInterpolationSubType)
-    CASE(1,2)
-      ASSOCIATE( p       => AnalyticInterpolationP , &
-                 Theta_0 => -PI/2.0                     , &
-                 t       => t - TEnd/2. )
-                 !t       => t )
-        ! gamma
-        gamma_0 = SQRT(ABS(p*p - 1.))
-
-        ! angle
-        Theta   = -2.*ATAN( SQRT((1.+p)/(1.-p)) * TANH(0.5*gamma_0*t) ) + Theta_0
-
-        ! x-pos
-        PartStateAnalytic(1) = LOG(-SIN(Theta) + p )
-
-        ! y-pos
-        PartStateAnalytic(2) = p*t + Theta - Theta_0
-      END ASSOCIATE
-    CASE(3)
-      ASSOCIATE( p       => AnalyticInterpolationP , &
-                 Theta_0 => -PI/2.0                      &
-                  )
-        ! gamma
-        gamma_0 = SQRT(ABS(p*p - 1.))
-
-        ! angle
-        Theta   = -2.*ATAN( SQRT((p+1.)/(p-1.)) * TAN(0.5*gamma_0*t) ) -2.*PI*REAL(NINT((gamma_0*t)/(2.*PI))) + Theta_0
-
-        ! x-pos
-        PartStateAnalytic(1) = LOG(-SIN(Theta) + p )
-
-        ! y-pos
-        PartStateAnalytic(2) = p*t + Theta - Theta_0
-      END ASSOCIATE
-    CASE(11,21) ! old version of CASE(1,2)
-      ASSOCIATE( p       => AnalyticInterpolationP , &
-            Theta_0 => 0.d0 ) !0.785398163397448d0    )
-        beta = ACOS(p)
-        !beta = ASIN(-p)
-        ! phase shift
-        phi_0   = ATANH( (1./TAN(beta/2.)) * TAN(Theta_0/2.) )
-        ! angle
-        Theta   = -2.*ATANH( TAN(beta/2.) * TANH(0.5*t*SIN(beta)-phi_0) )
-        Theta   = -2.*ATANH( TAN(beta/2.) * TANH(0.5*SIN(beta*t)-phi_0) )
-        ! x-pos
-        PartStateAnalytic(1) = LOG((COS(Theta)-p)/(COS(Theta_0)-p))
-        ! y-pos
-        PartStateAnalytic(2) = p*t - (Theta-Theta_0)
-      END ASSOCIATE
-    CASE(31) ! old version of CASE(3)
-      ASSOCIATE( p       => AnalyticInterpolationP , &
-                 Theta_0 => 0.d0                   )
-        gamma_0 = SQRT(p*p-1.)
-        ! phase shift
-        phi_0   = ATAN( (gamma_0/(p-1.)) * TAN(Theta_0/2.) )
-        ! angle
-        Theta   = 2.*ATAN( SQRT((p-1)/(p+1)) * TAN(0.5*gamma_0*t - phi_0) ) + 2*Pi*REAL(NINT((t*gamma_0)/(2*Pi) - phi_0/Pi))
-        ! x-pos
-        PartStateAnalytic(1) = LOG((COS(Theta)-p)/(COS(Theta_0)-p))
-        ! y-pos
-        PartStateAnalytic(2) = p*t - (Theta-Theta_0)
-      END ASSOCIATE
-    END SELECT
-
-    SELECT CASE(AnalyticInterpolationSubType)
-    CASE(1,2,3)
-      ! Set analytic velocity
-      PartStateAnalytic(4) = COS(Theta)
-      PartStateAnalytic(5) = SIN(Theta)
-      PartStateAnalytic(6) = 0.
-    CASE(11,21,31)
-      ! Set analytic velocity
-      PartStateAnalytic(4) = SIN(Theta)
-      PartStateAnalytic(5) = COS(Theta)
-      PartStateAnalytic(6) = 0.
-    END SELECT
-
-    ! Optional output variables
-    IF(PRESENT(alpha_out))THEN
-      ASSOCIATE( dot_theta => SIN(Theta) - AnalyticInterpolationP )
-        ASSOCIATE( alpha_0 => -dot_theta / EXP(PartStateAnalytic(1)) )
-          alpha_out = alpha_0
-          WRITE (*,*) "alpha_out =", alpha_out
-        END ASSOCIATE
-      END ASSOCIATE
-    END IF
-    IF(PRESENT(theta_out))THEN
-      theta_out = Theta
-      WRITE (*,*) "theta_out =", theta_out
-    END IF
-
-  ! 2: const. electromagnetic field: B = B_z = (/ 0 , 0 , (x^2+y^2)^0.5 /) = const.
-  !                                  E = 1e-2/(x^2+y^2)^(3/2) * (/ x , y , 0. /)
-  CASE(2)
-    ! missing ...
-
-  ! 3: const. electric field: E = E_x = (/ 1 V/m , 0 , 0 /) = const.
-  CASE(3)
-
-    SELECT CASE(AnalyticInterpolationSubType)
-    CASE(0) ! 0: non-relativistic
-      ASSOCIATE( m      => Species(PartSpecies(iPart))%MassIC     ,& ! [kg] particle mass
-                 q      => Species(PartSpecies(iPart))%ChargeIC   ,& ! [C] particle charge
-                 E      => AnalyticInterpolationE                 )  ! [V/m] Electric field strength in x-direction
-
-        ASSOCIATE( a => q*E/m )
-          PartStateAnalytic(1) = 0.5*a*t*t
-          PartStateAnalytic(2) = 0.
+! 0: const. magnetostatic field: B = B_z = (/ 0 , 0 , 1 T /) = const.
+CASE(0)
+  ! 0: non-relativistic, 1: relativistic
+  SELECT CASE(AnalyticInterpolationSubType)
+  CASE(0) ! 0: non-relativistic
+    ASSOCIATE(  B_0    => 1.0                                    ,& ! [T] cons. magnetic field
+                v_perp => 1.0                                    ,& ! [m/s] perpendicular velocity (to guiding center)
+                m      => Species(iSpec)%MassIC     ,& ! [kg] particle mass
+                q      => Species(iSpec)%ChargeIC   ,& ! [C] particle charge
+                phi    => AnalyticInterpolationPhase             )  ! [rad] phase shift
+      ASSOCIATE( omega_c => ABS(q)*B_0/m )
+        ASSOCIATE( r_c => v_perp/omega_c )
+          PartStateAnalytic(1) = COS(omega_c*t + phi)*r_c
+          PartStateAnalytic(2) = SIN(omega_c*t + phi)*r_c
           PartStateAnalytic(3) = 0.
-          PartStateAnalytic(4) = a*t
-          PartStateAnalytic(5) = 0.
+          PartStateAnalytic(4) = -SIN(omega_c*t + phi)*v_perp
+          PartStateAnalytic(5) =  COS(omega_c*t + phi)*v_perp
           PartStateAnalytic(6) = 0.
         END ASSOCIATE
       END ASSOCIATE
-    CASE(1) ! 1: relativistic
-      ASSOCIATE( m      => Species(PartSpecies(iPart))%MassIC     ,& ! [kg] particle mass
-                 q      => Species(PartSpecies(iPart))%ChargeIC   ,& ! [C] particle charge
-                 E      => AnalyticInterpolationE                 )  ! [V/m] Electric field strength in x-direction
-        ASSOCIATE( aStar => q*E/m )
-          ASSOCIATE( tStar => (c/aStar)*ASINH(aStar*t/c) ,&
-                     b     => c2/aStar )
-          ASSOCIATE( c1 => aStar*tStar/c )
-            ASSOCIATE( gamma1 => COSH(c1)&
-                        )
-              PartStateAnalytic(1) = b*gamma1 -b
-              !WRITE (*,*) "q,E,m,t =", q,E,m,t
-          !PartStateAnalytic(1) = 0.5*q*E/m*t*t
-              PartStateAnalytic(2) = 0.
-              PartStateAnalytic(3) = 0.
-              PartStateAnalytic(4) = c*TANH(c1)
-              PartStateAnalytic(5) = 0.
-              PartStateAnalytic(6) = 0.
-              !WRITE (*,*) "t,PartStateAnalytic =", t,PartStateAnalytic,gamma1
-            END ASSOCIATE
-            END ASSOCIATE
+    END ASSOCIATE
+  CASE(1) ! 1: relativistic
+    ASSOCIATE(  gamma1 => AnalyticInterpolationGamma ,& ! Lorentz factor
+                m      => 1.0                        ,& ! [kg] particle mass
+                q      => 1.0                        ,& ! [C] particle charge
+                phi    => AnalyticInterpolationPhase )  ! [rad] phase shift
+      !-- get Lorentz factor gamma1(n)
+      v_perp = c*SQRT(1.0 - 1/(gamma1**2))
+      !v_perp = 2.99792457999850103770999962525942749e8
+      IF(v_perp.GE.c) CALL abort(__STAMP__,'Velocity is geater than c',RealInfoOpt=v_perp)
+      !-- Set const. magnetic field [T]
+      B_0 = gamma1*v_perp
+      !IPWRITE(UNIT_StdOut,*) "v_perp,v_perp/c,B_0 =", v_perp,v_perp/c,B_0
+
+      !write(*,*) gamma1,v_perp,v_perp/c,B_0,B_0/c,1.0/SQRT(1.0-v_perp**2*c2_inv)
+      ASSOCIATE( omega_c => ABS(q)*B_0/(gamma1*m) )
+        !WRITE (*,*) "omega_c =", omega_c
+        ASSOCIATE( r_c => v_perp/omega_c )
+          PartStateAnalytic(1) = COS(omega_c*t + phi)*r_c
+          PartStateAnalytic(2) = SIN(omega_c*t + phi)*r_c
+          PartStateAnalytic(3) = 0.
+          PartStateAnalytic(4) = -SIN(omega_c*t + phi)*v_perp
+          PartStateAnalytic(5) =  COS(omega_c*t + phi)*v_perp
+          PartStateAnalytic(6) = 0.
+        END ASSOCIATE
+      END ASSOCIATE
+    END ASSOCIATE
+  END SELECT
+
+! 1: magnetostatic field: B = B_z = (/ 0 , 0 , B_0 * EXP(x/l) /) = const.
+CASE(1)
+  SELECT CASE(AnalyticInterpolationSubType)
+  CASE(1,2)
+    ASSOCIATE(  p       => AnalyticInterpolationP , &
+                Theta_0 => -PI/2.0                     , &
+                t       => t - TEnd/2. )
+                !t       => t )
+      ! gamma
+      gamma_0 = SQRT(ABS(p*p - 1.))
+
+      ! angle
+      Theta   = -2.*ATAN( SQRT((1.+p)/(1.-p)) * TANH(0.5*gamma_0*t) ) + Theta_0
+
+      ! x-pos
+      PartStateAnalytic(1) = LOG(-SIN(Theta) + p )
+
+      ! y-pos
+      PartStateAnalytic(2) = p*t + Theta - Theta_0
+    END ASSOCIATE
+  CASE(3)
+    ASSOCIATE(  p       => AnalyticInterpolationP , &
+                Theta_0 => -PI/2.0                      &
+                )
+      ! gamma
+      gamma_0 = SQRT(ABS(p*p - 1.))
+
+      ! angle
+      Theta   = -2.*ATAN( SQRT((p+1.)/(p-1.)) * TAN(0.5*gamma_0*t) ) -2.*PI*REAL(NINT((gamma_0*t)/(2.*PI))) + Theta_0
+
+      ! x-pos
+      PartStateAnalytic(1) = LOG(-SIN(Theta) + p )
+
+      ! y-pos
+      PartStateAnalytic(2) = p*t + Theta - Theta_0
+    END ASSOCIATE
+  CASE(11,21) ! old version of CASE(1,2)
+    ASSOCIATE( p       => AnalyticInterpolationP , &
+          Theta_0 => 0.d0 ) !0.785398163397448d0    )
+      beta = ACOS(p)
+      !beta = ASIN(-p)
+      ! phase shift
+      phi_0   = ATANH( (1./TAN(beta/2.)) * TAN(Theta_0/2.) )
+      ! angle
+      Theta   = -2.*ATANH( TAN(beta/2.) * TANH(0.5*t*SIN(beta)-phi_0) )
+      Theta   = -2.*ATANH( TAN(beta/2.) * TANH(0.5*SIN(beta*t)-phi_0) )
+      ! x-pos
+      PartStateAnalytic(1) = LOG((COS(Theta)-p)/(COS(Theta_0)-p))
+      ! y-pos
+      PartStateAnalytic(2) = p*t - (Theta-Theta_0)
+    END ASSOCIATE
+  CASE(31) ! old version of CASE(3)
+    ASSOCIATE( p       => AnalyticInterpolationP , &
+                Theta_0 => 0.d0                   )
+      gamma_0 = SQRT(p*p-1.)
+      ! phase shift
+      phi_0   = ATAN( (gamma_0/(p-1.)) * TAN(Theta_0/2.) )
+      ! angle
+      Theta   = 2.*ATAN( SQRT((p-1)/(p+1)) * TAN(0.5*gamma_0*t - phi_0) ) + 2*Pi*REAL(NINT((t*gamma_0)/(2*Pi) - phi_0/Pi))
+      ! x-pos
+      PartStateAnalytic(1) = LOG((COS(Theta)-p)/(COS(Theta_0)-p))
+      ! y-pos
+      PartStateAnalytic(2) = p*t - (Theta-Theta_0)
+    END ASSOCIATE
+  END SELECT
+
+  SELECT CASE(AnalyticInterpolationSubType)
+  CASE(1,2,3)
+    ! Set analytic velocity
+    PartStateAnalytic(4) = COS(Theta)
+    PartStateAnalytic(5) = SIN(Theta)
+    PartStateAnalytic(6) = 0.
+  CASE(11,21,31)
+    ! Set analytic velocity
+    PartStateAnalytic(4) = SIN(Theta)
+    PartStateAnalytic(5) = COS(Theta)
+    PartStateAnalytic(6) = 0.
+  END SELECT
+
+  ! Optional output variables
+  IF(PRESENT(alpha_out))THEN
+    ASSOCIATE( dot_theta => SIN(Theta) - AnalyticInterpolationP )
+      ASSOCIATE( alpha_0 => -dot_theta / EXP(PartStateAnalytic(1)) )
+        alpha_out = alpha_0
+        WRITE (*,*) "alpha_out =", alpha_out
+      END ASSOCIATE
+    END ASSOCIATE
+  END IF
+  IF(PRESENT(theta_out))THEN
+    theta_out = Theta
+    WRITE (*,*) "theta_out =", theta_out
+  END IF
+
+! 2: const. electromagnetic field: B = B_z = (/ 0 , 0 , (x^2+y^2)^0.5 /) = const.
+!                                  E = 1e-2/(x^2+y^2)^(3/2) * (/ x , y , 0. /)
+CASE(2)
+  ! missing ...
+
+! 3: const. electric field: E = E_x = (/ 1 V/m , 0 , 0 /) = const.
+CASE(3)
+
+  SELECT CASE(AnalyticInterpolationSubType)
+  CASE(0) ! 0: non-relativistic
+    ASSOCIATE(  m      => Species(iSpec)%MassIC     ,& ! [kg] particle mass
+                q      => Species(iSpec)%ChargeIC   ,& ! [C] particle charge
+                E      => AnalyticInterpolationE                 )  ! [V/m] Electric field strength in x-direction
+
+      ASSOCIATE( a => q*E/m )
+        PartStateAnalytic(1) = 0.5*a*t*t
+        PartStateAnalytic(2) = 0.
+        PartStateAnalytic(3) = 0.
+        PartStateAnalytic(4) = a*t
+        PartStateAnalytic(5) = 0.
+        PartStateAnalytic(6) = 0.
+      END ASSOCIATE
+    END ASSOCIATE
+  CASE(1) ! 1: relativistic
+    ASSOCIATE(  m      => Species(iSpec)%MassIC     ,& ! [kg] particle mass
+                q      => Species(iSpec)%ChargeIC   ,& ! [C] particle charge
+                E      => AnalyticInterpolationE                 )  ! [V/m] Electric field strength in x-direction
+      ASSOCIATE( aStar => q*E/m )
+        ASSOCIATE( tStar => (c/aStar)*ASINH(aStar*t/c) ,&
+                    b     => c2/aStar )
+        ASSOCIATE( c1 => aStar*tStar/c )
+          ASSOCIATE( gamma1 => COSH(c1)&
+                      )
+            PartStateAnalytic(1) = b*gamma1 -b
+            !WRITE (*,*) "q,E,m,t =", q,E,m,t
+        !PartStateAnalytic(1) = 0.5*q*E/m*t*t
+            PartStateAnalytic(2) = 0.
+            PartStateAnalytic(3) = 0.
+            PartStateAnalytic(4) = c*TANH(c1)
+            PartStateAnalytic(5) = 0.
+            PartStateAnalytic(6) = 0.
+            !WRITE (*,*) "t,PartStateAnalytic =", t,PartStateAnalytic,gamma1
+          END ASSOCIATE
           END ASSOCIATE
         END ASSOCIATE
       END ASSOCIATE
-    END SELECT
-
-  ! 4: const. electric field: E = E_x = (/ X V/m , 0 , 0 /) = const.
-  CASE(4)
-
-    SELECT CASE(AnalyticInterpolationSubType)
-    CASE(0) ! 0: non-relativistic
-    CASE(1) ! 1: relativistic
-      ASSOCIATE( m      => Species(PartSpecies(iPart))%MassIC     ,& ! [kg] particle mass
-                 q      => Species(PartSpecies(iPart))%ChargeIC   ,& ! [C] particle charge
-                 E      => AnalyticInterpolationE                 )  ! [V/m] Electric field strength in x-direction
-             c1 = q*E/m
-             gamma_0 = SQRT(1.0+(c1*t/c)**2)
-             PartStateAnalytic(1) = c**2/c1*(gamma_0-1.0)
-             PartStateAnalytic(2) = 0.
-             PartStateAnalytic(3) = 0.
-             PartStateAnalytic(4) = c1*t/gamma_0
-             PartStateAnalytic(5) = 0.
-             PartStateAnalytic(6) = 0.
-             !WRITE (*,*) "x,v,gamma_0,c =", PartStateAnalytic(1),PartStateAnalytic(4),gamma_0,c
-      END ASSOCIATE
-    END SELECT
-  ! 5: motion of the particle in RotRefFrame without Collisions
-  CASE(5)
-    ASSOCIATE( omega      => 2.*PI*RotRefFrameFreq ) 
-    ASSOCIATE(x_0    =>  Species(PartSpecies(iPart))%Init(1)%BasePointIC(1), & 
-              y_0    =>  Species(PartSpecies(iPart))%Init(1)%BasePointIC(2), & 
-              z_0    =>  Species(PartSpecies(iPart))%Init(1)%BasePointIC(3))
-    ASSOCIATE(vx_0    => Species(PartSpecies(iPart))%Init(1)%VeloVecIC(1) * Species(PartSpecies(iPart))%Init(1)%VeloIC )
-    ASSOCIATE(vy_0    => Species(PartSpecies(iPart))%Init(1)%VeloVecIC(2) * Species(PartSpecies(iPart))%Init(1)%VeloIC )
-    ASSOCIATE(vz_0    => Species(PartSpecies(iPart))%Init(1)%VeloVecIC(3) * Species(PartSpecies(iPart))%Init(1)%VeloIC )
-
-              r_0Vec          = (/x_0,y_0,z_0/)
-              v_0Vec          = (/vx_0,vy_0,vz_0/)
-              v_0Vec = v_0Vec - CROSS(RotRefFrameOmega(1:3),r_0Vec)
-              r_tVec          = r_0Vec + v_0Vec * t
-              OmegaNormVec    = RotRefFrameOmega/omega
-              TempArrayCross1 = CROSS(r_tVec,OmegaNormVec)
-              TempArrayCross2 = CROSS(OmegaNormVec,TempArrayCross1)
-              TempArrayCross3 = CROSS(r_0Vec,OmegaNormVec)
-              TempArrayCross4 = CROSS(OmegaNormVec,TempArrayCross3)
-              TempArrayCross5 = CROSS(v_0Vec,OmegaNormVec)
-              TempArrayCross6 = CROSS(OmegaNormVec,TempArrayCross5)
-
-              PartStateAnalytic(1) = r_0Vec(1) + v_0Vec(1) * t                                                          &
-                                   - TempArrayCross2(1)                                                                 &
-                                   + SIN(omega * t) * TempArrayCross3(1) + COS(omega * t) * TempArrayCross4(1)          &
-                                   + omega * t * SIN(omega * t) * ( TempArrayCross4(1) + 1/omega * TempArrayCross5(1) ) &
-                                   - omega * t * COS(omega * t) * ( TempArrayCross3(1) - 1/omega * TempArrayCross6(1) )
-
-              PartStateAnalytic(2) = r_0Vec(2) + v_0Vec(2) * t                                                          &
-                                   - TempArrayCross2(2)                                                                 &
-                                   + SIN(omega * t) * TempArrayCross3(2) + COS(omega * t) * TempArrayCross4(2)          &
-                                   + omega * t * SIN(omega * t) * ( TempArrayCross4(2) + 1/omega * TempArrayCross5(2) ) &
-                                   - omega * t * COS(omega * t) * ( TempArrayCross3(2) - 1/omega * TempArrayCross6(2) )
-
-              PartStateAnalytic(3) = r_0Vec(3) + v_0Vec(3) * t                                                          &
-                                   - TempArrayCross2(3)                                                                 &
-                                   + SIN(omega * t) * TempArrayCross3(3) + COS(omega * t) * TempArrayCross4(3)          &
-                                   + omega * t * SIN(omega * t) * ( TempArrayCross4(3) + 1/omega * TempArrayCross5(3) ) &
-                                   - omega * t * COS(omega * t) * ( TempArrayCross3(3) - 1/omega * TempArrayCross6(3) )
-
-              PartStateAnalytic(4) = v_0Vec(1)           &
-                                   - TempArrayCross6(1)  &
-                                   + omega * ( COS(omega * t) * TempArrayCross3(1) - SIN(omega * t) * TempArrayCross4(1) ) &
-                                   + ( omega * (SIN(omega * t) + omega * t * COS(omega * t) ) ) &
-                                                                    * ( TempArrayCross4(1) + 1/omega * TempArrayCross5(1) ) &
-                                   - ( omega * (COS(omega * t) - omega * t * SIN(omega * t) ) ) &
-                                                                    * ( TempArrayCross3(1) - 1/omega * TempArrayCross6(1) )
-
-              PartStateAnalytic(5) = v_0Vec(2)           &
-                                   - TempArrayCross6(2)  &
-                                   + omega * ( COS(omega * t) * TempArrayCross3(2) - SIN(omega * t) * TempArrayCross4(2) ) &
-                                   + ( omega * (SIN(omega * t) + omega * t * COS(omega * t) ) ) &
-                                                                    * ( TempArrayCross4(2) + 1/omega * TempArrayCross5(2) ) &
-                                   - ( omega * (COS(omega * t) - omega * t * SIN(omega * t) ) ) &
-                                                                    * ( TempArrayCross3(2) - 1/omega * TempArrayCross6(2) )
-
-              PartStateAnalytic(6) = v_0Vec(3)           &
-                                   - TempArrayCross6(3)  &
-                                   + omega * ( COS(omega * t) * TempArrayCross3(3) - SIN(omega * t) * TempArrayCross4(3) ) &
-                                   + ( omega * (SIN(omega * t) + omega * t * COS(omega * t) ) ) &
-                                                                    * ( TempArrayCross4(3) + 1/omega * TempArrayCross5(3) ) &
-                                   - ( omega * (COS(omega * t) - omega * t * SIN(omega * t) ) ) &
-                                                                    * ( TempArrayCross3(3) - 1/omega * TempArrayCross6(3) )
-    END ASSOCIATE
-    END ASSOCIATE
-    END ASSOCIATE
-    END ASSOCIATE
-    END ASSOCIATE
-  ! 51: motion of the particle in RotRefFrame with wall collisions at x=0
-  CASE(51)
-    ASSOCIATE( omega      => 2.*PI*RotRefFrameFreq ) 
-    ASSOCIATE(x_0    =>  Species(PartSpecies(iPart))%Init(1)%BasePointIC(1), & 
-              y_0    =>  Species(PartSpecies(iPart))%Init(1)%BasePointIC(2), & 
-              z_0    =>  Species(PartSpecies(iPart))%Init(1)%BasePointIC(3))
-    ASSOCIATE(vx_0    => Species(PartSpecies(iPart))%Init(1)%VeloVecIC(1) * Species(PartSpecies(iPart))%Init(1)%VeloIC )
-    ASSOCIATE(vy_0    => Species(PartSpecies(iPart))%Init(1)%VeloVecIC(2) * Species(PartSpecies(iPart))%Init(1)%VeloIC )
-    ASSOCIATE(vz_0    => Species(PartSpecies(iPart))%Init(1)%VeloVecIC(3) * Species(PartSpecies(iPart))%Init(1)%VeloIC )
-
-
-
-
-              IF(TimeReset.GT.0.0) THEN
-                r_0Vec          = r_WallVec
-                v_0Vec          = v_WallVec
-                New_t           = t - TimeReset
-              ELSE
-                r_0Vec          = (/x_0,y_0,z_0/)
-                v_0Vec          = (/vx_0,vy_0,vz_0/)
-                New_t           = t
-                v_0Vec = v_0Vec - CROSS(RotRefFrameOmega(1:3),r_0Vec)
-              END IF
-
-
-
-              r_tVec          = r_0Vec + v_0Vec * New_t
-              OmegaNormVec    = RotRefFrameOmega/omega
-              TempArrayCross1 = CROSS(r_tVec,OmegaNormVec)
-              TempArrayCross2 = CROSS(OmegaNormVec,TempArrayCross1)
-              TempArrayCross3 = CROSS(r_0Vec,OmegaNormVec)
-              TempArrayCross4 = CROSS(OmegaNormVec,TempArrayCross3)
-              TempArrayCross5 = CROSS(v_0Vec,OmegaNormVec)
-              TempArrayCross6 = CROSS(OmegaNormVec,TempArrayCross5)
-
-              PartStateAnalytic(1) = r_0Vec(1) + v_0Vec(1) * New_t                                                          &
-                                   - TempArrayCross2(1)                                                                 &
-                                   + SIN(omega * New_t) * TempArrayCross3(1) + COS(omega * New_t) * TempArrayCross4(1)          &
-                                   + omega * New_t * SIN(omega * New_t) * ( TempArrayCross4(1) + 1/omega * TempArrayCross5(1) ) &
-                                   - omega * New_t * COS(omega * New_t) * ( TempArrayCross3(1) - 1/omega * TempArrayCross6(1) )
-
-              PartStateAnalytic(2) = r_0Vec(2) + v_0Vec(2) * New_t                                                          &
-                                   - TempArrayCross2(2)                                                                 &
-                                   + SIN(omega * New_t) * TempArrayCross3(2) + COS(omega * New_t) * TempArrayCross4(2)          &
-                                   + omega * New_t * SIN(omega * New_t) * ( TempArrayCross4(2) + 1/omega * TempArrayCross5(2) ) &
-                                   - omega * New_t * COS(omega * New_t) * ( TempArrayCross3(2) - 1/omega * TempArrayCross6(2) )
-
-              PartStateAnalytic(3) = r_0Vec(3) + v_0Vec(3) * New_t                                                          &
-                                   - TempArrayCross2(3)                                                                 &
-                                   + SIN(omega * New_t) * TempArrayCross3(3) + COS(omega * New_t) * TempArrayCross4(3)          &
-                                   + omega * New_t * SIN(omega * New_t) * ( TempArrayCross4(3) + 1/omega * TempArrayCross5(3) ) &
-                                   - omega * New_t * COS(omega * New_t) * ( TempArrayCross3(3) - 1/omega * TempArrayCross6(3) )
-
-
-              PartStateAnalytic(4) = v_0Vec(1)           &
-                                   - TempArrayCross6(1)  &
-                                   + omega * ( COS(omega * New_t) * TempArrayCross3(1) - SIN(omega * New_t) * TempArrayCross4(1) ) &
-                                   + ( omega * (SIN(omega * New_t) + omega * New_t * COS(omega * New_t) ) ) &
-                                                                    * ( TempArrayCross4(1) + 1/omega * TempArrayCross5(1) ) &
-                                   - ( omega * (COS(omega * New_t) - omega * New_t * SIN(omega * New_t) ) ) &
-                                                                    * ( TempArrayCross3(1) - 1/omega * TempArrayCross6(1) )
-
-              PartStateAnalytic(5) = v_0Vec(2)           &
-                                   - TempArrayCross6(2)  &
-                                   + omega * ( COS(omega * New_t) * TempArrayCross3(2) - SIN(omega * New_t) * TempArrayCross4(2) ) &
-                                   + ( omega * (SIN(omega * New_t) + omega * New_t * COS(omega * New_t) ) ) &
-                                                                    * ( TempArrayCross4(2) + 1/omega * TempArrayCross5(2) ) &
-                                   - ( omega * (COS(omega * New_t) - omega * New_t * SIN(omega * New_t) ) ) &
-                                                                    * ( TempArrayCross3(2) - 1/omega * TempArrayCross6(2) )
-
-              PartStateAnalytic(6) = v_0Vec(3)           &
-                                   - TempArrayCross6(3)  &
-                                   + omega * ( COS(omega * New_t) * TempArrayCross3(3) - SIN(omega * New_t) * TempArrayCross4(3) ) &
-                                   + ( omega * (SIN(omega * New_t) + omega * New_t * COS(omega * New_t) ) ) &
-                                                                    * ( TempArrayCross4(3) + 1/omega * TempArrayCross5(3) ) &
-                                   - ( omega * (COS(omega * New_t) - omega * New_t * SIN(omega * New_t) ) ) &
-                                                                    * ( TempArrayCross3(3) - 1/omega * TempArrayCross6(3) )
-
-
-!              IF((PartStateAnalytic(1).GE.0.0).AND.(TimeReset.LE.0.0)) THEN
-              IF(ABS(PartStateAnalytic(1)).LT.1E-8) THEN
-                TimeReset    = t
-                r_WallVec    = PartStateAnalytic(1:3)
-                v_WallVec(1) = -PartStateAnalytic(4)
-                v_WallVec(2) = PartStateAnalytic(5)
-                v_WallVec(3) = PartStateAnalytic(6)
-              END IF
-
-
-
-
-!              PartStateAnalytic(4:6) = 0.0
-    END ASSOCIATE
-    END ASSOCIATE
-    END ASSOCIATE
-    END ASSOCIATE
     END ASSOCIATE
   END SELECT
-END ASSOCIATE
 
+! 4: const. electric field: E = E_x = (/ X V/m , 0 , 0 /) = const.
+CASE(4)
+
+  SELECT CASE(AnalyticInterpolationSubType)
+  CASE(0) ! 0: non-relativistic
+  CASE(1) ! 1: relativistic
+    ASSOCIATE(  m      => Species(iSpec)%MassIC     ,& ! [kg] particle mass
+                q      => Species(iSpec)%ChargeIC   ,& ! [C] particle charge
+                E      => AnalyticInterpolationE                 )  ! [V/m] Electric field strength in x-direction
+            c1 = q*E/m
+            gamma_0 = SQRT(1.0+(c1*t/c)**2)
+            PartStateAnalytic(1) = c**2/c1*(gamma_0-1.0)
+            PartStateAnalytic(2) = 0.
+            PartStateAnalytic(3) = 0.
+            PartStateAnalytic(4) = c1*t/gamma_0
+            PartStateAnalytic(5) = 0.
+            PartStateAnalytic(6) = 0.
+            !WRITE (*,*) "x,v,gamma_0,c =", PartStateAnalytic(1),PartStateAnalytic(4),gamma_0,c
+    END ASSOCIATE
+  END SELECT
+! 5: motion of the particle in RotRefFrame without Collisions
+CASE(5)
+  r_0Vec          = Species(iSpec)%Init(1)%BasePointIC(1:3)
+  v_0Vec          = Species(iSpec)%Init(1)%VeloVecIC(1:3) * Species(iSpec)%Init(1)%VeloIC
+  v_0Vec          = v_0Vec - CROSS(RotRefFrameOmega(1:3),r_0Vec)
+  r_tVec          = r_0Vec + v_0Vec * t
+  omega           = 2.*PI*RotRefFrameFreq
+  OmegaNormVec    = RotRefFrameOmega/omega
+  TempArrayCross1 = CROSS(r_tVec,OmegaNormVec)
+  TempArrayCross2 = CROSS(OmegaNormVec,TempArrayCross1)
+  TempArrayCross3 = CROSS(r_0Vec,OmegaNormVec)
+  TempArrayCross4 = CROSS(OmegaNormVec,TempArrayCross3)
+  TempArrayCross5 = CROSS(v_0Vec,OmegaNormVec)
+  TempArrayCross6 = CROSS(OmegaNormVec,TempArrayCross5)
+
+  PartStateAnalytic(1) = r_0Vec(1) + v_0Vec(1) * t                                                          &
+                        - TempArrayCross2(1)                                                                 &
+                        + SIN(omega * t) * TempArrayCross3(1) + COS(omega * t) * TempArrayCross4(1)          &
+                        + omega * t * SIN(omega * t) * ( TempArrayCross4(1) + 1/omega * TempArrayCross5(1) ) &
+                        - omega * t * COS(omega * t) * ( TempArrayCross3(1) - 1/omega * TempArrayCross6(1) )
+
+  PartStateAnalytic(2) = r_0Vec(2) + v_0Vec(2) * t                                                          &
+                        - TempArrayCross2(2)                                                                 &
+                        + SIN(omega * t) * TempArrayCross3(2) + COS(omega * t) * TempArrayCross4(2)          &
+                        + omega * t * SIN(omega * t) * ( TempArrayCross4(2) + 1/omega * TempArrayCross5(2) ) &
+                        - omega * t * COS(omega * t) * ( TempArrayCross3(2) - 1/omega * TempArrayCross6(2) )
+
+  PartStateAnalytic(3) = r_0Vec(3) + v_0Vec(3) * t                                                          &
+                        - TempArrayCross2(3)                                                                 &
+                        + SIN(omega * t) * TempArrayCross3(3) + COS(omega * t) * TempArrayCross4(3)          &
+                        + omega * t * SIN(omega * t) * ( TempArrayCross4(3) + 1/omega * TempArrayCross5(3) ) &
+                        - omega * t * COS(omega * t) * ( TempArrayCross3(3) - 1/omega * TempArrayCross6(3) )
+
+  PartStateAnalytic(4) = v_0Vec(1)           &
+                        - TempArrayCross6(1)  &
+                        + omega * ( COS(omega * t) * TempArrayCross3(1) - SIN(omega * t) * TempArrayCross4(1) ) &
+                        + ( omega * (SIN(omega * t) + omega * t * COS(omega * t) ) ) &
+                                                        * ( TempArrayCross4(1) + 1/omega * TempArrayCross5(1) ) &
+                        - ( omega * (COS(omega * t) - omega * t * SIN(omega * t) ) ) &
+                                                        * ( TempArrayCross3(1) - 1/omega * TempArrayCross6(1) )
+
+  PartStateAnalytic(5) = v_0Vec(2)           &
+                        - TempArrayCross6(2)  &
+                        + omega * ( COS(omega * t) * TempArrayCross3(2) - SIN(omega * t) * TempArrayCross4(2) ) &
+                        + ( omega * (SIN(omega * t) + omega * t * COS(omega * t) ) ) &
+                                                        * ( TempArrayCross4(2) + 1/omega * TempArrayCross5(2) ) &
+                        - ( omega * (COS(omega * t) - omega * t * SIN(omega * t) ) ) &
+                                                        * ( TempArrayCross3(2) - 1/omega * TempArrayCross6(2) )
+
+  PartStateAnalytic(6) = v_0Vec(3)           &
+                        - TempArrayCross6(3)  &
+                        + omega * ( COS(omega * t) * TempArrayCross3(3) - SIN(omega * t) * TempArrayCross4(3) ) &
+                        + ( omega * (SIN(omega * t) + omega * t * COS(omega * t) ) ) &
+                                                        * ( TempArrayCross4(3) + 1/omega * TempArrayCross5(3) ) &
+                        - ( omega * (COS(omega * t) - omega * t * SIN(omega * t) ) ) &
+                                                        * ( TempArrayCross3(3) - 1/omega * TempArrayCross6(3) )
+! 51: motion of the particle in RotRefFrame with wall collisions at x=0
+CASE(51)
+  IF(TimeReset.GT.0.0) THEN
+    r_0Vec          = r_WallVec
+    v_0Vec          = v_WallVec
+    New_t           = t - TimeReset
+  ELSE
+    r_0Vec          = Species(iSpec)%Init(1)%BasePointIC(1:3)
+    v_0Vec          = Species(iSpec)%Init(1)%VeloVecIC(1:3) * Species(iSpec)%Init(1)%VeloIC
+    New_t           = t
+    v_0Vec = v_0Vec - CROSS(RotRefFrameOmega(1:3),r_0Vec)
+  END IF
+  r_tVec          = r_0Vec + v_0Vec * New_t
+  omega = 2.*PI*RotRefFrameFreq
+  OmegaNormVec    = RotRefFrameOmega/omega
+  TempArrayCross1 = CROSS(r_tVec,OmegaNormVec)
+  TempArrayCross2 = CROSS(OmegaNormVec,TempArrayCross1)
+  TempArrayCross3 = CROSS(r_0Vec,OmegaNormVec)
+  TempArrayCross4 = CROSS(OmegaNormVec,TempArrayCross3)
+  TempArrayCross5 = CROSS(v_0Vec,OmegaNormVec)
+  TempArrayCross6 = CROSS(OmegaNormVec,TempArrayCross5)
+
+  PartStateAnalytic(1) = r_0Vec(1) + v_0Vec(1) * New_t                                                          &
+                        - TempArrayCross2(1)                                                                 &
+                        + SIN(omega * New_t) * TempArrayCross3(1) + COS(omega * New_t) * TempArrayCross4(1)          &
+                        + omega * New_t * SIN(omega * New_t) * ( TempArrayCross4(1) + 1/omega * TempArrayCross5(1) ) &
+                        - omega * New_t * COS(omega * New_t) * ( TempArrayCross3(1) - 1/omega * TempArrayCross6(1) )
+
+  PartStateAnalytic(2) = r_0Vec(2) + v_0Vec(2) * New_t                                                          &
+                        - TempArrayCross2(2)                                                                 &
+                        + SIN(omega * New_t) * TempArrayCross3(2) + COS(omega * New_t) * TempArrayCross4(2)          &
+                        + omega * New_t * SIN(omega * New_t) * ( TempArrayCross4(2) + 1/omega * TempArrayCross5(2) ) &
+                        - omega * New_t * COS(omega * New_t) * ( TempArrayCross3(2) - 1/omega * TempArrayCross6(2) )
+
+  PartStateAnalytic(3) = r_0Vec(3) + v_0Vec(3) * New_t                                                          &
+                        - TempArrayCross2(3)                                                                 &
+                        + SIN(omega * New_t) * TempArrayCross3(3) + COS(omega * New_t) * TempArrayCross4(3)          &
+                        + omega * New_t * SIN(omega * New_t) * ( TempArrayCross4(3) + 1/omega * TempArrayCross5(3) ) &
+                        - omega * New_t * COS(omega * New_t) * ( TempArrayCross3(3) - 1/omega * TempArrayCross6(3) )
+
+
+  PartStateAnalytic(4) = v_0Vec(1)           &
+                        - TempArrayCross6(1)  &
+                        + omega * ( COS(omega * New_t) * TempArrayCross3(1) - SIN(omega * New_t) * TempArrayCross4(1) ) &
+                        + ( omega * (SIN(omega * New_t) + omega * New_t * COS(omega * New_t) ) ) &
+                                                        * ( TempArrayCross4(1) + 1/omega * TempArrayCross5(1) ) &
+                        - ( omega * (COS(omega * New_t) - omega * New_t * SIN(omega * New_t) ) ) &
+                                                        * ( TempArrayCross3(1) - 1/omega * TempArrayCross6(1) )
+
+  PartStateAnalytic(5) = v_0Vec(2)           &
+                        - TempArrayCross6(2)  &
+                        + omega * ( COS(omega * New_t) * TempArrayCross3(2) - SIN(omega * New_t) * TempArrayCross4(2) ) &
+                        + ( omega * (SIN(omega * New_t) + omega * New_t * COS(omega * New_t) ) ) &
+                                                        * ( TempArrayCross4(2) + 1/omega * TempArrayCross5(2) ) &
+                        - ( omega * (COS(omega * New_t) - omega * New_t * SIN(omega * New_t) ) ) &
+                                                        * ( TempArrayCross3(2) - 1/omega * TempArrayCross6(2) )
+
+  PartStateAnalytic(6) = v_0Vec(3)           &
+                        - TempArrayCross6(3)  &
+                        + omega * ( COS(omega * New_t) * TempArrayCross3(3) - SIN(omega * New_t) * TempArrayCross4(3) ) &
+                        + ( omega * (SIN(omega * New_t) + omega * New_t * COS(omega * New_t) ) ) &
+                                                        * ( TempArrayCross4(3) + 1/omega * TempArrayCross5(3) ) &
+                        - ( omega * (COS(omega * New_t) - omega * New_t * SIN(omega * New_t) ) ) &
+                                                        * ( TempArrayCross3(3) - 1/omega * TempArrayCross6(3) )
+
+!              IF((PartStateAnalytic(1).GE.0.0).AND.(TimeReset.LE.0.0)) THEN
+  IF(ABS(PartStateAnalytic(1)).LT.1E-8) THEN
+    TimeReset    = t
+    r_WallVec    = PartStateAnalytic(1:3)
+    v_WallVec(1) = -PartStateAnalytic(4)
+    v_WallVec(2) = PartStateAnalytic(5)
+    v_WallVec(3) = PartStateAnalytic(6)
+  END IF
+!              PartStateAnalytic(4:6) = 0.0
+END SELECT
 
 ! Calculate analytical Lorentz factor
 gamma1 = DOTPRODUCT(PartStateAnalytic(4:6))*c2_inv
