@@ -230,9 +230,10 @@ DO i=1,nSpecies
                 ! Calculation of the number of photons depending on the cylinder height (ratio of actual to virtual cylinder height, which
                 ! is spanned by the disk and the length given by c*dt)
                 IF(TRIM(Species(i)%Init(iInit)%SpaceIC).EQ.'photon_rectangle')THEN
+                  ! Rectangular area -> cuboid: Equally distributed over c*dt
                   NbrOfPhotons = NbrOfPhotons * Species(i)%Init(iInit)%CuboidHeightIC / (c*dt)
                 ELSE
-                  ! Cylinder and honeycomb
+                  ! Cylinder and honeycomb: Equally distributed over c*dt
                   NbrOfPhotons = NbrOfPhotons * Species(i)%Init(iInit)%CylinderHeightIC / (c*dt)
                 END IF
                 ! Calculation of the number of electron resulting from the chemical reactions in the photoionization region

@@ -173,8 +173,8 @@ ASSOCIATE( RayElemPassedEnergy => RayElemPassedEnergy_Shared )
           IntegrationWeight = N_Inter_Ray(Ray%NMax)%wGP(k)*&
                               N_Inter_Ray(Ray%NMax)%wGP(l)*&
                               N_Inter_Ray(Ray%NMax)%wGP(m)*J_Nmax(1,k,l,m)
-          U(1:2,k,l,m,iElem) = U(1:2,k,l,m,iElem) * IntegrationWeight
-          !U(1:2,k,l,m,iElem) = U(1:2,k,l,m,iElem) / IntegrationWeight
+          !U(1:2,k,l,m,iElem) = U(1:2,k,l,m,iElem) * IntegrationWeight
+          U(1:2,k,l,m,iElem) = U(1:2,k,l,m,iElem) / IntegrationWeight
           !U(1:2,k,l,m,iElem) = U(1:2,k,l,m,iElem) * J_Nmax(1,k,l,m)
           !U(1:2,k,l,m,iElem) = U(1:2,k,l,m,iElem) / J_Nmax(1,k,l,m)
         END DO ! k

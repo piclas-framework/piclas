@@ -684,9 +684,9 @@ ELSE
 END IF
 
 ! Loop over number of sub-samples
-NbrOfSamples = Nloc+1 ! must be at least 2!
-!scaleFac = 1./REAL(NbrOfSamples)
-scaleFac = 1.
+NbrOfSamples = 10 ! Nloc+1 ! must be at least 2!
+scaleFac = 1./REAL(NbrOfSamples)
+!scaleFac = 1.
 arr = .FALSE.
 
 DO iIntersec = 1, NbrOfSamples
@@ -735,7 +735,7 @@ DO iIntersec = 1, NbrOfSamples
     ELSE
       U_N_Ray(GlobalElemID)%U(2,k,l,m) = U_N_Ray(GlobalElemID)%U(2,k,l,m) + PhotonProps%PhotonEnergy * scaleFac * weight
     END IF
-    arr(k,l,m)=.TRUE.
+    !arr(k,l,m)=.TRUE.
   END IF ! .NOT.arr(k,l,m)
 END DO ! iIntersec = 1, Nloc+3
 END SUBROUTINE CalcAbsorptionRayTrace
