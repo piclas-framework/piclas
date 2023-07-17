@@ -99,7 +99,6 @@ USE MOD_HDF5_Input
 USE MOD_Interpolation_Vars     ,ONLY: xGP,InterpolationInitIsDone
 USE MOD_IO_HDF5                ,ONLY: AddToElemData,ElementOut
 USE MOD_Mappings               ,ONLY: InitMappings
-USE MOD_Mesh_Tools             ,ONLY: InitNodeMap
 USE MOD_Mesh_Vars
 USE MOD_Mesh_ReadIn            ,ONLY: ReadMesh
 USE MOD_Metrics                ,ONLY: BuildCoords,CalcMetrics
@@ -207,8 +206,6 @@ IF (.NOT.(PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance))) THEN
 #if USE_LOADBALANCE
 END IF
 #endif /*USE_LOADBALANCE*/
-
-CALL InitNodeMap(NGeo)
 
 IF(useCurveds)THEN
   IF(PP_N.LT.NGeo)THEN
