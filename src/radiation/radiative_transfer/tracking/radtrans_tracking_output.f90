@@ -56,6 +56,8 @@ USE MOD_Mesh_Vars            ,ONLY: offsetElem,nGlobalElems
 USE MOD_ChangeBasis          ,ONLY: ChangeBasis3D
 USE MOD_Interpolation_Vars ,ONLY: NodeType
 USE MOD_Interpolation      ,ONLY: GetVandermonde
+USE MOD_Mesh_Tools            ,ONLY: GetCNElemID
+USE MOD_Particle_Mesh_Vars      ,ONLY: ElemVolume_Shared
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -66,7 +68,7 @@ USE MOD_Interpolation      ,ONLY: GetVandermonde
 ! LOCAL VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 CHARACTER(LEN=255)                  :: FileName
-INTEGER                             :: iElem,iGlobalElem,Nloc,k,l,m
+INTEGER                             :: iElem,iGlobalElem,iCNElem,Nloc,k,l,m
 CHARACTER(LEN=255), ALLOCATABLE     :: StrVarNames(:)
 REAL                                :: U(nVarRay,0:Ray%NMax,0:Ray%NMax,0:Ray%NMax,PP_nElems)
 #if USE_MPI
@@ -124,12 +126,13 @@ ASSOCIATE( RayElemPassedEnergy => RayElemPassedEnergy_Shared )
 #endif /*USE_MPI*/
   DO iElem=1,PP_nElems
     iGlobalElem = iElem+offSetElem
+    iCNElem = GetCNElemID(iGlobalElem)
 
     ! 1. Elem-constant data
     ! Primary energy
-    RayElemPassedEnergyLoc1st(iElem) = RayElemPassedEnergy(1,iGlobalElem)
+    RayElemPassedEnergyLoc1st(iElem) = RayElemPassedEnergy(1,iGlobalElem) !/ ElemVolume_Shared(iCNElem)
     ! Secondary energy
-    RayElemPassedEnergyLoc2nd(iElem) = RayElemPassedEnergy(2,iGlobalElem)
+    RayElemPassedEnergyLoc2nd(iElem) = RayElemPassedEnergy(2,iGlobalElem) !/ ElemVolume_Shared(iCNElem)
     ! Check if secondary energy is greater than zero
     IF(RayElemPassedEnergyLoc2nd(iElem).GT.0.0)THEN
       IF(RayElemPassedEnergy(6,iGlobalElem).LE.0.0) CALL abort(__STAMP__,'Secondary ray counter is zero but energy is not!')
@@ -173,10 +176,7 @@ ASSOCIATE( RayElemPassedEnergy => RayElemPassedEnergy_Shared )
           IntegrationWeight = N_Inter_Ray(Ray%NMax)%wGP(k)*&
                               N_Inter_Ray(Ray%NMax)%wGP(l)*&
                               N_Inter_Ray(Ray%NMax)%wGP(m)*J_Nmax(1,k,l,m)
-          !U(1:2,k,l,m,iElem) = U(1:2,k,l,m,iElem) * IntegrationWeight
-          U(1:2,k,l,m,iElem) = U(1:2,k,l,m,iElem) / IntegrationWeight
-          !U(1:2,k,l,m,iElem) = U(1:2,k,l,m,iElem) * J_Nmax(1,k,l,m)
-          !U(1:2,k,l,m,iElem) = U(1:2,k,l,m,iElem) / J_Nmax(1,k,l,m)
+          !U(1:2,k,l,m,iElem) = U(1:2,k,l,m,iElem) / IntegrationWeight
         END DO ! k
       END DO ! l
     END DO ! m

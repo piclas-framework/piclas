@@ -660,18 +660,30 @@ INTEGER, INTENT(IN) :: GlobalElemID
 REAL, INTENT(IN)    :: PhotonDir(3)
 REAL, INTENT(IN)    :: IntersectionPos(3)
 ! Local variable declaration
-INTEGER           :: a,b,ii,k,l,m,Nloc,NbrOfSamples,iIntersec
+INTEGER           :: a,b,ii,k,l,m,Nloc,NbrOfSamples,iIntersec,idx
+INTEGER           :: kOld,lOld,mOld
 REAL              :: IntersectionPosRef(3),scaleFac,SamplePos(3),weight
+REAL              :: direction(3),subdirection(3),length,sublength
 LOGICAL           :: arr(0:Ray%NMax,0:Ray%NMax,0:Ray%NMax)
+REAL              :: realcounter
 !--------------------------------------------------------------------------------------------------!
+! Calculate the direction and length of the path of the ray through the element
+direction(1:3) = IntersectionPos(1:3)-PhotonProps%PhotonStartPos(1:3)
+length = VECNORM(direction(1:3))
+
+! Check primary or secondary direction
+
 ! Check primary or secondary direction
 IF(DOT_PRODUCT(PhotonDir,Ray%Direction).GT.0.0)THEN
-  RayElemPassedEnergy(1,GlobalElemID)   = RayElemPassedEnergy(1,GlobalElemID)   + PhotonProps%PhotonEnergy
+  ! 1st energy direction
+  idx = 1
 ELSE
-  RayElemPassedEnergy(2,GlobalElemID)   = RayElemPassedEnergy(2,GlobalElemID)   + PhotonProps%PhotonEnergy
+  ! 2nd energy direction
+  idx = 2
   RayElemPassedEnergy(3:5,GlobalElemID) = RayElemPassedEnergy(3:5,GlobalElemID) + PhotonDir(1:3)
   RayElemPassedEnergy(6,GlobalElemID)   = RayElemPassedEnergy(6,GlobalElemID)   + 1.0
 END IF
+RayElemPassedEnergy(idx,GlobalElemID)   = RayElemPassedEnergy(idx,GlobalElemID) + PhotonProps%PhotonEnergy * length
 
 ! High-order sampling: Use nearest Gauss point (NGP) from PIC deposition
 Nloc = N_DG_Ray(GlobalElemID)
@@ -684,13 +696,18 @@ ELSE
 END IF
 
 ! Loop over number of sub-samples
-NbrOfSamples = 10 ! Nloc+1 ! must be at least 2!
+NbrOfSamples = 10 ! Nloc+1 ! must be at least 3 for this sampling method (one point between the two intersections of the element)!
 scaleFac = 1./REAL(NbrOfSamples)
+subdirection(1:3) = direction(1:3)/REAL(NbrOfSamples-1)
+sublength = VECNORM(subdirection(1:3))
 !scaleFac = 1.
 arr = .FALSE.
+! Set initial starting position (is moved when the sub-element is switched)
+!StartPos(1:3) = PhotonProps%PhotonStartPos(1:3)
+realcounter = 0.0
 
 DO iIntersec = 1, NbrOfSamples
-  SamplePos = PhotonProps%PhotonStartPos(1:3) + (IntersectionPos(1:3)-PhotonProps%PhotonStartPos(1:3))*REAL(iIntersec-1)/REAL(NbrOfSamples-1)
+  SamplePos = PhotonProps%PhotonStartPos(1:3) + direction(1:3)*REAL(iIntersec-1)/REAL(NbrOfSamples-1)
 
   ! Get position in reference element
   CALL GetPositionInRefElem(SamplePos(1:3),IntersectionPosRef(1:3),GlobalElemID)
@@ -729,14 +746,45 @@ DO iIntersec = 1, NbrOfSamples
      !(l.eq.0.or.l.eq.Nloc).OR.&
      !(m.eq.0.or.m.eq.Nloc)) weight = weight * 0.5
   !weight = N_Inter_Ray(Nloc)%wGP(k)*N_Inter_Ray(Nloc)%wGP(l)*N_Inter_Ray(Nloc)%wGP(m)
-  IF(.NOT.arr(k,l,m))THEN
-    IF(DOT_PRODUCT(PhotonDir,Ray%Direction).GT.0.0)THEN
-      U_N_Ray(GlobalElemID)%U(1,k,l,m) = U_N_Ray(GlobalElemID)%U(1,k,l,m) + PhotonProps%PhotonEnergy * scaleFac * weight
+    !U_N_Ray(GlobalElemID)%U(idx,k,l,m) = U_N_Ray(GlobalElemID)%U(idx,k,l,m) + PhotonProps%PhotonEnergy * scaleFac * length
+
+  ! Switch sub-element
+  IF((iIntersec.GT.1).AND.(.NOT.arr(k,l,m)))THEN
+    ! Set old sub-element false
+    arr(kOld,lOld,mOld) = .FALSE.
+
+    ! half step back
+    U_N_Ray(GlobalElemID)%U(idx,kOld,lOld,mOld) = U_N_Ray(GlobalElemID)%U(idx,kOld,lOld,mOld) &
+                                                + (realcounter - 0.5) * sublength * PhotonProps%PhotonEnergy
+    ! Check if last intersection is reached
+    IF(iIntersec.EQ.NbrOfSamples)THEN
+      ! Set counter to half step as the loop ends here
+      realcounter = 0.5
+      U_N_Ray(GlobalElemID)%U(idx,k,l,m) = U_N_Ray(GlobalElemID)%U(idx,k,l,m) &
+                                         + realcounter * sublength * PhotonProps%PhotonEnergy
+      ! Exist loop and subroutine here
+      RETURN
     ELSE
-      U_N_Ray(GlobalElemID)%U(2,k,l,m) = U_N_Ray(GlobalElemID)%U(2,k,l,m) + PhotonProps%PhotonEnergy * scaleFac * weight
-    END IF
-    !arr(k,l,m)=.TRUE.
+      ! Initialize counter with half step and add 1, which gives 1.5
+      realcounter = 1.5
+    END IF ! iIntersec.EQ.NbrOfSamples
+
+  ELSE
+    ! Check if last intersection is reached
+    IF(iIntersec.EQ.NbrOfSamples)THEN
+      U_N_Ray(GlobalElemID)%U(idx,k,l,m) = U_N_Ray(GlobalElemID)%U(idx,k,l,m) &
+                                         + realcounter * sublength * PhotonProps%PhotonEnergy
+      ! Exist loop and subroutine here
+      RETURN
+    END IF ! iIntersec.EQ.NbrOfSamples
+    ! 1st or still in old sub-element
+    realcounter = realcounter + 1.0
   END IF ! .NOT.arr(k,l,m)
+
+  arr(k,l,m)=.TRUE.
+  kOld = k
+  lOld = l
+  mOld = m
 END DO ! iIntersec = 1, Nloc+3
 END SUBROUTINE CalcAbsorptionRayTrace
 
