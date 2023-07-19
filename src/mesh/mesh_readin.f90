@@ -234,7 +234,6 @@ USE MOD_Particle_Mesh_Vars   ,ONLY: ElemInfo_Shared,SideInfo_Shared,NodeCoords_S
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Vars     ,ONLY: PerformLoadBalance,UseH5IOLoadBalance,offsetElemMPIOld
 #endif /*USE_LOADBALANCE*/
-USE MOD_Mesh_Tools           ,ONLY: InitNodeMap
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -639,10 +638,8 @@ IF (.NOT.PerformLoadBalance) &
 ! Backup required if useCurveds=F
 NGeoOld = NGeo
 ! Linear mesh: set polynomial degree of geometry to 1 and rebuild NodeMap
-IF(.NOT.useCurveds) THEN
-  NGeo = 1
-  CALL InitNodeMap(NGeo)
-END IF
+IF(.NOT.useCurveds) NGeo = 1
+
 ALLOCATE(NodeCoords(3,0:NGeo,0:NGeo,0:NGeo,nElems))
 
 #if defined(PARTICLES) && USE_LOADBALANCE
@@ -964,6 +961,7 @@ USE MOD_HDF5_Input         ,ONLY: ReadArray,OpenDataFile
 USE MOD_IO_HDF5            ,ONLY: CloseDataFile
 USE MOD_Mesh_Vars
 USE MOD_Particle_Mesh_Vars
+USE MOD_Mesh_Tools         ,ONLY: GetCornerNodes
 #if USE_MPI
 USE MOD_MPI_Shared
 USE MOD_MPI_Shared_Vars
@@ -984,6 +982,7 @@ INTEGER                        :: nNodeIDs,offsetNodeID
 INTEGER,ALLOCATABLE            :: NodeInfo(:),NodeInfoTmp(:,:)
 REAL,ALLOCATABLE               :: NodeCoords_indx(:,:)
 INTEGER                        :: nNodeInfoIDs,NodeID,NodeCounter
+INTEGER                        :: CNS(8)
 !===================================================================================================================================
 
 ! calculate all offsets
@@ -1103,6 +1102,9 @@ ELSE ! .NOT. (useCurveds.OR.NGeo.EQ.1)
 #else
   ALLOCATE(NodeCoords_Shared(3,8*nGlobalElems))
 #endif  /*USE_MPI*/
+
+  ! the cornernodes are not the first 8 entries (for Ngeo>1) of nodeinfo array so mapping is built
+  CNS(1:8) = GetCornerNodes(NGeo)
 
   ! throw away all nodes except the 8 corner nodes of each hexa
   nNonUniqueGlobalNodes = 8*nGlobalElems

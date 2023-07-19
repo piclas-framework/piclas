@@ -571,7 +571,8 @@ SUBROUTINE InitParticleBoundaryRotPeriodic(nRotPeriodicBCs)
 ! MODULES
 USE MOD_Globals
 USE MOD_ReadInTools
-USE MOD_Mesh_Vars              ,ONLY: NodeMap
+USE MOD_Mesh_Vars              ,ONLY: NGeo
+USE MOD_Mesh_Tools             ,ONLY: GetCornerNodeMapCGNS
 USE MOD_Particle_Boundary_Vars ,ONLY: PartBound,nPartBound
 USE MOD_Particle_Mesh_Vars     ,ONLY: nNonUniqueGlobalSides
 USE MOD_Particle_Mesh_Vars     ,ONLY: ElemInfo_Shared,SideInfo_Shared,NodeCoords_Shared
@@ -587,7 +588,7 @@ INTEGER               :: nRotPeriodicBCs
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER               :: iPartBound, ElemID, iSide, LocSideID, nStart, iPartBound2
+INTEGER               :: iPartBound, ElemID, iSide, LocSideID, nStart, iPartBound2, NodeMap(4,6)
 REAL                  :: Pmax, Pmin
 LOGICAL,ALLOCATABLE   :: PartnerFound(:)
 !===================================================================================================================================
@@ -611,6 +612,8 @@ ELSE IF(nRotPeriodicBCs.EQ.2) THEN
   PartBound%RotPeriodicMin = -HUGE(1.)
   PartBound%RotPeriodicMax = HUGE(1.)
 ELSE
+  ! Get the node map to convert from the CGNS format (as given by HOPR, ElemSideNodeID_Shared not yet available)
+  CALL GetCornerNodeMapCGNS(NGeo,NodeMapCGNS=NodeMap)
   ! Determine the min and max values along the rot periodic axis of the BC region
   ! Loop over all sides
   DO iSide = 1,nNonUniqueGlobalSides
@@ -685,7 +688,8 @@ SUBROUTINE InitParticleBoundaryInterPlane()
 ! MODULES
 USE MOD_Globals
 USE MOD_Globals_Vars           ,ONLY: PI
-USE MOD_Mesh_Vars              ,ONLY: NodeMap
+USE MOD_Mesh_Vars              ,ONLY: NGeo
+USE MOD_Mesh_Tools             ,ONLY: GetCornerNodeMapCGNS
 USE MOD_Particle_Boundary_Vars ,ONLY: PartBound,nPartBound
 USE MOD_Particle_Mesh_Vars     ,ONLY: nNonUniqueGlobalSides
 USE MOD_Particle_Mesh_Vars     ,ONLY: ElemInfo_Shared,SideInfo_Shared,NodeCoords_Shared
@@ -702,7 +706,7 @@ USE MOD_LoadBalance_Vars       ,ONLY: PerformLoadBalance
 ! LOCAL VARIABLES
 INTEGER               :: iPartBound, ElemID, iSide
 INTEGER, ALLOCATABLE  :: InterPlanePositionCount(:)
-INTEGER               :: LocSideID, nStart
+INTEGER               :: NodeMap(4,6), LocSideID, nStart
 !===================================================================================================================================
 
 LBWRITE(UNIT_StdOut,'(132("-"))')
@@ -717,6 +721,9 @@ InterPlanePositionCount = 0
 
 ALLOCATE(PartBound%RotAxisPosition(1:nPartBound))
 PartBound%RotAxisPosition = 0
+
+! Get the node map to convert from the CGNS format (as given by HOPR, ElemSideNodeID_Shared not yet available)
+CALL GetCornerNodeMapCGNS(NGeo,NodeMapCGNS=NodeMap)
 
 ! check every BC side
 DO iSide = 1,nNonUniqueGlobalSides

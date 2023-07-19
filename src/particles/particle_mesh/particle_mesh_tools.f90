@@ -1610,9 +1610,9 @@ SUBROUTINE InitParticleGeometry()
 USE MOD_Preproc
 USE MOD_ReadInTools
 USE MOD_Globals
-USE MOD_Mesh_Vars          ,ONLY: NodeMap
+USE MOD_Mesh_Vars          ,ONLY: NGeo
 USE MOD_Particle_Mesh_Vars
-USE MOD_Mesh_Tools         ,ONLY: GetGlobalElemID
+USE MOD_Mesh_Tools         ,ONLY: GetGlobalElemID, GetCornerNodeMapCGNS
 #if USE_MPI
 USE MOD_MPI_Shared
 USE MOD_MPI_Shared_Vars
@@ -1633,13 +1633,15 @@ USE MOD_LoadBalance_Vars   ,ONLY: PerformLoadBalance
 ! LOCAL VARIABLES
 INTEGER            :: iElem,FirstElem,LastElem,GlobalElemID
 INTEGER            :: GlobalSideID,nlocSides,localSideID,iLocSide
-INTEGER            :: iNode
-INTEGER            :: nStart, NodeNum
+INTEGER            :: iNode, NodeMap(1:4,1:6), nStart, NodeNum
 REAL               :: A(3,3),detcon
 !===================================================================================================================================
 
 LBWRITE(UNIT_StdOut,'(132("-"))')
 LBWRITE(UNIT_stdOut,'(A)') ' INIT PARTICLE GEOMETRY INFORMATION...'
+
+! Get the node map to convert from the CGNS format (as given by HOPR)
+CALL GetCornerNodeMapCGNS(NGeo,NodeMapCGNS=NodeMap(1:4,1:6))
 
 #if USE_MPI
 CALL Allocate_Shared((/6,nComputeNodeTotalElems/),ConcaveElemSide_Shared_Win,ConcaveElemSide_Shared)
@@ -1761,11 +1763,12 @@ SUBROUTINE ComputePeriodicVec()
 ! MODULES
 USE MOD_Globals
 USE MOD_Preproc
-USE MOD_Mesh_Vars              ,ONLY: NodeMap,offsetElem,BoundaryType
+USE MOD_Mesh_Vars              ,ONLY: NGeo,offsetElem,BoundaryType
 USE MOD_Particle_Boundary_Vars ,ONLY: PartBound
 USE MOD_Particle_Mesh_Vars     ,ONLY: GEO,ElemInfo_Shared,SideInfo_Shared,NodeCoords_Shared
 USE MOD_Particle_Vars          ,ONLY: PartMeshHasPeriodicBCs
 USE MOD_Mesh_Vars              ,ONLY: nElems
+USE MOD_Mesh_Tools             ,ONLY: GetCornerNodeMapCGNS
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Vars       ,ONLY: PerformLoadBalance
 #endif /*USE_LOADBALANCE*/
@@ -1778,7 +1781,7 @@ IMPLICIT NONE
 INTEGER,PARAMETER              :: iNode=1
 INTEGER                        :: iVec,iBC,iPartBC
 INTEGER                        :: firstElem,lastElem,NbSideID,BCALPHA,flip
-INTEGER                        :: SideID,ElemID,NbElemID,localSideID,localSideNbID,nStart
+INTEGER                        :: SideID,ElemID,NbElemID,localSideID,localSideNbID,nStart,NodeMap(4,6)
 REAL,DIMENSION(3)              :: MasterCoords,SlaveCoords,Vec
 LOGICAL,ALLOCATABLE            :: PeriodicFound(:)
 #if USE_MPI
@@ -1799,6 +1802,8 @@ PeriodicFound(:) = .FALSE.
 
 ALLOCATE(GEO%PeriodicVectors(1:3,GEO%nPeriodicVectors))
 GEO%PeriodicVectors = 0.
+
+CALL GetCornerNodeMapCGNS(NGeo,NodeMapCGNS=NodeMap)
 
 DO ElemID = firstElem,lastElem
   ! Every periodic vector already found
