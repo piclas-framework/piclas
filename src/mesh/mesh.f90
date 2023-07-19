@@ -127,7 +127,8 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT/OUTPUT VARIABLES
 INTEGER,INTENT(IN) :: meshMode !<  0: only read and build Elem_xGP,
-                               !< -1: as 0 + build connectivity and always set ReadNodes=T: read node info (automatically read for PARTICLES=ON) and set BuildFacexGPAndKeepNodeCoods=T
+                               !< -2: as 0 + build connectivity and always set ReadNodes=T: read node info (automatically read for PARTICLES=ON) + build FacexGP and keep NodeCoords
+                               !< -1: as 0 + build connectivity and always set ReadNodes=T: read node info (automatically read for PARTICLES=ON)
                                !<  1: as 0 + build connectivity
                                !<  2: as 1 + calc metrics
                                !<  3: as 2 but skip InitParticleMesh
@@ -140,7 +141,7 @@ REAL,POINTER        :: Coords(:,:,:,:,:)
 INTEGER             :: iElem,i,j,k,nElemsLoc
 !CHARACTER(32)       :: hilf2
 CHARACTER(LEN=255)  :: FileName
-LOGICAL             :: validMesh,ExistFile,ReadNodes,BuildFacexGPAndKeepNodeCoods
+LOGICAL             :: validMesh,ExistFile,ReadNodes
 !===================================================================================================================================
 IF ((.NOT.InterpolationInitIsDone).OR.MeshInitIsDone) THEN
   CALL abort(__STAMP__,'InitMesh not ready to be called or already called.')
@@ -153,9 +154,6 @@ ReadNodes  =.TRUE.
 ReadNodes  =.FALSE.
 IF(meshMode.LT.0) ReadNodes  =.TRUE.
 #endif /*defined(PARTICLES)*/
-
-BuildFacexGPAndKeepNodeCoods = .FALSE. ! default
-IF(meshMode.LT.0) BuildFacexGPAndKeepNodeCoods  =.TRUE.
 
 ! Output of myrank, ElemID and tracking info
 CalcMeshInfo = GETLOGICAL('CalcMeshInfo')
@@ -307,7 +305,7 @@ IF (ABS(meshMode).GT.0) THEN
 
 END IF ! meshMode.GT.0
 
-IF ((ABS(meshMode).GT.1).OR.BuildFacexGPAndKeepNodeCoods) THEN
+IF ((ABS(meshMode).GT.1)) THEN
 
   ! ----- CONNECTIVITY IS NOW COMPLETE AT THIS POINT -----
 
@@ -375,12 +373,12 @@ IF ((ABS(meshMode).GT.1).OR.BuildFacexGPAndKeepNodeCoods) THEN
   CALL InitElemVolumes()
 
 #ifndef PARTICLES
-  IF(.NOT.BuildFacexGPAndKeepNodeCoods) DEALLOCATE(NodeCoords)
+  IF(meshMode.GT.1) DEALLOCATE(NodeCoords)
 #endif
   DEALLOCATE(dXCL_N)
   DEALLOCATE(Ja_Face)
 
-  IF((ABS(meshMode).NE.3).AND.(.NOT.BuildFacexGPAndKeepNodeCoods))THEN
+  IF((ABS(meshMode).NE.3).AND.(meshMode.GT.1))THEN
 #ifdef PARTICLES
     IF(RadialWeighting%DoRadialWeighting) THEN
       usevMPF = .TRUE.

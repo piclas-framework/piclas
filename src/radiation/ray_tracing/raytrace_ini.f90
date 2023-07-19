@@ -212,7 +212,7 @@ IMPLICIT NONE
 INTEGER           :: Nloc,iCNElem,firstElem,lastElem,iGlobalElem
 REAL              :: VolMin,VolMax,m,NReal
 #if defined(CODE_ANALYZE)
-INTEGER           :: iElem
+INTEGER           :: iElem,CNElemID
 LOGICAL,PARAMETER :: debugRay=.FALSE.
 #endif /*defined(CODE_ANALYZE)*/
 LOGICAL           :: FoundElem
