@@ -1547,6 +1547,10 @@ CHARACTER(LEN=5)   :: hilf
 UseRotRefFrame = GETLOGICAL('Part-UseRotationalReferenceFrame')
 
 IF(UseRotRefFrame) THEN
+  ! Abort for other timedisc except DSMC/BGK
+#if (PP_TimeDiscMethod!=4) && (PP_TimeDiscMethod!=400)
+  CALL abort(__STAMP__,'ERROR Rotational Reference Frame not implemented for the selected simulation method (only for DSMC/BGK)!')
+#endif
   ALLOCATE(PartVeloRotRef(1:3,1:PDM%maxParticleNumber))
   PartVeloRotRef = 0.0
   RotRefFrameAxis = GETINT('Part-RotRefFrame-Axis')
