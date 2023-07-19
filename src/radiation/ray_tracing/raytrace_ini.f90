@@ -193,17 +193,14 @@ USE MOD_Particle_Mesh_Vars ,ONLY: ElemVolume_Shared,ElemBaryNGeo
 USE MPI
 USE MOD_Particle_Mesh_Vars ,ONLY: NodeCoords_Shared
 USE MOD_RayTracing_Vars    ,ONLY: N_DG_Ray_Shared,N_DG_Ray_Shared_Win
+USE MOD_MPI_Shared
+USE MOD_MPI_Shared_Vars   ,ONLY: MPI_COMM_SHARED,myComputeNodeRank,nComputeNodeProcessors,nComputeNodeTotalElems
 #else
 USE MOD_Mesh_Vars          ,ONLY: NodeCoords,nElems
 #endif /*USE_MPI*/
 #if defined(CODE_ANALYZE)
 USE MOD_Globals            ,ONLY: nProcessors
 #endif /*defined(CODE_ANALYZE)*/
-#if USE_LOADBALANCE
-USE MOD_MPI_Shared
-USE MOD_MPI_Shared_Vars   ,ONLY: MPI_COMM_SHARED,myComputeNodeRank,nComputeNodeProcessors,nComputeNodeTotalElems
-!USE MOD_Particle_Mesh_Vars,ONLY: ElemBaryNGeo_Shared
-#endif /*USE_LOADBALANCE*/
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! INPUT / OUTPUT VARIABLES
