@@ -88,9 +88,10 @@ REAL, ALLOCATABLE    :: RayElemPassedEnergyLoc2nd(:)
 REAL, ALLOCATABLE    :: RaySecondaryVectorX(:)
 REAL, ALLOCATABLE    :: RaySecondaryVectorY(:)
 REAL, ALLOCATABLE    :: RaySecondaryVectorZ(:)
+REAL,ALLOCATABLE     :: ElemVolume(:)
 
 ! Output of high-order p-adaptive info
-INTEGER,PARAMETER    :: nVarRay=2                      !< Number of variables for higher-order sampling for volume ray tracing
+INTEGER,PARAMETER    :: nVarRay=3                      !< Number of variables for higher-order sampling for volume ray tracing
 
 INTEGER,ALLOCATABLE  :: N_DG_Ray_loc(:)                !< for output to ElemData
 INTEGER,ALLOCPOINT   :: N_DG_Ray(:)                    !< polynomial degree inside DG element for higher-order sampling for volume ray tracing, size(nElems)

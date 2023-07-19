@@ -53,7 +53,7 @@ USE MOD_part_operations         ,ONLY: CreateParticle
 USE MOD_Timedisc_Vars           ,ONLY: iStage, RK_c, nRKStages
 #endif
 #if USE_MPI
-USE MOD_Particle_Boundary_Vars  ,ONLY: SurfSideArea_Shared,nComputeNodeSurfTotalSides
+USE MOD_Particle_Boundary_Vars  ,ONLY: nComputeNodeSurfTotalSides
 USE MOD_Photon_TrackingVars     ,ONLY: PhotonSampWall_Shared
 USE MOD_MPI_Shared_Vars         ,ONLY: nComputeNodeProcessors,myComputeNodeRank
 #else

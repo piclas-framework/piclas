@@ -42,7 +42,7 @@ USE MOD_Mesh_Vars            ,ONLY: nElems,MeshFile,offSetElem,sJ
 USE MOD_Globals_Vars         ,ONLY: ProjectName
 USE MOD_RayTracing_Vars      ,ONLY: Ray,nVarRay,U_N_Ray,N_DG_Ray,PREF_VDM_Ray,N_DG_Ray_loc,N_Inter_Ray
 USE MOD_RayTracing_Vars      ,ONLY: RayElemPassedEnergyLoc1st,RayElemPassedEnergyLoc2nd
-USE MOD_RayTracing_Vars      ,ONLY: RaySecondaryVectorX,RaySecondaryVectorY,RaySecondaryVectorZ
+USE MOD_RayTracing_Vars      ,ONLY: RaySecondaryVectorX,RaySecondaryVectorY,RaySecondaryVectorZ,ElemVolume
 USE MOD_HDF5_output          ,ONLY: GatheredWriteArray
 #if USE_MPI
 USE MOD_RayTracing_Vars      ,ONLY: RayElemPassedEnergy_Shared,RayElemOffset,RayElemPassedEnergyHO_Shared
@@ -86,16 +86,19 @@ ALLOCATE(RayElemPassedEnergyLoc2nd(1:nElems))
 ALLOCATE(RaySecondaryVectorX(1:nElems))
 ALLOCATE(RaySecondaryVectorY(1:nElems))
 ALLOCATE(RaySecondaryVectorZ(1:nElems))
+ALLOCATE(ElemVolume(1:nElems))
 RayElemPassedEnergyLoc1st=-1.0
 RayElemPassedEnergyLoc2nd=-1.0
 RaySecondaryVectorX=-1.0
 RaySecondaryVectorY=-1.0
 RaySecondaryVectorZ=-1.0
+ElemVolume=-1.0
 CALL AddToElemData(ElementOut,'RayElemPassedEnergy1st',RealArray=RayElemPassedEnergyLoc1st)
 CALL AddToElemData(ElementOut,'RayElemPassedEnergy2nd',RealArray=RayElemPassedEnergyLoc2nd)
 CALL AddToElemData(ElementOut,'RaySecondaryVectorX'   ,RealArray=RaySecondaryVectorX)
 CALL AddToElemData(ElementOut,'RaySecondaryVectorY'   ,RealArray=RaySecondaryVectorY)
 CALL AddToElemData(ElementOut,'RaySecondaryVectorZ'   ,RealArray=RaySecondaryVectorZ)
+CALL AddToElemData(ElementOut,'ElemVolume'            ,RealArray=ElemVolume)
 
 ! Copy data from shared array
 ALLOCATE(N_DG_Ray_loc(1:nElems))
@@ -107,6 +110,7 @@ CALL AddToElemData(ElementOut,'Nloc',IntArray=N_DG_Ray_loc)
 ALLOCATE(StrVarNames(1:nVarRay))
 StrVarNames(1)='RayElemPassedEnergy1st'
 StrVarNames(2)='RayElemPassedEnergy2nd'
+StrVarNames(3)='ElemVolume'
 
 ! Generate skeleton for the file with all relevant data on a single proc (MPIRoot)
 FileName=TRIM(ProjectName)//'_RadiationVolState.h5'
@@ -130,9 +134,9 @@ ASSOCIATE( RayElemPassedEnergy => RayElemPassedEnergy_Shared )
 
     ! 1. Elem-constant data
     ! Primary energy
-    RayElemPassedEnergyLoc1st(iElem) = RayElemPassedEnergy(1,iGlobalElem) / ElemVolume_Shared(iCNElem)
+    RayElemPassedEnergyLoc1st(iElem) = RayElemPassedEnergy(1,iGlobalElem) !/ ElemVolume_Shared(iCNElem)
     ! Secondary energy
-    RayElemPassedEnergyLoc2nd(iElem) = RayElemPassedEnergy(2,iGlobalElem) / ElemVolume_Shared(iCNElem)
+    RayElemPassedEnergyLoc2nd(iElem) = RayElemPassedEnergy(2,iGlobalElem) !/ ElemVolume_Shared(iCNElem)
     ! Check if secondary energy is greater than zero
     IF(RayElemPassedEnergyLoc2nd(iElem).GT.0.0)THEN
       IF(RayElemPassedEnergy(6,iGlobalElem).LE.0.0) CALL abort(__STAMP__,'Secondary ray counter is zero but energy is not!')
@@ -145,6 +149,9 @@ ASSOCIATE( RayElemPassedEnergy => RayElemPassedEnergy_Shared )
       RaySecondaryVectorY(iElem) = 0.
       RaySecondaryVectorZ(iElem) = 0.
     END IF ! RayElemPassedEnergyLoc2nd(iElem).GT.0
+
+    ! Store element volume for later calculation of photon energy density
+    ElemVolume(iElem) = ElemVolume_Shared(iCNElem)
 
     ! 2. Variable polynomial degree data
     Nloc = N_DG_Ray(iElem)
@@ -176,7 +183,8 @@ ASSOCIATE( RayElemPassedEnergy => RayElemPassedEnergy_Shared )
           IntegrationWeight = N_Inter_Ray(Ray%NMax)%wGP(k)*&
                               N_Inter_Ray(Ray%NMax)%wGP(l)*&
                               N_Inter_Ray(Ray%NMax)%wGP(m)*J_Nmax(1,k,l,m)
-          U(1:2,k,l,m,iElem) = U(1:2,k,l,m,iElem) / IntegrationWeight
+          !U(1:2,k,l,m,iElem) = U(1:2,k,l,m,iElem) / IntegrationWeight
+          U(3,k,l,m,iElem) = IntegrationWeight
         END DO ! k
       END DO ! l
     END DO ! m

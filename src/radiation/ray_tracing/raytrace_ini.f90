@@ -183,7 +183,7 @@ END SUBROUTINE InitRayTracing
 SUBROUTINE InitHighOrderRaySampling()
 ! MODULES
 USE MOD_PreProc
-USE MOD_Globals            ,ONLY: abort,IERROR,myrank,UNIT_StdOut
+USE MOD_Globals            ,ONLY: abort,IERROR,UNIT_StdOut
 USE MOD_Mesh_Vars          ,ONLY: nGlobalElems
 USE MOD_RayTracing_Vars    ,ONLY: N_VolMesh_Ray,N_DG_Ray,Ray,N_Inter_Ray,PREF_VDM_Ray,U_N_Ray,nVarRay
 USE MOD_Mesh_Tools         ,ONLY: GetCNElemID,GetGlobalElemID
@@ -507,7 +507,7 @@ SUBROUTINE FinalizeRayTracing()
 ! MODULES
 USE MOD_Globals
 USE MOD_RayTracing_Vars
-USE MOD_Photon_TrackingVars ,ONLY: PhotonSampWall
+!USE MOD_Photon_TrackingVars ,ONLY: PhotonSampWall
 #if USE_MPI
 USE MOD_MPI_Shared_Vars     ,ONLY: MPI_COMM_SHARED
 USE MOD_MPI_Shared
@@ -533,6 +533,7 @@ SDEALLOCATE(RayElemPassedEnergy)
 !SDEALLOCATE(RaySecondaryVectorX)
 !SDEALLOCATE(RaySecondaryVectorY)
 !SDEALLOCATE(RaySecondaryVectorZ)
+!SDEALLOCATE(ElemVolume)
 IF(nProcessors.GT.1)THEN
 #if USE_MPI
   SDEALLOCATE(RayElemOffset)
