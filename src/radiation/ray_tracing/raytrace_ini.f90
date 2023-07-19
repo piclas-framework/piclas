@@ -36,9 +36,8 @@ IMPLICIT NONE
 !==================================================================================================================================
 CALL prms%SetSection("Ray Tracing")
 
-CALL prms%CreateLogicalOption(   'RayTracing-AdaptiveRays'   , 'TODO' , '.FALSE.')
-CALL prms%CreateIntOption(       'RayTracing-NumRays'        , 'TODO' , '1')
-CALL prms%CreateIntOption(       'RayTracing-RayPosModel'    , 'TODO' , '1')
+!CALL prms%CreateLogicalOption(   'RayTracing-AdaptiveRays'   , 'TODO' , '.FALSE.')
+CALL prms%CreateIntOption(       'RayTracing-NumRays'        , 'Number of emitted rays from particle boundary with index [RayTracing-PartBound]' , '1')
 CALL prms%CreateRealArrayOption( 'RayTracing-RayDirection'   , 'Direction vector for ray emission. Will be normalized after read-in.' , no=3)
 CALL prms%CreateIntOption(       'RayTracing-PartBound'      , 'Particle boundary ID where rays are emitted from' , '0')
 CALL prms%CreateRealOption(      'RayTracing-PulseDuration'  , 'Pulse duration tau for a Gaussian-type pulse with I~exp(-(t/tau)^2) [s]'                  )
@@ -87,6 +86,7 @@ USE MOD_Interpolation_Vars  ,ONLY: NodeType,NodeTypeVISU
 REAL              :: factor,SurfaceNormal(3),alpha
 CHARACTER(LEN=3)  :: hilf ! auxiliary variable for INTEGER -> CHARACTER conversion
 !===================================================================================================================================
+IF(.NOT.UseRayTracing) RETURN
 SWRITE(UNIT_StdOut,'(132("-"))')
 SWRITE(UNIT_stdOut,'(A)') ' INIT RAY TRACING SOLVER ...'
 
@@ -94,9 +94,9 @@ SWRITE(UNIT_stdOut,'(A)') ' INIT RAY TRACING SOLVER ...'
 RadiationAbsorptionModel = 0
 RadObservationPointMethod = 0
 
+! Get index of particle boundary from which rays are emitted
 RayPartBound = GETINT('RayTracing-PartBound')
-IF(RayPartBound.EQ.0) RETURN
-IF(RayPartBound.LT.0) CALL CollectiveStop(__STAMP__,'RayTracing-PartBound must be > 0 to activate ray tracing on this boundary!')
+IF(RayPartBound.LE.0) CALL CollectiveStop(__STAMP__,'RayTracing-PartBound must be > 0 to activate ray tracing on this boundary!')
 
 ! Get ray parameters
 Ray%PulseDuration  = GETREAL('RayTracing-PulseDuration')
@@ -110,9 +110,7 @@ Ray%Power          = GETREAL('RayTracing-Power')
 Ray%Direction      = GETREALARRAY('RayTracing-RayDirection',3)
 Ray%Direction      = UNITVECTOR(Ray%Direction)
 
-AdaptiveRays       = GETLOGICAL('RayTracing-AdaptiveRays')
 NumRays            = GETINT('RayTracing-NumRays')
-RayPosModel        = GETINT('RayTracing-RayPosModel')
 RayForceAbsorption = GETLOGICAL('RayTracing-ForceAbsorption')
 
 Ray%VolRefineMode  = GETINT('RayTracing-VolRefineMode')

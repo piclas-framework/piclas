@@ -209,7 +209,7 @@ END SUBROUTINE DefineParametersParticles
 !===================================================================================================================================
 ! Global particle parameters needed for other particle inits
 !===================================================================================================================================
-SUBROUTINE InitParticleGlobals()
+SUBROUTINE InitParticleGlobals(IsLoadBalance)
 ! MODULES
 USE MOD_Globals
 USE MOD_ReadInTools
@@ -218,10 +218,16 @@ USE MOD_Particle_Vars          ,ONLY: Symmetry
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Vars       ,ONLY: PerformLoadBalance
 #endif /*USE_LOADBALANCE*/
+USE MOD_PICDepo_Method         ,ONLY: InitDepositionMethod
+USE MOD_Particle_Vars          ,ONLY: UseVarTimeStep, VarTimeStep
+USE MOD_ReadInTools            ,ONLY: GETLOGICAL
+USE MOD_RayTracing_Vars        ,ONLY: UseRayTracing
+USE MOD_Particle_TimeStep      ,ONLY: InitPartTimeStep
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
+LOGICAL,INTENT(IN) :: IsLoadBalance
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -230,7 +236,17 @@ IMPLICIT NONE
 
 LBWRITE(UNIT_stdOut,'(A)')' INIT PARTICLE GLOBALS...'
 
-! Find tracking method immediately, a lot of the later variables depend on it
+!--- Variable time step
+VarTimeStep%UseLinearScaling = GETLOGICAL('Part-VariableTimeStep-LinearScaling')
+VarTimeStep%UseDistribution = GETLOGICAL('Part-VariableTimeStep-Distribution')
+IF (VarTimeStep%UseLinearScaling.OR.VarTimeStep%UseDistribution)  THEN
+  UseVarTimeStep = .TRUE.
+  IF(.NOT.IsLoadBalance) CALL InitPartTimeStep()
+ELSE
+  UseVarTimeStep = .FALSE.
+END IF
+
+!--- Find tracking method immediately, a lot of the later variables depend on it
 TrackingMethod = GETINTFROMSTR('TrackingMethod')
 SELECT CASE(TrackingMethod)
 CASE(REFMAPPING,TRACING,TRIATRACKING)
@@ -242,6 +258,12 @@ IF (Symmetry%Order.LE.2) THEN
   TrackingMethod = TRIATRACKING
   LBWRITE(UNIT_stdOut,'(A)') "TrackingMethod set to TriaTracking due to Symmetry2D."
 END IF
+
+!--- Particle-in-cell deposition method
+CALL InitDepositionMethod()
+
+!--- Ray Tracing
+UseRayTracing = GETLOGICAL('UseRayTracing')
 
 LBWRITE(UNIT_stdOut,'(A)')' INIT PARTICLE GLOBALS DONE'
 
@@ -839,6 +861,7 @@ USE MOD_Particle_Boundary_Vars ,ONLY: AdaptWallTemp
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Vars       ,ONLY: PerformLoadBalance
 #endif /*USE_LOADBALANCE*/
+USE MOD_RayTracing_Vars        ,ONLY: UseRayTracing
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -849,7 +872,14 @@ USE MOD_LoadBalance_Vars       ,ONLY: PerformLoadBalance
 ! LOCAL VARIABLES
 !===================================================================================================================================
 ! Include surface values in the macroscopic output
-DSMC%CalcSurfaceVal = GETLOGICAL('Particles-DSMC-CalcSurfaceVal')
+IF(UseRayTracing)THEN
+  ! Automatically activate when UseRayTracing = T
+  DSMC%CalcSurfaceVal = .TRUE.
+  CALL PrintOption('Surface sampling activated (UseRayTracing=T): Particles-DSMC-CalcSurfaceVal','INFO',&
+      LogOpt=DSMC%CalcSurfaceVal)
+ELSE
+  DSMC%CalcSurfaceVal = GETLOGICAL('Particles-DSMC-CalcSurfaceVal')
+END IF ! UseRayTracing
 ! Include electronic energy excitation in the macroscopic output
 SampleElecExcitation = GETLOGICAL('Part-SampElectronicExcitation')
 ! Sampling for and output every given number of iterations (sample is reset after an output)

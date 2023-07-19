@@ -24,6 +24,8 @@ SAVE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! GLOBAL RAY TRACING VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
+LOGICAL :: UseRayTracing        ! Activate ray tracing tools
+
 TYPE tRayTrace
   REAL    :: PulseDuration      !<
   REAL    :: tShift             !<
@@ -67,10 +69,8 @@ END TYPE
 
 TYPE (tRadTrans)     :: RadTrans                       !<
 
-LOGICAL              :: AdaptiveRays                   !<
 LOGICAL              :: RayForceAbsorption             !< Surface photon sampling is performed independent of the actual absorption/reflection outcome (default=T)
 INTEGER              :: NumRays                        !<
-INTEGER              :: RayPosModel                    !<
 INTEGER              :: RayPartBound                   !< Particle boundary ID where rays are emitted from
 
 ! Output of low-order info

@@ -63,6 +63,8 @@ USE MOD_RayTracing_Vars         ,ONLY: RayElemPassedEnergy_Shared,RayElemPassedE
 #endif /*USE_MPI*/
 USE MOD_Photon_TrackingVars     ,ONLY: PhotonSampWall,PhotonModeBPO
 USE MOD_Mesh_Vars               ,ONLY: nGlobalElems
+USE MOD_RayTracing_Vars         ,ONLY: UseRayTracing
+USE MOD_DSMC_Vars               ,ONLY: DSMC
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -79,7 +81,8 @@ REAL    :: RectPower
 REAL    :: StartT,EndT ! Timer
 !===================================================================================================================================
 
-IF(RayPartBound.EQ.0) RETURN
+IF(.NOT.UseRayTracing) RETURN
+
 GETTIME(StartT)
 SWRITE(UNIT_stdOut,'(A)') ' Start Ray Tracing Calculation ...'
 
@@ -157,7 +160,9 @@ DO iRay = 1, LocRayNum
     IPWRITE(UNIT_StdOut,*) ": nComputeNodeSurfTotalSides =", nComputeNodeSurfTotalSides
     IPWRITE(UNIT_StdOut,*) ": RayPartBound               =", RayPartBound
     !IPWRITE(UNIT_StdOut,'(I0,A,I0,A)') ": Set Part-Boundary",RayPartBound,"-BoundaryParticleOutput = T"
-    IPWRITE(UNIT_StdOut,*) ": Set Particles-DSMC-CalcSurfaceVal = T"
+    IF(.NOT.DSMC%CalcSurfaceVal)THEN
+      IPWRITE(UNIT_StdOut,*) ": Set Particles-DSMC-CalcSurfaceVal = T to build the mappings for SurfSide2GlobalSide(:,:)!"
+    END IF ! .NOT.DSMC%CalcSurfaceVal
     CALL abort(__STAMP__,'No boundary found in list of nComputeNodeSurfTotalSides for defined RayPartBound!')
   END IF ! FoundComputeNodeSurfSide
 

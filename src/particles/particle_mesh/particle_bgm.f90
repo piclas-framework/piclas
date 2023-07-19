@@ -195,7 +195,6 @@ REAL                           :: BoundingBoxVolume
 CHARACTER(LEN=255)             :: hilf
 ! Mortar
 INTEGER                        :: iMortar,NbElemID,NbSideID,nMortarElems!,nFoundSides,nlocSides,i
-CHARACTER(LEN=255)             :: hilf
 #else
 REAL                           :: halo_eps
 #endif /*USE_MPI*/

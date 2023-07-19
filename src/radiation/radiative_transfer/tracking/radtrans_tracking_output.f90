@@ -130,9 +130,9 @@ ASSOCIATE( RayElemPassedEnergy => RayElemPassedEnergy_Shared )
 
     ! 1. Elem-constant data
     ! Primary energy
-    RayElemPassedEnergyLoc1st(iElem) = RayElemPassedEnergy(1,iGlobalElem) !/ ElemVolume_Shared(iCNElem)
+    RayElemPassedEnergyLoc1st(iElem) = RayElemPassedEnergy(1,iGlobalElem) / ElemVolume_Shared(iCNElem)
     ! Secondary energy
-    RayElemPassedEnergyLoc2nd(iElem) = RayElemPassedEnergy(2,iGlobalElem) !/ ElemVolume_Shared(iCNElem)
+    RayElemPassedEnergyLoc2nd(iElem) = RayElemPassedEnergy(2,iGlobalElem) / ElemVolume_Shared(iCNElem)
     ! Check if secondary energy is greater than zero
     IF(RayElemPassedEnergyLoc2nd(iElem).GT.0.0)THEN
       IF(RayElemPassedEnergy(6,iGlobalElem).LE.0.0) CALL abort(__STAMP__,'Secondary ray counter is zero but energy is not!')
@@ -176,7 +176,7 @@ ASSOCIATE( RayElemPassedEnergy => RayElemPassedEnergy_Shared )
           IntegrationWeight = N_Inter_Ray(Ray%NMax)%wGP(k)*&
                               N_Inter_Ray(Ray%NMax)%wGP(l)*&
                               N_Inter_Ray(Ray%NMax)%wGP(m)*J_Nmax(1,k,l,m)
-          !U(1:2,k,l,m,iElem) = U(1:2,k,l,m,iElem) / IntegrationWeight
+          U(1:2,k,l,m,iElem) = U(1:2,k,l,m,iElem) / IntegrationWeight
         END DO ! k
       END DO ! l
     END DO ! m

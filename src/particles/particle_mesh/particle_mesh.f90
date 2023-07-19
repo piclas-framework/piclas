@@ -197,6 +197,7 @@ USE MOD_PICDepo_Shapefunction_Tools, ONLY:InitShapeFunctionDimensionalty
 USE MOD_Particle_Boundary_Init ,ONLY: InitPartStateBoundary
 USE MOD_Particle_Boundary_Vars ,ONLY: DoBoundaryParticleOutputHDF5,nSurfSample
 USE MOD_Photon_TrackingVars    ,ONLY: PhotonModeBPO
+USE MOD_RayTracing_Vars        ,ONLY: UseRayTracing
 !USE MOD_DSMC_Vars              ,ONLY: DSMC
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -384,8 +385,8 @@ SELECT CASE(TrackingMethod)
 
     ! Interpolation needs coordinates in reference system
     !IF (DoInterpolation.OR.DSMC%UseOctree) THEN ! use this in future if possible
-    IF (DoInterpolation.OR.DoDeposition) THEN
-      ! Do not call these functions twice
+    IF (DoInterpolation.OR.DoDeposition.OR.UseRayTracing) THEN
+      ! Do not call these functions twice. This is already done above
       IF(.NOT.nSurfSampleAndTriaTracking)THEN
         CALL CalcParticleMeshMetrics()   ! Required for Elem_xGP_Shared and dXCL_NGeo_Shared
         CALL CalcXCL_NGeo()              ! Required for XCL_NGeo_Shared
@@ -541,6 +542,7 @@ SUBROUTINE FinalizeParticleMesh()
 ! MODULES
 USE MOD_Globals
 USE MOD_Particle_Mesh_Vars
+USE MOD_RayTracing_Vars        ,ONLY: UseRayTracing
 #if USE_MPI
 USE MOD_Particle_Surfaces_Vars ,ONLY: BezierElevation
 USE MOD_PICDepo_Vars           ,ONLY: DepositionType
@@ -744,7 +746,7 @@ SELECT CASE (TrackingMethod)
     END IF
 
     !IF (DoInterpolation.OR.DSMC%UseOctree) THEN ! use this in future if possible
-    IF (DoInterpolation.OR.DoDeposition) THEN
+    IF (DoInterpolation.OR.DoDeposition.OR.UseRayTracing) THEN
 #if USE_LOADBALANCE
       IF (.NOT.PerformLoadBalance) THEN
 #endif /*USE_LOADBALANCE*/

@@ -696,7 +696,7 @@ ELSE
 END IF
 
 ! Loop over number of sub-samples
-NbrOfSamples = 10 ! Nloc+1 ! must be at least 3 for this sampling method (one point between the two intersections of the element)!
+NbrOfSamples = 20 ! Nloc+1 ! must be at least 3 for this sampling method (one point between the two intersections of the element)!
 scaleFac = 1./REAL(NbrOfSamples)
 subdirection(1:3) = direction(1:3)/REAL(NbrOfSamples-1)
 sublength = VECNORM(subdirection(1:3))
