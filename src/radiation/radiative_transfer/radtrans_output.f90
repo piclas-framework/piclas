@@ -76,7 +76,7 @@ SUBROUTINE WriteRadiationToHDF5()
   Statedummy = 'RadiationState'
   IF (RadiationSwitches%RadType.EQ.1) THEN
     nVarSpec=2               ! _Emission, _Absorption
-    nVar=nVarSpec*nSpecies+4 ! nVarSpec + Total_Emission, Total_Absorption, Total_Heatflux, and Total_PhotonNum
+    nVar=nVarSpec*nSpecies+5 ! nVarSpec + Total_Emission, Total_Absorption, Total_Heatflux, and Total_PhotonNum
   ELSE
     nVar=4
   END IF
@@ -97,6 +97,7 @@ SUBROUTINE WriteRadiationToHDF5()
     StrVarNames(nVarCount+2)='Total_Absorption'
     StrVarNames(nVarCount+3)='Total_Heatflux'
     StrVarNames(nVarCount+4)='Total_PhotonNum'
+    StrVarNames(nVarCount+5)='Mean_OpticalDepth'
   ELSE
     StrVarNames(1)='Total_Emission'
     StrVarNames(2)='Total_Absorption'
@@ -129,7 +130,7 @@ SUBROUTINE WriteRadiationToHDF5()
         TempOutput(nVarCount+1, iElem) = Radiation_ElemEnergy_Species(iSpec,CNElemID,1)
 !        TempOutput(nVarCount+2, iElem) = Radiation_ElemEnergy_Species(iSpec,iElem,2) !abs coefficient
         IF (AbsTotal.GT.0) THEN
-          tempSpecAbs = Radiation_ElemEnergy_Species(iSpec,CNElemID,2)/AbsTotal * RadiationElemAbsEnergy_Shared(iElem+offSetElem)/ ElemVolume_Shared(CNElemID)
+          tempSpecAbs = Radiation_ElemEnergy_Species(iSpec,CNElemID,2)/AbsTotal * RadiationElemAbsEnergy_Shared(1,iElem+offSetElem)/ ElemVolume_Shared(CNElemID)
         ELSE
           tempSpecAbs = 0.0
         END IF
@@ -137,16 +138,17 @@ SUBROUTINE WriteRadiationToHDF5()
         nVarCount=nVarCount+nVarSpec
       END DO
       TempOutput((nVarSpec*nSpecies+1), iElem)  = Radiation_Emission_Spec_Total(CNElemID) ! SUM(Radiation_ElemEnergy_Species(:,CNElemID,1))
-      TempOutput((nVarSpec*nSpecies+2), iElem)  = RadiationElemAbsEnergy_Shared(iElem+offSetElem)/ ElemVolume_Shared(CNElemID)
-      TempOutput(nVarSpec*nSpecies+3, iElem) = SUM(Radiation_ElemEnergy_Species(:,CNElemID,1))- RadiationElemAbsEnergy_Shared(iElem+offSetElem)/ ElemVolume_Shared(CNElemID)
+      TempOutput((nVarSpec*nSpecies+2), iElem)  = RadiationElemAbsEnergy_Shared(1,iElem+offSetElem)/ ElemVolume_Shared(CNElemID)
+      TempOutput(nVarSpec*nSpecies+3, iElem) = SUM(Radiation_ElemEnergy_Species(:,CNElemID,1))- RadiationElemAbsEnergy_Shared(1,iElem+offSetElem)/ ElemVolume_Shared(CNElemID)
       TempOutput(nVarSpec*nSpecies+4, iElem) = RadTransPhotPerCell(CNElemID)
+      TempOutput(nVarSpec*nSpecies+5, iElem) = RadiationElemAbsEnergy_Shared(2,iElem+offSetElem)/RadiationElemAbsEnergy_Shared(3,iElem+offSetElem)
     END DO
   ELSE IF (RadiationSwitches%RadType.EQ.2) THEN
     DO iElem=1, PP_nElems
       CNElemID = GetCNElemID(iElem+offSetElem)
       TempOutput(1, iElem) = Radiation_Emission_Spec_Total(CNElemID)
-      TempOutput(2, iElem) = RadiationElemAbsEnergy_Shared(iElem+offSetElem)/ElemVolume_Shared(CNElemID)
-      TempOutput(3, iElem) = Radiation_Emission_Spec_Total(CNElemID)- RadiationElemAbsEnergy_Shared(iElem+offSetElem)/ElemVolume_Shared(CNElemID)
+      TempOutput(2, iElem) = RadiationElemAbsEnergy_Shared(1,iElem+offSetElem)/ElemVolume_Shared(CNElemID)
+      TempOutput(3, iElem) = Radiation_Emission_Spec_Total(CNElemID)- RadiationElemAbsEnergy_Shared(1,iElem+offSetElem)/ElemVolume_Shared(CNElemID)
       TempOutput(4, iElem)  = RadTransPhotPerCell(CNElemID)
     END DO
   ELSE IF (RadiationSwitches%RadType.EQ.3) THEN
@@ -330,7 +332,7 @@ SUBROUTINE MPI_ExchangeRadiationInfo()
 INTEGER       :: MessageSize, iELem
 !===================================================================================================================================
 ! collect the information from the proc-local shadow arrays in the compute-node shared array
-MessageSize = nGlobalElems
+MessageSize = 3*nGlobalElems
 
 IF (myComputeNodeRank.EQ.0) THEN
   CALL MPI_REDUCE(RadiationElemAbsEnergy,RadiationElemAbsEnergy_Shared,MessageSize,MPI_DOUBLE_PRECISION,MPI_SUM,0,MPI_COMM_SHARED,IERROR)

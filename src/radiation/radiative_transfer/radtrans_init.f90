@@ -109,7 +109,7 @@ INTEGER               :: w, io_error
 SWRITE(UNIT_StdOut,'(132("-"))')
 SWRITE(UNIT_stdOut,'(A)') ' INIT RADIATION TRANSPORT SOLVER ...'
 
-ALLOCATE(RadiationElemAbsEnergy(1:nGlobalElems))
+ALLOCATE(RadiationElemAbsEnergy(3,1:nGlobalElems))
 RadiationElemAbsEnergy=0.0
 
 RadiationDirectionModel = GETINT('Radiation-DirectionModel')
@@ -163,7 +163,7 @@ END IF
 
 #if USE_MPI
   ! allocate shared array for Radiation_Emission/Absorption_Spec
-CALL Allocate_Shared((/nGlobalElems/),RadiationElemAbsEnergy_Shared_Win,RadiationElemAbsEnergy_Shared)
+CALL Allocate_Shared((/3,nGlobalElems/),RadiationElemAbsEnergy_Shared_Win,RadiationElemAbsEnergy_Shared)
 CALL MPI_WIN_LOCK_ALL(0,RadiationElemAbsEnergy_Shared_Win,IERROR)
 
 IF (myComputeNodeRank.EQ.0) RadiationElemAbsEnergy_Shared = 0.
