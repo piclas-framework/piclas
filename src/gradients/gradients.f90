@@ -1,0 +1,405 @@
+!==================================================================================================================================
+! Copyright (c) 2010 - 2018 Prof. Claus-Dieter Munz and Prof. Stefanos Fasoulas
+!
+! This file is part of PICLas (piclas.boltzplatz.eu/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
+! it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3
+! of the License, or (at your option) any later version.
+!
+! PICLas is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty
+! of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License v3.0 for more details.
+!
+! You should have received a copy of the GNU General Public License along with PICLas. If not, see <http://www.gnu.org/licenses/>.
+!==================================================================================================================================
+#include "piclas.h"
+
+MODULE MOD_Gradients
+!===================================================================================================================================
+! MODULES
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+PRIVATE
+SAVE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! GLOBAL VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! Public Part ---------------------------------------------------------------------------------------------------------------------
+PUBLIC::InitGradients,GetGradients,FinalizeGradients,DefineParametersGradients
+!==================================================================================================================================
+
+CONTAINS
+
+!==================================================================================================================================
+!> Define parameters
+!==================================================================================================================================
+SUBROUTINE DefineParametersGradients()
+! MODULES
+USE MOD_ReadInTools       ,ONLY: prms
+IMPLICIT NONE
+!----------------------------------------------------------------------------------------------------------------------------------
+! INPUT / OUTPUT VARIABLES
+!----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+!==================================================================================================================================
+CALL prms%SetSection("Gradients")
+
+CALL prms%CreateIntOption('Grad-LimiterType',"Type of slope limiter of second order reconstruction", '9')
+CALL prms%CreateRealOption('Grad-VktK',"K parameter for Venkatakrishnan limiter", '1.')
+CALL prms%CreateRealArrayOption('Grad-PeriodicBoxMin', "Minimum coordinates of the periodic box", "(/-Inf, -Inf, -Inf/)")
+CALL prms%CreateRealArrayOption('Grad-PeriodicBoxMax', "Maximum coordinates of the periodic box", "(/Inf, Inf, Inf/)")
+
+END SUBROUTINE DefineParametersGradients
+
+SUBROUTINE InitGradients()
+!===================================================================================================================================
+! Initialization of the gradient variables
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals
+USE MOD_ReadInTools           ,ONLY: GETINT, GETREAL, GETREALARRAY
+USE MOD_Mesh_Vars             ,ONLY: nElems, nSides, Face_xGP, NormVec
+USE MOD_Gradient_Metrics      ,ONLY: InitGradMetrics, BuildGradSideMatrix
+USE MOD_Gradient_Vars         
+#if USE_MPI
+USE MOD_MPI_Vars
+USE MOD_MPI                   ,ONLY: StartReceiveMPIData,StartSendMPIData,FinishExchangeMPIData
+#if USE_LOADBALANCE
+USE MOD_LoadBalance_Vars   ,ONLY: PerformLoadBalance
+#endif
+#endif /*MPI*/
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+!===================================================================================================================================
+LBWRITE(UNIT_StdOut,'(132("-"))')
+LBWRITE(UNIT_stdOut,'(A)') ' INIT GRADIENTS...'
+ALLOCATE(Grad_dx_slave(1:3,1:nSides))
+ALLOCATE(Grad_dx_master(1:3,1:nSides))
+ALLOCATE(Grad_SysSol_slave(1:3,1:nSides))
+ALLOCATE(Grad_SysSol_master(1:3,1:nSides))
+ALLOCATE(Grad_SysSol_BC(1:3,1:nSides))
+Grad_dx_slave = 0.; Grad_dx_master = 0.; Grad_SysSol_slave = 0.; Grad_SysSol_master = 0.; Grad_SysSol_BC = 0.
+
+GradLimiterType=GETINT('Grad-LimiterType')
+GradLimVktK=GETREAL('Grad-VktK')
+Grad_PerBoxMin(:)=GETREALARRAY('Grad-PeriodicBoxMin',3)
+Grad_PerBoxMax(:)=GETREALARRAY('Grad-PeriodicBoxMax',3)
+
+!calculate face to center distances for reconstruction
+#if USE_MPI
+!send face coordinates because MPI slave sides don't have them
+CALL StartReceiveMPIData(3,Face_xGP,1,nSides,RecRequest_Geo,SendID=1) ! Receive YOUR
+CALL StartSendMPIData(3,Face_xGP,1,nSides,SendRequest_Geo,SendID=1) ! Send MINE
+CALL FinishExchangeMPIData(SendRequest_Geo,RecRequest_Geo,SendID=1)
+
+! distances for MPI sides - send direction
+CALL StartReceiveMPIData(3,Grad_dx_slave,1,nSides,RecRequest_U,SendID=2) ! Receive MINE
+CALL StartReceiveMPIData(3,Grad_dx_master,1,nSides,RecRequest_U2,SendID=1)! Receive YOUR
+CALL InitGradMetrics(doMPISides=.TRUE.)
+! CALL Dx_Mortar(Grad_dx_master,Grad_dx_slave,doMPISides=.TRUE.)
+! CALL Dx_Mortar2(Grad_dx_master,Grad_dx_slave,doMPISides=.TRUE.)
+CALL StartSendMPIData(3,Grad_dx_slave,1,nSides,SendRequest_U,SendID=2) ! Send YOUR
+CALL StartSendMPIData(3,Grad_dx_master,1,nSides,SendRequest_U2,SendID=1) ! Send MINE
+#endif /*USE_MPI*/
+! distances for BCSides, InnerSides and MPI sides - receive direction
+CALL InitGradMetrics(doMPISides=.FALSE.)
+! CALL Dx_Mortar(Grad_dx_master,Grad_dx_slave,doMPISides=.FALSE.)
+! CALL Dx_Mortar2(Grad_dx_master,Grad_dx_slave,doMPISides=.FALSE.)
+#if USE_MPI
+CALL FinishExchangeMPIData(SendRequest_U,RecRequest_U,SendID=2)
+CALL FinishExchangeMPIData(SendRequest_U2,RecRequest_U2,SendID=1)
+#endif /*USE_MPI*/
+! build neighbour-side matrices and invert them
+CALL BuildGradSideMatrix(Grad_dx_master,Grad_dx_slave)
+
+LBWRITE(UNIT_stdOut,'(A)')' INIT GRADIENTS DONE!'
+LBWRITE(UNIT_StdOut,'(132("-"))')
+END SUBROUTINE InitGradients
+
+SUBROUTINE GetGradients(Grad_DIM,VarForGradients,Gradient_elem)
+!===================================================================================================================================
+!> Main routine for the gradient calculation
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals
+USE MOD_Gradient_Vars       ,ONLY: Grad_dx_master,Grad_dx_slave,Grad_SysSol_master,Grad_SysSol_slave
+USE MOD_Mesh_Vars           ,ONLY: nElems,nSides,ElemToSide
+USE MOD_ProlongToFace       ,ONLY: ProlongToFace_ElemCopy
+#if USE_MPI
+USE MOD_MPI                 ,ONLY: StartReceiveMPIData,StartSendMPIData,FinishExchangeMPIData
+USE MOD_MPI_Vars
+#endif /*MPI*/
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+INTEGER,INTENT(IN)      :: Grad_DIM
+REAL,INTENT(IN)         :: VarForGradients(Grad_DIM,nElems)
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+REAL,INTENT(INOUT)      :: Gradient_elem(3,Grad_DIM,nElems)
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+REAL                    :: Var_slave(Grad_DIM,nSides),Var_master(Grad_DIM,nSides),Diff_side(Grad_DIM,nSides)
+INTEGER                 :: ElemID, SideID, locSideID, flip
+REAL                    :: gradWeight, maxDiff(Grad_DIM), minDiff(Grad_DIM)
+!===================================================================================================================================
+
+! prolong the solution to the face for grad computation
+#if USE_MPI
+! Prolong to face for MPI sides - send direction
+CALL StartReceiveMPIData(Grad_DIM,Var_slave,1,nSides,RecRequest_U,SendID=2) ! Receive MINE
+
+CALL ProlongToFace_ElemCopy(Grad_DIM,VarForGradients,Var_master,Var_slave,doMPISides=.TRUE.)
+! CALL U_Mortar(Var_master,Var_slave,doMPISides=.TRUE.)
+
+CALL StartSendMPIData(Grad_DIM,Var_slave,1,nSides,SendRequest_U,SendID=2) ! Send YOUR
+
+#endif /*USE_MPI*/
+
+! Prolong to face for BCSides, InnerSides and MPI sides - receive direction
+CALL ProlongToFace_ElemCopy(Grad_DIM,VarForGradients,Var_master,Var_slave,doMPISides=.FALSE.)
+! CALL U_Mortar(U_master,U_slave,doMPISides=.FALSE.)
+
+#if USE_MPI
+! Complete send / receive of prolongtoface results
+CALL FinishExchangeMPIData(SendRequest_U,RecRequest_U,SendID=2)
+CALL StartReceiveMPIData(Grad_DIM,Diff_side,1,nSides,RecRequest_gradUx,SendID=1) ! Receive YOUR
+
+! fill the global neighbour difference list
+CALL CalcDiff(Grad_DIM,Var_master,Var_slave,Diff_side,doMPISides=.TRUE.)
+CALL StartSendMPIData(Grad_DIM,Diff_side,1,nSides,SendRequest_gradUx,SendID=1) ! Send MINE
+! Complete send / receive of gradients (before mpiFALSE gradients because bc grads need further grads)
+CALL FinishExchangeMPIData(SendRequest_gradUx,RecRequest_gradUx,SendID=1)
+#endif /*USE_MPI*/
+  
+! fill all the neighbour differences on this proc
+CALL CalcDiff(Grad_DIM,Var_master,Var_slave,Diff_side,doMPISides=.FALSE.)
+
+! least square method to get elem gradient from neighbour differences
+DO ElemID = 1, nElems
+  Gradient_elem(:,:,ElemID) = 0.
+  maxDiff = 0.
+  minDiff = 0.
+#if PP_dim == 3
+  DO locSideID=1,6
+#else
+  DO locSideID=2,5
+#endif
+    SideID=ElemToSide(E2S_SIDE_ID,locSideID,ElemID)
+    flip=ElemToSide(E2S_FLIP,locSideID,ElemID)
+    gradWeight = 1/VECNORM(Grad_dx_master(:,SideID)-Grad_dx_slave(:,SideID))**2
+    IF (flip.EQ.0) THEN !master
+      maxDiff = MAX(maxDiff,-Diff_side(:,SideID))
+      minDiff = MIN(minDiff,-Diff_side(:,SideID))
+      Gradient_elem(1,:,ElemID) = Gradient_elem(1,:,ElemID) &
+                                          - gradWeight*Grad_SysSol_master(1,SideID)*Diff_side(:,SideID)
+      Gradient_elem(2,:,ElemID) = Gradient_elem(2,:,ElemID) &
+                                          - gradWeight*Grad_SysSol_master(2,SideID)*Diff_side(:,SideID)
+#if PP_dim == 3
+      Gradient_elem(3,:,ElemID) = Gradient_elem(3,:,ElemID) &
+                                          - gradWeight*Grad_SysSol_master(3,SideID)*Diff_side(:,SideID)
+#endif   
+    ELSE !slave
+      maxDiff = MAX(maxDiff,Diff_side(:,SideID))
+      minDiff = MIN(minDiff,Diff_side(:,SideID))
+      Gradient_elem(1,:,ElemID) = Gradient_elem(1,:,ElemID) &
+                                          + gradWeight*Grad_SysSol_slave(1,SideID)*Diff_side(:,SideID)
+      Gradient_elem(2,:,ElemID) = Gradient_elem(2,:,ElemID) &
+                                          + gradWeight*Grad_SysSol_slave(2,SideID)*Diff_side(:,SideID)
+#if PP_dim == 3
+      Gradient_elem(3,:,ElemID) = Gradient_elem(3,:,ElemID) &
+                                          + gradWeight*Grad_SysSol_slave(3,SideID)*Diff_side(:,SideID)
+#endif
+    END IF
+  END DO
+
+  CALL GradLimiter(Grad_DIM,ElemID,minDiff,maxDiff,Gradient_elem(:,:,ElemID))
+  
+END DO
+
+END SUBROUTINE GetGradients
+
+SUBROUTINE CalcDiff(Grad_DIM,Var_master,Var_slave,Diff_side,doMPISides)
+!===================================================================================================================================
+! Compute difference between neighbour elements
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals
+USE MOD_Gradient_Vars            ,ONLY: Grad_dx_master, Grad_dx_slave, Grad_SysSol_BC
+USE MOD_GetBoundaryGrad          ,ONLY: GetBoundaryGrad
+USE MOD_Mesh_Vars                ,ONLY: NormVec,Face_xGP
+USE MOD_Mesh_Vars                ,ONLY: nSides,firstBCSide,lastBCSide,firstInnerSide, lastInnerSide
+USE MOD_Mesh_Vars                ,ONLY: firstMPISide_MINE,lastMPISide_MINE, SideToElem, ElemToSide
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+INTEGER,INTENT(IN)      :: Grad_DIM
+REAL,INTENT(IN)         :: Var_master(Grad_DIM,nSides)
+REAL,INTENT(IN)         :: Var_slave(Grad_DIM,nSides)
+LOGICAL,INTENT(IN)      :: doMPISides
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+REAL,INTENT(INOUT)      :: Diff_side(Grad_DIM,nSides)
+
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER                         :: SideID, SideID_2, SideID2, lastSideID, firstSideID_wo_BC, ElemID, locSideID, locSideID2, flip
+REAL                            :: diffUinside(Grad_DIM), gradWeight
+!===================================================================================================================================
+! Set the side range according to MPI or no MPI
+IF(doMPISides)THEN
+! fill only flux for MINE MPISides (where the local proc is master)
+  firstSideID_wo_BC = firstMPISide_MINE
+  lastSideID =  lastMPISide_MINE
+ELSE
+! fill only InnerSides that do not need communication
+  firstSideID_wo_BC = firstInnerSide ! for fluxes
+  lastSideID = lastInnerSide
+END IF
+
+DO SideID=firstSideID_wo_BC,lastSideID
+  Diff_side(:,SideID) = Var_master(:,SideID) - Var_slave(:,SideID)
+END DO
+
+! 2. Compute the gradients at the boundary conditions: 1..nBCSides
+IF (.NOT.doMPISides) THEN
+  DO SideID=firstBCSide,lastBCSide
+#if (PP_TimeDiscMethod==600)
+    !second-order boundaries need bc defined from inner slopes
+    diffUinside = 0.
+    ElemID     = SideToElem(S2E_ELEM_ID,SideID)  !element is always master (slave=boundary ghost cell)
+    locSideID  = SideToElem(S2E_LOC_SIDE_ID,SideID)
+    DO locSideID2=1,6
+      SideID2=ElemToSide(E2S_SIDE_ID,locSideID2,ElemID)
+      IF (SideID2.LE.lastBCSide) CYCLE
+      gradWeight = 1/VECNORM(Grad_dx_master(:,SideID2)-Grad_dx_slave(:,SideID2))**2
+      diffUinside(:) = diffUinside(:) - Grad_dx_master(1,SideID)*gradWeight*Grad_SysSol_BC(1,SideID2)*Diff_side(:,SideID2) &
+                                      - Grad_dx_master(2,SideID)*gradWeight*Grad_SysSol_BC(2,SideID2)*Diff_side(:,SideID2) &
+                                      - Grad_dx_master(3,SideID)*gradWeight*Grad_SysSol_BC(3,SideID2)*Diff_side(:,SideID2)
+    END DO
+    CALL GetBoundaryGrad(SideID,Diff_side(:,SideID),diffUinside,&
+                          Var_master(:,SideID),&
+                          NormVec(:,0,0,SideID),&
+                          Face_xGP(:,0,0,SideID))
+#else
+    CALL GetBoundaryGrad(SideID,Diff_side(:,SideID),&
+                          Var_master(:,SideID),&
+                          NormVec(:,0,0,SideID),&
+                          Face_xGP(:,0,0,SideID))
+#endif 
+  END DO
+END IF
+
+END SUBROUTINE CalcDiff
+
+SUBROUTINE GradLimiter(Grad_DIM,ElemID,minDiff,maxDiff,Gradient)
+!===================================================================================================================================
+! Gradient limiters
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals
+USE MOD_Gradient_Vars       ,ONLY: Grad_dx_master, Grad_dx_slave, GradLimiterType, GradLimVktK
+USE MOD_Mesh_Vars           ,ONLY: ElemToSide,sJ
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+INTEGER,INTENT(IN)      :: Grad_DIM
+INTEGER,INTENT(IN)      :: ElemID
+REAL,INTENT(IN)         :: minDiff(Grad_DIM)
+REAL,INTENT(IN)         :: maxDiff(Grad_DIM)
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+REAL,INTENT(INOUT)      :: Gradient(3,Grad_DIM)
+
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER                         :: iVar,locSideID,SideID,flip
+REAL                            :: limiter(Grad_DIM), a, b, w
+!===================================================================================================================================
+limiter = 1.
+w = (GradLimVktK**3)/sJ(0,0,0,ElemID)
+#if PP_dim == 3
+DO locSideID=1,6
+#else
+DO locSideID=2,5
+#endif
+  SideID=ElemToSide(E2S_SIDE_ID,locSideID,ElemID)
+  flip=ElemToSide(E2S_FLIP,locSideID,ElemID)
+  DO iVar=1,Grad_DIM
+    SELECT CASE(GradLimiterType)
+    CASE(0)
+      limiter(iVar) = 0.
+    CASE(1) !minmax
+      IF (flip.EQ.0) THEN !master
+        b = DOT_PRODUCT(Grad_dx_master(:,SideID),Gradient(:,iVar))
+      ELSE !slave
+        b = DOT_PRODUCT(Grad_dx_slave(:,SideID),Gradient(:,iVar))
+      END IF
+      IF (b.GT.0.) THEN
+        limiter(iVar) = MIN(limiter(iVar),MIN(1.,maxDiff(iVar)/b))
+      ELSE iF (b.LT.0.) THEN
+        limiter(iVar) = MIN(limiter(iVar),MIN(1.,minDiff(iVar)/b))
+      ELSE
+        limiter(iVar) = MIN(limiter(iVar),1.)
+      END IF
+    CASE(4) !venkatakrishnan
+      IF (flip.EQ.0) THEN !master
+        b = DOT_PRODUCT(Grad_dx_master(:,SideID),Gradient(:,iVar))
+      ELSE !slave
+        b = DOT_PRODUCT(Grad_dx_slave(:,SideID),Gradient(:,iVar))
+      END IF
+      IF (b.GT.0.) THEN
+        a = maxDiff(iVar)
+        limiter(iVar) = MIN(limiter(iVar),(a**2+2*a*b+w)/(a**2+2*b**2+a*b+w))
+      ELSE iF (b.LT.0.) THEN
+        a = minDiff(iVar)
+        limiter(iVar) = MIN(limiter(iVar),(a**2+2*a*b+w)/(a**2+2*b**2+a*b+w))
+      ELSE
+        limiter(iVar) = MIN(limiter(iVar),1.)
+      END IF
+    CASE(9) ! no limiter (central)
+      ! already equal to 1
+    CASE DEFAULT
+      CALL abort(__STAMP__,'Limiter type not implemented for unstructured meshes.')
+    END SELECT
+  END DO
+END DO
+
+Gradient(1,:) = limiter(:)*Gradient(1,:)
+Gradient(2,:) = limiter(:)*Gradient(2,:)
+Gradient(3,:) = limiter(:)*Gradient(3,:)
+
+END SUBROUTINE GradLimiter
+
+SUBROUTINE FinalizeGradients()
+!===================================================================================================================================
+! deallocate gradient variables
+!===================================================================================================================================
+! MODULES
+USE MOD_Gradient_Vars
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+!===================================================================================================================================
+SDEALLOCATE(Grad_dx_slave)
+SDEALLOCATE(Grad_dx_master)
+SDEALLOCATE(Grad_SysSol_slave)
+SDEALLOCATE(Grad_SysSol_master)
+SDEALLOCATE(Grad_SysSol_BC)
+
+END SUBROUTINE FinalizeGradients
+
+END MODULE MOD_Gradients
+

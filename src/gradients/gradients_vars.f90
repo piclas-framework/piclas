@@ -10,7 +10,7 @@
 !
 ! You should have received a copy of the GNU General Public License along with PICLas. If not, see <http://www.gnu.org/licenses/>.
 !==================================================================================================================================
-MODULE MOD_FV_Vars
+MODULE MOD_Gradient_Vars
 !===================================================================================================================================
 ! Contains global variables used by the FV modules.
 !===================================================================================================================================
@@ -22,34 +22,17 @@ SAVE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! GLOBAL VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
-! FV solution
-REAL,ALLOCATABLE,TARGET               :: U(:,:,:,:,:)
-! FV time derivative
-REAL,ALLOCATABLE                      :: Ut(:,:,:,:,:)
-! number of array items in U, Ut, gradUx, gradUy, gradUz after allocated
-INTEGER                               :: nTotalU
-INTEGER                               :: nTotal_vol    !loop i,j,k
-INTEGER                               :: nTotal_face   !loop i,j
-! interior face values for all elements
-REAL,ALLOCATABLE                      :: U_master(:,:,:,:),U_slave(:,:,:,:)
-REAL,ALLOCATABLE                      :: Flux_Master(:,:,:,:)
-REAL,ALLOCATABLE                      :: Flux_Slave(:,:,:,:)
 
-#if (PP_TimeDiscMethod==600)
-! Output
-REAL,ALLOCATABLE                      :: DVM_ElemData1(:)
-REAL,ALLOCATABLE                      :: DVM_ElemData2(:)
-REAL,ALLOCATABLE                      :: DVM_ElemData3(:)
-REAL,ALLOCATABLE                      :: DVM_ElemData4(:)
-REAL,ALLOCATABLE                      :: DVM_ElemData5(:)
-REAL,ALLOCATABLE                      :: DVM_ElemData6(:)
-REAL,ALLOCATABLE                      :: DVM_ElemData7(:)
-REAL,ALLOCATABLE                      :: DVM_ElemData8(:)
-REAL,ALLOCATABLE                      :: DVM_ElemData9(:)
-#endif
+! Distances for Gradient Calculation
+REAL,ALLOCATABLE                      :: Grad_dx_slave(:,:)
+REAL,ALLOCATABLE                      :: Grad_dx_master(:,:)
+REAL,ALLOCATABLE                      :: Grad_SysSol_slave(:,:)
+REAL,ALLOCATABLE                      :: Grad_SysSol_master(:,:)
+REAL,ALLOCATABLE                      :: Grad_SysSol_BC(:,:)
 
-REAL,ALLOCATABLE                      :: FV_gradU_elem(:,:,:)
+REAL                                  :: Grad_PerBoxMin(3),Grad_PerBoxMax(3)
 
-LOGICAL                               :: FVInitIsDone=.FALSE.
+INTEGER                               :: GradLimiterType
+REAL                                  :: GradLimVktK
 !===================================================================================================================================
-END MODULE MOD_FV_Vars
+END MODULE MOD_Gradient_Vars

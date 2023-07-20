@@ -43,34 +43,10 @@ INTERFACE FinalizeFV
   MODULE PROCEDURE FinalizeFV
 END INTERFACE
 
-PUBLIC::InitFV,FinalizeFV,FV_main,DefineParametersFV
+PUBLIC::InitFV,FinalizeFV,FV_main
 !===================================================================================================================================
 
 CONTAINS
-
-!==================================================================================================================================
-!> Define parameters
-!==================================================================================================================================
-SUBROUTINE DefineParametersFV()
-! MODULES
-USE MOD_ReadInTools       ,ONLY: prms
-IMPLICIT NONE
-!----------------------------------------------------------------------------------------------------------------------------------
-! INPUT / OUTPUT VARIABLES
-!----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-!==================================================================================================================================
-CALL prms%SetSection("Finite Volumes")
-
-CALL prms%CreateLogicalOption('FV-Reconstruction' , 'Use reconstruction for finite volumes', '.TRUE.')
-CALL prms%CreateIntOption('FV-LimiterType',"Type of slope limiter of second order reconstruction", '9')
-CALL prms%CreateIntOption('FV-LimiterTypeBC',"Type of slope limiter of second order reconstruction for boundary conditions", '9')
-CALL prms%CreateRealOption('FV-VktK',"K parameter for Venkatakrishnan limiter", '1.')
-CALL prms%CreateRealArrayOption('FV-PeriodicBoxMin', "Minimum coordinates of the periodic box", "(/-Inf, -Inf, -Inf/)")
-CALL prms%CreateRealArrayOption('FV-PeriodicBoxMax', "Maximum coordinates of the periodic box", "(/Inf, Inf, Inf/)")
-
-END SUBROUTINE DefineParametersFV
-
 
 SUBROUTINE InitFV()
 !===================================================================================================================================
@@ -79,16 +55,13 @@ SUBROUTINE InitFV()
 ! MODULES
 USE MOD_Globals
 USE MOD_PreProc
-USE MOD_ReadInTools        ,ONLY: GETLOGICAL, GETINT, GETREALARRAY, GETREAL
 USE MOD_FV_Vars
-USE MOD_FV_Metrics         ,ONLY: InitFV_Metrics, Build_FVSideMatrix
-USE MOD_FV_Limiter         ,ONLY: InitFV_Limiter
 USE MOD_IO_HDF5            ,ONLY: AddToElemData,ElementOut
 USE MOD_Restart_Vars       ,ONLY: DoRestart,RestartInitIsDone
 USE MOD_Interpolation_Vars ,ONLY: InterpolationInitIsDone
 USE MOD_Mesh_Vars          ,ONLY: nSides, Face_xGP, NormVec
 USE MOD_Mesh_Vars          ,ONLY: MeshInitIsDone
-USE MOD_FillMortar         ,ONLY: Dx_Mortar, Dx_Mortar2
+USE MOD_Gradients          ,ONLY: InitGradients
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Vars   ,ONLY: PerformLoadBalance
 #if !(USE_HDG)
@@ -112,12 +85,6 @@ IF((.NOT.InterpolationInitIsDone).OR.(.NOT.MeshInitIsDone).OR.(.NOT.RestartInitI
     'InitFV not ready to be called or already called.')
 LBWRITE(UNIT_StdOut,'(132("-"))')
 LBWRITE(UNIT_stdOut,'(A)') ' INIT FV...'
-
-doFVReconstruction=GETLOGICAL('FV-Reconstruction')
-FV_VktK=GETREAL('FV-VktK')
-FV_PerBoxMin(:)=GETREALARRAY('FV-PeriodicBoxMin',3)
-FV_PerBoxMax(:)=GETREALARRAY('FV-PeriodicBoxMax',3)
-
 
 #if USE_LOADBALANCE && !(USE_HDG)
 IF (.NOT.(PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance))) THEN
@@ -165,6 +132,8 @@ ALLOCATE(Flux_Slave (1:PP_nVar,0:PP_N,0:PP_N,1:nSides))
 Flux_Master=0.
 Flux_Slave=0.
 
+ALLOCATE(FV_gradU_elem(3,1:PP_nVar,1:PP_nElems))
+
 #if (PP_TimeDiscMethod==600) /*DVM*/
 ALLOCATE(DVM_ElemData1(1:PP_nElems))
 ALLOCATE(DVM_ElemData2(1:PP_nElems))
@@ -188,53 +157,7 @@ CALL AddToElemData(ElementOut,'DVM_RelaxFac',RealArray=DVM_ElemData9(:))
 CALL AddToElemData(ElementOut,'FV_ElemData',RealArray=U(1,0,0,0,:))
 #endif /*DVM*/
 
-
-IF (doFVReconstruction) THEN
-  LimiterType = GETINT('FV-LimiterType')
-  LimiterTypeBC = GETINT('FV-LimiterTypeBC')
-  CALL InitFV_Limiter()
-
-  ALLOCATE(FV_dx_slave(3,0:PP_N,0:PP_N,1:nSides))
-  ALLOCATE(FV_dx_master(3,0:PP_N,0:PP_N,1:nSides))
-  ALLOCATE(FV_SysSol_slave(3,1:nSides))
-  ALLOCATE(FV_SysSol_master(3,1:nSides))
-  ALLOCATE(FV_SysSol_BC(3,1:nSides))
-  FV_dx_slave = 0.
-  FV_dx_master = 0.
-  FV_SysSol_slave = 0.
-  FV_SysSol_master = 0.
-  FV_SysSol_BC = 0.
-
-  ALLOCATE(FV_gradU_side(1:PP_nVar,0:PP_N,0:PP_N,1:nSides))
-  ALLOCATE(FV_gradU_elem(3,1:PP_nVar,1:PP_nElems))
-
-  !calculate face to center distances for reconstruction
-#if USE_MPI
-  !send face coordinates because MPI slave sides don't have them
-  CALL StartReceiveMPIData(3,Face_xGP,1,nSides,RecRequest_Geo,SendID=1) ! Receive YOUR
-  CALL StartSendMPIData(3,Face_xGP,1,nSides,SendRequest_Geo,SendID=1) ! Send MINE
-  CALL FinishExchangeMPIData(SendRequest_Geo,RecRequest_Geo,SendID=1)
-
-  ! distances for MPI sides - send direction
-  CALL StartReceiveMPIData(3,FV_dx_slave,1,nSides,RecRequest_U,SendID=2) ! Receive MINE
-  CALL StartReceiveMPIData(3,FV_dx_master,1,nSides,RecRequest_U2,SendID=1)! Receive YOUR
-  CALL InitFV_Metrics(FV_dx_master,FV_dx_slave,doMPISides=.TRUE.)
-  CALL Dx_Mortar(FV_dx_master,FV_dx_slave,doMPISides=.TRUE.)
-  CALL Dx_Mortar2(FV_dx_master,FV_dx_slave,doMPISides=.TRUE.)
-  CALL StartSendMPIData(3,FV_dx_slave,1,nSides,SendRequest_U,SendID=2) ! Send YOUR
-  CALL StartSendMPIData(3,FV_dx_master,1,nSides,SendRequest_U2,SendID=1) ! Send MINE
-#endif /*USE_MPI*/
-  ! distances for BCSides, InnerSides and MPI sides - receive direction
-  CALL InitFV_Metrics(FV_dx_master,FV_dx_slave,doMPISides=.FALSE.)
-  CALL Dx_Mortar(FV_dx_master,FV_dx_slave,doMPISides=.FALSE.)
-  CALL Dx_Mortar2(FV_dx_master,FV_dx_slave,doMPISides=.FALSE.)
-#if USE_MPI
-  CALL FinishExchangeMPIData(SendRequest_U,RecRequest_U,SendID=2)
-  CALL FinishExchangeMPIData(SendRequest_U2,RecRequest_U2,SendID=1)
-#endif /*USE_MPI*/
-  ! build neighbour-side matrices and invert them
-  CALL Build_FVSideMatrix(FV_dx_master(:,0,0,:),FV_dx_slave(:,0,0,:))
-END IF
+CALL InitGradients()
 
 FVInitIsDone=.TRUE.
 LBWRITE(UNIT_stdOut,'(A)')' INIT FV DONE!'
@@ -251,15 +174,16 @@ SUBROUTINE FV_main(t,tStage,doSource)
 USE MOD_Globals
 USE MOD_Preproc
 USE MOD_Vector
-USE MOD_FV_Vars           ,ONLY: U,Ut,Flux_Master,Flux_Slave, doFVReconstruction
-USE MOD_FV_Vars           ,ONLY: U_master, U_slave, FV_gradU_side, FV_gradU_elem
+USE MOD_FV_Vars           ,ONLY: U,Ut,Flux_Master,Flux_Slave
+USE MOD_FV_Vars           ,ONLY: U_master,U_slave,FV_gradU_elem
 USE MOD_SurfInt           ,ONLY: SurfInt
 USE MOD_ProlongToFace     ,ONLY: ProlongToFace
-USE MOD_FV_Gradients      ,ONLY: CalcFVGradients, SumFVGradients
+USE MOD_Gradients         ,ONLY: GetGradients
 USE MOD_FillFlux          ,ONLY: FillFlux
 USE MOD_Equation          ,ONLY: CalcSource
 USE MOD_Interpolation     ,ONLY: ApplyJacobian
 USE MOD_FillMortar        ,ONLY: U_Mortar,Flux_Mortar
+USE MOD_Gradients         ,ONLY: InitGradients
 #if USE_MPI
 USE MOD_Mesh_Vars         ,ONLY: nSides
 USE MOD_MPI_Vars
@@ -290,7 +214,9 @@ REAL                            :: tLBStart
 #endif /*USE_LOADBALANCE*/
 !===================================================================================================================================
 
-! prolong the solution to the face integration points for flux computation
+CALL GetGradients(PP_nVar,U(:,0,0,0,:),FV_gradU_elem)
+
+! prolong the solution to the faces by applying reconstruction gradients
 #if USE_MPI
 ! Prolong to face for MPI sides - send direction
 #if USE_LOADBALANCE
@@ -300,8 +226,10 @@ CALL StartReceiveMPIData(PP_nVar,U_slave,1,nSides,RecRequest_U,SendID=2) ! Recei
 #if USE_LOADBALANCE
 CALL LBSplitTime(LB_DGCOMM,tLBStart)
 #endif /*USE_LOADBALANCE*/
+
 CALL ProlongToFace(U,U_master,U_slave,doMPISides=.TRUE.)
 CALL U_Mortar(U_master,U_slave,doMPISides=.TRUE.)
+
 #if USE_LOADBALANCE
 CALL LBSplitTime(LB_DG,tLBStart)
 #endif /*USE_LOADBALANCE*/
@@ -319,13 +247,13 @@ CALL U_Mortar(U_master,U_slave,doMPISides=.FALSE.)
 #if defined(PARTICLES) && defined(LSERK)
 IF (time.GE.DelayTime) THEN
 #if USE_LOADBALANCE
-  CALL LBSplitTime(LB_INTERPOLATION,tLBStart)
+CALL LBSplitTime(LB_INTERPOLATION,tLBStart)
 #endif /*USE_LOADBALANCE*/
 #if USE_MPI
-  CALL MPIParticleSend()
+CALL MPIParticleSend()
 #endif /*USE_MPI*/
 #if USE_LOADBALANCE
-  CALL LBPauseTime(LB_PARTCOMM,tLBStart)
+CALL LBPauseTime(LB_PARTCOMM,tLBStart)
 #endif /*USE_LOADBALANCE*/
 END IF
 #endif /*defined(PARTICLES) && defined(LSERK)*/
@@ -333,73 +261,6 @@ END IF
 
 !Nullify time derivative array
 Ut=0.
-
-IF (doFVReconstruction) THEN
-
-#if USE_MPI
-#if USE_LOADBALANCE
-  CALL LBSplitTime(LB_DG,tLBStart)
-#endif /*USE_LOADBALANCE*/
-  ! Complete send / receive of prolongtoface results
-  CALL FinishExchangeMPIData(SendRequest_U,RecRequest_U,SendID=2)
-
-  ! Gradient calculation for reconstruction
-  CALL StartReceiveMPIData(PP_nVar,FV_gradU_side,1,nSides,RecRequest_gradUx,SendID=1) ! Receive YOUR
-#if USE_LOADBALANCE
-  CALL LBSplitTime(LB_DGCOMM,tLBStart)
-#endif /*USE_LOADBALANCE*/
-  ! fill the global gradient list
-  CALL CalcFVGradients(doMPISides=.TRUE.)
-#if USE_LOADBALANCE
-  CALL LBSplitTime(LB_DG,tLBStart)
-#endif /*USE_LOADBALANCE*/
-
-  CALL StartSendMPIData(PP_nVar,FV_gradU_side,1,nSides,SendRequest_gradUx,SendID=1) ! Send MINE
-
-  ! Complete send / receive of gradients (before mpiFALSE gradients because bc grads need further grads)
-  CALL FinishExchangeMPIData(SendRequest_gradUx,RecRequest_gradUx,SendID=1)
-#if USE_LOADBALANCE
-  CALL LBSplitTime(LB_DGCOMM,tLBStart)
-#endif /*USE_LOADBALANCE*/
-#endif /*USE_MPI*/
-
-  ! fill the all gradients on this proc
-  CALL CalcFVGradients(doMPISides=.FALSE.)
-  CALL Flux_Mortar(FV_gradU_side,FV_gradU_side,doMPISides=.FALSE.)
-
-  CALL SumFVGradients()
-
-! prolong the solution to the faces by applying reconstruction gradients
-#if USE_MPI
-! Prolong to face for MPI sides - send direction
-#if USE_LOADBALANCE
-  CALL LBStartTime(tLBStart)
-#endif /*USE_LOADBALANCE*/
-
-  CALL Flux_Mortar(FV_gradU_side,FV_gradU_side,doMPISides=.TRUE.)
-
-  ! prolong the solution to the faces by applying reconstruction gradients
-  CALL StartReceiveMPIData(PP_nVar,U_slave,1,nSides,RecRequest_U,SendID=2) ! Receive MINE
-#if USE_LOADBALANCE
-  CALL LBSplitTime(LB_DGCOMM,tLBStart)
-#endif /*USE_LOADBALANCE*/
-  CALL ProlongToFace(U,U_master,U_slave,FV_gradU_elem,doMPISides=.TRUE.)
-  CALL U_Mortar(U_master,U_slave,doMPISides=.TRUE.)
-#if USE_LOADBALANCE
-  CALL LBSplitTime(LB_DG,tLBStart)
-#endif /*USE_LOADBALANCE*/
-  CALL StartSendMPIData(PP_nVar,U_slave,1,nSides,SendRequest_U,SendID=2) ! Send YOUR
-#if USE_LOADBALANCE
-  CALL LBSplitTime(LB_DGCOMM,tLBStart)
-#endif /*USE_LOADBALANCE*/
-#endif /*USE_MPI*/
-
-  ! Prolong to face for BCSides, InnerSides and MPI sides - receive direction
-  CALL ProlongToFace(U,U_master,U_slave,FV_gradU_elem,doMPISides=.FALSE.)
-  CALL U_Mortar(U_master,U_slave,doMPISides=.FALSE.)
-
-END IF ! end of reconstruction
-
 
 #if USE_MPI
 #if USE_LOADBALANCE
@@ -516,6 +377,7 @@ SUBROUTINE FinalizeFV()
 !===================================================================================================================================
 ! MODULES
 USE MOD_FV_Vars
+USE MOD_Gradients          ,ONLY: FinalizeGradients
 #if USE_LOADBALANCE && !(USE_HDG)
 USE MOD_LoadBalance_Vars   ,ONLY: PerformLoadBalance,UseH5IOLoadBalance
 #endif /*USE_LOADBALANCE && !(USE_HDG)*/
@@ -533,6 +395,8 @@ SDEALLOCATE(U_master)
 SDEALLOCATE(U_slave)
 SDEALLOCATE(FLUX_Master)
 SDEALLOCATE(FLUX_Slave)
+SDEALLOCATE(FV_gradU_elem)
+CALL FinalizeGradients()
 ! SDEALLOCATE(U_Master_loc)
 ! SDEALLOCATE(U_Slave_loc)
 ! SDEALLOCATE(Flux_loc)
@@ -547,16 +411,6 @@ SDEALLOCATE(DVM_ElemData7)
 SDEALLOCATE(DVM_ElemData8)
 SDEALLOCATE(DVM_ElemData9)
 #endif
-IF (doFVReconstruction) THEN
-  SDEALLOCATE(FV_dx_slave)
-  SDEALLOCATE(FV_dx_master)
-  SDEALLOCATE(FV_SysSol_slave)
-  SDEALLOCATE(FV_SysSol_master)
-  SDEALLOCATE(FV_SysSol_BC)
-  SDEALLOCATE(FV_gradU_elem)
-  SDEALLOCATE(FV_gradU_side)
-END IF
-
 
 ! Do not deallocate the solution vector during load balance here as it needs to be communicated between the processors
 #if USE_LOADBALANCE && !(USE_HDG)

@@ -1,0 +1,58 @@
+How to use this gradient folder for the calculation of the gradients:
+--------------------------------------------------------------------------------------------------------
+#0 Add ./src/gradients/*.f90 to the list of files to compile in CMakeLists.txt
+--------------------------------------------------------------------------------------------------------
+#1 ADD the following to your Initialization (i.e. in the *method*_init.f90):
+
+        USE MOD_Gradient_Init          
+
+and at a location of your choice:
+
+        CALL InitGradients()
+
+Add CALL DefineParameterGradients in init/define_parameters_init.f90
+
+--------------------------------------------------------------------------------------------------------
+#2 For obtaining the gradients within a subroutine, add:
+
+        USE MOD_ProlongToFace       ,ONLY: ProlongToFace_ElemCopy
+	USE MOD_Gradient            ,ONLY: GetGradients
+	
+and 
+        CALL ProlongToFace_ElemCopy(grad_dim,u_elem,u_master,u_slave)
+
+to copy the elem-based array you want to differentiate to side-based arrays for communications
+then
+
+	CALL GetGradients(grad_dim,u_master,u_slave,Gradient_elem)
+	
+--------------------------------------------------------------------------------------------------------
+#3 The results are stored in the variable Gradient_elem(1:3,1:Grad_DIM,1:PP_nELems). 
+For accessing them, simply add
+
+	USE MOD_Gradient_Vars             ,ONLY: Gradient_elem
+--------------------------------------------------------------------------------------------------------
+#4 Add CALL FinalizeGradients() in your finalize routine	
+--------------------------------------------------------------------------------------------------------
+LIMITING GRADIENTS:
+
+If the gradients should be limited, this can be done in the subroutine SumGradients in gradients.f90
+
+--------------------------------------------------------------------------------------------------------
+COPYING ELEMENT DATA TO SIDE:
+
+For the calculation of the gradients, there is a new routine: CalcGrad_ProlongToFace within gradients.f90
+which copies the element data to the respective sides
+
+--------------------------------------------------------------------------------------------------------
+GRADIENTS AT BOUNDARIES:
+
+As this varies from case to case, please have a look at the routines GetBoundaryGrad in gradients.f90 
+and check which fits your case
+
+Within the GetBoundaryGrad routine for PP_TimeDiscMethod==510, the value outside the boundary is assumed 
+to be zero.
+
+Within the GetBoundaryGrad routine for PP_TimeDiscMethod==600, something wild is happening. Please ask
+Felix.
+

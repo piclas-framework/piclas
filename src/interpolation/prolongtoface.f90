@@ -48,6 +48,7 @@ END INTERFACE
 PUBLIC::ProlongToFace
 PUBLIC::ProlongToFace_BC
 PUBLIC::ProlongToFace_Elementlocal
+PUBLIC::ProlongToFace_ElemCopy
 #if USE_FV
 PUBLIC::ProlongToFace_FV
 #endif
@@ -55,17 +56,78 @@ PUBLIC::ProlongToFace_FV
 
 CONTAINS
 
+SUBROUTINE ProlongToFace_ElemCopy(VarDim,ElemVar,SideVar_master,SideVar_slave,doMPISides)
+!===================================================================================================================================
+! Simply copies element-based variable to sides
+!===================================================================================================================================
+! MODULES
+USE MOD_Mesh_Vars,          ONLY: nSides, SideToElem, ElemToSide, nElems
+USE MOD_Mesh_Vars,          ONLY: firstBCSide,firstInnerSide, lastInnerSide
+USE MOD_Mesh_Vars,          ONLY: firstMPISide_YOUR,lastMPISide_YOUR,lastMPISide_MINE,firstMortarMPISide,lastMortarMPISide
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+LOGICAL,INTENT(IN)              :: doMPISides  != .TRUE. only YOUR MPISides are filled, =.FALSE. BCSides +InnerSides +MPISides MINE
+INTEGER,INTENT(IN)              :: VarDim
+REAL,INTENT(IN)                 :: ElemVar(VarDim,nElems)
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+REAL,INTENT(INOUT)              :: SideVar_master(VarDim,1:nSides)
+REAL,INTENT(INOUT)              :: SideVar_slave(VarDim,1:nSides)
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER                         :: ElemID,SideID,firstSideID,lastSideID,iVel,jVel,kVel,upos
+!===================================================================================================================================
+IF(doMPISides)THEN
+! only YOUR MPI Sides are filled
+firstSideID = firstMPISide_YOUR
+lastSideID  = lastMPISide_YOUR
+ELSE
+! (Mortar-)InnerSides are filled
+firstSideID = firstInnerSide
+lastSideID  = lastInnerSide
+END IF
+
+DO SideID=firstSideID,lastSideID
+! neighbor side !ElemID=-1 if not existing
+ElemID     = SideToElem(S2E_NB_ELEM_ID,SideID)
+!Copy Bulk Velocity in U for Dense Fokker Planck instead of Finite Volumes Solution
+IF (ElemID.LT.0) CYCLE !mpi-mortar whatever
+SideVar_slave(:,SideID) = ElemVar(:,ElemID)
+END DO
+
+! Second process Minus/Master sides, U_Minus is always MINE
+! master side, flip=0
+IF(doMPISides)THEN
+! only MPI mortars
+firstSideID = firstMortarMPISide
+lastSideID =  lastMortarMPISide
+ELSE
+! BCSides, (Mortar-)InnerSides and MINE MPISides are filled
+firstSideID = firstBCSide
+lastSideID =  lastMPISide_MINE
+END IF
+
+DO SideID=firstSideID,lastSideID
+ElemID    = SideToElem(S2E_ELEM_ID,SideID)
+IF (ElemID.LT.0) CYCLE !for small mortar sides without info on big master element
+SideVar_master(:,SideID)=ElemVar(:,ElemID)
+END DO !SideID
+
+END SUBROUTINE ProlongToFace_ElemCopy
+
 #if USE_FV
 
-SUBROUTINE ProlongToFace_FV(Uvol,Uface_master,Uface_slave,FV_gradU,doMPISides)
+SUBROUTINE ProlongToFace_FV(Uvol,Uface_master,Uface_slave,doMPISides)
 !===================================================================================================================================
-! Interpolates the interior volume data to the surface
-! if called with FV_gradU, performs reconstruction by applying limited gradients from cell centers to faces
+! Performs finite volumes reconstruction by applying limited gradients from cell centers to faces
 !===================================================================================================================================
 ! MODULES
 USE MOD_PreProc
 USE MOD_Globals
-USE MOD_FV_Vars,            ONLY: FV_dx_slave, FV_dx_master
+USE MOD_FV_Vars,            ONLY: FV_gradU_elem
+USE MOD_Gradient_Vars,      ONLY: Grad_dx_master, Grad_dx_slave
 USE MOD_Mesh_Vars,          ONLY: nSides, SideToElem, ElemToSide
 USE MOD_Mesh_Vars,          ONLY: firstBCSide,firstInnerSide, lastInnerSide
 USE MOD_Mesh_Vars,          ONLY: firstMPISide_YOUR,lastMPISide_YOUR,lastMPISide_MINE,firstMortarMPISide,lastMortarMPISide
@@ -79,7 +141,6 @@ IMPLICIT NONE
 ! INPUT VARIABLES
 LOGICAL,INTENT(IN)              :: doMPISides  != .TRUE. only YOUR MPISides are filled, =.FALSE. BCSides +InnerSides +MPISides MINE
 REAL,INTENT(IN)                 :: Uvol(PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
-REAL,INTENT(IN),OPTIONAL        :: FV_gradU(3,PP_nVar,1:PP_nElems)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 REAL,INTENT(INOUT)              :: Uface_master(PP_nVar,0:PP_N,0:PP_N,1:nSides)
@@ -102,31 +163,27 @@ DO SideID=firstSideID,lastSideID
   ! neighbor side !ElemID=-1 if not existing
   ElemID     = SideToElem(S2E_NB_ELEM_ID,SideID)
   IF (ElemID.LT.0) CYCLE !mpi-mortar whatever
-  IF (PRESENT(FV_gradU)) THEN
 #if (PP_TimeDiscMethod==600)
-    !DVM specific reconstruction
-    DO kVel=1, DVMnVelos(3);   DO jVel=1, DVMnVelos(2);   DO iVel=1, DVMnVelos(1)
-      upos= iVel+(jVel-1)*DVMnVelos(1)+(kVel-1)*DVMnVelos(1)*DVMnVelos(2)
-      Uface_slave(upos,0,0,SideID) = Uvol(upos,0,0,0,ElemID) &
-                                   + FV_gradU(1,upos,ElemID)*(FV_dx_slave(1,0,0,SideID)-DVMVelos(iVel,1)*dt/2.) &
-                                   + FV_gradU(2,upos,ElemID)*(FV_dx_slave(2,0,0,SideID)-DVMVelos(jVel,2)*dt/2.) &
-                                   + FV_gradU(3,upos,ElemID)*(FV_dx_slave(3,0,0,SideID)-DVMVelos(kVel,3)*dt/2.)
-      IF (DVMSpeciesData%Internal_DOF .GT.0.0) THEN
-        Uface_slave(PP_nVar/2+upos,0,0,SideID) = Uvol(PP_nVar/2+upos,0,0,0,ElemID) &
-                                   + FV_gradU(1,PP_nVar/2+upos,ElemID)*(FV_dx_slave(1,0,0,SideID)-DVMVelos(iVel,1)*dt/2.) &
-                                   + FV_gradU(2,PP_nVar/2+upos,ElemID)*(FV_dx_slave(2,0,0,SideID)-DVMVelos(jVel,2)*dt/2.) &
-                                   + FV_gradU(3,PP_nVar/2+upos,ElemID)*(FV_dx_slave(3,0,0,SideID)-DVMVelos(kVel,3)*dt/2.)
-      END IF
-    END DO; END DO; END DO
+  !DVM specific reconstruction
+  DO kVel=1, DVMnVelos(3);   DO jVel=1, DVMnVelos(2);   DO iVel=1, DVMnVelos(1)
+    upos= iVel+(jVel-1)*DVMnVelos(1)+(kVel-1)*DVMnVelos(1)*DVMnVelos(2)
+    Uface_slave(upos,0,0,SideID) = Uvol(upos,0,0,0,ElemID) &
+                                  + FV_gradU_elem(1,upos,ElemID)*(Grad_dx_slave(1,SideID)-DVMVelos(iVel,1)*dt/2.) &
+                                  + FV_gradU_elem(2,upos,ElemID)*(Grad_dx_slave(2,SideID)-DVMVelos(jVel,2)*dt/2.) &
+                                  + FV_gradU_elem(3,upos,ElemID)*(Grad_dx_slave(3,SideID)-DVMVelos(kVel,3)*dt/2.)
+    IF (DVMSpeciesData%Internal_DOF .GT.0.0) THEN
+      Uface_slave(PP_nVar/2+upos,0,0,SideID) = Uvol(PP_nVar/2+upos,0,0,0,ElemID) &
+                                  + FV_gradU_elem(1,PP_nVar/2+upos,ElemID)*(Grad_dx_slave(1,SideID)-DVMVelos(iVel,1)*dt/2.) &
+                                  + FV_gradU_elem(2,PP_nVar/2+upos,ElemID)*(Grad_dx_slave(2,SideID)-DVMVelos(jVel,2)*dt/2.) &
+                                  + FV_gradU_elem(3,PP_nVar/2+upos,ElemID)*(Grad_dx_slave(3,SideID)-DVMVelos(kVel,3)*dt/2.)
+    END IF
+  END DO; END DO; END DO
 #else
   Uface_slave(:,0,0,SideID) = Uvol(:,0,0,0,ElemID) &
-                            + FV_gradU(1,:,ElemID)*FV_dx_slave(1,0,0,SideID) &
-                            + FV_gradU(2,:,ElemID)*FV_dx_slave(2,0,0,SideID) &
-                            + FV_gradU(3,:,ElemID)*FV_dx_slave(3,0,0,SideID)
+                            + FV_gradU_elem(1,:,ElemID)*Grad_dx_slave(1,SideID) &
+                            + FV_gradU_elem(2,:,ElemID)*Grad_dx_slave(2,SideID) &
+                            + FV_gradU_elem(3,:,ElemID)*Grad_dx_slave(3,SideID)
 #endif
-  ELSE
-    Uface_slave(:,0,0,SideID) = Uvol(:,0,0,0,ElemID)
-  END IF
 END DO
 
 ! Second process Minus/Master sides, U_Minus is always MINE
@@ -144,31 +201,27 @@ END IF
 DO SideID=firstSideID,lastSideID
   ElemID    = SideToElem(S2E_ELEM_ID,SideID)
   IF (ElemID.LT.0) CYCLE !for small mortar sides without info on big master element
-  IF (PRESENT(FV_gradU)) THEN
 #if (PP_TimeDiscMethod==600)
-    !DVM specific reconstruction
-    DO kVel=1, DVMnVelos(3);   DO jVel=1, DVMnVelos(2);   DO iVel=1, DVMnVelos(1)
-      upos= iVel+(jVel-1)*DVMnVelos(1)+(kVel-1)*DVMnVelos(1)*DVMnVelos(2)
-      Uface_master(upos,0,0,SideID) = Uvol(upos,0,0,0,ElemID) &
-                                    + FV_gradU(1,upos,ElemID)*(FV_dx_master(1,0,0,SideID)-DVMVelos(iVel,1)*dt/2.) &
-                                    + FV_gradU(2,upos,ElemID)*(FV_dx_master(2,0,0,SideID)-DVMVelos(jVel,2)*dt/2.) &
-                                    + FV_gradU(3,upos,ElemID)*(FV_dx_master(3,0,0,SideID)-DVMVelos(kVel,3)*dt/2.)
-      IF (DVMSpeciesData%Internal_DOF .GT.0.0) THEN
-        Uface_master(PP_nVar/2+upos,0,0,SideID) = Uvol(PP_nVar/2+upos,0,0,0,ElemID) &
-                                    + FV_gradU(1,PP_nVar/2+upos,ElemID)*(FV_dx_master(1,0,0,SideID)-DVMVelos(iVel,1)*dt/2.) &
-                                    + FV_gradU(2,PP_nVar/2+upos,ElemID)*(FV_dx_master(2,0,0,SideID)-DVMVelos(jVel,2)*dt/2.) &
-                                    + FV_gradU(3,PP_nVar/2+upos,ElemID)*(FV_dx_master(3,0,0,SideID)-DVMVelos(kVel,3)*dt/2.)
-      END IF
-    END DO; END DO; END DO
+  !DVM specific reconstruction
+  DO kVel=1, DVMnVelos(3);   DO jVel=1, DVMnVelos(2);   DO iVel=1, DVMnVelos(1)
+    upos= iVel+(jVel-1)*DVMnVelos(1)+(kVel-1)*DVMnVelos(1)*DVMnVelos(2)
+    Uface_master(upos,0,0,SideID) = Uvol(upos,0,0,0,ElemID) &
+                                  + FV_gradU_elem(1,upos,ElemID)*(Grad_dx_master(1,SideID)-DVMVelos(iVel,1)*dt/2.) &
+                                  + FV_gradU_elem(2,upos,ElemID)*(Grad_dx_master(2,SideID)-DVMVelos(jVel,2)*dt/2.) &
+                                  + FV_gradU_elem(3,upos,ElemID)*(Grad_dx_master(3,SideID)-DVMVelos(kVel,3)*dt/2.)
+    IF (DVMSpeciesData%Internal_DOF .GT.0.0) THEN
+      Uface_master(PP_nVar/2+upos,0,0,SideID) = Uvol(PP_nVar/2+upos,0,0,0,ElemID) &
+                                  + FV_gradU_elem(1,PP_nVar/2+upos,ElemID)*(Grad_dx_master(1,SideID)-DVMVelos(iVel,1)*dt/2.) &
+                                  + FV_gradU_elem(2,PP_nVar/2+upos,ElemID)*(Grad_dx_master(2,SideID)-DVMVelos(jVel,2)*dt/2.) &
+                                  + FV_gradU_elem(3,PP_nVar/2+upos,ElemID)*(Grad_dx_master(3,SideID)-DVMVelos(kVel,3)*dt/2.)
+    END IF
+  END DO; END DO; END DO
 #else
-    Uface_master(:,0,0,SideID) = Uvol(:,0,0,0,ElemID) &
-                              + FV_gradU(1,:,ElemID)*FV_dx_master(1,0,0,SideID) &
-                              + FV_gradU(2,:,ElemID)*FV_dx_master(2,0,0,SideID) &
-                              + FV_gradU(3,:,ElemID)*FV_dx_master(3,0,0,SideID)
+  Uface_master(:,0,0,SideID) = Uvol(:,0,0,0,ElemID) &
+                            + FV_gradU_elem(1,:,ElemID)*Grad_dx_master(1,SideID) &
+                            + FV_gradU_elem(2,:,ElemID)*Grad_dx_master(2,SideID) &
+                            + FV_gradU_elem(3,:,ElemID)*Grad_dx_master(3,SideID)
 #endif
-  ELSE
-    Uface_master(:,0,0,SideID)=Uvol(:,0,0,0,ElemID)
-  END IF
 END DO !SideID
 
 END SUBROUTINE ProlongToFace_FV

@@ -54,7 +54,7 @@ USE MOD_PML                        ,ONLY: DefineParametersPML
 USE MOD_HDG                        ,ONLY: DefineParametersHDG
 #endif /*USE_HDG*/
 #if USE_FV
-USE MOD_FV                         ,ONLY: DefineParametersFV
+USE MOD_Gradients                  ,ONLY: DefineParametersGradients
 #endif
 USE MOD_Dielectric                 ,ONLY: DefineParametersDielectric
 USE MOD_Piclas_Init                ,ONLY: DefineParametersPiclas
@@ -120,7 +120,7 @@ CALL DefineParametersPML()
 CALL DefineParametersHDG()
 #endif /*USE_HDG*/
 #if USE_FV
-CALL DefineParametersFV()
+CALL DefineParametersGradients()
 #endif
 CALL DefineParametersDielectric()
 CALL DefineParametersAnalyze()
