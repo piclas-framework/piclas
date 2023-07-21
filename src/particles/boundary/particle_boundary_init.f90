@@ -1004,14 +1004,17 @@ END SUBROUTINE InitRotPeriodicMapping
 
 
 !===================================================================================================================================
-!> Build Mapping for rotational periodicity: RotPeriodicSide -> SideID2 (Side on corresponding BC).
+!> Build mapping for rotational periodicity: RotPeriodicSide -> SideID2 (Side on corresponding BC).
 !> In RotPeriodicBoundary (particle_boundary_condition.f90): SideID -> SurfSideID -> RotPeriodicSide
 !>                                                           RotPeriodicSide -> SideID2
-!> (1) counting rotational periodic sides and build mapping from SurfSideID -> RotPeriodicSide
+!> (1) Counting rotational periodic sides and build mapping from SurfSideID -> RotPeriodicSide
 !> (2) Build bounding boxes (in 2D reference system) for all nRotPeriodicSides
-!> (3) find Side on corresponding BC and build mapping RotPeriodicSide -> SideID2 (and vice versa)
-!>     counting potential rotational periodic sides (for not conform meshes)
-!> (4) reallocate array due to number of potential rotational periodic sides
+!> (3a) Find side on corresponding BC and build mapping RotPeriodicSide -> SideID2 (and vice versa)
+!>      counting potential rotational periodic sides (for not conform meshes)
+!> (3b) Add elements to the mapping, which are neighbouring the already found sides based on the node connection
+!>      (especially relevant for tet2hex meshes)
+!> (4) Reallocate array due to number of potential rotational periodic sides
+!> (5) Store the element number in the mapping array
 !===================================================================================================================================
 SUBROUTINE BuildParticleBoundaryRotPeriodic(notMappedTotal)
 ! MODULES
@@ -1205,7 +1208,7 @@ END DO ! iSide = firstSide, lastSide
 CALL BARRIER_AND_SYNC(BoundingBox_Shared_Win , MPI_COMM_SHARED)
 #endif /*USE_MPI*/
 
-! (3) find Side on corresponding BC and build mapping RotPeriodicSide -> SideID2 (and vice versa)
+! (3a) find Side on corresponding BC and build mapping RotPeriodicSide -> SideID2 (and vice versa)
 !     counting potential rotational periodic sides (for non-conforming meshes)
 ! Use named loops: Loop over the assigned iSides and compare against all nRotPeriodicSides
 iSideLoop: DO iSide = firstSide, lastSide
@@ -1338,7 +1341,7 @@ iSideLoop: DO iSide = firstSide, lastSide
 
 END DO iSideLoop ! iSide = firstSide, lastSide
 
-! Addition of neighbour elements for each node of a mapped side (especially a problem for tetrahedron-based meshes)
+! (3b) Addition of neighbour elements for each node of a mapped side (especially a problem for tetrahedron-based meshes)
 DO iSide = firstSide, lastSide
   NewNeighNumber = NumRotPeriodicNeigh(iSide)
   DO iNeigh=1, NumRotPeriodicNeigh(iSide)
@@ -1346,6 +1349,7 @@ DO iSide = firstSide, lastSide
     SideID = RotPeriodicSideMapping_temp(iSide,iNeigh)
     CNElemID  = GetCNElemID(SideInfo_Shared(SIDE_ELEMID,SideID))
     LocSideID = SideInfo_Shared(SIDE_LOCALID,SideID)
+    ! Loop over the nodes of the neighbour side
     kNodeLoop: DO iNode = 1, 4
       NodeID = ElemSideNodeID_Shared(iNode,LocSideID,CNElemID) + 1
       UniqueNodeID = NodeInfo_Shared(NodeID)
@@ -1369,6 +1373,7 @@ DO iSide = firstSide, lastSide
         NewNeighNumber = NewNeighNumber + 1
         IF(NewNeighNumber.GT.NbrOfRotConnections) CALL abort(__STAMP__,&
             ' NewNeighNumber: Number of rotational periodic side exceed fixed number of ',IntInfoOpt=NbrOfRotConnections)
+        ! Storing the global element ID with a negative sign in the side mapping array, treated during step (5)
         RotPeriodicSideMapping_temp(iSide,NewNeighNumber) = -GetGlobalElemID(TestElemID)
       END DO ElemLoop
     END DO kNodeLoop
@@ -1406,13 +1411,17 @@ ALLOCATE(RotPeriodicSideMapping(nRotPeriodicSides,MaxNumRotPeriodicNeigh))
 RotPeriodicSideMapping = -1
 #endif /*USE_MPI*/
 
+! (5) store the side to element mapping in the final array, make sure to convert the negative ElemIDs
+!     (stored directly in the temporary array during 3b)
 DO iSide=1, nRotPeriodicSides
   DO iNeigh=1, MaxNumRotPeriodicNeigh
     SideID = RotPeriodicSideMapping_temp(iSide,iNeigh)
-    IF(SideID.GT.0)THEN
+    IF(SideID.GT.0) THEN
+      ! Sides added during (3a), get the global element ID for these neighbours
       GlobalElemID = SideInfo_Shared(SIDE_ELEMID,SideID)
       RotPeriodicSideMapping(iSide,iNeigh) = GlobalElemID
     ELSE IF(SideID.LT.0) THEN
+      ! Global elements added during (3b) directly with a negative sign
       RotPeriodicSideMapping(iSide,iNeigh) = ABS(SideID)
     END IF
   END DO
@@ -1424,6 +1433,7 @@ CALL MPI_ALLREDUCE(notMapped , notMappedTotal , 1 , MPI_INTEGER , MPI_SUM , MPI_
 notMappedTotal = notMapped
 #endif /*USE_MPI*/
 
+! Write out of potentially not mapped sides, abort if a local side did not find a neighbour
 IF(notMappedTotal.GT.0)THEN
   IF(CalcMeshInfo)THEN
     ALLOCATE(LostRotPeriodicSides(1:nElems))
@@ -1478,7 +1488,7 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER                           :: iPartBound,firstSide,lastSide,MaxNumInterPlaneSide, iSide, SideID, ElemID
-INTEGER                           :: RotSideID, CNElemID, ilocSide,InterPlaneLocalSideNum, InterSideID
+INTEGER                           :: RotSideID, CNElemID, ilocSide,InterPlaneLocalSideNum, InterSideID, BCID
 INTEGER                           :: k,m,l
 INTEGER                           :: iNode,jNode
 REAL                              :: InterNode_1,RotNode_1,InterNode_2,RotNode_2
@@ -1549,41 +1559,48 @@ SELECT CASE(PartBound%RotPeriodicAxis)
     m = 2
 END SELECT
 iBCLoop3: DO iPartBound=1,nPartBound
+  ! Skip non-interPlane BCs
   IF (PartBound%TargetBoundCond(iPartBound).NE.PartBound%RotPeriodicInterPlaneBC) CYCLE iBCLoop3
   firstSide = 1
   lastSide  = PartBound%nSidesOnInterPlane(iPartBound)
+  ! Loop over all the sides on the interplane
   interSideLoop: DO iSide = firstSide, lastSide
     InterSideID = InterPlaneSideMapping(iPartBound,iSide)  ! GlobalSideID!
     ElemID = SideInfo_Shared(SIDE_ELEMID,InterSideID)
-    InterPlaneLocalSideNum = SideInfo_Shared(SIDE_LOCALID,InterSideID) ! 1-6 of the elemt local sides
+    InterPlaneLocalSideNum = SideInfo_Shared(SIDE_LOCALID,InterSideID) ! 1-6 of the element local sides
     CNElemID  = GetCNElemID(ElemID)
     LocSideLoop: DO ilocSide = 1, 6
       RotSideID=ElemInfo_Shared(ELEM_FIRSTSIDEIND,ElemID)+ilocSide
+      ! Skip myself
       IF(RotSideID.EQ.InterSideID) CYCLE LocSideLoop
-      IF(SideInfo_Shared(SIDE_BCID,RotSideID).EQ.0) CYCLE LocSideLoop
-      IF(PartBound%TargetBoundCond(PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,RotSideID))).EQ.PartBound%RotPeriodicBC) THEN
-        PartBound%RotPeriodicAngle(iPartBound) = PartBound%RotPeriodicAngle( &
-                                                 PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,RotSideID)))
-        HasInterPlaneOnProc(iPartBound) = .TRUE.
-        iNodeLoop: DO iNode=1, 4
-          InterNode_1 = NodeCoords_Shared(l,ElemSideNodeID_Shared(iNode,InterPlaneLocalSideNum,CNElemID)+1)
-          InterNode_2 = NodeCoords_Shared(m,ElemSideNodeID_Shared(iNode,InterPlaneLocalSideNum,CNElemID)+1)
-          IF( (ALMOSTZERO(InterNode_1)).AND.(ALMOSTZERO(InterNode_2)) ) CYCLE iNodeLoop ! Node is on rotation axis (radius = 0)
-          jNodeLoop: DO jNode=1, 4
-            RotNode_1   = NodeCoords_Shared(l,ElemSideNodeID_Shared(jNode,ilocSide,CNElemID)+1)
-            IF(InterNode_1.EQ.RotNode_1) THEN
-              RotNode_2   = NodeCoords_Shared(m,ElemSideNodeID_Shared(jNode,ilocSide,CNElemID)+1)
-              IF(InterNode_2.EQ.RotNode_2) THEN
-                ! iNode/jNode is on both BCs
-                PartBound%NormalizedRadiusDir(1,iPartBound) = InterNode_1 / (SQRT(InterNode_1**2 + InterNode_2**2))
-                PartBound%NormalizedRadiusDir(2,iPartBound) = InterNode_2 / (SQRT(InterNode_1**2 + InterNode_2**2))
-                EXIT iNodeLoop
-              END IF
+      ! Skip non-BC sides
+      BCID = SideInfo_Shared(SIDE_BCID,RotSideID)
+      IF(BCID.EQ.0) CYCLE LocSideLoop
+      ! Skip non-rotPeriodic BCs
+      IF(PartBound%TargetBoundCond(PartBound%MapToPartBC(BCID)).NE.PartBound%RotPeriodicBC) CYCLE
+      PartBound%RotPeriodicAngle(iPartBound) = PartBound%RotPeriodicAngle(PartBound%MapToPartBC(BCID))
+      HasInterPlaneOnProc(iPartBound) = .TRUE.
+      ! Loop over the local side nodes of InterSideID
+      iNodeLoop: DO iNode=1, 4
+        InterNode_1 = NodeCoords_Shared(l,ElemSideNodeID_Shared(iNode,InterPlaneLocalSideNum,CNElemID)+1)
+        InterNode_2 = NodeCoords_Shared(m,ElemSideNodeID_Shared(iNode,InterPlaneLocalSideNum,CNElemID)+1)
+        ! Cycle if node is on rotation axis (radius = 0)
+        IF( (ALMOSTZERO(InterNode_1)).AND.(ALMOSTZERO(InterNode_2)) ) CYCLE iNodeLoop
+        ! Loop over the local side nodes of RotSideID
+        jNodeLoop: DO jNode=1, 4
+          RotNode_1   = NodeCoords_Shared(l,ElemSideNodeID_Shared(jNode,ilocSide,CNElemID)+1)
+          IF(InterNode_1.EQ.RotNode_1) THEN
+            RotNode_2   = NodeCoords_Shared(m,ElemSideNodeID_Shared(jNode,ilocSide,CNElemID)+1)
+            IF(InterNode_2.EQ.RotNode_2) THEN
+              ! iNode/jNode is on both BCs
+              PartBound%NormalizedRadiusDir(1,iPartBound) = InterNode_1 / (SQRT(InterNode_1**2 + InterNode_2**2))
+              PartBound%NormalizedRadiusDir(2,iPartBound) = InterNode_2 / (SQRT(InterNode_1**2 + InterNode_2**2))
+              EXIT iNodeLoop
             END IF
-          END DO jNodeLoop
-        END DO iNodeLoop
-        EXIT interSideLoop
-      END IF
+          END IF
+        END DO jNodeLoop
+      END DO iNodeLoop
+      EXIT interSideLoop
     END DO LocSideLoop
   END DO interSideLoop ! iSide = firstSide, lastSide
 END DO iBCLoop3 ! iPartBound=1,nPartBound
