@@ -635,8 +635,11 @@ IF (.NOT.PerformLoadBalance) &
 #endif /*defined(PARTICLES) && USE_LOADBALANCE*/
   CALL OpenDataFile(FileString,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_WORLD)
 
-NGeoOld = NGeo ! Backup required if useCurveds=F
-IF(.NOT.useCurveds) NGeo = 1 ! linear mesh; set polynomial degree of geometry to 1
+! Backup required if useCurveds=F
+NGeoOld = NGeo
+! Linear mesh: set polynomial degree of geometry to 1 and rebuild NodeMap
+IF(.NOT.useCurveds) NGeo = 1
+
 ALLOCATE(NodeCoords(3,0:NGeo,0:NGeo,0:NGeo,nElems))
 
 #if defined(PARTICLES) && USE_LOADBALANCE
@@ -958,6 +961,7 @@ USE MOD_HDF5_Input         ,ONLY: ReadArray,OpenDataFile
 USE MOD_IO_HDF5            ,ONLY: CloseDataFile
 USE MOD_Mesh_Vars
 USE MOD_Particle_Mesh_Vars
+USE MOD_Mesh_Tools         ,ONLY: GetCornerNodes
 #if USE_MPI
 USE MOD_MPI_Shared
 USE MOD_MPI_Shared_Vars
@@ -978,7 +982,7 @@ INTEGER                        :: nNodeIDs,offsetNodeID
 INTEGER,ALLOCATABLE            :: NodeInfo(:),NodeInfoTmp(:,:)
 REAL,ALLOCATABLE               :: NodeCoords_indx(:,:)
 INTEGER                        :: nNodeInfoIDs,NodeID,NodeCounter
-INTEGER                        :: CornerNodeIDswitch(8)
+INTEGER                        :: CNS(8)
 !===================================================================================================================================
 
 ! calculate all offsets
@@ -1089,45 +1093,33 @@ ELSE ! .NOT. (useCurveds.OR.NGeo.EQ.1)
   ALLOCATE(NodeInfo_Shared(8*nGlobalElems))
 #endif /*USE_MPI*/
 
-  ! the cornernodes are not the first 8 entries (for Ngeo>1) of nodeinfo array so mapping is built
-  CornerNodeIDswitch(1)=1
-  CornerNodeIDswitch(2)=(Ngeo+1)
-  CornerNodeIDswitch(3)=(Ngeo+1)*Ngeo+1
-  CornerNodeIDswitch(4)=(Ngeo+1)**2
-  CornerNodeIDswitch(5)=(Ngeo+1)**2*Ngeo+1
-  CornerNodeIDswitch(6)=(Ngeo+1)**2*Ngeo+(Ngeo+1)
-  CornerNodeIDswitch(7)=(Ngeo+1)**2*Ngeo+(Ngeo+1)*Ngeo+1
-  CornerNodeIDswitch(8)=(Ngeo+1)**2*Ngeo+(Ngeo+1)**2
-
-  ! New crazy corner node switch (philipesque)
-  ASSOCIATE(CNS => CornerNodeIDswitch)
-
-    ! Only the 8 corner nodes count for nodes. (NGeo+1)**2 = 8
-    nComputeNodeNodes = 8*nComputeNodeElems
+  ! Only the 8 corner nodes count for nodes. (NGeo+1)**2 = 8
+  nComputeNodeNodes = 8*nComputeNodeElems
 
 #if USE_MPI
-    CALL Allocate_Shared((/3,8*nGlobalElems/),NodeCoords_Shared_Win,NodeCoords_Shared)
-    CALL MPI_WIN_LOCK_ALL(0,NodeCoords_Shared_Win,IERROR)
+  CALL Allocate_Shared((/3,8*nGlobalElems/),NodeCoords_Shared_Win,NodeCoords_Shared)
+  CALL MPI_WIN_LOCK_ALL(0,NodeCoords_Shared_Win,IERROR)
 #else
-    ALLOCATE(NodeCoords_Shared(3,8*nGlobalElems))
+  ALLOCATE(NodeCoords_Shared(3,8*nGlobalElems))
 #endif  /*USE_MPI*/
 
-    ! throw away all nodes except the 8 corner nodes of each hexa
-    nNonUniqueGlobalNodes = 8*nGlobalElems
+  ! the cornernodes are not the first 8 entries (for Ngeo>1) of nodeinfo array so mapping is built
+  CNS(1:8) = GetCornerNodes(NGeo)
 
-    DO iElem = FirstElemInd,LastElemInd
-      FirstNodeInd = ElemInfo_Shared(ELEM_FIRSTNODEIND,iElem) - offsetNodeID
-      ElemInfo_Shared(ELEM_FIRSTNODEIND,iElem) = 8*(iElem-1)
-      ElemInfo_Shared(ELEM_LASTNODEIND ,iElem) = 8* iElem
-      DO iNode = 1,8
-        NodeCoords_Shared(:,8*(iElem-1) + iNode) = NodeCoords_indx(:,FirstNodeInd+CNS(iNode))
-        NodeInfo_Shared  (  8*(iElem-1) + iNode) = NodeInfoTmp(2,NodeInfo(FirstNodeInd+offsetNodeID+CNS(iNode)))
-      END DO
+  ! throw away all nodes except the 8 corner nodes of each hexa
+  nNonUniqueGlobalNodes = 8*nGlobalElems
+
+  DO iElem = FirstElemInd,LastElemInd
+    FirstNodeInd = ElemInfo_Shared(ELEM_FIRSTNODEIND,iElem) - offsetNodeID
+    ElemInfo_Shared(ELEM_FIRSTNODEIND,iElem) = 8*(iElem-1)
+    ElemInfo_Shared(ELEM_LASTNODEIND ,iElem) = 8* iElem
+    DO iNode = 1,8
+      NodeCoords_Shared(:,8*(iElem-1) + iNode) = NodeCoords_indx(:,FirstNodeInd+CNS(iNode))
+      NodeInfo_Shared  (  8*(iElem-1) + iNode) = NodeInfoTmp(2,NodeInfo(FirstNodeInd+offsetNodeID+CNS(iNode)))
     END DO
+  END DO
 
-    DEALLOCATE(NodeInfoTmp)
-
-  END ASSOCIATE
+  DEALLOCATE(NodeInfoTmp)
 
 END IF ! useCurveds.OR.NGeo.EQ.1
 

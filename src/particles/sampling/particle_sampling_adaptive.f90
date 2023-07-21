@@ -79,7 +79,7 @@ USE MOD_Restart_Vars            ,ONLY: DoRestart,RestartFile, DoMacroscopicResta
 USE MOD_SurfaceModel_Vars       ,ONLY: nPorousBC
 USE MOD_Particle_Boundary_Vars  ,ONLY: nPorousSides, PorousBCInfo_Shared, SurfSide2GlobalSide
 USE MOD_Particle_Mesh_Vars      ,ONLY: SideInfo_Shared, ElemVolume_Shared
-USE MOD_LoadBalance_Vars        ,ONLY: PerformLoadBalance, UseH5IOLoadBalance
+USE MOD_LoadBalance_Vars        ,ONLY: DoLoadBalance, PerformLoadBalance, UseH5IOLoadBalance
 USE MOD_Mesh_Tools              ,ONLY: GetCNElemID
 #if USE_MPI
 USE MOD_Particle_MPI_Vars       ,ONLY: PartMPI
@@ -108,7 +108,7 @@ LBWRITE(UNIT_StdOut,'(132("-"))')
 LBWRITE(UNIT_stdOut,'(A)') ' INIT SAMPLING FOR ADAPTIVE BC ...'
 
 #if USE_LOADBALANCE
-IF(PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance)) THEN
+IF(DoLoadBalance.AND.(.NOT.UseH5IOLoadBalance)) THEN
   CALL abort(__STAMP__,'ERROR: Adaptive BCs currently only support a load balance using an HDF5 output (UseH5IOLoadBalance = T)!')
 END IF
 #endif /*USE_LOADBALANCE*/
@@ -332,7 +332,7 @@ IF (DoRestart) THEN
       nVar=INT(HSize(2),4)
       nElemReadin = INT(HSize(3),4)
       DEALLOCATE(HSize)
-      ! Abort if the array size does not correspond to the current adaptive BC configuration (e.g. a new adaptive BC was added)
+      ! Skip the read-in if the array size does not correspond to the current adaptive BC configuration (e.g. a new adaptive BC was added)
       IF(AdaptBCSampleElemNumGlobal.NE.nElemReadin) THEN
         CALL abort(__STAMP__,&
           'TruncateRunningAverage: Number of read-in elements does not correspond to current number of sample elements!')

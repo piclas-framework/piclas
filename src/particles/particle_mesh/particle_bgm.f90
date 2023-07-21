@@ -98,6 +98,7 @@ USE MOD_ReadInTools            ,ONLY: GETREAL,GetRealArray,PrintOption
 USE MOD_Particle_Mesh_Vars     ,ONLY: NodeCoords_Shared
 USE MOD_Particle_Mesh_Vars     ,ONLY: ElemInfo_Shared,FIBGM_nElems,ElemToBGM_Shared,FIBGM_offsetElem
 USE MOD_Particle_Mesh_Vars     ,ONLY: BoundsOfElem_Shared,GEO,FIBGM_Element
+USE MOD_Particle_Boundary_Vars ,ONLY: PartBound
 #if (PP_TimeDiscMethod==501) || (PP_TimeDiscMethod==502) || (PP_TimeDiscMethod==506)
 USE MOD_TimeDisc_Vars          ,ONLY: iStage,nRKStages,RK_c
 #endif
@@ -128,7 +129,7 @@ USE MOD_Particle_Mesh_Vars     ,ONLY: GlobalSide2CNTotalSide_Shared,GlobalSide2C
 USE MOD_Particle_Mesh_Vars     ,ONLY: CNTotalSide2GlobalSide_Shared,CNTotalSide2GlobalSide_Shared_Win
 USE MOD_Particle_Mesh_Vars     ,ONLY: GlobalElem2CNTotalElem_Shared,GlobalElem2CNTotalElem_Shared_Win
 USE MOD_Particle_Mesh_Vars     ,ONLY: CNTotalElem2GlobalElem_Shared,CNTotalElem2GlobalElem_Shared_Win
-USE MOD_Particle_Mesh_Vars     ,ONLY: MeshHasPeriodic,MeshHasRotPeriodic
+USE MOD_Particle_Mesh_Vars     ,ONLY: MeshHasPeriodic
 USE MOD_Particle_Mesh_Vars     ,ONLY: GlobalSide2CNTotalSide
 USE MOD_Particle_Mesh_Vars     ,ONLY: CNTotalSide2GlobalSide
 USE MOD_Particle_Mesh_Vars     ,ONLY: GlobalElem2CNTotalElem
@@ -244,7 +245,6 @@ firstElem = INT(REAL( myComputeNodeRank   )*REAL(nGlobalElems)/REAL(nComputeNode
 lastElem  = INT(REAL((myComputeNodeRank+1))*REAL(nGlobalElems)/REAL(nComputeNodeProcessors))
 ! Periodic Sides
 MeshHasPeriodic    = MERGE(.TRUE.,.FALSE.,GEO%nPeriodicVectors.GT.0)
-MeshHasRotPeriodic = GEO%RotPeriodicBC
 #else
 ! In order to use only one type of variables VarName_Shared in code structure such as tracking etc. for NON_MPI
 ! the same variables are allocated on the single proc and used from mesh_vars instead of mpi_shared_vars
@@ -708,7 +708,10 @@ ELSE
   CALL BARRIER_AND_SYNC(ElemInfo_Shared_Win,MPI_COMM_SHARED)
 
   IF (MeshHasPeriodic)    CALL CheckPeriodicSides   (EnlargeBGM)
-  IF (MeshHasRotPeriodic) CALL CheckRotPeriodicSides(EnlargeBGM)
+  CALL BARRIER_AND_SYNC(ElemInfo_Shared_Win,MPI_COMM_SHARED)
+  IF (PartBound%UseRotPeriodicBC) CALL CheckRotPeriodicSides(EnlargeBGM)
+  CALL BARRIER_AND_SYNC(ElemInfo_Shared_Win,MPI_COMM_SHARED) 
+  IF (PartBound%UseInterPlaneBC) CALL CheckInterPlaneSides(EnlargeBGM)
   CALL BARRIER_AND_SYNC(ElemInfo_Shared_Win,MPI_COMM_SHARED)
 
   ! Remove elements if the halo proc contains only internal elements, i.e. we cannot possibly reach the halo element
@@ -1883,6 +1886,7 @@ END DO
 END SUBROUTINE CheckPeriodicSides
 
 
+SUBROUTINE CheckRotPeriodicSides(EnlargeBGM)
 !===================================================================================================================================
 !> checks the elements against periodic rotation
 !> In addition to halo flat elements (normal halo region), find rotationally periodic elements (halo flag 3), which can be reached
@@ -1893,17 +1897,17 @@ END SUBROUTINE CheckPeriodicSides
 !>   3. Rotate the global element and check the distance of all compute-node elements to this element and flag it with halo flag 3
 !>      if the element can be reached by a particle
 !===================================================================================================================================
-SUBROUTINE CheckRotPeriodicSides(EnlargeBGM)
 ! MODULES                                                                                                                          !
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Globals
 USE MOD_Preproc
 USE MOD_MPI_Shared_Vars
-USE MOD_Mesh_Vars              ,ONLY: nGlobalElems
-USE MOD_Particle_Mesh_Vars     ,ONLY: ElemInfo_Shared,BoundsOfElem_Shared,nComputeNodeElems,GEO
-USE MOD_Particle_MPI_Vars      ,ONLY: halo_eps
-USE MOD_MPI_Vars               ,ONLY: offsetElemMPI
-USE MOD_Particle_Boundary_Vars ,ONLY: PartBound,nPartBound,RotPeriodicTol
+USE MOD_Mesh_Vars               ,ONLY: nGlobalElems
+USE MOD_Particle_Mesh_Vars      ,ONLY: ElemInfo_Shared,BoundsOfElem_Shared,nComputeNodeElems
+USE MOD_Particle_MPI_Vars       ,ONLY: halo_eps
+USE MOD_MPI_Vars                ,ONLY: offsetElemMPI
+USE MOD_Particle_Boundary_Vars  ,ONLY: PartBound,nPartBound
+USE MOD_part_tools              ,ONLY: RotateVectorAroundAxis
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -1913,10 +1917,10 @@ LOGICAL,INTENT(IN)             :: EnlargeBGM ! Flag used for enlarging the BGM i
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                        :: iElem,firstElem,lastElem
+INTEGER                        :: iElem,firstElem,lastElem,iLocElem,iPartBound
 REAL                           :: RotBoundsOfElemCenter(3)
 REAL                           :: BoundsOfElemCenter(1:4),LocalBoundsOfElemCenter(1:4)
-INTEGER                        :: iLocElem,iPartBound
+REAL                           :: alpha
 LOGICAL                        :: IsPotentialRotElem(nPartBound)
 !===================================================================================================================================
 
@@ -1948,23 +1952,10 @@ DO iElem = firstElem ,lastElem
       IsPotentialRotElem(iPartBound) = .FALSE.
       CYCLE
     END IF
-    SELECT CASE(GEO%RotPeriodicAxi)
-      CASE(1) ! x-rotation axis
-        IF( (BoundsOfElemCenter(1)-BoundsOfElemCenter(4).GE.PartBound%RotPeriodicMax(iPartBound)+halo_eps).OR. &
-            (BoundsOfElemCenter(1)+BoundsOfElemCenter(4).LE.PartBound%RotPeriodicMin(iPartBound)-halo_eps) ) THEN
-            IsPotentialRotElem(iPartBound) = .FALSE.
-        END IF
-      CASE(2) ! y-rotation axis
-        IF( (BoundsOfElemCenter(2)-BoundsOfElemCenter(4).GE.PartBound%RotPeriodicMax(iPartBound)+halo_eps).OR. &
-            (BoundsOfElemCenter(2)+BoundsOfElemCenter(4).LE.PartBound%RotPeriodicMin(iPartBound)-halo_eps) ) THEN
-            IsPotentialRotElem(iPartBound) = .FALSE.
-        END IF
-      CASE(3) ! z-rotation axis
-        IF( (BoundsOfElemCenter(3)-BoundsOfElemCenter(4).GE.PartBound%RotPeriodicMax(iPartBound)+halo_eps).OR. &
-            (BoundsOfElemCenter(3)+BoundsOfElemCenter(4).LE.PartBound%RotPeriodicMin(iPartBound)-halo_eps) ) THEN
-            IsPotentialRotElem(iPartBound) = .FALSE.
-        END IF
-    END SELECT
+    IF((BoundsOfElemCenter(PartBound%RotPeriodicAxis)-BoundsOfElemCenter(4).GE.PartBound%RotPeriodicMax(iPartBound)+halo_eps).OR. &
+       (BoundsOfElemCenter(PartBound%RotPeriodicAxis)+BoundsOfElemCenter(4).LE.PartBound%RotPeriodicMin(iPartBound)-halo_eps) ) THEN
+        IsPotentialRotElem(iPartBound) = .FALSE.
+    END IF
   END DO
 
   IF(.NOT.ANY(IsPotentialRotElem)) CYCLE
@@ -1985,34 +1976,13 @@ DO iElem = firstElem ,lastElem
     !      this element and flag it with halo flag 3 if the element can be reached by a particle
     DO iPartBound = 1, nPartBound
       IF(.NOT.IsPotentialRotElem(iPartBound)) CYCLE
-      ASSOCIATE( alpha => PartBound%RotPeriodicAngle(iPartBound) * RotPeriodicTol)
-        SELECT CASE(GEO%RotPeriodicAxi)
-          CASE(1) ! x-rotation axis
-            IF( (LocalBoundsOfElemCenter(1)-LocalBoundsOfElemCenter(4).GE.PartBound%RotPeriodicMax(iPartBound)+halo_eps).OR. &
-                (LocalBoundsOfElemCenter(1)+LocalBoundsOfElemCenter(4).LE.PartBound%RotPeriodicMin(iPartBound)-halo_eps) ) THEN
-                CYCLE
-            END IF
-            RotBoundsOfElemCenter(1) = BoundsOfElemCenter(1)
-            RotBoundsOfElemCenter(2) = COS(alpha)*BoundsOfElemCenter(2) - SIN(alpha)*BoundsOfElemCenter(3)
-            RotBoundsOfElemCenter(3) = SIN(alpha)*BoundsOfElemCenter(2) + COS(alpha)*BoundsOfElemCenter(3)
-          CASE(2) ! y-rotation axis
-            IF( (LocalBoundsOfElemCenter(2)-LocalBoundsOfElemCenter(4).GE.PartBound%RotPeriodicMax(iPartBound)+halo_eps).OR. &
-                (LocalBoundsOfElemCenter(2)+LocalBoundsOfElemCenter(4).LE.PartBound%RotPeriodicMin(iPartBound)-halo_eps) ) THEN
-                CYCLE
-            END IF
-            RotBoundsOfElemCenter(1) = COS(alpha)*BoundsOfElemCenter(1) + SIN(alpha)*BoundsOfElemCenter(3)
-            RotBoundsOfElemCenter(2) = BoundsOfElemCenter(2)
-            RotBoundsOfElemCenter(3) =-SIN(alpha)*BoundsOfElemCenter(1) + COS(alpha)*BoundsOfElemCenter(3)
-          CASE(3) ! z-rotation axis
-            IF( (LocalBoundsOfElemCenter(3)-LocalBoundsOfElemCenter(4).GE.PartBound%RotPeriodicMax(iPartBound)+halo_eps).OR. &
-                (LocalBoundsOfElemCenter(3)+LocalBoundsOfElemCenter(4).LE.PartBound%RotPeriodicMin(iPartBound)-halo_eps) ) THEN
-                CYCLE
-            END IF
-            RotBoundsOfElemCenter(1) = COS(alpha)*BoundsOfElemCenter(1) - SIN(alpha)*BoundsOfElemCenter(2)
-            RotBoundsOfElemCenter(2) = SIN(alpha)*BoundsOfElemCenter(1) + COS(alpha)*BoundsOfElemCenter(2)
-            RotBoundsOfElemCenter(3) = BoundsOfElemCenter(3)
-        END SELECT
+      alpha = PartBound%RotPeriodicAngle(iPartBound) * PartBound%RotPeriodicTol
+      ASSOCIATE(RotBoundMin => PartBound%RotPeriodicMin(iPartBound)-halo_eps, &
+                RotBoundMax => PartBound%RotPeriodicMax(iPartBound)+halo_eps)
+        IF( (LocalBoundsOfElemCenter(PartBound%RotPeriodicAxis)-LocalBoundsOfElemCenter(4).GE.RotBoundMax).OR. &
+            (LocalBoundsOfElemCenter(PartBound%RotPeriodicAxis)+LocalBoundsOfElemCenter(4).LE.RotBoundMin) ) CYCLE
       END ASSOCIATE
+      RotBoundsOfElemCenter(1:3) = RotateVectorAroundAxis(BoundsOfElemCenter(1:3),PartBound%RotPeriodicAxis,alpha)
       ! check if element is within halo_eps of rotationally displaced element
       IF (VECNORM( RotBoundsOfElemCenter(1:3)                               &
                  - LocalBoundsOfElemCenter(1:3))                            &
@@ -2026,6 +1996,91 @@ DO iElem = firstElem ,lastElem
 END DO ! firstElem,lastElem
 
 END SUBROUTINE CheckRotPeriodicSides
+
+
+SUBROUTINE CheckInterPlaneSides(EnlargeBGM)
+!===================================================================================================================================
+!> checks the elements against inter plane
+!> In addition to halo flat elements (normal halo region), find all elements on both side of a intermediate plane that 
+!> are within range of the proc during a loop over all BCs:
+!> (1) Loop over all compute-node elements and check if they are within InterplaneRegion => Node is within InterplaneRegion
+!> (2) Loop over all elements that are NOT on the compute node and add them as halo elements if they are within the corresponding 
+!>     InterplaneRegion
+!===================================================================================================================================
+! MODULES                                                                                                                          !
+!----------------------------------------------------------------------------------------------------------------------------------!
+USE MOD_Globals
+USE MOD_Preproc
+USE MOD_MPI_Shared_Vars
+USE MOD_Mesh_Vars              ,ONLY: nGlobalElems
+USE MOD_Particle_Mesh_Vars     ,ONLY: ElemInfo_Shared,BoundsOfElem_Shared,nComputeNodeElems
+USE MOD_Particle_MPI_Vars      ,ONLY: halo_eps
+USE MOD_MPI_Vars               ,ONLY: offsetElemMPI
+USE MOD_Particle_Boundary_Vars ,ONLY: PartBound,nPartBound
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!----------------------------------------------------------------------------------------------------------------------------------!
+! INPUT VARIABLES
+LOGICAL,INTENT(IN)             :: EnlargeBGM ! Flag used for enlarging the BGM if RefMapping and/or shape function is used
+!----------------------------------------------------------------------------------------------------------------------------------!
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER                        :: iElem,iLocElem,firstElem,lastElem
+INTEGER                        :: iPartBound,k
+LOGICAL                        :: InInterPlaneRegion
+REAL                           :: InterPlaneDistance
+REAL                           :: BoundsOfElemCenter(1:4)
+!===================================================================================================================================
+firstElem = INT(REAL( myComputeNodeRank   )*REAL(nGlobalElems)/REAL(nComputeNodeProcessors))+1
+lastElem  = INT(REAL((myComputeNodeRank+1))*REAL(nGlobalElems)/REAL(nComputeNodeProcessors))
+
+! The code below changes ElemInfo_Shared, identification of periodic elements must complete before
+! Direction of rotation axis == norm vec for all inter planes
+k = PartBound%RotPeriodicAxis
+CALL MPI_BARRIER(MPI_COMM_SHARED,IERROR)
+DO iPartBound = 1,nPartBound
+  ! ignore non-Inter-Plane-BCs
+  IF(PartBound%TargetBoundCond(iPartBound).NE.PartBound%RotPeriodicInterPlaneBC) CYCLE
+  InInterPlaneRegion = .FALSE.
+! (1) Loop over all compute-node elements (every processors loops over all of these elements)
+  DO iLocElem = offsetElemMPI(ComputeNodeRootRank)+1, offsetElemMPI(ComputeNodeRootRank)+nComputeNodeElems
+    BoundsOfElemCenter(1:3) = (/    SUM(BoundsOfElem_Shared(1:2,1,iLocElem)),                                     &
+                                    SUM(BoundsOfElem_Shared(1:2,2,iLocElem)),                                     &
+                                    SUM(BoundsOfElem_Shared(1:2,3,iLocElem)) /) / 2.
+    BoundsOfElemCenter(4) = VECNORM ((/ BoundsOfElem_Shared(2,1,iLocElem)-BoundsOfElem_Shared(1,1,iLocElem), &
+                                        BoundsOfElem_Shared(2,2,iLocElem)-BoundsOfElem_Shared(1,2,iLocElem),      &
+                                        BoundsOfElem_Shared(2,3,iLocElem)-BoundsOfElem_Shared(1,3,iLocElem) /) / 2.)
+    InterPlaneDistance = ABS(PartBound%RotAxisPosition(iPartBound) - BoundsOfElemCenter(k))
+    IF(InterPlaneDistance.LE.halo_eps+BoundsOfElemCenter(4)) THEN
+      InInterPlaneRegion = .TRUE.
+      EXIT
+    END IF
+  END DO
+  IF(InInterPlaneRegion) THEN
+! (2) Loop over all elements that are NOT on the compute node and add them as halo elements if they are within the corresponding 
+!     InterplaneRegion
+    DO iElem = firstElem,lastElem
+      ! only consider elements that are not already flagged
+      IF (ElemInfo_Shared(ELEM_HALOFLAG,iElem).GT.0) CYCLE
+      BoundsOfElemCenter(1:3) = (/    SUM(BoundsOfElem_Shared(1:2,1,iElem)),                                     &
+                                      SUM(BoundsOfElem_Shared(1:2,2,iElem)),                                     &
+                                      SUM(BoundsOfElem_Shared(1:2,3,iElem)) /) / 2.
+      BoundsOfElemCenter(4) = VECNORM ((/ BoundsOfElem_Shared(2,1,iElem)-BoundsOfElem_Shared(1,1,iElem), &
+                                          BoundsOfElem_Shared(2,2,iElem)-BoundsOfElem_Shared(1,2,iElem),      &
+                                          BoundsOfElem_Shared(2,3,iElem)-BoundsOfElem_Shared(1,3,iElem) /) / 2.)
+      InterPlaneDistance = ABS(PartBound%RotAxisPosition(iPartBound) - BoundsOfElemCenter(k))
+      IF(InterPlaneDistance.LE.halo_eps+BoundsOfElemCenter(4)) THEN
+        ! add element back to halo region
+        ElemInfo_Shared(ELEM_HALOFLAG,iElem) = 3
+        IF (EnlargeBGM) CALL AddElementToFIBGM(iElem)
+      END IF
+    END DO
+  END IF
+END DO
+
+END SUBROUTINE CheckInterPlaneSides
+
 
 
 SUBROUTINE AddElementToFIBGM(ElemID)
