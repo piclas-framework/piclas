@@ -1026,9 +1026,13 @@ CALL BARRIER_AND_SYNC(NodeToElemMapping_Shared_Win,MPI_COMM_SHARED)
 CALL Allocate_Shared((/2,nComputeNodeTotalElems/),ElemToElemMapping_Shared_Win,ElemToElemMapping_Shared)
 CALL MPI_WIN_LOCK_ALL(0,ElemToElemMapping_Shared_Win,IERROR)
 ElemToElemMapping => ElemToElemMapping_Shared
+IF (myComputeNodeRank.EQ.0) ElemToElemMapping = 0
+CALL BARRIER_AND_SYNC(ElemToElemMapping_Shared_Win,MPI_COMM_SHARED)
 #else
 ALLOCATE(ElemToElemMapping(2,nElems))
+ElemToElemMapping = 0
 #endif /*USE_MPI*/
+
 
 ! 5. Fill ElemToElemMapping = [offset, Nbr of CN elements]
 !    Note that the number of elements stored in ElemToElemMapping(2,iElem) must be shifted after communication with other procs

@@ -271,7 +271,7 @@ INTEGER         :: ElemCharLengthY_Shared_Win
 INTEGER         :: ElemCharLengthZ_Shared_Win
 
 ! periodic sides
-LOGICAL         :: MeshHasPeriodic,MeshHasRotPeriodic
+LOGICAL         :: MeshHasPeriodic
 #endif
 
 ! ElemID for WriteHaloInfo
@@ -310,8 +310,6 @@ END TYPE
 INTEGER                                  :: FIBGMCellPadding(1:3)
 ! ====================================================================
 TYPE tGeometry
-  LOGICAL                                :: RotPeriodicBC            ! Flag for rotational periodicity
-  INTEGER                                :: RotPeriodicAxi           ! Axis of rotational periodicity
   REAL                                   :: CNxmin                   ! minimum x coord of all compute-node nodes
   REAL                                   :: CNxmax                   ! minimum y coord of all compute-node nodes
   REAL                                   :: CNymin                   ! minimum z coord of all compute-node nodes
