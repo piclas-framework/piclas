@@ -127,16 +127,18 @@ INTEGER                         :: nNodeRecvExchangeProcs
 REAL,ALLOCATABLE                :: NodeSourceExt(:) ! It contains the global, synchronized surface charge contribution that is
 !                                                   ! read and written to .h5
 
-INTEGER                   :: nTotalPeriodicNodes
-INTEGER,ALLOCPOINT :: Periodic_nNodes_Shared(:)
-INTEGER,ALLOCPOINT :: Periodic_Nodes_Shared(:)
-INTEGER,ALLOCPOINT :: Periodic_offsetNode_Shared(:)
+INTEGER            :: nTotalPeriodicNodes
+INTEGER,ALLOCPOINT :: Periodic_nNodes(:)
+INTEGER,ALLOCPOINT :: Periodic_Nodes(:)
+INTEGER,ALLOCPOINT :: Periodic_offsetNode(:)
 
 #if USE_MPI
-
-INTEGER         :: Periodic_nNodes_Shared_Win
-INTEGER         :: Periodic_Nodes_Shared_Win
-INTEGER         :: Periodic_offsetNode_Shared_Win
+INTEGER            :: Periodic_nNodes_Shared_Win
+INTEGER,ALLOCPOINT :: Periodic_nNodes_Shared(:)
+INTEGER            :: Periodic_Nodes_Shared_Win
+INTEGER,ALLOCPOINT :: Periodic_Nodes_Shared(:)
+INTEGER            :: Periodic_offsetNode_Shared_Win
+INTEGER,ALLOCPOINT :: Periodic_offsetNode_Shared(:)
 
 REAL,ALLOCATABLE                :: NodeSourceExtTmp(:) ! It contains the local non-synchronized surface charge contribution (does
 !                                                      ! not consider the charge contribution from restart files). This

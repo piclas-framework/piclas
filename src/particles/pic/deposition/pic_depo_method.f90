@@ -361,7 +361,7 @@ USE MOD_Particle_Vars      ,ONLY: Species,PartSpecies,PDM,PEM,usevMPF,PartMPF
 USE MOD_Particle_Vars      ,ONLY: PartState
 USE MOD_Particle_Mesh_Vars ,ONLY: ElemNodeID_Shared, NodeInfo_Shared, NodeCoords_Shared, GEO
 USE MOD_PICDepo_Vars       ,ONLY: PartSource,CellVolWeightFac,NodeSourceExt,NodeVolume,NodeSource, nDepoNodes, DepoNodetoGlobalNode
-USE MOD_PICDepo_Vars       ,ONLY: nDepoNodesTotal,Periodic_Nodes_Shared,Periodic_nNodes_Shared,Periodic_offsetNode_Shared
+USE MOD_PICDepo_Vars       ,ONLY: nDepoNodesTotal,Periodic_Nodes,Periodic_nNodes,Periodic_offsetNode
 USE MOD_Mesh_Tools         ,ONLY: GetCNElemID
 USE MOD_Part_Tools         ,ONLY: isDepositParticle
 #if USE_MPI
@@ -477,12 +477,12 @@ DO iPart=1,PDM%ParticleVecLength
       DO iNode=1, 8
         NodeSource(SourceDim:4,NodeID(iNode)) = NodeSource(SourceDim:4,NodeID(iNode)) + (TSource(SourceDim:4)*PartDistDepo(iNode))
         IF (GEO%nPeriodicVectors.GT.0) THEN
-          IF (Periodic_nNodes_Shared(NodeID(iNode)).GT.0) THEN
-            DO jNode = Periodic_offsetNode_Shared(NodeID(iNode))+1,Periodic_offsetNode_Shared(NodeID(iNode))+Periodic_nNodes_Shared(NodeID(iNode))
-              jGlobNode                         = Periodic_Nodes_Shared(jNode)
+          IF (Periodic_nNodes(NodeID(iNode)).GT.0) THEN
+            DO jNode = Periodic_offsetNode(NodeID(iNode))+1,Periodic_offsetNode(NodeID(iNode))+Periodic_nNodes(NodeID(iNode))
+              jGlobNode                         = Periodic_Nodes(jNode)
               NodeSource(SourceDim:4,jGlobNode) = NodeSource(SourceDim:4,jGlobNode) + (TSource(SourceDim:4)*PartDistDepo(iNode))
             END DO ! jNode
-          END IF ! Periodic_nNodes_Shared(NodeID(iNode)).GT.0
+          END IF ! Periodic_nNodes(NodeID(iNode)).GT.0
         END IF
       END DO
 
@@ -504,12 +504,12 @@ DO iPart=1,PDM%ParticleVecLength
           +  PartDistDepo(iNode)/DistSum*TSource(SourceDim:4)
         IF (GEO%nPeriodicVectors.GT.0) THEN
           ASSOCIATE(NodeInfoID => NodeInfo_Shared(NodeID(iNode)))
-          IF (Periodic_nNodes_Shared(NodeInfoID).GT.0) THEN
-            DO jNode = Periodic_offsetNode_Shared(NodeInfoID)+1,Periodic_offsetNode_Shared(NodeInfoID)+Periodic_nNodes_Shared(NodeInfoID)
-              jGlobNode                         = Periodic_Nodes_Shared(jNode)
+          IF (Periodic_nNodes(NodeInfoID).GT.0) THEN
+            DO jNode = Periodic_offsetNode(NodeInfoID)+1,Periodic_offsetNode(NodeInfoID)+Periodic_nNodes(NodeInfoID)
+              jGlobNode                         = Periodic_Nodes(jNode)
               NodeSource(SourceDim:4,jGlobNode) = NodeSource(SourceDim:4,jGlobNode) +  PartDistDepo(iNode)/DistSum*TSource(SourceDim:4)
             END DO ! jNode
-          END IF ! Periodic_nNodes_Shared(NodeID(iNode)).GT.0
+          END IF ! Periodic_nNodes(NodeID(iNode)).GT.0
           END ASSOCIATE
         END IF
       END DO

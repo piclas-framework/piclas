@@ -97,13 +97,13 @@ USE MOD_PICInterpolation_Vars  ,ONLY: InterpolationType
 USE MOD_Preproc
 USE MOD_ReadInTools            ,ONLY: GETREAL,GETINT,GETLOGICAL,GETSTR,GETREALARRAY,GETINTARRAY
 USE MOD_Particle_Boundary_Vars ,ONLY: PartBound
-#if USE_MPI
 USE MOD_Mesh_Vars              ,ONLY: offsetElem
+USE MOD_Mesh_Tools             ,ONLY: GetGlobalElemID, GetCNElemID
+USE MOD_Particle_Mesh_Vars     ,ONLY: ElemNodeID_Shared,NodeInfo_Shared,NodeToElemInfo,NodeToElemMapping
+#if USE_MPI
 USE MOD_MPI_vars               ,ONLY: offsetElemMPI
 USE MOD_MPI_Shared_Vars        ,ONLY: ComputeNodeRootRank
-USE MOD_Particle_Mesh_Vars     ,ONLY: ElemNodeID_Shared,NodeInfo_Shared,NodeToElemInfo,NodeToElemMapping
 USE MOD_MPI_Shared             ,ONLY: BARRIER_AND_SYNC
-USE MOD_Mesh_Tools             ,ONLY: GetGlobalElemID, GetCNElemID
 USE MOD_MPI_Shared_Vars        ,ONLY: nComputeNodeTotalElems,nComputeNodeProcessors,myComputeNodeRank
 USE MOD_MPI_Shared_Vars        ,ONLY: nLeaderGroupProcs, nProcessors_Global,MPI_COMM_SHARED
 USE MOD_MPI_Shared
@@ -136,10 +136,10 @@ TYPE tPeriodicNodeMap
 END TYPE
 TYPE(tPeriodicNodeMap), ALLOCATABLE :: PeriodicNodeMap(:)
 INTEGER,ALLOCATABLE       :: PeriodicNodesPerNode(:)
+INTEGER                   :: UniqueNodeID
 #if USE_MPI
 INTEGER :: dummy(8)
 INTEGER, ALLOCATABLE      :: SendPeriodicNodes(:), iSendNode(:), RecvPeriodicNodes(:)
-INTEGER                   :: UniqueNodeID
 INTEGER                   :: jElem, NonUniqueNodeID
 INTEGER                   :: SendNodeCount, GlobalElemRank, iProc
 INTEGER                   :: TestElemID, GlobalElemRankOrig, iRank
@@ -731,6 +731,7 @@ CASE('cell_volweight_mean')
         END IF
       END IF
     END DO
+#if USE_MPI
     DO iNode = 1, nUniqueGlobalNodes
       IF (PeriodicNodeMap(iNode)%nPeriodicNodes.GT.0) THEN
         DO jNode = 1, PeriodicNodeMap(iNode)%nPeriodicNodes
@@ -746,33 +747,46 @@ CASE('cell_volweight_mean')
         END DO
       END IF
     END DO
+#endif /*USE_MPI*/
     DEALLOCATE(PeriodicNodeSourceMap)
 
     ! FERTIG
+#if USE_MPI
     CALL Allocate_Shared((/nUniqueGlobalNodes/),Periodic_nNodes_Shared_Win    ,Periodic_nNodes_Shared)
     CALL Allocate_Shared((/nUniqueGlobalNodes/),Periodic_offsetNode_Shared_Win,Periodic_offsetNode_Shared)
     CALL MPI_WIN_LOCK_ALL(0,Periodic_nNodes_Shared_Win    ,IERROR)
     CALL MPI_WIN_LOCK_ALL(0,Periodic_offsetNode_Shared_Win,IERROR)
+    Periodic_nNodes => Periodic_nNodes_Shared
+    Periodic_offsetNode => Periodic_offsetNode_Shared
     IF (myComputeNodeRank.EQ.0) THEN
-      Periodic_nNodes_Shared     = 0
-      Periodic_offsetNode_Shared = 0
+      Periodic_nNodes = 0
+      Periodic_offsetNode = 0
     END IF ! myComputeNodeRank.EQ.0
     CALL BARRIER_AND_SYNC(Periodic_nNodes_Shared_Win    ,MPI_COMM_SHARED)
     CALL BARRIER_AND_SYNC(Periodic_offsetNode_Shared_Win,MPI_COMM_SHARED)
+#else
+    ALLOCATE(Periodic_nNodes(1:nUniqueGlobalNodes))
+    Periodic_nNodes = 0
+    ALLOCATE(Periodic_offsetNode(1:nUniqueGlobalNodes))
+    Periodic_offsetNode = 0
+#endif /*USE_MPI*/
 
     ALLOCATE(PeriodicNodesPerNode(nUniqueGlobalNodes))
     DO iNode = 1,nUniqueGlobalNodes
       PeriodicNodesPerNode(iNode) = PeriodicNodeMap(iNode)%nPeriodicNodes
     END DO ! iNode = nUniqueGlobalNodes
 
+#if USE_MPI
     IF(myComputeNodeRank.EQ.0)THEN
       CALL MPI_REDUCE(MPI_IN_PLACE        ,PeriodicNodesPerNode,nUniqueGlobalNodes,MPI_INTEGER,MPI_MAX,0,MPI_COMM_SHARED,IERROR)
+#endif /*USE_MPI*/
       nTotalPeriodicNodes = 0
       DO iNode = 1,nUniqueGlobalNodes
-        Periodic_offsetNode_Shared(iNode) = nTotalPeriodicNodes
-        Periodic_nNodes_Shared(    iNode) = PeriodicNodesPerNode(iNode)
-        nTotalPeriodicNodes               = nTotalPeriodicNodes + PeriodicNodesPerNode(iNode)
+        Periodic_offsetNode(iNode) = nTotalPeriodicNodes
+        Periodic_nNodes(    iNode) = PeriodicNodesPerNode(iNode)
+        nTotalPeriodicNodes        = nTotalPeriodicNodes + PeriodicNodesPerNode(iNode)
       END DO ! iNode = nUniqueGlobalNodes
+#if USE_MPI
     ELSE
       CALL MPI_REDUCE(PeriodicNodesPerNode,0                   ,nUniqueGlobalNodes,MPI_INTEGER,MPI_MAX,0,MPI_COMM_SHARED,IERROR)
     END IF
@@ -784,26 +798,35 @@ CASE('cell_volweight_mean')
 
     CALL Allocate_Shared((/nTotalPeriodicNodes/),Periodic_Nodes_Shared_Win,Periodic_Nodes_Shared)
     CALL MPI_WIN_LOCK_ALL(0,Periodic_Nodes_Shared_Win     ,IERROR)
-    IF (myComputeNodeRank.EQ.0) THEN
-      Periodic_Nodes_Shared = 0
-    END IF ! myComputeNodeRank.EQ.0
+    Periodic_Nodes => Periodic_Nodes_Shared
+    IF (myComputeNodeRank.EQ.0) Periodic_Nodes = 0
     CALL BARRIER_AND_SYNC(Periodic_Nodes_Shared_Win,MPI_COMM_SHARED)
+#else
+    ALLOCATE(Periodic_Nodes(1:nTotalPeriodicNodes))
+    Periodic_Nodes = 0
+#endif /*USE_MPI*/
 
     ! Every processor loops over its own periodic map and fills the Periodic_Nodes_Shared_Win array. MPI_ACCUMULATE ensures that data
     ! is consistent
     DO iNode = 1,nUniqueGlobalNodes
-      ASSOCIATE(offset => Periodic_offsetNode_Shared(iNode))
+      ASSOCIATE(offset => Periodic_offsetNode(iNode))
 
-      IF (PeriodicNodeMap(iNode)%nPeriodicNodes.GT.0) THEN
-        CALL MPI_ACCUMULATE(PeriodicNodeMap(iNode)%Mapping             ,PeriodicNodeMap(iNode)%nPeriodicNodes, MPI_INTEGER, &
-                            0    ,INT(offset*SIZE_INT,MPI_ADDRESS_KIND),PeriodicNodeMap(iNode)%nPeriodicNodes, MPI_INTEGER, &
-                            MPI_REPLACE                                ,Periodic_Nodes_Shared_Win            , iError)
+        IF (PeriodicNodeMap(iNode)%nPeriodicNodes.GT.0) THEN
+#if USE_MPI
+          CALL MPI_ACCUMULATE(PeriodicNodeMap(iNode)%Mapping             ,PeriodicNodeMap(iNode)%nPeriodicNodes, MPI_INTEGER, &
+                              0    ,INT(offset*SIZE_INT,MPI_ADDRESS_KIND),PeriodicNodeMap(iNode)%nPeriodicNodes, MPI_INTEGER, &
+                              MPI_REPLACE                                ,Periodic_Nodes_Shared_Win            , iError)
+#else
+          Periodic_Nodes(1+offset:offset+PeriodicNodeMap(iNode)%nPeriodicNodes) = PeriodicNodeMap(iNode)%Mapping
+#endif /*USE_MPI*/
       END IF ! PeriodicNodeMap(iNode)%nPeriodicNodes.GT.0
 
       END ASSOCIATE
     END DO ! iNode = nUniqueGlobalNodes
+#if USE_MPI
     CALL MPI_WIN_FLUSH(0 ,Periodic_Nodes_Shared_Win,iError)
     CALL BARRIER_AND_SYNC(Periodic_Nodes_Shared_Win,MPI_COMM_SHARED)
+#endif /*USE_MPI*/
   END IF ! GEO%nPeriodicVectors.GT.0
 
 #if USE_MPI
@@ -1665,6 +1688,11 @@ IF(DoDeposition)THEN
   SELECT CASE(TRIM(DepositionType))
   CASE('cell_volweight_mean')
     CALL UNLOCK_AND_FREE(NodeVolume_Shared_Win)
+    IF(GEO%nPeriodicVectors.GT.0)THEN
+      CALL UNLOCK_AND_FREE(Periodic_Nodes_Shared_Win)
+      CALL UNLOCK_AND_FREE(Periodic_nNodes_Shared_Win)
+      CALL UNLOCK_AND_FREE(Periodic_offsetNode_Shared_Win)
+    END IF ! GEO%nPeriodicVectors.GT.0
   CASE('shape_function_adaptive')
     CALL UNLOCK_AND_FREE(SFElemr2_Shared_Win)
   END SELECT
@@ -1672,6 +1700,9 @@ IF(DoDeposition)THEN
   CALL MPI_BARRIER(MPI_COMM_SHARED,iERROR)
 
   ADEALLOCATE(NodeVolume_Shared)
+  ADEALLOCATE(Periodic_Nodes_Shared)
+  ADEALLOCATE(Periodic_nNodes_Shared)
+  ADEALLOCATE(Periodic_offsetNode_Shared)
 END IF ! DoDeposition
 
 ! Then, free the pointers or arrays
