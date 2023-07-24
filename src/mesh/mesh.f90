@@ -204,7 +204,7 @@ IF (.NOT.(PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance))) THEN
 #endif /*USE_LOADBALANCE*/
   CALL OpenDataFile(MeshFile,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_WORLD)
   CALL ReadAttribute(File_ID,'Ngeo',1,IntScalar=NGeo)
-  LBWRITE(UNIT_stdOut,'(A67,I2.0)') ' |                           NGeo |                                ', NGeo
+  CALL PrintOption('NGeo','INFO',IntOpt=NGeo)
   CALL CloseDataFile()
 #if USE_LOADBALANCE
 END IF
@@ -217,7 +217,7 @@ IF(useCurveds)THEN
   END IF
 ELSE
   IF(NGeo.GT.1) THEN
-    LBWRITE(*,*) ' WARNING: Using linear elements although NGeo>1!'
+    LBWRITE(*,*) ' WARNING: Using linear elements although NGeo>1! NGeo will be set to 1 after coordinates read-in!'
   END IF
 END IF
 

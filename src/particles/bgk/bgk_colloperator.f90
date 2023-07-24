@@ -49,8 +49,9 @@ SUBROUTINE BGK_CollisionOperator(iPartIndx_Node, nPart, NodeVolume, AveragingVal
 !> 9.) Scaling of the rotational energy of molecules
 !===================================================================================================================================
 ! MODULES
-USE MOD_Globals               ,ONLY: DOTPRODUCT
+USE MOD_Globals               ,ONLY: DOTPRODUCT, CROSS
 USE MOD_Particle_Vars         ,ONLY: PartState, Species, PartSpecies, nSpecies, usevMPF, UseVarTimeStep
+USE MOD_Particle_Vars         ,ONLY: UseRotRefFrame, RotRefFrameOmega, PartVeloRotRef, PDM
 USE MOD_DSMC_Vars             ,ONLY: SpecDSMC, DSMC, PartStateIntEn, PolyatomMolDSMC, RadialWeighting, CollInf
 USE MOD_TimeDisc_Vars         ,ONLY: dt
 USE MOD_BGK_Vars              ,ONLY: SpecBGK, BGKDoVibRelaxation, BGKMovingAverage
@@ -250,6 +251,16 @@ DO iLoop = 1, nPart-nRelax
   iPart = iPartIndx_NodeRelaxTemp(iLoop)
   PartState(4:6,iPart) = vBulkAll(1:3) + alpha*(PartState(4:6,iPart)-vBulk(1:3))
 END DO
+
+IF(UseRotRefFrame) THEN
+  ! Resetting the velocity in the rotational frame of reference for particles that underwent a relaxation
+  DO iLoop = 1, nRelax
+    iPart = iPartIndx_NodeRelax(iLoop)
+    IF(PDM%InRotRefFrame(iPart)) THEN
+      PartVeloRotRef(1:3,iPart) = PartState(4:6,iPart) - CROSS(RotRefFrameOmega(1:3),PartState(1:3,iPart))
+    END IF
+  END DO
+END IF
 
 ! 9.) Rotation: Scale the new rotational state of the molecules to ensure energy conservation
 IF ( (nRotRelax.GT.0)) alpha = OldEn/NewEnRot*(Xi_RotTotal/(Xi_RotTotal+3.*(nPart-1.)))
