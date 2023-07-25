@@ -88,7 +88,7 @@ CHARACTER(LEN=3)  :: hilf ! auxiliary variable for INTEGER -> CHARACTER conversi
 !===================================================================================================================================
 IF(.NOT.UseRayTracing) RETURN
 SWRITE(UNIT_StdOut,'(132("-"))')
-SWRITE(UNIT_stdOut,'(A)') ' INIT RAY TRACING SOLVER ...'
+SWRITE(UNIT_stdOut,'(A)') ' INIT RAY TRACING MODEL ...'
 
 ! Do not absorb rays within the volume!
 RadiationAbsorptionModel = 0
@@ -172,7 +172,7 @@ CALL PrintOption('Pulse period (Time between maximum of two pulses) [s]'        
 CALL PrintOption('Temporal pulse width (pulse time 2x tShift) [s]'                   , 'CALCUL.' , RealOpt=2.0*Ray%tShift)
 CALL PrintOption('Pulse will end at tActive (pulse final time) [s]'                  , 'CALCUL.' , RealOpt=Ray%tActive)
 
-SWRITE(UNIT_stdOut,'(A)')' INIT RAY TRACING SOLVER DONE!'
+SWRITE(UNIT_stdOut,'(A)')' INIT RAY TRACING MODEL DONE!'
 SWRITE(UNIT_StdOut,'(132("-"))')
 END SUBROUTINE InitRayTracing
 
@@ -534,6 +534,9 @@ SDEALLOCATE(RayElemPassedEnergy)
 !SDEALLOCATE(RaySecondaryVectorY)
 !SDEALLOCATE(RaySecondaryVectorZ)
 !SDEALLOCATE(ElemVolume)
+
+IF(.NOT.PerformRayTracing) RETURN
+
 IF(nProcessors.GT.1)THEN
 #if USE_MPI
   SDEALLOCATE(RayElemOffset)

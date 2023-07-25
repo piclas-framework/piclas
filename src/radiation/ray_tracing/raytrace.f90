@@ -63,7 +63,7 @@ USE MOD_RayTracing_Vars         ,ONLY: RayElemPassedEnergy_Shared,RayElemPassedE
 #endif /*USE_MPI*/
 USE MOD_Photon_TrackingVars     ,ONLY: PhotonSampWall,PhotonModeBPO
 USE MOD_Mesh_Vars               ,ONLY: nGlobalElems
-USE MOD_RayTracing_Vars         ,ONLY: UseRayTracing
+USE MOD_RayTracing_Vars         ,ONLY: PerformRayTracing
 USE MOD_DSMC_Vars               ,ONLY: DSMC
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE
@@ -81,10 +81,13 @@ REAL    :: RectPower
 REAL    :: StartT,EndT ! Timer
 !===================================================================================================================================
 
-IF(.NOT.UseRayTracing) RETURN
+IF(.NOT.PerformRayTracing) RETURN
 
 GETTIME(StartT)
 SWRITE(UNIT_stdOut,'(A)') ' Start Ray Tracing Calculation ...'
+
+! Sanity check
+IF(nComputeNodeSurfTotalSides.EQ.0) CALL abort(__STAMP__,'nComputeNodeSurfTotalSides is zero, no surfaces for ray tracing found! ')
 
 ! Allocate arrays
 ALLOCATE(RayElemPassedEnergy(RayElemSize,1:nGlobalElems))
@@ -99,8 +102,8 @@ CALL MPI_WIN_LOCK_ALL(0,RayElemPassedEnergy_Shared_Win,IERROR)
 !> Shared arrays for boundary sampling
 CALL Allocate_Shared((/2,nSurfSample,nSurfSample,nComputeNodeSurfTotalSides/),PhotonSampWall_Shared_Win,PhotonSampWall_Shared)
 CALL MPI_WIN_LOCK_ALL(0,PhotonSampWall_Shared_Win,IERROR)
-IF (myComputeNodeRank.EQ.0) RayElemPassedEnergy_Shared = 0.
-IF (myComputeNodeRank.EQ.0) PhotonSampWall_Shared = 0.
+IF(myComputeNodeRank.EQ.0) RayElemPassedEnergy_Shared = 0.
+IF(myComputeNodeRank.EQ.0) PhotonSampWall_Shared      = 0.
 CALL BARRIER_AND_SYNC(RayElemPassedEnergy_Shared_Win,MPI_COMM_SHARED)
 CALL BARRIER_AND_SYNC(PhotonSampWall_Shared_Win,MPI_COMM_SHARED)
 #endif

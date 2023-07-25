@@ -40,9 +40,9 @@ USE MOD_Globals_Vars            ,ONLY: PI
 USE MOD_Timedisc_Vars           ,ONLY: dt,time
 USE MOD_Particle_Boundary_Vars  ,ONLY: nSurfSample, Partbound, SurfSide2GlobalSide, DoBoundaryParticleOutputHDF5
 USE MOD_Particle_Vars           ,ONLY: Species, PartState, usevMPF
-USE MOD_RayTracing_Vars         ,ONLY: Ray,RayPartBound
+USE MOD_RayTracing_Vars         ,ONLY: Ray,UseRayTracing
 USE MOD_part_emission_tools     ,ONLY: CalcPhotonEnergy
-USE MOD_Particle_Mesh_Vars      ,ONLY: SideInfo_Shared
+USE MOD_Particle_Mesh_Vars      ,ONLY: SideInfo_Shared,UseBezierControlPoints
 USE MOD_Particle_Surfaces_Vars  ,ONLY: BezierControlPoints3D, BezierSampleXi
 USE MOD_Particle_Surfaces       ,ONLY: EvaluateBezierPolynomialAndGradient, CalcNormAndTangBezier
 USE MOD_Mesh_Vars               ,ONLY: NGeo
@@ -64,6 +64,7 @@ USE MOD_Particle_Boundary_Vars  ,ONLY: nSurfTotalSides
 USE MOD_HDG_Vars                ,ONLY: UseFPC,FPC,UseEPC,EPC
 USE MOD_Mesh_Vars               ,ONLY: BoundaryType
 #endif /*USE_HDG*/
+USE MOD_SurfaceModel_Analyze_Vars ,ONLY: SEE,CalcElectronSEE
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -74,7 +75,7 @@ IMPLICIT NONE
 ! LOCAL VARIABLES
 REAL                  :: t_1, t_2, E_Intensity
 INTEGER               :: NbrOfRepetitions, firstSide, lastSide, SideID, iSample, GlobElemID, PartID
-INTEGER               :: iSurfSide, p, q, BCID, SpecID, iPart, NbrOfSEE
+INTEGER               :: iSurfSide, p, q, BCID, SpecID, iPart, NbrOfSEE, iSEEBC
 REAL                  :: RealNbrOfSEE, TimeScalingFactor, MPF
 REAL                  :: Particle_pos(1:3), xi(2)
 REAL                  :: RandVal, RandVal2(2), xiab(1:2,1:2), nVec(3), tang1(3), tang2(3), Velo3D(3)
@@ -84,15 +85,17 @@ INTEGER               :: iBC,iUniqueFPCBC,iUniqueEPCBC,BCState
 !===================================================================================================================================
 ! Check if ray tracing based SEE is active
 ! 1) Boundary from which rays are emitted
-IF(RayPartBound.LE.0) RETURN
+IF(.NOT.UseRayTracing) RETURN
 ! 2) SEE yield for any BC greater than zero
 IF(.NOT.ANY(PartBound%PhotonSEEYield(:).GT.0.)) RETURN
 
 ! TODO: Copied here from InitParticleMesh, which is only build if not TriaSurfaceFlux
-IF(.NOT.ALLOCATED(BezierSampleXi)) ALLOCATE(BezierSampleXi(0:nSurfSample))
-DO iSample=0,nSurfSample
-  BezierSampleXi(iSample)=-1.+2.0/nSurfSample*iSample
-END DO
+IF(UseBezierControlPoints)THEN
+  IF(.NOT.ALLOCATED(BezierSampleXi)) ALLOCATE(BezierSampleXi(0:nSurfSample))
+  DO iSample=0,nSurfSample
+    BezierSampleXi(iSample)=-1.+2.0/nSurfSample*iSample
+  END DO
+END IF
 
 ! Surf sides are shared, array calculation can be distributed
 #if USE_MPI
@@ -150,6 +153,12 @@ DO iSurfSide = firstSide, lastSide
   IF(PartBound%PhotonSEEYield(BCID).LE.0.) CYCLE
   ! Determine which species is to be inserted
   SpecID = PartBound%PhotonSEEElectronSpecies(BCID)
+  ! Sanity check
+  IF(SpecID.EQ.0)THEN
+    IPWRITE(UNIT_StdOut,*) "BCID =", BCID
+    IPWRITE(UNIT_StdOut,*) "PartBound%PhotonSEEElectronSpecies(BCID) =", PartBound%PhotonSEEElectronSpecies(BCID)
+    CALL abort(__STAMP__,'Electron species index cannot be zero!')
+  END IF ! SpecID.eq.0
   ! Determine which element the particles are going to be inserted
   GlobElemID = SideInfo_Shared(SIDE_ELEMID ,SideID)
   ! Determine the weighting factor of the electron species
@@ -170,20 +179,38 @@ DO iSurfSide = firstSide, lastSide
       RealNbrOfSEE = E_Intensity / CalcPhotonEnergy(lambda) * PartBound%PhotonSEEYield(BCID) / MPF
       CALL RANDOM_NUMBER(RandVal)
       NbrOfSEE = INT(RealNbrOfSEE+RandVal)
+      ! Check if photon SEE electric current is to be measured
+      IF((NbrOfSEE.GT.0).AND.(CalcElectronSEE))THEN
+        ! Note that the negative value of the charge -q is used below
+        iSEEBC = SEE%BCIDToSEEBCID(BCID)
+        SEE%RealElectronOut(iSEEBC) = SEE%RealElectronOut(iSEEBC) - MPF*NbrOfSEE*Species(SpecID)%ChargeIC
+      END IF ! (NbrOfSEE.GT.0).AND.(CalcElectronSEE)
       ! Calculate the normal & tangential vectors
-      xi(1)=(BezierSampleXi(p-1)+BezierSampleXi(p))/2. ! (a+b)/2
-      xi(2)=(BezierSampleXi(q-1)+BezierSampleXi(q))/2. ! (a+b)/2
-      xiab(1,1:2)=(/BezierSampleXi(p-1),BezierSampleXi(p)/)
-      xiab(2,1:2)=(/BezierSampleXi(q-1),BezierSampleXi(q)/)
-      CALL CalcNormAndTangBezier(nVec,tang1,tang2,xi(1),xi(2),SideID)
+      IF(UseBezierControlPoints)THEN
+        ! Use Bezier polynomial
+        xi(1)=(BezierSampleXi(p-1)+BezierSampleXi(p))/2. ! (a+b)/2
+        xi(2)=(BezierSampleXi(q-1)+BezierSampleXi(q))/2. ! (a+b)/2
+        xiab(1,1:2)=(/BezierSampleXi(p-1),BezierSampleXi(p)/)
+        xiab(2,1:2)=(/BezierSampleXi(q-1),BezierSampleXi(q)/)
+        CALL CalcNormAndTangBezier(nVec,tang1,tang2,xi(1),xi(2),SideID)
+      ELSE
+        ! Sanity check
+        CALL abort(__STAMP__,'Photoionization with ray tracing requires BezierControlPoints3D')
+      END IF ! nSurfSample.GT.1
       ! Normal vector provided by the routine points outside of the domain
       nVec = -nVec
       ! Loop over number of particles to be inserted
       DO iPart = 1, NbrOfSEE
         ! Determine particle position within the sub-side
         CALL RANDOM_NUMBER(RandVal2)
-        xi=(xiab(:,2)-xiab(:,1))*RandVal2+xiab(:,1)
-        CALL EvaluateBezierPolynomialAndGradient(xi,NGeo,3,BezierControlPoints3D(1:3,0:NGeo,0:NGeo,SideID),Point=Particle_pos(1:3))
+        IF(UseBezierControlPoints)THEN
+          ! Use Bezier polynomial
+          xi=(xiab(:,2)-xiab(:,1))*RandVal2+xiab(:,1)
+          CALL EvaluateBezierPolynomialAndGradient(xi,NGeo,3,BezierControlPoints3D(1:3,0:NGeo,0:NGeo,SideID),Point=Particle_pos(1:3))
+        ELSE
+          ! Sanity check
+          CALL abort(__STAMP__,'Photoionization with ray tracing requires BezierControlPoints3D')
+        END IF ! nSurfSample.GT.1
         ! Determine particle velocity
         CALL CalcVelocity_FromWorkFuncSEE(PartBound%PhotonSEEWorkFunction(BCID), Species(SpecID)%MassIC, tang1, nVec, Velo3D)
         ! Create new particle

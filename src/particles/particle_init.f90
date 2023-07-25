@@ -212,6 +212,7 @@ END SUBROUTINE DefineParametersParticles
 SUBROUTINE InitParticleGlobals(IsLoadBalance)
 ! MODULES
 USE MOD_Globals
+USE MOD_Globals_Vars           ,ONLY: ProjectName
 USE MOD_ReadInTools
 USE MOD_Particle_Tracking_Vars ,ONLY: TrackingMethod
 USE MOD_Particle_Vars          ,ONLY: Symmetry
@@ -221,8 +222,9 @@ USE MOD_LoadBalance_Vars       ,ONLY: PerformLoadBalance
 USE MOD_PICDepo_Method         ,ONLY: InitDepositionMethod
 USE MOD_Particle_Vars          ,ONLY: UseVarTimeStep, VarTimeStep
 USE MOD_ReadInTools            ,ONLY: GETLOGICAL
-USE MOD_RayTracing_Vars        ,ONLY: UseRayTracing
+USE MOD_RayTracing_Vars        ,ONLY: UseRayTracing,PerformRayTracing
 USE MOD_Particle_TimeStep      ,ONLY: InitPartTimeStep
+USE MOD_Photon_TrackingVars    ,ONLY: RadiationSurfState,RadiationVolState
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -263,7 +265,19 @@ END IF
 CALL InitDepositionMethod()
 
 !--- Ray Tracing
+! 1) Activate ray tracing based emission (also required for plasma simulation)
 UseRayTracing = GETLOGICAL('UseRayTracing')
+! 2) Activate actual ray tracing algorithms that track rays through the complete mesh (full mesh mode)
+RadiationSurfState = TRIM(ProjectName)//'_RadiationSurfState.h5'
+RadiationVolState  = TRIM(ProjectName)//'_RadiationVolState.h5'
+PerformRayTracing  = .FALSE. ! default
+IF(UseRayTracing)THEN
+  IF(FILEEXISTS(RadiationSurfState).AND.FILEEXISTS(RadiationVolState))THEN
+    PerformRayTracing = .FALSE.
+  ELSE
+    PerformRayTracing = .TRUE.
+  END IF ! FILEEXISTS(RadiationSurfState).AND.FILEEXISTS(RadiationVolState)
+END IF ! UseRayTracing
 
 LBWRITE(UNIT_stdOut,'(A)')' INIT PARTICLE GLOBALS DONE'
 
@@ -861,7 +875,7 @@ USE MOD_Particle_Boundary_Vars ,ONLY: AdaptWallTemp
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Vars       ,ONLY: PerformLoadBalance
 #endif /*USE_LOADBALANCE*/
-USE MOD_RayTracing_Vars        ,ONLY: UseRayTracing
+USE MOD_RayTracing_Vars        ,ONLY: PerformRayTracing
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -872,14 +886,14 @@ USE MOD_RayTracing_Vars        ,ONLY: UseRayTracing
 ! LOCAL VARIABLES
 !===================================================================================================================================
 ! Include surface values in the macroscopic output
-IF(UseRayTracing)THEN
-  ! Automatically activate when UseRayTracing = T
+IF(PerformRayTracing)THEN
+  ! Automatically activate when PerformRayTracing = T
   DSMC%CalcSurfaceVal = .TRUE.
-  CALL PrintOption('Surface sampling activated (UseRayTracing=T): Particles-DSMC-CalcSurfaceVal','INFO',&
+  CALL PrintOption('Surface sampling activated (PerformRayTracing=T): Particles-DSMC-CalcSurfaceVal','INFO',&
       LogOpt=DSMC%CalcSurfaceVal)
 ELSE
   DSMC%CalcSurfaceVal = GETLOGICAL('Particles-DSMC-CalcSurfaceVal')
-END IF ! UseRayTracing
+END IF ! PerformRayTracing
 ! Include electronic energy excitation in the macroscopic output
 SampleElecExcitation = GETLOGICAL('Part-SampElectronicExcitation')
 ! Sampling for and output every given number of iterations (sample is reset after an output)

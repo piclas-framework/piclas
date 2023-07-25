@@ -891,6 +891,8 @@ END SUBROUTINE InitBoundaryParticleOutput
 !> 1) Check if secondary electron emission occurs
 !> 1.1) Count number of different SEE boundaries via reflective particle BC
 !> 1.2) Count number of different photon SEE boundaries
+!> 1.3) Count number of ray tracing photon SEE boundaries. WARNING: The combination of Init-based photon SEE and ray tracing photon
+!       SEE is not allowed
 !> 2.) Create Mapping from SEE BC index to particle BC index
 !> 2.1) Create mapping for reactive surface SEE (non-photon impacts)
 !> 2.2) Create mapping for photon-surface SEE
@@ -939,13 +941,26 @@ DO iSpec=1,nSpecies
 END DO
 NPartBoundariesPhotonSEE = SEE%NPartBoundaries - NPartBoundariesReflectiveSEE
 
+! 1.3) Count number of ray tracing photon SEE boundaries. WARNING: The combination of Init-based photon SEE and ray tracing photon
+!      SEE is not allowed
+DO iPartBound = 1, nPartBound
+  IF(PartBound%PhotonSEEYield(iPartBound).GT.0.0)THEN
+    ! Sanity checks
+    IF(NPartBoundariesPhotonSEE.GT.0) CALL abort(__STAMP__,'The combination of Init-based + ray tracing photon SEE is not allowed!')
+    ! Remove the following check when the model is implemented (deposited charge holes by SEE)
+    IF(PartBound%Dielectric(iPartBound)) CALL abort(__STAMP__,'Dielectric surfaces and ray tracing ist not implemented')
+    SEE%NPartBoundaries = SEE%NPartBoundaries + 1
+  END IF ! PartBound%PhotonSEEYield(iPartBound).GT.0.0
+END DO ! iPartBound = 1, nPartBound
+NPartBoundariesPhotonSEE = SEE%NPartBoundaries - NPartBoundariesReflectiveSEE
+
 ! If not SEE boundaries exist, no measurement of the current can be performed
 IF(SEE%NPartBoundaries.EQ.0) RETURN
 
 ! Automatically activate when CalcBoundaryParticleOutput=T
 IF(CalcBoundaryParticleOutput)THEN
   CalcElectronSEE = .TRUE.
-  CALL PrintOption('SEE current measurement activated (CalcBoundaryParticleOutput=T): CalcElectronSEE','INFO',&
+  CALL PrintOption('SEE current activated (CalcBoundaryParticleOutput=T): CalcElectronSEE','INFO',&
       LogOpt=CalcElectronSEE)
 ELSE
   CalcElectronSEE = GETLOGICAL('CalcElectronSEE','.FALSE.')
@@ -969,7 +984,7 @@ DO iPartBound=1,nPartBound
     SEE%PartBoundaries(SEE%NPartBoundaries) = iPartBound
   END SELECT
 END DO ! iPartBound=1,nPartBound
-! 2.2) Create mapping for photon-surface SEE
+! 2.2) Create mapping for photon-surface SEE (Init-based)
 DO iSpec=1,nSpecies
   DO iInit=1, Species(iSpec)%NumberOfInits
     IF(Species(iSpec)%Init(iInit)%PartBCIndex.GT.0)THEN
@@ -980,6 +995,13 @@ DO iSpec=1,nSpecies
     END IF
   END DO
 END DO
+! 2.3) Create mapping for photon-surface SEE (ray tracing)
+DO iPartBound = 1, nPartBound
+  IF(PartBound%PhotonSEEYield(iPartBound).GT.0.0)THEN
+    SEE%NPartBoundaries = SEE%NPartBoundaries + 1
+    SEE%PartBoundaries(SEE%NPartBoundaries) = iPartBound
+  END IF ! PartBound%PhotonSEEYield(iPartBound).GT.0.0
+END DO ! iPartBound = 1, nPartBound
 
 ! Allocate the container
 ALLOCATE(SEE%RealElectronOut(1:SEE%NPartBoundaries))

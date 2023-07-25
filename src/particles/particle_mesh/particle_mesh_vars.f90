@@ -44,6 +44,7 @@ INTEGER            :: offsetComputeNodeElem                 !> elem offset of co
 INTEGER            :: offsetComputeNodeSide                 !> side offset of compute-node root
 INTEGER            :: offsetComputeNodeNode                 !> node offset of compute-node root
 INTEGER            :: nUniqueGlobalNodes                    !> MAXVAL(NodeInfo_Shared)
+LOGICAL            :: UseBezierControlPoints                !> Flag is automatically set when BezierControlPoints3D are built
 
 #if USE_MPI
 LOGICAL, ALLOCATABLE :: IsExchangeElem(:) !> Exchange elements may receive particles during MPI communication and cannot be used for latency hiding

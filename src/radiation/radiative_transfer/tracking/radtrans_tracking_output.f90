@@ -54,10 +54,11 @@ USE MOD_HDF5_output          ,ONLY: GenerateFileSkeleton
 USE MOD_HDF5_Output_ElemData ,ONLY: WriteAdditionalElemData
 USE MOD_Mesh_Vars            ,ONLY: offsetElem,nGlobalElems
 USE MOD_ChangeBasis          ,ONLY: ChangeBasis3D
-USE MOD_Interpolation_Vars ,ONLY: NodeType
-USE MOD_Interpolation      ,ONLY: GetVandermonde
-USE MOD_Mesh_Tools            ,ONLY: GetCNElemID
-USE MOD_Particle_Mesh_Vars      ,ONLY: ElemVolume_Shared
+USE MOD_Interpolation_Vars   ,ONLY: NodeType
+USE MOD_Interpolation        ,ONLY: GetVandermonde
+USE MOD_Mesh_Tools           ,ONLY: GetCNElemID
+USE MOD_Particle_Mesh_Vars   ,ONLY: ElemVolume_Shared
+USE MOD_Photon_TrackingVars  ,ONLY: RadiationVolState
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -67,7 +68,6 @@ USE MOD_Particle_Mesh_Vars      ,ONLY: ElemVolume_Shared
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
-CHARACTER(LEN=255)                  :: FileName
 INTEGER                             :: iElem,iGlobalElem,iCNElem,Nloc,k,l,m
 CHARACTER(LEN=255), ALLOCATABLE     :: StrVarNames(:)
 REAL                                :: U(nVarRay,0:Ray%NMax,0:Ray%NMax,0:Ray%NMax,PP_nElems)
@@ -113,8 +113,7 @@ StrVarNames(2)='RayElemPassedEnergy2nd'
 StrVarNames(3)='ElemVolume'
 
 ! Generate skeleton for the file with all relevant data on a single proc (MPIRoot)
-FileName=TRIM(ProjectName)//'_RadiationVolState.h5'
-IF(MPIRoot) CALL GenerateFileSkeleton('RadiationVolState',nVarRay,StrVarNames,TRIM(MeshFile),0.,FileNameIn=FileName,NIn=Ray%NMax,NodeType_in=Ray%NodeType)
+IF(MPIRoot) CALL GenerateFileSkeleton('RadiationVolState',nVarRay,StrVarNames,TRIM(MeshFile),0.,FileNameIn=RadiationVolState,NIn=Ray%NMax,NodeType_in=Ray%NodeType)
 #if USE_MPI
   CALL MPI_BARRIER(MPI_COMM_WORLD,iError)
 #endif
@@ -198,7 +197,7 @@ ASSOCIATE( RayElemPassedEnergy => RayElemPassedEnergy_Shared )
         nGlobalElems      => INT(nGlobalElems,IK)       ,&
         PP_nElems         => INT(PP_nElems,IK)          ,&
         offsetElem        => INT(offsetElem,IK)         )
-    CALL GatheredWriteArray(FileName,create=.FALSE.,&
+    CALL GatheredWriteArray(RadiationVolState,create=.FALSE.,&
          DataSetName='DG_Solution', rank=5,&
          nValGlobal=(/nVarRay     , NMax+1_IK , NMax+1_IK , NMax+1_IK , nGlobalElems/) , &
          nVal=      (/nVarRay     , NMax+1_IK , NMax+1_IK , NMax+1_IK , PP_nElems/)    , &
@@ -210,7 +209,7 @@ END ASSOCIATE
 #endif /*USE_MPI*/
 
 ! Write all 'ElemData' arrays to a single container in the state.h5 file
-CALL WriteAdditionalElemData(FileName,ElementOut)
+CALL WriteAdditionalElemData(RadiationVolState,ElementOut)
 
 SWRITE(*,*) 'DONE'
 END SUBROUTINE WritePhotonVolSampleToHDF5
@@ -242,6 +241,7 @@ USE MOD_Photon_TrackingVars    ,ONLY: PhotonSampWall
 USE MOD_Particle_Boundary_Vars ,ONLY: SurfSideArea
 #endif /*USE_MPI*/
 USE MOD_Particle_Boundary_Vars ,ONLY: nSurfSample, PartBound
+USE MOD_Photon_TrackingVars    ,ONLY: RadiationSurfState
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -250,7 +250,7 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-CHARACTER(LEN=255)                  :: FileString,Statedummy
+CHARACTER(LEN=255)                  :: Statedummy
 CHARACTER(LEN=255)                  :: H5_Name
 CHARACTER(LEN=4),PARAMETER          :: NodeTypeTemp = 'VISU'
 CHARACTER(LEN=255),ALLOCATABLE      :: Str2DVarNames(:)
@@ -273,13 +273,11 @@ IF (mySurfRank.EQ.0) THEN
   tstart=LOCALTIME()
 END IF
 
-FileString=TRIM(ProjectName)//'_RadiationSurfState.h5'
-
 ! Generate skeleton for the file with all relevant data on a single proc (MPIRoot)
 #if USE_MPI
 IF (mySurfRank.EQ.0) THEN
 #endif /*USE_MPI*/
-  CALL OpenDataFile(FileString,create=.TRUE.,single=.TRUE.,readOnly=.FALSE.)
+  CALL OpenDataFile(RadiationSurfState,create=.TRUE.,single=.TRUE.,readOnly=.FALSE.)
   Statedummy = 'RadiationSurfState'
   ! Write file header
   CALL WriteHDF5Header(Statedummy,File_ID)
@@ -303,9 +301,9 @@ IF (mySurfRank.EQ.0) THEN
 #if USE_MPI
 END IF
 CALL MPI_BARRIER(MPI_COMM_LEADERS_SURF,iERROR)
-CALL OpenDataFile(FileString,create=.FALSE.,single=.FALSE.,readOnly=.FALSE.,communicatorOpt=MPI_COMM_LEADERS_SURF)
+CALL OpenDataFile(RadiationSurfState,create=.FALSE.,single=.FALSE.,readOnly=.FALSE.,communicatorOpt=MPI_COMM_LEADERS_SURF)
 #else
-CALL OpenDataFile(FileString,create=.FALSE.,single=.FALSE.,readOnly=.FALSE.)
+CALL OpenDataFile(RadiationSurfState,create=.FALSE.,single=.FALSE.,readOnly=.FALSE.)
 #endif /*USE_MPI*/
 
 

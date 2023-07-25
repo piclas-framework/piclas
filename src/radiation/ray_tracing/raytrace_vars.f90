@@ -24,7 +24,8 @@ SAVE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! GLOBAL RAY TRACING VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
-LOGICAL :: UseRayTracing        ! Activate ray tracing tools
+LOGICAL :: UseRayTracing        ! Activate ray tracing based emission (also required for plasma simulation)
+LOGICAL :: PerformRayTracing    ! Activate actual ray tracing algorithms that track rays through the complete mesh (full mesh mode)
 
 TYPE tRayTrace
   REAL    :: PulseDuration      !<
