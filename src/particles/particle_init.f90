@@ -225,6 +225,7 @@ USE MOD_ReadInTools            ,ONLY: GETLOGICAL
 USE MOD_RayTracing_Vars        ,ONLY: UseRayTracing,PerformRayTracing
 USE MOD_Particle_TimeStep      ,ONLY: InitPartTimeStep
 USE MOD_Photon_TrackingVars    ,ONLY: RadiationSurfState,RadiationVolState
+USE MOD_Restart_Vars           ,ONLY: DoRestart
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -276,6 +277,7 @@ IF(UseRayTracing)THEN
     PerformRayTracing = .FALSE.
   ELSE
     PerformRayTracing = .TRUE.
+    IF(DoRestart) CALL abort(__STAMP__,'Restart simulation requires '//TRIM(RadiationSurfState)//' and '//TRIM(RadiationVolState))
   END IF ! FILEEXISTS(RadiationSurfState).AND.FILEEXISTS(RadiationVolState)
 END IF ! UseRayTracing
 
@@ -875,7 +877,7 @@ USE MOD_Particle_Boundary_Vars ,ONLY: AdaptWallTemp
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Vars       ,ONLY: PerformLoadBalance
 #endif /*USE_LOADBALANCE*/
-USE MOD_RayTracing_Vars        ,ONLY: PerformRayTracing
+USE MOD_RayTracing_Vars        ,ONLY: UseRayTracing
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -886,14 +888,14 @@ USE MOD_RayTracing_Vars        ,ONLY: PerformRayTracing
 ! LOCAL VARIABLES
 !===================================================================================================================================
 ! Include surface values in the macroscopic output
-IF(PerformRayTracing)THEN
-  ! Automatically activate when PerformRayTracing = T
+IF(UseRayTracing)THEN
+  ! Automatically activate when UseRayTracing = T
   DSMC%CalcSurfaceVal = .TRUE.
-  CALL PrintOption('Surface sampling activated (PerformRayTracing=T): Particles-DSMC-CalcSurfaceVal','INFO',&
+  CALL PrintOption('Surface sampling activated (UseRayTracing=T): Particles-DSMC-CalcSurfaceVal','INFO',&
       LogOpt=DSMC%CalcSurfaceVal)
 ELSE
   DSMC%CalcSurfaceVal = GETLOGICAL('Particles-DSMC-CalcSurfaceVal')
-END IF ! PerformRayTracing
+END IF ! UseRayTracing
 ! Include electronic energy excitation in the macroscopic output
 SampleElecExcitation = GETLOGICAL('Part-SampElectronicExcitation')
 ! Sampling for and output every given number of iterations (sample is reset after an output)

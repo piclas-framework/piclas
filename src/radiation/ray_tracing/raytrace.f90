@@ -43,7 +43,7 @@ SUBROUTINE RayTracing()
 USE MOD_Globals
 USE MOD_MPI_Shared_Vars
 USE MOD_MPI_Shared
-USE MOD_RayTracing_Vars         ,ONLY: RayPartBound,NumRays,Ray,RayElemPassedEnergy,RayElemSize
+USE MOD_RayTracing_Vars         ,ONLY: RayPartBound,NumRays,Ray,RayElemPassedEnergy,RayElemSize,N_DG_Ray_loc
 USE MOD_Photon_TrackingVars     ,ONLY: PhotonProps
 USE MOD_Photon_Tracking         ,ONLY: PhotonTriaTracking
 USE MOD_Mesh_Tools              ,ONLY: GetGlobalElemID
@@ -62,9 +62,11 @@ USE MOD_Photon_TrackingVars     ,ONLY: PhotonSampWall_Shared, PhotonSampWall_Sha
 USE MOD_RayTracing_Vars         ,ONLY: RayElemPassedEnergy_Shared,RayElemPassedEnergy_Shared_Win
 #endif /*USE_MPI*/
 USE MOD_Photon_TrackingVars     ,ONLY: PhotonSampWall,PhotonModeBPO
-USE MOD_Mesh_Vars               ,ONLY: nGlobalElems
-USE MOD_RayTracing_Vars         ,ONLY: PerformRayTracing
+USE MOD_Mesh_Vars               ,ONLY: nGlobalElems,nElems
+USE MOD_RayTracing_Vars         ,ONLY: UseRayTracing,PerformRayTracing,RayElemEmission
 USE MOD_DSMC_Vars               ,ONLY: DSMC
+USE MOD_RayTracing_Init         ,ONLY: FinalizeRayTracing
+USE MOD_RayTracing_Vars         ,ONLY: RaySecondaryVectorX,RaySecondaryVectorY,RaySecondaryVectorZ
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -81,7 +83,25 @@ REAL    :: RectPower
 REAL    :: StartT,EndT ! Timer
 !===================================================================================================================================
 
-IF(.NOT.PerformRayTracing) RETURN
+IF(.NOT.UseRayTracing) RETURN
+
+! Allocate process-local element arrays which are either filled from the global shared array when ray tracing is performed or read
+! from .h5 when a restart is performed
+ALLOCATE(N_DG_Ray_loc(1:nElems))
+N_DG_Ray_loc = -1
+ALLOCATE(RayElemEmission(1:nElems))
+RayElemEmission = .FALSE.
+ALLOCATE(RaySecondaryVectorX(1:nElems))
+ALLOCATE(RaySecondaryVectorY(1:nElems))
+ALLOCATE(RaySecondaryVectorZ(1:nElems))
+RaySecondaryVectorX=-1.0
+RaySecondaryVectorY=-1.0
+RaySecondaryVectorZ=-1.0
+
+IF(.NOT.PerformRayTracing)THEN
+  CALL ReadRayTracingDataFromH5()
+  RETURN
+END IF
 
 GETTIME(StartT)
 SWRITE(UNIT_stdOut,'(A)') ' Start Ray Tracing Calculation ...'
@@ -89,7 +109,7 @@ SWRITE(UNIT_stdOut,'(A)') ' Start Ray Tracing Calculation ...'
 ! Sanity check
 IF(nComputeNodeSurfTotalSides.EQ.0) CALL abort(__STAMP__,'nComputeNodeSurfTotalSides is zero, no surfaces for ray tracing found! ')
 
-! Allocate arrays
+! Allocate global arrays
 ALLOCATE(RayElemPassedEnergy(RayElemSize,1:nGlobalElems))
 RayElemPassedEnergy=0.0
 ALLOCATE(PhotonSampWall(2,1:nSurfSample,1:nSurfSample,1:nComputeNodeSurfTotalSides))
@@ -201,10 +221,131 @@ CALL WritePhotonSurfSampleToHDF5()
 
 CALL WritePhotonVolSampleToHDF5()
 
+CALL FinalizeRayTracing()
+
+PerformRayTracing = .FALSE.
+
 GETTIME(EndT)
 CALL DisplayMessageAndTime(EndT-StartT, ' DONE!', DisplayDespiteLB=.TRUE., DisplayLine=.FALSE.)
 
 END SUBROUTINE RayTracing
+
+
+!===================================================================================================================================
+!> Read ray tracing volume and surface data (instead of running the actual ray tracing calculation)
+!> 1. Get element polynomial degree
+!===================================================================================================================================
+SUBROUTINE ReadRayTracingDataFromH5()
+! MODULES
+USE MOD_Globals
+USE MOD_IO_HDF5
+USE MOD_PreProc
+USE MOD_HDF5_Input          ,ONLY: ReadArray,DatasetExists
+USE MOD_Photon_TrackingVars ,ONLY: RadiationSurfState,RadiationVolState
+USE MOD_Mesh_Vars           ,ONLY: offsetElem,nElems,nGlobalElems
+USE MOD_RayTracing_Vars     ,ONLY: N_DG_Ray_loc,Ray,nVarRay,U_N_Ray_loc,PREF_VDM_Ray,N_Inter_Ray,RayElemEmission
+USE MOD_ChangeBasis         ,ONLY: ChangeBasis3D
+USE MOD_RayTracing_Vars     ,ONLY: RaySecondaryVectorX,RaySecondaryVectorY,RaySecondaryVectorZ
+IMPLICIT NONE
+!----------------------------------------------------------------------------------------------------------------------------------!
+! INPUT / OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER :: iElem,Nloc,iVar,k,l,m
+LOGICAL :: ContainerExists
+REAL    :: N_DG_Ray_locREAL(1:nElems)
+REAL    :: UNMax(nVarRay,0:Ray%NMax,0:Ray%NMax,0:Ray%NMax,PP_nElems)
+REAL    :: UNMax_loc(nVarRay,0:Ray%NMax,0:Ray%NMax,0:Ray%NMax)
+!===================================================================================================================================
+! 1. Get local element polynomial degree
+CALL OpenDataFile(RadiationVolState,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_WORLD)
+CALL DatasetExists(File_ID,'Nloc',ContainerExists)
+IF(.NOT.ContainerExists) CALL CollectiveStop(__STAMP__,'Nloc container does not exist in '//TRIM(RadiationVolState))
+! Array is stored as REAL value, hence, convert back to integer
+CALL ReadArray('Nloc',2,(/1_IK,INT(nElems,IK)/),INT(offsetElem,IK),2,RealArray=N_DG_Ray_locREAL)
+N_DG_Ray_loc = INT(N_DG_Ray_locREAL)
+! Sanity check
+IF(ANY(N_DG_Ray_loc.LE.0)) CALL abort(__STAMP__,'N_DG_Ray_loc cannot contain zeros!')
+
+! 1. Get local ray tracing solution
+! The local DG solution in physical space
+ALLOCATE(U_N_Ray_loc(1:nElems))
+DO iElem = 1, nElems
+  Nloc = N_DG_Ray_loc(iElem)
+  ALLOCATE(U_N_Ray_loc(iElem)%U(nVarRay,0:Nloc,0:Nloc,0:Nloc))
+  U_N_Ray_loc(iElem)%U = 0.
+END DO ! iElem = 1, nElems
+! Associate construct for integer KIND=8 possibility
+ASSOCIATE (&
+      nVarRay8          => INT(nVarRay,IK)            ,&
+      NMax              => INT(Ray%NMax,IK)           ,&
+      nGlobalElems      => INT(nGlobalElems,IK)       ,&
+      PP_nElems         => INT(PP_nElems,IK)          ,&
+      offsetElem        => INT(offsetElem,IK)          &
+      )
+      !Nres              => INT(N_Restart,4)           ,&
+      !Nres8             => INT(N_Restart,IK)          ,&
+  CALL DatasetExists(File_ID,'DG_Solution',ContainerExists)
+  IF(.NOT.ContainerExists) CALL CollectiveStop(__STAMP__,'DG_Solution container does not exist in '//TRIM(RadiationVolState))
+  CALL ReadArray('DG_Solution' ,5,(/nVarRay8,NMax+1_IK,NMax+1_IK,NMax+1_IK,PP_nElems/),OffsetElem,5,RealArray=UNMax)
+
+  ! Map from NMax to local polynomial degree
+  DO iElem = 1, nElems
+    Nloc = N_DG_Ray_loc(iElem)
+    IF(Nloc.EQ.Ray%NMax)THEN
+      U_N_Ray_loc(iElem)%U(1:nVarRay,0:NMax,0:NMax,0:NMax) = UNMax(1:nVarRay,0:NMax,0:NMax,0:NMax,iElem)
+    ELSEIF(Nloc.GT.Ray%NMax)THEN
+      CALL ChangeBasis3D(nVarRay, Ray%NMax, Nloc, PREF_VDM_Ray(Ray%NMax, Nloc)%Vdm, UNMax(1:nVarRay,0:NMax,0:NMax,0:NMax,iElem), U_N_Ray_loc(iElem)%U(1:nVarRay,0:Nloc,0:Nloc,0:Nloc))
+    ELSE
+      !transform the slave side to the same degree as the master: switch to Legendre basis
+      CALL ChangeBasis3D(nVarRay, Ray%NMax, Ray%NMax, N_Inter_Ray(Ray%NMax)%sVdm_Leg, UNMax(1:nVarRay,0:NMax,0:NMax,0:NMax,iElem), UNMax_loc)
+      ! switch back to nodal basis
+      CALL ChangeBasis3D(nVarRay, Nloc, Nloc, N_Inter_Ray(Nloc)%Vdm_Leg, UNMax_loc(1:nVarRay,0:Nloc,0:Nloc,0:Nloc), U_N_Ray_loc(iElem)%U(1:nVarRay,0:Nloc,0:Nloc,0:Nloc))
+    END IF ! Nloc.EQ.Ray%NMax
+
+    ! Sanity check: Very small negative numbers might occur due to the interpolation
+    DO iVar = 1, nVarRay
+      DO m=0,Nloc
+        DO l=0,Nloc
+          DO k=0,Nloc
+            IF(U_N_Ray_loc(iElem)%U(iVar,k,l,m).LT.0.) U_N_Ray_loc(iElem)%U(iVar,k,l,m) = 0.0
+          END DO ! k
+        END DO ! l
+      END DO ! m
+    END DO ! iVar = 1, nVarRay
+
+    ! Check for emission elements and flag for later volume emission
+    DO iVar = 1, 2
+      DO m=0,Nloc
+        DO l=0,Nloc
+          DO k=0,Nloc
+            IF(U_N_Ray_loc(iElem)%U(iVar,k,l,m).GT.0.) RayElemEmission(iElem) = .TRUE.
+          END DO ! k
+        END DO ! l
+      END DO ! m
+    END DO ! iVar = 1, nVarRay
+  END DO ! iElem = 1, nElems
+END ASSOCIATE
+
+CALL DatasetExists(File_ID,'RaySecondaryVectorX',ContainerExists)
+IF(.NOT.ContainerExists) CALL CollectiveStop(__STAMP__,'RaySecondaryVectorX container does not exist in '//TRIM(RadiationVolState))
+CALL ReadArray('RaySecondaryVectorX',2,(/1_IK,INT(nElems,IK)/),INT(offsetElem,IK),2,RealArray=RaySecondaryVectorX)
+
+CALL DatasetExists(File_ID,'RaySecondaryVectorY',ContainerExists)
+IF(.NOT.ContainerExists) CALL CollectiveStop(__STAMP__,'RaySecondaryVectorY container does not exist in '//TRIM(RadiationVolState))
+CALL ReadArray('RaySecondaryVectorY',2,(/1_IK,INT(nElems,IK)/),INT(offsetElem,IK),2,RealArray=RaySecondaryVectorY)
+
+CALL DatasetExists(File_ID,'RaySecondaryVectorZ',ContainerExists)
+IF(.NOT.ContainerExists) CALL CollectiveStop(__STAMP__,'RaySecondaryVectorZ container does not exist in '//TRIM(RadiationVolState))
+CALL ReadArray('RaySecondaryVectorZ',2,(/1_IK,INT(nElems,IK)/),INT(offsetElem,IK),2,RealArray=RaySecondaryVectorZ)
+
+!WRITE (*,*) "RaySecondaryVectorX =", RaySecondaryVectorX
+!WRITE (*,*) "RaySecondaryVectorY =", RaySecondaryVectorY
+!WRITE (*,*) "RaySecondaryVectorZ =", RaySecondaryVectorZ
+!WRITE (*,*) "TRIM(RadiationSurfState) =", TRIM(RadiationSurfState)
+!read*
+CALL CloseDataFile()
+END SUBROUTINE ReadRayTracingDataFromH5
 
 
 FUNCTION SetPhotonEnergy(iCNElem, Point, iWave)

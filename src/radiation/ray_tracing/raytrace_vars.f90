@@ -71,6 +71,7 @@ END TYPE
 TYPE (tRadTrans)     :: RadTrans                       !<
 
 LOGICAL              :: RayForceAbsorption             !< Surface photon sampling is performed independent of the actual absorption/reflection outcome (default=T)
+LOGICAL, ALLOCATABLE :: RayElemEmission(:)             !< Flag elements that are relevant for volume photoionization
 INTEGER              :: NumRays                        !<
 INTEGER              :: RayPartBound                   !< Particle boundary ID where rays are emitted from
 
@@ -94,7 +95,7 @@ REAL,ALLOCATABLE     :: ElemVolume(:)
 ! Output of high-order p-adaptive info
 INTEGER,PARAMETER    :: nVarRay=3                      !< Number of variables for higher-order sampling for volume ray tracing
 
-INTEGER,ALLOCATABLE  :: N_DG_Ray_loc(:)                !< for output to ElemData
+INTEGER,ALLOCATABLE  :: N_DG_Ray_loc(:)                !< for output to ElemData and usage in emission routines
 INTEGER,ALLOCPOINT   :: N_DG_Ray(:)                    !< polynomial degree inside DG element for higher-order sampling for volume ray tracing, size(nElems)
 #if USE_MPI
 INTEGER              :: N_DG_Ray_Shared_Win
@@ -108,15 +109,16 @@ END TYPE N_U_Vol
 
 ! DG solution (JU or U) vectors
 TYPE(N_U_Vol),ALLOCATABLE :: U_N_Ray(:)                !< Solution variable for each equation, node and element,
+TYPE(N_U_Vol),ALLOCATABLE :: U_N_Ray_loc(:)            !< Solution variable for each equation, node and element,
 
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Volume mesh variables
 !-----------------------------------------------------------------------------------------------------------------------------------
-TYPE, PUBLIC :: VolMesh
-  REAL,ALLOCATABLE :: Elem_xGP(:,:,:,:) !< XYZ positions (first index 1:3) of the volume Gauss Point
-END TYPE VolMesh
+!TYPE, PUBLIC :: VolMesh
+  !REAL,ALLOCATABLE :: Elem_xGP(:,:,:,:) !< XYZ positions (first index 1:3) of the volume Gauss Point
+!END TYPE VolMesh
 
-TYPE(VolMesh),ALLOCATABLE  :: N_VolMesh_Ray(:) !< Array to store Mesh metrics object "VolMesh"
+!TYPE(VolMesh),ALLOCATABLE  :: N_VolMesh_Ray(:) !< Array to store Mesh metrics object "VolMesh"
 
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Interpolation variables

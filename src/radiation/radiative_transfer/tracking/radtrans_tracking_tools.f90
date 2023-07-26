@@ -762,7 +762,7 @@ DO iIntersec = 1, NbrOfSamples
       realcounter = 0.5
       U_N_Ray(GlobalElemID)%U(idx,k,l,m) = U_N_Ray(GlobalElemID)%U(idx,k,l,m) &
                                          + realcounter * sublength * PhotonProps%PhotonEnergy
-      ! Exist loop and subroutine here
+      ! Exit loop and subroutine here
       RETURN
     ELSE
       ! Initialize counter with half step and add 1, which gives 1.5
@@ -774,7 +774,7 @@ DO iIntersec = 1, NbrOfSamples
     IF(iIntersec.EQ.NbrOfSamples)THEN
       U_N_Ray(GlobalElemID)%U(idx,k,l,m) = U_N_Ray(GlobalElemID)%U(idx,k,l,m) &
                                          + realcounter * sublength * PhotonProps%PhotonEnergy
-      ! Exist loop and subroutine here
+      ! Exit loop and subroutine here
       RETURN
     END IF ! iIntersec.EQ.NbrOfSamples
     ! 1st or still in old sub-element
