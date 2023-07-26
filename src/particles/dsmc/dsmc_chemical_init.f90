@@ -774,6 +774,7 @@ USE MOD_part_emission_tools ,ONLY: CalcPhotonEnergy
 USE MOD_PARTICLE_Vars       ,ONLY: nSpecies
 USE MOD_RayTracing_Vars     ,ONLY: RayPartBound,Ray
 USE MOD_Particle_Vars       ,ONLY: Species
+USE MOD_MCC_Vars            ,ONLY: NbrOfPhotonXsecReactions
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! INPUT / OUTPUT VARIABLES
@@ -810,8 +811,12 @@ DO iReac = 1, ChemReac%NumOfReact
     IF(ChemReac%EForm(iReac).LE.0.0) THEN
       CALL abort(__STAMP__,'ERROR: Photon energy is not sufficient for the given ionization reaction: ',iReac)
     END IF
+    ! Abort if photon-ionization reactions using cross-sections have been defined
+    IF(NbrOfPhotonXsecReactions.GT.0) CALL abort(__STAMP__,&
+      'Photoionization reactions with constant cross-sections cannot be combined with XSec data cross-sections for photoionization')
   END IF ! TRIM(ChemReac%ReactModel(iReac)).EQ.'phIon'
 END DO ! iReac = 1, ChemReac%NumOfReact
+
 END SUBROUTINE InitPhotonReactions
 
 

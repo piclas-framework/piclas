@@ -60,7 +60,7 @@ USE MOD_ReadInTools            ,ONLY: PrintOption
 USE MOD_Particle_MPI_Vars      ,ONLY: MPIW8TimePart,MPIW8CountPart
 #endif /*defined(MEASURE_MPI_WAIT)*/
 USE MOD_SurfaceModel_Analyze_Vars ,ONLY: SEE,CalcElectronSEE
-USE MOD_Particle_Photoionization  ,ONLY: PhotoIonization_RayTracing_SEE
+USE MOD_Particle_Photoionization  ,ONLY: PhotoIonization_RayTracing_Volume, PhotoIonization_RayTracing_SEE
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -86,6 +86,9 @@ INTEGER(KIND=8)                  :: CounterStart,CounterEnd
 REAL(KIND=8)                     :: Rate
 #endif /*defined(MEASURE_MPI_WAIT)*/
 !===================================================================================================================================
+
+!--- Ray tracing based volume photo-ionization
+CALL PhotoIonization_RayTracing_Volume()
 
 !--- Ray tracing based secondary electron emission
 CALL PhotoIonization_RayTracing_SEE()
@@ -232,6 +235,7 @@ DO i=1,nSpecies
                 IF(TRIM(Species(i)%Init(iInit)%SpaceIC).EQ.'photon_rectangle')THEN
                   ! Rectangular area -> cuboid: Equally distributed over c*dt
                   NbrOfPhotons = NbrOfPhotons * Species(i)%Init(iInit)%CuboidHeightIC / (c*dt)
+                  print*, NbrOfPhotons
                 ELSE
                   ! Cylinder and honeycomb: Equally distributed over c*dt
                   NbrOfPhotons = NbrOfPhotons * Species(i)%Init(iInit)%CylinderHeightIC / (c*dt)

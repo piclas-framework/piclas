@@ -40,6 +40,8 @@ TYPE tRayTrace
   REAL    :: Energy             !<
   REAL    :: IntensityAmplitude !<
   REAL    :: Direction(3)       !<
+  REAL    :: BaseVector1IC(3)   !<
+  REAL    :: BaseVector2IC(3)   !<
 
   ! Output of high-order p-adaptive info
   INTEGER :: NMin               !< Minimum polynomial degree for the high-order volume sampling (p-adaption)

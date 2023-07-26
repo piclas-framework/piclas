@@ -146,6 +146,9 @@ ASSOCIATE( &
   ! Angle between emitted rays and emission area
   alpha = (90.-ABS(90.-(180./PI)*ACOS(DOT_PRODUCT(Ray%Direction,SurfaceNormal))))
 
+  ! Generate two base vectors perpendicular to the ray direction
+  CALL OrthoNormVec(Ray%Direction,Ray%BaseVector1IC,Ray%BaseVector2IC)
+
   ! Calculate the peak intensity (uncorrected)
   I0 = E0 / (SQRT(PI)*tau*A)
 
@@ -521,7 +524,7 @@ IF(.NOT.UseRayTracing) RETURN
 SDEALLOCATE(N_VolMesh_Ray)
 SDEALLOCATE(N_Inter_Ray)
 SDEALLOCATE(PREF_VDM_Ray)
-SDEALLOCATE(U_N_Ray)
+! SDEALLOCATE(U_N_Ray)
 SDEALLOCATE(RayElemPassedEnergy)
 ! TODO: call this finalize with 2 modes (1. after ray tracing, 2. after plasma simulation)
 !SDEALLOCATE(PhotonSampWall)
