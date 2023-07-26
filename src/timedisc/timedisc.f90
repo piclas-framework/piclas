@@ -91,7 +91,6 @@ USE MOD_HDF5_Output_Particles  ,ONLY: FillParticleData
 #endif /*PARTICLES*/
 #ifdef PARTICLES
 USE MOD_RayTracing             ,ONLY: RayTracing
-USE MOD_RayTracing_Init        ,ONLY: FinalizeRayTracing
 !USE MOD_PICDepo                ,ONLY: Deposition
 USE MOD_Particle_Vars          ,ONLY: DoImportIMDFile
 #if USE_MPI
@@ -206,10 +205,8 @@ iter_PID = 0
 
 ! Ray tracing
 #if defined(PARTICLES)
-IF(.NOT.DoRestart)THEN
-  CALL RayTracing()
-  CALL FinalizeRayTracing()
-END IF
+!IF(.NOT.DoRestart)
+CALL RayTracing()
 #endif /*defined(PARTICLES)*/
 
 CALL PrintStatusLine(time,dt,tStart,tEnd,1)

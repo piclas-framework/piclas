@@ -163,7 +163,7 @@ INTEGER                                :: sendbuf,recvbuf
 INTEGER                                :: NbGlobalElemID, NbElemRank, NbLeaderID, nSurfSidesTmp
 #endif /*USE_MPI*/
 INTEGER                                :: NbGlobalSideID
-LOGICAL                                :: UseBezierControlPoints
+LOGICAL                                :: UseBezierControlPointsForArea
 REAL,ALLOCATABLE                       :: xIP_VISU(:),wIP_VISU(:)
 !===================================================================================================================================
 
@@ -615,7 +615,7 @@ DO iSide = firstSide,LastSide
   ! get global SideID. This contains only nonUniqueSide, no special mortar treatment required
   SideID = SurfSide2GlobalSide(SURF_SIDEID,iSide)
 
-  UseBezierControlPoints = .FALSE.
+  UseBezierControlPointsForArea = .FALSE.
 
   IF (TrackingMethod.EQ.TRIATRACKING) THEN
     ElemID    = SideInfo_Shared(SIDE_ELEMID ,SideID)
@@ -627,7 +627,7 @@ DO iSide = firstSide,LastSide
       ! Check if triangles are used for the calculation of the surface area or not
       IF(nSurfSample.GT.1)THEN
         ! Do not use triangles
-        UseBezierControlPoints = .TRUE.
+        UseBezierControlPointsForArea = .TRUE.
       ELSE
         xNod(1:3) = NodeCoords_Shared(1:3,ElemSideNodeID_Shared(1,LocSideID,CNElemID)+1)
         area = 0.
@@ -650,17 +650,17 @@ DO iSide = firstSide,LastSide
       SurfSideArea(1,1,iSide) = DSMC_1D_CalcSymmetryArea(LocSideID, CNElemID)
     END IF
   ELSE ! TrackingMethod.NE.TRIATRACKING
-    UseBezierControlPoints = .TRUE.
+    UseBezierControlPointsForArea = .TRUE.
   END IF ! TrackingMethod.EQ.TRIATRACKIN
 
   ! Instead of triangles use Bezier control points (curved or triangle tracking with nSurfSample>1)
-  IF(UseBezierControlPoints)THEN
+  IF(UseBezierControlPointsForArea)THEN
     DO jSample=1,nSurfSample
       DO iSample=1,nSurfSample
         area=0.
         tmpI2=(XiEQ_SurfSample(iSample-1)+XiEQ_SurfSample(iSample))/2. ! (a+b)/2
         tmpJ2=(XiEQ_SurfSample(jSample-1)+XiEQ_SurfSample(jSample))/2. ! (a+b)/2
-        ASSOCIATE(xi => 0.5*(xIP_VISU(iSample)+xIP_VISU(iSample-1)), eta => 0.5*(xIP_VISU(jSample)+xIP_VISU(jSample-1))  )
+        ASSOCIATE( xi => 0.5*(xIP_VISU(iSample)+xIP_VISU(iSample-1)), eta => 0.5*(xIP_VISU(jSample)+xIP_VISU(jSample-1)) )
           CALL EvaluateBezierPolynomialAndGradient((/xi,eta/),NGeo,3,BezierControlPoints3D(1:3,0:NGeo,0:NGeo,SideID) &
               ,Point=SurfSideSamplingMidPoints(1:3,iSample,jSample,iSide))
         END ASSOCIATE
@@ -681,7 +681,7 @@ DO iSide = firstSide,LastSide
         SurfSideArea(iSample,jSample,iSide) = area
       END DO ! iSample=1,nSurfSample
     END DO ! jSample=1,nSurfSample
-  END IF ! UseBezierControlPoints
+  END IF ! UseBezierControlPointsForArea
 
 END DO ! iSide = firstSide,lastSide
 

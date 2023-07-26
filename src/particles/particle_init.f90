@@ -212,6 +212,7 @@ END SUBROUTINE DefineParametersParticles
 SUBROUTINE InitParticleGlobals(IsLoadBalance)
 ! MODULES
 USE MOD_Globals
+USE MOD_Globals_Vars           ,ONLY: ProjectName
 USE MOD_ReadInTools
 USE MOD_Particle_Tracking_Vars ,ONLY: TrackingMethod
 USE MOD_Particle_Vars          ,ONLY: Symmetry
@@ -221,8 +222,10 @@ USE MOD_LoadBalance_Vars       ,ONLY: PerformLoadBalance
 USE MOD_PICDepo_Method         ,ONLY: InitDepositionMethod
 USE MOD_Particle_Vars          ,ONLY: UseVarTimeStep, VarTimeStep
 USE MOD_ReadInTools            ,ONLY: GETLOGICAL
-USE MOD_RayTracing_Vars        ,ONLY: UseRayTracing
+USE MOD_RayTracing_Vars        ,ONLY: UseRayTracing,PerformRayTracing
 USE MOD_Particle_TimeStep      ,ONLY: InitPartTimeStep
+USE MOD_Photon_TrackingVars    ,ONLY: RadiationSurfState,RadiationVolState
+USE MOD_Restart_Vars           ,ONLY: DoRestart
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -263,7 +266,20 @@ END IF
 CALL InitDepositionMethod()
 
 !--- Ray Tracing
+! 1) Activate ray tracing based emission (also required for plasma simulation)
 UseRayTracing = GETLOGICAL('UseRayTracing')
+! 2) Activate actual ray tracing algorithms that track rays through the complete mesh (full mesh mode)
+RadiationSurfState = TRIM(ProjectName)//'_RadiationSurfState.h5'
+RadiationVolState  = TRIM(ProjectName)//'_RadiationVolState.h5'
+PerformRayTracing  = .FALSE. ! default
+IF(UseRayTracing)THEN
+  IF(FILEEXISTS(RadiationSurfState).AND.FILEEXISTS(RadiationVolState))THEN
+    PerformRayTracing = .FALSE.
+  ELSE
+    PerformRayTracing = .TRUE.
+    IF(DoRestart) CALL abort(__STAMP__,'Restart simulation requires '//TRIM(RadiationSurfState)//' and '//TRIM(RadiationVolState))
+  END IF ! FILEEXISTS(RadiationSurfState).AND.FILEEXISTS(RadiationVolState)
+END IF ! UseRayTracing
 
 LBWRITE(UNIT_stdOut,'(A)')' INIT PARTICLE GLOBALS DONE'
 

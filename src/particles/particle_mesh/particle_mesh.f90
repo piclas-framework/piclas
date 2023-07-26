@@ -243,7 +243,8 @@ nSurfSampleAndTriaTracking = .FALSE. ! default
 IF((TrackingMethod.EQ.TRIATRACKING).AND.(Symmetry%Order.EQ.3).AND.(nSurfSample.GT.1)) nSurfSampleAndTriaTracking = .TRUE.
 
 ! Potentially curved elements. FIBGM needs to be built on BezierControlPoints rather than NodeCoords to avoid missing elements
-IF (TrackingMethod.EQ.TRACING .OR. TrackingMethod.EQ.REFMAPPING .OR. nSurfSampleAndTriaTracking) THEN
+IF (TrackingMethod.EQ.TRACING .OR. TrackingMethod.EQ.REFMAPPING .OR. nSurfSampleAndTriaTracking .OR. UseRayTracing) THEN
+  UseBezierControlPoints = .TRUE.
   ! Bezier elevation now more important than ever, also determines size of FIBGM extent
   BezierElevation = GETINT('BezierElevation')
   NGeoElevated    = NGeo + BezierElevation
@@ -251,6 +252,8 @@ IF (TrackingMethod.EQ.TRACING .OR. TrackingMethod.EQ.REFMAPPING .OR. nSurfSample
   CALL CalcParticleMeshMetrics() ! Required for Elem_xGP_Shared and dXCL_NGeo_Shared
   CALL CalcXCL_NGeo()            ! Required for XCL_NGeo_Shared
   CALL CalcBezierControlPoints() ! Required for BezierControlPoints3D and BezierControlPoints3DElevated (requires XCL_NGeo_Shared)
+ELSE
+  UseBezierControlPoints = .FALSE.
 END IF
 
 ! Mesh min/max must be built on BezierControlPoint for possibly curved elements
@@ -387,10 +390,10 @@ SELECT CASE(TrackingMethod)
     !IF (DoInterpolation.OR.DSMC%UseOctree) THEN ! use this in future if possible
     IF (DoInterpolation.OR.DoDeposition.OR.UseRayTracing) THEN
       ! Do not call these functions twice. This is already done above
-      IF(.NOT.nSurfSampleAndTriaTracking)THEN
+      IF(.NOT.UseBezierControlPoints)THEN
         CALL CalcParticleMeshMetrics()   ! Required for Elem_xGP_Shared and dXCL_NGeo_Shared
         CALL CalcXCL_NGeo()              ! Required for XCL_NGeo_Shared
-      END IF ! .NOT.nSurfSampleAndTriaTracking
+      END IF ! .NOT.UseBezierControlPoints
       CALL BuildElemTypeAndBasisTria() ! Required for ElemCurved, XiEtaZetaBasis and slenXiEtaZetaBasis. Needs XCL_NGeo_Shared
     END IF ! DoInterpolation.OR.DSMC%UseOctree
 
@@ -762,10 +765,22 @@ SELECT CASE (TrackingMethod)
       CALL UNLOCK_AND_FREE(ElemCurved_Shared_Win)
       CALL UNLOCK_AND_FREE(XiEtaZetaBasis_Shared_Win)
       CALL UNLOCK_AND_FREE(slenXiEtaZetaBasis_Shared_Win)
-    END IF ! DoInterpolation
+    END IF ! DoInterpolation.OR.DoDeposition.OR.UseRayTracing
 
     ! BuildEpsOneCell()
     IF (DoDeposition) CALL UNLOCK_AND_FREE(ElemsJ_Shared_Win)
+
+#if USE_LOADBALANCE
+    IF (.NOT.PerformLoadBalance) THEN
+#endif /*USE_LOADBALANCE*/
+      IF(UseBezierControlPoints)THEN
+        ! CalcBezierControlPoints()
+        CALL UNLOCK_AND_FREE(BezierControlPoints3D_Shared_Win)
+        IF (BezierElevation.GT.0) CALL UNLOCK_AND_FREE(BezierControlPoints3DElevated_Shared_Win)
+      END IF ! UseBezierControlPoints
+#if USE_LOADBALANCE
+    END IF !PerformLoadBalance
+#endif /*USE_LOADBALANCE*/
 
     CALL MPI_BARRIER(MPI_COMM_SHARED,iERROR)
 
@@ -777,6 +792,10 @@ SELECT CASE (TrackingMethod)
       ADEALLOCATE(XCL_NGeo_Array)
       ADEALLOCATE(Elem_xGP_Array)
       ADEALLOCATE(dXCL_NGeo_Array)
+
+      ! CalcBezierControlPoints()
+      ADEALLOCATE(BezierControlPoints3D_Shared)
+      ADEALLOCATE(BezierControlPoints3DElevated_Shared)
 #if USE_LOADBALANCE
     END IF !PerformLoadBalance
 #endif /*USE_LOADBALANCE*/

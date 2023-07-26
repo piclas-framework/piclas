@@ -133,6 +133,7 @@ USE MOD_Particle_Mesh_Vars     ,ONLY: GlobalSide2CNTotalSide
 USE MOD_Particle_Mesh_Vars     ,ONLY: CNTotalSide2GlobalSide
 USE MOD_Particle_Mesh_Vars     ,ONLY: GlobalElem2CNTotalElem
 USE MOD_Particle_Mesh_Vars     ,ONLY: CNTotalElem2GlobalElem
+USE MOD_RayTracing_Vars        ,ONLY: PerformRayTracing
 #endif /*USE_MPI*/
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Vars       ,ONLY: PerformLoadBalance
@@ -352,7 +353,12 @@ END IF
 
 #if USE_MPI
 SafetyFactor  = GETREAL('Part-SafetyFactor')
-halo_eps_velo = GETREAL('Particles-HaloEpsVelo')
+IF(PerformRayTracing)THEN
+  halo_eps_velo = 1e200
+  CALL PrintOption('Full mesh mode activated (PerformRayTracing=T): Particles-HaloEpsVelo','INFO',RealOpt=halo_eps_velo)
+ELSE
+  halo_eps_velo = GETREAL('Particles-HaloEpsVelo')
+END IF ! PerformRayTracing
 
 ! Adaptive SF: Determine global shape function radius from maximum of characteristic length in each cell
 IF((TRIM(DepositionType).EQ.'shape_function_adaptive').AND.SFAdaptiveSmoothing)THEN

@@ -48,5 +48,8 @@ INTEGER              :: PhotonModeBPO       !> 0: Output nothing to PartStateBou
 INTEGER              :: PhotonSampWall_Shared_Win
 REAL,POINTER         :: PhotonSampWall_Shared(:,:,:,:)
 #endif /*USE_MPI*/
+
+
+CHARACTER(LEN=255) :: RadiationSurfState,RadiationVolState !> Output file names for surface and volume sampling
 !===================================================================================================================================
 END MODULE MOD_Photon_TrackingVars

@@ -256,6 +256,7 @@ USE MOD_MPI                        ,ONLY: FinalizeMPI
 USE MOD_MPI_Shared                 ,ONLY: FinalizeMPIShared
 #endif /*USE_MPI*/
 #ifdef PARTICLES
+USE MOD_RayTracing_Init            ,ONLY: FinalizeRayTracing
 USE MOD_Particle_Surfaces          ,ONLY: FinalizeParticleSurfaces
 USE MOD_InitializeBackgroundField  ,ONLY: FinalizeBackGroundField
 USE MOD_SuperB_Init                ,ONLY: FinalizeSuperB
@@ -320,6 +321,7 @@ CALL FinalizeRestart()
 CALL FinalizeMesh()
 CALL FinalizeMortar()
 #ifdef PARTICLES
+CALL FinalizeRayTracing()
 CALL FinalizeSurfaceModel()
 CALL FinalizeSurfaceModelAnalyze()
 CALL FinalizeParticleBoundarySampling()

@@ -39,10 +39,9 @@ SUBROUTINE WritePhotonVolSampleToHDF5()
 USE MOD_Globals
 USE MOD_PreProc
 USE MOD_Mesh_Vars            ,ONLY: nElems,MeshFile,offSetElem,sJ
-USE MOD_Globals_Vars         ,ONLY: ProjectName
-USE MOD_RayTracing_Vars      ,ONLY: Ray,nVarRay,U_N_Ray,N_DG_Ray,PREF_VDM_Ray,N_DG_Ray_loc,N_Inter_Ray
+USE MOD_RayTracing_Vars      ,ONLY: Ray,nVarRay,U_N_Ray,U_N_Ray_loc,N_DG_Ray,PREF_VDM_Ray,N_DG_Ray_loc,N_Inter_Ray
 USE MOD_RayTracing_Vars      ,ONLY: RayElemPassedEnergyLoc1st,RayElemPassedEnergyLoc2nd
-USE MOD_RayTracing_Vars      ,ONLY: RaySecondaryVectorX,RaySecondaryVectorY,RaySecondaryVectorZ,ElemVolume
+USE MOD_RayTracing_Vars      ,ONLY: RaySecondaryVectorX,RaySecondaryVectorY,RaySecondaryVectorZ,ElemVolume,RayElemEmission
 USE MOD_HDF5_output          ,ONLY: GatheredWriteArray
 #if USE_MPI
 USE MOD_RayTracing_Vars      ,ONLY: RayElemPassedEnergy_Shared,RayElemOffset,RayElemPassedEnergyHO_Shared
@@ -54,10 +53,12 @@ USE MOD_HDF5_output          ,ONLY: GenerateFileSkeleton
 USE MOD_HDF5_Output_ElemData ,ONLY: WriteAdditionalElemData
 USE MOD_Mesh_Vars            ,ONLY: offsetElem,nGlobalElems
 USE MOD_ChangeBasis          ,ONLY: ChangeBasis3D
-USE MOD_Interpolation_Vars ,ONLY: NodeType
-USE MOD_Interpolation      ,ONLY: GetVandermonde
-USE MOD_Mesh_Tools            ,ONLY: GetCNElemID
-USE MOD_Particle_Mesh_Vars      ,ONLY: ElemVolume_Shared
+USE MOD_Interpolation_Vars   ,ONLY: NodeType
+USE MOD_Interpolation        ,ONLY: GetVandermonde
+USE MOD_Mesh_Tools           ,ONLY: GetCNElemID
+USE MOD_Particle_Mesh_Vars   ,ONLY: ElemVolume_Shared
+USE MOD_Photon_TrackingVars  ,ONLY: RadiationVolState
+USE MOD_HDF5_Output_State    ,ONLY: WriteElemDataToSeparateContainer
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -67,10 +68,9 @@ USE MOD_Particle_Mesh_Vars      ,ONLY: ElemVolume_Shared
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
-CHARACTER(LEN=255)                  :: FileName
 INTEGER                             :: iElem,iGlobalElem,iCNElem,Nloc,k,l,m
 CHARACTER(LEN=255), ALLOCATABLE     :: StrVarNames(:)
-REAL                                :: U(nVarRay,0:Ray%NMax,0:Ray%NMax,0:Ray%NMax,PP_nElems)
+REAL                                :: UNMax(nVarRay,0:Ray%NMax,0:Ray%NMax,0:Ray%NMax,PP_nElems)
 #if USE_MPI
 INTEGER                             :: NlocOffset
 #endif /*USE_MPI*/
@@ -83,15 +83,9 @@ SWRITE(UNIT_stdOut,'(a)',ADVANCE='NO') ' WRITE Radiation TO HDF5 FILE...'
 
 ALLOCATE(RayElemPassedEnergyLoc1st(1:nElems))
 ALLOCATE(RayElemPassedEnergyLoc2nd(1:nElems))
-ALLOCATE(RaySecondaryVectorX(1:nElems))
-ALLOCATE(RaySecondaryVectorY(1:nElems))
-ALLOCATE(RaySecondaryVectorZ(1:nElems))
 ALLOCATE(ElemVolume(1:nElems))
 RayElemPassedEnergyLoc1st=-1.0
 RayElemPassedEnergyLoc2nd=-1.0
-RaySecondaryVectorX=-1.0
-RaySecondaryVectorY=-1.0
-RaySecondaryVectorZ=-1.0
 ElemVolume=-1.0
 CALL AddToElemData(ElementOut,'RayElemPassedEnergy1st',RealArray=RayElemPassedEnergyLoc1st)
 CALL AddToElemData(ElementOut,'RayElemPassedEnergy2nd',RealArray=RayElemPassedEnergyLoc2nd)
@@ -99,13 +93,15 @@ CALL AddToElemData(ElementOut,'RaySecondaryVectorX'   ,RealArray=RaySecondaryVec
 CALL AddToElemData(ElementOut,'RaySecondaryVectorY'   ,RealArray=RaySecondaryVectorY)
 CALL AddToElemData(ElementOut,'RaySecondaryVectorZ'   ,RealArray=RaySecondaryVectorZ)
 CALL AddToElemData(ElementOut,'ElemVolume'            ,RealArray=ElemVolume)
+CALL AddToElemData(ElementOut,'Nloc',IntArray=N_DG_Ray_loc)
 
 ! Copy data from shared array
-ALLOCATE(N_DG_Ray_loc(1:nElems))
 DO iElem = 1, nElems
   N_DG_Ray_loc(iElem) = N_DG_Ray(iElem + offsetElem)
 END DO ! iElem = 1, nElems
-CALL AddToElemData(ElementOut,'Nloc',IntArray=N_DG_Ray_loc)
+
+! Sanity check
+IF(ANY(N_DG_Ray_loc.LE.0)) CALL abort(__STAMP__,'N_DG_Ray_loc cannot contain zeros!')
 
 ALLOCATE(StrVarNames(1:nVarRay))
 StrVarNames(1)='RayElemPassedEnergy1st'
@@ -113,8 +109,7 @@ StrVarNames(2)='RayElemPassedEnergy2nd'
 StrVarNames(3)='ElemVolume'
 
 ! Generate skeleton for the file with all relevant data on a single proc (MPIRoot)
-FileName=TRIM(ProjectName)//'_RadiationVolState.h5'
-IF(MPIRoot) CALL GenerateFileSkeleton('RadiationVolState',nVarRay,StrVarNames,TRIM(MeshFile),0.,FileNameIn=FileName,NIn=Ray%NMax,NodeType_in=Ray%NodeType)
+IF(MPIRoot) CALL GenerateFileSkeleton('RadiationVolState',nVarRay,StrVarNames,TRIM(MeshFile),0.,FileNameIn=RadiationVolState,NIn=Ray%NMax,NodeType_in=Ray%NodeType)
 #if USE_MPI
   CALL MPI_BARRIER(MPI_COMM_WORLD,iError)
 #endif
@@ -137,6 +132,8 @@ ASSOCIATE( RayElemPassedEnergy => RayElemPassedEnergy_Shared )
     RayElemPassedEnergyLoc1st(iElem) = RayElemPassedEnergy(1,iGlobalElem) !/ ElemVolume_Shared(iCNElem)
     ! Secondary energy
     RayElemPassedEnergyLoc2nd(iElem) = RayElemPassedEnergy(2,iGlobalElem) !/ ElemVolume_Shared(iCNElem)
+    ! Activate voltume emission
+    IF((RayElemPassedEnergyLoc1st(iElem).GT.0.0).OR.(RayElemPassedEnergyLoc2nd(iElem).GT.0.0)) RayElemEmission(iElem) = .TRUE.
     ! Check if secondary energy is greater than zero
     IF(RayElemPassedEnergyLoc2nd(iElem).GT.0.0)THEN
       IF(RayElemPassedEnergy(6,iGlobalElem).LE.0.0) CALL abort(__STAMP__,'Secondary ray counter is zero but energy is not!')
@@ -162,16 +159,19 @@ ASSOCIATE( RayElemPassedEnergy => RayElemPassedEnergy_Shared )
       ! Get data from shared array
       NlocOffset = (Nloc+1)**3
       ASSOCIATE( i => RayElemOffset(iGlobalElem))
-        U_N_Ray(iElem)%U(1,:,:,:) = RESHAPE(RayElemPassedEnergyHO_Shared(1, i+1:i+NlocOffset), (/Nloc+1, Nloc+1, Nloc+1/))
-        U_N_Ray(iElem)%U(2,:,:,:) = RESHAPE(RayElemPassedEnergyHO_Shared(2, i+1:i+NlocOffset), (/Nloc+1, Nloc+1, Nloc+1/))
+        U_N_Ray(iGlobalElem)%U(1,:,:,:) = RESHAPE(RayElemPassedEnergyHO_Shared(1, i+1:i+NlocOffset), (/Nloc+1, Nloc+1, Nloc+1/))
+        U_N_Ray(iGlobalElem)%U(2,:,:,:) = RESHAPE(RayElemPassedEnergyHO_Shared(2, i+1:i+NlocOffset), (/Nloc+1, Nloc+1, Nloc+1/))
       END ASSOCIATE
     END IF ! nProcessors.GT.1
 #endif /*USE_MPI*/
     IF(Nloc.EQ.Ray%Nmax)THEN
-      U(:,:,:,:,iElem) = U_N_Ray(iElem)%U(:,:,:,:)
+      UNMax(:,:,:,:,iElem) = U_N_Ray(iGlobalElem)%U(:,:,:,:)
     ELSE
-      CALL ChangeBasis3D(nVarRay, Nloc, Ray%NMax, PREF_VDM_Ray(Nloc,Ray%NMax)%Vdm, U_N_Ray(iElem)%U(:,:,:,:), U(:,:,:,:,iElem))
+      CALL ChangeBasis3D(nVarRay, Nloc, Ray%NMax, PREF_VDM_Ray(Nloc,Ray%NMax)%Vdm, U_N_Ray(iGlobalElem)%U(:,:,:,:), UNMax(:,:,:,:,iElem))
     END IF ! Nloc.Eq.Nmax
+
+    ! Copy data from global array (later used for emission)
+    U_N_Ray_loc(iElem)%U(:,:,:,:) = U_N_Ray(iGlobalElem)%U(:,:,:,:)
 
     ! Apply integration weights and the Jacobian
     ! Interpolate the Jacobian to the analyze grid: be careful we interpolate the inverse of the inverse of the Jacobian ;-)
@@ -183,8 +183,8 @@ ASSOCIATE( RayElemPassedEnergy => RayElemPassedEnergy_Shared )
           IntegrationWeight = N_Inter_Ray(Ray%NMax)%wGP(k)*&
                               N_Inter_Ray(Ray%NMax)%wGP(l)*&
                               N_Inter_Ray(Ray%NMax)%wGP(m)*J_Nmax(1,k,l,m)
-          !U(1:2,k,l,m,iElem) = U(1:2,k,l,m,iElem) / IntegrationWeight
-          U(3,k,l,m,iElem) = IntegrationWeight
+          !UNMax(1:2,k,l,m,iElem) = UNMax(1:2,k,l,m,iElem) / IntegrationWeight
+          UNMax(3,k,l,m,iElem) = IntegrationWeight
         END DO ! k
       END DO ! l
     END DO ! m
@@ -198,19 +198,25 @@ ASSOCIATE( RayElemPassedEnergy => RayElemPassedEnergy_Shared )
         nGlobalElems      => INT(nGlobalElems,IK)       ,&
         PP_nElems         => INT(PP_nElems,IK)          ,&
         offsetElem        => INT(offsetElem,IK)         )
-    CALL GatheredWriteArray(FileName,create=.FALSE.,&
+    CALL GatheredWriteArray(RadiationVolState,create=.FALSE.,&
          DataSetName='DG_Solution', rank=5,&
          nValGlobal=(/nVarRay     , NMax+1_IK , NMax+1_IK , NMax+1_IK , nGlobalElems/) , &
          nVal=      (/nVarRay     , NMax+1_IK , NMax+1_IK , NMax+1_IK , PP_nElems/)    , &
          offset=    (/0_IK        , 0_IK      , 0_IK      , 0_IK      , offsetElem/)   , &
-         collective=.TRUE.,RealArray=U)
+         collective=.TRUE.,RealArray=UNMax)
   END ASSOCIATE
 #if USE_MPI
 END ASSOCIATE
 #endif /*USE_MPI*/
 
 ! Write all 'ElemData' arrays to a single container in the state.h5 file
-CALL WriteAdditionalElemData(FileName,ElementOut)
+CALL WriteAdditionalElemData(RadiationVolState,ElementOut)
+
+! Write Nloc and the reflected vector to separate containers for element- and process-wise read-in during restart or loadbalance
+CALL WriteElemDataToSeparateContainer(RadiationVolState,ElementOut,'Nloc')
+CALL WriteElemDataToSeparateContainer(RadiationVolState,ElementOut,'RaySecondaryVectorX')
+CALL WriteElemDataToSeparateContainer(RadiationVolState,ElementOut,'RaySecondaryVectorY')
+CALL WriteElemDataToSeparateContainer(RadiationVolState,ElementOut,'RaySecondaryVectorZ')
 
 SWRITE(*,*) 'DONE'
 END SUBROUTINE WritePhotonVolSampleToHDF5
@@ -225,7 +231,6 @@ SUBROUTINE WritePhotonSurfSampleToHDF5()
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Globals
 USE MOD_IO_HDF5
-USE MOD_Globals_Vars           ,ONLY: ProjectName
 USE MOD_Particle_Boundary_Vars ,ONLY: nComputeNodeSurfOutputSides,noutputsides, nSurfBC
 USE MOD_Particle_Boundary_Vars ,ONLY: offsetComputeNodeSurfOutputSide, SurfBCName, nComputeNodeSurfSides
 USE MOD_Particle_Boundary_Vars ,ONLY: SurfSide2GlobalSide, GlobalSide2SurfSide
@@ -242,6 +247,7 @@ USE MOD_Photon_TrackingVars    ,ONLY: PhotonSampWall
 USE MOD_Particle_Boundary_Vars ,ONLY: SurfSideArea
 #endif /*USE_MPI*/
 USE MOD_Particle_Boundary_Vars ,ONLY: nSurfSample, PartBound
+USE MOD_Photon_TrackingVars    ,ONLY: RadiationSurfState
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -250,7 +256,7 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-CHARACTER(LEN=255)                  :: FileString,Statedummy
+CHARACTER(LEN=255)                  :: Statedummy
 CHARACTER(LEN=255)                  :: H5_Name
 CHARACTER(LEN=4),PARAMETER          :: NodeTypeTemp = 'VISU'
 CHARACTER(LEN=255),ALLOCATABLE      :: Str2DVarNames(:)
@@ -273,13 +279,11 @@ IF (mySurfRank.EQ.0) THEN
   tstart=LOCALTIME()
 END IF
 
-FileString=TRIM(ProjectName)//'_RadiationSurfState.h5'
-
 ! Generate skeleton for the file with all relevant data on a single proc (MPIRoot)
 #if USE_MPI
 IF (mySurfRank.EQ.0) THEN
 #endif /*USE_MPI*/
-  CALL OpenDataFile(FileString,create=.TRUE.,single=.TRUE.,readOnly=.FALSE.)
+  CALL OpenDataFile(RadiationSurfState,create=.TRUE.,single=.TRUE.,readOnly=.FALSE.)
   Statedummy = 'RadiationSurfState'
   ! Write file header
   CALL WriteHDF5Header(Statedummy,File_ID)
@@ -303,9 +307,9 @@ IF (mySurfRank.EQ.0) THEN
 #if USE_MPI
 END IF
 CALL MPI_BARRIER(MPI_COMM_LEADERS_SURF,iERROR)
-CALL OpenDataFile(FileString,create=.FALSE.,single=.FALSE.,readOnly=.FALSE.,communicatorOpt=MPI_COMM_LEADERS_SURF)
+CALL OpenDataFile(RadiationSurfState,create=.FALSE.,single=.FALSE.,readOnly=.FALSE.,communicatorOpt=MPI_COMM_LEADERS_SURF)
 #else
-CALL OpenDataFile(FileString,create=.FALSE.,single=.FALSE.,readOnly=.FALSE.)
+CALL OpenDataFile(RadiationSurfState,create=.FALSE.,single=.FALSE.,readOnly=.FALSE.)
 #endif /*USE_MPI*/
 
 
