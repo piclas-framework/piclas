@@ -256,13 +256,14 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 CHARACTER(LEN=255)                  :: Statedummy
-CHARACTER(LEN=255)                  :: H5_Name
+CHARACTER(LEN=255)                  :: H5_Name, H5_Name2
 CHARACTER(LEN=4),PARAMETER          :: NodeTypeTemp = 'VISU'
 CHARACTER(LEN=255),ALLOCATABLE      :: Str2DVarNames(:)
 INTEGER                             :: GlobalSideID, iSurfSide, OutputCounter, SurfSideNb, p, q
 INTEGER,PARAMETER                   :: nVar2D=3
 REAL                                :: tstart,tend
 REAL, ALLOCATABLE                   :: helpArray(:,:,:,:)
+INTEGER, ALLOCATABLE                :: helpArray2(:)
 !===================================================================================================================================
 #if USE_MPI
 CALL ExchangeRadiationSurfData()
@@ -313,6 +314,7 @@ CALL OpenDataFile(RadiationSurfState,create=.FALSE.,single=.FALSE.,readOnly=.FAL
 
 
 WRITE(H5_Name,'(A)') 'SurfaceData'
+WRITE(H5_Name2,'(A)') 'SurfaceDataGlobalSideIndex'
 #if USE_MPI
 ASSOCIATE(SurfSideArea   => SurfSideArea_Shared)
 #endif
@@ -325,12 +327,14 @@ ASSOCIATE (&
       nVar2D         => INT(nVar2D                          , IK))
 
   ALLOCATE(helpArray(nVar2D,1:nSurfSample,1:nSurfSample,LocalnBCSides))
+  ALLOCATE(helpArray2(LocalnBCSides))
   OutputCounter = 0
   DO iSurfSide = 1,nComputeNodeSurfSides
     GlobalSideID = SurfSide2GlobalSide(SURF_SIDEID,iSurfSide)
     IF(SideInfo_Shared(SIDE_NBSIDEID,GlobalSideID).GT.0) THEN
       IF(GlobalSideID.LT.SideInfo_Shared(SIDE_NBSIDEID,GlobalSideID)) THEN
         SurfSideNb = GlobalSide2SurfSide(SURF_SIDEID,SideInfo_Shared(SIDE_NBSIDEID,GlobalSideID))
+        ! Add your contribution to my inner BC
         PhotonSampWall(:,:,:,iSurfSide) = PhotonSampWall(:,:,:,iSurfSide) + PhotonSampWall(:,:,:,SurfSideNb)
       ELSE
         CYCLE
@@ -338,6 +342,7 @@ ASSOCIATE (&
     END IF
     OutputCounter = OutputCounter + 1
     helpArray(1,1:nSurfSample,1:nSurfSample,OutputCounter) = PhotonSampWall(1,1:nSurfSample,1:nSurfSample,iSurfSide)
+    helpArray2(OutputCounter) = SurfSide2GlobalSide(SURF_SIDEID,iSurfSide)
     !  SurfaceArea should be changed to 1:SurfMesh%nSides if inner sampling sides exist...
     DO p = 1, nSurfSample
       DO q = 1, nSurfSample
@@ -353,7 +358,13 @@ ASSOCIATE (&
                         offset     =(/0_IK   , 0_IK        , 0_IK        , offsetSurfSide/) , &
                         collective =.FALSE.  ,                                                &
                         RealArray=helpArray(1:nVar2D,1:nSurfSample,1:nSurfSample,1:LocalnBCSides))
+  CALL WriteArrayToHDF5(DataSetName = H5_Name2             , rank = 1 , &
+                        nValGlobal  = (/nGlobalSides/)     , &
+                        nVal        = (/LocalnBCSides/)      , &
+                        offset      = (/offsetSurfSide/) , &
+                        collective  = .FALSE.  , IntegerArray_i4 = helpArray2(1:INT(LocalnBCSides,4)))
   DEALLOCATE(helpArray)
+  DEALLOCATE(helpArray2)
 END ASSOCIATE
 
 #if USE_MPI

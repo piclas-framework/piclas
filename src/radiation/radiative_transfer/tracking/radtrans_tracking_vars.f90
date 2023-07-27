@@ -38,7 +38,14 @@ END TYPE
 
 TYPE (tPhotonProps)  :: PhotonProps         !>
 
-REAL,ALLOCPOINT    :: PhotonSampWall(:,:,:,:)
+REAL,ALLOCPOINT      :: PhotonSampWallHDF5(:,:,:,:)
+#if USE_MPI
+INTEGER              :: PhotonSampWallHDF5_Shared_Win
+REAL,POINTER         :: PhotonSampWallHDF5_Shared(:,:,:,:)
+#endif
+
+REAL,ALLOCPOINT      :: PhotonSampWall(:,:,:,:)
+REAL,ALLOCATABLE     :: PhotonSampWall_loc(:,:,:)
 
 INTEGER              :: PhotonModeBPO       !> 0: Output nothing to PartStateBoundary.h5
                                             !> 1: Output the initial position of the rays and their direction vector

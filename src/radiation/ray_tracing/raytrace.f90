@@ -31,6 +31,7 @@ END INTERFACE
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
 PUBLIC :: RayTracing
+PUBLIC :: ReadRayTracingDataFromH5
 !===================================================================================================================================
 
 CONTAINS
@@ -99,7 +100,7 @@ RaySecondaryVectorY=-1.0
 RaySecondaryVectorZ=-1.0
 
 IF(.NOT.PerformRayTracing)THEN
-  CALL ReadRayTracingDataFromH5()
+  CALL ReadRayTracingDataFromH5(onlySurfData=.FALSE.)
   RETURN
 END IF
 
@@ -223,6 +224,9 @@ END IF
 
 CALL WritePhotonSurfSampleToHDF5()
 
+! Load surface data to create local PhotonSampWall_loc array
+CALL ReadRayTracingDataFromH5(onlySurfData=.TRUE.)
+
 CALL WritePhotonVolSampleToHDF5()
 
 CALL FinalizeRayTracing()
@@ -237,31 +241,113 @@ END SUBROUTINE RayTracing
 
 !===================================================================================================================================
 !> Read ray tracing volume and surface data (instead of running the actual ray tracing calculation)
-!> 1. Get element polynomial degree
+!> 1.) Get surface sampled values
+!> 2.) Get element polynomial
 !===================================================================================================================================
-SUBROUTINE ReadRayTracingDataFromH5()
+SUBROUTINE ReadRayTracingDataFromH5(onlySurfData)
 ! MODULES
 USE MOD_Globals
 USE MOD_IO_HDF5
 USE MOD_PreProc
-USE MOD_HDF5_Input          ,ONLY: ReadArray,DatasetExists
-USE MOD_Photon_TrackingVars ,ONLY: RadiationSurfState,RadiationVolState
-USE MOD_Mesh_Vars           ,ONLY: offsetElem,nElems,nGlobalElems
-USE MOD_RayTracing_Vars     ,ONLY: N_DG_Ray_loc,Ray,nVarRay,U_N_Ray_loc,PREF_VDM_Ray,N_Inter_Ray,RayElemEmission
-USE MOD_ChangeBasis         ,ONLY: ChangeBasis3D
-USE MOD_RayTracing_Vars     ,ONLY: RaySecondaryVectorX,RaySecondaryVectorY,RaySecondaryVectorZ
+USE MOD_HDF5_Input             ,ONLY: ReadArray,DatasetExists,GetDataSize,nDims,HSize,File_ID
+USE MOD_Photon_TrackingVars    ,ONLY: RadiationSurfState,RadiationVolState,PhotonSampWall_loc
+USE MOD_Photon_TrackingVars    ,ONLY: PhotonSampWallHDF5,PhotonSampWallHDF5_Shared,PhotonSampWallHDF5_Shared_Win
+USE MOD_Mesh_Vars              ,ONLY: offsetElem,nElems,nGlobalElems
+USE MOD_RayTracing_Vars        ,ONLY: N_DG_Ray_loc,Ray,nVarRay,U_N_Ray_loc,PREF_VDM_Ray,N_Inter_Ray,RayElemEmission
+USE MOD_ChangeBasis            ,ONLY: ChangeBasis3D
+USE MOD_RayTracing_Vars        ,ONLY: RaySecondaryVectorX,RaySecondaryVectorY,RaySecondaryVectorZ
+USE MOD_Mesh_Vars              ,ONLY: nBCSides,offsetElem,SideToElem
+USE MOD_Particle_Boundary_Vars ,ONLY: nSurfSample
+USE MOD_Particle_Mesh_Tools    ,ONLY: GetGlobalNonUniqueSideID
+#if USE_MPI
+USE MOD_MPI_Shared
+USE MOD_MPI_Shared_Vars        ,ONLY: MPI_COMM_SHARED,myComputeNodeRank
+#endif /*USE_MPI*/
+!#if MPI
+!#endif /*MPI*/
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! INPUT / OUTPUT VARIABLES
+LOGICAL,INTENT(IN)   :: onlySurfData
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER :: iElem,Nloc,iVar,k,l,m
-LOGICAL :: ContainerExists
-REAL    :: N_DG_Ray_locREAL(1:nElems)
-REAL    :: UNMax(nVarRay,0:Ray%NMax,0:Ray%NMax,0:Ray%NMax,PP_nElems)
-REAL    :: UNMax_loc(nVarRay,0:Ray%NMax,0:Ray%NMax,0:Ray%NMax)
+INTEGER              :: iElem,Nloc,iVar,k,l,m,iSurfSideHDF5,nSurfSidesHDF5,BCSideID,iLocSide,locElemID,GlobalSideID,SideID
+LOGICAL              :: ContainerExists
+REAL                 :: N_DG_Ray_locREAL(1:nElems)
+REAL                 :: UNMax(nVarRay,0:Ray%NMax,0:Ray%NMax,0:Ray%NMax,PP_nElems)
+REAL                 :: UNMax_loc(nVarRay,0:Ray%NMax,0:Ray%NMax,0:Ray%NMax)
+INTEGER, ALLOCATABLE :: GlobalSideIndex(:)
 !===================================================================================================================================
-! 1. Get local element polynomial degree
+
+! 1.) Get surface sampled values
+#if USE_MPI
+! Only shared memory leaders load the data from .h5
+IF(myComputeNodeRank.EQ.0)THEN
+#endif
+  CALL OpenDataFile(RadiationSurfState,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_LEADERS)
+  CALL DatasetExists(File_ID,'SurfaceDataGlobalSideIndex',ContainerExists)
+  IF(.NOT.ContainerExists) CALL CollectiveStop(__STAMP__,'SurfaceDataGlobalSideIndex container not in '//TRIM(RadiationSurfState))
+  CALL GetDataSize(File_ID,'SurfaceDataGlobalSideIndex',nDims,HSize,attrib=.FALSE.)
+  nSurfSidesHDF5  = INT(HSize(1),4)
+  IF(nSurfSidesHDF5.LT.1) CALL abort(__STAMP__,'Number of surf sample sides .h5 file is less than 1')
+  ALLOCATE(GlobalSideIndex(nSurfSidesHDF5))
+  CALL ReadArray('SurfaceDataGlobalSideIndex',1,(/INT(nSurfSidesHDF5,IK)/),0_IK,1,IntegerArray_i4=GlobalSideIndex)
+#if USE_MPI
+END IF
+! Node leaders notify the processes on their node
+CALL MPI_BCAST(nSurfSidesHDF5,1,MPI_INTEGER,0,MPI_COMM_SHARED,iERROR)
+#else
+ALLOCATE(PhotonSampWallHDF5(1:3,1:nSurfSample,1:nSurfSample,1:nSurfSidesHDF5))
+#endif
+
+
+#if USE_MPI
+CALL Allocate_Shared((/3,nSurfSample,nSurfSample,nSurfSidesHDF5/),PhotonSampWallHDF5_Shared_Win,PhotonSampWallHDF5_Shared)
+CALL MPI_WIN_LOCK_ALL(0,PhotonSampWallHDF5_Shared_Win,IERROR)
+PhotonSampWallHDF5 => PhotonSampWallHDF5_Shared
+! Only shared memory leaders load the data from .h5
+IF(myComputeNodeRank.EQ.0)THEN
+#endif
+  CALL DatasetExists(File_ID,'SurfaceData',ContainerExists)
+  IF(.NOT.ContainerExists) CALL CollectiveStop(__STAMP__,'SurfaceData container not in '//TRIM(RadiationSurfState))
+  CALL ReadArray('SurfaceData',4,(/3_IK,INT(nSurfSample,IK),INT(nSurfSample,IK),INT(nSurfSidesHDF5,IK)/),0_IK,1,RealArray=PhotonSampWallHDF5)
+  CALL CloseDataFile()
+  ! Small hack: replace 3rd index with global ID
+  DO iSurfSideHDF5 = 1, nSurfSidesHDF5
+    PhotonSampWallHDF5(3,:,:,iSurfSideHDF5) = REAL(GlobalSideIndex(iSurfSideHDF5))
+  END DO ! iSurfSideHDF5 = 1, nSurfSidesHDF5
+#if USE_MPI
+END IF
+! This sync/barrier is required as it cannot be guaranteed that the zeros have been written to memory by the time the MPI_REDUCE
+! is executed (see MPI specification). Until the Sync is complete, the status is undefined, i.e., old or new value or utter nonsense.
+CALL BARRIER_AND_SYNC(PhotonSampWallHDF5_Shared_Win,MPI_COMM_SHARED)
+#endif /*USE_MPI*/
+
+ALLOCATE(PhotonSampWall_loc(1:nSurfSample,1:nSurfSample,1:nBCSides))
+PhotonSampWall_loc = -1.0
+! Loop through large loop (TODO: can this be made cheaper?)
+DO iSurfSideHDF5 = 1, nSurfSidesHDF5
+#if USE_MPI
+  GlobalSideID = INT(PhotonSampWallHDF5(3,1,1,iSurfSideHDF5))
+#else
+  GlobalSideID = GlobalSideIndex(iSurfSideHDF5)
+#endif /*USE_MPI*/
+  ! Loop through process-local (hopefully small) loop
+  DO BCSideID = 1, nBCSides
+    locElemID = SideToElem(S2E_ELEM_ID,BCSideID)
+    iLocSide  = SideToElem(S2E_LOC_SIDE_ID,BCSideID)
+    SideID    = GetGlobalNonUniqueSideID(offsetElem+locElemID,iLocSide)
+    IF(GlobalSideID.EQ.SideID)THEN
+      PhotonSampWall_loc(1:nSurfSample,1:nSurfSample,BCSideID) = PhotonSampWallHDF5(2,1:nSurfSample,1:nSurfSample,iSurfSideHDF5)
+    END IF ! GlobalSideID.EQ.
+  END DO ! BCSideID = 1,nBCSides
+END DO ! iSurfSideHDF5 = 1, nSurfSidesHDF5
+
+
+! Check if only the surface data is to be loaded
+IF(onlySurfData) RETURN
+
+! 2. Get local element polynomial
 CALL OpenDataFile(RadiationVolState,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_WORLD)
 CALL DatasetExists(File_ID,'Nloc',ContainerExists)
 IF(.NOT.ContainerExists) CALL CollectiveStop(__STAMP__,'Nloc container does not exist in '//TRIM(RadiationVolState))
@@ -271,8 +357,7 @@ N_DG_Ray_loc = INT(N_DG_Ray_locREAL)
 ! Sanity check
 IF(ANY(N_DG_Ray_loc.LE.0)) CALL abort(__STAMP__,'N_DG_Ray_loc cannot contain zeros!')
 
-! 1. Get local ray tracing solution
-! The local DG solution in physical space
+! Get local ray tracing solution (the local DG solution in physical space)
 ALLOCATE(U_N_Ray_loc(1:nElems))
 DO iElem = 1, nElems
   Nloc = N_DG_Ray_loc(iElem)
@@ -343,12 +428,9 @@ CALL DatasetExists(File_ID,'RaySecondaryVectorZ',ContainerExists)
 IF(.NOT.ContainerExists) CALL CollectiveStop(__STAMP__,'RaySecondaryVectorZ container does not exist in '//TRIM(RadiationVolState))
 CALL ReadArray('RaySecondaryVectorZ',2,(/1_IK,INT(nElems,IK)/),INT(offsetElem,IK),2,RealArray=RaySecondaryVectorZ)
 
-!WRITE (*,*) "RaySecondaryVectorX =", RaySecondaryVectorX
-!WRITE (*,*) "RaySecondaryVectorY =", RaySecondaryVectorY
-!WRITE (*,*) "RaySecondaryVectorZ =", RaySecondaryVectorZ
-!WRITE (*,*) "TRIM(RadiationSurfState) =", TRIM(RadiationSurfState)
-!read*
 CALL CloseDataFile()
+
+
 END SUBROUTINE ReadRayTracingDataFromH5
 
 

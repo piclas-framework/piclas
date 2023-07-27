@@ -38,28 +38,30 @@ SUBROUTINE PhotoIonization_RayTracing_SEE()
 USE MOD_Globals
 USE MOD_Globals_Vars            ,ONLY: PI
 USE MOD_Timedisc_Vars           ,ONLY: dt,time
-USE MOD_Particle_Boundary_Vars  ,ONLY: nSurfSample, Partbound, SurfSide2GlobalSide, DoBoundaryParticleOutputHDF5
+USE MOD_Particle_Boundary_Vars  ,ONLY: nSurfSample, Partbound, DoBoundaryParticleOutputHDF5
 USE MOD_Particle_Vars           ,ONLY: Species, PartState, usevMPF
 USE MOD_RayTracing_Vars         ,ONLY: Ray,UseRayTracing
 USE MOD_part_emission_tools     ,ONLY: CalcPhotonEnergy
 USE MOD_Particle_Mesh_Vars      ,ONLY: SideInfo_Shared,UseBezierControlPoints
 USE MOD_Particle_Surfaces_Vars  ,ONLY: BezierControlPoints3D, BezierSampleXi
 USE MOD_Particle_Surfaces       ,ONLY: EvaluateBezierPolynomialAndGradient, CalcNormAndTangBezier
-USE MOD_Mesh_Vars               ,ONLY: NGeo
+USE MOD_Mesh_Vars               ,ONLY: NGeo,nBCSides,offsetElem,SideToElem
 USE MOD_part_emission_tools     ,ONLY: CalcVelocity_FromWorkFuncSEE
 USE MOD_Particle_Boundary_Tools ,ONLY: StoreBoundaryParticleProperties
 USE MOD_part_operations         ,ONLY: CreateParticle
+USE MOD_Particle_Mesh_Tools     ,ONLY: GetGlobalNonUniqueSideID
+!USE MOD_Particle_Boundary_Vars  ,ONLY: GlobalSide2SurfSide
 #ifdef LSERK
 USE MOD_Timedisc_Vars           ,ONLY: iStage, RK_c, nRKStages
 #endif
 #if USE_MPI
-USE MOD_Particle_Boundary_Vars  ,ONLY: nComputeNodeSurfTotalSides
-USE MOD_Photon_TrackingVars     ,ONLY: PhotonSampWall_Shared
-USE MOD_MPI_Shared_Vars         ,ONLY: nComputeNodeProcessors,myComputeNodeRank
+!USE MOD_Particle_Boundary_Vars  ,ONLY: nComputeNodeSurfTotalSides
+!USE MOD_MPI_Shared_Vars         ,ONLY: nComputeNodeProcessors,myComputeNodeRank
 #else
 USE MOD_Particle_Boundary_Vars  ,ONLY: nSurfTotalSides
 #endif /*USE_MPI*/
-USE MOD_Photon_TrackingVars     ,ONLY: PhotonSampWall
+!USE MOD_Photon_TrackingVars     ,ONLY: PhotonSampWall
+USE MOD_Photon_TrackingVars     ,ONLY: PhotonSampWall_loc
 #if USE_HDG
 USE MOD_HDG_Vars                ,ONLY: UseFPC,FPC,UseEPC,EPC
 USE MOD_Mesh_Vars               ,ONLY: BoundaryType
@@ -74,8 +76,8 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 REAL                  :: t_1, t_2, E_Intensity
-INTEGER               :: NbrOfRepetitions, firstSide, lastSide, SideID, iSample, GlobElemID, PartID
-INTEGER               :: iSurfSide, p, q, BCID, SpecID, iPart, NbrOfSEE, iSEEBC
+INTEGER               :: NbrOfRepetitions, SideID, iSample, GlobElemID, PartID, BCSideID, iLocSide, locElemID
+INTEGER               :: p, q, BCID, SpecID, iPart, NbrOfSEE, iSEEBC
 REAL                  :: RealNbrOfSEE, TimeScalingFactor, MPF
 REAL                  :: Particle_pos(1:3), xi(2)
 REAL                  :: RandVal, RandVal2(2), xiab(1:2,1:2), nVec(3), tang1(3), tang2(3), Velo3D(3)
@@ -98,13 +100,13 @@ IF(UseBezierControlPoints)THEN
 END IF
 
 ! Surf sides are shared, array calculation can be distributed
-#if USE_MPI
-firstSide = INT(REAL( myComputeNodeRank   )*REAL(nComputeNodeSurfTotalSides)/REAL(nComputeNodeProcessors))+1
-lastSide  = INT(REAL((myComputeNodeRank+1))*REAL(nComputeNodeSurfTotalSides)/REAL(nComputeNodeProcessors))
-#else
-firstSide = 1
-lastSide  = nSurfTotalSides
-#endif /*USE_MPI*/
+!#if USE_MPI
+!firstSide = INT(REAL( myComputeNodeRank   )*REAL(nComputeNodeSurfTotalSides)/REAL(nComputeNodeProcessors))+1
+!lastSide  = INT(REAL((myComputeNodeRank+1))*REAL(nComputeNodeSurfTotalSides)/REAL(nComputeNodeProcessors))
+!#else
+!firstSide = 1
+!lastSide  = nSurfTotalSides
+!#endif /*USE_MPI*/
 
 ASSOCIATE( tau         => Ray%PulseDuration      ,&
            tShift      => Ray%tShift             ,&
@@ -142,8 +144,12 @@ IF(t_2.GT.2.0*tShift) t_2 = 2.0*tShift
 
 TimeScalingFactor = 0.5 * SQRT(PI) * tau * (ERF(t_2/tau)-ERF(t_1/tau))
 
-DO iSurfSide = firstSide, lastSide
-  SideID = SurfSide2GlobalSide(SURF_SIDEID,iSurfSide)
+DO BCSideID=1,nBCSides
+  locElemID = SideToElem(S2E_ELEM_ID,BCSideID)
+  iLocSide  = SideToElem(S2E_LOC_SIDE_ID,BCSideID)
+  SideID    = GetGlobalNonUniqueSideID(offsetElem+locElemID,iLocSide)
+  !iSurfSide = GlobalSide2SurfSide(SURF_SIDEID,SideID)
+  !SideID = SurfSide2GlobalSide(SURF_SIDEID,iSurfSide)
   ! TODO: Skip sides which are not mine in the MPI case
   BCID = PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID))
   ! Skip non-reflective BC sides
@@ -170,7 +176,8 @@ DO iSurfSide = firstSide, lastSide
   DO p = 1, nSurfSample
     DO q = 1, nSurfSample
       ! Calculate the number of SEEs per subside
-      E_Intensity = PhotonSampWall(2,p,q,iSurfSide) * TimeScalingFactor
+      !E_Intensity = PhotonSampWall(2,p,q,iSurfSide) * TimeScalingFactor
+      E_Intensity = PhotonSampWall_loc(p,q,BCSideID) * TimeScalingFactor
       RealNbrOfSEE = E_Intensity / CalcPhotonEnergy(lambda) * PartBound%PhotonSEEYield(BCID) / MPF
       CALL RANDOM_NUMBER(RandVal)
       NbrOfSEE = INT(RealNbrOfSEE+RandVal)

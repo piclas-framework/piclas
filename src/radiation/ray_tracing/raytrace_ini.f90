@@ -545,7 +545,7 @@ USE MOD_RayTracing_Vars
 #if USE_MPI
 USE MOD_MPI_Shared_Vars     ,ONLY: MPI_COMM_SHARED
 USE MOD_MPI_Shared
-USE MOD_Photon_TrackingVars ,ONLY: PhotonSampWallProc
+USE MOD_Photon_TrackingVars
 #endif /*USE_MPI*/
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -598,6 +598,16 @@ ELSE
   SDEALLOCATE(ElemVolume)
 
   SDEALLOCATE(RayElemEmission)
+
+  SDEALLOCATE(PhotonSampWall_loc)  ! ray tracing + plasma simulation
+
+#if USE_MPI
+  CALL MPI_BARRIER(MPI_COMM_SHARED,iError)
+  CALL UNLOCK_AND_FREE(PhotonSampWallHDF5_Shared_Win)
+  CALL MPI_BARRIER(MPI_COMM_SHARED,iError)
+  ADEALLOCATE(PhotonSampWallHDF5_Shared)
+  ADEALLOCATE(PhotonSampWallHDF5)
+#endif /*USE_MPI*/
 END IF ! PerformRayTracing
 
 END SUBROUTINE FinalizeRayTracing
