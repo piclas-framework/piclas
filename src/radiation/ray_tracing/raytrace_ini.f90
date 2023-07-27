@@ -545,6 +545,7 @@ USE MOD_RayTracing_Vars
 #if USE_MPI
 USE MOD_MPI_Shared_Vars     ,ONLY: MPI_COMM_SHARED
 USE MOD_MPI_Shared
+USE MOD_Photon_TrackingVars ,ONLY: PhotonSampWallProc
 #endif /*USE_MPI*/
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -564,6 +565,7 @@ IF(PerformRayTracing)THEN
   SDEALLOCATE(PREF_VDM_Ray) ! ray tracing
 
 #if USE_MPI
+  SDEALLOCATE(PhotonSampWallProc) ! ray tracing
   CALL MPI_BARRIER(MPI_COMM_SHARED,iError)
   CALL UNLOCK_AND_FREE(RayElemPassedEnergy_Shared_Win)
 

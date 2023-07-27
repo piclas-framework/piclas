@@ -38,7 +38,7 @@ END TYPE
 
 TYPE (tPhotonProps)  :: PhotonProps         !>
 
-REAL, ALLOCATABLE    :: PhotonSampWall(:,:,:,:)
+REAL,ALLOCPOINT    :: PhotonSampWall(:,:,:,:)
 
 INTEGER              :: PhotonModeBPO       !> 0: Output nothing to PartStateBoundary.h5
                                             !> 1: Output the initial position of the rays and their direction vector
@@ -47,6 +47,7 @@ INTEGER              :: PhotonModeBPO       !> 0: Output nothing to PartStateBou
 #if USE_MPI
 INTEGER              :: PhotonSampWall_Shared_Win
 REAL,POINTER         :: PhotonSampWall_Shared(:,:,:,:)
+REAL,ALLOCATABLE     :: PhotonSampWallProc(:,:,:,:)
 #endif /*USE_MPI*/
 
 

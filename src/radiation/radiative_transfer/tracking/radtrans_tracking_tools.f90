@@ -1321,6 +1321,9 @@ USE MOD_Globals                ,ONLY: VECNORM
 USE MOD_Photon_TrackingVars    ,ONLY: PhotonProps,PhotonSampWall
 USE MOD_Particle_Boundary_Vars ,ONLY: PartBound, GlobalSide2SurfSide, nSurfSample, SurfSideSamplingMidPoints
 USE MOD_Particle_Mesh_Vars     ,ONLY: SideInfo_Shared
+#if USE_MPI
+USE MOD_Photon_TrackingVars    ,ONLY: PhotonSampWallProc
+#endif /*USE_MPI*/
 !--------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
 !--------------------------------------------------------------------------------------------------!
@@ -1335,6 +1338,9 @@ REAL                            :: iRan,PhotonEnACC,distance,distanceMin
 INTEGER                         :: SurfSideID,p,q,pp,qq
 LOGICAL                         :: ForceWallSampleLoc
 !--------------------------------------------------------------------------------------------------!
+#if USE_MPI
+ASSOCIATE( PhotonSampWall => PhotonSampWallProc )
+#endif /*USE_MPI*/
 SurfSideID = GlobalSide2SurfSide(SURF_SIDEID,GlobSideID)
 ! Check if photon is to be added to PhotonSampWall independent of the actual absorption/reflection
 IF(PRESENT(ForceWallSample))THEN
@@ -1390,6 +1396,9 @@ IF (PhotonEnACC.GT.iRan) THEN
     END IF ! nSurfSample.GT.1
   END IF ! .NOT.ForceWallSampleLoc
 END IF
+#if USE_MPI
+END ASSOCIATE
+#endif /*USE_MPI*/
 END SUBROUTINE CalcWallAbsoprtion
 
 

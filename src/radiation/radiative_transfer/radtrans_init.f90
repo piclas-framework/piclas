@@ -433,17 +433,20 @@ END SELECT
 
 
 
-!IF (.NOT.ALLOCATED(SurfMesh%SideIDToSurfID)) CALL InitParticleBoundarySampling()
-ALLOCATE(PhotonSampWall(2,1:nSurfSample,1:nSurfSample,1:nComputeNodeSurfTotalSides))
-PhotonSampWall=0.0
 
 #if USE_MPI
+ALLOCATE(PhotonSampWallProc(2,1:nSurfSample,1:nSurfSample,1:nComputeNodeSurfTotalSides))
+PhotonSampWallProc=0.0
 !> Then shared arrays for boundary sampling
 CALL Allocate_Shared((/2,1:nSurfSample,1:nSurfSample,nComputeNodeSurfTotalSides/),PhotonSampWall_Shared_Win,PhotonSampWall_Shared)
 CALL MPI_WIN_LOCK_ALL(0,PhotonSampWall_Shared_Win,IERROR)
+PhotonSampWall => PhotonSampWall_Shared
 
-IF (myComputeNodeRank.EQ.0) PhotonSampWall_Shared = 0.
+IF (myComputeNodeRank.EQ.0) PhotonSampWall = 0.
 CALL BARRIER_AND_SYNC(PhotonSampWall_Shared_Win,MPI_COMM_SHARED)
+#else
+ALLOCATE(PhotonSampWall(2,1:nSurfSample,1:nSurfSample,1:nComputeNodeSurfTotalSides))
+PhotonSampWall=0.0
 #endif
 
 SWRITE(UNIT_stdOut,'(A)')' INIT RADIATION TRANSPORT SOLVER DONE!'

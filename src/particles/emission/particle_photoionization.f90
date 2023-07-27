@@ -57,9 +57,9 @@ USE MOD_Particle_Boundary_Vars  ,ONLY: nComputeNodeSurfTotalSides
 USE MOD_Photon_TrackingVars     ,ONLY: PhotonSampWall_Shared
 USE MOD_MPI_Shared_Vars         ,ONLY: nComputeNodeProcessors,myComputeNodeRank
 #else
-USE MOD_Photon_TrackingVars     ,ONLY: PhotonSampWall
 USE MOD_Particle_Boundary_Vars  ,ONLY: nSurfTotalSides
 #endif /*USE_MPI*/
+USE MOD_Photon_TrackingVars     ,ONLY: PhotonSampWall
 #if USE_HDG
 USE MOD_HDG_Vars                ,ONLY: UseFPC,FPC,UseEPC,EPC
 USE MOD_Mesh_Vars               ,ONLY: BoundaryType
@@ -170,11 +170,7 @@ DO iSurfSide = firstSide, lastSide
   DO p = 1, nSurfSample
     DO q = 1, nSurfSample
       ! Calculate the number of SEEs per subside
-#if USE_MPI
-      E_Intensity = PhotonSampWall_Shared(2,p,q,iSurfSide) * TimeScalingFactor
-#else
       E_Intensity = PhotonSampWall(2,p,q,iSurfSide) * TimeScalingFactor
-#endif /*USE_MPI*/
       RealNbrOfSEE = E_Intensity / CalcPhotonEnergy(lambda) * PartBound%PhotonSEEYield(BCID) / MPF
       CALL RANDOM_NUMBER(RandVal)
       NbrOfSEE = INT(RealNbrOfSEE+RandVal)

@@ -58,7 +58,7 @@ USE MOD_Photon_TrackingOutput   ,ONLY: WritePhotonSurfSampleToHDF5,WritePhotonVo
 #if USE_MPI
 USE MOD_MPI_Shared_Vars
 USE MOD_MPI_Shared
-USE MOD_Photon_TrackingVars     ,ONLY: PhotonSampWall_Shared, PhotonSampWall_Shared_Win
+USE MOD_Photon_TrackingVars     ,ONLY: PhotonSampWall_Shared, PhotonSampWall_Shared_Win,PhotonSampWallProc
 USE MOD_RayTracing_Vars         ,ONLY: RayElemPassedEnergy_Shared,RayElemPassedEnergy_Shared_Win
 #endif /*USE_MPI*/
 USE MOD_Photon_TrackingVars     ,ONLY: PhotonSampWall,PhotonModeBPO
@@ -112,20 +112,24 @@ IF(nComputeNodeSurfTotalSides.EQ.0) CALL abort(__STAMP__,'nComputeNodeSurfTotalS
 ! Allocate global arrays
 ALLOCATE(RayElemPassedEnergy(RayElemSize,1:nGlobalElems))
 RayElemPassedEnergy=0.0
-ALLOCATE(PhotonSampWall(2,1:nSurfSample,1:nSurfSample,1:nComputeNodeSurfTotalSides))
-PhotonSampWall=0.0
 
 #if USE_MPI
+ALLOCATE(PhotonSampWallProc(2,1:nSurfSample,1:nSurfSample,1:nComputeNodeSurfTotalSides))
+PhotonSampWallProc=0.0
 !> Shared arrays for volume sampling
 CALL Allocate_Shared((/RayElemSize,nGlobalElems/),RayElemPassedEnergy_Shared_Win,RayElemPassedEnergy_Shared)
 CALL MPI_WIN_LOCK_ALL(0,RayElemPassedEnergy_Shared_Win,IERROR)
 !> Shared arrays for boundary sampling
 CALL Allocate_Shared((/2,nSurfSample,nSurfSample,nComputeNodeSurfTotalSides/),PhotonSampWall_Shared_Win,PhotonSampWall_Shared)
 CALL MPI_WIN_LOCK_ALL(0,PhotonSampWall_Shared_Win,IERROR)
+PhotonSampWall => PhotonSampWall_Shared
 IF(myComputeNodeRank.EQ.0) RayElemPassedEnergy_Shared = 0.
-IF(myComputeNodeRank.EQ.0) PhotonSampWall_Shared      = 0.
+IF(myComputeNodeRank.EQ.0) PhotonSampWall             = 0.
 CALL BARRIER_AND_SYNC(RayElemPassedEnergy_Shared_Win,MPI_COMM_SHARED)
 CALL BARRIER_AND_SYNC(PhotonSampWall_Shared_Win,MPI_COMM_SHARED)
+#else
+ALLOCATE(PhotonSampWall(2,1:nSurfSample,1:nSurfSample,1:nComputeNodeSurfTotalSides))
+PhotonSampWall=0.0
 #endif
 
 photonCount = 0

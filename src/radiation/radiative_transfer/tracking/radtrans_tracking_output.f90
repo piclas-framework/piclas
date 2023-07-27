@@ -241,11 +241,10 @@ USE MOD_MPI_Shared_Vars        ,ONLY: mySurfRank
 #if USE_MPI
 USE MOD_MPI_Shared_Vars        ,ONLY: MPI_COMM_LEADERS_SURF
 USE MOD_Particle_Boundary_Vars ,ONLY: SurfSideArea_Shared,nSurfTotalSides
-USE MOD_Photon_TrackingVars    ,ONLY: PhotonSampWall_Shared
 #else
-USE MOD_Photon_TrackingVars    ,ONLY: PhotonSampWall
 USE MOD_Particle_Boundary_Vars ,ONLY: SurfSideArea
 #endif /*USE_MPI*/
+USE MOD_Photon_TrackingVars    ,ONLY: PhotonSampWall
 USE MOD_Particle_Boundary_Vars ,ONLY: nSurfSample, PartBound
 USE MOD_Photon_TrackingVars    ,ONLY: RadiationSurfState
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -315,8 +314,7 @@ CALL OpenDataFile(RadiationSurfState,create=.FALSE.,single=.FALSE.,readOnly=.FAL
 
 WRITE(H5_Name,'(A)') 'SurfaceData'
 #if USE_MPI
-ASSOCIATE(PhotonSampWall => PhotonSampWall_Shared ,&
-          SurfSideArea   => SurfSideArea_Shared)
+ASSOCIATE(SurfSideArea   => SurfSideArea_Shared)
 #endif
 
 ASSOCIATE (&
@@ -328,7 +326,6 @@ ASSOCIATE (&
 
   ALLOCATE(helpArray(nVar2D,1:nSurfSample,1:nSurfSample,LocalnBCSides))
   OutputCounter = 0
-  !IF(myrank.eq.0) read*
   DO iSurfSide = 1,nComputeNodeSurfSides
     GlobalSideID = SurfSide2GlobalSide(SURF_SIDEID,iSurfSide)
     IF(SideInfo_Shared(SIDE_NBSIDEID,GlobalSideID).GT.0) THEN
@@ -349,6 +346,7 @@ ASSOCIATE (&
       END DO ! q = 1, nSurfSample
     END DO ! p = 1, nSurfSample
   END DO
+  ! WARNING: Only the sampling leaders write the data to .h5
   CALL WriteArrayToHDF5(DataSetName=H5_Name  , rank=4      ,                                  &
                         nValGlobal =(/nVar2D , nSurfSample , nSurfSample , nGlobalSides/)   , &
                         nVal       =(/nVar2D , nSurfSample , nSurfSample , LocalnBCSides/)  , &
@@ -385,7 +383,7 @@ SUBROUTINE ExchangeRadiationSurfData()
 USE MOD_Globals
 USE MOD_Particle_Boundary_Vars ,ONLY: SurfOnNode, SurfMapping, nComputeNodeSurfTotalSides, GlobalSide2SurfSide, nSurfSample
 USE MOD_Particle_MPI_Vars      ,ONLY: SurfSendBuf,SurfRecvBuf
-USE MOD_Photon_TrackingVars    ,ONLY: PhotonSampWall, PhotonSampWall_Shared, PhotonSampWall_Shared_Win
+USE MOD_Photon_TrackingVars    ,ONLY: PhotonSampWallProc, PhotonSampWall_Shared, PhotonSampWall_Shared_Win
 USE MOD_MPI_Shared_Vars        ,ONLY: MPI_COMM_LEADERS_SURF, MPI_COMM_SHARED, nSurfLeaders,myComputeNodeRank,mySurfRank
 USE MOD_MPI_Shared
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -405,9 +403,9 @@ IF (.NOT.SurfOnNode) RETURN
 
 MessageSize = 2*nComputeNodeSurfTotalSides*(nSurfSample**2)
 IF (myComputeNodeRank.EQ.0) THEN
-  CALL MPI_REDUCE(PhotonSampWall, PhotonSampWall_Shared, MessageSize, MPI_DOUBLE_PRECISION, MPI_SUM, 0, MPI_COMM_SHARED, IERROR)
+  CALL MPI_REDUCE(PhotonSampWallProc, PhotonSampWall_Shared, MessageSize, MPI_DOUBLE_PRECISION, MPI_SUM, 0, MPI_COMM_SHARED, IERROR)
 ELSE
-  CALL MPI_REDUCE(PhotonSampWall, 0                    , MessageSize, MPI_DOUBLE_PRECISION, MPI_SUM, 0, MPI_COMM_SHARED, IERROR)
+  CALL MPI_REDUCE(PhotonSampWallProc, 0                    , MessageSize, MPI_DOUBLE_PRECISION, MPI_SUM, 0, MPI_COMM_SHARED, IERROR)
 ENDIF
 
 ! Update
