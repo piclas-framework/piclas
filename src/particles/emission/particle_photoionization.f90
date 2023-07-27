@@ -264,7 +264,7 @@ USE MOD_Timedisc_Vars           ,ONLY: dt,time
 USE MOD_Mesh_Vars               ,ONLY: nElems, offsetElem
 USE MOD_Mesh_Vars               ,ONLY: NGeo,wBaryCL_NGeo,XiCL_NGeo,XCL_NGeo
 USE MOD_RayTracing_Vars         ,ONLY: UseRayTracing, Ray
-USE MOD_RayTracing_Vars         ,ONLY: U_N_Ray,N_DG_Ray,N_Inter_Ray
+USE MOD_RayTracing_Vars         ,ONLY: U_N_Ray_loc,N_DG_Ray_loc,N_Inter_Ray
 USE MOD_Particle_Vars           ,ONLY: Species, PartState, usevMPF, PartMPF, PDM, PEM, PartSpecies
 USE MOD_DSMC_Vars               ,ONLY: ChemReac, DSMC, SpecDSMC, BGGas, Coll_pData, CollisMode, PartStateIntEn
 USE MOD_DSMC_Vars               ,ONLY: newAmbiParts, iPartIndx_NodeNewAmbi
@@ -338,12 +338,12 @@ TimeScalingFactor = 0.5 * SQRT(PI) * tau * (ERF(t_2/tau)-ERF(t_1/tau))
 DO iElem=1, nElems
   iGlobalElem = iElem+offSetElem
   ! iCNElem = GetCNElemID(iGlobalElem)
-  NRayLoc = N_DG_Ray(iElem)
+  NRayLoc = N_DG_Ray_loc(iElem)
   DO m=0,NRayLoc
     DO l=0,NRayLoc
       DO k=0,NRayLoc
-        ! TODO: Ray secondary energy, U_N_Ray(iElem)%U(2,k,l,m)
-        E_Intensity = U_N_Ray(iElem)%U(1,k,l,m) * TimeScalingFactor
+        ! TODO: Ray secondary energy, U_N_Ray_loc(iElem)%U(2,k,l,m)
+        E_Intensity = U_N_Ray_loc(iElem)%U(1,k,l,m) * TimeScalingFactor
         ! Number of photons (TODO: spectrum)
         NbrOfPhotons = E_Intensity / (CalcPhotonEnergy(lambda) * c * dt)
         DO iReac = 1, ChemReac%NumOfReact

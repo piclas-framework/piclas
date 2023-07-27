@@ -388,7 +388,7 @@ IF (myComputeNodeRank.EQ.0) THEN
     IF(PartBound%TargetBoundCond(PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,GlobalSideID))).EQ.PartBound%RotPeriodicBC) CYCLE
     ! Count the number of output sides
     nComputeNodeSurfOutputSides = nComputeNodeSurfOutputSides + 1
-  END DO
+  END DO ! iSurfSide = 1,nComputeNodeSurfSides
 #if USE_MPI
   !--- switcheroo check 2 of 2: HALO sides
   ! Count number of inner BC in halo region
@@ -404,7 +404,7 @@ IF (myComputeNodeRank.EQ.0) THEN
       END IF
     END IF
   END DO ! iSurfSide = nComputeNodeSurfSides+1, nComputeNodeSurfTotalSides
-END IF
+END IF ! myComputeNodeRank.EQ.0
 #endif
 
 ! free temporary arrays
@@ -1124,6 +1124,7 @@ CALL OpenDataFile(FileString,create=.FALSE.,single=.TRUE.,readOnly=.FALSE.)
 
 nVarCount=0
 WRITE(H5_Name,'(A)') 'SurfaceData'
+! WARNING: Only the sampling leaders write the data to .h5
 ASSOCIATE (&
       nVar2D_Total         => INT(nVar2D_Total,IK)                    , &
       nSurfSample          => INT(nSurfSample,IK)                     , &
