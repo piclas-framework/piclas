@@ -38,7 +38,7 @@ SUBROUTINE PhotoIonization_RayTracing_SEE()
 USE MOD_Globals
 USE MOD_Globals_Vars            ,ONLY: PI
 USE MOD_Timedisc_Vars           ,ONLY: dt,time
-USE MOD_Particle_Boundary_Vars  ,ONLY: nSurfSample, Partbound, DoBoundaryParticleOutputHDF5
+USE MOD_Particle_Boundary_Vars  ,ONLY: nSurfSample, Partbound, DoBoundaryParticleOutputHDF5,SurfSideArea
 USE MOD_Particle_Vars           ,ONLY: Species, PartState, usevMPF
 USE MOD_RayTracing_Vars         ,ONLY: Ray,UseRayTracing,RayElemEmission
 USE MOD_part_emission_tools     ,ONLY: CalcPhotonEnergy
@@ -50,7 +50,7 @@ USE MOD_part_emission_tools     ,ONLY: CalcVelocity_FromWorkFuncSEE
 USE MOD_Particle_Boundary_Tools ,ONLY: StoreBoundaryParticleProperties
 USE MOD_part_operations         ,ONLY: CreateParticle
 USE MOD_Particle_Mesh_Tools     ,ONLY: GetGlobalNonUniqueSideID
-!USE MOD_Particle_Boundary_Vars  ,ONLY: GlobalSide2SurfSide
+USE MOD_Particle_Boundary_Vars  ,ONLY: GlobalSide2SurfSide
 #ifdef LSERK
 USE MOD_Timedisc_Vars           ,ONLY: iStage, RK_c, nRKStages
 #endif
@@ -76,7 +76,7 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 REAL                  :: t_1, t_2, E_Intensity
-INTEGER               :: NbrOfRepetitions, SideID, iSample, GlobElemID, PartID, BCSideID, iLocSide, locElemID
+INTEGER               :: NbrOfRepetitions, SideID, iSample, GlobElemID, PartID, BCSideID, iLocSide, locElemID, iSurfSide
 INTEGER               :: p, q, BCID, SpecID, iPart, NbrOfSEE, iSEEBC
 REAL                  :: RealNbrOfSEE, TimeScalingFactor, MPF
 REAL                  :: Particle_pos(1:3), xi(2)
@@ -150,7 +150,7 @@ DO BCSideID=1,nBCSides
   IF(.NOT.RayElemEmission(locElemID)) CYCLE
   iLocSide  = SideToElem(S2E_LOC_SIDE_ID,BCSideID)
   SideID    = GetGlobalNonUniqueSideID(offsetElem+locElemID,iLocSide)
-  !iSurfSide = GlobalSide2SurfSide(SURF_SIDEID,SideID)
+  iSurfSide = GlobalSide2SurfSide(SURF_SIDEID,SideID)
   !SideID = SurfSide2GlobalSide(SURF_SIDEID,iSurfSide)
   ! TODO: Skip sides which are not mine in the MPI case
   BCID = PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID))
@@ -179,74 +179,76 @@ DO BCSideID=1,nBCSides
     DO q = 1, nSurfSample
       ! Calculate the number of SEEs per subside
       !E_Intensity = PhotonSampWall(2,p,q,iSurfSide) * TimeScalingFactor
-      E_Intensity = PhotonSampWall_loc(p,q,BCSideID) * TimeScalingFactor
+      E_Intensity = PhotonSampWall_loc(p,q,BCSideID) * SurfSideArea(p,q,iSurfSide) * TimeScalingFactor
       RealNbrOfSEE = E_Intensity / CalcPhotonEnergy(lambda) * PartBound%PhotonSEEYield(BCID) / MPF
       CALL RANDOM_NUMBER(RandVal)
       NbrOfSEE = INT(RealNbrOfSEE+RandVal)
-      ! Check if photon SEE electric current is to be measured
-      IF((NbrOfSEE.GT.0).AND.(CalcElectronSEE))THEN
-        ! Note that the negative value of the charge -q is used below
-        iSEEBC = SEE%BCIDToSEEBCID(BCID)
-        SEE%RealElectronOut(iSEEBC) = SEE%RealElectronOut(iSEEBC) - MPF*NbrOfSEE*Species(SpecID)%ChargeIC
-      END IF ! (NbrOfSEE.GT.0).AND.(CalcElectronSEE)
-      ! Calculate the normal & tangential vectors
-      IF(UseBezierControlPoints)THEN
-        ! Use Bezier polynomial
-        xi(1)=(BezierSampleXi(p-1)+BezierSampleXi(p))/2. ! (a+b)/2
-        xi(2)=(BezierSampleXi(q-1)+BezierSampleXi(q))/2. ! (a+b)/2
-        xiab(1,1:2)=(/BezierSampleXi(p-1),BezierSampleXi(p)/)
-        xiab(2,1:2)=(/BezierSampleXi(q-1),BezierSampleXi(q)/)
-        CALL CalcNormAndTangBezier(nVec,tang1,tang2,xi(1),xi(2),SideID)
-      ELSE
-        ! Sanity check
-        CALL abort(__STAMP__,'Photoionization with ray tracing requires BezierControlPoints3D')
-      END IF ! nSurfSample.GT.1
-      ! Normal vector provided by the routine points outside of the domain
-      nVec = -nVec
-      ! Loop over number of particles to be inserted
-      DO iPart = 1, NbrOfSEE
-        ! Determine particle position within the sub-side
-        CALL RANDOM_NUMBER(RandVal2)
+      IF(NbrOfSEE.GT.0)THEN
+        ! Check if photon SEE electric current is to be measured
+        IF(CalcElectronSEE)THEN
+          ! Note that the negative value of the charge -q is used below
+          iSEEBC = SEE%BCIDToSEEBCID(BCID)
+          SEE%RealElectronOut(iSEEBC) = SEE%RealElectronOut(iSEEBC) - MPF*NbrOfSEE*Species(SpecID)%ChargeIC
+        END IF ! (NbrOfSEE.GT.0).AND.(CalcElectronSEE)
+        ! Calculate the normal & tangential vectors
         IF(UseBezierControlPoints)THEN
           ! Use Bezier polynomial
-          xi=(xiab(:,2)-xiab(:,1))*RandVal2+xiab(:,1)
-          CALL EvaluateBezierPolynomialAndGradient(xi,NGeo,3,BezierControlPoints3D(1:3,0:NGeo,0:NGeo,SideID),Point=Particle_pos(1:3))
+          xi(1)=(BezierSampleXi(p-1)+BezierSampleXi(p))/2. ! (a+b)/2
+          xi(2)=(BezierSampleXi(q-1)+BezierSampleXi(q))/2. ! (a+b)/2
+          xiab(1,1:2)=(/BezierSampleXi(p-1),BezierSampleXi(p)/)
+          xiab(2,1:2)=(/BezierSampleXi(q-1),BezierSampleXi(q)/)
+          CALL CalcNormAndTangBezier(nVec,tang1,tang2,xi(1),xi(2),SideID)
         ELSE
           ! Sanity check
           CALL abort(__STAMP__,'Photoionization with ray tracing requires BezierControlPoints3D')
         END IF ! nSurfSample.GT.1
-        ! Determine particle velocity
-        CALL CalcVelocity_FromWorkFuncSEE(PartBound%PhotonSEEWorkFunction(BCID), Species(SpecID)%MassIC, tang1, nVec, Velo3D)
-        ! Create new particle
-        CALL CreateParticle(SpecID,Particle_pos(1:3),GlobElemID,Velo3D(1:3),0.,0.,0.,NewPartID=PartID,NewMPF=MPF)
-        ! 1. Store the particle information in PartStateBoundary.h5
-        IF(DoBoundaryParticleOutputHDF5) THEN
-          CALL StoreBoundaryParticleProperties(PartID,SpecID,PartState(1:3,PartID),&
+        ! Normal vector provided by the routine points outside of the domain
+        nVec = -nVec
+        ! Loop over number of particles to be inserted
+        DO iPart = 1, NbrOfSEE
+          ! Determine particle position within the sub-side
+          CALL RANDOM_NUMBER(RandVal2)
+          IF(UseBezierControlPoints)THEN
+            ! Use Bezier polynomial
+            xi=(xiab(:,2)-xiab(:,1))*RandVal2+xiab(:,1)
+            CALL EvaluateBezierPolynomialAndGradient(xi,NGeo,3,BezierControlPoints3D(1:3,0:NGeo,0:NGeo,SideID),Point=Particle_pos(1:3))
+          ELSE
+            ! Sanity check
+            CALL abort(__STAMP__,'Photoionization with ray tracing requires BezierControlPoints3D')
+          END IF ! nSurfSample.GT.1
+          ! Determine particle velocity
+          CALL CalcVelocity_FromWorkFuncSEE(PartBound%PhotonSEEWorkFunction(BCID), Species(SpecID)%MassIC, tang1, nVec, Velo3D)
+          ! Create new particle
+          CALL CreateParticle(SpecID,Particle_pos(1:3),GlobElemID,Velo3D(1:3),0.,0.,0.,NewPartID=PartID,NewMPF=MPF)
+          ! 1. Store the particle information in PartStateBoundary.h5
+          IF(DoBoundaryParticleOutputHDF5) THEN
+            CALL StoreBoundaryParticleProperties(PartID,SpecID,PartState(1:3,PartID),&
                 UNITVECTOR(PartState(4:6,PartID)),nVec,iPartBound=BCID,mode=2,MPF_optIN=MPF)
-        END IF ! DoBoundaryParticleOutputHDF5
+          END IF ! DoBoundaryParticleOutputHDF5
 #if USE_HDG
-        ! 2. Check if floating boundary conditions (FPC) are used and consider electron holes
-        IF(UseFPC)THEN
-          iBC = PartBound%MapToFieldBC(BCID)
-          IF(iBC.LE.0) CALL abort(__STAMP__,'iBC = PartBound%MapToFieldBC(PartBCIndex) must be >0',IntInfoOpt=iBC)
-          IF(BoundaryType(iBC,BC_TYPE).EQ.20)THEN ! BCType = BoundaryType(iBC,BC_TYPE)
-            BCState = BoundaryType(iBC,BC_STATE) ! State is iFPC
-            iUniqueFPCBC = FPC%Group(BCState,2)
-            FPC%ChargeProc(iUniqueFPCBC) = FPC%ChargeProc(iUniqueFPCBC) - Species(SpecID)%ChargeIC * MPF ! Use negative charge!
-          END IF ! BCType.EQ.20
-        END IF ! UseFPC
-        ! 3. Check if electric potential condition (EPC) are used and consider electron holes
-        IF(UseEPC)THEN
-          iBC = PartBound%MapToFieldBC(BCID)
-          IF(iBC.LE.0) CALL abort(__STAMP__,'iBC = PartBound%MapToFieldBC(PartBCIndex) must be >0',IntInfoOpt=iBC)
-          IF(BoundaryType(iBC,BC_TYPE).EQ.8)THEN ! BCType = BoundaryType(iBC,BC_TYPE)
-            BCState = BoundaryType(iBC,BC_STATE) ! State is iEPC
-            iUniqueEPCBC = EPC%Group(BCState,2)
-            EPC%ChargeProc(iUniqueEPCBC) = EPC%ChargeProc(iUniqueEPCBC) - Species(SpecID)%ChargeIC * MPF ! Use negative charge!
-          END IF ! BCType.EQ.8
-        END IF ! UseEPC
+          ! 2. Check if floating boundary conditions (FPC) are used and consider electron holes
+          IF(UseFPC)THEN
+            iBC = PartBound%MapToFieldBC(BCID)
+            IF(iBC.LE.0) CALL abort(__STAMP__,'iBC = PartBound%MapToFieldBC(PartBCIndex) must be >0',IntInfoOpt=iBC)
+            IF(BoundaryType(iBC,BC_TYPE).EQ.20)THEN ! BCType = BoundaryType(iBC,BC_TYPE)
+              BCState = BoundaryType(iBC,BC_STATE) ! State is iFPC
+              iUniqueFPCBC = FPC%Group(BCState,2)
+              FPC%ChargeProc(iUniqueFPCBC) = FPC%ChargeProc(iUniqueFPCBC) - Species(SpecID)%ChargeIC * MPF ! Use negative charge!
+            END IF ! BCType.EQ.20
+          END IF ! UseFPC
+          ! 3. Check if electric potential condition (EPC) are used and consider electron holes
+          IF(UseEPC)THEN
+            iBC = PartBound%MapToFieldBC(BCID)
+            IF(iBC.LE.0) CALL abort(__STAMP__,'iBC = PartBound%MapToFieldBC(PartBCIndex) must be >0',IntInfoOpt=iBC)
+            IF(BoundaryType(iBC,BC_TYPE).EQ.8)THEN ! BCType = BoundaryType(iBC,BC_TYPE)
+              BCState = BoundaryType(iBC,BC_STATE) ! State is iEPC
+              iUniqueEPCBC = EPC%Group(BCState,2)
+              EPC%ChargeProc(iUniqueEPCBC) = EPC%ChargeProc(iUniqueEPCBC) - Species(SpecID)%ChargeIC * MPF ! Use negative charge!
+            END IF ! BCType.EQ.8
+          END IF ! UseEPC
 #endif /*USE_HDG*/
-      END DO
+        END DO ! iPart = 1, NbrOfSEE
+      END IF ! NbrOfSEE.GT.0
     END DO ! q = 1, nSurfSample
   END DO ! p = 1, nSurfSample
 END DO
@@ -280,6 +282,9 @@ USE MOD_DSMC_ChemReact          ,ONLY: PhotoIonization_InsertProducts
 USE MOD_part_emission_tools     ,ONLY: CalcVelocity_maxwell_lpn, DSMC_SetInternalEnr_LauxVFD
 USE MOD_DSMC_PolyAtomicModel    ,ONLY: DSMC_SetInternalEnr_Poly
 USE MOD_part_tools              ,ONLY: CalcVelocity_maxwell_particle
+#if defined(LSERK)
+USE MOD_TimeDisc_Vars           ,ONLY: iStage,nRKStages,RK_c
+#endif /*defined(LSERK)*/
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE

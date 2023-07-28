@@ -1359,8 +1359,8 @@ IF(PRESENT(ForceWallSample))THEN
           END IF ! distance.LT.distanceMin
         END DO ! q = 1, nSurfSample
       END DO ! p = 1, nSurfSample
-      PhotonSampWall(1,p,q,SurfSideID) = PhotonSampWall(1,p,q,SurfSideID) + 1.0
-      PhotonSampWall(2,p,q,SurfSideID) = PhotonSampWall(2,p,q,SurfSideID) + PhotonProps%PhotonEnergy
+      PhotonSampWallProc(1,p,q,SurfSideID) = PhotonSampWallProc(1,p,q,SurfSideID) + 1.0
+      PhotonSampWallProc(2,p,q,SurfSideID) = PhotonSampWallProc(2,p,q,SurfSideID) + PhotonProps%PhotonEnergy
     ELSE
       PhotonSampWall(1,1,1,SurfSideID) = PhotonSampWall(1,1,1,SurfSideID) + 1.0
       PhotonSampWall(2,1,1,SurfSideID) = PhotonSampWall(2,1,1,SurfSideID) + PhotonProps%PhotonEnergy

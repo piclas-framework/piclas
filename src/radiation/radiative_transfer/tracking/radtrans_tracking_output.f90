@@ -418,6 +418,8 @@ IF (myComputeNodeRank.EQ.0) THEN
 ELSE
   CALL MPI_REDUCE(PhotonSampWallProc, 0                    , MessageSize, MPI_DOUBLE_PRECISION, MPI_SUM, 0, MPI_COMM_SHARED, IERROR)
 ENDIF
+! Nullify process-local array
+PhotonSampWallProc = 0.0
 
 ! Update
 CALL BARRIER_AND_SYNC(PhotonSampWall_Shared_Win,MPI_COMM_SHARED)
@@ -605,6 +607,7 @@ IF(nProcessors.GT.1)THEN
   END IF
 
   ALLOCATE(RayElemPassedEnergyHO(nVarRay,nGlobalEntries))
+  RayElemPassedEnergyHO=0.
   ALLOCATE(RayElemOffset(nGlobalElems))
   !> Shared arrays for high-order volume sampling
   CALL Allocate_Shared((/nVarRay,INT(nGlobalEntries,4)/),RayElemPassedEnergyHO_Shared_Win,RayElemPassedEnergyHO_Shared)
@@ -624,7 +627,6 @@ IF(nProcessors.GT.1)THEN
 
   MessageSize = nVarRay * INT(nGlobalEntries,4)
 
-  ! Reduce data to each node leader
   IF (myComputeNodeRank.EQ.0) THEN
     CALL MPI_REDUCE(RayElemPassedEnergyHO, RayElemPassedEnergyHO_Shared, MessageSize, MPI_DOUBLE_PRECISION, MPI_SUM, 0, MPI_COMM_SHARED, IERROR)
   ELSE
