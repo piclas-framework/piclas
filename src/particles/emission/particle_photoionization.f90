@@ -40,7 +40,7 @@ USE MOD_Globals_Vars            ,ONLY: PI
 USE MOD_Timedisc_Vars           ,ONLY: dt,time
 USE MOD_Particle_Boundary_Vars  ,ONLY: nSurfSample, Partbound, DoBoundaryParticleOutputHDF5
 USE MOD_Particle_Vars           ,ONLY: Species, PartState, usevMPF
-USE MOD_RayTracing_Vars         ,ONLY: Ray,UseRayTracing
+USE MOD_RayTracing_Vars         ,ONLY: Ray,UseRayTracing,RayElemEmission
 USE MOD_part_emission_tools     ,ONLY: CalcPhotonEnergy
 USE MOD_Particle_Mesh_Vars      ,ONLY: SideInfo_Shared,UseBezierControlPoints
 USE MOD_Particle_Surfaces_Vars  ,ONLY: BezierControlPoints3D, BezierSampleXi
@@ -146,6 +146,8 @@ TimeScalingFactor = 0.5 * SQRT(PI) * tau * (ERF(t_2/tau)-ERF(t_1/tau))
 
 DO BCSideID=1,nBCSides
   locElemID = SideToElem(S2E_ELEM_ID,BCSideID)
+  ! Skip elements without ionization
+  IF(.NOT.RayElemEmission(locElemID)) CYCLE
   iLocSide  = SideToElem(S2E_LOC_SIDE_ID,BCSideID)
   SideID    = GetGlobalNonUniqueSideID(offsetElem+locElemID,iLocSide)
   !iSurfSide = GlobalSide2SurfSide(SURF_SIDEID,SideID)
@@ -266,7 +268,7 @@ USE MOD_Globals_Vars            ,ONLY: PI, c
 USE MOD_Timedisc_Vars           ,ONLY: dt,time
 USE MOD_Mesh_Vars               ,ONLY: nElems, offsetElem
 USE MOD_Mesh_Vars               ,ONLY: NGeo,wBaryCL_NGeo,XiCL_NGeo,XCL_NGeo
-USE MOD_RayTracing_Vars         ,ONLY: UseRayTracing, Ray
+USE MOD_RayTracing_Vars         ,ONLY: UseRayTracing, Ray,RayElemEmission
 USE MOD_RayTracing_Vars         ,ONLY: U_N_Ray_loc,N_DG_Ray_loc,N_Inter_Ray
 USE MOD_Particle_Vars           ,ONLY: Species, PartState, usevMPF, PartMPF, PDM, PEM, PartSpecies
 USE MOD_DSMC_Vars               ,ONLY: ChemReac, DSMC, SpecDSMC, BGGas, Coll_pData, CollisMode, PartStateIntEn
@@ -339,6 +341,8 @@ IF(t_2.GT.2.0*tShift) t_2 = 2.0*tShift
 TimeScalingFactor = 0.5 * SQRT(PI) * tau * (ERF(t_2/tau)-ERF(t_1/tau))
 
 DO iElem=1, nElems
+  ! Skip elements without ionization
+  IF(.NOT.RayElemEmission(iElem)) CYCLE
   iGlobalElem = iElem+offSetElem
   ! iCNElem = GetCNElemID(iGlobalElem)
   NRayLoc = N_DG_Ray_loc(iElem)

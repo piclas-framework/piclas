@@ -73,7 +73,7 @@ END TYPE
 TYPE (tRadTrans)     :: RadTrans                       !<
 
 LOGICAL              :: RayForceAbsorption             !< Surface photon sampling is performed independent of the actual absorption/reflection outcome (default=T)
-LOGICAL, ALLOCATABLE :: RayElemEmission(:)             !< Flag elements that are relevant for volume photoionization
+LOGICAL, ALLOCATABLE :: RayElemEmission(:)             !< Flag elements that are relevant for volume or surface photoionization
 INTEGER              :: NumRays                        !<
 INTEGER              :: RayPartBound                   !< Particle boundary ID where rays are emitted from
 

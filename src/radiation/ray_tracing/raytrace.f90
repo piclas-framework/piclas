@@ -339,12 +339,16 @@ DO iSurfSideHDF5 = 1, nSurfSidesHDF5
     SideID    = GetGlobalNonUniqueSideID(offsetElem+locElemID,iLocSide)
     IF(GlobalSideID.EQ.SideID)THEN
       PhotonSampWall_loc(1:nSurfSample,1:nSurfSample,BCSideID) = PhotonSampWallHDF5(2,1:nSurfSample,1:nSurfSample,iSurfSideHDF5)
+      ! Check if element fas already been flagged an emission element (either volume or surface emission)
+      IF(.NOT.RayElemEmission(locElemID))THEN
+        IF(ANY(PhotonSampWall_loc(1:nSurfSample,1:nSurfSample,BCSideID).GT.0.0)) RayElemEmission(locElemID) = .TRUE.
+      END IF ! .NOT.RayElemEmission(locElemID)
     END IF ! GlobalSideID.EQ.
   END DO ! BCSideID = 1,nBCSides
 END DO ! iSurfSideHDF5 = 1, nSurfSidesHDF5
 
 
-! Check if only the surface data is to be loaded
+! Check if only the surface data is to be loaded (non-restart and non-load balance case)
 IF(onlySurfData) RETURN
 
 ! 2. Get local element polynomial
