@@ -235,7 +235,6 @@ DO i=1,nSpecies
                 IF(TRIM(Species(i)%Init(iInit)%SpaceIC).EQ.'photon_rectangle')THEN
                   ! Rectangular area -> cuboid: Equally distributed over c*dt
                   NbrOfPhotons = NbrOfPhotons * Species(i)%Init(iInit)%CuboidHeightIC / (c*dt)
-                  print*, NbrOfPhotons
                 ELSE
                   ! Cylinder and honeycomb: Equally distributed over c*dt
                   NbrOfPhotons = NbrOfPhotons * Species(i)%Init(iInit)%CylinderHeightIC / (c*dt)

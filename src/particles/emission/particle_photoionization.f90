@@ -147,12 +147,11 @@ TimeScalingFactor = 0.5 * SQRT(PI) * tau * (ERF(t_2/tau)-ERF(t_1/tau))
 DO BCSideID=1,nBCSides
   locElemID = SideToElem(S2E_ELEM_ID,BCSideID)
   ! Skip elements without ionization
-  IF(.NOT.RayElemEmission(locElemID)) CYCLE
+  IF(.NOT.RayElemEmission(1,locElemID)) CYCLE
   iLocSide  = SideToElem(S2E_LOC_SIDE_ID,BCSideID)
   SideID    = GetGlobalNonUniqueSideID(offsetElem+locElemID,iLocSide)
   iSurfSide = GlobalSide2SurfSide(SURF_SIDEID,SideID)
   !SideID = SurfSide2GlobalSide(SURF_SIDEID,iSurfSide)
-  ! TODO: Skip sides which are not mine in the MPI case
   BCID = PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID))
   ! Skip non-reflective BC sides
   IF(PartBound%TargetBoundCond(BCID).NE.PartBound%ReflectiveBC) CYCLE
@@ -272,6 +271,7 @@ USE MOD_Mesh_Vars               ,ONLY: nElems, offsetElem
 USE MOD_Mesh_Vars               ,ONLY: NGeo,wBaryCL_NGeo,XiCL_NGeo,XCL_NGeo
 USE MOD_RayTracing_Vars         ,ONLY: UseRayTracing, Ray,RayElemEmission
 USE MOD_RayTracing_Vars         ,ONLY: U_N_Ray_loc,N_DG_Ray_loc,N_Inter_Ray
+USE MOD_RayTracing_Vars         ,ONLY: RaySecondaryVectorX,RaySecondaryVectorY,RaySecondaryVectorZ
 USE MOD_Particle_Vars           ,ONLY: Species, PartState, usevMPF, PartMPF, PDM, PEM, PartSpecies
 USE MOD_DSMC_Vars               ,ONLY: ChemReac, DSMC, SpecDSMC, BGGas, Coll_pData, CollisMode, PartStateIntEn, DSMCSumOfFormedParticles
 USE MOD_DSMC_Vars               ,ONLY: newAmbiParts, iPartIndx_NodeNewAmbi
@@ -295,7 +295,7 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER               :: iElem,k,l,m,iReac,iPair,iGlobalElem
+INTEGER               :: iElem,k,l,m,iReac,iPair,iGlobalElem,iVar
 INTEGER               :: SpecID,nPair,NRayLoc,BGGSpecID
 INTEGER               :: NbrOfRepetitions
 INTEGER               :: PartID,newPartID
@@ -303,6 +303,7 @@ REAL                  :: t_1, t_2, E_Intensity, TimeScalingFactor
 REAL                  :: density, NbrOfPhotons, NbrOfReactions
 REAL                  :: RandNum,RandVal(3),Xi(3)
 REAL                  :: RandomPos(1:3),MPF
+REAL                  :: RayDirection(1:3),RayBaseVector1IC(1:3),RayBaseVector2IC(1:3)
 !===================================================================================================================================
 
 IF(.NOT.UseRayTracing) RETURN
@@ -349,145 +350,165 @@ IF(t_2.GT.2.0*tShift) t_2 = 2.0*tShift
 
 TimeScalingFactor = 0.5 * SQRT(PI) * tau * (ERF(t_2/tau)-ERF(t_1/tau))
 
-DO iElem=1, nElems
-  ! Skip elements without ionization
-  IF(.NOT.RayElemEmission(iElem)) CYCLE
-  iGlobalElem = iElem+offSetElem
-  ! iCNElem = GetCNElemID(iGlobalElem)
-  NRayLoc = N_DG_Ray_loc(iElem)
-  DO m=0,NRayLoc
-    DO l=0,NRayLoc
-      DO k=0,NRayLoc
-        ! TODO: Ray secondary energy, U_N_Ray_loc(iElem)%U(2,k,l,m)
-        E_Intensity = U_N_Ray_loc(iElem)%U(1,k,l,m) * TimeScalingFactor
-        ! Number of photons (TODO: spectrum)
-        NbrOfPhotons = E_Intensity / (CalcPhotonEnergy(lambda) * c * dt)
-        DO iReac = 1, ChemReac%NumOfReact
-          SpecID = ChemReac%Reactants(iReac,1)
-          ! TODO: Background gas density distribution
-          BGGSpecID = BGGas%MapSpecToBGSpec(SpecID)
-          density = BGGas%NumberDensity(BGGSpecID)
-          ! Determine the number of particles to insert
-          ! Collision number: Z = n_gas * n_ph * sigma_reac * v (in the case of photons its speed of light)
-          ! Number of reactions: N = Z * dt * V (number of photons cancels out the volume)
-          ! Number of reactions: N = n_gas * N_ph * sigma_reac * v * dt
-          NbrOfReactions = density * NbrOfPhotons * ChemReac%CrossSection(iReac) * c * dt / Species(SpecID)%MacroParticleFactor
-          CALL RANDOM_NUMBER(RandNum)
-          nPair = INT(NbrOfReactions+RandNum)
-          ALLOCATE(Coll_pData(nPair))
-          Coll_pData%Ec = 0.
-          DSMCSumOfFormedParticles = 0
-          ! Loop over all newly created particles
-          DO iPair = 1, nPair
-            ! Get a random position in the subelement TODO: N_Inter_Ray must always be available
-            CALL RANDOM_NUMBER(RandVal)
-            Xi(1) = -1.0 + SUM(N_Inter_Ray(NRayLoc)%wGP(0:k-1)) + N_Inter_Ray(NRayLoc)%wGP(k) * RandVal(1)
-            Xi(2) = -1.0 + SUM(N_Inter_Ray(NRayLoc)%wGP(0:l-1)) + N_Inter_Ray(NRayLoc)%wGP(l) * RandVal(2)
-            Xi(3) = -1.0 + SUM(N_Inter_Ray(NRayLoc)%wGP(0:m-1)) + N_Inter_Ray(NRayLoc)%wGP(m) * RandVal(3)
-            IF(ANY(Xi.GT.1.0).OR.ANY(Xi.LT.-1.0))THEN
-              IPWRITE(UNIT_StdOut,*) "Xi =", Xi
-              CALL abort(__STAMP__,'xi out of range')
-            END IF ! ANY(Xi.GT.1.0).OR.ANY(Xi.LT.-1.0)
-            ! Get the physical coordinates that correspond to the reference coordinates
-            CALL TensorProductInterpolation(Xi(1:3),3,NGeo,XiCL_NGeo,wBaryCL_NGeo,XCL_NGeo(1:3,0:NGeo,0:NGeo,0:NGeo,iElem),RandomPos(1:3))
-            ! Create new particle from the background gas
-            DSMCSumOfFormedParticles = DSMCSumOfFormedParticles + 1
-            PartID = PDM%nextFreePosition(PDM%CurrentNextFreePosition+DSMCSumOfFormedParticles)
-            IF(PartID.GT.PDM%MaxParticleNumber)THEN
-              CALL abort(__STAMP__,'Raytrace Photoionization: PartID.GT.PDM%MaxParticleNumber. '//&
-                                  'Increase Part-maxParticleNumber or use more processors. PartID=',IntInfoOpt=PartID)
-            END IF
-            IF (PartID.EQ.0) THEN
-              CALL Abort(__STAMP__,'ERROR in PhotoIonization: MaxParticleNumber should be increased!')
-            END IF
-            ! Set the position
-            PartState(1:3,PartID) = RandomPos(1:3)
-            ! Set the species
-            PartSpecies(PartID) = SpecID
-            ! Set the velocity (required for the collision energy, although relatively small compared to the photon energy)
-            IF(BGGas%UseDistribution) THEN
-              PartState(4:6,PartID) = CalcVelocity_maxwell_particle(SpecID,BGGas%Distribution(BGGSpecID,4:6,iElem)) &
-                                            + BGGas%Distribution(BGGSpecID,1:3,iElem)
-            ELSE
-              CALL CalcVelocity_maxwell_lpn(FractNbr=SpecID, Vec3D=PartState(4:6,PartID), iInit=1)
-            END IF
-            ! Ambipolar diffusion
-            IF (DSMC%DoAmbipolarDiff) THEN
-              newAmbiParts = newAmbiParts + 1
-              iPartIndx_NodeNewAmbi(newAmbiParts) = PartID
-            END IF
-            ! Set the internal energies
-            IF(CollisMode.GT.1) THEN
-              IF(SpecDSMC(SpecID)%PolyatomicMol) THEN
-                CALL DSMC_SetInternalEnr_Poly(SpecID,1,PartID,1)
-              ELSE
-                CALL DSMC_SetInternalEnr_LauxVFD(SpecID,1,PartID,1)
-              END IF
-            END IF
-            ! Particle flags
-            PDM%ParticleInside(PartID)  = .TRUE.
-            PDM%IsNewPart(PartID)       = .TRUE.
-            PDM%dtFracPush(PartID)      = .FALSE.
-            PEM%GlobalElemID(PartID)     = iGlobalElem
-            PEM%LastGlobalElemID(PartID) = iGlobalElem
-            ! Create second particle (only the index and the flags/elements needs to be set)
-            DSMCSumOfFormedParticles = DSMCSumOfFormedParticles + 1
-            newPartID = PDM%nextFreePosition(PDM%CurrentNextFreePosition+DSMCSumOfFormedParticles)
-            IF(newPartID.GT.PDM%MaxParticleNumber)THEN
-              CALL abort(__STAMP__,'Raytrace Photoionization: newPartID.GT.PDM%MaxParticleNumber. '//&
-                                  'Increase Part-maxParticleNumber or use more processors. newPartID=',IntInfoOpt=newPartID)
-            END IF
-            IF (newPartID.EQ.0) THEN
-              CALL Abort(__STAMP__,'ERROR in PhotoIonization: MaxParticleNumber should be increased!')
-            END IF
-            IF (DSMC%DoAmbipolarDiff) THEN
-              newAmbiParts = newAmbiParts + 1
-              iPartIndx_NodeNewAmbi(newAmbiParts) = newPartID
-            END IF
-            ! Set the position
-            PartState(1:3,newPartID) = RandomPos(1:3)
-            ! Particle flags
-            PDM%ParticleInside(newPartID)  = .TRUE.
-            PDM%IsNewPart(newPartID)       = .TRUE.
-            PDM%dtFracPush(newPartID)      = .FALSE.
-            PEM%GlobalElemID(newPartID)     = iGlobalElem
-            PEM%LastGlobalElemID(newPartID) = iGlobalElem
-            ! Pairing (first particle is the background gas species)
-            Coll_pData(iPair)%iPart_p1 = PartID
-            Coll_pData(iPair)%iPart_p2 = newPartID
-            ! Relative velocity is not required as the relative translational energy will not be considered
-            Coll_pData(iPair)%CRela2 = 0.
-            ! Weighting factor: use the weighting factor of the emission init
-            MPF = Species(SpecID)%MacroParticleFactor
-            IF(usevMPF) THEN
-              PartMPF(PartID)    = MPF
-              PartMPF(newPartID) = MPF
-            END IF
-            ! 1. Store the particle information in PartStateBoundary.h5
-            IF(DoBoundaryParticleOutputHDF5) THEN
-              CALL StoreBoundaryParticleProperties(PartID,SpecID,PartState(1:3,PartID),&
-                  UNITVECTOR(PartState(4:6,PartID)),(/0.,0.,1./),iPartBound=0,mode=2,MPF_optIN=MPF)
-              CALL StoreBoundaryParticleProperties(NewPartID,SpecID,PartState(1:3,NewPartID),&
-                  UNITVECTOR(PartState(4:6,NewPartID)),(/0.,0.,1./),iPartBound=0,mode=2,MPF_optIN=MPF)
-            END IF ! DoBoundaryParticleOutputHDF5
-            ! Velocity (set it to zero, as it will be subtracted in the chemistry module)
-            PartState(4:6,newPartID) = 0.
-            ! Internal energies (set it to zero)
-            PartStateIntEn(1:2,newPartID) = 0.
-            IF(DSMC%ElectronicModel.GT.0) PartStateIntEn(3,newPartID) = 0.
-            ! Insert the products and distribute the reaction energy (Requires: Pair indices, Coll_pData(iPair)%iPart_p1/2)
-            CALL PhotoIonization_InsertProducts(iPair, iReac, Ray%BaseVector1IC, Ray%BaseVector2IC, Ray%Direction, PartBCIndex=0)
-            ! Advance particle vector length and the current next free position with newly created particles
-            PDM%ParticleVecLength = PDM%ParticleVecLength + DSMCSumOfFormedParticles
-            PDM%CurrentNextFreePosition = PDM%CurrentNextFreePosition + DSMCSumOfFormedParticles
+! Loop over the first and secondary rays
+DO iVar = 1, 2
+  ! Set the direction for the first ray direction before the element loop since it does not change
+  IF(iVar.EQ.1) THEN
+    RayDirection(1:3) = Ray%Direction(1:3)
+    RayBaseVector1IC(1:3) = Ray%BaseVector1IC(1:3)
+    RayBaseVector2IC(1:3) = Ray%BaseVector2IC(1:3)
+  END IF
+  ! Loop over all elements
+  DO iElem=1, nElems
+    ! Skip elements without ionization
+    IF(.NOT.RayElemEmission(iVar,iElem)) CYCLE
+    iGlobalElem = iElem+offSetElem
+    ! Set the ray-direction in case of secondary rays
+    IF(iVar.EQ.2) THEN
+      ! Generate two base vectors perpendicular to the ray direction
+      RayDirection(1:3) = (/RaySecondaryVectorX(iElem),RaySecondaryVectorY(iElem),RaySecondaryVectorZ(iElem)/)
+      ! Check whether the direction is zero
+      IF(.NOT.ALL(RayDirection(1:3).EQ.0.)) THEN
+        CALL OrthoNormVec(RayDirection(1:3),RayBaseVector1IC(1:3),RayBaseVector2IC(1:3))
+      ELSE
+        CYCLE
+      END IF
+    END IF
+    ! Set the element local order and loop over all sub-elements
+    NRayLoc = N_DG_Ray_loc(iElem)
+    DO m=0,NRayLoc
+      DO l=0,NRayLoc
+        DO k=0,NRayLoc
+          E_Intensity = U_N_Ray_loc(iElem)%U(iVar,k,l,m) * TimeScalingFactor
+          ! Number of photons (TODO: spectrum)
+          NbrOfPhotons = E_Intensity / (CalcPhotonEnergy(lambda) * c * dt)
+          DO iReac = 1, ChemReac%NumOfReact
+            SpecID = ChemReac%Reactants(iReac,1)
+            ! TODO: Background gas density distribution
+            BGGSpecID = BGGas%MapSpecToBGSpec(SpecID)
+            density = BGGas%NumberDensity(BGGSpecID)
+            ! Determine the number of particles to insert
+            ! Collision number: Z = n_gas * n_ph * sigma_reac * v (in the case of photons its speed of light)
+            ! Number of reactions: N = Z * dt * V (number of photons cancels out the volume)
+            ! Number of reactions: N = n_gas * N_ph * sigma_reac * v * dt
+            NbrOfReactions = density * NbrOfPhotons * ChemReac%CrossSection(iReac) * c * dt / Species(SpecID)%MacroParticleFactor
+            CALL RANDOM_NUMBER(RandNum)
+            nPair = INT(NbrOfReactions+RandNum)
+            ALLOCATE(Coll_pData(nPair))
+            Coll_pData%Ec = 0.
             DSMCSumOfFormedParticles = 0
-          END DO  ! iPart = 1, nPair
-          DEALLOCATE(Coll_pData)
-        END DO    ! iReac = 1, ChemReac%NumOfReact
-      END DO ! k
-    END DO ! l
-  END DO ! m
-END DO
+            ! Loop over all newly created particles
+            DO iPair = 1, nPair
+              ! Get a random position in the subelement
+              CALL RANDOM_NUMBER(RandVal)
+              Xi(1) = -1.0 + SUM(N_Inter_Ray(NRayLoc)%wGP(0:k-1)) + N_Inter_Ray(NRayLoc)%wGP(k) * RandVal(1)
+              Xi(2) = -1.0 + SUM(N_Inter_Ray(NRayLoc)%wGP(0:l-1)) + N_Inter_Ray(NRayLoc)%wGP(l) * RandVal(2)
+              Xi(3) = -1.0 + SUM(N_Inter_Ray(NRayLoc)%wGP(0:m-1)) + N_Inter_Ray(NRayLoc)%wGP(m) * RandVal(3)
+              IF(ANY(Xi.GT.1.0).OR.ANY(Xi.LT.-1.0))THEN
+                IPWRITE(UNIT_StdOut,*) "Xi =", Xi
+                CALL abort(__STAMP__,'xi out of range')
+              END IF ! ANY(Xi.GT.1.0).OR.ANY(Xi.LT.-1.0)
+              ! Get the physical coordinates that correspond to the reference coordinates
+              CALL TensorProductInterpolation(Xi(1:3),3,NGeo,XiCL_NGeo,wBaryCL_NGeo,XCL_NGeo(1:3,0:NGeo,0:NGeo,0:NGeo,iElem),RandomPos(1:3))
+              ! Create new particle from the background gas
+              DSMCSumOfFormedParticles = DSMCSumOfFormedParticles + 1
+              PartID = PDM%nextFreePosition(PDM%CurrentNextFreePosition+DSMCSumOfFormedParticles)
+              IF(PartID.GT.PDM%MaxParticleNumber)THEN
+                CALL abort(__STAMP__,'Raytrace Photoionization: PartID.GT.PDM%MaxParticleNumber. '//&
+                                    'Increase Part-maxParticleNumber or use more processors. PartID=',IntInfoOpt=PartID)
+              END IF
+              IF (PartID.EQ.0) THEN
+                CALL Abort(__STAMP__,'ERROR in PhotoIonization: MaxParticleNumber should be increased!')
+              END IF
+              ! Set the position
+              PartState(1:3,PartID) = RandomPos(1:3)
+              ! Set the species
+              PartSpecies(PartID) = SpecID
+              ! Set the velocity (required for the collision energy, although relatively small compared to the photon energy)
+              IF(BGGas%UseDistribution) THEN
+                PartState(4:6,PartID) = CalcVelocity_maxwell_particle(SpecID,BGGas%Distribution(BGGSpecID,4:6,iElem)) &
+                                              + BGGas%Distribution(BGGSpecID,1:3,iElem)
+              ELSE
+                CALL CalcVelocity_maxwell_lpn(FractNbr=SpecID, Vec3D=PartState(4:6,PartID), iInit=1)
+              END IF
+              ! Ambipolar diffusion
+              IF (DSMC%DoAmbipolarDiff) THEN
+                newAmbiParts = newAmbiParts + 1
+                iPartIndx_NodeNewAmbi(newAmbiParts) = PartID
+              END IF
+              ! Set the internal energies
+              IF(CollisMode.GT.1) THEN
+                IF(SpecDSMC(SpecID)%PolyatomicMol) THEN
+                  CALL DSMC_SetInternalEnr_Poly(SpecID,1,PartID,1)
+                ELSE
+                  CALL DSMC_SetInternalEnr_LauxVFD(SpecID,1,PartID,1)
+                END IF
+              END IF
+              ! Particle flags
+              PDM%ParticleInside(PartID)  = .TRUE.
+              PDM%IsNewPart(PartID)       = .TRUE.
+              PDM%dtFracPush(PartID)      = .FALSE.
+              PEM%GlobalElemID(PartID)     = iGlobalElem
+              PEM%LastGlobalElemID(PartID) = iGlobalElem
+              ! Create second particle (only the index and the flags/elements needs to be set)
+              DSMCSumOfFormedParticles = DSMCSumOfFormedParticles + 1
+              newPartID = PDM%nextFreePosition(PDM%CurrentNextFreePosition+DSMCSumOfFormedParticles)
+              IF(newPartID.GT.PDM%MaxParticleNumber)THEN
+                CALL abort(__STAMP__,'Raytrace Photoionization: newPartID.GT.PDM%MaxParticleNumber. '//&
+                                    'Increase Part-maxParticleNumber or use more processors. newPartID=',IntInfoOpt=newPartID)
+              END IF
+              IF (newPartID.EQ.0) THEN
+                CALL Abort(__STAMP__,'ERROR in PhotoIonization: MaxParticleNumber should be increased!')
+              END IF
+              IF (DSMC%DoAmbipolarDiff) THEN
+                newAmbiParts = newAmbiParts + 1
+                iPartIndx_NodeNewAmbi(newAmbiParts) = newPartID
+              END IF
+              ! Set the position
+              PartState(1:3,newPartID) = RandomPos(1:3)
+              ! Particle flags
+              PDM%ParticleInside(newPartID)  = .TRUE.
+              PDM%IsNewPart(newPartID)       = .TRUE.
+              PDM%dtFracPush(newPartID)      = .FALSE.
+              PEM%GlobalElemID(newPartID)     = iGlobalElem
+              PEM%LastGlobalElemID(newPartID) = iGlobalElem
+              ! Pairing (first particle is the background gas species)
+              Coll_pData(iPair)%iPart_p1 = PartID
+              Coll_pData(iPair)%iPart_p2 = newPartID
+              ! Relative velocity is not required as the relative translational energy will not be considered
+              Coll_pData(iPair)%CRela2 = 0.
+              ! Weighting factor: use the weighting factor of the emission init
+              MPF = Species(SpecID)%MacroParticleFactor
+              IF(usevMPF) THEN
+                PartMPF(PartID)    = MPF
+                PartMPF(newPartID) = MPF
+              END IF
+              ! 1. Store the particle information in PartStateBoundary.h5
+              IF(DoBoundaryParticleOutputHDF5) THEN
+                CALL StoreBoundaryParticleProperties(PartID,SpecID,PartState(1:3,PartID),&
+                    UNITVECTOR(PartState(4:6,PartID)),(/0.,0.,1./),iPartBound=0,mode=2,MPF_optIN=MPF)
+                CALL StoreBoundaryParticleProperties(NewPartID,SpecID,PartState(1:3,NewPartID),&
+                    UNITVECTOR(PartState(4:6,NewPartID)),(/0.,0.,1./),iPartBound=0,mode=2,MPF_optIN=MPF)
+              END IF ! DoBoundaryParticleOutputHDF5
+              ! Velocity (set it to zero, as it will be subtracted in the chemistry module)
+              PartState(4:6,newPartID) = 0.
+              ! Internal energies (set it to zero)
+              PartStateIntEn(1:2,newPartID) = 0.
+              IF(DSMC%ElectronicModel.GT.0) PartStateIntEn(3,newPartID) = 0.
+              ! Insert the products and distribute the reaction energy (Requires: Pair indices, Coll_pData(iPair)%iPart_p1/2)
+              CALL PhotoIonization_InsertProducts(iPair, iReac, RayBaseVector1IC, RayBaseVector2IC, RayDirection, PartBCIndex=0)
+              ! Advance particle vector length and the current next free position with newly created particles
+              PDM%ParticleVecLength = PDM%ParticleVecLength + DSMCSumOfFormedParticles
+              PDM%CurrentNextFreePosition = PDM%CurrentNextFreePosition + DSMCSumOfFormedParticles
+              DSMCSumOfFormedParticles = 0
+            END DO  ! iPart = 1, nPair
+            DEALLOCATE(Coll_pData)
+          END DO    ! iReac = 1, ChemReac%NumOfReact
+        END DO      ! k
+      END DO        ! l
+    END DO          ! m
+  END DO            ! iElem = 1, nElems
+END DO              ! iVar = 1, 2
 
 
 END ASSOCIATE

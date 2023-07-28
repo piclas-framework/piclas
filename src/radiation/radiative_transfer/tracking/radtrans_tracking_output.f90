@@ -132,8 +132,9 @@ ASSOCIATE( RayElemPassedEnergy => RayElemPassedEnergy_Shared )
     RayElemPassedEnergyLoc1st(iElem) = RayElemPassedEnergy(1,iGlobalElem) !/ ElemVolume_Shared(iCNElem)
     ! Secondary energy
     RayElemPassedEnergyLoc2nd(iElem) = RayElemPassedEnergy(2,iGlobalElem) !/ ElemVolume_Shared(iCNElem)
-    ! Activate voltume emission
-    IF((RayElemPassedEnergyLoc1st(iElem).GT.0.0).OR.(RayElemPassedEnergyLoc2nd(iElem).GT.0.0)) RayElemEmission(iElem) = .TRUE.
+    ! Activate volume emission
+    IF((RayElemPassedEnergyLoc1st(iElem).GT.0.0)) RayElemEmission(1,iElem) = .TRUE.
+    IF((RayElemPassedEnergyLoc2nd(iElem).GT.0.0)) RayElemEmission(2,iElem) = .TRUE.
     ! Check if secondary energy is greater than zero
     IF(RayElemPassedEnergyLoc2nd(iElem).GT.0.0)THEN
       IF(RayElemPassedEnergy(6,iGlobalElem).LE.0.0) CALL abort(__STAMP__,'Secondary ray counter is zero but energy is not!')
