@@ -285,6 +285,8 @@ USE MOD_part_tools              ,ONLY: CalcVelocity_maxwell_particle
 #if defined(LSERK)
 USE MOD_TimeDisc_Vars           ,ONLY: iStage,nRKStages,RK_c
 #endif /*defined(LSERK)*/
+USE MOD_Particle_Boundary_Tools ,ONLY: StoreBoundaryParticleProperties
+USE MOD_Particle_Boundary_Vars  ,ONLY: DoBoundaryParticleOutputHDF5
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -300,13 +302,12 @@ INTEGER               :: PartID,newPartID
 REAL                  :: t_1, t_2, E_Intensity, TimeScalingFactor
 REAL                  :: density, NbrOfPhotons, NbrOfReactions
 REAL                  :: RandNum,RandVal(3),Xi(3)
-REAL                  :: RandomPos(1:3)
+REAL                  :: RandomPos(1:3),MPF
 !===================================================================================================================================
 
 IF(.NOT.UseRayTracing) RETURN
 
 ! TODO: Only if a photoionization reaction has been found
-
 
 ! Determine the time-dependent ray intensity
 ASSOCIATE(tau         => Ray%PulseDuration      ,&
@@ -451,10 +452,18 @@ DO iElem=1, nElems
             ! Relative velocity is not required as the relative translational energy will not be considered
             Coll_pData(iPair)%CRela2 = 0.
             ! Weighting factor: use the weighting factor of the emission init
+            MPF = Species(SpecID)%MacroParticleFactor
             IF(usevMPF) THEN
-              PartMPF(PartID)    = Species(SpecID)%MacroParticleFactor
-              PartMPF(newPartID) = PartMPF(PartID)
+              PartMPF(PartID)    = MPF
+              PartMPF(newPartID) = MPF
             END IF
+            ! 1. Store the particle information in PartStateBoundary.h5
+            IF(DoBoundaryParticleOutputHDF5) THEN
+              CALL StoreBoundaryParticleProperties(PartID,SpecID,PartState(1:3,PartID),&
+                  UNITVECTOR(PartState(4:6,PartID)),(/0.,0.,1./),iPartBound=0,mode=2,MPF_optIN=MPF)
+              CALL StoreBoundaryParticleProperties(NewPartID,SpecID,PartState(1:3,NewPartID),&
+                  UNITVECTOR(PartState(4:6,NewPartID)),(/0.,0.,1./),iPartBound=0,mode=2,MPF_optIN=MPF)
+            END IF ! DoBoundaryParticleOutputHDF5
             ! Velocity (set it to zero, as it will be subtracted in the chemistry module)
             PartState(4:6,newPartID) = 0.
             ! Internal energies (set it to zero)
