@@ -74,7 +74,5 @@ INTEGER,ALLOCATABLE,DIMENSION(:,:):: nSurfSidesLeader       !> number of surf si
 INTEGER            :: MPI_INFO_SHARED_LOOSE                 !> MPI_INFO object allowing for re-ordering of same origin atomic RMA operations
 
 !> Other variables in particle_mesh_vars.f90
-#else
-MPI_COMM_LEADERS_SURF=MPI_COMM_WORLD
 #endif /*USE_MPI*/
 END MODULE
