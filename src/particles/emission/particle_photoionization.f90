@@ -273,7 +273,7 @@ USE MOD_Mesh_Vars               ,ONLY: NGeo,wBaryCL_NGeo,XiCL_NGeo,XCL_NGeo
 USE MOD_RayTracing_Vars         ,ONLY: UseRayTracing, Ray,RayElemEmission
 USE MOD_RayTracing_Vars         ,ONLY: U_N_Ray_loc,N_DG_Ray_loc,N_Inter_Ray
 USE MOD_Particle_Vars           ,ONLY: Species, PartState, usevMPF, PartMPF, PDM, PEM, PartSpecies
-USE MOD_DSMC_Vars               ,ONLY: ChemReac, DSMC, SpecDSMC, BGGas, Coll_pData, CollisMode, PartStateIntEn
+USE MOD_DSMC_Vars               ,ONLY: ChemReac, DSMC, SpecDSMC, BGGas, Coll_pData, CollisMode, PartStateIntEn, DSMCSumOfFormedParticles
 USE MOD_DSMC_Vars               ,ONLY: newAmbiParts, iPartIndx_NodeNewAmbi
 ! Functions/Subroutines
 USE MOD_Eval_xyz                ,ONLY: TensorProductInterpolation
@@ -374,6 +374,9 @@ DO iElem=1, nElems
           NbrOfReactions = density * NbrOfPhotons * ChemReac%CrossSection(iReac) * c * dt / Species(SpecID)%MacroParticleFactor
           CALL RANDOM_NUMBER(RandNum)
           nPair = INT(NbrOfReactions+RandNum)
+          ALLOCATE(Coll_pData(nPair))
+          Coll_pData%Ec = 0.
+          DSMCSumOfFormedParticles = 0
           ! Loop over all newly created particles
           DO iPair = 1, nPair
             ! Get a random position in the subelement TODO: N_Inter_Ray must always be available
@@ -388,9 +391,8 @@ DO iElem=1, nElems
             ! Get the physical coordinates that correspond to the reference coordinates
             CALL TensorProductInterpolation(Xi(1:3),3,NGeo,XiCL_NGeo,wBaryCL_NGeo,XCL_NGeo(1:3,0:NGeo,0:NGeo,0:NGeo,iElem),RandomPos(1:3))
             ! Create new particle from the background gas
-            PDM%CurrentNextFreePosition = PDM%CurrentNextFreePosition + 1
-            PartID = PDM%nextFreePosition(PDM%CurrentNextFreePosition)
-            IF(PartID.GT.PDM%ParticleVecLength) PDM%ParticleVecLength = PDM%ParticleVecLength + 1
+            DSMCSumOfFormedParticles = DSMCSumOfFormedParticles + 1
+            PartID = PDM%nextFreePosition(PDM%CurrentNextFreePosition+DSMCSumOfFormedParticles)
             IF(PartID.GT.PDM%MaxParticleNumber)THEN
               CALL abort(__STAMP__,'Raytrace Photoionization: PartID.GT.PDM%MaxParticleNumber. '//&
                                   'Increase Part-maxParticleNumber or use more processors. PartID=',IntInfoOpt=PartID)
@@ -429,9 +431,8 @@ DO iElem=1, nElems
             PEM%GlobalElemID(PartID)     = iGlobalElem
             PEM%LastGlobalElemID(PartID) = iGlobalElem
             ! Create second particle (only the index and the flags/elements needs to be set)
-            PDM%CurrentNextFreePosition = PDM%CurrentNextFreePosition + 1
-            newPartID = PDM%nextFreePosition(PDM%CurrentNextFreePosition)
-            IF(newPartID.GT.PDM%ParticleVecLength) PDM%ParticleVecLength = PDM%ParticleVecLength + 1
+            DSMCSumOfFormedParticles = DSMCSumOfFormedParticles + 1
+            newPartID = PDM%nextFreePosition(PDM%CurrentNextFreePosition+DSMCSumOfFormedParticles)
             IF(newPartID.GT.PDM%MaxParticleNumber)THEN
               CALL abort(__STAMP__,'Raytrace Photoionization: newPartID.GT.PDM%MaxParticleNumber. '//&
                                   'Increase Part-maxParticleNumber or use more processors. newPartID=',IntInfoOpt=newPartID)
@@ -443,6 +444,8 @@ DO iElem=1, nElems
               newAmbiParts = newAmbiParts + 1
               iPartIndx_NodeNewAmbi(newAmbiParts) = newPartID
             END IF
+            ! Set the position
+            PartState(1:3,newPartID) = RandomPos(1:3)
             ! Particle flags
             PDM%ParticleInside(newPartID)  = .TRUE.
             PDM%IsNewPart(newPartID)       = .TRUE.
@@ -450,8 +453,8 @@ DO iElem=1, nElems
             PEM%GlobalElemID(newPartID)     = iGlobalElem
             PEM%LastGlobalElemID(newPartID) = iGlobalElem
             ! Pairing (first particle is the background gas species)
-            Coll_pData(iPair)%iPart_p1 = newPartID
-            Coll_pData(iPair)%iPart_p2 = PartID
+            Coll_pData(iPair)%iPart_p1 = PartID
+            Coll_pData(iPair)%iPart_p2 = newPartID
             ! Relative velocity is not required as the relative translational energy will not be considered
             Coll_pData(iPair)%CRela2 = 0.
             ! Weighting factor: use the weighting factor of the emission init
@@ -474,12 +477,18 @@ DO iElem=1, nElems
             IF(DSMC%ElectronicModel.GT.0) PartStateIntEn(3,newPartID) = 0.
             ! Insert the products and distribute the reaction energy (Requires: Pair indices, Coll_pData(iPair)%iPart_p1/2)
             CALL PhotoIonization_InsertProducts(iPair, iReac, Ray%BaseVector1IC, Ray%BaseVector2IC, Ray%Direction, PartBCIndex=0)
+            ! Advance particle vector length and the current next free position with newly created particles
+            PDM%ParticleVecLength = PDM%ParticleVecLength + DSMCSumOfFormedParticles
+            PDM%CurrentNextFreePosition = PDM%CurrentNextFreePosition + DSMCSumOfFormedParticles
+            DSMCSumOfFormedParticles = 0
           END DO  ! iPart = 1, nPair
+          DEALLOCATE(Coll_pData)
         END DO    ! iReac = 1, ChemReac%NumOfReact
       END DO ! k
     END DO ! l
   END DO ! m
 END DO
+
 
 END ASSOCIATE
 
