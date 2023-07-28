@@ -165,8 +165,9 @@ ChemReac%NumOfReactWOBackward = ChemReac%NumOfReact
 IF(ChemReac%NumOfReact.LE.0) THEN
   CALL Abort(__STAMP__,' CollisMode = 3 requires a chemical reaction database. DSMC-NumOfReactions cannot be zero!')
 END IF
-ChemReac%AnyQKReaction = .FALSE.
-ChemReac%AnyXSecReaction = .FALSE.
+ChemReac%AnyQKReaction    = .FALSE.
+ChemReac%AnyXSecReaction  = .FALSE.
+ChemReac%AnyPhIonReaction = .FALSE.
 ALLOCATE(ChemReac%ArbDiss(ChemReac%NumOfReact))
 ! Allowing unspecified non-reactive collision partner (CH4 + M -> CH3 + H + M, e.g. (/1,0,0/) -> (/2,0,3/)
 iReacDiss = ChemReac%NumOfReact
@@ -318,9 +319,11 @@ DO iReac = 1, ReadInNumOfReact
     CASE('phIon')
       ! Photo-ionization reactions
       ChemReac%CrossSection(iReac)                 = GETREAL('DSMC-Reaction'//TRIM(hilf)//'-CrossSection')
+      ChemReac%AnyPhIonReaction = .TRUE.
     CASE('phIonXSec')
       ! Photo-ionization reactions (data read-in from database)
       NbrOfPhotonXsecReactions = NbrOfPhotonXsecReactions + 1
+      ChemReac%AnyPhIonReaction = .TRUE.
     CASE DEFAULT
       CALL abort(__STAMP__,'Selected reaction model is not supported in reaction number: ', IntInfoOpt=iReac)
   END SELECT

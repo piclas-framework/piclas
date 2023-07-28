@@ -305,8 +305,10 @@ REAL                  :: RandomPos(1:3)
 
 IF(.NOT.UseRayTracing) RETURN
 
-! TODO: Only if a photoionization reaction has been found
+! Photo-ionization is currently only supported with CollisMode = 3
+IF(CollisMode.NE.3) RETURN
 
+IF(.NOT.ChemReac%AnyPhIonReaction) RETURN
 
 ! Determine the time-dependent ray intensity
 ASSOCIATE(tau         => Ray%PulseDuration      ,&
