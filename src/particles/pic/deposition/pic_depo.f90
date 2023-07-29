@@ -347,7 +347,6 @@ CASE('cell_volweight_mean')
           elemCount = elemCount  + 1
           TestElemID = GetGlobalElemID(NodeToElemInfo(jElem))
           IF (ElemInfo_Shared(ELEM_RANK,TestElemID).EQ.myRank) CYCLE
-          minRank = MIN(minRank,ElemInfo_Shared(ELEM_RANK,TestElemID))
           NoBCSideOnNode = .TRUE.
           LocSideLoop: DO iLocSide = 1, 6
             SideID=GetGlobalNonUniqueSideID(TestElemID,iLocSide)
@@ -400,6 +399,8 @@ CASE('cell_volweight_mean')
           END DO LocSideLoop ! iLocSide = 1, 6
           IF (NoBCSideOnNode) THEN
             NodewoBCSide(kNode)%RankID(elemCount) = ElemInfo_Shared(ELEM_RANK,TestElemID)
+          ELSE
+            minRank = MIN(minRank,ElemInfo_Shared(ELEM_RANK,TestElemID))
           END IF
         END DO
         IF (minRank.NE.myRank) NodewoBCSide(kNode)%RankID(:) = 0
