@@ -23,6 +23,41 @@ of the different tests is given under https://github.com/piclas-framework/piclas
 The automatic execution by *gitlab-runners* can be performed on any machine that is connected to the
 internet and in the following section, the setup of such a machine is described
 
+## Local Testing of GitLab CI
+
+To locally test the GitLab CI (including a YAML verification), [gitlab-ci-local](https://github.com/firecow/gitlab-ci-local) can be used. An installation guide can be found here: [Link](https://github.com/firecow/gitlab-ci-local#linux-based-on-debian). After a successful installation, you can view the available parameters through
+```
+gitlab-ci-local --help
+```
+To view the stages for the default check-in pipeline, execute in the main folder of piclas:
+```
+gitlab-ci-local --list
+```
+To view all stages and tests:
+```
+gitlab-ci-local --list-all
+```
+To execute the check-in pipeline locally (ie. the jobs that were shown with the `--list` command), use
+```
+gitlab-ci-local --shell-isolation
+```
+to avoid errors due to parallel writing of the ctags.txt file. An alternative is to limit the concurrent execution to one job, which
+is analogous to the current configuration on the Gitlab Runner (requires gitlab-ci-local in version 4.42.0)
+```
+gitlab-ci-local --concurrency=1
+```
+It should be noted that currently the cache creation & utilization does not seem to represent the remote execution, meaning that some
+errors might only be recognized after a push to the remote. A specific job can be executed simply by reference its name, and to also
+consider the dependencies (ie. the `needs:`), the following command can be utilized to execute, for example the DSMC check-in job:
+```
+gitlab-ci-local --needs CHE_DSMC
+```
+Another useful option to check the resulting configuration file is
+```
+gitlab-ci-local --preview preview.yml
+```
+which gives the expanded version of utilized `extends:` and `<<:` templates.
+
 ## Regression Server *Gitlab Runner* Setup
 In a first step, the required software packages for PICLas and Reggie2.0 are installed on a new
 system. In a second step, the *gitlab-runner* program is installed and the setup of runner is
