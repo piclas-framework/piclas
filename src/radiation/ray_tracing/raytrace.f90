@@ -90,7 +90,7 @@ IF(.NOT.UseRayTracing) RETURN
 ! from .h5 when a restart is performed
 ALLOCATE(N_DG_Ray_loc(1:nElems))
 N_DG_Ray_loc = -1
-ALLOCATE(RayElemEmission(1:nElems))
+ALLOCATE(RayElemEmission(1:2,1:nElems))
 RayElemEmission = .FALSE.
 ALLOCATE(RaySecondaryVectorX(1:nElems))
 ALLOCATE(RaySecondaryVectorY(1:nElems))
@@ -340,9 +340,9 @@ DO iSurfSideHDF5 = 1, nSurfSidesHDF5
     IF(GlobalSideID.EQ.SideID)THEN
       PhotonSampWall_loc(1:nSurfSample,1:nSurfSample,BCSideID) = PhotonSampWallHDF5(2,1:nSurfSample,1:nSurfSample,iSurfSideHDF5)
       ! Check if element fas already been flagged an emission element (either volume or surface emission)
-      IF(.NOT.RayElemEmission(locElemID))THEN
-        IF(ANY(PhotonSampWall_loc(1:nSurfSample,1:nSurfSample,BCSideID).GT.0.0)) RayElemEmission(locElemID) = .TRUE.
-      END IF ! .NOT.RayElemEmission(locElemID)
+      IF(.NOT.RayElemEmission(1,locElemID))THEN
+        IF(ANY(PhotonSampWall_loc(1:nSurfSample,1:nSurfSample,BCSideID).GT.0.0)) RayElemEmission(1,locElemID) = .TRUE.
+      END IF ! .NOT.RayElemEmission(1,locElemID)
     END IF ! GlobalSideID.EQ.
   END DO ! BCSideID = 1,nBCSides
 END DO ! iSurfSideHDF5 = 1, nSurfSidesHDF5
@@ -412,7 +412,7 @@ ASSOCIATE (&
       DO m=0,Nloc
         DO l=0,Nloc
           DO k=0,Nloc
-            IF(U_N_Ray_loc(iElem)%U(iVar,k,l,m).GT.0.) RayElemEmission(iElem) = .TRUE.
+            IF(U_N_Ray_loc(iElem)%U(iVar,k,l,m).GT.0.) RayElemEmission(iVar,iElem) = .TRUE.
           END DO ! k
         END DO ! l
       END DO ! m
