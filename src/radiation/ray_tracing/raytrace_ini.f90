@@ -37,7 +37,7 @@ IMPLICIT NONE
 CALL prms%SetSection("Ray Tracing")
 
 !CALL prms%CreateLogicalOption(   'RayTracing-AdaptiveRays'   , 'TODO' , '.FALSE.')
-CALL prms%CreateIntOption(       'RayTracing-NumRays'        , 'Number of emitted rays from particle boundary with index [RayTracing-PartBound]' , '1')
+CALL prms%CreateIntOption(       'RayTracing-NumRays'        , 'Number of emitted rays from particle boundary with index [RayTracing-PartBound]')
 CALL prms%CreateRealArrayOption( 'RayTracing-RayDirection'   , 'Direction vector for ray emission. Will be normalized after read-in.' , no=3)
 CALL prms%CreateIntOption(       'RayTracing-PartBound'      , 'Particle boundary ID where rays are emitted from' , '0')
 CALL prms%CreateRealOption(      'RayTracing-PulseDuration'  , 'Pulse duration tau for a Gaussian-type pulse with I~exp(-(t/tau)^2) [s]'                  )
@@ -110,10 +110,11 @@ Ray%Power          = GETREAL('RayTracing-Power')
 Ray%Direction      = GETREALARRAY('RayTracing-RayDirection',3)
 Ray%Direction      = UNITVECTOR(Ray%Direction)
 
-NumRays            = GETINT('RayTracing-NumRays')
-RayForceAbsorption = GETLOGICAL('RayTracing-ForceAbsorption')
-
-Ray%VolRefineMode  = GETINT('RayTracing-VolRefineMode')
+IF(PerformRayTracing)THEN
+  NumRays            = GETINT('RayTracing-NumRays')
+  RayForceAbsorption = GETLOGICAL('RayTracing-ForceAbsorption')
+  Ray%VolRefineMode  = GETINT('RayTracing-VolRefineMode')
+END IF ! PerformRayTracing
 
 Ray%NodeType = NodeTypeVISU
 
