@@ -87,7 +87,7 @@ USE MOD_Basis                  ,ONLY: LegendreGaussNodesAndWeights,LegGaussLobNo
 USE MOD_ChangeBasis            ,ONLY: ChangeBasis3D
 USE MOD_Dielectric_Vars        ,ONLY: DoDielectricSurfaceCharge
 USE MOD_Interpolation_Vars     ,ONLY: xGP,wBary
-USE MOD_Mesh_Vars              ,ONLY: nElems,sJ,nBCSides, SideToElem, BoundaryType
+USE MOD_Mesh_Vars              ,ONLY: nElems,sJ,BoundaryType
 USE MOD_Particle_Vars
 USE MOD_Particle_Mesh_Vars     ,ONLY: nUniqueGlobalNodes, GEO, NodeCoords_Shared, SideInfo_Shared,ElemSideNodeID_Shared
 USE MOD_Particle_Mesh_Tools    ,ONLY: GetGlobalNonUniqueSideID
@@ -99,13 +99,14 @@ USE MOD_ReadInTools            ,ONLY: GETREAL,GETINT,GETLOGICAL,GETSTR,GETREALAR
 USE MOD_Particle_Boundary_Vars ,ONLY: PartBound
 USE MOD_Mesh_Vars              ,ONLY: offsetElem
 USE MOD_Mesh_Tools             ,ONLY: GetGlobalElemID, GetCNElemID
-USE MOD_Particle_Mesh_Vars     ,ONLY: ElemNodeID_Shared,NodeInfo_Shared,NodeToElemInfo,NodeToElemMapping
+USE MOD_Particle_Mesh_Vars     ,ONLY: NodeInfo_Shared
 #if USE_MPI
+USE MOD_Particle_Mesh_Vars     ,ONLY: NodeToElemInfo,NodeToElemMapping,ElemNodeID_Shared
 USE MOD_MPI_vars               ,ONLY: offsetElemMPI
 USE MOD_MPI_Shared_Vars        ,ONLY: ComputeNodeRootRank
 USE MOD_MPI_Shared             ,ONLY: BARRIER_AND_SYNC
 USE MOD_MPI_Shared_Vars        ,ONLY: nComputeNodeTotalElems,nComputeNodeProcessors,myComputeNodeRank
-USE MOD_MPI_Shared_Vars        ,ONLY: nLeaderGroupProcs, nProcessors_Global,MPI_COMM_SHARED
+USE MOD_MPI_Shared_Vars        ,ONLY: nProcessors_Global,MPI_COMM_SHARED
 USE MOD_MPI_Shared
 USE MOD_Particle_Mesh_Vars     ,ONLY: ElemInfo_Shared
 #endif /*USE_MPI*/
@@ -123,11 +124,10 @@ IMPLICIT NONE
 REAL,ALLOCATABLE          :: xGP_tmp(:),wGP_tmp(:)
 INTEGER                   :: ALLOCSTAT, iElem, i, j, k, kk, ll, mm, iNode, CNElemID, CNNbElemID, iLocSide, jNode, locElemID, kNode
 INTEGER                   :: NbElemID, NbLocSide, PeriodicNode, PVID, SideID, NbSideID, NumPerioNodes, iPeriodNode, zNode,zGlobalNode
-INTEGER                   :: TestNode, minRank, elemCount
 REAL                      :: DetLocal(1,0:PP_N,0:PP_N,0:PP_N), DetJac(1,0:1,0:1,0:1), tmpDist, Dist
 REAL, ALLOCATABLE         :: Vdm_tmp(:,:)
 CHARACTER(255)            :: TimeAverageFile
-LOGICAL                   :: NodeDone(4), NoBCSideOnNode, FoundOwnNode
+LOGICAL                   :: NodeDone(4)
 INTEGER, ALLOCATABLE      :: PeriodicNodeSourceMap(:,:)
 TYPE tPeriodicNodeMap
   INTEGER                       :: nPeriodicNodes
@@ -138,11 +138,12 @@ TYPE(tPeriodicNodeMap), ALLOCATABLE :: PeriodicNodeMap(:)
 INTEGER,ALLOCATABLE       :: PeriodicNodesPerNode(:)
 INTEGER                   :: UniqueNodeID
 #if USE_MPI
-INTEGER :: dummy(8)
-INTEGER, ALLOCATABLE      :: SendPeriodicNodes(:), iSendNode(:), RecvPeriodicNodes(:), tmpNode(:,:)
-INTEGER                   :: jElem, NonUniqueNodeID
+LOGICAL                   :: NoBCSideOnNode,FoundOwnNode
+INTEGER                   :: TestNode, minRank, elemCount,jElem,TestElemID
+INTEGER, ALLOCATABLE      :: SendPeriodicNodes(:), iSendNode(:), RecvPeriodicNodes(:)
+INTEGER                   :: NonUniqueNodeID
 INTEGER                   :: SendNodeCount, GlobalElemRank, iProc
-INTEGER                   :: TestElemID, GlobalElemRankOrig, iRank
+INTEGER                   :: GlobalElemRankOrig, iRank
 LOGICAL,ALLOCATABLE       :: NodeDepoMapping(:,:), DoNodeMapping(:), SendNode(:), IsDepoNode(:)
 LOGICAL                   :: bordersMyrank
 ! Non-symmetric particle exchange
@@ -330,6 +331,8 @@ CASE('cell_volweight_mean')
       END DO ! iLocSide = 1, 6
     END DO ! locElemID=1, nElems
 
+#if USE_MPI
+    ! Find periodic nodes which do not have a corresponding BC side to which they are connected
     IF (ANY(PeriodicNodeSourceMap(1:GEO%nPeriodicVectors,:).NE.0)) THEN
       ALLOCATE(NodewoBCSide(nUniqueGlobalNodes))
     END IF
@@ -354,8 +357,8 @@ CASE('cell_volweight_mean')
             IF (PartBound%TargetBoundCond(PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID))).EQ.PartBound%PeriodicBC) THEN
               NoBCSideOnNode = .FALSE.
               PVID = BoundaryType(SideInfo_Shared(SIDE_BCID,SideID),BC_ALPHA)
-              IF (PeriodicNodeSourceMap(ABS(PVID),kNode).NE.0) CYCLE LocSideLoop    
-              NodeCycle: DO iNode=1,4      
+              IF (PeriodicNodeSourceMap(ABS(PVID),kNode).NE.0) CYCLE LocSideLoop
+              NodeCycle: DO iNode=1,4
                 IF (NodeInfo_Shared(ElemSideNodeID_Shared(iNode,iLocSide,CNElemID)+1).EQ.kNode) THEN
                   FoundOwnNode=.TRUE.
                   EXIT NodeCycle
@@ -389,12 +392,10 @@ CASE('cell_volweight_mean')
               NodeDone(PeriodicNode) = .TRUE.
               UniqueNodeID = NodeInfo_Shared(ElemSideNodeID_Shared(PeriodicNode,NbLocSide,CNNbElemID)+1)
               PeriodicNodeSourceMap(ABS(PVID),NodeInfo_Shared(ElemSideNodeID_Shared(iNode,iLocSide,CNElemID)+1)) = UniqueNodeID
-#if USE_MPI
               GlobalElemRank = ElemInfo_Shared(ELEM_RANK,NbElemID)
               IF (GlobalElemRank.NE.myRank) THEN
                 PeriodicNodeSourceMap(GEO%nPeriodicVectors+ABS(PVID),NodeInfo_Shared(ElemSideNodeID_Shared(iNode,iLocSide,CNElemID)+1)) = GlobalElemRank
               END IF ! GlobalElemRank.NE.myRank
-#endif
             END IF ! PartBound%PeriodicBC
           END DO LocSideLoop ! iLocSide = 1, 6
           IF (NoBCSideOnNode) THEN
@@ -407,7 +408,6 @@ CASE('cell_volweight_mean')
 
 
 
-#if USE_MPI
     ALLOCATE(SendPeriodicNodes(0:nProcessors_Global-1), PeriodicSendRecv(0:nProcessors_Global-1))
     ALLOCATE(iSendNode(0:nProcessors_Global-1),RecvPeriodicNodes(0:nProcessors_Global-1))
 
@@ -422,7 +422,7 @@ CASE('cell_volweight_mean')
               IF (NodewoBCSide(iNode)%RankID(jElem).NE.0) THEN
                 SendPeriodicNodes(NodewoBCSide(iNode)%RankID(jElem)) = SendPeriodicNodes(NodewoBCSide(iNode)%RankID(jElem)) + 1
               END IF
-            END DO  
+            END DO
           END IF
         END IF
       END DO
@@ -445,7 +445,7 @@ CASE('cell_volweight_mean')
                 PeriodicSendRecv(iRank)%Send(1:GEO%nPeriodicVectors,iSendNode(iRank)) = PeriodicNodeSourceMap(1:GEO%nPeriodicVectors, iNode)
                 PeriodicSendRecv(iRank)%Send(GEO%nPeriodicVectors+1,iSendNode(iRank)) = iNode
               END IF
-            END DO  
+            END DO
           END IF
         END IF
       END DO
@@ -530,10 +530,10 @@ CASE('cell_volweight_mean')
         DEALLOCATE(PeriodicSendRecv(iRank)%Send)
       END IF
     END DO
-    
+
     IF (ALLOCATED(NodewoBCSide)) THEN
       DO iNode = 1, nUniqueGlobalNodes
-        SDEALLOCATE(NodewoBCSide(iNode)%RankID)   
+        SDEALLOCATE(NodewoBCSide(iNode)%RankID)
       END DO
       DEALLOCATE(NodewoBCSide)
     END IF
