@@ -123,11 +123,11 @@ IMPLICIT NONE
 REAL,ALLOCATABLE          :: xGP_tmp(:),wGP_tmp(:)
 INTEGER                   :: ALLOCSTAT, iElem, i, j, k, kk, ll, mm, iNode, CNElemID, CNNbElemID, iLocSide, jNode, locElemID, kNode
 INTEGER                   :: NbElemID, NbLocSide, PeriodicNode, PVID, SideID, NbSideID, NumPerioNodes, iPeriodNode, zNode,zGlobalNode
-INTEGER                   :: TestNode
+INTEGER                   :: TestNode, minRank, elemCount
 REAL                      :: DetLocal(1,0:PP_N,0:PP_N,0:PP_N), DetJac(1,0:1,0:1,0:1), tmpDist, Dist
 REAL, ALLOCATABLE         :: Vdm_tmp(:,:)
 CHARACTER(255)            :: TimeAverageFile
-LOGICAL                   :: NodeDone(4)
+LOGICAL                   :: NodeDone(4), NoBCSideOnNode, FoundOwnNode
 INTEGER, ALLOCATABLE      :: PeriodicNodeSourceMap(:,:)
 TYPE tPeriodicNodeMap
   INTEGER                       :: nPeriodicNodes
@@ -139,7 +139,7 @@ INTEGER,ALLOCATABLE       :: PeriodicNodesPerNode(:)
 INTEGER                   :: UniqueNodeID
 #if USE_MPI
 INTEGER :: dummy(8)
-INTEGER, ALLOCATABLE      :: SendPeriodicNodes(:), iSendNode(:), RecvPeriodicNodes(:)
+INTEGER, ALLOCATABLE      :: SendPeriodicNodes(:), iSendNode(:), RecvPeriodicNodes(:), tmpNode(:,:)
 INTEGER                   :: jElem, NonUniqueNodeID
 INTEGER                   :: SendNodeCount, GlobalElemRank, iProc
 INTEGER                   :: TestElemID, GlobalElemRankOrig, iRank
@@ -157,6 +157,11 @@ TYPE tPeriodicSendRecv
   INTEGER, ALLOCATABLE    :: RecvNodes(:)
 END TYPE
 TYPE(tPeriodicSendRecv), ALLOCATABLE :: PeriodicSendRecv(:)
+
+TYPE tNodewoBCSide
+  INTEGER, ALLOCATABLE    :: RankID(:)
+END TYPE
+TYPE(tNodewoBCSide), ALLOCATABLE :: NodewoBCSide(:)
 #endif
 !===================================================================================================================================
 
@@ -325,9 +330,217 @@ CASE('cell_volweight_mean')
       END DO ! iLocSide = 1, 6
     END DO ! locElemID=1, nElems
 
+    IF (ANY(PeriodicNodeSourceMap(1:GEO%nPeriodicVectors,:).NE.0)) THEN
+      ALLOCATE(NodewoBCSide(nUniqueGlobalNodes))
+    END IF
+    DO kNode = 1, nUniqueGlobalNodes
+      NumPerioNodes = COUNT(PeriodicNodeSourceMap(1:GEO%nPeriodicVectors,kNode).NE.0)
+      IF (NumPerioNodes.GT.0) THEN
+        minRank = myRank
+        ALLOCATE(NodewoBCSide(kNode)%RankID(NodeToElemMapping(2,kNode)))
+        NodewoBCSide(kNode)%RankID(:) = 0
+        elemCount = 0
+        DO jElem = NodeToElemMapping(1,kNode) + 1, NodeToElemMapping(1,kNode) + NodeToElemMapping(2,kNode)
+          elemCount = elemCount  + 1
+          TestElemID = GetGlobalElemID(NodeToElemInfo(jElem))
+          IF (ElemInfo_Shared(ELEM_RANK,TestElemID).EQ.myRank) CYCLE
+          minRank = MIN(minRank,ElemInfo_Shared(ELEM_RANK,TestElemID))
+          NoBCSideOnNode = .TRUE.
+          LocSideLoop: DO iLocSide = 1, 6
+            SideID=GetGlobalNonUniqueSideID(TestElemID,iLocSide)
+            CNElemID = GetCNElemID(TestElemID)
+            FoundOwnNode = .FALSE.
+            IF (SideInfo_Shared(SIDE_BCID,SideID).EQ.0) CYCLE LocSideLoop
+            IF (PartBound%TargetBoundCond(PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID))).EQ.PartBound%PeriodicBC) THEN
+              NoBCSideOnNode = .FALSE.
+              PVID = BoundaryType(SideInfo_Shared(SIDE_BCID,SideID),BC_ALPHA)
+              IF (PeriodicNodeSourceMap(ABS(PVID),kNode).NE.0) CYCLE LocSideLoop    
+              NodeCycle: DO iNode=1,4      
+                IF (NodeInfo_Shared(ElemSideNodeID_Shared(iNode,iLocSide,CNElemID)+1).EQ.kNode) THEN
+                  FoundOwnNode=.TRUE.
+                  EXIT NodeCycle
+                END IF
+              END DO NodeCycle
+              IF (.NOT.FoundOwnNode) CYCLE LocSideLoop
+              NodeDone = .FALSE.
+              NbElemID = SideInfo_Shared(SIDE_NBELEMID,SideID)
+              CNNbElemID = GetCNElemID(NbElemID)
+              DO NbLocSide = 1, 6
+                NbSideID = GetGlobalNonUniqueSideID(NbElemID,NbLocSide)
+                IF (SideInfo_Shared(SIDE_BCID,NbSideID).GT.0) THEN
+                  IF (PartBound%TargetBoundCond(PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,NbSideID))).EQ.PartBound%PeriodicBC) THEN
+                    IF (PVID.EQ.-BoundaryType(SideInfo_Shared(SIDE_BCID,NbSideID),BC_ALPHA)) EXIT
+                  END IF
+                END IF
+              END DO
+              PeriodicNode= 0
+              Dist = HUGE(Dist)
+
+              DO jNode = 1,4
+                IF (NodeDone(jNode)) CYCLE
+                tmpDist = VECNORM(NodeCoords_Shared(1:3,ElemSideNodeID_Shared(iNode,iLocSide,CNElemID)+1) + SIGN( GEO%PeriodicVectors(1:3,ABS(PVID)),REAL(PVID)) &
+                      -NodeCoords_Shared(1:3,ElemSideNodeID_Shared(jNode,NbLocSide,CNNbElemID)+1))
+                IF (tmpDist.LT.Dist) THEN
+                  PeriodicNode = jNode
+                  Dist = tmpDist
+                END IF
+              END DO ! jNode = 1,4
+              IF (PeriodicNode.EQ.0) CALL abort(__STAMP__,'Cannot find all periodic nodes for CVWM!')
+              NodeDone(PeriodicNode) = .TRUE.
+              UniqueNodeID = NodeInfo_Shared(ElemSideNodeID_Shared(PeriodicNode,NbLocSide,CNNbElemID)+1)
+              PeriodicNodeSourceMap(ABS(PVID),NodeInfo_Shared(ElemSideNodeID_Shared(iNode,iLocSide,CNElemID)+1)) = UniqueNodeID
+#if USE_MPI
+              GlobalElemRank = ElemInfo_Shared(ELEM_RANK,NbElemID)
+              IF (GlobalElemRank.NE.myRank) THEN
+                PeriodicNodeSourceMap(GEO%nPeriodicVectors+ABS(PVID),NodeInfo_Shared(ElemSideNodeID_Shared(iNode,iLocSide,CNElemID)+1)) = GlobalElemRank
+              END IF ! GlobalElemRank.NE.myRank
+#endif
+            END IF ! PartBound%PeriodicBC
+          END DO LocSideLoop ! iLocSide = 1, 6
+          IF (NoBCSideOnNode) THEN
+            NodewoBCSide(kNode)%RankID(elemCount) = ElemInfo_Shared(ELEM_RANK,TestElemID)
+          END IF
+        END DO
+        IF (minRank.NE.myRank) NodewoBCSide(kNode)%RankID(:) = 0
+      END IF
+    END DO
+
+
+
 #if USE_MPI
     ALLOCATE(SendPeriodicNodes(0:nProcessors_Global-1), PeriodicSendRecv(0:nProcessors_Global-1))
     ALLOCATE(iSendNode(0:nProcessors_Global-1),RecvPeriodicNodes(0:nProcessors_Global-1))
+
+    iSendNode = 0
+    SendPeriodicNodes = 0; RecvPeriodicNodes =0
+    IF (ANY(PeriodicNodeSourceMap(1:GEO%nPeriodicVectors,:).NE.0)) THEN
+      DO iNode = 1, nUniqueGlobalNodes
+        IF (ALLOCATED(NodewoBCSide(iNode)%RankID)) THEN
+          NumPerioNodes = COUNT(NodewoBCSide(iNode)%RankID(:) .NE.0)
+          IF (NumPerioNodes.GT.0) THEN
+            DO jElem = 1,  NodeToElemMapping(2,iNode)
+              IF (NodewoBCSide(iNode)%RankID(jElem).NE.0) THEN
+                SendPeriodicNodes(NodewoBCSide(iNode)%RankID(jElem)) = SendPeriodicNodes(NodewoBCSide(iNode)%RankID(jElem)) + 1
+              END IF
+            END DO  
+          END IF
+        END IF
+      END DO
+
+      DO iRank= 0, nProcessors_Global-1
+        IF (iRank.EQ.myRank) CYCLE
+        IF (SendPeriodicNodes(iRank).GT.0) THEN
+          ALLOCATE(PeriodicSendRecv(iRank)%Send(GEO%nPeriodicVectors+1,SendPeriodicNodes(iRank)))
+          PeriodicSendRecv(iRank)%Send = 0
+        END IF
+      END DO
+      DO iNode = 1, nUniqueGlobalNodes
+       IF (ALLOCATED(NodewoBCSide(iNode)%RankID)) THEN
+          NumPerioNodes = COUNT(NodewoBCSide(iNode)%RankID(:) .NE.0)
+          IF (NumPerioNodes.GT.0) THEN
+            DO jElem = 1,  NodeToElemMapping(2,iNode)
+              iRank = NodewoBCSide(iNode)%RankID(jElem)
+              IF (iRank.NE.0) THEN
+                iSendNode(iRank) = iSendNode(iRank) + 1
+                PeriodicSendRecv(iRank)%Send(1:GEO%nPeriodicVectors,iSendNode(iRank)) = PeriodicNodeSourceMap(1:GEO%nPeriodicVectors, iNode)
+                PeriodicSendRecv(iRank)%Send(GEO%nPeriodicVectors+1,iSendNode(iRank)) = iNode
+              END IF
+            END DO  
+          END IF
+        END IF
+      END DO
+    END IF
+
+    DO iProc = 0,nProcessors_Global-1
+      IF (iProc.EQ.myRank) CYCLE
+      CALL MPI_IRECV( RecvPeriodicNodes(iProc)                 &
+                    , 1          &
+                    , MPI_INTEGER                                                 &
+                    , iProc                        &
+                    , 1667                                                         &
+                    , MPI_COMM_WORLD                                              &
+                    , RecvRequestNonSymDepo(iProc)                                          &
+                    , IERROR)
+      CALL MPI_ISEND( SendPeriodicNodes(iProc) &
+                    , 1         &
+                    , MPI_INTEGER                       &
+                    , iProc                             &
+                    , 1667                              &
+                    , MPI_COMM_WORLD                    &
+                    , SendRequestNonSymDepo(iProc)      &
+                    , IERROR)
+    END DO
+
+   ! Finish communication
+    DO iProc = 0,nProcessors_Global-1
+      IF (iProc.EQ.myRank) CYCLE
+      CALL MPI_WAIT(RecvRequestNonSymDepo(iProc),MPIStatus,IERROR)
+      IF(IERROR.NE.MPI_SUCCESS) CALL ABORT(__STAMP__,' MPI Communication error', IERROR)
+      CALL MPI_WAIT(SendRequestNonSymDepo(iProc),MPIStatus,IERROR)
+      IF(IERROR.NE.MPI_SUCCESS) CALL ABORT(__STAMP__,' MPI Communication error', IERROR)
+    END DO
+
+    DO iProc = 0,nProcessors_Global-1
+      IF (iProc.EQ.myRank) CYCLE
+      IF (RecvPeriodicNodes(iProc).NE.0) THEN
+        ALLOCATE(PeriodicSendRecv(iProc)%Recv(GEO%nPeriodicVectors+1,RecvPeriodicNodes(iProc)))
+        CALL MPI_IRECV( PeriodicSendRecv(iProc)%Recv(:,:)                  &
+                      , RecvPeriodicNodes(iProc)*(GEO%nPeriodicVectors+1)           &
+                      , MPI_INTEGER                                                 &
+                      , iProc                        &
+                      , 667                                                         &
+                      , MPI_COMM_WORLD                                              &
+                      , RecvRequestNonSymDepo(iProc)                                          &
+                      , IERROR)
+      END IF
+      IF (SendPeriodicNodes(iProc).NE.0) THEN
+        CALL MPI_ISEND( PeriodicSendRecv(iProc)%Send &
+                      , SendPeriodicNodes(iProc)*(GEO%nPeriodicVectors+1)           &
+                      , MPI_INTEGER                       &
+                      , iProc                             &
+                      , 667                              &
+                      , MPI_COMM_WORLD                    &
+                      , SendRequestNonSymDepo(iProc)      &
+                      , IERROR)
+      END IF
+    END DO
+    ! Finish communication
+    DO iProc = 0,nProcessors_Global-1
+      IF (iProc.EQ.myRank) CYCLE
+      IF (RecvPeriodicNodes(iProc).NE.0) THEN
+        CALL MPI_WAIT(RecvRequestNonSymDepo(iProc),MPIStatus,IERROR)
+        IF(IERROR.NE.MPI_SUCCESS) CALL ABORT(__STAMP__,' MPI Communication error', IERROR)
+      END IF
+      IF (SendPeriodicNodes(iProc).NE.0) THEN
+        CALL MPI_WAIT(SendRequestNonSymDepo(iProc),MPIStatus,IERROR)
+        IF(IERROR.NE.MPI_SUCCESS) CALL ABORT(__STAMP__,' MPI Communication error', IERROR)
+      END IF
+    END DO
+
+    DO iRank= 0, nProcessors_Global-1
+      IF (iRank.EQ.myRank) CYCLE
+      IF (RecvPeriodicNodes(iRank).GT.0) THEN
+        DO iNode = 1, RecvPeriodicNodes(iRank)
+          zGlobalNode = PeriodicSendRecv(iRank)%Recv(GEO%nPeriodicVectors+1,iNode)
+          PeriodicNodeSourceMap(1:GEO%nPeriodicVectors, zGlobalNode) = PeriodicSendRecv(iRank)%Recv(1:GEO%nPeriodicVectors,iNode)
+        END DO
+        DEALLOCATE(PeriodicSendRecv(iRank)%Recv)
+      END IF
+      IF (SendPeriodicNodes(iRank).GT.0) THEN
+        DEALLOCATE(PeriodicSendRecv(iRank)%Send)
+      END IF
+    END DO
+    
+    IF (ALLOCATED(NodewoBCSide)) THEN
+      DO iNode = 1, nUniqueGlobalNodes
+        SDEALLOCATE(NodewoBCSide(iNode)%RankID)   
+      END DO
+      DEALLOCATE(NodewoBCSide)
+    END IF
+
+
+
+
     iSendNode = 0
     SendPeriodicNodes = 0; RecvPeriodicNodes =0
     DO iNode = 1, nUniqueGlobalNodes
