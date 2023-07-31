@@ -145,7 +145,7 @@ SUBROUTINE InitParticleMesh()
 USE MOD_Globals
 USE MOD_Preproc
 USE MOD_Mesh_Tools             ,ONLY: InitGetGlobalElemID,InitGetCNElemID,GetCNElemID
-USE MOD_Mesh_Tools             ,ONLY: InitGetGlobalSideID,InitGetCNSideID,GetGlobalSideID
+USE MOD_Mesh_Tools             ,ONLY: InitGetGlobalSideID,InitGetCNSideID,GetGlobalSideID,InitElemNodeIDs
 USE MOD_Mesh_Vars              ,ONLY: deleteMeshPointer,NodeCoords
 USE MOD_Mesh_Vars              ,ONLY: NGeo,NGeoElevated
 USE MOD_Mesh_Vars              ,ONLY: useCurveds
@@ -155,7 +155,7 @@ USE MOD_Analyze_Vars           ,ONLY: CalcHaloInfo
 USE MOD_Particle_BGM           ,ONLY: BuildBGMAndIdentifyHaloRegion
 USE MOD_Particle_Mesh_Vars
 USE MOD_Particle_Mesh_Tools    ,ONLY: InitPEM_LocalElemID,InitPEM_CNElemID,GetMeshMinMax,IdentifyElemAndSideType
-USE MOD_Particle_Mesh_Tools    ,ONLY: CalcParticleMeshMetrics,InitElemNodeIDs,InitParticleGeometry,CalcBezierControlPoints
+USE MOD_Particle_Mesh_Tools    ,ONLY: CalcParticleMeshMetrics,InitParticleGeometry,CalcBezierControlPoints
 USE MOD_Particle_Mesh_Tools    ,ONLY: CalcXCL_NGeo
 USE MOD_Particle_Surfaces      ,ONLY: GetSideSlabNormalsAndIntervals
 USE MOD_Particle_Surfaces_Vars ,ONLY: BezierSampleN,BezierSampleXi,SurfFluxSideSize,TriaSurfaceFlux
@@ -169,7 +169,8 @@ USE MOD_Particle_Tracking_Vars ,ONLY: TrackingMethod, DisplayLostParticles
 USE MOD_PICInterpolation_Vars  ,ONLY: DoInterpolation
 USE MOD_PICDepo_Vars           ,ONLY: DoDeposition,DepositionType
 USE MOD_ReadInTools            ,ONLY: GETREAL,GETINT,GETLOGICAL,GetRealArray, GETINTFROMSTR
-USE MOD_Particle_Vars          ,ONLY: Symmetry
+USE MOD_Particle_Vars          ,ONLY: Symmetry, DoVirtualCellMerge
+USE MOD_Particle_Boundary_Vars ,ONLY: PartBound
 #ifdef CODE_ANALYZE
 !USE MOD_Particle_Surfaces_Vars ,ONLY: SideBoundingBoxVolume
 USE MOD_Particle_Tracking_Vars ,ONLY: PartOut,MPIRankOut
@@ -341,12 +342,16 @@ IF (Symmetry%Order.LE.2) THEN
 END IF
 
 ! Set logical for building node neighbourhood
+FindNeighbourElems = .FALSE.
+! PIC deposition types require the neighbourhood
 SELECT CASE(TRIM(DepositionType))
   CASE('cell_volweight_mean','shape_function_adaptive')
     FindNeighbourElems = .TRUE.
-  CASE DEFAULT
-    FindNeighbourElems = .FALSE.
 END SELECT
+! Rotational periodic BC requires the neighbourhood to add elements of the BC nodes
+IF(PartBound%UseRotPeriodicBC) FindNeighbourElems = .TRUE.
+
+IF(DoVirtualCellMerge) FindNeighbourElems = .TRUE.
 
 SELECT CASE(TrackingMethod)
   CASE(TRIATRACKING)
@@ -378,8 +383,8 @@ SELECT CASE(TrackingMethod)
     CALL MPI_WIN_LOCK_ALL(0,SideSlabIntervals_Shared_Win,IERROR)
     CALL Allocate_Shared((/nComputeNodeTotalSides/),BoundingBoxIsEmpty_Shared_Win,BoundingBoxIsEmpty_Shared)
     CALL MPI_WIN_LOCK_ALL(0,BoundingBoxIsEmpty_Shared_Win,IERROR)
-    firstSide = INT(REAL (myComputeNodeRank   *nComputeNodeTotalSides)/REAL(nComputeNodeProcessors))+1
-    lastSide  = INT(REAL((myComputeNodeRank+1)*nComputeNodeTotalSides)/REAL(nComputeNodeProcessors))
+    firstSide = INT(REAL (myComputeNodeRank   )*REAL(nComputeNodeTotalSides)/REAL(nComputeNodeProcessors))+1
+    lastSide  = INT(REAL((myComputeNodeRank+1))*REAL(nComputeNodeTotalSides)/REAL(nComputeNodeProcessors))
     SideSlabNormals    => SideSlabNormals_Shared
     SideSlabIntervals  => SideSlabIntervals_Shared
     BoundingBoxIsEmpty => BoundingBoxIsEmpty_Shared
@@ -782,10 +787,12 @@ IF(FindNeighbourElems.OR.TrackingMethod.EQ.TRIATRACKING)THEN
 #if USE_MPI
   CALL MPI_BARRIER(MPI_COMM_SHARED,iERROR)
 #if USE_LOADBALANCE
-  IF(.NOT.(PerformLoadBalance.AND.DoDeposition.AND.DoDielectricSurfaceCharge))THEN
+  !IF(.NOT.(PerformLoadBalance.AND.DoDeposition.AND.DoDielectricSurfaceCharge))THEN
+  ! Note that no inquiry for DoDeposition is made here because the surface charging container is to be preserved
+  IF(.NOT.(PerformLoadBalance.AND.DoDielectricSurfaceCharge))THEN
 #endif /*USE_LOADBALANCE*/
-  ! From InitElemNodeIDs
-  CALL UNLOCK_AND_FREE(ElemNodeID_Shared_Win)
+    ! From InitElemNodeIDs
+    CALL UNLOCK_AND_FREE(ElemNodeID_Shared_Win)
 #if USE_LOADBALANCE
   END IF ! .NOT.(PerformLoadBalance.AND.DoDeposition.AND.DoDielectricSurfaceCharge)
 #endif /*USE_LOADBALANCE*/
@@ -804,9 +811,11 @@ IF(FindNeighbourElems.OR.TrackingMethod.EQ.TRIATRACKING)THEN
 #endif /*USE_MPI*/
 
 #if USE_LOADBALANCE
-  IF(.NOT.(PerformLoadBalance.AND.DoDeposition.AND.DoDielectricSurfaceCharge))THEN
+  !IF(.NOT.(PerformLoadBalance.AND.DoDeposition.AND.DoDielectricSurfaceCharge))THEN
+  ! Note that no inquiry for DoDeposition is made here because the surface charging container is to be preserved
+  IF(.NOT.(PerformLoadBalance.AND.DoDielectricSurfaceCharge))THEN
 #endif /*USE_LOADBALANCE*/
-    ADEALLOCATE(ElemNodeID_Shared)
+      ADEALLOCATE(ElemNodeID_Shared)
 #if USE_LOADBALANCE
   END IF ! .NOT.(PerformLoadBalance.AND.DoDeposition.AND.DoDielectricSurfaceCharge)
 #endif /*USE_LOADBALANCE*/

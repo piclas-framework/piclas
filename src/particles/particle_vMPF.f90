@@ -138,8 +138,9 @@ USE MOD_Particle_Vars         ,ONLY: Symmetry
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
+INTEGER, INTENT(IN)           :: nPart
 INTEGER, INTENT(IN)           :: iPartIndx_Node_in(nPart)
-INTEGER, INTENT(IN)           :: nPart, nPartNew, iElem
+INTEGER, INTENT(IN)           :: nPartNew, iElem
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -553,7 +554,8 @@ END SUBROUTINE MergeParticles
 SUBROUTINE SplitParticles(iPartIndx_Node, nPartIn, nPartNew)
 ! MODULES
 USE MOD_Globals
-USE MOD_Particle_Vars         ,ONLY: PartState, PDM, PartMPF, PartSpecies, PEM, PartPosRef, VarTimeStep, vMPFSplitLimit
+USE MOD_Particle_Vars         ,ONLY: PartState, PDM, PartMPF, PartSpecies, PEM, PartPosRef, vMPFSplitLimit
+USE MOD_Particle_Vars         ,ONLY: UseVarTimeStep, PartTimeStep
 USE MOD_DSMC_Vars             ,ONLY: PartStateIntEn, CollisMode, SpecDSMC, DSMC, PolyatomMolDSMC, VibQuantsPar
 USE MOD_Particle_Tracking_Vars,ONLY: TrackingMethod
 !#ifdef CODE_ANALYZE
@@ -612,7 +614,7 @@ DO WHILE(iNewPart.LT.nSplit)
     IF(DSMC%ElectronicModel.GT.0) PartStateIntEn(3,PositionNbr) = PartStateIntEn(3,PartIndx)
   END IF
   PartMPF(PositionNbr) = PartMPF(PartIndx)
-  IF(VarTimeStep%UseVariableTimeStep) VarTimeStep%ParticleTimeStep(PositionNbr) = VarTimeStep%ParticleTimeStep(PartIndx)
+  IF(UseVarTimeStep) PartTimeStep(PositionNbr) = PartTimeStep(PartIndx)
   PEM%GlobalElemID(PositionNbr) = PEM%GlobalElemID(PartIndx)
   PEM%LastGlobalElemID(PositionNbr) = PEM%GlobalElemID(PartIndx)
   LocalElemID = PEM%LocalElemID(PositionNbr)

@@ -4,6 +4,10 @@ import argparse
 import re
 import shutil
 import os
+import grp
+
+import pwd
+from pwd import getpwuid
 
 # Bind raw_input to input in Python 2
 try:
@@ -51,15 +55,48 @@ def getPartInfo(line):
             #['32', 'Error', 'in', 'Particle', 'TriaTracking!', 'Particle', 'Number', '442065', 'lost.', 'Element:', '2881', '(species:', '1', ')']
     return PartID, Element, SpecID
 
+def get_owner_and_group(stdfile):
+    try:
+        # get stat of file/folder or symbolic link
+        if os.path.islink(stdfile):
+            status = os.lstat(stdfile)
+        else:
+            status = os.stat(stdfile)
+
+        uid = status.st_uid
+        gid = status.st_gid
+
+        user = pwd.getpwuid(uid)[0]
+        group = grp.getgrgid(gid)[0]
+    except Exception as e:
+        return None, None
+
+    return user, uid, group, gid
+
 
 def RenameFiles(differences, stdfile, stdfile_backup, stdfile_new, args):
 
+    # Check user/group name vs. original file
+    userOrig,uidOrig,groupOrig,gidOrig = get_owner_and_group(stdfile)
+
     # Check if differences exist (nLostParts or changedLines)
     if differences > 0:
+
         # Only create backup file if it does not exist (i.e. prevent over-writing backup files from other clean-up functions in the tool)
         if not os.path.exists(stdfile_backup):
             os.rename(stdfile, stdfile_backup) # backup original file (only once)
         os.rename(stdfile_new, stdfile)        # replace original file with cleaned file
+
+        # Check group name vs. original file
+        user,uid,group,gid = get_owner_and_group(stdfile)
+        if groupOrig is not None and group is not None:
+            if groupOrig == group:
+                pass
+            else:
+                # Change the owner and group to [original owner] and [original group]
+                if gid != gidOrig:
+                    os.chown(stdfile, uidOrig, gidOrig, follow_symlinks=False)
+
     else :
         os.remove(stdfile_new) # remove new file (it is empty when no particles were lost)
 
@@ -113,6 +150,10 @@ def CleanSingleLines(stdfile,args):
                 #[ Reason:            4]
                 #[ Iterations:            1]
                 #[ Norm:   0.0000000000000000]
+                changedLines+=1
+            elif any(substring in line for substring in ('to mpool ucp_requests','UCX  WARN','mpool.c:','ucp_requests')):
+                # remove UCX warnings (e.g. on hawk)
+                #[[1669126882.059241] [r34c2t5n4:1727877:0]           mpool.c:54   UCX  WARN  object 0x1dce980 {flags:0x20040 recv length 16 host memory} was not returned to mpool ucp_requests]
                 changedLines+=1
             else:
                 # Write the line to the new (clean) file

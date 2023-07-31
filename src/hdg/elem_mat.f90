@@ -11,10 +11,15 @@
 ! You should have received a copy of the GNU General Public License along with PICLas. If not, see <http://www.gnu.org/licenses/>.
 !==================================================================================================================================
 #include "piclas.h"
-MODULE MOD_Elem_Mat
+#if USE_PETSC
+#include "petsc/finclude/petsc.h"
+#endif
+
+
 !===================================================================================================================================
 ! Module for the HDG element matrices
 !===================================================================================================================================
+MODULE MOD_Elem_Mat
 ! MODULES
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -69,6 +74,11 @@ USE MOD_Basis              ,ONLY: getSPDInverse
 #if defined(PARTICLES)
 USE MOD_HDG_Vars           ,ONLY: UseBRElectronFluid
 #endif /*defined(PARTICLES)*/
+#if USE_PETSC
+USE PETSc
+USE MOD_Mesh_Vars          ,ONLY: SideToElem, nSides
+USE MOD_Mesh_Vars          ,ONLY: BoundaryType,nSides,BC
+#endif
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -89,6 +99,16 @@ REAL                 :: Ktilde(3,3)
 REAL                 :: Stmp1(nGP_vol,nGP_face), Stmp2(nGP_face,nGP_face)
 INTEGER              :: idx(3),jdx(3),gdx(3)
 REAL                 :: time0, time
+#if USE_PETSC
+PetscErrorCode       :: ierr
+INTEGER              :: iSideID,jSideID
+INTEGER              :: ElemID, BCsideID
+INTEGER              :: iBCSide,locBCSideID
+INTEGER              :: iPETScGlobal, jPETScGlobal
+INTEGER              :: iSide,locSideID
+REAL                 :: intMat(nGP_face, nGP_face)
+INTEGER              :: BCState
+#endif
 !===================================================================================================================================
 
 #if defined(IMPA) || defined(ROS)
@@ -309,8 +329,89 @@ InvDhat(:,:,iElem)=-getSPDInverse(nGP_vol,-Dhat)
       Smat(:,:,jLocSide,iLocSide,iElem) = Smat(:,:,jLocSide,iLocSide,iElem) + TRANSPOSE(Stmp2)
     END DO !iLocSide
   END DO !jLocSide
-
 END DO !iElem
+
+#if USE_PETSC
+! Fill Smat Petsc, TODO do this without filling Smat
+
+! Change Smat for all small mortar sides to account for the interpolation from big to small side
+DO iSide=1,nSides
+  IF (SmallMortarInfo(iSide).NE.0) THEN
+    locSideID = SideToElem(S2E_NB_LOC_SIDE_ID,iSide)
+    iElem    = SideToElem(S2E_NB_ELEM_ID,iSide)
+    IF (iElem.LT.0) CYCLE
+  ELSE
+    CYCLE
+  END IF
+  intMat = IntMatMortar(:,:,SmallMortarType(2,iSide),SmallMortarType(1,iSide))
+  DO iLocSide=1,6
+    Smat(:,:,iLocSide,locSideID,iElem) = MATMUL(Smat(:,:,iLocSide,locSideID,iElem),intMat)
+    Smat(:,:,locSideID,iLocSide,iElem) = MATMUL(TRANSPOSE(intMat),Smat(:,:,locSideID,iLocSide,iElem))
+  END DO
+END DO
+
+! Fill Dirichlet BC Smat
+DO iBCSide=1,nDirichletBCSides
+  BCSideID=DirichletBC(iBCSide)
+  locBCSideID = SideToElem(S2E_LOC_SIDE_ID,BCSideID)
+  ElemID    = SideToElem(S2E_ELEM_ID,BCSideID)
+  DO iLocSide=1,6
+    Smat_BC(:,:,iLocSide,iBCSide) = Smat(:,:,iLocSide,locBCSideID,ElemID)
+  END DO
+END DO
+! Fill ZeroPotentialSide Smat
+IF (ZeroPotentialSideID.GT.0) THEN
+  locBCSideID = SideToElem(S2E_LOC_SIDE_ID,ZeroPotentialSideID)
+  ElemID    = SideToElem(S2E_ELEM_ID,ZeroPotentialSideID)
+  DO iLocSide=1,6
+    Smat_zeroPotential(:,:,iLocSide) = Smat(:,:,iLocSide,locBCSideID,ElemID)
+  END DO
+END IF
+! Fill Smat for PETSc with remaining DOFs
+DO iElem=1,PP_nElems
+  DO iLocSide=1,6
+    iSideID=ElemToSide(E2S_SIDE_ID,iLocSide,iElem)
+    iPETScGlobal=PETScGlobal(iSideID)
+    IF (iPETScGlobal.EQ.-1) CYCLE
+    DO jLocSide=1,6
+      jSideID=ElemToSide(E2S_SIDE_ID,jLocSide,iElem)
+      jPETScGlobal=PETScGlobal(jSideID)
+      IF (iPETScGlobal.GT.jPETScGlobal) CYCLE
+      PetscCallA(MatSetValuesBlocked(Smat_petsc,1,iPETScGlobal,1,jPETScGlobal,Smat(:,:,jLocSide,iLocSide,iElem),ADD_VALUES,ierr))
+    END DO
+  END DO
+END DO
+! Set Conductor matrix
+DO BCsideID=1,nConductorBCsides
+  jSideID=ConductorBC(BCsideID)
+  iElem=SideToElem(S2E_ELEM_ID,jSideID)
+  jLocSide=SideToElem(S2E_LOC_SIDE_ID,jSideID)
+
+  BCState = BoundaryType(BC(jSideID),BC_STATE)
+  jPETScGlobal=nPETScUniqueSidesGlobal-FPC%nUniqueFPCBounds+FPC%Group(BCState,2)-1
+  DO iLocSide=1,6
+    iSideID=ElemToSide(E2S_SIDE_ID,iLocSide,iElem)
+    iPETScGlobal=PETScGlobal(iSideID)
+    DO j=2,nGP_face; DO i=1,nGP_face ! Sum up all columns
+      Smat(1,i,jLocSide,iLocSide,iElem) = Smat(1,i,jLocSide,iLocSide,iElem) + Smat(j,i,jLocSide,iLocSide,iElem)
+      Smat(j,i,jLocSide,iLocSide,iElem) = 0.
+    END DO; END DO
+    IF(MaskedSide(iSideID).EQ.2) THEN
+      DO i=2,nGP_face ! Sum up all rows
+        Smat(1,1,jLocSide,iLocSide,iElem) = Smat(1,1,jLocSide,iLocSide,iElem) + Smat(1,i,jLocSide,iLocSide,iElem)
+        Smat(1,i,jLocSide,iLocSide,iElem) = 0.
+        Smat(i,i,jLocSide,iLocSide,iElem) = 1. ! Add diagonal entries for unused DOFs
+      END DO
+      iPETScGlobal=nPETScUniqueSidesGlobal-FPC%nUniqueFPCBounds+FPC%Group(BCState,2)-1
+    ELSEIF(iPETScGlobal.EQ.-1) THEN
+      CYCLE
+    END IF
+    PetscCallA(MatSetValuesBlocked(Smat_petsc,1,iPETScGlobal,1,jPETScGlobal,Smat(:,:,jLocSide,iLocSide,iElem),ADD_VALUES,ierr))
+  END DO
+END DO
+PetscCallA(MatAssemblyBegin(Smat_petsc,MAT_FINAL_ASSEMBLY,ierr))
+PetscCallA(MatAssemblyEnd(Smat_petsc,MAT_FINAL_ASSEMBLY,ierr))
+#endif
 
 
 #if defined(IMPA) || defined(ROS)
@@ -361,12 +462,16 @@ SUBROUTINE BuildPrecond()
 USE MOD_Globals
 USE MOD_Preproc
 USE MOD_HDG_Vars
-USE MOD_Mesh_Vars      ,ONLY: nSides,SideToElem,nMPIsides_YOUR
-USE MOD_FillMortar_HDG ,ONLY: SmallToBigMortarPrecond_HDG
 #if USE_MPI
 USE MOD_MPI_Vars
 USE MOD_MPI            ,ONLY: StartReceiveMPIData,StartSendMPIData,FinishExchangeMPIData
 #endif /*USE_MPI*/
+#if USE_PETSC
+USE PETSc
+#else
+USE MOD_Mesh_Vars      ,ONLY: nSides,SideToElem,nMPIsides_YOUR
+USE MOD_FillMortar_HDG ,ONLY: SmallToBigMortarPrecond_HDG
+#endif
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -375,11 +480,38 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
+#if USE_PETSC
+PetscErrorCode   :: ierr
+PC               :: pc
+PetscInt         :: lens(nPETScUniqueSides)
+#else
 INTEGER          :: ElemID, locSideID, SideID, igf
-INTEGER           :: lapack_info
+INTEGER          :: lapack_info
+#endif
 !===================================================================================================================================
 
-
+#if USE_PETSC
+PetscCallA(KSPGetPC(ksp,pc,ierr))
+SELECT CASE(PrecondType)
+CASE(0)
+  PetscCallA(PCSetType(pc,PCNONE,ierr))
+CASE(1)
+  PetscCallA(PCSetType(pc,PCJACOBI,ierr))
+CASE(2)
+  PetscCallA(PCHYPRESetType(pc,PCILU,ierr))
+CASE(3)
+  PetscCallA(PCHYPRESetType(pc,PCSPAI,ierr))
+CASE(4)
+  lens=nGP_Face
+  PetscCallA(PCSetType(pc,PCBJACOBI,ierr))
+  PetscCallA(PCBJacobiSetLocalBlocks(pc,nPETScUniqueSides,lens,ierr))
+  PetscCallA(KSPSetUp(ksp,ierr))
+case(10)
+  PetscCallA(PCSetType(pc,PCCHOLESKY,ierr))
+case(11)
+  PetscCallA(PCSetType(pc,PCLU,ierr))
+END SELECT
+#else
 SELECT CASE(PrecondType)
 CASE(0)
 ! do nothing
@@ -405,7 +537,7 @@ CASE(1)
 #endif /*USE_MPI*/
   CALL SmallToBigMortarPrecond_HDG(PrecondType) !assemble big side
   DO SideID=1,nSides-nMPIsides_YOUR
-    IF(MaskedSide(SideID))CYCLE
+    IF(MaskedSide(SideID).GT.0)CYCLE
     ! do choleski and store into Precond
     CALL DPOTRF('U',nGP_face,Precond(:,:,SideID),nGP_face,lapack_info)
     IF (lapack_info .NE. 0) THEN
@@ -442,7 +574,7 @@ CASE(2)
   CALL SmallToBigMortarPrecond_HDG(PrecondType) !assemble big side
   !inverse of the preconditioner matrix
   DO SideID=1,nSides-nMPIsides_YOUR
-    IF(MaskedSide(SideID))CYCLE
+    IF(MaskedSide(SideID).GT.0)CYCLE
     IF (MAXVAL(ABS(InvPrecondDiag(:,SideID))).GT.1.0e-12) THEN
       InvPrecondDiag(:,SideID)=1./InvPrecondDiag(:,SideID)
     ELSE
@@ -450,6 +582,7 @@ CASE(2)
     END IF
   END DO !1,nSides-nMPIsides_YOUR
 END SELECT
+#endif
 END SUBROUTINE BuildPrecond
 
 

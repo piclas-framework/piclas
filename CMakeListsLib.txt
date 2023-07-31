@@ -105,6 +105,7 @@ STRING(TOLOWER ${LIB_TYPE} SEARCH_TYPE)
 # Use system HDF5
 IF(NOT LIBS_BUILD_HDF5)
   # Unset leftover paths from old CMake runs
+  UNSET(HDF5_VERSION CACHE)
   UNSET(HDF5_LIBRARIES)
   UNSET(HDF5_INCLUDE_DIR_FORTRAN)
   UNSET(HDF5_INCLUDE_DIR)
@@ -167,13 +168,16 @@ ELSE()
   IF(LIBS_USE_MPI)
     # HDF5 1.12.0 and greater is compatible with OpenMPI 4.0.0 and greater
     IF("${LIBS_MPI_NAME}" MATCHES "OpenMPI" AND ${MPI_C_LIBRARY_VERSION} VERSION_GREATER_EQUAL "4.0.0")
-      SET (HDF5_TAG "hdf5-1_12_0" CACHE STRING "HDF5 version tag")
-    ELSE()
-      SET (HDF5_TAG "hdf5-1_10_6" CACHE STRING "HDF5 version tag")
-    ENDIF()
+        SET (HDF5_TAG "hdf5-1_12_0" CACHE STRING   "HDF5 version tag")
+        SET (HDF5_VERSION "1.12"    CACHE INTERNAL "HDF5 version number")
+      ELSE()
+        SET (HDF5_TAG "hdf5-1_10_6" CACHE STRING   "HDF5 version tag")
+        SET (HDF5_VERSION "1.10"    CACHE INTERNAL "HDF5 version number")
+      ENDIF()
     MESSAGE (STATUS "Setting HDF5 to tag ${HDF5_TAG} to be compatible with detected [${LIBS_MPI_NAME}] (v${MPI_C_LIBRARY_VERSION})")
   ELSE()
-    SET (HDF5_TAG "hdf5-1_12_0" CACHE STRING "HDF5 version tag")
+    SET (HDF5_TAG "hdf5-1_12_0" CACHE STRING   "HDF5 version tag")
+    SET (HDF5_VERSION "1.12"    CACHE INTERNAL "HDF5 version number")
     MESSAGE (STATUS "Setting HDF5 to tag ${HDF5_TAG} as no MPI support was requested")
   ENDIF()
   MARK_AS_ADVANCED(FORCE HDF5_TAG)
@@ -262,6 +266,12 @@ ELSE()
   LIST(APPEND HDF5_LIBRARIES ${HDF5_hdf5_fortran_LIBRARY_RELEASE} ${HDF5_hdf5_LIBRARY_RELEASE} ${HDF5_z_LIBRARY_RELEASE} -ldl)
 ENDIF()
 
+# HDF5 1.14 references build directory
+# > https://github.com/HDFGroup/hdf5/issues/2422
+IF(${HDF5_VERSION} VERSION_EQUAL "1.14")
+  LIST(FILTER HDF5_INCLUDE_DIR EXCLUDE REGEX "src/H5FDsubfiling")
+ENDIF()
+
 # Actually add the HDF5 paths (system/custom built) to the linking paths
 # HDF5 build with CMake
 IF(LIBS_HDF5_CMAKE)
@@ -295,16 +305,23 @@ IF(NOT LIBS_BUILD_MATH_LIB)
   ENDIF()
 
   # Use Lapack/Blas for GNU
-  FIND_PACKAGE(LAPACK QUIET)
+  FIND_PACKAGE(LAPACK REQUIRED)
   IF (LAPACK_FOUND)
     LIST(APPEND linkedlibs ${LAPACK_LIBRARIES})
     MESSAGE(STATUS "Compiling with system [BLAS/Lapack]")
   ENDIF()
 
   # VDM inverse, replace lapack with analytical solution
-  IF (CMAKE_BUILD_TYPE MATCHES "Debug" AND "${CMAKE_HOSTNAME}" MATCHES "login" AND "${LSB_RELEASE_ID_SHORT}" MATCHES "CentOS")
-    MESSAGE(STATUS "Compiling PICLas in debug mode on Hawk with system math lib. Setting VDM inverse to analytical solution")
-    ADD_DEFINITIONS(-DVDM_ANALYTICAL)
+  # HLRS HAWK / SuperMUC + DEBUG
+  IF (CMAKE_BUILD_TYPE MATCHES "Debug" AND "${CMAKE_HOSTNAME}" MATCHES "login")
+    # HAWK and SuperMUC name their login nodes identically, so use the Fully Qualified Domain Name (FQDN) to identify
+    CMAKE_HOST_SYSTEM_INFORMATION(RESULT FQDN QUERY FQDN)
+    MARK_AS_ADVANCED(FORCE FQDN)
+    # HLRS HAWK
+    IF ("${FQDN}" MATCHES "hawk.hww.hlrs.de")
+      MESSAGE(STATUS "Compiling PICLas in debug mode on Hawk with system math lib. Setting VDM inverse to analytical solution")
+      ADD_DEFINITIONS(-DVDM_ANALYTICAL)
+    ENDIF()
   ENDIF()
 
 # Build LAPACK/OpenBLAS in FLEXI
@@ -438,6 +455,86 @@ ELSE()
   ENDIF()
 ENDIF()
 
+# =========================================================================
+# HOPR pre-processor
+# =========================================================================
+IF(LIBS_BUILD_HOPR)
+  SET (HOPRDOWNLOAD "https://github.com/hopr-framework/hopr.git")
+  SET (HOPR_DOWNLOAD ${HOPRDOWNLOAD} CACHE STRING "HOPR Download-link")
+  MESSAGE (STATUS "HOPR download link: ${HOPRDOWNLOAD}")
+  MARK_AS_ADVANCED(FORCE HOPR_DOWNLOAD)
+  
+  IF (NOT EXISTS "${CMAKE_CURRENT_BINARY_DIR}/bin/hopr")
+    SET(HOPR_FOUND FALSE)
+    MESSAGE(STATUS "HOPR executable not found in: ${CMAKE_CURRENT_BINARY_DIR}. HOPR will be built and/or installed.")
+  ELSE()
+    SET(HOPR_FOUND TRUE)
+    MESSAGE(STATUS "HOPR has already been built.")
+  ENDIF()
+  # Set HOPR build dir
+  SET(LIBS_HOPR_DIR  ${LIBS_EXTERNAL_LIB_DIR}/hopr/build)
+  MESSAGE(STATUS "HOPR directory: ${LIBS_HOPR_DIR}")
+  # Check if HOPR was already built and the executable is in the piclas/build/bin folder
+  IF (NOT HOPR_FOUND)
+    SET(CMAKE_SKIP_INSTALL_ALL_DEPENDENCY TRUE)
+    # Let CMake take care of download, configure and build
+    EXTERNALPROJECT_ADD(HOPR
+    GIT_REPOSITORY ${HOPR_DOWNLOAD}
+    GIT_TAG ${HOPR_TAG}
+    GIT_PROGRESS FALSE
+    ${${GITSHALLOW}}
+    PREFIX ${LIBS_HOPR_DIR}
+    # Avoids rebuilding during PICLas recompilation if HOPR has already been built in share folder
+    UPDATE_DISCONNECTED true
+    # Avoid output
+    LOG_CONFIGURE ON
+    LOG_INSTALL ON
+    LOG_BUILD ON
+    LOG_OUTPUT_ON_FAILURE ON
+    CMAKE_ARGS -DCMAKE_INSTALL_PREFIX:PATH=${CMAKE_CURRENT_BINARY_DIR} -DLIBS_BUILD_HDF5=OFF -DLIBS_BUILD_CGNS=ON -DLIBS_USE_MPI=OFF -DCMAKE_BUILD_TYPE=Release
+    # BUILD_BYPRODUCTS ${CMAKE_CURRENT_BINARY_DIR}/bin/hopr
+    )
+    # HDF5 has to be built before HOPR
+    IF(LIBS_BUILD_HDF5)
+      ExternalProject_Add_StepDependencies(HOPR build HDF5)
+    ENDIF()
+    # Make sure that the hopr binary is in the piclas/build/bin/ folder after piclas was build
+    ExternalProject_Add_StepDependencies(HOPR install piclas)
+    SET(HOPR_FOUND TRUE)
+  ENDIF()
+ENDIF()
+
+# Download the HOPR executable directly and place it in the bin folder
+IF(LIBS_DOWNLOAD_HOPR)
+  MESSAGE(STATUS "HOPR executable download from: ${HOPR_DOWNLOAD_URL}")
+  IF(NOT EXISTS "${CMAKE_CURRENT_BINARY_DIR}/bin/hopr")
+    MESSAGE(STATUS "HOPR executable not found in: ${CMAKE_CURRENT_BINARY_DIR}/bin/hopr. HOPR will be downloaded/extracted.")
+    # Check if .zip file has already been downloaded
+    FILE(GLOB HOPR_ZIP_FILE ${CMAKE_CURRENT_BINARY_DIR}/hopr-*.zip)
+    IF(NOT EXISTS "${HOPR_ZIP_FILE}")
+      EXECUTE_PROCESS(COMMAND curl -L -O ${HOPR_DOWNLOAD_URL})
+      FILE(GLOB HOPR_ZIP_FILE ${CMAKE_CURRENT_BINARY_DIR}/hopr-*.zip)
+    ENDIF()
+    # Check if AppImage has already been extracted
+    FILE(GLOB HOPR_APP_FILE ${CMAKE_CURRENT_BINARY_DIR}/hopr-*.AppImage)
+    IF(NOT EXISTS "${HOPR_APP_FILE}")
+      IF(NOT EXISTS "${HOPR_ZIP_FILE}")
+        MESSAGE(WARNING "FAILED to download hopr .zip file from ${HOPR_DOWNLOAD_URL}")
+      ELSE()
+        EXECUTE_PROCESS(COMMAND unzip ${HOPR_ZIP_FILE})
+        FILE(GLOB HOPR_APP_FILE ${CMAKE_CURRENT_BINARY_DIR}/hopr-*.AppImage)
+      ENDIF()
+    ENDIF()
+    # Check if AppImage file exists and create symbolic link into ./bin
+    IF(NOT EXISTS "${HOPR_APP_FILE}")
+      MESSAGE(WARNING "FAILED to extract hopr .zip file")
+    ELSE()
+      EXECUTE_PROCESS(COMMAND ln -s ${HOPR_APP_FILE} bin/hopr)
+    ENDIF()
+  ELSE()
+    MESSAGE(STATUS "HOPR executable already exists under ${CMAKE_CURRENT_BINARY_DIR}/bin/hopr")
+  ENDIF()
+ENDIF()
 
 #  # =========================================================================
 #  # PAPI library
@@ -470,3 +567,63 @@ ENDIF()
 #  ELSE()
 #    ADD_DEFINITIONS(-DUSE_OPENMP=0)
 #  ENDIF()
+
+#=========================================================================
+# PETSc
+#=========================================================================
+OPTION(PICLAS_PETSC "Use the PETSc library" OFF)
+IF(PICLAS_PETSC)
+  ADD_DEFINITIONS(-DUSE_PETSC=1)
+  IF(NOT DEFINED PETSC_DIR)
+    SET(PETSC_DIR $ENV{PETSC_DIR})
+  ENDIF()
+  IF(NOT DEFINED PETSC_ARCH)
+    SET(PETSC_ARCH $ENV{PETSC_ARCH})
+  ENDIF()
+
+  IF(EXISTS "${PETSC_DIR}/include" AND EXISTS "${PETSC_DIR}/${PETSC_ARCH}/include")
+    SET(PETSC_INCLUDE_DIR "${PETSC_DIR}/include")
+    SET(PETSC_INC "${PETSC_DIR}/include" "${PETSC_DIR}/${PETSC_ARCH}/include")
+  ELSE()
+    MESSAGE(SEND_ERROR "PETSc includes not found")
+  ENDIF()
+
+  IF(EXISTS "${PETSC_DIR}/${PETSC_ARCH}/lib/libpetsc.so")
+    SET(PETSC_LIB "${PETSC_DIR}/${PETSC_ARCH}/lib/libpetsc.so")
+  ELSEIf(EXISTS "${PETSC_DIR}/${PETSC_ARCH}/lib/libpetsc.a")
+    SET(PETSC_LIB "${PETSC_DIR}/${PETSC_ARCH}/lib/libpetsc.a")
+  ELSE()
+    MESSAGE(SEND_ERROR "PETSc library not found")
+  ENDIF()
+
+  IF(EXISTS ${PETSC_DIR}/${PETSC_ARCH}/conf/petscvariables)
+    FILE(STRINGS ${PETSC_DIR}/${PETSC_ARCH}/conf/petscvariables
+      PETSC_VARIABLES NEWLINE_CONSUME)
+  ELSEIf(EXISTS ${PETSC_DIR}/${PETSC_ARCH}/lib/petsc/conf/petscvariables)
+    FILE(STRINGS ${PETSC_DIR}/${PETSC_ARCH}/lib/petsc/conf/petscvariables
+      PETSC_VARIABLES NEWLINE_CONSUME)
+  ELSE()
+    MESSAGE(SEND_ERROR "PETSc variables not found")
+  ENDIF()
+
+  # Find "^#define PETSC_VERSION_MAJOR" and get only the numbers and remove trailing line breaks
+  SET(PETSC_VERSION_FILE "${PETSC_INCLUDE_DIR}/petscversion.h")
+  IF(EXISTS "${PETSC_VERSION_FILE}")
+    EXECUTE_PROCESS(COMMAND cat "${PETSC_VERSION_FILE}" COMMAND grep "^#define PETSC_VERSION_MAJOR" COMMAND grep -o "[[:digit:]]*" COMMAND tr -d '\n' OUTPUT_VARIABLE PICLAS_PETSC_VERSION_MAJOR)
+    EXECUTE_PROCESS(COMMAND cat "${PETSC_VERSION_FILE}" COMMAND grep "^#define PETSC_VERSION_MINOR" COMMAND grep -o "[[:digit:]]*" COMMAND tr -d '\n' OUTPUT_VARIABLE PICLAS_PETSC_VERSION_MINOR)
+    MESSAGE(STATUS "Found PETSC version [${PICLAS_PETSC_VERSION_MAJOR}.${PICLAS_PETSC_VERSION_MINOR}] in ${PETSC_VERSION_FILE}")
+    IF(${PICLAS_PETSC_VERSION_MAJOR}.${PICLAS_PETSC_VERSION_MINOR} VERSION_LESS 3.18)
+      ADD_DEFINITIONS(-DUSE_PETSC_FIX317=1)
+    ELSE()
+      ADD_DEFINITIONS(-DUSE_PETSC_FIX317=0)
+    ENDIF()
+  ELSE()
+    ADD_DEFINITIONS(-DUSE_PETSC_FIX317=1)
+  ENDIF()
+
+  INCLUDE_DIRECTORIES(${PETSC_INC})
+  LIST(APPEND linkedlibs ${PETSC_LIB})
+ELSE()
+  ADD_DEFINITIONS(-DUSE_PETSC=0)
+ENDIF(PICLAS_PETSC)
+

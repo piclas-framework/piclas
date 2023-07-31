@@ -76,12 +76,17 @@ LOADMODULES=1
 for ARG in "$@"
 do
 
+  BLAS_SUPPORT=''
   if [ ${ARG} == "--help" ] || [ ${ARG} == "-h" ]; then
     echo "Input arguments:"
     echo "--help/-h            print help information"
     echo "--modules/-m         use modules defined in this script by the user."
     echo "                     Otherwise, find modules automatically."
+    echo "--blas/-b            Install with BLAS (FBLASLAPACK) by running configure command with --download-fblaslapack=1"
     exit
+  elif [ ${ARG} == "--blas" ] || [ ${ARG} == "-b" ]; then
+    echo "BLAS (FBLASLAPACK) will be installed via --download-fblaslapack=1"
+    BLAS_SUPPORT=' --download-fblaslapack=1 '
   fi
 
   if [ ${ARG} == "--modules" ] || [ ${ARG} == "-m" ]; then
@@ -91,21 +96,23 @@ do
     #CMAKEVERSION=3.17.0-d
     #CMAKEVERSION=3.20.3
     #CMAKEVERSION=3.21.3
-    CMAKEVERSION=3.24.2
+    CMAKEVERSION=3.26.4
 
     #GCCVERSION=9.2.0
     #GCCVERSION=9.3.0
     #GCCVERSION=10.1.0
     #GCCVERSION=10.2.0
     #GCCVERSION=11.2.0
-    GCCVERSION=12.2.0
+    #GCCVERSION=12.2.0
+    GCCVERSION=13.1.0
 
     #OPENMPIVERSION=3.1.4
     #OPENMPIVERSION=4.0.1
     #OPENMPIVERSION=4.0.2
     #OPENMPIVERSION=3.1.6
     #OPENMPIVERSION=4.1.1
-    OPENMPIVERSION=4.1.4
+    #OPENMPIVERSION=4.1.4
+    OPENMPIVERSION=4.1.5
 
   fi
 
@@ -120,8 +127,22 @@ done
 WHICHMPI=openmpi
 
 # DOWNLOAD and INSTALL PETSc (example PETSc-3.17.0)
-PETSCVERSION=3.17.0
+#PETSCVERSION=3.17.0
+#PETSCVERSION=3.18.4
+PETSCVERSION=3.19.3
 
+# Activate DEBUGGING MODE with ON/OFF
+DEBUG=OFF
+
+if [[ ${DEBUG} == 'ON' ]]; then
+  DEBUGDIR='_debug'
+  WITHDEBUG='yes'
+  TESTCOL=${YELLOW}
+else
+  DEBUGDIR=''
+  WITHDEBUG='0'
+  TESTCOL=${GREEN}
+fi
 # --------------------------------------------------------------------------------------------------
 # Check pre-requisites
 # --------------------------------------------------------------------------------------------------
@@ -170,7 +191,7 @@ check_module "cmake" "${CMAKEVERSION}"
 check_module "gcc  " "${GCCVERSION}"
 check_module "mpi  " "${OPENMPIVERSION}"
 
-PETSCMODULEFILEDIR=${MODULESDIR}/utilities/petsc/${PETSCVERSION}/gcc/${GCCVERSION}/openmpi
+PETSCMODULEFILEDIR=${MODULESDIR}/utilities/petsc/${PETSCVERSION}${DEBUGDIR}/gcc/${GCCVERSION}/openmpi
 MODULEFILE=${PETSCMODULEFILEDIR}/${OPENMPIVERSION}
 
 # if no PETSc module for this compiler found, install PETSc and create module
@@ -186,13 +207,13 @@ if [ ! -e "${MODULEFILE}" ]; then
   echo " "
   echo -e "$GREEN""Important: If the compilation step fails, run the script again and if it still fails \n1) try compiling single, .i.e., remove -j from make -j or \n2) try make -j 2 (not all available threads)$NC"
   echo " "
-  echo -e "This will install PETSc version ${GREEN}${PETSCVERSION}${NC}.\nCompilation in parallel will be executed with ${GREEN}${NBROFCORES} threads${NC}."
+  echo -e "This will install PETSc version ${GREEN}${PETSCVERSION}${NC} with ${TESTCOL}--with-debugging=${WITHDEBUG}${NC}.\nCompilation in parallel will be executed with ${GREEN}${NBROFCORES} threads${NC}."
   if [[ ${RERUNMODE} -eq 0 ]]; then
     read -p "Have the correct modules been loaded? If yes, press [Enter] to continue or [Crtl+c] to abort!"
   fi
 
   # Install destination
-  PETSCINSTALLDIR=/opt/petsc/${PETSCVERSION}/gcc-${GCCVERSION}/openmpi-${OPENMPIVERSION}
+  PETSCINSTALLDIR=/opt/petsc/${PETSCVERSION}${DEBUGDIR}/gcc-${GCCVERSION}/openmpi-${OPENMPIVERSION}
 
   # Change to sources directors
   cd ${SOURCESDIR}
@@ -263,26 +284,28 @@ if [ ! -e "${MODULEFILE}" ]; then
   ./configure PETSC_ARCH=arch-linux \
 	      --prefix=${PETSCINSTALLDIR} \
 	      --with-mpi-dir=${MPIINSTALLDIR} \
-	      --with-debugging=0 \
+	      --with-debugging=${WITHDEBUG} \
 	      COPTFLAGS='-O3 -march=native -mtune=native' \
 	      CXXOPTFLAGS='-O3 -march=native -mtune=native' \
 	      FOPTFLAGS='-O3 -march=native -mtune=native' \
 	      --download-hypre \
 	      --download-mumps \
-	      --download-scalapack
+	      --download-scalapack \
+        ${BLAS_SUPPORT}
 
   if [ ${PIPESTATUS[0]} -ne 0 ]; then
     echo " "
     echo -e "$RED""Failed command: [./configure PETSC_ARCH=arch-linux \
 	      --prefix=${PETSCINSTALLDIR} \
 	      --with-mpi-dir=${MPIINSTALLDIR} \
-	      --with-debugging=0 \
+	      --with-debugging=${WITHDEBUG} \
 	      COPTFLAGS='-O3 -march=native -mtune=native' \
 	      CXXOPTFLAGS='-O3 -march=native -mtune=native' \
 	      FOPTFLAGS='-O3 -march=native -mtune=native' \
 	      --download-hypre \
 	      --download-mumps \
-	      --download-scalapack]$NC"
+	      --download-scalapack \
+        ${BLAS_SUPPORT}]$NC"
     exit
   else
     # Compile source files with NBROFCORES threads

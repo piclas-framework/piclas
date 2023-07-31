@@ -431,10 +431,8 @@ LOGICAL,INTENT(IN)             :: finalizeFile
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-CHARACTER(LEN=255)             :: FileString
-#if USE_MPI
+CHARACTER(LEN=255)             :: FileString,hilf
 REAL                           :: startT,endT
-#endif
 #if USE_HDG
 #if PP_nVar==1
 INTEGER,PARAMETER       :: AddVar=3
@@ -443,10 +441,9 @@ INTEGER,PARAMETER       :: AddVar=3
 INTEGER,PARAMETER       :: AddVar=0
 #endif /*USE_HDG*/
 !===================================================================================================================================
-SWRITE(UNIT_stdOut,'(a)')' WRITE RECORDPOINT DATA TO HDF5 FILE...'
-#if USE_MPI
-startT=MPI_WTIME()
-#endif
+WRITE(hilf,'(A)') ' WRITE RECORDPOINT DATA TO HDF5 FILE...'
+SWRITE(UNIT_stdOut,'(A)')' '//TRIM(hilf)
+GETTIME(startT)
 
 FileString=TRIM(TIMESTAMP(TRIM(ProjectName)//'_RP',OutputTime))//'.h5'
 IF(myRPrank.EQ.0)THEN
@@ -534,14 +531,13 @@ IF(finalizeFile)THEN
   iSample=1
   nSamples=0
   RP_Data(:,:,1)=lastSample
+  SWRITE (UNIT_stdOut,'(A)') ' '
+ELSE
+  hilf=' '
 END IF
 
-#if USE_MPI
-endT=MPI_WTIME()
-IF(myRPrank.EQ.0) WRITE(UNIT_stdOut,'(A,F0.3,A)',ADVANCE='YES')' DONE  [',EndT-StartT,'s]'
-#else
-IF(myRPrank.EQ.0) WRITE(UNIT_stdOut,'(a)',ADVANCE='YES')' DONE'
-#endif
+GETTIME(endT)
+CALL DisplayMessageAndTime(EndT-StartT, TRIM(hilf)//' DONE', DisplayDespiteLB=.TRUE., DisplayLine=.FALSE.)
 END SUBROUTINE WriteRPToHDF5
 
 

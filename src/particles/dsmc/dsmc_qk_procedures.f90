@@ -103,7 +103,7 @@ SUBROUTINE QK_TestReaction(iPair,iReac,PerformReaction)
 USE MOD_Globals
 USE MOD_Globals_Vars          ,ONLY: BoltzmannConst
 USE MOD_DSMC_Vars             ,ONLY: Coll_pData, CollInf, SpecDSMC, PartStateIntEn, ChemReac, DSMC, RadialWeighting
-USE MOD_Particle_Vars         ,ONLY: PartSpecies, Species, VarTimeStep, usevMPF
+USE MOD_Particle_Vars         ,ONLY: PartSpecies, Species, UseVarTimeStep, usevMPF
 USE MOD_part_tools            ,ONLY: GetParticleWeight
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
@@ -136,7 +136,7 @@ DO iPath = 1, ChemReac%CollCaseInfo(iCase)%NumOfReactionPaths
   IF(iReac.EQ.ChemReac%CollCaseInfo(iCase)%ReactionIndex(iPath)) PathIndex = iPath
 END DO
 
-IF (usevMPF.OR.RadialWeighting%DoRadialWeighting.OR.VarTimeStep%UseVariableTimeStep) THEN
+IF (usevMPF.OR.RadialWeighting%DoRadialWeighting.OR.UseVarTimeStep) THEN
   ReducedMass = (Species(PartSpecies(React1Inx))%MassIC*Weight1 * Species(PartSpecies(React2Inx))%MassIC*Weight2) &
               / (Species(PartSpecies(React1Inx))%MassIC*Weight1 + Species(PartSpecies(React2Inx))%MassIC*Weight2)
 ELSE

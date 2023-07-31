@@ -211,7 +211,6 @@ ElemTimeFieldTot = 0.
 #ifdef PARTICLES
   ElemTimePartTot = 0.
 #endif /*PARTICLES*/
-
 ! If elem times are calculated by time measurement (PerformLBSample) and no Partweight Loadbalance is enabled
 IF(PerformLBSample .AND. LoadBalanceSample.GT.0) THEN
 
@@ -321,8 +320,7 @@ ELSE IF(PerformLBSample .AND. LoadBalanceSample.EQ.0) THEN
   END DO ! iElem=1,PP_nElems
   IF((MAXVAL(nPartsPerElem).GT.0).AND.(MAXVAL(ElemTime).LE.1.0))THEN
     IPWRITE (*,*) "parts, time =", MAXVAL(nPartsPerElem),MAXVAL(ElemTime)
-    CALL abort(&
-        __STAMP__&
+    CALL abort(__STAMP__&
         ,' ERROR: MAXVAL(nPartsPerElem).GT.0 but MAXVAL(ElemTime).LE.1.0 with ParticleMPIWeight=',RealInfoOpt=ParticleMPIWeight)
   END IF
 #endif /*PARTICLES*/
@@ -363,7 +361,6 @@ USE MOD_LoadBalance_Vars  ,ONLY: CurrentImbalance,MaxWeight,MinWeight
 USE MOD_LoadBalance_Vars  ,ONLY: Currentimbalance,PerformLoadBalance,LoadBalanceMaxSteps
 USE MOD_LoadBalance_Vars  ,ONLY: ElemTimeField
 USE MOD_LoadBalance_Vars  ,ONLY: ElemTime,nLoadBalanceSteps,NewImbalance,MinWeight,MaxWeight
-USE MOD_Mesh_Vars         ,ONLY: nElems,offsetElem
 USE MOD_Piclas_Init       ,ONLY: InitPiclas,FinalizePiclas
 USE MOD_Restart           ,ONLY: Restart
 USE MOD_StringTools       ,ONLY: set_formatting,clear_formatting
@@ -371,7 +368,7 @@ USE MOD_StringTools       ,ONLY: set_formatting,clear_formatting
 USE MOD_LoadBalance_Vars  ,ONLY: ElemTimePart
 USE MOD_LoadBalance_Vars  ,ONLY: ElemInfoRank_Shared,ElemInfoRank_Shared_Win
 USE MOD_LoadBalance_Vars  ,ONLY: nElemsOld,offsetElemOld
-USE MOD_Mesh_Vars         ,ONLY: nGlobalElems
+USE MOD_Mesh_Vars         ,ONLY: nGlobalElems,nElems,offsetElem
 USE MOD_MPI_Shared
 USE MOD_MPI_Shared_Vars   ,ONLY: myComputeNodeRank,MPI_COMM_SHARED
 USE MOD_Particle_Mesh_Vars,ONLY: ElemInfo_Shared
@@ -531,6 +528,8 @@ ELSE
 #endif /*PARTICLES*/
   ! send WeightSum from MPI root to all other procs
   CALL MPI_BCAST(WeightSum,1,MPI_DOUBLE_PRECISION,0,MPI_COMM_WORLD,iError)
+  ! Sanity check
+  IF(.NOT.ISFINITE(WeightSum)) CALL abort(__STAMP__,'Loadbalance: WeightSum is infinite!')
 
   WeightSum_loc=SUM(ElemTime)
   !IPWRITE(UNIT_StdOut,*) "SUM(ElemTime) =", SUM(ElemTime)

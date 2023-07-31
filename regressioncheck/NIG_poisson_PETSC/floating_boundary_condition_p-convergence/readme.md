@@ -1,0 +1,18 @@
+# 123
+- cylinder mesh with 1 element in z-direction (1m long as analytical solution is purely 2D)
+  - 32x8x1 (azimuthal*radial*z-dir)=256 elements mesh
+  - NGeo=2 to get the p-convergence
+- particles are inserted, which are removed on contact with the FPC and the current charge on the FPC is also used for the analytical solution
+- The order of convergence for varying polynomial degrees is only achieved if the mesh is curved with NGeo=2, otherwise the L2 error is always the same
+  - ChargeIC=-4.806529902E-13
+  - NGeo=1
+  - N=1 L2 error: [0.035332482]
+  - N=2 L2 error: [0.032216951]
+  - N=3 L2 error: [0.032124648]
+- For Q=0
+  - NGeo=2
+  - ChargeIC=0
+  - N=1 L2_error: [0.023960675]
+  - N=2 L2_error: [0.0032850485]
+  - N=3 L2_error: [0.00059638121]
+  - N=4 L2_error: [0.00011791198]

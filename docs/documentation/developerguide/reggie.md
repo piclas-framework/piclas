@@ -9,7 +9,8 @@ Wikipedia: https://en.wikipedia.org/wiki/Regression_testing
 ## Reggie2.0 Tool
 
 PICLas is continuously tested by utilizing a Python based regression testing environment, which is
-run by gitlab-runners. Therefore, the tool *reggie2.0* is used, which is found here: https://gitlab.com/reggie2.0/reggie2.0
+run by gitlab-runners. Therefore, the tool *reggie2.0* is used, which is found under
+[https://github.com/piclas-framework/reggie2.0](https://github.com/piclas-framework/reggie2.0)
 
 Additionally, the different analysis methods that can be applied and the general structure of a 
 regression test is described there.
@@ -21,6 +22,41 @@ of the different tests is given under https://github.com/piclas-framework/piclas
 
 The automatic execution by *gitlab-runners* can be performed on any machine that is connected to the
 internet and in the following section, the setup of such a machine is described
+
+## Local Testing of GitLab CI
+
+To locally test the GitLab CI (including a YAML verification), [gitlab-ci-local](https://github.com/firecow/gitlab-ci-local) can be used. An installation guide can be found here: [Link](https://github.com/firecow/gitlab-ci-local#linux-based-on-debian). After a successful installation, you can view the available parameters through
+```
+gitlab-ci-local --help
+```
+To view the stages for the default check-in pipeline, execute in the main folder of piclas:
+```
+gitlab-ci-local --list
+```
+To view all stages and tests:
+```
+gitlab-ci-local --list-all
+```
+To execute the check-in pipeline locally (ie. the jobs that were shown with the `--list` command), use
+```
+gitlab-ci-local --shell-isolation
+```
+to avoid errors due to parallel writing of the ctags.txt file. An alternative is to limit the concurrent execution to one job, which
+is analogous to the current configuration on the Gitlab Runner (requires gitlab-ci-local in version 4.42.0)
+```
+gitlab-ci-local --concurrency=1
+```
+It should be noted that currently the cache creation & utilization does not seem to represent the remote execution, meaning that some
+errors might only be recognized after a push to the remote. A specific job can be executed simply by reference its name, and to also
+consider the dependencies (ie. the `needs:`), the following command can be utilized to execute, for example the DSMC check-in job:
+```
+gitlab-ci-local --needs CHE_DSMC
+```
+Another useful option to check the resulting configuration file is
+```
+gitlab-ci-local --preview preview.yml
+```
+which gives the expanded version of utilized `extends:` and `<<:` templates.
 
 ## Regression Server *Gitlab Runner* Setup
 In a first step, the required software packages for PICLas and Reggie2.0 are installed on a new
@@ -183,7 +219,7 @@ Latest tests on
     ```
     sudo gitlab-runner restart
     ```
-5. create ssh keys for normal user and set up password free access to gitlab (https://piclas.boltzplatz.eu) and gitlab.com (reggie)
+5. create ssh keys for normal user and set up password free access to gitlab (https://piclas.boltzplatz.eu)
     ```
     ssh-keygen -t ecdsa -b 521
     ```

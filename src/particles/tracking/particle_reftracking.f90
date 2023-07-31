@@ -482,27 +482,23 @@ DO iPart=1,PDM%ParticleVecLength
 #endif
 #if USE_MPI
               inelem=PEM%GlobalElemID(ipart)
-              IPWRITE(UNIT_stdout,'(I0,A,L1)') ' inelem.LE.PP_nElems = ',inelem.LE.PP_nElems
               IF(inelem.LE.PP_nElems)THEN
-                IPWRITE(UNIT_stdout,'(I0,A)') ' halo-elem = F'
+                IPWRITE(UNIT_stdout,'(I0,A)') ' PEM%GlobalElemID(ipart) <= PP_nElems: halo-elem = F'
               ELSE
-                IPWRITE(UNIT_stdout,'(I0,A)') ' halo-elem = T'
+                IPWRITE(UNIT_stdout,'(I0,A)') ' PEM%GlobalElemID(ipart)  > PP_nElems: halo-elem = T'
               END IF
-              IPWRITE(UNIT_stdout,'(I0,A,L1)') ' testelem.LE.PP_nElems = ',testelem.LE.PP_nElems
               IF(testelem.LE.PP_nElems)THEN
-                IPWRITE(UNIT_stdout,'(I0,A)') ' halo-elem = F'
-                IPWRITE(UNIT_stdout,'(I0,A,I0)') ' testelem             ', testelem
+                IPWRITE(UNIT_stdout,'(I0,A)')    '                testelem <= PP_nElems: halo-elem = F'
+                IPWRITE(UNIT_stdout,'(I0,A,I0)') '                testelem             ', testelem
               ELSE
-                IPWRITE(UNIT_stdout,'(I0,A)') ' halo-elem = T'
+                IPWRITE(UNIT_stdout,'(I0,A)')    '                testelem  > PP_nElems: halo-elem = T'
 !                IPWRITE(UNIT_stdOut,'(I0,A,I0)') ' testelem         ', offsetelemmpi(PartHaloElemToProc(NATIVE_PROC_ID,testelem)) &
 !                                                               + PartHaloElemToProc(NATIVE_ELEM_ID,testelem)
               END IF
 
 #endif
               IPWRITE(UNIT_stdOut,'(I0,A,I0)') ' PartSpecies  ', PartSpecies(iPart)
-              CALL abort(&
-                  __STAMP__ &
-                  ,'Particle not inside of Element, ipart',ipart)
+              CALL abort(__STAMP__ ,'Particle not inside of Element, ipart',ipart)
             END IF ! inside
           ELSE
             PEM%GlobalElemID(iPart)=TestElem

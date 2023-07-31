@@ -41,10 +41,11 @@ USE MOD_HDF5_Input            ,ONLY: ISVALIDHDF5FILE
 USE MOD_Mesh_Vars             ,ONLY: nGlobalElems
 USE MOD_Interpolation         ,ONLY: DefineParametersInterpolation,InitInterpolation
 USE MOD_Mesh                  ,ONLY: DefineParametersMesh,InitMesh
+USE MOD_Mesh_Tools            ,ONLY: InitElemNodeIDs
 #ifdef PARTICLES
-USE MOD_Particle_Mesh_Tools   ,ONLY: InitParticleGeometry, InitElemNodeIDs
-USE MOD_Particle_Mesh_Vars    ,ONLY: NodeCoords_Shared, ElemNodeID_Shared, NodeInfo_Shared
+USE MOD_Particle_Mesh_Tools   ,ONLY: InitParticleGeometry
 #endif /*PARTICLES*/
+USE MOD_Particle_Mesh_Vars    ,ONLY: NodeCoords_Shared, ElemNodeID_Shared, NodeInfo_Shared
 USE MOD_Mesh_Tools            ,ONLY: InitGetCNElemID, InitGetGlobalElemID
 #if USE_MPI
 USE MOD_MPI_Shared
@@ -61,13 +62,13 @@ LOGICAL                        :: CmdLineMode, NVisuDefault         ! In command
                                                                     ! otherwise a parameter file is needed
 CHARACTER(LEN=2)               :: NVisuString                       ! String containing NVisu from command line option
 CHARACTER(LEN=20)              :: fmtString                         ! String containing options for formatted write
-LOGICAL                        :: DGSolutionExists, ElemDataExists, SurfaceDataExists, VisuParticles, PartDataExists
-LOGICAL                        :: BGFieldExists, DVMSolutionExists
+LOGICAL                        :: DGSolutionExists, ElemDataExists, SurfaceDataExists, VisuParticles, PartDataExists, DMDDataExists
+LOGICAL                        :: BGFieldExists, ExcitationDataExists, DVMSolutionExists
 LOGICAL                        :: VisuAdaptiveInfo, AdaptiveInfoExists
 LOGICAL                        :: ReadMeshFinished, ElemMeshInit, SurfMeshInit
-#ifdef PARTICLES
 INTEGER                        :: iElem, iNode
-#endif /*PARTICLES*/
+INTEGER                        :: iMode,iErrorReturn,dmdSingleModeOutput,dmdMaximumModeOutput
+CHARACTER(LEN=16)              :: hilf
 !===================================================================================================================================
 CALL SetStackSizeUnlimited()
 CALL InitMPI()
@@ -75,18 +76,21 @@ CALL ParseCommandlineArguments()
 !CALL DefineParametersMPI()
 !CALL DefineParametersIO_HDF5()
 ! Define parameters for piclas2vtk
-CALL prms%SetSection("piclas2vtk")
-CALL prms%CreateStringOption( 'NodeTypeVisu',"Node type of the visualization basis: "//&
-                                             "VISU,GAUSS,GAUSS-LOBATTO,CHEBYSHEV-GAUSS-LOBATTO", 'VISU')
-CALL prms%CreateIntOption(    'NVisu',       "Number of points at which solution is sampled for visualization.")
-CALL prms%CreateLogicalOption('VisuParticles',  "Visualize particles (velocity, species, internal energy).", '.FALSE.')
-CALL prms%CreateLogicalOption('VisuAdaptiveInfo', "Visualize the sampled values utilized for the adaptive surface flux and porous BC (velocity, density, pumping speed)", '.FALSE.')
-CALL prms%CreateIntOption(    'TimeStampLength', 'Length of the floating number time stamp', '21')
-CALL prms%CreateLogicalOption( 'meshCheckWeirdElements'&
-  , 'Abort when weird elements are found: it means that part of the element is turned inside-out. ','.TRUE.')
+CALL prms%SetSection('piclas2vtk')
+CALL prms%CreateStringOption( 'NodeTypeVisu'           , 'Node type of the visualization basis: VISU,GAUSS,GAUSS-LOBATTO,CHEBYSHEV-GAUSS-LOBATTO', 'VISU')
+CALL prms%CreateIntOption(    'NVisu'                  , 'Number of points at which solution is sampled for visualization.')
+CALL prms%CreateLogicalOption('VisuParticles'          , 'Visualize particles (velocity, species, internal energy).', '.FALSE.')
+CALL prms%CreateLogicalOption('VisuAdaptiveInfo'       , 'Visualize the sampled values utilized for the adaptive surface flux and porous BC (velocity, density, pumping speed)', '.FALSE.')
+CALL prms%CreateIntOption(    'TimeStampLength'        , 'Length of the floating number time stamp', '21')
+CALL prms%CreateIntOption(    'dmdSingleModeOutput'    , 'Convert only a single specific DMD mode.', '0')
+CALL prms%CreateIntOption(    'dmdMaximumModeOutput'   , 'Convert all output DMD modes up to this number.', '1000')
+CALL prms%CreateLogicalOption('meshCheckWeirdElements' , 'Abort when weird elements are found: it means that part of the element is turned inside-out. ','.TRUE.')
 CALL DefineParametersIO()
 CALL DefineParametersMesh()
 CALL DefineParametersInterpolation()
+#if USE_MPI
+CALL DefineParametersMPIShared()
+#endif /*USE_MPI*/
 
 NVisuDefault = .FALSE.
 
@@ -191,16 +195,19 @@ VisuAdaptiveInfo    = GETLOGICAL('VisuAdaptiveInfo','.FALSE.')
 CALL InitIOHDF5()
 ! Get length of the floating number time stamp
 TimeStampLength = GETINT('TimeStampLength')
-IF((TimeStampLength.LT.4).OR.(TimeStampLength.GT.30)) CALL abort(&
-    __STAMP__&
+IF((TimeStampLength.LT.4).OR.(TimeStampLength.GT.30)) CALL abort(__STAMP__&
     ,'TimeStampLength cannot be smaller than 4 and not larger than 30')
 WRITE(UNIT=TimeStampLenStr ,FMT='(I0)') TimeStampLength
 WRITE(UNIT=TimeStampLenStr2,FMT='(I0)') TimeStampLength-4
 
+! DMD Stuff
+dmdSingleModeOutput  = GETINT('dmdSingleModeOutput')
+dmdMaximumModeOutput = GETINT('dmdMaximumModeOutput')
+
 ! Measure init duration
-Time=PICLASTIME()
+GETTIME(Time)
 SWRITE(UNIT_stdOut,'(132("="))')
-SWRITE(UNIT_stdOut,'(A,F14.2,A)') ' INITIALIZATION DONE! [',Time-StartTime,' sec ]'
+CALL DisplayMessageAndTime(Time-StartTime, ' INITIALIZATION DONE!', DisplayDespiteLB=.TRUE., DisplayLine=.FALSE.)
 SWRITE(UNIT_stdOut,'(132("="))')
 
 IF(NVisuDefault) THEN
@@ -243,11 +250,13 @@ DO iArgs = iArgsStart,nArgs
   CALL DatasetExists(File_ID , 'DG_Solution'  , DGSolutionExists)
   IF(TRIM(File_Type).EQ.'PartStateBoundary') DGSolutionExists = .FALSE.
   CALL DatasetExists(File_ID , 'ElemData'     , ElemDataExists)
+  CALL DatasetExists(File_ID , 'ExcitationData', ExcitationDataExists)
   CALL DatasetExists(File_ID , 'AdaptiveInfo' , AdaptiveInfoExists)
   CALL DatasetExists(File_ID , 'SurfaceData'  , SurfaceDataExists)
   CALL DatasetExists(File_ID , 'PartData'     , PartDataExists)
   CALL DatasetExists(File_ID , 'BGField'      , BGFieldExists) ! deprecated , but allow for backward compatibility
   CALL DatasetExists(File_ID , 'DVM_Solution'  , DVMSolutionExists)
+  CALL DatasetExists(File_ID , 'Mode_001_ElectricFieldX_Img'     , DMDDataExists)
   IF(BGFieldExists)THEN
     DGSolutionExists  = .TRUE.
     DGSolutionDataset = 'BGField'
@@ -261,23 +270,22 @@ DO iArgs = iArgsStart,nArgs
 
   ! Read-in of the mesh
   IF(.NOT.ReadMeshFinished) THEN
-    CALL InitMesh(1,MeshFile_IN=MeshFile)
+    CALL InitMesh(-1,MeshFile_IN=MeshFile)
     CALL InitGetGlobalElemID()
     CALL InitGetCNElemID()
 #if USE_MPI
     nComputeNodeTotalElems = nGlobalElems
 #endif /*USE_MPI*/
 #ifdef PARTICLES
-    ! ElemSideNodeID_Shared is required for the connectivity
+    ! ElemSideNodeID_Shared is required for the connectivity for the conversion of SurfaceData
     CALL InitParticleGeometry()
-    ! ElemNodeID_Shared is required for the connectivity
-    CALL InitElemNodeIDs()
 #endif /*PARTICLES*/
+    ! ElemNodeID_Shared is required for the connectivity for the conversion of ElemData
+    CALL InitElemNodeIDs()
     ReadMeshFinished = .TRUE.
   END IF
   ! Build connectivity for element/volume output
   IF(ElemDataExists.AND..NOT.ElemMeshInit) THEN
-#ifdef PARTICLES
     CALL OpenDataFile(MeshFile,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_WORLD)
     CALL ReadAttribute(File_ID,'nUniqueNodes',1,IntScalar=nUniqueNodes)
     CALL CloseDataFile()
@@ -290,11 +298,6 @@ DO iArgs = iArgsStart,nArgs
       END DO
     END DO
     ElemMeshInit = .TRUE.
-#else
-    SWRITE(*,*) 'WARNING - Conversion of ElemData requires the compilation of piclas2vtk with PARTICLES set to ON!'
-    SWRITE(*,*) 'WARNING - File contains ElemData but output is skipped.'
-    ElemDataExists = .FALSE.
-#endif
   END IF
   ! Build connectivity for surface output
   IF(SurfaceDataExists.AND..NOT.SurfMeshInit) THEN
@@ -309,11 +312,30 @@ DO iArgs = iArgsStart,nArgs
   END IF
   ! === DG_Solution (incl. BField etc.) ============================================================================================
   IF(DGSolutionExists) THEN
-    CALL ConvertDGSolution(InputStateFile,NVisu,NodeTypeVisuOut,File_Type,DGSolutionDataset)
+    IF(DMDDataExists)THEN
+      IF(dmdSingleModeOutput.EQ.0)THEN
+        DO iMode = 1, dmdMaximumModeOutput
+          WRITE(UNIT=hilf,FMT='(I3.3)') iMode
+          DGSolutionDataset = 'Mode_'//TRIM(hilf)//'_ElectricFieldX_Img'
+          CALL ConvertDGSolution(InputStateFile,NVisu,NodeTypeVisuOut,File_Type,DGSolutionDataset,iErrorReturn)
+          IF(iErrorReturn.NE.0) CONTINUE
+        END DO ! iMode = 1, 1000
+      ELSE
+        WRITE(UNIT=hilf,FMT='(I3.3)') dmdSingleModeOutput
+        DGSolutionDataset = 'Mode_'//TRIM(hilf)//'_ElectricFieldX_Img'
+        CALL ConvertDGSolution(InputStateFile,NVisu,NodeTypeVisuOut,File_Type,DGSolutionDataset,iErrorReturn)
+      END IF ! dmdSingleModeOutput.EQ.0
+    ELSE
+      CALL ConvertDGSolution(InputStateFile,NVisu,NodeTypeVisuOut,File_Type,DGSolutionDataset,iErrorReturn)
+    END IF ! DMDDataExists
   END IF
   ! === ElemData ===================================================================================================================
   IF(ElemDataExists) THEN
     CALL ConvertElemData(InputStateFile,'ElemData','VarNamesAdd')
+  END IF
+  ! === ElemData ===================================================================================================================
+  IF(ExcitationDataExists) THEN
+    CALL ConvertElemData(InputStateFile,'ExcitationData','VarNamesExci')
   END IF
   ! === SurfaceData ================================================================================================================
   IF(SurfaceDataExists) THEN
@@ -338,16 +360,13 @@ DO iArgs = iArgsStart,nArgs
 END DO ! iArgs = 2, nArgs
 
 ! Measure processing duration
-Time=PICLASTIME()
+GETTIME(Time)
 #if USE_MPI
 CALL MPI_FINALIZE(iError)
-IF(iError .NE. 0) THEN
-  CALL abort(__STAMP__,&
-    'MPI finalize error',iError)
-END IF
+IF(iError .NE. 0) CALL abort(__STAMP__,'MPI finalize error',iError)
 #endif
 SWRITE(UNIT_stdOut,'(132("="))')
-SWRITE(UNIT_stdOut,'(A,F14.2,A)') ' piclas2vtk FINISHED! [',Time-StartTime,' sec ]'
+CALL DisplayMessageAndTime(Time-StartTime, ' piclas2vtk FINISHED!', DisplayDespiteLB=.TRUE., DisplayLine=.FALSE.)
 SWRITE(UNIT_stdOut,'(132("="))')
 
 END PROGRAM piclas2vtk
@@ -380,7 +399,9 @@ CHARACTER(LEN=200)            :: Buffer, tmp, tmp2, VarNameString
 CHARACTER(LEN=1)              :: lf, components_string
 REAL(KIND=4)                  :: float
 INTEGER,ALLOCATABLE           :: VarNameCombine(:), VarNameCombineLen(:)
+REAL                          :: StartT,EndT ! Timer
 !===================================================================================================================================
+GETTIME(StartT)
 
 nVTKPoints=nNodes
 nVTKCells=nElems
@@ -530,8 +551,7 @@ CASE(4)
 CASE(1)
   ElemType = 2  ! VTK_VERTEX
 CASE DEFAULT
-  CALL abort(__STAMP__,&
-      'Wrong data size given to WritaDataToVTK_PICLas routine!')
+  CALL abort(__STAMP__,'Wrong data size given to WritaDataToVTK_PICLas routine!')
 END SELECT
 WRITE(ivtk) nBytes
 WRITE(ivtk) (ElemType,iElem=1,nVTKCells)
@@ -539,7 +559,8 @@ WRITE(ivtk) (ElemType,iElem=1,nVTKCells)
 Buffer=lf//'  </AppendedData>'//lf;WRITE(ivtk) TRIM(Buffer)
 Buffer='</VTKFile>'//lf;WRITE(ivtk) TRIM(Buffer)
 CLOSE(ivtk)
-SWRITE(UNIT_stdOut,'(A)',ADVANCE='YES')"DONE"
+GETTIME(EndT)
+CALL DisplayMessageAndTime(EndT-StartT, ' DONE!', DisplayDespiteLB=.TRUE., DisplayLine=.FALSE.)
 
 SDEALLOCATE(VarNameCombine)
 SDEALLOCATE(VarNameCombineLen)
@@ -746,7 +767,7 @@ END SUBROUTINE ConvertDVMSolution
 !===================================================================================================================================
 !> Convert the output of the field solver to a VTK output format
 !===================================================================================================================================
-SUBROUTINE ConvertDGSolution(InputStateFile,NVisu,NodeTypeVisuOut,OutputName,DGSolutionDataset)
+SUBROUTINE ConvertDGSolution(InputStateFile,NVisu,NodeTypeVisuOut,OutputName,DGSolutionDataset,iErrorReturn)
 ! MODULES
 USE MOD_Globals
 USE MOD_Globals_Vars          ,ONLY: ProjectName
@@ -767,6 +788,7 @@ CHARACTER(LEN=*),INTENT(IN)   :: OutputName
 INTEGER,INTENT(IN)            :: NVisu
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
+INTEGER,INTENT(OUT)           :: iErrorReturn
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER                         :: iElem, iDG, nVar_State, N_State, nElems_State, nVar_Solution, nDims, iField, nFields, Suffix
@@ -783,11 +805,22 @@ REAL,ALLOCATABLE,TARGET         :: Coords_DG(:,:,:,:,:)
 REAL,POINTER                    :: Coords_DG_p(:,:,:,:,:)
 REAL,ALLOCATABLE                :: Vdm_EQNgeo_NVisu(:,:)             !< Vandermonde from equidistant mesh to visualization nodes
 REAL,ALLOCATABLE                :: Vdm_N_NVisu(:,:)                  !< Vandermonde from state to visualization nodes
-LOGICAL                         :: DGSourceExists,DGTimeDerivativeExists,TimeExists,DGSourceExtExists
+LOGICAL                         :: DGSourceExists,DGTimeDerivativeExists,TimeExists,DGSourceExtExists,DMDMode,DGSolutionDatasetExists
 CHARACTER(LEN=16)               :: hilf
+CHARACTER(LEN=255)              :: DMDFields(1:16), Dataset
 !===================================================================================================================================
 ! 1.) Open given file to get the number of elements, the order and the name of the mesh file
 CALL OpenDataFile(InputStateFile,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_WORLD)
+
+! Check if data set exists, if not return
+CALL DatasetExists(File_ID,TRIM(DGSolutionDataset),DGSolutionDatasetExists)
+IF(.NOT.DGSolutionDatasetExists)THEN
+  CALL CloseDataFile()
+  iErrorReturn=1
+  RETURN
+ELSE
+  iErrorReturn=0
+END IF ! .NOT.DGSolutionDatasetExists
 
 ! Read-in of dimensions of the field array (might have an additional dimension, i.e., rank is 6 instead of 5)
 CALL GetDataSize(File_ID,TRIM(DGSolutionDataset),nDims,HSize)
@@ -832,6 +865,13 @@ CALL ReadAttribute(File_ID,'VarNames',nVar_Solution,StrArray=StrVarNamesTemp2)
 
 ! Allocate the variable names array used for the output and copy the names from the DG_Solution and DG_Source (if it exists)
 SDEALLOCATE(StrVarNames)
+! Check if DMD modes are converted
+IF(TRIM(DGSolutionDataset(1:MIN(LEN(TRIM(DGSolutionDataset)),5))).EQ.'Mode_')THEN
+  DMDMode = .TRUE.
+  nVar_State = 16
+ELSE
+  DMDMode = .FALSE.
+END IF ! TRIM(DGSolutionDataset(1:MIN(LEN(TRIM(DGSolutionDataset)),5))).EQ.'Mode_'
 ALLOCATE(StrVarNames(nVar_State))
 StrVarNames(1:nVar_Solution) = StrVarNamesTemp2
 IF(DGSourceExists)         StrVarNames(nVar_Solution+1:nVar_Source) = StrVarNamesTemp(1:4)
@@ -867,30 +907,65 @@ ASSOCIATE (&
       N_State       => INT(N_State       , IK)      , &
       nElems        => INT(nElems        , IK)      , &
       nFields       => INT(nFields       , IK)      )
-  IF(nFields.EQ.1)THEN
-    SDEALLOCATE(U)
-    ALLOCATE(U(nVar_State,0:N_State,0:N_State,0:N_State,nElems))
-    ! Default: DGSolutionDataset = 'DG_Solution'
-    ! Read 1:nVar_Solution
-    CALL ReadArray(TRIM(DGSolutionDataset),5,(/nVar_Solution,N_State+1_IK,N_State+1_IK,N_State+1_IK,nElems/),offsetElem,5, &
-                    RealArray=U(1:nVar_Solution,0:N_State,0:N_State,0:N_State,1:nElems))
 
-    ! Read nVar_Solution+1:nVar_Source
-    IF(DGSourceExists) CALL ReadArray('DG_Source',5,(/4_IK,N_State+1_IK,N_State+1_IK,N_State+1_IK,nElems/),offsetElem,5, &
-                                       RealArray=U(nVar_Solution+1:nVar_Source,0:N_State,0:N_State,0:N_State,1:nElems))
-    ! Read nVar_Source+1:nVar_TD
-    IF(DGTimeDerivativeExists) CALL ReadArray('DG_TimeDerivative',5,(/3_IK,N_State+1_IK,N_State+1_IK,N_State+1_IK,nElems/),&
-                            offsetElem,5,RealArray=U(nVar_Source+1:nVar_TD,0:N_State,0:N_State,0:N_State,1:nElems))
-    ! Read nVar_TD+1:nVar_State
-    IF(DGSourceExtExists) CALL ReadArray('DG_SourceExt',5,(/1_IK,N_State+1_IK,N_State+1_IK,N_State+1_IK,nElems/),&
-                            offsetElem,5,RealArray=U(nVar_TD+1:nVar_State,0:N_State,0:N_State,0:N_State,1:nElems))
-  ELSE ! more than one field
-    SDEALLOCATE(U2)
-    ALLOCATE(U2(nVar_State,0:N_State,0:N_State,0:N_State,nElems,nFields))
-    ! Default: DGSolutionDataset = 'DG_Solution'
-    CALL ReadArray(TRIM(DGSolutionDataset),6,(/nVar_Solution,N_State+1_IK,N_State+1_IK,N_State+1_IK,nElems,nFields/),offsetElem,5, &
-                    RealArray=U2(1:nVar_Solution,0:N_State,0:N_State,0:N_State,1:nElems,1:nFields))
-  END IF ! nFields.GT.1
+  ! Check if DMD data is to be converted or normal data
+  IF(DMDMode)THEN
+    !Sanity check
+    IF(LEN(TRIM(DGSolutionDataset)).LT.9) CALL abort(__STAMP__,'DGSolutionDataset name is too short: '//TRIM(DGSolutionDataset))
+      DMDFields=(/'ElectricFieldX_Img ',&
+                  'ElectricFieldX_Real',&
+                  'ElectricFieldY_Img ',&
+                  'ElectricFieldY_Real',&
+                  'ElectricFieldZ_Img ',&
+                  'ElectricFieldZ_Real',&
+                  'MagneticFieldX_Img ',&
+                  'MagneticFieldX_Real',&
+                  'MagneticFieldY_Img ',&
+                  'MagneticFieldY_Real',&
+                  'MagneticFieldZ_Img ',&
+                  'MagneticFieldZ_Real',&
+                  'Phi_Img            ',&
+                  'Phi_Real           ',&
+                  'Psi_Img            ',&
+                  'Psi_Real           '/)
+
+      SDEALLOCATE(U)
+      ALLOCATE(U(nVar_State,0:N_State,0:N_State,0:N_State,nElems))
+      DO iField = 1, 16
+        !Dataset='Mode_'//TRIM(hilf)//'_'//DMDFields(iField)
+        Dataset=TRIM(DGSolutionDataset(1:9))//DMDFields(iField)
+        StrVarNames(iField) = TRIM(Dataset)
+        WRITE (*,*) "Converting ... ", TRIM(Dataset)
+        CALL ReadArray(TRIM(Dataset),5,(/nVar_Solution,N_State+1_IK,N_State+1_IK,N_State+1_IK,nElems/),offsetElem,5, &
+            RealArray=U(iField:iField,0:N_State,0:N_State,0:N_State,1:nElems))
+      END DO ! iField = 1, 16
+
+  ELSE
+    IF(nFields.EQ.1)THEN
+      SDEALLOCATE(U)
+      ALLOCATE(U(nVar_State,0:N_State,0:N_State,0:N_State,nElems))
+      ! Default: DGSolutionDataset = 'DG_Solution'
+      ! Read 1:nVar_Solution
+      CALL ReadArray(TRIM(DGSolutionDataset),5,(/nVar_Solution,N_State+1_IK,N_State+1_IK,N_State+1_IK,nElems/),offsetElem,5, &
+          RealArray=U(1:nVar_Solution,0:N_State,0:N_State,0:N_State,1:nElems))
+
+      ! Read nVar_Solution+1:nVar_Source
+      IF(DGSourceExists) CALL ReadArray('DG_Source',5,(/4_IK,N_State+1_IK,N_State+1_IK,N_State+1_IK,nElems/),offsetElem,5, &
+          RealArray=U(nVar_Solution+1:nVar_Source,0:N_State,0:N_State,0:N_State,1:nElems))
+      ! Read nVar_Source+1:nVar_TD
+      IF(DGTimeDerivativeExists) CALL ReadArray('DG_TimeDerivative',5,(/3_IK,N_State+1_IK,N_State+1_IK,N_State+1_IK,nElems/),&
+          offsetElem,5,RealArray=U(nVar_Source+1:nVar_TD,0:N_State,0:N_State,0:N_State,1:nElems))
+      ! Read nVar_TD+1:nVar_State
+      IF(DGSourceExtExists) CALL ReadArray('DG_SourceExt',5,(/1_IK,N_State+1_IK,N_State+1_IK,N_State+1_IK,nElems/),&
+          offsetElem,5,RealArray=U(nVar_TD+1:nVar_State,0:N_State,0:N_State,0:N_State,1:nElems))
+    ELSE ! more than one field
+      SDEALLOCATE(U2)
+      ALLOCATE(U2(nVar_State,0:N_State,0:N_State,0:N_State,nElems,nFields))
+      ! Default: DGSolutionDataset = 'DG_Solution'
+      CALL ReadArray(TRIM(DGSolutionDataset),6,(/nVar_Solution,N_State+1_IK,N_State+1_IK,N_State+1_IK,nElems,nFields/),offsetElem,5, &
+          RealArray=U2(1:nVar_Solution,0:N_State,0:N_State,0:N_State,1:nElems,1:nFields))
+    END IF ! nFields.GT.1
+  END IF ! TRIM(DGSolutionDataset(1:MIN(LEN(TRIM(DGSolutionDataset)),5))).EQ.'Mode_'
 END ASSOCIATE
 
 CALL CloseDataFile()
@@ -915,7 +990,9 @@ U_Visu_p    => U_Visu(:,:,:,:,1:iDG)
 DO iField = 1, nFields
 
   ! Write solution to vtk
-  IF(OutputName.EQ.'State')THEN
+  IF(DMDMode)THEN
+    FileString_DG=TRIM(ProjectName)//'_'//TRIM(OutputName)//'_'//TRIM(DGSolutionDataset(1:8))//'.vtu'
+  ELSEIF(OutputName.EQ.'State')THEN
     FileString_DG=TRIM(TIMESTAMP(TRIM(ProjectName)//'_Solution',OutputTime))//'.vtu'
   ELSE
     IF(TimeExists)THEN
@@ -986,7 +1063,8 @@ INTEGER,ALLOCATABLE             :: ConnectInfo(:,:)
 CHARACTER(LEN=255),ALLOCATABLE  :: VarNamesParticle(:), tmpArray(:)
 CHARACTER(LEN=255)              :: FileString
 REAL, ALLOCATABLE               :: PartData(:,:)
-REAL                            :: OutputTime, FileVersionHDF5
+REAL                            :: OutputTime, FileVersionHDFReal
+INTEGER                         :: FileVersionHDF5Int
 LOGICAL                         :: FileVersionExists
 !===================================================================================================================================
 
@@ -997,36 +1075,40 @@ CALL ReadAttribute(File_ID,'Time',1,RealScalar=OutputTime)
 ! check file version
 CALL DatasetExists(File_ID,'File_Version',FileVersionExists,attrib=.TRUE.)
 IF (FileVersionExists) THEN
-  CALL ReadAttribute(File_ID,'File_Version',1,RealScalar=FileVersionHDF5)
+  CALL ReadAttribute(File_ID,'File_Version',1,RealScalar=FileVersionHDFReal)
+
+  IF(FileVersionHDFReal.LT.1.5)THEN
+    SWRITE(UNIT_StdOut,'(A)')' '
+    SWRITE(UNIT_StdOut,'(A)')' %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% '
+    SWRITE(UNIT_StdOut,'(A)')' '
+    SWRITE(UNIT_StdOut,'(A)')' Restart file is too old! "File_Version" in restart file < 1.5!'
+    SWRITE(UNIT_StdOut,'(A)')' The format used in the restart file is not compatible with this version of PICLas.'
+    SWRITE(UNIT_StdOut,'(A)')' Among others, the particle format (PartData) has changed.'
+    SWRITE(UNIT_StdOut,'(A)')' Run python script '
+    SWRITE(UNIT_StdOut,'(A)')' '
+    SWRITE(UNIT_StdOut,'(A)')'     python  ./tools/flip_PartState/flip_PartState.py  --help'
+    SWRITE(UNIT_StdOut,'(A)')' '
+    SWRITE(UNIT_StdOut,'(A)')' for info regarding the usage and run the script against the restart file, e.g., '
+    SWRITE(UNIT_StdOut,'(A)')' '
+    SWRITE(UNIT_StdOut,'(A)')'     python  ./tools/flip_PartState/flip_PartState.py  ProjectName_State_000.0000xxxxxx.h5'
+    SWRITE(UNIT_StdOut,'(A)')' '
+    SWRITE(UNIT_StdOut,'(A)')' to update the format and file version number.'
+    SWRITE(UNIT_StdOut,'(A)')' Note that the format can be changed back to the old one by running the script a second time.'
+    SWRITE(UNIT_StdOut,'(A)')' '
+    SWRITE(UNIT_StdOut,'(A)')' %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% '
+    CALL abort(&
+    __STAMP__&
+    ,'Error in InitRestart(): "File_Version" in restart file < 1.5. See error message above to fix. File version in restart file =',&
+    RealInfoOpt=FileVersionHDFReal)
+  END IF ! FileVersionHDFReal.LT.1.5
 ELSE
-  CALL abort(&
-      __STAMP__&
-      ,'Error in InitRestart(): Attribute "File_Version" does not exist!')
+  CALL DatasetExists(File_ID,'Piclas_VersionInt',FileVersionExists,attrib=.TRUE.)
+  IF (FileVersionExists) THEN
+    CALL ReadAttribute(File_ID,'Piclas_VersionInt',1,IntScalar=FileVersionHDF5Int)
+  ELSE
+    CALL abort(__STAMP__,'Error in InitRestart(): Attribute "Piclas_VersionInt" does not exist!')
+  END IF
 END IF
-IF(FileVersionHDF5.LT.1.5)THEN
-  SWRITE(UNIT_StdOut,'(A)')' '
-  SWRITE(UNIT_StdOut,'(A)')' %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% '
-  SWRITE(UNIT_StdOut,'(A)')' '
-  SWRITE(UNIT_StdOut,'(A)')' Restart file is too old! "File_Version" in restart file < 1.5!'
-  SWRITE(UNIT_StdOut,'(A)')' The format used in the restart file is not compatible with this version of PICLas.'
-  SWRITE(UNIT_StdOut,'(A)')' Among others, the particle format (PartData) has changed.'
-  SWRITE(UNIT_StdOut,'(A)')' Run python script '
-  SWRITE(UNIT_StdOut,'(A)')' '
-  SWRITE(UNIT_StdOut,'(A)')'     python  ./tools/flip_PartState/flip_PartState.py  --help'
-  SWRITE(UNIT_StdOut,'(A)')' '
-  SWRITE(UNIT_StdOut,'(A)')' for info regarding the usage and run the script against the restart file, e.g., '
-  SWRITE(UNIT_StdOut,'(A)')' '
-  SWRITE(UNIT_StdOut,'(A)')'     python  ./tools/flip_PartState/flip_PartState.py  ProjectName_State_000.0000xxxxxx.h5'
-  SWRITE(UNIT_StdOut,'(A)')' '
-  SWRITE(UNIT_StdOut,'(A)')' to update the format and file version number.'
-  SWRITE(UNIT_StdOut,'(A)')' Note that the format can be changed back to the old one by running the script a second time.'
-  SWRITE(UNIT_StdOut,'(A)')' '
-  SWRITE(UNIT_StdOut,'(A)')' %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% '
-  CALL abort(&
-  __STAMP__&
-  ,'Error in InitRestart(): "File_Version" in restart file < 1.5. See error message above to fix. File version in restart file =',&
-  RealInfoOpt=FileVersionHDF5)
-END IF ! FileVersionHDF5.LT.1.5
 
 ! Read-in of dimensions of the particle array (1: Number of particles, 2: Number of variables)
 CALL GetDataSize(File_ID,'PartData',nDims,HSize)
@@ -1125,6 +1207,7 @@ IF (nVarAdd.GT.0) THEN
   SELECT CASE(TRIM(File_Type))
     CASE('DSMCState','DSMCHOState')
       FileString=TRIM(TIMESTAMP(TRIM(ProjectName)//'_visuDSMC',OutputTime))//'.vtu'
+      IF(TRIM(ArrayName).EQ.'ExcitationData') FileString=TRIM(TIMESTAMP(TRIM(ProjectName)//'_visuExcitationData',OutputTime))//'.vtu'
   END SELECT
   ! TODO: This is probably borked for NGeo>1 because then NodeCoords are not the corner nodes
   CALL WriteDataToVTK_PICLas(8,FileString,nVarAdd,VarNamesAdd(1:nVarAdd),nUniqueNodes,NodeCoords_Connect(1:3,1:nUniqueNodes),nElems,&

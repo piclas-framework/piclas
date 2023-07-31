@@ -62,6 +62,7 @@ USE MOD_Globals_Vars           ,ONLY: Kelvin2eV
 USE MOD_Particle_Vars          ,ONLY: nSpecies,Species,usevMPF
 USE MOD_ReadInTools            ,ONLY: GETINT,GETREAL,GETLOGICAL,GETSTR
 USE MOD_Particle_Boundary_Vars ,ONLY: nPartBound,PartBound
+USE MOD_SurfaceModel_Vars      ,ONLY: BulkElectronTempSEE,SurfModSEEelectronTempAutoamtic
 USE MOD_SurfaceModel_Vars      ,ONLY: SurfModResultSpec,SurfModEnergyDistribution,SurfModEmissionEnergy,SurfModEmissionYield
 USE MOD_Particle_Vars          ,ONLY: CalcBulkElectronTemp,BulkElectronTemp
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -75,7 +76,7 @@ IMPLICIT NONE
 ! LOCAL VARIABLES
 CHARACTER(32)        :: hilf, hilf2, hilf3
 INTEGER              :: iSpec, iPartBound
-LOGICAL              :: SurfModelElectronTemp,SurfModSEEelectronTempAutoamtic
+LOGICAL              :: SurfModelElectronTemp
 INTEGER, ALLOCATABLE :: SumOfResultSpec(:)
 REAL                 :: MPFiSpec,MPFresultSpec
 !===================================================================================================================================
@@ -159,10 +160,13 @@ DEALLOCATE(SumOfResultSpec)
 
 ! If SEE model by Morozov is used, read the additional parameter for the electron bulk temperature
 IF(SurfModelElectronTemp)THEN
-  BulkElectronTemp = GETREAL('Part-SurfaceModel-SEE-Te') ! default is 50 eV = 5.80226250308285e5 K
-  BulkElectronTemp = BulkElectronTemp*Kelvin2eV    ! convert to eV to be used in the code
+  BulkElectronTempSEE             = GETREAL('Part-SurfaceModel-SEE-Te') ! default is 50 eV = 5.80226250308285e5 K
+  BulkElectronTempSEE             = BulkElectronTempSEE*Kelvin2eV       ! convert to eV to be used in the code
   SurfModSEEelectronTempAutoamtic = GETLOGICAL('Part-SurfaceModel-SEE-Te-automatic')
-  IF(SurfModSEEelectronTempAutoamtic) CalcBulkElectronTemp=.TRUE.
+  IF(SurfModSEEelectronTempAutoamtic)THEN
+    CalcBulkElectronTemp = .TRUE.
+    BulkElectronTemp     = BulkElectronTempSEE
+  END IF
 END IF ! SurfModelElectronTemp
 
 END SUBROUTINE InitSurfaceModel
@@ -187,6 +191,7 @@ SDEALLOCATE(SurfModResultSpec)
 SDEALLOCATE(SurfModEnergyDistribution)
 SDEALLOCATE(SurfModEmissionEnergy)
 SDEALLOCATE(SurfModEmissionYield)
+SDEALLOCATE(StickingCoefficientData)
 END SUBROUTINE FinalizeSurfaceModel
 
 END MODULE MOD_SurfaceModel_Init
