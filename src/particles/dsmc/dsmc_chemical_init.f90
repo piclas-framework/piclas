@@ -601,6 +601,7 @@ SUBROUTINE InitReactionPaths()
 ! MODULES
 USE MOD_Globals
 USE MOD_DSMC_Vars ,ONLY: ChemReac,CollInf
+USE MOD_PARTICLE_Vars,ONLY: Species
 #if USE_HDG
 USE MOD_DSMC_Vars ,ONLY: SpecDSMC
 USE MOD_HDG_Vars  ,ONLY: UseBRElectronFluid ! Used for skipping reactions involving electrons as products
