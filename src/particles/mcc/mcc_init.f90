@@ -390,7 +390,7 @@ DO iSpec = 1, nSpecies
           ,RealInfoOpt=TotalProb(partSpec))
         ELSEIF(TotalProb(partSpec).GT.0.1) THEN
           SWRITE(*,*) 'Total null collision probability is above 0.1. A value of 1E-2 is recommended in literature!'
-          SWRITE(*,*) 'Particle Species: ', TRIM(SpecDSMC(partSpec)%Name), ' Probability: ', TotalProb(partSpec)
+          SWRITE(*,*) 'Particle Species: ', TRIM(Species(partSpec)%Name), ' Probability: ', TotalProb(partSpec)
         END IF ! TotalProb(partSpec).GT.1.0
       END IF ! XSec_NullCollision
     END IF ! SpecXSec(iCase)%UseCollXSec
@@ -643,11 +643,12 @@ SUBROUTINE InitPhotoionizationXSec()
 ! MODULES
 USE MOD_Globals
 USE MOD_ReadInTools
-USE MOD_MCC_Vars  ,ONLY: NbrOfPhotonXsecReactions,SpecPhotonXSec,PhotoReacToReac,NbrOfPhotonXsecLines
-USE MOD_MCC_Vars  ,ONLY: SpecPhotonXSecInterpolated,PhotoIonFirstLine,PhotoIonLastLine,PhotonDistribution,ReacToPhotoReac
-USE MOD_MCC_Vars  ,ONLY: PhotonSpectrum,PhotonEnergies,MaxPhotonXSec
-USE MOD_MCC_XSec  ,ONLY: ReadReacPhotonXSec,ReadReacPhotonSpectrum
-USE MOD_DSMC_Vars ,ONLY: SpecDSMC,ChemReac
+USE MOD_Particle_Vars ,ONLY: Species
+USE MOD_MCC_Vars      ,ONLY: NbrOfPhotonXsecReactions,SpecPhotonXSec,PhotoReacToReac,NbrOfPhotonXsecLines
+USE MOD_MCC_Vars      ,ONLY: SpecPhotonXSecInterpolated,PhotoIonFirstLine,PhotoIonLastLine,PhotonDistribution,ReacToPhotoReac
+USE MOD_MCC_Vars      ,ONLY: PhotonSpectrum,PhotonEnergies,MaxPhotonXSec
+USE MOD_MCC_XSec      ,ONLY: ReadReacPhotonXSec,ReadReacPhotonSpectrum
+USE MOD_DSMC_Vars     ,ONLY: ChemReac
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -675,7 +676,7 @@ DO iReac = 1, ReadInNumOfReact
     PhotoReacToReac(iPhotoReac) = iReac
     ReacToPhotoReac(iReac)      = iPhotoReac
 !> 2. Check the educts (photon+X), also switch the ordering of the names.e.g, N2-photon or photon-N2 of the container
-    EductPair = TRIM(SpecDSMC(ChemReac%Reactants(iReac,1))%Name)//'-photon'
+    EductPair = TRIM(Species(ChemReac%Reactants(iReac,1))%Name)//'-photon'
     IF(iPhotoReac.GT.1)THEN
       IF(TRIM(EductPair).NE.TRIM(EductPairOld)) CALL abort(__STAMP__,'Currently only one photo reaction is implemented')
     END IF ! iPhotoReac.GT.1

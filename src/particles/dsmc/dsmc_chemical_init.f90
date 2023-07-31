@@ -601,9 +601,8 @@ SUBROUTINE InitReactionPaths()
 ! MODULES
 USE MOD_Globals
 USE MOD_DSMC_Vars ,ONLY: ChemReac,CollInf
-USE MOD_PARTICLE_Vars,ONLY: Species
 #if USE_HDG
-USE MOD_DSMC_Vars ,ONLY: SpecDSMC
+USE MOD_Particle_Vars ,ONLY: Species
 USE MOD_HDG_Vars  ,ONLY: UseBRElectronFluid ! Used for skipping reactions involving electrons as products
 #endif /*USE_HDG*/
 ! IMPLICIT VARIABLE HANDLING
@@ -745,8 +744,8 @@ DO iSpec = 1, nSpecies
       CALL H5FOPEN_F (TRIM(SpeciesDatabase), H5F_ACC_RDONLY_F, file_id_specdb, err)
     
       
-      LBWRITE (UNIT_stdOut,*) 'Read-in from database for species: ', TRIM(SpecDSMC(iSpec)%Name)
-      dsetname = TRIM('/Species/'//TRIM(SpecDSMC(iSpec)%Name))
+      LBWRITE (UNIT_stdOut,*) 'Read-in from database for species: ', TRIM(Species(iSpec)%Name)
+      dsetname = TRIM('/Species/'//TRIM(Species(iSpec)%Name))
       CALL ReadAttribute(file_id_specdb,'SymmetryFactor',1,DatasetName = dsetname,IntScalar=SpecDSMC(iSpec)%SymmetryFactor)
         LBWRITE (UNIT_stdOut,*) 'SymmetryFactor: ', SpecDSMC(iSpec)%SymmetryFactor
 

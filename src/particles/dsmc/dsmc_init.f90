@@ -416,7 +416,7 @@ IF(DoFieldIonization.OR.CollisMode.NE.0) THEN
   ! Flags for collision parameters
   CollInf%averagedCollisionParameters     = GETLOGICAL('Particles-DSMC-averagedCollisionParameters')
   CollInf%crossSectionConstantMode        = GETINT('Particles-DSMC-crossSectionConstantMode','0')
-
+  ALLOCATE(SpecDSMC(nSpecies))
   IF(SpeciesDatabase.NE.'none') THEN
     ! Initialize FORTRAN interface.
     CALL H5OPEN_F(err)
@@ -427,8 +427,8 @@ IF(DoFieldIonization.OR.CollisMode.NE.0) THEN
       WRITE(UNIT=hilf,FMT='(I0)') iSpec
       ! averagedCollisionParameters set true: species-specific collision parameters get read in
       IF(CollInf%averagedCollisionParameters) THEN
-        LBWRITE (UNIT_stdOut,*) 'Read-in from database for species: ', TRIM(SpecDSMC(iSpec)%Name)
-        dsetname = TRIM('/Species/'//TRIM(SpecDSMC(iSpec)%Name))
+        LBWRITE (UNIT_stdOut,*) 'Read-in from database for species: ', TRIM(Species(iSpec)%Name)
+        dsetname = TRIM('/Species/'//TRIM(Species(iSpec)%Name))
 
         CALL ReadAttribute(file_id_specdb,'Tref',1,DatasetName = dsetname,RealScalar=SpecDSMC(iSpec)%Tref)
         LBWRITE (UNIT_stdOut,*) 'Tref: ', SpecDSMC(iSpec)%Tref
@@ -688,15 +688,15 @@ ELSE !CollisMode.GT.0
 
       DO iSpec = 1, nSpecies
         IF(.NOT.Species(iSpec)%DoOverwriteParameters) THEN
-          dsetname = TRIM('/Species/'//TRIM(SpecDSMC(iSpec)%Name))
+          dsetname = TRIM('/Species/'//TRIM(Species(iSpec)%Name))
           WRITE(UNIT=hilf,FMT='(I0)') iSpec
           IF(Species(iSpec)%InterID.NE.4) THEN
-            dsetname = TRIM('/Species/'//TRIM(SpecDSMC(iSpec)%Name))
+            dsetname = TRIM('/Species/'//TRIM(Species(iSpec)%Name))
             CALL AttributeExists(file_id_specdb,'PolyatomicMol',TRIM(dsetname),AttrExists=Attr_Exists)
             IF (Attr_Exists) THEN
               CALL ReadAttribute(file_id_specdb,'PolyatomicMol',1,DatasetName = dsetname,IntScalar=IntToLog)
               IF(IntToLog.EQ.1) SpecDSMC(iSpec)%PolyatomicMol = .TRUE.
-              LBWRITE (UNIT_stdOut,*) 'Read-in from database for species: ', TRIM(SpecDSMC(iSpec)%Name)
+              LBWRITE (UNIT_stdOut,*) 'Read-in from database for species: ', TRIM(Species(iSpec)%Name)
               LBWRITE (UNIT_stdOut,*) 'PolyatomicMol: ', SpecDSMC(iSpec)%PolyatomicMol
             ELSE 
               SpecDSMC(iSpec)%PolyatomicMol = .FALSE.
@@ -710,7 +710,7 @@ ELSE !CollisMode.GT.0
               DSMC%NumPolyatomMolecs = DSMC%NumPolyatomMolecs + 1
               SpecDSMC(iSpec)%SpecToPolyArray = DSMC%NumPolyatomMolecs
             ELSEIF ((Species(iSpec)%InterID.EQ.2).OR.(Species(iSpec)%InterID.EQ.20)) THEN
-              LBWRITE (UNIT_stdOut,*) 'Read-in from database for species: ', TRIM(SpecDSMC(iSpec)%Name)
+              LBWRITE (UNIT_stdOut,*) 'Read-in from database for species: ', TRIM(Species(iSpec)%Name)
               SpecDSMC(iSpec)%Xi_Rot     = 2
               CALL ReadAttribute(file_id_specdb,'CharaTempVib',1,DatasetName = dsetname,RealScalar=SpecDSMC(iSpec)%CharaTVib)
               LBWRITE (UNIT_stdOut,*) 'CharaTempVib: ', SpecDSMC(iSpec)%CharaTVib
@@ -1028,8 +1028,8 @@ ELSE !CollisMode.GT.0
       CALL H5OPEN_F(err)
       CALL H5FOPEN_F (TRIM(SpeciesDatabase), H5F_ACC_RDONLY_F, file_id_specdb, err)
       DO iSpec = 1, nSpecies
-        LBWRITE (UNIT_stdOut,*) 'Read-in from database for species: ', TRIM(SpecDSMC(iSpec)%Name)
-        dsetname = TRIM('/Species/'//TRIM(SpecDSMC(iSpec)%Name))
+        LBWRITE (UNIT_stdOut,*) 'Read-in from database for species: ', TRIM(Species(iSpec)%Name)
+        dsetname = TRIM('/Species/'//TRIM(Species(iSpec)%Name))
         WRITE(UNIT=hilf,FMT='(I0)') iSpec
         ! Read-in of heat of formation, ions are treated later using the heat of formation of their ground state and data from the
         ! from the electronic state database to ensure consistent energies across chemical reactions of QK and Arrhenius type.
@@ -1068,14 +1068,14 @@ ELSE !CollisMode.GT.0
       CALL H5OPEN_F(err)
       CALL H5FOPEN_F (TRIM(SpeciesDatabase), H5F_ACC_RDONLY_F, file_id_specdb, err)
       DO iSpec=1,nSpecies
-        LBWRITE (UNIT_stdOut,*) 'Read-in from database for species: ', TRIM(SpecDSMC(iSpec)%Name)
-        dsetname = TRIM('/Species/'//TRIM(SpecDSMC(iSpec)%Name))
+        LBWRITE (UNIT_stdOut,*) 'Read-in from database for species: ', TRIM(Species(iSpec)%Name)
+        dsetname = TRIM('/Species/'//TRIM(Species(iSpec)%Name))
         WRITE(UNIT=hilf,FMT='(I0)') iSpec
         CALL AttributeExists(file_id_specdb,'PreviousState',TRIM(dsetname), AttrExists=Attr_Exists)
         IF (Attr_Exists) THEN
           CALL ReadAttribute(file_id_specdb,'PreviousState',1,DatasetName = dsetname,StrScalar=hilfname)
           DO jSpec=1,nSpecies
-            IF(TRIM(hilfname).EQ.TRIM(SpecDSMC(jSpec)%Name)) THEN
+            IF(TRIM(hilfname).EQ.TRIM(Species(jSpec)%Name)) THEN
               SpecDSMC(iSpec)%PreviousState=jSpec
             END IF
           END DO
@@ -1327,6 +1327,7 @@ SUBROUTINE SetElectronicModel(iSpec)
 ! MODULES                                                                                                                          !
 USE MOD_Globals              ,ONLY: abort
 USE MOD_DSMC_Vars            ,ONLY: SpecDSMC
+USE MOD_Particle_Vars        ,ONLY: Species
 USE MOD_DSMC_ElectronicModel ,ONLY: ReadSpeciesLevel
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -1335,9 +1336,9 @@ INTEGER,INTENT(IN) :: iSpec
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 !===================================================================================================================================
-IF(SpecDSMC(iSpec)%Name.EQ.'none') CALL Abort(__STAMP__,&
+IF(Species(iSpec)%Name.EQ.'none') CALL Abort(__STAMP__,&
     "Read-in from electronic database requires the definition of species name! Species:",IntInfoOpt=iSpec)
-IF(.NOT.SpecDSMC(iSpec)%FullyIonized) CALL ReadSpeciesLevel(SpecDSMC(iSpec)%Name,iSpec)
+IF(.NOT.SpecDSMC(iSpec)%FullyIonized) CALL ReadSpeciesLevel(Species(iSpec)%Name,iSpec)
 END SUBROUTINE SetElectronicModel
 
 
@@ -1381,8 +1382,8 @@ DO iSpec = 1, nSpecies
         ! Initialize FORTRAN interface.
         CALL H5OPEN_F(err)
         CALL H5FOPEN_F (TRIM(SpeciesDatabase), H5F_ACC_RDONLY_F, file_id_specdb, err)
-        LBWRITE (UNIT_stdOut,*) 'Read-in from database for species: ', TRIM(SpecDSMC(iSpec)%Name)
-        dsetname = TRIM('/Species/'//TRIM(SpecDSMC(iSpec)%Name))
+        LBWRITE (UNIT_stdOut,*) 'Read-in from database for species: ', TRIM(Species(iSpec)%Name)
+        dsetname = TRIM('/Species/'//TRIM(Species(iSpec)%Name))
         ! Read-in of heat of formation, ions are treated later using the heat of formation of their ground state and data from the
         ! from the electronic state database to ensure consistent energies across chemical reactions of QK and Arrhenius type.
         IF((Species(iSpec)%InterID.EQ.10).OR.(Species(iSpec)%InterID.EQ.20).OR.(Species(iSpec)%InterID.EQ.4)) THEN
@@ -1714,6 +1715,7 @@ SDEALLOCATE(ChemReac%ReacCount)
 SDEALLOCATE(ChemReac%ReacCollMean)
 SDEALLOCATE(ChemReac%NumReac)
 SDEALLOCATE(ChemReac%ReactType)
+SDEALLOCATE(ChemReac%ReactionName)
 SDEALLOCATE(ChemReac%Reactants)
 SDEALLOCATE(ChemReac%Products)
 SDEALLOCATE(ChemReac%ReactCase)

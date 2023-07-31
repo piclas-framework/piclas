@@ -135,6 +135,7 @@ INTEGER , ALLOCATABLE :: seeds(:)                        !        =>NULL()   ! S
 TYPE tSpecies                                                                ! Particle Data for each Species
   !General Species Values
   TYPE(tInit), ALLOCATABLE               :: Init(:)  !     =>NULL()          ! Particle Data for each Initialisation
+  CHARACTER(LEN=64)                      :: Name                             ! Species Name, required for SpeciesDatabase
   REAL                                   :: ChargeIC                         ! Particle Charge (without MPF)
   REAL                                   :: MassIC                           ! Particle Mass (without MPF)
   INTEGER                                :: InterID                          ! Identification number (e.g. for DSMC_prob_calc), ini_2

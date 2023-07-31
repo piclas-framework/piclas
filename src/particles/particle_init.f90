@@ -1570,12 +1570,10 @@ INTEGER(HID_T)        :: Loc_ID, Attr_ID
 ! Read-in of the species database
 SpeciesDatabase       = GETSTR('Particles-Species-Database')
 
-ALLOCATE(SpecDSMC(nSpecies))
-
 DO iSpec = 1, nSpecies
   WRITE(UNIT=hilf,FMT='(I0)') iSpec
-  SpecDSMC(iSpec)%Name    = TRIM(GETSTR('Part-Species'//TRIM(hilf)//'-SpeciesName','none'))
-  IF(SpecDSMC(iSpec)%Name .EQ. 'none') THEN
+  Species(iSpec)%Name    = TRIM(GETSTR('Part-Species'//TRIM(hilf)//'-SpeciesName','none'))
+  IF(Species(iSpec)%Name .EQ. 'none') THEN
     CALL abort(__STAMP__,'ERROR: Species-name is not defined for Species:', iSpec)
   END IF
 END DO ! iSpec
@@ -1600,8 +1598,8 @@ IF(SpeciesDatabase.NE.'none') THEN
   CALL H5FOPEN_F (TRIM(SpeciesDatabase), H5F_ACC_RDONLY_F, file_id_specdb, err)
 
   DO iSpec = 1, nSpecies
-    LBWRITE (UNIT_stdOut,*) 'Read-in from database for species: ', TRIM(SpecDSMC(iSpec)%Name)
-    dsetname = TRIM('/Species/'//TRIM(SpecDSMC(iSpec)%Name))
+    LBWRITE (UNIT_stdOut,*) 'Read-in from database for species: ', TRIM(Species(iSpec)%Name)
+    dsetname = TRIM('/Species/'//TRIM(Species(iSpec)%Name))
 
     CALL DatasetExists(file_id_specdb,TRIM(dsetname),DataSetFound)
     IF(.NOT.DataSetFound)THEN

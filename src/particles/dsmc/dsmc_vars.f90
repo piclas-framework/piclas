@@ -108,7 +108,6 @@ TYPE tSpeciesDSMC                                          ! DSMC Species Parame
   TYPE(tSpecInit),ALLOCATABLE :: Surfaceflux(:)
   LOGICAL                     :: PolyatomicMol             ! Species is a polyatomic molecule
   INTEGER                     :: SpecToPolyArray           !
-  CHARACTER(LEN=64)           :: Name                      ! Species Name, required for DSMCSpeciesElectronicDatabase
   REAL                        :: Tref                      ! collision model: reference temperature     , ini_2
   REAL                        :: dref                      ! collision model: reference diameter        , ini_2
   REAL                        :: omega                     ! collision model: temperature exponent      , ini_2

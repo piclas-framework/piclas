@@ -79,17 +79,17 @@ SUBROUTINE InitPolyAtomicMolecs(iSpec)
     CALL H5OPEN_F(err)  
     CALL H5FOPEN_F (TRIM(SpeciesDatabase), H5F_ACC_RDONLY_F, file_id_specdb, err)
   
-    LBWRITE (UNIT_stdOut,*) 'Read-in from database for species: ', TRIM(SpecDSMC(iSpec)%Name)
-    dsetname = TRIM('/Species/'//TRIM(SpecDSMC(iSpec)%Name))
+    LBWRITE (UNIT_stdOut,*) 'Read-in from database for species: ', TRIM(Species(iSpec)%Name)
+    dsetname = TRIM('/Species/'//TRIM(Species(iSpec)%Name))
   
     CALL ReadAttribute(file_id_specdb,'LinearMolec',1,DatasetName = dsetname,IntScalar=IntToLog)
     IF(IntToLog.EQ.1) THEN
       PolyatomMolDSMC(iPolyatMole)%LinearMolec = .TRUE.
-      LBWRITE (UNIT_stdOut,*) 'Read-in from database for species: ', TRIM(SpecDSMC(iSpec)%Name)
+      LBWRITE (UNIT_stdOut,*) 'Read-in from database for species: ', TRIM(Species(iSpec)%Name)
       LBWRITE (UNIT_stdOut,*) 'LinearMolec: ', PolyatomMolDSMC(iPolyatMole)%LinearMolec
     ELSE 
       PolyatomMolDSMC(iPolyatMole)%LinearMolec = .FALSE.
-      LBWRITE (UNIT_stdOut,*) 'Read-in from database for species: ', TRIM(SpecDSMC(iSpec)%Name)
+      LBWRITE (UNIT_stdOut,*) 'Read-in from database for species: ', TRIM(Species(iSpec)%Name)
       LBWRITE (UNIT_stdOut,*) 'LinearMolec: ', PolyatomMolDSMC(iPolyatMole)%LinearMolec
     END IF
   
@@ -121,11 +121,11 @@ SUBROUTINE InitPolyAtomicMolecs(iSpec)
     CALL H5OPEN_F(err)  
     CALL H5FOPEN_F (TRIM(SpeciesDatabase), H5F_ACC_RDONLY_F, file_id_specdb, err)
   
-    LBWRITE (UNIT_stdOut,*) 'Read-in from database for species: ', TRIM(SpecDSMC(iSpec)%Name)
-    dsetname = TRIM('/Species/'//TRIM(SpecDSMC(iSpec)%Name))
+    LBWRITE (UNIT_stdOut,*) 'Read-in from database for species: ', TRIM(Species(iSpec)%Name)
+    dsetname = TRIM('/Species/'//TRIM(Species(iSpec)%Name))
   
     CALL ReadAttribute(file_id_specdb,'NumOfAtoms',1,DatasetName = dsetname,IntScalar=PolyatomMolDSMC(iPolyatMole)%NumOfAtoms)
-    LBWRITE (UNIT_stdOut,*) 'Read-in from database for species: ', TRIM(SpecDSMC(iSpec)%Name)
+    LBWRITE (UNIT_stdOut,*) 'Read-in from database for species: ', TRIM(Species(iSpec)%Name)
     LBWRITE (UNIT_stdOut,*) 'NumOfAtoms: ', PolyatomMolDSMC(iPolyatMole)%NumOfAtoms
   
     ! Close the file.
@@ -149,8 +149,8 @@ SUBROUTINE InitPolyAtomicMolecs(iSpec)
       CALL H5OPEN_F(err)  
       CALL H5FOPEN_F (TRIM(SpeciesDatabase), H5F_ACC_RDONLY_F, file_id_specdb, err)
     
-      LBWRITE (UNIT_stdOut,*) 'Read-in from database for species: ', TRIM(SpecDSMC(iSpec)%Name)
-      dsetname = TRIM('/Species/'//TRIM(SpecDSMC(iSpec)%Name))
+      LBWRITE (UNIT_stdOut,*) 'Read-in from database for species: ', TRIM(Species(iSpec)%Name)
+      dsetname = TRIM('/Species/'//TRIM(Species(iSpec)%Name))
 
       CALL AttributeExists(file_id_specdb,'Ediss_eV',TRIM(dsetname), AttrExists=Attr_Exists)
         IF (Attr_Exists) THEN
@@ -159,7 +159,7 @@ SUBROUTINE InitPolyAtomicMolecs(iSpec)
           CALL abort(__STAMP__&
       ,'ERROR in Polyatomic Species-Ini: Missing dissociation energy, Species: ',iSpec)
         END IF
-      LBWRITE (UNIT_stdOut,*) 'Read-in from database for species: ', TRIM(SpecDSMC(iSpec)%Name)
+      LBWRITE (UNIT_stdOut,*) 'Read-in from database for species: ', TRIM(Species(iSpec)%Name)
       LBWRITE (UNIT_stdOut,*) 'Ediss_eV: ', SpecDSMC(iSpec)%Ediss_eV 
     
       ! Close the file.
@@ -198,8 +198,8 @@ SUBROUTINE InitPolyAtomicMolecs(iSpec)
     CALL H5OPEN_F(err)  
     CALL H5FOPEN_F (TRIM(SpeciesDatabase), H5F_ACC_RDONLY_F, file_id_specdb, err)
 
-    LBWRITE (UNIT_stdOut,*) 'Read-in from database for species: ', TRIM(SpecDSMC(iSpec)%Name)
-    dsetname = TRIM('/Species/'//TRIM(SpecDSMC(iSpec)%Name))
+    LBWRITE (UNIT_stdOut,*) 'Read-in from database for species: ', TRIM(Species(iSpec)%Name)
+    dsetname = TRIM('/Species/'//TRIM(Species(iSpec)%Name))
 
     IF(PolyatomMolDSMC(iPolyatMole)%LinearMolec) THEN
       CALL AttributeExists(file_id_specdb,'CharaTempRot',TRIM(dsetname), AttrExists=Attr_Exists)

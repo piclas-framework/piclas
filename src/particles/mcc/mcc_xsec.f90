@@ -37,8 +37,7 @@ SUBROUTINE ReadCollXSec(iCase,iSpec,jSpec)
 ! use module
 USE MOD_io_hdf5
 USE MOD_Globals
-USE MOD_Particle_Vars    ,ONLY: SpeciesDatabase 
-USE MOD_DSMC_Vars        ,ONLY: SpecDSMC
+USE MOD_Particle_Vars    ,ONLY: SpeciesDatabase, Species
 USE MOD_MCC_Vars         ,ONLY: XSec_Database, SpecXSec
 USE MOD_HDF5_Input       ,ONLY: DatasetExists
 #if USE_LOADBALANCE
@@ -62,7 +61,7 @@ INTEGER(HID_T)                    :: dset_id_dsmc                       ! Datase
 INTEGER(HID_T)                    :: filespace                          ! filespace identifier
 LOGICAL                           :: DatasetFound
 !===================================================================================================================================
-spec_pair = TRIM(SpecDSMC(jSpec)%Name)//'-'//TRIM(SpecDSMC(iSpec)%Name)
+spec_pair = TRIM(Species(jSpec)%Name)//'-'//TRIM(Species(iSpec)%Name)
 
 DatasetFound = .FALSE.
 
@@ -78,7 +77,7 @@ IF(SpeciesDatabase.EQ.'none') THEN
   XSecDatabaseName = TRIM(XSec_Database)
 ELSE 
   XSecDatabaseName = TRIM(SpeciesDatabase)
-  spec_pair = TRIM('/Cross-Sections/'//SpecDSMC(jSpec)%Name)//'-'//TRIM(SpecDSMC(iSpec)%Name)
+  spec_pair = TRIM('/Cross-Sections/'//Species(jSpec)%Name)//'-'//TRIM(Species(iSpec)%Name)
 END IF
 
 ! Open the file.
@@ -89,9 +88,9 @@ CALL H5LEXISTS_F(file_id_dsmc, TRIM(spec_pair), DatasetFound, err)
 IF(.NOT.DatasetFound) THEN
   ! Try to swap the species names
   IF (SpeciesDatabase.EQ.'none') THEN
-    spec_pair = TRIM(SpecDSMC(iSpec)%Name)//'-'//TRIM(SpecDSMC(jSpec)%Name)
+    spec_pair = TRIM(Species(iSpec)%Name)//'-'//TRIM(Species(jSpec)%Name)
   ELSE 
-    spec_pair = TRIM('Cross-Sections/'//SpecDSMC(iSpec)%Name)//'-'//TRIM(SpecDSMC(jSpec)%Name)
+    spec_pair = TRIM('Cross-Sections/'//Species(iSpec)%Name)//'-'//TRIM(Species(jSpec)%Name)
   END IF
   CALL H5LEXISTS_F(file_id_dsmc, TRIM(spec_pair), DatasetFound, err)
   IF(.NOT.DatasetFound) THEN
@@ -166,8 +165,7 @@ SUBROUTINE ReadVibXSec(iCase,iSpec,jSpec)
 ! use module
 USE MOD_io_hdf5
 USE MOD_Globals
-USE MOD_Particle_Vars    ,ONLY: SpeciesDatabase 
-USE MOD_DSMC_Vars        ,ONLY: SpecDSMC
+USE MOD_Particle_Vars    ,ONLY: SpeciesDatabase, Species
 USE MOD_MCC_Vars         ,ONLY: XSec_Database, SpecXSec
 USE MOD_HDF5_Input       ,ONLY: DatasetExists
 #if USE_LOADBALANCE
@@ -195,7 +193,7 @@ INTEGER(HSIZE_T)                  :: iVib                               ! Index
 LOGICAL                           :: GroupFound
 INTEGER                           :: storage, nVib, max_corder
 !===================================================================================================================================
-spec_pair = TRIM(SpecDSMC(jSpec)%Name)//'-'//TRIM(SpecDSMC(iSpec)%Name)
+spec_pair = TRIM(Species(jSpec)%Name)//'-'//TRIM(Species(iSpec)%Name)
 
 GroupFound = .FALSE.
 SpecXSec(iCase)%UseVibXSec = .FALSE.
@@ -204,7 +202,7 @@ IF(SpeciesDatabase.EQ.'none') THEN
   XSecDatabaseName = TRIM(XSec_Database)
 ELSE 
   XSecDatabaseName = TRIM(SpeciesDatabase)
-  spec_pair = TRIM('/Cross-Sections/'//SpecDSMC(jSpec)%Name)//'-'//TRIM(SpecDSMC(iSpec)%Name)
+  spec_pair = TRIM('/Cross-Sections/'//Species(jSpec)%Name)//'-'//TRIM(Species(iSpec)%Name)
 END IF
 
 ! Initialize FORTRAN interface.
@@ -223,9 +221,9 @@ CALL H5LEXISTS_F(file_id_dsmc, TRIM(spec_pair), GroupFound, err)
 IF(.NOT.GroupFound) THEN
   ! Try to swap the species names
   IF (SpeciesDatabase.EQ.'none') THEN
-    spec_pair = TRIM(SpecDSMC(iSpec)%Name)//'-'//TRIM(SpecDSMC(jSpec)%Name)
+    spec_pair = TRIM(Species(iSpec)%Name)//'-'//TRIM(Species(jSpec)%Name)
   ELSE 
-    spec_pair = TRIM('/Cross-Sections/'//SpecDSMC(iSpec)%Name)//'-'//TRIM(SpecDSMC(jSpec)%Name)
+    spec_pair = TRIM('/Cross-Sections/'//Species(iSpec)%Name)//'-'//TRIM(Species(jSpec)%Name)
   END IF
   CALL H5LEXISTS_F(file_id_dsmc, TRIM(spec_pair), GroupFound, err)
   IF(.NOT.GroupFound) THEN
@@ -293,8 +291,7 @@ SUBROUTINE ReadElecXSec(iCase,iSpec,jSpec)
 ! use module
 USE MOD_io_hdf5
 USE MOD_Globals
-USE MOD_Particle_Vars    ,ONLY: SpeciesDatabase 
-USE MOD_DSMC_Vars        ,ONLY: SpecDSMC
+USE MOD_Particle_Vars    ,ONLY: SpeciesDatabase, Species
 USE MOD_MCC_Vars         ,ONLY: XSec_Database, SpecXSec
 USE MOD_HDF5_Input       ,ONLY: DatasetExists
 #if USE_LOADBALANCE
@@ -329,10 +326,10 @@ SpecXSec(iCase)%NumElecLevel = 0
 
 IF(SpeciesDatabase.EQ.'none') THEN
   XSecDatabaseName = TRIM(XSec_Database)
-  spec_pair = TRIM(SpecDSMC(jSpec)%Name)//'-'//TRIM(SpecDSMC(iSpec)%Name)
+  spec_pair = TRIM(Species(jSpec)%Name)//'-'//TRIM(Species(iSpec)%Name)
 ELSE 
   XSecDatabaseName = TRIM(SpeciesDatabase)
-  spec_pair = TRIM('/Cross-Sections/'//SpecDSMC(jSpec)%Name)//'-'//TRIM(SpecDSMC(iSpec)%Name)
+  spec_pair = TRIM('/Cross-Sections/'//Species(jSpec)%Name)//'-'//TRIM(Species(iSpec)%Name)
 END IF
 
 ! Initialize FORTRAN interface.
@@ -351,9 +348,9 @@ CALL H5LEXISTS_F(file_id_dsmc, TRIM(spec_pair), GroupFound, err)
 IF(.NOT.GroupFound) THEN
   ! Try to swap the species names
   IF (SpeciesDatabase.EQ.'none') THEN
-    spec_pair = TRIM(SpecDSMC(iSpec)%Name)//'-'//TRIM(SpecDSMC(jSpec)%Name)
+    spec_pair = TRIM(Species(iSpec)%Name)//'-'//TRIM(Species(jSpec)%Name)
   ELSE 
-    spec_pair = TRIM('/Cross-Sections/'//SpecDSMC(iSpec)%Name)//'-'//TRIM(SpecDSMC(jSpec)%Name)
+    spec_pair = TRIM('/Cross-Sections/'//Species(iSpec)%Name)//'-'//TRIM(Species(jSpec)%Name)
   END IF
   CALL H5LEXISTS_F(file_id_dsmc, TRIM(spec_pair), GroupFound, err)
   IF(.NOT.GroupFound) THEN
@@ -808,9 +805,9 @@ SUBROUTINE ReadReacXSec(iCase,iPath)
 ! use module
 USE MOD_io_hdf5
 USE MOD_Globals
-USE MOD_Particle_Vars    ,ONLY: SpeciesDatabase 
+USE MOD_Particle_Vars    ,ONLY: SpeciesDatabase, Species
 USE MOD_Globals_Vars     ,ONLY: ElementaryCharge,Joule2eV
-USE MOD_DSMC_Vars        ,ONLY: SpecDSMC, ChemReac
+USE MOD_DSMC_Vars        ,ONLY: ChemReac
 USE MOD_MCC_Vars         ,ONLY: XSec_Database, SpecXSec
 USE MOD_HDF5_Input       ,ONLY: DatasetExists
 #if USE_LOADBALANCE
@@ -850,9 +847,9 @@ DatasetFound = .FALSE.; GroupFound = .FALSE.
 
 
 IF (SpeciesDatabase.EQ.'none') THEN
-  EductPair = TRIM(SpecDSMC(EductReac(1))%Name)//'-'//TRIM(SpecDSMC(EductReac(2))%Name)
+  EductPair = TRIM(Species(EductReac(1))%Name)//'-'//TRIM(Species(EductReac(2))%Name)
 ELSE
-  EductPair = TRIM('/Cross-Sections/'//TRIM(SpecDSMC(EductReac(1))%Name)//'-'//TRIM(SpecDSMC(EductReac(2))%Name))
+  EductPair = TRIM('/Cross-Sections/'//TRIM(Species(EductReac(1))%Name)//'-'//TRIM(Species(EductReac(2))%Name))
 END IF
 CALL H5LEXISTS_F(file_id_dsmc, TRIM(EductPair), GroupFound, err)
 
@@ -872,9 +869,9 @@ CALL H5LEXISTS_F(file_id_dsmc, TRIM(EductPair), GroupFound, err)
 IF(.NOT.GroupFound) THEN
   ! Try to swap the species names
   IF (SpeciesDatabase.EQ.'none') THEN
-    EductPair = TRIM(SpecDSMC(EductReac(2))%Name)//'-'//TRIM(SpecDSMC(EductReac(1))%Name)
+    EductPair = TRIM(Species(EductReac(2))%Name)//'-'//TRIM(Species(EductReac(1))%Name)
   ELSE
-    EductPair = TRIM('/Cross-Sections/'//TRIM(SpecDSMC(EductReac(2))%Name)//'-'//TRIM(SpecDSMC(EductReac(1))%Name))
+    EductPair = TRIM('/Cross-Sections/'//TRIM(Species(EductReac(2))%Name)//'-'//TRIM(Species(EductReac(1))%Name))
   END IF
   CALL H5LEXISTS_F(file_id_dsmc, TRIM(EductPair), GroupFound, err)
   IF(.NOT.GroupFound) CALL abort(__STAMP__,'No reaction cross sections found in database for reaction number:',IntInfoOpt=iReac)
@@ -896,13 +893,13 @@ LBWRITE(UNIT_StdOut,'(A,I0)') 'Read cross section for '//TRIM(EductPair)//' from
 
 SELECT CASE(COUNT(ProductReac.GT.0))
 CASE(2)
-  ProductPair = TRIM(SpecDSMC(ProductReac(1))%Name)//'-'//TRIM(SpecDSMC(ProductReac(2))%Name)
+  ProductPair = TRIM(Species(ProductReac(1))%Name)//'-'//TRIM(Species(ProductReac(2))%Name)
 CASE(3)
-  ProductPair = TRIM(SpecDSMC(ProductReac(1))%Name)//'-'//TRIM(SpecDSMC(ProductReac(2))%Name)//&
-                &'-'//TRIM(SpecDSMC(ProductReac(3))%Name)
+  ProductPair = TRIM(Species(ProductReac(1))%Name)//'-'//TRIM(Species(ProductReac(2))%Name)//&
+                &'-'//TRIM(Species(ProductReac(3))%Name)
 CASE(4)
-  ProductPair = TRIM(SpecDSMC(ProductReac(1))%Name)//'-'//TRIM(SpecDSMC(ProductReac(2))%Name)//&
-                &'-'//TRIM(SpecDSMC(ProductReac(3))%Name)//'-'//TRIM(SpecDSMC(ProductReac(4))%Name)
+  ProductPair = TRIM(Species(ProductReac(1))%Name)//'-'//TRIM(Species(ProductReac(2))%Name)//&
+                &'-'//TRIM(Species(ProductReac(3))%Name)//'-'//TRIM(Species(ProductReac(4))%Name)
 CASE DEFAULT
   CALL abort(__STAMP__,'Number of products is not supported yet! Reaction number:', IntInfoOpt=iReac)
 END SELECT
@@ -986,8 +983,8 @@ SUBROUTINE ReadReacPhotonXSec(iPhotoReac)
 USE MOD_io_hdf5
 USE MOD_Globals
 USE MOD_Globals_Vars     ,ONLY: ElementaryCharge
-USE MOD_Particle_Vars    ,ONLY: SpeciesDatabase 
-USE MOD_DSMC_Vars        ,ONLY: SpecDSMC, ChemReac
+USE MOD_Particle_Vars    ,ONLY: SpeciesDatabase, Species
+USE MOD_DSMC_Vars        ,ONLY: ChemReac
 USE MOD_HDF5_Input       ,ONLY: DatasetExists
 USE MOD_MCC_Vars         ,ONLY: XSec_Database,SpecPhotonXSec,PhotoReacToReac
 #if USE_LOADBALANCE
@@ -1020,7 +1017,7 @@ iReac = PhotoReacToReac(iPhotoReac)
 
 ! Sanity check
 IF(ChemReac%Reactants(iReac,1).EQ.0) CALL abort(__STAMP__,'phIonXSec reaction: The first educt species ID cannot be zero.')
-EductPair = TRIM(SpecDSMC(ChemReac%Reactants(iReac,1))%Name)//'-photon'
+EductPair = TRIM(Species(ChemReac%Reactants(iReac,1))%Name)//'-photon'
 ProductReac(1:4) = ChemReac%Products(iReac,1:4)
 
 GroupFound = .FALSE.
@@ -1029,7 +1026,7 @@ IF(SpeciesDatabase.EQ.'none') THEN
   XSecDatabaseName = TRIM(XSec_Database)
 ELSE 
   XSecDatabaseName = TRIM(SpeciesDatabase)
-  EductPair = TRIM('Cross-Sections/'//SpecDSMC(ChemReac%Reactants(iReac,1))%Name)//'-photon'
+  EductPair = TRIM('Cross-Sections/'//Species(ChemReac%Reactants(iReac,1))%Name)//'-photon'
 END IF
 
 ! Initialize FORTRAN interface.
@@ -1042,9 +1039,9 @@ CALL H5LEXISTS_F(file_id_dsmc, TRIM(EductPair), GroupFound, err)
 IF(.NOT.GroupFound) THEN
   ! Try to swap the species names
   IF (SpeciesDatabase.EQ.'none') THEN
-    EductPair = 'photon-'//TRIM(SpecDSMC(ChemReac%Reactants(iReac,1))%Name)
+    EductPair = 'photon-'//TRIM(Species(ChemReac%Reactants(iReac,1))%Name)
   ELSE 
-  EductPair = '/Cross-Sections/photon-'//TRIM(SpecDSMC(ChemReac%Reactants(iReac,1))%Name)
+  EductPair = '/Cross-Sections/photon-'//TRIM(Species(ChemReac%Reactants(iReac,1))%Name)
   END IF
   CALL H5LEXISTS_F(file_id_dsmc, TRIM(EductPair), GroupFound, err)
   IF(.NOT.GroupFound) CALL abort(__STAMP__,'No reaction cross sections found in database for reaction number:',IntInfoOpt=iReac)
@@ -1066,13 +1063,13 @@ LBWRITE(UNIT_StdOut,'(A,I0)') 'Read cross section for '//TRIM(EductPair)//' from
 
 SELECT CASE(COUNT(ProductReac.GT.0))
 CASE(2)
-  ProductPair = TRIM(SpecDSMC(ProductReac(1))%Name)//'-'//TRIM(SpecDSMC(ProductReac(2))%Name)
+  ProductPair = TRIM(Species(ProductReac(1))%Name)//'-'//TRIM(Species(ProductReac(2))%Name)
 CASE(3)
-  ProductPair = TRIM(SpecDSMC(ProductReac(1))%Name)//'-'//TRIM(SpecDSMC(ProductReac(2))%Name)//&
-                &'-'//TRIM(SpecDSMC(ProductReac(3))%Name)
+  ProductPair = TRIM(Species(ProductReac(1))%Name)//'-'//TRIM(Species(ProductReac(2))%Name)//&
+                &'-'//TRIM(Species(ProductReac(3))%Name)
 CASE(4)
-  ProductPair = TRIM(SpecDSMC(ProductReac(1))%Name)//'-'//TRIM(SpecDSMC(ProductReac(2))%Name)//&
-                &'-'//TRIM(SpecDSMC(ProductReac(3))%Name)//'-'//TRIM(SpecDSMC(ProductReac(4))%Name)
+  ProductPair = TRIM(Species(ProductReac(1))%Name)//'-'//TRIM(Species(ProductReac(2))%Name)//&
+                &'-'//TRIM(Species(ProductReac(3))%Name)//'-'//TRIM(Species(ProductReac(4))%Name)
 CASE DEFAULT
   CALL abort(__STAMP__,'Number of products is not supported yet! Reaction number:', IntInfoOpt=iReac)
 END SELECT
@@ -1127,9 +1124,9 @@ SUBROUTINE ReadReacPhotonSpectrum(iPhotoReac)
 ! use module
 USE MOD_io_hdf5
 USE MOD_Globals
-USE MOD_Particle_Vars    ,ONLY: SpeciesDatabase 
+USE MOD_Particle_Vars    ,ONLY: SpeciesDatabase, Species
 USE MOD_Globals_Vars     ,ONLY: ElementaryCharge
-USE MOD_DSMC_Vars        ,ONLY: SpecDSMC, ChemReac
+USE MOD_DSMC_Vars        ,ONLY: ChemReac
 USE MOD_MCC_Vars         ,ONLY: XSec_Database, PhotoReacToReac, PhotonSpectrum
 USE MOD_HDF5_Input       ,ONLY: DatasetExists
 #if USE_LOADBALANCE
@@ -1162,7 +1159,7 @@ iReac = PhotoReacToReac(iPhotoReac)
 
 ! Sanity check
 IF(ChemReac%Reactants(iReac,1).EQ.0) CALL abort(__STAMP__,'phIonXSec reaction: The first educt species ID cannot be zero.')
-EductPair   = TRIM(SpecDSMC(ChemReac%Reactants(iReac,1))%Name)//'-photon'
+EductPair   = TRIM(Species(ChemReac%Reactants(iReac,1))%Name)//'-photon'
 ProductPair = EductPair
 
 GroupFound = .FALSE.
@@ -1171,7 +1168,7 @@ IF(SpeciesDatabase.EQ.'none') THEN
   XSecDatabaseName = TRIM(XSec_Database)
 ELSE 
   XSecDatabaseName = TRIM(SpeciesDatabase)
-  EductPair   = TRIM('/Cross-Sections/'//SpecDSMC(ChemReac%Reactants(iReac,1))%Name)//'-photon'
+  EductPair   = TRIM('/Cross-Sections/'//Species(ChemReac%Reactants(iReac,1))%Name)//'-photon'
 ProductPair = EductPair
 END IF
 
@@ -1185,9 +1182,9 @@ CALL H5LEXISTS_F(file_id_dsmc, TRIM(EductPair), GroupFound, err)
 IF(.NOT.GroupFound) THEN
   ! Try to swap the species names
   IF (SpeciesDatabase.NE.'none') THEN
-    EductPair = 'photon-'//TRIM(SpecDSMC(ChemReac%Reactants(iReac,1))%Name)
+    EductPair = 'photon-'//TRIM(Species(ChemReac%Reactants(iReac,1))%Name)
   ELSE
-    EductPair = '/Cross-Sections/photon-'//TRIM(SpecDSMC(ChemReac%Reactants(iReac,1))%Name)
+    EductPair = '/Cross-Sections/photon-'//TRIM(Species(ChemReac%Reactants(iReac,1))%Name)
   END IF
   CALL H5LEXISTS_F(file_id_dsmc, TRIM(EductPair), GroupFound, err)
   IF(.NOT.GroupFound) CALL abort(__STAMP__,'No reaction cross sections found in database for reaction number:',IntInfoOpt=iReac)

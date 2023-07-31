@@ -1223,7 +1223,7 @@ IF (Species(iSpec)%DoOverwriteParameters) THEN
   datasetname = dsetname
   ElLevelDatabase = TRIM(DSMC%ElectronicModelDatabase)
 ELSE
-  datasetname = TRIM('/Species/'//TRIM(SpecDSMC(iSpec)%Name))
+  datasetname = TRIM('/Species/'//TRIM(Species(iSpec)%Name))
   ElLevelDatabase = TRIM(SpeciesDatabase)
 END IF
 LBWRITE(UNIT_StdOut,'(A)') 'Read electronic level entries '//TRIM(datasetname)//' from '//TRIM(ElLevelDatabase)
