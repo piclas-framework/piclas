@@ -222,7 +222,11 @@ CALL H5FOPEN_F (TRIM(XSecDatabaseName), H5F_ACC_RDONLY_F, file_id_dsmc, err)
 CALL H5LEXISTS_F(file_id_dsmc, TRIM(spec_pair), GroupFound, err)
 IF(.NOT.GroupFound) THEN
   ! Try to swap the species names
-  spec_pair = TRIM(SpecDSMC(iSpec)%Name)//'-'//TRIM(SpecDSMC(jSpec)%Name)
+  IF (SpeciesDatabase.EQ.'none') THEN
+    spec_pair = TRIM(SpecDSMC(iSpec)%Name)//'-'//TRIM(SpecDSMC(jSpec)%Name)
+  ELSE 
+    spec_pair = TRIM('/Cross-Sections/'//SpecDSMC(iSpec)%Name)//'-'//TRIM(SpecDSMC(jSpec)%Name)
+  END IF
   CALL H5LEXISTS_F(file_id_dsmc, TRIM(spec_pair), GroupFound, err)
   IF(.NOT.GroupFound) THEN
     LBWRITE(UNIT_StdOut,'(A)') TRIM(spec_pair)//': No vibrational excitation cross sections found, using constant read-in values.'
