@@ -45,9 +45,12 @@ USE MOD_PreProc
 USE MOD_Mesh_Vars       ,ONLY: NormVec,SurfElem
 USE MOD_Mesh_Vars       ,ONLY: nSides,nBCSides
 USE MOD_Riemann         ,ONLY: Riemann
-USE MOD_Mesh_Vars       ,ONLY: NormVec,TangVec1, tangVec2, SurfElem,Face_xGP
+USE MOD_Mesh_Vars       ,ONLY: NormVec,TangVec1, tangVec2, SurfElem,Face_xGP,Elem_xGP, SideToElem
 USE MOD_GetBoundaryFlux ,ONLY: GetBoundaryFlux
 USE MOD_Mesh_Vars       ,ONLY: firstMPISide_MINE,lastMPISide_MINE,firstInnerSide,firstBCSide,lastInnerSide
+#ifdef drift_diffusion
+USE MOD_Equation_Vars   ,ONLY: EFluid_GradSide
+#endif
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -62,7 +65,8 @@ REAL,INTENT(OUT)   :: Flux_Master(1:PP_nVar,0:PP_N,0:PP_N,nSides)
 REAL,INTENT(OUT)   :: Flux_Slave(1:PP_nVar,0:PP_N,0:PP_N,nSides)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER            :: SideID,firstSideID_wo_BC,firstSideID ,lastSideID
+INTEGER            :: SideID,firstSideID_wo_BC,firstSideID ,lastSideID,ElemID
+REAL               :: E(3)
 !===================================================================================================================================
 
 ! fill flux for sides ranging between firstSideID and lastSideID using Riemann solver
@@ -90,7 +94,14 @@ END IF
 
 ! 1. compute flux for non-BC sides: Compute fluxes on PP_N, no additional interpolation required
 DO SideID=firstSideID_wo_BC,lastSideID
+#ifdef drift_diffusion
+  ElemID   = SideToElem(S2E_ELEM_ID,SideID)
+  E=Elem_xGP(:,0,0,0,ElemID)
+  CALL Riemann(Flux_Master(:,:,:,SideID),U_Master(:,:,:,SideID),U_Slave(:,:,:,SideID),NormVec(:,:,:,SideID), &
+               EFluid_GradSide(SideID),E)
+#else
   CALL Riemann(Flux_Master(:,:,:,SideID),U_Master(:,:,:,SideID),U_Slave(:,:,:,SideID),NormVec(:,:,:,SideID))
+#endif
 END DO ! SideID
 
 ! 2. Compute the fluxes at the boundary conditions: 1..nBCSides
@@ -143,6 +154,6 @@ END IF
 #endif /*maxwell*/
 
 END SUBROUTINE FillFlux
-#endif
+#endif /* USE_HDG*/
 
 END MODULE MOD_FillFlux

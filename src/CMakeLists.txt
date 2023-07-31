@@ -38,7 +38,8 @@ SET_PROPERTY(CACHE PICLAS_TIMEDISCMETHOD PROPERTY STRINGS Euler-Explicit
                                                           RESERVOIR
                                                           FP-Flow
                                                           BGK-Flow
-                                                          DVM
+                                                          ED-DVM
+                                                          Explicit-FV
                                                           CN
                                                           ImplicitO3
                                                           ImplicitO4
@@ -162,7 +163,12 @@ ELSEIF(PICLAS_EQNSYSNAME STREQUAL "magnetostatic_poisson")
   SET(PICLAS_HDG ON)
   SET(PICLAS_FV OFF)
   MESSAGE(SEND_ERROR "Equation system is currently not supported.")
-ELSEIF(PICLAS_EQNSYSNAME STREQUAL "DVM")
+ELSEIF(PICLAS_EQNSYSNAME STREQUAL "discrete_velocity")
+  ADD_DEFINITIONS(-Ddiscrete_velocity)
+  SET(PICLAS_HDG OFF)
+  SET(PICLAS_FV ON)
+ELSEIF(PICLAS_EQNSYSNAME STREQUAL "drift_diffusion")
+  ADD_DEFINITIONS(-DPP_nVar=1 -Ddrift_diffusion)
   SET(PICLAS_HDG OFF)
   SET(PICLAS_FV ON)
 
@@ -303,9 +309,12 @@ ELSEIF(PICLAS_TIMEDISCMETHOD STREQUAL "FP-Flow")
 ELSEIF(PICLAS_TIMEDISCMETHOD STREQUAL "BGK-Flow")
    FILE(GLOB timediscF90 ${CMAKE_CURRENT_SOURCE_DIR}/src/timedisc/timedisc_TimeStep_BGK.f90)
    ADD_DEFINITIONS(-DPP_TimeDiscMethod=400)
-ELSEIF(PICLAS_TIMEDISCMETHOD STREQUAL "DVM")
+ELSEIF(PICLAS_TIMEDISCMETHOD STREQUAL "ED-DVM")
   FILE(GLOB timediscF90 ${CMAKE_CURRENT_SOURCE_DIR}/src/timedisc/timedisc_TimeStep_DVM.f90)
   ADD_DEFINITIONS(-DPP_TimeDiscMethod=600)
+ELSEIF(PICLAS_TIMEDISCMETHOD STREQUAL "Explicit-FV")
+  FILE(GLOB timediscF90 ${CMAKE_CURRENT_SOURCE_DIR}/src/timedisc/timedisc_TimeStep_ExplicitFV.f90)
+  ADD_DEFINITIONS(-DPP_TimeDiscMethod=601)
 ELSE()
    MESSAGE(SEND_ERROR "Unknown time discretization method.")
 ENDIF()
@@ -359,8 +368,10 @@ ENDIF(PICLAS_HDG)
 
 IF(PICLAS_FV)
   ADD_DEFINITIONS(-DUSE_FV=1)
-  IF(PICLAS_TIMEDISCMETHOD STREQUAL "DVM")
+  IF(PICLAS_TIMEDISCMETHOD STREQUAL "ED-DVM")
       MESSAGE(STATUS "use FV with DVM")
+  ELSEIF(PICLAS_TIMEDISCMETHOD STREQUAL "Explicit-FV")
+      MESSAGE(STATUS "use Explicit Finite Volumes")
   ELSE()
       MESSAGE(SEND_ERROR "Unknown time discretization method for FV.")
   ENDIF()

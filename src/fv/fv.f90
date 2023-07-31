@@ -134,7 +134,7 @@ Flux_Slave=0.
 
 ALLOCATE(FV_gradU_elem(3,1:PP_nVar,1:PP_nElems))
 
-#if (PP_TimeDiscMethod==600) /*DVM*/
+#ifdef discrete_velocity
 ALLOCATE(DVM_ElemData1(1:PP_nElems))
 ALLOCATE(DVM_ElemData2(1:PP_nElems))
 ALLOCATE(DVM_ElemData3(1:PP_nElems))
@@ -153,9 +153,13 @@ CALL AddToElemData(ElementOut,'DVM_HeatFluxX',RealArray=DVM_ElemData6(:))
 CALL AddToElemData(ElementOut,'DVM_HeatFluxY',RealArray=DVM_ElemData7(:))
 CALL AddToElemData(ElementOut,'DVM_HeatFluxZ',RealArray=DVM_ElemData8(:))
 CALL AddToElemData(ElementOut,'DVM_RelaxFac',RealArray=DVM_ElemData9(:))
-#elif
-CALL AddToElemData(ElementOut,'FV_ElemData',RealArray=U(1,0,0,0,:))
 #endif /*DVM*/
+#ifdef drift_diffusion
+CALL AddToElemData(ElementOut,'Electron_Density',RealArray=U(1,0,0,0,:))
+CALL AddToElemData(ElementOut,'Electron_DensityGradientX',RealArray=U(2,0,0,0,:))
+CALL AddToElemData(ElementOut,'Electron_DensityGradientY',RealArray=U(3,0,0,0,:))
+CALL AddToElemData(ElementOut,'Electron_DensityGradientZ',RealArray=U(4,0,0,0,:))
+#endif /*drift_diffusion*/
 
 CALL InitGradients()
 

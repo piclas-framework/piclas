@@ -133,6 +133,9 @@ USE MOD_ProlongToFace       ,ONLY: ProlongToFace_ElemCopy
 USE MOD_MPI                 ,ONLY: StartReceiveMPIData,StartSendMPIData,FinishExchangeMPIData
 USE MOD_MPI_Vars
 #endif /*MPI*/
+#ifdef drift_diffusion
+USE MOD_Equation_Vars       ,ONLY: EFluid_GradSide
+#endif
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -179,6 +182,12 @@ CALL FinishExchangeMPIData(SendRequest_gradUx,RecRequest_gradUx,SendID=1)
   
 ! fill all the neighbour differences on this proc
 CALL CalcDiff(Grad_DIM,Var_master,Var_slave,Diff_side,doMPISides=.FALSE.)
+
+#ifdef drift_diffusion
+EFluid_GradSide(:)=Diff_side(1,:)/(SQRT((Grad_dx_master(1,:)-Grad_dx_slave(1,:))**2 &
+                                       +(Grad_dx_master(2,:)-Grad_dx_slave(2,:))**2 &
+                                       +(Grad_dx_master(3,:)-Grad_dx_slave(3,:))**2))
+#endif
 
 ! least square method to get elem gradient from neighbour differences
 DO ElemID = 1, nElems
