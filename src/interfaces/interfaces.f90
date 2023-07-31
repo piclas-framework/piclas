@@ -171,9 +171,9 @@ END DO ! SideID
 ! Check if all sides have correctly been set
 DO SideID=1,nSides
   IF(InterfaceRiemann(SideID).EQ.-2)THEN ! check if the default value remains unchanged
-#if !(USE_HDG) /*pure Maxwell simulations*/
+#if !(USE_HDG) && !(USE_FV) /*pure Maxwell simulations*/
     IPWRITE(UNIT_StdOut,*) "DoPML                          = ", DoPML
-#endif /*NOT HDG*/
+#endif /*NOT HDG or FV*/
     IPWRITE(UNIT_StdOut,*) "DoDielectric                   = ", DoDielectric
     IPWRITE(UNIT_StdOut,*) "SideID                         = ", SideID
     IPWRITE(UNIT_StdOut,*) "MortarType(1,SideID)           = ", MortarType(1,SideID)

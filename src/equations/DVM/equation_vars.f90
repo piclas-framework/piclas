@@ -52,6 +52,7 @@ REAL                 :: DVMForce(3)
 
 REAL                 :: c_corr
 REAL                 :: fDamping
+REAL                 :: WaveLength                             !> wave length
 
 REAL,ALLOCATABLE     :: DVMMomentSave(:,:)
 
