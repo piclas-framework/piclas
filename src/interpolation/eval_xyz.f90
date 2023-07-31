@@ -1,7 +1,7 @@
 !==================================================================================================================================
 ! Copyright (c) 2010 - 2018 Prof. Claus-Dieter Munz and Prof. Stefanos Fasoulas
 !
-! This file is part of PICLas (gitlab.com/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
+! This file is part of PICLas (piclas.boltzplatz.eu/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
 ! it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3
 ! of the License, or (at your option) any later version.
 !
@@ -91,7 +91,9 @@ ASSOCIATE( XCL_NGeo  => XCL_NGeo_Shared     &
          ,dXCL_NGeo  => dXCL_NGeo_Shared)
 #endif
 
-iMode = MERGE(1,2,PRESENT(ForceMode))
+IF (PRESENT(ForceMode)) THEN; iMode = 1
+ELSE;                         iMode = 2
+END IF
 
 IF (.NOT.PRESENT(DoReUseMap)) THEN
   CALL GetRefNewtonStartValue(X_in,Xi,ElemID)

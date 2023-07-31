@@ -67,14 +67,16 @@ Different `SpaceIC` are available and an overview is given in the table below.
 |    ---------------   | -------------------------------------------------------------------------------- |  ------------------------------------------  |
 |      cell_local      |         Particles are inserted in every cell at a constant number density        |                                              |
 |         disc         |                     Particles are inserted on a circular disc                    |     Section {ref}`sec:particle-disk-init`    |
+|        cuboid        |  Particles are inserted in the given cuboid volume at a constant number density  |    Section {ref}`sec:particle-cuboid-init`   |
 |       cylinder       | Particles are inserted in the given cylinder volume at a constant number density |   Section {ref}`sec:particle-cylinder-init`  |
+|        sphere        |  Particles are inserted in the given sphere volume at a constant number density  |    Section {ref}`sec:particle-sphere-init`   |
 |    photon_cylinder   |   Ionization of a background gas through photon impact (cylinder distribution)   | Section {ref}`sec:particle-photo-ionization` |
 |    photon_SEE_disc   |       Secondary electron emission through photon impact (disk distribution)      | Section {ref}`sec:particle-photo-ionization` |
 |   photon_honeycomb   |   Ionization of a background gas through photon impact (honeycomb distribution)  | Section {ref}`sec:particle-photo-ionization` |
 | photon_SEE_honeycomb |    Secondary electron emission through photon impact (honeycomb distribution)    | Section {ref}`sec:particle-photo-ionization` |
 |   photon_rectangle   |  Ionization of a background gas through photon impact (rectangular distribution) | Section {ref}`sec:particle-photo-ionization` |
 | photon_SEE_rectangle |   Secondary electron emission through photon impact (rectangular distribution)   | Section {ref}`sec:particle-photo-ionization` |
-|          WIP         |                               **WORK IN PROGRESS**                               |                                              |
+| EmissionDistribution |    Initial only ($t=0$) field-based ($n, T, v$) particle distribution from .h5   |  Section {ref}`sec:particle-emission-distri` |
 
 Common parameters required for most of the insertion routines are given below. The drift velocity is defined by the direction
 vector `VeloVecIC`, which is a unit vector, and a velocity magnitude [m/s]. The thermal velocity of particle is determined based
@@ -112,6 +114,23 @@ To define the circular disc the following parameters are required:
 
 The first and second base vector span a plane, where a circle with the given radius will be defined at the base point.
 
+(sec:particle-cuboid-init)=
+### Cuboid
+
+To define the cuboid the following parameters are required:
+
+    Part-Species1-Init1-SpaceIC               = cuboid
+    Part-Species1-Init1-RadiusIC              = 1
+    Part-Species1-Init1-CuboidHeightIC        = 1
+    Part-Species1-Init1-BasePointIC           = (/ 0.0, 0.0, 0.0 /)
+    Part-Species1-Init1-BaseVector1IC         = (/ 1.0, 0.0, 0.0 /)
+    Part-Species1-Init1-BaseVector2IC         = (/ 0.0, 1.0, 0.0 /)
+    Part-Species1-Init1-NormalIC              = (/ 0.0, 0.0, 1.0 /)
+
+The first and second base vector span a side of the cuboid, and then its extruded in the normal direction up to the cuboid height.
+
+For symmetric simulations `Part-Species1-Init1-BaseVector2IC` is set in direction of the symmetry `(/ 0.0, 0.0, 1.0 /)`
+
 (sec:particle-cylinder-init)=
 ### Cylinder
 
@@ -127,6 +146,19 @@ To define the cylinder the following parameters are required:
 
 The first and second base vector span a plane, where a circle with the given radius will be defined at the base point and then
 extruded in the normal direction up to the cylinder height.
+
+For symmetric simulations `Part-Species1-Init1-BaseVector2IC` is set in direction of the symmetry `(/ 0.0, 1.0, 0.0 /)` for 2D planar simulations,
+and `(/ 0.0, 0.0, 1.0 /)` for axisymmetric ones.
+
+(sec:particle-sphere-init)=
+### Sphere
+
+To define the cuboid the following parameters are required:
+
+    Part-Species1-Init1-SpaceIC               = sphere
+    Part-Species1-Init1-RadiusIC              = 1
+    Part-Species1-Init1-BasePointIC           = (/ 0.0, 0.0, 0.0 /)
+    Part-Species1-Init1-NormalIC              = (/ 0.0, 0.0, 1.0 /)
 
 (sec:particle-photo-ionization)=
 ### Photo-ionization
@@ -189,6 +221,71 @@ actual computational domain corresponds only to a quarter of the cylinder:
 
     Part-Species1-Init1-FirstQuadrantOnly       = T
     Part-Species1-Init2-FirstQuadrantOnly       = T
+
+(sec:particle-emission-distri)=
+### Emission Distribution
+To initialize a pre-defined distribution, e.g., from the output of a field-based or continuum-based solver, a particle distribution
+can be created from a .h5 file that contains $n, T, v_{r}$ and $v_{z}$ (particle number density, temperature and velocity in 2D
+cylindrical coordinates).
+This data needs to be supplied in a specific format and a different array for each species that is to be initialized in such a way
+is required.
+This emission option is selected via
+
+    ! Define the name of the data file
+    Part-EmissionDistributionFileName = reggie-linear-rot-symmetry-species-init.h5
+
+    ! OPTIONAL: Polynomial degree for particle emission in each element
+    Part-EmissionDistributionN = 1
+
+    ! For each species, the following information is required
+    Part-Species1-nInits   = 1
+    Part-Species1-Init1-SpaceIC                  = EmissionDistribution
+    Part-Species1-Init1-EmissionDistributionName = HeIon
+
+where `Part-EmissionDistributionFileName` defines the .h5 data file that contains the data, `Part-EmissionDistributionN` is an
+optional parameter for tuning the quality of the distribution within each element. It defines the polynomial degree for the
+particle emission in each element.
+The default value is 2(N+1) with N being the polynomial degree of the solution.
+The parameter `Part-Species1-Init1-SpaceIC` activates this specific emission type and `Part-Species1-Init1-EmissionDistributionName`
+is the name of the container in the .h5 file that yields the data for each species.
+
+An example setup is given in the regression check directory under
+[./regressioncheck/CHE_PIC_maxwell_RK4/2D_variable_particle_init_n_T_v](https://github.com/piclas-framework/piclas/tree/master/regressioncheck/CHE_PIC_maxwell_RK4/2D_variable_particle_init_n_T_v).
+The example uses 2D data defined in cylindrical coordinates for the velocity vector $v=v(r,z)$, which will be transformed to
+Cartesian coordinates in piclas.
+
+The .h5 file `reggie-linear-rot-symmetry-species-init.h5` contains the following information: **Attributes** that define the index
+of the coordinates and the properties
+
+    T   4
+    n   3
+    r   1
+    vr  5
+    vz  6
+    z   2
+
+and two **array** container, one for each species labelled `HeIon` and `electron` for singly charged Helium ions and electrons.
+These names must be used in the parameter input file.
+Each of these containers must provide the data in a $m \times n$ array and must be equidistant in each coordinate direction.
+The electron data begins with the following data
+
+    1.0   5.0     NaN      NaN        NaN        NaN
+    1.0   7.0  2.4E17  10000.0  1000000.0  1000000.0
+    1.0   9.0  2.4E17  10000.0  1000000.0  1000000.0
+    1.0  11.0  2.4E17  10000.0  1000000.0  1000000.0
+    1.0  13.0  2.4E17  10000.0  1000000.0  1000000.0
+    ...
+    ...
+
+and is allowed to contain NaN values, because the original data might be projected onto a equidistant Cartesian grid from a
+unstructured and non-rectangular mesh.
+These NaN values will automatically be replaced with zeros during read-in of the data.
+The original 2D data (equidistant mesh) must be unrolled into a 1D structure with one data point per row.
+As can be seen from the dataset above, the first column containing the $r$-coordinates is the outer loop and the $z$-coordinates in
+the second column represent the inner loop in this logic.
+Note that the temperature (translational, vibrational and electronic) of ions and atoms/molecules will be initialized with $300$ K.
+This will be changed in a future release. At the moment, only the electron temperature will be considered.
+
 
 ### Neutralization Boundaries (neutral outflow condition)
 There are different methods implemented to neutralize a charged particle flow, e.g., as encountered when simulation electric

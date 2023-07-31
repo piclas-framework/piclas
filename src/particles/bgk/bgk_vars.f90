@@ -1,7 +1,7 @@
 !==================================================================================================================================
 ! Copyright (c) 2018 - 2019 Marcel Pfeiffer
 !
-! This file is part of PICLas (gitlab.com/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
+! This file is part of PICLas (piclas.boltzplatz.eu/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
 ! it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3
 ! of the License, or (at your option) any later version.
 !
@@ -35,7 +35,7 @@ INTEGER                                        :: ESBGKModel                    
 INTEGER                                        :: BGKMixtureModel                    ! 1 Approx; 2 Exact Solution A; 3 Metropolis
 INTEGER                                        :: BGKMinPartPerCell
 LOGICAL                                        :: BGKMovingAverage
-INTEGER                                        :: BGKMovingAverageLength
+REAL                                           :: BGKMovingAverageFac
 LOGICAL                                        :: BGKUseQuantVibEn
 LOGICAL                                        :: BGKDoVibRelaxation
 REAL                                           :: BGKSplittingDens
@@ -54,15 +54,8 @@ TYPE tElemNodeAveraging
 END TYPE
 
 TYPE tNodeAverage
-    TYPE (tNodeAverage), POINTER               :: SubNode1 => null()
-    TYPE (tNodeAverage), POINTER               :: SubNode2 => null()
-    TYPE (tNodeAverage), POINTER               :: SubNode3 => null()
-    TYPE (tNodeAverage), POINTER               :: SubNode4 => null()
-    TYPE (tNodeAverage), POINTER               :: SubNode5 => null()
-    TYPE (tNodeAverage), POINTER               :: SubNode6 => null()
-    TYPE (tNodeAverage), POINTER               :: SubNode7 => null()
-    TYPE (tNodeAverage), POINTER               :: SubNode8 => null()
-    REAL, ALLOCATABLE                          :: AverageValues(:,:)
+    TYPE (tNodeAverage), POINTER               :: SubNode(:) => null()
+    REAL, ALLOCATABLE                          :: AverageValues(:)
     INTEGER                                    :: CorrectStep
 END TYPE
 

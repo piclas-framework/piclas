@@ -1,7 +1,7 @@
 !==================================================================================================================================
 ! Copyright (c) 2010 - 2018 Prof. Claus-Dieter Munz and Prof. Stefanos Fasoulas
 !
-! This file is part of PICLas (gitlab.com/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
+! This file is part of PICLas (piclas.boltzplatz.eu/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
 ! it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3
 ! of the License, or (at your option) any later version.
 !
@@ -36,6 +36,7 @@ USE MOD_Globals
 USE MOD_Globals_Vars           ,ONLY: SimulationEfficiency,PID,WallTime,ProjectName
 USE MOD_PreProc
 USE MOD_TimeDisc_Vars          ,ONLY: time,TEnd,dt,iter,IterDisplayStep,DoDisplayIter,dt_Min,tAnalyze
+USE MOD_TimeDisc_Vars          ,ONLY: time_start
 #if USE_LOADBALANCE
 USE MOD_TimeDisc_Vars          ,ONLY: dtWeight
 #if defined(PARTICLES)
@@ -89,12 +90,11 @@ USE MOD_Particle_Analyze_Vars  ,ONLY: CalcEMFieldOutput
 USE MOD_HDF5_Output_Particles  ,ONLY: FillParticleData
 #endif /*PARTICLES*/
 #ifdef PARTICLES
-USE MOD_PICDepo                ,ONLY: Deposition
+!USE MOD_PICDepo                ,ONLY: Deposition
 USE MOD_Particle_Vars          ,ONLY: DoImportIMDFile
 #if USE_MPI
 USE MOD_PICDepo_Vars           ,ONLY: DepositionType
 #endif /*USE_MPI*/
-USE MOD_Particle_Vars          ,ONLY: doParticleMerge, enableParticleMerge, vMPFMergeParticleIter
 USE MOD_Particle_Sampling_Vars ,ONLY: UseAdaptive
 USE MOD_Particle_Tracking_vars ,ONLY: tTracking,tLocalization,nTracks,MeasureTrackTime
 #if (USE_MPI) && (USE_LOADBALANCE) && defined(PARTICLES)
@@ -121,6 +121,9 @@ USE MOD_HDG_Vars               ,ONLY: CalcBRVariableElectronTemp
 #if defined(MEASURE_MPI_WAIT)
 USE MOD_MPI_Vars               ,ONLY: MPIW8TimeSim
 #endif /*defined(MEASURE_MPI_WAIT)*/
+#if defined(PARTICLES)
+USE MOD_Particle_Analyze_Vars  ,ONLY: CalcPointsPerDebyeLength,CalcPICTimeStep
+#endif
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -199,13 +202,18 @@ iter_PID = 0
 ! fill recordpoints buffer (first iteration)
 !IF(RP_onProc) CALL RecordPoints(iter,t,forceSampling=.TRUE.)
 
-CALL PrintStatusLine(time,dt,tStart,tEnd)
+CALL PrintStatusLine(time,dt,tStart,tEnd,1)
 
 #if defined(PARTICLES) && defined(CODE_ANALYZE)
 ! Set specific particle position and velocity (calculated from an analytical expression)
 CALL InitAnalyticalParticleState() ! Requires dt
 #endif /*defined(PARTICLES) && defined(CODE_ANALYZE)*/
 
+#if defined(PARTICLES)
+IF(CalcPointsPerDebyeLength.OR.CalcPICTimeStep)THEN
+  CALL CountPartsPerElem(ResetNumberOfParticles=.TRUE.) !for scaling of tParts of LB
+END IF ! CalcPointsPerDebyeLength.OR.CalcPICTimeStep
+#endif
 CALL PerformAnalyze(time,FirstOrLastIter=.TRUE.,OutPutHDF5=.FALSE.)
 
 #ifdef PARTICLES
@@ -215,7 +223,6 @@ IF((.NOT.DoRestart).OR.FlushInitialState.OR.(.NOT.FILEEXISTS(TRIM(TIMESTAMP(TRIM
 #if defined(PARTICLES)
   CALL FillParticleData() ! Fill the SFC-ordered particle arrays
 #endif /*defined(PARTICLES)*/
-
   CALL WriteStateToHDF5(TRIM(MeshFile),time,tPreviousAnalyze) ! Write initial state to file
 END IF
 
@@ -237,14 +244,9 @@ IF(ALMOSTEQUALRELATIVE(time,tEnd,1e-10))RETURN
 !-----------------------------------------------------------------------------------------------------------------------------------
 SWRITE(UNIT_StdOut,*)'CALCULATION RUNNING...'
 WallTimeStart=PICLASTIME()
+CALL CPU_TIME(time_start)
 
 DO !iter_t=0,MaxIter
-
-#ifdef PARTICLES
-  IF(enableParticleMerge) THEN
-    IF ((iter.GT.0).AND.(MOD(iter,INT(vMPFMergeParticleIter,8)).EQ.0)) doParticleMerge=.true.
-  END IF
-#endif /*PARTICLES*/
 
 #if defined(PARTICLES) && USE_HDG
   ! Check if BR<->kin switch is active
@@ -268,7 +270,7 @@ DO !iter_t=0,MaxIter
   END IF ! MPIroot
 #endif /*NOT USE_HDG*/
 
-  CALL PrintStatusLine(time,dt,tStart,tEnd)
+  CALL PrintStatusLine(time,dt,tStart,tEnd,1)
 
 ! Perform Timestep using a global time stepping routine, attention: only RK3 has time dependent BC
 #if (PP_TimeDiscMethod==1)
@@ -348,8 +350,8 @@ DO !iter_t=0,MaxIter
   !IF ((dt.EQ.dt_Min(DT_ANALYZE)).OR.(dt.EQ.dt_Min(DT_END))) THEN   ! timestep is equal to time to analyze or end
 #if USE_LOADBALANCE
   ! For automatic initial restart, check if the number of sampling steps has been achieved and force a load balance step, but skip
-  ! this procedure in the final iteration after which the simulation if finished
-  !      DoInitialAutoRestart: user-activated load balance restart in first time step (could already be a restart)
+  ! this procedure in the final iteration after which the simulation is finished
+  !      DoInitialAutoRestart: user-activated load balance restart in first time step (could also be during a normal restart)
   ! iter.GE.LoadBalanceSample: as soon as the number of time steps for sampling is reached, perform the load balance restart
   !                 finalIter: prevent removal of last state file even though no load balance restart was performed
   IF(DoInitialAutoRestart.AND.(iter.GE.LoadBalanceSample).AND.(.NOT.finalIter)) ForceInitialLoadBalance=.TRUE.
@@ -366,13 +368,13 @@ DO !iter_t=0,MaxIter
       PID                  = (WallTimeEnd-WallTimeStart)*nProcessors/(nGlobalElems*(PP_N+1)**3*iter_PID)
     END IF
 #if defined(MEASURE_MPI_WAIT)
-    MPIW8TimeSim   = MPIW8TimeSim + (WallTimeEnd-WallTimeStart)
+    MPIW8TimeSim = MPIW8TimeSim + (WallTimeEnd-WallTimeStart)
 #endif /*defined(MEASURE_MPI_WAIT)*/
 
-#if USE_MPI
 #if defined(PARTICLES) && !defined(LSERK) && !defined(IMPA) && !defined(ROS)
     CALL CountPartsPerElem(ResetNumberOfParticles=.TRUE.) !for scaling of tParts of LB
 #endif
+#if USE_MPI
 
 #if USE_LOADBALANCE
 #ifdef PARTICLES
@@ -404,16 +406,24 @@ DO !iter_t=0,MaxIter
     ! finalIter=T: last iteration of the simulation is reached, hence, always perform analysis and output to hdf5
 #if USE_LOADBALANCE
     ! PerformLoadBalance.AND.UseH5IOLoadBalance: Load balance step will be performed and load balance restart via hdf5 IO active
-    IF(MOD(iAnalyze,nSkipAnalyze).EQ.0 .OR. (PerformLoadBalance.AND.UseH5IOLoadBalance) .OR. finalIter)THEN
+    ! .NOT.(DoInitialAutoRestart.AND.(.NOT.UseH5IOLoadBalance)): Skip I/O for initial LB because MOD might give 0
+    IF( ((.NOT.(DoInitialAutoRestart.AND.(.NOT.UseH5IOLoadBalance))).AND.MOD(iAnalyze,nSkipAnalyze).EQ.0)&
+        .OR. (PerformLoadBalance.AND.UseH5IOLoadBalance) .OR. finalIter )THEN
 #else
     IF(MOD(iAnalyze,nSkipAnalyze).EQ.0 .OR. finalIter)THEN
 #endif /*USE_LOADBALANCE*/
       ! Analyze for output
-      CALL PerformAnalyze(time, FirstOrLastIter=finalIter, OutPutHDF5=.TRUE.) ! analyze routines are not called here in last iter
+#if defined(PARTICLES)
+      IF(CalcPointsPerDebyeLength.OR.CalcPICTimeStep)THEN
+        CALL CountPartsPerElem(ResetNumberOfParticles=.TRUE.) !for scaling of tParts of LB
+      END IF ! CalcPointsPerDebyeLength.OR.CalcPICTimeStep
+#endif
+      CALL PerformAnalyze(time, FirstOrLastIter=finalIter, OutPutHDF5=.TRUE.) ! analyze routines are called here in last iter
       ! write information out to std-out of console
+      CALL PrintStatusLine(time,dt,tStart,tEnd,2)
       CALL WriteInfoStdOut()
 #if defined(PARTICLES)
-      CALL FillParticleData() ! Fill the SFC-ordered particle arrays
+      CALL FillParticleData() ! Fill the SFC-ordered particle arrays for LB or I/O
 #endif /*defined(PARTICLES)*/
       ! Write state to file
       CALL WriteStateToHDF5(TRIM(MeshFile),time,tPreviousAnalyze)
@@ -423,6 +433,10 @@ DO !iter_t=0,MaxIter
       tPreviousAnalyze        = tAnalyze
       tPreviousAverageAnalyze = tAnalyze
       SWRITE(UNIT_StdOut,'(132("-"))')
+#if USE_LOADBALANCE && defined(PARTICLES)
+    ELSEIF(PerformLoadBalance) THEN
+      CALL FillParticleData() ! Fill the SFC-ordered particle arrays for LB
+#endif /*USE_LOADBALANCE && defined(PARTICLES)*/
     END IF ! actual analyze is done
 
     iter_PID=0

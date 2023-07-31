@@ -1,7 +1,7 @@
 !==================================================================================================================================
 ! Copyright (c) 2010 - 2018 Prof. Claus-Dieter Munz and Prof. Stefanos Fasoulas
 !
-! This file is part of PICLas (gitlab.com/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
+! This file is part of PICLas (piclas.boltzplatz.eu/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
 ! it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3
 ! of the License, or (at your option) any later version.
 !
@@ -33,7 +33,7 @@ LOGICAL                 :: useBGField                    !< Flag for background 
 LOGICAL                 :: CalcBField                    !< Calculate the background field BGField from parameters defined in the
                                                          !< input file
 
-CHARACTER(LEN=256)      :: FileNameVariableExternalField !< Filename containing the external field csv table
+CHARACTER(LEN=255)      :: FileNameVariableExternalField !< Filename containing the external field csv table
 LOGICAL                 :: useVariableExternalField      !< Use given external field. Only for Bz variation in z
 LOGICAL                 :: useAlgebraicExternalField     !< Use given algebraic expression for the external e and B field
 INTEGER                 :: AlgebraicExternalField        !< External E and B field from algebraic expression that is
@@ -82,6 +82,9 @@ REAL                    :: AnalyticInterpolationE        !< Electric field
 INTEGER,PARAMETER       :: AnalyticPartDim=7
 REAL                    :: L_2_Error_Part(1:AnalyticPartDim) !< L2 error for the particle state
 REAL                    :: L_2_Error_Part_time           !< old time for calculating the time step (when it is variable)
+REAL                    :: TimeReset                     !< time when particle hit the wall for AnalyticInterpolationType = 51
+REAL                    :: r_WallVec(3)                  !< new r_0 when particle hit the wall for AnalyticInterpolationType = 51
+REAL                    :: v_WallVec(3)                  !< new v_0 when particle hit the wall for AnalyticInterpolationType = 51
 #endif /*CODE_ANALYZE*/
 !===================================================================================================================================
 END MODULE MOD_PICInterpolation_Vars

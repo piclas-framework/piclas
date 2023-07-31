@@ -1,7 +1,7 @@
 !==================================================================================================================================
 ! Copyright (c) 2010 - 2018 Prof. Claus-Dieter Munz and Prof. Stefanos Fasoulas
 !
-! This file is part of PICLas (gitlab.com/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
+! This file is part of PICLas (piclas.boltzplatz.eu/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
 ! it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3
 ! of the License, or (at your option) any later version.
 !
@@ -164,13 +164,14 @@ USE MOD_ReadInTools      ,ONLY: GETINT,GETREAL
 USE MOD_StringTools      ,ONLY: set_formatting,clear_formatting
 #ifdef PARTICLES
 USE MOD_HDF5_Input       ,ONLY: File_ID,ReadArray,DatasetExists,OpenDataFile,CloseDataFile,ReadAttribute
-USE MOD_LoadBalance_Vars ,ONLY: PartDistri,ParticleMPIWeight
+USE MOD_LoadBalance_Vars ,ONLY: PartDistri,ParticleMPIWeight,nElemsOld
 USE MOD_Particle_Vars    ,ONLY: VarTimeStep,PartIntSize
 USE MOD_Restart_Vars     ,ONLY: RestartFile
-#endif /*PARTICLES*/
-USE MOD_LoadBalance_Vars ,ONLY: nElemsOld,offsetElemMPIOld
-USE MOD_Particle_Vars    ,ONLY: PartInt
 USE MOD_LoadBalance_Vars ,ONLY: PerformLoadBalance,UseH5IOLoadBalance
+USE MOD_LoadBalance_Vars ,ONLY: offsetElemMPIOld
+USE MOD_Particle_Vars    ,ONLY: PartInt
+USE MOD_HDF5_Output_Particles  ,ONLY: FillParticleData
+#endif /*PARTICLES*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -190,7 +191,8 @@ INTEGER                        :: iElem,iProc
 LOGICAL                        :: PartIntExists
 REAL                           :: timeWeight(1:nGlobalElems)
 LOGICAL                        :: FileVersionExists
-REAL                           :: FileVersionHDF5
+REAL                           :: FileVersionHDF5Real
+INTEGER                        :: FileVersionHDF5Int
 INTEGER(KIND=IK),ALLOCATABLE   :: PartIntGlob(:,:)
 INTEGER                        :: ElemPerProc(0:nProcessors-1)
 #endif /*PARTICLES*/
@@ -209,6 +211,8 @@ IF (PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance)) THEN
   DO iProc = 0,nProcessors-1
     ElemPerProc(iProc) = offsetElemMPIOld(iProc+1) - offsetElemMPIOld(iProc)
   END DO
+  ! Sanity check
+  IF(.NOT.ALLOCATED(PartInt)) CALL abort(__STAMP__,'PartInt is not allocated') ! Missing call to FillParticleData()
   CALL MPI_GATHERV(PartInt,nElemsOld,MPI_DOUBLE_PRECISION,PartIntGlob,ElemPerProc,offsetElemMPIOld(0:nProcessors-1),MPI_DOUBLE_PRECISION,0,MPI_COMM_WORLD,iError)
   PartIntExists = .TRUE.
 ELSE
@@ -224,25 +228,31 @@ ELSE
       !check file version
       CALL DatasetExists(File_ID,'File_Version',FileVersionExists,attrib=.TRUE.)
       IF(FileVersionExists)THEN
-        CALL ReadAttribute(File_ID,'File_Version',1,RealScalar=FileVersionHDF5)
+        CALL ReadAttribute(File_ID,'File_Version',1,RealScalar=FileVersionHDF5Real)
+
+        ! Depending on the file version, PartInt may have switched dimensions
+        IF(FileVersionHDF5Real.LT.2.8)THEN
+          ALLOCATE(PartIntTmp(1:nGlobalElems,PartIntSize))
+          ! Check integer KIND=8 possibility
+          CALL ReadArray('PartInt',2,(/INT(nGlobalElems,IK),INT(PartIntSize,IK)/),0_IK,1,IntegerArray=PartIntTmp)
+          ! Switch dimensions
+          DO iElem = 1, nGlobalElems
+            PartIntGlob(:,iElem) = PartIntTmp(iElem,:)
+          END DO ! iElem = FirstElemInd, LastElemInd
+          DEALLOCATE(PartIntTmp)
+        ELSE
+          ! Check integer KIND=8 possibility
+          CALL ReadArray('PartInt',2,(/INT(PartIntSize,IK),INT(nGlobalElems,IK)/),0_IK,2,IntegerArray=PartIntGlob)
+        END IF ! FileVersionHDF5Real.LT.2.7
       ELSE
-        CALL abort(__STAMP__,'Error in ApplyWeightDistributionMethod(): Attribute "File_Version" does not exist!')
+        CALL DatasetExists(File_ID,'Piclas_VersionInt',FileVersionExists,attrib=.TRUE.)
+        IF (FileVersionExists) THEN
+          CALL ReadAttribute(File_ID,'Piclas_VersionInt',1,IntScalar=FileVersionHDF5Int)
+        ELSE
+          CALL abort(__STAMP__,'Error in ApplyWeightDistributionMethod(): Attribute "Piclas_VersionInt" does not exist!')
+        END IF
       ENDIF
 
-      ! Depending on the file version, PartInt may have switched dimensions
-      IF(FileVersionHDF5.LT.2.8)THEN
-        ALLOCATE(PartIntTmp(1:nGlobalElems,PartIntSize))
-        ! Check integer KIND=8 possibility
-        CALL ReadArray('PartInt',2,(/INT(nGlobalElems,IK),INT(PartIntSize,IK)/),0_IK,1,IntegerArray=PartIntTmp)
-        ! Switch dimensions
-        DO iElem = 1, nGlobalElems
-          PartIntGlob(:,iElem) = PartIntTmp(iElem,:)
-        END DO ! iElem = FirstElemInd, LastElemInd
-        DEALLOCATE(PartIntTmp)
-      ELSE
-        ! Check integer KIND=8 possibility
-        CALL ReadArray('PartInt',2,(/INT(PartIntSize,IK),INT(nGlobalElems,IK)/),0_IK,2,IntegerArray=PartIntGlob)
-      END IF ! FileVersionHDF5.LT.2.7
     END IF
     CALL CloseDataFile()
 
@@ -270,7 +280,7 @@ IF(MPIRoot)THEN
     END DO
   END IF ! PartIntExists
 
-  DEALLOCATE(PartIntGlob)
+  SDEALLOCATE(PartIntGlob)
 END IF ! MPIRoot
 #endif /*PARTICLES*/
 
@@ -1224,7 +1234,7 @@ SUBROUTINE WriteElemTimeStatistics(WriteHeader,time_opt,iter_opt)
 ! MODULES
 USE MOD_LoadBalance_Vars ,ONLY: TargetWeight,nLoadBalanceSteps,CurrentImbalance,MinWeight,MaxWeight,WeightSum
 USE MOD_Globals          ,ONLY: MPIRoot,FILEEXISTS,unit_stdout,abort,nProcessors,ProcessMemUsage,nProcessors
-USE MOD_Globals_Vars     ,ONLY: SimulationEfficiency,PID,WallTime,InitializationWallTime,ReadMeshWallTime
+USE MOD_Globals_Vars     ,ONLY: SimulationEfficiency,PID,WallTime,InitializationWallTime,ReadMeshWallTime,memory
 USE MOD_Globals_Vars     ,ONLY: DomainDecompositionWallTime,CommMeshReadinWallTime
 USE MOD_Restart_Vars     ,ONLY: DoRestart
 #ifdef PARTICLES
@@ -1236,7 +1246,14 @@ USE MOD_Globals          ,ONLY: nGlobalNbrOfParticles
 USE MOD_MPI_Shared_Vars  ,ONLY: myComputeNodeRank,myLeaderGroupRank
 USE MOD_Globals
 USE MOD_MPI_Shared_Vars  ,ONLY: MPI_COMM_LEADERS_SHARED,MPI_COMM_SHARED
+#if ! (CORE_SPLIT==0)
+USE MOD_MPI_Shared_Vars  ,ONLY: NbrOfPhysicalNodes,nLeaderGroupProcs
+#endif /*! (CORE_SPLIT==0)*/
 #endif /*USE_MPI*/
+USE MOD_StringTools      ,ONLY: set_formatting,clear_formatting
+#if defined(MEASURE_MPI_WAIT)
+USE MOD_MPI_Vars          ,ONLY: MPIW8TimeMM,MPIW8CountMM
+#endif /*defined(MEASURE_MPI_WAIT)*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -1286,11 +1303,15 @@ CHARACTER(LEN=255),DIMENSION(nOutputVar) :: StrVarNames(nOutputVar)=(/ CHARACTER
 CHARACTER(LEN=255)         :: tmpStr(nOutputVar) ! needed because PerformAnalyze is called multiple times at the beginning
 CHARACTER(LEN=1000)        :: tmpStr2
 CHARACTER(LEN=1),PARAMETER :: delimiter=","
-REAL                       :: memory(1:3)       ! used, available and total
 #if USE_MPI
 REAL                       :: ProcMemoryUsed    ! Used memory on a single proc
 REAL                       :: NodeMemoryUsed    ! Sum of used memory across one compute node
 #endif /*USE_MPI*/
+REAL                       :: MemUsagePercent
+#if defined(MEASURE_MPI_WAIT)
+INTEGER(KIND=8)               :: CounterStart,CounterEnd
+REAL(KIND=8)                  :: Rate
+#endif /*defined(MEASURE_MPI_WAIT)*/
 !===================================================================================================================================
 
 ! Get process memory info
@@ -1298,6 +1319,9 @@ CALL ProcessMemUsage(memory(1),memory(2),memory(3)) ! memUsed,memAvail,memTotal
 
 ! only CN roots communicate available and total memory info (count once per node)
 #if USE_MPI
+#if defined(MEASURE_MPI_WAIT)
+CALL SYSTEM_CLOCK(count=CounterStart)
+#endif /*defined(MEASURE_MPI_WAIT)*/
 IF(nProcessors.GT.1)THEN
   ! Collect data on node roots
   ProcMemoryUsed = memory(1)
@@ -1311,12 +1335,17 @@ IF(nProcessors.GT.1)THEN
   ! collect data from node roots on first root node
   IF (myComputeNodeRank.EQ.0) THEN ! only leaders
     IF (myLeaderGroupRank.EQ.0) THEN ! first node leader MUST be MPIRoot
-      CALL MPI_REDUCE(MPI_IN_PLACE , memory , 3 , MPI_DOUBLE_PRECISION , MPI_SUM , 0 , MPI_COMM_LEADERS_SHARED , IERROR)
+      CALL MPI_REDUCE(MPI_IN_PLACE , memory(1:3) , 3 , MPI_DOUBLE_PRECISION , MPI_SUM , 0 , MPI_COMM_LEADERS_SHARED , IERROR)
     ELSE
-      CALL MPI_REDUCE(memory       , 0      , 3 , MPI_DOUBLE_PRECISION , MPI_SUM , 0 , MPI_COMM_LEADERS_SHARED , IERROR)
+      CALL MPI_REDUCE(memory(1:3)       , 0      , 3 , MPI_DOUBLE_PRECISION , MPI_SUM , 0 , MPI_COMM_LEADERS_SHARED , IERROR)
     END IF ! myLeaderGroupRank.EQ.0
   END IF ! myComputeNodeRank.EQ.0
 END IF ! nProcessors.EQ.1
+#if defined(MEASURE_MPI_WAIT)
+CALL SYSTEM_CLOCK(count=CounterEnd, count_rate=Rate)
+MPIW8TimeMM  = MPIW8TimeMM + REAL(CounterEnd-CounterStart,8)/Rate
+MPIW8CountMM = MPIW8CountMM + 1_8
+#endif /*defined(MEASURE_MPI_WAIT)*/
 #endif /*USE_MPI*/
 
 ! --------------------------------------------------
@@ -1325,12 +1354,38 @@ END IF ! nProcessors.EQ.1
 IF(.NOT.MPIRoot)RETURN
 
 ! Convert kB to GB
-memory=memory/1048576.
+memory(1:3)=memory(1:3)/1048576.
 #if ! (CORE_SPLIT==0)
-  ! When core-level splitting is used, it is not clear how many cores are on the same physical compute node.
-  ! Therefore, the values are set to -1.
+! When core-level splitting is used, it is not clear how many cores are on the same physical compute node.
+! Therefore, the values are set to -1.
+#if USE_MPI
+IF(NbrOfPhysicalNodes.GT.0)THEN
+  memory(2:3) = memory(2:3) * REAL(NbrOfPhysicalNodes) / REAL(nLeaderGroupProcs)
+ELSE
   memory(2:3) = -1.
+END IF ! NbrOfPhysicalNodes.GT.0
+#endif /*USE_MPI*/
 #endif /*! (CORE_SPLIT==0)*/
+
+! Check for memory leaks
+#if USE_MPI
+IF(MemoryMonitor)THEN
+#endif /*USE_MPI*/
+  IF(memory(4).LE.0.)THEN
+    memory(4) = memory(1) ! Store total initially used memory
+  ELSE
+    ! Check if more memory is used than at the beginning AND 95% of the total memory available is reached
+    MemUsagePercent = (memory(1)/memory(3))*100.0
+    !MemUsagePercent = 99.32
+    IF((memory(1).GT.memory(4)).AND.(MemUsagePercent.GT.95.0))THEN
+      CALL set_formatting("red")
+      SWRITE(UNIT_stdOut,'(A,F5.2,A)') ' WARNING: Memory reaching maximum, RAM is at ',MemUsagePercent,'%'
+      CALL clear_formatting()
+    END IF
+  END IF ! WriteHeader
+#if USE_MPI
+END IF ! MemoryMonitor
+#endif /*USE_MPI*/
 
 ! Either create new file or add info to existing file
 !> create new file
@@ -1365,59 +1420,59 @@ IF(WriteHeader)THEN
   WRITE(ioUnit,'(A)')TRIM(ADJUSTL(tmpStr2))    ! clip away the front and rear white spaces of the temporary string
 
   CLOSE(ioUnit)
-ELSE !
-  IF(PRESENT(time_opt))THEN
-    time_loc = time_opt
-  ELSE
-    time_loc = -1.
-  END IF
+END IF
+
+IF(PRESENT(time_opt))THEN
+  time_loc = time_opt
+ELSE
+  time_loc = -1.
+END IF
 #ifdef PARTICLES
-  ! Calculate elem time proportions for field and particle routines
-  SumElemTime=ElemTimeField+ElemTimePart
-  IF(SumElemTime.LE.0.)THEN
-    ElemTimeFieldPercent = 0.
-    ElemTimePartPercent  = 0.
-  ELSE
-    ElemTimeFieldPercent = 100. * ElemTimeField / SumElemTime
-    ElemTimePartPercent  = 100. * ElemTimePart / SumElemTime
-  END IF ! ElemTimeField+ElemTimePart.LE.0.
+! Calculate elem time proportions for field and particle routines
+SumElemTime=ElemTimeField+ElemTimePart
+IF(SumElemTime.LE.0.)THEN
+  ElemTimeFieldPercent = 0.
+  ElemTimePartPercent  = 0.
+ELSE
+  ElemTimeFieldPercent = 100. * ElemTimeField / SumElemTime
+  ElemTimePartPercent  = 100. * ElemTimePart / SumElemTime
+END IF ! ElemTimeField+ElemTimePart.LE.0.
 #endif /*PARTICLES*/
 
-  IF (FILEEXISTS(outfile)) THEN
-    OPEN(NEWUNIT=ioUnit,FILE=TRIM(outfile),POSITION="APPEND",STATUS="OLD")
-    WRITE(formatStr,'(A2,I2,A14,A1)')'(',nOutputVar,CSVFORMAT,')'
-    WRITE(tmpStr2,formatStr)&
-              " ",time_loc                ,&
-        delimiter,REAL(nProcessors)       ,&
-        delimiter,MinWeight               ,&
-        delimiter,MaxWeight               ,&
-        delimiter,CurrentImbalance        ,&
-        delimiter,TargetWeight            ,&
-        delimiter,REAL(nLoadBalanceSteps) ,&
-        delimiter,WeightSum               ,&
-        delimiter,SimulationEfficiency    ,&
-        delimiter,PID                     ,&
-        delimiter,WallTime                ,&
-        delimiter,DomainDecompositionWallTime,&
-        delimiter,CommMeshReadinWallTime  ,&
-        delimiter,ReadMeshWallTime        ,&
-        delimiter,InitializationWallTime  ,&
-        delimiter,memory(1)               ,&
-        delimiter,memory(2)               ,&
-        delimiter,memory(3)                &
+IF (FILEEXISTS(outfile)) THEN
+  OPEN(NEWUNIT=ioUnit,FILE=TRIM(outfile),POSITION="APPEND",STATUS="OLD")
+  WRITE(formatStr,'(A2,I2,A14,A1)')'(',nOutputVar,CSVFORMAT,')'
+  WRITE(tmpStr2,formatStr)&
+            " ",time_loc                ,&
+      delimiter,REAL(nProcessors)       ,&
+      delimiter,MinWeight               ,&
+      delimiter,MaxWeight               ,&
+      delimiter,CurrentImbalance        ,&
+      delimiter,TargetWeight            ,&
+      delimiter,REAL(nLoadBalanceSteps) ,&
+      delimiter,WeightSum               ,&
+      delimiter,SimulationEfficiency    ,&
+      delimiter,PID                     ,&
+      delimiter,WallTime                ,&
+      delimiter,DomainDecompositionWallTime,&
+      delimiter,CommMeshReadinWallTime  ,&
+      delimiter,ReadMeshWallTime        ,&
+      delimiter,InitializationWallTime  ,&
+      delimiter,memory(1)               ,&
+      delimiter,memory(2)               ,&
+      delimiter,memory(3)                &
 #ifdef PARTICLES
-       ,delimiter,REAL(nGlobalNbrOfParticles(3)),&
-        delimiter,ElemTimeField              ,&
-        delimiter,ElemTimePart               ,&
-        delimiter,ElemTimeFieldPercent       ,&
-        delimiter,ElemTimePartPercent
+     ,delimiter,REAL(nGlobalNbrOfParticles(3)),&
+      delimiter,ElemTimeField              ,&
+      delimiter,ElemTimePart               ,&
+      delimiter,ElemTimeFieldPercent       ,&
+      delimiter,ElemTimePartPercent
 #endif /*PARTICLES*/
-    ; ! this is required for terminating the "&" when particles=off
-    WRITE(ioUnit,'(A)')TRIM(ADJUSTL(tmpStr2)) ! clip away the front and rear white spaces of the data line
-    CLOSE(ioUnit)
-  ELSE
-    WRITE(UNIT_stdOut,'(A)')TRIM(outfile)//" does not exist. Cannot write load balance info!"
-  END IF
+  ; ! this is required for terminating the "&" when particles=off
+  WRITE(ioUnit,'(A)')TRIM(ADJUSTL(tmpStr2)) ! clip away the front and rear white spaces of the data line
+  CLOSE(ioUnit)
+ELSE
+  WRITE(UNIT_stdOut,'(A)')TRIM(outfile)//" does not exist. Cannot write load balance info!"
 END IF
 
 END SUBROUTINE WriteElemTimeStatistics

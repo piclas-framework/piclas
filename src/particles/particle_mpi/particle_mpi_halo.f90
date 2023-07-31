@@ -1,7 +1,7 @@
 !==================================================================================================================================
 ! Copyright (c) 2010 - 2018 Prof. Claus-Dieter Munz and Prof. Stefanos Fasoulas
 !
-! This file is part of PICLas (gitlab.com/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
+! This file is part of PICLas (piclas.boltzplatz.eu/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
 ! it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3
 ! of the License, or (at your option) any later version.
 !
@@ -56,7 +56,7 @@ USE MOD_MPI_Shared
 USE MOD_MPI_Shared_Vars
 USE MOD_MPI_Vars                ,ONLY: offsetElemMPI
 USE MOD_Particle_Mesh_Tools     ,ONLY: GetGlobalNonUniqueSideID
-USE MOD_Particle_Mesh_Vars      ,ONLY: GEO,MeshHasRotPeriodic,nComputeNodeElems
+USE MOD_Particle_Mesh_Vars      ,ONLY: GEO,nComputeNodeElems
 USE MOD_Particle_Mesh_Vars      ,ONLY: ElemInfo_Shared,SideInfo_Shared,BoundsOfElem_Shared,NodeCoords_Shared
 USE MOD_Particle_MPI_Vars       ,ONLY: SafetyFactor,halo_eps,halo_eps_velo,MPI_halo_eps,halo_eps_woshape
 USE MOD_Particle_MPI_Vars       ,ONLY: nExchangeProcessors,ExchangeProcToGlobalProc,GlobalProcToExchangeProc,CheckExchangeProcs
@@ -74,11 +74,12 @@ USE MOD_CalcTimeStep            ,ONLY: CalcTimeStep
 #if (PP_TimeDiscMethod==501) || (PP_TimeDiscMethod==502) || (PP_TimeDiscMethod==506)
 USE MOD_TimeDisc_Vars           ,ONLY: nRKStages,RK_c
 #endif
-USE MOD_Particle_Boundary_Vars  ,ONLY: PartBound
+USE MOD_Particle_Boundary_Vars  ,ONLY: PartBound,nPartBound
 USE MOD_Particle_Mesh_Vars      ,ONLY: IsExchangeElem
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Vars        ,ONLY: PerformLoadBalance
 #endif /*USE_LOADBALANCE*/
+USE MOD_part_tools              ,ONLY: RotateVectorAroundAxis
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT/OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -101,7 +102,6 @@ LOGICAL,ALLOCATABLE            :: MPISideElem(:)
 LOGICAL                        :: ProcHasExchangeElem
 ! halo_eps reconstruction
 REAL                           :: MPI_halo_eps_velo,MPI_halo_diag,vec(1:3),deltaT, MPI_halo_eps_woshape
-LOGICAL                        :: fullMesh
 #if (PP_TimeDiscMethod==501) || (PP_TimeDiscMethod==502) || (PP_TimeDiscMethod==506)
 INTEGER                        :: iStage
 #endif
@@ -115,17 +115,20 @@ LOGICAL,ALLOCATABLE            :: GlobalProcToRecvProc(:), RecvProcs(:)
 LOGICAL,ALLOCATABLE            :: CommFlag(:)
 INTEGER                        :: nNonSymmetricExchangeProcs,nNonSymmetricExchangeProcsGlob
 INTEGER                        :: nExchangeProcessorsGlobal, nSendShapeElems, CNElemID, exElem, exProc, jProc, ProcID
-REAL                           :: RotBoundsOfElemCenter(1:3)
+REAL                           :: alpha, RotBoundsOfElemCenter(1:3)
 LOGICAL                        :: SideIsRotPeriodic
-INTEGER                        :: BCindex
+INTEGER                        :: BCindex,iPartBound
 REAL                           :: StartT,EndT
+CHARACTER(LEN=255)             :: hilf
+INTEGER                        :: k,iLocElem
+LOGICAL                        :: InInterPlaneRegion
+REAL                           :: InterPlaneDistance
 !=================================================================================================================================
 
-IF(MPIRoot)THEN
-  LBWRITE(UNIT_StdOut,'(132("-"))')
-  LBWRITE(UNIT_stdOut,'(A)') ' IDENTIFYING Particle Exchange Processors ...'
-  StartT=MPI_WTIME()
-END IF ! MPIRoot
+WRITE(hilf,'(A)') 'IDENTIFYING Particle Exchange Processors ...'
+LBWRITE(UNIT_StdOut,'(132("-"))')
+LBWRITE(UNIT_stdOut,'(A)') ' '//TRIM(hilf)
+GETTIME(StartT)
 
 ! Allocate arrays
 ALLOCATE(GlobalProcToExchangeProc(EXCHANGE_PROC_SIZE,0:nProcessors_Global-1))
@@ -145,8 +148,8 @@ GlobalProcToRecvProc = .FALSE.
 ! Identify all procs with elements in range. This includes checking the procs on the compute-node as they might lie far apart
 IF (nProcessors.EQ.1) THEN
   SWRITE(UNIT_stdOut,'(A)') ' | Running on one processor. Particle exchange communication disabled.'
-  SWRITE(UNIT_stdOut,'(A)') ' IDENTIFYING Particle Exchange Processors DONE!'
-  SWRITE(UNIT_StdOut,'(132("-"))')
+  GETTIME(EndT)
+  CALL DisplayMessageAndTime(EndT-StartT, TRIM(hilf)//' DONE!', DisplayDespiteLB=.TRUE.)
   IF(TRIM(DepositionType).EQ.'cell_volweight_mean')THEN
     ALLOCATE(FlagShapeElem(1:nComputeNodeTotalElems))
     FlagShapeElem = .FALSE.
@@ -367,7 +370,6 @@ END DO
 !>>> MPI-surface (local proc MPI sides)
 
 ! if running on one node, halo_eps is meaningless. Get a representative MPI_halo_eps for MPI proc identification
-fullMesh = .FALSE.
 IF (halo_eps.LE.0.) THEN
   ! reconstruct halo_eps_velo
   IF (halo_eps_velo.EQ.0.) THEN
@@ -416,12 +418,10 @@ IF (halo_eps.LE.0.) THEN
   IF (.NOT.ALMOSTZERO(MPI_halo_eps).AND.(MPI_halo_diag.GE.MPI_halo_eps)) THEN
     LBWRITE(UNIT_stdOUt,'(A,E11.3)') ' | No halo_eps given. Reconstructed to ',MPI_halo_eps
   ELSEIF (.NOT.ALMOSTZERO(MPI_halo_eps).AND.(MPI_halo_diag.LT.MPI_halo_eps)) THEN
-    fullMesh = .TRUE.
     MPI_halo_eps = MPI_halo_diag
     LBWRITE(UNIT_stdOUt,'(A,E11.3)') ' | No halo_eps given. Reconstructed to global diag with ',MPI_halo_eps
   ! halo_eps still at zero. Set it to global diagonal
   ELSE
-    fullMesh = .TRUE.
     MPI_halo_eps = MPI_halo_diag
     LBWRITE(UNIT_stdOUt,'(A,F11.3)') ' | No halo_eps given and could not be reconstructed. Using global diag with ',MPI_halo_eps
   END IF
@@ -431,7 +431,6 @@ ELSE
   vec(3)   = GEO%zmaxglob-GEO%zminglob
   MPI_halo_diag = VECNORM(vec)
 
-  IF (MPI_halo_diag.LE.halo_eps) fullMesh = .TRUE.
   MPI_halo_eps = halo_eps
   MPI_halo_eps_woshape = halo_eps_woshape
 END IF
@@ -590,24 +589,18 @@ ElemLoop:  DO iElem = 1,nComputeNodeTotalElems
           END SELECT
 
           ! Check rot periodic Elems and if iSide is on rot periodic BC
-          IF(MeshHasRotPeriodic) THEN
-            DO iPeriodicDir = 1,2
-              ASSOCIATE( alpha => GEO%RotPeriodicAngle * DirPeriodicVector(iPeriodicDir) )
-                SELECT CASE(GEO%RotPeriodicAxi)
-                  CASE(1) ! x-rotation axis
-                    RotBoundsOfElemCenter(1) = BoundsOfElemCenter(1)
-                    RotBoundsOfElemCenter(2) = COS(alpha)*BoundsOfElemCenter(2) - SIN(alpha)*BoundsOfElemCenter(3)
-                    RotBoundsOfElemCenter(3) = SIN(alpha)*BoundsOfElemCenter(2) + COS(alpha)*BoundsOfElemCenter(3)
-                  CASE(2) ! y-rotation axis
-                    RotBoundsOfElemCenter(1) = COS(alpha)*BoundsOfElemCenter(1) + SIN(alpha)*BoundsOfElemCenter(3)
-                    RotBoundsOfElemCenter(2) = BoundsOfElemCenter(2)
-                    RotBoundsOfElemCenter(3) =-SIN(alpha)*BoundsOfElemCenter(1) + COS(alpha)*BoundsOfElemCenter(3)
-                  CASE(3) ! z-rotation axis
-                    RotBoundsOfElemCenter(1) = COS(alpha)*BoundsOfElemCenter(1) - SIN(alpha)*BoundsOfElemCenter(2)
-                    RotBoundsOfElemCenter(2) = SIN(alpha)*BoundsOfElemCenter(1) + COS(alpha)*BoundsOfElemCenter(2)
-                    RotBoundsOfElemCenter(3) = BoundsOfElemCenter(3)
-                END SELECT
+          IF(PartBound%UseRotPeriodicBC) THEN
+            DO iPartBound = 1, nPartBound
+              IF(PartBound%TargetBoundCond(iPartBound).NE.PartBound%RotPeriodicBC) CYCLE
+                alpha = PartBound%RotPeriodicAngle(iPartBound) * PartBound%RotPeriodicTol
+              ASSOCIATE(RotBoundMin => PartBound%RotPeriodicMin(iPartBound)-MPI_halo_eps_woshape, &
+                        RotBoundMax => PartBound%RotPeriodicMax(iPartBound)+MPI_halo_eps_woshape)
+                IF( (BoundsOfElemCenter(PartBound%RotPeriodicAxis)-BoundsOfElemCenter(4).GE.RotBoundMax).OR. &
+                    (BoundsOfElemCenter(PartBound%RotPeriodicAxis)+BoundsOfElemCenter(4).LE.RotBoundMin) ) CYCLE
+                IF( (MPISideBoundsOfNbElemCenter(PartBound%RotPeriodicAxis,iSide)-MPISideBoundsOfNbElemCenter(4,iSide).GE.RotBoundMax).OR. &
+                    (MPISideBoundsOfNbElemCenter(PartBound%RotPeriodicAxis,iSide)+MPISideBoundsOfNbElemCenter(4,iSide).LE.RotBoundMin) ) CYCLE
               END ASSOCIATE
+              RotBoundsOfElemCenter(1:3) = RotateVectorAroundAxis(BoundsOfElemCenter(1:3),PartBound%RotPeriodicAxis,alpha)
               ! check if element is within halo_eps of rotationally displaced element
               IF (VECNORM( RotBoundsOfElemCenter(1:3)                                           &
                          - MPISideBoundsOfNbElemCenter(1:3,iSide))                              &
@@ -617,9 +610,9 @@ ElemLoop:  DO iElem = 1,nComputeNodeTotalElems
                 IsExchangeElem(localElem) = .TRUE.
                 CYCLE ElemLoop
               END IF
-            END DO
+            END DO ! nPartBound
             ! End check rot periodic Elems and if iSide is on rot periodic BC
-          END IF ! GEO%RotPeriodicBC
+          END IF ! PartBound%UseRotPeriodicBC
 
         ! Element is in range of not-periodically displaced MPI side
         ELSE
@@ -639,7 +632,7 @@ ElemLoop:  DO iElem = 1,nComputeNodeTotalElems
     SELECT CASE(GlobalProcToExchangeProc(EXCHANGE_PROC_TYPE,HaloProc))
       ! Proc not previously encountered, check if possibly in range
       CASE(-1)
-        IF(GEO%RotPeriodicBC) THEN
+        IF(PartBound%UseRotPeriodicBC) THEN
           GlobalProcToExchangeProc(EXCHANGE_PROC_TYPE,HaloProc) = 0
         ELSE
           firstElem = offsetElemMPI(HaloProc)+1
@@ -852,24 +845,10 @@ ElemLoop:  DO iElem = 1,nComputeNodeTotalElems
       END SELECT
 
       ! Check rot periodic Elems and if iSide is on rot periodic BC
-      IF(MeshHasRotPeriodic) THEN
-        DO iPeriodicDir = 1,2
-          ASSOCIATE( alpha => GEO%RotPeriodicAngle * DirPeriodicVector(iPeriodicDir) )
-            SELECT CASE(GEO%RotPeriodicAxi)
-              CASE(1) ! x-rotation axis
-                RotBoundsOfElemCenter(1) = BoundsOfElemCenter(1)
-                RotBoundsOfElemCenter(2) = COS(alpha)*BoundsOfElemCenter(2) - SIN(alpha)*BoundsOfElemCenter(3)
-                RotBoundsOfElemCenter(3) = SIN(alpha)*BoundsOfElemCenter(2) + COS(alpha)*BoundsOfElemCenter(3)
-              CASE(2) ! y-rotation axis
-                RotBoundsOfElemCenter(1) = COS(alpha)*BoundsOfElemCenter(1) + SIN(alpha)*BoundsOfElemCenter(3)
-                RotBoundsOfElemCenter(2) = BoundsOfElemCenter(2)
-                RotBoundsOfElemCenter(3) =-SIN(alpha)*BoundsOfElemCenter(1) + COS(alpha)*BoundsOfElemCenter(3)
-              CASE(3) ! z-rotation axis
-                RotBoundsOfElemCenter(1) = COS(alpha)*BoundsOfElemCenter(1) - SIN(alpha)*BoundsOfElemCenter(2)
-                RotBoundsOfElemCenter(2) = SIN(alpha)*BoundsOfElemCenter(1) + COS(alpha)*BoundsOfElemCenter(2)
-                RotBoundsOfElemCenter(3) = BoundsOfElemCenter(3)
-            END SELECT
-          END ASSOCIATE
+      IF(PartBound%UseRotPeriodicBC) THEN
+        DO iPartBound = 1, nPartBound
+          alpha = PartBound%RotPeriodicAngle(iPartBound) * PartBound%RotPeriodicTol
+          RotBoundsOfElemCenter(1:3) = RotateVectorAroundAxis(BoundsOfElemCenter(1:3),PartBound%RotPeriodicAxis,alpha)
           ! check if element is within halo_eps of rotationally displaced element
           IF (VECNORM( RotBoundsOfElemCenter(1:3)                                           &
                      - MPISideBoundsOfElemCenter(1:3,iSide))                                &
@@ -885,9 +864,9 @@ ElemLoop:  DO iElem = 1,nComputeNodeTotalElems
             nExchangeProcessors = nExchangeProcessors + 1
             CYCLE ElemLoop
           END IF
-        END DO
+        END DO ! nPartBound
         ! End check rot periodic Elems and if iSide is on rot periodic BC
-      END IF ! GEO%RotPeriodicBC
+      END IF ! PartBound%UseRotPeriodicBC
 
     ! Element is in range of not-periodically displaced MPI side
     ELSE
@@ -969,6 +948,54 @@ ExchangeLoop: DO iElem = offsetElemMPI(iProc)+1,offsetElemMPI(iProc+1)
     nExchangeProcessors = nExchangeProcessors - 1
   END IF
 END DO ! iProc = 1,nExchangeProcessors
+
+IF(PartBound%UseInterPlaneBC) THEN
+  k = PartBound%RotPeriodicAxis ! Direction of rotation axis == norm vec for all inter planes
+  DO iPartBound = 1,nPartBound
+    ! ignore non-Inter-Plane-BCs
+    IF(PartBound%TargetBoundCond(iPartBound).NE.PartBound%RotPeriodicInterPlaneBC) CYCLE
+    InInterPlaneRegion = .FALSE.
+! (1) Loop over all proc local elements in order to identify if any of own element is within halo_eps of the inter plane
+    DO iLocElem = offsetElem+1,offsetElem+nElems
+      BoundsOfElemCenter(1:3) = (/    SUM(BoundsOfElem_Shared(1:2,1,iLocElem)),                                     &
+                                      SUM(BoundsOfElem_Shared(1:2,2,iLocElem)),                                     &
+                                      SUM(BoundsOfElem_Shared(1:2,3,iLocElem)) /) / 2.
+      BoundsOfElemCenter(4) = VECNORM ((/ BoundsOfElem_Shared(2,1,iLocElem)-BoundsOfElem_Shared(1,1,iLocElem), &
+                                          BoundsOfElem_Shared(2,2,iLocElem)-BoundsOfElem_Shared(1,2,iLocElem),      &
+                                          BoundsOfElem_Shared(2,3,iLocElem)-BoundsOfElem_Shared(1,3,iLocElem) /) / 2.)
+      InterPlaneDistance = ABS(PartBound%RotAxisPosition(iPartBound) - BoundsOfElemCenter(k))
+      IF(InterPlaneDistance.LE.halo_eps+BoundsOfElemCenter(4)) THEN
+        InInterPlaneRegion = .TRUE.
+        EXIT
+      END IF
+    END DO
+    IF(InInterPlaneRegion) THEN
+! (2) Loop over all elements on the compute node and add the procs as halo_procs if they are within the corresponding 
+!     InterplaneRegion
+      DO iElem = 1,nComputeNodeTotalElems
+        ElemID   = GetGlobalElemID(iElem)
+        HaloProc = ElemInfo_Shared(ELEM_RANK,ElemID)
+        ! Skip elements on same rank
+        IF (HaloProc.EQ.myRank) CYCLE
+        ! Ignore procs that are already flagged or not requesting communication
+        IF (GlobalProcToExchangeProc(EXCHANGE_PROC_TYPE,HaloProc).GT.0) CYCLE
+        BoundsOfElemCenter(1:3) = (/    SUM(BoundsOfElem_Shared(1:2,1,ElemID)),                                     &
+                                        SUM(BoundsOfElem_Shared(1:2,2,ElemID)),                                     &
+                                        SUM(BoundsOfElem_Shared(1:2,3,ElemID)) /) / 2.
+        BoundsOfElemCenter(4) = VECNORM ((/ BoundsOfElem_Shared(2,1,ElemID)-BoundsOfElem_Shared(1,1,ElemID), &
+                                            BoundsOfElem_Shared(2,2,ElemID)-BoundsOfElem_Shared(1,2,ElemID),      &
+                                            BoundsOfElem_Shared(2,3,ElemID)-BoundsOfElem_Shared(1,3,ElemID) /) / 2.)
+        InterPlaneDistance = ABS(PartBound%RotAxisPosition(iPartBound) - BoundsOfElemCenter(k))
+        IF(InterPlaneDistance.LE.halo_eps+BoundsOfElemCenter(4)) THEN
+          ! flag the proc as exchange proc (in halo region)
+          GlobalProcToExchangeProc(EXCHANGE_PROC_TYPE,HaloProc) = 2
+          GlobalProcToExchangeProc(EXCHANGE_PROC_RANK,HaloProc) = nExchangeProcessors
+          nExchangeProcessors = nExchangeProcessors + 1
+        END IF
+      END DO
+    END IF
+  END DO
+END IF
 
 ! Notify every proc if it was identified by the local proc
 IF(CheckExchangeProcs)THEN
@@ -1484,11 +1511,8 @@ IF(StringBeginsWith(DepositionType,'shape_function'))THEN
   ADEALLOCATE(ShapeElemProcSend_Shared)
 END IF
 
-IF(MPIRoot)THEN
-  EndT=MPI_WTIME()
-  LBWRITE(UNIT_stdOut,'(A,F0.3,A)') ' IDENTIFYING Particle Exchange Processors DONE  [',EndT-StartT,'s]'
-  LBWRITE(UNIT_StdOut,'(132("-"))')
-END IF ! MPIRoot
+GETTIME(EndT)
+CALL DisplayMessageAndTime(EndT-StartT, TRIM(hilf)//' DONE!')
 
 END SUBROUTINE IdentifyPartExchangeProcs
 

@@ -96,23 +96,28 @@ do
     #CMAKEVERSION=3.15.3-d
     #CMAKEVERSION=3.17.0-d
     #CMAKEVERSION=3.20.3
-    CMAKEVERSION=3.21.3
+    #CMAKEVERSION=3.21.3
+    #CMAKEVERSION=3.24.2
+    CMAKEVERSION=3.26.4
 
     #GCCVERSION=9.2.0
     #GCCVERSION=9.3.0
     #GCCVERSION=10.1.0
     #GCCVERSION=10.2.0
-    GCCVERSION=11.2.0
+    #GCCVERSION=11.2.0
+    GCCVERSION=13.1.0
 
     #OPENMPIVERSION=3.1.4
     #OPENMPIVERSION=4.0.1
     #OPENMPIVERSION=4.0.2
     #OPENMPIVERSION=3.1.6
-    OPENMPIVERSION=4.1.1
+    #OPENMPIVERSION=4.1.1
+    OPENMPIVERSION=4.1.5
 
     #HDF5VERSION=1.10.5
     #HDF5VERSION=1.10.6
-    HDF5VERSION=1.12.1
+    #HDF5VERSION=1.12.1
+    HDF5VERSION=1.14.0
   fi
 
   # Check if re-run mode is selected by the user
@@ -193,7 +198,7 @@ if [ ! -e "${MODULEFILE}" ]; then
   echo " "
   echo -e "This will install HOPR version ${GREEN}${HOPRVERSION}${NC} from ${HOPRDOWNLOAD} \nCompilation in parallel will be executed with ${GREEN}${NBROFCORES} threads${NC}."
   if [[ ${RERUNMODE} -eq 0 ]]; then
-    read -p "Have the correct modules been loaded? If yes, press [Enter] to continue or [Crtl+c] to abort!"
+    read -p "Have the correct modules been loaded? If yes, press [Enter] to continue or [Crtl+c] to abort! Note that hopr will be installed via cmake with -DLIBS_USE_MPI=OFF"
   fi
 
   # Install destination
@@ -261,7 +266,7 @@ if [ ! -e "${MODULEFILE}" ]; then
 
   # CMAKE COMPILE FLAGS
   cmake -DCMAKE_BUILD_TYPE=Release \
-        -DLIBS_USE_MPI=ON \
+        -DLIBS_USE_MPI=OFF \
         -DLIBS_BUILD_HDF5=OFF \
         ${CLONEDIR}
 

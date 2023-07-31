@@ -1,7 +1,7 @@
 !==================================================================================================================================
 ! Copyright (c) 2015 - 2019 Wladimir Reschke
 !
-! This file is part of PICLas (gitlab.com/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
+! This file is part of PICLas (piclas.boltzplatz.eu/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
 ! it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3
 ! of the License, or (at your option) any later version.
 !
@@ -26,6 +26,7 @@ PRIVATE
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
 PUBLIC :: SurfaceModel_ParticleEmission, SurfaceModel_EnergyAccommodation, GetWallTemperature, CalcPostWallCollVelo, CalcRotWallVelo
+PUBLIC :: CalcWallTempGradient
 !===================================================================================================================================
 
 CONTAINS
@@ -77,7 +78,7 @@ WallTemp   = PartBound%WallTemp(locBCID)
 WallVelo   = PartBound%WallVelo(1:3,locBCID)
 
 IF(PartBound%RotVelo(locBCID)) THEN
-  CALL CalcRotWallVelo(locBCID,POI_vec,WallVelo)
+  WallVelo(1:3) = CalcRotWallVelo(locBCID,POI_vec)
 END IF
 
 CALL OrthoNormVec(n_loc,tang1,tang2)
@@ -142,7 +143,7 @@ REAL,INTENT(IN)       :: WallTemp
 ! LOCAL VARIABLES
 INTEGER               :: SpecID, vibQuant, vibQuantNew, VibQuantWall
 REAL                  :: RanNum
-REAL                  :: TransACC, VibACC, RotACC, ElecACC
+REAL                  :: VibACC, RotACC, ElecACC
 REAL                  :: ErotNew, ErotWall, EVibNew
 ! Polyatomic Molecules
 REAL                  :: NormProb, VibQuantNewR
@@ -151,7 +152,6 @@ INTEGER               :: iPolyatMole, iDOF
 INTEGER, ALLOCATABLE  :: VibQuantNewPoly(:), VibQuantWallPoly(:), VibQuantTemp(:)
 !-----------------------------------------------------------------------------------------------------------------------------------
 SpecID    = PartSpecies(PartID)
-TransACC  = PartBound%TransACC(locBCID)
 VibACC    = PartBound%VibACC(locBCID)
 RotACC    = PartBound%RotACC(locBCID)
 ElecACC   = PartBound%ElecACC(locBCID)
@@ -213,8 +213,7 @@ IF (useDSMC) THEN
             END IF
           END DO
         ELSE
-          VibQuant     = NINT(PartStateIntEn(1,PartID)/(BoltzmannConst*SpecDSMC(SpecID)%CharaTVib) &
-              - DSMC%GammaQuant)
+          VibQuant     = NINT(PartStateIntEn(1,PartID)/(BoltzmannConst*SpecDSMC(SpecID)%CharaTVib) - DSMC%GammaQuant)
           CALL RANDOM_NUMBER(RanNum)
           VibQuantWall = INT(-LOG(RanNum) * WallTemp / SpecDSMC(SpecID)%CharaTVib)
           DO WHILE (VibQuantWall.GE.SpecDSMC(SpecID)%MaxVibQuant)
@@ -268,21 +267,11 @@ INTEGER, INTENT(IN)             :: locBCID, PartID, SideID
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-REAL                            :: TempGradLength, POI(3), POI_projected(1:3)
+REAL                            :: POI(3)
 !-----------------------------------------------------------------------------------------------------------------------------------
 IF(PartBound%WallTemp2(locBCID).GT.0.0) THEN
   POI(1:3) = LastPartPos(1:3,PartID) + TrackInfo%PartTrajectory(1:3)*TrackInfo%alpha
-  POI_projected(1:3) = PartBound%TempGradStart(1:3,locBCID) &
-                      + DOT_PRODUCT((POI(1:3) - PartBound%TempGradStart(1:3,locBCID)),PartBound%TempGradVec(1:3,locBCID)) &
-                        / DOTPRODUCT(PartBound%TempGradVec(1:3,locBCID)) * PartBound%TempGradVec(1:3,locBCID)
-  TempGradLength = VECNORM(POI_projected(1:3))/VECNORM(PartBound%TempGradVec(1:3,locBCID))
-  IF(TempGradLength.LT.0.0) THEN
-    GetWallTemperature = PartBound%WallTemp(locBCID)
-  ELSE IF(TempGradLength.GT.1.0) THEN
-    GetWallTemperature = PartBound%WallTemp2(locBCID)
-  ELSE
-    GetWallTemperature = PartBound%WallTemp(locBCID) + TempGradLength * PartBound%WallTempDelta(locBCID)
-  END IF
+  GetWallTemperature = CalcWallTempGradient(POI,locBCID)
 ELSE IF (PartBound%UseAdaptedWallTemp(locBCID)) THEN
   GetWallTemperature = BoundaryWallTemp(TrackInfo%p,TrackInfo%q,GlobalSide2SurfSide(SURF_SIDEID,SideID))
 ELSE
@@ -290,6 +279,60 @@ ELSE
 END IF
 
 END FUNCTION GetWallTemperature
+
+
+PPURE REAL FUNCTION CalcWallTempGradient(PointVec,locBCID)
+!===================================================================================================================================
+!> Calculation of the wall temperature at a specific position due to the imposed temperature gradient (WallTemp2.GT.0)
+!===================================================================================================================================
+USE MOD_Globals                 ,ONLY: DOTPRODUCT, VECNORM
+USE MOD_Globals_Vars            ,ONLY: EpsMach
+USE MOD_Particle_Boundary_Vars  ,ONLY: PartBound
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+REAL, INTENT(IN)                :: PointVec(3)
+INTEGER, INTENT(IN)             :: locBCID
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+REAL                            :: Bounds(1:3), TempGradLength, PointVec_projected(1:3), WallTemp2
+!-----------------------------------------------------------------------------------------------------------------------------------
+ASSOCIATE(PB => PartBound)
+PointVec_projected(1:3) = PB%TempGradStart(1:3,locBCID) + DOT_PRODUCT((PointVec(1:3) - PB%TempGradStart(1:3,locBCID)), &
+                          PB%TempGradVec(1:3,locBCID)) / DOTPRODUCT(PB%TempGradVec(1:3,locBCID)) * PB%TempGradVec(1:3,locBCID)
+TempGradLength = VECNORM(PointVec_projected(1:3)-PB%TempGradStart(1:3,locBCID)) / VECNORM(PB%TempGradVec(1:3,locBCID))
+
+SELECT CASE(PB%TempGradDir(locBCID))
+CASE(0)
+  ! Position is projected onto the gradient vector
+  Bounds(1:3) = PointVec_projected(1:3)
+  ! Wall temperature is set to the end value
+  WallTemp2   = PB%WallTemp2(locBCID)
+CASE(1,2,3)
+  ! Simply using the actual position as bounds
+  Bounds(1:3) = PointVec(1:3)
+  ! Wall temperature is set to the end value
+  WallTemp2   = PB%WallTemp2(locBCID)
+END SELECT
+
+IF(MINVAL(Bounds(1:3)-PB%TempGradStart(1:3,locBCID)).LT.-EpsMach) THEN
+  CalcWallTempGradient = PB%WallTemp(locBCID)
+ELSEIF(MINVAL(PB%TempGradEnd(1:3,locBCID)-Bounds(1:3)).LT.-EpsMach) THEN
+  CalcWallTempGradient = WallTemp2
+ELSE
+  IF(TempGradLength.LT.0.0) THEN
+    CalcWallTempGradient = PB%WallTemp(locBCID)
+  ELSE IF(TempGradLength.GT.1.0) THEN
+    CalcWallTempGradient = WallTemp2
+  ELSE
+    CalcWallTempGradient = PB%WallTemp(locBCID) + TempGradLength * PB%WallTempDelta(locBCID)
+  END IF
+END IF
+END ASSOCIATE
+
+END FUNCTION CalcWallTempGradient
 
 
 FUNCTION CalcPostWallCollVelo(SpecID,VeloSquare,WallTemp,TransACC)
@@ -331,44 +374,43 @@ CalcPostWallCollVelo(3)  = Cmr * VeloCz
 END FUNCTION CalcPostWallCollVelo
 
 
-SUBROUTINE CalcRotWallVelo(locBCID,POI,WallVelo)
-!----------------------------------------------------------------------------------------------------------------------------------!
-! Calculation of additional velocity through the rotating wall. The velocity is equal to circumferential speed at
-! the point of intersection (POI):
-! The direction is perpendicular to the rotational axis (vec_axi) AND the distance vector (vec_axi -> POI).
-! Rotation direction based on Right-hand rule.
-! The magnitude of the velocity depends on radius and rotation frequency.
-!----------------------------------------------------------------------------------------------------------------------------------!
+PPURE FUNCTION CalcRotWallVelo(locBCID,POI)
+!===================================================================================================================================
+!> Calculation of additional velocity through the rotating wall. The velocity is equal to circumferential speed at
+!> the point of intersection (POI):
+!> The direction is perpendicular to the rotational axis (vec_axi) AND the distance vector (vec_axi -> POI).
+!> Rotation direction based on Right-hand rule. The magnitude of the velocity depends on radius and rotation frequency.
+!> Currently implemented: simplified version assuming that the rotational axis is one of the major axis x,y or z.
+!===================================================================================================================================
 ! MODULES                                                                                                                          !
-USE MOD_Globals                 ,ONLY: CROSSNORM,VECNORM
+USE MOD_Globals                 ,ONLY: CROSS
 USE MOD_Particle_Boundary_Vars  ,ONLY: PartBound
-USE MOD_Globals_Vars            ,ONLY: PI
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
-! INPUT / OUTPUT VARIABLES
+! INPUT VARIABLES
 INTEGER,INTENT(IN)    :: locBCID
 REAL,INTENT(IN)       :: POI(3)
-REAL,INTENT(INOUT)    :: WallVelo(3)
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+REAL                  :: CalcRotWallVelo(3)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-REAL                  :: vec_r(1:3),vec_a(1:3), vec_t(1:3), vec_OrgPOI(1:3),vec_axi_norm(1:3)
-REAL                  :: radius, circ_speed
 !===================================================================================================================================
 
-ASSOCIATE ( vec_org  => PartBound%RotOrg(1:3,locBCID) ,&
-            RotFreq  => PartBound%RotFreq(locBCID)    ,&
-            vec_axi  => PartBound%RotAxi(1:3,locBCID)   )
-  vec_OrgPOI(1:3) = POI(1:3) - vec_org(1:3)
-  vec_axi_norm = vec_axi / VECNORM(vec_axi)
-  vec_a(1:3) = DOT_PRODUCT(vec_axi_norm,vec_OrgPOI) * vec_axi_norm(1:3)
-  vec_r(1:3) = vec_OrgPOI(1:3) - vec_a(1:3)
-  radius = SQRT( vec_r(1)*vec_r(1) + vec_r(2)*vec_r(2) + vec_r(3)*vec_r(3) )
-  circ_speed = 2.0 * PI * radius * RotFreq
-  vec_t = CROSSNORM(vec_axi_norm,vec_r)
-  WallVelo(1:3) = circ_speed * vec_t(1:3)
-END ASSOCIATE
+! Case: rotational axis is NOT one of the major axis (x,y,z)
+! vec_OrgPOI(1:3) = POI(1:3) - PartBound%RotOrg(1:3,locBCID)
+! vec_axi_norm = PartBound%RotAxis(1:3,locBCID) / VECNORM(PartBound%RotAxis(1:3,locBCID))
+! vec_a(1:3) = DOT_PRODUCT(vec_axi_norm,vec_OrgPOI) * vec_axi_norm(1:3)
+! vec_r(1:3) = vec_OrgPOI(1:3) - vec_a(1:3)
+! radius = SQRT( vec_r(1)*vec_r(1) + vec_r(2)*vec_r(2) + vec_r(3)*vec_r(3) )
+! circ_speed = 2.0 * PI * radius * PartBound%RotFreq(locBCID)
+! vec_t = CROSSNORM(vec_axi_norm,vec_r)
+! WallVelo(1:3) = circ_speed * vec_t(1:3)
 
-END SUBROUTINE CalcRotWallVelo
+! Case: rotational is one of the major axis (x,y,z)
+CalcRotWallVelo(1:3) = CROSS(PartBound%RotOmega(1:3,locBCID),POI(1:3))
+
+END FUNCTION CalcRotWallVelo
 
 
 END MODULE MOD_SurfaceModel_Tools

@@ -64,7 +64,7 @@ This installation is optional and creates a module for HOPR by running
 
 and requires GCC, MPI and HDF5.
 
-## 9. HOPR from [https://ftp.mcs.anl.gov/pub/petsc/release-snapshots/](https://ftp.mcs.anl.gov/pub/petsc/release-snapshots/)
+## 9. PETSc from [https://ftp.mcs.anl.gov/pub/petsc/release-snapshots/](https://ftp.mcs.anl.gov/pub/petsc/release-snapshots/)
 This installation is optional and creates a module for PETSc by running
 
       sudo ./InstallPETSc.sh

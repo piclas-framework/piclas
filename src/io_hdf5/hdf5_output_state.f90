@@ -1,7 +1,7 @@
 !==================================================================================================================================
 ! Copyright (c) 2010 - 2018 Prof. Claus-Dieter Munz and Prof. Stefanos Fasoulas
 !
-! This file is part of PICLas (gitlab.com/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
+! This file is part of PICLas (piclas.boltzplatz.eu/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
 ! it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3
 ! of the License, or (at your option) any later version.
 !
@@ -21,9 +21,9 @@ USE MOD_io_HDF5
 USE MOD_HDF5_output
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
+! Private Part ---------------------------------------------------------------------------------------------------------------------
 PRIVATE
 !-----------------------------------------------------------------------------------------------------------------------------------
-! Private Part ---------------------------------------------------------------------------------------------------------------------
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
 
 INTERFACE WriteStateToHDF5
@@ -72,7 +72,7 @@ USE MOD_Particle_Vars          ,ONLY: CalcBulkElectronTemp,BulkElectronTemp
 USE MOD_Equation_Vars          ,ONLY: E,Phi
 #endif /*PP_POIS*/
 #if USE_HDG
-USE MOD_HDG_Vars               ,ONLY: nGP_face, iLocSides
+USE MOD_HDG_Vars               ,ONLY: nGP_face,iLocSides,UseFPC,FPC,UseEPC,EPC
 #if PP_nVar==1
 USE MOD_Equation_Vars          ,ONLY: E,Et
 #elif PP_nVar==3
@@ -82,17 +82,18 @@ USE MOD_Equation_Vars          ,ONLY: E,B
 #endif /*PP_nVar*/
 USE MOD_Mesh_Vars              ,ONLY: nSides
 USE MOD_Utils                  ,ONLY: QuickSortTwoArrays
-USE MOD_Mesh_Vars              ,ONLY: lastInnerSide
 USE MOD_Mappings               ,ONLY: CGNS_SideToVol2
 USE MOD_Utils                  ,ONLY: Qsort1DoubleInt1PInt
 USE MOD_Mesh_Tools             ,ONLY: LambdaSideToMaster
 #if USE_MPI
+USE MOD_Mesh_Vars              ,ONLY: lastInnerSide
 USE MOD_MPI_Vars               ,ONLY: OffsetMPISides_rec,nNbProcs,nMPISides_rec,nbProc
 USE MOD_Mesh_Tools             ,ONLY: GetMasteriLocSides
 #endif /*USE_MPI*/
 USE MOD_Mesh_Vars              ,ONLY: GlobalUniqueSideID
 USE MOD_Analyze_Vars           ,ONLY: CalcElectricTimeDerivative
 #ifdef PARTICLES
+USE MOD_HDG_Vars               ,ONLY: UseBiasVoltage,BiasVoltage,BVDataLength
 USE MOD_PICInterpolation_Vars  ,ONLY: useAlgebraicExternalField,AlgebraicExternalField
 USE MOD_Analyze_Vars           ,ONLY: AverageElectricPotential
 USE MOD_Mesh_Vars              ,ONLY: Elem_xGP
@@ -101,6 +102,7 @@ USE MOD_Particle_Analyze_Vars  ,ONLY: CalcElectronIonDensity,CalcElectronTempera
 USE MOD_Particle_Analyze_Tools ,ONLY: AllocateElectronIonDensityCell,AllocateElectronTemperatureCell
 USE MOD_Particle_Analyze_Tools ,ONLY: CalculateElectronIonDensityCell,CalculateElectronTemperatureCell
 USE MOD_HDF5_Output_Particles  ,ONLY: AddBRElectronFluidToPartSource
+USE MOD_HDG_Vars               ,ONLY: CoupledPowerPotential,UseCoupledPowerPotential,CPPDataLength
 #endif /*PARTICLES*/
 #endif /*USE_HDG*/
 USE MOD_Analyze_Vars           ,ONLY: OutputTimeFixed
@@ -111,6 +113,8 @@ USE MOD_HDF5_Output_Fields     ,ONLY: WritePMLDataToHDF5
 #endif
 USE MOD_HDF5_Output_ElemData   ,ONLY: WriteAdditionalElemData
 ! IMPLICIT VARIABLE HANDLING
+USE MOD_Analyze_Vars           ,ONLY: OutputErrorNormsToH5
+USE MOD_HDF5_Output_Fields     ,ONLY: WriteErrorNormsToHDF5
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
@@ -129,6 +133,9 @@ INTEGER(KIND=IK)               :: nVar
 #ifdef PARTICLES
 REAL                           :: NumSpec(nSpecAnalyze),TmpArray(1,1)
 INTEGER(KIND=IK)               :: SimNumSpec(nSpecAnalyze)
+#if USE_HDG
+REAL,ALLOCATABLE               :: CPPDataHDF5(:,:)
+#endif /*USE_HDG*/
 #endif /*PARTICLES*/
 REAL                           :: StartT,EndT
 
@@ -155,13 +162,17 @@ LOGICAL                        :: usePreviousTime_loc
 INTEGER                        :: iSide
 INTEGER                        :: iGlobSide
 INTEGER,ALLOCATABLE            :: SortedUniqueSides(:),GlobalUniqueSideID_tmp(:)
+#if USE_MPI
 LOGICAL,ALLOCATABLE            :: OutputSide(:)
+INTEGER                        :: SideID_start, SideID_end,iNbProc,SendID
+#endif /*USE_MPI*/
 REAL,ALLOCATABLE               :: SortedLambda(:,:,:)          ! lambda, ((PP_N+1)^2,nSides)
 INTEGER                        :: SortedOffset,SortedStart,SortedEnd
-INTEGER                        :: SideID_start, SideID_end,iNbProc,SendID
 #ifdef PARTICLES
 INTEGER                        :: i,j,k,iElem
 #endif /*PARTICLES*/
+REAL,ALLOCATABLE               :: FPCDataHDF5(:,:),EPCDataHDF5(:,:),BVDataHDF5(:,:)
+INTEGER                        :: nVarFPC,nVarEPC
 #endif /*USE_HDG*/
 !===================================================================================================================================
 #ifdef EXTRAE
@@ -197,12 +208,8 @@ END IF ! .NOT.DoWriteStateToHDF5
 ! Check if state file creation should be skipped
 IF(.NOT.DoWriteStateToHDF5) RETURN
 
-SWRITE(UNIT_stdOut,'(a)',ADVANCE='NO')' WRITE STATE TO HDF5 FILE '
-#if USE_MPI
-StartT=MPI_WTIME()
-#else
-CALL CPU_TIME(StartT)
-#endif
+SWRITE(UNIT_stdOut,'(A)',ADVANCE='NO')' WRITE STATE TO HDF5 FILE '
+GETTIME(StartT)
 
 
 ! Generate skeleton for the file with all relevant data on a single proc (MPIRoot)
@@ -331,7 +338,7 @@ ASSOCIATE (&
     END DO ! SendID = 1, 2
 
     CALL GetMasteriLocSides()
-    
+
   END IF ! nProcessors.GT.1
 #endif /*USE_MPI*/
 
@@ -357,12 +364,14 @@ ASSOCIATE (&
     ! Set side ID in processor local list
     iSide = SortedUniqueSides(iGlobSide)
 
+#if USE_MPI
     ! Skip sides that are not processed by the current proc
     IF(nProcessors.GT.1)THEN
       ! Check if a side belongs to me (all BC and inner sides automatically included); at MPI interfaces the smaller rank wins and
       ! must output the data, because for these sides it is ambiguous
       IF(.NOT.OutputSide(iSide)) CYCLE
     END IF ! nProcessors.GT.1
+#endif /*USE_MPI*/
 
     CALL LambdaSideToMaster(iSide,SortedLambda(:,:,iGlobSide))
 
@@ -376,7 +385,9 @@ ASSOCIATE (&
   ! Get offset and min/max index in sorted list
   SortedStart = 1
   SortedEnd   = nSides
+  SortedOffset = 0 ! initialize
 
+#if USE_MPI
   IF(nProcessors.GT.1)THEN
     SortedOffset=HUGE(1)
     DO iSide = 1, nSides
@@ -390,9 +401,8 @@ ASSOCIATE (&
     END DO
     SortedOffset = SortedOffset-1
     DEALLOCATE(OutputSide)
-  ELSE
-    SortedOffset = 0
   END IF ! nProcessors.GT.1
+#endif /*USE_MPI*/
 
   ASSOCIATE( nOutputSides => INT(SortedEnd-SortedStart+1,IK) ,&
         SortedOffset => INT(SortedOffset,IK)            ,&
@@ -483,7 +493,7 @@ ASSOCIATE (&
 #if USE_MPI
   CALL MPI_BARRIER(MPI_COMM_WORLD,iError)
 #endif /*USE_MPI*/
-  IF(OutPutSource) THEN
+  IF(OutputSource) THEN
 #if USE_HDG
     ! Add BR electron fluid density to PartSource for output to state.h5
     IF(UseBRElectronFluid) CALL AddBRElectronFluidToPartSource()
@@ -518,9 +528,9 @@ ASSOCIATE (&
   IF(CalcElectricTimeDerivative) THEN
     nVar=3_IK
     ALLOCATE(LocalStrVarNames(1:nVar))
-    LocalStrVarNames(1)='TimeDerivativeElectricFieldX'
-    LocalStrVarNames(2)='TimeDerivativeElectricFieldY'
-    LocalStrVarNames(3)='TimeDerivativeElectricFieldZ'
+    LocalStrVarNames(1)='TimeDerivativeElecDisplacementX'
+    LocalStrVarNames(2)='TimeDerivativeElecDisplacementY'
+    LocalStrVarNames(3)='TimeDerivativeElecDisplacementZ'
     IF(MPIRoot)THEN
       CALL OpenDataFile(FileName,create=.FALSE.,single=.TRUE.,readOnly=.FALSE.)
       CALL WriteAttributeToHDF5(File_ID,'VarNamesTimeDerivative',INT(nVar,4),StrArray=LocalStrVarnames)
@@ -551,7 +561,7 @@ END IF
 IF(UseAdaptive.OR.(nPorousBC.GT.0)) CALL WriteAdaptiveInfoToHDF5(FileName)
 CALL WriteVibProbInfoToHDF5(FileName)
 IF(RadialWeighting%PerformCloning) CALL WriteClonesToHDF5(FileName)
-IF (ANY(PartBound%UseAdaptedWallTemp)) CALL WriteAdaptiveWallTempToHDF5(FileName)
+IF (PartBound%OutputWallTemp) CALL WriteAdaptiveWallTempToHDF5(FileName)
 #if USE_MPI
 CALL MPI_BARRIER(MPI_COMM_WORLD,iError)
 #endif /*USE_MPI*/
@@ -561,13 +571,71 @@ IF(CalcBulkElectronTemp.AND.MPIRoot)THEN
   CALL OpenDataFile(FileName,create=.FALSE.,single=.TRUE.,readOnly=.FALSE.)
   TmpArray(1,1) = BulkElectronTemp
   CALL WriteArrayToHDF5( DataSetName = 'BulkElectronTemp' , rank = 2 , &
-                         nValGlobal  = (/1_IK , 1_IK/)     , &
-                         nVal        = (/1_IK , 1_IK/)     , &
-                         offset      = (/0_IK , 0_IK/)     , &
+                         nValGlobal  = (/1_IK , 1_IK/)               , &
+                         nVal        = (/1_IK , 1_IK/)               , &
+                         offset      = (/0_IK , 0_IK/)               , &
                          collective  = .FALSE., RealArray = TmpArray(1,1))
   CALL CloseDataFile()
 END IF ! CalcBulkElectronTempi.AND.MPIRoot
+#if USE_HDG
+IF(UseCoupledPowerPotential.AND.MPIRoot)THEN
+  ALLOCATE(CPPDataHDF5(1:CPPDataLength,1))
+  CALL OpenDataFile(FileName,create=.FALSE.,single=.TRUE.,readOnly=.FALSE.)
+  CPPDataHDF5(1:CPPDataLength,1) = CoupledPowerPotential(1:CPPDataLength)
+  CALL WriteArrayToHDF5( DataSetName = 'CoupledPowerPotential' , rank = 2 , &
+                         nValGlobal  = (/1_IK , INT(CPPDataLength,IK)/)   , &
+                         nVal        = (/1_IK , INT(CPPDataLength,IK)/)   , &
+                         offset      = (/0_IK , 0_IK/)                    , &
+                         collective  = .FALSE., RealArray = CPPDataHDF5(1:CPPDataLength,1))
+  CALL CloseDataFile()
+  DEALLOCATE(CPPDataHDF5)
+END IF ! CalcBulkElectronTempi.AND.MPIRoot
+! Bias voltage
+IF(UseBiasVoltage.AND.MPIRoot)THEN
+  ALLOCATE(BVDataHDF5(1:BVDataLength,1))
+  CALL OpenDataFile(FileName,create=.FALSE.,single=.TRUE.,readOnly=.FALSE.)
+  BVDataHDF5(1:BVDataLength,1) = BiasVoltage%BVData(1:BVDataLength)
+  CALL WriteArrayToHDF5( DataSetName = 'BiasVoltage' , rank = 2   , &
+                         nValGlobal  = (/1_IK , INT(BVDataLength,IK)/), &
+                         nVal        = (/1_IK , INT(BVDataLength,IK)/), &
+                         offset      = (/0_IK , 0_IK/)                        , &
+                         collective  = .FALSE., RealArray = BVDataHDF5(1:BVDataLength,1))
+  CALL CloseDataFile()
+  DEALLOCATE(BVDataHDF5)
+END IF ! CalcBulkElectronTempi.AND.MPIRoot
+#endif /*USE_HDG*/
 #endif /*PARTICLES*/
+
+#if USE_HDG
+! Floating boundary condition: Store charge on each FPC
+IF(UseFPC.AND.MPIRoot)THEN
+  nVarFPC = FPC%nUniqueFPCBounds
+  ALLOCATE(FPCDataHDF5(1:nVarFPC,1))
+  CALL OpenDataFile(FileName,create=.FALSE.,single=.TRUE.,readOnly=.FALSE.)
+  FPCDataHDF5(1:nVarFPC,1) = FPC%Charge(1:nVarFPC)
+  CALL WriteArrayToHDF5( DataSetName = 'FloatingPotentialCharge' , rank = 2   , &
+                         nValGlobal  = (/1_IK , INT(nVarFPC,IK)/), &
+                         nVal        = (/1_IK , INT(nVarFPC,IK)/), &
+                         offset      = (/0_IK , 0_IK/)                        , &
+                         collective  = .FALSE., RealArray = FPCDataHDF5(1:nVarFPC,1))
+  CALL CloseDataFile()
+  DEALLOCATE(FPCDataHDF5)
+END IF ! CalcBulkElectronTempi.AND.MPIRoot
+! Electric potential condition: Store Voltage on each EPC
+IF(UseEPC.AND.MPIRoot)THEN
+  nVarEPC = EPC%nUniqueEPCBounds
+  ALLOCATE(EPCDataHDF5(1:nVarEPC,1))
+  CALL OpenDataFile(FileName,create=.FALSE.,single=.TRUE.,readOnly=.FALSE.)
+  EPCDataHDF5(1:nVarEPC,1) = EPC%Voltage(1:nVarEPC)
+  CALL WriteArrayToHDF5( DataSetName = 'ElectricPotenitalCondition' , rank = 2   , &
+                         nValGlobal  = (/1_IK , INT(nVarEPC,IK)/), &
+                         nVal        = (/1_IK , INT(nVarEPC,IK)/), &
+                         offset      = (/0_IK , 0_IK/)                        , &
+                         collective  = .FALSE., RealArray = EPCDataHDF5(1:nVarEPC,1))
+  CALL CloseDataFile()
+  DEALLOCATE(EPCDataHDF5)
+END IF ! CalcBulkElectronTempi.AND.MPIRoot
+#endif /*USE_HDG*/
 
 #if USE_LOADBALANCE
 ! Write 'ElemTime' to a separate container in the state.h5 file
@@ -626,8 +694,11 @@ IF(DoDielectricSurfaceCharge) CALL WriteNodeSourceExtToHDF5(OutputTime_loc)
 CALL WriteEmissionVariablesToHDF5(FileName)
 #endif /*PARTICLES*/
 
-EndT=PICLASTIME()
-SWRITE(UNIT_stdOut,'(A,F0.3,A)',ADVANCE='YES')'DONE  [',EndT-StartT,'s]'
+GETTIME(EndT)
+CALL DisplayMessageAndTime(EndT-StartT, 'DONE', DisplayDespiteLB=.TRUE., DisplayLine=.FALSE.)
+
+IF(OutputErrorNormsToH5) CALL WriteErrorNormsToHDF5(OutputTime_loc)
+
 #if defined(PARTICLES)
 CALL DisplayNumberOfParticles(1)
 #endif /*defined(PARTICLES)*/

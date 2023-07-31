@@ -1,7 +1,7 @@
 !==================================================================================================================================
 ! Copyright (c) 2010 - 2018 Prof. Claus-Dieter Munz and Prof. Stefanos Fasoulas
 !
-! This file is part of PICLas (gitlab.com/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
+! This file is part of PICLas (piclas.boltzplatz.eu/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
 ! it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3
 ! of the License, or (at your option) any later version.
 !
@@ -31,7 +31,7 @@ INTERFACE GetSideBoundingBoxTria
 END INTERFACE
 
 PUBLIC :: ParticleInsideQuad3D, InitPEM_LocalElemID, InitPEM_CNElemID, GetGlobalNonUniqueSideID, GetSideBoundingBoxTria
-PUBLIC :: GetMeshMinMax, IdentifyElemAndSideType, WeirdElementCheck, CalcParticleMeshMetrics, InitElemNodeIDs, CalcXCL_NGeo
+PUBLIC :: GetMeshMinMax, IdentifyElemAndSideType, WeirdElementCheck, CalcParticleMeshMetrics, CalcXCL_NGeo
 PUBLIC :: CalcBezierControlPoints, InitParticleGeometry, ComputePeriodicVec
 !===================================================================================================================================
 CONTAINS
@@ -463,8 +463,8 @@ END SUBROUTINE InitPEM_CNElemID
 !==================================================================================================================================!
 PPURE FUNCTION GetGlobalElem2CNTotalElem_iPart(iPart)
 ! MODULES
-USE MOD_MPI_Shared_Vars ,ONLY: GlobalElem2CNTotalElem
-USE MOD_Particle_Vars   ,ONLY: PEM
+USE MOD_Particle_Mesh_Vars ,ONLY: GlobalElem2CNTotalElem
+USE MOD_Particle_Vars      ,ONLY: PEM
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
@@ -809,8 +809,8 @@ NGeo3 = NGeo2   *(NGeo+1)
 ! decide if element is (bi-)linear or curved
 ! decide if sides are planar-rect, planar-nonrect, planar-curved, bilinear or curved
 #if USE_MPI
-firstElem = INT(REAL( myComputeNodeRank   *nComputeNodeTotalElems)/REAL(nComputeNodeProcessors))+1
-lastElem  = INT(REAL((myComputeNodeRank+1)*nComputeNodeTotalElems)/REAL(nComputeNodeProcessors))
+firstElem = INT(REAL( myComputeNodeRank   )*REAL(nComputeNodeTotalElems)/REAL(nComputeNodeProcessors))+1
+lastElem  = INT(REAL((myComputeNodeRank+1))*REAL(nComputeNodeTotalElems)/REAL(nComputeNodeProcessors))
 #else
 firstElem = 1
 lastElem  = nElems
@@ -1155,8 +1155,8 @@ LBWRITE(UNIT_StdOut,'(132("-"))')
 LBWRITE(UNIT_stdOut,'(A)') ' CHECKING FOR WEIRD ELEMENTS...'
 
 #if USE_MPI
-firstElem = INT(REAL( myComputeNodeRank   *nComputeNodeTotalElems)/REAL(nComputeNodeProcessors))+1
-lastElem  = INT(REAL((myComputeNodeRank+1)*nComputeNodeTotalElems)/REAL(nComputeNodeProcessors))
+firstElem = INT(REAL( myComputeNodeRank   )*REAL(nComputeNodeTotalElems)/REAL(nComputeNodeProcessors))+1
+lastElem  = INT(REAL((myComputeNodeRank+1))*REAL(nComputeNodeTotalElems)/REAL(nComputeNodeProcessors))
 #else
 firstElem = 1
 lastElem  = nElems
@@ -1535,10 +1535,10 @@ IF (BezierElevation.GT.0) THEN
   CALL BARRIER_AND_SYNC(BezierControlPoints3DElevated_Shared_Win,MPI_COMM_SHARED)
 END IF
 
-firstElem = INT(REAL( myComputeNodeRank*   nGlobalElems)/REAL(nComputeNodeProcessors))+1
-lastElem  = INT(REAL((myComputeNodeRank+1)*nGlobalElems)/REAL(nComputeNodeProcessors))
-firstSide = INT(REAL (myComputeNodeRank   *nNonUniqueGlobalSides)/REAL(nComputeNodeProcessors))+1
-lastSide  = INT(REAL((myComputeNodeRank+1)*nNonUniqueGlobalSides)/REAL(nComputeNodeProcessors))
+firstElem = INT(REAL( myComputeNodeRank   )*REAL(nGlobalElems)/REAL(nComputeNodeProcessors))+1
+lastElem  = INT(REAL((myComputeNodeRank+1))*REAL(nGlobalElems)/REAL(nComputeNodeProcessors))
+firstSide = INT(REAL (myComputeNodeRank   )*REAL(nNonUniqueGlobalSides)/REAL(nComputeNodeProcessors))+1
+lastSide  = INT(REAL((myComputeNodeRank+1))*REAL(nNonUniqueGlobalSides)/REAL(nComputeNodeProcessors))
 #else
 firstElem = 1
 lastElem  = nElems
@@ -1601,7 +1601,10 @@ END SUBROUTINE CalcBezierControlPoints
 
 SUBROUTINE InitParticleGeometry()
 !===================================================================================================================================
-! Subroutine for particle geometry initialization (GEO container)
+!> Subroutine for particle geometry initialization (GEO container):
+!> - ConcaveElemSide_Shared(   1:6,1:nComputeNodeTotalElems)
+!> - ElemSideNodeID_Shared(1:4,1:6,1:nComputeNodeTotalElems)
+!> - ElemMidPoint_Shared(      1:3,1:nComputeNodeTotalElems)
 !===================================================================================================================================
 ! MODULES
 USE MOD_Preproc
@@ -1609,7 +1612,7 @@ USE MOD_ReadInTools
 USE MOD_Globals
 USE MOD_Mesh_Vars          ,ONLY: NGeo
 USE MOD_Particle_Mesh_Vars
-USE MOD_Mesh_Tools         ,ONLY: GetGlobalElemID
+USE MOD_Mesh_Tools         ,ONLY: GetGlobalElemID, GetCornerNodeMapCGNS
 #if USE_MPI
 USE MOD_MPI_Shared
 USE MOD_MPI_Shared_Vars
@@ -1630,93 +1633,72 @@ USE MOD_LoadBalance_Vars   ,ONLY: PerformLoadBalance
 ! LOCAL VARIABLES
 INTEGER            :: iElem,FirstElem,LastElem,GlobalElemID
 INTEGER            :: GlobalSideID,nlocSides,localSideID,iLocSide
-INTEGER            :: iNode
-INTEGER            :: nStart, NodeNum
-INTEGER            :: NodeMap(4,6)
+INTEGER            :: iNode, NodeMap(1:4,1:6), nStart, NodeNum
 REAL               :: A(3,3),detcon
-INTEGER            :: CornerNodeIDswitch(8)
 !===================================================================================================================================
 
 LBWRITE(UNIT_StdOut,'(132("-"))')
 LBWRITE(UNIT_stdOut,'(A)') ' INIT PARTICLE GEOMETRY INFORMATION...'
 
-! the cornernodes are not the first 8 entries (for Ngeo>1) of nodeinfo array so mapping is built
-CornerNodeIDswitch(1)=1
-CornerNodeIDswitch(2)=(Ngeo+1)
-CornerNodeIDswitch(3)=(Ngeo+1)**2
-CornerNodeIDswitch(4)=(Ngeo+1)*Ngeo+1
-CornerNodeIDswitch(5)=(Ngeo+1)**2*Ngeo+1
-CornerNodeIDswitch(6)=(Ngeo+1)**2*Ngeo+(Ngeo+1)
-CornerNodeIDswitch(7)=(Ngeo+1)**2*Ngeo+(Ngeo+1)**2
-CornerNodeIDswitch(8)=(Ngeo+1)**2*Ngeo+(Ngeo+1)*Ngeo+1
-
-! New crazy corner node switch (philipesque)
-ASSOCIATE(CNS => CornerNodeIDswitch )
-  ! CGNS Mapping
-  NodeMap(:,1)=(/CNS(1),CNS(4),CNS(3),CNS(2)/)
-  NodeMap(:,2)=(/CNS(1),CNS(2),CNS(6),CNS(5)/)
-  NodeMap(:,3)=(/CNS(2),CNS(3),CNS(7),CNS(6)/)
-  NodeMap(:,4)=(/CNS(3),CNS(4),CNS(8),CNS(7)/)
-  NodeMap(:,5)=(/CNS(1),CNS(5),CNS(8),CNS(4)/)
-  NodeMap(:,6)=(/CNS(5),CNS(6),CNS(7),CNS(8)/)
+! Get the node map to convert from the CGNS format (as given by HOPR)
+CALL GetCornerNodeMapCGNS(NGeo,NodeMapCGNS=NodeMap(1:4,1:6))
 
 #if USE_MPI
-  CALL Allocate_Shared((/6,nComputeNodeTotalElems/),ConcaveElemSide_Shared_Win,ConcaveElemSide_Shared)
-  CALL MPI_WIN_LOCK_ALL(0,ConcaveElemSide_Shared_Win,IERROR)
-  firstElem = INT(REAL( myComputeNodeRank   *nComputeNodeTotalElems)/REAL(nComputeNodeProcessors))+1
-  lastElem  = INT(REAL((myComputeNodeRank+1)*nComputeNodeTotalElems)/REAL(nComputeNodeProcessors))
+CALL Allocate_Shared((/6,nComputeNodeTotalElems/),ConcaveElemSide_Shared_Win,ConcaveElemSide_Shared)
+CALL MPI_WIN_LOCK_ALL(0,ConcaveElemSide_Shared_Win,IERROR)
+firstElem = INT(REAL( myComputeNodeRank   )*REAL(nComputeNodeTotalElems)/REAL(nComputeNodeProcessors))+1
+lastElem  = INT(REAL((myComputeNodeRank+1))*REAL(nComputeNodeTotalElems)/REAL(nComputeNodeProcessors))
 
-  CALL Allocate_Shared((/4,6,nComputeNodeTotalElems/),ElemSideNodeID_Shared_Win,ElemSideNodeID_Shared)
-  CALL MPI_WIN_LOCK_ALL(0,ElemSideNodeID_Shared_Win,IERROR)
+CALL Allocate_Shared((/4,6,nComputeNodeTotalElems/),ElemSideNodeID_Shared_Win,ElemSideNodeID_Shared)
+CALL MPI_WIN_LOCK_ALL(0,ElemSideNodeID_Shared_Win,IERROR)
 
-  CALL Allocate_Shared((/3,nComputeNodeTotalElems/),ElemMidPoint_Shared_Win,ElemMidPoint_Shared)
-  CALL MPI_WIN_LOCK_ALL(0,ElemMidPoint_Shared_Win,IERROR)
+CALL Allocate_Shared((/3,nComputeNodeTotalElems/),ElemMidPoint_Shared_Win,ElemMidPoint_Shared)
+CALL MPI_WIN_LOCK_ALL(0,ElemMidPoint_Shared_Win,IERROR)
 #else
-  ALLOCATE(ConcaveElemSide_Shared(   1:6,1:nElems))
-  ALLOCATE(ElemSideNodeID_Shared(1:4,1:6,1:nElems))
-  ALLOCATE(ElemMidPoint_Shared(      1:3,1:nElems))
-  firstElem = 1
-  lastElem  = nElems
+ALLOCATE(ConcaveElemSide_Shared(   1:6,1:nElems))
+ALLOCATE(ElemSideNodeID_Shared(1:4,1:6,1:nElems))
+ALLOCATE(ElemMidPoint_Shared(      1:3,1:nElems))
+firstElem = 1
+lastElem  = nElems
 #endif  /*USE_MPI*/
 
 #if USE_MPI
-  IF (myComputeNodeRank.EQ.0) THEN
+IF (myComputeNodeRank.EQ.0) THEN
 #endif
-    ElemSideNodeID_Shared  = 0
-    ConcaveElemSide_Shared = .FALSE.
+  ElemSideNodeID_Shared  = 0
+  ConcaveElemSide_Shared = .FALSE.
 #if USE_MPI
-  END IF
-  CALL BARRIER_AND_SYNC(ElemSideNodeID_Shared_Win ,MPI_COMM_SHARED)
-  CALL BARRIER_AND_SYNC(ConcaveElemSide_Shared_Win,MPI_COMM_SHARED)
+END IF
+CALL BARRIER_AND_SYNC(ElemSideNodeID_Shared_Win ,MPI_COMM_SHARED)
+CALL BARRIER_AND_SYNC(ConcaveElemSide_Shared_Win,MPI_COMM_SHARED)
 #endif
 
-  ! iElem is CNElemID
-  DO iElem = firstElem,lastElem
-    GlobalElemID = GetGlobalElemID(iElem)
+! iElem is CNElemID
+DO iElem = firstElem,lastElem
+  GlobalElemID = GetGlobalElemID(iElem)
 
-    nlocSides = ElemInfo_Shared(ELEM_LASTSIDEIND,GlobalElemID) -  ElemInfo_Shared(ELEM_FIRSTSIDEIND,GlobalElemID)
-    DO iLocSide = 1,nlocSides
-      ! Get global SideID
-      GlobalSideID = ElemInfo_Shared(ELEM_FIRSTSIDEIND,GlobalElemID) + iLocSide
+  nlocSides = ElemInfo_Shared(ELEM_LASTSIDEIND,GlobalElemID) -  ElemInfo_Shared(ELEM_FIRSTSIDEIND,GlobalElemID)
+  DO iLocSide = 1,nlocSides
+    ! Get global SideID
+    GlobalSideID = ElemInfo_Shared(ELEM_FIRSTSIDEIND,GlobalElemID) + iLocSide
 
-      localSideID = SideInfo_Shared(SIDE_LOCALID,GlobalSideID)
-      IF (localSideID.LE.0) CYCLE
-      ! Find start of CGNS mapping from flip
-      IF (SideInfo_Shared(SIDE_ID,GlobalSideID).GT.0) THEN
-        nStart = 0
-      ELSE
-        nStart = MAX(0,MOD(SideInfo_Shared(SIDE_FLIP,GlobalSideID),10)-1)
-      END IF
-      ! Shared memory array starts at 1, but NodeID at 0
-      ElemSideNodeID_Shared(1:4,localSideID,iElem) = (/ElemInfo_Shared(ELEM_FIRSTNODEIND,GlobalElemID)+NodeMap(MOD(nStart  ,4)+1,localSideID)-1, &
-                                                       ElemInfo_Shared(ELEM_FIRSTNODEIND,GlobalElemID)+NodeMap(MOD(nStart+1,4)+1,localSideID)-1, &
-                                                       ElemInfo_Shared(ELEM_FIRSTNODEIND,GlobalElemID)+NodeMap(MOD(nStart+2,4)+1,localSideID)-1, &
-                                                       ElemInfo_Shared(ELEM_FIRSTNODEIND,GlobalElemID)+NodeMap(MOD(nStart+3,4)+1,localSideID)-1/)
+    localSideID = SideInfo_Shared(SIDE_LOCALID,GlobalSideID)
+    IF (localSideID.LE.0) CYCLE
+    ! Find start of CGNS mapping from flip
+    IF (SideInfo_Shared(SIDE_ID,GlobalSideID).GT.0) THEN
+      nStart = 0
+    ELSE
+      nStart = MAX(0,MOD(SideInfo_Shared(SIDE_FLIP,GlobalSideID),10)-1)
+    END IF
+    ! Shared memory array starts at 1, but NodeID at 0
+    ElemSideNodeID_Shared(1:4,localSideID,iElem) = (/ElemInfo_Shared(ELEM_FIRSTNODEIND,GlobalElemID)+NodeMap(MOD(nStart  ,4)+1,localSideID)-1, &
+                                                     ElemInfo_Shared(ELEM_FIRSTNODEIND,GlobalElemID)+NodeMap(MOD(nStart+1,4)+1,localSideID)-1, &
+                                                     ElemInfo_Shared(ELEM_FIRSTNODEIND,GlobalElemID)+NodeMap(MOD(nStart+2,4)+1,localSideID)-1, &
+                                                     ElemInfo_Shared(ELEM_FIRSTNODEIND,GlobalElemID)+NodeMap(MOD(nStart+3,4)+1,localSideID)-1/)
 
-    END DO ! iLocSide = 1,nlocSides
-  END DO ! iElem = firstElem,lastElem
+  END DO ! iLocSide = 1,nlocSides
+END DO ! iElem = firstElem,lastElem
 
-END ASSOCIATE
 #if USE_MPI
 CALL BARRIER_AND_SYNC(ElemSideNodeID_Shared_Win,MPI_COMM_SHARED)
 #endif
@@ -1774,82 +1756,6 @@ LBWRITE(UNIT_StdOut,'(132("-"))')
 END SUBROUTINE InitParticleGeometry
 
 
-SUBROUTINE InitElemNodeIDs()
-!===================================================================================================================================
-! Subroutine for particle geometry initialization (GEO container)
-!===================================================================================================================================
-! MODULES
-USE MOD_Preproc
-USE MOD_ReadInTools
-USE MOD_Globals
-USE MOD_Mesh_Vars              ,ONLY: NGeo
-USE MOD_Particle_Mesh_Vars
-USE MOD_Mesh_Tools             ,ONLY: GetGlobalElemID
-#if USE_MPI
-USE MOD_MPI_Shared
-USE MOD_MPI_Shared_Vars
-#else
-USE MOD_Mesh_Vars              ,ONLY: nElems
-#endif
-! IMPLICIT VARIABLE HANDLING
- IMPLICIT NONE
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-INTEGER            :: iElem,firstElem,lastElem,GlobalElemID
-INTEGER            :: iNode
-INTEGER            :: CornerNodeIDswitch(8)
-!===================================================================================================================================
-
-! the cornernodes are not the first 8 entries (for Ngeo>1) of nodeinfo array so mapping is built
-CornerNodeIDswitch(1)=1
-CornerNodeIDswitch(2)=(Ngeo+1)
-CornerNodeIDswitch(3)=(Ngeo+1)**2
-CornerNodeIDswitch(4)=(Ngeo+1)*Ngeo+1
-CornerNodeIDswitch(5)=(Ngeo+1)**2*Ngeo+1
-CornerNodeIDswitch(6)=(Ngeo+1)**2*Ngeo+(Ngeo+1)
-CornerNodeIDswitch(7)=(Ngeo+1)**2*Ngeo+(Ngeo+1)**2
-CornerNodeIDswitch(8)=(Ngeo+1)**2*Ngeo+(Ngeo+1)*Ngeo+1
-
-! New crazy corner node switch (philipesque)
-ASSOCIATE(CNS => CornerNodeIDswitch )
-#if USE_MPI
-  firstElem = INT(REAL( myComputeNodeRank   *nComputeNodeTotalElems)/REAL(nComputeNodeProcessors))+1
-  lastElem  = INT(REAL((myComputeNodeRank+1)*nComputeNodeTotalElems)/REAL(nComputeNodeProcessors))
-  CALL Allocate_Shared((/8,nComputeNodeTotalElems/),ElemNodeID_Shared_Win,ElemNodeID_Shared)
-  CALL MPI_WIN_LOCK_ALL(0,ElemNodeID_Shared_Win,IERROR)
-#else
-  ALLOCATE(ElemNodeID_Shared(1:8,1:nElems))
-  firstElem = 1
-  lastElem  = nElems
-#endif  /*USE_MPI*/
-
-#if USE_MPI
-  IF (myComputeNodeRank.EQ.0) THEN
-#endif
-    ElemNodeID_Shared = 0
-#if USE_MPI
-  END IF
-  CALL BARRIER_AND_SYNC(ElemNodeID_Shared_Win,MPI_COMM_SHARED)
-#endif
-
-  ! iElem is CNElemID
-  DO iElem = firstElem,lastElem
-    GlobalElemID = GetGlobalElemID(iElem)
-    DO iNode = 1,8
-      ElemNodeID_Shared(iNode,iElem) = ElemInfo_Shared(ELEM_FIRSTNODEIND,GlobalElemID) + CNS(iNode)
-    END DO
-  END DO
-END ASSOCIATE
-#if USE_MPI
-CALL BARRIER_AND_SYNC(ElemNodeID_Shared_Win,MPI_COMM_SHARED)
-#endif
-END SUBROUTINE InitElemNodeIDs
-
-
 SUBROUTINE ComputePeriodicVec()
 !===================================================================================================================================
 ! Init of Particle mesh
@@ -1862,6 +1768,7 @@ USE MOD_Particle_Boundary_Vars ,ONLY: PartBound
 USE MOD_Particle_Mesh_Vars     ,ONLY: GEO,ElemInfo_Shared,SideInfo_Shared,NodeCoords_Shared
 USE MOD_Particle_Vars          ,ONLY: PartMeshHasPeriodicBCs
 USE MOD_Mesh_Vars              ,ONLY: nElems
+USE MOD_Mesh_Tools             ,ONLY: GetCornerNodeMapCGNS
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Vars       ,ONLY: PerformLoadBalance
 #endif /*USE_LOADBALANCE*/
@@ -1874,8 +1781,7 @@ IMPLICIT NONE
 INTEGER,PARAMETER              :: iNode=1
 INTEGER                        :: iVec,iBC,iPartBC
 INTEGER                        :: firstElem,lastElem,NbSideID,BCALPHA,flip
-INTEGER                        :: SideID,ElemID,NbElemID,localSideID,localSideNbID,nStart
-INTEGER                        :: CornerNodeIDswitch(8),NodeMap(4,6)
+INTEGER                        :: SideID,ElemID,NbElemID,localSideID,localSideNbID,nStart,NodeMap(4,6)
 REAL,DIMENSION(3)              :: MasterCoords,SlaveCoords,Vec
 LOGICAL,ALLOCATABLE            :: PeriodicFound(:)
 #if USE_MPI
@@ -1883,26 +1789,6 @@ REAL                           :: sendbuf
 REAL,ALLOCATABLE               :: recvbuf(:)
 #endif
 !-----------------------------------------------------------------------------------------------------------------------------------
-
-! the cornernodes are not the first 8 entries (for Ngeo>1) of nodeinfo array so mapping is built
-CornerNodeIDswitch(1)=1
-CornerNodeIDswitch(2)=(NGeo+1)
-CornerNodeIDswitch(3)=(NGeo+1)**2
-CornerNodeIDswitch(4)=(NGeo+1)*NGeo+1
-CornerNodeIDswitch(5)=(NGeo+1)**2*NGeo+1
-CornerNodeIDswitch(6)=(NGeo+1)**2*NGeo+(NGeo+1)
-CornerNodeIDswitch(7)=(NGeo+1)**2*NGeo+(NGeo+1)**2
-CornerNodeIDswitch(8)=(NGeo+1)**2*NGeo+(NGeo+1)*NGeo+1
-
-! Corner node switch to order HOPR coordinates in CGNS format
-ASSOCIATE(CNS => CornerNodeIDswitch )
-! CGNS Mapping
-NodeMap(:,1)=(/CNS(1),CNS(4),CNS(3),CNS(2)/)
-NodeMap(:,2)=(/CNS(1),CNS(2),CNS(6),CNS(5)/)
-NodeMap(:,3)=(/CNS(2),CNS(3),CNS(7),CNS(6)/)
-NodeMap(:,4)=(/CNS(3),CNS(4),CNS(8),CNS(7)/)
-NodeMap(:,5)=(/CNS(1),CNS(5),CNS(8),CNS(4)/)
-NodeMap(:,6)=(/CNS(5),CNS(6),CNS(7),CNS(8)/)
 
 ! Find number of periodic vectors
 GEO%nPeriodicVectors = MERGE(MAXVAL(BoundaryType(:,BC_ALPHA)),0,PartMeshHasPeriodicBCs)
@@ -1916,6 +1802,8 @@ PeriodicFound(:) = .FALSE.
 
 ALLOCATE(GEO%PeriodicVectors(1:3,GEO%nPeriodicVectors))
 GEO%PeriodicVectors = 0.
+
+CALL GetCornerNodeMapCGNS(NGeo,NodeMapCGNS=NodeMap)
 
 DO ElemID = firstElem,lastElem
   ! Every periodic vector already found
@@ -1967,8 +1855,6 @@ SideLoop: DO SideID = ElemInfo_Shared(ELEM_FIRSTSIDEIND,ElemID)+1,ElemInfo_Share
     END IF
   END DO SideLoop
 END DO
-
-END ASSOCIATE
 
 #if USE_MPI
 ALLOCATE(recvbuf(0:nProcessors-1))

@@ -873,6 +873,7 @@ current => prms%firstLink
 DO WHILE (associated(current))
   this%maxNameLen = MAX(this%maxNameLen, current%opt%GETNAMELEN())
   this%maxValueLen = MAX(this%maxValueLen, current%opt%GETVALUELEN())
+  this%maxValueLen = MIN(this%maxValueLen, 50)
   current => current%next
 END DO
 
@@ -1472,7 +1473,8 @@ DO WHILE (associated(current))
       ! no proposal, no default and also not set in parameter file => abort
       IF ((.NOT.opt%hasDefault).AND.(.NOT.opt%isSet)) THEN
         CALL ABORT(__STAMP__, &
-            "Required option '"//TRIM(name)//"' not set in parameter file and has no default value.")
+            "\n\n Required option '"//TRIM(name)//"' not set in parameter file and has no default value.\n"//&
+            " Try 'piclas --help "//TRIM(name)//"' for more information on this variable\n")
         RETURN
       END IF
     END IF
@@ -1578,7 +1580,7 @@ DO WHILE (associated(current))
                     ALLOCATE(logicalopt)
                     ! remove trailing comma
                     tmpValue(len(TRIM(tmpValue)):len(TRIM(tmpValue))) = ' '
-                    WRITE(tmpValue,'(*(L))') (multi%value(j), ",",j=1,no)
+                    WRITE(tmpValue,'(*(L1))') (multi%value(j), ",",j=1,no)
                     CALL prms%CreateOption(logicalopt, name, 'description', value=tmpValue, multiple=.FALSE., numberedmulti=.FALSE.,removed=.TRUE.)
                   END SELECT
               END SELECT
@@ -2202,7 +2204,7 @@ IF(.NOT.MPIRoot)RETURN
 #if USE_LOADBALANCE
 IF (PerformLoadBalance) THEN
   SELECT CASE(TRIM(InfoOpt))
-    CASE("INFO","PARAM","CALCUL.","OUTPUT")
+    CASE("INFO","PARAM","CALCUL.","OUTPUT","HDF5")
       RETURN
   END SELECT
 END IF

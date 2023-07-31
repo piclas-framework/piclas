@@ -1,7 +1,7 @@
 !==================================================================================================================================
 ! Copyright (c) 2010 - 2018 Prof. Claus-Dieter Munz and Prof. Stefanos Fasoulas
 !
-! This file is part of PICLas (gitlab.com/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
+! This file is part of PICLas (piclas.boltzplatz.eu/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
 ! it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3
 ! of the License, or (at your option) any later version.
 !
@@ -41,6 +41,7 @@ PUBLIC :: CalcPartRHS
 PUBLIC :: PartVeloToImp
 PUBLIC :: PartRHS
 PUBLIC :: CalcPartRHSSingleParticle
+PUBLIC :: CalcPartRHSRotRefFrame
 !----------------------------------------------------------------------------------------------------------------------------------
 
 ABSTRACT INTERFACE
@@ -175,12 +176,12 @@ INTEGER                          :: iPart
 DO iPart = 1,PDM%ParticleVecLength
   ! Particle is inside and not a neutral particle
   IF(PDM%ParticleInside(iPart))THEN
-    IF(isPushParticle(iPart))THEN
-      CALL PartRHS(iPart,FieldAtParticle(1:6,iPart),Pt(1:3,iPart))
-      CYCLE
-    END IF ! isPushParticle(iPart)
+     IF(isPushParticle(iPart))THEN
+       CALL PartRHS(iPart,FieldAtParticle(1:6,iPart),Pt(1:3,iPart))
+       CYCLE
+     END IF ! isPushParticle(iPart)
   END IF ! PDM%ParticleInside(iPart)
-  Pt(:,iPart)=0.
+  ! Pt(:,iPart)=0.
 END DO
 END SUBROUTINE CalcPartRHS
 
@@ -707,6 +708,35 @@ velosq=LorentzFacInvIn ! dummy statement
 velosq=FieldAtParticle(1) ! dummy statement
 
 END SUBROUTINE PartRHS_CEM
+
+
+PPURE FUNCTION CalcPartRHSRotRefFrame(PosRotRef,VeloRotRef)
+!===================================================================================================================================
+!> 
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals       ,ONLY: CROSS
+USE MOD_Particle_Vars ,ONLY: RotRefFrameOmega
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+REAL,INTENT(IN)          :: PosRotRef(1:3), VeloRotRef(1:3)
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+REAL                     :: CalcPartRHSRotRefFrame(1:3)
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+!===================================================================================================================================
+
+IF(ALL(ALMOSTZERO(VeloRotRef(1:3)))) THEN
+  CalcPartRHSRotRefFrame(1:3) = - CROSS(RotRefFrameOmega(1:3),CROSS(RotRefFrameOmega(1:3),PosRotRef(1:3)))
+ELSE
+  CalcPartRHSRotRefFrame(1:3) = - CROSS(RotRefFrameOmega(1:3),CROSS(RotRefFrameOmega(1:3),PosRotRef(1:3))) &
+                                - 2.*CROSS(RotRefFrameOmega(1:3),VeloRotRef(1:3))
+END IF
+
+END FUNCTION CalcPartRHSRotRefFrame
 
 
 SUBROUTINE PartVeloToImp(VeloToImp,doParticle_In)

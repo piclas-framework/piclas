@@ -1,7 +1,7 @@
 !==================================================================================================================================
 ! Copyright (c) 2010 - 2018 Prof. Claus-Dieter Munz and Prof. Stefanos Fasoulas
 !
-! This file is part of PICLas (gitlab.com/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
+! This file is part of PICLas (piclas.boltzplatz.eu/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
 ! it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3
 ! of the License, or (at your option) any later version.
 !
@@ -67,7 +67,7 @@ USE MOD_ReadInTools
 USE MOD_Globals               ,ONLY: abort
 USE MOD_DSMC_Vars             ,ONLY: BGGas
 USE MOD_Mesh_Vars             ,ONLY: nElems
-USE MOD_Particle_Vars         ,ONLY: PDM, Symmetry, Species, nSpecies, VarTimeStep
+USE MOD_Particle_Vars         ,ONLY: PDM, Symmetry, Species, nSpecies, UseVarTimeStep, VarTimeStep
 USE MOD_Restart_Vars          ,ONLY: DoMacroscopicRestart, MacroRestartFileName
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -85,8 +85,9 @@ REAL              :: SpeciesDensTmp(1:nSpecies)
 IF(BGGas%UseDistribution) MacroRestartFileName = GETSTR('Particles-MacroscopicRestart-Filename')
 
 ! 1.) Check compatibility with other features and whether required parameters have been read-in
-IF((Symmetry%Order.EQ.2).OR.VarTimeStep%UseVariableTimeStep) THEN
-  CALL abort(__STAMP__,'ERROR: 2D/Axisymmetric and variable timestep are not implemented with a background gas yet!')
+IF((Symmetry%Order.EQ.2).OR.UseVarTimeStep) THEN
+  IF(.NOT.VarTimeStep%UseSpeciesSpecific) CALL abort(__STAMP__, &
+    'ERROR: 2D/Axisymmetric and variable timestep (except species-specific) are not implemented with a background gas yet!')
 END IF
 
 DO iSpec = 1, nSpecies
@@ -289,7 +290,8 @@ END SUBROUTINE BGGas_InsertParticles
 SUBROUTINE BGGas_AssignParticleProperties(SpecID,PartIndex,bggPartIndex,GetVelocity_opt,GetInternalEnergy_opt)
 ! MODULES
 USE MOD_Globals
-USE MOD_Particle_Vars           ,ONLY: PDM, PEM, PartState,PartSpecies,PartPosRef, VarTimeStep, usevMPF, PartMPF
+USE MOD_Particle_Vars           ,ONLY: PDM, PEM, PartState,PartSpecies,PartPosRef, usevMPF, PartMPF
+USE MOD_Particle_Vars           ,ONLY: UseVarTimeStep, PartTimeStep
 USE MOD_DSMC_Vars               ,ONLY: CollisMode, SpecDSMC, BGGas
 USE MOD_Particle_Tracking_Vars  ,ONLY: TrackingMethod
 USE MOD_part_emission_tools     ,ONLY: CalcVelocity_maxwell_lpn, DSMC_SetInternalEnr_LauxVFD
@@ -356,7 +358,7 @@ PDM%IsNewPart(bggPartIndex)       = .TRUE.
 PDM%dtFracPush(bggPartIndex)      = .FALSE.
 ! Weighting factors
 IF(usevMPF) PartMPF(bggPartIndex) = PartMPF(PartIndex)
-IF(VarTimeStep%UseVariableTimeStep) VarTimeStep%ParticleTimeStep(bggPartIndex) = VarTimeStep%ParticleTimeStep(PartIndex)
+IF(UseVarTimeStep) PartTimeStep(bggPartIndex) = PartTimeStep(PartIndex)
 
 END SUBROUTINE BGGas_AssignParticleProperties
 

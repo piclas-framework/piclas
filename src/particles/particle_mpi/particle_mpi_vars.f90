@@ -1,7 +1,7 @@
 !==================================================================================================================================
 ! Copyright (c) 2010 - 2018 Prof. Claus-Dieter Munz and Prof. Stefanos Fasoulas
 !
-! This file is part of PICLas (gitlab.com/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
+! This file is part of PICLas (piclas.boltzplatz.eu/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
 ! it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3
 ! of the License, or (at your option) any later version.
 !
@@ -121,8 +121,8 @@ REAL, ALLOCATABLE                         :: PartShiftVector(:,:)           ! st
 #endif /*USE_MPI*/
 
 #if defined(MEASURE_MPI_WAIT)
-REAL(KIND=8)                              :: MPIW8TimePart(MPIW8SIZEPART)    ! measure the time on each proc it is in MPI_WAIT()
-                                                                            ! during particle communication
+REAL(KIND=8)                              :: MPIW8TimePart(MPIW8SIZEPART)  ! measure the time on each proc it is in MPI_WAIT() during particle communication
+INTEGER(KIND=8)                           :: MPIW8CountPart(MPIW8SIZEPART) ! counter for measurements on each proc it is in MPI_WAIT() during particle communication
 #endif /*defined(MEASURE_MPI_WAIT)*/
 !===================================================================================================================================
 

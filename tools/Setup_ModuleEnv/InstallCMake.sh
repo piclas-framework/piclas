@@ -65,7 +65,9 @@ fi
 #CMAKEVERSION='3.17.0'
 #CMAKEVERSION='3.20.3'
 #CMAKEVERSION='3.21.3'
-CMAKEVERSION='3.24.0'
+#CMAKEVERSION='3.24.0'
+#CMAKEVERSION='3.24.2'
+CMAKEVERSION='3.26.4'
 
 CMAKEDIR=${INSTALLDIR}/cmake/${CMAKEVERSION}/standard
 MODULEFILE=${INSTALLDIR}/modules/modulefiles/utilities/cmake/${CMAKEVERSION}
@@ -90,7 +92,8 @@ if [ ! -e "${MODULEFILE}" ]; then
     #echo "MODULEPATH ="$MODULEPATH
     #echo "MODULESHOME="${MODULESHOME}
     #module av
-    echo -e "${YELLOW}Warning: If the default gcc version is used for compiling CMake, the\nrequired GLIBCXX_3.4.XX version might be too new and cmake will not work\n when another gcc version is loaded that does not support the required version.${NC}"
+    echo -e "${YELLOW}Warning: If the default gcc version is used for compiling CMake, the\nrequired GLIBCXX_3.4.XX (the default gcc11.2 compiler might have been wrongly labelled in ubuntu22 and actually 11.3 was installed) version might be\ntoo new and cmake will not work when another gcc version is loaded that does not support the required version.\n\nCheck with\n\n   strings /lib/i386-linux-gnu/libc.so.6 | grep GLIBC\n\nor with\n\n    ldd --version\n\nThe gcc compiler will now be loaded via 'module load gcc'.\n${NC}"
+    read -p "Press [Enter] to continue or [Crtl+c] to abort!"
     module load gcc
     module li
   fi
@@ -101,13 +104,14 @@ if [ ! -e "${MODULEFILE}" ]; then
 
   # Download tar.gz file from FTP server
   if [ ! -f ${TARFILE} ]; then
-    wget "https://github.com/Kitware/CMake/releases/download/v${CMAKEVERSION}/cmake-${CMAKEVERSION}.tar.gz"
+    DOWNLOADPATH="https://github.com/Kitware/CMake/releases/download/v${CMAKEVERSION}/cmake-${CMAKEVERSION}.tar.gz"
+    wget ${DOWNLOADPATH}
   fi
 
   # Check if tar.gz file was correctly downloaded, abort script if non-existent
   if [ ! -f ${TARFILE} ]; then
     echo "no cmake install-file downloaded for cmake-${CMAKEVERSION}"
-    echo "check if https://github.com/Kitware/CMake/releases/download/v${CMAKEVERSION}/cmake-${CMAKEVERSION}.tar.gz exists"
+    echo "check if ${DOWNLOADPATH} exists"
     exit
   fi
 

@@ -1,7 +1,7 @@
 !==================================================================================================================================
 ! Copyright (c) 2010 - 2018 Prof. Claus-Dieter Munz and Prof. Stefanos Fasoulas
 !
-! This file is part of PICLas (gitlab.com/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
+! This file is part of PICLas (piclas.boltzplatz.eu/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
 ! it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3
 ! of the License, or (at your option) any later version.
 !
@@ -66,9 +66,12 @@ SUBROUTINE Riemann(Flux_Master,Flux_Slave,U_Master,U_Slave,NormVec,SideID)
 ! MODULES
 USE MOD_PreProc
 USE MOD_Dielectric_vars ,ONLY: Dielectric_Master
-USE MOD_Globals         ,ONLY: Abort
+USE MOD_Globals         ,ONLY: abort,UNIT_StdOut
 USE MOD_PML_vars        ,ONLY: PMLnVar
 USE MOD_Interfaces_Vars ,ONLY: InterfaceRiemann
+#if USE_MPI
+USE MOD_Globals         ,ONLY: myrank
+#endif /*USE_MPI*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -122,9 +125,9 @@ CASE(RIEMANN_VAC2DIELECTRIC_NC) ! use non-conserving fluxes (two different fluxe
   ! 2.) vacuum master side
   CALL RiemannVacuum(Flux_Master(1:8,:,:),U_Master( :,:,:),U_Slave(  :,:,:),NormVec(:,:,:))
 CASE DEFAULT
-  CALL abort(&
-      __STAMP__&
-      ,'Unknown interface type for Riemann solver (vacuum, dielectric, PML ...)')
+  IPWRITE(UNIT_StdOut,*) "SideID                   = ", SideID
+  IPWRITE(UNIT_StdOut,*) "InterfaceRiemann(SideID) = ", InterfaceRiemann(SideID)
+  CALL abort(__STAMP__,'Unknown interface type for Riemann solver (vacuum, dielectric, PML ...)')
 END SELECT
 
 END SUBROUTINE Riemann

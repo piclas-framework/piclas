@@ -1,7 +1,7 @@
 !==================================================================================================================================
 ! Copyright (c) 2010 - 2018 Prof. Claus-Dieter Munz and Prof. Stefanos Fasoulas
 !
-! This file is part of PICLas (gitlab.com/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
+! This file is part of PICLas (piclas.boltzplatz.eu/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
 ! it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3
 ! of the License, or (at your option) any later version.
 !
@@ -35,11 +35,59 @@ INTERFACE beta
   MODULE PROCEDURE beta
 END INTERFACE
 
-PUBLIC:: DepositParticleOnNodes,CalcCellLocNodeVolumes,ReadTimeAverage,beta
+INTERFACE DepositPhotonSEEHoles
+  MODULE PROCEDURE DepositPhotonSEEHoles
+END INTERFACE
+
+PUBLIC:: DepositParticleOnNodes,CalcCellLocNodeVolumes,ReadTimeAverage,beta,DepositPhotonSEEHoles
 !===================================================================================================================================
 
 CONTAINS
 
+!===================================================================================================================================
+!> Deposit surface charge of positive charges (electron holes) due to SEE from a surface
+!> Check if the current iBC is connected to a dielectric region (surface charge currently only for dielectrics)
+!===================================================================================================================================
+SUBROUTINE DepositPhotonSEEHoles(iBC,NbrOfParticle)
+! MODULES
+USE MOD_Particle_Boundary_Vars ,ONLY: PartBound
+USE MOD_PICDepo_Vars           ,ONLY: DoDeposition
+USE MOD_Dielectric_Vars        ,ONLY: DoDielectricSurfaceCharge
+USE MOD_Particle_Vars          ,ONLY: PEM, PDM, PartSpecies, PartState, Species, usevMPF, PartMPF
+IMPLICIT NONE
+!----------------------------------------------------------------------------------------------------------------------------------!
+! INPUT / OUTPUT VARIABLES
+INTEGER,INTENT(IN) :: iBC           !< BC of emitted particle (only if defined and >0)
+INTEGER,INTENT(IN) :: NbrOfParticle !< Number of newly inserted electrons
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER  :: iPart          !< i-th inserted electron
+INTEGER  :: ParticleIndex  !< index of i-th inserted electron in particle array
+REAL     :: MPF            !< macro-particle factor
+REAL     :: ChargeHole     !< Charge of SEE electrons holes
+!===================================================================================================================================
+! Only continue when Species(i)%Init(iInit)%PartBCIndex.GT.0
+IF(iBC.LE.0) RETURN
+! Check if deposition and surface charge is active and if the current BC is a charged BC
+IF(DoDeposition.AND.DoDielectricSurfaceCharge.AND.PartBound%Dielectric(iBC))THEN
+  DO iPart = 1, NbrOfParticle
+    ! Get index from next free position array
+    ParticleIndex = PDM%nextFreePosition(iPart+PDM%CurrentNextFreePosition)
+
+    ! Get charge
+    IF(usevMPF)THEN
+      MPF = PartMPF(ParticleIndex)
+    ELSE
+      MPF = Species(PartSpecies(ParticleIndex))%MacroParticleFactor
+    END IF ! usevMPF
+    ChargeHole = -Species(PartSpecies(ParticleIndex))%ChargeIC*MPF
+
+    ! Create electron hole (i.e. positive surface charge)
+    CALL DepositParticleOnNodes(ChargeHole, PartState(1:3,ParticleIndex), PEM%GlobalElemID(ParticleIndex))
+  END DO
+END IF
+
+END SUBROUTINE DepositPhotonSEEHoles
 
 !===================================================================================================================================
 !> Deposit the charge of a single particle on the nodes corresponding to the deposition method 'cell_volweight_mean', where the
@@ -184,8 +232,8 @@ INTEGER                          :: NodeID(1:8)
 CALL Allocate_Shared((/nUniqueGlobalNodes/),NodeVolume_Shared_Win,NodeVolume_Shared)
 CALL MPI_WIN_LOCK_ALL(0,NodeVolume_Shared_Win,IERROR)
 NodeVolume => NodeVolume_Shared
-firstElem = INT(REAL( myComputeNodeRank   *nComputeNodeTotalElems)/REAL(nComputeNodeProcessors))+1
-lastElem  = INT(REAL((myComputeNodeRank+1)*nComputeNodeTotalElems)/REAL(nComputeNodeProcessors))
+firstElem = INT(REAL( myComputeNodeRank   )*REAL(nComputeNodeTotalElems)/REAL(nComputeNodeProcessors))+1
+lastElem  = INT(REAL((myComputeNodeRank+1))*REAL(nComputeNodeTotalElems)/REAL(nComputeNodeProcessors))
 NodeVolumeLoc = 0.
 ! only CN root nullifies
 IF (myComputeNodeRank.EQ.0) THEN

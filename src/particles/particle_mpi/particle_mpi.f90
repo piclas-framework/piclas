@@ -1,7 +1,7 @@
 !==================================================================================================================================
 ! Copyright (c) 2010 - 2018 Prof. Claus-Dieter Munz and Prof. Stefanos Fasoulas
 !
-! This file is part of PICLas (gitlab.com/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
+! This file is part of PICLas (piclas.boltzplatz.eu/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
 ! it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3
 ! of the License, or (at your option) any later version.
 !
@@ -156,7 +156,7 @@ USE MOD_Globals
 USE MOD_Preproc
 USE MOD_Particle_MPI_Vars
 USE MOD_DSMC_Vars,              ONLY:useDSMC, CollisMode, DSMC
-USE MOD_Particle_Vars,          ONLY:usevMPF, PDM
+USE MOD_Particle_Vars,          ONLY:usevMPF, PDM, UseRotRefFrame
 USE MOD_Particle_Tracking_vars, ONLY:TrackingMethod
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -175,29 +175,19 @@ PartCommSize   = 0
 PartCommSize   = PartCommSize + 6
 ! Tracking: Include Reference coordinates
 IF(TrackingMethod.EQ.REFMAPPING) PartCommSize=PartCommSize+3
+! Velocity (rotational reference frame)
+IF(UseRotRefFrame) PartCommSize = PartCommSize+3
 ! Species-ID
 PartCommSize   = PartCommSize + 1
 ! id of element
 PartCommSize   = PartCommSize + 1
 
 IF (useDSMC.AND.(CollisMode.GT.1)) THEN
-  IF (usevMPF .AND. DSMC%ElectronicModel.GT.0) THEN
-    ! vib. , rot and electronic energy and macroparticle factor for each particle
-    PartCommSize = PartCommSize + 4
-  ELSE IF (usevMPF ) THEN
-    ! vib. and rot energy and macroparticle factor for each particle
-    PartCommSize = PartCommSize + 3
-  ELSE IF (DSMC%ElectronicModel.GT.0) THEN
-    ! vib., rot. and electronic energy
-    PartCommSize = PartCommSize + 3
-  ELSE
-    ! vib. and rot. energy
-    PartCommSize = PartCommSize + 2
-  END IF
-ELSE
-  ! PIC simulation with vMPF
-  IF (usevMPF) PartCommSize = PartCommSize+1
+  PartCommSize = PartCommSize + 2
+  IF(DSMC%ElectronicModel.GT.0) PartCommSize   = PartCommSize + 1
 END IF
+! Simulation with variable particle weights
+IF (usevMPF) PartCommSize = PartCommSize+1
 
 ! time integration
 #if defined(LSERK)
@@ -359,17 +349,18 @@ DO iPart=1,PDM%ParticleVecLength
   ! Particle on local proc, do nothing
   IF (ProcID.EQ.myRank) CYCLE
 
-  ! Sanity check (fails here if halo region is too small)
+  ! Sanity check (fails here if halo region is too small or particle is over speed of light because the time step is too large)
   IF(GlobalProcToExchangeProc(EXCHANGE_PROC_RANK,ProcID).LT.0)THEN
     IPWRITE (*,*) "GlobalProcToExchangeProc(EXCHANGE_PROC_RANK,ProcID) =", GlobalProcToExchangeProc(EXCHANGE_PROC_RANK,ProcID)
     IPWRITE (*,*) "ProcID                                              =", ProcID
+    IPWRITE (*,*) "global ElemID                                       =", ElemID
+    IPWRITE(UNIT_StdOut,'(I12,A,3(ES25.14E3))') " PartState(1:3,iPart)          =", PartState(1:3,iPart)
     IPWRITE(UNIT_StdOut,'(I12,A,3(ES25.14E3))') " PartState(4:6,iPart)          =", PartState(4:6,iPart)
     IPWRITE(UNIT_StdOut,'(I12,A,ES25.14E3)')    " VECNORM(PartState(4:6,iPart)) =", VECNORM(PartState(4:6,iPart))
     IPWRITE(UNIT_StdOut,'(I12,A,ES25.14E3)')    " halo_eps_velo                 =", halo_eps_velo
-    CALL abort(&
-    __STAMP__&
-    ,'Error: GlobalProcToExchangeProc(EXCHANGE_PROC_RANK,ProcID) is negative. '//&
-     'The halo region might be too small. Try increasing Particles-HaloEpsVelo!')
+    CALL abort(__STAMP__,'Error: GlobalProcToExchangeProc(EXCHANGE_PROC_RANK,ProcID) is negative. '//&
+                         'The halo region might be too small. Try increasing Particles-HaloEpsVelo! '//&
+                         'If this does not help, then maybe the time step is too big. Try reducing ManualTimeStep!')
   END IF ! GlobalProcToExchangeProc(EXCHANGE_PROC_RANK,ProcID).LT.0
 
   ! Add particle to target proc count
@@ -441,6 +432,7 @@ USE MOD_Particle_MPI_Vars,       ONLY:PartMPI,PartMPIExchange,PartCommSize,PartS
 USE MOD_Particle_MPI_Vars,       ONLY:nExchangeProcessors,ExchangeProcToGlobalProc
 USE MOD_Particle_Tracking_Vars,  ONLY:TrackingMethod
 USE MOD_Particle_Vars,           ONLY:PartState,PartSpecies,usevMPF,PartMPF,PEM,PDM,PartPosRef,Species
+USE MOD_Particle_Vars,           ONLY:UseRotRefFrame,PartVeloRotRef
 #if defined(LSERK)
 USE MOD_Particle_Vars,           ONLY:Pt_temp
 #endif
@@ -457,7 +449,7 @@ USE MOD_Particle_Vars,           ONLY:PartDeltaX,PartLambdaAccept
 USE MOD_Particle_Vars,           ONLY:PartIsImplicit
 #endif /*IMPA*/
 #if defined(MEASURE_MPI_WAIT)
-USE MOD_Particle_MPI_Vars,       ONLY:MPIW8TimePart
+USE MOD_Particle_MPI_Vars,       ONLY:MPIW8TimePart,MPIW8CountPart
 #endif /*defined(MEASURE_MPI_WAIT)*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -468,7 +460,7 @@ LOGICAL, INTENT(IN), OPTIONAL :: UseOldVecLength
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                       :: iPart,iPos,iProc,jPos, nPartLenth
+INTEGER                       :: iPart,iPos,iProc,jPos, nPartLength
 INTEGER                       :: recv_status_list(1:MPI_STATUS_SIZE,0:nExchangeProcessors-1)
 INTEGER                       :: MessageSize, nRecvParticles, nSendParticles
 INTEGER                       :: ALLOCSTAT
@@ -501,12 +493,12 @@ MsgLengthAmbi(:) = PartMPIExchange%nPartsSend(4,:)
 
 IF (PRESENT(UseOldVecLength)) THEN
   IF (UseOldVecLength) THEN
-    nPartLenth = PDM%ParticleVecLengthOld
+    nPartLength = PDM%ParticleVecLengthOld
   ELSE
-    nPartLenth = PDM%ParticleVecLength
+    nPartLength = PDM%ParticleVecLength
   END IF
 ELSE
-  nPartLenth = PDM%ParticleVecLength
+  nPartLength = PDM%ParticleVecLength
 END IF
 
 ! 3) Build Message
@@ -547,7 +539,7 @@ DO iProc=0,nExchangeProcessors-1
     CALL ABORT(__STAMP__,'  Cannot allocate PartSendBuf, local ProcId, ALLOCSTAT',iProc,REAL(ALLOCSTAT))
 
   ! build message
-  DO iPart=1,nPartLenth
+  DO iPart=1,nPartLength
 
     ! TODO: This seems like a valid check to me, why is it commented out?
     !IF(.NOT.PDM%ParticleInside(iPart)) CYCLE
@@ -560,6 +552,11 @@ DO iProc=0,nExchangeProcessors-1
       !>> particle position in reference space
       IF(TrackingMethod.EQ.REFMAPPING) THEN
         PartSendBuf(iProc)%content(1+jPos:3+jPos) = PartPosRef(1:3,iPart)
+        jPos=jPos+3
+      END IF
+      !>> particle velocity in rotational reference frame
+      IF(UseRotRefFrame) THEN
+        PartSendBuf(iProc)%content(1+jPos:3+jPos) = PartVeloRotRef(1:3,iPart)
         jPos=jPos+3
       END IF
       !>> particle species
@@ -768,8 +765,10 @@ DO iProc=0,nExchangeProcessors-1
   IF(IERROR.NE.MPI_SUCCESS) CALL ABORT(__STAMP__,' MPI Communication error', IERROR)
 #if defined(MEASURE_MPI_WAIT)
   CALL SYSTEM_CLOCK(count=CounterEnd(2), count_rate=Rate(2))
-  MPIW8TimePart(1) = MPIW8TimePart(1) + REAL(CounterEnd(1)-CounterStart(1),8)/Rate(1)
-  MPIW8TimePart(2) = MPIW8TimePart(2) + REAL(CounterEnd(2)-CounterStart(2),8)/Rate(2)
+  MPIW8TimePart(1)  = MPIW8TimePart(1) + REAL(CounterEnd(1)-CounterStart(1),8)/Rate(1)
+  MPIW8CountPart(1) = MPIW8CountPart(1) + 1_8
+  MPIW8TimePart(2)  = MPIW8TimePart(2) + REAL(CounterEnd(2)-CounterStart(2),8)/Rate(2)
+  MPIW8CountPart(2) = MPIW8CountPart(2) + 1_8
 #endif /*defined(MEASURE_MPI_WAIT)*/
 END DO ! iProc
 
@@ -777,10 +776,11 @@ END DO ! iProc
 PartMPIExchange%nMPIParticles=SUM(PartMPIExchange%nPartsRecv(1,:))
 
 ! nullify data on old particle position for safety
-DO iPart=1,nPartLenth
+DO iPart=1,nPartLength
   IF(PartTargetProc(iPart).EQ.-1) CYCLE
   PartState(1:6,iPart) = 0.
   PartSpecies(iPart)   = 0
+  IF(UseRotRefFrame) PartVeloRotRef(1:3,iPart) = 0.
 #if defined(LSERK)
   Pt_temp(1:6,iPart)   = 0.
 #endif
@@ -885,9 +885,10 @@ USE MOD_DSMC_Vars              ,ONLY: ElectronicDistriPart, AmbipolElecVelo
 USE MOD_Particle_MPI_Vars      ,ONLY: PartMPIExchange,PartCommSize,PartRecvBuf,PartSendBuf!,PartMPI
 USE MOD_Particle_MPI_Vars      ,ONLY: nExchangeProcessors
 USE MOD_Particle_Tracking_Vars ,ONLY: TrackingMethod
-USE MOD_Particle_Vars          ,ONLY: PartState,PartSpecies,usevMPF,PartMPF,PEM,PDM, PartPosRef, Species, VarTimeStep
-USE MOD_Particle_Vars          ,ONLY: doParticleMerge, vMPF_SpecNumElem, LastPartPos
-USE MOD_Particle_VarTimeStep   ,ONLY: CalcVarTimeStep
+USE MOD_Particle_Vars          ,ONLY: PartState,PartSpecies,usevMPF,PartMPF,PEM,PDM, PartPosRef, Species, LastPartPos
+USE MOD_Particle_Vars          ,ONLY: UseVarTimeStep, PartTimeStep
+USE MOD_Particle_Vars          ,ONLY: UseRotRefFrame, PartVeloRotRef
+USE MOD_Particle_TimeStep      ,ONLY: GetParticleTimeStep
 USE MOD_Particle_Mesh_Vars     ,ONLY: IsExchangeElem
 USE MOD_Particle_MPI_Vars      ,ONLY: ExchangeProcToGlobalProc,DoParticleLatencyHiding
 USE MOD_Eval_xyz               ,ONLY: GetPositionInRefElem
@@ -912,10 +913,10 @@ USE MOD_Particle_Vars          ,ONLY: PartIsImplicit
 #endif /*IMPA*/
 USE MOD_DSMC_Vars              ,ONLY: RadialWeighting
 USE MOD_DSMC_Symmetry          ,ONLY: DSMC_2D_RadialWeighting
-USE MOD_part_tools             ,ONLY: ParticleOnProc
+USE MOD_part_tools             ,ONLY: ParticleOnProc, InRotRefFrameCheck
 !USE MOD_PICDepo_Tools          ,ONLY: DepositParticleOnNodes
 #if defined(MEASURE_MPI_WAIT)
-USE MOD_Particle_MPI_Vars,       ONLY:MPIW8TimePart
+USE MOD_Particle_MPI_Vars,       ONLY:MPIW8TimePart,MPIW8CountPart
 #endif /*defined(MEASURE_MPI_WAIT)*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -961,6 +962,7 @@ DO iProc=0,nExchangeProcessors-1
 #if defined(MEASURE_MPI_WAIT)
   CALL SYSTEM_CLOCK(count=CounterEnd(1), count_rate=Rate(1))
   MPIW8TimePart(3) = MPIW8TimePart(3) + REAL(CounterEnd(1)-CounterStart(1),8)/Rate(1)
+  MPIW8CountPart(3) = MPIW8CountPart(3) + 1_8
 #endif /*defined(MEASURE_MPI_WAIT)*/
 END DO ! iProc
 
@@ -1009,6 +1011,7 @@ DO iProc=0,nExchangeProcessors-1
 #if defined(MEASURE_MPI_WAIT)
   CALL SYSTEM_CLOCK(count=CounterEnd(2), count_rate=Rate(2))
   MPIW8TimePart(4) = MPIW8TimePart(4) + REAL(CounterEnd(2)-CounterStart(2),8)/Rate(2)
+  MPIW8CountPart(4) = MPIW8CountPart(4) + 1_8
 #endif /*defined(MEASURE_MPI_WAIT)*/
 
   ! place particle information in correct arrays
@@ -1029,6 +1032,16 @@ DO iProc=0,nExchangeProcessors-1
     !>> particle position in reference space
     IF(TrackingMethod.EQ.REFMAPPING)THEN
       PartPosRef(1:3,PartID) = PartRecvBuf(iProc)%content(1+jPos: 3+jPos)
+      jPos=jPos+3
+    END IF
+    !>> particle velocity in rotational reference frame
+    IF(UseRotRefFrame) THEN
+      PDM%InRotRefFrame(PartID) = InRotRefFrameCheck(PartID)
+      IF(PDM%InRotRefFrame(PartID)) THEN
+        PartVeloRotRef(1:3,PartID) = PartRecvBuf(iProc)%content(1+jPos: 3+jPos)
+      ELSE
+        PartVeloRotRef(1:3,PartID) = 0.
+      END IF
       jPos=jPos+3
     END IF
     !>> particle species
@@ -1275,19 +1288,18 @@ DO iProc=0,nExchangeProcessors-1
       IF (useDSMC) THEN
         CALL GetPositionInRefElem(PartState(1:3,PartID),LastPartPos(1:3,PartID),PEM%GlobalElemID(PartID))
       END IF
-      IF (useDSMC.OR.doParticleMerge.OR.usevMPF) THEN
+      IF (useDSMC.OR.usevMPF) THEN
         IF (PEM%pNumber(ElemID).EQ.0) THEN
           PEM%pStart(ElemID) = PartID                    ! Start of Linked List for Particles in Elem
         ELSE
           PEM%pNext(PEM%pEnd(ElemID)) = PartID            ! Next Particle of same Elem (Linked List)
         END IF
         PEM%pEnd(ElemID) = PartID
-        PEM%pNumber(ElemID) = &                      ! Number of Particles in Element
-            PEM%pNumber(ElemID) + 1
-        IF (VarTimeStep%UseVariableTimeStep) THEN
-          VarTimeStep%ParticleTimeStep(PartID) = CalcVarTimeStep(PartState(1,PartID),PartState(2,PartID),ElemID)
+        ! Number of Particles in Element
+        PEM%pNumber(ElemID) = PEM%pNumber(ElemID) + 1
+        IF (UseVarTimeStep) THEN
+          PartTimeStep(PartID) = GetParticleTimeStep(PartState(1,PartID),PartState(2,PartID),ElemID)
         END IF
-        IF(doParticleMerge) vMPF_SpecNumElem(ElemID,PartSpecies(PartID)) = vMPF_SpecNumElem(ElemID,PartSpecies(PartID)) + 1
       END IF
     END IF
   END DO

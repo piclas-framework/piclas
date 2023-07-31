@@ -1,7 +1,7 @@
 !==================================================================================================================================
 ! Copyright (c) 2010 - 2018 Prof. Claus-Dieter Munz and Prof. Stefanos Fasoulas
 !
-! This file is part of PICLas (gitlab.com/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
+! This file is part of PICLas (piclas.boltzplatz.eu/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
 ! it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3
 ! of the License, or (at your option) any later version.
 !
@@ -400,7 +400,10 @@ END SUBROUTINE RootsOfBesselFunctions
 !================================================================================================================================
 SUBROUTINE QuadraticSolver(A,B,C,nRoot,r1,r2)
 #ifdef CODE_ANALYZE
-USE MOD_Globals,            ONLY:UNIT_stdOut,MyRank
+USE MOD_Globals ,ONLY: UNIT_stdOut
+#if USE_MPI
+USE MOD_Globals ,ONLY: myrank
+#endif /*USE_MPI*/
 #endif /*CODE_ANALYZE*/
 IMPLICIT NONE
 !--------------------------------------------------------------------------------------------------------------------------------
