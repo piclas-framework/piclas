@@ -301,8 +301,6 @@ PartMeshHasPeriodicBCs= .FALSE.
 PartBound%UseRotPeriodicBC     = .FALSE.
 nRotPeriodicBCs       = 0
 PartBound%UseInterPlaneBC      = .FALSE.
-! TODO: REMOVE THIS CALL WHEN MERGED WITH UNIFIED SPECIES DATABASE BRANCH
-SpeciesDatabase = GETSTR('Particles-Species-Database', 'none')
 
 ! Read-in flag for output of boundary-related data in a csv for regression testing
 PartBound%OutputBCDataForTesting         = GETLOGICAL('PartBound-OutputBCDataForTesting')
