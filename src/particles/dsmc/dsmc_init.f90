@@ -300,14 +300,13 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 CHARACTER(32)         :: hilf , hilf2
-INTEGER               :: iCase, iSpec, jSpec, nCase, iPart, iInit, iDOF, VarNum, err
-INTEGER               :: iColl, jColl, pColl, nCollision ! for collision parameter read in
+INTEGER               :: iCase, iSpec, jSpec, iPart, iInit, iDOF, VarNum, err
+INTEGER               :: iColl, jColl, pColl  ! for collision parameter read in
 REAL                  :: A1, A2, delta_ij     ! species constant for cross section (p. 24 Laux)
 LOGICAL               :: PostCollPointerSet
 LOGICAL               :: Attr_Exists
 CHARACTER(LEN=64)     :: dsetname
 INTEGER(HID_T)        :: file_id_specdb                       ! File identifier
-INTEGER(HID_T)        :: dset_id_specdb                       ! Dataset identifier
 INTEGER               :: IntToLog
 CHARACTER(LEN=255)    :: hilfname
 !===================================================================================================================================
@@ -794,7 +793,7 @@ ELSE !CollisMode.GT.0
               IF(TRIM(Species(iSpec)%Init(iInit)%SpaceIC).EQ.'EmissionDistribution')THEN
                 SpecDSMC(iSpec)%Init(iInit)%TVib      = GETREAL('Part-Species'//TRIM(hilf2)//'-TempVib','300.0')
                 SpecDSMC(iSpec)%Init(iInit)%TRot      = GETREAL('Part-Species'//TRIM(hilf2)//'-TempRot','300.0')
-              ELSEIF((SpecDSMC(iSpec)%InterID.EQ.2).OR.(SpecDSMC(iSpec)%InterID.EQ.20)) THEN
+              ELSEIF((Species(iSpec)%InterID.EQ.2).OR.(Species(iSpec)%InterID.EQ.20)) THEN
                 SpecDSMC(iSpec)%Init(iInit)%TVib      = GETREAL('Part-Species'//TRIM(hilf2)//'-TempVib')
                 SpecDSMC(iSpec)%Init(iInit)%TRot      = GETREAL('Part-Species'//TRIM(hilf2)//'-TempRot')
               END IF
@@ -1507,7 +1506,7 @@ USE MOD_Particle_Vars          ,ONLY: nSpecies, PartSpecies, Species
 USE MOD_part_tools             ,ONLY: GetParticleWeight
 USE MOD_HDF5_INPUT             ,ONLY: DatasetExists,ReadAttribute,ReadArray
 USE MOD_IO_HDF5
-USE MOD_DSMC_Vars              ,ONLY: VarVibRelaxProb, CollInf, SpecDSMC, Coll_pData, DSMC
+USE MOD_DSMC_Vars              ,ONLY: VarVibRelaxProb, CollInf, Coll_pData, DSMC
 USE MOD_Mesh_Vars              ,ONLY: nElems, offsetElem
 USE MOD_DSMC_Analyze           ,ONLY: CalcInstantTransTemp
 USE MOD_Particle_Vars          ,ONLY: PEM

@@ -1301,14 +1301,14 @@ IF (DSMC%DoAmbipolarDiff) THEN
 END IF
 ! 2) Set internal energies (rotational, vibrational, electronic)
 IF(CollisMode.GT.1) THEN
-  IF((SpecDSMC(iSpec)%InterID.EQ.2).OR.(SpecDSMC(iSpec)%InterID.EQ.20)) THEN
+  IF((Species(iSpec)%InterID.EQ.2).OR.(Species(iSpec)%InterID.EQ.20)) THEN
     PartStateIntEn(1,iPart) = CalcEVib_particle(iSpec,Tvib,iPart)
     PartStateIntEn(2,iPart) = CalcERot_particle(iSpec,Trot)
   ELSE
     PartStateIntEn(1:2,iPart) = 0.0
   END IF
   IF(DSMC%ElectronicModel.GT.0) THEN
-    IF((SpecDSMC(iSpec)%InterID.NE.4).AND.(.NOT.SpecDSMC(iSpec)%FullyIonized)) THEN
+    IF((Species(iSpec)%InterID.NE.4).AND.(.NOT.SpecDSMC(iSpec)%FullyIonized)) THEN
       PartStateIntEn(3,iPart) = CalcEElec_particle(iSpec,Telec,iPart)
     ELSE
       PartStateIntEn(3,iPart) = 0.0

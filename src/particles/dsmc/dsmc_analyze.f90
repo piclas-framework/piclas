@@ -830,7 +830,7 @@ SUBROUTINE WriteDSMCToHDF5(MeshFileName,OutputTime)
 !> Subroutine to write the sampled macroscopic solution to the HDF5 format
 !===================================================================================================================================
 ! MODULES
-USE MOD_DSMC_Vars     ,ONLY: DSMC, RadialWeighting, CollisMode, CollInf, SpecDSMC
+USE MOD_DSMC_Vars     ,ONLY: DSMC, RadialWeighting, CollisMode, CollInf
 USE MOD_MCC_Vars      ,ONLY: SpecXSec
 USE MOD_PreProc
 USE MOD_Globals
@@ -838,7 +838,7 @@ USE MOD_Globals_Vars  ,ONLY: ProjectName, ElementaryCharge
 USE MOD_Mesh_Vars     ,ONLY: offsetElem,nGlobalElems, nElems
 USE MOD_io_HDF5
 USE MOD_HDF5_Output   ,ONLY: WriteAttributeToHDF5, WriteHDF5Header, WriteArrayToHDF5
-USE MOD_Particle_Vars ,ONLY: nSpecies, UseVarTimeStep, SampleElecExcitation, ExcitationLevelCounter, DoVirtualCellMerge
+USE MOD_Particle_Vars ,ONLY: nSpecies, Species, UseVarTimeStep, SampleElecExcitation, ExcitationLevelCounter, DoVirtualCellMerge
 USE MOD_BGK_Vars      ,ONLY: BGKInitDone
 USE MOD_FPFlow_Vars   ,ONLY: FPInitDone
 ! IMPLICIT VARIABLE HANDLING
@@ -994,7 +994,7 @@ IF(SampleElecExcitation) THEN
       iCase = CollInf%Coll_Case(iSpec,jSpec)
       IF(.NOT.SpecXSec(iCase)%UseElecXSec) CYCLE
       ! Output of the non-election species
-      IF(SpecDSMC(iSpec)%InterID.EQ.4) THEN
+      IF(Species(iSpec)%InterID.EQ.4) THEN
         WRITE(SpecID,'(I3.3)') jSpec
       ELSE
         WRITE(SpecID,'(I3.3)') iSpec
