@@ -320,6 +320,7 @@ CASE('cell_volweight_mean')
             NodeDone(PeriodicNode) = .TRUE.
             UniqueNodeID = NodeInfo_Shared(ElemSideNodeID_Shared(PeriodicNode,NbLocSide,CNNbElemID)+1)
             PeriodicNodeSourceMap(ABS(PVID),NodeInfo_Shared(ElemSideNodeID_Shared(iNode,iLocSide,CNElemID)+1)) = UniqueNodeID
+            IF (NodeInfo_Shared(ElemSideNodeID_Shared(iNode,iLocSide,CNElemID)+1).EQ.983) IPWRITE(*,*) 'proc', UniqueNodeID, ABS(PVID), ElemInfo_Shared(ELEM_RANK,NbElemID)
 #if USE_MPI
             GlobalElemRank = ElemInfo_Shared(ELEM_RANK,NbElemID)
             IF (GlobalElemRank.NE.myRank) THEN
@@ -431,7 +432,7 @@ CASE('cell_volweight_mean')
       DO iRank= 0, nProcessors_Global-1
         IF (iRank.EQ.myRank) CYCLE
         IF (SendPeriodicNodes(iRank).GT.0) THEN
-          ALLOCATE(PeriodicSendRecv(iRank)%Send(GEO%nPeriodicVectors+1,SendPeriodicNodes(iRank)))
+          ALLOCATE(PeriodicSendRecv(iRank)%Send(2*GEO%nPeriodicVectors+1,SendPeriodicNodes(iRank)))
           PeriodicSendRecv(iRank)%Send = 0
         END IF
       END DO
@@ -443,8 +444,8 @@ CASE('cell_volweight_mean')
               iRank = NodewoBCSide(iNode)%RankID(jElem)
               IF (iRank.NE.0) THEN
                 iSendNode(iRank) = iSendNode(iRank) + 1
-                PeriodicSendRecv(iRank)%Send(1:GEO%nPeriodicVectors,iSendNode(iRank)) = PeriodicNodeSourceMap(1:GEO%nPeriodicVectors, iNode)
-                PeriodicSendRecv(iRank)%Send(GEO%nPeriodicVectors+1,iSendNode(iRank)) = iNode
+                PeriodicSendRecv(iRank)%Send(1:2*GEO%nPeriodicVectors,iSendNode(iRank)) = PeriodicNodeSourceMap(1:2*GEO%nPeriodicVectors, iNode)
+                PeriodicSendRecv(iRank)%Send(2*GEO%nPeriodicVectors+1,iSendNode(iRank)) = iNode
               END IF
             END DO
           END IF
@@ -484,9 +485,9 @@ CASE('cell_volweight_mean')
     DO iProc = 0,nProcessors_Global-1
       IF (iProc.EQ.myRank) CYCLE
       IF (RecvPeriodicNodes(iProc).NE.0) THEN
-        ALLOCATE(PeriodicSendRecv(iProc)%Recv(GEO%nPeriodicVectors+1,RecvPeriodicNodes(iProc)))
+        ALLOCATE(PeriodicSendRecv(iProc)%Recv(2*GEO%nPeriodicVectors+1,RecvPeriodicNodes(iProc)))
         CALL MPI_IRECV( PeriodicSendRecv(iProc)%Recv(:,:)                  &
-                      , RecvPeriodicNodes(iProc)*(GEO%nPeriodicVectors+1)           &
+                      , RecvPeriodicNodes(iProc)*(2*GEO%nPeriodicVectors+1)           &
                       , MPI_INTEGER                                                 &
                       , iProc                        &
                       , 667                                                         &
@@ -496,7 +497,7 @@ CASE('cell_volweight_mean')
       END IF
       IF (SendPeriodicNodes(iProc).NE.0) THEN
         CALL MPI_ISEND( PeriodicSendRecv(iProc)%Send &
-                      , SendPeriodicNodes(iProc)*(GEO%nPeriodicVectors+1)           &
+                      , SendPeriodicNodes(iProc)*(2*GEO%nPeriodicVectors+1)           &
                       , MPI_INTEGER                       &
                       , iProc                             &
                       , 667                              &
@@ -522,8 +523,8 @@ CASE('cell_volweight_mean')
       IF (iRank.EQ.myRank) CYCLE
       IF (RecvPeriodicNodes(iRank).GT.0) THEN
         DO iNode = 1, RecvPeriodicNodes(iRank)
-          zGlobalNode = PeriodicSendRecv(iRank)%Recv(GEO%nPeriodicVectors+1,iNode)
-          PeriodicNodeSourceMap(1:GEO%nPeriodicVectors, zGlobalNode) = PeriodicSendRecv(iRank)%Recv(1:GEO%nPeriodicVectors,iNode)
+          zGlobalNode = PeriodicSendRecv(iRank)%Recv(2*GEO%nPeriodicVectors+1,iNode)
+          PeriodicNodeSourceMap(1:2*GEO%nPeriodicVectors, zGlobalNode) = PeriodicSendRecv(iRank)%Recv(1:2*GEO%nPeriodicVectors,iNode)
         END DO
         DEALLOCATE(PeriodicSendRecv(iRank)%Recv)
       END IF
@@ -930,7 +931,7 @@ CASE('cell_volweight_mean')
         IF (ANY(PeriodicNodeMap(iNode)%Mapping.EQ.0)) THEN
           DO jNode = 1, PeriodicNodeMap(iNode)%nPeriodicNodes
             IF (PeriodicNodeMap(iNode)%Mapping(jNode).EQ.0) THEN
-              DO kNode =1, jNode - 1
+              DO kNode =1, jNode - 1              
                 zGlobalNode = PeriodicNodeMap(iNode)%Mapping(kNode)
                 DO zNode = 1, PeriodicNodeMap(zGlobalNode)%nPeriodicNodes
                   IF ((PeriodicNodeMap(zGlobalNode)%Mapping(zNode).NE.0).AND.(PeriodicNodeMap(zGlobalNode)%Mapping(zNode).NE.iNode)) THEN
