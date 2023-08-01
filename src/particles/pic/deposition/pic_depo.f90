@@ -320,7 +320,7 @@ CASE('cell_volweight_mean')
             NodeDone(PeriodicNode) = .TRUE.
             UniqueNodeID = NodeInfo_Shared(ElemSideNodeID_Shared(PeriodicNode,NbLocSide,CNNbElemID)+1)
             PeriodicNodeSourceMap(ABS(PVID),NodeInfo_Shared(ElemSideNodeID_Shared(iNode,iLocSide,CNElemID)+1)) = UniqueNodeID
-            IF (NodeInfo_Shared(ElemSideNodeID_Shared(iNode,iLocSide,CNElemID)+1).EQ.983) IPWRITE(*,*) 'proc', UniqueNodeID, ABS(PVID), ElemInfo_Shared(ELEM_RANK,NbElemID)
+            !IF (NodeInfo_Shared(ElemSideNodeID_Shared(iNode,iLocSide,CNElemID)+1).EQ.983) IPWRITE(*,*) 'proc', UniqueNodeID, ABS(PVID), ElemInfo_Shared(ELEM_RANK,NbElemID)
 #if USE_MPI
             GlobalElemRank = ElemInfo_Shared(ELEM_RANK,NbElemID)
             IF (GlobalElemRank.NE.myRank) THEN
@@ -550,19 +550,23 @@ CASE('cell_volweight_mean')
       IF (NumPerioNodes.GT.0) THEN
         DO jNode= 1, GEO%nPeriodicVectors
           IF (PeriodicNodeSourceMap(jNode,iNode).NE.0) THEN
-            IF (PeriodicNodeSourceMap(jNode+GEO%nPeriodicVectors,iNode).NE.-1) THEN
-              SendPeriodicNodes(PeriodicNodeSourceMap(jNode+GEO%nPeriodicVectors,iNode)) = &
-                SendPeriodicNodes(PeriodicNodeSourceMap(jNode+GEO%nPeriodicVectors,iNode)) + 1
-            END IF
+            IF(PeriodicNodeSourceMap(jNode+GEO%nPeriodicVectors,iNode).NE.myrank)THEN
+              IF (PeriodicNodeSourceMap(jNode+GEO%nPeriodicVectors,iNode).NE.-1) THEN
+                SendPeriodicNodes(PeriodicNodeSourceMap(jNode+GEO%nPeriodicVectors,iNode)) = &
+                  SendPeriodicNodes(PeriodicNodeSourceMap(jNode+GEO%nPeriodicVectors,iNode)) + 1
+              END IF
+            END IF ! PeriodicNodeSourceMap(jNode+GEO%nPeriodicVectors,iNode).NE.myrank
           END IF
         END DO
       END IF
     END DO
 
     DO iRank= 0, nProcessors_Global-1
+        !IPWRITE(UNIT_StdOut,*) "iRank,SendPeriodicNodes(iRank) =", iRank,SendPeriodicNodes(iRank)
       IF (iRank.EQ.myRank) CYCLE
       IF (SendPeriodicNodes(iRank).GT.0) THEN
         ALLOCATE(PeriodicSendRecv(iRank)%RecvNodes(SendPeriodicNodes(iRank)))
+
         PeriodicSendRecv(iRank)%RecvNodes = 0
       END IF
     END DO
@@ -572,8 +576,11 @@ CASE('cell_volweight_mean')
         DO jNode= 1, GEO%nPeriodicVectors
           IF (PeriodicNodeSourceMap(jNode,iNode).NE.0) THEN
             iRank = PeriodicNodeSourceMap(jNode+GEO%nPeriodicVectors,iNode)
+            IF (iRank.EQ.myRank) CYCLE
             IF (iRank.NE.-1) THEN
               iSendNode(iRank) = iSendNode(iRank) + 1
+              !IPWRITE(UNIT_StdOut,*) "irank =", irank
+              !IPWRITE(UNIT_StdOut,*) "SIZE(PeriodicSendRecv(iRank)%RecvNodes(iSendNode(iRank))) =", SIZE(PeriodicSendRecv(iRank)%RecvNodes(:))
               PeriodicSendRecv(iRank)%RecvNodes(iSendNode(iRank)) = PeriodicNodeSourceMap(jNode,iNode)
             END IF
           END IF
@@ -758,6 +765,7 @@ CASE('cell_volweight_mean')
           IF (ANY(PeriodicNodeMap(iNode)%Mapping.EQ.0)) THEN
             DO jNode = 1, PeriodicNodeMap(iNode)%nPeriodicNodes
               iRank = PeriodicNodeMap(iNode)%Rank(jNode)
+              IF (iRank.EQ.myRank) CYCLE
               IF (iRank.NE.-1) THEN
                 SendPeriodicNodes(iRank) = SendPeriodicNodes(iRank) + 1
               END IF
@@ -777,6 +785,7 @@ CASE('cell_volweight_mean')
           IF (ANY(PeriodicNodeMap(iNode)%Mapping.EQ.0)) THEN
             DO jNode = 1, PeriodicNodeMap(iNode)%nPeriodicNodes
               iRank = PeriodicNodeMap(iNode)%Rank(jNode)
+              IF (iRank.EQ.myRank) CYCLE
               IF (iRank.NE.-1) THEN
                 iSendNode(iRank) = iSendNode(iRank) + 1
                 PeriodicSendRecv(iRank)%RecvNodes(iSendNode(iRank)) = PeriodicNodeMap(iNode)%Mapping(jNode)
