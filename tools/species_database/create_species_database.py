@@ -4,6 +4,7 @@ import numpy as np
 import h5py
 from argparse import ArgumentParser
 from datetime import date
+import re
 
 parser = ArgumentParser(prog='create_species_database')
 parser.add_argument("-p", "--parameter", dest="ini_filename",
@@ -13,17 +14,23 @@ parser.add_argument("-e", "--electronic", dest="database_electronic",
 parser.add_argument("-c", "--crosssection", dest="database_crosssection",
                     help="Crosssection database to read-in parameters", metavar="FILE", default="XSec_Database.h5")
 parser.add_argument("-o", "--output", dest="database_output",
-                    help="Output file name", metavar="FILE", default="Species_Database.h5")
+                    help="Output file name", metavar="FILE", default="SpeciesDatabase.h5")
 parser.add_argument("-r", "--reference", dest="reference",
                     help="Reference for species data", default="Unknown")
-parser.add_argument("-s", "--radiation", dest="rad_file_name",
-                    help="Radiation file to read-in parameters", metavar="FILE", default="Rad.dat")
+# parser.add_argument("-s", "--radiation", dest="rad_file_name",
+#                     help="Radiation file to read-in parameters", metavar="FILE", default="Rad.dat")
 
 args = parser.parse_args()
 
 h5_species      = h5py.File(args.database_output, 'a')
 h5_electronic   = h5py.File(args.database_electronic, 'r')
 h5_crosssection = h5py.File(args.database_crosssection, 'r')
+
+model_name = args.ini_filename[:-4]
+model_name = 'DSMC3'
+items = re.split('_+', model_name)
+indices_to_modify = [1,2]
+model_name_split = [item[:-4] if i in indices_to_modify else item for i, item in enumerate(items)]
 
 def is_float(value):
   try:
@@ -53,35 +60,35 @@ else:
   hdf_xsec_group = h5_species.create_group('Cross-Sections')
   hdf_xsec_group.attrs['* Created'] = date.today().strftime("%B %d, %Y")
 
-hdf_rad_group = 'Radiation'
-if hdf_rad_group in h5_species.keys():
-  print('Group Radiation already exists.')
-  hdf_rad_group = h5_species['Radiation']
-  hdf_rad_group.attrs['* Last Modified'] = date.today().strftime("%B %d, %Y")
-else:
-  print('Group Radiation does not exist, creating new group.')
-  hdf_rad_group = h5_species.create_group('Radiation')
-  hdf_rad_group.attrs['* Created'] = date.today().strftime("%B %d, %Y")
+# hdf_rad_group = 'Radiation'
+# if hdf_rad_group in h5_species.keys():
+#   print('Group Radiation already exists.')
+#   hdf_rad_group = h5_species['Radiation']
+#   hdf_rad_group.attrs['* Last Modified'] = date.today().strftime("%B %d, %Y")
+# else:
+#   print('Group Radiation does not exist, creating new group.')
+#   hdf_rad_group = h5_species.create_group('Radiation')
+#   hdf_rad_group.attrs['* Created'] = date.today().strftime("%B %d, %Y")
   
-hdf_reac_group = 'Reaction'  
+hdf_reac_group = 'Reactions'  
 if hdf_reac_group in h5_species.keys():
   print('Group Reaction already exists.')
-  hdf_reac_group = h5_species['Reaction']
+  hdf_reac_group = h5_species['Reactions']
   hdf_reac_group.attrs['* Last Modified'] = date.today().strftime("%B %d, %Y")
 else:
-  print('Group Reaction does not exist, creating new group.')
-  hdf_reac_group = h5_species.create_group('Reaction')
+  print('Group Reactions does not exist, creating new group.')
+  hdf_reac_group = h5_species.create_group('Reactions')
   hdf_reac_group.attrs['* Created'] = date.today().strftime("%B %d, %Y")
   
-hdf_surf_group = 'Surface-Chemistry'
-if hdf_surf_group in h5_species.keys():
-  print('Group Surface-Chemistry already exists.')
-  hdf_surf_group = h5_species['Surface-Chemistry']
-  hdf_surf_group.attrs['* Last Modified'] = date.today().strftime("%B %d, %Y")
-else:
-  print('Group Surface-Chemistry does not exist, creating new group.')
-  hdf_surf_group = h5_species.create_group('Surface-Chemistry')
-  hdf_surf_group.attrs['* Created'] = date.today().strftime("%B %d, %Y")
+# hdf_surf_group = 'Surface-Chemistry'
+# if hdf_surf_group in h5_species.keys():
+#   print('Group Surface-Chemistry already exists.')
+#   hdf_surf_group = h5_species['Surface-Chemistry']
+#   hdf_surf_group.attrs['* Last Modified'] = date.today().strftime("%B %d, %Y")
+# else:
+#   print('Group Surface-Chemistry does not exist, creating new group.')
+#   hdf_surf_group = h5_species.create_group('Surface-Chemistry')
+#   hdf_surf_group.attrs['* Created'] = date.today().strftime("%B %d, %Y")
 
 logical_list = ['PolyatomicMol', 'LinearMolec']
 spec_attr_list = ['PreviousState']
@@ -159,22 +166,29 @@ for dataset in h5_crosssection.keys():
     print('Cross-section added: ', dataset)
     hdf_xsec_group.copy(source=h5_crosssection[dataset],dest=hdf_xsec_group)
     
-# Radiation data
-species_list = ['N','O','NIon1','OIon1','H','Xe','XeIon1','XeIon2','Ar','ArIon1','ArIon2']
-for rad_spec in species_list:
-  if rad_spec in hdf_rad_group.keys():
-    print('Radiative species already exists: ', rad_spec)
-    rad_spec_group = hdf_rad_group[rad_spec]
-  else:
-    print('Radiative species added to the database: ', rad_spec)
-    rad_spec_group = hdf_rad_group.create_group(rad_spec)
-    rad_spec_group.attrs['* Created']   = date.today().strftime("%B %d, %Y")
-    lines = rad_spec_group.create_dataset('Lines',data=[0])
-    levels = rad_spec_group.create_dataset('Levels',data=[0])
-  
+# # Radiation data
+# species_list = ['N','O','NIon1','OIon1','H','Xe','XeIon1','XeIon2','Ar','ArIon1','ArIon2']
+# for rad_spec in species_list:
+#   if rad_spec in hdf_rad_group.keys():
+#     print('Radiative species already exists: ', rad_spec)
+#     rad_spec_group = hdf_rad_group[rad_spec]
+#   else:
+#     print('Radiative species added to the database: ', rad_spec)
+#     rad_spec_group = hdf_rad_group.create_group(rad_spec)
+#     rad_spec_group.attrs['* Created']   = date.today().strftime("%B %d, %Y")
+#     lines = rad_spec_group.create_dataset('Lines',data=[0])
+#     levels = rad_spec_group.create_dataset('Levels',data=[0])
+
+educt_attr_list = ['Reactants']
+product_attr_list = ['Reactants', 'Products']
+educt_dict = {}
+product_dict = {}
 reac_attr_list = ['Reactants', 'Products', 'NonReactiveSpecies']
-  
-# Read-in of gas-phase reaction data
+
+ReacName_dict = {}
+reac_dict = {}
+
+# Read-in of the gas-phase reaction names or create them separately if not defined
 with open(args.ini_filename) as file:
   reac_dict = {}
   for line in file:
@@ -186,13 +200,139 @@ with open(args.ini_filename) as file:
           hdf_reac = var_value
           reac_count = var_name[0]
           reac_dict[reac_count] = hdf_reac
-          if hdf_reac in hdf_reac_group.keys():
-            print('Reaction already exists: ', hdf_reac)
-            hdf_reac = hdf_reac_group[hdf_reac]
-          else:
-            print('Reaction added to the database: ', hdf_reac)
-            hdf_reac = hdf_reac_group.create_dataset(hdf_reac,data=[0])
-            hdf_reac.attrs['* Created']   = date.today().strftime("%B %d, %Y")
+        if var_name[1] in educt_attr_list:
+          var_value = var_value.replace(',0', '').replace('(/', '').replace('/)', '').split(',')
+          educt_dict[var_name[0]] = var_value
+        elif var_name[1] in product_attr_list:
+          var_value = var_value.replace(',0', '').replace('(/', '').replace('/)', '').split(',')
+          product_dict[var_name[0]] = var_value
+        if var_name[0] not in ReacName_dict:
+          ReacName_dict[var_name[0]] = []
+          ReacName_dict[var_name[0]].append(var_name[1])
+        else:
+          ReacName_dict[var_name[0]].append(var_name[1])
+
+# If not defined, set the reaction name
+for key in ReacName_dict:
+  if 'ReactionName' not in ReacName_dict[key]:
+    ReactionName = ''
+    for val in educt_dict[key]:
+      ReactionName = ReactionName + '+' + spec_dict[val]
+    ReactionName = ReactionName + '_'
+    for val in product_dict[key]:
+      ReactionName = ReactionName + '+' + spec_dict[val]
+    ReactionName = ReactionName[1:]
+    ReactionName = ReactionName.replace('_+','_')
+    reac_dict[key] = ReactionName
+  
+  hdf_reac = reac_dict[key]
+  ReactionName = hdf_reac
+
+  # Check first for permutations of the reaction name
+  ReactionNameSplit = re.split('_', ReactionName)
+  checkeduct_list = re.split('\+', ReactionNameSplit[0])
+  checkeduct_list.sort(key=str.lower)
+  checkproduct_list = re.split('\+',ReactionNameSplit[1])
+  checkproduct_list.sort(key=str.lower)
+
+  ReactionName = ''
+  for val in checkeduct_list:
+    ReactionName = ReactionName + '+' + val
+  ReactionName = ReactionName + '_'
+  for val in checkproduct_list:
+    ReactionName = ReactionName + '+' + val
+  ReactionName = ReactionName[1:]
+  ReactionName = ReactionName.replace('_+','_')
+  reac_dict[key] = ReactionName
+
+  hdf_reac = reac_dict[key]
+  ReactionName = hdf_reac
+
+  # Check if the reaction exists
+  if hdf_reac in hdf_reac_group.keys():
+    print('Reaction already exists: ', hdf_reac)
+    hdf_reac = hdf_reac_group[hdf_reac]
+  elif (hdf_reac + '#1') in hdf_reac_group.keys():
+    print('Reaction already exists: ', hdf_reac)
+    ReactionName = hdf_reac + '#1'
+    reac_dict[key] = ReactionName
+    hdf_reac = hdf_reac_group[(hdf_reac + '#1')]
+  else:
+    print('Reaction added to the database: ', hdf_reac)
+    hdf_reac = hdf_reac_group.create_dataset(hdf_reac,data=[0])
+    hdf_reac.attrs['* Created']   = date.today().strftime("%B %d, %Y")
+
+  #Read-In of the Chemistry-model for the reaction
+  if 'Chemistry-Model' in hdf_reac.attrs:
+    model_name_list = []
+    model_attr = list(hdf_reac.attrs['Chemistry-Model'])
+    for val in model_attr:
+      model_name_list.append(val.decode('UTF-8'))
+    if model_name in model_name_list:
+      print('This Model is already defined for the reaction. No further action is taken.')
+      print('To define the reaction data as a separate instance, please rename the model.')
+    else:
+      # Check if the model exists in another reaction
+      AddNewReaction = False
+      Count = 0
+      ReacNameTest = ReactionName
+      if ReacNameTest in hdf_reac_group.keys():
+        hdf_reac_test = hdf_reac_group[ReacNameTest]
+        model_test_list = []
+        model_attr_test = list(hdf_reac_test.attrs['Chemistry-Model'])
+        for val in model_attr_test:
+          model_test_list.append(val.decode('UTF-8'))
+        if model_name in model_test_list:
+          print('This Model is already defined for the reaction. No further action is taken.')
+          print('To define the reaction data as a separate instance, please rename the model.')
+          AddNewReaction = False
+          exit
+        else: 
+          AddNewReaction = True
+      while ReacNameTest in hdf_reac_group.keys():
+        ReacNameTest = re.sub('#\d+', '', ReactionName)
+        Count = Count + 1
+        ReacNameTest = ReacNameTest + '#' + str(Count)
+        if ReacNameTest in hdf_reac_group.keys():
+          hdf_reac_test = hdf_reac_group[ReacNameTest]
+          model_test_list = []
+          model_attr_test = list(hdf_reac_test.attrs['Chemistry-Model'])
+          for val in model_attr_test:
+            model_test_list.append(val.decode('UTF-8'))
+          if model_name in model_test_list:
+            print('This Model is already defined for the reaction. No further action is taken.')
+            print('To define the reaction data as a separate instance, please rename the model.')
+            reac_dict[key] = ReacNameTest
+            AddNewReaction = False
+            exit
+          else: 
+            AddNewReaction = True
+      if AddNewReaction:
+        print('A different Model is already defined for this reaction.')
+        Count = 1
+        while ReactionName in hdf_reac_group.keys():
+          if '#' not in ReactionName:
+            ReacNameCopy = ReactionName + '#1'
+            hdf_reac_group.move(ReactionName, ReacNameCopy)
+            reac_dict[key] = ReacNameCopy
+          ReactionName = re.sub('#\d+', '', ReactionName)
+          Count = Count + 1
+          ReactionName = ReactionName + '#' + str(Count)
+        reac_dict[key] = ReactionName
+        hdf_reac = ReactionName
+        hdf_reac = hdf_reac_group.create_dataset(hdf_reac,data=[0])
+        hdf_reac.attrs['* Created']   = date.today().strftime("%B %d, %Y")
+        print('The reaction with the new model was stored as ', ReactionName, '.')
+        model_name_list = []
+        model_name_list.append(model_name)
+        hdf_reac.attrs['Chemistry-Model'] = np.array(model_name_list,dtype='S255')
+        exit
+  else:
+    model_name_list = []
+    model_name_list.append(model_name)
+    hdf_reac.attrs['Chemistry-Model'] = np.array(model_name_list,dtype='S255')
+    #str_modellist = np.array([s.ljust(str_len) for s in model_name_list], dtype='S255')
+    #hdf_reac.attrs['Chemistry-Model'] = str_modellist
 
 with open(args.ini_filename) as file:
   for line in file:
@@ -205,82 +345,82 @@ with open(args.ini_filename) as file:
           reac_count = var_name[0]
           hdf_reac = reac_dict[reac_count]
           hdf_reac = hdf_reac_group[hdf_reac]
+          # Read-In of the attributes
           if var_name[1] in hdf_reac.attrs:
             print('Reaction parameter is already set: ', var_name[1])
           else:
             if is_float(var_value):
               var_value = float(var_value)
-            if var_name[1] not in reac_attr_list:
-              hdf_reac.attrs[var_name[1]] = var_value
-            else: 
-              spec_name_list = ''
+            if var_name[1] in reac_attr_list:
+              spec_name_list = []
               var_value = var_value.replace(',0', '').replace('(/', '').replace('/)', '').split(',')
               for val in var_value:
-                spec_name_list = spec_name_list + ', ' + spec_dict[val]
-              spec_name_list = spec_name_list.replace(', ', '', 1)
-              hdf_reac.attrs[var_name[1]] = spec_name_list
-            print('Reaction parameter set: ', var_name[1])
+                spec_name_list.append(spec_dict[val])
+              hdf_reac.attrs[var_name[1]] = np.array(spec_name_list,dtype='S255')
+            else:
+              hdf_reac.attrs[var_name[1]] = var_value
+            print('Reaction parameter set: ', var_name[1])          
             # Write attributes for source and time of retrieval
             hdf_reac.attrs['* Reference'] = args.reference
             hdf_reac.attrs['* Created']   = date.today().strftime("%B %d, %Y")
 
-surf_attr_list = ['Reactants', 'Products']
-surf_wo_readin = ['Boundaries', 'NumOfBoundaries', 'Inhibition', 'Promotion']
-surf_string_list = ['Type']
+# surf_attr_list = ['Reactants', 'Products']
+# surf_wo_readin = ['Boundaries', 'NumOfBoundaries', 'Inhibition', 'Promotion']
+# surf_string_list = ['Type']
 
-# Read-in of gas-surface reaction data
-with open(args.ini_filename) as file:
-  surf_dict = {}
-  for line in file:
-    if not line.startswith('!'):
-      if line.startswith('Surface-Reaction'):
-        var_name = line.strip().replace(" ","").replace("Surface-Reaction","").split('=')[0].split('-')
-        var_value = line.strip().replace(" ","").replace("Surface-Reaction","").split('=')[1].split('!', 1)[0]
-        if var_name[1].startswith('SurfName'):
-          hdf_surf = var_value
-          surf_count = var_name[0]
-          surf_dict[surf_count] = hdf_surf
-          if hdf_surf in hdf_surf_group.keys():
-            print('Surface reaction already exists: ', hdf_surf)
-            hdf_surf = hdf_surf_group[hdf_surf]
-          else:
-            print('Surface reaction added to the database: ', hdf_surf)
-            hdf_surf = hdf_surf_group.create_dataset(hdf_surf,data=[0])
-            hdf_surf.attrs['* Created']   = date.today().strftime("%B %d, %Y")
+# # Read-in of gas-surface reaction data
+# with open(args.ini_filename) as file:
+#   surf_dict = {}
+#   for line in file:
+#     if not line.startswith('!'):
+#       if line.startswith('Surface-Reaction'):
+#         var_name = line.strip().replace(" ","").replace("Surface-Reaction","").split('=')[0].split('-')
+#         var_value = line.strip().replace(" ","").replace("Surface-Reaction","").split('=')[1].split('!', 1)[0]
+#         if var_name[1].startswith('SurfName'):
+#           hdf_surf = var_value
+#           surf_count = var_name[0]
+#           surf_dict[surf_count] = hdf_surf
+#           if hdf_surf in hdf_surf_group.keys():
+#             print('Surface reaction already exists: ', hdf_surf)
+#             hdf_surf = hdf_surf_group[hdf_surf]
+#           else:
+#             print('Surface reaction added to the database: ', hdf_surf)
+#             hdf_surf = hdf_surf_group.create_dataset(hdf_surf,data=[0])
+#             hdf_surf.attrs['* Created']   = date.today().strftime("%B %d, %Y")
 
-with open(args.ini_filename) as file:
-  for line in file:
-    if not line.startswith('!'):
-      if line.startswith('Surface-Reaction'):
-        var_name = line.strip().replace(" ","").replace("Surface-Reaction","").split('=')[0].split('-')
-        var_value = line.strip().replace(" ","").replace("Surface-Reaction","").split('=')[1].split('!', 1)[0]
+# with open(args.ini_filename) as file:
+#   for line in file:
+#     if not line.startswith('!'):
+#       if line.startswith('Surface-Reaction'):
+#         var_name = line.strip().replace(" ","").replace("Surface-Reaction","").split('=')[0].split('-')
+#         var_value = line.strip().replace(" ","").replace("Surface-Reaction","").split('=')[1].split('!', 1)[0]
 
-        if not var_name[1].startswith('SurfName'):
-          surf_count = var_name[0]
-          hdf_surf = surf_dict[surf_count]
-          hdf_surf = hdf_surf_group[hdf_surf]
-          if var_name[1] in hdf_surf.attrs:
-            print('Catalytic parameter is already set: ', var_name[1])
-          else:
-            if is_float(var_value):
-              var_value = float(var_value)
-            if var_name[1] not in surf_attr_list and var_name[1] not in surf_wo_readin:
-              if var_name[1] not in surf_string_list:
-                hdf_surf.attrs[var_name[1]] = var_value
-              else:
-                hdf_surf.attrs[var_name[1]] = np.string_(var_value)     
-              print('Catalytic parameter set: ', var_name[1]) 
-            elif var_name[1] in surf_attr_list:
-              spec_name_list = ''
-              var_value = var_value.replace(',0', '').replace('(/', '').replace('/)', '').split(',')
-              for val in var_value:
-                spec_name_list = spec_name_list + ', ' + spec_dict[val]
-              spec_name_list = spec_name_list.replace(', ', '', 1)
-              hdf_surf.attrs[var_name[1]] = spec_name_list
-              print('Catalytic parameter set: ', var_name[1]) 
-            # Write attributes for source and time of retrieval
-            hdf_surf.attrs['* Reference'] = args.reference
-            hdf_surf.attrs['* Created']   = date.today().strftime("%B %d, %Y")
+#         if not var_name[1].startswith('SurfName'):
+#           surf_count = var_name[0]
+#           hdf_surf = surf_dict[surf_count]
+#           hdf_surf = hdf_surf_group[hdf_surf]
+#           if var_name[1] in hdf_surf.attrs:
+#             print('Catalytic parameter is already set: ', var_name[1])
+#           else:
+#             if is_float(var_value):
+#               var_value = float(var_value)
+#             if var_name[1] not in surf_attr_list and var_name[1] not in surf_wo_readin:
+#               if var_name[1] not in surf_string_list:
+#                 hdf_surf.attrs[var_name[1]] = var_value
+#               else:
+#                 hdf_surf.attrs[var_name[1]] = np.string_(var_value)     
+#               print('Catalytic parameter set: ', var_name[1]) 
+#             elif var_name[1] in surf_attr_list:
+#               spec_name_list = ''
+#               var_value = var_value.replace(',0', '').replace('(/', '').replace('/)', '').split(',')
+#               for val in var_value:
+#                 spec_name_list = spec_name_list + ', ' + spec_dict[val]
+#               spec_name_list = spec_name_list.replace(', ', '', 1)
+#               hdf_surf.attrs[var_name[1]] = spec_name_list
+#               print('Catalytic parameter set: ', var_name[1]) 
+#             # Write attributes for source and time of retrieval
+#             hdf_surf.attrs['* Reference'] = args.reference
+#             hdf_surf.attrs['* Created']   = date.today().strftime("%B %d, %Y")
     
 
 print('*** Database successfully built. ***')
