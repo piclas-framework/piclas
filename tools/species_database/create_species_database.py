@@ -360,7 +360,9 @@ with open(args.ini_filename) as file:
                 hdf_reac.attrs[var_name[1]] = np.array(spec_name_list,dtype='S255')
               else:
                 hdf_reac.attrs[var_name[1]] = var_value
-              print('Reaction parameter set: ', var_name[1])          
+              print('Reaction parameter set: ', var_name[1]) 
+              if 'ReactionModel' not in hdf_reac.attrs:
+                hdf_reac.attrs['ReactionModel'] = 'TCE'         
             # Write attributes for source and time of retrieval
             hdf_reac.attrs['* Reference'] = args.reference
             hdf_reac.attrs['* Created']   = date.today().strftime("%B %d, %Y")
