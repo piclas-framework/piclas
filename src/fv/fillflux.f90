@@ -95,7 +95,7 @@ END IF
 DO SideID=firstSideID_wo_BC,lastSideID
 #ifdef drift_diffusion
   ElemID   = SideToElem(S2E_ELEM_ID,SideID)
-  E=(/-1.,0.,0./)
+  E=(/1.,0.,0./)
   ! print*, 'elemxgp', Elem_xGP_FV(:,:,:,:,ElemID)
   ! print*, 'face', Face_xGP_FV(:,:,:,SideID)
   ! print*, 'nv', NormVec_FV(:,:,:,SideID)

@@ -316,7 +316,11 @@ CALL LBSplitTime(LB_DG,tLBStart)
 ! Swap to right sign and divide by element volume (1/sJ)
 ! CALL ApplyJacobian(Ut_FV,toPhysical=.TRUE.,toSwap=.TRUE.)
 DO iElem=1,PP_nElems
+#if USE_MPI && defined(PARTICLES)
   CNElemID=GetCNElemID(iElem+offSetElem)
+#else
+  CNElemID=iElem
+#endif
   Ut_FV(:,:,:,:,iElem)=-Ut_FV(:,:,:,:,iElem)/ElemVolume_Shared(CNElemID)
 END DO
 

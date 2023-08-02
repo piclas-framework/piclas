@@ -154,7 +154,7 @@ DO iBC=1,nBCs
   CASE(2) !Exact function or refstate
     DO iSide=1,nBCLoc
       SideID=BCSideID(iBC,iSide)
-      E=(/-1.,0.,0./)
+      E=(/1.,0.,0./)
       IF(BCState.EQ.0) THEN
         DO q=0,0; DO p=0,0
           CALL ExactFunc(IniExactFunc,t,0,Face_xGP(:,p,q,SideID),UPrim_boundary(:,p,q))
@@ -175,7 +175,7 @@ DO iBC=1,nBCs
   CASE(3) !von Neumann
     DO iSide=1,nBCLoc
       SideID=BCSideID(iBC,iSide)
-      E=(/-1.,0.,0./)
+      E=(/1.,0.,0./)
       UPrim_boundary=UPrim_master(:,:,:,SideID)
       CALL Riemann(Flux(:,:,:,SideID),UPrim_master(:,:,:,SideID),UPrim_boundary,NormVec(:,:,:,SideID),GradSide=0.,E=E)
     END DO
