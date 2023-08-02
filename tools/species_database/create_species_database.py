@@ -110,8 +110,12 @@ with open(args.ini_filename) as file:
           spec_dict[species_count] = hdf_species
           # Check if the species data already exists in the database
           if hdf_species in hdf_species_group.keys():
-            print('Species already exists: ', hdf_species)
-            hdf_species = hdf_species_group[hdf_species]
+            if hdf_species in h5_electronic.keys():
+              del hdf_species_group[hdf_species]
+              hdf_input_data = h5_electronic[hdf_species]
+              print('Electronic states added to the database: ', hdf_species)
+              hdf_species = hdf_species_group.create_dataset(hdf_species,data=hdf_input_data)
+              hdf_species.attrs['* Created']   = date.today().strftime("%B %d, %Y")
           elif hdf_species == 'electron':
             print('Species added to the database: ', hdf_species)
             hdf_species = hdf_species_group.create_dataset(hdf_species,data=[0])
@@ -120,7 +124,7 @@ with open(args.ini_filename) as file:
             # Add the electronic state data
             if hdf_species in h5_electronic.keys():
               hdf_input_data = h5_electronic[hdf_species]
-              print('Species added to the database: ', hdf_species)
+              print('Electronic states added to the database: ', hdf_species)
               hdf_species = hdf_species_group.create_dataset(hdf_species,data=hdf_input_data)
               hdf_species.attrs['* Created']   = date.today().strftime("%B %d, %Y")
             else:
@@ -352,7 +356,7 @@ for key in ReacName_dict:
     hdf_reac.attrs['ChemistryModel'] = np.array(model_name_list,dtype='S255')
 
 # List of variables not added to the file
-exclude_list = ['Reactants', 'Products', 'NumberOfNonReactives']
+exclude_list = ['NumberOfNonReactives']
 
 with open(args.ini_filename) as file:
   for line in file:
