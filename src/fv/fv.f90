@@ -226,7 +226,7 @@ CALL LBStartTime(tLBStart)
 CALL StartReceiveMPIData(PP_nVar_FV,U_slave_FV,1,nSides,RecRequest_U,SendID=2) ! Receive MINE
 #if USE_LOADBALANCE
 CALL LBSplitTime(LB_DGCOMM,tLBStart)
-#endif /*USE_LOADBALANCE*/
+#endif /*MPI*/
 
 CALL ProlongToFace(U_FV,U_master_FV,U_slave_FV,doMPISides=.TRUE.)
 CALL U_Mortar(U_master_FV,U_slave_FV,doMPISides=.TRUE.)
@@ -317,7 +317,7 @@ CALL LBSplitTime(LB_DG,tLBStart)
 ! CALL ApplyJacobian(Ut_FV,toPhysical=.TRUE.,toSwap=.TRUE.)
 DO iElem=1,PP_nElems
   CNElemID=GetCNElemID(iElem+offSetElem)
-  Ut_FV(:,:,:,:,iElem)=Ut_FV(:,:,:,:,iElem)/ElemVolume_Shared(CNElemID)
+  Ut_FV(:,:,:,:,iElem)=-Ut_FV(:,:,:,:,iElem)/ElemVolume_Shared(CNElemID)
 END DO
 
 ! Add Source Terms

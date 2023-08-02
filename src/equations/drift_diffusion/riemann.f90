@@ -53,13 +53,21 @@ REAL                                             :: driftVelo, mu_L, mu_R, D_L, 
 !===================================================================================================================================
 CALL CalcDriftDiffusionCoeff(VECNORM(E),U_L(1,0,0),mu_L,D_L)
 CALL CalcDriftDiffusionCoeff(VECNORM(E),U_R(1,0,0),mu_R,D_R)
+mu_L=3000.
+mu_R=3000.
+D_L=20.
+D_R=20.
 driftVelo=-DOT_PRODUCT(nv(:,0,0),E)
+! print*, 'E', E
+! print*, driftVelo
+! print*, nv
+! read*
 ! IF (mu_L.GT.0.)print*, 'E', 1e21*E/U_L(1,0,0), 1e21*E/U_R(1,0,0)
 ! IF (mu_L.GT.0.)print*, 'mu', mu_L*U_L(1,0,0), mu_R*U_R(1,0,0)
 ! IF (mu_L.GT.0.) print*, 'D', D_L/mu_L, D_R/mu_R
 ! IF (mu_L.GT.0.)read*
 ! F(1,0,0)=0.5*((driftVelo+abs(driftVelo))*mu_L*U_L(1,0,0)+(driftVelo-abs(driftVelo))*mu_R*U_R(1,0,0)) &
-!                     +0.5*((driftVelo+abs(driftVelo))*D_L*GradSide+(driftVelo-abs(driftVelo))*D_R*GradSide)/driftVelo
+!                     +D_L*GradSide
 IF (driftVelo.GT.0.) THEN
   F(1,0,0)=driftVelo*mu_L*U_L(1,0,0) + D_L*GradSide
 ELSE

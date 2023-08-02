@@ -103,8 +103,11 @@ USE MOD_Mesh_Vars
 USE MOD_Mesh_ReadIn            ,ONLY: ReadMesh
 USE MOD_Metrics                ,ONLY: BuildCoords,CalcMetrics
 #if USE_FV
+#ifndef PARTICLES
+USE MOD_Mesh_Tools             ,ONLY: InitGetCNElemID
+#endif /*PARTICLES*/
 USE MOD_Metrics                ,ONLY: CalcMetrics_PP_1
-#endif
+#endif /*FV*/
 USE MOD_Prepare_Mesh           ,ONLY: setLocalSideIDs,fillMeshInfo
 USE MOD_ReadInTools            ,ONLY: PrintOption
 USE MOD_ReadInTools            ,ONLY: GETLOGICAL,GETSTR,GETREAL,GETINT,GETREALARRAY
@@ -375,14 +378,22 @@ IF (ABS(meshMode).GT.1) THEN
   ALLOCATE(XCL_NGeo(1:3,0:NGeo,0:NGeo,0:NGeo,1:nElems))
   XCL_NGeo = 0.
 #if USE_FV
+#ifdef PARTICLES
+  ALLOCATE(dXCL_NGeo(1:3,1:3,0:NGeo,0:NGeo,0:NGeo,1:nElems))
+  dXCL_NGeo = 0.
+  CALL CalcMetrics_PP_1(XCL_NGeo_Out=XCL_NGeo,dXCL_NGeo_Out=dXCL_NGeo)
+#else
+  CALL InitGetCNElemID()
   CALL CalcMetrics_PP_1(XCL_NGeo_Out=XCL_NGeo)
 #endif
+#elif !(USE_FV) || (USE_HDG)
 #ifdef PARTICLES
   ALLOCATE(dXCL_NGeo(1:3,1:3,0:NGeo,0:NGeo,0:NGeo,1:nElems))
   dXCL_NGeo = 0.
   CALL CalcMetrics(XCL_NGeo_Out=XCL_NGeo,dXCL_NGeo_Out=dXCL_NGeo)
-#elif !(USE_FV) || (USE_HDG)
+#else
   CALL CalcMetrics(XCL_NGeo_Out=XCL_NGeo)
+#endif
 #endif
 
   ! Compute element bary and element radius for processor-local elements (without halo region)

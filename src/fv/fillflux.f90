@@ -95,7 +95,11 @@ END IF
 DO SideID=firstSideID_wo_BC,lastSideID
 #ifdef drift_diffusion
   ElemID   = SideToElem(S2E_ELEM_ID,SideID)
-  E=(/-6.0036,0.,0./)
+  E=(/-1.,0.,0./)
+  ! print*, 'elemxgp', Elem_xGP_FV(:,:,:,:,ElemID)
+  ! print*, 'face', Face_xGP_FV(:,:,:,SideID)
+  ! print*, 'nv', NormVec_FV(:,:,:,SideID)
+  ! print*, 'surfelem', SurfElem_FV(:,:,SideID)
   CALL Riemann(Flux_Master(:,:,:,SideID),U_Master(:,:,:,SideID),U_Slave(:,:,:,SideID),NormVec_FV(:,:,:,SideID), &
                EFluid_GradSide(SideID),E)
 #else
@@ -116,6 +120,8 @@ END IF
 ! 3. multiply by SurfElem: Apply surface element size
 DO SideID=firstSideID,lastSideID
   Flux_Master(:,0,0,SideID)=Flux_Master(:,0,0,SideID)*SurfElem_FV(0,0,SideID)
+  ! 4. copy flux from master side to slave side: DO not change sign
+  Flux_slave(:,:,:,SideID) = Flux_master(:,:,:,SideID)
 END DO
 
 END SUBROUTINE FillFlux

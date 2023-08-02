@@ -70,7 +70,9 @@ PUBLIC :: WriteAdaptiveInfoToHDF5
 PUBLIC :: WriteAdaptiveWallTempToHDF5
 PUBLIC :: WriteVibProbInfoToHDF5
 PUBLIC :: WriteClonesToHDF5
+#if !(USE_FV) || (USE_HDG)
 PUBLIC :: WriteElectroMagneticPICFieldToHDF5
+#endif
 PUBLIC :: WriteEmissionVariablesToHDF5
 PUBLIC :: FillParticleData
 !===================================================================================================================================
@@ -1535,7 +1537,7 @@ DEALLOCATE(PartData)
 
 END SUBROUTINE WriteClonesToHDF5
 
-
+#if !(USE_FV) || (USE_HDG)
 !===================================================================================================================================
 !> Store the magnetic filed acting on particles at each DOF for all elements to .h5
 !===================================================================================================================================
@@ -1641,7 +1643,7 @@ GETTIME(EndT)
 CALL DisplayMessageAndTime(EndT-StartT, 'DONE', DisplayDespiteLB=.TRUE., DisplayLine=.FALSE.)
 
 END SUBROUTINE WriteElectroMagneticPICFieldToHDF5
-
+#endif
 
 !===================================================================================================================================
 !> Write particle emission variables from state.h5

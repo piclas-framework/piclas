@@ -48,7 +48,9 @@ IMPLICIT NONE
 ! LOCAL VARIABLES
 !===================================================================================================================================
 
-CALL FV_main(time,time,doSource=.FALSE.) 
+! print*, 'timedisc'
+CALL FV_main(time,time,doSource=.FALSE.)
+! print*, 'timedisc2'
 U_FV = U_FV + Ut_FV*dt
 
 END SUBROUTINE TimeStep_ExplicitFV

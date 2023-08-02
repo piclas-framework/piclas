@@ -57,7 +57,9 @@ PUBLIC :: CalcVelocities
 #if (PP_TimeDiscMethod==42)
 PUBLIC :: CollRates,CalcRelaxRates,CalcRelaxRatesElec,ReacRates
 #endif /*(PP_TimeDiscMethod==42)*/
+#if !(USE_FV) || (USE_HDG)
 PUBLIC :: CalcPowerDensity
+#endif /*FV*/
 PUBLIC :: CalculatePartElemData
 PUBLIC :: CalcCoupledPowerPart, CalcEelec
 PUBLIC :: CalcNumberDensityBGGasDistri
@@ -416,8 +418,10 @@ IF(CalcElectronEnergy) CALL CalculateElectronEnergyCell()
 ! plasma frequency
 IF(CalcPlasmaFrequency) CALL CalculatePlasmaFrequencyCell()
 
+#if !(USE_FV) || (USE_HDG)
 ! Cyclotron frequency
 IF(CalcCyclotronFrequency) CALL CalculateCyclotronFrequencyAndRadiusCell()
+#endif
 
 ! PIC time step for gyro motion (cyclotron frequency)
 IF(CalcPICTimeStepCyclotron) CALL CalculatePICTimeStepCyclotron()
@@ -2462,7 +2466,7 @@ END IF
 END SUBROUTINE ReacRates
 #endif
 
-
+#if !(USE_FV) || (USE_HDG)
 SUBROUTINE CalcPowerDensity()
 !===================================================================================================================================
 ! Used to average the source terms per species
@@ -2479,9 +2483,6 @@ USE MOD_Part_RHS         ,ONLY: PartVeloToImp
 USE MOD_Preproc
 USE MOD_PICDepo          ,ONLY: Deposition
 USE MOD_Mesh_Tools       ,ONLY: GetCNElemID
-#if USE_FV
-USE MOD_FV_Vars          ,ONLY: U
-#else
 #if ! (USE_HDG)
 USE MOD_DG_Vars          ,ONLY: U
 #else
@@ -2490,7 +2491,6 @@ USE MOD_Equation_Vars    ,ONLY: E
 #else
 #endif
 #endif
-#endif /*USE_FV*/
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! insert modules here
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -2562,7 +2562,7 @@ DO iSpec=1,nSpecies
 END DO
 
 END SUBROUTINE CalcPowerDensity
-
+#endif
 
 SUBROUTINE CalculatePlasmaFrequencyCell()
 !===================================================================================================================================
@@ -2597,7 +2597,7 @@ END DO ! iElem=1,PP_nElems
 
 END SUBROUTINE CalculatePlasmaFrequencyCell
 
-
+#if !(USE_FV) || (USE_HDG)
 SUBROUTINE CalculateCyclotronFrequencyAndRadiusCell()
 !===================================================================================================================================
 ! Determine the (relativistic) electron cyclotron frequency in each cell, which can be calculate without electrons present in the
@@ -2747,7 +2747,7 @@ ASSOCIATE( e   => ElementaryCharge,&
 END ASSOCIATE
 
 END SUBROUTINE CalculateCyclotronFrequencyAndRadiusCell
-
+#endif
 
 SUBROUTINE CalculatePICTimeStepCyclotron()
 !===================================================================================================================================

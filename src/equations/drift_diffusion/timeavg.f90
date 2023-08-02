@@ -348,7 +348,6 @@ USE MOD_Timeaverage_Vars       ,ONLY: UAvg,UFluc,CalcAvg,iAvg,FlucAvgMap,dtAvg,d
 #ifdef PARTICLES
 USE MOD_Timeaverage_Vars       ,ONLY: PowerDensity,DoPowerDensity
 USE MOD_Particle_Vars          ,ONLY: nSpecies
-USE MOD_Particle_Analyze_Tools ,ONLY: CalcPowerDensity
 #endif /*Particles*/
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
@@ -373,9 +372,11 @@ dtAvg  = dtAvg+dtStep
 dtOld  = dt
 
 #ifdef PARTICLES
+#if USE_HDG
 IF(ANY(DoPowerDensity))THEN
   CALL CalcPowerDensity()
 END IF
+#endif /*HDG*/
 #endif /*Particles*/
 
 DO iElem=1,nElems

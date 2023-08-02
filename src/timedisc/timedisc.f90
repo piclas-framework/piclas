@@ -85,7 +85,9 @@ USE MOD_LoadDistribution       ,ONLY: WriteElemTimeStatistics
 #endif /*USE_MPI*/
 #ifdef PARTICLES
 USE MOD_Particle_Localization  ,ONLY: CountPartsPerElem
+#if !(USE_FV) || (USE_HDG)
 USE MOD_HDF5_Output_Particles  ,ONLY: WriteElectroMagneticPICFieldToHDF5
+#endif
 USE MOD_HDF5_Output_State      ,ONLY: WriteIMDStateToHDF5
 USE MOD_Particle_Analyze_Vars  ,ONLY: CalcEMFieldOutput
 USE MOD_HDF5_Output_Particles  ,ONLY: FillParticleData
@@ -234,7 +236,9 @@ IF(MeasureTrackTime)THEN
   tTracking=0
   tLocalization=0
 END IF
+#if !(USE_FV) || (USE_HDG)
 IF(CalcEMFieldOutput) CALL WriteElectroMagneticPICFieldToHDF5() ! Write magnetic field to file
+#endif
 #endif /*PARTICLES*/
 
 ! No computation needed if tEnd=tStart!

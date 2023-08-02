@@ -145,9 +145,9 @@ CASE(1)
 
 CASE(2) !shock
   IF (x(1).LT.0.) THEN
-    Resu = 2.e21
+    Resu = 2.!e21
   ELSE
-    Resu = 1.e21
+    Resu = 1.!e21
   END IF
 
 CASE DEFAULT
