@@ -12,15 +12,17 @@ def custom_sort_reactants(species_list):
         'CH2',
         'CH',
         'CO2',
-        'CO2Ion1'
+        'CO2Ion1',
         'CO',
         'COIon1',
         'HCN',
         'CN',
         'CNIon1',
+        'C2',
+        'C2Ion1',
         'N2',
         'N2Ion1',
-        'N2O'
+        'N2O',
         'NO',
         'NOIon1',
         'NH3',
@@ -38,9 +40,9 @@ def custom_sort_reactants(species_list):
         'H2',
         'H2Ion1',
         'D2',
-        'D2Ion1'
+        'D2Ion1',
         'HD',
-        'HDIon1'
+        'HDIon1',
         'F2',
         'HF',
         'Cl2',
@@ -61,7 +63,7 @@ def custom_sort_reactants(species_list):
         'H',
         'HIon1',
         'D',
-        'DIon1'
+        'DIon1',
         'Xe',
         'XeIon1',
         'Ar',
@@ -101,15 +103,17 @@ def custom_sort_products(species_list):
         'CH2',
         'CH',
         'CO2',
-        'CO2Ion1'
+        'CO2Ion1',
         'CO',
         'COIon1',
         'HCN',
         'CN',
         'CNIon1',
+        'C2',
+        'C2Ion1',
         'N2',
         'N2Ion1',
-        'N2O'
+        'N2O',
         'NO',
         'NOIon1',
         'NH3',
@@ -127,9 +131,9 @@ def custom_sort_products(species_list):
         'H2',
         'H2Ion1',
         'D2',
-        'D2Ion1'
+        'D2Ion1',
         'HD',
-        'HDIon1'
+        'HDIon1',
         'F2',
         'HF',
         'Cl2',
@@ -150,7 +154,7 @@ def custom_sort_products(species_list):
         'H',
         'HIon1',
         'D',
-        'DIon1'
+        'DIon1',
         'Xe',
         'XeIon1',
         'Ar',
