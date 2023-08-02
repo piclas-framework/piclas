@@ -15,7 +15,7 @@
 MODULE MOD_FV
 !===================================================================================================================================
 ! Contains the initialization of the DG global variables
-! Computes the different DG spatial operators/residuals(Ut) using U
+! Computes the different DG spatial operators/residuals(Ut_FV) using U_FV
 !===================================================================================================================================
 ! MODULES
 ! IMPLICIT VARIABLE HANDLING
@@ -50,7 +50,7 @@ CONTAINS
 
 SUBROUTINE InitFV()
 !===================================================================================================================================
-! Allocate global variable U (solution) and Ut (dg time derivative).
+! Allocate global variable U_FV (solution) and Ut_FV (dg time derivative).
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
@@ -59,7 +59,7 @@ USE MOD_FV_Vars
 USE MOD_IO_HDF5            ,ONLY: AddToElemData,ElementOut
 USE MOD_Restart_Vars       ,ONLY: DoRestart,RestartInitIsDone
 USE MOD_Interpolation_Vars ,ONLY: InterpolationInitIsDone
-USE MOD_Mesh_Vars          ,ONLY: nSides, Face_xGP, NormVec
+USE MOD_Mesh_Vars          ,ONLY: nSides, Face_xGP_FV, NormVec_FV
 USE MOD_Mesh_Vars          ,ONLY: MeshInitIsDone
 USE MOD_Gradients          ,ONLY: InitGradients
 #if USE_LOADBALANCE
@@ -90,49 +90,45 @@ LBWRITE(UNIT_stdOut,'(A)') ' INIT FV...'
 IF (.NOT.(PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance))) THEN
 #endif /*USE_LOADBALANCE && !(USE_HDG)*/
   ! the local DG solution in physical and reference space
-  ALLOCATE( U(PP_nVar,0:PP_N,0:PP_N,0:PP_N,PP_nElems))
-  U=0.
+  ALLOCATE( U_FV(PP_nVar_FV,0:0,0:0,0:0,PP_nElems))
+  U_FV=0.
 #if !(USE_HDG)
 #if USE_LOADBALANCE
 END IF
 #endif /*USE_LOADBALANCE*/
 ! the time derivative computed with the DG scheme
-ALLOCATE(Ut(PP_nVar,0:PP_N,0:PP_N,0:PP_N,PP_nElems))
-Ut=0.
+ALLOCATE(Ut_FV(PP_nVar_FV,0:0,0:0,0:0,PP_nElems))
+Ut_FV=0.
 #endif /*USE_HDG*/
 
-nTotal_face=1!(PP_N+1)*(PP_N+1)
-nTotal_vol=nTotal_face*1!(PP_N+1)
-nTotalU=PP_nVar*nTotal_vol*PP_nElems
-
-! U is filled with the ini solution
+! U_FV is filled with the ini solution
 IF(.NOT.DoRestart) CALL FillIni()
 
 ! We store the interior data at the each element face
-!ALLOCATE(U_Minus(PP_nVar,0:PP_N,0:PP_N,sideID_minus_lower:sideID_minus_upper))
-!ALLOCATE(U_Plus(PP_nVar,0:PP_N,0:PP_N,sideID_plus_lower:sideID_plus_upper))
+!ALLOCATE(U_Minus(PP_nVar_FV,0:0,0:0,sideID_minus_lower:sideID_minus_upper))
+!ALLOCATE(U_Plus(PP_nVar_FV,0:0,0:0,sideID_plus_lower:sideID_plus_upper))
 !U_Minus=0.
 !U_Plus=0.
 
-ALLOCATE(U_master(PP_nVar,0:PP_N,0:PP_N,1:nSides))
-ALLOCATE(U_slave(PP_nVar,0:PP_N,0:PP_N,1:nSides))
-U_master=0.
-U_slave=0.
+ALLOCATE(U_master_FV(PP_nVar_FV,0:0,0:0,1:nSides))
+ALLOCATE(U_slave_FV(PP_nVar_FV,0:0,0:0,1:nSides))
+U_master_FV=0.
+U_slave_FV=0.
 
 ! ! Allocate arrays to hold the face flux to reduce memory churn
-! ALLOCATE(U_Master_loc(1:PP_nVar        ,0:PP_N,0:PP_N))
-! ALLOCATE(U_Slave_loc (1:PP_nVar        ,0:PP_N,0:PP_N))
+! ALLOCATE(U_Master_loc(1:PP_nVar_FV        ,0:0,0:0))
+! ALLOCATE(U_Slave_loc (1:PP_nVar_FV        ,0:0,0:0))
 
 ! unique flux per side
 ! additional fluxes for the CFS-PML auxiliary variables (no PML: PMLnVar=0)
 ! additional fluxes for the CFS-PML auxiliary variables (no PML: PMLnVar=0)
-ALLOCATE(Flux_Master(1:PP_nVar,0:PP_N,0:PP_N,1:nSides))
-ALLOCATE(Flux_Slave (1:PP_nVar,0:PP_N,0:PP_N,1:nSides))
-! ALLOCATE(Flux_loc   (1:PP_nVar,0:PP_N,0:PP_N))
-Flux_Master=0.
-Flux_Slave=0.
+ALLOCATE(Flux_Master_FV(1:PP_nVar_FV,0:0,0:0,1:nSides))
+ALLOCATE(Flux_Slave_FV (1:PP_nVar_FV,0:0,0:0,1:nSides))
+! ALLOCATE(Flux_loc   (1:PP_nVar_FV,0:0,0:0))
+Flux_Master_FV=0.
+Flux_Slave_FV=0.
 
-ALLOCATE(FV_gradU_elem(3,1:PP_nVar,1:PP_nElems))
+ALLOCATE(FV_gradU_elem(3,1:PP_nVar_FV,1:PP_nElems))
 
 #ifdef discrete_velocity
 ALLOCATE(DVM_ElemData1(1:PP_nElems))
@@ -155,10 +151,7 @@ CALL AddToElemData(ElementOut,'DVM_HeatFluxZ',RealArray=DVM_ElemData8(:))
 CALL AddToElemData(ElementOut,'DVM_RelaxFac',RealArray=DVM_ElemData9(:))
 #endif /*DVM*/
 #ifdef drift_diffusion
-CALL AddToElemData(ElementOut,'Electron_Density',RealArray=U(1,0,0,0,:))
-CALL AddToElemData(ElementOut,'Electron_DensityGradientX',RealArray=U(2,0,0,0,:))
-CALL AddToElemData(ElementOut,'Electron_DensityGradientY',RealArray=U(3,0,0,0,:))
-CALL AddToElemData(ElementOut,'Electron_DensityGradientZ',RealArray=U(4,0,0,0,:))
+CALL AddToElemData(ElementOut,'Electron_Density',RealArray=U_FV(1,0,0,0,:))
 #endif /*drift_diffusion*/
 
 CALL InitGradients()
@@ -172,14 +165,14 @@ END SUBROUTINE InitFV
 SUBROUTINE FV_main(t,tStage,doSource)
 !===================================================================================================================================
 ! Computes the FV time derivative
-! U and Ut are allocated
+! U_FV and Ut_FV are allocated
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
 USE MOD_Preproc
 USE MOD_Vector
-USE MOD_FV_Vars           ,ONLY: U,Ut,Flux_Master,Flux_Slave
-USE MOD_FV_Vars           ,ONLY: U_master,U_slave,FV_gradU_elem
+USE MOD_FV_Vars           ,ONLY: U_FV,Ut_FV,Flux_Master_FV,Flux_Slave_FV
+USE MOD_FV_Vars           ,ONLY: U_master_FV,U_slave_FV,FV_gradU_elem
 USE MOD_SurfInt           ,ONLY: SurfInt
 USE MOD_ProlongToFace     ,ONLY: ProlongToFace
 USE MOD_Gradients         ,ONLY: GetGradients
@@ -188,6 +181,9 @@ USE MOD_Equation          ,ONLY: CalcSource
 USE MOD_Interpolation     ,ONLY: ApplyJacobian
 USE MOD_FillMortar        ,ONLY: U_Mortar,Flux_Mortar
 USE MOD_Gradients         ,ONLY: InitGradients
+USE MOD_Particle_Mesh_Vars,ONLY: ElemVolume_Shared
+USE MOD_Mesh_Vars         ,ONLY: offsetElem
+USE MOD_Mesh_Tools        ,ONLY: GetCNElemID
 #if USE_MPI
 USE MOD_Mesh_Vars         ,ONLY: nSides
 USE MOD_MPI_Vars
@@ -213,12 +209,13 @@ LOGICAL,INTENT(IN)              :: doSource
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
+INTEGER                         :: CNElemID, iElem
 #if USE_LOADBALANCE
 REAL                            :: tLBStart
 #endif /*USE_LOADBALANCE*/
 !===================================================================================================================================
 
-CALL GetGradients(PP_nVar,U(:,0,0,0,:),FV_gradU_elem)
+CALL GetGradients(PP_nVar_FV,U_FV(:,0,0,0,:),FV_gradU_elem)
 
 ! prolong the solution to the faces by applying reconstruction gradients
 #if USE_MPI
@@ -226,26 +223,26 @@ CALL GetGradients(PP_nVar,U(:,0,0,0,:),FV_gradU_elem)
 #if USE_LOADBALANCE
 CALL LBStartTime(tLBStart)
 #endif /*USE_LOADBALANCE*/
-CALL StartReceiveMPIData(PP_nVar,U_slave,1,nSides,RecRequest_U,SendID=2) ! Receive MINE
+CALL StartReceiveMPIData(PP_nVar_FV,U_slave_FV,1,nSides,RecRequest_U,SendID=2) ! Receive MINE
 #if USE_LOADBALANCE
 CALL LBSplitTime(LB_DGCOMM,tLBStart)
 #endif /*USE_LOADBALANCE*/
 
-CALL ProlongToFace(U,U_master,U_slave,doMPISides=.TRUE.)
-CALL U_Mortar(U_master,U_slave,doMPISides=.TRUE.)
+CALL ProlongToFace(U_FV,U_master_FV,U_slave_FV,doMPISides=.TRUE.)
+CALL U_Mortar(U_master_FV,U_slave_FV,doMPISides=.TRUE.)
 
 #if USE_LOADBALANCE
 CALL LBSplitTime(LB_DG,tLBStart)
 #endif /*USE_LOADBALANCE*/
-CALL StartSendMPIData(PP_nVar,U_slave,1,nSides,SendRequest_U,SendID=2) ! Send YOUR
+CALL StartSendMPIData(PP_nVar_FV,U_slave_FV,1,nSides,SendRequest_U,SendID=2) ! Send YOUR
 #if USE_LOADBALANCE
 CALL LBSplitTime(LB_DGCOMM,tLBStart)
 #endif /*USE_LOADBALANCE*/
 #endif /*USE_MPI*/
 
 ! Prolong to face for BCSides, InnerSides and MPI sides - receive direction
-CALL ProlongToFace(U,U_master,U_slave,doMPISides=.FALSE.)
-CALL U_Mortar(U_master,U_slave,doMPISides=.FALSE.)
+CALL ProlongToFace(U_FV,U_master_FV,U_slave_FV,doMPISides=.FALSE.)
+CALL U_Mortar(U_master_FV,U_slave_FV,doMPISides=.FALSE.)
 
 #if USE_MPI
 #if defined(PARTICLES) && defined(LSERK)
@@ -264,7 +261,7 @@ END IF
 #endif /*USE_MPI*/
 
 !Nullify time derivative array
-Ut=0.
+Ut_FV=0.
 
 #if USE_MPI
 #if USE_LOADBALANCE
@@ -275,17 +272,17 @@ CALL FinishExchangeMPIData(SendRequest_U,RecRequest_U,SendID=2)
 
 ! Initialization of the time derivative
 !Flux=0. !don't nullify the fluxes if not really needed (very expensive)
-CALL StartReceiveMPIData(PP_nVar,Flux_Slave,1,nSides,RecRequest_Flux,SendID=1) ! Receive YOUR
+CALL StartReceiveMPIData(PP_nVar_FV,Flux_Slave_FV,1,nSides,RecRequest_Flux,SendID=1) ! Receive YOUR
 #if USE_LOADBALANCE
 CALL LBSplitTime(LB_DGCOMM,tLBStart)
 #endif /*USE_LOADBALANCE*/
 ! fill the global surface flux list
-CALL FillFlux(t,Flux_Master,Flux_Slave,U_master,U_slave,doMPISides=.TRUE.)
+CALL FillFlux(t,Flux_Master_FV,Flux_Slave_FV,U_master_FV,U_slave_FV,doMPISides=.TRUE.)
 #if USE_LOADBALANCE
 CALL LBSplitTime(LB_DG,tLBStart)
 #endif /*USE_LOADBALANCE*/
 
-CALL StartSendMPIData(PP_nVar,Flux_Slave,1,nSides,SendRequest_Flux,SendID=1) ! Send MINE
+CALL StartSendMPIData(PP_nVar_FV,Flux_Slave_FV,1,nSides,SendRequest_Flux,SendID=1) ! Send MINE
 
 #if USE_LOADBALANCE
 CALL LBSplitTime(LB_DGCOMM,tLBStart)
@@ -293,10 +290,10 @@ CALL LBSplitTime(LB_DGCOMM,tLBStart)
 #endif /*USE_MPI*/
 
 ! fill the all surface fluxes on this proc
-CALL FillFlux(t,Flux_Master,Flux_Slave,U_master,U_slave,doMPISides=.FALSE.)
-CALL Flux_Mortar(Flux_Master,Flux_Slave,doMPISides=.FALSE.)
+CALL FillFlux(t,Flux_Master_FV,Flux_Slave_FV,U_master_FV,U_slave_FV,doMPISides=.FALSE.)
+CALL Flux_Mortar(Flux_Master_FV,Flux_Slave_FV,doMPISides=.FALSE.)
 ! compute surface integral contribution and add to ut
-CALL SurfInt(Flux_Master,Flux_Slave,Ut,doMPISides=.FALSE.)
+CALL SurfInt(Flux_Master_FV,Flux_Slave_FV,Ut_FV,doMPISides=.FALSE.)
 
 #if USE_MPI
 #if USE_LOADBALANCE
@@ -309,18 +306,22 @@ CALL LBSplitTime(LB_DGCOMM,tLBStart)
 #endif /*USE_LOADBALANCE*/
 
 !FINALIZE Fluxes for MPI Sides
-CALL Flux_Mortar(Flux_Master,Flux_Slave,doMPISides=.TRUE.)
-CALL SurfInt(Flux_Master,Flux_Slave,Ut,doMPISides=.TRUE.)
+CALL Flux_Mortar(Flux_Master_FV,Flux_Slave_FV,doMPISides=.TRUE.)
+CALL SurfInt(Flux_Master_FV,Flux_Slave_FV,Ut_FV,doMPISides=.TRUE.)
 #if USE_LOADBALANCE
 CALL LBSplitTime(LB_DG,tLBStart)
 #endif /*USE_LOADBALANCE*/
 #endif
 
 ! Swap to right sign and divide by element volume (1/sJ)
-CALL ApplyJacobian(Ut,toPhysical=.TRUE.,toSwap=.TRUE.)
+! CALL ApplyJacobian(Ut_FV,toPhysical=.TRUE.,toSwap=.TRUE.)
+DO iElem=1,PP_nElems
+  CNElemID=GetCNElemID(iElem+offSetElem)
+  Ut_FV(:,:,:,:,iElem)=Ut_FV(:,:,:,:,iElem)/ElemVolume_Shared(CNElemID)
+END DO
 
 ! Add Source Terms
-IF(doSource) CALL CalcSource(tStage,1.0,Ut)
+IF(doSource) CALL CalcSource(tStage,1.0,Ut_FV)
 
 #if USE_LOADBALANCE
 CALL LBSplitTime(LB_DG,tLBStart)
@@ -346,7 +347,7 @@ SUBROUTINE FillIni()
 !===================================================================================================================================
 ! MODULES
 USE MOD_PreProc
-USE MOD_FV_Vars,ONLY:U
+USE MOD_FV_Vars,ONLY:U_FV
 USE MOD_Mesh_Vars,ONLY:Elem_xGP
 USE MOD_Equation_Vars,ONLY:IniExactFunc
 USE MOD_Equation,ONLY:ExactFunc
@@ -369,7 +370,7 @@ INTEGER                         :: iElem
 IF(DoExactFlux.AND.(IniExactFunc.NE.16)) RETURN ! IniExactFunc=16 is pulsed laser mixed IC+BC
 #endif /*maxwell*/
 DO iElem=1,PP_nElems
-    CALL ExactFunc(IniExactFunc,0.,0,Elem_xGP(1:3,0,0,0,iElem),U(1:PP_nVar,0,0,0,iElem))
+    CALL ExactFunc(IniExactFunc,0.,0,Elem_xGP(1:3,0,0,0,iElem),U_FV(1:PP_nVar_FV,0,0,0,iElem))
 END DO ! iElem=1,PP_nElems
 END SUBROUTINE FillIni
 
@@ -377,7 +378,7 @@ END SUBROUTINE FillIni
 
 SUBROUTINE FinalizeFV()
 !===================================================================================================================================
-! Deallocate global variable U (solution) and Ut (dg time derivative).
+! Deallocate global variable U_FV (solution) and Ut_FV (dg time derivative).
 !===================================================================================================================================
 ! MODULES
 USE MOD_FV_Vars
@@ -394,11 +395,11 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 !===================================================================================================================================
-SDEALLOCATE(Ut)
-SDEALLOCATE(U_master)
-SDEALLOCATE(U_slave)
-SDEALLOCATE(FLUX_Master)
-SDEALLOCATE(FLUX_Slave)
+SDEALLOCATE(Ut_FV)
+SDEALLOCATE(U_master_FV)
+SDEALLOCATE(U_slave_FV)
+SDEALLOCATE(Flux_Master_FV)
+SDEALLOCATE(Flux_Slave_FV)
 SDEALLOCATE(FV_gradU_elem)
 CALL FinalizeGradients()
 ! SDEALLOCATE(U_Master_loc)
@@ -420,7 +421,7 @@ SDEALLOCATE(DVM_ElemData9)
 #if USE_LOADBALANCE && !(USE_HDG)
 IF(.NOT.(PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance)))THEN
 #endif /*USE_LOADBALANCE && !(USE_HDG)*/
-  SDEALLOCATE(U)
+  SDEALLOCATE(U_FV)
 #if USE_LOADBALANCE && !(USE_HDG)
 END IF
 #endif /*USE_LOADBALANCE && !(USE_HDG)*/

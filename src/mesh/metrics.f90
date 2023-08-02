@@ -58,14 +58,13 @@ INTERFACE BuildCoords
 END INTERFACE
 
 #if USE_FV
-INTERFACE CalcMetrics
+INTERFACE CalcMetrics_PP_1
   MODULE PROCEDURE CalcMetrics_PP_1
 END INTERFACE
-#else
+#endif
 INTERFACE CalcMetrics
   MODULE PROCEDURE CalcMetrics
 END INTERFACE
-#endif
 
 INTERFACE CalcSurfMetrics
   MODULE PROCEDURE CalcSurfMetrics
@@ -81,6 +80,9 @@ END INTERFACE
 
 PUBLIC::BuildCoords
 PUBLIC::CalcMetrics
+#if USE_FV
+PUBLIC::CalcMetrics_PP_1
+#endif
 PUBLIC::CalcSurfMetrics
 PUBLIC::SurfMetricsFromJa
 PUBLIC::CalcMetricsErrorDiff
@@ -436,10 +438,10 @@ SUBROUTINE CalcMetrics_PP_1(XCL_NGeo_Out,dXCL_NGeo_out)
 USE MOD_Globals
 USE MOD_PreProc
 USE MOD_Mesh_Vars          ,ONLY: NGeo,NGeoRef,nGlobalElems,xyzMinMax,GetMeshMinMaxBoundariesIsDone
-USE MOD_Mesh_Vars          ,ONLY: sJ,Metrics_fTilde,Metrics_gTilde,Metrics_hTilde,crossProductMetrics
-USE MOD_Mesh_Vars          ,ONLY: Face_xGP,normVec,surfElem,TangVec1,TangVec2
+USE MOD_Mesh_Vars          ,ONLY: Metrics_fTilde_FV,Metrics_gTilde_FV,Metrics_hTilde_FV,crossProductMetrics,sJ
+USE MOD_Mesh_Vars          ,ONLY: Face_xGP_FV,normVec_FV,surfElem_FV,TangVec1_FV,TangVec2_FV
 USE MOD_Mesh_Vars          ,ONLY: dXCL_N
-USE MOD_Mesh_Vars          ,ONLY: DetJac_Ref,Ja_Face
+USE MOD_Mesh_Vars          ,ONLY: DetJac_Ref,Ja_Face_FV
 USE MOD_Mesh_Vars          ,ONLY: crossProductMetrics
 USE MOD_Mesh_Vars          ,ONLY: NodeCoords,Elem_xGP
 USE MOD_Mesh_Vars          ,ONLY: nElems,offSetElem,nSides
@@ -514,9 +516,9 @@ REAL :: Metrics_hTilde_PP_1(3,0:PP_1,0:PP_1,0:PP_1,nElems)
 StartT=PICLASTIME()
 
 ! Prerequisites
-Metrics_fTilde=0.
-Metrics_gTilde=0.
-Metrics_hTilde=0.
+Metrics_fTilde_FV=0.
+Metrics_gTilde_FV=0.
+Metrics_hTilde_FV=0.
 Metrics_fTilde_PP_1 = 0.
 Metrics_gTilde_PP_1 = 0.
 Metrics_hTilde_PP_1 = 0.
@@ -725,15 +727,15 @@ DO iElem=1,nElems
 END DO !iElem=1,nElems
 
 ! PP_1 metrics to global ones
-Face_xGP      (:,0,0,:)   = Face_xGP_PP_1      (:,0,0,:)
-NormVec       (:,0,0,:)   = NormVec_PP_1       (:,0,0,:)
-TangVec1      (:,0,0,:)   = TangVec1_PP_1      (:,0,0,:)
-TangVec2      (:,0,0,:)   = TangVec2_PP_1      (:,0,0,:)
-SurfElem      (0,0,:)     = SUM(SUM(SurfElem_PP_1(:,:,:),2),1)
-Ja_Face       (:,:,0,0,:)   = SUM(SUM(Ja_Face_PP_1(:,:,:,:,:),4),3)
-Metrics_fTilde(:,0,0,0,:) = SUM(SUM(Metrics_fTilde_PP_1(:,0,:,:,:),3),2)
-Metrics_gTilde(:,0,0,0,:) = SUM(SUM(Metrics_gTilde_PP_1(:,:,0,:,:),3),2)
-Metrics_hTilde(:,0,0,0,:) = SUM(SUM(Metrics_hTilde_PP_1(:,:,:,0,:),3),2)
+Face_xGP_FV      (:,0,0,:)   = Face_xGP_PP_1      (:,0,0,:)
+NormVec_FV       (:,0,0,:)   = NormVec_PP_1       (:,0,0,:)
+TangVec1_FV      (:,0,0,:)   = TangVec1_PP_1      (:,0,0,:)
+TangVec2_FV      (:,0,0,:)   = TangVec2_PP_1      (:,0,0,:)
+SurfElem_FV      (0,0,:)     = SUM(SUM(SurfElem_PP_1(:,:,:),2),1)
+Ja_Face_FV       (:,:,0,0,:)   = SUM(SUM(Ja_Face_PP_1(:,:,:,:,:),4),3)
+Metrics_fTilde_FV(:,0,0,0,:) = SUM(SUM(Metrics_fTilde_PP_1(:,0,:,:,:),3),2)
+Metrics_gTilde_FV(:,0,0,0,:) = SUM(SUM(Metrics_gTilde_PP_1(:,:,0,:,:),3),2)
+Metrics_hTilde_FV(:,0,0,0,:) = SUM(SUM(Metrics_hTilde_PP_1(:,:,:,0,:),3),2)
 
 ! Communicate smallest ref. Jacobian and display
 #if USE_MPI

@@ -140,11 +140,11 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
 LOGICAL,INTENT(IN)              :: doMPISides  != .TRUE. only YOUR MPISides are filled, =.FALSE. BCSides +InnerSides +MPISides MINE
-REAL,INTENT(IN)                 :: Uvol(PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
+REAL,INTENT(IN)                 :: Uvol(PP_nVar_FV,0:0,0:0,0:0,1:PP_nElems)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
-REAL,INTENT(INOUT)              :: Uface_master(PP_nVar,0:PP_N,0:PP_N,1:nSides)
-REAL,INTENT(INOUT)              :: Uface_slave(PP_nVar,0:PP_N,0:PP_N,1:nSides)
+REAL,INTENT(INOUT)              :: Uface_master(PP_nVar_FV,0:0,0:0,1:nSides)
+REAL,INTENT(INOUT)              :: Uface_slave(PP_nVar_FV,0:0,0:0,1:nSides)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER                         :: ElemID,SideID,firstSideID,lastSideID,iVel,jVel,kVel,upos
@@ -172,10 +172,10 @@ DO SideID=firstSideID,lastSideID
                                   + FV_gradU_elem(2,upos,ElemID)*(Grad_dx_slave(2,SideID)-DVMVelos(jVel,2)*dt/2.) &
                                   + FV_gradU_elem(3,upos,ElemID)*(Grad_dx_slave(3,SideID)-DVMVelos(kVel,3)*dt/2.)
     IF (DVMSpeciesData%Internal_DOF .GT.0.0) THEN
-      Uface_slave(PP_nVar/2+upos,0,0,SideID) = Uvol(PP_nVar/2+upos,0,0,0,ElemID) &
-                                  + FV_gradU_elem(1,PP_nVar/2+upos,ElemID)*(Grad_dx_slave(1,SideID)-DVMVelos(iVel,1)*dt/2.) &
-                                  + FV_gradU_elem(2,PP_nVar/2+upos,ElemID)*(Grad_dx_slave(2,SideID)-DVMVelos(jVel,2)*dt/2.) &
-                                  + FV_gradU_elem(3,PP_nVar/2+upos,ElemID)*(Grad_dx_slave(3,SideID)-DVMVelos(kVel,3)*dt/2.)
+      Uface_slave(PP_nVar_FV/2+upos,0,0,SideID) = Uvol(PP_nVar_FV/2+upos,0,0,0,ElemID) &
+                                  + FV_gradU_elem(1,PP_nVar_FV/2+upos,ElemID)*(Grad_dx_slave(1,SideID)-DVMVelos(iVel,1)*dt/2.) &
+                                  + FV_gradU_elem(2,PP_nVar_FV/2+upos,ElemID)*(Grad_dx_slave(2,SideID)-DVMVelos(jVel,2)*dt/2.) &
+                                  + FV_gradU_elem(3,PP_nVar_FV/2+upos,ElemID)*(Grad_dx_slave(3,SideID)-DVMVelos(kVel,3)*dt/2.)
     END IF
   END DO; END DO; END DO
 #else
@@ -210,10 +210,10 @@ DO SideID=firstSideID,lastSideID
                                   + FV_gradU_elem(2,upos,ElemID)*(Grad_dx_master(2,SideID)-DVMVelos(jVel,2)*dt/2.) &
                                   + FV_gradU_elem(3,upos,ElemID)*(Grad_dx_master(3,SideID)-DVMVelos(kVel,3)*dt/2.)
     IF (DVMSpeciesData%Internal_DOF .GT.0.0) THEN
-      Uface_master(PP_nVar/2+upos,0,0,SideID) = Uvol(PP_nVar/2+upos,0,0,0,ElemID) &
-                                  + FV_gradU_elem(1,PP_nVar/2+upos,ElemID)*(Grad_dx_master(1,SideID)-DVMVelos(iVel,1)*dt/2.) &
-                                  + FV_gradU_elem(2,PP_nVar/2+upos,ElemID)*(Grad_dx_master(2,SideID)-DVMVelos(jVel,2)*dt/2.) &
-                                  + FV_gradU_elem(3,PP_nVar/2+upos,ElemID)*(Grad_dx_master(3,SideID)-DVMVelos(kVel,3)*dt/2.)
+      Uface_master(PP_nVar_FV/2+upos,0,0,SideID) = Uvol(PP_nVar_FV/2+upos,0,0,0,ElemID) &
+                                  + FV_gradU_elem(1,PP_nVar_FV/2+upos,ElemID)*(Grad_dx_master(1,SideID)-DVMVelos(iVel,1)*dt/2.) &
+                                  + FV_gradU_elem(2,PP_nVar_FV/2+upos,ElemID)*(Grad_dx_master(2,SideID)-DVMVelos(jVel,2)*dt/2.) &
+                                  + FV_gradU_elem(3,PP_nVar_FV/2+upos,ElemID)*(Grad_dx_master(3,SideID)-DVMVelos(kVel,3)*dt/2.)
     END IF
   END DO; END DO; END DO
 #else

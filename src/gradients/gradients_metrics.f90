@@ -39,7 +39,7 @@ SUBROUTINE InitGradMetrics(doMPISides)
 ! MODULES
 USE MOD_Globals
 USE MOD_PreProc
-USE MOD_Mesh_Vars,          ONLY: SideToElem, Face_xGP, Elem_xGP
+USE MOD_Mesh_Vars,          ONLY: SideToElem, Face_xGP_FV, Elem_xGP_FV
 USE MOD_Mesh_Vars,          ONLY: firstBCSide,firstInnerSide, lastBCSide, firstMPISide_MINE, lastInnerSide
 USE MOD_Mesh_Vars,          ONLY: firstMPISide_YOUR,lastMPISide_YOUR,lastMPISide_MINE,nSides,firstMortarMPISide,lastMortarMPISide
 USE MOD_Gradient_Vars,      ONLY: Grad_dx_master, Grad_dx_slave, Grad_PerBoxMax, Grad_PerBoxMin
@@ -69,17 +69,17 @@ DO SideID=firstSideID,lastSideID
     IF (ElemID.LT.0) CYCLE !mpi-mortar whatever
     DO iCoord=1,3
     ! If x is greater than the domain, which means we are in the new periodic domain on the right
-    IF (Face_xGP(iCoord,0,0,SideID).GE.Grad_PerBoxMax(iCoord))  THEN
-        Face_temp(iCoord) = Face_xGP(iCoord,0,0,SideID)+Grad_PerBoxMin(iCoord)-Grad_PerBoxMax(iCoord)
+    IF (Face_xGP_FV(iCoord,0,0,SideID).GE.Grad_PerBoxMax(iCoord))  THEN
+        Face_temp(iCoord) = Face_xGP_FV(iCoord,0,0,SideID)+Grad_PerBoxMin(iCoord)-Grad_PerBoxMax(iCoord)
     ! If x is smaller than the domain, which means we are in the other domain on the left
-    ELSE IF (Face_xGP(iCoord,0,0,SideID).LE.Grad_PerBoxMin(iCoord)) THEN
-        Face_temp(iCoord) = Face_xGP(iCoord,0,0,SideID)+Grad_PerBoxMax(iCoord)-Grad_PerBoxMin(iCoord)
+    ELSE IF (Face_xGP_FV(iCoord,0,0,SideID).LE.Grad_PerBoxMin(iCoord)) THEN
+        Face_temp(iCoord) = Face_xGP_FV(iCoord,0,0,SideID)+Grad_PerBoxMax(iCoord)-Grad_PerBoxMin(iCoord)
     ! If we are in the defined domain
     ELSE
-        Face_temp(iCoord) = Face_xGP(iCoord,0,0,SideID)
+        Face_temp(iCoord) = Face_xGP_FV(iCoord,0,0,SideID)
     END IF
     END DO
-    Grad_dx_slave(:,SideID)=Face_temp(:)-Elem_xGP(:,0,0,0,ElemID)
+    Grad_dx_slave(:,SideID)=Face_temp(:)-Elem_xGP_FV(:,0,0,0,ElemID)
 END DO
 
 ! Second process Minus/Master sides, U_Minus is always MINE
@@ -97,7 +97,7 @@ END IF
 DO SideID=firstSideID,lastSideID
     ElemID    = SideToElem(S2E_ELEM_ID,SideID)
     IF (ElemID.LT.0) CYCLE !small mortar sides don't have info of the big master element + skip MPI_YOUR sides
-    Grad_dx_master(:,SideID)=Face_xGP(:,0,0,SideID)-Elem_xGP(:,0,0,0,ElemID)
+    Grad_dx_master(:,SideID)=Face_xGP_FV(:,0,0,SideID)-Elem_xGP_FV(:,0,0,0,ElemID)
     ! mirror distance for ghost cells
     IF (SideID.LE.lastBCSide) Grad_dx_slave(:,SideID) = -Grad_dx_master(:,SideID)
 END DO !SideID

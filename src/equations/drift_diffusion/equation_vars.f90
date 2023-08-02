@@ -49,13 +49,7 @@ LOGICAL              :: EquationInitIsDone=.FALSE.!< Init switch
 LOGICAL              :: DoExactFlux
 LOGICAL,ALLOCATABLE  ::isExactFluxInterFace(:)
 
-CHARACTER(LEN=255),DIMENSION(8),PARAMETER :: StrVarNames(8)=(/ CHARACTER(LEN=255) :: 'ElectricFieldX', &
-                                                                                     'ElectricFieldY', &
-                                                                                     'ElectricFieldZ', &
-                                                                                     'MagneticFieldX', &
-                                                                                     'MagneticFieldY', &
-                                                                                     'MagneticFieldZ', &
-                                                                                     'Phi'           , &
-                                                                                     'Psi           ' /)
+CHARACTER(LEN=255),DIMENSION(4),PARAMETER :: StrVarNames(1)=(/ CHARACTER(LEN=255) :: 'ElectronDensity'/)
+
 !===================================================================================================================================
 END MODULE MOD_Equation_Vars

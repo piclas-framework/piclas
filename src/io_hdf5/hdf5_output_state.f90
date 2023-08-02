@@ -48,8 +48,9 @@ SUBROUTINE WriteStateToHDF5(MeshFileName,OutputTime,PreviousTime)
 USE MOD_PreProc
 USE MOD_Globals
 #if USE_FV
-USE MOD_FV_Vars                ,ONLY: U
-#else
+USE MOD_FV_Vars                ,ONLY: U_FV
+#endif
+#if !(USE_FV) || (USE_HDG)
 USE MOD_DG_Vars                ,ONLY: U
 #endif
 USE MOD_Globals_Vars           ,ONLY: ProjectName
@@ -171,6 +172,9 @@ INTEGER                        :: iElem
 REAL                           :: OutputTime_loc
 REAL                           :: PreviousTime_loc
 INTEGER(KIND=IK)               :: PP_nVarTmp
+#if USE_FV
+INTEGER(KIND=IK)               :: PP_nVarTmp_FV
+#endif
 LOGICAL                        :: usePreviousTime_loc
 #if USE_HDG
 INTEGER                        :: iSide
@@ -238,13 +242,16 @@ IF(MPIRoot) CALL GenerateFileSkeleton('State',3,StrVarNames,MeshFileName,OutputT
 #else
 IF(MPIRoot) CALL GenerateFileSkeleton('State',7,StrVarNames,MeshFileName,OutputTime_loc)
 #endif
-#else
-#if (PP_TimeDiscMethod==600) /*DVM*/
-IF(MPIRoot) CALL GenerateFileSkeleton('State',9,StrVarNames,MeshFileName,OutputTime_loc)
-#else
+#elif !(USE_FV)
 IF(MPIRoot) CALL GenerateFileSkeleton('State',PP_nVar,StrVarNames,MeshFileName,OutputTime_loc)
-#endif /*DVM*/
 #endif /*USE_HDG*/
+
+#if (PP_TimeDiscMethod==601) /*Drift-Diffusion*/
+IF(MPIRoot) CALL GenerateFileSkeleton('State',PP_nVar_FV,StrVarNames,MeshFileName,OutputTime_loc)
+#elif (PP_TimeDiscMethod==600) /*DVM*/
+IF(MPIRoot) CALL GenerateFileSkeleton('State',9,StrVarNames,MeshFileName,OutputTime_loc)
+#endif
+
 ! generate nextfile info in previous output file
 usePreviousTime_loc=.FALSE.
 
@@ -260,6 +267,9 @@ CALL MPI_BARRIER(MPI_COMM_WORLD,iError)
 
 ! Associate construct for integer KIND=8 possibility
 PP_nVarTmp = INT(PP_nVar,IK)
+#if USE_FV
+PP_nVarTmp_FV = INT(PP_nVar_FV,IK)
+#endif
 ASSOCIATE (&
       N                 => INT(PP_N,IK)               ,&
       nGlobalElems      => INT(nGlobalElems,IK)       ,&
@@ -496,18 +506,7 @@ ASSOCIATE (&
       offset=    (/0_IK , 0_IK   , 0_IK   , 0_IK   , offsetElem/)   , &
       collective=.TRUE., RealArray=Utemp)
 #endif /*(PP_nVar==1)*/
-#elif (PP_TimeDiscMethod==600) /*DVM*/
-  DO iElem=1,INT(PP_nElems)
-    CALL MacroValuesFromDistribution(Utemp(1:8,0,0,0,iElem),U(:,0,0,0,iElem),dt,tau,1)
-    Utemp(9,0,0,0,iElem) = dt/tau
-  END DO
-  CALL GatheredWriteArray(FileName,create=.FALSE.,&
-      DataSetName='DVM_Solution', rank=5,&
-      nValGlobal=(/9_IK, N+1_IK , N+1_IK , N+1_IK , nGlobalElems/) , &
-      nVal=      (/9_IK, N+1_IK , N+1_IK , N+1_IK , PP_nElems/)    , &
-      offset=    (/0_IK       , 0_IK   , 0_IK   , 0_IK   , offsetElem/)   , &
-      collective=.TRUE.,RealArray=Utemp)
-#else
+#elif !(USE_FV)
   CALL GatheredWriteArray(FileName,create=.FALSE.,&
       DataSetName='DG_Solution', rank=5,&
       nValGlobal=(/PP_nVarTmp , N+1_IK , N+1_IK , N+1_IK , nGlobalElems/) , &
@@ -515,6 +514,28 @@ ASSOCIATE (&
       offset=    (/0_IK       , 0_IK   , 0_IK   , 0_IK   , offsetElem/)   , &
       collective=.TRUE.,RealArray=U)
 #endif /*PP_POIS*/
+
+#if USE_FV
+#if (PP_TimeDiscMethod==600) /*DVM*/
+  DO iElem=1,INT(PP_nElems)
+    CALL MacroValuesFromDistribution(Utemp(1:8,0,0,0,iElem),U_FV(:,0,0,0,iElem),dt,tau,1)
+    Utemp(9,0,0,0,iElem) = dt/tau
+  END DO
+  CALL GatheredWriteArray(FileName,create=.FALSE.,&
+      DataSetName='DVM_Solution', rank=5,&
+      nValGlobal=(/9_IK, 1_IK , 1_IK , 1_IK , nGlobalElems/) , &
+      nVal=      (/9_IK, 1_IK , 1_IK , 1_IK , PP_nElems/)    , &
+      offset=    (/0_IK       , 0_IK   , 0_IK   , 0_IK   , offsetElem/)   , &
+      collective=.TRUE.,RealArray=Utemp)
+#elif (PP_TimeDiscMethod==601) /*Drift Diffusion*/
+  CALL GatheredWriteArray(FileName,create=.FALSE.,&
+      DataSetName='DriftDiffusion_Solution', rank=5,&
+      nValGlobal=(/PP_nVarTmp_FV , 1_IK , 1_IK , 1_IK , nGlobalElems/) , &
+      nVal=      (/PP_nVarTmp_FV , 1_IK , 1_IK , 1_IK , PP_nElems/)    , &
+      offset=    (/0_IK       , 0_IK   , 0_IK   , 0_IK   , offsetElem/)   , &
+      collective=.TRUE.,RealArray=U_FV)
+#endif
+#endif /*USE_FV*/
 
 
 #ifdef PARTICLES

@@ -14,8 +14,8 @@
 
 !==================================================================================================================================
 !> Routine performing time averaging of variables and the preparation to computing fluctuations
-!> The terms computed in this routine are therefore the TimeAvg: \f$ \overline{U} \f$ and
-!> the squared solution denoted by Fluc: \f$ \overline{U^2} \f$
+!> The terms computed in this routine are therefore the TimeAvg: \f$ \overline{U_FV} \f$ and
+!> the squared solution denoted by Fluc: \f$ \overline{U_FV^2} \f$
 !> the fluctuations are the RMS values
 !> list structure: 1:PP_nVar - Varnames of equationsystem
 !>                 PP_nVar+  - additional variables
@@ -339,7 +339,7 @@ SUBROUTINE CalcTimeAverage(Finalize,dt,t,tPrevious)
 ! MODULES
 USE MOD_Globals
 USE MOD_PreProc
-USE MOD_FV_Vars                ,ONLY: U
+USE MOD_FV_Vars                ,ONLY: U_FV
 USE MOD_Mesh_Vars              ,ONLY: MeshFile,nElems
 USE MOD_HDF5_Output            ,ONLY: WriteTimeAverage
 USE MOD_Globals_Vars           ,ONLY: smu0
@@ -382,27 +382,27 @@ DO iElem=1,nElems
   ! Compute time averaged variables and fluctuations of these variables
   ! loop over all variables
   DO iVar=1,PP_nVar
-    IF(CalcAvg(iVar)) tmpVars(iAvg(iVar),:,:,:) = U(iVar,:,:,:,iElem)
+    IF(CalcAvg(iVar)) tmpVars(iAvg(iVar),:,:,:) = U_FV(iVar,:,:,:,iElem)
   END DO ! iVar=1,PP_nVar
 
   ! ElectricFieldMagnitude
   IF(CalcAvg(9))THEN
     DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
-      tmpVars(iAvg(9),i,j,k)=SQRT(SUM(U(1:3,i,j,k,iElem)**2))
+      tmpVars(iAvg(9),i,j,k)=SQRT(SUM(U_FV(1:3,i,j,k,iElem)**2))
     END DO; END DO; END DO
   END IF
 
   ! MagneticFieldMagnitude
   IF(CalcAvg(10))THEN
     DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
-      tmpVars(iAvg(10),i,j,k)=SQRT(SUM(U(4:6,i,j,k,iElem)**2))
+      tmpVars(iAvg(10),i,j,k)=SQRT(SUM(U_FV(4:6,i,j,k,iElem)**2))
     END DO; END DO; END DO
   END IF
 
   ! PoyntingVector and PoyntingVectorMagnitude
   IF(DoPoyntingVectorAvg)THEN
     DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
-      tmpPoyntingVector = smu0*CROSS(U(1:3,i,j,k,iElem),U(4:6,i,j,k,iElem))
+      tmpPoyntingVector = smu0*CROSS(U_FV(1:3,i,j,k,iElem),U_FV(4:6,i,j,k,iElem))
       IF(CalcAvg(11)) tmpVars(iAvg(11),i,j,k) = tmpPoyntingVector(1)
       IF(CalcAvg(12)) tmpVars(iAvg(12),i,j,k) = tmpPoyntingVector(1)
       IF(CalcAvg(13)) tmpVars(iAvg(13),i,j,k) = tmpPoyntingVector(1)

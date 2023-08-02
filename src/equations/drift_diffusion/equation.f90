@@ -128,7 +128,7 @@ REAL,INTENT(IN)                 :: tIn                    !< input time (either 
 INTEGER, INTENT(IN)                :: tDeriv
 REAL,INTENT(IN)                 :: x(3)                   !< coordinates to evaluate exact function
 INTEGER,INTENT(IN)              :: ExactFunction          !< specifies the exact function to be used
-REAL,INTENT(OUT)                :: Resu(PP_nVar)          !< output state in conservative variables
+REAL,INTENT(OUT)                :: Resu(PP_nVar_FV)          !< output state in conservative variables
 !----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 
@@ -142,6 +142,13 @@ CASE(0)
 
 CASE(1)
   Resu=RefState(:,1)
+
+CASE(2) !shock
+  IF (x(1).LT.0.) THEN
+    Resu = 2.e21
+  ELSE
+    Resu = 1.e21
+  END IF
 
 CASE DEFAULT
   CALL abort(__STAMP__,&
@@ -165,7 +172,7 @@ IMPLICIT NONE
 REAL,INTENT(IN)                 :: t,coeff
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
-REAL,INTENT(INOUT)              :: Ut(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
+REAL,INTENT(INOUT)              :: Ut(1:PP_nVar_FV,0:0,0:0,0:0,1:PP_nElems)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 

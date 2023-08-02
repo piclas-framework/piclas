@@ -25,7 +25,7 @@ PRIVATE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
-#if !(USE_HDG)
+
 INTERFACE FillFlux
   MODULE PROCEDURE FillFlux
 END INTERFACE
@@ -42,10 +42,9 @@ SUBROUTINE FillFlux(t,Flux_Master,Flux_Slave,U_master,U_slave,doMPISides)
 ! MODULES
 USE MOD_GLobals
 USE MOD_PreProc
-USE MOD_Mesh_Vars       ,ONLY: NormVec,SurfElem
 USE MOD_Mesh_Vars       ,ONLY: nSides,nBCSides
 USE MOD_Riemann         ,ONLY: Riemann
-USE MOD_Mesh_Vars       ,ONLY: NormVec,TangVec1, tangVec2, SurfElem,Face_xGP,Elem_xGP, SideToElem
+USE MOD_Mesh_Vars       ,ONLY: NormVec_FV,TangVec1_FV, tangVec2_FV, SurfElem_FV,Face_xGP_FV,Elem_xGP_FV, SideToElem
 USE MOD_GetBoundaryFlux ,ONLY: GetBoundaryFlux
 USE MOD_Mesh_Vars       ,ONLY: firstMPISide_MINE,lastMPISide_MINE,firstInnerSide,firstBCSide,lastInnerSide
 #ifdef drift_diffusion
@@ -57,12 +56,12 @@ IMPLICIT NONE
 ! INPUT VARIABLES
 LOGICAL,INTENT(IN) :: doMPISides  != .TRUE. only MINE MPISides are filled, =.FALSE. InnerSides
 REAL,INTENT(IN)    :: t           ! time
-REAL,INTENT(IN)    :: U_master(PP_nVar,0:PP_N,0:PP_N,1:nSides)
-REAL,INTENT(IN)    :: U_slave (PP_nVar,0:PP_N,0:PP_N,1:nSides)
+REAL,INTENT(IN)    :: U_master(PP_nVar_FV,0:0,0:0,1:nSides)
+REAL,INTENT(IN)    :: U_slave (PP_nVar_FV,0:0,0:0,1:nSides)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
-REAL,INTENT(OUT)   :: Flux_Master(1:PP_nVar,0:PP_N,0:PP_N,nSides)
-REAL,INTENT(OUT)   :: Flux_Slave(1:PP_nVar,0:PP_N,0:PP_N,nSides)
+REAL,INTENT(OUT)   :: Flux_Master(1:PP_nVar_FV,0:0,0:0,nSides)
+REAL,INTENT(OUT)   :: Flux_Slave(1:PP_nVar_FV,0:0,0:0,nSides)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER            :: SideID,firstSideID_wo_BC,firstSideID ,lastSideID,ElemID
@@ -92,68 +91,33 @@ END IF
 !  4.  copy flux from Flux_master to Flux_slave
 !==============================
 
-! 1. compute flux for non-BC sides: Compute fluxes on PP_N, no additional interpolation required
+! 1. compute flux for non-BC sides: Compute fluxes on 0, no additional interpolation required
 DO SideID=firstSideID_wo_BC,lastSideID
 #ifdef drift_diffusion
   ElemID   = SideToElem(S2E_ELEM_ID,SideID)
-  E=Elem_xGP(:,0,0,0,ElemID)
-  CALL Riemann(Flux_Master(:,:,:,SideID),U_Master(:,:,:,SideID),U_Slave(:,:,:,SideID),NormVec(:,:,:,SideID), &
+  E=(/-6.0036,0.,0./)
+  CALL Riemann(Flux_Master(:,:,:,SideID),U_Master(:,:,:,SideID),U_Slave(:,:,:,SideID),NormVec_FV(:,:,:,SideID), &
                EFluid_GradSide(SideID),E)
 #else
-  CALL Riemann(Flux_Master(:,:,:,SideID),U_Master(:,:,:,SideID),U_Slave(:,:,:,SideID),NormVec(:,:,:,SideID))
+  CALL Riemann(Flux_Master(:,:,:,SideID),U_Master(:,:,:,SideID),U_Slave(:,:,:,SideID),NormVec_FV(:,:,:,SideID))
 #endif
 END DO ! SideID
 
 ! 2. Compute the fluxes at the boundary conditions: 1..nBCSides
 IF(.NOT.doMPISides)THEN
-  CALL GetBoundaryFlux(t,0,Flux_Master    (1:PP_nVar,0:PP_N,0:PP_N,1:nBCSides) &
-                               ,U_master       (1:PP_nVar        ,0:PP_N,0:PP_N,1:nBCSides) &
-                               ,NormVec        (1:3              ,0:PP_N,0:PP_N,1:nBCSides) &
-                               ,TangVec1       (1:3              ,0:PP_N,0:PP_N,1:nBCSides) &
-                               ,TangVec2       (1:3              ,0:PP_N,0:PP_N,1:nBCSides) &
-                               ,Face_XGP       (1:3              ,0:PP_N,0:PP_N,1:nBCSides) )
+  CALL GetBoundaryFlux(t,0,Flux_Master    (1:PP_nVar_FV,0:0,0:0,1:nBCSides) &
+                               ,U_master       (1:PP_nVar_FV     ,0:0,0:0,1:nBCSides) &
+                               ,NormVec_FV        (1:3              ,0:0,0:0,1:nBCSides) &
+                               ,TangVec1_FV       (1:3              ,0:0,0:0,1:nBCSides) &
+                               ,TangVec2_FV       (1:3              ,0:0,0:0,1:nBCSides) &
+                               ,Face_XGP_FV       (1:3              ,0:0,0:0,1:nBCSides) )
 END IF
 
 ! 3. multiply by SurfElem: Apply surface element size
 DO SideID=firstSideID,lastSideID
-  Flux_Master(:,0,0,SideID)=Flux_Master(:,0,0,SideID)*SurfElem(0,0,SideID)
-#ifdef maxwell
-  SELECT CASE(InterfaceRiemann(SideID))
-  CASE(RIEMANN_DIELECTRIC2VAC_NC,RIEMANN_VAC2DIELECTRIC_NC)
-    ! use non-conserving fluxes (two different fluxes for master and slave side)
-    ! slaves sides have already been calculated
-    DO q=0,PP_N; DO p=0,PP_N
-      Flux_Slave(:,p,q,SideID)=Flux_Slave(:,p,q,SideID)*SurfElem(p,q,SideID)
-    END DO; END DO
-  CASE DEFAULT
-#endif /*maxwell*/
-    ! 4. copy flux from master side to slave side: DO not change sign
-    Flux_slave(:,:,:,SideID) = Flux_master(:,:,:,SideID)
-#ifdef maxwell
-  END SELECT
-#endif /*maxwell*/
+  Flux_Master(:,0,0,SideID)=Flux_Master(:,0,0,SideID)*SurfElem_FV(0,0,SideID)
 END DO
 
-#ifdef maxwell
-!  6. Exact flux determination (inner BC)
-IF(DoExactFlux) THEN
-  DO SideID=firstSideID,lastSideID
-    IF (isExactFluxInterFace(SideID))THEN! CAUTION: Multiplication with SurfElem is done in ExactFlux
-      CALL ExactFlux(t,0                                        &
-                    , Flux_Master(1:PP_nVar+PMLnVar,:,:,SideID)      &
-                    , Flux_Slave(1:PP_nVar+PMLnVar,:,:,SideID)       &
-                    , U_Master(:,:,:,SideID)                         &
-                    , U_Slave(:,:,:,SideID)                          &
-                    , NormVec(:,:,:,SideID)                          &
-                    , Face_xGP(1:3,:,:,SideID)                       &
-                    , SurfElem(:,:,SideID)                           &
-                    , SideID)
-    END IF ! isExactFluxFace(SideID)
-  END DO ! SideID
-END IF
-#endif /*maxwell*/
-
 END SUBROUTINE FillFlux
-#endif /* USE_HDG*/
 
 END MODULE MOD_FillFlux

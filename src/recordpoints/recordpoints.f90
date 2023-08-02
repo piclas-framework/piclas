@@ -30,9 +30,11 @@ INTERFACE InitRecordPoints
   MODULE PROCEDURE InitRecordPoints
 END INTERFACE
 
+#if defined(LSERK) || defined(IMPA) || defined(ROS) || USE_HDG
 INTERFACE RecordPoints
   MODULE PROCEDURE RecordPoints
 END INTERFACE
+#endif
 
 INTERFACE WriteRPToHDF5
   MODULE PROCEDURE WriteRPToHDF5
@@ -42,7 +44,10 @@ INTERFACE FinalizeRecordPoints
   MODULE PROCEDURE FinalizeRecordPoints
 END INTERFACE
 
-PUBLIC::InitRecordPoints,RecordPoints,FinalizeRecordPoints,WriteRPToHDF5
+PUBLIC::InitRecordPoints,FinalizeRecordPoints,WriteRPToHDF5
+#if defined(LSERK) || defined(IMPA) || defined(ROS) || USE_HDG
+PUBLIC::RecordPoints
+#endif
 !===================================================================================================================================
 PUBLIC::DefineParametersRecordPoints
 
@@ -299,7 +304,7 @@ DO iRP=1,nRP
 END DO
 END SUBROUTINE InitRPBasis
 
-
+#if defined(LSERK) || defined(IMPA) || defined(ROS) || USE_HDG
 SUBROUTINE RecordPoints(t,Output)
 !===================================================================================================================================
 ! Interpolate solution at time t to RecordPoint positions and fill output buffer
@@ -308,11 +313,7 @@ SUBROUTINE RecordPoints(t,Output)
 ! MODULES
 USE MOD_Globals
 USE MOD_Preproc
-#if USE_FV
-USE MOD_FV_Vars           ,ONLY: U
-#else
 USE MOD_DG_Vars           ,ONLY: U
-#endif /*FV*/
 USE MOD_Timedisc_Vars     ,ONLY: dt
 USE MOD_TimeDisc_Vars     ,ONLY: tAnalyze
 USE MOD_Analyze_Vars      ,ONLY: Analyze_dt,FieldAnalyzeStep
@@ -396,7 +397,7 @@ RETURN
 write(*,*) Output
 
 END SUBROUTINE RecordPoints
-
+#endif /*FV*/
 
 SUBROUTINE WriteRPToHDF5(OutputTime,finalizeFile)
 !===================================================================================================================================

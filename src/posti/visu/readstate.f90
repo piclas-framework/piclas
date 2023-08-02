@@ -27,14 +27,17 @@ PRIVATE
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
 
+#if !(USE_FV) || (USE_HDG)
 INTERFACE ReadState
   MODULE PROCEDURE ReadState
 END INTERFACE
 
 PUBLIC:: ReadState
+#endif
 
 CONTAINS
 
+#if !(USE_FV) || (USE_HDG)
 !===================================================================================================================================
 !> This routine will read in the current state from the statefile. Will call one of two routines: ReadStateWithoutGradients if no
 !> gradients have to be visualized or calculated and so no DG operator call is necessary, or ReadStateAndGradients if gradients
@@ -90,11 +93,7 @@ USE MOD_ReadInTools         ,ONLY: prms
 USE MOD_ReadInTools         ,ONLY: FinalizeParameters
 USE MOD_Mesh_Vars           ,ONLY: nElems,offsetElem
 USE MOD_HDF5_Input,          ONLY: OpenDataFile,ReadArray,CloseDataFile
-#if USE_FV
-USE MOD_FV_Vars             ,ONLY: U
-#else
 USE MOD_DG_Vars             ,ONLY: U
-#endif /*FV*/
 USE MOD_Interpolation       ,ONLY: DefineParametersInterpolation,InitInterpolation,FinalizeInterpolation
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -160,5 +159,6 @@ CALL CloseDataFile()
 
 CALL FinalizeParameters()
 END SUBROUTINE ReadStateWithoutGradients
+#endif /*no FV alone*/
 
 END MODULE MOD_Posti_ReadState

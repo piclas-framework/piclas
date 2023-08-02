@@ -34,7 +34,7 @@ SUBROUTINE TimeStep_ExplicitFV()
 ! Second-order explicit timestep with finite volumes
 !===================================================================================================================================
 ! MODULES
-USE MOD_FV_Vars               ,ONLY: U,Ut
+USE MOD_FV_Vars               ,ONLY: U_FV,Ut_FV
 USE MOD_TimeDisc_Vars         ,ONLY: dt,time
 USE MOD_FV                    ,ONLY: FV_main
 
@@ -49,7 +49,7 @@ IMPLICIT NONE
 !===================================================================================================================================
 
 CALL FV_main(time,time,doSource=.FALSE.) 
-U = U + Ut*dt
+U_FV = U_FV + Ut_FV*dt
 
 END SUBROUTINE TimeStep_ExplicitFV
 

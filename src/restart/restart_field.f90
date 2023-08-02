@@ -45,10 +45,11 @@ SUBROUTINE FieldRestart()
 USE MOD_Globals
 USE MOD_PreProc
 #if USE_FV
-USE MOD_FV_Vars                ,ONLY: U
-#else
+USE MOD_FV_Vars                ,ONLY: U_FV
+#endif
+#if !(USE_FV) || (USE_HDG)
 USE MOD_DG_Vars                ,ONLY: U
-#endif /*USE_FV*/
+#endif
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Vars       ,ONLY: PerformLoadBalance,UseH5IOLoadBalance
 #endif /*USE_LOADBALANCE*/
@@ -166,6 +167,10 @@ INTEGER(KIND=MPI_ADDRESS_KIND)     :: MPI_DISPLACEMENT(1)
 ! Distribute or read the field solution
 ! ===========================================================================
 
+#if USE_FV && !(USE_HDG)
+ASSOCIATE(U => U_FV)
+#endif
+
 #if USE_LOADBALANCE
 IF(PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance))THEN
 #if USE_HDG
@@ -282,7 +287,7 @@ IF(PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance))THEN
   lambda=0.
 #endif /*defined(PARTICLES)*/
 
-#else /*USE_HDG*/
+#elif !(USE_FV) /*USE_HDG*/
   ! Only required for time discs where U is allocated
   IF(ALLOCATED(U))THEN
     ALLOCATE(UTmp(PP_nVar,0:PP_N,0:PP_N,0:PP_N,nElems))
@@ -302,6 +307,23 @@ IF(PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance))THEN
     CALL MOVE_ALLOC(UTmp,U)
   END IF ! ALLOCATED(U)
 #endif /*USE_HDG*/
+#if USE_FV
+  ALLOCATE(UTmp(PP_nVar_FV,0:0,0:0,0:0,nElems))
+  ASSOCIATE (&
+          counts_send  => (INT(MPInElemSend     )) ,&
+          disp_send    => (INT(MPIoffsetElemSend)) ,&
+          counts_recv  => (INT(MPInElemRecv     )) ,&
+          disp_recv    => (INT(MPIoffsetElemRecv)))
+    ! Communicate PartInt over MPI
+    MPI_LENGTH       = PP_nVar_FV
+    MPI_DISPLACEMENT = 0  ! 0*SIZEOF(MPI_SIZE)
+    MPI_TYPE         = MPI_DOUBLE_PRECISION
+    CALL MPI_TYPE_CREATE_STRUCT(1,MPI_LENGTH,MPI_DISPLACEMENT,MPI_TYPE,MPI_STRUCT,iError)
+    CALL MPI_TYPE_COMMIT(MPI_STRUCT,iError)
+    CALL MPI_ALLTOALLV(U_FV,counts_send,disp_send,MPI_STRUCT,UTmp,counts_recv,disp_recv,MPI_STRUCT,MPI_COMM_WORLD,iError)
+  END ASSOCIATE
+  CALL MOVE_ALLOC(UTmp,U_FV)
+#endif /*FV*/
 
 ELSE ! normal restart
 #endif /*USE_LOADBALANCE*/
@@ -437,18 +459,8 @@ ELSE ! normal restart
         lambda=0.
       END IF
 
-#elif (PP_TimeDiscMethod==600) /*DVM*/
-      SWRITE(UNIT_stdOut,*)'Performing DVM restart using Grads 13 moment distribution'
-      ALLOCATE(UTmp(9,0:PP_N,0:PP_N,0:PP_N,nElems))
-      UTmp=0.
-      CALL ReadArray('DVM_Solution',5,(/9,PP_NTmp+1_IK,PP_NTmp+1_IK,PP_NTmp+1_IK,PP_nElemsTmp/),OffsetElemTmp,5,RealArray=Utmp)
-      DO iElem=1,nElems
-        CALL GradDistribution(Utmp(1:8,0,0,0,iElem),U(1:PP_nVar,0,0,0,iElem))
-      END DO
-      DEALLOCATE(UTmp)
-#else
+#elif !(USE_FV)
       CALL ReadArray('DG_Solution',5,(/PP_nVarTmp,PP_NTmp+1_IK,PP_NTmp+1_IK,PP_NTmp+1_IK,PP_nElemsTmp/),OffsetElemTmp,5,RealArray=U)
-#if !(USE_FV)
       IF(DoPML)THEN
         ALLOCATE(U_local(PMLnVar,0:PP_N,0:PP_N,0:PP_N,PP_nElems))
         CALL ReadArray('PML_Solution',5,(/INT(PMLnVar,IK),PP_NTmp+1_IK,PP_NTmp+1_IK,PP_NTmp+1_IK,PP_nElemsTmp/),&
@@ -458,8 +470,24 @@ ELSE ! normal restart
         END DO ! iPML
         DEALLOCATE(U_local)
       END IF ! DoPML
-#endif /*USE_FV*/
 #endif
+
+#if USE_FV
+#if (PP_TimeDiscMethod==600) /*DVM*/
+      SWRITE(UNIT_stdOut,*)'Performing DVM restart using Grads 13 moment distribution'
+      ALLOCATE(UTmp(9,0:0,0:0,0:0,nElems))
+      UTmp=0.
+      CALL ReadArray('DVM_Solution',5,(/9,1_IK,1_IK,1_IK,PP_nElemsTmp/),OffsetElemTmp,5,RealArray=Utmp)
+      DO iElem=1,nElems
+        CALL GradDistribution(Utmp(1:8,0,0,0,iElem),U_FV(1:PP_nVar_FV,0,0,0,iElem))
+      END DO
+      DEALLOCATE(UTmp)
+#elif (PP_TimeDiscMethod==601) /*Drift Diffusion*/
+      SWRITE(UNIT_stdOut,*)'Performing Drift Diffusion restart'
+      CALL ReadArray('DriftDiffusion_Solution',5,(/PP_nVar_FV,1_IK,1_IK,1_IK,PP_nElemsTmp/),OffsetElemTmp,5,RealArray=U_FV)
+#endif
+#endif /*USE_FV*/
+
       !CALL ReadState(RestartFile,PP_nVar,PP_N,PP_nElems,U)
     ELSE! We need to interpolate the solution to the new computational grid
       SWRITE(UNIT_stdOut,*)'Interpolating solution from restart grid with N=',N_restart,' to computational grid with N=',PP_N
@@ -538,6 +566,10 @@ ELSE ! normal restart
 #if USE_LOADBALANCE
 END IF ! PerformLoadBalance
 #endif /*USE_LOADBALANCE*/
+
+#if USE_FV && !(USE_HDG)
+  END ASSOCIATE
+#endif
 
 END SUBROUTINE FieldRestart
 !#endif /*USE_LOADBALANCE*/

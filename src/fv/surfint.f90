@@ -52,11 +52,11 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
 LOGICAL,INTENT(IN) :: doMPISides  != .TRUE. only YOUR MPISides are filled, =.FALSE. BCSides+InnerSides+MPISides MINE
-REAL,INTENT(IN)    :: Flux_Master(1:PP_nVar,0:PP_N,0:PP_N,nSides)
-REAL,INTENT(IN)    :: Flux_Slave(1:PP_nVar,0:PP_N,0:PP_N,nSides)
+REAL,INTENT(IN)    :: Flux_Master(1:PP_nVar_FV,0:0,0:0,nSides)
+REAL,INTENT(IN)    :: Flux_Slave(1:PP_nVar_FV,0:0,0:0,nSides)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
-REAL,INTENT(INOUT)   :: Ut(PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
+REAL,INTENT(INOUT)   :: Ut(PP_nVar_FV,0:0,0:0,0:0,1:PP_nElems)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER            :: ElemID,Flip,SideID,locSideID
@@ -80,7 +80,7 @@ DO SideID=firstSideID,lastSideID
   flip      = SideToElem(S2E_FLIP,SideID)
   ! ignore MPI-faces and boundary faces
   IF(ElemID.LT.0) CYCLE ! boundary side is BC or MPI side
-  Ut(:,0,0,0,ElemID) = Ut(:,0,0,0,ElemID) - Flux_Slave(:,0,0,SideID)
+  Ut(:,0,0,0,ElemID) = Ut(:,0,0,0,ElemID) + Flux_Slave(:,0,0,SideID)
 END DO ! SideID=1,nSides
 
 
@@ -90,7 +90,7 @@ DO SideID=firstSideID,lastSideID
   locSideID = SideToElem(S2E_LOC_SIDE_ID,SideID)
   flip      = 0
   IF(ElemID.LT.0) CYCLE ! if master is MPI side
-  Ut(:,0,0,0,ElemID) = Ut(:,0,0,0,ElemID) + Flux_Master(:,0,0,SideID)
+  Ut(:,0,0,0,ElemID) = Ut(:,0,0,0,ElemID) - Flux_Master(:,0,0,SideID)
 END DO ! SideID=1,nSides
 
 END SUBROUTINE SurfInt

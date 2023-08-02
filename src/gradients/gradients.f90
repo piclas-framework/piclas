@@ -56,7 +56,7 @@ SUBROUTINE InitGradients()
 ! MODULES
 USE MOD_Globals
 USE MOD_ReadInTools           ,ONLY: GETINT, GETREAL, GETREALARRAY
-USE MOD_Mesh_Vars             ,ONLY: nElems, nSides, Face_xGP, NormVec
+USE MOD_Mesh_Vars             ,ONLY: nElems, nSides, Face_xGP_FV
 USE MOD_Gradient_Metrics      ,ONLY: InitGradMetrics, BuildGradSideMatrix
 USE MOD_Gradient_Vars         
 #if USE_MPI
@@ -92,8 +92,8 @@ Grad_PerBoxMax(:)=GETREALARRAY('Grad-PeriodicBoxMax',3)
 !calculate face to center distances for reconstruction
 #if USE_MPI
 !send face coordinates because MPI slave sides don't have them
-CALL StartReceiveMPIData(3,Face_xGP,1,nSides,RecRequest_Geo,SendID=1) ! Receive YOUR
-CALL StartSendMPIData(3,Face_xGP,1,nSides,SendRequest_Geo,SendID=1) ! Send MINE
+CALL StartReceiveMPIData(3,Face_xGP_FV,1,nSides,RecRequest_Geo,SendID=1) ! Receive YOUR
+CALL StartSendMPIData(3,Face_xGP_FV,1,nSides,SendRequest_Geo,SendID=1) ! Send MINE
 CALL FinishExchangeMPIData(SendRequest_Geo,RecRequest_Geo,SendID=1)
 
 ! distances for MPI sides - send direction
@@ -241,7 +241,7 @@ SUBROUTINE CalcDiff(Grad_DIM,Var_master,Var_slave,Diff_side,doMPISides)
 USE MOD_Globals
 USE MOD_Gradient_Vars            ,ONLY: Grad_dx_master, Grad_dx_slave, Grad_SysSol_BC
 USE MOD_GetBoundaryGrad          ,ONLY: GetBoundaryGrad
-USE MOD_Mesh_Vars                ,ONLY: NormVec,Face_xGP
+USE MOD_Mesh_Vars                ,ONLY: NormVec_FV,Face_xGP_FV
 USE MOD_Mesh_Vars                ,ONLY: nSides,firstBCSide,lastBCSide,firstInnerSide, lastInnerSide
 USE MOD_Mesh_Vars                ,ONLY: firstMPISide_MINE,lastMPISide_MINE, SideToElem, ElemToSide
 ! IMPLICIT VARIABLE HANDLING
@@ -294,13 +294,13 @@ IF (.NOT.doMPISides) THEN
     END DO
     CALL GetBoundaryGrad(SideID,Diff_side(:,SideID),diffUinside,&
                           Var_master(:,SideID),&
-                          NormVec(:,0,0,SideID),&
-                          Face_xGP(:,0,0,SideID))
+                          NormVec_FV(:,0,0,SideID),&
+                          Face_xGP_FV(:,0,0,SideID))
 #else
     CALL GetBoundaryGrad(SideID,Diff_side(:,SideID),&
                           Var_master(:,SideID),&
-                          NormVec(:,0,0,SideID),&
-                          Face_xGP(:,0,0,SideID))
+                          NormVec_FV(:,0,0,SideID),&
+                          Face_xGP_FV(:,0,0,SideID))
 #endif 
   END DO
 END IF
@@ -314,7 +314,7 @@ SUBROUTINE GradLimiter(Grad_DIM,ElemID,minDiff,maxDiff,Gradient)
 ! MODULES
 USE MOD_Globals
 USE MOD_Gradient_Vars       ,ONLY: Grad_dx_master, Grad_dx_slave, GradLimiterType, GradLimVktK
-USE MOD_Mesh_Vars           ,ONLY: ElemToSide,sJ
+USE MOD_Mesh_Vars           ,ONLY: ElemToSide
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -333,7 +333,7 @@ INTEGER                         :: iVar,locSideID,SideID,flip
 REAL                            :: limiter(Grad_DIM), a, b, w
 !===================================================================================================================================
 limiter = 1.
-w = (GradLimVktK**3)/sJ(0,0,0,ElemID)
+!w = (GradLimVktK**3)/sJ(0,0,0,ElemID)
 #if PP_dim == 3
 DO locSideID=1,6
 #else
@@ -359,6 +359,7 @@ DO locSideID=2,5
         limiter(iVar) = MIN(limiter(iVar),1.)
       END IF
     CASE(4) !venkatakrishnan
+      CALL abort(__STAMP__,'Limiter type not implemented for now')
       IF (flip.EQ.0) THEN !master
         b = DOT_PRODUCT(Grad_dx_master(:,SideID),Gradient(:,iVar))
       ELSE !slave

@@ -29,6 +29,7 @@ PRIVATE
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
 !----------------------------------------------------------------------------------------------------------------------------------
 
+#if !(USE_FV) || (USE_HDG)
 #if (PP_nVar>=6)
 INTERFACE CalcPoyntingIntegral
   MODULE PROCEDURE CalcPoyntingIntegral
@@ -46,6 +47,8 @@ INTERFACE CalcPotentialEnergy_Dielectric
 END INTERFACE
 
 PUBLIC:: CalcPotentialEnergy,CalcPotentialEnergy_Dielectric
+#endif /*no FV alone*/
+
 PUBLIC:: AnalyzeField
 #if USE_HDG
 PUBLIC:: GetAverageElectricPotentialPlane,CalculateAverageElectricPotential,FinalizeAverageElectricPotential
@@ -377,6 +380,7 @@ END IF
 
 END SUBROUTINE AnalyzeField
 
+#if !(USE_FV) || (USE_HDG)
 #if (PP_nVar>=6)
 SUBROUTINE CalcPoyntingIntegral(PoyntingIntegral,doProlong)
 !===================================================================================================================================
@@ -387,11 +391,7 @@ USE MOD_Mesh_Vars          ,ONLY: nElems, SurfElem, NormVec
 USE MOD_Mesh_Vars          ,ONLY: ElemToSide
 USE MOD_Analyze_Vars       ,ONLY: nPoyntingIntPlanes,S,isPoyntingIntSide,SideIDToPoyntingSide,PoyntingMainDir
 USE MOD_Interpolation_Vars ,ONLY: L_Minus,L_Plus,wGPSurf
-#if USE_FV
-USE MOD_FV_Vars            ,ONLY: U,U_master
-#else
 USE MOD_DG_Vars            ,ONLY: U,U_master
-#endif
 USE MOD_Globals_Vars       ,ONLY: smu0
 USE MOD_Dielectric_Vars    ,ONLY: isDielectricFace,PoyntingUseMuR_Inv,Dielectric_MuR_Master_inv,DoDielectric
 #if USE_MPI
@@ -885,12 +885,9 @@ USE MOD_Interpolation_Vars, ONLY : wGP
 USE MOD_Globals_Vars       ,ONLY: smu0
 #endif /*PP_nVar=8*/
 USE MOD_Globals_Vars       ,ONLY: eps0
-#if USE_FV
-USE MOD_FV_Vars            ,ONLY: U
-#else
 #if !(USE_HDG)
 USE MOD_DG_Vars            ,ONLY: U
-#endif /*PP_nVar=8*/
+#endif /*HDG*/
 #if USE_HDG
 #if PP_nVar==1
 USE MOD_Equation_Vars      ,ONLY: E
@@ -902,7 +899,6 @@ USE MOD_Equation_Vars      ,ONLY: B,E
 #else
 USE MOD_PML_Vars           ,ONLY: DoPML,isPMLElem
 #endif /*USE_HDG*/
-#endif
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -937,7 +933,7 @@ Wphi=0.
 Wpsi=0.
 #endif /*PP_nVar=8*/
 DO iElem=1,nElems
-#if !(USE_HDG) && !(USE_FV)
+#if !(USE_HDG)
   IF(DoPML)THEN
     IF(isPMLElem(iElem))CYCLE
   END IF
@@ -1047,9 +1043,6 @@ USE MOD_Globals_Vars       ,ONLY: smu0
 #endif /*PP_nVar=8*/
 USE MOD_Globals_Vars       ,ONLY: eps0
 USE MOD_Dielectric_vars    ,ONLY: isDielectricElem,DielectricEps,ElemToDielectric
-#if USE_FV
-USE MOD_FV_Vars            ,ONLY: U
-#else
 #if !(USE_HDG)
 USE MOD_DG_Vars            ,ONLY: U
 #endif /*PP_nVar=8*/
@@ -1064,7 +1057,6 @@ USE MOD_Equation_Vars      ,ONLY: B,E
 #else
 USE MOD_PML_Vars           ,ONLY: DoPML,isPMLElem
 #endif /*USE_HDG*/
-#endif /*USE_FV*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1100,7 +1092,7 @@ Wpsi=0.
 #endif /*PP_nVar=8*/
 
 DO iElem=1,nElems
-#if !(USE_HDG) && !(USE_FV)
+#if !(USE_HDG)
   IF(DoPML)THEN
     IF(isPMLElem(iElem))CYCLE
   END IF
@@ -1808,6 +1800,7 @@ END DO ! iEDCBC = 1, EDC%NBoundaries
 
 END SUBROUTINE CalculateElectricDisplacementCurrentSurface
 #endif /*USE_HDG*/
+#endif /*no FV alone*/
 
 !===================================================================================================================================
 !> Determine the field boundary output (BFO) values for the given iBC

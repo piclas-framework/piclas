@@ -23,17 +23,14 @@ SAVE
 ! GLOBAL VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! FV solution
-REAL,ALLOCATABLE,TARGET               :: U(:,:,:,:,:)
+REAL,ALLOCATABLE,TARGET               :: U_FV(:,:,:,:,:)
 ! FV time derivative
-REAL,ALLOCATABLE                      :: Ut(:,:,:,:,:)
-! number of array items in U, Ut, gradUx, gradUy, gradUz after allocated
-INTEGER                               :: nTotalU
-INTEGER                               :: nTotal_vol    !loop i,j,k
-INTEGER                               :: nTotal_face   !loop i,j
+REAL,ALLOCATABLE                      :: Ut_FV(:,:,:,:,:)
+
 ! interior face values for all elements
-REAL,ALLOCATABLE                      :: U_master(:,:,:,:),U_slave(:,:,:,:)
-REAL,ALLOCATABLE                      :: Flux_Master(:,:,:,:)
-REAL,ALLOCATABLE                      :: Flux_Slave(:,:,:,:)
+REAL,ALLOCATABLE                      :: U_master_FV(:,:,:,:),U_slave_FV(:,:,:,:)
+REAL,ALLOCATABLE                      :: Flux_Master_FV(:,:,:,:)
+REAL,ALLOCATABLE                      :: Flux_Slave_FV(:,:,:,:)
 
 #if (PP_TimeDiscMethod==600)
 ! Output

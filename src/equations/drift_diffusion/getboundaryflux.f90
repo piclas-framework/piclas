@@ -127,19 +127,19 @@ USE MOD_Equation     ,ONLY: ExactFunc
 ! INPUT / OUTPUT VARIABLES
 REAL,INTENT(IN)                      :: t       !< current time (provided by time integration scheme)
 INTEGER,INTENT(IN)                   :: tDeriv      ! deriv
-REAL,INTENT(IN)                      :: UPrim_master(     PP_nVar,0:PP_N,0:PP_N,1:nBCSides)
-REAL,INTENT(IN)                      :: NormVec(           3,0:PP_N,0:PP_N,1:nBCSides)
-REAL,INTENT(IN),OPTIONAL             :: TangVec1(          3,0:PP_N,0:PP_N,1:nBCSides)
-REAL,INTENT(IN),OPTIONAL             :: TangVec2(          3,0:PP_N,0:PP_N,1:nBCSides)
-REAL,INTENT(IN)                      :: Face_xGP(        3,0:PP_N,0:PP_N,1:nBCSides)
+REAL,INTENT(IN)                      :: UPrim_master(     PP_nVar_FV,0:0,0:0,1:nBCSides)
+REAL,INTENT(IN)                      :: NormVec(           3,0:0,0:0,1:nBCSides)
+REAL,INTENT(IN),OPTIONAL             :: TangVec1(          3,0:0,0:0,1:nBCSides)
+REAL,INTENT(IN),OPTIONAL             :: TangVec2(          3,0:0,0:0,1:nBCSides)
+REAL,INTENT(IN)                      :: Face_xGP(        3,0:0,0:0,1:nBCSides)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
-REAL,INTENT(OUT)                     :: Flux( PP_nVar,0:PP_N,0:PP_N,1:nBCSides)
+REAL,INTENT(OUT)                     :: Flux( PP_nVar_FV,0:0,0:0,1:nBCSides)
 !----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER                              :: iBC,iSide,SideID
 INTEGER                              :: BCType,BCState,nBCLoc
-REAL                                 :: UPrim_boundary(PP_nVar,0:PP_N,0:PP_N), GradSide, E(3)
+REAL                                 :: UPrim_boundary(PP_nVar_FV,0:0,0:0), GradSide, E(3)
 INTEGER                              :: p,q
 !==================================================================================================================================
 DO iBC=1,nBCs
@@ -154,13 +154,13 @@ DO iBC=1,nBCs
   CASE(2) !Exact function or refstate
     DO iSide=1,nBCLoc
       SideID=BCSideID(iBC,iSide)
-      E=0.
+      E=(/-6.0036,0.,0./)
       IF(BCState.EQ.0) THEN
-        DO q=0,PP_N; DO p=0,PP_N
+        DO q=0,0; DO p=0,0
           CALL ExactFunc(IniExactFunc,t,0,Face_xGP(:,p,q,SideID),UPrim_boundary(:,p,q))
         END DO; END DO
       ELSE
-        DO q=0,PP_N; DO p=0,PP_N
+        DO q=0,0; DO p=0,0
           UPrim_boundary(:,p,q)=RefState(:,BCState)
         END DO; END DO
       END IF
@@ -175,7 +175,7 @@ DO iBC=1,nBCs
   CASE(3) !von Neumann
     DO iSide=1,nBCLoc
       SideID=BCSideID(iBC,iSide)
-      E=0.
+      E=(/-6.0036,0.,0./)
       UPrim_boundary=UPrim_master(:,:,:,SideID)
       CALL Riemann(Flux(:,:,:,SideID),UPrim_master(:,:,:,SideID),UPrim_boundary,NormVec(:,:,:,SideID),GradSide=0.,E=E)
     END DO

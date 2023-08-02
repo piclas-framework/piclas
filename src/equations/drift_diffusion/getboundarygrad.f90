@@ -53,15 +53,15 @@ IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT / OUTPUT VARIABLES
 INTEGER,INTENT(IN):: SideID
-REAL,INTENT(OUT)  :: gradU       (PP_nVar)
-REAL,INTENT(IN)   :: UPrim_master(PP_nVar)
+REAL,INTENT(OUT)  :: gradU       (PP_nVar_FV)
+REAL,INTENT(IN)   :: UPrim_master(PP_nVar_FV)
 REAL,INTENT(IN)   :: NormVec (3)
 REAL,INTENT(IN)   :: Face_xGP(3)
 
 !----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER :: BCType,BCState
-REAL    :: UPrim_boundary(1:PP_nVar)
+REAL    :: UPrim_boundary(1:PP_nVar_FV)
 !==================================================================================================================================
 BCType  = Boundarytype(BC(SideID),BC_TYPE)
 BCState = Boundarytype(BC(SideID),BC_STATE)

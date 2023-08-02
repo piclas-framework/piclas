@@ -102,6 +102,9 @@ USE MOD_Mappings               ,ONLY: InitMappings
 USE MOD_Mesh_Vars
 USE MOD_Mesh_ReadIn            ,ONLY: ReadMesh
 USE MOD_Metrics                ,ONLY: BuildCoords,CalcMetrics
+#if USE_FV
+USE MOD_Metrics                ,ONLY: CalcMetrics_PP_1
+#endif
 USE MOD_Prepare_Mesh           ,ONLY: setLocalSideIDs,fillMeshInfo
 USE MOD_ReadInTools            ,ONLY: PrintOption
 USE MOD_ReadInTools            ,ONLY: GETLOGICAL,GETSTR,GETREAL,GETINT,GETREALARRAY
@@ -245,6 +248,10 @@ END IF
 
 ALLOCATE(Elem_xGP      (3,0:PP_N,0:PP_N,0:PP_N,nElems))
 CALL BuildCoords(NodeCoords,PP_N,Elem_xGP)
+#if USE_FV
+ALLOCATE(Elem_xGP_FV   (3,0:0,0:0,0:0,nElems))
+CALL BuildCoords(NodeCoords,0,Elem_xGP_FV)
+#endif
 
 ! Return if no connectivity and metrics are required (e.g. for visualization mode)
 IF (ABS(meshMode).GT.0) THEN
@@ -338,6 +345,23 @@ IF (ABS(meshMode).GT.1) THEN
 #endif /*ROS or IMPA*/
 #endif /*maxwell*/
 
+#if USE_FV
+  ALLOCATE(Metrics_fTilde_FV(3,0:0,0:0,0:0,nElems))
+  ALLOCATE(Metrics_gTilde_FV(3,0:0,0:0,0:0,nElems))
+  ALLOCATE(Metrics_hTilde_FV(3,0:0,0:0,0:0,nElems))
+  ALLOCATE(Face_xGP_FV      (3,0:0,0:0,1:nSides))
+  ALLOCATE(NormVec_FV       (3,0:0,0:0,1:nSides))
+  ALLOCATE(TangVec1_FV      (3,0:0,0:0,1:nSides))
+  ALLOCATE(TangVec2_FV      (3,0:0,0:0,1:nSides))
+  ALLOCATE(SurfElem_FV      (  0:0,0:0,1:nSides))
+  ALLOCATE(Ja_Face_FV       (3,3,0:0,0:0,1:nSides)) ! temp
+  Face_xGP_FV=0.
+  NormVec_FV=0.
+  TangVec1_FV=0.
+  TangVec2_FV=0.
+  SurfElem_FV=0.
+#endif /*FV*/
+
 
 ! assign all metrics Metrics_fTilde,Metrics_gTilde,Metrics_hTilde
 ! assign 1/detJ (sJ)
@@ -350,11 +374,14 @@ IF (ABS(meshMode).GT.1) THEN
   ! get XCL_NGeo
   ALLOCATE(XCL_NGeo(1:3,0:NGeo,0:NGeo,0:NGeo,1:nElems))
   XCL_NGeo = 0.
+#if USE_FV
+  CALL CalcMetrics_PP_1(XCL_NGeo_Out=XCL_NGeo)
+#endif
 #ifdef PARTICLES
   ALLOCATE(dXCL_NGeo(1:3,1:3,0:NGeo,0:NGeo,0:NGeo,1:nElems))
   dXCL_NGeo = 0.
   CALL CalcMetrics(XCL_NGeo_Out=XCL_NGeo,dXCL_NGeo_Out=dXCL_NGeo)
-#else
+#elif !(USE_FV) || (USE_HDG)
   CALL CalcMetrics(XCL_NGeo_Out=XCL_NGeo)
 #endif
 
@@ -376,6 +403,9 @@ IF (ABS(meshMode).GT.1) THEN
 #endif
   DEALLOCATE(dXCL_N)
   DEALLOCATE(Ja_Face)
+#if USE_FV
+  DEALLOCATE(Ja_Face_FV)
+#endif
 
   IF(ABS(meshMode).NE.3)THEN
 #ifdef PARTICLES
@@ -1046,6 +1076,17 @@ SDEALLOCATE(NormVec)
 SDEALLOCATE(TangVec1)
 SDEALLOCATE(TangVec2)
 SDEALLOCATE(SurfElem)
+#if USE_FV
+SDEALLOCATE(Elem_xGP_FV)
+SDEALLOCATE(Metrics_fTilde_FV)
+SDEALLOCATE(Metrics_gTilde_FV)
+SDEALLOCATE(Metrics_hTilde_FV)
+SDEALLOCATE(NormVec_FV)
+SDEALLOCATE(TangVec1_FV)
+SDEALLOCATE(TangVec2_FV)
+SDEALLOCATE(SurfElem_FV)
+SDEALLOCATE(Face_xGP_FV)
+#endif
 #ifdef maxwell
 #if defined(ROS) || defined(IMPA)
 SDEALLOCATE(nVecLoc)

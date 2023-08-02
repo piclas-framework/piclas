@@ -88,6 +88,21 @@ REAL,ALLOCATABLE :: Ja_Face(:,:,:,:,:)         !< surface  metrics for each side
 REAL,ALLOCATABLE :: nVecLoc(:,:,:,:,:)         !< element local normal vector       (1:3,0:N,0:N,1:6,1:nElems)
 REAL,ALLOCATABLE :: SurfLoc(:,:,:,:)           !< element local surface element     (    0:N,0:N,1:6,1:nElems)
 !-----------------------------------------------------------------------------------------------------------------------------------
+! Finite volumes metrics
+!-----------------------------------------------------------------------------------------------------------------------------------
+#if USE_FV
+REAL,ALLOCATABLE :: NormVec_FV(:,:,:,:)           !< normal vector for each side       (1:3,0:N,0:N,nSides)
+REAL,ALLOCATABLE :: TangVec1_FV(:,:,:,:)          !< tangential vector 1 for each side (1:3,0:N,0:N,nSides)
+REAL,ALLOCATABLE :: TangVec2_FV(:,:,:,:)          !< tangential vector 3 for each side (1:3,0:N,0:N,nSides)
+REAL,ALLOCATABLE :: SurfElem_FV(:,:,:)            !< surface area for each side        (    0:N,0:N,nSides)
+REAL,ALLOCATABLE :: Ja_Face_FV(:,:,:,:,:)         !< surface  metrics for each side
+REAL,ALLOCATABLE :: Metrics_fTilde_FV(:,:,:,:,:) !< Metric Terms (first indices 3) on each GaussPoint
+REAL,ALLOCATABLE :: Metrics_gTilde_FV(:,:,:,:,:)
+REAL,ALLOCATABLE :: Metrics_hTilde_FV(:,:,:,:,:)
+REAL,ALLOCATABLE,TARGET :: Elem_xGP_FV(:,:,:,:,:)          !< XYZ positions (first index 1:3) of the volume Gauss Point
+REAL,ALLOCATABLE :: Face_xGP_FV(:,:,:,:)            !< XYZ positions (first index 1:3) of the Boundary Face Gauss Point
+#endif /*USE_FV*/
+!-----------------------------------------------------------------------------------------------------------------------------------
 ! mapping from GaussPoints to Side or Neighbor Volume
 !-----------------------------------------------------------------------------------------------------------------------------------
 INTEGER,ALLOCATABLE :: VolToSideA(:,:,:,:,:,:)
