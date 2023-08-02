@@ -357,6 +357,7 @@ for key in ReacName_dict:
 
 # List of variables not added to the file
 exclude_list = ['NumberOfNonReactives']
+str_list = ['ReactionModel']
 
 with open(args.ini_filename) as file:
   for line in file:
@@ -384,13 +385,15 @@ with open(args.ini_filename) as file:
                 for val in var_value:
                   spec_name_list.append(spec_dict[val])
                 hdf_reac.attrs[var_name[1]] = np.array(spec_name_list,dtype='S255')
+              elif var_name[1] in str_list:
+                hdf_reac.attrs[var_name[1]] = np.array([var_value],dtype='S255')
               else:
                 # All other parameters
                 hdf_reac.attrs[var_name[1]] = var_value
                 # If not defined, the standard reaction model is set to TCE
               print('Reaction parameter set: ', var_name[1]) 
               if 'ReactionModel' not in hdf_reac.attrs:
-                hdf_reac.attrs['ReactionModel'] = 'TCE'         
+                hdf_reac.attrs['ReactionModel'] = np.array(['TCE'],dtype='S255')       
             # Write attributes for source and time of retrieval
             hdf_reac.attrs['* Reference'] = args.reference
             hdf_reac.attrs['* Created']   = date.today().strftime("%B %d, %Y")
