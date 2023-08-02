@@ -320,7 +320,6 @@ CASE('cell_volweight_mean')
             NodeDone(PeriodicNode) = .TRUE.
             UniqueNodeID = NodeInfo_Shared(ElemSideNodeID_Shared(PeriodicNode,NbLocSide,CNNbElemID)+1)
             PeriodicNodeSourceMap(ABS(PVID),NodeInfo_Shared(ElemSideNodeID_Shared(iNode,iLocSide,CNElemID)+1)) = UniqueNodeID
-            !IF (NodeInfo_Shared(ElemSideNodeID_Shared(iNode,iLocSide,CNElemID)+1).EQ.983) IPWRITE(*,*) 'proc', UniqueNodeID, ABS(PVID), ElemInfo_Shared(ELEM_RANK,NbElemID)
 #if USE_MPI
             GlobalElemRank = ElemInfo_Shared(ELEM_RANK,NbElemID)
             IF (GlobalElemRank.NE.myRank) THEN
@@ -342,7 +341,7 @@ CASE('cell_volweight_mean')
       IF (NumPerioNodes.GT.0) THEN
         minRank = myRank
         ALLOCATE(NodewoBCSide(kNode)%RankID(NodeToElemMapping(2,kNode)))
-        NodewoBCSide(kNode)%RankID(:) = 0
+        NodewoBCSide(kNode)%RankID(:) = -1
         elemCount = 0
         DO jElem = NodeToElemMapping(1,kNode) + 1, NodeToElemMapping(1,kNode) + NodeToElemMapping(2,kNode)
           elemCount = elemCount  + 1
@@ -404,7 +403,7 @@ CASE('cell_volweight_mean')
             minRank = MIN(minRank,ElemInfo_Shared(ELEM_RANK,TestElemID))
           END IF
         END DO
-        IF (minRank.NE.myRank) NodewoBCSide(kNode)%RankID(:) = 0
+        IF (minRank.NE.myRank) NodewoBCSide(kNode)%RankID(:) = -1
       END IF
     END DO
 
@@ -418,10 +417,10 @@ CASE('cell_volweight_mean')
     IF (ANY(PeriodicNodeSourceMap(1:GEO%nPeriodicVectors,:).NE.0)) THEN
       DO iNode = 1, nUniqueGlobalNodes
         IF (ALLOCATED(NodewoBCSide(iNode)%RankID)) THEN
-          NumPerioNodes = COUNT(NodewoBCSide(iNode)%RankID(:) .NE.0)
+          NumPerioNodes = COUNT(NodewoBCSide(iNode)%RankID(:) .NE.-1)
           IF (NumPerioNodes.GT.0) THEN
             DO jElem = 1,  NodeToElemMapping(2,iNode)
-              IF (NodewoBCSide(iNode)%RankID(jElem).NE.0) THEN
+              IF (NodewoBCSide(iNode)%RankID(jElem).NE.-1) THEN
                 SendPeriodicNodes(NodewoBCSide(iNode)%RankID(jElem)) = SendPeriodicNodes(NodewoBCSide(iNode)%RankID(jElem)) + 1
               END IF
             END DO
@@ -438,11 +437,11 @@ CASE('cell_volweight_mean')
       END DO
       DO iNode = 1, nUniqueGlobalNodes
        IF (ALLOCATED(NodewoBCSide(iNode)%RankID)) THEN
-          NumPerioNodes = COUNT(NodewoBCSide(iNode)%RankID(:) .NE.0)
+          NumPerioNodes = COUNT(NodewoBCSide(iNode)%RankID(:) .NE.-1)
           IF (NumPerioNodes.GT.0) THEN
             DO jElem = 1,  NodeToElemMapping(2,iNode)
               iRank = NodewoBCSide(iNode)%RankID(jElem)
-              IF (iRank.NE.0) THEN
+              IF (iRank.NE.-1) THEN
                 iSendNode(iRank) = iSendNode(iRank) + 1
                 PeriodicSendRecv(iRank)%Send(1:2*GEO%nPeriodicVectors,iSendNode(iRank)) = PeriodicNodeSourceMap(1:2*GEO%nPeriodicVectors, iNode)
                 PeriodicSendRecv(iRank)%Send(2*GEO%nPeriodicVectors+1,iSendNode(iRank)) = iNode
@@ -562,7 +561,6 @@ CASE('cell_volweight_mean')
     END DO
 
     DO iRank= 0, nProcessors_Global-1
-        !IPWRITE(UNIT_StdOut,*) "iRank,SendPeriodicNodes(iRank) =", iRank,SendPeriodicNodes(iRank)
       IF (iRank.EQ.myRank) CYCLE
       IF (SendPeriodicNodes(iRank).GT.0) THEN
         ALLOCATE(PeriodicSendRecv(iRank)%RecvNodes(SendPeriodicNodes(iRank)))
@@ -579,8 +577,6 @@ CASE('cell_volweight_mean')
             IF (iRank.EQ.myRank) CYCLE
             IF (iRank.NE.-1) THEN
               iSendNode(iRank) = iSendNode(iRank) + 1
-              !IPWRITE(UNIT_StdOut,*) "irank =", irank
-              !IPWRITE(UNIT_StdOut,*) "SIZE(PeriodicSendRecv(iRank)%RecvNodes(iSendNode(iRank))) =", SIZE(PeriodicSendRecv(iRank)%RecvNodes(:))
               PeriodicSendRecv(iRank)%RecvNodes(iSendNode(iRank)) = PeriodicNodeSourceMap(jNode,iNode)
             END IF
           END IF
@@ -1283,6 +1279,7 @@ CASE('cell_volweight_mean')
     DepoNodetoGlobalNode(iNode) = iNode
   END DO
 #endif /*USE_MPI*/
+
 
 ! Initialize sub-cell volumes around nodes
   CALL CalcCellLocNodeVolumes()
