@@ -5,6 +5,7 @@ import h5py
 from argparse import ArgumentParser
 from datetime import date
 import re
+from functions_database import custom_sort_reactants, custom_sort_products
 
 parser = ArgumentParser(prog='create_species_database')
 parser.add_argument("-p", "--parameter", dest="ini_filename",
@@ -27,7 +28,6 @@ h5_electronic   = h5py.File(args.database_electronic, 'r')
 h5_crosssection = h5py.File(args.database_crosssection, 'r')
 
 model_name = args.ini_filename[:-4]
-model_name = 'DSMC3'
 items = re.split('_+', model_name)
 indices_to_modify = [1,2]
 model_name_split = [item[:-4] if i in indices_to_modify else item for i, item in enumerate(items)]
@@ -231,15 +231,15 @@ for key in ReacName_dict:
   # Check first for permutations of the reaction name
   ReactionNameSplit = re.split('_', ReactionName)
   checkeduct_list = re.split('\+', ReactionNameSplit[0])
-  checkeduct_list.sort(key=str.lower)
+  checkeduct_list_sorted = custom_sort_reactants(checkeduct_list)
   checkproduct_list = re.split('\+',ReactionNameSplit[1])
-  checkproduct_list.sort(key=str.lower)
+  checkproduct_list_sorted = custom_sort_products(checkproduct_list)
 
   ReactionName = ''
-  for val in checkeduct_list:
+  for val in checkeduct_list_sorted:
     ReactionName = ReactionName + '+' + val
   ReactionName = ReactionName + '_'
-  for val in checkproduct_list:
+  for val in checkproduct_list_sorted:
     ReactionName = ReactionName + '+' + val
   ReactionName = ReactionName[1:]
   ReactionName = ReactionName.replace('_+','_')
@@ -263,9 +263,9 @@ for key in ReacName_dict:
     hdf_reac.attrs['* Created']   = date.today().strftime("%B %d, %Y")
 
   #Read-In of the Chemistry-model for the reaction
-  if 'Chemistry-Model' in hdf_reac.attrs:
+  if 'ChemistryModel' in hdf_reac.attrs:
     model_name_list = []
-    model_attr = list(hdf_reac.attrs['Chemistry-Model'])
+    model_attr = list(hdf_reac.attrs['ChemistryModel'])
     for val in model_attr:
       model_name_list.append(val.decode('UTF-8'))
     if model_name in model_name_list:
@@ -279,7 +279,7 @@ for key in ReacName_dict:
       if ReacNameTest in hdf_reac_group.keys():
         hdf_reac_test = hdf_reac_group[ReacNameTest]
         model_test_list = []
-        model_attr_test = list(hdf_reac_test.attrs['Chemistry-Model'])
+        model_attr_test = list(hdf_reac_test.attrs['ChemistryModel'])
         for val in model_attr_test:
           model_test_list.append(val.decode('UTF-8'))
         if model_name in model_test_list:
@@ -296,7 +296,7 @@ for key in ReacName_dict:
         if ReacNameTest in hdf_reac_group.keys():
           hdf_reac_test = hdf_reac_group[ReacNameTest]
           model_test_list = []
-          model_attr_test = list(hdf_reac_test.attrs['Chemistry-Model'])
+          model_attr_test = list(hdf_reac_test.attrs['ChemistryModel'])
           for val in model_attr_test:
             model_test_list.append(val.decode('UTF-8'))
           if model_name in model_test_list:
@@ -325,14 +325,14 @@ for key in ReacName_dict:
         print('The reaction with the new model was stored as ', ReactionName, '.')
         model_name_list = []
         model_name_list.append(model_name)
-        hdf_reac.attrs['Chemistry-Model'] = np.array(model_name_list,dtype='S255')
+        hdf_reac.attrs['ChemistryModel'] = np.array(model_name_list,dtype='S255')
         exit
   else:
     model_name_list = []
     model_name_list.append(model_name)
-    hdf_reac.attrs['Chemistry-Model'] = np.array(model_name_list,dtype='S255')
-    #str_modellist = np.array([s.ljust(str_len) for s in model_name_list], dtype='S255')
-    #hdf_reac.attrs['Chemistry-Model'] = str_modellist
+    hdf_reac.attrs['ChemistryModel'] = np.array(model_name_list,dtype='S255')
+
+exclude_list = ['Reactants', 'Products', 'NumberOfNonReactives']
 
 with open(args.ini_filename) as file:
   for line in file:
@@ -351,15 +351,16 @@ with open(args.ini_filename) as file:
           else:
             if is_float(var_value):
               var_value = float(var_value)
-            if var_name[1] in reac_attr_list:
-              spec_name_list = []
-              var_value = var_value.replace(',0', '').replace('(/', '').replace('/)', '').split(',')
-              for val in var_value:
-                spec_name_list.append(spec_dict[val])
-              hdf_reac.attrs[var_name[1]] = np.array(spec_name_list,dtype='S255')
-            else:
-              hdf_reac.attrs[var_name[1]] = var_value
-            print('Reaction parameter set: ', var_name[1])          
+            if var_name[1] not in exclude_list:
+              if var_name[1] in reac_attr_list:
+                spec_name_list = []
+                var_value = var_value.replace(',0', '').replace('(/', '').replace('/)', '').split(',')
+                for val in var_value:
+                  spec_name_list.append(spec_dict[val])
+                hdf_reac.attrs[var_name[1]] = np.array(spec_name_list,dtype='S255')
+              else:
+                hdf_reac.attrs[var_name[1]] = var_value
+              print('Reaction parameter set: ', var_name[1])          
             # Write attributes for source and time of retrieval
             hdf_reac.attrs['* Reference'] = args.reference
             hdf_reac.attrs['* Created']   = date.today().strftime("%B %d, %Y")
