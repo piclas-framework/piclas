@@ -14,6 +14,7 @@ PIC.md
 magnetic-background-field.md
 DSMC.md
 BGG.md
+SpeciesDatabase.md
 Fokker-Planck.md
 Bhatnagar-Gross-Krook.md
 features-particle-solver.md
