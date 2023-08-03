@@ -19,6 +19,8 @@ parser.add_argument("-o", "--output", dest="database_output",
                     help="Output file name", metavar="FILE", default="SpeciesDatabase.h5")
 parser.add_argument("-r", "--reference", dest="reference",
                     help="Reference for species data", default="Unknown")
+parser.add_argument("-s", "--surface", dest="database_surf",
+                    help="Sticking coefficient data", metavar="FILE", default="")
 # parser.add_argument("-s", "--radiation", dest="rad_file_name",
 #                     help="Radiation file to read-in parameters", metavar="FILE", default="Rad.dat")
 
@@ -30,8 +32,13 @@ if args.database_electronic != "":
 else:
   print('No electronic state data is given as input.')
 if args.database_crosssection != "":
-  h5_crosssection = h5py.File(args.database_crosssection, 'r')#
-  print('No crosssection-data is given as input.')
+  h5_crosssection = h5py.File(args.database_crosssection, 'r')
+else:
+  print('No crosssection data is given as input.')
+if args.database_surf != "":
+  h5_surface = h5py.File(args.database_surf, 'r')
+else:
+  print('No surface data is given as input.')
 
 # Name of the DSMC.ini is the name of the ChemicalModel
 model_name = args.ini_filename[:-4]
@@ -67,6 +74,21 @@ else:
   print('Group Cross-Sections does not exist, creating new group.')
   hdf_xsec_group = h5_species.create_group('Cross-Sections')
   hdf_xsec_group.attrs['* Created'] = date.today().strftime("%B %d, %Y")
+
+hdf_surf_group = 'Surface-Chemistry'
+if hdf_surf_group in h5_species.keys():
+  print('Group Surface-Chemistry already exists.')
+  hdf_surf_group = h5_species['Surface-Chemistry']
+  hdf_surf_group.attrs['* Last Modified'] = date.today().strftime("%B %d, %Y")
+else:
+  print('Group Surface-Chemistry does not exist, creating new group.')
+  #hdf_surf_group = h5_species.create_group('Surface-Chemistry')
+  #hdf_surf_group.attrs['* Created'] = date.today().strftime("%B %d, %Y")
+  # Copy sticking coefficient data if not defined already
+  if args.database_surf != "":
+    for dataset in h5_surface.keys():
+      print('Surface-Chemistry added: ', dataset)
+      h5_species.copy(source=h5_surface[dataset],dest=h5_species)
 
 # hdf_rad_group = 'Radiation'
 # if hdf_rad_group in h5_species.keys():
