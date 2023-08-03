@@ -59,20 +59,20 @@ The database contains different chemistry models including various reactions.
 
 | Name                                       | Description | Species | React. | Reference |
 | :----------------------------------------: |  :------------:  | :---------: |  :------: | :----: |
-| Air_5Spec_8Reac_Laux1995                   | 2.3.0 (Nov 2021) |  5 |  8 | 1.12.1 |
-| Air_5Spec_8Reac_Park1993                   | 2.2.0 (Nov 2021) |  8 |  8 | 1.10.5 |
-| Air_11Spec_27Reac_Park1993                 | 2.1.0 (Nov 2021) | 11 | 27 | 1.10.6 |
-| Air_11Spec_43Reac_Farbar2008               | 2.0.0 (Nov 2021) | 11 | 43 | 1.10.5 |
-| Air_11Spec_51Reac_Park1993                 | 2.0.0 (Nov 2021) | 11 | 51 | 1.10.5 |
-| Fe-in-Air_3Spec_7Reac_Voronov1997Plane2015 | 2.0.0 (Nov 2021) |  3 |  7 | 1.10.5 |
-| CH4_7Spec_7Reac                            | 2.0.0 (Nov 2021) |  7 |  7 | 1.10.5 |
-| CH4-Ar_8Spec_7Reac                         | 2.3.0 (Nov 2021) |  8 |  7 | 1.12.1 |
-| CO2_6Spec_10Reac_Johnston2014              | 2.2.0 (Nov 2021) |  6 | 10 | 1.10.5 |
-| Mars_11Spec_27Reac_Johnston2014            | 2.3.0 (Nov 2021) | 11 | 27 | 1.12.1 |
-| Mars_16Spec_31Reac_Park1994                | 2.2.0 (Nov 2021) | 16 | 31 | 1.10.5 |
-| Mars_17Spec_42Reac_Johnston2014            | 2.3.0 (Nov 2021) | 17 | 42 | 1.12.1 |
-| Titan_14Spec_24Reac_Gokcen2007             | 2.2.0 (Nov 2021) | 14 | 24 | 1.10.5 |
-| Titan_18Spec_30Reac_Gokcen2007             | 2.3.0 (Nov 2021) | 18 | 30 | 1.12.1 |
+| Air_5Spec_8Reac_Laux1995                   | Air without ions |  5 |  8 | M. Laux. Direkte Simulation verdünnter, reagierender Strömungen. PhD Thesis, University of Stuttgart, 1995. |
+| Air_5Spec_8Reac_Park1993                   | Air without ions |  8 |  8 | C. Park. Review of chemical-kinetic problems of future NASA missions. I - Earth entries. Journal of Thermophysics and Heat Transfer, 7(3):385–398, 1993. doi:10.2514/3.431. |
+| Air_11Spec_27Reac_Park1993                 | Air with ions | 11 | 27 | C. Park. Review of chemical-kinetic problems of future NASA missions. I - Earth entries. Journal of Thermophysics and Heat Transfer, 7(3):385–398, 1993. doi:10.2514/3.431. |
+| Air_11Spec_43Reac_Farbar2008               | Air with ions and backward reaction rates| 11 | 43 | E. Farbar and I. Boyd. Simulation of Fire II Reentry Flow Using the Direct Simulation Monte Carlo Method. 2008. doi:10.2514/6.2008-4103. |
+| Air_11Spec_51Reac_Park1993                 | Air with ions | 11 | 51 | C. Park. Review of chemical-kinetic problems of future NASA missions. I - Earth entries. Journal of Thermophysics and Heat Transfer, 7(3):385–398, 1993. doi:10.2514/3.431. |
+| Fe-in-Air_3Spec_7Reac_Voronov1997Plane2015 | Outgassing of iron into air |  3 |  7 | Voronov. G. A practical fit formula for ionization rate coefficients of atoms and ions by electron impact: Z= 1–28. Atomic Data and Nuclear Data Tables, 65(1):1–35, 1997. + J. M. Plane, W. Feng, and E. C. Dawkins. The mesosphere and metals: Chemistry and changes. Chemical reviews, 115(10):4497–4541, 2015. |
+| CH4_7Spec_7Reac                            |  |  7 |  7 | - |
+| CH4-Ar_8Spec_7Reac                         |  |  8 |  7 | - |
+| CO2_6Spec_10Reac_Johnston2014              |  |  6 | 10 | C. Johnston and A. Brandis. Modeling of nonequilibrium CO Fourth-Positive and CN Violet emission in CO2–N2 gases. Journal of Quantitative Spectroscopy and Radiative Transfer, 149:303–317, 2014. doi:10.1016/j.jqsrt.2014.08.025. |
+| Mars_11Spec_27Reac_Johnston2014            | Mars without ions | 11 | 27 | C. Johnston and A. Brandis. Modeling of nonequilibrium CO Fourth-Positive and CN Violet emission in CO2–N2 gases. Journal of Quantitative Spectroscopy and Radiative Transfer, 149:303–317, 2014. doi:10.1016/j.jqsrt.2014.08.025. |
+| Mars_16Spec_31Reac_Park1994                | Mars with ions | 16 | 31 | C. Park, J. T. Howe, R. L. Jaffe, and G. V. Candler. Review of chemical-kinetic problems of future NASA missions. II - Mars entries. Journal of Thermophysics and Heat Transfer, 8(1):9–23, 1994. doi:10.2514/3.496. |
+| Mars_17Spec_42Reac_Johnston2014            | Mars with ions and O2+ | 17 | 42 | C. Johnston and A. Brandis. Modeling of nonequilibrium CO Fourth-Positive and CN Violet emission in CO2–N2 gases. Journal of Quantitative Spectroscopy and Radiative Transfer, 149:303–317, 2014. doi:10.1016/j.jqsrt.2014.08.025. |
+| Titan_14Spec_24Reac_Gokcen2007             | Titan without ions but with Argon | 14 | 24 | T. Gokcen. N2-CH4-Ar Chemical Kinetic Model for Simulations of Atmospheric Entry to Titan. Journal of Thermophysics and Heat Transfer, 21(1):9–18, 2007. doi:10.2514/1.22095. |
+| Titan_18Spec_30Reac_Gokcen2007             | Titan with ions but without Argon | 18 | 30 | T. Gokcen. N2-CH4-Ar Chemical Kinetic Model for Simulations of Atmospheric Entry to Titan. Journal of Thermophysics and Heat Transfer, 21(1):9–18, 2007. doi:10.2514/1.22095. |
 
 The database contains data for the TCE and QK model. Reactions to be included in the simulation are specified by their reaction equation or their chemical model:
 
