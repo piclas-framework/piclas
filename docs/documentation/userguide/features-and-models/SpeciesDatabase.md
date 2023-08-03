@@ -74,14 +74,23 @@ The database contains different chemistry models including various reactions.
 | Titan_14Spec_24Reac_Gokcen2007             | 2.2.0 (Nov 2021) | 14 | 24 | 1.10.5 |
 | Titan_18Spec_30Reac_Gokcen2007             | 2.3.0 (Nov 2021) | 18 | 30 | 1.12.1 |
 
-The database contains data for the TCE and QK model. Reactions to be included in the simualtion are specified by their name:
+The database contains data for the TCE and QK model. Reactions to be included in the simulation are specified by their reaction equation or their chemical model:
 
     ! Reaction1: CH4 + M -> CH3 + H + M 
-    DSMC-Reaction1-ReactionName = DISS_CH4_TO_CH3
+    DSMC-Reaction1-Reactants = (/1,0,0/)
+    DSMC-Reaction1-Products = (/2,0,3,0/)
+    DSMC-Reaction1-ReactionName = CH4+M_CH3_M+H
     
-To ensure consistency and findability, a naming convention is used in the database. The available flags for the reaction are `DISS` (dissociation), `EXC` (exchange) and `RECOMB` (recombination or addition). The main reactants and products are specified as well. To further state atomic, electronic or molecular collision parameters, as well as ionization processes, the flags `_AT`, `_MOL`, `_EL` and `_ION` are used respectively. The name of reactants, products and non-reactive collision parameters are deposited in the database as well, but they are not read out to avoid restrictions in the simulation setup. These values are given manually in the `parameter.ini`, as described in Section {ref} `sec:DSMC-chemistry`.
+The reaction name is generated automatically and follows a set convention, that is enforced inside the database. To ensure a correct read-in, all species in the chosen reactions must have a defined species name in the parameter.ini Reactants are ordered according to a predefined list, with nonreacting partners listed always at the end. The same general order is used for the products, however the nonreacting partners are given always at the second position. If one reaction appears in multiple models or with multiple parameter sets in the database an additional enumerator in the form of f.e. '#5' is given at the end of the reaction name. In these cases, the correct number needs to be supplied in the parameter.ini as well.
 
-If the reaction parameters should be given manually, the following command can be set:
+If a chemistry model is defined, all reactions with this model are read-in from te database and no additional reaction names need to be supplied. The use of a set of reaction equations from the database can be initialized with the following command:
+
+    ! Reaction set 1
+    DSMC-ChemistryModel = Titan_14Spec_24Reac_Gokcen2007
+    
+It is possible as well to supply a chemical model and additional reactions for the consideration. TODO
+
+If the reaction parameters should be given manually, the following command can be set: TODO
 
     DSMC-OverwriteReacDatabase = true
 
@@ -94,50 +103,6 @@ Arrhenius-type reaction rates needed for the Total-Collision-Energy model ({ref}
 ### QK model
 
 The dissociation energy used in the Quantum-Kinetic model ({ref}`ssec:QK`) is deposited in the species database.
-
-(ssec:Catalysis)=
-## Heterogenous reactions
-
-All data necessary for the modelling of gas-surface reactions with PICLas can be found in the species database. To include parameters for a certain reaction, the reaction name needs to be specified by
-     
-    ! Reaction 1: CO(g) -> CO(ads) 
-    Surface-Reaction1-SurfName = Adsorption_CO
-    
-According to the naming convention used in the database, the surface mechanism (adsorption, desorption, ER and LH reaction) is stated together with the main reactant and product (only in the case of reactions). The database contains the sticking coefficients for the Kisluik and Langmuir adsorption model, together with the Polanyi-Wigner parameters and the Arrhenius-type reaction rates. All parameters that can be found in the database are givel below. 
-
-    Surface-Reaction1-SurfName 
-    Surface-Reaction1-Type 
-    Surface-Reaction1-StickingCoefficient 
-    Surface-Reaction1-EqConstant
-    Surface-Reaction1-DissOrder 
-    Surface-Reaction1-ReactHeat 
-    Surface-Reaction1-HeatScaling 
-    Surface-Reaction1-Energy 
-    Surface-Reaction1-Prefactor
-    Surface-Reaction1-LateralInteraction 
-    Surface-Reaction1-Ca 
-    Surface-Reaction1-Cb
-
-The reactants and products are deposited in the database as well, but again not read out to ensure the correct input. Reactants and products need to be defined by 
-
-    Surface-Reaction1-Reactants = (/2,2/) 
-    Surface-Reaction1-Products = (/3,0/)
-    
-So far, the database does not contain any surface-specific or diffusion parameters. These need to be set in the `parameter.ini` by
-
-    Surface-Reaction1-NumOfBoundaries = 1
-    Surface-Reaction1-Boundaries = (/1,0/)
-    Part-Boundary1-WallTemp = 323
-    Part-Boundary1-LatticeVector = 0.389E-9
-    Part-Boundary1-NbrOfMol-UnitCell = 2
-    Part-Boundary1-Species1-Coverage = 0.1
-    Part-Boundary1-Species1-MaxCoverage = 0.333 
-    
-If a parameter is not defined or set to a default value, the code will abort.
-
-To define parameters manually instead of using the database, the following option can be selected:
-
-    OverwriteCatParameters = true
 
 (ssec:El-states)=
 ## Electronic states
@@ -155,11 +120,6 @@ In this case, the electronic relaxation data is taken from an additional Electro
 ## Cross-section data
 
 The use of the unififed species database for the cross-section data, follows the description given in Section {ref} `ssec:xsec-chemistry`. All reaction paths are again stored by their reaction names and can be called in the `parameter.ini`.
-
-(ssec:Rad-data)=
-## Radiation data
-
-TO-DO
 
 (ssec:Overview)=
 ## Overview
