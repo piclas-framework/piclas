@@ -462,32 +462,32 @@ IF(DoFieldIonization.OR.CollisMode.NE.0) THEN
 
   END IF !database
 
-  IF(ANY(Species(:)%DoOverwriteParameters)) THEN 
-    DO iSpec = 1, nSpecies
-      IF(Species(iSpec)%DoOverwriteParameters) THEN
-        LBWRITE (UNIT_stdOut,'(66(". "))')
-        WRITE(UNIT=hilf,FMT='(I0)') iSpec
-        SpecDSMC(iSpec)%Tref     = GETREAL('Part-Species'//TRIM(hilf)//'-Tref'     )
-        SpecDSMC(iSpec)%dref     = GETREAL('Part-Species'//TRIM(hilf)//'-dref'     )
-        SpecDSMC(iSpec)%omega    = GETREAL('Part-Species'//TRIM(hilf)//'-omega'    )
-        SpecDSMC(iSpec)%alphaVSS = GETREAL('Part-Species'//TRIM(hilf)//'-alphaVSS' )
-        ! check for faulty parameters
-        IF((Species(iSpec)%InterID * SpecDSMC(iSpec)%Tref * SpecDSMC(iSpec)%dref * SpecDSMC(iSpec)%alphaVSS) .EQ. 0) THEN
-          CALL Abort(__STAMP__,'ERROR in species data: check collision parameters in ini \n'//&
-            'Part-Species'//TRIM(hilf)//'-(InterID * Tref * dref * alphaVSS) .EQ. 0 - but must not be 0')
-        END IF ! (Tref * dref * alphaVSS) .EQ. 0
-        IF ((SpecDSMC(iSpec)%alphaVSS.LT.0.0) .OR. (SpecDSMC(iSpec)%alphaVSS.GT.2.0)) THEN
-          CALL Abort(__STAMP__,'ERROR: Check set parameter Part-Species'//TRIM(hilf)//'-alphaVSS must not be lower 0 or greater 2')
-        END IF ! alphaVSS parameter check
-      END IF
-    END DO !iSpec
-  END IF
+  DO iSpec = 1, nSpecies
+    IF(Species(iSpec)%DoOverwriteParameters) THEN
+      LBWRITE (UNIT_stdOut,'(66(". "))')
+      WRITE(UNIT=hilf,FMT='(I0)') iSpec
+      SpecDSMC(iSpec)%Tref     = GETREAL('Part-Species'//TRIM(hilf)//'-Tref'     )
+      SpecDSMC(iSpec)%dref     = GETREAL('Part-Species'//TRIM(hilf)//'-dref'     )
+      SpecDSMC(iSpec)%omega    = GETREAL('Part-Species'//TRIM(hilf)//'-omega'    )
+      SpecDSMC(iSpec)%alphaVSS = GETREAL('Part-Species'//TRIM(hilf)//'-alphaVSS' )
+      ! check for faulty parameters
+      IF((Species(iSpec)%InterID * SpecDSMC(iSpec)%Tref * SpecDSMC(iSpec)%dref * SpecDSMC(iSpec)%alphaVSS) .EQ. 0) THEN
+        CALL Abort(__STAMP__,'ERROR in species data: check collision parameters in ini \n'//&
+          'Part-Species'//TRIM(hilf)//'-(InterID * Tref * dref * alphaVSS) .EQ. 0 - but must not be 0')
+      END IF ! (Tref * dref * alphaVSS) .EQ. 0
+      IF ((SpecDSMC(iSpec)%alphaVSS.LT.0.0) .OR. (SpecDSMC(iSpec)%alphaVSS.GT.2.0)) THEN
+        CALL Abort(__STAMP__,'ERROR: Check set parameter Part-Species'//TRIM(hilf)//'-alphaVSS must not be lower 0 or greater 2')
+      END IF ! alphaVSS parameter check
+    END IF
+  END DO !iSpec
 
   DO iSpec=1, nSpecies
-  SpecDSMC(iSpec)%FullyIonized  = GETLOGICAL('Part-Species'//TRIM(hilf)//'-FullyIonized')
-  ! Save the electron species into a global variable
-  IF(Species(iSpec)%InterID.EQ.4) DSMC%ElectronSpecies = iSpec
-  ! reading electronic state informations from HDF5 file
+    ! TODO: read-in of parameter from database if available!
+    WRITE(UNIT=hilf,FMT='(I0)') iSpec
+    SpecDSMC(iSpec)%FullyIonized  = GETLOGICAL('Part-Species'//TRIM(hilf)//'-FullyIonized')
+    ! Save the electron species into a global variable
+    IF(Species(iSpec)%InterID.EQ.4) DSMC%ElectronSpecies = iSpec
+    ! reading electronic state informations from HDF5 file
     IF(((DSMC%ElectronicModelDatabase.NE.'none').OR.(SpeciesDatabase.NE.'none')).AND.(Species(iSpec)%InterID.NE.4)) THEN
       CALL SetElectronicModel(iSpec)
     END IF
