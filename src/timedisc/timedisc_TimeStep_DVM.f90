@@ -34,11 +34,11 @@ SUBROUTINE TimeStep_DVM()
 ! DUGKS/Exp diff DVM timestep with finite volumes
 !===================================================================================================================================
 ! MODULES
-USE MOD_FV_Vars               ,ONLY: U,Ut
+USE MOD_FV_Vars               ,ONLY: U_FV,Ut_FV
 USE MOD_TimeDisc_Vars         ,ONLY: dt,time
 USE MOD_FV                    ,ONLY: FV_main
 USE MOD_DistFunc              ,ONLY: RescaleU, RescaleInit, ForceStep
-USE MOD_Equation_Vars         ,ONLY: IniExactFunc, DVMForce
+USE MOD_Equation_Vars_FV      ,ONLY: IniExactFunc_FV, DVMForce
 
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -49,14 +49,14 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 !===================================================================================================================================
-IF (IniExactFunc.EQ.4.AND.time.EQ.0.) CALL RescaleInit(dt) ! initial rescaling if simulation initialized with non-equilibrium flow
+IF (IniExactFunc_FV.EQ.4.AND.time.EQ.0.) CALL RescaleInit(dt) ! initial rescaling if simulation initialized with non-equilibrium flow
 
 IF (ANY(DVMForce.NE.0.)) CALL ForceStep(dt)
 
 CALL RescaleU(1,dt)  ! ftilde -> fchapeau2
 CALL FV_main(time,time,doSource=.FALSE.)  ! fchapeau2 -> ftilde2 -> Ut = flux of f
 CALL RescaleU(2,dt/2.)  ! fchapeau2 -> fchapeau
-U = U + Ut*dt        ! fchapeau -> ftilde
+U_FV = U_FV + Ut_FV*dt        ! fchapeau -> ftilde
 
 IF (ANY(DVMForce.NE.0.)) CALL ForceStep(dt) !two times for strang splitting -> second order
 

@@ -295,7 +295,11 @@ USE MOD_PML_Vars,      ONLY: U2,U2t
 USE MOD_PML_Vars,      ONLY: nPMLElems,PMLToElem,PMLnVar
 USE MOD_Mesh_Vars,     ONLY: sJ
 USE MOD_PML_Vars,      ONLY: PMLzetaEff,PMLTimeRamp
+#if (USE_FV) && !(USE_HDG)
+USE MOD_Equation_vars_FV,ONLY: fDamping
+#else
 USE MOD_Equation_Vars, ONLY: fDamping
+#else
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------

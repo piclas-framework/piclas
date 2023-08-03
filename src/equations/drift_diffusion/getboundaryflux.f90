@@ -54,8 +54,12 @@ SUBROUTINE InitBC()
 ! MODULES
 USE MOD_Preproc
 USE MOD_Globals
-USE MOD_Equation_Vars     ,ONLY: EquationInitIsDone
-USE MOD_Equation_Vars     ,ONLY: nBCByType,BCSideID
+USE MOD_Equation_Vars_FV     ,ONLY: EquationInitIsDone_FV
+#if USE_HDG
+USE MOD_Equation_Vars   ,ONLY:nBCByType,BCSideID
+#else
+USE MOD_Equation_Vars_FV,ONLY:nBCByType,BCSideID
+#endif
 USE MOD_Interpolation_Vars,ONLY: InterpolationInitIsDone
 USE MOD_Mesh_Vars         ,ONLY: MeshInitIsDone,nBCSides,BC,BoundaryType,nBCs
 IMPLICIT NONE
@@ -67,7 +71,7 @@ INTEGER :: i,iSide
 INTEGER :: locType,locState
 INTEGER :: MaxBCState,MaxBCStateGlobal
 !==================================================================================================================================
-IF((.NOT.InterpolationInitIsDone).AND.(.NOT.MeshInitIsDone).AND.(.NOT.EquationInitIsDone))THEN
+IF((.NOT.InterpolationInitIsDone).AND.(.NOT.MeshInitIsDone).AND.(.NOT.EquationInitIsDone_FV))THEN
   CALL CollectiveStop(__STAMP__,&
     "InitBC not ready to be called or already called.")
 END IF
@@ -117,12 +121,17 @@ END SUBROUTINE InitBC
 SUBROUTINE GetBoundaryFlux(t,tDeriv,Flux,UPrim_master,NormVec,TangVec1,TangVec2,Face_xGP)
 ! MODULES
 USE MOD_PreProc
-USE MOD_Globals      ,ONLY: Abort
-USE MOD_Mesh_Vars    ,ONLY: nBCSides,nBCs,BoundaryType
-USE MOD_Equation_Vars,ONLY: nBCByType,BCSideID,IniExactFunc,RefState
-USE MOD_Gradient_Vars,ONLY: Grad_dx_master
+USE MOD_Globals         ,ONLY: Abort
+USE MOD_Mesh_Vars       ,ONLY: nBCSides,nBCs,BoundaryType
+#if USE_HDG
+USE MOD_Equation_Vars   ,ONLY:nBCByType,BCSideID
+#else
+USE MOD_Equation_Vars_FV,ONLY:nBCByType,BCSideID
+#endif
+USE MOD_Equation_Vars_FV,ONLY:IniExactFunc_FV,RefState_FV
+USE MOD_Gradient_Vars   ,ONLY: Grad_dx_master
 USE MOD_Riemann
-USE MOD_Equation     ,ONLY: ExactFunc
+USE MOD_Equation_FV     ,ONLY: ExactFunc_FV
 !----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT / OUTPUT VARIABLES
 REAL,INTENT(IN)                      :: t       !< current time (provided by time integration scheme)
@@ -151,18 +160,14 @@ DO iBC=1,nBCs
   SELECT CASE(BCType)
   CASE(1) !Periodic already filled!
   
-  CASE(2) !Exact function or refstate
+  CASE(2) !Exact function or RefState_FV
     DO iSide=1,nBCLoc
       SideID=BCSideID(iBC,iSide)
       E=(/1.,0.,0./)
       IF(BCState.EQ.0) THEN
-        DO q=0,0; DO p=0,0
-          CALL ExactFunc(IniExactFunc,t,0,Face_xGP(:,p,q,SideID),UPrim_boundary(:,p,q))
-        END DO; END DO
+        CALL ExactFunc_FV(IniExactFunc_FV,t,0,Face_xGP(:,0,0,SideID),UPrim_boundary(:,0,0))
       ELSE
-        DO q=0,0; DO p=0,0
-          UPrim_boundary(:,p,q)=RefState(:,BCState)
-        END DO; END DO
+        UPrim_boundary(:,0,0)=RefState_FV(:,BCState)
       END IF
 #ifdef drift_diffusion
       GradSide=(UPrim_master(1,0,0,SideID)-UPrim_boundary(1,0,0))/(2*SQRT((Grad_dx_master(1,SideID))**2 &
@@ -193,7 +198,11 @@ SUBROUTINE FinalizeBC()
 ! Initialize boundary conditions
 !===================================================================================================================================
 ! MODULES
-USE MOD_Equation_Vars,ONLY: BCData,nBCByType,BCSideID
+#if USE_HDG
+USE MOD_Equation_Vars   ,ONLY:nBCByType,BCSideID
+#else
+USE MOD_Equation_Vars_FV,ONLY:nBCByType,BCSideID
+#endif
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -203,7 +212,6 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 !===================================================================================================================================
-SDEALLOCATE(BCData)
 SDEALLOCATE(nBCByType)
 SDEALLOCATE(BCSideID)
 END SUBROUTINE FinalizeBC

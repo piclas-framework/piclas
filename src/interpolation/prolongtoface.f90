@@ -133,7 +133,7 @@ USE MOD_Mesh_Vars,          ONLY: firstBCSide,firstInnerSide, lastInnerSide
 USE MOD_Mesh_Vars,          ONLY: firstMPISide_YOUR,lastMPISide_YOUR,lastMPISide_MINE,firstMortarMPISide,lastMortarMPISide
 #if (PP_TimeDiscMethod==600) /*DVM*/
 USE MOD_TimeDisc_Vars,      ONLY: dt
-USE MOD_Equation_Vars,      ONLY: DVMnVelos, DVMVelos, DVMSpeciesData
+USE MOD_Equation_Vars_FV,   ONLY: DVMnVelos, DVMVelos, DVMSpeciesData
 #endif
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE

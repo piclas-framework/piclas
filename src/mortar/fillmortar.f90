@@ -29,7 +29,7 @@ INTERFACE U_Mortar
   MODULE PROCEDURE U_Mortar
 END INTERFACE
 
-#if !(USE_HDG)
+#if !(USE_HDG) || (USE_FV)
 INTERFACE Flux_Mortar
   MODULE PROCEDURE Flux_Mortar
 END INTERFACE
@@ -444,7 +444,7 @@ DO MortarSideID=firstMortarSideID,lastMortarSideID
 END DO !MortarSideID
 END SUBROUTINE U_Mortar
 
-#if !(USE_HDG)
+#if !(USE_HDG) || (USE_FV)
 SUBROUTINE Flux_Mortar(Flux_Master,Flux_Slave,doMPISides)
 !===================================================================================================================================
 ! fills master side from small non-conforming sides, Using 1D projection operators M_1_0,M_2_0

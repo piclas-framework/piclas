@@ -29,13 +29,15 @@ USE MOD_ReadInTools           ,ONLY: prms,PrintDefaultparameterFile,Extractparam
 USE MOD_Interpolation         ,ONLY: InitInterpolation
 USE MOD_IO_HDF5               ,ONLY: InitIOHDF5
 USE MOD_MPI                   ,ONLY: InitMPI
-USE MOD_Equation              ,ONLY: InitEquation
 USE MOD_Output                ,ONLY: InitOutput
 USE MOD_Interpolation         ,ONLY: DefineParametersInterpolation
 USE MOD_IO_HDF5               ,ONLY: DefineParametersIO
 USE MOD_Output                ,ONLY: DefineParametersOutput
 USE MOD_Mesh                  ,ONLY: DefineParametersMesh,FinalizeMesh
+#if !(USE_FV) || (USE_HDG)
 USE MOD_Equation              ,ONLY: DefineParametersEquation
+USE MOD_Equation              ,ONLY: InitEquation
+#endif
 USE MOD_Interpolation_Vars    ,ONLY: BGField,BGFieldAnalytic
 USE MOD_Mesh                  ,ONLY: InitMesh
 #if USE_MPI
@@ -95,7 +97,12 @@ CALL DefineParametersGlobals()
 CALL DefineParametersInterpolation()
 CALL DefineParametersOutput()
 CALL DefineParametersMesh()
+#if USE_FV
+CALL abort(__STAMP__,'SuperB not implemented with FV!')
+#endif
+#if !(USE_FV) || (USE_HDG)
 CALL DefineParametersEquation()
+#endif
 CALL DefineParametersSuperB()
 #if USE_MPI
 CALL DefineParametersMPIShared()
@@ -127,7 +134,9 @@ CALL InitMPIShared()
 
 ! Initialization
 CALL InitInterpolation()
+#if !(USE_FV) || (USE_HDG)
 CALL InitEquation()
+#endif
 
 CALL InitMesh(3) ! 0: only read and build Elem_xGP,
                  ! 1: as 0 + build connectivity

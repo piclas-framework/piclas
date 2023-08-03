@@ -84,7 +84,7 @@ USE MOD_HDF5_Output_Fields,ONLY: WriteDielectricGlobalToHDF5
 USE MOD_Globals_Vars      ,ONLY: c
 USE MOD_Interfaces        ,ONLY: FindInterfacesInRegion,FindElementInRegion,CountAndCreateMappings,DisplayRanges,SelectMinMaxRegion
 USE MOD_Mesh_Vars         ,ONLY: nElems,ElemInfo,offsetElem
-#if ! (USE_HDG)
+#if ! (USE_HDG) && !(USE_FV)
 USE MOD_Equation_Vars     ,ONLY: c_corr
 #endif /*if not USE_HDG*/
 #if USE_LOADBALANCE
@@ -123,7 +123,7 @@ END IF
 DielectricEpsR_inv               = 1./(DielectricEpsR)                   ! 1./EpsR
 !DielectricConstant_inv           = 1./(DielectricEpsR*DielectricMuR)    ! 1./(EpsR*MuR)
 DielectricConstant_RootInv       = 1./sqrt(DielectricEpsR*DielectricMuR) ! 1./sqrt(EpsR*MuR)
-#if !(USE_HDG)
+#if !(USE_HDG) && !(USE_FV)
 eta_c_dielectric                 = (c_corr-DielectricConstant_RootInv)*c ! ( chi - 1./sqrt(EpsR*MuR) ) * c
 #endif /*if USE_HDG*/
 c_dielectric                     = c*DielectricConstant_RootInv          ! c/sqrt(EpsR*MuR)

@@ -134,7 +134,7 @@ USE MOD_MPI                 ,ONLY: StartReceiveMPIData,StartSendMPIData,FinishEx
 USE MOD_MPI_Vars
 #endif /*MPI*/
 #ifdef drift_diffusion
-USE MOD_Equation_Vars       ,ONLY: EFluid_GradSide
+USE MOD_Equation_Vars_FV    ,ONLY: EFluid_GradSide
 #endif
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE

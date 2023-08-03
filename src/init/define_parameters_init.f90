@@ -47,7 +47,12 @@ USE MOD_Analyze                    ,ONLY: DefineParametersAnalyze
 USE MOD_RecordPoints               ,ONLY: DefineParametersRecordPoints
 USE MOD_TimeDiscInit               ,ONLY: DefineParametersTimeDisc
 USE MOD_Mesh                       ,ONLY: DefineParametersMesh
+#if !(USE_FV) || (USE_HDG)
 USE MOD_Equation                   ,ONLY: DefineParametersEquation
+#endif
+#if USE_FV
+USE MOD_Equation_FV                ,ONLY: DefineParametersEquation_FV
+#endif
 #if !(USE_HDG) && !(USE_FV)
 USE MOD_PML                        ,ONLY: DefineParametersPML
 #endif /*USE_HDG*/
@@ -116,7 +121,12 @@ CALL DefineParametersOutput()
 CALL DefineParametersPiclas()
 CALL DefineParametersTimeDisc()
 CALL DefineParametersMesh()
+#if !(USE_FV) || (USE_HDG)
 CALL DefineParametersEquation()
+#endif
+#if USE_FV
+CALL DefineParametersEquation_FV()
+#endif
 #if !(USE_HDG) && !(USE_FV)
 CALL DefineParametersPML()
 #endif /*USE_HDG*/

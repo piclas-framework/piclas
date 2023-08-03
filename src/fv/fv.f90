@@ -92,14 +92,13 @@ IF (.NOT.(PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance))) THEN
   ! the local DG solution in physical and reference space
   ALLOCATE( U_FV(PP_nVar_FV,0:0,0:0,0:0,PP_nElems))
   U_FV=0.
-#if !(USE_HDG)
-#if USE_LOADBALANCE
+  ! the time derivative computed with the DG scheme
+  ALLOCATE(Ut_FV(PP_nVar_FV,0:0,0:0,0:0,PP_nElems))
+  Ut_FV=0.
+#if USE_LOADBALANCE && !(USE_HDG)
 END IF
-#endif /*USE_LOADBALANCE*/
-! the time derivative computed with the DG scheme
-ALLOCATE(Ut_FV(PP_nVar_FV,0:0,0:0,0:0,PP_nElems))
-Ut_FV=0.
-#endif /*USE_HDG*/
+#endif /*USE_LOADBALANCE && !(USE_HDG)*/
+
 
 ! U_FV is filled with the ini solution
 IF(.NOT.DoRestart) CALL FillIni()
@@ -177,7 +176,7 @@ USE MOD_SurfInt           ,ONLY: SurfInt
 USE MOD_ProlongToFace     ,ONLY: ProlongToFace
 USE MOD_Gradients         ,ONLY: GetGradients
 USE MOD_FillFlux          ,ONLY: FillFlux
-USE MOD_Equation          ,ONLY: CalcSource
+USE MOD_Equation_FV       ,ONLY: CalcSource_FV
 USE MOD_Interpolation     ,ONLY: ApplyJacobian
 USE MOD_FillMortar        ,ONLY: U_Mortar,Flux_Mortar
 USE MOD_Gradients         ,ONLY: InitGradients
@@ -325,7 +324,7 @@ DO iElem=1,PP_nElems
 END DO
 
 ! Add Source Terms
-IF(doSource) CALL CalcSource(tStage,1.0,Ut_FV)
+IF(doSource) CALL CalcSource_FV(tStage,1.0,Ut_FV)
 
 #if USE_LOADBALANCE
 CALL LBSplitTime(LB_DG,tLBStart)
@@ -353,11 +352,8 @@ SUBROUTINE FillIni()
 USE MOD_PreProc
 USE MOD_FV_Vars,ONLY:U_FV
 USE MOD_Mesh_Vars,ONLY:Elem_xGP
-USE MOD_Equation_Vars,ONLY:IniExactFunc
-USE MOD_Equation,ONLY:ExactFunc
-#ifdef maxwell
-USE MOD_Equation_Vars,ONLY:DoExactFlux
-#endif /*maxwell*/
+USE MOD_Equation_Vars_FV,ONLY:IniExactFunc_FV
+USE MOD_Equation_FV,ONLY:ExactFunc_FV
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -370,11 +366,8 @@ INTEGER                         :: iElem
 !===================================================================================================================================
 ! Determine Size of the Loops, i.e. the number of grid cells in the
 ! corresponding directions
-#ifdef maxwell
-IF(DoExactFlux.AND.(IniExactFunc.NE.16)) RETURN ! IniExactFunc=16 is pulsed laser mixed IC+BC
-#endif /*maxwell*/
 DO iElem=1,PP_nElems
-    CALL ExactFunc(IniExactFunc,0.,0,Elem_xGP(1:3,0,0,0,iElem),U_FV(1:PP_nVar_FV,0,0,0,iElem))
+    CALL ExactFunc_FV(IniExactFunc_FV,0.,0,Elem_xGP(1:3,0,0,0,iElem),U_FV(1:PP_nVar_FV,0,0,0,iElem))
 END DO ! iElem=1,PP_nElems
 END SUBROUTINE FillIni
 

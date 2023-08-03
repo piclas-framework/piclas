@@ -17,8 +17,8 @@
 !> The terms computed in this routine are therefore the TimeAvg: \f$ \overline{U_FV} \f$ and
 !> the squared solution denoted by Fluc: \f$ \overline{U_FV^2} \f$
 !> the fluctuations are the RMS values
-!> list structure: 1:PP_nVar - Varnames of equationsystem
-!>                 PP_nVar+  - additional variables
+!> list structure: 1:PP_nVar_FV - Varnames of equationsystem
+!>                 PP_nVar_FV+  - additional variables
 !==================================================================================================================================
 MODULE MOD_TimeAverage
 ! MODULES
@@ -57,7 +57,7 @@ USE MOD_Preproc
 USE MOD_ReadInTools,    ONLY: CountOption,GETSTR,GETLOGICAL,GETINT
 USE MOD_Mesh_Vars,      ONLY: nElems
 USE MOD_Timeaverage_Vars
-USE MOD_Equation_Vars,  ONLY: StrVarNames
+USE MOD_Equation_Vars_FV,  ONLY: StrVarNames_FV
 #ifdef PARTICLES
 USE MOD_Particle_Vars,  ONLY: nSpecies
 USE MOD_PICDepo_Vars,   ONLY: DoDeposition, RelaxDeposition
@@ -91,15 +91,15 @@ END IF
 
 ! --- Mean values
 ! Define variables to be averaged
-nMaxVarAvg=PP_nVar+6
+nMaxVarAvg=PP_nVar_FV+6
 #ifdef PARTICLES
 nMaxVarAvg=nMaxVarAvg+9*nSpecies
 #endif /*PARTICLES*/
 ALLOCATE(VarNamesAvgList(nMaxVarAvg))
 
-DO iVar=1,PP_nVar
-  VarNamesAvgList(iVar)=StrVarNames(iVar)
-END DO ! iVar=1,PP_nVar
+DO iVar=1,PP_nVar_FV
+  VarNamesAvgList(iVar)=StrVarNames_FV(iVar)
+END DO ! iVar=1,PP_nVar_FV
 VarNamesAvgList( 9)='ElectricFieldMagnitude'
 VarNamesAvgList(10)='MagneticFieldMagnitude'
 ! derived quantity
@@ -109,7 +109,7 @@ VarNamesAvgList(13)='PoyntingVectorZ'
 VarNamesAvgList(14)='PoyntingVectorMagnitude'
 
 #ifdef PARTICLES
-iCounter=PP_nVar+6
+iCounter=PP_nVar_FV+6
 DO iSpec=1,nSpecies
   WRITE(strhelp,'(I2.2)') iSpec
   VarnamesAvgList(iCounter+1)=TRIM('PowerDensityX-Spec')//TRIM(strhelp)
@@ -126,16 +126,16 @@ END DO
 #endif /*PARTICLES*/
 
 ! --- Fluctuations
-nMaxVarFluc=PP_nVar+6
+nMaxVarFluc=PP_nVar_FV+6
 #ifdef PARTICLES
 nMaxVarFluc=nMaxVarFluc+9*nSpecies
 #endif /*PARTICLES*/
 ALLOCATE(VarNamesFlucList(nMaxVarFluc),hasAvgVars(nMaxVarFluc))
 hasAvgVars=.TRUE.
 !define fluctuation variables
-DO iVar=1,PP_nVar
-  VarNamesFlucList(iVar)=StrVarNames(iVar)
-END DO ! iVar=1,PP_nVar
+DO iVar=1,PP_nVar_FV
+  VarNamesFlucList(iVar)=StrVarNames_FV(iVar)
+END DO ! iVar=1,PP_nVar_FV
 VarNamesFlucList( 9)='ElectricFieldMagnitude'
 VarNamesFlucList(10)='MagneticFieldMagnitude'
 ! derived quantity
@@ -145,7 +145,7 @@ VarNamesFlucList(13)='PoyntingVectorZ'
 VarNamesFlucList(14)='PoyntingVectorMagnitude'
 
 #ifdef PARTICLES
-iCounter=PP_nVar+2
+iCounter=PP_nVar_FV+2
 DO iSpec=1,nSpecies
   WRITE(strhelp,'(I2.2)') iSpec
   VarnamesFlucList(iCounter+1)=TRIM('PowerDensityX-Spec')//TRIM(strhelp)
@@ -222,7 +222,7 @@ IF(ANY(CalcFluc(11:14))) DoPoyntingVectorAvg = .TRUE.
 
 ! particles, additional marking for sampling
 #ifdef PARTICLES
-iCounter=PP_nVar+2
+iCounter=PP_nVar_FV+2
 ALLOCATE(DoPowerDensity(1:nSpecies))
 DoPowerDensity=.FALSE.
 nSpecPowerDensity=0
@@ -382,9 +382,9 @@ END IF
 DO iElem=1,nElems
   ! Compute time averaged variables and fluctuations of these variables
   ! loop over all variables
-  DO iVar=1,PP_nVar
+  DO iVar=1,PP_nVar_FV
     IF(CalcAvg(iVar)) tmpVars(iAvg(iVar),:,:,:) = U_FV(iVar,:,:,:,iElem)
-  END DO ! iVar=1,PP_nVar
+  END DO ! iVar=1,PP_nVar_FV
 
   ! ElectricFieldMagnitude
   IF(CalcAvg(9))THEN
@@ -412,7 +412,7 @@ DO iElem=1,nElems
   END IF
 
 #ifdef PARTICLES
-  iCounter=PP_nVar+6
+  iCounter=PP_nVar_FV+6
   iSpec2=0
   DO iSpec=1,nSpecies
     iVar=iCounter

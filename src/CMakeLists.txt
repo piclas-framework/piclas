@@ -168,9 +168,9 @@ ELSEIF(PICLAS_EQNSYSNAME STREQUAL "discrete_velocity")
   SET(PICLAS_HDG OFF)
   SET(PICLAS_FV ON)
 ELSEIF(PICLAS_EQNSYSNAME STREQUAL "drift_diffusion")
-  ADD_DEFINITIONS(-DPP_nVar=3 -DPP_nVar_FV=1 -Ddrift_diffusion)
-  #ADD_DEFINITIONS(-DPP_nVar=1 -Dpoisson)
-  SET(PICLAS_HDG OFF)
+  ADD_DEFINITIONS(-DPP_nVar_FV=1 -Ddrift_diffusion)
+  ADD_DEFINITIONS(-DPP_nVar=1 -Dpoisson)
+  SET(PICLAS_HDG ON)
   SET(PICLAS_FV ON)
 
 ELSE()
@@ -356,6 +356,8 @@ IF(PICLAS_HDG)
      MESSAGE(STATUS "use HDG with ROS46")
   ELSEIF(PICLAS_TIMEDISCMETHOD STREQUAL "ROS6")
      MESSAGE(STATUS "use HDG with ROS6")
+  ELSEIF(PICLAS_TIMEDISCMETHOD STREQUAL "Explicit-FV")
+     MESSAGE(STATUS "use HDG in parallel to Explicit-FV")
   ELSE()
       MESSAGE(SEND_ERROR "Unknown time discretization method for HDG.")
   ENDIF()
@@ -510,6 +512,24 @@ FILE(GLOB_RECURSE fvF90 ./src/fv/*.f90
                         ./src/gradients/*.f90
                         ./src/equations/${PICLAS_EQNSYSNAME}/*.f90)
 
+FILE(GLOB_RECURSE hdgfvF90 ./src/hdg/*.f90
+                         ./src/dg/dg.f90
+                         ./src/dg/dg_vars.f90
+                         ./src/fv/*.f90
+                        ./src/interpolation/prolongtoface.f90
+                        ./src/gradients/*.f90
+                        ./src/equations/drift_diffusion/equation.f90
+                        ./src/equations/drift_diffusion/equation_vars.f90
+                        ./src/equations/drift_diffusion/transport_data.f90
+                        ./src/equations/drift_diffusion/riemann.f90
+                        ./src/equations/drift_diffusion/getboundaryflux.f90
+                        ./src/equations/drift_diffusion/getboundarygrad.f90
+                        ./src/equations/poisson/equation.f90
+                        ./src/equations/poisson/equation_vars.f90
+                        ./src/equations/poisson/timeavg.f90
+                        ./src/equations/poisson/timeavg_vars.f90
+                        ./src/equations/poisson/calctimestep.f90)
+
 
 FILE(GLOB_RECURSE implicitF90 ./src/linearsolver/linearsolver.f90
                               ./src/linearsolver/linearsolver_vars.f90
@@ -561,10 +581,14 @@ IF(PICLAS_EXTRAE)
 ENDIF(PICLAS_EXTRAE)
 
 IF(PICLAS_HDG)
-  LIST(APPEND piclasF90 ${hdgF90})
-  IF(PICLAS_IMPLICIT)
-    LIST(APPEND piclasF90 ${implicitF90})
-  ENDIF(PICLAS_IMPLICIT)
+  IF(PICLAS_FV)
+    LIST(APPEND piclasF90 ${hdgfvF90})
+  ELSE()
+    LIST(APPEND piclasF90 ${hdgF90})
+    IF(PICLAS_IMPLICIT)
+      LIST(APPEND piclasF90 ${implicitF90})
+    ENDIF(PICLAS_IMPLICIT)
+  ENDIF()
 ELSEIF(PICLAS_FV)
   LIST(APPEND piclasF90 ${fvF90})
 ELSE()

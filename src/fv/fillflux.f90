@@ -48,7 +48,7 @@ USE MOD_Mesh_Vars       ,ONLY: NormVec_FV,TangVec1_FV, tangVec2_FV, SurfElem_FV,
 USE MOD_GetBoundaryFlux ,ONLY: GetBoundaryFlux
 USE MOD_Mesh_Vars       ,ONLY: firstMPISide_MINE,lastMPISide_MINE,firstInnerSide,firstBCSide,lastInnerSide
 #ifdef drift_diffusion
-USE MOD_Equation_Vars   ,ONLY: EFluid_GradSide
+USE MOD_Equation_Vars_FV,ONLY: EFluid_GradSide
 #endif
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE

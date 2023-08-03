@@ -10,7 +10,7 @@
 !
 ! You should have received a copy of the GNU General Public License along with PICLas. If not, see <http://www.gnu.org/licenses/>.
 !==================================================================================================================================
-MODULE MOD_Equation_Vars
+MODULE MOD_Equation_Vars_FV
 !===================================================================================================================================
 ! Contains the constant Advection Velocity Vector used for the linear scalar advection equation
 !===================================================================================================================================
@@ -23,33 +23,28 @@ SAVE
 ! GLOBAL VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 LOGICAL           :: doCalcSource             !< Swith to calculate a source term or not, automatically set by calcsource itself
-REAL              :: AdvVel(3)                !< Advection velocity
-REAL              :: DiffC                    !< Diffusion constant
-INTEGER           :: IniExactFunc             !< Number of exact function used for initialization
-INTEGER           :: IniRefState              !< RefState for initialization
-INTEGER           :: nRefState                !< number of refstates defined in parameter file
-REAL,ALLOCATABLE  :: RefState(:,:)        !< reference state
 
-REAL              :: Pi
-
-! Boundary condition arrays
-REAL,ALLOCATABLE     :: BCData(:,:,:,:)       !< Buffer array for BC data
-INTEGER,ALLOCATABLE  :: nBCByType(:)          !< Number of sides for each boundary
-INTEGER,ALLOCATABLE  :: BCSideID(:,:)         !< SideIDs for BC types
-
-
-
+#if !(USE_HDG)
 REAL                 :: c_corr
 REAL                 :: fDamping
 REAL                 :: WaveLength                             !> wave length
+INTEGER,ALLOCATABLE  :: nBCByType(:)          !< Number of sides for each boundary
+INTEGER,ALLOCATABLE  :: BCSideID(:,:)         !< SideIDs for BC types
+#endif
 
 REAL,ALLOCATABLE     :: EFluid_GradSide(:)
 
-LOGICAL              :: EquationInitIsDone=.FALSE.!< Init switch
 LOGICAL              :: DoExactFlux
 LOGICAL,ALLOCATABLE  ::isExactFluxInterFace(:)
 
-CHARACTER(LEN=255),DIMENSION(4),PARAMETER :: StrVarNames(1)=(/ CHARACTER(LEN=255) :: 'ElectronDensity'/)
+LOGICAL              :: EquationInitIsDone_FV=.FALSE.!< Init switch
+
+INTEGER           :: IniExactFunc_FV             !< Number of exact function used for initialization
+INTEGER           :: IniRefState_FV              !< RefState for initialization
+INTEGER           :: nRefState_FV                !< number of refstates defined in parameter file
+REAL,ALLOCATABLE  :: RefState_FV(:,:)        !< reference state
+
+CHARACTER(LEN=255),DIMENSION(4),PARAMETER :: StrVarNames_FV(1)=(/ CHARACTER(LEN=255) :: 'ElectronDensity'/)
 
 !===================================================================================================================================
-END MODULE MOD_Equation_Vars
+END MODULE MOD_Equation_Vars_FV

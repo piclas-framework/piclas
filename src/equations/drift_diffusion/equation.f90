@@ -12,7 +12,7 @@
 !==================================================================================================================================
 #include "piclas.h"
 
-MODULE MOD_Equation
+MODULE MOD_Equation_FV
 !===================================================================================================================================
 ! Add comments please!
 !===================================================================================================================================
@@ -25,20 +25,24 @@ PRIVATE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
-INTERFACE InitEquation
+INTERFACE InitEquation_FV
   MODULE PROCEDURE InitEquation
 END INTERFACE
-INTERFACE ExactFunc
+INTERFACE ExactFunc_FV
   MODULE PROCEDURE ExactFunc
 END INTERFACE
-INTERFACE CalcSource
+INTERFACE CalcSource_FV
   MODULE PROCEDURE CalcSource
 END INTERFACE
+INTERFACE FinalizeEquation_FV
+  MODULE PROCEDURE FinalizeEquation
+END INTERFACE
+INTERFACE DefineParametersEquation_FV
+  MODULE PROCEDURE DefineParametersEquation
+END INTERFACE
 
-PUBLIC::InitEquation,ExactFunc,FinalizeEquation,CalcSource
+PUBLIC::InitEquation_FV,ExactFunc_FV,FinalizeEquation_FV,CalcSource_FV,DefineParametersEquation_FV
 !===================================================================================================================================
-
-PUBLIC::DefineParametersEquation
 CONTAINS
 
 !==================================================================================================================================
@@ -49,12 +53,12 @@ SUBROUTINE DefineParametersEquation()
 USE MOD_ReadInTools ,ONLY: prms
 IMPLICIT NONE
 !==================================================================================================================================
-CALL prms%SetSection("Equation")
-CALL prms%CreateIntOption(      'IniExactFunc'     , 'TODO-DEFINE-PARAMETER\n'//&
+CALL prms%SetSection("Equation-FV")
+CALL prms%CreateIntOption(      'IniExactFunc-FV'     , 'TODO-DEFINE-PARAMETER\n'//&
                                                      'Define exact function necessary for '//&
                                                      'linear scalar advection', '-1')
-CALL prms%CreateIntOption(      'IniRefState',  "Refstate required for initialization.")
-CALL prms%CreateRealArrayOption('RefState',     "State(s) in primitive variables (density).",&
+CALL prms%CreateIntOption(      'IniRefState-FV',  "Refstate required for initialization.")
+CALL prms%CreateRealArrayOption('RefState-FV',     "State(s) in primitive variables (density).",&
                                                 multiple=.TRUE., no=1 )
 END SUBROUTINE DefineParametersEquation
 
@@ -67,7 +71,7 @@ USE MOD_Globals
 USE MOD_PreProc
 USE MOD_Mesh_Vars,          ONLY: nSides
 USE MOD_ReadInTools,        ONLY:GETREALARRAY,GETINTARRAY,GETREAL,GETINT, CountOption
-USE MOD_Equation_Vars
+USE MOD_Equation_Vars_FV
  IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT/OUTPUT VARIABLES
@@ -75,28 +79,28 @@ USE MOD_Equation_Vars
 ! LOCAL VARIABLES
 INTEGER :: i
 !==================================================================================================================================
-IF(EquationInitIsDone)THEN
+IF(EquationInitIsDone_FV)THEN
   CALL CollectiveStop(__STAMP__,&
     "InitLinearScalarAdvection not ready to be called or already called.")
 END IF
 SWRITE(UNIT_stdOut,'(132("-"))')
 SWRITE(UNIT_stdOut,'(A)') ' INIT Drift-Diffusion...'
 
-IniExactFunc = GETINT('IniExactFunc')
+IniExactFunc_FV = GETINT('IniExactFunc-FV')
 
 
 ! Read Boundary information / RefStates / perform sanity check
-IniRefState = GETINT('IniRefState')
-nRefState=CountOption('RefState')
-IF(IniRefState.GT.nRefState)THEN
+IniRefState_FV = GETINT('IniRefState-FV')
+nRefState_FV=CountOption('RefState-FV')
+IF(IniRefState_FV.GT.nRefState_FV)THEN
   CALL CollectiveStop(__STAMP__,&
-    'ERROR: Ini not defined! (Ini,nRefState):',IniRefState,REAL(nRefState))
+    'ERROR: Ini not defined! (Ini,nRefState_FV):',IniRefState_FV,REAL(nRefState_FV))
 END IF
 
-IF(nRefState .GT. 0)THEN
-  ALLOCATE(RefState(1,nRefState))
-  DO i=1,nRefState
-    RefState(1:1,i)  = GETREALARRAY('RefState',1)
+IF(nRefState_FV .GT. 0)THEN
+  ALLOCATE(RefState_FV(1,nRefState_FV))
+  DO i=1,nRefState_FV
+    RefState_FV(1:1,i)  = GETREALARRAY('RefState-FV',1)
   END DO
 END IF
 
@@ -106,7 +110,7 @@ ALLOCATE(EFluid_GradSide(nSides))
 doCalcSource=.TRUE.
 
 
-EquationInitIsDone=.TRUE.
+EquationInitIsDone_FV=.TRUE.
 SWRITE(UNIT_stdOut,'(A)')' INIT Drift-Diffusion DONE!'
 SWRITE(UNIT_stdOut,'(132("-"))')
 END SUBROUTINE InitEquation
@@ -119,7 +123,7 @@ SUBROUTINE ExactFunc(ExactFunction,tIn,tDeriv,x,resu)
 ! MODULES
 USE MOD_Preproc
 USE MOD_Globals
-USE MOD_Equation_Vars, ONLY: RefState
+USE MOD_Equation_Vars_FV, ONLY: RefState_FV
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT/OUTPUT VARIABLES
@@ -141,7 +145,7 @@ CASE(0)
   Resu=0.
 
 CASE(1)
-  Resu=RefState(:,1)
+  Resu=RefState_FV(:,1)
 
 CASE(2) !shock
   IF (x(1).LT.0.) THEN
@@ -186,12 +190,12 @@ END SUBROUTINE CalcSource
 !==================================================================================================================================
 SUBROUTINE FinalizeEquation()
 ! MODULES
-USE MOD_Equation_Vars,ONLY:EquationInitIsDone, EFluid_GradSide, RefState
+USE MOD_Equation_Vars_FV,ONLY:EquationInitIsDone_FV, EFluid_GradSide, RefState_FV
 IMPLICIT NONE
 !==================================================================================================================================
-EquationInitIsDone = .FALSE.
+EquationInitIsDone_FV = .FALSE.
 SDEALLOCATE(EFluid_GradSide)
-SDEALLOCATE(RefState)
+SDEALLOCATE(RefState_FV)
 END SUBROUTINE FinalizeEquation
 
-END MODULE MOD_Equation
+END MODULE MOD_Equation_FV

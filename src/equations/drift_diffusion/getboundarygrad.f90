@@ -46,8 +46,8 @@ SUBROUTINE GetBoundaryGrad(SideID,gradU,UPrim_master,NormVec,Face_xGP)
 USE MOD_PreProc
 USE MOD_Globals       ,ONLY: Abort
 USE MOD_Mesh_Vars     ,ONLY: BoundaryType,BC
-USE MOD_Equation      ,ONLY: ExactFunc
-USE MOD_Equation_Vars ,ONLY: IniExactFunc, RefState
+USE MOD_Equation_FV   ,ONLY: ExactFunc_FV
+USE MOD_Equation_Vars_FV ,ONLY: IniExactFunc_FV, RefState_FV
 USE MOD_TimeDisc_Vars, ONLY : time
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
@@ -71,9 +71,9 @@ CASE(1) !Periodic already filled!
 
 CASE(2) ! exact BC = Dirichlet BC !!
   IF(BCState.EQ.0) THEN ! Determine the exact BC state
-    CALL ExactFunc(IniExactFunc,time,0,Face_xGP,UPrim_boundary)
+    CALL ExactFunc_FV(IniExactFunc_FV,time,0,Face_xGP,UPrim_boundary)
   ELSE
-    UPrim_boundary = RefState(:,BCState)
+    UPrim_boundary = RefState_FV(:,BCState)
   END IF
   gradU = UPrim_master - UPrim_boundary
 

@@ -385,16 +385,17 @@ IF (ABS(meshMode).GT.1) THEN
 #else
   CALL InitGetCNElemID()
   CALL CalcMetrics_PP_1(XCL_NGeo_Out=XCL_NGeo)
-#endif
-#elif !(USE_FV) || (USE_HDG)
+#endif /*PARTICLES*/
+#endif /*USE_FV*/
+#if !(USE_FV) || (USE_HDG)
 #ifdef PARTICLES
   ALLOCATE(dXCL_NGeo(1:3,1:3,0:NGeo,0:NGeo,0:NGeo,1:nElems))
   dXCL_NGeo = 0.
   CALL CalcMetrics(XCL_NGeo_Out=XCL_NGeo,dXCL_NGeo_Out=dXCL_NGeo)
 #else
   CALL CalcMetrics(XCL_NGeo_Out=XCL_NGeo)
-#endif
-#endif
+#endif /*PARTICLES*/
+#endif /*FV/HDG*/
 
   ! Compute element bary and element radius for processor-local elements (without halo region)
   ALLOCATE(ElemBaryNGeo(1:3,1:nElems))
@@ -905,7 +906,7 @@ DO iElem = 1,nElems
   CNElemID=iElem+offsetElemCNProc
   !--- Calculate and save volume of element iElem
   J_N(1,0:PP_N,0:PP_N,0:PP_N)=1./sJ(:,:,:,iElem)
-#if (USE_FV)
+#if (USE_FV) && !(USE_HDG)
   ElemVolume_Shared(CNElemID)=J_N(1,0,0,0)
 #else
   DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N

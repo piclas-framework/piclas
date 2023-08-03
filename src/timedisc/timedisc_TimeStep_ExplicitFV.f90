@@ -52,6 +52,7 @@ IMPLICIT NONE
 CALL FV_main(time,time,doSource=.FALSE.)
 ! print*, 'timedisc2'
 U_FV = U_FV + Ut_FV*dt
+! print*, U_FV(:,:,:,:,14)
 
 END SUBROUTINE TimeStep_ExplicitFV
 

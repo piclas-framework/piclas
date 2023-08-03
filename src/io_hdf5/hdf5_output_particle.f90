@@ -549,7 +549,14 @@ USE MOD_Globals
 USE MOD_Globals_Vars           ,ONLY: ElementaryCharge
 USE MOD_Globals_Vars           ,ONLY: ProjectName
 USE MOD_PreProc
+#if USE_FV
+#if USE_HDG
 USE MOD_Equation_Vars          ,ONLY: StrVarNames
+#endif
+USE MOD_Equation_Vars_FV       ,ONLY: StrVarNames_FV
+#else
+USE MOD_Equation_Vars          ,ONLY: StrVarNames
+#endif
 USE MOD_Mesh_Vars              ,ONLY: nGlobalElems, offsetElem
 USE MOD_Particle_Boundary_Vars ,ONLY: PartStateBoundary,PartStateBoundaryVecLength,nVarPartStateBoundary
 USE MOD_Particle_Analyze_Tools ,ONLY: CalcEkinPart2
@@ -598,6 +605,13 @@ IF(MPIRoot) CALL GenerateFileSkeleton('PartStateBoundary',7,StrVarNames,MeshFile
 #else
 IF(MPIRoot) CALL GenerateFileSkeleton('PartStateBoundary',PP_nVar,StrVarNames,MeshFileName,OutputTime)
 #endif /*USE_HDG*/
+
+#if (PP_TimeDiscMethod==601) /*Drift-Diffusion*/
+IF(MPIRoot) CALL GenerateFileSkeleton('PartStateBoundary',PP_nVar_FV,StrVarNames_FV,MeshFileName,OutputTime)
+#elif (PP_TimeDiscMethod==600) /*DVM*/
+IF(MPIRoot) CALL GenerateFileSkeleton('PartStateBoundary',9,StrVarNames_FV,MeshFileName,OutputTime)
+#endif
+
 ! generate nextfile info in previous output file
 IF(PRESENT(PreviousTime))THEN
   PreviousFileName=TRIM(TIMESTAMP(TRIM(ProjectName)//'_PartStateBoundary',PreviousTime))//'.h5'
@@ -763,7 +777,14 @@ USE MOD_Mesh_Vars              ,ONLY: nGlobalElems, offsetElem
 USE MOD_Globals_Vars           ,ONLY: ProjectName
 USE MOD_Particle_Tracking_Vars ,ONLY: PartStateLost,PartLostDataSize,PartStateLostVecLength,NbrOfLostParticles
 USE MOD_Particle_Tracking_Vars ,ONLY: TotalNbrOfMissingParticlesSum
+#if USE_FV
+#if USE_HDG
 USE MOD_Equation_Vars          ,ONLY: StrVarNames
+#endif
+USE MOD_Equation_Vars_FV       ,ONLY: StrVarNames_FV
+#else
+USE MOD_Equation_Vars          ,ONLY: StrVarNames
+#endif
 USE MOD_Particle_Analyze_Tools ,ONLY: CalcEkinPart2
 #if USE_MPI
 USE MOD_Particle_MPI_Vars      ,ONLY: PartMPI
@@ -802,6 +823,12 @@ IF(MPIRoot) CALL GenerateFileSkeleton('PartStateLost',7,StrVarNames,MeshFileName
 #else
 IF(MPIRoot) CALL GenerateFileSkeleton('PartStateLost',PP_nVar,StrVarNames,MeshFileName,OutputTime)
 #endif /*USE_HDG*/
+
+#if (PP_TimeDiscMethod==601) /*Drift-Diffusion*/
+IF(MPIRoot) CALL GenerateFileSkeleton('PartStateLost',PP_nVar_FV,StrVarNames_FV,MeshFileName,OutputTime)
+#elif (PP_TimeDiscMethod==600) /*DVM*/
+IF(MPIRoot) CALL GenerateFileSkeleton('PartStateLost',9,StrVarNames_FV,MeshFileName,OutputTime)
+#endif
 
 ! Reopen file and write DG solution
 #if USE_MPI

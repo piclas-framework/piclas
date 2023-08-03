@@ -167,7 +167,11 @@ USE MOD_ReadInTools           ,ONLY: GETINT,GETREAL,GETLOGICAL,PrintOption,GETIN
 USE MOD_TimeAverage_Vars      ,ONLY: doCalcTimeAverage
 USE MOD_TimeAverage           ,ONLY: InitTimeAverage
 USE MOD_TimeDisc_Vars         ,ONLY: TEnd
+#if (USE_FV) && !(USE_HDG)
+USE MOD_Equation_vars_FV      ,ONLY: Wavelength
+#else
 USE MOD_Equation_vars         ,ONLY: Wavelength
+#endif
 USE MOD_Particle_Mesh_Vars    ,ONLY: ElemCharLength_Shared
 #if USE_MPI && defined(PARTICLES)
 USE MOD_Mesh_Vars             ,ONLY: offSetElem
@@ -446,8 +450,8 @@ USE MOD_Globals
 USE MOD_PreProc
 USE MOD_ChangeBasis        ,ONLY: ChangeBasis3D
 USE MOD_FV_Vars            ,ONLY: U_FV
-USE MOD_Equation           ,ONLY: ExactFunc
-USE MOD_Equation_Vars      ,ONLY: IniExactFunc
+USE MOD_Equation_FV        ,ONLY: ExactFunc_FV
+USE MOD_Equation_Vars_FV   ,ONLY: IniExactFunc_FV
 USE MOD_Interpolation_Vars ,ONLY: NAnalyze,Vdm_GaussN_NAnalyze,wAnalyze,Uex
 USE MOD_Mesh_Vars          ,ONLY: Elem_xGP_FV,sJ
 USE MOD_Particle_Mesh_Vars ,ONLY: MeshVolume
@@ -461,9 +465,7 @@ USE MOD_Particle_Mesh_Vars ,ONLY: nComputeNodeElems,offsetComputeNodeElem
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-#if !(USE_HDG)
 REAL,INTENT(IN)               :: time
-#endif
 !----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 REAL,INTENT(OUT)              :: L_2_Error(PP_nVar_FV)   !< L2 error of the solution
@@ -500,7 +502,7 @@ DO iElem=1,PP_nElems
   DO m=0,NAnalyze
     DO l=0,NAnalyze
       DO k=0,NAnalyze
-        CALL ExactFunc(IniExactFunc,time,0,Coords_NAnalyze(1:3,k,l,m),U_exact(1:PP_nVar_FV,k,l,m))
+        CALL ExactFunc_FV(IniExactFunc_FV,time,0,Coords_NAnalyze(1:3,k,l,m),U_exact(1:PP_nVar_FV,k,l,m))
         L_Inf_Error = MAX(L_Inf_Error,abs(U_NAnalyze(:,k,l,m) - U_exact(1:PP_nVar_FV,k,l,m)))
         IntegrationWeight = wAnalyze(k)*wAnalyze(l)*wAnalyze(m)*J_NAnalyze(1,k,l,m)
         ! To sum over the elements, We compute here the square of the L_2 error
@@ -542,7 +544,6 @@ SUBROUTINE CalcErrorPartSource(PartSource_nVar,L_2_PartSource,L_Inf_PartSource)
 USE MOD_Globals
 USE MOD_PreProc
 USE MOD_ChangeBasis        ,ONLY: ChangeBasis3D
-USE MOD_Equation           ,ONLY: ExactFunc
 USE MOD_Interpolation_Vars ,ONLY: NAnalyze,Vdm_GaussN_NAnalyze,wAnalyze
 USE MOD_Mesh_Vars          ,ONLY: sJ
 USE MOD_PICDepo_Vars       ,ONLY: PartSourceOld
@@ -730,7 +731,6 @@ USE MOD_Globals
 USE MOD_PreProc
 USE MOD_Mesh_Vars          ,ONLY: sJ
 USE MOD_Interpolation_Vars ,ONLY: NAnalyze,wAnalyze
-USE MOD_Equation           ,ONLY: ExactFunc
 USE MOD_Mesh_Vars          ,ONLY: nElems
 USE MOD_ChangeBasis        ,ONLY: ChangeBasis3D
 USE MOD_Basis              ,ONLY: LegendreGaussNodesAndWeights,LegGaussLobNodesAndWeights,BarycentricWeights,InitializeVandermonde
@@ -893,7 +893,14 @@ SUBROUTINE getVARformatStr(VARformatStr,L2name)
 ! MODULES
   USE MOD_Globals
   USE MOD_PreProc
+#if (USE_FV)
+  USE MOD_Equation_Vars_FV,ONLY:StrVarNames_FV
+#if (USE_HDG)
   USE MOD_Equation_Vars,ONLY:StrVarNames
+#endif /*HDG*/
+#else /*no FV*/
+  USE MOD_Equation_Vars,ONLY:StrVarNames
+#endif /*FV*/
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -906,7 +913,35 @@ SUBROUTINE getVARformatStr(VARformatStr,L2name)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
   INTEGER           :: i ! counter
+  CHARACTER(LEN=255) :: StrVarNames_HDGFV(PP_nVar+PP_nVar_FV)
+
 !===================================================================================================================================
+#if (USE_FV)
+#if (USE_HDG)
+StrVarNames_HDGFV(1:PP_nVar) = StrVarNames(1:PP_nVar)
+StrVarNames_HDGFV(PP_nVar+1:PP_nVar+PP_nVar_FV) = StrVarNames_FV
+
+DO i=1,PP_nVar+PP_nVar_FV
+  WRITE(L2name(i),'(A5,A,A2)')' "L2_',TRIM(StrVarNames_HDGFV(i)),'" '
+END DO
+WRITE(VARformatStr,'(A3)')'(A,'
+DO i=1,PP_nVar+PP_nVar_FV
+  WRITE(VARformatStr,'(A,A1,I2,A1)')TRIM(VARformatStr),'A',LEN_TRIM(L2name(i)),','
+END DO
+WRITE(VARformatStr,'(A,A2)')TRIM(VARformatStr),'A)'
+
+#else /* FV alone*/
+DO i=1,PP_nVar_FV
+  WRITE(L2name(i),'(A5,A,A2)')' "L2_',TRIM(StrVarNames_FV(i)),'" '
+END DO
+WRITE(VARformatStr,'(A3)')'(A,'
+DO i=1,PP_nVar_FV
+  WRITE(VARformatStr,'(A,A1,I2,A1)')TRIM(VARformatStr),'A',LEN_TRIM(L2name(i)),','
+END DO
+WRITE(VARformatStr,'(A,A2)')TRIM(VARformatStr),'A)'
+#endif /*HDG*/
+
+#else /*no FV*/
 DO i=1,PP_nVar
   WRITE(L2name(i),'(A5,A,A2)')' "L2_',TRIM(StrVarNames(i)),'" '
 END DO
@@ -915,6 +950,8 @@ DO i=1,PP_nVar
   WRITE(VARformatStr,'(A,A1,I2,A1)')TRIM(VARformatStr),'A',LEN_TRIM(L2name(i)),','
 END DO
 WRITE(VARformatStr,'(A,A2)')TRIM(VARformatStr),'A)'
+#endif /*FV*/
+
 END SUBROUTINE getVARformatStr
 
 
@@ -1081,7 +1118,10 @@ REAL                          :: L_Inf_Error(PP_nVar)
 #if USE_FV
 REAL                          :: L_2_Error_FV(PP_nVar_FV)
 REAL                          :: L_Inf_Error_FV(PP_nVar_FV)
-#endif
+#endif /*FV*/
+#if (USE_FV) && (USE_HDG)
+REAL                          :: L_2_Error_HDGFV(PP_nVar_FV+PP_nVar)
+#endif /*HDG+FV*/
 #if defined(LSERK) || defined(IMPA) || defined(ROS) || USE_HDG
 #if USE_LOADBALANCE
 REAL                          :: tLBStart ! load balance
@@ -1222,10 +1262,17 @@ IF(DoCalcErrorNorms) THEN
 #endif
     IF (OutputTime.GE.tEnd)THEN
       CurrentTime=PICLASTIME()
-      CALL AnalyzeToFile(PP_nVar,OutputTime,CurrentTime,L_2_Error)
 #if (USE_FV)
+#if (USE_HDG)
+      L_2_Error_HDGFV(1:PP_nVar) = L_2_Error
+      L_2_Error_HDGFV(PP_nVar+1:PP_nVar+PP_nVar_FV) = L_2_Error_FV
+      CALL AnalyzeToFile(PP_nVar_FV+PP_nVar,OutputTime,CurrentTime,L_2_Error_HDGFV)
+#else
       CALL AnalyzeToFile(PP_nVar_FV,OutputTime,CurrentTime,L_2_Error_FV)
-#endif
+#endif /*FV+HDG*/
+#else
+      CALL AnalyzeToFile(PP_nVar,OutputTime,CurrentTime,L_2_Error)
+#endif /*FV*/
     END IF
 #ifdef PARTICLES
     IF (DoDeposition.AND.RelaxDeposition) CALL CalcErrorPartSource(PartSource_nVar,L_2_PartSource,L_Inf_PartSource)

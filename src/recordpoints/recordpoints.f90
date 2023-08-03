@@ -413,7 +413,14 @@ USE MOD_PreProc
 USE MOD_Globals
 USE HDF5
 USE MOD_IO_HDF5           ,ONLY: File_ID,OpenDataFile,CloseDataFile
-USE MOD_Equation_Vars     ,ONLY: StrVarNames
+#if USE_FV
+#if USE_HDG
+USE MOD_Equation_Vars          ,ONLY: StrVarNames
+#endif
+USE MOD_Equation_Vars_FV       ,ONLY: StrVarNames_FV
+#else
+USE MOD_Equation_Vars          ,ONLY: StrVarNames
+#endif
 USE MOD_HDF5_Output       ,ONLY: WriteAttributeToHDF5,WriteArrayToHDF5
 USE MOD_Globals_Vars      ,ONLY: ProjectName
 USE MOD_Mesh_Vars         ,ONLY: MeshFile
@@ -441,10 +448,28 @@ INTEGER,PARAMETER       :: AddVar=3
 #else
 INTEGER,PARAMETER       :: AddVar=0
 #endif /*USE_HDG*/
+#if USE_FV && USE_HDG
+CHARACTER(LEN=255) :: StrVarNames_HDGFV(PP_nVar+AddVar+PP_nVar_FV)
+#endif
 !===================================================================================================================================
 WRITE(hilf,'(A)') ' WRITE RECORDPOINT DATA TO HDF5 FILE...'
 SWRITE(UNIT_stdOut,'(A)')' '//TRIM(hilf)
 GETTIME(startT)
+
+#if USE_FV
+#if USE_HDG
+StrVarNames_HDGFV(1:PP_nVar+AddVar) = StrVarNames
+StrVarNames_HDGFV(PP_nVar+AddVar+1:PP_nVar+AddVar+PP_nVar_FV) = StrVarNames_FV
+ASSOCIATE (StrVarNames_loc => StrVarNames_HDGFV, &
+           PP_nVar_loc     => PP_nVar+AddVar+PP_nVar_FV)
+#else
+ASSOCIATE (StrVarNames_loc => StrVarNames_FV, &
+           PP_nVar_loc     => PP_nVar_FV)
+#endif
+#else
+ASSOCIATE (StrVarNames_loc => StrVarNames, &
+           PP_nVar_loc     => PP_nVar+AddVar)
+#endif
 
 FileString=TRIM(TIMESTAMP(TRIM(ProjectName)//'_RP',OutputTime))//'.h5'
 IF(myRPrank.EQ.0)THEN
@@ -456,10 +481,11 @@ IF(myRPrank.EQ.0)THEN
     CALL WriteAttributeToHDF5(File_ID,'ProjectName',1,StrScalar=(/TRIM(ProjectName)/))
     CALL WriteAttributeToHDF5(File_ID,'RPDefFile'  ,1,StrScalar=(/TRIM(RPDefFile)/))
     CALL WriteAttributeToHDF5(File_ID,'Time'       ,1,RealScalar=OutputTime)
-    CALL WriteAttributeToHDF5(File_ID,'VarNames'   ,PP_nVar+AddVar,StrArray=StrVarNames)
+    CALL WriteAttributeToHDF5(File_ID,'VarNames'   ,PP_nVar_loc,StrArray=StrVarNames_loc)
   END IF
   CALL CloseDataFile()
 END IF
+
 
 #if USE_MPI
 CALL MPI_BARRIER(RP_COMM,iError)
@@ -479,7 +505,7 @@ IF(iSample.GT.0)THEN
 
   ! Associate construct for integer KIND=8 possibility
   ASSOCIATE (&
-        PP_nVarP1    => INT(PP_nVar+AddVar+1,IK)    ,&
+        PP_nVarP1    => INT(PP_nVar_loc+1,IK)    ,&
         nSamples     => INT(nSamples,IK)     ,&
         nRP          => INT(nRP,IK)          ,&
         iSample      => INT(iSample,IK)      ,&
@@ -525,7 +551,7 @@ IF(finalizeFile)THEN
     ! Recompute required buffersize from timestep and add 10% tolerance
     RP_Buffersize=MIN(CEILING(1.2*nSamples),RP_MaxBuffersize)
     DEALLOCATE(RP_Data)
-    ALLOCATE(RP_Data(0:PP_nVar+AddVar,nRP,RP_Buffersize))
+    ALLOCATE(RP_Data(0:PP_nVar_loc,nRP,RP_Buffersize))
   END IF
   RP_fileExists=.FALSE.
   ! last sample of previous file = first sample of next file
@@ -536,6 +562,7 @@ IF(finalizeFile)THEN
 ELSE
   hilf=' '
 END IF
+END ASSOCIATE
 
 GETTIME(endT)
 CALL DisplayMessageAndTime(EndT-StartT, TRIM(hilf)//' DONE', DisplayDespiteLB=.TRUE., DisplayLine=.FALSE.)

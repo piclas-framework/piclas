@@ -128,7 +128,7 @@ IF (InterpolationInitIsDone) CALL CollectiveStop(__STAMP__,'InitInterpolation al
 SWRITE(UNIT_StdOut,'(132("-"))')
 SWRITE(UNIT_stdOut,'(A)') ' INIT INTERPOLATION...'
 
-#if USE_FV
+#if USE_FV && !(USE_HDG)
 PP_N = 0
 SWRITE(UNIT_stdOut,'(A)') ' Finite Volumes: PP_N set to 0'
 #else

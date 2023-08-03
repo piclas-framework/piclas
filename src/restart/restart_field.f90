@@ -100,6 +100,10 @@ USE MOD_HDG_Vars               ,ONLY: UseFPC
 USE PETSc
 USE MOD_HDG_Vars               ,ONLY: lambda_petsc,PETScGlobal,PETScLocalToSideID,nPETScUniqueSides
 #endif
+#if USE_LOADBALANCE && USE_FV
+USE MOD_Mesh_Vars              ,ONLY: nElems
+USE MOD_LoadBalance_Vars       ,ONLY: MPInElemSend,MPInElemRecv,MPIoffsetElemSend,MPIoffsetElemRecv
+#endif /*USE_LOADBALANCE+FV*/
 #else /*USE_HDG*/
 ! Non-HDG stuff
 #if !(USE_FV)
@@ -143,6 +147,9 @@ INTEGER                            :: NonUniqueGlobalSideID
 INTEGER                            :: PETScLocalID
 PetscErrorCode                     :: ierr
 #endif
+#if USE_FV && USE_LOADBALANCE
+REAL,ALLOCATABLE                   :: UTmp(:,:,:,:,:)
+#endif
 #else /*USE_HDG*/
 INTEGER                            :: iElem
 #if USE_LOADBALANCE
@@ -154,7 +161,7 @@ INTEGER                            :: iPML
 INTEGER(KIND=IK)                   :: PMLnVarTmp
 #endif /*USE_HDG*/
 #if USE_LOADBALANCE
-#if defined(PARTICLES) || !(USE_HDG)
+#if defined(PARTICLES) || !(USE_HDG) || (USE_FV)
 ! TODO: make ElemInfo available with PARTICLES=OFF and remove this preprocessor if/else as soon as possible
 ! Custom data type
 INTEGER                            :: MPI_LENGTH(1),MPI_TYPE(1),MPI_STRUCT
@@ -166,10 +173,6 @@ INTEGER(KIND=MPI_ADDRESS_KIND)     :: MPI_DISPLACEMENT(1)
 ! ===========================================================================
 ! Distribute or read the field solution
 ! ===========================================================================
-
-#if USE_FV && !(USE_HDG)
-ASSOCIATE(U => U_FV)
-#endif
 
 #if USE_LOADBALANCE
 IF(PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance))THEN
@@ -534,7 +537,7 @@ ELSE ! normal restart
       !    END DO
       !    DEALLOCATE(U_local)
       !CALL RestartHDG(U)
-#else
+#elif !(USE_FV)
       ALLOCATE(U_local(PP_nVar,0:N_Restart,0:N_Restart,0:N_Restart,PP_nElems))
       CALL ReadArray('DG_Solution',5,(/PP_nVarTmp,N_RestartTmp+1_IK,N_RestartTmp+1_IK,N_RestartTmp+1_IK,PP_nElemsTmp/),&
           OffsetElemTmp,5,RealArray=U_local)
@@ -542,7 +545,6 @@ ELSE ! normal restart
         CALL ChangeBasis3D(PP_nVar,N_Restart,PP_N,Vdm_GaussNRestart_GaussN,U_local(:,:,:,:,iElem),U(:,:,:,:,iElem))
       END DO
       DEALLOCATE(U_local)
-#if !(USE_FV)
       IF(DoPML)THEN
         ALLOCATE(U_local(PMLnVar,0:N_Restart,0:N_Restart,0:N_Restart,PP_nElems))
         ALLOCATE(U_local2(PMLnVar,0:PP_N,0:PP_N,0:PP_N,PP_nElems))
@@ -556,7 +558,6 @@ ELSE ! normal restart
         END DO ! iPML
         DEALLOCATE(U_local,U_local2)
       END IF ! DoPML
-#endif /*FV*/
 #endif
       SWRITE(UNIT_stdOut,*)' DONE!'
     END IF ! IF(.NOT. InterpolateSolution)
@@ -566,10 +567,6 @@ ELSE ! normal restart
 #if USE_LOADBALANCE
 END IF ! PerformLoadBalance
 #endif /*USE_LOADBALANCE*/
-
-#if USE_FV && !(USE_HDG)
-  END ASSOCIATE
-#endif
 
 END SUBROUTINE FieldRestart
 !#endif /*USE_LOADBALANCE*/

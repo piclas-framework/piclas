@@ -29,7 +29,6 @@ SUBROUTINE Riemann(F,U_L,U_R,nv,GradSide,E)
 !===================================================================================================================================
 ! MODULES
 USE MOD_PreProc ! 0
-USE MOD_Equation_Vars
 USE MOD_TimeDisc_Vars, ONLY : dt
 USE MOD_Globals,  ONLY :abort, vecnorm
 USE MOD_Transport_Data ,ONLY: CalcDriftDiffusionCoeff

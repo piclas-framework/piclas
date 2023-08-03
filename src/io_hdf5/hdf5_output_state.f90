@@ -55,7 +55,14 @@ USE MOD_DG_Vars                ,ONLY: U
 #endif
 USE MOD_Globals_Vars           ,ONLY: ProjectName
 USE MOD_Mesh_Vars              ,ONLY: offsetElem,nGlobalElems,nGlobalUniqueSides,nUniqueSides,offsetSide
+#if USE_FV
+#if USE_HDG
 USE MOD_Equation_Vars          ,ONLY: StrVarNames
+#endif
+USE MOD_Equation_Vars_FV       ,ONLY: StrVarNames_FV
+#else
+USE MOD_Equation_Vars          ,ONLY: StrVarNames
+#endif
 USE MOD_Restart_Vars           ,ONLY: RestartFile,DoInitialAutoRestart
 #ifdef PARTICLES
 USE MOD_DSMC_Vars              ,ONLY: RadialWeighting
@@ -244,13 +251,9 @@ IF(MPIRoot) CALL GenerateFileSkeleton('State',7,StrVarNames,MeshFileName,OutputT
 #endif
 #elif !(USE_FV)
 IF(MPIRoot) CALL GenerateFileSkeleton('State',PP_nVar,StrVarNames,MeshFileName,OutputTime_loc)
+#else /*only FV*/
+IF(MPIRoot) CALL GenerateFileSkeleton('State',1,StrVarNames,MeshFileName,OutputTime_loc)
 #endif /*USE_HDG*/
-
-#if (PP_TimeDiscMethod==601) /*Drift-Diffusion*/
-IF(MPIRoot) CALL GenerateFileSkeleton('State',PP_nVar_FV,StrVarNames,MeshFileName,OutputTime_loc)
-#elif (PP_TimeDiscMethod==600) /*DVM*/
-IF(MPIRoot) CALL GenerateFileSkeleton('State',9,StrVarNames,MeshFileName,OutputTime_loc)
-#endif
 
 ! generate nextfile info in previous output file
 usePreviousTime_loc=.FALSE.

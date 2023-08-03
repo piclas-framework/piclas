@@ -556,7 +556,6 @@ USE MOD_Particle_Emission_Vars ,ONLY: EmissionDistributionDim, EmissionDistribut
 USE MOD_Interpolation          ,ONLY: GetVandermonde,GetNodesAndWeights
 USE MOD_Basis                  ,ONLY: BarycentricWeights
 USE MOD_ChangeBasis            ,ONLY: ChangeBasis3D
-USE MOD_Equation               ,ONLY: ExactFunc
 USE MOD_Mesh_Vars              ,ONLY: Elem_xGP,sJ
 USE MOD_Interpolation_Vars     ,ONLY: NodeTypeVISU,NodeType
 USE MOD_Eval_xyz               ,ONLY: TensorProductInterpolation
