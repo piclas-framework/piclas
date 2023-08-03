@@ -465,23 +465,26 @@ END SUBROUTINE GetMasteriLocSides
 !===================================================================================================================================
 !> Transform lambda solution from local coordinate system into master orientation for iSide and return as array "MasterSide"
 !===================================================================================================================================
-SUBROUTINE LambdaSideToMaster(iSide,MasterSide)
+SUBROUTINE LambdaSideToMaster(iSide,MasterSide,Nloc)
 ! MODULES
 USE MOD_PreProc
 USE MOD_globals   ,ONLY: abort
-USE MOD_HDG_Vars  ,ONLY: lambda, nGP_face, iLocSides
+USE MOD_HDG_Vars  ,ONLY: nGP_face, iLocSides, HDG_Surf_N
 USE MOD_Mesh_Vars ,ONLY: MortarType,SideToElem,MortarInfo
 USE MOD_Mesh_Vars ,ONLY: firstMortarInnerSide,lastMortarInnerSide
 USE MOD_Mappings  ,ONLY: CGNS_SideToVol2
 USE MOD_Mesh_Vars ,ONLY: lastMPISide_MINE
+USE MOD_DG_Vars   ,ONLY: DG_Elems_master,DG_Elems_slave
+USE MOD_Interpolation_Vars ,ONLY: PREF_VDM,NMax
+USE MOD_ChangeBasis        ,ONLY: ChangeBasis2D
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! INPUT / OUTPUT VARIABLES
-INTEGER,INTENT(IN)                           :: iSide
-REAL,DIMENSION(PP_nVar,nGP_face),INTENT(OUT) :: MasterSide
+INTEGER,INTENT(IN)                                 :: iSide,Nloc
+REAL,DIMENSION(PP_nVar,nGP_face(NMax)),INTENT(OUT) :: MasterSide
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER          :: p,q,r,rr,pq(1:2)
+INTEGER          :: p,q,r,rr,pq(1:2),iVar
 INTEGER          :: SideID,iLocSide,iMortar,nMortars,MortarSideID
 !===================================================================================================================================
 
@@ -496,14 +499,19 @@ END IF ! iSide.GT.lastMPISide_MINE
 
 !1 of 2: Master element with iLocSide = SideToElem(S2E_LOC_SIDE_ID,iSide)
 IF(iLocSide.NE.-1)THEN ! MINE side
-  DO q=0,PP_N
-    DO p=0,PP_N
-      pq=CGNS_SideToVol2(PP_N,p,q,iLocSide)
-      r  = q    *(PP_N+1)+p    +1
-      rr = pq(2)*(PP_N+1)+pq(1)+1
-      MasterSide(:,r:r) = lambda(:,rr:rr,iSide)
+  DO q=0,Nloc
+    DO p=0,Nloc
+      pq=CGNS_SideToVol2(Nloc,p,q,iLocSide)
+      r  = q    *(Nloc+1)+p    +1
+      rr = pq(2)*(Nloc+1)+pq(1)+1
+      MasterSide(:,r:r) = HDG_Surf_N(iSide)%lambda(:,rr:rr)
     END DO
   END DO !p,q
+
+  IF(Nloc.NE.NMax)THEN
+    ! From low to high
+    CALL ChangeBasis2D(PP_nVar, Nloc, NMax, PREF_VDM(Nloc,NMax)%Vdm, MasterSide(:,1:nGP_face(Nloc)), MasterSide(:,1:nGP_face(NMax)))
+  END IF ! Nloc.NE.NMax
   RETURN
 END IF !iLocSide.NE.-1
 
@@ -519,12 +527,12 @@ IF(MortarType(1,iSide).EQ.0)THEN
       IF(iSide.EQ.SideID)THEN
         iLocSide = SideToElem(S2E_LOC_SIDE_ID,MortarSideID)
         IF(iLocSide.NE.-1)THEN ! MINE side (big mortar)
-          DO q=0,PP_N
-            DO p=0,PP_N
-              pq=CGNS_SideToVol2(PP_N,p,q,iLocSide)
-              r  = q    *(PP_N+1)+p    +1
-              rr = pq(2)*(PP_N+1)+pq(1)+1
-              MasterSide(:,r:r) = lambda(:,rr:rr,iSide)
+          DO q=0,Nloc
+            DO p=0,Nloc
+              pq=CGNS_SideToVol2(Nloc,p,q,iLocSide)
+              r  = q    *(Nloc+1)+p    +1
+              rr = pq(2)*(Nloc+1)+pq(1)+1
+              MasterSide(:,r:r) = HDG_Surf_N(iSide)%lambda(:,rr:rr)
             END DO
           END DO !p,q
         ELSE

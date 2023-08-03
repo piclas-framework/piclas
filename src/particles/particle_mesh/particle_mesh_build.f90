@@ -376,7 +376,8 @@ END DO
 
 CALL BARRIER_AND_SYNC(ElemsJ_Shared_Win,MPI_COMM_SHARED)
 #else
-ElemsJ => sJ
+!ElemsJ => sJ
+N_VolMesh_Shared => N_VolMesh
 #endif /* USE_MPI*/
 
 IF (TrackingMethod.EQ.TRIATRACKING) RETURN

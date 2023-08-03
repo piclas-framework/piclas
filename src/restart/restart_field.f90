@@ -44,70 +44,73 @@ SUBROUTINE FieldRestart()
 ! USED MODULES
 USE MOD_Globals
 USE MOD_PreProc
-USE MOD_DG_Vars                ,ONLY: U_N
 #if USE_LOADBALANCE
-USE MOD_LoadBalance_Vars       ,ONLY: PerformLoadBalance,UseH5IOLoadBalance
+USE MOD_LoadBalance_Vars   ,ONLY: PerformLoadBalance,UseH5IOLoadBalance
 #endif /*USE_LOADBALANCE*/
 USE MOD_IO_HDF5
-USE MOD_Restart_Vars           ,ONLY: N_Restart,RestartFile,RestartNullifySolution
-USE MOD_ChangeBasis            ,ONLY: ChangeBasis3D
-USE MOD_HDF5_Input             ,ONLY: OpenDataFile,CloseDataFile,ReadArray,ReadAttribute,GetDataSize
-USE MOD_HDF5_Input             ,ONLY: DatasetExists
-USE MOD_HDF5_Output            ,ONLY: FlushHDF5
+USE MOD_Restart_Vars       ,ONLY: N_Restart,RestartFile,RestartNullifySolution
+USE MOD_ChangeBasis        ,ONLY: ChangeBasis3D
+USE MOD_HDF5_Input         ,ONLY: OpenDataFile,CloseDataFile,ReadArray,ReadAttribute,GetDataSize
+USE MOD_HDF5_Input         ,ONLY: DatasetExists
+USE MOD_HDF5_Output        ,ONLY: FlushHDF5
 #ifdef PP_POIS
-USE MOD_Equation_Vars          ,ONLY: Phi
+USE MOD_Equation_Vars      ,ONLY: Phi
+#elif USE_HDG
+USE MOD_Interpolation_Vars ,ONLY: NMax
+#else /*not PP_POIS and not USE_HDG*/
+USE MOD_DG_Vars            ,ONLY: U_N
+USE MOD_DG_Vars            ,ONLY: N_DG
+USE MOD_ChangeBasis        ,ONLY: ChangeBasis3D
+USE MOD_Interpolation_Vars ,ONLY: N_Inter,PREF_VDM
 #endif /*PP_POIS*/
 #if defined(PARTICLES)
-USE MOD_Particle_Restart       ,ONLY: ParticleRestart
+USE MOD_Particle_Restart   ,ONLY: ParticleRestart
 #endif /*defined(PARTICLES)*/
 #if USE_HDG
-USE MOD_Restart_Tools          ,ONLY: RecomputeLambda
-USE MOD_HDG_Vars               ,ONLY: lambda, nGP_face
-USE MOD_HDG                    ,ONLY: RestartHDG
-USE MOD_Mesh_Vars              ,ONLY: nSides,GlobalUniqueSideID,MortarType,SideToElem
-USE MOD_StringTools            ,ONLY: set_formatting,clear_formatting
-USE MOD_Mappings               ,ONLY: CGNS_SideToVol2
-USE MOD_Mesh_Vars              ,ONLY: firstMortarInnerSide,lastMortarInnerSide,MortarInfo
-USE MOD_Mesh_Vars              ,ONLY: lastMPISide_MINE
+USE MOD_Restart_Tools      ,ONLY: RecomputeLambda
+USE MOD_HDG_Vars           ,ONLY: HDG_Surf_N, nGP_face
+USE MOD_HDG                ,ONLY: RestartHDG
+USE MOD_Mesh_Vars          ,ONLY: nSides,GlobalUniqueSideID,MortarType,SideToElem
+USE MOD_StringTools        ,ONLY: set_formatting,clear_formatting
+USE MOD_Mappings           ,ONLY: CGNS_SideToVol2
+USE MOD_Mesh_Vars          ,ONLY: firstMortarInnerSide,lastMortarInnerSide,MortarInfo
+USE MOD_Mesh_Vars          ,ONLY: lastMPISide_MINE
 #if USE_MPI
-USE MOD_MPI_Vars               ,ONLY: RecRequest_U,SendRequest_U
-USE MOD_MPI                    ,ONLY: StartReceiveMPIData,StartSendMPIData,FinishExchangeMPIData
+USE MOD_MPI_Vars           ,ONLY: RecRequest_U,SendRequest_U
+USE MOD_MPI                ,ONLY: StartReceiveMPIData,StartSendMPIData,FinishExchangeMPIData
 #endif /*USE_MPI*/
 #if USE_LOADBALANCE
-USE MOD_HDG                    ,ONLY: SynchronizeVoltageOnEPC
-USE MOD_HDG_Vars               ,ONLY: UseEPC
+USE MOD_HDG                ,ONLY: SynchronizeVoltageOnEPC
+USE MOD_HDG_Vars           ,ONLY: UseEPC
 #if defined(PARTICLES)
-USE MOD_Equation               ,ONLY: SynchronizeCPP
-USE MOD_HDG                    ,ONLY: SynchronizeBV
-USE MOD_HDG_Vars               ,ONLY: UseBiasVoltage,UseCoupledPowerPotential
-! TODO: make ElemInfo available with PARTICLES=OFF and remove this preprocessor if/else as soon as possible
-USE MOD_Mesh_Vars              ,ONLY: SideToNonUniqueGlobalSide,nElems
-USE MOD_LoadBalance_Vars       ,ONLY: MPInSideSend,MPInSideRecv,MPIoffsetSideSend,MPIoffsetSideRecv
-USE MOD_Particle_Mesh_Vars     ,ONLY: ElemInfo_Shared
-USE MOD_HDG_Vars               ,ONLY: lambdaLB
+USE MOD_Equation           ,ONLY: SynchronizeCPP
+USE MOD_HDG                ,ONLY: SynchronizeBV
+USE MOD_HDG_Vars           ,ONLY: UseBiasVoltage,UseCoupledPowerPotential
+! TODO: make ElemInfo available with PARTICLES=OFF and remove this preprocessor if/else as soon as possible                                                                                                     ! TODO: make ElemInfo available with PARTICLES=OFF and remove this preprocessor if/else as soon as possible
+USE MOD_Mesh_Vars          ,ONLY: SideToNonUniqueGlobalSide,nElems
+USE MOD_LoadBalance_Vars   ,ONLY: MPInSideSend,MPInSideRecv,MPIoffsetSideSend,MPIoffsetSideRecv
+USE MOD_Particle_Mesh_Vars ,ONLY: ElemInfo_Shared
+USE MOD_HDG_Vars           ,ONLY: lambdaLB
 #endif /*defined(PARTICLES)*/
 #endif /*USE_LOADBALANCE*/
 #if USE_PETSC
 #if USE_LOADBALANCE
-USE MOD_HDG                    ,ONLY: SynchronizeChargeOnFPC
-USE MOD_HDG_Vars               ,ONLY: UseFPC
+USE MOD_HDG                ,ONLY: SynchronizeChargeOnFPC
+USE MOD_HDG_Vars           ,ONLY: UseFPC
 #endif /*USE_LOADBALANCE*/
 USE PETSc
-USE MOD_HDG_Vars               ,ONLY: lambda_petsc,PETScGlobal,PETScLocalToSideID,nPETScUniqueSides
+USE MOD_HDG_Vars           ,ONLY: lambda_petsc,PETScGlobal,PETScLocalToSideID,nPETScUniqueSides
 #endif
 #else /*USE_HDG*/
 ! Non-HDG stuff
-USE MOD_PML_Vars               ,ONLY: DoPML,PMLToElem,U2,nPMLElems,PMLnVar
-USE MOD_Restart_Vars           ,ONLY: Vdm_GaussNRestart_GaussN
+USE MOD_PML_Vars           ,ONLY: DoPML,PMLToElem,U2,nPMLElems,PMLnVar
+USE MOD_Restart_Vars       ,ONLY: Vdm_GaussNRestart_GaussN
 #if USE_LOADBALANCE
-USE MOD_Mesh_Vars              ,ONLY: nElems
-USE MOD_LoadBalance_Vars       ,ONLY: MPInElemSend,MPInElemRecv,MPIoffsetElemSend,MPIoffsetElemRecv
+USE MOD_Mesh_Vars          ,ONLY: nElems
+USE MOD_LoadBalance_Vars   ,ONLY: MPInElemSend,MPInElemRecv,MPIoffsetElemSend,MPIoffsetElemRecv
 #endif /*USE_LOADBALANCE*/
 #endif /*USE_HDG*/
-USE MOD_Mesh_Vars              ,ONLY: OffsetElem
-USE MOD_DG_Vars, ONLY: N_DG
-USE MOD_ChangeBasis, ONLY: ChangeBasis3D
-USE MOD_Interpolation_Vars, ONLY: N_Inter,PREF_VDM
+USE MOD_Mesh_Vars          ,ONLY: OffsetElem
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -116,10 +119,9 @@ USE MOD_Interpolation_Vars, ONLY: N_Inter,PREF_VDM
 ! LOCAL VARIABLES
 INTEGER(KIND=IK)                   :: Nres,nVar
 INTEGER(KIND=IK)                   :: OffsetElemTmp,PP_nElemsTmp
-INTEGER                            :: Nloc
 #if USE_HDG
 LOGICAL                            :: DG_SolutionLambdaExists
-LOGICAL                            :: DG_SolutionUExists
+LOGICAL                            :: DG_SolutionExists
 INTEGER                            :: SideID,iSide,MinGlobalSideID,MaxGlobalSideID
 REAL,ALLOCATABLE                   :: ExtendedLambda(:,:,:)
 INTEGER                            :: p,q,r,rr,pq(1:2)
@@ -156,7 +158,12 @@ INTEGER(KIND=MPI_ADDRESS_KIND)     :: MPI_DISPLACEMENT(1)
 #endif /*USE_LOADBALANCE*/
 #endif /*defined(PARTICLES) || !(USE_HDG)*/
 REAL,ALLOCATABLE                   :: U(:,:,:,:,:)
+#ifdef PP_POIS
+#elif USE_HDG
+#else /*not PP_POIS and not USE_HDG*/
 REAL,ALLOCATABLE                   :: Uloc(:,:,:,:)
+INTEGER                            :: Nloc
+#endif /*PP_POIS*/
 !===================================================================================================================================
 
 ! ===========================================================================
@@ -272,7 +279,7 @@ IF(PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance))THEN
   PetscCallA(VecAssemblyEnd(lambda_petsc,ierr))
 #endif
 
-  CALL RestartHDG(U) ! calls PostProcessGradient for calculate the derivative, e.g., the electric field E
+  CALL RestartHDG() ! calls PostProcessGradient for calculate the derivative, e.g., the electric field E
 
 #else
   ! TODO: make ElemInfo available with PARTICLES=OFF and remove this preprocessor if/else as soon as possible
@@ -340,13 +347,13 @@ ELSE ! normal restart
 #else
     CALL ReadArray('DG_SolutionE',5,(/PP_nVar,Nres+1_IK,Nres+1_IK,Nres+1_IK,PP_nElemsTmp/),OffsetElemTmp,5,RealArray=U)
     CALL ReadArray('DG_SolutionPhi',5,(/PP_nVar,Nres+1_IK,Nres+1_IK,Nres+1_IK,PP_nElemsTmp/),OffsetElemTmp,5,RealArray=Phi)
-#endif
+#endif /*PP_nVar==8*/
 #elif USE_HDG
-    CALL DatasetExists(File_ID,'DG_SolutionU',DG_SolutionUExists)
-    IF(DG_SolutionUExists)THEN
-      CALL ReadArray('DG_SolutionU',5,(/PP_nVar,Nres+1_IK,Nres+1_IK,Nres+1_IK,PP_nElemsTmp/),OffsetElemTmp,5,RealArray=U)
-    ELSE
+    CALL DatasetExists(File_ID,'DG_Solution',DG_SolutionExists)
+    IF(DG_SolutionExists)THEN
       CALL ReadArray('DG_Solution' ,5,(/PP_nVar,Nres+1_IK,Nres+1_IK,Nres+1_IK,PP_nElemsTmp/),OffsetElemTmp,5,RealArray=U)
+    ELSE
+      CALL abort(__STAMP__,'DG_Solution does not exist')
     END IF
 
     ! Read HDG lambda solution (sorted in ascending global unique side ID ordering)
@@ -363,11 +370,12 @@ ELSE ! normal restart
         ASSOCIATE( &
               ExtendedOffsetSide => INT(MinGlobalSideID-1,IK)                 ,&
               ExtendednSides     => INT(MaxGlobalSideID-MinGlobalSideID+1,IK) ,&
-              nGP_face           => INT(nGP_face,IK)                           )
+              nGP_face           => INT(nGP_face,IK)                          ,&
+              PP_nVarTmp         => INT(PP_nVar,IK))
           !ALLOCATE(ExtendedLambda(PP_nVar,nGP_face,MinGlobalSideID:MaxGlobalSideID))
-          ALLOCATE(ExtendedLambda(PP_nVar,nGP_face,1:ExtendednSides))
+          ALLOCATE(ExtendedLambda(PP_nVar,nGP_face(NMax),1:ExtendednSides))
           ExtendedLambda = HUGE(1.)
-          lambda = HUGE(1.)
+          !lambda = HUGE(1.)
           ! WARGNING: Data read in overlapping mode, therefore ReadNonOverlap_opt=F
           CALL ReadArray('DG_SolutionLambda',3,(/PP_nVarTmp,nGP_face,ExtendednSides/),ExtendedOffsetSide,3,RealArray=ExtendedLambda&
 #if USE_MPI
@@ -411,7 +419,8 @@ ELSE ! normal restart
                   pq = CGNS_SideToVol2(PP_N,p,q,iLocSide_master)
                   r  = q    *(PP_N+1)+p    +1
                   rr = pq(2)*(PP_N+1)+pq(1)+1
-                  lambda(:,r:r,iSide) = ExtendedLambda(:,rr:rr,GlobalUniqueSideID(iSide)-ExtendedOffsetSide)
+                  CALL abort(__STAMP__,'not implemented')
+                  !lambda(:,r:r,iSide) = ExtendedLambda(:,rr:rr,GlobalUniqueSideID(iSide)-ExtendedOffsetSide)
                 END DO
               END DO !p,q
               !IPWRITE(UNIT_StdOut,*) "iSide,SUM(lambda(:,r:r,iSide)) =", iSide,SUM(lambda(:,r:r,iSide))
@@ -436,13 +445,15 @@ ELSE ! normal restart
         PetscCallA(VecAssemblyEnd(lambda_petsc,ierr))
 #endif
 
-        CALL RestartHDG(U) ! calls PostProcessGradient for calculate the derivative, e.g., the electric field E
+        CALL RestartHDG() ! calls PostProcessGradient for calculate the derivative, e.g., the electric field E
 
     ELSE
-      lambda=0.
+      DO SideID = 1, nSides
+        HDG_Surf_N(SideID)%lambda=0.
+      END DO ! SideID = 1, nSides
     END IF
 
-#else
+#else /*not PP_POIS and not USE_HDG*/
     ALLOCATE(U(1:nVar,0:Nres,0:Nres,0:Nres,PP_nElemsTmp))
     CALL ReadArray('DG_Solution',5,(/nVar,Nres+1_IK,Nres+1_IK,Nres+1_IK,PP_nElemsTmp/),OffsetElemTmp,5,RealArray=U)
     DO iElem = 1, nElems
@@ -469,7 +480,7 @@ ELSE ! normal restart
       END DO ! iPML
       DEALLOCATE(U_local)
     END IF ! DoPML
-#endif
+#endif /*PP_POIS*/
     !CALL ReadState(RestartFile,nVar,PP_N,PP_nElems,U)
 
 

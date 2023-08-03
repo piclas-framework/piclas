@@ -455,7 +455,7 @@ USE MOD_Mappings           ,ONLY: CGNS_SideToVol2
 USE MOD_ChangeBasis        ,ONLY: ChangeBasis2D
 USE MOD_Mortar_Metrics     ,ONLY: Mortar_CalcSurfMetrics
 USE MOD_DG_Vars            ,ONLY: N_DG,DG_Elems_master,DG_Elems_slave
-USE MOD_Interpolation_Vars ,ONLY: Nmax,NInfo
+USE MOD_Interpolation_Vars ,ONLY: Nmax,NInfo,PREF_VDM,N_Inter
 USE MOD_Mesh_Vars,          ONLY: SideToElem
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! IMPLICIT VARIABLE HANDLING
@@ -477,7 +477,7 @@ REAL               :: Mortar_xGP( 3,0:Nmax,0:Nmax,4)
 REAL               :: tmp(        3,0:Nmax,0:Nmax)
 REAL               :: tmp2(       3,0:Nmax,0:Nmax)
 REAL               :: tmpflip(    3,0:Nmax,0:Nmax)
-INTEGER            :: Nloc,flip
+INTEGER            :: Nloc,flip,NSideMin,NSideMax
 LOGICAL            :: flipSide
 !==================================================================================================================================
 
@@ -664,6 +664,27 @@ DO iLocSide=1,6
     END DO
 
   END IF
+
+#if USE_HDG
+  ! Get SurfElemMin
+  NSideMax = MAX(DG_Elems_master(SideID),DG_Elems_slave(SideID))
+  NSideMin = MIN(DG_Elems_master(SideID),DG_Elems_slave(SideID))
+  IF(NSideMax.EQ.NSideMin)THEN
+    N_SurfMesh(SideID)%SurfElemMin(:,:) = N_SurfMesh(SideID)%SurfElem(:,:)
+  ELSE
+
+    ! From high to low
+    ! Transform the slave side to the same degree as the master: switch to Legendre basis
+    CALL ChangeBasis2D(1, NSideMax, NSideMax, N_Inter(NSideMax)%sVdm_Leg, N_SurfMesh(SideID)%SurfElem(0:NSideMax,0:NSideMax), tmp(1,0:NSideMax,0:NSideMax))
+     !Switch back to nodal basis
+    CALL ChangeBasis2D(1, NSideMin, NSideMin, N_Inter(NSideMin)%Vdm_Leg , tmp(1,0:NSideMax,0:NSideMax)                      , N_SurfMesh(SideID)%SurfElemMin(0:NSideMin,0:NSideMin))
+    !mvtmp(nGP_face(NSideMin)+1:nGP_face(Nloc)) = 0.
+    !WRITE (*,*) "mvtmp(1:nGP_face(Nloc)) =", mvtmp(1:nGP_face(Nloc))
+
+    !CALL ChangeBasis2D(1, NSideMax, NSideMin, PREF_VDM(NSideMax,NSideMin)%Vdm , N_SurfMesh(SideID)%SurfElem(:,:), N_SurfMesh(SideID)%SurfElemMin(:,:))
+  END IF ! NSideMax.EQ.NSideMin
+#endif /*USE_HDG*/
+
 END DO
 
 END SUBROUTINE CalcSurfMetrics

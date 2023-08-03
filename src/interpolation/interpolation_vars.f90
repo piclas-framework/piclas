@@ -35,6 +35,14 @@ TYPE, PUBLIC :: Interpolation
   REAL,ALLOCATABLE  :: wGPSurf(:,:)                !< wGPSurf(i,j)=wGP(i)*wGP(j)
   REAL,ALLOCATABLE  :: NChooseK(:,:)               !< array n over n
   REAL,ALLOCATABLE  :: Vdm_Leg(:,:), sVdm_Leg(:,:) !< Legendre Vandermonde matrix
+#if USE_HDG
+  REAL,ALLOCATABLE  :: LL_minus(:,:)
+  REAL,ALLOCATABLE  :: LL_plus(:,:)
+  REAL,ALLOCATABLE  :: Lomega_m(:)
+  REAL,ALLOCATABLE  :: Lomega_p(:)
+  REAL,ALLOCATABLE  :: Domega(:,:)
+  REAL,ALLOCATABLE  :: wGP_vol(:)
+#endif /*USE_HDG*/
 END TYPE Interpolation
 
 TYPE(Interpolation),ALLOCATABLE    :: N_Inter(:)          !< Array of prebuild interpolation matrices

@@ -118,15 +118,24 @@ IF (.NOT.(PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance))) THEN
     ALLOCATE(U_N(iElem)%U(PP_nVar,0:Nloc,0:Nloc,0:Nloc))
     U_N(iElem)%U = 0.
   END DO ! iElem = 1, PP_nElems
-#if !(USE_HDG)
-#if USE_LOADBALANCE
+#if USE_LOADBALANCE && !(USE_HDG)
 END IF
-#endif /*USE_LOADBALANCE*/
+#endif /*USE_LOADBALANCE && !(USE_HDG)*/
 
+! Allocate additional containers
+#if USE_HDG
+DO iElem = 1, PP_nElems
+  Nloc = N_DG(iElem)
+  ALLOCATE(U_N(iElem)%E(1:3,0:Nloc,0:Nloc,0:Nloc))
+  ALLOCATE(U_N(iElem)%Et(1:3,0:Nloc,0:Nloc,0:Nloc))
+  U_N(iElem)%E = 0.
+  U_N(iElem)%Et = 0.
+END DO ! iElem = 1, PP_nElems
+#else
 #if (PP_TimeDiscMethod==1)||(PP_TimeDiscMethod==2)|| (PP_TimeDiscMethod==6)
 ! the time derivative computed with the DG scheme
 ALLOCATE(Ut_N(PP_nElems))
-#endif
+#endif /*(PP_TimeDiscMethod==1)||(PP_TimeDiscMethod==2)|| (PP_TimeDiscMethod==6)*/
 
 ! the time derivative computed with the DG scheme
 DO iElem = 1, PP_nElems
@@ -201,7 +210,7 @@ USE MOD_Basis     ,ONLY:PolynomialDerivativeMatrix,LagrangeInterpolationPolys
 USE MOD_PreProc
 USE MOD_MPI_vars,      ONLY:SendRequest_Geo,RecRequest_Geo
 USE MOD_MPI,           ONLY:StartReceiveMPIData,StartSendMPIData,FinishExchangeMPIData
-USE MOD_Mesh_Vars,     ONLY:NormVec,TangVec1,TangVec2,SurfElem,nSides
+USE MOD_Mesh_Vars,     ONLY:N_SurfMesh,nSides
 #endif /*USE_MPI*/
 #endif /*USE_HDG*/
 ! IMPLICIT VARIABLE HANDLING
@@ -259,10 +268,10 @@ L_HatMinus(:) = MATMUL(Minv,L_Minus)
 #if USE_MPI
 ! exchange is in InitDGBasis as InitMesh() and InitMPI() is needed
 Geotemp=0.
-Geotemp(1,:,:,:)=SurfElem(:,:,1:nSides)
-Geotemp(2:4,:,:,:)=NormVec(:,:,:,1:nSides)
-Geotemp(5:7,:,:,:)=TangVec1(:,:,:,1:nSides)
-Geotemp(8:10,:,:,:)=TangVec2(:,:,:,1:nSides)
+Geotemp(1,:,:,:)    = N_SurfMesh(?)%SurfElem(:,:)
+Geotemp(2:4,:,:,:)  = N_SurfMesh(?)%NormVec(:,:,:)
+Geotemp(5:7,:,:,:)  = N_SurfMesh(?)%TangVec1(:,:,:)
+Geotemp(8:10,:,:,:) = N_SurfMesh(?)%TangVec2(:,:,:)
 !Geotemp(11:13,:,:,:)=Face_xGP(:,:,:,SideID_minus_lower:SideID_minus_upper)
 CALL StartReceiveMPIData(10,Geotemp,1,nSides,RecRequest_Geo ,SendID=1) ! Receive MINE
 CALL StartSendMPIData(   10,Geotemp,1,nSides,SendRequest_Geo,SendID=1) ! Send YOUR

@@ -140,9 +140,9 @@ REAL,POINTER        :: Coords(:,:,:,:,:)
 INTEGER             :: iElem,i,j,k,nElemsLoc
 !CHARACTER(32)       :: hilf2
 CHARACTER(LEN=255)  :: FileName
-INTEGER             :: Nloc,iSide
+INTEGER             :: Nloc,iSide,NSideMin
 REAL                :: RandVal
-REAL                :: x1,r
+!REAL                :: x1,r
 LOGICAL             :: validMesh,ExistFile,ReadNodes
 !===================================================================================================================================
 IF ((.NOT.InterpolationInitIsDone).OR.MeshInitIsDone) THEN
@@ -252,11 +252,13 @@ ALLOCATE(N_DG(nElems))
 !N_DG = 1
 !N_DG(1) = PP_N
 N_DG = PP_N
-!N_DG(1) = 5
+!N_DG(1) = 1
 
-!             DO iElem=1,nElems
-!               !CALL RANDOM_NUMBER(RandVal)
-!               !N_DG (iElem) = 1+INT(RandVal*Nmax)
+             DO iElem=1,nElems
+               !cycle
+               CALL RANDOM_NUMBER(RandVal)
+               N_DG (iElem) = 1+INT(RandVal*Nmax)
+               !N_DG (iElem) = 3+NINT(RandVal)
 !               !N_DG (iElem) = MAX(N_DG (iElem),4)
 !                 kLoop: DO k=0,NGeo; DO j=0,NGeo; DO i=0,NGeo
 !                   x1 = coords(1,i,j,k,iElem)
@@ -272,7 +274,7 @@ N_DG = PP_N
 !                 !EXIT kLoop
 !               END IF ! r.le.1.0 .and. x.le.0
 !                 END DO ; END DO; END DO kLoop;
-!             END DO
+             END DO
 
 ! Build Elem_xGP
 ALLOCATE(N_VolMesh(1:nElems))
@@ -362,17 +364,20 @@ IF (ABS(meshMode).GT.1) THEN
   DO iSide = 1, nSides
 
     ! Allocate with max. polynomial degree of the two master-slave sides
-    Nloc = MAX(DG_Elems_master(iSide),DG_Elems_slave(iSide))
+    Nloc     = MAX(DG_Elems_master(iSide),DG_Elems_slave(iSide))
+    NSideMin = MIN(DG_Elems_master(iSide),DG_Elems_slave(iSide))
     ALLOCATE(N_SurfMesh(iSide)%Face_xGP (3,0:Nloc,0:Nloc))
     ALLOCATE(N_SurfMesh(iSide)%NormVec  (3,0:Nloc,0:Nloc))
     ALLOCATE(N_SurfMesh(iSide)%TangVec1 (3,0:Nloc,0:Nloc))
     ALLOCATE(N_SurfMesh(iSide)%TangVec2 (3,0:Nloc,0:Nloc))
     ALLOCATE(N_SurfMesh(iSide)%SurfElem (  0:Nloc,0:Nloc))
+    ALLOCATE(N_SurfMesh(iSide)%SurfElemMin(0:NSideMin,0:NSideMin))
     N_SurfMesh(iSide)%Face_xGP = 0.
     N_SurfMesh(iSide)%NormVec  = 0.
     N_SurfMesh(iSide)%TangVec1 = 0.
     N_SurfMesh(iSide)%TangVec2 = 0.
     N_SurfMesh(iSide)%SurfElem = 0.
+    N_SurfMesh(iSide)%SurfElemMin= 0.
   END DO ! iSide = 1, nSides
 
 #ifdef maxwell
@@ -408,8 +413,8 @@ IF (ABS(meshMode).GT.1) THEN
 
 #if defined(PARTICLES) || USE_HDG
   ! Compute element bary and element radius for processor-local elements (without halo region)
-  ALLOCATE(ElemBaryNGeo(1:3,1:nElems))
-  CALL BuildElementOrigin()
+  !ALLOCATE(ElemBaryNGeo(1:3,1:nElems))
+  !CALL BuildElementOrigin()
 #endif /*defined(PARTICLES) || USE_HDG*/
 
 #ifndef PARTICLES
@@ -568,11 +573,11 @@ ALLOCATE(DGExchange(nNbProcs))
 DO iNbProc=1,nNbProcs
   ALLOCATE(DGExchange(iNbProc)%FaceDataRecv(PP_nVar, MAXVAL(DataSizeSideRec(iNbProc,:))))
   ALLOCATE(DGExchange(iNbProc)%FaceDataSend(PP_nVar, MAXVAL(DataSizeSideSend(iNbProc,:))))
-  IPWRITE(*,*)'send1',DataSizeSideSend(:,1)
-  IPWRITE(*,*)'send2',DataSizeSideSend(:,2)
+  !IPWRITE(*,*)'send1',DataSizeSideSend(:,1)
+  !IPWRITE(*,*)'send2',DataSizeSideSend(:,2)
 
-  IPWRITE(*,*)'recv1',DataSizeSideRec(:,1)
-  IPWRITE(*,*)'recv2',DataSizeSideRec(:,2)
+  !IPWRITE(*,*)'recv1',DataSizeSideRec(:,1)
+  !IPWRITE(*,*)'recv2',DataSizeSideRec(:,2)
 END DO !iProc=1,nNBProcs
 #endif /*USE_MPI*/
 END SUBROUTINE DG_ProlongDGElemsToFace

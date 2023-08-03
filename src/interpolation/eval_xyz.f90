@@ -191,7 +191,7 @@ SUBROUTINE EvaluateFieldAtPhysPos(x_in,NVar_IN,N_in,U_In,NVar_OUT,U_OUT,ElemID,P
 USE MOD_Globals
 USE MOD_Preproc
 USE MOD_Basis                 ,ONLY: LagrangeInterpolationPolys
-USE MOD_Interpolation_Vars    ,ONLY: xGP,wBary
+USE MOD_Interpolation_Vars    ,ONLY: N_Inter
 USE MOD_Interpolation_Vars    ,ONLY: NBG,BGField,BGDataSize,BGField_wBary, BGField_xGP,BGType
 USE MOD_Mesh_Tools            ,ONLY: GetCNElemID
 USE MOD_Mesh_Vars             ,ONLY: NGeo,wBaryCL_NGeo,XiCL_NGeo
@@ -265,9 +265,9 @@ ELSE
 END IF
 
 ! 2.1) get "Vandermonde" vectors
-CALL LagrangeInterpolationPolys(xi(1),N_in,xGP,wBary,L_xi(1,:))
-CALL LagrangeInterpolationPolys(xi(2),N_in,xGP,wBary,L_xi(2,:))
-CALL LagrangeInterpolationPolys(xi(3),N_in,xGP,wBary,L_xi(3,:))
+CALL LagrangeInterpolationPolys(xi(1),N_in,N_Inter(N_In)%xGP,N_Inter(N_In)%wBary,L_xi(1,:))
+CALL LagrangeInterpolationPolys(xi(2),N_in,N_Inter(N_In)%xGP,N_Inter(N_In)%wBary,L_xi(2,:))
+CALL LagrangeInterpolationPolys(xi(3),N_in,N_Inter(N_In)%xGP,N_Inter(N_In)%wBary,L_xi(3,:))
 
 ! "more efficient" - Quote Thomas B.
 U_OUT(:)=0.
@@ -326,7 +326,7 @@ PPURE SUBROUTINE EvaluateFieldAtRefPos(xi_in,NVar_IN,N_in,U_In,NVar_OUT,U_OUT,El
 !===================================================================================================================================
 ! MODULES
 USE MOD_Basis                 ,ONLY: LagrangeInterpolationPolys
-USE MOD_Interpolation_Vars    ,ONLY: wBary,xGP
+USE MOD_Interpolation_Vars    ,ONLY: N_Inter
 USE MOD_PICInterpolation_Vars ,ONLY: useBGField
 USE MOD_Interpolation_Vars    ,ONLY: NBG,BGField,BGDataSize,BGField_wBary, BGField_xGP,BGType
 ! IMPLICIT VARIABLE HANDLING
@@ -354,9 +354,9 @@ REAL,ALLOCATABLE    :: L_xi_BGField(:,:), U_BGField(:)
 !===================================================================================================================================
 
 ! 2.1) get "Vandermonde" vectors
-CALL LagrangeInterpolationPolys(xi_in(1),N_in,xGP,wBary,L_xi(1,:))
-CALL LagrangeInterpolationPolys(xi_in(2),N_in,xGP,wBary,L_xi(2,:))
-CALL LagrangeInterpolationPolys(xi_in(3),N_in,xGP,wBary,L_xi(3,:))
+CALL LagrangeInterpolationPolys(xi_in(1),N_in,N_Inter(N_In)%xGP,N_Inter(N_In)%wBary,L_xi(1,:))
+CALL LagrangeInterpolationPolys(xi_in(2),N_in,N_Inter(N_In)%xGP,N_Inter(N_In)%wBary,L_xi(2,:))
+CALL LagrangeInterpolationPolys(xi_in(3),N_in,N_Inter(N_In)%xGP,N_Inter(N_In)%wBary,L_xi(3,:))
 
 ! "more efficient" - Quote Thomas B.
 U_OUT(:)=0
@@ -685,7 +685,7 @@ USE MOD_Preproc
 USE MOD_Globals
 USE MOD_Mesh_Vars,               ONLY:NGeo,XiCL_NGeo
 USE MOD_Mesh_Tools,              ONLY:GetCNElemID
-USE MOD_Interpolation_Vars,      ONLY:xGP
+USE MOD_Interpolation_Vars,      ONLY:N_Inter
 USE MOD_Particle_Mesh_Vars,      ONLY:RefMappingGuess,RefMappingEps
 USE MOD_Particle_Mesh_Vars,      ONLY:XiEtaZetaBasis,slenXiEtaZetaBasis
 USE MOD_Particle_Mesh_Vars,      ONLY:XCL_NGeo_Shared,Elem_xGP_Shared
@@ -739,7 +739,7 @@ CASE(1)
 CASE(2)
   ! compute distance on Gauss Points
   Winner_Dist = SQRT(DOT_PRODUCT((x_in(:)-Elem_xGP_Shared(:,0,0,0,ElemID)),(x_in(:)-Elem_xGP_Shared(:,0,0,0,ElemID))))
-  Xi(:)=(/xGP(0),xGP(0),xGP(0)/) ! start value
+  Xi(:)=(/N_Inter(PP_N)%xGP(0),N_Inter(PP_N)%xGP(0),N_Inter(PP_N)%xGP(0)/) ! start value
   DO i=0,PP_N; DO j=0,PP_N; DO k=0,PP_N
       dX = ABS(X_in(1) - Elem_xGP_Shared(1,i,j,k,ElemID))
     IF(dX.GT.Winner_Dist) CYCLE
@@ -750,7 +750,7 @@ CASE(2)
     Dist=SQRT(dX*dX+dY*dY+dZ*dZ)
     IF (Dist.LT.Winner_Dist) THEN
       Winner_Dist=Dist
-      Xi(:)=(/xGP(i),xGP(j),xGP(k)/) ! start value
+      Xi(:)=(/N_Inter(PP_N)%xGP(i),N_Inter(PP_N)%xGP(j),N_Inter(PP_N)%xGP(k)/) ! start value
     END IF
   END DO; END DO; END DO
 

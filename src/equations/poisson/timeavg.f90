@@ -54,13 +54,13 @@ SUBROUTINE InitTimeAverage()
 ! MODULES
 USE MOD_Globals
 USE MOD_Preproc
-USE MOD_ReadInTools,    ONLY: CountOption,GETSTR,GETLOGICAL,GETINT
-USE MOD_Mesh_Vars,      ONLY: nElems
+USE MOD_ReadInTools      ,ONLY: CountOption,GETSTR,GETLOGICAL,GETINT
+USE MOD_Mesh_Vars        ,ONLY: nElems
 USE MOD_Timeaverage_Vars
-USE MOD_Equation_Vars,  ONLY: StrVarNames
+USE MOD_Equation_Vars    ,ONLY: StrVarNames
 #ifdef PARTICLES
-USE MOD_Particle_Vars,  ONLY: nSpecies
-USE MOD_PICDepo_Vars,   ONLY: DoDeposition, RelaxDeposition
+USE MOD_Particle_Vars    ,ONLY: nSpecies
+USE MOD_PICDepo_Vars     ,ONLY: DoDeposition, RelaxDeposition
 #endif /*PARTICLES*/
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
@@ -314,7 +314,7 @@ SUBROUTINE CalcTimeAverage(Finalize,dt,t,tPrevious)
 ! MODULES
 USE MOD_Globals
 USE MOD_PreProc
-USE MOD_DG_Vars                ,ONLY: U
+USE MOD_DG_Vars                ,ONLY: U_N
 USE MOD_Mesh_Vars              ,ONLY: MeshFile,nElems
 USE MOD_HDF5_Output            ,ONLY: WriteTimeAverage
 USE MOD_Equation_Vars          ,ONLY: E
@@ -367,11 +367,11 @@ DO iElem=1,nElems
   ! Compute time averaged variables and fluctuations of these variables
   ! loop over all variables
   DO iVar=1,1
-    IF(CalcAvg(1)) tmpVars(iAvg(1),:,:,:) = U(1,:,:,:,iElem)
+    IF(CalcAvg(1)) tmpVars(iAvg(1),:,:,:) = U_N(iElem)%U(1,:,:,:)
   END DO ! iVar=1,PP_nVar
-  IF(CalcAvg(2)) tmpVars(iAvg(2),:,:,:) = E(1,:,:,:,iElem)
-  IF(CalcAvg(3)) tmpVars(iAvg(3),:,:,:) = E(2,:,:,:,iElem)
-  IF(CalcAvg(4)) tmpVars(iAvg(4),:,:,:) = E(3,:,:,:,iElem)
+  IF(CalcAvg(2)) tmpVars(iAvg(2),:,:,:) = U_N(iElem)%E(1,:,:,:)
+  IF(CalcAvg(3)) tmpVars(iAvg(3),:,:,:) = U_N(iElem)%E(2,:,:,:)
+  IF(CalcAvg(4)) tmpVars(iAvg(4),:,:,:) = U_N(iElem)%E(3,:,:,:)
 
   ! ElectricFieldMagnitude
   IF(CalcAvg(5))THEN

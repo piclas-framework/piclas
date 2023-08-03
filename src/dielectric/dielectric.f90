@@ -266,6 +266,10 @@ IMPLICIT NONE
 ! LOCAL VARIABLES
 INTEGER             :: i,j,k,iDielectricElem,Nloc,iElem,iZone
 REAL                :: r
+#if USE_HDG
+REAL                :: DielectricEpsMax,DielectricEpsMin
+REAL                :: DielectricMuMax,DielectricMuMin
+#endif /*USE_HDG*/
 !===================================================================================================================================
 ! Check if there are dielectric elements
 IF(nDielectricElems.LT.1) RETURN
@@ -336,18 +340,30 @@ END DO !iDielectricElem
 
 ! check if MPI local values differ for HDG only (variable dielectric values are not implemented)
 #if USE_HDG
-IF(.NOT.ALMOSTEQUALRELATIVE(MAXVAL(DielectricEps(:,:,:,:)),MINVAL(DielectricEps(:,:,:,:)),1e-8))THEN
+DielectricEpsMax = -HUGE(1.)
+DielectricEpsMin = HUGE(1.)
+DO iDielectricElem=1,nDielectricElems
+  DielectricEpsMax = MAX(DielectricEpsMax,MAXVAL(DielectricVol(iDielectricElem)%DielectricEps(:,:,:)))
+  DielectricEpsMin = MIN(DielectricEpsMin,MINVAL(DielectricVol(iDielectricElem)%DielectricEps(:,:,:)))
+END DO !iDielectricElem
+IF(.NOT.ALMOSTEQUALRELATIVE(DielectricEpsMax,DielectricEpsMin,1e-8))THEN
   IF(nDielectricElems.GT.0)THEN
     CALL abort(__STAMP__&
         ,'Dielectric material values in HDG solver cannot be spatially variable because this feature is not implemented! Delta Eps_R=',&
-    RealInfoOpt=MAXVAL(DielectricEps(:,:,:,:))-MINVAL(DielectricEps(:,:,:,:)))
+    RealInfoOpt=DielectricEpsMax-DielectricEpsMin)
   END IF
 END IF
-IF(.NOT.ALMOSTEQUALRELATIVE(MAXVAL(DielectricMu(:,:,:,:)),MINVAL(DielectricMu(:,:,:,:)),1e-8))THEN
+DielectricMuMax = -HUGE(1.)
+DielectricMuMin = HUGE(1.)
+DO iDielectricElem=1,nDielectricElems
+  DielectricMuMax = MAX(DielectricMuMax,MAXVAL(DielectricVol(iDielectricElem)%DielectricMu(:,:,:)))
+  DielectricMuMin = MIN(DielectricMuMin,MINVAL(DielectricVol(iDielectricElem)%DielectricMu(:,:,:)))
+END DO !iDielectricElem
+IF(.NOT.ALMOSTEQUALRELATIVE(DielectricMuMax,DielectricMuMin,1e-8))THEN
   IF(nDielectricElems.GT.0)THEN
     CALL abort(__STAMP__&
         ,'Dielectric material values in HDG solver cannot be spatially variable because this feature is not implemented! Delta Mu_R=',&
-    RealInfoOpt=MAXVAL(DielectricMu(:,:,:,:))-MINVAL(DielectricMu(:,:,:,:)))
+    RealInfoOpt=DielectricMuMax-DielectricMuMin)
   END IF
 END IF
 #endif /*USE_HDG*/
@@ -516,10 +532,11 @@ SUBROUTINE SetDielectricFaceProfile_HDG()
 ! MODULES
 USE MOD_Globals
 USE MOD_PreProc
-USE MOD_Dielectric_Vars, ONLY:isDielectricElem,DielectricEpsR
-USE MOD_Equation_Vars,   ONLY:chitens,chitensInv,chitens_face
-USE MOD_Mesh_Vars,       ONLY:nInnerSides
-USE MOD_Mesh_Vars,       ONLY:ElemToSide
+USE MOD_Dielectric_Vars ,ONLY: isDielectricElem,DielectricEpsR
+USE MOD_Equation_Vars   ,ONLY: chi
+USE MOD_Mesh_Vars       ,ONLY: nInnerSides
+USE MOD_Mesh_Vars       ,ONLY: ElemToSide
+USE MOD_DG_Vars         ,ONLY: N_DG
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -527,7 +544,7 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
-INTEGER :: i,j,k,iElem
+INTEGER :: i,j,k,iElem,Nloc
 INTEGER :: p,q,flip,locSideID,SideID
 REAL    :: Invdummy(3,3)
 !===================================================================================================================================
@@ -536,21 +553,23 @@ DO iElem=1,PP_nElems
   IF(.NOT.isDielectricElem(iElem)) CYCLE
 
   !compute field on Gauss-Lobatto points (continuous!)
-  DO k=0,PP_N ; DO j=0,PP_N ; DO i=0,PP_N
+  Nloc = N_DG(iElem)
+  DO k=0,Nloc ; DO j=0,Nloc ; DO i=0,Nloc
     !CALL CalcChiTens(Elem_xGP(:,i,j,k,iElem),chitens(:,:,i,j,k,iElem),chitensInv(:,:,i,j,k,iElem),DielectricEpsR)
-    CALL CalcChiTens(chitens(:,:,i,j,k,iElem),chitensInv(:,:,i,j,k,iElem),DielectricEpsR)
+    CALL CalcChiTens(chi(iElem)%tens(   :,:,i,j,k),&
+                     chi(iElem)%tensInv(:,:,i,j,k),DielectricEpsR)
   END DO; END DO; END DO !i,j,k
 
-  DO locSideID=1,6
-    flip=ElemToSide(E2S_FLIP,LocSideID,iElem)
-    SideID=ElemToSide(E2S_SIDE_ID,LocSideID,iElem)
-    IF(.NOT.((flip.NE.0).AND.(SideID.LE.nInnerSides)))THEN
-      DO q=0,PP_N; DO p=0,PP_N
-        !CALL CalcChiTens(Face_xGP(:,p,q),chitens_face(:,:,p,q,SideID),Invdummy(:,:),DielectricEpsR)
-        CALL CalcChiTens(chitens_face(:,:,p,q,SideID),Invdummy(:,:),DielectricEpsR)
-      END DO; END DO !p, q
-    END IF
-  END DO !locSideID
+  !DO locSideID=1,6
+  !  flip=ElemToSide(E2S_FLIP,LocSideID,iElem)
+  !  SideID=ElemToSide(E2S_SIDE_ID,LocSideID,iElem)
+  !  IF(.NOT.((flip.NE.0).AND.(SideID.LE.nInnerSides)))THEN
+  !    DO q=0,PP_N; DO p=0,PP_N
+  !      !CALL CalcChiTens(Face_xGP(:,p,q),chitens_face(:,:,p,q,SideID),Invdummy(:,:),DielectricEpsR)
+  !      CALL CalcChiTens(chitens_face(:,:,p,q,SideID),Invdummy(:,:),DielectricEpsR)
+  !    END DO; END DO !p, q
+  !  END IF
+  !END DO !locSideID
 END DO
 END SUBROUTINE SetDielectricFaceProfile_HDG
 

@@ -150,13 +150,14 @@ IF(PP_N.NE.Ntmp) CALL CollectiveStop(__STAMP__,'N in ini-file is different from 
 
 ! polynomial degree range for p-Refinement
 Nmin = 1
-IF(PRESENT(NIn_opt))THEN
+IF(PRESENT(Nmax_opt))THEN
   Nmax = Nmax_opt
 ELSE
   WRITE(UNIT=hilf,FMT='(I3)') PP_N
   Nmax = GETINT('Nmax',hilf)
-END IF ! PRESENT(NIn_opt)
+END IF ! PRESENT(Nmax_opt)
 
+WRITE (*,*) "Nmax =", Nmax
 SWRITE(UNIT_stdOut,'(A)') ' NodeType: '//NodeType
 
 ! Check if p-adaption is activated and only build the constructs if Nmax>0
@@ -174,7 +175,8 @@ IF(Nmax.GT.0)THEN
 
   DO Nin=Nmin,Nmax
     DO Nout=Nmin,Nmax
-      ALLOCATE(PREF_VDM(Nin,Nout)%Vdm(0:Nin,0:Nout))
+      ! Note the shape of Vdm!
+      ALLOCATE(PREF_VDM(Nin,Nout)%Vdm(0:Nout,0:Nin))
       IF(Nin.EQ.Nout) THEN
         DO i=0,Nin
           DO j=0,Nin
@@ -187,11 +189,12 @@ IF(Nmax.GT.0)THEN
         END DO
       ELSE IF(Nin.GT.Nout) THEN ! p-coarsening: Project from higher degree to lower degree
         CALL GetVandermonde(Nin, NodeType, Nout, NodeType, PREF_VDM(Nin,Nout)%Vdm, modal=.TRUE. )
+        !CALL GetVandermonde(Nin, NodeType, Nout, NodeType, PREF_VDM(Nin,Nout)%Vdm, modal=.FALSE. )
       ELSE                   ! p-refinement: Interpolate lower degree to higher degree
         CALL GetVandermonde(Nin, NodeType, Nout, NodeType, PREF_VDM(Nin,Nout)%Vdm, modal=.FALSE.)
-      END IF
-    END DO
-  END DO
+      END IF ! Nin.GT.Nout
+    END DO ! Nout=Nmin,Nmax
+  END DO ! Nin=Nmin,Nmax
 END IF ! Nmax.GT.0
 
 ! Set the default analyze polynomial degree NAnalyze to 2*(N+1)
@@ -367,7 +370,7 @@ INTEGER,INTENT(IN)                 :: N_out                      !> Output polyn
 CHARACTER(LEN=255),INTENT(IN)      :: NodeType_in                !> Type of 1D input points
 CHARACTER(LEN=255),INTENT(IN)      :: NodeType_out               !> Type of 1D output points
 LOGICAL,INTENT(IN),OPTIONAL        :: modal                      !> Switch if a modal Vandermonde should be build
-REAL,INTENT(OUT)                   :: Vdm_In_out(0:N_out,0:N_in) !> Vandermonde In->Out
+REAL,INTENT(OUT)                   :: Vdm_In_Out(0:N_out,0:N_in) !> Vandermonde In->Out
 REAL,INTENT(OUT),OPTIONAL          :: Vdm_Out_In(0:N_in,0:N_out) !> Vandermonde Out->in
 !----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES

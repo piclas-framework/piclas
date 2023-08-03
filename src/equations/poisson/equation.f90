@@ -31,20 +31,14 @@ END INTERFACE
 INTERFACE ExactFunc
   MODULE PROCEDURE ExactFunc
 END INTERFACE
-INTERFACE CalcSource
-  MODULE PROCEDURE CalcSource
-END INTERFACE
 INTERFACE CalcSourceHDG
   MODULE PROCEDURE CalcSourceHDG
-END INTERFACE
-INTERFACE DivCleaningDamping
-  MODULE PROCEDURE DivCleaningDamping
 END INTERFACE
 INTERFACE FinalizeEquation
   MODULE PROCEDURE FinalizeEquation
 END INTERFACE
 
-PUBLIC :: InitEquation,ExactFunc,CalcSource,FinalizeEquation, CalcSourceHDG,DivCleaningDamping
+PUBLIC :: InitEquation,ExactFunc,FinalizeEquation, CalcSourceHDG
 #if USE_MPI && defined(PARTICLES)
 PUBLIC :: SynchronizeCPP
 #endif /*USE_MPI && defined(PARTICLES)*/
@@ -123,6 +117,7 @@ USE MOD_Mesh_Vars          ,ONLY: nSides
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Vars   ,ONLY: PerformLoadBalance
 #endif /*USE_LOADBALANCE*/
+USE MOD_DG_Vars            ,ONLY: DG_Elems_master,DG_Elems_slave,N_DG
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -140,6 +135,7 @@ INTEGER            :: nRefStateMax
 INTEGER            :: nLinState,nLinStateMax
 INTEGER,PARAMETER  :: BYTypeRefstate(1:4)=(/5,51,52,60/)
 CHARACTER(LEN=32)  :: hilf
+INTEGER            :: Nloc,NSideMin,iElem,iSide
 !===================================================================================================================================
 IF((.NOT.InterpolationInitIsDone).OR.EquationInitIsDone)THEN
    LBWRITE(*,*) "InitPoisson not ready to be called or already called."
@@ -238,20 +234,31 @@ IF(chitensWhichField.GT.0.0.OR.&
    chitensRadius    .GT.0.0)THEN
   CALL abort(__STAMP__,'chitensWhichField, chitensValue and chitensRadius are no longer supported. Deactivate them!')
 END IF
-ALLOCATE(chitens(3,3,0:PP_N,0:PP_N,0:PP_N,PP_nElems))
-ALLOCATE(chitensInv(3,3,0:PP_N,0:PP_N,0:PP_N,PP_nElems))
-ALLOCATE(chitens_face(3,3,0:PP_N,0:PP_N,nSides))
 
-! initialize
-chitens=0.
-chitens(1,1,:,:,:,:)=1.
-chitens(2,2,:,:,:,:)=1.
-chitens(3,3,:,:,:,:)=1.
-chitensInv=chitens
-chitens_face=0.
-chitens_face(1,1,:,:,:)=1.
-chitens_face(2,2,:,:,:)=1.
-chitens_face(3,3,:,:,:)=1.
+! Chitens
+ALLOCATE(chi(1:PP_nElems))
+
+DO iElem = 1, PP_nElems
+  Nloc = N_DG(iElem)
+  ALLOCATE(chi(iElem)%tens(1:3,1:3,0:Nloc,0:Nloc,0:Nloc))
+
+  chi(iElem)%tens(:,:,:,:,:) = 0.
+  chi(iElem)%tens(1,1,:,:,:) = 1.
+  chi(iElem)%tens(2,2,:,:,:) = 1.
+  chi(iElem)%tens(3,3,:,:,:) = 1.
+
+  ALLOCATE(chi(iElem)%tensInv(1:3,1:3,0:Nloc,0:Nloc,0:Nloc))
+  chi(iElem)%tensInv(:,:,:,:,:) = chi(iElem)%tens(:,:,:,:,:)
+END DO ! iElem = 1, PP_nElems
+
+!DO iSide = 1, nSides
+  !NSideMin = MIN(DG_Elems_master(iSide),DG_Elems_slave(iSide))
+  !ALLOCATE(chi(iSide)%tensFace(1:3,1:3,0:NSideMin,0:NSideMin))
+  !chi(iSide)%tensFace(:,:,:,:) = 0.
+  !chi(iSide)%tensFace(1,1,:,:) = 1.
+  !chi(iSide)%tensFace(2,2,:,:) = 1.
+  !chi(iSide)%tensFace(3,3,:,:) = 1.
+!END DO ! iSide = 1, nSides
 
 alpha_shape = GETINT('AlphaShape','2')
 rCutoff     = GETREAL('r_cutoff','1.')
@@ -259,8 +266,8 @@ rCutoff     = GETREAL('r_cutoff','1.')
 ShapeFuncPrefix = 1./(2. * beta(1.5, REAL(alpha_shape) + 1.) * REAL(alpha_shape) + 2. * beta(1.5, REAL(alpha_shape) + 1.)) &
                 * (REAL(alpha_shape) + 1.)/(PI*(rCutoff**3))
 
-ALLOCATE(E(1:3,0:PP_N,0:PP_N,0:PP_N,PP_nElems))
-E=0.
+!ALLOCATE(E(1:3,0:PP_N,0:PP_N,0:PP_N,PP_nElems))
+!E=0.
 
 
 EquationInitIsDone=.TRUE.
@@ -589,6 +596,14 @@ CASE(103) ! dipole
   resu(:)=IniAmplitude*(1/r2-1/r1)
 CASE(104) ! solution to Laplace's equation: Phi_xx + Phi_yy + Phi_zz = 0
   resu(1) = ( COS(x(1))+SIN(x(1)) )*( COS(x(2))+SIN(x(2)) )*( COSH(SQRT(2.0)*x(3))+SINH(SQRT(2.0)*x(3)) )
+CASE(105) ! left boundary -1, right boundary 1
+  IF(x(1).gt.0.)THEN
+    resu = 1.
+  elseIF(x(1).lt.0.)THEN
+    resu = -1.
+  else
+    resu = 0.
+  END IF ! x(1).lt.0.
 CASE(200) ! Dielectric Sphere of Radius R in constant electric field E_0 from book:
   ! John David Jackson, Classical Electrodynamics, 3rd edition, New York: Wiley, 1999.
   ! E_0       : constant electric field in z-direction far away from sphere
@@ -809,97 +824,6 @@ END SELECT ! ExactFunction
 END SUBROUTINE ExactFunc
 
 
-
-SUBROUTINE CalcSource(Ut)
-!===================================================================================================================================
-!
-!===================================================================================================================================
-! MODULES
-USE MOD_Globals,ONLY:Abort
-USE MOD_PreProc
-USE MOD_Equation_Vars,ONLY:IniExactFunc
-USE MOD_Equation_Vars,ONLY:IniCenter,IniHalfwidth,IniAmplitude
-USE MOD_Mesh_Vars,ONLY:Elem_xGP
-! IMPLICIT VARIABLE HANDLING
-IMPLICIT NONE
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
-REAL,INTENT(INOUT)              :: Ut(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-INTEGER                         :: i,j,k,iElem
-REAL                             :: r1,r2
-REAL,DIMENSION(3)                :: dx1,dx2,dr1dx,dr2dx,dr1dx2,dr2dx2
-!===================================================================================================================================
-SELECT CASE (IniExactFunc)
-CASE(0) ! Particles
-#ifdef PARTICLES
-!  DO iElem=1,PP_nElems
-!    DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
-!      !  Get source from Particles
-!      Ut(1:3,i,j,k,iElem) = Ut(1:3,i,j,k,iElem) - eps0inv * PartSource(1:3,i,j,k,iElem)
-!      Ut(  8,i,j,k,iElem) = Ut(  8,i,j,k,iElem) + eps0inv * PartSource(  4,i,j,k,iElem) * c_corr
-!    END DO; END DO; END DO
-!  END DO
-#endif /*PARTICLES*/
-CASE(103)
-DO iElem=1,PP_nElems
-  DO k=0,PP_N
-    DO j=0,PP_N
-      DO i=0,PP_N
-         dx1=(Elem_xGP(:,i,j,k,iElem)-(IniCenter(:)-(/IniHalfwidth,0.,0./)))
-         dx2=(Elem_xGP(:,i,j,k,iElem)-(IniCenter(:)+(/IniHalfwidth,0.,0./)))
-         r1=SQRT(SUM(dx1**2))
-         r2=SQRT(SUM(dx2**2))
-         dr1dx(:)= r1*dx1
-         dr2dx(:)= r2*dx2
-         dr1dx2(:)= r1+dr1dx(:)*dx1
-         dr2dx2(:)= r2+dr2dx(:)*dx2
-         Ut(:,i,j,k,iElem)=Ut(:,i,j,k,iElem)- IniAmplitude*( SUM((r1*dr1dx2(:)-2*dr1dx(:)**2)/(r1*r1*r1)) &
-                                 -SUM((r2*dr2dx2(:)-2*dr2dx(:)**2)/(r2*r2*r2)) )
-      END DO !i
-    END DO !j
-  END DO !k
-END DO ! iElem=1,nElems
-
-CASE DEFAULT
-!  CALL abort(__STAMP__,&
-             !'Exactfunction not specified!',999,999.)
-END SELECT ! ExactFunction
-END SUBROUTINE CalcSource
-
-
-SUBROUTINE DivCleaningDamping()
-!===================================================================================================================================
-! Specifies all the initial conditions. The state in conservative variables is returned.
-!===================================================================================================================================
-! MODULES
-USE MOD_Globals
-USE MOD_PreProc
-USE MOD_DG_Vars,       ONLY : U
-USE MOD_Equation_Vars, ONLY : fDamping,DoParabolicDamping
-! IMPLICIT VARIABLE HANDLING
-IMPLICIT NONE
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-INTEGER                         :: i,j,k,iElem
-!===================================================================================================================================
-IF(DoParabolicDamping) RETURN
-DO iElem=1,PP_nElems
-  DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
-    !  Get source from Particles
-    U(7:8,i,j,k,iElem) = U(7:8,i,j,k,iElem) * fDamping
-  END DO; END DO; END DO
-END DO
-END SUBROUTINE DivCleaningDamping
-
-
 PPURE SUBROUTINE CalcSourceHDG(i,j,k,iElem,resu, Phi, warning_linear, warning_linear_phi)
 !===================================================================================================================================
 ! Determine the right-hand-side of Poisson's equation (either by an analytic function or deposition of charge from particles)
@@ -912,7 +836,8 @@ PPURE SUBROUTINE CalcSourceHDG(i,j,k,iElem,resu, Phi, warning_linear, warning_li
 ! MODULES
 USE MOD_Globals
 USE MOD_PreProc
-USE MOD_Mesh_Vars          ,ONLY: Elem_xGP
+USE MOD_Mesh_Vars          ,ONLY: N_VolMesh
+USE MOD_DG_vars            ,ONLY: N_DG
 #ifdef PARTICLES
 USE MOD_PICDepo_Vars       ,ONLY: PartSource,DoDeposition
 USE MOD_HDG_Vars           ,ONLY: ElemToBRRegion,UseBRElectronFluid,RegionElectronRef
@@ -939,6 +864,7 @@ REAL,INTENT(IN),OPTIONAL        :: Phi
 REAL                            :: x(3)
 REAL                            :: r1,r2
 REAL,DIMENSION(3)               :: dx1,dx2,dr1dx,dr2dx,dr1dx2,dr2dx2
+INTEGER                         :: Nloc
 #ifdef PARTICLES
 REAL                            :: source_e
 INTEGER                         :: RegionID
@@ -951,7 +877,8 @@ SELECT CASE (IniExactFunc)
 CASE(0) ! Particles
   resu=0. ! empty
 CASE(103)
-  x(1:3) = Elem_xGP(1:3,i,j,k,iElem)
+  Nloc = N_DG(iElem)
+  x(1:3) = N_VolMesh(iElem)%Elem_xGP(1:3,i,j,k)
   dx1=(x(:)-(IniCenter(:)-(/IniHalfwidth,0.,0./)))
   dx2=(x(:)-(IniCenter(:)+(/IniHalfwidth,0.,0./)))
   r1=SQRT(SUM(dx1**2))
@@ -1047,11 +974,9 @@ IMPLICIT NONE
 ! LOCAL VARIABLES
 !===================================================================================================================================
 EquationInitIsDone = .FALSE.
-SDEALLOCATE(chitens)
-SDEALLOCATE(chitensInv)
-SDEALLOCATE(chitens_face)
-SDEALLOCATE(E)
-SDEALLOCATE(Et)
+SDEALLOCATE(chi)
+!SDEALLOCATE(E)
+!SDEALLOCATE(Et)
 SDEALLOCATE(RefState)
 SDEALLOCATE(LinPhiBasePoint)
 SDEALLOCATE(LinPhiNormal)

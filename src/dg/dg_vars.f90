@@ -63,6 +63,8 @@ TYPE(DG_Basis),ALLOCATABLE              :: DGB_N(:)             !< Array of prec
 TYPE N_U_Vol
   REAL,ALLOCATABLE  :: U(:,:,:,:)
   REAL,ALLOCATABLE  :: Ut(:,:,:,:)
+  REAL,ALLOCATABLE  :: E(:,:,:,:)
+  REAL,ALLOCATABLE  :: Et(:,:,:,:)
 END TYPE N_U_Vol
 
 ! DG solution (JU or U) vectors)

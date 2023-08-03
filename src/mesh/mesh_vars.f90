@@ -84,13 +84,15 @@ TYPE, PUBLIC :: VolMesh
   REAL,ALLOCATABLE :: Metrics_fTilde(:,:,:,:) !< Metric Terms (first indices 3) on each GaussPoint
   REAL,ALLOCATABLE :: Metrics_gTilde(:,:,:,:)
   REAL,ALLOCATABLE :: Metrics_hTilde(:,:,:,:)
+  REAL,ALLOCATABLE :: chitens(:,:,:,:,:)
   REAL,ALLOCATABLE :: sJ(:,:,:)     !< 1/DetJac for each Gauss Point
 
 END TYPE VolMesh
 
-TYPE(VolMesh),ALLOCATABLE  :: N_VolMesh(:) !< Array to store Mesh metrics object "VolMesh"
+TYPE(VolMesh),ALLOCATABLE,TARGET  :: N_VolMesh(:) !< Array to store Mesh metrics object "VolMesh"
 
 
+TYPE(VolMesh),POINTER  :: N_VolMesh_Shared(:) !< Array to store Mesh metrics object "VolMesh"
 
 TYPE, PUBLIC :: SurfMesh
   !-----------------------------------------------------------------------------------------------------------------------------------
@@ -105,6 +107,7 @@ TYPE, PUBLIC :: SurfMesh
   REAL,ALLOCATABLE :: TangVec1(:,:,:)  !< tangential vector 1 for each side (1:3,0:N,0:N,nSides)
   REAL,ALLOCATABLE :: TangVec2(:,:,:)  !< tangential vector 3 for each side (1:3,0:N,0:N,nSides)
   REAL,ALLOCATABLE :: SurfElem(:,:)    !< surface area for each side        (    0:N,0:N,nSides)
+  REAL,ALLOCATABLE :: SurfElemMin(:,:)    !< surface area for each side        (    0:N,0:N,nSides)
 
 END TYPE SurfMesh
 

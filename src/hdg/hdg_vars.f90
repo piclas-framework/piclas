@@ -30,8 +30,8 @@ SAVE
 ! GLOBAL VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 #if USE_HDG
-INTEGER             :: nGP_vol                !< =(PP_N+1)**3
-INTEGER             :: nGP_face               !< =(PP_N+1)**2
+INTEGER,ALLOCATABLE :: nGP_vol(:)                !< =(PP_N+1)**3
+INTEGER,ALLOCATABLE :: nGP_face(:)               !< =(PP_N+1)**2
 
 #if USE_PETSC
 Mat                 :: Smat_petsc
@@ -56,19 +56,37 @@ INTEGER             :: nPETScUniqueSidesGlobal
 #endif
 LOGICAL             :: useHDG=.FALSE.
 LOGICAL             :: ExactLambda =.FALSE.   !< Flag to initialize exact function for lambda
-REAL,ALLOCATABLE    :: InvDhat(:,:,:)         !< Inverse of Dhat matrix (nGP_vol,nGP_vol,nElems)
-REAL,ALLOCATABLE    :: Ehat(:,:,:,:)          !< Ehat matrix (nGP_Face,nGP_vol,6sides,nElems)
-REAL,ALLOCATABLE    :: wGP_vol(:)             !< 3D quadrature weights
-REAL,ALLOCATABLE    :: JwGP_vol(:,:)          !< 3D quadrature weights*Jacobian for all elements
-REAL,ALLOCATABLE    :: lambda(:,:,:)          !< lambda, ((PP_N+1)^2,nSides)
+
+TYPE, PUBLIC :: N_Type_HDG
+  REAL,ALLOCATABLE    :: Ehat(:,:,:)          !< Ehat matrix (nGP_Face,nGP_vol,6sides,nElems)
+  REAL,ALLOCATABLE    :: InvDhat(:,:)         !< Inverse of Dhat matrix (nGP_vol,nGP_vol,nElems)
+  REAL,ALLOCATABLE    :: JwGP_vol(:)          !< 3D quadrature weights*Jacobian for all elements
+  REAL,ALLOCATABLE    :: RHS_vol(:,:)         !< Source RHS
+  REAL,ALLOCATABLE    :: Smat(:,:,:,:)        !< side to side matrix, (ngpface, ngpface, 6sides, 6sides, nElems)
+END TYPE N_Type_HDG
+
+TYPE(N_Type_HDG),ALLOCATABLE :: N_HDG(:)      !< 
+
+! DG solution face
+TYPE N_HDG_Surf
+  REAL,ALLOCATABLE    :: lambda(:,:)          !< lambda, ((PP_N+1)^2,nSides)
+  REAL,ALLOCATABLE    :: lambdaMax(:,:)          !< lambda, ((PP_N+1)^2,nSides)
+  REAL,ALLOCATABLE    :: Precond(:,:)         !< block diagonal preconditioner for lambda(nGP_face, nGP-face, nSides)
+  REAL,ALLOCATABLE    :: InvPrecondDiag(:)    !< 1/diagonal of Precond
+  REAL,ALLOCATABLE    :: qn_face(:,:)         !< for Neumann BC
+  REAL,ALLOCATABLE    :: RHS_face(:,:)        !< 
+  REAL,ALLOCATABLE    :: mv(:,:)              !< 
+  REAL,ALLOCATABLE    :: R(:,:)               !< 
+  REAL,ALLOCATABLE    :: V(:,:)               !< 
+  REAL,ALLOCATABLE    :: Z(:,:)               !< 
+END TYPE N_HDG_Surf
+
+! DG solution (JU or U) vectors)
+TYPE(N_HDG_Surf),ALLOCATABLE :: HDG_Surf_N(:) !< Solution variable for each equation, node and element,
+
+REAL,ALLOCATABLE    :: Tau(:)                 !< Stabilization parameter, per element
 REAL,ALLOCATABLE    :: lambdaLB(:,:,:)        !< lambda, ((PP_N+1)^2,nSides)
 REAL,ALLOCATABLE    :: iLocSides(:,:,:)       !< iLocSides, ((PP_N+1)^2,nSides) - used for I/O and ALLGATHERV of lambda
-REAL,ALLOCATABLE    :: RHS_vol(:,:,:)         !< Source RHS
-REAL,ALLOCATABLE    :: Tau(:)                 !< Stabilization parameter, per element
-REAL,ALLOCATABLE    :: Smat(:,:,:,:,:)        !< side to side matrix, (ngpface, ngpface, 6sides, 6sides, nElems)
-REAL,ALLOCATABLE    :: Precond(:,:,:)         !< block diagonal preconditioner for lambda(nGP_face, nGP-face, nSides)
-REAL,ALLOCATABLE    :: InvPrecondDiag(:,:)    !< 1/diagonal of Precond
-REAL,ALLOCATABLE    :: qn_face(:,:,:)         !< for Neumann BC
 REAL,ALLOCATABLE    :: qn_face_MagStat(:,:,:) !< for Neumann BC
 INTEGER             :: nDirichletBCsides
 INTEGER             :: ZeroPotentialSideID    !< SideID, where the solution is set zero to enforce convergence
@@ -91,10 +109,7 @@ INTEGER             :: HDGNonLinSolver        !< 1 Newton, 2 Fixpoint
 REAL,ALLOCATABLE    :: NonlinVolumeFac(:,:)   !< Factor for Volumeintegration necessary for nonlinear sources
 !mappings
 INTEGER             :: sideDir(6),pm(6),dirPm2iSide(2,3)
-REAL,ALLOCATABLE    :: delta(:,:)
-REAL,ALLOCATABLE    :: LL_minus(:,:),LL_plus(:,:)
-REAL,ALLOCATABLE    :: Domega(:,:)
-REAL,ALLOCATABLE    :: Lomega_m(:),Lomega_p(:)
+!REAL,ALLOCATABLE    :: delta(:,:)
 !CG parameters
 INTEGER             :: PrecondType=0          !< 0: none 1: block diagonal 2: only diagonal 3:Identity, debug
 INTEGER             :: MaxIterCG

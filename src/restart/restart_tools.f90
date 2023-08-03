@@ -38,7 +38,6 @@ CONTAINS
 SUBROUTINE RecomputeLambda(t)
 ! MODULES
 use MOD_Globals
-USE MOD_DG_Vars            ,ONLY: U
 USE MOD_PreProc
 USE MOD_HDG                ,ONLY: HDG
 USE MOD_TimeDisc_Vars      ,ONLY: iter
@@ -68,10 +67,10 @@ CALL Deposition()
 #ifdef PARTICLES
 IF(UseBRElectronFluid.AND.BRElectronsRemoved)THEN
   ! When using BR electron fluid model, all electrons are removed from the restart file
-  CALL HDG(t,U,iter,ForceCGSolverIteration_opt=.TRUE.)
+  CALL HDG(t,iter,ForceCGSolverIteration_opt=.TRUE.)
 ELSE
 #endif /*PARTICLES*/
-  CALL HDG(t,U,iter)
+  CALL HDG(t,iter)
 #ifdef PARTICLES
 END IF ! UseBRElectronFluid
 #endif /*PARTICLES*/

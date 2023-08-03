@@ -249,24 +249,26 @@ firstElem = 1
 lastElem  = nElems
 #endif /*USE_MPI*/
 
+CALL abort(__STAMP__,'not implemented:  change point set? not +-0.5?')
 IF (PP_N.NE.1) THEN
-  xGP_loc(0) = -0.5
+  xGP_loc(0) = -0.5!77350
   xGP_loc(1) = 0.5
   wGP_loc = 1.
   CALL InitializeVandermonde(PP_N,1,wBary,xGP,xGP_loc, Vdm_loc)
 END IF
 ! ElemNodeID and ElemsJ use compute node elems
 DO iElem = firstElem, lastElem
+  Nloc = N_DG(iElem)
   IF (PP_N.EQ.1) THEN
-    wGP_loc = wGP(0)
+    wGP_loc = N_Inter(PP_N)%wGP(0)
     DO j=0, PP_N; DO k=0, PP_N; DO l=0, PP_N
       DetJac(1,j,k,l)=1./ElemsJ(j,k,l,iElem)
     END DO; END DO; END DO
   ELSE
-    DO j=0, PP_N; DO k=0, PP_N; DO l=0, PP_N
-      DetLocal(1,j,k,l)=1./ElemsJ(j,k,l,iElem)
+    DO j=0, Nloc; DO k=0, Nloc; DO l=0, Nloc
+      DetLocal(1,j,k,l)=1./N_VolMesh_Shared(iElem)%sJ(j,k,l)
     END DO; END DO; END DO
-    CALL ChangeBasis3D(1,PP_N, 1, Vdm_loc, DetLocal(:,:,:,:),DetJac(:,:,:,:))
+    CALL ChangeBasis3D(1,Nloc, 1, Vdm_loc, DetLocal(:,:,:,:),DetJac(:,:,:,:))
   END IF
 #if USE_MPI
   ASSOCIATE( NodeVolume => NodeVolumeLoc )

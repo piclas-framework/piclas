@@ -118,9 +118,6 @@ IMPLICIT NONE
 #if USE_LOADBALANCE
 CHARACTER(20)               :: hilf
 #endif /*USE_LOADBALANCE*/
-#if USE_HDG
-LOGICAL                     :: DG_SolutionUExists
-#endif /*USE_HDG*/
 LOGICAL                     :: FileVersionExists
 INTEGER                     :: FileVersionHDF5Int
 !===================================================================================================================================
@@ -163,10 +160,6 @@ IF (LEN_TRIM(RestartFile).GT.0) THEN
   CALL abort(__STAMP__,'InitRestart: This case is not implemented here. Fix this!')
 #endif
 #elif USE_HDG
-  CALL DatasetExists(File_ID,'DG_SolutionU',DG_SolutionUExists)
-  IF(DG_SolutionUExists)THEN
-    CALL GetDataProps('DG_SolutionU',nVar_Restart,N_Restart,nElems_Restart,NodeType_Restart)
-  END IF
 #else
   CALL GetDataProps('DG_Solution',nVar_Restart,N_Restart,nElems_Restart,NodeType_Restart)
 #endif

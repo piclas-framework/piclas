@@ -1309,11 +1309,11 @@ REAL                           :: Vdm_NGeo_CLNGeo(0:NGeo,0:NGeo)
 !===================================================================================================================================
 
 ! small wBaryCL_NGEO
-ALLOCATE( wBaryCL_NGeo1(            0:1)    ,&
+ALLOCATE( wBaryCL_NGeo1(      0:1)    ,&
     XiCL_NGeo1(               0:1)    ,&
     Vdm_CLNGeo1_CLNGeo(0:NGeo,0:1)    ,&
     ! new for curved particle sides
-Vdm_Bezier(        0:NGeo,0:NGeo) ,&
+    Vdm_Bezier(        0:NGeo,0:NGeo) ,&
     sVdm_Bezier(       0:NGeo,0:NGeo) ,&
     D_Bezier(          0:NGeo,0:NGeo))
 
@@ -1371,7 +1371,7 @@ SUBROUTINE CalcParticleMeshMetrics()
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Globals
 USE MOD_PreProc
-USE MOD_Mesh_Vars              ,ONLY: Elem_xGP
+USE MOD_Mesh_Vars              ,ONLY: N_VolMesh,N_VolMesh_Shared
 USE MOD_Mesh_Vars              ,ONLY: NGeo,dXCL_NGeo
 USE MOD_Particle_Mesh_Vars
 #if USE_MPI
@@ -1407,8 +1407,8 @@ Elem_xGP_Shared (1:3    ,0:PP_N,0:PP_N,0:PP_N,1:nGlobalElems) => Elem_xGP_Array
 dXCL_NGeo_Shared(1:3,1:3,0:NGeo,0:NGeo,0:NGeo,1:nGlobalElems) => dXCL_NGeo_Array
 
 DO iElem = 1,nElems
-  Elem_xGP_Shared (:  ,:,:,:,offsetElem+iElem) = Elem_xGP (:  ,:,:,:,iElem)
-  dXCL_NGeo_Shared(:,:,:,:,:,offsetElem+iElem) = dXCL_NGeo(:,:,:,:,:,iElem)
+  Elem_xGP_Shared (:  ,:,:,:,offsetElem+iElem) = N_VolMesh(iElem)%Elem_xGP (:  ,:,:,:,iElem)
+  dXCL_NGeo_Shared(:,:,:,:,:,offsetElem+iElem) =                  dXCL_NGeo(:,:,:,:,:,iElem)
 END DO ! iElem = 1, nElems
 
 ! Communicate XCL and dXCL between compute node roots instead of calculating globally
@@ -1441,7 +1441,7 @@ END IF
 CALL BARRIER_AND_SYNC(Elem_xGP_Shared_Win ,MPI_COMM_SHARED)
 CALL BARRIER_AND_SYNC(dXCL_NGeo_Shared_Win,MPI_COMM_SHARED)
 #else
-Elem_xGP_Shared  => Elem_xGP
+N_VolMesh_Shared => N_VolMesh
 dXCL_NGeo_Shared => dXCL_NGeo
 #endif /*USE_MPI*/
 

@@ -72,9 +72,10 @@ USE MOD_Particle_Vars          ,ONLY: CalcBulkElectronTemp,BulkElectronTemp
 USE MOD_Equation_Vars          ,ONLY: E,Phi
 #endif /*PP_POIS*/
 #if USE_HDG
-USE MOD_HDG_Vars               ,ONLY: nGP_face,iLocSides,UseFPC,FPC,UseEPC,EPC
+USE MOD_HDG_Vars               ,ONLY: nGP_face,iLocSides,UseFPC,FPC,UseEPC,EPC,HDG_Surf_N
 #if PP_nVar==1
 USE MOD_Equation_Vars          ,ONLY: E,Et
+USE MOD_DG_Vars                ,ONLY: DG_Elems_master,DG_Elems_slave
 #elif PP_nVar==3
 USE MOD_Equation_Vars          ,ONLY: B
 #else
@@ -105,9 +106,9 @@ USE MOD_HDF5_Output_Particles  ,ONLY: AddBRElectronFluidToPartSource
 USE MOD_HDG_Vars               ,ONLY: CoupledPowerPotential,UseCoupledPowerPotential,CPPDataLength
 #endif /*PARTICLES*/
 #else
+#endif /*USE_HDG*/
 USE MOD_DG_vars                ,ONLY: N_DG
 USE MOD_Interpolation_Vars     ,ONLY: PREF_VDM,Nmax
-#endif /*USE_HDG*/
 USE MOD_Analyze_Vars           ,ONLY: OutputTimeFixed
 USE MOD_Output_Vars            ,ONLY: DoWriteStateToHDF5
 USE MOD_StringTools            ,ONLY: set_formatting,clear_formatting
@@ -148,6 +149,7 @@ REAL                           :: Utemp(PP_nVar,0:PP_N,0:PP_N,0:PP_N,PP_nElems)
 #elif USE_HDG
 #if PP_nVar==1
 REAL                           :: Utemp(1:4,0:PP_N,0:PP_N,0:PP_N,PP_nElems)
+INTEGER                        :: iElem,Nloc
 #elif PP_nVar==3
 REAL                           :: Utemp(1:3,0:PP_N,0:PP_N,0:PP_N,PP_nElems)
 #else /*PP_nVar=4*/
@@ -362,7 +364,7 @@ ASSOCIATE (&
   DEALLOCATE(GlobalUniqueSideID_tmp)
 
   ! Fill array with lambda values in global unique side sorted order
-  ALLOCATE(SortedLambda(PP_nVar,nGP_face,nSides))
+  ALLOCATE(SortedLambda(PP_nVar,nGP_face(NMax),nSides))
   SortedLambda = HUGE(1.)
   ! This loop goes over all nSides and is labelled iGlobSide because all unique global sides that each processors outputs must be
   ! transformed into master side orientation for read-in during restart later on
@@ -379,7 +381,8 @@ ASSOCIATE (&
     END IF ! nProcessors.GT.1
 #endif /*USE_MPI*/
 
-    CALL LambdaSideToMaster(iSide,SortedLambda(:,:,iGlobSide))
+    Nloc = MIN(DG_Elems_master(iSide),DG_Elems_slave(iSide))
+    CALL LambdaSideToMaster(iSide,SortedLambda(:,:,iGlobSide),Nloc)
 
   END DO ! iGlobSide = 1, nSides
 
@@ -414,7 +417,7 @@ ASSOCIATE (&
         SortedOffset => INT(SortedOffset,IK)            ,&
         SortedStart  => INT(SortedStart,IK)             ,&
         SortedEnd    => INT(SortedEnd,IK)               ,&
-        nGP_face     => INT(nGP_face,IK)                )
+        nGP_face     => INT(nGP_face(NMax),IK)                )
     CALL GatheredWriteArray(FileName,create=.FALSE.,&
         DataSetName = 'DG_SolutionLambda', rank=3,&
         nValGlobal  = (/PP_nVarTmp , nGP_face , nGlobalUniqueSides/) , &
@@ -424,13 +427,6 @@ ASSOCIATE (&
         RealArray   = SortedLambda(:,:,SortedStart:SortedEnd))
   END ASSOCIATE
   DEALLOCATE(SortedLambda)
-
-  CALL GatheredWriteArray(FileName,create=.FALSE.,&
-      DataSetName='DG_SolutionU', rank=5,&
-      nValGlobal=(/PP_nVarTmp , N+1_IK , N+1_IK , N+1_IK , nGlobalElems/) , &
-      nVal=      (/PP_nVarTmp , N+1_IK , N+1_IK , N+1_IK , PP_nElems/)    , &
-      offset=    (/0_IK       , 0_IK   , 0_IK   , 0_IK   , offsetElem/)   , &
-      collective=.TRUE., RealArray=U)
 
 #if (PP_nVar==1)
 #ifdef PARTICLES
@@ -449,8 +445,16 @@ ASSOCIATE (&
     Utemp(3:4,:,:,:,:) = E(2:3,:,:,:,:)
   ELSE
 #endif /*PARTICLES*/
-    Utemp(1,:,:,:,:)   = U(1,:,:,:,:)
-    Utemp(2:4,:,:,:,:) = E(1:3,:,:,:,:)
+    DO iElem = 1, INT(PP_nElems)
+      Nloc = N_DG(iElem)
+      IF(Nloc.EQ.Nmax)THEN
+        Utemp(1,:,:,:,iElem)   = U_N(iElem)%U(1,:,:,:)
+        Utemp(2:4,:,:,:,iElem) = U_N(iElem)%E(1:3,:,:,:)
+      ELSE
+        CALL ChangeBasis3D(1,Nloc,NMax,PREF_VDM(Nloc,NMax)%Vdm, U_N(iElem)%U(1,:,:,:),Utemp(1,:,:,:,iElem))
+        CALL ChangeBasis3D(3,Nloc,NMax,PREF_VDM(Nloc,NMax)%Vdm, U_N(iElem)%E(1:3,:,:,:),Utemp(2:4,:,:,:,iElem))
+      END IF ! Nloc.Eq.Nmax
+    END DO ! iElem = 1, nElems
 #ifdef PARTICLES
   END IF
 #endif /*PARTICLES*/
