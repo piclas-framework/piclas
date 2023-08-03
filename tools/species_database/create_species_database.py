@@ -5,15 +5,16 @@ import h5py
 from argparse import ArgumentParser
 from datetime import date
 import re
+import sys
 from functions_database import custom_sort_reactants, custom_sort_products
 
 parser = ArgumentParser(prog='create_species_database')
 parser.add_argument("-p", "--parameter", dest="ini_filename",
                     help="DSMC.ini file to read-in parameters", metavar="FILE", default="DSMC.ini")
 parser.add_argument("-e", "--electronic", dest="database_electronic",
-                    help="Electronic excitation database to read-in parameters", metavar="FILE", default="Electronic-State-Database.h5")
+                    help="Electronic excitation database to read-in parameters", metavar="FILE", default="")
 parser.add_argument("-c", "--crosssection", dest="database_crosssection",
-                    help="Crosssection database to read-in parameters", metavar="FILE", default="XSec_Database.h5")
+                    help="Crosssection database to read-in parameters", metavar="FILE", default="")
 parser.add_argument("-o", "--output", dest="database_output",
                     help="Output file name", metavar="FILE", default="SpeciesDatabase.h5")
 parser.add_argument("-r", "--reference", dest="reference",
@@ -24,8 +25,13 @@ parser.add_argument("-r", "--reference", dest="reference",
 args = parser.parse_args()
 
 h5_species      = h5py.File(args.database_output, 'a')
-h5_electronic   = h5py.File(args.database_electronic, 'r')
-h5_crosssection = h5py.File(args.database_crosssection, 'r')
+if args.database_electronic != "":
+  h5_electronic   = h5py.File(args.database_electronic, 'r')
+else:
+  print('No electronic state data is given as input.')
+if args.database_crosssection != "":
+  h5_crosssection = h5py.File(args.database_crosssection, 'r')#
+  print('No crosssection-data is given as input.')
 
 # Name of the DSMC.ini is the name of the ChemicalModel
 model_name = args.ini_filename[:-4]
@@ -110,23 +116,29 @@ with open(args.ini_filename) as file:
           spec_dict[species_count] = hdf_species
           # Check if the species data already exists in the database
           if hdf_species in hdf_species_group.keys():
-            if hdf_species in h5_electronic.keys():
-              del hdf_species_group[hdf_species]
-              hdf_input_data = h5_electronic[hdf_species]
-              print('Electronic states added to the database: ', hdf_species)
-              hdf_species = hdf_species_group.create_dataset(hdf_species,data=hdf_input_data)
-              hdf_species.attrs['* Created']   = date.today().strftime("%B %d, %Y")
+            if args.database_electronic != "":
+              if hdf_species in h5_electronic.keys():
+                dset = np.array(hdf_species_group.get(hdf_species))
+                if len(dset) == 1:
+                  del hdf_species_group[hdf_species]
+                  hdf_input_data = h5_electronic[hdf_species]
+                  print('Electronic states added to the database: ', hdf_species)
+                  hdf_species = hdf_species_group.create_dataset(hdf_species,data=hdf_input_data)
+                  hdf_species.attrs['* Created']   = date.today().strftime("%B %d, %Y")
+              else: 
+                hdf_species = hdf_species_group[hdf_species]
           elif hdf_species == 'electron':
             print('Species added to the database: ', hdf_species)
             hdf_species = hdf_species_group.create_dataset(hdf_species,data=[0])
             hdf_species.attrs['* Created']   = date.today().strftime("%B %d, %Y")
           else:
             # Add the electronic state data
-            if hdf_species in h5_electronic.keys():
-              hdf_input_data = h5_electronic[hdf_species]
-              print('Electronic states added to the database: ', hdf_species)
-              hdf_species = hdf_species_group.create_dataset(hdf_species,data=hdf_input_data)
-              hdf_species.attrs['* Created']   = date.today().strftime("%B %d, %Y")
+            if args.database_electronic != "":
+              if hdf_species in h5_electronic.keys():
+                hdf_input_data = h5_electronic[hdf_species]
+                print('Electronic states added to the database: ', hdf_species)
+                hdf_species = hdf_species_group.create_dataset(hdf_species,data=hdf_input_data)
+                hdf_species.attrs['* Created']   = date.today().strftime("%B %d, %Y")
             else:
               print('Species added to the database, but electronic levels are unknown: ', hdf_species)
               hdf_species = hdf_species_group.create_dataset(hdf_species,data=[0])
@@ -141,24 +153,23 @@ with open(args.ini_filename) as file:
 
         if not var_name[1].startswith('SpeciesName'):
           species_count = var_name[0]
+          if species_count not in spec_dict:
+            print('Error: the species', species_count, 'has no species name in the input file.')
+            sys.exit()
           hdf_species = spec_dict[species_count]
           hdf_species = hdf_species_group[hdf_species]
           # Check if the species parameter is already defiend
-          if var_name[1] in hdf_species.attrs:
-            print('Species parameter is already set: ', var_name[1]) 
-          else:
+          if var_name[1] not in hdf_species.attrs:
             # Float conversion
             if is_float(var_value):
               var_value = float(var_value)
             if var_name[1] not in logical_list and var_name[1] not in spec_attr_list:
               hdf_species.attrs[var_name[1]] = var_value
-              print('Species parameter set: ', var_name[1]) 
               # Previous-state read in as a string
             elif var_name[1] in spec_attr_list:
               var_value = str(int(var_value))
               spec_name_list = spec_dict[var_value]
               hdf_species.attrs[var_name[1]] = np.string_(spec_name_list)
-              print('Species parameter set: ', var_name[1]) 
               # Logicals
             else:
               if 'F' in var_value or 'false' in var_value:
@@ -166,18 +177,18 @@ with open(args.ini_filename) as file:
               else:
                 var_value = 1
               hdf_species.attrs[var_name[1]] = var_value
-              print('Species parameter set: ', var_name[1]) 
             # Write attributes for source and time of retrieval
             hdf_species.attrs['* Reference'] = args.reference
             hdf_species.attrs['* Created']   = date.today().strftime("%B %d, %Y")
 
 # Copy cross-section data if not defined already
-for dataset in h5_crosssection.keys():
-  if dataset in hdf_xsec_group.keys():
-    print('Cross-section is already set: ', dataset)
-  else:
-    print('Cross-section added: ', dataset)
-    hdf_xsec_group.copy(source=h5_crosssection[dataset],dest=hdf_xsec_group)
+if args.database_crosssection != "":
+  for dataset in h5_crosssection.keys():
+    if dataset in hdf_xsec_group.keys():
+      print('Cross-section is already set: ', dataset)
+    else:
+      print('Cross-section added: ', dataset)
+      hdf_xsec_group.copy(source=h5_crosssection[dataset],dest=hdf_xsec_group)
     
 # # Radiation data
 # species_list = ['N','O','NIon1','OIon1','H','Xe','XeIon1','XeIon2','Ar','ArIon1','ArIon2']
@@ -232,9 +243,15 @@ for key in ReacName_dict:
   if 'ReactionName' not in ReacName_dict[key]:
     ReactionName = ''
     for val in educt_dict[key]:
+      if val not in spec_dict:
+        print('Error: the reactant ', val, 'is not defined as a species.')
+        sys.exit()
       ReactionName = ReactionName + '+' + spec_dict[val]
     ReactionName = ReactionName + '_'
     for val in product_dict[key]:
+      if val not in spec_dict:
+        print('Error: the product ', val, 'is not defined as a species.')
+        sys.exit()
       ReactionName = ReactionName + '+' + spec_dict[val]
     ReactionName = ReactionName[1:]
     ReactionName = ReactionName.replace('_+','_')
@@ -371,9 +388,7 @@ with open(args.ini_filename) as file:
           hdf_reac = reac_dict[reac_count]
           hdf_reac = hdf_reac_group[hdf_reac]
           # Read-In of the attributes, check if the parameter is already defined
-          if var_name[1] in hdf_reac.attrs:
-            print('Reaction parameter is already set: ', var_name[1])
-          else:
+          if var_name[1] not in hdf_reac.attrs:
             if is_float(var_value):
               var_value = float(var_value)
             # Exclude certain parameters
@@ -383,6 +398,9 @@ with open(args.ini_filename) as file:
                 spec_name_list = []
                 var_value = var_value.replace(',0', '').replace('(/', '').replace('/)', '').split(',')
                 for val in var_value:
+                  if val not in spec_dict:
+                    print('Error: the species ', val, 'is not defined in the input file.')
+                    sys.exit()
                   spec_name_list.append(spec_dict[val])
                 hdf_reac.attrs[var_name[1]] = np.array(spec_name_list,dtype='S255')
               elif var_name[1] in str_list:
@@ -391,7 +409,6 @@ with open(args.ini_filename) as file:
                 # All other parameters
                 hdf_reac.attrs[var_name[1]] = var_value
                 # If not defined, the standard reaction model is set to TCE
-              print('Reaction parameter set: ', var_name[1]) 
               if 'ReactionModel' not in hdf_reac.attrs:
                 hdf_reac.attrs['ReactionModel'] = np.array(['TCE'],dtype='S255')       
             # Write attributes for source and time of retrieval
@@ -460,5 +477,7 @@ with open(args.ini_filename) as file:
 print('*** Database successfully built. ***')
 
 h5_species.close()
-h5_electronic.close()
-h5_crosssection.close()
+if args.database_electronic != "":
+  h5_electronic.close()
+if args.database_crosssection != "":
+  h5_crosssection.close()
