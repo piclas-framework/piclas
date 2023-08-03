@@ -122,6 +122,7 @@ USE MOD_Mesh_Tools             ,ONLY: BuildSideToNonUniqueGlobalSide
 #endif /*USE_HDG && USE_LOADBALANCE*/
 USE MOD_DG_Vars                ,ONLY: N_DG,DG_Elems_master,DG_Elems_slave
 USE MOD_Particle_Mesh_Vars     ,ONLY: meshScale
+USE MOD_Mesh_Vars              ,ONLY: firstMortarInnerSide,lastMortarInnerSide
 ! IMPLICIT VARIABLE HANDLING
 ! INPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -137,13 +138,15 @@ CHARACTER(LEN=255),INTENT(IN),OPTIONAL :: MeshFile_IN !< file name of mesh to be
 ! LOCAL VARIABLES
 REAL                :: x(3)
 REAL,POINTER        :: Coords(:,:,:,:,:)
-INTEGER             :: iElem,i,j,k,nElemsLoc
+INTEGER             :: iElem,i,j,k,nElemsLoc,MortarSideID
 !CHARACTER(32)       :: hilf2
 CHARACTER(LEN=255)  :: FileName
 INTEGER             :: Nloc,iSide,NSideMin
 REAL                :: RandVal
 !REAL                :: x1,r
 LOGICAL             :: validMesh,ExistFile,ReadNodes
+INTEGER             :: iMortar,nMortars
+INTEGER             :: SideID,locSide
 !===================================================================================================================================
 IF ((.NOT.InterpolationInitIsDone).OR.MeshInitIsDone) THEN
   CALL abort(__STAMP__,'InitMesh not ready to be called or already called.')
@@ -366,6 +369,7 @@ IF (ABS(meshMode).GT.1) THEN
     ! Allocate with max. polynomial degree of the two master-slave sides
     Nloc     = MAX(DG_Elems_master(iSide),DG_Elems_slave(iSide))
     NSideMin = MIN(DG_Elems_master(iSide),DG_Elems_slave(iSide))
+    N_SurfMesh(iSide)%NSideMin = NSideMin
     ALLOCATE(N_SurfMesh(iSide)%Face_xGP (3,0:Nloc,0:Nloc))
     ALLOCATE(N_SurfMesh(iSide)%NormVec  (3,0:Nloc,0:Nloc))
     ALLOCATE(N_SurfMesh(iSide)%TangVec1 (3,0:Nloc,0:Nloc))
@@ -379,6 +383,25 @@ IF (ABS(meshMode).GT.1) THEN
     N_SurfMesh(iSide)%SurfElem = 0.
     N_SurfMesh(iSide)%SurfElemMin= 0.
   END DO ! iSide = 1, nSides
+
+#if USE_HDG
+  ! Mortars: Get minimum of all sides the Mortar interface
+  DO MortarSideID=firstMortarInnerSide,lastMortarInnerSide
+    nMortars = MERGE(4,2,MortarType(1,MortarSideID).EQ.1)
+    locSide  = MortarType(2,MortarSideID)
+    NSideMin = N_SurfMesh(MortarSideID)%NSideMin
+    DO iMortar = 1,nMortars
+      SideID = MortarInfo(MI_SIDEID,iMortar,locSide) !small SideID
+      NSideMin = MIN(NSideMin,N_SurfMesh(SideID)%NSideMin)
+    END DO !iMortar
+
+    N_SurfMesh(MortarSideID)%NSideMin = NSideMin
+    DO iMortar = 1,nMortars
+      SideID = MortarInfo(MI_SIDEID,iMortar,locSide) !small SideID
+      N_SurfMesh(SideID)%NSideMin = NSideMin
+    END DO !iMortar
+  END DO !MortarSideID
+#endif /*USE_HDG*/
 
 #ifdef maxwell
 #if defined(ROS) || defined(IMPA)

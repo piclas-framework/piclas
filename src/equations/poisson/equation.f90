@@ -251,15 +251,6 @@ DO iElem = 1, PP_nElems
   chi(iElem)%tensInv(:,:,:,:,:) = chi(iElem)%tens(:,:,:,:,:)
 END DO ! iElem = 1, PP_nElems
 
-!DO iSide = 1, nSides
-  !NSideMin = MIN(DG_Elems_master(iSide),DG_Elems_slave(iSide))
-  !ALLOCATE(chi(iSide)%tensFace(1:3,1:3,0:NSideMin,0:NSideMin))
-  !chi(iSide)%tensFace(:,:,:,:) = 0.
-  !chi(iSide)%tensFace(1,1,:,:) = 1.
-  !chi(iSide)%tensFace(2,2,:,:) = 1.
-  !chi(iSide)%tensFace(3,3,:,:) = 1.
-!END DO ! iSide = 1, nSides
-
 alpha_shape = GETINT('AlphaShape','2')
 rCutoff     = GETREAL('r_cutoff','1.')
 ! Compute factor for shape function

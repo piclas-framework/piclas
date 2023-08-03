@@ -109,6 +109,8 @@ TYPE, PUBLIC :: SurfMesh
   REAL,ALLOCATABLE :: SurfElem(:,:)    !< surface area for each side        (    0:N,0:N,nSides)
   REAL,ALLOCATABLE :: SurfElemMin(:,:)    !< surface area for each side        (    0:N,0:N,nSides)
 
+  INTEGER          :: NSideMin
+
 END TYPE SurfMesh
 
 TYPE(SurfMesh),ALLOCATABLE  :: N_SurfMesh(:)        !< Array to store Mesh metrics object "SurfMesh"

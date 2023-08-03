@@ -111,7 +111,7 @@ USE MOD_Basis                 ,ONLY: PolynomialDerivativeMatrix
 USE MOD_Interpolation_Vars    ,ONLY: N_Inter,NMax
 USE MOD_Elem_Mat              ,ONLY: Elem_Mat,BuildPrecond
 USE MOD_ReadInTools           ,ONLY: GETLOGICAL,GETREAL,GETINT
-USE MOD_Mesh_Vars             ,ONLY: nBCSides
+USE MOD_Mesh_Vars             ,ONLY: nBCSides,N_SurfMesh
 USE MOD_Mesh_Vars             ,ONLY: BoundaryType,nSides,BC
 USE MOD_Mesh_Vars             ,ONLY: nGlobalMortarSides,nMortarMPISides,N_VolMesh
 USE MOD_Mesh_Vars             ,ONLY: DoSwapMesh
@@ -514,7 +514,7 @@ DO iElem = 1, PP_nElems
 END DO ! iElem = 1, PP_nElems
 
 DO SideID = 1, nSides
-  NSideMin = MIN(DG_Elems_master(SideID),DG_Elems_slave(SideID))
+  NSideMin = N_SurfMesh(SideID)%NSideMin
   ALLOCATE(HDG_Surf_N(SideID)%lambda(PP_nVar,nGP_face(NSideMin)))
   HDG_Surf_N(SideID)%lambda=0.
   NSideMax = MAX(DG_Elems_master(SideID),DG_Elems_slave(SideID))
@@ -1970,7 +1970,7 @@ DO iVar = 1, PP_nVar
 #endif
   DO BCsideID=1,nDirichletBCSides
     SideID=DirichletBC(BCsideID)
-    Nloc = MIN(DG_Elems_master(SideID),DG_Elems_slave(SideID))
+    Nloc = N_SurfMesh(SideID)%NSideMin
     BCType =BoundaryType(BC(SideID),BC_TYPE)
     BCState=BoundaryType(BC(SideID),BC_STATE)
     SELECT CASE(BCType)
@@ -2085,7 +2085,7 @@ END DO !iElem
 !replace lambda with exact function (debugging)
 IF(ExactLambda)THEN
   DO SideID=1,nSides
-    Nloc = MIN(DG_Elems_master(SideID),DG_Elems_slave(SideID))
+    Nloc = N_SurfMesh(SideID)%NSideMin
     DO q=0,Nloc; DO p=0,Nloc
       r=q*(Nloc+1) + p+1
       CALL ExactFunc(IniExactFunc,N_SurfMesh(SideID)%Face_xGP(:,p,q),HDG_Surf_N(SideID)%lambda( 1:PP_nVar,r))
@@ -2111,7 +2111,7 @@ DO iVar = 1, PP_nVar
                           N_HDG(iElem)%Ehat(:,:,iLocSide), nGP_face(Nloc), &
                           rtmp(1:nGP_face(Nloc)),1,0.,& !1: add to RHS_face, 0: set value
                           RHS_facetmp(1:nGP_face(Nloc)),1)
-      NSideMin = MIN(DG_Elems_master(SideID),DG_Elems_slave(SideID))
+      NSideMin = N_SurfMesh(SideID)%NSideMin
       IF(Nloc.EQ.NSideMin)THEN
         HDG_Surf_N(SideID)%RHS_face(iVar,:) = HDG_Surf_N(SideID)%RHS_face(iVar,:) + RHS_facetmp(1:nGP_face(Nloc))
       ELSE
@@ -2180,10 +2180,7 @@ CALL Mask_MPIsides(PP_nVar,RHS_face)
 #if USE_LOADBALANCE
 CALL LBStartTime(tLBStart)
 #endif /*USE_LOADBALANCE*/
-IF(lastMortarInnerSide.ge.firstMortarInnerSide)THEN
-  CALL abort(__STAMP__,'SmallToBigMortar_HDG not implemented')
-END IF ! lastMortarInnerSide.ge.firstMortarInnerSide
-!CALL SmallToBigMortar_HDG(PP_nVar,RHS_face(1:PP_nVar,1:nGP_Face,1:nSides))
+CALL SmallToBigMortar_HDG(PP_nVar,0) ! RHS_face(1:PP_nVar,1:nGP_Face,1:nSides))
 #if USE_LOADBALANCE
 CALL LBPauseTime(LB_DG,tLBStart) ! Pause/Stop time measurement
 #endif /*USE_LOADBALANCE*/
@@ -2297,7 +2294,7 @@ DO iVar=1, PP_nVar
   END IF ! UseFPC
 
   ! PETSc Calculate lambda at small mortars from big mortars
-  CALL BigToSmallMortar_HDG(1,lambda)
+  CALL BigToSmallMortar_HDG(1) ! only lambda
 #if USE_MPI
   CALL StartReceiveMPIData(1,lambda,1,nSides, RecRequest_U,SendID=1) ! Receive YOUR
   CALL StartSendMPIData(   1,lambda,1,nSides,SendRequest_U,SendID=1) ! Send MINE
@@ -2317,7 +2314,7 @@ DO iVar=1, PP_nVar
     ! for post-proc
     DO iLocSide=1,6
       SideID=ElemToSide(E2S_SIDE_ID,iLocSide,iElem)
-      NSideMin = MIN(DG_Elems_master(SideID),DG_Elems_slave(SideID))
+      NSideMin = N_SurfMesh(SideID)%NSideMin
       IF(Nloc.EQ.NSideMin)THEN
         lambdatmp(1:nGP_face(Nloc)) = HDG_Surf_N(SideID)%lambda(iVar,:)
       ELSE
@@ -2529,7 +2526,7 @@ CALL LBSplitTime(LB_DG,tLBStart)
 #if USE_MPI
 CALL Mask_MPISides(PP_nVar,RHS_Face)
 #endif /*USE_MPI*/
-CALL SmallToBigMortar_HDG(PP_nVar,RHS_face(1:PP_nVar,1:nGP_Face,1:nSides))
+CALL SmallToBigMortar_HDG(PP_nVar,0)!RHS_face(1:PP_nVar,1:nGP_Face,1:nSides))
 
 #if USE_LOADBALANCE
 CALL LBSplitTime(LB_DGCOMM,tLBStart)
@@ -3099,7 +3096,7 @@ USE MOD_Globals
 USE MOD_DG_Vars            ,ONLY: DG_Elems_master,DG_Elems_slave,N_DG
 USE MOD_HDG_Vars           ,ONLY: nGP_face,nDirichletBCSides,DirichletBC,ZeroPotentialSideID,ZeroPotentialValue
 USE MOD_HDG_Vars           ,ONLY: HDG_Surf_N,N_HDG
-USE MOD_Mesh_Vars          ,ONLY: nSides, SideToElem, ElemToSide, nMPIsides_YOUR
+USE MOD_Mesh_Vars          ,ONLY: nSides, SideToElem, ElemToSide, nMPIsides_YOUR,N_SurfMesh
 USE MOD_FillMortar_HDG     ,ONLY: BigToSmallMortar_HDG,SmallToBigMortar_HDG
 #if USE_MPI
 USE MOD_MPI_Vars
@@ -3140,7 +3137,7 @@ lambdatmp = 0.
 #if USE_LOADBALANCE
 CALL LBStartTime(tLBStart) ! Start time measurement
 #endif /*USE_LOADBALANCE*/
-CALL BigToSmallMortar_HDG(1)
+CALL BigToSmallMortar_HDG(1) ! only lambda
 #if USE_LOADBALANCE
 CALL LBPauseTime(LB_DG,tLBStart) ! Pause/Stop time measurement
 #endif /*USE_LOADBALANCE*/
@@ -3169,7 +3166,7 @@ END IF ! DoVZ
 
 DO SideID=firstSideID,lastSideID
 
-  NSideMin = MIN(DG_Elems_master(SideID),DG_Elems_slave(SideID))
+  NSideMin = N_SurfMesh(SideID)%NSideMin
   !master element
   locSideID = SideToElem(S2E_LOC_SIDE_ID,SideID)
   IF(locSideID.NE.-1)THEN
@@ -3187,7 +3184,7 @@ DO SideID=firstSideID,lastSideID
     jSideID(:) = ElemToSide(E2S_SIDE_ID,:,ElemID)
     DO jLocSide = 1,6
       SideID2 = jSideID(jLocSide)
-      NSideMin = MIN(DG_Elems_master(SideID2),DG_Elems_slave(SideID2))
+      NSideMin = N_SurfMesh(SideID2)%NSideMin
       CALL DGEMV('N',nGP_face(Nloc),nGP_face(Nloc),1., &
                         N_HDG(ElemID)%Smat(:,:,jLocSide,locSideID), nGP_face(Nloc), &
                         lambdatmp(1:nGP_face(Nloc)),1,0.,& ! !: add to mv, 0: set mv
@@ -3204,7 +3201,7 @@ DO SideID=firstSideID,lastSideID
     END DO !jLocSide
   END IF !locSideID.NE.-1
 
-  NSideMin = MIN(DG_Elems_master(SideID),DG_Elems_slave(SideID))
+  NSideMin = N_SurfMesh(SideID)%NSideMin
   ! neighbour element
   locSideID = SideToElem(S2E_NB_LOC_SIDE_ID,SideID)
   IF(locSideID.NE.-1)THEN
@@ -3222,7 +3219,7 @@ DO SideID=firstSideID,lastSideID
     END IF ! Nloc.GT.NSideMin
     DO jLocSide = 1,6
       SideID2 = jSideID(jLocSide)
-      NSideMin = MIN(DG_Elems_master(SideID2),DG_Elems_slave(SideID2))
+      NSideMin = N_SurfMesh(SideID2)%NSideMin
       CALL DGEMV('N',nGP_face(Nloc),nGP_face(Nloc),1., &
                         N_HDG(ElemID)%Smat(:,:,jLocSide,locSideID), nGP_face(Nloc), &
                         lambdatmp(1:nGP_face(Nloc)),1,0.,& ! !: add to mv, 0: set mv
@@ -3291,7 +3288,7 @@ CALL Mask_MPIsides(1,mv)
 #if USE_LOADBALANCE
 CALL LBStartTime(tLBStart) ! Start time measurement
 #endif /*USE_LOADBALANCE*/
-CALL SmallToBigMortar_HDG(1)
+CALL SmallToBigMortar_HDG(1,MERGE(2, 1, DoVZ)) ! CALL SmallToBigMortar_HDG(1,mv)
 
 #if (PP_nVar!=1)
 IF (iVar.EQ.4) THEN
@@ -3347,7 +3344,7 @@ USE MOD_MPI_Vars           ,ONLY: MPIW8TimeField,MPIW8CountField
 #endif /*defined(MEASURE_MPI_WAIT)*/
 USE MOD_DG_Vars            ,ONLY: DG_Elems_master,DG_Elems_slave
 USE MOD_HDG_Vars           ,ONLY: HDG_Surf_N
-USE MOD_Mesh_Vars          ,ONLY: nSides
+USE MOD_Mesh_Vars          ,ONLY: nSides,N_SurfMesh
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
@@ -3377,7 +3374,7 @@ CALL LBStartTime(tLBStart) ! Start time measurement
 #endif /*USE_LOADBALANCE*/
 Resu=0.
 DO SideID = 1, nSides
-  NSideMin = MIN(DG_Elems_master(SideID),DG_Elems_slave(SideID))
+  NSideMin = N_SurfMesh(SideID)%NSideMin
   Resu = Resu + DOT_PRODUCT(HDG_Surf_N(SideID)%R(1,:),HDG_Surf_N(SideID)%Z(1,:))
 END DO ! SideID = 1, nSides
 #if USE_LOADBALANCE
@@ -3417,7 +3414,7 @@ USE MOD_MPI_Vars           ,ONLY: MPIW8TimeField,MPIW8CountField
 #endif /*defined(MEASURE_MPI_WAIT)*/
 USE MOD_DG_Vars            ,ONLY: DG_Elems_master,DG_Elems_slave
 USE MOD_HDG_Vars           ,ONLY: HDG_Surf_N
-USE MOD_Mesh_Vars          ,ONLY: nSides
+USE MOD_Mesh_Vars          ,ONLY: nSides,N_SurfMesh
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
@@ -3447,7 +3444,7 @@ CALL LBStartTime(tLBStart) ! Start time measurement
 #endif /*USE_LOADBALANCE*/
 Resu=0.
 DO SideID = 1, nSides
-  NSideMin = MIN(DG_Elems_master(SideID),DG_Elems_slave(SideID))
+  NSideMin = N_SurfMesh(SideID)%NSideMin
   Resu = Resu + DOT_PRODUCT(HDG_Surf_N(SideID)%R(1,:),HDG_Surf_N(SideID)%V(1,:))
 END DO ! SideID = 1, nSides
 #if USE_LOADBALANCE
@@ -3487,7 +3484,7 @@ USE MOD_MPI_Vars           ,ONLY: MPIW8TimeField,MPIW8CountField
 #endif /*defined(MEASURE_MPI_WAIT)*/
 USE MOD_DG_Vars            ,ONLY: DG_Elems_master,DG_Elems_slave
 USE MOD_HDG_Vars           ,ONLY: HDG_Surf_N
-USE MOD_Mesh_Vars          ,ONLY: nSides
+USE MOD_Mesh_Vars          ,ONLY: nSides,N_SurfMesh
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
@@ -3517,7 +3514,7 @@ CALL LBStartTime(tLBStart) ! Start time measurement
 #endif /*USE_LOADBALANCE*/
 Resu=0.
 DO SideID = 1, nSides
-  NSideMin = MIN(DG_Elems_master(SideID),DG_Elems_slave(SideID))
+  NSideMin = N_SurfMesh(SideID)%NSideMin
   Resu = Resu + DOT_PRODUCT(HDG_Surf_N(SideID)%V(1,:),HDG_Surf_N(SideID)%Z(1,:))
 END DO ! SideID = 1, nSides
 #if USE_LOADBALANCE
@@ -3557,7 +3554,7 @@ USE MOD_MPI_Vars           ,ONLY: MPIW8TimeField,MPIW8CountField
 #endif /*defined(MEASURE_MPI_WAIT)*/
 USE MOD_DG_Vars            ,ONLY: DG_Elems_master,DG_Elems_slave
 USE MOD_HDG_Vars           ,ONLY: HDG_Surf_N
-USE MOD_Mesh_Vars          ,ONLY: nSides
+USE MOD_Mesh_Vars          ,ONLY: nSides,N_SurfMesh
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
@@ -3587,7 +3584,7 @@ CALL LBStartTime(tLBStart) ! Start time measurement
 #endif /*USE_LOADBALANCE*/
 Resu=0.
 DO SideID = 1, nSides
-  NSideMin = MIN(DG_Elems_master(SideID),DG_Elems_slave(SideID))
+  NSideMin = N_SurfMesh(SideID)%NSideMin
   Resu = Resu + DOT_PRODUCT(HDG_Surf_N(SideID)%R(1,:),HDG_Surf_N(SideID)%R(1,:))
 END DO ! SideID = 1, nSides
 #if USE_LOADBALANCE

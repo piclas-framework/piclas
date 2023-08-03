@@ -168,7 +168,7 @@ DO iElem=1,PP_nElems
                      l1=> N_Mesh(Nloc)%VolToSideIJKA(1,g1,g2,g3,Flip(iLocSide),iLocSide), &
                      l2=> N_Mesh(Nloc)%VolToSideIJKA(2,g1,g2,g3,Flip(iLocSide),iLocSide)  )
              iSide = SideID(iLocSide)
-             NSideMin = MIN(DG_Elems_master(iSide),DG_Elems_slave(iSide))
+             NSideMin = N_SurfMesh(iSide)%NSideMin
              IF(Nloc.EQ.NSideMin)THEN
                Taus(pm(iLocSide),SideDir(iLocSide))=N_Inter(Nloc)%wGP(l1)*N_Inter(Nloc)%wGP(l2)*N_SurfMesh(iSide)%SurfElemMin(p,q)
              ELSE  
@@ -324,7 +324,7 @@ DO iElem=1,PP_nElems
     DO q=0,Nloc; DO p=0,Nloc
       i=q*(Nloc+1)+p+1
       iSide = SideID(jLocSide)
-      NSideMin = MIN(DG_Elems_master(iSide),DG_Elems_slave(iSide))
+      NSideMin = N_SurfMesh(iSide)%NSideMin
       IF(Nloc.EQ.NSideMin)THEN
         Fdiag_i = - Tau(ielem)*N_SurfMesh(SideID(jLocSide))%SurfElemMin(p,q)*N_Inter(Nloc)%wGP(p)*N_Inter(Nloc)%wGP(q)
       ELSE
@@ -486,7 +486,7 @@ USE MOD_MPI            ,ONLY: StartReceiveMPIData,StartSendMPIData,FinishExchang
 #if USE_PETSC
 USE PETSc
 #else
-USE MOD_Mesh_Vars      ,ONLY: nSides,SideToElem,nMPIsides_YOUR
+USE MOD_Mesh_Vars      ,ONLY: nSides,SideToElem,nMPIsides_YOUR,N_SurfMesh
 USE MOD_FillMortar_HDG ,ONLY: SmallToBigMortarPrecond_HDG
 USE MOD_DG_Vars        ,ONLY: DG_Elems_master, DG_Elems_slave,N_DG
 #endif
@@ -536,7 +536,7 @@ CASE(0)
 ! do nothing
 CASE(1)
   DO SideID=1,nSides
-    Nloc = MIN(DG_Elems_master(SideID),DG_Elems_slave(SideID))
+    Nloc = N_SurfMesh(SideID)%NSideMin
     IF(.NOT.ALLOCATED(HDG_Surf_N(SideID)%Precond)) ALLOCATE(HDG_Surf_N(SideID)%Precond(nGP_face(Nloc),nGP_face(Nloc)))
     HDG_Surf_N(SideID)%Precond = 0.
     !master element
@@ -568,7 +568,7 @@ CASE(1)
 CASE(2)
   CALL abort(__STAMP__,'not implemented: N_DG(ElemID) != Nloc')
   DO SideID=1,nSides
-    Nloc = MIN(DG_Elems_master(SideID),DG_Elems_slave(SideID))
+    Nloc = N_SurfMesh(SideID)%NSideMin
     IF(.NOT.ALLOCATED(HDG_Surf_N(SideID)%InvPrecondDiag)) ALLOCATE(HDG_Surf_N(SideID)%InvPrecondDiag(nGP_face(Nloc)))
     HDG_Surf_N(SideID)%InvPrecondDiag = 0.
     !master element
@@ -615,7 +615,7 @@ SUBROUTINE PostProcessGradientHDG()
 ! MODULES
 USE MOD_Preproc
 USE MOD_HDG_Vars
-USE MOD_Mesh_Vars          ,ONLY: ElemToSide,N_VolMesh,N_Mesh,nSides
+USE MOD_Mesh_Vars          ,ONLY: ElemToSide,N_VolMesh,N_Mesh,nSides,N_SurfMesh
 USE MOD_DG_Vars            ,ONLY: DG_Elems_master,DG_Elems_slave,N_DG,U_N
 USE MOD_Interpolation_Vars ,ONLY: N_Inter,PREF_VDM,NMax
 USE MOD_ChangeBasis        ,ONLY: ChangeBasis2D
@@ -634,7 +634,7 @@ REAL             :: aCon(3,3),q_loc
 REAL,DIMENSION(1,0:NMax,0:NMax) :: tmp2,tmp3
 !===================================================================================================================================
 DO iSide = 1, nSides
-  NSideMin = MIN(DG_Elems_master(iSide),DG_Elems_slave(iSide))
+  NSideMin = N_SurfMesh(iSide)%NSideMin
   NSideMax = MAX(DG_Elems_master(iSide),DG_Elems_slave(iSide))
   IF(NSideMin.EQ.NSideMax)THEN
     HDG_Surf_N(iSide)%lambdaMax(1,:) = HDG_Surf_N(iSide)%lambda(1,:)
@@ -689,8 +689,8 @@ DO iElem=1,PP_nElems
                       q_m => N_Mesh(Nloc)%VolToSideA(2,g1,g2,g3,Flip(mLocSide),mLocSide), &
                       p_p => N_Mesh(Nloc)%VolToSideA(1,g1,g2,g3,Flip(pLocSide),pLocSide), &
                       q_p => N_Mesh(Nloc)%VolToSideA(2,g1,g2,g3,Flip(pLocSide),pLocSide), &
-                      mNSideMin => MIN(DG_Elems_master(SideID(mLocSide)),DG_Elems_slave(SideID(mLocSide))), &
-                      pNSideMin => MIN(DG_Elems_master(SideID(pLocSide)),DG_Elems_slave(SideID(pLocSide)))  )
+                      mNSideMin => N_SurfMesh(SideID(mLocSide))%NSideMin, &
+                      pNSideMin => N_SurfMesh(SideID(pLocSide))%NSideMin  )
               idx_m = q_m*(Nloc+1)+p_m+1
               idx_p = q_p*(Nloc+1)+p_p+1
 

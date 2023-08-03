@@ -668,7 +668,7 @@ DO iLocSide=1,6
 #if USE_HDG
   ! Get SurfElemMin
   NSideMax = MAX(DG_Elems_master(SideID),DG_Elems_slave(SideID))
-  NSideMin = MIN(DG_Elems_master(SideID),DG_Elems_slave(SideID))
+  NSideMin = N_SurfMesh(SideID)%NSideMin
   IF(NSideMax.EQ.NSideMin)THEN
     N_SurfMesh(SideID)%SurfElemMin(:,:) = N_SurfMesh(SideID)%SurfElem(:,:)
   ELSE
@@ -678,10 +678,7 @@ DO iLocSide=1,6
     CALL ChangeBasis2D(1, NSideMax, NSideMax, N_Inter(NSideMax)%sVdm_Leg, N_SurfMesh(SideID)%SurfElem(0:NSideMax,0:NSideMax), tmp(1,0:NSideMax,0:NSideMax))
      !Switch back to nodal basis
     CALL ChangeBasis2D(1, NSideMin, NSideMin, N_Inter(NSideMin)%Vdm_Leg , tmp(1,0:NSideMax,0:NSideMax)                      , N_SurfMesh(SideID)%SurfElemMin(0:NSideMin,0:NSideMin))
-    !mvtmp(nGP_face(NSideMin)+1:nGP_face(Nloc)) = 0.
-    !WRITE (*,*) "mvtmp(1:nGP_face(Nloc)) =", mvtmp(1:nGP_face(Nloc))
 
-    !CALL ChangeBasis2D(1, NSideMax, NSideMin, PREF_VDM(NSideMax,NSideMin)%Vdm , N_SurfMesh(SideID)%SurfElem(:,:), N_SurfMesh(SideID)%SurfElemMin(:,:))
   END IF ! NSideMax.EQ.NSideMin
 #endif /*USE_HDG*/
 

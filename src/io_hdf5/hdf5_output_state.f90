@@ -72,6 +72,7 @@ USE MOD_Particle_Vars          ,ONLY: CalcBulkElectronTemp,BulkElectronTemp
 USE MOD_Equation_Vars          ,ONLY: E,Phi
 #endif /*PP_POIS*/
 #if USE_HDG
+USE MOD_Mesh_Vars              ,ONLY: N_SurfMesh
 USE MOD_HDG_Vars               ,ONLY: nGP_face,iLocSides,UseFPC,FPC,UseEPC,EPC,HDG_Surf_N
 #if PP_nVar==1
 USE MOD_Equation_Vars          ,ONLY: E,Et
@@ -381,7 +382,7 @@ ASSOCIATE (&
     END IF ! nProcessors.GT.1
 #endif /*USE_MPI*/
 
-    Nloc = MIN(DG_Elems_master(iSide),DG_Elems_slave(iSide))
+    Nloc = N_SurfMesh(iSide)%NSideMin
     CALL LambdaSideToMaster(iSide,SortedLambda(:,:,iGlobSide),Nloc)
 
   END DO ! iGlobSide = 1, nSides

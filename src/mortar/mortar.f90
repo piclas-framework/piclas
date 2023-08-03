@@ -55,7 +55,7 @@ SUBROUTINE InitMortar()
 ! MODULES
 USE MOD_Preproc
 USE MOD_Globals
-USE MOD_Interpolation_Vars ,ONLY: InterpolationInitIsDone,NodeType
+USE MOD_Interpolation_Vars ,ONLY: InterpolationInitIsDone,NodeType,NMin,NMax
 USE MOD_Interpolation      ,ONLY: GetNodesAndWeights
 USE MOD_Mortar_Vars
 #if USE_LOADBALANCE
@@ -67,12 +67,20 @@ IMPLICIT NONE
 REAL                          :: error
 REAL,DIMENSION(0:PP_N)        :: test1,test2,xi_Gauss,w_Gauss  ! Gauss Nodes
 #endif
+INTEGER           :: Nloc
 !==================================================================================================================================
 IF(MortarInitIsDone.OR.(.NOT.InterpolationInitIsDone))THEN
    CALL abort(__STAMP__,'InitMortar not ready to be called or already called.')
 END IF
 
 ! DG interfaces
+ALLOCATE(N_Mortar(NMin:NMax))
+DO Nloc = NMin, NMax
+  ALLOCATE(N_Mortar(Nloc)%M_0_1(0:Nloc,0:Nloc))
+  ALLOCATE(N_Mortar(Nloc)%M_0_2(0:Nloc,0:Nloc))
+  CALL MortarBasis_BigToSmall(0, Nloc, NodeType, N_Mortar(Nloc)%M_0_1, N_Mortar(Nloc)%M_0_2)
+END DO ! Nloc = NMin, NMax
+
 ALLOCATE(M_0_1(0:PP_N,0:PP_N))
 ALLOCATE(M_0_2(0:PP_N,0:PP_N))
 ALLOCATE(M_1_0(0:PP_N,0:PP_N))
@@ -104,8 +112,9 @@ END SUBROUTINE InitMortar
 !==================================================================================================================================
 SUBROUTINE MortarBasis_BigToSmall(FVE,N_In,NodeType_In,M_0_1,M_0_2)
 ! MODULES
-USE MOD_Basis,             ONLY: InitializeVandermonde
-USE MOD_Interpolation     ,ONLY: getNodesAndWeights
+USE MOD_globals       ,ONLY: abort
+USE MOD_Basis         ,ONLY: InitializeVandermonde
+USE MOD_Interpolation ,ONLY: getNodesAndWeights
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT/OUTPUT VARIABLES
@@ -127,7 +136,7 @@ IF (FVE.EQ.0) THEN ! DG Element
 
 ELSE ! FV Element
 
-STOP "FV-Subcells not implemented!"
+  CALL abort(__STAMP__,'FV-Subcells not implemented!')
 
 END IF
 
@@ -148,8 +157,9 @@ END SUBROUTINE MortarBasis_BigToSmall
 !==================================================================================================================================
 SUBROUTINE MortarBasis_SmallToBig(FVE,N_In,NodeType_In,M_1_0,M_2_0)
 ! MODULES
-USE MOD_Basis,             ONLY: LegendrePolynomialAndDerivative
-USE MOD_Interpolation     ,ONLY: getNodesAndWeights,GetVandermonde
+USE MOD_globals       ,ONLY: abort
+USE MOD_Basis         ,ONLY: LegendrePolynomialAndDerivative
+USE MOD_Interpolation ,ONLY: getNodesAndWeights,GetVandermonde
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT/OUTPUT VARIABLES
@@ -194,7 +204,7 @@ IF (FVE.EQ.0) THEN ! DG Element
   M_2_0=MATMUL(Vdm_Leg,MATMUL(TRANSPOSE(Vphi2),VGP))
 
 ELSE ! FV element
-STOP "FV-Subcells not implemented!"
+  CALL abort(__STAMP__,'FV-Subcells not implemented!')
 END IF
 ! later the transposed version is mostly used
 ! ATTENTION: MortarBasis_SmallToBig computes the transposed matrices, which is useful when they are used
@@ -216,6 +226,7 @@ SDEALLOCATE(M_0_1)
 SDEALLOCATE(M_0_2)
 SDEALLOCATE(M_1_0)
 SDEALLOCATE(M_2_0)
+SDEALLOCATE(N_Mortar)
 MortarInitIsDone=.FALSE.
 END SUBROUTINE FinalizeMortar
 
