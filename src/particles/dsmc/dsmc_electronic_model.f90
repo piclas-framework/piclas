@@ -1297,9 +1297,7 @@ CALL H5CLOSE_F(err)
 
 ! Check if the ground state is defined at 0K
 IF(SpecDSMC(iSpec)%ElectronicState(2,0).NE.0.0) THEN
-  CALL Abort(&
-  __STAMP__,&
-'ERROR in electronic energy levels: given ground state is not zero! Species: ', IntInfoOpt=iSpec)
+  CALL Abort(__STAMP__,'ERROR in electronic energy levels: given ground state is not zero! Species: ', IntInfoOpt=iSpec)
 END IF
 
 IF (DSMC%ElectronicModel.EQ.4) THEN
@@ -1332,39 +1330,40 @@ SUBROUTINE SortEnergies(ElectronicState, nQuants)
 !===================================================================================================================================
 !>
 !===================================================================================================================================
-! use module
-  USE MOD_Globals
-  USE MOD_Particle_Vars ,ONLY: Species
+! MODULES
+USE MOD_Globals
 ! IMPLICIT VARIABLE HANDLING
-  IMPLICIT NONE
+IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-  INTEGER, INTENT(IN)                                   :: nQuants
-  REAL,INTENT(INOUT)                                    :: ElectronicState(1:2,0:nQuants-1)
+INTEGER, INTENT(IN)                                   :: nQuants
+REAL,INTENT(INOUT)                                    :: ElectronicState(1:2,0:nQuants-1)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-  INTEGER                                               :: iStep, iLoop
-  REAL                                                  :: TempState(2)
-  LOGICAL                                               :: changed
+INTEGER                                               :: iStep, iLoop
+REAL                                                  :: TempState(2)
+LOGICAL                                               :: changed
 !===================================================================================================================================
-  iStep = nQuants
-  changed = .true.
-  DO WHILE (changed.OR.iStep.GT.1)
-    changed = .false.
-    IF (iStep.GT.1) THEN
-      iStep = INT(iStep/1.3)
+
+iStep = nQuants
+changed = .true.
+DO WHILE (changed.OR.iStep.GT.1)
+  changed = .false.
+  IF (iStep.GT.1) THEN
+    iStep = INT(iStep/1.3)
+  END IF
+  DO iLoop = 0, nQuants - 1 - iStep
+    IF (ElectronicState(2,iLoop).GT.ElectronicState(2,iLoop+iStep)) THEN
+      TempState(1:2) = ElectronicState(1:2,iLoop+iStep)
+      ElectronicState(1:2,iLoop+iStep) = ElectronicState(1:2,iLoop)
+      ElectronicState(1:2,iLoop) = TempState(1:2)
+      changed = .true.
     END IF
-    DO iLoop = 0, nQuants - 1 - iStep
-      IF (ElectronicState(2,iLoop).GT.ElectronicState(2,iLoop+iStep)) THEN
-        TempState(1:2) = ElectronicState(1:2,iLoop+iStep)
-        ElectronicState(1:2,iLoop+iStep) = ElectronicState(1:2,iLoop)
-        ElectronicState(1:2,iLoop) = TempState(1:2)
-        changed = .true.
-      END IF
-    END DO
   END DO
+END DO
+
 END SUBROUTINE SortEnergies
 
 
@@ -1375,7 +1374,7 @@ SUBROUTINE CalcProbCorrFactorElec()
 ! use module
   USE MOD_Globals_Vars,       ONLY: BoltzmannConst
   USE MOD_DSMC_Vars,          ONLY: DSMC, SpecDSMC, CollInf
-  USE MOD_Particle_Vars,      ONLY: nSpecies, SPecies
+  USE MOD_Particle_Vars,      ONLY: nSpecies, Species
   USE MOD_Particle_Analyze_Tools, ONLY: CalcEelec
   USE MOD_part_tools              ,ONLY: CalcXiElec
 ! IMPLICIT VARIABLE HANDLING

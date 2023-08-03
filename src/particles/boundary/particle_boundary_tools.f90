@@ -41,7 +41,7 @@ SUBROUTINE CalcWallSample(PartID,SurfSideID,SampleType,SurfaceNormal_opt)
 ! MODULES
 USE MOD_Particle_Vars
 USE MOD_Globals                   ,ONLY: abort,DOTPRODUCT
-USE MOD_DSMC_Vars                 ,ONLY: SpecDSMC,useDSMC,PartStateIntEn,RadialWeighting
+USE MOD_DSMC_Vars                 ,ONLY: useDSMC,PartStateIntEn,RadialWeighting
 USE MOD_DSMC_Vars                 ,ONLY: CollisMode,DSMC,AmbipolElecVelo
 USE MOD_Particle_Boundary_Vars    ,ONLY: SampWallState,CalcSurfaceImpact,SWIVarTimeStep
 USE MOD_part_tools                ,ONLY: GetParticleWeight
@@ -173,7 +173,6 @@ SUBROUTINE SampleImpactProperties(SurfSideID,SpecID,MPF,ETrans,EVib,ERot,EElec,P
 !> Sampling of impact energy for each species (trans, rot, vib), impact vector (x,y,z), angle and number of impacts
 !>
 !===================================================================================================================================
-!USE MOD_DSMC_Vars              ,ONLY: SpecDSMC
 USE MOD_Particle_Boundary_Vars ,ONLY: SampWallImpactEnergy,SampWallImpactVector
 USE MOD_Particle_Boundary_Vars ,ONLY: SampWallImpactAngle ,SampWallImpactNumber
 USE MOD_Globals_Vars           ,ONLY: PI

@@ -483,15 +483,15 @@ IF(DoFieldIonization.OR.CollisMode.NE.0) THEN
     END DO !iSpec
   END IF
 
-    DO iSpec=1, nSpecies
-    SpecDSMC(iSpec)%FullyIonized  = GETLOGICAL('Part-Species'//TRIM(hilf)//'-FullyIonized')
-    ! Save the electron species into a global variable
-    IF(Species(iSpec)%InterID.EQ.4) DSMC%ElectronSpecies = iSpec
-    ! reading electronic state informations from HDF5 file
-      IF(((DSMC%ElectronicModelDatabase.NE.'none').OR.(SpeciesDatabase.NE.'none')).AND.(Species(iSpec)%InterID.NE.4)) THEN
-        CALL SetElectronicModel(iSpec)
-      END IF
-    END DO
+  DO iSpec=1, nSpecies
+  SpecDSMC(iSpec)%FullyIonized  = GETLOGICAL('Part-Species'//TRIM(hilf)//'-FullyIonized')
+  ! Save the electron species into a global variable
+  IF(Species(iSpec)%InterID.EQ.4) DSMC%ElectronSpecies = iSpec
+  ! reading electronic state informations from HDF5 file
+    IF(((DSMC%ElectronicModelDatabase.NE.'none').OR.(SpeciesDatabase.NE.'none')).AND.(Species(iSpec)%InterID.NE.4)) THEN
+      CALL SetElectronicModel(iSpec)
+    END IF
+  END DO
 
   ! determine number of different species combinations and allocate collidingSpecies array
   CollInf%NumCase = 0
@@ -1129,7 +1129,7 @@ ELSE !CollisMode.GT.0
 
     ! Calculating the heat of formation for ionized species (including higher ionization levels)
     ! Requires the completed read-in of species data
-    CALL CalcHeatOfFormation()
+    CALL CalcHeatOfFormationIons()
 
     ! Set "NextIonizationSpecies" information for field ionization from "PreviousState" info
     ! NextIonizationSpecies => SpeciesID of the next higher ionization level
@@ -1342,7 +1342,7 @@ IF(.NOT.SpecDSMC(iSpec)%FullyIonized) CALL ReadSpeciesLevel(Species(iSpec)%Name,
 END SUBROUTINE SetElectronicModel
 
 
-SUBROUTINE CalcHeatOfFormation()
+SUBROUTINE CalcHeatOfFormationIons()
 !===================================================================================================================================
 ! Calculating the heat of formation for ionized species (including higher ionization levels)
 ! Requires the completed read-in of species data
@@ -1377,41 +1377,26 @@ DO iSpec = 1, nSpecies
   counter = 0
   IF((Species(iSpec)%InterID.EQ.10).OR.(Species(iSpec)%InterID.EQ.20)) THEN
     IF(SpecDSMC(iSpec)%PreviousState.EQ.0) THEN
-      WRITE(UNIT=hilf2,FMT='(I0)') iSpec
+      ! Fall-back for "fake" ions (e.g. the previous state is not available)
       IF(SpeciesDatabase.NE.'none') THEN
         ! Initialize FORTRAN interface.
         CALL H5OPEN_F(err)
         CALL H5FOPEN_F (TRIM(SpeciesDatabase), H5F_ACC_RDONLY_F, file_id_specdb, err)
         LBWRITE (UNIT_stdOut,*) 'Read-in from database for species: ', TRIM(Species(iSpec)%Name)
         dsetname = TRIM('/Species/'//TRIM(Species(iSpec)%Name))
-        ! Read-in of heat of formation, ions are treated later using the heat of formation of their ground state and data from the
-        ! from the electronic state database to ensure consistent energies across chemical reactions of QK and Arrhenius type.
-        IF((Species(iSpec)%InterID.EQ.10).OR.(Species(iSpec)%InterID.EQ.20).OR.(Species(iSpec)%InterID.EQ.4)) THEN
-          SpecDSMC(iSpec)%HeatOfFormation = 0.0
-          LBWRITE (UNIT_stdOut,*) 'HeatOfFormation_K: ', SpecDSMC(iSpec)%HeatOfFormation
-        ELSE
-          CALL ReadAttribute(file_id_specdb,'HeatOfFormation_K',1,DatasetName = dsetname,RealScalar=SpecDSMC(iSpec)%HeatOfFormation)
-          LBWRITE (UNIT_stdOut,*) 'HeatOfFormation_K: ', SpecDSMC(iSpec)%HeatOfFormation
-          SpecDSMC(iSpec)%HeatOfFormation = SpecDSMC(iSpec)%HeatOfFormation * BoltzmannConst
-        ENDIF
+        CALL ReadAttribute(file_id_specdb,'HeatOfFormation_K',1,DatasetName = dsetname,RealScalar=SpecDSMC(iSpec)%HeatOfFormation)
+        LBWRITE (UNIT_stdOut,*) 'HeatOfFormation_K: ', SpecDSMC(iSpec)%HeatOfFormation
+        SpecDSMC(iSpec)%HeatOfFormation = SpecDSMC(iSpec)%HeatOfFormation * BoltzmannConst
         ! Close the file.
         CALL H5FCLOSE_F(file_id_specdb, err)
         ! Close FORTRAN interface.
         CALL H5CLOSE_F(err)
-      END IF !database
-  
-      IF(Species(iSpec)%DoOverwriteParameters) THEN
-      ! Read-in of heat of formation, ions are treated later using the heat of formation of their ground state and data from the
-      ! from the electronic state database to ensure consistent energies across chemical reactions of QK and Arrhenius type.
-        IF((Species(iSpec)%InterID.EQ.10).OR.(Species(iSpec)%InterID.EQ.20).OR.(Species(iSpec)%InterID.EQ.4)) THEN
-          SpecDSMC(iSpec)%HeatOfFormation = 0.0
-        ELSE
-          SpecDSMC(iSpec)%HeatOfFormation = GETREAL('Part-Species'//TRIM(hilf2)//'-HeatOfFormation_K')
-          SpecDSMC(iSpec)%HeatOfFormation = SpecDSMC(iSpec)%HeatOfFormation * BoltzmannConst
-        END IF
+      ELSE
+        WRITE(UNIT=hilf2,FMT='(I0)') iSpec
+        SpecDSMC(iSpec)%HeatOfFormation = GETREAL('Part-Species'//TRIM(hilf2)//'-HeatOfFormation_K') * BoltzmannConst
       END IF
-
     ELSE
+      ! Get the last electronic state level from the previous state (e.g. for NIon get the last electronic state for N)
       IF(SpecDSMC(SpecDSMC(iSpec)%PreviousState)%MaxElecQuant.GT.0) THEN
         jSpec = SpecDSMC(iSpec)%PreviousState
         DO
@@ -1422,11 +1407,8 @@ DO iSpec = 1, nSpecies
           jSpec = SpecDSMC(jSpec)%PreviousState
           ! Fail-safe, abort after 100 iterations
           counter = counter + 1
-          IF(counter.GT.100) THEN
-            CALL abort(&
-                __STAMP__&
-                ,'ERROR: Nbr. of ionization lvls per spec limited to 100. More likely wrong input in PreviuosState of spec:', iSpec)
-          END IF
+          IF(counter.GT.100) CALL abort(__STAMP__,&
+              'ERROR: Nbr. of ionization lvls per spec limited to 100. More likely wrong input in PreviuosState of spec:', iSpec)
         END DO
         IF(AutoDetect)THEN
           LBWRITE(UNIT_stdOut,'(A)')' Automatically determined HeatOfFormation:'
@@ -1445,7 +1427,8 @@ DO iSpec = 1, nSpecies
     END IF
   END IF
 END DO
-END SUBROUTINE CalcHeatOfFormation
+
+END SUBROUTINE CalcHeatOfFormationIons
 
 
 SUBROUTINE SetNextIonizationSpecies()

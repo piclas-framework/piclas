@@ -528,7 +528,7 @@ SUBROUTINE SumVibRelaxProb(iPair)
 ! summes up the variable vibrational realaxation probabilities
 !===================================================================================================================================
 ! MODULES
-USE MOD_DSMC_Vars          ,ONLY: DSMC, VarVibRelaxProb, Coll_pData, SpecDSMC
+USE MOD_DSMC_Vars          ,ONLY: DSMC, VarVibRelaxProb, Coll_pData
 USE MOD_Particle_Vars      ,ONLY: PartSpecies, Species
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE

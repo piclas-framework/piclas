@@ -52,7 +52,7 @@ INTEGER,INTENT(IN)                :: iCase, iSpec, jSpec
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-CHARACTER(LEN=64)                 :: dsetname, spec_pair, spec_pair_exists
+CHARACTER(LEN=64)                 :: dsetname, spec_pair
 CHARACTER(LEN=265)                :: XSecDatabaseName
 INTEGER                           :: err
 INTEGER(HSIZE_T), DIMENSION(2)    :: dims,sizeMax
@@ -931,7 +931,10 @@ DO iSet = 0, nSets-1
   END IF
 END DO
 
-IF(.NOT.ReactionFound) CALL abort(__STAMP__,'No reaction cross-section data found for reaction number:', IntInfoOpt=iReac)
+IF(.NOT.ReactionFound) THEN
+  SWRITE(*,*) ' Trying to read the following product pair failed: ', TRIM(ProductPair)
+  CALL abort(__STAMP__,'No reaction cross-section data found for reaction number:', IntInfoOpt=iReac)
+END IF
 
 ! Store the energy value in J (read-in was in eV)
 SpecXSec(iCase)%ReactionPath(iPath)%XSecData(1,:) = SpecXSec(iCase)%ReactionPath(iPath)%XSecData(1,:) * ElementaryCharge

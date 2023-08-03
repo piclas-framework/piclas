@@ -348,7 +348,7 @@ END FUNCTION Calc_Beta_TCE
 
 SUBROUTINE DSMC_Chemistry(iPair, iReac)
 !===================================================================================================================================
-! Routine performs an exchange reaction of the type A + B + C -> D + E + F, where A, B, C, D, E, F can be anything
+! Routine performs an exchange reaction of the type A + B + C -> D + E + F + G, where A, B, C, D, E, F can be anything
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals                ,ONLY: abort,DOTPRODUCT,StringBeginsWith,UNIT_StdOut,myrank

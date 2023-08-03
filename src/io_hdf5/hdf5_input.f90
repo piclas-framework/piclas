@@ -62,10 +62,6 @@ INTERFACE ReadAttribute
   MODULE PROCEDURE ReadAttribute
 END INTERFACE
 
-INTERFACE AttributeExists
-  MODULE PROCEDURE AttributeExists
-END INTERFACE
-
 INTERFACE GetVarnames
   MODULE PROCEDURE GetVarnames
 END INTERFACE
@@ -606,6 +602,7 @@ SUBROUTINE ReadAttribute(File_ID_in,AttribName,nVal,DatasetName,RealScalar,IntSc
                                  StrScalar,LogicalScalar,RealArray,IntArray,StrArray)
 ! MODULES
 USE MOD_Globals
+USE hdf5
 USE,INTRINSIC :: ISO_C_BINDING
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
@@ -623,11 +620,14 @@ CHARACTER(LEN=255),INTENT(OUT),OPTIONAL,TARGET :: StrArray(nVal)    !< Array for
 LOGICAL           ,INTENT(OUT),OPTIONAL        :: LogicalScalar     !< Scalar logical attribute    
 !----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER(HID_T)                 :: Attr_ID,Type_ID,Loc_ID
+INTEGER(HID_T)                 :: Attr_ID,Type_ID,Loc_ID,memtype
 INTEGER(HSIZE_T), DIMENSION(1) :: Dimsf
 INTEGER,TARGET                 :: IntToLog
 CHARACTER(LEN=255),TARGET      :: StrTmp(1)
 TYPE(C_PTR)                    :: buf
+INTEGER                        :: pad_type
+INTEGER(SIZE_T) , PARAMETER    :: sdim = 255
+LOGICAL                        :: vstatus
 !==================================================================================================================================
 
 LOGWRITE(*,*)' READ ATTRIBUTE "',TRIM(AttribName),'" FROM HDF5 FILE...'
@@ -661,7 +661,27 @@ IF(PRESENT(RealScalar))    Type_ID=H5T_NATIVE_DOUBLE
 IF(PRESENT(IntArray))      Type_ID=H5T_NATIVE_INTEGER
 IF(PRESENT(IntScalar))     Type_ID=H5T_NATIVE_INTEGER
 IF(PRESENT(LogicalScalar)) Type_ID=H5T_NATIVE_INTEGER
-IF(PRESENT(StrScalar).OR.PRESENT(StrArray)) CALL H5AGET_TYPE_F(Attr_ID, Type_ID, iError)
+IF(PRESENT(StrScalar).OR.PRESENT(StrArray)) THEN
+  CALL H5AGET_TYPE_F(Attr_ID, Type_ID, iError)
+  ! Check if string is variable length
+  call H5Tis_variable_str_f(Type_ID, vstatus, iError)
+  IF(vstatus) THEN
+    CALL abort(__STAMP__,'ERROR in ReadAttribute: Read-in of variable length strings is not implemented yet!')
+  END IF
+  ! Check the padding type of the string (H5T_STR_SPACEPAD: Pad with spaces Fortran-style, H5T_STR_NULLPAD: Pad with zeros,
+  ! H5T_STR_NULLTERM: Null terminate C-style)
+  CALL H5Tget_strpad_f(Type_ID, pad_type, iError)
+  IF(pad_type.EQ.H5T_STR_NULLTERM_F) THEN
+    CALL abort(__STAMP__,'ERROR in ReadAttribute: Read-in of null terminated strings is not implemented yet!')
+  END IF
+  ! Set the type in case of C type string output (e.g. by h5py) using NULLPAD (based on h5ex_t_stringCatt_F03.f90)
+  IF(pad_type.EQ.H5T_STR_NULLPAD_F) THEN
+    ! Create the memory datatype.
+    CALL H5Tcopy_f(H5T_FORTRAN_S1, memtype, iError)
+    CALL H5Tset_size_f(memtype, sdim, iError)
+    Type_ID = memtype
+  END IF
+END IF
 
 buf=C_NULL_PTR
 IF(PRESENT(RealArray))     buf=C_LOC(RealArray)
@@ -698,13 +718,18 @@ IMPLICIT NONE
 ! INPUT/OUTPUT VARIABLES
 INTEGER(HID_T)    ,INTENT(IN)                  :: File_ID_in         !< HDF5 file id of opened file
 CHARACTER(LEN=*)  ,INTENT(IN)                  :: AttribName        !< name of attribute to be read
-CHARACTER(LEN=*)  ,INTENT(IN)                  :: DatasetName       !< dataset name 
+CHARACTER(LEN=*)  ,INTENT(IN) ,OPTIONAL        :: DatasetName       !< dataset name 
 LOGICAL           ,INTENT(OUT)                 :: AttrExists
 !----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER(HID_T)                 :: Attr_ID,Type_ID,Loc_ID
+INTEGER(HID_T)                 :: Attr_ID,Loc_ID
 !==================================================================================================================================
-CALL H5DOPEN_F(File_ID_in, TRIM(DatasetName),Loc_ID, iError)
+IF(PRESENT(DatasetName))THEN
+  ! Open dataset
+  IF(TRIM(DataSetName).NE.'') CALL H5DOPEN_F(File_ID_in, TRIM(DatasetName),Loc_ID, iError)
+ELSE
+  Loc_ID = File_ID_in
+END IF
 
 ! Create the attribute for group Loc_ID.
 CALL H5AOPEN_F(Loc_ID, TRIM(AttribName), Attr_ID, iError)

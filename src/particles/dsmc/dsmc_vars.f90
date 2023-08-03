@@ -373,7 +373,6 @@ END TYPE
 TYPE tChemReactions
   LOGICAL                         :: AnyQKReaction          ! Defines if any QK reaction present
   INTEGER                         :: NumOfReact             ! Number of possible reactions 
-  LOGICAL                         :: DoOverwriteReacParameters ! Flag to overwrite reaction parameters manually
   INTEGER                         :: NumOfReactWOBackward   ! Number of possible reactions w/o automatic backward reactions
   TYPE(tArbDiss), ALLOCATABLE     :: ArbDiss(:)             ! Construct to allow the definition of a list of non-reactive educts
   LOGICAL, ALLOCATABLE            :: BackwardReac(:)        ! Defines if backward reaction is calculated
@@ -389,13 +388,12 @@ TYPE tChemReactions
                                                             !    R (molecular recombination
                                                             !    D (molecular dissociation)
                                                             !    E (molecular exchange reaction)
-  CHARACTER(LEN=15),ALLOCATABLE   :: ReactModel(:)          ! Model of Reaction (reaction num)
+  CHARACTER(LEN=255),ALLOCATABLE  :: ReactModel(:)          ! Model of Reaction (reaction num)
                                                             !    TCE (total collision energy)
                                                             !    QK (quantum kinetic)
                                                             !    phIon (photon-ionization)
                                                             !    phIonXSec (photon-ionization based on cross-section data)
                                                             !    XSec (based on cross-section data)
-  CHARACTER(LEN=200),ALLOCATABLE  :: ReactionName(:)        ! Name of reaction to identify reaction [NumofReact]
   INTEGER, ALLOCATABLE            :: Reactants(:,:)         ! Reactants: indices of the species starting the reaction [NumOfReact,3]
   INTEGER, ALLOCATABLE            :: Products(:,:)          ! Products: indices of the species resulting from the reaction [NumOfReact,4]
   INTEGER, ALLOCATABLE            :: ReactCase(:)           ! Case/pair of the reaction (1:NumOfReact)
@@ -430,6 +428,10 @@ TYPE tChemReactions
   TYPE(tCollCaseInfo), ALLOCATABLE:: CollCaseInfo(:)        ! Information of collision cases (nCase)
   ! XSec Chemistry
   LOGICAL                         :: AnyXSecReaction        ! Defines if any XSec reaction is present
+  ! Species database
+  CHARACTER(LEN=255)              :: ChemistryModel         ! Defines a set of chemical reactions to read-in from the species database
+  CHARACTER(LEN=200),ALLOCATABLE  :: ReactionName(:)        ! Name of reaction to identify reaction [NumofReact]
+  INTEGER,ALLOCATABLE             :: totalReacToModel(:)    ! Mapping from all available reactions in the database to the model reactions
 END TYPE
 
 TYPE(tChemReactions)              :: ChemReac

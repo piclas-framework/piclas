@@ -1542,12 +1542,11 @@ SUBROUTINE InitializeSpeciesParameter()
 USE MOD_Globals
 USE MOD_Globals_Vars
 USE MOD_ReadInTools
-USE MOD_Particle_Vars
+USE MOD_Particle_Vars       ,ONLY: nSpecies, Species, SpeciesDatabase
 USE MOD_io_hdf5
-USE MOD_HDF5_input,         ONLY:ReadAttribute, DatasetExists, AttributeExists
-USE MOD_DSMC_Vars         ,ONLY: SpecDSMC
+USE MOD_HDF5_input          ,ONLY:ReadAttribute, DatasetExists, AttributeExists
 #if USE_MPI
-USE MOD_LoadBalance_Vars       ,ONLY: PerformLoadBalance
+USE MOD_LoadBalance_Vars    ,ONLY: PerformLoadBalance
 #endif /*USE_MPI*/
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
@@ -1558,14 +1557,10 @@ USE MOD_LoadBalance_Vars       ,ONLY: PerformLoadBalance
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER               :: iSpec,err
-CHARACTER(32)         :: hilf, hilf2
+CHARACTER(32)         :: hilf
 CHARACTER(LEN=64)     :: dsetname
-CHARACTER(LEN=64)     :: AttribName
 INTEGER(HID_T)        :: file_id_specdb                       ! File identifier
-INTEGER(HID_T)        :: dset_id_specdb                       ! Dataset identifier
-LOGICAL               :: DataSetFound
-LOGICAL               :: Attr_Exists
-INTEGER(HID_T)        :: Loc_ID, Attr_ID
+LOGICAL               :: DataSetFound, AttrExists
 !===================================================================================================================================
 ! Read-in of the species database
 SpeciesDatabase       = GETSTR('Particles-Species-Database')
@@ -1598,6 +1593,7 @@ IF(SpeciesDatabase.NE.'none') THEN
   CALL H5FOPEN_F (TRIM(SpeciesDatabase), H5F_ACC_RDONLY_F, file_id_specdb, err)
 
   DO iSpec = 1, nSpecies
+    IF (Species(iSpec)%DoOverwriteParameters) CYCLE
     LBWRITE (UNIT_stdOut,*) 'Read-in from database for species: ', TRIM(Species(iSpec)%Name)
     dsetname = TRIM('/Species/'//TRIM(Species(iSpec)%Name))
 
@@ -1606,9 +1602,8 @@ IF(SpeciesDatabase.NE.'none') THEN
       Species(iSpec)%DoOverwriteParameters = .TRUE.
       SWRITE(*,*) 'WARNING: DataSet not found: ['//TRIM(dsetname)//'] ['//TRIM(SpeciesDatabase)//']'
     ELSE
-
-      CALL AttributeExists(file_id_specdb,'ChargeIC',TRIM(dsetname), AttrExists=Attr_Exists)
-      IF (Attr_Exists) THEN
+      CALL AttributeExists(file_id_specdb,'ChargeIC',TRIM(dsetname), AttrExists=AttrExists)
+      IF (AttrExists) THEN
         CALL ReadAttribute(file_id_specdb,'ChargeIC',1,DatasetName = dsetname,RealScalar=Species(iSpec)%ChargeIC)
       ELSE 
         Species(iSpec)%ChargeIC = 0.0
@@ -1628,17 +1623,15 @@ IF(SpeciesDatabase.NE.'none') THEN
 
 END IF
 
-IF(ANY(Species(:)%DoOverwriteParameters)) THEN 
-  DO iSpec = 1, nSpecies
-    IF(Species(iSpec)%DoOverwriteParameters) THEN
-      LBWRITE (UNIT_stdOut,'(66(". "))')
-      WRITE(UNIT=hilf,FMT='(I0)') iSpec
-      Species(iSpec)%ChargeIC              = GETREAL('Part-Species'//TRIM(hilf)//'-ChargeIC')
-      Species(iSpec)%MassIC                = GETREAL('Part-Species'//TRIM(hilf)//'-MassIC')
-      Species(iSpec)%InterID               = GETINT('Part-Species'//TRIM(hilf)//'-InteractionID')
-    END IF
-  END DO ! iSpec
-END IF
+DO iSpec = 1, nSpecies
+  IF(Species(iSpec)%DoOverwriteParameters) THEN
+    LBWRITE (UNIT_stdOut,'(66(". "))')
+    WRITE(UNIT=hilf,FMT='(I0)') iSpec
+    Species(iSpec)%ChargeIC              = GETREAL('Part-Species'//TRIM(hilf)//'-ChargeIC')
+    Species(iSpec)%MassIC                = GETREAL('Part-Species'//TRIM(hilf)//'-MassIC')
+    Species(iSpec)%InterID               = GETINT('Part-Species'//TRIM(hilf)//'-InteractionID')
+  END IF
+END DO ! iSpec
 
 IF(nSpecies.GT.0)THEN
   LBWRITE (UNIT_stdOut,'(66(". "))')
