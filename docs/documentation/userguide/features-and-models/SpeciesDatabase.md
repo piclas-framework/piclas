@@ -71,10 +71,10 @@ The database contains different chemistry models including various reactions.
 | Mars_11Spec_27Reac_Johnston2014            | Mars without ions | 11 | 27 | C. Johnston and A. Brandis. Modeling of nonequilibrium CO Fourth-Positive and CN Violet emission in CO2–N2 gases. Journal of Quantitative Spectroscopy and Radiative Transfer, 149:303–317, 2014. doi:10.1016/j.jqsrt.2014.08.025. |
 | Mars_16Spec_31Reac_Park1994                | Mars with ions | 16 | 31 | C. Park, J. T. Howe, R. L. Jaffe, and G. V. Candler. Review of chemical-kinetic problems of future NASA missions. II - Mars entries. Journal of Thermophysics and Heat Transfer, 8(1):9–23, 1994. doi:10.2514/3.496. |
 | Mars_17Spec_42Reac_Johnston2014            | Mars with ions and O2+ | 17 | 42 | C. Johnston and A. Brandis. Modeling of nonequilibrium CO Fourth-Positive and CN Violet emission in CO2–N2 gases. Journal of Quantitative Spectroscopy and Radiative Transfer, 149:303–317, 2014. doi:10.1016/j.jqsrt.2014.08.025. |
-| Titan_14Spec_24Reac_Gokcen2007             | Titan without ions but with Argon | 14 | 24 | T. Gokcen. N2-CH4-Ar Chemical Kinetic Model for Simulations of Atmospheric Entry to Titan. Journal of Thermophysics and Heat Transfer, 21(1):9–18, 2007. doi:10.2514/1.22095. |
-| Titan_18Spec_30Reac_Gokcen2007             | Titan with ions but without Argon | 18 | 30 | T. Gokcen. N2-CH4-Ar Chemical Kinetic Model for Simulations of Atmospheric Entry to Titan. Journal of Thermophysics and Heat Transfer, 21(1):9–18, 2007. doi:10.2514/1.22095. |
+| Titan_14Spec_24Reac_Savajano2011           | Titan without ions but with Argon | 14 | 24 | R. Savajano, R. Sobbia, M. Gaffuri, and P. Leyland. Reduced Chemical Kinetic Model for Titan Entries, International Journal of Chemical Engineering, vol. 2011, Article ID 970247, 2011. doi:10.1155/2011/970247. |
+| Titan_18Spec_30Reac_Savajano2011           | Titan with ions but without Argon | 18 | 30 | R. Savajano, R. Sobbia, M. Gaffuri, and P. Leyland. Reduced Chemical Kinetic Model for Titan Entries, International Journal of Chemical Engineering, vol. 2011, Article ID 970247, 2011. doi:10.1155/2011/970247. |
 
-The database contains data for the TCE and QK model. Reactions to be included in the simulation are specified by their reaction equation or their chemical model:
+he database contains data for the TCE and QK model. Reactions to be included in the simulation are specified by their reaction equation or their chemical model:
 
     ! Reaction1: CH4 + M -> CH3 + H + M 
     DSMC-Reaction1-Reactants = (/1,0,0/)
@@ -86,11 +86,9 @@ The reaction name is generated automatically and follows a set convention, that 
 If a chemistry model is defined, all reactions with this model are read-in from te database and no additional reaction names need to be supplied. The use of a set of reaction equations from the database can be initialized with the following command:
 
     ! Reaction set 1
-    DSMC-ChemistryModel = Titan_14Spec_24Reac_Gokcen2007
+    DSMC-ChemistryModel = Titan_14Spec_24Reac_Savajano2011
     
-It is possible as well to supply a chemical model and additional reactions for the consideration. TODO
-
-If the reaction parameters should be given manually, the following command can be set: TODO
+If the reaction parameters should be given manually in the parameter.ini, the following command can be set: 
 
     DSMC-OverwriteReacDatabase = true
 
