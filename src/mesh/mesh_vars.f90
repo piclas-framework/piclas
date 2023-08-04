@@ -130,6 +130,10 @@ INTEGER,ALLOCATABLE :: BC(:)             !< BCIndex   = BC(SideID), 1:nBCSides
 INTEGER,ALLOCATABLE :: GlobalUniqueSideID(:) !< SideInfo(SIDE_ID,iSide) = GlobalUniqueSideIDC(SideID), 1:nSides
 INTEGER,ALLOCATABLE :: BoundaryType(:,:) !< BCType    = BoundaryType(BC(SideID),BC_TYPE)
                                          !< BCState   = BoundaryType(BC(SideID),BC_STATE)
+#if USE_FV
+INTEGER,ALLOCATABLE :: BoundaryType_FV(:,:) !< BCType    = BoundaryType(BC(SideID),BC_TYPE)
+                                            !< BCState   = BoundaryType(BC(SideID),BC_STATE)
+#endif
 INTEGER,ALLOCATABLE :: AnalyzeSide(:)    !< Marks, wheter a side belongs to a group of analyze sides (e.g. to a BC group)
                                          !< SurfIndex = AnalyzeSide(SideID), 1:nSides
 

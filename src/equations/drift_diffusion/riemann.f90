@@ -22,7 +22,7 @@ PUBLIC::Riemann
 
 CONTAINS
 
-SUBROUTINE Riemann(F,U_L,U_R,nv,GradSide,E)
+SUBROUTINE Riemann(F,U_L,U_R,nv,GradSide,E_L,E_R)
 !===================================================================================================================================
 ! Computes the numerical flux
 ! Conservative States are rotated into normal direction in this routine and are NOT backrotatet: don't use it after this routine!!
@@ -39,7 +39,7 @@ IMPLICIT NONE
 REAL,DIMENSION(PP_nVar_FV,0:0,0:0),INTENT(IN) :: U_L,U_R
 REAL,INTENT(IN)                                  :: nv(3,0:0,0:0)
 REAL,INTENT(IN)                                  :: GradSide
-REAL,INTENT(IN)                                  :: E(3)
+REAL,INTENT(IN)                                  :: E_L(3),E_R(3)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 REAL,INTENT(OUT)                                 :: F(PP_nVar_FV,0:0,0:0)
@@ -50,9 +50,9 @@ REAL,INTENT(OUT)                                 :: F(PP_nVar_FV,0:0,0:0)
 REAL                                             :: driftVelo, mu_L, mu_R, D_L, D_R
 
 !===================================================================================================================================
-CALL CalcDriftDiffusionCoeff(VECNORM(E),U_L(1,0,0),mu_L,D_L)
-CALL CalcDriftDiffusionCoeff(VECNORM(E),U_R(1,0,0),mu_R,D_R)
-driftVelo=-DOT_PRODUCT(nv(:,0,0),E)
+CALL CalcDriftDiffusionCoeff(VECNORM(E_L),U_L(1,0,0),mu_L,D_L)
+CALL CalcDriftDiffusionCoeff(VECNORM(E_R),U_R(1,0,0),mu_R,D_R)
+driftVelo=-DOT_PRODUCT(nv(:,0,0),(E_L+E_R)/2.)
 ! print*, 'E', E
 ! print*, driftVelo
 ! print*, nv

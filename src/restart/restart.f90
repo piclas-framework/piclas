@@ -169,10 +169,11 @@ IF (LEN_TRIM(RestartFile).GT.0) THEN
   END IF
 #elif (PP_TimeDiscMethod==600) /*DVM*/
   CALL GetDataProps('DVM_Solution',nVar_Restart,N_Restart,nElems_Restart,NodeType_Restart)
-#elif (PP_TimeDiscMethod==601) /*Drift diffusion*/
-CALL GetDataProps('DriftDiffusion_Solution',nVar_Restart,N_Restart,nElems_Restart,NodeType_Restart)
 #else
   CALL GetDataProps('DG_Solution',nVar_Restart,N_Restart,nElems_Restart,NodeType_Restart)
+#endif
+#ifdef drift_diffusion
+  CALL GetDataProps('DriftDiffusion_Solution',nVar_Restart,N_Restart,nElems_Restart,NodeType_Restart)
 #endif
   IF(RestartNullifySolution)THEN ! Open the restart file and neglect the DG solution (only read particles if present)
     SWRITE(UNIT_stdOut,*)' | Restarting from File: "',TRIM(RestartFile),'" (but without reading the DG solution)'

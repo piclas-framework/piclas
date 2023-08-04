@@ -61,14 +61,14 @@ USE MOD_Equation_Vars   ,ONLY:nBCByType,BCSideID
 USE MOD_Equation_Vars_FV,ONLY:nBCByType,BCSideID
 #endif
 USE MOD_Interpolation_Vars,ONLY: InterpolationInitIsDone
-USE MOD_Mesh_Vars         ,ONLY: MeshInitIsDone,nBCSides,BC,BoundaryType,nBCs
+USE MOD_Mesh_Vars         ,ONLY: MeshInitIsDone,nBCSides,BC,BoundaryType,BoundaryType_FV,nBCs
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT / OUTPUT VARIABLES
 !----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER :: i,iSide
-INTEGER :: locType,locState
+INTEGER :: locType,locState, locType_FV, locState_FV
 INTEGER :: MaxBCState,MaxBCStateGlobal
 !==================================================================================================================================
 IF((.NOT.InterpolationInitIsDone).AND.(.NOT.MeshInitIsDone).AND.(.NOT.EquationInitIsDone_FV))THEN
@@ -79,7 +79,9 @@ END IF
 MaxBCState = 0
 DO iSide=1,nBCSides
   locType =BoundaryType(BC(iSide),BC_TYPE)
+  locType_FV =BoundaryType_FV(BC(iSide),BC_TYPE)
   locState=BoundaryType(BC(iSide),BC_STATE)
+  locState_FV=BoundaryType_FV(BC(iSide),BC_STATE)
 END DO
 MaxBCStateGLobal=MaxBCState
 #if USE_MPI
@@ -88,7 +90,7 @@ CALL MPI_ALLREDUCE(MPI_IN_PLACE,MaxBCStateGlobal,1,MPI_INTEGER,MPI_MAX,MPI_COMM_
 
 ! Initialize State File Boundary condition
 DO i=1,nBCs
-  locType =BoundaryType(i,BC_TYPE)
+  locType =BoundaryType_FV(i,BC_TYPE)
 END DO
 
 ! Count number of sides of each boundary
@@ -122,13 +124,14 @@ SUBROUTINE GetBoundaryFlux(t,tDeriv,Flux,UPrim_master,NormVec,TangVec1,TangVec2,
 ! MODULES
 USE MOD_PreProc
 USE MOD_Globals         ,ONLY: Abort
-USE MOD_Mesh_Vars       ,ONLY: nBCSides,nBCs,BoundaryType
+USE MOD_Mesh_Vars       ,ONLY: nBCSides,nBCs,BoundaryType_FV
 #if USE_HDG
-USE MOD_Equation_Vars   ,ONLY:nBCByType,BCSideID
+USE MOD_Equation_Vars   ,ONLY: nBCByType,BCSideID,E
+USE MOD_Mesh_Vars       ,ONLY: SideToElem
 #else
-USE MOD_Equation_Vars_FV,ONLY:nBCByType,BCSideID
+USE MOD_Equation_Vars_FV,ONLY: nBCByType,BCSideID
 #endif
-USE MOD_Equation_Vars_FV,ONLY:IniExactFunc_FV,RefState_FV
+USE MOD_Equation_Vars_FV,ONLY: IniExactFunc_FV,RefState_FV
 USE MOD_Gradient_Vars   ,ONLY: Grad_dx_master
 USE MOD_Riemann
 USE MOD_Equation_FV     ,ONLY: ExactFunc_FV
@@ -146,15 +149,15 @@ REAL,INTENT(IN)                      :: Face_xGP(        3,0:0,0:0,1:nBCSides)
 REAL,INTENT(OUT)                     :: Flux( PP_nVar_FV,0:0,0:0,1:nBCSides)
 !----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                              :: iBC,iSide,SideID
+INTEGER                              :: iBC,iSide,SideID,ElemID
 INTEGER                              :: BCType,BCState,nBCLoc
-REAL                                 :: UPrim_boundary(PP_nVar_FV,0:0,0:0), GradSide, E(3)
+REAL                                 :: UPrim_boundary(PP_nVar_FV,0:0,0:0), GradSide
 INTEGER                              :: p,q
 !==================================================================================================================================
 DO iBC=1,nBCs
   IF(nBCByType(iBC).LE.0) CYCLE
-  BCType =BoundaryType(iBC,BC_TYPE)
-  BCState=BoundaryType(iBC,BC_STATE)
+  BCType =BoundaryType_FV(iBC,BC_TYPE)
+  BCState=BoundaryType_FV(iBC,BC_STATE)
   nBCLoc =nBCByType(iBC)
 
   SELECT CASE(BCType)
@@ -163,7 +166,7 @@ DO iBC=1,nBCs
   CASE(2) !Exact function or RefState_FV
     DO iSide=1,nBCLoc
       SideID=BCSideID(iBC,iSide)
-      E=(/1.,0.,0./)
+      ElemID=SideToElem(S2E_ELEM_ID,SideID)
       IF(BCState.EQ.0) THEN
         CALL ExactFunc_FV(IniExactFunc_FV,t,0,Face_xGP(:,0,0,SideID),UPrim_boundary(:,0,0))
       ELSE
@@ -174,15 +177,16 @@ DO iBC=1,nBCs
                                        +(Grad_dx_master(2,SideID))**2 &
                                        +(Grad_dx_master(3,SideID))**2))
 #endif
-      CALL Riemann(Flux(:,:,:,SideID),UPrim_master(:,:,:,SideID),UPrim_boundary,NormVec(:,:,:,SideID),GradSide,E)
+      CALL Riemann(Flux(:,:,:,SideID),UPrim_master(:,:,:,SideID),UPrim_boundary,NormVec(:,:,:,SideID),&
+                   GradSide,E(1:3,0,0,0,ElemID),E(1:3,0,0,0,ElemID))
     END DO
   
   CASE(3) !von Neumann
     DO iSide=1,nBCLoc
       SideID=BCSideID(iBC,iSide)
-      E=(/1.,0.,0./)
       UPrim_boundary=UPrim_master(:,:,:,SideID)
-      CALL Riemann(Flux(:,:,:,SideID),UPrim_master(:,:,:,SideID),UPrim_boundary,NormVec(:,:,:,SideID),GradSide=0.,E=E)
+      CALL Riemann(Flux(:,:,:,SideID),UPrim_master(:,:,:,SideID),UPrim_boundary,NormVec(:,:,:,SideID), &
+                   GradSide=0.,E_L=E(1:3,0,0,0,ElemID),E_R=E(1:3,0,0,0,ElemID))
     END DO
 
   CASE DEFAULT ! unknown BCType

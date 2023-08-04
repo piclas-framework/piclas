@@ -45,7 +45,7 @@ SUBROUTINE GetBoundaryGrad(SideID,gradU,gradUinside,UPrim_master,NormVec,Face_xG
 ! MODULES
 USE MOD_PreProc
 USE MOD_Globals       ,ONLY: Abort
-USE MOD_Mesh_Vars     ,ONLY: BoundaryType,BC
+USE MOD_Mesh_Vars     ,ONLY: BoundaryType_FV,BC
 USE MOD_Equation      ,ONLY: ExactFunc
 USE MOD_Equation_Vars ,ONLY: IniExactFunc, RefState, DVMBGKModel
 USE MOD_Equation_Vars ,ONLY: DVMVelos, DVMnVelos, DVMSpeciesData, DVMVeloDisc, DVMVeloMax, DVMVeloMin, DVMDim, Pi, DVMWeights
@@ -68,8 +68,8 @@ REAL    :: UPrim_boundary(1:PP_nVar), fplus(1:PP_nVar)
 REAL    :: MacroVal(8), tau, vnormal, vwall, Sin, Sout, MovTerm, WallDensity, weight
 INTEGER :: iVel, jVel, kVel, upos, upos_sp
 !==================================================================================================================================
-BCType  = Boundarytype(BC(SideID),BC_TYPE)
-BCState = Boundarytype(BC(SideID),BC_STATE)
+BCType  = BoundaryType_FV(BC(SideID),BC_TYPE)
+BCState = BoundaryType_FV(BC(SideID),BC_STATE)
 
 SELECT CASE(BCType)
 CASE(1) !Periodic already filled!

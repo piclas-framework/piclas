@@ -299,7 +299,7 @@ USE MOD_PML_Vars,      ONLY: PMLzetaEff,PMLTimeRamp
 USE MOD_Equation_vars_FV,ONLY: fDamping
 #else
 USE MOD_Equation_Vars, ONLY: fDamping
-#else
+#endif
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------

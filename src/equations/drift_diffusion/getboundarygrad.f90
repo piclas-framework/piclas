@@ -45,7 +45,7 @@ SUBROUTINE GetBoundaryGrad(SideID,gradU,UPrim_master,NormVec,Face_xGP)
 ! MODULES
 USE MOD_PreProc
 USE MOD_Globals       ,ONLY: Abort
-USE MOD_Mesh_Vars     ,ONLY: BoundaryType,BC
+USE MOD_Mesh_Vars     ,ONLY: BoundaryType_FV,BC
 USE MOD_Equation_FV   ,ONLY: ExactFunc_FV
 USE MOD_Equation_Vars_FV ,ONLY: IniExactFunc_FV, RefState_FV
 USE MOD_TimeDisc_Vars, ONLY : time
@@ -63,8 +63,8 @@ REAL,INTENT(IN)   :: Face_xGP(3)
 INTEGER :: BCType,BCState
 REAL    :: UPrim_boundary(1:PP_nVar_FV)
 !==================================================================================================================================
-BCType  = Boundarytype(BC(SideID),BC_TYPE)
-BCState = Boundarytype(BC(SideID),BC_STATE)
+BCType  = BoundaryType_FV(BC(SideID),BC_TYPE)
+BCState = BoundaryType_FV(BC(SideID),BC_STATE)
 
 SELECT CASE(BCType)
 CASE(1) !Periodic already filled!

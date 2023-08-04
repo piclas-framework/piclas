@@ -606,7 +606,7 @@ IF(MPIRoot) CALL GenerateFileSkeleton('PartStateBoundary',7,StrVarNames,MeshFile
 IF(MPIRoot) CALL GenerateFileSkeleton('PartStateBoundary',PP_nVar,StrVarNames,MeshFileName,OutputTime)
 #endif /*USE_HDG*/
 
-#if (PP_TimeDiscMethod==601) /*Drift-Diffusion*/
+#ifdef drift_diffusion
 IF(MPIRoot) CALL GenerateFileSkeleton('PartStateBoundary',PP_nVar_FV,StrVarNames_FV,MeshFileName,OutputTime)
 #elif (PP_TimeDiscMethod==600) /*DVM*/
 IF(MPIRoot) CALL GenerateFileSkeleton('PartStateBoundary',9,StrVarNames_FV,MeshFileName,OutputTime)

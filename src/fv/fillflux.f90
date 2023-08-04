@@ -49,6 +49,8 @@ USE MOD_GetBoundaryFlux ,ONLY: GetBoundaryFlux
 USE MOD_Mesh_Vars       ,ONLY: firstMPISide_MINE,lastMPISide_MINE,firstInnerSide,firstBCSide,lastInnerSide
 #ifdef drift_diffusion
 USE MOD_Equation_Vars_FV,ONLY: EFluid_GradSide
+USE MOD_Equation_Vars   ,ONLY: E
+USE MOD_Interpolation_Vars ,ONLY: wGP
 #endif
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -64,8 +66,8 @@ REAL,INTENT(OUT)   :: Flux_Master(1:PP_nVar_FV,0:0,0:0,nSides)
 REAL,INTENT(OUT)   :: Flux_Slave(1:PP_nVar_FV,0:0,0:0,nSides)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER            :: SideID,firstSideID_wo_BC,firstSideID ,lastSideID,ElemID
-REAL               :: E(3)
+INTEGER            :: SideID,firstSideID_wo_BC,firstSideID,lastSideID,ElemIDm,ElemIDs,i,j,k
+REAL               :: E_slave(3), E_master(3)
 !===================================================================================================================================
 
 ! fill flux for sides ranging between firstSideID and lastSideID using Riemann solver
@@ -94,14 +96,16 @@ END IF
 ! 1. compute flux for non-BC sides: Compute fluxes on 0, no additional interpolation required
 DO SideID=firstSideID_wo_BC,lastSideID
 #ifdef drift_diffusion
-  ElemID   = SideToElem(S2E_ELEM_ID,SideID)
-  E=(/1.,0.,0./)
-  ! print*, 'elemxgp', Elem_xGP_FV(:,:,:,:,ElemID)
-  ! print*, 'face', Face_xGP_FV(:,:,:,SideID)
-  ! print*, 'nv', NormVec_FV(:,:,:,SideID)
-  ! print*, 'surfelem', SurfElem_FV(:,:,SideID)
+  ElemIDm   = SideToElem(S2E_ELEM_ID,SideID)
+  ElemIDs   = SideToElem(S2E_NB_ELEM_ID,SideID)
+  E_slave=0.
+  E_master=0.
+  DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
+    E_slave(:) = E_slave(:) + wGP(i)*wGP(j)*wGP(k)*E(1:3,i,j,k,ElemIDm)/((PP_N+1.)**3)   !now only E from master, do something with MPI
+    E_master(:) = E_master(:) + wGP(i)*wGP(j)*wGP(k)*E(1:3,i,j,k,ElemIDm)/((PP_N+1.)**3)
+  END DO; END DO; END DO
   CALL Riemann(Flux_Master(:,:,:,SideID),U_Master(:,:,:,SideID),U_Slave(:,:,:,SideID),NormVec_FV(:,:,:,SideID), &
-               EFluid_GradSide(SideID),E)
+               EFluid_GradSide(SideID),E_master,E_slave)
 #else
   CALL Riemann(Flux_Master(:,:,:,SideID),U_Master(:,:,:,SideID),U_Slave(:,:,:,SideID),NormVec_FV(:,:,:,SideID))
 #endif

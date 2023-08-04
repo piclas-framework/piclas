@@ -530,7 +530,8 @@ ASSOCIATE (&
       nVal=      (/9_IK, 1_IK , 1_IK , 1_IK , PP_nElems/)    , &
       offset=    (/0_IK       , 0_IK   , 0_IK   , 0_IK   , offsetElem/)   , &
       collective=.TRUE.,RealArray=Utemp)
-#elif (PP_TimeDiscMethod==601) /*Drift Diffusion*/
+#endif
+#ifdef drift_diffusion
   CALL GatheredWriteArray(FileName,create=.FALSE.,&
       DataSetName='DriftDiffusion_Solution', rank=5,&
       nValGlobal=(/PP_nVarTmp_FV , 1_IK , 1_IK , 1_IK , nGlobalElems/) , &

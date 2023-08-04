@@ -57,7 +57,7 @@ USE MOD_Globals
 USE MOD_Equation_Vars     ,ONLY: EquationInitIsDone
 USE MOD_Equation_Vars     ,ONLY: nBCByType,BCSideID
 USE MOD_Interpolation_Vars,ONLY: InterpolationInitIsDone
-USE MOD_Mesh_Vars         ,ONLY: MeshInitIsDone,nBCSides,BC,BoundaryType,nBCs
+USE MOD_Mesh_Vars         ,ONLY: MeshInitIsDone,nBCSides,BC,BoundaryType_FV,nBCs
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT / OUTPUT VARIABLES
@@ -74,8 +74,8 @@ END IF
 ! determine globally max MaxBCState
 MaxBCState = 0
 DO iSide=1,nBCSides
-  locType =BoundaryType(BC(iSide),BC_TYPE)
-  locState=BoundaryType(BC(iSide),BC_STATE)
+  locType =BoundaryType_FV(BC(iSide),BC_TYPE)
+  locState=BoundaryType_FV(BC(iSide),BC_STATE)
 END DO
 MaxBCStateGLobal=MaxBCState
 #if USE_MPI
@@ -84,7 +84,7 @@ CALL MPI_ALLREDUCE(MPI_IN_PLACE,MaxBCStateGlobal,1,MPI_INTEGER,MPI_MAX,MPI_COMM_
 
 ! Initialize State File Boundary condition
 DO i=1,nBCs
-  locType =BoundaryType(i,BC_TYPE)
+  locType =BoundaryType_FV(i,BC_TYPE)
 END DO
 
 ! Count number of sides of each boundary
@@ -118,7 +118,7 @@ SUBROUTINE GetBoundaryFlux(t,tDeriv,Flux,UPrim_master,NormVec,TangVec1,TangVec2,
 ! MODULES
 USE MOD_PreProc
 USE MOD_Globals      ,ONLY: Abort
-USE MOD_Mesh_Vars    ,ONLY: nBCSides,nBCs,BoundaryType
+USE MOD_Mesh_Vars    ,ONLY: nBCSides,nBCs,BoundaryType_FV
 USE MOD_Equation_Vars,ONLY: nBCByType,BCSideID,IniExactFunc,RefState
 USE MOD_Riemann
 USE MOD_TimeDisc_Vars,ONLY : dt
@@ -148,8 +148,8 @@ REAL                                 :: MacroVal(8), tau, vnormal, vwall, Sin, S
 !==================================================================================================================================
 DO iBC=1,nBCs
   IF(nBCByType(iBC).LE.0) CYCLE
-  BCType =BoundaryType(iBC,BC_TYPE)
-  BCState=BoundaryType(iBC,BC_STATE)
+  BCType =BoundaryType_FV(iBC,BC_TYPE)
+  BCState=BoundaryType_FV(iBC,BC_STATE)
   nBCLoc =nBCByType(iBC)
 
   SELECT CASE(BCType)
