@@ -13,6 +13,7 @@
 #include "piclas.h"
 
 MODULE MOD_SuperB_Coil
+#if USE_SUPER_B
 !===================================================================================================================================
 !> Contains the calculation of the magnetic field of coils
 !===================================================================================================================================
@@ -556,6 +557,6 @@ WRITE(1112,*)''
 CLOSE(1112)
 
 END SUBROUTINE WriteCoilVTK
-
+#endif /* USE_SUPER_B */
 
 END MODULE MOD_SuperB_Coil

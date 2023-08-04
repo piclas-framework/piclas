@@ -263,7 +263,7 @@ USE MOD_PreProc
 USE MOD_ChangeBasis            ,ONLY: ChangeBasis3D
 USE MOD_Interpolation          ,ONLY: GetVandermonde
 USE MOD_Interpolation_Vars     ,ONLY: NodeTypeCL,NodeType
-USE MOD_Mesh_Vars              ,ONLY: sJ
+USE MOD_Mesh_Vars              ,ONLY: N_VolMesh
 USE MOD_Mesh_Vars              ,ONLY: nElems
 USE MOD_Particle_Mesh_Vars     ,ONLY: ElemsJ,ElemEpsOneCell
 USE MOD_Particle_Mesh_Vars     ,ONLY: RefMappingEps
@@ -377,7 +377,6 @@ END DO
 CALL BARRIER_AND_SYNC(ElemsJ_Shared_Win,MPI_COMM_SHARED)
 #else
 !ElemsJ => sJ
-N_VolMesh_Shared => N_VolMesh
 #endif /* USE_MPI*/
 
 IF (TrackingMethod.EQ.TRIATRACKING) RETURN

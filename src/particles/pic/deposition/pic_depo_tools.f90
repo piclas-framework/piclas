@@ -198,7 +198,7 @@ USE MOD_Globals
 USE MOD_PreProc
 USE MOD_Basis              ,ONLY: InitializeVandermonde
 USE MOD_ChangeBasis        ,ONLY: ChangeBasis3D
-USE MOD_Interpolation_Vars ,ONLY: wGP, xGP, wBary
+USE MOD_Interpolation_Vars ,ONLY: N_Inter !wGP, xGP, wBary
 #if USE_MPI
 USE MOD_MPI_Shared
 USE MOD_MPI_Shared_Vars    ,ONLY: nComputeNodeTotalElems, nComputeNodeProcessors, myComputeNodeRank, MPI_COMM_SHARED
@@ -208,6 +208,8 @@ USE MOD_Mesh_Vars          ,ONLY: nElems
 #endif
 USE MOD_PICDepo_Vars       ,ONLY: NodeVolume
 USE MOD_Particle_Mesh_Vars ,ONLY: ElemsJ, ElemNodeID_Shared, nUniqueGlobalNodes, NodeInfo_Shared
+USE MOD_DG_Vars            ,ONLY: N_DG
+USE MOD_Mesh_Vars          ,ONLY: N_VolMesh
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -227,6 +229,7 @@ INTEGER                          :: I
 #endif /*USE_DEBUG*/
 #endif
 INTEGER                          :: NodeID(1:8)
+INTEGER                          :: Nloc
 !===================================================================================================================================
 #if USE_MPI
 CALL Allocate_Shared((/nUniqueGlobalNodes/),NodeVolume_Shared_Win,NodeVolume_Shared)
@@ -254,7 +257,7 @@ IF (PP_N.NE.1) THEN
   xGP_loc(0) = -0.5!77350
   xGP_loc(1) = 0.5
   wGP_loc = 1.
-  CALL InitializeVandermonde(PP_N,1,wBary,xGP,xGP_loc, Vdm_loc)
+  CALL InitializeVandermonde(PP_N,1,N_Inter(PP_N)%wBary,N_Inter(PP_N)%xGP,xGP_loc, Vdm_loc)
 END IF
 ! ElemNodeID and ElemsJ use compute node elems
 DO iElem = firstElem, lastElem
@@ -266,7 +269,7 @@ DO iElem = firstElem, lastElem
     END DO; END DO; END DO
   ELSE
     DO j=0, Nloc; DO k=0, Nloc; DO l=0, Nloc
-      DetLocal(1,j,k,l)=1./N_VolMesh_Shared(iElem)%sJ(j,k,l)
+      DetLocal(1,j,k,l)=1./N_VolMesh(iElem)%sJ(j,k,l)
     END DO; END DO; END DO
     CALL ChangeBasis3D(1,Nloc, 1, Vdm_loc, DetLocal(:,:,:,:),DetJac(:,:,:,:))
   END IF

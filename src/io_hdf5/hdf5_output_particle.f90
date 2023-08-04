@@ -224,7 +224,7 @@ USE MOD_Globals            ,ONLY: abort
 USE MOD_Mesh_Vars          ,ONLY: nElems
 USE MOD_PreProc
 USE MOD_HDG_Vars           ,ONLY: ElemToBRRegion,RegionElectronRef
-USE MOD_DG_Vars            ,ONLY: U
+USE MOD_DG_Vars            ,ONLY: U_N
 USE MOD_PICDepo_Vars       ,ONLY: PartSource
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -245,7 +245,7 @@ DO iElem=1,nElems
   IF (RegionID.GT.0) THEN
     DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
 #if ((USE_HDG) && (PP_nVar==1))
-      source_e = U(1,i,j,k,iElem)-RegionElectronRef(2,RegionID)
+      source_e = U_N(iElem)%U(1,i,j,k)-RegionElectronRef(2,RegionID)
 #else
       CALL abort(__STAMP__,' CalculateBRElectronsPerCell only implemented for electrostatic HDG!')
 #endif
@@ -1544,11 +1544,11 @@ SUBROUTINE WriteElectroMagneticPICFieldToHDF5()
 USE MOD_PreProc
 USE MOD_Globals
 USE MOD_Globals_Vars           ,ONLY: ProjectName
-USE MOD_Mesh_Vars              ,ONLY: offsetElem,nGlobalElems, nElems,MeshFile,Elem_xGP
+USE MOD_Mesh_Vars              ,ONLY: offsetElem,nGlobalElems, nElems,MeshFile,N_VolMesh
 USE MOD_Output_Vars            ,ONLY: UserBlockTmpFile,userblock_total_len
 USE MOD_Interpolation_Vars     ,ONLY: NodeType
 USE MOD_PICInterpolation_tools ,ONLY: GetExternalFieldAtParticle,GetEMField
-USE MOD_Interpolation_Vars     ,ONLY: xGP
+USE MOD_Interpolation_Vars     ,ONLY: N_Inter
 USE MOD_Restart_Vars           ,ONLY: RestartTime
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -1574,11 +1574,11 @@ DO iElem=1,PP_nElems
   DO k=0,PP_N
     DO j=0,PP_N
       DO i=0,PP_N
-        ASSOCIATE( x => Elem_xGP(1,i,j,k,iElem), y => Elem_xGP(2,i,j,k,iElem), z => Elem_xGP(3,i,j,k,iElem))
+        ASSOCIATE( x => N_VolMesh(iElem)%Elem_xGP(1,i,j,k), y => N_VolMesh(iElem)%Elem_xGP(2,i,j,k), z => N_VolMesh(iElem)%Elem_xGP(3,i,j,k))
           ! Superposition of the external and calculated electromagnetic field
           !   GetExternalFieldAtParticle : Get the 1 of 4 external fields (analytic, variable, etc.) at position x,y,z
           !                   GetEMField : Evaluate the electro-(magnetic) field using the reference position and return the field
-          outputArray(1:6,i,j,k,iElem) = GetExternalFieldAtParticle((/x,y,z/)) + GetEMField(iElem,(/xGP(i),xGP(j),xGP(k)/))
+          outputArray(1:6,i,j,k,iElem) = GetExternalFieldAtParticle((/x,y,z/)) + GetEMField(iElem,(/N_Inter(PP_N)%xGP(i),N_Inter(PP_N)%xGP(j),N_Inter(PP_N)%xGP(k)/))
         END ASSOCIATE
       END DO ! i
     END DO ! j

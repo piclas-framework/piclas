@@ -323,7 +323,7 @@ PPURE FUNCTION GetEMFieldDW(ElemID, PartPos_loc)
 ! Evaluate the electro-(magnetic) field using the reference position and return the field
 !===================================================================================================================================
 ! MODULES
-USE MOD_Mesh_Vars             ,ONLY: Elem_xGP
+USE MOD_Mesh_Vars             ,ONLY: N_VolMesh
 USE MOD_PICInterpolation_Vars ,ONLY: useBGField
 USE MOD_Interpolation_Vars    ,ONLY: BGField,BGType,BGDataSize
 USE MOD_Globals
@@ -393,7 +393,7 @@ HelperU(1:3,:,:,:) = U(1:3,:,:,:,ElemID)
 
 DistSum = 0.0
 DO k = 0, PP_N; DO l=0, PP_N; DO m=0, PP_N
-  norm = VECNORM(Elem_xGP(1:3,k,l,m, ElemID)-PartPos_loc(1:3))
+  norm = VECNORM(N_VolMesh(ELemID)%Elem_xGP(1:3,k,l,m)-PartPos_loc(1:3))
   IF(norm.GT.0.)THEN
     PartDistDepo(k,l,m) = 1./norm
   ELSE

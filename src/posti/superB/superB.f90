@@ -11,7 +11,7 @@
 ! You should have received a copy of the GNU General Public License along with PICLas. If not, see <http://www.gnu.org/licenses/>.
 !==================================================================================================================================
 #include "piclas.h"
-
+#if USE_SUPER_B
 PROGRAM SuperB_standalone
 !===================================================================================================================================
 !> Standalone version of SuperB for the calculation of magnetic fields
@@ -158,3 +158,4 @@ IF(iError .NE. 0) STOP 'MPI finalize error'
 #endif
 
 END PROGRAM SuperB_standalone
+#endif

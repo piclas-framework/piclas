@@ -31,11 +31,13 @@ INTERFACE GramSchmidtAlgo
   MODULE PROCEDURE GramSchmidtAlgo
 END INTERFACE GramSchmidtAlgo
 
+#if USE_SUPER_B
 INTERFACE CalcErrorSuperB
   MODULE PROCEDURE CalcErrorSuperB
 END INTERFACE
 !===================================================================================================================================
 PUBLIC::CalcErrorSuperB
+#endif /* USE_SUPER_B */
 
 CONTAINS
 
@@ -116,7 +118,7 @@ Vector3(:) = Vector3(:) / SQRT(Vector3(1)**2 + Vector3(2)**2 + Vector3(3)**2)
 
 END SUBROUTINE GramSchmidtAlgo
 
-
+#if USE_SUPER_B
 SUBROUTINE CalcErrorSuperB(L_2_Error,L_Inf_Error,ExactFunctionNumber,iCoilOrMagnet)
 !===================================================================================================================================
 ! Calculates L_infinfity and L_2 norms of state variables using the Analyze Framework (GL points+weights)
@@ -127,7 +129,7 @@ SUBROUTINE CalcErrorSuperB(L_2_Error,L_Inf_Error,ExactFunctionNumber,iCoilOrMagn
 ! MODULES
 USE MOD_Globals
 USE MOD_PreProc
-USE MOD_Mesh_Vars          ,ONLY: Elem_xGP,sJ,Vdm_GL_N
+USE MOD_Mesh_Vars          ,ONLY: N_VolMesh, Vdm_GL_N!Elem_xGP,sJ,Vdm_GL_N
 USE MOD_Interpolation_Vars ,ONLY: NAnalyze,Vdm_GaussN_NAnalyze,wAnalyze
 USE MOD_ChangeBasis        ,ONLY: ChangeBasis3D
 USE MOD_Particle_Mesh_Vars ,ONLY: MeshVolume
@@ -268,6 +270,6 @@ CASE DEFAULT
 END SELECT
 
 END SUBROUTINE ExactFuncSuperB
-
+#endif /* USE_S_U_P_E_R_B */
 
 END MODULE MOD_SuperB_Tools

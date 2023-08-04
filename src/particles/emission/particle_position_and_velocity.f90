@@ -557,7 +557,7 @@ USE MOD_Interpolation          ,ONLY: GetVandermonde,GetNodesAndWeights
 USE MOD_Basis                  ,ONLY: BarycentricWeights
 USE MOD_ChangeBasis            ,ONLY: ChangeBasis3D
 USE MOD_Equation               ,ONLY: ExactFunc
-USE MOD_Mesh_Vars              ,ONLY: Elem_xGP,sJ
+USE MOD_Mesh_Vars              ,ONLY: N_VolMesh
 USE MOD_Interpolation_Vars     ,ONLY: NodeTypeVISU,NodeType
 USE MOD_Eval_xyz               ,ONLY: TensorProductInterpolation
 USE MOD_Mesh_Vars              ,ONLY: NGeo,XCL_NGeo,XiCL_NGeo,wBaryCL_NGeo,offsetElem
@@ -634,11 +634,11 @@ DO iElem = 1, nElems
   CASE(2) ! 2D
 
     ! Interpolate the physical position Elem_xGP to the analyze position, needed for exact function
-    CALL ChangeBasis3D(3, PP_N, EmissionDistributionN, NED(EmissionDistributionN)%Vdm_N_EQ_emission, Elem_xGP(1:3,:,:,:,iElem), &
+    CALL ChangeBasis3D(3, PP_N, EmissionDistributionN, NED(EmissionDistributionN)%Vdm_N_EQ_emission, N_VolMesh(iElem)%Elem_xGP(1:3,:,:,:), &
                                                        NED(EmissionDistributionN)%Coords_NAnalyze(1:3,:,:,:))
 
     ! Interpolate the Jacobian to the equidistant grid: be careful we interpolate the inverse of the inverse of the jacobian ;-)
-    CALL ChangeBasis3D(1, PP_N, EmissionDistributionN, NED(EmissionDistributionN)%Vdm_N_EQ_emission, 1./sJ(:,:,:,iElem), &
+    CALL ChangeBasis3D(1, PP_N, EmissionDistributionN, NED(EmissionDistributionN)%Vdm_N_EQ_emission, 1./N_VolMesh(iElem)%sJ(:,:,:), &
                                                        NED(EmissionDistributionN)%J_NAnalyze(1:1,:,:,:))
 
     ! Integrate the density with the highest polynomial degree and calculate the average number of particles for the whole cell
@@ -694,10 +694,10 @@ DO iElem = 1, nElems
       ! Check if already calculated
       IF(Nred.NE.EmissionDistributionN)THEN
         ! Interpolate the physical position Elem_xGP to the analyze position, needed for exact function
-        CALL ChangeBasis3D(3, PP_N, Nred, NED(Nred)%Vdm_N_EQ_emission, Elem_xGP(1:3,:,:,:,iElem), NED(Nred)%Coords_NAnalyze(1:3,:,:,:))
+        CALL ChangeBasis3D(3, PP_N, Nred, NED(Nred)%Vdm_N_EQ_emission, N_VolMesh(iElem)%Elem_xGP(1:3,:,:,:), NED(Nred)%Coords_NAnalyze(1:3,:,:,:))
 
         ! Interpolate the Jacobian to the equidistant grid: be careful we interpolate the inverse of the inverse of the jacobian ;-)
-        CALL ChangeBasis3D(1, PP_N, Nred, NED(Nred)%Vdm_N_EQ_emission, 1./sJ(:,:,:,iElem), NED(Nred)%J_NAnalyze(1:1,:,:,:))
+        CALL ChangeBasis3D(1, PP_N, Nred, NED(Nred)%Vdm_N_EQ_emission, 1./N_VolMesh(iElem)%sJ(:,:,:), NED(Nred)%J_NAnalyze(1:1,:,:,:))
       END IF ! Nred.NE.EmissionDistributionN
 
       ! Loop over all interpolation points

@@ -391,7 +391,7 @@ USE MOD_Particle_Mesh_Vars ,ONLY: GEO, ElemBaryNgeo, FIBGM_offsetElem, FIBGM_nEl
 USE MOD_Particle_Mesh_Vars ,ONLY: ElemRadiusNGeo, ElemsJ
 USE MOD_Preproc
 USE MOD_Mesh_Tools         ,ONLY: GetCNElemID
-USE MOD_Interpolation_Vars ,ONLY: wGP
+USE MOD_Interpolation_Vars ,ONLY: N_Inter
 #if USE_LOADBALANCE
 USE MOD_Mesh_Vars          ,ONLY: nElems
 USE MOD_LoadBalance_Vars   ,ONLY: nDeposPerElem
@@ -458,7 +458,7 @@ DO kk = kmin,kmax
             DO expo = 3, alpha_sf
               S1 = S*S1
             END DO
-            totalCharge = totalCharge  + wGP(k)*wGP(l)*wGP(m)*Fac*S1/ElemsJ(k,l,m,CNElemID)
+            totalCharge = totalCharge  + N_Inter(PP_N)%wGP(k)*N_Inter(PP_N)%wGP(l)*N_Inter(PP_N)%wGP(m)*Fac*S1/ElemsJ(k,l,m,CNElemID)
           END IF
         END DO; END DO; END DO
 
@@ -484,7 +484,7 @@ USE MOD_Particle_Mesh_Vars ,ONLY: GEO, ElemBaryNgeo, FIBGM_offsetElem, FIBGM_nEl
 USE MOD_Particle_Mesh_Vars ,ONLY: ElemRadiusNGeo, ElemsJ
 USE MOD_Preproc
 USE MOD_Mesh_Tools         ,ONLY: GetCNElemID
-USE MOD_Interpolation_Vars ,ONLY: wGP
+USE MOD_Interpolation_Vars ,ONLY: N_Inter
 #if USE_LOADBALANCE
 USE MOD_Mesh_Vars          ,ONLY: nElems
 USE MOD_LoadBalance_Vars   ,ONLY: nDeposPerElem
@@ -584,7 +584,7 @@ DO kk = kmin,kmax
             ELSE
               PartSourceTmp(1:4,k,l,m) = Fac(1:4) * S1
             END IF
-            totalCharge = totalCharge  + wGP(k)*wGP(l)*wGP(m)*PartSourceTmp(4,k,l,m)/ElemsJ(k,l,m,CNElemID)
+            totalCharge = totalCharge  + N_Inter(PP_N)%wGP(k)*N_Inter(PP_N)%wGP(l)*N_Inter(PP_N)%wGP(m)*PartSourceTmp(4,k,l,m)/ElemsJ(k,l,m,CNElemID)
           END IF
         END DO; END DO; END DO
 
@@ -645,7 +645,7 @@ USE MOD_Particle_Mesh_Vars ,ONLY: ElemBaryNgeo, Elem_xGP_Shared
 USE MOD_Particle_Mesh_Vars ,ONLY: ElemRadiusNGeo, ElemsJ, ElemToElemMapping,ElemToElemInfo
 USE MOD_Preproc
 USE MOD_Mesh_Tools         ,ONLY: GetCNElemID, GetGlobalElemID
-USE MOD_Interpolation_Vars ,ONLY: wGP
+USE MOD_Interpolation_Vars ,ONLY: N_Inter
 USE MOD_Particle_Vars      ,ONLY: PEM
 #if USE_LOADBALANCE
 USE MOD_Mesh_Vars          ,ONLY: nElems
@@ -730,7 +730,7 @@ DO ppp = 0,ElemToElemMapping(2,OrigCNElemID)
       ELSE
         PartSourceTmp(1:4,k,l,m) = Fac(1:4) * S1
       END IF
-      totalCharge = totalCharge  + wGP(k)*wGP(l)*wGP(m)*PartSourceTmp(4,k,l,m)/ElemsJ(k,l,m,CNElemID)
+      totalCharge = totalCharge  + N_Inter(PP_N)%wGP(k)*N_Inter(PP_N)%wGP(l)*N_Inter(PP_N)%wGP(m)*PartSourceTmp(4,k,l,m)/ElemsJ(k,l,m,CNElemID)
     END IF
   END DO; END DO; END DO
 

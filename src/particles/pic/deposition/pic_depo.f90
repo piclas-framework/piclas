@@ -86,8 +86,8 @@ USE MOD_Basis                  ,ONLY: BarycentricWeights,InitializeVandermonde
 USE MOD_Basis                  ,ONLY: LegendreGaussNodesAndWeights,LegGaussLobNodesAndWeights
 USE MOD_ChangeBasis            ,ONLY: ChangeBasis3D
 USE MOD_Dielectric_Vars        ,ONLY: DoDielectricSurfaceCharge
-USE MOD_Interpolation_Vars     ,ONLY: xGP,wBary
-USE MOD_Mesh_Vars              ,ONLY: nElems,sJ
+USE MOD_Interpolation_Vars     ,ONLY: N_Inter
+USE MOD_Mesh_Vars              ,ONLY: nElems,N_VolMesh
 USE MOD_Particle_Vars
 USE MOD_Particle_Mesh_Vars     ,ONLY: nUniqueGlobalNodes
 USE MOD_PICDepo_Vars
@@ -206,16 +206,16 @@ SELECT CASE(TRIM(DepositionType))
 CASE('cell_volweight')
   ALLOCATE(CellVolWeightFac(0:PP_N),wGP_tmp(0:PP_N) , xGP_tmp(0:PP_N))
   ALLOCATE(CellVolWeight_Volumes(0:1,0:1,0:1,nElems))
-  CellVolWeightFac(0:PP_N) = xGP(0:PP_N)
+  CellVolWeightFac(0:PP_N) = N_Inter(PP_N)%xGP(0:PP_N)
   CellVolWeightFac(0:PP_N) = (CellVolWeightFac(0:PP_N)+1.0)/2.0
   CALL LegendreGaussNodesAndWeights(1,xGP_tmp,wGP_tmp)
   ALLOCATE( Vdm_tmp(0:1,0:PP_N))
-  CALL InitializeVandermonde(PP_N,1,wBary,xGP,xGP_tmp,Vdm_tmp)
+  CALL InitializeVandermonde(PP_N,1,N_Inter(PP_N)%wBary,N_Inter(PP_N)%xGP,xGP_tmp,Vdm_tmp)
   DO iElem=1, nElems
     DO k=0,PP_N
       DO j=0,PP_N
         DO i=0,PP_N
-          DetLocal(1,i,j,k)=1./sJ(i,j,k,iElem)
+          DetLocal(1,i,j,k)=1./N_VolMesh(iElem)%sJ(i,j,k)
         END DO ! i=0,PP_N
       END DO ! j=0,PP_N
     END DO ! k=0,PP_N
@@ -236,7 +236,7 @@ CASE('cell_volweight_mean')
 #endif
   IF ((TRIM(InterpolationType).NE.'cell_volweight')) THEN
     ALLOCATE(CellVolWeightFac(0:PP_N))
-    CellVolWeightFac(0:PP_N) = xGP(0:PP_N)
+    CellVolWeightFac(0:PP_N) = N_Inter(PP_N)%xGP(0:PP_N)
     CellVolWeightFac(0:PP_N) = (CellVolWeightFac(0:PP_N)+1.0)/2.0
   END IF
 

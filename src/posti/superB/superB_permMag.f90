@@ -13,7 +13,8 @@
 #include "piclas.h"
 
 MODULE MOD_SuperB_PermMag
-!===================================================================================================================================
+#if USE_SUPER_B
+  !===================================================================================================================================
 !> Contains the calculation of the magnetic field of different types of permanent magnets
 !===================================================================================================================================
 ! MODULES
@@ -1088,5 +1089,5 @@ IF(DoCalcErrorNormsSuperB)THEN
 END IF ! DoCalcErrorNormsSuperB
 
 END SUBROUTINE CalculateGradient
-
+#endif /* USE_SUPER_B */
 END MODULE MOD_SuperB_PermMag

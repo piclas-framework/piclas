@@ -45,8 +45,8 @@ SUBROUTINE VerifyDepositedCharge()
 ! MODULES
 USE MOD_Globals
 USE MOD_Preproc
-USE MOD_Mesh_Vars             ,ONLY: nElems, sJ, Elem_xGP
-USE MOD_Interpolation_Vars    ,ONLY: NAnalyze,Vdm_GaussN_NAnalyze,wAnalyze
+USE MOD_Mesh_Vars             ,ONLY: nElems, N_VolMesh
+USE MOD_Interpolation_Vars    ,ONLY: NAnalyze,N_InterAnalyze,wAnalyze
 USE MOD_Particle_Vars         ,ONLY: PDM, Species, PartSpecies ,PartMPF,usevMPF
 USE MOD_Particle_Analyze_Vars ,ONLY: ChargeCalcDone
 USE MOD_PICDepo_Vars          ,ONLY: sfDepo3D,dimFactorSF,VerifyChargeStr,DepositionType
@@ -81,17 +81,17 @@ SWRITE(UNIT_stdOut,'(A)') ' PERFORMING CHARGE DEPOSITION PLAUSIBILITY CHECK...'
 ChargeNumerical=0. ! Nullify
 DO iElem=1,nElems
   ! Interpolate the physical position Elem_xGP to the analyze position, needed for exact function
-  CALL ChangeBasis3D(3,PP_N,NAnalyze,Vdm_GaussN_NAnalyze,Elem_xGP(1:3,:,:,:,iElem),Coords_NAnalyze(1:3,:,:,:))
+  CALL ChangeBasis3D(3,PP_N,NAnalyze,N_InterAnalyze(PP_N)%Vdm_GaussN_NAnalyze,N_VolMesh(iElem)%Elem_xGP(1:3,:,:,:),Coords_NAnalyze(1:3,:,:,:))
   ! Interpolate the Jacobian to the analyze grid: be careful we interpolate the inverse of the inverse of the jacobian ;-)
-  J_N(1,0:PP_N,0:PP_N,0:PP_N)=1./sJ(:,:,:,iElem)
-  CALL ChangeBasis3D(1,PP_N,NAnalyze,Vdm_GaussN_NAnalyze,J_N(1:1,0:PP_N,0:PP_N,0:PP_N),J_NAnalyze(1:1,:,:,:))
+  J_N(1,0:PP_N,0:PP_N,0:PP_N)=1./N_VolMesh(iElem)%sJ(:,:,:)
+  CALL ChangeBasis3D(1,PP_N,NAnalyze,N_InterAnalyze(PP_N)%Vdm_GaussN_NAnalyze,J_N(1:1,0:PP_N,0:PP_N,0:PP_N),J_NAnalyze(1:1,:,:,:))
   ! Interpolate the solution to the analyze grid
 #if defined(IMPA)
   source(1,:,:,:) = ImplicitSource(4,:,:,:,iElem)
 #else
   source(1,:,:,:) =     PartSource(4,:,:,:,iElem)
 #endif
-  CALL ChangeBasis3D(1,PP_N,NAnalyze,Vdm_GaussN_NAnalyze,source(1,:,:,:),U_NAnalyze(1,:,:,:))
+  CALL ChangeBasis3D(1,PP_N,NAnalyze,N_InterAnalyze(PP_N)%Vdm_GaussN_NAnalyze,source(1,:,:,:),U_NAnalyze(1,:,:,:))
   ChargeLoc=0. ! Nullify
   DO m=0,NAnalyze
     DO l=0,NAnalyze
@@ -154,9 +154,9 @@ SUBROUTINE CalcDepositedCharge()
 ! MODULES
 USE MOD_Globals
 USE MOD_Preproc
-USE MOD_Mesh_Vars,              ONLY:sJ
+USE MOD_Mesh_Vars,              ONLY:N_VolMesh
 USE MOD_Particle_Vars,          ONLY:PDM, Species, PartSpecies, usevmpf, PartMPF
-USE MOD_Interpolation_Vars,     ONLY:wGP
+USE MOD_Interpolation_Vars,     ONLY:N_Inter
 USE MOD_Particle_Analyze_Vars,  ONLY:PartCharge
 USE MOD_TimeDisc_Vars,          ONLY:iter
 #if defined(IMPA)
@@ -187,16 +187,16 @@ PartCharge=0.
 IF(iter.EQ.0) RETURN
 DO iElem=1,PP_nElems
   ! compute the deposited charge
-  J_N(1,0:PP_N,0:PP_N,0:PP_N)=1./sJ(:,:,:,iElem)
+  J_N(1,0:PP_N,0:PP_N,0:PP_N)=1./N_VolMesh(iElem)%sJ(:,:,:)
   DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
 #if defined(IMPA)
 #if USE_HDG
-    Charge(1) = Charge(1)+ wGP(i)*wGP(j)*wGP(k) * ImplicitSource(1,i,j,k,iElem) * J_N(1,i,j,k)
+    Charge(1) = Charge(1)+ N_Inter(PP_N)%wGP(i)*N_Inter(PP_N)%wGP(j)*N_Inter(PP_N)%wGP(k) * ImplicitSource(1,i,j,k,iElem) * J_N(1,i,j,k)
 #else /* DG */
-    Charge(1) = Charge(1)+ wGP(i)*wGP(j)*wGP(k) * ImplicitSource(4,i,j,k,iElem) * J_N(1,i,j,k)
+    Charge(1) = Charge(1)+ N_Inter(PP_N)%wGP(i)*N_Inter(PP_N)%wGP(j)*N_Inter(PP_N)%wGP(k) * ImplicitSource(4,i,j,k,iElem) * J_N(1,i,j,k)
 #endif
 #else
-    Charge(1) = Charge(1)+ wGP(i)*wGP(j)*wGP(k) * PartSource(4,i,j,k,iElem) * J_N(1,i,j,k)
+    Charge(1) = Charge(1)+ N_Inter(PP_N)%wGP(i)*N_Inter(PP_N)%wGP(j)*N_Inter(PP_N)%wGP(k) * PartSource(4,i,j,k,iElem) * J_N(1,i,j,k)
 #endif
   END DO; END DO; END DO
 END DO
@@ -244,10 +244,10 @@ SUBROUTINE CalculateBRElectronsPerCell(iElem,RegionID,ElectronNumberCell)
 USE MOD_Globals
 USE MOD_Globals_Vars       ,ONLY: ElementaryCharge
 USE MOD_Preproc
-USE MOD_Mesh_Vars          ,ONLY: sJ
-USE MOD_Interpolation_Vars ,ONLY: wGP
+USE MOD_Mesh_Vars          ,ONLY: N_VolMesh
+USE MOD_Interpolation_Vars ,ONLY: N_Inter
 #if PP_nVar==1
-USE MOD_DG_Vars            ,ONLY: U
+USE MOD_DG_Vars            ,ONLY: U_N
 #endif
 USE MOD_HDG_Vars           ,ONLY: RegionElectronRef
 ! IMPLICIT VARIABLE HANDLING
@@ -265,10 +265,10 @@ REAL              :: J_N(1,0:PP_N,0:PP_N,0:PP_N)
 REAL              :: source_e
 !===================================================================================================================================
 ElectronNumberCell=0.
-J_N(1,0:PP_N,0:PP_N,0:PP_N)=1./sJ(:,:,:,iElem)
+J_N(1,0:PP_N,0:PP_N,0:PP_N)=1./N_VolMesh(iElem)%sJ(:,:,:)
 DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
 #if PP_nVar==1
-  source_e = U(1,i,j,k,iElem)-RegionElectronRef(2,RegionID)
+  source_e = U_N(iElem)%U(1,i,j,k)-RegionElectronRef(2,RegionID)
 #else
   CALL abort(&
 __STAMP__&
@@ -281,7 +281,7 @@ __STAMP__&
     source_e = RegionElectronRef(1,RegionID) &         !--- linearized boltzmann relation at positive exponent
     * (1. + ((source_e) / RegionElectronRef(3,RegionID)) )
   END IF
-  ElectronNumberCell = ElectronNumberCell + wGP(i)*wGP(j)*wGP(k) * source_e * J_N(1,i,j,k)
+  ElectronNumberCell = ElectronNumberCell + N_Inter(PP_N)%wGP(i)*N_Inter(PP_N)%wGP(j)*N_Inter(PP_N)%wGP(k) * source_e * J_N(1,i,j,k)
 END DO; END DO; END DO
 ElectronNumberCell=ElectronNumberCell/ElementaryCharge
 

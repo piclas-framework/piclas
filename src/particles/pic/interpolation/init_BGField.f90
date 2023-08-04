@@ -76,8 +76,10 @@ USE MOD_Interpolation_Vars    ,ONLY: NBG,BGType,BGField
 USE MOD_Interpolation_Vars    ,ONLY: BGField_xGP,BGField_wBary,BGDataSize
 USE MOD_Interpolation_Vars    ,ONLY: NodeType
 USE MOD_ReadInTools           ,ONLY: PrintOption
+#if USE_SUPER_B
 USE MOD_SuperB                ,ONLY: SuperB
 USE MOD_SuperB_Vars           ,ONLY: BGFieldFrequency,UseTimeDepCoil,nTimePoints,BGFieldTDep
+#endif
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Vars      ,ONLY: PerformLoadBalance
 #endif /*USE_LOADBALANCE*/
@@ -100,6 +102,7 @@ REAL                                    :: BGFieldScaling
 LOGICAL                                 :: BGFieldExists,DG_SolutionExists
 !===================================================================================================================================
 
+#if USE_SUPER_B
 LBWRITE(UNIT_stdOut,'(132("-"))')
 LBWRITE(UNIT_stdOut,'(A)')' INIT BACKGROUND FIELD...'
 
@@ -295,6 +298,9 @@ ELSE
   SDEALLOCATE(wBary_tmp)
   SDEALLOCATE(xGP_tmp)
 END IF ! CalcBField
+#else
+  CALL abort(__STAMP__,'Activate SuperB.')
+#endif
 
 LBWRITE(UNIT_stdOut,'(A)')' INIT BACKGROUND FIELD DONE!'
 LBWRITE(UNIT_StdOut,'(132("-"))')

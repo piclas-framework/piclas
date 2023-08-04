@@ -98,7 +98,7 @@ USE MOD_Analyze_Vars           ,ONLY: CalcElectricTimeDerivative
 USE MOD_HDG_Vars               ,ONLY: UseBiasVoltage,BiasVoltage,BVDataLength
 USE MOD_PICInterpolation_Vars  ,ONLY: useAlgebraicExternalField,AlgebraicExternalField
 USE MOD_Analyze_Vars           ,ONLY: AverageElectricPotential
-USE MOD_Mesh_Vars              ,ONLY: Elem_xGP
+USE MOD_Mesh_Vars              ,ONLY: N_VolMesh
 USE MOD_HDG_Vars               ,ONLY: UseBRElectronFluid,BRAutomaticElectronRef,RegionElectronRef
 USE MOD_Particle_Analyze_Vars  ,ONLY: CalcElectronIonDensity,CalcElectronTemperature
 USE MOD_Particle_Analyze_Tools ,ONLY: AllocateElectronIonDensityCell,AllocateElectronTemperatureCell
@@ -178,7 +178,7 @@ INTEGER                        :: SideID_start, SideID_end,iNbProc,SendID
 REAL,ALLOCATABLE               :: SortedLambda(:,:,:)          ! lambda, ((PP_N+1)^2,nSides)
 INTEGER                        :: SortedOffset,SortedStart,SortedEnd
 #ifdef PARTICLES
-INTEGER                        :: i,j,k,iElem
+INTEGER                        :: i,j,k
 #endif /*PARTICLES*/
 REAL,ALLOCATABLE               :: FPCDataHDF5(:,:),EPCDataHDF5(:,:),BVDataHDF5(:,:)
 INTEGER                        :: nVarFPC,nVarEPC
@@ -437,9 +437,9 @@ ASSOCIATE (&
       DO k=0,INT(PP_N); DO j=0,INT(PP_N); DO i=0,INT(PP_N)
         ASSOCIATE( Ue => AverageElectricPotential ,&
               xe => 2.4e-2                        ,&
-              x  => Elem_xGP(1,i,j,k,iElem))
-          Utemp(1,i,j,k,iElem) = U(1,i,j,k,iElem) - x * Ue / xe
-          Utemp(2,i,j,k,iElem) = E(1,i,j,k,iElem) + Ue / xe
+              x  => N_VolMesh(iElem)%Elem_xGP(1,i,j,k))
+          Utemp(1,i,j,k,iElem) = U_N(iElem)%U(1,i,j,k) - x * Ue / xe
+          Utemp(2,i,j,k,iElem) = U_N(iElem)%E(1,i,j,k) + Ue / xe
         END ASSOCIATE
       END DO; END DO; END DO !i,j,k
     END DO !iElem

@@ -1289,7 +1289,7 @@ SUBROUTINE DSMC_CalcSubNodeVolumes2D(iElem, NodeDepth, Node)
 !===================================================================================================================================
 ! MODULES
 USE MOD_DSMC_Vars,              ONLY : OctreeVdm, tNodeVolume, SymmetrySide
-USE MOD_Mesh_Vars,              ONLY : SurfElem, Face_xGP
+USE MOD_Mesh_Vars,              ONLY : N_SurfMesh
 USE MOD_Preproc
 USE MOD_ChangeBasis,            ONLY : ChangeBasis2D
 ! IMPLICIT VARIABLE HANDLING
@@ -1316,11 +1316,11 @@ INTEGER                                 :: LocalDepth
   SideID = SymmetrySide(iElem,1)
 
   DO j=0, PP_N; DO k=0, PP_N
-    DetLocal(1,j,k)=SurfElem(j,k,SideID)
+    DetLocal(1,j,k)=N_SurfMesh(SideID)%SurfElem(j,k)
   END DO; END DO
 
   DO j=0, PP_N; DO k=0, PP_N
-    FaceLocal(1:2,j,k) = Face_xGP(1:2,j,k,SideID)
+    FaceLocal(1:2,j,k) = N_SurfMesh(SideID)%Face_xGP(1:2,j,k)
   END DO; END DO
 
   ALLOCATE( DetJac(1,0:NumOfPoints - 1,0:NumOfPoints - 1))
@@ -1340,7 +1340,7 @@ SUBROUTINE DSMC_CalcSubNodeVolumes3D(iElem, NodeDepth, Node)
 !===================================================================================================================================
 ! MODULES
   USE MOD_DSMC_Vars,              ONLY : OctreeVdm, tNodeVolume
-  USE MOD_Mesh_Vars,              ONLY : sJ
+  USE MOD_Mesh_Vars,              ONLY : N_VolMesh
   USE MOD_Preproc
   USE MOD_ChangeBasis,            ONLY : ChangeBasis3D
 ! IMPLICIT VARIABLE HANDLING
@@ -1364,7 +1364,7 @@ SUBROUTINE DSMC_CalcSubNodeVolumes3D(iElem, NodeDepth, Node)
   NumOfPoints = 2**NodeDepth
 
   DO j=0, PP_N; DO k=0, PP_N; DO l=0, PP_N
-    DetLocal(1,j,k,l)=1./sJ(j,k,l,iElem)
+    DetLocal(1,j,k,l)=1./N_VolMesh(iElem)%sJ(j,k,l)
   END DO; END DO; END DO
 
   ALLOCATE( DetJac(1,0:NumOfPoints - 1,0:NumOfPoints - 1,0:NumOfPoints - 1))
@@ -1382,7 +1382,7 @@ RECURSIVE SUBROUTINE InitVanderOct(LocalVdm, NodeDepth, LocalDepth, OctreeVdmLoc
 ! MODULES
   USE MOD_DSMC_Vars,              ONLY : tOctreeVdm
   USE MOD_Preproc
-  USE MOD_Interpolation_Vars,     ONLY : xGP, wBary
+  USE MOD_Interpolation_Vars,     ONLY : N_Inter
   USE MOD_Basis,                  ONLY : InitializeVandermonde
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE
@@ -1407,7 +1407,7 @@ RECURSIVE SUBROUTINE InitVanderOct(LocalVdm, NodeDepth, LocalDepth, OctreeVdmLoc
       OctreeVdmLoc%xGP(i) = -1.0 + 2./(1.+NodePointNum) * ((REAL(i)+1.) - 0.5)
     END DO
     OctreeVdmLoc%wGP = 2./REAL(1.0+NodePointNum)
-    CALL InitializeVandermonde(PP_N,NodePointNum,wBary,xGP,OctreeVdmLoc%xGP,OctreeVdmLoc%Vdm)
+    CALL InitializeVandermonde(PP_N,NodePointNum,N_Inter(PP_N)%wBary,N_Inter(PP_N)%xGP,OctreeVdmLoc%xGP,OctreeVdmLoc%Vdm)
   END IF
   IF (LocalDepth.EQ.NodeDepth) THEN
     LocalVdm = OctreeVdmLoc%Vdm
