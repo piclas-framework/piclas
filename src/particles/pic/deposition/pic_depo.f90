@@ -303,7 +303,7 @@ CASE('cell_volweight_mean')
             END IF
           END DO
           DO iNode=1,4
-            IF (PeriodicNodeSourceMap(ABS(PVID),NodeInfo_Shared(ElemSideNodeID_Shared(iNode,iLocSide,CNElemID)+1)).NE.0) CYCLE
+            IF (PeriodicNodeSourceMap(ABS(PVID),NodeInfo_Shared(ElemSideNodeID_Shared(iNode,iLocSide,CNElemID)+1)).GT.0) CYCLE
             PeriodicNode= 0
             Dist = HUGE(Dist)
 
@@ -333,11 +333,11 @@ CASE('cell_volweight_mean')
 
 #if USE_MPI
     ! Find periodic nodes which do not have a corresponding BC side to which they are connected
-    IF (ANY(PeriodicNodeSourceMap(1:GEO%nPeriodicVectors,:).NE.0)) THEN
+    IF (ANY(PeriodicNodeSourceMap(1:GEO%nPeriodicVectors,:).GT.0)) THEN
       ALLOCATE(NodewoBCSide(nUniqueGlobalNodes))
     END IF
     DO kNode = 1, nUniqueGlobalNodes
-      NumPerioNodes = COUNT(PeriodicNodeSourceMap(1:GEO%nPeriodicVectors,kNode).NE.0)
+      NumPerioNodes = COUNT(PeriodicNodeSourceMap(1:GEO%nPeriodicVectors,kNode).GT.0)
       IF (NumPerioNodes.GT.0) THEN
         minRank = myRank
         ALLOCATE(NodewoBCSide(kNode)%RankID(NodeToElemMapping(2,kNode)))
@@ -356,7 +356,7 @@ CASE('cell_volweight_mean')
             IF (PartBound%TargetBoundCond(PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID))).EQ.PartBound%PeriodicBC) THEN
               NoBCSideOnNode = .FALSE.
               PVID = BoundaryType(SideInfo_Shared(SIDE_BCID,SideID),BC_ALPHA)
-              IF (PeriodicNodeSourceMap(ABS(PVID),kNode).NE.0) CYCLE LocSideLoop
+              IF (PeriodicNodeSourceMap(ABS(PVID),kNode).GT.0) CYCLE LocSideLoop
               NodeCycle: DO iNode=1,4
                 IF (NodeInfo_Shared(ElemSideNodeID_Shared(iNode,iLocSide,CNElemID)+1).EQ.kNode) THEN
                   FoundOwnNode=.TRUE.
@@ -414,7 +414,7 @@ CASE('cell_volweight_mean')
 
     iSendNode = 0
     SendPeriodicNodes = 0; RecvPeriodicNodes =0
-    IF (ANY(PeriodicNodeSourceMap(1:GEO%nPeriodicVectors,:).NE.0)) THEN
+    IF (ANY(PeriodicNodeSourceMap(1:GEO%nPeriodicVectors,:).GT.0)) THEN
       DO iNode = 1, nUniqueGlobalNodes
         IF (ALLOCATED(NodewoBCSide(iNode)%RankID)) THEN
           NumPerioNodes = COUNT(NodewoBCSide(iNode)%RankID(:) .NE.-1)
@@ -523,7 +523,14 @@ CASE('cell_volweight_mean')
       IF (RecvPeriodicNodes(iRank).GT.0) THEN
         DO iNode = 1, RecvPeriodicNodes(iRank)
           zGlobalNode = PeriodicSendRecv(iRank)%Recv(2*GEO%nPeriodicVectors+1,iNode)
-          PeriodicNodeSourceMap(1:2*GEO%nPeriodicVectors, zGlobalNode) = PeriodicSendRecv(iRank)%Recv(1:2*GEO%nPeriodicVectors,iNode)
+          DO jNode = 1, GEO%nPeriodicVectors
+            IF((PeriodicNodeSourceMap(jNode,zGlobalNode).EQ.0).AND.(PeriodicSendRecv(iRank)%Recv(jNode,iNode).NE.0))THEN
+              PeriodicNodeSourceMap(jNode,zGlobalNode) = PeriodicSendRecv(iRank)%Recv(jNode,iNode)
+              PeriodicNodeSourceMap(jNode+GEO%nPeriodicVectors,zGlobalNode) = PeriodicSendRecv(iRank)%Recv(jNode+GEO%nPeriodicVectors,iNode)
+            ELSEIF((PeriodicNodeSourceMap(jNode+GEO%nPeriodicVectors,zGlobalNode).LT.0).AND.(PeriodicSendRecv(iRank)%Recv(jNode+GEO%nPeriodicVectors,iNode).GE.0))THEN
+              PeriodicNodeSourceMap(jNode+GEO%nPeriodicVectors,zGlobalNode) = PeriodicSendRecv(iRank)%Recv(jNode+GEO%nPeriodicVectors,iNode)
+            END IF ! (PeriodicNodeSourceMap(jNode,zGlobalNode).EQ.0)
+          END DO ! jNode = 1, GEO%nPeriodicVectors
         END DO
         DEALLOCATE(PeriodicSendRecv(iRank)%Recv)
       END IF
@@ -545,7 +552,7 @@ CASE('cell_volweight_mean')
     iSendNode = 0
     SendPeriodicNodes = 0; RecvPeriodicNodes =0
     DO iNode = 1, nUniqueGlobalNodes
-      NumPerioNodes = COUNT(PeriodicNodeSourceMap(1:GEO%nPeriodicVectors,iNode).NE.0)
+      NumPerioNodes = COUNT(PeriodicNodeSourceMap(1:GEO%nPeriodicVectors,iNode).GT.0)
       IF (NumPerioNodes.GT.0) THEN
         DO jNode= 1, GEO%nPeriodicVectors
           IF (PeriodicNodeSourceMap(jNode,iNode).NE.0) THEN
@@ -569,7 +576,7 @@ CASE('cell_volweight_mean')
       END IF
     END DO
     DO iNode = 1, nUniqueGlobalNodes
-      NumPerioNodes = COUNT(PeriodicNodeSourceMap(1:GEO%nPeriodicVectors,iNode).NE.0)
+      NumPerioNodes = COUNT(PeriodicNodeSourceMap(1:GEO%nPeriodicVectors,iNode).GT.0)
       IF (NumPerioNodes.GT.0) THEN
         DO jNode= 1, GEO%nPeriodicVectors
           IF (PeriodicNodeSourceMap(jNode,iNode).NE.0) THEN
@@ -707,7 +714,11 @@ CASE('cell_volweight_mean')
       IF (SendPeriodicNodes(iRank).GT.0) THEN
         DO iNode = 1, SendPeriodicNodes(iRank)
           zGlobalNode = PeriodicSendRecv(iRank)%Recv(GEO%nPeriodicVectors+1,iNode)
-          PeriodicNodeSourceMap(1:GEO%nPeriodicVectors, zGlobalNode) = PeriodicSendRecv(iRank)%Recv(1:GEO%nPeriodicVectors,iNode)
+          DO jNode = 1, GEO%nPeriodicVectors
+            IF((PeriodicNodeSourceMap(jNode,zGlobalNode).EQ.0).AND.(PeriodicSendRecv(iRank)%Recv(jNode,iNode).NE.0))THEN
+              PeriodicNodeSourceMap(jNode,zGlobalNode) = PeriodicSendRecv(iRank)%Recv(jNode,iNode)
+            END IF ! (PeriodicNodeSourceMap(jNode,zGlobalNode).EQ.0)
+          END DO ! jNode = 1, GEO%nPeriodicVectors
         END DO
         DEALLOCATE(PeriodicSendRecv(iRank)%Recv)
         DEALLOCATE(PeriodicSendRecv(iRank)%RecvNodes)
@@ -719,7 +730,7 @@ CASE('cell_volweight_mean')
     END DO
 #endif
     DO iNode = 1, nUniqueGlobalNodes
-      NumPerioNodes = COUNT(PeriodicNodeSourceMap(1:GEO%nPeriodicVectors,iNode).NE.0)
+      NumPerioNodes = COUNT(PeriodicNodeSourceMap(1:GEO%nPeriodicVectors,iNode).GT.0)
       IF (NumPerioNodes.GT.1) NumPerioNodes = 2**NumPerioNodes - 1
       IF (NumPerioNodes.NE.0) THEN
         PeriodicNodeMap(iNode)%nPeriodicNodes = NumPerioNodes
@@ -727,7 +738,7 @@ CASE('cell_volweight_mean')
         PeriodicNodeMap(iNode)%Mapping = 0
         PeriodicNodeMap(iNode)%Rank = -1
         iPeriodNode = 0
-        DO jNode = 1, 3
+        DO jNode = 1, GEO%nPeriodicVectors
           IF (PeriodicNodeSourceMap(jNode,iNode).NE.0) THEN
             iPeriodNode = iPeriodNode + 1
             PeriodicNodeMap(iNode)%Mapping(iPeriodNode) = PeriodicNodeSourceMap(jNode,iNode)
@@ -735,9 +746,9 @@ CASE('cell_volweight_mean')
           END IF
         END DO
         IF (NumPerioNodes.GT.0) THEN
-          DO jNode = 1, 3
+          DO jNode = 1, GEO%nPeriodicVectors
             IF (PeriodicNodeSourceMap(jNode,iNode).NE.0) THEN
-              DO zNode = 1, 3
+              DO zNode = 1, GEO%nPeriodicVectors
                 zGlobalNode = PeriodicNodeSourceMap(zNode,PeriodicNodeSourceMap(jNode,iNode))
                 IF ((zGlobalNode.NE.0).AND.(zGlobalNode.NE.iNode)) THEN
                   IF (.NOT.ANY(PeriodicNodeMap(iNode)%Mapping(:).EQ.zGlobalNode)) THEN
