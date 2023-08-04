@@ -94,7 +94,7 @@ IF(.NOT.DatasetFound) THEN
   END IF
   CALL H5LEXISTS_F(file_id_dsmc, TRIM(spec_pair), DatasetFound, err)
   IF(.NOT.DatasetFound) THEN
-    LBWRITE(UNIT_StdOut,'(A)') TRIM(spec_pair)//': No data set found. Using standard collision modelling.'
+    LBWRITE(UNIT_StdOut,'(A)') ' | '//TRIM(spec_pair)//': No data set found. Using standard collision modelling.'
     RETURN
   END IF
 END IF
@@ -116,7 +116,7 @@ IF(DatasetFound) THEN
   END IF
   IF(DatasetFound) CALL abort(__STAMP__,'ERROR: Please provide either elastic or effective collision cross-section data '//&
                                              & 'for '//TRIM(spec_pair)//'.')
-  LBWRITE(UNIT_StdOut,'(A)') TRIM(spec_pair)//': Found EFFECTIVE collision cross section.'
+  LBWRITE(UNIT_StdOut,'(A)') ' | '//TRIM(spec_pair)//': Found EFFECTIVE collision cross section.'
 ELSE
 
   IF (SpeciesDatabase.EQ.'none') THEN
@@ -128,9 +128,9 @@ ELSE
   IF(DatasetFound) THEN
     SpecXSec(iCase)%UseCollXSec = .TRUE.
     SpecXSec(iCase)%CollXSec_Effective = .FALSE.
-  LBWRITE(UNIT_StdOut,'(A)') TRIM(spec_pair)//': Found ELASTIC collision cross section.'
+  LBWRITE(UNIT_StdOut,'(A)') ' | '//TRIM(spec_pair)//': Found ELASTIC collision cross section.'
   ELSE
-    LBWRITE(UNIT_StdOut,'(A)') TRIM(spec_pair)//': No data set found. Using standard collision modelling.'
+    LBWRITE(UNIT_StdOut,'(A)') ' | '//TRIM(spec_pair)//': No data set found. Using standard collision modelling.'
     RETURN
   END IF
 END IF
@@ -227,7 +227,7 @@ IF(.NOT.GroupFound) THEN
   END IF
   CALL H5LEXISTS_F(file_id_dsmc, TRIM(spec_pair), GroupFound, err)
   IF(.NOT.GroupFound) THEN
-    LBWRITE(UNIT_StdOut,'(A)') TRIM(spec_pair)//': No vibrational excitation cross sections found, using constant read-in values.'
+    LBWRITE(UNIT_StdOut,'(A)') ' | '//TRIM(spec_pair)//': No vibrational excitation cross sections found, using constant read-in values.'
     RETURN
   END IF
 END IF
@@ -236,7 +236,7 @@ END IF
 groupname = TRIM(spec_pair)//'/VIBRATION/'
 CALL H5LEXISTS_F(file_id_dsmc, TRIM(groupname), GroupFound, err)
 IF(.NOT.GroupFound) THEN
-  LBWRITE(UNIT_StdOut,'(A)') TRIM(spec_pair)//': No vibrational excitation cross sections found, using constant read-in values.'
+  LBWRITE(UNIT_StdOut,'(A)') ' | '//TRIM(spec_pair)//': No vibrational excitation cross sections found, using constant read-in values.'
   RETURN
 END IF
 
@@ -245,13 +245,13 @@ IF(GroupFound) THEN
   call H5Gget_info_f(group_id, storage, nVib,max_corder, err)
   ! If cross-section data is found, set the corresponding flag
   IF(nVib.GT.0) THEN
-    LBWRITE(UNIT_StdOut,'(A,I3,A)') TRIM(spec_pair)//': Found ', nVib,' vibrational excitation cross section(s).'
+    LBWRITE(UNIT_StdOut,'(A,I3,A)') ' | '//TRIM(spec_pair)//': Found ', nVib,' vibrational excitation cross section(s).'
     SpecXSec(iCase)%UseVibXSec = .TRUE.
   ELSE
-    LBWRITE(UNIT_StdOut,'(A)') TRIM(spec_pair)//': No vibrational excitation cross sections found, using constant read-in values.'
+    LBWRITE(UNIT_StdOut,'(A)') ' | '//TRIM(spec_pair)//': No vibrational excitation cross sections found, using constant read-in values.'
   END IF
 ELSE
-  LBWRITE(UNIT_StdOut,'(A)') TRIM(spec_pair)//': No vibrational excitation cross sections found, using constant read-in values.'
+  LBWRITE(UNIT_StdOut,'(A)') ' | '//TRIM(spec_pair)//': No vibrational excitation cross sections found, using constant read-in values.'
 END IF
 
 IF(SpecXSec(iCase)%UseVibXSec) THEN
@@ -354,7 +354,7 @@ IF(.NOT.GroupFound) THEN
   END IF
   CALL H5LEXISTS_F(file_id_dsmc, TRIM(spec_pair), GroupFound, err)
   IF(.NOT.GroupFound) THEN
-    LBWRITE(UNIT_StdOut,'(A)') TRIM(spec_pair)//': No electronic excitation cross sections found, using constant read-in values.'
+    LBWRITE(UNIT_StdOut,'(A)') ' | '//TRIM(spec_pair)//': No electronic excitation cross sections found, using constant read-in values.'
     RETURN
   END IF
 END IF
@@ -363,7 +363,7 @@ END IF
 groupname = TRIM(spec_pair)//'/ELECTRONIC/'
 CALL H5LEXISTS_F(file_id_dsmc, TRIM(groupname), GroupFound, err)
 IF(.NOT.GroupFound) THEN
-  LBWRITE(UNIT_StdOut,'(A)') TRIM(spec_pair)//': No electronic excitation cross sections found, using constant read-in values.'
+  LBWRITE(UNIT_StdOut,'(A)') ' | '//TRIM(spec_pair)//': No electronic excitation cross sections found, using constant read-in values.'
   RETURN
 END IF
 
@@ -376,10 +376,10 @@ IF(GroupFound) THEN
     SpecXSec(iCase)%UseElecXSec = .TRUE.
     SpecXSec(iCase)%NumElecLevel = nElec
   ELSE
-    LBWRITE(UNIT_StdOut,'(A)') TRIM(spec_pair)//': No electronic excitation cross sections found, using constant read-in values.'
+    LBWRITE(UNIT_StdOut,'(A)') ' | '//TRIM(spec_pair)//': No electronic excitation cross sections found, using constant read-in values.'
   END IF
 ELSE
-  LBWRITE(UNIT_StdOut,'(A)') TRIM(spec_pair)//': No electronic excitation cross sections found, using constant read-in values.'
+  LBWRITE(UNIT_StdOut,'(A)') ' | '//TRIM(spec_pair)//': No electronic excitation cross sections found, using constant read-in values.'
 END IF
 
 IF(SpecXSec(iCase)%UseElecXSec) THEN
@@ -889,8 +889,6 @@ CALL H5GOPEN_F(file_id_dsmc,TRIM(groupname), group_id, err)
 CALL H5Gget_info_f(group_id, storage, nSets,max_corder, err)
 IF(nSets.EQ.0) CALL abort(__STAMP__,'No reaction cross sections found in database for reaction number:',IntInfoOpt=iReac)
 
-LBWRITE(UNIT_StdOut,'(A,I0)') 'Read cross section for '//TRIM(EductPair)//' from '//TRIM(XSecDatabaseName)//' for reaction # ', iReac
-
 SELECT CASE(COUNT(ProductReac.GT.0))
 CASE(2)
   ProductPair = TRIM(Species(ProductReac(1))%Name)//'-'//TRIM(Species(ProductReac(2))%Name)
@@ -904,9 +902,7 @@ CASE DEFAULT
   CALL abort(__STAMP__,'Number of products is not supported yet! Reaction number:', IntInfoOpt=iReac)
 END SELECT
 
-! IF (SpeciesDatabase.NE.'none') THEN
-!   groupname = TRIM('/Cross-Sections/'//TRIM(ProductPair))
-! END IF
+LBWRITE(UNIT_StdOut,'(A,I0)') ' | Reading cross section for '//TRIM(EductPair)//' -> '//TRIM(ProductPair)//' as reaction # ', iReac
 
 ReactionFound = .FALSE.
 

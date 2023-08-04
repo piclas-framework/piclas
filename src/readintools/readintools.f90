@@ -153,10 +153,6 @@ INTERFACE FinalizeParameters
   MODULE PROCEDURE FinalizeParameters
 END INTERFACE
 
-INTERFACE PrintOption
-  MODULE PROCEDURE PrintOption
-END INTERFACE
-
 PUBLIC :: IgnoredParameters
 PUBLIC :: PrintDefaultParameterFile
 PUBLIC :: CountOption

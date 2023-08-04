@@ -239,7 +239,7 @@ IF(ChemReac%NumDeleteProducts.GT.0) THEN
 END IF
 
 ChemEnergySum = 0.
-LBWRITE(*,*) '| Number of considered reaction paths (including dissociation and recombination): ', ChemReac%NumOfReact
+CALL PrintOption('Number of considered reaction paths (including dissociation and recombination)','INFO',IntOpt=ChemReac%NumOfReact)
 !----------------------------------------------------------------------------------------------------------------------------------
 ALLOCATE(ChemReac%NumReac(ChemReac%NumOfReact))
 ChemReac%NumReac = 0
@@ -716,10 +716,9 @@ DO iSpec = 1, nSpecies
       ! Initialize FORTRAN interface.
       CALL H5OPEN_F(err)    
       CALL H5FOPEN_F (TRIM(SpeciesDatabase), H5F_ACC_RDONLY_F, file_id_specdb, err)
-      LBWRITE (UNIT_stdOut,*) 'Read-in from database for species: ', TRIM(Species(iSpec)%Name)
       dsetname = TRIM('/Species/'//TRIM(Species(iSpec)%Name))
       CALL ReadAttribute(file_id_specdb,'SymmetryFactor',1,DatasetName = dsetname,IntScalar=SpecDSMC(iSpec)%SymmetryFactor)
-        LBWRITE (UNIT_stdOut,*) 'SymmetryFactor: ', SpecDSMC(iSpec)%SymmetryFactor
+      CALL PrintOption('SymmetryFactor '//TRIM(Species(iSpec)%Name),'READIN',IntOpt=SpecDSMC(iSpec)%SymmetryFactor)
       ! Close the file.
       CALL H5FCLOSE_F(file_id_specdb, err)
       ! Close FORTRAN interface.
@@ -727,7 +726,6 @@ DO iSpec = 1, nSpecies
     END IF
     
     IF(Species(iSpec)%DoOverwriteParameters) THEN
-      LBWRITE (UNIT_stdOut,'(66(". "))')
       WRITE(UNIT=hilf,FMT='(I0)') iSpec
       SpecDSMC(iSpec)%SymmetryFactor = GETINT('Part-Species'//TRIM(hilf)//'-SymmetryFactor')
     END IF
@@ -1099,16 +1097,11 @@ ELSE
     ELSE
       ChemReac%ReactionName(iReac) = TRIM(dsetname)
     END IF
-    LBWRITE (UNIT_stdOut,*) 'Read-in from database for reaction: ', TRIM(ChemReac%ReactionName(iReac))
+    CALL PrintOption('Read-in from database for reaction','INFO',StrOpt=TRIM(ChemReac%ReactionName(iReac)))
     ! Open the reaction dataset
     CALL H5DOPEN_F(file_id_specdb, dsetname2, dset_id, err)
     ! Read-in the reaction model
-    CALL AttributeExists(file_id_specdb,'ReactionModel',TRIM(dsetname2), AttrExists=AttrExists)
-    IF(AttrExists) THEN
-      CALL ReadAttribute(file_id_specdb,'ReactionModel',1,TRIM(dsetname2), StrScalar=ChemReac%ReactModel(iReac))
-    ELSE
-      CALL abort(__STAMP__,'ERROR in reaction definition: No reaction model found in the selected reaction in the database!')
-    END IF
+    CALL ReadAttribute(file_id_specdb,'ReactionModel',1,TRIM(dsetname2), StrScalar=ChemReac%ReactModel(iReac))
     ! Read-in of reactants
     CALL AttributeExists(file_id_specdb,'Reactants',TRIM(dsetname2), AttrExists=AttrExists)
     IF(AttrExists) THEN
@@ -1198,6 +1191,7 @@ USE MOD_Globals
 USE MOD_Globals_Vars      ,ONLY: BoltzmannConst
 USE MOD_DSMC_Vars         ,ONLY: ChemReac
 USE MOD_HDF5_Input        ,ONLY: DatasetExists,ReadAttribute
+USE MOD_ReadInTools       ,ONLY: PrintOption
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Vars  ,ONLY: PerformLoadBalance
 #endif /*USE_LOADBALANCE*/
@@ -1215,17 +1209,16 @@ INTEGER,INTENT(IN)                :: iReac
 LOGICAL                           :: ReactionFound
 !===================================================================================================================================
 
-LBWRITE (UNIT_stdOut,*) 'Read-in from database: ', dsetname2
 CALL DatasetExists(file_id_specdb,TRIM(dsetname2),ReactionFound)
 IF(.NOT.ReactionFound) CALL abort(__STAMP__,'ERROR in parameter.ini: Defined reaction has not been found in the database!')
 
 CALL ReadAttribute(file_id_specdb,'Arrhenius-Prefactor',1,DatasetName = dsetname2,RealScalar=ChemReac%Arrhenius_Prefactor(iReac))
-LBWRITE (UNIT_stdOut,*) 'Arrhenius-Prefactor: ', ChemReac%Arrhenius_Prefactor(iReac)
+CALL PrintOption('Arrhenius-Prefactor','READIN',RealOpt=ChemReac%Arrhenius_Prefactor(iReac))
 CALL ReadAttribute(file_id_specdb,'Arrhenius-Powerfactor',1,DatasetName = dsetname2,RealScalar=ChemReac%Arrhenius_Powerfactor(iReac))
-LBWRITE (UNIT_stdOut,*) 'Arrhenius-Powerfactor: ', ChemReac%Arrhenius_Powerfactor(iReac)
+CALL PrintOption('Arrhenius-Powerfactor','READIN',RealOpt=ChemReac%Arrhenius_Powerfactor(iReac))
 CALL ReadAttribute(file_id_specdb,'Activation-Energy_K',1,DatasetName = dsetname2,RealScalar=ChemReac%EActiv(iReac))
 ChemReac%EActiv(iReac) = ChemReac%EActiv(iReac)*BoltzmannConst
-LBWRITE (UNIT_stdOut,*) 'Activation-Energy_K: ', ChemReac%EActiv(iReac)
+CALL PrintOption('Activation-Energy_K','READIN',RealOpt=ChemReac%EActiv(iReac))
 
 END SUBROUTINE ReadArrheniusFromDatabase
 

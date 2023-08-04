@@ -543,7 +543,7 @@ IF(DoDeposition) THEN
   CalcCharge = GETLOGICAL('CalcCharge')
   IF(CalcCharge) DoPartAnalyze = .TRUE.
 ELSE
-  LBWRITE(UNIT_stdOut,'(A)') ' Deposition is switched of. VerifyCharge and CalcCharge are deactivated!'
+  LBWRITE(UNIT_stdOut,'(A)') ' | Deposition is switched off. VerifyCharge and CalcCharge are deactivated!'
 END IF
 
 CalcEkin = GETLOGICAL('CalcKineticEnergy')

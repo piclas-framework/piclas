@@ -807,10 +807,8 @@ ELSE IF(nRandomSeeds.EQ.0) THEN
   CALL InitRandomSeed(nRandomSeeds,SeedSize,Seeds)
 ELSE IF(nRandomSeeds.GT.0) THEN
   ! read in numbers from ini
-  IF(nRandomSeeds.GT.SeedSize) THEN
-    LBWRITE (*,*) 'Expected ',SeedSize,'seeds. Provided ',nRandomSeeds,'. Computer uses default value for all unset values.'
-  ELSE IF(nRandomSeeds.LT.SeedSize) THEN
-    LBWRITE (*,*) 'Expected ',SeedSize,'seeds. Provided ',nRandomSeeds,'. Computer uses default value for all unset values.'
+  IF(nRandomSeeds.GT.SeedSize.OR.nRandomSeeds.LT.SeedSize) THEN
+    LBWRITE (*,*) '| Expected ',SeedSize,'seeds. Provided ',nRandomSeeds,'. Computer uses default value for all unset values.'
   END IF
   DO iSeed=1,MIN(SeedSize,nRandomSeeds)
     WRITE(UNIT=hilf,FMT='(I0)') iSeed
@@ -1536,7 +1534,8 @@ END SUBROUTINE InitRandomSeed
 
 SUBROUTINE InitializeSpeciesParameter()
 !===================================================================================================================================
-! Initialize the species parameter
+!> Initialize the species parameter: read-in the species name, and then either read-in from the database or the parameter file.
+!> Possbility to overwrite specific parameters with custom values.
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
@@ -1565,67 +1564,62 @@ LOGICAL               :: DataSetFound, AttrExists
 ! Read-in of the species database
 SpeciesDatabase       = GETSTR('Particles-Species-Database')
 
+! Read-in of species name and whether to overwrite the database parameters
 DO iSpec = 1, nSpecies
   WRITE(UNIT=hilf,FMT='(I0)') iSpec
-  Species(iSpec)%Name    = TRIM(GETSTR('Part-Species'//TRIM(hilf)//'-SpeciesName','none'))
-  IF(Species(iSpec)%Name .EQ. 'none') THEN
-    CALL abort(__STAMP__,'ERROR: Species-name is not defined for Species:', iSpec)
-  END IF
+  Species(iSpec)%Name    = TRIM(GETSTR('Part-Species'//TRIM(hilf)//'-SpeciesName'))
+  IF(Species(iSpec)%Name.EQ.'none') CALL abort(__STAMP__,'ERROR: Please define a species name for species:', iSpec)
+  Species(iSpec)%DoOverwriteParameters = GETLOGICAL('Part-Species'//TRIM(hilf)//'-DoOverwriteParameters')
 END DO ! iSpec
 
-DO iSpec = 1, nSpecies
-  WRITE(UNIT=hilf,FMT='(I0)') iSpec
-  Species(iSpec)%DoOverwriteParameters = GETLOGICAL('Part-Species'//TRIM(hilf)//'-DoOverwriteParameters')
-  IF(SpeciesDatabase.EQ.'none') THEN
-    Species(iSpec)%DoOverwriteParameters = .TRUE.
-  END IF
-END DO
+! If no database is used, use the overwrite per default
+IF(SpeciesDatabase.EQ.'none') Species(:)%DoOverwriteParameters = .TRUE.
 
+! Read-in the values from the database
 IF(SpeciesDatabase.NE.'none') THEN
   ! Initialize FORTRAN interface.
   CALL H5OPEN_F(err)
-
   ! Check if file exists
   IF(.NOT.FILEEXISTS(SpeciesDatabase)) THEN
     CALL abort(__STAMP__,'ERROR: Database ['//TRIM(SpeciesDatabase)//'] does not exist.')
   END IF
-
+  ! Open file
   CALL H5FOPEN_F (TRIM(SpeciesDatabase), H5F_ACC_RDONLY_F, file_id_specdb, err)
-
+  ! Loop over number of species and skip those with overwrite
   DO iSpec = 1, nSpecies
     IF (Species(iSpec)%DoOverwriteParameters) CYCLE
-    LBWRITE (UNIT_stdOut,*) 'Read-in from database for species: ', TRIM(Species(iSpec)%Name)
+    LBWRITE (UNIT_stdOut,'(68(". "))')
+    CALL PrintOption('Species Name','INFO',StrOpt=TRIM(Species(iSpec)%Name))
     dsetname = TRIM('/Species/'//TRIM(Species(iSpec)%Name))
-
     CALL DatasetExists(file_id_specdb,TRIM(dsetname),DataSetFound)
-    IF(.NOT.DataSetFound)THEN
-      Species(iSpec)%DoOverwriteParameters = .TRUE.
-      SWRITE(*,*) 'WARNING: DataSet not found: ['//TRIM(dsetname)//'] ['//TRIM(SpeciesDatabase)//']'
-    ELSE
+    ! Read-in if dataset is there, otherwise set the overwrite parameter
+    IF(DataSetFound) THEN
       CALL AttributeExists(file_id_specdb,'ChargeIC',TRIM(dsetname), AttrExists=AttrExists)
       IF (AttrExists) THEN
         CALL ReadAttribute(file_id_specdb,'ChargeIC',1,DatasetName = dsetname,RealScalar=Species(iSpec)%ChargeIC)
       ELSE 
         Species(iSpec)%ChargeIC = 0.0
       END IF
-      LBWRITE (UNIT_stdOut,*) 'ChargeIC: ', Species(iSpec)%ChargeIC
+      CALL PrintOption('ChargeIC','READIN',RealOpt=Species(iSpec)%ChargeIC)
       CALL ReadAttribute(file_id_specdb,'MassIC',1,DatasetName = dsetname,RealScalar=Species(iSpec)%MassIC)
-      LBWRITE (UNIT_stdOut,*) 'MassIC: ', Species(iSpec)%MassIC
+      CALL PrintOption('MassIC','READIN',RealOpt=Species(iSpec)%MassIC)
       CALL ReadAttribute(file_id_specdb,'InteractionID',1,DatasetName = dsetname,IntScalar=Species(iSpec)%InterID)
-      LBWRITE (UNIT_stdOut,*) 'InteractionID: ', Species(iSpec)%InterID
+      CALL PrintOption('InteractionID','READIN',IntOpt=Species(iSpec)%InterID)
+    ELSE
+      Species(iSpec)%DoOverwriteParameters = .TRUE.
+      SWRITE(*,*) 'WARNING: DataSet not found: ['//TRIM(dsetname)//'] ['//TRIM(SpeciesDatabase)//']'
     END IF
-
   END DO
   ! Close the file.
   CALL H5FCLOSE_F(file_id_specdb, err)
   ! Close FORTRAN interface.
   CALL H5CLOSE_F(err)
-
 END IF
 
+! Old parameter file read-in of species values
 DO iSpec = 1, nSpecies
   IF(Species(iSpec)%DoOverwriteParameters) THEN
-    LBWRITE (UNIT_stdOut,'(66(". "))')
+    LBWRITE (UNIT_stdOut,'(68(". "))')
     WRITE(UNIT=hilf,FMT='(I0)') iSpec
     Species(iSpec)%ChargeIC              = GETREAL('Part-Species'//TRIM(hilf)//'-ChargeIC')
     Species(iSpec)%MassIC                = GETREAL('Part-Species'//TRIM(hilf)//'-MassIC')
@@ -1634,7 +1628,7 @@ DO iSpec = 1, nSpecies
 END DO ! iSpec
 
 IF(nSpecies.GT.0)THEN
-  LBWRITE (UNIT_stdOut,'(66(". "))')
+  LBWRITE (UNIT_stdOut,'(68(". "))')
 END IF ! nSpecies.GT.0
 
 END SUBROUTINE InitializeSpeciesParameter

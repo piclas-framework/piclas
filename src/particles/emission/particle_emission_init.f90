@@ -484,12 +484,9 @@ DO iSpec = 1,nSpecies
         CALL SetPartPosAndVeloEmissionDistribution(iSpec,iInit,NbrOfParticle)
       CASE DEFAULT
         NbrOfParticle = INT(Species(iSpec)%Init(iInit)%ParticleNumber,4)
-        LBWRITE(UNIT_stdOut,'(A,I0,A)') ' Set particle position for species ',iSpec,' ... '
         CALL SetParticlePosition(iSpec,iInit,NbrOfParticle)
-        LBWRITE(UNIT_stdOut,'(A,I0,A)') ' Set particle velocities for species ',iSpec,' ... '
         CALL SetParticleVelocity(iSpec,iInit,NbrOfParticle)
       END SELECT
-      LBWRITE(UNIT_stdOut,'(A,I0,A)') ' Set particle charge and mass for species ',iSpec,' ... '
       CALL SetParticleChargeAndMass(iSpec,NbrOfParticle)
       IF (usevMPF) CALL SetParticleMPF(iSpec,iInit,NbrOfParticle)
       IF (UseVarTimeStep) CALL SetParticleTimeStep(NbrOfParticle)
