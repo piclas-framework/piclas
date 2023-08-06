@@ -46,7 +46,7 @@ Vec                 :: lambda_local_conductors_petsc
 VecScatter          :: scatter_conductors_petsc
 IS                  :: idx_local_conductors_petsc
 IS                  :: idx_global_conductors_petsc
-INTEGER,ALLOCATABLE :: PETScGlobal(:)         !< PETScGlobal(SideID) maps the local SideID to global PETScSideID 
+INTEGER,ALLOCATABLE :: PETScGlobal(:)         !< PETScGlobal(SideID) maps the local SideID to global PETScSideID
 INTEGER,ALLOCATABLE :: PETScLocalToSideID(:)  !< PETScLocalToSideID(PETScLocalSideID) maps the local PETSc side to SideID
 REAL,ALLOCATABLE    :: Smat_BC(:,:,:,:)       !< side to side matrix for dirichlet (D) BCs, (ngpface,ngpface,6Sides,DSides)
 REAL,ALLOCATABLE    :: Smat_zeroPotential(:,:,:) !< side to side matrix for zero potential Side, (ngpface,ngpface,6Sides)
@@ -57,32 +57,33 @@ INTEGER             :: nPETScUniqueSidesGlobal
 LOGICAL             :: useHDG=.FALSE.
 LOGICAL             :: ExactLambda =.FALSE.   !< Flag to initialize exact function for lambda
 
-TYPE, PUBLIC :: N_Type_HDG
+! HDG volume variables
+TYPE, PUBLIC :: HDG_Vol_N_Type
   REAL,ALLOCATABLE    :: Ehat(:,:,:)          !< Ehat matrix (nGP_Face,nGP_vol,6sides,nElems)
   REAL,ALLOCATABLE    :: InvDhat(:,:)         !< Inverse of Dhat matrix (nGP_vol,nGP_vol,nElems)
   REAL,ALLOCATABLE    :: JwGP_vol(:)          !< 3D quadrature weights*Jacobian for all elements
   REAL,ALLOCATABLE    :: RHS_vol(:,:)         !< Source RHS
   REAL,ALLOCATABLE    :: Smat(:,:,:,:)        !< side to side matrix, (ngpface, ngpface, 6sides, 6sides, nElems)
-END TYPE N_Type_HDG
+END TYPE HDG_Vol_N_Type
 
-TYPE(N_Type_HDG),ALLOCATABLE :: N_HDG(:)      !< 
+TYPE(HDG_Vol_N_Type),ALLOCATABLE :: HDG_Vol_N(:)      !<
 
-! DG solution face
-TYPE N_HDG_Surf
+! HDG side variables
+TYPE HDG_Surf_N_Type
   REAL,ALLOCATABLE    :: lambda(:,:)          !< lambda, ((PP_N+1)^2,nSides)
   REAL,ALLOCATABLE    :: lambdaMax(:,:)          !< lambda, ((PP_N+1)^2,nSides)
   REAL,ALLOCATABLE    :: Precond(:,:)         !< block diagonal preconditioner for lambda(nGP_face, nGP-face, nSides)
   REAL,ALLOCATABLE    :: InvPrecondDiag(:)    !< 1/diagonal of Precond
   REAL,ALLOCATABLE    :: qn_face(:,:)         !< for Neumann BC
-  REAL,ALLOCATABLE    :: RHS_face(:,:)        !< 
-  REAL,ALLOCATABLE    :: mv(:,:)              !< 
-  REAL,ALLOCATABLE    :: R(:,:)               !< 
-  REAL,ALLOCATABLE    :: V(:,:)               !< 
-  REAL,ALLOCATABLE    :: Z(:,:)               !< 
-END TYPE N_HDG_Surf
+  REAL,ALLOCATABLE    :: RHS_face(:,:)        !<
+  REAL,ALLOCATABLE    :: mv(:,:)              !<
+  REAL,ALLOCATABLE    :: R(:,:)               !<
+  REAL,ALLOCATABLE    :: V(:,:)               !<
+  REAL,ALLOCATABLE    :: Z(:,:)               !<
+END TYPE HDG_Surf_N_Type
 
 ! DG solution (JU or U) vectors)
-TYPE(N_HDG_Surf),ALLOCATABLE :: HDG_Surf_N(:) !< Solution variable for each equation, node and element,
+TYPE(HDG_Surf_N_Type),ALLOCATABLE :: HDG_Surf_N(:) !< Solution variable for each equation, node and element,
 
 REAL,ALLOCATABLE    :: Tau(:)                 !< Stabilization parameter, per element
 REAL,ALLOCATABLE    :: lambdaLB(:,:,:)        !< lambda, ((PP_N+1)^2,nSides)
@@ -122,7 +123,6 @@ INTEGER             :: HDGSkip, HDGSkipInit
 REAL                :: HDGSkip_t0
 INTEGER,ALLOCATABLE :: MaskedSide(:)          !< 1:nSides: all sides which are set to zero in matvec
 !mortar variables
-REAL,ALLOCATABLE    :: IntMatMortar(:,:,:,:)  !< Interpolation matrix for mortar: (nGP_face,nGP_Face,1:4(iMortar),1:3(MortarType))
 INTEGER,ALLOCATABLE :: SmallMortarInfo(:)     !< 1:nSides: info on small Mortar sides:
                                               !< -1: is neighbor small mortar , 0: not a small mortar, 1: small mortar on big side
 #if USE_PETSC

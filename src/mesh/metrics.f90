@@ -61,17 +61,12 @@ INTERFACE CalcMetrics
   MODULE PROCEDURE CalcMetrics
 END INTERFACE
 
-INTERFACE SurfMetricsFromJa
-  MODULE PROCEDURE SurfMetricsFromJa
-END INTERFACE
-
 !INTERFACE CalcMetricsErrorDiff
   !MODULE PROCEDURE CalcMetricsErrorDiff
 !END INTERFACE
 
 PUBLIC::BuildElem_xGP
 PUBLIC::CalcMetrics
-PUBLIC::SurfMetricsFromJa
 !PUBLIC::CalcMetricsErrorDiff
 !==================================================================================================================================
 
@@ -147,7 +142,7 @@ USE MOD_Mesh_Vars          ,ONLY: nElems
 USE MOD_Mesh_Vars          ,ONLY: DetJac_Ref
 USE MOD_Mesh_Vars          ,ONLY: crossProductMetrics
 USE MOD_Mesh_Vars          ,ONLY: NodeCoords,N_VolMesh
-USE MOD_Mesh_Vars          ,ONLY: nElems,offSetElem
+USE MOD_Mesh_Vars          ,ONLY: nElems,offSetElem,nSides,N_SurfMesh
 USE MOD_Interpolation      ,ONLY: GetVandermonde,GetNodesAndWeights,GetDerivativeMatrix
 USE MOD_ChangeBasis        ,ONLY: changeBasis3D,ChangeBasis3D_XYZ
 USE MOD_Basis              ,ONLY: LagrangeInterpolationPolys
@@ -194,7 +189,7 @@ REAL,ALLOCATABLE   :: scaledJacRef(:,:,:)
 REAL               :: SmallestscaledJacRef
 REAL,PARAMETER     :: scaledJacRefTol=0.01
 
-INTEGER           :: Nloc
+INTEGER           :: Nloc,iSide
 
 !===================================================================================================================================
 StartT=PICLASTIME()
@@ -479,6 +474,9 @@ REAL               :: tmp2(       3,0:Nmax,0:Nmax)
 REAL               :: tmpflip(    3,0:Nmax,0:Nmax)
 INTEGER            :: Nloc,flip,NSideMin,NSideMax
 LOGICAL            :: flipSide
+#if USE_HDG
+INTEGER            :: iSide
+#endif /*USE_HDG*/
 !==================================================================================================================================
 
 DO iLocSide=1,6
@@ -665,24 +663,25 @@ DO iLocSide=1,6
 
   END IF
 
-#if USE_HDG
-  ! Get SurfElemMin
-  NSideMax = MAX(DG_Elems_master(SideID),DG_Elems_slave(SideID))
-  NSideMin = N_SurfMesh(SideID)%NSideMin
-  IF(NSideMax.EQ.NSideMin)THEN
-    N_SurfMesh(SideID)%SurfElemMin(:,:) = N_SurfMesh(SideID)%SurfElem(:,:)
-  ELSE
+END DO
 
+#if USE_HDG
+! Build SurfElemMin for all sides (including Mortar sides)
+DO iSide = 1, nSides
+  ! Get SurfElemMin
+  NSideMax = MAX(DG_Elems_master(iSide),DG_Elems_slave(iSide))
+  NSideMin = N_SurfMesh(iSide)%NSideMin
+  IF(NSideMax.EQ.NSideMin)THEN
+    N_SurfMesh(iSide)%SurfElemMin(:,:) = N_SurfMesh(iSide)%SurfElem(:,:)
+  ELSE
     ! From high to low
     ! Transform the slave side to the same degree as the master: switch to Legendre basis
-    CALL ChangeBasis2D(1, NSideMax, NSideMax, N_Inter(NSideMax)%sVdm_Leg, N_SurfMesh(SideID)%SurfElem(0:NSideMax,0:NSideMax), tmp(1,0:NSideMax,0:NSideMax))
+    CALL ChangeBasis2D(1, NSideMax, NSideMax, N_Inter(NSideMax)%sVdm_Leg, N_SurfMesh(iSide)%SurfElem(0:NSideMax,0:NSideMax), tmp(1,0:NSideMax,0:NSideMax))
      !Switch back to nodal basis
-    CALL ChangeBasis2D(1, NSideMin, NSideMin, N_Inter(NSideMin)%Vdm_Leg , tmp(1,0:NSideMax,0:NSideMax)                      , N_SurfMesh(SideID)%SurfElemMin(0:NSideMin,0:NSideMin))
-
+    CALL ChangeBasis2D(1, NSideMin, NSideMin, N_Inter(NSideMin)%Vdm_Leg , tmp(1,0:NSideMax,0:NSideMax)                      , N_SurfMesh(iSide)%SurfElemMin(0:NSideMin,0:NSideMin))
   END IF ! NSideMax.EQ.NSideMin
+END DO ! iSide = 1, nSides
 #endif /*USE_HDG*/
-
-END DO
 
 END SUBROUTINE CalcSurfMetrics
 

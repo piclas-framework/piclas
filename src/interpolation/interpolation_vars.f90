@@ -42,6 +42,8 @@ TYPE, PUBLIC :: Interpolation
   REAL,ALLOCATABLE  :: Lomega_p(:)
   REAL,ALLOCATABLE  :: Domega(:,:)
   REAL,ALLOCATABLE  :: wGP_vol(:)
+  ! Mortar
+  REAL,ALLOCATABLE  :: IntMatMortar(:,:,:,:)  !< Interpolation matrix for mortar: (nGP_face,nGP_Face,1:4(iMortar),1:3(MortarType))
 #endif /*USE_HDG*/
 END TYPE Interpolation
 

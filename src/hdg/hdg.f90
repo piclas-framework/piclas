@@ -239,9 +239,9 @@ MaskedSide=0
 IF(nGlobalMortarSides.GT.0)THEN !mortar mesh
   IF(nMortarMPISides.GT.0) CALL abort(__STAMP__,&
   "nMortarMPISides >0: HDG mortar MPI implementation relies on big sides having always only master sides (=> nMortarMPISides=0 )")
-END IF !mortarMesh
 
-IF(nMortarMPISides.GT.0) CALL InitMortar_HDG()
+  CALL InitMortar_HDG()
+END IF !mortarMesh
 
 !boundary conditions
 nDirichletBCsides=0
@@ -434,20 +434,20 @@ DO Nloc = 1, NMax
 END DO ! Nloc = 1, NMax
 
 ! Initialize element containers
-ALLOCATE(N_HDG(1:PP_nElems))
+ALLOCATE(HDG_Vol_N(1:PP_nElems))
 
 DO iElem=1,PP_nElems
   Nloc = N_DG(iElem)
-  ALLOCATE(N_HDG(iElem)%InvDhat(nGP_vol(Nloc),nGP_vol(Nloc)))
-  ALLOCATE(N_HDG(iElem)%JwGP_vol(nGP_vol(Nloc)))
+  ALLOCATE(HDG_Vol_N(iElem)%InvDhat(nGP_vol(Nloc),nGP_vol(Nloc)))
+  ALLOCATE(HDG_Vol_N(iElem)%JwGP_vol(nGP_vol(Nloc)))
   DO k=0,Nloc; DO j=0,Nloc; DO i=0,Nloc
     r=k*(Nloc+1)**2+j*(Nloc+1) + i+1
-    N_HDG(iElem)%JwGP_vol(r)=N_Inter(Nloc)%wGP_vol(r)/N_VolMesh(iElem)%sJ(i,j,k) !omega*J
+    HDG_Vol_N(iElem)%JwGP_vol(r)=N_Inter(Nloc)%wGP_vol(r)/N_VolMesh(iElem)%sJ(i,j,k) !omega*J
   END DO; END DO; END DO !i,j,k
 
-  ALLOCATE(N_HDG(iElem)%Ehat(nGP_face(Nloc),nGP_vol(Nloc),6))
+  ALLOCATE(HDG_Vol_N(iElem)%Ehat(nGP_face(Nloc),nGP_vol(Nloc),6))
   !side matrices
-  ALLOCATE(N_HDG(iElem)%Smat(nGP_face(Nloc),nGP_face(Nloc),6,6))
+  ALLOCATE(HDG_Vol_N(iElem)%Smat(nGP_face(Nloc),nGP_face(Nloc),6,6))
 END DO !iElem
 
 
@@ -487,7 +487,7 @@ PetscCallA(MatZeroEntries(Smat_petsc,ierr))
 !stabilization parameter
 ALLOCATE(Tau(PP_nElems))
 DO iElem=1,PP_nElems
-  Tau(iElem)=2./((SUM(N_HDG(iElem)%JwGP_vol(:)))**(1./3.))  !1/h ~ 1/vol^(1/3) (volref=8)
+  Tau(iElem)=2./((SUM(HDG_Vol_N(iElem)%JwGP_vol(:)))**(1./3.))  !1/h ~ 1/vol^(1/3) (volref=8)
 END DO !iElem
 
 IF(.NOT.DoSwapMesh)THEN ! can take very long, not needed for swap mesh run as only the state file is converted
@@ -514,8 +514,8 @@ CALL BuildPrecond()
 
 DO iElem = 1, PP_nElems
   Nloc = N_DG(iElem)
-  ALLOCATE(N_HDG(iElem)%RHS_vol(PP_nVar, nGP_vol(Nloc)))
-  N_HDG(iElem)%RHS_vol=0.
+  ALLOCATE(HDG_Vol_N(iElem)%RHS_vol(PP_nVar, nGP_vol(Nloc)))
+  HDG_Vol_N(iElem)%RHS_vol=0.
 END DO ! iElem = 1, PP_nElems
 
 DO SideID = 1, nSides
@@ -1899,16 +1899,16 @@ SUBROUTINE HDGLinear(time)
 USE MOD_Globals
 USE MOD_PreProc
 USE MOD_HDG_Vars
-USE MOD_DG_Vars            ,ONLY: DG_Elems_master,DG_Elems_slave,N_DG,U_N
+USE MOD_DG_Vars            ,ONLY: DG_Elems_master,N_DG,U_N
 USE MOD_Equation           ,ONLY: CalcSourceHDG,ExactFunc
 USE MOD_Equation_Vars      ,ONLY: IniExactFunc
 USE MOD_Mesh_Vars          ,ONLY: BoundaryType,nSides,BC,N_SurfMesh
 USE MOD_Mesh_Vars          ,ONLY: ElemToSide
-USE MOD_Interpolation_Vars ,ONLY: N_Inter,NMax,PREF_VDM
+USE MOD_Interpolation_Vars ,ONLY: NMax,PREF_VDM
 USE MOD_Elem_Mat           ,ONLY: PostProcessGradientHDG
 USE MOD_FillMortar_HDG     ,ONLY: SmallToBigMortar_HDG
 #if (PP_nVar==1)
-USE MOD_Equation_Vars      ,ONLY: E
+!USE MOD_Equation_Vars      ,ONLY: E
 #elif (PP_nVar==3)
 USE MOD_Equation_Vars      ,ONLY: B
 #else
@@ -1927,7 +1927,6 @@ USE MOD_MPI_Vars
 USE MOD_FillMortar_HDG     ,ONLY: BigToSmallMortar_HDG
 #endif
 USE MOD_Globals_Vars       ,ONLY: ElementaryCharge,eps0
-USE MOD_Mesh_Vars          ,ONLY: firstMortarInnerSide,lastMortarInnerSide
 USE MOD_ChangeBasis        ,ONLY: ChangeBasis2D
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1941,7 +1940,6 @@ REAL    :: lambdatmp(1:nGP_face(NMax))
 INTEGER :: i,j,k,r,p,q,iElem, iVar,NSideMin,Nloc
 INTEGER :: BCsideID,BCType,BCState,SideID,iLocSide
 REAL    :: RHS_facetmp(nGP_face(NMax))
-REAL    :: tmp(nGP_face(NMax))
 REAL    :: rtmp(nGP_vol(NMax))
 !LOGICAL :: converged
 #if (PP_nVar!=1)
@@ -1964,7 +1962,6 @@ REAL                 :: RHS_conductor(nGP_face)
 #if USE_PETSC
 INTEGER              :: iUniqueFPCBC
 #endif /*USE_PETSC*/
-REAL,DIMENSION(1,0:NMax,0:NMax) :: tmp2,tmp3
 !===================================================================================================================================
 #if USE_LOADBALANCE
     CALL LBStartTime(tLBStart) ! Start time measurement
@@ -2081,10 +2078,10 @@ DO iElem=1,PP_nElems
   Nloc = N_DG(iElem)
   DO k=0,Nloc; DO j=0,Nloc; DO i=0,Nloc
     r=k*(Nloc+1)**2+j*(Nloc+1) + i+1
-    CALL CalcSourceHDG(i,j,k,iElem,N_HDG(iElem)%RHS_vol(1:PP_nVar,r))
+    CALL CalcSourceHDG(i,j,k,iElem,HDG_Vol_N(iElem)%RHS_vol(1:PP_nVar,r))
   END DO; END DO; END DO !i,j,k
   DO iVar = 1, PP_nVar
-    N_HDG(iElem)%RHS_Vol(iVar,:)=-N_HDG(iElem)%JwGP_vol(:)*N_HDG(iElem)%RHS_vol(iVar,:)
+    HDG_Vol_N(iElem)%RHS_Vol(iVar,:)=-HDG_Vol_N(iElem)%JwGP_vol(:)*HDG_Vol_N(iElem)%RHS_vol(iVar,:)
   END DO
 END DO !iElem
 
@@ -2107,14 +2104,14 @@ DO iVar = 1, PP_nVar
   DO iElem=1,PP_nElems
     Nloc = N_DG(iElem)
     !rtmp=MATMUL(InvDhat(:,:,iElem),-RHS_loc(:,iElem))
-    CALL DSYMV('U',nGP_vol(Nloc),1., N_HDG(iElem)%InvDhat(:,:),nGP_vol(Nloc), &
-                               -N_HDG(iElem)%RHS_vol(iVar,:),1,0., &
+    CALL DSYMV('U',nGP_vol(Nloc),1., HDG_Vol_N(iElem)%InvDhat(:,:),nGP_vol(Nloc), &
+                               -HDG_Vol_N(iElem)%RHS_vol(iVar,:),1,0., &
                                rtmp(1:nGP_face(Nloc)),1)
 
     DO iLocSide=1,6
       SideID=ElemToSide(E2S_SIDE_ID,iLocSide,iElem)
       CALL DGEMV('N',nGP_face(Nloc),nGP_vol(Nloc),1., &
-                          N_HDG(iElem)%Ehat(:,:,iLocSide), nGP_face(Nloc), &
+                          HDG_Vol_N(iElem)%Ehat(:,:,iLocSide), nGP_face(Nloc), &
                           rtmp(1:nGP_face(Nloc)),1,0.,& !1: add to RHS_face, 0: set value
                           RHS_facetmp(1:nGP_face(Nloc)),1)
       NSideMin = N_SurfMesh(SideID)%NSideMin
@@ -2187,6 +2184,7 @@ CALL Mask_MPIsides(PP_nVar,RHS_face)
 CALL LBStartTime(tLBStart)
 #endif /*USE_LOADBALANCE*/
 CALL SmallToBigMortar_HDG(PP_nVar,0) ! RHS_face(1:PP_nVar,1:nGP_Face,1:nSides))
+
 #if USE_LOADBALANCE
 CALL LBPauseTime(LB_DG,tLBStart) ! Pause/Stop time measurement
 #endif /*USE_LOADBALANCE*/
@@ -2300,13 +2298,14 @@ DO iVar=1, PP_nVar
   END IF ! UseFPC
 
   ! PETSc Calculate lambda at small mortars from big mortars
-  CALL BigToSmallMortar_HDG(1) ! only lambda
+  CALL BigToSmallMortar_HDG(1,.FALSE.) ! lambda (DoVZ=F) or V (DoVZ=T)
 #if USE_MPI
   CALL StartReceiveMPIData(1,lambda,1,nSides, RecRequest_U,SendID=1) ! Receive YOUR
   CALL StartSendMPIData(   1,lambda,1,nSides,SendRequest_U,SendID=1) ! Send MINE
   CALL FinishExchangeMPIData(SendRequest_U,RecRequest_U,SendID=1)
 #endif
 #else
+  ! HDGLinear
   CALL CG_solver(iVar)
 #endif /*USE_PETSC*/
   !POST PROCESSING
@@ -2328,13 +2327,13 @@ DO iVar=1, PP_nVar
       CALL ChangeBasis2D(1, NSideMin, Nloc, PREF_VDM(NSideMin,Nloc)%Vdm , HDG_Surf_N(SideID)%lambda(iVar,:), lambdatmp(1:nGP_face(Nloc)))
       END IF ! Nloc.EQ.NSideMin
       CALL DGEMV('T',nGP_face(Nloc),nGP_vol(Nloc),1., &
-                          N_HDG(iElem)%Ehat(:,:,iLocSide), nGP_face(Nloc), &
+                          HDG_Vol_N(iElem)%Ehat(:,:,iLocSide), nGP_face(Nloc), &
                           lambdatmp(1:nGP_face(Nloc)),1,1.,& !add to RHS_face
-                          N_HDG(iElem)%RHS_vol(iVar,:),1)
+                          HDG_Vol_N(iElem)%RHS_vol(iVar,:),1)
     END DO
     !U(:,iElem)=MATMUL(InvDhat(:,:,iElem),-RHS_loc(:,iElem))
-    CALL DSYMV('U',nGP_vol(Nloc),1., N_HDG(iElem)%InvDhat(:,:),nGP_vol(Nloc), &
-                               -N_HDG(iElem)%RHS_vol(iVar,:),1,0., &
+    CALL DSYMV('U',nGP_vol(Nloc),1., HDG_Vol_N(iElem)%InvDhat(:,:),nGP_vol(Nloc), &
+                               -HDG_Vol_N(iElem)%RHS_vol(iVar,:),1,0., &
                                U_N(iElem)%U(iVar,:,:,:),1)
   END DO !iElem
 #if USE_LOADBALANCE
@@ -2495,9 +2494,9 @@ CALL abort(__STAMP__,'HDGNewton not implemented!')
 !DO iElem=1,PP_nElems
 !  DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
 !    r=k*(PP_N+1)**2+j*(PP_N+1) + i+1
-!    CALL CalcSourceHDG(i,j,k,iElem,N_HDG(iElem)%RHS_vol(1:PP_nVar,r),U_out(1,r,iElem),warning_linear,warning_linear_phi)
+!    CALL CalcSourceHDG(i,j,k,iElem,HDG_Vol_N(iElem)%RHS_vol(1:PP_nVar,r),U_out(1,r,iElem),warning_linear,warning_linear_phi)
 !  END DO; END DO; END DO !i,j,k
-!  N_HDG(iElem)%RHS_Vol(PP_nVar,:)=-N_HDG(iElem)%JwGP_vol(:)*N_HDG(iElem)%RHS_vol(PP_nVar,:)
+!  HDG_Vol_N(iElem)%RHS_Vol(PP_nVar,:)=-HDG_Vol_N(iElem)%JwGP_vol(:)*HDG_Vol_N(iElem)%RHS_vol(PP_nVar,:)
 !END DO !iElem
 !IF (warning_linear) THEN
 !  SWRITE(*,'(A,ES10.2E3)') 'WARNING: during iteration at least one DOF resulted in a phi > phi_max.\n'//&
@@ -2506,19 +2505,19 @@ CALL abort(__STAMP__,'HDGNewton not implemented!')
 !
 !!prepare RHS_face ( RHS for lambda system.)
 !DO iElem=1,PP_nElems
-!  N_HDG(iElem)%RHS_vol(PP_nVar,:)=N_HDG(iElem)%RHS_vol(PP_nVar,:)+N_HDG(iElem)%JwGP_vol(:)*U_out(PP_nVar,:,:)*NonlinVolumeFac(:,:)
+!  HDG_Vol_N(iElem)%RHS_vol(PP_nVar,:)=HDG_Vol_N(iElem)%RHS_vol(PP_nVar,:)+HDG_Vol_N(iElem)%JwGP_vol(:)*U_out(PP_nVar,:,:)*NonlinVolumeFac(:,:)
 !END DO
 !
 !
 !RHS_face(PP_nVar,:,:) =0.
 !DO iElem=1,PP_nElems
-!  CALL DSYMV('U',nGP_vol(PP_N),1., N_HDG(iElem)%InvDhat(:,:),nGP_vol(PP_N), &
-!                             -N_HDG(iElem)%RHS_vol(PP_nVar,:),1,0., &
+!  CALL DSYMV('U',nGP_vol(PP_N),1., HDG_Vol_N(iElem)%InvDhat(:,:),nGP_vol(PP_N), &
+!                             -HDG_Vol_N(iElem)%RHS_vol(PP_nVar,:),1,0., &
 !                             rtmp(:),1)
 !  DO iLocSide=1,6
 !    SideID=ElemToSide(E2S_SIDE_ID,iLocSide,iElem)
 !    CALL DGEMV('N',nGP_face(PP_N),nGP_vol(PP_N),1., &
-!                        N_HDG(iElem)%Ehat(:,:,iLocSide), nGP_face(PP_N), &
+!                        HDG_Vol_N(iElem)%Ehat(:,:,iLocSide), nGP_face(PP_N), &
 !                        rtmp,1,1.,& !add to RHS_face
 !                        HDG_Surf_N(SideID)%RHS_face(PP_nVar,:),1)
 !  END DO
@@ -2569,12 +2568,12 @@ CALL abort(__STAMP__,'HDGNewton not implemented!')
 !    DO iLocSide=1,6
 !      SideID=ElemToSide(E2S_SIDE_ID,iLocSide,iElem)
 !      CALL DGEMV('T',nGP_face,nGP_vol(PP_N),1., &
-!                          N_HDG(iElem)%Ehat(:,:,iLocSide), nGP_face, &
+!                          HDG_Vol_N(iElem)%Ehat(:,:,iLocSide), nGP_face, &
 !                          HDG_Surf_N(SideID)%lambda(PP_nVar,:),1,1.,& !add to RHS_face
-!                          N_HDG(iElem)%RHS_vol(PP_nVar,:),1)
+!                          HDG_Vol_N(iElem)%RHS_vol(PP_nVar,:),1)
 !    END DO
-!    CALL DSYMV('U',nGP_vol(PP_N),1., N_HDG(iElem)%InvDhat(:,:),nGP_vol(PP_N), &
-!                               -N_HDG(iElem)%RHS_vol(PP_nVar,:),1,0., &
+!    CALL DSYMV('U',nGP_vol(PP_N),1., HDG_Vol_N(iElem)%InvDhat(:,:),nGP_vol(PP_N), &
+!                               -HDG_Vol_N(iElem)%RHS_vol(PP_nVar,:),1,0., &
 !                               U_out(PP_nVar,:,iElem),1)
 !  END DO !iElem
 !
@@ -2645,9 +2644,9 @@ CALL abort(__STAMP__,'HDGNewton not implemented!')
 !    DO iElem=1,PP_nElems
 !      DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
 !        r=k*(PP_N+1)**2+j*(PP_N+1) + i+1
-!        CALL CalcSourceHDG(i,j,k,iElem,N_HDG(iElem)%RHS_vol(1:PP_nVar,r),U_out(1,r,iElem),warning_linear,warning_linear_phi)
+!        CALL CalcSourceHDG(i,j,k,iElem,HDG_Vol_N(iElem)%RHS_vol(1:PP_nVar,r),U_out(1,r,iElem),warning_linear,warning_linear_phi)
 !      END DO; END DO; END DO !i,j,k
-!      RHS_Vol(PP_nVar,:,iElem)=-JwGP_vol(:,iElem)*N_HDG(iElem)%RHS_vol(PP_nVar,:)
+!      RHS_Vol(PP_nVar,:,iElem)=-JwGP_vol(:,iElem)*HDG_Vol_N(iElem)%RHS_vol(PP_nVar,:)
 !    END DO !iElem
 !    IF (warning_linear) THEN
 !      !SWRITE(*,'(A,F5.2,A,F5.2,A)') 'HDGNewton WARNING: during iteration at least one DOF resulted in a phi > phi_max. '//&
@@ -2661,13 +2660,13 @@ CALL abort(__STAMP__,'HDGNewton not implemented!')
 !
 !    RHS_face(PP_nVar,:,:) =0.
 !    DO iElem=1,PP_nElems
-!      CALL DSYMV('U',nGP_vol(PP_N),1., N_HDG(iElem)%InvDhat(:,:),nGP_vol(PP_N), &
-!                                 -N_HDG(iElem)%RHS_vol(PP_nVar,:),1,0., &
+!      CALL DSYMV('U',nGP_vol(PP_N),1., HDG_Vol_N(iElem)%InvDhat(:,:),nGP_vol(PP_N), &
+!                                 -HDG_Vol_N(iElem)%RHS_vol(PP_nVar,:),1,0., &
 !                                 rtmp(:),1)
 !      DO iLocSide=1,6
 !        SideID=ElemToSide(E2S_SIDE_ID,iLocSide,iElem)
 !        CALL DGEMV('N',nGP_face,nGP_vol(PP_N),1., &
-!                            N_HDG(iElem)%Ehat(:,:,iLocSide), nGP_face, &
+!                            HDG_Vol_N(iElem)%Ehat(:,:,iLocSide), nGP_face, &
 !                            rtmp,1,1.,& !add to RHS_face
 !                            RHS_face(PP_nVar,:,SideID),1)
 !      END DO
@@ -2715,12 +2714,12 @@ CALL abort(__STAMP__,'HDGNewton not implemented!')
 !      DO iLocSide=1,6
 !        SideID=ElemToSide(E2S_SIDE_ID,iLocSide,iElem)
 !        CALL DGEMV('T',nGP_face(PP_N),nGP_vol(PP_N),1., &
-!                            N_HDG(iElem)%Ehat(:,:,iLocSide), nGP_face(PP_N), &
+!                            HDG_Vol_N(iElem)%Ehat(:,:,iLocSide), nGP_face(PP_N), &
 !                            HDG_Surf_N(SideID)%lambda(PP_nVar,:),1,1.,& !add to RHS_vol
-!                            N_HDG(iElem)%RHS_vol(PP_nVar,:),1)
+!                            HDG_Vol_N(iElem)%RHS_vol(PP_nVar,:),1)
 !      END DO
-!      CALL DSYMV('U',nGP_vol(PP_N),1., N_HDG(iElem)%InvDhat(:,:),nGP_vol(PP_N), &
-!                                 -N_HDG(iElem)%RHS_vol(PP_nVar,:),1,0., &
+!      CALL DSYMV('U',nGP_vol(PP_N),1., HDG_Vol_N(iElem)%InvDhat(:,:),nGP_vol(PP_N), &
+!                                 -HDG_Vol_N(iElem)%RHS_vol(PP_nVar,:),1,0., &
 !                                 U_out(PP_nVar,:,iElem),1)
 !    END DO !iElem
 !  END DO
@@ -2809,7 +2808,7 @@ SUBROUTINE CG_solver(iVar)
 ! MODULES
 USE MOD_Globals
 USE MOD_Preproc
-USE MOD_HDG_Vars           ,ONLY: nGP_face,HDGDisplayConvergence,iteration
+USE MOD_HDG_Vars           ,ONLY: HDGDisplayConvergence,iteration
 USE MOD_HDG_Vars           ,ONLY: EpsCG,MaxIterCG,PrecondType,useRelativeAbortCrit,OutIterCG,HDG_Surf_N
 USE MOD_TimeDisc_Vars      ,ONLY: iter,IterDisplayStep
 USE MOD_Mesh_Vars          ,ONLY: nSides
@@ -2905,8 +2904,7 @@ IF(useRelativeAbortCrit) AbortCrit2=Norm_R2*EpsCG**2
 CALL LBStartTime(tLBStart) ! Start time measurement
 #endif /*USE_LOADBALANCE*/
 IF(PrecondType.NE.0) THEN
-  CALL abort(__STAMP__,'not implemented')
-  !CALL ApplyPrecond(R,V)
+  CALL ApplyPrecond(iVar,.TRUE.) ! ApplyPrecond(R,V)
 ELSE
   DO SideID = 1, nSides
     HDG_Surf_N(SideID)%V(iVar,:) = HDG_Surf_N(SideID)%R(iVar,:)
@@ -2923,13 +2921,14 @@ CALL VectorDotProductRV(rz1) !Z=V
 DO iteration=1,MaxIterCG
   ! matrix vector
   IF(PRESENT(iVar)) THEN
-    CALL MatVec(iVar,.TRUE.)
+    CALL MatVec(iVar,.TRUE.) ! CALL MatVec(V,Z, iVar)
   ELSE
-    CALL MatVec(1,.TRUE.)
+    CALL MatVec(1,.TRUE.) ! CALL MatVec(V,Z)
   END IF
 
   CALL VectorDotProductVZ(vz)
 
+  IF(ABS(vz).LE.0.0) CALL abort(__STAMP__,'vz is zero!')
   omega=rz1/vz
 
   ! Use iVar here
@@ -2972,8 +2971,7 @@ DO iteration=1,MaxIterCG
   CALL LBStartTime(tLBStart) ! Start time measurement
 #endif /*USE_LOADBALANCE*/
   IF(PrecondType.NE.0) THEN
-    CALL abort(__STAMP__,'not implemented')
-    !CALL ApplyPrecond(R,Z)
+    CALL ApplyPrecond(iVar,.FALSE.) ! ApplyPrecond(R,Z)
   ELSE
     DO SideID = 1, nSides
       HDG_Surf_N(SideID)%Z(iVar,:) = HDG_Surf_N(SideID)%R(iVar,:)
@@ -3045,7 +3043,7 @@ END SUBROUTINE DisplayConvergence
 SUBROUTINE EvalResidual(iVar)
 ! MODULES
 USE MOD_Globals
-USE MOD_HDG_Vars  ,ONLY: nGP_face,nDirichletBCSides,DirichletBC,ZeroPotentialSideID,ZeroPotentialValue
+USE MOD_HDG_Vars  ,ONLY: nDirichletBCSides,DirichletBC,ZeroPotentialSideID,ZeroPotentialValue
 USE MOD_HDG_Vars  ,ONLY: HDG_Surf_N
 USE MOD_Mesh_Vars ,ONLY: nSides
 IMPLICIT NONE
@@ -3062,6 +3060,7 @@ INTEGER, INTENT(IN),OPTIONAL::iVar
 !REAL                :: mv(nGP_face,nSides)
 INTEGER             :: SideID,BCsideID
 !===================================================================================================================================
+! Set mv
 IF(PRESENT(iVar)) THEN
   CALL MatVec(iVar,.FALSE.)
 ELSE
@@ -3104,9 +3103,9 @@ END SUBROUTINE EvalResidual
 SUBROUTINE MatVec(iVar,DoVZ)
 ! MODULES
 USE MOD_Globals
-USE MOD_DG_Vars            ,ONLY: DG_Elems_master,DG_Elems_slave,N_DG
+USE MOD_DG_Vars            ,ONLY: N_DG
 USE MOD_HDG_Vars           ,ONLY: nGP_face,nDirichletBCSides,DirichletBC,ZeroPotentialSideID,ZeroPotentialValue
-USE MOD_HDG_Vars           ,ONLY: HDG_Surf_N,N_HDG
+USE MOD_HDG_Vars           ,ONLY: HDG_Surf_N,HDG_Vol_N
 USE MOD_Mesh_Vars          ,ONLY: nSides, SideToElem, ElemToSide, nMPIsides_YOUR,N_SurfMesh
 USE MOD_FillMortar_HDG     ,ONLY: BigToSmallMortar_HDG,SmallToBigMortar_HDG
 #if USE_MPI
@@ -3117,7 +3116,7 @@ USE MOD_HDG_Vars           ,ONLY: Mask_MPIsides
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Timers ,ONLY: LBStartTime,LBSplitTime,LBPauseTime
 #endif /*USE_LOADBALANCE*/
-USE MOD_Interpolation_Vars ,ONLY: N_Inter,NMax,PREF_VDM
+USE MOD_Interpolation_Vars ,ONLY: NMax,PREF_VDM
 USE MOD_ChangeBasis        ,ONLY: ChangeBasis2D
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -3139,8 +3138,7 @@ REAL    :: tLBStart
 #if PP_nVar==1
 INTEGER           :: dummy
 #endif /*PP_nVar==1*/
-REAL,DIMENSION(1:nGP_face(NMax)) :: lambdatmp,mvtmp,tmp
-REAL,DIMENSION(1,0:NMax,0:NMax) :: tmp2,tmp3
+REAL,DIMENSION(1:nGP_face(NMax)) :: lambdatmp,mvtmp
 !===================================================================================================================================
 mvtmp = 0.
 lambdatmp = 0.
@@ -3148,7 +3146,7 @@ lambdatmp = 0.
 #if USE_LOADBALANCE
 CALL LBStartTime(tLBStart) ! Start time measurement
 #endif /*USE_LOADBALANCE*/
-CALL BigToSmallMortar_HDG(1) ! only lambda
+CALL BigToSmallMortar_HDG(1,DoVZ) ! lambda (DoVZ=F) or V (DoVZ=T)
 #if USE_LOADBALANCE
 CALL LBPauseTime(LB_DG,tLBStart) ! Pause/Stop time measurement
 #endif /*USE_LOADBALANCE*/
@@ -3197,7 +3195,7 @@ DO SideID=firstSideID,lastSideID
       SideID2 = jSideID(jLocSide)
       NSideMin = N_SurfMesh(SideID2)%NSideMin
       CALL DGEMV('N',nGP_face(Nloc),nGP_face(Nloc),1., &
-                        N_HDG(ElemID)%Smat(:,:,jLocSide,locSideID), nGP_face(Nloc), &
+                        HDG_Vol_N(ElemID)%Smat(:,:,jLocSide,locSideID), nGP_face(Nloc), &
                         lambdatmp(1:nGP_face(Nloc)),1,0.,& ! !: add to mv, 0: set mv
                         mvtmp(1:nGP_face(Nloc)),1)
       IF(Nloc.GT.NSideMin)THEN
@@ -3232,7 +3230,7 @@ DO SideID=firstSideID,lastSideID
       SideID2 = jSideID(jLocSide)
       NSideMin = N_SurfMesh(SideID2)%NSideMin
       CALL DGEMV('N',nGP_face(Nloc),nGP_face(Nloc),1., &
-                        N_HDG(ElemID)%Smat(:,:,jLocSide,locSideID), nGP_face(Nloc), &
+                        HDG_Vol_N(ElemID)%Smat(:,:,jLocSide,locSideID), nGP_face(Nloc), &
                         lambdatmp(1:nGP_face(Nloc)),1,0.,& ! !: add to mv, 0: set mv
                         mvtmp(1:nGP_face(Nloc)),1)
       IF(Nloc.GT.NSideMin)THEN
@@ -3299,7 +3297,7 @@ CALL Mask_MPIsides(1,mv)
 #if USE_LOADBALANCE
 CALL LBStartTime(tLBStart) ! Start time measurement
 #endif /*USE_LOADBALANCE*/
-CALL SmallToBigMortar_HDG(1,MERGE(2, 1, DoVZ)) ! CALL SmallToBigMortar_HDG(1,mv)
+CALL SmallToBigMortar_HDG(1,MERGE(1, 2, DoVZ)) ! CALL SmallToBigMortar_HDG(1,mv)
 
 #if (PP_nVar!=1)
 IF (iVar.EQ.4) THEN
@@ -3353,7 +3351,6 @@ USE MOD_LoadBalance_Timers ,ONLY: LBStartTime,LBPauseTime
 #if defined(MEASURE_MPI_WAIT)
 USE MOD_MPI_Vars           ,ONLY: MPIW8TimeField,MPIW8CountField
 #endif /*defined(MEASURE_MPI_WAIT)*/
-USE MOD_DG_Vars            ,ONLY: DG_Elems_master,DG_Elems_slave
 USE MOD_HDG_Vars           ,ONLY: HDG_Surf_N
 USE MOD_Mesh_Vars          ,ONLY: nSides,N_SurfMesh
 IMPLICIT NONE
@@ -3423,7 +3420,6 @@ USE MOD_LoadBalance_Timers ,ONLY: LBStartTime,LBPauseTime
 #if defined(MEASURE_MPI_WAIT)
 USE MOD_MPI_Vars           ,ONLY: MPIW8TimeField,MPIW8CountField
 #endif /*defined(MEASURE_MPI_WAIT)*/
-USE MOD_DG_Vars            ,ONLY: DG_Elems_master,DG_Elems_slave
 USE MOD_HDG_Vars           ,ONLY: HDG_Surf_N
 USE MOD_Mesh_Vars          ,ONLY: nSides,N_SurfMesh
 IMPLICIT NONE
@@ -3437,7 +3433,7 @@ IMPLICIT NONE
 REAL,INTENT(OUT)  :: Resu
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER           :: NSideMin,SideID
+INTEGER           :: SideID
 #if USE_MPI
 REAL              :: ResuSend
 #endif
@@ -3455,7 +3451,6 @@ CALL LBStartTime(tLBStart) ! Start time measurement
 #endif /*USE_LOADBALANCE*/
 Resu=0.
 DO SideID = 1, nSides
-  NSideMin = N_SurfMesh(SideID)%NSideMin
   Resu = Resu + DOT_PRODUCT(HDG_Surf_N(SideID)%R(1,:),HDG_Surf_N(SideID)%V(1,:))
 END DO ! SideID = 1, nSides
 #if USE_LOADBALANCE
@@ -3493,7 +3488,6 @@ USE MOD_LoadBalance_Timers ,ONLY: LBStartTime,LBPauseTime
 #if defined(MEASURE_MPI_WAIT)
 USE MOD_MPI_Vars           ,ONLY: MPIW8TimeField,MPIW8CountField
 #endif /*defined(MEASURE_MPI_WAIT)*/
-USE MOD_DG_Vars            ,ONLY: DG_Elems_master,DG_Elems_slave
 USE MOD_HDG_Vars           ,ONLY: HDG_Surf_N
 USE MOD_Mesh_Vars          ,ONLY: nSides,N_SurfMesh
 IMPLICIT NONE
@@ -3507,7 +3501,7 @@ IMPLICIT NONE
 REAL,INTENT(OUT)  :: Resu
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER           :: NSideMin,SideID
+INTEGER           :: SideID
 #if USE_MPI
 REAL              :: ResuSend
 #endif
@@ -3525,7 +3519,6 @@ CALL LBStartTime(tLBStart) ! Start time measurement
 #endif /*USE_LOADBALANCE*/
 Resu=0.
 DO SideID = 1, nSides
-  NSideMin = N_SurfMesh(SideID)%NSideMin
   Resu = Resu + DOT_PRODUCT(HDG_Surf_N(SideID)%V(1,:),HDG_Surf_N(SideID)%Z(1,:))
 END DO ! SideID = 1, nSides
 #if USE_LOADBALANCE
@@ -3563,7 +3556,6 @@ USE MOD_LoadBalance_Timers ,ONLY: LBStartTime,LBPauseTime
 #if defined(MEASURE_MPI_WAIT)
 USE MOD_MPI_Vars           ,ONLY: MPIW8TimeField,MPIW8CountField
 #endif /*defined(MEASURE_MPI_WAIT)*/
-USE MOD_DG_Vars            ,ONLY: DG_Elems_master,DG_Elems_slave
 USE MOD_HDG_Vars           ,ONLY: HDG_Surf_N
 USE MOD_Mesh_Vars          ,ONLY: nSides,N_SurfMesh
 IMPLICIT NONE
@@ -3577,7 +3569,7 @@ IMPLICIT NONE
 REAL,INTENT(OUT)  :: Resu
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER           :: NSideMin,SideID
+INTEGER           :: SideID
 #if USE_MPI
 REAL              :: ResuSend
 #endif
@@ -3595,7 +3587,6 @@ CALL LBStartTime(tLBStart) ! Start time measurement
 #endif /*USE_LOADBALANCE*/
 Resu=0.
 DO SideID = 1, nSides
-  NSideMin = N_SurfMesh(SideID)%NSideMin
   Resu = Resu + DOT_PRODUCT(HDG_Surf_N(SideID)%R(1,:),HDG_Surf_N(SideID)%R(1,:))
 END DO ! SideID = 1, nSides
 #if USE_LOADBALANCE
@@ -3686,55 +3677,93 @@ CALL LBPauseTime(LB_DG,tLBStart) ! Pause/Stop time measurement
 END SUBROUTINE VectorDotProduct
 
 
-!!===================================================================================================================================
-!!> Apply the block-diagonal preconditioner for the lambda system
-!!===================================================================================================================================
-!SUBROUTINE ApplyPrecond(R, V)
-!! MODULES
-!USE MOD_Globals
-!USE MOD_HDG_Vars  ,ONLY: nGP_face, Precond, PrecondType,InvPrecondDiag
-!USE MOD_HDG_Vars  ,ONLY: MaskedSide
-!USE MOD_Mesh_Vars ,ONLY: nSides
-!USE MOD_Mesh_Vars ,ONLY: nMPIsides_YOUR
-!IMPLICIT NONE
-!!-----------------------------------------------------------------------------------------------------------------------------------
-!! INPUT VARIABLES
+!===================================================================================================================================
+!> Apply the block-diagonal preconditioner for the lambda system
+!===================================================================================================================================
+SUBROUTINE ApplyPrecond(iVar,DoV)
+! MODULES
+USE MOD_Globals
+USE MOD_HDG_Vars  ,ONLY: nGP_face,PrecondType,HDG_Surf_N,MaskedSide
+USE MOD_Mesh_Vars ,ONLY: nSides, nMPIsides_YOUR,N_SurfMesh
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
 !REAL,INTENT(IN) :: R(nGP_face, nSides)
-!!-----------------------------------------------------------------------------------------------------------------------------------
-!! OUTPUT VARIABLES
+LOGICAL,INTENT(IN)           :: DoV
+INTEGER, INTENT(IN),OPTIONAL :: iVar
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
 !REAL,INTENT(INOUT) :: V(nGP_face, nSides)
-!!-----------------------------------------------------------------------------------------------------------------------------------
-!! LOCAL VARIABLES
-!INTEGER :: firstSideID, lastSideID, SideID, igf
-!!===================================================================================================================================
-!firstSideID = 1
-!lastSideID = nSides-nMPIsides_YOUR
-!
-!SELECT CASE(PrecondType)
-!CASE(0)
-!  ! do nothing, should not be called
-!CASE(1) !apply side-block SPD Preconditioner matrix, already Cholesky decomposed
-!  DO SideID=firstSideID,lastSideID
-!    IF(MaskedSide(sideID).GT.0) THEN
-!      V(:,SideID)=0.
-!    ELSE
-!      ! solve the preconditioner linear system
-!      CALL solveSPD(nGP_face,Precond(:,:,SideID),1,R(:,SideID), V(:,SideID))
-!    END IF !maskedSide
-!  END DO ! SideID=1,nSides
-!CASE(2)
-!  DO SideID=firstSideID,lastSideID
-!    IF(MaskedSide(sideID).GT.0) THEN
-!      V(:,SideID)=0.
-!    ELSE
-!      ! apply inverse of diagonal preconditioned
-!      DO igf = 1, nGP_face
-!        V(igf, SideID) = InvPrecondDiag(igf,SideID)*R(igf,SideID)
-!      END DO ! igf
-!    END IF !maskedSide
-!  END DO ! SideID=1,nSides
-!END SELECT ! PrecondType
-!END SUBROUTINE ApplyPrecond
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER :: firstSideID, lastSideID, SideID, igf, NSideMin
+!===================================================================================================================================
+firstSideID = 1
+lastSideID = nSides-nMPIsides_YOUR
+
+IF(DoV)THEN
+
+  ! Do V
+  SELECT CASE(PrecondType)
+  CASE(0)
+    ! do nothing, should not be called
+  CASE(1) !apply side-block SPD Preconditioner matrix, already Cholesky decomposed
+    DO SideID=firstSideID,lastSideID
+      IF(MaskedSide(sideID).GT.0) THEN
+        HDG_Surf_N(SideID)%V(iVar,:)=0.
+      ELSE
+        NSideMin = N_SurfMesh(SideID)%NSideMin
+        ! solve the preconditioner linear system
+        CALL solveSPD(nGP_face(NSideMin),HDG_Surf_N(SideID)%Precond(:,:),1,HDG_Surf_N(SideID)%R(iVar,:), HDG_Surf_N(SideID)%V(iVar,:))
+      END IF !maskedSide
+    END DO ! SideID=1,nSides
+  CASE(2)
+    DO SideID=firstSideID,lastSideID
+      IF(MaskedSide(sideID).GT.0) THEN
+        HDG_Surf_N(SideID)%V(iVar,:)=0.
+      ELSE
+        NSideMin = N_SurfMesh(SideID)%NSideMin
+        ! apply inverse of diagonal preconditioned
+        DO igf = 1, nGP_face(NSideMin)
+          HDG_Surf_N(SideID)%V(iVar,igf) = HDG_Surf_N(SideID)%InvPrecondDiag(igf)*HDG_Surf_N(SideID)%R(iVar,igf)
+        END DO ! igf
+      END IF !maskedSide
+    END DO ! SideID=1,nSides
+  END SELECT ! PrecondType
+
+ELSE
+
+  ! Do Z
+  SELECT CASE(PrecondType)
+  CASE(0)
+    ! do nothing, should not be called
+  CASE(1) !apply side-block SPD Preconditioner matrix, already Cholesky decomposed
+    DO SideID=firstSideID,lastSideID
+      IF(MaskedSide(sideID).GT.0) THEN
+        HDG_Surf_N(SideID)%Z(iVar,:)=0.
+      ELSE
+        NSideMin = N_SurfMesh(SideID)%NSideMin
+        ! solve the preconditioner linear system
+        CALL solveSPD(nGP_face(NSideMin),HDG_Surf_N(SideID)%Precond(:,:),1,HDG_Surf_N(SideID)%R(iVar,:), HDG_Surf_N(SideID)%Z(iVar,:))
+      END IF !maskedSide
+    END DO ! SideID=1,nSides
+  CASE(2)
+    DO SideID=firstSideID,lastSideID
+      IF(MaskedSide(sideID).GT.0) THEN
+        HDG_Surf_N(SideID)%Z(iVar,:)=0.
+      ELSE
+        NSideMin = N_SurfMesh(SideID)%NSideMin
+        ! apply inverse of diagonal preconditioned
+        DO igf = 1, nGP_face(NSideMin)
+          HDG_Surf_N(SideID)%Z(iVar,igf) = HDG_Surf_N(SideID)%InvPrecondDiag(igf)*HDG_Surf_N(SideID)%R(iVar,igf)
+        END DO ! igf
+      END IF !maskedSide
+    END DO ! SideID=1,nSides
+  END SELECT ! PrecondType
+
+END IF ! DoV
+
+END SUBROUTINE ApplyPrecond
 
 
 
@@ -3779,7 +3808,7 @@ USE MOD_Basis         ,ONLY: getSPDInverse
 USE MOD_MPI_Vars
 #endif /*USE_MPI*/
 #if (PP_nVar==1)
-USE MOD_Equation_Vars ,ONLY: E
+!USE MOD_Equation_Vars ,ONLY: E
 #elif (PP_nVar==3)
 USE MOD_Equation_Vars ,ONLY: B
 #else
@@ -3868,7 +3897,7 @@ SDEALLOCATE(SmallMortarType)
 SDEALLOCATE(NonlinVolumeFac)
 SDEALLOCATE(DirichletBC)
 SDEALLOCATE(NeumannBC)
-SDEALLOCATE(N_HDG)
+SDEALLOCATE(HDG_Vol_N)
 SDEALLOCATE(HDG_Surf_N)
 SDEALLOCATE(qn_face_MagStat)
 !SDEALLOCATE(delta)
@@ -3888,7 +3917,7 @@ SDEALLOCATE(Tau)
 !SDEALLOCATE(InvPrecondDiag)
 SDEALLOCATE(MaskedSide)
 SDEALLOCATE(SmallMortarInfo)
-SDEALLOCATE(IntMatMortar)
+!SDEALLOCATE(IntMatMortar)
 
 #if USE_LOADBALANCE
 ! MPIRoot does not deallocate during load balance because this process sends the info to the other processors via the respective

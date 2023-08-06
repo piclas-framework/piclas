@@ -257,10 +257,11 @@ ALLOCATE(N_DG(nElems))
 N_DG = PP_N
 !N_DG(1) = 1
 
-             DO iElem=1,nElems
-               !cycle
-               CALL RANDOM_NUMBER(RandVal)
-               N_DG (iElem) = 1+INT(RandVal*Nmax)
+             !DO iElem=1,nElems
+               !CALL RANDOM_NUMBER(RandVal)
+               !N_DG (iElem) = 1+INT(RandVal*Nmax)
+             !END DO
+
                !N_DG (iElem) = 3+NINT(RandVal)
 !               !N_DG (iElem) = MAX(N_DG (iElem),4)
 !                 kLoop: DO k=0,NGeo; DO j=0,NGeo; DO i=0,NGeo
@@ -268,7 +269,7 @@ N_DG = PP_N
 !                   r = SQRT(coords(1,i,j,k,iElem)**2+&
 !                            coords(2,i,j,k,iElem)**2+&
 !                            coords(3,i,j,k,iElem)**2  )
-!             
+!
 !               IF(r.lt.1.0 .and. x1.lt.0)THEN
 !                 N_DG(iElem) = PP_N
 !                 EXIT kLoop
@@ -277,7 +278,6 @@ N_DG = PP_N
 !                 !EXIT kLoop
 !               END IF ! r.le.1.0 .and. x.le.0
 !                 END DO ; END DO; END DO kLoop;
-             END DO
 
 ! Build Elem_xGP
 ALLOCATE(N_VolMesh(1:nElems))

@@ -132,8 +132,8 @@ END IF
 
 
 DO iElem=1,PP_nElems
-  N_HDG(iElem)%Ehat = 0.0
-  N_HDG(iElem)%Smat = 0.0
+  HDG_Vol_N(iElem)%Ehat = 0.0
+  HDG_Vol_N(iElem)%Smat = 0.0
   Nloc = N_DG(iElem)
   SideID(:)=ElemToSide(E2S_SIDE_ID,:,iElem)
   Flip(:)  =ElemToSide(E2S_FLIP,:,iElem)
@@ -186,7 +186,7 @@ DO iElem=1,PP_nElems
         !  D  volume contribution for nonlinear stuff
         IF (UseBRElectronFluid.AND.(HDGNonLinSolver.EQ.1)) THEN
           j = index_3to1(g1,g2,g3,Nloc)
-          Dhat(j,j) = Dhat(j,j) - N_HDG(iElem)%JwGP_vol( j)*NonlinVolumeFac(j,iElem)
+          Dhat(j,j) = Dhat(j,j) - HDG_Vol_N(iElem)%JwGP_vol( j)*NonlinVolumeFac(j,iElem)
         END IF
 #endif /*defined(PARTICLES)*/
         !  D  surface contribution
@@ -230,8 +230,8 @@ DO iElem=1,PP_nElems
           ! X direction
           i_m = sindex_3to1(g1,g2,g3,mLocSide,Nloc) ! index on the side
           i_p = sindex_3to1(g1,g2,g3,pLocSide,Nloc)
-          ASSOCIATE( Ehat_m => N_HDG(iElem)%Ehat(i_m,:,mLocSide) , &
-                     Ehat_p => N_HDG(iElem)%Ehat(i_p,:,pLocSide) )
+          ASSOCIATE( Ehat_m => HDG_Vol_N(iElem)%Ehat(i_m,:,mLocSide) , &
+                     Ehat_p => HDG_Vol_N(iElem)%Ehat(i_p,:,pLocSide) )
             !  E  contribution
             j = index_3to1(g1,g2,g3, Nloc)
             Ehat_m(j) = Ehat_m(j) + TauS(1,iDir)*N_Inter(Nloc)%wGP(gdx(iDir))*(-N_Inter(Nloc)%Lomega_m(gdx(iDir)))
@@ -257,7 +257,7 @@ DO iElem=1,PP_nElems
         !---------------------------------------------------------------
         ! Smat:  C A(-1) C^T  contribution
 
-        ASSOCIATE( SmatK => N_HDG(iElem)%Smat(:,:,:,:) )
+        ASSOCIATE( SmatK => HDG_Vol_N(iElem)%Smat(:,:,:,:) )
         DO jDir=1,3
           ! TODO: it would be better to have another index to loop
           ! over PLUS and MINUS.
@@ -301,24 +301,24 @@ DO iElem=1,PP_nElems
   ! Computes InvDhat via analytical expression (only works for Lagrange polynomials, hence the "analytical"
   ! pre-processor flag) when Lapack fails
   ! For Bezier (Bernstein basis) polynomial: use INVERSE_LU function
-  N_HDG(iElem)%InvDhat(:,:)=INVERSE_LU(Dhat(1:nGP_vol(Nloc),1:nGP_vol(Nloc)))
+  HDG_Vol_N(iElem)%InvDhat(:,:)=INVERSE_LU(Dhat(1:nGP_vol(Nloc),1:nGP_vol(Nloc)))
 #else
-  N_HDG(iElem)%InvDhat(:,:)=-getSPDInverse(nGP_vol(Nloc),-Dhat(1:nGP_vol(Nloc),1:nGP_vol(Nloc)))
+  HDG_Vol_N(iElem)%InvDhat(:,:)=-getSPDInverse(nGP_vol(Nloc),-Dhat(1:nGP_vol(Nloc),1:nGP_vol(Nloc)))
 #endif /*VDM_ANALYTICAL*/
   ! Compute for each side pair  Ehat Dhat^{-1} Ehat^T
   DO jLocSide=1,6
     !Stmp1 = TRANSPOSE( MATMUL( Ehat(:,:,jLocSide,iElem) , InvDhat(:,:,iElem) ) )
     CALL DSYMM('L','U',nGP_vol(Nloc),nGP_face(Nloc),1., &
-                N_HDG(iElem)%InvDhat(:,:),nGP_vol(Nloc), &
-                TRANSPOSE( N_HDG(iElem)%Ehat(:,:,jLocSide)),nGP_vol(Nloc),0., &
+                HDG_Vol_N(iElem)%InvDhat(:,:),nGP_vol(Nloc), &
+                TRANSPOSE( HDG_Vol_N(iElem)%Ehat(:,:,jLocSide)),nGP_vol(Nloc),0., &
                 Stmp1(1:nGP_vol(Nloc),1:nGP_face(Nloc)),nGP_vol(Nloc))
     ! diagonal term
     !Stmp2 = MATMUL( Ehat(:,:,jLocSide,iElem) , Stmp1 )
     CALL DGEMM('N','N',nGP_face(Nloc),nGP_face(Nloc),nGP_vol(Nloc),1., &
-                        N_HDG(iElem)%Ehat(:,:,jLocSide), nGP_face(Nloc), &
+                        HDG_Vol_N(iElem)%Ehat(:,:,jLocSide), nGP_face(Nloc), &
                         Stmp1(1:nGP_vol(Nloc),1:nGP_face(Nloc)),nGP_vol(Nloc),0.,&
                         Stmp2(1:nGP_face(Nloc),1:nGP_face(Nloc)),nGP_face(Nloc))
-    N_HDG(iElem)%Smat(:,:,jLocSide,jLocSide) = N_HDG(iElem)%Smat(:,:,jLocSide,jLocSide) + Stmp2(1:nGP_face(Nloc),1:nGP_face(Nloc))
+    HDG_Vol_N(iElem)%Smat(:,:,jLocSide,jLocSide) = HDG_Vol_N(iElem)%Smat(:,:,jLocSide,jLocSide) + Stmp2(1:nGP_face(Nloc),1:nGP_face(Nloc))
     !standard diagonal side mass matrix Fdiag =-Tau(elem)*wGP_pq*surfelem_pq
     ! then combined with to Smat  = Smat - F
     DO q=0,Nloc; DO p=0,Nloc
@@ -330,19 +330,19 @@ DO iElem=1,PP_nElems
       ELSE
         Fdiag_i = - Tau(ielem)*N_SurfMesh(SideID(jLocSide))%SurfElem(p,q)   *N_Inter(Nloc)%wGP(p)*N_Inter(Nloc)%wGP(q)
       END IF ! Nloc.EQ.NSideMin
-      N_HDG(iElem)%Smat(i,i,jLocSide,jLocSide) = N_HDG(iElem)%Smat(i,i,jLocSide,jLocSide) -Fdiag_i
+      HDG_Vol_N(iElem)%Smat(i,i,jLocSide,jLocSide) = HDG_Vol_N(iElem)%Smat(i,i,jLocSide,jLocSide) -Fdiag_i
     END DO; END DO !p,q
 
     ! off-diagonal terms
     DO iLocSide=jLocSide+1,6
       !Stmp2 = MATMUL( Ehat(:,:,iLocSide,iElem) , Stmp1 )
       CALL DGEMM('N','N',nGP_face(Nloc),nGP_face(Nloc),nGP_vol(Nloc),1., &
-                          N_HDG(iElem)%Ehat(:,:,iLocSide), nGP_face(Nloc), &
+                          HDG_Vol_N(iElem)%Ehat(:,:,iLocSide), nGP_face(Nloc), &
                           Stmp1(1:nGP_vol(Nloc) ,1:nGP_face(Nloc)),nGP_vol(Nloc),0.,&
                           Stmp2(1:nGP_face(Nloc),1:nGP_face(Nloc)),nGP_face(Nloc))
       ! Using the fact that Smat is symmetric
-      N_HDG(iElem)%Smat(:,:,iLocSide,jLocSide) = N_HDG(iElem)%Smat(:,:,iLocSide,jLocSide) + Stmp2(1:nGP_face(Nloc),1:nGP_face(Nloc))
-      N_HDG(iElem)%Smat(:,:,jLocSide,iLocSide) = N_HDG(iElem)%Smat(:,:,jLocSide,iLocSide) + TRANSPOSE(Stmp2(1:nGP_face(Nloc),1:nGP_face(Nloc)))
+      HDG_Vol_N(iElem)%Smat(:,:,iLocSide,jLocSide) = HDG_Vol_N(iElem)%Smat(:,:,iLocSide,jLocSide) + Stmp2(1:nGP_face(Nloc),1:nGP_face(Nloc))
+      HDG_Vol_N(iElem)%Smat(:,:,jLocSide,iLocSide) = HDG_Vol_N(iElem)%Smat(:,:,jLocSide,iLocSide) + TRANSPOSE(Stmp2(1:nGP_face(Nloc),1:nGP_face(Nloc)))
     END DO !iLocSide
   END DO !jLocSide
 
@@ -490,6 +490,7 @@ USE MOD_Mesh_Vars      ,ONLY: nSides,SideToElem,nMPIsides_YOUR,N_SurfMesh
 USE MOD_FillMortar_HDG ,ONLY: SmallToBigMortarPrecond_HDG
 USE MOD_DG_Vars        ,ONLY: DG_Elems_master, DG_Elems_slave,N_DG
 #endif
+USE MOD_Interpolation_Vars ,ONLY: Nmax
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -506,7 +507,7 @@ PetscInt         :: lens(nPETScUniqueSides)
 INTEGER          :: ElemID, locSideID, SideID, igf
 INTEGER          :: lapack_info
 #endif
-INTEGER          :: Nloc
+INTEGER          :: NSideMin
 !===================================================================================================================================
 
 #if USE_PETSC
@@ -536,20 +537,20 @@ CASE(0)
 ! do nothing
 CASE(1)
   DO SideID=1,nSides
-    Nloc = N_SurfMesh(SideID)%NSideMin
-    IF(.NOT.ALLOCATED(HDG_Surf_N(SideID)%Precond)) ALLOCATE(HDG_Surf_N(SideID)%Precond(nGP_face(Nloc),nGP_face(Nloc)))
+    NSideMin = N_SurfMesh(SideID)%NSideMin
+    IF(.NOT.ALLOCATED(HDG_Surf_N(SideID)%Precond)) ALLOCATE(HDG_Surf_N(SideID)%Precond(nGP_face(NSideMin),nGP_face(NSideMin)))
     HDG_Surf_N(SideID)%Precond = 0.
     !master element
     locSideID = SideToElem(S2E_LOC_SIDE_ID,SideID)
     IF(locSideID.NE.-1)THEN
       ElemID    = SideToElem(S2E_ELEM_ID,SideID)
-      HDG_Surf_N(SideID)%Precond(:,:) = HDG_Surf_N(SideID)%Precond(:,:)+N_HDG(ElemID)%Smat(:,:,locSideID,locSideID)
+      HDG_Surf_N(SideID)%Precond(:,:) = HDG_Surf_N(SideID)%Precond(:,:)+HDG_Vol_N(ElemID)%Smat(:,:,locSideID,locSideID)
     END IF !locSideID.NE.-1
     ! neighbour element
     locSideID = SideToElem(S2E_NB_LOC_SIDE_ID,SideID)
     IF(locSideID.NE.-1)THEN
       ElemID    = SideToElem(S2E_NB_ELEM_ID,SideID)
-      HDG_Surf_N(SideID)%Precond(:,:) = HDG_Surf_N(SideID)%Precond(:,:)+N_HDG(ElemID)%Smat(:,:,locSideID,locSideID)
+      HDG_Surf_N(SideID)%Precond(:,:) = HDG_Surf_N(SideID)%Precond(:,:)+HDG_Vol_N(ElemID)%Smat(:,:,locSideID,locSideID)
     END IF !locSideID.NE.-1
   END DO ! SideID=1,nSides
 #if USE_MPI
@@ -566,27 +567,27 @@ CASE(1)
   END DO ! SideID=1,nSides
 
 CASE(2)
-  CALL abort(__STAMP__,'not implemented: N_DG(ElemID) != Nloc')
   DO SideID=1,nSides
-    Nloc = N_SurfMesh(SideID)%NSideMin
-    IF(.NOT.ALLOCATED(HDG_Surf_N(SideID)%InvPrecondDiag)) ALLOCATE(HDG_Surf_N(SideID)%InvPrecondDiag(nGP_face(Nloc)))
+    NSideMin = N_SurfMesh(SideID)%NSideMin
+    IF(.NOT.ALLOCATED(HDG_Surf_N(SideID)%InvPrecondDiag)) ALLOCATE(HDG_Surf_N(SideID)%InvPrecondDiag(nGP_face(NSideMin)))
     HDG_Surf_N(SideID)%InvPrecondDiag = 0.
     !master element
     locSideID = SideToElem(S2E_LOC_SIDE_ID,SideID)
     IF(locSideID.NE.-1)THEN
       ElemID    = SideToElem(S2E_ELEM_ID,SideID)
-      DO igf = 1, nGP_face(N_DG(ElemID))
+      IF(NSideMin.NE.NMax) CALL abort(__STAMP__,'not implemented for different polynomial degrees')
+      DO igf = 1, nGP_face(NSideMin)
         HDG_Surf_N(SideID)%InvPrecondDiag(igf) = HDG_Surf_N(SideID)%InvPrecondDiag(igf)+ &
-                              N_HDG(ElemID)%Smat(igf,igf,locSideID,locSideID)
+                              HDG_Vol_N(ElemID)%Smat(igf,igf,locSideID,locSideID)
       END DO ! igf
     END IF !locSideID.NE.-1
     ! neighbour element
     locSideID = SideToElem(S2E_NB_LOC_SIDE_ID,SideID)
     IF(locSideID.NE.-1)THEN
       ElemID    = SideToElem(S2E_NB_ELEM_ID,SideID)
-      DO igf = 1, nGP_face(N_DG(ElemID))
+      DO igf = 1, nGP_face(NSideMin)
         HDG_Surf_N(SideID)%InvPrecondDiag(igf) = HDG_Surf_N(SideID)%InvPrecondDiag(igf)+ &
-                              N_HDG(ElemID)%Smat(igf,igf,locSideID,locSideID)
+                              HDG_Vol_N(ElemID)%Smat(igf,igf,locSideID,locSideID)
       END DO ! igf
     END IF !locSideID.NE.-1
   END DO ! SideID=1,nSides

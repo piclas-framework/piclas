@@ -157,9 +157,6 @@ ELSE
   Nmax = GETINT('Nmax',hilf)
 END IF ! PRESENT(Nmax_opt)
 
-WRITE (*,*) "Nmax =", Nmax
-SWRITE(UNIT_stdOut,'(A)') ' NodeType: '//NodeType
-
 ! Check if p-adaption is activated and only build the constructs if Nmax>0
 IF(Nmax.GT.0)THEN
   ALLOCATE(N_Inter(Nmin:Nmax))
