@@ -587,7 +587,7 @@ CASE(103) ! dipole
   resu(:)=IniAmplitude*(1/r2-1/r1)
 CASE(104) ! solution to Laplace's equation: Phi_xx + Phi_yy + Phi_zz = 0
   resu(1) = ( COS(x(1))+SIN(x(1)) )*( COS(x(2))+SIN(x(2)) )*( COSH(SQRT(2.0)*x(3))+SINH(SQRT(2.0)*x(3)) )
-CASE(105) ! left boundary -1, right boundary 1
+CASE(105) ! x<0: -1, x>0: 1
   IF(x(1).gt.0.)THEN
     resu = 1.
   elseIF(x(1).lt.0.)THEN
@@ -602,6 +602,9 @@ CASE(200) ! Dielectric Sphere of Radius R in constant electric field E_0 from bo
   ! eps_outer : dielectric constant of surrounding medium
   ! eps_inner : dielectric constant of sphere
   ! DielectricRatio = eps_inner / eps_outer (set in dielectric init)
+#if !defined(PARTICLES)
+  CALL abort(__STAMP__,'This function requires ElemBaryNGeo() which is only built when PICLAS_PARTICLES=ON')
+#endif /*!defined(PARTICLES)*/
 
   ! set radius and angle for DOF position x(1:3)
   r_2D   = SQRT(x(1)**2+x(2)**2)
