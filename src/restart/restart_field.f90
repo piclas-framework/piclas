@@ -77,7 +77,7 @@ USE MOD_MPI                    ,ONLY: StartReceiveMPIData,StartSendMPIData,Finis
 USE MOD_HDG                    ,ONLY: SynchronizeVoltageOnEPC
 USE MOD_HDG_Vars               ,ONLY: UseEPC
 #if defined(PARTICLES)
-USE MOD_Equation               ,ONLY: SynchronizeCPP
+USE MOD_Equation_Tools         ,ONLY: SynchronizeCPP
 USE MOD_HDG                    ,ONLY: SynchronizeBV
 USE MOD_HDG_Vars               ,ONLY: UseBiasVoltage,UseCoupledPowerPotential
 ! TODO: make ElemInfo available with PARTICLES=OFF and remove this preprocessor if/else as soon as possible
