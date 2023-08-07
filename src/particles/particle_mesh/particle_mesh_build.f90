@@ -492,10 +492,10 @@ INTEGER,ALLOCATABLE            :: intSideBCMetrics(:)
 #if USE_MPI
 REAL                           :: BC_halo_eps_velo,BC_halo_diag,deltaT
 INTEGER                        :: sendbuf,recvbuf
-#endif /*USE_MPI*/
 #if (PP_TimeDiscMethod==501) || (PP_TimeDiscMethod==502) || (PP_TimeDiscMethod==506)
 INTEGER                        :: iStage
 #endif
+#endif /*USE_MPI*/
 !===================================================================================================================================
 
 LBWRITE(UNIT_StdOut,'(132("-"))')
@@ -888,20 +888,16 @@ SUBROUTINE BuildNodeNeighbourhood()
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! MODULES                                                                                                                          !
 !----------------------------------------------------------------------------------------------------------------------------------!
-USE MOD_Globals            ,ONLY: abort!,myRank
+USE MOD_Globals            ,ONLY: abort
 USE MOD_Particle_Mesh_Vars ,ONLY: nUniqueGlobalNodes
 USE MOD_Particle_Mesh_Vars ,ONLY: ElemNodeID_Shared,NodeInfo_Shared
 USE MOD_Particle_Mesh_Vars ,ONLY: NodeToElemMapping,NodeToElemInfo,ElemToElemMapping,ElemToElemInfo
-USE MOD_Particle_Mesh_Vars ,ONLY: NodeToGlobElemMapping,NodeToGlobElemInfo, ElemInfo_Shared
-USE MOD_Mesh_Vars              ,ONLY: NGeo, nGlobalElems
-USE MOD_Mesh_Tools             ,ONLY: GetGlobalElemID   
 #if USE_MPI
 USE MPI
 USE MOD_MPI_Shared
 USE MOD_MPI_Shared_Vars    ,ONLY: nComputeNodeTotalElems
 USE MOD_MPI_Shared_Vars    ,ONLY: nComputeNodeProcessors,myComputeNodeRank
 USE MOD_MPI_Shared_Vars    ,ONLY: MPI_COMM_SHARED
-USE MOD_Particle_Mesh_Vars ,ONLY: NodeToElemMapping,NodeToElemInfo,ElemToElemMapping,ElemToElemInfo
 USE MOD_Particle_Mesh_Vars ,ONLY: NodeToElemMapping_Shared,NodeToElemInfo_Shared,ElemToElemMapping_Shared,ElemToElemInfo_Shared
 USE MOD_Particle_Mesh_Vars ,ONLY: NodeToElemMapping_Shared_Win,NodeToElemInfo_Shared_Win
 USE MOD_Particle_Mesh_Vars ,ONLY: ElemToElemMapping_Shared_Win,ElemToElemInfo_Shared_Win
@@ -918,7 +914,6 @@ INTEGER                        :: UniqueNodeID,NonUniqueNodeID,iElem,iNode,TestE
 INTEGER                        :: OffsetCounter,OffsetElemToElemMapping,OffsetElemToElemCounter
 INTEGER                        :: nNodeToElemMapping,iUniqueNode,firstElem,lastElem,nElemToElemMapping,CountElems
 INTEGER,ALLOCATABLE            :: CheckedElemIDs(:)
-INTEGER                        :: CNS(8)
 #if USE_MPI
 INTEGER                        :: sendbuf,recvbuf,iError
 #endif /*USE_MPI*/
