@@ -451,6 +451,7 @@ FILE(GLOB_RECURSE hdgF90 ./src/hdg/*.f90
                          ./src/dg/dg_vars.f90
                          ./src/interpolation/prolongtoface.f90
                          ./src/equations/${PICLAS_EQNSYSNAME}/equation.f90
+                         ./src/equations/${PICLAS_EQNSYSNAME}/equation_tools.f90
                          ./src/equations/${PICLAS_EQNSYSNAME}/equation_vars.f90
                          ./src/equations/${PICLAS_EQNSYSNAME}/timeavg.f90
                          ./src/equations/${PICLAS_EQNSYSNAME}/timeavg_vars.f90
