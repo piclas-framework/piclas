@@ -134,8 +134,7 @@ Case(PRM_DEPO_CVWM) ! cell_volweight_mean
   DepositionType   = 'cell_volweight_mean'
   DepositionMethod => DepositionMethod_CVWM
 CASE DEFAULT
-  CALL CollectiveStop(__STAMP__,&
-      'Unknown DepositionMethod!' ,IntInfo=DepositionType_loc)
+  CALL CollectiveStop(__STAMP__,'Unknown DepositionMethod!' ,IntInfo=DepositionType_loc)
 END SELECT
 
 ! If shape function is used, the radius must be read here as it is used for the BGM setup
