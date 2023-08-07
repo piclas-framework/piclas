@@ -1042,7 +1042,8 @@ USE MOD_Dielectric_Vars    ,ONLY: DoDielectricSurfaceCharge
 USE MOD_Particle_Mesh_Vars ,ONLY: ElemNodeID_Shared,NodeInfo_Shared
 USE MOD_Mesh_Tools         ,ONLY: GetCNElemID
 USE MOD_Mesh_Vars          ,ONLY: offsetElem
-USE MOD_MPI_Shared_Vars    ,ONLY: GlobalElem2CNTotalElem
+USE MOD_Particle_Mesh_Vars ,ONLY: GlobalElem2CNTotalElem,GlobalElem2CNTotalElem_Shared,GlobalElem2CNTotalElem_Shared_Win
+USE MOD_MPI_Shared_Vars    ,ONLY: nComputeNodeProcessors,nProcessors_Global
 #endif /*USE_LOADBALANCE*/
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
@@ -1148,7 +1149,12 @@ IF ((PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance))) THEN
     END DO!iElem
     ADEALLOCATE(ElemNodeID_Shared)
   END IF ! DoDielectricSurfaceCharge
-  SDEALLOCATE(GlobalElem2CNTotalElem)
+
+  IF (nComputeNodeProcessors.NE.nProcessors_Global) THEN
+    CALL UNLOCK_AND_FREE(GlobalElem2CNTotalElem_Shared_Win)
+    ADEALLOCATE(GlobalElem2CNTotalElem)
+    ADEALLOCATE(GlobalElem2CNTotalElem_Shared)
+  END IF ! nComputeNodeProcessors.NE.nProcessors_Global
 END IF
 #endif /*USE_LOADBALANCE*/
 

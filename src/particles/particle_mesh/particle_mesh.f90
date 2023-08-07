@@ -171,6 +171,7 @@ USE MOD_PICDepo_Vars           ,ONLY: DoDeposition,DepositionType
 USE MOD_ReadInTools            ,ONLY: GETREAL,GETINT,GETLOGICAL,GetRealArray, GETINTFROMSTR
 USE MOD_Symmetry_Vars          ,ONLY: Symmetry
 USE MOD_Particle_Vars          ,ONLY: DoVirtualCellMerge
+USE MOD_Particle_Boundary_Vars ,ONLY: PartBound
 #ifdef CODE_ANALYZE
 !USE MOD_Particle_Surfaces_Vars ,ONLY: SideBoundingBoxVolume
 USE MOD_Particle_Tracking_Vars ,ONLY: PartOut,MPIRankOut
@@ -349,7 +350,7 @@ SELECT CASE(TRIM(DepositionType))
     FindNeighbourElems = .TRUE.
 END SELECT
 ! Rotational periodic BC requires the neighbourhood to add elements of the BC nodes
-IF(GEO%RotPeriodicBC) FindNeighbourElems = .TRUE.
+IF(PartBound%UseRotPeriodicBC) FindNeighbourElems = .TRUE.
 
 IF(DoVirtualCellMerge) FindNeighbourElems = .TRUE.
 

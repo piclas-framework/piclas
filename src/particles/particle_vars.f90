@@ -65,13 +65,14 @@ CHARACTER(255)        :: IMDCutOff                                           ! c
 REAL    , ALLOCATABLE :: PartState(:,:)                                      ! 1st index: x,y,z,vx,vy,vz
 !                                                                            ! 2nd index: 1:NParts
 REAL    , ALLOCATABLE :: PartPosRef(:,:)                                     ! (1:3,1:NParts) particles pos mapped to -1|1 space
-INTEGER , ALLOCATABLE :: PartPosGauss(:,:)                                   ! (1:NParts,1:3) Gauss point localization of particles
+REAL    , ALLOCATABLE :: PartVeloRotRef(:,:)                                 ! (1:3,1:NParts) Velocity in the rotational reference frame
 REAL    , ALLOCATABLE :: Pt(:,:)                                             ! Derivative of PartState (vx,xy,vz) only
                                                                              ! since temporal derivative of position
                                                                              ! is the velocity. Thus we can take
                                                                              ! PartState(4:6,:) as Pt(1:3)
                                                                              ! (1:NParts,1:6) with 2nd index: x,y,z,vx,vy,vz
 INTEGER               :: PartDataSize                                        ! Number of entries in each line of PartData
+CHARACTER(LEN=255),ALLOCATABLE :: PartDataVarNames(:)                        ! Corrensponding variable names of PartData for output/read-in
 INTEGER,PARAMETER     :: PartIntSize=2                                       ! Number of entries in each line of PartInt
 REAL,ALLOCATABLE      :: PartData(:,:)                                       ! PartState ordered along SFC, particle number per
                                                                              ! element given in PartInt
@@ -115,6 +116,10 @@ REAL    , ALLOCATABLE :: LastPartPos(:,:)                                    ! 1
 !                                                                            ! 2nd index: 1:NParts with 2nd index
 INTEGER , ALLOCATABLE :: PartSpecies(:)                                      ! (1:NParts)
 REAL    , ALLOCATABLE :: PartMPF(:)                                          ! (1:NParts) MacroParticleFactor by variable MPF
+INTEGER , ALLOCATABLE :: InterPlanePartIndx(:)                               ! Index list of Particles that are created
+                                                                             ! at rot periodic inter plane
+INTEGER               :: InterPlanePartNumber                                ! Number of Particles that are created
+                                                                             ! at rot periodic inter plane
 REAL    , ALLOCATABLE :: PartTimeStep(:)                                     ! (1:NParts) Variable time step
 INTEGER               :: PartLorentzType
 CHARACTER(LEN=256)    :: ParticlePushMethod                                  ! Type of PP-Method

@@ -1112,10 +1112,11 @@ SUBROUTINE DSMC_perform_collision(iPair, iElem, NodeVolume, NodePartNum)
 ! Collision mode is selected (1: Elastic, 2: Non-elastic, 3: Non-elastic with chemical reactions)
 !===================================================================================================================================
 ! MODULES
-USE MOD_Globals               ,ONLY: Abort
+USE MOD_Globals               ,ONLY: Abort, CROSS
 USE MOD_DSMC_Vars             ,ONLY: CollisMode, Coll_pData, SelectionProc
 USE MOD_DSMC_Vars             ,ONLY: DSMC
 USE MOD_Particle_Vars         ,ONLY: PartState, WriteMacroVolumeValues
+USE MOD_Particle_Vars         ,ONLY: UseRotRefFrame, PDM, PartVeloRotRef, RotRefFrameOmega
 USE MOD_TimeDisc_Vars         ,ONLY: TEnd, Time
 USE MOD_Symmetry_Vars         ,ONLY: Symmetry
 #if (PP_TimeDiscMethod==42)
@@ -1208,6 +1209,15 @@ SELECT CASE(CollisMode)
   CASE DEFAULT
     CALL Abort(__STAMP__,'ERROR in DSMC_perform_collision: Wrong Collision Mode:',CollisMode)
 END SELECT
+
+! Rotational frame of reference
+IF(UseRotRefFrame) THEN
+  ! Transform the new velocity in the inertial frame and reset the velocity in the rotational frame
+  IF(PDM%InRotRefFrame(iPart1)) THEN
+    PartVeloRotRef(1:3,iPart1) = PartState(4:6,iPart1) - CROSS(RotRefFrameOmega(1:3),PartState(1:3,iPart1))
+    PartVeloRotRef(1:3,iPart2) = PartState(4:6,iPart2) - CROSS(RotRefFrameOmega(1:3),PartState(1:3,iPart2))
+  END IF
+END IF
 
 END SUBROUTINE DSMC_perform_collision
 

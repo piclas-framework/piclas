@@ -34,7 +34,7 @@ SUBROUTINE TimeStepPoissonByBorisLeapfrog()
 ! Boris-Leapfrog (508) -push with HDG
 !===================================================================================================================================
 ! MODULES
-USE MOD_Globals                ,ONLY: Abort, LocalTime, CROSS, DOTPRODUCT, UNITVECTOR, VECNORM, PARTISELECTRON, MPIroot
+USE MOD_Globals                ,ONLY: Abort, LocalTime, CROSS, DOTPRODUCT, UNITVECTOR, VECNORM, PARTISELECTRON
 USE MOD_DG_Vars                ,ONLY: U
 USE MOD_PreProc
 USE MOD_TimeDisc_Vars          ,ONLY: dt,iter,time
