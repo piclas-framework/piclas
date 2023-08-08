@@ -418,7 +418,9 @@ USE MOD_IO_HDF5          ,ONLY: OpenDataFile,CloseDataFile,File_ID
 USE MOD_Restart_Vars     ,ONLY: DoRestart,RestartFile
 USE MOD_HDF5_Input       ,ONLY: DatasetExists,ReadArray,GetDataSize
 USE MOD_HDG_Vars         ,ONLY: CoupledPowerPotential,CPPDataLength
+#if USE_MPI
 USE MOD_Equation_Tools   ,ONLY: SynchronizeCPP
+#endif /*USE_MPI*/
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! INPUT / OUTPUT VARIABLES
@@ -464,7 +466,7 @@ CALL SynchronizeCPP()
 #endif /*USE_MPI*/
 
 END SUBROUTINE ReadCPPDataFromH5
-
+#endif /*defined(PARTICLES)*/
 
 SUBROUTINE ExactFunc(ExactFunction,x,resu,t,ElemID,iRefState,iLinState,BCState)
 !===================================================================================================================================
