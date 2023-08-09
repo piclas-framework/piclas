@@ -66,10 +66,6 @@ INTERFACE SetCellLocalParticlePosition
   MODULE PROCEDURE SetCellLocalParticlePosition
 END INTERFACE
 
-INTERFACE InsideExcludeRegionCheck
-  MODULE PROCEDURE InsideExcludeRegionCheck
-END INTERFACE
-
 INTERFACE CalcNbrOfPhotons
   MODULE PROCEDURE CalcNbrOfPhotons
 END INTERFACE
@@ -96,7 +92,7 @@ END INTERFACE
 PUBLIC :: CalcVelocity_taylorgreenvortex, CalcVelocity_gyrotroncircle
 PUBLIC :: IntegerDivide,SetParticleChargeAndMass,SetParticleMPF,CalcVelocity_maxwell_lpn,SamplePoissonDistri
 PUBLIC :: BessK,DEVI,SYNGE,QUASIREL
-PUBLIC :: SetCellLocalParticlePosition,InsideExcludeRegionCheck
+PUBLIC :: SetCellLocalParticlePosition
 PUBLIC :: SetParticlePositionPoint, SetParticlePositionEquidistLine, SetParticlePositionLine, SetParticlePositionDisk
 PUBLIC :: SetParticlePositionCircle, SetParticlePositionGyrotronCircle, SetParticlePositionCuboidCylinder
 PUBLIC :: SetParticlePositionSphere, SetParticlePositionSinDeviation, SetParticleTimeStep
@@ -214,8 +210,8 @@ SUBROUTINE SetParticleTimeStep(NbrOfParticle)
 !> the particle vector, loops over the total number of particles and the indices in the nextFreePosition array.
 !===================================================================================================================================
 ! MODULES
-USE MOD_Particle_Vars           ,ONLY: PDM, VarTimeStep, PEM, PartState
-USE MOD_Particle_VarTimeStep    ,ONLY: CalcVarTimeStep
+USE MOD_Particle_Vars           ,ONLY: PDM, PartTimeStep, PEM, PartState
+USE MOD_Particle_TimeStep       ,ONLY: GetParticleTimeStep
 !----------------------------------------------------------------------------------------------------------------------------------
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -230,8 +226,7 @@ INTEGER                         :: iPart, PositionNbr
 !===================================================================================================================================
 DO iPart=1, NbrOfParticle
   PositionNbr = PDM%nextFreePosition(iPart+PDM%CurrentNextFreePosition)
-  VarTimeStep%ParticleTimeStep(PositionNbr) = &
-                CalcVarTimeStep(PartState(1,PositionNbr), PartState(2,PositionNbr),PEM%LocalElemID(PositionNbr))
+  PartTimeStep(PositionNbr) = GetParticleTimeStep(PartState(1,PositionNbr), PartState(2,PositionNbr),PEM%LocalElemID(PositionNbr))
 END DO
 
 END SUBROUTINE SetParticleTimeStep
@@ -922,8 +917,8 @@ USE MOD_Particle_Mesh_Vars      ,ONLY: LocalVolume
 USE MOD_Particle_Mesh_Vars      ,ONLY: BoundsOfElem_Shared,ElemVolume_Shared,ElemMidPoint_Shared
 USE MOD_Mesh_Tools              ,ONLY: GetCNElemID
 USE MOD_Particle_Tracking       ,ONLY: ParticleInsideCheck
-USE MOD_Particle_Vars           ,ONLY: Species, PDM, PartState, PEM, Symmetry, VarTimeStep, PartMPF
-USE MOD_Particle_VarTimeStep    ,ONLY: CalcVarTimeStep
+USE MOD_Particle_Vars           ,ONLY: Species, PDM, PartState, PEM, Symmetry, UseVarTimeStep, PartTimeStep, PartMPF
+USE MOD_Particle_TimeStep       ,ONLY: GetParticleTimeStep
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -981,8 +976,8 @@ INTEGER                          :: CNElemID
           PartDens = Species(iSpec)%Init(iInit)%PartDensity / CalcRadWeightMPF(ElemMidPoint_Shared(2,CNElemID), iSpec)
         END IF
         CALL RANDOM_NUMBER(iRan)
-        IF(VarTimeStep%UseVariableTimeStep) THEN
-          adaptTimestep = CalcVarTimeStep(ElemMidPoint_Shared(1,CNElemID), ElemMidPoint_Shared(2,CNElemID), iElem)
+        IF(UseVarTimeStep) THEN
+          adaptTimestep = GetParticleTimeStep(ElemMidPoint_Shared(1,CNElemID), ElemMidPoint_Shared(2,CNElemID), iElem)
           nPart = INT(PartDens / adaptTimestep * ElemVolume_Shared(CNElemID) + iRan)
         ELSE
           nPart = INT(PartDens * ElemVolume_Shared(CNElemID) + iRan)
@@ -1011,9 +1006,9 @@ INTEGER                          :: CNElemID
           PDM%dtFracPush(ParticleIndexNbr) = .FALSE.
           PEM%GlobalElemID(ParticleIndexNbr) = iGlobalElem
           ichunkSize = ichunkSize + 1
-          IF (VarTimeStep%UseVariableTimeStep) THEN
-            VarTimeStep%ParticleTimeStep(ParticleIndexNbr) = &
-              CalcVarTimeStep(PartState(1,ParticleIndexNbr), PartState(2,ParticleIndexNbr),iElem)
+          IF (UseVarTimeStep) THEN
+            PartTimeStep(ParticleIndexNbr) = &
+              GetParticleTimeStep(PartState(1,ParticleIndexNbr), PartState(2,ParticleIndexNbr),iElem)
           END IF
           IF(RadialWeighting%DoRadialWeighting) THEN
             PartMPF(ParticleIndexNbr) = CalcRadWeightMPF(PartState(2,ParticleIndexNbr),iSpec,ParticleIndexNbr)
@@ -1312,7 +1307,9 @@ SUBROUTINE SetParticlePositionCuboidCylinder(FractNbr,iInit,chunkSize,particle_p
 !===================================================================================================================================
 ! modules
 USE MOD_Globals
-USE MOD_Particle_Vars          ,ONLY: Species, Symmetry
+USE MOD_Particle_Vars          ,ONLY: Species, Symmetry, PDM
+USE MOD_Part_Tools             ,ONLY: CalcPartSymmetryPos, CalcRadWeightMPF
+USE MOD_DSMC_Vars              ,ONLY: RadialWeighting
 !----------------------------------------------------------------------------------------------------------------------------------
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -1325,9 +1322,8 @@ INTEGER, INTENT(INOUT)  :: chunkSize
 REAL, INTENT(OUT)       :: particle_positions(:)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-REAL                    :: Particle_pos(3), RandVal(3), lineVector(3), radius
+REAL                    :: Particle_pos(3), RandVal(3), lineVector(3), radius, RadWeightMPF, iRan
 INTEGER                 :: i, chunkSize2
-LOGICAL                 :: insideExcludeRegion
 !===================================================================================================================================
   ! Calculate the cross-product vector from the two base vectors to get the perpendicular direction
   ASSOCIATE(v2 => Species(FractNbr)%Init(iInit)%BaseVector1IC ,&
@@ -1361,11 +1357,26 @@ LOGICAL                 :: insideExcludeRegion
       Particle_pos = Particle_pos + Species(FractNbr)%Init(iInit)%BasePointIC
       Particle_pos = Particle_pos + lineVector * Species(FractNbr)%Init(iInit)%CylinderHeightIC * RandVal(3)
     END SELECT
-    IF (Species(FractNbr)%Init(iInit)%NumberOfExcludeRegions.GT.0) THEN
-      CALL InsideExcludeRegionCheck(FractNbr, iInit, Particle_pos, insideExcludeRegion)
-      IF (insideExcludeRegion) THEN
-        i=i+1
-        CYCLE !particle is in excluded region
+    IF(Symmetry%Order.NE.3) THEN
+      ! Get symmetry position of the calulcated position
+      CALL CalcPartSymmetryPos(Particle_pos)
+      IF(Symmetry%Axisymmetric.AND.Particle_pos(2).LT.0) Particle_pos(2) = -Particle_pos(2)
+      ! Reject some particles do to variable MPF considerations
+      IF(RadialWeighting%DoRadialWeighting) THEN
+        IF(Symmetry%Order.EQ.2) THEN
+          RadWeightMPF = CalcRadWeightMPF(Particle_pos(2), FractNbr)
+        ELSE IF(Symmetry%Order.EQ.1) THEN
+          RadWeightMPF = CalcRadWeightMPF(Particle_pos(1), FractNbr)
+        END IF
+        CALL RANDOM_NUMBER(iRan)
+        IF(Species(FractNbr)%MacroParticleFactor/RadWeightMPF.LT.iRan) THEN
+          i=i+1
+          CYCLE
+        ELSE IF(chunkSize2.GT.PDM%maxParticleNumber) THEN
+          IPWRITE(UNIT_stdOut,*)'Inserted percentage of particles',REAL(i)/REAL(chunkSize)*100
+          CALL CollectiveStop(__STAMP__,&
+            'Number of to be inserted particles per init-proc exceeds max. particle number! ')
+        END IF
       END IF
     END IF
     particle_positions((chunkSize2+1)*3-2) = Particle_pos(1)
@@ -1383,8 +1394,10 @@ SUBROUTINE SetParticlePositionSphere(FractNbr,iInit,chunkSize,particle_positions
 ! Set particle position
 !===================================================================================================================================
 ! modules
-USE MOD_Particle_Vars          ,ONLY: Species
-USE MOD_Part_tools             ,ONLY: DICEUNITVECTOR
+USE MOD_Globals
+USE MOD_Particle_Vars          ,ONLY: Species, Symmetry, PDM
+USE MOD_Part_tools             ,ONLY: DICEUNITVECTOR, CalcPartSymmetryPos, CalcRadWeightMPF
+USE MOD_DSMC_Vars              ,ONLY: RadialWeighting
 !----------------------------------------------------------------------------------------------------------------------------------
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -1397,9 +1410,8 @@ INTEGER, INTENT(INOUT)  :: chunkSize
 REAL, INTENT(OUT)       :: particle_positions(:)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-REAL                    :: Particle_pos(3), iRan, radius
+REAL                    :: Particle_pos(3), iRan, radius, RadWeightMPF
 INTEGER                 :: i, chunkSize2
-LOGICAL                 :: insideExcludeRegion
 !===================================================================================================================================
   i=1
   chunkSize2=0
@@ -1407,11 +1419,26 @@ LOGICAL                 :: insideExcludeRegion
     CALL RANDOM_NUMBER(iRan)
     radius = Species(FractNbr)%Init(iInit)%RadiusIC*iRan**(1./3.)
     Particle_pos = DICEUNITVECTOR()*radius + Species(FractNbr)%Init(iInit)%BasePointIC
-    IF (Species(FractNbr)%Init(iInit)%NumberOfExcludeRegions.GT.0) THEN
-      CALL InsideExcludeRegionCheck(FractNbr, iInit, Particle_pos, insideExcludeRegion)
-      IF (insideExcludeRegion) THEN
-        i=i+1
-        CYCLE !particle is in excluded region
+    IF(Symmetry%Order.NE.3) THEN
+      ! Get symmetry position of the calulcated position
+      CALL CalcPartSymmetryPos(Particle_pos)
+      IF(Symmetry%Axisymmetric.AND.Particle_pos(2).LT.0) Particle_pos(2) = -Particle_pos(2)
+      ! Reject some particles do to variable MPF considerations
+      IF(RadialWeighting%DoRadialWeighting) THEN
+        IF(Symmetry%Order.EQ.2) THEN
+          RadWeightMPF = CalcRadWeightMPF(Particle_pos(2), FractNbr)
+        ELSE IF(Symmetry%Order.EQ.1) THEN
+          RadWeightMPF = CalcRadWeightMPF(Particle_pos(1), FractNbr)
+        END IF
+        CALL RANDOM_NUMBER(iRan)
+        IF(Species(FractNbr)%MacroParticleFactor/RadWeightMPF.LT.iRan) THEN
+          i=i+1
+          CYCLE
+        ELSE IF(chunkSize2.GT.PDM%maxParticleNumber) THEN
+          IPWRITE(UNIT_stdOut,*)'Inserted percentage of particles',REAL(i)/REAL(chunkSize)*100
+          CALL CollectiveStop(__STAMP__,&
+            'Number of to be inserted particles per init-proc exceeds max. particle number! ')
+        END IF
       END IF
     END IF
     particle_positions((chunkSize2+1)*3-2) = Particle_pos(1)
@@ -1477,99 +1504,6 @@ INTEGER                 :: i, iPart, j, k
     END DO
   END DO
 END SUBROUTINE SetParticlePositionSinDeviation
-
-
-SUBROUTINE InsideExcludeRegionCheck(FractNbr, iInit, Particle_pos, insideExcludeRegion)
-!===================================================================================================================================
-! Subroutine for checking if calculated particle position would be inside user-defined ExcludeRegion (cuboid or cylinder)
-!===================================================================================================================================
-! MODULES
-USE MOD_Globals,                ONLY : abort
-USE MOD_Particle_Vars,          ONLY : Species
-! IMPLICIT VARIABLE HANDLING
-IMPLICIT NONE
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
-INTEGER,INTENT(IN)               :: FractNbr, iInit
-REAL,INTENT(IN)                  :: Particle_pos(3)
-!-----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
-LOGICAL,INTENT(OUT)              :: insideExcludeRegion
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-REAL                             :: VecExclude(3), DistExclude
-INTEGER                          :: iExclude
-!===================================================================================================================================
-
-insideExcludeRegion=.FALSE.
-DO iExclude=1,Species(FractNbr)%Init(iInit)%NumberOfExcludeRegions
-  VecExclude = Particle_pos - Species(FractNbr)%Init(iInit)%ExcludeRegion(iExclude)%BasePointIC
-  SELECT CASE (TRIM(Species(FractNbr)%Init(iInit)%ExcludeRegion(iExclude)%SpaceIC))
-  CASE ('cuboid')
-    !--check normal direction
-    DistExclude = VecExclude(1)*Species(FractNbr)%Init(iInit)%ExcludeRegion(iExclude)%NormalIC(1) &
-      + VecExclude(2)*Species(FractNbr)%Init(iInit)%ExcludeRegion(iExclude)%NormalIC(2) &
-      + VecExclude(3)*Species(FractNbr)%Init(iInit)%ExcludeRegion(iExclude)%NormalIC(3)
-    IF ( (DistExclude .LE. Species(FractNbr)%Init(iInit)%ExcludeRegion(iExclude)%CuboidHeightIC) &
-      .AND. (DistExclude .GE. 0.) ) THEN
-      insideExcludeRegion = .TRUE.
-    ELSE
-      insideExcludeRegion = .FALSE.
-      CYCLE
-    END IF
-    !--check BV1 direction
-    DistExclude = VecExclude(1)*Species(FractNbr)%Init(iInit)%ExcludeRegion(iExclude)%BaseVector1IC(1) &
-      + VecExclude(2)*Species(FractNbr)%Init(iInit)%ExcludeRegion(iExclude)%BaseVector1IC(2) &
-      + VecExclude(3)*Species(FractNbr)%Init(iInit)%ExcludeRegion(iExclude)%BaseVector1IC(3)
-    IF ( (DistExclude .LE. Species(FractNbr)%Init(iInit)%ExcludeRegion(iExclude)%ExcludeBV_lenghts(1)**2) &
-      .AND. (DistExclude .GE. 0.) ) THEN
-      insideExcludeRegion = .TRUE.
-    ELSE
-      insideExcludeRegion = .FALSE.
-      CYCLE
-    END IF
-    !--check BV2 direction
-    DistExclude = VecExclude(1)*Species(FractNbr)%Init(iInit)%ExcludeRegion(iExclude)%BaseVector2IC(1) &
-      + VecExclude(2)*Species(FractNbr)%Init(iInit)%ExcludeRegion(iExclude)%BaseVector2IC(2) &
-      + VecExclude(3)*Species(FractNbr)%Init(iInit)%ExcludeRegion(iExclude)%BaseVector2IC(3)
-    IF ( (DistExclude .LE. Species(FractNbr)%Init(iInit)%ExcludeRegion(iExclude)%ExcludeBV_lenghts(2)**2) &
-      .AND. (DistExclude .GE. 0.) ) THEN
-      insideExcludeRegion = .TRUE.
-      RETURN !particle is inside current ExcludeRegion based an all dimensions
-    ELSE
-      insideExcludeRegion = .FALSE.
-      CYCLE
-    END IF
-  CASE ('cylinder')
-    !--check normal direction
-    DistExclude = VecExclude(1)*Species(FractNbr)%Init(iInit)%ExcludeRegion(iExclude)%NormalIC(1) &
-      + VecExclude(2)*Species(FractNbr)%Init(iInit)%ExcludeRegion(iExclude)%NormalIC(2) &
-      + VecExclude(3)*Species(FractNbr)%Init(iInit)%ExcludeRegion(iExclude)%NormalIC(3)
-    IF ( (DistExclude .LE. Species(FractNbr)%Init(iInit)%ExcludeRegion(iExclude)%CylinderHeightIC) &
-      .AND. (DistExclude .GE. 0.) ) THEN
-      insideExcludeRegion = .TRUE.
-    ELSE
-      insideExcludeRegion = .FALSE.
-      CYCLE
-    END IF
-    !--check radial direction
-    DistExclude = SQRT( VecExclude(1)**2 + VecExclude(2)**2 + VecExclude(3)**2 - DistExclude**2 )
-    IF ( (DistExclude .LE. Species(FractNbr)%Init(iInit)%ExcludeRegion(iExclude)%RadiusIC) &
-      .AND. (DistExclude .GE. Species(FractNbr)%Init(iInit)%ExcludeRegion(iExclude)%Radius2IC) ) THEN
-      insideExcludeRegion = .TRUE.
-      RETURN !particle is inside current ExcludeRegion based an all dimensions
-    ELSE
-      insideExcludeRegion = .FALSE.
-      CYCLE
-    END IF
-  CASE DEFAULT
-    CALL abort(&
-__STAMP__&
-,'wrong SpaceIC for ExcludeRegion!')
-  END SELECT
-END DO
-
-END SUBROUTINE InsideExcludeRegionCheck
 
 
 #ifdef CODE_ANALYZE
@@ -1803,7 +1737,7 @@ ASSOCIATE( W     => Species(FractNbr)%Init(iInit)%WorkFunctionSEE ,&
            n_vec => Species(FractNbr)%Init(iInit)%NormalIC        )
 
 ! ARM for energy distribution
-E_max = 50.0 ! in eV (arbitrary)
+E_max = 25.0*W ! in eV (this yields an integral of 0.9956759, i.e., 95.57% of electrons have this or a lower energy)
 PDF_max = 81.0 / (128.0 * W)  ! PDF_max at E = W/3 (derivation of 6W^2E/(E+W)^4 == 0)
 ARM_SEE_PDF=.TRUE.
 DO WHILE(ARM_SEE_PDF)
@@ -1938,7 +1872,7 @@ ASSOCIATE( O => Species(FractNbr)%Init(iInit)%BasePointIC         ,&
     Particle_pos(1:3) = RandVal(1)*v2 + RandVal(2)*v3
     particle_positions(i*3-2) = O(1) + Particle_pos(1)
     particle_positions(i*3-1) = O(2) + Particle_pos(2)
-    particle_positions(i*3  ) = O(3)
+    particle_positions(i*3  ) = O(3) + Particle_pos(3)
   END DO
 END ASSOCIATE
 END SUBROUTINE SetParticlePositionPhotonSEERectangle
@@ -2174,13 +2108,13 @@ END SUBROUTINE SetParticlePositionPhotonRectangle
 !===================================================================================================================================
 !> Check if x,y is inside honeycomb (hexagon)
 !===================================================================================================================================
-PPURE LOGICAL FUNCTION InsideHexagon(X,R,ri) RESULT(L)
+PPURE LOGICAL FUNCTION InsideHexagon(pos,R,ri) RESULT(L)
 ! MODULES
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-REAL,INTENT(IN) :: x(2),R,ri
+REAL,INTENT(IN) :: pos(2),R,ri
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -2188,7 +2122,7 @@ REAL,INTENT(IN) :: x(2),R,ri
 REAL            :: normal(2),corner(2)
 !===================================================================================================================================
 L = .FALSE.
-ASSOCIATE( x => x(1), y => x(2) )
+ASSOCIATE( x => pos(1), y => pos(2) )
   ! 1.) Check if outside of bounding box
   IF(x.GT.  R) RETURN
   IF(x.LT. -R) RETURN

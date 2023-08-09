@@ -55,6 +55,9 @@ PUBLIC :: GetMasteriLocSides
 PUBLIC :: BuildSideToNonUniqueGlobalSide
 #endif /*USE_LOADBALANCE*/
 #endif /*USE_HDG*/
+PUBLIC :: InitElemNodeIDs
+PUBLIC :: GetCornerNodes
+PUBLIC :: GetCornerNodeMapCGNS
 !----------------------------------------------------------------------------------------------------------------------------------
 
 ABSTRACT INTERFACE
@@ -221,7 +224,7 @@ END FUNCTION GetGlobalSideID_iSide
 !==================================================================================================================================!
 PPURE INTEGER FUNCTION GetGlobalElemID_fromTotalElem(iElem)
 ! MODULES
-USE MOD_MPI_Shared_Vars, ONLY:CNTotalElem2GlobalElem
+USE MOD_Particle_Mesh_Vars, ONLY:CNTotalElem2GlobalElem
 ! INPUT / OUTPUT VARIABLES
 INTEGER,INTENT(IN)              :: iElem
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -241,7 +244,7 @@ END FUNCTION GetGlobalElemID_fromTotalElem
 !==================================================================================================================================!
 PPURE INTEGER FUNCTION GetGlobalSideID_fromTotalSide(iSide)
 ! MODULES
-USE MOD_MPI_Shared_Vars, ONLY:CNTotalSide2GlobalSide
+USE MOD_Particle_Mesh_Vars, ONLY:CNTotalSide2GlobalSide
 ! INPUT / OUTPUT VARIABLES
 INTEGER,INTENT(IN)              :: iSide
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -363,7 +366,7 @@ END FUNCTION CNSideID_is_iSide
 !==================================================================================================================================!
 PPURE INTEGER FUNCTION GetGlobalElem2CNTotalElem(iElem)
 ! MODULES
-USE MOD_MPI_Shared_Vars, ONLY:GlobalElem2CNTotalElem
+USE MOD_Particle_Mesh_Vars, ONLY:GlobalElem2CNTotalElem
 ! INPUT / OUTPUT VARIABLES
 INTEGER,INTENT(IN)              :: iElem ! Global element ID
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -383,7 +386,7 @@ END FUNCTION GetGlobalElem2CNTotalElem
 !==================================================================================================================================!
 PPURE INTEGER FUNCTION GetGlobalSide2CNTotalSide(iSide)
 ! MODULES
-USE MOD_MPI_Shared_Vars, ONLY:GlobalSide2CNTotalSide
+USE MOD_Particle_Mesh_Vars, ONLY:GlobalSide2CNTotalSide
 ! INPUT / OUTPUT VARIABLES
 INTEGER,INTENT(IN)              :: iSide ! Global element ID
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -629,5 +632,141 @@ END SUBROUTINE BuildSideToNonUniqueGlobalSide
 #endif /*USE_HDG*/
 
 
+SUBROUTINE InitElemNodeIDs()
+!===================================================================================================================================
+!> Subroutine for particle geometry initialization:
+!> - ElemNodeID_Shared(1:8,1:nComputeNodeTotalElems)
+!===================================================================================================================================
+! MODULES
+! USE MOD_Preproc
+! USE MOD_ReadInTools
+USE MOD_Globals
+USE MOD_Mesh_Vars              ,ONLY: NGeo
+USE MOD_Particle_Mesh_Vars
+#if USE_MPI
+USE MOD_MPI_Shared
+USE MOD_MPI_Shared_Vars
+#else
+USE MOD_Mesh_Vars              ,ONLY: nElems
+#endif
+! IMPLICIT VARIABLE HANDLING
+ IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER            :: iNode,iElem,firstElem,lastElem,GlobalElemID,CNS(8)
+!===================================================================================================================================
+
+#if USE_MPI
+firstElem = INT(REAL( myComputeNodeRank   )*REAL(nComputeNodeTotalElems)/REAL(nComputeNodeProcessors))+1
+lastElem  = INT(REAL((myComputeNodeRank+1))*REAL(nComputeNodeTotalElems)/REAL(nComputeNodeProcessors))
+CALL Allocate_Shared((/8,nComputeNodeTotalElems/),ElemNodeID_Shared_Win,ElemNodeID_Shared)
+CALL MPI_WIN_LOCK_ALL(0,ElemNodeID_Shared_Win,IERROR)
+#else
+ALLOCATE(ElemNodeID_Shared(1:8,1:nElems))
+firstElem = 1
+lastElem  = nElems
+#endif  /*USE_MPI*/
+
+#if USE_MPI
+IF (myComputeNodeRank.EQ.0) THEN
+#endif
+  ElemNodeID_Shared = 0
+#if USE_MPI
+END IF
+CALL BARRIER_AND_SYNC(ElemNodeID_Shared_Win,MPI_COMM_SHARED)
+#endif
+
+! Get the corner nodes and convert from the CGNS format
+CALL GetCornerNodeMapCGNS(NGeo,CornerNodesCGNS=CNS(1:8))
+
+! iElem is CNElemID
+DO iElem = firstElem,lastElem
+  GlobalElemID = GetGlobalElemID(iElem)
+  DO iNode = 1,8
+    ElemNodeID_Shared(iNode,iElem) = ElemInfo_Shared(ELEM_FIRSTNODEIND,GlobalElemID) + CNS(iNode)
+  END DO
+END DO
+#if USE_MPI
+CALL BARRIER_AND_SYNC(ElemNodeID_Shared_Win,MPI_COMM_SHARED)
+#endif
+
+END SUBROUTINE InitElemNodeIDs
+
+
+PPURE FUNCTION GetCornerNodes(NgeoLoc)
+!===================================================================================================================================
+!> Get the corner nodes, depending on the given NGeo, for high-order elements
+!===================================================================================================================================
+! MODULES
+! IMPLICIT VARIABLE HANDLING
+ IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+INTEGER,INTENT(IN)             :: NgeoLoc
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+INTEGER                        :: GetCornerNodes(8)
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+!===================================================================================================================================
+
+GetCornerNodes(1) = 1
+GetCornerNodes(2) = (NgeoLoc+1)
+GetCornerNodes(3) = (NgeoLoc+1)*NgeoLoc+1
+GetCornerNodes(4) = (NgeoLoc+1)**2
+GetCornerNodes(5) = (NgeoLoc+1)**2*NgeoLoc+1
+GetCornerNodes(6) = (NgeoLoc+1)**2*NgeoLoc+(NgeoLoc+1)
+GetCornerNodes(7) = (NgeoLoc+1)**2*NgeoLoc+(NgeoLoc+1)*NgeoLoc+1
+GetCornerNodes(8) = (NgeoLoc+1)**3
+
+END FUNCTION GetCornerNodes
+
+
+PPURE SUBROUTINE GetCornerNodeMapCGNS(NgeoLoc,CornerNodesCGNS,NodeMapCGNS)
+!===================================================================================================================================
+!> Get the corner nodes and node map when converting from CGNS format, depending on the given NGeo.
+!===================================================================================================================================
+! MODULES
+! IMPLICIT VARIABLE HANDLING
+ IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+INTEGER,INTENT(IN)             :: NgeoLoc
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+INTEGER,INTENT(OUT),OPTIONAL   :: CornerNodesCGNS(8), NodeMapCGNS(4,6)
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER                        :: CNS(8)
+!===================================================================================================================================
+
+! CornerNodeSwitch: a mapping is required for Ngeo > 1 as the corner nodes are not the first 8 entries of NodeInfo array
+! For NGeo = 1, CNS(3) = 4 and vice versa, and CNS(7) = 8 and vice versa
+CNS(1) = 1
+CNS(2) = (NgeoLoc+1)
+CNS(3) = (NgeoLoc+1)**2
+CNS(4) = (NgeoLoc+1)*NgeoLoc+1
+CNS(5) = (NgeoLoc+1)**2*NgeoLoc+1
+CNS(6) = (NgeoLoc+1)**2*NgeoLoc+(NgeoLoc+1)
+CNS(7) = (NgeoLoc+1)**3
+CNS(8) = (NgeoLoc+1)**2*NgeoLoc+(NgeoLoc+1)*NgeoLoc+1
+
+IF(PRESENT(CornerNodesCGNS)) CornerNodesCGNS = CNS
+
+IF(PRESENT(NodeMapCGNS)) THEN
+  ! Set the corresponding mapping for HOPR coordinates in CGNS format
+  NodeMapCGNS(:,1) = (/CNS(1),CNS(4),CNS(3),CNS(2)/)
+  NodeMapCGNS(:,2) = (/CNS(1),CNS(2),CNS(6),CNS(5)/)
+  NodeMapCGNS(:,3) = (/CNS(2),CNS(3),CNS(7),CNS(6)/)
+  NodeMapCGNS(:,4) = (/CNS(3),CNS(4),CNS(8),CNS(7)/)
+  NodeMapCGNS(:,5) = (/CNS(1),CNS(5),CNS(8),CNS(4)/)
+  NodeMapCGNS(:,6) = (/CNS(5),CNS(6),CNS(7),CNS(8)/)
+END IF
+
+END SUBROUTINE GetCornerNodeMapCGNS
 
 END MODULE MOD_Mesh_Tools

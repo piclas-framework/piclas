@@ -61,6 +61,10 @@ INTERFACE InterpolateEmissionDistribution2D
   MODULE PROCEDURE InterpolateEmissionDistribution2D
 END INTERFACE
 
+INTERFACE CalcPartSymmetryPos
+  MODULE PROCEDURE CalcPartSymmetryPos
+END INTERFACE
+
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! GLOBAL VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -72,6 +76,8 @@ PUBLIC :: CalcXiElec,ParticleOnProc,  CalcERot_particle, CalcEVib_particle, Calc
 PUBLIC :: InitializeParticleMaxwell
 PUBLIC :: InterpolateEmissionDistribution2D
 PUBLIC :: MergeCells,InRotRefFrameCheck
+PUBLIC :: CalcPartSymmetryPos
+PUBLIC :: RotateVectorAroundAxis
 !===================================================================================================================================
 
 CONTAINS
@@ -83,9 +89,9 @@ SUBROUTINE UpdateNextFreePosition(WithOutMPIParts)
 ! MODULES
 USE MOD_Globals
 USE MOD_DSMC_Vars            ,ONLY: useDSMC,CollInf
-USE MOD_Particle_Vars        ,ONLY: PDM,PEM,PartSpecies,doParticleMerge,vMPF_SpecNumElem
-USE MOD_Particle_Vars        ,ONLY: PartState,VarTimeStep,usevMPF
-USE MOD_Particle_VarTimeStep ,ONLY: CalcVarTimeStep
+USE MOD_Particle_Vars        ,ONLY: PDM,PEM,PartSpecies
+USE MOD_Particle_Vars        ,ONLY: PartState,PartTimeStep,usevMPF,UseVarTimeStep
+USE MOD_Particle_TimeStep    ,ONLY: GetParticleTimeStep
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Timers   ,ONLY: LBStartTime,LBPauseTime
 #endif /*USE_LOADBALANCE*/
@@ -113,7 +119,7 @@ CALL LBStartTime(tLBStart)
 
 IF(PDM%maxParticleNumber.EQ.0) RETURN
 
-IF (useDSMC.OR.doParticleMerge.OR.usevMPF) THEN
+IF (useDSMC.OR.usevMPF) THEN
   PEM%pNumber(:) = 0
 END IF
 
@@ -132,9 +138,7 @@ IF(usevMPF)THEN
   END IF ! PDM%ParticleVecLengthOld.GT.SIZE(PDM%ParticleInside)
 END IF ! usevMPF
 
-IF (doParticleMerge) vMPF_SpecNumElem = 0
-
-IF (useDSMC.OR.doParticleMerge.OR.usevMPF) THEN
+IF (useDSMC.OR.usevMPF) THEN
   DO i = 1,PDM%ParticleVecLengthOld
     IF (.NOT.PDM%ParticleInside(i)) THEN
       IF (CollInf%ProhibitDoubleColl) CollInf%OldCollPartner(i) = 0
@@ -160,11 +164,7 @@ IF (useDSMC.OR.doParticleMerge.OR.usevMPF) THEN
         PEM%pEnd(   ElemID)   = i
         PEM%pNumber(ElemID)   = PEM%pNumber(ElemID) + 1
         PDM%ParticleVecLength = i
-
-        IF (VarTimeStep%UseVariableTimeStep) &
-          VarTimeStep%ParticleTimeStep(i) = CalcVarTimeStep(PartState(1,i),PartState(2,i),ElemID)
-
-        IF(doParticleMerge) vMPF_SpecNumElem(ElemID,PartSpecies(i)) = vMPF_SpecNumElem(ElemID,PartSpecies(i)) + 1
+        IF(UseVarTimeStep) PartTimeStep(i) = GetParticleTimeStep(PartState(1,i),PartState(2,i),ElemID)
       END IF
 #endif
     ELSE
@@ -181,11 +181,7 @@ IF (useDSMC.OR.doParticleMerge.OR.usevMPF) THEN
       PEM%pEnd(   ElemID)   = i
       PEM%pNumber(ElemID)   = PEM%pNumber(ElemID) + 1
       PDM%ParticleVecLength = i
-
-      IF (VarTimeStep%UseVariableTimeStep) &
-        VarTimeStep%ParticleTimeStep(i) = CalcVarTimeStep(PartState(1,i),PartState(2,i),ElemID)
-
-      IF(doParticleMerge) vMPF_SpecNumElem(ElemID,PartSpecies(i)) = vMPF_SpecNumElem(ElemID,PartSpecies(i)) + 1
+      IF(UseVarTimeStep) PartTimeStep(i) = GetParticleTimeStep(PartState(1,i),PartState(2,i),ElemID)
     END IF
   END DO
 ! no DSMC
@@ -488,7 +484,7 @@ PPURE REAL FUNCTION GetParticleWeight(iPart)
 !===================================================================================================================================
 ! MODULES
 ! IMPLICIT VARIABLE HANDLING
-USE MOD_Particle_Vars           ,ONLY: usevMPF, VarTimeStep, PartMPF
+USE MOD_Particle_Vars           ,ONLY: usevMPF, UseVarTimeStep, PartTimeStep, PartMPF
 USE MOD_DSMC_Vars               ,ONLY: RadialWeighting
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -497,13 +493,13 @@ INTEGER, INTENT(IN)             :: iPart
 !===================================================================================================================================
 
 IF(usevMPF.OR.RadialWeighting%DoRadialWeighting) THEN
-  IF (VarTimeStep%UseVariableTimeStep) THEN
-    GetParticleWeight = PartMPF(iPart) * VarTimeStep%ParticleTimeStep(iPart)
+  IF (UseVarTimeStep) THEN
+    GetParticleWeight = PartMPF(iPart) * PartTimeStep(iPart)
   ELSE
     GetParticleWeight = PartMPF(iPart)
   END IF
-ELSE IF (VarTimeStep%UseVariableTimeStep) THEN
-  GetParticleWeight = VarTimeStep%ParticleTimeStep(iPart)
+ELSE IF (UseVarTimeStep) THEN
+  GetParticleWeight = PartTimeStep(iPart)
 ELSE
   GetParticleWeight = 1.
 END IF
@@ -522,6 +518,7 @@ USE MOD_DSMC_Vars               ,ONLY: RadialWeighting
 USE MOD_Particle_Vars           ,ONLY: Species, PEM
 USE MOD_Particle_Mesh_Vars      ,ONLY: GEO
 USE MOD_Particle_Mesh_Vars      ,ONLY: ElemMidPoint_Shared
+USE MOD_Particle_Vars           ,ONLY: Symmetry
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -538,12 +535,24 @@ REAL                 :: yPosIn
 !===================================================================================================================================
 
 IF(RadialWeighting%CellLocalWeighting.AND.PRESENT(iPart)) THEN
-  yPosIn = ElemMidPoint_Shared(2,PEM%CNElemID(iPart))
+  IF(Symmetry%Order.EQ.2) THEN
+    yPosIn = ElemMidPoint_Shared(2,PEM%CNElemID(iPart))
+  ELSE
+    yPosIn = ElemMidPoint_Shared(1,PEM%CNElemID(iPart))
+  END IF
 ELSE
   yPosIn = yPos
 END IF
 
-CalcRadWeightMPF = (1. + yPosIn/GEO%ymaxglob*(RadialWeighting%PartScaleFactor-1.))*Species(iSpec)%MacroParticleFactor
+IF(Symmetry%Order.EQ.2) THEN
+  CalcRadWeightMPF = (1. + yPosIn/GEO%ymaxglob*(RadialWeighting%PartScaleFactor-1.))*Species(iSpec)%MacroParticleFactor
+ELSE
+  ! IF(Symmetry%Axisymmetric) THEN
+    CalcRadWeightMPF = (1. + yPosIn/GEO%xmaxglob*(RadialWeighting%PartScaleFactor-1.))*Species(iSpec)%MacroParticleFactor
+  ! ELSE IF(Symmetry%SphericalSymmetric) THEN
+  !   CalcRadWeightMPF = (1. + (yPosIn/GEO%xmaxglob)**2*(RadialWeighting%PartScaleFactor-1.))*Species(iSpec)%MacroParticleFactor
+  ! END IF
+END IF
 
 RETURN
 
@@ -1215,10 +1224,10 @@ SUBROUTINE InitializeParticleMaxwell(iPart,iSpec,iElem,Mode,iInit)
 ! MODULES
 USE MOD_Globals
 USE MOD_Mesh_Vars               ,ONLY: offSetElem
-USE MOD_Particle_Vars           ,ONLY: PDM, PartSpecies, PartState, PEM, VarTimeStep, PartMPF, Species
+USE MOD_Particle_Vars           ,ONLY: PDM, PartSpecies, PartState, PEM, UseVarTimeStep, PartTimeStep, PartMPF, Species
 USE MOD_DSMC_Vars               ,ONLY: DSMC, PartStateIntEn, CollisMode, SpecDSMC, RadialWeighting, AmbipolElecVelo
 USE MOD_Restart_Vars            ,ONLY: MacroRestartValues
-USE MOD_Particle_VarTimeStep    ,ONLY: CalcVarTimeStep
+USE MOD_Particle_TimeStep       ,ONLY: GetParticleTimeStep
 USE MOD_Particle_Emission_Vars  ,ONLY: EmissionDistributionDim
 !USE MOD_part_tools              ,ONLY: CalcRadWeightMPF, CalcEElec_particle, CalcEVib_particle, CalcERot_particle
 !USE MOD_part_tools              ,ONLY: CalcVelocity_maxwell_particle
@@ -1260,7 +1269,7 @@ CASE(2) ! Emission distribution (equidistant data from .h5 file)
   ! Sanity check
   hilf=' is not implemented in InitializeParticleMaxwell() in combination with EmissionDistribution yet!'
   IF(DSMC%DoAmbipolarDiff) CALL abort(__STAMP__,'DSMC%DoAmbipolarDiff=T'//TRIM(hilf))
-  IF(VarTimeStep%UseVariableTimeStep) CALL abort(__STAMP__,'VarTimeStep%UseVariableTimeStep=T'//TRIM(hilf))
+  IF(UseVarTimeStep) CALL abort(__STAMP__,'UseVarTimeStep=T'//TRIM(hilf))
   IF(RadialWeighting%DoRadialWeighting) CALL abort(__STAMP__,'RadialWeighting%DoRadialWeighting=T'//TRIM(hilf))
   ! Check dimensionality of data
   SELECT CASE(EmissionDistributionDim)
@@ -1313,9 +1322,9 @@ PEM%GlobalElemID(iPart) = iElem+offSetElem
 PEM%LastGlobalElemID(iPart) = iElem+offSetElem
 PDM%ParticleInside(iPart) = .TRUE.
 
-! 4) Set particle weights (if required)
-IF (VarTimeStep%UseVariableTimeStep) THEN
-  VarTimeStep%ParticleTimeStep(iPart) = CalcVarTimeStep(PartState(1,iPart),PartState(2,iPart),iElem)
+! 4) Set particle time step and weights (if required)
+IF (UseVarTimeStep) THEN
+  PartTimeStep(iPart) = GetParticleTimeStep(PartState(1,iPart),PartState(2,iPart),iElem)
 END IF
 IF (RadialWeighting%DoRadialWeighting) THEN
   PartMPF(iPart) = CalcRadWeightMPF(PartState(2,iPart),iSpec,iPart)
@@ -1435,5 +1444,168 @@ ASSOCIATE(&
 END ASSOCIATE
 
 END FUNCTION InterpolateEmissionDistribution2D
+
+
+SUBROUTINE CalcPartSymmetryPos(Pos,Velo,ElectronVelo)
+!===================================================================================================================================
+! Calculates the symmetry possition (and velocity) of an particle from its 3D position
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals
+USE MOD_Particle_Vars          ,ONLY: Symmetry
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+REAL,INTENT(INOUT)          :: Pos(3)
+REAL,INTENT(INOUT),OPTIONAL :: Velo(3),ElectronVelo(3)
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+REAL               :: NewYPart, NewYVelo!, NewXVelo, NewZVelo, n_rot(3), cosa, sina
+!===================================================================================================================================
+! Axisymmetric treatment of particles: rotation of the position and velocity vector
+IF(Symmetry%Axisymmetric) THEN
+  IF(Symmetry%Order.EQ.2) THEN
+    IF (Pos(2).LT.0.0) THEN
+      NewYPart = -SQRT(Pos(2)**2 + (Pos(3))**2)
+    ELSE
+      NewYPart = SQRT(Pos(2)**2 + (Pos(3))**2)
+    END IF
+    ! Rotation: Vy' =   Vy * cos(alpha) + Vz * sin(alpha) =   Vy * y/y' + Vz * z/y'
+    !           Vz' = - Vy * sin(alpha) + Vz * cos(alpha) = - Vy * z/y' + Vz * y/y'
+    ! Right-hand system, using new y and z positions after tracking, position vector and velocity vector DO NOT have to
+    ! coincide (as opposed to Bird 1994, p. 391, where new positions are calculated with the velocity vector)
+    ! Pos(1)  = Pos(1)
+    IF(PRESENT(Velo)) THEN
+      NewYVelo = (Velo(2)*(Pos(2))+Velo(3)*Pos(3))/NewYPart
+      Velo(3) = (-Velo(2)*Pos(3)+Velo(3)*(Pos(2)))/NewYPart
+      Velo(2) = NewYVelo
+      ! Velo(1) = Velo(1)
+    END IF
+    IF(PRESENT(ElectronVelo)) THEN
+      NewYVelo = (ElectronVelo(2)*(Pos(2))+ElectronVelo(3)*Pos(3))/NewYPart
+      ElectronVelo(3) = (-ElectronVelo(2)*Pos(3)+ElectronVelo(3)*(Pos(2)))/NewYPart
+      ElectronVelo(2) = NewYVelo
+    END IF
+    Pos(2)  = NewYPart
+    Pos(3)  = 0.0
+  ELSE
+    ! IF (PartState(1,iPart).LT.0.0) THEN
+    !   NewYPart = -SQRT(PartState(1,iPart)**2 + (PartState(3,iPart))**2)
+    ! ELSE
+      NewYPart = SQRT(Pos(1)**2 + (Pos(3))**2)
+    ! END IF
+    ! Rotation: Vy' =   Vy * cos(alpha) + Vz * sin(alpha) =   Vy * y/y' + Vz * z/y'
+    !           Vz' = - Vy * sin(alpha) + Vz * cos(alpha) = - Vy * z/y' + Vz * y/y'
+    ! Right-hand system, using new y and z positions after tracking, position vector and velocity vector DO NOT have to
+    ! coincide (as opposed to Bird 1994, p. 391, where new positions are calculated with the velocity vector)
+    IF(PRESENT(Velo)) THEN
+      NewYVelo = (Velo(1)*(Pos(1))+Velo(3)*Pos(3))/NewYPart
+      Velo(3) = (-Velo(1)*Pos(3)+Velo(3)*(Pos(1)))/NewYPart
+      Velo(1) = NewYVelo
+      ! Velo(2) = Velo(2)
+    END IF
+    IF(PRESENT(ElectronVelo)) THEN
+      NewYVelo = (ElectronVelo(1)*(Pos(1))+ElectronVelo(3)*Pos(3))/NewYPart
+      ElectronVelo(3) = (-ElectronVelo(1)*Pos(3)+ElectronVelo(3)*(Pos(1)))/NewYPart
+      ElectronVelo(1) = NewYVelo
+      ! Velo(2) = Velo(2)
+    END IF
+    Pos(1)  = NewYPart
+    Pos(2)  = 0.0
+    Pos(3)  = 0.0
+  END IF
+! ELSE IF(Symmetry%SphericalSymmetric) THEN
+!   NewYPart = SQRT(Pos(1)**2 + Pos(2)**2 + Pos(3)**2)
+!   IF(PRESENT(Velo)) THEN
+!     ! Rotation around vector n in 3D with nx=0
+!     !  ( cos(alpha)     -nz*sin(alpha)                 ny*sin(alpha)                 )
+!     ! (  nz*sin(alpha)  ny^2*(1-cos(alpha))+cos(alpha) ny*nz*(1-cos(alpha))           )
+!     !  ( -ny*cos(alpha) nz*ny*(1-cos(alpha))           nz^2(1-cos(alpha))+cos(alpha) )
+
+!     ! Determine rotation axis perpendicuar to PartState and (1,0,0)^T
+!     n_rot(1) = SQRT(Pos(2)**2 + Pos(3)**2)
+!     n_rot(2) = Pos(3)/n_rot(1)
+!     n_rot(3) = -Pos(2)/n_rot(1)
+!     n_rot(1) = 0.0
+!     ! calculate sin(alpha) and cos(alpha)
+!     cosa= Pos(1)/NewYPart
+!     sina=SQRT( Pos(2)**2 + ( Pos(3))**2)/NewYPart
+!     ! Calculate NewVelo
+!     NewXVelo =  cosa * Velo(1) &
+!               - n_rot(3)*sina * Velo(2) &
+!               + n_rot(2)*sina * Velo(3)
+!     NewYVelo =  n_rot(3)*sina * Velo(1)  &
+!               +(n_rot(2)**2*(1-cosa)+cosa) * Velo(2) &
+!               + n_rot(2)*n_rot(3)*(1-cosa) * Velo(3)
+!     NewZVelo =- n_rot(2)*sina * Velo(1) &
+!               + n_rot(2)*n_rot(3)*(1-cosa) * Velo(2) &
+!               +(n_rot(3)**2*(1-cosa)+cosa) * Velo(3)
+!     Velo(1) = NewXVelo
+!     Velo(2) = NewYVelo
+!     Velo(3) = NewZVelo
+!   END IF
+!   Pos(1)  = NewYPart
+!   Pos(2)  = 0.0
+!   Pos(3)  = 0.0
+ELSE
+  IF(Symmetry%Order.EQ.2) THEN
+    ! NewPos(1:2) = OldPos(1:2)
+    Pos(3) = 0
+  ELSE IF(Symmetry%Order.EQ.1) THEN
+    ! NewPos(1) = OldPos(1)
+    Pos(2:3) = 0
+  ! ELSE
+  !   Pos = Pos
+  END IF
+  ! IF(PRESENT(OldVelo)) THEN
+  !   NewVelo = OldVelo
+  ! END IF
+END IF ! Symmetry%SphericalSymmetric
+
+END SUBROUTINE CalcPartSymmetryPos
+
+
+PPURE FUNCTION RotateVectorAroundAxis(VecIn,Axis,Angle)
+!===================================================================================================================================
+!> Rotate a given vector around one of the major axis using a given angle, output is the rotated vector
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+REAL,INTENT(IN)         :: VecIn(1:3)     !< 3D input vector
+INTEGER,INTENT(IN)      :: Axis           !< Major axis as rotational axis
+REAL,INTENT(IN)         :: Angle          !< Rotational angle
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+REAL                    :: RotateVectorAroundAxis(1:3)
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER                 :: k,l,m
+!===================================================================================================================================
+
+SELECT CASE(Axis)
+CASE(1) ! x-rotation axis
+  k = 1
+  l = 2
+  m = 3
+CASE(2) ! y-rotation axis
+  k = 2
+  l = 3
+  m = 1
+CASE(3) ! z-rotation axis
+  k = 3
+  l = 1
+  m = 2
+END SELECT
+
+RotateVectorAroundAxis(k) = VecIn(k)
+RotateVectorAroundAxis(l) = COS(Angle)*VecIn(l) - SIN(Angle)*VecIn(m)
+RotateVectorAroundAxis(m) = SIN(Angle)*VecIn(l) + COS(Angle)*VecIn(m)
+
+END FUNCTION RotateVectorAroundAxis
 
 END MODULE MOD_part_tools

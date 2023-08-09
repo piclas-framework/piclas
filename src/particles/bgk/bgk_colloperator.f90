@@ -49,8 +49,9 @@ SUBROUTINE BGK_CollisionOperator(iPartIndx_Node, nPart, NodeVolume, AveragingVal
 !> 9.) Scaling of the rotational energy of molecules
 !===================================================================================================================================
 ! MODULES
-USE MOD_Globals               ,ONLY: DOTPRODUCT
-USE MOD_Particle_Vars         ,ONLY: PartState, Species, PartSpecies, nSpecies, usevMPF, VarTimeStep
+USE MOD_Globals               ,ONLY: DOTPRODUCT, CROSS
+USE MOD_Particle_Vars         ,ONLY: PartState, Species, PartSpecies, nSpecies, usevMPF, UseVarTimeStep
+USE MOD_Particle_Vars         ,ONLY: UseRotRefFrame, RotRefFrameOmega, PartVeloRotRef, PDM
 USE MOD_DSMC_Vars             ,ONLY: SpecDSMC, DSMC, PartStateIntEn, PolyatomMolDSMC, RadialWeighting, CollInf
 USE MOD_TimeDisc_Vars         ,ONLY: dt
 USE MOD_BGK_Vars              ,ONLY: SpecBGK, BGKDoVibRelaxation, BGKMovingAverage
@@ -115,7 +116,7 @@ CALL CalcMoments(nPart, iPartIndx_Node, nSpec, vBulkAll, totalWeight, totalWeigh
                  u2i, OldEn, EVibSpec, ERotSpec, CellTemp, SpecTemp, dtCell)
 IF((CellTemp.LE.0).OR.(MAXVAL(nSpec(:)).EQ.1).OR.(totalWeight.LE.0.0)) RETURN
 
-IF(VarTimeStep%UseVariableTimeStep) THEN
+IF(UseVarTimeStep) THEN
   dtCell = dt * dtCell / totalWeight
 ELSE
   dtCell = dt
@@ -251,6 +252,16 @@ DO iLoop = 1, nPart-nRelax
   PartState(4:6,iPart) = vBulkAll(1:3) + alpha*(PartState(4:6,iPart)-vBulk(1:3))
 END DO
 
+IF(UseRotRefFrame) THEN
+  ! Resetting the velocity in the rotational frame of reference for particles that underwent a relaxation
+  DO iLoop = 1, nRelax
+    iPart = iPartIndx_NodeRelax(iLoop)
+    IF(PDM%InRotRefFrame(iPart)) THEN
+      PartVeloRotRef(1:3,iPart) = PartState(4:6,iPart) - CROSS(RotRefFrameOmega(1:3),PartState(1:3,iPart))
+    END IF
+  END DO
+END IF
+
 ! 9.) Rotation: Scale the new rotational state of the molecules to ensure energy conservation
 IF ( (nRotRelax.GT.0)) alpha = OldEn/NewEnRot*(Xi_RotTotal/(Xi_RotTotal+3.*(nPart-1.)))
 DO iLoop = 1, nRotRelax
@@ -319,7 +330,7 @@ SUBROUTINE CalcMoments(nPart, iPartIndx_Node, nSpec, vBulkAll, totalWeight, tota
 !> Moment calculation: Summing up the relative velocities and their squares
 !===================================================================================================================================
 ! MODULES
-USE MOD_Particle_Vars         ,ONLY: PartState, Species, PartSpecies, nSpecies, VarTimeStep
+USE MOD_Particle_Vars         ,ONLY: PartState, Species, PartSpecies, nSpecies, UseVarTimeStep, PartTimeStep
 USE MOD_DSMC_Vars             ,ONLY: PartStateIntEn, SpecDSMC
 USE MOD_BGK_Vars              ,ONLY: BGKDoVibRelaxation, BGKCollModel
 USE MOD_part_tools            ,ONLY: GetParticleWeight
@@ -352,8 +363,8 @@ DO iLoop = 1, nPart
   TotalMass = TotalMass + Species(iSpec)%MassIC*partWeight
   vBulkSpec(1:3,iSpec) = vBulkSpec(1:3,iSpec) + PartState(4:6,iPart)*partWeight
   nSpec(iSpec) = nSpec(iSpec) + 1
-  IF(VarTimeStep%UseVariableTimeStep) THEN
-    dtCell = dtCell + VarTimeStep%ParticleTimeStep(iPart)*partWeight
+  IF(UseVarTimeStep) THEN
+    dtCell = dtCell + PartTimeStep(iPart)*partWeight
   END IF
 END DO
 totalWeight = SUM(totalWeightSpec)

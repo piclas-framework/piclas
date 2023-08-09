@@ -18,11 +18,12 @@ assuming an equilibrium distribution.
 (sec:variable-time-step)=
 ## Variable Time Step
 
-A spatially variable time step (VTS) can be activated for steady-state simulations, where two options are currently available and
-described in the following:
+A spatially variable or species-specific time step (VTS) can be activated for steady-state simulations, where three options are
+currently available and described in the following:
 
 * Distribution: use a simulation result to adapt the time step in order to resolve physical parameters (e.g. collision frequency)
 * Linear scaling: use a linearly increasing/decreasing time step along a given direction
+* Species-specific: every species can have its own time step
 
 ### Distribution
 
@@ -88,6 +89,20 @@ maximum time step increase towards the end point $\Delta t (x_{\mathrm{end}})=f 
 
 Besides DSMC, the linear scaling is available for the BGK and FP method. Finally, specific options for 2D/axisymmetric simulations
 are discussed in Section {ref}`sec:2D-axisymmetric`
+
+### Species-specific time step
+
+This option is decoupled from the other two time step options as the time step is not applied on a per-particle basis but for each species. Currently, its main application is for PIC-MCC simulations (only Poisson field solver with Boris-Leapfrog time discretization method), where there are large differences in the time scales (e.g. electron movement requires a time step of several orders of magnitude smaller than for the ions). The species-specific time step is actvitated per species by setting a factor
+
+    Part-Species1-TimeStepFactor = 0.01
+
+that is multiplied with the provided time step. If no time step factor is provided, the default time step will be utilized. In this example, the species will be effectively simulated with a time step 100 smaller than the given time step.
+
+To accelerate the convergence to steady-state, the following flag can be used to perform collisions and reactions at the regular time step.
+
+    Part-VariableTimeStep-DisableForMCC = T
+
+For species with a time step factor lower than 1, it is compared with a random number to decide whether the collision/reaction is performed for that species.
 
 ## Symmetric Simulations
 
@@ -248,9 +263,9 @@ Currently, only merging based on the number of particles within the cell is impl
 
 Furthermore, the spread or aggressiveness of the merge algorithm can be changed, i.e. how deep the merge extends into the mesh starting from each cell. 0 is the least aggressive merge, 3 the most aggressive merge.
 
-  Part-CellMergeSpread                  = 0
+    Part-CellMergeSpread                = 0
   
 There is also the possibility to define a maximum number of cells that can be merged. In this way, a desired "resolution" of the virtual cells can be achieved.
 
-  Part-MaxNumbCellsMerge                = 5
+    Part-MaxNumbCellsMerge              = 5
 

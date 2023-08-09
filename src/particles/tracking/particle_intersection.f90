@@ -38,10 +38,6 @@ INTERFACE ComputeCurvedIntersection
   MODULE PROCEDURE ComputeCurvedIntersection
 END INTERFACE
 
-INTERFACE ComputeAuxBCIntersection
-  MODULE PROCEDURE ComputeAuxBCIntersection
-END INTERFACE
-
 #ifdef CODE_ANALYZE
 INTERFACE OutputTrajectory
   MODULE PROCEDURE OutputTrajectory
@@ -53,7 +49,8 @@ PUBLIC :: ComputePlanarRectInterSection
 PUBLIC :: ComputePlanarCurvedIntersection
 PUBLIC :: ComputeBilinearIntersection
 PUBLIC :: ComputeCurvedIntersection
-PUBLIC :: ComputeAuxBCIntersection
+PUBLIC :: ParticleThroughSideCheck3DFast
+PUBLIC :: ParticleThroughSideLastPosCheck
 #ifdef CODE_ANALYZE
 PUBLIC :: OutputTrajectory
 #endif /*CODE_ANALYZE*/
@@ -150,6 +147,195 @@ IF(ABS(TrackInfo%alpha).GT.0.) TrackInfo%alpha = dist / TrackInfo%alpha
 RETURN
 
 END SUBROUTINE IntersectionWithWall
+
+
+PPURE SUBROUTINE ParticleThroughSideCheck3DFast(PartID,iLocSide,Element,ThroughSide,TriNum, IsMortar)
+!===================================================================================================================================
+!> Routine to check whether a particle crossed the given triangle of a side. The determinant between the normalized trajectory
+!> vector and the vectors from two of the three nodes to the old particle position is calculated. If the determinants for the three
+!> possible combinations are greater than zero, then the particle went through this triangle of the side.
+!> Note that if this is a mortar side, the side of the small neighbouring mortar element has to be checked. Thus, the orientation
+!> is reversed.
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals_Vars              ,ONLY: EpsMach
+USE MOD_Particle_Vars             ,ONLY: lastPartPos
+USE MOD_Particle_Mesh_Vars        ,ONLY: NodeCoords_Shared, ElemSideNodeID_Shared
+USE MOD_Mesh_Tools                ,ONLY: GetCNElemID
+USE MOD_Particle_Tracking_Vars    ,ONLY: TrackInfo
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+INTEGER,INTENT(IN)               :: PartID
+INTEGER,INTENT(IN)               :: iLocSide
+INTEGER,INTENT(IN)               :: Element
+INTEGER,INTENT(IN)               :: TriNum
+LOGICAL, INTENT(IN), OPTIONAL    :: IsMortar
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+LOGICAL,INTENT(OUT)              :: ThroughSide
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER                          :: CNElemID
+INTEGER                          :: n, NodeID
+REAL                             :: Px, Py, Pz
+REAL                             :: Vx, Vy, Vz
+REAL                             :: xNode(3), yNode(3), zNode(3), Ax(3), Ay(3), Az(3)
+REAL                             :: det(3)
+!===================================================================================================================================
+
+CNElemID = GetCNElemID(Element)
+
+ThroughSide = .FALSE.
+
+Px = lastPartPos(1,PartID)
+Py = lastPartPos(2,PartID)
+Pz = lastPartPos(3,PartID)
+
+! Normalized particle trajectory (PartPos - lastPartPos)/ABS(PartPos - lastPartPos)
+Vx = TrackInfo%PartTrajectory(1)
+Vy = TrackInfo%PartTrajectory(2)
+Vz = TrackInfo%PartTrajectory(3)
+
+! Get the coordinates of the first node and the vector from the particle position to the node
+xNode(1) = NodeCoords_Shared(1,ElemSideNodeID_Shared(1,iLocSide,CNElemID)+1)
+yNode(1) = NodeCoords_Shared(2,ElemSideNodeID_Shared(1,iLocSide,CNElemID)+1)
+zNode(1) = NodeCoords_Shared(3,ElemSideNodeID_Shared(1,iLocSide,CNElemID)+1)
+
+Ax(1) = xNode(1) - Px
+Ay(1) = yNode(1) - Py
+Az(1) = zNode(1) - Pz
+! Get the vectors to the other two nodes, depending on the triangle number
+IF(PRESENT(IsMortar)) THEN
+  ! Note: reverse orientation in the mortar case, as the side is treated from the perspective of the smaller neighbouring element
+  !       (TriNum=1: NodeID=3,2; TriNum=2: NodeID=4,3)
+  xNode(2) = NodeCoords_Shared(1,ElemSideNodeID_Shared(2+TriNum,iLocSide,CNElemID)+1)
+  yNode(2) = NodeCoords_Shared(2,ElemSideNodeID_Shared(2+TriNum,iLocSide,CNElemID)+1)
+  zNode(2) = NodeCoords_Shared(3,ElemSideNodeID_Shared(2+TriNum,iLocSide,CNElemID)+1)
+
+  Ax(2) = xNode(2) - Px
+  Ay(2) = yNode(2) - Py
+  Az(2) = zNode(2) - Pz
+
+  xNode(3) = NodeCoords_Shared(1,ElemSideNodeID_Shared(1+TriNum,iLocSide,CNElemID)+1)
+  yNode(3) = NodeCoords_Shared(2,ElemSideNodeID_Shared(1+TriNum,iLocSide,CNElemID)+1)
+  zNode(3) = NodeCoords_Shared(3,ElemSideNodeID_Shared(1+TriNum,iLocSide,CNElemID)+1)
+
+  Ax(3) = xNode(3) - Px
+  Ay(3) = yNode(3) - Py
+  Az(3) = zNode(3) - Pz
+ELSE
+  DO n = 2,3
+    NodeID = n+TriNum-1       ! m = true node number of the sides (TriNum=1: NodeID=2,3; TriNum=2: NodeID=3,4)
+    xNode(n) = NodeCoords_Shared(1,ElemSideNodeID_Shared(NodeID,iLocSide,CNElemID)+1)
+    yNode(n) = NodeCoords_Shared(2,ElemSideNodeID_Shared(NodeID,iLocSide,CNElemID)+1)
+    zNode(n) = NodeCoords_Shared(3,ElemSideNodeID_Shared(NodeID,iLocSide,CNElemID)+1)
+
+    Ax(n) = xNode(n) - Px
+    Ay(n) = yNode(n) - Py
+    Az(n) = zNode(n) - Pz
+  END DO
+END IF
+!--- check whether v and the vectors from the particle to the two edge nodes build
+!--- a right-hand-system. If yes for all edges: vector goes potentially through side
+det(1) = (Ay(1) * Vz - Az(1) * Vy) * Ax(3)  + (Az(1) * Vx - Ax(1) * Vz) * Ay(3)  + (Ax(1) * Vy - Ay(1) * Vx) * Az(3)
+det(2) = (Ay(2) * Vz - Az(2) * Vy) * Ax(1)  + (Az(2) * Vx - Ax(2) * Vz) * Ay(1)  + (Ax(2) * Vy - Ay(2) * Vx) * Az(1)
+det(3) = (Ay(3) * Vz - Az(3) * Vy) * Ax(2)  + (Az(3) * Vx - Ax(3) * Vz) * Ay(2)  + (Ax(3) * Vy - Ay(3) * Vx) * Az(2)
+
+! Comparison of the determinants with eps due to machine precision
+IF ((det(1).ge.-epsMach).AND.(det(2).ge.-epsMach).AND.(det(3).ge.-epsMach)) THEN
+  ThroughSide = .TRUE.
+END IF
+
+RETURN
+
+END SUBROUTINE ParticleThroughSideCheck3DFast
+
+
+SUBROUTINE ParticleThroughSideLastPosCheck(i,iLocSide,Element,InElementCheck,TriNum,det,isMortarSide,detPartPos)
+!===================================================================================================================================
+!> Routine used in the case of a particle crossing multipe sides. Calculates the determinant of the three vectors from the last
+!> (and current in the case of mortar sides) particle position to the nodes of the triangle in order to determine if the particle
+!> is inside the element. Output of determinant is used to determine which of the sides was crossed first.
+!===================================================================================================================================
+! MODULES
+USE MOD_Mesh_Tools         ,         ONLY: GetCNElemID
+USE MOD_Particle_Mesh_Vars
+USE MOD_Particle_Vars
+!-----------------------------------------------------------------------------------------------------------------------------------
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+INTEGER,INTENT(IN)               :: i, Element, iLocSide, TriNum
+LOGICAL, INTENT(IN),OPTIONAL     :: isMortarSide
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+LOGICAL,INTENT(OUT)              :: InElementCheck
+REAL   ,INTENT(OUT)              :: det
+REAL   ,INTENT(OUT), OPTIONAL    :: detPartPos
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER                          :: CNElemID
+INTEGER                          :: NodeNum, ind, iNode
+REAL                             :: Ax(3),Ay(3),Az(3)
+REAL                             :: NodeCoord(1:3,1:3)
+!===================================================================================================================================
+
+CNElemID = GetCNElemID(Element)
+
+InElementCheck = .TRUE.
+
+!--- coords of first node:
+DO ind = 1,3
+  NodeCoord(ind,1) = NodeCoords_Shared(ind,ElemSideNodeID_Shared(1,iLocSide,CNElemID)+1)
+END DO
+
+!--- coords of other two nodes (depending on triangle):
+IF(PRESENT(isMortarSide)) THEN
+  ! Note: reversed orientation as the triangle is treated from the perspective of the smaller neighbouring mortar element
+  NodeCoord(1:3,2) = NodeCoords_Shared(1:3,ElemSideNodeID_Shared(2+TriNum,iLocSide,CNElemID)+1)
+  NodeCoord(1:3,3) = NodeCoords_Shared(1:3,ElemSideNodeID_Shared(1+TriNum,iLocSide,CNElemID)+1)
+ELSE
+  DO iNode = 2,3
+    NodeNum = iNode + TriNum - 1
+    DO ind = 1,3
+      NodeCoord(ind,iNode) = NodeCoords_Shared(ind,ElemSideNodeID_Shared(NodeNum,iLocSide,CNElemID)+1)
+    END DO
+  END DO
+END IF
+!--- vector from lastPos(!) to triangle nodes
+DO ind = 1,3
+  Ax(ind) = NodeCoord(1,ind) - lastPartPos(1,i)
+  Ay(ind) = NodeCoord(2,ind) - lastPartPos(2,i)
+  Az(ind) = NodeCoord(3,ind) - lastPartPos(3,i)
+END DO
+
+!--- determine whether particle is on inner side (rel. to element) of triangle
+!--- set corresponding "flag" (see below)
+det = ((Ay(1) * Az(2) - Az(1) * Ay(2)) * Ax(3) +     &
+       (Az(1) * Ax(2) - Ax(1) * Az(2)) * Ay(3) +     &
+       (Ax(1) * Ay(2) - Ay(1) * Ax(2)) * Az(3))
+
+IF ((det.lt.0).OR.(det.NE.det)) THEN
+  InElementCheck = .FALSE.
+END IF
+
+IF(PRESENT(isMortarSide).AND.PRESENT(detPartPos)) THEN
+  DO ind = 1,3
+    Ax(ind) = NodeCoord(1,ind) - PartState(1,i)
+    Ay(ind) = NodeCoord(2,ind) - PartState(2,i)
+    Az(ind) = NodeCoord(3,ind) - PartState(3,i)
+  END DO
+
+  detPartPos = ((Ay(1) * Az(2) - Az(1) * Ay(2)) * Ax(3) +     &
+                (Az(1) * Ax(2) - Ax(1) * Az(2)) * Ay(3) +     &
+                (Ax(1) * Ay(2) - Ay(1) * Ax(2)) * Az(3))
+END IF
+
+RETURN
+
+END SUBROUTINE ParticleThroughSideLastPosCheck
 
 
 SUBROUTINE ComputePlanarRectIntersection(isHit                       &
@@ -3089,293 +3275,5 @@ IF(iter.EQ.0)THEN
 END IF
 
 END SUBROUTINE calcSminSmax2
-
-
-SUBROUTINE ComputeAuxBCIntersection     (isHit                       &
-                                        ,PartTrajectory              &
-                                        ,lengthPartTrajectory        &
-                                        ,AuxBCIdx                    &
-                                        ,alpha                       &
-                                        ,iPart                       &
-                                        ,opt_CriticalParallelInSide   )
-!===================================================================================================================================
-! Compute the Intersection with auxBC. (based partly on PlanarRect)
-! Implemtented types:
-! - plane
-! - cylinder
-! - cone
-! - parabol(oid)
-!===================================================================================================================================
-! MODULES
-USE MOD_Globals
-USE MOD_Utils                  ,ONLY: QuadraticSolver
-!USE MOD_Globals_Vars           ,ONLY:  epsMach
-USE MOD_Particle_Vars          ,ONLY: LastPartPos
-USE MOD_Particle_Surfaces_Vars ,ONLY: epsilontol
-USE MOD_Particle_Boundary_Vars ,ONLY: AuxBCType,AuxBCMap,AuxBC_plane,AuxBC_cylinder,AuxBC_cone,AuxBC_parabol
-! IMPLICIT VARIABLE HANDLING
-IMPLICIT NONE
-! INPUT VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
-REAL,INTENT(IN),DIMENSION(1:3)    :: PartTrajectory
-REAL,INTENT(IN)                   :: lengthPartTrajectory
-INTEGER,INTENT(IN)                :: AuxBCIdx,iPart
-!-----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
-REAL,INTENT(OUT)                  :: alpha
-LOGICAL,INTENT(OUT)               :: isHit
-LOGICAL,INTENT(OUT),OPTIONAL      :: opt_CriticalParallelInSide
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-REAL                              :: r_vec(3),n_vec(3),locSideDistance,coeffA,alphaNorm,radius,lmin,lmax,halfangle
-REAL                              :: axis(3),tang1(3),tang2(3),geomatrix(3,3),matU(3,1),matLambda(3,1),A(1,1),B(1,1),C(1,1),cos2inv
-REAL                              :: geomatrix4(4,4),rotmatrix(3,3),matU4(4,1),matLambda4(4,1),zfac
-REAL                              :: trajTang(2),originTang(2),roots(2),intersec(3),alphadir(2),origindist(2) !,roots2(2)
-INTEGER                           :: nRoot !,nRoot2
-LOGICAL                           :: CriticalParallelInSide,inwards
-!===================================================================================================================================
-isHit=.FALSE.
-SELECT CASE (TRIM(AuxBCType(AuxBCIdx)))
-CASE ('plane')
-  r_vec=AuxBC_plane(AuxBCMap(AuxBCIdx))%r_vec
-  n_vec=AuxBC_plane(AuxBCMap(AuxBCIdx))%n_vec
-  radius=AuxBC_plane(AuxBCMap(AuxBCIdx))%radius
-  coeffA=DOT_PRODUCT(n_vec,PartTrajectory)
-  CriticalParallelInSide=.FALSE.
-  IF(ALMOSTZERO(coeffA)) CriticalParallelInSide=.TRUE.
-  locSideDistance = DOT_PRODUCT(n_vec,r_vec) - DOT_PRODUCT(LastPartPos(1:3,iPart),n_vec)
-  IF(CriticalParallelInSide)THEN ! particle parallel to side
-    IF(ALMOSTZERO(locSideDistance))THEN ! particle on/in side
-      IF(PRESENT(opt_CriticalParallelInSide)) opt_CriticalParallelInSide=.TRUE.
-      ! move particle eps into interior (?!)
-      alpha=-1.
-      RETURN
-    END IF
-    IF(PRESENT(opt_CriticalParallelInSide)) opt_CriticalParallelInSide=.FALSE.
-    alpha=-1.
-    RETURN
-  ELSE
-    IF(PRESENT(opt_CriticalParallelInSide)) opt_CriticalParallelInSide=.FALSE.
-    alpha=locSideDistance/coeffA
-  END IF
-  alphaNorm=alpha/lengthPartTrajectory
-  intersec = LastPartPos(1:3,iPart) + alpha*PartTrajectory - r_vec !intersec from basepoint, not origin!
-  ! check besides alpha and radius already here the dir. of trajectory since no inner auxBCs possible (can happen due to tolerances)
-  IF((alphaNorm.GT.1.0) .OR.(alphaNorm.LT.-epsilontol) .OR. SQRT(DOT_PRODUCT(intersec,intersec)).GT.radius &
-    .OR. DOT_PRODUCT(n_vec,PartTrajectory).LT.0.)THEN
-    ishit=.FALSE.
-    alpha=-1.0
-    RETURN
-  END IF
-!  epsLoc=1.0+100.*epsMach
-!  xi=...
-!  IF(ABS(xi).GT.epsLoc)THEN
-!    alpha=-1.0
-!    RETURN
-!  END IF
-!  IF(ABS(eta).GT.epsLoc)THEN
-!    alpha=-1.0
-!    RETURN
-!  END IF
-  isHit=.TRUE.
-CASE ('cylinder','cone','parabol')
-  inwards=.FALSE. ! Initialize
-  IF(PRESENT(opt_CriticalParallelInSide)) opt_CriticalParallelInSide=.FALSE. !not used for cylinder and cone
-  IF (TRIM(AuxBCType(AuxBCIdx)).EQ.'cylinder') THEN
-    r_vec=AuxBC_cylinder(AuxBCMap(AuxBCIdx))%r_vec
-    axis=AuxBC_cylinder(AuxBCMap(AuxBCIdx))%axis
-    lmin=AuxBC_cylinder(AuxBCMap(AuxBCIdx))%lmin
-    lmax=AuxBC_cylinder(AuxBCMap(AuxBCIdx))%lmax
-    IF (axis(3).NE.0.) THEN
-      tang1(1) = 1.0
-      tang1(2) = 1.0
-      tang1(3) = -(axis(1)+axis(2))/axis(3)
-    ELSE
-      IF (axis(2).NE.0.) THEN
-        tang1(1) = 1.0
-        tang1(3) = 1.0
-        tang1(2) = -(axis(1)+axis(3))/axis(2)
-      ELSE
-        IF (axis(1).NE.0.) THEN
-          tang1(2) = 1.0
-          tang1(3) = 1.0
-          tang1(1) = -(axis(2)+axis(3))/axis(1)
-        ELSE
-          CALL abort(&
-__STAMP__&
-,'Error in ComputeAuxBCIntersection, axis is zero for AuxBC',AuxBCIdx)
-        END IF
-      END IF
-    END IF
-    tang1=UNITVECTOR(tang1)
-    tang2=CROSSNORM(axis,tang1)
-    radius=AuxBC_cylinder(AuxBCMap(AuxBCIdx))%radius
-    inwards=AuxBC_cylinder(AuxBCMap(AuxBCIdx))%inwards
-    !- project trajectory and origin into circle-area of cylinder
-    trajTang(1)=DOT_PRODUCT(tang1,PartTrajectory)
-    trajTang(2)=DOT_PRODUCT(tang2,PartTrajectory)
-    originTang(1)=DOT_PRODUCT(tang1,LastPartPos(1:3,iPart)-r_vec)
-    originTang(2)=DOT_PRODUCT(tang2,LastPartPos(1:3,iPart)-r_vec)
-    !- solve quadratic equation from trajectory inserted in circle-equation
-    CALL QuadraticSolver(trajTang(1)*trajTang(1)+trajTang(2)*trajTang(2) &
-      ,2.*originTang(1)*trajTang(1)+2.*originTang(2)*trajTang(2) &
-      ,originTang(1)*originTang(1)+originTang(2)*originTang(2)-radius*radius &
-      ,nRoot,roots(1),roots(2))
-  ELSE IF (TRIM(AuxBCType(AuxBCIdx)).EQ.'cone') THEN
-    r_vec=AuxBC_cone(AuxBCMap(AuxBCIdx))%r_vec
-    axis=AuxBC_cone(AuxBCMap(AuxBCIdx))%axis
-    lmin=AuxBC_cone(AuxBCMap(AuxBCIdx))%lmin
-    lmax=AuxBC_cone(AuxBCMap(AuxBCIdx))%lmax
-    halfangle=AuxBC_cone(AuxBCMap(AuxBCIdx))%halfangle
-    cos2inv=1./COS(halfangle)**2
-    inwards=AuxBC_cone(AuxBCMap(AuxBCIdx))%inwards
-    !- coefficients and matrices according to "Intersection of a Line and a Cone" by David Eberly 2000/2014, Geometric Tools, CC
-    geomatrix=AuxBC_cone(AuxBCMap(AuxBCIdx))%geomatrix
-    !geomatrix2=AuxBC_cone(AuxBCMap(AuxBCIdx))%geomatrix2
-    !rotmatrix=AuxBC_cone(AuxBCMap(AuxBCIdx))%rotmatrix
-    matU(:,1)=PartTrajectory
-    matLambda(:,1)=LastPartPos(1:3,iPart)-r_vec
-    A=MATMUL(MATMUL(TRANSPOSE(matU),geomatrix),matU)
-    B=2.*MATMUL(MATMUL(TRANSPOSE(matU),geomatrix),matLambda)
-    C=MATMUL(MATMUL(TRANSPOSE(matLambda),geomatrix),matLambda)
-    !- solve quadratic equation from trajectory inserted in cone-equation
-    CALL QuadraticSolver(A(1,1),B(1,1),C(1,1),nRoot,roots(1),roots(2))
-  ELSE IF (TRIM(AuxBCType(AuxBCIdx)).EQ.'parabol') THEN
-    r_vec=AuxBC_parabol(AuxBCMap(AuxBCIdx))%r_vec
-    axis=AuxBC_parabol(AuxBCMap(AuxBCIdx))%axis
-    lmin=AuxBC_parabol(AuxBCMap(AuxBCIdx))%lmin
-    lmax=AuxBC_parabol(AuxBCMap(AuxBCIdx))%lmax
-    zfac=AuxBC_parabol(AuxBCMap(AuxBCIdx))%zfac
-    inwards=AuxBC_parabol(AuxBCMap(AuxBCIdx))%inwards
-    geomatrix4=AuxBC_parabol(AuxBCMap(AuxBCIdx))%geomatrix4
-    rotmatrix=AuxBC_parabol(AuxBCMap(AuxBCIdx))%rotmatrix
-    matU(:,1)=PartTrajectory
-    matLambda(:,1)=LastPartPos(1:3,iPart)-r_vec
-    matU=MATMUL(rotmatrix,matU)
-    matLambda=MATMUL(rotmatrix,matLambda)
-    matU4(1:3,1)=matU(1:3,1)
-    matU4(4,1)=0.
-    matLambda4(1:3,1)=matLambda(1:3,1)
-    matLambda4(4,1)=1.
-    A=MATMUL(MATMUL(TRANSPOSE(matU4),geomatrix4),matU4)
-    B=2.*MATMUL(MATMUL(TRANSPOSE(matU4),geomatrix4),matLambda4)
-    C=MATMUL(MATMUL(TRANSPOSE(matLambda4),geomatrix4),matLambda4)
-    !- solve quadratic equation from trajectory inserted in parabol-equation
-    CALL QuadraticSolver(A(1,1),B(1,1),C(1,1),nRoot,roots(1),roots(2))
-  ELSE
-    CALL abort(__STAMP__,'AuxBC does not exist')
-    stop
-  END IF !cylinder, cone, or paraboloid
-  SELECT CASE (nRoot)
-  CASE (1)
-    alpha=roots(1)
-    !- check for normal vec / trajectory direction
-    ! (already here since no inner auxBCs possible (can happen due to tolerances)
-    intersec = LastPartPos(1:3,iPart) + alpha*PartTrajectory
-    origindist(1) = DOT_PRODUCT(intersec-r_vec,axis)
-    IF (TRIM(AuxBCType(AuxBCIdx)).EQ.'cylinder') THEN
-      n_vec = intersec - ( r_vec + axis*origindist(1) )
-    ELSE IF (TRIM(AuxBCType(AuxBCIdx)).EQ.'cone') THEN
-      n_vec = intersec - ( r_vec + axis*origindist(1)*cos2inv )
-    ELSE IF (TRIM(AuxBCType(AuxBCIdx)).EQ.'parabol') THEN
-      n_vec = intersec - ( r_vec + axis*(origindist(1)+0.5*zfac) )
-    ELSE
-      CALL abort(&
-        __STAMP__&
-        ,'AuxBC does not exist')
-    END IF
-    IF (.NOT.inwards) n_vec=-n_vec
-    IF(DOT_PRODUCT(n_vec,PartTrajectory).LT.0.)THEN
-      ishit=.FALSE.
-      alpha=-1.0
-      RETURN
-    END IF
-    !- check for lmin and lmax
-    IF (origindist(1).LT.lmin .OR. origindist(1).GT.lmax) THEN
-      ishit=.FALSE.
-      alpha=-1.0
-      RETURN
-    END IF
-  CASE (2)
-    !- 2 roots: check for smallest alpha>-eps
-    IF (roots(1).LT.roots(2)) THEN
-      IF (roots(1).GE.-epsilontol*lengthPartTrajectory) THEN
-        alpha=roots(1)
-      ELSE
-        alpha=roots(2)
-        roots(2)=roots(1)
-        roots(1)=alpha
-      END IF
-    ELSE
-      IF (roots(2).GE.-epsilontol*lengthPartTrajectory) THEN
-        alpha=roots(2)
-        roots(2)=roots(1)
-        roots(1)=alpha
-      ELSE
-        alpha=roots(1)
-      END IF
-    END IF
-    !- check for lmin and lmax of cylinder and normal vec / trajectory direction
-    ! (already here since no inner auxBCs possible (can happen due to tolerances)
-    intersec = LastPartPos(1:3,iPart) + roots(1)*PartTrajectory
-    origindist(1) = DOT_PRODUCT(intersec-r_vec,axis)
-    IF (TRIM(AuxBCType(AuxBCIdx)).EQ.'cylinder') THEN
-      n_vec = intersec - ( r_vec + axis*origindist(1) )
-    ELSE IF (TRIM(AuxBCType(AuxBCIdx)).EQ.'cone') THEN
-      n_vec = intersec - ( r_vec + axis*origindist(1)*cos2inv )
-    ELSE IF (TRIM(AuxBCType(AuxBCIdx)).EQ.'parabol') THEN
-      n_vec = intersec - ( r_vec + axis*(origindist(1)+0.5*zfac) )
-    ELSE
-      CALL abort(&
-        __STAMP__&
-        ,'AuxBC does not exist')
-    END IF
-    alphadir(1)=DOT_PRODUCT(n_vec,PartTrajectory)
-    intersec = LastPartPos(1:3,iPart) + roots(2)*PartTrajectory
-    origindist(2) = DOT_PRODUCT(intersec-r_vec,axis)
-    IF (TRIM(AuxBCType(AuxBCIdx)).EQ.'cylinder') THEN
-      n_vec = intersec - ( r_vec + axis*origindist(2) )
-    ELSE IF (TRIM(AuxBCType(AuxBCIdx)).EQ.'cone') THEN
-      n_vec = intersec - ( r_vec + axis*origindist(2)*cos2inv )
-    ELSE IF (TRIM(AuxBCType(AuxBCIdx)).EQ.'parabol') THEN
-      n_vec = intersec - ( r_vec + axis*(origindist(2)+0.5*zfac) )
-    ELSE
-      CALL abort(&
-        __STAMP__&
-        ,'AuxBC does not exist')
-    END IF
-    alphadir(2)=DOT_PRODUCT(n_vec,PartTrajectory)
-    IF (.NOT.inwards) alphadir=-alphadir
-    IF (alphadir(1).GE.0. .AND. origindist(1).GE.lmin .AND. origindist(1).LE.lmax) THEN
-      ! alpha stays alpha
-    ELSE IF (alphadir(2).GE.0. .AND. origindist(2).GE.lmin .AND. origindist(2).LE.lmax) THEN
-      alpha=roots(2)
-    ELSE
-      ishit=.FALSE.
-      alpha=-1.0
-      RETURN
-    END IF
-  CASE DEFAULT
-    ishit=.FALSE.
-    alpha=-1.0
-    RETURN
-  END SELECT
-  alphaNorm=alpha/lengthPartTrajectory
-  IF((alphaNorm.GT.1.0) .OR.(alphaNorm.LT.-epsilontol))THEN
-    ishit=.FALSE.
-    alpha=-1.0
-    RETURN
-  END IF
-  isHit=.TRUE.
-CASE DEFAULT
-  SWRITE(*,*) ' AuxBC does not exist: ', TRIM(AuxBCType(AuxBCIdx))
-  CALL abort(&
-    __STAMP__&
-    ,'AuxBC does not exist')
-END SELECT
-
-END SUBROUTINE ComputeAuxBCIntersection
-
 
 END MODULE MOD_Particle_Intersection

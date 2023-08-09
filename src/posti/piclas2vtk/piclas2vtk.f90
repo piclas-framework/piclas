@@ -41,10 +41,11 @@ USE MOD_HDF5_Input            ,ONLY: ISVALIDHDF5FILE
 USE MOD_Mesh_Vars             ,ONLY: nGlobalElems
 USE MOD_Interpolation         ,ONLY: DefineParametersInterpolation,InitInterpolation
 USE MOD_Mesh                  ,ONLY: DefineParametersMesh,InitMesh
+USE MOD_Mesh_Tools            ,ONLY: InitElemNodeIDs
 #ifdef PARTICLES
-USE MOD_Particle_Mesh_Tools   ,ONLY: InitParticleGeometry, InitElemNodeIDs
-USE MOD_Particle_Mesh_Vars    ,ONLY: NodeCoords_Shared, ElemNodeID_Shared, NodeInfo_Shared
+USE MOD_Particle_Mesh_Tools   ,ONLY: InitParticleGeometry
 #endif /*PARTICLES*/
+USE MOD_Particle_Mesh_Vars    ,ONLY: NodeCoords_Shared, ElemNodeID_Shared, NodeInfo_Shared
 USE MOD_Mesh_Tools            ,ONLY: InitGetCNElemID, InitGetGlobalElemID
 #if USE_MPI
 USE MOD_MPI_Shared
@@ -65,9 +66,7 @@ LOGICAL                        :: DGSolutionExists, ElemDataExists, SurfaceDataE
 LOGICAL                        :: BGFieldExists, ExcitationDataExists
 LOGICAL                        :: VisuAdaptiveInfo, AdaptiveInfoExists
 LOGICAL                        :: ReadMeshFinished, ElemMeshInit, SurfMeshInit
-#ifdef PARTICLES
 INTEGER                        :: iElem, iNode
-#endif /*PARTICLES*/
 INTEGER                        :: iMode,iErrorReturn,dmdSingleModeOutput,dmdMaximumModeOutput
 CHARACTER(LEN=16)              :: hilf
 !===================================================================================================================================
@@ -269,23 +268,22 @@ DO iArgs = iArgsStart,nArgs
 
   ! Read-in of the mesh
   IF(.NOT.ReadMeshFinished) THEN
-    CALL InitMesh(1,MeshFile_IN=MeshFile)
+    CALL InitMesh(-1,MeshFile_IN=MeshFile)
     CALL InitGetGlobalElemID()
     CALL InitGetCNElemID()
 #if USE_MPI
     nComputeNodeTotalElems = nGlobalElems
 #endif /*USE_MPI*/
 #ifdef PARTICLES
-    ! ElemSideNodeID_Shared is required for the connectivity
+    ! ElemSideNodeID_Shared is required for the connectivity for the conversion of SurfaceData
     CALL InitParticleGeometry()
-    ! ElemNodeID_Shared is required for the connectivity
-    CALL InitElemNodeIDs()
 #endif /*PARTICLES*/
+    ! ElemNodeID_Shared is required for the connectivity for the conversion of ElemData
+    CALL InitElemNodeIDs()
     ReadMeshFinished = .TRUE.
   END IF
   ! Build connectivity for element/volume output
   IF(ElemDataExists.AND..NOT.ElemMeshInit) THEN
-#ifdef PARTICLES
     CALL OpenDataFile(MeshFile,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_WORLD)
     CALL ReadAttribute(File_ID,'nUniqueNodes',1,IntScalar=nUniqueNodes)
     CALL CloseDataFile()
@@ -298,11 +296,6 @@ DO iArgs = iArgsStart,nArgs
       END DO
     END DO
     ElemMeshInit = .TRUE.
-#else
-    SWRITE(*,*) 'WARNING - Conversion of ElemData requires the compilation of piclas2vtk with PARTICLES set to ON!'
-    SWRITE(*,*) 'WARNING - File contains ElemData but output is skipped.'
-    ElemDataExists = .FALSE.
-#endif
   END IF
   ! Build connectivity for surface output
   IF(SurfaceDataExists.AND..NOT.SurfMeshInit) THEN
@@ -868,7 +861,8 @@ INTEGER,ALLOCATABLE             :: ConnectInfo(:,:)
 CHARACTER(LEN=255),ALLOCATABLE  :: VarNamesParticle(:), tmpArray(:)
 CHARACTER(LEN=255)              :: FileString
 REAL, ALLOCATABLE               :: PartData(:,:)
-REAL                            :: OutputTime, FileVersionHDF5
+REAL                            :: OutputTime, FileVersionHDFReal
+INTEGER                         :: FileVersionHDF5Int
 LOGICAL                         :: FileVersionExists
 !===================================================================================================================================
 
@@ -879,34 +873,40 @@ CALL ReadAttribute(File_ID,'Time',1,RealScalar=OutputTime)
 ! check file version
 CALL DatasetExists(File_ID,'File_Version',FileVersionExists,attrib=.TRUE.)
 IF (FileVersionExists) THEN
-  CALL ReadAttribute(File_ID,'File_Version',1,RealScalar=FileVersionHDF5)
+  CALL ReadAttribute(File_ID,'File_Version',1,RealScalar=FileVersionHDFReal)
+
+  IF(FileVersionHDFReal.LT.1.5)THEN
+    SWRITE(UNIT_StdOut,'(A)')' '
+    SWRITE(UNIT_StdOut,'(A)')' %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% '
+    SWRITE(UNIT_StdOut,'(A)')' '
+    SWRITE(UNIT_StdOut,'(A)')' Restart file is too old! "File_Version" in restart file < 1.5!'
+    SWRITE(UNIT_StdOut,'(A)')' The format used in the restart file is not compatible with this version of PICLas.'
+    SWRITE(UNIT_StdOut,'(A)')' Among others, the particle format (PartData) has changed.'
+    SWRITE(UNIT_StdOut,'(A)')' Run python script '
+    SWRITE(UNIT_StdOut,'(A)')' '
+    SWRITE(UNIT_StdOut,'(A)')'     python  ./tools/flip_PartState/flip_PartState.py  --help'
+    SWRITE(UNIT_StdOut,'(A)')' '
+    SWRITE(UNIT_StdOut,'(A)')' for info regarding the usage and run the script against the restart file, e.g., '
+    SWRITE(UNIT_StdOut,'(A)')' '
+    SWRITE(UNIT_StdOut,'(A)')'     python  ./tools/flip_PartState/flip_PartState.py  ProjectName_State_000.0000xxxxxx.h5'
+    SWRITE(UNIT_StdOut,'(A)')' '
+    SWRITE(UNIT_StdOut,'(A)')' to update the format and file version number.'
+    SWRITE(UNIT_StdOut,'(A)')' Note that the format can be changed back to the old one by running the script a second time.'
+    SWRITE(UNIT_StdOut,'(A)')' '
+    SWRITE(UNIT_StdOut,'(A)')' %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% '
+    CALL abort(&
+    __STAMP__&
+    ,'Error in InitRestart(): "File_Version" in restart file < 1.5. See error message above to fix. File version in restart file =',&
+    RealInfoOpt=FileVersionHDFReal)
+  END IF ! FileVersionHDFReal.LT.1.5
 ELSE
-  CALL abort(__STAMP__,'Error in InitRestart(): Attribute "File_Version" does not exist!')
+  CALL DatasetExists(File_ID,'Piclas_VersionInt',FileVersionExists,attrib=.TRUE.)
+  IF (FileVersionExists) THEN
+    CALL ReadAttribute(File_ID,'Piclas_VersionInt',1,IntScalar=FileVersionHDF5Int)
+  ELSE
+    CALL abort(__STAMP__,'Error in InitRestart(): Attribute "Piclas_VersionInt" does not exist!')
+  END IF
 END IF
-IF(FileVersionHDF5.LT.1.5)THEN
-  SWRITE(UNIT_StdOut,'(A)')' '
-  SWRITE(UNIT_StdOut,'(A)')' %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% '
-  SWRITE(UNIT_StdOut,'(A)')' '
-  SWRITE(UNIT_StdOut,'(A)')' Restart file is too old! "File_Version" in restart file < 1.5!'
-  SWRITE(UNIT_StdOut,'(A)')' The format used in the restart file is not compatible with this version of PICLas.'
-  SWRITE(UNIT_StdOut,'(A)')' Among others, the particle format (PartData) has changed.'
-  SWRITE(UNIT_StdOut,'(A)')' Run python script '
-  SWRITE(UNIT_StdOut,'(A)')' '
-  SWRITE(UNIT_StdOut,'(A)')'     python  ./tools/flip_PartState/flip_PartState.py  --help'
-  SWRITE(UNIT_StdOut,'(A)')' '
-  SWRITE(UNIT_StdOut,'(A)')' for info regarding the usage and run the script against the restart file, e.g., '
-  SWRITE(UNIT_StdOut,'(A)')' '
-  SWRITE(UNIT_StdOut,'(A)')'     python  ./tools/flip_PartState/flip_PartState.py  ProjectName_State_000.0000xxxxxx.h5'
-  SWRITE(UNIT_StdOut,'(A)')' '
-  SWRITE(UNIT_StdOut,'(A)')' to update the format and file version number.'
-  SWRITE(UNIT_StdOut,'(A)')' Note that the format can be changed back to the old one by running the script a second time.'
-  SWRITE(UNIT_StdOut,'(A)')' '
-  SWRITE(UNIT_StdOut,'(A)')' %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% '
-  CALL abort(&
-  __STAMP__&
-  ,'Error in InitRestart(): "File_Version" in restart file < 1.5. See error message above to fix. File version in restart file =',&
-  RealInfoOpt=FileVersionHDF5)
-END IF ! FileVersionHDF5.LT.1.5
 
 ! Read-in of dimensions of the particle array (1: Number of particles, 2: Number of variables)
 CALL GetDataSize(File_ID,'PartData',nDims,HSize)

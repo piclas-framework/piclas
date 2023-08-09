@@ -77,6 +77,7 @@ USE MOD_HDG_Vars           ,ONLY: UseBRElectronFluid
 #if USE_PETSC
 USE PETSc
 USE MOD_Mesh_Vars          ,ONLY: SideToElem, nSides
+USE MOD_Mesh_Vars          ,ONLY: BoundaryType,nSides,BC
 #endif
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -106,6 +107,7 @@ INTEGER              :: iBCSide,locBCSideID
 INTEGER              :: iPETScGlobal, jPETScGlobal
 INTEGER              :: iSide,locSideID
 REAL                 :: intMat(nGP_face, nGP_face)
+INTEGER              :: BCState
 #endif
 !===================================================================================================================================
 
@@ -369,19 +371,46 @@ END IF
 DO iElem=1,PP_nElems
   DO iLocSide=1,6
     iSideID=ElemToSide(E2S_SIDE_ID,iLocSide,iElem)
-    IF (PETScGlobal(iSideID).EQ.-1) CYCLE
+    iPETScGlobal=PETScGlobal(iSideID)
+    IF (iPETScGlobal.EQ.-1) CYCLE
     DO jLocSide=1,6
       jSideID=ElemToSide(E2S_SIDE_ID,jLocSide,iElem)
-      iPETScGlobal=PETScGlobal(iSideID)
       jPETScGlobal=PETScGlobal(jSideID)
       IF (iPETScGlobal.GT.jPETScGlobal) CYCLE
-      CALL MatSetValuesBlocked(Smat_petsc,1,iPETScGlobal,1,jPETScGlobal, &
-                                Smat(:,:,jLocSide,iLocSide,iElem),ADD_VALUES,ierr);PetscCall(ierr)
+      PetscCallA(MatSetValuesBlocked(Smat_petsc,1,iPETScGlobal,1,jPETScGlobal,Smat(:,:,jLocSide,iLocSide,iElem),ADD_VALUES,ierr))
     END DO
   END DO
 END DO
-CALL MatAssemblyBegin(Smat_petsc,MAT_FINAL_ASSEMBLY,ierr);PetscCall(ierr)
-CALL MatAssemblyEnd(Smat_petsc,MAT_FINAL_ASSEMBLY,ierr);PetscCall(ierr)
+! Set Conductor matrix
+DO BCsideID=1,nConductorBCsides
+  jSideID=ConductorBC(BCsideID)
+  iElem=SideToElem(S2E_ELEM_ID,jSideID)
+  jLocSide=SideToElem(S2E_LOC_SIDE_ID,jSideID)
+
+  BCState = BoundaryType(BC(jSideID),BC_STATE)
+  jPETScGlobal=nPETScUniqueSidesGlobal-FPC%nUniqueFPCBounds+FPC%Group(BCState,2)-1
+  DO iLocSide=1,6
+    iSideID=ElemToSide(E2S_SIDE_ID,iLocSide,iElem)
+    iPETScGlobal=PETScGlobal(iSideID)
+    DO j=2,nGP_face; DO i=1,nGP_face ! Sum up all columns
+      Smat(1,i,jLocSide,iLocSide,iElem) = Smat(1,i,jLocSide,iLocSide,iElem) + Smat(j,i,jLocSide,iLocSide,iElem)
+      Smat(j,i,jLocSide,iLocSide,iElem) = 0.
+    END DO; END DO
+    IF(MaskedSide(iSideID).EQ.2) THEN
+      DO i=2,nGP_face ! Sum up all rows
+        Smat(1,1,jLocSide,iLocSide,iElem) = Smat(1,1,jLocSide,iLocSide,iElem) + Smat(1,i,jLocSide,iLocSide,iElem)
+        Smat(1,i,jLocSide,iLocSide,iElem) = 0.
+        Smat(i,i,jLocSide,iLocSide,iElem) = 1. ! Add diagonal entries for unused DOFs
+      END DO
+      iPETScGlobal=nPETScUniqueSidesGlobal-FPC%nUniqueFPCBounds+FPC%Group(BCState,2)-1
+    ELSEIF(iPETScGlobal.EQ.-1) THEN
+      CYCLE
+    END IF
+    PetscCallA(MatSetValuesBlocked(Smat_petsc,1,iPETScGlobal,1,jPETScGlobal,Smat(:,:,jLocSide,iLocSide,iElem),ADD_VALUES,ierr))
+  END DO
+END DO
+PetscCallA(MatAssemblyBegin(Smat_petsc,MAT_FINAL_ASSEMBLY,ierr))
+PetscCallA(MatAssemblyEnd(Smat_petsc,MAT_FINAL_ASSEMBLY,ierr))
 #endif
 
 
@@ -462,25 +491,25 @@ INTEGER          :: lapack_info
 !===================================================================================================================================
 
 #if USE_PETSC
-CALL KSPGetPC(ksp,pc,ierr);PetscCall(ierr)
+PetscCallA(KSPGetPC(ksp,pc,ierr))
 SELECT CASE(PrecondType)
 CASE(0)
-  CALL PCSetType(pc,PCNONE,ierr);PetscCall(ierr)
+  PetscCallA(PCSetType(pc,PCNONE,ierr))
 CASE(1)
-  CALL PCSetType(pc,PCJACOBI,ierr);PetscCall(ierr)
+  PetscCallA(PCSetType(pc,PCJACOBI,ierr))
 CASE(2)
-  CALL PCHYPRESetType(pc,PCILU,ierr);PetscCall(ierr)
+  PetscCallA(PCHYPRESetType(pc,PCILU,ierr))
 CASE(3)
-  CALL PCHYPRESetType(pc,PCSPAI,ierr);PetscCall(ierr)
+  PetscCallA(PCHYPRESetType(pc,PCSPAI,ierr))
 CASE(4)
   lens=nGP_Face
-  CALL PCSetType(pc,PCBJACOBI,ierr);PetscCall(ierr)
-  CALL PCBJacobiSetLocalBlocks(pc,nPETScUniqueSides,lens,ierr);PetscCall(ierr)
-  CALL KSPSetUp(ksp,ierr)
+  PetscCallA(PCSetType(pc,PCBJACOBI,ierr))
+  PetscCallA(PCBJacobiSetLocalBlocks(pc,nPETScUniqueSides,lens,ierr))
+  PetscCallA(KSPSetUp(ksp,ierr))
 case(10)
-  CALL PCSetType(pc,PCCHOLESKY,ierr);PetscCall(ierr)
+  PetscCallA(PCSetType(pc,PCCHOLESKY,ierr))
 case(11)
-  CALL PCSetType(pc,PCLU,ierr);PetscCall(ierr)
+  PetscCallA(PCSetType(pc,PCLU,ierr))
 END SELECT
 #else
 SELECT CASE(PrecondType)
@@ -508,7 +537,7 @@ CASE(1)
 #endif /*USE_MPI*/
   CALL SmallToBigMortarPrecond_HDG(PrecondType) !assemble big side
   DO SideID=1,nSides-nMPIsides_YOUR
-    IF(MaskedSide(SideID))CYCLE
+    IF(MaskedSide(SideID).GT.0)CYCLE
     ! do choleski and store into Precond
     CALL DPOTRF('U',nGP_face,Precond(:,:,SideID),nGP_face,lapack_info)
     IF (lapack_info .NE. 0) THEN
@@ -545,7 +574,7 @@ CASE(2)
   CALL SmallToBigMortarPrecond_HDG(PrecondType) !assemble big side
   !inverse of the preconditioner matrix
   DO SideID=1,nSides-nMPIsides_YOUR
-    IF(MaskedSide(SideID))CYCLE
+    IF(MaskedSide(SideID).GT.0)CYCLE
     IF (MAXVAL(ABS(InvPrecondDiag(:,SideID))).GT.1.0e-12) THEN
       InvPrecondDiag(:,SideID)=1./InvPrecondDiag(:,SideID)
     ELSE

@@ -22,13 +22,16 @@ IMPLICIT NONE
 ! GLOBAL VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 CHARACTER(LEN=6),PARAMETER :: ProgramName  = 'PICLas'              !> name of this program
-INTEGER,PARAMETER          :: MajorVersion = 2                     !> FileVersion number saved in each hdf5 file with hdf5 header
-INTEGER,PARAMETER          :: MinorVersion = 9                     !> FileVersion number saved in each hdf5 file with hdf5 header
+INTEGER,PARAMETER          :: MajorVersion = 3                     !> FileVersion number saved in each hdf5 file with hdf5 header
+INTEGER,PARAMETER          :: MinorVersion = 0                     !> FileVersion number saved in each hdf5 file with hdf5 header
 INTEGER,PARAMETER          :: PatchVersion = 0                     !> FileVersion number saved in each hdf5 file with hdf5 header
-REAL,PARAMETER             :: FileVersion  = REAL(MajorVersion,8)+REAL(MinorVersion,8)/10.+REAL(PatchVersion,8)/100. !> FileVersion
-                                                                   !> number saved in each hdf5 file with hdf5 header
+REAL,PARAMETER             :: FileVersionReal  = REAL(MajorVersion,8)+REAL(MinorVersion,8)/10.+REAL(PatchVersion,8)/100.
+                                                                   !> OLD number saved in each hdf5 file with hdf5 header
+INTEGER,PARAMETER          :: FileVersionInt = PatchVersion+MinorVersion*100+MajorVersion*10000
+                                                                   !>  NEWnumber saved in each hdf5 file with hdf5 header
 CHARACTER(LEN=10)          :: PiclasVersionStr                     !> PiclasVersionStrnumber saved in each hdf5 file with hdf5 header
-REAL                       :: FileVersionHDF5                      !> FileVersion number read from hdf5 restart file
+REAL                       :: FileVersionHDF5Real                  !> OLD FileVersion number read from hdf5 restart file
+REAL                       :: FileVersionHDF5Int                   !> NEW FileVersion number read from hdf5 restart file
 REAL                       :: WallTime                             !> Wall time needed by a simulation (is not reset by
                                                                    !> performing a load balance step, only by user restart)
 REAL                       :: InitializationWallTime               !> Wall time needed to initialize a simulation (or

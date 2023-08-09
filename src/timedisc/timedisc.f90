@@ -95,7 +95,6 @@ USE MOD_Particle_Vars          ,ONLY: DoImportIMDFile
 #if USE_MPI
 USE MOD_PICDepo_Vars           ,ONLY: DepositionType
 #endif /*USE_MPI*/
-USE MOD_Particle_Vars          ,ONLY: doParticleMerge, enableParticleMerge, vMPFMergeParticleIter
 USE MOD_Particle_Sampling_Vars ,ONLY: UseAdaptive
 USE MOD_Particle_Tracking_vars ,ONLY: tTracking,tLocalization,nTracks,MeasureTrackTime
 #if (USE_MPI) && (USE_LOADBALANCE) && defined(PARTICLES)
@@ -122,6 +121,9 @@ USE MOD_HDG_Vars               ,ONLY: CalcBRVariableElectronTemp
 #if defined(MEASURE_MPI_WAIT)
 USE MOD_MPI_Vars               ,ONLY: MPIW8TimeSim
 #endif /*defined(MEASURE_MPI_WAIT)*/
+#if defined(PARTICLES)
+USE MOD_Particle_Analyze_Vars  ,ONLY: CalcPointsPerDebyeLength,CalcPICTimeStep
+#endif
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -200,13 +202,18 @@ iter_PID = 0
 ! fill recordpoints buffer (first iteration)
 !IF(RP_onProc) CALL RecordPoints(iter,t,forceSampling=.TRUE.)
 
-CALL PrintStatusLine(time,dt,tStart,tEnd)
+CALL PrintStatusLine(time,dt,tStart,tEnd,1)
 
 #if defined(PARTICLES) && defined(CODE_ANALYZE)
 ! Set specific particle position and velocity (calculated from an analytical expression)
 CALL InitAnalyticalParticleState() ! Requires dt
 #endif /*defined(PARTICLES) && defined(CODE_ANALYZE)*/
 
+#if defined(PARTICLES)
+IF(CalcPointsPerDebyeLength.OR.CalcPICTimeStep)THEN
+  CALL CountPartsPerElem(ResetNumberOfParticles=.TRUE.) !for scaling of tParts of LB
+END IF ! CalcPointsPerDebyeLength.OR.CalcPICTimeStep
+#endif
 CALL PerformAnalyze(time,FirstOrLastIter=.TRUE.,OutPutHDF5=.FALSE.)
 
 #ifdef PARTICLES
@@ -241,12 +248,6 @@ CALL CPU_TIME(time_start)
 
 DO !iter_t=0,MaxIter
 
-#ifdef PARTICLES
-  IF(enableParticleMerge) THEN
-    IF ((iter.GT.0).AND.(MOD(iter,INT(vMPFMergeParticleIter,8)).EQ.0)) doParticleMerge=.true.
-  END IF
-#endif /*PARTICLES*/
-
 #if defined(PARTICLES) && USE_HDG
   ! Check if BR<->kin switch is active
   IF(BRConvertMode.NE.0) CALL SwitchBRElectronModel()
@@ -269,7 +270,7 @@ DO !iter_t=0,MaxIter
   END IF ! MPIroot
 #endif /*NOT USE_HDG*/
 
-  CALL PrintStatusLine(time,dt,tStart,tEnd)
+  CALL PrintStatusLine(time,dt,tStart,tEnd,1)
 
 ! Perform Timestep using a global time stepping routine, attention: only RK3 has time dependent BC
 #if (PP_TimeDiscMethod==1)
@@ -370,10 +371,10 @@ DO !iter_t=0,MaxIter
     MPIW8TimeSim = MPIW8TimeSim + (WallTimeEnd-WallTimeStart)
 #endif /*defined(MEASURE_MPI_WAIT)*/
 
-#if USE_MPI
 #if defined(PARTICLES) && !defined(LSERK) && !defined(IMPA) && !defined(ROS)
     CALL CountPartsPerElem(ResetNumberOfParticles=.TRUE.) !for scaling of tParts of LB
 #endif
+#if USE_MPI
 
 #if USE_LOADBALANCE
 #ifdef PARTICLES
@@ -412,8 +413,14 @@ DO !iter_t=0,MaxIter
     IF(MOD(iAnalyze,nSkipAnalyze).EQ.0 .OR. finalIter)THEN
 #endif /*USE_LOADBALANCE*/
       ! Analyze for output
-      CALL PerformAnalyze(time, FirstOrLastIter=finalIter, OutPutHDF5=.TRUE.) ! analyze routines are not called here in last iter
+#if defined(PARTICLES)
+      IF(CalcPointsPerDebyeLength.OR.CalcPICTimeStep)THEN
+        CALL CountPartsPerElem(ResetNumberOfParticles=.TRUE.) !for scaling of tParts of LB
+      END IF ! CalcPointsPerDebyeLength.OR.CalcPICTimeStep
+#endif
+      CALL PerformAnalyze(time, FirstOrLastIter=finalIter, OutPutHDF5=.TRUE.) ! analyze routines are called here in last iter
       ! write information out to std-out of console
+      CALL PrintStatusLine(time,dt,tStart,tEnd,2)
       CALL WriteInfoStdOut()
 #if defined(PARTICLES)
       CALL FillParticleData() ! Fill the SFC-ordered particle arrays for LB or I/O

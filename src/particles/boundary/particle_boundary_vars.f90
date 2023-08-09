@@ -127,6 +127,10 @@ INTEGER                                 :: SampWallImpactNumber_Shared_Win
 INTEGER,ALLOCPOINT,DIMENSION(:)   :: NumRotPeriodicNeigh       ! Number of adjacent Neigbours sites in rotational periodic BC
 INTEGER,ALLOCPOINT,DIMENSION(:,:) :: RotPeriodicSideMapping    ! Mapping between rotational periodic sides.
 INTEGER,ALLOCPOINT,DIMENSION(:)   :: SurfSide2RotPeriodicSide  ! Mapping between surf side and periodic sides.
+! ====================================================================
+! Intermediate plane for multi rotational periodic sides
+INTEGER,ALLOCPOINT,DIMENSION(:,:) :: InterPlaneSideMapping    ! Mapping between inter plane BC_ID and SideID.
+! ====================================================================
 #if USE_MPI
 INTEGER,POINTER,DIMENSION(:)    :: SurfSide2RotPeriodicSide_Shared
 INTEGER                         :: SurfSide2RotPeriodicSide_Shared_Win
@@ -248,113 +252,78 @@ TYPE tPartBoundary
   INTEGER                                :: SimpleAnodeBC           = 4      ! = 4 (s.u.) Boundary Condition Integer Definition
   INTEGER                                :: SimpleCathodeBC         = 5      ! = 5 (s.u.) Boundary Condition Integer Definition
   INTEGER                                :: RotPeriodicBC           = 6      ! = 6 (s.u.) Boundary Condition Integer Definition
+  INTEGER                                :: RotPeriodicInterPlaneBC = 7      ! = 7 (s.u.) Boundary Condition Integer Definition
   INTEGER                                :: SymmetryBC              = 10     ! = 10 (s.u.) Boundary Condition Integer Definition
   INTEGER                                :: SymmetryAxis            = 11     ! = 10 (s.u.) Boundary Condition Integer Definition
-  CHARACTER(LEN=200)   , ALLOCATABLE     :: SourceBoundName(:)          ! Link part 1 for mapping PICLas BCs to Particle BC
-  INTEGER              , ALLOCATABLE     :: TargetBoundCond(:)          ! Link part 2 for mapping PICLas BCs to Particle BC
-!  INTEGER              , ALLOCATABLE     :: Map(:)                      ! Map from PICLas BCindex to Particle BC
-  INTEGER              , ALLOCATABLE     :: MapToPartBC(:)              ! Map from PICLas BCindex to Particle BC (NOT TO TYPE!)
-  !!INTEGER              , ALLOCATABLE     :: SideBCType(:)            ! list with boundary condition for each side
+  CHARACTER(LEN=200)   , ALLOCATABLE     :: SourceBoundName(:)           ! Link part 1 for mapping PICLas BCs to Particle BC
+  INTEGER              , ALLOCATABLE     :: TargetBoundCond(:)           ! Link part 2 for mapping PICLas BCs to Particle BC
+  INTEGER              , ALLOCATABLE     :: MapToPartBC(:)               ! Map from PICLas BCindex to Particle BC (NOT TO TYPE!)
+  INTEGER              , ALLOCATABLE     :: MapToFieldBC(:)              ! Map from Particle BC (NOT TO TYPE!) to PICLas BCindex
+  ! Constant wall temperature and accommodation coefficients
+  REAL    , ALLOCATABLE                  :: WallTemp(:)
   REAL    , ALLOCATABLE                  :: MomentumACC(:)
-  REAL    , ALLOCATABLE                  :: WallTemp(:), WallTemp2(:), WallTempDelta(:)
-  REAL    , ALLOCATABLE                  :: TempGradStart(:,:), TempGradEnd(:,:), TempGradVec(:,:)
+  LOGICAL , ALLOCATABLE                  :: OnlySpecular(:)
+  LOGICAL , ALLOCATABLE                  :: OnlyDiffuse(:)
   REAL    , ALLOCATABLE                  :: TransACC(:)
   REAL    , ALLOCATABLE                  :: VibACC(:)
   REAL    , ALLOCATABLE                  :: RotACC(:)
   REAL    , ALLOCATABLE                  :: ElecACC(:)
+  ! Temperature gradient across reflective BC
+  REAL    , ALLOCATABLE                  :: WallTemp2(:), WallTempDelta(:)
+  REAL    , ALLOCATABLE                  :: TempGradStart(:,:), TempGradEnd(:,:), TempGradVec(:,:)
+  INTEGER , ALLOCATABLE                  :: TempGradDir(:)
+  ! Linear and rotational wall velocity
   REAL    , ALLOCATABLE                  :: WallVelo(:,:)
-  REAL    , ALLOCATABLE                  :: Voltage(:)
   LOGICAL , ALLOCATABLE                  :: RotVelo(:)                    ! Flag for rotating walls
   REAL    , ALLOCATABLE                  :: RotOmega(:,:)                 ! Angular velocity
-  REAL    , ALLOCATABLE                  :: RotPeriodicAngle(:)           ! Angle and Direction of rotation
-  REAL    , ALLOCATABLE                  :: RotPeriodicMin(:)             ! Min rot axi value
-  REAL    , ALLOCATABLE                  :: RotPeriodicMax(:)             ! Max rot axi value
+  ! Species swap BCs
   INTEGER , ALLOCATABLE                  :: NbrOfSpeciesSwaps(:)          ! Number of Species to be changed at wall
   REAL    , ALLOCATABLE                  :: ProbOfSpeciesSwaps(:)         ! Probability of SpeciesSwaps at wall
   INTEGER , ALLOCATABLE                  :: SpeciesSwaps(:,:,:)           ! Species to be changed at wall (in, out), out=0: delete
+  ! Surface models
   INTEGER , ALLOCATABLE                  :: SurfaceModel(:)               ! Model used for surface interaction (e.g. SEE models)
   LOGICAL , ALLOCATABLE                  :: Reactive(:)                   ! flag defining if surface is treated reactively
   LOGICAL , ALLOCATABLE                  :: Resample(:)                   ! Resample Equilibrium Distribution with reflection
-  LOGICAL , ALLOCATABLE                  :: UseAdaptedWallTemp(:)         
+  ! Radiative-equilibrium BC
+  LOGICAL                                :: AdaptWallTemp
+  LOGICAL , ALLOCATABLE                  :: UseAdaptedWallTemp(:)
+  LOGICAL                                :: OutputWallTemp                ! Flag to include the wall temperature in the SurfState
+                                                                          ! output, set during InitializeVariablesPartBoundary
+                                                                          ! Required for the initialization of the array for the
+                                                                          ! adaptive wall temperature as well
   REAL    , ALLOCATABLE                  :: RadiativeEmissivity(:)
+  ! Dielectric BC
   LOGICAL , ALLOCATABLE                  :: Dielectric(:)                 ! Define if particle boundary [$] is a dielectric
-!                                                                         ! interface, i.e. an interface between a dielectric and
-!                                                                         ! a non-dielectric or a between to different dielectrics
-!                                                                         ! [.TRUE.] or not [.FALSE.] (requires reflective BC)
-!                                                                         ! (Default=FALSE.)
+                                                                          ! interface, i.e. an interface between a dielectric and
+                                                                          ! a non-dielectric or a between to different dielectrics
+                                                                          ! [.TRUE.] or not [.FALSE.] (requires reflective BC)
+                                                                          ! (Default=FALSE.)
+  ! Multi rotational periodic and interplane BCs
+  LOGICAL                                :: UseRotPeriodicBC            ! Flag for rotational periodicity
+  LOGICAL                                :: OutputBCDataForTesting      ! Flag to output boundary parameter which were determined
+                                                                        ! automatically
+  INTEGER                                :: RotPeriodicAxis             ! Axis of rotational periodicity
+  REAL                                   :: RotPeriodicTol              ! Tolerance for rotationally periodic BC, angle is multiplied
+                                                                        ! by 1 - RotPeriodicTol
+  REAL    , ALLOCATABLE                  :: RotPeriodicAngle(:)         ! Angle and direction of rotation [1:nPartBound]
+  REAL    , ALLOCATABLE                  :: RotPeriodicMin(:)           ! Min rot axi value [1:nPartBound]
+  REAL    , ALLOCATABLE                  :: RotPeriodicMax(:)           ! Max rot axi value [1:nPartBound]
+  LOGICAL                                :: UseInterPlaneBC             ! Flag for inter planes exist
+  INTEGER , ALLOCATABLE                  :: AssociatedPlane(:)          ! Link between both coressponding intermediate planes
+  INTEGER , ALLOCATABLE                  :: nSidesOnInterPlane(:)       ! Number of Sides on intermediate plane
+  REAL    , ALLOCATABLE                  :: NormalizedRadiusDir(:,:)    ! Normalized vector in radius direction that is used to
+                                                                        ! calculate a random position on same radius within the 
+                                                                        ! rot periodic segment
+  REAL    , ALLOCATABLE                  :: RotAxisPosition(:)          ! Position of inter plane at rotation axis
+  REAL    , ALLOCATABLE                  :: AngleRatioOfInterPlanes(:)  ! Ratio of rotation angles for the intermediate planes
+  ! Boundary particle output
   LOGICAL , ALLOCATABLE                  :: BoundaryParticleOutputHDF5(:) ! Save particle position, velocity and species to
-!                                                                         ! PartDataBoundary container for writing to .h5 later
+                                                                          ! PartDataBoundary container for writing to .h5 later
 END TYPE
 
-INTEGER                                  :: nPartBound                       ! number of particle boundaries
-TYPE(tPartBoundary)                      :: PartBound                         ! Boundary Data for Particles
+INTEGER                                  :: nPartBound                    ! number of particle boundaries
+TYPE(tPartBoundary)                      :: PartBound                     ! Boundary Data for Particles
 
-LOGICAL                                  :: AdaptWallTemp
-
-INTEGER                                  :: nAuxBCs                     ! number of aux. BCs that are checked during tracing
-LOGICAL                                  :: UseAuxBCs                     ! number of aux. BCs that are checked during tracing
-CHARACTER(LEN=200), ALLOCATABLE          :: AuxBCType(:)                ! type of BC (plane, ...)
-INTEGER           , ALLOCATABLE          :: AuxBCMap(:)                 ! index of AuxBC in respective Type
-
-TYPE tAuxBC_plane
-  REAL                                   :: r_vec(3)
-  REAL                                   :: n_vec(3)
-  REAL                                   :: radius
-END TYPE tAuxBC_plane
-TYPE(tAuxBC_plane), ALLOCATABLE          :: AuxBC_plane(:)
-
-TYPE tAuxBC_cylinder
-  REAL                                   :: r_vec(3)
-  REAL                                   :: axis(3)
-  REAL                                   :: radius
-  REAL                                   :: lmin
-  REAL                                   :: lmax
-  LOGICAL                                :: inwards
-END TYPE tAuxBC_cylinder
-TYPE(tAuxBC_cylinder), ALLOCATABLE       :: AuxBC_cylinder(:)
-
-TYPE tAuxBC_cone
-  REAL                                   :: r_vec(3)
-  REAL                                   :: axis(3)
-  REAL                                   :: halfangle
-  REAL                                   :: lmin
-  REAL                                   :: lmax
-  REAL                                   :: geomatrix(3,3)
-  !REAL                                   :: geomatrix2(3,3)
-  REAL                                   :: rotmatrix(3,3)
-  LOGICAL                                :: inwards
-END TYPE tAuxBC_cone
-TYPE(tAuxBC_cone), ALLOCATABLE       :: AuxBC_cone(:)
-
-TYPE tAuxBC_parabol
-  REAL                                   :: r_vec(3)
-  REAL                                   :: axis(3)
-  REAL                                   :: zfac
-  REAL                                   :: lmin
-  REAL                                   :: lmax
-  REAL                                   :: geomatrix4(4,4)
-  REAL                                   :: rotmatrix(3,3)
-  LOGICAL                                :: inwards
-END TYPE tAuxBC_parabol
-TYPE(tAuxBC_parabol), ALLOCATABLE       :: AuxBC_parabol(:)
-
-TYPE tPartAuxBC
-  INTEGER               :: OpenBC                  = 1      ! = 1 (s.u.) Boundary Condition Integer Definition
-  INTEGER               :: ReflectiveBC            = 2      ! = 2 (s.u.) Boundary Condition Integer Definition
-  INTEGER , ALLOCATABLE :: TargetBoundCond(:)
-  REAL    , ALLOCATABLE :: MomentumACC(:)
-  REAL    , ALLOCATABLE :: WallTemp(:)
-  REAL    , ALLOCATABLE :: TransACC(:)
-  REAL    , ALLOCATABLE :: VibACC(:)
-  REAL    , ALLOCATABLE :: RotACC(:)
-  REAL    , ALLOCATABLE :: ElecACC(:)
-  REAL    , ALLOCATABLE :: WallVelo(:,:)
-  INTEGER , ALLOCATABLE :: NbrOfSpeciesSwaps(:)  !Number of Species to be changed at wall
-  REAL    , ALLOCATABLE :: ProbOfSpeciesSwaps(:) !Probability of SpeciesSwaps at wall
-  INTEGER , ALLOCATABLE :: SpeciesSwaps(:,:,:)   !Species to be changed at wall (in, out), out=0: delete
-  LOGICAL , ALLOCATABLE :: Resample(:)           !Resample Equilibirum Distribution with reflection
-END TYPE
-TYPE(tPartAuxBC)        :: PartAuxBC             ! auxBC Data for Particles
 
 ! Boundary particle output
 LOGICAL              :: DoBoundaryParticleOutputHDF5   ! Flag set automatically if particles crossing specific

@@ -37,8 +37,9 @@ USE MOD_TimeDisc_Vars            ,ONLY: dt, IterDisplayStep, iter, TEnd, Time
 #ifdef PARTICLES
 USE MOD_Globals                  ,ONLY: abort, CROSS
 USE MOD_Particle_Vars            ,ONLY: PartState, LastPartPos, PDM, PEM, DoSurfaceFlux, WriteMacroVolumeValues
-USE MOD_Particle_Vars            ,ONLY: UseRotRefFrame, RotRefFrameOmega
-USE MOD_Particle_Vars            ,ONLY: WriteMacroSurfaceValues, Symmetry, VarTimeStep, Species, PartSpecies
+USE MOD_Particle_Vars            ,ONLY: UseRotRefFrame, RotRefFrameOmega, PartVeloRotRef
+USE MOD_Particle_Vars            ,ONLY: WriteMacroSurfaceValues, Symmetry, Species, PartSpecies
+USE MOD_Particle_Vars            ,ONLY: UseVarTimeStep, PartTimeStep, VarTimeStep
 USE MOD_Particle_Vars            ,ONLY: UseSplitAndMerge
 USE MOD_DSMC_Vars                ,ONLY: DSMC, CollisMode, AmbipolElecVelo
 USE MOD_DSMC                     ,ONLY: DSMC_main
@@ -52,6 +53,7 @@ USE MOD_SurfaceModel_Vars        ,ONLY: nPorousBC
 USE MOD_vMPF                     ,ONLY: SplitAndMerge
 USE MOD_part_RHS                 ,ONLY: CalcPartRHSRotRefFrame
 USE MOD_Part_Tools               ,ONLY: InRotRefFrameCheck
+USE MOD_Part_Tools               ,ONLY: CalcPartSymmetryPos
 #if USE_MPI
 USE MOD_Particle_MPI             ,ONLY: IRecvNbOfParticles, MPIParticleSend,MPIParticleRecv,SendNbOfparticles
 #endif /*USE_MPI*/
@@ -67,8 +69,10 @@ IMPLICIT NONE
 ! INPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-REAL                       :: timeEnd, timeStart, dtVar, RandVal, NewYPart, NewYVelo, Pt_local(1:3), RotRefVelo(1:3)
 INTEGER                    :: iPart
+REAL                       :: timeEnd, timeStart, dtVar, RandVal
+! Rotational frame of reference
+REAL                       :: Pt_local(1:3), Pt_local_old(1:3), VeloRotRef_half(1:3), PartState_half(1:3)
 #if USE_LOADBALANCE
 REAL                  :: tLBStart
 #endif /*USE_LOADBALANCE*/
@@ -92,11 +96,12 @@ CALL LBStartTime(tLBStart)
 DO iPart=1,PDM%ParticleVecLength
   IF (PDM%ParticleInside(iPart)) THEN
     ! Variable time step: getting the right time step for the particle (can be constant across an element)
-    IF (VarTimeStep%UseVariableTimeStep) THEN
-      dtVar = dt * VarTimeStep%ParticleTimeStep(iPart)
+    IF (UseVarTimeStep) THEN
+      dtVar = dt * PartTimeStep(iPart)
     ELSE
       dtVar = dt
     END IF
+    IF(VarTimeStep%UseSpeciesSpecific) dtVar = dtVar * Species(PartSpecies(iPart))%TimeStepFactor
     IF (PDM%dtFracPush(iPart)) THEN
       ! Surface flux (dtFracPush): previously inserted particles are pushed a random distance between 0 and v*dt
       !                            LastPartPos and LastElem already set!
@@ -109,9 +114,19 @@ DO iPart=1,PDM%ParticleVecLength
     END IF
     IF(UseRotRefFrame) THEN
       IF(PDM%InRotRefFrame(iPart)) THEN
-        RotRefVelo(1:3) = PartState(4:6,iPart) - CROSS(RotRefFrameOmega(1:3),PartState(1:3,iPart))
-        CALL CalcPartRHSRotRefFrame(iPart,Pt_local(1:3),RotRefVelo(1:3))
-        PartState(1:3,iPart) = PartState(1:3,iPart) + (RotRefVelo(1:3)+dtVar*0.5*Pt_local(1:3)) * dtVar
+        ! Midpoint method
+        ! calculate the acceleration (force / mass) at the current time step
+        Pt_local_old(1:3) = CalcPartRHSRotRefFrame(PartState(1:3,iPart), PartVeloRotRef(1:3,iPart))
+        ! estimate the mid-point velocity in the rotational frame
+        VeloRotRef_half(1:3) = PartVeloRotRef(1:3,iPart) + 0.5*Pt_local_old(1:3)*dtVar
+        ! estimate the mid-point position
+        PartState_half(1:3) = PartState(1:3,iPart) + 0.5*PartVeloRotRef(1:3,iPart)*dtVar
+        ! calculate the acceleration (force / mass) at the mid-point
+        Pt_local(1:3) = CalcPartRHSRotRefFrame(PartState_half(1:3), VeloRotRef_half(1:3))
+        ! update the position using the mid-point velocity in the rotational frame
+        PartState(1:3,iPart) = PartState(1:3,iPart) + VeloRotRef_half(1:3)*dtVar
+        ! update the velocity in the rotational frame using the mid-point acceleration
+        PartVeloRotRef(1:3,iPart) = PartVeloRotRef(1:3,iPart) + Pt_local(1:3)*dtVar
       ELSE
         PartState(1:3,iPart) = PartState(1:3,iPart) + PartState(4:6,iPart) * dtVar
       END IF
@@ -119,29 +134,10 @@ DO iPart=1,PDM%ParticleVecLength
       PartState(1:3,iPart) = PartState(1:3,iPart) + PartState(4:6,iPart) * dtVar
     END IF
     ! Axisymmetric treatment of particles: rotation of the position and velocity vector
-    IF(Symmetry%Axisymmetric) THEN
-      IF (PartState(2,iPart).LT.0.0) THEN
-        NewYPart = -SQRT(PartState(2,iPart)**2 + (PartState(3,iPart))**2)
-      ELSE
-        NewYPart = SQRT(PartState(2,iPart)**2 + (PartState(3,iPart))**2)
-      END IF
-      ! Rotation: Vy' =   Vy * cos(alpha) + Vz * sin(alpha) =   Vy * y/y' + Vz * z/y'
-      !           Vz' = - Vy * sin(alpha) + Vz * cos(alpha) = - Vy * z/y' + Vz * y/y'
-      ! Right-hand system, using new y and z positions after tracking, position vector and velocity vector DO NOT have to
-      ! coincide (as opposed to Bird 1994, p. 391, where new positions are calculated with the velocity vector)
-      IF (DSMC%DoAmbipolarDiff) THEN
-        IF(Species(PartSpecies(iPart))%ChargeIC.GT.0.0) THEN
-          NewYVelo = (AmbipolElecVelo(iPart)%ElecVelo(2)*(PartState(2,iPart))+AmbipolElecVelo(iPart)%ElecVelo(3)*PartState(3,iPart))/NewYPart
-          AmbipolElecVelo(iPart)%ElecVelo(3)= (-AmbipolElecVelo(iPart)%ElecVelo(2)*PartState(3,iPart) &
-            + AmbipolElecVelo(iPart)%ElecVelo(3)*(PartState(2,iPart)))/NewYPart
-          AmbipolElecVelo(iPart)%ElecVelo(2) = NewYVelo
-        END IF
-      END IF
-      NewYVelo = (PartState(5,iPart)*(PartState(2,iPart))+PartState(6,iPart)*PartState(3,iPart))/NewYPart
-      PartState(6,iPart) = (-PartState(5,iPart)*PartState(3,iPart)+PartState(6,iPart)*(PartState(2,iPart)))/NewYPart
-      PartState(2,iPart) = NewYPart
-      PartState(3,iPart) = 0.0
-      PartState(5,iPart) = NewYVelo
+    IF(DSMC%DoAmbipolarDiff.AND.(Species(PartSpecies(iPart))%ChargeIC.GT.0.0)) THEN
+      CALL CalcPartSymmetryPos(PartState(1:3,iPart),PartState(4:6,iPart),AmbipolElecVelo(iPart)%ElecVelo)
+    ELSE
+      CALL CalcPartSymmetryPos(PartState(1:3,iPart),PartState(4:6,iPart))
     END IF
   END IF
 END DO
@@ -149,12 +145,6 @@ END DO
 #if USE_LOADBALANCE
 CALL LBSplitTime(LB_PUSH,tLBStart)
 #endif /*USE_LOADBALANCE*/
-
-! Resetting the particle positions in the second/third dimension for the 1D/2D/axisymmetric case
-IF(Symmetry%Order.LT.3) THEN
-  LastPartPos(Symmetry%Order+1:3,1:PDM%ParticleVecLength) = 0.0
-  PartState(Symmetry%Order+1:3,1:PDM%ParticleVecLength) = 0.0
-END IF
 
 #if USE_MPI
 ! open receive buffer for number of particles
@@ -230,7 +220,18 @@ END IF ! DSMC%UseOctree
 
 IF(UseRotRefFrame) THEN
   DO iPart = 1,PDM%ParticleVecLength
-    IF(PDM%ParticleInside(iPart)) PDM%InRotRefFrame(iPart) = InRotRefFrameCheck(iPart)
+    IF(PDM%ParticleInside(iPart)) THEN
+      IF(InRotRefFrameCheck(iPart)) THEN
+        ! Particle moved into the rotational frame of reference, initialize velocity
+        IF(.NOT.PDM%InRotRefFrame(iPart)) THEN
+          PartVeloRotRef(1:3,iPart) = PartState(4:6,iPart) - CROSS(RotRefFrameOmega(1:3),PartState(1:3,iPart))
+        END IF
+      ELSE
+        ! Particle left (or never was in) the rotational frame of reference
+        PartVeloRotRef(1:3,iPart) = 0.
+      END IF
+      PDM%InRotRefFrame(iPart) = InRotRefFrameCheck(iPart)
+    END IF
   END DO
 END IF
 

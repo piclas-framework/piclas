@@ -27,6 +27,8 @@ For some external libraries and programs that **PICLas** uses, the following opt
 
 * `LIBS_BUILD_HOPR`: Enable the compilation of the mesh pre-processor HOPR during the PICLas compilation. The executable `hopr` will be placed in the build/bin/ folder next to the other executables. For more details, on the utilization of HOPR, see {ref}`sec:mesh-generation`.
 
+* `LIBS_DOWNLOAD_HOPR`: Enable downloading the mesh pre-processor HOPR during the PICLas compilation from GitHub. The executable `hopr` will be linked in the build/bin/ folder next to the other executables. For more details, on the utilization of HOPR, see {ref}`sec:mesh-generation`.
+
 * ``LIBS_BUILD_HDF5``: This will be set to ON if no pre-built HDF5 installation was found on your machine. In this case a HDF5 version
 will be built and used instead. For a detailed description of the installation of HDF5, please refer to Section {ref}`sec:hdf5-installation`.
 
@@ -49,6 +51,25 @@ the CMake configuration file for HDF5 (optional).
   * ``PICLAS_COMM_TYPE_NODE``: creates one shared memory domain per X numbers of MPI threads defined by ``PICLAS_SHARED_MEMORY_CORES``
     * ``PICLAS_SHARED_MEMORY_CORES``: Number of MPI threads per virtual node (default is 2). Assumes that all MPI threads run on the
       same physical node.
+
+Some settings are not shown in the graphical user interface, but can be changed via command line
+
+* ``PICLAS_INSTRUCTION``: Processor instruction settings (mainly depending on the hardware on which the compilation process is
+  performed or the target hardware where piclas will be executed). This variable is set automatically depending on the machine where
+  piclas is compiled. CMake prints the value of this parameter during configuration
+
+      -- Compiling Nitro/Release/Profile with [GNU] (v12.2.0) fortran compiler using PICLAS_INSTRUCTION [-march=native] instructions.
+
+  When compiling piclas on one machine and executing the code on a different one, the instruction setting should be set to
+  `generic`. This can be accomplished by running
+
+      cmake -DPICLAS_INSTRUCTION=-mtune=generic
+
+  To reset the instruction settings, run cmake again but with
+
+      -DPICLAS_INSTRUCTION=
+
+  which resorts to using the automatic determination depending on the detected machine.
 
 (sec:solver-settings)=
 ## Solver settings

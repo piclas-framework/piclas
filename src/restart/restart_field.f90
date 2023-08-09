@@ -45,7 +45,9 @@ SUBROUTINE FieldRestart()
 USE MOD_Globals
 USE MOD_PreProc
 USE MOD_DG_Vars                ,ONLY: U
+#if USE_LOADBALANCE
 USE MOD_LoadBalance_Vars       ,ONLY: PerformLoadBalance,UseH5IOLoadBalance
+#endif /*USE_LOADBALANCE*/
 USE MOD_IO_HDF5
 USE MOD_Restart_Vars           ,ONLY: N_Restart,RestartFile,InterpolateSolution,RestartNullifySolution
 USE MOD_ChangeBasis            ,ONLY: ChangeBasis3D
@@ -72,7 +74,12 @@ USE MOD_MPI_Vars               ,ONLY: RecRequest_U,SendRequest_U
 USE MOD_MPI                    ,ONLY: StartReceiveMPIData,StartSendMPIData,FinishExchangeMPIData
 #endif /*USE_MPI*/
 #if USE_LOADBALANCE
+USE MOD_HDG                    ,ONLY: SynchronizeVoltageOnEPC
+USE MOD_HDG_Vars               ,ONLY: UseEPC
 #if defined(PARTICLES)
+USE MOD_Equation_Tools         ,ONLY: SynchronizeCPP
+USE MOD_HDG                    ,ONLY: SynchronizeBV
+USE MOD_HDG_Vars               ,ONLY: UseBiasVoltage,UseCoupledPowerPotential
 ! TODO: make ElemInfo available with PARTICLES=OFF and remove this preprocessor if/else as soon as possible
 USE MOD_Mesh_Vars              ,ONLY: SideToNonUniqueGlobalSide,nElems
 USE MOD_LoadBalance_Vars       ,ONLY: MPInSideSend,MPInSideRecv,MPIoffsetSideSend,MPIoffsetSideRecv
@@ -81,6 +88,10 @@ USE MOD_HDG_Vars               ,ONLY: lambdaLB
 #endif /*defined(PARTICLES)*/
 #endif /*USE_LOADBALANCE*/
 #if USE_PETSC
+#if USE_LOADBALANCE
+USE MOD_HDG                    ,ONLY: SynchronizeChargeOnFPC
+USE MOD_HDG_Vars               ,ONLY: UseFPC
+#endif /*USE_LOADBALANCE*/
 USE PETSc
 USE MOD_HDG_Vars               ,ONLY: lambda_petsc,PETScGlobal,PETScLocalToSideID,nPETScUniqueSides
 #endif
@@ -88,8 +99,10 @@ USE MOD_HDG_Vars               ,ONLY: lambda_petsc,PETScGlobal,PETScLocalToSideI
 ! Non-HDG stuff
 USE MOD_PML_Vars               ,ONLY: DoPML,PMLToElem,U2,nPMLElems,PMLnVar
 USE MOD_Restart_Vars           ,ONLY: Vdm_GaussNRestart_GaussN
+#if USE_LOADBALANCE
 USE MOD_Mesh_Vars              ,ONLY: nElems
 USE MOD_LoadBalance_Vars       ,ONLY: MPInElemSend,MPInElemRecv,MPIoffsetElemSend,MPIoffsetElemRecv
+#endif /*USE_LOADBALANCE*/
 #endif /*USE_HDG*/
 USE MOD_Mesh_Vars              ,ONLY: OffsetElem
 ! IMPLICIT VARIABLE HANDLING
@@ -121,7 +134,9 @@ PetscErrorCode                     :: ierr
 #endif
 #else /*USE_HDG*/
 INTEGER                            :: iElem
+#if USE_LOADBALANCE
 REAL,ALLOCATABLE                   :: UTmp(:,:,:,:,:)
+#endif /*USE_LOADBALANCE*/
 REAL,ALLOCATABLE                   :: U_local(:,:,:,:,:)
 REAL,ALLOCATABLE                   :: U_local2(:,:,:,:,:)
 INTEGER                            :: iPML
@@ -144,11 +159,24 @@ INTEGER(KIND=MPI_ADDRESS_KIND)     :: MPI_DISPLACEMENT(1)
 #if USE_LOADBALANCE
 IF(PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance))THEN
 #if USE_HDG
-  ! ------------------------------------------------
-  ! lambda
-  ! ------------------------------------------------
+#if USE_PETSC
+  ! FPC: The MPI root process distributes the information among the sub-communicator processes for each FPC
+  !      (before and after load balancing, the root process is always part of each sub-communicator group)
+  IF(UseFPC) CALL SynchronizeChargeOnFPC()
+#endif /*USE_PETSC*/
+  ! EPC: The MPI root process distributes the information among the sub-communicator processes for each EPC
+  !      (before and after load balancing, the root process is always part of each sub-communicator group)
+  IF(UseEPC) CALL SynchronizeVoltageOnEPC()
 
 #if defined(PARTICLES)
+  ! Coupled Bias voltage (BV): The MPI root process distributes the information among the sub-communicator processes
+  !      (before and after load balancing, the root process is always part of each sub-communicator group)
+  IF(UseBiasVoltage) CALL SynchronizeBV()
+
+  ! Coupled Power Potential (CPP): The MPI root process distributes the information among the sub-communicator processes
+  !      (before and after load balancing, the root process is always part of each sub-communicator group)
+  IF(UseCoupledPowerPotential) CALL SynchronizeCPP()
+
   !checkRank=MIN(3,nProcessors-1)
   ! Store lambda solution on global non-unique array for MPI communication
   ASSOCIATE( firstSide => ElemInfo_Shared(ELEM_FIRSTSIDEIND,offsetElem+1) + 1       ,&
@@ -231,10 +259,10 @@ IF(PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance))THEN
 #if USE_PETSC
   DO PETScLocalID=1,nPETScUniqueSides
     SideID=PETScLocalToSideID(PETScLocalID)
-    CALL VecSetValuesBlocked(lambda_petsc,1,PETScGlobal(SideID),lambda(1,:,SideID),INSERT_VALUES,ierr);PetscCall(ierr)
+    PetscCallA(VecSetValuesBlocked(lambda_petsc,1,PETScGlobal(SideID),lambda(1,:,SideID),INSERT_VALUES,ierr))
   END DO
-  CALL VecAssemblyBegin(lambda_petsc,ierr);PetscCall(ierr)
-  CALL VecAssemblyEnd(lambda_petsc,ierr);PetscCall(ierr)
+  PetscCallA(VecAssemblyBegin(lambda_petsc,ierr))
+  PetscCallA(VecAssemblyEnd(lambda_petsc,ierr))
 #endif
 
   CALL RestartHDG(U) ! calls PostProcessGradient for calculate the derivative, e.g., the electric field E
@@ -387,10 +415,10 @@ ELSE ! normal restart
 #if USE_PETSC
         DO PETScLocalID=1,nPETScUniqueSides
           SideID=PETScLocalToSideID(PETScLocalID)
-          CALL VecSetValuesBlocked(lambda_petsc,1,PETScGlobal(SideID),lambda(1,:,SideID),INSERT_VALUES,ierr);PetscCall(ierr)
+          PetscCallA(VecSetValuesBlocked(lambda_petsc,1,PETScGlobal(SideID),lambda(1,:,SideID),INSERT_VALUES,ierr))
         END DO
-        CALL VecAssemblyBegin(lambda_petsc,ierr);PetscCall(ierr)
-        CALL VecAssemblyEnd(lambda_petsc,ierr);PetscCall(ierr)
+        PetscCallA(VecAssemblyBegin(lambda_petsc,ierr))
+        PetscCallA(VecAssemblyEnd(lambda_petsc,ierr))
 #endif
 
         CALL RestartHDG(U) ! calls PostProcessGradient for calculate the derivative, e.g., the electric field E

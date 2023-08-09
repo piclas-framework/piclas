@@ -46,7 +46,7 @@ USE MOD_Particle_Analyze_Tools  ,ONLY: CalcEkinPart
 USE MOD_Particle_Mesh_Tools     ,ONLY: GetGlobalNonUniqueSideID
 USE MOD_Particle_Sampling_Vars  ,ONLY: AdaptBCPartNumOut
 USE MOD_Particle_Surfaces_Vars  ,ONLY: SurfFluxSideSize, TriaSurfaceFlux, BCdata_auxSF
-USE MOD_Particle_VarTimeStep    ,ONLY: CalcVarTimeStep
+USE MOD_Particle_TimeStep       ,ONLY: GetParticleTimeStep
 USE MOD_Timedisc_Vars           ,ONLY: RKdtFrac, dt
 USE MOD_DSMC_AmbipolarDiffusion ,ONLY: AD_SetSFElectronVelo
 #if defined(IMPA) || defined(ROS)
@@ -93,8 +93,6 @@ DO iSpec=1,nSpecies
     currentBC = SF%BC
     NbrOfParticle = 0 ! calculated within (sub)side-Loops!
     iPartTotal=0
-    ! Reset the mass flow rate counter for the next time step
-    IF(CalcSurfFluxInfo) SF%SampledMassflow = 0.
     ! Adaptive BC, Type = 4 (Const. massflow): Sum-up the global number of particles exiting through BC and calculate new weights
     IF(SF%AdaptiveType.EQ.4) THEN
 #if USE_MPI
@@ -239,9 +237,9 @@ DO iSpec=1,nSpecies
             PEM%GlobalElemID(ParticleIndexNbr) = globElemId
             PEM%LastGlobalElemID(ParticleIndexNbr) = globElemId !needed when ParticlePush is not executed, e.g. "delay"
             iPartTotal = iPartTotal + 1
-            IF (VarTimeStep%UseVariableTimeStep) THEN
-              VarTimeStep%ParticleTimeStep(ParticleIndexNbr) &
-                = CalcVarTimeStep(PartState(1,ParticleIndexNbr),PartState(2,ParticleIndexNbr),PEM%LocalElemID(ParticleIndexNbr))
+            IF (UseVarTimeStep) THEN
+              PartTimeStep(ParticleIndexNbr) = GetParticleTimeStep(PartState(1,ParticleIndexNbr),PartState(2,ParticleIndexNbr), &
+                                                                PEM%LocalElemID(ParticleIndexNbr))
             END IF
             IF (RadialWeighting%DoRadialWeighting) THEN
               PartMPF(ParticleIndexNbr) = CalcRadWeightMPF(PartState(2,ParticleIndexNbr), iSpec,ParticleIndexNbr)
@@ -253,6 +251,7 @@ DO iSpec=1,nSpecies
             CALL AnalyzePartPos(ParticleIndexNbr)
 #endif /*CODE_ANALYZE*/
           ELSE
+            IPWRITE(*,*) 'Total number of particles emitted: ', PartsEmitted, ' Current number of particles: ', PartInsSubSide
             CALL abort(__STAMP__,'ERROR in ParticleSurfaceflux: ParticleIndexNbr.EQ.0 - maximum nbr of particles reached?')
           END IF
         END DO
@@ -326,7 +325,7 @@ END SUBROUTINE ParticleSurfaceflux
 SUBROUTINE CalcPartInsSubSidesStandardCase(iSpec, iSF, PartInsSubSides)
 ! MODULES
 USE MOD_Globals
-USE MOD_Particle_Vars           ,ONLY: Species
+USE MOD_Particle_Vars           ,ONLY: Species, VarTimeStep
 USE MOD_TimeDisc_Vars           ,ONLY: dt, RKdtFrac, RKdtFracTotal, Time
 USE MOD_Particle_Surfaces_Vars  ,ONLY: SurfFluxSideSize, BCdata_auxSF
 USE MOD_Part_Emission_Tools     ,ONLY: IntegerDivide, SamplePoissonDistri
@@ -347,7 +346,9 @@ INTEGER(KIND=8)        :: inserted_Particle_iter,inserted_Particle_time,inserted
 INTEGER                :: currentBC, PartInsSF, IntSample
 REAL                   :: VFR_total, PartIns, RandVal1
 INTEGER, ALLOCATABLE   :: PartInsProc(:)
+REAL                   :: dtVar, TimeVar
 !===================================================================================================================================
+
 ASSOCIATE(SF => Species(iSpec)%Surfaceflux(iSF))
 !--- Noise reduction (both ReduceNoise=T (with comm.) and F (proc local), but not for DoPoissonRounding)
 currentBC = SF%BC
@@ -362,9 +363,17 @@ IF (.NOT.SF%ReduceNoise .OR. MPIroot) THEN !ReduceNoise: root only
   ELSE
     VFR_total = SF%VFR_total               !proc local total
   END IF
-  PartIns = SF%PartDensity / Species(iSpec)%MacroParticleFactor * dt*RKdtFrac * VFR_total
+  ! Species-specific time step
+  IF(VarTimeStep%UseSpeciesSpecific) THEN
+    dtVar = dt * Species(iSpec)%TimeStepFactor
+    TimeVar = Time * Species(iSpec)%TimeStepFactor
+  ELSE
+    dtVar = dt
+    TimeVar = Time
+  END IF
+  PartIns = SF%PartDensity / Species(iSpec)%MacroParticleFactor * dtVar*RKdtFrac * VFR_total
   inserted_Particle_iter = INT(PartIns,8)
-  PartIns = SF%PartDensity / Species(iSpec)%MacroParticleFactor * (Time + dt*RKdtFracTotal) * VFR_total
+  PartIns = SF%PartDensity / Species(iSpec)%MacroParticleFactor * (TimeVar + dtVar*RKdtFracTotal) * VFR_total
   !-- random-round the inserted_Particle_time for preventing periodicity
   IF (inserted_Particle_iter.GE.1) THEN
     CALL RANDOM_NUMBER(RandVal1)
@@ -818,7 +827,7 @@ SUBROUTINE CalcPartInsRadWeight(iSpec, iSF, iSample, jSample, iSide, minPos, RVe
 ! IMPLICIT VARIABLE HANDLING
 USE MOD_Globals
 USE MOD_TimeDisc_Vars           ,ONLY: dt,RKdtFrac
-USE MOD_Particle_Vars           ,ONLY: Species
+USE MOD_Particle_Vars           ,ONLY: Species, VarTimeStep
 USE MOD_DSMC_Vars               ,ONLY: RadialWeighting
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -830,19 +839,27 @@ INTEGER, INTENT(OUT)        :: PartInsSubSide, PartInsSideRadWeight(:)
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-REAL                        :: RandVal1
+REAL                        :: RandVal1, dtVar
 INTEGER                     :: iSub
 !===================================================================================================================================
+
+! Species-specific time step
+IF(VarTimeStep%UseSpeciesSpecific) THEN
+  dtVar = dt * Species(iSpec)%TimeStepFactor
+ELSE
+  dtVar = dt
+END IF
+
 CALL RANDOM_NUMBER(RandVal1)
 PartInsSubSide = INT(Species(iSpec)%Surfaceflux(iSF)%PartDensity / Species(iSpec)%MacroParticleFactor &
-  * dt*RKdtFrac * Species(iSpec)%Surfaceflux(iSF)%SurfFluxSubSideData(iSample,jSample,iSide)%nVFR + RandVal1)
+  * dtVar*RKdtFrac * Species(iSpec)%Surfaceflux(iSF)%SurfFluxSubSideData(iSample,jSample,iSide)%nVFR + RandVal1)
 IF(.NOT.RadialWeighting%CellLocalWeighting) THEN
   IF(.NOT.ALMOSTEQUAL(minPos(2),minPos(2)+RVec(2))) THEN
     PartInsSubSide = 0
     DO iSub = 1, RadialWeighting%nSubSides
       CALL RANDOM_NUMBER(RandVal1)
       PartInsSideRadWeight(iSub) = INT(Species(iSpec)%Surfaceflux(iSF)%PartDensity / Species(iSpec)%MacroParticleFactor &
-              * dt*RKdtFrac * Species(iSpec)%Surfaceflux(iSF)%nVFRSub(iSide,iSub)+ RandVal1)
+              * dtVar*RKdtFrac * Species(iSpec)%Surfaceflux(iSF)%nVFRSub(iSide,iSub)+ RandVal1)
       PartInsSubSide = PartInsSubSide + PartInsSideRadWeight(iSub)
     END DO
   END IF
@@ -860,7 +877,7 @@ SUBROUTINE CalcPartInsPoissonDistr(iSpec, iSF, iSample, jSample, iSide, PartInsS
 USE MOD_Globals
 USE MOD_TimeDisc_Vars           ,ONLY: dt,RKdtFrac
 USE MOD_Part_Emission_Tools     ,ONLY: SamplePoissonDistri
-USE MOD_Particle_Vars           ,ONLY: Species
+USE MOD_Particle_Vars           ,ONLY: Species, VarTimeStep
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
@@ -870,14 +887,20 @@ INTEGER, INTENT(OUT)        :: PartInsSubSide
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-REAL                        :: PartIns
+REAL                        :: PartIns, dtVar
 !===================================================================================================================================
+
+! Species-specific time step
+IF(VarTimeStep%UseSpeciesSpecific) THEN
+  dtVar = dt * Species(iSpec)%TimeStepFactor
+ELSE
+  dtVar = dt
+END IF
+
 PartIns = Species(iSpec)%Surfaceflux(iSF)%PartDensity / Species(iSpec)%MacroParticleFactor &
-                      * dt*RKdtFrac * Species(iSpec)%Surfaceflux(iSF)%SurfFluxSubSideData(iSample,jSample,iSide)%nVFR
+                      * dtVar*RKdtFrac * Species(iSpec)%Surfaceflux(iSF)%SurfFluxSubSideData(iSample,jSample,iSide)%nVFR
 IF (EXP(-PartIns).LE.TINY(PartIns)) THEN
-  CALL abort(&
-  __STAMP__&
-  ,'ERROR in ParticleSurfaceflux: flux is too large for poisson sampling!')
+  CALL abort(__STAMP__,'ERROR in ParticleSurfaceflux: flux is too large for poisson sampling!')
 ELSE !poisson-sampling instead of random rounding (reduces numerical non-equlibrium effects [Tysanner and Garcia 2004]
   CALL SamplePoissonDistri( PartIns , PartInsSubSide )
 END IF
@@ -894,7 +917,7 @@ SUBROUTINE CalcPartInsAdaptive(iSpec, iSF, BCSideID, iSide, iSample, jSample, Pa
 USE MOD_Globals
 USE MOD_Globals_Vars            ,ONLY: BoltzmannConst, Pi
 USE MOD_TimeDisc_Vars           ,ONLY: dt,RKdtFrac
-USE MOD_Particle_Vars           ,ONLY: Species
+USE MOD_Particle_Vars           ,ONLY: Species, VarTimeStep
 USE MOD_Particle_Sampling_Vars  ,ONLY: AdaptBCMacroVal, AdaptBCMapElemToSample, AdaptBCBackupVelocity, AdaptBCPartNumOut
 USE MOD_Particle_Surfaces_Vars  ,ONLY: SurfMeshSubSideData
 USE MOD_Mesh_Vars               ,ONLY: SideToElem
@@ -908,109 +931,117 @@ INTEGER, INTENT(OUT)        :: PartInsSubSide
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 REAL                        :: ElemPartDensity, T, pressure, VeloVec(3), vec_nIn(3), veloNormal, VeloIC, VeloVecIC(3)
-REAL                        :: projFak, a, v_thermal, vSF, nVFR, RandVal1
+REAL                        :: projFak, a, v_thermal, vSF, nVFR, RandVal1, dtVar
 INTEGER                     :: ElemID, SampleElemID
 !===================================================================================================================================
-  ElemID = SideToElem(1,BCSideID)
-  SampleElemID = AdaptBCMapElemToSample(ElemID)
-  SELECT CASE(Species(iSpec)%Surfaceflux(iSF)%AdaptiveType)
-  CASE(1) ! Pressure inlet (pressure, temperature const)
-    ElemPartDensity = Species(iSpec)%Surfaceflux(iSF)%PartDensity
-    T =  Species(iSpec)%Surfaceflux(iSF)%MWTemperatureIC
-  CASE(2) ! adaptive Outlet/freestream
-    ElemPartDensity = AdaptBCMacroVal(4,SampleElemID,iSpec)
-    pressure = Species(iSpec)%Surfaceflux(iSF)%AdaptivePressure
-    T = pressure / (BoltzmannConst * AdaptBCMacroVal(4,SampleElemID,iSpec))
-  CASE(3) ! Mass flow, temperature constant
+
+! Species-specific time step
+IF(VarTimeStep%UseSpeciesSpecific) THEN
+  dtVar = dt * Species(iSpec)%TimeStepFactor
+ELSE
+  dtVar = dt
+END IF
+
+ElemID = SideToElem(1,BCSideID)
+SampleElemID = AdaptBCMapElemToSample(ElemID)
+SELECT CASE(Species(iSpec)%Surfaceflux(iSF)%AdaptiveType)
+CASE(1) ! Pressure inlet (pressure, temperature const)
+  ElemPartDensity = Species(iSpec)%Surfaceflux(iSF)%PartDensity
+  T =  Species(iSpec)%Surfaceflux(iSF)%MWTemperatureIC
+CASE(2) ! adaptive Outlet/freestream
+  ElemPartDensity = AdaptBCMacroVal(4,SampleElemID,iSpec)
+  pressure = Species(iSpec)%Surfaceflux(iSF)%AdaptivePressure
+  T = pressure / (BoltzmannConst * AdaptBCMacroVal(4,SampleElemID,iSpec))
+CASE(3) ! Mass flow, temperature constant
+  VeloVec(1:3) = AdaptBCMacroVal(1:3,SampleElemID,iSpec)
+  vec_nIn(1:3) = SurfMeshSubSideData(iSample,jSample,BCSideID)%vec_nIn(1:3)
+  veloNormal = VeloVec(1)*vec_nIn(1) + VeloVec(2)*vec_nIn(2) + VeloVec(3)*vec_nIn(3)
+  IF(veloNormal.GT.0.0) THEN
+    ElemPartDensity = Species(iSpec)%Surfaceflux(iSF)%AdaptiveMassflow &
+                      / (veloNormal * Species(iSpec)%Surfaceflux(iSF)%totalAreaSF * Species(iSpec)%MassIC)
+    AdaptBCBackupVelocity(1:3,SampleElemID,iSpec) = VeloVec(1:3)
+  ELSE
+    ! Using the old velocity vector, overwriting the sampled value with the old one
+    AdaptBCMacroVal(1:3,SampleElemID,iSpec) = AdaptBCBackupVelocity(1:3,SampleElemID,iSpec)
     VeloVec(1:3) = AdaptBCMacroVal(1:3,SampleElemID,iSpec)
     vec_nIn(1:3) = SurfMeshSubSideData(iSample,jSample,BCSideID)%vec_nIn(1:3)
     veloNormal = VeloVec(1)*vec_nIn(1) + VeloVec(2)*vec_nIn(2) + VeloVec(3)*vec_nIn(3)
     IF(veloNormal.GT.0.0) THEN
       ElemPartDensity = Species(iSpec)%Surfaceflux(iSF)%AdaptiveMassflow &
-                        / (veloNormal * Species(iSpec)%Surfaceflux(iSF)%totalAreaSF * Species(iSpec)%MassIC)
-      AdaptBCBackupVelocity(1:3,SampleElemID,iSpec) = VeloVec(1:3)
+        / (veloNormal * Species(iSpec)%Surfaceflux(iSF)%totalAreaSF * Species(iSpec)%MassIC)
     ELSE
-      ! Using the old velocity vector, overwriting the sampled value with the old one
-      AdaptBCMacroVal(1:3,SampleElemID,iSpec) = AdaptBCBackupVelocity(1:3,SampleElemID,iSpec)
-      VeloVec(1:3) = AdaptBCMacroVal(1:3,SampleElemID,iSpec)
-      vec_nIn(1:3) = SurfMeshSubSideData(iSample,jSample,BCSideID)%vec_nIn(1:3)
-      veloNormal = VeloVec(1)*vec_nIn(1) + VeloVec(2)*vec_nIn(2) + VeloVec(3)*vec_nIn(3)
-      IF(veloNormal.GT.0.0) THEN
-        ElemPartDensity = Species(iSpec)%Surfaceflux(iSF)%AdaptiveMassflow &
-          / (veloNormal * Species(iSpec)%Surfaceflux(iSF)%totalAreaSF * Species(iSpec)%MassIC)
-      ELSE
-        SWRITE(*,*) 'WARNING: No particles inserted!'
-        SWRITE(*,*) 'WARNING: Possibly different adaptive BCs of Type3/4 have been defined next to each other.'
-        SWRITE(*,*) 'WARNING: Adaptive BCs sharing a mesh element is currently not supported -> wrong velocity vector!'
-        ElemPartDensity = 0
-      END IF
+      SWRITE(*,*) 'WARNING: No particles inserted!'
+      SWRITE(*,*) 'WARNING: Possibly different adaptive BCs of Type3/4 have been defined next to each other.'
+      SWRITE(*,*) 'WARNING: Adaptive BCs sharing a mesh element is currently not supported -> wrong velocity vector!'
+      ElemPartDensity = 0
     END IF
-    T =  Species(iSpec)%Surfaceflux(iSF)%MWTemperatureIC
-  CASE(4) !Const. massflow inlet after Lei 2017
-    T =  Species(iSpec)%Surfaceflux(iSF)%MWTemperatureIC
-  CASE DEFAULT
-    SWRITE(*,*) 'Selected adaptive boundary condition type: ', Species(iSpec)%Surfaceflux(iSF)%AdaptiveType
-    CALL abort(__STAMP__,'ERROR Adaptive Inlet: Wrong adaptive type for Surfaceflux!')
-  END SELECT
-  VeloVec(1:3) = AdaptBCMacroVal(1:3,SampleElemID,iSpec)
-  VeloIC = SQRT(DOT_PRODUCT(VeloVec,VeloVec))
-  IF (ABS(VeloIC).GT.0.) THEN
-    VeloVecIC = VeloVec / VeloIC
-  ELSE
-    VeloVecIC = (/1.,0.,0./)
   END IF
-  vec_nIn(1:3) = SurfMeshSubSideData(iSample,jSample,BCSideID)%vec_nIn(1:3)
-  projFak = DOT_PRODUCT(vec_nIn,VeloVecIC) !VeloVecIC projected to inwards normal
-  v_thermal = SQRT(2.*BoltzmannConst*T/Species(iSpec)%MassIC) !thermal speed
-  a = 0 !dummy for projected speed ratio in constant v-distri
-  !-- compute total volume flow rate through surface
-  SELECT CASE(TRIM(Species(iSpec)%Surfaceflux(iSF)%velocityDistribution))
-  CASE('constant')
-    vSF = VeloIC * projFak !Velo proj. to inwards normal
-    nVFR = MAX(SurfMeshSubSideData(iSample,jSample,BCSideID)%area * vSF,0.) !VFR proj. to inwards normal (only positive parts!)
-  CASE('maxwell','maxwell_lpn')
-    IF ( ALMOSTEQUAL(v_thermal,0.)) THEN
-      v_thermal = 1.
-    END IF
-    a = VeloIC * projFak / v_thermal !speed ratio proj. to inwards n (can be negative!)
-    vSF = v_thermal / (2.0*SQRT(PI)) * ( EXP(-(a*a)) + a*SQRT(PI)*(1+ERF(a)) ) !mean flux velocity through normal sub-face
-    nVFR = SurfMeshSubSideData(iSample,jSample,BCSideID)%area * vSF !VFR projected to inwards normal of sub-side
-  CASE DEFAULT
-    CALL abort(__STAMP__,'ERROR in CalcPartInsAdaptive: Wrong velocity distribution!')
-  END SELECT
-  IF(Species(iSpec)%Surfaceflux(iSF)%AdaptiveType.EQ.4) THEN
-    CALL RANDOM_NUMBER(RandVal1)
-    PartInsSubSide = INT(Species(iSpec)%Surfaceflux(iSF)%ConstMassflowWeight(iSample,jSample,iSide)     &
-                            * (Species(iSpec)%Surfaceflux(iSF)%AdaptiveMassflow * dt*RKdtFrac    &
-                                / (Species(iSpec)%MassIC * Species(iSpec)%MacroParticleFactor)  &
-                                + REAL(AdaptBCPartNumOut(iSpec,iSF))) +RandVal1)
-  ELSE
-    CALL RANDOM_NUMBER(RandVal1)
-    PartInsSubSide = INT(ElemPartDensity / Species(iSpec)%MacroParticleFactor * dt*RKdtFrac * nVFR+RandVal1)
+  T =  Species(iSpec)%Surfaceflux(iSF)%MWTemperatureIC
+CASE(4) !Const. massflow inlet after Lei 2017
+  T =  Species(iSpec)%Surfaceflux(iSF)%MWTemperatureIC
+CASE DEFAULT
+  SWRITE(*,*) 'Selected adaptive boundary condition type: ', Species(iSpec)%Surfaceflux(iSF)%AdaptiveType
+  CALL abort(__STAMP__,'ERROR Adaptive Inlet: Wrong adaptive type for Surfaceflux!')
+END SELECT
+VeloVec(1:3) = AdaptBCMacroVal(1:3,SampleElemID,iSpec)
+VeloIC = SQRT(DOT_PRODUCT(VeloVec,VeloVec))
+IF (ABS(VeloIC).GT.0.) THEN
+  VeloVecIC = VeloVec / VeloIC
+ELSE
+  VeloVecIC = (/1.,0.,0./)
+END IF
+vec_nIn(1:3) = SurfMeshSubSideData(iSample,jSample,BCSideID)%vec_nIn(1:3)
+projFak = DOT_PRODUCT(vec_nIn,VeloVecIC) !VeloVecIC projected to inwards normal
+v_thermal = SQRT(2.*BoltzmannConst*T/Species(iSpec)%MassIC) !thermal speed
+a = 0 !dummy for projected speed ratio in constant v-distri
+!-- compute total volume flow rate through surface
+SELECT CASE(TRIM(Species(iSpec)%Surfaceflux(iSF)%velocityDistribution))
+CASE('constant')
+  vSF = VeloIC * projFak !Velo proj. to inwards normal
+  nVFR = MAX(SurfMeshSubSideData(iSample,jSample,BCSideID)%area * vSF,0.) !VFR proj. to inwards normal (only positive parts!)
+CASE('maxwell','maxwell_lpn')
+  IF ( ALMOSTEQUAL(v_thermal,0.)) THEN
+    v_thermal = 1.
   END IF
+  a = VeloIC * projFak / v_thermal !speed ratio proj. to inwards n (can be negative!)
+  vSF = v_thermal / (2.0*SQRT(PI)) * ( EXP(-(a*a)) + a*SQRT(PI)*(1+ERF(a)) ) !mean flux velocity through normal sub-face
+  nVFR = SurfMeshSubSideData(iSample,jSample,BCSideID)%area * vSF !VFR projected to inwards normal of sub-side
+CASE DEFAULT
+  CALL abort(__STAMP__,'ERROR in CalcPartInsAdaptive: Wrong velocity distribution!')
+END SELECT
+IF(Species(iSpec)%Surfaceflux(iSF)%AdaptiveType.EQ.4) THEN
+  CALL RANDOM_NUMBER(RandVal1)
+  PartInsSubSide = INT(Species(iSpec)%Surfaceflux(iSF)%ConstMassflowWeight(iSample,jSample,iSide)     &
+                          * (Species(iSpec)%Surfaceflux(iSF)%AdaptiveMassflow * dtVar*RKdtFrac    &
+                              / (Species(iSpec)%MassIC * Species(iSpec)%MacroParticleFactor)  &
+                              + REAL(AdaptBCPartNumOut(iSpec,iSF))) +RandVal1)
+ELSE
+  CALL RANDOM_NUMBER(RandVal1)
+  PartInsSubSide = INT(ElemPartDensity / Species(iSpec)%MacroParticleFactor * dtVar*RKdtFrac * nVFR+RandVal1)
+END IF
 
-  ! DEBUG OUTPUT
-  IF (PartInsSubSide.LT.0) THEN
-    IPWRITE(*,*) 'ERROR in CalcPartInsAdaptive: Calculated number of particles to insert below zero! PartInsSubSide: ', PartInsSubSide
-    IPWRITE(*,*) 'Species Index: ', iSpec, 'SurfaceFlux Index: ', iSF, 'iSide: ', iSide
-    IPWRITE(*,*) 'Utilized values for adaptive surface flux:'
-    IPWRITE(*,*) 'VeloVec(1:3)', VeloVec(1:3), 'Temperature', T
-    IPWRITE(*,*) 'MassIC: ', Species(iSpec)%MassIC, 'MPF: ', Species(iSpec)%MacroParticleFactor, 'dt', dt
-    SELECT CASE(Species(iSpec)%Surfaceflux(iSF)%AdaptiveType)
-    CASE(1)
-      IPWRITE(*,*) 'ElemPartDensity', ElemPartDensity
-    CASE(2)
-      IPWRITE(*,*) 'ElemPartDensity', ElemPartDensity, 'pressure', pressure
-    CASE(3)
-      IPWRITE(*,*) 'ElemPartDensity', ElemPartDensity
-      IPWRITE(*,*) 'AdaptBCBackupVelocity(1:3,SampleElemID,iSpec)', AdaptBCBackupVelocity(1:3,SampleElemID,iSpec)
-    CASE(4)
-      IPWRITE(*,*) 'ConstMassflowWeight(iSample,jSample,iSide)', Species(iSpec)%Surfaceflux(iSF)%ConstMassflowWeight(iSample,jSample,iSide)
-      IPWRITE(*,*) 'AdaptBCPartNumOut(iSpec,iSF)', AdaptBCPartNumOut(iSpec,iSF)
-      IPWRITE(*,*) 'AdaptiveMassflow', Species(iSpec)%Surfaceflux(iSF)%AdaptiveMassflow
-    END SELECT
-    CALL abort(__STAMP__,'ERROR in CalcPartInsAdaptive: PartInsSubSide.LT.0!')
-  END IF
+! DEBUG OUTPUT
+IF (PartInsSubSide.LT.0) THEN
+  IPWRITE(*,*) 'ERROR in CalcPartInsAdaptive: Calculated number of particles to insert below zero! PartInsSubSide: ', PartInsSubSide
+  IPWRITE(*,*) 'Species Index: ', iSpec, 'SurfaceFlux Index: ', iSF, 'iSide: ', iSide
+  IPWRITE(*,*) 'Utilized values for adaptive surface flux:'
+  IPWRITE(*,*) 'VeloVec(1:3)', VeloVec(1:3), 'Temperature', T
+  IPWRITE(*,*) 'MassIC: ', Species(iSpec)%MassIC, 'MPF: ', Species(iSpec)%MacroParticleFactor, 'dt', dtVar
+  SELECT CASE(Species(iSpec)%Surfaceflux(iSF)%AdaptiveType)
+  CASE(1)
+    IPWRITE(*,*) 'ElemPartDensity', ElemPartDensity
+  CASE(2)
+    IPWRITE(*,*) 'ElemPartDensity', ElemPartDensity, 'pressure', pressure
+  CASE(3)
+    IPWRITE(*,*) 'ElemPartDensity', ElemPartDensity
+    IPWRITE(*,*) 'AdaptBCBackupVelocity(1:3,SampleElemID,iSpec)', AdaptBCBackupVelocity(1:3,SampleElemID,iSpec)
+  CASE(4)
+    IPWRITE(*,*) 'ConstMassflowWeight(iSample,jSample,iSide)', Species(iSpec)%Surfaceflux(iSF)%ConstMassflowWeight(iSample,jSample,iSide)
+    IPWRITE(*,*) 'AdaptBCPartNumOut(iSpec,iSF)', AdaptBCPartNumOut(iSpec,iSF)
+    IPWRITE(*,*) 'AdaptiveMassflow', Species(iSpec)%Surfaceflux(iSF)%AdaptiveMassflow
+  END SELECT
+  CALL abort(__STAMP__,'ERROR in CalcPartInsAdaptive: PartInsSubSide.LT.0!')
+END IF
 
 END SUBROUTINE CalcPartInsAdaptive
 
@@ -1430,6 +1461,10 @@ IF(UseRotRefFrame) THEN
     IF (PositionNbr.GT.0) THEN
       ! Detect if particle is within a RotRefDomain
       PDM%InRotRefFrame(PositionNbr) = InRotRefFrameCheck(PositionNbr)
+      ! Initialize velocity in the rotational frame of reference
+      IF(PDM%InRotRefFrame(PositionNbr)) THEN
+        PartVeloRotRef(1:3,PositionNbr) = PartState(4:6,PositionNbr) - CROSS(RotRefFrameOmega(1:3),PartState(1:3,PositionNbr))
+      END IF
     END IF
   END DO
 END IF
@@ -1448,7 +1483,7 @@ USE MOD_PreProc
 ! VARIABLES
 USE MOD_Globals_Vars            ,ONLY: BoltzmannConst, Pi, ElementaryCharge, eps0
 USE MOD_TimeDisc_Vars           ,ONLY: dt,RKdtFrac
-USE MOD_Particle_Vars           ,ONLY: Species
+USE MOD_Particle_Vars           ,ONLY: Species, VarTimeStep
 USE MOD_Equation_Vars           ,ONLY: E
 USE MOD_Particle_Boundary_Vars  ,ONLY: PartBound
 ! ROUTINES
@@ -1462,9 +1497,16 @@ INTEGER, INTENT(OUT)        :: PartInsSubSide
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-REAL                        :: EFieldFace(1:3,0:PP_N,0:PP_N), EFaceMag, CurrentDensity, WallTemp, WorkFunction, RandVal1
+REAL                        :: EFieldFace(1:3,0:PP_N,0:PP_N), EFaceMag, CurrentDensity, WallTemp, WorkFunction, RandVal1, dtVar
 !===================================================================================================================================
 ASSOCIATE(SF => Species(iSpec)%Surfaceflux(iSF))
+
+! Species-specific time step
+IF(VarTimeStep%UseSpeciesSpecific) THEN
+  dtVar = dt * Species(iSpec)%TimeStepFactor
+ELSE
+  dtVar = dt
+END IF
 
 ! 1) Determine the electric field at the surface
 CALL ProlongToFace_Elementlocal(nVar=3,locSideID=iLocSide,Uvol=E(:,:,:,:,ElemID),Uface=EFieldFace)
@@ -1482,7 +1524,7 @@ CurrentDensity = CurrentDensity / ABS(Species(iSpec)%ChargeIC)
 
 ! 4) Determine the number of particles per side
 CALL RANDOM_NUMBER(RandVal1)
-PartInsSubSide = INT(CurrentDensity / Species(iSpec)%MacroParticleFactor * dt*RKdtFrac &
+PartInsSubSide = INT(CurrentDensity / Species(iSpec)%MacroParticleFactor * dtVar*RKdtFrac &
                      * SF%SurfFluxSubSideData(iSample,jSample,iSide)%nVFR + RandVal1)
 
 END ASSOCIATE
