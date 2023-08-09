@@ -29,6 +29,8 @@
       - the SEE-I model yields an emission ratio of 1 % (hence 1000 electrons should be created in this setup)
 
 - Coupled Power
+    - IMPORTANT: deactivated output of coupled Power and comparison in analysis because this value oscillates to much and is
+      skipped during comparison therefore anyway
     - parameter.ini for activating coupled Power output:
 
               CalcCoupledPower = T

@@ -263,9 +263,9 @@ Currently, only merging based on the number of particles within the cell is impl
 
 Furthermore, the spread or aggressiveness of the merge algorithm can be changed, i.e. how deep the merge extends into the mesh starting from each cell. 0 is the least aggressive merge, 3 the most aggressive merge.
 
-  Part-CellMergeSpread                  = 0
+    Part-CellMergeSpread                = 0
   
 There is also the possibility to define a maximum number of cells that can be merged. In this way, a desired "resolution" of the virtual cells can be achieved.
 
-  Part-MaxNumbCellsMerge                = 5
+    Part-MaxNumbCellsMerge              = 5
 

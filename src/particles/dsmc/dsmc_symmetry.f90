@@ -70,9 +70,10 @@ END SUBROUTINE DefineParametersParticleSymmetry
 
 SUBROUTINE DSMC_2D_InitVolumes()
 !===================================================================================================================================
-!> Routine determines a symmetry side and calculates the 2D (area faces in symmetry plane) and axisymmetric volumes (cells are
-!> revolved around the symmetry axis). The symmetry side will be used later on to determine in which two directions the quadtree
-!> shall refine the mesh, skipping the z-dimension to avoid an unnecessary refinement.
+!> Routine determines the symmetry sides and calculates the 2D (area faces in symmetry plane) and axisymmetric volumes (cells are
+!> revolved around the symmetry axis). The symmetry side (SymmetrySide array) will be used later on to determine in which two
+!> directions the quadtree shall refine the mesh, skipping the z-dimension to avoid an unnecessary refinement. Additionally,
+!> symmetry sides will be skipped during tracking (SideIsSymSide_Shared array).
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
@@ -84,16 +85,18 @@ USE MOD_Particle_Boundary_Vars  ,ONLY: PartBound
 USE MOD_Particle_Mesh_Vars      ,ONLY: GEO,LocalVolume,MeshVolume
 USE MOD_DSMC_Vars               ,ONLY: SymmetrySide
 USE MOD_Particle_Mesh_Vars      ,ONLY: ElemVolume_Shared,ElemCharLength_Shared
-USE MOD_Particle_Mesh_Vars      ,ONLY: NodeCoords_Shared,ElemSideNodeID_Shared, SideInfo_Shared
+USE MOD_Particle_Mesh_Vars      ,ONLY: NodeCoords_Shared,ElemSideNodeID_Shared, SideInfo_Shared, SideIsSymSide_Shared
 USE MOD_Mesh_Tools              ,ONLY: GetCNElemID
 USE MOD_Particle_Mesh_Tools     ,ONLY: GetGlobalNonUniqueSideID
 USE MOD_Particle_Surfaces       ,ONLY: CalcNormAndTangTriangle
 #if USE_MPI
-USE MOD_MPI_Shared              ,ONLY: BARRIER_AND_SYNC
+USE MOD_MPI_Shared
 USE MOD_MPI_Shared_Vars         ,ONLY: MPI_COMM_SHARED
-USE MOD_Particle_Mesh_Vars      ,ONLY: offsetComputeNodeElem
-USE MOD_Particle_Mesh_Vars      ,ONLY: ElemVolume_Shared_Win,ElemCharLength_Shared_Win
-USE MOD_MPI_Shared_Vars         ,ONLY: myComputeNodeRank,MPI_COMM_LEADERS_SHARED
+USE MOD_Particle_Mesh_Vars      ,ONLY: nNonUniqueGlobalSides, offsetComputeNodeElem, ElemInfo_Shared
+USE MOD_Particle_Mesh_Vars      ,ONLY: ElemVolume_Shared_Win,ElemCharLength_Shared_Win,SideIsSymSide_Shared_Win
+USE MOD_MPI_Shared_Vars         ,ONLY: myComputeNodeRank,nComputeNodeProcessors,MPI_COMM_LEADERS_SHARED
+#else
+USE MOD_Particle_Mesh_Vars      ,ONLY: nComputeNodeSides
 #endif /*USE_MPI*/
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE
@@ -103,27 +106,49 @@ USE MOD_MPI_Shared_Vars         ,ONLY: myComputeNodeRank,MPI_COMM_LEADERS_SHARED
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                         :: SideID, iLocSide, iNode, BCSideID, locElemID, CNElemID
+INTEGER                         :: SideID, iLocSide, iNode, BCSideID, locElemID, CNElemID, iSide
 REAL                            :: radius, triarea(2)
 #if USE_MPI
 REAL                            :: CNVolume
+INTEGER                         :: offsetElemCNProc
 #endif /*USE_MPI*/
 LOGICAL                         :: SymmetryBCExists
-INTEGER                         :: firstElem,lastElem
+INTEGER                         :: firstElem, lastElem, firstSide, lastSide
 !===================================================================================================================================
 
 #if USE_MPI
-FirstElem = offsetElem - offsetComputeNodeElem + 1
-LastElem  = offsetElem - offsetComputeNodeElem + nElems
+CALL Allocate_Shared((/nNonUniqueGlobalSides/),SideIsSymSide_Shared_Win,SideIsSymSide_Shared)
+CALL MPI_WIN_LOCK_ALL(0,SideIsSymSide_Shared_Win,IERROR)
 #else
-firstElem = 1
-lastElem  = nElems
+ALLOCATE(SideIsSymSide_Shared(nComputeNodeSides))
 #endif  /*USE_MPI*/
+
+! Flag of symmetry sides to be skipped during tracking
+#if USE_MPI
+  firstSide = INT(REAL( myComputeNodeRank   *nNonUniqueGlobalSides)/REAL(nComputeNodeProcessors))+1
+  lastSide  = INT(REAL((myComputeNodeRank+1)*nNonUniqueGlobalSides)/REAL(nComputeNodeProcessors))
+#else
+  firstSide = 1
+  lastSide  = nComputeNodeSides
+#endif
+
+DO iSide = firstSide, lastSide
+  SideIsSymSide_Shared(iSide) = .FALSE.
+  ! ignore non-BC sides
+  IF (SideInfo_Shared(SIDE_BCID,iSide).LE.0) CYCLE
+#if USE_MPI
+  ! ignore sides outside of halo region
+  IF (ElemInfo_Shared(ELEM_HALOFLAG,SideInfo_Shared(SIDE_ELEMID,iSide)).EQ.0) CYCLE
+#endif /*USE_MPI*/
+  IF (PartBound%TargetBoundCond(PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,iSide))).EQ.PartBound%SymmetryBC) &
+    SideIsSymSide_Shared(iSide) = .TRUE.
+END DO
 
 SymmetryBCExists = .FALSE.
 ALLOCATE(SymmetrySide(1:nElems,1:2))                ! 1: GlobalSide, 2: LocalSide
 SymmetrySide = -1
 
+! Sanity check: mesh has to be centered at z = 0
 IF(.NOT.ALMOSTEQUALRELATIVE(GEO%zmaxglob,ABS(GEO%zminglob),1e-5)) THEN
   SWRITE(*,*) 'Maximum dimension in z:', GEO%zmaxglob
   SWRITE(*,*) 'Minimum dimension in z:', GEO%zminglob
@@ -132,6 +157,7 @@ IF(.NOT.ALMOSTEQUALRELATIVE(GEO%zmaxglob,ABS(GEO%zminglob),1e-5)) THEN
     ,'ERROR: Please orient your mesh with one cell in z-direction around 0, |z_min| = z_max !')
 END IF
 
+! Calculation of the correct volume and characteristic length
 DO BCSideID=1,nBCSides
   locElemID = SideToElem(S2E_ELEM_ID,BCSideID)
   iLocSide = SideToElem(S2E_LOC_SIDE_ID,BCSideID)
@@ -183,12 +209,24 @@ IF(.NOT.SymmetryBCExists) THEN
 END IF
 
 ! LocalVolume & MeshVolume: Recalculate the volume of the mesh of a single process and the total mesh volume
-LocalVolume = SUM(ElemVolume_Shared(FirstElem:LastElem))
 #if USE_MPI
+FirstElem = offsetElem - offsetComputeNodeElem + 1
+LastElem  = offsetElem - offsetComputeNodeElem + nElems
+#else
+firstElem = 1
+lastElem  = nElems
+#endif  /*USE_MPI*/
+
+LocalVolume = SUM(ElemVolume_Shared(FirstElem:LastElem))
+
+#if USE_MPI
+CALL BARRIER_AND_SYNC(SideIsSymSide_Shared_Win ,MPI_COMM_SHARED)
 CALL BARRIER_AND_SYNC(ElemVolume_Shared_Win    ,MPI_COMM_SHARED)
 CALL BARRIER_AND_SYNC(ElemCharLength_Shared_Win,MPI_COMM_SHARED)
 ! Compute-node mesh volume
-CNVolume = SUM(ElemVolume_Shared(:))
+offsetElemCNProc = offsetElem - offsetComputeNodeElem
+CNVolume = SUM(ElemVolume_Shared(offsetElemCNProc+1:offsetElemCNProc+nElems))
+CALL MPI_ALLREDUCE(MPI_IN_PLACE,CNVolume,1,MPI_DOUBLE_PRECISION,MPI_SUM,MPI_COMM_SHARED,iError)
 IF (myComputeNodeRank.EQ.0) THEN
   ! All-reduce between node leaders
   CALL MPI_ALLREDUCE(CNVolume,MeshVolume,1,MPI_DOUBLE_PRECISION,MPI_SUM,MPI_COMM_LEADERS_SHARED,IERROR)
@@ -595,7 +633,7 @@ DO iPart = 1, RadialWeighting%ClonePartNum(DelayCounter)
     PartStateIntEn(1:2,PositionNbr) = ClonedParticles(iPart,DelayCounter)%PartStateIntEn(1:2)
     IF(DSMC%ElectronicModel.GT.0) THEN
       PartStateIntEn(3,PositionNbr) = ClonedParticles(iPart,DelayCounter)%PartStateIntEn(3)
-      IF ((DSMC%ElectronicModel.EQ.2).AND.(.NOT.((SpecDSMC(ClonedParticles(iPart,DelayCounter)%Species)%InterID.EQ.4) & 
+      IF ((DSMC%ElectronicModel.EQ.2).AND.(.NOT.((SpecDSMC(ClonedParticles(iPart,DelayCounter)%Species)%InterID.EQ.4) &
           .OR.SpecDSMC(ClonedParticles(iPart,DelayCounter)%Species)%FullyIonized))) THEN
         IF(ALLOCATED(ElectronicDistriPart(PositionNbr)%DistriFunc)) DEALLOCATE(ElectronicDistriPart(PositionNbr)%DistriFunc)
         ALLOCATE(ElectronicDistriPart(PositionNbr)%DistriFunc(1:SpecDSMC(ClonedParticles(iPart,DelayCounter)%Species)%MaxElecQuant))
@@ -886,7 +924,7 @@ IF (Coll_pData(iPair)%CRela2.EQ.0.0) THEN
                              + (PartState(5,iPart_p1) - PartState(5,iPart_p2))**2 &
                              + (PartState(6,iPart_p1) - PartState(6,iPart_p2))**2
   ELSE IF (iPair.LT.nPair) THEN
-    IF (.NOT.Coll_pData(iPair+1)%NeedForRec) THEN 
+    IF (.NOT.Coll_pData(iPair+1)%NeedForRec) THEN
     ! "Partner-Tausch": if there are pairs ahead in the pairing list, the next is pair is broken up and collision partners
     ! are swapped
       CollInf%Coll_CaseNum(Coll_pData(iPair)%PairType) = CollInf%Coll_CaseNum(Coll_pData(iPair)%PairType) - 1

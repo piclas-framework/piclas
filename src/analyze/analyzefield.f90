@@ -63,6 +63,7 @@ USE MOD_Globals
 USE MOD_Preproc
 USE MOD_Analyze_Vars          ,ONLY: DoFieldAnalyze,CalcEpot,WEl
 USE MOD_Analyze_Vars          ,ONLY: CalcBoundaryFieldOutput,BFO
+USE MOD_Mesh_Vars             ,ONLY: BoundaryName
 #if (PP_nVar>=6)
 USE MOD_Analyze_Vars          ,ONLY: CalcPoyntingInt,nPoyntingIntPlanes,PosPoyntingInt
 #endif /*PP_nVar>=6*/
@@ -73,9 +74,9 @@ USE MOD_Particle_Analyze_Vars ,ONLY: IsRestart
 USE MOD_Restart_Vars          ,ONLY: DoRestart
 USE MOD_Dielectric_Vars       ,ONLY: DoDielectric
 #if USE_HDG
-USE MOD_HDG_Vars              ,ONLY: HDGNorm,iterationTotal,RunTimeTotal
+USE MOD_HDG_Vars              ,ONLY: HDGNorm,iterationTotal,RunTimeTotal,UseFPC,FPC,UseEPC,EPC
 USE MOD_Analyze_Vars          ,ONLY: AverageElectricPotential,CalcAverageElectricPotential,EDC,CalcElectricTimeDerivative
-USE MOD_Mesh_Vars             ,ONLY: BoundaryName
+USE MOD_TimeDisc_Vars         ,ONLY: dt
 #endif /*USE_HDG*/
 #ifdef PARTICLES
 USE MOD_PICInterpolation_Vars ,ONLY: DoInterpolation
@@ -104,7 +105,7 @@ INTEGER,PARAMETER  :: helpInt=0
 #endif /*PP_nVar=8*/
 #if USE_HDG
 INTEGER,PARAMETER  :: helpInt2=4
-INTEGER            :: iEDCBC
+INTEGER            :: iEDCBC,iUniqueFPCBC,iUniqueEPCBC
 #else
 INTEGER,PARAMETER  :: helpInt2=0
 #endif /*USE_HDG*/
@@ -163,6 +164,10 @@ IF(MPIROOT)THEN
       IF(CalcAverageElectricPotential) nOutputVarTotal = nOutputVarTotal + 1
       !-- Electric displacement current
       IF(CalcElectricTimeDerivative) nOutputVarTotal = nOutputVarTotal + EDC%NBoundaries
+      !-- Floating boundary condition
+      IF(UseFPC) nOutputVarTotal = nOutputVarTotal + 2*FPC%nUniqueFPCBounds ! Charge and Voltage on each FPC
+      !-- Electric potential condition
+      IF(UseEPC) nOutputVarTotal = nOutputVarTotal + 2*EPC%nUniqueEPCBounds ! Current and Voltage on each EPC
 #endif /*USE_HDG*/
 #if (PP_nVar==8)
       IF(.NOT.CalcEpot) nOutputVarTotal = nOutputVarTotal - 5
@@ -211,14 +216,39 @@ IF(MPIROOT)THEN
           WRITE(tmpStr(nOutputVarTotal),'(A,I0.3,A)')delimiter//'"',nOutputVarTotal,'-'//TRIM(StrVarNameTmp)//'"'
         END DO ! iEDCBC = 1, EDC%NBoundaries
       END IF
+
+      !-- Floating boundary condition
+      IF(UseFPC)THEN
+        DO iUniqueFPCBC = 1, FPC%nUniqueFPCBounds
+          nOutputVarTotal = nOutputVarTotal + 1
+          WRITE(StrVarNameTmp,'(A,I0.3)') 'FPC-Charge-BCState-',FPC%BCState(iUniqueFPCBC)
+          WRITE(tmpStr(nOutputVarTotal),'(A,I0.3,A)')delimiter//'"',nOutputVarTotal,'-'//TRIM(StrVarNameTmp)//'"'
+          nOutputVarTotal = nOutputVarTotal + 1
+          WRITE(StrVarNameTmp,'(A,I0.3)') 'FPC-Voltage-BCState-',FPC%BCState(iUniqueFPCBC)
+          WRITE(tmpStr(nOutputVarTotal),'(A,I0.3,A)')delimiter//'"',nOutputVarTotal,'-'//TRIM(StrVarNameTmp)//'"'
+        END DO ! iUniqueFPCBC = 1, FPC%nUniqueFPCBounds
+      END IF
+
+      !-- Electric potential condition
+      IF(UseEPC)THEN
+        DO iUniqueEPCBC = 1, EPC%nUniqueEPCBounds
+          nOutputVarTotal = nOutputVarTotal + 1
+          WRITE(StrVarNameTmp,'(A,I0.3)') 'EPC-Current-BCState-',EPC%BCState(iUniqueEPCBC)
+          WRITE(tmpStr(nOutputVarTotal),'(A,I0.3,A)')delimiter//'"',nOutputVarTotal,'-'//TRIM(StrVarNameTmp)//'"'
+          nOutputVarTotal = nOutputVarTotal + 1
+          WRITE(StrVarNameTmp,'(A,I0.3)') 'EPC-Voltage-BCState-',EPC%BCState(iUniqueEPCBC)
+          WRITE(tmpStr(nOutputVarTotal),'(A,I0.3,A)')delimiter//'"',nOutputVarTotal,'-'//TRIM(StrVarNameTmp)//'"'
+        END DO ! iUniqueEPCBC = 1, EPC%nUniqueEPCBounds
+      END IF
 #endif /*USE_HDG*/
 
       ! Add BoundaryFieldOutput for each boundary that is required
       IF(CalcBoundaryFieldOutput)THEN
         DO iBoundary=1,BFO%NFieldBoundaries
           nOutputVarTotal = nOutputVarTotal + 1
-          WRITE(StrVarNameTmp,'(A,I0.3)') 'BFO-boundary',iBoundary
-          WRITE(tmpStr(nOutputVarTotal),'(A,I0.3,A)')delimiter//'"',nOutputVarTotal,'-'//TRIM(StrVarNameTmp)//'"'
+          WRITE(StrVarNameTmp,'(A,I0.3)') 'BFO-boundary-',iBoundary
+          WRITE(tmpStr(nOutputVarTotal),'(A,I0.3,A)')delimiter//'"',nOutputVarTotal,'-'//TRIM(StrVarNameTmp)//'-'//&
+              TRIM(BoundaryName(BFO%FieldBoundaries(iBoundary)))//'"'
         END DO
       END IF
 
@@ -318,11 +348,27 @@ IF(MPIROOT)THEN
       WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',',EDC%Current(iEDCBC)
     END DO ! iEDCBC = 1, EDC%NBoundaries
   END IF
+
+  !-- Floating boundary condition
+  IF(UseFPC)THEN
+    DO iUniqueFPCBC = 1, FPC%nUniqueFPCBounds
+      WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',',FPC%Charge(iUniqueFPCBC)
+      WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',',FPC%Voltage(iUniqueFPCBC)
+    END DO !iUniqueFPCBC = 1, FPC%nUniqueFPCBounds
+  END IF
+
+  !-- Electric potential condition
+  IF(UseEPC)THEN
+    DO iUniqueEPCBC = 1, EPC%nUniqueEPCBounds
+      WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',',-EPC%Charge(iUniqueEPCBC)/dt
+      WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',',EPC%Voltage(iUniqueEPCBC)
+    END DO !iUniqueEPCBC = 1, EPC%nUniqueEPCBounds
+  END IF
 #endif /*USE_HDG*/
   ! ! Add BoundaryFieldOutput for each boundary that is required
   IF(CalcBoundaryFieldOutput)THEN
     DO iBoundary=1,BFO%NFieldBoundaries
-      CALL CalculateBoundaryFieldOutput(iBoundary,Time,BoundaryFieldOutput)
+      CALL CalculateBoundaryFieldOutput(BFO%FieldBoundaries(iBoundary),Time,BoundaryFieldOutput)
       WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',',BoundaryFieldOutput
     END DO
   END IF ! CalcBoundaryFieldOutput
@@ -1752,7 +1798,7 @@ END SUBROUTINE CalculateElectricDisplacementCurrentSurface
 #endif /*USE_HDG*/
 
 !===================================================================================================================================
-!> Determine the field boundary condition values for the given iBC
+!> Determine the field boundary output (BFO) values for the given iBC
 !===================================================================================================================================
 SUBROUTINE CalculateBoundaryFieldOutput(iBC,Time,BoundaryFieldOutput)
 ! MODULES
@@ -1788,10 +1834,12 @@ ASSOCIATE( x => (/0., 0., 0./) )
     CALL ExactFunc(BCState , x , BoundaryFieldOutput , t=Time)
   CASE(4) ! exact BC = Dirichlet BC !! Zero potential
     BoundaryFieldOutput = 0.
-  CASE(5) ! exact BC = Dirichlet BC !! ExactFunc via RefState (time is optional)
+  CASE(5,51,52,60) ! exact BC = Dirichlet BC !! ExactFunc via RefState (time is optional)
     CALL ExactFunc(  -1    , x , BoundaryFieldOutput , t=Time  , iRefState=BCState)
   CASE(6) ! exact BC = Dirichlet BC !! ExactFunc via RefState (Time is optional)
     CALL ExactFunc(  -2    , x , BoundaryFieldOutput , t=time  , iRefState=BCState)
+  CASE(50) ! exact BC = Dirichlet BC !! ExactFunc via bias voltage DC
+    CALL ExactFunc(  -5    , x , BoundaryFieldOutput )
   END SELECT ! BCType
 END ASSOCIATE
 #else

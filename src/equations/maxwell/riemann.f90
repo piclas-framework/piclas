@@ -66,9 +66,12 @@ SUBROUTINE Riemann(Flux_Master,Flux_Slave,U_Master,U_Slave,NormVec,SideID)
 ! MODULES
 USE MOD_PreProc
 USE MOD_Dielectric_vars ,ONLY: Dielectric_Master
-USE MOD_Globals         ,ONLY: abort,myrank,UNIT_StdOut
+USE MOD_Globals         ,ONLY: abort,UNIT_StdOut
 USE MOD_PML_vars        ,ONLY: PMLnVar
 USE MOD_Interfaces_Vars ,ONLY: InterfaceRiemann
+#if USE_MPI
+USE MOD_Globals         ,ONLY: myrank
+#endif /*USE_MPI*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------

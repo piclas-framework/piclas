@@ -272,9 +272,8 @@ USE MOD_Particle_Emission_Init     ,ONLY: InitialParticleInserting
 USE MOD_Particle_SurfFlux_Init     ,ONLY: InitializeParticleSurfaceflux
 USE MOD_SurfaceModel_Init          ,ONLY: InitSurfaceModel
 USE MOD_Particle_Surfaces          ,ONLY: InitParticleSurfaces
-USE MOD_Particle_Mesh_Vars         ,ONLY: GEO
 USE MOD_Particle_Sampling_Adapt    ,ONLY: InitAdaptiveBCSampling
-USE MOD_Particle_Boundary_Init     ,ONLY: InitParticleBoundaryRotPeriodic, InitAdaptiveWallTemp
+USE MOD_Particle_Boundary_Init     ,ONLY: InitRotPeriodicMapping, InitAdaptiveWallTemp, InitRotPeriodicInterPlaneMapping
 USE MOD_DSMC_BGGas                 ,ONLY: BGGas_InitRegions
 #if USE_MPI
 USE MOD_Particle_MPI               ,ONLY: InitParticleCommSize
@@ -339,9 +338,10 @@ END IF
 
 ! Initialize surface sampling / rotational periodic mapping
 ! (the following IF arguments have to be considered in FinalizeParticleBoundarySampling as well)
-IF (WriteMacroSurfaceValues.OR.DSMC%CalcSurfaceVal.OR.(ANY(PartBound%Reactive)).OR.(nPorousBC.GT.0).OR.GEO%RotPeriodicBC) THEN
+IF (WriteMacroSurfaceValues.OR.DSMC%CalcSurfaceVal.OR.(ANY(PartBound%Reactive)).OR.(nPorousBC.GT.0).OR.PartBound%UseRotPeriodicBC) THEN
   CALL InitParticleBoundarySampling()
-  IF(GEO%RotPeriodicBC) CALL InitParticleBoundaryRotPeriodic()
+  IF(PartBound%UseRotPeriodicBC) CALL InitRotPeriodicMapping()
+  IF(PartBound%UseInterPlaneBC)  CALL InitRotPeriodicInterPlaneMapping()
   CALL InitAdaptiveWallTemp()
 END IF
 
@@ -370,8 +370,9 @@ ELSE IF (WriteMacroVolumeValues.OR.WriteMacroSurfaceValues) THEN
   DSMC%ElectronicModel = 0
 END IF
 
+! Both routines have to be called AFTER InitializeVariables and InitDSMC
+CALL InitPartDataSize()
 #if USE_MPI
-! has to be called AFTER InitializeVariables and InitDSMC
 CALL InitParticleCommSize()
 #endif
 
@@ -412,7 +413,7 @@ USE MOD_DSMC_AmbipolarDiffusion,ONLY: InitializeVariablesAmbipolarDiff
 USE MOD_TimeDisc_Vars          ,ONLY: ManualTimeStep,useManualTimeStep
 #if defined(PARTICLES) && USE_HDG
 USE MOD_Part_BR_Elecron_Fluid  ,ONLY: InitializeVariablesElectronFluidRegions
-USE MOD_Equation_Vars          ,ONLY: CalcPCouplElectricPotential
+USE MOD_HDG_Vars               ,ONLY: UseCoupledPowerPotential
 #endif /*defined(PARTICLES) && USE_HDG*/
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
@@ -463,7 +464,7 @@ DoDeposition    = GETLOGICAL('PIC-DoDeposition')
 ! init DSMC determines whether DSMC%UseOctree is true or false)
 DoInterpolation = GETLOGICAL('PIC-DoInterpolation')
 #if defined(PARTICLES) && USE_HDG
-IF(CalcPCouplElectricPotential.AND.(.NOT.DoInterpolation)) CALL abort(__STAMP__,'BoundaryType = (/2,2/) requires DoInterpolation=T')
+IF(UseCoupledPowerPotential.AND.(.NOT.DoInterpolation)) CALL abort(__STAMP__,'Coupled power potential requires DoInterpolation=T')
 #endif /*defined(PARTICLES) && USE_HDG*/
 #ifdef CODE_ANALYZE
 ! Check if an analytic function is to be used for interpolation
@@ -823,7 +824,7 @@ USE MOD_ReadInTools
 USE MOD_Particle_Vars
 USE MOD_DSMC_Vars              ,ONLY: DSMC
 USE MOD_TimeDisc_Vars          ,ONLY: TEnd
-USE MOD_Particle_Boundary_Vars ,ONLY: AdaptWallTemp
+USE MOD_Particle_Boundary_Vars ,ONLY: PartBound
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Vars       ,ONLY: PerformLoadBalance
 #endif /*USE_LOADBALANCE*/
@@ -880,7 +881,7 @@ ELSE
 END IF
 
 ! Adaptive wall temperature should not be used with continuous sampling with multiple outputs as the sample is not reset
-IF(AdaptWallTemp) THEN
+IF(PartBound%AdaptWallTemp) THEN
   IF (DSMC%NumOutput.GT.1) THEN
     CALL abort(__STAMP__, &
       'ERROR: Enabled adaptation of the wall temperature and multiple outputs during a continuous sample is not supported!')
@@ -1386,11 +1387,11 @@ SDEALLOCATE(PartIsImplicit)
 SDEALLOCATE(PartPosRef)
 SDEALLOCATE(PartState)
 SDEALLOCATE(LastPartPos)
+SDEALLOCATE(PartVeloRotRef)
 SDEALLOCATE(PartSpecies)
 SDEALLOCATE(Pt)
 SDEALLOCATE(PDM%ParticleInside)
 SDEALLOCATE(PDM%InRotRefFrame)
-SDEALLOCATE(PDM%nextFreePosition)
 SDEALLOCATE(PDM%nextFreePosition)
 SDEALLOCATE(PDM%dtFracPush)
 SDEALLOCATE(PDM%IsNewPart)
@@ -1399,6 +1400,7 @@ SDEALLOCATE(vMPFSplitThreshold)
 SDEALLOCATE(CellEelec_vMPF)
 SDEALLOCATE(CellEvib_vMPF)
 SDEALLOCATE(PartMPF)
+SDEALLOCATE(InterPlanePartIndx)
 SDEALLOCATE(Species)
 SDEALLOCATE(SpecReset)
 SDEALLOCATE(IMDSpeciesID)
@@ -1416,6 +1418,7 @@ SDEALLOCATE(seeds)
 SDEALLOCATE(PartPosLandmark)
 SDEALLOCATE(RotRefFramRegion)
 SDEALLOCATE(VirtMergedCells)
+SDEALLOCATE(PartDataVarNames)
 #if USE_MPI
 SDEALLOCATE(SendElemShapeID)
 SDEALLOCATE(ShapeMapping)
@@ -1544,6 +1547,12 @@ CHARACTER(LEN=5)   :: hilf
 UseRotRefFrame = GETLOGICAL('Part-UseRotationalReferenceFrame')
 
 IF(UseRotRefFrame) THEN
+  ! Abort for other timedisc except DSMC/BGK
+#if (PP_TimeDiscMethod!=4) && (PP_TimeDiscMethod!=400)
+  CALL abort(__STAMP__,'ERROR Rotational Reference Frame not implemented for the selected simulation method (only for DSMC/BGK)!')
+#endif
+  ALLOCATE(PartVeloRotRef(1:3,1:PDM%maxParticleNumber))
+  PartVeloRotRef = 0.0
   RotRefFrameAxis = GETINT('Part-RotRefFrame-Axis')
   RotRefFrameFreq = GETREAL('Part-RotRefFrame-Frequency')
   omegaTemp = 2.*PI*RotRefFrameFreq
@@ -1573,5 +1582,77 @@ END IF
 
 END SUBROUTINE InitializeVariablesRotationalRefFrame
 
+
+SUBROUTINE InitPartDataSize()
+!===================================================================================================================================
+!> Initialize the PartDataSize variable (required for output of PartState and other variables within the PartData container)
+!===================================================================================================================================
+! MODULES
+USE MOD_Particle_Vars ,ONLY: PartDataSize, PartDataVarNames, usevMPF, UseRotRefFrame
+USE MOD_DSMC_Vars     ,ONLY: useDSMC, CollisMode, DSMC
+! IMPLICIT VARIABLE HANDLING
+ IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER               :: iPos
+!===================================================================================================================================
+! Position + Velocity + Species Index
+PartDataSize = 7
+! Velocity in rotational frame of reference
+IF(UseRotRefFrame) PartDataSize = PartDataSize + 3
+! DSMC-specific variables
+IF (useDSMC) THEN
+  IF(CollisMode.GT.1) THEN
+    ! Internal energy modelling: vibrational + rotational
+    PartDataSize = PartDataSize + 2
+    ! Electronic energy modelling
+    IF(DSMC%ElectronicModel.GT.0) PartDataSize = PartDataSize + 1
+  END IF
+END IF
+! Variable particle weighting
+IF(usevMPF) PartDataSize = PartDataSize + 1
+
+! Initialize the VarNames
+ALLOCATE(PartDataVarNames(PartDataSize))
+PartDataVarNames(1)='ParticlePositionX'
+PartDataVarNames(2)='ParticlePositionY'
+PartDataVarNames(3)='ParticlePositionZ'
+PartDataVarNames(4)='VelocityX'
+PartDataVarNames(5)='VelocityY'
+PartDataVarNames(6)='VelocityZ'
+PartDataVarNames(7)='Species'
+iPos = 7
+! Velocity in rotational frame of reference
+IF(UseRotRefFrame) THEN
+  PartDataVarNames(1+iPos)='VelocityRotRefX'
+  PartDataVarNames(2+iPos)='VelocityRotRefY'
+  PartDataVarNames(3+iPos)='VelocityRotRefZ'
+  iPos = iPos + 3
+END IF
+! DSMC-specific variables
+IF(useDSMC)THEN
+  IF(CollisMode.GT.1) THEN
+    ! Internal energy modelling: vibrational + rotational
+    PartDataVarNames(1+iPos)='Vibrational'
+    PartDataVarNames(2+iPos)='Rotational'
+    iPos=iPos+2
+    ! Electronic energy modelling
+    IF(DSMC%ElectronicModel.GT.0) THEN
+      PartDataVarNames(1+iPos)='Electronic'
+      iPos=iPos+1
+    END IF
+  END IF
+END IF
+! Variable particle weighting
+IF (usevMPF) THEN
+  PartDataVarNames(1+iPos)='MPF'
+  iPos=iPos+1
+END IF
+
+END SUBROUTINE InitPartDataSize
 
 END MODULE MOD_ParticleInit

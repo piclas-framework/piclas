@@ -68,6 +68,7 @@ IMPLICIT NONE
 CALL prms%SetSection("Analyze")
 ! -------------------------
 CALL prms%CreateLogicalOption('DoCalcErrorNorms'     , 'Set true to compute L2 and LInf error norms at analyze step.','.FALSE.')
+CALL prms%CreateLogicalOption('OutputErrorNormsToH5' , 'Set true to write the analytical solution, the L2 and LInf error norms at analyze step to .h5 state file.','.FALSE.')
 CALL prms%CreateRealOption(   'Analyze_dt'           , 'Specifies time interval at which analysis routines are called.','0.')
 CALL prms%CreateIntOption(    'nSkipAnalyze'         , '(Skip Analyze_dt)','1')
 
@@ -153,13 +154,13 @@ USE MOD_Preproc
 USE MOD_AnalyzeField          ,ONLY: GetPoyntingIntPlane
 USE MOD_Analyze_Vars          ,ONLY: CalcPoyntingInt
 #endif /*PP_nVar>=6*/
-USE MOD_Analyze_Vars          ,ONLY: AnalyzeInitIsDone,Analyze_dt,DoCalcErrorNorms
+USE MOD_Analyze_Vars          ,ONLY: AnalyzeInitIsDone,Analyze_dt,DoCalcErrorNorms,OutputErrorNormsToH5
 USE MOD_Analyze_Vars          ,ONLY: CalcPointsPerWavelength,PPWCell,OutputTimeFixed,FieldAnalyzeStep
 USE MOD_Analyze_Vars          ,ONLY: AnalyzeCount,AnalyzeTime,DoMeasureAnalyzeTime
 USE MOD_Analyze_Vars          ,ONLY: doFieldAnalyze,CalcEpot
 USE MOD_Analyze_Vars          ,ONLY: CalcBoundaryFieldOutput,BFO
 USE MOD_Analyze_Vars          ,ONLY: nSkipAnalyze,SkipAnalyzeWindow,SkipAnalyzeSwitchTime,nSkipAnalyzeSwitch
-USE MOD_Interpolation_Vars    ,ONLY: InterpolationInitIsDone
+USE MOD_Interpolation_Vars    ,ONLY: InterpolationInitIsDone,Uex,NAnalyze
 USE MOD_IO_HDF5               ,ONLY: AddToElemData,ElementOut
 USE MOD_Mesh_Vars             ,ONLY: nElems
 USE MOD_ReadInTools           ,ONLY: GETINT,GETREAL,GETLOGICAL,PrintOption,GETINTARRAY
@@ -182,6 +183,7 @@ USE MOD_PICInterpolation_Vars ,ONLY: useAlgebraicExternalField,AlgebraicExternal
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Vars ,ONLY: PerformLoadBalance
 #endif /*USE_LOADBALANCE*/
+USE MOD_Mesh_Vars             ,ONLY: BoundaryType,BoundaryName
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
@@ -189,7 +191,7 @@ IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 CHARACTER(LEN=40)   :: DefStr
-INTEGER             :: iElem,CNElemID
+INTEGER             :: iElem,CNElemID,iBoundary,BCType,BCState,iBC
 REAL                :: PPWCellMax,PPWCellMin
 !===================================================================================================================================
 IF ((.NOT.InterpolationInitIsDone).OR.AnalyzeInitIsDone) THEN
@@ -201,6 +203,14 @@ LBWRITE(UNIT_stdOut,'(A)') ' INIT ANALYZE...'
 
 ! Get logical for calculating the error norms L2 and LInf
 DoCalcErrorNorms = GETLOGICAL('DoCalcErrorNorms')
+
+IF(DoCalcErrorNorms)THEN
+  ! Get logical for writing the analytical solution, the error norms L2 and LInf to .h5
+  OutputErrorNormsToH5 = GETLOGICAL('OutputErrorNormsToH5')
+  ! Allocate container for exact solution (Gauss-Lobatto nodes)
+  ALLOCATE(Uex(1:PP_nVar,0:NAnalyze,0:NAnalyze,0:NAnalyze,1:nElems))
+  Uex = 0.
+END IF ! DoCalcErrorNorms
 
 ! Get the time step for performing analyzes and integer for skipping certain steps
 WRITE(DefStr,WRITEFORMAT) TEnd
@@ -278,6 +288,14 @@ IF(CalcBoundaryFieldOutput)THEN
   DoFieldAnalyze = .TRUE.
   BFO%NFieldBoundaries = GETINT('BFO-NFieldBoundaries')
   BFO%FieldBoundaries  = GETINTARRAY('BFO-FieldBoundaries',BFO%NFieldBoundaries)
+  DO iBoundary=1,BFO%NFieldBoundaries
+    iBC = BFO%FieldBoundaries(iBoundary)
+    IF(iBC.GT.SIZE(BoundaryName)) CALL abort(__STAMP__,'BFO-FieldBoundaries BC index is too large: ',IntInfoOpt=iBC)
+    BCType  = BoundaryType(iBC,BC_TYPE)
+    BCState = BoundaryType(iBC,BC_STATE)
+    LBWRITE(UNIT_stdOut,'(A,I0,A,I0,A)')&
+       ' Activated BFO of electric potential for ['//TRIM(BoundaryName(iBC))//'] with BCType [',BCType,'] and BCState [',BCState,']'
+  END DO
 END IF ! CalcBoundaryFieldOutput
 
 ! Get logical for measurement of time spent in analyze routines
@@ -344,9 +362,10 @@ USE MOD_ChangeBasis        ,ONLY: ChangeBasis3D
 USE MOD_DG_Vars            ,ONLY: U
 USE MOD_Equation           ,ONLY: ExactFunc
 USE MOD_Equation_Vars      ,ONLY: IniExactFunc
-USE MOD_Interpolation_Vars ,ONLY: NAnalyze,Vdm_GaussN_NAnalyze,wAnalyze
+USE MOD_Interpolation_Vars ,ONLY: NAnalyze,Vdm_GaussN_NAnalyze,wAnalyze,Uex
 USE MOD_Mesh_Vars          ,ONLY: Elem_xGP,sJ
 USE MOD_Particle_Mesh_Vars ,ONLY: MeshVolume
+USE MOD_Analyze_Vars       ,ONLY: OutputErrorNormsToH5
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
@@ -361,7 +380,7 @@ REAL,INTENT(OUT)              :: L_Inf_Error(PP_nVar) !< LInf error of the solut
 !----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER                       :: iElem,k,l,m
-REAL                          :: U_exact(PP_nVar)
+REAL                          :: U_exact(1:PP_nVar,0:NAnalyze,0:NAnalyze,0:NAnalyze)
 REAL                          :: U_NAnalyze(1:PP_nVar,0:NAnalyze,0:NAnalyze,0:NAnalyze)
 REAL                          :: Coords_NAnalyze(3,0:NAnalyze,0:NAnalyze,0:NAnalyze)
 REAL                          :: J_NAnalyze(1,0:NAnalyze,0:NAnalyze,0:NAnalyze)
@@ -383,17 +402,22 @@ DO iElem=1,PP_nElems
     DO l=0,NAnalyze
       DO k=0,NAnalyze
 #if USE_HDG
-        CALL ExactFunc(IniExactFunc,Coords_NAnalyze(1:3,k,l,m),U_exact,ElemID=iElem)
+        CALL ExactFunc(IniExactFunc,Coords_NAnalyze(1:3,k,l,m),U_exact(1:PP_nVar,k,l,m),ElemID=iElem)
 #else
-        CALL ExactFunc(IniExactFunc,time,0,Coords_NAnalyze(1:3,k,l,m),U_exact)
+        CALL ExactFunc(IniExactFunc,time,0,Coords_NAnalyze(1:3,k,l,m),U_exact(1:PP_nVar,k,l,m))
 #endif
-        L_Inf_Error = MAX(L_Inf_Error,abs(U_NAnalyze(:,k,l,m) - U_exact))
+        L_Inf_Error = MAX(L_Inf_Error,abs(U_NAnalyze(:,k,l,m) - U_exact(1:PP_nVar,k,l,m)))
         IntegrationWeight = wAnalyze(k)*wAnalyze(l)*wAnalyze(m)*J_NAnalyze(1,k,l,m)
         ! To sum over the elements, We compute here the square of the L_2 error
-        L_2_Error = L_2_Error+(U_NAnalyze(:,k,l,m) - U_exact)*(U_NAnalyze(:,k,l,m) - U_exact)*IntegrationWeight
+        L_2_Error = L_2_Error+(U_NAnalyze(:,k,l,m) - U_exact(1:PP_nVar,k,l,m))*&
+                              (U_NAnalyze(:,k,l,m) - U_exact(1:PP_nVar,k,l,m))*IntegrationWeight
       END DO ! k
     END DO ! l
   END DO ! m
+  ! Output the exact solution, the L2 error and LInf error to .h5 (in NodeTypeGL = 'GAUSS-LOBATTO')
+  IF(OutputErrorNormsToH5)THEN
+    Uex(1:PP_nVar,:,:,:,iElem) = U_exact(1:PP_nVar,0:NAnalyze,0:NAnalyze,0:NAnalyze)
+  END IF ! OutputErrorNormsToH5
 END DO ! iElem=1,PP_nElems
 #if USE_MPI
   IF(MPIroot)THEN
@@ -802,18 +826,19 @@ SUBROUTINE FinalizeAnalyze()
 !===================================================================================================================================
 ! MODULES
 #if PP_nVar>=6
-USE MOD_Analyze_Vars     ,ONLY: CalcPoyntingInt
-USE MOD_AnalyzeField     ,ONLY: FinalizePoyntingInt
+USE MOD_Analyze_Vars       ,ONLY: CalcPoyntingInt
+USE MOD_AnalyzeField       ,ONLY: FinalizePoyntingInt
 #endif /*PP_nVar>=6*/
-USE MOD_Analyze_Vars     ,ONLY: PPWCell,AnalyzeInitIsDone
-USE MOD_TimeAverage_Vars ,ONLY: doCalcTimeAverage
-USE MOD_TimeAverage      ,ONLY: FinalizeTimeAverage
+USE MOD_Analyze_Vars       ,ONLY: PPWCell,AnalyzeInitIsDone
+USE MOD_TimeAverage_Vars   ,ONLY: doCalcTimeAverage
+USE MOD_TimeAverage        ,ONLY: FinalizeTimeAverage
 #if USE_HDG
-USE MOD_Analyze_Vars     ,ONLY: CalcAverageElectricPotential,EDC
-USE MOD_AnalyzeField     ,ONLY: FinalizeAverageElectricPotential
-USE MOD_Analyze_Vars     ,ONLY: CalcElectricTimeDerivative
+USE MOD_Analyze_Vars       ,ONLY: CalcAverageElectricPotential,EDC
+USE MOD_AnalyzeField       ,ONLY: FinalizeAverageElectricPotential
+USE MOD_Analyze_Vars       ,ONLY: CalcElectricTimeDerivative
 #endif /*USE_HDG*/
-! IMPLICIT VARIABLE HANDLINGDGInitIsDone
+USE MOD_Interpolation_Vars ,ONLY: UEx
+! IMPLICIT VARIABLE HANDLINGDG
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
@@ -837,6 +862,7 @@ END IF ! CalcElectricTimeDerivative
 #endif /*USE_HDG*/
 IF(doCalcTimeAverage) CALL FinalizeTimeAverage
 SDEALLOCATE(PPWCell)
+SDEALLOCATE(UEx)
 AnalyzeInitIsDone = .FALSE.
 END SUBROUTINE FinalizeAnalyze
 
@@ -1047,7 +1073,7 @@ IF(MOD(iter,PartAnalyzeStep).NE.0 .AND. OutPutHDF5)       DoPerformPartAnalyze=.
 IF(DoRestart .AND. iter.EQ.0) DoPerformPartAnalyze=.FALSE.
 ! Finally, remove duplicates for last iteration
 ! This step is needed, because PerformAnalyze is called twice within the iterations
-IF(FirstOrLastIter .AND. .NOT.OutPutHDF5 .AND.iter.NE.0) DoPerformPartAnalyze=.FALSE.
+IF(FirstOrLastIter.AND.(.NOT.OutPutHDF5).AND.(iter.NE.0)) DoPerformPartAnalyze=.FALSE.
 
 ! SurfaceAnalyzeStep
 ! 2) normal analyze at analyze step
@@ -1135,6 +1161,11 @@ END IF
 ! PIC, DSMC and other Particle-based Solvers
 !----------------------------------------------------------------------------------------------------------------------------------
 #ifdef PARTICLES
+! The following if clause might be simplified
+IF((OutPutHDF5.OR.FirstOrLastIter) .AND. .NOT.(FirstOrLastIter.AND.(.NOT.OutPutHDF5).AND.(iter.NE.0))) CALL CalculatePartElemData()
+#endif /*PARTICLES*/
+
+#ifdef PARTICLES
 IF(DoPartAnalyze.AND.DoPerformPartAnalyze)           CALL AnalyzeParticles(OutputTime)
 IF(DoPerformSurfaceAnalyze)                          CALL AnalyzeSurface(OutputTime)
 IF(TrackParticlePosition.AND.DoPerformPartAnalyze)   CALL WriteParticleTrackingData(OutputTime,iter) ! new function
@@ -1143,10 +1174,6 @@ IF(DoInterpolationAnalytic.AND.DoPerformPartAnalyze) CALL AnalyticParticleMoveme
 #endif /*CODE_ANALYZE*/
 #endif /*PARTICLES*/
 
-#ifdef PARTICLES
-! OutPutHDF5 should be sufficient here
-IF(OutPutHDF5 .OR. FirstOrLastIter) CALL CalculatePartElemData()
-#endif /*PARTICLES*/
 
 !----------------------------------------------------------------------------------------------------------------------------------
 ! DSMC
@@ -1442,10 +1469,10 @@ END SUBROUTINE CodeAnalyzeOutput
 !===================================================================================================================================
 SUBROUTINE InitCalcElectricTimeDerivativeSurface()
 ! MODULES
-USE MOD_Globals  ! ,ONLY: MPIRoot,iError,myrank,UNIT_stdOut,MPI_COMM_WORLD
+USE MOD_Globals
 USE MOD_Preproc
 USE MOD_Mesh_Vars        ,ONLY: nBCs,BoundaryType,BoundaryName,nBCSides,BC
-USE MOD_Analyze_Vars     ,ONLY: DoSurfModelAnalyze,CalcElectricTimeDerivative,EDC
+USE MOD_Analyze_Vars     ,ONLY: DoFieldAnalyze,CalcElectricTimeDerivative,EDC
 USE MOD_Equation_Vars    ,ONLY: Et
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Vars ,ONLY: PerformLoadBalance
@@ -1479,7 +1506,7 @@ END DO
 IF(EDC%NBoundaries.EQ.0) RETURN
 
 ! Automatically activate surface model analyze flag
-DoSurfModelAnalyze = .TRUE.
+DoFieldAnalyze = .TRUE.
 
 ! 2.) Create Mapping from electric displacement current BC index to field BC index
 ALLOCATE(EDC%FieldBoundaries(EDC%NBoundaries))

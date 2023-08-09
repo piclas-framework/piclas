@@ -400,7 +400,10 @@ END SUBROUTINE RootsOfBesselFunctions
 !================================================================================================================================
 SUBROUTINE QuadraticSolver(A,B,C,nRoot,r1,r2)
 #ifdef CODE_ANALYZE
-USE MOD_Globals,            ONLY:UNIT_stdOut,MyRank
+USE MOD_Globals ,ONLY: UNIT_stdOut
+#if USE_MPI
+USE MOD_Globals ,ONLY: myrank
+#endif /*USE_MPI*/
 #endif /*CODE_ANALYZE*/
 IMPLICIT NONE
 !--------------------------------------------------------------------------------------------------------------------------------

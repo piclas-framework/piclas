@@ -37,6 +37,7 @@ REAL,ALLOCATABLE  :: Vdm_Leg(:,:), sVdm_Leg(:,:) !< Legendre Vandermonde matrix
 INTEGER           :: NAnalyze                    !< number of analyzation points is NAnalyze+1
 REAL,ALLOCATABLE  :: wAnalyze(:)                 !< GL integration weights used for the analyze
 REAL,ALLOCATABLE  :: Vdm_GaussN_NAnalyze(:,:)    !< for interpolation to Analyze points (from NodeType nodes to Gauss-Lobatto nodes)
+REAL,ALLOCATABLE  :: Uex(:,:,:,:,:)              !< Analytic solution Uex(1:PP_nVar,0:NAnalyze,0:NAnalyze,0:NAnalyze,1:nElems)
 
 !==================================================================================================================================
 !@{ Named nodetype parameters

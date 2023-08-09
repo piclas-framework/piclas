@@ -40,7 +40,7 @@ END TYPE tSurfFluxSubSideData
 TYPE typeSurfaceflux
   INTEGER                                :: BC                               ! PartBound to be emitted from
   CHARACTER(30)                          :: velocityDistribution             ! specifying keyword for velocity distribution
-  REAL                                   :: VeloIC                           ! velocity for inital Data
+  REAL                                   :: VeloIC                           ! velocity for initial Data
   REAL                                   :: VeloVecIC(3)                     ! normalized velocity vector
   REAL                                   :: MWTemperatureIC                  ! Temperature for Maxwell Distribution
   REAL                                   :: PartDensity                      ! PartDensity (real particles per m^3)

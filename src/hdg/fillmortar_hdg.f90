@@ -123,7 +123,8 @@ REAL        :: dkron(0:PP_N,0:PP_N)
       CALL abort(__STAMP__&
                 ,'InitMortar_HDG: this case should not appear!!')
     END IF
-    IF(SmallMortarInfo(SideID).NE.0) MaskedSide(SideID)=.TRUE.
+    ! TODO new value for mortars
+    IF(SmallMortarInfo(SideID).NE.0) MaskedSide(SideID)=1!.TRUE.
   END DO !SideID=1,nSides
 
 #if USE_PETSC

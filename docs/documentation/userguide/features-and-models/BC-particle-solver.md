@@ -20,9 +20,6 @@ The `Part-Boundary1-SourceName=` corresponds to the name given during the prepro
 |  `reflective`  | Allows the definition of specular and diffuse reflection, Section {ref}`sec:particle-boundary-conditions-reflective` |
 | `rot_periodic` | Allows the definition of rotational periodicity, Section {ref}`sec:particle-boundary-conditions-rotBC`               |
 
-For `rot_periodic` exactly two corresponding boundaries must be defined. Every particle crossing one of these boundaries will be
-inserted at the corresponding other boundary that is rotationally shifted.
-
 (sec:particle-boundary-conditions-reflective)=
 ## Reflective Wall
 
@@ -70,14 +67,20 @@ The wall velocity will then be superimposed onto the particle velocity.
 ### Linear temperature gradient
 
 A linear temperature gradient across a boundary can be defined by supplying a second wall temperature and the start and end vector
+as well as an optional direction to which the gradient shall be limited (default: 0, x = 1, y = 2, z = 3)
 
-    Part-Boundary2-WallTemp2=500.
-    Part-Boundary2-TemperatureGradientStart=(/0.,0.,0./)
-    Part-Boundary2-TemperatureGradientEnd=(/0.,0.,1./)
+    Part-Boundary2-WallTemp2      = 500.
+    Part-Boundary2-TempGradStart  = (/0.,0.,0./)
+    Part-Boundary2-TempGradEnd    = (/1.,0.,1./)
+    Part-Boundary2-TempGradDir    = 0
 
-Between these two points the temperature will be interpolated, where the start vector corresponds to the first wall temperature,
-whereas the end vector to the second wall temperature. Beyond these position values, the first and second temperature will be used
-as the constant wall temperature, respectively.
+In the default case of the `TempGradDir = 0`, the temperature will be interpolated between the start and end vector, where the
+start vector corresponds to the first wall temperature `WallTemp`, and the end vector to the second wall temperature `WallTemp2`.
+Position values (which are projected onto the temperature gradient vector) beyond the gradient vector utilize the first (Start)
+and second temperature (End) as the constant wall temperature, respectively. In the special case of `TempGradDir = 1/2/3`, the
+temperature gradient will only be applied along the chosen the direction. As oppposed to the default case, the positions of the
+surfaces are not projected onto the gradient vector before checking wether they are inside the box spanned by `TempGradStart` and
+`TempGradEnd`. The applied surface temperature is output in the `DSMCSurfState` as `Wall_Temperature` for verification.
 
 ### Radiative equilibrium
 
@@ -124,21 +127,24 @@ periodic boundary is tranformed according to this angle, which is defined by the
 
 The usage of rotational periodic boundary conditions is limited to cases, where the rotational periodic axis is one of the three
 Cartesian coordinate axis (x, y, z) with its origin at (0, 0, 0).
-It is also possible to define several segments with different rotation angles. Exactly two corresponding BCs must be defined for each segment.
-In addition, the minimum and maximum coordinates along the rotation axis must be chosen for each BC to define the position of the segment.
-In the following example we have two segments. One between BCs 1 and 2 and one between BCs 4 and 5
 
-    Part-Boundary1-RotPeriodicMin=-1.
-    Part-Boundary1-RotPeriodicMax=1.
+### Intermediate Plane Definition
+If several segments with different rotation angles are defined, exactly two corresponding BCs must be defined for each segment.
+Since the plane between these segments with different rotational symmetry angles represents a non-conforming connection, additional 
+two BCs must be defined as `rot_periodic_inter_plane` at this intermediate plane. Both BCs must refer to each other in the 
+definition in order to ensure the connection.
 
-    Part-Boundary2-RotPeriodicMin=-1.
-    Part-Boundary2-RotPeriodicMax=1.
+    Part-Boundary40-SourceName       = BC_INT_R1_BOT
+    Part-Boundary40-Condition        = rot_periodic_inter_plane
+    Part-Boundary40-AssociatedPlane  = 41
 
-    Part-Boundary4-RotPeriodicMin=1.
-    Part-Boundary4-RotPeriodicMax=3.
+    Part-Boundary41-SourceName       = BC_INT_S1_TOP
+    Part-Boundary41-Condition        = rot_periodic_inter_plane
+    Part-Boundary41-AssociatedPlane  = 40 
 
-    Part-Boundary5-RotPeriodicMin=1.
-    Part-Boundary5-RotPeriodicMax=3.
+Note that using the intermediate plane definition with two corresponding BCs allows the user to mesh the segments independently, 
+creating a non-conforming interface at the intermediate plane. However, use of these non-conformal grids has so far only been 
+possible in pure DSMC simulations.
 
 ## Porous Wall / Pump
 
