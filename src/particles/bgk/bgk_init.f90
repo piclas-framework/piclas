@@ -68,7 +68,7 @@ CALL prms%CreateIntOption(    'Particles-BGK-MinPartsPerCell',      'Define mini
                                                                     'cell refinement')
 CALL prms%CreateLogicalOption('Particles-BGK-MovingAverage',        'Enable a moving average of variables for the calculation '//&
                                                                     'of the cell temperature for relaxation frequencies','.FALSE.')
-CALL prms%CreateRealOption(    'Particles-BGK-MovingAverageFac',    'Use the moving average of moments M with  '//&
+CALL prms%CreateRealOption(   'Particles-BGK-MovingAverageFac',     'Use the moving average of moments M with  '//&
                                                                     'M^n+1=AverageFac*M+(1-AverageFac)*M^n','0.01')
 CALL prms%CreateRealOption(   'Particles-BGK-SplittingDens',        'Octree-refinement will only be performed above this number '//&
                                                                     'density', '0.0')
@@ -128,32 +128,35 @@ END DO
 
 BGKCollModel = GETINT('Particles-BGK-CollModel')
 IF ((nSpecies.GT.1).AND.(BGKCollModel.GT.1)) THEN
-      CALL abort(__STAMP__,' ERROR Multispec only with ESBGK model!')
+  CALL abort(__STAMP__,'ERROR Multispec only with ESBGK model!')
 END IF
 BGKMixtureModel = GETINT('Particles-BGK-MixtureModel')
-! ESBGK options
-ESBGKModel = GETINT('Particles-ESBGK-Model')         ! 1: Approximative, 2: Exact, 3: MetropolisHastings
+! ESBGK options for sampling: 1: Approximative, 2: Exact, 3: MetropolisHastings
+ESBGKModel = GETINT('Particles-ESBGK-Model')
+
 ! Coupled BGK with DSMC, use a number density as limit above which BGK is used, and below which DSMC is used
 CoupledBGKDSMC = GETLOGICAL('Particles-CoupledBGKDSMC')
 IF(CoupledBGKDSMC) THEN
   IF (DoVirtualCellMerge) THEN  
-    CALL abort(__STAMP__,' Virtual cell merge not implemented for coupled DSMC-BGK simulations!')
+    CALL abort(__STAMP__,'Virtual cell merge not implemented for coupled DSMC-BGK simulations!')
   END IF
   BGKDSMCSwitchDens = GETREAL('Particles-BGK-DSMC-SwitchDens')
 ELSE
   IF(RadialWeighting%DoRadialWeighting) RadialWeighting%PerformCloning = .TRUE.
 END IF
+
 ! Octree-based cell refinement, up to a certain number of particles
 DoBGKCellAdaptation = GETLOGICAL('Particles-BGK-DoCellAdaptation')
 IF(DoBGKCellAdaptation) THEN
   BGKMinPartPerCell = GETINT('Particles-BGK-MinPartsPerCell')
   IF(.NOT.DSMC%UseOctree) THEN
     DSMC%UseOctree = .TRUE.
-    IF(NGeo.GT.PP_N) CALL abort(__STAMP__,' Set PP_N to NGeo, otherwise the volume is not computed correctly.')
+    IF(NGeo.GT.PP_N) CALL abort(__STAMP__,'Set PP_N to NGeo, otherwise the volume is not computed correctly.')
     CALL DSMC_init_octree()
   END IF
 END IF
 BGKSplittingDens = GETREAL('Particles-BGK-SplittingDens')
+
 ! Moving Average
 BGKMovingAverage = GETLOGICAL('Particles-BGK-MovingAverage')
 IF(BGKMovingAverage) THEN
@@ -162,6 +165,7 @@ IF(BGKMovingAverage) THEN
   CALL BGK_init_MovingAverage()
   IF(nSpecies.GT.1) CALL abort(__STAMP__,'nSpecies >1 and molecules not implemented for BGK averaging!')
 END IF
+
 IF(MoleculePresent) THEN
   ! Vibrational modelling
   BGKDoVibRelaxation = GETLOGICAL('Particles-BGK-DoVibRelaxation')
@@ -236,6 +240,7 @@ SDEALLOCATE(BGK_QualityFacSamp)
 IF(BGKMovingAverage) CALL DeleteElemNodeAverage()
 
 END SUBROUTINE FinalizeBGK
+
 
 SUBROUTINE DeleteElemNodeAverage()
 !----------------------------------------------------------------------------------------------------------------------------------!

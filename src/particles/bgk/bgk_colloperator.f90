@@ -131,6 +131,7 @@ IF(usevMPF.OR.RadialWeighting%DoRadialWeighting) THEN
   ! totalWeight contains the weighted particle number
   dens = totalWeight / NodeVolume
 ELSE
+  ! MPF is the same for all species
   dens = totalWeight * Species(1)%MacroParticleFactor / NodeVolume
 END IF
 
@@ -168,7 +169,7 @@ IF(ANY(SpecDSMC(:)%InterID.EQ.2).OR.ANY(SpecDSMC(:)%InterID.EQ.20)) THEN
       ! S. Chapman and T.G. Cowling, "The mathematical Theory of Non-Uniform Gases", Cambridge University Press, 1970, S. 87f
       ! For SpecBGK(iSpec)%CollFreqPreFactor(jSpec) see bgk_init.f90
       ! VHS according to M. Pfeiffer, "Extending the particle ellipsoidal statistical Bhatnagar-Gross-Krook method to diatomic
-      ! molecules including quantized vibrational energies", Phys. Fluids 30, 116103 (2018), Eq. (18)
+      ! molecules including quantized vibrational energies", Phys. Fluids 30, 116103 (2018), Eq. (18) - NEW (tbd)
       collisionfreqSpec(iSpec) = collisionfreqSpec(iSpec) + SpecBGK(iSpec)%CollFreqPreFactor(jSpec) * totalWeightSpec(jSpec) &
               * (Dens / totalWeight) *CellTemptmp**(-CollInf%omega(iSpec,jSpec) +0.5)
     END DO
@@ -261,19 +262,16 @@ IF(ANY(SpecDSMC(:)%InterID.EQ.2).OR.ANY(SpecDSMC(:)%InterID.EQ.20)) THEN
     VibEnergyDOF, Xi_VibSpecNew, TEqui)
 END IF
 
-! Remaining vibrational (+ translational) energy + rotational energy for translation and rotation
+! Remaining vibrational + translational energy + old rotational energy for translation and rotation
 OldEn = OldEn + OldEnRot
 Xi_RotTotal = 0.0
 DO iSpec = 1, nSpecies
-  ! = tbd ======= nRotRelaxSpec or RotRelaxWeightSpec? =======================================================================
+  ! Sum of relaxing rotational degrees of freedom
   Xi_RotTotal = Xi_RotTotal + Xi_RotSpec(iSpec)*RotRelaxWeightSpec(iSpec)
-  ! ERotTtransSpecMean(iSpec)*RotRelaxWeightSpec(iSpec) is energy that should be in rotation
-  !OldEn = OldEn - ERotTtransSpecMean(iSpec)*RotRelaxWeightSpec(iSpec)
 END DO
 
 ! 8.) Determine the new particle state and ensure energy conservation by scaling the new velocities with the factor alpha
 ! Calculation of scaling factor alpha
-! = tbd ======= nPart or totalWeight? ========================================================================================
 alpha = SQRT(OldEn/NewEn*(3.*(totalWeight-1.))/(Xi_RotTotal+3.*(totalWeight-1.)))
 ! Calculation of the final particle velocities with vBulkAll (average flow velocity before relaxation), scaling factor alpha,
 ! the particle velocity PartState(4:6,iPart) after the relaxation but before the energy conservation and vBulk (average value of
@@ -300,11 +298,9 @@ END IF
 ! 9.) Rotation: Scale the new rotational state of the molecules to ensure energy conservation
 DO iSpec = 1, nSpecies
   ! Calculate scaling factor alpha per species, see M. Pfeiffer, "Extending the particle ellipsoidal statistical Bhatnagar-Gross-
-  ! Krook method to diatomic molecules including quantized vibrational energies", Phys. Fluids 30, 116103 (2018)
+  ! Krook method to diatomic molecules including quantized vibrational energies", Phys. Fluids 30, 116103 (2018) - NEW (tbd)
   IF (NewEnRot(iSpec).GT.0.0) THEN
-    ! = tbd ======= nRotRelaxSpec or RotRelaxWeightSpec? nPart or totalWeight? ================================================
     alphaRot(iSpec) = OldEn/NewEnRot(iSpec)*(Xi_RotSpec(iSpec)*RotRelaxWeightSpec(iSpec)/(Xi_RotTotal+3.*(totalWeight-1.)))
-    !alphaRot(iSpec) = ERotTtransSpecMean(iSpec)*RotRelaxWeightSpec(iSpec)/NewEnRot(iSpec)
   ELSE
     alphaRot(iSpec) = 0.0
   END IF
@@ -625,7 +621,7 @@ DO iSpec = 1, nSpecies
       ELSE ! diatomic
         ! Calculation of vibrational temperature and DOFs from Pfeiffer, Physics of Fluids 30, 116103 (2018), "Extending the
         ! particle ellipsoidal statistical Bhatnagar-Gross-Krook method to diatomic molecules including quantized vibrational
-        ! energies"
+        ! energies" - check ref (tbd)
         ! TVibSpec = vibrational energy without zero-point energy
         TVibSpec(iSpec) = EVibSpec(iSpec) / (totalWeightSpec(iSpec)*BoltzmannConst*SpecDSMC(iSpec)%CharaTVib)
         IF (TVibSpec(iSpec).GT.0.0) TVibSpec(iSpec) = SpecDSMC(iSpec)%CharaTVib/LOG(1. + 1./(TVibSpec(iSpec)))
@@ -805,7 +801,7 @@ REAL, INTENT(OUT)             :: Xi_vib_DOF(DSMC%NumPolyatomMolecs,nXiVibDOF), X
 REAL, INTENT(OUT)             :: betaR(nSpecies), betaV(nSpecies)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                       :: iSpec, iDOF, iPolyatMole
+INTEGER                       :: iSpec, iDOF, iPolyatMole, i, j
 REAL                          :: RotFracSpec(nSpecies), VibFracSpec(nSpecies)
 REAL                          :: ERotSpecMean(nSpecies), EVibSpecMean(nSpecies), ETransRelMean
 REAL                          :: ERotTtransSpecMean(nSpecies), EVibTtransSpecMean(nSpecies)
@@ -885,8 +881,10 @@ DO iSpec = 1, nSpecies
 END DO
 TEqui = TEquiNum/TEquiDenom
 
+i=0
 ! Solving of equation system until accuracy eps_prec is reached
-DO WHILE ( ABS( TEqui - TEqui_Old ) .GT. eps_prec )
+outerLoop: DO WHILE ( ABS( TEqui - TEqui_Old ) .GT. eps_prec )
+  i = i + 1
   DO iSpec = 1, nSpecies
     IF((SpecDSMC(iSpec)%InterID.EQ.2).OR.(SpecDSMC(iSpec)%InterID.EQ.20)) THEN
       ! if difference small: equilibrium, no beta
@@ -957,8 +955,10 @@ DO WHILE ( ABS( TEqui - TEqui_Old ) .GT. eps_prec )
   END DO
   TEqui = TEquiNum/TEquiDenom
   IF(BGKDoVibRelaxation) THEN
+    j=0
     ! accuracy eps_prec not reached yet
-    DO WHILE ( ABS( TEqui - TEqui_Old2 ) .GT. eps_prec )
+    innerLoop: DO WHILE ( ABS( TEqui - TEqui_Old2 ) .GT. eps_prec )
+      j=j+1
       ! mean value of old and new equilibrium temperature
       TEqui = (TEqui + TEqui_Old2) * 0.5
       DO iSpec = 1, nSpecies
@@ -1005,9 +1005,11 @@ DO WHILE ( ABS( TEqui - TEqui_Old ) .GT. eps_prec )
         END IF
       END DO
       TEqui = TEquiNum/TEquiDenom
-    END DO
+      IF (j.EQ.30) EXIT innerLoop
+    END DO innerLoop
   END IF
-END DO
+  IF (i.EQ.30) EXIT outerLoop
+END DO outerLoop
 
 END SUBROUTINE CalcTRelax
 
@@ -1269,7 +1271,7 @@ IF (nRelax.GT.0) THEN
         A(2,1)=A(1,2)
         A(3,1)=A(1,3)
         A(3,2)=A(2,3)
-        CALL MetropolisES(nRelax, iRanPart, A)
+        CALL MetropolisES(nRelax, iRanPart, A*MassIC_Mixture, CellTempRel)
       END IF
     END IF
 
@@ -1297,7 +1299,7 @@ IF (nRelax.GT.0) THEN
       PartState(4:6,iPart) = vBulkAll(1:3) + MATMUL(SMat,tempVelo)
     ELSE IF ((BGKCollModel.EQ.1).AND.(ESBGKModel.EQ.3)) THEN
       ! New thermal velocity (in x,y,z) of particle with mass scaling multiplied by normal distributed random vector
-      PartState(4:6,iPart) = vBulkAll(1:3) + SQRT(MassIC_Mixture/Species(iSpec)%MassIC)*iRanPart(1:3,iLoop)
+      PartState(4:6,iPart) = vBulkAll(1:3) + SQRT(1./Species(iSpec)%MassIC)*iRanPart(1:3,iLoop)
     ELSE
       ! New thermal velocity (in x,y,z) of particle is sqrt(k_B*T/m) multiplied by normal distributed random vector
       PartState(4:6,iPart) = vBulkAll(1:3) + SQRT(BoltzmannConst*CellTempRel/Species(iSpec)%MassIC)*iRanPart(1:3,iLoop)
@@ -1346,8 +1348,7 @@ IF(BGKDoVibRelaxation) THEN
   IF (ANY(NewEnVib.GT.0.0).AND.(nVibRelax.GT.0)) THEN
     Xi_VibTotal = 0.0
     DO iSpec = 1, nSpecies
-      ! Total number of relaxing vibrational degrees of freedom
-      ! = tbd ======= nVibRelaxSpec or VibRelaxWeightSpec? nPart or totalWeight for alpha? =======================================
+      ! Sum of relaxing vibrational degrees of freedom
       Xi_VibTotal = Xi_VibTotal + Xi_VibSpec(iSpec)*VibRelaxWeightSpec(iSpec)
     END DO
     ! Calculate scaling factor alpha per species
@@ -1466,44 +1467,46 @@ END IF ! BGKDoVibRelaxation
 END SUBROUTINE EnergyConsVib
 
 
-SUBROUTINE MetropolisES(nPart, iRanPart, A)
+SUBROUTINE MetropolisES(nPart, iRanPart, A, CellTempRel)
 !===================================================================================================================================
 !> Sampling from ESBGK target distribution function by using a Metropolis-Hastings method
 !===================================================================================================================================
 ! MODULES
 USE Ziggurat
-USE MOD_Basis ,ONLY: INV33
+USE MOD_Basis                 ,ONLY: INV33
+USE MOD_Globals_Vars          ,ONLY: BoltzmannConst
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
 INTEGER, INTENT(IN)           :: nPart
-REAL, INTENT(IN)              :: A(3,3)
+REAL, INTENT(IN)              :: A(3,3), CellTempRel
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 REAL, INTENT(OUT)             :: iRanPart(:,:)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-REAL                           :: iRanPartTemp(3), V2, iRan, NewProb, OldProb, NormProb
+REAL                           :: iRanPartTemp(3), V2, iRan, NewProb, OldProb, NormProb, prefacor
 INTEGER                        :: iLoop, iPart, iRun
 LOGICAL                        :: Changed
 REAL                           :: AC(3), AInvers(3,3), detA
 !===================================================================================================================================
 ! Generate normal distributed random vector as start vector for the thermal velocity
-iRanPart(1,1) = rnor()
-iRanPart(2,1) = rnor()
-iRanPart(3,1) = rnor()
+prefacor = SQRT(BoltzmannConst*CellTempRel)
+iRanPart(1,1) = rnor()*prefacor
+iRanPart(2,1) = rnor()*prefacor
+iRanPart(3,1) = rnor()*prefacor
 ! Inverse matrix of A
-CALL INV33(A,AInvers, detA)
+CALL INV33(A, AInvers, detA)
 AC(1:3) = MATMUL(AInvers, iRanPart(1:3,1))
 V2 = iRanPart(1,1)*AC(1) + iRanPart(2,1)*AC(2) + iRanPart(3,1)*AC(3)
 OldProb = EXP(-0.5*V2)
 ! Burn-in phase, 35 initial steps
 DO iLoop = 1, 35
   ! Generate normal distributed random vector for the thermal velocity
-  iRanPartTemp(1) = rnor()
-  iRanPartTemp(2) = rnor()
-  iRanPartTemp(3) = rnor()
+  iRanPartTemp(1) = rnor()*prefacor
+  iRanPartTemp(2) = rnor()*prefacor
+  iRanPartTemp(3) = rnor()*prefacor
   AC(1:3) = MATMUL(AInvers, iRanPartTemp(1:3))
   V2 = iRanPartTemp(1)*AC(1) + iRanPartTemp(2)*AC(2) + iRanPartTemp(3)*AC(3)
   NewProb = EXP(-0.5*V2)
@@ -1527,9 +1530,9 @@ DO iPart = 2, nPart
   DO WHILE ((iRun.LT.10).OR.(.NOT.Changed))
     iRun = iRun + 1
     ! Generate normal distributed random vector for the thermal velocity
-    iRanPartTemp(1) = rnor()
-    iRanPartTemp(2) = rnor()
-    iRanPartTemp(3) = rnor()
+    iRanPartTemp(1) = rnor()*prefacor
+    iRanPartTemp(2) = rnor()*prefacor
+    iRanPartTemp(3) = rnor()*prefacor
     AC(1:3) = MATMUL(AInvers, iRanPartTemp(1:3))
     V2 = iRanPartTemp(1)*AC(1) + iRanPartTemp(2)*AC(2) + iRanPartTemp(3)*AC(3)
     NewProb = EXP(-0.5*V2)
