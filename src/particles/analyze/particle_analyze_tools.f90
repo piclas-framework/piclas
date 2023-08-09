@@ -3176,7 +3176,7 @@ USE MOD_Particle_Analyze_Vars ,ONLY: PCoupl,PCouplAverage,PCouplIntAverage
 USE MOD_Restart_Vars          ,ONLY: RestartTime
 USE MOD_TimeDisc_Vars         ,ONLY: Time
 #if USE_MPI
-USE MOD_Equation              ,ONLY: SynchronizeCPP
+USE MOD_Equation_Tools        ,ONLY: SynchronizeCPP
 #endif /*USE_MPI*/
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------!

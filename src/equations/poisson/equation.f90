@@ -45,11 +45,8 @@ INTERFACE FinalizeEquation
 END INTERFACE
 
 PUBLIC :: InitEquation,ExactFunc,CalcSource,FinalizeEquation, CalcSourceHDG,DivCleaningDamping
-#if USE_MPI && defined(PARTICLES)
-PUBLIC :: SynchronizeCPP
-#endif /*USE_MPI && defined(PARTICLES)*/
+PUBLIC :: DefineParametersEquation
 !===================================================================================================================================
-PUBLIC::DefineParametersEquation
 CONTAINS
 
 !==================================================================================================================================
@@ -421,6 +418,9 @@ USE MOD_IO_HDF5          ,ONLY: OpenDataFile,CloseDataFile,File_ID
 USE MOD_Restart_Vars     ,ONLY: DoRestart,RestartFile
 USE MOD_HDF5_Input       ,ONLY: DatasetExists,ReadArray,GetDataSize
 USE MOD_HDG_Vars         ,ONLY: CoupledPowerPotential,CPPDataLength
+#if USE_MPI
+USE MOD_Equation_Tools   ,ONLY: SynchronizeCPP
+#endif /*USE_MPI*/
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! INPUT / OUTPUT VARIABLES
@@ -466,31 +466,7 @@ CALL SynchronizeCPP()
 #endif /*USE_MPI*/
 
 END SUBROUTINE ReadCPPDataFromH5
-
-
-#if USE_MPI
-!===================================================================================================================================
-!> Communicate the CPP values from MPIRoot to sub-communicator processes
-!===================================================================================================================================
-SUBROUTINE SynchronizeCPP()
-! MODULES
-USE MOD_Globals  ,ONLY: IERROR,MPI_COMM_NULL,MPI_DOUBLE_PRECISION
-USE MOD_HDG_Vars ,ONLY: CPPCOMM
-USE MOD_HDG_Vars ,ONLY: CoupledPowerPotential,CPPDataLength
-IMPLICIT NONE
-!----------------------------------------------------------------------------------------------------------------------------------!
-! INPUT / OUTPUT VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-!===================================================================================================================================
-IF(CPPCOMM%UNICATOR.NE.MPI_COMM_NULL)THEN
-  ! Broadcast from root to other processors on the sub-communicator
-  CALL MPI_BCAST(CoupledPowerPotential, CPPDataLength, MPI_DOUBLE_PRECISION, 0, CPPCOMM%UNICATOR, IERROR)
-END IF
-END SUBROUTINE SynchronizeCPP
-#endif /*USE_MPI*/
 #endif /*defined(PARTICLES)*/
-
 
 SUBROUTINE ExactFunc(ExactFunction,x,resu,t,ElemID,iRefState,iLinState,BCState)
 !===================================================================================================================================

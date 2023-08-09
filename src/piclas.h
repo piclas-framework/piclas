@@ -57,8 +57,8 @@
 #define UNLOCK_AND_FREE(a)   UNLOCK_AND_FREE_DUMMY(a,'a')
 
 #ifdef GNU
-#define CHECKSAFEINT(x,k)  IF(x>HUGE(INT( 1,KIND=k)).OR.x<-HUGE(INT( 1,KIND=k))) CALL ABORT(__STAMP__,'Integer conversion failed: out of range!')
-#define CHECKSAFEREAL(x,k) IF(x>HUGE(REAL(1,KIND=k)).OR.x<-HUGE(REAL(1,KIND=k))) CALL ABORT(__STAMP__,'Real conversion failed: out of range!')
+#define CHECKSAFEINT(x,k)  IF(x>HUGE(INT( 1,KIND=k)).OR.x<-HUGE(INT( 1,KIND=k))) CALL Abort(__STAMP__,'Integer conversion failed: out of range!')
+#define CHECKSAFEREAL(x,k) IF(x>HUGE(REAL(1,KIND=k)).OR.x<-HUGE(REAL(1,KIND=k))) CALL Abort(__STAMP__,'Real conversion failed: out of range!')
 #elif CRAY
 #define CHECKSAFEINT(x,k)
 #define CHECKSAFEREAL(x,k)
