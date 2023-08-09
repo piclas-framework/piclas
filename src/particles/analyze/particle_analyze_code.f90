@@ -451,7 +451,7 @@ END SUBROUTINE CalcAnalyticalParticleState
 SUBROUTINE CalcErrorParticle(t,iter,PartStateAnalytic)
 ! MODULES
 USE MOD_PICInterpolation_Vars ,ONLY: L_2_Error_Part,AnalyticPartDim,L_2_Error_Part_time
-USE MOD_Particle_Vars         ,ONLY: PartState, PDM, PartVeloRotRef, UseRotRefFrame
+USE MOD_Particle_Vars         ,ONLY: PartState, PDM
 USE MOD_Globals_Vars          ,ONLY: c2_inv
 USE MOD_globals               ,ONLY: DOTPRODUCT
 #if (PP_TimeDiscMethod==508) || (PP_TimeDiscMethod==509)
@@ -460,6 +460,9 @@ USE MOD_Particle_Vars         ,ONLY: Pt
 USE MOD_part_RHS              ,ONLY: CalcPartRHSSingleParticle
 !USE MOD_PICInterpolation      ,ONLY: InterpolateFieldToParticle ! already known from previous call (causes circular definition)
 #endif /*(PP_TimeDiscMethod==508) || (PP_TimeDiscMethod==509)*/
+#if (PP_TimeDiscMethod==4)
+USE MOD_Particle_Vars         ,ONLY: PartVeloRotRef, UseRotRefFrame
+#endif /*(PP_TimeDiscMethod==4)*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
