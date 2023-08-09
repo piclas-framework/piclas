@@ -123,11 +123,11 @@ CASE('LocalKnudsen')
     NbtotalWeight = SUM(NbSpecPartNum)
 
     ! Sum of the density gradient of all neighbour elements, weighted by the volume of the neighbour element
-    DensGradient = DensGradient + ABS(RefDens-NbDens/NbDistance)*ElemVolume_Shared(CnNbElem)
+    DensGradient = DensGradient + ABS((RefDens-NbDens)/NbDistance)*ElemVolume_Shared(CnNbElem)
     ! Sum of the velocity gradient of all neighbour elements, weighted by the volume of the neighbour element
-    VeloGradient = VeloGradient + ABS(RefVelo-NbVelo/NbDistance)*ElemVolume_Shared(CnNbElem)
+    VeloGradient = VeloGradient + ABS((RefVelo-NbVelo)/NbDistance)*ElemVolume_Shared(CnNbElem)
     ! Sum of the temperature gradient of all neighbour elements, weighted by the volume of the neighbour element
-    TempGradient = TempGradient+ ABS(RefTemp-NbTemp/NbDistance)*ElemVolume_Shared(CnNbElem)
+    TempGradient = TempGradient+ ABS((RefTemp-NbTemp)/NbDistance)*ElemVolume_Shared(CnNbElem)
   END DO ! iNbElem
 
   ! 2a) Local Knudsen number of the density
@@ -206,11 +206,11 @@ CASE('Combination')
     NbtotalWeight = SUM(NbSpecPartNum)
 
     ! Sum of the density gradient of all neighbour elements, weighted by the volume of the neighbour element
-    DensGradient = DensGradient + ABS(RefDens-NbDens/NbDistance)*ElemVolume_Shared(CnNbElem)
+    DensGradient = DensGradient + ABS((RefDens-NbDens)/NbDistance)*ElemVolume_Shared(CnNbElem)
     ! Sum of the velocity gradient of all neighbour elements, weighted by the volume of the neighbour element
-    VeloGradient = VeloGradient + ABS(RefVelo-NbVelo/NbDistance)*ElemVolume_Shared(CnNbElem)
+    VeloGradient = VeloGradient + ABS((RefVelo-NbVelo)/NbDistance)*ElemVolume_Shared(CnNbElem)
     ! Sum of the temperature gradient of all neighbour elements, weighted by the volume of the neighbour element
-    TempGradient = TempGradient+ ABS(RefTemp-NbTemp/NbDistance)*ElemVolume_Shared(CnNbElem)
+    TempGradient = TempGradient+ ABS((RefTemp-NbTemp)/NbDistance)*ElemVolume_Shared(CnNbElem)
   END DO ! iNbElem
 
   DensGradient = DensGradient/NbVolume
@@ -292,11 +292,11 @@ CASE('Output')
     NbtotalWeight = SUM(NbSpecPartNum)
 
     ! Sum of the density gradient of all neighbour elements, weighted by the volume of the neighbour element
-    DensGradient = DensGradient + ABS(RefDens-NbDens/NbDistance)*ElemVolume_Shared(CnNbElem)
+    DensGradient = DensGradient + ABS((RefDens-NbDens)/NbDistance)*ElemVolume_Shared(CnNbElem)
     ! Sum of the velocity gradient of all neighbour elements, weighted by the volume of the neighbour element
-    VeloGradient = VeloGradient + ABS(RefVelo-NbVelo/NbDistance)*ElemVolume_Shared(CnNbElem)
+    VeloGradient = VeloGradient + ABS((RefVelo-NbVelo)/NbDistance)*ElemVolume_Shared(CnNbElem)
     ! Sum of the temperature gradient of all neighbour elements, weighted by the volume of the neighbour element
-    TempGradient = TempGradient+ ABS(RefTemp-NbTemp/NbDistance)*ElemVolume_Shared(CnNbElem)
+    TempGradient = TempGradient+ ABS((RefTemp-NbTemp)/NbDistance)*ElemVolume_Shared(CnNbElem)
   END DO ! iNbElem
 
   DensGradient = DensGradient/NbVolume
@@ -447,6 +447,15 @@ IF (Temperature.GT.0.) THEN
   Temperature = Temperature/totalweight
 ELSE 
   Temperature = 0.
+END IF
+TempTrans = TempTrans/totalweight
+
+! Vibrational and rotational temperature weighted by the particle numbers
+IF (SUM(MolPartNum(:)).GT.0) THEN
+  TempVib = TempVib / SUM(MolPartNum(:))
+  TempRot = TempRot / SUM(MolPartNum(:))
+  DoF_VibTotal = DoF_VibTotal / SUM(MolPartNum(:))
+  DoF_RotTotal = DoF_RotTotal / SUM(MolPartNum(:))
 END IF
 
 ! Total temperature and comparison to the mean translational temperature

@@ -1294,7 +1294,11 @@ IF((Time.GE.(1-DSMC%TimeFracSamp)*TEnd).OR.WriteMacroVolumeValues) THEN
   ! mean collision separation distance of actual collisions
   IF(DSMC%CollSepCount.GT.0) THEN
     DSMC%QualityFacSamp(iElem,3) = DSMC%QualityFacSamp(iElem,3) + DSMC%MCSoverMFP
-    DSMC%QualityFacSamp(iElem,4) = DSMC%QualityFacSamp(iElem,4) + DSMC%MCSMFP_Mean / DSMC%MCSMFP_MeanCount
+    IF (DSMC%MCSMFP_MeanCount.GT.0.) THEN
+      DSMC%QualityFacSamp(iElem,4) = DSMC%QualityFacSamp(iElem,4) + DSMC%MCSMFP_Mean / DSMC%MCSMFP_MeanCount
+    ELSE 
+      DSMC%QualityFacSamp(iElem,4) = 0.0
+    END IF
   END IF
   ! Counting sample size
   DSMC%QualityFacSamp(iElem,5) = DSMC%QualityFacSamp(iElem,5) + 1.

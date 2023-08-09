@@ -102,6 +102,7 @@ USE MOD_Globals
 USE MOD_ReadInTools
 USE MOD_BGK_Vars
 USE MOD_Preproc
+USE MOD_Cell_Adaption
 USE MOD_Mesh_Vars             ,ONLY: nElems, NGeo
 USE MOD_Particle_Vars         ,ONLY: nSpecies, Species, DoVirtualCellMerge
 USE MOD_DSMC_Vars             ,ONLY: SpecDSMC, DSMC, RadialWeighting, VarWeighting, CollInf
@@ -139,6 +140,8 @@ END DO
 
 ALLOCATE(CBC%OutputKnudsen(9,nElems))
 CBC%OutputKnudsen = 0.0
+
+CALL Init_MeshAdaption()
 
 BGKCollModel = GETINT('Particles-BGK-CollModel')
 IF ((nSpecies.GT.1).AND.(BGKCollModel.GT.1)) THEN

@@ -82,6 +82,7 @@ USE MOD_DSMC_Symmetry              ,ONLY: DefineParametersParticleSymmetry
 USE MOD_DSMC_AdaptMPF              ,ONLY: DefineParametersAdaptMPF
 USE MOD_SuperB_Init                ,ONLY: DefineParametersSuperB
 USE MOD_SurfaceModel_Chemistry     ,ONLY: DefineParametersSurfaceChemistry
+USE MOD_Cell_Adaption              ,ONLY: DefineParametersAdaptMesh
 #if USE_MPI
 USE mod_readIMD                    ,ONLY: DefineParametersReadIMDdata
 #endif
@@ -143,6 +144,7 @@ CALL DefineParametersParticleAnalyze()
 CALL DefineParametersTTM()
 CALL DefineParametersPIC()
 CALL DefineParametersDSMC()
+CALL DefineParametersAdaptMesh()
 CALL DefineParametersBGG()
 CALL DefineParametersMCC()
 CALL DefineParametersChemistry()

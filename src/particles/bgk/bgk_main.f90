@@ -133,9 +133,11 @@ DO iElem = 1, nElems
 
   IF (DoBGKCellAdaptation) THEN
     IF(Symmetry%Order.EQ.2) THEN
-      CALL BGK_quadtree_adapt(iElem)
+      CALL MeshAdaption(iElem)
+      !CALL BGK_quadtree_adapt(iElem)
     ELSE
       CALL BGK_octree_adapt(iElem)
+      !CALL MeshAdaption(iElem)
     END IF
   ELSE
     ALLOCATE(iPartIndx_Node(nPart))
@@ -185,6 +187,7 @@ SUBROUTINE BGK_main(stage_opt)
 ! MODULES
 USE MOD_Globals
 USE MOD_TimeDisc_Vars       ,ONLY: TEnd, Time
+USE MOD_Cell_Adaption
 USE MOD_Mesh_Vars           ,ONLY: nElems, offsetElem
 USE MOD_BGK_Adaptation      ,ONLY: BGK_octree_adapt, BGK_quadtree_adapt
 USE MOD_Particle_Vars       ,ONLY: PEM, WriteMacroVolumeValues, WriteMacroSurfaceValues, Symmetry, DoVirtualCellMerge, VirtMergedCells
@@ -229,9 +232,11 @@ IF (DoBGKCellAdaptation) THEN
     END IF
 #endif
     IF(Symmetry%Order.EQ.2) THEN
-      CALL BGK_quadtree_adapt(iElem)
+      CALL MeshAdaption(iElem)
+      !CALL BGK_quadtree_adapt(iElem)
     ELSE
       CALL BGK_octree_adapt(iElem)
+      !CALL MeshAdaption(iElem)
     END IF
   END DO
 ELSE ! No octree cell refinement

@@ -145,7 +145,8 @@ IF(AdaptMPF%DoAdaptMPF) THEN
       IF (STRICMP(VarNames_tmp(iVar),"Total_NumberDensity")) THEN
         nVar_TotalDens = iVar
       END IF
-      IF (STRICMP(VarNames_tmp(iVar),"DSMC_MCS_over_MFP")) THEN
+      !IF (STRICMP(VarNames_tmp(iVar),"DSMC_MCS_over_MFP")) THEN
+      IF (STRICMP(VarNames_tmp(iVar),"DSMC_MeanMCSMFP")) THEN
         nVar_DSMC = iVar
       END IF
       IF (STRICMP(VarNames_tmp(iVar),"BGK_DSMC_Ratio")) THEN
@@ -198,6 +199,9 @@ IF(AdaptMPF%DoAdaptMPF) THEN
       AdaptMPFInfo_Shared(2,iCNElem) = ElemData_HDF5(nVar_TotalDens,iElem)
       IF (nVar_DSMC.NE.0) THEN
         AdaptMPFInfo_Shared(3,iCNElem) = ElemData_HDF5(nVar_DSMC,iElem)
+        IF (ISNAN(AdaptMPFInfo_Shared(3,iCNElem))) THEN
+          AdaptMPFInfo_Shared(3,iCNElem) = 0.0
+        END IF
       ELSE 
         AdaptMPFInfo_Shared(3,iCNElem) = 0.
       END IF
