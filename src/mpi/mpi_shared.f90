@@ -219,7 +219,7 @@ END SUBROUTINE InitMPIShared
 !==================================================================================================================================
 SUBROUTINE Allocate_Shared_Logical_1(nVal,SM_WIN,DataPointer&
 #ifdef DEBUG_MEMORY
-        ,SM_WIN_NAME&
+        ,SM_WIN_NAME,SM_CALL_FILE,SM_CALL_FILE_LINE&
 #endif /*DEBUG_MEMORY*/
 )
 ! MODULES
@@ -235,24 +235,34 @@ INTEGER,INTENT(OUT)                       :: SM_WIN                   !> Shared 
 LOGICAL,INTENT(OUT),POINTER               :: DataPointer(:)           !> Pointer to the RMA window
 #ifdef DEBUG_MEMORY
 CHARACTER(LEN=*),INTENT(IN)               :: SM_WIN_NAME              !> Shared memory window name
+CHARACTER(LEN=*),INTENT(IN)               :: SM_CALL_FILE             !> File from which the call comes
+INTEGER,INTENT(IN)                        :: SM_CALL_FILE_LINE        !> Line in file from which the call comes
 #endif /*DEBUG_MEMORY*/
 !----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 TYPE(C_PTR)                               :: SM_PTR                   !> Base pointer, translated to DataPointer later
 INTEGER                                   :: DISP_UNIT                !> Displacement unit
 INTEGER(KIND=MPI_ADDRESS_KIND)            :: WIN_SIZE                 !> Size of the allocated memory window on current proc
+#if defined(DEBUG_MEMORY)
+CHARACTER(32)                             :: hilf                     !> Convert line number from int to string
+#endif /*defined(DEBUG_MEMORY)*/
 !==================================================================================================================================
 ! Only node MPI root actually allocates the memory, all other nodes allocate memory with zero length but use the same displacement
 WIN_SIZE  = MERGE(MPI_SIZE(PRODUCT(INT(nVal,KIND=8)),KIND(DataPointer)),INT(0,MPI_ADDRESS_KIND),myComputeNodeRank.EQ.0)
 DISP_UNIT = 1
 
 #ifdef DEBUG_MEMORY
+WRITE(UNIT=hilf,FMT='(I0)') SM_CALL_FILE_LINE
 LWRITE(UNIT_stdOut,'(A,I7,A65,I20)') "myrank=",myrank," Allocated "//TRIM(SM_WIN_NAME)//" with WIN_SIZE = ",WIN_SIZE
 #endif /*DEBUG_MEMORY*/
 
 IF (ASSOCIATED(DataPointer)) CALL abort(&
 __STAMP__&
-,'ERROR: Datapointer (Logical1) already associated')
+,'ERROR: Datapointer (Logical1) already associated'&
+#ifdef DEBUG_MEMORY
+//' for '//TRIM(SM_WIN_NAME)//' in file '//TRIM(SM_CALL_FILE)//' in line '//TRIM(hilf)&
+#endif /*DEBUG_MEMORY*/
+)
 
 ! Allocate MPI-3 remote memory access (RMA) type memory window
 CALL MPI_WIN_ALLOCATE_SHARED(WIN_SIZE, DISP_UNIT, MPI_INFO_SHARED_LOOSE, MPI_COMM_SHARED, SM_PTR, SM_WIN,IERROR)
@@ -272,7 +282,7 @@ END SUBROUTINE ALLOCATE_SHARED_LOGICAL_1
 !==================================================================================================================================
 SUBROUTINE Allocate_Shared_Logical_2(nVal,SM_WIN,DataPointer&
 #ifdef DEBUG_MEMORY
-        ,SM_WIN_NAME&
+        ,SM_WIN_NAME,SM_CALL_FILE,SM_CALL_FILE_LINE&
 #endif /*DEBUG_MEMORY*/
 )
 ! MODULES
@@ -288,24 +298,34 @@ INTEGER,INTENT(OUT)                       :: SM_WIN                   !> Shared 
 LOGICAL,INTENT(OUT),POINTER               :: DataPointer(:,:)         !> Pointer to the RMA window
 #ifdef DEBUG_MEMORY
 CHARACTER(LEN=*),INTENT(IN)               :: SM_WIN_NAME              !> Shared memory window name
+CHARACTER(LEN=*),INTENT(IN)               :: SM_CALL_FILE             !> File from which the call comes
+INTEGER,INTENT(IN)                        :: SM_CALL_FILE_LINE        !> Line in file from which the call comes
 #endif /*DEBUG_MEMORY*/
 !----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 TYPE(C_PTR)                               :: SM_PTR                   !> Base pointer, translated to DataPointer later
 INTEGER                                   :: DISP_UNIT                !> Displacement unit
 INTEGER(KIND=MPI_ADDRESS_KIND)            :: WIN_SIZE                 !> Size of the allocated memory window on current proc
+#if defined(DEBUG_MEMORY)
+CHARACTER(32)                             :: hilf                     !> Convert line number from int to string
+#endif /*defined(DEBUG_MEMORY)*/
 !==================================================================================================================================
 ! Only node MPI root actually allocates the memory, all other nodes allocate memory with zero length but use the same displacement
 WIN_SIZE  = MERGE(MPI_SIZE(PRODUCT(INT(nVal,KIND=8)),KIND(DataPointer)),INT(0,MPI_ADDRESS_KIND),myComputeNodeRank.EQ.0)
 DISP_UNIT = 1
 
 #ifdef DEBUG_MEMORY
+WRITE(UNIT=hilf,FMT='(I0)') SM_CALL_FILE_LINE
 LWRITE(UNIT_stdOut,'(A,I7,A65,I20)') "myrank=",myrank," Allocated "//TRIM(SM_WIN_NAME)//" with WIN_SIZE = ",WIN_SIZE
 #endif /*DEBUG_MEMORY*/
 
 IF (ASSOCIATED(DataPointer)) CALL abort(&
 __STAMP__&
-,'ERROR: Datapointer (Logical1) already associated')
+,'ERROR: Datapointer (Logical1) already associated'&
+#ifdef DEBUG_MEMORY
+//' for '//TRIM(SM_WIN_NAME)//' in file '//TRIM(SM_CALL_FILE)//' in line '//TRIM(hilf)&
+#endif /*DEBUG_MEMORY*/
+)
 
 ! Allocate MPI-3 remote memory access (RMA) type memory window
 CALL MPI_WIN_ALLOCATE_SHARED(WIN_SIZE, DISP_UNIT, MPI_INFO_SHARED_LOOSE, MPI_COMM_SHARED, SM_PTR, SM_WIN,IERROR)
@@ -325,7 +345,7 @@ END SUBROUTINE ALLOCATE_SHARED_LOGICAL_2
 !==================================================================================================================================
 SUBROUTINE Allocate_Shared_Int_1(nVal,SM_WIN,DataPointer&
 #ifdef DEBUG_MEMORY
-        ,SM_WIN_NAME&
+        ,SM_WIN_NAME,SM_CALL_FILE,SM_CALL_FILE_LINE&
 #endif /*DEBUG_MEMORY*/
 )
 ! MODULES
@@ -341,24 +361,34 @@ INTEGER,INTENT(OUT)                       :: SM_WIN                   !> Shared 
 INTEGER,INTENT(OUT),POINTER               :: DataPointer(:)         !> Pointer to the RMA window
 #ifdef DEBUG_MEMORY
 CHARACTER(LEN=*),INTENT(IN)               :: SM_WIN_NAME              !> Shared memory window name
+CHARACTER(LEN=*),INTENT(IN)               :: SM_CALL_FILE             !> File from which the call comes
+INTEGER,INTENT(IN)                        :: SM_CALL_FILE_LINE        !> Line in file from which the call comes
 #endif /*DEBUG_MEMORY*/
 !----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 TYPE(C_PTR)                               :: SM_PTR                   !> Base pointer, translated to DataPointer later
 INTEGER                                   :: DISP_UNIT                !> Displacement unit
 INTEGER(KIND=MPI_ADDRESS_KIND)            :: WIN_SIZE                 !> Size of the allocated memory window on current proc
+#if defined(DEBUG_MEMORY)
+CHARACTER(32)                             :: hilf                     !> Convert line number from int to string
+#endif /*defined(DEBUG_MEMORY)*/
 !==================================================================================================================================
 ! Only node MPI root actually allocates the memory, all other nodes allocate memory with zero length but use the same displacement
 WIN_SIZE  = MERGE(MPI_SIZE(PRODUCT(INT(nVal,KIND=8)),KIND(DataPointer)),INT(0,MPI_ADDRESS_KIND),myComputeNodeRank.EQ.0)
 DISP_UNIT = 1
 
 #ifdef DEBUG_MEMORY
+WRITE(UNIT=hilf,FMT='(I0)') SM_CALL_FILE_LINE
 LWRITE(UNIT_stdOut,'(A,I7,A65,I20)') "myrank=",myrank," Allocated "//TRIM(SM_WIN_NAME)//" with WIN_SIZE = ",WIN_SIZE
 #endif /*DEBUG_MEMORY*/
 
 IF (ASSOCIATED(DataPointer)) CALL abort(&
 __STAMP__&
-,'ERROR: Datapointer (Int1) already associated')
+,'ERROR: Datapointer (Int1) already associated'&
+#ifdef DEBUG_MEMORY
+//' for '//TRIM(SM_WIN_NAME)//' in file '//TRIM(SM_CALL_FILE)//' in line '//TRIM(hilf)&
+#endif /*DEBUG_MEMORY*/
+)
 
 ! Allocate MPI-3 remote memory access (RMA) type memory window
 CALL MPI_WIN_ALLOCATE_SHARED(WIN_SIZE, DISP_UNIT, MPI_INFO_SHARED_LOOSE, MPI_COMM_SHARED, SM_PTR, SM_WIN,IERROR)
@@ -379,7 +409,7 @@ END SUBROUTINE ALLOCATE_SHARED_INT_1
 !==================================================================================================================================
 SUBROUTINE Allocate_Shared_Int_2(nVal,SM_WIN,DataPointer&
 #ifdef DEBUG_MEMORY
-        ,SM_WIN_NAME&
+        ,SM_WIN_NAME,SM_CALL_FILE,SM_CALL_FILE_LINE&
 #endif /*DEBUG_MEMORY*/
 )
 ! MODULES
@@ -395,24 +425,34 @@ INTEGER,INTENT(OUT)                       :: SM_WIN                   !> Shared 
 INTEGER,INTENT(OUT),POINTER               :: DataPointer(:,:)         !> Pointer to the RMA window
 #ifdef DEBUG_MEMORY
 CHARACTER(LEN=*),INTENT(IN)               :: SM_WIN_NAME              !> Shared memory window name
+CHARACTER(LEN=*),INTENT(IN)               :: SM_CALL_FILE             !> File from which the call comes
+INTEGER,INTENT(IN)                        :: SM_CALL_FILE_LINE        !> Line in file from which the call comes
 #endif /*DEBUG_MEMORY*/
 !----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 TYPE(C_PTR)                               :: SM_PTR                   !> Base pointer, translated to DataPointer later
 INTEGER                                   :: DISP_UNIT                !> Displacement unit
 INTEGER(KIND=MPI_ADDRESS_KIND)            :: WIN_SIZE                 !> Size of the allocated memory window on current proc
+#if defined(DEBUG_MEMORY)
+CHARACTER(32)                             :: hilf                     !> Convert line number from int to string
+#endif /*defined(DEBUG_MEMORY)*/
 !==================================================================================================================================
 ! Only node MPI root actually allocates the memory, all other nodes allocate memory with zero length but use the same displacement
 WIN_SIZE  = MERGE(MPI_SIZE(PRODUCT(INT(nVal,KIND=8)),KIND(DataPointer)),INT(0,MPI_ADDRESS_KIND),myComputeNodeRank.EQ.0)
 DISP_UNIT = 1
 
 #ifdef DEBUG_MEMORY
+WRITE(UNIT=hilf,FMT='(I0)') SM_CALL_FILE_LINE
 LWRITE(UNIT_stdOut,'(A,I7,A65,I20)') "myrank=",myrank," Allocated "//TRIM(SM_WIN_NAME)//" with WIN_SIZE = ",WIN_SIZE
 #endif /*DEBUG_MEMORY*/
 
 IF (ASSOCIATED(DataPointer)) CALL abort(&
 __STAMP__&
-,'ERROR: Datapointer (Int2) already associated')
+,'ERROR: Datapointer (Int2) already associated'&
+#ifdef DEBUG_MEMORY
+//' for '//TRIM(SM_WIN_NAME)//' in file '//TRIM(SM_CALL_FILE)//' in line '//TRIM(hilf)&
+#endif /*DEBUG_MEMORY*/
+)
 
 ! Allocate MPI-3 remote memory access (RMA) type memory window
 CALL MPI_WIN_ALLOCATE_SHARED(WIN_SIZE, DISP_UNIT, MPI_INFO_SHARED_LOOSE, MPI_COMM_SHARED, SM_PTR, SM_WIN,IERROR)
@@ -433,7 +473,7 @@ END SUBROUTINE ALLOCATE_SHARED_INT_2
 !==================================================================================================================================
 SUBROUTINE Allocate_Shared_Int_3(nVal,SM_WIN,DataPointer&
 #ifdef DEBUG_MEMORY
-        ,SM_WIN_NAME&
+        ,SM_WIN_NAME,SM_CALL_FILE,SM_CALL_FILE_LINE&
 #endif /*DEBUG_MEMORY*/
 )
 ! MODULES
@@ -449,24 +489,34 @@ INTEGER,INTENT(OUT)                       :: SM_WIN                   !> Shared 
 INTEGER,INTENT(OUT),POINTER               :: DataPointer(:,:,:)       !> Pointer to the RMA window
 #ifdef DEBUG_MEMORY
 CHARACTER(LEN=*),INTENT(IN)               :: SM_WIN_NAME              !> Shared memory window name
+CHARACTER(LEN=*),INTENT(IN)               :: SM_CALL_FILE             !> File from which the call comes
+INTEGER,INTENT(IN)                        :: SM_CALL_FILE_LINE        !> Line in file from which the call comes
 #endif /*DEBUG_MEMORY*/
 !----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 TYPE(C_PTR)                               :: SM_PTR                   !> Base pointer, translated to DataPointer later
 INTEGER                                   :: DISP_UNIT                !> Displacement unit
 INTEGER(KIND=MPI_ADDRESS_KIND)            :: WIN_SIZE                 !> Size of the allocated memory window on current proc
+#if defined(DEBUG_MEMORY)
+CHARACTER(32)                             :: hilf                     !> Convert line number from int to string
+#endif /*defined(DEBUG_MEMORY)*/
 !==================================================================================================================================
 ! Only node MPI root actually allocates the memory, all other nodes allocate memory with zero length but use the same displacement
 WIN_SIZE  = MERGE(MPI_SIZE(PRODUCT(INT(nVal,KIND=8)),KIND(DataPointer)),INT(0,MPI_ADDRESS_KIND),myComputeNodeRank.EQ.0)
 DISP_UNIT = 1
 
 #ifdef DEBUG_MEMORY
+WRITE(UNIT=hilf,FMT='(I0)') SM_CALL_FILE_LINE
 LWRITE(UNIT_stdOut,'(A,I7,A65,I20)') "myrank=",myrank," Allocated "//TRIM(SM_WIN_NAME)//" with WIN_SIZE = ",WIN_SIZE
 #endif /*DEBUG_MEMORY*/
 
 IF (ASSOCIATED(DataPointer)) CALL abort(&
 __STAMP__&
-,'ERROR: Datapointer (Int3) already associated')
+,'ERROR: Datapointer (Int3) already associated'&
+#ifdef DEBUG_MEMORY
+//' for '//TRIM(SM_WIN_NAME)//' in file '//TRIM(SM_CALL_FILE)//' in line '//TRIM(hilf)&
+#endif /*DEBUG_MEMORY*/
+)
 
 ! Allocate MPI-3 remote memory access (RMA) type memory window
 CALL MPI_WIN_ALLOCATE_SHARED(WIN_SIZE, DISP_UNIT, MPI_INFO_SHARED_LOOSE, MPI_COMM_SHARED, SM_PTR, SM_WIN,IERROR)
@@ -487,7 +537,7 @@ END SUBROUTINE ALLOCATE_SHARED_INT_3
 !==================================================================================================================================
 SUBROUTINE Allocate_Shared_Int_4(nVal,SM_WIN,DataPointer&
 #ifdef DEBUG_MEMORY
-        ,SM_WIN_NAME&
+        ,SM_WIN_NAME,SM_CALL_FILE,SM_CALL_FILE_LINE&
 #endif /*DEBUG_MEMORY*/
 )
 ! MODULES
@@ -503,24 +553,34 @@ INTEGER,INTENT(OUT)                       :: SM_WIN                   !> Shared 
 INTEGER,INTENT(OUT),POINTER               :: DataPointer(:,:,:,:)     !> Pointer to the RMA window
 #ifdef DEBUG_MEMORY
 CHARACTER(LEN=*),INTENT(IN)               :: SM_WIN_NAME              !> Shared memory window name
+CHARACTER(LEN=*),INTENT(IN)               :: SM_CALL_FILE             !> File from which the call comes
+INTEGER,INTENT(IN)                        :: SM_CALL_FILE_LINE        !> Line in file from which the call comes
 #endif /*DEBUG_MEMORY*/
 !----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 TYPE(C_PTR)                               :: SM_PTR                   !> Base pointer, translated to DataPointer later
 INTEGER                                   :: DISP_UNIT                !> Displacement unit
 INTEGER(KIND=MPI_ADDRESS_KIND)            :: WIN_SIZE                 !> Size of the allocated memory window on current proc
+#if defined(DEBUG_MEMORY)
+CHARACTER(32)                             :: hilf                     !> Convert line number from int to string
+#endif /*defined(DEBUG_MEMORY)*/
 !==================================================================================================================================
 ! Only node MPI root actually allocates the memory, all other nodes allocate memory with zero length but use the same displacement
 WIN_SIZE  = MERGE(MPI_SIZE(PRODUCT(INT(nVal,KIND=8)),KIND(DataPointer)),INT(0,MPI_ADDRESS_KIND),myComputeNodeRank.EQ.0)
 DISP_UNIT = 1
 
 #ifdef DEBUG_MEMORY
+WRITE(UNIT=hilf,FMT='(I0)') SM_CALL_FILE_LINE
 LWRITE(UNIT_stdOut,'(A,I7,A65,I20)') "myrank=",myrank," Allocated "//TRIM(SM_WIN_NAME)//" with WIN_SIZE = ",WIN_SIZE
 #endif /*DEBUG_MEMORY*/
 
 IF (ASSOCIATED(DataPointer)) CALL abort(&
 __STAMP__&
-,'ERROR: Datapointer (Int3) already associated')
+,'ERROR: Datapointer (Int3) already associated'&
+#ifdef DEBUG_MEMORY
+//' for '//TRIM(SM_WIN_NAME)//' in file '//TRIM(SM_CALL_FILE)//' in line '//TRIM(hilf)&
+#endif /*DEBUG_MEMORY*/
+)
 
 ! Allocate MPI-3 remote memory access (RMA) type memory window
 CALL MPI_WIN_ALLOCATE_SHARED(WIN_SIZE, DISP_UNIT, MPI_INFO_SHARED_LOOSE, MPI_COMM_SHARED, SM_PTR, SM_WIN,IERROR)
@@ -595,7 +655,7 @@ END SUBROUTINE ALLOCATE_SHARED_INT_4
 !==================================================================================================================================
 SUBROUTINE Allocate_Shared_Real_1(nVal,SM_WIN,DataPointer&
 #ifdef DEBUG_MEMORY
-        ,SM_WIN_NAME&
+        ,SM_WIN_NAME,SM_CALL_FILE,SM_CALL_FILE_LINE&
 #endif /*DEBUG_MEMORY*/
 )
 ! MODULES
@@ -611,24 +671,34 @@ INTEGER,INTENT(OUT)                       :: SM_WIN                   !> Shared 
 REAL   ,INTENT(OUT),POINTER               :: DataPointer(:)         !> Pointer to the RMA window
 #ifdef DEBUG_MEMORY
 CHARACTER(LEN=*),INTENT(IN)               :: SM_WIN_NAME              !> Shared memory window name
+CHARACTER(LEN=*),INTENT(IN)               :: SM_CALL_FILE             !> File from which the call comes
+INTEGER,INTENT(IN)                        :: SM_CALL_FILE_LINE        !> Line in file from which the call comes
 #endif /*DEBUG_MEMORY*/
 !----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 TYPE(C_PTR)                               :: SM_PTR                   !> Base pointer, translated to DataPointer later
 INTEGER                                   :: DISP_UNIT                !> Displacement unit
 INTEGER(KIND=MPI_ADDRESS_KIND)            :: WIN_SIZE                 !> Size of the allocated memory window on current proc
+#if defined(DEBUG_MEMORY)
+CHARACTER(32)                             :: hilf                     !> Convert line number from int to string
+#endif /*defined(DEBUG_MEMORY)*/
 !==================================================================================================================================
 ! Only node MPI root actually allocates the memory, all other nodes allocate memory with zero length but use the same displacement
 WIN_SIZE  = MERGE(MPI_SIZE(PRODUCT(INT(nVal,KIND=8)),KIND(DataPointer)),INT(0,MPI_ADDRESS_KIND),myComputeNodeRank.EQ.0)
 DISP_UNIT = 1
 
 #ifdef DEBUG_MEMORY
+WRITE(UNIT=hilf,FMT='(I0)') SM_CALL_FILE_LINE
 LWRITE(UNIT_stdOut,'(A,I7,A65,I20)') "myrank=",myrank," Allocated "//TRIM(SM_WIN_NAME)//" with WIN_SIZE = ",WIN_SIZE
 #endif /*DEBUG_MEMORY*/
 
 IF (ASSOCIATED(DataPointer)) CALL abort(&
 __STAMP__&
-,'ERROR: Datapointer (Real1) already associated')
+,'ERROR: Datapointer (Real1) already associated'&
+#ifdef DEBUG_MEMORY
+//' for '//TRIM(SM_WIN_NAME)//' in file '//TRIM(SM_CALL_FILE)//' in line '//TRIM(hilf)&
+#endif /*DEBUG_MEMORY*/
+)
 
 ! Allocate MPI-3 remote memory access (RMA) type memory window
 CALL MPI_WIN_ALLOCATE_SHARED(WIN_SIZE, DISP_UNIT, MPI_INFO_SHARED_LOOSE, MPI_COMM_SHARED, SM_PTR, SM_WIN,IERROR)
@@ -700,7 +770,7 @@ END SUBROUTINE Allocate_Shared_Test
 !==================================================================================================================================
 SUBROUTINE Allocate_Shared_Real_2(nVal,SM_WIN,DataPointer&
 #ifdef DEBUG_MEMORY
-        ,SM_WIN_NAME&
+        ,SM_WIN_NAME,SM_CALL_FILE,SM_CALL_FILE_LINE&
 #endif /*DEBUG_MEMORY*/
 )
 ! MODULES
@@ -716,24 +786,34 @@ INTEGER,INTENT(OUT)                       :: SM_WIN                   !> Shared 
 REAL   ,INTENT(OUT),POINTER               :: DataPointer(:,:)         !> Pointer to the RMA window
 #ifdef DEBUG_MEMORY
 CHARACTER(LEN=*),INTENT(IN)               :: SM_WIN_NAME              !> Shared memory window name
+CHARACTER(LEN=*),INTENT(IN)               :: SM_CALL_FILE             !> File from which the call comes
+INTEGER,INTENT(IN)                        :: SM_CALL_FILE_LINE        !> Line in file from which the call comes
 #endif /*DEBUG_MEMORY*/
 !----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 TYPE(C_PTR)                               :: SM_PTR                   !> Base pointer, translated to DataPointer later
 INTEGER                                   :: DISP_UNIT                !> Displacement unit
 INTEGER(KIND=MPI_ADDRESS_KIND)            :: WIN_SIZE                 !> Size of the allocated memory window on current proc
+#if defined(DEBUG_MEMORY)
+CHARACTER(32)                             :: hilf                     !> Convert line number from int to string
+#endif /*defined(DEBUG_MEMORY)*/
 !==================================================================================================================================
 ! Only node MPI root actually allocates the memory, all other nodes allocate memory with zero length but use the same displacement
 WIN_SIZE  = MERGE(MPI_SIZE(PRODUCT(INT(nVal,KIND=8)),KIND(DataPointer)),INT(0,MPI_ADDRESS_KIND),myComputeNodeRank.EQ.0)
 DISP_UNIT = 1
 
 #ifdef DEBUG_MEMORY
+WRITE(UNIT=hilf,FMT='(I0)') SM_CALL_FILE_LINE
 LWRITE(UNIT_stdOut,'(A,I7,A65,I20)') "myrank=",myrank," Allocated "//TRIM(SM_WIN_NAME)//" with WIN_SIZE = ",WIN_SIZE
 #endif /*DEBUG_MEMORY*/
 
 IF (ASSOCIATED(DataPointer)) CALL abort(&
 __STAMP__&
-,'ERROR: Datapointer (Real2) already associated')
+,'ERROR: Datapointer (Real2) already associated'&
+#ifdef DEBUG_MEMORY
+//' for '//TRIM(SM_WIN_NAME)//' in file '//TRIM(SM_CALL_FILE)//' in line '//TRIM(hilf)&
+#endif /*DEBUG_MEMORY*/
+)
 
 ! Allocate MPI-3 remote memory access (RMA) type memory window
 CALL MPI_WIN_ALLOCATE_SHARED(WIN_SIZE, DISP_UNIT, MPI_INFO_SHARED_LOOSE, MPI_COMM_SHARED, SM_PTR, SM_WIN,IERROR)
@@ -754,7 +834,7 @@ END SUBROUTINE ALLOCATE_SHARED_REAL_2
 !==================================================================================================================================
 SUBROUTINE Allocate_Shared_Real_3(nVal,SM_WIN,DataPointer&
 #ifdef DEBUG_MEMORY
-        ,SM_WIN_NAME&
+        ,SM_WIN_NAME,SM_CALL_FILE,SM_CALL_FILE_LINE&
 #endif /*DEBUG_MEMORY*/
 )
 ! MODULES
@@ -770,24 +850,34 @@ INTEGER,INTENT(OUT)                       :: SM_WIN                   !> Shared 
 REAL   ,INTENT(OUT),POINTER               :: DataPointer(:,:,:)       !> Pointer to the RMA window
 #ifdef DEBUG_MEMORY
 CHARACTER(LEN=*),INTENT(IN)               :: SM_WIN_NAME              !> Shared memory window name
+CHARACTER(LEN=*),INTENT(IN)               :: SM_CALL_FILE             !> File from which the call comes
+INTEGER,INTENT(IN)                        :: SM_CALL_FILE_LINE        !> Line in file from which the call comes
 #endif /*DEBUG_MEMORY*/
 !----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 TYPE(C_PTR)                               :: SM_PTR                   !> Base pointer, translated to DataPointer later
 INTEGER                                   :: DISP_UNIT                !> Displacement unit
 INTEGER(KIND=MPI_ADDRESS_KIND)            :: WIN_SIZE                 !> Size of the allocated memory window on current proc
+#if defined(DEBUG_MEMORY)
+CHARACTER(32)                             :: hilf                     !> Convert line number from int to string
+#endif /*defined(DEBUG_MEMORY)*/
 !==================================================================================================================================
 ! Only node MPI root actually allocates the memory, all other nodes allocate memory with zero length but use the same displacement
 WIN_SIZE  = MERGE(MPI_SIZE(PRODUCT(INT(nVal,KIND=8)),KIND(DataPointer)),INT(0,MPI_ADDRESS_KIND),myComputeNodeRank.EQ.0)
 DISP_UNIT = 1
 
 #ifdef DEBUG_MEMORY
+WRITE(UNIT=hilf,FMT='(I0)') SM_CALL_FILE_LINE
 LWRITE(UNIT_stdOut,'(A,I7,A65,I20)') "myrank=",myrank," Allocated "//TRIM(SM_WIN_NAME)//" with WIN_SIZE = ",WIN_SIZE
 #endif /*DEBUG_MEMORY*/
 
 IF (ASSOCIATED(DataPointer)) CALL abort(&
 __STAMP__&
-,'ERROR: Datapointer (Real3) already associated')
+,'ERROR: Datapointer (Real3) already associated'&
+#ifdef DEBUG_MEMORY
+//' for '//TRIM(SM_WIN_NAME)//' in file '//TRIM(SM_CALL_FILE)//' in line '//TRIM(hilf)&
+#endif /*DEBUG_MEMORY*/
+)
 
 ! Allocate MPI-3 remote memory access (RMA) type memory window
 CALL MPI_WIN_ALLOCATE_SHARED(WIN_SIZE, DISP_UNIT, MPI_INFO_SHARED_LOOSE, MPI_COMM_SHARED, SM_PTR, SM_WIN,IERROR)
@@ -808,7 +898,7 @@ END SUBROUTINE ALLOCATE_SHARED_REAL_3
 !==================================================================================================================================
 SUBROUTINE Allocate_Shared_Real_4(nVal,SM_WIN,DataPointer&
 #ifdef DEBUG_MEMORY
-        ,SM_WIN_NAME&
+        ,SM_WIN_NAME,SM_CALL_FILE,SM_CALL_FILE_LINE&
 #endif /*DEBUG_MEMORY*/
 )
 ! MODULES
@@ -824,24 +914,34 @@ INTEGER,INTENT(OUT)                       :: SM_WIN                   !> Shared 
 REAL   ,INTENT(OUT),POINTER               :: DataPointer(:,:,:,:)     !> Pointer to the RMA window
 #ifdef DEBUG_MEMORY
 CHARACTER(LEN=*),INTENT(IN)               :: SM_WIN_NAME              !> Shared memory window name
+CHARACTER(LEN=*),INTENT(IN)               :: SM_CALL_FILE             !> File from which the call comes
+INTEGER,INTENT(IN)                        :: SM_CALL_FILE_LINE        !> Line in file from which the call comes
 #endif /*DEBUG_MEMORY*/
 !----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 TYPE(C_PTR)                               :: SM_PTR                   !> Base pointer, translated to DataPointer later
 INTEGER                                   :: DISP_UNIT                !> Displacement unit
 INTEGER(KIND=MPI_ADDRESS_KIND)            :: WIN_SIZE                 !> Size of the allocated memory window on current proc
+#if defined(DEBUG_MEMORY)
+CHARACTER(32)                             :: hilf                     !> Convert line number from int to string
+#endif /*defined(DEBUG_MEMORY)*/
 !==================================================================================================================================
 ! Only node MPI root actually allocates the memory, all other nodes allocate memory with zero length but use the same displacement
 WIN_SIZE  = MERGE(MPI_SIZE(PRODUCT(INT(nVal,KIND=8)),KIND(DataPointer)),INT(0,MPI_ADDRESS_KIND),myComputeNodeRank.EQ.0)
 DISP_UNIT = 1
 
 #ifdef DEBUG_MEMORY
+WRITE(UNIT=hilf,FMT='(I0)') SM_CALL_FILE_LINE
 LWRITE(UNIT_stdOut,'(A,I7,A65,I20)') "myrank=",myrank," Allocated "//TRIM(SM_WIN_NAME)//" with WIN_SIZE = ",WIN_SIZE
 #endif /*DEBUG_MEMORY*/
 
 IF (ASSOCIATED(DataPointer)) CALL abort(&
 __STAMP__&
-,'ERROR: Datapointer (Real4) already associated')
+,'ERROR: Datapointer (Real4) already associated'&
+#ifdef DEBUG_MEMORY
+//' for '//TRIM(SM_WIN_NAME)//' in file '//TRIM(SM_CALL_FILE)//' in line '//TRIM(hilf)&
+#endif /*DEBUG_MEMORY*/
+)
 
 ! Allocate MPI-3 remote memory access (RMA) type memory window
 CALL MPI_WIN_ALLOCATE_SHARED(WIN_SIZE, DISP_UNIT, MPI_INFO_SHARED_LOOSE, MPI_COMM_SHARED, SM_PTR, SM_WIN,IERROR)
@@ -862,7 +962,7 @@ END SUBROUTINE ALLOCATE_SHARED_REAL_4
 !==================================================================================================================================
 SUBROUTINE Allocate_Shared_Real_5(nVal,SM_WIN,DataPointer&
 #ifdef DEBUG_MEMORY
-        ,SM_WIN_NAME&
+        ,SM_WIN_NAME,SM_CALL_FILE,SM_CALL_FILE_LINE&
 #endif /*DEBUG_MEMORY*/
 )
 ! MODULES
@@ -878,24 +978,34 @@ INTEGER,INTENT(OUT)                       :: SM_WIN                   !> Shared 
 REAL   ,INTENT(OUT),POINTER               :: DataPointer(:,:,:,:,:)   !> Pointer to the RMA window
 #ifdef DEBUG_MEMORY
 CHARACTER(LEN=*),INTENT(IN)               :: SM_WIN_NAME              !> Shared memory window name
+CHARACTER(LEN=*),INTENT(IN)               :: SM_CALL_FILE             !> File from which the call comes
+INTEGER,INTENT(IN)                        :: SM_CALL_FILE_LINE        !> Line in file from which the call comes
 #endif /*DEBUG_MEMORY*/
 !----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 TYPE(C_PTR)                               :: SM_PTR                   !> Base pointer, translated to DataPointer later
 INTEGER                                   :: DISP_UNIT                !> Displacement unit
 INTEGER(KIND=MPI_ADDRESS_KIND)            :: WIN_SIZE                 !> Size of the allocated memory window on current proc
+#if defined(DEBUG_MEMORY)
+CHARACTER(32)                             :: hilf                     !> Convert line number from int to string
+#endif /*defined(DEBUG_MEMORY)*/
 !==================================================================================================================================
 ! Only node MPI root actually allocates the memory, all other nodes allocate memory with zero length but use the same displacement
 WIN_SIZE  = MERGE(MPI_SIZE(PRODUCT(INT(nVal,KIND=8)),KIND(DataPointer)),INT(0,MPI_ADDRESS_KIND),myComputeNodeRank.EQ.0)
 DISP_UNIT = 1
 
 #ifdef DEBUG_MEMORY
+WRITE(UNIT=hilf,FMT='(I0)') SM_CALL_FILE_LINE
 LWRITE(UNIT_stdOut,'(A,I7,A65,I20)') "myrank=",myrank," Allocated "//TRIM(SM_WIN_NAME)//" with WIN_SIZE = ",WIN_SIZE
 #endif /*DEBUG_MEMORY*/
 
 IF (ASSOCIATED(DataPointer)) CALL abort(&
 __STAMP__&
-,'ERROR: Datapointer (Real5) already associated')
+,'ERROR: Datapointer (Real5) already associated'&
+#ifdef DEBUG_MEMORY
+//' for '//TRIM(SM_WIN_NAME)//' in file '//TRIM(SM_CALL_FILE)//' in line '//TRIM(hilf)&
+#endif /*DEBUG_MEMORY*/
+)
 
 ! Allocate MPI-3 remote memory access (RMA) type memory window
 CALL MPI_WIN_ALLOCATE_SHARED(WIN_SIZE, DISP_UNIT, MPI_INFO_SHARED_LOOSE, MPI_COMM_SHARED, SM_PTR, SM_WIN,IERROR)
@@ -916,7 +1026,7 @@ END SUBROUTINE ALLOCATE_SHARED_REAL_5
 !==================================================================================================================================
 SUBROUTINE Allocate_Shared_Real_6(nVal,SM_WIN,DataPointer&
 #ifdef DEBUG_MEMORY
-        ,SM_WIN_NAME&
+        ,SM_WIN_NAME,SM_CALL_FILE,SM_CALL_FILE_LINE&
 #endif /*DEBUG_MEMORY*/
 )
 ! MODULES
@@ -932,24 +1042,34 @@ INTEGER,INTENT(OUT)                       :: SM_WIN                   !> Shared 
 REAL   ,INTENT(OUT),POINTER               :: DataPointer(:,:,:,:,:,:) !> Pointer to the RMA window
 #ifdef DEBUG_MEMORY
 CHARACTER(LEN=*),INTENT(IN)               :: SM_WIN_NAME              !> Shared memory window name
+CHARACTER(LEN=*),INTENT(IN)               :: SM_CALL_FILE             !> File from which the call comes
+INTEGER,INTENT(IN)                        :: SM_CALL_FILE_LINE        !> Line in file from which the call comes
 #endif /*DEBUG_MEMORY*/
 !----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 TYPE(C_PTR)                               :: SM_PTR                   !> Base pointer, translated to DataPointer later
 INTEGER                                   :: DISP_UNIT                !> Displacement unit
 INTEGER(KIND=MPI_ADDRESS_KIND)            :: WIN_SIZE                 !> Size of the allocated memory window on current proc
+#if defined(DEBUG_MEMORY)
+CHARACTER(32)                             :: hilf                     !> Convert line number from int to string
+#endif /*defined(DEBUG_MEMORY)*/
 !==================================================================================================================================
 ! Only node MPI root actually allocates the memory, all other nodes allocate memory with zero length but use the same displacement
 WIN_SIZE  = MERGE(MPI_SIZE(PRODUCT(INT(nVal,KIND=8)),KIND(DataPointer)),INT(0,MPI_ADDRESS_KIND),myComputeNodeRank.EQ.0)
 DISP_UNIT = 1
 
 #ifdef DEBUG_MEMORY
+WRITE(UNIT=hilf,FMT='(I0)') SM_CALL_FILE_LINE
 LWRITE(UNIT_stdOut,'(A,I7,A65,I20)') "myrank=",myrank," Allocated "//TRIM(SM_WIN_NAME)//" with WIN_SIZE = ",WIN_SIZE
 #endif /*DEBUG_MEMORY*/
 
 IF (ASSOCIATED(DataPointer)) CALL abort(&
 __STAMP__&
-,'ERROR: Datapointer (Real6) already associated')
+,'ERROR: Datapointer (Real6) already associated'&
+#ifdef DEBUG_MEMORY
+//' for '//TRIM(SM_WIN_NAME)//' in file '//TRIM(SM_CALL_FILE)//' in line '//TRIM(hilf)&
+#endif /*DEBUG_MEMORY*/
+)
 
 ! Allocate MPI-3 remote memory access (RMA) type memory window
 CALL MPI_WIN_ALLOCATE_SHARED(WIN_SIZE, DISP_UNIT, MPI_INFO_SHARED_LOOSE, MPI_COMM_SHARED, SM_PTR, SM_WIN,IERROR)

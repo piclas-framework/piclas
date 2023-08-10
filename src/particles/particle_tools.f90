@@ -78,6 +78,7 @@ PUBLIC :: InterpolateEmissionDistribution2D
 PUBLIC :: MergeCells,InRotRefFrameCheck
 PUBLIC :: CalcPartSymmetryPos
 PUBLIC :: StoreLostPhotonProperties
+PUBLIC :: RotateVectorAroundAxis
 !===================================================================================================================================
 
 CONTAINS
@@ -1639,5 +1640,48 @@ ELSE
 END IF ! Symmetry%SphericalSymmetric
 
 END SUBROUTINE CalcPartSymmetryPos
+
+
+PPURE FUNCTION RotateVectorAroundAxis(VecIn,Axis,Angle)
+!===================================================================================================================================
+!> Rotate a given vector around one of the major axis using a given angle, output is the rotated vector
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+REAL,INTENT(IN)         :: VecIn(1:3)     !< 3D input vector
+INTEGER,INTENT(IN)      :: Axis           !< Major axis as rotational axis
+REAL,INTENT(IN)         :: Angle          !< Rotational angle
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+REAL                    :: RotateVectorAroundAxis(1:3)
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER                 :: k,l,m
+!===================================================================================================================================
+
+SELECT CASE(Axis)
+CASE(1) ! x-rotation axis
+  k = 1
+  l = 2
+  m = 3
+CASE(2) ! y-rotation axis
+  k = 2
+  l = 3
+  m = 1
+CASE(3) ! z-rotation axis
+  k = 3
+  l = 1
+  m = 2
+END SELECT
+
+RotateVectorAroundAxis(k) = VecIn(k)
+RotateVectorAroundAxis(l) = COS(Angle)*VecIn(l) - SIN(Angle)*VecIn(m)
+RotateVectorAroundAxis(m) = SIN(Angle)*VecIn(l) + COS(Angle)*VecIn(m)
+
+END FUNCTION RotateVectorAroundAxis
 
 END MODULE MOD_part_tools

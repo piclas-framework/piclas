@@ -90,6 +90,8 @@ REAL,ALLOCPOINT,DIMENSION(:,:)           :: BCSideMetrics      !> Side origin an
 ! Shared arrays containing information for compute-node mesh mappings
 INTEGER,ALLOCPOINT,DIMENSION(:,:)        :: NodeToElemMapping, NodeToElemMapping_Shared
 INTEGER,ALLOCPOINT,DIMENSION(:)          :: NodeToElemInfo   , NodeToElemInfo_Shared
+INTEGER,ALLOCPOINT,DIMENSION(:,:)        :: NodeToGlobElemMapping, NodeToGlobElemMapping_Shared
+INTEGER,ALLOCPOINT,DIMENSION(:)          :: NodeToGlobElemInfo   , NodeToGlobElemInfo_Shared
 INTEGER,ALLOCPOINT,DIMENSION(:,:)        :: ElemToElemMapping, ElemToElemMapping_Shared
 INTEGER,ALLOCPOINT,DIMENSION(:)          :: ElemToElemInfo   , ElemToElemInfo_Shared
 
@@ -197,6 +199,8 @@ INTEGER            :: SideIsSymSide_Shared_Win
 ! integers to hold shared memory windows
 INTEGER         :: NodeToElemMapping_Shared_Win
 INTEGER         :: NodeToElemInfo_Shared_Win
+INTEGER         :: NodeToGlobElemMapping_Shared_Win
+INTEGER         :: NodeToGlobElemInfo_Shared_Win
 INTEGER         :: ElemToElemMapping_Shared_Win
 INTEGER         :: ElemToElemInfo_Shared_Win
 
@@ -275,7 +279,7 @@ INTEGER         :: ElemCharLengthY_Shared_Win
 INTEGER         :: ElemCharLengthZ_Shared_Win
 
 ! periodic sides
-LOGICAL         :: MeshHasPeriodic,MeshHasRotPeriodic
+LOGICAL         :: MeshHasPeriodic
 #endif
 
 ! ElemID for WriteHaloInfo
@@ -314,8 +318,6 @@ END TYPE
 INTEGER                                  :: FIBGMCellPadding(1:3)
 ! ====================================================================
 TYPE tGeometry
-  LOGICAL                                :: RotPeriodicBC            ! Flag for rotational periodicity
-  INTEGER                                :: RotPeriodicAxi           ! Axis of rotational periodicity
   REAL                                   :: CNxmin                   ! minimum x coord of all compute-node nodes
   REAL                                   :: CNxmax                   ! minimum y coord of all compute-node nodes
   REAL                                   :: CNymin                   ! minimum z coord of all compute-node nodes

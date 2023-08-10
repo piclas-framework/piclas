@@ -216,6 +216,9 @@ IF(DoInterpolationAnalytic)THEN
     !                              1: relativistic
     AnalyticInterpolationSubType = GETINT('PIC-AnalyticInterpolation-SubType')
     AnalyticInterpolationE       = GETREAL('PIC-AnalyticInterpolationE')
+  CASE(5,51)
+    ! RotRefFrameFreq and RotRefFrameOmega is already defined in particle_init.f90
+    TimeReset = 0.0
   CASE DEFAULT
     WRITE(TempStr,'(I5)') AnalyticInterpolationType
     CALL abort(__STAMP__,'Unknown PIC-AnalyticInterpolation-Type "'//TRIM(ADJUSTL(TempStr))//'" in pic_interpolation.f90')

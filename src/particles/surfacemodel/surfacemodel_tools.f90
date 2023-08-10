@@ -213,8 +213,7 @@ IF (useDSMC) THEN
             END IF
           END DO
         ELSE
-          VibQuant     = NINT(PartStateIntEn(1,PartID)/(BoltzmannConst*SpecDSMC(SpecID)%CharaTVib) &
-              - DSMC%GammaQuant)
+          VibQuant     = NINT(PartStateIntEn(1,PartID)/(BoltzmannConst*SpecDSMC(SpecID)%CharaTVib) - DSMC%GammaQuant)
           CALL RANDOM_NUMBER(RanNum)
           VibQuantWall = INT(-LOG(RanNum) * WallTemp / SpecDSMC(SpecID)%CharaTVib)
           DO WHILE (VibQuantWall.GE.SpecDSMC(SpecID)%MaxVibQuant)
