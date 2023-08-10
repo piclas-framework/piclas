@@ -206,8 +206,8 @@ USE MOD_PICDepo_Vars       ,ONLY: NodeVolume_Shared, NodeVolume_Shared_Win
 #else
 USE MOD_Mesh_Vars          ,ONLY: nElems
 #endif
-USE MOD_PICDepo_Vars       ,ONLY: NodeVolume
-USE MOD_Particle_Mesh_Vars ,ONLY: ElemsJ, ElemNodeID_Shared, nUniqueGlobalNodes, NodeInfo_Shared
+USE MOD_Particle_Mesh_Vars ,ONLY: ElemsJ, ElemNodeID_Shared, nUniqueGlobalNodes, NodeInfo_Shared,GEO
+USE MOD_PICDepo_Vars       ,ONLY: NodeVolume,Periodic_nNodes,Periodic_offsetNode,Periodic_Nodes
 USE MOD_DG_Vars            ,ONLY: N_DG
 USE MOD_Mesh_Vars          ,ONLY: N_VolMesh
 ! IMPLICIT VARIABLE HANDLING
@@ -220,10 +220,10 @@ IMPLICIT NONE
 ! LOCAL VARIABLES
 REAL                             :: Vdm_loc(0:1,0:PP_N),wGP_loc,xGP_loc(0:1),DetJac(1,0:1,0:1,0:1)
 REAL                             :: DetLocal(1,0:PP_N,0:PP_N,0:PP_N)
-INTEGER                          :: j,k,l,iElem, firstElem, lastElem
+INTEGER                          :: j,k,l,iElem, firstElem, lastElem, iNode, jNode
+REAL                             :: NodeVolumeLoc(1:nUniqueGlobalNodes)
 #if USE_MPI
 INTEGER                          :: MessageSize
-REAL                             :: NodeVolumeLoc(1:nUniqueGlobalNodes)
 #if USE_DEBUG
 INTEGER                          :: I
 #endif /*USE_DEBUG*/
@@ -231,17 +231,15 @@ INTEGER                          :: I
 INTEGER                          :: NodeID(1:8)
 INTEGER                          :: Nloc
 !===================================================================================================================================
+NodeVolumeLoc = 0.
 #if USE_MPI
 CALL Allocate_Shared((/nUniqueGlobalNodes/),NodeVolume_Shared_Win,NodeVolume_Shared)
 CALL MPI_WIN_LOCK_ALL(0,NodeVolume_Shared_Win,IERROR)
 NodeVolume => NodeVolume_Shared
 firstElem = INT(REAL( myComputeNodeRank   )*REAL(nComputeNodeTotalElems)/REAL(nComputeNodeProcessors))+1
 lastElem  = INT(REAL((myComputeNodeRank+1))*REAL(nComputeNodeTotalElems)/REAL(nComputeNodeProcessors))
-NodeVolumeLoc = 0.
 ! only CN root nullifies
-IF (myComputeNodeRank.EQ.0) THEN
-  NodeVolume = 0.0
-END IF
+IF (myComputeNodeRank.EQ.0) NodeVolume = 0.0
 ! This sync/barrier is required as it cannot be guaranteed that the zeros have been written to memory by the time the MPI_REDUCE
 ! is executed (see MPI specification). Until the Sync is complete, the status is undefined, i.e., old or new value or utter nonsense.
 CALL BARRIER_AND_SYNC(NodeVolume_Shared_Win,MPI_COMM_SHARED)
@@ -300,7 +298,29 @@ ELSE
   CALL MPI_REDUCE(NodeVolumeLoc , 0          , MessageSize , MPI_DOUBLE_PRECISION , MPI_SUM , 0 , MPI_COMM_SHARED , IERROR)
 END IF
 CALL BARRIER_AND_SYNC(NodeVolume_Shared_Win,MPI_COMM_SHARED)
+#endif
+IF (GEO%nPeriodicVectors.GT.0) THEN
+#if USE_MPI
+  IF (myComputeNodeRank.EQ.0) THEN
+#endif /*USE_MPI*/
+    ! Root node acquires the periodic contribution
+    NodeVolumeLoc = 0.
+    DO iNode = 1,nUniqueGlobalNodes
+      IF (Periodic_nNodes(iNode).GT.0) THEN
+        DO jNode = Periodic_offsetNode(iNode)+1,Periodic_offsetNode(iNode)+Periodic_nNodes(iNode)
+          NodeVolumeLoc(iNode) = NodeVolumeLoc(iNode) + NodeVolume(Periodic_Nodes(jNode))
+        END DO ! jNode
+      END IF ! Periodic_nNodes(iNode).GT.0
+    END DO ! iNode = nUniqueGlobalNodes
+    ! Only node root adds periodic contribution to shared array
+    NodeVolume = NodeVolume + NodeVolumeLoc
+#if USE_MPI
+  END IF ! myComputeNodeRank.EQ.0
+  CALL BARRIER_AND_SYNC(NodeVolume_Shared_Win,MPI_COMM_SHARED)
+#endif
+END IF
 
+#if USE_MPI
 #if USE_DEBUG
 ! Sanity Check: Only check UniqueGlobalNodes that are on the compute node (total)
 DO iElem = firstElem, lastElem
