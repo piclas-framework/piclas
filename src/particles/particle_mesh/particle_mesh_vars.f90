@@ -89,6 +89,8 @@ REAL,ALLOCPOINT,DIMENSION(:,:)           :: BCSideMetrics      !> Side origin an
 ! Shared arrays containing information for compute-node mesh mappings
 INTEGER,ALLOCPOINT,DIMENSION(:,:)        :: NodeToElemMapping, NodeToElemMapping_Shared
 INTEGER,ALLOCPOINT,DIMENSION(:)          :: NodeToElemInfo   , NodeToElemInfo_Shared
+INTEGER,ALLOCPOINT,DIMENSION(:,:)        :: NodeToGlobElemMapping, NodeToGlobElemMapping_Shared
+INTEGER,ALLOCPOINT,DIMENSION(:)          :: NodeToGlobElemInfo   , NodeToGlobElemInfo_Shared
 INTEGER,ALLOCPOINT,DIMENSION(:,:)        :: ElemToElemMapping, ElemToElemMapping_Shared
 INTEGER,ALLOCPOINT,DIMENSION(:)          :: ElemToElemInfo   , ElemToElemInfo_Shared
 
@@ -189,6 +191,8 @@ INTEGER            :: SideIsSymSide_Shared_Win
 ! integers to hold shared memory windows
 INTEGER         :: NodeToElemMapping_Shared_Win
 INTEGER         :: NodeToElemInfo_Shared_Win
+INTEGER         :: NodeToGlobElemMapping_Shared_Win
+INTEGER         :: NodeToGlobElemInfo_Shared_Win
 INTEGER         :: ElemToElemMapping_Shared_Win
 INTEGER         :: ElemToElemInfo_Shared_Win
 
