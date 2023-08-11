@@ -169,7 +169,7 @@ IF(ANY(SpecDSMC(:)%InterID.EQ.2).OR.ANY(SpecDSMC(:)%InterID.EQ.20)) THEN
       ! S. Chapman and T.G. Cowling, "The mathematical Theory of Non-Uniform Gases", Cambridge University Press, 1970, S. 87f
       ! For SpecBGK(iSpec)%CollFreqPreFactor(jSpec) see bgk_init.f90
       ! VHS according to M. Pfeiffer, "Extending the particle ellipsoidal statistical Bhatnagar-Gross-Krook method to diatomic
-      ! molecules including quantized vibrational energies", Phys. Fluids 30, 116103 (2018), Eq. (18) - NEW (tbd)
+      ! molecules including quantized vibrational energies", Phys. Fluids 30, 116103 (2018), Eq. (18)
       collisionfreqSpec(iSpec) = collisionfreqSpec(iSpec) + SpecBGK(iSpec)%CollFreqPreFactor(jSpec) * totalWeightSpec(jSpec) &
               * (Dens / totalWeight) *CellTemptmp**(-CollInf%omega(iSpec,jSpec) +0.5)
     END DO
@@ -297,8 +297,8 @@ END IF
 
 ! 9.) Rotation: Scale the new rotational state of the molecules to ensure energy conservation
 DO iSpec = 1, nSpecies
-  ! Calculate scaling factor alpha per species, see M. Pfeiffer, "Extending the particle ellipsoidal statistical Bhatnagar-Gross-
-  ! Krook method to diatomic molecules including quantized vibrational energies", Phys. Fluids 30, 116103 (2018) - NEW (tbd)
+  ! Calculate scaling factor alpha per species, see F. Hild, M. Pfeiffer, "Multi-species modeling in the particle-based ellipsoidal
+  ! statistical Bhatnagar-Gross-Krook method including internal degrees of freedom", subitted to Phys. Fluids, August 2023
   IF (NewEnRot(iSpec).GT.0.0) THEN
     alphaRot(iSpec) = OldEn/NewEnRot(iSpec)*(Xi_RotSpec(iSpec)*RotRelaxWeightSpec(iSpec)/(Xi_RotTotal+3.*(totalWeight-1.)))
   ELSE
@@ -621,7 +621,7 @@ DO iSpec = 1, nSpecies
       ELSE ! diatomic
         ! Calculation of vibrational temperature and DOFs from Pfeiffer, Physics of Fluids 30, 116103 (2018), "Extending the
         ! particle ellipsoidal statistical Bhatnagar-Gross-Krook method to diatomic molecules including quantized vibrational
-        ! energies" - check ref (tbd)
+        ! energies"
         ! TVibSpec = vibrational energy without zero-point energy
         TVibSpec(iSpec) = EVibSpec(iSpec) / (totalWeightSpec(iSpec)*BoltzmannConst*SpecDSMC(iSpec)%CharaTVib)
         IF (TVibSpec(iSpec).GT.0.0) TVibSpec(iSpec) = SpecDSMC(iSpec)%CharaTVib/LOG(1. + 1./(TVibSpec(iSpec)))
@@ -677,10 +677,9 @@ IF (nSpecies.GT.1) THEN ! gas mixture
   C_P = 0.0
   DO iSpec = 1, nSpecies
     IF (nSpec(iSpec).EQ.0) CYCLE
-    ! Correction of Pr for calculation of relaxation frequency, see alpha - Pfeiffer et. al., Physics of Fluids 33, 036106 (2021),
-    ! "Multi-species modeling in the particle-based ellipsoidal statistical Bhatnagar-Gross-Krook method for monatomic gas species"
-    ! Extension for inner degrees of freedom using S. Brull, Communications in Mathematical Sciences 19, 2177-2194, 2021,
-    ! "An Ellipsoidal Statistical Model for a monoatomic and polyatomic gas mixture"
+    ! Correction of Pr for calculation of relaxation frequency, see alpha - F. Hild, M. Pfeiffer, "Multi-species modeling in the
+    ! particle-based ellipsoidal statistical Bhatnagar-Gross-Krook method including internal degrees of freedom", subitted to Phys.
+    ! Fluids, August 2023
     PrandtlCorrection = PrandtlCorrection + DOFFraction(iSpec)*MassIC_Mixture/Species(iSpec)%MassIC/TotalDOFWeight
     C_P = C_P + ((5. + (Xi_VibSpec(iSpec)+Xi_RotSpec(iSpec)))/2.) * BoltzmannConst / Species(iSpec)%MassIC * MassFraction(iSpec) 
   END DO
@@ -688,6 +687,8 @@ IF (nSpecies.GT.1) THEN ! gas mixture
   SELECT CASE(BGKMixtureModel)
   ! Both cases are described in Pfeiffer et. al., Physics of Fluids 33, 036106 (2021),
   ! "Multi-species modeling in the particle-based ellipsoidal statistical Bhatnagar-Gross-Krook method for monatomic gas species"
+  ! Extension to poyatomic mixtures according to F. Hild, M. Pfeiffer, "Multi-species modeling in the particle-based ellipsoidal
+  ! statistical Bhatnagar-Gross-Krook method including internal degrees of freedom", subitted to Phys. Fluids, August 2023
 
   CASE (1)  ! Wilke's mixing rules
     DO iSpec = 1, nSpecies
@@ -810,6 +811,8 @@ REAL                          :: eps_prec=1.0E-0
 !===================================================================================================================================
 ! According to J. Mathiaud et. al., "An ES-BGK model for diatomic gases with correct relaxation rates for internal energies",
 ! European Journal of Mechanics - B/Fluids, 96, pp. 65-77, 2022
+! For implentation, see F. Hild, M. Pfeiffer, "Multi-species modeling in the particle-based ellipsoidal statistical Bhatnagar-Gross-
+! Krook method including internal degrees of freedom", subitted to Phys. Fluids, August 2023
 
 RotFracSpec=0.0; VibFracSpec=0.0; Xi_vib_DOF=0.0; Xi_VibSpecNew=0.0; betaR=1.0; betaV=1.0
 ERotSpecMean=0.0; ERotTtransSpecMean=0.0; EVibSpecMean=0.0; EVibTtransSpecMean=0.0; ETransRelMean=0.0; CellTempRel=0.0
@@ -1051,6 +1054,8 @@ VibRelaxWeightSpec=0.0; RotRelaxWeightSpec=0.0; nRelax=0; nNotRelax=0; vBulk=0.0
 ! Calculate probability of relaxation of a particle towards the target distribution function
 ProbAddPartTrans = 1.-EXP(-relaxfreq*dtCell)
 ! Calculate probabilities of relaxation of a particle in the rotation and vibration
+! See F. Hild, M. Pfeiffer, "Multi-species modeling in the particle-based ellipsoidal statistical Bhatnagar-Gross-Krook method
+! including internal degrees of freedom", subitted to Phys. Fluids, August 2023
 ProbAddPartRot(:) = ProbAddPartTrans * rotrelaxfreqSpec(:)/relaxfreq*betaR(:)
 ProbAddPartVib(:) = ProbAddPartTrans * vibrelaxfreqSpec(:)/relaxfreq*betaV(:)
 
@@ -1201,7 +1206,9 @@ INTEGER                       :: iPart, fillMa1, fillMa2, INFO, iLoop, iSpec
 REAL                          :: iRanPart(3, nRelax), A(3,3), KronDelta, SMat(3,3), W(3), Work(100), tempVelo(3), partWeight
 !===================================================================================================================================
 ! According to M. Pfeiffer, "Particle-based fluid dynamics: Comparison of different Bhatnagar-Gross-Krook models and the direct
-! simulation Monte Carlo method for hypersonic flows", Phys. Fluids 30, 106106 (2018)
+! simulation Monte Carlo method for hypersonic flows", Phys. Fluids 30, 106106 (2018) and F. Hild, M. Pfeiffer, "Multi-species
+! modeling in the particle-based ellipsoidal statistical Bhatnagar-Gross-Krook method including internal degrees of freedom",
+! subitted to Phys. Fluids, August 2023
 IF (nRelax.GT.0) THEN
   SELECT CASE(BGKCollModel)
   CASE (1)  ! Ellipsoidal Statistical BGK
@@ -1341,8 +1348,8 @@ REAL, INTENT(INOUT)           :: OldEn
 INTEGER                       :: iPart, iLoop, iDOF, iSpec, iQuant, iQuaMax, iPolyatMole
 REAL                          :: Xi_VibTotal, alpha(nSpecies), partWeight, betaV, iRan, MaxColQua
 !===================================================================================================================================
-! According to M. Pfeiffer, "Extending the particle ellipsoidal statistical Bhatnagar-Gross-Krook method to diatomic molecules
-! including quantized vibrational energies", Phys. Fluids 30, 116103 (2018)
+! According to F. Hild, M. Pfeiffer, "Multi-species modeling in the particle-based ellipsoidal statistical Bhatnagar-Gross-Krook
+! method including internal degrees of freedom", subitted to Phys. Fluids, August 2023
 IF(BGKDoVibRelaxation) THEN
   ! Vibrational energy is positive for at least one species + there are vibrational relaxations
   IF (ANY(NewEnVib.GT.0.0).AND.(nVibRelax.GT.0)) THEN
@@ -1356,7 +1363,6 @@ IF(BGKDoVibRelaxation) THEN
     DO iSpec = 1, nSpecies
       IF (NewEnVib(iSpec).GT.0.0) THEN
         alpha(iSpec) = OldEn/NewEnVib(iSpec)*(Xi_VibSpec(iSpec)*VibRelaxWeightSpec(iSpec)/(3.*(totalWeight-1.)+Xi_VibTotal))
-        !alpha(iSpec) = EVibTtransSpecMean(iSpec)*VibRelaxWeightSpec(iSpec)/NewEnVib(iSpec)
       ELSE
         alpha(iSpec) = 0.
       END IF
@@ -1683,7 +1689,7 @@ DO iSpec = 1, nSpecies
       ! S. Chapman and T.G. Cowling, "The mathematical Theory of Non-Uniform Gases", Cambridge University Press, 1970, S. 160
       ViscSpec(iSpec) = (5./8.)*(BoltzmannConst*CellTemp(iSpec))/Sigma_22
       ThermalCondSpec(iSpec) = (25./16.)*(cv*BoltzmannConst*CellTemp(iSpec))/Sigma_22
-      ! results in in same as ThermalCondSpec(iSpec) = (15./4.)*BoltzmannConst/(2.*Mass)*ViscSpec(iSpec)
+      ! Results in the same as ThermalCondSpec(iSpec) = (15./4.)*BoltzmannConst/(2.*Mass)*ViscSpec(iSpec)
       ! Additional calculation of Sigma_11VHS and the diffusion coefficient for molecular species
       IF ((SpecDSMC(iSpec)%InterID.EQ.2).OR.(SpecDSMC(iSpec)%InterID.EQ.20)) THEN
         CALL CalcSigma_11VHS(CellTemp(nSpecies+1), InteractDiam, Mass, TVHS, omegaVHS, Sigma_11)
@@ -1712,6 +1718,8 @@ DO iSpec = 1, nSpecies
   IF ((SpecDSMC(iSpec)%InterID.EQ.2).OR.(SpecDSMC(iSpec)%InterID.EQ.20)) THEN
     ! Calculation of thermal conductivity of rotation and vibration for each molecular species
     ! S. Chapman and T.G. Cowling, "The mathematical Theory of Non-Uniform Gases", Cambridge University Press, 1970, S. 254f
+    ! F. Hild, M. Pfeiffer, "Multi-species modeling in the particle-based ellipsoidal statistical Bhatnagar-Gross-Krook method
+    ! including internal degrees of freedom", subitted to Phys. Fluids, August 2023
     Xi_Dij_tot = SUM(Xj_Dij(iSpec,:))
     rhoSpec = dens * Species(iSpec)%MassIC * Xi(iSpec)
     ThermalCondSpec_Rot(iSpec) = (rhoSpec*cv_rot/Xi_Dij_tot)
