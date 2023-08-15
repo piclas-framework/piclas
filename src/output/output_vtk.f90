@@ -180,7 +180,6 @@ LOGICAL                     :: nValAtLastDimension_loc
 REAL                        :: StartT,EndT ! Timer
 !===================================================================================================================================
 GETTIME(StartT)
-
 IF (PRESENT(DGFV))                THEN; DGFV_loc = DGFV
 ELSE;                                   DGFV_loc = 0
 END IF
