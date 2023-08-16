@@ -112,8 +112,8 @@ USE MOD_Radiation_ExportSpectrum
 
   ! READ*
   DO iWave=1, RadiationParameter%WaveLenDiscrCoarse
-    sumAbsSpecies =SUM(Radiation_Absorption_SpeciesWave(iWave, :))   
-    Radiation_Absorption_SpecPercent(iWave,:,iElem) = NINT(Radiation_Absorption_SpeciesWave(iWave, :)/sumAbsSpecies*10000.)
+    sumAbsSpecies =SUM(Radiation_Absorption_SpeciesWave(iWave, :))
+    IF(sumAbsSpecies.GT.0.0) Radiation_Absorption_SpecPercent(iWave,:,iElem) = NINT(Radiation_Absorption_SpeciesWave(iWave, :)/sumAbsSpecies*10000.)
   END DO
 
   IF((RadiationSwitches%RadType.EQ.3) .AND. (nGlobalElems.EQ.1)) THEN
