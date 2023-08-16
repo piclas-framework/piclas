@@ -290,7 +290,7 @@ IF(PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance))THEN
   lambda=0.
 #endif /*defined(PARTICLES)*/
 
-#elif !(USE_FV) /*USE_HDG*/
+#elif !(USE_FV) /*!USE_HDG*/
   ! Only required for time discs where U is allocated
   IF(ALLOCATED(U))THEN
     ALLOCATE(UTmp(PP_nVar,0:PP_N,0:PP_N,0:PP_N,nElems))
@@ -475,22 +475,6 @@ ELSE ! normal restart
       END IF ! DoPML
 #endif
 
-#if USE_FV
-#if (PP_TimeDiscMethod==600) /*DVM*/
-      SWRITE(UNIT_stdOut,*)'Performing DVM restart using Grads 13 moment distribution'
-      ALLOCATE(UTmp(9,0:0,0:0,0:0,nElems))
-      UTmp=0.
-      CALL ReadArray('DVM_Solution',5,(/9,1_IK,1_IK,1_IK,PP_nElemsTmp/),OffsetElemTmp,5,RealArray=Utmp)
-      DO iElem=1,nElems
-        CALL GradDistribution(Utmp(1:8,0,0,0,iElem),U_FV(1:PP_nVar_FV,0,0,0,iElem))
-      END DO
-      DEALLOCATE(UTmp)
-#elif (PP_TimeDiscMethod==601) /*Drift Diffusion*/
-      SWRITE(UNIT_stdOut,*)'Performing Drift Diffusion restart'
-      CALL ReadArray('DriftDiffusion_Solution',5,(/PP_nVar_FV,1_IK,1_IK,1_IK,PP_nElemsTmp/),OffsetElemTmp,5,RealArray=U_FV)
-#endif
-#endif /*USE_FV*/
-
       !CALL ReadState(RestartFile,PP_nVar,PP_N,PP_nElems,U)
     ELSE! We need to interpolate the solution to the new computational grid
       SWRITE(UNIT_stdOut,*)'Interpolating solution from restart grid with N=',N_restart,' to computational grid with N=',PP_N
@@ -561,6 +545,22 @@ ELSE ! normal restart
 #endif
       SWRITE(UNIT_stdOut,*)' DONE!'
     END IF ! IF(.NOT. InterpolateSolution)
+
+#ifdef discrete_velocity
+    SWRITE(UNIT_stdOut,*)'Performing DVM restart using Grads 13 moment distribution'
+    ALLOCATE(UTmp(9,0:0,0:0,0:0,nElems))
+    UTmp=0.
+    CALL ReadArray('DVM_Solution',5,(/9,1_IK,1_IK,1_IK,PP_nElemsTmp/),OffsetElemTmp,5,RealArray=Utmp)
+    DO iElem=1,nElems
+      CALL GradDistribution(Utmp(1:8,0,0,0,iElem),U_FV(1:PP_nVar_FV,0,0,0,iElem))
+    END DO
+    DEALLOCATE(UTmp)
+#endif
+#ifdef drift_diffusion
+    SWRITE(UNIT_stdOut,*)'Performing Drift Diffusion restart'
+    CALL ReadArray('DriftDiffusion_Solution',5,(/PP_nVar_FV,1_IK,1_IK,1_IK,PP_nElemsTmp/),OffsetElemTmp,5,RealArray=U_FV)
+#endif
+
   END IF ! IF(.NOT. RestartNullifySolution)
   CALL CloseDataFile()
 

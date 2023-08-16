@@ -28,7 +28,8 @@ CONTAINS
 
 SUBROUTINE CalcDriftDiffusionCoeff(ElectricField,Density,mu,D)
 !==================================================================================================================================
-!> 
+!> Calculate the transport (drift & diffusion) coefficients for the drift-diffusion electron fluid model
+!> Now using data for electrons in H2 gas from LXCat database (Klaus Berkhan, PhD thesis, 1994, University Heidelberg)
 !==================================================================================================================================
 ! MODULES
 USE MOD_PreProc ! PP_N

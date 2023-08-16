@@ -105,6 +105,7 @@ IF(nRefState_FV .GT. 0)THEN
 END IF
 
 ALLOCATE(EFluid_GradSide(nSides))
+EFluid_GradSide=0.
 
 ! Always set docalcsource true, set false by calcsource itself on first run if not needed
 doCalcSource=.TRUE.

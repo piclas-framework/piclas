@@ -74,6 +74,7 @@ CALL prms%CreateLogicalOption( 'crossProductMetrics' , "Compute mesh metrics usi
 CALL prms%CreateStringOption(  'BoundaryName'        , "Names of boundary conditions to be set (must be present in the mesh!). For each BoundaryName a BoundaryType needs to be specified." , multiple=.TRUE.)
 CALL prms%CreateIntArrayOption('BoundaryType'        , "Type of boundary conditions to be set. Format: (BC_TYPE, BC_STATE)"                                                                 , multiple=.TRUE. , no=2)
 #if USE_FV
+CALL prms%CreateLogicalOption( 'meshCheckRef-FV'        , "Flag if the mesh Jacobians should be checked in the reference system in addition to the computational system."                      , '.TRUE.')
 CALL prms%CreateIntArrayOption('BoundaryType-FV'     , "Type of boundary conditions for FV to be set. Format: (BC_TYPE, BC_STATE)"                                                                 , multiple=.TRUE. , no=2)
 #endif
 CALL prms%CreateLogicalOption( 'writePartitionInfo'  , "Write information about MPI partitions into a file."                                                                                , '.FALSE.')

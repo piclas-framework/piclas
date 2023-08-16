@@ -22,6 +22,14 @@ SAVE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! GLOBAL VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
+! Dimension of the Variable of Interest
+INTEGER                   :: Grad_DIM
+
+! interior face values for all elements
+REAL,ALLOCATABLE                      :: Var_master(:,:)
+REAL,ALLOCATABLE                      :: Var_slave(:,:)
+REAL,ALLOCATABLE                      :: Diff_side(:,:)
+
 
 ! Distances for Gradient Calculation
 REAL,ALLOCATABLE                      :: Grad_dx_slave(:,:)
@@ -32,6 +40,7 @@ REAL,ALLOCATABLE                      :: Grad_SysSol_BC(:,:)
 
 REAL                                  :: Grad_PerBoxMin(3),Grad_PerBoxMax(3)
 
+! Limiter
 INTEGER                               :: GradLimiterType
 REAL                                  :: GradLimVktK
 !===================================================================================================================================

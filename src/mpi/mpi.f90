@@ -46,6 +46,7 @@ END INTERFACE
 
 
 PUBLIC::InitMPIvars,StartReceiveMPIData,StartSendMPIData,StartReceiveMPIDataInt,StartSendMPIDataInt,FinishExchangeMPIData,FinalizeMPI
+PUBLIC::StartReceiveMPIDataFV,StartSendMPIDataFV
 #endif
 PUBLIC::DefineParametersMPI
 #if defined(MEASURE_MPI_WAIT)
@@ -454,6 +455,79 @@ SUBROUTINE StartReceiveMPIDataInt(firstDim,FaceData,LowerBound,UpperBound,MPIReq
     END IF
   END DO !iProc=1,nNBProcs
   END SUBROUTINE StartSendMPIDataInt
+
+!===================================================================================================================================
+!> Subroutine does the receive operations for the single value face data that has to be exchanged between processors.
+!===================================================================================================================================
+SUBROUTINE StartReceiveMPIDataFV(firstDim,FaceData,LowerBound,UpperBound,MPIRequest,SendID)
+! MODULES
+USE MOD_Globals
+USE MOD_PreProc
+USE MOD_MPI_Vars
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+INTEGER,INTENT(IN)  :: SendID                                                 !< defines the send / receive direction -> 1=send MINE
+                                                                              !< / receive YOUR, 3=send YOUR / receive MINE
+INTEGER,INTENT(IN)  :: firstDim                                               !< size of one entry in array (e.g. one side:
+                                                                              !< nVar*(N+1)*(N+1))
+INTEGER,INTENT(IN)  :: LowerBound                                             !< lower side index for last dimension of FaceData
+INTEGER,INTENT(IN)  :: UpperBound                                             !< upper side index for last dimension of FaceData
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+INTEGER,INTENT(OUT) :: MPIRequest(nNbProcs)                                   !< communication handles
+REAL,INTENT(OUT)    :: FaceData(firstDim,LowerBound:UpperBound) !< the complete face data (for inner, BC and MPI sides).
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+!===================================================================================================================================
+DO iNbProc=1,nNbProcs
+  IF(nMPISides_rec(iNbProc,SendID).GT.0)THEN
+    nRecVal     =firstDim*nMPISides_rec(iNbProc,SendID)
+    SideID_start=OffsetMPISides_rec(iNbProc-1,SendID)+1
+    SideID_end  =OffsetMPISides_rec(iNbProc,SendID)
+    CALL MPI_IRECV(FaceData(:,SideID_start:SideID_end),nRecVal,MPI_DOUBLE_PRECISION,  &
+                    nbProc(iNbProc),0,MPI_COMM_WORLD,MPIRequest(iNbProc),iError)
+  ELSE
+    MPIRequest(iNbProc)=MPI_REQUEST_NULL
+  END IF
+END DO !iProc=1,nNBProcs
+END SUBROUTINE StartReceiveMPIDataFV
+
+
+!===================================================================================================================================
+!> See above, but for for send direction
+!===================================================================================================================================
+SUBROUTINE StartSendMPIDataFV(firstDim,FaceData,LowerBound,UpperBound,MPIRequest,SendID)
+! MODULES
+USE MOD_Globals
+USE MOD_PreProc
+USE MOD_MPI_Vars
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+INTEGER, INTENT(IN)          :: SendID
+INTEGER, INTENT(IN)          :: firstDim,LowerBound,UpperBound
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+INTEGER, INTENT(OUT)         :: MPIRequest(nNbProcs)
+REAL, INTENT(IN)             :: FaceData(firstDim,LowerBound:UpperBound)
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+!===================================================================================================================================
+DO iNbProc=1,nNbProcs
+  IF(nMPISides_send(iNbProc,SendID).GT.0)THEN
+    nSendVal    =firstDim*nMPISides_send(iNbProc,SendID)
+    SideID_start=OffsetMPISides_send(iNbProc-1,SendID)+1
+    SideID_end  =OffsetMPISides_send(iNbProc,SendID)
+    CALL MPI_ISEND(FaceData(:,SideID_start:SideID_end),nSendVal,MPI_DOUBLE_PRECISION,  &
+                    nbProc(iNbProc),0,MPI_COMM_WORLD,MPIRequest(iNbProc),iError)
+  ELSE
+    MPIRequest(iNbProc)=MPI_REQUEST_NULL
+  END IF
+END DO !iProc=1,nNBProcs
+END SUBROUTINE StartSendMPIDataFV
 
 !----------------------------------------------------------------------------------------------------------------------------------!
 !> Finalize DG MPI-Stuff, deallocate arrays with neighbor connections, etc.

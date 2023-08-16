@@ -824,9 +824,10 @@ IF(MPIRoot) CALL GenerateFileSkeleton('PartStateLost',7,StrVarNames,MeshFileName
 IF(MPIRoot) CALL GenerateFileSkeleton('PartStateLost',PP_nVar,StrVarNames,MeshFileName,OutputTime)
 #endif /*USE_HDG*/
 
-#if (PP_TimeDiscMethod==601) /*Drift-Diffusion*/
+#ifdef drift_diffusion
 IF(MPIRoot) CALL GenerateFileSkeleton('PartStateLost',PP_nVar_FV,StrVarNames_FV,MeshFileName,OutputTime)
-#elif (PP_TimeDiscMethod==600) /*DVM*/
+#endif
+#ifdef discrete_velocity
 IF(MPIRoot) CALL GenerateFileSkeleton('PartStateLost',9,StrVarNames_FV,MeshFileName,OutputTime)
 #endif
 

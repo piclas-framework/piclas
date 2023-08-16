@@ -212,9 +212,7 @@ Metrics_gTilde=0.
 Metrics_hTilde=0.
 
 ! Check Jacobians in Ref already (no good if we only go on because N doesn't catch misbehaving points)
-#if !(USE_FV)
 meshCheckRef=GETLOGICAL('meshCheckRef','.TRUE.')
-#endif
 
 ! Initialize min/max coordinates on faces (but not during load balance restart)
 IF(.NOT.GetMeshMinMaxBoundariesIsDone)THEN
@@ -532,7 +530,7 @@ SurfElem_PP_1       = 0.
 Ja_Face_PP_1        = 0.
 
 ! Check Jacobians in Ref already (no good if we only go on because N doesn't catch misbehaving points)
-meshCheckRef=GETLOGICAL('meshCheckRef','.TRUE.')
+meshCheckRef=GETLOGICAL('meshCheckRef-FV','.TRUE.')
 
 ! Initialize min/max coordinates on faces (but not during load balance restart)
 IF(.NOT.GetMeshMinMaxBoundariesIsDone)THEN

@@ -913,7 +913,9 @@ SUBROUTINE getVARformatStr(VARformatStr,L2name)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
   INTEGER           :: i ! counter
+#if (USE_FV) && (USE_HDG)
   CHARACTER(LEN=255) :: StrVarNames_HDGFV(PP_nVar+PP_nVar_FV)
+#endif
 
 !===================================================================================================================================
 #if (USE_FV)

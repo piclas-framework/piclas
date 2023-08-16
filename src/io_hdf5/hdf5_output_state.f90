@@ -249,10 +249,10 @@ IF(MPIRoot) CALL GenerateFileSkeleton('State',3,StrVarNames,MeshFileName,OutputT
 #else
 IF(MPIRoot) CALL GenerateFileSkeleton('State',7,StrVarNames,MeshFileName,OutputTime_loc)
 #endif
-#elif !(USE_FV)
+#elif (PP_TimeDiscMethod==600) /*DVM*/
+IF(MPIRoot) CALL GenerateFileSkeleton('State',9,StrVarNames,MeshFileName,OutputTime_loc) ! 9 for DVM MacroVal (maybe change that)
+#else
 IF(MPIRoot) CALL GenerateFileSkeleton('State',PP_nVar,StrVarNames,MeshFileName,OutputTime_loc)
-#else /*only FV*/
-IF(MPIRoot) CALL GenerateFileSkeleton('State',1,StrVarNames,MeshFileName,OutputTime_loc)
 #endif /*USE_HDG*/
 
 ! generate nextfile info in previous output file

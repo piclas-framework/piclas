@@ -26,6 +26,12 @@ REAL,ALLOCATABLE   :: Vdm_GaussNRestart_GaussN(:,:)! for interpolation from rest
 INTEGER            :: nVar_Restart
 INTEGER            :: N_Restart = 0
 INTEGER            :: nElems_Restart
+#if USE_FV
+INTEGER            :: nVar_Restart_FV
+INTEGER            :: N_Restart_FV = 0
+INTEGER            :: nElems_Restart_FV
+CHARACTER(LEN=255) :: NodeType_Restart_FV
+#endif
 LOGICAl            :: RestartInitIsDone   = .FALSE.
 LOGICAl            :: DoRestart           = .FALSE.
 LOGICAl            :: FlushInitialState   = .FALSE. !< During restart delete the state restart file when FlushInitialState=T

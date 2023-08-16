@@ -64,9 +64,7 @@ USE MOD_Mesh_Vars          ,ONLY: MeshInitIsDone
 USE MOD_Gradients          ,ONLY: InitGradients
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Vars   ,ONLY: PerformLoadBalance
-#if !(USE_HDG)
 USE MOD_LoadBalance_Vars   ,ONLY: UseH5IOLoadBalance
-#endif /*!(USE_HDG)*/
 #endif /*USE_LOADBALANCE*/
 #if USE_MPI
 USE MOD_MPI_Vars
@@ -86,18 +84,18 @@ IF((.NOT.InterpolationInitIsDone).OR.(.NOT.MeshInitIsDone).OR.(.NOT.RestartInitI
 LBWRITE(UNIT_StdOut,'(132("-"))')
 LBWRITE(UNIT_stdOut,'(A)') ' INIT FV...'
 
-#if USE_LOADBALANCE && !(USE_HDG)
+#if USE_LOADBALANCE
 IF (.NOT.(PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance))) THEN
-#endif /*USE_LOADBALANCE && !(USE_HDG)*/
+#endif /*USE_LOADBALANCE*/
   ! the local DG solution in physical and reference space
   ALLOCATE( U_FV(PP_nVar_FV,0:0,0:0,0:0,PP_nElems))
   U_FV=0.
   ! the time derivative computed with the DG scheme
   ALLOCATE(Ut_FV(PP_nVar_FV,0:0,0:0,0:0,PP_nElems))
   Ut_FV=0.
-#if USE_LOADBALANCE && !(USE_HDG)
+#if USE_LOADBALANCE
 END IF
-#endif /*USE_LOADBALANCE && !(USE_HDG)*/
+#endif /*USE_LOADBALANCE)*/
 
 
 ! U_FV is filled with the ini solution
@@ -153,7 +151,7 @@ CALL AddToElemData(ElementOut,'DVM_RelaxFac',RealArray=DVM_ElemData9(:))
 CALL AddToElemData(ElementOut,'Electron_Density',RealArray=U_FV(1,0,0,0,:))
 #endif /*drift_diffusion*/
 
-CALL InitGradients()
+CALL InitGradients(PP_nVar_FV)
 
 FVInitIsDone=.TRUE.
 LBWRITE(UNIT_stdOut,'(A)')' INIT FV DONE!'
@@ -179,14 +177,13 @@ USE MOD_FillFlux          ,ONLY: FillFlux
 USE MOD_Equation_FV       ,ONLY: CalcSource_FV
 USE MOD_Interpolation     ,ONLY: ApplyJacobian
 USE MOD_FillMortar        ,ONLY: U_Mortar,Flux_Mortar
-USE MOD_Gradients         ,ONLY: InitGradients
 USE MOD_Particle_Mesh_Vars,ONLY: ElemVolume_Shared
 USE MOD_Mesh_Vars         ,ONLY: offsetElem
 USE MOD_Mesh_Tools        ,ONLY: GetCNElemID
 #if USE_MPI
 USE MOD_Mesh_Vars         ,ONLY: nSides
 USE MOD_MPI_Vars
-USE MOD_MPI               ,ONLY: StartReceiveMPIData,StartSendMPIData,FinishExchangeMPIData
+USE MOD_MPI               ,ONLY: StartReceiveMPIDataFV,StartSendMPIDataFV,FinishExchangeMPIData
 #if defined(PARTICLES) && defined(LSERK)
 USE MOD_Particle_Vars     ,ONLY: DelayTime
 USE MOD_TimeDisc_Vars     ,ONLY: time
@@ -214,7 +211,7 @@ REAL                            :: tLBStart
 #endif /*USE_LOADBALANCE*/
 !===================================================================================================================================
 
-CALL GetGradients(PP_nVar_FV,U_FV(:,0,0,0,:),FV_gradU_elem)
+CALL GetGradients(U_FV(:,0,0,0,:),FV_gradU_elem)
 
 ! prolong the solution to the faces by applying reconstruction gradients
 #if USE_MPI
@@ -222,10 +219,10 @@ CALL GetGradients(PP_nVar_FV,U_FV(:,0,0,0,:),FV_gradU_elem)
 #if USE_LOADBALANCE
 CALL LBStartTime(tLBStart)
 #endif /*USE_LOADBALANCE*/
-CALL StartReceiveMPIData(PP_nVar_FV,U_slave_FV,1,nSides,RecRequest_U,SendID=2) ! Receive MINE
+CALL StartReceiveMPIDataFV(PP_nVar_FV,U_slave_FV(:,0,0,:),1,nSides,RecRequest_U,SendID=2) ! Receive MINE
 #if USE_LOADBALANCE
 CALL LBSplitTime(LB_DGCOMM,tLBStart)
-#endif /*MPI*/
+#endif /*USE_LOADBALANCE*/
 
 CALL ProlongToFace(U_FV,U_master_FV,U_slave_FV,doMPISides=.TRUE.)
 CALL U_Mortar(U_master_FV,U_slave_FV,doMPISides=.TRUE.)
@@ -233,7 +230,7 @@ CALL U_Mortar(U_master_FV,U_slave_FV,doMPISides=.TRUE.)
 #if USE_LOADBALANCE
 CALL LBSplitTime(LB_DG,tLBStart)
 #endif /*USE_LOADBALANCE*/
-CALL StartSendMPIData(PP_nVar_FV,U_slave_FV,1,nSides,SendRequest_U,SendID=2) ! Send YOUR
+CALL StartSendMPIDataFV(PP_nVar_FV,U_slave_FV(:,0,0,:),1,nSides,SendRequest_U,SendID=2) ! Send YOUR
 #if USE_LOADBALANCE
 CALL LBSplitTime(LB_DGCOMM,tLBStart)
 #endif /*USE_LOADBALANCE*/
@@ -271,7 +268,7 @@ CALL FinishExchangeMPIData(SendRequest_U,RecRequest_U,SendID=2)
 
 ! Initialization of the time derivative
 !Flux=0. !don't nullify the fluxes if not really needed (very expensive)
-CALL StartReceiveMPIData(PP_nVar_FV,Flux_Slave_FV,1,nSides,RecRequest_Flux,SendID=1) ! Receive YOUR
+CALL StartReceiveMPIDataFV(PP_nVar_FV,Flux_Slave_FV(:,0,0,:),1,nSides,RecRequest_Flux,SendID=1) ! Receive YOUR
 #if USE_LOADBALANCE
 CALL LBSplitTime(LB_DGCOMM,tLBStart)
 #endif /*USE_LOADBALANCE*/
@@ -281,7 +278,7 @@ CALL FillFlux(t,Flux_Master_FV,Flux_Slave_FV,U_master_FV,U_slave_FV,doMPISides=.
 CALL LBSplitTime(LB_DG,tLBStart)
 #endif /*USE_LOADBALANCE*/
 
-CALL StartSendMPIData(PP_nVar_FV,Flux_Slave_FV,1,nSides,SendRequest_Flux,SendID=1) ! Send MINE
+CALL StartSendMPIDataFV(PP_nVar_FV,Flux_Slave_FV(:,0,0,:),1,nSides,SendRequest_Flux,SendID=1) ! Send MINE
 
 #if USE_LOADBALANCE
 CALL LBSplitTime(LB_DGCOMM,tLBStart)
@@ -402,7 +399,7 @@ CALL FinalizeGradients()
 ! SDEALLOCATE(U_Master_loc)
 ! SDEALLOCATE(U_Slave_loc)
 ! SDEALLOCATE(Flux_loc)
-#if (PP_TimeDiscMethod==600) /*DVM*/
+#ifdef discrete_velocity
 SDEALLOCATE(DVM_ElemData1)
 SDEALLOCATE(DVM_ElemData2)
 SDEALLOCATE(DVM_ElemData3)
