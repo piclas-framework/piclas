@@ -45,7 +45,7 @@ SUBROUTINE radiation_atoms(iElem, em_atom)
   USE MOD_Globals_Vars,      ONLY   : BoltzmannConst, PlanckConst, ElementaryCharge
   USE MOD_Radiation_Vars,    ONLY   : RadiationInput, RadiationParameter, SpeciesRadiation,  &
                                       Radiation_Emission_spec, Radiation_Absorption_spec, &
-                                      NumDensElectrons, Radiation_ElemEnergy_Species
+                                      NumDensElectrons, Radiation_ElemEnergy_Species, Radiation_Absorption_SpeciesWave
   USE MOD_Particle_Vars,     ONLY   : nSpecies, Species
   USE MOD_Globals_Vars,      ONLY   : c, Pi
   USE MOD_DSMC_Vars,         ONLY   : SpecDSMC
@@ -263,8 +263,11 @@ SUBROUTINE radiation_atoms(iElem, em_atom)
     TempOut_Em = 0.0
     TempOut_Abs = 0.0
     DO iWave=1, RadiationParameter%WaveLenDiscr
+      iWaveCoarse = INT((iWave-1)/RadiationParameter%WaveLenReductionFactor) + 1
+      IF (iWaveCoarse.GT.RadiationParameter%WaveLenDiscrCoarse) iWaveCoarse = RadiationParameter%WaveLenDiscrCoarse
       TempOut_Em  = TempOut_Em + 4.*Pi*epsilon_iSpec(iWave)*RadiationParameter%WaveLenIncr
       TempOut_Abs = TempOut_Abs + abs_iSpec(iWave)*RadiationParameter%WaveLenIncr
+      Radiation_Absorption_SpeciesWave(iWaveCoarse, iSpec) = Radiation_Absorption_SpeciesWave(iWaveCoarse, iSpec) + abs_iSpec(iWave)*RadiationParameter%WaveLenIncr
     END DO
     Radiation_ElemEnergy_Species(iSpec,iElem,1) = TempOut_Em
     Radiation_ElemEnergy_Species(iSpec,iElem,2) = TempOut_Abs

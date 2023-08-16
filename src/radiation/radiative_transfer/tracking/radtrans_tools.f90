@@ -611,8 +611,8 @@ SUBROUTINE CalcAbsoprtionMC(IntersectionPos,Element, DONE)
 !--------------------------------------------------------------------------------------------------!
 !Based on PerfectReflection3D
 !--------------------------------------------------------------------------------------------------!
-USE MOD_RadiationTrans_Vars,         ONLY:PhotonProps,RadiationElemAbsEnergy
-USE MOD_Radiation_Vars,              ONLY:Radiation_Absorption_spec
+USE MOD_RadiationTrans_Vars,         ONLY:PhotonProps,RadiationElemAbsEnergy, RadiationElemAbsEnergySpec
+USE MOD_Radiation_Vars,              ONLY:Radiation_Absorption_spec, Radiation_Absorption_SpecPercent
 !--------------------------------------------------------------------------------------------------!
   IMPLICIT NONE                                                                                    !
 !--------------------------------------------------------------------------------------------------!
@@ -629,13 +629,15 @@ USE MOD_Radiation_Vars,              ONLY:Radiation_Absorption_spec
   CALL RANDOM_NUMBER(iRan)
   opticalPath = Distance*Radiation_Absorption_Spec(PhotonProps%WaveLength,Element)
   IF (-LOG(iRan).LT.opticalPath) THEN
-    RadiationElemAbsEnergy(1,Element) = RadiationElemAbsEnergy(1,Element) + PhotonProps%PhotonEnergy
+  RadiationElemAbsEnergySpec(:,Element) = RadiationElemAbsEnergySpec(:,Element) &
+    + PhotonProps%PhotonEnergy*(REAL(Radiation_Absorption_SpecPercent(PhotonProps%WaveLength,:,Element))&
+    /SUM(REAL(Radiation_Absorption_SpecPercent(PhotonProps%WaveLength,:,Element))))
     DONE = .TRUE. 
   ELSE 
     PhotonProps%PhotonPos(1:3) = IntersectionPos(1:3)
   END IF
-  RadiationElemAbsEnergy(2,Element) = RadiationElemAbsEnergy(2,Element) + opticalPath
-  RadiationElemAbsEnergy(3,Element) = RadiationElemAbsEnergy(3,Element) + 1.0
+  RadiationElemAbsEnergy(1,Element) = RadiationElemAbsEnergy(1,Element) + opticalPath
+  RadiationElemAbsEnergy(2,Element) = RadiationElemAbsEnergy(2,Element) + 1.0
 
 END SUBROUTINE CalcAbsoprtionMC
 
@@ -643,8 +645,8 @@ SUBROUTINE CalcAbsoprtionAnalytic(IntersectionPos,Element, DONE)
 !DEC$ ATTRIBUTES FORCEINLINE :: ParticleThroughSideLastPosCheck
   USE MOD_Globals
   USE MOD_RadiationTrans_Vars,         ONLY:PhotonProps, RadTrans
-  USE MOD_RadiationTrans_Vars,         ONLY:RadiationElemAbsEnergy
-  USE MOD_Radiation_Vars,              ONLY:Radiation_Absorption_spec
+  USE MOD_RadiationTrans_Vars,         ONLY:RadiationElemAbsEnergy, RadiationElemAbsEnergySpec
+  USE MOD_Radiation_Vars,              ONLY:Radiation_Absorption_spec, Radiation_Absorption_SpecPercent
 !--------------------------------------------------------------------------------------------------!
   IMPLICIT NONE                                                                                    !
 !--------------------------------------------------------------------------------------------------!
@@ -666,14 +668,16 @@ SUBROUTINE CalcAbsoprtionAnalytic(IntersectionPos,Element, DONE)
     LostEnergy = PhotonProps%PhotonEnergy *(1.-EXP(-opticalPath))
   END IF
   PhotonProps%PhotonEnergy = PhotonProps%PhotonEnergy - LostEnergy
-  RadiationElemAbsEnergy(1,Element) = RadiationElemAbsEnergy(1,Element) + LostEnergy
+  RadiationElemAbsEnergySpec(:,Element) = RadiationElemAbsEnergySpec(:,Element) &
+    + LostEnergy*(REAL(Radiation_Absorption_SpecPercent(PhotonProps%WaveLength,:,Element))&
+    /SUM(REAL(Radiation_Absorption_SpecPercent(PhotonProps%WaveLength,:,Element))))
 !  IF (PhotonProps%PhotonEnergy.LE.(RadTrans%GlobalRadiationPower/(1000.*RadTrans%GlobalPhotonNum))) THEN
 !    DONE = .TRUE. 
 !  ELSE 
     PhotonProps%PhotonPos(1:3) = IntersectionPos(1:3)
 !  END IF
-  RadiationElemAbsEnergy(2,Element) = RadiationElemAbsEnergy(2,Element) + opticalPath
-  RadiationElemAbsEnergy(3,Element) = RadiationElemAbsEnergy(3,Element) + 1.0
+  RadiationElemAbsEnergy(1,Element) = RadiationElemAbsEnergy(1,Element) + opticalPath
+  RadiationElemAbsEnergy(2,Element) = RadiationElemAbsEnergy(2,Element) + 1.0
 
 END SUBROUTINE CalcAbsoprtionAnalytic
 

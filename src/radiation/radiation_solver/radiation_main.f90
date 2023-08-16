@@ -45,6 +45,7 @@ USE MOD_Globals
 USE MOD_Globals_Vars,                  ONLY : Pi
 USE MOD_Radiation_Vars,                ONLY : RadiationInput, RadiationSwitches, MacroRadInputParameters, &
                                         Radiation_Emission_spec, Radiation_Absorption_spec, RadiationParameter
+USE MOD_Radiation_Vars,                ONLY : Radiation_Absorption_SpeciesWave ,Radiation_Absorption_SpecPercent
 USE MOD_Radiation_Excitation,          ONLY : radiation_excitation
 USE MOD_Radiation_Atoms,               ONLY : radiation_atoms
 USE MOD_Radiation_Molecules,           ONLY : radiation_molecules
@@ -62,9 +63,9 @@ USE MOD_Radiation_ExportSpectrum
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-  INTEGER           :: iSpec, w, io_error
+  INTEGER           :: iSpec, w, io_error, iWave
 !  REAL              :: currentWave, iRan
-  REAL              :: em_tot, em_atom, em_mol, em_cont
+  REAL              :: em_tot, em_atom, em_mol, em_cont, sumAbsSpecies
 !===================================================================================================================================
 
 !------- initialize total emission variables
@@ -72,7 +73,7 @@ USE MOD_Radiation_ExportSpectrum
   em_mol  = 0.0
   em_cont = 0.0
   em_tot  = 0.0
-
+  Radiation_Absorption_SpeciesWave = 0.0
 !IF ( ((iElem+offsetElem).NE.208) .AND. ((iElem+offsetElem).NE.228) .AND. ((iElem+offsetElem).NE.3492) &
 !.AND. ((iElem+offsetElem).NE.4743) .AND. ((iElem+offsetElem).NE.6541)) RETURN
 
@@ -110,6 +111,10 @@ USE MOD_Radiation_ExportSpectrum
   ! WRITE(*,*) ''
 
   ! READ*
+  DO iWave=1, RadiationParameter%WaveLenDiscrCoarse
+    sumAbsSpecies =SUM(Radiation_Absorption_SpeciesWave(iWave, :))   
+    Radiation_Absorption_SpecPercent(iWave,:,iElem) = NINT(Radiation_Absorption_SpeciesWave(iWave, :)/sumAbsSpecies*10000.)
+  END DO
 
   IF((RadiationSwitches%RadType.EQ.3) .AND. (nGlobalElems.EQ.1)) THEN
     OPEN(unit=20,file='Radiation_Emission_Absorption.dat',status='replace',action='write', iostat=io_error)

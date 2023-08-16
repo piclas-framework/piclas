@@ -74,6 +74,7 @@ INTEGER               :: RadiationPhotonWaveLengthModel
 LOGICAL               :: RadEmiAdaptPhotonNum
 
 REAL, ALLOCATABLE               :: RadiationElemAbsEnergy(:,:)
+REAL, ALLOCATABLE               :: RadiationElemAbsEnergySpec(:,:)
 REAL,ALLOCPOINT                 :: Radiation_Emission_Spec_Total(:)
 REAL,ALLOCPOINT                 :: Radiation_Emission_Spec_Max(:)
 INTEGER,ALLOCPOINT              :: RadTransPhotPerCell(:)     ! (WaveLen(:), number of mesh elements)
@@ -94,6 +95,8 @@ INTEGER                         :: PhotonSampWall_Shared_Win
 REAL,POINTER                    :: PhotonSampWall_Shared(:,:)
 INTEGER                         :: RadiationElemAbsEnergy_Shared_Win
 REAL,POINTER                    :: RadiationElemAbsEnergy_Shared(:,:)
+INTEGER                         :: RadiationElemAbsEnergySpec_Shared_Win
+REAL,POINTER                    :: RadiationElemAbsEnergySpec_Shared(:,:)
 INTEGER                         :: RadObservationPOI_Shared_Win
 REAL,ALLOCPOINT                 :: RadObservationPOI_Shared(:,:)
 #endif

@@ -91,6 +91,7 @@ USE MOD_SuperB_Tools,           ONLY: FindLinIndependentVectors, GramSchmidtAlgo
 USE MOD_RadiationTrans_Vars,    ONLY : RadTransObsVolumeFrac_Shared_Win, RadTransObsVolumeFrac_Shared
 USE MOD_Radiation_Vars,         ONLY : Radiation_Absorption_Spec_Shared, Radiation_Absorption_Spec_Shared_Win, RadiationInput
 USE MOD_Radiation_Vars,         ONLY : Radiation_Emission_Spec_Shared_Win, Radiation_Emission_Spec_Shared, MacroRadInputParameters
+USE MOD_Radiation_Vars,         ONLY : Radiation_Absorption_SpecPercent_Shared, Radiation_Absorption_SpecPercent_Shared_Win
 #endif
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
@@ -109,8 +110,10 @@ INTEGER               :: w, io_error
 SWRITE(UNIT_StdOut,'(132("-"))')
 SWRITE(UNIT_stdOut,'(A)') ' INIT RADIATION TRANSPORT SOLVER ...'
 
-ALLOCATE(RadiationElemAbsEnergy(3,1:nGlobalElems))
+ALLOCATE(RadiationElemAbsEnergy(2,1:nGlobalElems))
 RadiationElemAbsEnergy=0.0
+ALLOCATE(RadiationElemAbsEnergySpec(nSpecies,1:nGlobalElems))
+RadiationElemAbsEnergySpec=0.0
 
 RadiationDirectionModel = GETINT('Radiation-DirectionModel')
 RadTrans%NumPhotonsPerCell = GETINT('Radiation-NumPhotonsPerCell')
@@ -163,11 +166,18 @@ END IF
 
 #if USE_MPI
   ! allocate shared array for Radiation_Emission/Absorption_Spec
-CALL Allocate_Shared((/3,nGlobalElems/),RadiationElemAbsEnergy_Shared_Win,RadiationElemAbsEnergy_Shared)
+CALL Allocate_Shared((/2,nGlobalElems/),RadiationElemAbsEnergy_Shared_Win,RadiationElemAbsEnergy_Shared)
 CALL MPI_WIN_LOCK_ALL(0,RadiationElemAbsEnergy_Shared_Win,IERROR)
 
 IF (myComputeNodeRank.EQ.0) RadiationElemAbsEnergy_Shared = 0.
 CALL BARRIER_AND_SYNC(RadiationElemAbsEnergy_Shared_Win,MPI_COMM_SHARED)  
+
+  ! allocate shared array for Radiation_Emission/Absorption_Spec
+CALL Allocate_Shared((/nSpecies,nGlobalElems/),RadiationElemAbsEnergySpec_Shared_Win,RadiationElemAbsEnergySpec_Shared)
+CALL MPI_WIN_LOCK_ALL(0,RadiationElemAbsEnergySpec_Shared_Win,IERROR)
+
+IF (myComputeNodeRank.EQ.0) RadiationElemAbsEnergySpec_Shared = 0.
+CALL BARRIER_AND_SYNC(RadiationElemAbsEnergySpec_Shared_Win,MPI_COMM_SHARED)  
   
 CALL Allocate_Shared((/nComputeNodeElems/), RadTransPhotPerCell_Shared_Win,RadTransPhotPerCell_Shared)
 CALL MPI_WIN_LOCK_ALL(0,RadTransPhotPerCell_Shared_Win,IERROR)
@@ -409,6 +419,21 @@ END SELECT
     END IF
   END IF  
   CALL BARRIER_AND_SYNC(Radiation_Absorption_Spec_Shared_Win ,MPI_COMM_SHARED)
+  CALL BARRIER_AND_SYNC(Radiation_Absorption_SpecPercent_Shared_Win ,MPI_COMM_SHARED)
+  IF(nLeaderGroupProcs.GT.1)THEN
+    IF(myComputeNodeRank.EQ.0)THEN
+      CALL MPI_ALLGATHERV( MPI_IN_PLACE                  &
+                     , 0                             &
+                     , MPI_DATATYPE_NULL             &
+                     , Radiation_Absorption_SpecPercent_Shared  &
+                     , RadiationParameter%WaveLenDiscrCoarse *nSpecies*recvcountElem   &
+                     , RadiationParameter%WaveLenDiscrCoarse *nSpecies*displsElem      &
+                     , MPI_INTEGER          &
+                     , MPI_COMM_LEADERS_SHARED       &
+                     , IERROR)
+    END IF
+  END IF  
+  CALL BARRIER_AND_SYNC(Radiation_Absorption_SpecPercent_Shared_Win ,MPI_COMM_SHARED)
   IF (RadObservationPointMethod.EQ.2) CALL BARRIER_AND_SYNC(RadObservationPOI_Shared_Win ,MPI_COMM_SHARED)
   !print*, 'AHAAAA', SUM(RadObservationPOI(7,:))
   !read*
