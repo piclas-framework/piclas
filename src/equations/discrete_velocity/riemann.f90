@@ -30,25 +30,25 @@ SUBROUTINE Riemann(F,U_L,U_R,nv)
 ! MODULES
 USE MOD_PreProc ! PP_N
 USE MOD_DistFunc, ONLY  : MacroValuesFromDistribution, MaxwellDistribution, ShakhovDistribution
-USE MOD_Equation_Vars
+USE MOD_Equation_Vars_FV
 USE MOD_TimeDisc_Vars, ONLY : dt
 USE MOD_Globals,  ONLY :abort
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-REAL,DIMENSION(PP_nVar,0:PP_N,0:PP_N),INTENT(IN) :: U_L,U_R
+REAL,DIMENSION(PP_nVar_FV,0:PP_N,0:PP_N),INTENT(IN) :: U_L,U_R
 REAL,INTENT(IN)                                  :: nv(3,0:PP_N,0:PP_N)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
-REAL,INTENT(OUT)                                 :: F(PP_nVar,0:PP_N,0:PP_N)
+REAL,INTENT(OUT)                                 :: F(PP_nVar_FV,0:PP_N,0:PP_N)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT / OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 REAL                                             :: n_loc(3),MacroVal_L(8), MacroVal_R(8), tau_L, tau_R
 REAL                                             :: Velo
-REAL                                             :: fTarget_L(PP_nVar), fTarget_R(PP_nVar), UTemp_L(PP_nVar), UTemp_R(PP_nVar)
+REAL,DIMENSION(PP_nVar_FV)                       :: fTarget_L, fTarget_R, UTemp_L, UTemp_R
 REAL                                             :: gamma_R, gamma_L
 INTEGER                                          :: Count_1,Count_2, iVel, jVel, kVel, upos
 !===================================================================================================================================
@@ -89,8 +89,8 @@ INTEGER                                          :: Count_1,Count_2, iVel, jVel,
         Velo= n_loc(1)*DVMVelos(iVel,1) + n_loc(2)*DVMVelos(jVel,2) + n_loc(3)*DVMVelos(kVel,3)
         F(upos,Count_1,Count_2)=0.5*((Velo+abs(Velo))*Utemp_L(upos)+(Velo-abs(Velo))*Utemp_R(upos))
         IF (DVMSpeciesData%Internal_DOF .GT.0.0) THEN
-          F(PP_nVar/2+upos,Count_1,Count_2) = &
-            0.5*((Velo+abs(Velo))*Utemp_L(PP_nVar/2+upos)+(Velo-abs(Velo))*Utemp_R(PP_nVar/2+upos))
+          F(PP_nVar_FV/2+upos,Count_1,Count_2) = &
+            0.5*((Velo+abs(Velo))*Utemp_L(PP_nVar_FV/2+upos)+(Velo-abs(Velo))*Utemp_R(PP_nVar_FV/2+upos))
         END IF
       END DO; END DO; END DO;
     END DO

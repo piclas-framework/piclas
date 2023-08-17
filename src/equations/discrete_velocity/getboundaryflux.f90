@@ -54,10 +54,10 @@ SUBROUTINE InitBC()
 ! MODULES
 USE MOD_Preproc
 USE MOD_Globals
-USE MOD_Equation_Vars     ,ONLY: EquationInitIsDone
-USE MOD_Equation_Vars     ,ONLY: nBCByType,BCSideID
+USE MOD_Equation_Vars_FV  ,ONLY: EquationInitIsDone
+USE MOD_Equation_Vars_FV  ,ONLY: nBCByType,BCSideID
 USE MOD_Interpolation_Vars,ONLY: InterpolationInitIsDone
-USE MOD_Mesh_Vars         ,ONLY: MeshInitIsDone,nBCSides,BC,BoundaryType_FV,nBCs
+USE MOD_Mesh_Vars         ,ONLY: MeshInitIsDone,nBCSides,BC,BoundaryType,nBCs
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT / OUTPUT VARIABLES
@@ -74,8 +74,8 @@ END IF
 ! determine globally max MaxBCState
 MaxBCState = 0
 DO iSide=1,nBCSides
-  locType =BoundaryType_FV(BC(iSide),BC_TYPE)
-  locState=BoundaryType_FV(BC(iSide),BC_STATE)
+  locType =BoundaryType(BC(iSide),BC_TYPE)
+  locState=BoundaryType(BC(iSide),BC_STATE)
 END DO
 MaxBCStateGLobal=MaxBCState
 #if USE_MPI
@@ -84,7 +84,7 @@ CALL MPI_ALLREDUCE(MPI_IN_PLACE,MaxBCStateGlobal,1,MPI_INTEGER,MPI_MAX,MPI_COMM_
 
 ! Initialize State File Boundary condition
 DO i=1,nBCs
-  locType =BoundaryType_FV(i,BC_TYPE)
+  locType =BoundaryType(i,BC_TYPE)
 END DO
 
 ! Count number of sides of each boundary
@@ -118,38 +118,38 @@ SUBROUTINE GetBoundaryFlux(t,tDeriv,Flux,UPrim_master,NormVec,TangVec1,TangVec2,
 ! MODULES
 USE MOD_PreProc
 USE MOD_Globals      ,ONLY: Abort
-USE MOD_Mesh_Vars    ,ONLY: nBCSides,nBCs,BoundaryType_FV
-USE MOD_Equation_Vars,ONLY: nBCByType,BCSideID,IniExactFunc,RefState
+USE MOD_Mesh_Vars    ,ONLY: nBCSides,nBCs,BoundaryType
+USE MOD_Equation_Vars_FV,ONLY: nBCByType,BCSideID,IniExactFunc_FV,RefState
 USE MOD_Riemann
 USE MOD_TimeDisc_Vars,ONLY : dt
-USE MOD_Equation     ,ONLY: ExactFunc
+USE MOD_Equation_FV  ,ONLY: ExactFunc_FV
 USE MOD_DistFunc     ,ONLY: MaxwellDistribution, ShakhovDistribution, MaxwellScattering, MacroValuesFromDistribution
-USE MOD_Equation_Vars,ONLY: DVMSpeciesData,DVMBGKModel,DVMnVelos,DVMVelos,DVMVeloDisc,DVMVeloMax,DVMVeloMin,DVMWeights,DVMDim,Pi
+USE MOD_Equation_Vars_FV,ONLY: DVMSpeciesData,DVMBGKModel,DVMnVelos,DVMVelos,DVMVeloDisc,DVMVeloMax,DVMVeloMin,DVMWeights,DVMDim,Pi
 !----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT / OUTPUT VARIABLES
 REAL,INTENT(IN)                      :: t       !< current time (provided by time integration scheme)
 INTEGER,INTENT(IN)                   :: tDeriv      ! deriv
-REAL,INTENT(IN)                      :: UPrim_master(     PP_nVar,0:PP_N,0:PP_N,1:nBCSides)
+REAL,INTENT(IN)                      :: UPrim_master(     PP_nVar_FV,0:PP_N,0:PP_N,1:nBCSides)
 REAL,INTENT(IN)                      :: NormVec(           3,0:PP_N,0:PP_N,1:nBCSides)
 REAL,INTENT(IN),OPTIONAL             :: TangVec1(          3,0:PP_N,0:PP_N,1:nBCSides)
 REAL,INTENT(IN),OPTIONAL             :: TangVec2(          3,0:PP_N,0:PP_N,1:nBCSides)
 REAL,INTENT(IN)                      :: Face_xGP(        3,0:PP_N,0:PP_N,1:nBCSides)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
-REAL,INTENT(OUT)                     :: Flux( PP_nVar,0:PP_N,0:PP_N,1:nBCSides)
+REAL,INTENT(OUT)                     :: Flux( PP_nVar_FV,0:PP_N,0:PP_N,1:nBCSides)
 !----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER                              :: iBC,iSide,SideID
 INTEGER                              :: BCType,BCState,nBCLoc
-REAL                                 :: UPrim_boundary(PP_nVar,0:PP_N,0:PP_N)
+REAL                                 :: UPrim_boundary(PP_nVar_FV,0:PP_N,0:PP_N)
 INTEGER                              :: p,q
 INTEGER                              :: iVel,jVel,kVel,upos, upos_sp
 REAL                                 :: MacroVal(8), tau, vnormal, vwall, Sin, Sout, weight, MovTerm, WallDensity
 !==================================================================================================================================
 DO iBC=1,nBCs
   IF(nBCByType(iBC).LE.0) CYCLE
-  BCType =BoundaryType_FV(iBC,BC_TYPE)
-  BCState=BoundaryType_FV(iBC,BC_STATE)
+  BCType =BoundaryType(iBC,BC_TYPE)
+  BCState=BoundaryType(iBC,BC_STATE)
   nBCLoc =nBCByType(iBC)
 
   SELECT CASE(BCType)
@@ -160,7 +160,7 @@ DO iBC=1,nBCs
       SideID=BCSideID(iBC,iSide)
       IF(BCState.EQ.0) THEN
         DO q=0,PP_N; DO p=0,PP_N
-          CALL ExactFunc(IniExactFunc,t,0,Face_xGP(:,p,q,SideID),UPrim_boundary(:,p,q))
+          CALL ExactFunc_FV(IniExactFunc_FV,t,0,Face_xGP(:,p,q,SideID),UPrim_boundary(:,p,q))
         END DO; END DO
       ELSE
         DO q=0,PP_N; DO p=0,PP_N
@@ -220,12 +220,12 @@ DO iBC=1,nBCs
             ! END IF
             UPrim_boundary(upos,p,q)=UPrim_master(upos_sp,p,q,SideID)! + MovTerm
             IF (DVMSpeciesData%Internal_DOF .GT.0.0) THEN
-              UPrim_boundary(PP_nVar/2+upos,p,q)=UPrim_master(PP_nVar/2+upos_sp,p,q,SideID)! + MovTerm
+              UPrim_boundary(PP_nVar_FV/2+upos,p,q)=UPrim_master(PP_nVar_FV/2+upos_sp,p,q,SideID)! + MovTerm
             END IF
           ELSE
             UPrim_boundary(upos,p,q)=UPrim_master(upos,p,q,SideID)
             IF (DVMSpeciesData%Internal_DOF .GT.0.0) THEN
-              UPrim_boundary(PP_nVar/2+upos,p,q)=UPrim_master(PP_nVar/2+upos,p,q,SideID)
+              UPrim_boundary(PP_nVar_FV/2+upos,p,q)=UPrim_master(PP_nVar_FV/2+upos,p,q,SideID)
             END IF
           END IF
         END DO; END DO; END DO
@@ -287,7 +287,7 @@ SUBROUTINE FinalizeBC()
 ! Initialize boundary conditions
 !===================================================================================================================================
 ! MODULES
-USE MOD_Equation_Vars,ONLY: BCData,nBCByType,BCSideID
+USE MOD_Equation_Vars_FV,ONLY: BCData,nBCByType,BCSideID
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------

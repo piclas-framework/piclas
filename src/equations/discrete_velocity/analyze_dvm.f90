@@ -40,11 +40,12 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-REAL                            :: tau, MacroVal(8)
+REAL                            :: tau=1., MacroVal(8)=0.
 INTEGER                         :: iElem
 !===================================================================================================================================
+print*, 'analyzedvm'
 DO iElem=1,nElems
-    CALL MacroValuesFromDistribution(MacroVal,U(:,0,0,0,iElem),dt,tau,1)
+    !CALL MacroValuesFromDistribution(MacroVal,U_FV(:,0,0,0,iElem),dt,tau,1)
     DVM_ElemData1(iElem)=MacroVal(1)
     DVM_ElemData2(iElem)=MacroVal(2)
     DVM_ElemData3(iElem)=MacroVal(3)

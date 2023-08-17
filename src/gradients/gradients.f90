@@ -89,7 +89,8 @@ Grad_DIM = ini_dim
 ALLOCATE(Var_slave(Grad_DIM,nSides))
 ALLOCATE(Var_master(Grad_DIM,nSides))
 ALLOCATE(Diff_side(Grad_DIM,nSides))
-Var_slave = 0.; Var_master = 0.; Diff_side = 0.
+ALLOCATE(Gradient_elem(3,Grad_DIM,nElems))
+Var_slave = 0.; Var_master = 0.; Diff_side = 0.; Gradient_elem = 0.
 
 GradLimiterType=GETINT('Grad-LimiterType')
 GradLimVktK=GETREAL('Grad-VktK')
@@ -127,7 +128,7 @@ LBWRITE(UNIT_stdOut,'(A)')' INIT GRADIENTS DONE!'
 LBWRITE(UNIT_StdOut,'(132("-"))')
 END SUBROUTINE InitGradients
 
-SUBROUTINE GetGradients(VarForGradients,Gradient_elem)
+SUBROUTINE GetGradients(VarForGradients)
 !===================================================================================================================================
 !> Main routine for the gradient calculation
 !===================================================================================================================================
@@ -135,7 +136,6 @@ SUBROUTINE GetGradients(VarForGradients,Gradient_elem)
 USE MOD_Globals
 USE MOD_Gradient_Vars
 USE MOD_Mesh_Vars           ,ONLY: nElems,nSides,ElemToSide
-USE MOD_ProlongToFace       ,ONLY: ProlongToFace_ElemCopy
 #if USE_MPI
 USE MOD_MPI                 ,ONLY: StartReceiveMPIDataFV,StartSendMPIDataFV,FinishExchangeMPIData
 USE MOD_MPI_Vars
@@ -150,7 +150,6 @@ IMPLICIT NONE
 REAL,INTENT(IN)         :: VarForGradients(Grad_DIM,nElems)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
-REAL,INTENT(INOUT)      :: Gradient_elem(3,Grad_DIM,nElems)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER                 :: ElemID, SideID, locSideID, flip
@@ -247,7 +246,7 @@ USE MOD_Globals
 USE MOD_Gradient_Vars            ,ONLY: Grad_dx_master, Grad_dx_slave, Grad_SysSol_BC, Grad_DIM, Var_slave, Var_master, Diff_side
 USE MOD_GetBoundaryGrad          ,ONLY: GetBoundaryGrad
 USE MOD_Mesh_Vars                ,ONLY: NormVec_FV,Face_xGP_FV
-USE MOD_Mesh_Vars                ,ONLY: nSides,firstBCSide,lastBCSide,firstInnerSide, lastInnerSide
+USE MOD_Mesh_Vars                ,ONLY: firstBCSide,lastBCSide,firstInnerSide, lastInnerSide
 USE MOD_Mesh_Vars                ,ONLY: firstMPISide_MINE,lastMPISide_MINE, SideToElem, ElemToSide
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -258,7 +257,7 @@ LOGICAL,INTENT(IN)      :: doMPISides
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                         :: SideID, SideID_2, SideID2, lastSideID, firstSideID_wo_BC, ElemID, locSideID, locSideID2, flip
+INTEGER                         :: SideID, SideID2, lastSideID, firstSideID_wo_BC, ElemID, locSideID, locSideID2
 REAL                            :: diffUinside(Grad_DIM), gradWeight
 !===================================================================================================================================
 ! Set the side range according to MPI or no MPI
@@ -279,7 +278,7 @@ END DO
 ! 2. Compute the gradients at the boundary conditions: 1..nBCSides
 IF (.NOT.doMPISides) THEN
   DO SideID=firstBCSide,lastBCSide
-#if (PP_TimeDiscMethod==600)
+#ifdef discrete_velocity
     !second-order boundaries need bc defined from inner slopes
     diffUinside = 0.
     ElemID     = SideToElem(S2E_ELEM_ID,SideID)  !element is always master (slave=boundary ghost cell)
@@ -387,6 +386,67 @@ Gradient(3,:) = limiter(:)*Gradient(3,:)
 
 END SUBROUTINE GradLimiter
 
+SUBROUTINE ProlongToFace_ElemCopy(VarDim,ElemVar,SideVar_master,SideVar_slave,doMPISides)
+!===================================================================================================================================
+! Simply copies element-based variable to sides
+!===================================================================================================================================
+! MODULES
+USE MOD_Mesh_Vars,          ONLY: nSides, SideToElem, ElemToSide, nElems
+USE MOD_Mesh_Vars,          ONLY: firstBCSide,firstInnerSide, lastInnerSide
+USE MOD_Mesh_Vars,          ONLY: firstMPISide_YOUR,lastMPISide_YOUR,lastMPISide_MINE,firstMortarMPISide,lastMortarMPISide
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+LOGICAL,INTENT(IN)              :: doMPISides  != .TRUE. only YOUR MPISides are filled, =.FALSE. BCSides +InnerSides +MPISides MINE
+INTEGER,INTENT(IN)              :: VarDim
+REAL,INTENT(IN)                 :: ElemVar(VarDim,nElems)
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+REAL,INTENT(INOUT)              :: SideVar_master(VarDim,1:nSides)
+REAL,INTENT(INOUT)              :: SideVar_slave(VarDim,1:nSides)
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER                         :: ElemID,SideID,firstSideID,lastSideID,iVel,jVel,kVel,upos
+!===================================================================================================================================
+IF(doMPISides)THEN
+! only YOUR MPI Sides are filled
+firstSideID = firstMPISide_YOUR
+lastSideID  = lastMPISide_YOUR
+ELSE
+! (Mortar-)InnerSides are filled
+firstSideID = firstInnerSide
+lastSideID  = lastInnerSide
+END IF
+
+DO SideID=firstSideID,lastSideID
+! neighbor side !ElemID=-1 if not existing
+ElemID     = SideToElem(S2E_NB_ELEM_ID,SideID)
+!Copy Bulk Velocity in U for Dense Fokker Planck instead of Finite Volumes Solution
+IF (ElemID.LT.0) CYCLE !mpi-mortar whatever
+SideVar_slave(:,SideID) = ElemVar(:,ElemID)
+END DO
+
+! Second process Minus/Master sides, U_Minus is always MINE
+! master side, flip=0
+IF(doMPISides)THEN
+! only MPI mortars
+firstSideID = firstMortarMPISide
+lastSideID =  lastMortarMPISide
+ELSE
+! BCSides, (Mortar-)InnerSides and MINE MPISides are filled
+firstSideID = firstBCSide
+lastSideID =  lastMPISide_MINE
+END IF
+
+DO SideID=firstSideID,lastSideID
+ElemID    = SideToElem(S2E_ELEM_ID,SideID)
+IF (ElemID.LT.0) CYCLE !for small mortar sides without info on big master element
+SideVar_master(:,SideID)=ElemVar(:,ElemID)
+END DO !SideID
+
+END SUBROUTINE ProlongToFace_ElemCopy
+
 SUBROUTINE FinalizeGradients()
 !===================================================================================================================================
 ! deallocate gradient variables
@@ -410,6 +470,7 @@ SDEALLOCATE(Grad_SysSol_BC)
 SDEALLOCATE(Var_slave)
 SDEALLOCATE(Var_master)
 SDEALLOCATE(Diff_side)
+SDEALLOCATE(Gradient_elem)
 
 END SUBROUTINE FinalizeGradients
 

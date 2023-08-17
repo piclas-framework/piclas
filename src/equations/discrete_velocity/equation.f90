@@ -12,7 +12,7 @@
 !==================================================================================================================================
 #include "piclas.h"
 
-MODULE MOD_Equation
+MODULE MOD_Equation_FV
 !===================================================================================================================================
 ! Add comments please!
 !===================================================================================================================================
@@ -25,20 +25,24 @@ PRIVATE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
-INTERFACE InitEquation
+INTERFACE InitEquation_FV
   MODULE PROCEDURE InitEquation
 END INTERFACE
-INTERFACE ExactFunc
+INTERFACE ExactFunc_FV
   MODULE PROCEDURE ExactFunc
 END INTERFACE
-INTERFACE CalcSource
+INTERFACE CalcSource_FV
   MODULE PROCEDURE CalcSource
 END INTERFACE
+INTERFACE FinalizeEquation_FV
+  MODULE PROCEDURE FinalizeEquation
+END INTERFACE
+INTERFACE DefineParametersEquation_FV
+  MODULE PROCEDURE DefineParametersEquation
+END INTERFACE
 
-PUBLIC::InitEquation,ExactFunc,FinalizeEquation,CalcSource
+PUBLIC::InitEquation_FV,ExactFunc_FV,FinalizeEquation_FV,CalcSource_FV,DefineParametersEquation_FV
 !===================================================================================================================================
-
-PUBLIC::DefineParametersEquation
 CONTAINS
 
 !==================================================================================================================================
@@ -85,7 +89,7 @@ USE MOD_Mesh_Vars,          ONLY: nElems
 USE MOD_ReadInTools,        ONLY:GETREALARRAY,GETINTARRAY,GETREAL,GETINT, CountOption
 USE MOD_Interpolation_Vars, ONLY:InterpolationInitIsDone
 USE MOD_Basis              ,ONLY: LegendreGaussNodesAndWeights, GaussHermiteNodesAndWeights, NewtonCotesNodesAndWeights
-USE MOD_Equation_Vars
+USE MOD_Equation_Vars_FV
  IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT/OUTPUT VARIABLES
@@ -101,7 +105,7 @@ SWRITE(UNIT_stdOut,'(132("-"))')
 SWRITE(UNIT_stdOut,'(A)') ' INIT DVM...'
 
 Pi=ACOS(-1.)
-IniExactFunc = GETINT('IniExactFunc')
+IniExactFunc_FV = GETINT('IniExactFunc')
 
 DVMSpeciesData%omegaVHS = GETREAL('DVM-omegaVHS')
 DVMSpeciesData%T_Ref = GETREAL('DVM-T_Ref')
@@ -123,10 +127,10 @@ DVMSpeciesData%Prandtl = 2./3.
 DVMnVelos(1:3) = 1
 IF (DVMSpeciesData%Internal_DOF.GT.0.0) THEN
   DVMnVelos(1:DVMDim) = GETINT('DVM-nVelo')
-  PP_nVar = (DVMnVelos(1)**DVMDim)*2
+  PP_nVar_FV = (DVMnVelos(1)**DVMDim)*2
 ELSE
   DVMnVelos(:) = GETINT('DVM-nVelo')
-  PP_nVar = (DVMnVelos(1)**3)
+  PP_nVar_FV = (DVMnVelos(1)**3)
 END IF
 
 ALLOCATE(DVMVelos(MAXVAL(DVMnVelos),3), DVMWeights(MAXVAL(DVMnVelos),3))
@@ -212,7 +216,7 @@ USE MOD_Preproc
 USE MOD_Globals
 USE MOD_Globals_Vars,  ONLY: PI
 USE MOD_DistFunc,      ONLY: MaxwellDistribution, MacroValuesFromDistribution, GradDistribution
-USE MOD_Equation_Vars, ONLY: DVMSpeciesData, RefState
+USE MOD_Equation_Vars_FV, ONLY: DVMSpeciesData, RefState
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT/OUTPUT VARIABLES
@@ -221,7 +225,7 @@ REAL,INTENT(IN)                 :: tIn                    !< input time (either 
 INTEGER, INTENT(IN)                :: tDeriv
 REAL,INTENT(IN)                 :: x(3)                   !< coordinates to evaluate exact function
 INTEGER,INTENT(IN)              :: ExactFunction          !< specifies the exact function to be used
-REAL,INTENT(OUT)                :: Resu(PP_nVar)          !< output state in conservative variables
+REAL,INTENT(OUT)                :: Resu(PP_nVar_FV)          !< output state in conservative variables
 !----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 REAL                            :: MacroVal(8)
@@ -305,7 +309,7 @@ IMPLICIT NONE
 REAL,INTENT(IN)                 :: t,coeff
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
-REAL,INTENT(INOUT)              :: Ut(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
+REAL,INTENT(INOUT)              :: Ut(1:PP_nVar_FV,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 
@@ -319,7 +323,7 @@ END SUBROUTINE CalcSource
 !==================================================================================================================================
 SUBROUTINE FinalizeEquation()
 ! MODULES
-USE MOD_Equation_Vars,ONLY:EquationInitIsDone, DVMVelos, DVMWeights, RefState
+USE MOD_Equation_Vars_FV,ONLY:EquationInitIsDone, DVMVelos, DVMWeights, RefState
 IMPLICIT NONE
 !==================================================================================================================================
 EquationInitIsDone = .FALSE.
@@ -328,4 +332,4 @@ SDEALLOCATE(DVMWeights)
 SDEALLOCATE(RefState)
 END SUBROUTINE FinalizeEquation
 
-END MODULE MOD_Equation
+END MODULE MOD_Equation_FV

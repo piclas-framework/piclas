@@ -453,7 +453,7 @@ USE MOD_FV_Vars            ,ONLY: U_FV
 USE MOD_Equation_FV        ,ONLY: ExactFunc_FV
 USE MOD_Equation_Vars_FV   ,ONLY: IniExactFunc_FV
 USE MOD_Interpolation_Vars ,ONLY: NAnalyze,Vdm_GaussN_NAnalyze,wAnalyze,Uex
-USE MOD_Mesh_Vars          ,ONLY: Elem_xGP_FV,sJ
+USE MOD_Mesh_Vars          ,ONLY: Elem_xGP_FV
 USE MOD_Particle_Mesh_Vars ,ONLY: MeshVolume
 USE MOD_Analyze_Vars       ,ONLY: OutputErrorNormsToH5
 USE MOD_Particle_Mesh_Vars ,ONLY: ElemVolume_Shared
@@ -1322,8 +1322,10 @@ END IF
 !----------------------------------------------------------------------------------------------------------------------------------
 ! Discrete Velocity Method
 !----------------------------------------------------------------------------------------------------------------------------------
-#if (PP_TimeDiscMethod==600) /*DVM*/
+#ifdef discrete_velocity
+IF (DoPerformFieldAnalyze) THEN
 CALL AnalyzeDVM()
+END IF
 #endif /*DVM*/
 
 !----------------------------------------------------------------------------------------------------------------------------------

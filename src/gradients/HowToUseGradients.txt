@@ -8,23 +8,18 @@ How to use this gradient folder for the calculation of the gradients:
 
 and at a location of your choice:
 
-        CALL InitGradients()
+        CALL InitGradients(Grad_DIM)
 
 Add CALL DefineParameterGradients in init/define_parameters_init.f90
 
 --------------------------------------------------------------------------------------------------------
 #2 For obtaining the gradients within a subroutine, add:
 
-        USE MOD_ProlongToFace       ,ONLY: ProlongToFace_ElemCopy
 	USE MOD_Gradient            ,ONLY: GetGradients
 	
 and 
-        CALL ProlongToFace_ElemCopy(grad_dim,u_elem,u_master,u_slave)
 
-to copy the elem-based array you want to differentiate to side-based arrays for communications
-then
-
-	CALL GetGradients(grad_dim,u_master,u_slave,Gradient_elem)
+	CALL GetGradients(Variable_for_which_you_want_the_gradient)
 	
 --------------------------------------------------------------------------------------------------------
 #3 The results are stored in the variable Gradient_elem(1:3,1:Grad_DIM,1:PP_nELems). 
@@ -36,19 +31,18 @@ For accessing them, simply add
 --------------------------------------------------------------------------------------------------------
 LIMITING GRADIENTS:
 
-If the gradients should be limited, this can be done in the subroutine SumGradients in gradients.f90
+If the gradients should be limited, this can be done with the subroutine GradLimiter in gradients.f90
 
 --------------------------------------------------------------------------------------------------------
 COPYING ELEMENT DATA TO SIDE:
 
-For the calculation of the gradients, there is a new routine: CalcGrad_ProlongToFace within gradients.f90
+For the calculation of the gradients, there is a new routine: ProlongToFace_ElemCopy within gradients.f90
 which copies the element data to the respective sides
 
 --------------------------------------------------------------------------------------------------------
 GRADIENTS AT BOUNDARIES:
 
-As this varies from case to case, please have a look at the routines GetBoundaryGrad in gradients.f90 
-and check which fits your case
+As this varies from case to case, create some GetBoundaryGrad routine
 
 Within the GetBoundaryGrad routine for PP_TimeDiscMethod==510, the value outside the boundary is assumed 
 to be zero.

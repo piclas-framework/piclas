@@ -250,7 +250,7 @@ IF(MPIRoot) CALL GenerateFileSkeleton('State',3,StrVarNames,MeshFileName,OutputT
 IF(MPIRoot) CALL GenerateFileSkeleton('State',7,StrVarNames,MeshFileName,OutputTime_loc)
 #endif
 #elif (PP_TimeDiscMethod==600) /*DVM*/
-IF(MPIRoot) CALL GenerateFileSkeleton('State',9,StrVarNames,MeshFileName,OutputTime_loc) ! 9 for DVM MacroVal (maybe change that)
+IF(MPIRoot) CALL GenerateFileSkeleton('State',9,StrVarNames_FV,MeshFileName,OutputTime_loc) ! 9 for DVM MacroVal (maybe change that)
 #else
 IF(MPIRoot) CALL GenerateFileSkeleton('State',PP_nVar,StrVarNames,MeshFileName,OutputTime_loc)
 #endif /*USE_HDG*/
@@ -521,8 +521,9 @@ ASSOCIATE (&
 #if USE_FV
 #if (PP_TimeDiscMethod==600) /*DVM*/
   DO iElem=1,INT(PP_nElems)
-    CALL MacroValuesFromDistribution(Utemp(1:8,0,0,0,iElem),U_FV(:,0,0,0,iElem),dt,tau,1)
-    Utemp(9,0,0,0,iElem) = dt/tau
+    ! CALL MacroValuesFromDistribution(Utemp(1:8,0,0,0,iElem),U_FV(:,0,0,0,iElem),dt,tau,1)
+    ! Utemp(9,0,0,0,iElem) = dt/tau
+    Utemp = 0.
   END DO
   CALL GatheredWriteArray(FileName,create=.FALSE.,&
       DataSetName='DVM_Solution', rank=5,&

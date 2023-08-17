@@ -29,7 +29,7 @@ INTEGER                   :: Grad_DIM
 REAL,ALLOCATABLE                      :: Var_master(:,:)
 REAL,ALLOCATABLE                      :: Var_slave(:,:)
 REAL,ALLOCATABLE                      :: Diff_side(:,:)
-
+REAL,ALLOCATABLE                      :: Gradient_elem(:,:,:)
 
 ! Distances for Gradient Calculation
 REAL,ALLOCATABLE                      :: Grad_dx_slave(:,:)

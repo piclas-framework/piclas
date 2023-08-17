@@ -1150,7 +1150,7 @@ IF (PerformLoadBalance) RETURN
 ! BCS
 SDEALLOCATE(BoundaryName)
 SDEALLOCATE(BoundaryType)
-#if USE_FV
+#if USE_FV && USE_HDG
 SDEALLOCATE(BoundaryType_FV)
 #endif
 

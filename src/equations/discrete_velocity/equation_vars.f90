@@ -10,7 +10,7 @@
 !
 ! You should have received a copy of the GNU General Public License along with PICLas. If not, see <http://www.gnu.org/licenses/>.
 !==================================================================================================================================
-MODULE MOD_Equation_Vars
+MODULE MOD_Equation_Vars_FV
 !===================================================================================================================================
 ! Contains the constant Advection Velocity Vector used for the linear scalar advection equation
 !===================================================================================================================================
@@ -25,7 +25,7 @@ SAVE
 LOGICAL           :: doCalcSource             !< Swith to calculate a source term or not, automatically set by calcsource itself
 REAL              :: AdvVel(3)                !< Advection velocity
 REAL              :: DiffC                    !< Diffusion constant
-INTEGER           :: IniExactFunc             !< Number of exact function used for initialization
+INTEGER           :: IniExactFunc_FV             !< Number of exact function used for initialization
 INTEGER           :: IniRefState              !< RefState for initialization
 INTEGER           :: nRefState                !< number of refstates defined in parameter file
 REAL,ALLOCATABLE  :: RefState(:,:)        !< reference state
@@ -69,7 +69,7 @@ END TYPE tSpeciesData
 
 TYPE(tSpeciesData) :: DVMSpeciesData
 
-CHARACTER(LEN=255),DIMENSION(9),PARAMETER :: StrVarNames = (/ CHARACTER(LEN=255) :: 'Density', &
+CHARACTER(LEN=255),DIMENSION(9),PARAMETER :: StrVarNames_FV = (/ CHARACTER(LEN=255) :: 'Density', &
                                                                                     'VeloX', &
                                                                                     'VeloY', &
                                                                                     'VeloZ', &
@@ -83,4 +83,4 @@ LOGICAL              :: EquationInitIsDone=.FALSE.!< Init switch
 LOGICAL              :: DoExactFlux
 LOGICAL,ALLOCATABLE  ::isExactFluxInterFace(:)
 !===================================================================================================================================
-END MODULE MOD_Equation_Vars
+END MODULE MOD_Equation_Vars_FV

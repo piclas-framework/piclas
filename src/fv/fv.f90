@@ -59,7 +59,7 @@ USE MOD_FV_Vars
 USE MOD_IO_HDF5            ,ONLY: AddToElemData,ElementOut
 USE MOD_Restart_Vars       ,ONLY: DoRestart,RestartInitIsDone
 USE MOD_Interpolation_Vars ,ONLY: InterpolationInitIsDone
-USE MOD_Mesh_Vars          ,ONLY: nSides, Face_xGP_FV, NormVec_FV
+USE MOD_Mesh_Vars          ,ONLY: nSides
 USE MOD_Mesh_Vars          ,ONLY: MeshInitIsDone
 USE MOD_Gradients          ,ONLY: InitGradients
 #if USE_LOADBALANCE
@@ -125,8 +125,6 @@ ALLOCATE(Flux_Slave_FV (1:PP_nVar_FV,0:0,0:0,1:nSides))
 Flux_Master_FV=0.
 Flux_Slave_FV=0.
 
-ALLOCATE(FV_gradU_elem(3,1:PP_nVar_FV,1:PP_nElems))
-
 #ifdef discrete_velocity
 ALLOCATE(DVM_ElemData1(1:PP_nElems))
 ALLOCATE(DVM_ElemData2(1:PP_nElems))
@@ -169,7 +167,7 @@ USE MOD_Globals
 USE MOD_Preproc
 USE MOD_Vector
 USE MOD_FV_Vars           ,ONLY: U_FV,Ut_FV,Flux_Master_FV,Flux_Slave_FV
-USE MOD_FV_Vars           ,ONLY: U_master_FV,U_slave_FV,FV_gradU_elem
+USE MOD_FV_Vars           ,ONLY: U_master_FV,U_slave_FV
 USE MOD_SurfInt           ,ONLY: SurfInt
 USE MOD_ProlongToFace     ,ONLY: ProlongToFace
 USE MOD_Gradients         ,ONLY: GetGradients
@@ -178,7 +176,6 @@ USE MOD_Equation_FV       ,ONLY: CalcSource_FV
 USE MOD_Interpolation     ,ONLY: ApplyJacobian
 USE MOD_FillMortar        ,ONLY: U_Mortar,Flux_Mortar
 USE MOD_Particle_Mesh_Vars,ONLY: ElemVolume_Shared
-USE MOD_Mesh_Vars         ,ONLY: offsetElem
 USE MOD_Mesh_Tools        ,ONLY: GetCNElemID
 #if USE_MPI
 USE MOD_Mesh_Vars         ,ONLY: nSides
@@ -190,6 +187,7 @@ USE MOD_TimeDisc_Vars     ,ONLY: time
 #endif /*defined(PARTICLES) && defined(LSERK)*/
 #ifdef PARTICLES
 USE MOD_Particle_MPI      ,ONLY: MPIParticleSend,MPIParticleRecv
+USE MOD_Mesh_Vars         ,ONLY: offsetElem
 #endif /*PARTICLES*/
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Timers,ONLY: LBStartTime,LBPauseTime,LBSplitTime
@@ -211,7 +209,7 @@ REAL                            :: tLBStart
 #endif /*USE_LOADBALANCE*/
 !===================================================================================================================================
 
-CALL GetGradients(U_FV(:,0,0,0,:),FV_gradU_elem)
+CALL GetGradients(U_FV(:,0,0,0,:))
 
 ! prolong the solution to the faces by applying reconstruction gradients
 #if USE_MPI
@@ -348,7 +346,7 @@ SUBROUTINE FillIni()
 ! MODULES
 USE MOD_PreProc
 USE MOD_FV_Vars,ONLY:U_FV
-USE MOD_Mesh_Vars,ONLY:Elem_xGP
+USE MOD_Mesh_Vars,ONLY:Elem_xGP_FV
 USE MOD_Equation_Vars_FV,ONLY:IniExactFunc_FV
 USE MOD_Equation_FV,ONLY:ExactFunc_FV
 ! IMPLICIT VARIABLE HANDLING
@@ -364,7 +362,7 @@ INTEGER                         :: iElem
 ! Determine Size of the Loops, i.e. the number of grid cells in the
 ! corresponding directions
 DO iElem=1,PP_nElems
-    CALL ExactFunc_FV(IniExactFunc_FV,0.,0,Elem_xGP(1:3,0,0,0,iElem),U_FV(1:PP_nVar_FV,0,0,0,iElem))
+    CALL ExactFunc_FV(IniExactFunc_FV,0.,0,Elem_xGP_FV(1:3,0,0,0,iElem),U_FV(1:PP_nVar_FV,0,0,0,iElem))
 END DO ! iElem=1,PP_nElems
 END SUBROUTINE FillIni
 
@@ -394,7 +392,6 @@ SDEALLOCATE(U_master_FV)
 SDEALLOCATE(U_slave_FV)
 SDEALLOCATE(Flux_Master_FV)
 SDEALLOCATE(Flux_Slave_FV)
-SDEALLOCATE(FV_gradU_elem)
 CALL FinalizeGradients()
 ! SDEALLOCATE(U_Master_loc)
 ! SDEALLOCATE(U_Slave_loc)

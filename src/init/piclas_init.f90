@@ -176,20 +176,22 @@ CALL InitMesh(2)
 #if USE_MPI
 CALL InitMPIvars()
 #endif /*USE_MPI*/
-CALL InitBC()
 #if !(USE_FV) || (USE_HDG)
 CALL InitEquation()
-CALL InitDG()
-#endif
+#endif /*!(USE_FV) || (USE_HDG)*/
+CALL InitBC()
 #if USE_FV
+#if USE_HDG
+CALL InitDG()
+#endif /*USE_HDG*/
 CALL InitEquation_FV()
 CALL InitFV()
 #else
 #if !(USE_HDG)
 CALL InitPML() ! Perfectly Matched Layer (PML): electromagnetic-wave-absorbing layer
-CALL InitDG()
 #endif /*USE_HDG*/
 CALL InitDielectric() ! Dielectric media
+CALL InitDG()
 #if defined(ROS) || defined(IMPA)
 CALL InitLinearSolver()
 #endif /*ROS /IMEX*/

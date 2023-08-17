@@ -45,8 +45,6 @@ REAL,ALLOCATABLE                      :: DVM_ElemData8(:)
 REAL,ALLOCATABLE                      :: DVM_ElemData9(:)
 #endif
 
-REAL,ALLOCATABLE                      :: FV_gradU_elem(:,:,:)
-
 LOGICAL                               :: FVInitIsDone=.FALSE.
 !===================================================================================================================================
 END MODULE MOD_FV_Vars

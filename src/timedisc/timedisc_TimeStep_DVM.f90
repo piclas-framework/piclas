@@ -53,9 +53,13 @@ IF (IniExactFunc_FV.EQ.4.AND.time.EQ.0.) CALL RescaleInit(dt) ! initial rescalin
 
 IF (ANY(DVMForce.NE.0.)) CALL ForceStep(dt)
 
+print*, 'rescale...'
 CALL RescaleU(1,dt)  ! ftilde -> fchapeau2
+print*, 'fv...'
 CALL FV_main(time,time,doSource=.FALSE.)  ! fchapeau2 -> ftilde2 -> Ut = flux of f
+print*, 'rerescale...'
 CALL RescaleU(2,dt/2.)  ! fchapeau2 -> fchapeau
+print*, 'add...'
 U_FV = U_FV + Ut_FV*dt        ! fchapeau -> ftilde
 
 IF (ANY(DVMForce.NE.0.)) CALL ForceStep(dt) !two times for strang splitting -> second order

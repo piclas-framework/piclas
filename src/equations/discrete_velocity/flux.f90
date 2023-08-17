@@ -12,6 +12,7 @@
 !==================================================================================================================================
 #include "piclas.h"
 
+#if !(USE_FV)
 MODULE MOD_Flux
 !===================================================================================================================================
 ! Contains the routine EvalFlux3D which computes the complete flux f,g,h for all DOFs in one Element: used in volume integral
@@ -122,3 +123,4 @@ REAL,DIMENSION(8,0:PP_N,0:PP_N,0:PP_N),INTENT(OUT) :: f,g,h    ! Cartesian fluxe
 END SUBROUTINE EvalFlux3DDielectric
 
 END MODULE MOD_Flux
+#endif /*!(USE_FV)*/

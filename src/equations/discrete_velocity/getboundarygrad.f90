@@ -44,39 +44,39 @@ CONTAINS
 SUBROUTINE GetBoundaryGrad(SideID,gradU,gradUinside,UPrim_master,NormVec,Face_xGP)
 ! MODULES
 USE MOD_PreProc
-USE MOD_Globals       ,ONLY: Abort
-USE MOD_Mesh_Vars     ,ONLY: BoundaryType_FV,BC
-USE MOD_Equation      ,ONLY: ExactFunc
-USE MOD_Equation_Vars ,ONLY: IniExactFunc, RefState, DVMBGKModel
-USE MOD_Equation_Vars ,ONLY: DVMVelos, DVMnVelos, DVMSpeciesData, DVMVeloDisc, DVMVeloMax, DVMVeloMin, DVMDim, Pi, DVMWeights
-USE MOD_TimeDisc_Vars, ONLY : dt, time
-USE MOD_DistFunc      ,ONLY: MaxwellDistribution, ShakhovDistribution, MacroValuesFromDistribution, MaxwellScattering
+USE MOD_Globals          ,ONLY: Abort
+USE MOD_Mesh_Vars        ,ONLY: BoundaryType,BC
+USE MOD_Equation_FV      ,ONLY: ExactFunc_FV
+USE MOD_Equation_Vars_FV ,ONLY: IniExactFunc_FV, RefState, DVMBGKModel
+USE MOD_Equation_Vars_FV ,ONLY: DVMVelos, DVMnVelos, DVMSpeciesData, DVMVeloDisc, DVMVeloMax, DVMVeloMin, DVMDim, Pi, DVMWeights
+USE MOD_TimeDisc_Vars    ,ONLY : dt, time
+USE MOD_DistFunc         ,ONLY: MaxwellDistribution, ShakhovDistribution, MacroValuesFromDistribution, MaxwellScattering
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT / OUTPUT VARIABLES
 INTEGER,INTENT(IN):: SideID
-REAL,INTENT(OUT)  :: gradU       (PP_nVar)
-REAL,INTENT(IN)   :: gradUinside (PP_nVar)
-REAL,INTENT(IN)   :: UPrim_master(PP_nVar)
+REAL,INTENT(OUT)  :: gradU       (PP_nVar_FV)
+REAL,INTENT(IN)   :: gradUinside (PP_nVar_FV)
+REAL,INTENT(IN)   :: UPrim_master(PP_nVar_FV)
 REAL,INTENT(IN)   :: NormVec (3)
 REAL,INTENT(IN)   :: Face_xGP(3)
 
 !----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER :: BCType,BCState
-REAL    :: UPrim_boundary(1:PP_nVar), fplus(1:PP_nVar)
+REAL    :: UPrim_boundary(1:PP_nVar_FV), fplus(1:PP_nVar_FV)
 REAL    :: MacroVal(8), tau, vnormal, vwall, Sin, Sout, MovTerm, WallDensity, weight
 INTEGER :: iVel, jVel, kVel, upos, upos_sp
 !==================================================================================================================================
-BCType  = BoundaryType_FV(BC(SideID),BC_TYPE)
-BCState = BoundaryType_FV(BC(SideID),BC_STATE)
+BCType  = BoundaryType(BC(SideID),BC_TYPE)
+BCState = BoundaryType(BC(SideID),BC_STATE)
 
 SELECT CASE(BCType)
 CASE(1) !Periodic already filled!
 
 CASE(2) ! exact BC = Dirichlet BC !!
   IF(BCState.EQ.0) THEN ! Determine the exact BC state
-    CALL ExactFunc(IniExactFunc,time,0,Face_xGP,UPrim_boundary)
+    CALL ExactFunc_FV(IniExactFunc_FV,time,0,Face_xGP,UPrim_boundary)
   ELSE
     CALL MaxwellDistribution(RefState(:,BCState),UPrim_boundary)
   END IF
@@ -131,12 +131,12 @@ CASE(3) ! specular reflection
       ! END IF
       gradU(upos) = 2.*(UPrim_master(upos) - UPrim_boundary(upos_sp))! - MovTerm)
       IF (DVMSpeciesData%Internal_DOF .GT.0.0) THEN
-        gradU(PP_nVar/2+upos) = 2.*(UPrim_master(PP_nVar/2+upos) - UPrim_boundary(PP_nVar/2+upos_sp))! - MovTerm)
+        gradU(PP_nVar_FV/2+upos) = 2.*(UPrim_master(PP_nVar_FV/2+upos) - UPrim_boundary(PP_nVar_FV/2+upos_sp))! - MovTerm)
       END IF
     ELSE
       gradU(upos) = 2.*gradUinside(upos)
       IF (DVMSpeciesData%Internal_DOF .GT.0.0) THEN
-        gradU(PP_nVar/2+upos) = 2.*gradUinside(PP_nVar/2+upos)
+        gradU(PP_nVar_FV/2+upos) = 2.*gradUinside(PP_nVar_FV/2+upos)
       END IF
     END IF
   END DO; END DO; END DO
@@ -153,12 +153,12 @@ CASE(4) ! diffusive
     IF (vnormal.LT.0.) THEN
       gradU(upos) = 2.*(UPrim_master(upos) - UPrim_boundary(upos))
       IF (DVMSpeciesData%Internal_DOF .GT.0.0) THEN
-        gradU(PP_nVar/2+upos) = 2.*(UPrim_master(PP_nVar/2+upos) - UPrim_boundary(PP_nVar/2+upos))
+        gradU(PP_nVar_FV/2+upos) = 2.*(UPrim_master(PP_nVar_FV/2+upos) - UPrim_boundary(PP_nVar_FV/2+upos))
       END IF
     ELSE
       gradU(upos) = 2.*gradUinside(upos)
       IF (DVMSpeciesData%Internal_DOF .GT.0.0) THEN
-        gradU(PP_nVar/2+upos) = 2.*gradUinside(PP_nVar/2+upos)
+        gradU(PP_nVar_FV/2+upos) = 2.*gradUinside(PP_nVar_FV/2+upos)
       END IF
     END IF
   END DO; END DO; END DO

@@ -35,14 +35,14 @@ SUBROUTINE MacroValuesFromDistribution(MacroVal,U,tDeriv,tau,tilde)
 ! Specifies all the initial conditions. The state in conservative variables is returned.
 !===================================================================================================================================
 ! MODULES
-USE MOD_Equation_Vars         ,ONLY: DVMnVelos, DVMVelos, DVMWeights, DVMSpeciesData, DVMMethod
+USE MOD_Equation_Vars_FV         ,ONLY: DVMnVelos, DVMVelos, DVMWeights, DVMSpeciesData, DVMMethod
 USE MOD_PreProc
 USE MOD_Globals               ,ONLY: abort
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-REAL,INTENT(IN)                 :: U(PP_nVar), tDeriv
+REAL,INTENT(IN)                 :: U(PP_nVar_FV), tDeriv
 INTEGER,INTENT(IN)              :: tilde
 REAL, INTENT(OUT)               :: MacroVal(8), tau
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -65,7 +65,7 @@ DO kVel=1, DVMnVelos(3);   DO jVel=1, DVMnVelos(2);   DO iVel=1, DVMnVelos(1)
   rhoU(2) = rhoU(2) + weight*DVMVelos(jVel,2)*U(upos)
   rhoU(3) = rhoU(3) + weight*DVMVelos(kVel,3)*U(upos)
   IF (DVMSpeciesData%Internal_DOF .GT.0.0) THEN
-    rhoE = rhoE + weight*0.5*((DVMVelos(iVel,1)**2.+DVMVelos(jVel,2)**2.+DVMVelos(kVel,3)**2.)*U(upos)+U(PP_nVar/2+upos))
+    rhoE = rhoE + weight*0.5*((DVMVelos(iVel,1)**2.+DVMVelos(jVel,2)**2.+DVMVelos(kVel,3)**2.)*U(upos)+U(PP_nVar_FV/2+upos))
   ELSE
     rhoE = rhoE + weight*0.5*(DVMVelos(iVel,1)**2.+DVMVelos(jVel,2)**2.+DVMVelos(kVel,3)**2.)*U(upos)
   END IF
@@ -83,9 +83,9 @@ DO kVel=1, DVMnVelos(3);   DO jVel=1, DVMnVelos(2);   DO iVel=1, DVMnVelos(1)
   cVel(3) = DVMVelos(kVel,3) - uVelo(3)
   cMag = DOT_PRODUCT(cVel,cVel)
   IF (DVMSpeciesData%Internal_DOF .GT.0.0) THEN
-    Heatflux(1) = Heatflux(1) + weight*0.5*cVel(1)*(U(upos)*cMag+U(PP_nVar/2+upos))
-    Heatflux(2) = Heatflux(2) + weight*0.5*cVel(2)*(U(upos)*cMag+U(PP_nVar/2+upos))
-    Heatflux(3) = Heatflux(3) + weight*0.5*cVel(3)*(U(upos)*cMag+U(PP_nVar/2+upos))
+    Heatflux(1) = Heatflux(1) + weight*0.5*cVel(1)*(U(upos)*cMag+U(PP_nVar_FV/2+upos))
+    Heatflux(2) = Heatflux(2) + weight*0.5*cVel(2)*(U(upos)*cMag+U(PP_nVar_FV/2+upos))
+    Heatflux(3) = Heatflux(3) + weight*0.5*cVel(3)*(U(upos)*cMag+U(PP_nVar_FV/2+upos))
   ELSE
     Heatflux(1) = Heatflux(1) + weight*0.5*cVel(1)*(U(upos)*cMag)
     Heatflux(2) = Heatflux(2) + weight*0.5*cVel(2)*(U(upos)*cMag)
@@ -97,7 +97,7 @@ MacroVal(1) = rho
 MacroVal(2:4) = uVelo
 MacroVal(5) = (rhoE - 0.5*(DOT_PRODUCT(rhoU,rhoU))/rho)/cV
 pressure = DVMSpeciesData%R_S*MacroVal(1)*MacroVal(5)
-IF (MacroVal(5).LE.0) CALL abort(__STAMP__,'DVM negative temperature!')
+!IF (MacroVal(5).LE.0) CALL abort(__STAMP__,'DVM negative temperature!')
 mu = DVMSpeciesData%mu_Ref*(MacroVal(5)/DVMSpeciesData%T_Ref)**DVMSpeciesData%omegaVHS
 tau = 0.
 tau = mu/pressure
@@ -126,14 +126,14 @@ END SUBROUTINE
 ! ! conservative maxwell
 ! !===================================================================================================================================
 ! ! MODULES
-! USE MOD_Equation_Vars         ,ONLY: DVMnVelos, DVMVelos, DVMSpeciesData, DVMDim, Pi, DVMWeights
+! USE MOD_Equation_Vars_FV         ,ONLY: DVMnVelos, DVMVelos, DVMSpeciesData, DVMDim, Pi, DVMWeights
 ! USE MOD_PreProc
 ! USE MOD_Globals
 ! ! IMPLICIT VARIABLE HANDLING
 ! IMPLICIT NONE
 ! !-----------------------------------------------------------------------------------------------------------------------------------
 ! ! INPUT VARIABLES
-! REAL,INTENT(OUT)                 :: fMaxwell(PP_nVar)
+! REAL,INTENT(OUT)                 :: fMaxwell(PP_nVar_FV)
 ! REAL, INTENT(IN)                 :: MacroVal(8)
 ! !-----------------------------------------------------------------------------------------------------------------------------------
 ! ! OUTPUT VARIABLES
@@ -209,7 +209,7 @@ END SUBROUTINE
 !   fMaxwell(upos)= gM
 !   J(:,1) = J(:,1)+weight*gM*psi(:)
 !   IF (DVMSpeciesData%Internal_DOF .GT.0.0) THEN
-!     fMaxwell(PP_nVar/2+upos) = gM*DVMSpeciesData%R_S*Temp*DVMSpeciesData%Internal_DOF
+!     fMaxwell(PP_nVar_FV/2+upos) = gM*DVMSpeciesData%R_S*Temp*DVMSpeciesData%Internal_DOF
 !   END IF
 ! END DO; END DO; END DO
 
@@ -223,13 +223,13 @@ SUBROUTINE MaxwellDistribution(MacroVal,fMaxwell)
 ! Specifies all the initial conditions. The state in conservative variables is returned.
 !===================================================================================================================================
 ! MODULES
-USE MOD_Equation_Vars         ,ONLY: DVMnVelos, DVMVelos, DVMSpeciesData, DVMDim, Pi
+USE MOD_Equation_Vars_FV         ,ONLY: DVMnVelos, DVMVelos, DVMSpeciesData, DVMDim, Pi
 USE MOD_PreProc
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-REAL,INTENT(OUT)                 :: fMaxwell(PP_nVar)
+REAL,INTENT(OUT)                 :: fMaxwell(PP_nVar_FV)
 REAL, INTENT(IN)                 :: MacroVal(8)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
@@ -251,7 +251,7 @@ DO kVel=1, DVMnVelos(3);   DO jVel=1, DVMnVelos(2);   DO iVel=1, DVMnVelos(1)
   gM = rho/((2.*Pi*DVMSpeciesData%R_S*Temp)**(DVMDim/2.))*exp(-cMag/(2.*DVMSpeciesData%R_S*Temp))
   fMaxwell(upos)= gM
   IF (DVMSpeciesData%Internal_DOF .GT.0.0) THEN
-    fMaxwell(PP_nVar/2+upos) = gM*DVMSpeciesData%R_S*Temp*DVMSpeciesData%Internal_DOF
+    fMaxwell(PP_nVar_FV/2+upos) = gM*DVMSpeciesData%R_S*Temp*DVMSpeciesData%Internal_DOF
   END IF
 END DO; END DO; END DO
 
@@ -262,13 +262,13 @@ SUBROUTINE ShakhovDistribution(MacroVal,fShakhov)
 ! Specifies all the initial conditions. The state in conservative variables is returned.
 !===================================================================================================================================
 ! MODULES
-USE MOD_Equation_Vars         ,ONLY: DVMnVelos, DVMVelos, DVMSpeciesData, DVMDim, Pi
+USE MOD_Equation_Vars_FV         ,ONLY: DVMnVelos, DVMVelos, DVMSpeciesData, DVMDim, Pi
 USE MOD_PreProc
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-REAL,INTENT(OUT)                 :: fShakhov(PP_nVar)
+REAL,INTENT(OUT)                 :: fShakhov(PP_nVar_FV)
 REAL, INTENT(IN)                 :: MacroVal(8)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
@@ -295,7 +295,7 @@ DO kVel=1, DVMnVelos(3);   DO jVel=1, DVMnVelos(2);   DO iVel=1, DVMnVelos(1)
   ShakhFac2 = cMag/(DVMSpeciesData%R_S*Temp)
   fShakhov(upos) = gm*(1.+(1.-Prandtl)*ShakhFac1*(ShakhFac2-2.-DVMDim))
   IF (DVMSpeciesData%Internal_DOF .GT.0.0) THEN
-    fShakhov(PP_nVar/2+upos) = gM*DVMSpeciesData%R_S*Temp*DVMSpeciesData%Internal_DOF*(1. &
+    fShakhov(PP_nVar_FV/2+upos) = gM*DVMSpeciesData%R_S*Temp*DVMSpeciesData%Internal_DOF*(1. &
         +(1.-Prandtl)*ShakhFac1*((ShakhFac2-DVMDim)-2.*(DVMSpeciesData%Internal_DOF-3.+DVMDim)))
   END IF
 END DO; END DO; END DO
@@ -307,13 +307,13 @@ SUBROUTINE GradDistribution(MacroVal,fGrad) ! no pressure tensor for now
 ! Specifies all the initial conditions. The state in conservative variables is returned.
 !===================================================================================================================================
 ! MODULES
-USE MOD_Equation_Vars         ,ONLY: DVMnVelos, DVMVelos, DVMSpeciesData, DVMDim, Pi
+USE MOD_Equation_Vars_FV         ,ONLY: DVMnVelos, DVMVelos, DVMSpeciesData, DVMDim, Pi
 USE MOD_PreProc
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-REAL,INTENT(OUT)                 :: fGrad(PP_nVar)
+REAL,INTENT(OUT)                 :: fGrad(PP_nVar_FV)
 REAL, INTENT(IN)                 :: MacroVal(8)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
@@ -338,7 +338,7 @@ DO kVel=1, DVMnVelos(3);   DO jVel=1, DVMnVelos(2);   DO iVel=1, DVMnVelos(1)
   ShakhFac2 = cMag/(DVMSpeciesData%R_S*Temp)
   fGrad(upos) = gm*(1.+ShakhFac1*(ShakhFac2-2.-DVMDim))
   IF (DVMSpeciesData%Internal_DOF .GT.0.0) THEN
-    fGrad(PP_nVar/2+upos) = gM*DVMSpeciesData%R_S*Temp*DVMSpeciesData%Internal_DOF*(1. &
+    fGrad(PP_nVar_FV/2+upos) = gM*DVMSpeciesData%R_S*Temp*DVMSpeciesData%Internal_DOF*(1. &
         +ShakhFac1*((ShakhFac2-DVMDim)-2.*(DVMSpeciesData%Internal_DOF-3.+DVMDim)))
   END IF
 END DO; END DO; END DO
@@ -350,20 +350,20 @@ SUBROUTINE MaxwellScattering(fBoundary,U,NormVec,tilde,tDeriv)
 ! Specifies all the initial conditions. The state in conservative variables is returned.
 !===================================================================================================================================
 ! MODULES
-USE MOD_Equation_Vars         ,ONLY: DVMnVelos, DVMVelos, DVMWeights, DVMBGKModel, DVMMethod
+USE MOD_Equation_Vars_FV         ,ONLY: DVMnVelos, DVMVelos, DVMWeights, DVMBGKModel, DVMMethod
 USE MOD_PreProc
 USE MOD_Globals
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT/OUTPUT VARIABLES
-REAL,INTENT(INOUT)                   :: fBoundary(PP_nVar)
-REAL,INTENT(IN)                      :: U(PP_nVar), NormVec(3), tDeriv
+REAL,INTENT(INOUT)                   :: fBoundary(PP_nVar_FV)
+REAL,INTENT(IN)                      :: U(PP_nVar_FV), NormVec(3), tDeriv
 INTEGER,INTENT(IN)                   :: tilde
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 REAL                                 :: Sout, Sin, weight, tau, prefac
-REAL                                 :: fTarget(PP_nVar), Urelaxed(PP_nVar), MacroVal(8), vnormal
+REAL                                 :: fTarget(PP_nVar_FV), Urelaxed(PP_nVar_FV), MacroVal(8), vnormal
 INTEGER                              :: iVel, jVel, kVel, upos
 !===================================================================================================================================
 CALL MacroValuesFromDistribution(MacroVal,U,tDeriv,tau,tilde)
@@ -422,11 +422,11 @@ SUBROUTINE RescaleU(tilde,tDeriv)
 ! Specifies all the initial conditions. The state in conservative variables is returned.
 !===================================================================================================================================
 ! MODULES
-USE MOD_Equation_Vars,  ONLY : DVMBGKModel, DVMMomentSave, DVMMethod
+USE MOD_Equation_Vars_FV,  ONLY : DVMBGKModel, DVMMomentSave, DVMMethod
 USE MOD_Globals,        ONLY :abort
 USE MOD_PreProc
 USE MOD_Mesh_Vars,      ONLY : nElems
-USE MOD_FV_Vars,        ONLY : U
+USE MOD_FV_Vars,        ONLY : U_FV
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -437,12 +437,12 @@ INTEGER, INTENT(IN)           :: tilde
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-REAL                            :: MacroVal(8), tau, fTarget(PP_nVar), prefac
+REAL                            :: MacroVal(8), tau, fTarget(PP_nVar_FV), prefac
 INTEGER                         :: i,j,k,iElem
 !===================================================================================================================================
 DO iElem =1, nElems
   DO k=0, PP_N; DO j=0, PP_N; DO i=0, PP_N
-    CALL MacroValuesFromDistribution(MacroVal(:),U(:,i,j,k,iElem),tDeriv,tau,tilde)
+    CALL MacroValuesFromDistribution(MacroVal(:),U_FV(:,i,j,k,iElem),tDeriv,tau,tilde)
     SELECT CASE (tilde)
       CASE(1) ! f~  -----> f2^    (tDeriv=dt)
         DVMMomentSave(1:3,iElem) = MacroVal(6:8)
@@ -470,7 +470,7 @@ DO iElem =1, nElems
       CASE DEFAULT
         CALL abort(__STAMP__,'DVM BGK Model not implemented.',999,999.)
     END SELECT
-    U(:,i,j,k,iElem) = U(:,i,j,k,iElem)*prefac + fTarget(:)*(1.-prefac)
+    U_FV(:,i,j,k,iElem) = U_FV(:,i,j,k,iElem)*prefac + fTarget(:)*(1.-prefac)
   END DO; END DO; END DO
 END DO
 END SUBROUTINE
@@ -480,11 +480,11 @@ SUBROUTINE RescaleInit(tDeriv)
 ! Initial rescale for initialization with non equilibrium flow
 !===================================================================================================================================
 ! MODULES
-USE MOD_Equation_Vars,  ONLY: DVMBGKModel, DVMMethod
+USE MOD_Equation_Vars_FV,  ONLY: DVMBGKModel, DVMMethod
 USE MOD_Globals
 USE MOD_PreProc
 USE MOD_Mesh_Vars,      ONLY : nElems
-USE MOD_FV_Vars,        ONLY : U
+USE MOD_FV_Vars,        ONLY : U_FV
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -494,13 +494,13 @@ REAL, INTENT(IN)              :: tDeriv
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-REAL                            :: MacroVal(8), tau, fTarget(PP_nVar), prefac
+REAL                            :: MacroVal(8), tau, fTarget(PP_nVar_FV), prefac
 INTEGER                         :: i,j,k,iElem
 !===================================================================================================================================
 SWRITE(UNIT_stdOut,*) 'INITIAL DISTRIBUTION FUNCTION RESCALE'
 DO iElem =1, nElems
   DO k=0, PP_N; DO j=0, PP_N; DO i=0, PP_N
-    CALL MacroValuesFromDistribution(MacroVal(:),U(:,i,j,k,iElem),0.,tau,1) ! tDeriv=0 to get heatflux from original distribution
+    CALL MacroValuesFromDistribution(MacroVal(:),U_FV(:,i,j,k,iElem),0.,tau,1) ! tDeriv=0 to get heatflux from original distribution
     SELECT CASE (DVMBGKModel)
       CASE(1)
         CALL MaxwellDistribution(MacroVal,fTarget)
@@ -515,7 +515,7 @@ DO iElem =1, nElems
     CASE(2)
       prefac = (2.*tau+tDeriv)/(2.*tau)
     END SELECT
-    U(:,i,j,k,iElem) = U(:,i,j,k,iElem)*prefac + fTarget(:)*(1.-prefac)
+    U_FV(:,i,j,k,iElem) = U_FV(:,i,j,k,iElem)*prefac + fTarget(:)*(1.-prefac)
   END DO; END DO; END DO
 END DO
 END SUBROUTINE
@@ -525,11 +525,11 @@ SUBROUTINE ForceStep(tDeriv)
 ! Initial rescale for initialization with non equilibrium flow
 !===================================================================================================================================
 ! MODULES
-USE MOD_Equation_Vars,  ONLY: DVMBGKModel, DVMnVelos, DVMVelos, DVMSpeciesData, DVMForce
+USE MOD_Equation_Vars_FV,  ONLY: DVMnVelos, DVMVelos, DVMSpeciesData, DVMForce !, DVMBGKModel
 USE MOD_Globals
 USE MOD_PreProc
 USE MOD_Mesh_Vars,      ONLY : nElems
-USE MOD_FV_Vars,        ONLY : U
+USE MOD_FV_Vars,        ONLY : U_FV
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -539,12 +539,12 @@ REAL, INTENT(IN)              :: tDeriv
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-REAL                            :: MacroVal(8), tau, fTarget(PP_nVar), forceTerm, cVel(3)!, velodiff, gamma
+REAL                            :: MacroVal(8), tau, fTarget(PP_nVar_FV), forceTerm, cVel(3)!, velodiff, gamma
 INTEGER                         :: i,j,k,iElem,iVel,jVel,kVel,upos !,upos1,upos2
 !===================================================================================================================================
 DO iElem =1, nElems
   DO k=0, PP_N; DO j=0, PP_N; DO i=0, PP_N
-    CALL MacroValuesFromDistribution(MacroVal(:),U(:,i,j,k,iElem),tDeriv,tau,1)
+    CALL MacroValuesFromDistribution(MacroVal(:),U_FV(:,i,j,k,iElem),tDeriv,tau,1)
     ! SELECT CASE (DVMBGKModel)
     !   CASE(1)
     !     CALL MaxwellDistribution(MacroVal,fTarget)
@@ -583,7 +583,7 @@ DO iElem =1, nElems
       ! forceTerm = - DVMForce(1)*(gamma*(U(upos2,i,j,k,iElem)-U(upos1,i,j,k,iElem)) &
       !                        +(1-gamma)*(fTarget(upos2)-fTarget(upos1)))/velodiff
 
-      U(upos,i,j,k,iElem) = U(upos,i,j,k,iElem) + forceTerm*tDeriv/2 !t/2 for strang splitting
+      U_FV(upos,i,j,k,iElem) = U_FV(upos,i,j,k,iElem) + forceTerm*tDeriv/2 !t/2 for strang splitting
     END DO; END DO; END DO
   END DO; END DO; END DO
 END DO

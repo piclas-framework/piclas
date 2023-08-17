@@ -27,8 +27,8 @@ REAL,PARAMETER        :: PP_RealTolerance = EPSILON(1.0D0) !< machine precision
 #if PP_N == N
   INTEGER             :: PP_N                              !< polynomial degree
 #endif
-#if (PP_TimeDiscMethod==600) /*DVM*/
-  INTEGER             :: PP_nVar
+#ifdef discrete_velocity
+  INTEGER             :: PP_nVar_FV
 #endif
 #if PP_nElems == NELEMZ
   INTEGER             :: PP_nElems = 0              ! pp preproc

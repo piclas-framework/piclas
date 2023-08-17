@@ -44,13 +44,14 @@ USE MOD_GLobals
 USE MOD_PreProc
 USE MOD_Mesh_Vars       ,ONLY: nSides,nBCSides
 USE MOD_Riemann         ,ONLY: Riemann
-USE MOD_Mesh_Vars       ,ONLY: NormVec_FV,TangVec1_FV, tangVec2_FV, SurfElem_FV,Face_xGP_FV,Elem_xGP_FV, SideToElem
+USE MOD_Mesh_Vars       ,ONLY: NormVec_FV, TangVec1_FV, tangVec2_FV, SurfElem_FV, Face_xGP_FV
 USE MOD_GetBoundaryFlux ,ONLY: GetBoundaryFlux
 USE MOD_Mesh_Vars       ,ONLY: firstMPISide_MINE,lastMPISide_MINE,firstInnerSide,firstBCSide,lastInnerSide
 #ifdef drift_diffusion
 USE MOD_Equation_Vars_FV,ONLY: EFluid_GradSide
 USE MOD_Equation_Vars   ,ONLY: E
 USE MOD_Interpolation_Vars ,ONLY: wGP
+USE MOD_Mesh_Vars       ,ONLY: SideToElem
 #endif
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -66,8 +67,11 @@ REAL,INTENT(OUT)   :: Flux_Master(1:PP_nVar_FV,0:0,0:0,nSides)
 REAL,INTENT(OUT)   :: Flux_Slave(1:PP_nVar_FV,0:0,0:0,nSides)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER            :: SideID,firstSideID_wo_BC,firstSideID,lastSideID,ElemIDm,ElemIDs,i,j,k
+INTEGER            :: SideID,firstSideID_wo_BC,firstSideID,lastSideID
+#ifdef drift_diffusion
+INTEGER            :: ElemIDm,ElemIDs,i,j,k
 REAL               :: E_slave(3), E_master(3)
+#endif
 !===================================================================================================================================
 
 ! fill flux for sides ranging between firstSideID and lastSideID using Riemann solver
