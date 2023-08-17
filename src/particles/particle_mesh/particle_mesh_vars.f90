@@ -369,7 +369,6 @@ REAL                                     :: RefineFactorGrad                  ! 
 INTEGER, ALLOCATABLE                     :: PeanoCurve(:,:)
 INTEGER, ALLOCATABLE                     :: SubPartNum(:)                     ! Particle number per subcell
 INTEGER, ALLOCATABLE                     :: SubPartIndx(:,:)                  ! Particle indices per subcell                 
-REAL, ALLOCATABLE                        :: SubVolume(:)                      ! Subvolumes of the subcells
 
 
 INTEGER                                  :: WeirdElems                        ! Number of Weird Elements (=Elements which are folded
