@@ -53,6 +53,7 @@ USE MOD_Radiation_Continuum,           ONLY : radiation_continuum
 USE MOD_Radiation_InstrBroadening,     ONLY : radiation_instrbroadening
 USE MOD_PARTICLE_Vars,                 ONLY : nSpecies
 USE MOD_Mesh_Vars,                     ONLY : nGlobalElems!, offsetElem
+USE MOD_Mesh_Tools,            ONLY : GetGlobalElemID
 USE MOD_Radiation_ExportSpectrum
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE
@@ -97,7 +98,7 @@ USE MOD_Radiation_ExportSpectrum
     CALL radiation_molecules(iElem, em_mol)
   END IF
 
-  CALL radiation_continuum(iElem, em_cont)
+!  CALL radiation_continuum(iElem, em_cont)
 
   em_atom = em_atom * 4. * Pi
   em_mol  = em_mol  * 4. * Pi
@@ -113,7 +114,7 @@ USE MOD_Radiation_ExportSpectrum
   ! READ*
   DO iWave=1, RadiationParameter%WaveLenDiscrCoarse
     sumAbsSpecies =SUM(Radiation_Absorption_SpeciesWave(iWave, :))
-    IF(sumAbsSpecies.GT.0.0) Radiation_Absorption_SpecPercent(iWave,:,iElem) = NINT(Radiation_Absorption_SpeciesWave(iWave, :)/sumAbsSpecies*10000.)
+    IF(sumAbsSpecies.GT.0.0) Radiation_Absorption_SpecPercent(iWave,:,GetGlobalElemID(iElem)) = NINT(Radiation_Absorption_SpeciesWave(iWave, :)/sumAbsSpecies*10000.)
   END DO
 
   IF((RadiationSwitches%RadType.EQ.3) .AND. (nGlobalElems.EQ.1)) THEN

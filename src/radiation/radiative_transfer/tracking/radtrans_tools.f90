@@ -624,16 +624,21 @@ USE MOD_Radiation_Vars,              ONLY:Radiation_Absorption_spec, Radiation_A
 !--------------------------------------------------------------------------------------------------!
   REAL                            :: iRan, DistanceVec(3), Distance, opticalPath
 !--------------------------------------------------------------------------------------------------!
-  DistanceVec(1:3) = PhotonProps%PhotonPos(1:3) - IntersectionPos(1:3)
-  Distance = SQRT(DistanceVec(1)*DistanceVec(1) + DistanceVec(2)*DistanceVec(2) + DistanceVec(3)*DistanceVec(3))
-  CALL RANDOM_NUMBER(iRan)
-  opticalPath = Distance*Radiation_Absorption_Spec(PhotonProps%WaveLength,Element)
-  IF (-LOG(iRan).LT.opticalPath) THEN
-  RadiationElemAbsEnergySpec(:,Element) = RadiationElemAbsEnergySpec(:,Element) &
-    + PhotonProps%PhotonEnergy*(REAL(Radiation_Absorption_SpecPercent(PhotonProps%WaveLength,:,Element))&
-    /SUM(REAL(Radiation_Absorption_SpecPercent(PhotonProps%WaveLength,:,Element))))
-    DONE = .TRUE. 
-  ELSE 
+  IF ((Radiation_Absorption_Spec(PhotonProps%WaveLength,Element).GT.0.0)&
+      .AND.(SUM(Radiation_Absorption_SpecPercent(PhotonProps%WaveLength,:,Element)).GT.0)) THEN
+    DistanceVec(1:3) = PhotonProps%PhotonPos(1:3) - IntersectionPos(1:3)
+    Distance = SQRT(DistanceVec(1)*DistanceVec(1) + DistanceVec(2)*DistanceVec(2) + DistanceVec(3)*DistanceVec(3))
+    CALL RANDOM_NUMBER(iRan)
+    opticalPath = Distance*Radiation_Absorption_Spec(PhotonProps%WaveLength,Element)
+    IF (-LOG(iRan).LT.opticalPath) THEN
+      RadiationElemAbsEnergySpec(:,Element) = RadiationElemAbsEnergySpec(:,Element) &
+      + PhotonProps%PhotonEnergy*(REAL(Radiation_Absorption_SpecPercent(PhotonProps%WaveLength,:,Element))&
+      /SUM(REAL(Radiation_Absorption_SpecPercent(PhotonProps%WaveLength,:,Element))))
+      DONE = .TRUE. 
+    ELSE 
+      PhotonProps%PhotonPos(1:3) = IntersectionPos(1:3)
+    END IF
+  ELSE
     PhotonProps%PhotonPos(1:3) = IntersectionPos(1:3)
   END IF
   RadiationElemAbsEnergy(1,Element) = RadiationElemAbsEnergy(1,Element) + opticalPath
@@ -656,26 +661,36 @@ SUBROUTINE CalcAbsoprtionAnalytic(IntersectionPos,Element, DONE)
   LOGICAL, INTENT(OUT)             :: DONE
 ! Local variable declaration                                                                       !
 !--------------------------------------------------------------------------------------------------!
-  REAL                            :: DistanceVec(3), Distance, LostEnergy, maz_photon_startxp, opticalPath
+  REAL                            :: DistanceVec(3), Distance, LostEnergy, opticalPath
 !--------------------------------------------------------------------------------------------------!
-  maz_photon_startxp = LOG(HUGE(maz_photon_startxp))
-  DistanceVec(1:3) = PhotonProps%PhotonPos(1:3) - IntersectionPos(1:3)
-  Distance = SQRT(DistanceVec(1)*DistanceVec(1) + DistanceVec(2)*DistanceVec(2) + DistanceVec(3)*DistanceVec(3))
-  opticalPath = Distance*Radiation_Absorption_Spec(PhotonProps%WaveLength,Element)
-  IF (opticalPath.GT.maz_photon_startxp) THEN
-    LostEnergy = PhotonProps%PhotonEnergy
+  IF ((Radiation_Absorption_Spec(PhotonProps%WaveLength,Element).GT.0.0)&
+      .AND.(SUM(Radiation_Absorption_SpecPercent(PhotonProps%WaveLength,:,Element)).GT.0)) THEN
+    DistanceVec(1:3) = PhotonProps%PhotonPos(1:3) - IntersectionPos(1:3)
+    Distance = SQRT(DistanceVec(1)*DistanceVec(1) + DistanceVec(2)*DistanceVec(2) + DistanceVec(3)*DistanceVec(3))
+    opticalPath = Distance*Radiation_Absorption_Spec(PhotonProps%WaveLength,Element)
+    IF (CHECKEXP(opticalPath)) THEN
+      LostEnergy = PhotonProps%PhotonEnergy*(1.-EXP(-opticalPath))
+    ELSE
+      LostEnergy = PhotonProps%PhotonEnergy 
+      DONE = .TRUE.
+    END IF
+    IF (SUM(REAL(Radiation_Absorption_SpecPercent(PhotonProps%WaveLength,:,Element))).EQ.0.0) THEN
+        print*,'arg',Element,PhotonProps%WaveLength,  Radiation_Absorption_Spec(PhotonProps%WaveLength,Element)
+        print*, 'percent', Radiation_Absorption_SpecPercent(PhotonProps%WaveLength,:,Element)
+    END IF
+    PhotonProps%PhotonEnergy = PhotonProps%PhotonEnergy - LostEnergy
+    RadiationElemAbsEnergySpec(:,Element) = RadiationElemAbsEnergySpec(:,Element) &
+      + LostEnergy*(REAL(Radiation_Absorption_SpecPercent(PhotonProps%WaveLength,:,Element))&
+      /SUM(REAL(Radiation_Absorption_SpecPercent(PhotonProps%WaveLength,:,Element))))
   ELSE
-    LostEnergy = PhotonProps%PhotonEnergy *(1.-EXP(-opticalPath))
-  END IF
-  PhotonProps%PhotonEnergy = PhotonProps%PhotonEnergy - LostEnergy
-  RadiationElemAbsEnergySpec(:,Element) = RadiationElemAbsEnergySpec(:,Element) &
-    + LostEnergy*(REAL(Radiation_Absorption_SpecPercent(PhotonProps%WaveLength,:,Element))&
-    /SUM(REAL(Radiation_Absorption_SpecPercent(PhotonProps%WaveLength,:,Element))))
+    opticalPath = 0.0
+  END IF  
 !  IF (PhotonProps%PhotonEnergy.LE.(RadTrans%GlobalRadiationPower/(1000.*RadTrans%GlobalPhotonNum))) THEN
 !    DONE = .TRUE. 
 !  ELSE 
-    PhotonProps%PhotonPos(1:3) = IntersectionPos(1:3)
+    
 !  END IF
+  PhotonProps%PhotonPos(1:3) = IntersectionPos(1:3)
   RadiationElemAbsEnergy(1,Element) = RadiationElemAbsEnergy(1,Element) + opticalPath
   RadiationElemAbsEnergy(2,Element) = RadiationElemAbsEnergy(2,Element) + 1.0
 

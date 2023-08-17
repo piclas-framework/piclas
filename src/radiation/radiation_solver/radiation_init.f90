@@ -249,7 +249,7 @@ Radiation_ElemEnergy_Species => Radiation_ElemEnergy_Species_Shared
 ! allocate local array for ElemInfo
 ALLOCATE(Radiation_Emission_spec(RadiationParameter%WaveLenDiscrCoarse,nElems))
 ALLOCATE(Radiation_Absorption_spec(RadiationParameter%WaveLenDiscrCoarse,nElems))
-ALLOCATE(Radiation_Absorption_SpecPercent_Shared(RadiationParameter%WaveLenDiscrCoarse,nSpecies,nElems))
+ALLOCATE(Radiation_Absorption_SpecPercent(RadiationParameter%WaveLenDiscrCoarse,nSpecies,nElems))
 ALLOCATE(Radiation_ElemEnergy_Species(nSpecies,nElems,2))
 #endif  /*USE_MPI*/
 
@@ -557,10 +557,12 @@ SDEALLOCATE(RadiationParameter%WaveLen)
 CALL UNLOCK_AND_FREE(Radiation_Emission_Spec_Shared_Win)
 CALL UNLOCK_AND_FREE(Radiation_Absorption_Spec_Shared_Win)
 CALL UNLOCK_AND_FREE(Radiation_ElemEnergy_Species_Shared_Win)
+CALL UNLOCK_AND_FREE(Radiation_Absorption_SpecPercent_Shared_Win)
 #endif /*USE_MPI*/
 ADEALLOCATE(Radiation_Emission_Spec)
 ADEALLOCATE(Radiation_Absorption_Spec)
 ADEALLOCATE(Radiation_ElemEnergy_Species)
+ADEALLOCATE(Radiation_Absorption_SpecPercent)
 
 END SUBROUTINE FinalizeRadiation
 

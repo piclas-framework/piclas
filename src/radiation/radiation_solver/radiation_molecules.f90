@@ -1088,6 +1088,7 @@ SUBROUTINE Radiation_Molecular_Transition_Line_Profile(Radiation_Profile, nubar,
 ! MODULES
   USE MOD_Globals
   USE MOD_Radiation_Vars,    ONLY   : RadiationParameter
+  USE MOD_Mesh_Tools,            ONLY : GetGlobalElemID
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1140,8 +1141,8 @@ SUBROUTINE Radiation_Molecular_Transition_Line_Profile(Radiation_Profile, nubar,
         iWave = startwavelength_int+i
         iWaveCoarse = INT((iWave-1)/RadiationParameter%WaveLenReductionFactor) + 1
         IF (iWaveCoarse.GT.RadiationParameter%WaveLenDiscrCoarse) iWaveCoarse = RadiationParameter%WaveLenDiscrCoarse
-        Radiation_Absorption_spec(iWaveCoarse,iElem) &
-          = Radiation_Absorption_spec(iWaveCoarse,iElem)+MAX(0.0,abstot)/1.E10*Radiation_Profile(iWave)/RadiationParameter%WaveLenReductionFactor
+        Radiation_Absorption_spec(iWaveCoarse,GetGlobalElemID(iElem)) &
+          = Radiation_Absorption_spec(iWaveCoarse,GetGlobalElemID(iElem))+MAX(0.0,abstot)/1.E10*Radiation_Profile(iWave)/RadiationParameter%WaveLenReductionFactor
       END DO
 
     END IF
