@@ -275,7 +275,8 @@ USE MOD_Particle_Emission_Init     ,ONLY: InitialParticleInserting
 USE MOD_Particle_SurfFlux_Init     ,ONLY: InitializeParticleSurfaceflux
 USE MOD_SurfaceModel_Init          ,ONLY: InitSurfaceModel
 USE MOD_Particle_Surfaces          ,ONLY: InitParticleSurfaces
-USE MOD_Particle_Mesh_Vars         ,ONLY: GEO
+USE MOD_Particle_Mesh_Vars         ,ONLY: GEO, DoSubcellAdaption
+USE MOD_Cell_Adaption
 USE MOD_Particle_Sampling_Adapt    ,ONLY: InitAdaptiveBCSampling
 USE MOD_Particle_Boundary_Init     ,ONLY: InitParticleBoundaryRotPeriodic, InitAdaptiveWallTemp
 USE MOD_DSMC_BGGas                 ,ONLY: BGGas_InitRegions
@@ -361,6 +362,9 @@ IF(UseAdaptive.OR.(nPorousBC.GT.0)) CALL InitAdaptiveBCSampling()
 
 ! Initialize backrgound gas regions (requires completed InitParticleGeometry for ElemMidPoint_Shared)
 IF(BGGas%UseRegions) CALL BGGas_InitRegions()
+
+! Init Mesh Adaption
+DoSubcellAdaption  = GETLOGICAL('Part-DoSubcellAdaption')
 
 IF (useDSMC) THEN
   CALL InitDSMC()

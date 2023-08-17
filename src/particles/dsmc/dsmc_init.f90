@@ -289,7 +289,9 @@ USE MOD_Globals
 USE MOD_Preproc
 USE MOD_ReadInTools
 USE MOD_DSMC_Vars
+USE MOD_Cell_Adaption
 USE MOD_Mesh_Vars              ,ONLY: nElems, NGEo
+USE MOD_Particle_Mesh_Vars     ,ONLY: DoSubcellAdaption
 USE MOD_Globals_Vars           ,ONLY: Pi, BoltzmannConst, ElementaryCharge
 USE MOD_Particle_Vars          ,ONLY: nSpecies, Species, PDM, PartSpecies, Symmetry, UseVarTimeStep, usevMPF
 USE MOD_Particle_Vars          ,ONLY: DoFieldIonization,SampleElecExcitation
@@ -896,6 +898,11 @@ ELSE !CollisMode.GT.0
   ! Source: Pfeiffer, M., Mirza, A. and Fasoulas, S. (2013). A grid-independent particle pairing strategy for DSMC.
   ! Journal of Computational Physics 246, 28–36. doi:10.1016/j.jcp.2013.03.018
   !-----------------------------------------------------------------------------------------------------------------------------------
+  ! Non-Octree Subcell Adaption
+  IF (DoSubcellAdaption) THEN
+    CALL Init_MeshAdaption()
+  END IF
+  
   DSMC%UseOctree = GETLOGICAL('Particles-DSMC-UseOctree')
   DSMC%UseNearestNeighbour = GETLOGICAL('Particles-DSMC-UseNearestNeighbour')
   IF(DSMC%UseOctree) THEN

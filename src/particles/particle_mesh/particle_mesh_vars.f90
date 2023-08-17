@@ -352,26 +352,24 @@ TYPE (tGeometry)                         :: GEO
 TYPE tMeshAdaption
   INTEGER                                :: CellOrientation(3)                ! Relative orientation of the elements
   INTEGER                                :: RefineDir(3)                      ! Direction with the highest refinement (highest T gradient)
-  INTEGER                                :: SplitOrder                        ! Order of subcell splitting
+  INTEGER                                :: SplitOrder                        ! Order of subcell splitting      
+  REAL, ALLOCATABLE                      :: SubVolume(:)                      ! Subvolumes of the subcells
 END TYPE
+
+LOGICAL                                  :: DoSubcellAdaption
+
+REAL,ALLOCATABLE                         :: MeshAdapt(:,:)
 
 TYPE(tMeshAdaption), ALLOCATABLE         :: AdaptMesh(:)
 
 INTEGER                                  :: MinPartCell                       ! Minimum particle number for each subcell
+INTEGER                                  :: MaxPartCell                       ! Maximum particle number for each subcell
+INTEGER                                  :: IterAdapt                         ! Number of iterations after which the adaption is called
 REAL                                     :: RefineFactorGrad                  ! Max limit for the gradient refinement
 INTEGER, ALLOCATABLE                     :: PeanoCurve(:,:)
-INTEGER, ALLOCATABLE                     :: SubPartNum(:)                        ! Particle number per subcell
-INTEGER, ALLOCATABLE                     :: SubPartIndx(:,:)                     ! Particle indices per subcell                 
+INTEGER, ALLOCATABLE                     :: SubPartNum(:)                     ! Particle number per subcell
+INTEGER, ALLOCATABLE                     :: SubPartIndx(:,:)                  ! Particle indices per subcell                 
 REAL, ALLOCATABLE                        :: SubVolume(:)                      ! Subvolumes of the subcells
-
-TYPE tAdaptionOrder
-  REAL, ALLOCATABLE                      :: xGP(:)
-  REAL, ALLOCATABLE                      :: wGP(:)
-  REAL, ALLOCATABLE                      :: wBary(:)
-  REAL, ALLOCATABLE                      :: GaussBorder(:)
-END TYPE
-
-TYPE (tAdaptionOrder)                    :: AdaptOrder                        ! Adaption variables in dependence of the splitting order
 
 
 INTEGER                                  :: WeirdElems                        ! Number of Weird Elements (=Elements which are folded

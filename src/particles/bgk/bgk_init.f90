@@ -141,8 +141,6 @@ END DO
 ALLOCATE(CBC%OutputKnudsen(9,nElems))
 CBC%OutputKnudsen = 0.0
 
-CALL Init_MeshAdaption()
-
 BGKCollModel = GETINT('Particles-BGK-CollModel')
 IF ((nSpecies.GT.1).AND.(BGKCollModel.GT.1)) THEN
       CALL abort(__STAMP__,' ERROR Multispec only with ESBGK model!')

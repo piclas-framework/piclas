@@ -36,7 +36,10 @@ USE MOD_ReadInTools ,ONLY: prms,addStrListEntry
 IMPLICIT NONE
 
 CALL prms%SetSection("Mesh Adaption")
+CALL prms%CreateLogicalOption(  'Part-DoSubcellAdaption', 'Anisotropic mesh adaption', '.FALSE.')
 CALL prms%CreateIntOption( 'Part-MeshAdapt-MinPartNum', 'Minimum particle number per subcell for the mesh adaption', '6')
+CALL prms%CreateIntOption( 'Part-MeshAdapt-MaxPartNum', 'Maximum particle number per subcell for the mesh adaption', '60')
+CALL prms%CreateIntOption( 'Part-MeshAdapt-IterationNum', 'Iteration number for the adaption process', '1000')
 CALL prms%CreateRealOption('Part-MeshAdapt-RefineLimitGradient', 'Gradient above which the subcell adaption is called', '0.05')                       
 
 END SUBROUTINE DefineParametersAdaptMesh
@@ -50,7 +53,7 @@ USE MOD_Globals
 USE MOD_ReadInTools
 USE MOD_Mesh_Vars              ,ONLY: offsetElem, nElems
 USE MOD_Mesh_Tools             ,ONLY: GetCNElemID, GetGlobalElemID
-USE MOD_Particle_Mesh_Vars     ,ONLY: AdaptMesh, MinPartCell, AdaptOrder, RefineFactorGrad
+USE MOD_Particle_Mesh_Vars     
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -65,8 +68,14 @@ INTEGER                       :: iElem
 MinPartCell = GETINT('Part-MeshAdapt-MinPartNum')
 IF (MinPartCell.LT.5) CALL abort(__STAMP__,'ERROR: Given minimum particle number per cell is less than 5!')
 
+MaxPartCell = GETINT('Part-MeshAdapt-MaxPartNum')
+IterAdapt   = GETINT('Part-MeshAdapt-IterationNum')
+
 ALLOCATE(AdaptMesh(nElems))
 RefineFactorGrad = GETREAL('Part-MeshAdapt-RefineLimitGradient')
+
+ALLOCATE(MeshAdapt(2,nElems))
+MeshAdapt = 0.0
 
 ! Initialization of the relative orientation of the basis vectors in the physical and reference space
 DO iElem=1, nElems
@@ -89,10 +98,15 @@ USE MOD_DSMC_Vars              ,ONLY: DSMC
 USE MOD_TimeDisc_Vars          ,ONLY: TEnd, Time
 USE MOD_Mesh_Vars              ,ONLY: offsetElem, nElems
 USE MOD_Mesh_Tools             ,ONLY: GetCNElemID, GetGlobalElemID
+USE MOD_part_tools             ,ONLY: GetParticleWeight
 USE MOD_Particle_Mesh_Vars     
-USE MOD_Particle_Vars          ,ONLY: PEM, WriteMacroVolumeValues, DoVirtualCellMerge, VirtMergedCells
+USE MOD_DSMC_Analyze           ,ONLY: CalcMeanFreePath
+USE MOD_Particle_Vars          ,ONLY: PEM, WriteMacroVolumeValues, DoVirtualCellMerge, VirtMergedCells, Symmetry
 USE MOD_BGK_CollOperator       ,ONLY: BGK_CollisionOperator
 USE MOD_FP_CollOperator        ,ONLY: FP_CollisionOperator
+USE MOD_DSMC_ParticlePairing   ,ONLY: PerformPairingAndCollision
+USE MOD_Particle_Vars          ,ONLY: nSpecies, PartSpecies
+USE MOD_TimeDisc_Vars
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -106,7 +120,7 @@ INTEGER, ALLOCATABLE     :: PartIndx(:)
 INTEGER                  :: nPartMerged, nPartLoc, locElem, iLoopLoc, iMergeElem
 INTEGER                  :: PartNumAdapt, SubcellID, GlobalElemID, CNElemID, nPart, iLoop, iPart
 REAL, ALLOCATABLE        :: MappedPart_Subcell(:,:,:), SubcellVolTemp(:)
-REAL                     :: MaxGradient
+REAL                     :: MaxGradient, SpecPartNum(nSpecies)
 LOGICAL                  :: DoMergedCell
 !===================================================================================================================================
 DoMergedCell = .FALSE.
@@ -162,13 +176,15 @@ END IF
 IF (DoMergedCell) THEN
 #if (PP_TimeDiscMethod==300)  
   CALL FP_CollisionOperator(PartIndx, nPartMerged, VirtMergedCells(iElem)%MergedVolume)
-#else
-  ! IF (BGKMovingAverage) THEN
-  !   CALL BGK_CollisionOperator(PartIndx, nPartMerged,VirtMergedCells(iElem)%MergedVolume, &
-  !           ElemNodeAveraging(iElem)%Root%AverageValues(:))
-  ! ELSE
+#elif (PP_TimeDiscMethod==400)  
+  IF (BGKMovingAverage) THEN
+    CALL BGK_CollisionOperator(PartIndx, nPartMerged,VirtMergedCells(iElem)%MergedVolume, &
+            ElemNodeAveraging(iElem)%Root%AverageValues(:))
+  ELSE
     CALL BGK_CollisionOperator(PartIndx, nPartMerged, VirtMergedCells(iElem)%MergedVolume)
- ! END IF
+ END IF
+#else 
+  CALL PerformPairingAndCollision(PartIndx, nPartMerged, iElem, VirtMergedCells(iElem)%MergedVolume)
 #endif
   DEALLOCATE(PartIndx)
 END IF
@@ -177,19 +193,33 @@ END IF
 ! Calculate the temperature gradient in all three directions to determine the order of refinement directions
 CALL CalcGradients(iElem,MaxGradient)
 
-AdaptMesh(iElem)%SplitOrder = INT(nPart/MinPartCell)
-AdaptMesh(iElem)%SplitOrder = INT(AdaptMesh(iElem)%SplitOrder)**(1./3.)
+iPart = PEM%pStart(iElem)
+DO iLoop = 1, nPart
+  iPart = PEM%pNext(iPart)
+  ! Determination of the particle number per species for the calculation of the reference diameter for the mixture
+  SpecPartNum(PartSpecies(iPart)) = SpecPartNum(PartSpecies(iPart)) + GetParticleWeight(iPart)
+END DO
 
-! Adaption requirements: enough particles for at least two subcells and gradient larger than predefined limit
-IF ((nPart.GE.(2.*MinPartCell)).AND.(MaxGradient.GE.RefineFactorGrad).AND.(.NOT.DoMergedCell)) THEN
+! Use the mean free path to decide if a subcell adaption is necessary for DSMC
+DSMC%MeanFreePath = CalcMeanFreePath(SpecPartNum, SUM(SpecPartNum), ElemVolume_Shared(CNElemID))
+IF ((nPart.GE.(2.*MinPartCell)).AND.((DSMC%MeanFreePath.LT.ElemCharLength_Shared(CNElemID)).OR. &
+  (nPart.GT.MaxPartCell)).AND.(.NOT.DoMergedCell)) THEN
+
   ! Calculate the splitting order (1-8, 2-27, 3-64...)
   AdaptMesh(iElem)%SplitOrder = INT(nPart/MinPartCell)
-  AdaptMesh(iElem)%SplitOrder = INT(AdaptMesh(iElem)%SplitOrder)**(1./3.)
-
-  IF (AdaptMesh(iElem)%SplitOrder.GT.0) THEN
-    CALL SubcellAssingement(iElem) ! Split the element into the defined number of subcells
+  IF (Symmetry%Order.EQ.2 ) THEN
+    AdaptMesh(iElem)%SplitOrder = INT(AdaptMesh(iElem)%SplitOrder)**(1./2.)
+  ELSE
+    AdaptMesh(iElem)%SplitOrder = INT(AdaptMesh(iElem)%SplitOrder)**(1./3.)
   END IF
 
+  IF (AdaptMesh(iElem)%SplitOrder.GT.0) THEN
+    IF (Symmetry%Order.EQ.2) THEN
+      CALL SubcellAssingement2D(iElem) ! Split the element into the defined number of subcells
+    ELSE 
+      CALL SubcellAssingement(iElem) ! Split the element into the defined number of subcells
+    END IF
+  END IF
 ELSE IF (.NOT.DoMergedCell) THEN! Normal routine without merged or split cells
 
   iPart = PEM%pStart(iElem)
@@ -202,12 +232,14 @@ ELSE IF (.NOT.DoMergedCell) THEN! Normal routine without merged or split cells
   ! No mesh adaption, direct call to the collision operators
 #if (PP_TimeDiscMethod==300)
   CALL FP_CollisionOperator(PartIndx, nPart, ElemVolume_Shared(CNElemID))
-#else
+#elif (PP_TimeDiscMethod==400)  
   IF (BGKMovingAverage) THEN
     CALL BGK_CollisionOperator(PartIndx, nPart,ElemVolume_Shared(CNElemID), ElemNodeAveraging(iElem)%Root%AverageValues(:))
   ELSE
     CALL BGK_CollisionOperator(PartIndx, nPart, ElemVolume_Shared(CNElemID))
   END IF
+#else 
+  CALL PerformPairingAndCollision(PartIndx, nPart, iElem , ElemVolume_Shared(CNElemID))
 #endif
   DEALLOCATE(PartIndx)
 END IF
@@ -256,6 +288,7 @@ USE MOD_Mesh_Vars              ,ONLY: nElems, offSetElem, sJ
 USE MOD_Eval_xyz               ,ONLY: GetPositionInRefElem
 USE MOD_BGK_CollOperator       ,ONLY: BGK_CollisionOperator
 USE MOD_FP_CollOperator        ,ONLY: FP_CollisionOperator
+USE MOD_DSMC_ParticlePairing   ,ONLY: PerformPairingAndCollision
 USE MOD_Particle_Tracking_Vars ,ONLY: TrackingMethod
 USE MOD_Interpolation_Vars     ,ONLY: xGP, wBary
 USE MOD_Basis                  ,ONLY: InitializeVandermonde
@@ -293,7 +326,7 @@ ALLOCATE(SubVolume(nCells))
 nOrder = AdaptMesh(iElem)%SplitOrder
 ! Allocate: Local determinant and vandermonde
 ALLOCATE(DetJac(1,0:nOrder,0:nOrder,0:nOrder))
-ALLOCATE(LocalVdm(0:nOrder,0:nOrder))
+ALLOCATE(LocalVdm(0:nOrder,0:PP_N))
 
 ! Initalize interpolation points and subcell vandermonde
 ALLOCATE(Subcell_xGP(0:nOrder))
@@ -331,9 +364,6 @@ DEALLOCATE(Subcell_Vdm)
 DEALLOCATE(DetJac)
 DEALLOCATE(LocalVdm)
 
-! Build the connection of the subcells in the form of the Peano curve
-CALL BuildPeanoCurve(nOrder,AdaptMesh(iElem)%RefineDir)
-
 GlobalElemID = iElem + offsetElem
 DO iLoop = 1, nPart
   ! Map Particle to -1|1 space 
@@ -341,7 +371,7 @@ DO iLoop = 1, nPart
     PartPosMapped(1:3) = PartPosRef(1:3,iPart)
   ELSE
 #if PP_TimeDiscMethod==300
-    CALL GetPositionInRefElem(PartState(1:3,iPart),PartPosMapped(1:3,iPart),GlobalElemID)
+    CALL GetPositionInRefElem(PartState(1:3,iPart),PartPosMapped(1:3),GlobalElemID)
 #else
     ! Attention: LastPartPos is the reference position here
     PartPosMapped(1:3)=LastPartPos(1:3,iPart)
@@ -375,14 +405,15 @@ END IF
 DO iCell = 1, nCells
 #if (PP_TimeDiscMethod==300)
   CALL FP_CollisionOperator(SubPartIndx(iCell,1:SubPartNum(iCell)), SubPartNum(iCell), SubVolume(iCell))
+#elif (PP_TimeDiscMethod==400)  
+  IF (BGKMovingAverage) THEN
+    CALL BGK_CollisionOperator(SubPartIndx(iCell,1:SubPartNum(iCell)), SubPartNum(iCell), SubVolume(iCell), &
+    ElemNodeAveraging(iElem)%Root%AverageValues(:)) 
+  ELSE
+    CALL BGK_CollisionOperator(SubPartIndx(iCell,1:SubPartNum(iCell)), SubPartNum(iCell), SubVolume(iCell))
+  END IF
 #else
-  CALL BGK_CollisionOperator(SubPartIndx(iCell,1:SubPartNum(iCell)), SubPartNum(iCell), SubVolume(iCell))
-  ! IF (BGKMovingAverage) THEN
-  !   CALL BGK_CollisionOperator(SubPartIndx(iCell,1:SubPartNum(iCell)), SubPartNum(iCell), SubVolume(iCell), &
-  !   Averaging%SubNode(iLoop)%AverageValues(:)) !! Averaging%SubNode
-  ! ELSE
-  !   CALL BGK_CollisionOperator(SubPartIndx(iCell,1:SubPartNum(iCell)), SubPartNum(iCell), SubVolume(iCell))
-  ! END IF
+  CALL PerformPairingAndCollision(SubPartIndx(iCell,1:SubPartNum(iCell)), SubPartNum(iCell), iElem, SubVolume(iCell))
 #endif
 END DO
 
@@ -393,13 +424,184 @@ DEALLOCATE(SubVolume)
 RETURN
 END SUBROUTINE SubcellAssingement
   
+
+SUBROUTINE SubcellAssingement2D(iElem)  
+!============================================================================================================================
+!============================================================================================================================
+! use MODULES   
+USE MOD_Globals_Vars             
+USE MOD_BGK_Vars
+USE MOD_FPFlow_Vars
+USE MOD_Preproc
+USE MOD_Mesh_Tools             ,ONLY: GetCNElemID, GetGlobalElemID
+USE MOD_Particle_Mesh_Vars     
+USE MOD_ChangeBasis            ,ONLY: ChangeBasis2D
+USE MOD_DSMC_Vars              ,ONLY: DSMC, SymmetrySide                
+USE MOD_Particle_Vars          ,ONLY: PEM, PartState, LastPartPos, PartPosRef
+USE MOD_Mesh_Vars              ,ONLY: nElems, offSetElem, SurfElem, sJ, Face_xGP
+USE MOD_Eval_xyz               ,ONLY: GetPositionInRefElem
+USE MOD_BGK_CollOperator       ,ONLY: BGK_CollisionOperator
+USE MOD_FP_CollOperator        ,ONLY: FP_CollisionOperator
+USE MOD_DSMC_ParticlePairing   ,ONLY: PerformPairingAndCollision, MapToGeo2D
+USE MOD_Particle_Tracking_Vars ,ONLY: TrackingMethod
+USE MOD_Interpolation_Vars     ,ONLY: xGP, wBary
+USE MOD_Basis                  ,ONLY: InitializeVandermonde
+!-----------------------------------------------------------------------------------------------------------------------------------
+  IMPLICIT NONE                                                                                  
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+INTEGER, INTENT(IN)           :: iElem
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+INTEGER                       :: iCell, nCells, iPart, nPart, iLoop, iDir, iVal, nSplit, CellCoord(3), GlobalElemID, SideID
+INTEGER                       :: j, k, l, nOrder, iOrder, iCellNew, iCell2D, nCells2D, CellCoord2D(3)
+REAL, ALLOCATABLE             :: Subcell_xGP(:),  Subcell_Vdm(:,:), DetJac(:,:,:), LocalVdm(:,:), CellFace_xGP(:,:,:)
+REAL                          :: Subcell_wGP, PartPosMapped(3), DetLocal(1,0:PP_N,0:PP_N), Pos(2), CellFaceLocal(2,0:PP_N,0:PP_N)
+!-----------------------------------------------------------------------------------------------------------------------------------
+! Number of subcells from the split order
+nCells2D = (AdaptMesh(iElem)%SplitOrder+1)**2
+nCells = (AdaptMesh(iElem)%SplitOrder+1)**3
+MeshAdapt(1,iElem) = nCells2D 
+! Particle number in the element
+nPart = PEM%pNumber(iElem)
+iPart = PEM%pStart(iElem) 
+
+GlobalElemID = iElem+offSetElem
+
+! Allocate the particle number per subcell
+ALLOCATE(SubPartNum(nCells2D)) 
+SubPartNum = 0
+
+! Allocate the particle indices for the subcell
+ALLOCATE(SubPartIndx(nCells2D,nPart)) 
+SubPartIndx = 0
+
+! Allocate the subvolumes for each cell
+ALLOCATE(SubVolume(nCells2D)) 
+Subvolume = 0.
+
+nOrder = AdaptMesh(iElem)%SplitOrder
+! Allocate: Local determinant and vandermonde
+ALLOCATE(DetJac(1,0:nOrder,0:nOrder))
+ALLOCATE(LocalVdm(0:nOrder,0:PP_N))
+ALLOCATE(CellFace_xGP(2,0:nOrder,0:nOrder))
+
+! Initalize interpolation points and subcell vandermonde
+ALLOCATE(Subcell_xGP(0:nOrder))
+ALLOCATE(Subcell_Vdm(0:nOrder, 0:nOrder))
+
+! Coordinates of the interpolation points -> midpoints of the subcells
+DO iVal = 0, nOrder
+  Subcell_xGP(iVal) = (2.*REAL(iVal) + 1.)/(REAL(nOrder+1)) - 1.   
+END DO
+! Weights of the interpolation points, total volume = 8
+Subcell_wGP = 2./REAL(1.0+nOrder)
+
+SideID = SymmetrySide(iElem,1)
+
+DO j=0, PP_N; DO k=0, PP_N
+  DetLocal(1,j,k)=SurfElem(j,k,SideID)
+END DO; END DO
+
+DO j=0, PP_N; DO k=0, PP_N
+  CellFaceLocal(1:2,j,k) = Face_xGP(1:2,j,k,SideID)
+END DO; END DO
+
+! Call to the functions
+CALL InitializeVandermonde(PP_N,nOrder,wBary,xGP,Subcell_xGP,Subcell_Vdm)
+CALL ChangeBasis2D(1,PP_N,nOrder,Subcell_Vdm,DetLocal(:,:,:),DetJac(:,:,:))
+CALL ChangeBasis2D(2, PP_N, nOrder, Subcell_Vdm ,CellFaceLocal(:,:,:),CellFace_xGP(:,:,:))
+
+! Build the connection of the subcells in the form of the Peano curve
+CALL BuildPeanoCurve(nOrder,AdaptMesh(iElem)%RefineDir)
+
+DO iCell=1, nCells2D
+  j = PeanoCurve(iCell,1)
+  k = PeanoCurve(iCell,2)
+  l = PeanoCurve(iCell,3)
+
+  Pos(1) = Subcell_xGP(j)
+  Pos(2) = Subcell_xGP(k)
+  Pos(1:2) = MapToGeo2D(Pos, iElem)
+  ! Calculate the subcell volume from the weights and the Jacobian
+  Subvolume(iCell) = DetJac(1,j,k)*Subcell_wGP**2 * 2. * Pi * Pos(2)
+END DO
+
+DEALLOCATE(Subcell_xGP)
+DEALLOCATE(Subcell_Vdm)
+DEALLOCATE(DetJac)
+DEALLOCATE(LocalVdm)
+DEALLOCATE(CellFace_xGP)
+
+GlobalElemID = iElem + offsetElem
+DO iLoop = 1, nPart
+  ! Map Particle to -1|1 space 
+  IF (TrackingMethod.EQ.REFMAPPING) THEN ! Refmapping
+    PartPosMapped(1:3) = PartPosRef(1:3,iPart)
+  ELSE
+#if PP_TimeDiscMethod==300
+  CALL GetPositionInRefElem(PartState(1:3,iPart),PartPosMapped(1:3),GlobalElemID)
+#else
+    ! Attention: LastPartPos is the reference position here
+    PartPosMapped(1:3)=LastPartPos(1:3,iPart)
+#endif 
+  END IF
+  
+  ! Determine the subcell coordinates from the position in the reference element
+  DO iDir = 1, 3
+    IF (PartPosMapped(iDir).GE.1.) THEN
+      PartPosMapped(iDir) = 0.99999
+    ELSE IF (PartPosMapped(iDir).LE.-1.) THEN
+      PartPosMapped(iDir) = -0.99999
+    END IF
+    CellCoord(iDir) = INT((PartPosMapped(iDir)+1.)/2. * REAL(nOrder+1))
+  END DO
+
+  ! Get the subcell ID for the Peano-curve connection
+  CellCoord(AdaptMesh(iElem)%RefineDir(1)) = 0
+  CALL SubcellID_PeanoCurve(nOrder,AdaptMesh(iElem)%RefineDir, CellCoord, iCell)
+
+  SubPartNum(iCell) = SubPartNum(iCell) + 1
+  SubPartIndx(iCell,SubPartNum(iCell)) = iPart
+  iPart = PEM%pNext(iPart)
+END DO
+
+ ! If the minimum particle number is not given in all subcells, merge subcells together
+IF (MINVAL(SubPartNum,MASK = SubPartNum .GT.0).LT.MinPartCell) THEN
+  CALL CombineSubcells(iElem)
+END IF
+
+! Collision routines for the subcells, considered are only the particles in the respective subcell
+DO iCell = 1, nCells2D
+#if (PP_TimeDiscMethod==300)
+  CALL FP_CollisionOperator(SubPartIndx(iCell,1:SubPartNum(iCell)), SubPartNum(iCell), SubVolume(iCell))
+#elif (PP_TimeDiscMethod==400)  
+  IF (BGKMovingAverage) THEN
+    CALL BGK_CollisionOperator(SubPartIndx(iCell,1:SubPartNum(iCell)), SubPartNum(iCell), SubVolume(iCell), &
+    ElemNodeAveraging(iElem)%Root%AverageValues(:)) 
+  ELSE
+    CALL BGK_CollisionOperator(SubPartIndx(iCell,1:SubPartNum(iCell)), SubPartNum(iCell), SubVolume(iCell))
+  END IF
+#else
+  CALL PerformPairingAndCollision(SubPartIndx(iCell,1:SubPartNum(iCell)), SubPartNum(iCell), iElem, Subvolume(iCell))
+#endif
+END DO
+
+DEALLOCATE(SubPartNum)
+DEALLOCATE(SubPartIndx) 
+DEALLOCATE(SubVolume)
+
+RETURN
+END SUBROUTINE SubcellAssingement2D
+
   
 SUBROUTINE CombineSubcells(iElem) 
 !============================================================================================================================
 !============================================================================================================================
 ! MODULES                                   
 USE MOD_Globals
-USE MOD_Particle_Vars          ,ONLY: PEM
+USE MOD_Particle_Vars          ,ONLY: PEM, Symmetry
 USE MOD_Particle_Mesh_Vars     
 !--------------------------------------------------------------------------------------------------!
   IMPLICIT NONE                                                                                  
@@ -413,7 +615,11 @@ INTEGER                       :: iLoop, nCells, tempCell, iCell, tempCellLast, n
 !-----------------------------------------------------------------------------------------------------------------------------------
 nPart = PEM%pNumber(iElem)
 nSplit = AdaptMesh(iElem)%SplitOrder     ! 1 -> 8, 2 -> 27, 3 -> 64, ...
-nCells = (nSplit+1)**3  
+IF (Symmetry%Order.EQ.2) THEN
+  nCells = (nSplit+1)**2
+ELSE
+  nCells = (nSplit+1)**3  
+END IF
 
 tempCell = 1
 tempCellLast = 1
@@ -465,6 +671,13 @@ IF ((SubPartNum(tempCell).LT.MinPartCell).AND.(tempCell.NE.tempCellLast)) THEN
   SubVolume(tempCell) = 0.
 END IF
 
+MeshAdapt(2,iElem) = 0.
+DO iCell = 1, nCells
+  IF (SubPartNum(iCell).GT.0) THEN
+    MeshAdapt(2,iElem) = MeshAdapt(2,iElem)
+  END IF
+END DO
+
 RETURN
 END SUBROUTINE CombineSubcells
 
@@ -476,7 +689,7 @@ SUBROUTINE CalcGradients(ElemID,MaxGradient)
 ! MODULES
 USE MOD_Globals
 USE MOD_Globals_Vars           ,ONLY: BoltzmannConst
-USE MOD_Particle_Vars          ,ONLY: PEM, nSpecies, PartSpecies, Species, usevMPF, PartState
+USE MOD_Particle_Vars          ,ONLY: PEM, nSpecies, PartSpecies, Species, usevMPF, PartState, Symmetry
 USE MOD_Particle_Mesh_Vars     ,ONLY: ElemVolume_Shared, ElemToElemMapping, ElemToElemInfo, ElemMidPoint_Shared
 USE MOD_Particle_Mesh_Vars     ,ONLY: AdaptMesh
 USE MOD_Mesh_Vars              ,ONLY: offsetElem, nElems
@@ -652,11 +865,32 @@ END DO ! iNbElem
 
 MeanDistance = MeanDistance/nNbElems
 
-Gradient(1) = Gradient(1)*MeanDistance/(nNbElems*RefDens)
-Gradient(2) = Gradient(2)*MeanDistance/(nNbElems*RefVelo)
-Gradient(3) = Gradient(3)*MeanDistance/(nNbElems*RefTemp)
+IF (RefDens.GT.0.) THEN
+  Gradient(1) = Gradient(1)*MeanDistance/(nNbElems*RefDens)
+ELSE 
+  Gradient(1) = 0.
+END IF
+IF (RefVelo.GT.0.) THEN
+  Gradient(2) = Gradient(2)*MeanDistance/(nNbElems*RefVelo)
+ELSE
+  Gradient(2) = 0.
+END IF
+IF (RefTemp.GT.0.) THEN
+  Gradient(3) = Gradient(3)*MeanDistance/(nNbElems*RefTemp)
+ELSE 
+  Gradient(3) = 0.
+END IF
 Gradient(4) = Gradient(4)*MeanDistance/(nNbElems*RefPres)
-TempGradient = TempGradient*MeanDistance/(nNbElems*RefNonAvTemp)
+IF (RefPres.GT.0.) THEN
+  Gradient(4) = Gradient(4)*MeanDistance/(nNbElems*RefPres)
+ELSE 
+  Gradient(4) = 0.
+END IF
+IF (RefNonAvTemp(iVal).GT.0.) THEN
+  TempGradient(iVal) = TempGradient(iVal)*MeanDistance/(nNbElems*RefNonAvTemp(iVal))
+ELSE 
+  TempGradient(iVal) = 0.
+END IF
 
 DO iVal = 1, 3
   IF (ISNAN(TempGradient(iVal))) THEN
@@ -667,17 +901,32 @@ END DO
 ! Determine the maximum gradient value
 MaxGradient = MAXVAL(Gradient)
 
-IF (ANY(TempGradient(:).EQ.0.)) THEN
-  AdaptMesh(ElemID)%RefineDir(1:3) = (/1,2,3/)
+IF (Symmetry%Order.EQ.2) THEN 
+  IF (ANY(TempGradient(:).EQ.0.)) THEN
+    AdaptMesh(ElemID)%RefineDir(1:3) = (/3,2,1/) ! z-direction always last
+  ELSE
+    adaptdir = 3
+    AdaptMesh(ElemID)%RefineDir(1) = AdaptMesh(ElemID)%CellOrientation(adaptDir)
+    TempGradient(adaptDir) = -1.
+    adaptDir = MAXLOC(TempGradient,1)
+    AdaptMesh(ElemID)%RefineDir(2) = AdaptMesh(ElemID)%CellOrientation(adaptDir)
+    TempGradient(adaptDir) = -1.
+    adaptDir = MAXLOC(TempGradient,1)
+    AdaptMesh(ElemID)%RefineDir(3) = AdaptMesh(ElemID)%CellOrientation(adaptDir)
+  END IF
 ELSE
-  adaptDir = MAXLOC(TempGradient,1)
-  AdaptMesh(ElemID)%RefineDir(1) = AdaptMesh(ElemID)%CellOrientation(adaptDir)
-  TempGradient(adaptDir) = 0.0
-  adaptDir = MAXLOC(TempGradient,1)
-  AdaptMesh(ElemID)%RefineDir(2) = AdaptMesh(ElemID)%CellOrientation(adaptDir)
-  TempGradient(adaptDir) = 0.0 
-  adaptDir = MAXLOC(TempGradient,1)
-  AdaptMesh(ElemID)%RefineDir(3) = AdaptMesh(ElemID)%CellOrientation(adaptDir)
+  IF (ANY(TempGradient(:).EQ.0.)) THEN
+    AdaptMesh(ElemID)%RefineDir(1:3) = (/1,2,3/)
+  ELSE
+    adaptDir = MAXLOC(TempGradient,1)
+    AdaptMesh(ElemID)%RefineDir(1) = AdaptMesh(ElemID)%CellOrientation(adaptDir)
+    TempGradient(adaptDir) = -1.
+    adaptDir = MAXLOC(TempGradient,1)
+    AdaptMesh(ElemID)%RefineDir(2) = AdaptMesh(ElemID)%CellOrientation(adaptDir)
+    TempGradient(adaptDir) = -1.
+    adaptDir = MAXLOC(TempGradient,1)
+    AdaptMesh(ElemID)%RefineDir(3) = AdaptMesh(ElemID)%CellOrientation(adaptDir)
+  END IF
 END IF
 
 END SUBROUTINE CalcGradients
@@ -690,7 +939,7 @@ SUBROUTINE DefineElementOrientation(iElem)
 ! MODULES
 USE MOD_Globals
 USE MOD_Globals_Vars       ,ONLY: PI
-USE MOD_Mesh_Vars          ,ONLY: offsetElem, nElems
+USE MOD_Mesh_Vars          ,ONLY: offsetElem
 USE MOD_Mesh_Tools         ,ONLY: GetCNElemID, GetGlobalElemID
 USE MOD_Particle_Mesh_Vars
 ! IMPLICIT VARIABLE HANDLING
@@ -864,7 +1113,7 @@ SUBROUTINE SubcellID_PeanoCurve(Order, dir, Coord, SubCellID)
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-  INTEGER             :: nCells, iCell, MinCellVal1, MinCellVal2, iCoord
+  INTEGER             :: nCells, MinCellVal1, MinCellVal2, iCoord
 !===================================================================================================================================
 nCells = (Order+1)**3
 
@@ -888,6 +1137,8 @@ END IF
 ! Test for correct assingement
 DO iCoord =1, 3
   IF (Coord(iCoord).NE.PeanoCurve(SubcellID,iCoord)) THEN
+    print*, 'Coordinates of the subcell: ', Coord
+    print*, 'Coordinates of the subcell generated by the Peano curve: ', PeanoCurve(SubCellID,:)
     CALL abort(__STAMP__,'Wrong assingement of the subcells to the Peano curve.')
   END IF
 END DO

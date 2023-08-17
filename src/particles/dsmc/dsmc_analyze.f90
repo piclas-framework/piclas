@@ -480,7 +480,7 @@ USE MOD_Particle_TimeStep      ,ONLY: GetParticleTimeStep
 USE MOD_Restart_Vars           ,ONLY: RestartTime
 USE MOD_TimeDisc_Vars          ,ONLY: time,TEnd,iter,dt
 !USE MOD_Particle_Mesh_Vars     ,ONLY: ElemMidPoint_Shared, ElemVolume_Shared
-USE MOD_Particle_Mesh_Vars
+USE MOD_Particle_Mesh_Vars     
 USE MOD_Mesh_Vars              ,ONLY: offSetElem
 USE MOD_Mesh_Tools             ,ONLY: GetCNElemID
 USE MOD_Particle_Analyze_Tools ,ONLY: CalcTelec,CalcTVibPoly
@@ -706,6 +706,11 @@ IF (DSMC%CalcQualityFactors) THEN
         END IF
       nVarCount = nVarCount + 2
     END IF
+    IF (DoSubcellAdaption.OR.DSMC%UseOctree) THEN
+      DSMC_MacroVal(nVarCount+1,iElem) = MeshAdapt(1,iElem)
+      DSMC_MacroVal(nVarCount+2,iElem) = MeshAdapt(2,iElem)
+      nVarCount = nVarCount + 2
+    END IF
     IF(FPInitDone) THEN
       IF(FP_QualityFacSamp(2,iElem).GT.0) THEN
         ! Mean relaxation factor (mean over all octree subcells)
@@ -902,6 +907,7 @@ USE MOD_HDF5_Output   ,ONLY: WriteAttributeToHDF5, WriteHDF5Header, WriteArrayTo
 USE MOD_Particle_Vars ,ONLY: nSpecies, UseVarTimeStep, SampleElecExcitation, ExcitationLevelCounter, DoVirtualCellMerge
 USE MOD_BGK_Vars      ,ONLY: BGKInitDone, CoupledBGKDSMC
 USE MOD_FPFlow_Vars   ,ONLY: FPInitDone
+USE MOD_Particle_Mesh_Vars
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -957,6 +963,9 @@ IF (DSMC%CalcQualityFactors) THEN
   IF(FPInitDone) nVar_quality = nVar_quality + 5
 ELSE
   nVar_quality=0
+END IF
+IF (DoSubcellAdaption.OR.DSMC%UseOctree) THEN
+  nVar_quality = nVar_quality + 2
 END IF
 
 IF(DSMC%CalcCellMPF) THEN
@@ -1087,6 +1096,13 @@ IF (DSMC%CalcQualityFactors) THEN
     nVarCount=nVarCount+5
   END IF
 END IF
+
+IF (DoSubcellAdaption.OR.DSMC%UseOctree) THEN
+  StrVarNames(nVarCount+1) ='Subcell_Number'
+  StrVarNames(nVarCount+2) ='Subcell_Number_Merged'
+  nVarCount = nVarCount + 2
+END IF
+
 IF(DSMC%CalcCellMPF) THEN
   StrVarNames(nVarCount+1) = 'SubCellMPF'
   nVarCount=nVarCount+1

@@ -49,6 +49,7 @@ USE MOD_Eval_xyz               ,ONLY: GetPositionInRefElem
 USE MOD_part_RHS               ,ONLY: CalcPartRHSRotRefFrame
 USE MOD_Part_Tools             ,ONLY: InRotRefFrameCheck
 USE MOD_Part_Tools             ,ONLY: CalcPartSymmetryPos
+USE MOD_Particle_Mesh_Vars     ,ONLY: DoSubcellAdaption
 #if USE_MPI
 USE MOD_Particle_MPI           ,ONLY: IRecvNbOfParticles, MPIParticleSend,MPIParticleRecv,SendNbOfparticles
 USE MOD_Particle_MPI_Vars      ,ONLY: DoParticleLatencyHiding
@@ -161,7 +162,7 @@ END IF
 CALL MPIParticleSend(.TRUE.)
 #endif /*USE_MPI*/
 
-IF(DoBGKCellAdaptation)THEN
+IF(DoBGKCellAdaptation.OR.DoSubcellAdaption)THEN
   IF(Symmetry%Order.EQ.2)THEN
     DO iPart=1,PDM%ParticleVecLength
       IF (PDM%ParticleInside(iPart)) THEN

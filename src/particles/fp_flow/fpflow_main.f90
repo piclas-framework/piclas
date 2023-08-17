@@ -46,6 +46,8 @@ SUBROUTINE FP_DSMC_main()
 ! MODULES
 USE MOD_Globals
 USE MOD_FP_DSMC_Coupling
+USE MOD_Cell_Adaption       ,ONLY: MeshAdaption
+USE MOD_Particle_Mesh_Vars  ,ONLY: DoSubcellAdaption
 USE MOD_TimeDisc_Vars       ,ONLY: TEnd, Time
 USE MOD_Mesh_Vars           ,ONLY: nElems, offsetElem
 USE MOD_Particle_Vars       ,ONLY: PEM, Species, WriteMacroVolumeValues, Symmetry, usevMPF
@@ -125,6 +127,8 @@ DO iElem = 1, nElems
     ELSE
       CALL BGK_octree_adapt(iElem)
     END IF
+  ELSE IF (DoSubcellAdaption) THEN
+    CALL MeshAdaption(iElem)
   ELSE
     ALLOCATE(iPartIndx_Node(nPart))
     iPart = PEM%pStart(iElem)

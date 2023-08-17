@@ -55,6 +55,7 @@ USE MOD_vMPF                     ,ONLY: SplitAndMerge
 USE MOD_part_RHS                 ,ONLY: CalcPartRHSRotRefFrame
 USE MOD_Part_Tools               ,ONLY: InRotRefFrameCheck
 USE MOD_Part_Tools               ,ONLY: CalcPartSymmetryPos
+USE MOD_Particle_Mesh_Vars       ,ONLY: DoSubcellAdaption
 #if USE_MPI
 USE MOD_Particle_MPI             ,ONLY: IRecvNbOfParticles, MPIParticleSend,MPIParticleRecv,SendNbOfparticles
 USE MOD_Particle_MPI_Boundary_Sampling, ONLY: ExchangeChemSurfData
@@ -199,7 +200,7 @@ ELSE IF (PDM%nextFreePosition(PDM%CurrentNextFreePosition+1).GT.PDM%maxParticleN
   CALL abort(__STAMP__,'maximum nbr of particles reached!')
 END IF
 
-IF(DSMC%UseOctree)THEN
+IF(DSMC%UseOctree.OR.DoSubcellAdaption)THEN
   ! Case Symmetry%Order=1 is performed in DSMC main
   IF(Symmetry%Order.EQ.2)THEN
     DO iPart=1,PDM%ParticleVecLength

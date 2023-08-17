@@ -49,6 +49,8 @@ USE MOD_DSMC_Relaxation       ,ONLY: FinalizeCalcVibRelaxProb, InitCalcVibRelaxP
 USE MOD_Particle_Vars         ,ONLY: PEM, PDM, WriteMacroVolumeValues, Symmetry
 USE MOD_DSMC_ParticlePairing  ,ONLY: DSMC_pairing_standard, DSMC_pairing_octree, DSMC_pairing_quadtree, DSMC_pairing_dotree
 USE MOD_Particle_Vars         ,ONLY: WriteMacroSurfaceValues
+USE MOD_Cell_Adaption         ,ONLY: MeshAdaption
+USE MOD_Particle_Mesh_Vars    ,ONLY: DoSubcellAdaption
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Timers    ,ONLY: LBStartTime, LBElemSplitTime
 #endif /*USE_LOADBALANCE*/
@@ -111,6 +113,8 @@ DO iElem = 1, nElems ! element/cell main loop
         ELSE
           CALL DSMC_pairing_dotree(iElem)
         END IF
+      ELSE IF (DoSubcellAdaption) THEN
+        CALL MeshAdaption(iElem)
       ELSE ! NOT DSMC%UseOctree
         ! Standard pairing of particles within a cell
         CALL DSMC_pairing_standard(iElem)
