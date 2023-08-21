@@ -182,8 +182,12 @@ REAL                :: charge,TotalElectricCharge
 INTEGER             :: iEDCBC,i,iBoundary,iPartBound2
 #endif /*USE_HDG*/
 !===================================================================================================================================
-IF((nComputeNodeSurfSides.EQ.0).AND.(.NOT.CalcBoundaryParticleOutput).AND.(.NOT.UseNeutralization).AND.(.NOT.CalcElectronSEE)) RETURN
+IF((.NOT.CalcBoundaryParticleOutput).AND.(.NOT.UseNeutralization).AND.(.NOT.CalcElectronSEE)) RETURN
 IF(.NOT.DoSurfModelAnalyze) RETURN
+
+! Currently the MPI routines below use Part%COMM (which contains all procs) and if one process returns here a hang-up occurs
+IF(nComputeNodeSurfSides.EQ.0) CALL abort(__STAMP__,'Not all processes have surfaces for analysis but the communicator requires this.')
+
 SurfModelAnalyzeSampleTime = Time - SurfModelAnalyzeSampleTime ! Set SurfModelAnalyzeSampleTime=Time at the end of this routine
 OutputCounter = 2
 unit_index = 636
