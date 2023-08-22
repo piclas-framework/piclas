@@ -623,6 +623,11 @@ IF(PICLAS_PETSC)
 
   INCLUDE_DIRECTORIES(${PETSC_INC})
   LIST(APPEND linkedlibs ${PETSC_LIB})
+
+  # Do not allow PETSc + INT8 as this is not implemented yet
+  IF(PICLAS_INTKIND8)
+    MESSAGE(FATAL_ERROR "PETSc + INT8 is not implemented yet!.")
+  ENDIF()
 ELSE()
   ADD_DEFINITIONS(-DUSE_PETSC=0)
 ENDIF(PICLAS_PETSC)
