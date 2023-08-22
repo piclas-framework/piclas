@@ -148,6 +148,7 @@ USE MOD_DSMC_BGGas       ,ONLY: BGGas_Initialize
 USE MOD_LoadBalance_Vars ,ONLY: PerformLoadBalance
 #endif /*USE_MPI*/
 USE MOD_Restart_Vars     ,ONLY: DoRestart
+USE MOD_Analyze_Vars     ,ONLY: DoSurfModelAnalyze
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -328,6 +329,7 @@ DO iSpec = 1, nSpecies
       NeutralizationSource = TRIM(GETSTR('Part-Species'//TRIM(hilf2)//'-NeutralizationSource'))
       NeutralizationBalance = 0
       UseNeutralization = .TRUE.
+      DoSurfModelAnalyze = .TRUE.
       IF((TRIM(Species(iSpec)%Init(iInit)%SpaceIC).EQ.'3D_Liu2010_neutralization').OR.&
          (TRIM(Species(iSpec)%Init(iInit)%SpaceIC).EQ.'3D_Liu2010_neutralization_Szabo'))THEN
         Species(iSpec)%Init(iInit)%FirstQuadrantOnly = GETLOGICAL('Part-Species'//TRIM(hilf2)//'-FirstQuadrantOnly')

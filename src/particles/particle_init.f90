@@ -273,6 +273,7 @@ USE MOD_Particle_SurfFlux_Init     ,ONLY: InitializeParticleSurfaceflux
 USE MOD_SurfaceModel_Init          ,ONLY: InitSurfaceModel
 USE MOD_Particle_Surfaces          ,ONLY: InitParticleSurfaces
 USE MOD_Particle_Sampling_Adapt    ,ONLY: InitAdaptiveBCSampling
+USE MOD_Particle_Boundary_Init     ,ONLY: InitParticleBoundarySurfSides
 USE MOD_Particle_Boundary_Init     ,ONLY: InitRotPeriodicMapping, InitAdaptiveWallTemp, InitRotPeriodicInterPlaneMapping
 USE MOD_DSMC_BGGas                 ,ONLY: BGGas_InitRegions
 #if USE_MPI
@@ -336,16 +337,19 @@ IF(useDSMC .OR. WriteMacroVolumeValues) THEN
   DSMC_Solution = 0.0
 END IF
 
-! Initialize surface sampling / rotational periodic mapping
-! (the following IF arguments have to be considered in FinalizeParticleBoundarySampling as well)
-IF (WriteMacroSurfaceValues.OR.DSMC%CalcSurfaceVal.OR.(ANY(PartBound%Reactive)).OR.(nPorousBC.GT.0).OR.PartBound%UseRotPeriodicBC) THEN
+! Initialize the counters (nComputeNodeSurfSides,nComputeNodeSurfTotalSides,nComputeNodeSurfOutputSides) and
+! mappings (GlobalSide2SurfSide,SurfSide2GlobalSide) of the particle boundary surface sides
+CALL InitParticleBoundarySurfSides()
+! Initialize rotational periodic mappings (requires InitParticleBoundarySurfSides)
+IF(PartBound%UseRotPeriodicBC) CALL InitRotPeriodicMapping()
+IF(PartBound%UseInterPlaneBC)  CALL InitRotPeriodicInterPlaneMapping()
+! Initialize surface sampling (the following IF arguments have to be considered in FinalizeParticleBoundarySampling as well)
+IF (WriteMacroSurfaceValues.OR.DSMC%CalcSurfaceVal.OR.(ANY(PartBound%Reactive))) THEN
   CALL InitParticleBoundarySampling()
-  IF(PartBound%UseRotPeriodicBC) CALL InitRotPeriodicMapping()
-  IF(PartBound%UseInterPlaneBC)  CALL InitRotPeriodicInterPlaneMapping()
   CALL InitAdaptiveWallTemp()
 END IF
 
-! Initialize porous boundary condition (requires BCdata_auxSF and SurfMesh from InitParticleBoundarySampling)
+! Initialize porous boundary condition (requires BCdata_auxSF and InitParticleBoundarySurfSides)
 IF(nPorousBC.GT.0) CALL InitPorousBoundaryCondition()
 
 ! Allocate sampling of near adaptive boundary element values
