@@ -142,8 +142,8 @@ END IF
 CALL CalcInnerDOFs(nSpec, EVibSpec, ERotSpec, totalWeightSpec, TVibSpec, TRotSpec, InnerDOF, Xi_VibSpec, Xi_RotSpec)
 
 ! 2.) Calculation of the relaxation frequency of the distribution function towards the target distribution function
-CALL CalcGasProperties(nSpec, dens, InnerDOF, totalWeightSpec, totalWeight, TotalMass, u2Spec, u0ij, u2, SpecTemp, CellTemp, &
-    Xi_VibSpec, Xi_RotSpec, Prandtl, relaxfreq, dynamicvis, thermalcond, MassIC_Mixture)
+CALL CalcGasProperties(nSpec, dens, InnerDOF, totalWeightSpec, totalWeight, TotalMass, u2Spec, SpecTemp, CellTemp, Xi_VibSpec, &
+    Xi_RotSpec, Prandtl, relaxfreq, dynamicvis, thermalcond, MassIC_Mixture)
 
 IF(DSMC%CalcQualityFactors) THEN
   BGK_MeanRelaxFactor         = BGK_MeanRelaxFactor + relaxfreq * dtCell
@@ -201,7 +201,7 @@ IF(BGKDoVibRelaxation) THEN
   END IF
 END IF
 
-CALL CalcTRelax(ERotSpec, Xi_RotSpec, Xi_VibSpec, EVibSpec, totalWeightSpec, totalWeight, totalWeight2, nPart, dtCell, CellTemp, &
+CALL CalcTRelax(ERotSpec, Xi_RotSpec, Xi_VibSpec, EVibSpec, totalWeightSpec, totalWeight, totalWeight2, dtCell, CellTemp, &
     TRotSpec, TVibSpec, relaxfreq, rotrelaxfreqSpec, vibrelaxfreqSpec, Xi_VibSpecNew, Xi_vib_DOF, nXiVibDOF, CellTempRel, TEqui, &
     betaR, betaV)
 
@@ -369,7 +369,7 @@ END SUBROUTINE BGK_CollisionOperator
 
 
 SUBROUTINE CalcMoments(nPart, iPartIndx_Node, nSpec, vBulkAll, totalWeight, totalWeight2, totalWeightSpec, TotalMass, u2, u2Spec, &
-                       u0ij, u2i, OldEn, EVibSpec, ERotSpec, CellTemp, SpecTemp, dtCell)
+    u0ij, u2i, OldEn, EVibSpec, ERotSpec, CellTemp, SpecTemp, dtCell)
 !===================================================================================================================================
 !> Moment calculation: Summing up the relative velocities and their squares
 !===================================================================================================================================
@@ -639,7 +639,7 @@ END DO
 END SUBROUTINE CalcInnerDOFs
 
 
-SUBROUTINE CalcGasProperties(nSpec, dens, InnerDOF, totalWeightSpec, totalWeight, TotalMass, u2Spec, u0ij, u2, SpecTemp, CellTemp, &
+SUBROUTINE CalcGasProperties(nSpec, dens, InnerDOF, totalWeightSpec, totalWeight, TotalMass, u2Spec, SpecTemp, CellTemp, &
     Xi_VibSpec, Xi_RotSpec, Prandtl, relaxfreq, dynamicvis, thermalcond, MassIC_Mixture)
 !===================================================================================================================================
 !> Calculate the reference dynamic viscosity, Prandtl number and the resulting relaxation frequency of the distribution function
@@ -655,16 +655,16 @@ USE MOD_Globals_Vars          ,ONLY: BoltzmannConst, Pi
 ! INPUT VARIABLES
 INTEGER, INTENT(IN)           :: nSpec(nSpecies)
 REAL, INTENT(IN)              :: totalWeightSpec(nSpecies), totalWeight, TotalMass, u2Spec(nSpecies), SpecTemp(nSpecies), CellTemp
-REAL, INTENT(IN)              :: u0ij(3,3), u2, Xi_VibSpec(nSpecies), Xi_RotSpec(nSpecies), dens, InnerDOF
+REAL, INTENT(IN)              :: Xi_VibSpec(nSpecies), Xi_RotSpec(nSpecies), dens, InnerDOF
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 REAL, INTENT(OUT)             :: Prandtl, relaxfreq, dynamicvis, thermalcond, MassIC_Mixture
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                       :: iSpec, jSpec, INFO
+INTEGER                       :: iSpec, jSpec
 REAL                          :: MolarFraction(1:nSpecies), DOFFraction(1:nSpecies), MassFraction(1:nSpecies)
 REAL                          :: PrandtlCorrection, dynamicvisSpec(nSpecies), thermalcondSpec(nSpecies), Phi(nSpecies)
-REAL                          :: TotalDOFWeight, C_P, nu, A(3,3), W(3), Theta, CellTempSpec(nSpecies+1), Work(100)
+REAL                          :: TotalDOFWeight, C_P, CellTempSpec(nSpecies+1)
 !===================================================================================================================================
 MassIC_Mixture = TotalMass / totalWeight
 IF (nSpecies.GT.1) THEN ! gas mixture
@@ -775,9 +775,9 @@ END IF
 END SUBROUTINE CalcGasProperties
 
 
-SUBROUTINE CalcTRelax(ERotSpec, Xi_RotSpec, Xi_VibSpec, EVibSpec, totalWeightSpec, totalWeight, totalWeight2, nPart, dtCell, &
-    CellTemp, TRotSpec, TVibSpec, relaxfreq, rotrelaxfreqSpec, vibrelaxfreqSpec, Xi_VibSpecNew, Xi_vib_DOF, nXiVibDOF, &
-    CellTempRel, TEqui, betaR, betaV)
+SUBROUTINE CalcTRelax(ERotSpec, Xi_RotSpec, Xi_VibSpec, EVibSpec, totalWeightSpec, totalWeight, totalWeight2, dtCell, CellTemp, &
+    TRotSpec, TVibSpec, relaxfreq, rotrelaxfreqSpec, vibrelaxfreqSpec, Xi_VibSpecNew, Xi_vib_DOF, nXiVibDOF, CellTempRel, TEqui, &
+    betaR, betaV)
 !===================================================================================================================================
 !> Calculate the relaxation energies and temperatures
 !===================================================================================================================================
@@ -791,7 +791,7 @@ USE MOD_Globals               ,ONLY: abort
   IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-INTEGER, INTENT(IN)           :: nPart, nXiVibDOF
+INTEGER, INTENT(IN)           :: nXiVibDOF
 REAL, INTENT(IN)              :: TRotSpec(nSpecies), ERotSpec(nSpecies), Xi_RotSpec(nSpecies)
 REAL, INTENT(IN)              :: TVibSpec(nSpecies), EVibSpec(nSpecies), Xi_VibSpec(nSpecies)
 REAL, INTENT(IN)              :: totalWeightSpec(nSpecies), totalWeight, totalWeight2, CellTemp, dtCell
@@ -1181,7 +1181,7 @@ END SUBROUTINE RelaxInnerEnergy
 
 
 SUBROUTINE SampleFromTargetDistr(nRelax, iPartIndx_NodeRelax, Prandtl, u2, u0ij, u2i, vBulkAll, CellTempRel, CellTemp, vBulk, &
-  MassIC_Mixture)
+    MassIC_Mixture)
 !===================================================================================================================================
 !> Sample new particle velocities from the target distribution function, depending on the chosen model
 !===================================================================================================================================
@@ -1322,7 +1322,7 @@ END SUBROUTINE SampleFromTargetDistr
 
 
 SUBROUTINE EnergyConsVib(nPart, totalWeight, nVibRelax, VibRelaxWeightSpec, iPartIndx_NodeRelaxVib, NewEnVib, OldEn, nXiVibDOF, &
-  VibEnergyDOF, Xi_VibSpec, TEqui)
+    VibEnergyDOF, Xi_VibSpec, TEqui)
 !===================================================================================================================================
 !> Routine to ensure energy conservation when including vibrational degrees of freedom (continuous and quantized)
 !===================================================================================================================================
