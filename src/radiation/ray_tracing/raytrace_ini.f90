@@ -45,7 +45,7 @@ CALL prms%CreateIntOption(       'RayTracing-NbrOfPulses'    , 'Number of pulses
 CALL prms%CreateRealOption(      'RayTracing-WaistRadius'    , 'Beam waist radius (in focal spot) w_b for Gaussian-type pulse with I~exp(-(r/w_b)^2) [m]' , '0.0')
 CALL prms%CreateRealOption(      'RayTracing-WaveLength'     , 'Beam wavelength [m]'                                                                      )
 CALL prms%CreateRealOption(      'RayTracing-RepetitionRate' , 'Pulse repetition rate (pulses per second) [Hz]'                                           )
-CALL prms%CreateRealOption(      'RayTracing-Power'          , 'Average pulse power (energy of a single pulse times repetition rate) [W]'                 )
+CALL prms%CreateRealOption(      'RayTracing-PowerDensity'   , 'Average pulse power density (power per area) [W/m2]')
 CALL prms%CreateLogicalOption(   'RayTracing-ForceAbsorption', 'Surface photon sampling is performed independent of the actual absorption/reflection outcome (default=T)', '.TRUE.')
 
 CALL prms%CreateIntOption(       'RayTracing-NMax'            , 'Maximum polynomial degree within refined volume elements for photon tracking (p-adaption)')
@@ -106,7 +106,7 @@ Ray%WaistRadius    = GETREAL('RayTracing-WaistRadius')
 Ray%WaveLength     = GETREAL('RayTracing-WaveLength')
 Ray%RepetitionRate = GETREAL('RayTracing-RepetitionRate')
 Ray%Period         = 1./Ray%RepetitionRate
-Ray%Power          = GETREAL('RayTracing-Power')
+Ray%PowerDensity   = GETREAL('RayTracing-PowerDensity')
 Ray%Direction      = GETREALARRAY('RayTracing-RayDirection',3)
 Ray%Direction      = UNITVECTOR(Ray%Direction)
 
@@ -136,16 +136,19 @@ ASSOCIATE( &
       Period  => Ray%Period             ,&
       tActive => Ray%tActive            ,&
       A       => Ray%Area               )
-  ! Derived quantities
-  E0 = Ray%Power / Ray%RepetitionRate
 
-  ! Rectangle
+  ! ATTENTION: Rectangle only and uses GEO min/max in x- and y-direction!
   ! TODO: Ray emission area from chosen boundary surface?
   A = (GEO%xmaxglob-GEO%xminglob) * (GEO%ymaxglob-GEO%yminglob)
   ! Normal vector of the ray emission area
   SurfaceNormal = (/ 0., 0., 1. /)
   ! Angle between emitted rays and emission area
   alpha = (90.-ABS(90.-(180./PI)*ACOS(DOT_PRODUCT(Ray%Direction,SurfaceNormal))))
+
+  ! Derived quantities
+  Ray%Power = Ray%PowerDensity * A ! adjust power from [W/m2] to [W]
+  E0 = Ray%Power / Ray%RepetitionRate
+
 
   ! Generate two base vectors perpendicular to the ray direction
   CALL OrthoNormVec(Ray%Direction,Ray%BaseVector1IC,Ray%BaseVector2IC)

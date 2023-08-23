@@ -36,6 +36,7 @@ TYPE tRayTrace
   REAL    :: WaistRadius        !<
   REAL    :: WaveLength         !<
   REAL    :: RepetitionRate     !<
+  REAL    :: PowerDensity       !<
   REAL    :: Power              !<
   REAL    :: Area               !<
   REAL    :: Energy             !<
