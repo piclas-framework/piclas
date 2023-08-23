@@ -879,6 +879,7 @@ USE MOD_Particle_Mesh_Vars
 USE MOD_BGK_CollOperator       ,ONLY: BGK_CollisionOperator
 USE MOD_FP_CollOperator        ,ONLY: FP_CollisionOperator
 USE MOD_DSMC_ParticlePairing   ,ONLY: PerformPairingAndCollision
+USE MOD_BGK_Vars               ,ONLY: BGKMovingAverage,ElemNodeAveraging
 !--------------------------------------------------------------------------------------------------!
   IMPLICIT NONE                                                                                  
 !-----------------------------------------------------------------------------------------------------------------------------------

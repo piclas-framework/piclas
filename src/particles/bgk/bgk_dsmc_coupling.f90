@@ -119,7 +119,7 @@ CASE('LocalKnudsen')
     NbVolume = NbVolume + ElemVolume_Shared(CnNbElem)
 
     ! Calculate the density, velocity and temperature of the neighbour element
-    CALL CalcDensVeloTemp(iElem, NbDens, NbVelo, NbTemp, NbSpecPartNum)
+    CALL CalcDensVeloTemp(LocNbElem, NbDens, NbVelo, NbTemp, NbSpecPartNum)
     NbtotalWeight = SUM(NbSpecPartNum)
 
     ! Sum of the density gradient of all neighbour elements, weighted by the volume of the neighbour element
@@ -202,7 +202,7 @@ CASE('Combination')
     NbVolume = NbVolume + ElemVolume_Shared(CnNbElem)
 
     ! Calculate the density, velocity and temperature of the neighbour element
-    CALL CalcDensVeloTemp(iElem, NbDens, NbVelo, NbTemp, NbSpecPartNum)
+    CALL CalcDensVeloTemp(LocNbElem, NbDens, NbVelo, NbTemp, NbSpecPartNum)
     NbtotalWeight = SUM(NbSpecPartNum)
 
     ! Sum of the density gradient of all neighbour elements, weighted by the volume of the neighbour element
@@ -288,7 +288,7 @@ CASE('Output')
     NbVolume = NbVolume + ElemVolume_Shared(CnNbElem)
 
     ! Calculate the density, velocity and temperature of the reference element
-    CALL CalcDensVeloTemp(iElem, NbDens, NbVelo, NbTemp, NbSpecPartNum)
+    CALL CalcDensVeloTemp(LocNbElem, NbDens, NbVelo, NbTemp, NbSpecPartNum)
     NbtotalWeight = SUM(NbSpecPartNum)
 
     ! Sum of the density gradient of all neighbour elements, weighted by the volume of the neighbour element
@@ -299,11 +299,19 @@ CASE('Output')
     TempGradient = TempGradient+ ABS((RefTemp-NbTemp)/NbDistance)*ElemVolume_Shared(CnNbElem)
   END DO ! iNbElem
 
-  DensGradient = DensGradient/NbVolume
-  Knudsen_Dens = MFP*DensGradient/RefDens
+  IF (RefDens.GT.0.) THEN
+    DensGradient = DensGradient/NbVolume
+    Knudsen_Dens = MFP*DensGradient/RefDens
+  ELSE
+    Knudsen_Dens = 0.
+  END IF
 
-  VeloGradient = VeloGradient/NbVolume
-  Knudsen_Velo = MFP*VeloGradient/RefVelo
+  IF (RefVelo.GT.0.) THEN
+    VeloGradient = VeloGradient/NbVolume
+    Knudsen_Velo = MFP*VeloGradient/RefVelo
+  ELSE 
+    Knudsen_Velo = 0.
+  END IF
 
   TempGradient = TempGradient/NbVolume
   IF (RefTemp.GT.0.) THEN
@@ -443,12 +451,16 @@ DO iSpec = 1, nSpecies
     END IF ! CollisMode
   END IF
 END DO  
-IF (Temperature.GT.0.) THEN
+IF (totalWeight.GT.0.) THEN
   Temperature = Temperature/totalweight
 ELSE 
   Temperature = 0.
 END IF
-TempTrans = TempTrans/totalweight
+IF (totalWeight.GT.0.) THEN
+  TempTrans = TempTrans/totalweight
+ELSE
+  TempTrans = 0.
+END IF
 
 ! Vibrational and rotational temperature weighted by the particle numbers
 IF (SUM(MolPartNum(:)).GT.0) THEN
@@ -494,7 +506,11 @@ ELSE
   HeatVector = 0.0
 END IF
 
-StressTensor = -(StressTensor/totalWeight)
+IF (totalWeight.GT.0.) THEN
+  StressTensor = -(StressTensor/totalWeight)
+ELSE 
+  StressTensor = 0.
+END IF
 
 END SUBROUTINE CalcCellProp
   
@@ -565,7 +581,7 @@ DO iSpec = 1, nSpecies
     Temperature = Temperature + ((Temp(1) + Temp(2) + Temp(3)) / 3.)*SpecPartNum(iSpec)
   END IF
 END DO  
-IF (Temperature.GT.0.) THEN
+IF (totalWeight.GT.0.) THEN
   Temperature = Temperature/totalweight
 ELSE 
   Temperature = 0.
