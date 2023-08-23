@@ -225,6 +225,7 @@ END IF
 CALL WritePhotonSurfSampleToHDF5()
 
 ! Load surface data to create local PhotonSampWall_loc array
+! This currently requires .h5 access instead of internal mapping/distribution of info
 CALL ReadRayTracingDataFromH5(onlySurfData=.TRUE.)
 
 CALL WritePhotonVolSampleToHDF5()
@@ -371,7 +372,7 @@ END DO ! iElem = 1, nElems
 ! Associate construct for integer KIND=8 possibility
 ASSOCIATE (&
       nVarRay8          => INT(nVarRay,IK)            ,&
-      NMax              => INT(Ray%NMax,IK)           ,&
+      NMax8             => INT(Ray%NMax,IK)           ,&
       nGlobalElems      => INT(nGlobalElems,IK)       ,&
       PP_nElems         => INT(PP_nElems,IK)          ,&
       offsetElem        => INT(offsetElem,IK)          &
@@ -380,21 +381,23 @@ ASSOCIATE (&
       !Nres8             => INT(N_Restart,IK)          ,&
   CALL DatasetExists(File_ID,'DG_Solution',ContainerExists)
   IF(.NOT.ContainerExists) CALL CollectiveStop(__STAMP__,'DG_Solution container does not exist in '//TRIM(RadiationVolState))
-  CALL ReadArray('DG_Solution' ,5,(/nVarRay8,NMax+1_IK,NMax+1_IK,NMax+1_IK,PP_nElems/),OffsetElem,5,RealArray=UNMax)
+  CALL ReadArray('DG_Solution' ,5,(/nVarRay8,NMax8+1_IK,NMax8+1_IK,NMax8+1_IK,PP_nElems/),OffsetElem,5,RealArray=UNMax)
 
   ! Map from NMax to local polynomial degree
   DO iElem = 1, nElems
     Nloc = N_DG_Ray_loc(iElem)
-    IF(Nloc.EQ.Ray%NMax)THEN
-      U_N_Ray_loc(iElem)%U(1:nVarRay,0:NMax,0:NMax,0:NMax) = UNMax(1:nVarRay,0:NMax,0:NMax,0:NMax,iElem)
-    ELSEIF(Nloc.GT.Ray%NMax)THEN
-      CALL ChangeBasis3D(nVarRay, Ray%NMax, Nloc, PREF_VDM_Ray(Ray%NMax, Nloc)%Vdm, UNMax(1:nVarRay,0:NMax,0:NMax,0:NMax,iElem), U_N_Ray_loc(iElem)%U(1:nVarRay,0:Nloc,0:Nloc,0:Nloc))
-    ELSE
-      !transform the slave side to the same degree as the master: switch to Legendre basis
-      CALL ChangeBasis3D(nVarRay, Ray%NMax, Ray%NMax, N_Inter_Ray(Ray%NMax)%sVdm_Leg, UNMax(1:nVarRay,0:NMax,0:NMax,0:NMax,iElem), UNMax_loc)
-      ! switch back to nodal basis
-      CALL ChangeBasis3D(nVarRay, Nloc, Nloc, N_Inter_Ray(Nloc)%Vdm_Leg, UNMax_loc(1:nVarRay,0:Nloc,0:Nloc,0:Nloc), U_N_Ray_loc(iElem)%U(1:nVarRay,0:Nloc,0:Nloc,0:Nloc))
-    END IF ! Nloc.EQ.Ray%NMax
+    ASSOCIATE( NMax => Ray%NMax)
+      IF(Nloc.EQ.NMax)THEN
+        U_N_Ray_loc(iElem)%U(1:nVarRay,0:NMax,0:NMax,0:NMax) = UNMax(1:nVarRay,0:NMax,0:NMax,0:NMax,iElem)
+      ELSEIF(Nloc.GT.NMax)THEN
+        CALL ChangeBasis3D(nVarRay, NMax, Nloc, PREF_VDM_Ray(NMax, Nloc)%Vdm, UNMax(1:nVarRay,0:NMax,0:NMax,0:NMax,iElem), U_N_Ray_loc(iElem)%U(1:nVarRay,0:Nloc,0:Nloc,0:Nloc))
+      ELSE
+        !transform the slave side to the same degree as the master: switch to Legendre basis
+        CALL ChangeBasis3D(nVarRay, NMax, NMax, N_Inter_Ray(NMax)%sVdm_Leg, UNMax(1:nVarRay,0:NMax,0:NMax,0:NMax,iElem), UNMax_loc)
+        ! switch back to nodal basis
+        CALL ChangeBasis3D(nVarRay, Nloc, Nloc, N_Inter_Ray(Nloc)%Vdm_Leg, UNMax_loc(1:nVarRay,0:Nloc,0:Nloc,0:Nloc), U_N_Ray_loc(iElem)%U(1:nVarRay,0:Nloc,0:Nloc,0:Nloc))
+      END IF ! Nloc.EQ.NMax
+    END ASSOCIATE
 
     ! Sanity check: Very small negative numbers might occur due to the interpolation
     DO iVar = 1, nVarRay

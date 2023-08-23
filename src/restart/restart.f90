@@ -318,8 +318,7 @@ USE MOD_Equation_Vars          ,ONLY: Phi
 #endif /*PP_POIS*/
 #if defined(PARTICLES)
 USE MOD_Particle_Restart       ,ONLY: ParticleRestart
-!USE MOD_RayTracing             ,ONLY: ReadRayTracingDataFromH5
-USE MOD_RayTracing             ,ONLY: RayTracing
+USE MOD_RayTracing             ,ONLY: ReadRayTracingDataFromH5
 #endif /*defined(PARTICLES)*/
 #if USE_HDG
 USE MOD_Restart_Tools          ,ONLY: RecomputeLambda
@@ -349,8 +348,7 @@ IF(DoRestart)THEN
   ! Restart particle arrays
   CALL ParticleRestart()
   ! Get ray tracing volume and surface data
-  !CALL ReadRayTracingDataFromH5(onlySurfData=.FALSE.)
-  CALL RayTracing()
+  CALL ReadRayTracingDataFromH5(onlySurfData=.FALSE.)
 #endif /*PARTICLES*/
 
 #if USE_HDG

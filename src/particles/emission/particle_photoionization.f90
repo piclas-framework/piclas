@@ -417,9 +417,7 @@ DO iVar = 1, 2
                 CALL abort(__STAMP__,'Raytrace Photoionization: PartID.GT.PDM%MaxParticleNumber. '//&
                                     'Increase Part-maxParticleNumber or use more processors. PartID=',IntInfoOpt=PartID)
               END IF
-              IF (PartID.EQ.0) THEN
-                CALL Abort(__STAMP__,'ERROR in PhotoIonization: MaxParticleNumber should be increased!')
-              END IF
+              IF(PartID.EQ.0) CALL Abort(__STAMP__,'ERROR in PhotoIonization: MaxParticleNumber should be increased!')
               ! Set the position
               PartState(1:3,PartID) = RandomPos(1:3)
               ! Set the species

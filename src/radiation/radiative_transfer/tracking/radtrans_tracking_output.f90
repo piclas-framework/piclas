@@ -152,7 +152,7 @@ ASSOCIATE( RayElemPassedEnergy => RayElemPassedEnergy_Shared )
     ElemVolume(iElem) = ElemVolume_Shared(iCNElem)
 
     ! 2. Variable polynomial degree data
-    Nloc = N_DG_Ray(iElem)
+    Nloc = N_DG_Ray_loc(iElem)
     !U_N_Ray(iElem)%U(1:1,:,:,:) = RayElemPassedEnergy(1,iGlobalElem)
     !U_N_Ray(iElem)%U(2:2,:,:,:) = RayElemPassedEnergy(2,iGlobalElem)
 #if USE_MPI

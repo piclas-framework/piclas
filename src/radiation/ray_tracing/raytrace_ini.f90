@@ -548,11 +548,13 @@ USE MOD_MPI_Shared_Vars     ,ONLY: MPI_COMM_SHARED
 USE MOD_MPI_Shared
 USE MOD_Photon_TrackingVars
 #endif /*USE_MPI*/
+USE MOD_Mesh_Vars           ,ONLY: nGlobalElems
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! INPUT / OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
+INTEGER           :: iGlobalElem
 !===================================================================================================================================
 
 ! Check if ray tracing is used
@@ -562,7 +564,10 @@ IF(.NOT.UseRayTracing) RETURN
 IF(PerformRayTracing)THEN
   ! 1: after ray tracing is performed
   SDEALLOCATE(RayElemPassedEnergy)
-  SDEALLOCATE(U_N_Ray)      ! ray tracing
+  DO iGlobalElem = 1, nGlobalElems
+    DEALLOCATE(U_N_Ray(iGlobalElem)%U)
+  END DO ! iGlobalElem = 1, nGlobalElems
+  DEALLOCATE(U_N_Ray)      ! ray tracing
   SDEALLOCATE(PREF_VDM_Ray) ! ray tracing
 
 #if USE_MPI
