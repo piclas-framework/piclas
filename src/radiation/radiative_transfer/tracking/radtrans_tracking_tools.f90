@@ -1318,11 +1318,13 @@ END SUBROUTINE PeriodicPhotonBC
 !===================================================================================================================================
 SUBROUTINE CalcWallAbsoprtion(IntersectionPos, GlobSideID, DONE, ForceWallSample)
 USE MOD_Globals                ,ONLY: VECNORM
-USE MOD_Photon_TrackingVars    ,ONLY: PhotonProps,PhotonSampWall
+USE MOD_Photon_TrackingVars    ,ONLY: PhotonProps
 USE MOD_Particle_Boundary_Vars ,ONLY: PartBound, GlobalSide2SurfSide, nSurfSample, SurfSideSamplingMidPoints
 USE MOD_Particle_Mesh_Vars     ,ONLY: SideInfo_Shared
 #if USE_MPI
 USE MOD_Photon_TrackingVars    ,ONLY: PhotonSampWallProc
+#else
+USE MOD_Photon_TrackingVars    ,ONLY: PhotonSampWall
 #endif /*USE_MPI*/
 !--------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
