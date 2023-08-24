@@ -68,6 +68,7 @@ USE MOD_RayTracing_Vars         ,ONLY: UseRayTracing,PerformRayTracing,RayElemEm
 USE MOD_DSMC_Vars               ,ONLY: DSMC
 USE MOD_RayTracing_Init         ,ONLY: FinalizeRayTracing
 USE MOD_RayTracing_Vars         ,ONLY: RaySecondaryVectorX,RaySecondaryVectorY,RaySecondaryVectorZ
+USE MOD_Particle_Boundary_Vars  ,ONLY: nPartBound
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -76,11 +77,11 @@ USE MOD_RayTracing_Vars         ,ONLY: RaySecondaryVectorX,RaySecondaryVectorY,R
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER :: NonUniqueGlobalSideID,iSurfSide,iBC
+INTEGER :: NonUniqueGlobalSideID,iSurfSide,iBC,iPartBound
 INTEGER :: CNElemID, iRay, photonCount, RayVisCount, LocRayNum, RayDisp
 LOGICAL :: FoundComputeNodeSurfSide
 INTEGER :: ALLOCSTAT
-REAL    :: RectPower
+REAL    :: RectPower,SumPhotonEnACC
 REAL    :: StartT,EndT ! Timer
 !===================================================================================================================================
 
@@ -103,6 +104,13 @@ IF(.NOT.PerformRayTracing)THEN
   CALL ReadRayTracingDataFromH5(onlySurfData=.FALSE.)
   RETURN
 END IF
+
+! Sanity check: Not all boundaries are allowed to perfectly reflect rays. Otherwise, the simulation will never end!
+SumPhotonEnACC = 0.
+DO iPartBound = 1,nPartBound
+  SumPhotonEnACC = SumPhotonEnACC + PartBound%PhotonEnACC(iPartBound)
+END DO
+IF(SumPhotonEnACC.LE.0.0) CALL abort(__STAMP__,'The sum of all Part-Boundary[$]-PhotonEnACC is zero, which is not allowed!')
 
 GETTIME(StartT)
 SWRITE(UNIT_stdOut,'(A)') ' Start Ray Tracing Calculation ...'
@@ -232,6 +240,7 @@ CALL WritePhotonVolSampleToHDF5()
 
 CALL FinalizeRayTracing()
 
+! Deactivate in order to skip this routine during load balance
 PerformRayTracing = .FALSE.
 
 GETTIME(EndT)

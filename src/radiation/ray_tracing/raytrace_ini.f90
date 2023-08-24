@@ -35,28 +35,25 @@ USE MOD_ReadInTools ,ONLY: prms,addStrListEntry
 IMPLICIT NONE
 !==================================================================================================================================
 CALL prms%SetSection("Ray Tracing")
-
-!CALL prms%CreateLogicalOption(   'RayTracing-AdaptiveRays'   , 'TODO' , '.FALSE.')
-CALL prms%CreateIntOption(       'RayTracing-NumRays'        , 'Number of emitted rays from particle boundary with index [RayTracing-PartBound]')
-CALL prms%CreateRealArrayOption( 'RayTracing-RayDirection'   , 'Direction vector for ray emission. Will be normalized after read-in.' , no=3)
-CALL prms%CreateIntOption(       'RayTracing-PartBound'      , 'Particle boundary ID where rays are emitted from' , '0')
-CALL prms%CreateRealOption(      'RayTracing-PulseDuration'  , 'Pulse duration tau for a Gaussian-type pulse with I~exp(-(t/tau)^2) [s]'                  )
-CALL prms%CreateIntOption(       'RayTracing-NbrOfPulses'    , 'Number of pulses [-]'                                                                     , '1')
-CALL prms%CreateRealOption(      'RayTracing-WaistRadius'    , 'Beam waist radius (in focal spot) w_b for Gaussian-type pulse with I~exp(-(r/w_b)^2) [m]' , '0.0')
-CALL prms%CreateRealOption(      'RayTracing-WaveLength'     , 'Beam wavelength [m]'                                                                      )
-CALL prms%CreateRealOption(      'RayTracing-RepetitionRate' , 'Pulse repetition rate (pulses per second) [Hz]'                                           )
-CALL prms%CreateRealOption(      'RayTracing-PowerDensity'   , 'Average pulse power density (power per area) [W/m2]')
-CALL prms%CreateLogicalOption(   'RayTracing-ForceAbsorption', 'Surface photon sampling is performed independent of the actual absorption/reflection outcome (default=T)', '.TRUE.')
-
-CALL prms%CreateIntOption(       'RayTracing-NMax'            , 'Maximum polynomial degree within refined volume elements for photon tracking (p-adaption)')
-CALL prms%CreateIntOption(       'RayTracing-VolRefineMode'   , 'High-order ray tracing volume sampling refinement method:\n'//&
-                                                                ' 0: do nothing (default)\n'//&
-                                                                ' 1: refine below user-defined z-coordinate with NMax\n'//&
-                                                                ' 2: scale N according to the mesh element volume between NMin>=1 and NMax>=2\n'//&
-                                                                ' 3: refine below user-defined z-coordinate and scale N according to the mesh element volume between NMin>=1 and NMax>=2\n'//&
-                                                                '    (consider only elements below the user-defined z-coordinate for the scaling)'&
-                                                                ,'0')
-CALL prms%CreateRealOption(      'RayTracing-VolRefineModeZ'    , 'Z-coordinate for switching between NMin (pos>z) and NMax (pos<z) depending on element position for high-order ray tracing')
+CALL prms%CreateIntOption(       'RayTracing-NumRays'                 , 'Number of emitted rays from particle boundary with index [RayTracing-PartBound]')
+CALL prms%CreateRealArrayOption( 'RayTracing-RayDirection'            , 'Direction vector for ray emission. Will be normalized after read-in.' , no=3)
+CALL prms%CreateIntOption(       'RayTracing-PartBound'               , 'Particle boundary ID where rays are emitted from' , '0')
+CALL prms%CreateRealOption(      'RayTracing-PulseDuration'           , 'Pulse duration tau for a Gaussian-type pulse with I~exp(-(t/tau)^2) [s]'                  )
+CALL prms%CreateIntOption(       'RayTracing-NbrOfPulses'             , 'Number of pulses [-]'                                                                     , '1')
+CALL prms%CreateRealOption(      'RayTracing-WaistRadius'             , 'Beam waist radius (in focal spot) w_b for Gaussian-type pulse with I~exp(-(r/w_b)^2) [m]' , '0.0')
+CALL prms%CreateRealOption(      'RayTracing-WaveLength'              , 'Beam wavelength [m]'                                                                      )
+CALL prms%CreateRealOption(      'RayTracing-RepetitionRate'          , 'Pulse repetition rate (pulses per second) [Hz]'                                           )
+CALL prms%CreateRealOption(      'RayTracing-PowerDensity'            , 'Average pulse power density (power per area) [W/m2]')
+CALL prms%CreateLogicalOption(   'RayTracing-ForceAbsorption'         , 'Surface photon sampling is performed independent of the actual absorption/reflection outcome (default=T)', '.TRUE.')
+CALL prms%CreateIntOption(       'RayTracing-NMax'                    , 'Maximum polynomial degree within refined volume elements for photon tracking (p-adaption)')
+CALL prms%CreateIntOption(       'RayTracing-VolRefineMode'           , 'High-order ray tracing volume sampling refinement method:\n'//&
+                                                                       ' 0: do nothing (default)\n'//&
+                                                                       ' 1: refine below user-defined z-coordinate with NMax\n'//&
+                                                                       ' 2: scale N according to the mesh element volume between NMin>=1 and NMax>=2\n'//&
+                                                                       ' 3: refine below user-defined z-coordinate and scale N according to the mesh element volume between NMin>=1 and NMax>=2\n'//&
+                                                                       '    (consider only elements below the user-defined z-coordinate for the scaling)'&
+                                                                      ,'0')
+CALL prms%CreateRealOption(      'RayTracing-VolRefineModeZ'          , 'Z-coordinate for switching between NMin (pos>z) and NMax (pos<z) depending on element position for high-order ray tracing')
 
 
 END SUBROUTINE DefineParametersRayTracing
@@ -168,7 +165,7 @@ ASSOCIATE( &
 
   ! Sanity check: overlapping of pulses is not implemented (use multiple emissions for this)
   IF(2.0*tShift.GT.Period) CALL abort(__STAMP__,'Pulse length (2*tShift) is greater than the pulse period. This is not implemented!')
-  
+
   ! Active pulse time
   tActive = REAL(Ray%NbrOfPulses - 1)*Period + 2.0*tShift
 END ASSOCIATE
@@ -323,7 +320,7 @@ IF(PerformRayTracing)THEN
               END IF
             END DO ! iCNElem = firstElem, lastElem
           END IF ! FoundElem
-        END IF ! (VolMax.GT.VolMin).AND.(.NOT.ALMOST) 
+        END IF ! (VolMax.GT.VolMin).AND.(.NOT.ALMOST)
 
       END IF ! Ray%VolRefineMode.EQ.3
     CASE DEFAULT

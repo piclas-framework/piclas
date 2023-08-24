@@ -38,7 +38,7 @@ SUBROUTINE PhotoIonization_RayTracing_SEE()
 USE MOD_Globals
 USE MOD_Globals_Vars            ,ONLY: PI
 USE MOD_Timedisc_Vars           ,ONLY: dt,time
-USE MOD_Particle_Boundary_Vars  ,ONLY: nSurfSample, Partbound, DoBoundaryParticleOutputHDF5,SurfSideArea
+USE MOD_Particle_Boundary_Vars  ,ONLY: nSurfSample,Partbound,DoBoundaryParticleOutputRay,SurfSideArea
 USE MOD_Particle_Vars           ,ONLY: Species, PartState, usevMPF
 USE MOD_RayTracing_Vars         ,ONLY: Ray,UseRayTracing,RayElemEmission
 USE MOD_part_emission_tools     ,ONLY: CalcPhotonEnergy
@@ -220,10 +220,8 @@ DO BCSideID=1,nBCSides
           ! Create new particle
           CALL CreateParticle(SpecID,Particle_pos(1:3),GlobElemID,Velo3D(1:3),0.,0.,0.,NewPartID=PartID,NewMPF=MPF)
           ! 1. Store the particle information in PartStateBoundary.h5
-          IF(DoBoundaryParticleOutputHDF5) THEN
-            CALL StoreBoundaryParticleProperties(PartID,SpecID,PartState(1:3,PartID),&
-                UNITVECTOR(PartState(4:6,PartID)),nVec,iPartBound=BCID,mode=2,MPF_optIN=MPF)
-          END IF ! DoBoundaryParticleOutputHDF5
+          IF(DoBoundaryParticleOutputRay) CALL StoreBoundaryParticleProperties(PartID,SpecID,PartState(1:3,PartID),&
+                                                   UNITVECTOR(PartState(4:6,PartID)),nVec,iPartBound=BCID,mode=2,MPF_optIN=MPF)
 #if USE_HDG
           ! 2. Check if floating boundary conditions (FPC) are used and consider electron holes
           IF(UseFPC)THEN
@@ -286,7 +284,7 @@ USE MOD_part_tools              ,ONLY: CalcVelocity_maxwell_particle
 USE MOD_TimeDisc_Vars           ,ONLY: iStage,nRKStages,RK_c
 #endif /*defined(LSERK)*/
 USE MOD_Particle_Boundary_Tools ,ONLY: StoreBoundaryParticleProperties
-USE MOD_Particle_Boundary_Vars  ,ONLY: DoBoundaryParticleOutputHDF5
+USE MOD_Particle_Boundary_Vars  ,ONLY: DoBoundaryParticleOutputRay
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -482,12 +480,12 @@ DO iVar = 1, 2
                 PartMPF(newPartID) = MPF
               END IF
               ! 1. Store the particle information in PartStateBoundary.h5
-              IF(DoBoundaryParticleOutputHDF5) THEN
+              IF(DoBoundaryParticleOutputRay) THEN
                 CALL StoreBoundaryParticleProperties(PartID,SpecID,PartState(1:3,PartID),&
                     UNITVECTOR(PartState(4:6,PartID)),(/0.,0.,1./),iPartBound=0,mode=2,MPF_optIN=MPF)
                 CALL StoreBoundaryParticleProperties(NewPartID,SpecID,PartState(1:3,NewPartID),&
                     UNITVECTOR(PartState(4:6,NewPartID)),(/0.,0.,1./),iPartBound=0,mode=2,MPF_optIN=MPF)
-              END IF ! DoBoundaryParticleOutputHDF5
+              END IF ! DoBoundaryParticleOutputRay
               ! Velocity (set it to zero, as it will be subtracted in the chemistry module)
               PartState(4:6,newPartID) = 0.
               ! Internal energies (set it to zero)

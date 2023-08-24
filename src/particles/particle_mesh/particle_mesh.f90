@@ -86,6 +86,7 @@ CALL prms%CreateIntOption( 'PhotonModeBPO' , 'Output mode to store position, dir
                                              '1: Output the initial position of the rays and their direction vector\n'&
                                              '2: Output initial position and all calculated intersection points calculated in radtrans tracking\n'&
                                              ,'0')
+CALL prms%CreateLogicalOption( 'DoBoundaryParticleOutputRay', 'Activates output of emission particles by ray tracing SEE and ray tracing volume ionization to PartStateBoundary.h5 (with negative species IDs to indicate creation)','.FALSE.')
 CALL prms%CreateIntOption(     'PartOut'&
   , 'If compiled with CODE_ANALYZE flag: For This particle number every tracking information is written as STDOUT.','0')
 CALL prms%CreateIntOption(     'MPIRankOut'&
@@ -196,7 +197,7 @@ USE MOD_LoadBalance_Vars       ,ONLY: PerformLoadBalance
 #endif /*USE_LOADBALANCE*/
 USE MOD_PICDepo_Shapefunction_Tools, ONLY:InitShapeFunctionDimensionalty
 USE MOD_Particle_Boundary_Init ,ONLY: InitPartStateBoundary
-USE MOD_Particle_Boundary_Vars ,ONLY: DoBoundaryParticleOutputHDF5,nSurfSample
+USE MOD_Particle_Boundary_Vars ,ONLY: DoBoundaryParticleOutputHDF5,nSurfSample,DoBoundaryParticleOutputRay
 USE MOD_Photon_TrackingVars    ,ONLY: PhotonModeBPO
 USE MOD_RayTracing_Vars        ,ONLY: UseRayTracing
 !USE MOD_DSMC_Vars              ,ONLY: DSMC
@@ -313,12 +314,14 @@ END IF
 DisplayLostParticles = GETLOGICAL('DisplayLostParticles')
 
 ! Ray tracing information to .h5 for debugging when using the radiation transport model or pure ray tracing
-PhotonModeBPO        = GETINT('PhotonModeBPO')
+PhotonModeBPO               = GETINT('PhotonModeBPO')
+! Activate output of emission particles by ray tracing SEE and ray tracing volume ionization to PartStateBoundary.h5 (with negative species IDs to indicate creation
+DoBoundaryParticleOutputRay = GETLOGICAL('DoBoundaryParticleOutputRay')
 ! Check if DoBoundaryParticleOutputHDF5 is already activated and PartStateBoundary therefore already allocated
-IF((PhotonModeBPO.GE.1).AND.(.NOT.DoBoundaryParticleOutputHDF5))THEN
-  DoBoundaryParticleOutputHDF5 = .TRUE.
-  CALL InitPartStateBoundary()
-END IF ! (PhotonModeBPO.GE.1
+IF((PhotonModeBPO.GE.1)         .AND.(.NOT.DoBoundaryParticleOutputHDF5)) DoBoundaryParticleOutputHDF5 = .TRUE.
+IF((DoBoundaryParticleOutputRay).AND.(.NOT.DoBoundaryParticleOutputHDF5)) DoBoundaryParticleOutputHDF5 = .TRUE.
+
+IF(DoBoundaryParticleOutputHDF5) CALL InitPartStateBoundary()
 
 #ifdef CODE_ANALYZE
 PARTOUT            = GETINT('PartOut','0')
