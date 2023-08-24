@@ -75,6 +75,9 @@ USE MOD_Globals_Vars        ,ONLY: Pi
 USE MOD_Particle_Mesh_Vars  ,ONLY: GEO
 USE MOD_RadiationTrans_Vars ,ONLY: RadiationAbsorptionModel,RadObservationPointMethod
 USE MOD_Interpolation_Vars  ,ONLY: NodeType,NodeTypeVISU
+#if USE_LOADBALANCE
+USE MOD_LoadBalance_Vars    ,ONLY: PerformLoadBalance
+#endif /*USE_LOADBALANCE*/
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -87,8 +90,8 @@ REAL              :: factor,SurfaceNormal(3),alpha
 CHARACTER(LEN=3)  :: hilf ! auxiliary variable for INTEGER -> CHARACTER conversion
 !===================================================================================================================================
 IF(.NOT.UseRayTracing) RETURN
-SWRITE(UNIT_StdOut,'(132("-"))')
-SWRITE(UNIT_stdOut,'(A)') ' INIT RAY TRACING MODEL ...'
+LBWRITE(UNIT_StdOut,'(132("-"))')
+LBWRITE(UNIT_stdOut,'(A)') ' INIT RAY TRACING MODEL ...'
 
 ! Do not absorb rays within the volume!
 RadiationAbsorptionModel = 0
@@ -179,8 +182,8 @@ CALL PrintOption('Pulse period (Time between maximum of two pulses) [s]'        
 CALL PrintOption('Temporal pulse width (pulse time 2x tShift) [s]'                   , 'CALCUL.' , RealOpt=2.0*Ray%tShift)
 CALL PrintOption('Pulse will end at tActive (pulse final time) [s]'                  , 'CALCUL.' , RealOpt=Ray%tActive)
 
-SWRITE(UNIT_stdOut,'(A)')' INIT RAY TRACING MODEL DONE!'
-SWRITE(UNIT_StdOut,'(132("-"))')
+LBWRITE(UNIT_stdOut,'(A)')' INIT RAY TRACING MODEL DONE!'
+LBWRITE(UNIT_StdOut,'(132("-"))')
 END SUBROUTINE InitRayTracing
 
 
