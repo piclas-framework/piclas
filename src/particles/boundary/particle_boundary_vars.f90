@@ -180,22 +180,14 @@ TYPE tSurfaceSendList
 END TYPE
 #endif /*USE_MPI*/
 
-TYPE tSurfaceCOMM
-  LOGICAL                               :: MPIRoot                       ! if root of mpi communicator
-  INTEGER                               :: MyRank                        ! local rank in new group
-  INTEGER                               :: nProcs                        ! number of processes
-  LOGICAL                               :: MPIOutputRoot                 ! if root of mpi communicator
-  INTEGER                               :: MyOutputRank                  ! local rank in new group
-  INTEGER                               :: nOutputProcs                  ! number of output processes
 #if USE_MPI
-  LOGICAL                               :: InnerBCs                      ! are there InnerSides with reflective properties
-  INTEGER                               :: COMM=MPI_COMM_NULL            ! communicator
-  INTEGER                               :: nMPINeighbors                 ! number of processes to communicate with
-  TYPE(tSurfaceSendList),ALLOCATABLE    :: MPINeighbor(:)                ! list containing all mpi neighbors
-  INTEGER                               :: OutputCOMM=MPI_COMM_NULL      ! communicator for output
-#endif /*USE_MPI*/
+TYPE tMPIGROUP
+  INTEGER                     :: UNICATOR            !< MPI communicator for surface sides (including sides inside the halo region)
+  INTEGER                     :: nProcs              !< number of MPI processes for particles
+  INTEGER                     :: MyRank              !< MyRank of PartMPIVAR%COMM
 END TYPE
-TYPE (tSurfaceCOMM)                     :: SurfCOMM
+TYPE (tMPIGROUP)              :: SurfCOMM
+#endif /*USE_MPI*/
 
 TYPE tSurfaceMesh
   INTEGER                               :: SampSize                      ! integer of sampsize

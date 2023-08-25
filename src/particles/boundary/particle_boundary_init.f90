@@ -589,6 +589,7 @@ USE MOD_MPI_Shared_Vars         ,ONLY: myLeaderGroupRank,nLeaderGroupProcs
 USE MOD_Particle_Boundary_Vars  ,ONLY: GlobalSide2SurfSide_Shared,GlobalSide2SurfSide_Shared_Win
 USE MOD_Particle_Boundary_Vars  ,ONLY: SurfSide2GlobalSide_Shared,SurfSide2GlobalSide_Shared_Win
 USE MOD_Particle_Boundary_Vars  ,ONLY: nComputeNodeInnerBCs
+USE MOD_Particle_Boundary_Vars  ,ONLY: SurfCOMM
 #else
 USE MOD_Particle_Mesh_Vars      ,ONLY: nComputeNodeSides
 #endif /*USE_MPI*/
@@ -612,6 +613,7 @@ INTEGER                                :: offsetSurfSidesProc
 INTEGER                                :: GlobalElemID,GlobalElemRank
 INTEGER                                :: sendbuf,recvbuf
 INTEGER                                :: NbGlobalElemID, NbElemRank, NbLeaderID, nSurfSidesTmp
+INTEGER                               :: color
 #endif /*USE_MPI*/
 INTEGER                                :: NbGlobalSideID
 !===================================================================================================================================
@@ -672,10 +674,10 @@ DO iSide = firstSide,lastSide
     ! check if element for this side is on the current compute-node
     ! IF ((SideInfo_Shared(SIDE_ID,iSide).GT.ElemInfo_Shared(ELEM_FIRSTSIDEIND,offsetComputeNodeElem+1))                  .AND. &
     !     (SideInfo_Shared(SIDE_ID,iSide).LE.ElemInfo_Shared(ELEM_LASTSIDEIND ,offsetComputeNodeElem+nComputeNodeElems))) THEN
-!    IF ((iSide.GE.(ElemInfo_Shared(ELEM_FIRSTSIDEIND,offsetComputeNodeElem+1)+1))                  .AND. &
-!        (iSide.LE.ElemInfo_Shared(ELEM_LASTSIDEIND ,offsetComputeNodeElem+nComputeNodeElems))) THEN
-!      nComputeNodeSurfSides  = nComputeNodeSurfSides + 1
-!    END IF
+    ! IF ((iSide.GE.(ElemInfo_Shared(ELEM_FIRSTSIDEIND,offsetComputeNodeElem+1)+1))                  .AND. &
+    !     (iSide.LE.ElemInfo_Shared(ELEM_LASTSIDEIND ,offsetComputeNodeElem+nComputeNodeElems))) THEN
+    !   nComputeNodeSurfSides  = nComputeNodeSurfSides + 1
+    ! END IF
 
     ! TODO: Add another check to determine the surface side in halo_eps from current proc. Node-wide halo can become quite large with
     !       with 128 procs!
@@ -693,7 +695,7 @@ DO iSide = firstSide,lastSide
     ELSE
       ! find the compute node
       GlobalSide2SurfSideProc(SURF_LEADER,iSide) = INT(GlobalElemRank/nComputeNodeProcessors)
-        END IF
+    END IF
 #else
     GlobalSide2SurfSideProc(SURF_RANK  ,iSide) = 0
     GlobalSide2SurfSideProc(SURF_LEADER,iSide) = GlobalSide2SurfSideProc(SURF_RANK,iSide)
@@ -701,11 +703,7 @@ DO iSide = firstSide,lastSide
 
 #if USE_MPI
     ! check if element for this side is on the current compute-node. Alternative version to the check above
-    IF (GlobalSide2SurfSideProc(SURF_LEADER,iSide).EQ.myLeaderGroupRank) THEN
-#endif /*USE_MPI*/
-      nComputeNodeSurfSides  = nComputeNodeSurfSides + 1
-#if USE_MPI
-    END IF
+    IF (GlobalSide2SurfSideProc(SURF_LEADER,iSide).EQ.myLeaderGroupRank) nComputeNodeSurfSides  = nComputeNodeSurfSides + 1
 #endif /*USE_MPI*/
   END IF ! reflective side
 END DO
@@ -760,6 +758,7 @@ DO iSide = firstSide,lastSide
 END DO
 #else
 offsetSurfTotalSidesProc  = 0
+nComputeNodeSurfSides = nSurfSidesProc
 nComputeNodeSurfTotalSides = nSurfSidesProc
 GlobalSide2SurfSide(:,firstSide:lastSide) = GlobalSide2SurfSideProc(:,firstSide:lastSide)
 #endif /*USE_MPI*/
@@ -853,6 +852,28 @@ END IF
 
 ! free temporary arrays
 DEALLOCATE(GlobalSide2SurfSideProc)
+
+! create a communicator between processors with a surface side (including sides in the halo region)
+#if USE_MPI
+! Set the control of subset assignment (nonnegative integer). Processes with the same color are in the same new communicator.
+! Make sure to include the root
+IF(MPIRoot) THEN
+  color = 1337
+ELSE
+  color = MERGE(1337, MPI_UNDEFINED, nSurfSidesProc.GT.0)
+END IF
+! Create new surface communicator. Pass MPI_INFO_NULL as rank to follow the original ordering
+CALL MPI_COMM_SPLIT(MPI_COMM_WORLD, color, MPI_INFO_NULL, SurfCOMM%UNICATOR, iError)
+! Find my rank on the shared communicator, comm size and proc name
+IF(SurfCOMM%UNICATOR.NE.MPI_COMM_NULL)THEN
+  CALL MPI_COMM_RANK(SurfCOMM%UNICATOR, SurfCOMM%MyRank, iError)
+  CALL MPI_COMM_SIZE(SurfCOMM%UNICATOR, SurfCOMM%nProcs, iError)
+  ! inform about size of emission communicator
+  LBWRITE(UNIT_StdOut,'(A,I0,A)') ' Surface sides: Communicator on ', SurfCOMM%nProcs,' procs'
+END IF ! nSurfSidesProc.GT.0
+#endif /*USE_MPI*/
+
+LBWRITE(UNIT_stdOut,'(A)') ' INIT SURFACE SIDES DONE!'
 
 END SUBROUTINE InitParticleBoundarySurfSides
 
@@ -2052,6 +2073,7 @@ SDEALLOCATE(PartBound%RadiativeEmissivity)
 
 ! Mapping arrays are allocated even if the node does not have sampling surfaces
 #if USE_MPI
+IF(SurfCOMM%UNICATOR.NE.MPI_COMM_NULL) CALL MPI_COMM_FREE(SurfCOMM%UNICATOR,iERROR)
 CALL MPI_BARRIER(MPI_COMM_SHARED,iERROR)
 CALL UNLOCK_AND_FREE(GlobalSide2SurfSide_Shared_Win)
 CALL UNLOCK_AND_FREE(SurfSide2GlobalSide_Shared_Win)
