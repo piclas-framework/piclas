@@ -205,8 +205,7 @@ iter_PID = 0
 
 ! Ray tracing
 #if defined(PARTICLES)
-!IF(.NOT.DoRestart)
-CALL RayTracing()
+IF(.NOT.DoRestart) CALL RayTracing()
 #endif /*defined(PARTICLES)*/
 
 CALL PrintStatusLine(time,dt,tStart,tEnd,1)

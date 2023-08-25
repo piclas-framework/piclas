@@ -67,6 +67,8 @@ USE MOD_HDG_Vars                ,ONLY: UseFPC,FPC,UseEPC,EPC
 USE MOD_Mesh_Vars               ,ONLY: BoundaryType
 #endif /*USE_HDG*/
 USE MOD_SurfaceModel_Analyze_Vars ,ONLY: SEE,CalcElectronSEE
+USE MOD_Particle_Mesh_Vars      ,ONLY: ElemBaryNGeo
+USE MOD_Mesh_Tools              ,ONLY: GetCNElemID
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -75,8 +77,8 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-REAL                  :: t_1, t_2, E_Intensity
-INTEGER               :: NbrOfRepetitions, SideID, iSample, GlobElemID, PartID, BCSideID, iLocSide, locElemID, iSurfSide
+REAL                  :: t_1, t_2, E_Intensity,vec(3)
+INTEGER               :: NbrOfRepetitions, SideID, iSample, GlobElemID, PartID, BCSideID, iLocSide, locElemID, iSurfSide, CNElemID
 INTEGER               :: p, q, BCID, SpecID, iPart, NbrOfSEE, iSEEBC
 REAL                  :: RealNbrOfSEE, TimeScalingFactor, MPF
 REAL                  :: Particle_pos(1:3), xi(2)
@@ -217,6 +219,11 @@ DO BCSideID=1,nBCSides
           END IF ! nSurfSample.GT.1
           ! Determine particle velocity
           CALL CalcVelocity_FromWorkFuncSEE(PartBound%PhotonSEEWorkFunction(BCID), Species(SpecID)%MassIC, tang1, nVec, Velo3D)
+          ! Move particle slightly into the domain away from the surface because TriaTracking loses the particle during restart
+          ! as the InsideQuad3D test returns "not inside" for these particles and they are deleted
+          CNElemID = GetCNElemID(GlobElemID)
+          vec(1:3) = ElemBaryNGeo(1:3,CNElemID) - Particle_pos(1:3)
+          Particle_pos(1:3) = Particle_pos(1:3) + 1e-7 * vec(1:3)
           ! Create new particle
           CALL CreateParticle(SpecID,Particle_pos(1:3),GlobElemID,Velo3D(1:3),0.,0.,0.,NewPartID=PartID,NewMPF=MPF)
           ! 1. Store the particle information in PartStateBoundary.h5
