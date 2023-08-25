@@ -153,12 +153,14 @@ USE MOD_Particle_Boundary_Vars    ,ONLY: nComputeNodeSurfSides,PartBound
 USE MOD_Particle_MPI_Vars         ,ONLY: PartMPI
 USE MOD_SurfaceModel_Vars         ,ONLY: nPorousBC, PorousBC
 USE MOD_Particle_Vars             ,ONLY: nSpecies,UseNeutralization,NeutralizationBalanceGlobal,Species
+#if USE_MPI
+USE MOD_Particle_Boundary_Vars    ,ONLY: SurfCOMM
+#endif /*USE_MPI*/
 #if USE_HDG
 USE MOD_Analyze_Vars              ,ONLY: EDC
 USE MOD_Analyze_Vars              ,ONLY: CalcElectricTimeDerivative
 USE MOD_HDG_Vars                  ,ONLY: UseBiasVoltage,BiasVoltage,BVDataLength
 #if USE_MPI
-USE MOD_Particle_Boundary_Vars    ,ONLY: SurfCOMM
 USE MOD_HDG                       ,ONLY: SynchronizeBV
 #endif /*USE_MPI*/
 #endif /*USE_HDG*/
