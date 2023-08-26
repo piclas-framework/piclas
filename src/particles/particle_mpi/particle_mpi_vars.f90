@@ -17,7 +17,7 @@ MODULE MOD_Particle_MPI_Vars
 ! Contains global variables provided by the particle surfaces routines
 !===================================================================================================================================
 ! MODULES
-!USE mpi
+USE MOD_Globals
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 PUBLIC
@@ -35,7 +35,7 @@ LOGICAL                                   :: CheckExchangeProcs             ! On
 LOGICAL                                   :: AbortExchangeProcs             ! Terminate run if proc communication is non-symmetric
 
 TYPE tPartMPIGROUP
-  INTEGER                                 :: COMM                           ! MPI communicator for PIC GTS region
+  INTEGER                                 :: COMM=MPI_COMM_NULL             ! MPI communicator for PIC GTS region
   INTEGER                                 :: Request                        ! MPI request for asynchronous communication
   INTEGER                                 :: nProcs                         ! number of MPI processes for particles
   INTEGER                                 :: MyRank                         ! MyRank of PartMPIVAR%COMM
@@ -63,7 +63,7 @@ TYPE tPartMPIVAR
   TYPE(tPartMPIConnect)    , ALLOCATABLE  :: DepoBGMConnect(:)              ! MPI connect for each process
 #endif /*USE_MPI*/
   TYPE(tPartMPIGROUP),ALLOCATABLE         :: InitGroup(:)                   ! small communicator for initialization
-  INTEGER                                 :: COMM                           ! MPI communicator for PIC GTS region
+  INTEGER                                 :: COMM=MPI_COMM_NULL             ! MPI communicator for PIC GTS region
   INTEGER                                 :: nProcs                         ! number of MPI processes for particles
   INTEGER                                 :: MyRank                         ! MyRank of PartMPIVAR%COMM
   LOGICAL                                 :: MPIRoot                        ! Root, MPIRank=0

@@ -3392,14 +3392,13 @@ END SUBROUTINE RestartHDG
 !===================================================================================================================================
 SUBROUTINE FinalizeHDG()
 ! MODULES
-USE MOD_globals
+USE MOD_Globals
 USE MOD_HDG_Vars
 #if USE_PETSC
 USE petsc
 #endif
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Vars   ,ONLY: PerformLoadBalance,UseH5IOLoadBalance
-USE MOD_HDG_Vars           ,ONLY: lambda, nGP_face
 USE MOD_Particle_Mesh_Vars ,ONLY: ElemInfo_Shared
 USE MOD_Mesh_Vars          ,ONLY: nElems,offsetElem,nSides,SideToNonUniqueGlobalSide
 USE MOD_Mesh_Tools         ,ONLY: LambdaSideToMaster,GetMasteriLocSides
@@ -3416,6 +3415,9 @@ PetscErrorCode       :: ierr
 INTEGER             :: NonUniqueGlobalSideID
 INTEGER             :: iSide
 #endif /*USE_LOADBALANCE*/
+#if USE_MPI
+INTEGER             :: iBC
+#endif /*USE_MPI*/
 !===================================================================================================================================
 HDGInitIsDone = .FALSE.
 #if USE_PETSC
@@ -3475,6 +3477,9 @@ SDEALLOCATE(FPC%BCState)
 SDEALLOCATE(FPC%VoltageProc)
 SDEALLOCATE(FPC%ChargeProc)
 #if USE_MPI
+DO iBC = 1, FPC%nUniqueFPCBounds
+  IF(FPC%COMM(iBC)%UNICATOR.NE.MPI_COMM_NULL) CALL MPI_COMM_FREE(FPC%COMM(iBC)%UNICATOR,iERROR)
+END DO
 SDEALLOCATE(FPC%COMM)
 #endif /*USE_MPI*/
 
@@ -3498,7 +3503,12 @@ SDEALLOCATE(EPC%BCState)
 SDEALLOCATE(EPC%VoltageProc)
 SDEALLOCATE(EPC%ChargeProc)
 #if USE_MPI
+DO iBC = 1, EPC%nUniqueEPCBounds
+  IF(EPC%COMM(iBC)%UNICATOR.NE.MPI_COMM_NULL)   CALL MPI_COMM_FREE(EPC%COMM(iBC)%UNICATOR,iERROR)
+END DO
 SDEALLOCATE(EPC%COMM)
+IF(BiasVoltage%COMM%UNICATOR.NE.MPI_COMM_NULL)  CALL MPI_COMM_FREE(BiasVoltage%COMM%UNICATOR,iERROR)
+IF(CPPCOMM%UNICATOR.NE.MPI_COMM_NULL)           CALL MPI_COMM_FREE(CPPCOMM%UNICATOR,iERROR)
 #endif /*USE_MPI*/
 
 #if USE_LOADBALANCE

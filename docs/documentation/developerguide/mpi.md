@@ -123,9 +123,9 @@ To limit the number of communicating processors, feature specific communicators 
 for a communicator, which only contains processors with a local surface side (part of the `InitParticleBoundarySurfSides` routine). First, a global variable `SurfCOMM`, which is based on the `tMPIGROUP` type, is required:
 ```
 TYPE tMPIGROUP
-  INTEGER         :: UNICATOR            !< MPI communicator for surface sides
-  INTEGER         :: nProcs              !< number of MPI processes
-  INTEGER         :: MyRank              !< MyRank, ordered from 0 to nProcs - 1
+  INTEGER         :: UNICATOR=MPI_COMM_NULL     !< MPI communicator for surface sides
+  INTEGER         :: nProcs                     !< number of MPI processes
+  INTEGER         :: MyRank                     !< MyRank, ordered from 0 to nProcs - 1
 END TYPE
 TYPE (tMPIGROUP)    :: SurfCOMM
 ```
@@ -150,4 +150,30 @@ Through the IF clause, only processors that are part of the communicator can be 
 ```
 IF(SurfCOMM%UNICATOR.NE.MPI_COMM_NULL) CALL MPI_COMM_FREE(SurfCOMM%UNICATOR,iERROR)
 ```
-Otherwise load balancing might produce undefined errors that are very difficult to find.
+This works for communicators, which have been initialized with MPI_COMM_NULL, either initially during the variable definition or during the split call.
+If not initialized initially, you have to make sure that the freeing call is only performed, if the respective split routine has been called to guarantee
+that either a communicator exists and/or every (other) processor has been set to MPI_COMM_NULL.
+
+### Available communicators
+
+| Handle                  | Description                 | Derived from            |
+| ----------------------- | --------------------------- | ----------------------- |
+| MPI_COMM_WORLD          | Default global communicator | -                       |
+| MPI_COMM_SHARED         |                             | MPI_COMM_WORLD          |
+| MPI_COMM_NODE           |                             | MPI_COMM_WORLD          |
+| MPI_COMM_LEADERS        |                             | MPI_COMM_WORLD          |
+| MPI_COMM_WORKERS        |                             | MPI_COMM_WORLD          |
+| MPI_COMM_LEADERS_SHARED |                             | MPI_COMM_WORLD          |
+| MPI_COMM_LEADERS_SURF   |                             | MPI_COMM_LEADERS_SHARED |
+
+#### Feature-specific
+
+| Handle                               | Description                                                            | Derived from   |
+| ------------------------------------ | ---------------------------------------------------------------------- | -------------- |
+| PartMPI%InitGroup(nInitRegions)%COMM | Emission groups                                                        | PartMPI%COMM   |
+| SurfCOMM%UNICATOR                    | Processors with a surface side (e.g. reflective), including halo sides | MPI_COMM_WORLD |
+| CPPCOMM%UNICATOR                     | Coupled power potential                                                | MPI_COMM_WORLD |
+| EDC%COMM(iEDCBC)%UNICATOR            | Electric displacement current (per BC)                                 | MPI_COMM_WORLD |
+| FPC%COMM(iUniqueFPCBC)%UNICATOR      | Floating potential (per BC)                                            | MPI_COMM_WORLD |
+| EPC%COMM(iUniqueEPCBC)%UNICATOR      | Electric potential (per BC)                                            | MPI_COMM_WORLD |
+| BiasVoltage%COMM%UNICATOR            | Bias voltage                                                           | MPI_COMM_WORLD |

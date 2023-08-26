@@ -825,6 +825,7 @@ SUBROUTINE FinalizeAnalyze()
 ! Finalizes variables necessary for analyse subroutines
 !===================================================================================================================================
 ! MODULES
+USE MOD_Globals
 #if PP_nVar>=6
 USE MOD_Analyze_Vars       ,ONLY: CalcPoyntingInt
 USE MOD_AnalyzeField       ,ONLY: FinalizePoyntingInt
@@ -844,6 +845,7 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
+INTEGER                     :: iEDCBC
 !===================================================================================================================================
 #if PP_nVar>=6
 IF(CalcPoyntingInt) CALL FinalizePoyntingInt()
@@ -856,6 +858,9 @@ IF(CalcElectricTimeDerivative)THEN
   SDEALLOCATE(EDC%FieldBoundaries)
   SDEALLOCATE(EDC%BCIDToEDCBCID)
 #if USE_MPI
+  DO iEDCBC = 1, EDC%NBoundaries
+    IF(EDC%COMM(iEDCBC)%UNICATOR.NE.MPI_COMM_NULL) CALL MPI_COMM_FREE(EDC%COMM(iEDCBC)%UNICATOR,iERROR)
+  END DO
   SDEALLOCATE(EDC%COMM)
 #endif /*USE_MPI*/
 END IF ! CalcElectricTimeDerivative

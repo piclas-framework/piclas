@@ -149,7 +149,7 @@ USE MOD_Preproc
 USE MOD_Analyze_Vars              ,ONLY: DoSurfModelAnalyze
 USE MOD_SurfaceModel_Analyze_Vars
 USE MOD_Restart_Vars              ,ONLY: DoRestart
-USE MOD_Particle_Boundary_Vars    ,ONLY: nComputeNodeSurfSides,PartBound
+USE MOD_Particle_Boundary_Vars    ,ONLY: PartBound
 USE MOD_Particle_MPI_Vars         ,ONLY: PartMPI
 USE MOD_SurfaceModel_Vars         ,ONLY: nPorousBC, PorousBC
 USE MOD_Particle_Vars             ,ONLY: nSpecies,UseNeutralization,NeutralizationBalanceGlobal,Species
@@ -849,8 +849,6 @@ DO iBPO = 1, BPO%NPartBoundaries
                           '  OpenBC          = 1  \n'//&
           '                  ReflectiveBC    = 2  \n'//&
           '                  PeriodicBC      = 3  \n'//&
-          '                  SimpleAnodeBC   = 4  \n'//&
-          '                  SimpleCathodeBC = 5  \n'//&
           '                  RotPeriodicBC   = 6  \n'//&
           '                  SymmetryBC      = 10 \n'//&
           '                  SymmetryAxis    = 11 '

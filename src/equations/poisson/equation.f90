@@ -377,7 +377,7 @@ color = MERGE(CPPBoundaries, MPI_UNDEFINED, BConProc)
 ! set communicator id
 CPPCOMM%ID = CPPBoundaries
 
-! create new emission communicator for electric potential boundary condition communication. Pass MPI_INFO_NULL as rank to follow the original ordering
+! create new emission communicator for coupled power potential communication. Pass MPI_INFO_NULL as rank to follow the original ordering
 CALL MPI_COMM_SPLIT(MPI_COMM_WORLD, color, MPI_INFO_NULL, CPPCOMM%UNICATOR, iError)
 
 ! Find my rank on the shared communicator, comm size and proc name

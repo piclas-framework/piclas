@@ -435,10 +435,6 @@ DO iPartBound=1,nPartBound
   CASE('periodic')
     PartBound%TargetBoundCond(iPartBound) = PartBound%PeriodicBC
     PartMeshHasPeriodicBCs = .TRUE.
-  CASE('simple_anode')
-    PartBound%TargetBoundCond(iPartBound) = PartBound%SimpleAnodeBC
-  CASE('simple_cathode')
-    PartBound%TargetBoundCond(iPartBound) = PartBound%SimpleCathodeBC
   CASE('symmetric')
 #if defined(IMPA) || defined(ROS)
     PartMeshHasReflectiveBCs=.TRUE.
