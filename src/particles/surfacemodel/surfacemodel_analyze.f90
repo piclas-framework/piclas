@@ -150,7 +150,6 @@ USE MOD_Analyze_Vars              ,ONLY: DoSurfModelAnalyze
 USE MOD_SurfaceModel_Analyze_Vars
 USE MOD_Restart_Vars              ,ONLY: DoRestart
 USE MOD_Particle_Boundary_Vars    ,ONLY: PartBound
-USE MOD_Particle_MPI_Vars         ,ONLY: PartMPI
 USE MOD_SurfaceModel_Vars         ,ONLY: nPorousBC, PorousBC
 USE MOD_Particle_Vars             ,ONLY: nSpecies,UseNeutralization,NeutralizationBalanceGlobal,Species
 #if USE_MPI
@@ -193,7 +192,7 @@ IF(SurfCOMM%UNICATOR.EQ.MPI_COMM_NULL) RETURN
 SurfModelAnalyzeSampleTime = Time - SurfModelAnalyzeSampleTime ! Set SurfModelAnalyzeSampleTime=Time at the end of this routine
 OutputCounter = 2
 unit_index = 636
-IF(PartMPI%MPIRoot)THEN
+IF(MPIRoot)THEN
   INQUIRE(UNIT   = unit_index , OPENED = isOpen)
   IF(.NOT.isOpen)THEN
     outfile = 'SurfaceAnalyze.csv'
@@ -288,7 +287,7 @@ IF (CalcElectronSEE)            CALL SyncElectronSEE()
 ! Output Analyzed variables
 !===================================================================================================================================
 #if USE_MPI
-IF(PartMPI%MPIRoot)THEN
+IF(MPIRoot)THEN
 #endif /*USE_MPI*/
   WRITE(unit_index,'(E23.16E3)',ADVANCE='NO') Time
   IF(CalcSurfCollCounter)THEN
@@ -416,8 +415,8 @@ IF(PartMPI%MPIRoot)THEN
     ! Reset BPO containers
     DO iPartBound = 1, BPO%NPartBoundaries
       DO iSpec = 1, BPO%NSpecies
-        ! Reset PartMPI%MPIRoot counters after writing the data to the file,
-        ! non-PartMPI%MPIRoot are reset in SyncBoundaryParticleOutput()
+        ! Reset MPIRoot counters after writing the data to the file,
+        ! non-MPIRoot are reset in SyncBoundaryParticleOutput()
         BPO%RealPartOut(iPartBound,iSpec) = 0.
       END DO ! iSpec = 1, BPO%NSpecies
     END DO ! iPartBound = 1, BPO%NPartBoundaries
@@ -432,8 +431,8 @@ IF(PartMPI%MPIRoot)THEN
       ELSE
         CALL WriteDataInfo(unit_index,RealScalar=SEE%RealElectronOut(iPartBound)/SurfModelAnalyzeSampleTime)
       END IF ! ABS(SurfModelAnalyzeSampleTime).LE.0.0
-        ! Reset PartMPI%MPIRoot counters after writing the data to the file,
-        ! non-PartMPI%MPIRoot are reset in SyncBoundaryParticleOutput()
+        ! Reset MPIRoot counters after writing the data to the file,
+        ! non-MPIRoot are reset in SyncBoundaryParticleOutput()
         SEE%RealElectronOut(iPartBound) = 0.
     END DO ! iPartBound = 1, SEE%NPartBoundaries
   END IF ! CalcElectronSEE
@@ -594,7 +593,6 @@ USE MOD_Preproc
 USE MOD_Particle_Vars             ,ONLY: nSpecies
 USE MOD_SurfaceModel_Analyze_Vars ,ONLY: SurfAnalyzeCount, SurfAnalyzeNumOfAds, SurfAnalyzeNumOfDes
 #if USE_MPI
-USE MOD_Particle_MPI_Vars         ,ONLY: PartMPI
 USE MOD_Particle_Boundary_Vars    ,ONLY: SurfCOMM
 #endif /*USE_MPI*/
 ! IMPLICIT VARIABLE HANDLING
@@ -616,7 +614,7 @@ DO iSpec = 1,nSpecies
 END DO
 
 #if USE_MPI
-IF(PartMPI%MPIRoot)THEN
+IF(MPIRoot)THEN
   CALL MPI_REDUCE(MPI_IN_PLACE,SurfCollNum ,nSpecies,MPI_INTEGER,MPI_SUM,0,SurfCOMM%UNICATOR,IERROR)
   CALL MPI_REDUCE(MPI_IN_PLACE,AdsorbNum   ,nSpecies,MPI_INTEGER,MPI_SUM,0,SurfCOMM%UNICATOR,IERROR)
   CALL MPI_REDUCE(MPI_IN_PLACE,DesorbNum   ,nSpecies,MPI_INTEGER,MPI_SUM,0,SurfCOMM%UNICATOR,IERROR)
@@ -643,7 +641,6 @@ SUBROUTINE GetPorousBCInfo()
 USE MOD_Globals
 USE MOD_SurfaceModel_Vars         ,ONLY: nPorousBC
 USE MOD_SurfaceModel_Analyze_Vars ,ONLY: PorousBCOutput
-USE MOD_Particle_MPI_Vars         ,ONLY: PartMPI
 #if USE_MPI
 USE MOD_Particle_Boundary_Vars    ,ONLY: SurfCOMM
 #endif /*USE_MPI*/
@@ -658,14 +655,14 @@ IMPLICIT NONE
 INTEGER            :: iPBC
 !===================================================================================================================================
 #if USE_MPI
-IF(PartMPI%MPIRoot)THEN
+IF(MPIRoot)THEN
   CALL MPI_REDUCE(MPI_IN_PLACE  , PorousBCOutput, 5*nPorousBC, MPI_DOUBLE_PRECISION, MPI_SUM, 0, SurfCOMM%UNICATOR, iError)
 ELSE
   CALL MPI_REDUCE(PorousBCOutput, PorousBCOutput, 5*nPorousBC, MPI_DOUBLE_PRECISION, MPI_SUM, 0, SurfCOMM%UNICATOR, iError)
 END IF
 #endif /*USE_MPI*/
 
-IF(PartMPI%MPIRoot)THEN
+IF(MPIRoot)THEN
   DO iPBC = 1, nPorousBC
     IF(PorousBCOutput(1,iPBC).GT.0.0)THEN
       ! Pumping Speed (Output(2)) is the sum of all elements (counter over particles exiting through pump)
@@ -686,7 +683,6 @@ SUBROUTINE SyncBoundaryParticleOutput()
 ! MODULES
 USE MOD_Globals
 USE MOD_SurfaceModel_Analyze_Vars ,ONLY: BPO
-USE MOD_Particle_MPI_Vars         ,ONLY: PartMPI
 USE MOD_Particle_Boundary_Vars    ,ONLY: SurfCOMM
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -700,7 +696,7 @@ REAL    :: SendBuf(1:BPO%NPartBoundaries*BPO%NSpecies)
 INTEGER :: SendBufSize
 !===================================================================================================================================
 SendBufSize = BPO%NPartBoundaries*BPO%NSpecies
-IF(PartMPI%MPIRoot)THEN
+IF(MPIRoot)THEN
   ! Map 2D array to vector for sending via MPI
   SendBuf = RESHAPE(BPO%RealPartOut,(/SendBufSize/))
   CALL MPI_REDUCE(MPI_IN_PLACE,SendBuf(1:SendBufSize),SendBufSize,MPI_DOUBLE_PRECISION,MPI_SUM,0,SurfCOMM%UNICATOR,IERROR)
@@ -726,7 +722,6 @@ SUBROUTINE SyncElectronSEE()
 ! MODULES
 USE MOD_Globals
 USE MOD_SurfaceModel_Analyze_Vars ,ONLY: SEE
-USE MOD_Particle_MPI_Vars         ,ONLY: PartMPI
 USE MOD_Particle_Boundary_Vars    ,ONLY: SurfCOMM
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -737,11 +732,11 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 !===================================================================================================================================
-IF (PartMPI%MPIRoot) THEN
+IF (MPIRoot) THEN
   CALL MPI_REDUCE(MPI_IN_PLACE        , SEE%RealElectronOut, SEE%NPartBoundaries,MPI_DOUBLE_PRECISION,MPI_SUM,0,SurfCOMM%UNICATOR,IERROR)
 ELSE
   CALL MPI_REDUCE(SEE%RealElectronOut , 0                  , SEE%NPartBoundaries,MPI_DOUBLE_PRECISION,MPI_SUM,0,SurfCOMM%UNICATOR,IERROR)
-  ! Reset non PartMPI%MPIRoot counters, PartMPI%MPIRoot counters are reset after writing the data to the file
+  ! Reset non MPIRoot counters, MPIRoot counters are reset after writing the data to the file
   SEE%RealElectronOut = 0.
 END IF
 

@@ -170,8 +170,9 @@ REAL,ALLOCATABLE               :: SortedLambda(:,:,:)          ! lambda, ((PP_N+
 INTEGER                        :: SortedOffset,SortedStart,SortedEnd
 #ifdef PARTICLES
 INTEGER                        :: i,j,k,iElem
+REAL,ALLOCATABLE               :: BVDataHDF5(:,:)
 #endif /*PARTICLES*/
-REAL,ALLOCATABLE               :: FPCDataHDF5(:,:),EPCDataHDF5(:,:),BVDataHDF5(:,:)
+REAL,ALLOCATABLE               :: FPCDataHDF5(:,:),EPCDataHDF5(:,:)
 INTEGER                        :: nVarFPC,nVarEPC
 #endif /*USE_HDG*/
 !===================================================================================================================================

@@ -156,15 +156,15 @@ that either a communicator exists and/or every (other) processor has been set to
 
 ### Available communicators
 
-| Handle                  | Description                 | Derived from            |
-| ----------------------- | --------------------------- | ----------------------- |
-| MPI_COMM_WORLD          | Default global communicator | -                       |
-| MPI_COMM_SHARED         |                             | MPI_COMM_WORLD          |
-| MPI_COMM_NODE           |                             | MPI_COMM_WORLD          |
-| MPI_COMM_LEADERS        |                             | MPI_COMM_WORLD          |
-| MPI_COMM_WORKERS        |                             | MPI_COMM_WORLD          |
-| MPI_COMM_LEADERS_SHARED |                             | MPI_COMM_WORLD          |
-| MPI_COMM_LEADERS_SURF   |                             | MPI_COMM_LEADERS_SHARED |
+| Handle                  | Description                                   | Derived from            |
+| ----------------------- | --------------------------------------------- | ----------------------- |
+| MPI_COMM_WORLD          | Default global communicator                   | -                       |
+| MPI_COMM_NODE           | Processors on a node                          | MPI_COMM_WORLD          |
+| MPI_COMM_LEADERS        | Group of node leaders                         | MPI_COMM_WORLD          |
+| MPI_COMM_WORKERS        | All remaining processors, who are not leaders | MPI_COMM_WORLD          |
+| MPI_COMM_SHARED         | Processors on a node                          | MPI_COMM_WORLD          |
+| MPI_COMM_LEADERS_SHARED | Group of node leaders (myComputeNodeRank = 0) | MPI_COMM_WORLD          |
+| MPI_COMM_LEADERS_SURF   | Node leaders with surface sides               | MPI_COMM_LEADERS_SHARED |
 
 #### Feature-specific
 

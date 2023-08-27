@@ -601,7 +601,7 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER                                :: iSide,firstSide,lastSide,iSurfSide,GlobalSideID
-INTEGER                                :: nSurfSidesProc
+INTEGER                                :: nSurfSidesProc, nBCSidesProc
 INTEGER                                :: offsetSurfTotalSidesProc
 INTEGER,ALLOCATABLE                    :: GlobalSide2SurfSideProc(:,:)
 #if USE_MPI
@@ -650,6 +650,7 @@ ALLOCATE(GlobalSide2SurfSideProc(1:3,1:nComputeNodeSides))
 
 GlobalSide2SurfSideProc    = -1
 nComputeNodeSurfSides      = 0
+nBCSidesProc               = 0
 nSurfSidesProc             = 0
 
 ! check every BC side
@@ -661,6 +662,8 @@ DO iSide = firstSide,lastSide
   ! ignore sides outside of halo region
   IF (ElemInfo_Shared(ELEM_HALOFLAG,SideInfo_Shared(SIDE_ELEMID,iSide)).EQ.0) CYCLE
 #endif /*USE_MPI*/
+
+  nBCSidesProc = nBCSidesProc + 1
 
   ! count number of reflective and rotationally periodic BC sides
   IF ((PartBound%TargetBoundCond(PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,iSide))).EQ.PartBound%ReflectiveBC) .OR. &
@@ -849,14 +852,14 @@ END IF
 ! free temporary arrays
 DEALLOCATE(GlobalSide2SurfSideProc)
 
-! create a communicator between processors with a surface side (including sides in the halo region)
+! create a communicator between processors with a BC side (including open BCs and sides in the halo region)
 #if USE_MPI
 ! Set the control of subset assignment (nonnegative integer). Processes with the same color are in the same new communicator.
 ! Make sure to include the root
 IF(MPIRoot) THEN
   color = 1337
 ELSE
-  color = MERGE(1337, MPI_UNDEFINED, nSurfSidesProc.GT.0)
+  color = MERGE(1337, MPI_UNDEFINED, nBCSidesProc.GT.0)
 END IF
 ! Create new surface communicator. Pass MPI_INFO_NULL as rank to follow the original ordering
 CALL MPI_COMM_SPLIT(MPI_COMM_WORLD, color, MPI_INFO_NULL, SurfCOMM%UNICATOR, iError)
@@ -866,7 +869,7 @@ IF(SurfCOMM%UNICATOR.NE.MPI_COMM_NULL)THEN
   CALL MPI_COMM_SIZE(SurfCOMM%UNICATOR, SurfCOMM%nProcs, iError)
   ! inform about size of emission communicator
   LBWRITE(UNIT_StdOut,'(A,I0,A)') ' Surface sides: Communicator on ', SurfCOMM%nProcs,' procs'
-END IF ! nSurfSidesProc.GT.0
+END IF ! nBCSidesProc.GT.0
 #endif /*USE_MPI*/
 
 LBWRITE(UNIT_stdOut,'(A)') ' INIT SURFACE SIDES DONE!'
