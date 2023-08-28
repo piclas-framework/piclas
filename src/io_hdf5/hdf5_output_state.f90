@@ -83,7 +83,7 @@ USE MOD_Particle_Vars          ,ONLY: CalcBulkElectronTemp,BulkElectronTemp
 #ifdef PP_POIS
 USE MOD_Equation_Vars          ,ONLY: E,Phi
 #endif /*PP_POIS*/
-#if (PP_TimeDiscMethod==600) /*DVM*/
+#ifdef discrete_velocity
 USE MOD_DistFunc               ,ONLY: MacroValuesFromDistribution
 USE MOD_TimeDisc_Vars          ,ONLY: dt
 #endif
@@ -172,7 +172,7 @@ REAL                           :: Utemp(1:7,0:PP_N,0:PP_N,0:PP_N,PP_nElems)
 REAL,ALLOCATABLE               :: Utemp(:,:,:,:,:)
 #endif /*not maxwell*/
 #endif /*PP_POIS*/
-#if (PP_TimeDiscMethod==600) /*DVM*/
+#ifdef discrete_velocity
 REAL                           :: tau
 INTEGER                        :: iElem
 #endif /*DVM*/
@@ -519,11 +519,10 @@ ASSOCIATE (&
 #endif /*PP_POIS*/
 
 #if USE_FV
-#if (PP_TimeDiscMethod==600) /*DVM*/
+#ifdef discrete_velocity
   DO iElem=1,INT(PP_nElems)
-    ! CALL MacroValuesFromDistribution(Utemp(1:8,0,0,0,iElem),U_FV(:,0,0,0,iElem),dt,tau,1)
-    ! Utemp(9,0,0,0,iElem) = dt/tau
-    Utemp = 0.
+    CALL MacroValuesFromDistribution(Utemp(1:8,0,0,0,iElem),U_FV(:,0,0,0,iElem),dt,tau,1)
+    Utemp(9,0,0,0,iElem) = dt/tau
   END DO
   CALL GatheredWriteArray(FileName,create=.FALSE.,&
       DataSetName='DVM_Solution', rank=5,&
