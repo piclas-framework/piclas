@@ -94,6 +94,19 @@ Var_slave = 0.; Var_master = 0.; Diff_side = 0.; Gradient_elem = 0.
 
 GradLimiterType=GETINT('Grad-LimiterType')
 GradLimVktK=GETREAL('Grad-VktK')
+SELECT CASE(GradLimiterType)
+CASE(0)
+  SWRITE(UNIT_stdOut,*)'Limiter = 0 -> first order FV'
+CASE(1) !minmax
+  SWRITE(UNIT_stdOut,*)'Using MinMax Limiter'
+CASE(4) !venkatakrishnan
+  SWRITE(UNIT_stdOut,*)'Using Venkatakrishnan limiter with K =', GradLimVktK
+CASE(9) ! no limiter (central)
+  SWRITE(UNIT_stdOut,*)'Not using any limiter'
+CASE DEFAULT
+  CALL abort(__STAMP__,'Limiter type not implemented.')
+END SELECT
+
 Grad_PerBoxMin(:)=GETREALARRAY('Grad-PeriodicBoxMin',3)
 Grad_PerBoxMax(:)=GETREALARRAY('Grad-PeriodicBoxMax',3)
 

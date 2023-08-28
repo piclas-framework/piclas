@@ -38,7 +38,7 @@ FUNCTION CALCTIMESTEP()
 ! MODULES
 USE MOD_Globals
 USE MOD_PreProc
-USE MOD_Mesh_Vars     ,ONLY: sJ,Metrics_fTilde,Metrics_gTilde,Metrics_hTilde
+USE MOD_Mesh_Vars     ,ONLY: sJ,Metrics_fTilde_FV,Metrics_gTilde_FV,Metrics_hTilde_FV
 USE MOD_Equation_Vars_FV,      ONLY:DVMVelos, DVMnVelos
 USE MOD_TimeDisc_Vars ,ONLY: CFLScale
 ! IMPLICIT VARIABLE HANDLING
@@ -65,11 +65,11 @@ DO iElem=1,PP_nElems
         ! Convective Eigenvalues
 ! VERSION 1 & 2: -----------------------------
         Max_Lambda1=MAX(Max_Lambda1,sJ(i,j,k,iElem)*(MAX(ABS(DVMVelos(1,1)),ABS(DVMVelos(DVMnVelos(1),1))) &
-                        *SQRT(SUM(Metrics_fTilde(:,i,j,k,iElem)*Metrics_fTilde(:,i,j,k,iElem)))))
+                        *SQRT(SUM(Metrics_fTilde_FV(:,i,j,k,iElem)*Metrics_fTilde_FV(:,i,j,k,iElem)))))
         Max_Lambda2=MAX(Max_Lambda2,sJ(i,j,k,iElem)*(MAX(ABS(DVMVelos(1,2)),ABS(DVMVelos(DVMnVelos(1),2))) &
-                        *SQRT(SUM(Metrics_gTilde(:,i,j,k,iElem)*Metrics_gTilde(:,i,j,k,iElem)))))
+                        *SQRT(SUM(Metrics_gTilde_FV(:,i,j,k,iElem)*Metrics_gTilde_FV(:,i,j,k,iElem)))))
         Max_Lambda3=MAX(Max_Lambda3,sJ(i,j,k,iElem)*(MAX(ABS(DVMVelos(1,3)),ABS(DVMVelos(DVMnVelos(1),3))) &
-                        *SQRT(SUM(Metrics_hTilde(:,i,j,k,iElem)*Metrics_hTilde(:,i,j,k,iElem)))))
+                        *SQRT(SUM(Metrics_hTilde_FV(:,i,j,k,iElem)*Metrics_hTilde_FV(:,i,j,k,iElem)))))
 ! --------------------------------------------
 ! VERSION 3: ---------------------------------
 !        Max_Lambda1=MAX(&

@@ -97,7 +97,7 @@ MacroVal(1) = rho
 MacroVal(2:4) = uVelo
 MacroVal(5) = (rhoE - 0.5*(DOT_PRODUCT(rhoU,rhoU))/rho)/cV
 pressure = DVMSpeciesData%R_S*MacroVal(1)*MacroVal(5)
-!IF (MacroVal(5).LE.0) CALL abort(__STAMP__,'DVM negative temperature!')
+IF (MacroVal(5).LE.0) CALL abort(__STAMP__,'DVM negative temperature!')
 mu = DVMSpeciesData%mu_Ref*(MacroVal(5)/DVMSpeciesData%T_Ref)**DVMSpeciesData%omegaVHS
 tau = 0.
 tau = mu/pressure
