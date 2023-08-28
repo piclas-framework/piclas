@@ -575,6 +575,7 @@ USE MOD_Particle_Boundary_Vars  ,ONLY: PartBound
 USE MOD_Particle_Boundary_Vars  ,ONLY: nComputeNodeSurfSides,nComputeNodeSurfTotalSides,nComputeNodeSurfOutputSides
 USE MOD_Particle_Boundary_Vars  ,ONLY: GlobalSide2SurfSide,SurfSide2GlobalSide
 #if USE_MPI
+USE MOD_Mesh_Vars               ,ONLY: nBCSides, offsetElem, SideToElem
 USE MOD_Particle_Mesh_Vars      ,ONLY: ElemInfo_Shared
 USE MOD_MPI_Shared
 USE MOD_MPI_Shared_Vars         ,ONLY: MPI_COMM_SHARED
@@ -609,7 +610,7 @@ INTEGER                                :: offsetSurfSidesProc
 INTEGER                                :: GlobalElemID,GlobalElemRank
 INTEGER                                :: sendbuf,recvbuf
 INTEGER                                :: NbGlobalElemID, NbElemRank, NbLeaderID, nSurfSidesTmp
-INTEGER                               :: color
+INTEGER                                :: color
 #endif /*USE_MPI*/
 INTEGER                                :: NbGlobalSideID
 !===================================================================================================================================
@@ -650,7 +651,6 @@ ALLOCATE(GlobalSide2SurfSideProc(1:3,1:nComputeNodeSides))
 
 GlobalSide2SurfSideProc    = -1
 nComputeNodeSurfSides      = 0
-nBCSidesProc               = 0
 nSurfSidesProc             = 0
 
 ! check every BC side
@@ -662,8 +662,6 @@ DO iSide = firstSide,lastSide
   ! ignore sides outside of halo region
   IF (ElemInfo_Shared(ELEM_HALOFLAG,SideInfo_Shared(SIDE_ELEMID,iSide)).EQ.0) CYCLE
 #endif /*USE_MPI*/
-
-  nBCSidesProc = nBCSidesProc + 1
 
   ! count number of reflective and rotationally periodic BC sides
   IF ((PartBound%TargetBoundCond(PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,iSide))).EQ.PartBound%ReflectiveBC) .OR. &
@@ -854,6 +852,15 @@ DEALLOCATE(GlobalSide2SurfSideProc)
 
 ! create a communicator between processors with a BC side (including open BCs and sides in the halo region)
 #if USE_MPI
+! Count the number of BC sides per processors. Note: cannot be done in the loop above, since it might happen that a processor
+! might not get his own elements and thus will not be added to the communicator.
+nBCSidesProc = 0
+DO iSide=1,nBCSides
+  GlobalElemID = SideToElem(S2E_ELEM_ID,iSide) + offsetElem
+  IF (ElemInfo_Shared(ELEM_HALOFLAG,GlobalElemID).EQ.0) CYCLE
+  nBCSidesProc = nBCSidesProc + 1
+END DO
+
 ! Set the control of subset assignment (nonnegative integer). Processes with the same color are in the same new communicator.
 ! Make sure to include the root
 IF(MPIRoot) THEN

@@ -696,15 +696,14 @@ REAL    :: SendBuf(1:BPO%NPartBoundaries*BPO%NSpecies)
 INTEGER :: SendBufSize
 !===================================================================================================================================
 SendBufSize = BPO%NPartBoundaries*BPO%NSpecies
+
+! Map 2D array to vector for sending via MPI
+SendBuf = RESHAPE(BPO%RealPartOut,(/SendBufSize/))
 IF(MPIRoot)THEN
-  ! Map 2D array to vector for sending via MPI
-  SendBuf = RESHAPE(BPO%RealPartOut,(/SendBufSize/))
   CALL MPI_REDUCE(MPI_IN_PLACE,SendBuf(1:SendBufSize),SendBufSize,MPI_DOUBLE_PRECISION,MPI_SUM,0,SurfCOMM%UNICATOR,IERROR)
   ! MAP vector back to 2D array
   BPO%RealPartOut = RESHAPE(SendBuf,(/BPO%NPartBoundaries,BPO%NSpecies/))
 ELSE
-  ! Map 2D array to vector for sending via MPI
-  SendBuf = RESHAPE(BPO%RealPartOut,(/SendBufSize/))
   CALL MPI_REDUCE(SendBuf(1:SendBufSize),0,SendBufSize,MPI_DOUBLE_PRECISION,MPI_SUM,0,SurfCOMM%UNICATOR,IERROR)
   ! Reset non SurfCOMM%UNICATOR counters, SurfCOMM%UNICATOR counters are reset after writing the data to the file
   BPO%RealPartOut = 0.
