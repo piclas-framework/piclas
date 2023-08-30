@@ -697,7 +697,7 @@ END IF
 
 ! Loop over number of sub-samples
 NbrOfSamples = 20 ! Nloc+1 ! must be at least 3 for this sampling method (one point between the two intersections of the element)!
-scaleFac = 1./REAL(NbrOfSamples)
+!scaleFac = 1./REAL(NbrOfSamples)
 subdirection(1:3) = direction(1:3)/REAL(NbrOfSamples-1)
 sublength = VECNORM(subdirection(1:3))
 !scaleFac = 1.
@@ -709,35 +709,40 @@ realcounter = 0.0
 DO iIntersec = 1, NbrOfSamples
   SamplePos = PhotonProps%PhotonStartPos(1:3) + direction(1:3)*REAL(iIntersec-1)/REAL(NbrOfSamples-1)
 
-  ! Get position in reference element
-  CALL GetPositionInRefElem(SamplePos(1:3),IntersectionPosRef(1:3),GlobalElemID)
+  !              ! Get position in reference element
+  !              CALL GetPositionInRefElem(SamplePos(1:3),IntersectionPosRef(1:3),GlobalElemID)
 
-  k = a
-  DO ii = 0,b-1
-    IF(ABS(IntersectionPosRef(1)).GE.N_Inter_Ray(Nloc)%GaussBorder(Nloc-ii))THEN
-      k = Nloc-ii
-      EXIT
-    END IF
-  END DO
-  k = NINT((Nloc+SIGN(2.0*k-Nloc,IntersectionPosRef(1)))/2)
-  !! y-direction
-  l = a
-  DO ii = 0,b-1
-    IF(ABS(IntersectionPosRef(2)).GE.N_Inter_Ray(Nloc)%GaussBorder(Nloc-ii))THEN
-      l = Nloc-ii
-      EXIT
-    END IF
-  END DO
-  l = NINT((Nloc+SIGN(2.0*l-Nloc,IntersectionPosRef(2)))/2)
-  !! z-direction
-  m = a
-  DO ii = 0,b-1
-    IF(ABS(IntersectionPosRef(3)).GE.N_Inter_Ray(Nloc)%GaussBorder(Nloc-ii))THEN
-      m = Nloc-ii
-      EXIT
-    END IF
-  END DO
-  m = NINT((Nloc+SIGN(2.0*m-Nloc,IntersectionPosRef(3)))/2)
+  !              k = a
+  !              DO ii = 0,b-1
+  !                IF(ABS(IntersectionPosRef(1)).GE.N_Inter_Ray(Nloc)%GaussBorder(Nloc-ii))THEN
+  !                  k = Nloc-ii
+  !                  EXIT
+  !                END IF
+  !              END DO
+  !              k = NINT((Nloc+SIGN(2.0*k-Nloc,IntersectionPosRef(1)))/2)
+  !              !! y-direction
+  !              l = a
+  !              DO ii = 0,b-1
+  !                IF(ABS(IntersectionPosRef(2)).GE.N_Inter_Ray(Nloc)%GaussBorder(Nloc-ii))THEN
+  !                  l = Nloc-ii
+  !                  EXIT
+  !                END IF
+  !              END DO
+  !              l = NINT((Nloc+SIGN(2.0*l-Nloc,IntersectionPosRef(2)))/2)
+  !              !! z-direction
+  !              m = a
+  !              DO ii = 0,b-1
+  !                IF(ABS(IntersectionPosRef(3)).GE.N_Inter_Ray(Nloc)%GaussBorder(Nloc-ii))THEN
+  !                  m = Nloc-ii
+  !                  EXIT
+  !                END IF
+  !              END DO
+  !              m = NINT((Nloc+SIGN(2.0*m-Nloc,IntersectionPosRef(3)))/2)
+
+  CALL GetPositionInRefElem(SamplePos(1:3),IntersectionPosRef(1:3),GlobalElemID)
+  k = MINLOC(ABS(N_Inter_Ray(Nloc)%xGP(:) - IntersectionPosRef(1)),DIM=1) - 1
+  l = MINLOC(ABS(N_Inter_Ray(Nloc)%xGP(:) - IntersectionPosRef(2)),DIM=1) - 1
+  m = MINLOC(ABS(N_Inter_Ray(Nloc)%xGP(:) - IntersectionPosRef(3)),DIM=1) - 1
 
   ! Scaling factor to ensure that rays that are counted multiple times in high-order elements do not increase the total energy
   ! deposited in the corresponding element
@@ -1341,7 +1346,7 @@ INTEGER                         :: SurfSideID,p,q,pp,qq
 LOGICAL                         :: ForceWallSampleLoc
 !--------------------------------------------------------------------------------------------------!
 #if USE_MPI
-ASSOCIATE( PhotonSampWall => PhotonSampWallProc )
+ASSOCIATE( PhotonSampWallProc => PhotonSampWall )
 #endif /*USE_MPI*/
 SurfSideID = GlobalSide2SurfSide(SURF_SIDEID,GlobSideID)
 ! Check if photon is to be added to PhotonSampWall independent of the actual absorption/reflection
@@ -1361,8 +1366,8 @@ IF(PRESENT(ForceWallSample))THEN
           END IF ! distance.LT.distanceMin
         END DO ! q = 1, nSurfSample
       END DO ! p = 1, nSurfSample
-      PhotonSampWallProc(1,p,q,SurfSideID) = PhotonSampWallProc(1,p,q,SurfSideID) + 1.0
-      PhotonSampWallProc(2,p,q,SurfSideID) = PhotonSampWallProc(2,p,q,SurfSideID) + PhotonProps%PhotonEnergy
+      PhotonSampWall(1,p,q,SurfSideID) = PhotonSampWall(1,p,q,SurfSideID) + 1.0
+      PhotonSampWall(2,p,q,SurfSideID) = PhotonSampWall(2,p,q,SurfSideID) + PhotonProps%PhotonEnergy
     ELSE
       PhotonSampWall(1,1,1,SurfSideID) = PhotonSampWall(1,1,1,SurfSideID) + 1.0
       PhotonSampWall(2,1,1,SurfSideID) = PhotonSampWall(2,1,1,SurfSideID) + PhotonProps%PhotonEnergy

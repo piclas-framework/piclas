@@ -259,6 +259,7 @@ IMPLICIT NONE
 CHARACTER(LEN=255)                  :: Statedummy
 CHARACTER(LEN=255)                  :: H5_Name, H5_Name2
 CHARACTER(LEN=4),PARAMETER          :: NodeTypeTemp = 'VISU'
+!CHARACTER(LEN=4),PARAMETER          :: NodeTypeTemp = 'VISU_INNER'
 CHARACTER(LEN=255),ALLOCATABLE      :: Str2DVarNames(:)
 INTEGER                             :: GlobalSideID, iSurfSide, OutputCounter, SurfSideNb, p, q
 INTEGER,PARAMETER                   :: nVar2D=3

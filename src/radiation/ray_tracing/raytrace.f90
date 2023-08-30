@@ -261,7 +261,7 @@ USE MOD_IO_HDF5
 USE MOD_PreProc
 USE MOD_HDF5_Input             ,ONLY: ReadArray,DatasetExists,GetDataSize,nDims,HSize,File_ID
 USE MOD_Photon_TrackingVars    ,ONLY: RadiationSurfState,RadiationVolState,PhotonSampWall_loc
-USE MOD_Photon_TrackingVars    ,ONLY: PhotonSampWallHDF5,PhotonSampWallHDF5_Shared,PhotonSampWallHDF5_Shared_Win
+USE MOD_Photon_TrackingVars    ,ONLY: PhotonSampWallHDF5
 USE MOD_Mesh_Vars              ,ONLY: offsetElem,nElems,nGlobalElems
 USE MOD_RayTracing_Vars        ,ONLY: N_DG_Ray_loc,Ray,nVarRay,U_N_Ray_loc,PREF_VDM_Ray,N_Inter_Ray,RayElemEmission
 USE MOD_ChangeBasis            ,ONLY: ChangeBasis3D
@@ -272,6 +272,7 @@ USE MOD_Particle_Mesh_Tools    ,ONLY: GetGlobalNonUniqueSideID
 #if USE_MPI
 USE MOD_MPI_Shared
 USE MOD_MPI_Shared_Vars        ,ONLY: MPI_COMM_SHARED,myComputeNodeRank
+USE MOD_Photon_TrackingVars    ,ONLY: PhotonSampWallHDF5_Shared,PhotonSampWallHDF5_Shared_Win
 #endif /*USE_MPI*/
 !#if MPI
 !#endif /*MPI*/

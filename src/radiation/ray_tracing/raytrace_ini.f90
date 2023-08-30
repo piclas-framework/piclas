@@ -117,6 +117,7 @@ IF(PerformRayTracing)THEN
 END IF ! PerformRayTracing
 
 Ray%NodeType = NodeTypeVISU
+!Ray%NodeType = 'VISU_INNER'
 
 ! Output of high-order p-adaptive info
 Ray%NMin = 1 ! GETINT('RayTracing-NMin')
@@ -549,8 +550,8 @@ USE MOD_RayTracing_Vars
 #if USE_MPI
 USE MOD_MPI_Shared_Vars     ,ONLY: MPI_COMM_SHARED
 USE MOD_MPI_Shared
-USE MOD_Photon_TrackingVars
 #endif /*USE_MPI*/
+USE MOD_Photon_TrackingVars
 USE MOD_Mesh_Vars           ,ONLY: nGlobalElems
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------!
