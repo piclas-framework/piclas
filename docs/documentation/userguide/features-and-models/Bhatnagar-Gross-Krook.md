@@ -36,9 +36,9 @@ A parameter file and species initialization file is required, analogous to the D
 
     Particles-BGK-CollModel = 1
 
-The **recommended method is ESBGK**. If the simulation contains a gas mixture, a choice for the determination of the transport coefficients is available. The first model uses Wilke's mixture rules (`= 1`) to calculate the gas mixture viscosity and thermal conductivity. The second model utilizes collision integrals (derived for the VHS model, `= 2`) to calculate these mixture properties.
+The **recommended method is ESBGK**. If the simulation contains a gas mixture, a choice for the determination of the transport coefficients is available. The first model uses Wilke's mixture rules (`= 1`) to calculate the gas mixture viscosity and thermal conductivity. The **recommended second model utilizes collision integrals** (derived for the VHS model, `= 2`) to calculate these mixture properties.
 
-    Particles-BGK-MixtureModel    = 1
+    Particles-BGK-MixtureModel    = 2
 
 The vibrational excitation can be controlled with the following flags, including the choice between continuous and quantized vibrational energy.
 
