@@ -1346,7 +1346,7 @@ INTEGER                         :: SurfSideID,p,q,pp,qq
 LOGICAL                         :: ForceWallSampleLoc
 !--------------------------------------------------------------------------------------------------!
 #if USE_MPI
-ASSOCIATE( PhotonSampWallProc => PhotonSampWall )
+ASSOCIATE( PhotonSampWall => PhotonSampWallProc )
 #endif /*USE_MPI*/
 SurfSideID = GlobalSide2SurfSide(SURF_SIDEID,GlobSideID)
 ! Check if photon is to be added to PhotonSampWall independent of the actual absorption/reflection
