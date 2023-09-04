@@ -243,6 +243,10 @@ IF (Symmetry%Order.LE.2) THEN
   LBWRITE(UNIT_stdOut,'(A)') "TrackingMethod set to TriaTracking due to Symmetry2D."
 END IF
 
+#if (PP_TimeDiscMethod==600)
+  ! PerformRayTracing = .TRUE. !todo: uncomment if merged with feature.radtrans.ray.tracing
+#endif
+
 LBWRITE(UNIT_stdOut,'(A)')' INIT PARTICLE GLOBALS DONE'
 
 END SUBROUTINE InitParticleGlobals
