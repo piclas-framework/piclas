@@ -14,7 +14,7 @@
 
 MODULE MOD_RadiationTrans_Vars
 !===================================================================================================================================
-! Contains the tadiation transport variables
+! Contains the radiative transfer variables
 !===================================================================================================================================
 ! MODULES
 ! IMPLICIT VARIABLE HANDLING

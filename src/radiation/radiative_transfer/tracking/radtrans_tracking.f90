@@ -14,7 +14,7 @@
 
 MODULE MOD_Photon_Tracking
 !===================================================================================================================================
-! Contains global variables provided by the particle surfaces routines
+! Routines for photon tracking in radiave transfer solver
 !===================================================================================================================================
 ! MODULES
 ! IMPLICIT VARIABLE HANDLING

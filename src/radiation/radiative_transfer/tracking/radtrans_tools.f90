@@ -14,7 +14,7 @@
 
 MODULE MOD_Photon_TrackingTools
 !===================================================================================================================================
-! Contains global variables provided by the particle surfaces routines
+! Routines for photon tracking in radiave transfer solver
 !===================================================================================================================================
 ! MODULES
 ! IMPLICIT VARIABLE HANDLING
@@ -512,7 +512,7 @@ END SUBROUTINE RotatePhotonIn2DPlane
 
 SUBROUTINE PhotonIntersectionWithSide(iLocSide,Element,TriNum, IntersectionPos, IsMortar)                                         
 !--------------------------------------------------------------------------------------------------!
-!Based on PerfectReflection3D
+! Based on PerfectReflection3D
 !--------------------------------------------------------------------------------------------------!
 USE MOD_Particle_Mesh_Vars, ONLY : ElemSideNodeID_Shared, NodeCoords_Shared
 USE MOD_RadiationTrans_Vars,         ONLY:PhotonProps 
@@ -609,7 +609,7 @@ END SUBROUTINE PhotonIntersectionWithSide
 
 SUBROUTINE CalcAbsoprtionMC(IntersectionPos,Element, DONE)
 !--------------------------------------------------------------------------------------------------!
-!Based on PerfectReflection3D
+! Calculates absorbed energy of photons along their paths stochastically
 !--------------------------------------------------------------------------------------------------!
 USE MOD_RadiationTrans_Vars,         ONLY:PhotonProps,RadiationElemAbsEnergy, RadiationElemAbsEnergySpec
 USE MOD_Radiation_Vars,              ONLY:Radiation_Absorption_spec, Radiation_Absorption_SpecPercent
@@ -646,7 +646,11 @@ USE MOD_Radiation_Vars,              ONLY:Radiation_Absorption_spec, Radiation_A
 
 END SUBROUTINE CalcAbsoprtionMC
 
+
 SUBROUTINE CalcAbsoprtionAnalytic(IntersectionPos,Element, DONE)
+!--------------------------------------------------------------------------------------------------!
+! Calculates absorbed energy of photons along their paths analytically
+!--------------------------------------------------------------------------------------------------!
 !DEC$ ATTRIBUTES FORCEINLINE :: ParticleThroughSideLastPosCheck
   USE MOD_Globals
   USE MOD_RadiationTrans_Vars,         ONLY:PhotonProps, RadTrans
@@ -696,7 +700,11 @@ SUBROUTINE CalcAbsoprtionAnalytic(IntersectionPos,Element, DONE)
 
 END SUBROUTINE CalcAbsoprtionAnalytic
 
+
 SUBROUTINE CalcAbsoprtion(IntersectionPos,Element, DONE)
+  !--------------------------------------------------------------------------------------------------!
+! Calculates absorbed energy of photons along their paths
+!--------------------------------------------------------------------------------------------------!
   USE MOD_Globals
   USE MOD_RadiationTrans_Vars,    ONLY : RadiationAbsorptionModel
 !--------------------------------------------------------------------------------------------------!
@@ -723,7 +731,7 @@ END SUBROUTINE CalcAbsoprtion
 
 SUBROUTINE PerfectPhotonReflection(iLocSide,Element,TriNum, IntersectionPos, IntersecAlreadyCalc)
 !--------------------------------------------------------------------------------------------------!
-!Based on PerfectReflection3D
+! Determines velocity vectors of photons after a perfect reflection at a boundary
 !--------------------------------------------------------------------------------------------------!
   USE MOD_Particle_Mesh_Vars,     ONLY : NodeCoords_Shared, ElemSideNodeID_Shared
   USE MOD_RadiationTrans_Vars,    ONLY : PhotonProps 
@@ -819,7 +827,7 @@ END SUBROUTINE PerfectPhotonReflection
 
 SUBROUTINE PerfectPhotonReflection2D(iLocSide,Element, IntersectionPos)
 !--------------------------------------------------------------------------------------------------!
-!Based on PerfectReflection3D
+! Determines velocity vectors of photons after a perfect reflection at a boundary (2D rotationally symmetric)
 !--------------------------------------------------------------------------------------------------!
   USE MOD_Particle_Mesh_Vars,     ONLY : SideNormalEdge2D_Shared
   USE MOD_RadiationTrans_Vars,    ONLY : PhotonProps 
@@ -865,7 +873,7 @@ END SUBROUTINE PerfectPhotonReflection2D
 
 SUBROUTINE DiffusePhotonReflection(iLocSide,Element,TriNum, IntersectionPos, IntersecAlreadyCalc)
 !--------------------------------------------------------------------------------------------------!
-!Based on PerfectReflection3D
+! Determines velocity vectors of photons after a diffuse reflection at a boundary
 !--------------------------------------------------------------------------------------------------!
   USE MOD_Particle_Mesh_Vars,     ONLY : ElemSideNodeID_Shared, NodeCoords_Shared
   USE MOD_RadiationTrans_Vars,    ONLY : PhotonProps 
@@ -973,7 +981,7 @@ END SUBROUTINE DiffusePhotonReflection
 
 SUBROUTINE DiffusePhotonReflection2D(iLocSide,Element, IntersectionPos)
 !--------------------------------------------------------------------------------------------------!
-!Based on PerfectReflection3D
+! Determines velocity vectors of photons after a diffuse reflection at a boundary (2D rotationally symmetric)
 !--------------------------------------------------------------------------------------------------!
   USE MOD_Particle_Mesh_Vars,     ONLY : SideNormalEdge2D_Shared
   USE MOD_RadiationTrans_Vars,    ONLY : PhotonProps 
@@ -1026,6 +1034,9 @@ SUBROUTINE DiffusePhotonReflection2D(iLocSide,Element, IntersectionPos)
 END SUBROUTINE DiffusePhotonReflection2D
 
 SUBROUTINE CalcWallAbsoprtion(GlobSideID, DONE)
+!--------------------------------------------------------------------------------------------------!
+! Calculates the absorbed energy if a photon hits a wall
+!--------------------------------------------------------------------------------------------------!
   USE MOD_RadiationTrans_Vars,    ONLY : PhotonSampWall, PhotonProps
   USE MOD_Particle_Boundary_Vars,      ONLY:PartBound, GlobalSide2SurfSide
   USE MOD_Particle_Mesh_Vars      ,ONLY: SideInfo_Shared
@@ -1053,7 +1064,7 @@ END SUBROUTINE CalcWallAbsoprtion
 
 LOGICAL FUNCTION PointInObsCone(Point)
 !===================================================================================================================================
-! modified particle emmission for LD case
+! checks if a point is in the opening cone of an external observer
 !===================================================================================================================================
 ! MODULES
   USE MOD_Globals
@@ -1079,7 +1090,7 @@ END FUNCTION PointInObsCone
 
 LOGICAL FUNCTION PhotonIntersectSensor(Point, Direction)
 !===================================================================================================================================
-! modified particle emmission for LD case
+! checks if the photon's apth intersect with the opening cone of an external observer
 !===================================================================================================================================
 ! MODULES
   USE MOD_Globals
@@ -1115,7 +1126,7 @@ END FUNCTION PhotonIntersectSensor
 
 LOGICAL FUNCTION PhotonOnLineOfSight(Direction)
 !===================================================================================================================================
-! modified particle emmission for LD case
+! checks if a photon is on the simulated line of sight
 !===================================================================================================================================
 ! MODULES
   USE MOD_Globals

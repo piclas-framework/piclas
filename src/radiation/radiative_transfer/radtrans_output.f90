@@ -14,7 +14,7 @@
 
 MODULE MOD_RadTrans_Output
 !===================================================================================================================================
-! Module for DSMC Sampling and Output
+! Module for output of radiative transfer solver
 !===================================================================================================================================
 ! MODULES
 ! IMPLICIT VARIABLE HANDLING
@@ -315,7 +315,7 @@ END SUBROUTINE WriteRadiationToHDF5
 
 SUBROUTINE MPI_ExchangeRadiationInfo()
 !===================================================================================================================================
-! Writes DSMC state values to HDF5
+! MPI routine for output of radiative transfer solver
 !===================================================================================================================================
 ! MODULES
   USE MOD_Globals

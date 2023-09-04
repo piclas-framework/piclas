@@ -14,7 +14,7 @@
 
 MODULE MOD_Radiation_ReadIn
 !===================================================================================================================================
-! Module for FPFLOW
+! Module for Radiation
 !===================================================================================================================================
 ! MODULES
 ! IMPLICIT VARIABLE HANDLING
@@ -42,7 +42,7 @@ CONTAINS
 
 SUBROUTINE Radiation_readin_atoms(iSpec)
 !===================================================================================================================================
-! Performs FP Momentum Evaluation
+! Reads-in species constants for atomic radiation
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
@@ -119,7 +119,7 @@ END SUBROUTINE Radiation_readin_atoms
 
 SUBROUTINE Radiation_readin_molecules(iSpec)
 !===================================================================================================================================
-! Performs FP Momentum Evaluation
+! Reads-in species constants for molecular radiation
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals

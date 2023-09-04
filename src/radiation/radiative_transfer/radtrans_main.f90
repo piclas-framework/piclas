@@ -194,7 +194,7 @@ END SUBROUTINE RadTrans_main
 
 FUNCTION SetPhotonEnergy(iElem, Point, iWave)
 !===================================================================================================================================
-!> Calculation of the vibrational temperature (zero-point search) for the TSHO (Truncated Simple Harmonic Oscillator)
+!> assigns each photon an energy
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
@@ -251,7 +251,7 @@ END FUNCTION SetPhotonEnergy
 
 FUNCTION SetPhotonPos(iElem, globPhotNum)
 !===================================================================================================================================
-!> Calculation of the vibrational temperature (zero-point search) for the TSHO (Truncated Simple Harmonic Oscillator)
+!> assigns each photon a postion
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
@@ -316,7 +316,7 @@ END FUNCTION SetPhotonPos
 
 FUNCTION SetPhotonStartDirection(iElem, iPhot, RandRot)
 !===================================================================================================================================
-! modified particle emmission for LD case
+! assigns each photon a velocity vector (direction velocity is speed of light)
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
@@ -402,7 +402,7 @@ END FUNCTION SetPhotonStartDirection
 
 FUNCTION RandomRotMatrix()
 !===================================================================================================================================
-! Calculation of the vibrational temperature (zero-point search) for the TSHO (Truncated Simple Harmonic Oscillator)
+! Rotation matrix with random rotational angle to avoid preferred directions
 !===================================================================================================================================
 ! MODULES  
   USE MOD_Globals_Vars,         ONLY : Pi 
@@ -430,7 +430,7 @@ END FUNCTION RandomRotMatrix
 
 FUNCTION SetParticleWavelengthAR(iElem)
 !===================================================================================================================================
-! modified particle emmission for LD case
+! assigns wavelength to each photon (acceptance rejection)
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
@@ -488,7 +488,7 @@ END FUNCTION SetParticleWavelengthAR
 
 FUNCTION SetParticleWavelengthBiSec(iElem)
 !===================================================================================================================================
-! modified particle emmission for LD case
+! assigns wavelength to each photon (bisection)
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
