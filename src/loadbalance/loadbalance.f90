@@ -488,7 +488,7 @@ SUBROUTINE ComputeImbalance()
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Globals
 USE MOD_LoadBalance_Vars ,ONLY: WeightSum, TargetWeight,CurrentImbalance, MaxWeight, MinWeight
-USE MOD_LoadBalance_Vars ,ONLY: ElemTime, PerformLBSample, PerformPartWeightLB, DeviationThreshold
+USE MOD_LoadBalance_Vars ,ONLY: ElemTime, PerformLBSample, DeviationThreshold
 #if !((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==42) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))
 USE MOD_LoadBalance_Vars ,ONLY: ElemTimeFieldTot,ElemTimeField
 #endif /*!((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==42) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))*/
