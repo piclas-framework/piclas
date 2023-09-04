@@ -404,7 +404,7 @@ END DO
 PetscCallA(MatAssemblyBegin(Smat_petsc,MAT_FINAL_ASSEMBLY,ierr))
 PetscCallA(MatAssemblyEnd(Smat_petsc,MAT_FINAL_ASSEMBLY,ierr))
 
-IF(SetZeroPotentialDOF) PetscCallA(MatZeroRowsColumns(Smat_petsc,1, (/0/), 1, PETSC_IGNORE, PETSC_IGNORE,ierr))
+IF(SetZeroPotentialDOF) PetscCallA(MatZeroRowsColumns(Smat_petsc,1,(/0/),1.,PETSC_NULL_VEC,PETSC_NULL_VEC,ierr))
 #endif
 
 
