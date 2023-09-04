@@ -68,7 +68,7 @@ CALL prms%CreateIntOption(    'Particles-BGK-MinPartsPerCell',      'Define mini
                                                                     'cell refinement')
 CALL prms%CreateLogicalOption('Particles-BGK-MovingAverage',        'Enable a moving average of variables for the calculation '//&
                                                                     'of the cell temperature for relaxation frequencies','.FALSE.')
-CALL prms%CreateRealOption(    'Particles-BGK-MovingAverageFac',    'Use the moving average of moments M with  '//&
+CALL prms%CreateRealOption(   'Particles-BGK-MovingAverageFac',     'Use the moving average of moments M with  '//&
                                                                     'M^n+1=AverageFac*M+(1-AverageFac)*M^n','0.01')
 CALL prms%CreateRealOption(   'Particles-BGK-SplittingDens',        'Octree-refinement will only be performed above this number '//&
                                                                     'density', '0.0')
@@ -109,7 +109,6 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER               :: iSpec, iSpec2
-REAL                  :: delta_ij
 LOGICAL               :: MoleculePresent
 !===================================================================================================================================
 LBWRITE(UNIT_stdOut,'(A)') ' INIT BGK Solver...'
@@ -118,49 +117,46 @@ ALLOCATE(SpecBGK(nSpecies))
 DO iSpec=1, nSpecies
   IF ((SpecDSMC(iSpec)%InterID.EQ.2).OR.(SpecDSMC(iSpec)%InterID.EQ.20)) MoleculePresent = .TRUE.
   ALLOCATE(SpecBGK(iSpec)%CollFreqPreFactor(nSpecies))
+  ! Calculation of the prefacor of the collision frequency per species
+  ! S. Chapman and T.G. Cowling, "The mathematical Theory of Non-Uniform Gases", Cambridge University Press, 1970, S. 87f
   DO iSpec2=1, nSpecies
-    IF (iSpec.EQ.iSpec2) THEN
-      delta_ij = 1.0
-    ELSE
-      delta_ij = 0.0
-    END IF
-    SpecBGK(iSpec)%CollFreqPreFactor(iSpec2)= 4.*(2.-delta_ij)*CollInf%dref(iSpec,iSpec2)**2.0 &
+    SpecBGK(iSpec)%CollFreqPreFactor(iSpec2)= 4.*CollInf%dref(iSpec,iSpec2)**2.0 &
         * SQRT(Pi*BoltzmannConst*CollInf%Tref(iSpec,iSpec2)*(Species(iSpec)%MassIC + Species(iSpec2)%MassIC) &
         /(2.*(Species(iSpec)%MassIC * Species(iSpec2)%MassIC)))/CollInf%Tref(iSpec,iSpec2)**(-CollInf%omega(iSpec,iSpec2) +0.5)
   END DO
 END DO
-IF ((nSpecies.GT.1).AND.(ANY(SpecDSMC(:)%PolyatomicMol))) THEN
-  CALL abort(__STAMP__,' ERROR Multispec not implemented with polyatomic molecules!')
-END IF
 
 BGKCollModel = GETINT('Particles-BGK-CollModel')
 IF ((nSpecies.GT.1).AND.(BGKCollModel.GT.1)) THEN
-      CALL abort(__STAMP__,' ERROR Multispec only with ESBGK model!')
+  CALL abort(__STAMP__,'ERROR Multispec only with ESBGK model!')
 END IF
 BGKMixtureModel = GETINT('Particles-BGK-MixtureModel')
-! ESBGK options
-ESBGKModel = GETINT('Particles-ESBGK-Model')         ! 1: Approximative, 2: Exact, 3: MetropolisHastings
+! ESBGK options for sampling: 1: Approximative, 2: Exact, 3: MetropolisHastings
+ESBGKModel = GETINT('Particles-ESBGK-Model')
+
 ! Coupled BGK with DSMC, use a number density as limit above which BGK is used, and below which DSMC is used
 CoupledBGKDSMC = GETLOGICAL('Particles-CoupledBGKDSMC')
 IF(CoupledBGKDSMC) THEN
   IF (DoVirtualCellMerge) THEN  
-    CALL abort(__STAMP__,' Virtual cell merge not implemented for coupled DSMC-BGK simulations!')
+    CALL abort(__STAMP__,'Virtual cell merge not implemented for coupled DSMC-BGK simulations!')
   END IF
   BGKDSMCSwitchDens = GETREAL('Particles-BGK-DSMC-SwitchDens')
 ELSE
   IF(RadialWeighting%DoRadialWeighting) RadialWeighting%PerformCloning = .TRUE.
 END IF
+
 ! Octree-based cell refinement, up to a certain number of particles
 DoBGKCellAdaptation = GETLOGICAL('Particles-BGK-DoCellAdaptation')
 IF(DoBGKCellAdaptation) THEN
   BGKMinPartPerCell = GETINT('Particles-BGK-MinPartsPerCell')
   IF(.NOT.DSMC%UseOctree) THEN
     DSMC%UseOctree = .TRUE.
-    IF(NGeo.GT.PP_N) CALL abort(__STAMP__,' Set PP_N to NGeo, otherwise the volume is not computed correctly.')
+    IF(NGeo.GT.PP_N) CALL abort(__STAMP__,'Set PP_N to NGeo, otherwise the volume is not computed correctly.')
     CALL DSMC_init_octree()
   END IF
 END IF
 BGKSplittingDens = GETREAL('Particles-BGK-SplittingDens')
+
 ! Moving Average
 BGKMovingAverage = GETLOGICAL('Particles-BGK-MovingAverage')
 IF(BGKMovingAverage) THEN
@@ -169,20 +165,16 @@ IF(BGKMovingAverage) THEN
   CALL BGK_init_MovingAverage()
   IF(nSpecies.GT.1) CALL abort(__STAMP__,'nSpecies >1 and molecules not implemented for BGK averaging!')
 END IF
+
 IF(MoleculePresent) THEN
   ! Vibrational modelling
   BGKDoVibRelaxation = GETLOGICAL('Particles-BGK-DoVibRelaxation')
   BGKUseQuantVibEn = GETLOGICAL('Particles-BGK-UseQuantVibEn')
-  IF ((nSpecies.GT.1).AND.(BGKUseQuantVibEn)) THEN
-    CALL abort(&
-      __STAMP__&
-      ,' ERROR Multispec not implemented for quantized vibrational energy!')
-  END IF
 END IF
 
 IF(DSMC%CalcQualityFactors) THEN
-  ALLOCATE(BGK_QualityFacSamp(1:7,nElems))
-  BGK_QualityFacSamp(1:7,1:nElems) = 0.0
+  ALLOCATE(BGK_QualityFacSamp(1:9,nElems))
+  BGK_QualityFacSamp(1:9,1:nElems) = 0.0
 END IF
 
 BGKInitDone = .TRUE.
@@ -248,6 +240,7 @@ SDEALLOCATE(BGK_QualityFacSamp)
 IF(BGKMovingAverage) CALL DeleteElemNodeAverage()
 
 END SUBROUTINE FinalizeBGK
+
 
 SUBROUTINE DeleteElemNodeAverage()
 !----------------------------------------------------------------------------------------------------------------------------------!

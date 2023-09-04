@@ -208,7 +208,9 @@ dummy_int  = CountOption('Part-nBounds') ! check if Part-nBounds is present in .
 nPartBound = GETINT('Part-nBounds')      ! get number of particle boundaries
 ! Read-in number of porous boundaries
 nPorousBC  = GETINT('Surf-nPorousBC')
-IF ((nPartBound.LE.0).OR.(dummy_int.LT.0)) CALL abort(__STAMP__  ,'ERROR: nPartBound .LE. 0:', nPartBound)
+IF((nPartBound.LE.0).OR.(dummy_int.LT.0)) CALL abort(__STAMP__  ,'ERROR: nPartBound .LE. 0:', nPartBound)
+
+IF(nPartBound.NE.nBCs) CALL abort(__STAMP__  ,'ERROR: Part-nBounds is not equal to the number of BCs read-in from the mesh!')
 
 ALLOCATE(PartBound%SourceBoundName(  1:nPartBound))
 PartBound%SourceBoundName = ''
