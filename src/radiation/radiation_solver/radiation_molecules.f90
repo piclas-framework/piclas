@@ -38,7 +38,7 @@ CONTAINS
 
 SUBROUTINE radiation_molecules(iElem, em_mol)
 !===================================================================================================================================
-! Main routine of atom radiation calculation
+! Main routine of molecular radiation calculation
 !===================================================================================================================================
 ! MODULES
   USE MOD_Globals

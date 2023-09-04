@@ -38,7 +38,7 @@ CONTAINS
 
 SUBROUTINE radiation_atoms(iElem, em_atom)
 !===================================================================================================================================
-! Main routine of atom radiation calculation
+! Main routine of atomic radiation calculation
 !===================================================================================================================================
 ! MODULES
   USE MOD_Globals
@@ -143,7 +143,7 @@ SUBROUTINE radiation_atoms(iElem, em_atom)
           * SQRT(2*BoltzmannConst * T_mean * (Species(iSpec)%MassIC + Species(jSpec)%MassIC) &
           / (Pi*Species(iSpec)%MassIC*Species(jSpec)%MassIC))
       END DO
-! PRINT*, sigma_ij, T_mean, coll_freq_ij
+      
       nLines_considered = 0
 
   ! --- loop over all transition lines
