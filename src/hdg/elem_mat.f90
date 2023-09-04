@@ -285,7 +285,7 @@ DO iElem=1,PP_nElems
       END DO !g1
     END DO !g2
   END DO !g3
-  
+
 ! Invert Dhat
 #ifdef VDM_ANALYTICAL
 ! Computes InvDhat via analytical expression (only works for Lagrange polynomials, hence the "analytical"
@@ -359,14 +359,6 @@ DO iBCSide=1,nDirichletBCSides
     Smat_BC(:,:,iLocSide,iBCSide) = Smat(:,:,iLocSide,locBCSideID,ElemID)
   END DO
 END DO
-! Fill ZeroPotentialSide Smat
-IF (ZeroPotentialSideID.GT.0) THEN
-  locBCSideID = SideToElem(S2E_LOC_SIDE_ID,ZeroPotentialSideID)
-  ElemID    = SideToElem(S2E_ELEM_ID,ZeroPotentialSideID)
-  DO iLocSide=1,6
-    Smat_zeroPotential(:,:,iLocSide) = Smat(:,:,iLocSide,locBCSideID,ElemID)
-  END DO
-END IF
 ! Fill Smat for PETSc with remaining DOFs
 DO iElem=1,PP_nElems
   DO iLocSide=1,6
@@ -411,6 +403,8 @@ DO BCsideID=1,nConductorBCsides
 END DO
 PetscCallA(MatAssemblyBegin(Smat_petsc,MAT_FINAL_ASSEMBLY,ierr))
 PetscCallA(MatAssemblyEnd(Smat_petsc,MAT_FINAL_ASSEMBLY,ierr))
+
+IF(SetZeroPotentialDOF) PetscCallA(MatZeroRowsColumns(Smat_petsc,1, (/0/), 1, PETSC_IGNORE, PETSC_IGNORE,ierr))
 #endif
 
 
