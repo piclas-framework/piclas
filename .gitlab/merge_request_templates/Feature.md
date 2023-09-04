@@ -1,6 +1,6 @@
-## Related Issue
+## To-Do's
 
-Closes #number
+* [ ] ToDo
 
 ## Merge Request Checklist
 
@@ -17,4 +17,3 @@ Closes #number
   * [ ] Add entry in REGGIE.md table
   * [ ] Check automatic restart functionality of reggie example via Load Balance (checks correct allocation and deallocation for the test case)
 * [ ] New feature description in appropriate documentation (user/developer guide)
-* [ ] Check that no large files were added to the repository
