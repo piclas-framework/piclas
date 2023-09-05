@@ -135,9 +135,9 @@ color = MERGE(1337, MPI_UNDEFINED, nSurfSidesProc.GT.0)
 ```
 Here, every processor with the same `color` will be part of the same communicator. The condition `nSurfSidesProc.GT.0` in this case includes every processor with a surface side. Every other processor will be set to `MPI_UNDEFINED` and consequently be part of `MPI_COMM_NULL`. Now, the communicator itself can be created:
 ```
-CALL MPI_COMM_SPLIT(MPI_COMM_WORLD, color, MPI_INFO_NULL, SurfCOMM%UNICATOR, iError)
+CALL MPI_COMM_SPLIT(MPI_COMM_PICLAS, color, MPI_INFO_NULL, SurfCOMM%UNICATOR, iError)
 ```
-`MPI_COMM_WORLD` denotes the original communicator containing every processor (but can also be a previously created subset) and the `MPI_INFO_NULL` entry denotes the rank assignment within the new communicator (default: numbering from 0 to nProcs - 1). Additional information can be stored within the created variable:
+`MPI_COMM_PICLAS` denotes the global PICLas communicator containing every processor (but can also be a previously created subset) and the `MPI_INFO_NULL` entry denotes the rank assignment within the new communicator (default: numbering from 0 to nProcs - 1). Additional information can be stored within the created variable:
 ```
 IF(SurfCOMM%UNICATOR.NE.MPI_COMM_NULL) THEN
   ! Stores the rank within the given communicator as MyRank
@@ -159,21 +159,22 @@ that either a communicator exists and/or every (other) processor has been set to
 | Handle                  | Description                                   | Derived from            |
 | ----------------------- | --------------------------------------------- | ----------------------- |
 | MPI_COMM_WORLD          | Default global communicator                   | -                       |
-| MPI_COMM_NODE           | Processors on a node                          | MPI_COMM_WORLD          |
-| MPI_COMM_LEADERS        | Group of node leaders                         | MPI_COMM_WORLD          |
-| MPI_COMM_WORKERS        | All remaining processors, who are not leaders | MPI_COMM_WORLD          |
-| MPI_COMM_SHARED         | Processors on a node                          | MPI_COMM_WORLD          |
-| MPI_COMM_LEADERS_SHARED | Group of node leaders (myComputeNodeRank = 0) | MPI_COMM_WORLD          |
+| MPI_COMM_PICLAS         | Duplicate of MPI_COMM_WORLD                   | MPI_COMM_PICLAS         |
+| MPI_COMM_NODE           | Processors on a node                          | MPI_COMM_PICLAS         |
+| MPI_COMM_LEADERS        | Group of node leaders                         | MPI_COMM_PICLAS         |
+| MPI_COMM_WORKERS        | All remaining processors, who are not leaders | MPI_COMM_PICLAS         |
+| MPI_COMM_SHARED         | Processors on a node                          | MPI_COMM_PICLAS         |
+| MPI_COMM_LEADERS_SHARED | Group of node leaders (myComputeNodeRank = 0) | MPI_COMM_PICLAS         |
 | MPI_COMM_LEADERS_SURF   | Node leaders with surface sides               | MPI_COMM_LEADERS_SHARED |
 
 #### Feature-specific
 
-| Handle                               | Description                                                            | Derived from   |
-| ------------------------------------ | ---------------------------------------------------------------------- | -------------- |
-| PartMPIInitGroup(nInitRegions)%COMM  | Emission groups                                                        | MPI_COMM_PICLAS|
-| SurfCOMM%UNICATOR                    | Processors with a surface side (e.g. reflective), including halo sides | MPI_COMM_WORLD |
-| CPPCOMM%UNICATOR                     | Coupled power potential                                                | MPI_COMM_WORLD |
-| EDC%COMM(iEDCBC)%UNICATOR            | Electric displacement current (per BC)                                 | MPI_COMM_WORLD |
-| FPC%COMM(iUniqueFPCBC)%UNICATOR      | Floating potential (per BC)                                            | MPI_COMM_WORLD |
-| EPC%COMM(iUniqueEPCBC)%UNICATOR      | Electric potential (per BC)                                            | MPI_COMM_WORLD |
-| BiasVoltage%COMM%UNICATOR            | Bias voltage                                                           | MPI_COMM_WORLD |
+| Handle                              | Description                                                            | Derived from    |
+| ----------------------------------- | ---------------------------------------------------------------------- | --------------- |
+| PartMPIInitGroup(nInitRegions)%COMM | Emission groups                                                        | MPI_COMM_PICLAS |
+| SurfCOMM%UNICATOR                   | Processors with a surface side (e.g. reflective), including halo sides | MPI_COMM_PICLAS |
+| CPPCOMM%UNICATOR                    | Coupled power potential                                                | MPI_COMM_PICLAS |
+| EDC%COMM(iEDCBC)%UNICATOR           | Electric displacement current (per BC)                                 | MPI_COMM_PICLAS |
+| FPC%COMM(iUniqueFPCBC)%UNICATOR     | Floating potential (per BC)                                            | MPI_COMM_PICLAS |
+| EPC%COMM(iUniqueEPCBC)%UNICATOR     | Electric potential (per BC)                                            | MPI_COMM_PICLAS |
+| BiasVoltage%COMM%UNICATOR           | Bias voltage                                                           | MPI_COMM_PICLAS |
