@@ -568,7 +568,7 @@ END SUBROUTINE CalcErrorParticle
 SUBROUTINE AnalyticParticleMovement(time,iter)
 ! MODULES
 USE MOD_Preproc
-USE MOD_Globals               ,ONLY: UNIT_StdOut
+USE MOD_Globals               ,ONLY: UNIT_StdOut,MPIRoot
 USE MOD_Analyze_Vars          ,ONLY: OutputErrorNorms
 USE MOD_Particle_Analyze_Vars ,ONLY: TrackParticlePosition
 USE MOD_PICInterpolation_Vars ,ONLY: L_2_Error_Part,AnalyticPartDim
