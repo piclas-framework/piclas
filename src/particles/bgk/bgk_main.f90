@@ -48,6 +48,7 @@ USE MOD_BGK_Vars            ,ONLY: DoBGKCellAdaptation,BGKDSMCSwitchDens
 USE MOD_BGK_Vars            ,ONLY: BGKMovingAverage,ElemNodeAveraging
 USE MOD_BGK_Vars            ,ONLY: BGK_MeanRelaxFactor,BGK_MeanRelaxFactorCounter,BGK_MaxRelaxFactor,BGK_QualityFacSamp
 USE MOD_BGK_Vars            ,ONLY: BGK_MaxRotRelaxFactor, BGK_PrandtlNumber, BGK_ExpectedPrandtlNumber
+USE MOD_BGK_Vars            ,ONLY: BGK_Viscosity, BGK_ThermalConductivity
 USE MOD_BGK_CollOperator    ,ONLY: BGK_CollisionOperator
 USE MOD_DSMC                ,ONLY: DSMC_main
 USE MOD_DSMC_Vars           ,ONLY: DSMC, RadialWeighting
@@ -128,10 +129,10 @@ DO iElem = 1, nElems
 
     IF(DSMC%CalcQualityFactors) THEN
       BGK_MeanRelaxFactorCounter = 0; BGK_MeanRelaxFactor = 0.; BGK_MaxRelaxFactor = 0.; BGK_MaxRotRelaxFactor = 0.
-      BGK_PrandtlNumber=0.; BGK_ExpectedPrandtlNumber=0.
+      BGK_PrandtlNumber=0.; BGK_ExpectedPrandtlNumber=0.; BGK_Viscosity=0.; BGK_ThermalConductivity=0.
     END IF
     IF (BGKMovingAverage) THEN
-       CALL BGK_CollisionOperator(iPartIndx_Node, nPart, ElemVolume_Shared(CNElemID), ElemNodeAveraging(iElem)%Root%AverageValues(:))
+      CALL BGK_CollisionOperator(iPartIndx_Node, nPart, ElemVolume_Shared(CNElemID), ElemNodeAveraging(iElem)%Root%AverageValues(:))
     ELSE
       CALL BGK_CollisionOperator(iPartIndx_Node, nPart, ElemVolume_Shared(CNElemID))
     END IF
@@ -145,6 +146,8 @@ DO iElem = 1, nElems
         BGK_QualityFacSamp(5,iElem) = BGK_QualityFacSamp(5,iElem) + BGK_MaxRotRelaxFactor
         BGK_QualityFacSamp(6,iElem) = BGK_QualityFacSamp(6,iElem) + BGK_PrandtlNumber
         BGK_QualityFacSamp(7,iElem) = BGK_QualityFacSamp(7,iElem) + BGK_ExpectedPrandtlNumber
+        BGK_QualityFacSamp(8,iElem) = BGK_QualityFacSamp(8,iElem) + BGK_Viscosity
+        BGK_QualityFacSamp(9,iElem) = BGK_QualityFacSamp(9,iElem) + BGK_ThermalConductivity
       END IF
     END IF
   END IF
@@ -170,6 +173,7 @@ USE MOD_Particle_Vars       ,ONLY: PEM, WriteMacroVolumeValues, WriteMacroSurfac
 USE MOD_BGK_Vars            ,ONLY: DoBGKCellAdaptation, BGKMovingAverage, ElemNodeAveraging
 USE MOD_BGK_Vars            ,ONLY: BGK_MeanRelaxFactor,BGK_MeanRelaxFactorCounter,BGK_MaxRelaxFactor,BGK_QualityFacSamp
 USE MOD_BGK_Vars            ,ONLY: BGK_MaxRotRelaxFactor, BGK_PrandtlNumber, BGK_ExpectedPrandtlNumber
+USE MOD_BGK_Vars            ,ONLY: BGK_Viscosity, BGK_ThermalConductivity
 USE MOD_BGK_CollOperator    ,ONLY: BGK_CollisionOperator
 USE MOD_DSMC_Analyze        ,ONLY: DSMCMacroSampling
 USE MOD_Particle_Mesh_Vars  ,ONLY: ElemVolume_Shared
@@ -266,7 +270,7 @@ ELSE ! No octree cell refinement
 
     IF(DSMC%CalcQualityFactors) THEN
       BGK_MeanRelaxFactorCounter = 0; BGK_MeanRelaxFactor = 0.; BGK_MaxRelaxFactor = 0.; BGK_MaxRotRelaxFactor = 0.
-      BGK_PrandtlNumber=0.; BGK_ExpectedPrandtlNumber=0.
+      BGK_PrandtlNumber=0.; BGK_ExpectedPrandtlNumber=0.; BGK_Viscosity=0.; BGK_ThermalConductivity=0.
     END IF
 
     IF (BGKMovingAverage) THEN
@@ -284,6 +288,8 @@ ELSE ! No octree cell refinement
         BGK_QualityFacSamp(5,iElem) = BGK_QualityFacSamp(5,iElem) + BGK_MaxRotRelaxFactor
         BGK_QualityFacSamp(6,iElem) = BGK_QualityFacSamp(6,iElem) + BGK_PrandtlNumber
         BGK_QualityFacSamp(7,iElem) = BGK_QualityFacSamp(7,iElem) + BGK_ExpectedPrandtlNumber
+        BGK_QualityFacSamp(8,iElem) = BGK_QualityFacSamp(8,iElem) + BGK_Viscosity
+        BGK_QualityFacSamp(9,iElem) = BGK_QualityFacSamp(9,iElem) + BGK_ThermalConductivity
       END IF
     END IF
   END DO
