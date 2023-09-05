@@ -75,7 +75,7 @@ nPart = PEM%pNumber(iElem)
 IF (DoVirtualCellMerge) THEN
   ! 1.) Create particle index list for pairing in the case of virtually merged cells. So, all particles from the merged cells are
   !   used for the pairing and the collisions.
-  IF(VirtMergedCells(iElem)%isMerged) RETURN  
+  IF(VirtMergedCells(iElem)%isMerged) RETURN
   nPartMerged = nPart
   DO iMergeElem = 1, VirtMergedCells(iElem)%NumOfMergedCells
     nPartMerged = nPartMerged + PEM%pNumber(VirtMergedCells(iElem)%MergedCellID(iMergeElem))
@@ -102,7 +102,7 @@ IF (DoVirtualCellMerge) THEN
     elemVolume = VirtMergedCells(iELem)%MergedVolume
   ELSE
     elemVolume = ElemVolume_Shared(GetCNElemID(iElem+offSetElem))
-  END IF  
+  END IF
 ELSE
   nPartMerged = nPart
   ALLOCATE(iPartIndx(nPart))
@@ -117,7 +117,7 @@ ELSE
     iPart = PEM%pNext(iPart)
   END DO
   elemVolume = ElemVolume_Shared(GetCNElemID(iElem+offSetElem))
-END IF  
+END IF
 
 ! 2.) Perform pairing (random pairing or nearest neighbour pairing) and collision (including the decision for a reaction/relaxation)
 CALL PerformPairingAndCollision(iPartIndx, nPartMerged, iElem , elemVolume)
@@ -191,7 +191,7 @@ IF (DoVirtualCellMerge) THEN
     END DO
     DoMergedCell = .TRUE.
   END IF
-END IF  
+END IF
 
 IF (DoMergedCell) THEN
   CALL PerformPairingAndCollision(TreeNode%iPartIndx_Node, nPartMerged, iElem, VirtMergedCells(iELem)%MergedVolume)
@@ -806,7 +806,7 @@ IF (DoVirtualCellMerge) THEN
     END DO
     DoMergedCell = .TRUE.
   END IF
-END IF 
+END IF
 
 IF (DoMergedCell) THEN
   CALL PerformPairingAndCollision(TreeNode%iPartIndx_Node, nPartMerged, iElem, VirtMergedCells(iELem)%MergedVolume)
@@ -837,7 +837,7 @@ ELSE
       TreeNode%PNum_Node = nPart
       iPart = PEM%pStart(iElem)                         ! create particle index list for pairing
       DO iLoop = 1, nPart
-        ! Attention: LastPartPos is the reference position here
+        ! Attention: LastPartPos is the reference position here, set in timedisc_TimeStep_DSMC.f90 / timedisc_TimeStep_BGK.f90
         TreeNode%MappedPartStates(1:2,iLoop) = LastPartPos(1:2,iPart)
         iPart = PEM%pNext(iPart)
       END DO
@@ -1101,7 +1101,7 @@ IF(nPart.GE.DSMC%PartNumOctreeNodeMin) THEN
       iPart = PEM%pNext(iPart)
     END DO
     TreeNode%NodeDepth = 1
-    ElemNodeVol(iElem)%Root%NodeDepth = 1    
+    ElemNodeVol(iElem)%Root%NodeDepth = 1
     ElemNodeVol(iElem)%Root%MidPoint(1:3) = (/0.0,0.0,0.0/)
     CALL AddDoTreeNode(TreeNode, iElem, ElemNodeVol(iElem)%Root)
     DEALLOCATE(TreeNode%MappedPartStates)

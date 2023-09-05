@@ -52,6 +52,7 @@ USE MOD_Part_Tools             ,ONLY: CalcPartSymmetryPos
 #if USE_MPI
 USE MOD_Particle_MPI           ,ONLY: IRecvNbOfParticles, MPIParticleSend,MPIParticleRecv,SendNbOfparticles
 USE MOD_Particle_MPI_Vars      ,ONLY: DoParticleLatencyHiding
+USE MOD_Globals                ,ONLY: CollectiveStop
 #endif /*USE_MPI*/
 USE MOD_BGK                    ,ONLY: BGK_main, BGK_DSMC_main
 USE MOD_BGK_Vars               ,ONLY: CoupledBGKDSMC,DoBGKCellAdaptation
@@ -162,8 +163,8 @@ END IF
 CALL MPIParticleSend(.TRUE.)
 #endif /*USE_MPI*/
 
-IF(DoBGKCellAdaptation)THEN
-  IF(Symmetry%Order.EQ.2)THEN
+IF(DoBGKCellAdaptation.OR.(CoupledBGKDSMC.AND.DSMC%UseOctree)) THEN
+  IF(Symmetry%Order.EQ.2) THEN
     DO iPart=1,PDM%ParticleVecLength
       IF (PDM%ParticleInside(iPart)) THEN
         ! Store reference position in LastPartPos array to reduce memory demand
@@ -178,7 +179,7 @@ IF(DoBGKCellAdaptation)THEN
       END IF
     END DO
   END IF ! Symmetry%Order.EQ.2
-END IF ! DoBGKCellAdaptation
+END IF ! DoBGKCellAdaptation.OR.(CoupledBGKDSMC.AND.DSMC%UseOctree)
 
 IF(UseRotRefFrame) THEN
   DO iPart = 1,PDM%ParticleVecLength
@@ -199,11 +200,11 @@ END IF
 
 #if USE_MPI
 IF(DoParticleLatencyHiding)THEN
-  IF (CoupledBGKDSMC) THEN
-    CALL BGK_DSMC_main(1)
-  ELSE
+  ! IF (CoupledBGKDSMC) THEN
+  !   CALL BGK_DSMC_main(1)
+  ! ELSE
     CALL BGK_main(1)
-  END IF
+  ! END IF
 END IF ! DoParticleLatencyHiding
 
 ! finish communication
@@ -220,11 +221,11 @@ CALL MPIParticleRecv(.TRUE.)
 !#endif /*EXTRAE*/
 #if USE_MPI
 IF(DoParticleLatencyHiding)THEN
-  IF (CoupledBGKDSMC) THEN
-    CALL BGK_DSMC_main(2)
-  ELSE
+  ! IF (CoupledBGKDSMC) THEN
+  !   CALL BGK_DSMC_main(2)
+  ! ELSE
     CALL BGK_main(2)
-  END IF
+  ! END IF
 ELSE
 #endif /*USE_MPI*/
   IF (CoupledBGKDSMC) THEN

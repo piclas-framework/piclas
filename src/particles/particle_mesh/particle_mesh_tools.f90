@@ -1789,10 +1789,17 @@ LOGICAL,ALLOCATABLE            :: PeriodicFound(:)
 REAL                           :: sendbuf
 REAL,ALLOCATABLE               :: recvbuf(:)
 #endif
+INTEGER                        :: nPeriodicVectorsParameterIni
 !-----------------------------------------------------------------------------------------------------------------------------------
 
 ! Find number of periodic vectors
+nPeriodicVectorsParameterIni = GEO%nPeriodicVectors
 GEO%nPeriodicVectors = MERGE(MAXVAL(BoundaryType(:,BC_ALPHA)),0,PartMeshHasPeriodicBCs)
+IF(nPeriodicVectorsParameterIni.GT.GEO%nPeriodicVectors)THEN
+  SWRITE (*,*) "Number of periodic vectors in parameter file: ", nPeriodicVectorsParameterIni
+  SWRITE (*,*) "Number of periodic vectors in mesh      file: ", GEO%nPeriodicVectors
+  CALL CollectiveStop(__STAMP__,'Wrong number of periodic vectors!')
+END IF
 IF (GEO%nPeriodicVectors.EQ.0) RETURN
 
 firstElem = offsetElem+1

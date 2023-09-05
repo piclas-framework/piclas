@@ -386,7 +386,7 @@ END IF
 ALLOCATE(BGMSourceCellVol(SourceDim:4,0:1,0:1,0:1,1:nElems))
 BGMSourceCellVol(:,:,:,:,:) = 0.0
 DO iPart = 1,PDM%ParticleVecLength
-  ! TODO: Info why and under which conditions the following 'CYCLE' is called
+  ! TODO: The cycle with .AND.doParticle_In is used for analysis or IMPA
   IF(PRESENT(doParticle_In))THEN
     IF (.NOT.(PDM%ParticleInside(iPart).AND.doParticle_In(iPart))) CYCLE
   ELSE

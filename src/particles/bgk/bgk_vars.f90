@@ -48,6 +48,8 @@ REAL                                           :: BGK_MaxRelaxFactor
 REAL                                           :: BGK_MaxRotRelaxFactor
 REAL                                           :: BGK_PrandtlNumber
 REAL                                           :: BGK_ExpectedPrandtlNumber
+REAL                                           :: BGK_Viscosity
+REAL                                           :: BGK_ThermalConductivity
 
 TYPE tElemNodeAveraging
     TYPE (tNodeAverage), POINTER               :: Root => null()
