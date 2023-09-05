@@ -1047,7 +1047,7 @@ USE MOD_IO_HDF5
 USE MOD_Timedisc_Vars          ,ONLY: iter
 USE MOD_Restart_Vars           ,ONLY: DoRestart
 USE MOD_Mesh_Vars              ,ONLY: offsetElem
-USE MOD_Particle_Vars          ,ONLY: nSpecies
+USE MOD_Particle_Vars          ,ONLY: nSpecies, Species
 USE MOD_Particle_Sampling_Vars ,ONLY: AdaptBCAverage, AdaptBCSampleElemNum, AdaptBCMapSampleToElem, AdaptBCSampIter
 USE MOD_Particle_Sampling_Vars ,ONLY: AdaptBCSampleElemNumGlobal, offSetElemAdaptBCSample, AdaptBCSampIterReadIn
 ! IMPLICIT VARIABLE HANDLING
@@ -1073,9 +1073,10 @@ DO SampleElemID = 1,AdaptBCSampleElemNum
   AdaptBCAverageIndex(SampleElemID) = ElemID + offsetElem
 END DO
 
-! Store the position in the array for early restarts
+! Store the position in the array for early restarts and the used weighting factor
 IF(MPIRoot)THEN
   CALL OpenDataFile(FileName,create=.FALSE.,single=.TRUE.,readOnly=.FALSE.)
+  CALL WriteAttributeToHDF5(File_ID,'AdaptBCWeightingFactor',nSpecies,RealArray=Species(1:nSpecies)%MacroParticleFactor)
   IF(INT(iter,4)+AdaptBCSampIterReadIn.LT.AdaptBCSampIter) THEN
     CALL WriteAttributeToHDF5(File_ID,'AdaptBCSampIter',1,IntegerScalar=INT(iter,4)+AdaptBCSampIterReadIn)
   ELSE
