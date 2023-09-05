@@ -287,7 +287,7 @@ USE MOD_HDG_Vars         ,ONLY: CPPDataLength,CoupledPowerMode,CoupledPowerFrequ
 USE MOD_ReadInTools      ,ONLY: GETREALARRAY,GETREAL,GETINTFROMSTR,CountOption
 USE MOD_Mesh_Vars        ,ONLY: BoundaryType,nBCs
 #if USE_MPI
-USE MOD_Globals          ,ONLY: IERROR,MPI_COMM_NULL,MPI_DOUBLE_PRECISION,MPI_COMM_WORLD,MPI_INFO_NULL,MPI_UNDEFINED,MPIRoot
+USE MOD_Globals          ,ONLY: IERROR,MPI_COMM_NULL,MPI_DOUBLE_PRECISION,MPI_COMM_PICLAS,MPI_INFO_NULL,MPI_UNDEFINED,MPIRoot
 USE MOD_Globals          ,ONLY: UNIT_StdOut
 USE MOD_HDG_Vars         ,ONLY: CPPCOMM
 USE MOD_Mesh_Vars        ,ONLY: nBCSides,BC
@@ -378,7 +378,7 @@ color = MERGE(CPPBoundaries, MPI_UNDEFINED, BConProc)
 CPPCOMM%ID = CPPBoundaries
 
 ! create new emission communicator for coupled power potential communication. Pass MPI_INFO_NULL as rank to follow the original ordering
-CALL MPI_COMM_SPLIT(MPI_COMM_WORLD, color, MPI_INFO_NULL, CPPCOMM%UNICATOR, iError)
+CALL MPI_COMM_SPLIT(MPI_COMM_PICLAS, color, MPI_INFO_NULL, CPPCOMM%UNICATOR, iError)
 
 ! Find my rank on the shared communicator, comm size and proc name
 IF(BConProc)THEN
@@ -739,7 +739,7 @@ CASE(400,401) ! Point Source in Dielectric Region with epsR_1  = 1 for x < 0 (va
         SWRITE(*,*) "r1=",r1
         CALL abort(__STAMP__,'Point source in dielectric region: Cannot evaluate the exact function at the singularity!')
       END IF
-      resu(1:PP_nVar) = (2.0*Q/eps12) * 1./r1 
+      resu(1:PP_nVar) = (2.0*Q/eps12) * 1./r1
     END IF
   END ASSOCIATE
 CASE(500) ! Coaxial capacitor with Floating Boundary Condition (FPC) with from

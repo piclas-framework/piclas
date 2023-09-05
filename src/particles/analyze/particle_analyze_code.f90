@@ -572,7 +572,6 @@ USE MOD_Globals               ,ONLY: UNIT_StdOut
 USE MOD_Analyze_Vars          ,ONLY: OutputErrorNorms
 USE MOD_Particle_Analyze_Vars ,ONLY: TrackParticlePosition
 USE MOD_PICInterpolation_Vars ,ONLY: L_2_Error_Part,AnalyticPartDim
-USE MOD_Particle_MPI_Vars     ,ONLY: PartMPI
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
@@ -588,7 +587,7 @@ CHARACTER(LEN=40)             :: formatStr
 !===================================================================================================================================
 
 CALL CalcErrorParticle(time,iter,PartStateAnalytic)
-IF(PartMPI%MPIRoot.AND.OutputErrorNorms) THEN
+IF(MPIRoot.AND.OutputErrorNorms) THEN
   WRITE(UNIT_StdOut,'(A13,ES16.7)')' Sim time  : ',time
   WRITE(formatStr,'(A5,I1,A7)')'(A13,',AnalyticPartDim,'ES16.7)'
   WRITE(UNIT_StdOut,formatStr)' L2_Part   : ',L_2_Error_Part

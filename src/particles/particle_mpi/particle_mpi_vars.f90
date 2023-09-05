@@ -46,17 +46,7 @@ TYPE tPartMPIGROUP
   INTEGER,ALLOCATABLE                     :: CommToGroup(:)                 ! list containing the rank in PartMPI%COMM
 END TYPE
 
-TYPE tPartMPIVAR
-#if USE_MPI
-  INTEGER                                 :: COMM=MPI_COMM_NULL             ! MPI communicator for PIC GTS region
-#endif /*USE_MPI*/
-  TYPE(tPartMPIGROUP),ALLOCATABLE         :: InitGroup(:)                   ! small communicator for initialization
-  INTEGER                                 :: nProcs                         ! number of MPI processes for particles
-  INTEGER                                 :: MyRank                         ! MyRank of PartMPIVAR%COMM
-  LOGICAL                                 :: MPIRoot                        ! Root, MPIRank=0
-END TYPE
-
-TYPE (tPartMPIVAR)                        :: PartMPI
+TYPE(tPartMPIGROUP),ALLOCATABLE           :: PartMPIInitGroup(:)                   ! small communicator for initialization
 
 REAL                                      :: SafetyFactor                   ! Factor to scale the halo region with MPI
 REAL                                      :: halo_eps_velo                  ! halo_eps_velo

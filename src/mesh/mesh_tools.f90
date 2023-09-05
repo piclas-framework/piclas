@@ -408,7 +408,7 @@ END FUNCTION GetGlobalSide2CNTotalSide
 SUBROUTINE GetMasteriLocSides()
 ! MODULES
 USE MOD_PreProc
-USE MOD_globals   ,ONLY: abort,MPI_COMM_WORLD
+USE MOD_globals   ,ONLY: abort
 USE MOD_Mesh_Vars ,ONLY: MortarType,SideToElem,MortarInfo
 USE MOD_Mesh_Vars ,ONLY: firstMortarInnerSide,lastMortarInnerSide
 USE MOD_HDG_Vars  ,ONLY: nGP_face, iLocSides

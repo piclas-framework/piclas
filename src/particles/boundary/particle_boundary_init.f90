@@ -540,7 +540,7 @@ END DO
 
 IF(ANY(PartBound%SurfaceModel.EQ.1)) THEN
   ! Open the species database
-  CALL OpenDataFile(TRIM(SpeciesDatabase),create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_WORLD)
+  CALL OpenDataFile(TRIM(SpeciesDatabase),create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_PICLAS)
   ! Check if the correct dataset exists
   StickingCoefficientExists = .FALSE.
   dsetname = TRIM('/Surface-Chemistry/StickingCoefficient')
@@ -869,7 +869,7 @@ ELSE
   color = MERGE(1337, MPI_UNDEFINED, nBCSidesProc.GT.0)
 END IF
 ! Create new surface communicator. Pass MPI_INFO_NULL as rank to follow the original ordering
-CALL MPI_COMM_SPLIT(MPI_COMM_WORLD, color, MPI_INFO_NULL, SurfCOMM%UNICATOR, iError)
+CALL MPI_COMM_SPLIT(MPI_COMM_PICLAS, color, MPI_INFO_NULL, SurfCOMM%UNICATOR, iError)
 ! Find my rank on the shared communicator, comm size and proc name
 IF(SurfCOMM%UNICATOR.NE.MPI_COMM_NULL)THEN
   CALL MPI_COMM_RANK(SurfCOMM%UNICATOR, SurfCOMM%MyRank, iError)
@@ -1284,7 +1284,7 @@ WRITE(UNIT=hilf,FMT='(ES10.4)') halo_eps_velo
 DatasetName = 'RotPeriodicMap-v'//TRIM(hilf)
 WRITE(UNIT=hilf,FMT='(ES10.4)') ManualTimeStep
 DatasetName = TRIM(DatasetName)//'-dt'//TRIM(hilf)
-CALL OpenDataFile(MeshFile,create=.FALSE.,single=.FALSE.,readOnly=.FALSE.,communicatorOpt=MPI_COMM_WORLD)
+CALL OpenDataFile(MeshFile,create=.FALSE.,single=.FALSE.,readOnly=.FALSE.,communicatorOpt=MPI_COMM_PICLAS)
 CALL DatasetExists(File_ID,TRIM(DatasetName),DatasetFound)
 CALL CloseDataFile()
 
@@ -1716,7 +1716,7 @@ END DO
 CALL BARRIER_AND_SYNC(NumRotPeriodicNeigh_Shared_Win, MPI_COMM_SHARED)
 CALL BARRIER_AND_SYNC(RotPeriodicSideMapping_temp_Shared_Win, MPI_COMM_SHARED)
 ! The allreduce is only required when a global array for writing to .h5 is to be used
-!CALL MPI_ALLREDUCE(MAXVAL(NumRotPeriodicNeigh) , MaxNumRotPeriodicNeigh , 1 , MPI_INTEGER , MPI_MAX , MPI_COMM_WORLD , iError)
+!CALL MPI_ALLREDUCE(MAXVAL(NumRotPeriodicNeigh) , MaxNumRotPeriodicNeigh , 1 , MPI_INTEGER , MPI_MAX , MPI_COMM_PICLAS , iError)
 #endif /*USE_MPI*/
 MaxNumRotPeriodicNeigh = MAXVAL(NumRotPeriodicNeigh)
 
@@ -1748,7 +1748,7 @@ DO iSide=1, nRotPeriodicSides
 END DO
 
 #if USE_MPI
-CALL MPI_ALLREDUCE(notMapped , notMappedTotal , 1 , MPI_INTEGER , MPI_SUM , MPI_COMM_WORLD , IERROR)
+CALL MPI_ALLREDUCE(notMapped , notMappedTotal , 1 , MPI_INTEGER , MPI_SUM , MPI_COMM_PICLAS , IERROR)
 #else
 notMappedTotal = notMapped
 #endif /*USE_MPI*/

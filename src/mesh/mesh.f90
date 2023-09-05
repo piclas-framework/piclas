@@ -930,7 +930,7 @@ USE MOD_Globals   ,ONLY: UNIT_StdOut
 USE MOD_Mesh_Vars ,ONLY: nGlobalUniqueSidesFromMesh,nGlobalUniqueSides,nMortarMPISides,nUniqueSides
 #if USE_MPI
 USE MOD_Globals   ,ONLY: myrank
-USE MOD_Globals   ,ONLY: iError,MPI_COMM_WORLD
+USE MOD_Globals   ,ONLY: iError
 USE mpi
 #endif /*USE_MPI*/
 #endif /*USE_HDG*/

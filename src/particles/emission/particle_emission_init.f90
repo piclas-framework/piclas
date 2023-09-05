@@ -747,9 +747,6 @@ SUBROUTINE DetermineInitialParticleNumber()
 !>
 !===================================================================================================================================
 ! MODULES
-#if USE_MPI
-USE MOD_Particle_MPI_Vars   ,ONLY: PartMPI
-#endif /*USE_MPI*/
 USE MOD_Globals
 USE MOD_Globals_Vars        ,ONLY: PI
 USE MOD_DSMC_Vars           ,ONLY: RadialWeighting, DSMC
@@ -833,7 +830,7 @@ DO iSpec=1,nSpecies
     END IF
     ! Sum-up the number of particles to be inserted
 #if USE_MPI
-    insertParticles = insertParticles + INT(REAL(Species(iSpec)%Init(iInit)%ParticleNumber)/REAL(PartMPI%nProcs),8)
+    insertParticles = insertParticles + INT(REAL(Species(iSpec)%Init(iInit)%ParticleNumber)/REAL(nProcessors),8)
 #else
     insertParticles = insertParticles + INT(Species(iSpec)%Init(iInit)%ParticleNumber,8)
 #endif

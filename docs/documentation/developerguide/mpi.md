@@ -170,7 +170,7 @@ that either a communicator exists and/or every (other) processor has been set to
 
 | Handle                               | Description                                                            | Derived from   |
 | ------------------------------------ | ---------------------------------------------------------------------- | -------------- |
-| PartMPI%InitGroup(nInitRegions)%COMM | Emission groups                                                        | PartMPI%COMM   |
+| PartMPIInitGroup(nInitRegions)%COMM  | Emission groups                                                        | MPI_COMM_PICLAS|
 | SurfCOMM%UNICATOR                    | Processors with a surface side (e.g. reflective), including halo sides | MPI_COMM_WORLD |
 | CPPCOMM%UNICATOR                     | Coupled power potential                                                | MPI_COMM_WORLD |
 | EDC%COMM(iEDCBC)%UNICATOR            | Electric displacement current (per BC)                                 | MPI_COMM_WORLD |

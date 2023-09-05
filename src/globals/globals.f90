@@ -39,6 +39,7 @@ LOGICAL            :: GlobalNbrOfParticlesUpdated ! When FALSE, then global numb
 INTEGER            :: MPI_COMM_NODE    ! local node subgroup
 INTEGER            :: MPI_COMM_LEADERS ! all node masters
 INTEGER            :: MPI_COMM_WORKERS ! all non-master nodes
+INTEGER            :: MPI_COMM_PICLAS  ! all nodes
 LOGICAL            :: MPIRoot,MPILocalRoot
 #if USE_MPI
 !#include "mpif.h"

@@ -130,7 +130,7 @@ CALL prms%CreateIntOption(      'Part-CellMergeSpread'        , 'Describes the a
                                                                 'i.e. how deep the merge extends into the mesh starting from \n'//&
                                                                 'each cell. 0 is the least aggressive merge, 2 the most \n'//&
                                                                 'aggressive merge.','0')
-CALL prms%CreateIntOption(      'Part-MaxNumbCellsMerge'       ,'Maximum number of cells to be merged.','4')                                                                
+CALL prms%CreateIntOption(      'Part-MaxNumbCellsMerge'       ,'Maximum number of cells to be merged.','4')
 
 CALL prms%SetSection("IMD")
 ! IMD things
@@ -408,7 +408,6 @@ USE MOD_PICInterpolation_Vars  ,ONLY: DoInterpolation
 #if USE_MPI
 USE MOD_Particle_MPI_Emission  ,ONLY: InitEmissionComm
 USE MOD_Particle_MPI_Halo      ,ONLY: IdentifyPartExchangeProcs
-USE MOD_Particle_MPI_Vars      ,ONLY: PartMPI
 #endif /*USE_MPI*/
 #ifdef CODE_ANALYZE
 USE MOD_PICInterpolation_Vars  ,ONLY: DoInterpolationAnalytic
@@ -504,7 +503,7 @@ END IF
 
 #if USE_MPI
 CALL InitEmissionComm()
-CALL MPI_BARRIER(PartMPI%COMM,IERROR)
+CALL MPI_BARRIER(MPI_COMM_PICLAS,IERROR)
 #endif /*USE_MPI*/
 
 #if defined(PARTICLES) && USE_HDG
@@ -690,7 +689,7 @@ INTEGER         :: iELem
 DoVirtualCellMerge = GETLOGICAL('Part-DoVirtualCellMerge')
 IF(DoVirtualCellMerge)THEN
 #if USE_MPI
-DoParticleLatencyHiding = .FALSE.  
+DoParticleLatencyHiding = .FALSE.
 #endif
   VirtualCellMergeSpread = GETINT('Part-CellMergeSpread')
   MaxNumOfMergedCells = GETINT('Part-MaxNumbCellsMerge')
@@ -1449,7 +1448,7 @@ SUBROUTINE InitRandomSeed(nRandomSeeds,SeedSize,Seeds)
 !===================================================================================================================================
 ! MODULES
 #if USE_MPI
-USE MOD_Particle_MPI_Vars,     ONLY:PartMPI
+USE MOD_Globals
 #endif
 ! IMPLICIT VARIABLE HANDLING
 !===================================================================================================================================
@@ -1501,9 +1500,9 @@ IF(.NOT. uRandomExists) THEN
   DO iSeed = 1, SeedSize
 #if USE_MPI
     IF (nRandomSeeds.EQ.0) THEN
-      AuxilaryClock=AuxilaryClock+PartMPI%MyRank
+      AuxilaryClock=AuxilaryClock+myRank
     ELSE IF(nRandomSeeds.GT.0) THEN
-      AuxilaryClock=AuxilaryClock+(PartMPI%MyRank+1)*INT(Seeds(iSeed),8)*37
+      AuxilaryClock=AuxilaryClock+(myRank+1)*INT(Seeds(iSeed),8)*37
     END IF
 #else
     IF (nRandomSeeds.GT.0) THEN

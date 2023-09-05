@@ -283,7 +283,7 @@ IF (.NOT.PerformLoadBalance) THEN
   GETTIME(StartT)
 
   ! Get ElemInfo from Mesh file
-  CALL OpenDataFile(FileString,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_WORLD)
+  CALL OpenDataFile(FileString,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_PICLAS)
   CALL GetDataSize(File_ID,'ElemInfo',nDims,HSize)
   CALL ReadAttribute(File_ID,'nUniqueSides',1,IntScalar=nGlobalUniqueSidesFromMesh)
   CALL ReadAttribute(File_ID,'nSides',1,IntScalar=nNonUniqueGlobalSides)
@@ -1007,7 +1007,7 @@ ASSOCIATE (&
       offsetNodeID => INT(offsetNodeID,IK) )
   ALLOCATE(NodeCoords_indx(3,nNodeIDs))
   ! read all nodes
-  CALL OpenDataFile(MeshFile,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_WORLD)
+  CALL OpenDataFile(MeshFile,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_PICLAS)
   CALL ReadArray('NodeCoords',2,(/3_IK,nNodeIDs/),offsetNodeID,2,RealArray=NodeCoords_indx)
   CALL CloseDataFile()
 END ASSOCIATE
@@ -1020,7 +1020,7 @@ IF (useCurveds.OR.NGeo.EQ.1) THEN
         nNodeIDs     => INT(nNodeIDs,IK)     ,&
         offsetNodeID => INT(offsetNodeID,IK) )
     ALLOCATE(NodeInfo(FirstNodeInd:LastNodeInd))
-    CALL OpenDataFile(MeshFile,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_WORLD)
+    CALL OpenDataFile(MeshFile,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_PICLAS)
     CALL ReadArray('GlobalNodeIDs',1,(/nNodeIDs/),offsetNodeID,1,IntegerArray_i4=NodeInfo)
     CALL CloseDataFile()
   END ASSOCIATE

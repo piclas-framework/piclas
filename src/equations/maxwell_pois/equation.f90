@@ -1121,7 +1121,7 @@ DO iNbProc=1,nNbProcs
     SideID_start=OffsetMPISides_send(iNbProc-1,SendID)+1
     SideID_end  =OffsetMPISides_send(iNbProc,SendID)
     CALL MPI_ISEND(FaceData(:,:,:,SideID_start:SideID_end),nSendVal,MPI_DOUBLE_PRECISION,  &
-                    nbProc(iNbProc),0,MPI_COMM_WORLD,SendRequest(iNbProc),iError)
+                    nbProc(iNbProc),0,MPI_COMM_PICLAS,SendRequest(iNbProc),iError)
   END IF
   ! Start receive face data
   IF(nMPISides_rec(iNbProc,SendID).GT.0)THEN
@@ -1129,7 +1129,7 @@ DO iNbProc=1,nNbProcs
     SideID_start=OffsetMPISides_rec(iNbProc-1,SendID)+1
     SideID_end  =OffsetMPISides_rec(iNbProc,SendID)
     CALL MPI_IRECV(FaceData(:,:,:,SideID_start:SideID_end),nRecVal,MPI_DOUBLE_PRECISION,  &
-                    nbProc(iNbProc),0,MPI_COMM_WORLD,RecRequest(iNbProc),iError)
+                    nbProc(iNbProc),0,MPI_COMM_PICLAS,RecRequest(iNbProc),iError)
   END IF
 END DO !iProc=1,nNBProcs
 END SUBROUTINE StartExchangeMPIData_Pois
