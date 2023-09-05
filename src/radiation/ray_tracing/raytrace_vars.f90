@@ -60,6 +60,8 @@ TYPE tRayTrace
 
   CHARACTER(LEN=255) :: NodeType  !< equidistant or Gauss nodes [-1,1]
 
+  INTEGER :: nSurfSample        !< polynomial degree of ray tracing or radiation BC sampling
+
 END TYPE
 
 TYPE (tRayTrace)     :: Ray                            !<
@@ -96,7 +98,7 @@ REAL, ALLOCATABLE    :: RaySecondaryVectorZ(:)
 REAL,ALLOCATABLE     :: ElemVolume(:)
 
 ! Output of high-order p-adaptive info
-INTEGER,PARAMETER    :: nVarRay=3                      !< Number of variables for higher-order sampling for volume ray tracing
+INTEGER,PARAMETER    :: nVarRay=5                      !< Number of variables for higher-order sampling for volume ray tracing
 
 INTEGER,ALLOCATABLE  :: N_DG_Ray_loc(:)                !< for output to ElemData and usage in emission routines
 INTEGER,ALLOCPOINT   :: N_DG_Ray(:)                    !< polynomial degree inside DG element for higher-order sampling for volume ray tracing, size(nElems)

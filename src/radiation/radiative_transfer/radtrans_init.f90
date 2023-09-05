@@ -59,6 +59,7 @@ CALL prms%CreateRealOption('Radiation-ObservationAngularAperture', 'HM')
 CALL prms%CreateLogicalOption('Radiation-ObservationCalcFullSpectra','.FALSE.')
 CALL prms%CreateLogicalOption('Radiation-ObservationDoConvolution','Consider instrumental broadening?','.FALSE.')
 CALL prms%CreateRealOption('Radiation-ShockTubeDiameter', 'Diameter of shock tube in m', '0.0')
+CALL prms%CreateIntOption( 'Radiation-nSurfSample'     , 'Define polynomial degree of radiation BC sampling. Default: nSurfSample (which itself defaults to NGeo)')
 
 END SUBROUTINE DefineParametersRadiationTrans
 
@@ -75,7 +76,7 @@ USE MOD_Mesh_Vars,              ONLY : nElems, nGlobalElems
 USE MOD_Particle_Mesh_Vars,     ONLY : ElemVolume_Shared,ElemMidPoint_Shared, GEO, nComputeNodeElems
 USE MOD_Globals_Vars,           ONLY : BoltzmannConst, PlanckConst
 USE MOD_Particle_Boundary_Sampling, ONLY : InitParticleBoundarySampling
-USE MOD_Particle_Boundary_Vars, ONLY : nComputeNodeSurfTotalSides!, SurfMesh
+USE MOD_Particle_Boundary_Vars, ONLY : nComputeNodeSurfTotalSides,nSurfSample
 USE MOD_Radiation_Vars,         ONLY : RadiationParameter, Radiation_Emission_spec, Radiation_Absorption_spec, RadiationSwitches
 USE MOD_RadiationTrans_Vars,    ONLY : RadObservation_Emission
 USE MOD_Radiation,              ONLY : radiation_main
@@ -92,6 +93,7 @@ USE MOD_RadiationTrans_Vars,    ONLY : RadTransObsVolumeFrac_Shared_Win, RadTran
 USE MOD_Radiation_Vars,         ONLY : Radiation_Absorption_Spec_Shared, Radiation_Absorption_Spec_Shared_Win, RadiationInput
 USE MOD_Radiation_Vars,         ONLY : Radiation_Emission_Spec_Shared_Win, Radiation_Emission_Spec_Shared, MacroRadInputParameters
 #endif
+USE MOD_RayTracing_Vars         ,ONLY: Ray
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -121,6 +123,7 @@ RadEmiAdaptPhotonNum = GETLOGICAL('Radiation-AdaptivePhotonNumEmission')
 RadObservationPointMethod = GETINT('Radiation-RadObservationPointMethod')
 ObservationDoConvolution = GETLOGICAL('Radiation-ObservationDoConvolution')
 RadObservationPoint%ShockTubeDiameter = GETREAL('Radiation-ShockTubeDiameter')
+Ray%nSurfSample    = GETINT('Radiation-nSurfSample',nSurfSample)
 
 IF (RadObservationPointMethod.GT.0) THEN
   RadObservationPoint%AngularAperture = GETREAL('Radiation-ObservationAngularAperture')
@@ -435,17 +438,17 @@ END SELECT
 
 
 #if USE_MPI
-ALLOCATE(PhotonSampWallProc(2,1:nSurfSample,1:nSurfSample,1:nComputeNodeSurfTotalSides))
+ALLOCATE(PhotonSampWallProc(2,1:Ray%nSurfSample,1:Ray%nSurfSample,1:nComputeNodeSurfTotalSides))
 PhotonSampWallProc=0.0
 !> Then shared arrays for boundary sampling
-CALL Allocate_Shared((/2,1:nSurfSample,1:nSurfSample,nComputeNodeSurfTotalSides/),PhotonSampWall_Shared_Win,PhotonSampWall_Shared)
+CALL Allocate_Shared((/2,1:Ray%nSurfSample,1:Ray%nSurfSample,nComputeNodeSurfTotalSides/),PhotonSampWall_Shared_Win,PhotonSampWall_Shared)
 CALL MPI_WIN_LOCK_ALL(0,PhotonSampWall_Shared_Win,IERROR)
 PhotonSampWall => PhotonSampWall_Shared
 
 IF (myComputeNodeRank.EQ.0) PhotonSampWall = 0.
 CALL BARRIER_AND_SYNC(PhotonSampWall_Shared_Win,MPI_COMM_SHARED)
 #else
-ALLOCATE(PhotonSampWall(2,1:nSurfSample,1:nSurfSample,1:nComputeNodeSurfTotalSides))
+ALLOCATE(PhotonSampWall(2,1:Ray%nSurfSample,1:Ray%nSurfSample,1:nComputeNodeSurfTotalSides))
 PhotonSampWall=0.0
 #endif
 

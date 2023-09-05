@@ -35,25 +35,27 @@ USE MOD_ReadInTools ,ONLY: prms,addStrListEntry
 IMPLICIT NONE
 !==================================================================================================================================
 CALL prms%SetSection("Ray Tracing")
-CALL prms%CreateIntOption(       'RayTracing-NumRays'                 , 'Number of emitted rays from particle boundary with index [RayTracing-PartBound]')
-CALL prms%CreateRealArrayOption( 'RayTracing-RayDirection'            , 'Direction vector for ray emission. Will be normalized after read-in.' , no=3)
-CALL prms%CreateIntOption(       'RayTracing-PartBound'               , 'Particle boundary ID where rays are emitted from' , '0')
-CALL prms%CreateRealOption(      'RayTracing-PulseDuration'           , 'Pulse duration tau for a Gaussian-type pulse with I~exp(-(t/tau)^2) [s]'                  )
-CALL prms%CreateIntOption(       'RayTracing-NbrOfPulses'             , 'Number of pulses [-]'                                                                     , '1')
-CALL prms%CreateRealOption(      'RayTracing-WaistRadius'             , 'Beam waist radius (in focal spot) w_b for Gaussian-type pulse with I~exp(-(r/w_b)^2) [m]' , '0.0')
-CALL prms%CreateRealOption(      'RayTracing-WaveLength'              , 'Beam wavelength [m]'                                                                      )
-CALL prms%CreateRealOption(      'RayTracing-RepetitionRate'          , 'Pulse repetition rate (pulses per second) [Hz]'                                           )
-CALL prms%CreateRealOption(      'RayTracing-PowerDensity'            , 'Average pulse power density (power per area) [W/m2]')
-CALL prms%CreateLogicalOption(   'RayTracing-ForceAbsorption'         , 'Surface photon sampling is performed independent of the actual absorption/reflection outcome (default=T)', '.TRUE.')
-CALL prms%CreateIntOption(       'RayTracing-NMax'                    , 'Maximum polynomial degree within refined volume elements for photon tracking (p-adaption)')
-CALL prms%CreateIntOption(       'RayTracing-VolRefineMode'           , 'High-order ray tracing volume sampling refinement method:\n'//&
-                                                                       ' 0: do nothing (default)\n'//&
-                                                                       ' 1: refine below user-defined z-coordinate with NMax\n'//&
-                                                                       ' 2: scale N according to the mesh element volume between NMin>=1 and NMax>=2\n'//&
-                                                                       ' 3: refine below user-defined z-coordinate and scale N according to the mesh element volume between NMin>=1 and NMax>=2\n'//&
-                                                                       '    (consider only elements below the user-defined z-coordinate for the scaling)'&
-                                                                      ,'0')
-CALL prms%CreateRealOption(      'RayTracing-VolRefineModeZ'          , 'Z-coordinate for switching between NMin (pos>z) and NMax (pos<z) depending on element position for high-order ray tracing')
+CALL prms%CreateIntOption(       'RayTracing-NumRays'         , 'Number of emitted rays from particle boundary with index [RayTracing-PartBound]')
+CALL prms%CreateRealArrayOption( 'RayTracing-RayDirection'    , 'Direction vector for ray emission. Will be normalized after read-in.' , no=3)
+CALL prms%CreateIntOption(       'RayTracing-PartBound'       , 'Particle boundary ID where rays are emitted from' , '0')
+CALL prms%CreateRealOption(      'RayTracing-PulseDuration'   , 'Pulse duration tau for a Gaussian-type pulse with I~exp(-(t/tau)^2) [s]'                  )
+CALL prms%CreateIntOption(       'RayTracing-NbrOfPulses'     , 'Number of pulses [-]'                                                                     , '1')
+CALL prms%CreateRealOption(      'RayTracing-WaistRadius'     , 'Beam waist radius (in focal spot) w_b for Gaussian-type pulse with I~exp(-(r/w_b)^2) [m]' , '0.0')
+CALL prms%CreateRealOption(      'RayTracing-WaveLength'      , 'Beam wavelength [m]'                                                                      )
+CALL prms%CreateRealOption(      'RayTracing-RepetitionRate'  , 'Pulse repetition rate (pulses per second) [Hz]'                                           )
+CALL prms%CreateRealOption(      'RayTracing-PowerDensity'    , 'Average pulse power density (power per area) [W/m2]')
+CALL prms%CreateLogicalOption(   'RayTracing-ForceAbsorption' , 'Surface photon sampling is performed independent of the actual absorption/reflection outcome (default=T)', '.TRUE.')
+CALL prms%CreateIntOption(       'RayTracing-NMax'            , 'Maximum polynomial degree within refined volume elements for photon tracking (p-adaption)')
+CALL prms%CreateIntOption(       'RayTracing-VolRefineMode'   , 'High-order ray tracing volume sampling refinement method:\n'//&
+                                                               ' 0: do nothing (default)\n'//&
+                                                               ' 1: refine below user-defined z-coordinate with NMax\n'//&
+                                                               ' 2: scale N according to the mesh element volume between NMin>=1 and NMax>=2\n'//&
+                                                               ' 3: refine below user-defined z-coordinate and scale N according to the mesh element volume between NMin>=1 and NMax>=2\n'//&
+                                                               '    (consider only elements below the user-defined z-coordinate for the scaling)'&
+                                                              , '0')
+CALL prms%CreateRealOption(      'RayTracing-VolRefineModeZ'  , 'Z-coordinate for switching between NMin (pos>z) and NMax (pos<z) depending on element position for high-order ray tracing')
+CALL prms%CreateIntOption(       'RayTracing-nSurfSample'     , 'Define polynomial degree of ray tracing BC sampling. Default: nSurfSample (which itself defaults to NGeo)')
+CALL prms%CreateStringOption(    'RayTracing-NodeType'        , 'Node type for volume and surface ray tracing super sampling:  VISU, VISU_INNER or GAUSS', 'VISU_INNER')
 
 
 END SUBROUTINE DefineParametersRayTracing
@@ -67,13 +69,14 @@ SUBROUTINE InitRayTracing()
 USE MOD_Globals
 USE MOD_Preproc
 USE MOD_RayTracing_Vars
-USE MOD_ReadInTools         ,ONLY: GETREAL,GETREALARRAY,GETINT,GETLOGICAL,PrintOption
-USE MOD_Globals_Vars        ,ONLY: Pi
-USE MOD_Particle_Mesh_Vars  ,ONLY: GEO
-USE MOD_RadiationTrans_Vars ,ONLY: RadiationAbsorptionModel,RadObservationPointMethod
-USE MOD_Interpolation_Vars  ,ONLY: NodeType,NodeTypeVISU
+USE MOD_ReadInTools            ,ONLY: GETREAL,GETREALARRAY,GETINT,GETLOGICAL,PrintOption,GETSTR
+USE MOD_Globals_Vars           ,ONLY: Pi
+USE MOD_Particle_Mesh_Vars     ,ONLY: GEO
+USE MOD_RadiationTrans_Vars    ,ONLY: RadiationAbsorptionModel,RadObservationPointMethod
+USE MOD_Interpolation_Vars     ,ONLY: NodeType,NodeTypeVISU
+USE MOD_Particle_Boundary_Vars ,ONLY: nSurfSample
 #if USE_LOADBALANCE
-USE MOD_LoadBalance_Vars    ,ONLY: PerformLoadBalance
+USE MOD_LoadBalance_Vars       ,ONLY: PerformLoadBalance
 #endif /*USE_LOADBALANCE*/
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
@@ -109,15 +112,22 @@ Ray%Period         = 1./Ray%RepetitionRate
 Ray%PowerDensity   = GETREAL('RayTracing-PowerDensity')
 Ray%Direction      = GETREALARRAY('RayTracing-RayDirection',3)
 Ray%Direction      = UNITVECTOR(Ray%Direction)
+WRITE(UNIT=hilf,FMT='(I0)') nSurfSample
+Ray%nSurfSample    = GETINT('RayTracing-nSurfSample',hilf)
+Ray%NodeType       = TRIM(GETSTR('RayTracing-NodeType'))
+SELECT CASE(TRIM(Ray%NodeType))
+CASE('VISU','VISU_INNER','GAUSS')
+  ! Do nothing
+CASE DEFAULT
+  CALL CollectiveStop(__STAMP__,'Unknown node type for ray tracing: '//TRIM(Ray%NodeType)//'. Select VISU, VISU_INNER or GAUSS')
+END SELECT
 
+! Parameters only require for actual ray tracing computation
 IF(PerformRayTracing)THEN
   NumRays            = GETINT('RayTracing-NumRays')
   RayForceAbsorption = GETLOGICAL('RayTracing-ForceAbsorption')
   Ray%VolRefineMode  = GETINT('RayTracing-VolRefineMode')
 END IF ! PerformRayTracing
-
-Ray%NodeType = NodeTypeVISU
-!Ray%NodeType = 'VISU_INNER'
 
 ! Output of high-order p-adaptive info
 Ray%NMin = 1 ! GETINT('RayTracing-NMin')

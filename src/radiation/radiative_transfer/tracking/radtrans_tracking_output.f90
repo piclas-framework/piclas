@@ -76,8 +76,10 @@ INTEGER                             :: NlocOffset
 #endif /*USE_MPI*/
 REAL                                :: J_N(1,0:PP_N,0:PP_N,0:PP_N)
 REAL                                :: J_Nmax(1:1,0:Ray%NMax,0:Ray%NMax,0:Ray%NMax)
+REAL                                :: J_Nloc(1:1,0:Ray%NMax,0:Ray%NMax,0:Ray%NMax)
 REAL                                :: IntegrationWeight
-REAL                                :: Vdm_GaussN_Nloc(0:PP_N,0:Ray%NMax)    !< for interpolation to Analyze points (from NodeType nodes to Gauss-Lobatto nodes)
+REAL                                :: Vdm_GaussN_NMax(0:PP_N,0:Ray%NMax)    !< for interpolation to Analyze points (from NodeType nodes to Gauss-Lobatto nodes)
+REAL, ALLOCATABLE                   :: Vdm_GaussN_Nloc(:,:)    !< for interpolation to Analyze points (from NodeType nodes to Gauss-Lobatto nodes)
 !===================================================================================================================================
 SWRITE(UNIT_stdOut,'(a)',ADVANCE='NO') ' WRITE Radiation TO HDF5 FILE...'
 
@@ -107,6 +109,8 @@ ALLOCATE(StrVarNames(1:nVarRay))
 StrVarNames(1)='RayElemPassedEnergy1st'
 StrVarNames(2)='RayElemPassedEnergy2nd'
 StrVarNames(3)='ElemVolume'
+StrVarNames(4)='PhotonEnergyDensity1st'
+StrVarNames(5)='PhotonEnergyDensity2nd'
 
 ! Generate skeleton for the file with all relevant data on a single proc (MPIRoot)
 IF(MPIRoot) CALL GenerateFileSkeleton('RadiationVolState',nVarRay,StrVarNames,TRIM(MeshFile),0.,FileNameIn=RadiationVolState,NIn=Ray%NMax,NodeType_in=Ray%NodeType)
@@ -118,7 +122,7 @@ CALL ExchangeRayVolInfo()
 #endif /*USE_MPI*/
 
 ! p-refinement: Interpolate lower degree to higher degree (other way around would require model=T)
-CALL GetVandermonde(PP_N, NodeType, Ray%NMax, Ray%NodeType, Vdm_GaussN_Nloc, modal=.FALSE.)
+CALL GetVandermonde(PP_N, NodeType, Ray%NMax, Ray%NodeType, Vdm_GaussN_NMax, modal=.FALSE.)
 
 #if USE_MPI
 ASSOCIATE( RayElemPassedEnergy => RayElemPassedEnergy_Shared )
@@ -165,6 +169,43 @@ ASSOCIATE( RayElemPassedEnergy => RayElemPassedEnergy_Shared )
       END ASSOCIATE
     END IF ! nProcessors.GT.1
 #endif /*USE_MPI*/
+
+    ! Get the element volumes on Nloc
+    ! Apply integration weights and the Jacobian
+    ! Interpolate the Jacobian to the analyze grid: be careful we interpolate the inverse of the inverse of the Jacobian ;-)
+    J_N(1,0:PP_N,0:PP_N,0:PP_N)=1./sJ(:,:,:,iElem)
+    ! p-refinement: Interpolate lower degree to higher degree (other way around would require model=T)
+    J_Nloc = 0.
+    IF(PP_N.EQ.Nloc)THEN
+      J_Nloc(1,0:PP_N,0:PP_N,0:PP_N) = J_N(1,0:PP_N,0:PP_N,0:PP_N)
+    ELSE
+      ALLOCATE(Vdm_GaussN_Nloc(0:PP_N,0:Nloc))
+      IF(Nloc.LT.PP_N)THEN
+        CALL GetVandermonde(PP_N, NodeType, Nloc, Ray%NodeType, Vdm_GaussN_Nloc, modal=.TRUE.)
+      ELSE
+        CALL GetVandermonde(PP_N, NodeType, Nloc, Ray%NodeType, Vdm_GaussN_Nloc, modal=.FALSE.)
+      END IF ! Nloc.LT.PP_N
+        CALL ChangeBasis3D(1,PP_N,Nloc,Vdm_GaussN_Nloc,J_N(1:1,0:PP_N,0:PP_N,0:PP_N),J_Nloc(1:1,0:Nloc,0:Nloc,0:Nloc))
+    END IF ! PP_N.EQ.Nloc
+
+    ! Calculate the sub-volumes
+    DO m=0,Nloc
+      DO l=0,Nloc
+        DO k=0,Nloc
+          IntegrationWeight = N_Inter_Ray(Nloc)%wGP(k)*&
+                              N_Inter_Ray(Nloc)%wGP(l)*&
+                              N_Inter_Ray(Nloc)%wGP(m)*J_Nloc(1,k,l,m)
+          !UNMax(1:2,k,l,m,iElem) = UNMax(1:2,k,l,m,iElem) / IntegrationWeight
+          U_N_Ray(iGlobalElem)%U(3,k,l,m) = IntegrationWeight
+        END DO ! k
+      END DO ! l
+    END DO ! m
+    IF(PP_N.NE.Nloc) DEALLOCATE(Vdm_GaussN_Nloc)
+
+    ! Calculate the photon energy density on Nloc
+    U_N_Ray(iGlobalElem)%U(4,:,:,:) = U_N_Ray(iGlobalElem)%U(1,:,:,:)/U_N_Ray(iGlobalElem)%U(3,:,:,:)
+    U_N_Ray(iGlobalElem)%U(5,:,:,:) = U_N_Ray(iGlobalElem)%U(2,:,:,:)/U_N_Ray(iGlobalElem)%U(3,:,:,:)
+
     IF(Nloc.EQ.Ray%Nmax)THEN
       UNMax(:,:,:,:,iElem) = U_N_Ray(iGlobalElem)%U(:,:,:,:)
     ELSE
@@ -174,10 +215,11 @@ ASSOCIATE( RayElemPassedEnergy => RayElemPassedEnergy_Shared )
     ! Copy data from global array (later used for emission)
     U_N_Ray_loc(iElem)%U(:,:,:,:) = U_N_Ray(iGlobalElem)%U(:,:,:,:)
 
+
     ! Apply integration weights and the Jacobian
     ! Interpolate the Jacobian to the analyze grid: be careful we interpolate the inverse of the inverse of the Jacobian ;-)
     J_N(1,0:PP_N,0:PP_N,0:PP_N)=1./sJ(:,:,:,iElem)
-    CALL ChangeBasis3D(1,PP_N,Ray%NMax,Vdm_GaussN_Nloc,J_N(1:1,0:PP_N,0:PP_N,0:PP_N),J_Nmax(1:1,:,:,:))
+    CALL ChangeBasis3D(1,PP_N,Ray%NMax,Vdm_GaussN_NMax,J_N(1:1,0:PP_N,0:PP_N,0:PP_N),J_Nmax(1:1,:,:,:))
     DO m=0,Ray%NMax
       DO l=0,Ray%NMax
         DO k=0,Ray%NMax
@@ -246,8 +288,9 @@ USE MOD_Particle_Boundary_Vars ,ONLY: SurfSideArea_Shared,nSurfTotalSides
 USE MOD_Particle_Boundary_Vars ,ONLY: SurfSideArea
 #endif /*USE_MPI*/
 USE MOD_Photon_TrackingVars    ,ONLY: PhotonSampWall
-USE MOD_Particle_Boundary_Vars ,ONLY: nSurfSample, PartBound
+USE MOD_Particle_Boundary_Vars ,ONLY: PartBound
 USE MOD_Photon_TrackingVars    ,ONLY: RadiationSurfState
+USE MOD_RayTracing_Vars        ,ONLY: Ray
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -258,8 +301,6 @@ IMPLICIT NONE
 ! LOCAL VARIABLES
 CHARACTER(LEN=255)                  :: Statedummy
 CHARACTER(LEN=255)                  :: H5_Name, H5_Name2
-CHARACTER(LEN=4),PARAMETER          :: NodeTypeTemp = 'VISU'
-!CHARACTER(LEN=4),PARAMETER          :: NodeTypeTemp = 'VISU_INNER'
 CHARACTER(LEN=255),ALLOCATABLE      :: Str2DVarNames(:)
 INTEGER                             :: GlobalSideID, iSurfSide, OutputCounter, SurfSideNb, p, q
 INTEGER,PARAMETER                   :: nVar2D=3
@@ -289,11 +330,11 @@ IF (mySurfRank.EQ.0) THEN
   Statedummy = 'RadiationSurfState'
   ! Write file header
   CALL WriteHDF5Header(Statedummy,File_ID)
-  CALL WriteAttributeToHDF5(File_ID , 'DSMC_nSurfSample' , 1       , IntegerScalar = nSurfSample        )
+  CALL WriteAttributeToHDF5(File_ID , 'DSMC_nSurfSample' , 1       , IntegerScalar = Ray%nSurfSample        )
   CALL WriteAttributeToHDF5(File_ID , 'MeshFile'         , 1       , StrScalar     = (/TRIM(MeshFile)/) )
   CALL WriteAttributeToHDF5(File_ID , 'BC_Surf'          , nSurfBC , StrArray      = SurfBCName         )
-  CALL WriteAttributeToHDF5(File_ID , 'N'                , 1       , IntegerScalar = nSurfSample        )
-  CALL WriteAttributeToHDF5(File_ID , 'NodeType'         , 1       , StrScalar     = (/NodeTypeTemp/)   )
+  CALL WriteAttributeToHDF5(File_ID , 'N'                , 1       , IntegerScalar = Ray%nSurfSample        )
+  CALL WriteAttributeToHDF5(File_ID , 'NodeType'         , 1       , StrScalar     = (/Ray%NodeType/)   )
   CALL WriteAttributeToHDF5(File_ID , 'Time'             , 1       , RealScalar    = 0.                 )
 
   ALLOCATE(Str2DVarNames(1:nVar2D))
@@ -322,7 +363,7 @@ ASSOCIATE(SurfSideArea   => SurfSideArea_Shared)
 #endif
 
 ASSOCIATE (&
-      nSurfSample    => INT(nSurfSample                     , IK)  , &
+      nSurfSample    => INT(Ray%nSurfSample                 , IK)  , &
       nGlobalSides   => INT(nOutputSides                    , IK)  , &
       LocalnBCSides  => INT(nComputeNodeSurfOutputSides     , IK)  , &
       offsetSurfSide => INT(offsetComputeNodeSurfOutputSide , IK)  , &
@@ -394,9 +435,10 @@ SUBROUTINE ExchangeRadiationSurfData()
 ! MODULES                                                                                                                          !
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Globals
-USE MOD_Particle_Boundary_Vars ,ONLY: SurfOnNode, SurfMapping, nComputeNodeSurfTotalSides, GlobalSide2SurfSide, nSurfSample
+USE MOD_Particle_Boundary_Vars ,ONLY: SurfOnNode, SurfMapping, nComputeNodeSurfTotalSides, GlobalSide2SurfSide
 USE MOD_Particle_MPI_Vars      ,ONLY: SurfSendBuf,SurfRecvBuf
 USE MOD_Photon_TrackingVars    ,ONLY: PhotonSampWallProc, PhotonSampWall_Shared, PhotonSampWall_Shared_Win
+USE MOD_RayTracing_Vars        ,ONLY: Ray
 USE MOD_MPI_Shared_Vars        ,ONLY: MPI_COMM_LEADERS_SURF, MPI_COMM_SHARED, nSurfLeaders,myComputeNodeRank,mySurfRank
 USE MOD_MPI_Shared
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -414,7 +456,7 @@ INTEGER                         :: RecvRequest(0:nSurfLeaders-1),SendRequest(0:n
 ! nodes without sampling surfaces do not take part in this routine
 IF (.NOT.SurfOnNode) RETURN
 
-MessageSize = 2*nComputeNodeSurfTotalSides*(nSurfSample**2)
+MessageSize = 2*nComputeNodeSurfTotalSides*(Ray%nSurfSample**2)
 IF (myComputeNodeRank.EQ.0) THEN
   CALL MPI_REDUCE(PhotonSampWallProc, PhotonSampWall_Shared, MessageSize, MPI_DOUBLE_PRECISION, MPI_SUM, 0, MPI_COMM_SHARED, IERROR)
 ELSE
@@ -464,12 +506,12 @@ IF (myComputeNodeRank.EQ.0) THEN
       SideID     = SurfMapping(iProc)%SendSurfGlobalID(iSurfSide)
       SurfSideID = GlobalSide2SurfSide(SURF_SIDEID,SideID)
       ! Assemble message
-      DO q = 1,nSurfSample
-        DO p = 1,nSurfSample
+      DO q = 1,Ray%nSurfSample
+        DO p = 1,Ray%nSurfSample
         SurfSendBuf(iProc)%content(iPos+1:iPos+2) = PhotonSampWall_Shared(:,p,q,SurfSideID)
         iPos = iPos + 2
-        END DO ! p=0,nSurfSample
-      END DO ! q=0,nSurfSample
+        END DO ! p=0,Ray%nSurfSample
+      END DO ! q=0,Ray%nSurfSample
       PhotonSampWall_Shared(:,:,:,SurfSideID)=0.
     END DO ! iSurfSide = 1,SurfMapping(iProc)%nSendSurfSides
   END DO
@@ -520,13 +562,13 @@ IF (myComputeNodeRank.EQ.0) THEN
     DO iSurfSide = 1,SurfMapping(iProc)%nRecvSurfSides
       SideID     = SurfMapping(iProc)%RecvSurfGlobalID(iSurfSide)
       SurfSideID = GlobalSide2SurfSide(SURF_SIDEID,SideID)
-      DO q = 1,nSurfSample
-        DO p = 1,nSurfSample
+      DO q = 1,Ray%nSurfSample
+        DO p = 1,Ray%nSurfSample
           PhotonSampWall_Shared(:,p,q,SurfSideID) = PhotonSampWall_Shared(:,p,q,SurfSideID) &
                                                   + SurfRecvBuf(iProc)%content(iPos+1:iPos+2)
           iPos = iPos + 2
-        END DO ! p=0,nSurfSample
-      END DO ! q=0,nSurfSample
+        END DO ! p=0,Ray%nSurfSample
+      END DO ! q=0,Ray%nSurfSample
     END DO ! iSurfSide = 1,SurfMapping(iProc)%nRecvSurfSides
      ! Nullify buffer
     SurfRecvBuf(iProc)%content = 0.

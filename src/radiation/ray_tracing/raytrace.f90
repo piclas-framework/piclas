@@ -54,7 +54,7 @@ USE MOD_part_emission_tools     ,ONLY: InsideQuadrilateral
 USE MOD_Particle_Boundary_Vars  ,ONLY: nComputeNodeSurfTotalSides,PartBound,SurfSide2GlobalSide
 USE MOD_Particle_Mesh_Vars      ,ONLY: SideInfo_Shared
 USE MOD_Particle_Boundary_Tools ,ONLY: StoreBoundaryParticleProperties
-USE MOD_Particle_Boundary_Vars  ,ONLY: PartStateBoundary,nVarPartStateBoundary,nSurfSample
+USE MOD_Particle_Boundary_Vars  ,ONLY: PartStateBoundary,nVarPartStateBoundary
 USE MOD_Photon_TrackingOutput   ,ONLY: WritePhotonSurfSampleToHDF5,WritePhotonVolSampleToHDF5
 #if USE_MPI
 USE MOD_MPI_Shared_Vars
@@ -123,13 +123,13 @@ ALLOCATE(RayElemPassedEnergy(RayElemSize,1:nGlobalElems))
 RayElemPassedEnergy=0.0
 
 #if USE_MPI
-ALLOCATE(PhotonSampWallProc(2,1:nSurfSample,1:nSurfSample,1:nComputeNodeSurfTotalSides))
+ALLOCATE(PhotonSampWallProc(2,1:Ray%nSurfSample,1:Ray%nSurfSample,1:nComputeNodeSurfTotalSides))
 PhotonSampWallProc=0.0
 !> Shared arrays for volume sampling
 CALL Allocate_Shared((/RayElemSize,nGlobalElems/),RayElemPassedEnergy_Shared_Win,RayElemPassedEnergy_Shared)
 CALL MPI_WIN_LOCK_ALL(0,RayElemPassedEnergy_Shared_Win,IERROR)
 !> Shared arrays for boundary sampling
-CALL Allocate_Shared((/2,nSurfSample,nSurfSample,nComputeNodeSurfTotalSides/),PhotonSampWall_Shared_Win,PhotonSampWall_Shared)
+CALL Allocate_Shared((/2,Ray%nSurfSample,Ray%nSurfSample,nComputeNodeSurfTotalSides/),PhotonSampWall_Shared_Win,PhotonSampWall_Shared)
 CALL MPI_WIN_LOCK_ALL(0,PhotonSampWall_Shared_Win,IERROR)
 PhotonSampWall => PhotonSampWall_Shared
 IF(myComputeNodeRank.EQ.0) RayElemPassedEnergy_Shared = 0.
@@ -137,7 +137,7 @@ IF(myComputeNodeRank.EQ.0) PhotonSampWall             = 0.
 CALL BARRIER_AND_SYNC(RayElemPassedEnergy_Shared_Win,MPI_COMM_SHARED)
 CALL BARRIER_AND_SYNC(PhotonSampWall_Shared_Win,MPI_COMM_SHARED)
 #else
-ALLOCATE(PhotonSampWall(2,1:nSurfSample,1:nSurfSample,1:nComputeNodeSurfTotalSides))
+ALLOCATE(PhotonSampWall(2,1:Ray%nSurfSample,1:Ray%nSurfSample,1:nComputeNodeSurfTotalSides))
 PhotonSampWall=0.0
 #endif
 
@@ -267,7 +267,6 @@ USE MOD_RayTracing_Vars        ,ONLY: N_DG_Ray_loc,Ray,nVarRay,U_N_Ray_loc,PREF_
 USE MOD_ChangeBasis            ,ONLY: ChangeBasis3D
 USE MOD_RayTracing_Vars        ,ONLY: RaySecondaryVectorX,RaySecondaryVectorY,RaySecondaryVectorZ
 USE MOD_Mesh_Vars              ,ONLY: nBCSides,offsetElem,SideToElem
-USE MOD_Particle_Boundary_Vars ,ONLY: nSurfSample
 USE MOD_Particle_Mesh_Tools    ,ONLY: GetGlobalNonUniqueSideID
 #if USE_MPI
 USE MOD_MPI_Shared
@@ -308,12 +307,12 @@ END IF
 ! Node leaders notify the processes on their node
 CALL MPI_BCAST(nSurfSidesHDF5,1,MPI_INTEGER,0,MPI_COMM_SHARED,iERROR)
 #else
-ALLOCATE(PhotonSampWallHDF5(1:3,1:nSurfSample,1:nSurfSample,1:nSurfSidesHDF5))
+ALLOCATE(PhotonSampWallHDF5(1:3,1:Ray%nSurfSample,1:Ray%nSurfSample,1:nSurfSidesHDF5))
 #endif
 
 
 #if USE_MPI
-CALL Allocate_Shared((/3,nSurfSample,nSurfSample,nSurfSidesHDF5/),PhotonSampWallHDF5_Shared_Win,PhotonSampWallHDF5_Shared)
+CALL Allocate_Shared((/3,Ray%nSurfSample,Ray%nSurfSample,nSurfSidesHDF5/),PhotonSampWallHDF5_Shared_Win,PhotonSampWallHDF5_Shared)
 CALL MPI_WIN_LOCK_ALL(0,PhotonSampWallHDF5_Shared_Win,IERROR)
 PhotonSampWallHDF5 => PhotonSampWallHDF5_Shared
 ! Only shared memory leaders load the data from .h5
@@ -321,7 +320,7 @@ IF(myComputeNodeRank.EQ.0)THEN
 #endif
   CALL DatasetExists(File_ID,'SurfaceData',ContainerExists)
   IF(.NOT.ContainerExists) CALL CollectiveStop(__STAMP__,'SurfaceData container not in '//TRIM(RadiationSurfState))
-  CALL ReadArray('SurfaceData',4,(/3_IK,INT(nSurfSample,IK),INT(nSurfSample,IK),INT(nSurfSidesHDF5,IK)/),0_IK,1,RealArray=PhotonSampWallHDF5)
+  CALL ReadArray('SurfaceData',4,(/3_IK,INT(Ray%nSurfSample,IK),INT(Ray%nSurfSample,IK),INT(nSurfSidesHDF5,IK)/),0_IK,1,RealArray=PhotonSampWallHDF5)
   CALL CloseDataFile()
   ! Small hack: replace 3rd index with global ID
   DO iSurfSideHDF5 = 1, nSurfSidesHDF5
@@ -334,7 +333,7 @@ END IF
 CALL BARRIER_AND_SYNC(PhotonSampWallHDF5_Shared_Win,MPI_COMM_SHARED)
 #endif /*USE_MPI*/
 
-ALLOCATE(PhotonSampWall_loc(1:nSurfSample,1:nSurfSample,1:nBCSides))
+ALLOCATE(PhotonSampWall_loc(1:Ray%nSurfSample,1:Ray%nSurfSample,1:nBCSides))
 PhotonSampWall_loc = -1.0
 ! Loop through large loop (TODO: can this be made cheaper?)
 DO iSurfSideHDF5 = 1, nSurfSidesHDF5
@@ -349,10 +348,10 @@ DO iSurfSideHDF5 = 1, nSurfSidesHDF5
     iLocSide  = SideToElem(S2E_LOC_SIDE_ID,BCSideID)
     SideID    = GetGlobalNonUniqueSideID(offsetElem+locElemID,iLocSide)
     IF(GlobalSideID.EQ.SideID)THEN
-      PhotonSampWall_loc(1:nSurfSample,1:nSurfSample,BCSideID) = PhotonSampWallHDF5(2,1:nSurfSample,1:nSurfSample,iSurfSideHDF5)
+      PhotonSampWall_loc(1:Ray%nSurfSample,1:Ray%nSurfSample,BCSideID) = PhotonSampWallHDF5(2,1:Ray%nSurfSample,1:Ray%nSurfSample,iSurfSideHDF5)
       ! Check if element fas already been flagged an emission element (either volume or surface emission)
       IF(.NOT.RayElemEmission(1,locElemID))THEN
-        IF(ANY(PhotonSampWall_loc(1:nSurfSample,1:nSurfSample,BCSideID).GT.0.0)) RayElemEmission(1,locElemID) = .TRUE.
+        IF(ANY(PhotonSampWall_loc(1:Ray%nSurfSample,1:Ray%nSurfSample,BCSideID).GT.0.0)) RayElemEmission(1,locElemID) = .TRUE.
       END IF ! .NOT.RayElemEmission(1,locElemID)
     END IF ! GlobalSideID.EQ.
   END DO ! BCSideID = 1,nBCSides
