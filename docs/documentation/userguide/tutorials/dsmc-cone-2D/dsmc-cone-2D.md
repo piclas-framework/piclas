@@ -98,8 +98,8 @@ Different meshing algorithms for creating the 2D and 3D meshes can be chosen wit
 
 Next, the 2D mesh is created and all cells are recombined to quads with the following commands:
 
-    Mesh 2;
     Mesh.RecombineAll = 1;
+    Mesh 2;
 
 The following commands are required to save all elements even if they are not part of a physical group and to use the ASCII format, before saving the mesh as `70degCone_2D.msh`:
 
@@ -108,7 +108,11 @@ The following commands are required to save all elements even if they are not pa
     Mesh.MshFileVersion = 4.1;
     Save "70degCone_2D.msh";
 
-The mesh file in the file format `.h5` used by **piclas** has to be converted using HOPR by supplying an input file `hopr.ini` using the corresponding mode:
+The mesh can be created by simplying executing Gmsh from the terminal:
+
+    gmsh 70degCone_2DSurf.geo
+
+The resulting mesh shall consist of quad elements and not triangles. Finally, it has to be converted to the file format used by **piclas** using HOPR by supplying an input file `hopr.ini` using the corresponding mode:
     
     Mode = 5
 
