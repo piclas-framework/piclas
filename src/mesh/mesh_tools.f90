@@ -547,7 +547,7 @@ END SUBROUTINE LambdaSideToMaster
 SUBROUTINE BuildSideToNonUniqueGlobalSide()
 ! MODULES
 #if USE_DEBUG
-USE MOD_Globals   ,ONLY: myrank,UNIT_StdOut,MPI_COMM_WORLD
+USE MOD_Globals   ,ONLY: myrank,UNIT_StdOut,MPI_COMM_PICLAS
 #endif /*USE_DEBUG*/
 USE MOD_Globals   ,ONLY: iError
 USE MOD_Mesh_Vars ,ONLY: MortarType,ElemInfo,SideToNonUniqueGlobalSide,nSides,nElems,ElemToSide,offsetElem,MortarInfo
@@ -625,7 +625,7 @@ DO iElem=1,nElems
   END DO
 END DO ! iElem
 #if USE_DEBUG
-IF(myrank.eq.0.AND.checkRank.GT.-1) read*; CALL MPI_BARRIER(MPI_COMM_WORLD,iError)
+IF(myrank.eq.0.AND.checkRank.GT.-1) read*; CALL MPI_BARRIER(MPI_COMM_PICLAS,iError)
 #endif /*USE_DEBUG*/
 END SUBROUTINE BuildSideToNonUniqueGlobalSide
 #endif /*USE_LOADBALANCE*/

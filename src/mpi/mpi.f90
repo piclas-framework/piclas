@@ -194,9 +194,6 @@ SendRequest_Geo    = MPI_REQUEST_NULL
 RecRequest_Geo     = MPI_REQUEST_NULL
 DataSizeSide  =(PP_N+1)*(PP_N+1)
 
-! General communicator
-CALL MPI_COMM_DUP (MPI_COMM_WORLD,MPI_COMM_PICLAS,iError)
-
 ! split communicator into smaller groups (e.g. for local nodes)
 GroupSize=GETINT('GroupSize','0')
 IF(GroupSize.LT.1)THEN ! group procs by node
@@ -509,7 +506,6 @@ SDEALLOCATE(OffsetMPISides_rec)
 ! Free the communicators
 IF(MPI_COMM_NODE   .NE.MPI_COMM_NULL) CALL MPI_COMM_FREE(MPI_COMM_NODE   ,IERROR)
 IF(MPI_COMM_LEADERS.NE.MPI_COMM_NULL) CALL MPI_COMM_FREE(MPI_COMM_LEADERS,IERROR)
-IF(MPI_COMM_PICLAS .NE.MPI_COMM_NULL) CALL MPI_COMM_FREE(MPI_COMM_PICLAS ,IERROR)
 
 #if USE_LOADBALANCE
 IF (.NOT.(PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance))) THEN

@@ -383,7 +383,7 @@ END IF
 #if defined(PARTICLES) && USE_LOADBALANCE
 IF (.NOT.PerformLoadBalance) THEN
 #endif /*defined(PARTICLES) && USE_LOADBALANCE*/
-  CALL OpenDataFile(FileString,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_WORLD)
+  CALL OpenDataFile(FileString,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_PICLAS)
   CALL ReadBCs()
 #if defined(PARTICLES) && USE_LOADBALANCE
 END IF
@@ -633,7 +633,7 @@ IF(ReadNodes) CALL ReadMeshNodes()
 #if defined(PARTICLES) && USE_LOADBALANCE
 IF (.NOT.PerformLoadBalance) &
 #endif /*defined(PARTICLES) && USE_LOADBALANCE*/
-  CALL OpenDataFile(FileString,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_WORLD)
+  CALL OpenDataFile(FileString,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_PICLAS)
 
 ! Backup required if useCurveds=F
 NGeoOld = NGeo
@@ -799,7 +799,7 @@ CALL FinishCommunicateMeshReadin()
 #endif
 
 #if USE_MPI
-CALL MPI_ALLREDUCE(MPI_IN_PLACE,ReduceData,11,MPI_INTEGER,MPI_SUM,MPI_COMM_WORLD,iError)
+CALL MPI_ALLREDUCE(MPI_IN_PLACE,ReduceData,11,MPI_INTEGER,MPI_SUM,MPI_COMM_PICLAS,iError)
 #endif /*USE_MPI*/
 
 nGlobalMortarSides=ReduceData(9)

@@ -805,7 +805,7 @@ REAL                            :: PiclasTime
 IF(PRESENT(Comm))THEN
   CALL MPI_BARRIER(Comm,iError)
 ELSE
-  CALL MPI_BARRIER(MPI_COMM_WORLD,iError)
+  CALL MPI_BARRIER(MPI_COMM_PICLAS,iError)
 END IF
 PiclasTime=MPI_WTIME()
 #else
