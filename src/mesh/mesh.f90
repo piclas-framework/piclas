@@ -805,6 +805,8 @@ USE MOD_Mesh_Vars          ,ONLY: offsetElem
 USE MOD_Particle_Mesh_Vars ,ONLY: nComputeNodeElems,offsetComputeNodeElem
 USE MOD_MPI_Shared_Vars    ,ONLY: MPI_COMM_SHARED,myComputeNodeRank,MPI_COMM_LEADERS_SHARED
 USE MOD_Particle_Mesh_Vars ,ONLY: ElemVolume_Shared_Win,ElemCharLength_Shared_Win
+#else
+USE MOD_Globals            ,ONLY: MPI_COMM_PICLAS
 #endif /*PARTICLES*/
 #endif /*USE_MPI*/
 #if USE_LOADBALANCE
@@ -920,7 +922,7 @@ SUBROUTINE setSideRanges()
 !
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! MODULES                                                                                                                          !
-USE MOD_Globals   ,ONLY: abort,MPI_COMM_PICLAS
+USE MOD_Globals   ,ONLY: abort
 USE MOD_Mesh_Vars ,ONLY: firstBCSide,firstMortarInnerSide,firstInnerSide,firstMPISide_MINE,firstMPISide_YOUR
 USE MOD_Mesh_Vars ,ONLY: nMPISides_MINE,nMPISides_YOUR,nInnerSides,nMortarInnerSides,nBCSides
 USE MOD_Mesh_Vars ,ONLY: lastBCSide,lastMortarInnerSide,lastInnerSide,lastMPISide_MINE,lastMPISide_YOUR,lastMortarMPISide
@@ -929,8 +931,7 @@ USE MOD_Mesh_Vars ,ONLY: firstMortarMPISide,nSides,nSidesMaster,nSidesSlave
 USE MOD_Globals   ,ONLY: UNIT_StdOut
 USE MOD_Mesh_Vars ,ONLY: nGlobalUniqueSidesFromMesh,nGlobalUniqueSides,nMortarMPISides,nUniqueSides
 #if USE_MPI
-USE MOD_Globals   ,ONLY: myrank
-USE MOD_Globals   ,ONLY: iError
+USE MOD_Globals   ,ONLY: myrank,MPI_COMM_PICLAS,iError
 USE mpi
 #endif /*USE_MPI*/
 #endif /*USE_HDG*/
