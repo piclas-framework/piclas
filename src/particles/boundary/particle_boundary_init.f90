@@ -259,7 +259,7 @@ PartBound%ElecACC = -1.
 ALLOCATE(PartBound%PhotonSpecularReflection(1:nPartBound))
 PartBound%PhotonSpecularReflection = .FALSE.
 ALLOCATE(PartBound%PhotonEnACC(      1:nPartBound))
-PartBound%PhotonEnACC = -1.
+PartBound%PhotonEnACC = 0.0
 ! Photon SEE
 ALLOCATE(PartBound%PhotonSEEYield(      1:nPartBound))
 PartBound%PhotonSEEYield = 0.

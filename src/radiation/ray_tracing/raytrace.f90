@@ -108,9 +108,13 @@ END IF
 ! Sanity check: Not all boundaries are allowed to perfectly reflect rays. Otherwise, the simulation will never end!
 SumPhotonEnACC = 0.
 DO iPartBound = 1,nPartBound
+  IF(PartBound%PhotonEnACC(iPartBound).LT.0.0) CALL CollectiveStop(__STAMP__,'Part-Boundary[$]-PhotonEnACC is smaller than zero!',&
+                                                                   RealInfo=PartBound%PhotonEnACC(iPartBound))
+  IF(PartBound%PhotonEnACC(iPartBound).GT.1.0) CALL CollectiveStop(__STAMP__,'Part-Boundary[$]-PhotonEnACC is larger than unity!',&
+                                                                   RealInfo=PartBound%PhotonEnACC(iPartBound))
   SumPhotonEnACC = SumPhotonEnACC + PartBound%PhotonEnACC(iPartBound)
 END DO
-IF(SumPhotonEnACC.LE.0.0) CALL abort(__STAMP__,'The sum of all Part-Boundary[$]-PhotonEnACC is zero, which is not allowed!')
+IF(SumPhotonEnACC.LE.0.0) CALL CollectiveStop(__STAMP__,'The sum of all Part-Boundary[$]-PhotonEnACC is zero, which is not allowed!')
 
 GETTIME(StartT)
 SWRITE(UNIT_stdOut,'(A)') ' Start Ray Tracing Calculation ...'
