@@ -283,9 +283,10 @@ USE MOD_Particle_Mesh_Vars     ,ONLY: SideInfo_Shared
 USE MOD_MPI_Shared_Vars        ,ONLY: mySurfRank
 #if USE_MPI
 USE MOD_MPI_Shared_Vars        ,ONLY: MPI_COMM_LEADERS_SURF
-USE MOD_Particle_Boundary_Vars ,ONLY: SurfSideArea_Shared,nSurfTotalSides
+USE MOD_Particle_Boundary_Vars ,ONLY: nSurfTotalSides
+USE MOD_Photon_TrackingVars    ,ONLY: PhotonSurfSideArea_Shared
 #else
-USE MOD_Particle_Boundary_Vars ,ONLY: SurfSideArea
+USE MOD_Photon_TrackingVars    ,ONLY: PhotonSurfSideArea
 #endif /*USE_MPI*/
 USE MOD_Photon_TrackingVars    ,ONLY: PhotonSampWall
 USE MOD_Particle_Boundary_Vars ,ONLY: PartBound
@@ -359,7 +360,7 @@ CALL OpenDataFile(RadiationSurfState,create=.FALSE.,single=.FALSE.,readOnly=.FAL
 WRITE(H5_Name,'(A)') 'SurfaceData'
 WRITE(H5_Name2,'(A)') 'SurfaceDataGlobalSideIndex'
 #if USE_MPI
-ASSOCIATE(SurfSideArea   => SurfSideArea_Shared)
+ASSOCIATE(PhotonSurfSideArea   => PhotonSurfSideArea_Shared)
 #endif
 
 ASSOCIATE (&
@@ -389,7 +390,7 @@ ASSOCIATE (&
     !  SurfaceArea should be changed to 1:SurfMesh%nSides if inner sampling sides exist...
     DO p = 1, nSurfSample
       DO q = 1, nSurfSample
-        helpArray(2,p,q,OutputCounter) = PhotonSampWall(2,p,q,iSurfSide)/SurfSideArea(p,q,iSurfSide)
+        helpArray(2,p,q,OutputCounter) = PhotonSampWall(2,p,q,iSurfSide)/PhotonSurfSideArea(p,q,iSurfSide)
         helpArray(3,p,q,OutputCounter) = PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,GlobalSideID))
       END DO ! q = 1, nSurfSample
     END DO ! p = 1, nSurfSample

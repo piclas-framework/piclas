@@ -84,7 +84,7 @@ USE MOD_Particle_Boundary_Vars  ,ONLY: nSurfTotalSides
 USE MOD_Particle_Boundary_Vars  ,ONLY: GlobalSide2SurfSide,SurfSide2GlobalSide
 USE MOD_SurfaceModel_Vars       ,ONLY: nPorousBC
 USE MOD_Particle_Boundary_Vars  ,ONLY: CalcSurfaceImpact
-USE MOD_Particle_Boundary_Vars  ,ONLY: SurfSideArea,SurfSideSamplingMidPoints,SurfSampSize,SurfOutputSize,SurfSpecOutputSize
+USE MOD_Particle_Boundary_Vars  ,ONLY: SurfSideArea,SurfSampSize,SurfOutputSize,SurfSpecOutputSize
 USE MOD_Particle_Boundary_Vars  ,ONLY: SampWallState, SWIVarTimeStep, SWIStickingCoefficient
 USE MOD_Particle_Boundary_Vars  ,ONLY: SampWallPumpCapacity
 USE MOD_Particle_Boundary_Vars  ,ONLY: SampWallImpactEnergy
@@ -113,7 +113,6 @@ USE MOD_MPI_Shared_Vars         ,ONLY: myLeaderGroupRank,nLeaderGroupProcs
 USE MOD_Particle_Boundary_Vars  ,ONLY: GlobalSide2SurfSide_Shared,GlobalSide2SurfSide_Shared_Win
 USE MOD_Particle_Boundary_Vars  ,ONLY: SurfSide2GlobalSide_Shared,SurfSide2GlobalSide_Shared_Win
 USE MOD_Particle_Boundary_Vars  ,ONLY: SurfSideArea_Shared,SurfSideArea_Shared_Win
-USE MOD_Particle_Boundary_Vars  ,ONLY: SurfSideSamplingMidPoints_Shared,SurfSideSamplingMidPoints_Shared_Win
 USE MOD_Particle_Boundary_Vars  ,ONLY: SampWallState_Shared,SampWallState_Shared_Win
 USE MOD_Particle_Boundary_Vars  ,ONLY: SampWallPumpCapacity_Shared,SampWallPumpCapacity_Shared_Win
 USE MOD_Particle_Boundary_Vars  ,ONLY: SampWallImpactEnergy_Shared,SampWallImpactEnergy_Shared_Win
@@ -571,16 +570,12 @@ END IF
 #if USE_MPI
 CALL Allocate_Shared((/nSurfSample,nSurfSample,nComputeNodeSurfTotalSides/),SurfSideArea_Shared_Win,SurfSideArea_Shared)
 CALL MPI_WIN_LOCK_ALL(0,SurfSideArea_Shared_Win,IERROR)
-CALL Allocate_Shared((/3,nSurfSample,nSurfSample,nComputeNodeSurfTotalSides/),SurfSideSamplingMidPoints_Shared_Win,SurfSideSamplingMidPoints_Shared)
-CALL MPI_WIN_LOCK_ALL(0,SurfSideSamplingMidPoints_Shared_Win,IERROR)
 SurfSideArea => SurfSideArea_Shared
-SurfSideSamplingMidPoints => SurfSideSamplingMidPoints_Shared
 
 firstSide = INT(REAL( myComputeNodeRank   )*REAL(nComputeNodeSurfTotalSides)/REAL(nComputeNodeProcessors))+1
 lastSide  = INT(REAL((myComputeNodeRank+1))*REAL(nComputeNodeSurfTotalSides)/REAL(nComputeNodeProcessors))
 #else
 ALLOCATE(SurfSideArea(1:nSurfSample,1:nSurfSample,1:nComputeNodeSurfTotalSides))
-ALLOCATE(SurfSideSamplingMidPoints(1:3,1:nSurfSample,1:nSurfSample,1:nComputeNodeSurfTotalSides))
 
 firstSide = 1
 lastSide  = nSurfTotalSides
@@ -590,7 +585,6 @@ lastSide  = nSurfTotalSides
 IF (myComputeNodeRank.EQ.0) THEN
 #endif /*USE_MPI*/
   SurfSideArea=0.
-  SurfSideSamplingMidPoints=0.
 #if USE_MPI
 END IF
 CALL BARRIER_AND_SYNC(SurfSideArea_Shared_Win,MPI_COMM_SHARED)
@@ -663,10 +657,6 @@ DO iSide = firstSide,LastSide
         area=0.
         tmpI2=(XiEQ_SurfSample(iSample-1)+XiEQ_SurfSample(iSample))/2. ! (a+b)/2
         tmpJ2=(XiEQ_SurfSample(jSample-1)+XiEQ_SurfSample(jSample))/2. ! (a+b)/2
-        ASSOCIATE( xi => 0.5*(xIP_VISU(iSample)+xIP_VISU(iSample-1)), eta => 0.5*(xIP_VISU(jSample)+xIP_VISU(jSample-1)) )
-          CALL EvaluateBezierPolynomialAndGradient((/xi,eta/),NGeo,3,BezierControlPoints3D(1:3,0:NGeo,0:NGeo,SideID) &
-              ,Point=SurfSideSamplingMidPoints(1:3,iSample,jSample,iSide))
-        END ASSOCIATE
         DO q=0,NGeo
           DO p=0,NGeo
             XiOut(1)=tmp1*Xi_NGeo(p)+tmpI2
@@ -1238,7 +1228,6 @@ CALL MPI_BARRIER(MPI_COMM_SHARED,iERROR)
 
 CALL UNLOCK_AND_FREE(SampWallState_Shared_Win)
 CALL UNLOCK_AND_FREE(SurfSideArea_Shared_Win)
-CALL UNLOCK_AND_FREE(SurfSideSamplingMidPoints_Shared_Win)
 IF(nPorousBC.GT.0) CALL UNLOCK_AND_FREE(SampWallPumpCapacity_Shared_Win)
 IF (CalcSurfaceImpact) THEN
   CALL UNLOCK_AND_FREE(SampWallImpactEnergy_Shared_Win)
@@ -1263,7 +1252,6 @@ ADEALLOCATE(SampWallImpactVector_Shared)
 ADEALLOCATE(SampWallImpactAngle_Shared)
 ADEALLOCATE(SampWallImpactNumber_Shared)
 ADEALLOCATE(SurfSideArea_Shared)
-ADEALLOCATE(SurfSideSamplingMidPoints_Shared)
 #endif /*USE_MPI*/
 
 ! Then, free the pointers or arrays
@@ -1276,7 +1264,6 @@ SDEALLOCATE(SampWallImpactVector)
 SDEALLOCATE(SampWallImpactAngle)
 SDEALLOCATE(SampWallImpactNumber)
 ADEALLOCATE(SurfSideArea)
-ADEALLOCATE(SurfSideSamplingMidPoints)
 ADEALLOCATE(GlobalSide2SurfSide)
 ADEALLOCATE(SurfSide2GlobalSide)
 SDEALLOCATE(MacroSurfaceVal)

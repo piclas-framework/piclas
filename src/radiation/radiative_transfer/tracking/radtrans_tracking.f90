@@ -25,12 +25,227 @@ INTERFACE PhotonTriaTracking
   MODULE PROCEDURE PhotonTriaTracking
 END INTERFACE
 
-PUBLIC::PhotonTriaTracking, Photon2DSymTracking
+PUBLIC :: PhotonTriaTracking, Photon2DSymTracking
+PUBLIC :: InitPhotonSurfSample
 !-----------------------------------------------------------------------------------------------------------------------------------
 !-----------------------------------------------------------------------------------------------------------------------------------
 !===================================================================================================================================
 
 CONTAINS
+
+
+!===================================================================================================================================
+!> Allocate photon surface sampling containers
+!===================================================================================================================================
+SUBROUTINE InitPhotonSurfSample()
+! MODULES
+USE MOD_Globals
+USE MOD_Photon_TrackingVars    ,ONLY: PhotonSurfSideArea,PhotonSurfSideSamplingMidPoints
+USE MOD_Particle_Boundary_Vars ,ONLY: nComputeNodeSurfTotalSides
+USE MOD_Particle_Boundary_Vars ,ONLY: SurfSide2GlobalSide
+#if USE_MPI
+USE MOD_MPI_Shared
+USE MOD_MPI_Shared_Vars        ,ONLY: MPI_COMM_SHARED
+USE MOD_MPI_Shared_Vars        ,ONLY: myComputeNodeRank,nComputeNodeProcessors
+USE MOD_Photon_TrackingVars    ,ONLY: PhotonSurfSideSamplingMidPoints_Shared,PhotonSurfSideSamplingMidPoints_Shared_Win
+USE MOD_Photon_TrackingVars    ,ONLY: PhotonSurfSideArea_Shared,PhotonSurfSideArea_Shared_Win
+#endif /*USE_MPI*/
+USE MOD_Particle_Vars          ,ONLY: Symmetry
+USE MOD_Basis                  ,ONLY: LegendreGaussNodesAndWeights
+USE MOD_DSMC_Symmetry          ,ONLY: DSMC_2D_CalcSymmetryArea, DSMC_1D_CalcSymmetryArea
+USE MOD_Mesh_Vars              ,ONLY: NGeo
+USE MOD_Mesh_Tools             ,ONLY: GetCNElemID
+USE MOD_Particle_Mesh_Vars     ,ONLY: SideInfo_Shared,NodeCoords_Shared
+USE MOD_Particle_Mesh_Vars     ,ONLY: ElemSideNodeID_Shared
+USE MOD_Particle_Tracking_Vars ,ONLY: TrackingMethod
+USE MOD_Particle_Surfaces_Vars ,ONLY: BezierControlPoints3D
+USE MOD_Particle_Surfaces      ,ONLY: EvaluateBezierPolynomialAndGradient
+USE MOD_RayTracing_Vars        ,ONLY: Ray
+USE MOD_Interpolation          ,ONLY: GetNodesAndWeights
+IMPLICIT NONE
+!----------------------------------------------------------------------------------------------------------------------------------!
+! INPUT / OUTPUT VARIABLES
+! Space-separated list of input and output types. Use: (int|real|logical|...)_(in|out|inout)_dim(n)
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER                                :: iSide,firstSide,lastSide
+! surface area
+INTEGER                                :: SideID,ElemID,CNElemID,LocSideID
+INTEGER                                :: p,q,iSample,jSample
+INTEGER                                :: TriNum, Node1, Node2
+REAL                                   :: area,nVal
+REAL,DIMENSION(2,3)                    :: gradXiEta3D
+REAL,DIMENSION(:),ALLOCATABLE          :: Xi_NGeo,wGP_NGeo
+REAL                                   :: XiOut(1:2),E,F,G,D,tmp1,tmpI2,tmpJ2
+REAL                                   :: xNod(3), Vector1(3), Vector2(3), nx, ny, nz
+LOGICAL                                :: UseBezierControlPointsForArea
+REAL,ALLOCATABLE                       :: xIP_VISU(:),wIP_VISU(:)
+REAL,ALLOCATABLE                       :: RayXiEQ_SurfSample(:)            ! position of RayXiEQ_SurfSample
+REAL                                   :: dRayXiEQ_SurfSample              ! deltaXi in [-1,1]
+!===================================================================================================================================
+
+#if USE_MPI
+CALL Allocate_Shared((/Ray%nSurfSample,Ray%nSurfSample,nComputeNodeSurfTotalSides/),PhotonSurfSideArea_Shared_Win,PhotonSurfSideArea_Shared)
+CALL MPI_WIN_LOCK_ALL(0,PhotonSurfSideArea_Shared_Win,IERROR)
+CALL Allocate_Shared((/3,Ray%nSurfSample,Ray%nSurfSample,nComputeNodeSurfTotalSides/),PhotonSurfSideSamplingMidPoints_Shared_Win,PhotonSurfSideSamplingMidPoints_Shared)
+CALL MPI_WIN_LOCK_ALL(0,PhotonSurfSideSamplingMidPoints_Shared_Win,IERROR)
+PhotonSurfSideArea => PhotonSurfSideArea_Shared
+PhotonSurfSideSamplingMidPoints => PhotonSurfSideSamplingMidPoints_Shared
+
+firstSide = INT(REAL( myComputeNodeRank   )*REAL(nComputeNodeSurfTotalSides)/REAL(nComputeNodeProcessors))+1
+lastSide  = INT(REAL((myComputeNodeRank+1))*REAL(nComputeNodeSurfTotalSides)/REAL(nComputeNodeProcessors))
+#else
+ALLOCATE(PhotonSurfSideArea(1:Ray%nSurfSample,1:Ray%nSurfSample,1:nComputeNodeSurfTotalSides))
+ALLOCATE(PhotonSurfSideSamplingMidPoints(1:3,1:Ray%nSurfSample,1:Ray%nSurfSample,1:nComputeNodeSurfTotalSides))
+
+firstSide = 1
+lastSide  = nSurfTotalSides
+#endif /*USE_MPI*/
+
+#if USE_MPI
+IF (myComputeNodeRank.EQ.0) THEN
+#endif /*USE_MPI*/
+  PhotonSurfSideArea=0.
+  PhotonSurfSideSamplingMidPoints=0.
+#if USE_MPI
+END IF
+CALL BARRIER_AND_SYNC(PhotonSurfSideArea_Shared_Win,MPI_COMM_SHARED)
+CALL BARRIER_AND_SYNC(PhotonSurfSideSamplingMidPoints_Shared_Win,MPI_COMM_SHARED)
+#endif /*USE_MPI*/
+
+! Calculate equidistant surface points
+ALLOCATE(RayXiEQ_SurfSample(0:Ray%nSurfSample))
+dRayXiEQ_SurfSample =2./REAL(Ray%nSurfSample)
+DO q=0,Ray%nSurfSample
+  RayXiEQ_SurfSample(q) = dRayXiEQ_SurfSample * REAL(q) - 1.
+END DO
+
+! get interpolation points and weights
+ALLOCATE( Xi_NGeo( 0:NGeo)  &
+        , wGP_NGeo(0:NGeo) )
+CALL LegendreGaussNodesAndWeights(NGeo,Xi_NGeo,wGP_NGeo)
+
+! compute area of sub-faces
+tmp1=dRayXiEQ_SurfSample/2.0 !(b-a)/2
+
+ALLOCATE(xIP_VISU(0:Ray%nSurfSample),wIP_VISU(0:Ray%nSurfSample))
+CALL GetNodesAndWeights(Ray%nSurfSample, Ray%NodeType, xIP_VISU, wIP=wIP_VISU)
+
+DO iSide = firstSide,LastSide
+  ! get global SideID. This contains only nonUniqueSide, no special mortar treatment required
+  SideID = SurfSide2GlobalSide(SURF_SIDEID,iSide)
+
+  UseBezierControlPointsForArea = .FALSE.
+
+  IF (TrackingMethod.EQ.TRIATRACKING) THEN
+    ElemID    = SideInfo_Shared(SIDE_ELEMID ,SideID)
+    CNElemID  = GetCNElemID(ElemID)
+    LocSideID = SideInfo_Shared(SIDE_LOCALID,SideID)
+    IF((Symmetry%Order.NE.3).AND.Ray%nSurfSample.GT.1) CALL abort(__STAMP__,'Ray%nSurfSample>1 not implemented for this symmetry!')
+
+    IF(Symmetry%Order.EQ.3) THEN
+      ! Check if triangles are used for the calculation of the surface area or not
+      IF(Ray%nSurfSample.GT.1)THEN
+        ! Do not use triangles
+        UseBezierControlPointsForArea = .TRUE.
+      ELSE
+        xNod(1:3) = NodeCoords_Shared(1:3,ElemSideNodeID_Shared(1,LocSideID,CNElemID)+1)
+        area = 0.
+        DO TriNum = 1,2
+          Node1 = TriNum+1     ! normal = cross product of 1-2 and 1-3 for first triangle
+          Node2 = TriNum+2     !          and 1-3 and 1-4 for second triangle
+          Vector1(1:3) = NodeCoords_Shared(1:3,ElemSideNodeID_Shared(Node1,LocSideID,CNElemID)+1) - xNod(1:3)
+          Vector2(1:3) = NodeCoords_Shared(1:3,ElemSideNodeID_Shared(Node2,LocSideID,CNElemID)+1) - xNod(1:3)
+          nx = - Vector1(2) * Vector2(3) + Vector1(3) * Vector2(2) !NV (inwards)
+          ny = - Vector1(3) * Vector2(1) + Vector1(1) * Vector2(3)
+          nz = - Vector1(1) * Vector2(2) + Vector1(2) * Vector2(1)
+          nVal = SQRT(nx*nx + ny*ny + nz*nz)
+          area = area + nVal/2.
+        END DO
+        PhotonSurfSideArea(1,1,iSide) = area
+      END IF ! Ray%nSurfSample.GT.1
+    ELSE IF(Symmetry%Order.EQ.2) THEN
+      PhotonSurfSideArea(1,1,iSide) = DSMC_2D_CalcSymmetryArea(LocSideID, CNElemID)
+    ELSE IF(Symmetry%Order.EQ.1) THEN
+      PhotonSurfSideArea(1,1,iSide) = DSMC_1D_CalcSymmetryArea(LocSideID, CNElemID)
+    END IF
+  ELSE ! TrackingMethod.NE.TRIATRACKING
+    UseBezierControlPointsForArea = .TRUE.
+  END IF ! TrackingMethod.EQ.TRIATRACKIN
+
+  ! Instead of triangles use Bezier control points (curved or triangle tracking with Ray%nSurfSample>1)
+  IF(UseBezierControlPointsForArea)THEN
+    DO jSample=1,Ray%nSurfSample
+      DO iSample=1,Ray%nSurfSample
+        area=0.
+        tmpI2=(RayXiEQ_SurfSample(iSample-1)+RayXiEQ_SurfSample(iSample))/2. ! (a+b)/2
+        tmpJ2=(RayXiEQ_SurfSample(jSample-1)+RayXiEQ_SurfSample(jSample))/2. ! (a+b)/2
+        ASSOCIATE( xi => 0.5*(xIP_VISU(iSample)+xIP_VISU(iSample-1)), eta => 0.5*(xIP_VISU(jSample)+xIP_VISU(jSample-1)) )
+          CALL EvaluateBezierPolynomialAndGradient((/xi,eta/),NGeo,3,BezierControlPoints3D(1:3,0:NGeo,0:NGeo,SideID) &
+              ,Point=PhotonSurfSideSamplingMidPoints(1:3,iSample,jSample,iSide))
+        END ASSOCIATE
+        DO q=0,NGeo
+          DO p=0,NGeo
+            XiOut(1)=tmp1*Xi_NGeo(p)+tmpI2
+            XiOut(2)=tmp1*Xi_NGeo(q)+tmpJ2
+            CALL EvaluateBezierPolynomialAndGradient(XiOut,NGeo,3,BezierControlPoints3D(1:3,0:NGeo,0:NGeo,SideID) &
+                                                    ,Gradient=gradXiEta3D)
+            ! calculate first fundamental form
+            E=DOT_PRODUCT(gradXiEta3D(1,1:3),gradXiEta3D(1,1:3))
+            F=DOT_PRODUCT(gradXiEta3D(1,1:3),gradXiEta3D(2,1:3))
+            G=DOT_PRODUCT(gradXiEta3D(2,1:3),gradXiEta3D(2,1:3))
+            D=SQRT(E*G-F*F)
+            area = area+tmp1*tmp1*D*wGP_NGeo(p)*wGP_NGeo(q)
+          END DO
+        END DO
+        PhotonSurfSideArea(iSample,jSample,iSide) = area
+      END DO ! iSample=1,Ray%nSurfSample
+    END DO ! jSample=1,Ray%nSurfSample
+  END IF ! UseBezierControlPointsForArea
+
+END DO ! iSide = firstSide,lastSide
+
+#if USE_MPI
+CALL BARRIER_AND_SYNC(PhotonSurfSideArea_Shared_Win,MPI_COMM_SHARED)
+CALL BARRIER_AND_SYNC(PhotonSurfSideSamplingMidPoints_Shared_Win,MPI_COMM_SHARED)
+#endif /*USE_MPI*/
+
+END SUBROUTINE InitPhotonSurfSample
+
+
+!===================================================================================================================================
+!> Deallocate photon surface sampling containers
+!===================================================================================================================================
+SUBROUTINE FinalizePhotonSurfSample()
+! MODULES
+USE MOD_Globals
+USE MOD_Photon_TrackingVars ,ONLY: PhotonSurfSideArea,PhotonSurfSideSamplingMidPoints
+#if USE_MPI
+USE MOD_MPI_Shared_Vars     ,ONLY: MPI_COMM_SHARED
+USE MOD_Photon_TrackingVars ,ONLY: PhotonSurfSideSamplingMidPoints_Shared,PhotonSurfSideSamplingMidPoints_Shared_Win
+USE MOD_Photon_TrackingVars ,ONLY: PhotonSurfSideArea_Shared,PhotonSurfSideArea_Shared_Win
+USE MOD_MPI_Shared
+#endif /*USE_MPI*/
+IMPLICIT NONE
+!----------------------------------------------------------------------------------------------------------------------------------!
+! INPUT / OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+!===================================================================================================================================
+#if USE_MPI
+CALL UNLOCK_AND_FREE(PhotonSurfSideSamplingMidPoints_Shared_Win)
+CALL UNLOCK_AND_FREE(PhotonSurfSideArea_Shared_Win)
+ADEALLOCATE(PhotonSurfSideSamplingMidPoints_Shared)
+ADEALLOCATE(PhotonSurfSideArea_Shared)
+CALL MPI_BARRIER(MPI_COMM_SHARED,iERROR)
+#endif /*USE_MPI*/
+
+ADEALLOCATE(PhotonSurfSideSamplingMidPoints)
+ADEALLOCATE(PhotonSurfSideArea)
+END SUBROUTINE FinalizePhotonSurfSample
+
+
+
 
 SUBROUTINE PhotonTriaTracking()
 !===================================================================================================================================

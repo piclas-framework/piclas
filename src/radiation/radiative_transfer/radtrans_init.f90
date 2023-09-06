@@ -94,6 +94,7 @@ USE MOD_Radiation_Vars,         ONLY : Radiation_Absorption_Spec_Shared, Radiati
 USE MOD_Radiation_Vars,         ONLY : Radiation_Emission_Spec_Shared_Win, Radiation_Emission_Spec_Shared, MacroRadInputParameters
 #endif
 USE MOD_RayTracing_Vars         ,ONLY: Ray
+USE MOD_Photon_Tracking         ,ONLY: InitPhotonSurfSample
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -124,6 +125,9 @@ RadObservationPointMethod = GETINT('Radiation-RadObservationPointMethod')
 ObservationDoConvolution = GETLOGICAL('Radiation-ObservationDoConvolution')
 RadObservationPoint%ShockTubeDiameter = GETREAL('Radiation-ShockTubeDiameter')
 Ray%nSurfSample    = GETINT('Radiation-nSurfSample',nSurfSample)
+
+! Build surface containers
+CALL InitPhotonSurfSample()
 
 IF (RadObservationPointMethod.GT.0) THEN
   RadObservationPoint%AngularAperture = GETREAL('Radiation-ObservationAngularAperture')

@@ -78,6 +78,7 @@ USE MOD_Particle_Boundary_Vars ,ONLY: nSurfSample
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Vars       ,ONLY: PerformLoadBalance
 #endif /*USE_LOADBALANCE*/
+USE MOD_Photon_Tracking        ,ONLY: InitPhotonSurfSample
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -135,7 +136,8 @@ WRITE(UNIT=hilf,FMT='(I3)') PP_N
 Ray%Nmax = GETINT('RayTracing-Nmax',hilf)
 IF(Ray%Nmax.LT.Ray%Nmax) CALL abort(__STAMP__,'RayTracing-Nmax cannot be smaller than Nmin=',IntInfoOpt=Ray%NMin)
 
-! Build all mappings
+! Build surface and volume containers
+CALL InitPhotonSurfSample()
 CALL InitHighOrderRaySampling()
 
 ASSOCIATE( &
@@ -556,10 +558,9 @@ SUBROUTINE FinalizeRayTracing()
 ! MODULES
 USE MOD_Globals
 USE MOD_RayTracing_Vars
-!USE MOD_Photon_TrackingVars ,ONLY: PhotonSampWall
 #if USE_MPI
-USE MOD_MPI_Shared_Vars     ,ONLY: MPI_COMM_SHARED
 USE MOD_MPI_Shared
+USE MOD_MPI_Shared_Vars     ,ONLY: MPI_COMM_SHARED
 #endif /*USE_MPI*/
 USE MOD_Photon_TrackingVars
 USE MOD_Mesh_Vars           ,ONLY: nGlobalElems

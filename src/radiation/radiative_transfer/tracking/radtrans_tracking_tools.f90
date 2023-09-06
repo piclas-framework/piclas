@@ -1342,8 +1342,8 @@ END SUBROUTINE PeriodicPhotonBC
 !===================================================================================================================================
 SUBROUTINE CalcWallAbsoprtion(IntersectionPos, GlobSideID, DONE, ForceWallSample)
 USE MOD_Globals                ,ONLY: VECNORM
-USE MOD_Photon_TrackingVars    ,ONLY: PhotonProps
-USE MOD_Particle_Boundary_Vars ,ONLY: PartBound, GlobalSide2SurfSide, nSurfSample, SurfSideSamplingMidPoints
+USE MOD_Photon_TrackingVars    ,ONLY: PhotonProps,PhotonSurfSideSamplingMidPoints
+USE MOD_Particle_Boundary_Vars ,ONLY: PartBound, GlobalSide2SurfSide, nSurfSample
 USE MOD_Particle_Mesh_Vars     ,ONLY: SideInfo_Shared
 #if USE_MPI
 USE MOD_Photon_TrackingVars    ,ONLY: PhotonSampWallProc
@@ -1377,7 +1377,7 @@ IF(PRESENT(ForceWallSample))THEN
       distanceMin = HUGE(1.)
       DO pp = 1, nSurfSample
         DO qq = 1, nSurfSample
-          distance = VECNORM(IntersectionPos(1:3) - SurfSideSamplingMidPoints(1:3,pp,qq,SurfSideID))
+          distance = VECNORM(IntersectionPos(1:3) - PhotonSurfSideSamplingMidPoints(1:3,pp,qq,SurfSideID))
           IF(distance.LT.distanceMin)THEN
             p = pp
             q = qq
@@ -1407,7 +1407,7 @@ IF (PhotonEnACC.GT.iRan) THEN
       distanceMin = HUGE(1.)
       DO pp = 1, nSurfSample
         DO qq = 1, nSurfSample
-          distance = VECNORM(IntersectionPos(1:3) - SurfSideSamplingMidPoints(1:3,pp,qq,SurfSideID))
+          distance = VECNORM(IntersectionPos(1:3) - PhotonSurfSideSamplingMidPoints(1:3,pp,qq,SurfSideID))
           IF(distance.LT.distanceMin)THEN
             p = pp
             q = qq

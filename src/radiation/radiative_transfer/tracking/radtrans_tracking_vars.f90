@@ -57,6 +57,16 @@ REAL,POINTER         :: PhotonSampWall_Shared(:,:,:,:)
 REAL,ALLOCATABLE     :: PhotonSampWallProc(:,:,:,:)
 #endif /*USE_MPI*/
 
+REAL,ALLOCPOINT,DIMENSION(:,:,:,:) :: PhotonSurfSideSamplingMidPoints     !> Mid point of supersampled surface side
+REAL,ALLOCPOINT,DIMENSION(:,:,:)   :: PhotonSurfSideArea                  !> Area of supersampled surface side
+
+#if USE_MPI
+REAL,POINTER,DIMENSION(:,:,:,:)    :: PhotonSurfSideSamplingMidPoints_Shared     !> Physical coordinate of the center of supersampled surface side
+INTEGER                            :: PhotonSurfSideSamplingMidPoints_Shared_Win
+REAL,POINTER,DIMENSION(:,:,:)      :: PhotonSurfSideArea_Shared                  !> Area of supersampled surface side
+INTEGER                            :: PhotonSurfSideArea_Shared_Win
+#endif /*USE_MPI*/
+
 
 CHARACTER(LEN=255) :: RadiationSurfState,RadiationVolState !> Output file names for surface and volume sampling
 !===================================================================================================================================
