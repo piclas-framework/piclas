@@ -294,7 +294,7 @@ IF (ABS(meshMode).GT.0) THEN
   LBWRITE(UNIT_stdOut,'(A)') "NOW CALLING fillMeshInfo..."
 #if USE_HDG && USE_LOADBALANCE
   ! Call with meshMode to check whether, e.g., HDG load balance info need to be determined or not
-  CALL fillMeshInfo(ABS(meshMode))
+  CALL fillMeshInfo(meshMode)
 #else
   CALL fillMeshInfo()
 #endif /*USE_HDG && USE_LOADBALANCE*/
