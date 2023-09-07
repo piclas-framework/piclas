@@ -230,9 +230,7 @@ CALL InitInterpolation(NVisu)
 DO iArgs = iArgsStart,nArgs
   InputStateFile = Args(iArgs)
   ! Check if the argument is a valid .h5 file
-  IF(.NOT.ISVALIDHDF5FILE(InputStateFile)) THEN
-    CALL Abort(__STAMP__,'ERROR - Please supply only .h5 files after parameter file.')
-  END IF
+  IF(.NOT.ISVALIDHDF5FILE(InputStateFile)) CALL Abort(__STAMP__,'ERROR - Please supply only .h5 files after parameter file.')
 
   SWRITE(UNIT_stdOut,'(132("="))')
   SWRITE(UNIT_stdOut,'(A,I3,A,I3,A)') 'Processing state ',iArgs-iArgsStart+1,' of ',nArgs-iArgsStart+1,'...'
