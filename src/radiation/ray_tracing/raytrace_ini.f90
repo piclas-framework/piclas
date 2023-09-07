@@ -129,7 +129,6 @@ IF(PerformRayTracing)THEN
   RayForceAbsorption = GETLOGICAL('RayTracing-ForceAbsorption')
   Ray%VolRefineMode  = GETINT('RayTracing-VolRefineMode')
   ! Build surface containers
-  CALL InitPhotonSurfSample()
 END IF ! PerformRayTracing
 
 ! Output of high-order p-adaptive info
@@ -139,6 +138,7 @@ Ray%Nmax = GETINT('RayTracing-Nmax',hilf)
 IF(Ray%Nmax.LT.Ray%Nmax) CALL abort(__STAMP__,'RayTracing-Nmax cannot be smaller than Nmin=',IntInfoOpt=Ray%NMin)
 
 ! Build volume containers
+CALL InitPhotonSurfSample()
 CALL InitHighOrderRaySampling()
 
 ASSOCIATE( &
@@ -579,8 +579,6 @@ IF(.NOT.UseRayTracing) RETURN
 
 ! Check if actual ray tracing through the domain is performed
 IF(PerformRayTracing)THEN
-  ! Deallocate surface variables
-  CALL FinalizePhotonSurfSample()
 
   ! 1: after ray tracing is performed
   SDEALLOCATE(RayElemPassedEnergy)
@@ -634,6 +632,8 @@ ELSE
   ADEALLOCATE(PhotonSampWallHDF5_Shared)
   ADEALLOCATE(PhotonSampWallHDF5)
 #endif /*USE_MPI*/
+  ! Deallocate surface variables
+  CALL FinalizePhotonSurfSample()
 END IF ! PerformRayTracing
 
 END SUBROUTINE FinalizeRayTracing

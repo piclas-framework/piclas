@@ -38,7 +38,7 @@ SUBROUTINE PhotoIonization_RayTracing_SEE()
 USE MOD_Globals
 USE MOD_Globals_Vars            ,ONLY: PI
 USE MOD_Timedisc_Vars           ,ONLY: dt,time
-USE MOD_Particle_Boundary_Vars  ,ONLY: nSurfSample,Partbound,DoBoundaryParticleOutputRay,SurfSideArea
+USE MOD_Particle_Boundary_Vars  ,ONLY: Partbound,DoBoundaryParticleOutputRay
 USE MOD_Particle_Vars           ,ONLY: Species, PartState, usevMPF
 USE MOD_RayTracing_Vars         ,ONLY: Ray,UseRayTracing,RayElemEmission
 USE MOD_part_emission_tools     ,ONLY: CalcPhotonEnergy
@@ -61,7 +61,7 @@ USE MOD_Timedisc_Vars           ,ONLY: iStage, RK_c, nRKStages
 USE MOD_Particle_Boundary_Vars  ,ONLY: nSurfTotalSides
 #endif /*USE_MPI*/
 !USE MOD_Photon_TrackingVars     ,ONLY: PhotonSampWall
-USE MOD_Photon_TrackingVars     ,ONLY: PhotonSampWall_loc
+USE MOD_Photon_TrackingVars     ,ONLY: PhotonSampWall_loc,PhotonSurfSideArea
 #if USE_HDG
 USE MOD_HDG_Vars                ,ONLY: UseFPC,FPC,UseEPC,EPC
 USE MOD_Mesh_Vars               ,ONLY: BoundaryType
@@ -95,9 +95,9 @@ IF(.NOT.ANY(PartBound%PhotonSEEYield(:).GT.0.)) RETURN
 
 ! TODO: Copied here from InitParticleMesh, which is only build if not TriaSurfaceFlux
 IF(UseBezierControlPoints)THEN
-  IF(.NOT.ALLOCATED(BezierSampleXi)) ALLOCATE(BezierSampleXi(0:nSurfSample))
-  DO iSample=0,nSurfSample
-    BezierSampleXi(iSample)=-1.+2.0/nSurfSample*iSample
+  IF(.NOT.ALLOCATED(BezierSampleXi)) ALLOCATE(BezierSampleXi(0:Ray%nSurfSample))
+  DO iSample=0,Ray%nSurfSample
+    BezierSampleXi(iSample)=-1.+2.0/Ray%nSurfSample*iSample
   END DO
 END IF
 
@@ -176,11 +176,11 @@ DO BCSideID=1,nBCSides
     MPF = Species(SpecID)%MacroParticleFactor ! Use species MPF
   END IF ! usevMPF
   ! Loop over the subsides
-  DO p = 1, nSurfSample
-    DO q = 1, nSurfSample
+  DO p = 1, Ray%nSurfSample
+    DO q = 1, Ray%nSurfSample
       ! Calculate the number of SEEs per subside
       !E_Intensity = PhotonSampWall(2,p,q,iSurfSide) * TimeScalingFactor
-      E_Intensity = PhotonSampWall_loc(p,q,BCSideID) * SurfSideArea(p,q,iSurfSide) * TimeScalingFactor
+      E_Intensity = PhotonSampWall_loc(p,q,BCSideID) * PhotonSurfSideArea(p,q,iSurfSide) * TimeScalingFactor
       RealNbrOfSEE = E_Intensity / CalcPhotonEnergy(lambda) * PartBound%PhotonSEEYield(BCID) / MPF
       CALL RANDOM_NUMBER(RandVal)
       NbrOfSEE = INT(RealNbrOfSEE+RandVal)
@@ -202,7 +202,7 @@ DO BCSideID=1,nBCSides
         ELSE
           ! Sanity check
           CALL abort(__STAMP__,'Photoionization with ray tracing requires BezierControlPoints3D')
-        END IF ! nSurfSample.GT.1
+        END IF ! UseBezierControlPoints
         ! Normal vector provided by the routine points outside of the domain
         nVec = -nVec
         ! Loop over number of particles to be inserted
@@ -216,7 +216,7 @@ DO BCSideID=1,nBCSides
           ELSE
             ! Sanity check
             CALL abort(__STAMP__,'Photoionization with ray tracing requires BezierControlPoints3D')
-          END IF ! nSurfSample.GT.1
+          END IF ! UseBezierControlPoints
           ! Determine particle velocity
           CALL CalcVelocity_FromWorkFuncSEE(PartBound%PhotonSEEWorkFunction(BCID), Species(SpecID)%MassIC, tang1, nVec, Velo3D)
           ! Move particle slightly into the domain away from the surface because TriaTracking loses the particle during restart
@@ -253,8 +253,8 @@ DO BCSideID=1,nBCSides
 #endif /*USE_HDG*/
         END DO ! iPart = 1, NbrOfSEE
       END IF ! NbrOfSEE.GT.0
-    END DO ! q = 1, nSurfSample
-  END DO ! p = 1, nSurfSample
+    END DO ! q = 1, Ray%nSurfSample
+  END DO ! p = 1, Ray%nSurfSample
 END DO
 
 END ASSOCIATE
