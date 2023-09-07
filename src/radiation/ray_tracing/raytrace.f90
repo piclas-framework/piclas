@@ -69,7 +69,6 @@ USE MOD_DSMC_Vars               ,ONLY: DSMC
 USE MOD_RayTracing_Init         ,ONLY: FinalizeRayTracing
 USE MOD_RayTracing_Vars         ,ONLY: RaySecondaryVectorX,RaySecondaryVectorY,RaySecondaryVectorZ
 USE MOD_Particle_Boundary_Vars  ,ONLY: nPartBound
-USE MOD_Photon_Tracking         ,ONLY: FinalizePhotonSurfSample
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -237,9 +236,6 @@ END IF
 
 ! Output to h5
 CALL WritePhotonSurfSampleToHDF5()
-
-! Deallocate surface variables
-CALL FinalizePhotonSurfSample()
 
 ! Load surface data to create local PhotonSampWall_loc array
 ! This currently requires .h5 access instead of internal mapping/distribution of info

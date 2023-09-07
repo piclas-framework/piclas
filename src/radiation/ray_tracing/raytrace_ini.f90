@@ -128,6 +128,8 @@ IF(PerformRayTracing)THEN
   NumRays            = GETINT('RayTracing-NumRays')
   RayForceAbsorption = GETLOGICAL('RayTracing-ForceAbsorption')
   Ray%VolRefineMode  = GETINT('RayTracing-VolRefineMode')
+  ! Build surface containers
+  CALL InitPhotonSurfSample()
 END IF ! PerformRayTracing
 
 ! Output of high-order p-adaptive info
@@ -136,8 +138,7 @@ WRITE(UNIT=hilf,FMT='(I3)') PP_N
 Ray%Nmax = GETINT('RayTracing-Nmax',hilf)
 IF(Ray%Nmax.LT.Ray%Nmax) CALL abort(__STAMP__,'RayTracing-Nmax cannot be smaller than Nmin=',IntInfoOpt=Ray%NMin)
 
-! Build surface and volume containers
-CALL InitPhotonSurfSample()
+! Build volume containers
 CALL InitHighOrderRaySampling()
 
 ASSOCIATE( &
@@ -564,6 +565,7 @@ USE MOD_MPI_Shared_Vars     ,ONLY: MPI_COMM_SHARED
 #endif /*USE_MPI*/
 USE MOD_Photon_TrackingVars
 USE MOD_Mesh_Vars           ,ONLY: nGlobalElems
+USE MOD_Photon_Tracking     ,ONLY: FinalizePhotonSurfSample
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! INPUT / OUTPUT VARIABLES
@@ -577,6 +579,9 @@ IF(.NOT.UseRayTracing) RETURN
 
 ! Check if actual ray tracing through the domain is performed
 IF(PerformRayTracing)THEN
+  ! Deallocate surface variables
+  CALL FinalizePhotonSurfSample()
+
   ! 1: after ray tracing is performed
   SDEALLOCATE(RayElemPassedEnergy)
   DO iGlobalElem = 1, nGlobalElems
