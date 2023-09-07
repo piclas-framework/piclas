@@ -291,6 +291,7 @@ LOGICAL,INTENT(IN)   :: onlySurfData
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER              :: iElem,Nloc,iVar,k,l,m,iSurfSideHDF5,nSurfSidesHDF5,BCSideID,iLocSide,locElemID,GlobalSideID,SideID
+INTEGER              :: nSurfSampleHDF5
 LOGICAL              :: ContainerExists
 REAL                 :: N_DG_Ray_locREAL(1:nElems)
 REAL                 :: UNMax(nVarRay,0:Ray%NMax,0:Ray%NMax,0:Ray%NMax,PP_nElems)
@@ -328,7 +329,17 @@ PhotonSampWallHDF5 => PhotonSampWallHDF5_Shared
 IF(myComputeNodeRank.EQ.0)THEN
 #endif
   CALL DatasetExists(File_ID,'SurfaceData',ContainerExists)
-  IF(.NOT.ContainerExists) CALL CollectiveStop(__STAMP__,'SurfaceData container not in '//TRIM(RadiationSurfState))
+  IF(.NOT.ContainerExists) CALL CollectiveStop(__STAMP__,'[SurfaceData] container not in '//TRIM(RadiationSurfState))
+  CALL GetDataSize(File_ID,'SurfaceData',nDims,HSize,attrib=.FALSE.)
+  ! Check if data hast the format [nVar x nSurfSample x nSurfSample x nSurfSidesHDF5]
+  IF(INT(HSize(2),4).NE.INT(HSize(3),4)) CALL abort(__STAMP__,'Wrong dimension of [SurfaceData] in '//TRIM(RadiationSurfState))
+  nSurfSampleHDF5 = INT(HSize(2),4)
+  IF(nSurfSampleHDF5.NE.Ray%nSurfSample)THEN
+    SWRITE(UNIT_stdOut,'(A)') ' Number of nSurfSample in .h5 file differs from the ini file parameter "RayTracing-nSurfSample'
+    SWRITE(UNIT_stdOut,'(A,I0)') '        nSurfSampleHDF5: ', nSurfSampleHDF5
+    SWRITE(UNIT_stdOut,'(A,I0)') ' RayTracing-nSurfSample: ', Ray%nSurfSample
+    CALL abort(__STAMP__,'Number of nSurfSample in .h5 file differs from the ini file parameter "RayTracing-nSurfSample"!')
+  END IF ! nSurfSampleHDF5.NE.Ray%nSurfSample
   CALL ReadArray('SurfaceData',4,(/3_IK,INT(Ray%nSurfSample,IK),INT(Ray%nSurfSample,IK),INT(nSurfSidesHDF5,IK)/),0_IK,1,RealArray=PhotonSampWallHDF5)
   CALL CloseDataFile()
   ! Small hack: replace 3rd index with global ID
