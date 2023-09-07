@@ -32,7 +32,6 @@ TYPE tPhotonProps
   REAL               :: PhotonEnergy        !>
   INTEGER            :: ElemID              !>
   INTEGER            :: WaveLength          !>
-  !REAL               :: nSurfSampleFac      !> Scaling factor: nSurfSampleFac= 1.0/(nSurfSample**2)
   REAL               :: PhotonStartPos(3)   !> super sampled ray path
 END TYPE
 

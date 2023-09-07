@@ -1343,13 +1343,14 @@ END SUBROUTINE PeriodicPhotonBC
 SUBROUTINE CalcWallAbsoprtion(IntersectionPos, GlobSideID, DONE, ForceWallSample)
 USE MOD_Globals                ,ONLY: VECNORM
 USE MOD_Photon_TrackingVars    ,ONLY: PhotonProps,PhotonSurfSideSamplingMidPoints
-USE MOD_Particle_Boundary_Vars ,ONLY: PartBound, GlobalSide2SurfSide, nSurfSample
+USE MOD_Particle_Boundary_Vars ,ONLY: PartBound, GlobalSide2SurfSide
 USE MOD_Particle_Mesh_Vars     ,ONLY: SideInfo_Shared
 #if USE_MPI
 USE MOD_Photon_TrackingVars    ,ONLY: PhotonSampWallProc
 #else
 USE MOD_Photon_TrackingVars    ,ONLY: PhotonSampWall
 #endif /*USE_MPI*/
+USE MOD_RayTracing_Vars        ,ONLY: Ray
 !--------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
 !--------------------------------------------------------------------------------------------------!
@@ -1373,24 +1374,24 @@ IF(PRESENT(ForceWallSample))THEN
   ForceWallSampleLoc = ForceWallSample
   ! Sample impact
   IF(ForceWallSampleLoc)THEN
-    IF(nSurfSample.GT.1)THEN
+    IF(Ray%nSurfSample.GT.1)THEN
       distanceMin = HUGE(1.)
-      DO pp = 1, nSurfSample
-        DO qq = 1, nSurfSample
+      DO pp = 1, Ray%nSurfSample
+        DO qq = 1, Ray%nSurfSample
           distance = VECNORM(IntersectionPos(1:3) - PhotonSurfSideSamplingMidPoints(1:3,pp,qq,SurfSideID))
           IF(distance.LT.distanceMin)THEN
             p = pp
             q = qq
             distanceMin = distance
           END IF ! distance.LT.distanceMin
-        END DO ! q = 1, nSurfSample
-      END DO ! p = 1, nSurfSample
+        END DO ! q = 1, Ray%nSurfSample
+      END DO ! p = 1, Ray%nSurfSample
       PhotonSampWall(1,p,q,SurfSideID) = PhotonSampWall(1,p,q,SurfSideID) + 1.0
       PhotonSampWall(2,p,q,SurfSideID) = PhotonSampWall(2,p,q,SurfSideID) + PhotonProps%PhotonEnergy
     ELSE
       PhotonSampWall(1,1,1,SurfSideID) = PhotonSampWall(1,1,1,SurfSideID) + 1.0
       PhotonSampWall(2,1,1,SurfSideID) = PhotonSampWall(2,1,1,SurfSideID) + PhotonProps%PhotonEnergy
-    END IF ! nSurfSample.GT.1
+    END IF ! Ray%nSurfSample.GT.1
   END IF ! ForceWallSampleLoc
 ELSE
   ForceWallSampleLoc = .FALSE.
@@ -1403,23 +1404,23 @@ IF (PhotonEnACC.GT.iRan) THEN
   DONE = .TRUE.
   ! Do not sample twice
   IF(.NOT.ForceWallSampleLoc)THEN
-    IF(nSurfSample.GT.1)THEN
+    IF(Ray%nSurfSample.GT.1)THEN
       distanceMin = HUGE(1.)
-      DO pp = 1, nSurfSample
-        DO qq = 1, nSurfSample
+      DO pp = 1, Ray%nSurfSample
+        DO qq = 1, Ray%nSurfSample
           distance = VECNORM(IntersectionPos(1:3) - PhotonSurfSideSamplingMidPoints(1:3,pp,qq,SurfSideID))
           IF(distance.LT.distanceMin)THEN
             p = pp
             q = qq
           END IF ! distance.LT.distanceMin
-        END DO ! q = 1, nSurfSample
-      END DO ! p = 1, nSurfSample
+        END DO ! q = 1, Ray%nSurfSample
+      END DO ! p = 1, Ray%nSurfSample
       PhotonSampWall(1,p,q,SurfSideID) = PhotonSampWall(1,p,q,SurfSideID) + 1.0
       PhotonSampWall(2,p,q,SurfSideID) = PhotonSampWall(2,p,q,SurfSideID) + PhotonProps%PhotonEnergy
     ELSE
       PhotonSampWall(1,1,1,SurfSideID) = PhotonSampWall(1,1,1,SurfSideID) + 1.0
       PhotonSampWall(2,1,1,SurfSideID) = PhotonSampWall(2,1,1,SurfSideID) + PhotonProps%PhotonEnergy
-    END IF ! nSurfSample.GT.1
+    END IF ! Ray%nSurfSample.GT.1
   END IF ! .NOT.ForceWallSampleLoc
 END IF
 #if USE_MPI
