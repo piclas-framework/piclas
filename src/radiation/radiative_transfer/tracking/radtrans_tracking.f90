@@ -49,6 +49,8 @@ USE MOD_MPI_Shared_Vars        ,ONLY: MPI_COMM_SHARED
 USE MOD_MPI_Shared_Vars        ,ONLY: myComputeNodeRank,nComputeNodeProcessors
 USE MOD_Photon_TrackingVars    ,ONLY: PhotonSurfSideSamplingMidPoints_Shared,PhotonSurfSideSamplingMidPoints_Shared_Win
 USE MOD_Photon_TrackingVars    ,ONLY: PhotonSurfSideArea_Shared,PhotonSurfSideArea_Shared_Win
+#else
+USE MOD_Particle_Boundary_Vars ,ONLY: nSurfTotalSides
 #endif /*USE_MPI*/
 USE MOD_Particle_Vars          ,ONLY: Symmetry
 USE MOD_Basis                  ,ONLY: LegendreGaussNodesAndWeights
