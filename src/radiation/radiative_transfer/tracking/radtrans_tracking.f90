@@ -598,6 +598,7 @@ DO WHILE (.NOT.Done)
         END IF ! PhotonLost
       END IF ! NrOfThroughSides.LT.2
       CALL CalcAbsoprtion(IntersectionPos(1:3), ElemID, DONE)
+      ! Move photon across periodic BC
       CALL PeriodicPhotonBC(LocalSide,ElemID,TriNum,IntersectionPos,.TRUE.,SideID)
     CASE DEFAULT
       CALL abort(__STAMP__,' ERROR: PartBound not associated!. (unknown case)',BCType,999.)

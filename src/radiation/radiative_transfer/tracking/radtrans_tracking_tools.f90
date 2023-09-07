@@ -659,7 +659,7 @@ INTEGER, INTENT(IN) :: GlobalElemID
 REAL, INTENT(IN)    :: PhotonDir(3)
 REAL, INTENT(IN)    :: IntersectionPos(3)
 ! Local variable declaration
-INTEGER           :: a,b,k,l,m,Nloc,NbrOfSamples,iIntersec,idx
+INTEGER           :: k,l,m,Nloc,NbrOfSamples,iIntersec,idx
 INTEGER           :: kOld,lOld,mOld
 REAL              :: SamplePos(3)
 REAL              :: direction(3),subdirection(3),length,sublength
@@ -669,8 +669,6 @@ REAL              :: realcounter
 ! Calculate the direction and length of the path of the ray through the element
 direction(1:3) = IntersectionPos(1:3)-PhotonProps%PhotonStartPos(1:3)
 length = VECNORM(direction(1:3))
-
-! Check primary or secondary direction
 
 ! Check primary or secondary direction
 IF(DOT_PRODUCT(PhotonDir,Ray%Direction).GT.0.0)THEN
@@ -686,13 +684,6 @@ RayElemPassedEnergy(idx,GlobalElemID)   = RayElemPassedEnergy(idx,GlobalElemID) 
 
 ! High-order sampling: Use nearest Gauss point (NGP) from PIC deposition
 Nloc = N_DG_Ray(GlobalElemID)
-IF(MOD(Nloc,2).EQ.0) THEN
-  a = Nloc/2
-  b = a
-ELSE
-  a = (Nloc+1)/2
-  b = a-1
-END IF
 
 ! Loop over number of sub-samples
 NbrOfSamples = 20 ! Nloc+1 ! must be at least 3 for this sampling method (one point between the two intersections of the element)!
@@ -758,6 +749,7 @@ END SUBROUTINE CalcAbsorptionRayTrace
 !===================================================================================================================================
 SUBROUTINE GetNestestDOFInRefElem(Nloc,SamplePos,GlobalElemID,k,l,m)
 ! MODULES
+USE MOD_globals
 USE MOD_Eval_xyz        ,ONLY: GetPositionInRefElem
 USE MOD_RayTracing_Vars ,ONLY: N_Inter_Ray
 IMPLICIT NONE
@@ -767,41 +759,55 @@ REAL,INTENT(IN)     :: SamplePos(1:3)
 INTEGER,INTENT(IN)  :: Nloc
 INTEGER,INTENT(IN)  :: GlobalElemID
 INTEGER,INTENT(OUT) :: k,l,m
+!INTEGER             :: kOld,lOld,mOld
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-REAL :: IntersectionPosRef(3)
+REAL    :: IntersectionPosRef(3)
+!INTEGER :: ii,a,b
 !===================================================================================================================================
-
 ! OLD METHOD FROM NEAREST GAUSS POINT
-!  ! Get position in reference element
-!  CALL GetPositionInRefElem(SamplePos(1:3),IntersectionPosRef(1:3),GlobalElemID)
 
-!  k = a
-!  DO ii = 0,b-1
-!    IF(ABS(IntersectionPosRef(1)).GE.N_Inter_Ray(Nloc)%GaussBorder(Nloc-ii))THEN
-!      k = Nloc-ii
-!      EXIT
-!    END IF
-!  END DO
-!  k = NINT((Nloc+SIGN(2.0*k-Nloc,IntersectionPosRef(1)))/2)
-!  !! y-direction
-!  l = a
-!  DO ii = 0,b-1
-!    IF(ABS(IntersectionPosRef(2)).GE.N_Inter_Ray(Nloc)%GaussBorder(Nloc-ii))THEN
-!      l = Nloc-ii
-!      EXIT
-!    END IF
-!  END DO
-!  l = NINT((Nloc+SIGN(2.0*l-Nloc,IntersectionPosRef(2)))/2)
-!  !! z-direction
-!  m = a
-!  DO ii = 0,b-1
-!    IF(ABS(IntersectionPosRef(3)).GE.N_Inter_Ray(Nloc)%GaussBorder(Nloc-ii))THEN
-!      m = Nloc-ii
-!      EXIT
-!    END IF
-!  END DO
-!  m = NINT((Nloc+SIGN(2.0*m-Nloc,IntersectionPosRef(3)))/2)
+!IF(MOD(Nloc,2).EQ.0) THEN
+!  a = Nloc/2
+!  b = a
+!ELSE
+!  a = (Nloc+1)/2
+!  b = a-1
+!END IF
+!
+!! Get position in reference element
+!CALL GetPositionInRefElem(SamplePos(1:3),IntersectionPosRef(1:3),GlobalElemID)
+!
+!k = a
+!DO ii = 0,b-1
+!  IF(ABS(IntersectionPosRef(1)).GE.N_Inter_Ray(Nloc)%GaussBorder(Nloc-ii))THEN
+!    k = Nloc-ii
+!    EXIT
+!  END IF
+!END DO
+!k = NINT((Nloc+SIGN(2.0*k-Nloc,IntersectionPosRef(1)))/2)
+!!! y-direction
+!l = a
+!DO ii = 0,b-1
+!  IF(ABS(IntersectionPosRef(2)).GE.N_Inter_Ray(Nloc)%GaussBorder(Nloc-ii))THEN
+!    l = Nloc-ii
+!    EXIT
+!  END IF
+!END DO
+!l = NINT((Nloc+SIGN(2.0*l-Nloc,IntersectionPosRef(2)))/2)
+!!! z-direction
+!m = a
+!DO ii = 0,b-1
+!  IF(ABS(IntersectionPosRef(3)).GE.N_Inter_Ray(Nloc)%GaussBorder(Nloc-ii))THEN
+!    m = Nloc-ii
+!    EXIT
+!  END IF
+!END DO
+!m = NINT((Nloc+SIGN(2.0*m-Nloc,IntersectionPosRef(3)))/2)
+!
+!kOld = k
+!lOld = l
+!mOld = m
 
 ! Get reference position
 CALL GetPositionInRefElem(SamplePos(1:3),IntersectionPosRef(1:3),GlobalElemID)
@@ -809,6 +815,19 @@ CALL GetPositionInRefElem(SamplePos(1:3),IntersectionPosRef(1:3),GlobalElemID)
 k = MINLOC(ABS(N_Inter_Ray(Nloc)%xGP(:) - IntersectionPosRef(1)),DIM=1) - 1
 l = MINLOC(ABS(N_Inter_Ray(Nloc)%xGP(:) - IntersectionPosRef(2)),DIM=1) - 1
 m = MINLOC(ABS(N_Inter_Ray(Nloc)%xGP(:) - IntersectionPosRef(3)),DIM=1) - 1
+!IPWRITE(UNIT_StdOut,*) "Nloc =", Nloc
+!IPWRITE(UNIT_StdOut,*) "N_Inter_Ray(Nloc)%xGP(:) =", N_Inter_Ray(Nloc)%xGP(:)
+!IPWRITE(UNIT_StdOut,*) "IntersectionPosRef =", IntersectionPosRef
+!
+!IF(kOld.ne.k .or. lOld.ne.l .or. mOld.ne.m)THEN
+!  write(*,*) ""
+!  IPWRITE(UNIT_StdOut , *) "k    , l    , m    =" , k    , l    , m
+!  IPWRITE(UNIT_StdOut , *) "kOld , lOld , mOld =" , kOld , lOld , mOld
+!  CALL abort(__STAMP__,'not equal!')
+!END IF ! kOld.eq.k .or. lOld.ne.l .or. mOld.ne.m
+!
+!  IPWRITE(UNIT_StdOut , *) "k    , l    , m    ="    , k    , l    , m
+!  !IF(myrank.eq.0) read*; CALL MPI_BARRIER(MPI_COMM_WORLD,iError)
 
 END SUBROUTINE GetNestestDOFInRefElem
 
@@ -1330,6 +1349,9 @@ PhotonProps%PhotonLastPos = PhotonProps%PhotonLastPos + SIGN( GEO%PeriodicVector
 ! refmapping and tracing
 ! move particle from old element to new element
 Element = SideInfo_Shared(SIDE_NBELEMID,SideID)
+
+! Move the intersection point as it will be considered the starting point in the next iteration
+IntersectionPos = PhotonProps%PhotonLastPos
 
 END SUBROUTINE PeriodicPhotonBC
 
