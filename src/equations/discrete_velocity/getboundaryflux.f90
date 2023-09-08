@@ -123,7 +123,7 @@ USE MOD_Equation_Vars_FV,ONLY: nBCByType,BCSideID,IniExactFunc_FV,RefState
 USE MOD_Riemann
 USE MOD_TimeDisc_Vars,ONLY : dt
 USE MOD_Equation_FV  ,ONLY: ExactFunc_FV
-USE MOD_DistFunc     ,ONLY: MaxwellDistribution, ShakhovDistribution, MaxwellScattering, MacroValuesFromDistribution
+USE MOD_DistFunc     ,ONLY: MaxwellDistribution, MaxwellScattering, MacroValuesFromDistribution
 USE MOD_Equation_Vars_FV,ONLY: DVMSpeciesData,DVMBGKModel,DVMnVelos,DVMVelos,DVMVeloDisc,DVMVeloMax,DVMVeloMin,DVMWeights,DVMDim,Pi
 !----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT / OUTPUT VARIABLES
@@ -144,7 +144,7 @@ INTEGER                              :: BCType,BCState,nBCLoc
 REAL                                 :: UPrim_boundary(PP_nVar_FV,0:PP_N,0:PP_N)
 INTEGER                              :: p,q
 INTEGER                              :: iVel,jVel,kVel,upos, upos_sp
-REAL                                 :: MacroVal(8), tau, vnormal, vwall, Sin, Sout, weight, MovTerm, WallDensity
+REAL                                 :: MacroVal(14), tau, vnormal, vwall, Sin, Sout, weight, MovTerm, WallDensity
 !==================================================================================================================================
 DO iBC=1,nBCs
   IF(nBCByType(iBC).LE.0) CYCLE
@@ -154,7 +154,7 @@ DO iBC=1,nBCs
 
   SELECT CASE(BCType)
   CASE(1) !Periodic already filled!
-  
+
   CASE(2) !Exact function or refstate
     DO iSide=1,nBCLoc
       SideID=BCSideID(iBC,iSide)
@@ -169,7 +169,7 @@ DO iBC=1,nBCs
       END IF
       CALL Riemann(Flux(:,:,:,SideID),UPrim_master(:,:,:,SideID),UPrim_boundary,NormVec(:,:,:,SideID))
     END DO
-  
+
   CASE(3) !specular reflection
     IF(DVMVeloDisc.EQ.2.AND.ANY((DVMVeloMin+DVMVeloMax).NE.0.)) THEN
       CALL abort(__STAMP__,'Specular reflection only implemented for zero-centered velocity grid')
@@ -232,7 +232,7 @@ DO iBC=1,nBCs
       END DO; END DO
       CALL Riemann(Flux(:,:,:,SideID),UPrim_master(:,:,:,SideID),UPrim_boundary,NormVec(:,:,:,SideID))
     END DO
-  
+
   CASE(4,14) ! maxwell scattering
     DO iSide=1,nBCLoc
       SideID=BCSideID(iBC,iSide)
@@ -243,7 +243,7 @@ DO iBC=1,nBCs
       END DO; END DO
       CALL Riemann(Flux(:,:,:,SideID),UPrim_master(:,:,:,SideID),UPrim_boundary,NormVec(:,:,:,SideID))
     END DO
-  
+
   CASE(5) !constant static pressure+temperature inlet
     DO iSide=1,nBCLoc
       SideID=BCSideID(iBC,iSide)
@@ -255,7 +255,7 @@ DO iBC=1,nBCs
       END DO; END DO
       CALL Riemann(Flux(:,:,:,SideID),UPrim_master(:,:,:,SideID),UPrim_boundary,NormVec(:,:,:,SideID))
     END DO
-  
+
   CASE(6) !constant static pressure outlet
     DO iSide=1,nBCLoc
       SideID=BCSideID(iBC,iSide)
@@ -266,7 +266,7 @@ DO iBC=1,nBCs
       END DO; END DO
       CALL Riemann(Flux(:,:,:,SideID),UPrim_master(:,:,:,SideID),UPrim_boundary,NormVec(:,:,:,SideID))
     END DO
-  
+
   CASE(7) !open outlet
     DO iSide=1,nBCLoc
       SideID=BCSideID(iBC,iSide)

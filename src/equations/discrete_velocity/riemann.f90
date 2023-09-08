@@ -29,7 +29,7 @@ SUBROUTINE Riemann(F,U_L,U_R,nv)
 !===================================================================================================================================
 ! MODULES
 USE MOD_PreProc ! PP_N
-USE MOD_DistFunc, ONLY  : MacroValuesFromDistribution, MaxwellDistribution, ShakhovDistribution
+USE MOD_DistFunc, ONLY  : MacroValuesFromDistribution, MaxwellDistribution, ShakhovDistribution, ESBGKDistribution
 USE MOD_Equation_Vars_FV
 USE MOD_TimeDisc_Vars, ONLY : dt
 USE MOD_Globals,  ONLY :abort
@@ -46,7 +46,7 @@ REAL,INTENT(OUT)                                 :: F(PP_nVar_FV,0:PP_N,0:PP_N)
 ! INPUT / OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-REAL                                             :: n_loc(3),MacroVal_L(8), MacroVal_R(8), tau_L, tau_R
+REAL                                             :: n_loc(3),MacroVal_L(14), MacroVal_R(14), tau_L, tau_R
 REAL                                             :: Velo
 REAL,DIMENSION(PP_nVar_FV)                       :: fTarget_L, fTarget_R, UTemp_L, UTemp_R
 REAL                                             :: gamma_R, gamma_L
@@ -60,11 +60,14 @@ INTEGER                                          :: Count_1,Count_2, iVel, jVel,
       CALL MacroValuesFromDistribution(MacroVal_R,U_R(:,Count_1,Count_2),dt/2.,tau_R,1)
       SELECT CASE (DVMBGKModel)
         CASE(1)
-          CALL MaxwellDistribution(MacroVal_L,fTarget_L)
-          CALL MaxwellDistribution(MacroVal_R,fTarget_R)
+          CALL ESBGKDistribution(MacroVal_L,fTarget_L)
+          CALL ESBGKDistribution(MacroVal_R,fTarget_R)
         CASE(2)
           CALL ShakhovDistribution(MacroVal_L,fTarget_L)
           CALL ShakhovDistribution(MacroVal_R,fTarget_R)
+        CASE(3)
+          CALL MaxwellDistribution(MacroVal_L,fTarget_L)
+          CALL MaxwellDistribution(MacroVal_R,fTarget_R)
         CASE DEFAULT
           CALL abort(__STAMP__,'DVM BGK Model not implemented.',999,999.)
       END SELECT

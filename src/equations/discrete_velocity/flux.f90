@@ -12,7 +12,6 @@
 !==================================================================================================================================
 #include "piclas.h"
 
-#if !(USE_FV)
 MODULE MOD_Flux
 !===================================================================================================================================
 ! Contains the routine EvalFlux3D which computes the complete flux f,g,h for all DOFs in one Element: used in volume integral
@@ -26,6 +25,7 @@ PRIVATE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
+#if !(USE_FV)
 INTERFACE EvalFlux3D
   MODULE PROCEDURE EvalFlux3D
 END INTERFACE
@@ -35,10 +35,12 @@ INTERFACE EvalFlux3DDielectric
 END INTERFACE
 
 PUBLIC::EvalFlux3D,EvalFlux3DDielectric
+#endif /*!(USE_FV)*/
 !===================================================================================================================================
 
 CONTAINS
 
+#if !(USE_FV)
 SUBROUTINE EvalFlux3D(iElem,f,g,h)
 ! MODULES
 USE MOD_PreProc
@@ -46,7 +48,7 @@ USE MOD_Globals      ,ONLY: Abort
 USE MOD_TimeDisc_Vars,ONLY : dt
 USE MOD_FV_Vars      ,ONLY: U
 USE MOD_Equation_Vars,ONLY: DVMnVelos, DVMVelos, DVMSpeciesData, DVMBGKModel, DVMMethod
-USE MOD_DistFunc     ,ONLY: MacroValuesFromDistribution, MaxwellDistribution, ShakhovDistribution
+USE MOD_DistFunc     ,ONLY: MacroValuesFromDistribution, MaxwellDistribution, ShakhovDistribution, ESBGKDistribution
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
@@ -56,7 +58,7 @@ INTEGER,INTENT(IN)                                 :: iElem
 REAL,DIMENSION(PP_nVar,0:PP_N,0:PP_N,0:PP_N),INTENT(OUT) :: f,g,h    ! Cartesian fluxes (iVar,i,j,k)
 !----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-REAL                :: MacroVal(8), tau, fTarget(PP_nVar), UTemp(PP_nVar), gamma
+REAL                :: MacroVal(14), tau, fTarget(PP_nVar), UTemp(PP_nVar), gamma
 INTEGER             :: i,j,k, kVel, jVel, iVel, upos
 !==================================================================================================================================
 DO k=0,PP_N
@@ -67,9 +69,11 @@ DO k=0,PP_N
       ! wrong because no reconstruction/relaxation was done before ---> DVM only works with FV
       SELECT CASE (DVMBGKModel)
         CASE(1)
-          CALL MaxwellDistribution(MacroVal,fTarget)
+          CALL ESBGKDistribution(MacroVal,fTarget)
         CASE(2)
           CALL ShakhovDistribution(MacroVal,fTarget)
+        CASE(3)
+          CALL MaxwellDistribution(MacroVal,fTarget)
         CASE DEFAULT
           CALL abort(__STAMP__,'DVM BGK Model not implemented')
       END SELECT
@@ -121,6 +125,6 @@ REAL,DIMENSION(8,0:PP_N,0:PP_N,0:PP_N),INTENT(OUT) :: f,g,h    ! Cartesian fluxe
 !===================================================================================================================================
 
 END SUBROUTINE EvalFlux3DDielectric
+#endif /*!(USE_FV)*/
 
 END MODULE MOD_Flux
-#endif /*!(USE_FV)*/

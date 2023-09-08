@@ -158,7 +158,7 @@ REAL                           :: StartT,EndT
 #ifdef PP_POIS
 REAL                           :: Utemp(PP_nVar,0:PP_N,0:PP_N,0:PP_N,PP_nElems)
 #elif (PP_TimeDiscMethod==600) /*DVM with FV*/
-REAL                           :: Utemp(1:9,0:PP_N,0:PP_N,0:PP_N,PP_nElems)
+REAL                           :: Utemp(1:15,0:PP_N,0:PP_N,0:PP_N,PP_nElems)
 #elif USE_HDG
 #if PP_nVar==1
 REAL                           :: Utemp(1:4,0:PP_N,0:PP_N,0:PP_N,PP_nElems)
@@ -250,7 +250,7 @@ IF(MPIRoot) CALL GenerateFileSkeleton('State',3,StrVarNames,MeshFileName,OutputT
 IF(MPIRoot) CALL GenerateFileSkeleton('State',7,StrVarNames,MeshFileName,OutputTime_loc)
 #endif
 #elif (PP_TimeDiscMethod==600) /*DVM*/
-IF(MPIRoot) CALL GenerateFileSkeleton('State',9,StrVarNames_FV,MeshFileName,OutputTime_loc) ! 9 for DVM MacroVal (maybe change that)
+IF(MPIRoot) CALL GenerateFileSkeleton('State',15,StrVarNames_FV,MeshFileName,OutputTime_loc) ! 15 for DVM MacroVal (maybe change that)
 #else
 IF(MPIRoot) CALL GenerateFileSkeleton('State',PP_nVar,StrVarNames,MeshFileName,OutputTime_loc)
 #endif /*USE_HDG*/
@@ -521,13 +521,13 @@ ASSOCIATE (&
 #if USE_FV
 #ifdef discrete_velocity
   DO iElem=1,INT(PP_nElems)
-    CALL MacroValuesFromDistribution(Utemp(1:8,0,0,0,iElem),U_FV(:,0,0,0,iElem),dt,tau,1)
-    Utemp(9,0,0,0,iElem) = dt/tau
+    CALL MacroValuesFromDistribution(Utemp(1:14,0,0,0,iElem),U_FV(:,0,0,0,iElem),dt,tau,1)
+    Utemp(15,0,0,0,iElem) = dt/tau
   END DO
   CALL GatheredWriteArray(FileName,create=.FALSE.,&
       DataSetName='DVM_Solution', rank=5,&
-      nValGlobal=(/9_IK, 1_IK , 1_IK , 1_IK , nGlobalElems/) , &
-      nVal=      (/9_IK, 1_IK , 1_IK , 1_IK , PP_nElems/)    , &
+      nValGlobal=(/15_IK, 1_IK , 1_IK , 1_IK , nGlobalElems/) , &
+      nVal=      (/15_IK, 1_IK , 1_IK , 1_IK , PP_nElems/)    , &
       offset=    (/0_IK       , 0_IK   , 0_IK   , 0_IK   , offsetElem/)   , &
       collective=.TRUE.,RealArray=Utemp)
 #endif

@@ -29,31 +29,42 @@ SUBROUTINE AnalyzeDVM()
 ! MODULES
 USE MOD_PreProc
 USE MOD_FV_Vars
-USE MOD_TimeDisc_Vars         ,ONLY: dt, dt_Min
+USE MOD_TimeDisc_Vars         ,ONLY: time, dt, dt_Min
 USE MOD_DistFunc              ,ONLY: MacroValuesFromDistribution
 USE MOD_Mesh_Vars             ,ONLY: nElems
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
+
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-REAL                            :: tau, MacroVal(8)
+REAL                            :: tau, MacroVal(14)
 INTEGER                         :: iElem
 !===================================================================================================================================
 DO iElem=1,nElems
+  IF (time.EQ.0.) THEN
+    CALL MacroValuesFromDistribution(MacroVal,U_FV(:,0,0,0,iElem),0.,tau,1)
+  ELSE
     CALL MacroValuesFromDistribution(MacroVal,U_FV(:,0,0,0,iElem),dt,tau,1)
-    DVM_ElemData1(iElem)=MacroVal(1)
-    DVM_ElemData2(iElem)=MacroVal(2)
-    DVM_ElemData3(iElem)=MacroVal(3)
-    DVM_ElemData4(iElem)=MacroVal(4)
-    DVM_ElemData5(iElem)=MacroVal(5)
-    DVM_ElemData6(iElem)=MacroVal(6)
-    DVM_ElemData7(iElem)=MacroVal(7)
-    DVM_ElemData8(iElem)=MacroVal(8)
-    DVM_ElemData9(iElem)=dt_Min(DT_MIN)/tau !relaxation factor for regular timesteps, higher than for the actual analyze timestep
+  END IF
+  DVM_ElemData1(iElem)=MacroVal(1)
+  DVM_ElemData2(iElem)=MacroVal(2)
+  DVM_ElemData3(iElem)=MacroVal(3)
+  DVM_ElemData4(iElem)=MacroVal(4)
+  DVM_ElemData5(iElem)=MacroVal(5)
+  DVM_ElemData6(iElem)=MacroVal(6)
+  DVM_ElemData7(iElem)=MacroVal(7)
+  DVM_ElemData8(iElem)=MacroVal(8)
+  DVM_ElemData9(iElem)=MacroVal(9)
+  DVM_ElemData10(iElem)=MacroVal(10)
+  DVM_ElemData11(iElem)=MacroVal(11)
+  DVM_ElemData12(iElem)=MacroVal(12)
+  DVM_ElemData13(iElem)=MacroVal(13)
+  DVM_ElemData14(iElem)=MacroVal(14)
+  DVM_ElemData15(iElem)=dt_Min(DT_MIN)/tau !relaxation factor for regular timesteps, higher than for the actual analyze timestep
 END DO
 
 END SUBROUTINE

@@ -54,31 +54,36 @@ USE MOD_ReadInTools ,ONLY: prms
 IMPLICIT NONE
 !==================================================================================================================================
 CALL prms%SetSection("Equation")
-CALL prms%CreateIntOption(      'IniExactFunc'     , 'TODO-DEFINE-PARAMETER\n'//&
-                                                     'Define exact function necessary for '//&
-                                                     'linear scalar advection', '-1')
-CALL prms%CreateRealOption(     'DVM-omegaVHS',        "Blabla.")
-CALL prms%CreateRealOption(     'DVM-T_Ref',        "Blabla.")
-CALL prms%CreateRealOption(     'DVM-d_Ref',        "Blabla.")
-CALL prms%CreateRealOption(     'DVM-Internal_DOF',        "Blabla.")
-CALL prms%CreateRealOption(     'DVM-Mass',        "Blabla.")
-CALL prms%CreateIntOption(     'DVM-BGKModel',        "1: Maxwell, 2: Shakhov", "2")
-CALL prms%CreateIntOption(     'DVM-Method',        "1: Exponential differencing, 2: DUGKS", "1")
-CALL prms%CreateIntOption(     'DVM-VeloDiscretization',        "1: don't use, 2: Gauss-Hermite, 3: Newton-Cotes", "2")
-CALL prms%CreateRealArrayOption(     'DVM-GaussHermiteTemp',        "Blabla.","(/273.,273.,273./)")
-CALL prms%CreateRealArrayOption(     'DVM-VeloMin',        "Only for Newton-Cotes velocity quadrature", "(/-1.,-1.,-1./)")
-CALL prms%CreateRealArrayOption(     'DVM-VeloMax',        "Only for Newton-Cotes velocity quadrature", "(/1.,1.,1./)")
-CALL prms%CreateIntOption(     'DVM-Dimension',        "Blabla.", "3")
-CALL prms%CreateIntOption( 'DVM-nVelo' , "Number of velocity discretization points", '15')
-CALL prms%CreateIntArrayOption(     'DVM-NewtonCotesDegree',        "Degree of the subquadrature for composite quadrature", "(/1,1,1/)")
-CALL prms%CreateIntOption(      'IniRefState',  "Refstate required for initialization.")
-CALL prms%CreateRealArrayOption('RefState',     "State(s) in primitive variables (density, velx, vely, velz, pressure).",&
-                                                multiple=.TRUE., no=8 )
-CALL prms%CreateRealArrayOption('DVM-Accel', "Acceleration vector for force term", "(/0., 0., 0./)")
+CALL prms%CreateIntOption(      'IniExactFunc'     , 'Define exact function necessary for '//&
+                                                     'discrete velocity method', '-1')
+CALL prms%CreateRealOption(     'DVM-omegaVHS',      'Variable Hard Sphere parameter')
+CALL prms%CreateRealOption(     'DVM-T_Ref',         'VHS reference temperature')
+CALL prms%CreateRealOption(     'DVM-d_Ref',         'VHS reference diameter')
+CALL prms%CreateRealOption(     'DVM-Mass',          'Molecular mass')
+CALL prms%CreateIntOption(      'DVM-Internal_DOF',  'Number of internal degrees of freedom')
+CALL prms%CreateIntOption(      'DVM-Dimension',     'Number of space dimensions for velocity discretization', '3')
+CALL prms%CreateIntOption(      'DVM-BGKCollModel',  'Select the BGK method:\n'//&
+                                                     '1: Ellipsoidal statistical (ESBGK)\n'//&
+                                                     '2: Shakov (SBGK)\n'//&
+                                                     '3: Standard BGK')
+CALL prms%CreateIntOption(      'DVM-Method',        'Select the DVM model:\n'//&
+                                                     '1: Exponential differencing (EDDVM)\n'//&
+                                                     '2: DUGKS')
+CALL prms%CreateIntOption(      'DVM-VeloDiscretization',      '1: do not use, 2: Gauss-Hermite, 3: Newton-Cotes', '2')
+CALL prms%CreateRealArrayOption('DVM-GaussHermiteTemp',        'Reference temperature for GH quadrature (per direction)',&
+                                                               '(/273.,273.,273./)')
+CALL prms%CreateRealArrayOption('DVM-VeloMin',                 'Only for Newton-Cotes velocity quadrature', '(/-1.,-1.,-1./)')
+CALL prms%CreateRealArrayOption('DVM-VeloMax',                 'Only for Newton-Cotes velocity quadrature', '(/1.,1.,1./)')
+CALL prms%CreateIntOption(      'DVM-nVelo' ,                  'Number of velocity discretization points', '15')
+CALL prms%CreateIntArrayOption( 'DVM-NewtonCotesDegree',       'Degree of the subquadrature for composite quadrature', '(/1,1,1/)')
+CALL prms%CreateIntOption(      'IniRefState',  'Refstate required for initialization.')
+CALL prms%CreateRealArrayOption('RefState',     'State(s) in primitive variables (density, velo, temp, press, heatflux).',&
+                                                 multiple=.TRUE., no=14 )
+CALL prms%CreateRealArrayOption('DVM-Accel',    'Acceleration vector for force term', '(/0., 0., 0./)')
 END SUBROUTINE DefineParametersEquation
 
 !==================================================================================================================================
-!> Read equation parameters (advection velocity, diffusion coeff, exact function)  from the ini file
+!> Read equation parameters from the ini file
 !==================================================================================================================================
 SUBROUTINE InitEquation()
 ! MODULES
@@ -110,9 +115,9 @@ IniExactFunc_FV = GETINT('IniExactFunc')
 DVMSpeciesData%omegaVHS = GETREAL('DVM-omegaVHS')
 DVMSpeciesData%T_Ref = GETREAL('DVM-T_Ref')
 DVMSpeciesData%d_Ref = GETREAL('DVM-d_Ref')
-DVMSpeciesData%Internal_DOF = GETREAL('DVM-Internal_DOF')
+DVMSpeciesData%Internal_DOF = GETINT('DVM-Internal_DOF')
 DVMSpeciesData%Mass = GETREAL('DVM-Mass')
-DVMBGKModel = GETINT('DVM-BGKModel')
+DVMBGKModel = GETINT('DVM-BGKCollModel')
 DVMMethod = GETINT('DVM-Method')
 DVMVeloDisc = GETINT('DVM-VeloDiscretization')
 DVMSpeciesData%mu_Ref = 30.*SQRT(DVMSpeciesData%Mass*BoltzmannConst*DVMSpeciesData%T_Ref/Pi) &
@@ -178,15 +183,15 @@ IF(IniRefState.GT.nRefState)THEN
 END IF
 
 IF(nRefState .GT. 0)THEN
-  ALLOCATE(RefState(8,nRefState))
+  ALLOCATE(RefState(14,nRefState))
   DO i=1,nRefState
-    RefState(1:8,i)  = GETREALARRAY('RefState',8)
+    RefState(1:14,i)  = GETREALARRAY('RefState',14)
   END DO
 END IF
 
 DVMForce = GETREALARRAY('DVM-Accel',3)
 
-ALLOCATE(DVMMomentSave(3,nElems))
+ALLOCATE(DVMMomentSave(9,nElems))
 DVMMomentSave = 0.
 
 ! Always set docalcsource true, set false by calcsource itself on first run if not needed
@@ -228,7 +233,7 @@ INTEGER,INTENT(IN)              :: ExactFunction          !< specifies the exact
 REAL,INTENT(OUT)                :: Resu(PP_nVar_FV)          !< output state in conservative variables
 !----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-REAL                            :: MacroVal(8)
+REAL                            :: MacroVal(14)
 REAL                            :: WallVelo1, WallTemp1, WallVelo2, WallTemp2
 !==================================================================================================================================
 

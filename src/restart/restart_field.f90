@@ -548,11 +548,11 @@ ELSE ! normal restart
 
 #ifdef discrete_velocity
     SWRITE(UNIT_stdOut,*)'Performing DVM restart using Grads 13 moment distribution'
-    ALLOCATE(UTmp(9,0:0,0:0,0:0,nElems))
+    ALLOCATE(UTmp(15,0:0,0:0,0:0,nElems))
     UTmp=0.
-    CALL ReadArray('DVM_Solution',5,(/9,1_IK,1_IK,1_IK,PP_nElemsTmp/),OffsetElemTmp,5,RealArray=Utmp)
+    CALL ReadArray('DVM_Solution',5,(/15,1_IK,1_IK,1_IK,PP_nElemsTmp/),OffsetElemTmp,5,RealArray=Utmp)
     DO iElem=1,nElems
-      CALL GradDistribution(Utmp(1:8,0,0,0,iElem),U_FV(1:PP_nVar_FV,0,0,0,iElem))
+      CALL GradDistribution(Utmp(1:14,0,0,0,iElem),U_FV(1:PP_nVar_FV,0,0,0,iElem))
     END DO
     DEALLOCATE(UTmp)
 #endif

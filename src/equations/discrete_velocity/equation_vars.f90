@@ -60,24 +60,30 @@ TYPE tSpeciesData
   REAL            :: omegaVHS
   REAL            :: T_Ref
   REAL            :: d_Ref
-  REAL            :: Internal_DOF
   REAL            :: mu_Ref
   REAL            :: Mass
   REAL            :: R_S
   REAL            :: Prandtl
+  INTEGER         :: Internal_DOF
 END TYPE tSpeciesData
 
 TYPE(tSpeciesData) :: DVMSpeciesData
 
-CHARACTER(LEN=255),DIMENSION(9),PARAMETER :: StrVarNames_FV = (/ CHARACTER(LEN=255) :: 'Density', &
-                                                                                    'VeloX', &
-                                                                                    'VeloY', &
-                                                                                    'VeloZ', &
-                                                                                    'Temp', &
+CHARACTER(LEN=255),DIMENSION(15),PARAMETER :: StrVarNames_FV = (/ CHARACTER(LEN=255) :: 'Density', &
+                                                                                    'VelocityX', &
+                                                                                    'VelocityY', &
+                                                                                    'VelocityZ', &
+                                                                                    'Temperature', &
+                                                                                    'PressureXX', &
+                                                                                    'PressureXY', &
+                                                                                    'PressureXZ', &
+                                                                                    'PressureYY', &
+                                                                                    'PressureYZ', &
+                                                                                    'PressureZZ', &
                                                                                     'HeatfluxX', &
                                                                                     'HeatfluxY', &
                                                                                     'HeatfluxZ', &
-                                                                                    'RelaxFact'/)
+                                                                                    'RelaxationFactor'/)
 
 LOGICAL              :: EquationInitIsDone=.FALSE.!< Init switch
 LOGICAL              :: DoExactFlux

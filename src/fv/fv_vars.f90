@@ -43,6 +43,12 @@ REAL,ALLOCATABLE                      :: DVM_ElemData6(:)
 REAL,ALLOCATABLE                      :: DVM_ElemData7(:)
 REAL,ALLOCATABLE                      :: DVM_ElemData8(:)
 REAL,ALLOCATABLE                      :: DVM_ElemData9(:)
+REAL,ALLOCATABLE                      :: DVM_ElemData10(:)
+REAL,ALLOCATABLE                      :: DVM_ElemData11(:)
+REAL,ALLOCATABLE                      :: DVM_ElemData12(:)
+REAL,ALLOCATABLE                      :: DVM_ElemData13(:)
+REAL,ALLOCATABLE                      :: DVM_ElemData14(:)
+REAL,ALLOCATABLE                      :: DVM_ElemData15(:)
 #endif
 
 LOGICAL                               :: FVInitIsDone=.FALSE.

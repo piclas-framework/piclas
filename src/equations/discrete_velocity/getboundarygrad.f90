@@ -50,7 +50,7 @@ USE MOD_Equation_FV      ,ONLY: ExactFunc_FV
 USE MOD_Equation_Vars_FV ,ONLY: IniExactFunc_FV, RefState, DVMBGKModel
 USE MOD_Equation_Vars_FV ,ONLY: DVMVelos, DVMnVelos, DVMSpeciesData, DVMVeloDisc, DVMVeloMax, DVMVeloMin, DVMDim, Pi, DVMWeights
 USE MOD_TimeDisc_Vars    ,ONLY : dt, time
-USE MOD_DistFunc         ,ONLY: MaxwellDistribution, ShakhovDistribution, MacroValuesFromDistribution, MaxwellScattering
+USE MOD_DistFunc         ,ONLY: MaxwellDistribution, MacroValuesFromDistribution, MaxwellScattering
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT / OUTPUT VARIABLES
@@ -65,7 +65,7 @@ REAL,INTENT(IN)   :: Face_xGP(3)
 ! LOCAL VARIABLES
 INTEGER :: BCType,BCState
 REAL    :: UPrim_boundary(1:PP_nVar_FV), fplus(1:PP_nVar_FV)
-REAL    :: MacroVal(8), tau, vnormal, vwall, Sin, Sout, MovTerm, WallDensity, weight
+REAL    :: MacroVal(14), tau, vnormal, vwall, Sin, Sout, MovTerm, WallDensity, weight
 INTEGER :: iVel, jVel, kVel, upos, upos_sp
 !==================================================================================================================================
 BCType  = BoundaryType(BC(SideID),BC_TYPE)
@@ -178,6 +178,6 @@ CASE DEFAULT ! unknown BCType
 END SELECT ! BCType
 
 END SUBROUTINE GetBoundaryGrad
-  
+
 END MODULE MOD_GetBoundaryGrad
 #endif /*USE_FV*/

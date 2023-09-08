@@ -609,7 +609,7 @@ IF(MPIRoot) CALL GenerateFileSkeleton('PartStateBoundary',PP_nVar,StrVarNames,Me
 #ifdef drift_diffusion
 IF(MPIRoot) CALL GenerateFileSkeleton('PartStateBoundary',PP_nVar_FV,StrVarNames_FV,MeshFileName,OutputTime)
 #elif (PP_TimeDiscMethod==600) /*DVM*/
-IF(MPIRoot) CALL GenerateFileSkeleton('PartStateBoundary',9,StrVarNames_FV,MeshFileName,OutputTime)
+IF(MPIRoot) CALL GenerateFileSkeleton('PartStateBoundary',15,StrVarNames_FV,MeshFileName,OutputTime)
 #endif
 
 ! generate nextfile info in previous output file
@@ -828,7 +828,7 @@ IF(MPIRoot) CALL GenerateFileSkeleton('PartStateLost',PP_nVar,StrVarNames,MeshFi
 IF(MPIRoot) CALL GenerateFileSkeleton('PartStateLost',PP_nVar_FV,StrVarNames_FV,MeshFileName,OutputTime)
 #endif
 #ifdef discrete_velocity
-IF(MPIRoot) CALL GenerateFileSkeleton('PartStateLost',9,StrVarNames_FV,MeshFileName,OutputTime)
+IF(MPIRoot) CALL GenerateFileSkeleton('PartStateLost',15,StrVarNames_FV,MeshFileName,OutputTime)
 #endif
 
 ! Reopen file and write DG solution
