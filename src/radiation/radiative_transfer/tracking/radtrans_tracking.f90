@@ -131,7 +131,9 @@ CALL LegendreGaussNodesAndWeights(NGeo,Xi_NGeo,wGP_NGeo)
 tmp1=dRayXiEQ_SurfSample/2.0 !(b-a)/2
 
 ALLOCATE(xIP_VISU(0:Ray%nSurfSample),wIP_VISU(0:Ray%nSurfSample))
-CALL GetNodesAndWeights(Ray%nSurfSample, Ray%NodeType, xIP_VISU, wIP=wIP_VISU)
+! Build basis for surface sampling on VISU nodes, and not on Ray%NodeType, which default to VISU_INNER
+! because VISU nodes are hard-coded in piclas2vtk
+CALL GetNodesAndWeights(Ray%nSurfSample, 'VISU', xIP_VISU, wIP=wIP_VISU)
 
 DO iSide = firstSide,LastSide
   ! get global SideID. This contains only nonUniqueSide, no special mortar treatment required

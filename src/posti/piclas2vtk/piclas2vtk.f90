@@ -1082,7 +1082,7 @@ USE MOD_Particle_Boundary_Vars  ,ONLY: nSurfSample
 USE MOD_piclas2vtk_Vars         ,ONLY: SurfConnect
 USE MOD_Interpolation           ,ONLY: GetVandermonde
 USE MOD_ChangeBasis             ,ONLY: ChangeBasis2D
-USE MOD_Interpolation_Vars      ,ONLY: NodeTypeVisu
+USE MOD_Interpolation_Vars      ,ONLY: NodeTypeVISU
 USE MOD_Mesh_Vars               ,ONLY: Face_xGP, Ngeo
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -1141,15 +1141,14 @@ IF((nVarSurf.GT.0).AND.(SurfConnect%nSurfaceBCSides.GT.0))THEN
   IF(SurfConnect%nSurfaceBCSides.NE.nSurfaceSidesReadin)THEN
     WRITE (UNIT_stdOut,*) "SurfConnect%nSurfaceBCSides =", SurfConnect%nSurfaceBCSides
     WRITE (UNIT_stdOut,*) "nSurfaceSidesReadin         =", nSurfaceSidesReadin
-    CALL abort(&
-    __STAMP__&
-    ,'Error: SurfConnect%nSurfaceBCSides.NE.nSurfaceSidesReadin')
+    CALL abort(__STAMP__,'Error: SurfConnect%nSurfaceBCSides.NE.nSurfaceSidesReadin')
   END IF ! SurfConnect%nSurfaceBCSides.NE.nSurfaceSidesReadin
 END IF
 
 IF(nSurfSample.GT.1) THEN
   ALLOCATE(Vdm_EQNgeo_NVisu(0:nSurfSample,0:NGeo))
-  CALL GetVandermonde(NGeo,'GAUSS',nSurfSample,NodeTypeVisu,Vdm_EQNgeo_NVisu,modal=.FALSE.)
+  ! Use NodeTypeVISU, which is hard-coded to NodeTypeVISU='VISU'
+  CALL GetVandermonde(NGeo,'GAUSS',nSurfSample,NodeTypeVISU,Vdm_EQNgeo_NVisu,modal=.FALSE.)
   ALLOCATE(NodeCoords_visu(1:3,0:nSurfSample,0:nSurfSample,0:0,SurfConnect%nSurfaceBCSides))
   NodeCoords_visu = 0.
   ! Interpolate mesh onto visu grid
