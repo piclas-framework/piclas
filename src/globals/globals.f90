@@ -1499,7 +1499,7 @@ USE MOD_MPI_Shared_Vars ,ONLY: MPI_COMM_LEADERS_SHARED,MPI_COMM_SHARED
 USE MOD_MPI_Shared_Vars ,ONLY: NbrOfPhysicalNodes,nLeaderGroupProcs
 #endif /*! (CORE_SPLIT==0)*/
 #endif /*USE_MPI*/
-USE MOD_StringTools     ,ONLY: set_formatting,clear_formatting
+!USE MOD_StringTools     ,ONLY: set_formatting,clear_formatting
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! INPUT / OUTPUT VARIABLES
@@ -1567,12 +1567,12 @@ IF(MemUsagePercent.GT.Threshold)THEN
   WRITE(UNIT=hilf ,FMT='(F16.1)') memory(1)
   WRITE(UNIT=hilf2,FMT='(F16.1)') memory(3)
   WRITE(UNIT=hilf3,FMT='(F5.1)') MemUsagePercent
-  CALL set_formatting("red")
+  !CALL set_formatting("red")
   !SWRITE(UNIT_stdOut,'(A,F5.2,A)') ' WARNING: Memory reaching maximum, RAM is at ',MemUsagePercent,'%'
   WRITE(UNIT_stdOut,'(A)') "WARNING: Allocated memory ["//TRIM(ADJUSTL(hilf))//&
       "] GB on at least one node is close to the global limit of ["&
       //TRIM(ADJUSTL(hilf2))//"] GB, which is "//TRIM(ADJUSTL(hilf3))//"%. Watch out for the OOM killer!"
-  CALL clear_formatting()
+  !CALL clear_formatting()
 END IF
 
 END SUBROUTINE WarningMemusage
