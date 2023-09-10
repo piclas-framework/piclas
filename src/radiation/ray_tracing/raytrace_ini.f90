@@ -128,7 +128,11 @@ IF(PerformRayTracing)THEN
   NumRays            = GETINT('RayTracing-NumRays')
   RayForceAbsorption = GETLOGICAL('RayTracing-ForceAbsorption')
   Ray%VolRefineMode  = GETINT('RayTracing-VolRefineMode')
-  ! Build surface containers
+#if ! (CORE_SPLIT==0)
+  ! Sanity check: ElemVolume_Shared is only built for nComputeNodeElems and not nComputeNodeTotalElems. Maybe more containers are
+  ! similarly not fully built when running multi-node
+  CALL CollectiveStop(__STAMP__,'Ray tracing implemented for node-level splitting; all global elements must be on the compute-node')
+#endif /*! (CORE_SPLIT==0)*/
 END IF ! PerformRayTracing
 
 ! Output of high-order p-adaptive info
@@ -137,7 +141,7 @@ WRITE(UNIT=hilf,FMT='(I3)') PP_N
 Ray%Nmax = GETINT('RayTracing-Nmax',hilf)
 IF(Ray%Nmax.LT.Ray%Nmax) CALL abort(__STAMP__,'RayTracing-Nmax cannot be smaller than Nmin=',IntInfoOpt=Ray%NMin)
 
-! Build volume containers
+! Build surface and volume containers
 CALL InitPhotonSurfSample()
 CALL InitHighOrderRaySampling()
 
