@@ -1317,7 +1317,7 @@ REAL(KIND=8)                  :: Rate
 ! Get process memory info
 CALL ProcessMemUsage(memory(1),memory(2),memory(3)) ! memUsed,memAvail,memTotal
 
-! only CN roots communicate available and total memory info (count once per node)
+! Only CN roots communicate available and total memory info (count once per node)
 #if USE_MPI
 #if defined(MEASURE_MPI_WAIT)
 CALL SYSTEM_CLOCK(count=CounterStart)
