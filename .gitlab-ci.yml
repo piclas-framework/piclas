@@ -118,14 +118,18 @@ stages:
   needs: [build_poisson]
   artifacts:
     paths:
-      - build_poisson_release
-      - build_poisson_debug
+      - build_poisson_release_RK3
+      - build_poisson_release_Leapfrog
+      - build_poisson_debug_RK3
+      - build_poisson_debug_Leapfrog
   cache:
     - *reggie_cache
     - key: "${CI_COMMIT_REF_SLUG}-POI"
       paths:
-        - build_poisson_release
-        - build_poisson_debug
+        - build_poisson_release_RK3
+        - build_poisson_release_Leapfrog
+        - build_poisson_debug_RK3
+        - build_poisson_debug_Leapfrog
       policy: pull
 
 .defaults_poisson_checkin: &defaults_poisson_checkin
@@ -146,14 +150,18 @@ stages:
   needs: [build_poisson_petsc]
   artifacts:
     paths:
-      - build_poisson_petsc_release
-      - build_poisson_petsc_debug
+      - build_poisson_petsc_release_RK3
+      - build_poisson_petsc_release_Leapfrog
+      - build_poisson_petsc_debug_RK3
+      - build_poisson_petsc_debug_Leapfrog
   cache:
     - *reggie_cache
     - key: "${CI_COMMIT_REF_SLUG}-POI-PETSC"
       paths:
-        - build_poisson_petsc_release
-        - build_poisson_petsc_debug
+        - build_poisson_petsc_release_RK3
+        - build_poisson_petsc_release_Leapfrog
+        - build_poisson_petsc_debug_RK3
+        - build_poisson_petsc_debug_Leapfrog
       policy: pull
 
 .defaults_poisson_petsc_checkin: &defaults_poisson_petsc_checkin
@@ -252,42 +260,64 @@ build_poisson:
   needs: [reggie_download]
   artifacts:
     paths:
-      - build_poisson_release
-      - build_poisson_debug
+      - build_poisson_release_RK3
+      - build_poisson_release_Leapfrog
+      - build_poisson_debug_RK3
+      - build_poisson_debug_Leapfrog
   cache:
     key: "${CI_COMMIT_REF_SLUG}-POI"
     paths:
-      - build_poisson_release
-      - build_poisson_debug
+      - build_poisson_release_RK3
+      - build_poisson_release_Leapfrog
+      - build_poisson_debug_RK3
+      - build_poisson_debug_Leapfrog
     policy: push
   stage: build
   script:
-    - mkdir -p build_poisson_release ; cd build_poisson_release
+    - mkdir -p build_poisson_release_RK3 ; cd build_poisson_release_RK3
     - cmake .. -DCMAKE_BUILD_TYPE=Release -DPICLAS_EQNSYSNAME=poisson -DPICLAS_CODE_ANALYZE=ON -DPICLAS_TIMEDISCMETHOD=RK3 -DLIBS_BUILD_HDF5=OFF ; $GENERATOR -j $NCORES all
     - cd ..
-    - mkdir -p build_poisson_debug ; cd build_poisson_debug
+    - mkdir -p build_poisson_debug_RK3 ; cd build_poisson_debug_RK3
     - cmake .. -DCMAKE_BUILD_TYPE=Debug -DPICLAS_EQNSYSNAME=poisson -DPICLAS_CODE_ANALYZE=ON -DPICLAS_TIMEDISCMETHOD=RK3 -DLIBS_BUILD_HDF5=OFF ; $GENERATOR -j $NCORES all
+    - cd ..
+    - mkdir -p build_poisson_release_Leapfrog ; cd build_poisson_release_Leapfrog
+    - cmake .. -DCMAKE_BUILD_TYPE=Release -DPICLAS_EQNSYSNAME=poisson -DPICLAS_CODE_ANALYZE=ON -DPICLAS_TIMEDISCMETHOD=Leapfrog -DLIBS_BUILD_HDF5=OFF ; $GENERATOR -j $NCORES all
+    - cd ..
+    - mkdir -p build_poisson_debug_Leapfrog ; cd build_poisson_debug_Leapfrog
+    - cmake .. -DCMAKE_BUILD_TYPE=Debug -DPICLAS_EQNSYSNAME=poisson -DPICLAS_CODE_ANALYZE=ON -DPICLAS_TIMEDISCMETHOD=Leapfrog -DLIBS_BUILD_HDF5=OFF ; $GENERATOR -j $NCORES all
+    - cd ..
 
 build_poisson_petsc:
   extends: .default_build_param
   needs: [reggie_download]
   artifacts:
     paths:
-      - build_poisson_petsc_release
-      - build_poisson_petsc_debug
+      - build_poisson_petsc_release_RK3
+      - build_poisson_petsc_release_Leapfrog
+      - build_poisson_petsc_debug_RK3
+      - build_poisson_petsc_debug_Leapfrog
   cache:
     key: "${CI_COMMIT_REF_SLUG}-POI-PETSC"
     paths:
-      - build_poisson_petsc_release
-      - build_poisson_petsc_debug
+      - build_poisson_petsc_release_RK3
+      - build_poisson_petsc_release_Leapfrog
+      - build_poisson_petsc_debug_RK3
+      - build_poisson_petsc_debug_Leapfrog
     policy: push
   stage: build
   script:
-    - mkdir -p build_poisson_petsc_release ; cd build_poisson_petsc_release
+    - mkdir -p build_poisson_petsc_release_RK3 ; cd build_poisson_petsc_release_RK3
     - cmake .. -DCMAKE_BUILD_TYPE=Release -DPICLAS_EQNSYSNAME=poisson -DPICLAS_PETSC=ON -DPICLAS_CODE_ANALYZE=ON -DPICLAS_TIMEDISCMETHOD=RK3 -DLIBS_BUILD_HDF5=OFF ; $GENERATOR -j $NCORES all
     - cd ..
-    - mkdir -p build_poisson_petsc_debug ; cd build_poisson_petsc_debug
+    - mkdir -p build_poisson_petsc_debug_RK3 ; cd build_poisson_petsc_debug_RK3
     - cmake .. -DCMAKE_BUILD_TYPE=Debug -DPICLAS_EQNSYSNAME=poisson -DPICLAS_PETSC=ON -DPICLAS_CODE_ANALYZE=ON -DPICLAS_TIMEDISCMETHOD=RK3 -DLIBS_BUILD_HDF5=OFF ; $GENERATOR -j $NCORES all
+    - cd ..
+    - mkdir -p build_poisson_petsc_release_Leapfrog ; cd build_poisson_petsc_release_Leapfrog
+    - cmake .. -DCMAKE_BUILD_TYPE=Release -DPICLAS_EQNSYSNAME=poisson -DPICLAS_PETSC=ON -DPICLAS_CODE_ANALYZE=ON -DPICLAS_TIMEDISCMETHOD=Leapfrog -DLIBS_BUILD_HDF5=OFF ; $GENERATOR -j $NCORES all
+    - cd ..
+    - mkdir -p build_poisson_petsc_debug_Leapfrog ; cd build_poisson_petsc_debug_Leapfrog
+    - cmake .. -DCMAKE_BUILD_TYPE=Debug -DPICLAS_EQNSYSNAME=poisson -DPICLAS_PETSC=ON -DPICLAS_CODE_ANALYZE=ON -DPICLAS_TIMEDISCMETHOD=Leapfrog -DLIBS_BUILD_HDF5=OFF ; $GENERATOR -j $NCORES all
+    - cd ..
 
 build_DSMC:
   extends: .default_build_param
@@ -400,25 +430,25 @@ poisson_release:
   <<: *defaults_poisson_checkin
   stage: reggie_checkin
   script:
-    - cd build_poisson_release ; python ../reggie/reggie.py ../regressioncheck/CHE_poisson -e ./bin/piclas
+    - cd build_poisson_release_RK3 ; python ../reggie/reggie.py ../regressioncheck/CHE_poisson -e ./bin/piclas
 
 poisson_debug:
   <<: *defaults_poisson_checkin
   stage: reggie_checkin
   script:
-    - cd build_poisson_debug ; python ../reggie/reggie.py ../regressioncheck/CHE_poisson -e ./bin/piclas
+    - cd build_poisson_debug_RK3 ; python ../reggie/reggie.py ../regressioncheck/CHE_poisson -e ./bin/piclas
 
 poisson_petsc_release:
   <<: *defaults_poisson_petsc_checkin
   stage: reggie_checkin
   script:
-    - cd build_poisson_petsc_release ; python ../reggie/reggie.py ../regressioncheck/CHE_poisson -e ./bin/piclas
+    - cd build_poisson_petsc_release_RK3 ; python ../reggie/reggie.py ../regressioncheck/CHE_poisson -e ./bin/piclas
 
 poisson_petsc_debug:
   <<: *defaults_poisson_petsc_checkin
   stage: reggie_checkin
   script:
-    - cd build_poisson_petsc_debug ; python ../reggie/reggie.py ../regressioncheck/CHE_poisson -e ./bin/piclas
+    - cd build_poisson_petsc_debug_RK3 ; python ../reggie/reggie.py ../regressioncheck/CHE_poisson -e ./bin/piclas
 
 
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
@@ -671,29 +701,53 @@ NIG_PIC_Deposition:
 #  script:
 #    - cd build ; python ../reggie/reggie.py ../regressioncheck/NIG_SurfaceModel/
 
-NIG_Photoionization_release:
+NIG_Photoionization_release_RK3:
   <<: *defaults_poisson_nightly
   stage: reggie_nightly
   script:
-    - cd build_poisson_release;  python ../reggie/reggie.py ../regressioncheck/NIG_Photoionization -e ./bin/piclas
+    - cd build_poisson_release_RK3;  python ../reggie/reggie.py ../regressioncheck/NIG_Photoionization -e ./bin/piclas
 
-NIG_Photoionization_debug:
+NIG_Photoionization_debug_RK3:
   <<: *defaults_poisson_nightly
   stage: reggie_nightly
   script:
-    - cd build_poisson_debug;  python ../reggie/reggie.py ../regressioncheck/NIG_Photoionization -e ./bin/piclas
+    - cd build_poisson_debug_RK3;  python ../reggie/reggie.py ../regressioncheck/NIG_Photoionization -e ./bin/piclas
 
-NIG_Photoionization_petsc_release:
+NIG_Photoionization_petsc_release_RK3:
   <<: *defaults_poisson_petsc_nightly
   stage: reggie_nightly
   script:
-    - cd build_poisson_petsc_release;  python ../reggie/reggie.py ../regressioncheck/NIG_Photoionization -e ./bin/piclas
+    - cd build_poisson_petsc_release_RK3;  python ../reggie/reggie.py ../regressioncheck/NIG_Photoionization -e ./bin/piclas
 
-NIG_Photoionization_petsc_debug:
+NIG_Photoionization_petsc_debug_RK3:
   <<: *defaults_poisson_petsc_nightly
   stage: reggie_nightly
   script:
-    - cd build_poisson_petsc_debug;  python ../reggie/reggie.py ../regressioncheck/NIG_Photoionization -e ./bin/piclas
+    - cd build_poisson_petsc_debug_RK3;  python ../reggie/reggie.py ../regressioncheck/NIG_Photoionization -e ./bin/piclas
+
+NIG_Photoionization_release_Leapfrog:
+  <<: *defaults_poisson_nightly
+  stage: reggie_nightly
+  script:
+    - cd build_poisson_release_Leapfrog;  python ../reggie/reggie.py ../regressioncheck/NIG_Photoionization -e ./bin/piclas
+
+NIG_Photoionization_debug_Leapfrog:
+  <<: *defaults_poisson_nightly
+  stage: reggie_nightly
+  script:
+    - cd build_poisson_debug_Leapfrog;  python ../reggie/reggie.py ../regressioncheck/NIG_Photoionization -e ./bin/piclas
+
+NIG_Photoionization_petsc_release_Leapfrog:
+  <<: *defaults_poisson_petsc_nightly
+  stage: reggie_nightly
+  script:
+    - cd build_poisson_petsc_release_Leapfrog;  python ../reggie/reggie.py ../regressioncheck/NIG_Photoionization -e ./bin/piclas
+
+NIG_Photoionization_petsc_debug_Leapfrog:
+  <<: *defaults_poisson_petsc_nightly
+  stage: reggie_nightly
+  script:
+    - cd build_poisson_petsc_debug_Leapfrog;  python ../reggie/reggie.py ../regressioncheck/NIG_Photoionization -e ./bin/piclas
 
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 # Stage "reggie_nightly_build_all": Build and run
