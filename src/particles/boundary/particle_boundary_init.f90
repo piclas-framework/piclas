@@ -985,8 +985,9 @@ IMPLICIT NONE
 INTEGER :: ALLOCSTAT
 !===================================================================================================================================
 ! This array is not de-allocated during load balance as it is only written to .h5 during WriteStateToHDF5()
+
 IF(ALLOCATED(PartStateBoundary)) RETURN
-ALLOCATE(PartStateBoundary(1:nVarPartStateBoundary,1:PDM%maxParticleNumber), STAT=ALLOCSTAT)
+ALLOCATE(PartStateBoundary(1:nVarPartStateBoundary,1:MIN(1000,PDM%maxParticleNumber)), STAT=ALLOCSTAT)
 IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__,'ERROR in particle_init.f90: Cannot allocate PartStateBoundary array!')
 PartStateBoundary=0.
 END SUBROUTINE InitPartStateBoundary

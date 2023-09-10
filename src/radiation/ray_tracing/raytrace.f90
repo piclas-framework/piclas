@@ -157,7 +157,7 @@ RectPower = Ray%IntensityAmplitude * Ray%Area / REAL(NumRays)
 
 ! This array is not de-allocated during load balance as it is only written to .h5 during WriteStateToHDF5()
 IF(.NOT.ALLOCATED(PartStateBoundary))THEN
-  ALLOCATE(PartStateBoundary(1:nVarPartStateBoundary,1:LocRayNum), STAT=ALLOCSTAT)
+  ALLOCATE(PartStateBoundary(1:nVarPartStateBoundary,1:MIN(1000,LocRayNum)), STAT=ALLOCSTAT)
   IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__,'ERROR in particle_init.f90: Cannot allocate PartStateBoundary array!')
   PartStateBoundary=0.
 END IF ! .NOT.ALLOCATED(PartStateBoundary)
@@ -305,6 +305,7 @@ IF(myComputeNodeRank.EQ.0)THEN
   IF(.NOT.ContainerExists) CALL CollectiveStop(__STAMP__,'SurfaceDataGlobalSideIndex container not in '//TRIM(RadiationSurfState))
   CALL GetDataSize(File_ID,'SurfaceDataGlobalSideIndex',nDims,HSize,attrib=.FALSE.)
   nSurfSidesHDF5  = INT(HSize(1),4)
+  DEALLOCATE(HSize)
   IF(nSurfSidesHDF5.LT.1) CALL abort(__STAMP__,'Number of surf sample sides .h5 file is less than 1')
   ALLOCATE(GlobalSideIndex(nSurfSidesHDF5))
   CALL ReadArray('SurfaceDataGlobalSideIndex',1,(/INT(nSurfSidesHDF5,IK)/),0_IK,1,IntegerArray_i4=GlobalSideIndex)
@@ -330,6 +331,7 @@ IF(myComputeNodeRank.EQ.0)THEN
   ! Check if data hast the format [nVar x nSurfSample x nSurfSample x nSurfSidesHDF5]
   IF(INT(HSize(2),4).NE.INT(HSize(3),4)) CALL abort(__STAMP__,'Wrong dimension of [SurfaceData] in '//TRIM(RadiationSurfState))
   nSurfSampleHDF5 = INT(HSize(2),4)
+  DEALLOCATE(HSize)
   IF(nSurfSampleHDF5.NE.Ray%nSurfSample)THEN
     SWRITE(UNIT_stdOut,'(A)') ' Number of nSurfSample in .h5 file differs from the ini file parameter "RayTracing-nSurfSample'
     SWRITE(UNIT_stdOut,'(A,I0)') '        nSurfSampleHDF5: ', nSurfSampleHDF5
