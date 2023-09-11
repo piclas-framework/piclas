@@ -29,7 +29,8 @@ SUBROUTINE Riemann(F,U_L,U_R,nv)
 !===================================================================================================================================
 ! MODULES
 USE MOD_PreProc ! PP_N
-USE MOD_DistFunc, ONLY  : MacroValuesFromDistribution, MaxwellDistribution, ShakhovDistribution, ESBGKDistribution
+USE MOD_DistFunc, ONLY  : MacroValuesFromDistribution
+USE MOD_DistFunc, ONLY  : MaxwellDistribution, MaxwellDistributionCons, ShakhovDistribution, ESBGKDistribution
 USE MOD_Equation_Vars_FV
 USE MOD_TimeDisc_Vars, ONLY : dt
 USE MOD_Globals,  ONLY :abort
@@ -68,6 +69,9 @@ INTEGER                                          :: Count_1,Count_2, iVel, jVel,
         CASE(3)
           CALL MaxwellDistribution(MacroVal_L,fTarget_L)
           CALL MaxwellDistribution(MacroVal_R,fTarget_R)
+        CASE(4)
+          CALL MaxwellDistributionCons(MacroVal_L,fTarget_L)
+          CALL MaxwellDistributionCons(MacroVal_R,fTarget_R)
         CASE DEFAULT
           CALL abort(__STAMP__,'DVM BGK Model not implemented.',999,999.)
       END SELECT

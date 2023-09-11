@@ -65,7 +65,8 @@ CALL prms%CreateIntOption(      'DVM-Dimension',     'Number of space dimensions
 CALL prms%CreateIntOption(      'DVM-BGKCollModel',  'Select the BGK method:\n'//&
                                                      '1: Ellipsoidal statistical (ESBGK)\n'//&
                                                      '2: Shakov (SBGK)\n'//&
-                                                     '3: Standard BGK')
+                                                     '3: Standard BGK (Maxwell)'//&
+                                                     '4: Conservative Maxwell)')
 CALL prms%CreateIntOption(      'DVM-Method',        'Select the DVM model:\n'//&
                                                      '1: Exponential differencing (EDDVM)\n'//&
                                                      '2: DUGKS')

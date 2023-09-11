@@ -64,7 +64,7 @@ SUBROUTINE ProlongToFace_FV(Uvol,Uface_master,Uface_slave,doMPISides)
 USE MOD_PreProc
 USE MOD_Globals
 USE MOD_Gradient_Vars,      ONLY: Grad_dx_master, Grad_dx_slave, Gradient_elem
-USE MOD_Mesh_Vars,          ONLY: nSides, SideToElem, ElemToSide
+USE MOD_Mesh_Vars,          ONLY: nSides, SideToElem
 USE MOD_Mesh_Vars,          ONLY: firstBCSide,firstInnerSide, lastInnerSide
 USE MOD_Mesh_Vars,          ONLY: firstMPISide_YOUR,lastMPISide_YOUR,lastMPISide_MINE,firstMortarMPISide,lastMortarMPISide
 #if (PP_TimeDiscMethod==600) /*DVM*/

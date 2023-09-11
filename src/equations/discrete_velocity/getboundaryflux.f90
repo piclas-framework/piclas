@@ -124,7 +124,7 @@ USE MOD_Riemann
 USE MOD_TimeDisc_Vars,ONLY : dt
 USE MOD_Equation_FV  ,ONLY: ExactFunc_FV
 USE MOD_DistFunc     ,ONLY: MaxwellDistribution, MaxwellScattering, MacroValuesFromDistribution
-USE MOD_Equation_Vars_FV,ONLY: DVMSpeciesData,DVMBGKModel,DVMnVelos,DVMVelos,DVMVeloDisc,DVMVeloMax,DVMVeloMin,DVMWeights,DVMDim,Pi
+USE MOD_Equation_Vars_FV,ONLY: DVMSpeciesData,DVMnVelos,DVMVelos,DVMVeloDisc,DVMVeloMax,DVMVeloMin!,DVMBGKModel,DVMWeights,DVMDim,Pi
 !----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT / OUTPUT VARIABLES
 REAL,INTENT(IN)                      :: t       !< current time (provided by time integration scheme)
@@ -144,7 +144,7 @@ INTEGER                              :: BCType,BCState,nBCLoc
 REAL                                 :: UPrim_boundary(PP_nVar_FV,0:PP_N,0:PP_N)
 INTEGER                              :: p,q
 INTEGER                              :: iVel,jVel,kVel,upos, upos_sp
-REAL                                 :: MacroVal(14), tau, vnormal, vwall, Sin, Sout, weight, MovTerm, WallDensity
+REAL                                 :: MacroVal(14), tau, vnormal!, vwall, Sin, Sout, weight, MovTerm, WallDensity
 !==================================================================================================================================
 DO iBC=1,nBCs
   IF(nBCByType(iBC).LE.0) CYCLE

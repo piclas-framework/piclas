@@ -188,7 +188,6 @@ USE MOD_Equation_FV       ,ONLY: CalcSource_FV
 USE MOD_Interpolation     ,ONLY: ApplyJacobian
 USE MOD_FillMortar        ,ONLY: U_Mortar,Flux_Mortar
 USE MOD_Particle_Mesh_Vars,ONLY: ElemVolume_Shared
-USE MOD_Mesh_Tools        ,ONLY: GetCNElemID
 #if USE_MPI
 USE MOD_Mesh_Vars         ,ONLY: nSides
 USE MOD_MPI_Vars
@@ -200,6 +199,7 @@ USE MOD_TimeDisc_Vars     ,ONLY: time
 #ifdef PARTICLES
 USE MOD_Particle_MPI      ,ONLY: MPIParticleSend,MPIParticleRecv
 USE MOD_Mesh_Vars         ,ONLY: offsetElem
+USE MOD_Mesh_Tools        ,ONLY: GetCNElemID
 #endif /*PARTICLES*/
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Timers,ONLY: LBStartTime,LBPauseTime,LBSplitTime

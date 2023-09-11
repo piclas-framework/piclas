@@ -41,7 +41,7 @@ USE MOD_Globals
 USE MOD_PreProc
 USE MOD_Mesh_Vars,          ONLY: SideToElem, Face_xGP_FV, Elem_xGP_FV
 USE MOD_Mesh_Vars,          ONLY: firstBCSide,firstInnerSide, lastBCSide, firstMPISide_MINE, lastInnerSide
-USE MOD_Mesh_Vars,          ONLY: firstMPISide_YOUR,lastMPISide_YOUR,lastMPISide_MINE,nSides,firstMortarMPISide,lastMortarMPISide
+USE MOD_Mesh_Vars,          ONLY: firstMPISide_YOUR,lastMPISide_YOUR,lastMPISide_MINE,lastMortarMPISide
 USE MOD_Gradient_Vars,      ONLY: Grad_dx_master, Grad_dx_slave, Grad_PerBoxMax, Grad_PerBoxMin
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
@@ -236,4 +236,4 @@ DO ElemID = 1, nElems
 END DO
 END SUBROUTINE BuildGradSideMatrix
 
-END MODULE MOD_Gradient_Metrics 
+END MODULE MOD_Gradient_Metrics

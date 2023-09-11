@@ -58,7 +58,7 @@ USE MOD_Globals
 USE MOD_ReadInTools           ,ONLY: GETINT, GETREAL, GETREALARRAY
 USE MOD_Mesh_Vars             ,ONLY: nElems, nSides, Face_xGP_FV
 USE MOD_Gradient_Metrics      ,ONLY: InitGradMetrics, BuildGradSideMatrix
-USE MOD_Gradient_Vars         
+USE MOD_Gradient_Vars
 #if USE_MPI
 USE MOD_MPI_Vars
 USE MOD_MPI                   ,ONLY: StartReceiveMPIDataFV,StartSendMPIDataFV,FinishExchangeMPIData
@@ -196,7 +196,7 @@ CALL StartSendMPIDataFV(Grad_DIM,Diff_side,1,nSides,SendRequest_gradUx,SendID=1)
 ! Complete send / receive of gradients (before mpiFALSE gradients because bc grads need further grads)
 CALL FinishExchangeMPIData(SendRequest_gradUx,RecRequest_gradUx,SendID=1)
 #endif /*USE_MPI*/
-  
+
 ! fill all the neighbour differences on this proc
 CALL CalcDiff(doMPISides=.FALSE.)
 
@@ -229,7 +229,7 @@ DO ElemID = 1, nElems
 #if PP_dim == 3
       Gradient_elem(3,:,ElemID) = Gradient_elem(3,:,ElemID) &
                                           - gradWeight*Grad_SysSol_master(3,SideID)*Diff_side(:,SideID)
-#endif   
+#endif
     ELSE !slave
       maxDiff = MAX(maxDiff,Diff_side(:,SideID))
       minDiff = MIN(minDiff,Diff_side(:,SideID))
@@ -245,7 +245,7 @@ DO ElemID = 1, nElems
   END DO
 
   CALL GradLimiter(ElemID,minDiff,maxDiff,Gradient_elem(:,:,ElemID))
-  
+
 END DO
 
 END SUBROUTINE GetGradients
@@ -313,7 +313,7 @@ IF (.NOT.doMPISides) THEN
                           Var_master(:,SideID),&
                           NormVec_FV(:,0,0,SideID),&
                           Face_xGP_FV(:,0,0,SideID))
-#endif 
+#endif
   END DO
 END IF
 
@@ -327,6 +327,11 @@ SUBROUTINE GradLimiter(ElemID,minDiff,maxDiff,Gradient)
 USE MOD_Globals
 USE MOD_Gradient_Vars       ,ONLY: Grad_dx_master, Grad_dx_slave, GradLimiterType, GradLimVktK, Grad_DIM
 USE MOD_Mesh_Vars           ,ONLY: ElemToSide
+USE MOD_Particle_Mesh_Vars  ,ONLY: ElemVolume_Shared
+#if USE_MPI && defined(PARTICLES)
+USE MOD_Mesh_Tools          ,ONLY: GetCNElemID
+USE MOD_Mesh_Vars           ,ONLY: offsetElem
+#endif
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -341,10 +346,17 @@ REAL,INTENT(INOUT)      :: Gradient(3,Grad_DIM)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER                         :: iVar,locSideID,SideID,flip
-REAL                            :: limiter(Grad_DIM), a, b, w
+REAL                            :: limiter(Grad_DIM), a, b, w, CNElemID
 !===================================================================================================================================
 limiter = 1.
-!w = (GradLimVktK**3)/sJ(0,0,0,ElemID)
+
+#if USE_MPI && defined(PARTICLES)
+CNElemID=GetCNElemID(ElemID+offSetElem)
+#else
+CNElemID=ElemID
+#endif
+w = (GradLimVktK**3)*ElemVolume_Shared(CNElemID)
+
 #if PP_dim == 3
 DO locSideID=1,6
 #else
@@ -370,7 +382,6 @@ DO locSideID=2,5
         limiter(iVar) = MIN(limiter(iVar),1.)
       END IF
     CASE(4) !venkatakrishnan
-      CALL abort(__STAMP__,'Limiter type not implemented for now')
       IF (flip.EQ.0) THEN !master
         b = DOT_PRODUCT(Grad_dx_master(:,SideID),Gradient(:,iVar))
       ELSE !slave
@@ -404,7 +415,7 @@ SUBROUTINE ProlongToFace_ElemCopy(VarDim,ElemVar,SideVar_master,SideVar_slave,do
 ! Simply copies element-based variable to sides
 !===================================================================================================================================
 ! MODULES
-USE MOD_Mesh_Vars,          ONLY: nSides, SideToElem, ElemToSide, nElems
+USE MOD_Mesh_Vars,          ONLY: nSides, SideToElem, nElems
 USE MOD_Mesh_Vars,          ONLY: firstBCSide,firstInnerSide, lastInnerSide
 USE MOD_Mesh_Vars,          ONLY: firstMPISide_YOUR,lastMPISide_YOUR,lastMPISide_MINE,firstMortarMPISide,lastMortarMPISide
 ! IMPLICIT VARIABLE HANDLING
@@ -420,7 +431,7 @@ REAL,INTENT(INOUT)              :: SideVar_master(VarDim,1:nSides)
 REAL,INTENT(INOUT)              :: SideVar_slave(VarDim,1:nSides)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                         :: ElemID,SideID,firstSideID,lastSideID,iVel,jVel,kVel,upos
+INTEGER                         :: ElemID,SideID,firstSideID,lastSideID
 !===================================================================================================================================
 IF(doMPISides)THEN
 ! only YOUR MPI Sides are filled
