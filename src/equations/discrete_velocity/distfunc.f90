@@ -36,7 +36,7 @@ SUBROUTINE MacroValuesFromDistribution(MacroVal,U,tDeriv,tau,tilde)
 ! Calculates the moments of the distribution function
 !===================================================================================================================================
 ! MODULES
-USE MOD_Equation_Vars_FV         ,ONLY: DVMnVelos, DVMVelos, DVMWeights, DVMSpeciesData, DVMMethod, DVMBGKModel
+USE MOD_Equation_Vars_FV         ,ONLY: DVMnVelos, DVMVelos, DVMWeights, DVMSpeciesData, DVMMethod, DVMBGKModel, DVMDim
 USE MOD_PreProc
 USE MOD_Globals               ,ONLY: abort
 ! IMPLICIT VARIABLE HANDLING
@@ -84,12 +84,19 @@ DO kVel=1, DVMnVelos(3);   DO jVel=1, DVMnVelos(2);   DO iVel=1, DVMnVelos(1)
   cVel(2) = DVMVelos(jVel,2) - uVelo(2)
   cVel(3) = DVMVelos(kVel,3) - uVelo(3)
   cMag = DOT_PRODUCT(cVel,cVel)
+  PressTens(1) = PressTens(1) + weight*cVel(1)*cVel(1)*U(upos)
   IF (DVMSpeciesData%Internal_DOF .GT.0.0) THEN
     Heatflux(1) = Heatflux(1) + weight*0.5*cVel(1)*(U(upos)*cMag+U(PP_nVar_FV/2+upos))
     Heatflux(2) = Heatflux(2) + weight*0.5*cVel(2)*(U(upos)*cMag+U(PP_nVar_FV/2+upos))
     Heatflux(3) = Heatflux(3) + weight*0.5*cVel(3)*(U(upos)*cMag+U(PP_nVar_FV/2+upos))
+    IF (DVMDim.GT.1) THEN
+      PressTens(2) = PressTens(2) + weight*cVel(1)*cVel(2)*U(upos)
+      PressTens(4) = PressTens(4) + weight*cVel(2)*cVel(2)*U(upos)
+    ELSE
+      PressTens(4) = PressTens(4) + weight*U(PP_nVar_FV/2+upos)
+    END IF
+    PressTens(6) = PressTens(6) + weight*U(PP_nVar_FV/2+upos)
   ELSE
-    PressTens(1) = PressTens(1) + weight*cVel(1)*cVel(1)*U(upos)
     PressTens(2) = PressTens(2) + weight*cVel(1)*cVel(2)*U(upos)
     PressTens(3) = PressTens(3) + weight*cVel(1)*cVel(3)*U(upos)
     PressTens(4) = PressTens(4) + weight*cVel(2)*cVel(2)*U(upos)
@@ -356,11 +363,9 @@ DO kVel=1, DVMnVelos(3);   DO jVel=1, DVMnVelos(2);   DO iVel=1, DVMnVelos(1)
                + cVel(2)*DOT_PRODUCT(ilambda(:,2),cVel) &
                + cVel(3)*DOT_PRODUCT(ilambda(:,3),cVel)
 
-  ! print*, ldet, pressProduct
-
-  fESBGK(upos) = rho/sqrt(ldet*(2*Pi)**3)*EXP(-pressProduct/2.)
+  fESBGK(upos) = rho/sqrt((ldet/(DVMSpeciesData%R_S*Temp)**(DVMDim-3.))*(2*Pi)**DVMDim)*EXP(-pressProduct/2.)
   IF ((DVMSpeciesData%Internal_DOF .GT.0.0).OR.(DVMDim.LT.3)) THEN
-    CALL abort(__STAMP__,'DVM ESBGK model implemented only for 3D monatomic')
+    fESBGK(PP_nVar_FV/2+upos) = fESBGK(upos)*DVMSpeciesData%R_S*Temp*DVMSpeciesData%Internal_DOF
   END IF
 END DO; END DO; END DO
 
