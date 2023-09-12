@@ -88,7 +88,7 @@ ENDIF()
 CMAKE_DEPENDENT_OPTION(PICLAS_LOADBALANCE "Use load balance time measurement" ON "LIBS_USE_MPI" OFF)
 
 OPTION(PICLAS_INTKIND8 "Enable particle numbers larger than 2147483647 (on most systems, huge(4-byte-integer)))" OFF)
-IF (PICLAS_INTKIND8)
+IF(PICLAS_INTKIND8)
    ADD_DEFINITIONS(-DINTKIND8)
 ENDIF()
 
@@ -643,6 +643,8 @@ SET_TARGET_PROPERTIES(libpiclasshared PROPERTIES OUTPUT_NAME "libpiclas")
 ADD_DEPENDENCIES(libpiclasshared libpiclasstatic userblocklib stacksizelib memusagelib ${INTERNALLIBS})
 ADD_EXEC(piclas ./src/piclas.f90)
 ADD_DEPENDENCIES(piclas libpiclasstatic userblocklib stacksizelib memusagelib ${INTERNALLIBS})
+# Make sure that the script is executed even though cmake is not explicitly executed after the commit is changed in git
+ADD_DEPENDENCIES(piclas UpdateGitCommitHash)
 
 # special compiler flags to avoid warnings for empty functions of testcase.f90 and overwrite of intrinsic abort in globals.f90
 IF (CMAKE_Fortran_COMPILER_ID MATCHES "GNU")
