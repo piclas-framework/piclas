@@ -66,7 +66,7 @@ DO kVel=1, DVMnVelos(3);   DO jVel=1, DVMnVelos(2);   DO iVel=1, DVMnVelos(1)
   rhoU(1) = rhoU(1) + weight*DVMVelos(iVel,1)*U(upos)
   rhoU(2) = rhoU(2) + weight*DVMVelos(jVel,2)*U(upos)
   rhoU(3) = rhoU(3) + weight*DVMVelos(kVel,3)*U(upos)
-  IF (DVMSpeciesData%Internal_DOF .GT.0.0) THEN
+  IF (DVMDim.LT.3) THEN
     rhoE = rhoE + weight*0.5*((DVMVelos(iVel,1)**2.+DVMVelos(jVel,2)**2.+DVMVelos(kVel,3)**2.)*U(upos)+U(PP_nVar_FV/2+upos))
   ELSE
     rhoE = rhoE + weight*0.5*(DVMVelos(iVel,1)**2.+DVMVelos(jVel,2)**2.+DVMVelos(kVel,3)**2.)*U(upos)
@@ -74,8 +74,7 @@ DO kVel=1, DVMnVelos(3);   DO jVel=1, DVMnVelos(2);   DO iVel=1, DVMnVelos(1)
 END DO; END DO; END DO
 
 uVelo = rhoU/rho
-! cV = (3.+DVMSpeciesData%Internal_DOF)/2.*DVMSpeciesData%R_S*rho
-cV = 3./2.*DVMSpeciesData%R_S*rho
+cV = DVMSpeciesData%R_S*rho*(3.+DVMSpeciesData%Internal_DOF)/2.
 
 DO kVel=1, DVMnVelos(3);   DO jVel=1, DVMnVelos(2);   DO iVel=1, DVMnVelos(1)
   upos= iVel+(jVel-1)*DVMnVelos(1)+(kVel-1)*DVMnVelos(1)*DVMnVelos(2)
@@ -85,17 +84,18 @@ DO kVel=1, DVMnVelos(3);   DO jVel=1, DVMnVelos(2);   DO iVel=1, DVMnVelos(1)
   cVel(3) = DVMVelos(kVel,3) - uVelo(3)
   cMag = DOT_PRODUCT(cVel,cVel)
   PressTens(1) = PressTens(1) + weight*cVel(1)*cVel(1)*U(upos)
-  IF (DVMSpeciesData%Internal_DOF .GT.0.0) THEN
+  IF (DVMDim.LT.3) THEN
+    IF (DVMDim.EQ.1) THEN
+      PressTens(4) = PressTens(4) + weight*0.5*U(PP_nVar_FV/2+upos)
+      PressTens(6) = PressTens(6) + weight*0.5*U(PP_nVar_FV/2+upos)
+    ELSE ! DVMDim.EQ.2
+      PressTens(2) = PressTens(2) + weight*cVel(1)*cVel(2)*U(upos)
+      PressTens(4) = PressTens(4) + weight*cVel(2)*cVel(2)*U(upos)
+      PressTens(6) = PressTens(6) + weight*U(PP_nVar_FV/2+upos)
+    END IF
     Heatflux(1) = Heatflux(1) + weight*0.5*cVel(1)*(U(upos)*cMag+U(PP_nVar_FV/2+upos))
     Heatflux(2) = Heatflux(2) + weight*0.5*cVel(2)*(U(upos)*cMag+U(PP_nVar_FV/2+upos))
     Heatflux(3) = Heatflux(3) + weight*0.5*cVel(3)*(U(upos)*cMag+U(PP_nVar_FV/2+upos))
-    IF (DVMDim.GT.1) THEN
-      PressTens(2) = PressTens(2) + weight*cVel(1)*cVel(2)*U(upos)
-      PressTens(4) = PressTens(4) + weight*cVel(2)*cVel(2)*U(upos)
-    ELSE
-      PressTens(4) = PressTens(4) + weight*U(PP_nVar_FV/2+upos)
-    END IF
-    PressTens(6) = PressTens(6) + weight*U(PP_nVar_FV/2+upos)
   ELSE
     PressTens(2) = PressTens(2) + weight*cVel(1)*cVel(2)*U(upos)
     PressTens(3) = PressTens(3) + weight*cVel(1)*cVel(3)*U(upos)
@@ -158,7 +158,7 @@ REAL, INTENT(IN)                 :: MacroVal(14)
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-REAL                            :: rho, Temp, uVelo(DVMDim), vMag, gM, weight
+REAL                            :: rho, Temp, uVelo(DVMDim), vMag, weight, gM
 REAL,DIMENSION(2+DVMDim)        :: alpha, psi, rhovec
 REAL                            :: J(2+DVMDim,2+DVMDim), B(2+DVMDim,1)
 INTEGER                         :: iVel,jVel,kVel, upos, countz, IPIV(2+DVMDim), info_dgesv
@@ -218,11 +218,10 @@ DO kVel=1, DVMnVelos(3);   DO jVel=1, DVMnVelos(2);   DO iVel=1, DVMnVelos(1)
   IF (DVMDim.GT.1) psi(3)=DVMVelos(jVel,2)
   IF (DVMDim.GT.2) psi(4)=DVMVelos(kVel,3)
   psi(2+DVMDim) = vMag/2.
-  gM = EXP(DOT_PRODUCT(alpha,psi))
-  fMaxwell(upos)= gM
-  J(:,1) = J(:,1)+weight*gM*psi(:)
-  IF (DVMSpeciesData%Internal_DOF .GT.0.0) THEN
-    fMaxwell(PP_nVar_FV/2+upos) = gM*DVMSpeciesData%R_S*Temp*DVMSpeciesData%Internal_DOF
+  fMaxwell(upos) = EXP(DOT_PRODUCT(alpha,psi))
+  IF (DVMDim.LT.3) THEN
+    print*, 'I dont think MaxwellCons works with D < 3 :/'
+    fMaxwell(PP_nVar_FV/2+upos) = fMaxwell(upos)*DVMSpeciesData%R_S*Temp*(DVMSpeciesData%Internal_DOF+3.-DVMDim)
   END IF
 END DO; END DO; END DO
 
@@ -245,7 +244,7 @@ REAL, INTENT(IN)                 :: MacroVal(14)
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-REAL                            :: rho, Temp, uVelo(3), cVel(3), cMag, gM
+REAL                            :: rho, Temp, uVelo(3), cVel(3), cMag
 INTEGER                         :: iVel,jVel,kVel, upos
 !===================================================================================================================================
 rho = MacroVal(1)
@@ -258,10 +257,9 @@ DO kVel=1, DVMnVelos(3);   DO jVel=1, DVMnVelos(2);   DO iVel=1, DVMnVelos(1)
   cVel(2) = DVMVelos(jVel,2) - uVelo(2)
   cVel(3) = DVMVelos(kVel,3) - uVelo(3)
   cMag = cVel(1)*cVel(1) + cVel(2)*cVel(2)+ cVel(3)*cVel(3)
-  gM = rho/((2.*Pi*DVMSpeciesData%R_S*Temp)**(DVMDim/2.))*exp(-cMag/(2.*DVMSpeciesData%R_S*Temp))
-  fMaxwell(upos)= gM
-  IF (DVMSpeciesData%Internal_DOF .GT.0.0) THEN
-    fMaxwell(PP_nVar_FV/2+upos) = gM*DVMSpeciesData%R_S*Temp*DVMSpeciesData%Internal_DOF
+  fMaxwell(upos) = rho/((2.*Pi*DVMSpeciesData%R_S*Temp)**(DVMDim/2.))*exp(-cMag/(2.*DVMSpeciesData%R_S*Temp))
+  IF (DVMDim.LT.3) THEN
+    fMaxwell(PP_nVar_FV/2+upos) = fMaxwell(upos)*DVMSpeciesData%R_S*Temp*(DVMSpeciesData%Internal_DOF+3.-DVMDim)
   END IF
 END DO; END DO; END DO
 
@@ -284,15 +282,13 @@ REAL, INTENT(IN)                 :: MacroVal(14)
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-REAL                            :: rho, Temp, uVelo(3), cVel(3), cMag, gM, q(3), Prandtl, ShakhFac1, ShakhFac2
+REAL                            :: rho, Temp, uVelo(3), cVel(3), cMag, gM, q(3), ShakhFac1, ShakhFac2
 INTEGER                         :: iVel,jVel,kVel, upos
 !===================================================================================================================================
 rho = MacroVal(1)
 uVelo(1:3) = MacroVal(2:4)
 Temp = MacroVal(5)
 q(1:3) = MacroVal(12:14)
-! Prandtl = 2.*(DVMSpeciesData%Internal_DOF + 5.)/(2.*DVMSpeciesData%Internal_DOF + 15.)
-Prandtl = 2./3.
 
 DO kVel=1, DVMnVelos(3);   DO jVel=1, DVMnVelos(2);   DO iVel=1, DVMnVelos(1)
   upos= iVel+(jVel-1)*DVMnVelos(1)+(kVel-1)*DVMnVelos(1)*DVMnVelos(2)
@@ -303,10 +299,11 @@ DO kVel=1, DVMnVelos(3);   DO jVel=1, DVMnVelos(2);   DO iVel=1, DVMnVelos(1)
   gM = rho/((2.*Pi*DVMSpeciesData%R_S*Temp)**(DVMDim/2.))*exp(-cMag/(2.*DVMSpeciesData%R_S*Temp))
   ShakhFac1 = DOT_PRODUCT(q,cVel)/(5.*rho*DVMSpeciesData%R_S*DVMSpeciesData%R_S*Temp*Temp)
   ShakhFac2 = cMag/(DVMSpeciesData%R_S*Temp)
-  fShakhov(upos) = gm*(1.+(1.-Prandtl)*ShakhFac1*(ShakhFac2-2.-DVMDim))
-  IF (DVMSpeciesData%Internal_DOF .GT.0.0) THEN
-    fShakhov(PP_nVar_FV/2+upos) = gM*DVMSpeciesData%R_S*Temp*DVMSpeciesData%Internal_DOF*(1. &
-        +(1.-Prandtl)*ShakhFac1*((ShakhFac2-DVMDim)-2.*(DVMSpeciesData%Internal_DOF-3.+DVMDim)))
+  fShakhov(upos) = gM*(1.+(1.-DVMSpeciesData%Prandtl)*ShakhFac1*(ShakhFac2-2.-DVMDim))
+  IF (DVMDim.LT.3) THEN
+    fShakhov(PP_nVar_FV/2+upos) = gM*DVMSpeciesData%R_S*Temp*(DVMSpeciesData%Internal_DOF+3.-DVMDim &
+                                + (1.-DVMSpeciesData%Prandtl)*ShakhFac1*((ShakhFac2-DVMDim)*(DVMSpeciesData%Internal_DOF+3.-DVMDim)&
+                                - 2.*DVMSpeciesData%Internal_DOF))
   END IF
 END DO; END DO; END DO
 
@@ -350,7 +347,12 @@ pressTens(2,2) = DVMSpeciesData%R_S*Temp
 pressTens(3,3) = DVMSpeciesData%R_S*Temp
 
 CALL INV33(pressTens,ilambda,ldet)
-IF (ldet.LE.0.) CALL abort(__STAMP__,'DVM negative temperature!')
+IF (ldet.LE.0.) THEN
+  CALL abort(__STAMP__,'ESBGK matrix not positive-definite')
+ELSE
+  ! determinant from reduced pressure tensor (size D*D)
+  ldet = ldet/(DVMSpeciesData%R_S*Temp)**(3-DVMDim)
+END IF
 
 DO kVel=1, DVMnVelos(3);   DO jVel=1, DVMnVelos(2);   DO iVel=1, DVMnVelos(1)
   upos= iVel+(jVel-1)*DVMnVelos(1)+(kVel-1)*DVMnVelos(1)*DVMnVelos(2)
@@ -363,9 +365,9 @@ DO kVel=1, DVMnVelos(3);   DO jVel=1, DVMnVelos(2);   DO iVel=1, DVMnVelos(1)
                + cVel(2)*DOT_PRODUCT(ilambda(:,2),cVel) &
                + cVel(3)*DOT_PRODUCT(ilambda(:,3),cVel)
 
-  fESBGK(upos) = rho/sqrt((ldet/(DVMSpeciesData%R_S*Temp)**(DVMDim-3.))*(2*Pi)**DVMDim)*EXP(-pressProduct/2.)
+  fESBGK(upos) = rho/sqrt(ldet*(2*Pi)**DVMDim)*EXP(-pressProduct/2.)
   IF ((DVMSpeciesData%Internal_DOF .GT.0.0).OR.(DVMDim.LT.3)) THEN
-    fESBGK(PP_nVar_FV/2+upos) = fESBGK(upos)*DVMSpeciesData%R_S*Temp*DVMSpeciesData%Internal_DOF
+    fESBGK(PP_nVar_FV/2+upos) = fESBGK(upos)*DVMSpeciesData%R_S*Temp*(DVMSpeciesData%Internal_DOF+3.-DVMDim)
   END IF
 END DO; END DO; END DO
 
@@ -421,9 +423,10 @@ DO kVel=1, DVMnVelos(3);   DO jVel=1, DVMnVelos(2);   DO iVel=1, DVMnVelos(1)
 
   gM = rho/((2.*Pi*DVMSpeciesData%R_S*Temp)**(DVMDim/2.))*exp(-cMag/(2.*DVMSpeciesData%R_S*Temp))
   fGrad(upos) = gM*(1.+0.5*pressProduct/pressFac+ShakhFac1*(ShakhFac2-2.-DVMDim))
-  IF (DVMSpeciesData%Internal_DOF .GT.0.0) THEN
-    fGrad(PP_nVar_FV/2+upos) = gM*DVMSpeciesData%R_S*Temp*DVMSpeciesData%Internal_DOF*(1. &
-        +ShakhFac1*((ShakhFac2-DVMDim)-2.*(DVMSpeciesData%Internal_DOF-3.+DVMDim)))
+  IF (DVMDim.LT.3) THEN
+    fGrad(PP_nVar_FV/2+upos) = gM*DVMSpeciesData%R_S*Temp*(DVMSpeciesData%Internal_DOF+3.-DVMDim &
+                  + 0.5*(pressProduct/pressFac)*(DVMSpeciesData%Internal_DOF+3.-DVMDim) &
+                  + ShakhFac1*((ShakhFac2-DVMDim)*(DVMSpeciesData%Internal_DOF+3.-DVMDim)-2.*DVMSpeciesData%Internal_DOF))
   END IF
 END DO; END DO; END DO
 

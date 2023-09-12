@@ -48,7 +48,7 @@ USE MOD_Globals          ,ONLY: Abort
 USE MOD_Mesh_Vars        ,ONLY: BoundaryType,BC
 USE MOD_Equation_FV      ,ONLY: ExactFunc_FV
 USE MOD_Equation_Vars_FV ,ONLY: IniExactFunc_FV, RefState!, DVMBGKModel
-USE MOD_Equation_Vars_FV ,ONLY: DVMVelos, DVMnVelos, DVMSpeciesData, DVMVeloDisc, DVMVeloMax, DVMVeloMin!, DVMDim, Pi, DVMWeights
+USE MOD_Equation_Vars_FV ,ONLY: DVMVelos, DVMnVelos, DVMVeloDisc, DVMVeloMax, DVMVeloMin, DVMDim!, Pi, DVMWeights
 USE MOD_TimeDisc_Vars    ,ONLY : dt, time
 USE MOD_DistFunc         ,ONLY: MaxwellDistribution, MacroValuesFromDistribution, MaxwellScattering
 IMPLICIT NONE
@@ -130,12 +130,12 @@ CASE(3) ! specular reflection
       !   MovTerm = 0.
       ! END IF
       gradU(upos) = 2.*(UPrim_master(upos) - UPrim_boundary(upos_sp))! - MovTerm)
-      IF (DVMSpeciesData%Internal_DOF .GT.0.0) THEN
+      IF (DVMDim.LT.3) THEN
         gradU(PP_nVar_FV/2+upos) = 2.*(UPrim_master(PP_nVar_FV/2+upos) - UPrim_boundary(PP_nVar_FV/2+upos_sp))! - MovTerm)
       END IF
     ELSE
       gradU(upos) = 2.*gradUinside(upos)
-      IF (DVMSpeciesData%Internal_DOF .GT.0.0) THEN
+      IF (DVMDim.LT.3) THEN
         gradU(PP_nVar_FV/2+upos) = 2.*gradUinside(PP_nVar_FV/2+upos)
       END IF
     END IF
@@ -152,12 +152,12 @@ CASE(4) ! diffusive
     vnormal = DVMVelos(iVel,1)*NormVec(1) + DVMVelos(jVel,2)*NormVec(2) + DVMVelos(kVel,3)*NormVec(3)
     IF (vnormal.LT.0.) THEN
       gradU(upos) = 2.*(UPrim_master(upos) - UPrim_boundary(upos))
-      IF (DVMSpeciesData%Internal_DOF .GT.0.0) THEN
+      IF (DVMDim.LT.3) THEN
         gradU(PP_nVar_FV/2+upos) = 2.*(UPrim_master(PP_nVar_FV/2+upos) - UPrim_boundary(PP_nVar_FV/2+upos))
       END IF
     ELSE
       gradU(upos) = 2.*gradUinside(upos)
-      IF (DVMSpeciesData%Internal_DOF .GT.0.0) THEN
+      IF (DVMDim.LT.3) THEN
         gradU(PP_nVar_FV/2+upos) = 2.*gradUinside(PP_nVar_FV/2+upos)
       END IF
     END IF

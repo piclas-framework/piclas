@@ -31,7 +31,7 @@ SUBROUTINE Riemann(F,U_L,U_R,nv)
 USE MOD_PreProc ! PP_N
 USE MOD_DistFunc, ONLY  : MacroValuesFromDistribution
 USE MOD_DistFunc, ONLY  : MaxwellDistribution, MaxwellDistributionCons, ShakhovDistribution, ESBGKDistribution
-USE MOD_Equation_Vars_FV
+USE MOD_Equation_Vars_FV,ONLY: DVMDim, DVMnVelos, DVMVelos, DVMMethod, DVMBGKModel
 USE MOD_TimeDisc_Vars, ONLY : dt
 USE MOD_Globals,  ONLY :abort
 ! IMPLICIT VARIABLE HANDLING
@@ -95,7 +95,7 @@ INTEGER                                          :: Count_1,Count_2, iVel, jVel,
         upos= iVel+(jVel-1)*DVMnVelos(1)+(kVel-1)*DVMnVelos(1)*DVMnVelos(2)
         Velo= n_loc(1)*DVMVelos(iVel,1) + n_loc(2)*DVMVelos(jVel,2) + n_loc(3)*DVMVelos(kVel,3)
         F(upos,Count_1,Count_2)=0.5*((Velo+abs(Velo))*Utemp_L(upos)+(Velo-abs(Velo))*Utemp_R(upos))
-        IF (DVMSpeciesData%Internal_DOF .GT.0.0) THEN
+        IF (DVMDim.LT.3) THEN
           F(PP_nVar_FV/2+upos,Count_1,Count_2) = &
             0.5*((Velo+abs(Velo))*Utemp_L(PP_nVar_FV/2+upos)+(Velo-abs(Velo))*Utemp_R(PP_nVar_FV/2+upos))
         END IF

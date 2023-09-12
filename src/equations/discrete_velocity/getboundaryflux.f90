@@ -124,7 +124,7 @@ USE MOD_Riemann
 USE MOD_TimeDisc_Vars,ONLY : dt
 USE MOD_Equation_FV  ,ONLY: ExactFunc_FV
 USE MOD_DistFunc     ,ONLY: MaxwellDistribution, MaxwellScattering, MacroValuesFromDistribution
-USE MOD_Equation_Vars_FV,ONLY: DVMSpeciesData,DVMnVelos,DVMVelos,DVMVeloDisc,DVMVeloMax,DVMVeloMin!,DVMBGKModel,DVMWeights,DVMDim,Pi
+USE MOD_Equation_Vars_FV,ONLY: DVMDim,DVMnVelos,DVMVelos,DVMVeloDisc,DVMVeloMax,DVMVeloMin!,DVMBGKModel,DVMWeights,Pi
 !----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT / OUTPUT VARIABLES
 REAL,INTENT(IN)                      :: t       !< current time (provided by time integration scheme)
@@ -219,12 +219,12 @@ DO iBC=1,nBCs
             !   MovTerm = 0.
             ! END IF
             UPrim_boundary(upos,p,q)=UPrim_master(upos_sp,p,q,SideID)! + MovTerm
-            IF (DVMSpeciesData%Internal_DOF .GT.0.0) THEN
+            IF (DVMDim.LT.3) THEN
               UPrim_boundary(PP_nVar_FV/2+upos,p,q)=UPrim_master(PP_nVar_FV/2+upos_sp,p,q,SideID)! + MovTerm
             END IF
           ELSE
             UPrim_boundary(upos,p,q)=UPrim_master(upos,p,q,SideID)
-            IF (DVMSpeciesData%Internal_DOF .GT.0.0) THEN
+            IF (DVMDim.LT.3) THEN
               UPrim_boundary(PP_nVar_FV/2+upos,p,q)=UPrim_master(PP_nVar_FV/2+upos,p,q,SideID)
             END IF
           END IF

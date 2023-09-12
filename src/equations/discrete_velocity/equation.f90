@@ -60,7 +60,7 @@ CALL prms%CreateRealOption(     'DVM-omegaVHS',      'Variable Hard Sphere param
 CALL prms%CreateRealOption(     'DVM-T_Ref',         'VHS reference temperature')
 CALL prms%CreateRealOption(     'DVM-d_Ref',         'VHS reference diameter')
 CALL prms%CreateRealOption(     'DVM-Mass',          'Molecular mass')
-CALL prms%CreateIntOption(      'DVM-Internal_DOF',  'Number of internal degrees of freedom')
+CALL prms%CreateIntOption(      'DVM-Internal_DOF',  'Number of (non translational) internal degrees of freedom', '0')
 CALL prms%CreateIntOption(      'DVM-Dimension',     'Number of space dimensions for velocity discretization', '3')
 CALL prms%CreateIntOption(      'DVM-BGKCollModel',  'Select the BGK method:\n'//&
                                                      '1: Ellipsoidal statistical (ESBGK)\n'//&
@@ -126,18 +126,13 @@ DVMSpeciesData%mu_Ref = 30.*SQRT(DVMSpeciesData%Mass*BoltzmannConst*DVMSpeciesDa
                       * DVMSpeciesData%d_Ref**2.)
 DVMSpeciesData%R_S = BoltzmannConst / DVMSpeciesData%Mass
 DVMDim = GETINT('DVM-Dimension')
-IF ((DVMDim+DVMSpeciesData%Internal_DOF).LT.3.) CALL abort(__STAMP__,&
-           'Degrees of freedom need to be at least 3 - number of dimensions')
-! DVMSpeciesData%Prandtl =2.*(DVMSpeciesData%Internal_DOF + 5.)/(2.*DVMSpeciesData%Internal_DOF + 15.)
-DVMSpeciesData%Prandtl = 2./3.
+IF ((DVMDim.GT.3).OR.(DVMDim.LT.1)) CALL abort(__STAMP__,'DVM error: dimension must be between 1 and 3')
+DVMSpeciesData%Prandtl =2.*(DVMSpeciesData%Internal_DOF + 5.)/(2.*DVMSpeciesData%Internal_DOF + 15.)
+
 DVMnVelos(1:3) = 1
-IF (DVMSpeciesData%Internal_DOF.GT.0.0) THEN
-  DVMnVelos(1:DVMDim) = GETINT('DVM-nVelo')
-  PP_nVar_FV = (DVMnVelos(1)**DVMDim)*2
-ELSE
-  DVMnVelos(:) = GETINT('DVM-nVelo')
-  PP_nVar_FV = (DVMnVelos(1)**3)
-END IF
+DVMnVelos(1:DVMDim) = GETINT('DVM-nVelo')
+PP_nVar_FV = (DVMnVelos(1)**DVMDim)
+IF (DVMDim.LT.3) PP_nVar_FV = PP_nVar_FV*2 !double variables for reduced distributions
 
 ALLOCATE(DVMVelos(MAXVAL(DVMnVelos),3), DVMWeights(MAXVAL(DVMnVelos),3))
 DVMVelos(:,:)=0.

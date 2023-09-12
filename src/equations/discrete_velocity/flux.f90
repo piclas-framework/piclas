@@ -47,7 +47,7 @@ USE MOD_PreProc
 USE MOD_Globals      ,ONLY: Abort
 USE MOD_TimeDisc_Vars,ONLY : dt
 USE MOD_FV_Vars      ,ONLY: U
-USE MOD_Equation_Vars,ONLY: DVMnVelos, DVMVelos, DVMSpeciesData, DVMBGKModel, DVMMethod
+USE MOD_Equation_Vars,ONLY: DVMnVelos, DVMVelos, DVMBGKModel, DVMMethod, DVMDim
 USE MOD_DistFunc     ,ONLY: MacroValuesFromDistribution
 USE MOD_DistFunc     ,ONLY: MaxwellDistribution, MaxwellDistributionCons, ShakhovDistribution, ESBGKDistribution
 IMPLICIT NONE
@@ -96,7 +96,7 @@ DO k=0,PP_N
         f(upos,i,j,k) = DVMVelos(iVel,1) * UTemp(upos)
         g(upos,i,j,k) = DVMVelos(jVel,2) * UTemp(upos)
         h(upos,i,j,k) = DVMVelos(kVel,3) * UTemp(upos)
-        IF (DVMSpeciesData%Internal_DOF .GT.0.0) THEN
+        IF (DVMDim.LT.3) THEN
           f(PP_nVar/2+upos,i,j,k) = DVMVelos(iVel,1) * UTemp(PP_nVar/2+upos)
           g(PP_nVar/2+upos,i,j,k) = DVMVelos(jVel,2) * UTemp(PP_nVar/2+upos)
           h(PP_nVar/2+upos,i,j,k) = DVMVelos(kVel,3) * UTemp(PP_nVar/2+upos)

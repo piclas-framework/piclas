@@ -69,7 +69,7 @@ USE MOD_Mesh_Vars,          ONLY: firstBCSide,firstInnerSide, lastInnerSide
 USE MOD_Mesh_Vars,          ONLY: firstMPISide_YOUR,lastMPISide_YOUR,lastMPISide_MINE,firstMortarMPISide,lastMortarMPISide
 #if (PP_TimeDiscMethod==600) /*DVM*/
 USE MOD_TimeDisc_Vars,      ONLY: dt
-USE MOD_Equation_Vars_FV,   ONLY: DVMnVelos, DVMVelos, DVMSpeciesData
+USE MOD_Equation_Vars_FV,   ONLY: DVMnVelos, DVMVelos, DVMDim
 #endif
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -107,7 +107,7 @@ DO SideID=firstSideID,lastSideID
                                   + Gradient_elem(1,upos,ElemID)*(Grad_dx_slave(1,SideID)-DVMVelos(iVel,1)*dt/2.) &
                                   + Gradient_elem(2,upos,ElemID)*(Grad_dx_slave(2,SideID)-DVMVelos(jVel,2)*dt/2.) &
                                   + Gradient_elem(3,upos,ElemID)*(Grad_dx_slave(3,SideID)-DVMVelos(kVel,3)*dt/2.)
-    IF (DVMSpeciesData%Internal_DOF .GT.0.0) THEN
+    IF (DVMDim.LT.3) THEN
       Uface_slave(PP_nVar_FV/2+upos,0,0,SideID) = Uvol(PP_nVar_FV/2+upos,0,0,0,ElemID) &
                                   + Gradient_elem(1,PP_nVar_FV/2+upos,ElemID)*(Grad_dx_slave(1,SideID)-DVMVelos(iVel,1)*dt/2.) &
                                   + Gradient_elem(2,PP_nVar_FV/2+upos,ElemID)*(Grad_dx_slave(2,SideID)-DVMVelos(jVel,2)*dt/2.) &
@@ -145,7 +145,7 @@ DO SideID=firstSideID,lastSideID
                                   + Gradient_elem(1,upos,ElemID)*(Grad_dx_master(1,SideID)-DVMVelos(iVel,1)*dt/2.) &
                                   + Gradient_elem(2,upos,ElemID)*(Grad_dx_master(2,SideID)-DVMVelos(jVel,2)*dt/2.) &
                                   + Gradient_elem(3,upos,ElemID)*(Grad_dx_master(3,SideID)-DVMVelos(kVel,3)*dt/2.)
-    IF (DVMSpeciesData%Internal_DOF .GT.0.0) THEN
+    IF (DVMDim.LT.3) THEN
       Uface_master(PP_nVar_FV/2+upos,0,0,SideID) = Uvol(PP_nVar_FV/2+upos,0,0,0,ElemID) &
                                   + Gradient_elem(1,PP_nVar_FV/2+upos,ElemID)*(Grad_dx_master(1,SideID)-DVMVelos(iVel,1)*dt/2.) &
                                   + Gradient_elem(2,PP_nVar_FV/2+upos,ElemID)*(Grad_dx_master(2,SideID)-DVMVelos(jVel,2)*dt/2.) &
