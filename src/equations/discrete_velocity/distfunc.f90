@@ -142,7 +142,7 @@ END SUBROUTINE
 
 SUBROUTINE MaxwellDistributionCons(MacroVal,fMaxwell)
 !===================================================================================================================================
-! conservative maxwell
+! conservative maxwell distribution
 !===================================================================================================================================
 ! MODULES
 USE MOD_Equation_Vars_FV         ,ONLY: DVMnVelos, DVMVelos, DVMSpeciesData, DVMDim, Pi, DVMWeights
@@ -229,7 +229,7 @@ END SUBROUTINE
 
 SUBROUTINE MaxwellDistribution(MacroVal,fMaxwell)
 !===================================================================================================================================
-! Specifies all the initial conditions. The state in conservative variables is returned.
+! Maxwell distribution from macro values
 !===================================================================================================================================
 ! MODULES
 USE MOD_Equation_Vars_FV         ,ONLY: DVMnVelos, DVMVelos, DVMSpeciesData, DVMDim, Pi
@@ -267,7 +267,7 @@ END SUBROUTINE
 
 SUBROUTINE ShakhovDistribution(MacroVal,fShakhov)
 !===================================================================================================================================
-! Specifies all the initial conditions. The state in conservative variables is returned.
+! Shakhov distribution from macro values
 !===================================================================================================================================
 ! MODULES
 USE MOD_Equation_Vars_FV         ,ONLY: DVMnVelos, DVMVelos, DVMSpeciesData, DVMDim, Pi
@@ -311,7 +311,7 @@ END SUBROUTINE
 
 SUBROUTINE ESBGKDistribution(MacroVal,fESBGK)
 !===================================================================================================================================
-! Specifies all the initial conditions. The state in conservative variables is returned.
+! ESBGK distribution from macro values
 !===================================================================================================================================
 ! MODULES
 USE MOD_Equation_Vars_FV         ,ONLY: DVMnVelos, DVMVelos, DVMSpeciesData, DVMDim, Pi
@@ -375,7 +375,7 @@ END SUBROUTINE
 
 SUBROUTINE GradDistribution(MacroVal,fGrad)
 !===================================================================================================================================
-! Specifies all the initial conditions. The state in conservative variables is returned.
+! Grad 13 moments distribution from macro values
 !===================================================================================================================================
 ! MODULES
 USE MOD_Equation_Vars_FV         ,ONLY: DVMnVelos, DVMVelos, DVMSpeciesData, DVMDim, Pi
@@ -434,7 +434,7 @@ END SUBROUTINE
 
 SUBROUTINE MaxwellScattering(fBoundary,U,NormVec,tilde,tDeriv)
 !===================================================================================================================================
-! Specifies all the initial conditions. The state in conservative variables is returned.
+! Gets accurate density for the half maxwellian at diffusive boundaries
 !===================================================================================================================================
 ! MODULES
 USE MOD_Equation_Vars_FV         ,ONLY: DVMnVelos, DVMVelos, DVMWeights, DVMBGKModel, DVMMethod
@@ -510,7 +510,7 @@ END SUBROUTINE
 
 SUBROUTINE RescaleU(tilde,tDeriv)
 !===================================================================================================================================
-! Specifies all the initial conditions. The state in conservative variables is returned.
+! Rescales distribution function for EDDVM/DUGKS
 !===================================================================================================================================
 ! MODULES
 USE MOD_Equation_Vars_FV,  ONLY : DVMBGKModel, DVMMomentSave, DVMMethod
@@ -572,7 +572,7 @@ END SUBROUTINE
 
 SUBROUTINE RescaleInit(tDeriv)
 !===================================================================================================================================
-! Initial rescale for initialization with non equilibrium flow
+! Initial rescale (f->ftilde) for initialization with non equilibrium flow
 !===================================================================================================================================
 ! MODULES
 USE MOD_Equation_Vars_FV,  ONLY: DVMBGKModel, DVMMethod
@@ -621,7 +621,7 @@ END SUBROUTINE
 
 SUBROUTINE ForceStep(tDeriv)
 !===================================================================================================================================
-! Initial rescale for initialization with non equilibrium flow
+! Calculates force term (to add in 2 parts (Strang splitting) for 2nd order accuracy)
 !===================================================================================================================================
 ! MODULES
 USE MOD_Equation_Vars_FV,  ONLY: DVMnVelos, DVMVelos, DVMSpeciesData, DVMForce !, DVMBGKModel

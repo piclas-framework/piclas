@@ -345,8 +345,8 @@ REAL,INTENT(INOUT)      :: Gradient(3,Grad_DIM)
 
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                         :: iVar,locSideID,SideID,flip
-REAL                            :: limiter(Grad_DIM), a, b, w, CNElemID
+INTEGER                         :: iVar,locSideID,SideID,flip, CNElemID
+REAL                            :: limiter(Grad_DIM), a, b, w
 !===================================================================================================================================
 limiter = 1.
 

@@ -297,7 +297,7 @@ END SUBROUTINE ExactFunc
 
 SUBROUTINE CalcSource(t,coeff,Ut)
 !===================================================================================================================================
-! Specifies all the initial conditions. The state in conservative variables is returned.
+! Dummy
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals           ,ONLY: abort
