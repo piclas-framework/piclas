@@ -369,6 +369,11 @@ DO iElem=1,PP_nElems
       jSideID=ElemToSide(E2S_SIDE_ID,jLocSide,iElem)
       jPETScGlobal=PETScGlobal(jSideID)
       IF (iPETScGlobal.GT.jPETScGlobal) CYCLE
+      IF(SetZeroPotentialDOF.AND.(iPETScGlobal.EQ.0)) THEN
+        ! The first DOF is set to constant 0 -> lambda_{1,1} = 0
+        Smat(:,1,jLocSide,iLocSide,iElem) = 0
+        IF(jPETScGlobal.EQ.iPETScGlobal) Smat(1,1,jLocSide,iLocSide,iElem) = 1
+      END IF
       PetscCallA(MatSetValuesBlocked(Smat_petsc,1,iPETScGlobal,1,jPETScGlobal,Smat(:,:,jLocSide,iLocSide,iElem),ADD_VALUES,ierr))
     END DO
   END DO
@@ -403,8 +408,6 @@ DO BCsideID=1,nConductorBCsides
 END DO
 PetscCallA(MatAssemblyBegin(Smat_petsc,MAT_FINAL_ASSEMBLY,ierr))
 PetscCallA(MatAssemblyEnd(Smat_petsc,MAT_FINAL_ASSEMBLY,ierr))
-
-IF(SetZeroPotentialDOF) PetscCallA(MatZeroRowsColumns(Smat_petsc,1,(/0/),1.,PETSC_NULL_VEC,PETSC_NULL_VEC,ierr))
 #endif
 
 
