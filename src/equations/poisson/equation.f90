@@ -892,13 +892,19 @@ USE MOD_Mesh_Vars          ,ONLY: Elem_xGP
 #ifdef PARTICLES
 USE MOD_PICDepo_Vars       ,ONLY: PartSource,DoDeposition
 USE MOD_HDG_Vars           ,ONLY: ElemToBRRegion,UseBRElectronFluid,RegionElectronRef
+#ifndef drift_diffusion
 USE MOD_Globals_Vars       ,ONLY: eps0
+#endif
 #if IMPA
 USE MOD_LinearSolver_Vars  ,ONLY: ExplicitPartSource
 #endif
 #endif /*PARTICLES*/
 USE MOD_Equation_Vars      ,ONLY: IniExactFunc
 USE MOD_Equation_Vars      ,ONLY: IniCenter,IniHalfwidth,IniAmplitude
+#ifdef drift_diffusion
+USE MOD_FV_Vars            ,ONLY: U_FV
+USE MOD_Globals_Vars       ,ONLY: eps0, ElementaryCharge
+#endif
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -973,6 +979,11 @@ IF(DoDeposition)THEN
 #endif
 END IF
 #endif /*PARTICLES*/
+
+#ifdef drift_diffusion
+resu(1) = (U_FV(1,0,0,0,iElem) * ElementaryCharge)/eps0  ! minus * minus => no minus
+#endif
+
 
 END SUBROUTINE CalcSourceHDG
 
