@@ -108,6 +108,7 @@ USE MOD_Particle_Vars         ,ONLY: nSpecies, Species, DoVirtualCellMerge
 USE MOD_DSMC_Vars             ,ONLY: SpecDSMC, DSMC, RadialWeighting, VarWeighting, CollInf
 USE MOD_DSMC_ParticlePairing  ,ONLY: DSMC_init_octree
 USE MOD_Globals_Vars          ,ONLY: Pi, BoltzmannConst
+USE MOD_Particle_Mesh_Vars    ,ONLY: MeshAdapt
 USE MOD_Basis                 ,ONLY: PolynomialDerivativeMatrix
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Vars      ,ONLY: PerformLoadBalance
@@ -141,6 +142,9 @@ END DO
 ALLOCATE(CBC%OutputKnudsen(9,nElems))
 CBC%OutputKnudsen = 0.0
 
+ALLOCATE(MeshAdapt(2,nElems))
+MeshAdapt = 0.0
+
 BGKCollModel = GETINT('Particles-BGK-CollModel')
 IF ((nSpecies.GT.1).AND.(BGKCollModel.GT.1)) THEN
       CALL abort(__STAMP__,' ERROR Multispec only with ESBGK model!')
@@ -153,7 +157,7 @@ CoupledBGKDSMC = GETLOGICAL('Particles-CoupledBGKDSMC')
 ALLOCATE(CBC%DoElementDSMC(nElems))
 CBC%DoElementDSMC = .FALSE.
 IF(CoupledBGKDSMC) THEN
-  IF (DoVirtualCellMerge) THEN  
+  IF (DoVirtualCellMerge) THEN
     CALL abort(__STAMP__,' Virtual cell merge not implemented for coupled DSMC-BGK simulations!')
   END IF
   ! Coupling criteria DSMC
@@ -271,6 +275,7 @@ SUBROUTINE FinalizeBGK()
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Globals
 USE MOD_BGK_Vars
+USE MOD_Particle_Mesh_Vars
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
 ! INPUT VARIABLES
@@ -284,6 +289,7 @@ SDEALLOCATE(SpecBGK)
 SDEALLOCATE(BGK_QualityFacSamp)
 SDEALLOCATE(CBC%DoElementDSMC)
 SDEALLOCATE(CBC%OutputKnudsen)
+SDEALLOCATE(MeshAdapt)
 IF (CoupledBGKDSMC) THEN
   SDEALLOCATE(CBC%Iter_Count)
 END IF
@@ -339,7 +345,7 @@ TYPE (tNodeAverage), INTENT(INOUT)  :: NodeAverage
 INTEGER     ::  iLoop, nLoop
 !===================================================================================================================================
 nLoop = 2**Symmetry%Order
-IF(ASSOCIATED(NodeAverage%SubNode)) THEN 
+IF(ASSOCIATED(NodeAverage%SubNode)) THEN
   DO iLoop = 1, nLoop
     CALL DeleteNodeAverage(NodeAverage%SubNode(iLoop))
   END DO

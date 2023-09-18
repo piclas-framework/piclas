@@ -876,7 +876,6 @@ USE MOD_DSMC_Vars         ,ONLY: tTreeNode, DSMC, tNodeVolume, RadialWeighting, 
 USE MOD_Particle_Vars     ,ONLY: nSpecies, PartSpecies, UseVarTimeStep, usevMPF
 USE MOD_DSMC_Vars         ,ONLY: ElemNodeVol
 USE MOD_part_tools        ,ONLY: GetParticleWeight
-USE MOD_Particle_Mesh_Vars,ONLY: MeshAdapt
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1034,14 +1033,10 @@ DO iLoop = 1, 4
     ELSE
       CALL PerformPairingAndCollision(iPartIndx_ChildNode(iLoop, 1:PartNumChildNode(iLoop)), &
             PartNumChildNode(iLoop), iElem, NodeVolumeTemp(iLoop))
-      MeshAdapt(1,iElem) = 2.**TreeNode%NodeDepth *2.
-      MeshAdapt(2,iElem) = 2.**TreeNode%NodeDepth *2.
     END IF
   ELSE IF (PartNumChildNode(iLoop).GT.1) THEN
     CALL PerformPairingAndCollision(iPartIndx_ChildNode(iLoop, 1:PartNumChildNode(iLoop)), &
           PartNumChildNode(iLoop), iElem, NodeVolumeTemp(iLoop))
-    MeshAdapt(1,iElem) = 2.**TreeNode%NodeDepth *2.
-    MeshAdapt(2,iElem) = 2.**TreeNode%NodeDepth *2.
   ELSE IF (CollInf%ProhibitDoubleColl.AND.(PartNumChildNode(iLoop).EQ.1)) THEN
     CollInf%OldCollPartner(iPartIndx_ChildNode(iLoop, 1)) = 0
   END IF
@@ -1244,7 +1239,6 @@ USE MOD_ReadInTools
 USE MOD_DSMC_Vars             ,ONLY: DSMC, ElemNodeVol
 USE MOD_Mesh_Vars             ,ONLY: nElems
 USE MOD_Particle_Vars         ,ONLY: Symmetry
-USE MOD_Particle_Mesh_Vars    ,ONLY: MeshAdapt
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1279,8 +1273,6 @@ END IF
 
 ALLOCATE(ElemNodeVol(nElems))
 
-ALLOCATE(MeshAdapt(2,nElems))
-MeshAdapt = 0.
 
 !Calculate recursive Volumes
 DO iElem = 1, nElems

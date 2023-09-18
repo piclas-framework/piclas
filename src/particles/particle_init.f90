@@ -130,7 +130,7 @@ CALL prms%CreateIntOption(      'Part-CellMergeSpread'        , 'Describes the a
                                                                 'i.e. how deep the merge extends into the mesh starting from \n'//&
                                                                 'each cell. 0 is the least aggressive merge, 2 the most \n'//&
                                                                 'aggressive merge.','0')
-CALL prms%CreateIntOption(      'Part-MaxNumbCellsMerge'       ,'Maximum number of cells to be merged.','4')                                                                
+CALL prms%CreateIntOption(      'Part-MaxNumbCellsMerge'       ,'Maximum number of cells to be merged.','4')
 
 CALL prms%SetSection("IMD")
 ! IMD things
@@ -338,7 +338,7 @@ END IF
 
 ! Initialize surface sampling / rotational periodic mapping
 ! (the following IF arguments have to be considered in FinalizeParticleBoundarySampling as well)
-IF (WriteMacroSurfaceValues.OR.DSMC%CalcSurfaceVal.OR.(ANY(PartBound%Reactive)).OR.(nPorousBC.GT.0) & 
+IF (WriteMacroSurfaceValues.OR.DSMC%CalcSurfaceVal.OR.(ANY(PartBound%Reactive)).OR.(nPorousBC.GT.0) &
   .OR.GEO%RotPeriodicBC.OR.(SurfChemReac%NumOfReact.GT.0)) THEN
   CALL InitParticleBoundarySampling()
   IF(GEO%RotPeriodicBC) CALL InitParticleBoundaryRotPeriodic()
@@ -524,7 +524,7 @@ IF(VarWeighting%DoVariableWeighting) THEN
 END IF
 
 ! Initialization of the automatically adapted particle weights
-AdaptMPF%DoAdaptMPF = GETLOGICAL('Part-Adaptive-weighting')
+AdaptMPF%DoAdaptMPF = GETLOGICAL('Part-Adaptive-Weighting')
 
 IF (AdaptMPF%DoAdaptMPF) THEN
   CALL DSMC_InitAdaptiveWeights()
@@ -718,7 +718,7 @@ INTEGER         :: iELem
 DoVirtualCellMerge = GETLOGICAL('Part-DoVirtualCellMerge')
 IF(DoVirtualCellMerge)THEN
 #if USE_MPI
-DoParticleLatencyHiding = .FALSE.  
+DoParticleLatencyHiding = .FALSE.
 #endif
   VirtualCellMergeSpread = GETINT('Part-CellMergeSpread')
   MaxNumOfMergedCells = GETINT('Part-MaxNumbCellsMerge')

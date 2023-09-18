@@ -74,9 +74,6 @@ IterAdapt   = GETINT('Part-MeshAdapt-IterationNum')
 ALLOCATE(AdaptMesh(nElems))
 RefineFactorGrad = GETREAL('Part-MeshAdapt-RefineLimitGradient')
 
-ALLOCATE(MeshAdapt(2,nElems))
-MeshAdapt = 0.0
-
 ! Initialization of the relative orientation of the basis vectors in the physical and reference space
 DO iElem=1, nElems
   AdaptMesh(iElem)%CellOrientation(1:3) = (/1,2,3/)
@@ -341,6 +338,7 @@ REAL                          :: Subcell_wGP, PartPosMapped(3), DetLocal(1,0:PP_
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Number of subcells from the split order
 nCells = (AdaptMesh(iElem)%SplitOrder+1)**3
+MeshAdapt(1,iElem) = nCells
 
 ! Particle number in the element
 nPart = PEM%pNumber(iElem)
@@ -674,6 +672,7 @@ REAL                          :: Subcell_wGP, PartPosMapped(3), DetLocal(1,0:PP_
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Number of subcells from the split order
 nCells = (AdaptMesh(iElem)%SplitOrder+1)**3
+MeshAdapt(1,iElem) = nCells
 
 ! Particle number in the element
 nPart = PEM%pNumber(iElem)

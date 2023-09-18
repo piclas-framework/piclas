@@ -86,7 +86,7 @@ CALL prms%CreateIntOption(    'Part-VarWeighting-CloneMode',  &
                               '1: Chronological, 2: Random', '2')
 CALL prms%CreateIntOption(    'Part-VarWeighting-CloneDelay', &
                               'Radial weighting:  Delay (number of iterations) before the stored cloned particles are inserted '//&
-                              'at the position they were cloned', '2') 
+                              'at the position they were cloned', '2')
 CALL prms%CreateIntOption(    'Particles-VarWeighting-SurfFluxSubSides', &
                               'Variable weighting: Split the surface flux side into the given number of subsides, reduces the '//&
                               'error in the particle distribution across the cell (visible in the number density)', '20')
@@ -621,7 +621,7 @@ DO iPart = 1, RadialWeighting%ClonePartNum(DelayCounter)
     PartStateIntEn(1:2,PositionNbr) = ClonedParticles(iPart,DelayCounter)%PartStateIntEn(1:2)
     IF(DSMC%ElectronicModel.GT.0) THEN
       PartStateIntEn(3,PositionNbr) = ClonedParticles(iPart,DelayCounter)%PartStateIntEn(3)
-      IF ((DSMC%ElectronicModel.EQ.2).AND.(.NOT.((SpecDSMC(ClonedParticles(iPart,DelayCounter)%Species)%InterID.EQ.4) & 
+      IF ((DSMC%ElectronicModel.EQ.2).AND.(.NOT.((SpecDSMC(ClonedParticles(iPart,DelayCounter)%Species)%InterID.EQ.4) &
           .OR.SpecDSMC(ClonedParticles(iPart,DelayCounter)%Species)%FullyIonized))) THEN
         IF(ALLOCATED(ElectronicDistriPart(PositionNbr)%DistriFunc)) DEALLOCATE(ElectronicDistriPart(PositionNbr)%DistriFunc)
         ALLOCATE(ElectronicDistriPart(PositionNbr)%DistriFunc(1:SpecDSMC(ClonedParticles(iPart,DelayCounter)%Species)%MaxElecQuant))
@@ -886,7 +886,7 @@ END SUBROUTINE Init_Symmetry
 
 SUBROUTINE DSMC_InitVarWeighting()
 !===================================================================================================================================
-!> Read-in and initialize the variables required for the 3D cloning procedures. Two modes with a delayed clone insertion are  
+!> Read-in and initialize the variables required for the 3D cloning procedures. Two modes with a delayed clone insertion are
 !> available:
 !> 1: Insert the clones after the delay in the same chronological order as they were created
 !> 2: Choose a random list of particles to insert after the delay buffer is full with clones
@@ -982,10 +982,10 @@ END SUBROUTINE DSMC_InitVarWeighting
 
 SUBROUTINE DSMC_VariableWeighting(iPart,iElem)
 !===================================================================================================================================
-!> Routine for the treatment of particles with enabled variable weighting 
+!> Routine for the treatment of particles with enabled variable weighting
 !> 1.) Determine the new particle weight and decide whether to clone or to delete the particle
 !> 2a.) Particle cloning, if the local weighting factor is smaller than the previous
-!> 2b.) Particle deletion, if the local weighting factor is greater than the previous 
+!> 2b.) Particle deletion, if the local weighting factor is greater than the previous
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
@@ -1032,7 +1032,7 @@ END IF
 PartMPF(iPart) = NewMPF
 
 IF(DoCloning) THEN
-  ! 2a.) Particle cloning, if the local weighting factor is smaller than the previous 
+  ! 2a.) Particle cloning, if the local weighting factor is smaller than the previous
   ! Get the list number to store the clones, depending on the chosen clone mode
   SELECT CASE(VarWeighting%CloneMode)
   CASE(1)
@@ -1191,7 +1191,7 @@ DO iPart = 1, VarWeighting%ClonePartNum(DelayCounter)
     PartStateIntEn(1:2,PositionNbr) = ClonedParticles(iPart,DelayCounter)%PartStateIntEn(1:2)
     IF(DSMC%ElectronicModel.GT.0) THEN
       PartStateIntEn(3,PositionNbr) = ClonedParticles(iPart,DelayCounter)%PartStateIntEn(3)
-      IF ((DSMC%ElectronicModel.EQ.2).AND.(.NOT.((SpecDSMC(ClonedParticles(iPart,DelayCounter)%Species)%InterID.EQ.4) & 
+      IF ((DSMC%ElectronicModel.EQ.2).AND.(.NOT.((SpecDSMC(ClonedParticles(iPart,DelayCounter)%Species)%InterID.EQ.4) &
           .OR.SpecDSMC(ClonedParticles(iPart,DelayCounter)%Species)%FullyIonized))) THEN
         IF(ALLOCATED(ElectronicDistriPart(PositionNbr)%DistriFunc)) DEALLOCATE(ElectronicDistriPart(PositionNbr)%DistriFunc)
         ALLOCATE(ElectronicDistriPart(PositionNbr)%DistriFunc(1:SpecDSMC(ClonedParticles(iPart,DelayCounter)%Species)%MaxElecQuant))
@@ -1290,7 +1290,7 @@ IF (Coll_pData(iPair)%CRela2.EQ.0.0) THEN
                              + (PartState(5,iPart_p1) - PartState(5,iPart_p2))**2 &
                              + (PartState(6,iPart_p1) - PartState(6,iPart_p2))**2
   ELSE IF (iPair.LT.nPair) THEN
-    IF (.NOT.Coll_pData(iPair+1)%NeedForRec) THEN 
+    IF (.NOT.Coll_pData(iPair+1)%NeedForRec) THEN
     ! "Partner-Tausch": if there are pairs ahead in the pairing list, the next is pair is broken up and collision partners
     ! are swapped
       CollInf%Coll_CaseNum(Coll_pData(iPair)%PairType) = CollInf%Coll_CaseNum(Coll_pData(iPair)%PairType) - 1

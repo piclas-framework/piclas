@@ -465,7 +465,7 @@ SUBROUTINE DSMC_output_calc(nVar,nVar_quality,nVarloc,nVarMPF,nVarAdaptMPF,DSMC_
 ! MODULES
 USE MOD_PreProc
 USE MOD_Globals
-USE MOD_MPI_Shared    
+USE MOD_MPI_Shared
 USE MOD_Globals_Vars           ,ONLY: BoltzmannConst
 USE MOD_part_tools             ,ONLY: CalcVarWeightMPF, CalcRadWeightMPF
 USE MOD_BGK_Vars               ,ONLY: BGKInitDone, BGK_QualityFacSamp, CBC, CoupledBGKDSMC
@@ -480,7 +480,7 @@ USE MOD_Particle_TimeStep      ,ONLY: GetParticleTimeStep
 USE MOD_Restart_Vars           ,ONLY: RestartTime
 USE MOD_TimeDisc_Vars          ,ONLY: time,TEnd,iter,dt
 !USE MOD_Particle_Mesh_Vars     ,ONLY: ElemMidPoint_Shared, ElemVolume_Shared
-USE MOD_Particle_Mesh_Vars     
+USE MOD_Particle_Mesh_Vars
 USE MOD_Mesh_Vars              ,ONLY: offSetElem
 USE MOD_Mesh_Tools             ,ONLY: GetCNElemID
 USE MOD_Particle_Analyze_Tools ,ONLY: CalcTelec,CalcTVibPoly
@@ -746,10 +746,14 @@ IF (DSMC%CalcQualityFactors) THEN
       IF (CoupledBGKDSMC) THEN
         DSMC_MacroVal(nVarCount+8,iElem) = BGK_QualityFacSamp(4,iElem) / iter_loc
         DSMC_MacroVal(nVarCount+9:nVarCount+17,iElem) = CBC%OutputKnudsen(1:9,iElem)
-        nVarCount = nVarCount + 17
-      ELSE 
+        DSMC_MacroVal(nVarCount+18,iElem) = MeshAdapt(1,iElem)
+        DSMC_MacroVal(nVarCount+19,iElem) = MeshAdapt(2,iElem)
+        nVarCount = nVarCount + 19
+      ELSE
         DSMC_MacroVal(nVarCount+8,iElem) = 1.
-        nVarCount = nVarCount + 8
+        DSMC_MacroVal(nVarCount+9,iElem) = MeshAdapt(1,iElem)
+        DSMC_MacroVal(nVarCount+10,iElem) = MeshAdapt(2,iElem)
+        nVarCount = nVarCount + 10
       END IF
     END IF
     ! variable rotation and vibration relaxation
@@ -790,7 +794,7 @@ END IF
 IF (DoVirtualCellMerge) THEN
   DO iElem = 1, nElems
     IF (VirtMergedCells(iElem)%isMerged) THEN
-      DSMC_MacroVal(:,iElem) = DSMC_MacroVal(:,VirtMergedCells(iElem)%MasterCell-offSetElem) 
+      DSMC_MacroVal(:,iElem) = DSMC_MacroVal(:,VirtMergedCells(iElem)%MasterCell-offSetElem)
     END IF
   END DO
 END IF
@@ -811,14 +815,14 @@ IF (DSMC%CalcCellMPF) THEN
       DSMC%CellMPFSamp(iElem) = CalcVarWeightMPF(ElemMidPoint_Shared(:,CNElemID), 1)
     ELSE IF (RadialWeighting%DoRadialWeighting) THEN
       DSMC%CellMPFSamp(iElem) = CalcRadWeightMPF(ElemMidPoint_Shared(2,CNElemID), 1)
-    ELSE 
+    ELSE
       DSMC%CellMPFSamp(iElem) = Species(1)%MacroParticleFactor
     END IF
     DSMC_MacroVal(nVarCount+1,iElem) = DSMC%CellMPFSamp(iElem)
   END DO
   nVarCount = nVarCount + 1
   DEALLOCATE(DSMC%CellMPFSamp)
-  
+
   ! Enable the calculation of the reference variable weighting factor
   IF (AdaptMPF%DoAdaptMPF) THEN
     AdaptMPF%UseOptMPF = .TRUE.
@@ -841,7 +845,7 @@ END SUBROUTINE DSMC_output_calc
 
 SUBROUTINE CalcMacroElecExcitation(MacroElecExcitation)
 !===================================================================================================================================
-!> 
+!>
 !===================================================================================================================================
 ! MODULES
 USE MOD_PreProc
@@ -862,7 +866,7 @@ REAL,INTENT(INOUT)      :: MacroElecExcitation(1:ExcitationLevelCounter,nElems)
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-! INTEGER                 :: 
+! INTEGER                 ::
 REAL                    :: TimeSample
 !===================================================================================================================================
 
@@ -880,7 +884,7 @@ ELSE
   TimeSample = (Time-(1-DSMC%TimeFracSamp)*TEnd)
 END IF
 
-! Rate 
+! Rate
 MacroElecExcitation = ExcitationSampleData / TimeSample
 
 END SUBROUTINE CalcMacroElecExcitation
@@ -949,9 +953,9 @@ IF (DSMC%CalcQualityFactors) THEN
   IF(VarWeighting%PerformCloning) nVar_quality = nVar_quality + 2
   IF(BGKInitDone) THEN
     IF(CoupledBGKDSMC) THEN
-      nVar_quality = nVar_quality + 17
-    ELSE 
-      nVar_quality = nVar_quality + 8
+      nVar_quality = nVar_quality + 19
+    ELSE
+      nVar_quality = nVar_quality + 10
     END IF
   END IF
   IF(FPInitDone) nVar_quality = nVar_quality + 5
@@ -961,7 +965,7 @@ END IF
 
 IF(DSMC%CalcCellMPF) THEN
   nVarMPF = 1
-ELSE 
+ELSE
   nVarMPF = 0
 END IF
 
@@ -1067,15 +1071,19 @@ IF (DSMC%CalcQualityFactors) THEN
       StrVarNames(nVarCount+9) = 'Global_Knudsen'
       StrVarNames(nVarCount+10) = 'Knudsen_Dens'
       StrVarNames(nVarCount+11) = 'Knudsen_Velo'
-      StrVarNames(nVarCount+12) = 'Knudsen_Temp'    
+      StrVarNames(nVarCount+12) = 'Knudsen_Temp'
       StrVarNames(nVarCount+13) = 'Knudsen_Local'
       StrVarNames(nVarCount+14) = 'Thermal_NonEquilibrium'
       StrVarNames(nVarCount+15) = 'Chapman_Enskog_Tens'
       StrVarNames(nVarCount+16) = 'Chapman_Enskog_Vec'
       StrVarNames(nVarCount+17) = 'Chapman_Enskog_Total'
-      nVarCount=nVarCount+17
-    ELSE 
-      nVarCount=nVarCount+8
+      StrVarNames(nVarCount+18) = 'Subcells'
+      StrVarNames(nVarCount+19) = 'Subcells_Merged'
+      nVarCount=nVarCount+19
+    ELSE
+      StrVarNames(nVarCount+9) = 'Subcells'
+      StrVarNames(nVarCount+10) = 'Subcells_Merged'
+      nVarCount=nVarCount+10
     END IF
   END IF
   IF(FPInitDone) THEN
@@ -1091,7 +1099,7 @@ IF(DSMC%CalcCellMPF) THEN
   StrVarNames(nVarCount+1) = 'SubCellMPF'
   nVarCount=nVarCount+1
   nVarMPF = 1
-ELSE 
+ELSE
   nVarMPF = 0
 END IF
 
@@ -1135,7 +1143,7 @@ IF(MPIRoot) THEN
   CALL WriteAttributeToHDF5(File_ID,'Time',1,RealScalar=OutputTime)
   CALL WriteAttributeToHDF5(File_ID,'MeshFile',1,StrScalar=(/TRIM(MeshFileName)/))
   CALL WriteAttributeToHDF5(File_ID,'NSpecies',1,IntegerScalar=nSpecies)
-  ! Standard variable names 
+  ! Standard variable names
   CALL WriteAttributeToHDF5(File_ID,'VarNamesAdd',nVar+nVar_quality+nVarMPF+nVarAdaptMPF,StrArray=StrVarNames)
   ! Additional variable names: electronic excitation rate output
   IF(SampleElecExcitation) CALL WriteAttributeToHDF5(File_ID,'VarNamesExci',ExcitationLevelCounter,StrArray=StrVarNamesElecExci)
@@ -1296,7 +1304,7 @@ IF((Time.GE.(1-DSMC%TimeFracSamp)*TEnd).OR.WriteMacroVolumeValues) THEN
     DSMC%QualityFacSamp(iElem,3) = DSMC%QualityFacSamp(iElem,3) + DSMC%MCSoverMFP
     IF (DSMC%MCSMFP_MeanCount.GT.0.) THEN
       DSMC%QualityFacSamp(iElem,4) = DSMC%QualityFacSamp(iElem,4) + DSMC%MCSMFP_Mean / DSMC%MCSMFP_MeanCount
-    ELSE 
+    ELSE
       DSMC%QualityFacSamp(iElem,4) = 0.0
     END IF
   END IF

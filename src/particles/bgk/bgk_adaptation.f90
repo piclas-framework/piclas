@@ -55,7 +55,7 @@ USE MOD_BGK_Vars                ,ONLY: BGK_Viscosity, BGK_ThermalConductivity
 USE MOD_FPFlow_Vars             ,ONLY: FPInitDone, FP_PrandtlNumber, FP_QualityFacSamp
 USE MOD_FPFlow_Vars             ,ONLY: FP_MaxRelaxFactor, FP_MaxRotRelaxFactor, FP_MeanRelaxFactor, FP_MeanRelaxFactorCounter
 USE MOD_part_tools              ,ONLY: GetParticleWeight
-USE MOD_Particle_Mesh_Vars      ,ONLY: ElemVolume_Shared
+USE MOD_Particle_Mesh_Vars      ,ONLY: ElemVolume_Shared, MeshAdapt
 USE MOD_Mesh_Vars               ,ONLY: offsetElem
 USE MOD_Mesh_Tools              ,ONLY: GetCNElemID
 ! IMPLICIT VARIABLE HANDLING
@@ -180,6 +180,7 @@ ELSE
       IF (BGKMovingAverage) THEN
         CALL AddBGKOctreeNode(TreeNode, iElem, ElemNodeVol(iElem)%Root, ElemNodeAveraging(iElem)%Root)
       ELSE
+        MeshAdapt(2,iElem) = 8.
         CALL AddBGKOctreeNode(TreeNode, iElem, ElemNodeVol(iElem)%Root)
       END IF
     DEALLOCATE(TreeNode%MappedPartStates)
@@ -243,6 +244,7 @@ USE MOD_BGK_CollOperator      ,ONLY: BGK_CollisionOperator
 USE MOD_DSMC_ParticlePairing  ,ONLY: DSMC_CalcSubNodeVolumes3D, OCTANTCUBEID, OCTANTCUBEMIDPOINT
 USE MOD_BGK_Vars              ,ONLY: BGKMinPartPerCell,tNodeAverage, BGKMovingAverage
 USE MOD_FP_CollOperator       ,ONLY: FP_CollisionOperator
+USE MOD_Particle_Mesh_Vars    ,ONLY: MeshAdapt
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -366,6 +368,7 @@ DO iLoop = 1, 8
     IF (BGKMovingAverage) THEN
       CALL AddBGKOctreeNode(TreeNode%ChildNode, iElem, NodeVol%SubNode(iLoop), Averaging%SubNode(iLoop))
     ELSE
+      MeshAdapt(2,iElem) = MeshAdapt(2,iELem) + 8.
       CALL AddBGKOctreeNode(TreeNode%ChildNode, iElem, NodeVol%SubNode(iLoop))
     END IF
     DEALLOCATE(TreeNode%ChildNode%MappedPartStates)
@@ -387,6 +390,8 @@ DO iLoop = 1, 8
 #endif
   END IF
 END DO
+
+MeshAdapt(1,iElem) = TreeNode%ChildNode%NodeDepth
 
 END SUBROUTINE AddBGKOctreeNode
 
@@ -447,7 +452,7 @@ USE MOD_BGK_Vars                ,ONLY: BGK_Viscosity, BGK_ThermalConductivity
 USE MOD_FPFlow_Vars             ,ONLY: FPInitDone, FP_PrandtlNumber, FP_QualityFacSamp
 USE MOD_FPFlow_Vars             ,ONLY: FP_MaxRelaxFactor, FP_MaxRotRelaxFactor, FP_MeanRelaxFactor, FP_MeanRelaxFactorCounter
 USE MOD_part_tools              ,ONLY: GetParticleWeight
-USE MOD_Particle_Mesh_Vars      ,ONLY: ElemVolume_Shared
+USE MOD_Particle_Mesh_Vars      ,ONLY: ElemVolume_Shared, MeshAdapt
 USE MOD_Mesh_Vars               ,ONLY: offsetElem
 USE MOD_Mesh_Tools              ,ONLY: GetCNElemID
 #if PP_TimeDiscMethod==300
@@ -572,6 +577,7 @@ ELSE
     IF (BGKMovingAverage) THEN
       CALL AddBGKQuadtreeNode(TreeNode, iElem, ElemNodeVol(iElem)%Root, ElemNodeAveraging(iElem)%Root)
     ELSE
+      MeshAdapt(2,iElem) = 4.
       CALL AddBGKQuadtreeNode(TreeNode, iElem, ElemNodeVol(iElem)%Root)
     END IF
     DEALLOCATE(TreeNode%MappedPartStates)
@@ -635,6 +641,7 @@ USE MOD_BGK_CollOperator      ,ONLY: BGK_CollisionOperator
 USE MOD_DSMC_ParticlePairing  ,ONLY: DSMC_CalcSubNodeVolumes2D, QUADCUBEMIDPOINT
 USE MOD_BGK_Vars              ,ONLY: BGKMinPartPerCell,tNodeAverage, BGKMovingAverage
 USE MOD_FP_CollOperator       ,ONLY: FP_CollisionOperator
+USE MOD_Particle_Mesh_Vars    ,ONLY: MeshAdapt
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -768,6 +775,7 @@ DO iLoop = 1, 4
     IF (BGKMovingAverage) THEN
       CALL AddBGKQuadtreeNode(TreeNode%ChildNode, iElem, NodeVol%SubNode(iLoop), Averaging%SubNode(iLoop))
     ELSE
+      MeshAdapt(2,iElem) = MeshAdapt(2,iELem) + 4.
       CALL AddBGKQuadtreeNode(TreeNode%ChildNode, iElem, NodeVol%SubNode(iLoop))
     END IF
     DEALLOCATE(TreeNode%ChildNode%MappedPartStates)
@@ -788,6 +796,8 @@ DO iLoop = 1, 4
 #endif
   END IF
 END DO
+
+MeshAdapt(1,iElem) = TreeNode%NodeDepth
 
 END SUBROUTINE AddBGKQuadtreeNode
 
