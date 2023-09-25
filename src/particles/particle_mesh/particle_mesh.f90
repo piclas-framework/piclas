@@ -86,6 +86,7 @@ CALL prms%CreateIntOption( 'PhotonModeBPO' , 'Output mode to store position, dir
                                              '1: Output the initial position of the rays and their direction vector\n'&
                                              '2: Output initial position and all calculated intersection points calculated in radtrans tracking\n'&
                                              ,'0')
+                                         CALL prms%CreateLogicalOption( 'UsePhotonTriaTracking', 'Activates usage of TriaTracking methods for photon tracking or Bilinear methods (default is True). Can only be selected when ray tracing is actually performed.','.TRUE.')
 CALL prms%CreateLogicalOption( 'DoBoundaryParticleOutputRay', 'Activates output of emission particles by ray tracing SEE and ray tracing volume ionization to PartStateBoundary.h5 (with negative species IDs to indicate creation)','.FALSE.')
 CALL prms%CreateIntOption(     'PartOut'&
   , 'If compiled with CODE_ANALYZE flag: For This particle number every tracking information is written as STDOUT.','0')
@@ -161,11 +162,8 @@ USE MOD_Particle_Mesh_Vars
 USE MOD_Particle_Mesh_Tools    ,ONLY: InitPEM_LocalElemID,InitPEM_CNElemID,GetMeshMinMax,IdentifyElemAndSideType
 USE MOD_Particle_Mesh_Tools    ,ONLY: CalcParticleMeshMetrics,InitParticleGeometry,CalcBezierControlPoints
 USE MOD_Particle_Mesh_Tools    ,ONLY: CalcXCL_NGeo
-USE MOD_Particle_Surfaces      ,ONLY: GetSideSlabNormalsAndIntervals
 USE MOD_Particle_Surfaces_Vars ,ONLY: BezierSampleN,BezierSampleXi,SurfFluxSideSize,TriaSurfaceFlux
 USE MOD_Particle_Surfaces_Vars ,ONLY: BezierElevation
-USE MOD_Particle_Surfaces_Vars ,ONLY: BezierControlPoints3D,BezierControlPoints3DElevated,SideSlabNormals,SideSlabIntervals
-USE MOD_Particle_Surfaces_Vars ,ONLY: BoundingBoxIsEmpty
 USE MOD_Particle_Tracking_Vars ,ONLY: MeasureTrackTime,FastPeriodic,CountNbrOfLostParts,CartesianPeriodic
 USE MOD_Particle_Tracking_Vars ,ONLY: NbrOfLostParticles,NbrOfLostParticlesTotal,NbrOfLostParticlesTotal_old
 USE MOD_Particle_Tracking_Vars ,ONLY: PartStateLostVecLength,PartStateLost,PartLostDataSize
@@ -191,15 +189,16 @@ USE MOD_Particle_MPI_Vars      ,ONLY: DoParticleLatencyHiding
 #endif /* USE_MPI */
 USE MOD_Particle_Mesh_Build    ,ONLY: BuildElementRadiusTria,BuildElemTypeAndBasisTria,BuildEpsOneCell,BuildBCElemDistance
 USE MOD_Particle_Mesh_Build    ,ONLY: BuildNodeNeighbourhood,BuildElementOriginShared,BuildElementBasisAndRadius
-USE MOD_Particle_Mesh_Build    ,ONLY: BuildSideOriginAndRadius,BuildLinearSideBaseVectors
+USE MOD_Particle_Mesh_Build    ,ONLY: BuildSideOriginAndRadius,BuildLinearSideBaseVectors,BuildSideSlabAndBoundingBox
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Vars       ,ONLY: PerformLoadBalance
 #endif /*USE_LOADBALANCE*/
 USE MOD_PICDepo_Shapefunction_Tools, ONLY:InitShapeFunctionDimensionalty
 USE MOD_Particle_Boundary_Init ,ONLY: InitPartStateBoundary
 USE MOD_Particle_Boundary_Vars ,ONLY: DoBoundaryParticleOutputHDF5,nSurfSample,DoBoundaryParticleOutputRay
-USE MOD_Photon_TrackingVars    ,ONLY: PhotonModeBPO
+USE MOD_Photon_TrackingVars    ,ONLY: PhotonModeBPO,UsePhotonTriaTracking
 USE MOD_RayTracing_Vars        ,ONLY: UseRayTracing
+USE MOD_RayTracing_Vars        ,ONLY: PerformRayTracing
 !USE MOD_DSMC_Vars              ,ONLY: DSMC
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -211,7 +210,6 @@ IMPLICIT NONE
 ! LOCAL VARIABLES
 INTEGER          :: RefMappingGuessProposal
 INTEGER          :: iSample
-INTEGER          :: firstSide,lastSide,iSide,SideID
 CHARACTER(LEN=2) :: tmpStr
 #if !USE_MPI
 INTEGER          :: ALLOCSTAT
@@ -315,6 +313,12 @@ DisplayLostParticles = GETLOGICAL('DisplayLostParticles')
 
 ! Ray tracing information to .h5 for debugging when using the radiation transport model or pure ray tracing
 PhotonModeBPO               = GETINT('PhotonModeBPO')
+! Use TriaTracking methods for photon tracking or Bilinear methods (default is UsePhotonTriaTracking=T)
+IF(PerformRayTracing)THEN
+  UsePhotonTriaTracking = GETLOGICAL('UsePhotonTriaTracking')
+ELSE
+  UsePhotonTriaTracking = .TRUE.
+END IF ! PerformRayTracing
 ! Activate output of emission particles by ray tracing SEE and ray tracing volume ionization to PartStateBoundary.h5 (with negative species IDs to indicate creation
 DoBoundaryParticleOutputRay = GETLOGICAL('DoBoundaryParticleOutputRay')
 ! Check if DoBoundaryParticleOutputHDF5 is already activated and PartStateBoundary therefore already allocated
@@ -356,9 +360,7 @@ RefMappingEps   = GETREAL('RefMappingEps','1e-4')
 epsInCell       = SQRT(3.0*RefMappingEps)
 
 IF((RefMappingGuess.LT.1).OR.(RefMappingGuess.GT.4))THEN
-   CALL abort(&
-__STAMP__ &
-,'Wrong guessing method for mapping from physical space in reference space.',RefMappingGuess,999.)
+   CALL abort(__STAMP__,'Wrong guessing method for mapping from physical space in reference space.',RefMappingGuess,999.)
 END IF
 
 WRITE(tmpStr,'(L1)') (TrackingMethod.EQ.TRIATRACKING)
@@ -388,7 +390,7 @@ SELECT CASE(TrackingMethod)
     CALL InitParticleGeometry()
     CALL InitElemNodeIDs()
     ! Compute convex element radius^2
-    CALL BuildElementRadiusTria()
+    CALL BuildElementRadiusTria() ! Required for ElemBaryNGeo_Shared, ElemRadius2NGEO_Shared, ElemRadiusNGEO_Shared (only for shape function)
 
     ! Interpolation needs coordinates in reference system
     !IF (DoInterpolation.OR.DSMC%UseOctree) THEN ! use this in future if possible
@@ -398,105 +400,41 @@ SELECT CASE(TrackingMethod)
         CALL CalcParticleMeshMetrics()   ! Required for Elem_xGP_Shared and dXCL_NGeo_Shared
         CALL CalcXCL_NGeo()              ! Required for XCL_NGeo_Shared
       END IF ! .NOT.UseBezierControlPoints
-      CALL BuildElemTypeAndBasisTria() ! Required for ElemCurved, XiEtaZetaBasis and slenXiEtaZetaBasis. Needs XCL_NGeo_Shared
+      CALL BuildElemTypeAndBasisTria() ! Required for ElemCurved_Shared, XiEtaZetaBasis_Shared, slenXiEtaZetaBasis_Shared. Needs XCL_NGeo_Shared
     END IF ! DoInterpolation.OR.DSMC%UseOctree
 
     IF (DoDeposition) CALL BuildEpsOneCell()
 
+    IF(.NOT.UsePhotonTriaTracking)THEN
+      ! Build stuff required for bilinear tracing algorithms
+      CALL BuildSideSlabAndBoundingBox() ! Required for SideSlabNormals_Shared, SideSlabIntervals_Shared, BoundingBoxIsEmpty_Shared
+
+      ! Check the side type (planar, bilinear, curved)
+      CALL IdentifyElemAndSideType() ! Builds ElemCurved_Shared, SideType_Shared, SideDistance_Shared, SideNormVec_Shared
+
+      ! Get basevectors for (bi-)linear sides
+      CALL BuildLinearSideBaseVectors() ! Required for BaseVectors0_Shared, BaseVectors1_Shared, BaseVectors2_Shared, BaseVectors3_Shared, BaseVectorsScale_Shared
+    END IF ! UsePhotonTriaTracking
+
   CASE(TRACING,REFMAPPING)
+    ! Build stuff required for tracing algorithms
+    CALL BuildSideSlabAndBoundingBox() ! Required for SideSlabNormals_Shared, SideSlabIntervals_Shared, BoundingBoxIsEmpty_Shared
     ! ElemMidPoint_Shared required
     IF(TriaSurfaceFlux.OR.TRIM(DepositionType).EQ.'shape_function_adaptive') CALL InitParticleGeometry()
     ! ElemNodeID_Shared required
     IF(FindNeighbourElems) CALL InitElemNodeIDs()
 
-#if USE_MPI
-    CALL Allocate_Shared((/3,3,nComputeNodeTotalSides/),SideSlabNormals_Shared_Win,SideSlabNormals_Shared)
-    CALL MPI_WIN_LOCK_ALL(0,SideSlabNormals_Shared_Win,IERROR)
-    CALL Allocate_Shared((/6,nComputeNodeTotalSides/),SideSlabIntervals_Shared_Win,SideSlabIntervals_Shared)
-    CALL MPI_WIN_LOCK_ALL(0,SideSlabIntervals_Shared_Win,IERROR)
-    CALL Allocate_Shared((/nComputeNodeTotalSides/),BoundingBoxIsEmpty_Shared_Win,BoundingBoxIsEmpty_Shared)
-    CALL MPI_WIN_LOCK_ALL(0,BoundingBoxIsEmpty_Shared_Win,IERROR)
-    firstSide = INT(REAL (myComputeNodeRank   )*REAL(nComputeNodeTotalSides)/REAL(nComputeNodeProcessors))+1
-    lastSide  = INT(REAL((myComputeNodeRank+1))*REAL(nComputeNodeTotalSides)/REAL(nComputeNodeProcessors))
-    SideSlabNormals    => SideSlabNormals_Shared
-    SideSlabIntervals  => SideSlabIntervals_Shared
-    BoundingBoxIsEmpty => BoundingBoxIsEmpty_Shared
-    CALL MPI_BARRIER(MPI_COMM_SHARED,iError)
-#else
-    ALLOCATE(SideSlabNormals(1:3,1:3,1:nNonUniqueGlobalSides) &
-            ,SideSlabIntervals(  1:6,1:nNonUniqueGlobalSides) &
-            ,BoundingBoxIsEmpty(     1:nNonUniqueGlobalSides) &
-            ,STAT=ALLOCSTAT)
-    IF (ALLOCSTAT.NE.0) CALL ABORT(__STAMP__,'  Cannot allocate SideMetrics arrays!')
-    firstSide = 1
-    lastSide  = nNonUniqueGlobalSides
-#endif /* USE_MPI */
-! TODO: bounding box volumes must be calculated for all unique sides.
-!#ifdef CODE_ANALYZE
-!    ALLOCATE(SideBoundingBoxVolume(nSides))
-!#endif /*CODE_ANALYZE*/
-
-    IF (BezierElevation.GT.0) THEN
-      DO iSide = firstSide,LastSide
-        ! ignore sides that are not on the compute node
-        ! IF (GetCNElemID(SideInfo_Shared(SIDE_ELEMID,iSide)).EQ.-1) CYCLE
-
-        SideID = GetGlobalSideID(iSide)
-
-        ! Ignore small mortar sides attached to big mortar sides
-        IF (SideInfo_Shared(SIDE_LOCALID,SideID).LT.1 .OR. SideInfo_Shared(SIDE_LOCALID,SideID).GT.6) CYCLE
-
-        ! BezierControlPoints are always on nonUniqueGlobalSide
-        CALL GetSideSlabNormalsAndIntervals(BezierControlPoints3DElevated(1:3,0:NGeoElevated,0:NGeoElevated,SideID) &
-                                           ,SideSlabNormals(   1:3,1:3,iSide)                                       &
-                                           ,SideSlabInterVals( 1:6    ,iSide)                                       &
-                                           ,BoundingBoxIsEmpty(iSide))
-      END DO
-    ELSE
-      DO iSide=firstSide,LastSide
-        ! ignore sides that are not on the compute node
-        ! IF (GetCNElemID(SideInfo_Shared(SIDE_ELEMID,iSide)).EQ.-1) CYCLE
-
-        SideID = GetGlobalSideID(iSide)
-
-        ! Ignore small mortar sides attached to big mortar sides
-        IF (SideInfo_Shared(SIDE_LOCALID,SideID).LT.1 .OR. SideInfo_Shared(SIDE_LOCALID,SideID).GT.6) CYCLE
-
-        ! BezierControlPoints are always on nonUniqueGlobalSide
-        CALL GetSideSlabNormalsAndIntervals(BezierControlPoints3D(1:3,0:NGeo,0:NGeo,SideID)                         &
-                                           ,SideSlabNormals(   1:3,1:3,iSide)                                       &
-                                           ,SideSlabInterVals( 1:6    ,iSide)                                       &
-                                           ,BoundingBoxIsEmpty(iSide))
-      END DO
-  END IF
-#if USE_MPI
-    CALL BARRIER_AND_SYNC(SideSlabNormals_Shared_Win   ,MPI_COMM_SHARED)
-    CALL BARRIER_AND_SYNC(SideSlabIntervals_Shared_Win ,MPI_COMM_SHARED)
-    CALL BARRIER_AND_SYNC(BoundingBoxIsEmpty_Shared_Win,MPI_COMM_SHARED)
-#endif /* USE_MPI */
-    !#ifdef CODE_ANALYZE
-    ! TODO: bounding box volumes must be calculated for all unique sides.
-    !               offsetSideID = ElemInfo_Shared(SideIf
-    !               DO iSide=offsetMPISides_YOUR,LastSide
-    !                 dx=ABS(SideSlabIntervals(2)-SideSlabIntervals(1))
-    !                 dy=ABS(SideSlabIntervals(4)-SideSlabIntervals(3))
-    !                 dz=ABS(SideSlabIntervals(6)-SideSlabIntervals(5))
-    !                 SideID = SideInfo
-    !                 SideBoundingBoxVolume(SideID)=dx*dy*dz
-    !               END DO
-    !#endif /*CODE_ANALYZE*/
-
     ! Compute element bary and element radius for node elements (with halo region)
     CALL BuildElementOriginShared()
 
     ! Check the side type (planar, bilinear, curved)
-    CALL IdentifyElemAndSideType()
+    CALL IdentifyElemAndSideType() ! Required for  ElemCurved_Shared, SideType_Shared, SideDistance_Shared, SideNormVec_Shared
 
     ! Compute the element XiEtaZetaBasis and the radius of the convex hull
-    CALL BuildElementBasisAndRadius()
+    CALL BuildElementBasisAndRadius() ! Required for ElemRadiusNGeo_Shared, ElemRadius2NGeo_Shared, XiEtaZetaBasis_Shared, slenXiEtaZetaBasis_Shared
 
     ! Get basevectors for (bi-)linear sides
-    CALL BuildLinearSideBaseVectors()
+    CALL BuildLinearSideBaseVectors() ! Required for BaseVectors0_Shared, BaseVectors1_Shared, BaseVectors2_Shared, BaseVectors3_Shared, BaseVectorsScale_Shared
 
     IF (TrackingMethod.EQ.REFMAPPING) THEN
       ! Identify BCSides and build side origin and radius
@@ -569,6 +507,7 @@ USE MOD_Dielectric_Vars        ,ONLY: DoDielectricSurfaceCharge
 USE MOD_LoadBalance_Vars       ,ONLY: ElemTime
 #endif /*USE_LOADBALANCE*/
 #endif /*USE_MPI*/
+USE MOD_Photon_TrackingVars    ,ONLY: UsePhotonTriaTracking
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -588,8 +527,10 @@ CALL FinalizeBGM()
 
 SELECT CASE (TrackingMethod)
 
+  ! =============================================================================
   ! RefMapping, Tracing
   CASE(REFMAPPING,TRACING)
+  ! =============================================================================
     ! First, free every shared memory window. This requires MPI_BARRIER as per MPI3.1 specification
 #if USE_MPI
     CALL MPI_BARRIER(MPI_COMM_SHARED,iERROR)
@@ -623,7 +564,7 @@ SELECT CASE (TrackingMethod)
     END IF !PerformLoadBalance
 #endif /*USE_LOADBALANCE*/
 
-    ! GetSideSlabNormalsAndIntervals() (allocated in particle_mesh.f90)
+    ! BuildSideSlabAndBoundingBox() builds SideSlabNormals_Shared, SideSlabIntervals_Shared, BoundingBoxIsEmpty_Shared
     CALL UNLOCK_AND_FREE(SideSlabNormals_Shared_Win)
     CALL UNLOCK_AND_FREE(SideSlabIntervals_Shared_Win)
     CALL UNLOCK_AND_FREE(BoundingBoxIsEmpty_Shared_Win)
@@ -692,7 +633,7 @@ SELECT CASE (TrackingMethod)
     END IF !PerformLoadBalance
 #endif /*USE_LOADBALANCE*/
 
-    ! GetSideSlabNormalsAndIntervals() (allocated in particle_mesh.f90)
+    ! BuildSideSlabAndBoundingBox() builds SideSlabNormals_Shared, SideSlabIntervals_Shared, BoundingBoxIsEmpty_Shared
     ADEALLOCATE(SideSlabNormals_Shared)
     ADEALLOCATE(SideSlabIntervals_Shared)
     ADEALLOCATE(BoundingBoxIsEmpty_Shared)
@@ -733,8 +674,10 @@ SELECT CASE (TrackingMethod)
 !  ! Tracing
 !  CASE(TRACING)
 
+  ! =============================================================================
   ! TriaTracking
   CASE(TRIATRACKING)
+  ! =============================================================================
     ! First, free every shared memory window. This requires MPI_BARRIER as per MPI3.1 specification
 #if USE_MPI
     CALL MPI_BARRIER(MPI_COMM_SHARED,iERROR)
@@ -743,6 +686,25 @@ SELECT CASE (TrackingMethod)
     CALL UNLOCK_AND_FREE(ConcaveElemSide_Shared_Win)
     CALL UNLOCK_AND_FREE(ElemSideNodeID_Shared_Win)
     CALL UNLOCK_AND_FREE(ElemMidPoint_Shared_Win)
+
+    IF(.NOT.UsePhotonTriaTracking)THEN
+      ! GetSideSlabNormalsAndIntervals()
+      CALL UNLOCK_AND_FREE(SideSlabNormals_Shared_Win)
+      CALL UNLOCK_AND_FREE(SideSlabIntervals_Shared_Win)
+      CALL UNLOCK_AND_FREE(BoundingBoxIsEmpty_Shared_Win)
+
+      ! IdentifyElemAndSideType()
+      CALL UNLOCK_AND_FREE(SideType_Shared_Win)
+      CALL UNLOCK_AND_FREE(SideDistance_Shared_Win)
+      CALL UNLOCK_AND_FREE(SideNormVec_Shared_Win)
+
+      ! BuildLinearSideBaseVectors()
+      CALL UNLOCK_AND_FREE(BaseVectors0_Shared_Win)
+      CALL UNLOCK_AND_FREE(BaseVectors1_Shared_Win)
+      CALL UNLOCK_AND_FREE(BaseVectors2_Shared_Win)
+      CALL UNLOCK_AND_FREE(BaseVectors3_Shared_Win)
+      CALL UNLOCK_AND_FREE(BaseVectorsScale_Shared_Win)
+    END IF ! .NOT.UsePhotonTriaTracking
 
     ! BuildElementRadiusTria()
     CALL UNLOCK_AND_FREE(ElemBaryNGeo_Shared_Win)
@@ -816,6 +778,25 @@ SELECT CASE (TrackingMethod)
 #if USE_LOADBALANCE
     END IF !PerformLoadBalance
 #endif /*USE_LOADBALANCE*/
+
+    IF(.NOT.UsePhotonTriaTracking)THEN
+      ! GetSideSlabNormalsAndIntervals()
+      ADEALLOCATE(SideSlabNormals_Shared)
+      ADEALLOCATE(SideSlabIntervals_Shared)
+      ADEALLOCATE(BoundingBoxIsEmpty_Shared)
+
+      ! IdentifyElemAndSideType()
+      ADEALLOCATE(SideType_Shared)
+      ADEALLOCATE(SideDistance_Shared)
+      ADEALLOCATE(SideNormVec_Shared)
+
+      ! BuildLinearSideBaseVectors()
+      ADEALLOCATE(BaseVectors0_Shared)
+      ADEALLOCATE(BaseVectors1_Shared)
+      ADEALLOCATE(BaseVectors2_Shared)
+      ADEALLOCATE(BaseVectors3_Shared)
+      ADEALLOCATE(BaseVectorsScale_Shared)
+    END IF ! .NOT.UsePhotonTriaTracking
 
     ! BuildElementRadiusTria
     ADEALLOCATE(ElemBaryNGeo_Shared)
