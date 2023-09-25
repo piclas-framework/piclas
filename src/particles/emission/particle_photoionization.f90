@@ -486,7 +486,7 @@ DO iVar = 1, 2
                 PartMPF(PartID)    = MPF
                 PartMPF(newPartID) = MPF
               END IF
-              ! 1. Store the particle information in PartStateBoundary.h5
+              ! Store the ion particle information in PartStateBoundary.h5
               IF(DoBoundaryParticleOutputRay) THEN
                 CALL StoreBoundaryParticleProperties(PartID,SpecID,PartState(1:3,PartID),&
                     UNITVECTOR(PartState(4:6,PartID)),(/0.,0.,1./),iPartBound=0,mode=2,MPF_optIN=MPF)
@@ -499,7 +499,13 @@ DO iVar = 1, 2
               PartStateIntEn(1:2,newPartID) = 0.
               IF(DSMC%ElectronicModel.GT.0) PartStateIntEn(3,newPartID) = 0.
               ! Insert the products and distribute the reaction energy (Requires: Pair indices, Coll_pData(iPair)%iPart_p1/2)
-              CALL PhotoIonization_InsertProducts(iPair, iReac, RayBaseVector1IC, RayBaseVector2IC, RayDirection, PartBCIndex=0)
+              IF(DoBoundaryParticleOutputRay) THEN
+                ! Store the electron particle information in PartStateBoundary.h5
+                CALL PhotoIonization_InsertProducts(iPair, iReac, RayBaseVector1IC, RayBaseVector2IC, RayDirection, PartBCIndex=0)
+              ELSE
+                ! DO NOT store the electron particle information in PartStateBoundary.h5
+                CALL PhotoIonization_InsertProducts(iPair, iReac, RayBaseVector1IC, RayBaseVector2IC, RayDirection, PartBCIndex=-1)
+              END IF
               ! Advance particle vector length and the current next free position with newly created particles
               PDM%ParticleVecLength = PDM%ParticleVecLength + DSMCSumOfFormedParticles
               PDM%CurrentNextFreePosition = PDM%CurrentNextFreePosition + DSMCSumOfFormedParticles
