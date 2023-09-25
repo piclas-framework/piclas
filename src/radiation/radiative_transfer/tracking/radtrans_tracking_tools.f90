@@ -138,7 +138,7 @@ det(3) = ((Ay(3) * Vz - Az(3) * Vy) * Ax(2)  + &
 
 ! Changed tolerance from -epsMach to -0.1*epsMach because this check finds intersections, but when PhotonIntersectionWithSide() is
 ! called, the photon vector and the side normal vector are perfectly parallel, e.g.,  v = (/0,0,-1/) and n=(/0,-1,0./), hence, the
-! scalar product is exactly zero and the routine breakes.
+! scalar product is exactly zero and the routine breaks.
 tolerance = -0.1*epsMach
 ! Comparison of the determinants with eps, where a x_photon_startro is stored (due to machine precision)
 IF(det(1).LT.tolerance) RETURN
@@ -660,11 +660,9 @@ REAL, INTENT(IN)    :: PhotonDir(3)
 REAL, INTENT(IN)    :: IntersectionPos(3)
 ! Local variable declaration
 INTEGER           :: k,l,m,Nloc,NbrOfSamples,iIntersec,idx
-INTEGER           :: kOld,lOld,mOld
 REAL              :: SamplePos(3)
 REAL              :: direction(3),subdirection(3),length,sublength
-LOGICAL           :: arr(0:Ray%NMax,0:Ray%NMax,0:Ray%NMax)
-REAL              :: realcounter
+REAL              :: RandVal(3)
 !--------------------------------------------------------------------------------------------------!
 ! Calculate the direction and length of the path of the ray through the element
 direction(1:3) = IntersectionPos(1:3)-PhotonProps%PhotonStartPos(1:3)
@@ -686,60 +684,26 @@ RayElemPassedEnergy(idx,GlobalElemID)   = RayElemPassedEnergy(idx,GlobalElemID) 
 Nloc = N_DG_Ray(GlobalElemID)
 
 ! Loop over number of sub-samples
-NbrOfSamples = MIN(20,(Nloc+1)**2) ! Nloc+1 ! must be at least 3 for this sampling method (one point between the two intersections of the element)!
-!scaleFac = 1./REAL(NbrOfSamples)
+NbrOfSamples = MAX(30,(Nloc+1)**2) ! Nloc+1 ! must be at least 3 for this sampling method (one point between the two intersections of the element)!
 subdirection(1:3) = direction(1:3)/REAL(NbrOfSamples-1)
 sublength = VECNORM(subdirection(1:3))
-!scaleFac = 1.
-arr = .FALSE.
-! Set initial starting position (is moved when the sub-element is switched)
-!StartPos(1:3) = PhotonProps%PhotonStartPos(1:3)
-realcounter = 0.0
-
-DO iIntersec = 1, NbrOfSamples
-  SamplePos = PhotonProps%PhotonStartPos(1:3) + direction(1:3)*REAL(iIntersec-1)/REAL(NbrOfSamples-1)
-
-  ! Get k,l,m of nearest DOF
-  CALL GetNestestDOFInRefElem(Nloc,SamplePos(1:3),GlobalElemID,k,l,m)
-
-  ! Switch sub-element
-  IF((iIntersec.GT.1).AND.(.NOT.arr(k,l,m)))THEN
-    ! Set old sub-element false
-    arr(kOld,lOld,mOld) = .FALSE.
-
-    ! half step back
-    U_N_Ray(GlobalElemID)%U(idx,kOld,lOld,mOld) = U_N_Ray(GlobalElemID)%U(idx,kOld,lOld,mOld) &
-                                                + (realcounter - 0.5) * sublength * PhotonProps%PhotonEnergy
-    ! Check if last intersection is reached
-    IF(iIntersec.EQ.NbrOfSamples)THEN
-      ! Set counter to half step as the loop ends here
-      realcounter = 0.5
-      U_N_Ray(GlobalElemID)%U(idx,k,l,m) = U_N_Ray(GlobalElemID)%U(idx,k,l,m) &
-                                         + realcounter * sublength * PhotonProps%PhotonEnergy
-      ! Exit loop and subroutine here
-      RETURN
-    ELSE
-      ! Initialize counter with half step and add 1, which gives 1.5
-      realcounter = 1.5
-    END IF ! iIntersec.EQ.NbrOfSamples
-
-  ELSE
-    ! Check if last intersection is reached
-    IF(iIntersec.EQ.NbrOfSamples)THEN
-      U_N_Ray(GlobalElemID)%U(idx,k,l,m) = U_N_Ray(GlobalElemID)%U(idx,k,l,m) &
-                                         + realcounter * sublength * PhotonProps%PhotonEnergy
-      ! Exit loop and subroutine here
-      RETURN
-    END IF ! iIntersec.EQ.NbrOfSamples
-    ! 1st or still in old sub-element
-    realcounter = realcounter + 1.0
-  END IF ! .NOT.arr(k,l,m)
-
-  arr(k,l,m)=.TRUE.
-  kOld = k
-  lOld = l
-  mOld = m
-END DO ! iIntersec = 1, Nloc+3
+! Loop over the number of sub lengths and assign them to the nearest DOF. Choose the intersection points at random to prevent artifacts
+IF(ABS(direction(3)).GT.1e6*(ABS(direction(1))+ABS(direction(2))))THEN
+  ! only in z-dir
+  DO iIntersec = 1, NbrOfSamples-1
+    CALL RANDOM_NUMBER(RandVal(1))
+    SamplePos(1:3) = PhotonProps%PhotonStartPos(1:3) + (/1.0 , 1.0 , RandVal(1)/) * direction(1:3)
+    CALL GetNestestDOFInRefElem(Nloc,SamplePos(1:3),GlobalElemID,k,l,m)
+    U_N_Ray(GlobalElemID)%U(idx,k,l,m) = U_N_Ray(GlobalElemID)%U(idx,k,l,m) + sublength*PhotonProps%PhotonEnergy
+  END DO
+ELSE
+  DO iIntersec = 1, NbrOfSamples-1
+    CALL RANDOM_NUMBER(RandVal(1:3))
+    SamplePos(1:3) = PhotonProps%PhotonStartPos(1:3) + RandVal(1:3) * direction(1:3)
+    CALL GetNestestDOFInRefElem(Nloc,SamplePos(1:3),GlobalElemID,k,l,m)
+    U_N_Ray(GlobalElemID)%U(idx,k,l,m) = U_N_Ray(GlobalElemID)%U(idx,k,l,m) + sublength*PhotonProps%PhotonEnergy
+  END DO
+END IF ! ABS(direction(3).GT.1e6*(ABS(direction(1))+ABS(direction(2))))
 
 END SUBROUTINE CalcAbsorptionRayTrace
 
