@@ -49,6 +49,7 @@ REAL,ALLOCATABLE     :: PhotonSampWall_loc(:,:,:)
 INTEGER              :: PhotonModeBPO       !> 0: Output nothing to PartStateBoundary.h5
                                             !> 1: Output the initial position of the rays and their direction vector
                                             !> 2: Output initial position and all calculated intersection points calculated in radtrans_tracking.f90
+LOGICAL              :: UsePhotonTriaTracking !> True/False: Use TriaTracking methods for photon tracking or Bilinear methods (default is True)
 
 #if USE_MPI
 INTEGER              :: PhotonSampWall_Shared_Win

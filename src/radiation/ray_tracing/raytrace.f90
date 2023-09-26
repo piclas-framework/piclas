@@ -62,7 +62,7 @@ USE MOD_MPI_Shared
 USE MOD_Photon_TrackingVars     ,ONLY: PhotonSampWall_Shared, PhotonSampWall_Shared_Win,PhotonSampWallProc
 USE MOD_RayTracing_Vars         ,ONLY: RayElemPassedEnergy_Shared,RayElemPassedEnergy_Shared_Win
 #endif /*USE_MPI*/
-USE MOD_Photon_TrackingVars     ,ONLY: PhotonSampWall,PhotonModeBPO
+USE MOD_Photon_TrackingVars     ,ONLY: PhotonSampWall,PhotonModeBPO,UsePhotonTriaTracking
 USE MOD_Mesh_Vars               ,ONLY: nGlobalElems,nElems
 USE MOD_RayTracing_Vars         ,ONLY: UseRayTracing,PerformRayTracing,RayElemEmission
 USE MOD_DSMC_Vars               ,ONLY: DSMC
@@ -161,6 +161,9 @@ IF(.NOT.ALLOCATED(PartStateBoundary))THEN
   IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__,'ERROR in particle_init.f90: Cannot allocate PartStateBoundary array!')
   PartStateBoundary=0.
 END IF ! .NOT.ALLOCATED(PartStateBoundary)
+
+! Bilinear tracking requires shorter movement vectors for the rays, otherwise it hangs
+IF(.NOT.UsePhotonTriaTracking) Ray%Direction = Ray%Direction*0.01
 
 DO iRay = 1, LocRayNum
   IF(MPIroot.AND.(MOD(RayVisCount,RayDisp).EQ.0)) CALL PrintStatusLineRadiation(REAL(RayVisCount),0.0,REAL(LocRayNum),.TRUE.)

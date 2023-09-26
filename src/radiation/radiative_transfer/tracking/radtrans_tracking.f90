@@ -270,7 +270,7 @@ USE MOD_Preproc
 USE MOD_Globals
 USE MOD_Particle_Mesh_Vars
 USE MOD_Particle_Boundary_Vars  ,ONLY: PartBound
-USE MOD_Photon_TrackingVars     ,ONLY: PhotonProps,PhotonModeBPO
+USE MOD_Photon_TrackingVars     ,ONLY: PhotonProps,PhotonModeBPO,UsePhotonTriaTracking
 USE MOD_RadiationTrans_Vars     ,ONLY: RadObservation_Emission, RadObservationPointMethod, RadObservation_EmissionPart
 USE MOD_Photon_TrackingTools    ,ONLY: PhotonThroughSideCheck3DFast, PhotonIntersectionWithSide,CalcAbsoprtion,PhotonOnLineOfSight
 USE MOD_Photon_TrackingTools    ,ONLY: PerfectPhotonReflection, DiffusePhotonReflection, CalcWallAbsoprtion, PointInObsCone
@@ -281,6 +281,8 @@ USE MOD_part_tools              ,ONLY: StoreLostPhotonProperties
 USE MOD_Particle_Tracking_Vars  ,ONLY: NbrOfLostParticles,DisplayLostParticles
 USE MOD_RadiationTrans_Vars     ,ONLY: RadiationAbsorptionModel
 USE MOD_RayTracing_Vars         ,ONLY: RayForceAbsorption
+USE MOD_Particle_Mesh_Tools     ,ONLY: GetGlobalNonUniqueSideID
+USE MOD_Mesh_Vars               ,ONLY: SideToElem
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
@@ -299,8 +301,10 @@ INTEGER                          :: DoneLastElem(1:4,1:6) ! 1:3: 1=Element,2=Loc
 LOGICAL                          :: ThroughSide, Done
 LOGICAL                          :: oldElemIsMortar, isMortarSideTemp(1:6), doCheckSide
 REAL                             :: minRatio, intersecDist, intersecDistVec(3)
-REAL                             :: IntersectionPos(1:3), IntersectionPosTemp(1:3)
+REAL                             :: IntersectionPos(1:3), IntersectionPosTemp(1:3), PartTrajectory(1:3),lengthPartTrajectory
 LOGICAL                          :: PhotonLost
+LOGICAL                          :: foundHit
+REAL                             :: alpha,xi,eta
 !===================================================================================================================================
 Done = .FALSE.
 ElemID = PhotonProps%ElemID
@@ -318,7 +322,7 @@ DO WHILE (.NOT.Done)
   GlobSideTemp = 0
   isMortarSideTemp = .FALSE.
   nlocSides = ElemInfo_Shared(ELEM_LASTSIDEIND,ElemID) -  ElemInfo_Shared(ELEM_FIRSTSIDEIND,ElemID)
-  DO iLocSide=1,nlocSides
+  LocSideLoop: DO iLocSide=1,nlocSides
     TempSideID = ElemInfo_Shared(ELEM_FIRSTSIDEIND,ElemID) + iLocSide
     localSideID = SideInfo_Shared(SIDE_LOCALID,TempSideID)
     ! Side is not one of the 6 local sides
@@ -352,20 +356,57 @@ DO WHILE (.NOT.Done)
         END DO
       END DO
     ELSE  ! Regular side
-      DO TriNum = 1,2
-        ThroughSide = .FALSE.
-        CALL PhotonThroughSideCheck3DFast(localSideID,ElemID,ThroughSide,TriNum)
-        IF (ThroughSide) THEN
+      IF(UsePhotonTriaTracking)THEN
+        DO TriNum = 1,2
+          ThroughSide = .FALSE.
+          CALL PhotonThroughSideCheck3DFast(localSideID,ElemID,ThroughSide,TriNum)
+          IF (ThroughSide) THEN
+            NrOfThroughSides = NrOfThroughSides + 1
+            LocSidesTemp(NrOfThroughSides) = localSideID
+            TriNumTemp(NrOfThroughSides) = TriNum
+            GlobSideTemp(NrOfThroughSides) = TempSideID
+            SideID = TempSideID
+            LocalSide = localSideID
+          END IF
+        END DO
+      ELSE ! Use bilinear tracing algorithm for intersection calculation
+        PartTrajectory = PhotonProps%PhotonDirection
+        PhotonProps%PhotonPos = PhotonProps%PhotonStartPos + PhotonProps%PhotonDirection
+        !PartTrajectory = PhotonProps%PhotonStartPos - PhotonProps%PhotonLastPos
+        lengthPartTrajectory=SQRT(DOT_PRODUCT(PartTrajectory,PartTrajectory))
+        PartTrajectory = PartTrajectory/lengthPartTrajectory
+        SideID   = GetGlobalNonUniqueSideID(ElemID,localSideID)
+        ! INPUT VARIABLES
+        ! PartTrajectory
+        ! lengthPartTrajectory
+        ! PartID,SideID
+        ! ElemCheck_Opt
+        ! alpha2
+        !-----------------------------------------------------------------------------------------------------------------------------------
+        ! OUTPUT VARIABLES
+        !alpha,xitild,etatild
+        !isHit
+        !CALL ComputeBiLinearIntersection(foundHit,PartTrajectory,lengthPartTrajectory,locAlpha,xi,eta,iPart,SideID,alpha2=currentIntersect%alpha)
+        CALL PhotonComputeBiLinearIntersection(foundHit,PartTrajectory,lengthPartTrajectory,alpha,xi,eta,-1,SideID,LastPartPos_IN=PhotonProps%PhotonStartPos)
+        IF(foundHit)THEN
+          IntersectionPos = PhotonProps%PhotonStartPos + alpha * PartTrajectory
+          IF(VECNORM(IntersectionPos-PhotonProps%PhotonStartPos).LE.1e-16)THEN
+            foundHit=.FALSE.
+            CYCLE LocSideLoop
+          END IF ! VECNORM(IntersectionPos-PhotonProps%PhotonStartPos).LE.1e-16
           NrOfThroughSides = NrOfThroughSides + 1
-          LocSidesTemp(NrOfThroughSides) = localSideID
-          TriNumTemp(NrOfThroughSides) = TriNum
-          GlobSideTemp(NrOfThroughSides) = TempSideID
-          SideID = TempSideID
+          PhotonProps%PhotonLastPos = IntersectionPos
+          PhotonLost = .FALSE.
           LocalSide = localSideID
-        END IF
-      END DO
+          TriNum=1
+          EXIT LocSideLoop
+        ELSE
+          PhotonLost = .TRUE.
+        END IF ! foundHit
+      END IF ! UsePhotonTriaTracking
     END IF  ! Mortar or regular side
-  END DO  ! iLocSide=1,6
+  END DO LocSideLoop ! iLocSide=1,6
+
   TriNum = TriNumTemp(1)
   ! ----------------------------------------------------------------------------
   ! Additional treatment if particle did not cross any sides or it crossed multiple sides
@@ -559,6 +600,7 @@ DO WHILE (.NOT.Done)
       ELSE
         ! Diffuse reflection
         IF (NrOfThroughSides.LT.2) THEN
+          IF(.NOT.UsePhotonTriaTracking) TriNum=1
           CALL DiffusePhotonReflection(LocalSide,ElemID,TriNum, IntersectionPos, .FALSE.)
         ELSE
           CALL DiffusePhotonReflection(LocalSide,ElemID,TriNum, IntersectionPos, .TRUE.)
@@ -629,9 +671,10 @@ DO WHILE (.NOT.Done)
 
     IF (oldElemIsMortar) THEN
       ElemID = SideInfo_Shared(SIDE_ELEMID,SideID)
-      CALL PhotonIntersectionWithSide(LocalSide,ElemID,TriNum, IntersectionPos, PhotonLost,.TRUE.)
+      CALL PhotonIntersectionWithSide(LocalSide,ElemID,TriNum, IntersectionPos, PhotonLost, IsMortar=.TRUE.)
     ELSE
-      CALL PhotonIntersectionWithSide(LocalSide,ElemID,TriNum, IntersectionPos, PhotonLost)
+      ! For bilinear tracing, the intersection point is already calculated by the tracking algorithm itself
+      IF(UsePhotonTriaTracking) CALL PhotonIntersectionWithSide(LocalSide,ElemID,TriNum, IntersectionPos, PhotonLost)
     END IF
 
     ! Check if lost during intersection
@@ -870,5 +913,401 @@ DO WHILE (.NOT.Done)
   END IF
 END DO  ! .NOT.PartisDone
 END SUBROUTINE Photon2DSymTracking
+
+SUBROUTINE PhotonComputeBiLinearIntersection(isHit,PartTrajectory,lengthPartTrajectory,alpha,xitild,etatild &
+                                      ,PartID,SideID,ElemCheck_Opt,alpha2,LastPartPos_IN)
+!===================================================================================================================================
+! Compute the Intersection with planar surface, improved version by
+! Haselbacher, A.; Najjar, F. M. & Ferry, J. P., An efficient and robust particle-localization algorithm for unstructured grids
+! Journal of Computational Physics, Elsevier BV, 2007, 225, 2198-2213
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals
+USE MOD_Utils                  ,ONLY: QuadraticSolver
+USE MOD_Mesh_Tools             ,ONLY: GetCNSideID
+USE MOD_Particle_Mesh_Vars     ,ONLY: SideInfo_Shared
+USE MOD_Particle_Surfaces_Vars ,ONLY: BaseVectors0,BaseVectors1,BaseVectors2,BaseVectors3,SideNormVec,epsilonTol!,BaseVectorsScale
+USE MOD_Particle_Surfaces      ,ONLY: CalcNormAndTangBilinear
+USE MOD_Particle_Tracking_Vars ,ONLY: TrackingMethod
+USE MOD_Particle_Vars          ,ONLY: PartState,LastPartPos!,PEM
+#ifdef CODE_ANALYZE
+USE MOD_Particle_Surfaces_Vars ,ONLY: BezierControlPoints3D
+USE MOD_Particle_Tracking_Vars ,ONLY: PartOut,MPIRankOut
+USE MOD_Mesh_Vars              ,ONLY: NGeo
+#endif /*CODE_ANALYZE*/
+#if USE_MPI
+!USE MOD_Mesh_Vars              ,ONLY: BC
+#endif /*USE_MPI*/
+USE MOD_Particle_Intersection   ,ONLY: ComputeXi,ComputeSurfaceDistance2
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+REAL,INTENT(IN),DIMENSION(1:3)    :: PartTrajectory
+REAL,INTENT(IN)                   :: lengthPartTrajectory
+INTEGER,INTENT(IN)                :: PartID,SideID
+LOGICAL,INTENT(IN),OPTIONAL       :: ElemCheck_Opt
+REAL,INTENT(IN),OPTIONAL          :: alpha2
+REAL,INTENT(IN),OPTIONAL          :: LastPartPos_IN(1:3)
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+REAL,INTENT(OUT)                  :: alpha,xitild,etatild
+LOGICAL,INTENT(OUT)               :: isHit
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+REAL,DIMENSION(4)                 :: a1,a2
+REAL,DIMENSION(1:3,1:4)           :: BiLinearCoeff,NormalCoeff
+REAL                              :: A,B,C,alphaNorm
+REAL                              :: xi(2),eta(2),t(2),scaleFac
+INTEGER                           :: CNSideID,InterType,nRoot
+LOGICAL                           :: ElemCheck
+!===================================================================================================================================
+
+! set alpha to minus one // no intersection
+alpha    = -1.0
+xitild   = -2.0
+etatild  = -2.0
+isHit    = .FALSE.
+CNSideID = GetCNSideID(SideID)
+
+! compute initial vectors
+BiLinearCoeff(:,1) = 0.25*BaseVectors3(:,SideID)
+BiLinearCoeff(:,2) = 0.25*BaseVectors1(:,SideID)
+BiLinearCoeff(:,3) = 0.25*BaseVectors2(:,SideID)
+BiLinearCoeff(:,4) = 0.25*BaseVectors0(:,SideID)
+
+#ifdef CODE_ANALYZE
+  IF(PARTOUT.GT.0 .AND. MPIRANKOUT.EQ.MyRank)THEN
+    IF(PartID.EQ.PARTOUT)THEN
+      WRITE(UNIT_stdout,'(110("-"))')
+      WRITE(UNIT_stdout,'(A)') '     | Output of bilinear intersection equation constants: '
+      WRITE(UNIT_stdout,'(A,3(1X,G0))') '     | SideNormVec  : ',SideNormVec(1:3,CNSideID)
+      WRITE(UNIT_stdout,'(A,4(1X,G0))') '     | BilinearCoeff: ',BilinearCoeff(1,1:4)
+      WRITE(UNIT_stdout,'(A,4(1X,G0))') '     | BilinearCoeff: ',BilinearCoeff(2,1:4)
+      WRITE(UNIT_stdout,'(A,4(1X,G0))') '     | BilinearCoeff: ',BilinearCoeff(3,1:4)
+      WRITE(UNIT_stdout,'(A,3(1X,G0))') '     | Beziercontrolpoint1: ',BezierControlPoints3D(:,0,0,SideID)
+      WRITE(UNIT_stdout,'(A,3(1X,G0))') '     | Beziercontrolpoint2: ',BezierControlPoints3D(:,NGeo,0,SideID)
+      WRITE(UNIT_stdout,'(A,3(1X,G0))') '     | Beziercontrolpoint3: ',BezierControlPoints3D(:,0,NGeo,SideID)
+      WRITE(UNIT_stdout,'(A,3(1X,G0))') '     | Beziercontrolpoint4: ',BezierControlPoints3D(:,NGeo,NGeo,SideID)
+    END IF
+  END IF
+#endif /*CODE_ANALYZE*/
+
+! Check if the site can be encountered. Both vectors are already normalized
+scaleFac = DOT_PRODUCT(PartTrajectory,SideNormVec(1:3,CNSideID))
+IF (ABS(scaleFac).LT.epsilontol) RETURN
+
+! Haselbacher et al. define d = d - r_p
+IF(PRESENT(LastPartPos_IN))THEN
+  BiLinearCoeff(:,4) = BiLinearCoeff(:,4) - LastPartPos_IN(1:3)
+ELSE
+  BiLinearCoeff(:,4) = BiLinearCoeff(:,4) - LastPartPos(:,PartID)
+END IF ! PRESENT(LastPartPos_IN)
+
+! Calculate component normal to ray
+NormalCoeff(:,1) = BiLinearCoeff(:,1) - SUM(BiLinearCoeff(:,1)*PartTrajectory(:))*PartTrajectory
+NormalCoeff(:,2) = BiLinearCoeff(:,2) - SUM(BiLinearCoeff(:,2)*PartTrajectory(:))*PartTrajectory
+NormalCoeff(:,3) = BiLinearCoeff(:,3) - SUM(BiLinearCoeff(:,3)*PartTrajectory(:))*PartTrajectory
+NormalCoeff(:,4) = BiLinearCoeff(:,4) - SUM(BiLinearCoeff(:,4)*PartTrajectory(:))*PartTrajectory
+
+! A1 is X_xz = X_z - X_x
+A1(:) = NormalCoeff(3,:) - NormalCoeff(1,:)
+! A2 is X_yz = X_z - X_y
+A2(:) = NormalCoeff(3,:) - NormalCoeff(2,:)
+
+! Bring into quadratic form
+A = a1(1)*a2(3) - a2(1)*a1(3)
+B = a1(1)*a2(4) - a2(1)*a1(4) + a1(2)*a2(3) - a2(2)*a1(3)
+C = a1(2)*a2(4) - a2(2)*a1(4)
+
+! Scale with <PartTraj.,NormVec>^2 and cell-scale (~area) for getting coefficients at least approx. in the order of 1
+!scaleFac = scaleFac**2 * BaseVectorsScale(SideID) !<...>^2 * cell-scale
+!scaleFac = 1./scaleFac
+!A = A * scaleFac
+!B = B * scaleFac
+!C = C * scaleFac
+
+CALL QuadraticSolver(A,B,C,nRoot,Eta(1),Eta(2))
+
+#ifdef CODE_ANALYZE
+  IF(PARTOUT.GT.0 .AND. MPIRANKOUT.EQ.MyRank)THEN
+    IF(PartID.EQ.PARTOUT)THEN
+      WRITE(UNIT_stdout,'(A)') '     | Output after QuadraticSolver: '
+      WRITE(UNIT_stdout,'(A,I0,A,2(1X,G0))') '     | number of root: ',nRoot,' | Eta: ',Eta(1:2)
+    END IF
+  END IF
+#endif /*CODE_ANALYZE*/
+
+! nRoot equals the number of possible intersections with the bilinear surface. However, only values between [-1,1] are valid
+SELECT CASE(nRoot)
+  ! No intersection
+  CASE(0) ! nRoot = 0
+    RETURN
+
+  ! One possible intersection
+  CASE(1) ! nRoot = 1
+#ifdef CODE_ANALYZE
+    IF(PARTOUT.GT.0 .AND. MPIRANKOUT.EQ.MyRank)THEN
+      IF(PartID.EQ.PARTOUT)THEN
+        WRITE(UNIT_stdout,'(A)') '     | nRoot = 1 '
+      END IF
+    END IF
+#endif /*CODE_ANALYZE*/
+    ! Check if eta is valid
+    IF (ABS(eta(1)).LE.1.0) THEN
+      ! check for Xi only, if eta is possible
+      xi(1) = ComputeXi(eta(1),A1=A1,A2=A2)
+
+      IF (Xi(1).EQ.HUGE(1.)) THEN
+        return
+        IPWRITE(UNIT_stdOut,'(I0,A,I0)') ' Both denominators zero when calculating Xi in bilinear intersection'
+        IPWRITE(UNIT_stdOut,'(I0,A,I0)') ' PartID:             ', PartID
+        IPWRITE(UNIT_stdOut,'(I0,A,I0)') ' global SideID:      ', SideID
+        IPWRITE(UNIT_stdOut,'(I0,A,I0)') ' global ElemID:      ', SideInfo_Shared(SIDE_ELEMID,SideID)
+        IPWRITE(UNIT_stdOut,'(I0,A,3(1X,ES25.17E3))') ' LastPartPos:   ', LastPartPos(1:3,PartID)
+        IPWRITE(UNIT_stdOut,'(I0,A,3(1X,ES25.17E3))') ' PartPos:       ', PartState  (1:3,PartID)
+        CALL ABORT(__STAMP__,'Invalid intersection with bilinear side!',SideID)
+      END IF
+
+      IF( ABS(xi(1)).LE.1.0) THEN
+        ! compute alpha only with valid xi and eta
+        t(1) = ComputeSurfaceDistance2(BiLinearCoeff,xi(1),eta(1),PartTrajectory)
+
+        IF (PRESENT(alpha2)) THEN
+          IF (alpha2.GT.-1.0 .AND. ALMOSTEQUAL(t(1),alpha2)) THEN
+            t(1) = -1.0
+#ifdef CODE_ANALYZE
+            IF(PARTOUT.GT.0 .AND. MPIRANKOUT.EQ.MyRank)THEN
+              IF(PartID.EQ.PARTOUT)THEN
+                WRITE(UNIT_stdout,'(A)') 'changed t1'
+              END IF
+            END IF
+#endif /*CODE_ANALYZE*/
+          END IF
+        END IF
+
+        ! Normalize alpha to unitLength
+        alphaNorm = t(1)/lengthPartTrajectory
+
+        IF ((alphaNorm.LE.1.0) .AND.(alphaNorm.GE.0.)) THEN
+          alpha   = t(1)
+          xitild  = xi(1)
+          etatild = eta(1)
+          isHit   = .TRUE.
+#ifdef CODE_ANALYZE
+          IF(PARTOUT.GT.0 .AND. MPIRANKOUT.EQ.MyRank)THEN
+            IF(PartID.EQ.PARTOUT)THEN
+              WRITE(UNIT_stdout,'(A,G0,A,G0)') '     | alphanorm: ',alphaNorm,' | epsilonTolerance: ',epsilontol
+            END IF
+          END IF
+#endif /*CODE_ANALYZE*/
+          ! This is the only possible intersection, so we are done
+          RETURN
+        ELSE ! t is not in range
+          RETURN
+        END IF
+      ELSE ! xi not in range
+        RETURN
+      END IF ! ABS(xi(1)).LE.1.0
+    ELSE ! eta not in range
+      RETURN
+    END IF ! ABS(eta(1)).LE.1.0
+
+  CASE(2) ! nRoot = 2
+#ifdef CODE_ANALYZE
+    IF(PARTOUT.GT.0 .AND. MPIRANKOUT.EQ.MyRank)THEN
+      IF(PartID.EQ.PARTOUT)THEN
+        WRITE(UNIT_stdout,'(A)') '     | nRoot = 2 '
+      END IF
+    END IF
+#endif /*CODE_ANALYZE*/
+    InterType = 0
+    t(:)      =-1.
+
+    ! Check if eta(1)) is valid
+    IF (ABS(eta(1)).LE.1.0) THEN
+      ! check for Xi only, if eta is possible
+      xi(1) = ComputeXi(eta(1),A1=A1,A2=A2)
+
+      IF (Xi(1).EQ.HUGE(1.)) THEN
+        return
+        IPWRITE(UNIT_stdOut,'(I0,A,I0)') ' Both denominators zero when calculating Xi in bilinear intersection'
+        IPWRITE(UNIT_stdOut,'(I0,A,I0)') ' PartID:             ', PartID
+        IPWRITE(UNIT_stdOut,'(I0,A,I0)') ' global SideID:      ', SideID
+        IPWRITE(UNIT_stdOut,'(I0,A,I0)') ' global ElemID:      ', SideInfo_Shared(SIDE_ELEMID,SideID)
+        IPWRITE(UNIT_stdOut,'(I0,A,3(1X,ES25.17E3))') ' LastPartPos:   ', LastPartPos(1:3,PartID)
+        IPWRITE(UNIT_stdOut,'(I0,A,3(1X,ES25.17E3))') ' PartPos:       ', PartState  (1:3,PartID)
+        CALL ABORT(__STAMP__,'Invalid intersection with bilinear side!',SideID)
+      END IF
+
+      IF( ABS(xi(1)).LE.1.0) THEN
+        ! compute alpha only with valid xi and eta
+        t(1) = ComputeSurfaceDistance2(BiLinearCoeff,xi(1),eta(1),PartTrajectory)
+
+        IF (PRESENT(alpha2)) THEN
+          IF (alpha2.GT.-1.0 .AND. ALMOSTEQUAL(t(1),alpha2)) THEN
+#ifdef CODE_ANALYZE
+              IF(PARTOUT.GT.0 .AND. MPIRANKOUT.EQ.MyRank)THEN
+                IF(PartID.EQ.PARTOUT)THEN
+                  WRITE(UNIT_stdout,'(A)') 'changed t1'
+                END IF
+              END IF
+#endif /*CODE_ANALYZE*/
+            t(1) = -1.0
+          END IF
+        END IF
+
+        ! Normalize alpha to unitLength
+        alphaNorm = t(1)/lengthPartTrajectory
+
+#ifdef CODE_ANALYZE
+        IF(PARTOUT.GT.0 .AND. MPIRANKOUT.EQ.MyRank)THEN
+          IF(PartID.EQ.PARTOUT)THEN
+            WRITE(UNIT_stdout,'(A,G0,A,G0,A,G0)') '     | xi: ',xi(1),' | t: ',t(1),' | alphaNorm: ',alphaNorm
+          END IF
+        END IF
+#endif /*CODE_ANALYZE*/
+
+        IF ((alphaNorm.LE.1.0) .AND.(alphaNorm.GE.0.)) THEN
+          InterType = InterType+1
+          isHit     = .TRUE.
+#ifdef CODE_ANALYZE
+          IF(PARTOUT.GT.0 .AND. MPIRANKOUT.EQ.MyRank)THEN
+            IF(PartID.EQ.PARTOUT)THEN
+              WRITE(UNIT_stdout,'(A,E15.8,A,E15.8)') '     | alphanorm1: ',alphaNorm,' | epsilonTolerance: ',epsilontol
+            END IF
+          END IF
+#endif /*CODE_ANALYZE*/
+        END IF
+      END IF ! ABS(xi(1)).LE.1.0
+    END IF ! ABS(eta(1)).LE.1.0
+
+    ! Check if eta(2) is valid
+    IF (ABS(eta(2)).LE.1.0) THEN
+      ! check for Xi only, if eta is possible
+      xi(2) = ComputeXi(eta(2),A1=A1,A2=A2)
+
+      IF (Xi(2).EQ.HUGE(1.)) THEN
+        return
+        IPWRITE(UNIT_stdOut,'(I0,A,I0)') ' Both denominators zero when calculating Xi in bilinear intersection'
+        IPWRITE(UNIT_stdOut,'(I0,A,I0)') ' PartID:             ', PartID
+        IPWRITE(UNIT_stdOut,'(I0,A,I0)') ' global SideID:      ', SideID
+        IPWRITE(UNIT_stdOut,'(I0,A,I0)') ' global ElemID:      ', SideInfo_Shared(SIDE_ELEMID,SideID)
+        IPWRITE(UNIT_stdOut,'(I0,A,3(1X,ES25.17E3))') ' LastPartPos:   ', LastPartPos(1:3,PartID)
+        IPWRITE(UNIT_stdOut,'(I0,A,3(1X,ES25.17E3))') ' PartPos:       ', PartState  (1:3,PartID)
+        CALL ABORT(__STAMP__,'Invalid intersection with bilinear side!',SideID)
+      END IF
+
+      IF( ABS(xi(2)).LE.1.0) THEN
+        ! compute alpha only with valid xi and eta
+        t(2) = ComputeSurfaceDistance2(BiLinearCoeff,xi(2),eta(2),PartTrajectory)
+
+        IF (PRESENT(alpha2)) THEN
+          IF (alpha2.GT.-1.0 .AND. ALMOSTEQUAL(t(2),alpha2)) THEN
+            t(2) = -1.0
+#ifdef CODE_ANALYZE
+            IF(PARTOUT.GT.0 .AND. MPIRANKOUT.EQ.MyRank)THEN
+              IF(PartID.EQ.PARTOUT)THEN
+                WRITE(UNIT_stdout,'(A)') 'changed t2'
+              END IF
+            END IF
+#endif /*CODE_ANALYZE*/
+          END IF
+        END IF
+
+        ! Normalize alpha to unitLength
+        alphaNorm = t(2)/lengthPartTrajectory
+
+#ifdef CODE_ANALYZE
+        IF(PARTOUT.GT.0 .AND. MPIRANKOUT.EQ.MyRank)THEN
+          IF(PartID.EQ.PARTOUT)THEN
+            WRITE(UNIT_stdout,'(A,G0,A,G0,A,G0)') '     | xi: ',xi(2),' | t: ',t(2),' | alphaNorm: ',alphaNorm
+          END IF
+        END IF
+#endif /*CODE_ANALYZE*/
+
+        IF ((alphaNorm.LE.1.0) .AND.(alphaNorm.GE.0.)) THEN
+          InterType = InterType+2
+          isHit     = .TRUE.
+#ifdef CODE_ANALYZE
+          IF(PARTOUT.GT.0 .AND. MPIRANKOUT.EQ.MyRank)THEN
+            IF(PartID.EQ.PARTOUT)THEN
+              WRITE(UNIT_stdout,'(A,E15.8,A,E15.8)') '     | alphanorm2: ',alphaNorm,' | epsilonTolerance: ',epsilontol
+            END IF
+          END IF
+#endif /*CODE_ANALYZE*/
+        END IF
+      END IF ! ABS(xi(2)).LE.1.0
+    END IF ! ABS(eta(2)).LE.1.0
+
+    SELECT CASE(InterType)
+      ! No intersection found, return
+      CASE(0)
+        RETURN
+
+      ! First intersection is only hit
+      CASE(1)
+        alpha  =t  (1)
+        xitild =xi (1)
+        etatild=eta(1)
+
+      ! Second intersection is only hit
+      CASE(2)
+        alpha  =t  (2)
+        xitild =xi (2)
+        etatild=eta(2)
+
+      ! Two intersections found, decide on the correct one
+      CASE(3)
+        ! If side is a BC side, take only the intersection encountered first
+        IF (SideInfo_Shared(SIDE_BCID,SideID).GT.0) THEN
+          SELECT CASE(TrackingMethod)
+            ! Take the one encountered first
+            CASE(REFMAPPING)
+              IF(t(1).LT.t(2))THEN
+                alpha  =t  (1)
+                xitild =xi (1)
+                etatild=eta(1)
+              ELSE
+                alpha  =t  (2)
+                xitild =xi (2)
+                etatild=eta(2)
+              END IF
+
+            CASE(TRACING)
+              ! Check if the element is supposed to be checked
+              ElemCheck = .FALSE.
+              IF(PRESENT(ElemCheck_Opt))THEN
+                ElemCheck = ElemCheck_Opt
+              END IF
+
+              IF(ElemCheck)THEN
+                alpha  =-1
+                xitild =-2
+                etatild=-2
+              ELSE
+                ! Apparently we don't care about the direction of the PartTrajectory
+                IF(ABS(t(1)).LT.ABS(t(2)))THEN
+                  alpha  =t  (1)
+                  xitild =xi (1)
+                  etatild=eta(1)
+                ELSE
+                  alpha  =t  (2)
+                  xitild =xi (2)
+                  etatild=eta(2)
+                END IF
+              END IF
+          END SELECT ! TrackingMethod
+        ! Inner side with double intersection, particle leaves and enters element
+        ELSE
+          alpha  =-1
+          xitild = 0.
+          etatild= 0.
+          isHit  = .FALSE.
+        END IF
+    END SELECT ! InterType
+END SELECT ! nRoot
+
+END SUBROUTINE PhotonComputeBiLinearIntersection
 
 END MODULE MOD_Photon_Tracking
