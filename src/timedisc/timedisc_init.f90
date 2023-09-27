@@ -23,6 +23,7 @@ IMPLICIT NONE
 PRIVATE
 !-----------------------------------------------------------------------------------------------------------------------------------
 PUBLIC :: DefineParametersTimeDisc,InitTime,InitTimeDisc,InitTimeStep,UpdateTimeStep,FinalizeTimeDisc
+PUBLIC ::CalcPartPosInRotRef
 !===================================================================================================================================
 CONTAINS
 
@@ -502,5 +503,46 @@ SDEALLOCATE(Phit_temp)
 TimeDiscInitIsDone = .FALSE.
 
 END SUBROUTINE FinalizeTimeDisc
+
+
+SUBROUTINE CalcPartPosInRotRef(iPart, RotTimestep)
+!===================================================================================================================================
+!> Particle push in rotational frame of references
+!===================================================================================================================================
+! MODULES
+USE MOD_Particle_Vars            ,ONLY: PartState, PDM, PartVeloRotRef
+USE MOD_part_RHS                 ,ONLY: CalcPartRHSRotRefFrame
+! IMPLICIT VARIABLE HANDLING
+  IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+INTEGER, INTENT(IN)           :: iPart
+REAL, INTENT(IN)              :: RotTimestep
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+!INTEGER                        :: 
+REAL                       :: Pt_local(1:3), Pt_local_old(1:3), VeloRotRef_half(1:3), PartState_half(1:3)
+!===================================================================================================================================
+IF(PDM%InRotRefFrame(iPart)) THEN
+  ! Midpoint method
+  ! calculate the acceleration (force / mass) at the current time step
+  Pt_local_old(1:3) = CalcPartRHSRotRefFrame(PartState(1:3,iPart), PartVeloRotRef(1:3,iPart))
+  ! estimate the mid-point velocity in the rotational frame
+  VeloRotRef_half(1:3) = PartVeloRotRef(1:3,iPart) + 0.5*Pt_local_old(1:3)*RotTimestep
+  ! estimate the mid-point position
+  PartState_half(1:3) = PartState(1:3,iPart) + 0.5*PartVeloRotRef(1:3,iPart)*RotTimestep
+  ! calculate the acceleration (force / mass) at the mid-point
+  Pt_local(1:3) = CalcPartRHSRotRefFrame(PartState_half(1:3), VeloRotRef_half(1:3))
+  ! update the position using the mid-point velocity in the rotational frame
+  PartState(1:3,iPart) = PartState(1:3,iPart) + VeloRotRef_half(1:3)*RotTimestep
+  ! update the velocity in the rotational frame using the mid-point acceleration
+  PartVeloRotRef(1:3,iPart) = PartVeloRotRef(1:3,iPart) + Pt_local(1:3)*RotTimestep
+ELSE
+  PartState(1:3,iPart) = PartState(1:3,iPart) + PartState(4:6,iPart) * RotTimestep
+END IF
+
+END SUBROUTINE CalcPartPosInRotRef
 
 END MODULE MOD_TimeDiscInit

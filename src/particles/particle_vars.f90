@@ -72,6 +72,16 @@ REAL    , ALLOCATABLE :: PartState(:,:)                                      ! 1
 !                                                                            ! 2nd index: 1:NParts
 REAL    , ALLOCATABLE :: PartPosRef(:,:)                                     ! (1:3,1:NParts) particles pos mapped to -1|1 space
 REAL    , ALLOCATABLE :: PartVeloRotRef(:,:)                                 ! (1:3,1:NParts) Velocity in the rotational reference frame
+REAL    , ALLOCATABLE :: LastPartVeloRotRef(:,:)                             ! (1:3,1:NParts) Last Velocity in the rotational reference frame
+! Rot Ref Sub Cycling
+LOGICAL               :: UseRotSubCycling                                    ! Flag if sub cycling is active
+REAL                  :: LastPartPosSubCycling(3)                            ! Last position befor SubCycling
+REAL                  :: NewPosSubCycling(3)                                 ! New particle position befor SubCycling
+REAL                  :: PartVeloRotRefSubCycling(3)                         ! Velocity in the rotational reference frame befor SubCycling
+REAL                  :: LastVeloRotRefSubCycling(3)                         ! Last Velocity in the rotational reference frame befor SubCycling
+INTEGER               :: GlobalElemIDSubCycling                              ! Elemnt ID befor SubCycling
+LOGICAL               :: RotRefSubTimeStep                                   ! Flag for loop, that defines the cureent time step is a sub cycling step
+LOGICAL               :: InRotRefFrameSubCycling                             ! Check for RotRefFrame befor SubCycling
 REAL    , ALLOCATABLE :: Pt(:,:)                                             ! Derivative of PartState (vx,xy,vz) only
                                                                              ! since temporal derivative of position
                                                                              ! is the velocity. Thus we can take

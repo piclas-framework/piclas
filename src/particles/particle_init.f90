@@ -196,6 +196,7 @@ CALL prms%CreateLogicalOption(  'Part-SampElectronicExcitation'&
 
 ! === Rotational frame of reference
 CALL prms%CreateLogicalOption(  'Part-UseRotationalReferenceFrame', 'Activate rotational frame of reference', '.FALSE.')
+CALL prms%CreateLogicalOption(  'Part-UseRotationalReferenceSubCycling', 'Activate sub cycling in rot ref frame', '.FALSE.')
 CALL prms%CreateIntOption(      'Part-RotRefFrame-Axis','Axis of rotational frame of reference (x=1, y=2, z=3)')
 CALL prms%CreateRealOption(     'Part-RotRefFrame-Frequency','Frequency of rotational frame of reference [1/s], sign according '//&
                                 'to right-hand rule, e.g. positive: counter-clockwise, negative: clockwise')
@@ -1388,6 +1389,7 @@ SDEALLOCATE(PartPosRef)
 SDEALLOCATE(PartState)
 SDEALLOCATE(LastPartPos)
 SDEALLOCATE(PartVeloRotRef)
+SDEALLOCATE(LastPartVeloRotRef)
 SDEALLOCATE(PartSpecies)
 SDEALLOCATE(Pt)
 SDEALLOCATE(PDM%ParticleInside)
@@ -1545,6 +1547,7 @@ CHARACTER(LEN=5)   :: hilf
 !===================================================================================================================================
 
 UseRotRefFrame = GETLOGICAL('Part-UseRotationalReferenceFrame')
+UseRotSubCycling = GETLOGICAL('Part-UseRotationalReferenceSubCycling')
 
 IF(UseRotRefFrame) THEN
   ! Abort for other timedisc except DSMC/BGK
@@ -1553,6 +1556,8 @@ IF(UseRotRefFrame) THEN
 #endif
   ALLOCATE(PartVeloRotRef(1:3,1:PDM%maxParticleNumber))
   PartVeloRotRef = 0.0
+  ALLOCATE(LastPartVeloRotRef(1:3,1:PDM%maxParticleNumber))
+  LastPartVeloRotRef = 0.0
   RotRefFrameAxis = GETINT('Part-RotRefFrame-Axis')
   RotRefFrameFreq = GETREAL('Part-RotRefFrame-Frequency')
   omegaTemp = 2.*PI*RotRefFrameFreq
