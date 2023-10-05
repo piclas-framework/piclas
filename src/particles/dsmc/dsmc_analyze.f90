@@ -748,6 +748,7 @@ IF (DSMC%CalcQualityFactors) THEN
         DSMC_MacroVal(nVarCount+9:nVarCount+17,iElem) = CBC%OutputKnudsen(1:9,iElem)
         DSMC_MacroVal(nVarCount+18,iElem) = MeshAdapt(1,iElem)
         DSMC_MacroVal(nVarCount+19,iElem) = MeshAdapt(2,iElem)
+        print*, MeshAdapt(:,5)
         nVarCount = nVarCount + 19
       ELSE
         DSMC_MacroVal(nVarCount+8,iElem) = 1.

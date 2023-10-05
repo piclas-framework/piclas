@@ -352,7 +352,8 @@ TYPE (tGeometry)                         :: GEO
 TYPE tMeshAdaption
   INTEGER                                :: CellOrientation(3)                ! Relative orientation of the elements
   INTEGER                                :: RefineDir(3)                      ! Direction with the highest refinement (highest T gradient)
-  INTEGER                                :: SplitOrder                        ! Order of subcell splitting      
+  INTEGER                                :: SplitOrder                        ! Order of subcell splitting
+  INTEGER, ALLOCATABLE                   :: SubcellMap(:)                     ! Mapping of the merged subcell to the assinged subcell
   REAL, ALLOCATABLE                      :: SubVolume(:)                      ! Subvolumes of the subcells
 END TYPE
 
@@ -368,7 +369,7 @@ INTEGER                                  :: IterAdapt                         ! 
 REAL                                     :: RefineFactorGrad                  ! Max limit for the gradient refinement
 INTEGER, ALLOCATABLE                     :: PeanoCurve(:,:)
 INTEGER, ALLOCATABLE                     :: SubPartNum(:)                     ! Particle number per subcell
-INTEGER, ALLOCATABLE                     :: SubPartIndx(:,:)                  ! Particle indices per subcell                 
+INTEGER, ALLOCATABLE                     :: SubPartIndx(:,:)                  ! Particle indices per subcell
 
 
 INTEGER                                  :: WeirdElems                        ! Number of Weird Elements (=Elements which are folded
@@ -394,7 +395,7 @@ INTEGER                                  :: nNodeRecvExchangeProcs
 ! Send direction of nodes (can be different from number of receive nodes for each processor)
 TYPE tNodeMappingSend
   INTEGER,ALLOCATABLE                    :: SendNodeUniqueGlobalID(:)
-  REAL,ALLOCATABLE                       :: SendNodeFilterMPF(:,:) 
+  REAL,ALLOCATABLE                       :: SendNodeFilterMPF(:,:)
   INTEGER                                :: nSendUniqueNodes
 END TYPE
 TYPE (tNodeMappingSend),ALLOCATABLE      :: NodeMappingSend(:)
