@@ -40,14 +40,14 @@ SUBROUTINE ParticleTriaTracking()
 ! MODULES
 USE MOD_Preproc
 USE MOD_Globals
-USE MOD_Particle_Vars               ,ONLY: PEM,PDM,InterPlanePartNumber, InterPlanePartIndx, UseRotRefFrame, UseRotSubCycling
+USE MOD_Particle_Vars               ,ONLY: PEM,PDM,InterPlanePartNumber, InterPlanePartIndx, UseRotSubCycling
 USE MOD_Particle_Vars               ,ONLY: RotRefSubTimeStep, NewPosSubCycling, GlobalElemIDSubCycling, LastPartPosSubCycling
 USE MOD_Particle_Vars               ,ONLY: InRotRefFrameSubCycling, PartVeloRotRefSubCycling, LastVeloRotRefSubCycling
 USE MOD_DSMC_Vars                   ,ONLY: RadialWeighting
 USE MOD_DSMC_Symmetry               ,ONLY: DSMC_2D_RadialWeighting, DSMC_2D_SetInClones
 USE MOD_part_tools                  ,ONLY: ParticleOnProc
 !----- Used for RotRef Subcycling
-USE MOD_TimeDiscInit                ,ONLY: CalcPartPosInRotRef
+USE MOD_part_RHS                    ,ONLY: CalcPartPosInRotRef
 USE MOD_TimeDisc_Vars               ,ONLY: dt
 USE MOD_Particle_Vars               ,ONLY: UseVarTimeStep, PartTimeStep, VarTimeStep, Species, PartState, LastPartPos, PartSpecies
 USE MOD_Particle_Vars               ,ONLY: PartVeloRotRef, LastPartVeloRotRef

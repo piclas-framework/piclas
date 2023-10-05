@@ -51,9 +51,9 @@ USE MOD_Particle_Tracking        ,ONLY: PerformTracking
 USE MOD_SurfaceModel_Porous      ,ONLY: PorousBoundaryRemovalProb_Pressure
 USE MOD_SurfaceModel_Vars        ,ONLY: nPorousBC
 USE MOD_vMPF                     ,ONLY: SplitAndMerge
-USE MOD_part_RHS                 ,ONLY: CalcPartRHSRotRefFrame
+USE MOD_part_RHS                 ,ONLY: CalcPartRHSRotRefFrame, CalcPartPosInRotRef
 USE MOD_Part_Tools               ,ONLY: InRotRefFrameCheck
-USE MOD_Part_Tools               ,ONLY: CalcPartSymmetryPos!, CalcPartPosInRotRef
+USE MOD_Part_Tools               ,ONLY: CalcPartSymmetryPos
 #if USE_MPI
 USE MOD_Particle_MPI             ,ONLY: IRecvNbOfParticles, MPIParticleSend,MPIParticleRecv,SendNbOfparticles
 #endif /*USE_MPI*/
@@ -63,7 +63,6 @@ USE MOD_LoadBalance_Timers       ,ONLY: LBStartTime,LBSplitTime,LBPauseTime
 #endif /*PARTICLES*/
 USE MOD_DSMC_ParticlePairing     ,ONLY: GeoCoordToMap2D
 USE MOD_Eval_xyz                 ,ONLY: GetPositionInRefElem
-USE MOD_TimeDiscInit             ,ONLY: CalcPartPosInRotRef
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -73,7 +72,7 @@ IMPLICIT NONE
 INTEGER                    :: iPart
 REAL                       :: timeEnd, timeStart, dtVar, RandVal
 ! Rotational frame of reference
-REAL                       :: Pt_local(1:3), Pt_local_old(1:3), VeloRotRef_half(1:3), PartState_half(1:3)
+!REAL                       :: Pt_local(1:3), Pt_local_old(1:3), VeloRotRef_half(1:3), PartState_half(1:3)
 #if USE_LOADBALANCE
 REAL                  :: tLBStart
 #endif /*USE_LOADBALANCE*/
