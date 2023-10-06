@@ -128,6 +128,18 @@ WHICHMPI=openmpi
 #PETSCVERSION=3.17.0
 PETSCVERSION=3.18.4
 
+# Activate DEBUGGING MODE with ON/OFF
+DEBUG=ON
+
+if [[ ${DEBUG} == 'ON' ]]; then
+  DEBUGDIR='_debug'
+  WITHDEBUG='yes'
+  TESTCOL=${YELLOW}
+else
+  DEBUGDIR=''
+  WITHDEBUG='0'
+  TESTCOL=${GREEN}
+fi
 # --------------------------------------------------------------------------------------------------
 # Check pre-requisites
 # --------------------------------------------------------------------------------------------------
@@ -176,7 +188,7 @@ check_module "cmake" "${CMAKEVERSION}"
 check_module "gcc  " "${GCCVERSION}"
 check_module "mpi  " "${OPENMPIVERSION}"
 
-PETSCMODULEFILEDIR=${MODULESDIR}/utilities/petsc/${PETSCVERSION}/gcc/${GCCVERSION}/openmpi
+PETSCMODULEFILEDIR=${MODULESDIR}/utilities/petsc/${PETSCVERSION}${DEBUGDIR}/gcc/${GCCVERSION}/openmpi
 MODULEFILE=${PETSCMODULEFILEDIR}/${OPENMPIVERSION}
 
 # if no PETSc module for this compiler found, install PETSc and create module
@@ -192,13 +204,13 @@ if [ ! -e "${MODULEFILE}" ]; then
   echo " "
   echo -e "$GREEN""Important: If the compilation step fails, run the script again and if it still fails \n1) try compiling single, .i.e., remove -j from make -j or \n2) try make -j 2 (not all available threads)$NC"
   echo " "
-  echo -e "This will install PETSc version ${GREEN}${PETSCVERSION}${NC}.\nCompilation in parallel will be executed with ${GREEN}${NBROFCORES} threads${NC}."
+  echo -e "This will install PETSc version ${GREEN}${PETSCVERSION}${NC} with ${TESTCOL}--with-debugging=${WITHDEBUG}${NC}.\nCompilation in parallel will be executed with ${GREEN}${NBROFCORES} threads${NC}."
   if [[ ${RERUNMODE} -eq 0 ]]; then
     read -p "Have the correct modules been loaded? If yes, press [Enter] to continue or [Crtl+c] to abort!"
   fi
 
   # Install destination
-  PETSCINSTALLDIR=/opt/petsc/${PETSCVERSION}/gcc-${GCCVERSION}/openmpi-${OPENMPIVERSION}
+  PETSCINSTALLDIR=/opt/petsc/${PETSCVERSION}${DEBUGDIR}/gcc-${GCCVERSION}/openmpi-${OPENMPIVERSION}
 
   # Change to sources directors
   cd ${SOURCESDIR}
@@ -269,7 +281,7 @@ if [ ! -e "${MODULEFILE}" ]; then
   ./configure PETSC_ARCH=arch-linux \
 	      --prefix=${PETSCINSTALLDIR} \
 	      --with-mpi-dir=${MPIINSTALLDIR} \
-	      --with-debugging=0 \
+	      --with-debugging=${WITHDEBUG} \
 	      COPTFLAGS='-O3 -march=native -mtune=native' \
 	      CXXOPTFLAGS='-O3 -march=native -mtune=native' \
 	      FOPTFLAGS='-O3 -march=native -mtune=native' \
@@ -283,7 +295,7 @@ if [ ! -e "${MODULEFILE}" ]; then
     echo -e "$RED""Failed command: [./configure PETSC_ARCH=arch-linux \
 	      --prefix=${PETSCINSTALLDIR} \
 	      --with-mpi-dir=${MPIINSTALLDIR} \
-	      --with-debugging=0 \
+	      --with-debugging=${WITHDEBUG} \
 	      COPTFLAGS='-O3 -march=native -mtune=native' \
 	      CXXOPTFLAGS='-O3 -march=native -mtune=native' \
 	      FOPTFLAGS='-O3 -march=native -mtune=native' \

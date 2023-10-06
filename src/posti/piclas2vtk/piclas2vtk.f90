@@ -41,10 +41,11 @@ USE MOD_HDF5_Input            ,ONLY: ISVALIDHDF5FILE
 USE MOD_Mesh_Vars             ,ONLY: nGlobalElems
 USE MOD_Interpolation         ,ONLY: DefineParametersInterpolation,InitInterpolation
 USE MOD_Mesh                  ,ONLY: DefineParametersMesh,InitMesh
+USE MOD_Mesh_Tools            ,ONLY: InitElemNodeIDs
 #ifdef PARTICLES
-USE MOD_Particle_Mesh_Tools   ,ONLY: InitParticleGeometry, InitElemNodeIDs
-USE MOD_Particle_Mesh_Vars    ,ONLY: NodeCoords_Shared, ElemNodeID_Shared, NodeInfo_Shared
+USE MOD_Particle_Mesh_Tools   ,ONLY: InitParticleGeometry
 #endif /*PARTICLES*/
+USE MOD_Particle_Mesh_Vars    ,ONLY: NodeCoords_Shared, ElemNodeID_Shared, NodeInfo_Shared
 USE MOD_Mesh_Tools            ,ONLY: InitGetCNElemID, InitGetGlobalElemID
 #if USE_MPI
 USE MOD_MPI_Shared
@@ -65,9 +66,7 @@ LOGICAL                        :: DGSolutionExists, ElemDataExists, SurfaceDataE
 LOGICAL                        :: BGFieldExists, ExcitationDataExists
 LOGICAL                        :: VisuAdaptiveInfo, AdaptiveInfoExists
 LOGICAL                        :: ReadMeshFinished, ElemMeshInit, SurfMeshInit
-#ifdef PARTICLES
 INTEGER                        :: iElem, iNode
-#endif /*PARTICLES*/
 INTEGER                        :: iMode,iErrorReturn,dmdSingleModeOutput,dmdMaximumModeOutput
 CHARACTER(LEN=16)              :: hilf
 !===================================================================================================================================
@@ -269,23 +268,22 @@ DO iArgs = iArgsStart,nArgs
 
   ! Read-in of the mesh
   IF(.NOT.ReadMeshFinished) THEN
-    CALL InitMesh(1,MeshFile_IN=MeshFile)
+    CALL InitMesh(-1,MeshFile_IN=MeshFile)
     CALL InitGetGlobalElemID()
     CALL InitGetCNElemID()
 #if USE_MPI
     nComputeNodeTotalElems = nGlobalElems
 #endif /*USE_MPI*/
 #ifdef PARTICLES
-    ! ElemSideNodeID_Shared is required for the connectivity
+    ! ElemSideNodeID_Shared is required for the connectivity for the conversion of SurfaceData
     CALL InitParticleGeometry()
-    ! ElemNodeID_Shared is required for the connectivity
-    CALL InitElemNodeIDs()
 #endif /*PARTICLES*/
+    ! ElemNodeID_Shared is required for the connectivity for the conversion of ElemData
+    CALL InitElemNodeIDs()
     ReadMeshFinished = .TRUE.
   END IF
   ! Build connectivity for element/volume output
   IF(ElemDataExists.AND..NOT.ElemMeshInit) THEN
-#ifdef PARTICLES
     CALL OpenDataFile(MeshFile,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_WORLD)
     CALL ReadAttribute(File_ID,'nUniqueNodes',1,IntScalar=nUniqueNodes)
     CALL CloseDataFile()
@@ -298,11 +296,6 @@ DO iArgs = iArgsStart,nArgs
       END DO
     END DO
     ElemMeshInit = .TRUE.
-#else
-    SWRITE(*,*) 'WARNING - Conversion of ElemData requires the compilation of piclas2vtk with PARTICLES set to ON!'
-    SWRITE(*,*) 'WARNING - File contains ElemData but output is skipped.'
-    ElemDataExists = .FALSE.
-#endif
   END IF
   ! Build connectivity for surface output
   IF(SurfaceDataExists.AND..NOT.SurfMeshInit) THEN

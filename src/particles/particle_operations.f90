@@ -139,6 +139,7 @@ USE MOD_Globals_Vars              ,ONLY: ElementaryCharge
 USE MOD_Particle_Vars             ,ONLY: PDM, PartSpecies, Species, PartMPF, usevMPF
 USE MOD_Particle_Sampling_Vars    ,ONLY: UseAdaptive, AdaptBCPartNumOut
 USE MOD_Particle_Vars             ,ONLY: UseNeutralization, NeutralizationSource, NeutralizationBalance,nNeutralizationElems
+USE MOD_Particle_Boundary_Vars    ,ONLY: PartBound
 USE MOD_Particle_Analyze_Vars     ,ONLY: CalcPartBalance,nPartOut,PartEkinOut,CalcSurfFluxInfo
 USE MOD_SurfaceModel_Analyze_Vars ,ONLY: CalcBoundaryParticleOutput,BPO
 #if defined(IMPA)
@@ -148,6 +149,11 @@ USE MOD_Particle_Analyze_Tools    ,ONLY: CalcEkinPart
 USE MOD_part_tools                ,ONLY: GetParticleWeight
 USE MOD_DSMC_Vars                 ,ONLY: CollInf
 USE MOD_Mesh_Vars                 ,ONLY: BoundaryName
+#if USE_HDG
+USE MOD_Globals                   ,ONLY: abort
+USE MOD_HDG_Vars                  ,ONLY: UseFPC,FPC,UseEPC,EPC
+USE MOD_Mesh_Vars                 ,ONLY: BoundaryType
+#endif /*USE_HDG*/
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
 ! INPUT / OUTPUT VARIABLES
@@ -159,6 +165,9 @@ LOGICAL, INTENT(OUT),OPTIONAL :: crossedBC               !< optional flag is nee
 ! LOCAL VARIABLES
 INTEGER                       :: iSpec, iSF
 REAL                          :: MPF
+#if USE_HDG
+INTEGER                       :: iBC,iUniqueFPCBC,iUniqueEPCBC,BCState
+#endif /*USE_HDG*/
 !===================================================================================================================================
 
 PDM%ParticleInside(PartID) = .FALSE.
@@ -179,6 +188,8 @@ END IF ! CalcPartBalance
 !   - the mass flow through the boundary shall be calculated or
 !   - the charges impinging on the boundary are to be summed (thruster neutralization)
 IF(PRESENT(BCID)) THEN
+
+  ! Check if adaptive BC or surface flux info
   IF(UseAdaptive.OR.CalcSurfFluxInfo) THEN
     DO iSF=1,Species(iSpec)%nSurfacefluxBCs
       IF(Species(iSpec)%Surfaceflux(iSF)%BC.EQ.BCID) THEN
@@ -188,16 +199,19 @@ IF(PRESENT(BCID)) THEN
       END IF
     END DO
   END IF ! UseAdaptive.OR.CalcSurfFluxInfo
+
   ! Ion thruster simulations: Landmark and Liu2010 (SPT-100) if neutralization current is determined from the particle flux over the
   ! neutralization boundary condition instead of looking into the first row of elements along that BC
   IF(UseNeutralization.AND.(nNeutralizationElems.EQ.-1))THEN
-    IF(TRIM(BoundaryName(BCID)).EQ.TRIM(NeutralizationSource))THEN
+    IF(TRIM(BoundaryName(PartBound%MapToFieldBC(BCID))).EQ.TRIM(NeutralizationSource))THEN
       ! Add +1 for electrons and -X for ions: This is opposite to the summation in CountNeutralizationParticles() where the surplus
       ! of ions is calculated and compensated with an equal amount of electrons to force quasi-neutrality in the neutralization
       ! elements.
       NeutralizationBalance = NeutralizationBalance - NINT(Species(iSpec)%ChargeIC/ElementaryCharge)
     END IF
   END IF ! UseNeutralization
+
+  ! Check if BPO boundary is encountered
   IF(CalcBoundaryParticleOutput)THEN
     IF(usevMPF)THEN
       MPF = PartMPF(PartID)
@@ -211,6 +225,40 @@ IF(PRESENT(BCID)) THEN
       END IF ! iBPOBC.GT.0.AND.iBPOSpec.GT.0
     END ASSOCIATE
   END IF ! CalcBoundaryParticleOutput
+
+#if USE_HDG
+  ! Check if floating boundary conditions (FPC) are used
+  IF(UseFPC)THEN
+    iBC = PartBound%MapToFieldBC(BCID)
+    IF(iBC.LE.0) CALL abort(__STAMP__,'iBC = PartBound%MapToFieldBC(BCID) must be >0',IntInfoOpt=iBC)
+    IF(BoundaryType(iBC,BC_TYPE).EQ.20)THEN ! BCType = BoundaryType(iBC,BC_TYPE)
+      IF(usevMPF)THEN
+        MPF = PartMPF(PartID)
+      ELSE
+        MPF = Species(iSpec)%MacroParticleFactor
+      END IF
+      BCState = BoundaryType(iBC,BC_STATE) ! State is iFPC
+      iUniqueFPCBC = FPC%Group(BCState,2)
+      FPC%ChargeProc(iUniqueFPCBC) = FPC%ChargeProc(iUniqueFPCBC) + Species(iSpec)%ChargeIC * MPF
+    END IF ! BCType.EQ.20
+  END IF ! UseFPC
+
+  ! Check if electric potential condition (EPC) is used
+  IF(UseEPC)THEN
+    iBC = PartBound%MapToFieldBC(BCID)
+    IF(iBC.LE.0) CALL abort(__STAMP__,'iBC = PartBound%MapToFieldBC(BCID) must be >0',IntInfoOpt=iBC)
+    IF(BoundaryType(iBC,BC_TYPE).EQ.8)THEN ! BCType = BoundaryType(iBC,BC_TYPE)
+      IF(usevMPF)THEN
+        MPF = PartMPF(PartID)
+      ELSE
+        MPF = Species(iSpec)%MacroParticleFactor
+      END IF
+      BCState = BoundaryType(iBC,BC_STATE) ! State is iEPC
+      iUniqueEPCBC = EPC%Group(BCState,2)
+      EPC%ChargeProc(iUniqueEPCBC) = EPC%ChargeProc(iUniqueEPCBC) + Species(iSpec)%ChargeIC * MPF
+    END IF ! BCType.EQ.8
+  END IF ! UseEPC
+#endif /*USE_HDG*/
 END IF ! PRESENT(BCID)
 
 ! Tracking-relevant variables (not required if a particle is removed within the domain, e.g. removal due to radial weighting)

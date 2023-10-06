@@ -213,7 +213,7 @@ IF ((MOD(iter,IterAdapt).EQ.0.).OR.(iter.EQ.1)) THEN
   ELSE
     DoAdaptCell = .FALSE.
   END IF
-#if (PP_TimeDiscMethod==400)
+#elif (PP_TimeDiscMethod==400)
   IF (MaxGradient.GE.RefineFactorGrad) THEN
     DoAdaptCell = .TRUE.
   ELSE

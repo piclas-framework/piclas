@@ -138,12 +138,13 @@ USE MOD_Mesh_Vars             ,ONLY: ElemBaryNGeo
 USE MOD_Particle_Analyze_Tools,ONLY: AllocateElectronIonDensityCell,AllocateElectronTemperatureCell,AllocateCalcElectronEnergy
 #if USE_HDG
 USE MOD_HDG_Vars              ,ONLY: CalcBRVariableElectronTemp,BRAutomaticElectronRef
-USE MOD_Equation_Vars         ,ONLY: CalcPCouplElectricPotential
+USE MOD_HDG_Vars              ,ONLY: UseCoupledPowerPotential
 #endif /*USE_HDG*/
 USE MOD_Particle_Analyze_Tools,ONLY: CalcNumberDensityBGGasDistri
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Vars      ,ONLY: PerformLoadBalance
 #endif /*USE_LOADBALANCE*/
+USE MOD_Restart_Vars          ,ONLY: DoRestart,RestartTime
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -166,6 +167,13 @@ CALL abort(__STAMP__,&
 END IF
 LBWRITE(UNIT_StdOut,'(132("-"))')
 LBWRITE(UNIT_stdOut,'(A)') ' INIT PARTICLE ANALYZE...'
+
+! Initialize with restart time or zero
+IF(DoRestart)THEN
+  ParticleAnalyzeSampleTime = RestartTime
+ELSE
+  ParticleAnalyzeSampleTime = 0.
+END IF ! DoRestart
 
 ! Average number of points per shape function: max. number allowed is (PP_N+1)^3
 IF(StringBeginsWith(DepositionType,'shape_function'))THEN
@@ -563,13 +571,14 @@ END IF
 !-- Coupled Power
 CalcCoupledPower = GETLOGICAL('CalcCoupledPower')
 #if USE_HDG
-IF(CalcPCouplElectricPotential.AND.(.NOT.CalcCoupledPower)) CALL abort(__STAMP__,'BoundaryType = (/2,2/) requires CalcCoupledPower=T') 
+IF(UseCoupledPowerPotential.AND.(.NOT.CalcCoupledPower)) CALL abort(__STAMP__,'Coupled power potential requires CalcCoupledPower=T') 
 #endif /*USE_HDG*/
 
 IF(CalcCoupledPower) THEN
   DisplayCoupledPower = GETLOGICAL('DisplayCoupledPower')
   DoPartAnalyze = .TRUE.
   PCouplAverage = 0.0
+  PCouplAverageOld = 0.0
 #if !((PP_TimeDiscMethod==1) || (PP_TimeDiscMethod==2) || (PP_TimeDiscMethod==6) || (PP_TimeDiscMethod==500) || (PP_TimeDiscMethod==501) || (PP_TimeDiscMethod==502) || (PP_TimeDiscMethod==506) || (PP_TimeDiscMethod==507) || (PP_TimeDiscMethod==508) || (PP_TimeDiscMethod==509))
   CALL abort(__STAMP__,'ERROR: CalcCoupledPower is not implemented yet with the chosen time discretization method!')
 #endif
@@ -852,7 +861,7 @@ USE MOD_Particle_Analyze_Tools  ,ONLY: CollRates,CalcRelaxRates,CalcRelaxRatesEl
 #if USE_HDG
 USE MOD_HDG_Vars               ,ONLY: BRNbrOfRegions,CalcBRVariableElectronTemp,BRAutomaticElectronRef,RegionElectronRef
 USE MOD_Globals_Vars           ,ONLY: BoltzmannConst,ElementaryCharge
-USE MOD_Equation_Vars          ,ONLY: CalcPCouplElectricPotential,CoupledPowerPotential
+USE MOD_HDG_Vars               ,ONLY: UseCoupledPowerPotential,CoupledPowerPotential,CoupledPowerFrequency,CoupledPowerMode
 USE MOD_Particle_Analyze_Tools ,ONLY: CalculatePCouplElectricPotential
 #endif /*USE_HDG*/
 USE MOD_Globals_Vars           ,ONLY: eV2Kelvin
@@ -893,11 +902,12 @@ INTEGER             :: iRegions
 #if USE_MPI
 REAL                :: tmpArray(1:2)
 #endif /*USE_MPI*/
+REAL                :: PCouplDelta
+REAL                :: TimeDelta
 !===================================================================================================================================
-  IF ( DoRestart ) THEN
-    isRestart = .true.
-  END IF
-  IF (.NOT.DoPartAnalyze) RETURN
+IF(DoRestart) isRestart = .true.
+IF(.NOT.DoPartAnalyze) RETURN
+ParticleAnalyzeSampleTime = Time - ParticleAnalyzeSampleTime ! Set ParticleAnalyzeSampleTime=Time at the end of this routine
 #if (PP_TimeDiscMethod==42)
   IF (useDSMC) THEN
     IF (CollisMode.NE.0) THEN
@@ -1002,6 +1012,9 @@ REAL                :: tmpArray(1:2)
           OutputCounter = OutputCounter + 1
           WRITE(unit_index,'(A1)',ADVANCE='NO') ','
           WRITE(unit_index,'(I3.3,A)',ADVANCE='NO') OutputCounter,'-PCoupledMoAv'
+          OutputCounter = OutputCounter + 1
+          WRITE(unit_index,'(A1)',ADVANCE='NO') ','
+          WRITE(unit_index,'(I3.3,A)',ADVANCE='NO') OutputCounter,'-PCoupledIntAv'
           OutputCounter = OutputCounter + 1
         END IF
         IF (CalcLaserInteraction) THEN ! computer laser-plasma interaction
@@ -1253,9 +1266,9 @@ REAL                :: tmpArray(1:2)
             OutputCounter = OutputCounter + 1
           END DO
         END IF ! CalcBRVariableElectronTemp.OR.BRAutomaticElectronRef
-        IF(CalcPCouplElectricPotential)THEN
+        IF(UseCoupledPowerPotential)THEN
           WRITE(unit_index,'(A1,I3.3,A)',ADVANCE='NO') ',',OutputCounter,'-CoupledPowerPotential-[V]'
-        END IF ! CalcPCouplElectricPotential
+        END IF ! UseCoupledPowerPotential
 #endif /*USE_HDG*/
         IF(CalcBulkElectronTemp)THEN
           WRITE(unit_index,'(A1,I3.3,A,I3.3,A)',ADVANCE='NO') ',',OutputCounter,'-BulkElectronTemp-[K]'
@@ -1353,14 +1366,40 @@ REAL                :: tmpArray(1:2)
 ! MPI Communication for values which are not YET communicated
 ! All routines ABOVE contain the required MPI-Communication
 !===================================================================================================================================
-#if USE_MPI
   IF(CalcCoupledPower) THEN
+    PCouplIntAverage = 0.0 ! Default
+#if USE_MPI
+    ! Collect sum on MPIRoot
     tmpArray = (/PCoupl, PCouplAverage/)
-    CALL MPI_ALLREDUCE(MPI_IN_PLACE , tmpArray , 2 , MPI_DOUBLE_PRECISION , MPI_SUM , MPI_COMM_WORLD , IERROR)
-    PCoupl        = tmpArray(1)
-    PCouplAverage = tmpArray(2)
-    ! Only the root process keeps PCouplAverage, but all processes require PCoupl if CalcPCouplElectricPotential=T
-    IF(.NOT.MPIRoot) PCouplAverage = 0.
+    IF(PartMPI%MPIRoot)THEN
+      CALL MPI_REDUCE(MPI_IN_PLACE, tmpArray, 2, MPI_DOUBLE_PRECISION, MPI_SUM, 0, PartMPI%COMM, IERROR)
+      PCoupl        = tmpArray(1)
+      PCouplAverage = tmpArray(2)
+#endif /*USE_MPI*/
+#if USE_HDG
+      ! Only required for integrated average over one cycle
+      IF(CoupledPowerMode.EQ.3)THEN
+        PCouplDelta      = PCouplAverage - PCouplAverageOld ! y2 - new value
+        PCouplAverageOld = PCouplAverage
+        CoupledPowerPotential(4) = CoupledPowerPotential(4) + 0.5*(CoupledPowerPotential(6) + PCouplDelta) ! 0.5*dx*(y1+y2)/dx
+        CoupledPowerPotential(6) = PCouplDelta ! y1 = y2 - store old value ("last energy")
+        ! Check sampling frequency
+        IF(CoupledPowerFrequency.GT.0)THEN
+          TimeDelta = (1.0 / CoupledPowerFrequency) + Time - CoupledPowerPotential(5) ! = 1/f + t - tCPP
+        ELSE
+          TimeDelta = ParticleAnalyzeSampleTime
+        END IF ! CoupledPowerFrequency.GT.0
+        ! Check sampling time
+        IF(ABS(TimeDelta).GT.0.) PCouplIntAverage = CoupledPowerPotential(4) / TimeDelta ! Calculate average from integral
+      END IF ! CoupledPowerMode.EQ.3
+#endif /*USE_HDG*/
+#if USE_MPI
+    ELSE
+      CALL MPI_REDUCE(tmpArray, 0, 2, MPI_DOUBLE_PRECISION, MPI_SUM, 0, PartMPI%COMM, IERROR)
+      ! Reset for all processes execpt the MPIRoot (this process keeps the old value, which is therefore considered only once in the
+      ! next MPI reduce call)
+      PCouplAverage = 0.
+    END IF ! PartMPI%MPIRoot
   END IF
   ! Switch between root and non-root processes
   IF (PartMPI%MPIRoot) THEN
@@ -1377,20 +1416,21 @@ REAL                :: tmpArray(1:2)
       CALL MPI_REDUCE(PartEkinIn ,0,nSpecAnalyze,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,IERROR)
       CALL MPI_REDUCE(PartEkinOut,0,nSpecAnalyze,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,IERROR)
     END IF
-  END IF
 #endif /*USE_MPI*/
+  END IF
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Analyze Routines that require MPI_REDUCE of other variables
 ! Moving Average of PCoupl:
-IF(CalcCoupledPower) THEN
+IF(CalcCoupledPower.AND.PartMPI%MPIRoot) THEN
   ! Moving Average of PCoupl:
-  IF(ABS(Time-RestartTime).GT.0.0) PCouplAverage = PCouplAverage / (Time-RestartTime)
+  TimeDelta = Time-RestartTime
+  IF(ABS(TimeDelta).GT.0.0) PCouplAverage = PCouplAverage / TimeDelta
   ! current PCoupl (Delta_E / Timestep)
   PCoupl = PCoupl / dt
 END IF
 #if USE_HDG
 ! Calculate electric potential for special BCs BoundaryType = (/2,2/) to meet a specific input power
-IF((iter.GT.0).AND.CalcPCouplElectricPotential) CALL CalculatePCouplElectricPotential()
+IF((iter.GT.0).AND.UseCoupledPowerPotential) CALL CalculatePCouplElectricPotential()
 #endif /*USE_HDG*/
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Perform averaging/summation of the MPI communicated variables on the root only (and for the non-MPI case, MPIRoot is set to true)
@@ -1488,6 +1528,7 @@ IF (PartMPI%MPIROOT) THEN
   IF (CalcCoupledPower) THEN
     WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',', PCoupl
     WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',', PCouplAverage
+    WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',', PCouplIntAverage
   END IF
   IF (CalcLaserInteraction) THEN
     DO iSpec=1, nSpecies
@@ -1637,9 +1678,9 @@ IF (PartMPI%MPIROOT) THEN
       WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',', RegionElectronRef(3,iRegions)*ElementaryCharge/BoltzmannConst ! convert eV to K
     END DO
   END IF ! CalcBRVariableElectronTemp.OR.BRAutomaticElectronRef
-  IF(CalcPCouplElectricPotential)THEN
+  IF(UseCoupledPowerPotential)THEN
     WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',', CoupledPowerPotential(2) ! Electric potential in V
-  END IF ! CalcPCouplElectricPotential
+  END IF ! UseCoupledPowerPotential
 #endif /*USE_HDG*/
   IF(CalcBulkElectronTemp)THEN
     WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',', BulkElectronTemp*eV2Kelvin ! Temperature in Kelvin
@@ -1651,8 +1692,8 @@ END IF ! PartMPI%MPIROOT
 #endif /*USE_MPI*/
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Reset coupled power to particles if output of coupled power is active
-IF (CalcCoupledPower) THEN
-  PCouplAverage = PCouplAverage * (Time-RestartTime) ! PCouplAverage is reseted
+IF (CalcCoupledPower.AND.PartMPI%MPIRoot) THEN
+  IF(ABS(TimeDelta).GT.0.0) PCouplAverage = PCouplAverage * TimeDelta ! PCouplAverage is reset
 END IF
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Reset the particle counter
@@ -1661,6 +1702,7 @@ IF(CalcPartBalance) THEN
 END IF
 !-----------------------------------------------------------------------------------------------------------------------------------
 
+ParticleAnalyzeSampleTime = Time ! Backup "old" time value for next output
 END SUBROUTINE AnalyzeParticles
 
 

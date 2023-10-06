@@ -507,9 +507,11 @@ IF(DoBoundaryParticleOutputHDF5)THEN
   END IF ! .NOT.ALLOCATED(PartStateBoundary)
 END IF
 
-! Set mapping from field boundary to particle boundary index
+! Set mapping from field boundary to particle boundary index and vice versa
 ALLOCATE(PartBound%MapToPartBC(1:nBCs))
 PartBound%MapToPartBC(:)=-10
+ALLOCATE(PartBound%MapToFieldBC(1:nPartBound))
+PartBound%MapToFieldBC=-1
 DO iPBC=1,nPartBound
   DO iBC = 1, nBCs
     IF (BoundaryType(iBC,BC_TYPE).EQ.0) THEN
@@ -524,6 +526,7 @@ DO iPBC=1,nPartBound
     END IF
     IF (TRIM(BoundaryName(iBC)).EQ.TRIM(PartBound%SourceBoundName(iPBC))) THEN
       PartBound%MapToPartBC(iBC) = iPBC !PartBound%TargetBoundCond(iPBC)
+      PartBound%MapToFieldBC(iPBC) = iBC ! part BC to field BC
       LBWRITE(*,*)"... Mapped PartBound",iPBC,"on FieldBound", iBC,",i.e.:",TRIM(BoundaryName(iBC))
     END IF
   END DO
@@ -1188,6 +1191,7 @@ SDEALLOCATE(PartBound%NbrOfSpeciesSwaps)
 SDEALLOCATE(PartBound%ProbOfSpeciesSwaps)
 SDEALLOCATE(PartBound%SpeciesSwaps)
 SDEALLOCATE(PartBound%MapToPartBC)
+SDEALLOCATE(PartBound%MapToFieldBC)
 SDEALLOCATE(PartBound%SurfaceModel)
 SDEALLOCATE(PartBound%CoverageIni)
 SDEALLOCATE(PartBound%MaxCoverage)

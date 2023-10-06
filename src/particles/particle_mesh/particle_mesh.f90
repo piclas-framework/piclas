@@ -145,7 +145,7 @@ SUBROUTINE InitParticleMesh()
 USE MOD_Globals
 USE MOD_Preproc
 USE MOD_Mesh_Tools             ,ONLY: InitGetGlobalElemID,InitGetCNElemID,GetCNElemID
-USE MOD_Mesh_Tools             ,ONLY: InitGetGlobalSideID,InitGetCNSideID,GetGlobalSideID
+USE MOD_Mesh_Tools             ,ONLY: InitGetGlobalSideID,InitGetCNSideID,GetGlobalSideID,InitElemNodeIDs
 USE MOD_Mesh_Vars              ,ONLY: deleteMeshPointer,NodeCoords
 USE MOD_Mesh_Vars              ,ONLY: NGeo,NGeoElevated
 USE MOD_Mesh_Vars              ,ONLY: useCurveds
@@ -155,7 +155,7 @@ USE MOD_Analyze_Vars           ,ONLY: CalcHaloInfo
 USE MOD_Particle_BGM           ,ONLY: BuildBGMAndIdentifyHaloRegion
 USE MOD_Particle_Mesh_Vars
 USE MOD_Particle_Mesh_Tools    ,ONLY: InitPEM_LocalElemID,InitPEM_CNElemID,GetMeshMinMax,IdentifyElemAndSideType
-USE MOD_Particle_Mesh_Tools    ,ONLY: CalcParticleMeshMetrics,InitElemNodeIDs,InitParticleGeometry,CalcBezierControlPoints
+USE MOD_Particle_Mesh_Tools    ,ONLY: CalcParticleMeshMetrics,InitParticleGeometry,CalcBezierControlPoints
 USE MOD_Particle_Mesh_Tools    ,ONLY: CalcXCL_NGeo
 USE MOD_Particle_Surfaces      ,ONLY: GetSideSlabNormalsAndIntervals
 USE MOD_Particle_Surfaces_Vars ,ONLY: BezierSampleN,BezierSampleXi,SurfFluxSideSize,TriaSurfaceFlux
