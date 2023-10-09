@@ -360,7 +360,7 @@ REAL                          :: Subcell_wGP, PartPosMapped(3), DetLocal(1,0:PP_
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Number of subcells from the split order
 nCells = (AdaptMesh(iElem)%SplitOrder+1)**3
-MeshAdapt(1,iElem) = nCells
+!MeshAdapt(1,iElem) = nCells
 
 ! Particle number in the element
 nPart = PEM%pNumber(iElem)
@@ -532,7 +532,7 @@ REAL                          :: Subcell_wGP, PartPosMapped(3), DetLocal(1,0:PP_
 ! Number of subcells from the split order
 nCells2D = (AdaptMesh(iElem)%SplitOrder+1)**2
 nCells = (AdaptMesh(iElem)%SplitOrder+1)**3
-MeshAdapt(1,iElem) = nCells2D
+!MeshAdapt(1,iElem) = nCells2D
 ! Particle number in the element
 nPart = PEM%pNumber(iElem)
 iPart = PEM%pStart(iElem)
@@ -713,7 +713,7 @@ REAL                          :: PartPosMapped(3)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Number of subcells from the split order
 nCells = (AdaptMesh(iElem)%SplitOrder+1)**3
-MeshAdapt(1,iElem) = nCells
+!MeshAdapt(1,iElem) = nCells
 
 ! Particle number in the element
 nPart = PEM%pNumber(iElem)
@@ -828,7 +828,7 @@ REAL                          :: PartPosMapped(3), Pos(2)
 ! Number of subcells from the split order
 nCells2D = (AdaptMesh(iElem)%SplitOrder+1)**2
 nCells = (AdaptMesh(iElem)%SplitOrder+1)**3
-MeshAdapt(1,iElem) = nCells2D
+!MeshAdapt(1,iElem) = nCells2D
 ! Particle number in the element
 nPart = PEM%pNumber(iElem)
 iPart = PEM%pStart(iElem)
@@ -945,7 +945,7 @@ REAL                          :: Subcell_wGP, PartPosMapped(3), DetLocal(1,0:PP_
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Number of subcells from the split order
 nCells = (AdaptMesh(iElem)%SplitOrder+1)**3
-MeshAdapt(1,iElem) = nCells
+!MeshAdapt(1,iElem) = nCells
 
 ! Particle number in the element
 nPart = PEM%pNumber(iElem)
@@ -1060,7 +1060,7 @@ REAL                          :: Subcell_wGP, PartPosMapped(3), DetLocal(1,0:PP_
 ! Number of subcells from the split order
 nCells2D = (AdaptMesh(iElem)%SplitOrder+1)**2
 nCells = (AdaptMesh(iElem)%SplitOrder+1)**3
-MeshAdapt(1,iElem) = nCells2D
+!MeshAdapt(1,iElem) = nCells2D
 ! Particle number in the element
 nPart = PEM%pNumber(iElem)
 iPart = PEM%pStart(iElem)
@@ -1227,7 +1227,7 @@ END IF
 !MeshAdapt(2,iElem) = 0.
 DO iCell = 1, nCells
   IF (SubPartNum(iCell).GT.0) THEN
-    MeshAdapt(2,iElem) = MeshAdapt(2,iElem) + 1
+    !MeshAdapt(2,iElem) = MeshAdapt(2,iElem) + 1
 
     ! Collision routines for the subcells, considered are only the particles in the respective subcell
 #if (PP_TimeDiscMethod==300)
@@ -1343,10 +1343,10 @@ IF ((SubPartNum(tempCell).LT.MinPartCell).AND.(tempCell.NE.tempCellLast)) THEN
   AdaptMesh(iElem)%SubcellMap(tempCellLast) = tempCellLast
 END IF
 
-MeshAdapt(2,iElem) = 0.
+!MeshAdapt(2,iElem) = 0.
 DO iCell = 1, nCells
   IF (SubPartNum(iCell).GT.0) THEN
-    MeshAdapt(2,iElem) = MeshAdapt(2,iElem) + 1
+    !MeshAdapt(2,iElem) = MeshAdapt(2,iElem) + 1
     ! Collision routines for the subcells, considered are only the particles in the respective subcell
 #if (PP_TimeDiscMethod==300)
       CALL FP_CollisionOperator(SubPartIndx(iCell,1:SubPartNum(iCell)), SubPartNum(iCell), AdaptMesh(iElem)%Subvolume(iCell))

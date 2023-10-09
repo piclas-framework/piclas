@@ -114,13 +114,13 @@ IF (DoVirtualCellMerge) THEN
       END DO
     END DO
     DoMergedCell = .TRUE.
-  END IF  
+  END IF
 ELSE IF ((nPart.EQ.0).OR.(nPart.EQ.1)) THEN
   RETURN
 END IF
 
 IF (DoMergedCell) THEN
-#if (PP_TimeDiscMethod==300)  
+#if (PP_TimeDiscMethod==300)
   CALL FP_CollisionOperator(TreeNode%iPartIndx_Node, nPartMerged, VirtMergedCells(iELem)%MergedVolume)
 #else
   IF (BGKMovingAverage) THEN
@@ -180,7 +180,7 @@ ELSE
       IF (BGKMovingAverage) THEN
         CALL AddBGKOctreeNode(TreeNode, iElem, ElemNodeVol(iElem)%Root, ElemNodeAveraging(iElem)%Root)
       ELSE
-        MeshAdapt(2,iElem) = 8.
+        !MeshAdapt(2,iElem) = 8.
         CALL AddBGKOctreeNode(TreeNode, iElem, ElemNodeVol(iElem)%Root)
       END IF
     DEALLOCATE(TreeNode%MappedPartStates)
@@ -368,7 +368,7 @@ DO iLoop = 1, 8
     IF (BGKMovingAverage) THEN
       CALL AddBGKOctreeNode(TreeNode%ChildNode, iElem, NodeVol%SubNode(iLoop), Averaging%SubNode(iLoop))
     ELSE
-      MeshAdapt(2,iElem) = MeshAdapt(2,iELem) + 8.
+      !MeshAdapt(2,iElem) = MeshAdapt(2,iELem) + 8.
       CALL AddBGKOctreeNode(TreeNode%ChildNode, iElem, NodeVol%SubNode(iLoop))
     END IF
     DEALLOCATE(TreeNode%ChildNode%MappedPartStates)
@@ -391,7 +391,7 @@ DO iLoop = 1, 8
   END IF
 END DO
 
-MeshAdapt(1,iElem) = TreeNode%ChildNode%NodeDepth
+!MeshAdapt(1,iElem) = TreeNode%ChildNode%NodeDepth
 
 END SUBROUTINE AddBGKOctreeNode
 
@@ -516,7 +516,7 @@ IF (DoVirtualCellMerge) THEN
       END DO
     END DO
     DoMergedCell = .TRUE.
-  END IF  
+  END IF
 ELSE IF ((nPart.EQ.0).OR.(nPart.EQ.1)) THEN
   RETURN
 END IF
@@ -577,7 +577,7 @@ ELSE
     IF (BGKMovingAverage) THEN
       CALL AddBGKQuadtreeNode(TreeNode, iElem, ElemNodeVol(iElem)%Root, ElemNodeAveraging(iElem)%Root)
     ELSE
-      MeshAdapt(2,iElem) = 4.
+      !MeshAdapt(2,iElem) = 4.
       CALL AddBGKQuadtreeNode(TreeNode, iElem, ElemNodeVol(iElem)%Root)
     END IF
     DEALLOCATE(TreeNode%MappedPartStates)
@@ -775,7 +775,7 @@ DO iLoop = 1, 4
     IF (BGKMovingAverage) THEN
       CALL AddBGKQuadtreeNode(TreeNode%ChildNode, iElem, NodeVol%SubNode(iLoop), Averaging%SubNode(iLoop))
     ELSE
-      MeshAdapt(2,iElem) = MeshAdapt(2,iELem) + 4.
+      !MeshAdapt(2,iElem) = MeshAdapt(2,iELem) + 4.
       CALL AddBGKQuadtreeNode(TreeNode%ChildNode, iElem, NodeVol%SubNode(iLoop))
     END IF
     DEALLOCATE(TreeNode%ChildNode%MappedPartStates)
@@ -797,7 +797,7 @@ DO iLoop = 1, 4
   END IF
 END DO
 
-MeshAdapt(1,iElem) = TreeNode%NodeDepth
+!MeshAdapt(1,iElem) = TreeNode%NodeDepth
 
 END SUBROUTINE AddBGKQuadtreeNode
 

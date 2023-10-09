@@ -560,7 +560,12 @@ END DO
   ALLOCATE(RecvRequestCN(0:nLeaderGroupProcs-1), SendRequestCN(0:nLeaderGroupProcs-1))
 #endif
 
-ALLOCATE(NodeValue(1:2,1:nUniqueGlobalNodes))
+IF (.NOT.ALLOCATED(NodeValue)) THEN
+  ALLOCATE(NodeValue(1:2,1:nUniqueGlobalNodes))
+ELSE
+  SDEALLOCATE(NodeValue)
+  ALLOCATE(NodeValue(1:2,1:nUniqueGlobalNodes))
+END IF
 NodeValue=0.0
 #if USE_MPI
 ALLOCATE(DoNodeMapping(0:nProcessors_Global-1),SendNode(1:nUniqueGlobalNodes))
