@@ -252,7 +252,7 @@ IF(AdaptMPF%DoAdaptMPF) THEN
   CALL DSMC_AdaptiveWeights()
 
   ! Check if the variable MPF is already initialized
-  IF (.NOT.(VarWeighting%DoVariableWeighting)) THEN
+  IF (.NOT.((VarWeighting%DoVariableWeighting).OR.(RadialWeighting%DoRadialWeighting))) THEN
     CALL DSMC_InitVarWeighting
   END IF
 END IF ! AdaptMPF
