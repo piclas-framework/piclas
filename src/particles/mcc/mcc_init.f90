@@ -146,6 +146,11 @@ IF(UseMCC.AND.(DSMC%VibRelaxProb.EQ.2.0)) CALL abort(__STAMP__&
 IF(.NOT.UseMCC.AND.VarTimeStep%UseSpeciesSpecific) CALL abort(__STAMP__,&
       'ERROR: Only MCC is implemented with a species-specific time step!')
 
+! Disable SampleElecExcitation if electronic excitation has not been enabled for at least one species
+IF(SampleElecExcitation.AND.(.NOT.ANY(SpecDSMC(:)%UseElecXSec))) THEN
+  SampleElecExcitation = .FALSE.
+  LBWRITE(*,*) '| WARNING: Part-SampElectronicExcitation has been disabled as no electronic excitation has been enabled through -UseElecXSec = T!'
+END IF
 ! Leave the routine
 IF(.NOT.UseMCC) RETURN
 
