@@ -282,7 +282,6 @@ USE MOD_Particle_Tracking_Vars  ,ONLY: NbrOfLostParticles,DisplayLostParticles
 USE MOD_RadiationTrans_Vars     ,ONLY: RadiationAbsorptionModel
 USE MOD_RayTracing_Vars         ,ONLY: RayForceAbsorption
 USE MOD_Particle_Mesh_Tools     ,ONLY: GetGlobalNonUniqueSideID
-USE MOD_Mesh_Vars               ,ONLY: SideToElem
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
