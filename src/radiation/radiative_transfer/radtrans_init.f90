@@ -96,6 +96,11 @@ USE MOD_Radiation_Vars,         ONLY : Radiation_Absorption_SpecPercent_Shared, 
 #endif
 USE MOD_RayTracing_Vars         ,ONLY: Ray
 USE MOD_Photon_Tracking         ,ONLY: InitPhotonSurfSample
+#if USE_MPI
+USE MOD_Photon_TrackingVars    ,ONLY: PhotonSampWallProc
+USE MOD_Photon_TrackingVars    ,ONLY: PhotonSampWall_Shared, PhotonSampWall_Shared_Win,PhotonSampWallProc
+#endif /*USE_MPI*/
+USE MOD_Photon_TrackingVars    ,ONLY: PhotonSampWall
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -105,10 +110,11 @@ USE MOD_Photon_Tracking         ,ONLY: InitPhotonSurfSample
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER               :: iWave, iElem, firstElem, lastElem, ElemDisp, DisplRank, iSpec, currentRank
-REAL                  :: LocTemp, ObsLengt, MaxSumTemp(2), GlobalMaxTemp(2), hilf
+REAL                  :: LocTemp, ObsLengt, MaxSumTemp(2), GlobalMaxTemp(2), tmp
 LOGICAL               :: ElemInCone
 REAL,ALLOCATABLE      :: Radiation_ShockTube_Spec(:,:)
 INTEGER               :: w, io_error
+CHARACTER(LEN=3)      :: hilf
 !===================================================================================================================================
 SWRITE(UNIT_StdOut,'(132("-"))')
 SWRITE(UNIT_stdOut,'(A)') ' INIT RADIATION TRANSPORT SOLVER ...'
@@ -127,7 +133,8 @@ RadEmiAdaptPhotonNum = GETLOGICAL('Radiation-AdaptivePhotonNumEmission')
 RadObservationPointMethod = GETINT('Radiation-RadObservationPointMethod')
 ObservationDoConvolution = GETLOGICAL('Radiation-ObservationDoConvolution')
 RadObservationPoint%ShockTubeDiameter = GETREAL('Radiation-ShockTubeDiameter')
-Ray%nSurfSample    = GETINT('Radiation-nSurfSample',nSurfSample)
+WRITE(UNIT=hilf,FMT='(I0)') nSurfSample
+Ray%nSurfSample    = GETINT('Radiation-nSurfSample',hilf)
 
 ! Build surface containers
 CALL InitPhotonSurfSample()
@@ -142,9 +149,9 @@ IF (RadObservationPointMethod.GT.0) THEN
   END IF
   RadObservationPoint%SlitFunction = GETREALARRAY('Radiation-ObservationSlitFunction',2)
   IF(RadObservationPoint%SlitFunction(1).GT.RadObservationPoint%SlitFunction(2)) THEN
-    hilf = RadObservationPoint%SlitFunction(1)
+    tmp = RadObservationPoint%SlitFunction(1)
     RadObservationPoint%SlitFunction(1) = RadObservationPoint%SlitFunction(2)
-    RadObservationPoint%SlitFunction(2) = hilf
+    RadObservationPoint%SlitFunction(2) = tmp
   END IF
   RadObservationPoint%OrthoNormBasis(1:3,1) = RadObservationPoint%ViewDirection(1:3)
   CALL FindLinIndependentVectors(RadObservationPoint%OrthoNormBasis(1:3,1), RadObservationPoint%OrthoNormBasis(1:3,2), RadObservationPoint%OrthoNormBasis(1:3,3))
@@ -470,7 +477,7 @@ END SELECT
 ALLOCATE(PhotonSampWallProc(2,1:Ray%nSurfSample,1:Ray%nSurfSample,1:nComputeNodeSurfTotalSides))
 PhotonSampWallProc=0.0
 !> Then shared arrays for boundary sampling
-CALL Allocate_Shared((/2,1:Ray%nSurfSample,1:Ray%nSurfSample,nComputeNodeSurfTotalSides/),PhotonSampWall_Shared_Win,PhotonSampWall_Shared)
+CALL Allocate_Shared((/2,Ray%nSurfSample,Ray%nSurfSample,nComputeNodeSurfTotalSides/),PhotonSampWall_Shared_Win,PhotonSampWall_Shared)
 CALL MPI_WIN_LOCK_ALL(0,PhotonSampWall_Shared_Win,IERROR)
 PhotonSampWall => PhotonSampWall_Shared
 
