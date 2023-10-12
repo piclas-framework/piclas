@@ -45,19 +45,19 @@ INTERFACE Allocate_Shared
   MODULE PROCEDURE Allocate_Shared_Logical_1
   MODULE PROCEDURE Allocate_Shared_Logical_2
   MODULE PROCEDURE Allocate_Shared_Int_1
+  MODULE PROCEDURE Allocate_Shared_Int_1_nValINT8
+  MODULE PROCEDURE Allocate_Shared_Int_1_nValKIND_DataPointKIND2
   MODULE PROCEDURE Allocate_Shared_Int_2
   MODULE PROCEDURE Allocate_Shared_Int_3
   MODULE PROCEDURE Allocate_Shared_Int_4
   ! MODULE PROCEDURE Allocate_Shared_Int_1_Kind_IK
   MODULE PROCEDURE Allocate_Shared_Real_1
+  MODULE PROCEDURE Allocate_Shared_Real_1_nValINT8
   MODULE PROCEDURE Allocate_Shared_Real_2
   MODULE PROCEDURE Allocate_Shared_Real_3
   MODULE PROCEDURE Allocate_Shared_Real_4
   MODULE PROCEDURE Allocate_Shared_Real_5
   MODULE PROCEDURE Allocate_Shared_Real_6
-  MODULE PROCEDURE Allocate_Shared_REAL_nValKIND
-  MODULE PROCEDURE Allocate_Shared_INTEGER_nValKIND
-  MODULE PROCEDURE Allocate_Shared_INTEGER_nValKIND_DataPointKIND2
 END INTERFACE
 
 PUBLIC::DefineParametersMPIShared
@@ -647,7 +647,7 @@ CALL C_F_POINTER(SM_PTR, DataPointer,nVal)
 
 END SUBROUTINE ALLOCATE_SHARED_REAL_1
 
-SUBROUTINE Allocate_Shared_REAL_nValKIND(nVal,SM_WIN,DataPointer&
+SUBROUTINE Allocate_Shared_Real_1_nValINT8(nVal,SM_WIN,DataPointer&
 #ifdef DEBUG_MEMORY
         ,SM_WIN_NAME&
 #endif /*DEBUG_MEMORY*/
@@ -660,11 +660,11 @@ USE MOD_MPI_Shared_Vars
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT/OUTPUT VARIABLES
-INTEGER(KIND=IK),INTENT(IN)                        :: nVal(1)                  !> Local number of variables in each rank
-INTEGER,INTENT(OUT)                       :: SM_WIN                   !> Shared memory window
+INTEGER(KIND=SELECTED_INT_KIND(18)),INTENT(IN) :: nVal(1)           !> Local number of variables in each rank
+INTEGER,INTENT(OUT)                       :: SM_WIN                 !> Shared memory window
 REAL   ,INTENT(OUT),POINTER               :: DataPointer(:)         !> Pointer to the RMA window
 #ifdef DEBUG_MEMORY
-CHARACTER(LEN=*),INTENT(IN)               :: SM_WIN_NAME              !> Shared memory window name
+CHARACTER(LEN=*),INTENT(IN)               :: SM_WIN_NAME            !> Shared memory window name
 #endif /*DEBUG_MEMORY*/
 !----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
@@ -696,10 +696,10 @@ END IF
 ! SM_PTR can now be associated with a Fortran pointer and thus used to access the shared data
 CALL C_F_POINTER(SM_PTR, DataPointer,nVal)
 
-END SUBROUTINE Allocate_Shared_REAL_nValKIND
+END SUBROUTINE Allocate_Shared_Real_1_nValINT8
 
 
-SUBROUTINE Allocate_Shared_INTEGER_nValKIND(nVal,SM_WIN,DataPointer&
+SUBROUTINE Allocate_Shared_Int_1_nValINT8(nVal,SM_WIN,DataPointer&
 #ifdef DEBUG_MEMORY
         ,SM_WIN_NAME&
 #endif /*DEBUG_MEMORY*/
@@ -712,11 +712,11 @@ USE MOD_MPI_Shared_Vars
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT/OUTPUT VARIABLES
-INTEGER(KIND=IK),INTENT(IN)                        :: nVal(1)                  !> Local number of variables in each rank
-INTEGER,INTENT(OUT)                       :: SM_WIN                   !> Shared memory window
-INTEGER   ,INTENT(OUT),POINTER               :: DataPointer(:)         !> Pointer to the RMA window
+INTEGER(KIND=SELECTED_INT_KIND(18)),INTENT(IN) :: nVal(1)           !> Local number of variables in each rank
+INTEGER,INTENT(OUT)                       :: SM_WIN                 !> Shared memory window
+INTEGER   ,INTENT(OUT),POINTER            :: DataPointer(:)         !> Pointer to the RMA window
 #ifdef DEBUG_MEMORY
-CHARACTER(LEN=*),INTENT(IN)               :: SM_WIN_NAME              !> Shared memory window name
+CHARACTER(LEN=*),INTENT(IN)               :: SM_WIN_NAME            !> Shared memory window name
 #endif /*DEBUG_MEMORY*/
 !----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
@@ -748,9 +748,9 @@ END IF
 ! SM_PTR can now be associated with a Fortran pointer and thus used to access the shared data
 CALL C_F_POINTER(SM_PTR, DataPointer,nVal)
 
-END SUBROUTINE Allocate_Shared_INTEGER_nValKIND
+END SUBROUTINE Allocate_Shared_Int_1_nValINT8
 
-SUBROUTINE Allocate_Shared_INTEGER_nValKIND_DataPointKIND2(nVal,SM_WIN,DataPointer&
+SUBROUTINE Allocate_Shared_Int_1_nValKIND_DataPointKIND2(nVal,SM_WIN,DataPointer&
 #ifdef DEBUG_MEMORY
         ,SM_WIN_NAME&
 #endif /*DEBUG_MEMORY*/
@@ -763,9 +763,9 @@ USE MOD_MPI_Shared_Vars
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT/OUTPUT VARIABLES
-INTEGER(KIND=IK),INTENT(IN)                        :: nVal(1)                  !> Local number of variables in each rank
+INTEGER(KIND=IK),INTENT(IN)               :: nVal(1)                  !> Local number of variables in each rank
 INTEGER,INTENT(OUT)                       :: SM_WIN                   !> Shared memory window
-INTEGER(KIND=2),INTENT(OUT),POINTER               :: DataPointer(:)         !> Pointer to the RMA window
+INTEGER(KIND=2),INTENT(OUT),POINTER       :: DataPointer(:)         !> Pointer to the RMA window
 #ifdef DEBUG_MEMORY
 CHARACTER(LEN=*),INTENT(IN)               :: SM_WIN_NAME              !> Shared memory window name
 #endif /*DEBUG_MEMORY*/
@@ -799,7 +799,7 @@ END IF
 ! SM_PTR can now be associated with a Fortran pointer and thus used to access the shared data
 CALL C_F_POINTER(SM_PTR, DataPointer,nVal)
 
-END SUBROUTINE Allocate_Shared_INTEGER_nValKIND_DataPointKIND2
+END SUBROUTINE Allocate_Shared_Int_1_nValKIND_DataPointKIND2
 
 !==================================================================================================================================
 !> Allocate data with MPI-3 shared memory option
