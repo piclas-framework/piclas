@@ -38,13 +38,15 @@ CONTAINS
 
 SUBROUTINE radiation_main(iElem)
 !===================================================================================================================================
-! Main routine of radiation solver
+! Main routine of the radiation solver, called cell-locally in the radtrans_init.f90 in each computational cell to calculate the
+! local emission and absorption coefficients needed to solve the radiative transfer equation 
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
 USE MOD_Globals_Vars,                  ONLY : Pi
 USE MOD_Radiation_Vars,                ONLY : RadiationInput, RadiationSwitches, MacroRadInputParameters, &
                                         Radiation_Emission_spec, Radiation_Absorption_spec, RadiationParameter
+USE MOD_Radiation_Vars,                ONLY : Radiation_Absorption_SpeciesWave ,Radiation_Absorption_SpecPercent
 USE MOD_Radiation_Excitation,          ONLY : radiation_excitation
 USE MOD_Radiation_Atoms,               ONLY : radiation_atoms
 USE MOD_Radiation_Molecules,           ONLY : radiation_molecules
@@ -52,6 +54,7 @@ USE MOD_Radiation_Continuum,           ONLY : radiation_continuum
 USE MOD_Radiation_InstrBroadening,     ONLY : radiation_instrbroadening
 USE MOD_PARTICLE_Vars,                 ONLY : nSpecies
 USE MOD_Mesh_Vars,                     ONLY : nGlobalElems!, offsetElem
+USE MOD_Mesh_Tools,            ONLY : GetGlobalElemID
 USE MOD_Radiation_ExportSpectrum
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE
@@ -62,20 +65,21 @@ USE MOD_Radiation_ExportSpectrum
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-  INTEGER           :: iSpec, w, io_error
+  INTEGER           :: iSpec, w, io_error, iWave
 !  REAL              :: currentWave, iRan
-  REAL              :: em_tot, em_atom, em_mol, em_cont
+  REAL              :: em_tot, em_atom, em_mol, em_cont, sumAbsSpecies
 !===================================================================================================================================
 
-!------- initialize total emission variables
+! --- initialize total emission variables
   em_atom = 0.0
   em_mol  = 0.0
   em_cont = 0.0
   em_tot  = 0.0
-
+  Radiation_Absorption_SpeciesWave = 0.0
 !IF ( ((iElem+offsetElem).NE.208) .AND. ((iElem+offsetElem).NE.228) .AND. ((iElem+offsetElem).NE.3492) &
 !.AND. ((iElem+offsetElem).NE.4743) .AND. ((iElem+offsetElem).NE.6541)) RETURN
 
+! --- get cell-local gas properties
   IF (RadiationSwitches%MacroRadInput) THEN
     DO iSpec = 1, nSpecies
       RadiationInput(iSpec)%NumDens   = MacroRadInputParameters(iElem,iSpec,1)
@@ -86,17 +90,21 @@ USE MOD_Radiation_ExportSpectrum
     END DO
   END IF
 
+! --- calculate upper state densities
   CALL radiation_excitation()
 
+! --- calculate emission and absorption coefficients of atomic bound-bound radiation
   IF (RadiationSwitches%bb_at) THEN
     CALL radiation_atoms(iElem, em_atom)
   END IF
 
+! --- calculate emission and absorption coefficients of diatomic/molecular bound-bound radiation
   IF (RadiationSwitches%bb_mol) THEN
     CALL radiation_molecules(iElem, em_mol)
   END IF
 
-  CALL radiation_continuum(iElem, em_cont)
+! --- calculate emission and absorption coefficients of contiuum radiation
+!  CALL radiation_continuum(iElem, em_cont)
 
   em_atom = em_atom * 4. * Pi
   em_mol  = em_mol  * 4. * Pi
@@ -108,8 +116,11 @@ USE MOD_Radiation_ExportSpectrum
   ! WRITE(*,*) 'continuum emission : ', em_cont, '[w/m³]'
   ! WRITE(*,*) 'total emission     : ', em_tot, '[w/m³]'
   ! WRITE(*,*) ''
-
-  ! READ*
+ 
+  DO iWave=1, RadiationParameter%WaveLenDiscrCoarse
+    sumAbsSpecies =SUM(Radiation_Absorption_SpeciesWave(iWave, :))
+    IF(sumAbsSpecies.GT.0.0) Radiation_Absorption_SpecPercent(iWave,:,GetGlobalElemID(iElem)) = NINT(Radiation_Absorption_SpeciesWave(iWave, :)/sumAbsSpecies*10000.)
+  END DO
 
   IF((RadiationSwitches%RadType.EQ.3) .AND. (nGlobalElems.EQ.1)) THEN
     OPEN(unit=20,file='Radiation_Emission_Absorption.dat',status='replace',action='write', iostat=io_error)

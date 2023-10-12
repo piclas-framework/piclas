@@ -14,7 +14,7 @@
 
 MODULE MOD_RadTrans_Output
 !===================================================================================================================================
-! Module for DSMC Sampling and Output
+! Module for output of radiative transfer solver
 !===================================================================================================================================
 ! MODULES
 ! IMPLICIT VARIABLE HANDLING
@@ -48,7 +48,7 @@ SUBROUTINE WriteRadiationToHDF5()
   USE MOD_Mesh_Vars           ,ONLY: offsetElem,nGlobalElems, MeshFile
   USE MOD_RadiationTrans_Vars ,ONLY: RadiationElemAbsEnergy_Shared, RadObservationPointMethod, RadObservation_Emission, RadObservationPoint
   USE MOD_RadiationTrans_Vars ,ONLY: Radiation_Emission_Spec_Total, RadTransPhotPerCell, RadObservation_EmissionPart
-  USE MOD_RadiationTrans_Vars ,ONLY: ObservationDoConvolution, RadObservation_Emission_Conv
+  USE MOD_RadiationTrans_Vars ,ONLY: ObservationDoConvolution, RadObservation_Emission_Conv, RadiationElemAbsEnergySpec_Shared
   USE MOD_Globals_Vars        ,ONLY: ProjectName
   USE MOD_Particle_Mesh_Vars  ,ONLY: ElemVolume_Shared
   USE MOD_Radiation_Vars      ,ONLY: RadiationSwitches, Radiation_ElemEnergy_Species, RadiationParameter, Radiation_Absorption_Spec
@@ -77,7 +77,7 @@ SUBROUTINE WriteRadiationToHDF5()
   Statedummy = 'RadiationState'
   IF (RadiationSwitches%RadType.EQ.1) THEN
     nVarSpec=2               ! _Emission, _Absorption
-    nVar=nVarSpec*nSpecies+4 ! nVarSpec + Total_Emission, Total_Absorption, Total_Heatflux, and Total_PhotonNum
+    nVar=nVarSpec*nSpecies+5 ! nVarSpec + Total_Emission, Total_Absorption, Total_Heatflux, and Total_PhotonNum
   ELSE
     nVar=4
   END IF
@@ -98,6 +98,7 @@ SUBROUTINE WriteRadiationToHDF5()
     StrVarNames(nVarCount+2)='Total_Absorption'
     StrVarNames(nVarCount+3)='Total_Heatflux'
     StrVarNames(nVarCount+4)='Total_PhotonNum'
+    StrVarNames(nVarCount+5)='Mean_OpticalDepth'
   ELSE
     StrVarNames(1)='Total_Emission'
     StrVarNames(2)='Total_Absorption'
@@ -122,32 +123,37 @@ SUBROUTINE WriteRadiationToHDF5()
     DO iElem=1,PP_nElems
       CNElemID = GetCNElemID(iElem+offSetElem)
       nVarCount=0
-      AbsTotal=0.
-      DO iSpec=1, nSpecies ! Sum over absorbtion coefficient to determine absorbed energy portion per species
-        AbsTotal = AbsTotal + Radiation_ElemEnergy_Species(iSpec,CNElemID,2)
-      END DO
+!      AbsTotal=0.
+!      DO iSpec=1, nSpecies ! Sum over absorbtion coefficient to determine absorbed energy portion per species
+!        AbsTotal = AbsTotal + Radiation_ElemEnergy_Species(iSpec,CNElemID,2)
+!      END DO
       DO iSpec=1, nSpecies
         TempOutput(nVarCount+1, iElem) = Radiation_ElemEnergy_Species(iSpec,CNElemID,1)
 !        TempOutput(nVarCount+2, iElem) = Radiation_ElemEnergy_Species(iSpec,iElem,2) !abs coefficient
-        IF (AbsTotal.GT.0) THEN
-          tempSpecAbs = Radiation_ElemEnergy_Species(iSpec,CNElemID,2)/AbsTotal * RadiationElemAbsEnergy_Shared(iElem+offSetElem)/ ElemVolume_Shared(CNElemID)
-        ELSE
-          tempSpecAbs = 0.0
-        END IF
-        TempOutput(nVarCount+2, iElem) = MAX(tempSpecAbs,0.) !lost energy
+!        IF (AbsTotal.GT.0) THEN
+!          tempSpecAbs = Radiation_ElemEnergy_Species(iSpec,CNElemID,2)/AbsTotal * RadiationElemAbsEnergy_Shared(1,iElem+offSetElem)/ ElemVolume_Shared(CNElemID)
+!        ELSE
+!          tempSpecAbs = 0.0
+!        END IF
+        TempOutput(nVarCount+2, iElem) = RadiationElemAbsEnergySpec_Shared(iSpec, iElem+offSetElem)/ ElemVolume_Shared(CNElemID) !MAX(tempSpecAbs,0.) !lost energy
         nVarCount=nVarCount+nVarSpec
       END DO
       TempOutput((nVarSpec*nSpecies+1), iElem)  = Radiation_Emission_Spec_Total(CNElemID) ! SUM(Radiation_ElemEnergy_Species(:,CNElemID,1))
-      TempOutput((nVarSpec*nSpecies+2), iElem)  = RadiationElemAbsEnergy_Shared(iElem+offSetElem)/ ElemVolume_Shared(CNElemID)
-      TempOutput(nVarSpec*nSpecies+3, iElem) = SUM(Radiation_ElemEnergy_Species(:,CNElemID,1))- RadiationElemAbsEnergy_Shared(iElem+offSetElem)/ ElemVolume_Shared(CNElemID)
+      TempOutput((nVarSpec*nSpecies+2), iElem)  = SUM(RadiationElemAbsEnergySpec_Shared(:, iElem+offSetElem))/ ElemVolume_Shared(CNElemID)
+      TempOutput(nVarSpec*nSpecies+3, iElem) = SUM(Radiation_ElemEnergy_Species(:,CNElemID,1))- SUM(RadiationElemAbsEnergySpec_Shared(:, iElem+offSetElem))/ ElemVolume_Shared(CNElemID)
       TempOutput(nVarSpec*nSpecies+4, iElem) = RadTransPhotPerCell(CNElemID)
+      IF (RadiationElemAbsEnergy_Shared(2,iElem+offSetElem).GT.0) THEN
+        TempOutput(nVarSpec*nSpecies+5, iElem) = RadiationElemAbsEnergy_Shared(1,iElem+offSetElem)/RadiationElemAbsEnergy_Shared(2,iElem+offSetElem)
+      ELSE
+        TempOutput(nVarSpec*nSpecies+5, iElem) = 0.0
+      END IF
     END DO
   ELSE IF (RadiationSwitches%RadType.EQ.2) THEN
     DO iElem=1, PP_nElems
       CNElemID = GetCNElemID(iElem+offSetElem)
       TempOutput(1, iElem) = Radiation_Emission_Spec_Total(CNElemID)
-      TempOutput(2, iElem) = RadiationElemAbsEnergy_Shared(iElem+offSetElem)/ElemVolume_Shared(CNElemID)
-      TempOutput(3, iElem) = Radiation_Emission_Spec_Total(CNElemID)- RadiationElemAbsEnergy_Shared(iElem+offSetElem)/ElemVolume_Shared(CNElemID)
+      TempOutput(2, iElem) = RadiationElemAbsEnergy_Shared(1,iElem+offSetElem)/ElemVolume_Shared(CNElemID)
+      TempOutput(3, iElem) = Radiation_Emission_Spec_Total(CNElemID)- RadiationElemAbsEnergy_Shared(1,iElem+offSetElem)/ElemVolume_Shared(CNElemID)
       TempOutput(4, iElem)  = RadTransPhotPerCell(CNElemID)
     END DO
   ELSE IF (RadiationSwitches%RadType.EQ.3) THEN
@@ -307,15 +313,17 @@ END SUBROUTINE WriteRadiationToHDF5
 #if USE_MPI
 SUBROUTINE MPI_ExchangeRadiationInfo()
 !===================================================================================================================================
-! Writes DSMC state values to HDF5
+! MPI routine for output of radiative transfer solver
 !===================================================================================================================================
 ! MODULES
   USE MOD_Globals
   USE MOD_PreProc
   USE MOD_RadiationTrans_Vars,   ONLY : RadiationElemAbsEnergy, RadiationElemAbsEnergy_Shared, RadiationElemAbsEnergy_Shared_Win
+  USE MOD_RadiationTrans_Vars,   ONLY : RadiationElemAbsEnergySpec, RadiationElemAbsEnergySpec_Shared, RadiationElemAbsEnergySpec_Shared_Win
   USE MOD_Mesh_Vars,              ONLY : nGlobalElems
   USE MOD_MPI_Shared_Vars
   USE MOD_MPI_Shared
+  USE MOD_Particle_Vars,        ONLY: nSpecies
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -328,7 +336,7 @@ SUBROUTINE MPI_ExchangeRadiationInfo()
 INTEGER       :: MessageSize, iELem
 !===================================================================================================================================
 ! collect the information from the proc-local shadow arrays in the compute-node shared array
-MessageSize = nGlobalElems
+MessageSize = 2*nGlobalElems
 
 IF (myComputeNodeRank.EQ.0) THEN
   CALL MPI_REDUCE(RadiationElemAbsEnergy,RadiationElemAbsEnergy_Shared,MessageSize,MPI_DOUBLE_PRECISION,MPI_SUM,0,MPI_COMM_SHARED,IERROR)
@@ -343,6 +351,23 @@ IF(nLeaderGroupProcs.GT.1)THEN
   END IF
 
   CALL BARRIER_AND_SYNC(RadiationElemAbsEnergy_Shared_Win    ,MPI_COMM_SHARED)
+END IF
+
+MessageSize = nSpecies*nGlobalElems
+
+IF (myComputeNodeRank.EQ.0) THEN
+  CALL MPI_REDUCE(RadiationElemAbsEnergySpec,RadiationElemAbsEnergySpec_Shared,MessageSize,MPI_DOUBLE_PRECISION,MPI_SUM,0,MPI_COMM_SHARED,IERROR)
+ELSE
+  CALL MPI_REDUCE(RadiationElemAbsEnergySpec,0                   ,MessageSize,MPI_DOUBLE_PRECISION,MPI_SUM,0,MPI_COMM_SHARED,IERROR)
+ENDIF
+CALL BARRIER_AND_SYNC(RadiationElemAbsEnergySpec_Shared_Win    ,MPI_COMM_SHARED)
+
+IF(nLeaderGroupProcs.GT.1)THEN
+  IF(myComputeNodeRank.EQ.0)THEN
+    CALL MPI_ALLREDUCE(MPI_IN_PLACE,RadiationElemAbsEnergySpec_Shared,MessageSize,MPI_DOUBLE_PRECISION,MPI_SUM,MPI_COMM_LEADERS_SHARED,iError)
+  END IF
+  
+  CALL BARRIER_AND_SYNC(RadiationElemAbsEnergySpec_Shared_Win    ,MPI_COMM_SHARED)
 END IF
 
 END SUBROUTINE MPI_ExchangeRadiationInfo

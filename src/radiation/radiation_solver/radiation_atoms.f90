@@ -38,14 +38,14 @@ CONTAINS
 
 SUBROUTINE radiation_atoms(iElem, em_atom)
 !===================================================================================================================================
-! Main routine of atom radiation calculation
+! Main routine of atomic radiation calculation
 !===================================================================================================================================
 ! MODULES
   USE MOD_Globals
   USE MOD_Globals_Vars,      ONLY   : BoltzmannConst, PlanckConst, ElementaryCharge
   USE MOD_Radiation_Vars,    ONLY   : RadiationInput, RadiationParameter, SpeciesRadiation,  &
                                       Radiation_Emission_spec, Radiation_Absorption_spec, &
-                                      NumDensElectrons, Radiation_ElemEnergy_Species
+                                      NumDensElectrons, Radiation_ElemEnergy_Species, Radiation_Absorption_SpeciesWave
   USE MOD_Particle_Vars,     ONLY   : nSpecies, Species
   USE MOD_Globals_Vars,      ONLY   : c, Pi
   USE MOD_DSMC_Vars,         ONLY   : SpecDSMC
@@ -103,7 +103,7 @@ SUBROUTINE radiation_atoms(iElem, em_atom)
     rho  = rho + RadiationInput(jSpec)%NumDens * Species(jSpec)%MassIC
     ntot = ntot + RadiationInput(jSpec)%NumDens
   END DO
-
+  
 ! --- calculation of constants
     c_emi  = PlanckConst * c / (4.*Pi)
     c_abs  = 1. / (8.*Pi*c)
@@ -113,7 +113,7 @@ SUBROUTINE radiation_atoms(iElem, em_atom)
   DO iSpec = 1, nSpecies
     IF(.NOT.RadiationInput(iSpec)%DoRadiation) CYCLE
     IF((SpecDSMC(iSpec)%InterID .NE. 1) .AND. (SpecDSMC(iSpec)%InterID .NE. 10)) CYCLE
-    IF((RadiationInput(iSpec)%Telec.LT.10.0).OR.(RadiationInput(iSpec)%NumDens.LT.10.0).OR.(RadiationInput(iSpec)%Ttrans(4).LT.10.0)) CYCLE
+    IF((RadiationInput(iSpec)%Telec.LT.10.0).OR.(RadiationInput(iSpec)%NumDens.LT.10.0).OR.(RadiationInput(iSpec)%Ttrans(4).LT.10.0)) CYCLE    
 
     ALLOCATE(lamnu(SpeciesRadiation(iSpec)%nLines))
 
@@ -143,7 +143,7 @@ SUBROUTINE radiation_atoms(iElem, em_atom)
           * SQRT(2*BoltzmannConst * T_mean * (Species(iSpec)%MassIC + Species(jSpec)%MassIC) &
           / (Pi*Species(iSpec)%MassIC*Species(jSpec)%MassIC))
       END DO
-! PRINT*, sigma_ij, T_mean, coll_freq_ij
+      
       nLines_considered = 0
 
   ! --- loop over all transition lines
@@ -263,12 +263,15 @@ SUBROUTINE radiation_atoms(iElem, em_atom)
     TempOut_Em = 0.0
     TempOut_Abs = 0.0
     DO iWave=1, RadiationParameter%WaveLenDiscr
+      iWaveCoarse = INT((iWave-1)/RadiationParameter%WaveLenReductionFactor) + 1
+      IF (iWaveCoarse.GT.RadiationParameter%WaveLenDiscrCoarse) iWaveCoarse = RadiationParameter%WaveLenDiscrCoarse
       TempOut_Em  = TempOut_Em + 4.*Pi*epsilon_iSpec(iWave)*RadiationParameter%WaveLenIncr
       TempOut_Abs = TempOut_Abs + abs_iSpec(iWave)*RadiationParameter%WaveLenIncr
+      Radiation_Absorption_SpeciesWave(iWaveCoarse, iSpec) = Radiation_Absorption_SpeciesWave(iWaveCoarse, iSpec) + abs_iSpec(iWave)*RadiationParameter%WaveLenIncr
     END DO
     Radiation_ElemEnergy_Species(iSpec,iElem,1) = TempOut_Em
     Radiation_ElemEnergy_Species(iSpec,iElem,2) = TempOut_Abs
-
+    
     DEALLOCATE(lamnu)
 
   END DO
@@ -301,6 +304,7 @@ SUBROUTINE Radiation_Atomic_Transition_Line_Profile(Radiation_Profile, wavelengt
 ! MODULES
   USE MOD_Globals
   USE MOD_Radiation_Vars,    ONLY   : RadiationParameter
+  USE MOD_Mesh_Tools,        ONLY : GetGlobalElemID
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -352,8 +356,8 @@ SUBROUTINE Radiation_Atomic_Transition_Line_Profile(Radiation_Profile, wavelengt
         iWave = startwavelength_int+i
         iWaveCoarse = INT((iWave-1)/RadiationParameter%WaveLenReductionFactor) + 1
         IF (iWaveCoarse.GT.RadiationParameter%WaveLenDiscrCoarse) iWaveCoarse = RadiationParameter%WaveLenDiscrCoarse
-        Radiation_Absorption_spec(iWaveCoarse,iElem) &
-          = Radiation_Absorption_spec(iWaveCoarse,iElem)+MAX(0.0,abstot)*Radiation_Profile(iWave)/RadiationParameter%WaveLenReductionFactor 
+        Radiation_Absorption_spec(iWaveCoarse,GetGlobalElemID(iElem)) &
+          = Radiation_Absorption_spec(iWaveCoarse,GetGlobalElemID(iElem))+MAX(0.0,abstot)*Radiation_Profile(iWave)/RadiationParameter%WaveLenReductionFactor 
       END DO
 
     END IF

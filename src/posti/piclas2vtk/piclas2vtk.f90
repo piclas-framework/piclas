@@ -1046,7 +1046,7 @@ IF (nVarAdd.GT.0) THEN
     CALL ReadArray(TRIM(ArrayName),2,(/nVarAdd, nElems/),offsetElem,2,RealArray=ElemData(1:nVarAdd,1:nElems))
   END ASSOCIATE
   ! Default
-  FileString=TRIM(TIMESTAMP(TRIM(ProjectName)//'_Solution_'//TRIM(ArrayName),OutputTime))//'.vtu'
+  IF(TRIM(File_Type).NE.'RadiationState') FileString=TRIM(TIMESTAMP(TRIM(ProjectName)//'_Solution_'//TRIM(ArrayName),OutputTime))//'.vtu'
   ! Special file types
   SELECT CASE(TRIM(File_Type))
     CASE('DSMCState','DSMCHOState')

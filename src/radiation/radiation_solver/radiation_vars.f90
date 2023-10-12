@@ -13,7 +13,7 @@
 !==================================================================================================================================
 MODULE MOD_Radiation_Vars
 !===================================================================================================================================
-! Contains the FP Flow variables
+! Contains the radiation variables
 !===================================================================================================================================
 ! MODULES
 ! IMPLICIT VARIABLE HANDLING
@@ -95,6 +95,7 @@ END TYPE tSpeciesRadiation
 
 TYPE(tSpeciesRadiation), ALLOCATABLE     :: SpeciesRadiation(:)         ! (nSpec)
 
+REAL, ALLOCATABLE       :: Radiation_Absorption_SpeciesWave(:,:)
 !REAL, ALLOCATABLE       :: Radiation_NumDens
 REAL, ALLOCPOINT       :: Radiation_ElemEnergy_Species(:,:,:)! (number of species, number of mesh elements, 2(Emission,Absorption))
 
@@ -102,6 +103,7 @@ REAL, ALLOCPOINT       :: Radiation_ElemEnergy_Species(:,:,:)! (number of specie
 
 REAL,ALLOCPOINT                 :: Radiation_Emission_spec(:,:)     ! (WaveLen(:), number of mesh elements)
 REAL,ALLOCPOINT                 :: Radiation_Absorption_spec(:,:)     ! (WaveLen(:), number of mesh elements)
+INTEGER(KIND = 2), ALLOCPOINT   :: Radiation_Absorption_SpecPercent(:,:,:)  ! 1:RadiationParameter%WaveLenDiscrCoarse ,1:nSpecies, 1:nGlobalElems, KIND=2? TODO
 
 REAL,ALLOCPOINT                 :: MacroRadInputParameters(:,:,:)   ! DSMC Output file (iElem, iSpec, 5 (density, Tvib, Trot, Telec, Ttrans_mean))
 
@@ -112,6 +114,8 @@ INTEGER                         :: Radiation_Emission_Spec_Shared_Win
 REAL,ALLOCPOINT                 :: Radiation_Emission_Spec_Shared(:,:)
 INTEGER                         :: Radiation_Absorption_Spec_Shared_Win
 REAL,ALLOCPOINT                 :: Radiation_Absorption_Spec_Shared(:)
+INTEGER                         :: Radiation_Absorption_SpecPercent_Shared_Win
+INTEGER(KIND = 2),ALLOCPOINT    :: Radiation_Absorption_SpecPercent_Shared(:)
 INTEGER                         :: Radiation_ElemEnergy_Species_Shared_Win
 REAL,ALLOCPOINT                 :: Radiation_ElemEnergy_Species_Shared(:,:,:)
 #endif

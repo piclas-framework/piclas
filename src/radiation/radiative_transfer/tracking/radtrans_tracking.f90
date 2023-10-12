@@ -14,7 +14,7 @@
 
 MODULE MOD_Photon_Tracking
 !===================================================================================================================================
-! Contains global variables provided by the particle surfaces routines
+! Routines for photon tracking in radiave transfer solver
 !===================================================================================================================================
 ! MODULES
 ! IMPLICIT VARIABLE HANDLING
@@ -763,7 +763,7 @@ INTEGER                          :: ElemID, OldElemID, LocalSide, NrOfThroughSid
 INTEGER                          :: SideID, TempSideID, iLocSide, correctSide, LastSide
 INTEGER                          :: LocSidesTemp(1:6), GlobSideTemp(1:6)
 LOGICAL                          :: oldElemIsMortar, isMortarSideTemp(1:6), isLastSide, ThroughSide, Done
-REAL                             :: IntersectionPos(1:6), IntersectionPosTemp(1:6,3), DistanceTemp(1:6), Distance
+REAL                             :: IntersectionPos(1:6), IntersectionPosTemp(1:6,4), DistanceTemp(1:6), Distance
 !===================================================================================================================================
 Done = .FALSE.
 ElemID = PhotonProps%ElemID

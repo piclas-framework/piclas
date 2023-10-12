@@ -14,7 +14,7 @@
 
 MODULE MOD_Radiation_Excitation
 !===================================================================================================================================
-! Module for calculation of the excited state density for radiation transitions
+! Module for calculation of the excited state density for radiative transitions
 !===================================================================================================================================
 ! MODULES
 ! IMPLICIT VARIABLE HANDLING

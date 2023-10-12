@@ -14,7 +14,7 @@
 
 MODULE MOD_Photon_TrackingTools
 !===================================================================================================================================
-! Contains global variables provided by the particle surfaces routines
+! Routines for photon tracking in radiave transfer solver
 !===================================================================================================================================
 ! MODULES
 ! IMPLICIT VARIABLE HANDLING
@@ -797,7 +797,7 @@ END SUBROUTINE GetNestestDOFInRefElem
 
 
 !===================================================================================================================================
-!>
+!> Calculates absorbed energy of photons along their paths stochastically
 !===================================================================================================================================
 SUBROUTINE CalcAbsoprtionMC(IntersectionPos,Element, DONE)
 USE MOD_Photon_TrackingVars ,ONLY: PhotonProps
@@ -828,7 +828,7 @@ END SUBROUTINE CalcAbsoprtionMC
 
 
 !===================================================================================================================================
-!>
+!> Calculates absorbed energy of photons along their paths analytically
 !===================================================================================================================================
 SUBROUTINE CalcAbsoprtionAnalytic(IntersectionPos,Element)!, DONE)
 !DEC$ ATTRIBUTES FORCEINLINE :: ParticleThroughSideLastPosCheck
@@ -868,7 +868,7 @@ END SUBROUTINE CalcAbsoprtionAnalytic
 
 
 !===================================================================================================================================
-!>
+!> Calculates absorbed energy of photons along their paths
 !===================================================================================================================================
 SUBROUTINE CalcAbsoprtion(IntersectionPos, Element, DONE, before)
 USE MOD_Globals
@@ -916,7 +916,7 @@ END SUBROUTINE CalcAbsoprtion
 
 
 !===================================================================================================================================
-!> Based on PerfectReflection3D
+!> Determines velocity vectors of photons after a perfect reflection at a boundary
 !===================================================================================================================================
 SUBROUTINE PerfectPhotonReflection(iLocSide,Element,TriNum, IntersectionPos, IntersecAlreadyCalc)
 USE MOD_Particle_Mesh_Vars  ,ONLY: NodeCoords_Shared, ElemSideNodeID_Shared
@@ -1417,7 +1417,7 @@ END SUBROUTINE CalcWallAbsoprtion
 
 LOGICAL FUNCTION PointInObsCone(Point)
 !===================================================================================================================================
-! modified particle emmission for LD case
+! Checks if a point is in the opening cone of an external observer
 !===================================================================================================================================
 ! MODULES
   USE MOD_Globals
@@ -1444,7 +1444,7 @@ END FUNCTION PointInObsCone
 
 LOGICAL FUNCTION PhotonIntersectSensor(Point, Direction)
 !===================================================================================================================================
-! modified particle emmission for LD case
+! Checks if the photon's apth intersect with the opening cone of an external observer
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
@@ -1481,7 +1481,7 @@ END FUNCTION PhotonIntersectSensor
 
 LOGICAL FUNCTION PhotonOnLineOfSight(Direction)
 !===================================================================================================================================
-! modified particle emmission for LD case
+! Checks if a photon is on the simulated line of sight
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals

@@ -38,14 +38,14 @@ CONTAINS
 
 SUBROUTINE radiation_molecules(iElem, em_mol)
 !===================================================================================================================================
-! Main routine of atom radiation calculation
+! Main routine of molecular radiation calculation
 !===================================================================================================================================
 ! MODULES
   USE MOD_Globals
   USE MOD_Globals_Vars,      ONLY   : BoltzmannConst, PlanckConst, AtomicMassUnit, Pi, c
   USE MOD_Radiation_Vars,    ONLY   : RadiationInput, RadiationParameter, SpeciesRadiation,  &
                                       Radiation_Emission_spec, Radiation_Absorption_spec, NumDensElectrons, TElectrons, &
-                                      Radiation_ElemEnergy_Species
+                                      Radiation_ElemEnergy_Species, Radiation_Absorption_SpeciesWave
   USE MOD_Particle_Vars,     ONLY   : nSpecies, Species
   USE MOD_DSMC_Vars,         ONLY   : SpecDSMC
 
@@ -998,8 +998,11 @@ SUBROUTINE radiation_molecules(iElem, em_mol)
     TempOut_Em  = 0.0
     TempOut_Abs = 0.0
     DO iWave=1, RadiationParameter%WaveLenDiscr
+      iWaveCoarse = INT((iWave-1)/RadiationParameter%WaveLenReductionFactor) + 1
+      IF (iWaveCoarse.GT.RadiationParameter%WaveLenDiscrCoarse) iWaveCoarse = RadiationParameter%WaveLenDiscrCoarse
       TempOut_Em  = TempOut_Em + 4.*Pi*epsilon_iSpec(iWave)*RadiationParameter%WaveLenIncr
       TempOut_Abs = TempOut_Abs + abs_iSpec(iWave)*RadiationParameter%WaveLenIncr
+      Radiation_Absorption_SpeciesWave(iWaveCoarse, iSpec) = Radiation_Absorption_SpeciesWave(iWaveCoarse, iSpec) + abs_iSpec(iWave)*RadiationParameter%WaveLenIncr
     END DO
     Radiation_ElemEnergy_Species(iSpec,iElem,1) = TempOut_Em
     Radiation_ElemEnergy_Species(iSpec,iElem,2) = TempOut_Abs
@@ -1085,6 +1088,7 @@ SUBROUTINE Radiation_Molecular_Transition_Line_Profile(Radiation_Profile, nubar,
 ! MODULES
   USE MOD_Globals
   USE MOD_Radiation_Vars,    ONLY   : RadiationParameter
+  USE MOD_Mesh_Tools,            ONLY : GetGlobalElemID
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1137,8 +1141,8 @@ SUBROUTINE Radiation_Molecular_Transition_Line_Profile(Radiation_Profile, nubar,
         iWave = startwavelength_int+i
         iWaveCoarse = INT((iWave-1)/RadiationParameter%WaveLenReductionFactor) + 1
         IF (iWaveCoarse.GT.RadiationParameter%WaveLenDiscrCoarse) iWaveCoarse = RadiationParameter%WaveLenDiscrCoarse
-        Radiation_Absorption_spec(iWaveCoarse,iElem) &
-          = Radiation_Absorption_spec(iWaveCoarse,iElem)+MAX(0.0,abstot)/1.E10*Radiation_Profile(iWave)/RadiationParameter%WaveLenReductionFactor
+        Radiation_Absorption_spec(iWaveCoarse,GetGlobalElemID(iElem)) &
+          = Radiation_Absorption_spec(iWaveCoarse,GetGlobalElemID(iElem))+MAX(0.0,abstot)/1.E10*Radiation_Profile(iWave)/RadiationParameter%WaveLenReductionFactor
       END DO
 
     END IF

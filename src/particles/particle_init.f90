@@ -281,6 +281,11 @@ IF(UseRayTracing)THEN
   END IF ! FILEEXISTS(RadiationSurfState).AND.FILEEXISTS(RadiationVolState)
 END IF ! UseRayTracing
 
+#if (PP_TimeDiscMethod==600)
+! Radiation solver/transport
+PerformRayTracing = .TRUE. !todo: uncomment if merged with feature.radtrans.ray.tracing
+#endif
+
 LBWRITE(UNIT_stdOut,'(A)')' INIT PARTICLE GLOBALS DONE'
 
 END SUBROUTINE InitParticleGlobals
