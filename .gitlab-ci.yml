@@ -3,7 +3,11 @@
 # Load modules on new boltzplatz reggie
 before_script:
   - ulimit -s unlimited
-  - module list
+  - if [ -n "$(command -v module)" ]; then
+      module list;
+    else
+      echo " Error. Command [module] not found.";
+    fi
   - python3 -V || true
   - python2 -V || true
   - if [ -n "${DO_CORE_SPLIT}" ]; then
@@ -224,7 +228,9 @@ reggie_download:
     policy: push
   stage: build
   script:
-    - git clone git@piclas.boltzplatz.eu:reggie2.0/reggie2.0.git reggie
+    - if [ ! -d "reggie" ]; then
+        git clone git@piclas.boltzplatz.eu:reggie2.0/reggie2.0.git reggie;
+      fi
 
 build:
   extends: .default_build_param
