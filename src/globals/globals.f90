@@ -50,10 +50,12 @@ LOGICAL            :: MemoryMonitor      !> Flag for turning RAM monitoring ON/O
 
 INTEGER            :: doPrintHelp ! 0: no help, 1: help, 2: markdown-help
 
+! SELECTED_INT_KIND(R) return the kind value of the smallest integer type that can represent all values ranging from -10^R (exclusive)
+! to 10^R (exclusive). If there is no integer kind that accommodates this range, SELECTED_INT_KIND returns -1.
 #ifdef INTKIND8
-INTEGER, PARAMETER :: IK = SELECTED_INT_KIND(18)
+INTEGER, PARAMETER :: IK = SELECTED_INT_KIND(18) ! Value of selected_int_kind(18) is 8
 #else
-INTEGER, PARAMETER :: IK = SELECTED_INT_KIND(8)
+INTEGER, PARAMETER :: IK = SELECTED_INT_KIND(8)  ! Value of selected_int_kind(8)  is 4
 #endif
 
 #if defined(PARTICLES)
