@@ -151,8 +151,8 @@ SUBROUTINE WriteRadiationToHDF5()
     DO iElem=1, PP_nElems
       CNElemID = GetCNElemID(iElem+offSetElem)
       TempOutput(1, iElem) = Radiation_Emission_Spec_Total(CNElemID)
-      TempOutput(2, iElem) = RadiationElemAbsEnergy_Shared(1,iElem+offSetElem)/ElemVolume_Shared(CNElemID)
-      TempOutput(3, iElem) = Radiation_Emission_Spec_Total(CNElemID)- RadiationElemAbsEnergy_Shared(1,iElem+offSetElem)/ElemVolume_Shared(CNElemID)
+      TempOutput(2, iElem) = RadiationElemAbsEnergySpec_Shared(1,iElem+offSetElem)/ElemVolume_Shared(CNElemID)
+      TempOutput(3, iElem) = Radiation_Emission_Spec_Total(CNElemID)- RadiationElemAbsEnergySpec_Shared(1,iElem+offSetElem)/ElemVolume_Shared(CNElemID)
       TempOutput(4, iElem)  = RadTransPhotPerCell(CNElemID)
     END DO
   ELSE IF (RadiationSwitches%RadType.EQ.3) THEN

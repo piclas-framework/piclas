@@ -181,8 +181,9 @@ USE MOD_ReadInTools
         READ(304,*,IOSTAT = errtemp) hilf 
       END DO
       charlen = LEN_TRIM(hilf)
-      hilf = TRIM(hilf(1:charlen-1))
-      hilf = TRIM(hilf(7:charlen-1))
+      hilf(1:charlen-7) = hilf(7:charlen-1)
+      hilf(charlen-6:charlen) = ' '
+      hilf=TRIM(hilf)
       SpeciesRadiation(iSpec)%BandName(iLoop) = hilf
       
       READ(304,*,IOSTAT = errtemp) hilf 

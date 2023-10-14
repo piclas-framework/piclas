@@ -212,7 +212,7 @@ END DO
 IF (RadiationParameter%WaveLenReductionFactor.NE.1) THEN
   RadiationParameter%WaveLenIncrCoarse = (RadiationParameter%MaxWaveLen - RadiationParameter%MinWaveLen) &
   / (RadiationParameter%WaveLenDiscr*RadiationParameter%WaveLenReductionFactor-1)
-  DO iWaveLen = 1, RadiationParameter%WaveLenIncrCoarse
+  DO iWaveLen = 1, NINT(RadiationParameter%WaveLenIncrCoarse)
     RadiationParameter%WaveLenCoarse(iWaveLen) = RadiationParameter%MinWaveLen + (iWaveLen-1) * RadiationParameter%WaveLenIncrCoarse
   END DO
 END IF

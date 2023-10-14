@@ -655,7 +655,7 @@ SUBROUTINE CalcAbsoprtionAnalytic(IntersectionPos,Element, DONE)
   USE MOD_Globals
   USE MOD_RadiationTrans_Vars,         ONLY:PhotonProps, RadTrans
   USE MOD_RadiationTrans_Vars,         ONLY:RadiationElemAbsEnergy, RadiationElemAbsEnergySpec
-  USE MOD_Radiation_Vars,              ONLY:Radiation_Absorption_spec, Radiation_Absorption_SpecPercent
+  USE MOD_Radiation_Vars,              ONLY:Radiation_Absorption_spec, Radiation_Absorption_SpecPercent, RadiationSwitches
 !--------------------------------------------------------------------------------------------------!
   IMPLICIT NONE                                                                                    !
 !--------------------------------------------------------------------------------------------------!
