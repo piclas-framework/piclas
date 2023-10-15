@@ -78,6 +78,7 @@ USE MOD_Globals_Vars,           ONLY : BoltzmannConst, PlanckConst
 USE MOD_Particle_Boundary_Sampling, ONLY : InitParticleBoundarySampling
 USE MOD_Particle_Boundary_Vars, ONLY : nComputeNodeSurfTotalSides,nSurfSample
 USE MOD_Radiation_Vars,         ONLY : RadiationParameter, Radiation_Emission_spec, Radiation_Absorption_spec, RadiationSwitches
+USE MOD_Radiation_Vars,         ONLY : Radiation_Absorption_SpecPercent
 USE MOD_RadiationTrans_Vars,    ONLY : RadObservation_Emission
 USE MOD_Radiation,              ONLY : radiation_main
 USE MOD_DSMC_Vars,              ONLY: RadialWeighting
@@ -361,6 +362,7 @@ CASE(2) ! Black body radiation
   DO iElem = firstElem, lastElem
     DO iWave = 1, RadiationParameter%WaveLenDiscr
       Radiation_Absorption_Spec(iWave, GetGlobalElemID(iElem)) = 1.
+      Radiation_Absorption_SpecPercent(iWave,:,GetGlobalElemID(iElem)) = 10000
     END DO
   END DO  
 CASE(3) !only radiation
