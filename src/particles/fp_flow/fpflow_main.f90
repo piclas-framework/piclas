@@ -52,7 +52,7 @@ USE MOD_TimeDisc_Vars       ,ONLY: TEnd, Time
 USE MOD_Mesh_Vars           ,ONLY: nElems, offsetElem
 USE MOD_Particle_Vars       ,ONLY: PEM, Species, WriteMacroVolumeValues, Symmetry, usevMPF
 USE MOD_FP_CollOperator     ,ONLY: FP_CollisionOperator
-USE MOD_FPFlow_Vars         
+USE MOD_FPFlow_Vars
 USE MOD_DSMC_Vars           ,ONLY: DSMC, RadialWeighting, VarWeighting
 USE MOD_BGK_Vars            ,ONLY: DoBGKCellAdaptation
 USE MOD_BGK_Adaptation      ,ONLY: BGK_octree_adapt, BGK_quadtree_adapt
@@ -178,7 +178,8 @@ USE MOD_BGK_Vars            ,ONLY: DoBGKCellAdaptation
 USE MOD_BGK_Adaptation      ,ONLY: BGK_octree_adapt, BGK_quadtree_adapt
 USE MOD_FPFlow_Vars         ,ONLY: FP_QualityFacSamp, FP_PrandtlNumber
 USE MOD_FPFlow_Vars         ,ONLY: FP_MaxRelaxFactor, FP_MaxRotRelaxFactor, FP_MeanRelaxFactor, FP_MeanRelaxFactorCounter
-USE MOD_Particle_Mesh_Vars  ,ONLY: ElemVolume_Shared
+USE MOD_Particle_Mesh_Vars  ,ONLY: ElemVolume_Shared, DoSubcellAdaption
+USE MOD_Cell_Adaption       ,ONLY: MeshAdaption
 USE MOD_Mesh_Tools          ,ONLY: GetCNElemID
 USE MOD_DSMC_Analyze        ,ONLY: DSMCMacroSampling
 ! IMPLICIT VARIABLE HANDLING
@@ -202,12 +203,16 @@ IF (DoBGKCellAdaptation) THEN
       CALL BGK_octree_adapt(iElem)
     END IF
   END DO
+ELSE IF (DoSubcellAdaption) THEN
+  DO iElem = 1, nElems
+    CALL MeshAdaption(iElem)
+  END DO
 ELSE
   DO iElem = 1, nElems
     CNElemID = GetCNElemID(iElem + offsetElem)
     nPart = PEM%pNumber(iElem)
     IF (DoVirtualCellMerge) THEN
-      IF(VirtMergedCells(iElem)%isMerged) CYCLE      
+      IF(VirtMergedCells(iElem)%isMerged) CYCLE
       nPartMerged = nPart
       DO iMergeElem = 1, VirtMergedCells(iElem)%NumOfMergedCells
         nPartMerged = nPartMerged + PEM%pNumber(VirtMergedCells(iElem)%MergedCellID(iMergeElem))
@@ -235,9 +240,9 @@ ELSE
         elemVolume = VirtMergedCells(iELem)%MergedVolume
       ELSE
         elemVolume = ElemVolume_Shared(CNElemID)
-      END IF        
-    ELSE      
-      nPartMerged = nPart   
+      END IF
+    ELSE
+      nPartMerged = nPart
       IF ((nPart.EQ.0).OR.(nPart.EQ.1)) CYCLE
       ALLOCATE(iPartIndx_Node(nPart))
       iPart = PEM%pStart(iElem)

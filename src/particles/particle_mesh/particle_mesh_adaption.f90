@@ -466,7 +466,7 @@ DO iLoop = 1, nPart
 END DO
 
  ! If the minimum particle number is not given in all subcells, merge subcells together
-IF (MINVAL(SubPartNum,MASK = SubPartNum .GT.0).LT.MinPartCell) THEN
+IF (MINVAL(SubPartNum).LT.MinPartCell) THEN
   CALL CombineSubcellsIter(iElem)
 ELSE
   ! Collision routines for the subcells, considered are only the particles in the respective subcell
@@ -512,7 +512,7 @@ USE MOD_Mesh_Vars              ,ONLY: nElems, offSetElem, SurfElem, sJ, Face_xGP
 USE MOD_Eval_xyz               ,ONLY: GetPositionInRefElem
 USE MOD_BGK_CollOperator       ,ONLY: BGK_CollisionOperator
 USE MOD_FP_CollOperator        ,ONLY: FP_CollisionOperator
-USE MOD_DSMC_ParticlePairing   ,ONLY: PerformPairingAndCollision, MapToGeo2D
+USE MOD_DSMC_ParticlePairing   ,ONLY: PerformPairingAndCollision, MapToGeo2D, GeoCoordToMap2D
 USE MOD_Particle_Tracking_Vars ,ONLY: TrackingMethod
 USE MOD_Interpolation_Vars     ,ONLY: xGP, wBary
 USE MOD_Basis                  ,ONLY: InitializeVandermonde
@@ -625,7 +625,8 @@ DO iLoop = 1, nPart
     PartPosMapped(1:3) = PartPosRef(1:3,iPart)
   ELSE
 #if PP_TimeDiscMethod==300
-  CALL GetPositionInRefElem(PartState(1:3,iPart),PartPosMapped(1:3),GlobalElemID)
+  CALL GeoCoordToMap2D(PartState(1:2,iPart), PartPosMapped(1:2), iElem)
+  PartPosMapped(3) = 0.
 #else
     ! Attention: LastPartPos is the reference position here
     PartPosMapped(1:3)=LastPartPos(1:3,iPart)
@@ -652,7 +653,7 @@ DO iLoop = 1, nPart
 END DO
 
  ! If the minimum particle number is not given in all subcells, merge subcells together
-IF (MINVAL(SubPartNum,MASK = SubPartNum .GT.0).LT.MinPartCell) THEN
+IF (MINVAL(SubPartNum).LT.MinPartCell) THEN
   CALL CombineSubcellsIter(iElem)
   !CALL CombineSubcells(iELem)
 ELSE
@@ -811,7 +812,7 @@ USE MOD_Mesh_Vars              ,ONLY: nElems, offSetElem, SurfElem
 USE MOD_Eval_xyz               ,ONLY: GetPositionInRefElem
 USE MOD_BGK_CollOperator       ,ONLY: BGK_CollisionOperator
 USE MOD_FP_CollOperator        ,ONLY: FP_CollisionOperator
-USE MOD_DSMC_ParticlePairing   ,ONLY: PerformPairingAndCollision
+USE MOD_DSMC_ParticlePairing   ,ONLY: PerformPairingAndCollision, GeoCoordToMap2D
 USE MOD_Particle_Tracking_Vars ,ONLY: TrackingMethod
 !-----------------------------------------------------------------------------------------------------------------------------------
   IMPLICIT NONE
@@ -855,7 +856,8 @@ DO iLoop = 1, nPart
     PartPosMapped(1:3) = PartPosRef(1:3,iPart)
   ELSE
 #if PP_TimeDiscMethod==300
-  CALL GetPositionInRefElem(PartState(1:3,iPart),PartPosMapped(1:3),GlobalElemID)
+  CALL GeoCoordToMap2D(PartState(1:2,iPart), PartPosMapped(1:2), iElem)
+  PartPosMapped(3) = 0.
 #else
     ! Attention: LastPartPos is the reference position here
     PartPosMapped(1:3)=LastPartPos(1:3,iPart)
@@ -888,19 +890,21 @@ DO iLoop = 1, nPart
 END DO
 
 DO iCell = 1, nCells2D
-  IF (SubPartNum(iCell).GT.0) THEN
+  IF (AdaptMesh(iElem)%SubVolume(iCell).GT.0.) THEN
+    IF (SubPartNum(iCell).GT.2) THEN
 #if (PP_TimeDiscMethod==300)
-    CALL FP_CollisionOperator(SubPartIndx(iCell,1:SubPartNum(iCell)), SubPartNum(iCell), AdaptMesh(iElem)%SubVolume(iCell))
+      CALL FP_CollisionOperator(SubPartIndx(iCell,1:SubPartNum(iCell)), SubPartNum(iCell), AdaptMesh(iElem)%SubVolume(iCell))
 #elif (PP_TimeDiscMethod==400)
-    IF (BGKMovingAverage) THEN
-      CALL BGK_CollisionOperator(SubPartIndx(iCell,1:SubPartNum(iCell)), SubPartNum(iCell), AdaptMesh(iElem)%SubVolume(iCell), &
-      ElemNodeAveraging(iElem)%Root%AverageValues(:))
-    ELSE
-      CALL BGK_CollisionOperator(SubPartIndx(iCell,1:SubPartNum(iCell)), SubPartNum(iCell), AdaptMesh(iElem)%SubVolume(iCell))
-    END IF
+      IF (BGKMovingAverage) THEN
+        CALL BGK_CollisionOperator(SubPartIndx(iCell,1:SubPartNum(iCell)), SubPartNum(iCell), AdaptMesh(iElem)%SubVolume(iCell), &
+        ElemNodeAveraging(iElem)%Root%AverageValues(:))
+      ELSE
+        CALL BGK_CollisionOperator(SubPartIndx(iCell,1:SubPartNum(iCell)), SubPartNum(iCell), AdaptMesh(iElem)%SubVolume(iCell))
+      END IF
 #else
-    CALL PerformPairingAndCollision(SubPartIndx(iCell,1:SubPartNum(iCell)), SubPartNum(iCell), iElem, AdaptMesh(iElem)%Subvolume(iCell))
+      CALL PerformPairingAndCollision(SubPartIndx(iCell,1:SubPartNum(iCell)), SubPartNum(iCell), iElem, AdaptMesh(iElem)%Subvolume(iCell))
 #endif
+    END IF
   END IF
 END DO
 
@@ -997,7 +1001,7 @@ DO iLoop = 1, nPart
 END DO
 
   ! If the minimum particle number is not given in all subcells, merge subcells together
-IF (MINVAL(SubPartNum,MASK = SubPartNum .GT.0).LT.MinPartCell) THEN
+IF (MINVAL(SubPartNum).LT.MinPartCell) THEN
   CALL CombineSubcells(iElem)
 ELSE! Collision routines for the subcells, considered are only the particles in the respective subcell
   DO iCell = 1, nCells
@@ -1040,7 +1044,7 @@ USE MOD_Mesh_Vars              ,ONLY: nElems, offSetElem, SurfElem, sJ, Face_xGP
 USE MOD_Eval_xyz               ,ONLY: GetPositionInRefElem
 USE MOD_BGK_CollOperator       ,ONLY: BGK_CollisionOperator
 USE MOD_FP_CollOperator        ,ONLY: FP_CollisionOperator
-USE MOD_DSMC_ParticlePairing   ,ONLY: PerformPairingAndCollision, MapToGeo2D
+USE MOD_DSMC_ParticlePairing   ,ONLY: PerformPairingAndCollision, MapToGeo2D, GeoCoordToMap2D
 USE MOD_Particle_Tracking_Vars ,ONLY: TrackingMethod
 USE MOD_Interpolation_Vars     ,ONLY: xGP, wBary
 USE MOD_Basis                  ,ONLY: InitializeVandermonde
@@ -1087,7 +1091,8 @@ DO iLoop = 1, nPart
     PartPosMapped(1:3) = PartPosRef(1:3,iPart)
   ELSE
 #if PP_TimeDiscMethod==300
-  CALL GetPositionInRefElem(PartState(1:3,iPart),PartPosMapped(1:3),GlobalElemID)
+  CALL GeoCoordToMap2D(PartState(1:2,iPart), PartPosMapped(1:2), iElem)
+  PartPosMapped(3) = 0.
 #else
     ! Attention: LastPartPos is the reference position here
     PartPosMapped(1:3)=LastPartPos(1:3,iPart)
@@ -1114,7 +1119,7 @@ DO iLoop = 1, nPart
 END DO
 
 ! If the minimum particle number is not given in all subcells, merge subcells together
-IF (MINVAL(SubPartNum,MASK = SubPartNum .GT.0).LT.MinPartCell) THEN
+IF (MINVAL(SubPartNum).LT.MinPartCell) THEN
   CALL CombineSubcells(iElem)
 ELSE
   ! Collision routines for the subcells, considered are only the particles in the respective subcell

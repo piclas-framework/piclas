@@ -140,7 +140,7 @@ CoupledFPDSMC = GETLOGICAL('Particles-CoupledFPDSMC')
 ALLOCATE(FP_CBC%DoElementDSMC(nElems))
 FP_CBC%DoElementDSMC = .FALSE.
 IF(CoupledFPDSMC) THEN
-  IF (DoVirtualCellMerge) THEN  
+  IF (DoVirtualCellMerge) THEN
     CALL abort(__STAMP__,' Virtual cell merge not implemented for coupled DSMC-FP simulations!')
   END IF
   ! Coupling criteria DSMC

@@ -78,6 +78,9 @@ USE MOD_HDF5_Input              ,ONLY: OpenDataFile, CloseDataFile, ReadArray, R
 USE MOD_HDF5_Input              ,ONLY: GetDataSize, nDims, HSize, File_ID
 USE MOD_Restart_Vars            ,ONLY: DoMacroscopicRestart, MacroRestartFileName
 USE MOD_StringTools             ,ONLY: STRICMP
+#if USE_LOADBALANCE
+USE MOD_LoadBalance_Vars        ,ONLY: PerformLoadBalance
+#endif /*USE_LOADBALANCE*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -98,9 +101,8 @@ SWRITE(UNIT_stdOut,'(A)') ' INIT ADAPTIVE PARTICLE WEIGHTS...'
 
 nVar_TotalPartNum = 0; nVar_TotalDens = 0; nVar_Ratio_FP = 0; nVar_Ratio_BGK = 0; nVar_DSMC = 0; nVar_BGK = 0; nVar_AdaptMPF = 0
 
-CALL InitNodeMapping
-
-IF(AdaptMPF%DoAdaptMPF) THEN
+IF(AdaptMPF%DoAdaptMPF.AND.(.NOT.PerformLoadBalance)) THEN
+  CALL InitNodeMapping
 
   AdaptMPF%SkipAdaption       = GETLOGICAL('Part-AdaptMPF-SkipAdaption')
 

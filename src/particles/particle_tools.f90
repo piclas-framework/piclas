@@ -565,16 +565,16 @@ REAL FUNCTION CalcVarWeightMPF(Pos, iSpec, iElem, iPart)
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_DSMC_Vars               
+USE MOD_DSMC_Vars
 USE MOD_Particle_Vars           ,ONLY: PEM
 USE MOD_Mesh_Vars               ,ONLY: offSetElem
-USE MOD_Particle_Mesh_Vars      
+USE MOD_Particle_Mesh_Vars
 USE MOD_Mesh_Tools              ,ONLY: GetCNElemID
 USE MOD_Eval_xyz                ,ONLY: GetPositionInRefElem
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES  
+! INPUT VARIABLES
 REAL, OPTIONAL                  :: Pos(3)
 INTEGER, INTENT(IN)             :: iSpec
 INTEGER, OPTIONAL,INTENT(IN)    :: iPart, iElem
@@ -621,7 +621,7 @@ IF (AdaptMPF%UseOptMPF.AND.PRESENT(iElem)) THEN
     END DO
     DistSum = SUM(PartDistDepo(1:8))
     DO iNode = 1, 8
-      MPFSum = MPFSum + PartDistDepo(iNode)/DistSum*NodeValue(1,NodeID(iNode)) 
+      MPFSum = MPFSum + PartDistDepo(iNode)/DistSum*NodeValue(1,NodeID(iNode))
     END DO
     CalcVarWeightMPF = MPFSum
   END IF
@@ -654,7 +654,7 @@ ELSE ! regular routine with variable weights
     ELSE IF (PosIn.GE.VarWeighting%ScalePoint(VarWeighting%nScalePoints)) THEN
       CalcVarWeightMPF = VarWeighting%VarMPF(VarWeighting%nScalePoints)
       EXIT
-    ELSE 
+    ELSE
       CalcVarWeightMPF = VarWeighting%VarMPF(1)
     END IF
   END DO
@@ -674,14 +674,14 @@ USE MOD_DSMC_Vars               ,ONLY: VarWeighting
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES  
+! INPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER                         :: iScale
 REAL                            :: SubWeight
-REAL, ALLOCATABLE               :: MPF(:), Coord(:) 
+REAL, ALLOCATABLE               :: MPF(:), Coord(:)
 !-----------------------------------------------------------------------------------------------------------------------------------
 !===================================================================================================================================
 CalcAverageMPF = 0.
@@ -715,7 +715,7 @@ USE MOD_Particle_Mesh_Vars      ,ONLY: ElemMidPoint_Shared
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES  
+! INPUT VARIABLES
 REAL, OPTIONAL                  :: Pos(3)
 INTEGER, INTENT(IN)             :: iSpec
 INTEGER, OPTIONAL,INTENT(IN)    :: iPart
@@ -726,18 +726,18 @@ INTEGER, OPTIONAL,INTENT(IN)    :: iPart
 !-----------------------------------------------------------------------------------------------------------------------------------
 REAL                 :: PosIn(3), ScalingVector(3), ScalePoint(3)
 !===================================================================================================================================
-ScalingVector = VarWeighting%ScalingVector 
+ScalingVector = VarWeighting%ScalingVector
 
 IF(VarWeighting%CellLocalWeighting.AND.PRESENT(iPart)) THEN
   PosIn = ElemMidPoint_Shared(:,PEM%CNElemID(iPart))
 ELSE
   PosIn = Pos
-END IF 
+END IF
 
 ! Relative position to the start point for the variable weighting
 ScalePoint = VarWeighting%StartPointScaling - PosIn
 
-! Find the point on the scaling vector with the closest distance to the point 
+! Find the point on the scaling vector with the closest distance to the point
 CalcScalePoint = -dot_product(ScalePoint,ScalingVector)/dot_product(ScalingVector,ScalingVector)
 
 RETURN
@@ -1224,7 +1224,7 @@ END FUNCTION CalcEElec_particle
 
 SUBROUTINE MergeCells()
 !===================================================================================================================================
-!> Routine for virtual merging of neighbouring cells. 
+!> Routine for virtual merging of neighbouring cells.
 !> Currently, the merging is only done via the number of particles within the cells.
 !===================================================================================================================================
 ! MODULES
@@ -1248,7 +1248,7 @@ LOGICAL                        :: AllowBackMerge
 !Nullify every value
 DO iElem = 1, nElems
   VirtMergedCells(iElem)%isMerged = .FALSE.
-  VirtMergedCells(iElem)%MasterCell = 0  
+  VirtMergedCells(iElem)%MasterCell = 0
   VirtMergedCells(iElem)%MergedVolume = 0.0
   IF (VirtMergedCells(iElem)%NumOfMergedCells.GT.0) THEN
     DEALLOCATE(VirtMergedCells(iElem)%MergedCellID)
@@ -1274,7 +1274,7 @@ ElemLoop: DO iElem = 1, nElems
         IF(VirtualCellMergeSpread.GT.1) THEN
           IF (VirtMergedCells(iElem)%NumOfMergedCells.GT.0) THEN
             MasterCellID = VirtMergedCells(LocNBElem)%MasterCell-offSetElem
-            IF(VirtMergedCells(MasterCellID)%NumOfMergedCells.GE.(MaxNumOfMergedCells-1)) CYCLE NBElemLoop   
+            IF(VirtMergedCells(MasterCellID)%NumOfMergedCells.GE.(MaxNumOfMergedCells-1)) CYCLE NBElemLoop
             ALLOCATE(tempCellID(VirtMergedCells(MasterCellID)%NumOfMergedCells))
             tempCellID = VirtMergedCells(MasterCellID)%MergedCellID
             DEALLOCATE(VirtMergedCells(MasterCellID)%MergedCellID)
@@ -1307,9 +1307,9 @@ ElemLoop: DO iElem = 1, nElems
             VirtMergedCells(MasterCellID)%MergedCellID(1:VirtMergedCells(MasterCellID)%NumOfMergedCells-1) = &
               tempCellID(1:VirtMergedCells(MasterCellID)%NumOfMergedCells-1)
             VirtMergedCells(MasterCellID)%MergedCellID(VirtMergedCells(MasterCellID)%NumOfMergedCells) = iElem
-            VirtMergedCells(MasterCellID)%MergedVolume=VirtMergedCells(MasterCellID)%MergedVolume+ElemVolume_Shared(CNElemID) 
+            VirtMergedCells(MasterCellID)%MergedVolume=VirtMergedCells(MasterCellID)%MergedVolume+ElemVolume_Shared(CNElemID)
             VirtMergedCells(iElem)%MasterCell = VirtMergedCells(LocNBElem)%MasterCell
-            VirtMergedCells(iElem)%isMerged = .TRUE.            
+            VirtMergedCells(iElem)%isMerged = .TRUE.
             DEALLOCATE(tempCellID)
             CYCLE ElemLoop
           END IF
@@ -1353,7 +1353,7 @@ ElemLoop: DO iElem = 1, nElems
             VirtMergedCells(MasterCellID)%MergedCellID(1:VirtMergedCells(MasterCellID)%NumOfMergedCells-1) = &
               tempCellID(1:VirtMergedCells(MasterCellID)%NumOfMergedCells-1)
             VirtMergedCells(MasterCellID)%MergedCellID(VirtMergedCells(MasterCellID)%NumOfMergedCells) = iElem
-            VirtMergedCells(MasterCellID)%MergedVolume=VirtMergedCells(MasterCellID)%MergedVolume+ElemVolume_Shared(CNElemID) 
+            VirtMergedCells(MasterCellID)%MergedVolume=VirtMergedCells(MasterCellID)%MergedVolume+ElemVolume_Shared(CNElemID)
             VirtMergedCells(iElem)%MasterCell = MasterCellID + offSetElem
             VirtMergedCells(iElem)%isMerged = .TRUE.
             DEALLOCATE(tempCellID)
@@ -1374,8 +1374,8 @@ ElemLoop: DO iElem = 1, nElems
           ALLOCATE(VirtMergedCells(iElem)%MergedCellID(VirtMergedCells(iElem)%NumOfMergedCells))
           VirtMergedCells(iElem)%MergedCellID(VirtMergedCells(iElem)%NumOfMergedCells) = LocNBElem
           VirtMergedCells(iElem)%MergedVolume = VirtMergedCells(iElem)%MergedVolume + ElemVolume_Shared(CNNbElem)
-          VirtMergedCells(iElem)%MasterCell = iElem + offSetElem  
-          VirtMergedCells(LocNBElem)%MasterCell = iElem + offSetElem  
+          VirtMergedCells(iElem)%MasterCell = iElem + offSetElem
+          VirtMergedCells(LocNBElem)%MasterCell = iElem + offSetElem
           VirtMergedCells(LocNBElem)%isMerged = .TRUE.
         ELSE
           IF(VirtMergedCells(iElem)%NumOfMergedCells.GE.(MaxNumOfMergedCells-1)) CYCLE ElemLoop
@@ -1388,14 +1388,14 @@ ElemLoop: DO iElem = 1, nElems
             tempCellID(1:VirtMergedCells(iElem)%NumOfMergedCells-1)
           VirtMergedCells(iElem)%MergedCellID(VirtMergedCells(iElem)%NumOfMergedCells) = LocNBElem
           VirtMergedCells(iElem)%MergedVolume = VirtMergedCells(iElem)%MergedVolume + ElemVolume_Shared(CNNbElem)
-          VirtMergedCells(LocNBElem)%MasterCell = iElem + offSetElem  
+          VirtMergedCells(LocNBElem)%MasterCell = iElem + offSetElem
           VirtMergedCells(LocNBElem)%isMerged = .TRUE.
           DEALLOCATE(tempCellID)
         END IF
         nPartMerged = nPartMerged + PEM%pNumber(LocNBElem)
         IF (nPartMerged.GT.MinPartNumCellMerge) CYCLE ElemLoop
       END IF
-    END DO NBElemLoop    
+    END DO NBElemLoop
   END IF
 END DO ElemLoop
 

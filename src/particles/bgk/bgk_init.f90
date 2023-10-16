@@ -142,8 +142,8 @@ END DO
 ALLOCATE(CBC%OutputKnudsen(9,nElems))
 CBC%OutputKnudsen = 0.0
 
-ALLOCATE(MeshAdapt(2,nElems))
-MeshAdapt = 0.0
+! ALLOCATE(MeshAdapt(2,nElems))
+! MeshAdapt = 0.0
 
 BGKCollModel = GETINT('Particles-BGK-CollModel')
 IF ((nSpecies.GT.1).AND.(BGKCollModel.GT.1)) THEN
