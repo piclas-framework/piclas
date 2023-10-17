@@ -6,18 +6,18 @@ The following collection of best practice guidelines are intended to prevent bug
 
 The general rules can be summarized as follows:
 
-> The first rule of MPI is: You do not send subsets of arrays, only complete continuous data ranges.
-> The second rule of MPI is: You do not send subsets of arrays, only complete continuous data ranges.
-> Third rule of MPI: Someone sends non-continuous data, the simulation is over.
-> Fourth rule: Only two procs to a single send-receive message.
-> Fifth rule: Only one proc access (read or write) toa shared memory region.
+1. The first rule of MPI is: You do not send subsets of arrays, only complete continuous data ranges.
+2. The second rule of MPI is: You do not send subsets of arrays, only complete continuous data ranges.
+3. Third rule of MPI: Someone sends non-continuous data, the simulation is over.
+4. Fourth rule: Only two processors to a single send-receive message.
+5. Fifth rule: Only one processor access (read or write) to a shared memory region.
 
 Please also read the general implementation information and, e.g., mappings used for elements, sides and nodes in the chapter
 {ref}`developerguide/mpi:MPI Implementation`.
 
 ## Shared Memory Windows
 
-The following principals should always be considered when using shared memory windows
+The following principles should always be considered when using shared memory windows
 
 - Only the node root process initializes the shared memory array
 
@@ -39,7 +39,7 @@ The following principals should always be considered when using shared memory wi
       ! nonsense.
       CALL BARRIER_AND_SYNC(NodeVolume_Shared_Win, MPI_COMM_SHARED)
 
-- When all processes on a node write to their separate region in the shared memory array, e.g., designated elements IDs which are
+- When all processes on a node write exclusively to their separate region in the shared memory array, using designated elements IDs which are
   assigned to a single process only
 
       ! Get offset
@@ -60,7 +60,7 @@ The following principals should always be considered when using shared memory wi
         END DO; END DO; END DO
       END DO
 
-- When all processes on a node write to all regions in the shared memory array, an additional local array is required
+- When all processes on a node write to all regions in the shared memory array, an additional local array is required, which has to be reduced to the shared array at the end
 
       CALL Allocate_Shared((/nSpecies,4,nSurfSample,nSurfSample,nComputeNodeSurfTotalSides/),SampWallImpactEnergy_Shared_Win,SampWallImpactEnergy_Shared)
       CALL MPI_WIN_LOCK_ALL(0,SampWallImpactEnergy_Shared_Win,IERROR)
