@@ -80,6 +80,7 @@ REAL                                :: J_Nloc(1:1,0:Ray%NMax,0:Ray%NMax,0:Ray%NM
 REAL                                :: IntegrationWeight
 REAL                                :: Vdm_GaussN_NMax(0:PP_N,0:Ray%NMax)    !< for interpolation to Analyze points (from NodeType nodes to Gauss-Lobatto nodes)
 REAL, ALLOCATABLE                   :: Vdm_GaussN_Nloc(:,:)    !< for interpolation to Analyze points (from NodeType nodes to Gauss-Lobatto nodes)
+REAL, PARAMETER                     :: tolerance=1e-6
 !===================================================================================================================================
 SWRITE(UNIT_stdOut,'(a)',ADVANCE='NO') ' WRITE Radiation TO HDF5 FILE...'
 
@@ -112,11 +113,6 @@ StrVarNames(3)='ElemVolume'
 StrVarNames(4)='PhotonEnergyDensity1st'
 StrVarNames(5)='PhotonEnergyDensity2nd'
 
-! Generate skeleton for the file with all relevant data on a single proc (MPIRoot)
-IF(MPIRoot) CALL GenerateFileSkeleton('RadiationVolState',nVarRay,StrVarNames,TRIM(MeshFile),0.,FileNameIn=RadiationVolState,NIn=Ray%NMax,NodeType_in=Ray%NodeType)
-#if USE_MPI
-  CALL MPI_BARRIER(MPI_COMM_WORLD,iError)
-#endif
 #if USE_MPI
 CALL ExchangeRayVolInfo()
 #endif /*USE_MPI*/
@@ -202,10 +198,44 @@ ASSOCIATE( RayElemPassedEnergy => RayElemPassedEnergy_Shared )
     END DO ! m
     IF(PP_N.NE.Nloc) DEALLOCATE(Vdm_GaussN_Nloc)
 
+    ! Sanity checks: Low order
+    ! 1.) compare sum of sub-volumes with cell-const value and abort
+    ! 2.) compare sum of sub-cell energies with cell-const value and abort (1st and 2nd energies)
+    ! 1st energy
+    IF(RayElemPassedEnergyLoc1st(iElem).GT.0.0)THEN
+      IF(.NOT.ALMOSTEQUALRELATIVE(RayElemPassedEnergyLoc1st(iElem), SUM(U_N_Ray(iGlobalElem)%U(1,:,:,:)), tolerance))THEN
+        IPWRITE(UNIT_StdOut,*) "iElem,iGlobalElem                    = ", iElem,iGlobalElem
+        IPWRITE(UNIT_StdOut,*) "RayElemPassedEnergyLoc1st(iElem)     = ", RayElemPassedEnergyLoc1st(iElem)
+        IPWRITE(UNIT_StdOut,*) "SUM(U_N_Ray(iGlobalElem)%U(1,:,:,:)) = ", SUM(U_N_Ray(iGlobalElem)%U(1,:,:,:))
+        CALL abort(__STAMP__,'Before: RayElemPassedEnergyLoc1st does not match U_N_Ray%U(1) for tolerance = ',RealInfoOpt=tolerance)
+      END IF
+    END IF
+    ! 2nd energy
+    IF(RayElemPassedEnergyLoc2nd(iElem).GT.0.0)THEN
+        IPWRITE(UNIT_StdOut,*) "iElem,iGlobalElem                    = ", iElem,iGlobalElem
+        IPWRITE(UNIT_StdOut,*) "RayElemPassedEnergyLoc2nd(iElem)     = ", RayElemPassedEnergyLoc2nd(iElem)
+        IPWRITE(UNIT_StdOut,*) "SUM(U_N_Ray(iGlobalElem)%U(2,:,:,:)) = ", SUM(U_N_Ray(iGlobalElem)%U(2,:,:,:))
+      IF(.NOT.ALMOSTEQUALRELATIVE(RayElemPassedEnergyLoc2nd(iElem), SUM(U_N_Ray(iGlobalElem)%U(2,:,:,:)), tolerance))THEN
+
+        CALL abort(__STAMP__,'Before: RayElemPassedEnergyLoc1st does not match U_N_Ray%U(2) for tolerance = ',RealInfoOpt=tolerance)
+      END IF
+    END IF
+    ! volume
+    IF(ElemVolume(iElem).GT.0.0)THEN
+      IF(.NOT.ALMOSTEQUALRELATIVE(ElemVolume(iElem), SUM(U_N_Ray(iGlobalElem)%U(3,:,:,:)), tolerance))THEN
+        IPWRITE(UNIT_StdOut,*) "iElem,iGlobalElem                    = ", iElem,iGlobalElem
+        IPWRITE(UNIT_StdOut,*) "ElemVolume(iElem)                    = ", ElemVolume(iElem)
+        IPWRITE(UNIT_StdOut,*) "SUM(U_N_Ray(iGlobalElem)%U(3,:,:,:)) = ", SUM(U_N_Ray(iGlobalElem)%U(3,:,:,:))
+        CALL abort(__STAMP__,'Before: ElemVolume(iElem) does not match U_N_Ray%U(3) for tolerance = ',RealInfoOpt=tolerance)
+      END IF
+    END IF
+
     ! Calculate the photon energy density on Nloc
     U_N_Ray(iGlobalElem)%U(4,:,:,:) = U_N_Ray(iGlobalElem)%U(1,:,:,:)/U_N_Ray(iGlobalElem)%U(3,:,:,:)
     U_N_Ray(iGlobalElem)%U(5,:,:,:) = U_N_Ray(iGlobalElem)%U(2,:,:,:)/U_N_Ray(iGlobalElem)%U(3,:,:,:)
 
+    ! Map from Nloc to NMax for output to .h5 on the highest polynomial degree NMax
+    ! The higher order element volume UNMax(3,:,:,:,:) is over-written later on
     IF(Nloc.EQ.Ray%Nmax)THEN
       UNMax(:,:,:,:,iElem) = U_N_Ray(iGlobalElem)%U(:,:,:,:)
     ELSE
@@ -214,7 +244,6 @@ ASSOCIATE( RayElemPassedEnergy => RayElemPassedEnergy_Shared )
 
     ! Copy data from global array (later used for emission)
     U_N_Ray_loc(iElem)%U(:,:,:,:) = U_N_Ray(iGlobalElem)%U(:,:,:,:)
-
 
     ! Apply integration weights and the Jacobian
     ! Interpolate the Jacobian to the analyze grid: be careful we interpolate the inverse of the inverse of the Jacobian ;-)
@@ -232,7 +261,45 @@ ASSOCIATE( RayElemPassedEnergy => RayElemPassedEnergy_Shared )
       END DO ! l
     END DO ! m
 
+    ! Sanity checks: High order
+    ! 1.) compare sum of sub-volumes with cell-const value and abort
+    ! 2.) compare sum of sub-cell energies with cell-const value and abort (1st and 2nd energies)
+    ! 1st energy
+    IF(RayElemPassedEnergyLoc1st(iElem).GT.0.0)THEN
+      IF(.NOT.ALMOSTEQUALRELATIVE(RayElemPassedEnergyLoc1st(iElem), SUM(UNMax(1,:,:,:,iElem)), tolerance))THEN
+        IPWRITE(UNIT_StdOut,*) "iElem,iGlobalElem                = ", iElem,iGlobalElem
+        IPWRITE(UNIT_StdOut,*) "RayElemPassedEnergyLoc1st(iElem) = ", RayElemPassedEnergyLoc1st(iElem)
+        IPWRITE(UNIT_StdOut,*) "SUM(UNMax(1,:,:,:,iElem))        = ", SUM(UNMax(1,:,:,:,iElem))
+        CALL abort(__STAMP__,'After: RayElemPassedEnergyLoc1st does not match UNMax(1) for tolerance = ',RealInfoOpt=tolerance)
+      END IF
+    END IF
+    ! 2nd energy
+    IF(RayElemPassedEnergyLoc2nd(iElem).GT.0.0)THEN
+      IF(.NOT.ALMOSTEQUALRELATIVE(RayElemPassedEnergyLoc2nd(iElem), SUM(UNMax(2,:,:,:,iElem)), tolerance))THEN
+        IPWRITE(UNIT_StdOut,*) "iElem,iGlobalElem                = ", iElem,iGlobalElem
+        IPWRITE(UNIT_StdOut,*) "RayElemPassedEnergyLoc2nd(iElem) = ", RayElemPassedEnergyLoc2nd(iElem)
+        IPWRITE(UNIT_StdOut,*) "SUM(UNMax(2,:,:,:,iElem))        = ", SUM(UNMax(2,:,:,:,iElem))
+        CALL abort(__STAMP__,'After: RayElemPassedEnergyLoc1st does not match UNMax(2) for tolerance = ',RealInfoOpt=tolerance)
+      END IF
+    END IF
+    ! volume
+    IF(ElemVolume(iElem).GT.0.0)THEN
+      IF(.NOT.ALMOSTEQUALRELATIVE(ElemVolume(iElem), SUM(UNMax(3,:,:,:,iElem)), tolerance))THEN
+        IPWRITE(UNIT_StdOut,*) "iElem,iGlobalElem         = ", iElem,iGlobalElem
+        IPWRITE(UNIT_StdOut,*) "ElemVolume(iElem)         = ", ElemVolume(iElem)
+        IPWRITE(UNIT_StdOut,*) "SUM(UNMax(3,:,:,:,iElem)) = ", SUM(UNMax(3,:,:,:,iElem))
+        CALL abort(__STAMP__,'After: ElemVolume(iElem) does not match UNMax(3) for tolerance = ',RealInfoOpt=tolerance)
+      END IF
+    END IF
+
   END DO ! iElem=1,PP_nElems
+
+  ! Generate skeleton for the file with all relevant data on a single proc (MPIRoot)
+  ! Write file after last abort to prevent a corrupt output file (which might be used when restarting the simulation)
+  IF(MPIRoot) CALL GenerateFileSkeleton('RadiationVolState',nVarRay,StrVarNames,TRIM(MeshFile),0.,FileNameIn=RadiationVolState,NIn=Ray%NMax,NodeType_in=Ray%NodeType)
+#if USE_MPI
+  CALL MPI_BARRIER(MPI_COMM_WORLD,iError)
+#endif
 
   ! Associate construct for integer KIND=8 possibility
   ASSOCIATE (&
