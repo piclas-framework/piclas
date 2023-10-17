@@ -1,7 +1,7 @@
 # MPI Implementation
 
 This chapter describes how PICLas subroutines and functions are parallelized.
-
+Please also read the general rules for using {ref}`developerguide/bestpractices:MPI`.
 
 ## General Remarks: Things to consider
 In case any new communicator (e.g. SurfCOMM%COMM) is built during init or anywhere else with
