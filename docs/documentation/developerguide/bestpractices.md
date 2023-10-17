@@ -12,6 +12,9 @@ The general rules can be summarized as follows:
 > Fourth rule: Only two procs to a single send-receive message.
 > Fifth rule: Only one proc access (read or write) toa shared memory region.
 
+Please also read the general implementation information and, e.g., mappings used for elements, sides and nodes in the chapter
+{ref}`developerguide/mpi:MPI Implementation`.
+
 ## Shared Memory Windows
 
 The following principals should always be considered when using shared memory windows
