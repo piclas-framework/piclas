@@ -36,16 +36,16 @@ REAL               :: StartTime
 INTEGER            :: myRank,myLocalRank,myLeaderRank,myWorkerRank
 INTEGER            :: nProcessors,nLocalProcs,nLeaderProcs,nWorkerProcs
 LOGICAL            :: GlobalNbrOfParticlesUpdated ! When FALSE, then global number of particles needs to be determined
-INTEGER            :: MPI_COMM_NODE    ! local node subgroup
-INTEGER            :: MPI_COMM_LEADERS ! all node masters
-INTEGER            :: MPI_COMM_WORKERS ! all non-master nodes
-INTEGER            :: MPI_COMM_PICLAS  ! all nodes
 LOGICAL            :: MPIRoot,MPILocalRoot
 #if USE_MPI
 !#include "mpif.h"
 INTEGER            :: MPIStatus(MPI_STATUS_SIZE)
+INTEGER            :: MPI_COMM_NODE    ! local node subgroup
+INTEGER            :: MPI_COMM_LEADERS ! all node masters
+INTEGER            :: MPI_COMM_WORKERS ! all non-master nodes
+INTEGER            :: MPI_COMM_PICLAS  ! all nodes
 #else
-INTEGER,PARAMETER  :: MPI_COMM_WORLD=-1 ! DUMMY when compiling single (MPI=OFF)
+INTEGER,PARAMETER  :: MPI_COMM_PICLAS=-1 ! DUMMY when compiling single (MPI=OFF)
 #endif
 LOGICAL            :: MemoryMonitor      !> Flag for turning RAM monitoring ON/OFF. Used for the detection of RAM overflows (e.g. due to memory leaks)
 
@@ -388,7 +388,7 @@ CALL DisplaySimulationTime(Time, StartTime, 'ABORTED')
 #if USE_MPI
 signalout=2 ! MPI_ABORT requires an output error-code /=0
 errOut = 1
-CALL MPI_ABORT(MPI_COMM_WORLD,signalout,errOut)
+CALL MPI_ABORT(MPI_COMM_PICLAS,signalout,errOut)
 #endif
 STOP 2
 END SUBROUTINE AbortProg
@@ -461,7 +461,7 @@ SWRITE(UNIT_stdOut,*) '_________________________________________________________
 
 CALL FLUSH(UNIT_stdOut)
 #if USE_MPI
-CALL MPI_BARRIER(MPI_COMM_WORLD,iError)
+CALL MPI_BARRIER(MPI_COMM_PICLAS,iError)
 CALL MPI_FINALIZE(iError)
 #endif
 ERROR STOP 1
