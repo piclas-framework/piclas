@@ -274,7 +274,11 @@ END DO ! iProc
 END SUBROUTINE IRecvNbOfParticles
 
 
+#if defined(IMPA)
 SUBROUTINE SendNbOfParticles(doParticle_In)
+#else
+SUBROUTINE SendNbOfParticles()
+#endif /*defined(IMPA)*/
 !===================================================================================================================================
 ! This routine sends the number of send particles, for which the following steps are performed:
 ! 1) Compute number of Send Particles
@@ -299,17 +303,23 @@ USE MOD_Particle_Vars          ,ONLY: PartState,PartSpecies,PEM,PDM,Species
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
+#if defined(IMPA)
 LOGICAL,INTENT(IN),OPTIONAL   :: doParticle_In(1:PDM%ParticleVecLength)
+#endif /*defined(IMPA)*/
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
+#if defined(IMPA)
 LOGICAL                       :: doPartInExists
+#endif /*defined(IMPA)*/
 INTEGER                       :: iPart,ElemID, iPolyatMole
 INTEGER                       :: iProc,ProcID
 !===================================================================================================================================
+#if defined(IMPA)
 doPartInExists=.FALSE.
 IF(PRESENT(DoParticle_IN)) doPartInExists=.TRUE.
+#endif /*defined(IMPA)*/
 
 ! 1) get number of send particles
 !--- Count number of particles in cells in the halo region and add them to the message
@@ -320,12 +330,15 @@ DO iPart=1,PDM%ParticleVecLength
   !         ! Activate phantom/ghost particles
   !         IF(PartSpecies(iPart).LT.0) PDM%ParticleInside(iPart) = .TRUE.
 
-  ! TODO: Info why and under which conditions the following 'CYCLE' is called
+#if defined(IMPA)
   IF(doPartInExists)THEN
     IF (.NOT.(PDM%ParticleInside(iPart).AND.DoParticle_In(iPart))) CYCLE
   ELSE
+#endif /*defined(IMPA)*/
     IF (.NOT.PDM%ParticleInside(iPart)) CYCLE
+#if defined(IMPA)
   END IF
+#endif /*defined(IMPA)*/
 
   ! This is already the global ElemID
   ElemID = PEM%GlobalElemID(iPart)

@@ -361,10 +361,10 @@ DO iSpec=1,nSpecies
           lineVector = UNITVECTOR(normal)
         END IF ! VECNORM(lineVector).LE.0.
 
-        xCoords(1:3,1)=O
-        xCoords(1:3,2)=O+v2
-        xCoords(1:3,3)=O+v3
-        xCoords(1:3,4)=O+v2+v3
+        xCoords(1:3,1)=O(1:3)
+        xCoords(1:3,2)=O(1:3)+v2(1:3)
+        xCoords(1:3,3)=O(1:3)+v3(1:3)
+        xCoords(1:3,4)=O(1:3)+v2(1:3)+v3(1:3)
 
         height= Species(iSpec)%Init(iInit)%CuboidHeightIC
         DO iNode=1,4
@@ -403,11 +403,11 @@ DO iSpec=1,nSpecies
       ! 1. Check if inside outer radius
       radius = Species(iSpec)%Init(iInit)%RadiusIC
       ! here no radius, already included
-        xCoords(1:3,1)=Species(iSpec)%Init(iInit)%BasePointIC -v1 -v2
+      xCoords(1:3,1)=Species(iSpec)%Init(iInit)%BasePointIC -v1(1:3) -v2(1:3)
 
-        xCoords(1:3,2)=xCoords(1:3,1)+2.0*v1
-        xCoords(1:3,3)=xCoords(1:3,1)+2.0*v2
-        xCoords(1:3,4)=xCoords(1:3,1)+2.0*v1+2.0*v2
+      xCoords(1:3,2)=xCoords(1:3,1)+2.0*v1(1:3)
+      xCoords(1:3,3)=xCoords(1:3,1)+2.0*v2(1:3)
+      xCoords(1:3,4)=xCoords(1:3,1)+2.0*v1(1:3)+2.0*v2(1:3)
 
       height= Species(iSpec)%Init(iInit)%CylinderHeightIC
       DO iNode=1,4

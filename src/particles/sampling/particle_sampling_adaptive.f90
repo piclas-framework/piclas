@@ -90,11 +90,11 @@ USE MOD_Mesh_Tools              ,ONLY: GetCNElemID
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 LOGICAL                           :: AdaptiveDataExists, RunningAverageExists, UseAdaptiveType4, AdaptBCPartNumOutExists
-REAL                              :: TimeStepOverWeight, v_thermal, dtVar
+REAL                              :: TimeStepOverWeight, v_thermal, dtVar, WeightingFactor(1:nSpecies)
 REAL,ALLOCATABLE                  :: ElemData_HDF5(:,:), ElemData2_HDF5(:,:,:,:)
 INTEGER                           :: iElem, iSpec, iSF, iSide, ElemID, SampleElemID, nVar, GlobalSideID, GlobalElemID, currentBC
 INTEGER                           :: jSample, iSample, BCSideID, nElemReadin, nVarTotal, iVar, nVarArrayStart, nVarArrayEnd
-INTEGER                           :: SampIterArrayEnd, nSurfacefluxBCs
+INTEGER                           :: SampIterEnd, nSurfacefluxBCs
 INTEGER,ALLOCATABLE               :: GlobalElemIndex(:)
 #if USE_MPI
 INTEGER                           :: offSetElemAdaptBCSampleMPI(0:nProcessors-1)
@@ -338,19 +338,19 @@ IF (DoRestart) THEN
       IF(AdaptBCSampIter.EQ.nVar) THEN
         nVarArrayStart = 1
         nVarArrayEnd = nVar
-        SampIterArrayEnd = AdaptBCSampIter
+        SampIterEnd = AdaptBCSampIter
         IF(AdaptBCSampIterReadIn.LT.nVar.AND..NOT.PerformLoadBalance) THEN
           LBWRITE(*,*) '| TruncateRunningAverage: Array not filled in previous simulation run. Continuing at: ', AdaptBCSampIterReadIn + 1
         END IF
       ELSE IF(AdaptBCSampIter.GT.nVar) THEN
         nVarArrayStart = 1
         nVarArrayEnd = nVar
-        SampIterArrayEnd = nVar
+        SampIterEnd = nVar
         LBWRITE(*,*) '| TruncateRunningAverage: Smaller number of sampling iterations in restart file. Continuing at: ', AdaptBCSampIterReadIn + 1
       ELSE
         nVarArrayStart = nVar - AdaptBCSampIter + 1
         nVarArrayEnd = nVar
-        SampIterArrayEnd = AdaptBCSampIter
+        SampIterEnd = AdaptBCSampIter
         AdaptBCSampIterReadIn = AdaptBCSampIter
         LBWRITE(*,*) '| TruncateRunningAverage: Greater number of sampling iterations in restart file. Using the last ', AdaptBCSampIterReadIn, ' sample iterations.'
       END IF
@@ -372,14 +372,29 @@ IF (DoRestart) THEN
           IF((GlobalElemID.LT.1+offsetElem).OR.(GlobalElemID.GT.nElems+offsetElem)) CYCLE
           ! Get the sample element ID
           SampleElemID = AdaptBCMapElemToSample(GlobalElemID-offsetElem)
-          IF(SampleElemID.GT.0) AdaptBCAverage(1:8,1:SampIterArrayEnd,SampleElemID,1:nSpecies) = ElemData2_HDF5(1:8,nVarArrayStart:nVarArrayEnd,iElem,1:nSpecies)
+          IF(SampleElemID.GT.0) AdaptBCAverage(1:8,1:SampIterEnd,SampleElemID,1:nSpecies) = ElemData2_HDF5(1:8,nVarArrayStart:nVarArrayEnd,iElem,1:nSpecies)
         END DO
+        ! Scaling of the weighted particle number in case of a macroscopic restart with a particle weighting change
+        IF(DoMacroscopicRestart.AND..NOT.PerformLoadBalance) THEN
+          CALL ReadAttribute(File_ID,'AdaptBCWeightingFactor',nSpecies,RealArray=WeightingFactor)
+          DO iSpec = 1, nSpecies
+            IF(WeightingFactor(iSpec).NE.Species(iSpec)%MacroParticleFactor) THEN
+              AdaptBCAverage(7:8,1:SampIterEnd,:,iSpec) = AdaptBCAverage(7:8,1:SampIterEnd,:,iSpec) * WeightingFactor(iSpec) &
+                                                                                                / Species(iSpec)%MacroParticleFactor
+            END IF
+          END DO
+          LBWRITE(*,*) '| TruncateRunningAverage: Sample successfully initiliazed from restart file and scaled due to MacroscopicRestart.'
+        ELSE
+          LBWRITE(*,*) '| TruncateRunningAverage: Sample successfully initiliazed from restart file.'
+        END IF
       END IF
-      ! Calculate the macro values intially from the sample for the first iteration
-      CALL AdaptiveBCSampling(initTruncAverage_opt=.TRUE.)
+      IF(.NOT.AdaptiveDataExists) THEN
+        ! Calculate the macro values initially from the sample for the first iteration
+        CALL AdaptiveBCSampling(initTruncAverage_opt=.TRUE.)
+        LBWRITE(*,*) '| TruncateRunningAverage: AdaptiveInfo not found in state file. Macroscopic values calculated from sample.'
+      END IF
       SDEALLOCATE(ElemData2_HDF5)
       SDEALLOCATE(GlobalElemIndex)
-      LBWRITE(*,*) '| TruncateRunningAverage: Sample successfully initiliazed from restart file.'
     ELSE
       LBWRITE(*,*) '| TruncateRunningAverage: No running average values found. Values initiliazed with zeros.'
     END IF

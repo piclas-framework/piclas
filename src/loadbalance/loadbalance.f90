@@ -488,7 +488,7 @@ SUBROUTINE ComputeImbalance()
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Globals
 USE MOD_LoadBalance_Vars ,ONLY: WeightSum, TargetWeight,CurrentImbalance, MaxWeight, MinWeight
-USE MOD_LoadBalance_Vars ,ONLY: ElemTime, PerformLBSample, PerformPartWeightLB, DeviationThreshold
+USE MOD_LoadBalance_Vars ,ONLY: ElemTime, PerformLBSample, DeviationThreshold
 #if !((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==42) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))
 USE MOD_LoadBalance_Vars ,ONLY: ElemTimeFieldTot,ElemTimeField
 #endif /*!((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==42) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))*/
@@ -506,7 +506,7 @@ IMPLICIT NONE
 REAL :: WeightSum_loc
 !===================================================================================================================================
 
-IF(.NOT.PerformLBSample .AND. .NOT.PerformPartWeightLB) THEN
+IF(.NOT.PerformLBSample) THEN
   WeightSum        = 0.
   TargetWeight     = 0.
   CurrentImbalance = -1.0
