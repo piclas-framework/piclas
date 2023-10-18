@@ -108,7 +108,6 @@ USE MOD_Particle_Vars         ,ONLY: nSpecies, Species, DoVirtualCellMerge
 USE MOD_DSMC_Vars             ,ONLY: SpecDSMC, DSMC, RadialWeighting, VarWeighting, CollInf
 USE MOD_DSMC_ParticlePairing  ,ONLY: DSMC_init_octree
 USE MOD_Globals_Vars          ,ONLY: Pi, BoltzmannConst
-USE MOD_Particle_Mesh_Vars    ,ONLY: MeshAdapt
 USE MOD_Basis                 ,ONLY: PolynomialDerivativeMatrix
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Vars      ,ONLY: PerformLoadBalance
@@ -139,11 +138,8 @@ DO iSpec=1, nSpecies
   END DO
 END DO
 
-ALLOCATE(CBC%OutputKnudsen(9,nElems))
+ALLOCATE(CBC%OutputKnudsen(8,nElems))
 CBC%OutputKnudsen = 0.0
-
-! ALLOCATE(MeshAdapt(2,nElems))
-! MeshAdapt = 0.0
 
 BGKCollModel = GETINT('Particles-BGK-CollModel')
 IF ((nSpecies.GT.1).AND.(BGKCollModel.GT.1)) THEN
@@ -183,6 +179,11 @@ IF(CoupledBGKDSMC) THEN
     SWRITE(*,*) ' Coupling criterium is not defined or does not exist: ', TRIM(CBC%SwitchCriterium)
     CALL abort(__STAMP__,'Wrong coupling criterium given')
   END SELECT
+
+  ALLOCATE(CBC%Max_HeatVec(nElems))
+  CBC%Max_HeatVec = 0.0
+  ALLOCATE(CBC%Max_StressTens(nElems))
+  CBC%Max_StressTens = 0.0
 
   ! Number of iterations between a possible BGK-DSMC switch
   CBC%SwitchIter = GETINT('Particles-BGK-DSMC-SampleIter')
@@ -275,7 +276,6 @@ SUBROUTINE FinalizeBGK()
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Globals
 USE MOD_BGK_Vars
-USE MOD_Particle_Mesh_Vars
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
 ! INPUT VARIABLES
@@ -289,9 +289,10 @@ SDEALLOCATE(SpecBGK)
 SDEALLOCATE(BGK_QualityFacSamp)
 SDEALLOCATE(CBC%DoElementDSMC)
 SDEALLOCATE(CBC%OutputKnudsen)
-SDEALLOCATE(MeshAdapt)
 IF (CoupledBGKDSMC) THEN
   SDEALLOCATE(CBC%Iter_Count)
+  SDEALLOCATE(CBC%Max_HeatVec)
+  SDEALLOCATE(CBC%Max_StressTens)
 END IF
 IF(BGKMovingAverage) CALL DeleteElemNodeAverage()
 

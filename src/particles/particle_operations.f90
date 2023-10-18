@@ -116,7 +116,7 @@ IF (usevMPF) THEN
       PartMPF(newParticleID) = CalcRadWeightMPF(PartState(2,newParticleID),SpecID,newParticleID)
     ELSE IF (VarWeighting%DoVariableWeighting) THEN
       iElem = PEM%LocalElemID(newParticleID)
-      PartMPF(newParticleID) = CalcVarWeightMPF(PartState(:,newParticleID),SpecID,iElem,newParticleID)
+      PartMPF(newParticleID) = CalcVarWeightMPF(PartState(:,newParticleID),iElem,newParticleID)
     ELSE
       PartMPF(newParticleID) = Species(SpecID)%MacroParticleFactor
     END IF

@@ -297,7 +297,7 @@ DO WHILE (i .le. NbrOfParticle)
       PartMPF(PositionNbr) = CalcRadWeightMPF(PartState(2,PositionNbr),FractNbr,PositionNbr)
     ELSE IF (VarWeighting%DoVariableWeighting) THEN
       iElem = PEM%LocalElemID(PositionNbr)
-      PartMPF(PositionNbr) = CalcVarWeightMPF(PartState(:,PositionNbr),FractNbr,iElem,PositionNbr)
+      PartMPF(PositionNbr) = CalcVarWeightMPF(PartState(:,PositionNbr),iElem,PositionNbr)
     ELSE
       IF(iInit.EQ.-1)THEN
         PartMPF(PositionNbr) = Species(FractNbr)%MacroParticleFactor
@@ -987,7 +987,7 @@ INTEGER                          :: CNElemID
         IF(RadialWeighting%DoRadialWeighting) THEN
           PartDens = Species(iSpec)%Init(iInit)%PartDensity / CalcRadWeightMPF(ElemMidPoint_Shared(2,CNElemID), iSpec)
         ELSE IF (VarWeighting%DoVariableWeighting) THEN
-          PartDens = Species(iSpec)%Init(iInit)%PartDensity / CalcVarWeightMPF(ElemMidPoint_Shared(:,CNElemID), iSpec, iElem)
+          PartDens = Species(iSpec)%Init(iInit)%PartDensity / CalcVarWeightMPF(ElemMidPoint_Shared(:,CNElemID), iElem)
         END IF
         CALL RANDOM_NUMBER(iRan)
         IF(UseVarTimeStep) THEN
@@ -1027,7 +1027,7 @@ INTEGER                          :: CNElemID
           IF(RadialWeighting%DoRadialWeighting) THEN
             PartMPF(ParticleIndexNbr) = CalcRadWeightMPF(PartState(2,ParticleIndexNbr),iSpec,ParticleIndexNbr)
           ELSE IF(VarWeighting%DoVariableWeighting) THEN
-            PartMPF(ParticleIndexNbr) = CalcVarWeightMPF(PartState(:,ParticleIndexNbr),iSpec,iElem,ParticleIndexNbr)
+            PartMPF(ParticleIndexNbr) = CalcVarWeightMPF(PartState(:,ParticleIndexNbr),iElem,ParticleIndexNbr)
           END IF
         ELSE
           WRITE(UNIT_stdOut,*) ""
@@ -1107,9 +1107,9 @@ DO iElem = 1, nElems
       IF(RadialWeighting%DoRadialWeighting) THEN
         PartDens = Species(iSpec)%Init(iInit)%PartDensity / CalcRadWeightMPF(ElemMidPoint_Shared(2,CNElemID), iSpec)
       ELSE IF(VarWeighting%DoVariableWeighting) THEN
-        PartDens = Species(iSpec)%Init(iInit)%PartDensity / CalcVarWeightMPF(ElemMidPoint_Shared(:,CNElemID),iSpec,iElem)
+        PartDens = Species(iSpec)%Init(iInit)%PartDensity / CalcVarWeightMPF(ElemMidPoint_Shared(:,CNElemID),iElem)
       ELSE
-        PartDens = Species(iSpec)%Init(iInit)%PartDensity / Species(iSpec)%MacroParticleFactor 
+        PartDens = Species(iSpec)%Init(iInit)%PartDensity / Species(iSpec)%MacroParticleFactor
       END IF
       CALL RANDOM_NUMBER(iRan)
       nPart = INT(PartDens * ElemVolume_Shared(CNElemID) + iRan)
@@ -1139,7 +1139,7 @@ DO iElem = 1, nElems
           IF(RadialWeighting%DoRadialWeighting) THEN
             PartMPF(ParticleIndexNbr) = CalcRadWeightMPF(PartState(2,ParticleIndexNbr),iSpec,ParticleIndexNbr)
           ELSE IF(VarWeighting%DoVariableWeighting) THEN
-            PartMPF(ParticleIndexNbr) = CalcVarWeightMPF(PartState(:,ParticleIndexNbr),iSpec,iElem,ParticleIndexNbr)
+            PartMPF(ParticleIndexNbr) = CalcVarWeightMPF(PartState(:,ParticleIndexNbr),iElem,ParticleIndexNbr)
           END IF
           AbortFlag = .FALSE.
         ELSE
@@ -1509,7 +1509,7 @@ INTEGER                 :: i, chunkSize2
             'Number of to be inserted particles per init-proc exceeds max. particle number! ')
         END IF
       ELSE IF(VarWeighting%DoVariableWeighting) THEN
-        VarWeightMPF = CalcVarWeightMPF(Particle_pos(:), FractNbr)
+        VarWeightMPF = CalcVarWeightMPF(Particle_pos(:))
         CALL RANDOM_NUMBER(iRan)
         IF(Species(FractNbr)%MacroParticleFactor/VarWeightMPF.LT.iRan) THEN
           i=i+1
@@ -1582,7 +1582,7 @@ INTEGER                 :: i, chunkSize2
             'Number of to be inserted particles per init-proc exceeds max. particle number! ')
         END IF
       ELSE IF(VarWeighting%DoVariableWeighting) THEN
-        VarWeightMPF = CalcVarWeightMPF(Particle_pos(:), FractNbr)
+        VarWeightMPF = CalcVarWeightMPF(Particle_pos(:))
         CALL RANDOM_NUMBER(iRan)
         IF(Species(FractNbr)%MacroParticleFactor/VarWeightMPF.LT.iRan) THEN
           i=i+1
@@ -2475,7 +2475,7 @@ DO iElem = 1, nElems
       ! Count number of emitted particles to compare with chunkSize later on
       emittedParticles = emittedParticles + 1
       ! Emit at random position in element (assume tri-linear element geometry, if position is outside discard the position)
-      ASSOCIATE( Bounds => BoundsOfElem_Shared(1:2,1:3,GlobalElemID) ) ! 1-2: Min, Max value; 1-3: x,y,z 
+      ASSOCIATE( Bounds => BoundsOfElem_Shared(1:2,1:3,GlobalElemID) ) ! 1-2: Min, Max value; 1-3: x,y,z
         InsideFlag = .FALSE.
         DO WHILE(.NOT.InsideFlag)
           CALL RANDOM_NUMBER(RandomPos)

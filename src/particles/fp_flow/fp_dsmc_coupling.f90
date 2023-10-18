@@ -33,15 +33,14 @@ CONTAINS
 
 LOGICAL FUNCTION FP_CBC_DoDSMC(iElem)
 !===================================================================================================================================
-!> Test of different continuum-breakdown criteria
-!> TO-DO: create separate functions for every breakdown criterium
+!> Test of different continuum-breakdown criteria for the coupling between FP and DSMC
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
 USE MOD_FPFlow_Vars
 USE MOD_Globals_Vars           ,ONLY: BoltzmannConst
 USE MOD_DSMC_Analyze           ,ONLY: CalcMeanFreePath
-USE MOD_Particle_Vars          ,ONLY: PEM, nSpecies, PartSpecies, Species, usevMPF, PartState
+USE MOD_Particle_Vars          ,ONLY: PEM, nSpecies, PartSpecies
 USE MOD_Particle_Mesh_Vars     ,ONLY: ElemVolume_Shared, ElemToElemMapping, ElemToElemInfo, ElemMidPoint_Shared
 USE MOD_Mesh_Vars              ,ONLY: offsetElem, nElems
 USE MOD_Mesh_Tools             ,ONLY: GetCNElemID, GetGlobalElemID
@@ -60,8 +59,9 @@ INTEGER                      :: iPart, CNElemID, nNbElems, LocNbElem, GlobNbElem
 REAL                         :: SpecPartNum(nSpecies), MFP, totalWeight, NbVolume, NbDistance
 REAL                         :: RefVelo, NbVelo, RefDens, NbDens, RefTemp, NbTemp, NbtotalWeight, NbSpecPartNum(nSpecies)
 REAL                         :: DensGradient, TempGradient, VeloGradient, Knudsen_Dens, Knudsen_Temp, Knudsen_Velo, Knudsen_NonEq
-REAL                         :: HeatVector(3), StressTensor(3,3), ChapmanEnskog
+REAL                         :: HeatVector(3), StressTensor(3,3) !, ChapmanEnskog
 !===================================================================================================================================
+! Default case: use of FP
 FP_CBC_DoDSMC = .FALSE.
 
 ! Reference element
@@ -69,6 +69,7 @@ CNElemID = GetCNElemID(iElem+offSetElem)
 
 ! Definition of continuum-breakdown in the cell and swtich between BGK and DSMC
 SELECT CASE (TRIM(FP_CBC%SwitchCriterium))
+! Global Knudsen number: Mean free path / characteristic length
 CASE('GlobalKnudsen')
   SpecPartNum = 0.0
 
@@ -87,6 +88,7 @@ CASE('GlobalKnudsen')
    FP_CBC_DoDSMC = .TRUE.
   END IF
 
+! Local Knudsen number: gradient of the flow-field values
 CASE('LocalKnudsen')
   ! Set all needed variables to zero for the element in the loop
   DensGradient = 0.0; TempGradient = 0.0; VeloGradient = 0.0; NbVolume = 0.0
@@ -102,7 +104,7 @@ CASE('LocalKnudsen')
   ! Relative gradient between the cell and all neighboring cells for the particle density, velocity, translational temperature
   nNbElems = ElemToElemMapping(2,CNElemID)
   ! Loop over all neighbouring elements
-  DO iVal = 1, nNbElems 
+  DO iVal = 1, nNbElems
     CnNbElem = ElemToElemInfo(ElemToElemMapping(1,CNElemID)+iVal)
     GlobNbElem = GetGlobalElemID(CnNbElem)
     LocNbElem = GlobNbElem-offSetElem
@@ -125,9 +127,7 @@ CASE('LocalKnudsen')
 
     ! Sum of the density gradient of all neighbour elements, weighted by the volume of the neighbour element
     DensGradient = DensGradient + ABS(RefDens-NbDens/NbDistance)*ElemVolume_Shared(CnNbElem)
-    ! Sum of the velocity gradient of all neighbour elements, weighted by the volume of the neighbour element
     VeloGradient = VeloGradient + ABS(RefVelo-NbVelo/NbDistance)*ElemVolume_Shared(CnNbElem)
-    ! Sum of the temperature gradient of all neighbour elements, weighted by the volume of the neighbour element
     TempGradient = TempGradient+ ABS(RefTemp-NbTemp/NbDistance)*ElemVolume_Shared(CnNbElem)
   END DO ! iNbElem
 
@@ -143,7 +143,7 @@ CASE('LocalKnudsen')
   TempGradient = TempGradient/NbVolume
   IF (RefTemp.GT.0.) THEN
     Knudsen_Temp = MFP*TempGradient/RefTemp
-  ELSE 
+  ELSE
     Knudsen_Temp = 0.
   END IF
 
@@ -153,10 +153,12 @@ CASE('LocalKnudsen')
   FP_CBC%OutputKnudsen(4,iElem) = Knudsen_Temp
   FP_CBC%OutputKnudsen(5,iElem) = MAX(Knudsen_Dens, Knudsen_Velo, Knudsen_Temp)
 
+  ! Test if the volume weighted gradient is larger than a predefined value
   IF (MAX(Knudsen_Dens, Knudsen_Velo, Knudsen_Temp).GT.FP_CBC%MaxLocalKnudsen) THEN
    FP_CBC_DoDSMC = .TRUE.
   END IF
 
+! Thermal non-equilibrium: deviation of the individual temperatures from the equilibrium value in the cell
 CASE('ThermNonEq')
   ! Calculate the density, velocity and temperature of the reference element
   CALL CalcCellProp(iElem, RefDens, RefVelo, RefTemp, SpecPartNum,Knudsen_NonEq,StressTensor,HeatVector)
@@ -168,9 +170,10 @@ CASE('ThermNonEq')
   FP_CBC%OutputKnudsen(6,iElem) = Knudsen_NonEq
 
   IF (Knudsen_NonEq.GT.FP_CBC%MaxThermNonEq) THEN
-   FP_CBC_DoDSMC = .TRUE. 
+   FP_CBC_DoDSMC = .TRUE.
   END IF
 
+! Combination of the local Knudsen number and thermal non-equilibrium
 CASE('Combination')
   ! Set all needed variables to zero for the element in the loop
   DensGradient = 0.0; TempGradient = 0.0; VeloGradient = 0.0; NbVolume = 0.0
@@ -185,7 +188,7 @@ CASE('Combination')
   ! Relative gradient between the cell and all neighboring cells for the particle density, velocity, translational temperature
   nNbElems = ElemToElemMapping(2,CNElemID)
   ! Loop over all neighbouring elements
-  DO iVal = 1, nNbElems 
+  DO iVal = 1, nNbElems
     CnNbElem = ElemToElemInfo(ElemToElemMapping(1,CNElemID)+iVal)
     GlobNbElem = GetGlobalElemID(CnNbElem)
     LocNbElem = GlobNbElem-offSetElem
@@ -208,9 +211,7 @@ CASE('Combination')
 
     ! Sum of the density gradient of all neighbour elements, weighted by the volume of the neighbour element
     DensGradient = DensGradient + ABS(RefDens-NbDens/NbDistance)*ElemVolume_Shared(CnNbElem)
-    ! Sum of the velocity gradient of all neighbour elements, weighted by the volume of the neighbour element
     VeloGradient = VeloGradient + ABS(RefVelo-NbVelo/NbDistance)*ElemVolume_Shared(CnNbElem)
-    ! Sum of the temperature gradient of all neighbour elements, weighted by the volume of the neighbour element
     TempGradient = TempGradient+ ABS(RefTemp-NbTemp/NbDistance)*ElemVolume_Shared(CnNbElem)
   END DO ! iNbElem
 
@@ -223,7 +224,7 @@ CASE('Combination')
   TempGradient = TempGradient/NbVolume
   IF (RefTemp.GT.0.) THEN
     Knudsen_Temp = MFP*TempGradient/RefTemp
-  ELSE 
+  ELSE
     Knudsen_Temp = 0.
   END IF
 
@@ -237,22 +238,28 @@ CASE('Combination')
   IF (MAX(Knudsen_Dens, Knudsen_Velo, Knudsen_Temp).GT.FP_CBC%MaxLocalKnudsen) THEN
    FP_CBC_DoDSMC = .TRUE.
   ELSE IF (Knudsen_NonEq.GT.FP_CBC%MaxThermNonEq) THEN
-   FP_CBC_DoDSMC = .TRUE. 
+   FP_CBC_DoDSMC = .TRUE.
   END IF
 
+! Chapman-Enskog parameter: maximum value of the heat flux vector and the shear stress tensor
 CASE('ChapmanEnskog')
   CALL CalcCellProp(iElem, RefDens, RefVelo, RefTemp, SpecPartNum,Knudsen_NonEq,StressTensor,HeatVector)
-  ! Write out the non-equilibrium parameters
-  FP_CBC%OutputKnudsen(7,iElem) = MAXVAL(StressTensor)
-  FP_CBC%OutputKnudsen(8,iElem) = MAXVAL(HeatVector)
-  FP_CBC%OutputKnudsen(9,iElem) = MAX(MAXVAL(HeatVector),MAXVAL(StressTensor))
 
-  IF (MAXVAL(StressTensor).GT.(2.8*10.**4)) THEN
+  ! Store the maximum heat flux values for the next iteration
+  FP_CBC%Max_HeatVec(iElem) = MAXVAL(HeatVector)
+  FP_CBC%Max_StressTens(iElem) = MAXVAL(StressTensor)
+
+  IF (MAXVAL(StressTensor).GT.(FP_CBC%MaxChapmanEnskog*MAXVAL(FP_CBC%Max_StressTens))) THEN
    FP_CBC_DoDSMC = .TRUE.
-  ELSE IF (MAXVAL(HeatVector).GT.(4.1*10.**7)) THEN
+  ELSE IF (MAXVAL(HeatVector).GT.(FP_CBC%MaxChapmanEnskog*MAXVAL(FP_CBC%Max_HeatVec))) THEN
    FP_CBC_DoDSMC = .TRUE.
   END IF
 
+  ! Write out the non-equilibrium parameters
+  FP_CBC%OutputKnudsen(7,iElem) = MAXVAL(StressTensor)/MAXVAL(FP_CBC%Max_StressTens)
+  FP_CBC%OutputKnudsen(8,iElem) = MAXVAL(HeatVector)/MAXVAL(FP_CBC%Max_HeatVec)
+
+! Calculation and output of all possible coupling-criteria, use of only BGK or FP in the calculation
 CASE('Output')
   ! Output Global Knudsen
   DensGradient = 0.0; TempGradient = 0.0; VeloGradient = 0.0; NbVolume = 0.0
@@ -262,7 +269,7 @@ CASE('Output')
 
   MFP = CalcMeanFreePath(SpecPartNum,SUM(SpecPartNum),ElemVolume_Shared(CNElemID))
 
-  ! Write out the non-equilibrium parameters
+  ! Global Knudsen number
   FP_CBC%OutputKnudsen(1,iElem) = MFP/FP_CBC%CharLength
 
   ! Total particle number in the element
@@ -271,7 +278,7 @@ CASE('Output')
   ! Relative gradient between the cell and all neighboring cells for the particle density, velocity, translational temperature
   nNbElems = ElemToElemMapping(2,CNElemID)
   ! Loop over all neighbouring elements
-  DO iVal = 1, nNbElems 
+  DO iVal = 1, nNbElems
     CnNbElem = ElemToElemInfo(ElemToElemMapping(1,CNElemID)+iVal)
     GlobNbElem = GetGlobalElemID(CnNbElem)
     LocNbElem = GlobNbElem-offSetElem
@@ -294,12 +301,11 @@ CASE('Output')
 
     ! Sum of the density gradient of all neighbour elements, weighted by the volume of the neighbour element
     DensGradient = DensGradient + ABS(RefDens-NbDens/NbDistance)*ElemVolume_Shared(CnNbElem)
-    ! Sum of the velocity gradient of all neighbour elements, weighted by the volume of the neighbour element
     VeloGradient = VeloGradient + ABS(RefVelo-NbVelo/NbDistance)*ElemVolume_Shared(CnNbElem)
-    ! Sum of the temperature gradient of all neighbour elements, weighted by the volume of the neighbour element
     TempGradient = TempGradient+ ABS(RefTemp-NbTemp/NbDistance)*ElemVolume_Shared(CnNbElem)
   END DO ! iNbElem
 
+  ! Local Knudsen number of the density, velocity and temperature
   DensGradient = DensGradient/NbVolume
   Knudsen_Dens = MFP*DensGradient/RefDens
 
@@ -309,9 +315,13 @@ CASE('Output')
   TempGradient = TempGradient/NbVolume
   IF (RefTemp.GT.0.) THEN
     Knudsen_Temp = MFP*TempGradient/RefTemp
-  ELSE 
+  ELSE
     Knudsen_Temp = 0.
   END IF
+
+  ! Store the maximum heat flux values for the next iteration
+  FP_CBC%Max_HeatVec(iElem) = MAXVAL(HeatVector)
+  FP_CBC%Max_StressTens(iElem) = MAXVAL(StressTensor)
 
   ! Write out the non-equilibrium parameters
   FP_CBC%OutputKnudsen(2,iElem) = Knudsen_Dens
@@ -319,10 +329,8 @@ CASE('Output')
   FP_CBC%OutputKnudsen(4,iElem) = Knudsen_Temp
   FP_CBC%OutputKnudsen(5,iElem) = MAX(Knudsen_Dens, Knudsen_Velo, Knudsen_Temp)
   FP_CBC%OutputKnudsen(6,iElem) = Knudsen_NonEq
-  ! Write out the non-equilibrium parameters
-  FP_CBC%OutputKnudsen(7,iElem) = MAXVAL(StressTensor)
-  FP_CBC%OutputKnudsen(8,iElem) = MAXVAL(HeatVector)
-  FP_CBC%OutputKnudsen(9,iElem) = MAX(MAXVAL(HeatVector),MAXVAL(StressTensor))
+  FP_CBC%OutputKnudsen(7,iElem) = MAXVAL(StressTensor)/MAXVAL(FP_CBC%Max_StressTens)
+  FP_CBC%OutputKnudsen(8,iElem) = MAXVAL(HeatVector)/MAXVAL(FP_CBC%Max_HeatVec)
 
 END SELECT
 

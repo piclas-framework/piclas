@@ -76,7 +76,7 @@ nPart = PEM%pNumber(iElem)
 IF (DoVirtualCellMerge) THEN
   ! 1.) Create particle index list for pairing in the case of virtually merged cells. So, all particles from the merged cells are
   !   used for the pairing and the collisions.
-  IF(VirtMergedCells(iElem)%isMerged) RETURN  
+  IF(VirtMergedCells(iElem)%isMerged) RETURN
   nPartMerged = nPart
   DO iMergeElem = 1, VirtMergedCells(iElem)%NumOfMergedCells
     nPartMerged = nPartMerged + PEM%pNumber(VirtMergedCells(iElem)%MergedCellID(iMergeElem))
@@ -103,7 +103,7 @@ IF (DoVirtualCellMerge) THEN
     elemVolume = VirtMergedCells(iELem)%MergedVolume
   ELSE
     elemVolume = ElemVolume_Shared(GetCNElemID(iElem+offSetElem))
-  END IF  
+  END IF
 ELSE
   nPartMerged = nPart
   ALLOCATE(iPartIndx(nPart))
@@ -118,7 +118,7 @@ ELSE
     iPart = PEM%pNext(iPart)
   END DO
   elemVolume = ElemVolume_Shared(GetCNElemID(iElem+offSetElem))
-END IF  
+END IF
 
 ! 2.) Perform pairing (random pairing or nearest neighbour pairing) and collision (including the decision for a reaction/relaxation)
 CALL PerformPairingAndCollision(iPartIndx, nPartMerged, iElem , elemVolume)
@@ -192,7 +192,7 @@ IF (DoVirtualCellMerge) THEN
     END DO
     DoMergedCell = .TRUE.
   END IF
-END IF  
+END IF
 
 IF (DoMergedCell) THEN
   CALL PerformPairingAndCollision(TreeNode%iPartIndx_Node, nPartMerged, iElem, VirtMergedCells(iELem)%MergedVolume)
@@ -657,6 +657,7 @@ RECURSIVE SUBROUTINE AddOctreeNode(TreeNode, iElem, NodeVol)
   USE MOD_DSMC_Vars,              ONLY : tTreeNode, DSMC, tNodeVolume
   USE MOD_Particle_Vars,          ONLY : nSpecies, PartSpecies
   USE MOD_DSMC_Vars,              ONLY : ElemNodeVol
+  USE MOD_Particle_Mesh_Vars,     ONLY : MeshAdapt
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -747,6 +748,8 @@ RECURSIVE SUBROUTINE AddOctreeNode(TreeNode, iElem, NodeVol)
     END IF
   END DO
 
+MeshAdapt(iElem) = TreeNode%NodeDepth
+
 END SUBROUTINE AddOctreeNode
 
 
@@ -811,7 +814,7 @@ IF (DoVirtualCellMerge) THEN
     END DO
     DoMergedCell = .TRUE.
   END IF
-END IF 
+END IF
 
 IF (DoMergedCell) THEN
   CALL PerformPairingAndCollision(TreeNode%iPartIndx_Node, nPartMerged, iElem, VirtMergedCells(iELem)%MergedVolume)
@@ -876,6 +879,7 @@ USE MOD_DSMC_Vars         ,ONLY: tTreeNode, DSMC, tNodeVolume, RadialWeighting, 
 USE MOD_Particle_Vars     ,ONLY: nSpecies, PartSpecies, UseVarTimeStep, usevMPF
 USE MOD_DSMC_Vars         ,ONLY: ElemNodeVol
 USE MOD_part_tools        ,ONLY: GetParticleWeight
+USE MOD_Particle_Mesh_Vars,ONLY: MeshAdapt
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1042,6 +1046,8 @@ DO iLoop = 1, 4
   END IF
 END DO
 
+MeshAdapt(iElem) = TreeNode%NodeDepth
+
 END SUBROUTINE AddQuadTreeNode
 
 
@@ -1054,7 +1060,7 @@ USE MOD_DSMC_Analyze            ,ONLY: CalcMeanFreePath
 USE MOD_DSMC_Vars               ,ONLY: tTreeNode, DSMC, ElemNodeVol
 USE MOD_Particle_Vars           ,ONLY: PEM, PartState, nSpecies, PartSpecies
 USE MOD_part_tools              ,ONLY: GetParticleWeight
-USE MOD_Particle_Mesh_Vars      ,ONLY: ElemVolume_Shared,ElemCharLength_Shared
+USE MOD_Particle_Mesh_Vars      ,ONLY: ElemVolume_Shared,ElemCharLength_Shared,MeshAdapt
 USE MOD_Mesh_Vars               ,ONLY: offsetElem
 USE MOD_Mesh_Tools              ,ONLY: GetCNElemID
 ! IMPLICIT VARIABLE HANDLING
@@ -1106,7 +1112,7 @@ IF(nPart.GE.DSMC%PartNumOctreeNodeMin) THEN
       iPart = PEM%pNext(iPart)
     END DO
     TreeNode%NodeDepth = 1
-    ElemNodeVol(iElem)%Root%NodeDepth = 1    
+    ElemNodeVol(iElem)%Root%NodeDepth = 1
     ElemNodeVol(iElem)%Root%MidPoint(1:3) = (/0.0,0.0,0.0/)
     CALL AddDoTreeNode(TreeNode, iElem, ElemNodeVol(iElem)%Root)
     DEALLOCATE(TreeNode%MappedPartStates)
@@ -1134,6 +1140,7 @@ USE MOD_DSMC_Vars         ,ONLY: tTreeNode, DSMC, tNodeVolume, CollInf
 USE MOD_Particle_Vars     ,ONLY: nSpecies, PartSpecies
 USE MOD_DSMC_Vars         ,ONLY: ElemNodeVol
 USE MOD_part_tools        ,ONLY: GetParticleWeight
+USE MOD_Particle_Mesh_Vars,ONLY: MeshAdapt
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1225,6 +1232,8 @@ DO iLoop = 1, 2
     CollInf%OldCollPartner(iPartIndx_ChildNode(iLoop, 1)) = 0
   END IF
 END DO
+
+MeshAdapt(iElem) = TreeNode%NodeDepth
 
 END SUBROUTINE AddDoTreeNode
 

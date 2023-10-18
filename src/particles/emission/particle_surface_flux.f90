@@ -190,7 +190,7 @@ DO iSpec=1,nSpecies
         IF(Symmetry%Axisymmetric) THEN
           IF(RadialWeighting%DoRadialWeighting) THEN
             CALL CalcPartPosRadWeight(iSpec, iSF, iSide, minPos, RVec, PartInsSubSide, PartInsSideRadWeight, particle_positions, allowedRejections)
-          ELSE 
+          ELSE
             CALL CalcPartPosVarWeight(iSpec, iSF, iSide, minPos, RVec, PartInsSubSide, PartInsSideVarWeight, particle_positions, allowedRejections)
           END IF
         ELSE
@@ -252,7 +252,7 @@ DO iSpec=1,nSpecies
             IF (RadialWeighting%DoRadialWeighting) THEN
               PartMPF(ParticleIndexNbr) = CalcRadWeightMPF(PartState(2,ParticleIndexNbr), iSpec,ParticleIndexNbr)
             ELSE IF(VarWeighting%DoVariableWeighting) THEN
-              PartMPF(ParticleIndexNbr) = CalcVarWeightMPF(PartState(:,ParticleIndexNbr), iSpec,ElemID,ParticleIndexNbr)
+              PartMPF(ParticleIndexNbr) = CalcVarWeightMPF(PartState(:,ParticleIndexNbr),ElemID,ParticleIndexNbr)
             END IF
             IF(CalcSurfFluxInfo) THEN
               SF%SampledMassflow = SF%SampledMassflow + GetParticleWeight(ParticleIndexNbr)
@@ -881,7 +881,7 @@ END SUBROUTINE CalcPartInsRadWeight
 
 
 !===================================================================================================================================
-!> 
+!>
 !===================================================================================================================================
 SUBROUTINE CalcPartPosVarWeight(iSpec,iSF,iSide,minPos,RVec,PartInsSubSide,PartInsSideVarWeight,particle_positions,allowedRejections)
 ! MODULES
@@ -978,7 +978,7 @@ END SUBROUTINE CalcPartPosVarWeight
 
 
 !===================================================================================================================================
-!> 
+!>
 !===================================================================================================================================
 SUBROUTINE CalcPartInsVarWeight(iSpec, iSF, iSample, jSample, iSide, minPos, RVec, PartInsSubSide, PartInsSideVarWeight)
 ! MODULES
@@ -1618,12 +1618,12 @@ IF(UseRotRefFrame) THEN
   END DO
 END IF
 
-END SUBROUTINE SetSurfacefluxVelocities  
+END SUBROUTINE SetSurfacefluxVelocities
 
 !===================================================================================================================================
 !> Determine the particle velocity of each inserted particle
 !===================================================================================================================================
-SUBROUTINE SetSurfChemfluxVelocities(iSpec,iSF,iSample,jSample,iSide,BCSideID,SideID,ElemID,NbrOfParticle,PartIns)
+SUBROUTINE SetSurfChemfluxVelocities(iSpec,iSF,iSample,jSample,iSide,BCSideID,SideID,NbrOfParticle,PartIns)
 ! MODULES
 USE MOD_Globals
 USE MOD_Globals_Vars            ,ONLY: PI, BoltzmannConst
@@ -1636,12 +1636,12 @@ USE MOD_SurfaceModel_Vars       ,ONLY: SurfChemReac
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-INTEGER,INTENT(IN)               :: iSpec,iSF,iSample,jSample,iSide,BCSideID,SideID,ElemID,NbrOfParticle,PartIns
+INTEGER,INTENT(IN)               :: iSpec,iSF,iSample,jSample,iSide,BCSideID,SideID,NbrOfParticle,PartIns
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                          :: i,PositionNbr,envelope,currentBC,SampleElemID
+INTEGER                          :: i,PositionNbr,envelope,currentBC
 REAL                             :: Vec3D(3), vec_nIn(1:3), vec_t1(1:3), vec_t2(1:3)
 REAL                             :: a,zstar,RandVal1,RandVal2(2),RandVal3(3),u,RandN,RandN_save,Velo1,Velo2,Velosq,T,beta,z
 LOGICAL                          :: RandN_in_Mem
@@ -1649,8 +1649,7 @@ REAL                             :: projFak                          ! VeloVecIC
 REAL                             :: Velo_t1                          ! Velo comp. of first orth. vector in tria
 REAL                             :: Velo_t2                          ! Velo comp. of second orth. vector in tria
 REAL                             :: VeloIC
-REAL                             :: VeloVec(1:3)
-REAL                             :: VeloVecIC(1:3),v_thermal, pressure
+REAL                             :: VeloVecIC(1:3)
 !===================================================================================================================================
 
 IF(PartIns.LT.1) RETURN
@@ -1871,7 +1870,7 @@ IF(UseRotRefFrame) THEN
   END DO
 END IF
 
-END SUBROUTINE SetSurfChemfluxVelocities  
+END SUBROUTINE SetSurfChemfluxVelocities
 
 #if (USE_HDG)
 !===================================================================================================================================

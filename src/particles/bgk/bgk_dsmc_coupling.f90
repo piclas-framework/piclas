@@ -33,15 +33,14 @@ CONTAINS
 
 LOGICAL FUNCTION CBC_DoDSMC(iElem)
 !===================================================================================================================================
-!> Test of different continuum-breakdown criteria
-!> TO-DO: create separate functions for every breakdown criterium
+!> Call to different continuum-breakdown criteria for the coupling between BGK and DSMC
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
 USE MOD_BGK_Vars
 USE MOD_Globals_Vars           ,ONLY: BoltzmannConst
 USE MOD_DSMC_Analyze           ,ONLY: CalcMeanFreePath
-USE MOD_Particle_Vars          ,ONLY: PEM, nSpecies, PartSpecies, Species, usevMPF, PartState
+USE MOD_Particle_Vars          ,ONLY: PEM, nSpecies, PartSpecies
 USE MOD_Particle_Mesh_Vars     ,ONLY: ElemVolume_Shared, ElemToElemMapping, ElemToElemInfo, ElemMidPoint_Shared
 USE MOD_Mesh_Vars              ,ONLY: offsetElem, nElems
 USE MOD_Mesh_Tools             ,ONLY: GetCNElemID, GetGlobalElemID
@@ -59,8 +58,9 @@ INTEGER                      :: iPart, CNElemID, nNbElems, LocNbElem, GlobNbElem
 REAL                         :: SpecPartNum(nSpecies), MFP, totalWeight, NbVolume, NbDistance
 REAL                         :: RefVelo, NbVelo, RefDens, NbDens, RefTemp, NbTemp, NbtotalWeight, NbSpecPartNum(nSpecies)
 REAL                         :: DensGradient, TempGradient, VeloGradient, Knudsen_Dens, Knudsen_Temp, Knudsen_Velo, Knudsen_NonEq
-REAL                         :: HeatVector(3), StressTensor(3,3), ChapmanEnskog
+REAL                         :: HeatVector(3), StressTensor(3,3) ! , ChapmanEnskog
 !===================================================================================================================================
+! Default case: use of BGK
 CBC_DoDSMC = .FALSE.
 
 ! Reference element
@@ -68,6 +68,7 @@ CNElemID = GetCNElemID(iElem+offSetElem)
 
 ! Definition of continuum-breakdown in the cell and swtich between BGK and DSMC
 SELECT CASE (TRIM(CBC%SwitchCriterium))
+! Global Knudsen number = Mean free path / Characteristic length
 CASE('GlobalKnudsen')
   SpecPartNum = 0.0
 
@@ -86,6 +87,7 @@ CASE('GlobalKnudsen')
     CBC_DoDSMC = .TRUE.
   END IF
 
+! Local Knudsen number: gradient of the flow-field values
 CASE('LocalKnudsen')
   ! Set all needed variables to zero for the element in the loop
   DensGradient = 0.0; TempGradient = 0.0; VeloGradient = 0.0; NbVolume = 0.0
@@ -101,7 +103,7 @@ CASE('LocalKnudsen')
   ! Relative gradient between the cell and all neighboring cells for the particle density, velocity, translational temperature
   nNbElems = ElemToElemMapping(2,CNElemID)
   ! Loop over all neighbouring elements
-  DO iVal = 1, nNbElems 
+  DO iVal = 1, nNbElems
     CnNbElem = ElemToElemInfo(ElemToElemMapping(1,CNElemID)+iVal)
     GlobNbElem = GetGlobalElemID(CnNbElem)
     LocNbElem = GlobNbElem-offSetElem
@@ -122,11 +124,9 @@ CASE('LocalKnudsen')
     CALL CalcDensVeloTemp(LocNbElem, NbDens, NbVelo, NbTemp, NbSpecPartNum)
     NbtotalWeight = SUM(NbSpecPartNum)
 
-    ! Sum of the density gradient of all neighbour elements, weighted by the volume of the neighbour element
+    ! Sum of the gradient of all neighbour elements, weighted by the volume of the neighbour element
     DensGradient = DensGradient + ABS((RefDens-NbDens)/NbDistance)*ElemVolume_Shared(CnNbElem)
-    ! Sum of the velocity gradient of all neighbour elements, weighted by the volume of the neighbour element
     VeloGradient = VeloGradient + ABS((RefVelo-NbVelo)/NbDistance)*ElemVolume_Shared(CnNbElem)
-    ! Sum of the temperature gradient of all neighbour elements, weighted by the volume of the neighbour element
     TempGradient = TempGradient+ ABS((RefTemp-NbTemp)/NbDistance)*ElemVolume_Shared(CnNbElem)
   END DO ! iNbElem
 
@@ -142,7 +142,7 @@ CASE('LocalKnudsen')
   TempGradient = TempGradient/NbVolume
   IF (RefTemp.GT.0.) THEN
     Knudsen_Temp = MFP*TempGradient/RefTemp
-  ELSE 
+  ELSE
     Knudsen_Temp = 0.
   END IF
 
@@ -152,10 +152,12 @@ CASE('LocalKnudsen')
   CBC%OutputKnudsen(4,iElem) = Knudsen_Temp
   CBC%OutputKnudsen(5,iElem) = MAX(Knudsen_Dens, Knudsen_Velo, Knudsen_Temp)
 
+  ! Test if the volume weighted gradient is larger than a predefined value
   IF (MAX(Knudsen_Dens, Knudsen_Velo, Knudsen_Temp).GT.CBC%MaxLocalKnudsen) THEN
     CBC_DoDSMC = .TRUE.
   END IF
 
+! Thermal non-equilibrium: deviation of the individual temperatures from the equilibrium value in the cell
 CASE('ThermNonEq')
   ! Calculate the density, velocity and temperature of the reference element
   CALL CalcCellProp(iElem, RefDens, RefVelo, RefTemp, SpecPartNum,Knudsen_NonEq,StressTensor,HeatVector)
@@ -167,9 +169,10 @@ CASE('ThermNonEq')
   CBC%OutputKnudsen(6,iElem) = Knudsen_NonEq
 
   IF (Knudsen_NonEq.GT.CBC%MaxThermNonEq) THEN
-    CBC_DoDSMC = .TRUE. 
+    CBC_DoDSMC = .TRUE.
   END IF
 
+! Combination of the local Knudsen number and thermal non-equilibrium
 CASE('Combination')
   ! Set all needed variables to zero for the element in the loop
   DensGradient = 0.0; TempGradient = 0.0; VeloGradient = 0.0; NbVolume = 0.0
@@ -184,7 +187,7 @@ CASE('Combination')
   ! Relative gradient between the cell and all neighboring cells for the particle density, velocity, translational temperature
   nNbElems = ElemToElemMapping(2,CNElemID)
   ! Loop over all neighbouring elements
-  DO iVal = 1, nNbElems 
+  DO iVal = 1, nNbElems
     CnNbElem = ElemToElemInfo(ElemToElemMapping(1,CNElemID)+iVal)
     GlobNbElem = GetGlobalElemID(CnNbElem)
     LocNbElem = GlobNbElem-offSetElem
@@ -207,9 +210,7 @@ CASE('Combination')
 
     ! Sum of the density gradient of all neighbour elements, weighted by the volume of the neighbour element
     DensGradient = DensGradient + ABS((RefDens-NbDens)/NbDistance)*ElemVolume_Shared(CnNbElem)
-    ! Sum of the velocity gradient of all neighbour elements, weighted by the volume of the neighbour element
     VeloGradient = VeloGradient + ABS((RefVelo-NbVelo)/NbDistance)*ElemVolume_Shared(CnNbElem)
-    ! Sum of the temperature gradient of all neighbour elements, weighted by the volume of the neighbour element
     TempGradient = TempGradient+ ABS((RefTemp-NbTemp)/NbDistance)*ElemVolume_Shared(CnNbElem)
   END DO ! iNbElem
 
@@ -222,7 +223,7 @@ CASE('Combination')
   TempGradient = TempGradient/NbVolume
   IF (RefTemp.GT.0.) THEN
     Knudsen_Temp = MFP*TempGradient/RefTemp
-  ELSE 
+  ELSE
     Knudsen_Temp = 0.
   END IF
 
@@ -236,22 +237,28 @@ CASE('Combination')
   IF (MAX(Knudsen_Dens, Knudsen_Velo, Knudsen_Temp).GT.CBC%MaxLocalKnudsen) THEN
     CBC_DoDSMC = .TRUE.
   ELSE IF (Knudsen_NonEq.GT.CBC%MaxThermNonEq) THEN
-    CBC_DoDSMC = .TRUE. 
+    CBC_DoDSMC = .TRUE.
   END IF
 
+! Chapman-Enskog parameter: maximum value of the heat flux vector and the shear stress tensor
 CASE('ChapmanEnskog')
   CALL CalcCellProp(iElem, RefDens, RefVelo, RefTemp, SpecPartNum,Knudsen_NonEq,StressTensor,HeatVector)
-  ! Write out the non-equilibrium parameters
-  CBC%OutputKnudsen(7,iElem) = MAXVAL(StressTensor)
-  CBC%OutputKnudsen(8,iElem) = MAXVAL(HeatVector)
-  CBC%OutputKnudsen(9,iElem) = MAX(MAXVAL(HeatVector),MAXVAL(StressTensor))
 
-  IF (MAXVAL(StressTensor).GT.(2.8*10.**4)) THEN
-    CBC_DoDSMC = .TRUE.
-  ELSE IF (MAXVAL(HeatVector).GT.(4.1*10.**7)) THEN
-    CBC_DoDSMC = .TRUE.
+  ! Store the maximum heat flux values for the next iteration
+  CBC%Max_HeatVec(iElem) = MAXVAL(HeatVector)
+  CBC%Max_StressTens(iElem) = MAXVAL(StressTensor)
+
+  IF (MAXVAL(StressTensor).GT.(CBC%MaxChapmanEnskog*MAXVAL(CBC%Max_StressTens))) THEN
+   CBC_DoDSMC = .TRUE.
+  ELSE IF (MAXVAL(HeatVector).GT.(CBC%MaxChapmanEnskog*MAXVAL(CBC%Max_HeatVec))) THEN
+   CBC_DoDSMC = .TRUE.
   END IF
 
+  ! Write out the non-equilibrium parameters
+  CBC%OutputKnudsen(7,iElem) = MAXVAL(StressTensor)/MAXVAL(CBC%Max_StressTens)
+  CBC%OutputKnudsen(8,iElem) = MAXVAL(HeatVector)/MAXVAL(CBC%Max_HeatVec)
+
+! Calculation and output of all possible coupling-criteria, use of only BGK or FP in the calculation
 CASE('Output')
   ! Output Global Knudsen
   DensGradient = 0.0; TempGradient = 0.0; VeloGradient = 0.0; NbVolume = 0.0
@@ -261,7 +268,7 @@ CASE('Output')
 
   MFP = CalcMeanFreePath(SpecPartNum,SUM(SpecPartNum),ElemVolume_Shared(CNElemID))
 
-  ! Write out the non-equilibrium parameters
+  ! Global Knudsen number
   CBC%OutputKnudsen(1,iElem) = MFP/CBC%CharLength
 
   ! Total particle number in the element
@@ -270,7 +277,7 @@ CASE('Output')
   ! Relative gradient between the cell and all neighboring cells for the particle density, velocity, translational temperature
   nNbElems = ElemToElemMapping(2,CNElemID)
   ! Loop over all neighbouring elements
-  DO iVal = 1, nNbElems 
+  DO iVal = 1, nNbElems
     CnNbElem = ElemToElemInfo(ElemToElemMapping(1,CNElemID)+iVal)
     GlobNbElem = GetGlobalElemID(CnNbElem)
     LocNbElem = GlobNbElem-offSetElem
@@ -293,12 +300,11 @@ CASE('Output')
 
     ! Sum of the density gradient of all neighbour elements, weighted by the volume of the neighbour element
     DensGradient = DensGradient + ABS((RefDens-NbDens)/NbDistance)*ElemVolume_Shared(CnNbElem)
-    ! Sum of the velocity gradient of all neighbour elements, weighted by the volume of the neighbour element
     VeloGradient = VeloGradient + ABS((RefVelo-NbVelo)/NbDistance)*ElemVolume_Shared(CnNbElem)
-    ! Sum of the temperature gradient of all neighbour elements, weighted by the volume of the neighbour element
     TempGradient = TempGradient+ ABS((RefTemp-NbTemp)/NbDistance)*ElemVolume_Shared(CnNbElem)
   END DO ! iNbElem
 
+  ! Local Knudsen number of the density, velocity and temperature
   IF (RefDens.GT.0.) THEN
     DensGradient = DensGradient/NbVolume
     Knudsen_Dens = MFP*DensGradient/RefDens
@@ -309,16 +315,20 @@ CASE('Output')
   IF (RefVelo.GT.0.) THEN
     VeloGradient = VeloGradient/NbVolume
     Knudsen_Velo = MFP*VeloGradient/RefVelo
-  ELSE 
+  ELSE
     Knudsen_Velo = 0.
   END IF
 
   TempGradient = TempGradient/NbVolume
   IF (RefTemp.GT.0.) THEN
     Knudsen_Temp = MFP*TempGradient/RefTemp
-  ELSE 
+  ELSE
     Knudsen_Temp = 0.
   END IF
+
+    ! Store the maximum heat flux values for the next iteration
+  CBC%Max_HeatVec(iElem) = MAXVAL(HeatVector)
+  CBC%Max_StressTens(iElem) = MAXVAL(StressTensor)
 
   ! Write out the non-equilibrium parameters
   CBC%OutputKnudsen(2,iElem) = Knudsen_Dens
@@ -326,10 +336,8 @@ CASE('Output')
   CBC%OutputKnudsen(4,iElem) = Knudsen_Temp
   CBC%OutputKnudsen(5,iElem) = MAX(Knudsen_Dens, Knudsen_Velo, Knudsen_Temp)
   CBC%OutputKnudsen(6,iElem) = Knudsen_NonEq
-  ! Write out the non-equilibrium parameters
-  CBC%OutputKnudsen(7,iElem) = MAXVAL(StressTensor)
-  CBC%OutputKnudsen(8,iElem) = MAXVAL(HeatVector)
-  CBC%OutputKnudsen(9,iElem) = MAX(MAXVAL(HeatVector),MAXVAL(StressTensor))
+  CBC%OutputKnudsen(7,iElem) = MAXVAL(StressTensor)/MAXVAL(CBC%Max_StressTens)
+  CBC%OutputKnudsen(8,iElem) = MAXVAL(HeatVector)/MAXVAL(CBC%Max_HeatVec)
 
 END SELECT
 
@@ -348,11 +356,11 @@ USE MOD_BGK_CollOperator       ,ONLY: CalcViscosityThermalCondColIntVHS
 USE MOD_Globals_Vars           ,ONLY: BoltzmannConst
 USE MOD_DSMC_Analyze           ,ONLY: CalcMeanFreePath
 USE MOD_Particle_Vars          ,ONLY: PEM, nSpecies, PartSpecies, Species, usevMPF, PartState
-USE MOD_Particle_Mesh_Vars     ,ONLY: ElemVolume_Shared, ElemToElemMapping, ElemToElemInfo, ElemMidPoint_Shared
-USE MOD_Mesh_Vars              ,ONLY: offsetElem, nElems
+USE MOD_Particle_Mesh_Vars     ,ONLY: ElemVolume_Shared
+USE MOD_Mesh_Vars              ,ONLY: offsetElem
 USE MOD_Mesh_Tools             ,ONLY: GetCNElemID, GetGlobalElemID
 USE MOD_part_tools             ,ONLY: GetParticleWeight
-USE MOD_DSMC_Vars              ,ONLY: DSMC, SpecDSMC, CollisMode, PartStateIntEn, RadialWeighting, VarWeighting, PolyatomMolDSMC
+USE MOD_DSMC_Vars              ,ONLY: SpecDSMC, CollisMode, PartStateIntEn, RadialWeighting, VarWeighting, PolyatomMolDSMC
 USE MOD_Particle_Analyze_Tools ,ONLY: CalcTelec,CalcTVibPoly
 !-----------------------------------------------------------------------------------------------------------------------------------
 IMPLICIT NONE
@@ -364,7 +372,7 @@ INTEGER,INTENT(IN)            :: ElemID
 REAL,INTENT(OUT)              :: Density, Velocity, Temperature, SpecPartNum(nSpecies),ThermNonEq, StressTensor(3,3), HeatVector(3)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                       :: iPart, iLoop, iSpec, iVal, jVal, iCoord, iPolyatMole, CNElemID
+INTEGER                       :: iPart, iLoop, iSpec, iVal, jVal, iPolyatMole, CNElemID
 REAL                          :: Velo(nSpecies,3), Velo2(nSpecies,3), totalWeight, Temp(3), TempVib, TempTrans(3), TempRot
 REAL                          :: EVib(nSpecies), ERot(nSpecies), SpecTemp(nSpecies), MolPartNum(nSpecies), BulkVelo(3)
 REAL                          :: DoF_Rot(nSpecies), DoF_Vib(nSpecies), DoF_RotTotal, DoF_VibTotal, TVib_TempFac
@@ -377,7 +385,7 @@ DoF_VibTotal = 0.0; StressTensor = 0.0; HeatVector = 0.0; RelativeVelo = 0.0
 ! Reference element
 CNElemID = GetCNElemID(ElemID+offSetElem)
 
-! Determine the number of different species and the total particle number in the element by a loop over all particles 
+! Determine the number of different species and the total particle number in the element by a loop over all particles
 iPart = PEM%pStart(ElemID)
 DO iLoop = 1, PEM%pNumber(ElemID)
   SpecPartNum(PartSpecies(iPart)) = SpecPartNum(PartSpecies(iPart)) + GetParticleWeight(iPart)
@@ -386,7 +394,7 @@ DO iLoop = 1, PEM%pNumber(ElemID)
   Velo(PartSpecies(iPart),1:3) = Velo(PartSpecies(iPart),1:3) + PartState(4:6,iPart) * GetParticleWeight(iPart)
   Velo2(PartSpecies(iPart),1:3) = Velo2(PartSpecies(iPart),1:3) + PartState(4:6,iPart)**2 * GetParticleWeight(iPart)
 
-  ! Consideration of thermal non-equilibrium
+  ! Vibrational and rotational energy for the temperature calculation
   IF ((SpecDSMC(PartSpecies(iPart))%InterID.EQ.2).OR.(SpecDSMC(PartSpecies(iPart))%InterID.EQ.20)) THEN
     MolPartNum(PartSpecies(iPart)) = MolPartNum(PartSpecies(iPart)) + GetParticleWeight(iPart)
     EVib(PartSpecies(iPart)) = EVib(PartSpecies(iPart)) + (PartStateIntEn(1,iPart) - SpecDSMC(PartSpecies(iPart))%EZeroPoint) * GetParticleWeight(iPart)
@@ -414,7 +422,7 @@ Velocity = SQRT(Velocity)
 
 ! Calculation of the total mean translational temperature
 DO iSpec = 1, nSpecies
-  IF (SpecPartNum(iSpec).GE.1.0) THEN 
+  IF (SpecPartNum(iSpec).GE.1.0) THEN
     Temp  = Species(iSpec)%MassIC/BoltzmannConst * ((Velo2(iSpec,:)/SpecPartNum(iSpec)) - (Velo(iSpec,:)/SpecPartNum(iSpec))**2)
     Temperature = Temperature + ((Temp(1) + Temp(2) + Temp(3)) / 3.)*SpecPartNum(iSpec)
 
@@ -426,34 +434,35 @@ DO iSpec = 1, nSpecies
     ! Internal energies
     IF ((CollisMode.EQ.2).OR.(CollisMode.EQ.3))THEN
       IF ((SpecDSMC(iSpec)%InterID.EQ.2).OR.(SpecDSMC(iSpec)%InterID.EQ.20)) THEN
-        ! Vibrational temperature
+        ! Vibrational temperature for polyatomic molecules
         IF(SpecDSMC(iSpec)%PolyatomicMol) THEN
           IF( (EVib(iSpec)/MolPartNum(iSpec)).GT.0.0 ) THEN
             TempVib = TempVib + &
                         CalcTVibPoly(EVib(iSpec)/MolPartNum(iSpec)+SpecDSMC(iSpec)%EZeroPoint, iSpec) * MolPartNum(iSpec)
           END IF
           iPolyatMole = SpecDSMC(iSpec)%SpecToPolyArray
-          DoF_Vib(iSpec) = PolyatomMolDSMC(iPolyatMole)%VibDOF 
+          DoF_Vib(iSpec) = PolyatomMolDSMC(iPolyatMole)%VibDOF
+        ! Vibrational temperature for diatomic molecules
         ELSE
           TVib_TempFac = EVib(iSpec) / (MolPartNum(iSpec) * BoltzmannConst * SpecDSMC(iSpec)%CharaTVib)
           IF ((EVib(iSpec) /MolPartNum(iSpec)).GT.0.0) THEN
             TempVib = TempVib + SpecDSMC(iSpec)%CharaTVib / LOG(1. + 1./(TVib_TempFac)) * MolPartNum(iSpec)
           END IF
-          DoF_Vib(iSpec) = 1. 
+          DoF_Vib(iSpec) = 1.
         END IF !PolyatomicMol
 
         ! Rotational temperature
         TempRot = TempRot + 2. * ERot(iSpec) / (MolPartNum(iSpec)*BoltzmannConst*REAL(SpecDSMC(iSpec)%Xi_Rot)) * MolPartNum(iSpec)
-        DoF_Rot(iSpec) = REAL(SpecDSMC(iSpec)%Xi_Rot) 
+        DoF_Rot(iSpec) = REAL(SpecDSMC(iSpec)%Xi_Rot)
         DoF_RotTotal = DoF_RotTotal + DoF_Rot(iSpec) * MolPartNum(iSpec)
         DoF_VibTotal = DoF_VibTotal + DoF_Vib(iSpec) * MolPartNum(iSpec)
       END IF ! InterID
     END IF ! CollisMode
   END IF
-END DO  
+END DO
 IF (totalWeight.GT.0.) THEN
   Temperature = Temperature/totalweight
-ELSE 
+ELSE
   Temperature = 0.
 END IF
 IF (totalWeight.GT.0.) THEN
@@ -481,14 +490,14 @@ DO iLoop = 1, PEM%pNumber(ElemID)
   RelativeVelo(1:3) = PartState(4:6,iPart) - BulkVelo(1:3)
   RelVeloTotal = RelativeVelo(1)**2 + RelativeVelo(2)**2 + RelativeVelo(3)**2
 
-  ! Shear stress tensor
+  ! Shear stress tensor from the relative velocity
   DO iVal = 1,3
     DO jVal = 1,3
       StressTensor(iVal,jVal) = StressTensor(iVal,jVal) + RelativeVelo(iVal)*RelativeVelo(jVal) * GetParticleWeight(iPart)
     END DO
   END DO
 
-  ! Static pressure
+  ! Static pressure (Sum of the diagonal tensor values) and shear stress tensor
   StaticPressure = (StressTensor(1,1) + StressTensor(2,2) + StressTensor(3,3))/3.
   StressTensor(1,1) = StressTensor(1,1) - StaticPressure
   StressTensor(2,2) = StressTensor(2,2) - StaticPressure
@@ -508,12 +517,12 @@ END IF
 
 IF (totalWeight.GT.0.) THEN
   StressTensor = -(StressTensor/totalWeight)
-ELSE 
+ELSE
   StressTensor = 0.
 END IF
 
 END SUBROUTINE CalcCellProp
-  
+
 SUBROUTINE CalcDensVeloTemp(ElemID,Density,Velocity,Temperature,SpecPartNum)
 !===================================================================================================================================
 !> Calculate the density, velocity and translational temperature for the neighbour cells
@@ -524,11 +533,11 @@ USE MOD_BGK_Vars
 USE MOD_Globals_Vars           ,ONLY: BoltzmannConst
 USE MOD_DSMC_Analyze           ,ONLY: CalcMeanFreePath
 USE MOD_Particle_Vars          ,ONLY: PEM, nSpecies, PartSpecies, Species, usevMPF, PartState
-USE MOD_Particle_Mesh_Vars     ,ONLY: ElemVolume_Shared, ElemToElemMapping, ElemToElemInfo, ElemMidPoint_Shared
-USE MOD_Mesh_Vars              ,ONLY: offsetElem, nElems
+USE MOD_Particle_Mesh_Vars     ,ONLY: ElemVolume_Shared
+USE MOD_Mesh_Vars              ,ONLY: offsetElem
 USE MOD_Mesh_Tools             ,ONLY: GetCNElemID, GetGlobalElemID
 USE MOD_part_tools             ,ONLY: GetParticleWeight
-USE MOD_DSMC_Vars              ,ONLY: DSMC, SpecDSMC, CollisMode, PartStateIntEn, RadialWeighting, VarWeighting
+USE MOD_DSMC_Vars              ,ONLY: RadialWeighting, VarWeighting
 !-----------------------------------------------------------------------------------------------------------------------------------
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -539,7 +548,7 @@ INTEGER,INTENT(IN)            :: ElemID
 REAL,INTENT(OUT)              :: Density, Velocity, Temperature, SpecPartNum(nSpecies)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                       :: iPart, iLoop, iSpec, iCoord, CNElemID
+INTEGER                       :: iPart, iLoop, iSpec, CNElemID
 REAL                          :: Velo(nSpecies,3), Velo2(nSpecies,3), totalWeight, Temp(3)
 !-----------------------------------------------------------------------------------------------------------------------------------
 SpecPartNum = 0.0; Velo = 0.0; Velo2 = 0.0; Velocity = 0.0; Temp = 0.0; Temperature = 0.0
@@ -547,7 +556,7 @@ SpecPartNum = 0.0; Velo = 0.0; Velo2 = 0.0; Velocity = 0.0; Temp = 0.0; Temperat
 ! Reference element
 CNElemID = GetCNElemID(ElemID+offSetElem)
 
-! Determine the number of different species and the total particle number in the element by a loop over all particles 
+! Determine the number of different species and the total particle number in the element by a loop over all particles
 iPart = PEM%pStart(ElemID)
 DO iLoop = 1, PEM%pNumber(ElemID)
   SpecPartNum(PartSpecies(iPart)) = SpecPartNum(PartSpecies(iPart)) + GetParticleWeight(iPart)
@@ -576,14 +585,14 @@ Velocity = SQRT(Velocity)
 
 ! Calculation of the total mean translational temperature
 DO iSpec = 1, nSpecies
-  IF (SpecPartNum(iSpec).GE.1.0) THEN 
+  IF (SpecPartNum(iSpec).GE.1.0) THEN
     Temp  = Species(iSpec)%MassIC/BoltzmannConst * ((Velo2(iSpec,:)/SpecPartNum(iSpec)) - (Velo(iSpec,:)/SpecPartNum(iSpec))**2)
     Temperature = Temperature + ((Temp(1) + Temp(2) + Temp(3)) / 3.)*SpecPartNum(iSpec)
   END IF
-END DO  
+END DO
 IF (totalWeight.GT.0.) THEN
   Temperature = Temperature/totalweight
-ELSE 
+ELSE
   Temperature = 0.
 END IF
 END SUBROUTINE CalcDensVeloTemp

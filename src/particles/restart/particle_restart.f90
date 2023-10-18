@@ -1125,7 +1125,7 @@ USE MOD_HDF5_Input              ,ONLY: HSize,File_ID,GetDataProps
 USE MOD_Restart_Vars            ,ONLY: CatalyticFileName
 USE MOD_SurfaceModel_Vars       ,ONLY: ChemWallProp
 USE MOD_Particle_Boundary_Vars  ,ONLY: SurfSideArea_Shared
-USE MOD_Particle_Boundary_Vars  ,ONLY: nComputeNodeSurfSides, nComputeNodeSurfOutputSides, offsetComputeNodeSurfSide
+USE MOD_Particle_Boundary_Vars  ,ONLY: nComputeNodeSurfSides, offsetComputeNodeSurfSide
 USE MOD_Particle_Vars           ,ONLY: nSpecies
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -1177,7 +1177,7 @@ END ASSOCIATE
 ! Copy data from tmp array
 DO iSide = 1, nSurfaceSidesReadin
   SurfData(1:nVarSurf,iSide) = tempSurfData(1:nVarSurf,1,1,iSide)
-END DO 
+END DO
 
 CALL CloseDataFile()
 

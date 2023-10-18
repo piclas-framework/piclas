@@ -1015,7 +1015,7 @@ DeleteProb = 0.
 SpecID = PartSpecies(iPart)
 
 ! 1.) Determine the new particle weight and decide whether to clone or to delete the particle
-NewMPF = CalcVarWeightMPF(PartState(:,iPart),SpecID,(iElem-offSetElem),iPart)
+NewMPF = CalcVarWeightMPF(PartState(:,iPart),(iElem-offSetElem),iPart)
 OldMPF = PartMPF(iPart)
 CloneProb = (OldMPF/NewMPF)-INT(OldMPF/NewMPF)
 CALL RANDOM_NUMBER(iRan)

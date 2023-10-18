@@ -291,7 +291,7 @@ USE MOD_ReadInTools
 USE MOD_DSMC_Vars
 USE MOD_Cell_Adaption
 USE MOD_Mesh_Vars              ,ONLY: nElems, NGEo
-USE MOD_Particle_Mesh_Vars     ,ONLY: DoSubcellAdaption
+USE MOD_Particle_Mesh_Vars     ,ONLY: DoSubcellAdaption, MeshAdapt
 USE MOD_Globals_Vars           ,ONLY: Pi, BoltzmannConst, ElementaryCharge
 USE MOD_Particle_Vars          ,ONLY: nSpecies, Species, PDM, PartSpecies, Symmetry, UseVarTimeStep, usevMPF
 USE MOD_Particle_Vars          ,ONLY: DoFieldIonization,SampleElecExcitation
@@ -902,7 +902,10 @@ ELSE !CollisMode.GT.0
   IF (DoSubcellAdaption) THEN
     CALL Init_MeshAdaption()
   END IF
-  
+
+  ALLOCATE(MeshAdapt(nElems))
+  MeshAdapt = 0
+
   DSMC%UseOctree = GETLOGICAL('Particles-DSMC-UseOctree')
   DSMC%UseNearestNeighbour = GETLOGICAL('Particles-DSMC-UseNearestNeighbour')
   IF(DSMC%UseOctree) THEN
@@ -1360,6 +1363,7 @@ SUBROUTINE FinalizeDSMC()
 USE MOD_Globals
 USE MOD_DSMC_Vars
 USE MOD_Particle_Vars, ONLY:PDM
+USE MOD_Particle_Mesh_Vars
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
 ! INPUT VARIABLES
@@ -1473,6 +1477,7 @@ SDEALLOCATE(BGGas%DistributionNumDens)
 SDEALLOCATE(BGGas%Region)
 SDEALLOCATE(BGGas%RegionElemType)
 
+SDEALLOCATE(MeshAdapt)
 SDEALLOCATE(RadialWeighting%ClonePartNum)
 SDEALLOCATE(VarWeighting%ClonePartNum)
 SDEALLOCATE(VarWeighting%ScalePoint)
@@ -1530,7 +1535,7 @@ TYPE (tNodeVolume), INTENT(INOUT)  :: Node
 INTEGER     ::  iLoop, nLoop
 !===================================================================================================================================
 nLoop = 2**Symmetry%Order
-IF(ASSOCIATED(Node%SubNode)) THEN 
+IF(ASSOCIATED(Node%SubNode)) THEN
   DO iLoop = 1, nLoop
     CALL DeleteNodeVolume(Node%SubNode(iLoop))
   END DO

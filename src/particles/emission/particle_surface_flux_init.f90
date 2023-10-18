@@ -157,7 +157,6 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 ! Local variable declaration
-INTEGER               :: iReac, SurfNumReac, CatBoundNum
 INTEGER               :: iSpec,iSF,SideID,BCSideID,iSide,ElemID,iLocSide,iSample,jSample,currentBC, MaxSF, iSFElec
 INTEGER               :: iCopy1, iCopy2, iCopy3, MaxSurfacefluxBCs,nDataBC
 REAL                  :: tmp_SubSideDmax(SurfFluxSideSize(1),SurfFluxSideSize(2))
@@ -293,7 +292,7 @@ END DO !iSpec
 DO iSF=1,SurfChemReac%CatBoundNum
   currentBC = SurfChemReac%Surfaceflux(iSF)%BC
   IF (BCdata_auxSF(currentBC)%SideNumber.GT.0) THEN
-    
+
     ! Loop over sides on the surface flux
     DO iSide=1,BCdata_auxSF(currentBC)%SideNumber
       BCSideID=BCdata_auxSF(currentBC)%SideList(iSide)
@@ -314,7 +313,7 @@ DO iSF=1,SurfChemReac%CatBoundNum
         END DO; END DO
       END IF
       ! Initialize surface flux
-      CALL InitSurfChemFlux(iSF, iSide, tmp_SubSideAreas, BCdata_auxSFTemp)
+      CALL InitSurfChemFlux(iSF, iSide)
       ! Initialize acceptance-rejection on SF
       IF (SurfChemReac%Surfaceflux(iSF)%AcceptReject) THEN
         DO jSample=1,SurfFluxSideSize(2); DO iSample=1,SurfFluxSideSize(1)
@@ -740,7 +739,7 @@ USE MOD_Particle_Vars          ,ONLY: UseCircularInflow, Species, DoSurfaceFlux,
 USE MOD_DSMC_Symmetry          ,ONLY: DSMC_1D_CalcSymmetryArea, DSMC_2D_CalcSymmetryArea, DSMC_2D_CalcSymmetryAreaSubSides
 USE MOD_DSMC_Vars              ,ONLY: RadialWeighting, VarWeighting
 USE MOD_Particle_Surfaces      ,ONLY: CalcNormAndTangTriangle
-USE MOD_SurfaceModel_Vars      
+USE MOD_SurfaceModel_Vars
 USE MOD_part_tools             ,ONLY: CalcVarWeightMPF
 #if USE_MPI
 USE MOD_Particle_MPI_Vars      ,ONLY: PartMPI
@@ -890,19 +889,19 @@ DO iBC=1,countDataBC
               ! Surfaces that are NOT parallel to the YZ-plane
               IF(VarWeighting%CellLocalWeighting) THEN
                 ! Cell local weighting
-                BCdata_auxSFTemp(TmpMapToBC(iBC))%WeightingFactor(iCount) = CalcVarWeightMPF(ElemMidPoint_Shared(:,CNElemID),iSpec,ElemID)
+                BCdata_auxSFTemp(TmpMapToBC(iBC))%WeightingFactor(iCount) = CalcVarWeightMPF(ElemMidPoint_Shared(:,CNElemID),ElemID)
               ELSE
                 BCdata_auxSFTemp(TmpMapToBC(iBC))%WeightingFactor(iCount) = 1.
                 DO iSub = 1, VarWeighting%nSubSides
                   yMinTemp = ymin + (iSub-1) * (ymax - ymin) / VarWeighting%nSubSides
                   yMaxTemp = ymin + iSub * (ymax - ymin) / VarWeighting%nSubSides
                   yAvTemp = (yMaxTemp + yMinTemp)/2.
-                  BCdata_auxSFTemp(TmpMapToBC(iBC))%SubSideWeight(iCount,iSub) = CalcVarWeightMPF((/0.0,yAvTemp,0.0/),iSpec,ElemID)
+                  BCdata_auxSFTemp(TmpMapToBC(iBC))%SubSideWeight(iCount,iSub) = CalcVarWeightMPF((/0.0,yAvTemp,0.0/),ElemID)
                 END DO
                 BCdata_auxSFTemp(TmpMapToBC(iBC))%SubSideArea(iCount,:) = DSMC_2D_CalcSymmetryAreaSubSides(iLocSide,CNElemID)
               END IF
             ELSE ! surfaces parallel to the x-axis (ymax = ymin)
-              BCdata_auxSFTemp(TmpMapToBC(iBC))%WeightingFactor(iCount) = CalcVarWeightMPF((/0.0,ymax,0.0/),iSpec,ElemID)
+              BCdata_auxSFTemp(TmpMapToBC(iBC))%WeightingFactor(iCount) = CalcVarWeightMPF((/0.0,ymax,0.0/),ElemID)
             END IF
           END IF ! variable weighting
         ELSE
@@ -911,11 +910,11 @@ DO iBC=1,countDataBC
       ELSE IF(Symmetry%Order.EQ.1) THEN
         SurfMeshSubSideData(1,1:2,BCSideID)%area = DSMC_1D_CalcSymmetryArea(iLocSide,ElemID) / 2.
         ! Calculate the mean variable weighting factor in 3D
-      ELSE IF (VarWeighting%DoVariableWeighting) THEN 
+      ELSE IF (VarWeighting%DoVariableWeighting) THEN
         GlobalElemID = SideInfo_Shared(SIDE_ELEMID,SideID)
         CNElemID     = GetCNElemID(GlobalElemID)
         iLocSide = SideInfo_Shared(SIDE_LOCALID,SideID)
-        BCdata_auxSFTemp(TmpMapToBC(iBC))%WeightingFactor(iCount) = CalcVarWeightMPF(ElemMidPoint_Shared(:,CNElemID), iSpec,ElemID)
+        BCdata_auxSFTemp(TmpMapToBC(iBC))%WeightingFactor(iCount) = CalcVarWeightMPF(ElemMidPoint_Shared(:,CNElemID),ElemID)
       END IF
       !----- symmetry specific area calculation end
       IF (TrackingMethod.NE.TRIATRACKING) THEN !check that all sides are planar if TriaSurfaceFlux is used for tracing or refmapping
@@ -1303,7 +1302,7 @@ END DO
 END SUBROUTINE CalcConstMassflowWeightForZeroMassFlow
 
 
-SUBROUTINE InitSurfChemFlux(iSF, iSide, tmp_SubSideAreas, BCdata_auxSFTemp)
+SUBROUTINE InitSurfChemFlux(iSF, iSide)
 !===================================================================================================================================
 !> Initialize surface flux variables in SurfFluxSubSideData type
 !===================================================================================================================================
@@ -1313,19 +1312,16 @@ USE MOD_Globals_Vars            ,ONLY: BoltzmannConst, PI
 USE MOD_Particle_Surfaces_Vars  ,ONLY: SurfFluxSideSize, SurfMeshSubSideData, tBCdata_auxSFRadWeight, BCdata_auxSF
 USE MOD_Particle_Vars           ,ONLY: Species, nSpecies
 USE MOD_SurfaceModel_Vars
-USE MOD_DSMC_Vars               ,ONLY: RadialWeighting, VarWeighting
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
 INTEGER, INTENT(IN)   :: iSF, iSide
-REAL, INTENT(IN)      :: tmp_SubSideAreas(SurfFluxSideSize(1),SurfFluxSideSize(2))
-TYPE(tBCdata_auxSFRadWeight), ALLOCATABLE, INTENT(IN)        :: BCdata_auxSFTemp(:)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER               :: iSpec, iReac
+INTEGER               :: iSpec
 INTEGER               :: jSample, iSample, currentBC, BCSideID
 REAL                  :: vec_nIn(3), vec_t1(3), vec_t2(3), projFak, v_thermal, a
 !===================================================================================================================================
@@ -1356,7 +1352,7 @@ DO jSample=1,SurfFluxSideSize(2); DO iSample=1,SurfFluxSideSize(1)
     !-- store species-specific data in separate arrays to be able to re-use the surface flux types
     SurfChemReac%SFAux(iSF)%a_nIn(iSample,jSample,iSide,iSpec) = a
   END DO !iSpec
-  
+
   SurfChemReac%Surfaceflux(iSF)%SurfFluxSubSideData(iSample,jSample,iSide)%projFak = projFak
   IF (.NOT.SurfChemReac%Surfaceflux(iSF)%VeloIsNormal) THEN
     SurfChemReac%Surfaceflux(iSF)%SurfFluxSubSideData(iSample,jSample,iSide)%Velo_t1 &
@@ -1385,13 +1381,8 @@ USE MOD_Globals_Vars           ,ONLY: BoltzmannConst, Pi
 USE MOD_Particle_Boundary_Vars ,ONLY: PartBound,nPartBound
 USE MOD_SurfaceModel_Tools     ,ONLY: GetWallTemperature
 USE MOD_SurfaceModel_Vars
-USE MOD_Particle_Surfaces_Vars ,ONLY: BCdata_auxSF, BezierSampleN, SurfMeshSubSideData, SurfMeshSideAreas, tBCdata_auxSFRadWeight
-USE MOD_Particle_Surfaces_Vars ,ONLY: SurfFluxSideSize, TriaSurfaceFlux
+USE MOD_Particle_Surfaces_Vars ,ONLY: BCdata_auxSF, TriaSurfaceFlux
 USE MOD_Particle_Surfaces      ,ONLY: GetBezierSampledAreas
-USE MOD_Particle_Vars          ,ONLY: Species, nSpecies, DoSurfaceFlux
-USE MOD_Particle_Vars          ,ONLY: UseCircularInflow, DoForceFreeSurfaceFlux
-USE MOD_Particle_Sampling_Vars ,ONLY: UseAdaptive
-USE MOD_Restart_Vars           ,ONLY: DoRestart, RestartTime
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1402,7 +1393,7 @@ INTEGER, INTENT(INOUT) :: nDataBC
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER               :: iSF, iBound
-INTEGER               :: iReac, CatBoundNum
+INTEGER               :: CatBoundNum
 !===================================================================================================================================
 CatBoundNum = SurfChemReac%CatBoundNum
 ALLOCATE(SurfChemReac%SurfaceFlux(1:CatBoundNum))
@@ -1413,7 +1404,7 @@ SurfChemReac%Surfaceflux(:)%BC=-1
 
 iSF = 1
 DO iBound=1,nPartBound
-  IF (SurfChemReac%BoundisChemSurf(iBound)) THEN 
+  IF (SurfChemReac%BoundisChemSurf(iBound)) THEN
     SurfChemReac%Surfaceflux(iSF)%BC = iBound
     iSF = iSF + 1
   END IF

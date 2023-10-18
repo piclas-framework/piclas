@@ -340,7 +340,7 @@ ASSOCIATE (&
     ALLOCATE(AdaptMPF_Output(PP_nElems))
     DO iElem = 1, PP_nElems
       CNElemID = GetCNElemID(iElem + offsetElem)
-      AdaptMPF_Output(iElem) = CalcVarWeightMPF(ElemMidPoint_Shared(:,CNElemID),1,iElem)
+      AdaptMPF_Output(iElem) = CalcVarWeightMPF(ElemMidPoint_Shared(:,CNElemID),iElem)
     END DO
   END IF
 
@@ -1399,7 +1399,7 @@ IF (VarWeighting%DoVariableWeighting) THEN
     CALL abort(__STAMP__,&
                 'VarWeighting: CloneMode is not supported!')
   END SELECT
-  
+
   DO pcount = 0,tempDelay
     locnPart = locnPart + VarWeighting%ClonePartNum(pcount)
   END DO
@@ -1443,7 +1443,7 @@ iPart=offsetnPart
 DO iDelay=0,tempDelay
   IF (VarWeighting%DoVariableWeighting) THEN
     ClonePartNumber = VarWeighting%ClonePartNum(iDelay)
-  ELSE 
+  ELSE
     ClonePartNumber = RadialWeighting%ClonePartNum(iDelay)
   END IF
   DO pcount = 1, ClonePartNumber

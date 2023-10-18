@@ -698,11 +698,11 @@ IMPLICIT NONE
 ! INPUT/OUTPUT VARIABLES
 INTEGER(HID_T)    ,INTENT(IN)                  :: File_ID_in         !< HDF5 file id of opened file
 CHARACTER(LEN=*)  ,INTENT(IN)                  :: AttribName        !< name of attribute to be read
-CHARACTER(LEN=*)  ,INTENT(IN)                  :: DatasetName       !< dataset name 
+CHARACTER(LEN=*)  ,INTENT(IN)                  :: DatasetName       !< dataset name
 LOGICAL           ,INTENT(OUT)                 :: AttrExists
 !----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER(HID_T)                 :: Attr_ID,Type_ID,Loc_ID
+INTEGER(HID_T)                 :: Attr_ID,Loc_ID
 !==================================================================================================================================
 CALL H5DOPEN_F(File_ID_in, TRIM(DatasetName),Loc_ID, iError)
 
@@ -711,7 +711,7 @@ CALL H5AOPEN_F(Loc_ID, TRIM(AttribName), Attr_ID, iError)
 
 IF(iError.NE.0) THEN
   AttrExists = .FALSE.
-ELSE 
+ELSE
   AttrExists = .TRUE.
 END IF
 

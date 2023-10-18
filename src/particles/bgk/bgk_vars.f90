@@ -74,6 +74,8 @@ TYPE tCouplingCriteria
   INTEGER, ALLOCATABLE                         :: Iter_Count(:)
   LOGICAL,ALLOCATABLE                          :: DoElementDSMC(:)
   REAL, ALLOCATABLE                            :: OutputKnudsen(:,:)
+  REAL, ALLOCATABLE                            :: Max_HeatVec(:)
+  REAL, ALLOCATABLE                            :: Max_StressTens(:)
 END TYPE
 
 TYPE (tCouplingCriteria)                       :: CBC

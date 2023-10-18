@@ -558,7 +558,7 @@ RETURN
 
 END FUNCTION CalcRadWeightMPF
 
-REAL FUNCTION CalcVarWeightMPF(Pos, iSpec, iElem, iPart)
+REAL FUNCTION CalcVarWeightMPF(Pos, iElem, iPart)
 !===================================================================================================================================
 !> Determination of the weighting factor for a 3D test case.
 !> Linear increase in the scaling region along the specified vector
@@ -576,7 +576,6 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
 REAL, OPTIONAL                  :: Pos(3)
-INTEGER, INTENT(IN)             :: iSpec
 INTEGER, OPTIONAL,INTENT(IN)    :: iPart, iElem
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
@@ -628,7 +627,7 @@ IF (AdaptMPF%UseOptMPF.AND.PRESENT(iElem)) THEN
 ELSE ! regular routine with variable weights
   ! Linear scaling in all possible directions
   IF (VarWeighting%ScaleAxis.EQ.0) THEN
-    PosIn = CalcScalePoint(Pos, iSpec, iPart)
+    PosIn = CalcScalePoint(Pos, iPart)
   ! Linear scaling along the coordinate axis
   ELSE IF (VarWeighting%CellLocalWeighting.AND.PRESENT(iPart)) THEN
     PosIn = ElemMidPoint_Shared(VarWeighting%ScaleAxis,PEM%CNElemID(iPart))
@@ -703,7 +702,7 @@ RETURN
 
 END FUNCTION CalcAverageMPF
 
-REAL FUNCTION CalcScalePoint(Pos, iSpec, iPart)
+REAL FUNCTION CalcScalePoint(Pos, iPart)
 !===================================================================================================================================
 !> Determine the relative position of the point to the scaling vector
 !===================================================================================================================================
@@ -717,7 +716,6 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
 REAL, OPTIONAL                  :: Pos(3)
-INTEGER, INTENT(IN)             :: iSpec
 INTEGER, OPTIONAL,INTENT(IN)    :: iPart
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
@@ -1515,7 +1513,7 @@ END IF
 IF (RadialWeighting%DoRadialWeighting) THEN
   PartMPF(iPart) = CalcRadWeightMPF(PartState(2,iPart),iSpec,iPart)
 ELSE IF (VarWeighting%DoVariableWeighting) THEN
-  PartMPF(iPart) = CalcVarWeightMPF(PartState(:,iPart),iSpec,iElem,iPart)
+  PartMPF(iPart) = CalcVarWeightMPF(PartState(:,iPart),iElem,iPart)
 END IF
 
 END SUBROUTINE InitializeParticleMaxwell

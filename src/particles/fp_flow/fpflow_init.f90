@@ -112,7 +112,7 @@ DO iSpec = 1, nSpecies
   END DO
 END DO
 
-ALLOCATE(FP_CBC%OutputKnudsen(9,nElems))
+ALLOCATE(FP_CBC%OutputKnudsen(8,nElems))
 FP_CBC%OutputKnudsen = 0.0
 
 FPCollModel = GETINT('Particles-FP-CollModel')
@@ -167,6 +167,11 @@ IF(CoupledFPDSMC) THEN
     CALL abort(__STAMP__,'Wrong coupling criterium given')
   END SELECT
 
+  ALLOCATE(FP_CBC%Max_HeatVec(nElems))
+  FP_CBC%Max_HeatVec = 0.0
+  ALLOCATE(FP_CBC%Max_StressTens(nElems))
+  FP_CBC%Max_StressTens = 0.0
+
   ! Number of iterations between a possible FP-DSMC switch
   FP_CBC%SwitchIter = GETINT('Particles-FP-DSMC-SampleIter')
   ALLOCATE(FP_CBC%Iter_Count(nElems))
@@ -198,6 +203,8 @@ SDEALLOCATE(SpecFP)
 SDEALLOCATE(FP_QualityFacSamp)
 IF (CoupledFPDSMC) THEN
   SDEALLOCATE(FP_CBC%Iter_Count)
+  SDEALLOCATE(FP_CBC%Max_HeatVec)
+  SDEALLOCATE(FP_CBC%Max_StressTens)
 END IF
 
 END SUBROUTINE FinalizeFPFlow

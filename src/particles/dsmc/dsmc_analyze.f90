@@ -470,8 +470,8 @@ USE MOD_Globals_Vars           ,ONLY: BoltzmannConst
 USE MOD_part_tools             ,ONLY: CalcVarWeightMPF, CalcRadWeightMPF
 USE MOD_BGK_Vars               ,ONLY: BGKInitDone, BGK_QualityFacSamp, CBC, CoupledBGKDSMC
 USE MOD_DSMC_Vars              ,ONLY: DSMC_Solution, CollisMode, SpecDSMC, DSMC, useDSMC, BGGas
-USE MOD_DSMC_Vars              ,ONLY: RadialWeighting, VarWeighting, AdaptMPF, OptimalMPF_Shared
-USE MOD_FPFlow_Vars            ,ONLY: FPInitDone, FP_QualityFacSamp
+USE MOD_DSMC_Vars              ,ONLY: RadialWeighting, VarWeighting, AdaptMPF
+USE MOD_FPFlow_Vars            ,ONLY: FPInitDone, FP_QualityFacSamp, CoupledFPDSMC, FP_CBC
 USE MOD_Mesh_Vars              ,ONLY: nElems
 USE MOD_Particle_Vars          ,ONLY: Species, nSpecies, WriteMacroVolumeValues, usevMPF, Symmetry
 USE MOD_Particle_Vars          ,ONLY: UseVarTimeStep, VarTimeStep
@@ -479,7 +479,6 @@ USE MOD_Particle_Vars          ,ONLY: DoVirtualCellMerge, VirtMergedCells
 USE MOD_Particle_TimeStep      ,ONLY: GetParticleTimeStep
 USE MOD_Restart_Vars           ,ONLY: RestartTime
 USE MOD_TimeDisc_Vars          ,ONLY: time,TEnd,iter,dt
-!USE MOD_Particle_Mesh_Vars     ,ONLY: ElemMidPoint_Shared, ElemVolume_Shared
 USE MOD_Particle_Mesh_Vars
 USE MOD_Mesh_Vars              ,ONLY: offSetElem
 USE MOD_Mesh_Tools             ,ONLY: GetCNElemID
@@ -720,8 +719,14 @@ IF (DSMC%CalcQualityFactors) THEN
         DSMC_MacroVal(nVarCount+4,iElem) = FP_QualityFacSamp(5,iElem) / FP_QualityFacSamp(4,iElem)
       END IF
       ! Ratio between FP and DSMC usage per cell
-      DSMC_MacroVal(nVarCount+5,iElem) = FP_QualityFacSamp(4,iElem) / iter_loc
-      nVarCount = nVarCount + 5
+      IF (CoupledFPDSMC) THEN
+        DSMC_MacroVal(nVarCount+5,iElem) = FP_QualityFacSamp(4,iElem) / iter_loc
+        DSMC_MacroVal(nVarCount+6:nVarCount+13,iElem) = FP_CBC%OutputKnudsen(1:8,iElem)
+        nVarCount = nVarCount + 13
+      ELSE
+        DSMC_MacroVal(nVarCount+5,iElem) = 1.
+        nVarCount = nVarCount + 5
+      END IF
     END IF
     IF(BGKInitDone) THEN
       IF(BGK_QualityFacSamp(2,iElem).GT.0) THEN
@@ -745,17 +750,16 @@ IF (DSMC%CalcQualityFactors) THEN
       ! Ratio between BGK and DSMC usage per cell
       IF (CoupledBGKDSMC) THEN
         DSMC_MacroVal(nVarCount+8,iElem) = BGK_QualityFacSamp(4,iElem) / iter_loc
-        DSMC_MacroVal(nVarCount+9:nVarCount+17,iElem) = CBC%OutputKnudsen(1:9,iElem)
-        DSMC_MacroVal(nVarCount+18,iElem) = MeshAdapt(1,iElem)
-        DSMC_MacroVal(nVarCount+19,iElem) = MeshAdapt(2,iElem)
-        print*, MeshAdapt(:,5)
-        nVarCount = nVarCount + 19
+        DSMC_MacroVal(nVarCount+9:nVarCount+16,iElem) = CBC%OutputKnudsen(1:8,iElem)
+        nVarCount = nVarCount + 16
       ELSE
         DSMC_MacroVal(nVarCount+8,iElem) = 1.
-        DSMC_MacroVal(nVarCount+9,iElem) = MeshAdapt(1,iElem)
-        DSMC_MacroVal(nVarCount+10,iElem) = MeshAdapt(2,iElem)
-        nVarCount = nVarCount + 10
+        nVarCount = nVarCount + 8
       END IF
+    END IF
+    IF (DSMC%UseOctree.OR.DoSubcellAdaption) THEN
+      DSMC_MacroVal(nVarCount+1,iElem) = MeshAdapt(iElem)
+      nVarCount = nVarCount + 1
     END IF
     ! variable rotation and vibration relaxation
     IF(Collismode.GT.1) THEN
@@ -813,7 +817,7 @@ IF (DSMC%CalcCellMPF) THEN
   DO iElem=1,nElems
     CNElemID = GetCNElemID(iElem + offsetElem)
     IF (VarWeighting%DoVariableWeighting) THEN
-      DSMC%CellMPFSamp(iElem) = CalcVarWeightMPF(ElemMidPoint_Shared(:,CNElemID), 1)
+      DSMC%CellMPFSamp(iElem) = CalcVarWeightMPF(ElemMidPoint_Shared(:,CNElemID))
     ELSE IF (RadialWeighting%DoRadialWeighting) THEN
       DSMC%CellMPFSamp(iElem) = CalcRadWeightMPF(ElemMidPoint_Shared(2,CNElemID), 1)
     ELSE
@@ -835,7 +839,7 @@ END IF
 IF (AdaptMPF%DoAdaptMPF) THEN
   DO iElem=1,nElems
     CNElemID = GetCNElemID(iElem + offsetElem)
-    DSMC_MacroVal(nVarCount+1,iElem) = CalcVarWeightMPF(ElemMidPoint_Shared(:,CNElemID),1,iElem)
+    DSMC_MacroVal(nVarCount+1,iElem) = CalcVarWeightMPF(ElemMidPoint_Shared(:,CNElemID),iElem)
   END DO
   nVarCount = nVarCount + 1
 
@@ -895,18 +899,19 @@ SUBROUTINE WriteDSMCToHDF5(MeshFileName,OutputTime)
 !> Subroutine to write the sampled macroscopic solution to the HDF5 format
 !===================================================================================================================================
 ! MODULES
-USE MOD_DSMC_Vars     ,ONLY: DSMC, RadialWeighting, CollisMode, CollInf, SpecDSMC
-USE MOD_DSMC_Vars     ,ONLY: VarWeighting, AdaptMPF
-USE MOD_MCC_Vars      ,ONLY: SpecXSec
+USE MOD_DSMC_Vars          ,ONLY: DSMC, RadialWeighting, CollisMode, CollInf, SpecDSMC
+USE MOD_DSMC_Vars          ,ONLY: VarWeighting, AdaptMPF
+USE MOD_MCC_Vars           ,ONLY: SpecXSec
 USE MOD_PreProc
 USE MOD_Globals
-USE MOD_Globals_Vars  ,ONLY: ProjectName, ElementaryCharge
-USE MOD_Mesh_Vars     ,ONLY: offsetElem,nGlobalElems, nElems
+USE MOD_Globals_Vars       ,ONLY: ProjectName, ElementaryCharge
+USE MOD_Mesh_Vars          ,ONLY: offsetElem,nGlobalElems, nElems
 USE MOD_io_HDF5
-USE MOD_HDF5_Output   ,ONLY: WriteAttributeToHDF5, WriteHDF5Header, WriteArrayToHDF5
-USE MOD_Particle_Vars ,ONLY: nSpecies, UseVarTimeStep, SampleElecExcitation, ExcitationLevelCounter, DoVirtualCellMerge
-USE MOD_BGK_Vars      ,ONLY: BGKInitDone, CoupledBGKDSMC
-USE MOD_FPFlow_Vars   ,ONLY: FPInitDone
+USE MOD_HDF5_Output        ,ONLY: WriteAttributeToHDF5, WriteHDF5Header, WriteArrayToHDF5
+USE MOD_Particle_Vars      ,ONLY: nSpecies, UseVarTimeStep, SampleElecExcitation, ExcitationLevelCounter, DoVirtualCellMerge
+USE MOD_BGK_Vars           ,ONLY: BGKInitDone, CoupledBGKDSMC
+USE MOD_FPFlow_Vars        ,ONLY: FPInitDone, CoupledFPDSMC
+USE MOD_Particle_Mesh_Vars ,ONLY: DoSubcellAdaption
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -954,12 +959,19 @@ IF (DSMC%CalcQualityFactors) THEN
   IF(VarWeighting%PerformCloning) nVar_quality = nVar_quality + 2
   IF(BGKInitDone) THEN
     IF(CoupledBGKDSMC) THEN
-      nVar_quality = nVar_quality + 19
+      nVar_quality = nVar_quality + 16
     ELSE
-      nVar_quality = nVar_quality + 10
+      nVar_quality = nVar_quality + 8
     END IF
   END IF
-  IF(FPInitDone) nVar_quality = nVar_quality + 5
+  IF(FPInitDone) THEN
+    IF (CoupledFPDSMC) THEN
+      nVar_quality = nVar_quality + 13
+    ELSE
+      nVar_quality = nVar_quality + 5
+    END IF
+  END IF
+  IF (DSMC%UseOctree.OR.DoSubcellAdaption) nVar_quality = nVar_quality + 1
 ELSE
   nVar_quality=0
 END IF
@@ -1077,14 +1089,9 @@ IF (DSMC%CalcQualityFactors) THEN
       StrVarNames(nVarCount+14) = 'Thermal_NonEquilibrium'
       StrVarNames(nVarCount+15) = 'Chapman_Enskog_Tens'
       StrVarNames(nVarCount+16) = 'Chapman_Enskog_Vec'
-      StrVarNames(nVarCount+17) = 'Chapman_Enskog_Total'
-      StrVarNames(nVarCount+18) = 'Subcells'
-      StrVarNames(nVarCount+19) = 'Subcells_Merged'
-      nVarCount=nVarCount+19
+      nVarCount=nVarCount+16
     ELSE
-      StrVarNames(nVarCount+9) = 'Subcells'
-      StrVarNames(nVarCount+10) = 'Subcells_Merged'
-      nVarCount=nVarCount+10
+      nVarCount=nVarCount+8
     END IF
   END IF
   IF(FPInitDone) THEN
@@ -1093,7 +1100,26 @@ IF (DSMC%CalcQualityFactors) THEN
     StrVarNames(nVarCount+3) ='FP_MaxRelaxationFactor'
     StrVarNames(nVarCount+4) ='FP_MaxRotationRelaxFactor'
     StrVarNames(nVarCount+5) ='FP_DSMC_Ratio'
-    nVarCount=nVarCount+5
+    IF (CoupledFPDSMC) THEN
+      StrVarNames(nVarCount+6) = 'Global_Knudsen'
+      StrVarNames(nVarCount+7) = 'Knudsen_Dens'
+      StrVarNames(nVarCount+8) = 'Knudsen_Velo'
+      StrVarNames(nVarCount+9) = 'Knudsen_Temp'
+      StrVarNames(nVarCount+10) = 'Knudsen_Local'
+      StrVarNames(nVarCount+11) = 'Thermal_NonEquilibrium'
+      StrVarNames(nVarCount+12) = 'Chapman_Enskog_Tens'
+      StrVarNames(nVarCount+13) = 'Chapman_Enskog_Vec'
+      nVarCount=nVarCount+13
+    ELSE
+      nVarCount=nVarCount+5
+    END IF
+  END IF
+  IF (DSMC%UseOctree) THEN
+    StrVarNames(nVarCount+1) ='Octree_Node_Depth'
+    nVarCount = nVarCount + 1
+  ELSE IF (DoSubcellAdaption) THEN
+    StrVarNames(nVarCount+1) ='Subcell_Number'
+    nVarCount = nVarCount + 1
   END IF
 END IF
 IF(DSMC%CalcCellMPF) THEN

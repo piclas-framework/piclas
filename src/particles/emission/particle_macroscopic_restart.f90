@@ -89,7 +89,7 @@ DO iElem = 1, nElems
               TempMPF = CalcRadWeightMPF((MaxPosTemp+MinPosTemp)*0.5,iSpec)
             ELSE IF (VarWeighting%DoVariableWeighting) THEN
               PosVar = (/0.0,(MaxPosTemp+MinPosTemp)*0.5,0.0/)
-              TempMPF = CalcVarWeightMPF(PosVar,iSpec,iElem)
+              TempMPF = CalcVarWeightMPF(PosVar,iElem)
             END IF
             IF(UseVarTimeStep) THEN
               TempMPF = TempMPF * GetParticleTimeStep((Bounds(2,1)+Bounds(1,1))*0.5, (MaxPosTemp+MinPosTemp)*0.5, iElem)
@@ -202,9 +202,9 @@ DO iElem = 1, nElems
             VarWeighting%CloneDelayDiff = 1
           ELSEIF (VarWeighting%CloneMode.EQ.2) THEN
             VarWeighting%CloneDelayDiff = 0
-          END IF 
+          END IF
           CNElemID = GetCNElemID(GlobalElemID)
-          TempMPF = CalcVarWeightMPF(ElemMidPoint_Shared(:,CNElemID),iSpec,iElem)
+          TempMPF = CalcVarWeightMPF(ElemMidPoint_Shared(:,CNElemID),iElem)
         ELSE
           TempMPF = Species(iSpec)%MacroParticleFactor
         END IF ! VarWeighting

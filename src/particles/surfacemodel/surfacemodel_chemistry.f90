@@ -69,7 +69,7 @@ CALL prms%CreateIntOption(      'Surface-Reaction[$]-Promotion','Promotion/Coads
 CALL prms%CreateRealOption(     'Surface-Reaction[$]-StickingCoefficient', &
                                     'Ratio of adsorbed to impinging particles on a reactive surface', '0.' , numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'Surface-Reaction[$]-DissOrder',  &
-                                    'Associative = 1, dissociative = 2', '0.' , numberedmulti=.TRUE.) 
+                                    'Associative = 1, dissociative = 2', '0.' , numberedmulti=.TRUE.)
  CALL prms%CreateRealOption(     'Surface-Reaction[$]-EqConstant',  &
                                     'Equilibrium constant between the adsorption and desorption (K), Langmuir: K=1', '0.' , numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'Surface-Reaction[$]-LateralInteraction', &
@@ -79,7 +79,7 @@ CALL prms%CreateRealOption(     'Surface-Reaction[$]-Ca', &
 CALL prms%CreateRealOption(     'Surface-Reaction[$]-Cb', &
                                     'Desorption prefactor: nu = 10^(Ca + Coverage*Cb)', '0.' , numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'Surface-Reaction[$]-Prefactor', &
-                                    'Arrhenius prefactor for the reaction/desorption', '0.' , numberedmulti=.TRUE.) 
+                                    'Arrhenius prefactor for the reaction/desorption', '0.' , numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'Surface-Reaction[$]-Energy', &
                                     'Arrhenius energy for the reaction/desorption', '0.' , numberedmulti=.TRUE.)
 CALL prms%CreateLogicalOption(  'Surface-Diffusion', 'Diffusion along the surface', '.FALSE.')
@@ -94,13 +94,13 @@ SUBROUTINE SurfaceModel_Chemistry_Init()
 !===================================================================================================================================
 ! Readin of variables and definition of reaction cases
 !===================================================================================================================================
-! MODULES 
+! MODULES
 USE MOD_Globals
 USE MOD_ReadInTools
 USE MOD_PARTICLE_Vars           ,ONLY: nSpecies
 USE MOD_Particle_Mesh_Vars      ,ONLY: SideInfo_Shared
-USE MOD_Particle_Boundary_Vars  
-USE MOD_SurfaceModel_Vars     
+USE MOD_Particle_Boundary_Vars
+USE MOD_SurfaceModel_Vars
 USE MOD_Particle_Surfaces_Vars
 USE MOD_io_hdf5
 USE MOD_HDF5_input              ,ONLY:ReadAttribute, DatasetExists, AttributeExists
@@ -117,7 +117,6 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 CHARACTER(LEN=64)     :: dsetname
-CHARACTER(LEN=64)     :: AttribName
 INTEGER(HID_T)        :: file_id_specdb                       ! File identifier
 LOGICAL               :: DataSetFound
 LOGICAL               :: Attr_Exists
@@ -191,7 +190,7 @@ ALLOCATE(SurfChemReac%Prob(SurfChemReac%NumOfReact))
 SurfChemReac%Prob = 0.0
 ALLOCATE(SurfChemReac%ArrheniusEnergy(SurfChemReac%NumOfReact))
 SurfChemReac%ArrheniusEnergy = 0.0
-ALLOCATE(SurfChemReac%Prefactor(SurfChemReac%NumOfReact)) 
+ALLOCATE(SurfChemReac%Prefactor(SurfChemReac%NumOfReact))
 SurfChemReac%Prefactor = 0.0
 ALLOCATE(SurfChemReac%EReact(SurfChemReac%NumOfReact))
 SurfChemReac%EReact = 0.0
@@ -205,7 +204,7 @@ DO iReac = 1, ReadInNumOfReact
   WRITE(UNIT=hilf,FMT='(I0)') iReac
   SurfChemReac%CatName(iReac)              = TRIM(GETSTR('Surface-Reaction'//TRIM(hilf)//'-SurfName'))
   SurfChemReac%Reactants(iReac,:)           = GETINTARRAY('Surface-Reaction'//TRIM(hilf)//'-Reactants',2,'0,0')
-  SurfChemReac%Products(iReac,:)            = GETINTARRAY('Surface-Reaction'//TRIM(hilf)//'-Products',2,'0,0') 
+  SurfChemReac%Products(iReac,:)            = GETINTARRAY('Surface-Reaction'//TRIM(hilf)//'-Products',2,'0,0')
 
   SurfChemReac%NumOfBounds(iReac)           = GETINT('Surface-Reaction'//TRIM(hilf)//'-NumOfBoundaries','0')
   IF (SurfChemReac%NumOfBounds(iReac).EQ.0) THEN
@@ -217,12 +216,12 @@ DO iReac = 1, ReadInNumOfReact
   ! Define the surface model
   PartBound%SurfaceModel(SurfChemReac%BoundMap(iReac)%Boundaries) = 20
 
-  DO iReac2 = 1, SurfChemReac%NumOfBounds(iReac)   
+  DO iReac2 = 1, SurfChemReac%NumOfBounds(iReac)
     SurfChemReac%BoundisChemSurf(SurfChemReac%BoundMap(iReac)%Boundaries(iReac2)) = .TRUE.
   END DO
 
   ! Select pure surface reactions
-  DO iVal = 1, SurfChemReac%NumOfBounds(iReac)   
+  DO iVal = 1, SurfChemReac%NumOfBounds(iReac)
     iBound = SurfChemReac%BoundMap(iReac)%Boundaries(iVal)
     SurfChemReac%PSMap(iBound)%PureSurfReac(iReac) = .TRUE.
   END DO
@@ -268,31 +267,31 @@ IF(SpeciesDatabase.NE.'none') THEN
       CALL AttributeExists(file_id_specdb,'Inhibition',TRIM(dsetname), AttrExists=Attr_Exists)
       IF (Attr_Exists) THEN
         CALL ReadAttribute(file_id_specdb,'Inhibition',1,DatasetName = dsetname,IntScalar=SurfChemReac%Inhibition(iReac))
-      ELSE 
+      ELSE
         SurfChemReac%Inhibition(iReac)= 0
       END IF
       CALL AttributeExists(file_id_specdb,'Promotion',TRIM(dsetname), AttrExists=Attr_Exists)
       IF (Attr_Exists) THEN
         CALL ReadAttribute(file_id_specdb,'Promotion',1,DatasetName = dsetname,IntScalar=SurfChemReac%Promotion(iReac))
-      ELSE 
+      ELSE
         SurfChemReac%Promotion(iReac)= 0
       END IF
       CALL AttributeExists(file_id_specdb,'ReactHeat',TRIM(dsetname), AttrExists=Attr_Exists)
       IF (Attr_Exists) THEN
         CALL ReadAttribute(file_id_specdb,'ReactHeat',1,DatasetName = dsetname,RealScalar=SurfChemReac%EReact(iReac))
-      ELSE 
+      ELSE
         SurfChemReac%EReact(iReac)= 0.
       END IF
       CALL AttributeExists(file_id_specdb,'HeatScaling',TRIM(dsetname), AttrExists=Attr_Exists)
       IF (Attr_Exists) THEN
         CALL ReadAttribute(file_id_specdb,'HeatScaling',1,DatasetName = dsetname,RealScalar=SurfChemReac%EScale(iReac))
-      ELSE 
+      ELSE
         SurfChemReac%EScale(iReac)= 0.
       END IF
       CALL AttributeExists(file_id_specdb,'EnergyAccommodation',TRIM(dsetname), AttrExists=Attr_Exists)
       IF (Attr_Exists) THEN
         CALL ReadAttribute(file_id_specdb,'EnergyAccommodation',1,DatasetName = dsetname,RealScalar=SurfChemReac%HeatAccommodation(iReac))
-      ELSE 
+      ELSE
         SurfChemReac%HeatAccommodation(iReac)= 0.
       END IF
 
@@ -301,19 +300,19 @@ IF(SpeciesDatabase.NE.'none') THEN
         CALL AttributeExists(file_id_specdb,'StickingCoefficient',TRIM(dsetname), AttrExists=Attr_Exists)
         IF (Attr_Exists) THEN
           CALL ReadAttribute(file_id_specdb,'StickingCoefficient',1,DatasetName = dsetname,RealScalar=SurfChemReac%S_initial(iReac))
-        ELSE 
+        ELSE
           SurfChemReac%S_initial(iReac)= 1.
         END IF
         CALL AttributeExists(file_id_specdb,'EqConstant',TRIM(dsetname), AttrExists=Attr_Exists)
         IF (Attr_Exists) THEN
           CALL ReadAttribute(file_id_specdb,'EqConstant',1,DatasetName = dsetname,RealScalar=SurfChemReac%EqConstant(iReac))
-        ELSE 
+        ELSE
           SurfChemReac%EqConstant(iReac)= 1.
         END IF
         CALL AttributeExists(file_id_specdb,'DissOrder',TRIM(dsetname), AttrExists=Attr_Exists)
         IF (Attr_Exists) THEN
           CALL ReadAttribute(file_id_specdb,'DissOrder',1,DatasetName = dsetname,RealScalar=SurfChemReac%DissOrder(iReac))
-        ELSE 
+        ELSE
           SurfChemReac%DissOrder(iReac)= 1.
         END IF
 
@@ -321,37 +320,37 @@ IF(SpeciesDatabase.NE.'none') THEN
         CALL AttributeExists(file_id_specdb,'LateralInteraction',TRIM(dsetname), AttrExists=Attr_Exists)
         IF (Attr_Exists) THEN
           CALL ReadAttribute(file_id_specdb,'LateralInteraction',1,DatasetName = dsetname,RealScalar=SurfChemReac%W_interact(iReac))
-        ELSE 
+        ELSE
           SurfChemReac%W_interact(iReac)= 0.
         END IF
         CALL AttributeExists(file_id_specdb,'Ca',TRIM(dsetname), AttrExists=Attr_Exists)
         IF (Attr_Exists) THEN
           CALL ReadAttribute(file_id_specdb,'Ca',1,DatasetName = dsetname,RealScalar=SurfChemReac%C_a(iReac))
-        ELSE 
+        ELSE
           SurfChemReac%C_a(iReac)= 0.
         END IF
         CALL AttributeExists(file_id_specdb,'Cb',TRIM(dsetname), AttrExists=Attr_Exists)
         IF (Attr_Exists) THEN
           CALL ReadAttribute(file_id_specdb,'Cb',1,DatasetName = dsetname,RealScalar=SurfChemReac%C_b(iReac))
-        ELSE 
+        ELSE
           SurfChemReac%C_b(iReac)= 0.
         END IF
         CALL AttributeExists(file_id_specdb,'Prefactor',TRIM(dsetname), AttrExists=Attr_Exists)
         IF (Attr_Exists) THEN
           CALL ReadAttribute(file_id_specdb,'Prefactor',1,DatasetName = dsetname,RealScalar=SurfChemReac%Prefactor(iReac))
-        ELSE 
+        ELSE
           SurfChemReac%Prefactor(iReac)= 0.
         END IF
         CALL AttributeExists(file_id_specdb,'Energy',TRIM(dsetname), AttrExists=Attr_Exists)
         IF (Attr_Exists) THEN
           CALL ReadAttribute(file_id_specdb,'Energy',1,DatasetName = dsetname,RealScalar=SurfChemReac%E_initial(iReac))
-        ELSE 
+        ELSE
           SurfChemReac%E_initial(iReac)= 0.
         END IF
         CALL AttributeExists(file_id_specdb,'DissOrder',TRIM(dsetname), AttrExists=Attr_Exists)
         IF (Attr_Exists) THEN
           CALL ReadAttribute(file_id_specdb,'DissOrder',1,DatasetName = dsetname,RealScalar=SurfChemReac%DissOrder(iReac))
-        ELSE 
+        ELSE
           SurfChemReac%DissOrder(iReac)= 1.
         END IF
 
@@ -360,32 +359,32 @@ IF(SpeciesDatabase.NE.'none') THEN
           SurfChemReac%Prefactor(iReac) = SurfChemReac%Prefactor(iReac) * 10.0**(15)
         END IF
 
-      CASE('LH') 
+      CASE('LH')
         CALL AttributeExists(file_id_specdb,'Energy',TRIM(dsetname), AttrExists=Attr_Exists)
         IF (Attr_Exists) THEN
           CALL ReadAttribute(file_id_specdb,'Energy',1,DatasetName = dsetname,RealScalar=SurfChemReac%ArrheniusEnergy(iReac))
-        ELSE 
+        ELSE
           SurfChemReac%ArrheniusEnergy(iReac)= 0.
         END IF
         CALL AttributeExists(file_id_specdb,'Prefactor',TRIM(dsetname), AttrExists=Attr_Exists)
         IF (Attr_Exists) THEN
           CALL ReadAttribute(file_id_specdb,'Prefactor',1,DatasetName = dsetname,RealScalar=SurfChemReac%Prefactor(iReac))
-        ELSE 
+        ELSE
           SurfChemReac%Prefactor(iReac)= 1.
         END IF
         SurfChemReac%Prefactor(iReac) = SurfChemReac%Prefactor(iReac) * 10.0**(15)
 
-      CASE('LHD') 
+      CASE('LHD')
         CALL AttributeExists(file_id_specdb,'Energy',TRIM(dsetname), AttrExists=Attr_Exists)
         IF (Attr_Exists) THEN
           CALL ReadAttribute(file_id_specdb,'Energy',1,DatasetName = dsetname,RealScalar=SurfChemReac%ArrheniusEnergy(iReac))
-        ELSE 
+        ELSE
           SurfChemReac%ArrheniusEnergy(iReac)= 0.
         END IF
         CALL AttributeExists(file_id_specdb,'Prefactor',TRIM(dsetname), AttrExists=Attr_Exists)
         IF (Attr_Exists) THEN
           CALL ReadAttribute(file_id_specdb,'Prefactor',1,DatasetName = dsetname,RealScalar=SurfChemReac%Prefactor(iReac))
-        ELSE 
+        ELSE
           SurfChemReac%Prefactor(iReac)= 1.
         END IF
         SurfChemReac%Prefactor(iReac) = SurfChemReac%Prefactor(iReac) * 10.0**(15)
@@ -394,13 +393,13 @@ IF(SpeciesDatabase.NE.'none') THEN
         CALL AttributeExists(file_id_specdb,'Energy',TRIM(dsetname), AttrExists=Attr_Exists)
         IF (Attr_Exists) THEN
           CALL ReadAttribute(file_id_specdb,'Energy',1,DatasetName = dsetname,RealScalar=SurfChemReac%ArrheniusEnergy(iReac))
-        ELSE 
+        ELSE
           SurfChemReac%ArrheniusEnergy(iReac)= 0.
         END IF
         CALL AttributeExists(file_id_specdb,'Prefactor',TRIM(dsetname), AttrExists=Attr_Exists)
         IF (Attr_Exists) THEN
           CALL ReadAttribute(file_id_specdb,'Prefactor',1,DatasetName = dsetname,RealScalar=SurfChemReac%Prefactor(iReac))
-        ELSE 
+        ELSE
           SurfChemReac%Prefactor(iReac)= 1.
         END IF
 
@@ -425,9 +424,9 @@ IF (SurfChemReac%OverwriteCatParameters) THEN
     SurfChemReac%ReactType(iReac)             = TRIM(GETSTR('Surface-Reaction'//TRIM(hilf)//'-Type'))
 
     SurfChemReac%Inhibition(iReac)            = GETINT('Surface-Reaction'//TRIM(hilf)//'-Inhibition','0')
-    SurfChemReac%Promotion(iReac)             = GETINT('Surface-Reaction'//TRIM(hilf)//'-Promotion','0')  
-    SurfChemReac%EReact(iReac)                = GETREAL('Surface-Reaction'//TRIM(hilf)//'-ReactHeat','0.') 
-    SurfChemReac%EScale(iReac)                = GETREAL('Surface-Reaction'//TRIM(hilf)//'-HeatScaling','0.') 
+    SurfChemReac%Promotion(iReac)             = GETINT('Surface-Reaction'//TRIM(hilf)//'-Promotion','0')
+    SurfChemReac%EReact(iReac)                = GETREAL('Surface-Reaction'//TRIM(hilf)//'-ReactHeat','0.')
+    SurfChemReac%EScale(iReac)                = GETREAL('Surface-Reaction'//TRIM(hilf)//'-HeatScaling','0.')
     SurfChemReac%HeatAccommodation(iReac)      = GETREAL('Surface-Reaction'//TRIM(hilf)//'-EnergyAccommodation','1.')
 
     SELECT CASE (TRIM(SurfChemReac%ReactType(iReac)))
@@ -442,20 +441,20 @@ IF (SurfChemReac%OverwriteCatParameters) THEN
       SurfChemReac%C_b(iReac) = GETREAL('Surface-Reaction'//TRIM(hilf)//'-Cb','0.')
       SurfChemReac%Prefactor(iReac) = GETREAL('Surface-Reaction'//TRIM(hilf)//'-Prefactor','0.')
       SurfChemReac%E_initial(iReac) = GETREAL('Surface-Reaction'//TRIM(hilf)//'-Energy','0.')
-      SurfChemReac%DissOrder(iReac) = GETREAL('Surface-Reaction'//TRIM(hilf)//'-DissOrder','1.') 
+      SurfChemReac%DissOrder(iReac) = GETREAL('Surface-Reaction'//TRIM(hilf)//'-DissOrder','1.')
 
     ! Convert the prefactor from absolute to coverage values for associative desorption
       IF(SurfChemReac%DissOrder(iReac).EQ.2) THEN
         SurfChemReac%Prefactor(iReac) = SurfChemReac%Prefactor(iReac) * 10.0**(15)
       END IF
 
-    CASE('LH') 
+    CASE('LH')
       SurfChemReac%ArrheniusEnergy(iReac) = GETREAL('Surface-Reaction'//TRIM(hilf)//'-Energy','0.')
       SurfChemReac%Prefactor(iReac) = GETREAL('Surface-Reaction'//TRIM(hilf)//'-Prefactor','1.')
       ! Convert the prefactor to coverage dependent values
       SurfChemReac%Prefactor(iReac) = SurfChemReac%Prefactor(iReac) * 10.0**(15)
 
-    CASE('LHD') 
+    CASE('LHD')
       SurfChemReac%ArrheniusEnergy(iReac) = GETREAL('Surface-Reaction'//TRIM(hilf)//'-Energy','0.')
       SurfChemReac%Prefactor(iReac) = GETREAL('Surface-Reaction'//TRIM(hilf)//'-Prefactor','1.')
       ! Convert the prefactor to coverage dependent values

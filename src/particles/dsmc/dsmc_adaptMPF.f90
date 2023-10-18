@@ -92,7 +92,7 @@ IMPLICIT NONE
 INTEGER                             :: nVar_HDF5, N_HDF5, iVar
 INTEGER                             :: nVar_TotalPartNum, nVar_TotalDens, nVar_DSMC, nVar_BGK, nVar_FP, nVar_AdaptMPF
 INTEGER                             :: offSetLocal, nVar_Ratio_FP, nVar_Ratio_BGK
-INTEGER                             :: iElem, ReadInElems, iCNElem, firstElem, lastElem, iTest
+INTEGER                             :: iElem, ReadInElems, iCNElem, firstElem, lastElem
 REAL, ALLOCATABLE                   :: ElemData_HDF5(:,:)
 CHARACTER(LEN=255),ALLOCATABLE      :: VarNames_tmp(:)
 !===================================================================================================================================
@@ -101,9 +101,11 @@ SWRITE(UNIT_stdOut,'(A)') ' INIT ADAPTIVE PARTICLE WEIGHTS...'
 
 nVar_TotalPartNum = 0; nVar_TotalDens = 0; nVar_Ratio_FP = 0; nVar_Ratio_BGK = 0; nVar_DSMC = 0; nVar_BGK = 0; nVar_AdaptMPF = 0
 
+! No further adaption of the MPF during the LoadBalance step
 IF(AdaptMPF%DoAdaptMPF.AND.(.NOT.PerformLoadBalance)) THEN
   CALL InitNodeMapping
 
+  ! No further adaption process
   AdaptMPF%SkipAdaption       = GETLOGICAL('Part-AdaptMPF-SkipAdaption')
 
   IF (.NOT.(AdaptMPF%SkipAdaption)) THEN
@@ -119,9 +121,9 @@ IF(AdaptMPF%DoAdaptMPF.AND.(.NOT.PerformLoadBalance)) THEN
     AdaptMPF%QualityFactor      = GETREAL('Part-AdaptMPF-RefinementFactor')
     AdaptMPF%BGKFactor          = GETREAL('Part-AdaptMPF-RefineFactorBGK')
     AdaptMPF%FPFactor           = GETREAL('Part-AdaptMPF-RefineFactorFP')
-    ! Parameters for the filtering subroutine
     AdaptMPF%SymAxis_MinPartNum = GETINT('Part-AdaptMPF-SymAxis-MinPartNum')
     AdaptMPF%Cat_MinPartNum     = GETINT('Part-AdaptMPF-Cat-MinPartNum')
+    ! Parameters for the filtering subroutine
     IF (AdaptMPF%UseMedianFilter) THEN
       AdaptMPF%nRefine          = GETINT('Part-AdaptMPF-RefinementNumber')
     END IF
@@ -147,8 +149,8 @@ IF(AdaptMPF%DoAdaptMPF.AND.(.NOT.PerformLoadBalance)) THEN
       IF (STRICMP(VarNames_tmp(iVar),"Total_NumberDensity")) THEN
         nVar_TotalDens = iVar
       END IF
-      !IF (STRICMP(VarNames_tmp(iVar),"DSMC_MCS_over_MFP")) THEN
-      IF (STRICMP(VarNames_tmp(iVar),"DSMC_MeanMCSMFP")) THEN
+      IF (STRICMP(VarNames_tmp(iVar),"DSMC_MCS_over_MFP")) THEN
+      !IF (STRICMP(VarNames_tmp(iVar),"DSMC_MeanMCSMFP")) THEN
         nVar_DSMC = iVar
       END IF
       IF (STRICMP(VarNames_tmp(iVar),"BGK_DSMC_Ratio")) THEN
@@ -195,6 +197,7 @@ IF(AdaptMPF%DoAdaptMPF.AND.(.NOT.PerformLoadBalance)) THEN
     ALLOCATE(AdaptMPFInfo_Shared(7,nComputeNodeElems))
 #endif
 
+    ! Read in of the quality factors from a previous simulation
     DO iCNElem=firstElem, lastElem
       iElem = iCNElem - firstElem +1
       AdaptMPFInfo_Shared(1,iCNElem) = ElemData_HDF5(nVar_TotalPartNum,iElem)
@@ -207,22 +210,24 @@ IF(AdaptMPF%DoAdaptMPF.AND.(.NOT.PerformLoadBalance)) THEN
       ELSE
         AdaptMPFInfo_Shared(3,iCNElem) = 0.
       END IF
+      ! BGK-DSMC Ratio
       IF (nVar_BGK.NE.0) THEN
         AdaptMPFInfo_Shared(4,iCNElem) = ElemData_HDF5(nVar_BGK,iElem)
       ELSE
         AdaptMPFInfo_Shared(4,iCNElem) = 0.
       END IF
-
+      ! FP-DSMC Ratio
       IF (nVar_FP.NE.0) THEN
         AdaptMPFInfo_Shared(4,iCNElem) = ElemData_HDF5(nVar_FP,iElem)
       ELSE
         AdaptMPFInfo_Shared(4,iCNElem) = 0.
       END IF
-
+      ! BGK quality factors
       IF (nVar_Ratio_BGK.NE.0) THEN
         AdaptMPFInfo_Shared(5,iCNElem) = REAL(NINT(ElemData_HDF5(nVar_Ratio_BGK,iElem)))
       ELSE IF (nVar_BGK.NE.0) THEN
         AdaptMPFInfo_Shared(5,iCNElem) = 1.
+      ! FP quality factors
       ELSE IF (nVar_Ratio_FP.NE.0) THEN
         AdaptMPFInfo_Shared(5,iCNElem) = REAL(2*NINT(ElemData_HDF5(nVar_Ratio_FP,iElem)))
       ELSE IF (nVar_FP.NE.0) THEN
@@ -231,6 +236,7 @@ IF(AdaptMPF%DoAdaptMPF.AND.(.NOT.PerformLoadBalance)) THEN
         AdaptMPFInfo_Shared(5,iCNElem) = 0.
       END IF
       AdaptMPFInfo_Shared(6,iCNElem) = 0.
+      ! Adapted MPF from a previous simulation
       IF (nVar_AdaptMPF.NE.0) THEN
         AdaptMPFInfo_Shared(7,iCNElem) = ElemData_HDF5(nVar_AdaptMPF,iElem)
       ELSE
@@ -292,8 +298,7 @@ IMPLICIT NONE
 ! INPUT / OUTPUT VARIABLES
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! LOCAL VARIABLES
-INTEGER                           :: iCNElem, firstElem, lastElem, offSetLocal, ReadInElems
-INTEGER                           :: iRefine, iElem, nVar_HDF5, iGlobalElem
+INTEGER                           :: iCNElem, firstElem, lastElem, offSetLocal, ReadInElems, iRefine, iGlobalElem
 INTEGER                           :: iBound, iSide, ElemID, CNElemId
 REAL                              :: MinPartNum, MaxPartNum
 LOGICAL, ALLOCATABLE              :: RefineCatElem(:)
@@ -313,6 +318,7 @@ REAL, ALLOCATABLE                 :: MPFData_HDF5(:)
 #endif
 
 IF (.NOT.(AdaptMPF%SkipAdaption)) THEN
+  ! Further refinement of elements close to a catalytic surface
   IF (DoCatalyticRestart) THEN
     ALLOCATE(RefineCatElem(1:nGlobalElems))
     RefineCatElem = .FALSE.
@@ -332,7 +338,7 @@ IF (.NOT.(AdaptMPF%SkipAdaption)) THEN
     IF (AdaptMPFInfo_Shared(7,iCNElem).NE.0.) then
       AdaptMPFInfo_Shared(6,iCNElem) = AdaptMPFInfo_Shared(7,iCNElem)
     ELSE IF (VarWeighting%DoVariableWeighting) THEN
-      AdaptMPFInfo_Shared(6,iCNElem) = CalcVarWeightMPF(ElemMidPoint_Shared(:,iCNElem), 1)
+      AdaptMPFInfo_Shared(6,iCNElem) = CalcVarWeightMPF(ElemMidPoint_Shared(:,iCNElem))
     ELSE IF (RadialWeighting%DoRadialWeighting) THEN
       AdaptMPFInfo_Shared(6,iCNElem) = CalcRadWeightMPF(ElemMidPoint_Shared(2,iCNElem), 1)
     ELSE
@@ -345,7 +351,7 @@ IF (.NOT.(AdaptMPF%SkipAdaption)) THEN
         OptimalMPF_Shared(iCNElem) = AdaptMPFInfo_Shared(6,iCNElem)*(AdaptMPF%QualityFactor/AdaptMPFInfo_Shared(4,iCNElem))
       ! Adaption based on the particle number per simulation cell
       ELSE ! BGKQualityFactors
-        ! Further refinement for the elements close to the symmetry axis in the axisymmetric case
+        ! Further refinement for the elements close to the symmetry axis or catalytic surfaces
         IF (DoCatalyticRestart) THEN
           IF (RefineCatElem(iCNElem)) THEN
             MinPartNum = AdaptMPF%Cat_MinPartNum
@@ -381,7 +387,7 @@ IF (.NOT.(AdaptMPF%SkipAdaption)) THEN
         OptimalMPF_Shared(iCNElem) = AdaptMPFInfo_Shared(6,iCNElem)*(AdaptMPF%QualityFactor/AdaptMPFInfo_Shared(4,iCNElem))
       ! Adaption based on the particle number per simulation cell
       ELSE ! FPQualityFactors
-        ! Further refinement for the elements close to the symmetry axis in the axisymmetric case
+        ! Further refinement for the elements close to the symmetry axis or catalytic surfaces
         IF (DoCatalyticRestart) THEN
           IF (RefineCatElem(iCNElem)) THEN
             MinPartNum = AdaptMPF%Cat_MinPartNum
@@ -422,6 +428,7 @@ IF (.NOT.(AdaptMPF%SkipAdaption)) THEN
         END IF
       ! Adaption based on the particle number per simulation cell
       ELSE ! DSMCQualityFactors
+        ! Further refinement for the elements close to the symmetry axis or catalytic surfaces
         IF (DoCatalyticRestart) THEN
           IF (RefineCatElem(iCNElem)) THEN
             MinPartNum = AdaptMPF%Cat_MinPartNum
@@ -440,7 +447,7 @@ IF (.NOT.(AdaptMPF%SkipAdaption)) THEN
         END IF
         IF(AdaptMPFInfo_Shared(1,iCNElem).LT.MinPartNum) THEN
           OptimalMPF_Shared(iCNElem) = AdaptMPFInfo_Shared(2,iCNElem)*ElemVolume_Shared(iCNElem)/MinPartNum
-        ELSE IF(AdaptMPF%IncludeMaxPartNum) THEN
+        ELSE IF(AdaptMPF%IncludeMaxPartNum) THEN ! Check if the particle number should be decreased
           IF(AdaptMPFInfo_Shared(1,iCNElem).GT.MaxPartNum) THEN
             OptimalMPF_Shared(iCNElem) = AdaptMPFInfo_Shared(2,iCNElem)*ElemVolume_Shared(iCNElem)/AdaptMPF%MaxPartNum
           ELSE
@@ -459,6 +466,7 @@ IF (.NOT.(AdaptMPF%SkipAdaption)) THEN
   END DO ! iGlobalElem
 ELSE ! Skip Adaption
 
+  ! Read-in of the MPF per element from a previous adaption process
   ALLOCATE(MPFData_HDF5(1:nGlobalElems))
   MPFData_HDF5 = 0.
   CALL OpenDataFile(TRIM(RestartFile),create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_WORLD)
@@ -485,6 +493,7 @@ END IF
 CALL BARRIER_AND_SYNC(OptimalMPF_Shared_Win,MPI_COMM_SHARED)
 #endif
 
+! Mapping of the particle MPF to the nodes of an element
 CALL NodeMappingAdaptMPF
 
 ! Average the MPF distribution by the neighbour values
@@ -905,7 +914,7 @@ END SUBROUTINE NodeMappingAdaptMPF
 
 SUBROUTINE NodeMappingFilterMPF()
 !===================================================================================================================================
-! Filter the adapted MPF by multiple mapping from the element to the node and back
+! Filter the adapted MPF by multiple mapping from the element to the node and back (corresponds to averaging over the nodes)
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals

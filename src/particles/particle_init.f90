@@ -414,7 +414,6 @@ USE MOD_SurfaceModel_Vars      ,ONLY: SurfChemReac
 USE MOD_PICInit                ,ONLY: InitPIC
 USE MOD_PICDepo_Vars           ,ONLY: DoDeposition
 USE MOD_PICInterpolation_Vars  ,ONLY: DoInterpolation
-USE MOD_Restart_Vars           ,ONLY: DoMacroscopicRestart
 #if USE_MPI
 USE MOD_Particle_MPI_Emission  ,ONLY: InitEmissionComm
 USE MOD_Particle_MPI_Halo      ,ONLY: IdentifyPartExchangeProcs
