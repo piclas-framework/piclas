@@ -791,7 +791,7 @@ SUBROUTINE CalcMacroElecExcitation(MacroElecExcitation)
 USE MOD_PreProc
 USE MOD_Globals
 USE MOD_Mesh_Vars             ,ONLY: nElems
-USE MOD_Particle_Vars         ,ONLY: WriteMacroSurfaceValues,MacroValSampTime
+USE MOD_Particle_Vars         ,ONLY: WriteMacroVolumeValues,WriteMacroSurfaceValues,MacroValSampTime
 USE MOD_Particle_Vars         ,ONLY: ExcitationSampleData,ExcitationLevelCounter
 USE MOD_Restart_Vars          ,ONLY: RestartTime
 USE MOD_TimeDisc_Vars         ,ONLY: TEnd
@@ -810,11 +810,13 @@ REAL,INTENT(INOUT)      :: MacroElecExcitation(1:ExcitationLevelCounter,nElems)
 REAL                    :: TimeSample
 !===================================================================================================================================
 
-! Determine the sampling time for the calculation of the rate (TODO: SAME AS IN CalcSurfaceValues)
-IF (WriteMacroSurfaceValues) THEN
+! Determine the sampling time for the calculation of the rate
+IF (WriteMacroVolumeValues) THEN
   ! Elapsed time since last sampling (variable dt's possible!)
   TimeSample = Time - MacroValSampTime
-  MacroValSampTime = Time
+  ! Set MacroValSampTime to the current time for the next output, BUT only if it is not used in CalcSurfaceValues, otherwise CalcSurfaceValues will be skipped
+  ! TODO: Have a global calculation of the sample time before the output regardless of surface and/or volume output
+  IF(.NOT.WriteMacroSurfaceValues) MacroValSampTime = Time
 ELSE IF (RestartTime.GT.(1-DSMC%TimeFracSamp)*TEnd) THEN
   ! Sampling at the end of the simulation: When a restart is performed and the sampling starts immediately, determine the correct sampling time
   ! (e.g. sampling is set to 20% of tend = 1s, and restart is performed at 0.9s, sample time = 0.1s)
