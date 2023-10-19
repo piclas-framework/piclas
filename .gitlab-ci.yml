@@ -683,6 +683,12 @@ NIG_Photoionization_petsc_debug:
   script:
     - if [ -n "${DO_NIGHTLY}" ]; then cd build_poisson_petsc_debug ; fi
     - if [ -n "${DO_NIGHTLY}" ]; then python ./reggie/reggie.py ../regressioncheck/NIG_Photoionization -e ./bin/piclas ; fi
+    
+NIG_Radiation:
+  <<: *defaults_nightly
+  stage: reggie_nightly
+  script:
+    - if [ -n "${DO_NIGHTLY}" ]; then cd build ; python ./reggie/reggie.py ../regressioncheck/NIG_Radiation/ ; fi
 
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 # Stage "reggie_nightly_build_all": Build and run
