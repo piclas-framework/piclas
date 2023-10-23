@@ -84,7 +84,6 @@ Before setting up a simulation, the code must be compiled with the desired param
     * RK4: Runge-Kutta 4th order in time
     * RK14: Low storage Runge-Kutta 4, 14 stages version - Niegemann et al 2012
     * DSMC: Direct Simulation Monte Carlo, Section {ref}`sec:DSMC`
-    * RESERVOIR: Simplified DSMC module for single cell reservoir simulations
     * FP-Flow: Fokker-Planck-based collision operator, Section {ref}`sec:FP-Flow`
     * BGK-Flow: Bhatnagar-Gross-Krook collision operator, Section {ref}`sec:BGK-Flow`
 * ``PICLAS_EQNSYSNAME``: Equation system to be solved
@@ -152,7 +151,7 @@ The concept of the parameter file is described as followed:
 * The order of defined variables is irrelevant, except for the special case when redefining boundaries.
 However, it is preferable to group similar variables together.
 
-The options and underlying models are discussed in Chapter {ref}`userguide/features-and-models/index:Features & Models`, while the available 
+The options and underlying models are discussed in Chapter {ref}`userguide/features-and-models/index:Features & Models`, while the available
 output options are given in Chapter {ref}`userguide/visu_output:Visualization & Output`.
 Due to the sheer number of parameters available, it is advisable to build upon an existing parameter file from one of the tutorials
 in Chapter {ref}`userguide/tutorials/index:Tutorials`.

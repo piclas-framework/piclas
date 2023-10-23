@@ -775,7 +775,7 @@ END IF
 IF (DoVirtualCellMerge) THEN
   DO iElem = 1, nElems
     IF (VirtMergedCells(iElem)%isMerged) THEN
-      DSMC_MacroVal(:,iElem) = DSMC_MacroVal(:,VirtMergedCells(iElem)%MasterCell-offSetElem) 
+      DSMC_MacroVal(:,iElem) = DSMC_MacroVal(:,VirtMergedCells(iElem)%MasterCell-offSetElem)
     END IF
   END DO
 END IF
@@ -785,7 +785,7 @@ END SUBROUTINE DSMC_output_calc
 
 SUBROUTINE CalcMacroElecExcitation(MacroElecExcitation)
 !===================================================================================================================================
-!> 
+!>
 !===================================================================================================================================
 ! MODULES
 USE MOD_PreProc
@@ -806,7 +806,7 @@ REAL,INTENT(INOUT)      :: MacroElecExcitation(1:ExcitationLevelCounter,nElems)
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-! INTEGER                 :: 
+! INTEGER                 ::
 REAL                    :: TimeSample
 !===================================================================================================================================
 
@@ -824,7 +824,7 @@ ELSE
   TimeSample = (Time-(1-DSMC%TimeFracSamp)*TEnd)
 END IF
 
-! Rate 
+! Rate
 MacroElecExcitation = ExcitationSampleData / TimeSample
 
 END SUBROUTINE CalcMacroElecExcitation
@@ -1023,7 +1023,7 @@ IF(MPIRoot) THEN
   CALL WriteAttributeToHDF5(File_ID,'Time',1,RealScalar=OutputTime)
   CALL WriteAttributeToHDF5(File_ID,'MeshFile',1,StrScalar=(/TRIM(MeshFileName)/))
   CALL WriteAttributeToHDF5(File_ID,'NSpecies',1,IntegerScalar=nSpecies)
-  ! Standard variable names 
+  ! Standard variable names
   CALL WriteAttributeToHDF5(File_ID,'VarNamesAdd',nVar+nVar_quality,StrArray=StrVarNames)
   ! Additional variable names: electronic excitation rate output
   IF(SampleElecExcitation) CALL WriteAttributeToHDF5(File_ID,'VarNamesExci',ExcitationLevelCounter,StrArray=StrVarNamesElecExci)
@@ -1212,11 +1212,8 @@ IMPLICIT NONE
 ! LOCAL VARIABLES
 INTEGER           :: nOutput
 !-----------------------------------------------------------------------------------------------------------------------------------
-
-#if (PP_TimeDiscMethod==42)
 ! Do not perform sampling in the case of a reservoir simulation
 IF (DSMC%ReservoirSimu) RETURN
-#endif
 
 ! Use user given TimeFracSamp
 IF((Time.GE.(1-DSMC%TimeFracSamp)*TEnd).AND.(.NOT.SamplingActive))  THEN

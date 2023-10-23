@@ -50,13 +50,13 @@ PUBLIC :: CalcSurfaceFluxInfo
 PUBLIC :: CalcTransTemp
 PUBLIC :: CalcMixtureTemp
 PUBLIC :: CalcTelec,CalcTVibPoly
-#if (PP_TimeDiscMethod==2 || PP_TimeDiscMethod==4 || PP_TimeDiscMethod==42 || PP_TimeDiscMethod==300 || PP_TimeDiscMethod==400 || (PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=509) || PP_TimeDiscMethod==120)
+#if (PP_TimeDiscMethod==2 || PP_TimeDiscMethod==4 || PP_TimeDiscMethod==300 || PP_TimeDiscMethod==400 || (PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=509) || PP_TimeDiscMethod==120)
 PUBLIC :: CalcRelaxProbRotVib
 #endif
 PUBLIC :: CalcVelocities
-#if (PP_TimeDiscMethod==42)
+#if (PP_TimeDiscMethod==4)
 PUBLIC :: CollRates,CalcRelaxRates,CalcRelaxRatesElec,ReacRates
-#endif /*(PP_TimeDiscMethod==42)*/
+#endif /*(PP_TimeDiscMethod==4)*/
 PUBLIC :: CalcPowerDensity
 PUBLIC :: CalculatePartElemData
 PUBLIC :: CalcCoupledPowerPart, CalcEelec
@@ -1888,7 +1888,7 @@ RETURN
 END FUNCTION CalcTVibPoly
 
 
-#if (PP_TimeDiscMethod==2 || PP_TimeDiscMethod==4 || PP_TimeDiscMethod==42 || PP_TimeDiscMethod==300 || PP_TimeDiscMethod==400 || (PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=509) || PP_TimeDiscMethod==120)
+#if (PP_TimeDiscMethod==2 || PP_TimeDiscMethod==4 || PP_TimeDiscMethod==300 || PP_TimeDiscMethod==400 || (PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=509) || PP_TimeDiscMethod==120)
 SUBROUTINE CalcRelaxProbRotVib(RotRelaxProb,VibRelaxProb)
 !===================================================================================================================================
 ! Calculates global rotational and vibrational relaxation probability for PartAnalyse.csv
@@ -2138,7 +2138,7 @@ REAL                           :: RD(nSpecies*4)
 END SUBROUTINE CalcVelocities
 
 
-#if (PP_TimeDiscMethod==42)
+#if (PP_TimeDiscMethod==4)
 SUBROUTINE CollRates(CRate)
 !===================================================================================================================================
 !> Calculate the collision rate per species pairing by diving the summed up variables by the current timestep

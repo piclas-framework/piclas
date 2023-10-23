@@ -233,7 +233,7 @@ IF(MeasureTrackTime)THEN
   tTracking=0
   tLocalization=0
 END IF
-IF(CalcEMFieldOutput) CALL WriteElectroMagneticPICFieldToHDF5() ! Write magnetic field to file 
+IF(CalcEMFieldOutput) CALL WriteElectroMagneticPICFieldToHDF5() ! Write magnetic field to file
 #endif /*PARTICLES*/
 
 ! No computation needed if tEnd=tStart!
@@ -283,8 +283,6 @@ DO !iter_t=0,MaxIter
   CALL TimeStep_DSMC()
 #elif (PP_TimeDiscMethod==6)
   CALL TimeStepByLSERK()
-#elif (PP_TimeDiscMethod==42)
-  CALL TimeStep_DSMC_Debug() ! Reservoir and Debug
 #elif (PP_TimeDiscMethod==100)
   CALL TimeStepByEulerImplicit() ! O1 Euler Implicit
 #elif (PP_TimeDiscMethod==120)

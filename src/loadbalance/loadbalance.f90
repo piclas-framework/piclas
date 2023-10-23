@@ -489,9 +489,9 @@ SUBROUTINE ComputeImbalance()
 USE MOD_Globals
 USE MOD_LoadBalance_Vars ,ONLY: WeightSum, TargetWeight,CurrentImbalance, MaxWeight, MinWeight
 USE MOD_LoadBalance_Vars ,ONLY: ElemTime, PerformLBSample, DeviationThreshold
-#if !((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==42) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))
+#if !((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))
 USE MOD_LoadBalance_Vars ,ONLY: ElemTimeFieldTot,ElemTimeField
-#endif /*!((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==42) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))*/
+#endif /*!((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))*/
 #ifdef PARTICLES
 USE MOD_LoadBalance_Vars ,ONLY: ElemTimePartTot,ElemTimePart
 #endif /*PARTICLES*/
@@ -512,14 +512,14 @@ IF(.NOT.PerformLBSample) THEN
   CurrentImbalance = -1.0
 ELSE
 
-#if (PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==42) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400)
+#if (PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400)
   WeightSum = 0. ! initialize before adding particle info
 #else
   ! Collect ElemTime for particles and field separately (only on root process)
   ! Skip the reduce for DSMC timedisc
   CALL MPI_REDUCE(ElemTimeField , ElemTimeFieldTot , 1 , MPI_DOUBLE_PRECISION , MPI_SUM , 0 , MPI_COMM_WORLD , IERROR)
   WeightSum = ElemTimeFieldTot ! only correct on MPI root
-#endif /*(PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==42) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400)*/
+#endif /*(PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400)*/
 #ifdef PARTICLES
   CALL MPI_REDUCE(ElemTimePart , ElemTimePartTot  , 1 , MPI_DOUBLE_PRECISION , MPI_SUM , 0 , MPI_COMM_WORLD , IERROR)
   WeightSum = WeightSum + ElemTimePartTot ! only correct on MPI root

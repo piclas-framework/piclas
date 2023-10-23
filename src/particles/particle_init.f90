@@ -130,7 +130,7 @@ CALL prms%CreateIntOption(      'Part-CellMergeSpread'        , 'Describes the a
                                                                 'i.e. how deep the merge extends into the mesh starting from \n'//&
                                                                 'each cell. 0 is the least aggressive merge, 2 the most \n'//&
                                                                 'aggressive merge.','0')
-CALL prms%CreateIntOption(      'Part-MaxNumbCellsMerge'       ,'Maximum number of cells to be merged.','4')                                                                
+CALL prms%CreateIntOption(      'Part-MaxNumbCellsMerge'       ,'Maximum number of cells to be merged.','4')
 
 CALL prms%SetSection("IMD")
 ! IMD things
@@ -451,14 +451,14 @@ CALL InitPartRHS()
 CALL InitializeVariablesPartBoundary()
 
 !-- Get PIC deposition (skip DSMC, FP-Flow and BGS-Flow related timediscs)
-#if (PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==42) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400)
+#if (PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400)
 DoDeposition    = .FALSE.
 !DoInterpolation = .FALSE.
 CALL PrintOption('No PIC-related Time discretization, turning deposition off. DoDeposition','INFO',LogOpt=DoDeposition)
 !CALL PrintOption('No PIC-related Time discretization, turning interpolation off. DoInterpolation','*CHANGE',LogOpt=DoDeposition)
 #else
 DoDeposition    = GETLOGICAL('PIC-DoDeposition')
-#endif /*(PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==42) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400)*/
+#endif /*(PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400)*/
 
 !-- Get PIC interpolation (could be skipped above, but DSMC octree requires some interpolation variables, which are allocated before
 ! init DSMC determines whether DSMC%UseOctree is true or false)
@@ -686,7 +686,7 @@ INTEGER         :: iELem
 DoVirtualCellMerge = GETLOGICAL('Part-DoVirtualCellMerge')
 IF(DoVirtualCellMerge)THEN
 #if USE_MPI
-DoParticleLatencyHiding = .FALSE.  
+DoParticleLatencyHiding = .FALSE.
 #endif
   VirtualCellMergeSpread = GETINT('Part-CellMergeSpread')
   MaxNumOfMergedCells = GETINT('Part-MaxNumbCellsMerge')
