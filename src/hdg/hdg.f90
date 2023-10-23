@@ -275,15 +275,15 @@ CALL InitBV()
 
 ! Get the global number of Dirichlet boundaries. If there are none, the potential of a single DOF must be set.
 #if USE_MPI
-  IF(MPIroot)THEN
-    CALL MPI_REDUCE(nDirichletBCsides , nDirichletBCsidesGlobal   , 1 , MPI_INTEGER , MPI_MAX , 0 , MPI_COMM_WORLD , IERROR)
-  ELSE
-    CALL MPI_REDUCE(nDirichletBCsides , 0                         , 1 , MPI_INTEGER , MPI_MAX , 0 , MPI_COMM_WORLD , IERROR)
-  END IF
+  CALL MPI_ALLREDUCE(nDirichletBCsides , nDirichletBCsidesGlobal , 1 , MPI_INTEGER , MPI_MAX , MPI_COMM_WORLD , IERROR)
 #else
   nDirichletBCsidesGlobal = nDirichletBCsides
 #endif /*USE_MPI*/
+#if USE_PETSC
+IF(nDirichletBCsidesGlobal.EQ.0) THEN
+#else
 IF(MPIroot .AND. (nDirichletBCsidesGlobal.EQ.0)) THEN
+#endif
   SetZeroPotentialDOF = .TRUE.
 ELSE
   SetZeroPotentialDOF = .FALSE.
@@ -2020,6 +2020,12 @@ DO iVar=1, PP_nVar
       PetscCallA(VecSetValuesBlocked(RHS_petsc,1,nPETScUniqueSidesGlobal-1-FPC%nUniqueFPCBounds+iUniqueFPCBC,RHS_conductor,INSERT_VALUES,ierr))
     END DO !iUniqueFPCBC = 1, FPC%nUniqueFPCBounds
   END IF ! MPIRoot
+
+  ! Reset the RHS of the first DOF if ZeroPotential must be set
+  IF(MPIroot .AND. SetZeroPotentialDOF) THEN
+    PetscCallA(VecSetValue(RHS_petsc,0,0,INSERT_VALUES,ierr))
+  END IF
+
   PetscCallA(VecAssemblyBegin(RHS_petsc,ierr))
   PetscCallA(VecAssemblyEnd(RHS_petsc,ierr))
 
