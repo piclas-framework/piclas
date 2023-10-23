@@ -155,6 +155,12 @@ IF(InterPlanePartNumber.GT.0) THEN
     PDM%ParticleInside(InterPartID) = .TRUE.
     IF(UseRotSubCycling) THEN
       RotRefSubTimeStep=.FALSE.
+      LastPartPosSubCycling(1:3)    = LastPartPos(1:3,InterPartID)
+      NewPosSubCycling(1:3)         = PartState(1:3,InterPartID)
+      PartVeloRotRefSubCycling(1:3) = PartVeloRotRef(1:3,InterPartID)
+      LastVeloRotRefSubCycling(1:3) = LastPartVeloRotRef(1:3,InterPartID)
+      GlobalElemIDSubCycling        = PEM%LastGlobalElemID(InterPartID)
+      InRotRefFrameSubCycling       = PDM%InRotRefFrame(InterPartID)
       CALL SingleParticleTriaTracking(i=InterPartID,IsInterPlanePart=.TRUE.)
       IF(RotRefSubTimeStep) THEN
   !--- split time step in 10 sub-steps
@@ -166,9 +172,9 @@ IF(InterPlanePartNumber.GT.0) THEN
         IF(VarTimeStep%UseSpeciesSpecific) dtVar = dtVar * Species(PartSpecies(InterPartID))%TimeStepFactor
         dtVar = 0.1 * dtVar
   !--- Reset Particle Push
-        PartState(1:3,InterPartID) = LastPartPos(1:3,InterPartID)
-        PartVeloRotRef(1:3,InterPartID)=LastPartVeloRotRef(1:3,InterPartID)
-        PEM%GlobalElemID(InterPartID) = PEM%LastGlobalElemID(InterPartID)
+        PartState(1:3,InterPartID) = LastPartPosSubCycling(1:3)
+        PartVeloRotRef(1:3,InterPartID)=LastVeloRotRefSubCycling(1:3)
+        PEM%GlobalElemID(InterPartID) = GlobalElemIDSubCycling
   !--- 10 sub-steps
         DO iStep = 1, 10
           IF (PDM%ParticleInside(InterPartID)) THEN
@@ -181,9 +187,15 @@ IF(InterPlanePartNumber.GT.0) THEN
             CALL SingleParticleTriaTracking(i=InterPartID,IsInterPlanePart=.TRUE.)
           END IF
         END DO
-  !--- Reset
-        RotRefSubTimeStep = .FALSE.
       END IF
+!--- Reset stored particle informations
+      RotRefSubTimeStep = .FALSE.
+      LastPartPosSubCycling    = 0.0
+      NewPosSubCycling         = 0.0
+      PartVeloRotRefSubCycling = 0.0
+      LastVeloRotRefSubCycling = 0.0
+      GlobalElemIDSubCycling   = 0
+      InRotRefFrameSubCycling  = .FALSE.
     ELSE
       CALL SingleParticleTriaTracking(i=InterPartID,IsInterPlanePart=.TRUE.)
     END IF
@@ -478,10 +490,12 @@ DO WHILE (.NOT.PartisDone)
       ! Calculate the intersection with the wall and determine alpha (= fraction of trajectory to the intersection)
       IF(BCType.NE.1) CALL IntersectionWithWall(i,LocalSide,ElemID,TriNum)
       IF((UseRotRefFrame).AND.(UseRotSubCycling)) THEN
-        IF((BCType.EQ.2).AND.(PDM%InRotRefFrame(i))) THEN
-          IF(.NOT.RotRefSubTimeStep) THEN
-            RotRefSubTimeStep=.TRUE.
-            EXIT
+        IF((BCType.EQ.2).OR.(BCType.EQ.6).OR.(BCType.EQ.7)) THEN
+          IF(PDM%InRotRefFrame(i)) THEN
+            IF(.NOT.RotRefSubTimeStep) THEN
+              RotRefSubTimeStep=.TRUE.
+              EXIT
+            END IF
           END IF
         END IF
       END IF
