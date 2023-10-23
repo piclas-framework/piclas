@@ -290,18 +290,15 @@ END DO
 
 IF ((time.GE.DelayTime).OR.(time.EQ.0)) CALL UpdateNextFreePosition()
 
-IF (useDSMC) THEN
-  IF (time.GE.DelayTime) THEN
+IF (time.GE.DelayTime) THEN
+  ! Direct Simulation Monte Carlo
+  IF (useDSMC) THEN
     CALL DSMC_main()
-#if USE_LOADBALANCE
-    CALL LBStartTime(tLBStart)
-#endif /*USE_LOADBALANCE*/
-    IF(UseSplitAndMerge) CALL SplitAndMerge()
-#if USE_LOADBALANCE
-    CALL LBPauseTime(LB_DSMC,tLBStart)
-#endif /*USE_LOADBALANCE*/
   END IF
+  ! Split & Merge: Variable particle weighting
+  IF(UseSplitAndMerge) CALL SplitAndMerge()
 END IF
+
 #ifdef EXTRAE
 CALL extrae_eventandcounters(int(9000001), int8(0))
 #endif /*EXTRAE*/
