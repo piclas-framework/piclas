@@ -86,7 +86,25 @@ The following principles should always be considered when using shared memory wi
 
   to split the operations and use MPI to distribute the information among the processes.
 
-- [Use atomic MPI operations to read/write from contested shared memory [772c371]](https://github.com/piclas-framework/piclas/commit/772c3711bbb0c935659b2d08fccd18c80e6b72dc)
+- Atomic MPI operations on shared memory
+  - Example 1: [Store the min/max extent when building the CN FIBGM [6350cc2]](https://github.com/piclas-framework/piclas/commit/6350cc2575d15c7ceb804bc8d839ca5ef2b33dbb?diff=split#diff-aa2cf11ef2c11ce88cdefcf02fe06b643771c968021311ea356c428bbb20d041L1214)
+  - Example 2: [Use atomic MPI operations to read/write from contested shared memory [772c371]](https://github.com/piclas-framework/piclas/commit/772c3711bbb0c935659b2d08fccd18c80e6b72dc)
+  - The main idea is to access and change parts of a shared array with multiple processes to, e.g., sum up numbers from different
+    processes and guarantee that in the end the sum is correct without having a predefined order in which the numbers are added to the
+    entry in the shared array.
+
+    In the example in [772c371], get the memory window while bypassing local caches
+
+        CALL MPI_FETCH_AND_OP(ElemDone,ElemDone,MPI_INTEGER,0,INT(posElem*SIZE_INT,MPI_ADDRESS_KIND),MPI_NO_OP,ElemInfo_Shared_Win,iError)
+
+    Flush only performs the pending operations (getting the value)
+
+        CALL MPI_WIN_FLUSH(0,ElemInfo_Shared_Win,iError)
+
+    Using `MPI_REPLACE` makes sure that the correct value is written in the end by one of the processes in an undefined order.
+
+        MPI_FETCH_AND_OP(haloChange,dummyInt,MPI_INTEGER,0,INT(posElem*SIZE_INT,MPI_ADDRESS_KIND),MPI_REPLACE,ElemInfo_Shared_Win,iError)
+        CALL MPI_WIN_FLUSH(0,ElemInfo_Shared_Win,iError)
 
 ## Hawk
 
