@@ -128,15 +128,36 @@ DO SideID=1,nSides
   ! b)     - dielectric <-> dielectric   : RIEMANN_DIELECTRIC     = 2
   ! a1)    - dielectric  -> vacuum       : RIEMANN_DIELECTRIC2VAC = 3 or 5 (when using non-conservative fluxes)
   ! a2)    - vacuum      -> dielectric   : RIEMANN_VAC2DIELECTRIC = 4 or 6 (when using non-conservative fluxes)
+  ! am1)   - vacuum      -> dielectric mortar : RIEMANN_VAC2DIELECTRIC = 4 or 6 (when using non-conservative fluxes)
+  ! am2)   - dielectric  -> vacuum mortar     : RIEMANN_DIELECTRIC2VAC = 3 or 5 (when using non-conservative fluxes)
   IF(DoDielectric) THEN
     IF (isDielectricFace(SideID))THEN ! 1.) RiemannDielectric
       IF(isDielectricInterFace(SideID))THEN
         ! a) physical <-> dielectric region: for Riemann solver, select A+ and A- as functions of f(Eps0,Mu0) or f(EpsR,MuR)
         ElemID = SideToElem(S2E_ELEM_ID,SideID) ! get master element ID for checking if it is in a physical or dielectric region
-        IF(MortarType(1,SideID).GE.0) CALL abort(__STAMP__,'Mortars not fully implemented for dielectric <-> vacuum interfaces')
+        !IF(MortarType(1,SideID).GE.0) CALL abort(__STAMP__,'Mortars not fully implemented for dielectric <-> vacuum interfaces')
         IF(ElemID.EQ.-1) THEN
-          InterfaceRiemann(SideID)=-1
-          CYCLE ! skip
+          IF(MortarType(1,SideID).EQ.0) THEN
+            ! small mortar slave sides have no corresponding master element
+            IF(isDielectricElem(SideToElem(S2E_NB_ELEM_ID,SideID)))THEN
+              ! am1) big elem is PHYSICAL and small slave DIELECTRIC
+              IF(DielectricFluxNonConserving)THEN
+                InterfaceRiemann(SideID)=RIEMANN_VAC2DIELECTRIC_NC ! use two different Riemann solvers
+              ELSE
+                InterfaceRiemann(SideID)=RIEMANN_VAC2DIELECTRIC ! A+(EpsR,MuR) and A-(Eps0,Mu0)
+              END IF
+            ELSE
+              ! am2) big elem is DIELECTRIC and small slave PHYSICAL
+              IF(DielectricFluxNonConserving)THEN ! use one flux (conserving) or two fluxes (non-conserving) at the interface
+                InterfaceRiemann(SideID)=RIEMANN_DIELECTRIC2VAC_NC ! use two different Riemann solvers
+              ELSE
+                InterfaceRiemann(SideID)=RIEMANN_DIELECTRIC2VAC ! A+(Eps0,Mu0) and A-(EpsR,MuR)
+              END IF
+            END IF
+          ELSE
+            InterfaceRiemann(SideID)=-1
+            CYCLE ! skip
+          END IF
         END IF
         IF(isDielectricElem(ElemID))THEN
           ! a1) master is DIELECTRIC and slave PHYSICAL
