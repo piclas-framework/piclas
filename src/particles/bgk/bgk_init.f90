@@ -97,6 +97,9 @@ USE MOD_DSMC_Vars             ,ONLY: SpecDSMC, DSMC, RadialWeighting, CollInf
 USE MOD_DSMC_ParticlePairing  ,ONLY: DSMC_init_octree
 USE MOD_Globals_Vars          ,ONLY: Pi, BoltzmannConst
 USE MOD_Basis                 ,ONLY: PolynomialDerivativeMatrix
+#if USE_MPI
+USE MOD_Particle_MPI_Vars     ,ONLY: DoParticleLatencyHiding
+#endif /*USE_MPI*/
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Vars      ,ONLY: PerformLoadBalance
 #endif /*USE_LOADBALANCE*/
@@ -137,9 +140,14 @@ ESBGKModel = GETINT('Particles-ESBGK-Model')
 ! Coupled BGK with DSMC, use a number density as limit above which BGK is used, and below which DSMC is used
 CoupledBGKDSMC = GETLOGICAL('Particles-CoupledBGKDSMC')
 IF(CoupledBGKDSMC) THEN
-  IF (DoVirtualCellMerge) THEN  
+  IF (DoVirtualCellMerge) THEN
     CALL abort(__STAMP__,'Virtual cell merge not implemented for coupled DSMC-BGK simulations!')
   END IF
+#if USE_MPI
+  IF (DoParticleLatencyHiding) THEN
+    CALL abort(__STAMP__,'Particle latency hiding not implemented for coupled DSMC-BGK simulations!')
+  END IF
+#endif /*USE_MPI*/
   BGKDSMCSwitchDens = GETREAL('Particles-BGK-DSMC-SwitchDens')
 ELSE
   IF(RadialWeighting%DoRadialWeighting) RadialWeighting%PerformCloning = .TRUE.
@@ -290,7 +298,7 @@ TYPE (tNodeAverage), INTENT(INOUT)  :: NodeAverage
 INTEGER     ::  iLoop, nLoop
 !===================================================================================================================================
 nLoop = 2**Symmetry%Order
-IF(ASSOCIATED(NodeAverage%SubNode)) THEN 
+IF(ASSOCIATED(NodeAverage%SubNode)) THEN
   DO iLoop = 1, nLoop
     CALL DeleteNodeAverage(NodeAverage%SubNode(iLoop))
   END DO
