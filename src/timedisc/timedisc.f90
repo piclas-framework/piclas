@@ -233,7 +233,7 @@ IF(MeasureTrackTime)THEN
   tTracking=0
   tLocalization=0
 END IF
-IF(CalcEMFieldOutput) CALL WriteElectroMagneticPICFieldToHDF5() ! Write magnetic field to file 
+IF(CalcEMFieldOutput) CALL WriteElectroMagneticPICFieldToHDF5() ! Write magnetic field to file
 #endif /*PARTICLES*/
 
 ! No computation needed if tEnd=tStart!
@@ -539,7 +539,7 @@ IF(CountNbrOfLostParts)THEN
 #if USE_MPI
   NbrOfLostParticlesTotal_old_tmp = NbrOfLostParticlesTotal ! keep old value
   ! Allreduce is required because of the particle output to .h5 in which all processors must take place
-  CALL MPI_ALLREDUCE(NbrOfLostParticles , NbrOfLostParticlesTotal , 1 , MPI_INTEGER , MPI_SUM , MPI_COMM_WORLD , IERROR)
+  CALL MPI_ALLREDUCE(NbrOfLostParticles , NbrOfLostParticlesTotal , 1 , MPI_INTEGER , MPI_SUM , MPI_COMM_PICLAS , IERROR)
   NbrOfLostParticlesTotal = NbrOfLostParticlesTotal + NbrOfLostParticlesTotal_old_tmp ! add old value
 #else
   NbrOfLostParticlesTotal = NbrOfLostParticlesTotal + NbrOfLostParticles
