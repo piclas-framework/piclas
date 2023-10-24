@@ -75,11 +75,11 @@ CHARACTER(LEN=255),DIMENSION(15),PARAMETER :: StrVarNames_FV = (/ CHARACTER(LEN=
                                                                                     'VelocityZ', &
                                                                                     'Temperature', &
                                                                                     'PressureXX', &
+                                                                                    'PressureYY', &
+                                                                                    'PressureZZ', &
                                                                                     'PressureXY', &
                                                                                     'PressureXZ', &
-                                                                                    'PressureYY', &
                                                                                     'PressureYZ', &
-                                                                                    'PressureZZ', &
                                                                                     'HeatfluxX', &
                                                                                     'HeatfluxY', &
                                                                                     'HeatfluxZ', &

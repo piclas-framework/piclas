@@ -50,7 +50,7 @@ REAL, INTENT(OUT)               :: MacroVal(14), tau
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-REAL                            :: rho, rhoU(3), rhoE, PressTens(6), Heatflux(3), uVelo(3), cV, cVel(3),cMag, mu, weight
+REAL                            :: rho, rhoU(3), rhoE, PressTens(6), Heatflux(3), uVelo(3), cV, cVel(3),cMag, mu, weight, prefac
 INTEGER                         :: iVel,jVel,kVel, upos
 !===================================================================================================================================
 rho = 0.
@@ -86,22 +86,22 @@ DO kVel=1, DVMnVelos(3);   DO jVel=1, DVMnVelos(2);   DO iVel=1, DVMnVelos(1)
   PressTens(1) = PressTens(1) + weight*cVel(1)*cVel(1)*U(upos)
   IF (DVMDim.LT.3) THEN
     IF (DVMDim.EQ.1) THEN
-      PressTens(4) = PressTens(4) + weight*0.5*U(PP_nVar_FV/2+upos)
-      PressTens(6) = PressTens(6) + weight*0.5*U(PP_nVar_FV/2+upos)
+      PressTens(2) = PressTens(2) + weight*0.5*U(PP_nVar_FV/2+upos)
+      PressTens(3) = PressTens(3) + weight*0.5*U(PP_nVar_FV/2+upos)
     ELSE ! DVMDim.EQ.2
-      PressTens(2) = PressTens(2) + weight*cVel(1)*cVel(2)*U(upos)
-      PressTens(4) = PressTens(4) + weight*cVel(2)*cVel(2)*U(upos)
-      PressTens(6) = PressTens(6) + weight*U(PP_nVar_FV/2+upos)
+      PressTens(4) = PressTens(4) + weight*cVel(1)*cVel(2)*U(upos)
+      PressTens(2) = PressTens(2) + weight*cVel(2)*cVel(2)*U(upos)
+      PressTens(3) = PressTens(3) + weight*U(PP_nVar_FV/2+upos)
     END IF
     Heatflux(1) = Heatflux(1) + weight*0.5*cVel(1)*(U(upos)*cMag+U(PP_nVar_FV/2+upos))
     Heatflux(2) = Heatflux(2) + weight*0.5*cVel(2)*(U(upos)*cMag+U(PP_nVar_FV/2+upos))
     Heatflux(3) = Heatflux(3) + weight*0.5*cVel(3)*(U(upos)*cMag+U(PP_nVar_FV/2+upos))
   ELSE
-    PressTens(2) = PressTens(2) + weight*cVel(1)*cVel(2)*U(upos)
-    PressTens(3) = PressTens(3) + weight*cVel(1)*cVel(3)*U(upos)
-    PressTens(4) = PressTens(4) + weight*cVel(2)*cVel(2)*U(upos)
-    PressTens(5) = PressTens(5) + weight*cVel(2)*cVel(3)*U(upos)
-    PressTens(6) = PressTens(6) + weight*cVel(3)*cVel(3)*U(upos)
+    PressTens(2) = PressTens(2) + weight*cVel(2)*cVel(2)*U(upos)
+    PressTens(3) = PressTens(3) + weight*cVel(3)*cVel(3)*U(upos)
+    PressTens(4) = PressTens(4) + weight*cVel(1)*cVel(2)*U(upos)
+    PressTens(5) = PressTens(5) + weight*cVel(1)*cVel(3)*U(upos)
+    PressTens(6) = PressTens(6) + weight*cVel(2)*cVel(3)*U(upos)
     Heatflux(1) = Heatflux(1) + weight*0.5*cVel(1)*(U(upos)*cMag)
     Heatflux(2) = Heatflux(2) + weight*0.5*cVel(2)*(U(upos)*cMag)
     Heatflux(3) = Heatflux(3) + weight*0.5*cVel(3)*(U(upos)*cMag)
@@ -117,24 +117,45 @@ mu = DVMSpeciesData%mu_Ref*(MacroVal(5)/DVMSpeciesData%T_Ref)**(DVMSpeciesData%o
 tau = mu/(DVMSpeciesData%R_S*MacroVal(1)*MacroVal(5))
 IF (DVMBGKModel.EQ.1) tau = tau/DVMSpeciesData%Prandtl !ESBGK
 
-IF (tDeriv.EQ.0.) THEN
-  Macroval(6:11)  = PressTens(1:6)
-  MacroVal(12:14) = Heatflux(1:3)
-ELSE
+Macroval(6:11)  = PressTens(1:6)
+MacroVal(12:14) = Heatflux(1:3)
+IF (tDeriv.GT.0.) THEN
   SELECT CASE (tilde)
-    CASE(1) ! higher moments from f~
-      SELECT CASE(DVMMethod)
-      CASE(1)
-        Macroval(6:11)  = PressTens(1:6)*(1.-EXP(-tDeriv/tau))/(tDeriv/tau)
-        MacroVal(12:14) = Heatflux(1:3)*(1.-EXP(-tDeriv*DVMSpeciesData%Prandtl/tau))/(tDeriv*DVMSpeciesData%Prandtl/tau)
-      CASE(2)
-        Macroval(6:11)  = PressTens(1:6)*2.*tau/(2.*tau+tDeriv)
-        MacroVal(12:14) = Heatflux(1:3)*2.*tau/(2.*tau+tDeriv*DVMSpeciesData%Prandtl)
+  CASE(1) ! higher moments from f~
+    SELECT CASE(DVMMethod)
+    CASE(1) !EDDVM
+      prefac = (1.-EXP(-tDeriv/tau))/(tDeriv/tau)
+      SELECT CASE(DVMBGKModel)
+      CASE(1) !ESBGK
+        Macroval(6:8)   = (Macroval(6:8)*prefac+(1.-prefac)*MacroVal(5)*DVMSpeciesData%R_S*rho/DVMSpeciesData%Prandtl) &
+                          /(1./DVMSpeciesData%Prandtl+prefac*(1.-1./DVMSpeciesData%Prandtl))
+        MacroVal(9:11)  = Macroval(9:11)*prefac/(1./DVMSpeciesData%Prandtl+prefac*(1.-1./DVMSpeciesData%Prandtl))
+        MacroVal(12:14) = MacroVal(12:14)*prefac
+
+      CASE(2) !Shakhov
+        MacroVal(6:8)   = Macroval(6:8)*prefac+(1.-prefac)*MacroVal(5)*DVMSpeciesData%R_S*rho
+        MacroVal(9:11)  = MacroVal(9:11)*prefac
+        MacroVal(12:14) = MacroVal(12:14)*prefac/(DVMSpeciesData%Prandtl+prefac*(1-DVMSpeciesData%Prandtl))
+
+      CASE(3,4) !Maxwell
+        MacroVal(6:8)   = Macroval(6:8)*prefac+(1.-prefac)*MacroVal(5)*DVMSpeciesData%R_S*rho
+        Macroval(9:14)  = prefac*Macroval(9:14) ! non-eq moments should be zero anyway
       END SELECT
-    CASE(2) ! higher moments from f^
-      ! MacroVal(12:14) = Heatflux(1:3)*(1.-EXP(-DVMSpeciesData%Prandtl*tDeriv/tau)) &
-      !                            /(EXP(-DVMSpeciesData%Prandtl*tDeriv/tau)*tDeriv*DVMSpeciesData%Prandtl/tau)
-      MacroVal(6:14) = 0. !will get copied from earlier f~ macroval
+    CASE(2) !DUGKS
+      SELECT CASE(DVMBGKModel)
+      CASE(1) !ESBGK
+        CALL abort(__STAMP__,'DUGKS with ESBGK not implemented!')
+      CASE(2) !Shakhov
+        Macroval(6:8)   = Macroval(6:8)*2.*tau/(2.*tau+tDeriv) + MacroVal(5)*DVMSpeciesData%R_S*rho*tDeriv/(2.*tau+tDeriv)
+        Macroval(9:11)  = Macroval(9:11)*2.*tau/(2.*tau+tDeriv)
+        MacroVal(12:14) = MacroVal(12:14)*2.*tau/(2.*tau+tDeriv*DVMSpeciesData%Prandtl)
+      CASE(3,4) !Maxwell
+        Macroval(6:8)   = Macroval(6:8)*2.*tau/(2.*tau+tDeriv) + MacroVal(5)*DVMSpeciesData%R_S*rho*tDeriv/(2.*tau+tDeriv)
+        Macroval(9:14)  = Macroval(9:14)*2.*tau/(2.*tau+tDeriv) ! non-eq moments should be zero anyway
+      END SELECT
+    END SELECT
+  CASE(2) ! higher moments from f^
+    MacroVal(6:14) = 0. ! will get copied from earlier f~ macroval
   END SELECT
 END IF
 
@@ -328,30 +349,32 @@ REAL, INTENT(IN)                 :: MacroVal(14)
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-REAL                            :: rho,Temp,uVelo(3),cVel(3),pressTens(3,3),pressProduct,ilambda(3,3),ldet
+REAL                            :: rho,Temp,uVelo(3),cVel(3),pressTens(3,3),pressProduct,ilambda(3,3),ldet,hfac
 INTEGER                         :: iVel,jVel,kVel, upos
 !===================================================================================================================================
 rho              = MacroVal(1)
 uVelo(1:3)       = MacroVal(2:4)
 Temp             = MacroVal(5)
-pressTens        = 0.
-pressTens(2:3,1) = MacroVal(7:8)
-pressTens(1,2)   = MacroVal(7)
-pressTens(3,2)   = MacroVal(10)
-pressTens(1,3)   = MacroVal(8)
-pressTens(2,3)   = MacroVal(10)
+pressTens(1,1)   = MacroVal(6)
+pressTens(2,2)   = MacroVal(7)
+pressTens(3,3)   = MacroVal(8)
+pressTens(1,2:3) = MacroVal(9:10)
+pressTens(2:3,1) = MacroVal(9:10)
+pressTens(2,3)   = MacroVal(11)
+pressTens(3,2)   = MacroVal(11)
 
 pressTens = (1.-1./DVMSpeciesData%Prandtl)*pressTens/rho
-pressTens(1,1) = DVMSpeciesData%R_S*Temp
-pressTens(2,2) = DVMSpeciesData%R_S*Temp
-pressTens(3,3) = DVMSpeciesData%R_S*Temp
+pressTens(1,1) = pressTens(1,1)+DVMSpeciesData%R_S*Temp/DVMSpeciesData%Prandtl
+pressTens(2,2) = pressTens(2,2)+DVMSpeciesData%R_S*Temp/DVMSpeciesData%Prandtl
+pressTens(3,3) = pressTens(3,3)+DVMSpeciesData%R_S*Temp/DVMSpeciesData%Prandtl
 
 CALL INV33(pressTens,ilambda,ldet)
 IF (ldet.LE.0.) THEN
   CALL abort(__STAMP__,'ESBGK matrix not positive-definite')
 ELSE
   ! determinant from reduced pressure tensor (size D*D)
-  ldet = ldet/(DVMSpeciesData%R_S*Temp)**(3-DVMDim)
+  IF (DVMDim.LE.2) ldet = ldet/pressTens(3,3)
+  IF (DVMDim.LE.1) ldet = ldet/pressTens(2,2)
 END IF
 
 DO kVel=1, DVMnVelos(3);   DO jVel=1, DVMnVelos(2);   DO iVel=1, DVMnVelos(1)
@@ -367,7 +390,10 @@ DO kVel=1, DVMnVelos(3);   DO jVel=1, DVMnVelos(2);   DO iVel=1, DVMnVelos(1)
 
   fESBGK(upos) = rho/sqrt(ldet*(2*Pi)**DVMDim)*EXP(-pressProduct/2.)
   IF ((DVMSpeciesData%Internal_DOF .GT.0.0).OR.(DVMDim.LT.3)) THEN
-    fESBGK(PP_nVar_FV/2+upos) = fESBGK(upos)*DVMSpeciesData%R_S*Temp*(DVMSpeciesData%Internal_DOF+3.-DVMDim)
+    hfac = DVMSpeciesData%R_S*Temp*DVMSpeciesData%Internal_DOF
+    IF (DVMDim.LE.2) hfac = hfac + pressTens(3,3)
+    IF (DVMDim.LE.1) hfac = hfac + pressTens(2,2)
+    fESBGK(PP_nVar_FV/2+upos) = fESBGK(upos)*hfac
   END IF
 END DO; END DO; END DO
 
@@ -397,12 +423,11 @@ rho              = MacroVal(1)
 uVelo(1:3)       = MacroVal(2:4)
 Temp             = MacroVal(5)
 q(1:3)           = MacroVal(12:14)
-pressTens        = 0.
-pressTens(2:3,1) = MacroVal(7:8)
-pressTens(1,2)   = MacroVal(7)
-pressTens(3,2)   = MacroVal(10)
-pressTens(1,3)   = MacroVal(8)
-pressTens(2,3)   = MacroVal(10)
+pressTens        = 0. !diagonal determined by temperature -> Txx=Tyy=Tzz
+pressTens(1,2:3) = MacroVal(9:10)
+pressTens(2:3,1) = MacroVal(9:10)
+pressTens(2,3)   = MacroVal(11)
+pressTens(3,2)   = MacroVal(11)
 
 DO kVel=1, DVMnVelos(3);   DO jVel=1, DVMnVelos(2);   DO iVel=1, DVMnVelos(1)
   upos= iVel+(jVel-1)*DVMnVelos(1)+(kVel-1)*DVMnVelos(1)*DVMnVelos(2)
@@ -689,3 +714,4 @@ END DO
 END SUBROUTINE
 
 END MODULE MOD_DistFunc
+
