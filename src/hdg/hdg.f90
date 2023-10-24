@@ -127,7 +127,6 @@ USE MOD_Restart_Vars          ,ONLY: DoRestart
 USE PETSc
 USE MOD_Mesh_Vars             ,ONLY: nMPISides_YOUR
 #if USE_MPI
-USE MOD_MPI_Shared_Vars       ,ONLY: MPI_COMM_WORLD
 USE MOD_MPI                   ,ONLY: StartReceiveMPIDataInt,StartSendMPIDataInt,FinishExchangeMPIData
 USE MOD_MPI_Vars
 #endif /*USE_MPI*/
@@ -334,7 +333,7 @@ DO SideID=1,nSides
   END IF
 END DO
 nPETScUniqueSides = nSides-nDirichletBCSides-nMPISides_YOUR-nMortarMasterSides-nConductorBCsides
-CALL MPI_ALLGATHER(nPETScUniqueSides,1,MPI_INTEGER,OffsetPETScSideMPI,1,MPI_INTEGER,MPI_COMM_WORLD,IERROR)
+CALL MPI_ALLGATHER(nPETScUniqueSides,1,MPI_INTEGER,OffsetPETScSideMPI,1,MPI_INTEGER,MPI_COMM_PICLAS,IERROR)
 DO iProc=1, myrank
   OffsetPETScSide = OffsetPETScSide + OffsetPETScSideMPI(iProc)
 END DO
@@ -454,7 +453,7 @@ PetscCallA(MatSetType(Smat_petsc,MATSBAIJ,ierr)) ! Symmetric sparse (mpi) matrix
 !  ALLOCATE(FPC%GroupGlobal(1:FPC%nFPCBounds))
 !  FPC%GroupGlobal(1:FPC%nFPCBounds) = FPC%Group(1:FPC%nFPCBounds,3)
 !  ! TODO is this allreduce required?
-!  !CALL MPI_ALLREDUCE(FPC%Group(1:FPC%nFPCBounds,3),FPC%GroupGlobal(1:FPC%nFPCBounds), FPC%nFPCBounds, MPI_DOUBLE_PRECISION, MPI_SUM, MPI_COMM_WORLD, IERROR)
+!  !CALL MPI_ALLREDUCE(FPC%Group(1:FPC%nFPCBounds,3),FPC%GroupGlobal(1:FPC%nFPCBounds), FPC%nFPCBounds, MPI_DOUBLE_PRECISION, MPI_SUM, MPI_COMM_PICLAS, IERROR)
 !  nAffectedBlockSides = MAXVAL(FPC%GroupGlobal(:))
 !  DEALLOCATE(FPC%GroupGlobal)
 !  nAffectedBlockSides = MAX(22,nAffectedBlockSides*6)
@@ -548,7 +547,7 @@ END SUBROUTINE InitHDG
 !===================================================================================================================================
 SUBROUTINE InitFPC()
 ! MODULES
-USE MOD_Globals  ! ,ONLY: MPIRoot,iError,myrank,UNIT_stdOut,MPI_COMM_WORLD
+USE MOD_Globals  ! ,ONLY: MPIRoot,iError,myrank,UNIT_stdOut,MPI_COMM_PICLAS
 USE MOD_Preproc
 USE MOD_Mesh_Vars          ,ONLY: nBCs,BoundaryType
 USE MOD_Analyze_Vars       ,ONLY: DoFieldAnalyze
@@ -765,7 +764,7 @@ DO iUniqueFPCBC = 1, FPC%nUniqueFPCBounds
   FPC%COMM(iUniqueFPCBC)%ID=iUniqueFPCBC
 
   ! create new emission communicator for floating boundary condition communication. Pass MPI_INFO_NULL as rank to follow the original ordering
-  CALL MPI_COMM_SPLIT(MPI_COMM_WORLD, color, MPI_INFO_NULL, FPC%COMM(iUniqueFPCBC)%UNICATOR, iError)
+  CALL MPI_COMM_SPLIT(MPI_COMM_PICLAS, color, MPI_INFO_NULL, FPC%COMM(iUniqueFPCBC)%UNICATOR, iError)
 
   ! Find my rank on the shared communicator, comm size and proc name
   IF(BConProc(iUniqueFPCBC))THEN
@@ -830,7 +829,7 @@ END SUBROUTINE InitFPC
 !===================================================================================================================================
 SUBROUTINE InitEPC()
 ! MODULES
-USE MOD_Globals  ! ,ONLY: MPIRoot,iError,myrank,UNIT_stdOut,MPI_COMM_WORLD
+USE MOD_Globals  ! ,ONLY: MPIRoot,iError,myrank,UNIT_stdOut,MPI_COMM_PICLAS
 USE MOD_Preproc
 USE MOD_Mesh_Vars          ,ONLY: nBCs,BoundaryType
 USE MOD_Analyze_Vars       ,ONLY: DoFieldAnalyze
@@ -1044,7 +1043,7 @@ DO iUniqueEPCBC = 1, EPC%nUniqueEPCBounds
 
   ! Create new emission communicator for Electric potential boundary condition communication.
   ! Pass MPI_INFO_NULL as rank to follow the original ordering
-  CALL MPI_COMM_SPLIT(MPI_COMM_WORLD, color, MPI_INFO_NULL, EPC%COMM(iUniqueEPCBC)%UNICATOR, iError)
+  CALL MPI_COMM_SPLIT(MPI_COMM_PICLAS, color, MPI_INFO_NULL, EPC%COMM(iUniqueEPCBC)%UNICATOR, iError)
 
   ! Find my rank on the shared communicator, comm size and proc name
   IF(BConProc(iUniqueEPCBC))THEN
@@ -1117,7 +1116,7 @@ USE MOD_SurfaceModel_Analyze_Vars ,ONLY: CalcBoundaryParticleOutput,BPO
 USE MOD_LoadBalance_Vars          ,ONLY: PerformLoadBalance
 #endif /*USE_LOADBALANCE*/
 #if USE_MPI
-USE MOD_Globals                   ,ONLY: IERROR,MPI_COMM_NULL,MPI_DOUBLE_PRECISION,MPI_COMM_WORLD,MPI_INFO_NULL,MPI_UNDEFINED,MPIRoot
+USE MOD_Globals                   ,ONLY: IERROR,MPI_COMM_NULL,MPI_DOUBLE_PRECISION,MPI_COMM_PICLAS,MPI_INFO_NULL,MPI_UNDEFINED,MPIRoot
 USE MOD_Mesh_Vars                 ,ONLY: nBCSides,BC
 #endif /*USE_MPI*/
 IMPLICIT NONE
@@ -1218,7 +1217,7 @@ color = MERGE(BVBoundaries, MPI_UNDEFINED, BConProc)
 BiasVoltage%COMM%ID = BVBoundaries
 
 ! Create new emission communicator for electric potential boundary condition communication. Pass MPI_INFO_NULL as rank to follow the original ordering
-CALL MPI_COMM_SPLIT(MPI_COMM_WORLD, color, MPI_INFO_NULL, BiasVoltage%COMM%UNICATOR, iError)
+CALL MPI_COMM_SPLIT(MPI_COMM_PICLAS, color, MPI_INFO_NULL, BiasVoltage%COMM%UNICATOR, iError)
 
 ! Find my rank on the shared communicator, comm size and process name
 IF(BConProc)THEN
@@ -2597,7 +2596,7 @@ REAL(KIND=8)      :: Rate
 
 #if USE_MPI
   IF(MPIroot) converged=(Norm_R2.LT.EpsNonLinear**2)
-  CALL MPI_BCAST(converged,1,MPI_LOGICAL,0,MPI_COMM_WORLD,iError)
+  CALL MPI_BCAST(converged,1,MPI_LOGICAL,0,MPI_COMM_PICLAS,iError)
 #else
   converged=(Norm_R2.LT.EpsNonLinear**2)
 #endif /*USE_MPI*/
@@ -2681,14 +2680,14 @@ CALL VectorDotProduct(VecSize,R(1:VecSize),R(1:VecSize),Norm_R2) !Z=V
 IF(useRelativeAbortCrit)THEN
 #if USE_MPI
   IF(MPIroot) converged=(Norm_R2.LT.1e-16)
-  CALL MPI_BCAST(converged,1,MPI_LOGICAL,0,MPI_COMM_WORLD,iError)
+  CALL MPI_BCAST(converged,1,MPI_LOGICAL,0,MPI_COMM_PICLAS,iError)
 #else
   converged=(Norm_R2.LT.1e-16)
 #endif /*USE_MPI*/
 ELSE
 #if USE_MPI
   IF(MPIroot) converged=(Norm_R2.LT.EpsCG**2)
-  CALL MPI_BCAST(converged,1,MPI_LOGICAL,0,MPI_COMM_WORLD,iError)
+  CALL MPI_BCAST(converged,1,MPI_LOGICAL,0,MPI_COMM_PICLAS,iError)
 #else
   converged=(Norm_R2.LT.EpsCG**2)
 #endif /*USE_MPI*/
@@ -2750,7 +2749,7 @@ DO iteration=1,MaxIterCG
   CALL SYSTEM_CLOCK(count=CounterStart)
 #endif /*defined(MEASURE_MPI_WAIT)*/
 
-  CALL MPI_BCAST(converged,1,MPI_LOGICAL,0,MPI_COMM_WORLD,iError)
+  CALL MPI_BCAST(converged,1,MPI_LOGICAL,0,MPI_COMM_PICLAS,iError)
 
 #if defined(MEASURE_MPI_WAIT)
   CALL SYSTEM_CLOCK(count=CounterEnd, count_rate=Rate)
@@ -3115,7 +3114,7 @@ CALL LBPauseTime(LB_DG,tLBStart) ! Pause/Stop time measurement
 
 #if USE_MPI
   ResuSend=Resu
-  CALL MPI_ALLREDUCE(ResuSend,Resu,1,MPI_DOUBLE_PRECISION,MPI_SUM,MPI_COMM_WORLD,iError)
+  CALL MPI_ALLREDUCE(ResuSend,Resu,1,MPI_DOUBLE_PRECISION,MPI_SUM,MPI_COMM_PICLAS,iError)
 #endif
 
 #if defined(MEASURE_MPI_WAIT)
@@ -3269,14 +3268,13 @@ END SUBROUTINE RestartHDG
 !===================================================================================================================================
 SUBROUTINE FinalizeHDG()
 ! MODULES
-USE MOD_globals
+USE MOD_Globals
 USE MOD_HDG_Vars
 #if USE_PETSC
 USE petsc
 #endif
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Vars   ,ONLY: PerformLoadBalance,UseH5IOLoadBalance
-USE MOD_HDG_Vars           ,ONLY: lambda, nGP_face
 USE MOD_Particle_Mesh_Vars ,ONLY: ElemInfo_Shared
 USE MOD_Mesh_Vars          ,ONLY: nElems,offsetElem,nSides,SideToNonUniqueGlobalSide
 USE MOD_Mesh_Tools         ,ONLY: LambdaSideToMaster,GetMasteriLocSides
@@ -3293,6 +3291,9 @@ PetscErrorCode       :: ierr
 INTEGER             :: NonUniqueGlobalSideID
 INTEGER             :: iSide
 #endif /*USE_LOADBALANCE*/
+#if USE_MPI
+INTEGER             :: iBC
+#endif /*USE_MPI*/
 !===================================================================================================================================
 HDGInitIsDone = .FALSE.
 #if USE_PETSC
@@ -3351,6 +3352,9 @@ SDEALLOCATE(FPC%BCState)
 SDEALLOCATE(FPC%VoltageProc)
 SDEALLOCATE(FPC%ChargeProc)
 #if USE_MPI
+DO iBC = 1, FPC%nUniqueFPCBounds
+  IF(FPC%COMM(iBC)%UNICATOR.NE.MPI_COMM_NULL) CALL MPI_COMM_FREE(FPC%COMM(iBC)%UNICATOR,iERROR)
+END DO
 SDEALLOCATE(FPC%COMM)
 #endif /*USE_MPI*/
 
@@ -3374,7 +3378,14 @@ SDEALLOCATE(EPC%BCState)
 SDEALLOCATE(EPC%VoltageProc)
 SDEALLOCATE(EPC%ChargeProc)
 #if USE_MPI
+DO iBC = 1, EPC%nUniqueEPCBounds
+  IF(EPC%COMM(iBC)%UNICATOR.NE.MPI_COMM_NULL)   CALL MPI_COMM_FREE(EPC%COMM(iBC)%UNICATOR,iERROR)
+END DO
 SDEALLOCATE(EPC%COMM)
+#if defined(PARTICLES)
+IF(BiasVoltage%COMM%UNICATOR.NE.MPI_COMM_NULL)  CALL MPI_COMM_FREE(BiasVoltage%COMM%UNICATOR,iERROR)
+IF(CPPCOMM%UNICATOR.NE.MPI_COMM_NULL)           CALL MPI_COMM_FREE(CPPCOMM%UNICATOR,iERROR)
+#endif /*defined(PARTICLES)*/
 #endif /*USE_MPI*/
 
 #if USE_LOADBALANCE

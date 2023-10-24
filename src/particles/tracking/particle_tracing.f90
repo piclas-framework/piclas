@@ -594,7 +594,7 @@ END DO ! iPart
 !---------------------------------------------CODE_ANALYZE--------------------------------------------------------------------------
 ! check if particle is still inside of bounding box of domain and in element
 #if USE_MPI
-CALL MPI_BARRIER(MPI_COMM_WORLD,iError)
+CALL MPI_BARRIER(MPI_COMM_PICLAS,iError)
 #endif /*USE_MPI*/
 DO iPart=1,PDM%ParticleVecLength
 #ifdef IMPA
