@@ -34,7 +34,7 @@ SUBROUTINE ParticleInserting()
 !===================================================================================================================================
 ! Modules
 #if USE_MPI
-USE MOD_Particle_MPI_Vars      ,ONLY: PartMPI
+USE MOD_Particle_MPI_Vars      ,ONLY: PartMPIInitGroup
 #endif /*USE_MPI*/
 USE MOD_Globals
 USE MOD_Globals_Vars           ,ONLY: c,PI
@@ -178,10 +178,10 @@ DO i=1,nSpecies
 #if USE_MPI
         ! communicate number of particles with all procs in the same init group
         InitGroup=Species(i)%Init(iInit)%InitCOMM
-        IF(PartMPI%InitGroup(InitGroup)%COMM.NE.MPI_COMM_NULL) THEN
+        IF(PartMPIInitGroup(InitGroup)%COMM.NE.MPI_COMM_NULL) THEN
           ! only procs which are part of group take part in the communication
             !NbrOfParticle based on RandVals!
-          CALL MPI_BCAST(NbrOfParticle, 1, MPI_INTEGER,0,PartMPI%InitGroup(InitGroup)%COMM,IERROR)
+          CALL MPI_BCAST(NbrOfParticle, 1, MPI_INTEGER,0,PartMPIInitGroup(InitGroup)%COMM,IERROR)
         ELSE
           NbrOfParticle=0
         END IF
@@ -280,11 +280,11 @@ DO i=1,nSpecies
        ! Communicate number of particles with all procs in the same init group
        InitGroup=Species(i)%Init(iInit)%InitCOMM
        NeutralizationBalanceGlobal=0 ! always nullify
-       IF(PartMPI%InitGroup(InitGroup)%COMM.NE.MPI_COMM_NULL) THEN
+       IF(PartMPIInitGroup(InitGroup)%COMM.NE.MPI_COMM_NULL) THEN
          ! Loop over all elements and count the ion surplus per element if element-local emission is used
          IF(nNeutralizationElems.GT.0) CALL CountNeutralizationParticles()
          ! Only processors which are part of group take part in the communication
-         CALL MPI_ALLREDUCE(NeutralizationBalance,NeutralizationBalanceGlobal,1,MPI_INTEGER,MPI_SUM,PartMPI%InitGroup(InitGroup)%COMM,IERROR)
+         CALL MPI_ALLREDUCE(NeutralizationBalance,NeutralizationBalanceGlobal,1,MPI_INTEGER,MPI_SUM,PartMPIInitGroup(InitGroup)%COMM,IERROR)
        ELSE
          NeutralizationBalanceGlobal=0
        END IF
@@ -359,18 +359,18 @@ DO i=1,nSpecies
     ! Complete check if all particles were emitted successfully
 #if USE_MPI
     InitGroup=Species(i)%Init(iInit)%InitCOMM
-    IF (PartMPI%InitGroup(InitGroup)%COMM.NE.MPI_COMM_NULL .AND. Species(i)%Init(iInit)%sumOfRequestedParticles.GT.0) THEN
+    IF (PartMPIInitGroup(InitGroup)%COMM.NE.MPI_COMM_NULL .AND. Species(i)%Init(iInit)%sumOfRequestedParticles.GT.0) THEN
 #if defined(MEASURE_MPI_WAIT)
       CALL SYSTEM_CLOCK(count=CounterStart)
 #endif /*defined(MEASURE_MPI_WAIT)*/
-      CALL MPI_WAIT(PartMPI%InitGroup(InitGroup)%Request, MPI_STATUS_IGNORE, iError)
+      CALL MPI_WAIT(PartMPIInitGroup(InitGroup)%Request, MPI_STATUS_IGNORE, iError)
 #if defined(MEASURE_MPI_WAIT)
       CALL SYSTEM_CLOCK(count=CounterEnd, count_rate=Rate)
       MPIW8TimePart(5)  = MPIW8TimePart(5) + REAL(CounterEnd-CounterStart,8)/Rate
       MPIW8CountPart(5) = MPIW8CountPart(5) + 1_8
 #endif /*defined(MEASURE_MPI_WAIT)*/
 
-      IF(PartMPI%InitGroup(InitGroup)%MPIRoot) THEN
+      IF(PartMPIInitGroup(InitGroup)%MPIRoot) THEN
 #endif
         ! add number of matching error to particle emission to fit
         ! number of added particles
@@ -390,7 +390,7 @@ DO i=1,nSpecies
         !  WRITE(UNIT_stdOut,'(A,I0,A)') 'ParticleEmission_parallel: matched all (',NbrOfParticle,') particles!'
         END IF
 #if USE_MPI
-      END IF ! PartMPI%iProc.EQ.0
+      END IF ! PartMPIInitGroup(InitGroup)%MPIRoot
     END IF
 #endif
   END DO  ! iInit

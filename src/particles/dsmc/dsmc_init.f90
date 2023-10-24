@@ -1191,7 +1191,7 @@ SUBROUTINE SetVarVibProb2Elems()
 ! Set initial vibrational relaxation probability to all elements
 !===================================================================================================================================
 ! MODULES                                                                                                                          !
-USE MOD_Globals                ,ONLY: abort, IK, MPI_COMM_WORLD
+USE MOD_Globals                ,ONLY: abort, IK, MPI_COMM_PICLAS
 USE MOD_PARTICLE_Vars          ,ONLY: nSpecies, Species
 USE MOD_Restart_Vars           ,ONLY: DoRestart,RestartFile
 USE MOD_Particle_Vars          ,ONLY: nSpecies, PartSpecies
@@ -1228,7 +1228,7 @@ IMPLICIT NONE
   VarVibRelaxProb%ProbVibAv = 0
   VibProbInitDone = .FALSE.
   IF (DoRestart) THEN
-    CALL OpenDataFile(RestartFile,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_WORLD)
+    CALL OpenDataFile(RestartFile,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_PICLAS)
     ! read local ParticleInfo from HDF5
     CALL DatasetExists(File_ID,'VibProbInfo',VibProbDataExists)
     IF(VibProbDataExists)THEN
@@ -1518,7 +1518,7 @@ TYPE (tNodeVolume), INTENT(INOUT)  :: Node
 INTEGER     ::  iLoop, nLoop
 !===================================================================================================================================
 nLoop = 2**Symmetry%Order
-IF(ASSOCIATED(Node%SubNode)) THEN 
+IF(ASSOCIATED(Node%SubNode)) THEN
   DO iLoop = 1, nLoop
     CALL DeleteNodeVolume(Node%SubNode(iLoop))
   END DO
