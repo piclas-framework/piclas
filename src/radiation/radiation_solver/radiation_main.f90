@@ -123,9 +123,10 @@ USE MOD_Radiation_ExportSpectrum
   END DO
 
   IF((RadiationSwitches%RadType.EQ.3) .AND. (nGlobalElems.EQ.1)) THEN
-    OPEN(unit=20,file='Radiation_Emission_Absorption.dat',status='replace',action='write', iostat=io_error)
+    OPEN(unit=20,file='Radiation_Emission_Absorption.csv',status='replace',action='write', iostat=io_error)
+    WRITE(20,*) 'wavelength,emission_coefficient,absorption_coefficient'
     DO w=1, RadiationParameter%WaveLenDiscr
-      WRITE(20,*) RadiationParameter%WaveLen(w)*1.E9, Radiation_Emission_spec(w,1), Radiation_Absorption_spec(w,1)
+      WRITE(20,*) RadiationParameter%WaveLen(w)*1.E9,',',Radiation_Emission_spec(w,1),',',Radiation_Absorption_spec(w,1)
     END DO
     CLOSE(unit=20)
   END IF
