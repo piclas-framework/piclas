@@ -595,34 +595,21 @@ PartSpecies        = 0
 PDM%nextFreePosition(1:PDM%maxParticleNumber)=0
 
 ALLOCATE(PEM%GlobalElemID(1:PDM%maxParticleNumber), STAT=ALLOCSTAT)
-IF (ALLOCSTAT.NE.0) CALL abort(&
-__STAMP__&
-  ,' Cannot allocate PEM%GlobalElemID(1:PDM%maxParticleNumber) array!')
+IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__,' Cannot allocate PEM%GlobalElemID(1:PDM%maxParticleNumber) array!')
 
 ALLOCATE(PEM%LastGlobalElemID(1:PDM%maxParticleNumber), STAT=ALLOCSTAT)
-IF (ALLOCSTAT.NE.0) CALL abort(&
-__STAMP__&
-  ,' Cannot allocate PEM%LastGlobalElemID(1:PDM%maxParticleNumber) array!')
+IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__,' Cannot allocate PEM%LastGlobalElemID(1:PDM%maxParticleNumber) array!')
 
-IF (useDSMC) THEN
+IF (useDSMC.OR.usevMPF) THEN
   ALLOCATE(PEM%pStart(1:nElems)                         , &
            PEM%pNumber(1:nElems)                        , &
            PEM%pEnd(1:nElems)                           , &
            PEM%pNext(1:PDM%maxParticleNumber)           , STAT=ALLOCSTAT)
-
-  IF (ALLOCSTAT.NE.0) THEN
-    CALL abort(&
-__STAMP__&
-    , ' Cannot allocate DSMC PEM arrays!')
-  END IF
+  IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__, ' Cannot allocate DSMC PEM arrays!')
 END IF
 IF (useDSMC) THEN
   ALLOCATE(PDM%PartInit(1:PDM%maxParticleNumber), STAT=ALLOCSTAT)
-  IF (ALLOCSTAT.NE.0) THEN
-    CALL abort(&
-__STAMP__&
-    ,' Cannot allocate DSMC PEM arrays!')
-  END IF
+  IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__,' Cannot allocate PDM%PartInit array!')
 END IF
 
 END SUBROUTINE AllocateParticleArrays
