@@ -127,23 +127,6 @@ IF (CollisMode.NE.0) THEN
     CALL LBElemSplitTime(iElem,tLBStart)
 #endif /*USE_LOADBALANCE*/
   END DO ! iElem Loop
-ELSE ! CollisMode = 0
-  DO iElem = 1, nElems ! element/cell main loop
-    IF(PRESENT(DoElement)) THEN
-      IF (.NOT.DoElement(iElem)) CYCLE
-    END IF
-    nPart = PEM%pNumber(iElem)
-    IF (nPart.LT.1) CYCLE
-    IF(DSMC%CalcQualityFactors) THEN
-      DSMC%CollProbMax = 0.0; DSMC%CollProbMean = 0.0; DSMC%CollProbMeanCount = 0; DSMC%CollSepDist = 0.0; DSMC%CollSepCount = 0
-      DSMC%MeanFreePath = 0.0; DSMC%MCSoverMFP = 0.0
-      IF(DSMC%RotRelaxProb.GT.2) DSMC%CalcRotProb = 0.
-      DSMC%CalcVibProb = 0.
-    END IF
-#if USE_LOADBALANCE
-    CALL LBElemSplitTime(iElem,tLBStart)
-#endif /*USE_LOADBALANCE*/
-  END DO ! iElem Loop
 END IF ! CollisMode.NE.0
 
 ! Advance particle vector length and the current next free position with newly created particles
@@ -155,8 +138,9 @@ IF(PDM%ParticleVecLength.GT.PDM%MaxParticleNumber) THEN
     ,'ERROR in DSMC: ParticleVecLength greater than MaxParticleNumber! Increase the MaxParticleNumber to at least: ' &
     , IntInfoOpt=PDM%ParticleVecLength)
 END IF
+
 ! Delete background gas particles
-IF((BGGas%NumberOfSpecies.GT.0).AND.(.NOT.UseMCC)) CALL BGGas_DeleteParticles
+IF((BGGas%NumberOfSpecies.GT.0).AND.(.NOT.UseMCC)) CALL BGGas_DeleteParticles()
 
 ! Sampling of macroscopic values
 ! (here for a continuous average; average over N iterations is performed in src/analyze/analyze.f90)
