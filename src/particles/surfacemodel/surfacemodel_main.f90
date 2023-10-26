@@ -316,7 +316,7 @@ SUBROUTINE PerfectReflection(PartID,SideID,n_Loc,opt_Symmetry)
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Globals
 USE MOD_Particle_Boundary_Vars  ,ONLY: PartBound
-USE MOD_Particle_Vars           ,ONLY: PartState,LastPartPos,PartSpecies,Species,PartLorentzType
+USE MOD_Particle_Vars           ,ONLY: PartState,LastPartPos,PartSpecies,Species,PartLorentzType,RotRefSubTimeStep
 USE MOD_DSMC_Vars               ,ONLY: DSMC, AmbipolElecVelo
 USE MOD_Globals_Vars            ,ONLY: c2_inv
 #if defined(LSERK)
@@ -375,6 +375,8 @@ ELSE
 END IF
 ! Species-specific time step
 IF(VarTimeStep%UseSpeciesSpecific) dtVar = dtVar * Species(SpecID)%TimeStepFactor
+
+IF(RotRefSubTimeStep) dtVar = 0.1 * dtVar
 
 IF(PDM%InRotRefFrame(PartID)) THEN
   ! In case of RotRefFrame utilize the respective velocity
@@ -523,7 +525,7 @@ USE MOD_Particle_Vars           ,ONLY: PartState,LastPartPos,Species,PartSpecies
 USE MOD_Particle_Vars           ,ONLY: UseVarTimeStep, PartTimeStep, VarTimeStep
 USE MOD_TimeDisc_Vars           ,ONLY: dt,RKdtFrac
 USE MOD_Mesh_Tools              ,ONLY: GetCNElemID
-USE MOD_Particle_Vars           ,ONLY: PDM, RotRefFrameOmega
+USE MOD_Particle_Vars           ,ONLY: PDM, RotRefFrameOmega,RotRefSubTimeStep
 USE MOD_SurfaceModel_Tools      ,ONLY: CalcPostWallCollVelo, SurfaceModel_EnergyAccommodation
 USE MOD_Particle_Tracking_Vars  ,ONLY: TrackInfo
 USE MOD_part_RHS                ,ONLY: CalcPartRHSRotRefFrame
@@ -573,6 +575,7 @@ END IF
 
 ! Species-specific time step
 IF(VarTimeStep%UseSpeciesSpecific) dtVar = dtVar * Species(SpecID)%TimeStepFactor
+IF(RotRefSubTimeStep) dtVar = 0.1 * dtVar
 
 IF(PDM%InRotRefFrame(PartID)) THEN
   ! In case of RotRefFrame utilize the respective velocity
