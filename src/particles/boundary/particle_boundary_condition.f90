@@ -153,14 +153,6 @@ ASSOCIATE( iPartBound => PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID)
   !-----------------------------------------------------------------------------------------------------------------------------------
     CALL PeriodicBoundary(iPart,SideID,ElemID)
   !-----------------------------------------------------------------------------------------------------------------------------------
-  CASE(4) ! PartBound%SimpleAnodeBC
-  !-----------------------------------------------------------------------------------------------------------------------------------
-    CALL abort(__STAMP__,' ERROR: PartBound not associated!. (PartBound%SimpleAnodeBC)')
-  !-----------------------------------------------------------------------------------------------------------------------------------
-  CASE(5) ! PartBound%SimpleCathodeBC
-  !-----------------------------------------------------------------------------------------------------------------------------------
-    CALL abort(__STAMP__,' ERROR: PartBound not associated!. (PartBound%SimpleCathodeBC)')
-  !-----------------------------------------------------------------------------------------------------------------------------------
   CASE(6) ! PartBound%RotPeriodicBC
   !-----------------------------------------------------------------------------------------------------------------------------------
     CALL RotPeriodicBoundary(iPart,SideID,ElemID)
@@ -176,6 +168,7 @@ ASSOCIATE( iPartBound => PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID)
     END IF ! DoDdielectric
   !-----------------------------------------------------------------------------------------------------------------------------------
   CASE(7) ! PartBound%RotPeriodicInterPlaneBC
+  !-----------------------------------------------------------------------------------------------------------------------------------
     IF(PRESENT(IsInterPlanePart)) THEN
       CALL RotPeriodicInterPlaneBoundary(iPart,SideID,ElemID,IsInterplanePart)
     ELSE
@@ -185,7 +178,9 @@ ASSOCIATE( iPartBound => PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID)
   CASE(10,11) ! PartBound%SymmetryBC
   !-----------------------------------------------------------------------------------------------------------------------------------
     CALL PerfectReflection(iPart,SideID,n_loc,opt_Symmetry=.TRUE.)
+  !-----------------------------------------------------------------------------------------------------------------------------------
   CASE DEFAULT
+  !-----------------------------------------------------------------------------------------------------------------------------------
     CALL abort(__STAMP__,' ERROR: PartBound not associated!. (unknown case)')
 END SELECT !PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID)
 END ASSOCIATE

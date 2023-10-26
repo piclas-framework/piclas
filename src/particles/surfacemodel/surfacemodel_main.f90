@@ -922,7 +922,7 @@ END IF
 
 IF(ParticleSticks) THEN
   ! Remove the particle from the simulation (total energy was added to the sampled heat flux before the interaction)
-  CALL RemoveParticle(PartID)
+  CALL RemoveParticle(PartID,BCID=locBCID)
 ELSE
   ! Perform regular Maxwell scattering
   CALL MaxwellScattering(PartID,SideID,n_Loc)

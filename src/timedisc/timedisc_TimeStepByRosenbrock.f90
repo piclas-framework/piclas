@@ -80,7 +80,6 @@ USE MOD_PICInterpolation_Vars  ,ONLY: FieldAtParticle
 #if USE_MPI
 USE MOD_Particle_MPI           ,ONLY: IRecvNbOfParticles, MPIParticleSend,MPIParticleRecv,SendNbOfparticles
 USE MOD_Particle_MPI_Vars      ,ONLY: PartMPIExchange
-USE MOD_Particle_MPI_Vars      ,ONLY: PartMPI
 #endif /*USE_MPI*/
 USE MOD_PIC_Analyze            ,ONLY: CalcDepositedCharge
 USE MOD_part_tools             ,ONLY: UpdateNextFreePosition
@@ -232,10 +231,10 @@ IF(time.GE.DelayTime)THEN
 #endif /*USE_LOADBALANCE*/
     IF(DoPrintConvInfo)THEN
 #if USE_MPI
-      IF(PartMPI%MPIRoot)THEN
-        CALL MPI_REDUCE(MPI_IN_PLACE,nParts,1,MPI_INTEGER,MPI_SUM,0,PartMPI%COMM, IERROR)
+      IF(MPIRoot)THEN
+        CALL MPI_REDUCE(MPI_IN_PLACE,nParts,1,MPI_INTEGER,MPI_SUM,0,MPI_COMM_PICLAS, IERROR)
       ELSE
-        CALL MPI_REDUCE(nParts       ,iPart,1,MPI_INTEGER,MPI_SUM,0,PartMPI%COMM, IERROR)
+        CALL MPI_REDUCE(nParts       ,iPart,1,MPI_INTEGER,MPI_SUM,0,MPI_COMM_PICLAS, IERROR)
       END IF
 #endif /*USE_MPI*/
       SWRITE(UNIT_StdOut,'(A,I10)') ' SurfaceFlux-Particles: ',nParts
