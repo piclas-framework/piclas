@@ -85,7 +85,7 @@ USE MOD_Particle_Boundary_Vars  ,ONLY: PartBound
 USE MOD_Particle_Mesh_Vars      ,ONLY: GEO,LocalVolume,MeshVolume
 USE MOD_DSMC_Vars               ,ONLY: SymmetrySide
 USE MOD_Particle_Mesh_Vars      ,ONLY: ElemVolume_Shared,ElemCharLength_Shared
-USE MOD_Particle_Mesh_Vars      ,ONLY: NodeCoords_Shared,ElemSideNodeID_Shared, SideInfo_Shared, SideIsSymSide_Shared
+USE MOD_Particle_Mesh_Vars      ,ONLY: NodeCoords_Shared,ElemSideNodeID_Shared, SideInfo_Shared, SideIsSymSide_Shared, SideIsSymSide
 USE MOD_Mesh_Tools              ,ONLY: GetCNElemID
 USE MOD_Particle_Mesh_Tools     ,ONLY: GetGlobalNonUniqueSideID
 USE MOD_Particle_Surfaces       ,ONLY: CalcNormAndTangTriangle
@@ -119,14 +119,15 @@ INTEGER                         :: firstElem, lastElem, firstSide, lastSide
 #if USE_MPI
 CALL Allocate_Shared((/nNonUniqueGlobalSides/),SideIsSymSide_Shared_Win,SideIsSymSide_Shared)
 CALL MPI_WIN_LOCK_ALL(0,SideIsSymSide_Shared_Win,IERROR)
+SideIsSymSide => SideIsSymSide_Shared
 ! only CN root nullifies
-IF(myComputeNodeRank.EQ.0) SideIsSymSide_Shared = .FALSE.
+IF(myComputeNodeRank.EQ.0) SideIsSymSide = .FALSE.
 ! This sync/barrier is required as it cannot be guaranteed that the zeros have been written to memory by the time the MPI_REDUCE
 ! is executed (see MPI specification). Until the Sync is complete, the status is undefined, i.e., old or new value or utter nonsense.
 CALL BARRIER_AND_SYNC(SideIsSymSide_Shared_Win,MPI_COMM_SHARED)
 #else
-ALLOCATE(SideIsSymSide_Shared(nComputeNodeSides))
-SideIsSymSide_Shared = .FALSE.
+ALLOCATE(SideIsSymSide(nComputeNodeSides))
+SideIsSymSide = .FALSE.
 #endif  /*USE_MPI*/
 
 ! Flag of symmetry sides to be skipped during tracking
@@ -139,7 +140,7 @@ SideIsSymSide_Shared = .FALSE.
 #endif
 
 DO iSide = firstSide, lastSide
-  SideIsSymSide_Shared(iSide) = .FALSE.
+  SideIsSymSide(iSide) = .FALSE.
   ! ignore non-BC sides
   IF (SideInfo_Shared(SIDE_BCID,iSide).LE.0) CYCLE
 #if USE_MPI
@@ -147,7 +148,7 @@ DO iSide = firstSide, lastSide
   IF (ElemInfo_Shared(ELEM_HALOFLAG,SideInfo_Shared(SIDE_ELEMID,iSide)).EQ.0) CYCLE
 #endif /*USE_MPI*/
   IF (PartBound%TargetBoundCond(PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,iSide))).EQ.PartBound%SymmetryBC) &
-    SideIsSymSide_Shared(iSide) = .TRUE.
+    SideIsSymSide(iSide) = .TRUE.
 END DO
 
 SymmetryBCExists = .FALSE.

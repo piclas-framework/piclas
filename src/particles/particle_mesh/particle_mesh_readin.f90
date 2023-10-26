@@ -445,8 +445,9 @@ USE MOD_MPI_Shared
 USE MOD_MPI_Shared_Vars
 #endif
 #if USE_LOADBALANCE
-USE MOD_LoadBalance_Vars          ,ONLY: PerformLoadBalance
+USE MOD_LoadBalance_Vars   ,ONLY: PerformLoadBalance
 #endif /*USE_LOADBALANCE*/
+USE MOD_Particle_Vars      ,ONLY: Symmetry
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -458,8 +459,9 @@ IMPLICIT NONE
 ! First, free every shared memory window. This requires MPI_BARRIER as per MPI3.1 specification
 #if USE_MPI
 CALL MPI_BARRIER(MPI_COMM_SHARED,iERROR)
-
-! volumes
+! Sides
+IF(Symmetry%Order.EQ.2) CALL UNLOCK_AND_FREE(SideIsSymSide_Shared_Win)
+! Volumes
 CALL UNLOCK_AND_FREE(ElemVolume_Shared_Win)
 CALL UNLOCK_AND_FREE(ElemCharLength_Shared_Win)
 #endif /*USE_MPI*/
