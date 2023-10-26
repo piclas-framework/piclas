@@ -65,43 +65,43 @@ END SUBROUTINE DefineParametersRadiationTrans
 
 SUBROUTINE InitRadiationTransport()
 !===================================================================================================================================
-! Initialization of the radiative transfer solver 
+! Initialization of the radiative transfer solver
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_Globals_Vars,           ONLY : Pi, c
+USE MOD_Globals_Vars               ,ONLY: Pi, c
 USE MOD_ReadInTools
 USE MOD_RadiationTrans_Vars
-USE MOD_Mesh_Vars,              ONLY : nElems, nGlobalElems
-USE MOD_Particle_Mesh_Vars,     ONLY : ElemVolume_Shared,ElemMidPoint_Shared, GEO, nComputeNodeElems
-USE MOD_Globals_Vars,           ONLY : BoltzmannConst, PlanckConst
-USE MOD_Particle_Boundary_Sampling, ONLY : InitParticleBoundarySampling
-USE MOD_Particle_Boundary_Vars, ONLY : nComputeNodeSurfTotalSides,nSurfSample
-USE MOD_Radiation_Vars,         ONLY : RadiationParameter, Radiation_Emission_spec, Radiation_Absorption_spec, RadiationSwitches
-USE MOD_Radiation_Vars,         ONLY : Radiation_Absorption_SpecPercent
-USE MOD_RadiationTrans_Vars,    ONLY : RadObservation_Emission
-USE MOD_Radiation,              ONLY : radiation_main
-USE MOD_DSMC_Vars,              ONLY: RadialWeighting
-USE MOD_Output,                 ONLY: PrintStatusLineRadiation
-USE MOD_Mesh_Tools,             ONLY : GetGlobalElemID
-USE MOD_Particle_Vars,          ONLY : Symmetry, nSpecies
+USE MOD_Mesh_Vars                  ,ONLY: nGlobalElems
+USE MOD_Particle_Mesh_Vars         ,ONLY: ElemVolume_Shared,ElemMidPoint_Shared, GEO, nComputeNodeElems
+USE MOD_Globals_Vars               ,ONLY: BoltzmannConst, PlanckConst
+USE MOD_Particle_Boundary_Sampling ,ONLY: InitParticleBoundarySampling
+USE MOD_Particle_Boundary_Vars     ,ONLY: nComputeNodeSurfTotalSides,nSurfSample
+USE MOD_Radiation_Vars             ,ONLY: RadiationParameter, Radiation_Emission_Spec, Radiation_Absorption_Spec, RadiationSwitches
+USE MOD_Radiation_Vars             ,ONLY: Radiation_Absorption_SpecPercent
+USE MOD_RadiationTrans_Vars        ,ONLY: RadObservation_Emission
+USE MOD_Radiation                  ,ONLY: radiation_main
+USE MOD_DSMC_Vars                  ,ONLY: RadialWeighting
+USE MOD_Output                     ,ONLY: PrintStatusLineRadiation
+USE MOD_Mesh_Tools                 ,ONLY: GetGlobalElemID
+USE MOD_Particle_Vars              ,ONLY: Symmetry, nSpecies
 USE MOD_MPI_Shared_Vars
 USE MOD_MPI_Shared
-USE MOD_Particle_Mesh_Build,    ONLY: BuildMesh2DInfo
-USE MOD_SuperB_Tools,           ONLY: FindLinIndependentVectors, GramSchmidtAlgo
+USE MOD_Particle_Mesh_Build        ,ONLY: BuildMesh2DInfo
+USE MOD_SuperB_Tools               ,ONLY: FindLinIndependentVectors, GramSchmidtAlgo
 #if USE_MPI
-USE MOD_RadiationTrans_Vars,    ONLY : RadTransObsVolumeFrac_Shared_Win, RadTransObsVolumeFrac_Shared
-USE MOD_Radiation_Vars,         ONLY : Radiation_Absorption_Spec_Shared, Radiation_Absorption_Spec_Shared_Win, RadiationInput
-USE MOD_Radiation_Vars,         ONLY : Radiation_Emission_Spec_Shared_Win, Radiation_Emission_Spec_Shared, MacroRadInputParameters
-USE MOD_Radiation_Vars,         ONLY : Radiation_Absorption_SpecPercent_Shared, Radiation_Absorption_SpecPercent_Shared_Win
+USE MOD_RadiationTrans_Vars        ,ONLY: RadTransObsVolumeFrac_Shared_Win, RadTransObsVolumeFrac_Shared
+USE MOD_Radiation_Vars             ,ONLY: Radiation_Absorption_Spec_Shared, Radiation_Absorption_Spec_Shared_Win, RadiationInput
+USE MOD_Radiation_Vars             ,ONLY: Radiation_Emission_Spec_Shared_Win, MacroRadInputParameters
+USE MOD_Radiation_Vars             ,ONLY: Radiation_Absorption_SpecPercent_Shared, Radiation_Absorption_SpecPercent_Shared_Win
+USE MOD_Photon_TrackingVars        ,ONLY: PhotonSampWallProc
+USE MOD_Photon_TrackingVars        ,ONLY: PhotonSampWall_Shared, PhotonSampWall_Shared_Win,PhotonSampWallProc
+#else
+USE MOD_Mesh_Vars                  ,ONLY: nElems
 #endif
-USE MOD_RayTracing_Vars         ,ONLY: Ray
-USE MOD_Photon_Tracking         ,ONLY: InitPhotonSurfSample
-#if USE_MPI
-USE MOD_Photon_TrackingVars    ,ONLY: PhotonSampWallProc
-USE MOD_Photon_TrackingVars    ,ONLY: PhotonSampWall_Shared, PhotonSampWall_Shared_Win,PhotonSampWallProc
-#endif /*USE_MPI*/
-USE MOD_Photon_TrackingVars    ,ONLY: PhotonSampWall
+USE MOD_RayTracing_Vars            ,ONLY: Ray
+USE MOD_Photon_Tracking            ,ONLY: InitPhotonSurfSample
+USE MOD_Photon_TrackingVars        ,ONLY: PhotonSampWall
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -114,7 +114,7 @@ INTEGER               :: iWave, iElem, firstElem, lastElem, ElemDisp, DisplRank,
 REAL                  :: LocTemp, ObsLengt, MaxSumTemp(2), GlobalMaxTemp(2), tmp
 LOGICAL               :: ElemInCone
 REAL,ALLOCATABLE      :: Radiation_ShockTube_Spec(:,:)
-INTEGER               :: w, io_error
+INTEGER               :: io_error
 CHARACTER(LEN=3)      :: hilf
 !===================================================================================================================================
 SWRITE(UNIT_StdOut,'(132("-"))')
@@ -158,7 +158,7 @@ IF (RadObservationPointMethod.GT.0) THEN
   CALL FindLinIndependentVectors(RadObservationPoint%OrthoNormBasis(1:3,1), RadObservationPoint%OrthoNormBasis(1:3,2), RadObservationPoint%OrthoNormBasis(1:3,3))
   CALL GramSchmidtAlgo(RadObservationPoint%OrthoNormBasis(1:3,1), RadObservationPoint%OrthoNormBasis(1:3,2), RadObservationPoint%OrthoNormBasis(1:3,3))
   IF (RadObservationPointMethod.EQ.2) RadObservationPoint%Diameter = 0.0
-  ObsLengt = RadObservationPoint%Diameter/(2.*TAN(RadObservationPoint%AngularAperture/2.))  
+  ObsLengt = RadObservationPoint%Diameter/(2.*TAN(RadObservationPoint%AngularAperture/2.))
   RadObservationPoint%StartPoint(1:3) = RadObservationPoint%MidPoint(1:3) - ObsLengt*RadObservationPoint%ViewDirection(1:3)
   RadObservationPoint%Area = Pi*RadObservationPoint%Diameter*RadObservationPoint%Diameter/4.
   IF (RadObservationPointMethod.EQ.2) THEN
@@ -185,15 +185,15 @@ CALL Allocate_Shared((/2,nGlobalElems/),RadiationElemAbsEnergy_Shared_Win,Radiat
 CALL MPI_WIN_LOCK_ALL(0,RadiationElemAbsEnergy_Shared_Win,IERROR)
 
 IF (myComputeNodeRank.EQ.0) RadiationElemAbsEnergy_Shared = 0.
-CALL BARRIER_AND_SYNC(RadiationElemAbsEnergy_Shared_Win,MPI_COMM_SHARED)  
+CALL BARRIER_AND_SYNC(RadiationElemAbsEnergy_Shared_Win,MPI_COMM_SHARED)
 
   ! allocate shared array for Radiation_Emission/Absorption_Spec
 CALL Allocate_Shared((/nSpecies,nGlobalElems/),RadiationElemAbsEnergySpec_Shared_Win,RadiationElemAbsEnergySpec_Shared)
 CALL MPI_WIN_LOCK_ALL(0,RadiationElemAbsEnergySpec_Shared_Win,IERROR)
 
 IF (myComputeNodeRank.EQ.0) RadiationElemAbsEnergySpec_Shared = 0.
-CALL BARRIER_AND_SYNC(RadiationElemAbsEnergySpec_Shared_Win,MPI_COMM_SHARED)  
-  
+CALL BARRIER_AND_SYNC(RadiationElemAbsEnergySpec_Shared_Win,MPI_COMM_SHARED)
+
 CALL Allocate_Shared((/nComputeNodeElems/), RadTransPhotPerCell_Shared_Win,RadTransPhotPerCell_Shared)
 CALL MPI_WIN_LOCK_ALL(0,RadTransPhotPerCell_Shared_Win,IERROR)
 CALL Allocate_Shared((/nComputeNodeElems/), Radiation_Emission_Spec_Total_Shared_Win,Radiation_Emission_Spec_Total_Shared)
@@ -267,7 +267,7 @@ IF (RadiationSwitches%MacroRadInput) THEN
     MaxSumTemp(1) = 0.0
     currentRank = 0
     firstElem = 1
-    ElemLoop: DO iElem = 1, nComputeNodeElems 
+    ElemLoop: DO iElem = 1, nComputeNodeElems
       DO iSpec = 1, nSpecies
         IF(.NOT.RadiationInput(iSpec)%DoRadiation) CYCLE
         MaxSumTemp(1) = MaxSumTemp(1) + MacroRadInputParameters(iElem,iSpec,4)
@@ -280,7 +280,7 @@ IF (RadiationSwitches%MacroRadInput) THEN
           EXIT ElemLoop
         ELSE
           CYCLE ElemLoop
-        END IF        
+        END IF
       END IF
       IF (MaxSumTemp(1).GE.GlobalMaxTemp(1)) THEN
         currentRank = currentRank + 1
@@ -294,7 +294,7 @@ IF (RadiationSwitches%MacroRadInput) THEN
     END DO ElemLoop
     IF (myRank+1.EQ.nComputeNodeProcessors) lastElem = nComputeNodeElems
   END IF
-  
+
   MaxSumTemp(2) = REAL(myRank)
   MaxSumTemp(1) = 0.0
   DO iSpec = 1, nSpecies
@@ -332,14 +332,14 @@ CASE(1) !calls radition solver module
     DO iWave = 1, RadiationParameter%WaveLenDiscrCoarse
       Radiation_Emission_Spec_Total(iElem) = Radiation_Emission_Spec_Total(iElem) &
           + 4.*Pi*Radiation_Emission_Spec(iWave, iElem) * RadiationParameter%WaveLenIncr*RadiationParameter%WaveLenReductionFactor
-      IF (RadiationPhotonWaveLengthModel.EQ.1) Radiation_Emission_Spec_Max(iElem) = MAX(Radiation_Emission_Spec_Max(iElem),  & 
+      IF (RadiationPhotonWaveLengthModel.EQ.1) Radiation_Emission_Spec_Max(iElem) = MAX(Radiation_Emission_Spec_Max(iElem),  &
         4.*Pi*Radiation_Emission_Spec(iWave, iElem) * RadiationParameter%WaveLenIncr*RadiationParameter%WaveLenReductionFactor)
     END DO
     IF (RadiationParameter%WaveLenReductionFactor.GT.1) THEN
       IF (MOD(RadiationParameter%WaveLenDiscr,RadiationParameter%WaveLenDiscrCoarse).NE.0) THEN
         Radiation_Emission_Spec_Total(iElem) = Radiation_Emission_Spec_Total(iElem) &
-          + 4.*Pi*Radiation_Emission_Spec(RadiationParameter%WaveLenDiscrCoarse, iElem) * RadiationParameter%WaveLenIncr 
-        IF (RadiationPhotonWaveLengthModel.EQ.1) Radiation_Emission_Spec_Max(iElem) = MAX(Radiation_Emission_Spec_Max(iElem),  & 
+          + 4.*Pi*Radiation_Emission_Spec(RadiationParameter%WaveLenDiscrCoarse, iElem) * RadiationParameter%WaveLenIncr
+        IF (RadiationPhotonWaveLengthModel.EQ.1) Radiation_Emission_Spec_Max(iElem) = MAX(Radiation_Emission_Spec_Max(iElem),  &
           4.*Pi*Radiation_Emission_Spec(RadiationParameter%WaveLenDiscrCoarse, iElem) * RadiationParameter%WaveLenIncr*(RadiationParameter%WaveLenReductionFactor+1.))
       END IF
     END IF
@@ -364,7 +364,7 @@ CASE(2) ! Black body radiation
       Radiation_Absorption_Spec(iWave, GetGlobalElemID(iElem)) = 1.
       Radiation_Absorption_SpecPercent(iWave,:,GetGlobalElemID(iElem)) = 10000
     END DO
-  END DO  
+  END DO
 CASE(3) !only radiation
   SWRITE(UNIT_stdOut,'(A)') ' Calculate Radiation Data per Cell ...'
   DO iElem = firstElem, lastElem
@@ -397,19 +397,17 @@ CASE(4) !Shocktube mode
     DO iElem=1,nGlobalElems
       WRITE(40,CSVFORMAT,ADVANCE="NO") ',', ElemMidPoint_Shared(1,iElem)
     END DO
-    WRITE(40,*) 
+    WRITE(40,*)
   DO iWave =1,RadiationParameter%WaveLenDiscr
     WRITE(40,'(E23.16E3)',ADVANCE="NO") RadiationParameter%WaveLen(iWave)*1.E9
     DO iElem = 1,nGlobalElems
       WRITE(40,CSVFORMAT,ADVANCE="NO") ',', Radiation_ShockTube_Spec(iWave,iElem)
     END DO
-    WRITE(40,*) 
+    WRITE(40,*)
   END DO
 
 CASE DEFAULT
-  CALL abort(&
-      __STAMP__&
-      ,' ERROR: Radiation type is not implemented! (unknown case)')
+  CALL abort(__STAMP__,' ERROR: Radiation type is not implemented! (unknown case)')
 END SELECT
 
 
@@ -433,7 +431,7 @@ END SELECT
                      , MPI_COMM_LEADERS_SHARED       &
                      , IERROR)
     END IF
-  END IF  
+  END IF
   CALL BARRIER_AND_SYNC(Radiation_Absorption_Spec_Shared_Win ,MPI_COMM_SHARED)
   CALL BARRIER_AND_SYNC(Radiation_Absorption_SpecPercent_Shared_Win ,MPI_COMM_SHARED)
   IF(nLeaderGroupProcs.GT.1)THEN
@@ -448,7 +446,7 @@ END SELECT
                      , MPI_COMM_LEADERS_SHARED       &
                      , IERROR)
     END IF
-  END IF  
+  END IF
   CALL BARRIER_AND_SYNC(Radiation_Absorption_SpecPercent_Shared_Win ,MPI_COMM_SHARED)
   IF (RadObservationPointMethod.EQ.2) CALL BARRIER_AND_SYNC(RadObservationPOI_Shared_Win ,MPI_COMM_SHARED)
   !print*, 'AHAAAA', SUM(RadObservationPOI(7,:))
@@ -469,7 +467,7 @@ END SELECT
   IF (RadialWeighting%DoRadialWeighting) THEN
     CALL MPI_ALLREDUCE(MPI_IN_PLACE,RadTrans%ScaledGlobalRadiationPower,1,MPI_DOUBLE_PRECISION,MPI_SUM,MPI_COMM_WORLD,iError)
   END IF
-#endif /*USE_MPI*/  
+#endif /*USE_MPI*/
   RadTrans%GlobalPhotonNum = RadTrans%NumPhotonsPerCell * nGlobalElems
 
 
@@ -566,17 +564,17 @@ DO iNode = 1, 8
   ConeRadius = TAN(RadObservationPoint%AngularAperture/2.) * ConeDist
   orthoDist = VECNORM(NodePoint(1:3) - RadObservationPoint%StartPoint(1:3) - ConeDist*RadObservationPoint%ViewDirection(1:3))
   IF (orthoDist.LE.ConeRadius) THEN
-    NodeInCone(iNode) = .TRUE.    
+    NodeInCone(iNode) = .TRUE.
   END IF
 END DO
 
 IF (ALL(NodeInCone)) THEN
-  ElemInCone = .TRUE.  
+  ElemInCone = .TRUE.
 ELSE IF (ANY(NodeInCone)) THEN
   iGlobalElem = GetGlobalElemID(ElemID)
   RadTransObsVolumeFrac(ElemID) = 0.0
-  ElemInCone = .TRUE. 
-  ASSOCIATE( Bounds => BoundsOfElem_Shared(1:2,1:3,iGlobalElem) )    
+  ElemInCone = .TRUE.
+  ASSOCIATE( Bounds => BoundsOfElem_Shared(1:2,1:3,iGlobalElem) )
     DO iPoint = 1, MCVar
       InsideFlag=.FALSE.
       DO WHILE(.NOT.InsideFlag)
@@ -590,9 +588,9 @@ ELSE IF (ANY(NodeInCone)) THEN
       ConeRadius = TAN(RadObservationPoint%AngularAperture/2.) * ConeDist
       orthoDist = VECNORM(RandomPos(1:3) - RadObservationPoint%StartPoint(1:3) - ConeDist*RadObservationPoint%ViewDirection(1:3))
       IF (orthoDist.LE.ConeRadius)  RadTransObsVolumeFrac(ElemID) = RadTransObsVolumeFrac(ElemID) + 1./REAL(MCVar)
-    END DO    
+    END DO
   END ASSOCIATE
-ELSE 
+ELSE
   nlocSides = ElemInfo_Shared(ELEM_LASTSIDEIND,ElemID) -  ElemInfo_Shared(ELEM_FIRSTSIDEIND,ElemID)
   SideLoop: DO iLocSide=1,nlocSides
     TempSideID = ElemInfo_Shared(ELEM_FIRSTSIDEIND,ElemID) + iLocSide
@@ -605,7 +603,7 @@ ELSE
       CALL PhotonIntersectionWithSide2DDir(localSideID,ElemID,ThroughSide, RadObservationPoint%StartPoint(1:3),RadObservationPoint%ViewDirection(1:3))
       IF (ThroughSide) THEN
         ElemInCone = .TRUE.
-        ASSOCIATE( Bounds => BoundsOfElem_Shared(1:2,1:3,iGlobalElem) )    
+        ASSOCIATE( Bounds => BoundsOfElem_Shared(1:2,1:3,iGlobalElem) )
           DO iPoint = 1, MCVar
             InsideFlag=.FALSE.
             DO WHILE(.NOT.InsideFlag)
@@ -619,17 +617,17 @@ ELSE
             ConeRadius = TAN(RadObservationPoint%AngularAperture/2.) * ConeDist
             orthoDist = VECNORM(RandomPos(1:3) - RadObservationPoint%StartPoint(1:3) - ConeDist*RadObservationPoint%ViewDirection(1:3))
             IF (orthoDist.LE.ConeRadius)  RadTransObsVolumeFrac(ElemID) = RadTransObsVolumeFrac(ElemID) + 1./REAL(MCVar)
-          END DO    
+          END DO
         END ASSOCIATE
         EXIT SideLoop
-      END IF 
+      END IF
     ELSE
       DO TriNum = 1,2
         ThroughSide = .FALSE.
         CALL PhotonThroughSideCheck3DDir(localSideID,ElemID,ThroughSide,TriNum, RadObservationPoint%StartPoint(1:3),RadObservationPoint%ViewDirection(1:3))
         IF (ThroughSide) THEN
           ElemInCone = .TRUE.
-          ASSOCIATE( Bounds => BoundsOfElem_Shared(1:2,1:3,iGlobalElem) )    
+          ASSOCIATE( Bounds => BoundsOfElem_Shared(1:2,1:3,iGlobalElem) )
             DO iPoint = 1, MCVar
               InsideFlag=.FALSE.
               DO WHILE(.NOT.InsideFlag)
@@ -643,7 +641,7 @@ ELSE
               ConeRadius = TAN(RadObservationPoint%AngularAperture/2.) * ConeDist
               orthoDist = VECNORM(RandomPos(1:3) - RadObservationPoint%StartPoint(1:3) - ConeDist*RadObservationPoint%ViewDirection(1:3))
               IF (orthoDist.LE.ConeRadius)  RadTransObsVolumeFrac(ElemID) = RadTransObsVolumeFrac(ElemID) + 1./REAL(MCVar)
-            END DO    
+            END DO
           END ASSOCIATE
           EXIT SideLoop
         END IF
@@ -662,8 +660,8 @@ SUBROUTINE ElemOnLineOfSight(ElemID, ElemInCone)
 ! MODULES
 USE MOD_Globals
 USE MOD_Mesh_Tools                ,ONLY: GetGlobalElemID
-USE MOD_Particle_Mesh_Vars        ,ONLY: NodeCoords_Shared,ElemInfo_Shared, BoundsOfElem_Shared, SideInfo_Shared, SideIsSymSide
-USE MOD_RadiationTrans_Vars       ,ONLY: RadObservationPoint, RadTransObsVolumeFrac, RadObservationPOI
+USE MOD_Particle_Mesh_Vars        ,ONLY: ElemInfo_Shared, SideInfo_Shared, SideIsSymSide
+USE MOD_RadiationTrans_Vars       ,ONLY: RadObservationPoint, RadObservationPOI
 USE MOD_Particle_Vars             ,ONLY: Symmetry
 USE MOD_Particle_Mesh_Tools       ,ONLY: ParticleInsideQuad3D
 USE MOD_Photon_TrackingTools      ,ONLY: PhotonIntersectionWithSide2DDir, PhotonThroughSideCheck3DDir
@@ -678,10 +676,10 @@ INTEGER, INTENT(IN)             :: ElemID
 LOGICAL, INTENT(OUT)            :: ElemInCone
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                       :: iNode, MCVar, iGlobalElem, iPoint, iLocSide, nlocSides, TempSideID, localSideID, TriNum
+INTEGER                       :: iLocSide, nlocSides, TempSideID, localSideID, TriNum
 INTEGER                       :: nThroughSide, BCType
-LOGICAL                       :: NodeInCone(8), InsideFlag, ThroughSide, IsSymElem
-REAL                          :: NodePoint(3), ConeDist, ConeRadius, orthoDist, RandomPos(3),IntersectionPos(1:3), Distance(2)
+LOGICAL                       :: ThroughSide, IsSymElem
+REAL                          :: IntersectionPos(1:3), Distance(2)
 REAL                          :: length
 !===================================================================================================================================
 ElemInCone = .FALSE.
@@ -715,7 +713,7 @@ SideLoop: DO iLocSide=1,nlocSides
         RadObservationPOI(7, ElemID) = VECNORM(RadObservationPOI(4:6, ElemID)-RadObservationPOI(1:3, ElemID))
         EXIT SideLoop
       END IF
-    END IF 
+    END IF
   ELSE
     DO TriNum = 1,2
       ThroughSide = .FALSE.

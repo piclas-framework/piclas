@@ -130,7 +130,7 @@ CALL prms%CreateIntOption(      'Part-CellMergeSpread'        , 'Describes the a
                                                                 'i.e. how deep the merge extends into the mesh starting from \n'//&
                                                                 'each cell. 0 is the least aggressive merge, 2 the most \n'//&
                                                                 'aggressive merge.','0')
-CALL prms%CreateIntOption(      'Part-MaxNumbCellsMerge'       ,'Maximum number of cells to be merged.','4')                                                                
+CALL prms%CreateIntOption(      'Part-MaxNumbCellsMerge'       ,'Maximum number of cells to be merged.','4')
 
 CALL prms%SetSection("IMD")
 ! IMD things
@@ -307,7 +307,9 @@ USE MOD_Mesh_Vars                  ,ONLY: nElems
 USE MOD_SurfaceModel_Porous        ,ONLY: InitPorousBoundaryCondition
 USE MOD_Particle_Boundary_Sampling ,ONLY: InitParticleBoundarySampling
 USE MOD_SurfaceModel_Vars          ,ONLY: nPorousBC,BulkElectronTempSEE
+#if ! (PP_TimeDiscMethod==600)
 USE MOD_Particle_Boundary_Vars     ,ONLY: PartBound
+#endif /*! (PP_TimeDiscMethod==600)*/
 USE MOD_Particle_Tracking_Vars     ,ONLY: TrackingMethod
 USE MOD_Particle_Vars              ,ONLY: ParticlesInitIsDone,WriteMacroVolumeValues,WriteMacroSurfaceValues,nSpecies
 USE MOD_Particle_Sampling_Vars     ,ONLY: UseAdaptive
@@ -741,7 +743,7 @@ INTEGER         :: iELem
 DoVirtualCellMerge = GETLOGICAL('Part-DoVirtualCellMerge')
 IF(DoVirtualCellMerge)THEN
 #if USE_MPI
-DoParticleLatencyHiding = .FALSE.  
+DoParticleLatencyHiding = .FALSE.
 #endif
   VirtualCellMergeSpread = GETINT('Part-CellMergeSpread')
   MaxNumOfMergedCells = GETINT('Part-MaxNumbCellsMerge')

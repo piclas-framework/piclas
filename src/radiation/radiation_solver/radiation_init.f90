@@ -101,10 +101,10 @@ SUBROUTINE InitRadiation()
 ! MODULES
 USE MOD_Globals
 USE MOD_Globals_Vars,          ONLY : PlanckConst, c
-USE MOD_Mesh_Vars,             ONLY : nElems, nGlobalElems
+USE MOD_Mesh_Vars,             ONLY : nGlobalElems
 USE MOD_Particle_Mesh_Vars,    ONLY : nComputeNodeElems
 USE MOD_ReadInTools
-USE MOD_PARTICLE_Vars,         ONLY : nSpecies, Species
+USE MOD_PARTICLE_Vars,         ONLY : nSpecies
 USE MOD_Radiation_Vars
 USE MOD_DSMC_Vars,             ONLY : SpecDSMC
 USE MOD_Radiation_ReadIn,      ONLY : Radiation_readin_atoms, Radiation_readin_molecules
@@ -229,7 +229,7 @@ NumDensElectrons = GETREAL('Radiation-NumDensElectrons')
 TElectrons       = GETREAL('Radiation-TElectrons')
 
 #if USE_MPI
-  ! allocate shared array for Radiation_Emission/Absorption_Spec  
+  ! allocate shared array for Radiation_Emission/Absorption_Spec
 CALL Allocate_Shared((/RadiationParameter%WaveLenDiscrCoarse,nComputeNodeElems/), Radiation_Emission_Spec_Shared_Win,Radiation_Emission_Spec_Shared)
 CALL MPI_WIN_LOCK_ALL(0,Radiation_Emission_Spec_Shared_Win,IERROR)
 CALL Allocate_Shared((/INT(RadiationParameter%WaveLenDiscrCoarse,IK)*INT(nGlobalElems,IK)/),Radiation_Absorption_Spec_Shared_Win,Radiation_Absorption_Spec_Shared)
@@ -293,7 +293,7 @@ END DO
                      , MPI_COMM_LEADERS_SHARED       &
                      , IERROR)
     END IF
-  END IF  
+  END IF
   CALL BARRIER_AND_SYNC(Radiation_Absorption_Spec_Shared_Win ,MPI_COMM_SHARED)
   CALL BARRIER_AND_SYNC(Radiation_Absorption_SpecPercent_Shared_Win ,MPI_COMM_SHARED)
 #endif
@@ -306,136 +306,135 @@ END SUBROUTINE InitRadiation
 
 
 SUBROUTINE MacroscopicRadiationInput()
-  !===================================================================================================================================
-  !>
-  !===================================================================================================================================
-  ! MODULES
-  USE MOD_Globals
-  USE MOD_PreProc
-  USE MOD_io_hdf5
-  USE MOD_HDF5_Input                ,ONLY: OpenDataFile,CloseDataFile,DatasetExists,ReadArray,GetDataProps
-  USE MOD_Mesh_Vars                 ,ONLY: offsetElem, nElems
-  USE MOD_Particle_Vars             ,ONLY: nSpecies
-  USE MOD_DSMC_Vars                 ,ONLY: SpecDSMC
-  USE MOD_Radiation_Vars            ,ONLY: RadiationSwitches, MacroRadInputParameters, MacroRadInputParameters_Shared, &
-                                      MacroRadInputParameters_Shared_Win
-  USE MOD_Mesh_Tools                ,ONLY: GetCNElemID
-  USE MOD_ReadInTools
-  USE MOD_Particle_Mesh_Vars        ,ONLY: nComputeNodeElems
+!===================================================================================================================================
+!>
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals
+USE MOD_PreProc
+USE MOD_io_hdf5
+USE MOD_HDF5_Input                ,ONLY: OpenDataFile,CloseDataFile,DatasetExists,ReadArray,GetDataProps
+USE MOD_Mesh_Vars                 ,ONLY: offsetElem, nElems
+USE MOD_Particle_Vars             ,ONLY: nSpecies
+USE MOD_DSMC_Vars                 ,ONLY: SpecDSMC
+USE MOD_Radiation_Vars            ,ONLY: RadiationSwitches, MacroRadInputParameters, MacroRadInputParameters_Shared, &
+                                    MacroRadInputParameters_Shared_Win
+USE MOD_Mesh_Tools                ,ONLY: GetCNElemID
+USE MOD_ReadInTools
+USE MOD_Particle_Mesh_Vars        ,ONLY: nComputeNodeElems
 #if USE_MPI
 !USE MOD_MPI_Shared_Vars
-  USE MOD_MPI_Shared
-  USE MOD_MPI_Shared_Vars
+USE MOD_MPI_Shared
+USE MOD_MPI_Shared_Vars
 #endif
-  USE MOD_Particle_Mesh_Vars        ,ONLY: ElemMidPoint_Shared
-  ! IMPLICIT VARIABLE HANDLING
-  IMPLICIT NONE
-  !-----------------------------------------------------------------------------------------------------------------------------------
-  ! INPUT VARIABLES
-  !-----------------------------------------------------------------------------------------------------------------------------------
-  ! OUTPUT VARIABLES
-  !-----------------------------------------------------------------------------------------------------------------------------------
-  ! LOCAL VARIABLES
-  INTEGER                           :: nVar_HDF5, N_HDF5, nElems_HDF5, iVar, iSpec, iElem, CNElemID, IndexElectronTemp, iSpecElectrons
-  REAL, ALLOCATABLE                 :: ElemData_HDF5(:,:)
-  CHARACTER(LEN=300)                :: MacroRadiationInputFile
-  INTEGER, ALLOCATABLE              :: SortElemInd(:)
-  REAL, ALLOCATABLE                 :: SortElemYPos(:)
-  !===================================================================================================================================
+USE MOD_Particle_Mesh_Vars        ,ONLY: ElemMidPoint_Shared
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER                           :: nVar_HDF5, N_HDF5, nElems_HDF5, iVar, iSpec, iElem, CNElemID, IndexElectronTemp, iSpecElectrons
+REAL, ALLOCATABLE                 :: ElemData_HDF5(:,:)
+CHARACTER(LEN=300)                :: MacroRadiationInputFile
+INTEGER, ALLOCATABLE              :: SortElemInd(:)
+REAL, ALLOCATABLE                 :: SortElemYPos(:)
+!===================================================================================================================================
 
-  MacroRadiationInputFile = GETSTR('Radiation-MacroInput-Filename')
-  CALL OpenDataFile(MacroRadiationInputFile,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_WORLD)
+MacroRadiationInputFile = GETSTR('Radiation-MacroInput-Filename')
+CALL OpenDataFile(MacroRadiationInputFile,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_WORLD)
 
-  CALL GetDataProps('ElemData',nVar_HDF5,N_HDF5,nElems_HDF5)
+CALL GetDataProps('ElemData',nVar_HDF5,N_HDF5,nElems_HDF5)
 
 #if USE_MPI
-  ! allocate shared array for Radiation_Emission/Absorption_Spec
-  CALL Allocate_Shared((/nComputeNodeElems,nSpecies,5/), MacroRadInputParameters_Shared_Win,MacroRadInputParameters_Shared)
-  CALL MPI_WIN_LOCK_ALL(0,MacroRadInputParameters_Shared_Win,IERROR)
+! allocate shared array for Radiation_Emission/Absorption_Spec
+CALL Allocate_Shared((/nComputeNodeElems,nSpecies,5/), MacroRadInputParameters_Shared_Win,MacroRadInputParameters_Shared)
+CALL MPI_WIN_LOCK_ALL(0,MacroRadInputParameters_Shared_Win,IERROR)
 
-  MacroRadInputParameters => MacroRadInputParameters_Shared
+MacroRadInputParameters => MacroRadInputParameters_Shared
 #else
 ! allocate local array for ElemInfo
-  ALLOCATE(MacroRadInputParameters(1:nElems,1:nSpecies,1:5))
+ALLOCATE(MacroRadInputParameters(1:nElems,1:nSpecies,1:5))
 #endif  /*USE_MPI*/
-  
 
-  ALLOCATE(ElemData_HDF5(1:nVar_HDF5,1:nElems))
-  ! Associate construct for integer KIND=8 possibility
-  ASSOCIATE (&
-    nVar_HDF5  => INT(nVar_HDF5,IK) ,&
-    offsetElem => INT(offsetElem,IK),&
-    nElems     => INT(nElems,IK)    )
-    CALL ReadArray('ElemData',2,(/nVar_HDF5,nElems/),offsetElem,2,RealArray=ElemData_HDF5(:,:))
-  END ASSOCIATE
+ALLOCATE(ElemData_HDF5(1:nVar_HDF5,1:nElems))
+! Associate construct for integer KIND=8 possibility
+ASSOCIATE (&
+  nVar_HDF5  => INT(nVar_HDF5,IK) ,&
+  offsetElem => INT(offsetElem,IK),&
+  nElems     => INT(nElems,IK)    )
+  CALL ReadArray('ElemData',2,(/nVar_HDF5,nElems/),offsetElem,2,RealArray=ElemData_HDF5(:,:))
+END ASSOCIATE
 
 
-  IF(RadiationSwitches%SortCellsY) THEN !Sort cells if manually created input is used
-    ALLOCATE(SortElemInd(nElems), SortElemYPos(nElems))
+IF(RadiationSwitches%SortCellsY) THEN !Sort cells if manually created input is used
+  ALLOCATE(SortElemInd(nElems), SortElemYPos(nElems))
+  DO iElem = 1, nElems
+    SortElemInd(iElem) = iElem
+  END DO
+  SortElemYPos(:) = -ElemMidPoint_Shared(2,:)
+  CALL BubbleSortID(SortElemYPos, SortElemInd, nElems)
+
+  iVar = 1
+  DO iSpec = 1, nSpecies
     DO iElem = 1, nElems
-      SortElemInd(iElem) = iElem
+      CNElemID = GetCNElemID(iElem+offsetElem)
+      MacroRadInputParameters(SortElemInd(CNElemID),iSpec,1) = MAX(0.,ElemData_HDF5(iVar+ 6,iElem)) !density
+      MacroRadInputParameters(SortElemInd(CNElemID),iSpec,2) = MAX(0.,ElemData_HDF5(iVar+ 7,iElem)) !T_vib
+      MacroRadInputParameters(SortElemInd(CNElemID),iSpec,3) = MAX(0.,ElemData_HDF5(iVar+ 8,iElem)) !T_rot
+      MacroRadInputParameters(SortElemInd(CNElemID),iSpec,4) = MAX(0.,ElemData_HDF5(iVar+ 9,iElem)) !T_elec
+      MacroRadInputParameters(SortElemInd(CNElemID),iSpec,5) = MAX(0.,ElemData_HDF5(iVar+11,iElem)) !T_mean
     END DO
-    SortElemYPos(:) = -ElemMidPoint_Shared(2,:)
-    CALL BubbleSortID(SortElemYPos, SortElemInd, nElems)
+    iVar = iVar + DSMC_NVARS
+  END DO
+ELSE
+  iVar = 1
+  DO iSpec = 1, nSpecies
+    DO iElem = 1, nElems
+      CNElemID = GetCNElemID(iElem+offsetElem)
+      MacroRadInputParameters(CNElemID,iSpec,1) = MAX(0.,ElemData_HDF5(iVar+ 6,iElem)) !density
+      MacroRadInputParameters(CNElemID,iSpec,2) = MAX(0.,ElemData_HDF5(iVar+ 7,iElem)) !T_vib
+      MacroRadInputParameters(CNElemID,iSpec,3) = MAX(0.,ElemData_HDF5(iVar+ 8,iElem)) !T_rot
+      MacroRadInputParameters(CNElemID,iSpec,4) = MAX(0.,ElemData_HDF5(iVar+ 9,iElem)) !T_elec
+      !IF((iSpec.EQ.12) .OR. (iSpec.EQ.13)) MacroRadInputParameters(CNElemID,iSpec,4)=MacroRadInputParameters(CNElemID,iSpec,4)*1.1 !Fe Fe+ +-10percent
+      MacroRadInputParameters(CNElemID,iSpec,5) = MAX(0.,ElemData_HDF5(iVar+11,iElem)) !T_mean
+    END DO
+    iVar = iVar + DSMC_NVARS
+  END DO
 
-    iVar = 1
+  IF(.NOT.RadiationSwitches%UseElectronicExcitation) THEN
+    iSpecElectrons = 0
     DO iSpec = 1, nSpecies
-      DO iElem = 1, nElems
-        CNElemID = GetCNElemID(iElem+offsetElem)
-        MacroRadInputParameters(SortElemInd(CNElemID),iSpec,1) = MAX(0.,ElemData_HDF5(iVar+ 6,iElem)) !density
-        MacroRadInputParameters(SortElemInd(CNElemID),iSpec,2) = MAX(0.,ElemData_HDF5(iVar+ 7,iElem)) !T_vib
-        MacroRadInputParameters(SortElemInd(CNElemID),iSpec,3) = MAX(0.,ElemData_HDF5(iVar+ 8,iElem)) !T_rot
-        MacroRadInputParameters(SortElemInd(CNElemID),iSpec,4) = MAX(0.,ElemData_HDF5(iVar+ 9,iElem)) !T_elec
-        MacroRadInputParameters(SortElemInd(CNElemID),iSpec,5) = MAX(0.,ElemData_HDF5(iVar+11,iElem)) !T_mean
-      END DO
-      iVar = iVar + DSMC_NVARS
+      IF (SpecDSMC(iSpec)%InterID .EQ. 4) iSpecElectrons = iSpec
     END DO
-  ELSE
-    iVar = 1
-    DO iSpec = 1, nSpecies
-      DO iElem = 1, nElems
-        CNElemID = GetCNElemID(iElem+offsetElem)
-        MacroRadInputParameters(CNElemID,iSpec,1) = MAX(0.,ElemData_HDF5(iVar+ 6,iElem)) !density
-        MacroRadInputParameters(CNElemID,iSpec,2) = MAX(0.,ElemData_HDF5(iVar+ 7,iElem)) !T_vib
-        MacroRadInputParameters(CNElemID,iSpec,3) = MAX(0.,ElemData_HDF5(iVar+ 8,iElem)) !T_rot
-        MacroRadInputParameters(CNElemID,iSpec,4) = MAX(0.,ElemData_HDF5(iVar+ 9,iElem)) !T_elec
-        !IF((iSpec.EQ.12) .OR. (iSpec.EQ.13)) MacroRadInputParameters(CNElemID,iSpec,4)=MacroRadInputParameters(CNElemID,iSpec,4)*1.1 !Fe Fe+ +-10percent
-        MacroRadInputParameters(CNElemID,iSpec,5) = MAX(0.,ElemData_HDF5(iVar+11,iElem)) !T_mean
-      END DO
-      iVar = iVar + DSMC_NVARS
-    END DO
-
-    IF(.NOT.RadiationSwitches%UseElectronicExcitation) THEN
-      iSpecElectrons = 0
-      DO iSpec = 1, nSpecies
-        IF (SpecDSMC(iSpec)%InterID .EQ. 4) iSpecElectrons = iSpec
-      END DO
-      IF (iSpecElectrons .EQ. 0) THEN
-        PRINT*,  "unknown species number for electrons while reading flow field data"
-        STOP
-      END IF
-      IndexElectronTemp = (iSpecElectrons-1)*DSMC_NVARS+1 + 11 !132 for 11th Species
-      DO iElem = 1, nElems
-        DO iSpec = 1, nSpecies
-          CNElemID = GetCNElemID(iElem+offsetElem)
-          IF((SpecDSMC(iSpec)%InterID .EQ. 1) .OR. (SpecDSMC(iSpec)%InterID .EQ. 10) .OR. &
-          (SpecDSMC(iSpec)%InterID .EQ. 2) .OR. (SpecDSMC(iSpec)%InterID .EQ. 20)) THEN
-            MacroRadInputParameters(CNElemID,iSpec,4) = MAX(0.,ElemData_HDF5(IndexElectronTemp,iElem))
-          ELSE IF(SpecDSMC(iSpec)%InterID .EQ. 4) THEN
-            CYCLE
-          ELSE
-            PRINT*, "excitation temperature cannot be matched, unknown InterID for species", iSpec
-          END IF
-        END DO
-      END DO
+    IF (iSpecElectrons .EQ. 0) THEN
+      PRINT*,  "unknown species number for electrons while reading flow field data"
+      STOP
     END IF
+    IndexElectronTemp = (iSpecElectrons-1)*DSMC_NVARS+1 + 11 !132 for 11th Species
+    DO iElem = 1, nElems
+      DO iSpec = 1, nSpecies
+        CNElemID = GetCNElemID(iElem+offsetElem)
+        IF((SpecDSMC(iSpec)%InterID .EQ. 1) .OR. (SpecDSMC(iSpec)%InterID .EQ. 10) .OR. &
+        (SpecDSMC(iSpec)%InterID .EQ. 2) .OR. (SpecDSMC(iSpec)%InterID .EQ. 20)) THEN
+          MacroRadInputParameters(CNElemID,iSpec,4) = MAX(0.,ElemData_HDF5(IndexElectronTemp,iElem))
+        ELSE IF(SpecDSMC(iSpec)%InterID .EQ. 4) THEN
+          CYCLE
+        ELSE
+          PRINT*, "excitation temperature cannot be matched, unknown InterID for species", iSpec
+        END IF
+      END DO
+    END DO
   END IF
+END IF
 
 #if USE_MPI
-  CALL BARRIER_AND_SYNC(MacroRadInputParameters_Shared_Win ,MPI_COMM_SHARED)
+CALL BARRIER_AND_SYNC(MacroRadInputParameters_Shared_Win ,MPI_COMM_SHARED)
 #endif
 
-  DEALLOCATE(ElemData_HDF5)
+DEALLOCATE(ElemData_HDF5)
 
 END SUBROUTINE MacroscopicRadiationInput
 

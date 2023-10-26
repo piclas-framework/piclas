@@ -455,8 +455,8 @@ ASSOCIATE (&
     helpArray(1,1:nSurfSample,1:nSurfSample,OutputCounter) = PhotonSampWall(1,1:nSurfSample,1:nSurfSample,iSurfSide)
     helpArray2(OutputCounter) = SurfSide2GlobalSide(SURF_SIDEID,iSurfSide)
     !  SurfaceArea should be changed to 1:SurfMesh%nSides if inner sampling sides exist...
-    DO p = 1, nSurfSample
-      DO q = 1, nSurfSample
+    DO p = 1, INT(nSurfSample)
+      DO q = 1, INT(nSurfSample)
         helpArray(2,p,q,OutputCounter) = PhotonSampWall(2,p,q,iSurfSide)/PhotonSurfSideArea(p,q,iSurfSide)
         helpArray(3,p,q,OutputCounter) = PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,GlobalSideID))
       END DO ! q = 1, nSurfSample
