@@ -547,8 +547,7 @@ DO iSpec = 1, nSpecies
         DSMC%CollProbMean = DSMC%CollProbMean + CollProb
         DSMC%CollProbMeanCount = DSMC%CollProbMeanCount + 1
       END IF ! DSMC%CalcQualityFactors
-
-#if (PP_TimeDiscMethod==4)
+      ! Reservoir simulation: determination of the reaction probabilities
       IF (DSMC%ReservoirSimu) THEN
         ! Sum of collision probabilities for the collision pair, required for the correct reaction rate
         IF(ChemReac%NumOfReact.GT.0) THEN
@@ -563,9 +562,8 @@ DO iSpec = 1, nSpecies
             END IF
             ChemReac%ReacCollMean(iCase) = ChemReac%ReacCollMean(iCase) + CollProb
           END IF
-        END IF ! ChemReac%NumOfReact.GT.0
-      END IF
-#endif
+        END IF  ! ChemReac%NumOfReact.GT.0
+      END IF    ! DSMC%ReservoirSimu
     END DO    ! DO WHILE(iLoop.LE.SpecPairNum(iCase))
     SDEALLOCATE(PartIndexCase)
   END DO      ! bgSpec = 1, BGGas%NumberOfSpecies
@@ -711,13 +709,11 @@ DO iPath = 1, ChemReac%CollCaseInfo(iCase)%NumOfReactionPaths
     ELSE
       ChemReac%CollCaseInfo(iCase)%ReactionProb(iPath) = 0.
     END IF
-    ! Calculation of reaction rate coefficient
-#if (PP_TimeDiscMethod==4)
+    ! Reservoir simulation: Calculation of reaction rate coefficient
     IF (DSMC%ReservoirSimu.AND..NOT.DSMC%ReservoirRateStatistic) THEN
       ChemReac%NumReac(ReacTest) = ChemReac%NumReac(ReacTest) + ChemReac%CollCaseInfo(iCase)%ReactionProb(iPath)
       ChemReac%ReacCount(ReacTest) = ChemReac%ReacCount(ReacTest) + 1
     END IF
-#endif
   END IF
 END DO
 

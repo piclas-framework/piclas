@@ -895,10 +895,10 @@ ELSE !CollisMode.GT.0
   ! Journal of Computational Physics 246, 28–36. doi:10.1016/j.jcp.2013.03.018
   !-----------------------------------------------------------------------------------------------------------------------------------
   DSMC%UseOctree = GETLOGICAL('Particles-DSMC-UseOctree')
-  IF(DSMC%ReservoirSimu.AND.DSMC%UseOctree) CALL abort(__STAMP__,'Particles-DSMC-UseOctree = T not allowed for RESERVOIR simulation')
+  IF(DSMC%ReservoirSimu.AND.DSMC%UseOctree) CALL abort(__STAMP__,'Particles-DSMC-UseOctree = T not allowed for RESERVOIR simulations!')
   DSMC%UseNearestNeighbour = GETLOGICAL('Particles-DSMC-UseNearestNeighbour')
-  IF(DSMC%ReservoirSimu.AND.DSMC%UseNearestNeighbour.AND.CollisMode.EQ.3) THEN
-    CALL abort(__STAMP__,'Particles-DSMC-UseNearestNeighbour = T not allowed for RESERVOIR simulation with chemical reactions')
+  IF(DSMC%ReservoirSimu.AND.DSMC%UseNearestNeighbour) THEN
+    CALL abort(__STAMP__,'Particles-DSMC-UseNearestNeighbour = T not allowed for RESERVOIR simulations!')
   END IF
   IF(DSMC%UseOctree) THEN
     IF(NGeo.GT.PP_N) CALL abort(__STAMP__,' Set PP_N to NGeo, else, the volume is not computed correctly.')
