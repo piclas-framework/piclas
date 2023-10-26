@@ -463,7 +463,7 @@ CHE_FPFlow:
 # Stage "reggie_DSMC_nightly": Build and run chemistry examples on nightly (check reaction rates in RESERVOIR simulation)
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 NIG_Reservoir:
-  <<: *defaults_nightly
+  <<: *defaults_DSMC_nightly
   stage: reggie_DSMC_nightly
   script:
     - cd build_DSMC_release/ ; python ../reggie/reggie.py ../regressioncheck/NIG_Reservoir -e bin/piclas
@@ -742,7 +742,7 @@ WEK_DSMC:
     - cd build_DSMC_release ;  python ../reggie/reggie.py ../regressioncheck/WEK_DSMC -e bin/piclas
 
 WEK_Reservoir:
-  <<: *defaults_weekly
+  <<: *defaults_DSMC_weekly
   stage: reggie_weekly
   script:
     - cd build_DSMC_release ;  python ../reggie/reggie.py ../regressioncheck/WEK_Reservoir -e bin/piclas
