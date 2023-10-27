@@ -57,9 +57,6 @@ USE MOD_Particle_Tracking_Vars  ,ONLY: TrackingMethod
 USE MOD_LoadBalance_Vars        ,ONLY: nSurfacefluxPerElem
 USE MOD_LoadBalance_Timers      ,ONLY: LBStartTime, LBElemSplitTime, LBPauseTime
 #endif /*USE_LOADBALANCE*/
-#if USE_MPI
-USE MOD_Particle_MPI_Vars       ,ONLY: PartMPI
-#endif /*USE_MPI*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -97,7 +94,7 @@ DO iSpec=1,nSpecies
     ! Adaptive BC, Type = 4 (Const. massflow): Sum-up the global number of particles exiting through BC and calculate new weights
     IF(SF%AdaptiveType.EQ.4) THEN
 #if USE_MPI
-      CALL MPI_ALLREDUCE(MPI_IN_PLACE,AdaptBCPartNumOut(iSpec,iSF),1,MPI_INTEGER,MPI_SUM,PartMPI%COMM,IERROR)
+      CALL MPI_ALLREDUCE(MPI_IN_PLACE,AdaptBCPartNumOut(iSpec,iSF),1,MPI_INTEGER,MPI_SUM,MPI_COMM_PICLAS,IERROR)
 #endif
       IF(.NOT.ALMOSTEQUAL(SF%AdaptiveMassflow,0.)) CALL CalcConstMassflowWeight(iSpec,iSF)
     END IF
@@ -330,9 +327,6 @@ USE MOD_Particle_Vars           ,ONLY: Species, VarTimeStep
 USE MOD_TimeDisc_Vars           ,ONLY: dt, RKdtFrac, RKdtFracTotal, Time
 USE MOD_Particle_Surfaces_Vars  ,ONLY: SurfFluxSideSize, BCdata_auxSF
 USE MOD_Part_Emission_Tools     ,ONLY: IntegerDivide, SamplePoissonDistri
-#if USE_MPI
-USE MOD_Particle_MPI_Vars       ,ONLY: PartMPI
-#endif /*USE_MPI*/
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -405,7 +399,7 @@ IF (.NOT.SF%ReduceNoise .OR. MPIroot) THEN !ReduceNoise: root only
 END IF !ReduceNoise, MPIroot
 #if USE_MPI
 IF (SF%ReduceNoise) THEN !scatter PartInsProc into PartInsSF of procs
-  CALL MPI_SCATTER(PartInsProc(0:nProcessors-1),1,MPI_INTEGER,PartInsSF,1,MPI_INTEGER,0,PartMPI%COMM,IERROR)
+  CALL MPI_SCATTER(PartInsProc(0:nProcessors-1),1,MPI_INTEGER,PartInsSF,1,MPI_INTEGER,0,MPI_COMM_PICLAS,IERROR)
 END IF !ReduceNoise
 #endif  /*USE_MPI*/
 !-- calc global to-be-inserted number of parts and distribute to SubSides (proc local)
@@ -1060,9 +1054,6 @@ USE MOD_Particle_Sampling_Vars ,ONLY: AdaptBCMacroVal, AdaptBCMapElemToSample, A
 USE MOD_Particle_Surfaces_Vars ,ONLY: SurfMeshSubSideData, BCdata_auxSF, SurfFluxSideSize
 USE MOD_Mesh_Vars              ,ONLY: SideToElem, offsetElem
 USE MOD_Particle_Mesh_Tools    ,ONLY: GetGlobalNonUniqueSideID
-#if USE_MPI
-USE MOD_Particle_MPI_Vars      ,ONLY: PartMPI
-#endif
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -1153,7 +1144,7 @@ END DO
 
 ! Calculate the total volume flow rate over the whole BC across all processors
 #if USE_MPI
-CALL MPI_ALLREDUCE(MPI_IN_PLACE,nVFRTotal,1,MPI_DOUBLE,MPI_SUM,PartMPI%COMM,IERROR)
+CALL MPI_ALLREDUCE(MPI_IN_PLACE,nVFRTotal,1,MPI_DOUBLE,MPI_SUM,MPI_COMM_PICLAS,IERROR)
 #endif
 
 ! Determine the weight of each side compared to the total volume flow rate

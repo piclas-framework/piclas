@@ -139,7 +139,6 @@ USE MOD_Restart_Vars           ,ONLY: DoRestart, RestartTime
 USE MOD_DSMC_Vars              ,ONLY: AmbiPolarSFMapping, DSMC, useDSMC
 #if USE_MPI
 USE MOD_Particle_Vars          ,ONLY: DoPoissonRounding, DoTimeDepInflow
-USE MOD_Particle_MPI_Vars      ,ONLY: PartMPI
 #endif /*USE_MPI*/
 #ifdef CODE_ANALYZE
 USE MOD_Particle_Vars          ,ONLY: CountCircInflowType
@@ -182,8 +181,8 @@ DoSurfaceFlux=.FALSE.
 CALL ReadInAndPrepareSurfaceFlux(MaxSurfacefluxBCs, nDataBC)
 
 #if USE_MPI
-CALL MPI_ALLREDUCE(MPI_IN_PLACE,DoPoissonRounding,1,MPI_LOGICAL,MPI_LAND,PartMPI%COMM,iError) !set T if this is for all procs
-CALL MPI_ALLREDUCE(MPI_IN_PLACE,DoTimeDepInflow,1,MPI_LOGICAL,MPI_LAND,PartMPI%COMM,iError) !set T if this is for all procs
+CALL MPI_ALLREDUCE(MPI_IN_PLACE,DoPoissonRounding,1,MPI_LOGICAL,MPI_LAND,MPI_COMM_PICLAS,iError) !set T if this is for all procs
+CALL MPI_ALLREDUCE(MPI_IN_PLACE,DoTimeDepInflow,1,MPI_LOGICAL,MPI_LAND,MPI_COMM_PICLAS,iError) !set T if this is for all procs
 #endif /*USE_MPI*/
 
 CALL CreateSideListAndFinalizeAreasSurfFlux(nDataBC, BCdata_auxSFTemp)
@@ -253,7 +252,7 @@ DO iSpec=1,nSpecies
     IF(.NOT.Species(iSpec)%Surfaceflux(iSF)%CircularInflow) THEN
       totalAreaSF_global = 0.0
       CALL MPI_ALLREDUCE(Species(iSpec)%Surfaceflux(iSF)%totalAreaSF,totalAreaSF_global,1, &
-                          MPI_DOUBLE_PRECISION,MPI_SUM,PartMPI%COMM,IERROR)
+                          MPI_DOUBLE_PRECISION,MPI_SUM,MPI_COMM_PICLAS,IERROR)
       Species(iSpec)%Surfaceflux(iSF)%totalAreaSF = totalAreaSF_global
     END IF
 #endif
@@ -340,7 +339,7 @@ DO iSpec=1,nSpecies
 END DO    ! iSpec=1,nSpecies
 
 #if USE_MPI
-CALL MPI_ALLREDUCE(MPI_IN_PLACE,DoSurfaceFlux,1,MPI_LOGICAL,MPI_LOR,PartMPI%COMM,iError) !set T if at least 1 proc have SFs
+CALL MPI_ALLREDUCE(MPI_IN_PLACE,DoSurfaceFlux,1,MPI_LOGICAL,MPI_LOR,MPI_COMM_PICLAS,iError) !set T if at least 1 proc have SFs
 #endif  /*USE_MPI*/
 IF (.NOT.DoSurfaceFlux) THEN !-- no SFs defined
   LBWRITE(*,*) 'WARNING: No Sides for SurfacefluxBCs found! DoSurfaceFlux is now disabled!'
@@ -675,6 +674,7 @@ END IF ! PerformLoadBalance
 #endif /*CODE_ANALYZE*/
 END SUBROUTINE BCSurfMeshSideAreasandNormals
 
+
 SUBROUTINE CreateSideListAndFinalizeAreasSurfFlux(nDataBC, BCdata_auxSFTemp)
 !===================================================================================================================================
 ! SideList for SurfaceFlux in BCdata_auxSF is created. Furthermore, the side areas are corrected for the 1D/2D case and finally
@@ -697,9 +697,6 @@ USE MOD_Particle_Mesh_Tools    ,ONLY: DSMC_1D_CalcSymmetryArea, DSMC_2D_CalcSymm
 USE MOD_DSMC_Vars              ,ONLY: RadialWeighting
 USE MOD_Particle_Surfaces      ,ONLY: CalcNormAndTangTriangle
 USE MOD_Symmetry_Vars          ,ONLY: Symmetry
-#if USE_MPI
-USE MOD_Particle_MPI_Vars      ,ONLY: PartMPI
-#endif /*USE_MPI*/
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -874,7 +871,7 @@ END DO !iBC
    DO iPartBound=1,nPartBound
      areasLoc(iPartBound)=BCdata_auxSF(iPartBound)%LocalArea
    END DO
-   CALL MPI_ALLREDUCE(areasLoc,areasGlob,nPartBound,MPI_DOUBLE_PRECISION,MPI_SUM,PartMPI%COMM,IERROR)
+   CALL MPI_ALLREDUCE(areasLoc,areasGlob,nPartBound,MPI_DOUBLE_PRECISION,MPI_SUM,MPI_COMM_PICLAS,IERROR)
 #endif
    DO iPartBound=1,nPartBound
 #if USE_MPI
@@ -1051,9 +1048,6 @@ SUBROUTINE InitReduceNoiseSF(iSpec, iSF)
 ! MODULES
 USE MOD_Globals
 USE MOD_Particle_Vars          ,ONLY: Species
-#if USE_MPI
-USE MOD_Particle_MPI_Vars      ,ONLY: PartMPI
-#endif /*USE_MPI*/
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1075,9 +1069,9 @@ ELSE
 END IF !MPIroot
 #if USE_MPI
 CALL MPI_GATHER(Species(iSpec)%Surfaceflux(iSF)%VFR_total,1,MPI_DOUBLE_PRECISION &
-  ,Species(iSpec)%Surfaceflux(iSF)%VFR_total_allProcs,1,MPI_DOUBLE_PRECISION,0,PartMPI%COMM,iError)
+  ,Species(iSpec)%Surfaceflux(iSF)%VFR_total_allProcs,1,MPI_DOUBLE_PRECISION,0,MPI_COMM_PICLAS,iError)
 IF(MPIroot)THEN
-  DO iProc=0,PartMPI%nProcs-1
+  DO iProc=0,nProcessors-1
     Species(iSpec)%Surfaceflux(iSF)%VFR_total_allProcsTotal = Species(iSpec)%Surfaceflux(iSF)%VFR_total_allProcsTotal &
       + Species(iSpec)%Surfaceflux(iSF)%VFR_total_allProcs(iProc)
   END DO

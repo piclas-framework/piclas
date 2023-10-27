@@ -1051,13 +1051,13 @@ DO iElem = firstElem,lastElem
 END DO
 
 #if USE_MPI
-CALL MPI_REDUCE(nPlanarRectangular   ,nPlanarRectangularTot   ,1,MPI_INTEGER,MPI_SUM,0,MPI_COMM_WORLD,IERROR)
-CALL MPI_REDUCE(nPlanarNonRectangular,nPlanarNonRectangularTot,1,MPI_INTEGER,MPI_SUM,0,MPI_COMM_WORLD,IERROR)
-CALL MPI_REDUCE(nBilinear            ,nBilinearTot            ,1,MPI_INTEGER,MPI_SUM,0,MPI_COMM_WORLD,IERROR)
-CALL MPI_REDUCE(nPlanarCurved        ,nPlanarCurvedTot        ,1,MPI_INTEGER,MPI_SUM,0,MPI_COMM_WORLD,IERROR)
-CALL MPI_REDUCE(nCurved              ,nCurvedTot              ,1,MPI_INTEGER,MPI_SUM,0,MPI_COMM_WORLD,IERROR)
-CALL MPI_REDUCE(nLinearElems         ,nLinearElemsTot         ,1,MPI_INTEGER,MPI_SUM,0,MPI_COMM_WORLD,IERROR)
-CALL MPI_REDUCE(nCurvedElems         ,nCurvedElemsTot         ,1,MPI_INTEGER,MPI_SUM,0,MPI_COMM_WORLD,IERROR)
+CALL MPI_REDUCE(nPlanarRectangular   ,nPlanarRectangularTot   ,1,MPI_INTEGER,MPI_SUM,0,MPI_COMM_PICLAS,IERROR)
+CALL MPI_REDUCE(nPlanarNonRectangular,nPlanarNonRectangularTot,1,MPI_INTEGER,MPI_SUM,0,MPI_COMM_PICLAS,IERROR)
+CALL MPI_REDUCE(nBilinear            ,nBilinearTot            ,1,MPI_INTEGER,MPI_SUM,0,MPI_COMM_PICLAS,IERROR)
+CALL MPI_REDUCE(nPlanarCurved        ,nPlanarCurvedTot        ,1,MPI_INTEGER,MPI_SUM,0,MPI_COMM_PICLAS,IERROR)
+CALL MPI_REDUCE(nCurved              ,nCurvedTot              ,1,MPI_INTEGER,MPI_SUM,0,MPI_COMM_PICLAS,IERROR)
+CALL MPI_REDUCE(nLinearElems         ,nLinearElemsTot         ,1,MPI_INTEGER,MPI_SUM,0,MPI_COMM_PICLAS,IERROR)
+CALL MPI_REDUCE(nCurvedElems         ,nCurvedElemsTot         ,1,MPI_INTEGER,MPI_SUM,0,MPI_COMM_PICLAS,IERROR)
 #else
 nPlanarRectangularTot    = nPlanarRectangular
 nPlanarNonRectangularTot = nPlanarNonRectangular
@@ -1876,11 +1876,11 @@ DO iVec = 1,GEO%nPeriodicVectors
 ! https://stackoverflow.com/questions/56307320/mpi-allreduce-not-synchronizing-properly
 !CALL MPI_ALLREDUCE(MPI_IN_PLACE,sendbuf,GEO%nPeriodicVectors,MPI_2DOUBLE_PRECISION,MPI_MINLOC,MPI_COMM_SHARED,iERROR)
 
-  CALL MPI_ALLGATHER(sendbuf,1,MPI_DOUBLE_PRECISION,recvbuf(:),1,MPI_DOUBLE_PRECISION,MPI_COMM_WORLD,iERROR)
+  CALL MPI_ALLGATHER(sendbuf,1,MPI_DOUBLE_PRECISION,recvbuf(:),1,MPI_DOUBLE_PRECISION,MPI_COMM_PICLAS,iERROR)
   IF (ALL(recvbuf(:).EQ.HUGE(1.))) CALL CollectiveStop(__STAMP__,'No periodic vector for BC_ALPHA found!',IntInfo=iVec)
 
   ! MINLOC does not follow array bounds, so root rank = 1
-  CALL MPI_BCAST(GEO%PeriodicVectors(:,iVec),3,MPI_DOUBLE_PRECISION,MINLOC(recvbuf(:),1)-1,MPI_COMM_WORLD,iError)
+  CALL MPI_BCAST(GEO%PeriodicVectors(:,iVec),3,MPI_DOUBLE_PRECISION,MINLOC(recvbuf(:),1)-1,MPI_COMM_PICLAS,iError)
 END DO
 #endif /*USE_MPI*/
 

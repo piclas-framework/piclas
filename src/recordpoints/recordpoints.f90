@@ -151,7 +151,7 @@ INTEGER                   :: color
 
 ! create new RP communicator for RP output
 color = MERGE(2,MPI_UNDEFINED,RP_onProc)
-CALL MPI_COMM_SPLIT(MPI_COMM_WORLD,color,myRPrank,RP_COMM,iError)
+CALL MPI_COMM_SPLIT(MPI_COMM_PICLAS,color,myRPrank,RP_COMM,iError)
 IF (RP_onProc) THEN
   CALL MPI_COMM_RANK (RP_COMM,myRPrank,iError)
   CALL MPI_COMM_SIZE(RP_COMM, nRP_Procs,iError)
@@ -197,7 +197,7 @@ END IF
 
 SWRITE(UNIT_stdOut,'(A)',ADVANCE='NO')' Read recordpoint definitions from data file "'//TRIM(FileString)//'" ...'
 ! Open data file
-CALL OpenDataFile(FileString,create=.FALSE.,single=.FALSE.,readOnly=.FALSE.,communicatorOpt=MPI_COMM_WORLD)
+CALL OpenDataFile(FileString,create=.FALSE.,single=.FALSE.,readOnly=.FALSE.,communicatorOpt=MPI_COMM_PICLAS)
 
 ! compare mesh file names
 CALL ReadAttribute(File_ID,'MeshFile',1,StrScalar=MeshFile_RPList)

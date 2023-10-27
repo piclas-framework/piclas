@@ -670,7 +670,7 @@ DO iProc = 1, nNodeRecvExchangeProcs
             , MPI_DOUBLE_PRECISION                           &
             , NodeRecvDepoRankToGlobalRank(iProc)                &
             , 666                                            &
-            , MPI_COMM_WORLD                                 &
+            , MPI_COMM_PICLAS                                 &
             , RecvRequest(iProc)                             &
             , IERROR)
 END DO
@@ -686,7 +686,7 @@ DO iProc = 1, nNodeSendExchangeProcs
                 , MPI_DOUBLE_PRECISION                       &
                 , NodeSendDepoRankToGlobalRank(iProc)            &
                 , 666                                        &
-                , MPI_COMM_WORLD                             &
+                , MPI_COMM_PICLAS                             &
                 , SendRequest(iProc)                         &
                 , IERROR)
 END DO
@@ -718,7 +718,7 @@ IF(doCalculateCurrentDensity)THEN
         , MPI_DOUBLE_PRECISION                                      &
         , NodeRecvDepoRankToGlobalRank(iProc)                           &
         , 666                                                       &
-        , MPI_COMM_WORLD                                            &
+        , MPI_COMM_PICLAS                                            &
         , RecvRequest(iProc)                                        &
         , IERROR)
   END DO
@@ -733,7 +733,7 @@ IF(doCalculateCurrentDensity)THEN
         , MPI_DOUBLE_PRECISION                                      &
         , NodeSendDepoRankToGlobalRank(iProc)                           &
         , 666                                                       &
-        , MPI_COMM_WORLD                                            &
+        , MPI_COMM_PICLAS                                            &
         , SendRequest(iProc)                                        &
         , IERROR)
   END DO
@@ -919,7 +919,7 @@ IF ((stage.EQ.0).OR.(stage.EQ.1)) THEN
                     , MPI_DOUBLE_PRECISION                &
                     , ShapeMapping(iProc)%Rank            &
                     , 2001                                &
-                    , MPI_COMM_WORLD                     &
+                    , MPI_COMM_PICLAS                     &
                     , RecvRequest(iProc)                  &
                     , IERROR)
 !    IF (myComputeNodeRank.NE.0) THEN
@@ -928,7 +928,7 @@ IF ((stage.EQ.0).OR.(stage.EQ.1)) THEN
                   , MPI_DOUBLE_PRECISION                   &
                   , ShapeMapping(iProc)%Rank                                      &
                   , 2001                                   &
-                  , MPI_COMM_WORLD                        &
+                  , MPI_COMM_PICLAS                        &
                   , SendRequest(iProc)                            &
                   , IERROR)
 !    END IF

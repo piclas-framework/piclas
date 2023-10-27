@@ -15,9 +15,6 @@ MODULE MOD_DSMC_Vars
 ! Contains the DSMC variables
 !===================================================================================================================================
 ! MODULES
-#if USE_MPI
-USE MOD_Particle_MPI_Vars, ONLY: tPartMPIConnect
-#endif
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 PUBLIC

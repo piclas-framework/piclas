@@ -864,7 +864,7 @@ REAL, ALLOCATABLE                 :: ElemDataHDF5(:,:)
 
 LBWRITE(UNIT_stdOut,*) 'BGGas distribution - Using macroscopic values from file: ',TRIM(MacroRestartFileName)
 
-CALL OpenDataFile(MacroRestartFileName,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_WORLD)
+CALL OpenDataFile(MacroRestartFileName,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_PICLAS)
 
 CALL GetDataSize(File_ID,'ElemData',nDims,HSize,attrib=.FALSE.)
 nVarHDF5  = INT(HSize(1),4)
@@ -1147,7 +1147,7 @@ END SUBROUTINE BGGas_InitRegions
 
 
 !===================================================================================================================================
-!> Background gas regions: Set the internal temperatures in case of DSMC and CollisMode = 2/3 (not yet available during 
+!> Background gas regions: Set the internal temperatures in case of DSMC and CollisMode = 2/3 (not yet available during
 !> BGGas_InitRegions). Loop over all elements, species and inits per species to set values for molecules and/or atoms.
 !===================================================================================================================================
 SUBROUTINE BGGas_RegionsSetInternalTemp()

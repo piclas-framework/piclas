@@ -224,7 +224,7 @@ only at the stagnation point, the time step defined during the initialization is
 (sec:variable-particle-weighting)=
 #### Variable Particle Weighting
 
-Variable particle weighting is currently supported with PIC and/or with a background gas (an additional trace species feature is described in Section {ref}`sec:background-gas`). The general functionality can be enabled with the following flag:
+Variable particle weighting is currently supported for PIC (with and without background gas) or a background gas (an additional trace species feature is described in Section {ref}`sec:background-gas`). The general functionality can be enabled with the following flag:
 
     Part-vMPF                           = T
 
