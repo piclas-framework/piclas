@@ -392,8 +392,8 @@ DO iSpec = 1, nSpecies
           CALL abort(__STAMP__,'Total null collision probability is above unity. Please reduce the time step! Probability is: '&
           ,RealInfoOpt=TotalProb(partSpec))
         ELSEIF(TotalProb(partSpec).GT.0.1) THEN
-          SWRITE(*,*) 'Total null collision probability is above 0.1. A value of 1E-2 is recommended in literature!'
-          SWRITE(*,*) 'Particle Species: ', TRIM(SpecDSMC(partSpec)%Name), ' Probability: ', TotalProb(partSpec)
+          LBWRITE(*,*) 'Total null collision probability is above 0.1. A value of 1E-2 is recommended in literature!'
+          LBWRITE(*,*) 'Particle Species: ', TRIM(SpecDSMC(partSpec)%Name), ' Probability: ', TotalProb(partSpec)
         END IF ! TotalProb(partSpec).GT.1.0
       END IF ! XSec_NullCollision
     END IF ! SpecXSec(iCase)%UseCollXSec
