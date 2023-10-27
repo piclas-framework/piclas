@@ -46,15 +46,20 @@ USE MOD_PreProc
 USE MOD_io_HDF5
 USE MOD_HDF5_output         ,ONLY: WriteArrayToHDF5,WriteAttributeToHDF5,WriteHDF5Header
 USE MOD_Mesh_Vars           ,ONLY: offsetElem,nGlobalElems, MeshFile
-USE MOD_RadiationTrans_Vars ,ONLY: RadiationElemAbsEnergy_Shared, RadObservationPointMethod, RadObservation_Emission, RadObservationPoint
+USE MOD_RadiationTrans_Vars ,ONLY: RadObservationPointMethod, RadObservation_Emission, RadObservationPoint
 USE MOD_RadiationTrans_Vars ,ONLY: Radiation_Emission_Spec_Total, RadTransPhotPerCell, RadObservation_EmissionPart
-USE MOD_RadiationTrans_Vars ,ONLY: ObservationDoConvolution, RadObservation_Emission_Conv, RadiationElemAbsEnergySpec_Shared
+USE MOD_RadiationTrans_Vars ,ONLY: ObservationDoConvolution, RadObservation_Emission_Conv
 USE MOD_Globals_Vars        ,ONLY: ProjectName
 USE MOD_Particle_Mesh_Vars  ,ONLY: ElemVolume_Shared
 USE MOD_Radiation_Vars      ,ONLY: RadiationSwitches, Radiation_ElemEnergy_Species, RadiationParameter, Radiation_Absorption_Spec
 USE MOD_Particle_Vars       ,ONLY: nSpecies
 USE MOD_Mesh_Tools          ,ONLY: GetCNElemID
 USE MOD_Photon_TrackingOutput,ONLY:WritePhotonSurfSampleToHDF5
+#if USE_MPI
+USE MOD_RadiationTrans_Vars ,ONLY: RadiationElemAbsEnergySpec_Shared, RadiationElemAbsEnergy_Shared
+#else
+USE MOD_RadiationTrans_Vars ,ONLY: RadiationElemAbsEnergySpec, RadiationElemAbsEnergy
+#endif /*USE_MPI*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -119,21 +124,26 @@ CALL MPI_ExchangeRadiationInfo()
 
 CALL OpenDataFile(FileString,create=.false.,single=.FALSE.,readOnly=.FALSE.,communicatorOpt=MPI_COMM_WORLD)
 
+#if USE_MPI
+ASSOCIATE( RadiationElemAbsEnergySpec => RadiationElemAbsEnergySpec_Shared,&
+           RadiationElemAbsEnergy     => RadiationElemAbsEnergy_Shared    )
+#endif /*USE_MPI*/
+
 IF (RadiationSwitches%RadType.EQ.1) THEN
   DO iElem=1,PP_nElems
     CNElemID = GetCNElemID(iElem+offSetElem)
     nVarCount=0
     DO iSpec=1, nSpecies
       TempOutput(nVarCount+1, iElem) = Radiation_ElemEnergy_Species(iSpec,CNElemID,1)
-      TempOutput(nVarCount+2, iElem) = RadiationElemAbsEnergySpec_Shared(iSpec, iElem+offSetElem)/ ElemVolume_Shared(CNElemID)
+      TempOutput(nVarCount+2, iElem) = RadiationElemAbsEnergySpec(iSpec, iElem+offSetElem)/ ElemVolume_Shared(CNElemID)
       nVarCount=nVarCount+nVarSpec
     END DO
     TempOutput((nVarSpec*nSpecies+1), iElem)  = Radiation_Emission_Spec_Total(CNElemID)
-    TempOutput((nVarSpec*nSpecies+2), iElem)  = SUM(RadiationElemAbsEnergySpec_Shared(:, iElem+offSetElem))/ ElemVolume_Shared(CNElemID)
-    TempOutput(nVarSpec*nSpecies+3, iElem) = SUM(Radiation_ElemEnergy_Species(:,CNElemID,1))- SUM(RadiationElemAbsEnergySpec_Shared(:, iElem+offSetElem))/ ElemVolume_Shared(CNElemID)
+    TempOutput((nVarSpec*nSpecies+2), iElem)  = SUM(RadiationElemAbsEnergySpec(:, iElem+offSetElem))/ ElemVolume_Shared(CNElemID)
+    TempOutput(nVarSpec*nSpecies+3, iElem) = SUM(Radiation_ElemEnergy_Species(:,CNElemID,1))- SUM(RadiationElemAbsEnergySpec(:, iElem+offSetElem))/ ElemVolume_Shared(CNElemID)
     TempOutput(nVarSpec*nSpecies+4, iElem) = RadTransPhotPerCell(CNElemID)
-    IF (RadiationElemAbsEnergy_Shared(2,iElem+offSetElem).GT.0) THEN
-      TempOutput(nVarSpec*nSpecies+5, iElem) = RadiationElemAbsEnergy_Shared(1,iElem+offSetElem)/RadiationElemAbsEnergy_Shared(2,iElem+offSetElem)
+    IF (RadiationElemAbsEnergy(2,iElem+offSetElem).GT.0) THEN
+      TempOutput(nVarSpec*nSpecies+5, iElem) = RadiationElemAbsEnergy(1,iElem+offSetElem)/RadiationElemAbsEnergy(2,iElem+offSetElem)
     ELSE
       TempOutput(nVarSpec*nSpecies+5, iElem) = 0.0
     END IF
@@ -142,8 +152,8 @@ ELSE IF (RadiationSwitches%RadType.EQ.2) THEN
   DO iElem=1, PP_nElems
     CNElemID = GetCNElemID(iElem+offSetElem)
     TempOutput(1, iElem) = Radiation_Emission_Spec_Total(CNElemID)
-    TempOutput(2, iElem) = RadiationElemAbsEnergySpec_Shared(1,iElem+offSetElem)/ElemVolume_Shared(CNElemID)
-    TempOutput(3, iElem) = Radiation_Emission_Spec_Total(CNElemID)- RadiationElemAbsEnergySpec_Shared(1,iElem+offSetElem)/ElemVolume_Shared(CNElemID)
+    TempOutput(2, iElem) = RadiationElemAbsEnergySpec(1,iElem+offSetElem)/ElemVolume_Shared(CNElemID)
+    TempOutput(3, iElem) = Radiation_Emission_Spec_Total(CNElemID)- RadiationElemAbsEnergySpec(1,iElem+offSetElem)/ElemVolume_Shared(CNElemID)
     TempOutput(4, iElem)  = RadTransPhotPerCell(CNElemID)
   END DO
 ELSE IF (RadiationSwitches%RadType.EQ.3) THEN
@@ -172,6 +182,10 @@ ELSE
   CALL abort(__STAMP__,' ERROR: Radiation type is not implemented! (unknown case)')
 END IF
 
+#if USE_MPI
+END ASSOCIATE
+#endif /*USE_MPI*/
+
 nVal=nGlobalElems  ! For the MPI case this must be replaced by the global number of elements (sum over all procs)
 ASSOCIATE (&
     nVar         => INT(nVar,IK) ,&
@@ -190,6 +204,7 @@ SWRITE(*,*) 'DONE'
 CALL WritePhotonSurfSampleToHDF5()
 
 IF (RadObservationPointMethod.GT.0) THEN
+#if USE_MPI
   IF (myRank.EQ.0) THEN
     CALL MPI_REDUCE(MPI_IN_PLACE,RadObservation_Emission,RadiationParameter%WaveLenDiscrCoarse,MPI_DOUBLE_PRECISION,MPI_SUM,0,MPI_COMM_WORLD,IERROR)
   ELSE
@@ -200,6 +215,7 @@ IF (RadObservationPointMethod.GT.0) THEN
   ELSE
     CALL MPI_REDUCE(RadObservation_EmissionPart,0                   ,RadiationParameter%WaveLenDiscrCoarse,MPI_INTEGER,MPI_SUM,0,MPI_COMM_WORLD,IERROR)
   ENDIF
+#endif /*USE_MPI*/
   IF (myRank.EQ.0) THEN
     IF(ObservationDoConvolution) THEN
       CALL SpectralConvolution(RadObservation_Emission,RadObservation_Emission_Conv)

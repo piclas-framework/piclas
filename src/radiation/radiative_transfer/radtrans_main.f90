@@ -45,7 +45,7 @@ USE MOD_Particle_Mesh_Vars  ,ONLY: GEO, nComputeNodeElems, ElemMidPoint_Shared, 
 USE MOD_RadiationTrans_Vars ,ONLY: Radiation_Emission_Spec_Total, RadTrans, RadEmiAdaptPhotonNum, RadTransObsVolumeFrac
 USE MOD_RadiationTrans_Vars ,ONLY: RadiationDirectionModel, RadTransPhotPerCellLoc, RadObservationPoint
 USE MOD_Photon_TrackingVars ,ONLY: PhotonProps
-USE MOD_RadiationTrans_Vars ,ONLY: RadTransPhotPerCell, RadTransPhotPerCell_Shared_Win, RadiationPhotonWaveLengthModel
+USE MOD_RadiationTrans_Vars ,ONLY: RadTransPhotPerCell, RadiationPhotonWaveLengthModel
 USE MOD_RadiationTrans_Vars ,ONLY: RadObservationPointMethod
 USE MOD_Photon_Tracking     ,ONLY: PhotonTriaTracking, Photon2DSymTracking
 USE MOD_Radiation_Vars      ,ONLY: RadiationSwitches
@@ -55,9 +55,11 @@ USE MOD_Output              ,ONLY: PrintStatusLineRadiation
 USE MOD_MPI_Shared_Vars
 USE MOD_MPI_Shared
 USE MOD_Particle_Vars       ,ONLY: Symmetry
-#if !(USE_MPI)
+#if USE_MPI
+USE MOD_RadiationTrans_Vars ,ONLY: RadTransPhotPerCell_Shared_Win
+#else
 USE MOD_Mesh_Vars           ,ONLY: nElems
-#endif /*!(USE_MPI)*/
+#endif /*USE_MPI*/
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------

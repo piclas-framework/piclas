@@ -91,9 +91,9 @@ USE MOD_Particle_Mesh_Build        ,ONLY: BuildMesh2DInfo
 USE MOD_SuperB_Tools               ,ONLY: FindLinIndependentVectors, GramSchmidtAlgo
 #if USE_MPI
 USE MOD_RadiationTrans_Vars        ,ONLY: RadTransObsVolumeFrac_Shared_Win, RadTransObsVolumeFrac_Shared
-USE MOD_Radiation_Vars             ,ONLY: Radiation_Absorption_Spec_Shared, Radiation_Absorption_Spec_Shared_Win, RadiationInput
+USE MOD_Radiation_Vars             ,ONLY: Radiation_Absorption_Spec_Shared_Win, RadiationInput
 USE MOD_Radiation_Vars             ,ONLY: Radiation_Emission_Spec_Shared_Win, MacroRadInputParameters
-USE MOD_Radiation_Vars             ,ONLY: Radiation_Absorption_SpecPercent_Shared, Radiation_Absorption_SpecPercent_Shared_Win
+USE MOD_Radiation_Vars             ,ONLY: Radiation_Absorption_SpecPercent_Shared_Win
 USE MOD_Photon_TrackingVars        ,ONLY: PhotonSampWallProc
 USE MOD_Photon_TrackingVars        ,ONLY: PhotonSampWall_Shared, PhotonSampWall_Shared_Win,PhotonSampWallProc
 #else
@@ -421,14 +421,14 @@ END SELECT
   CALL BARRIER_AND_SYNC(Radiation_Absorption_Spec_Shared_Win ,MPI_COMM_SHARED)
   IF(nLeaderGroupProcs.GT.1)THEN
     IF(myComputeNodeRank.EQ.0)THEN
-      CALL MPI_ALLGATHERV( MPI_IN_PLACE                  &
-                     , 0                             &
-                     , MPI_DATATYPE_NULL             &
-                     , Radiation_Absorption_Spec_Shared  &
-                     , RadiationParameter%WaveLenDiscrCoarse *recvcountElem   &
-                     , RadiationParameter%WaveLenDiscrCoarse *displsElem      &
-                     , MPI_DOUBLE_PRECISION          &
-                     , MPI_COMM_LEADERS_SHARED       &
+      CALL MPI_ALLGATHERV( MPI_IN_PLACE                                     &
+                     , 0                                                    &
+                     , MPI_DATATYPE_NULL                                    &
+                     , Radiation_Absorption_Spec                            &
+                     , RadiationParameter%WaveLenDiscrCoarse *recvcountElem &
+                     , RadiationParameter%WaveLenDiscrCoarse *displsElem    &
+                     , MPI_DOUBLE_PRECISION                                 &
+                     , MPI_COMM_LEADERS_SHARED                              &
                      , IERROR)
     END IF
   END IF
@@ -436,14 +436,14 @@ END SELECT
   CALL BARRIER_AND_SYNC(Radiation_Absorption_SpecPercent_Shared_Win ,MPI_COMM_SHARED)
   IF(nLeaderGroupProcs.GT.1)THEN
     IF(myComputeNodeRank.EQ.0)THEN
-      CALL MPI_ALLGATHERV( MPI_IN_PLACE                  &
-                     , 0                             &
-                     , MPI_DATATYPE_NULL             &
-                     , Radiation_Absorption_SpecPercent_Shared  &
-                     , RadiationParameter%WaveLenDiscrCoarse *nSpecies*recvcountElem   &
-                     , RadiationParameter%WaveLenDiscrCoarse *nSpecies*displsElem      &
-                     , MPI_INTEGER          &
-                     , MPI_COMM_LEADERS_SHARED       &
+      CALL MPI_ALLGATHERV( MPI_IN_PLACE                                              &
+                     , 0                                                             &
+                     , MPI_DATATYPE_NULL                                             &
+                     , Radiation_Absorption_SpecPercent                              &
+                     , RadiationParameter%WaveLenDiscrCoarse *nSpecies*recvcountElem &
+                     , RadiationParameter%WaveLenDiscrCoarse *nSpecies*displsElem    &
+                     , MPI_INTEGER2                                                  &
+                     , MPI_COMM_LEADERS_SHARED                                       &
                      , IERROR)
     END IF
   END IF

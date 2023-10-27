@@ -113,6 +113,8 @@ USE MOD_Mesh_Tools,            ONLY : GetGlobalElemID
 !USE MOD_MPI_Shared_Vars
 USE MOD_MPI_Shared
 USE MOD_MPI_Shared_Vars
+#else
+USE MOD_Mesh_Vars,             ONLY : nElems
 #endif
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -240,13 +242,13 @@ CALL Allocate_Shared((/nSpecies,nComputeNodeElems,2/), Radiation_ElemEnergy_Spec
 CALL MPI_WIN_LOCK_ALL(0,Radiation_ElemEnergy_Species_Shared_Win,IERROR)
 
 Radiation_Emission_spec => Radiation_Emission_spec_Shared
-Radiation_Absorption_spec(1:RadiationParameter%WaveLenDiscrCoarse ,1:nGlobalElems) => Radiation_Absorption_spec_Shared
+Radiation_Absorption_Spec(1:RadiationParameter%WaveLenDiscrCoarse ,1:nGlobalElems) => Radiation_Absorption_Spec_Shared
 Radiation_Absorption_SpecPercent(1:RadiationParameter%WaveLenDiscrCoarse ,1:nSpecies, 1:nGlobalElems) => Radiation_Absorption_SpecPercent_Shared
 Radiation_ElemEnergy_Species => Radiation_ElemEnergy_Species_Shared
 #else
 ! allocate local array for ElemInfo
 ALLOCATE(Radiation_Emission_spec(RadiationParameter%WaveLenDiscrCoarse,nElems))
-ALLOCATE(Radiation_Absorption_spec(RadiationParameter%WaveLenDiscrCoarse,nElems))
+ALLOCATE(Radiation_Absorption_Spec(RadiationParameter%WaveLenDiscrCoarse,nElems))
 ALLOCATE(Radiation_Absorption_SpecPercent(RadiationParameter%WaveLenDiscrCoarse,nSpecies,nElems))
 ALLOCATE(Radiation_ElemEnergy_Species(nSpecies,nElems,2))
 #endif  /*USE_MPI*/
@@ -263,7 +265,7 @@ ALLOCATE(Radiation_Absorption_SpeciesWave(RadiationParameter%WaveLenDiscrCoarse,
 
 DO iElem = firstElem, lastElem
   Radiation_Emission_spec(:,iElem) = 0.0
-  Radiation_Absorption_spec(:,GetGlobalElemID(iElem)) = 0.0
+  Radiation_Absorption_Spec(:,GetGlobalElemID(iElem)) = 0.0
   Radiation_Absorption_SpecPercent(:,:,GetGlobalElemID(iElem)) = 0
   Radiation_ElemEnergy_Species(:,iElem,:) =0.0
 END DO
@@ -274,23 +276,23 @@ END DO
   CALL BARRIER_AND_SYNC(Radiation_Absorption_SpecPercent_Shared_Win ,MPI_COMM_SHARED)
   IF(nLeaderGroupProcs.GT.1)THEN
     IF(myComputeNodeRank.EQ.0)THEN
-      CALL MPI_ALLGATHERV( MPI_IN_PLACE                  &
-                     , 0                             &
-                     , MPI_DATATYPE_NULL             &
-                     , Radiation_Absorption_Spec_Shared  &
-                     , RadiationParameter%WaveLenDiscrCoarse *recvcountElem   &
-                     , RadiationParameter%WaveLenDiscrCoarse *displsElem      &
-                     , MPI_DOUBLE_PRECISION          &
-                     , MPI_COMM_LEADERS_SHARED       &
+      CALL MPI_ALLGATHERV( MPI_IN_PLACE                                     &
+                     , 0                                                    &
+                     , MPI_DATATYPE_NULL                                    &
+                     , Radiation_Absorption_Spec                            &
+                     , RadiationParameter%WaveLenDiscrCoarse *recvcountElem &
+                     , RadiationParameter%WaveLenDiscrCoarse *displsElem    &
+                     , MPI_DOUBLE_PRECISION                                 &
+                     , MPI_COMM_LEADERS_SHARED                              &
                      , IERROR)
-      CALL MPI_ALLGATHERV( MPI_IN_PLACE                  &
-                     , 0                             &
-                     , MPI_DATATYPE_NULL             &
-                     , Radiation_Absorption_SpecPercent_Shared  &
-                     , RadiationParameter%WaveLenDiscrCoarse*nSpecies *recvcountElem   &
-                     , RadiationParameter%WaveLenDiscrCoarse*nSpecies *displsElem      &
-                     , MPI_INTEGER          &
-                     , MPI_COMM_LEADERS_SHARED       &
+      CALL MPI_ALLGATHERV( MPI_IN_PLACE                                              &
+                     , 0                                                             &
+                     , MPI_DATATYPE_NULL                                             &
+                     , Radiation_Absorption_SpecPercent                              &
+                     , RadiationParameter%WaveLenDiscrCoarse*nSpecies *recvcountElem &
+                     , RadiationParameter%WaveLenDiscrCoarse*nSpecies *displsElem    &
+                     , MPI_INTEGER2                                                  &
+                     , MPI_COMM_LEADERS_SHARED                                       &
                      , IERROR)
     END IF
   END IF
@@ -317,12 +319,12 @@ USE MOD_HDF5_Input                ,ONLY: OpenDataFile,CloseDataFile,DatasetExist
 USE MOD_Mesh_Vars                 ,ONLY: offsetElem, nElems
 USE MOD_Particle_Vars             ,ONLY: nSpecies
 USE MOD_DSMC_Vars                 ,ONLY: SpecDSMC
-USE MOD_Radiation_Vars            ,ONLY: RadiationSwitches, MacroRadInputParameters, MacroRadInputParameters_Shared, &
-                                    MacroRadInputParameters_Shared_Win
+USE MOD_Radiation_Vars            ,ONLY: RadiationSwitches, MacroRadInputParameters
 USE MOD_Mesh_Tools                ,ONLY: GetCNElemID
 USE MOD_ReadInTools
 USE MOD_Particle_Mesh_Vars        ,ONLY: nComputeNodeElems
 #if USE_MPI
+USE MOD_Radiation_Vars            ,ONLY: MacroRadInputParameters_Shared,MacroRadInputParameters_Shared_Win
 !USE MOD_MPI_Shared_Vars
 USE MOD_MPI_Shared
 USE MOD_MPI_Shared_Vars
