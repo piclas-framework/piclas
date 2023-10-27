@@ -159,9 +159,6 @@ USE MOD_Linearsolver_Vars ,ONLY: PartImplicitMethod
 USE MOD_TimeDisc_Vars     ,ONLY: dt,nRKStages,iter
 USE MOD_Globals_Vars      ,ONLY: c2_inv
 USE MOD_LinearSolver_Vars ,ONLY: DoPrintConvInfo
-#if USE_MPI
-USE MOD_Particle_MPI_Vars ,ONLY: PartMPI
-#endif /*USE_MPI*/
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -232,12 +229,12 @@ IF(DoPrintConvInfo)THEN
     IF(.NOT.PartIsImplicit(iPart)) nExp=nExp+1
   END DO
 #if USE_MPI
-  IF(PartMPI%MPIRoot)THEN
-    CALL MPI_REDUCE(MPI_IN_PLACE,nExp,1,MPI_INTEGER,MPI_SUM,0,PartMPI%COMM, IERROR)
-    CALL MPI_REDUCE(MPI_IN_PLACE,nImp,1,MPI_INTEGER,MPI_SUM,0,PartMPI%COMM, IERROR)
+  IF(MPIRoot)THEN
+    CALL MPI_REDUCE(MPI_IN_PLACE,nExp,1,MPI_INTEGER,MPI_SUM,0,MPI_COMM_PICLAS, IERROR)
+    CALL MPI_REDUCE(MPI_IN_PLACE,nImp,1,MPI_INTEGER,MPI_SUM,0,MPI_COMM_PICLAS, IERROR)
   ELSE
-    CALL MPI_REDUCE(nExp       ,iPart,1,MPI_INTEGER,MPI_SUM,0,PartMPI%COMM, IERROR)
-    CALL MPI_REDUCE(nImp       ,iPart,1,MPI_INTEGER,MPI_SUM,0,PartMPI%COMM, IERROR)
+    CALL MPI_REDUCE(nExp       ,iPart,1,MPI_INTEGER,MPI_SUM,0,MPI_COMM_PICLAS, IERROR)
+    CALL MPI_REDUCE(nImp       ,iPart,1,MPI_INTEGER,MPI_SUM,0,MPI_COMM_PICLAS, IERROR)
   END IF
 #endif /*USE_MPI*/
   SWRITE(UNIT_StdOut,'(A,I0,x,I0)') ' Particles explicit/implicit ', nExp, nImp
@@ -264,7 +261,6 @@ USE MOD_Particle_TriaTracking  ,ONLY: ParticleTriaTracking
 USE MOD_Part_RHS               ,ONLY: CalcPartRHS
 #if USE_MPI
 USE MOD_Particle_MPI           ,ONLY: IRecvNbOfParticles, MPIParticleSend,MPIParticleRecv,SendNbOfparticles
-USE MOD_Particle_MPI_Vars      ,ONLY: PartMPI
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Timers     ,ONLY: LBStartTime,LBPauseTime,LBSplitTime
 #endif /*USE_LOADBALANCE*/
@@ -422,7 +418,7 @@ Mode=0
 IF(ANY(DoPartInNewton)) DoNewton=.TRUE.
 #if USE_MPI
 !set T if at least 1 proc has to do newton
-CALL MPI_ALLREDUCE(MPI_IN_PLACE,DoNewton,1,MPI_LOGICAL,MPI_LOR,PartMPI%COMM,iError)
+CALL MPI_ALLREDUCE(MPI_IN_PLACE,DoNewton,1,MPI_LOGICAL,MPI_LOR,MPI_COMM_PICLAS,iError)
 #endif /*USE_MPI*/
 
 IF(DoPrintConvInfo)THEN
@@ -435,7 +431,7 @@ IF(DoPrintConvInfo)THEN
   END DO ! iPart
 #if USE_MPI
   !set T if at least 1 proc has to do newton
-  CALL MPI_ALLREDUCE(MPI_IN_PLACE,Counter,1,MPI_INTEGER,MPI_SUM,PartMPI%COMM,iError)
+  CALL MPI_ALLREDUCE(MPI_IN_PLACE,Counter,1,MPI_INTEGER,MPI_SUM,MPI_COMM_PICLAS,iError)
 #endif /*USE_MPI*/
   SWRITE(UNIT_StdOut,'(A,I0)') ' Initial particle number in newton: ',Counter
 END IF
@@ -487,7 +483,7 @@ DO WHILE((DoNewton) .AND. (nInnerPartNewton.LT.nPartNewtonIter))  ! maybe change
   IF(ANY(DoPartInNewton)) DoNewton=.TRUE.
 #if USE_MPI
   !set T if at least 1 proc has to do newton
-  CALL MPI_ALLREDUCE(MPI_IN_PLACE,DoNewton,1,MPI_LOGICAL,MPI_LOR,PartMPI%COMM,iError)
+  CALL MPI_ALLREDUCE(MPI_IN_PLACE,DoNewton,1,MPI_LOGICAL,MPI_LOR,MPI_COMM_PICLAS,iError)
 #endif /*USE_MPI*/
   IF(DoPrintConvInfo)THEN
     Counter=0
@@ -498,7 +494,7 @@ DO WHILE((DoNewton) .AND. (nInnerPartNewton.LT.nPartNewtonIter))  ! maybe change
     END DO ! iPart
 #if USE_MPI
     !set T if at least 1 proc has to do newton
-    CALL MPI_ALLREDUCE(MPI_IN_PLACE,Counter,1,MPI_INTEGER,MPI_SUM,PartMPI%COMM,iError)
+    CALL MPI_ALLREDUCE(MPI_IN_PLACE,Counter,1,MPI_INTEGER,MPI_SUM,MPI_COMM_PICLAS,iError)
 #endif /*USE_MPI*/
   END IF
 END DO
@@ -706,7 +702,6 @@ USE MOD_Particle_TriaTracking  ,ONLY: ParticleTriaTracking
 USE MOD_LinearSolver_Vars      ,ONLY: DoFullNewton!,PartNewtonRelaxation
 #if USE_MPI
 USE MOD_Particle_MPI           ,ONLY: IRecvNbOfParticles, MPIParticleSend,MPIParticleRecv,SendNbOfparticles
-USE MOD_Particle_MPI_Vars      ,ONLY: PartMPI
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Timers     ,ONLY: LBStartTime,LBPauseTime,LBSplitTime
 #endif /*USE_LOADBALANCE*/
@@ -950,7 +945,7 @@ IF(ANY(.NOT.PartLambdaAccept)) DoSetLambda=.TRUE.
 CALL LBStartTime(tLBStart)
 #endif /*USE_LOADBALANCE*/
 !set T if at least 1 proc has to do newton
-CALL MPI_ALLREDUCE(MPI_IN_PLACE,DoSetLambda,1,MPI_LOGICAL,MPI_LOR,PartMPI%COMM,iError)
+CALL MPI_ALLREDUCE(MPI_IN_PLACE,DoSetLambda,1,MPI_LOGICAL,MPI_LOR,MPI_COMM_PICLAS,iError)
 #if USE_LOADBALANCE
 CALL LBSplitTime(LB_PARTCOMM,tLBStart)
 #endif /*USE_LOADBALANCE*/
@@ -1129,7 +1124,7 @@ DO WHILE((DoSetLambda).AND.(nLambdaReduce.LE.nMaxLambdaReduce))
   IF(ANY(.NOT.PartLambdaAccept)) DoSetLambda=.TRUE.
 #if USE_MPI
   !set T if at least 1 proc has to do newton
-  CALL MPI_ALLREDUCE(MPI_IN_PLACE,DoSetLambda,1,MPI_LOGICAL,MPI_LOR,PartMPI%COMM,iError)
+  CALL MPI_ALLREDUCE(MPI_IN_PLACE,DoSetLambda,1,MPI_LOGICAL,MPI_LOR,MPI_COMM_PICLAS,iError)
 #endif /*USE_MPI*/
   iCounter=0
   DO iPart=1,PDM%ParticleVecLength
@@ -1141,7 +1136,7 @@ DO WHILE((DoSetLambda).AND.(nLambdaReduce.LE.nMaxLambdaReduce))
   IF(DoPrintConvInfo)THEN
 #if USE_MPI
     !set T if at least 1 proc has to do newton
-    CALL MPI_ALLREDUCE(MPI_IN_PLACE,iCounter,1,MPI_INTEGER,MPI_SUM,PartMPI%COMM,iError)
+    CALL MPI_ALLREDUCE(MPI_IN_PLACE,iCounter,1,MPI_INTEGER,MPI_SUM,MPI_COMM_PICLAS,iError)
 #endif /*USE_MPI*/
     SWRITE(UNIT_stdOut,'(A20,2x,L,2x,I10)') ' Accept?: ', DoSetLambda,iCounter
   END IF

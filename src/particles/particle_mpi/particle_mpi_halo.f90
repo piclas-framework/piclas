@@ -167,7 +167,7 @@ IF (CheckExchangeProcs) THEN
                   , MPI_LOGICAL                  &
                   , iProc                        &
                   , 1999                         &
-                  , MPI_COMM_WORLD               &
+                  , MPI_COMM_PICLAS               &
                   , RecvRequest(iProc)           &
                   , IERROR)
   END DO
@@ -970,7 +970,7 @@ IF(PartBound%UseInterPlaneBC) THEN
       END IF
     END DO
     IF(InInterPlaneRegion) THEN
-! (2) Loop over all elements on the compute node and add the procs as halo_procs if they are within the corresponding 
+! (2) Loop over all elements on the compute node and add the procs as halo_procs if they are within the corresponding
 !     InterplaneRegion
       DO iElem = 1,nComputeNodeTotalElems
         ElemID   = GetGlobalElemID(iElem)
@@ -1010,7 +1010,7 @@ IF(CheckExchangeProcs)THEN
                   , MPI_LOGICAL                  &
                   , iProc                        &
                   , 1999                         &
-                  , MPI_COMM_WORLD               &
+                  , MPI_COMM_PICLAS               &
                   , SendRequest(iProc)           &
                   , IERROR)
   END DO
@@ -1050,7 +1050,7 @@ IF(CheckExchangeProcs)THEN
   END DO
 
   ! On smooth grids, nNonSymmetricExchangeProcs should be zero. Only output if previously missing particle exchange procs are found
-  CALL MPI_ALLREDUCE(nNonSymmetricExchangeProcs, nNonSymmetricExchangeProcsGlob, 1, MPI_INTEGER, MPI_SUM, MPI_COMM_WORLD, IERROR)
+  CALL MPI_ALLREDUCE(nNonSymmetricExchangeProcs, nNonSymmetricExchangeProcsGlob, 1, MPI_INTEGER, MPI_SUM, MPI_COMM_PICLAS, IERROR)
   ! Check sum of nNonSymmetricExchangeProcs over all processors
   IF(nNonSymmetricExchangeProcsGlob.GT.0)THEN
     SWRITE(UNIT_StdOut,'(X,131("~"))')
@@ -1097,7 +1097,7 @@ DO iProc = 0,nProcessors_Global-1
 END DO
 
 ! -- Average number of exchange processors
-CALL MPI_REDUCE(nExchangeProcessors,nExchangeProcessorsGlobal,1,MPI_INTEGER,MPI_SUM,0,MPI_COMM_WORLD,iError)
+CALL MPI_REDUCE(nExchangeProcessors,nExchangeProcessorsGlobal,1,MPI_INTEGER,MPI_SUM,0,MPI_COMM_PICLAS,iError)
 LBWRITE(UNIT_stdOut,'(A,I0,A)') ' | Started particle exchange communication with average ', &
                                  nExchangeProcessorsGlobal/nProcessors_Global            , &
                                  ' partners per proc'
@@ -1448,7 +1448,7 @@ IF(StringBeginsWith(DepositionType,'shape_function'))THEN
                   , MPI_INTEGER                             &
                   , ShapeMapping(iProc)%Rank                                    &
                   , 2003                                    &
-                  , MPI_COMM_WORLD                 &
+                  , MPI_COMM_PICLAS                 &
                   , RecvRequest(iProc)                      &
                   , IERROR)
   END DO
@@ -1459,7 +1459,7 @@ IF(StringBeginsWith(DepositionType,'shape_function'))THEN
                   , MPI_INTEGER                             &
                   , ShapeMapping(iProc)%Rank                                   &
                   , 2003                                    &
-                  , MPI_COMM_WORLD                 &
+                  , MPI_COMM_PICLAS                 &
                   , SendRequest(iProc)                     &
                   , IERROR)
   END DO
@@ -1479,7 +1479,7 @@ IF(StringBeginsWith(DepositionType,'shape_function'))THEN
               , MPI_INTEGER                             &
               , ShapeMapping(iProc)%Rank                &
               , 2003                                    &
-              , MPI_COMM_WORLD                 &
+              , MPI_COMM_PICLAS                 &
               , RecvRequest(iProc)                      &
               , IERROR)
   END DO
@@ -1489,7 +1489,7 @@ IF(StringBeginsWith(DepositionType,'shape_function'))THEN
                   , MPI_INTEGER                             &
                   , ShapeMapping(iProc)%Rank                &
                   , 2003                                    &
-                  , MPI_COMM_WORLD                         &
+                  , MPI_COMM_PICLAS                         &
                   , SendRequest(iProc)                      &
                   , IERROR)
   END DO

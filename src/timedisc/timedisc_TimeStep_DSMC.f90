@@ -251,15 +251,8 @@ END IF
 
 CALL DSMC_main()
 
-#if USE_LOADBALANCE
-CALL LBStartTime(tLBStart)
-#endif /*USE_LOADBALANCE*/
-
+! Split & Merge: Variable particle weighting
 IF(UseSplitAndMerge) CALL SplitAndMerge()
-
-#if USE_LOADBALANCE
-CALL LBPauseTime(LB_DSMC,tLBStart)
-#endif /*USE_LOADBALANCE*/
 
 END SUBROUTINE TimeStep_DSMC
 

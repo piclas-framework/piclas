@@ -15,6 +15,9 @@
 !===================================================================================================================================
 MODULE MOD_Analyze_Vars
 ! MODULES
+#if USE_MPI
+USE MOD_Globals
+#endif /*USE_MPI*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 PUBLIC
@@ -94,14 +97,10 @@ TYPE(tBoundaryFieldOutput)   :: BFO
 
 #if USE_MPI
 TYPE tMPIGROUP
-  INTEGER                     :: ID                  !< MPI communicator ID
-  INTEGER                     :: UNICATOR            !< MPI communicator for electric displacement current
-  INTEGER                     :: Request             !< MPI request for asynchronous communication
-  INTEGER                     :: nProcs              !< number of MPI processes for particles
-  INTEGER                     :: MyRank              !< MyRank of PartMPIVAR%COMM
-  LOGICAL                     :: MPIRoot             !< Root, MPIRank=0
-  INTEGER,ALLOCATABLE         :: GroupToComm(:)      !< list containing the rank in PartMPI%COMM
-  INTEGER,ALLOCATABLE         :: CommToGroup(:)      !< list containing the rank in PartMPI%COMM
+  INTEGER                     :: ID                     !< MPI communicator ID
+  INTEGER                     :: UNICATOR=MPI_COMM_NULL !< MPI communicator for electric displacement current
+  INTEGER                     :: nProcs                 !< number of MPI processes for particles
+  INTEGER                     :: MyRank                 !< MyRank within communicator
 END TYPE
 #endif /*USE_MPI*/
 

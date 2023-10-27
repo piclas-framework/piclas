@@ -143,11 +143,11 @@ IF(NbrOfPhysicalNodes.LE.0) MemoryMonitor = .FALSE.
 
 ! Split the node communicator (shared memory) from the global communicator on physical processor or node level
 #if (CORE_SPLIT==1)
-  CALL MPI_COMM_SPLIT(MPI_COMM_WORLD,myRank,0,MPI_COMM_SHARED,iError)
+  CALL MPI_COMM_SPLIT(MPI_COMM_PICLAS,myRank,0,MPI_COMM_SHARED,iError)
 #elif (CORE_SPLIT==0)
   ! Note that using SharedMemoryMethod=OMPI_COMM_TYPE_CORE somehow does not work in every case (intel/amd processors)
   ! Also note that OMPI_COMM_TYPE_CORE is undefined when not using OpenMPI
-  CALL MPI_COMM_SPLIT_TYPE(MPI_COMM_WORLD,SharedMemoryMethod,0,MPI_INFO_NULL,MPI_COMM_SHARED,IERROR)
+  CALL MPI_COMM_SPLIT_TYPE(MPI_COMM_PICLAS,SharedMemoryMethod,0,MPI_INFO_NULL,MPI_COMM_SHARED,IERROR)
 #else
   ! Check if more nodes than procs are required or
   ! if the resulting split would create unequal procs per node
@@ -160,7 +160,7 @@ IF(NbrOfPhysicalNodes.LE.0) MemoryMonitor = .FALSE.
     ! Group procs so that every CORE_SPLIT procs are in the same group
     color = INT(REAL(myRank)/REAL(CORE_SPLIT))
   END IF ! (CORE_SPLIT.GE.nProcessors_Global).OR.(MOD().GT.0)
-  CALL MPI_COMM_SPLIT(MPI_COMM_WORLD,color,0,MPI_COMM_SHARED,iError)
+  CALL MPI_COMM_SPLIT(MPI_COMM_PICLAS,color,0,MPI_COMM_SHARED,iError)
 #endif
 
 ! Find my rank on the shared communicator, comm size and proc name
@@ -187,7 +187,7 @@ CALL MPI_BCAST(ComputeNodeRootRank,1,MPI_INTEGER,0,MPI_COMM_SHARED,IERROR)
 MPI_COMM_LEADERS_SHARED=MPI_COMM_NULL
 myLeaderGroupRank=-1
 color = MERGE(101,MPI_UNDEFINED,myComputeNodeRank.EQ.0)
-CALL MPI_COMM_SPLIT(MPI_COMM_WORLD,color,0,MPI_COMM_LEADERS_SHARED,IERROR)
+CALL MPI_COMM_SPLIT(MPI_COMM_PICLAS,color,0,MPI_COMM_LEADERS_SHARED,IERROR)
 IF(myComputeNodeRank.EQ.0)THEN
   CALL MPI_COMM_RANK(MPI_COMM_LEADERS_SHARED,myLeaderGroupRank,IERROR)
   CALL MPI_COMM_SIZE(MPI_COMM_LEADERS_SHARED,nLeaderGroupProcs,IERROR)
