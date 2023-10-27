@@ -205,7 +205,7 @@ IF ( (DoLoadBalance.OR.DoInitialAutoRestart) .AND. (.NOT.DoWriteStateToHDF5) .AN
 END IF
 IF (.NOT.(PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance))) THEN
 #endif /*USE_LOADBALANCE*/
-  CALL OpenDataFile(MeshFile,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_WORLD)
+  CALL OpenDataFile(MeshFile,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_PICLAS)
   CALL ReadAttribute(File_ID,'Ngeo',1,IntScalar=NGeo)
   CALL PrintOption('NGeo','INFO',IntOpt=NGeo)
   CALL CloseDataFile()
@@ -857,9 +857,9 @@ IF(GetMeshMinMaxBoundariesIsDone) RETURN
    xmax_loc(3) = xyzMinMax(6)
 
    ! Find global min
-   CALL MPI_ALLREDUCE(xmin_loc(1:3),xmin(1:3), 3, MPI_DOUBLE_PRECISION, MPI_MIN, MPI_COMM_WORLD, IERROR)
+   CALL MPI_ALLREDUCE(xmin_loc(1:3),xmin(1:3), 3, MPI_DOUBLE_PRECISION, MPI_MIN, MPI_COMM_PICLAS, IERROR)
    ! Find global max
-   CALL MPI_ALLREDUCE(xmax_loc(1:3),xmax(1:3), 3, MPI_DOUBLE_PRECISION, MPI_MAX, MPI_COMM_WORLD, IERROR)
+   CALL MPI_ALLREDUCE(xmax_loc(1:3),xmax(1:3), 3, MPI_DOUBLE_PRECISION, MPI_MAX, MPI_COMM_PICLAS, IERROR)
 
    ! Map global min/max values to xyzMinMax(1:6)
    xyzMinMax(1) = xmin(1)
@@ -946,6 +946,8 @@ USE MOD_Mesh_Vars          ,ONLY: offsetElem
 USE MOD_Particle_Mesh_Vars ,ONLY: nComputeNodeElems,offsetComputeNodeElem
 USE MOD_MPI_Shared_Vars    ,ONLY: MPI_COMM_SHARED,myComputeNodeRank,MPI_COMM_LEADERS_SHARED
 USE MOD_Particle_Mesh_Vars ,ONLY: ElemVolume_Shared_Win,ElemCharLength_Shared_Win
+#else
+USE MOD_Globals            ,ONLY: MPI_COMM_PICLAS
 #endif /*PARTICLES*/
 #endif /*USE_MPI*/
 #if USE_LOADBALANCE
@@ -1032,7 +1034,7 @@ END IF
 CALL MPI_BCAST(MeshVolume,1, MPI_DOUBLE_PRECISION,0,MPI_COMM_SHARED,iERROR)
 #else
 ! In this case, no shared array is created and all arrays are processor-local
-CALL MPI_ALLREDUCE(LocalVolume,MeshVolume,1,MPI_DOUBLE_PRECISION,MPI_SUM,MPI_COMM_WORLD,IERROR)
+CALL MPI_ALLREDUCE(LocalVolume,MeshVolume,1,MPI_DOUBLE_PRECISION,MPI_SUM,MPI_COMM_PICLAS,IERROR)
 #endif /*PARTICLES*/
 #else
 MeshVolume = LocalVolume
@@ -1070,8 +1072,7 @@ USE MOD_Mesh_Vars ,ONLY: firstMortarMPISide,nSides,nSidesMaster,nSidesSlave
 USE MOD_Globals   ,ONLY: UNIT_StdOut
 USE MOD_Mesh_Vars ,ONLY: nGlobalUniqueSidesFromMesh,nGlobalUniqueSides,nMortarMPISides,nUniqueSides
 #if USE_MPI
-USE MOD_Globals   ,ONLY: myrank
-USE MOD_Globals   ,ONLY: iError,MPI_COMM_WORLD
+USE MOD_Globals   ,ONLY: myrank,MPI_COMM_PICLAS,iError
 USE mpi
 #endif /*USE_MPI*/
 #endif /*USE_HDG*/
@@ -1114,7 +1115,7 @@ nSidesSlave     = lastSlaveSide -firstSlaveSide+1
 #if USE_HDG
 nUniqueSides = lastMPISide_MINE + nMortarMPISides !big mortars are at the end of the side list!
 #if USE_MPI
-CALL MPI_ALLREDUCE(nUniqueSides,nGlobalUniqueSides,1,MPI_INTEGER,MPI_SUM,MPI_COMM_WORLD,iError)
+CALL MPI_ALLREDUCE(nUniqueSides,nGlobalUniqueSides,1,MPI_INTEGER,MPI_SUM,MPI_COMM_PICLAS,iError)
 #else
 nGlobalUniqueSides=nSides
 #endif /*USE_MPI*/

@@ -198,9 +198,9 @@ IF(PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance))THEN
          !IPWRITE(UNIT_StdOut,*) "firstSide:lastSide,Nbr,nSides =", firstSide,lastSide,lastSide-firstSide+1,nSides
     ALLOCATE(lambdaLBTmp(PP_nVar,nGP_face,firstSide:lastSide))
   END ASSOCIATE
-       !CALL MPI_BARRIER(MPI_COMM_WORLD,iError)
+       !CALL MPI_BARRIER(MPI_COMM_PICLAS,iError)
        !IPWRITE(UNIT_StdOut,*) "MPInSideSend,MPIoffsetSideSend,MPInSideRecv,MPIoffsetSideRecv =", MPInSideSend,MPIoffsetSideSend,MPInSideRecv,MPIoffsetSideRecv
-       !CALL MPI_BARRIER(MPI_COMM_WORLD,iError)
+       !CALL MPI_BARRIER(MPI_COMM_PICLAS,iError)
 
   ASSOCIATE (&
           counts_send  => (INT(MPInSideSend     )) ,&
@@ -213,7 +213,7 @@ IF(PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance))THEN
     MPI_TYPE         = MPI_DOUBLE_PRECISION
     CALL MPI_TYPE_CREATE_STRUCT(1,MPI_LENGTH,MPI_DISPLACEMENT,MPI_TYPE,MPI_STRUCT,iError)
     CALL MPI_TYPE_COMMIT(MPI_STRUCT,iError)
-    CALL MPI_ALLTOALLV(lambdaLB,counts_send,disp_send,MPI_STRUCT,lambdaLBTmp,counts_recv,disp_recv,MPI_STRUCT,MPI_COMM_WORLD,iError)
+    CALL MPI_ALLTOALLV(lambdaLB,counts_send,disp_send,MPI_STRUCT,lambdaLBTmp,counts_recv,disp_recv,MPI_STRUCT,MPI_COMM_PICLAS,iError)
   END ASSOCIATE
   DEALLOCATE(lambdaLB)
 
@@ -301,7 +301,7 @@ IF(PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance))THEN
       MPI_TYPE         = MPI_DOUBLE_PRECISION
       CALL MPI_TYPE_CREATE_STRUCT(1,MPI_LENGTH,MPI_DISPLACEMENT,MPI_TYPE,MPI_STRUCT,iError)
       CALL MPI_TYPE_COMMIT(MPI_STRUCT,iError)
-      CALL MPI_ALLTOALLV(U,counts_send,disp_send,MPI_STRUCT,UTmp,counts_recv,disp_recv,MPI_STRUCT,MPI_COMM_WORLD,iError)
+      CALL MPI_ALLTOALLV(U,counts_send,disp_send,MPI_STRUCT,UTmp,counts_recv,disp_recv,MPI_STRUCT,MPI_COMM_PICLAS,iError)
     END ASSOCIATE
     CALL MOVE_ALLOC(UTmp,U)
   END IF ! ALLOCATED(U)
@@ -327,10 +327,10 @@ ELSE ! normal restart
   ! ===========================================================================
   IF(RestartNullifySolution)THEN ! Open the restart file and neglect the DG solution (only read particles if present)
     SWRITE(UNIT_stdOut,*)'Restarting from File: ',TRIM(RestartFile),' (but without reading the DG solution)'
-    CALL OpenDataFile(RestartFile,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_WORLD)
+    CALL OpenDataFile(RestartFile,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_PICLAS)
   ELSE ! Use the solution in the restart file
     SWRITE(UNIT_stdOut,*)'Restarting from File: ',TRIM(RestartFile)
-    CALL OpenDataFile(RestartFile,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_WORLD)
+    CALL OpenDataFile(RestartFile,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_PICLAS)
     ! Read in time from restart file
     !CALL ReadAttribute(File_ID,'Time',1,RealScalar=RestartTime)
     ! Read in state

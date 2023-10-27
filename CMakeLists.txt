@@ -121,6 +121,8 @@ IF(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/.git)
   MESSAGE(STATUS "Current git commit ${GIT_COMMIT} will be written to ${commit}")
   EXECUTE_PROCESS(COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/tools/cmake/setCommitHash.sh ${commit})
 ENDIF()
+# Make sure that the script is executed even though cmake is not explicitly executed after the commit is changed in git
+ADD_CUSTOM_TARGET(UpdateGitCommitHash COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/tools/cmake/setCommitHash.sh ${commit})
 
 # =========================================================================
 # Check IPO support:

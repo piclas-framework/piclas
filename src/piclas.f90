@@ -58,11 +58,6 @@ CALL TimeDisc()
 ! Finalize
 CALL FinalizePiclas(IsLoadBalance=.FALSE.)
 
-#if defined(MEASURE_MPI_WAIT)
-! Collect the MPI_WAIT() over all procs and output
-IF(nProcessors.GT.1) CALL OutputMPIW8Time()
-#endif /*defined(MEASURE_MPI_WAIT)*/
-
 ! MPI
 #if USE_MPI
 ! We also have to finalize MPI itself here

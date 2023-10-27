@@ -383,7 +383,7 @@ IF(MPIRoot) THEN
   IF(.NOT.FILEEXISTS(FileName))  CALL abort(__STAMP__, &
         'TimeAverage-File "'//TRIM(FileName)//'" does not exist',999,999.)
 END IF
-CALL OpenDataFile(TRIM(FileName),create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_WORLD)
+CALL OpenDataFile(TRIM(FileName),create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_PICLAS)
 
 ! get attributes
 CALL DatasetExists(File_ID,'DG_Solution',SolutionExists)

@@ -550,7 +550,7 @@ DO iELEM = 1, nElems
 END DO ! iElems
 
 #if USE_MPI
-  CALL MPI_REDUCE   (PoyntingIntegral(:) , SumSabs(:) , nPoyntingIntPlanes , MPI_DOUBLE_PRECISION ,MPI_SUM, 0, MPI_COMM_WORLD,IERROR)
+  CALL MPI_REDUCE(PoyntingIntegral(:) , SumSabs(:) , nPoyntingIntPlanes , MPI_DOUBLE_PRECISION ,MPI_SUM, 0, MPI_COMM_PICLAS,IERROR)
   PoyntingIntegral(:) = SumSabs(:)
 #endif /*USE_MPI*/
 
@@ -800,7 +800,7 @@ END DO ! iPlanes
 ! prolonged values of mu_r and no MPI information has to be sent. The master side cannot currently be outside of the dielectric
 ! region (e.g. in vacuum) because that is not allowed. If this would be allowed that MPI rank would need the information of the
 ! prolonged dielectric material properties from the slave side
-  CALL MPI_ALLREDUCE(MPI_IN_PLACE,PoyntingUseMuR_Inv,1,MPI_LOGICAL,MPI_LOR,MPI_COMM_WORLD,iError)
+  CALL MPI_ALLREDUCE(MPI_IN_PLACE,PoyntingUseMuR_Inv,1,MPI_LOGICAL,MPI_LOR,MPI_COMM_PICLAS,iError)
 #endif
 ! Determine mu_r on faces within a dielectric region for calculating the Poynting vector and communicate the
 ! prolonged values via MPI
@@ -812,9 +812,9 @@ ALLOCATE(sumFaces(nPoyntingIntPlanes))
 #if USE_MPI
 sumFaces=0
 sumAllFaces=0
-  CALL MPI_REDUCE(nFaces , sumFaces , nPoyntingIntPlanes , MPI_INTEGER, MPI_SUM,0, MPI_COMM_WORLD, IERROR)
+  CALL MPI_REDUCE(nFaces , sumFaces , nPoyntingIntPlanes , MPI_INTEGER, MPI_SUM,0, MPI_COMM_PICLAS, IERROR)
   !nFaces(:) = sumFaces(:)
-  CALL MPI_REDUCE(nPoyntingIntSides , sumAllFaces , 1 , MPI_INTEGER, MPI_SUM,0, MPI_COMM_WORLD, IERROR)
+  CALL MPI_REDUCE(nPoyntingIntSides , sumAllFaces , 1 , MPI_INTEGER, MPI_SUM,0, MPI_COMM_PICLAS, IERROR)
   !nPoyntingIntSides = sumAllFaces
 #else
 sumFaces=nFaces
@@ -994,18 +994,18 @@ Wpsi = Wpsi * smu0*0.5
 #if USE_MPI
 ! todo: only one reduce with array
 IF(MPIRoot)THEN
-  CALL MPI_REDUCE(MPI_IN_PLACE,WEl  , 1 , MPI_DOUBLE_PRECISION, MPI_SUM,0, MPI_COMM_WORLD, IERROR)
+  CALL MPI_REDUCE(MPI_IN_PLACE,WEl  , 1 , MPI_DOUBLE_PRECISION, MPI_SUM,0, MPI_COMM_PICLAS, IERROR)
 #if (PP_nVar==8)
-  CALL MPI_REDUCE(MPI_IN_PLACE,WMag , 1 , MPI_DOUBLE_PRECISION, MPI_SUM,0, MPI_COMM_WORLD, IERROR)
-  CALL MPI_REDUCE(MPI_IN_PLACE,Wphi , 1 , MPI_DOUBLE_PRECISION, MPI_SUM,0, MPI_COMM_WORLD, IERROR)
-  CALL MPI_REDUCE(MPI_IN_PLACE,Wpsi , 1 , MPI_DOUBLE_PRECISION, MPI_SUM,0, MPI_COMM_WORLD, IERROR)
+  CALL MPI_REDUCE(MPI_IN_PLACE,WMag , 1 , MPI_DOUBLE_PRECISION, MPI_SUM,0, MPI_COMM_PICLAS, IERROR)
+  CALL MPI_REDUCE(MPI_IN_PLACE,Wphi , 1 , MPI_DOUBLE_PRECISION, MPI_SUM,0, MPI_COMM_PICLAS, IERROR)
+  CALL MPI_REDUCE(MPI_IN_PLACE,Wpsi , 1 , MPI_DOUBLE_PRECISION, MPI_SUM,0, MPI_COMM_PICLAS, IERROR)
 #endif /*PP_nVar=8*/
 ELSE
-  CALL MPI_REDUCE(WEl         ,RD   , 1 , MPI_DOUBLE_PRECISION, MPI_SUM,0, MPI_COMM_WORLD, IERROR)
+  CALL MPI_REDUCE(WEl         ,RD   , 1 , MPI_DOUBLE_PRECISION, MPI_SUM,0, MPI_COMM_PICLAS, IERROR)
 #if (PP_nVar==8)
-  CALL MPI_REDUCE(WMag        ,RD   , 1 , MPI_DOUBLE_PRECISION, MPI_SUM,0, MPI_COMM_WORLD, IERROR)
-  CALL MPI_REDUCE(Wphi        ,RD   , 1 , MPI_DOUBLE_PRECISION, MPI_SUM,0, MPI_COMM_WORLD, IERROR)
-  CALL MPI_REDUCE(Wpsi        ,RD   , 1 , MPI_DOUBLE_PRECISION, MPI_SUM,0, MPI_COMM_WORLD, IERROR)
+  CALL MPI_REDUCE(WMag        ,RD   , 1 , MPI_DOUBLE_PRECISION, MPI_SUM,0, MPI_COMM_PICLAS, IERROR)
+  CALL MPI_REDUCE(Wphi        ,RD   , 1 , MPI_DOUBLE_PRECISION, MPI_SUM,0, MPI_COMM_PICLAS, IERROR)
+  CALL MPI_REDUCE(Wpsi        ,RD   , 1 , MPI_DOUBLE_PRECISION, MPI_SUM,0, MPI_COMM_PICLAS, IERROR)
 #endif /*PP_nVar=8*/
 END IF
 #endif /*USE_MPI*/
@@ -1192,14 +1192,14 @@ Wpsi = Wpsi * smu0*0.5
 
 #if USE_MPI
 IF(MPIRoot)THEN
-  CALL MPI_REDUCE(MPI_IN_PLACE,WEl  , 1 , MPI_DOUBLE_PRECISION, MPI_SUM,0, MPI_COMM_WORLD, IERROR)
+  CALL MPI_REDUCE(MPI_IN_PLACE,WEl  , 1 , MPI_DOUBLE_PRECISION, MPI_SUM,0, MPI_COMM_PICLAS, IERROR)
 #if (PP_nVar==8)
-  CALL MPI_REDUCE(MPI_IN_PLACE,WMag , 1 , MPI_DOUBLE_PRECISION, MPI_SUM,0, MPI_COMM_WORLD, IERROR)
+  CALL MPI_REDUCE(MPI_IN_PLACE,WMag , 1 , MPI_DOUBLE_PRECISION, MPI_SUM,0, MPI_COMM_PICLAS, IERROR)
 #endif /*PP_nVar=8*/
 ELSE
-  CALL MPI_REDUCE(WEl         ,RD   , 1 , MPI_DOUBLE_PRECISION, MPI_SUM,0, MPI_COMM_WORLD, IERROR)
+  CALL MPI_REDUCE(WEl         ,RD   , 1 , MPI_DOUBLE_PRECISION, MPI_SUM,0, MPI_COMM_PICLAS, IERROR)
 #if (PP_nVar==8)
-  CALL MPI_REDUCE(WMag        ,RD   , 1 , MPI_DOUBLE_PRECISION, MPI_SUM,0, MPI_COMM_WORLD, IERROR)
+  CALL MPI_REDUCE(WMag        ,RD   , 1 , MPI_DOUBLE_PRECISION, MPI_SUM,0, MPI_COMM_PICLAS, IERROR)
 #endif /*PP_nVar=8*/
 END IF
 #endif /*USE_MPI*/
@@ -1493,7 +1493,7 @@ END DO ! iElems
 !AverageElectricPotentialProc = AverageElectricPotentialProc / (1e-4 * 1.28e-2)
 
 #if USE_MPI
-  CALL MPI_ALLREDUCE(AverageElectricPotentialProc , AverageElectricPotential , 1 , MPI_DOUBLE_PRECISION , MPI_SUM , MPI_COMM_WORLD , IERROR)
+  CALL MPI_ALLREDUCE(AverageElectricPotentialProc , AverageElectricPotential , 1 , MPI_DOUBLE_PRECISION , MPI_SUM , MPI_COMM_PICLAS , IERROR)
 #else
   AverageElectricPotential = AverageElectricPotentialProc
 #endif /*USE_MPI*/
@@ -1576,7 +1576,7 @@ DO iElem=1,nElems
 END DO !iElem=1,nElems
 
 #if USE_MPI
-CALL MPI_ALLREDUCE(nAverageElecPotSides , AverageElectricPotentialFaces , 1 , MPI_INTEGER , MPI_SUM , MPI_COMM_WORLD , IERROR)
+CALL MPI_ALLREDUCE(nAverageElecPotSides , AverageElectricPotentialFaces , 1 , MPI_INTEGER , MPI_SUM , MPI_COMM_PICLAS , IERROR)
 #else
 AverageElectricPotentialFaces=nAverageElecPotSides
 #endif /*USE_MPI*/

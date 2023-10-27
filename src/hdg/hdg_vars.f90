@@ -19,6 +19,9 @@
 !===================================================================================================================================
 MODULE MOD_HDG_Vars
 ! MODULES
+#if USE_MPI
+USE MOD_Globals
+#endif /*USE_MPI*/
 #if USE_PETSC
 USE PETSc
 #endif
@@ -176,15 +179,11 @@ LOGICAL               :: BRNullCollisionDefault        !< Flag (backup of read-i
 
 #if USE_MPI
 TYPE tMPIGROUP
-  INTEGER                     :: ID                  !< MPI communicator ID
-  INTEGER                     :: UNICATOR            !< MPI communicator for floating boundary condition
-  INTEGER                     :: Request             !< MPI request for asynchronous communication
-  INTEGER                     :: nProcs              !< number of MPI processes part of the FPC group
-  INTEGER                     :: nProcsWithSides     !< number of MPI processes part of the FPC group and actual FPC sides
-  INTEGER                     :: MyRank              !< MyRank of PartMPIVAR%COMM
-  LOGICAL                     :: MPIRoot             !< Root, MPIRank=0
-  INTEGER,ALLOCATABLE         :: GroupToComm(:)      !< list containing the rank in PartMPI%COMM
-  INTEGER,ALLOCATABLE         :: CommToGroup(:)      !< list containing the rank in PartMPI%COMM
+  INTEGER                     :: ID                     !< MPI communicator ID
+  INTEGER                     :: UNICATOR=MPI_COMM_NULL !< MPI communicator for floating boundary condition
+  INTEGER                     :: nProcs                 !< number of MPI processes part of the FPC group
+  INTEGER                     :: nProcsWithSides        !< number of MPI processes part of the FPC group and actual FPC sides
+  INTEGER                     :: MyRank                 !< MyRank within communicator
 END TYPE
 #endif /*USE_MPI*/
 

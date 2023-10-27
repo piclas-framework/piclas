@@ -192,11 +192,11 @@ DO iElem=1,PP_nElems
 END DO ! iElem=1,PP_nElems
 #if USE_MPI
 IF(MPIroot)THEN
-  CALL MPI_REDUCE(MPI_IN_PLACE , L_2_Error   , 4 , MPI_DOUBLE_PRECISION , MPI_SUM , 0 , MPI_COMM_WORLD , iError)
-  CALL MPI_REDUCE(MPI_IN_PLACE , L_Inf_Error , 4 , MPI_DOUBLE_PRECISION , MPI_MAX , 0 , MPI_COMM_WORLD , iError)
+  CALL MPI_REDUCE(MPI_IN_PLACE , L_2_Error   , 4 , MPI_DOUBLE_PRECISION , MPI_SUM , 0 , MPI_COMM_PICLAS , iError)
+  CALL MPI_REDUCE(MPI_IN_PLACE , L_Inf_Error , 4 , MPI_DOUBLE_PRECISION , MPI_MAX , 0 , MPI_COMM_PICLAS , iError)
 ELSE
-  CALL MPI_REDUCE(L_2_Error   , 0            , 4 , MPI_DOUBLE_PRECISION , MPI_SUM , 0 , MPI_COMM_WORLD , iError)
-  CALL MPI_REDUCE(L_Inf_Error , 0            , 4 , MPI_DOUBLE_PRECISION , MPI_MAX , 0 , MPI_COMM_WORLD , iError)
+  CALL MPI_REDUCE(L_2_Error   , 0            , 4 , MPI_DOUBLE_PRECISION , MPI_SUM , 0 , MPI_COMM_PICLAS , iError)
+  CALL MPI_REDUCE(L_Inf_Error , 0            , 4 , MPI_DOUBLE_PRECISION , MPI_MAX , 0 , MPI_COMM_PICLAS , iError)
   ! in this case the receive value is not relevant.
 END IF
 #endif /*USE_MPI*/

@@ -178,9 +178,10 @@ INTEGER                        :: SideID_start, SideID_end,iNbProc,SendID
 REAL,ALLOCATABLE               :: SortedLambda(:,:,:)          ! lambda, ((PP_N+1)^2,nSides)
 INTEGER                        :: SortedOffset,SortedStart,SortedEnd
 #ifdef PARTICLES
-INTEGER                        :: i,j,k
+INTEGER                        :: i,j,k,iElem
+REAL,ALLOCATABLE               :: BVDataHDF5(:,:)
 #endif /*PARTICLES*/
-REAL,ALLOCATABLE               :: FPCDataHDF5(:,:),EPCDataHDF5(:,:),BVDataHDF5(:,:)
+REAL,ALLOCATABLE               :: FPCDataHDF5(:,:),EPCDataHDF5(:,:)
 INTEGER                        :: nVarFPC,nVarEPC
 #endif /*USE_HDG*/
 !===================================================================================================================================
@@ -246,7 +247,7 @@ END IF
 
 ! Reopen file and write DG solution
 #if USE_MPI
-CALL MPI_BARRIER(MPI_COMM_WORLD,iError)
+CALL MPI_BARRIER(MPI_COMM_PICLAS,iError)
 #endif
 
 ! Associate construct for integer KIND=8 possibility
@@ -510,7 +511,7 @@ ASSOCIATE (&
 #ifdef PARTICLES
   ! output of last source term
 #if USE_MPI
-  CALL MPI_BARRIER(MPI_COMM_WORLD,iError)
+  CALL MPI_BARRIER(MPI_COMM_PICLAS,iError)
 #endif /*USE_MPI*/
   IF(OutputSource) THEN
 #if USE_HDG
@@ -582,7 +583,7 @@ CALL WriteVibProbInfoToHDF5(FileName)
 IF(RadialWeighting%PerformCloning) CALL WriteClonesToHDF5(FileName)
 IF (PartBound%OutputWallTemp) CALL WriteAdaptiveWallTempToHDF5(FileName)
 #if USE_MPI
-CALL MPI_BARRIER(MPI_COMM_WORLD,iError)
+CALL MPI_BARRIER(MPI_COMM_PICLAS,iError)
 #endif /*USE_MPI*/
 ! For restart purposes, store the electron bulk temperature in .h5 state
 ! Only root writes the container

@@ -1342,7 +1342,7 @@ DO iSide=1,nSides
 END DO
 
 #if USE_MPI
-CALL MPI_ALLREDUCE(MPI_IN_PLACE,TERadius,1,MPI_DOUBLE_PRECISION,MPI_MAX,MPI_COMM_WORLD,iError)
+CALL MPI_ALLREDUCE(MPI_IN_PLACE,TERadius,1,MPI_DOUBLE_PRECISION,MPI_MAX,MPI_COMM_PICLAS,iError)
 #endif /*USE_MPI*/
 
 LBWRITE(UNIT_StdOut,*) ' Found waveguide radius of ', TERadius
@@ -1358,7 +1358,7 @@ SUBROUTINE InitExactFlux()
 USE MOD_PreProc
 USE MOD_Globals          ,ONLY: abort,UNIT_stdOut,mpiroot,CollectiveStop
 #if USE_MPI
-USE MOD_Globals          ,ONLY: MPI_COMM_WORLD,MPI_SUM,MPI_INTEGER,IERROR
+USE MOD_Globals          ,ONLY: MPI_COMM_PICLAS,MPI_SUM,MPI_INTEGER,IERROR
 #endif
 USE MOD_Mesh_Vars        ,ONLY: nElems,ElemToSide,SideToElem,lastMPISide_MINE
 USE MOD_Interfaces       ,ONLY: FindElementInRegion,FindInterfacesInRegion,CountAndCreateMappings
@@ -1422,7 +1422,7 @@ END DO
 
 #if USE_MPI
   sumExactFluxMasterInterFaces=0
-  CALL MPI_REDUCE(nExactFluxMasterInterFaces , sumExactFluxMasterInterFaces , 1 , MPI_INTEGER, MPI_SUM,0, MPI_COMM_WORLD, IERROR)
+  CALL MPI_REDUCE(nExactFluxMasterInterFaces , sumExactFluxMasterInterFaces , 1 , MPI_INTEGER, MPI_SUM,0, MPI_COMM_PICLAS, IERROR)
 #else
   sumExactFluxMasterInterFaces=nExactFluxMasterInterFaces
 #endif /*USE_MPI*/
@@ -1446,7 +1446,7 @@ END DO
 
 #if USE_MPI
   sumExactFluxMasterInterFaces=0
-  CALL MPI_REDUCE(nExactFluxMasterInterFaces , sumExactFluxMasterInterFaces , 1 , MPI_INTEGER, MPI_SUM,0, MPI_COMM_WORLD, IERROR)
+  CALL MPI_REDUCE(nExactFluxMasterInterFaces , sumExactFluxMasterInterFaces , 1 , MPI_INTEGER, MPI_SUM,0, MPI_COMM_PICLAS, IERROR)
 #else
   sumExactFluxMasterInterFaces=nExactFluxMasterInterFaces
 #endif /*USE_MPI*/
@@ -1478,7 +1478,7 @@ SDEALLOCATE(ExactFluxInterToFace)
 SDEALLOCATE(ElemToExactFlux)
 SDEALLOCATE(FaceToExactFlux)
 SDEALLOCATE(FaceToExactFluxInter)
-!CALL MPI_BARRIER(MPI_COMM_WORLD, iError)
+!CALL MPI_BARRIER(MPI_COMM_PICLAS, iError)
 !stop
 END SUBROUTINE InitExactFlux
 

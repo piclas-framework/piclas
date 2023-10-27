@@ -132,7 +132,7 @@ IF(CalcBField) THEN
 ELSE
   BGFieldScaling = GETREAL('PIC-BGFieldScaling','1.')
   ! 2b) Read-in the parameters from the BGField file
-  CALL OpenDataFile(BGFileName,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_WORLD)
+  CALL OpenDataFile(BGFileName,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_PICLAS)
   CALL DatasetExists(File_ID,'BGField',BGFieldExists) ! backward compatibility
   CALL DatasetExists(File_ID,'DG_Solution',DG_SolutionExists)
   IF(BGFieldExists) THEN

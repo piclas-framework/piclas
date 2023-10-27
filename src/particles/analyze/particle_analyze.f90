@@ -578,7 +578,7 @@ END IF
 !-- Coupled Power
 CalcCoupledPower = GETLOGICAL('CalcCoupledPower')
 #if USE_HDG
-IF(UseCoupledPowerPotential.AND.(.NOT.CalcCoupledPower)) CALL abort(__STAMP__,'Coupled power potential requires CalcCoupledPower=T') 
+IF(UseCoupledPowerPotential.AND.(.NOT.CalcCoupledPower)) CALL abort(__STAMP__,'Coupled power potential requires CalcCoupledPower=T')
 #endif /*USE_HDG*/
 
 IF(CalcCoupledPower) THEN
@@ -814,7 +814,7 @@ IF(CalcBulkElectronTemp)THEN
   END IF ! MPIRoot
 #if USE_MPI
   ! Broadcast from root to other processors. Only root knows if BulkElectronTempExists=T/F so always broadcast message
-  CALL MPI_BCAST(BulkElectronTemp,1, MPI_DOUBLE_PRECISION,0,MPI_COMM_WORLD,iERROR)
+  CALL MPI_BCAST(BulkElectronTemp,1, MPI_DOUBLE_PRECISION,0,MPI_COMM_PICLAS,iERROR)
   IF(SurfModSEEelectronTempAutoamtic) BulkElectronTempSEE = BulkElectronTemp
 #endif /*USE_MPI*/
 END IF ! CalcBulkElectronTemp
@@ -843,7 +843,6 @@ USE MOD_DSMC_Vars               ,ONLY: DSMC
 USE MOD_FPFlow_Vars             ,ONLY: FP_MaxRelaxFactor,FP_MaxRotRelaxFactor,FP_MeanRelaxFactor,FP_MeanRelaxFactorCounter
 USE MOD_FPFlow_Vars             ,ONLY: FP_PrandtlNumber,FPInitDone
 USE MOD_Particle_Analyze_Vars
-USE MOD_Particle_MPI_Vars       ,ONLY: PartMPI
 USE MOD_Particle_Vars           ,ONLY: Species,nSpecies
 USE MOD_PIC_Analyze             ,ONLY: CalcDepositedCharge
 USE MOD_Restart_Vars            ,ONLY: RestartTime,DoRestart
@@ -941,7 +940,7 @@ ParticleAnalyzeSampleTime = Time - ParticleAnalyzeSampleTime ! Set ParticleAnaly
 #endif
   OutputCounter = 2
   unit_index = 535
-  IF (PartMPI%MPIRoot) THEN
+  IF (MPIRoot) THEN
     INQUIRE(UNIT   = unit_index , OPENED = isOpen)
     IF (.NOT.isOpen) THEN
       outfile = 'PartAnalyze.csv'
@@ -1323,20 +1322,20 @@ ParticleAnalyzeSampleTime = Time - ParticleAnalyzeSampleTime ! Set ParticleAnaly
     IF(CalcLaserInteraction)THEN
       CALL CalcKineticEnergyAndMaximum(Ekin,EkinMax)
 #if USE_MPI
-      IF(PartMPI%MPIRoot)THEN
-        CALL MPI_REDUCE(MPI_IN_PLACE , EkinMax , nSpecies     , MPI_DOUBLE_PRECISION , MPI_MAX , 0 , PartMPI%COMM , iError)
+      IF(MPIRoot)THEN
+        CALL MPI_REDUCE(MPI_IN_PLACE , EkinMax , nSpecies     , MPI_DOUBLE_PRECISION , MPI_MAX , 0 , MPI_COMM_PICLAS , iError)
       ELSE
-        CALL MPI_REDUCE(EkinMax      , 0.      , nSpecies     , MPI_DOUBLE_PRECISION , MPI_MAX , 0 , PartMPI%COMM , iError)
+        CALL MPI_REDUCE(EkinMax      , 0.      , nSpecies     , MPI_DOUBLE_PRECISION , MPI_MAX , 0 , MPI_COMM_PICLAS , iError)
       END IF
 #endif /*USE_MPI*/
     ELSE
       CALL CalcKineticEnergy(Ekin)
     END IF
 #if USE_MPI
-      IF(PartMPI%MPIRoot)THEN
-        CALL MPI_REDUCE(MPI_IN_PLACE , Ekin    , nSpecAnalyze , MPI_DOUBLE_PRECISION , MPI_SUM , 0 , PartMPI%COMM , IERROR)
+      IF(MPIRoot)THEN
+        CALL MPI_REDUCE(MPI_IN_PLACE , Ekin    , nSpecAnalyze , MPI_DOUBLE_PRECISION , MPI_SUM , 0 , MPI_COMM_PICLAS , IERROR)
       ELSE
-        CALL MPI_REDUCE(Ekin         , 0.      , nSpecAnalyze , MPI_DOUBLE_PRECISION , MPI_SUM , 0 , PartMPI%COMM , IERROR)
+        CALL MPI_REDUCE(Ekin         , 0.      , nSpecAnalyze , MPI_DOUBLE_PRECISION , MPI_SUM , 0 , MPI_COMM_PICLAS , IERROR)
       END IF
 #endif /*USE_MPI*/
   END IF
@@ -1346,7 +1345,7 @@ ParticleAnalyzeSampleTime = Time - ParticleAnalyzeSampleTime ! Set ParticleAnaly
   ! CalcEint(1) is required for Ekin
   IF(CalcTemp(1).AND.CalcEint(1)) THEN
     CALL CalcMixtureTemp(NumSpec,Temp,IntTemp,IntEn,TempTotal,Xi_Vib,Xi_Elec) ! contains MPI Communication
-    IF(PartMPI%MPIRoot) ETotal = Ekin(nSpecAnalyze) + IntEn(nSpecAnalyze,1) + IntEn(nSpecAnalyze,2) + IntEn(nSpecAnalyze,3)
+    IF(MPIRoot) ETotal = Ekin(nSpecAnalyze) + IntEn(nSpecAnalyze,1) + IntEn(nSpecAnalyze,2) + IntEn(nSpecAnalyze,3)
   END IF
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Determine the maximal collision probability for whole reservoir and mean collision probability (only for one cell reservoirs,
@@ -1378,7 +1377,7 @@ ParticleAnalyzeSampleTime = Time - ParticleAnalyzeSampleTime ! Set ParticleAnaly
     IF(iter.GT.0) THEN
       MaxCollProb = DSMC%CollProbMax
       IF(DSMC%CollProbMeanCount.GT.0) MeanCollProb = DSMC%CollProbMean / DSMC%CollProbMeanCount
-      IF (PartMPI%MPIRoot) THEN
+      IF (MPIRoot) THEN
         IF(TempTotal(nSpecAnalyze).GT.0.0) MeanFreePath = CalcMeanFreePath(NumSpecTmp(1:nSpecies), NumSpecTmp(nSpecAnalyze), &
                                                               MeshVolume, TempTotal(nSpecAnalyze))
       END IF
@@ -1400,8 +1399,8 @@ ParticleAnalyzeSampleTime = Time - ParticleAnalyzeSampleTime ! Set ParticleAnaly
 #if USE_MPI
     ! Collect sum on MPIRoot
     tmpArray = (/PCoupl, PCouplAverage/)
-    IF(PartMPI%MPIRoot)THEN
-      CALL MPI_REDUCE(MPI_IN_PLACE, tmpArray, 2, MPI_DOUBLE_PRECISION, MPI_SUM, 0, PartMPI%COMM, IERROR)
+    IF(MPIRoot)THEN
+      CALL MPI_REDUCE(MPI_IN_PLACE, tmpArray, 2, MPI_DOUBLE_PRECISION, MPI_SUM, 0, MPI_COMM_PICLAS, IERROR)
       PCoupl        = tmpArray(1)
       PCouplAverage = tmpArray(2)
 #endif /*USE_MPI*/
@@ -1426,33 +1425,33 @@ ParticleAnalyzeSampleTime = Time - ParticleAnalyzeSampleTime ! Set ParticleAnaly
 #endif /*USE_HDG*/
 #if USE_MPI
     ELSE
-      CALL MPI_REDUCE(tmpArray, 0, 2, MPI_DOUBLE_PRECISION, MPI_SUM, 0, PartMPI%COMM, IERROR)
+      CALL MPI_REDUCE(tmpArray, 0, 2, MPI_DOUBLE_PRECISION, MPI_SUM, 0, MPI_COMM_PICLAS, IERROR)
       ! Reset for all processes execpt the MPIRoot (this process keeps the old value, which is therefore considered only once in the
       ! next MPI reduce call)
       PCouplAverage = 0.
-    END IF ! PartMPI%MPIRoot
+    END IF ! MPIRoot
   END IF
   ! Switch between root and non-root processes
-  IF (PartMPI%MPIRoot) THEN
+  IF (MPIRoot) THEN
     IF (CalcPartBalance)THEN
-      CALL MPI_REDUCE(MPI_IN_PLACE,nPartIn(1:nSpecAnalyze)    ,nSpecAnalyze,MPI_INTEGER         ,MPI_SUM,0,PartMPI%COMM,IERROR)
-      CALL MPI_REDUCE(MPI_IN_PLACE,nPartOut(1:nSpecAnalyze)   ,nSpecAnalyze,MPI_INTEGER         ,MPI_SUM,0,PartMPI%COMM,IERROR)
-      CALL MPI_REDUCE(MPI_IN_PLACE,PartEkinIn(1:nSpecAnalyze) ,nSpecAnalyze,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,IERROR)
-      CALL MPI_REDUCE(MPI_IN_PLACE,PartEkinOut(1:nSpecAnalyze),nSpecAnalyze,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,IERROR)
+      CALL MPI_REDUCE(MPI_IN_PLACE,nPartIn(1:nSpecAnalyze)    ,nSpecAnalyze,MPI_INTEGER         ,MPI_SUM,0,MPI_COMM_PICLAS,IERROR)
+      CALL MPI_REDUCE(MPI_IN_PLACE,nPartOut(1:nSpecAnalyze)   ,nSpecAnalyze,MPI_INTEGER         ,MPI_SUM,0,MPI_COMM_PICLAS,IERROR)
+      CALL MPI_REDUCE(MPI_IN_PLACE,PartEkinIn(1:nSpecAnalyze) ,nSpecAnalyze,MPI_DOUBLE_PRECISION,MPI_SUM,0,MPI_COMM_PICLAS,IERROR)
+      CALL MPI_REDUCE(MPI_IN_PLACE,PartEkinOut(1:nSpecAnalyze),nSpecAnalyze,MPI_DOUBLE_PRECISION,MPI_SUM,0,MPI_COMM_PICLAS,IERROR)
     END IF
   ELSE ! no Root
     IF (CalcPartBalance)THEN
-      CALL MPI_REDUCE(nPartIn    ,0,nSpecAnalyze,MPI_INTEGER         ,MPI_SUM,0,PartMPI%COMM,IERROR)
-      CALL MPI_REDUCE(nPartOut   ,0,nSpecAnalyze,MPI_INTEGER         ,MPI_SUM,0,PartMPI%COMM,IERROR)
-      CALL MPI_REDUCE(PartEkinIn ,0,nSpecAnalyze,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,IERROR)
-      CALL MPI_REDUCE(PartEkinOut,0,nSpecAnalyze,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,IERROR)
+      CALL MPI_REDUCE(nPartIn    ,0,nSpecAnalyze,MPI_INTEGER         ,MPI_SUM,0,MPI_COMM_PICLAS,IERROR)
+      CALL MPI_REDUCE(nPartOut   ,0,nSpecAnalyze,MPI_INTEGER         ,MPI_SUM,0,MPI_COMM_PICLAS,IERROR)
+      CALL MPI_REDUCE(PartEkinIn ,0,nSpecAnalyze,MPI_DOUBLE_PRECISION,MPI_SUM,0,MPI_COMM_PICLAS,IERROR)
+      CALL MPI_REDUCE(PartEkinOut,0,nSpecAnalyze,MPI_DOUBLE_PRECISION,MPI_SUM,0,MPI_COMM_PICLAS,IERROR)
     END IF
 #endif /*USE_MPI*/
   END IF
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Analyze Routines that require MPI_REDUCE of other variables
 ! Moving Average of PCoupl:
-IF(CalcCoupledPower.AND.PartMPI%MPIRoot) THEN
+IF(CalcCoupledPower.AND.MPIRoot) THEN
   ! Moving Average of PCoupl:
   TimeDelta = Time-RestartTime
   IF(ABS(TimeDelta).GT.0.0) PCouplAverage = PCouplAverage / TimeDelta
@@ -1465,7 +1464,7 @@ IF((iter.GT.0).AND.UseCoupledPowerPotential) CALL CalculatePCouplElectricPotenti
 #endif /*USE_HDG*/
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Perform averaging/summation of the MPI communicated variables on the root only (and for the non-MPI case, MPIRoot is set to true)
-IF(PartMPI%MPIRoot) THEN
+IF(MPIRoot) THEN
   IF (CalcPartBalance)THEN
     IF(nSpecies.GT.1) THEN
       nPartIn(nSpecies+1)     = SUM(nPartIn(1:nSpecies))
@@ -1488,7 +1487,7 @@ IF(PartMPI%MPIRoot) THEN
       IF(BGK_MeanRelaxFactorCounter.GT.0) BGK_MeanRelaxFactor = BGK_MeanRelaxFactor / REAL(BGK_MeanRelaxFactorCounter)
     END IF
   END IF
-END IF ! PartMPI%MPIRoot
+END IF ! MPIRoot
 
 IF(CalcCoupledPower) THEN
   ! Moving Average of PCoupl for each species
@@ -1517,7 +1516,7 @@ END IF
 ! Output Routines
 !===================================================================================================================================
 #if USE_MPI
-IF (PartMPI%MPIROOT) THEN
+IF (MPIRoot) THEN
 #endif /*USE_MPI*/
   WRITE(unit_index,'(E23.16E3)',ADVANCE='NO') Time
   IF (CalcSimNumSpec) THEN
@@ -1745,11 +1744,11 @@ IF (PartMPI%MPIROOT) THEN
   ! Finish the line with new line character
   WRITE(unit_index,'(A)') ''
 #if USE_MPI
-END IF ! PartMPI%MPIROOT
+END IF ! MPIRoot
 #endif /*USE_MPI*/
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Reset coupled power to particles if output of coupled power is active
-IF (CalcCoupledPower.AND.PartMPI%MPIRoot) THEN
+IF (CalcCoupledPower.AND.MPIRoot) THEN
   IF(ABS(TimeDelta).GT.0.0) PCouplAverage = PCouplAverage * TimeDelta ! PCouplAverage is reset
 END IF
 !-----------------------------------------------------------------------------------------------------------------------------------
