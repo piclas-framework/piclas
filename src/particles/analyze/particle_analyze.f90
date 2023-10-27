@@ -121,11 +121,9 @@ USE MOD_PICDepo_Vars          ,ONLY: SFAdaptiveSmoothing
 USE MOD_ReadInTools           ,ONLY: GETLOGICAL, GETINT, GETSTR, GETINTARRAY, GETREALARRAY, GETREAL
 USE MOD_ReadInTools           ,ONLY: PrintOption
 USE MOD_Particle_Sampling_Vars,ONLY: UseAdaptive
-#if (PP_TimeDiscMethod == 42)
 USE MOD_TimeDisc_Vars         ,ONLY: TEnd
 USE MOD_TimeDisc_Vars         ,ONLY: ManualTimeStep
 USE MOD_Restart_Vars          ,ONLY: RestartTime
-#endif
 #if USE_MPI
 USE MOD_MPI_Shared
 USE MOD_MPI_Shared_Vars       ,ONLY: MPI_COMM_SHARED
@@ -521,7 +519,7 @@ IF(CalcElectronEnergy) CALL AllocateCalcElectronEnergy()
 PartAnalyzeStep = GETINT('Part-AnalyzeStep','1')
 IF (PartAnalyzeStep.EQ.0) PartAnalyzeStep = HUGE(PartAnalyzeStep)
 
-#if (PP_TimeDiscMethod == 42)
+IF(DSMC%ReservoirSimu) THEN
   IF(PartAnalyzeStep.NE.HUGE(PartAnalyzeStep)) THEN
     IF(MOD(NINT((TEnd-RestartTime)/ManualTimeStep,8),PartAnalyzeStep).NE.0) THEN
       SWRITE(UNIT_stdOut,'(A,I0)') 'NINT((TEnd-RestartTime)/ManualTimeStep) = ',NINT((TEnd-RestartTime)/ManualTimeStep,8)
@@ -529,7 +527,7 @@ IF (PartAnalyzeStep.EQ.0) PartAnalyzeStep = HUGE(PartAnalyzeStep)
       CALL abort(__STAMP__,'Please specify a PartAnalyzeStep, which is a factor of the total number of iterations!')
     END IF
   END IF
-#endif
+END IF
 
 DoPartAnalyze = .FALSE.
 ! PIC PPD and time step criteria: Activate DoPartAnalyze flag

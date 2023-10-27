@@ -82,14 +82,13 @@ CALL prms%CreateLogicalOption(  'Particles-DSMC-CalcQualityFactors', &
                                           'Time-averaged mean collision probability\n'//&
                                           'Mean collision separation distance over mean free path' , '.FALSE.')
 CALL prms%CreateLogicalOption(  'Particles-DSMCReservoirSim', &
-                                          'Only TD=Reservoir (42).\n'//&
                                           'Set [TRUE] to disable particle movement. Use for reservoir simulations.' , '.FALSE.')
 CALL prms%CreateLogicalOption(  'Particles-DSMCReservoirSimRate', &
-                                          'Only TD=Reservoir (42).\n'//&
+                                          'Only with Particles-DSMCReservoirSim = T\n'//&
                                           'Set [TRUE] to disable particle reactions. Only probabilities (rates) are calculated.', &
                                           '.FALSE.')
 CALL prms%CreateLogicalOption(  'Particles-DSMCReservoirStatistic', &
-                                          'Only TD=Reservoir (42).\n'//&
+                                          'Only with Particles-DSMCReservoirSim = T\n'//&
                                           'Probabilities (rates) are calculated\n'//&
                                           ' [TRUE] counting reacting particles.\n'//&
                                           ' [FALSE] summing reaction probabilities (does not work with Q-K).' , '.FALSE.')
@@ -115,7 +114,8 @@ CALL prms%CreateLogicalOption(  'Particles-DSMC-PolyRelaxSingleMode'&
                                            'Every mode has its own corrected relaxation probability, comparison with the '//&
                                            'same random number while the previous probability is added to the next', '.FALSE.')
 CALL prms%CreateLogicalOption(  'Particles-DSMC-CompareLandauTeller'&
-                                         ,'Only TD=Reservoir (42). ', '.FALSE.')
+                                         ,'Allows the comparison with Landau-Teller equation. Only with Particles-DSMCReservoirSim = T.',&
+                                          '.FALSE.')
 CALL prms%CreateLogicalOption(  'Particles-DSMC-UseOctree'&
                                          ,'Use octree method for dynamic grid resolution based on the current mean free path '//&
                                           'and the particle number', '.FALSE.')

@@ -581,7 +581,7 @@ SUBROUTINE XSec_ElectronicRelaxation(iPair,iCase,iPart_p1,iPart_p2,DoElec1,DoEle
 !> 1. Interpolate the cross-section (MCC) or use the probability (VHS)
 !> 2. Determine which electronic level is to be excited
 !> 3. Reduce the total collision probability if no electronic excitation occurred
-!> 4. Count the number of relaxation process for the relaxation rate (TimeDisc=42 only)
+!> 4. Count the number of relaxation process for the relaxation rate (Only with Particles-DSMCReservoirSim = T)
 !===================================================================================================================================
 ! MODULES
 USE MOD_DSMC_Vars             ,ONLY: SpecDSMC, Coll_pData, PartStateIntEn
