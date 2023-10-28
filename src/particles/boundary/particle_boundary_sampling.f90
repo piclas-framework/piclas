@@ -163,7 +163,6 @@ INTEGER                                :: NbGlobalElemID, NbElemRank, NbLeaderID
 #endif /*USE_MPI*/
 INTEGER                                :: NbGlobalSideID
 LOGICAL                                :: UseBezierControlPointsForArea
-REAL,ALLOCATABLE                       :: xIP_VISU(:),wIP_VISU(:)
 !===================================================================================================================================
 
 ! Get input parameters
@@ -604,9 +603,6 @@ CALL LegendreGaussNodesAndWeights(NGeo,Xi_NGeo,wGP_NGeo)
 
 ! compute area of sub-faces
 tmp1=dXiEQ_SurfSample/2.0 !(b-a)/2
-
-ALLOCATE(xIP_VISU(0:nSurfSample),wIP_VISU(0:nSurfSample))
-CALL GetNodesAndWeights(nSurfSample, NodeTypeVISU, xIP_VISU, wIP=wIP_VISU)
 
 DO iSide = firstSide,LastSide
   ! get global SideID. This contains only nonUniqueSide, no special mortar treatment required

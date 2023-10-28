@@ -1497,9 +1497,6 @@ USE MOD_Globals_Vars    ,ONLY: memory
 #if USE_MPI
 USE MOD_MPI_Shared_Vars ,ONLY: myComputeNodeRank,myLeaderGroupRank
 USE MOD_MPI_Shared_Vars ,ONLY: MPI_COMM_LEADERS_SHARED,MPI_COMM_SHARED
-#if ! (CORE_SPLIT==0)
-USE MOD_MPI_Shared_Vars ,ONLY: NbrOfPhysicalNodes,nLeaderGroupProcs
-#endif /*! (CORE_SPLIT==0)*/
 #if defined(MEASURE_MPI_WAIT)
 USE MOD_MPI_Vars        ,ONLY: MPIW8TimeMM,MPIW8CountMM
 #endif /*defined(MEASURE_MPI_WAIT)*/
