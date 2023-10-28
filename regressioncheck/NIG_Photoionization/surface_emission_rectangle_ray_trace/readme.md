@@ -1,5 +1,6 @@
-# Photoionization: Surface Emission via SEE
-+ Ray tracing model from which surface emission is calculated
+# Photoionization: Surface Emission via SEE for ray tracing
+* **Comparing**: RadiationSurfState.h5 and RadiationVolState.h5 with reference files, the total number of real electrons in the system with a numerical ref. solution
+* Ray tracing model from which surface emission is calculated
 * Particle emission due to secondary electron emission from a surface
 * No deposition, no interpolation 
 * Comparison of the number of emitted electrons with the reference solution

@@ -1,4 +1,5 @@
-# Photoionization: Volumetric Emission Ray Trace
+# Photoionization in the volume (rectangle) for ray tracing with high-order refinement 
+- **Comparing**: the total number of real electrons in the system with a numerical ref. solution
 * ray tracing + volume ionization reactions
 * reference density in Electrons_ref.csv calculated with the old model and 1x1x1 emission region for volume see and 1e-3 J
 * Particle emission due to photoionization of $`H_{2}`$ in a volume only (no surface emission)
