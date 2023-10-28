@@ -282,8 +282,8 @@ IF(UseRayTracing)THEN
 END IF ! UseRayTracing
 
 #if (PP_TimeDiscMethod==600)
-! Radiation solver/transport
-PerformRayTracing = .TRUE. !todo: uncomment if merged with feature.radtrans.ray.tracing
+! Radiation solver/transport always requires PerformRayTracing = T
+PerformRayTracing = .TRUE.
 #endif
 
 LBWRITE(UNIT_stdOut,'(A)')' INIT PARTICLE GLOBALS DONE'
