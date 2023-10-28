@@ -756,10 +756,8 @@ NIG_Photoionization_petsc_debug_Leapfrog:
     - cd build_poisson_petsc_debug_Leapfrog;  python ../reggie/reggie.py ../regressioncheck/NIG_Photoionization -e ./bin/piclas
     
 NIG_Radiation:
-  <<: *defaults_checkin
-  stage: reggie_checkin
-  #<<: *defaults_nightly
-  #stage: reggie_nightly
+  <<: *defaults_nightly
+  stage: reggie_nightly
   script:
     - cd build ; python ../reggie/reggie.py ../regressioncheck/NIG_Radiation
 
