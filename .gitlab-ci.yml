@@ -18,7 +18,8 @@ before_script:
         echo " PICLAS_SPLIT_TYPE=PICLAS_COMM_TYPE_NODE. Splitting shared memory domains on sub-node-level with 2 cores per node!";
         export PICLAS_SPLIT_TYPE=PICLAS_COMM_TYPE_NODE;
       else
-        echo "Splitting shared memory domains on node-level! Set variable DO_CORE_SPLIT=T to force core-level OR DO_NODE_SPLIT=T to force sub-node-level shared memory splitting for all regression tests.";
+        echo "Splitting shared memory domains on node-level (default)!";
+        echo "Set variable [DO_CORE_SPLIT=T] to force core-level OR [DO_NODE_SPLIT=T] to force sub-node-level shared memory splitting for all regression tests.";
       fi
     fi
   - if [ -n "${DO_NINJA}" ]; then
@@ -381,11 +382,11 @@ build_hopr_in_piclas:
     - mkdir -p build_hopr_lib ; cd build_hopr_lib
     - python ../reggie/reggie.py ../regressioncheck/WEK_HOPR
   rules:
+    #- if: '$DO_CORE_SPLIT'
+      #when: never
+    #- if: '$DO_NODE_SPLIT'
+      #when: never
     - if: '$DO_WEEKLY'
-    - if: '$DO_CORE_SPLIT'
-      when: never
-    - if: '$DO_NODE_SPLIT'
-      when: never
 
 build_no_git:
   tags: [withmodules-concurrent]
@@ -731,24 +732,48 @@ NIG_Photoionization_release_Leapfrog:
   stage: reggie_nightly
   script:
     - cd build_poisson_release_Leapfrog;  python ../reggie/reggie.py ../regressioncheck/NIG_Photoionization -e ./bin/piclas
+  rules:
+    - if: '$DO_CORE_SPLIT'
+      when: never
+    - if: '$DO_NODE_SPLIT'
+      when: never
+    - if: '$DO_NIGHTLY'
 
 NIG_Photoionization_debug_Leapfrog:
   <<: *defaults_poisson_nightly
   stage: reggie_nightly
   script:
     - cd build_poisson_debug_Leapfrog;  python ../reggie/reggie.py ../regressioncheck/NIG_Photoionization -e ./bin/piclas
+  rules:
+    - if: '$DO_CORE_SPLIT'
+      when: never
+    - if: '$DO_NODE_SPLIT'
+      when: never
+    - if: '$DO_NIGHTLY'
 
 NIG_Photoionization_petsc_release_Leapfrog:
   <<: *defaults_poisson_petsc_nightly
   stage: reggie_nightly
   script:
     - cd build_poisson_petsc_release_Leapfrog;  python ../reggie/reggie.py ../regressioncheck/NIG_Photoionization -e ./bin/piclas
+  rules:
+    - if: '$DO_CORE_SPLIT'
+      when: never
+    - if: '$DO_NODE_SPLIT'
+      when: never
+    - if: '$DO_NIGHTLY'
 
 NIG_Photoionization_petsc_debug_Leapfrog:
   <<: *defaults_poisson_petsc_nightly
   stage: reggie_nightly
   script:
     - cd build_poisson_petsc_debug_Leapfrog;  python ../reggie/reggie.py ../regressioncheck/NIG_Photoionization -e ./bin/piclas
+  rules:
+    - if: '$DO_CORE_SPLIT'
+      when: never
+    - if: '$DO_NODE_SPLIT'
+      when: never
+    - if: '$DO_NIGHTLY'
 
 NIG_Radiation:
   <<: *defaults_nightly
