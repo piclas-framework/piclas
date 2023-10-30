@@ -203,8 +203,6 @@ dt=HUGE(1.)
   SWRITE(UNIT_stdOut,'(A)') ' Method of time integration: Direct Simulation Monte Carlo (DSMC)'
 #elif (PP_TimeDiscMethod==6)
   SWRITE(UNIT_stdOut,'(A)') ' Method of time integration: LSERK4-14 '
-#elif (PP_TimeDiscMethod==42)
-  SWRITE(UNIT_stdOut,'(A)') ' Method of time integration: DSMC Reservoir and Debug'
 #elif (PP_TimeDiscMethod==120)
   SWRITE(UNIT_stdOut,'(A)') ' Method of time integration: Heun/Crank-Nicolson1-2-2'
 #elif (PP_TimeDiscMethod==121)

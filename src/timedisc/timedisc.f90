@@ -283,8 +283,6 @@ DO !iter_t=0,MaxIter
   CALL TimeStep_DSMC()
 #elif (PP_TimeDiscMethod==6)
   CALL TimeStepByLSERK()
-#elif (PP_TimeDiscMethod==42)
-  CALL TimeStep_DSMC_Debug() ! Reservoir and Debug
 #elif (PP_TimeDiscMethod==100)
   CALL TimeStepByEulerImplicit() ! O1 Euler Implicit
 #elif (PP_TimeDiscMethod==120)

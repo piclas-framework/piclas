@@ -295,8 +295,8 @@ DO iElem=1,PP_nElems
       END DO !g1
     END DO !g2
   END DO !g3
-  
-  ! Invert Dhat
+
+! Invert Dhat
 #ifdef VDM_ANALYTICAL
   ! Computes InvDhat via analytical expression (only works for Lagrange polynomials, hence the "analytical"
   ! pre-processor flag) when Lapack fails
@@ -376,14 +376,6 @@ DO iBCSide=1,nDirichletBCSides
     Smat_BC(:,:,iLocSide,iBCSide) = Smat(:,:,iLocSide,locBCSideID,ElemID)
   END DO
 END DO
-! Fill ZeroPotentialSide Smat
-IF (ZeroPotentialSideID.GT.0) THEN
-  locBCSideID = SideToElem(S2E_LOC_SIDE_ID,ZeroPotentialSideID)
-  ElemID    = SideToElem(S2E_ELEM_ID,ZeroPotentialSideID)
-  DO iLocSide=1,6
-    Smat_zeroPotential(:,:,iLocSide) = Smat(:,:,iLocSide,locBCSideID,ElemID)
-  END DO
-END IF
 ! Fill Smat for PETSc with remaining DOFs
 DO iElem=1,PP_nElems
   DO iLocSide=1,6
@@ -394,6 +386,11 @@ DO iElem=1,PP_nElems
       jSideID=ElemToSide(E2S_SIDE_ID,jLocSide,iElem)
       jPETScGlobal=PETScGlobal(jSideID)
       IF (iPETScGlobal.GT.jPETScGlobal) CYCLE
+      IF(SetZeroPotentialDOF.AND.(iPETScGlobal.EQ.0)) THEN
+        ! The first DOF is set to constant 0 -> lambda_{1,1} = 0
+        Smat(:,1,jLocSide,iLocSide,iElem) = 0
+        IF(jPETScGlobal.EQ.iPETScGlobal) Smat(1,1,jLocSide,iLocSide,iElem) = 1
+      END IF
       PetscCallA(MatSetValuesBlocked(Smat_petsc,1,iPETScGlobal,1,jPETScGlobal,Smat(:,:,jLocSide,iLocSide,iElem),ADD_VALUES,ierr))
     END DO
   END DO
