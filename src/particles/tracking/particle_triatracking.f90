@@ -114,8 +114,12 @@ DO i = 1,PDM%ParticleVecLength
         dtVar = 0.1 * dtVar
 !--- Reset Particle Push
         PartState(1:3,i) = LastPartPosSubCycling(1:3)
+        LastPartPos(1:3,i) = LastPartPosSubCycling(1:3)
         PartVeloRotRef(1:3,i)=LastVeloRotRefSubCycling(1:3)
         PEM%GlobalElemID(i) = GlobalElemIDSubCycling
+        PEM%LastGlobalElemID(i)= GlobalElemIDSubCycling
+        LastPartVeloRotRef(1:3,i) = LastVeloRotRefSubCycling(1:3)
+        PDM%InRotRefFrame(i) = InRotRefFrameSubCycling
 !--- 10 sub-steps
         DO iStep = 1, 10
           IF (PDM%ParticleInside(i)) THEN
@@ -173,8 +177,12 @@ IF(InterPlanePartNumber.GT.0) THEN
         dtVar = 0.1 * dtVar
   !--- Reset Particle Push
         PartState(1:3,InterPartID) = LastPartPosSubCycling(1:3)
+        LastPartPos(1:3,InterPartID) = LastPartPosSubCycling(1:3)
         PartVeloRotRef(1:3,InterPartID)=LastVeloRotRefSubCycling(1:3)
         PEM%GlobalElemID(InterPartID) = GlobalElemIDSubCycling
+        PEM%LastGlobalElemID(InterPartID)= GlobalElemIDSubCycling
+        LastPartVeloRotRef(1:3,InterPartID) = LastVeloRotRefSubCycling(1:3)
+        PDM%InRotRefFrame(InterPartID) = InRotRefFrameSubCycling
   !--- 10 sub-steps
         DO iStep = 1, 10
           IF (PDM%ParticleInside(InterPartID)) THEN
@@ -504,7 +512,6 @@ DO WHILE (.NOT.PartisDone)
       ELSE
         CALL GetBoundaryInteraction(i,SideID,flip,ElemID,crossedBC,TriNum=TriNum)
       END IF
-
       IF(.NOT.PDM%ParticleInside(i)) PartisDone = .TRUE.
 #if USE_LOADBALANCE
       IF (OldElemID.GE.offsetElem+1.AND.OldElemID.LE.offsetElem+PP_nElems) CALL LBElemSplitTime(OldElemID-offsetElem,tLBStart)
@@ -535,7 +542,6 @@ DO WHILE (.NOT.PartisDone)
       END IF
     END IF  ! SideInfo_Shared(SIDE_BCID,SideID).GT./.LE. 0
     CNElemID = GetCNElemID(ElemID)
-
     IF (CNElemID.LT.1) THEN
       IPWRITE(UNIT_StdOut,*) "VECNORM(PartState(1:3,i)-LastPartPos(1:3,i)): ", VECNORM(PartState(1:3,i)-LastPartPos(1:3,i))
       IPWRITE(UNIT_StdOut,*) " PartState(1:3,i)  : ", PartState(1:3,i)
