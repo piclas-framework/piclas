@@ -407,7 +407,7 @@ ELSE
     deltaT=ManualTimeStep
   END IF
   IF (halo_eps_velo.EQ.0) halo_eps_velo = c
-#if (PP_TimeDiscMethod==4 || PP_TimeDiscMethod==200 || PP_TimeDiscMethod==42)
+#if (PP_TimeDiscMethod==4 || PP_TimeDiscMethod==200)
   IF (halo_eps_velo.EQ.c) CALL abort(__STAMP__, 'halo_eps_velo.EQ.c -> Halo Eps Velocity for MPI not defined')
 #endif
 #if (PP_TimeDiscMethod==501) || (PP_TimeDiscMethod==502) || (PP_TimeDiscMethod==506)

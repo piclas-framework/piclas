@@ -1212,11 +1212,8 @@ IMPLICIT NONE
 ! LOCAL VARIABLES
 INTEGER           :: nOutput
 !-----------------------------------------------------------------------------------------------------------------------------------
-
-#if (PP_TimeDiscMethod==42)
 ! Do not perform sampling in the case of a reservoir simulation
 IF (DSMC%ReservoirSimu) RETURN
-#endif
 
 ! Use user given TimeFracSamp
 IF((Time.GE.(1-DSMC%TimeFracSamp)*TEnd).AND.(.NOT.SamplingActive))  THEN
