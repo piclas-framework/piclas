@@ -49,9 +49,7 @@ USE MOD_Globals                 ,ONLY: Abort
 USE MOD_Globals                 ,ONLY: unit_stdout,myrank
 USE MOD_Symmetry_Vars           ,ONLY: Symmetry
 #endif /* CODE_ANALYZE */
-#if (PP_TimeDiscMethod==42)
 USE MOD_DSMC_Vars               ,ONLY: DSMC
-#endif
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -71,17 +69,14 @@ REAL                          :: Momentum_old(3),Momentum_new(3)
 INTEGER                       :: iMom, iMomDim
 #endif /* CODE_ANALYZE */
 !===================================================================================================================================
-
-#if (PP_TimeDiscMethod==42)
 ! Reservoir simulation for obtaining the reaction rate at one given point does not require to perform the reaction
-IF (DSMC%ReservoirSimuRate) RETURN
-#endif
+IF (DSMC%ReservoirSimu.AND.DSMC%ReservoirSimuRate) RETURN
 
-  iPart1 = Coll_pData(iPair)%iPart_p1
-  iPart2 = Coll_pData(iPair)%iPart_p2
+iPart1 = Coll_pData(iPair)%iPart_p1
+iPart2 = Coll_pData(iPair)%iPart_p2
 
-  iSpec1 = PartSpecies(iPart1)
-  iSpec2 = PartSpecies(iPart2)
+iSpec1 = PartSpecies(iPart1)
+iSpec2 = PartSpecies(iPart2)
 
 #ifdef CODE_ANALYZE
   ! Momentum conservation
@@ -106,13 +101,13 @@ IF (DSMC%ReservoirSimuRate) RETURN
   cRelaNew(1:3) = PostCollVec(iPair)
 
  ! deltaV particle 1 (post collision particle 1 velocity in laboratory frame)
-  PartState(4,iPart1) = VeloMx + FracMassCent2 * cRelaNew(1) 
+  PartState(4,iPart1) = VeloMx + FracMassCent2 * cRelaNew(1)
   PartState(5,iPart1) = VeloMy + FracMassCent2 * cRelaNew(2)
   PartState(6,iPart1) = VeloMz + FracMassCent2 * cRelaNew(3)
  ! deltaV particle 2 (post collision particle 2 velocity in laboratory frame)
-  PartState(4,iPart2) = VeloMx - FracMassCent1 * cRelaNew(1) 
+  PartState(4,iPart2) = VeloMx - FracMassCent1 * cRelaNew(1)
   PartState(5,iPart2) = VeloMy - FracMassCent1 * cRelaNew(2)
-  PartState(6,iPart2) = VeloMz - FracMassCent1 * cRelaNew(3) 
+  PartState(6,iPart2) = VeloMz - FracMassCent1 * cRelaNew(3)
 #ifdef CODE_ANALYZE
   Momentum_new(1:3) = Species(iSpec2)%MassIC* (/VeloMx - FracMassCent1*cRelaNew(1),&
                                                 VeloMy - FracMassCent1*cRelaNew(2),&
@@ -153,189 +148,6 @@ IF (DSMC%ReservoirSimuRate) RETURN
 
 END SUBROUTINE DSMC_Elastic_Col
 
-!SUBROUTINE DSMC_Scat_Col(iPair)
-!!===================================================================================================================================
-!! Performs a collision with the possibility of a CEX. In the calculation of the new particle velocities a scattering angle is used,
-!! which is interpolated from a lookup table.
-!!===================================================================================================================================
-!! MODULES
-!  USE MOD_DSMC_Vars,              ONLY : Coll_pData, CollInf, TLU_Data, ChemReac
-!  USE MOD_Particle_Vars,          ONLY : PartSpecies, PartState
-!  USE MOD_DSMC_ChemReact,         ONLY : simpleCEX, simpleMEX
-!
-!! IMPLICIT VARIABLE HANDLING
-!  IMPLICIT NONE
-!!-----------------------------------------------------------------------------------------------------------------------------------
-!! INPUT VARIABLES
-!  INTEGER, INTENT(IN)           :: iPair
-!!-----------------------------------------------------------------------------------------------------------------------------------
-!! OUTPUT VARIABLES
-!!-----------------------------------------------------------------------------------------------------------------------------------
-!! LOCAL VARIABLES
-!  REAL                          :: FracMassCent1, FracMassCent2                ! mx/(mx+my)
-!  REAL                          :: VeloMx, VeloMy, VeloMz                      ! center of mass velo
-!  REAL                          :: cRelax, cRelay, cRelaz                      ! pre-collisional relativ velo
-!  REAL                          :: cRelaxN, cRelayN, cRelazN                   ! post-collisional relativ velo
-!  REAL                          :: b, bmax                                     ! impact parameters
-!  REAL                          :: Ekin
-!  REAL                          :: ScatAngle, RotAngle                         ! scattering and rotational angle
-!  REAL                          :: sigma_el, sigma_tot                         ! cross-sections
-!  REAL                          :: P_CEX                                       ! charge exchange probability
-!  INTEGER                       :: iReac
-!  REAL                          :: uRan2, uRan3, uRanRot, uRanVHS
-!  REAL                          :: Pi, aEL, bEL, aCEX, bCEX
-!  INTEGER                       :: iPart1, iPart2                    ! Colliding particles 1 and 2
-!!===================================================================================================================================
-! iPart1 = Coll_pData(iPair)%iPart_p1
-! iPart2 = Coll_pData(iPair)%iPart_p2
-!
-!  Pi = ACOS(-1.0)
-!  aCEX = ChemReac%CEXa(ChemReac%ReactNum(PartSpecies(iPart1),PartSpecies(iPart2),1))
-!  bCEX = ChemReac%CEXb(ChemReac%ReactNum(PartSpecies(iPart1),PartSpecies(iPart2),1))
-!  aEL  = ChemReac%ELa(ChemReac%ReactNum(PartSpecies(iPart1),PartSpecies(iPart2),1))
-!  bEL  = ChemReac%ELb(ChemReac%ReactNum(PartSpecies(iPart1),PartSpecies(iPart2),1))
-!  ! Decision if scattering angle is greater than 1 degree and should be calculated
-!
-!  sigma_el  = bEL + aEL*0.5 * LOG10(Coll_pData(iPair)%cRela2)
-!
-!  sigma_tot = ((aCEX+0.5*aEL)*0.5*LOG10(Coll_pData(iPair)%cRela2)+bCEX+0.5*bEL)
-!
-!  CALL RANDOM_NUMBER(uRan2)
-!
-!IF ((sigma_el/sigma_tot).GT.uRan2) THEN
-!    ! Calculation of relative velocities
-!    cRelax = PartState(4,iPart1) - PartState(4,iPart2)
-!    cRelay = PartState(5,iPart1) - PartState(5,iPart2)
-!    cRelaz = PartState(6,iPart1) - PartState(6,iPart2)
-!
-!    FracMassCent1 = CollInf%FracMassCent(PartSpecies(iPart1), Coll_pData(iPair)%PairType)
-!    FracMassCent2 = CollInf%FracMassCent(PartSpecies(iPart2), Coll_pData(iPair)%PairType)
-!
-!    ! Calculation of velo from center of mass
-!    VeloMx = FracMassCent1 * PartState(4,iPart1) + FracMassCent2 * PartState(4,iPart2)
-!    VeloMy = FracMassCent1 * PartState(5,iPart1) + FracMassCent2 * PartState(5,iPart2)
-!    VeloMz = FracMassCent1 * PartState(6,iPart1) + FracMassCent2 * PartState(6,iPart2)
-!
-!    ! Calculation of impact parameter b
-!    bmax = SQRT(sigma_el/Pi)
-!    b = bmax * SQRT(uRan2)
-!    Ekin = (0.5*CollInf%MassRed(Coll_pData(iPair)%PairType)*Coll_pData(iPair)%cRela2/(1.6021766208E-19))
-!
-!
-!    ! Determination of scattering angle by interpolation from a lookup table
-!    ! Check if Collision Energy is below the threshold of table
-!    IF (Ekin.LT.TLU_Data%Emin) THEN
-!      ! Isotropic scattering
-!      CALL RANDOM_NUMBER(uRanVHS)
-!      ScatAngle = 2*ACOS(SQRT(uRanVHS))
-!    ELSE
-!      ! scattering corresponding to table lookup
-!      CALL TLU_Scat_Interpol(Ekin,b,ScatAngle)
-!    END IF
-!
-!    ! Determination of rotational angle by random number
-!    CALL RANDOM_NUMBER(uRanRot)
-!    RotAngle = uRanRot * 2 * Pi
-!
-!    ! Calculation of post-collision relative velocities in center-of-mass frame
-!    cRelaxN = COS(ScatAngle)*cRelax + SIN(ScatAngle)*SIN(RotAngle)*(cRelay**2+cRelaz**2)**0.5
-!    cRelayN = COS(ScatAngle)*cRelay &
-!     +SIN(ScatAngle)*(SQRT(Coll_pData(ipair)%cRela2)*cRelaz*COS(RotAngle)-cRelax*cRelay*SIN(RotAngle))/(cRelay**2+cRelaz**2)**0.5
-!    cRelazN = COS(ScatAngle)*cRelaz &
-!     -SIN(ScatAngle)*(SQRT(Coll_pData(ipair)%cRela2)*cRelay*COS(RotAngle)+cRelax*cRelaz*SIN(RotAngle))/(cRelay**2+cRelaz**2)**0.5
-!
-!    ! Transformation to laboratory frame
-!    ! deltaV particle 1
-!    PartState(4,iPart1) = VeloMx + FracMassCent2*CRelaxN  
-!    PartState(5,iPart1) = VeloMy + FracMassCent2*CRelayN  
-!    PartState(6,iPart1) = VeloMz + FracMassCent2*CRelazN  
-!    ! deltaV particle 2
-!    PartState(4,iPart2) = VeloMx - FracMassCent1*CRelaxN 
-!    PartState(5,iPart2) = VeloMy - FracMassCent1*CRelayN  
-!    PartState(6,iPart2) = VeloMz - FracMassCent1*CRelazN  
-!
-!    ! Decision concerning CEX
-!    P_CEX = 0.5
-!    CALL RANDOM_NUMBER(uRan3)
-!    iReac    = ChemReac%ReactNum(PartSpecies(iPart1), PartSpecies(iPart2), 1)
-!    IF (P_CEX.GT.uRan3) THEN
-!      CALL simpleCEX(iReac, iPair, resetRHS_opt=.FALSE.)
-!    ELSE
-!      CALL simpleMEX(iReac, iPair)
-!    END IF
-!
-!  ELSE
-!    ! Perform CEX and leave velocity vectors alone otherwise
-!    ! CEX
-!    iReac    = ChemReac%ReactNum(PartSpecies(iPart1), PartSpecies(iPart2), 1)
-!    CALL simpleCEX(iReac, iPair)
-!
-!  END IF
-!
-!END SUBROUTINE DSMC_Scat_Col
-
-!SUBROUTINE TLU_Scat_Interpol(E_p,b_p,ScatAngle)
-!!===================================================================================================================================
-!! Interpolates ScatAngle from a lookup table
-!!===================================================================================================================================
-!! MODULES
-!  USE MOD_Globals
-!  USE MOD_DSMC_Vars,              ONLY :  TLU_Data
-!! IMPLICIT VARIABLE HANDLING
-!  IMPLICIT NONE
-!!-----------------------------------------------------------------------------------------------------------------------------------
-!! INPUT VARIABLES
-!  REAL, INTENT (IN)              :: E_p, b_p          ! E_p has to have the unit eV
-!!-----------------------------------------------------------------------------------------------------------------------------------
-!! OUTPUT VARIABLES
-!  REAL, INTENT (OUT)             :: ScatAngle
-!!-----------------------------------------------------------------------------------------------------------------------------------
-!! LOCAL VARIABLES
-!  REAL                           :: i_f_jp1, j_f, i_f_j
-!  INTEGER                        :: I_j,I_jp1,J
-!  REAL                           :: w_i_j,w_i_jp1,w_j
-!  INTEGER                        :: szb,szE
-!  REAL                           :: chi_b_p_E_j,chi_b_p_E_jp1,chi_b_p_e_p
-!!===================================================================================================================================
-!  IF (E_p.GT.TLU_Data%Emax) THEN
-!    CALL abort(__STAMP__,&
-!        'Collis_mode - Error in TLU_Scat_Interpol: E_p GT Emax')
-!  END IF
-!  !write (*,*) (E_p-TLU_Data%Emin), TLU_Data%deltaE
-!  j_f = (E_p-TLU_Data%Emin)/TLU_Data%deltaE
-!  J = FLOOR(j_f)
-!  w_j = j_f - J
-!  J = J + 1                                ! Fitting of the indices for the use in FORTRAN matrix
-!  !write (*,*) j_f, J, w_j
-!  i_f_j   = ABS((b_p)/TLU_Data%deltabj(J))
-!  i_f_jp1 = ABS((b_p)/TLU_Data%deltabj(J+1))
-!  I_j     = FLOOR(i_f_j)
-!  I_jp1   = FLOOR(i_f_jp1)
-!
-!  w_i_j = i_f_j - I_j
-!  w_i_jp1 = i_f_jp1-I_jp1
-!
-!  I_j     = FLOOR(i_f_j)+1                ! Fitting of the indices for the use in FORTRAN matrix
-!  I_jp1   = FLOOR(i_f_jp1)+1              !
-!
-!  szE = SIZE(TLU_Data%Chitable,dim=1)   !SIZE(delta_b_j)
-!  szB = SIZE(TLU_Data%Chitable,dim=2)
-!
-!
-!
-!  IF ((I_jp1+1).GE.szB) THEN
-!    chi_b_p_E_j   = (1 - w_i_j) * TLU_Data%Chitable(J,szB)       !+ w_i_j   * TLU_Data%Chitable(J,szB)
-!    chi_b_p_E_jp1 = (1-w_i_jp1) * TLU_Data%Chitable((J+1),szB)
-!    chi_b_p_E_p   = (1-w_j)     * chi_b_p_E_j                    + w_j     * chi_b_p_E_jp1
-!  ELSE
-!    chi_b_p_E_j   = (1 - w_i_j) * TLU_Data%Chitable(J,I_j)       + w_i_j   * TLU_Data%Chitable(J,I_jp1)
-!    chi_b_p_E_jp1 = (1-w_i_jp1) * TLU_Data%Chitable((J+1),I_jp1) + w_i_jp1 * TLU_Data%Chitable((J+1),(I_jp1+1))
-!    chi_b_p_E_p   = (1-w_j)     * chi_b_p_E_j                    + w_j     * chi_b_p_E_jp1
-!  END IF
-!  ScatAngle = chi_b_p_E_p
-!
-!  !write(*,*) (ScatAngle/ACOS(-1.0)*180), I_jp1, szB
-!END SUBROUTINE TLU_Scat_Interpol
 
 SUBROUTINE DSMC_Relax_Col_LauxTSHO(iPair)
 !===================================================================================================================================
@@ -352,10 +164,8 @@ USE MOD_DSMC_CollisVec        ,ONLY: PostCollVec
 USE MOD_part_tools            ,ONLY: GetParticleWeight
 USE MOD_MCC_Vars              ,ONLY: UseMCC, SpecXSec
 USE MOD_MCC_XSec              ,ONLY: XSec_CalcElecRelaxProb, XSec_ElectronicRelaxation
-#if (PP_TimeDiscMethod==42)
 USE MOD_MCC_Vars              ,ONLY: XSec_Relaxation
 USE MOD_Particle_Analyze_Vars ,ONLY: CalcRelaxProb
-#endif
 #ifdef CODE_ANALYZE
 USE MOD_Globals               ,ONLY: Abort
 USE MOD_Globals               ,ONLY: unit_stdout,myrank
@@ -485,15 +295,15 @@ REAL                          :: Weight1, Weight2
     IF(ProbVib1.GT.iRan) DoVib1 = .TRUE.
   END IF
 
-#if (PP_TimeDiscMethod==42)
-IF(CalcRelaxProb) THEN
-  IF(XSec_Relaxation) THEN
-    IF(DoVib1) THEN
-      SpecXSec(iCase)%VibCount = SpecXSec(iCase)%VibCount + 1.0
+  IF (DSMC%ReservoirSimu) THEN
+    IF(CalcRelaxProb) THEN
+      IF(XSec_Relaxation) THEN
+        IF(DoVib1) THEN
+          SpecXSec(iCase)%VibCount = SpecXSec(iCase)%VibCount + 1.0
+        END IF
+      END IF
     END IF
   END IF
-END IF
-#endif
 
   IF((SpecDSMC(iSpec2)%InterID.EQ.2).OR.(SpecDSMC(iSpec2)%InterID.EQ.20)) THEN
     CALL RANDOM_NUMBER(iRan)
@@ -527,17 +337,17 @@ END IF
 
   FakXi = 0.5*Xi  - 1.  ! exponent factor of DOF, substitute of Xi_c - Xi_vib, laux diss page 40
 
-#if (PP_TimeDiscMethod==42)
-IF(CalcRelaxProb) THEN
-  IF(XSec_Relaxation) THEN
-    IF(DoVib2) THEN
-      SpecXSec(iCase)%VibCount = SpecXSec(iCase)%VibCount + 1.0
+IF (DSMC%ReservoirSimu) THEN
+  IF(CalcRelaxProb) THEN
+    IF(XSec_Relaxation) THEN
+      IF(DoVib2) THEN
+        SpecXSec(iCase)%VibCount = SpecXSec(iCase)%VibCount + 1.0
+      END IF
     END IF
   END IF
+  ! Reservoir simulation for obtaining the reaction rate at one given point does not require to perform the reaction
+  IF (DSMC%ReservoirSimuRate) RETURN
 END IF
-! Reservoir simulation for obtaining the reaction rate at one given point does not require to perform the reaction
-IF (DSMC%ReservoirSimuRate) RETURN
-#endif
 
 !--------------------------------------------------------------------------------------------------!
 ! Electronic Relaxation / Transition
@@ -672,12 +482,12 @@ IF (DSMC%ReservoirSimuRate) RETURN
 
   ! deltaV particle 1 (post collision particle 1 velocity in laboratory frame)
   PartState(4,iPart1) = VeloMx + FracMassCent2*cRelaNew(1)
-  PartState(5,iPart1) = VeloMy + FracMassCent2*cRelaNew(2) 
-  PartState(6,iPart1) = VeloMz + FracMassCent2*cRelaNew(3) 
+  PartState(5,iPart1) = VeloMy + FracMassCent2*cRelaNew(2)
+  PartState(6,iPart1) = VeloMz + FracMassCent2*cRelaNew(3)
   ! deltaV particle 2 (post collision particle 2 velocity in laboratory frame)
   PartState(4,iPart2) = VeloMx - FracMassCent1*cRelaNew(1)
-  PartState(5,iPart2) = VeloMy - FracMassCent1*cRelaNew(2) 
-  PartState(6,iPart2) = VeloMz - FracMassCent1*cRelaNew(3) 
+  PartState(5,iPart2) = VeloMy - FracMassCent1*cRelaNew(2)
+  PartState(6,iPart2) = VeloMz - FracMassCent1*cRelaNew(3)
 
 #ifdef CODE_ANALYZE
   Energy_new= 0.5*Species(iSpec2)%MassIC*((VeloMx - FracMassCent1*cRelaNew(1))**2 &
@@ -761,11 +571,8 @@ SUBROUTINE DSMC_Relax_Col_Gimelshein(iPair)
   REAL                          :: Weight1, Weight2
 #endif /* CODE_ANALYZE */
 !===================================================================================================================================
-
-#if (PP_TimeDiscMethod==42)
 ! Reservoir simulation for obtaining the reaction rate at one given point does not require to perform the reaction
-IF (DSMC%ReservoirSimuRate) RETURN
-#endif
+IF (DSMC%ReservoirSimu.AND.DSMC%ReservoirSimuRate) RETURN
 
   iPart1 = Coll_pData(iPair)%iPart_p1
   iPart2 = Coll_pData(iPair)%iPart_p2
@@ -962,7 +769,7 @@ IF (DSMC%ReservoirSimuRate) RETURN
         ! --------------------------------------------------------------------------------------------------!
         !  Multi-mode relaxation with the Metropolis-Hastings method
         ! --------------------------------------------------------------------------------------------------!
-        CALL DSMC_VibRelaxPoly(iPair,iPart2,FakXi)        
+        CALL DSMC_VibRelaxPoly(iPair,iPart2,FakXi)
       ELSE
         ! --------------------------------------------------------------------------------------------------!
         !  Single-mode relaxation of a previously selected mode
@@ -1030,7 +837,7 @@ IF (DSMC%ReservoirSimuRate) RETURN
   ! Relaxation of first particle
   IF ( DoElec1 ) THEN
     ! calculate energy for electronic relaxation of particle 1
-    Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec + PartStateIntEn(3,iPart1)*GetParticleWeight(iPart1) 
+    Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec + PartStateIntEn(3,iPart1)*GetParticleWeight(iPart1)
     CALL ElectronicEnergyExchange(iPair,iPart1,FakXi)
     Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec - PartStateIntEn(3,iPart1)*GetParticleWeight(iPart1)
   END IF
@@ -1038,9 +845,9 @@ IF (DSMC%ReservoirSimuRate) RETURN
   ! Electronic relaxation of second particle
   IF ( DoElec2 ) THEN
     ! calculate energy for electronic relaxation of particle 2
-    Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec + PartStateIntEn(3,iPart2)*GetParticleWeight(iPart2) 
+    Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec + PartStateIntEn(3,iPart2)*GetParticleWeight(iPart2)
     CALL ElectronicEnergyExchange(iPair,iPart2,FakXi)
-    Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec - PartStateIntEn(3,iPart2)*GetParticleWeight(iPart2) 
+    Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec - PartStateIntEn(3,iPart2)*GetParticleWeight(iPart2)
   END IF
 !--------------------------------------------------------------------------------------------------!
 ! Calculation of new particle velocities
@@ -1066,12 +873,12 @@ IF (DSMC%ReservoirSimuRate) RETURN
 
   ! deltaV particle 1 (post collision particle 1 velocity in laboratory frame)
   PartState(4,iPart1) = VeloMx + FracMassCent2*cRelaNew(1)
-  PartState(5,iPart1) = VeloMy + FracMassCent2*cRelaNew(2) 
-  PartState(6,iPart1) = VeloMz + FracMassCent2*cRelaNew(3) 
+  PartState(5,iPart1) = VeloMy + FracMassCent2*cRelaNew(2)
+  PartState(6,iPart1) = VeloMz + FracMassCent2*cRelaNew(3)
   ! deltaV particle 2 (post collision particle 2 velocity in laboratory frame)
   PartState(4,iPart2) = VeloMx - FracMassCent1*cRelaNew(1)
-  PartState(5,iPart2) = VeloMy - FracMassCent1*cRelaNew(2) 
-  PartState(6,iPart2) = VeloMz - FracMassCent1*cRelaNew(3) 
+  PartState(5,iPart2) = VeloMy - FracMassCent1*cRelaNew(2)
+  PartState(6,iPart2) = VeloMz - FracMassCent1*cRelaNew(3)
 
 #ifdef CODE_ANALYZE
   Energy_new= 0.5*Species(PartSpecies(iPart2))%MassIC*((VeloMx - FracMassCent1*cRelaNew(1))**2 &
@@ -1119,12 +926,10 @@ USE MOD_Particle_Vars         ,ONLY: PartState, WriteMacroVolumeValues
 USE MOD_Particle_Vars         ,ONLY: UseRotRefFrame, PDM, PartVeloRotRef, RotRefFrameOmega
 USE MOD_TimeDisc_Vars         ,ONLY: TEnd, Time
 USE MOD_Symmetry_Vars         ,ONLY: Symmetry
-#if (PP_TimeDiscMethod==42)
 USE MOD_DSMC_Vars             ,ONLY: RadialWeighting
 USE MOD_Particle_Vars         ,ONLY: usevMPF, Species, PartSpecies
 USE MOD_Particle_Analyze_Vars ,ONLY: CalcCollRates
 USE MOD_part_tools            ,ONLY: GetParticleWeight
-#endif
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1140,24 +945,21 @@ INTEGER, INTENT(IN), OPTIONAL :: NodePartNum
 LOGICAL                       :: RelaxToDo
 INTEGER                       :: iPart1, iPart2                         ! Colliding particles 1 and 2
 REAL                          :: Distance
-#if (PP_TimeDiscMethod==42)
 REAL                          :: MacroParticleFactor, PairWeight
-#endif
 !===================================================================================================================================
-
-#if (PP_TimeDiscMethod==42)
-IF(CalcCollRates) THEN
-  PairWeight = (GetParticleWeight(Coll_pData(iPair)%iPart_p1) + GetParticleWeight(Coll_pData(iPair)%iPart_p2))/2.
-  IF(usevMPF.OR.RadialWeighting%DoRadialWeighting) THEN
-    ! Weighting factor already included in the PairWeight
-    MacroParticleFactor = 1.
-  ELSE
-    ! Weighting factor should be the same for all species anyway (BGG: first species is the non-BGG particle species)
-    MacroParticleFactor = Species(PartSpecies(Coll_pData(iPair)%iPart_p1))%MacroParticleFactor
+IF (DSMC%ReservoirSimu) THEN
+  IF(CalcCollRates) THEN
+    PairWeight = (GetParticleWeight(Coll_pData(iPair)%iPart_p1) + GetParticleWeight(Coll_pData(iPair)%iPart_p2))/2.
+    IF(usevMPF.OR.RadialWeighting%DoRadialWeighting) THEN
+      ! Weighting factor already included in the PairWeight
+      MacroParticleFactor = 1.
+    ELSE
+      ! Weighting factor should be the same for all species anyway (BGG: first species is the non-BGG particle species)
+      MacroParticleFactor = Species(PartSpecies(Coll_pData(iPair)%iPart_p1))%MacroParticleFactor
+    END IF
+    DSMC%NumColl(Coll_pData(iPair)%PairType) = DSMC%NumColl(Coll_pData(iPair)%PairType) + PairWeight*MacroParticleFactor
   END IF
-  DSMC%NumColl(Coll_pData(iPair)%PairType) = DSMC%NumColl(Coll_pData(iPair)%PairType) + PairWeight*MacroParticleFactor
 END IF
-#endif
 
 iPart1 = Coll_pData(iPair)%iPart_p1
 iPart2 = Coll_pData(iPair)%iPart_p2
@@ -1293,7 +1095,7 @@ ALLOCATE(ReactionProbArray(ChemReac%CollCaseInfo(iCase)%NumOfReactionPaths))
 ReactionProbArray = 0.
 ! Reset the complete array (only populated for the specific collision case)
 PerformReaction = .FALSE.
-DO iPath = 1, ChemReac%CollCaseInfo(iCase)%NumOfReactionPaths 
+DO iPath = 1, ChemReac%CollCaseInfo(iCase)%NumOfReactionPaths
   ReacTest = ChemReac%CollCaseInfo(iCase)%ReactionIndex(iPath)
   IF(TRIM(ChemReac%ReactModel(ReacTest)).EQ.'QK') THEN
     CALL QK_TestReaction(iPair,ReacTest,PerformReaction(iPath))
@@ -1336,7 +1138,7 @@ IF(ReacCounter.GT.0) THEN
       RelaxToDo = .FALSE.
       IF(ReacCounter.GT.1) THEN
         ! Determine which reaction will occur, perform it and leave the loop
-        ReactionProb = ReactionProb + 1./REAL(ReacCounter)  
+        ReactionProb = ReactionProb + 1./REAL(ReacCounter)
         IF(ReactionProb.GT.iRan) THEN
           CALL DSMC_Chemistry(iPair, ReacTest)
           ! Exit the routine
@@ -1398,51 +1200,6 @@ IF(VarTimeStep%UseSpeciesSpecific) THEN
       END IF
   END IF
 END IF
-
-! ! ############################################################################################################################### !
-!     CASE(16) ! simple CEX/MEX
-! ! ############################################################################################################################### !
-!       iReac    = ChemReac%ReactNum(PartSpecies(iPart1), PartSpecies(iPart2), 1)
-!       IF (ChemReac%DoScat(iReac)) THEN! MEX
-!         CALL DSMC_Scat_Col(iPair)
-!       ELSE
-!         sigmaCEX = (ChemReac%CEXa(iReac)*0.5*LOG10(Coll_pData(iPair)%cRela2) + ChemReac%CEXb(iReac))
-!         sigmaMEX = (ChemReac%MEXa(iReac)*0.5*LOG10(Coll_pData(iPair)%cRela2) + ChemReac%MEXb(iReac))
-!         ReactionProb=0.
-!         IF ((sigmaMEX.EQ.0.).AND.(sigmaCEX.GT.0.)) THEN
-!           ReactionProb=1.
-!         ELSEIF  ((sigmaMEX.GT.0.).AND.(sigmaCEX.GE.0.)) THEN
-!           ReactionProb=(sigmaCEX/sigmaMEX)/((sigmaCEX/sigmaMEX)+1)
-!         ELSE
-!           CALL Abort(&
-!             __STAMP__&
-!             ,'ERROR! CEX/MEX cross sections are both zero or at least one of them is negative.')
-!         END IF
-! #if (PP_TimeDiscMethod==42)
-!         IF (.NOT.DSMC%ReservoirRateStatistic) THEN
-!           ChemReac%NumReac(iReac)   = ChemReac%NumReac(iReac)   + ReactionProb  ! for calculation of reaction rate coefficient
-!           ChemReac%ReacCount(iReac) = ChemReac%ReacCount(iReac) + 1
-!         END IF
-! #endif
-!         CALL RANDOM_NUMBER(iRan)
-!         IF (ReactionProb.GT.iRan) THEN !CEX, otherwise MEX
-! #if (PP_TimeDiscMethod==42)
-!           ! Reservoir simulation for obtaining the reaction rate at one given point does not require to perform the reaction
-!           IF (.NOT.DSMC%ReservoirSimuRate) THEN
-! #endif
-!             CALL simpleCEX(iReac, iPair)
-! #if (PP_TimeDiscMethod==42)
-!           END IF
-!           IF (DSMC%ReservoirRateStatistic) THEN
-!             ChemReac%NumReac(iReac) = ChemReac%NumReac(iReac) + 1  ! for calculation of reaction rate coefficient
-!           END IF
-! #endif
-!         ELSE
-!           CALL DSMC_Elastic_Col(iPair)
-!           CALL simpleMEX(iReac, iPair)
-!         END IF
-!       END IF !ChemReac%DoScat(iReac)
-!       RelaxToDo = .FALSE.
 
 END SUBROUTINE ReactionDecision
 

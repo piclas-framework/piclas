@@ -82,14 +82,13 @@ CALL prms%CreateLogicalOption(  'Particles-DSMC-CalcQualityFactors', &
                                           'Time-averaged mean collision probability\n'//&
                                           'Mean collision separation distance over mean free path' , '.FALSE.')
 CALL prms%CreateLogicalOption(  'Particles-DSMCReservoirSim', &
-                                          'Only TD=Reservoir (42).\n'//&
                                           'Set [TRUE] to disable particle movement. Use for reservoir simulations.' , '.FALSE.')
 CALL prms%CreateLogicalOption(  'Particles-DSMCReservoirSimRate', &
-                                          'Only TD=Reservoir (42).\n'//&
+                                          'Only with Particles-DSMCReservoirSim = T\n'//&
                                           'Set [TRUE] to disable particle reactions. Only probabilities (rates) are calculated.', &
                                           '.FALSE.')
 CALL prms%CreateLogicalOption(  'Particles-DSMCReservoirStatistic', &
-                                          'Only TD=Reservoir (42).\n'//&
+                                          'Only with Particles-DSMCReservoirSim = T\n'//&
                                           'Probabilities (rates) are calculated\n'//&
                                           ' [TRUE] counting reacting particles.\n'//&
                                           ' [FALSE] summing reaction probabilities (does not work with Q-K).' , '.FALSE.')
@@ -115,7 +114,8 @@ CALL prms%CreateLogicalOption(  'Particles-DSMC-PolyRelaxSingleMode'&
                                            'Every mode has its own corrected relaxation probability, comparison with the '//&
                                            'same random number while the previous probability is added to the next', '.FALSE.')
 CALL prms%CreateLogicalOption(  'Particles-DSMC-CompareLandauTeller'&
-                                         ,'Only TD=Reservoir (42). ', '.FALSE.')
+                                         ,'Allows the comparison with Landau-Teller equation. Only with Particles-DSMCReservoirSim = T.',&
+                                          '.FALSE.')
 CALL prms%CreateLogicalOption(  'Particles-DSMC-UseOctree'&
                                          ,'Use octree method for dynamic grid resolution based on the current mean free path '//&
                                           'and the particle number', '.FALSE.')
@@ -556,9 +556,9 @@ IF(DoFieldIonization.OR.CollisMode.NE.0) THEN
 END IF ! DoFieldIonization.OR.CollisMode.NE.0
 
 IF (CollisMode.EQ.0) THEN
-#if (PP_TimeDiscMethod==42)
-  CALL Abort(__STAMP__, "Free Molecular Flow (CollisMode=0) is not supported for reservoir!")
-#endif
+  IF (DSMC%ReservoirSimu) THEN
+    CALL Abort(__STAMP__, "Free Molecular Flow (CollisMode=0) is not supported for reservoir!")
+  END IF
 ELSE !CollisMode.GT.0
   ! species and case assignment arrays
   ALLOCATE(DSMC%NumColl(CollInf%NumCase +1))
@@ -775,21 +775,21 @@ ELSE !CollisMode.GT.0
     ! Comparison with Landau-Teller equation, including a different selection procedure (restricts relaxation to a single mode)
     ! and a correctional factor, both in dsmc_collis_mode.f90, also the translational temperature is fixed, in timedisc.f90
     !-----------------------------------------------------------------------------------------------------------------------------------
-#if (PP_TimeDiscMethod==42)
-    DSMC%CompareLandauTeller = GETLOGICAL('Particles-DSMC-CompareLandauTeller','.FALSE.')
-    IF(DSMC%CompareLandauTeller) THEN
-      IF(CollisMode.NE.2) THEN
-        CALL abort(&
-            __STAMP__&
-            ,'ERROR: Comparison with Landau-Teller only available in CollisMode = 2, CollisMode:', CollisMode)
-      END IF
-      IF(nSpecies.GT.1) THEN
-        CALL abort(&
-            __STAMP__&
-            ,'ERROR: Comparison with Landau-Teller only available for a single species, nSpecies:', nSpecies)
+    IF (DSMC%ReservoirSimu) THEN
+      DSMC%CompareLandauTeller = GETLOGICAL('Particles-DSMC-CompareLandauTeller','.FALSE.')
+      IF(DSMC%CompareLandauTeller) THEN
+        IF(CollisMode.NE.2) THEN
+          CALL abort(&
+              __STAMP__&
+              ,'ERROR: Comparison with Landau-Teller only available in CollisMode = 2, CollisMode:', CollisMode)
+        END IF
+        IF(nSpecies.GT.1) THEN
+          CALL abort(&
+              __STAMP__&
+              ,'ERROR: Comparison with Landau-Teller only available for a single species, nSpecies:', nSpecies)
+        END IF
       END IF
     END IF
-#endif
     !-----------------------------------------------------------------------------------------------------------------------------------
     ! Setting the internal energy value of every particle
     DO iPart = 1, PDM%ParticleVecLength
@@ -896,7 +896,11 @@ ELSE !CollisMode.GT.0
   ! Journal of Computational Physics 246, 28–36. doi:10.1016/j.jcp.2013.03.018
   !-----------------------------------------------------------------------------------------------------------------------------------
   DSMC%UseOctree = GETLOGICAL('Particles-DSMC-UseOctree')
+  IF(DSMC%ReservoirSimu.AND.DSMC%UseOctree) CALL abort(__STAMP__,'Particles-DSMC-UseOctree = T not allowed for RESERVOIR simulations!')
   DSMC%UseNearestNeighbour = GETLOGICAL('Particles-DSMC-UseNearestNeighbour')
+  IF(DSMC%ReservoirSimu.AND.DSMC%UseNearestNeighbour) THEN
+    CALL abort(__STAMP__,'Particles-DSMC-UseNearestNeighbour = T not allowed for RESERVOIR simulations!')
+  END IF
   IF(DSMC%UseOctree) THEN
     IF(NGeo.GT.PP_N) CALL abort(__STAMP__,' Set PP_N to NGeo, else, the volume is not computed correctly.')
     CALL DSMC_init_octree()

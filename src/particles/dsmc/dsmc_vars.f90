@@ -46,7 +46,7 @@ INTEGER                       :: SelectionProc              ! Mode of Selection 
 INTEGER                       :: PairE_vMPF(2)              ! 1: Pair chosen for energy redistribution
                                                             ! 2: partical with minimal MPF of this Pair
 LOGICAL                       :: useDSMC
-REAL    , ALLOCATABLE         :: PartStateIntEn(:,:)        ! 1st index: 1:npartmax 
+REAL    , ALLOCATABLE         :: PartStateIntEn(:,:)        ! 1st index: 1:npartmax
 !                                                           ! 2nd index: Evib, Erot, Eel
 
 LOGICAL                       :: useRelaxProbCorrFactor     ! Use the relaxation probability correction factor of Lumpkin
@@ -88,8 +88,8 @@ TYPE tClonedParticles
   REAL                        :: LastPartPos(1:3)
   REAL                        :: WeightingFactor
   INTEGER, ALLOCATABLE        :: VibQuants(:)
-  REAL, ALLOCATABLE           :: DistriFunc(:) 
-  REAL, ALLOCATABLE           :: AmbiPolVelo(:) 
+  REAL, ALLOCATABLE           :: DistriFunc(:)
+  REAL, ALLOCATABLE           :: AmbiPolVelo(:)
 END TYPE
 
 TYPE(tClonedParticles),ALLOCATABLE :: ClonedParticles(:,:)
@@ -165,7 +165,7 @@ TYPE tSpeciesDSMC                                          ! DSMC Species Parame
   LOGICAL                           :: UseElecXSec          ! Flag if the electronic relaxation probability should be treated,
                                                             ! using read-in cross-sectional data (currently only with BGG)
   REAL,ALLOCATABLE                  :: CollFreqPreFactor(:) ! Prefactors for calculating the collision frequency in each time step
-  REAL,ALLOCATABLE                  :: ElecRelaxCorrectFac(:) ! Correction factor for electronical landau-teller relaxation
+  REAL,ALLOCATABLE                  :: ElecRelaxCorrectFac(:) ! Correction factor for electronic landau-teller relaxation
   REAL                              :: MaxMeanXiElec(2)     ! 1: max mean XiElec 2: Temperature corresponding to max mean XiElec
 END TYPE tSpeciesDSMC
 
@@ -182,7 +182,7 @@ TYPE tDSMC
   INTEGER                       :: NumOutput                ! number of Outputs
   REAL                          :: DeltaTimeOutput          ! Time interval for Output
   LOGICAL                       :: ReservoirSimu            ! Flag for reservoir simulation
-  LOGICAL                       :: ReservoirSimuRate        ! Does not performe the collision.
+  LOGICAL                       :: ReservoirSimuRate        ! Does not perform the collision.
                                                             ! Switch to enable to create reaction rates curves
   LOGICAL                       :: ReservoirSurfaceRate     ! Switch enabling surface rate output without changing surface coverages
   LOGICAL                       :: ReservoirRateStatistic   ! if false, calculate the reaction coefficient rate by the probability
@@ -249,9 +249,7 @@ TYPE tDSMC
                                                             ! coefficient with the equilibrium constant by partition functions
   REAL                          :: PartitionMaxTemp         ! Temperature limit for pre-stored partition function (DEF: 20 000K)
   REAL                          :: PartitionInterval        ! Temperature interval for pre-stored partition function (DEF: 10K)
-#if (PP_TimeDiscMethod==42)
   LOGICAL                       :: CompareLandauTeller      ! Keeps the translational temperature at the fixed value of the init
-#endif
   LOGICAL                       :: MergeSubcells            ! Merge subcells after quadtree division if number of particles within
                                                             ! subcell is less than 7
   LOGICAL                       :: DoAmbipolarDiff
