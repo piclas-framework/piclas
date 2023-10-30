@@ -17,3 +17,4 @@
   * [ ] Add entry in REGGIE.md table
   * [ ] Check automatic restart functionality of reggie example via Load Balance (checks correct allocation and deallocation for the test case)
 * [ ] New feature description in appropriate documentation (user/developer guide)
+* [ ] Replace `MPI_COMM_WORLD` with `MPI_COMM_PICLAS`
