@@ -147,7 +147,7 @@ IF (nModes .GT. (nFiles-1)) THEN
 END IF ! nModes .GT. (nFiles-1)
 
 ! Open the first statefile to read necessary attributes
-CALL OpenDataFile(Args(2),create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_WORLD)
+CALL OpenDataFile(Args(2),create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_PICLAS)
 CALL ReadAttribute(File_ID,'MeshFile',    1,StrScalar=MeshFile_state)
 CALL ReadAttribute(File_ID,'Project_Name',1,StrScalar=ProjectName)
 CALL ReadAttribute(File_ID,'Time',    1,RealScalar=starttime)
@@ -202,7 +202,7 @@ DO iFile = 2, nFiles+1
   !WRITE(UNIT_stdOut,'(132("="))')
 
   ! Read Statefiles
-  CALL OpenDataFile(Args(iFile),create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_WORLD)
+  CALL OpenDataFile(Args(iFile),create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_PICLAS)
   offset=0
   CALL ReadAttribute(File_ID,'Time',    1,RealScalar=time)
   CALL ReadArray('DG_Solution',5,&
@@ -225,7 +225,7 @@ END DO ! iFile = 1,nFiles
 TimeEnd_State = time
 
 !          IF (useBaseflow) THEN
-!            CALL OpenDataFile(Baseflow,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_WORLD)
+!            CALL OpenDataFile(Baseflow,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_PICLAS)
 !            CALL ReadAttribute(File_ID,'File_Type',1,StrScalar =FileType)
 !            SELECT CASE(TRIM(FileType))
 !            CASE('State')
@@ -233,9 +233,9 @@ TimeEnd_State = time
 !              CALL ReadAttribute(File_ID,'Time',    1,RealScalar=time)
 !              CALL ReadArray('DG_Solution',5,&
 !                            (/nVar_State,N_State+1,N_State+1,N_StateZ+1,nElems_State/),0,5,RealArray=Utmp)
-!          
+!
 !              CALL CloseDataFile()
-!          
+!
 !              CALL CalcEquationDMD(Utmp,Ktmp(:))
 !              DO iFile = 2,nFiles+1
 !                K(:,iFile-1) = K(:,iFile-1) - Ktmp
@@ -256,24 +256,24 @@ TimeEnd_State = time
 !                  END IF
 !                END DO
 !              END DO
-!          
+!
 !              ALLOCATE(Ktmp(nDoFs*nVarDMD))
 !              DEALLOCATE(Utmp)
 !              ALLOCATE(Utmp (HSize(1),0:N_State,0:N_State,0:N_StateZ,nElems_State))
-!          
+!
 !              CALL ReadArray('Mean',5,&
 !                            (/INT(HSize(1)),N_State+1,N_State+1,N_StateZ+1,nElems_State/),0,5,RealArray=Utmp)
 !              CALL CloseDataFile()
-!          
+!
 !              ktmp(:) = RESHAPE(Utmp(VarSortTimeAvg,:,:,:,:), (/nDoFs*nVarDMD/))
-!          
+!
 !              DO iFile = 2,nFiles+1
 !                K(:,iFile-1) = K(:,iFile-1) - Ktmp
 !              END DO
-!          
+!
 !              DEALLOCATE(ktmp)
 !            END SELECT
-!          
+!
 !          END IF
 
 DEALLOCATE(Utmp)
@@ -566,7 +566,7 @@ StrVarNames(N_variables)='DUMMY_DO_NOT_VISUALIZE'
 IF(MPIRoot) CALL GenerateFileSkeleton('DMD',N_variables,StrVarNames,TRIM(MeshFile),Time_State,FileNameIn=TRIM(FileName),&
     WriteUserblockIn = .FALSE.)
 #if USE_MPI
-  CALL MPI_BARRIER(MPI_COMM_WORLD,iError)
+  CALL MPI_BARRIER(MPI_COMM_PICLAS,iError)
 #endif
 
 !write(*,*) ""
@@ -574,7 +574,7 @@ IF(MPIRoot) CALL GenerateFileSkeleton('DMD',N_variables,StrVarNames,TRIM(MeshFil
 !WRITE (*,*) "nDofs,nVarDMD,nModes =", nDofs,nVarDMD,nModes
 
 !write(*,*) "OpenDataFile(TRIM(FileName),create=.FALSE.,single=.FALSE.,readOnly=.FALSE"
-CALL OpenDataFile(TRIM(FileName),create=.FALSE.,single=.FALSE.,readOnly=.FALSE.,communicatorOpt=MPI_COMM_WORLD)
+CALL OpenDataFile(TRIM(FileName),create=.FALSE.,single=.FALSE.,readOnly=.FALSE.,communicatorOpt=MPI_COMM_PICLAS)
 CALL WriteAttributeToHDF5( File_ID , 'DMD Start Time' , 1 , RealScalar=Time_State    )
 CALL WriteAttributeToHDF5( File_ID , 'DMD END Time'   , 1 , RealScalar=TimeEnd_State )
 CALL WriteAttributeToHDF5( File_ID , 'DMD dt'         , 1 , RealScalar=dt            )
@@ -587,7 +587,7 @@ END DO
 !WRITE (*,*) "N_State,N_StateZ,nElems_State =", N_State,N_StateZ,nElems_State
 !================= Actual data output =======================!
 ! Write DMD
-CALL OpenDataFile(FileName,create=.FALSE.,single=.FALSE.,readOnly=.FALSE.,communicatorOpt=MPI_COMM_WORLD)
+CALL OpenDataFile(FileName,create=.FALSE.,single=.FALSE.,readOnly=.FALSE.,communicatorOpt=MPI_COMM_PICLAS)
 IF (PlotSingleMode) THEN
   k=1
   DO i = 1, nModes
