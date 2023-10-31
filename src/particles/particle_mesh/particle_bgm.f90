@@ -389,7 +389,7 @@ IF((TRIM(DepositionType).EQ.'shape_function_adaptive').AND.SFAdaptiveSmoothing)T
     END SELECT
     CharacteristicLengthMax = MAX(CharacteristicLengthMax,CharacteristicLength)
   END DO ! iElem = 1, nElems
-  CALL MPI_ALLREDUCE(MPI_IN_PLACE,CharacteristicLengthMax,1,MPI_DOUBLE_PRECISION,MPI_MAX,MPI_COMM_WORLD,iError)
+  CALL MPI_ALLREDUCE(MPI_IN_PLACE,CharacteristicLengthMax,1,MPI_DOUBLE_PRECISION,MPI_MAX,MPI_COMM_PICLAS,iError)
   r_sf = 1.1 * CharacteristicLengthMax ! Increase by 10%
   IF(CharacteristicLength.LE.0.) CALL abort(__STAMP__,'CharacteristicLength.LE.0. is not allowed.')
   CALL PrintOption('Global shape function radius from elements: PIC-shapefunction-radius' , 'INFO.' , RealOpt=r_sf)
@@ -412,7 +412,7 @@ ELSE
     deltaT=ManualTimeStep
   END IF
   IF (halo_eps_velo.EQ.0) halo_eps_velo = c
-#if (PP_TimeDiscMethod==4 || PP_TimeDiscMethod==200 || PP_TimeDiscMethod==42)
+#if (PP_TimeDiscMethod==4 || PP_TimeDiscMethod==200)
   IF (halo_eps_velo.EQ.c) CALL abort(__STAMP__, 'halo_eps_velo.EQ.c -> Halo Eps Velocity for MPI not defined')
 #endif
 #if (PP_TimeDiscMethod==501) || (PP_TimeDiscMethod==502) || (PP_TimeDiscMethod==506)
@@ -715,7 +715,7 @@ ELSE
   IF (MeshHasPeriodic)    CALL CheckPeriodicSides   (EnlargeBGM)
   CALL BARRIER_AND_SYNC(ElemInfo_Shared_Win,MPI_COMM_SHARED)
   IF (PartBound%UseRotPeriodicBC) CALL CheckRotPeriodicSides(EnlargeBGM)
-  CALL BARRIER_AND_SYNC(ElemInfo_Shared_Win,MPI_COMM_SHARED) 
+  CALL BARRIER_AND_SYNC(ElemInfo_Shared_Win,MPI_COMM_SHARED)
   IF (PartBound%UseInterPlaneBC) CALL CheckInterPlaneSides(EnlargeBGM)
   CALL BARRIER_AND_SYNC(ElemInfo_Shared_Win,MPI_COMM_SHARED)
 
@@ -1163,7 +1163,7 @@ IF (MPIRoot) THEN
   END IF ! .NOT.PerformLoadBalance
 #endif /*USE_LOADBALANCE*/
 END IF
-CALL MPI_BARRIER(MPI_COMM_WORLD,iError)
+CALL MPI_BARRIER(MPI_COMM_PICLAS,iError)
 #else
 hilf=' '
 #endif /*CODE_ANALYZE*/
@@ -2006,10 +2006,10 @@ END SUBROUTINE CheckRotPeriodicSides
 SUBROUTINE CheckInterPlaneSides(EnlargeBGM)
 !===================================================================================================================================
 !> checks the elements against inter plane
-!> In addition to halo flat elements (normal halo region), find all elements on both side of a intermediate plane that 
+!> In addition to halo flat elements (normal halo region), find all elements on both side of a intermediate plane that
 !> are within range of the proc during a loop over all BCs:
 !> (1) Loop over all compute-node elements and check if they are within InterplaneRegion => Node is within InterplaneRegion
-!> (2) Loop over all elements that are NOT on the compute node and add them as halo elements if they are within the corresponding 
+!> (2) Loop over all elements that are NOT on the compute node and add them as halo elements if they are within the corresponding
 !>     InterplaneRegion
 !===================================================================================================================================
 ! MODULES                                                                                                                          !
@@ -2063,7 +2063,7 @@ DO iPartBound = 1,nPartBound
     END IF
   END DO
   IF(InInterPlaneRegion) THEN
-! (2) Loop over all elements that are NOT on the compute node and add them as halo elements if they are within the corresponding 
+! (2) Loop over all elements that are NOT on the compute node and add them as halo elements if they are within the corresponding
 !     InterplaneRegion
     DO iElem = firstElem,lastElem
       ! only consider elements that are not already flagged

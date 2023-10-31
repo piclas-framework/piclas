@@ -79,11 +79,8 @@ USE MOD_Restart_Vars            ,ONLY: DoRestart,RestartFile, DoMacroscopicResta
 USE MOD_SurfaceModel_Vars       ,ONLY: nPorousBC
 USE MOD_Particle_Boundary_Vars  ,ONLY: nPorousSides, PorousBCInfo_Shared, SurfSide2GlobalSide
 USE MOD_Particle_Mesh_Vars      ,ONLY: SideInfo_Shared, ElemVolume_Shared
-USE MOD_LoadBalance_Vars        ,ONLY: DoLoadBalance, PerformLoadBalance, UseH5IOLoadBalance
+USE MOD_LoadBalance_Vars        ,ONLY: DoLoadBalance, PerformLoadBalance
 USE MOD_Mesh_Tools              ,ONLY: GetCNElemID
-#if USE_MPI
-USE MOD_Particle_MPI_Vars       ,ONLY: PartMPI
-#endif /*USE_MPI*/
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Vars        ,ONLY: UseH5IOLoadBalance
 #endif /*USE_LOADBALANCE*/
@@ -169,16 +166,16 @@ END DO
 
 #if USE_MPI
 IF(UseCircularInflow) THEN
-  IF(PartMPI%MPIRoot)THEN
-    CALL MPI_REDUCE(MPI_IN_PLACE,AdaptBCAreaSurfaceFlux,nSpecies*nSurfacefluxBCs,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,iError)
+  IF(MPIRoot)THEN
+    CALL MPI_REDUCE(MPI_IN_PLACE,AdaptBCAreaSurfaceFlux,nSpecies*nSurfacefluxBCs,MPI_DOUBLE_PRECISION,MPI_SUM,0,MPI_COMM_PICLAS,iError)
   ELSE
-    CALL MPI_REDUCE(AdaptBCAreaSurfaceFlux,0,nSpecies*nSurfacefluxBCs,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,iError)
+    CALL MPI_REDUCE(AdaptBCAreaSurfaceFlux,0,nSpecies*nSurfacefluxBCs,MPI_DOUBLE_PRECISION,MPI_SUM,0,MPI_COMM_PICLAS,iError)
   END IF
 END IF
 #endif /*USE_MPI*/
 
 #if USE_MPI
-CALL MPI_ALLREDUCE(MPI_IN_PLACE,AdaptBCVolSurfaceFlux,nSpecies*nSurfacefluxBCs,MPI_DOUBLE_PRECISION,MPI_SUM,PartMPI%COMM,iError)
+CALL MPI_ALLREDUCE(MPI_IN_PLACE,AdaptBCVolSurfaceFlux,nSpecies*nSurfacefluxBCs,MPI_DOUBLE_PRECISION,MPI_SUM,MPI_COMM_PICLAS,iError)
 #endif /*USE_MPI*/
 
 ! 1b) Add elements for the porous BCs
@@ -217,9 +214,9 @@ END IF
 
 #if USE_MPI
 ! Gather the number of sampling elements per proc
-CALL MPI_GATHER(AdaptBCSampleElemNum,1,MPI_INTEGER_INT_KIND,offSetElemAdaptBCSampleMPI,1,MPI_INTEGER_INT_KIND,0,MPI_COMM_WORLD,iError)
+CALL MPI_GATHER(AdaptBCSampleElemNum,1,MPI_INTEGER_INT_KIND,offSetElemAdaptBCSampleMPI,1,MPI_INTEGER_INT_KIND,0,MPI_COMM_PICLAS,iError)
 ! Distribute the number of elements per proc to each each proc
-CALL MPI_BCAST(offSetElemAdaptBCSampleMPI,nProcessors,MPI_INTEGER,0,MPI_COMM_WORLD,iERROR)
+CALL MPI_BCAST(offSetElemAdaptBCSampleMPI,nProcessors,MPI_INTEGER,0,MPI_COMM_PICLAS,iERROR)
 ! Determine the offset for the sampling elements
 IF(myRank.EQ.0) THEN
   offSetElemAdaptBCSample = 0
@@ -295,7 +292,7 @@ END IF
 
 ! 4) If restart is done, check if adaptiveinfo exists in state, read it in and write to AdaptBCMacroValues
 IF (DoRestart) THEN
-  CALL OpenDataFile(RestartFile,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_WORLD)
+  CALL OpenDataFile(RestartFile,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_PICLAS)
   ! read local ParticleInfo from HDF5
   CALL DatasetExists(File_ID,'AdaptiveInfo',AdaptiveDataExists)
   IF(AdaptiveDataExists)THEN
@@ -606,7 +603,7 @@ ELSE
   RelaxationFactor = AdaptBCRelaxFactor
   IF(AdaptBCSampIter.GT.0) THEN
     IF(AdaptBCTruncAverage.AND.(RestartSampIter.GT.0).AND.(RestartSampIter.LT.AdaptBCSampIter)) THEN
-      ! Truncated average: get the correct number of samples to calculate the average number density while the 
+      ! Truncated average: get the correct number of samples to calculate the average number density while the
       ! sampling array is populated
       SamplingIteration = RestartSampIter
     ELSE
@@ -683,9 +680,9 @@ IF(AdaptBCAverageValBC) THEN
     ! MPI Communication
 #if USE_MPI
     IF(MPIRoot)THEN
-      CALL MPI_REDUCE(MPI_IN_PLACE,AdaptBCMeanValues,8*nSpecies*nSurfacefluxBCs,MPI_DOUBLE_PRECISION,MPI_SUM,0,MPI_COMM_WORLD,iError)
+      CALL MPI_REDUCE(MPI_IN_PLACE,AdaptBCMeanValues,8*nSpecies*nSurfacefluxBCs,MPI_DOUBLE_PRECISION,MPI_SUM,0,MPI_COMM_PICLAS,iError)
     ELSE
-      CALL MPI_REDUCE(AdaptBCMeanValues,0.,8*nSpecies*nSurfacefluxBCs,MPI_DOUBLE_PRECISION,MPI_SUM,0,MPI_COMM_WORLD,iError)
+      CALL MPI_REDUCE(AdaptBCMeanValues,0.,8*nSpecies*nSurfacefluxBCs,MPI_DOUBLE_PRECISION,MPI_SUM,0,MPI_COMM_PICLAS,iError)
     END IF
 #endif /*USE_MPI*/
     IF(MPIRoot) THEN
@@ -744,8 +741,8 @@ IF(AdaptBCAverageValBC) THEN
       END DO
     END IF
 #if USE_MPI
-    CALL MPI_BCAST(AdaptBCMeanValues,8*nSpecies*nSurfacefluxBCs, MPI_DOUBLE_PRECISION,0,MPI_COMM_WORLD,iERROR)
-    CALL MPI_BCAST(AdaptBCAverageMacroVal,3*nSpecies*nSurfacefluxBCs, MPI_DOUBLE_PRECISION,0,MPI_COMM_WORLD,iERROR)
+    CALL MPI_BCAST(AdaptBCMeanValues,8*nSpecies*nSurfacefluxBCs, MPI_DOUBLE_PRECISION,0,MPI_COMM_PICLAS,iERROR)
+    CALL MPI_BCAST(AdaptBCAverageMacroVal,3*nSpecies*nSurfacefluxBCs, MPI_DOUBLE_PRECISION,0,MPI_COMM_PICLAS,iERROR)
 #endif /*USE_MPI*/
   END IF
 END IF

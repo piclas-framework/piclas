@@ -17,7 +17,7 @@ MODULE MOD_Particle_MPI_Vars
 ! Contains global variables provided by the particle surfaces routines
 !===================================================================================================================================
 ! MODULES
-!USE mpi
+USE MOD_Globals
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 PUBLIC
@@ -35,7 +35,9 @@ LOGICAL                                   :: CheckExchangeProcs             ! On
 LOGICAL                                   :: AbortExchangeProcs             ! Terminate run if proc communication is non-symmetric
 
 TYPE tPartMPIGROUP
-  INTEGER                                 :: COMM                           ! MPI communicator for PIC GTS region
+#if USE_MPI
+  INTEGER                                 :: COMM=MPI_COMM_NULL             ! MPI communicator for PIC GTS region
+#endif /*USE_MPI*/
   INTEGER                                 :: Request                        ! MPI request for asynchronous communication
   INTEGER                                 :: nProcs                         ! number of MPI processes for particles
   INTEGER                                 :: MyRank                         ! MyRank of PartMPIVAR%COMM
@@ -44,32 +46,7 @@ TYPE tPartMPIGROUP
   INTEGER,ALLOCATABLE                     :: CommToGroup(:)                 ! list containing the rank in PartMPI%COMM
 END TYPE
 
-TYPE tPeriodicPtr
-  INTEGER                  , ALLOCATABLE  :: BGMPeriodicBorder(:,:)         ! indices of periodic border nodes
-END TYPE
-
-#if USE_MPI
-TYPE tPartMPIConnect
-  TYPE(tPeriodicPtr)       , ALLOCATABLE  :: Periodic(:)                    ! data for different periodic borders for process
-  LOGICAL                                 :: isBGMNeighbor                  ! Flag: which process is neighber wrt. bckgrnd mesh
-  LOGICAL                                 :: isBGMPeriodicNeighbor          ! Flag: which process is neighber wrt. bckgrnd mesh
-  INTEGER                  , ALLOCATABLE  :: BGMBorder(:,:)                 ! indices of border nodes (1=min 2=max,xyz)
-  INTEGER                                 :: BGMPeriodicBorderCount         ! Number(#) of overlapping areas due to periodic bc
-END TYPE
-#endif /*USE_MPI*/
-
-TYPE tPartMPIVAR
-#if USE_MPI
-  TYPE(tPartMPIConnect)    , ALLOCATABLE  :: DepoBGMConnect(:)              ! MPI connect for each process
-#endif /*USE_MPI*/
-  TYPE(tPartMPIGROUP),ALLOCATABLE         :: InitGroup(:)                   ! small communicator for initialization
-  INTEGER                                 :: COMM                           ! MPI communicator for PIC GTS region
-  INTEGER                                 :: nProcs                         ! number of MPI processes for particles
-  INTEGER                                 :: MyRank                         ! MyRank of PartMPIVAR%COMM
-  LOGICAL                                 :: MPIRoot                        ! Root, MPIRank=0
-END TYPE
-
-TYPE (tPartMPIVAR)                        :: PartMPI
+TYPE(tPartMPIGROUP),ALLOCATABLE           :: PartMPIInitGroup(:)                   ! small communicator for initialization
 
 REAL                                      :: SafetyFactor                   ! Factor to scale the halo region with MPI
 REAL                                      :: halo_eps_velo                  ! halo_eps_velo

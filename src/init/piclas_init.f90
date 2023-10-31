@@ -285,6 +285,9 @@ USE MOD_PIC_Vars                   ,ONLY: PICInitIsDone
 #if USE_MPI
 USE MOD_Particle_MPI               ,ONLY: FinalizeParticleMPI
 USE MOD_Particle_MPI_Vars          ,ONLY: ParticleMPIInitisdone
+#if defined(MEASURE_MPI_WAIT)
+USE MOD_MPI                        ,ONLY: OutputMPIW8Time
+#endif /*defined(MEASURE_MPI_WAIT)*/
 #endif /*USE_MPI*/
 #endif /*PARTICLES*/
 USE MOD_IO_HDF5                    ,ONLY: FinalizeElemData,ElementOut
@@ -379,6 +382,12 @@ IF(.NOT.IsLoadBalance)THEN
 #if USE_MPI
   ! Free the communicators!
   CALL FinalizeMPIShared()
+#if defined(MEASURE_MPI_WAIT)
+  ! Collect the MPI_WAIT() over all procs and output
+  IF(nProcessors.GT.1) CALL OutputMPIW8Time()
+#endif /*defined(MEASURE_MPI_WAIT)*/
+  ! Free the last communicator after OutputMPIW8Time
+  IF(MPI_COMM_PICLAS.NE.MPI_COMM_NULL) CALL MPI_COMM_FREE(MPI_COMM_PICLAS,IERROR)
 #endif /*USE_MPI*/
 ELSE
   CALL DisplaySimulationTime(Time, StartTime, 'RUNNING')

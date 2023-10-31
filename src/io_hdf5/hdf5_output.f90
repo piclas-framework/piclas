@@ -117,7 +117,7 @@ IF(nVar_Avg.GT.0)THEN
     CALL CloseDataFile()
   END IF
 #if USE_MPI
-  CALL MPI_BARRIER(MPI_COMM_WORLD,iError)
+  CALL MPI_BARRIER(MPI_COMM_PICLAS,iError)
 #endif /*USE_MPI*/
 
   ! Reopen file and write DG solution
@@ -147,7 +147,7 @@ IF(nVar_Fluc.GT.0)THEN
     CALL CloseDataFile()
   END IF
 #if USE_MPI
-  CALL MPI_BARRIER(MPI_COMM_WORLD,iError)
+  CALL MPI_BARRIER(MPI_COMM_PICLAS,iError)
 #endif /*USE_MPI*/
 
   ! Reopen file and write DG solution
@@ -838,7 +838,7 @@ IF(gatheredWrite)THEN
   SDEALLOCATE(UStr)
 ELSE
 #endif
-  CALL OpenDataFile(FileName,create=create,single=.FALSE.,readOnly=.FALSE.,communicatorOpt=MPI_COMM_WORLD)
+  CALL OpenDataFile(FileName,create=create,single=.FALSE.,readOnly=.FALSE.,communicatorOpt=MPI_COMM_PICLAS)
   IF(PRESENT(RealArray)) CALL WriteArrayToHDF5(DataSetName , rank       , nValGlobal           , nVal , &
                                                offset      , collective , RealArray=RealArray)
   IF(PRESENT(IntegerArray))  CALL WriteArrayToHDF5(DataSetName , rank       , nValGlobal                  , nVal , &
@@ -934,8 +934,8 @@ IF(.NOT.DoNotSplit)THEN
 ELSE
 ! 3: else write with all procs of the given communicator
   ! communicator_opt has to be the given communicator or else procs that are not in the given communicator might block the write out
-  ! e.g. surface communicator contains only procs with physical surface and MPI_COMM_WORLD contains every proc
-  !      Consequently, MPI_COMM_WORLD would block communication
+  ! e.g. surface communicator contains only procs with physical surface and MPI_COMM_PICLAS contains every proc
+  !      Consequently, MPI_COMM_PICLAS would block communication
   CALL OpenDataFile(FileName,create=.FALSE.,single=.FALSE.,readOnly=.FALSE.,communicatorOpt=communicator)
   IF(PRESENT(RealArray)) CALL WriteArrayToHDF5(DataSetName , rank       , nValGlobal           , nVal , &
                                                offset      , collective , RealArray=RealArray)

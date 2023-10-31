@@ -37,7 +37,7 @@ SUBROUTINE WriteParticleTrackingData(time,iter)
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! MODULES                                                                                                                          !
 !----------------------------------------------------------------------------------------------------------------------------------!
-USE MOD_Globals               ,ONLY: FILEEXISTS,unit_stdout,DOTPRODUCT,abort,MPI_COMM_WORLD,MPIRoot
+USE MOD_Globals               ,ONLY: FILEEXISTS,unit_stdout,DOTPRODUCT,abort,MPI_COMM_PICLAS,MPIRoot
 #if USE_MPI
 USE MOD_Globals               ,ONLY: iError
 #endif /*USE_MPI*/
@@ -115,7 +115,7 @@ END IF
 
 #if USE_MPI
 ! Barrier is required is root creates file and other processor prints to this file
-IF(CreateFile) CALL MPI_BARRIER(MPI_COMM_WORLD,iError)
+IF(CreateFile) CALL MPI_BARRIER(MPI_COMM_PICLAS,iError)
 #endif /*USE_MPI*/
 
 CALL UpdateNextFreePosition()
@@ -217,7 +217,7 @@ END DO ! iSpec = 1, nSpecies
 
 ! Sum the power
 #if USE_MPI
-CALL MPI_REDUCE(PTotal(1:nSpecies),SumPTotal(1:nSpecies),nSpecies,MPI_DOUBLE_PRECISION,MPI_SUM,0,MPI_COMM_WORLD,iError)
+CALL MPI_REDUCE(PTotal(1:nSpecies),SumPTotal(1:nSpecies),nSpecies,MPI_DOUBLE_PRECISION,MPI_SUM,0,MPI_COMM_PICLAS,iError)
 #else
 SumPTotal(1:nSpecies)=PTotal(1:nSpecies)
 #endif

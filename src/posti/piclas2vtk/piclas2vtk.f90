@@ -241,7 +241,7 @@ DO iArgs = iArgsStart,nArgs
   SurfaceDataExists  = .FALSE.
   PartDataExists     = .FALSE.
   AdaptiveInfoExists = .FALSE.
-  CALL OpenDataFile(InputStateFile,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_WORLD)
+  CALL OpenDataFile(InputStateFile,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_PICLAS)
   ! Get the type of the .h5 file
   CALL ReadAttribute(File_ID,'File_Type',1,StrScalar=File_Type)
   ! Check which containers are present
@@ -282,7 +282,7 @@ DO iArgs = iArgsStart,nArgs
   END IF
   ! Build connectivity for element/volume output
   IF(ElemDataExists.AND..NOT.ElemMeshInit) THEN
-    CALL OpenDataFile(MeshFile,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_WORLD)
+    CALL OpenDataFile(MeshFile,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_PICLAS)
     CALL ReadAttribute(File_ID,'nUniqueNodes',1,IntScalar=nUniqueNodes)
     CALL CloseDataFile()
     ALLOCATE(ElemUniqueNodeID(1:8,1:nGlobalElems))
@@ -652,7 +652,7 @@ CHARACTER(LEN=16)               :: hilf
 CHARACTER(LEN=255)              :: DMDFields(1:16), Dataset
 !===================================================================================================================================
 ! 1.) Open given file to get the number of elements, the order and the name of the mesh file
-CALL OpenDataFile(InputStateFile,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_WORLD)
+CALL OpenDataFile(InputStateFile,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_PICLAS)
 
 ! Check if data set exists, if not return
 CALL DatasetExists(File_ID,TRIM(DGSolutionDataset),DGSolutionDatasetExists)
@@ -739,7 +739,7 @@ DO iElem = 1,nElems
 END DO
 
 ! Read in solution
-CALL OpenDataFile(InputStateFile,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_WORLD)
+CALL OpenDataFile(InputStateFile,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_PICLAS)
 
 ! Associate construct for integer KIND=8 possibility
 ASSOCIATE (&
@@ -910,7 +910,7 @@ INTEGER                         :: FileVersionHDF5Int
 LOGICAL                         :: FileVersionExists
 !===================================================================================================================================
 
-CALL OpenDataFile(InputStateFile,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_WORLD)
+CALL OpenDataFile(InputStateFile,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_PICLAS)
 CALL ReadAttribute(File_ID,'Project_Name',1,StrScalar=ProjectName)
 CALL ReadAttribute(File_ID,'Time',1,RealScalar=OutputTime)
 
@@ -1024,7 +1024,7 @@ REAL,ALLOCATABLE                :: ElemData(:,:)
 !===================================================================================================================================
 
 ! Read in solution
-CALL OpenDataFile(InputStateFile,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_WORLD)
+CALL OpenDataFile(InputStateFile,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_PICLAS)
 CALL ReadAttribute(File_ID,'Project_Name',1,StrScalar=ProjectName)
 CALL ReadAttribute(File_ID,'File_Type',1,StrScalar=File_Type)
 OutputTime = 0. ! default
@@ -1104,7 +1104,7 @@ REAL,ALLOCATABLE                :: NodeCoords_visu(:,:,:,:,:)          !< Coordi
 !===================================================================================================================================
 
 ! Read in solution
-CALL OpenDataFile(InputStateFile,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_WORLD)
+CALL OpenDataFile(InputStateFile,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_PICLAS)
 CALL ReadAttribute(File_ID,'Project_Name',1,StrScalar=ProjectName)
 CALL ReadAttribute(File_ID,'File_Type',1,StrScalar=File_Type)
 IF(TRIM(File_Type).NE.'RadiationSurfState') THEN  
@@ -1215,7 +1215,7 @@ INTEGER, ALLOCATABLE            :: TempBCSurfNodes(:), TempSideSurfNodeMap(:,:),
 REAL, ALLOCATABLE               :: TempNodeCoords(:,:)
 LOGICAL                         :: IsSortedSurfNode
 !===================================================================================================================================
-CALL OpenDataFile(InputStateFile,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_WORLD)
+CALL OpenDataFile(InputStateFile,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_PICLAS)
 
 SWRITE(UNIT_stdOut,'(A,A)')' GET NUMBER AND NAMES OF SURFACE-BCSIDES IN HDF5 FILE... '
 CALL GetDataSize(File_ID,'BC_Surf',nDims,HSize,attrib=.true.)
