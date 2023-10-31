@@ -14,7 +14,7 @@
     * [ ] Inside the routine at the appropriate positions
 * [ ] Reggie: The new feature must be tested with at least one new or old regression test(s)
   * [ ] Add small test setup if the new feature is not covered by any old regression tests
-  * [ ] Add entry in REGGIE.md table to indicate where the new feature is used
+  * [ ] Add entry in REGGIE.md table by running the reggie table script within the reggie folder where the builds.ini file is via `./../../tools/reggietable.sh` and adjusting the output
   * [ ] Check correct allocation and deallocation for the test case
     * [ ] Either check automatic restart functionality of reggie example via Load Balance
     * [ ] And/or compile PICLas with Sanitizer and MPI=OFF as well as MPI=ON and run with one process to find possible memory
