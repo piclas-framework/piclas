@@ -42,7 +42,7 @@ USE MOD_Timedisc_Vars          ,ONLY: dt,time
 USE MOD_Timedisc_Vars          ,ONLY: RKdtFrac,RKdtFracTotal
 USE MOD_Particle_Vars
 USE MOD_PIC_Vars
-USE MOD_part_tools             ,ONLY: UpdateNextFreePosition
+USE MOD_part_tools             ,ONLY: UpdateNextFreePosition, GetNextFreePosition
 USE MOD_DSMC_Vars              ,ONLY: useDSMC, CollisMode, SpecDSMC
 USE MOD_part_emission_tools    ,ONLY: DSMC_SetInternalEnr_LauxVFD
 USE MOD_DSMC_PolyAtomicModel   ,ONLY: DSMC_SetInternalEnr_Poly
@@ -333,13 +333,11 @@ DO i=1,nSpecies
     IF (useDSMC.AND.(CollisMode.GT.1)) THEN
       iPart = 1
       DO WHILE (iPart.LE.NbrOfParticle)
-        PositionNbr = PDM%nextFreePosition(iPart+PDM%CurrentNextFreePosition)
-        IF (PositionNbr.NE.0) THEN
-          IF (SpecDSMC(i)%PolyatomicMol) THEN
-            CALL DSMC_SetInternalEnr_Poly(i,iInit,PositionNbr,1)
-          ELSE
-            CALL DSMC_SetInternalEnr_LauxVFD(i,iInit,PositionNbr,1)
-          END IF
+        PositionNbr = GetNextFreePosition(iPart)
+        IF (SpecDSMC(i)%PolyatomicMol) THEN
+          CALL DSMC_SetInternalEnr_Poly(i,iInit,PositionNbr,1)
+        ELSE
+          CALL DSMC_SetInternalEnr_LauxVFD(i,iInit,PositionNbr,1)
         END IF
         iPart = iPart + 1
       END DO
@@ -348,13 +346,13 @@ DO i=1,nSpecies
     IF(CalcPartBalance.AND.(NbrOfParticle.GT.0)) THEN
       nPartIn(i)=nPartIn(i) + NbrOfparticle
       DO iPart=1,NbrOfParticle
-        PositionNbr = PDM%nextFreePosition(iPart+PDM%CurrentNextFreePosition)
-        IF (PositionNbr .NE. 0) PartEkinIn(i) = PartEkinIn(i) + CalcEkinPart(PositionNbr)
+        PositionNbr = GetNextFreePosition(iPart)
+        PartEkinIn(i) = PartEkinIn(i) + CalcEkinPart(PositionNbr)
       END DO ! iPart
     END IF ! CalcPartBalance
     ! Update the current next free position and increase the particle vector length
     PDM%CurrentNextFreePosition = PDM%CurrentNextFreePosition + NbrOfParticle
-    PDM%ParticleVecLength = PDM%ParticleVecLength + NbrOfParticle
+    PDM%ParticleVecLength = MIN(PDM%maxParticleNumber,PDM%ParticleVecLength + NbrOfParticle)
 
     ! Complete check if all particles were emitted successfully
 #if USE_MPI

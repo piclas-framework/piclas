@@ -223,6 +223,7 @@ SUBROUTINE BGGas_InsertParticles()
 USE MOD_Globals                ,ONLY: Abort
 USE MOD_DSMC_Vars              ,ONLY: BGGas
 USE MOD_PARTICLE_Vars          ,ONLY: PDM, PartSpecies, PEM
+USE MOD_Part_Tools             ,ONLY: GetNextFreePosition
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Timers      ,ONLY: LBStartTime,LBPauseTime
 #endif /*USE_LOADBALANCE*/
@@ -255,10 +256,7 @@ DO iPart = 1, PDM%ParticleVecLength
     END IF
     ! Get a free particle index
     iNewPart = iNewPart + 1
-    PositionNbr = PDM%nextFreePosition(iNewPart+PDM%CurrentNextFreePosition)
-    IF (PositionNbr.EQ.0) THEN
-      CALL Abort(__STAMP__,'ERROR in BGGas: MaxParticleNumber should be increased to account for the BGG particles!')
-    END IF
+    PositionNbr = GetNextFreePosition()
     ! Get the background gas species
     iSpec = BGGas_GetSpecies(PEM%LocalElemID(iPart))
     ! Assign particle properties
@@ -272,9 +270,6 @@ DO iPart = 1, PDM%ParticleVecLength
     PEM%pNumber(LocalElemID) = PEM%pNumber(LocalElemID) + 1
   END IF
 END DO
-! Increase the particle vector length and update the linked list
-PDM%ParticleVecLength = MAX(PDM%ParticleVecLength,PositionNbr)
-PDM%CurrentNextFreePosition = PDM%CurrentNextFreePosition + iNewPart
 
 #if USE_LOADBALANCE
 CALL LBPauseTime(LB_DSMC,tLBStart)
@@ -775,7 +770,7 @@ DO iPart = 1, NbrOfParticle
 END DO
 
 ! Add the particles initialized through the emission and the background particles
-PDM%ParticleVecLength = PDM%ParticleVecLength + NbrOfParticle + iNewPart
+PDM%ParticleVecLength = MIN(PDM%maxParticleNumber,PDM%ParticleVecLength + NbrOfParticle + iNewPart)
 ! Update the current next free position
 PDM%CurrentNextFreePosition = PDM%CurrentNextFreePosition + NbrOfParticle + iNewPart
 
@@ -817,7 +812,7 @@ ELSE
 END IF ! NbrOfPhotonXsecReactions.GT.0
 
 ! Advance particle vector length and the current next free position with newly created particles
-PDM%ParticleVecLength = PDM%ParticleVecLength + DSMCSumOfFormedParticles
+PDM%ParticleVecLength = MIN(PDM%maxParticleNumber,PDM%ParticleVecLength + DSMCSumOfFormedParticles)
 PDM%CurrentNextFreePosition = PDM%CurrentNextFreePosition + DSMCSumOfFormedParticles
 
 DSMCSumOfFormedParticles = 0
@@ -915,7 +910,8 @@ SUBROUTINE BGGas_TraceSpeciesSplit(iElem, nPart, nPair)
 USE MOD_Globals
 USE MOD_DSMC_Vars             ,ONLY: BGGas, CollisMode, PartStateIntEn, DSMC
 USE MOD_DSMC_Vars             ,ONLY: DSMC, SpecDSMC, VibQuantsPar, PolyatomMolDSMC
-USE MOD_Particle_Vars         ,ONLY: PDM,PEM,PartSpecies,PartState,PartMPF,Species
+USE MOD_Particle_Vars         ,ONLY: PEM,PartSpecies,PartState,PartMPF,Species
+USE MOD_Part_Tools            ,ONLY: GetNextFreePosition
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -964,10 +960,7 @@ DO iLoop = 1, nPart
       ! --- Create clone of test particle
       iNewPart = iNewPart + 1
       iSplitPart = iSplitPart + 1
-      PartIndex = PDM%nextFreePosition(iNewPart+PDM%CurrentNextFreePosition)
-      IF (PartIndex.EQ.0) THEN
-        CALL Abort(__STAMP__,'ERROR in BGGas: MaxParticleNumber should be increased to account for the BGG particles!')
-      END IF
+      PartIndex = GetNextFreePosition()
       ! Assign properties but do not use the velocity and energy of the background gas
       CALL BGGas_AssignParticleProperties(iSpec,iPart,PartIndex,GetVelocity_opt=.FALSE.,GetInternalEnergy_opt=.TRUE.)
       ! Copy properties from the particle species
@@ -990,10 +983,7 @@ DO iLoop = 1, nPart
       iNewPart = iNewPart + 1
       iSplitPart = iSplitPart + 1
       ! Get a free particle index
-      bggPartIndex = PDM%nextFreePosition(iNewPart+PDM%CurrentNextFreePosition)
-      IF (bggPartIndex.EQ.0) THEN
-        CALL Abort(__STAMP__,'ERROR in BGGas: MaxParticleNumber should be increased to account for the BGG particles!')
-      END IF
+      bggPartIndex = GetNextFreePosition()
       ! Set the pairing partner
       BGGas%PairingPartner(PartIndex) = bggPartIndex
       ! Assign properties of the background gas
@@ -1007,9 +997,6 @@ DO iLoop = 1, nPart
   END IF
   iPart = PEM%pNext(iPart)
 END DO
-! Increase the particle vector length and the position in the linked list
-PDM%ParticleVecLength = MAX(PDM%ParticleVecLength,bggPartIndex)
-PDM%CurrentNextFreePosition = PDM%CurrentNextFreePosition + iNewPart
 ! Set the new number of particles
 nPart = PEM%pNumber(iElem)
 
@@ -1145,7 +1132,7 @@ END SUBROUTINE BGGas_InitRegions
 
 
 !===================================================================================================================================
-!> Background gas regions: Set the internal temperatures in case of DSMC and CollisMode = 2/3 (not yet available during 
+!> Background gas regions: Set the internal temperatures in case of DSMC and CollisMode = 2/3 (not yet available during
 !> BGGas_InitRegions). Loop over all elements, species and inits per species to set values for molecules and/or atoms.
 !===================================================================================================================================
 SUBROUTINE BGGas_RegionsSetInternalTemp()

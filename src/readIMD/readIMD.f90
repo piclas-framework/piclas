@@ -238,7 +238,7 @@ subroutine read_IMD_results()
   PartState = PartState * 1e-10_8
   PartState(4:6,:) = PartState(4:6,:) * 10.18e15_8
 
-  ! Free an info object 
+  ! Free an info object
   call MPI_Info_free(mpiInfo, iError)
 
   ! Get minimum and maximum extend of the complete particle distribution in the domain

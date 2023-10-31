@@ -574,6 +574,7 @@ USE MOD_Particle_Vars           ,ONLY: UseVarTimeStep, PartTimeStep
 USE MOD_Particle_TimeStep       ,ONLY: GetParticleTimeStep
 USE MOD_TimeDisc_Vars           ,ONLY: iter
 USE MOD_Particle_Analyze_Vars   ,ONLY: CalcPartBalance, nPartIn
+USE MOD_Part_Tools              ,ONLY: GetNextFreePosition
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -614,14 +615,7 @@ IF(RadialWeighting%ClonePartNum(DelayCounter).EQ.0) RETURN
 
 ! 2.) Insert the clones at the position they were created
 DO iPart = 1, RadialWeighting%ClonePartNum(DelayCounter)
-  PDM%ParticleVecLength = PDM%ParticleVecLength + 1
-  PDM%CurrentNextFreePosition = PDM%CurrentNextFreePosition + 1
-  PositionNbr = PDM%nextFreePosition(PDM%CurrentNextFreePosition)
-  IF (PDM%ParticleVecLength.GT.PDM%maxParticleNumber) THEN
-    CALL Abort(&
-       __STAMP__,&
-      'ERROR in 2D axisymmetric simulation: New Particle Number greater max Part Num!')
-  END IF
+  PositionNbr = GetNextFreePosition()
   ! Copy particle parameters
   PDM%ParticleInside(PositionNbr) = .TRUE.
   PDM%IsNewPart(PositionNbr) = .TRUE.

@@ -84,7 +84,7 @@ USE MOD_LoadBalance_Vars       ,ONLY: PerformLoadBalance
 #endif /*USE_LOADBALANCE*/
 ! Rotational frame of reference
 USE MOD_Particle_Vars          ,ONLY: UseRotRefFrame, PartVeloRotRef, RotRefFrameOmega
-USE MOD_Part_Tools             ,ONLY: InRotRefFrameCheck
+USE MOD_Part_Tools             ,ONLY: InRotRefFrameCheck, IncreaseMaxParticleNumber
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -137,6 +137,7 @@ IF(.NOT.DoMacroscopicRestart) THEN
       LastElemInd  = offsetElem+PP_nElems
       locnPart     = PartInt(ELEM_LastPartInd,LastElemInd)-PartInt(ELEM_FirstPartInd,FirstElemInd)
       offsetnPart  = PartInt(ELEM_FirstPartInd,FirstElemInd)
+      CALL IncreaseMaxParticleNumber(locnPart)
 
       DO iLoop = 1_IK,locnPart
         ! Sanity check: SpecID > 0
@@ -781,7 +782,7 @@ IF(.NOT.DoMacroscopicRestart) THEN
       NbrOfLostParticles = 0
     END IF ! NbrOfMissingParticles.GT.0
 #endif /*USE_MPI*/
-
+    CALL IncreaseMaxParticleNumber()
     CALL UpdateNextFreePosition()
 
     ! Read-in the stored cloned particles

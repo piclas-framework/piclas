@@ -128,7 +128,7 @@ DO iElem = 1, nElems ! element/cell main loop
 END DO ! iElem Loop
 
 ! Advance particle vector length and the current next free position with newly created particles
-PDM%ParticleVecLength = PDM%ParticleVecLength + DSMCSumOfFormedParticles
+PDM%ParticleVecLength = MIN(PDM%maxParticleNumber,PDM%ParticleVecLength + DSMCSumOfFormedParticles)
 PDM%CurrentNextFreePosition = PDM%CurrentNextFreePosition + DSMCSumOfFormedParticles
 
 IF(PDM%ParticleVecLength.GT.PDM%MaxParticleNumber) THEN

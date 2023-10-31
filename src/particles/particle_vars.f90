@@ -195,8 +195,10 @@ END INTERFACE
 TYPE tParticleDataManagement
   INTEGER                                :: CurrentNextFreePosition           ! Index of nextfree index in nextFreePosition-Array
   INTEGER                                :: maxParticleNumber                 ! Maximum Number of all Particles
+  INTEGER                                :: maxAllowedParticleNumber          ! Maximum Number of all Particles
   INTEGER                                :: ParticleVecLength                 ! Vector Length for Particle Push Calculation
   INTEGER                                :: ParticleVecLengthOld              ! Vector Length for Particle Push Calculation
+  REAL                                   :: MaxPartNumIncrease                ! How much shall the PDM%MaxParticleNumber be incresed if it is full
   INTEGER , ALLOCATABLE                  :: PartInit(:)                       ! (1:NParts), initial emission condition number
                                                                               ! the calculation area
   INTEGER ,ALLOCATABLE                   :: nextFreePosition(:)  !  =>NULL()  ! next_free_Position(1:maxParticleNumber)
@@ -219,9 +221,9 @@ LOGICAL                                  :: WriteMacroSurfaceValues=.FALSE.   ! 
 INTEGER                                  :: MacroValSamplIterNum              ! Number of iterations for sampling
                                                                               ! macroscopic values
 LOGICAL                                  :: SampleElecExcitation              ! Sampling the electronic excitation rate per species
-INTEGER                                  :: ExcitationLevelCounter            ! 
-REAL, ALLOCATABLE                        :: ExcitationSampleData(:,:)         ! 
-INTEGER, ALLOCATABLE                     :: ExcitationLevelMapping(:,:)       ! 
+INTEGER                                  :: ExcitationLevelCounter            !
+REAL, ALLOCATABLE                        :: ExcitationSampleData(:,:)         !
+INTEGER, ALLOCATABLE                     :: ExcitationLevelMapping(:,:)       !
 
 INTEGER, ALLOCATABLE                     :: vMPFMergeThreshold(:)             ! Max particle number per cell and (iSpec)
 INTEGER, ALLOCATABLE                     :: vMPFSplitThreshold(:)             ! Min particle number per cell and (iSpec)
@@ -284,7 +286,7 @@ INTEGER               :: RotRefFrameAxis          ! axis of rotational frame of 
 REAL                  :: RotRefFrameFreq          ! frequency of rotational frame of reference
 REAL                  :: RotRefFrameOmega(3)      ! angular velocity of rotational frame of reference
 INTEGER               :: nRefFrameRegions         ! number of rotational frame of reference regions
-REAL, ALLOCATABLE     :: RotRefFramRegion(:,:)    ! MIN/MAX defintion for multiple rotational frame of reference region     
+REAL, ALLOCATABLE     :: RotRefFramRegion(:,:)    ! MIN/MAX defintion for multiple rotational frame of reference region
                                                   ! (i,RegionNumber), MIN:i=1, MAX:i=2
 !===================================================================================================================================
 END MODULE MOD_Particle_Vars

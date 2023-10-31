@@ -905,6 +905,7 @@ USE MOD_Particle_TimeStep      ,ONLY: GetParticleTimeStep
 USE MOD_Particle_Mesh_Vars     ,ONLY: IsExchangeElem
 USE MOD_Particle_MPI_Vars      ,ONLY: ExchangeProcToGlobalProc,DoParticleLatencyHiding
 USE MOD_Eval_xyz               ,ONLY: GetPositionInRefElem
+USE MOD_Part_Tools             ,ONLY: GetNextFreePosition
 #if defined(LSERK)
 USE MOD_Particle_Vars          ,ONLY: Pt_temp
 #endif
@@ -941,7 +942,7 @@ LOGICAL, OPTIONAL             :: DoMPIUpdateNextFreePos
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                       :: iProc, iPos, nRecv, PartID,jPos, iPart, TempNextFreePosition, ElemID
+INTEGER                       :: iProc, iPos, nRecv, PartID,jPos, iPart, ElemID
 INTEGER                       :: recv_status_list(1:MPI_STATUS_SIZE,0:nExchangeProcessors-1)
 INTEGER                       :: MessageSize, nRecvParticles
 #if defined(ROS) || defined(IMPA)
@@ -1035,9 +1036,7 @@ DO iProc=0,nExchangeProcessors-1
   DO iPos=0,MessageSize-1-MsgLengthPoly - MsgLengthElec - MsgLengthAmbi,PartCommSize
     ! find free position in particle array
     nRecv  = nRecv+1
-    PartID = PDM%nextFreePosition(nRecv+PDM%CurrentNextFreePosition)
-    IF(PartID.EQ.0) CALL ABORT(__STAMP__,&
-        ' Error in ParticleExchange_parallel. PDM%nextFreePosition=0. Increase Part-MaxParticleNumber! ', nRecv)
+    PartID = GetNextFreePosition(nRecv)
 
     !>> particle position in physical space
     PartState(1:6,PartID)    = PartRecvBuf(iProc)%content(1+iPos: 6+iPos)
@@ -1319,21 +1318,19 @@ DO iProc=0,nExchangeProcessors-1
 
 END DO ! iProc
 
-TempNextFreePosition          = PDM%CurrentNextFreePosition
-PDM%ParticleVecLength         = PDM%ParticleVecLength + PartMPIExchange%nMPIParticles
+PDM%ParticleVecLength         = MIN(PDM%ParticleVecLength + PartMPIExchange%nMPIParticles,PDM%maxParticleNumber)
 PDM%CurrentNextFreePosition   = PDM%CurrentNextFreePosition + PartMPIExchange%nMPIParticles
-PartMPIExchange%nMPIParticles = 0
 IF(PDM%ParticleVecLength.GT.PDM%MaxParticleNumber) CALL ABORT(__STAMP__&
     ,' ParticleVecLegnth>MaxParticleNumber due to MPI-communication! Increase Part-maxParticleNumber or use more processors.')
 
 IF(RadialWeighting%PerformCloning) THEN
   ! Checking whether received particles have to be cloned or deleted
   DO iPart = 1,nrecv
-    PartID = PDM%nextFreePosition(iPart+TempNextFreePosition)
+    PartID = GetNextFreePosition(iPart-PartMPIExchange%nMPIParticles)
     IF(ParticleOnProc(PartID)) CALL DSMC_2D_RadialWeighting(PartID,PEM%GlobalElemID(PartID))
   END DO
 END IF
-
+PartMPIExchange%nMPIParticles = 0
 ! deallocate send,receive buffer
 DO iProc=0,nExchangeProcessors-1
   SDEALLOCATE(PartRecvBuf(iProc)%content)
