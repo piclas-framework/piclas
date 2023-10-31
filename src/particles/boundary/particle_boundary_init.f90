@@ -272,6 +272,8 @@ ALLOCATE(PartBound%UseAdaptedWallTemp(1:nPartBound))
 PartBound%UseAdaptedWallTemp = .FALSE.
 ALLOCATE(PartBound%RadiativeEmissivity(1:nPartBound))
 PartBound%RadiativeEmissivity = 1.
+ALLOCATE(PartBound%SurfModelSEEPowerFit(1:2, 1:nPartBound))
+PartBound%SurfModelSEEPowerFit = 0
 
 ! Output of wall temperature per default off
 PartBound%OutputWallTemp = .FALSE.
@@ -405,6 +407,14 @@ DO iPartBound=1,nPartBound
       CASE DEFAULT
         CALL abort(__STAMP__,'Error in particle init: only allowed SurfaceModels: 0,SEE_MODELS_ID! SurfaceModel=',&
         IntInfoOpt=PartBound%SurfaceModel(iPartBound))
+      END SELECT
+    END IF
+    ! read-in of surface model specific paramaters
+    IF (PartBound%SurfaceModel(iPartBound).GT.0)THEN
+      SELECT CASE (PartBound%SurfaceModel(iPartBound))
+      CASE (4)
+        ! Power-fit coefficients
+        PartBound%SurfModelSEEPowerFit(1:2,iPartBound) = GETREALARRAY('Part-Boundary'//TRIM(hilf)//'-SurfModelSEEPowerFit',2)
       END SELECT
     END IF
     IF (PartBound%NbrOfSpeciesSwaps(iPartBound).GT.0) THEN
