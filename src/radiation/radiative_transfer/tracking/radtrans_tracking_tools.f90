@@ -645,7 +645,11 @@ END SUBROUTINE PhotonIntersectionWithSide
 
 
 !===================================================================================================================================
-!>
+!> Calculate the absorbed energy in the (sub-)volume of each element. For higher-order sampling, the ray path between element entry
+!> and exit is sampled NbrOfSamples = MAX(30,(Nloc+1)**2) and a nearest neighbour search finds the nearest sub-volume element on
+!> which the energy is deposited. The sum of all sub-volume energies must equal the element-constant value, which is also
+!> determined. Not that only the energies are conserved and not the density, which is the ratio of energy and (sub-)volume when
+!> a change basis is used to switch between point sets (polynomial representations).
 !===================================================================================================================================
 SUBROUTINE CalcAbsorptionRayTrace(IntersectionPos,GlobalElemID,PhotonDir)
 USE MOD_Globals             ,ONLY: VECNORM
