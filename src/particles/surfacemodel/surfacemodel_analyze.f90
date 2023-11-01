@@ -894,7 +894,7 @@ IF(iter.EQ.0)THEN ! First iteration: Only output this information once
   END DO ! BCSideID = 1,nBCSides
 #if USE_MPI
   IF(MPIroot)THEN
-    CALL MPI_REDUCE(MPI_IN_PLACE , TotalSurfArea , BPO%NPartBoundaries , MPI_DOUBLE_PRECISION , MPI_SUM , 0 , MPI_COMM_WORLD , iError)
+    CALL MPI_REDUCE(MPI_IN_PLACE , TotalSurfArea , BPO%NPartBoundaries , MPI_DOUBLE_PRECISION , MPI_SUM , 0 , MPI_COMM_PICLAS , iError)
     WRITE(UNIT_stdOut,'(A)') "Total area used for BoundaryParticleOutput (BPO):"
     DO iBPO = 1, BPO%NPartBoundaries
       IF(iBPO.GT.9)THEN
@@ -904,7 +904,7 @@ IF(iter.EQ.0)THEN ! First iteration: Only output this information once
       END IF ! iBPO.GT.9
     END DO ! iBPO = 1, BPO%NPartBoundaries
   ELSE
-    CALL MPI_REDUCE(TotalSurfArea  , 0           , BPO%NPartBoundaries , MPI_DOUBLE_PRECISION , MPI_SUM , 0 , MPI_COMM_WORLD , iError)
+    CALL MPI_REDUCE(TotalSurfArea  , 0           , BPO%NPartBoundaries , MPI_DOUBLE_PRECISION , MPI_SUM , 0 , MPI_COMM_PICLAS , iError)
   END IF
 #endif /*USE_MPI*/
   DEALLOCATE(TotalSurfArea)

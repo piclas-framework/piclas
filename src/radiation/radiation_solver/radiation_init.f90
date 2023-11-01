@@ -346,7 +346,7 @@ REAL, ALLOCATABLE                 :: SortElemYPos(:)
 !===================================================================================================================================
 
 MacroRadiationInputFile = GETSTR('Radiation-MacroInput-Filename')
-CALL OpenDataFile(MacroRadiationInputFile,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_WORLD)
+CALL OpenDataFile(MacroRadiationInputFile,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_PICLAS)
 
 CALL GetDataProps('ElemData',nVar_HDF5,N_HDF5,nElems_HDF5)
 

@@ -249,8 +249,6 @@ ADEALLOCATE(PhotonSurfSideArea)
 END SUBROUTINE FinalizePhotonSurfSample
 
 
-
-
 SUBROUTINE PhotonTriaTracking()
 !===================================================================================================================================
 ! Routine for tracking of moving particles and boundary interaction using triangulated sides.
@@ -355,7 +353,9 @@ DO WHILE (.NOT.Done)
         END DO
       END DO
     ELSE  ! Regular side
+      ! Select A) TriaTracking or 2) Tracing on bilinear sides
       IF(UsePhotonTriaTracking)THEN
+        ! A) TriaTracking
         DO TriNum = 1,2
           ThroughSide = .FALSE.
           CALL PhotonThroughSideCheck3DFast(localSideID,ElemID,ThroughSide,TriNum)
@@ -368,7 +368,8 @@ DO WHILE (.NOT.Done)
             LocalSide = localSideID
           END IF
         END DO
-      ELSE ! Use bilinear tracing algorithm for intersection calculation
+      ELSE
+        ! 2) Tracing on bilinear sides (bilinear algorithm for intersection calculation))
         PartTrajectory = PhotonProps%PhotonDirection
         PhotonProps%PhotonPos = PhotonProps%PhotonStartPos + PhotonProps%PhotonDirection
         !PartTrajectory = PhotonProps%PhotonStartPos - PhotonProps%PhotonLastPos
@@ -538,6 +539,9 @@ DO WHILE (.NOT.Done)
     END IF  ! NrOfThroughSides.EQ.0/.GT.1
   END IF  ! NrOfThroughSides.NE.1
 
+  ! Dummy flag
+  IF(.NOT.UsePhotonTriaTracking) TriNum=1
+
   ! ----------------------------------------------------------------------------
   ! 3) In case of a boundary, perform the appropriate boundary interaction
   IF (SideInfo_Shared(SIDE_BCID,SideID).GT.0) THEN
@@ -545,7 +549,6 @@ DO WHILE (.NOT.Done)
     iPBC = PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID))
     BCType = PartBound%TargetBoundCond(iPBC)
     SELECT CASE(BCType)
-
     CASE(1) !PartBound%OpenBC)
       IF(NrOfThroughSides.LT.2)THEN
         CALL PhotonIntersectionWithSide(LocalSide,ElemID,TriNum, IntersectionPos, PhotonLost)
@@ -599,7 +602,6 @@ DO WHILE (.NOT.Done)
       ELSE
         ! Diffuse reflection
         IF (NrOfThroughSides.LT.2) THEN
-          IF(.NOT.UsePhotonTriaTracking) TriNum=1
           CALL DiffusePhotonReflection(LocalSide,ElemID,TriNum, IntersectionPos, .FALSE.)
         ELSE
           CALL DiffusePhotonReflection(LocalSide,ElemID,TriNum, IntersectionPos, .TRUE.)

@@ -122,7 +122,7 @@ END IF
 CALL MPI_ExchangeRadiationInfo()
 #endif /*USE_MPI*/
 
-CALL OpenDataFile(FileString,create=.false.,single=.FALSE.,readOnly=.FALSE.,communicatorOpt=MPI_COMM_WORLD)
+CALL OpenDataFile(FileString,create=.false.,single=.FALSE.,readOnly=.FALSE.,communicatorOpt=MPI_COMM_PICLAS)
 
 #if USE_MPI
 ASSOCIATE( RadiationElemAbsEnergySpec => RadiationElemAbsEnergySpec_Shared,&
@@ -206,14 +206,14 @@ CALL WritePhotonSurfSampleToHDF5()
 IF (RadObservationPointMethod.GT.0) THEN
 #if USE_MPI
   IF (myRank.EQ.0) THEN
-    CALL MPI_REDUCE(MPI_IN_PLACE,RadObservation_Emission,RadiationParameter%WaveLenDiscrCoarse,MPI_DOUBLE_PRECISION,MPI_SUM,0,MPI_COMM_WORLD,IERROR)
+    CALL MPI_REDUCE(MPI_IN_PLACE,RadObservation_Emission,RadiationParameter%WaveLenDiscrCoarse,MPI_DOUBLE_PRECISION,MPI_SUM,0,MPI_COMM_PICLAS,IERROR)
   ELSE
-    CALL MPI_REDUCE(RadObservation_Emission,0                   ,RadiationParameter%WaveLenDiscrCoarse,MPI_DOUBLE_PRECISION,MPI_SUM,0,MPI_COMM_WORLD,IERROR)
+    CALL MPI_REDUCE(RadObservation_Emission,0                   ,RadiationParameter%WaveLenDiscrCoarse,MPI_DOUBLE_PRECISION,MPI_SUM,0,MPI_COMM_PICLAS,IERROR)
   ENDIF
   IF (myRank.EQ.0) THEN
-    CALL MPI_REDUCE(MPI_IN_PLACE,RadObservation_EmissionPart,RadiationParameter%WaveLenDiscrCoarse,MPI_INTEGER,MPI_SUM,0,MPI_COMM_WORLD,IERROR)
+    CALL MPI_REDUCE(MPI_IN_PLACE,RadObservation_EmissionPart,RadiationParameter%WaveLenDiscrCoarse,MPI_INTEGER,MPI_SUM,0,MPI_COMM_PICLAS,IERROR)
   ELSE
-    CALL MPI_REDUCE(RadObservation_EmissionPart,0                   ,RadiationParameter%WaveLenDiscrCoarse,MPI_INTEGER,MPI_SUM,0,MPI_COMM_WORLD,IERROR)
+    CALL MPI_REDUCE(RadObservation_EmissionPart,0                   ,RadiationParameter%WaveLenDiscrCoarse,MPI_INTEGER,MPI_SUM,0,MPI_COMM_PICLAS,IERROR)
   ENDIF
 #endif /*USE_MPI*/
   IF (myRank.EQ.0) THEN

@@ -383,7 +383,7 @@ END DO ! iSurfSideHDF5 = 1, nSurfSidesHDF5
 IF(onlySurfData) RETURN
 
 ! 2. Get local element polynomial
-CALL OpenDataFile(RadiationVolState,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_WORLD)
+CALL OpenDataFile(RadiationVolState,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_PICLAS)
 CALL DatasetExists(File_ID,'Nloc',ContainerExists)
 IF(.NOT.ContainerExists) CALL CollectiveStop(__STAMP__,'Nloc container does not exist in '//TRIM(RadiationVolState))
 ! Array is stored as REAL value, hence, convert back to integer

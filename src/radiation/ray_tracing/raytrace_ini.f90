@@ -216,6 +216,7 @@ USE MOD_Mesh_Tools         ,ONLY: GetCNElemID,GetGlobalElemID
 USE MOD_ReadInTools        ,ONLY: GETREAL
 USE MOD_Particle_Mesh_Vars ,ONLY: ElemVolume_Shared,ElemBaryNGeo
 #if USE_MPI
+USE MOD_Globals            ,ONLY: MPI_COMM_PICLAS
 USE MPI
 !USE MOD_Particle_Mesh_Vars ,ONLY: NodeCoords_Shared
 USE MOD_RayTracing_Vars    ,ONLY: N_DG_Ray_Shared,N_DG_Ray_Shared_Win
@@ -319,8 +320,8 @@ IF(PerformRayTracing)THEN
           END IF
         END DO ! iCNElem = firstElem, lastElem
 #if USE_MPI
-        CALL MPI_ALLREDUCE(MPI_IN_PLACE, VolMin, 1, MPI_DOUBLE_PRECISION, MPI_MIN, MPI_COMM_WORLD, IERROR)
-        CALL MPI_ALLREDUCE(MPI_IN_PLACE, VolMax, 1, MPI_DOUBLE_PRECISION, MPI_MAX, MPI_COMM_WORLD, IERROR)
+        CALL MPI_ALLREDUCE(MPI_IN_PLACE, VolMin, 1, MPI_DOUBLE_PRECISION, MPI_MIN, MPI_COMM_PICLAS, IERROR)
+        CALL MPI_ALLREDUCE(MPI_IN_PLACE, VolMax, 1, MPI_DOUBLE_PRECISION, MPI_MAX, MPI_COMM_PICLAS, IERROR)
 #endif /*USE_MPI*/
 
         ! Loop over all elements again and scale the polynomial degree using NINT.

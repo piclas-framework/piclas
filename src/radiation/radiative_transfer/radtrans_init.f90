@@ -301,7 +301,7 @@ IF (RadiationSwitches%MacroRadInput) THEN
     IF(.NOT.RadiationInput(iSpec)%DoRadiation) CYCLE
     MaxSumTemp(1) = MaxSumTemp(1) + SUM(MacroRadInputParameters(firstElem:lastElem,iSpec,4))
   END DO
-  CALL MPI_ALLREDUCE(MaxSumTemp, GlobalMaxTemp, 1, MPI_2DOUBLE_PRECISION, MPI_MAXLOC,MPI_COMM_WORLD,iError)
+  CALL MPI_ALLREDUCE(MaxSumTemp, GlobalMaxTemp, 1, MPI_2DOUBLE_PRECISION, MPI_MAXLOC,MPI_COMM_PICLAS,iError)
   DisplRank = NINT(GlobalMaxTemp(2))
 ELSE
   firstElem = INT(REAL( myComputeNodeRank   *nComputeNodeElems)/REAL(nComputeNodeProcessors))+1
@@ -463,9 +463,9 @@ END SELECT
     END IF
   END DO
 #if USE_MPI
-  CALL MPI_ALLREDUCE(MPI_IN_PLACE,RadTrans%GlobalRadiationPower,1,MPI_DOUBLE_PRECISION,MPI_SUM,MPI_COMM_WORLD,iError)
+  CALL MPI_ALLREDUCE(MPI_IN_PLACE,RadTrans%GlobalRadiationPower,1,MPI_DOUBLE_PRECISION,MPI_SUM,MPI_COMM_PICLAS,iError)
   IF (RadialWeighting%DoRadialWeighting) THEN
-    CALL MPI_ALLREDUCE(MPI_IN_PLACE,RadTrans%ScaledGlobalRadiationPower,1,MPI_DOUBLE_PRECISION,MPI_SUM,MPI_COMM_WORLD,iError)
+    CALL MPI_ALLREDUCE(MPI_IN_PLACE,RadTrans%ScaledGlobalRadiationPower,1,MPI_DOUBLE_PRECISION,MPI_SUM,MPI_COMM_PICLAS,iError)
   END IF
 #endif /*USE_MPI*/
   RadTrans%GlobalPhotonNum = RadTrans%NumPhotonsPerCell * nGlobalElems

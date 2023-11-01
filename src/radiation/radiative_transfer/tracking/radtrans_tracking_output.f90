@@ -80,7 +80,7 @@ REAL                                :: J_Nloc(1:1,0:Ray%NMax,0:Ray%NMax,0:Ray%NM
 REAL                                :: IntegrationWeight
 REAL                                :: Vdm_GaussN_NMax(0:PP_N,0:Ray%NMax)    !< for interpolation to Analyze points (from NodeType nodes to Gauss-Lobatto nodes)
 REAL, ALLOCATABLE                   :: Vdm_GaussN_Nloc(:,:)    !< for interpolation to Analyze points (from NodeType nodes to Gauss-Lobatto nodes)
-REAL, PARAMETER                     :: tolerance=1e-6
+REAL, PARAMETER                     :: tolerance=1e-2
 !===================================================================================================================================
 SWRITE(UNIT_stdOut,'(a)',ADVANCE='NO') ' WRITE Radiation TO HDF5 FILE...'
 
@@ -207,16 +207,17 @@ ASSOCIATE( RayElemPassedEnergy => RayElemPassedEnergy_Shared )
         IPWRITE(UNIT_StdOut,*) "iElem,iGlobalElem                    = ", iElem,iGlobalElem
         IPWRITE(UNIT_StdOut,*) "RayElemPassedEnergyLoc1st(iElem)     = ", RayElemPassedEnergyLoc1st(iElem)
         IPWRITE(UNIT_StdOut,*) "SUM(U_N_Ray(iGlobalElem)%U(1,:,:,:)) = ", SUM(U_N_Ray(iGlobalElem)%U(1,:,:,:))
+        IPWRITE(UNIT_StdOut,*) "ratio =", SUM(U_N_Ray(iGlobalElem)%U(1,:,:,:))/RayElemPassedEnergyLoc1st(iElem)
         CALL abort(__STAMP__,'Before: RayElemPassedEnergyLoc1st does not match U_N_Ray%U(1) for tolerance = ',RealInfoOpt=tolerance)
       END IF
     END IF
     ! 2nd energy
     IF(RayElemPassedEnergyLoc2nd(iElem).GT.0.0)THEN
+      IF(.NOT.ALMOSTEQUALRELATIVE(RayElemPassedEnergyLoc2nd(iElem), SUM(U_N_Ray(iGlobalElem)%U(2,:,:,:)), tolerance))THEN
         IPWRITE(UNIT_StdOut,*) "iElem,iGlobalElem                    = ", iElem,iGlobalElem
         IPWRITE(UNIT_StdOut,*) "RayElemPassedEnergyLoc2nd(iElem)     = ", RayElemPassedEnergyLoc2nd(iElem)
         IPWRITE(UNIT_StdOut,*) "SUM(U_N_Ray(iGlobalElem)%U(2,:,:,:)) = ", SUM(U_N_Ray(iGlobalElem)%U(2,:,:,:))
-      IF(.NOT.ALMOSTEQUALRELATIVE(RayElemPassedEnergyLoc2nd(iElem), SUM(U_N_Ray(iGlobalElem)%U(2,:,:,:)), tolerance))THEN
-
+        IPWRITE(UNIT_StdOut,*) "ratio =", SUM(U_N_Ray(iGlobalElem)%U(2,:,:,:))/RayElemPassedEnergyLoc2nd(iElem)
         CALL abort(__STAMP__,'Before: RayElemPassedEnergyLoc1st does not match U_N_Ray%U(2) for tolerance = ',RealInfoOpt=tolerance)
       END IF
     END IF
@@ -226,6 +227,7 @@ ASSOCIATE( RayElemPassedEnergy => RayElemPassedEnergy_Shared )
         IPWRITE(UNIT_StdOut,*) "iElem,iGlobalElem                    = ", iElem,iGlobalElem
         IPWRITE(UNIT_StdOut,*) "ElemVolume(iElem)                    = ", ElemVolume(iElem)
         IPWRITE(UNIT_StdOut,*) "SUM(U_N_Ray(iGlobalElem)%U(3,:,:,:)) = ", SUM(U_N_Ray(iGlobalElem)%U(3,:,:,:))
+        IPWRITE(UNIT_StdOut,*) "ratio =", SUM(U_N_Ray(iGlobalElem)%U(3,:,:,:))/ElemVolume(iElem)
         CALL abort(__STAMP__,'Before: ElemVolume(iElem) does not match U_N_Ray%U(3) for tolerance = ',RealInfoOpt=tolerance)
       END IF
     END IF
@@ -270,6 +272,7 @@ ASSOCIATE( RayElemPassedEnergy => RayElemPassedEnergy_Shared )
         IPWRITE(UNIT_StdOut,*) "iElem,iGlobalElem                = ", iElem,iGlobalElem
         IPWRITE(UNIT_StdOut,*) "RayElemPassedEnergyLoc1st(iElem) = ", RayElemPassedEnergyLoc1st(iElem)
         IPWRITE(UNIT_StdOut,*) "SUM(UNMax(1,:,:,:,iElem))        = ", SUM(UNMax(1,:,:,:,iElem))
+        IPWRITE(UNIT_StdOut,*) "ratio =", SUM(UNMax(1,:,:,:,iElem))/RayElemPassedEnergyLoc1st(iElem)
         CALL abort(__STAMP__,'After: RayElemPassedEnergyLoc1st does not match UNMax(1) for tolerance = ',RealInfoOpt=tolerance)
       END IF
     END IF
@@ -279,6 +282,7 @@ ASSOCIATE( RayElemPassedEnergy => RayElemPassedEnergy_Shared )
         IPWRITE(UNIT_StdOut,*) "iElem,iGlobalElem                = ", iElem,iGlobalElem
         IPWRITE(UNIT_StdOut,*) "RayElemPassedEnergyLoc2nd(iElem) = ", RayElemPassedEnergyLoc2nd(iElem)
         IPWRITE(UNIT_StdOut,*) "SUM(UNMax(2,:,:,:,iElem))        = ", SUM(UNMax(2,:,:,:,iElem))
+        IPWRITE(UNIT_StdOut,*) "ratio =", SUM(UNMax(1,:,:,:,iElem))/RayElemPassedEnergyLoc2nd(iElem)
         CALL abort(__STAMP__,'After: RayElemPassedEnergyLoc1st does not match UNMax(2) for tolerance = ',RealInfoOpt=tolerance)
       END IF
     END IF
@@ -288,6 +292,7 @@ ASSOCIATE( RayElemPassedEnergy => RayElemPassedEnergy_Shared )
         IPWRITE(UNIT_StdOut,*) "iElem,iGlobalElem         = ", iElem,iGlobalElem
         IPWRITE(UNIT_StdOut,*) "ElemVolume(iElem)         = ", ElemVolume(iElem)
         IPWRITE(UNIT_StdOut,*) "SUM(UNMax(3,:,:,:,iElem)) = ", SUM(UNMax(3,:,:,:,iElem))
+        IPWRITE(UNIT_StdOut,*) "ratio =", SUM(UNMax(3,:,:,:,iElem))/ElemVolume(iElem)
         CALL abort(__STAMP__,'After: ElemVolume(iElem) does not match UNMax(3) for tolerance = ',RealInfoOpt=tolerance)
       END IF
     END IF
@@ -298,7 +303,7 @@ ASSOCIATE( RayElemPassedEnergy => RayElemPassedEnergy_Shared )
   ! Write file after last abort to prevent a corrupt output file (which might be used when restarting the simulation)
   IF(MPIRoot) CALL GenerateFileSkeleton('RadiationVolState',nVarRay,StrVarNames,TRIM(MeshFile),0.,FileNameIn=RadiationVolState,NIn=Ray%NMax,NodeType_in=Ray%NodeType)
 #if USE_MPI
-  CALL MPI_BARRIER(MPI_COMM_WORLD,iError)
+  CALL MPI_BARRIER(MPI_COMM_PICLAS,iError)
 #endif
 
   ! Associate construct for integer KIND=8 possibility

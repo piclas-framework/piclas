@@ -46,6 +46,7 @@ INTEGER            :: MPI_COMM_WORKERS ! all non-master nodes
 INTEGER            :: MPI_COMM_PICLAS  ! all nodes
 #else
 INTEGER,PARAMETER  :: MPI_COMM_PICLAS=-1 ! DUMMY when compiling single (MPI=OFF)
+INTEGER,PARAMETER  :: MPI_COMM_LEADERS=-1 ! DUMMY when compiling single (MPI=OFF)
 #endif
 LOGICAL            :: MemoryMonitor      !> Flag for turning RAM monitoring ON/OFF. Used for the detection of RAM overflows (e.g. due to memory leaks)
 

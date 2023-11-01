@@ -791,7 +791,7 @@ m = MINLOC(ABS(N_Inter_Ray(Nloc)%xGP(:) - IntersectionPosRef(3)),DIM=1) - 1
 !END IF ! kOld.eq.k .or. lOld.ne.l .or. mOld.ne.m
 !
 !  IPWRITE(UNIT_StdOut , *) "k    , l    , m    ="    , k    , l    , m
-!  !IF(myrank.eq.0) read*; CALL MPI_BARRIER(MPI_COMM_WORLD,iError)
+!  !IF(myrank.eq.0) read*; CALL MPI_BARRIER(MPI_COMM_PICLAS,iError)
 
 END SUBROUTINE GetNestestDOFInRefElem
 
