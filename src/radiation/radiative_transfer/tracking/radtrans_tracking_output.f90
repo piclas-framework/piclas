@@ -306,6 +306,9 @@ ASSOCIATE( RayElemPassedEnergy => RayElemPassedEnergy_Shared )
   CALL MPI_BARRIER(MPI_COMM_PICLAS,iError)
 #endif
 
+  ! Sanity check
+  IF(ANY(ISNAN(UNMax))) CALL abort(__STAMP__,'Found one or more NaN in the array UNMax!')
+
   ! Associate construct for integer KIND=8 possibility
   ASSOCIATE (&
         nVarRay           => INT(nVarRay,IK)            ,&
