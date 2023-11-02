@@ -748,8 +748,8 @@ WEK_DSMC:
     - cd build
     - python ./reggie/reggie.py ../regressioncheck/WEK_DSMC -s
     - cd ../build_radiation
-    - cp $(find ../build/output_dir -name "70degCone2D_Set1_DSMCState_000.00020000000000000.h5" | head -n 1) ../regressioncheck/WEK_Radiation/Flow_N2_70degCone/.
-    - cp $(find ../build/output_dir -name "mesh_70degCone2D_Set1_noWake_mesh.h5" | head -n 1) ../regressioncheck/WEK_Radiation/Flow_N2_70degCone/.
+    - cp $(find ../build/output_dir -name "70degCone2D_Set1_DSMCState_000.00020000000000000.h5" | head -n 1) ../regressioncheck/WEK_Radiation/Flow_N2-N_70degConeHot/.
+    - cp $(find ../build/output_dir -name "mesh_70degCone2D_Set1_noWake_mesh.h5" | head -n 1) ../regressioncheck/WEK_Radiation/Flow_N2-N_70degConeHot/.
     - python ./../build/reggie/reggie.py -e ./bin/piclas ../regressioncheck/WEK_Radiation/Flow_N2_70degCone
 
 WEK_Reservoir:
