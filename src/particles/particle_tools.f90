@@ -1687,6 +1687,7 @@ TYPE (tClonedParticles), ALLOCATABLE      :: ClonedParticles_New(:,:)
 ! REAL                        ::
 !===================================================================================================================================
 IF(PRESENT(Amount)) THEN
+  IF(Amount.EQ.0) RETURN
   NewSize=PDM%MaxParticleNumber+Amount
   IPWRITE(*,*) "Increase by amount"
   IF(NewSize.GT.PDM%maxAllowedParticleNumber)CALL ABORT(&
@@ -1847,6 +1848,7 @@ IF(ALLOCATED(PartPosRef)) THEN
 __STAMP__&
 ,'Cannot allocate increased Array in IncreaseMaxParticleNumber')
   Temp2Real(:,1:PDM%MaxParticleNumber)=PartPosRef
+  ! Temp2Real(:,PDM%maxParticleNumber+1:NewSize) = -888.
   CALL MOVE_ALLOC(Temp2Real,PartPosRef)
 END IF
 
