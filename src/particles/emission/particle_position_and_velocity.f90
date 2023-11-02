@@ -550,7 +550,7 @@ USE MOD_PreProc
 USE MOD_Globals                ,ONLY: myrank,UNIT_StdOut,MPI_COMM_WORLD,abort
 USE MOD_part_tools             ,ONLY: InitializeParticleMaxwell,InterpolateEmissionDistribution2D, GetNextFreePosition
 USE MOD_Mesh_Vars              ,ONLY: nElems,offsetElem
-USE MOD_Particle_Vars          ,ONLY: Species, PDM, PartState, PEM, LastPartPos
+USE MOD_Particle_Vars          ,ONLY: Species, PDM, PartState, PEM, LastPartPos, PartPosRef
 USE MOD_Particle_Tracking      ,ONLY: ParticleInsideCheck
 USE MOD_Mesh_Tools             ,ONLY: GetCNElemID
 USE MOD_Particle_Emission_Vars ,ONLY: EmissionDistributionDim, EmissionDistributionN
@@ -560,7 +560,7 @@ USE MOD_ChangeBasis            ,ONLY: ChangeBasis3D
 USE MOD_Equation               ,ONLY: ExactFunc
 USE MOD_Mesh_Vars              ,ONLY: Elem_xGP,sJ
 USE MOD_Interpolation_Vars     ,ONLY: NodeTypeVISU,NodeType
-USE MOD_Eval_xyz               ,ONLY: TensorProductInterpolation
+USE MOD_Eval_xyz               ,ONLY: TensorProductInterpolation, GetPositionInRefElem
 USE MOD_Mesh_Vars              ,ONLY: NGeo,XCL_NGeo,XiCL_NGeo,wBaryCL_NGeo,offsetElem
 USE MOD_Particle_Mesh_Vars     ,ONLY: ElemVolume_Shared,BoundsOfElem_Shared
 USE MOD_Mesh_Tools             ,ONLY: GetCNElemID
@@ -745,6 +745,8 @@ DO iElem = 1, nElems
                 IF((PositionNbr.GE.PDM%maxParticleNumber).OR.&
                     (PositionNbr.EQ.0)) CALL abort(__STAMP__,'Emission: Increase maxParticleNumber!',PositionNbr)
                 PartState(1:3,PositionNbr) = RandomPos(1:3)
+                IF(TrackingMethod.EQ.REFMAPPING) &
+                  CALL GetPositionInRefElem(PartState(1:3,PositionNbr),PartPosRef(1:3,PositionNbr),GlobalElemID)
                 CALL InitializeParticleMaxwell(PositionNbr,iSpec,iElem,Mode=2,iInit=iInit)
               END IF
             END DO ! nPart
