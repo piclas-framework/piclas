@@ -583,6 +583,8 @@ IF (mySurfRank.EQ.0) THEN
   CALL WriteAttributeToHDF5(File_ID,'MeshFile',1,StrScalar=(/TRIM(MeshFile)/))
   CALL WriteAttributeToHDF5(File_ID,'BC_Surf',nSurfBC,StrArray=SurfBCName)
   CALL WriteAttributeToHDF5(File_ID,'N',1,IntegerScalar=1)
+  CALL WriteAttributeToHDF5(File_ID,'Time'    ,1,RealScalar=0.)
+  CALL WriteAttributeToHDF5(File_ID,'DSMC_nSurfSample',1,IntegerScalar=1)
   NodeTypeTemp='VISU'
   CALL WriteAttributeToHDF5(File_ID,'NodeType',1,StrScalar=(/NodeTypeTemp/))
 

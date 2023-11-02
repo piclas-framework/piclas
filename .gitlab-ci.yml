@@ -97,10 +97,12 @@ stages:
     when: on_failure
     paths:
       - build
+      - build_radiation
   cache:
     key: "${CI_COMMIT_REF_SLUG}"
     paths:
       - build
+      - build_radiation
     policy: pull
   allow_failure: true
   rules:
@@ -219,10 +221,12 @@ build:
     when: on_failure
     paths:
       - build
+      - build_radiation
   cache:
     key: "${CI_COMMIT_REF_SLUG}"
     paths:
       - build
+      - build_radiation
     policy: push
   stage: build
   script:
@@ -230,6 +234,11 @@ build:
     - git clone git@piclas.boltzplatz.eu:reggie2.0/reggie2.0.git reggie
     #- cmake .. -DLIBS_BUILD_HDF5=OFF -DPICLAS_BUILD_POSTI=ON -DPOSTI_BUILD_SUPERB=ON -DPICLAS_READIN_CONSTANTS=ON ; $GENERATOR -j all
     - cmake -GNinja .. -DLIBS_BUILD_HDF5=OFF -DPICLAS_BUILD_POSTI=ON -DPOSTI_BUILD_SUPERB=ON -DPICLAS_READIN_CONSTANTS=ON ; ninja -j0 all
+    - if [ -n "${DO_WEEKLY}" ]; then
+        cd ..;
+        mkdir -p build_radiation ; cd build_radiation; 
+        cmake -GNinja .. -DLIBS_BUILD_HDF5=OFF -DPICLAS_BUILD_POSTI=ON -DPOSTI_BUILD_SUPERB=ON -DPICLAS_READIN_CONSTANTS=ON -DPICLAS_TIMEDISCMETHOD=Radiation -DPICLAS_INTKIND8=ON ; ninja -j0 all
+      fi
 
 build_maxwell:
   tags:
@@ -737,7 +746,11 @@ WEK_DSMC:
   stage: reggie_weekly
   script:
     - cd build
-    - python ./reggie/reggie.py ../regressioncheck/WEK_DSMC
+    - python ./reggie/reggie.py ../regressioncheck/WEK_DSMC -s
+    - cd ../build_radiation
+    - cp $(find ../build/output_dir -name "70degCone2D_Set1_DSMCState_000.00020000000000000.h5" | head -n 1) ../regressioncheck/WEK_Radiation/Flow_N2_70degCone/.
+    - cp $(find ../build/output_dir -name "mesh_70degCone2D_Set1_noWake_mesh.h5" | head -n 1) ../regressioncheck/WEK_Radiation/Flow_N2_70degCone/.
+    - python ./../build/reggie/reggie.py -e ./bin/piclas ../regressioncheck/WEK_Radiation/Flow_N2_70degCone
 
 WEK_Reservoir:
   <<: *defaults_weekly
