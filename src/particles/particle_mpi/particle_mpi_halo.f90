@@ -592,7 +592,7 @@ ElemLoop:  DO iElem = 1,nComputeNodeTotalElems
           IF(PartBound%UseRotPeriodicBC) THEN
             DO iPartBound = 1, nPartBound
               IF(PartBound%TargetBoundCond(iPartBound).NE.PartBound%RotPeriodicBC) CYCLE
-                alpha = PartBound%RotPeriodicAngle(iPartBound) * PartBound%RotPeriodicTol
+              alpha = PartBound%RotPeriodicAngle(iPartBound) * PartBound%RotPeriodicTol
               ASSOCIATE(RotBoundMin => PartBound%RotPeriodicMin(iPartBound)-MPI_halo_eps_woshape, &
                         RotBoundMax => PartBound%RotPeriodicMax(iPartBound)+MPI_halo_eps_woshape)
                 IF( (BoundsOfElemCenter(PartBound%RotPeriodicAxis)-BoundsOfElemCenter(4).GE.RotBoundMax).OR. &
@@ -602,14 +602,12 @@ ElemLoop:  DO iElem = 1,nComputeNodeTotalElems
               END ASSOCIATE
               RotBoundsOfElemCenter(1:3) = RotateVectorAroundAxis(BoundsOfElemCenter(1:3),PartBound%RotPeriodicAxis,alpha)
               ! check if element is within halo_eps of rotationally displaced element
-              IF (VECNORM( RotBoundsOfElemCenter(1:3)                                           &
-                         - MPISideBoundsOfNbElemCenter(1:3,iSide))                              &
-                      .LE. MPI_halo_eps_woshape+BoundsOfElemCenter(4)                           & !-BoundsOfElemCenter(5) &
-                         + MPISideBoundsOfNbElemCenter(4,iSide) ) THEN
+              IF ( VECNORM(RotBoundsOfElemCenter(1:3) - MPISideBoundsOfNbElemCenter(1:3,iSide))    &
+                      .LE.(MPI_halo_eps_woshape+BoundsOfElemCenter(4) + MPISideBoundsOfNbElemCenter(4,iSide)) ) THEN
                 ! flag the proc as exchange proc (in halo region)
                 IsExchangeElem(localElem) = .TRUE.
                 CYCLE ElemLoop
-              END IF
+              END IF ! VECNORM( RotBoundsOfElemCenter ...
             END DO ! nPartBound
             ! End check rot periodic Elems and if iSide is on rot periodic BC
           END IF ! PartBound%UseRotPeriodicBC
@@ -632,60 +630,65 @@ ElemLoop:  DO iElem = 1,nComputeNodeTotalElems
     SELECT CASE(GlobalProcToExchangeProc(EXCHANGE_PROC_TYPE,HaloProc))
       ! Proc not previously encountered, check if possibly in range
       CASE(-1)
-        IF(PartBound%UseRotPeriodicBC) THEN
-          GlobalProcToExchangeProc(EXCHANGE_PROC_TYPE,HaloProc) = 0
+        firstElem = offsetElemMPI(HaloProc)+1
+        lastElem  = offsetElemMPI(HaloProc +1)
+
+        SELECT CASE(TrackingMethod)
+          ! Build mesh min/max on BezierControlPoints for possibly curved elements
+          CASE(REFMAPPING,TRACING)
+            firstSide = ElemInfo_Shared(ELEM_FIRSTSIDEIND,firstElem)+1
+            lastSide  = ElemInfo_Shared(ELEM_LASTSIDEIND ,lastElem)
+
+            xCoordsOrigin(1) = MINVAL(BezierControlPoints3D(1,:,:,firstSide:lastSide))
+            xCoordsOrigin(2) = MAXVAL(BezierControlPoints3D(1,:,:,firstSide:lastSide))
+            xCoordsOrigin(3) = MINVAL(BezierControlPoints3D(2,:,:,firstSide:lastSide))
+            xCoordsOrigin(4) = MAXVAL(BezierControlPoints3D(2,:,:,firstSide:lastSide))
+            xCoordsOrigin(5) = MINVAL(BezierControlPoints3D(3,:,:,firstSide:lastSide))
+            xCoordsOrigin(6) = MAXVAL(BezierControlPoints3D(3,:,:,firstSide:lastSide))
+
+          ! TriaTracking does not have curved elements, nodeCoords are sufficient
+          CASE(TRIATRACKING)
+            xCoordsOrigin(1) = MINVAL(NodeCoords_Shared(1,ElemInfo_Shared(ELEM_FIRSTNODEIND,firstElem) + 1 &
+                                                         :ElemInfo_Shared(ELEM_LASTNODEIND ,lastElem)))
+            xCoordsOrigin(2) = MAXVAL(NodeCoords_Shared(1,ElemInfo_Shared(ELEM_FIRSTNODEIND,firstElem) + 1 &
+                                                         :ElemInfo_Shared(ELEM_LASTNODEIND ,lastElem)))
+            xCoordsOrigin(3) = MINVAL(NodeCoords_Shared(2,ElemInfo_Shared(ELEM_FIRSTNODEIND,firstElem) + 1 &
+                                                         :ElemInfo_Shared(ELEM_LASTNODEIND ,lastElem)))
+            xCoordsOrigin(4) = MAXVAL(NodeCoords_Shared(2,ElemInfo_Shared(ELEM_FIRSTNODEIND,firstElem) + 1 &
+                                                         :ElemInfo_Shared(ELEM_LASTNODEIND ,lastElem)))
+            xCoordsOrigin(5) = MINVAL(NodeCoords_Shared(3,ElemInfo_Shared(ELEM_FIRSTNODEIND,firstElem) + 1 &
+                                                         :ElemInfo_Shared(ELEM_LASTNODEIND ,lastElem)))
+            xCoordsOrigin(6) = MAXVAL(NodeCoords_Shared(3,ElemInfo_Shared(ELEM_FIRSTNODEIND,firstElem) + 1 &
+                                                         :ElemInfo_Shared(ELEM_LASTNODEIND ,lastElem)))
+        END SELECT
+
+        ! Keep direction to account for accuracy issues
+        IF (myRank.LT.HaloProc) THEN
+          ProcInRange = HaloBoxInProc(xCoordsOrigin,xCoordsProc  ,MPI_halo_eps,GEO%nPeriodicVectors,GEO%PeriodicVectors)
         ELSE
-          firstElem = offsetElemMPI(HaloProc)+1
-          lastElem  = offsetElemMPI(HaloProc +1)
+          ProcInRange = HaloBoxInProc(xCoordsProc  ,xCoordsOrigin,MPI_halo_eps,GEO%nPeriodicVectors,GEO%PeriodicVectors)
+        END IF
 
-          SELECT CASE(TrackingMethod)
-            ! Build mesh min/max on BezierControlPoints for possibly curved elements
-            CASE(REFMAPPING,TRACING)
-              firstSide = ElemInfo_Shared(ELEM_FIRSTSIDEIND,firstElem)+1
-              lastSide  = ElemInfo_Shared(ELEM_LASTSIDEIND ,lastElem)
-
-              xCoordsOrigin(1) = MINVAL(BezierControlPoints3D(1,:,:,firstSide:lastSide))
-              xCoordsOrigin(2) = MAXVAL(BezierControlPoints3D(1,:,:,firstSide:lastSide))
-              xCoordsOrigin(3) = MINVAL(BezierControlPoints3D(2,:,:,firstSide:lastSide))
-              xCoordsOrigin(4) = MAXVAL(BezierControlPoints3D(2,:,:,firstSide:lastSide))
-              xCoordsOrigin(5) = MINVAL(BezierControlPoints3D(3,:,:,firstSide:lastSide))
-              xCoordsOrigin(6) = MAXVAL(BezierControlPoints3D(3,:,:,firstSide:lastSide))
-
-            ! TriaTracking does not have curved elements, nodeCoords are sufficient
-            CASE(TRIATRACKING)
-              xCoordsOrigin(1) = MINVAL(NodeCoords_Shared(1,ElemInfo_Shared(ELEM_FIRSTNODEIND,firstElem) + 1 &
-                                                           :ElemInfo_Shared(ELEM_LASTNODEIND ,lastElem)))
-              xCoordsOrigin(2) = MAXVAL(NodeCoords_Shared(1,ElemInfo_Shared(ELEM_FIRSTNODEIND,firstElem) + 1 &
-                                                           :ElemInfo_Shared(ELEM_LASTNODEIND ,lastElem)))
-              xCoordsOrigin(3) = MINVAL(NodeCoords_Shared(2,ElemInfo_Shared(ELEM_FIRSTNODEIND,firstElem) + 1 &
-                                                           :ElemInfo_Shared(ELEM_LASTNODEIND ,lastElem)))
-              xCoordsOrigin(4) = MAXVAL(NodeCoords_Shared(2,ElemInfo_Shared(ELEM_FIRSTNODEIND,firstElem) + 1 &
-                                                           :ElemInfo_Shared(ELEM_LASTNODEIND ,lastElem)))
-              xCoordsOrigin(5) = MINVAL(NodeCoords_Shared(3,ElemInfo_Shared(ELEM_FIRSTNODEIND,firstElem) + 1 &
-                                                           :ElemInfo_Shared(ELEM_LASTNODEIND ,lastElem)))
-              xCoordsOrigin(6) = MAXVAL(NodeCoords_Shared(3,ElemInfo_Shared(ELEM_FIRSTNODEIND,firstElem) + 1 &
-                                                           :ElemInfo_Shared(ELEM_LASTNODEIND ,lastElem)))
-          END SELECT
-
-          ! Keep direction to account for accuracy issues
-          IF (myRank.LT.HaloProc) THEN
-            ProcInRange = HaloBoxInProc(xCoordsOrigin,xCoordsProc,MPI_halo_eps,GEO%nPeriodicVectors,GEO%PeriodicVectors)
-          ELSE
-            ProcInRange = HaloBoxInProc(xCoordsProc,xCoordsOrigin,MPI_halo_eps,GEO%nPeriodicVectors,GEO%PeriodicVectors)
-          END IF
-
-          ! Check if proc is in range
-          IF (.NOT.ProcInRange) THEN
-            ! Proc definitely not in range
-            GlobalProcToExchangeProc(EXCHANGE_PROC_TYPE,HaloProc) = -2
+        ! Check if proc is in range
+        IF (ProcInRange) THEN
+          ! Check if single-node + rot-periodic BCs
+          IF ((nLeaderGroupProcs.EQ.1).AND.PartBound%UseRotPeriodicBC) THEN
+            ! Assume process in range based on bounding box check. Skip exact element check only for single-node + rot-periodic BCs
+            GlobalProcToExchangeProc(EXCHANGE_PROC_TYPE,HaloProc) = 1
+            GlobalProcToExchangeProc(EXCHANGE_PROC_RANK,HaloProc) = nExchangeProcessors
+            nExchangeProcessors = nExchangeProcessors + 1
             CYCLE
           ELSE
-            ! Proc possible in range
+            ! Process possible in range
             GlobalProcToExchangeProc(EXCHANGE_PROC_TYPE,HaloProc) = 0
-          END IF
-        END IF
-      ! Proc definitely not in range or already flagged
-      CASE(-2,1,2)
+          END IF ! (nLeaderGroupProcs.EQ.1).AND.PartBound%UseRotPeriodicBC
+        ELSE ! .NOT.ProcInRange
+          ! Proc definitely not in range
+          GlobalProcToExchangeProc(EXCHANGE_PROC_TYPE,HaloProc) = -2
+          CYCLE
+        END IF ! ProcInRange
+
+      CASE(-2,1,2) ! Proc definitely not in range or already flagged
         CYCLE
     END SELECT
   END IF
@@ -847,6 +850,7 @@ ElemLoop:  DO iElem = 1,nComputeNodeTotalElems
       ! Check rot periodic Elems and if iSide is on rot periodic BC
       IF(PartBound%UseRotPeriodicBC) THEN
         DO iPartBound = 1, nPartBound
+          IF(PartBound%TargetBoundCond(iPartBound).NE.PartBound%RotPeriodicBC) CYCLE
           alpha = PartBound%RotPeriodicAngle(iPartBound) * PartBound%RotPeriodicTol
           RotBoundsOfElemCenter(1:3) = RotateVectorAroundAxis(BoundsOfElemCenter(1:3),PartBound%RotPeriodicAxis,alpha)
           ! check if element is within halo_eps of rotationally displaced element
@@ -1539,9 +1543,11 @@ END SUBROUTINE FinalizePartExchangeProcs
 
 PPURE FUNCTION HaloBoxInProc(CartNodes,CartProc,halo_eps,nPeriodicVectors,PeriodicVectors)
 !===================================================================================================================================
-! Check if bounding box is on proc by comparing against the other bounding box extended by halo_eps
+! Check if bounding box is on process by comparing against the other bounding box extended by halo_eps
 !===================================================================================================================================
 ! MODULES
+USE MOD_Particle_Boundary_Vars  ,ONLY: PartBound,nPartBound
+USE MOD_part_tools              ,ONLY: RotateVectorAroundAxis
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1557,8 +1563,11 @@ LOGICAL                     :: HaloBoxInProc
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER,DIMENSION(2),PARAMETER :: DirPeriodicVector = [-1,1]
-INTEGER                        :: iPeriodicVector,jPeriodicVector,iPeriodicDir,jPeriodicDir,kPeriodicDir
+INTEGER                        :: iPeriodicVector,jPeriodicVector,iPeriodicDir,jPeriodicDir,kPeriodicDir,i,iPartBound
 REAL,DIMENSION(1:6)            :: xCordsPeri
+REAL,DIMENSION(1:8,1:3)        :: x
+REAL,DIMENSION(1:3)            :: xRot
+REAL                           :: alpha
 !===================================================================================================================================
 
 HaloBoxInProc = .FALSE.
@@ -1695,6 +1704,58 @@ SELECT CASE(nPeriodicVectors)
     END DO
 
 END SELECT
+
+! Check rot periodic elements
+IF(PartBound%UseRotPeriodicBC) THEN
+
+  ! Define 8 corner nodes of the bounding box
+  x(1,1:3) = (/CartNodes(1),CartNodes(3),CartNodes(5)/)
+  x(2,1:3) = (/CartNodes(1),CartNodes(4),CartNodes(5)/)
+  x(3,1:3) = (/CartNodes(1),CartNodes(3),CartNodes(6)/)
+  x(4,1:3) = (/CartNodes(1),CartNodes(4),CartNodes(6)/)
+  x(5,1:3) = (/CartNodes(2),CartNodes(3),CartNodes(5)/)
+  x(6,1:3) = (/CartNodes(2),CartNodes(4),CartNodes(5)/)
+  x(7,1:3) = (/CartNodes(2),CartNodes(3),CartNodes(6)/)
+  x(8,1:3) = (/CartNodes(2),CartNodes(4),CartNodes(6)/)
+
+  ! Loop over all particle boundaries
+  DO iPartBound = 1, nPartBound
+
+    ! Skip irrelevant boundaries
+    IF(PartBound%TargetBoundCond(iPartBound).NE.PartBound%RotPeriodicBC) CYCLE
+
+    ! Get rotation angle
+    alpha = PartBound%RotPeriodicAngle(iPartBound) * PartBound%RotPeriodicTol
+
+    ! Initialize min/max in each spatial direction
+    xCordsPeri(1) =  HUGE(1.0)
+    xCordsPeri(2) = -HUGE(1.0)
+    xCordsPeri(3) =  HUGE(1.0)
+    xCordsPeri(4) = -HUGE(1.0)
+    xCordsPeri(5) =  HUGE(1.0)
+    xCordsPeri(6) = -HUGE(1.0)
+
+    ! Calculate rotated coordinates
+    DO i = 1, 8
+      xRot(1:3) = RotateVectorAroundAxis(x(i,1:3),PartBound%RotPeriodicAxis,alpha)
+      xCordsPeri(1) = MIN(xCordsPeri(1), xRot(1))
+      xCordsPeri(2) = MAX(xCordsPeri(2), xRot(1))
+      xCordsPeri(3) = MIN(xCordsPeri(3), xRot(2))
+      xCordsPeri(4) = MAX(xCordsPeri(4), xRot(2))
+      xCordsPeri(5) = MIN(xCordsPeri(5), xRot(3))
+      xCordsPeri(6) = MAX(xCordsPeri(6), xRot(3))
+    END DO ! i = 1, 8
+
+    ! Check whether the bounding boxes intersect
+    IF (   ((xCordsPeri(1).LE.CartProc(2)+halo_eps).AND.(xCordsPeri(2).GE.CartProc(1)-halo_eps))  &
+      .AND.((xCordsPeri(3).LE.CartProc(4)+halo_eps).AND.(xCordsPeri(4).GE.CartProc(3)-halo_eps))  &
+      .AND.((xCordsPeri(5).LE.CartProc(6)+halo_eps).AND.(xCordsPeri(6).GE.CartProc(5)-halo_eps))) THEN
+      HaloBoxInProc = .TRUE.
+      RETURN
+    END IF
+
+  END DO ! nPartBound
+END IF ! PartBound%UseRotPeriodicBC
 
 END FUNCTION HaloBoxInProc
 #endif /*USE_MPI*/
