@@ -190,6 +190,7 @@ stages:
       - build_DSMC_release
       - build_DSMC_debug
       - build_DSMC_N1
+      - build_radiation
   cache:
     - *reggie_cache
     - key: "${CI_COMMIT_REF_SLUG}-DSMC"
@@ -197,6 +198,7 @@ stages:
         - build_DSMC_release
         - build_DSMC_debug
         - build_DSMC_N1
+        - build_radiation
       policy: pull
 
 .defaults_DSMC_checkin: &defaults_DSMC_checkin
@@ -334,12 +336,14 @@ build_DSMC:
       - build_DSMC_release
       - build_DSMC_debug
       - build_DSMC_N1
+      - build_radiation
   cache:
     key: "${CI_COMMIT_REF_SLUG}-DSMC"
     paths:
       - build_DSMC_release
       - build_DSMC_debug
       - build_DSMC_N1
+      - build_radiation
     policy: push
   stage: build
   script:
@@ -351,6 +355,11 @@ build_DSMC:
     - cd ..
     - mkdir -p build_DSMC_N1 ; cd build_DSMC_N1
     - cmake .. -DCMAKE_BUILD_TYPE=Release -DPICLAS_TIMEDISCMETHOD=DSMC -DLIBS_BUILD_HDF5=OFF -DPICLAS_POLYNOMIAL_DEGREE=1 ; $GENERATOR -j $NCORES all
+    - if [ -n "${DO_WEEKLY}" ]; then
+        cd ..;
+        mkdir -p build_radiation ; cd build_radiation; 
+        cmake -GNinja .. -DLIBS_BUILD_HDF5=OFF -DPICLAS_BUILD_POSTI=ON -DPOSTI_BUILD_SUPERB=ON -DPICLAS_READIN_CONSTANTS=ON -DPICLAS_TIMEDISCMETHOD=Radiation -DPICLAS_INTKIND8=ON ; ninja -j0 all
+      fi
 
 build_hopr:
   extends: .default_build_param
@@ -826,6 +835,10 @@ WEK_DSMC:
   stage: reggie_weekly
   script:
     - cd build_DSMC_release ;  python ../reggie/reggie.py ../regressioncheck/WEK_DSMC -e bin/piclas
+    - cd ../build_radiation
+    - cp $(find ../build_DSMC_release/output_dir -name "70degCone2D_Set1_DSMCState_000.00020000000000000.h5" | head -n 1) ../regressioncheck/WEK_Radiation/Flow_N2-N_70degConeHot/.
+    - cp $(find ../build_DSMC_release/output_dir -name "mesh_70degCone2D_Set1_noWake_mesh.h5" | head -n 1) ../regressioncheck/WEK_Radiation/Flow_N2-N_70degConeHot/.
+    - python ./../build_DSMC_release/reggie/reggie.py -e ./bin/piclas ../regressioncheck/WEK_Radiation/Flow_N2_70degCone
 
 WEK_Reservoir:
   <<: *defaults_DSMC_weekly
