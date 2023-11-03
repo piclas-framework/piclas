@@ -1678,7 +1678,10 @@ INTEGER,INTENT(IN),OPTIONAL :: Amount
 ! LOCAL VARIABLES
 INTEGER                                   :: NewSize, i, ii, ALLOCSTAT
 REAL,ALLOCATABLE                          :: Temp1Real(:),Temp2Real(:,:)
-INTEGER,ALLOCATABLE                       :: Temp1Int(:)! ,Temp2Int(:,:)
+INTEGER,ALLOCATABLE                       :: Temp1Int(:)
+#if defined(IMPA) || defined(ROS)
+INTEGER,ALLOCATABLE                       :: Temp2Int(:,:)
+#endif
 LOGICAL,ALLOCATABLE                       :: Temp1Log(:)
 TYPE (tAmbipolElecVelo), ALLOCATABLE      :: AmbipolElecVelo_New(:)
 TYPE (tElectronicDistriPart), ALLOCATABLE :: ElectronicDistriPart_New(:)
