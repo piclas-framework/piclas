@@ -123,6 +123,7 @@ USE MOD_MPI_Vars               ,ONLY: MPIW8TimeSim
 #endif /*defined(MEASURE_MPI_WAIT)*/
 #if defined(PARTICLES)
 USE MOD_Particle_Analyze_Vars  ,ONLY: CalcPointsPerDebyeLength,CalcPICTimeStep
+USE MOD_Part_Tools             ,ONLY: ReduceMaxParticleNumber
 #endif
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -233,7 +234,7 @@ IF(MeasureTrackTime)THEN
   tTracking=0
   tLocalization=0
 END IF
-IF(CalcEMFieldOutput) CALL WriteElectroMagneticPICFieldToHDF5() ! Write magnetic field to file 
+IF(CalcEMFieldOutput) CALL WriteElectroMagneticPICFieldToHDF5() ! Write magnetic field to file
 #endif /*PARTICLES*/
 
 ! No computation needed if tEnd=tStart!
@@ -342,6 +343,7 @@ DO !iter_t=0,MaxIter
 #endif /*defined(PARTICLES) && USE_HDG*/
   CALL PerformAnalyze(time,FirstOrLastIter=finalIter,OutPutHDF5=.FALSE.) ! analyze routines are not called here in last iter
 #ifdef PARTICLES
+  CALL ReduceMaxParticleNumber()
   ! sampling of near adaptive boundary element values
   IF(UseAdaptive.OR.(nPorousBC.GT.0)) CALL AdaptiveBCSampling()
 #endif /*PARICLES*/

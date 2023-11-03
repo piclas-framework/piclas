@@ -94,6 +94,8 @@ CALL prms%CreateRealOption(     'InitialIonizationChargeAverage' , 'Average char
 CALL prms%CreateIntOption(      'Part-MaxParticleNumber', 'Maximum allowed particles per core, 0=no limit')
 CALL prms%CreateRealOption(     'Part-MaxPartNumIncrease', 'How much shall the PDM%MaxParticleNumber be incresed if it is full'&
                                                                  , '0.1')
+CALL prms%CreateLogicalOption(  'Part-RearrangePartIDs', 'Rearrange PartIDs in the process of reducing maxPartNum to allow lower memory usage'&
+                                                                 , '.TRUE.')
 CALL prms%CreateIntOption(      'Part-NumberOfRandomSeeds'    , 'Number of Seeds for Random Number Generator'//&
                                                                 'Choose nRandomSeeds \n'//&
                                                                 '=-1    Random \n'//&
@@ -431,6 +433,7 @@ CHARACTER(32)     :: hilf
 WRITE(UNIT=hilf,FMT='(I0)') HUGE(PDM%maxAllowedParticleNumber)
 PDM%maxAllowedParticleNumber = GETINT('Part-maxParticleNumber',TRIM(hilf))
 PDM%MaxPartNumIncrease = GETREAL('Part-MaxPartNumIncrease','0.1')
+PDM%RearrangePartIDs = GETLOGICAL('Part-RearrangePartIDs','.TRUE.')
 PDM%maxParticleNumber=1
 PDM%ParticleVecLength=0
 CALL AllocateParticleArrays()

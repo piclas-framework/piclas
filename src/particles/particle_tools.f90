@@ -78,7 +78,7 @@ PUBLIC :: InterpolateEmissionDistribution2D
 PUBLIC :: MergeCells,InRotRefFrameCheck
 PUBLIC :: CalcPartSymmetryPos
 PUBLIC :: RotateVectorAroundAxis
-PUBLIC :: IncreaseMaxParticleNumber, GetNextFreePosition
+PUBLIC :: IncreaseMaxParticleNumber, GetNextFreePosition, ReduceMaxParticleNumber
 !===================================================================================================================================
 
 CONTAINS
@@ -2154,6 +2154,756 @@ PDM%MaxParticleNumber=NewSize
 ! read(*,*)
 
 END SUBROUTINE IncreaseMaxParticleNumber
+
+
+SUBROUTINE ReduceMaxParticleNumber()
+!===================================================================================================================================
+! Reduces MaxParticleNumber and increases size of all depended arrays
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals
+USE MOD_Particle_Vars
+USE MOD_DSMC_Vars
+USE MOD_Particle_MPI_Vars      ,ONLY: PartShiftVector, PartTargetProc
+USE MOD_PICInterpolation_Vars  ,ONLY: FieldAtParticle
+#if defined(IMPA) || defined(ROS)
+USE MOD_LinearSolver_Vars      ,ONLY: PartXK, R_PartXK
+#endif
+USE MOD_MCC_Vars               ,ONLY: UseMCC
+USE MOD_DSMC_Vars              ,ONLY: BGGas
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER                                   :: NewSize, i, ii, ALLOCSTAT, nPart
+REAL,ALLOCATABLE                          :: Temp1Real(:),Temp2Real(:,:)
+INTEGER,ALLOCATABLE                       :: Temp1Int(:)
+#if defined(IMPA) || defined(ROS)
+INTEGER,ALLOCATABLE                       :: Temp2Int(:,:)
+#endif
+LOGICAL,ALLOCATABLE                       :: Temp1Log(:)
+TYPE (tAmbipolElecVelo), ALLOCATABLE      :: AmbipolElecVelo_New(:)
+TYPE (tElectronicDistriPart), ALLOCATABLE :: ElectronicDistriPart_New(:)
+TYPE (tPolyatomMolVibQuant), ALLOCATABLE  :: VibQuantsPar_New(:)
+TYPE (tClonedParticles), ALLOCATABLE      :: ClonedParticles_New(:,:)
+! REAL                        ::
+!===================================================================================================================================
+
+IF(useDSMC.OR.usevMPF) THEN
+  nPart=SUM(PEM%pNumber)
+ELSE
+  nPart=0
+  DO i=1,PDM%ParticleVecLength
+    IF(PDM%ParticleInside(i)) nPart = nPart + 1
+  END DO
+END IF
+
+IF(BGGas%NumberOfSpecies.GT.0.AND..NOT.UseMCC) nPart=nPart*2
+
+! Reduce Arrays only for at least PDM%maxParticleNumber*PDM%MaxPartNumIncrease free spots
+IF (nPart.GE.PDM%maxParticleNumber/(1.+PDM%MaxPartNumIncrease)**2) RETURN
+
+! Maintain nPart*PDM%MaxPartNumIncrease free spots
+Newsize=MAX(CEILING(nPart*(1.+PDM%MaxPartNumIncrease)),1)
+IF (Newsize.EQ.PDM%maxParticleNumber) RETURN
+
+IPWRITE(*,*) "Decrease",PDM%maxParticleNumber,nPart,NewSize
+IF(.NOT.PDM%RearrangePartIDs) THEN
+  ! Search for highest occupied particle index and set Newsize to this Value
+  i=PDM%maxParticleNumber
+  DO WHILE(.NOT.PDM%ParticleInside(i).OR.i.EQ.NewSize)
+    i=i-1
+  END DO
+  NewSize=i
+ELSE
+  ! Rearrange particles with IDs>NewSize to lower IDs
+  DO i=NewSize+1,PDM%maxParticleNumber
+    IF(PDM%ParticleInside(i)) THEN
+      PDM%CurrentNextFreePosition = PDM%CurrentNextFreePosition + 1
+      ii = PDM%nextFreePosition(PDM%CurrentNextFreePosition)
+      IF(ii.EQ.0.OR.ii.GT.NewSize) THEN
+        CALL UpdateNextFreePosition()
+        PDM%CurrentNextFreePosition = PDM%CurrentNextFreePosition + 1
+        ii = PDM%nextFreePosition(PDM%CurrentNextFreePosition)
+        IF(ii.EQ.0.OR.ii.GT.NewSize) CALL ABORT(&
+      __STAMP__&
+      ,'This should not happen')
+      END IF
+      IF(PDM%ParticleVecLength.LT.ii) PDM%ParticleVecLength = ii
+      CALL ChangePartID(i,ii)
+    END IF
+  END DO
+END IF
+
+
+
+!    __  __          __      __          _____   ________   ___
+!   / / / /___  ____/ /___ _/ /____     /  _/ | / /_  __/  /   |  ______________ ___  _______
+!  / / / / __ \/ __  / __ `/ __/ _ \    / //  |/ / / /    / /| | / ___/ ___/ __ `/ / / / ___/
+! / /_/ / /_/ / /_/ / /_/ / /_/  __/  _/ // /|  / / /    / ___ |/ /  / /  / /_/ / /_/ (__  )
+! \____/ .___/\__,_/\__,_/\__/\___/  /___/_/ |_/ /_/    /_/  |_/_/  /_/   \__,_/\__, /____/
+!     /_/                                                                      /____/
+
+
+
+IF(ALLOCATED(PEM%GlobalElemID)) THEN
+  ALLOCATE(Temp1Int(NewSize),STAT=ALLOCSTAT)
+  IF (ALLOCSTAT.NE.0) CALL ABORT(&
+__STAMP__&
+,'Cannot allocate increased Array in ReduceMaxParticleNumber')
+  Temp1Int=PEM%GlobalElemID(1:NewSize)
+  CALL MOVE_ALLOC(Temp1Int,PEM%GlobalElemID)
+END IF
+
+IF(ALLOCATED(PEM%pNext)) THEN
+  ALLOCATE(Temp1Int(NewSize),STAT=ALLOCSTAT)
+  IF (ALLOCSTAT.NE.0) CALL ABORT(&
+__STAMP__&
+,'Cannot allocate increased Array in ReduceMaxParticleNumber')
+  Temp1Int=PEM%pNext(1:NewSize)
+  CALL MOVE_ALLOC(Temp1Int,PEM%pNext)
+END IF
+
+IF(ALLOCATED(PEM%LastGlobalElemID)) THEN
+  ALLOCATE(Temp1Int(NewSize),STAT=ALLOCSTAT)
+  IF (ALLOCSTAT.NE.0) CALL ABORT(&
+__STAMP__&
+,'Cannot allocate increased Array in ReduceMaxParticleNumber')
+  Temp1Int=PEM%LastGlobalElemID(1:NewSize)
+  CALL MOVE_ALLOC(Temp1Int,PEM%LastGlobalElemID)
+END IF
+
+IF(ALLOCATED(PDM%PartInit)) THEN
+  ALLOCATE(Temp1Int(NewSize),STAT=ALLOCSTAT)
+  IF (ALLOCSTAT.NE.0) CALL ABORT(&
+__STAMP__&
+,'Cannot allocate increased Array in ReduceMaxParticleNumber')
+  Temp1Int=PDM%PartInit(1:NewSize)
+  CALL MOVE_ALLOC(Temp1Int,PDM%PartInit)
+END IF
+
+#if defined(IMPA) || defined(ROS)
+IF(ALLOCATED(PartXK)) THEN
+  ALLOCATE(Temp2Int(6,NewSize),STAT=ALLOCSTAT)
+  IF (ALLOCSTAT.NE.0) CALL ABORT(&
+__STAMP__&
+,'Cannot allocate increased Array in ReduceMaxParticleNumber')
+  Temp2Int=PartXK(:,1:NewSize)
+  CALL MOVE_ALLOC(Temp2Int,PartXK)
+END IF
+
+IF(ALLOCATED(R_PartXK)) THEN
+  ALLOCATE(Temp2Int(6,NewSize),STAT=ALLOCSTAT)
+  IF (ALLOCSTAT.NE.0) CALL ABORT(&
+__STAMP__&
+,'Cannot allocate increased Array in ReduceMaxParticleNumber')
+  Temp2Int=R_PartXK(:,1:NewSize)
+  CALL MOVE_ALLOC(Temp2Int,R_PartXK)
+END IF
+#endif
+
+IF(ALLOCATED(PartSpecies)) THEN
+  ALLOCATE(Temp1Int(NewSize),STAT=ALLOCSTAT)
+  IF (ALLOCSTAT.NE.0) CALL ABORT(&
+__STAMP__&
+,'Cannot allocate increased Array in ReduceMaxParticleNumber')
+  Temp1Int=PartSpecies(1:NewSize)
+  CALL MOVE_ALLOC(Temp1Int,PartSpecies)
+END IF
+
+IF(ALLOCATED(InterPlanePartIndx)) THEN
+  ALLOCATE(Temp1Int(NewSize),STAT=ALLOCSTAT)
+  IF (ALLOCSTAT.NE.0) CALL ABORT(&
+__STAMP__&
+,'Cannot allocate increased Array in ReduceMaxParticleNumber')
+  Temp1Int=InterPlanePartIndx(1:NewSize)
+  CALL MOVE_ALLOC(Temp1Int,InterPlanePartIndx)
+END IF
+
+IF(ALLOCATED(BGGas%PairingPartner)) THEN
+  ALLOCATE(Temp1Int(NewSize),STAT=ALLOCSTAT)
+  IF (ALLOCSTAT.NE.0) CALL ABORT(&
+__STAMP__&
+,'Cannot allocate increased Array in ReduceMaxParticleNumber')
+  Temp1Int=BGGas%PairingPartner(1:NewSize)
+  CALL MOVE_ALLOC(Temp1Int,BGGas%PairingPartner)
+END IF
+
+IF(ALLOCATED(CollInf%OldCollPartner)) THEN
+  ALLOCATE(Temp1Int(NewSize),STAT=ALLOCSTAT)
+  IF (ALLOCSTAT.NE.0) CALL ABORT(&
+__STAMP__&
+,'Cannot allocate increased Array in ReduceMaxParticleNumber')
+  Temp1Int=CollInf%OldCollPartner(1:NewSize)
+  CALL MOVE_ALLOC(Temp1Int,CollInf%OldCollPartner)
+END IF
+
+IF(ALLOCATED(PartTargetProc)) THEN
+  ALLOCATE(Temp1Int(NewSize),STAT=ALLOCSTAT)
+  IF (ALLOCSTAT.NE.0) CALL ABORT(&
+__STAMP__&
+,'Cannot allocate increased Array in ReduceMaxParticleNumber')
+  Temp1Int=PartTargetProc(1:NewSize)
+  CALL MOVE_ALLOC(Temp1Int,PartTargetProc)
+END IF
+
+!    __  __          __      __          ____  _________    __       ___
+!   / / / /___  ____/ /___ _/ /____     / __ \/ ____/   |  / /      /   |  ______________ ___  _______
+!  / / / / __ \/ __  / __ `/ __/ _ \   / /_/ / __/ / /| | / /      / /| | / ___/ ___/ __ `/ / / / ___/
+! / /_/ / /_/ / /_/ / /_/ / /_/  __/  / _, _/ /___/ ___ |/ /___   / ___ |/ /  / /  / /_/ / /_/ (__  )
+! \____/ .___/\__,_/\__,_/\__/\___/  /_/ |_/_____/_/  |_/_____/  /_/  |_/_/  /_/   \__,_/\__, /____/
+!     /_/                                                                               /____/
+
+
+
+IF(ALLOCATED(PartState)) THEN
+  ALLOCATE(Temp2Real(6,NewSize),STAT=ALLOCSTAT)
+  IF (ALLOCSTAT.NE.0) CALL ABORT(&
+__STAMP__&
+,'Cannot allocate increased Array in ReduceMaxParticleNumber')
+  Temp2Real=PartState(:,1:NewSize)
+  CALL MOVE_ALLOC(Temp2Real,PartState)
+END IF
+
+IF(ALLOCATED(PartPosRef)) THEN
+  ALLOCATE(Temp2Real(3,NewSize),STAT=ALLOCSTAT)
+  IF (ALLOCSTAT.NE.0) CALL ABORT(&
+__STAMP__&
+,'Cannot allocate increased Array in ReduceMaxParticleNumber')
+  Temp2Real=PartPosRef(:,1:NewSize)
+  CALL MOVE_ALLOC(Temp2Real,PartPosRef)
+END IF
+
+#if (PP_TimeDiscMethod==508) || (PP_TimeDiscMethod==509)
+IF(ALLOCATED(velocityAtTime)) THEN
+  ALLOCATE(Temp2Real(3,NewSize),STAT=ALLOCSTAT)
+  IF (ALLOCSTAT.NE.0) CALL ABORT(&
+__STAMP__&
+,'Cannot allocate increased Array in ReduceMaxParticleNumber')
+  Temp2Real=velocityAtTime(:,1:NewSize)
+  CALL MOVE_ALLOC(Temp2Real,velocityAtTime)
+END IF
+#endif
+
+IF(ALLOCATED(Pt_temp)) THEN
+  ALLOCATE(Temp2Real(6,NewSize),STAT=ALLOCSTAT)
+  IF (ALLOCSTAT.NE.0) CALL ABORT(&
+__STAMP__&
+,'Cannot allocate increased Array in ReduceMaxParticleNumber')
+  Temp2Real=Pt_temp(:,1:NewSize)
+  CALL MOVE_ALLOC(Temp2Real,Pt_temp)
+END IF
+
+IF(ALLOCATED(LastPartPos)) THEN
+  ALLOCATE(Temp2Real(3,NewSize),STAT=ALLOCSTAT)
+  IF (ALLOCSTAT.NE.0) CALL ABORT(&
+__STAMP__&
+,'Cannot allocate increased Array in ReduceMaxParticleNumber')
+  Temp2Real=LastPartPos(:,1:NewSize)
+  CALL MOVE_ALLOC(Temp2Real,LastPartPos)
+END IF
+
+IF(ALLOCATED(Pt)) THEN
+  ALLOCATE(Temp2Real(3,NewSize),STAT=ALLOCSTAT)
+  IF (ALLOCSTAT.NE.0) CALL ABORT(&
+__STAMP__&
+,'Cannot allocate increased Array in ReduceMaxParticleNumber')
+  Temp2Real=Pt(:,1:NewSize)
+  CALL MOVE_ALLOC(Temp2Real,Pt)
+END IF
+
+IF(ALLOCATED(PartTimeStep)) THEN
+  ALLOCATE(Temp1Real(NewSize),STAT=ALLOCSTAT)
+  IF (ALLOCSTAT.NE.0) CALL ABORT(&
+__STAMP__&
+,'Cannot allocate increased Array in ReduceMaxParticleNumber')
+  Temp1Real=PartTimeStep(1:NewSize)
+  CALL MOVE_ALLOC(Temp1Real,PartTimeStep)
+END IF
+
+IF(ALLOCATED(PartMPF)) THEN
+  ALLOCATE(Temp1Real(NewSize),STAT=ALLOCSTAT)
+  IF (ALLOCSTAT.NE.0) CALL ABORT(&
+__STAMP__&
+,'Cannot allocate increased Array in ReduceMaxParticleNumber')
+  Temp1Real=PartMPF(1:NewSize)
+  CALL MOVE_ALLOC(Temp1Real,PartMPF)
+END IF
+
+IF(ALLOCATED(PartVeloRotRef)) THEN
+  ALLOCATE(Temp2Real(3,NewSize),STAT=ALLOCSTAT)
+  IF (ALLOCSTAT.NE.0) CALL ABORT(&
+__STAMP__&
+,'Cannot allocate increased Array in ReduceMaxParticleNumber')
+  Temp2Real=PartVeloRotRef(:,1:NewSize)
+  CALL MOVE_ALLOC(Temp2Real,PartVeloRotRef)
+END IF
+
+IF(ALLOCATED(PartStateIntEn)) THEN
+  IF (DSMC%ElectronicModel.GT.0) THEN
+    ALLOCATE(Temp2Real(3,NewSize),STAT=ALLOCSTAT)
+  ELSE
+    ALLOCATE(Temp2Real(2,NewSize),STAT=ALLOCSTAT)
+  END IF
+  IF (ALLOCSTAT.NE.0) CALL ABORT(&
+__STAMP__&
+,'Cannot allocate increased Array in ReduceMaxParticleNumber')
+  Temp2Real=PartStateIntEn(:,1:NewSize)
+  CALL MOVE_ALLOC(Temp2Real,PartStateIntEn)
+END IF
+
+IF(ALLOCATED(PartShiftVector)) THEN
+  ALLOCATE(Temp2Real(3,NewSize),STAT=ALLOCSTAT)
+  IF (ALLOCSTAT.NE.0) CALL ABORT(&
+__STAMP__&
+,'Cannot allocate increased Array in ReduceMaxParticleNumber')
+  Temp2Real=PartShiftVector(:,1:NewSize)
+  CALL MOVE_ALLOC(Temp2Real,PartShiftVector)
+END IF
+
+IF(ALLOCATED(FieldAtParticle)) THEN
+  ALLOCATE(Temp2Real(6,NewSize),STAT=ALLOCSTAT)
+  IF (ALLOCSTAT.NE.0) CALL ABORT(&
+__STAMP__&
+,'Cannot allocate increased Array in ReduceMaxParticleNumber')
+  Temp2Real=FieldAtParticle(:,1:NewSize)
+  CALL MOVE_ALLOC(Temp2Real,FieldAtParticle)
+END IF
+
+
+
+!    __  __          __      __          __    ____  ___________________    __       ___
+!   / / / /___  ____/ /___ _/ /____     / /   / __ \/ ____/  _/ ____/   |  / /      /   |  ______________ ___  _______
+!  / / / / __ \/ __  / __ `/ __/ _ \   / /   / / / / / __ / // /   / /| | / /      / /| | / ___/ ___/ __ `/ / / / ___/
+! / /_/ / /_/ / /_/ / /_/ / /_/  __/  / /___/ /_/ / /_/ // // /___/ ___ |/ /___   / ___ |/ /  / /  / /_/ / /_/ (__  )
+! \____/ .___/\__,_/\__,_/\__/\___/  /_____/\____/\____/___/\____/_/  |_/_____/  /_/  |_/_/  /_/   \__,_/\__, /____/
+!     /_/                                                                                               /____/
+
+
+
+IF(ALLOCATED(PDM%ParticleInside)) THEN
+  ALLOCATE(Temp1Log(NewSize),STAT=ALLOCSTAT)
+  IF (ALLOCSTAT.NE.0) CALL ABORT(&
+__STAMP__&
+,'Cannot allocate increased Array in ReduceMaxParticleNumber')
+  Temp1Log=PDM%ParticleInside(1:NewSize)
+  CALL MOVE_ALLOC(Temp1Log,PDM%ParticleInside)
+  PDM%ParticleInside(PDM%maxParticleNumber+1:NewSize)=.FALSE.
+END IF
+
+IF(ALLOCATED(PDM%IsNewPart)) THEN
+  ALLOCATE(Temp1Log(NewSize),STAT=ALLOCSTAT)
+  IF (ALLOCSTAT.NE.0) CALL ABORT(&
+__STAMP__&
+,'Cannot allocate increased Array in ReduceMaxParticleNumber')
+  Temp1Log=PDM%IsNewPart(1:NewSize)
+  CALL MOVE_ALLOC(Temp1Log,PDM%IsNewPart)
+  PDM%IsNewPart(PDM%maxParticleNumber+1:NewSize)=.FALSE.
+END IF
+
+IF(ALLOCATED(PDM%dtFracPush)) THEN
+  ALLOCATE(Temp1Log(NewSize),STAT=ALLOCSTAT)
+  IF (ALLOCSTAT.NE.0) CALL ABORT(&
+__STAMP__&
+,'Cannot allocate increased Array in ReduceMaxParticleNumber')
+  Temp1Log=PDM%dtFracPush(1:NewSize)
+  CALL MOVE_ALLOC(Temp1Log,PDM%dtFracPush)
+  PDM%dtFracPush(PDM%maxParticleNumber+1:NewSize)=.FALSE.
+END IF
+
+IF(ALLOCATED(PDM%InRotRefFrame)) THEN
+  ALLOCATE(Temp1Log(NewSize),STAT=ALLOCSTAT)
+  IF (ALLOCSTAT.NE.0) CALL ABORT(&
+__STAMP__&
+,'Cannot allocate increased Array in ReduceMaxParticleNumber')
+  Temp1Log=PDM%InRotRefFrame(1:NewSize)
+  CALL MOVE_ALLOC(Temp1Log,PDM%InRotRefFrame)
+  PDM%InRotRefFrame(PDM%maxParticleNumber+1:NewSize)=.FALSE.
+END IF
+
+IF(ALLOCATED(ElecRelaxPart)) THEN
+  ALLOCATE(Temp1Log(NewSize),STAT=ALLOCSTAT)
+  IF (ALLOCSTAT.NE.0) CALL ABORT(&
+__STAMP__&
+,'Cannot allocate increased Array in ReduceMaxParticleNumber')
+  Temp1Log=ElecRelaxPart(1:NewSize)
+  DEALLOCATE(ElecRelaxPart)
+  CALL MOVE_ALLOC(Temp1Log,ElecRelaxPart)
+END IF
+
+
+
+!    __  __          __      __          ________  ______  ___________    ___
+!   / / / /___  ____/ /___ _/ /____     /_  __/\ \/ / __ \/ ____/ ___/   /   |  ______________ ___  _______
+!  / / / / __ \/ __  / __ `/ __/ _ \     / /    \  / /_/ / __/  \__ \   / /| | / ___/ ___/ __ `/ / / / ___/
+! / /_/ / /_/ / /_/ / /_/ / /_/  __/    / /     / / ____/ /___ ___/ /  / ___ |/ /  / /  / /_/ / /_/ (__  )
+! \____/ .___/\__,_/\__,_/\__/\___/    /_/     /_/_/   /_____//____/  /_/  |_/_/  /_/   \__,_/\__, /____/
+!     /_/                                                                                    /____/
+
+IF(ALLOCATED(AmbipolElecVelo)) THEN
+  ALLOCATE(AmbipolElecVelo_New(NewSize),STAT=ALLOCSTAT)
+  IF (ALLOCSTAT.NE.0) CALL ABORT(&
+__STAMP__&
+,'Cannot allocate increased Array in ReduceMaxParticleNumber')
+  DO i=1,NewSize
+    CALL MOVE_ALLOC(AmbipolElecVelo(i)%ElecVelo,AmbipolElecVelo_New(i)%ElecVelo)
+  END DO
+  DO i=NewSize+1,PDM%maxParticleNumber
+    SDEALLOCATE(AmbipolElecVelo(i)%ElecVelo)
+  END DO
+  DEALLOCATE(AmbipolElecVelo)
+  CALL MOVE_ALLOC(AmbipolElecVelo_New,AmbipolElecVelo)
+END IF
+
+IF(ALLOCATED(ElectronicDistriPart)) THEN
+  ALLOCATE(ElectronicDistriPart_New(NewSize),STAT=ALLOCSTAT)
+  IF (ALLOCSTAT.NE.0) CALL ABORT(&
+__STAMP__&
+,'Cannot allocate increased Array in ReduceMaxParticleNumber')
+  DO i=1,NewSize
+    CALL MOVE_ALLOC(ElectronicDistriPart(i)%DistriFunc,ElectronicDistriPart_New(i)%DistriFunc)
+  END DO
+  DO i=NewSize+1,PDM%maxParticleNumber
+    SDEALLOCATE(ElectronicDistriPart(i)%DistriFunc)
+  END DO
+  DEALLOCATE(ElectronicDistriPart)
+  CALL MOVE_ALLOC(ElectronicDistriPart_New,ElectronicDistriPart)
+END IF
+
+IF(ALLOCATED(VibQuantsPar)) THEN
+  ALLOCATE(VibQuantsPar_New(NewSize),STAT=ALLOCSTAT)
+  IF (ALLOCSTAT.NE.0) CALL ABORT(&
+__STAMP__&
+,'Cannot allocate increased Array in ReduceMaxParticleNumber')
+  DO i=1,NewSize
+    CALL MOVE_ALLOC(VibQuantsPar(i)%Quants,VibQuantsPar_New(i)%Quants)
+  END DO
+  DO i=NewSize+1,PDM%maxParticleNumber
+    SDEALLOCATE(VibQuantsPar(i)%Quants)
+  END DO
+  DEALLOCATE(VibQuantsPar)
+  CALL MOVE_ALLOC(VibQuantsPar_New,VibQuantsPar)
+END IF
+
+IF(ALLOCATED(ClonedParticles)) THEN
+  SELECT CASE(RadialWeighting%CloneMode)
+  CASE(1)
+    ALLOCATE(ClonedParticles_new(1:INT(NewSize/RadialWeighting%CloneInputDelay),0:(RadialWeighting%CloneInputDelay-1)),STAT=ALLOCSTAT)
+    IF (ALLOCSTAT.NE.0) CALL ABORT(&
+  __STAMP__&
+  ,'Cannot allocate increased Array in ReduceMaxParticleNumber')
+    DO ii=0,RadialWeighting%CloneInputDelay-1
+      DO i=1,RadialWeighting%ClonePartNum(ii)
+        IF(i.LE.INT(NewSize/RadialWeighting%CloneInputDelay)) THEN
+          ClonedParticles_new(i,ii)%Species=ClonedParticles(i,ii)%Species
+          ClonedParticles_new(i,ii)%PartState(1:6)=ClonedParticles(i,ii)%PartState(1:6)
+          ClonedParticles_new(i,ii)%PartStateIntEn(1:3)=ClonedParticles(i,ii)%PartStateIntEn(1:3)
+          ClonedParticles_new(i,ii)%Element=ClonedParticles(i,ii)%Element
+          ClonedParticles_new(i,ii)%LastPartPos(1:3)=ClonedParticles(i,ii)%LastPartPos(1:3)
+          ClonedParticles_new(i,ii)%WeightingFactor=ClonedParticles(i,ii)%WeightingFactor
+          CALL MOVE_ALLOC(ClonedParticles(i,ii)%VibQuants,ClonedParticles_new(i,ii)%VibQuants)
+          CALL MOVE_ALLOC(ClonedParticles(i,ii)%DistriFunc,ClonedParticles_new(i,ii)%DistriFunc)
+          CALL MOVE_ALLOC(ClonedParticles(i,ii)%AmbiPolVelo,ClonedParticles_new(i,ii)%AmbiPolVelo)
+        ELSE
+          SDEALLOCATE(ClonedParticles(i,ii)%VibQuants)
+          SDEALLOCATE(ClonedParticles(i,ii)%DistriFunc)
+          SDEALLOCATE(ClonedParticles(i,ii)%AmbiPolVelo)
+        END IF
+      END DO
+      IF(RadialWeighting%ClonePartNum(ii).GT.INT(NewSize/RadialWeighting%CloneInputDelay)) &
+         RadialWeighting%ClonePartNum(ii)=INT(NewSize/RadialWeighting%CloneInputDelay)
+    END DO
+    DEALLOCATE(ClonedParticles)
+    CALL MOVE_ALLOC(ClonedParticles_New,ClonedParticles)
+  CASE(2)
+    ALLOCATE(ClonedParticles_new(1:INT(NewSize/RadialWeighting%CloneInputDelay),0:RadialWeighting%CloneInputDelay),STAT=ALLOCSTAT)
+    IF (ALLOCSTAT.NE.0) CALL ABORT(&
+  __STAMP__&
+  ,'Cannot allocate increased Array in ReduceMaxParticleNumber')
+    DO ii=0,RadialWeighting%CloneInputDelay
+      DO i=1,RadialWeighting%ClonePartNum(ii)
+        IF(i.LE.INT(NewSize/RadialWeighting%CloneInputDelay)) THEN
+          ClonedParticles_new(i,ii)%Species=ClonedParticles(i,ii)%Species
+          ClonedParticles_new(i,ii)%PartState(1:6)=ClonedParticles(i,ii)%PartState(1:6)
+          ClonedParticles_new(i,ii)%PartStateIntEn(1:3)=ClonedParticles(i,ii)%PartStateIntEn(1:3)
+          ClonedParticles_new(i,ii)%Element=ClonedParticles(i,ii)%Element
+          ClonedParticles_new(i,ii)%LastPartPos(1:3)=ClonedParticles(i,ii)%LastPartPos(1:3)
+          ClonedParticles_new(i,ii)%WeightingFactor=ClonedParticles(i,ii)%WeightingFactor
+          CALL MOVE_ALLOC(ClonedParticles(i,ii)%VibQuants,ClonedParticles_new(i,ii)%VibQuants)
+          CALL MOVE_ALLOC(ClonedParticles(i,ii)%DistriFunc,ClonedParticles_new(i,ii)%DistriFunc)
+          CALL MOVE_ALLOC(ClonedParticles(i,ii)%AmbiPolVelo,ClonedParticles_new(i,ii)%AmbiPolVelo)
+        ELSE
+          SDEALLOCATE(ClonedParticles(i,ii)%VibQuants)
+          SDEALLOCATE(ClonedParticles(i,ii)%DistriFunc)
+          SDEALLOCATE(ClonedParticles(i,ii)%AmbiPolVelo)
+        END IF
+      END DO
+      IF(RadialWeighting%ClonePartNum(ii).GT.INT(NewSize/RadialWeighting%CloneInputDelay)) &
+         RadialWeighting%ClonePartNum(ii)=INT(NewSize/RadialWeighting%CloneInputDelay)
+    END DO
+    DEALLOCATE(ClonedParticles)
+    CALL MOVE_ALLOC(ClonedParticles_New,ClonedParticles)
+  CASE DEFAULT
+    CALL Abort(&
+        __STAMP__,&
+      'ERROR in Radial Weighting of 2D/Axisymmetric: The selected cloning mode is not available! Choose between 1 and 2.'//&
+        ' CloneMode=1: Delayed insertion of clones; CloneMode=2: Delayed randomized insertion of clones')
+END SELECT
+END IF
+
+
+
+
+IF(ALLOCATED(PDM%nextFreePosition)) THEN
+  ALLOCATE(Temp1Int(NewSize),STAT=ALLOCSTAT)
+  IF (ALLOCSTAT.NE.0) CALL ABORT(&
+__STAMP__&
+,'Cannot allocate increased Array in ReduceMaxParticleNumber')
+  Temp1Int=PDM%nextFreePosition(1:NewSize)
+  CALL MOVE_ALLOC(Temp1Int,PDM%nextFreePosition)
+
+  !Set all NextFreePositions to zero which points to a partID>NewSize
+  DO i=1,NewSize
+    IF(PDM%nextFreePosition(i).GT.NewSize) PDM%nextFreePosition(i)=0
+  END DO
+END IF
+
+! Update NextFreePos
+
+IF(PDM%ParticleVecLength.GT.NewSize) PDM%ParticleVecLength = NewSize
+PDM%MaxParticleNumber=NewSize
+
+! read(*,*)
+
+END SUBROUTINE ReduceMaxParticleNumber
+
+
+SUBROUTINE ChangePartID(OldID,NewID)
+!===================================================================================================================================
+! Change PartID from OldID to NewID
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals
+USE MOD_Particle_Vars
+USE MOD_DSMC_Vars
+USE MOD_Particle_MPI_Vars      ,ONLY: PartShiftVector, PartTargetProc
+USE MOD_PICInterpolation_Vars  ,ONLY: FieldAtParticle
+#if defined(IMPA) || defined(ROS)
+USE MOD_LinearSolver_Vars      ,ONLY: PartXK, R_PartXK
+#endif
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+INTEGER,INTENT(IN)        :: OldID
+INTEGER,INTENT(IN)        :: NewID
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER                                   :: i,TempPartID
+!===================================================================================================================================
+
+
+
+!    __  __          __      __          _____   ________   ___
+!   / / / /___  ____/ /___ _/ /____     /  _/ | / /_  __/  /   |  ______________ ___  _______
+!  / / / / __ \/ __  / __ `/ __/ _ \    / //  |/ / / /    / /| | / ___/ ___/ __ `/ / / / ___/
+! / /_/ / /_/ / /_/ / /_/ / /_/  __/  _/ // /|  / / /    / ___ |/ /  / /  / /_/ / /_/ (__  )
+! \____/ .___/\__,_/\__,_/\__/\___/  /___/_/ |_/ /_/    /_/  |_/_/  /_/   \__,_/\__, /____/
+!     /_/                                                                      /____/
+
+
+
+IF(ALLOCATED(PEM%GlobalElemID)) THEN
+  PEM%GlobalElemID(NewID)=PEM%GlobalElemID(OldID)
+END IF
+
+IF(ALLOCATED(PEM%pNext)) THEN
+  PEM%pNext(NewID)=PEM%pNext(OldID)
+  ! Update pNext onto this particle
+  TempPartID = PEM%pStart(PEM%LocalElemID(OldID))
+  IF (TempPartID.EQ.OldID) THEN
+    PEM%pStart(PEM%LocalElemID(OldID)) = NewID
+  ELSE
+    DO i=1,PEM%pNumber(PEM%LocalElemID(OldID))
+      IF(PEM%pNext(TempPartID).EQ.OldID) THEN
+        PEM%pNext(TempPartID) = NewID
+        EXIT
+      END IF
+      TempPartID = PEM%pNext(TempPartID)
+    END DO
+  END IF
+END IF
+
+IF(ALLOCATED(PEM%LastGlobalElemID)) THEN
+  PEM%LastGlobalElemID(NewID)=PEM%LastGlobalElemID(OldID)
+END IF
+
+IF(ALLOCATED(PDM%PartInit)) THEN
+  PDM%PartInit(NewID)=PDM%PartInit(OldID)
+END IF
+
+#if defined(IMPA) || defined(ROS)
+IF(ALLOCATED(PartXK)) THEN
+  PartXK(:,NewID)=PartXK(:,OldID)
+END IF
+
+IF(ALLOCATED(R_PartXK)) THEN
+  R_PartXK(:,NewID)=R_PartXK(:,OldID)
+END IF
+#endif
+
+IF(ALLOCATED(PartSpecies)) THEN
+  PartSpecies(NewID)=PartSpecies(OldID)
+END IF
+
+IF(ALLOCATED(InterPlanePartIndx)) THEN
+  InterPlanePartIndx(NewID)=InterPlanePartIndx(OldID)
+END IF
+
+IF(ALLOCATED(BGGas%PairingPartner)) THEN
+  BGGas%PairingPartner(NewID)=BGGas%PairingPartner(OldID)
+END IF
+
+IF(ALLOCATED(CollInf%OldCollPartner)) THEN
+  CollInf%OldCollPartner(NewID)=CollInf%OldCollPartner(OldID)
+END IF
+
+IF(ALLOCATED(PartTargetProc)) THEN
+  PartTargetProc(NewID)=PartTargetProc(OldID)
+END IF
+
+!    __  __          __      __          ____  _________    __       ___
+!   / / / /___  ____/ /___ _/ /____     / __ \/ ____/   |  / /      /   |  ______________ ___  _______
+!  / / / / __ \/ __  / __ `/ __/ _ \   / /_/ / __/ / /| | / /      / /| | / ___/ ___/ __ `/ / / / ___/
+! / /_/ / /_/ / /_/ / /_/ / /_/  __/  / _, _/ /___/ ___ |/ /___   / ___ |/ /  / /  / /_/ / /_/ (__  )
+! \____/ .___/\__,_/\__,_/\__/\___/  /_/ |_/_____/_/  |_/_____/  /_/  |_/_/  /_/   \__,_/\__, /____/
+!     /_/                                                                               /____/
+
+
+
+IF(ALLOCATED(PartState)) THEN
+  PartState(:,NewID)=PartState(:,OldID)
+END IF
+
+IF(ALLOCATED(PartPosRef)) THEN
+  PartPosRef(:,NewID)=PartPosRef(:,OldID)
+END IF
+
+#if (PP_TimeDiscMethod==508) || (PP_TimeDiscMethod==509)
+IF(ALLOCATED(velocityAtTime)) THEN
+  velocityAtTime(:,NewID)=velocityAtTime(:,OldID)
+END IF
+#endif
+
+IF(ALLOCATED(Pt_temp)) THEN
+  Pt_temp(:,NewID)=Pt_temp(:,OldID)
+END IF
+
+IF(ALLOCATED(LastPartPos)) THEN
+  LastPartPos(:,NewID)=LastPartPos(:,OldID)
+END IF
+
+IF(ALLOCATED(Pt)) THEN
+  Pt(:,NewID)=Pt(:,OldID)
+END IF
+
+IF(ALLOCATED(PartTimeStep)) THEN
+  PartTimeStep(NewID)=PartTimeStep(OldID)
+END IF
+
+IF(ALLOCATED(PartMPF)) THEN
+  PartMPF(NewID)=PartMPF(OldID)
+END IF
+
+IF(ALLOCATED(PartVeloRotRef)) THEN
+  PartVeloRotRef(:,NewID)=PartVeloRotRef(:,OldID)
+END IF
+
+IF(ALLOCATED(PartStateIntEn)) THEN
+  PartStateIntEn(:,NewID)=PartStateIntEn(:,OldID)
+END IF
+
+IF(ALLOCATED(PartShiftVector)) THEN
+  PartShiftVector(:,NewID)=PartShiftVector(:,OldID)
+END IF
+
+IF(ALLOCATED(FieldAtParticle)) THEN
+  FieldAtParticle(:,NewID)=FieldAtParticle(:,OldID)
+END IF
+
+
+
+!    __  __          __      __          __    ____  ___________________    __       ___
+!   / / / /___  ____/ /___ _/ /____     / /   / __ \/ ____/  _/ ____/   |  / /      /   |  ______________ ___  _______
+!  / / / / __ \/ __  / __ `/ __/ _ \   / /   / / / / / __ / // /   / /| | / /      / /| | / ___/ ___/ __ `/ / / / ___/
+! / /_/ / /_/ / /_/ / /_/ / /_/  __/  / /___/ /_/ / /_/ // // /___/ ___ |/ /___   / ___ |/ /  / /  / /_/ / /_/ (__  )
+! \____/ .___/\__,_/\__,_/\__/\___/  /_____/\____/\____/___/\____/_/  |_/_____/  /_/  |_/_/  /_/   \__,_/\__, /____/
+!     /_/                                                                                               /____/
+
+
+
+IF(ALLOCATED(PDM%ParticleInside)) THEN
+  PDM%ParticleInside(NewID)=PDM%ParticleInside(OldID)
+  PDM%ParticleInside(OldID)=.FALSE.
+END IF
+
+IF(ALLOCATED(PDM%IsNewPart)) THEN
+  PDM%IsNewPart(NewID)=PDM%IsNewPart(OldID)
+END IF
+
+IF(ALLOCATED(PDM%dtFracPush)) THEN
+  PDM%dtFracPush(NewID)=PDM%dtFracPush(OldID)
+END IF
+
+IF(ALLOCATED(PDM%InRotRefFrame)) THEN
+  PDM%InRotRefFrame(NewID)=PDM%InRotRefFrame(OldID)
+END IF
+
+IF(ALLOCATED(ElecRelaxPart)) THEN
+  ElecRelaxPart(NewID)=ElecRelaxPart(OldID)
+END IF
+
+
+
+!    __  __          __      __          ________  ______  ___________    ___
+!   / / / /___  ____/ /___ _/ /____     /_  __/\ \/ / __ \/ ____/ ___/   /   |  ______________ ___  _______
+!  / / / / __ \/ __  / __ `/ __/ _ \     / /    \  / /_/ / __/  \__ \   / /| | / ___/ ___/ __ `/ / / / ___/
+! / /_/ / /_/ / /_/ / /_/ / /_/  __/    / /     / / ____/ /___ ___/ /  / ___ |/ /  / /  / /_/ / /_/ (__  )
+! \____/ .___/\__,_/\__,_/\__/\___/    /_/     /_/_/   /_____//____/  /_/  |_/_/  /_/   \__,_/\__, /____/
+!     /_/                                                                                    /____/
+
+IF(ALLOCATED(AmbipolElecVelo)) THEN
+  IF(ALLOCATED(AmbipolElecVelo(OldID)%ElecVelo)) THEN
+    IF(ALLOCATED(AmbipolElecVelo(NewID)%ElecVelo)) DEALLOCATE(AmbipolElecVelo(NewID)%ElecVelo)
+    CALL MOVE_ALLOC(AmbipolElecVelo(OldID)%ElecVelo,AmbipolElecVelo(NewID)%ElecVelo)
+  ELSE
+    IF(ALLOCATED(AmbipolElecVelo(NewID)%ElecVelo)) DEALLOCATE(AmbipolElecVelo(NewID)%ElecVelo)
+  END IF
+END IF
+
+IF(ALLOCATED(ElectronicDistriPart)) THEN
+  IF(ALLOCATED(ElectronicDistriPart(OldID)%DistriFunc)) THEN
+    IF(ALLOCATED(ElectronicDistriPart(NewID)%DistriFunc)) DEALLOCATE(ElectronicDistriPart(NewID)%DistriFunc)
+    CALL MOVE_ALLOC(ElectronicDistriPart(OldID)%DistriFunc,ElectronicDistriPart(NewID)%DistriFunc)
+  ELSE
+    IF(ALLOCATED(ElectronicDistriPart(NewID)%DistriFunc)) DEALLOCATE(ElectronicDistriPart(NewID)%DistriFunc)
+  END IF
+END IF
+
+IF(ALLOCATED(VibQuantsPar)) THEN
+  IF(ALLOCATED(VibQuantsPar(OldID)%Quants)) THEN
+    IF(ALLOCATED(VibQuantsPar(NewID)%Quants)) DEALLOCATE(VibQuantsPar(NewID)%Quants)
+    CALL MOVE_ALLOC(VibQuantsPar(OldID)%Quants,VibQuantsPar(NewID)%Quants)
+  ELSE
+    IF(ALLOCATED(VibQuantsPar(NewID)%Quants)) DEALLOCATE(VibQuantsPar(NewID)%Quants)
+  END IF
+END IF
+
+
+END SUBROUTINE ChangePartID
 
 
 
