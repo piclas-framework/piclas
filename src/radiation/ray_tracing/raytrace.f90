@@ -162,9 +162,6 @@ IF(.NOT.ALLOCATED(PartStateBoundary))THEN
   PartStateBoundary=0.
 END IF ! .NOT.ALLOCATED(PartStateBoundary)
 
-! Bilinear tracking requires shorter movement vectors for the rays, otherwise it hangs
-IF(.NOT.UsePhotonTriaTracking) Ray%Direction = Ray%Direction*0.01
-
 DO iRay = 1, LocRayNum
   IF(MPIroot.AND.(MOD(RayVisCount,RayDisp).EQ.0)) CALL PrintStatusLineRadiation(REAL(RayVisCount),0.0,REAL(LocRayNum),.TRUE.)
   RayVisCount = RayVisCount + 1
