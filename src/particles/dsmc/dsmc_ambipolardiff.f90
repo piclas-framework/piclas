@@ -251,7 +251,7 @@ CASE('constant')
   iPart = 0
   DO i = NbrOfParticle-PartIns+1,NbrOfParticle
     iPart = iPart + 1
-    PositionNbr = GetNextFreePosition()
+    PositionNbr = GetNextFreePosition(i)
     ! In case of side-normal velocities: calc n-vector at particle position, xi was saved in PartState(4:5)
     IF (Species(DSMC%AmbiDiffElecSpec)%Surfaceflux(iSF)%VeloIsNormal .AND. TriaSurfaceFlux) THEN
       vec_nIn(1:3) = SurfMeshSubSideData(iSample,jSample,BCSideID)%vec_nIn(1:3)
@@ -299,7 +299,7 @@ CASE('maxwell','maxwell_lpn')
   iPart = 0
   DO i = NbrOfParticle-PartIns+1,NbrOfParticle
     iPart = iPart + 1
-    PositionNbr = GetNextFreePosition()
+    PositionNbr = GetNextFreePosition(i)
     !-- 0a.: In case of side-normal velocities: calc n-/t-vectors at particle position, xi was saved in PartState(4:5)
     IF (Species(DSMC%AmbiDiffElecSpec)%Surfaceflux(iSF)%VeloIsNormal .AND. TriaSurfaceFlux) THEN
       vec_nIn(1:3) = SurfMeshSubSideData(iSample,jSample,BCSideID)%vec_nIn(1:3)

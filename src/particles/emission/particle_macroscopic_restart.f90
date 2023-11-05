@@ -96,7 +96,7 @@ DO iElem = 1, nElems
               RandomPos(3) = 0.0
               InsideFlag = ParticleInsideCheck(RandomPos,1,GlobalElemID)
               IF (InsideFlag) THEN
-                IF (locnPart.GT.PDM%maxParticleNumber) CALL IncreaseMaxParticleNumber()
+                IF (locnPart.GE.PDM%maxParticleNumber) CALL IncreaseMaxParticleNumber()
                 PartState(1:3,locnPart) = RandomPos(1:3)
                 CALL InitializeParticleMaxwell(locnPart,iSpec,iElem,Mode=1)
                 locnPart = locnPart + 1
@@ -215,8 +215,8 @@ DO iElem = 1, nElems
   END ASSOCIATE
 END DO ! nElems
 
-IF(locnPart.GE.PDM%maxParticleNumber) CALL abort(__STAMP__,'ERROR in MacroRestart: Increase maxParticleNumber!', locnPart)
-
+! IF(locnPart.GE.PDM%maxParticleNumber) CALL abort(__STAMP__,'ERROR in MacroRestart: Increase maxParticleNumber!', locnPart)
+IPWRITE(*,*) "PDM%ParticleVecLength,locnPart",PDM%ParticleVecLength,locnPart
 PDM%ParticleVecLength = PDM%ParticleVecLength + locnPart
 
 END SUBROUTINE MacroRestart_InsertParticles

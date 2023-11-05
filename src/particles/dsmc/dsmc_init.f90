@@ -1445,6 +1445,8 @@ SDEALLOCATE(CollInf%alphaVSS)
 SDEALLOCATE(CollInf%omega)
 SDEALLOCATE(CollInf%dref)
 SDEALLOCATE(CollInf%Tref)
+SDEALLOCATE(CollInf%OldCollPartner)
+CollInf%ProhibitDoubleColl=.FALSE.
 !SDEALLOCATE(VibQuantsPar)
 ! SDEALLOCATE(XiEq_Surf)
 SDEALLOCATE(DSMC_Solution)

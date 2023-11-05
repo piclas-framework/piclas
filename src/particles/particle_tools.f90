@@ -1664,7 +1664,9 @@ SUBROUTINE IncreaseMaxParticleNumber(Amount)
 USE MOD_Globals
 USE MOD_Particle_Vars
 USE MOD_DSMC_Vars
+#if USE_MPI
 USE MOD_Particle_MPI_Vars      ,ONLY: PartShiftVector, PartTargetProc
+#endif
 USE MOD_PICInterpolation_Vars  ,ONLY: FieldAtParticle
 #if defined(IMPA) || defined(ROS)
 USE MOD_LinearSolver_Vars      ,ONLY: PartXK, R_PartXK
@@ -1818,6 +1820,7 @@ __STAMP__&
   CALL MOVE_ALLOC(Temp1Int,CollInf%OldCollPartner)
 END IF
 
+#if USE_MPI
 IF(ALLOCATED(PartTargetProc)) THEN
   ALLOCATE(Temp1Int(NewSize),STAT=ALLOCSTAT)
   IF (ALLOCSTAT.NE.0) CALL ABORT(&
@@ -1826,6 +1829,7 @@ __STAMP__&
   Temp1Int(1:PDM%MaxParticleNumber)=PartTargetProc
   CALL MOVE_ALLOC(Temp1Int,PartTargetProc)
 END IF
+#endif
 
 !    __  __          __      __          ____  _________    __       ___
 !   / / / /___  ____/ /___ _/ /____     / __ \/ ____/   |  / /      /   |  ______________ ___  _______
@@ -1933,6 +1937,7 @@ __STAMP__&
   CALL MOVE_ALLOC(Temp2Real,PartStateIntEn)
 END IF
 
+#if USE_MPI
 IF(ALLOCATED(PartShiftVector)) THEN
   ALLOCATE(Temp2Real(3,NewSize),STAT=ALLOCSTAT)
   IF (ALLOCSTAT.NE.0) CALL ABORT(&
@@ -1941,6 +1946,7 @@ __STAMP__&
   Temp2Real(:,1:PDM%MaxParticleNumber)=PartShiftVector
   CALL MOVE_ALLOC(Temp2Real,PartShiftVector)
 END IF
+#endif
 
 IF(ALLOCATED(FieldAtParticle)) THEN
   ALLOCATE(Temp2Real(6,NewSize),STAT=ALLOCSTAT)
@@ -2164,7 +2170,9 @@ SUBROUTINE ReduceMaxParticleNumber()
 USE MOD_Globals
 USE MOD_Particle_Vars
 USE MOD_DSMC_Vars
+#if USE_MPI
 USE MOD_Particle_MPI_Vars      ,ONLY: PartShiftVector, PartTargetProc
+#endif
 USE MOD_PICInterpolation_Vars  ,ONLY: FieldAtParticle
 #if defined(IMPA) || defined(ROS)
 USE MOD_LinearSolver_Vars      ,ONLY: PartXK, R_PartXK
@@ -2198,6 +2206,12 @@ ELSE
   nPart=0
   DO i=1,PDM%ParticleVecLength
     IF(PDM%ParticleInside(i)) nPart = nPart + 1
+  END DO
+END IF
+
+IF(DSMC%DoAmbipolarDiff) THEN
+  DO i=1,PDM%ParticleVecLength
+    IF(ALLOCATED(AmbipolElecVelo(i)%ElecVelo))nPart = nPart + 1
   END DO
 END IF
 
@@ -2341,6 +2355,7 @@ __STAMP__&
   CALL MOVE_ALLOC(Temp1Int,CollInf%OldCollPartner)
 END IF
 
+#if USE_MPI
 IF(ALLOCATED(PartTargetProc)) THEN
   ALLOCATE(Temp1Int(NewSize),STAT=ALLOCSTAT)
   IF (ALLOCSTAT.NE.0) CALL ABORT(&
@@ -2349,6 +2364,7 @@ __STAMP__&
   Temp1Int=PartTargetProc(1:NewSize)
   CALL MOVE_ALLOC(Temp1Int,PartTargetProc)
 END IF
+#endif
 
 !    __  __          __      __          ____  _________    __       ___
 !   / / / /___  ____/ /___ _/ /____     / __ \/ ____/   |  / /      /   |  ______________ ___  _______
@@ -2455,6 +2471,7 @@ __STAMP__&
   CALL MOVE_ALLOC(Temp2Real,PartStateIntEn)
 END IF
 
+#if USE_MPI
 IF(ALLOCATED(PartShiftVector)) THEN
   ALLOCATE(Temp2Real(3,NewSize),STAT=ALLOCSTAT)
   IF (ALLOCSTAT.NE.0) CALL ABORT(&
@@ -2463,6 +2480,7 @@ __STAMP__&
   Temp2Real=PartShiftVector(:,1:NewSize)
   CALL MOVE_ALLOC(Temp2Real,PartShiftVector)
 END IF
+#endif
 
 IF(ALLOCATED(FieldAtParticle)) THEN
   ALLOCATE(Temp2Real(6,NewSize),STAT=ALLOCSTAT)
@@ -2689,7 +2707,9 @@ SUBROUTINE ChangePartID(OldID,NewID)
 USE MOD_Globals
 USE MOD_Particle_Vars
 USE MOD_DSMC_Vars
+#if USE_MPI
 USE MOD_Particle_MPI_Vars      ,ONLY: PartShiftVector, PartTargetProc
+#endif
 USE MOD_PICInterpolation_Vars  ,ONLY: FieldAtParticle
 #if defined(IMPA) || defined(ROS)
 USE MOD_LinearSolver_Vars      ,ONLY: PartXK, R_PartXK
@@ -2771,9 +2791,11 @@ IF(ALLOCATED(CollInf%OldCollPartner)) THEN
   CollInf%OldCollPartner(NewID)=CollInf%OldCollPartner(OldID)
 END IF
 
+#if USE_MPI
 IF(ALLOCATED(PartTargetProc)) THEN
   PartTargetProc(NewID)=PartTargetProc(OldID)
 END IF
+#endif
 
 !    __  __          __      __          ____  _________    __       ___
 !   / / / /___  ____/ /___ _/ /____     / __ \/ ____/   |  / /      /   |  ______________ ___  _______
@@ -2826,9 +2848,11 @@ IF(ALLOCATED(PartStateIntEn)) THEN
   PartStateIntEn(:,NewID)=PartStateIntEn(:,OldID)
 END IF
 
+#if USE_MPI
 IF(ALLOCATED(PartShiftVector)) THEN
   PartShiftVector(:,NewID)=PartShiftVector(:,OldID)
 END IF
+#endif
 
 IF(ALLOCATED(FieldAtParticle)) THEN
   FieldAtParticle(:,NewID)=FieldAtParticle(:,OldID)
