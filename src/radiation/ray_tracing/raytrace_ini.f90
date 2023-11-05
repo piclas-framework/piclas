@@ -167,7 +167,6 @@ ASSOCIATE( &
   Ray%Power = Ray%PowerDensity * A ! adjust power from [W/m2] to [W]
   E0 = Ray%Power / Ray%RepetitionRate
 
-
   ! Generate two base vectors perpendicular to the ray direction
   CALL OrthoNormVec(Ray%Direction,Ray%BaseVector1IC,Ray%BaseVector2IC)
 
@@ -190,6 +189,12 @@ END ASSOCIATE
 
 CALL PrintOption('Rectangular ray emission area: A [m2]'                             , 'CALCUL.' , RealOpt=Ray%Area)
 CALL PrintOption('Angle between emission area normal and ray direction: alpha [deg]' , 'CALCUL.' , RealOpt=alpha)
+! Increased energy in the volume due to the increased optical path (only 2D approximation)
+IF(ABS(alpha)+1e-4.LT.90.0)THEN
+  CALL PrintOption('Enhancement factor for energy deposited in the volume [-]'       , 'CALCUL.' , RealOpt=1.0/COS(alpha*PI/180.0))
+ELSE
+  CALL PrintOption('Enhancement factor for energy deposited in the volume [-]'       , 'CALCUL.' , RealOpt=1.0)
+END IF ! ABS(alpha).GT.0.0
 CALL PrintOption('Single pulse energy [J]'                                           , 'CALCUL.' , RealOpt=Ray%Energy)
 CALL PrintOption('Intensity amplitude: I0 [W/m^2]'                                   , 'CALCUL.' , RealOpt=Ray%IntensityAmplitude)
 CALL PrintOption('Corrected Intensity amplitude: I0_corr [W/m^2]'                    , 'CALCUL.' , RealOpt=Ray%IntensityAmplitude)
