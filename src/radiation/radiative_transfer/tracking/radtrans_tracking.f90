@@ -276,7 +276,6 @@ USE MOD_Photon_TrackingTools    ,ONLY: PeriodicPhotonBC
 USE MOD_Photon_TrackingTools    ,ONLY: PhotonIntersectSensor
 USE MOD_Particle_Boundary_Tools ,ONLY: StoreBoundaryParticleProperties
 USE MOD_part_tools              ,ONLY: StoreLostPhotonProperties
-USE MOD_Particle_Tracking_Vars  ,ONLY: NbrOfLostParticles,DisplayLostParticles
 USE MOD_RadiationTrans_Vars     ,ONLY: RadiationAbsorptionModel
 USE MOD_RayTracing_Vars         ,ONLY: RayForceAbsorption
 USE MOD_Particle_Mesh_Tools     ,ONLY: GetGlobalNonUniqueSideID
@@ -395,20 +394,8 @@ DO WHILE (.NOT.Done)
     ! treatment is required, where the particle path is reconstructed (which side was crossed first) by comparing the ratio
     ! the determinants
     IF (NrOfThroughSides.EQ.0) THEN
-      ! Particle appears to have not crossed any of the checked sides. Deleted!
-      ASSOCIATE( LastPhotPos => PhotonProps%PhotonLastPos(1:3), &
-                 Pos         => PhotonProps%PhotonPos(1:3), &
-                 Dir         => PhotonProps%PhotonDirection(1:3) )
-        CALL StoreLostPhotonProperties(LastPhotPos,Pos,Dir,ElemID)
-        NbrOfLostParticles=NbrOfLostParticles+1
-        IF(DisplayLostParticles)THEN
-          IPWRITE(*,*) 'Error in Photon TriaTracking (NrOfThroughSides=0)! Photon lost. Element:', ElemID
-          IPWRITE(*,*) 'LastPos:  ', PhotonProps%PhotonLastPos(1:3)
-          IPWRITE(*,*) 'Pos:      ', PhotonProps%PhotonPos(1:3)
-          IPWRITE(*,*) 'Direction:', PhotonProps%PhotonDirection(1:3)
-          IPWRITE(*,*) 'Photon deleted!'
-        END IF ! DisplayLostParticles
-      END ASSOCIATE
+      ! Particle appears to have not crossed any of the checked sides (NrOfThroughSides=0). Deleted!
+      CALL StoreLostPhotonProperties(ElemID,TRIM(__FILE__),__LINE__)
       Done = .TRUE.
       EXIT
     ELSE IF (NrOfThroughSides.GT.1) THEN
@@ -434,20 +421,9 @@ DO WHILE (.NOT.Done)
               ! Get the determinant between the old and new particle position and the nodes of the triangle which was crossed
               CALL PhotonIntersectionWithSide(LocSidesTemp(ind2),NbElemID,TriNumTemp(ind2), IntersectionPosTemp, PhotonLost, .TRUE.)
               IF(PhotonLost)THEN
-                ASSOCIATE( LastPhotPos => PhotonProps%PhotonLastPos(1:3), &
-                           Pos         => PhotonProps%PhotonPos(1:3), &
-                           Dir         => PhotonProps%PhotonDirection(1:3) )
-                  CALL StoreLostPhotonProperties(LastPhotPos,Pos,Dir,ElemID)
-                  NbrOfLostParticles=NbrOfLostParticles+1
-                  IF(DisplayLostParticles)THEN
-                    IPWRITE(*,*) 'Error in Photon TriaTracking! PhotonIntersectionWithSide() cannot determine intersection'&
-                    //' because photon is parallel to side. NbElemID:', NbElemID
-                    IPWRITE(*,*) 'LastPos:  ', PhotonProps%PhotonLastPos(1:3)
-                    IPWRITE(*,*) 'Pos:      ', PhotonProps%PhotonPos(1:3)
-                    IPWRITE(*,*) 'Direction:', PhotonProps%PhotonDirection(1:3)
-                    IPWRITE(*,*) 'Photon deleted!'
-                  END IF ! DisplayLostParticles
-                END ASSOCIATE
+                ! Error in Photon TriaTracking! PhotonIntersectionWithSide() cannot determine intersection because photon is
+                ! parallel to side
+                CALL StoreLostPhotonProperties(ElemID,TRIM(__FILE__),__LINE__)
                 Done = .TRUE.
                 EXIT
               END IF ! PhotonLost
@@ -468,20 +444,9 @@ DO WHILE (.NOT.Done)
             ELSE  ! Regular side
               CALL PhotonIntersectionWithSide(LocSidesTemp(ind2),ElemID,TriNumTemp(ind2), IntersectionPosTemp, PhotonLost)
               IF(PhotonLost)THEN
-                ASSOCIATE( LastPhotPos => PhotonProps%PhotonLastPos(1:3), &
-                           Pos         => PhotonProps%PhotonPos(1:3), &
-                           Dir         => PhotonProps%PhotonDirection(1:3) )
-                  CALL StoreLostPhotonProperties(LastPhotPos,Pos,Dir,ElemID)
-                  NbrOfLostParticles=NbrOfLostParticles+1
-                  IF(DisplayLostParticles)THEN
-                    IPWRITE(*,*) 'Error in Photon TriaTracking! PhotonIntersectionWithSide() cannot determine intersection'&
-                    //' because photon is parallel to side. ElemID:', ElemID
-                    IPWRITE(*,*) 'LastPos:  ', PhotonProps%PhotonLastPos(1:3)
-                    IPWRITE(*,*) 'Pos:      ', PhotonProps%PhotonPos(1:3)
-                    IPWRITE(*,*) 'Direction:', PhotonProps%PhotonDirection(1:3)
-                    IPWRITE(*,*) 'Photon deleted!'
-                  END IF ! DisplayLostParticles
-                END ASSOCIATE
+                ! Error in Photon TriaTracking! PhotonIntersectionWithSide() cannot determine intersection because photon is
+                ! parallel to side
+                CALL StoreLostPhotonProperties(ElemID,TRIM(__FILE__),__LINE__)
                 Done = .TRUE.
                 EXIT
               END IF ! PhotonLost
@@ -501,26 +466,14 @@ DO WHILE (.NOT.Done)
         END DO  ! ind2 = 1, NrOfThroughSides
         ! Particle that went through multiple sides first, but did not cross any sides during the second check -> Deleted!
         IF (SecondNrOfThroughSides.EQ.0) THEN
-          ASSOCIATE( LastPhotPos => PhotonProps%PhotonLastPos(1:3), &
-                     Pos         => PhotonProps%PhotonPos(1:3), &
-                     Dir         => PhotonProps%PhotonDirection(1:3) )
-            CALL StoreLostPhotonProperties(LastPhotPos,Pos,Dir,ElemID)
-            NbrOfLostParticles=NbrOfLostParticles+1
-            IF(DisplayLostParticles)THEN
-              IPWRITE(*,*) 'Error in Photon TriaTracking! Photon lost on second check. Element:', ElemID
-              IPWRITE(*,*) 'LastPos:  ', PhotonProps%PhotonLastPos(1:3)
-              IPWRITE(*,*) 'Pos:      ', PhotonProps%PhotonPos(1:3)
-              IPWRITE(*,*) 'Direction:', PhotonProps%PhotonDirection(1:3)
-              IPWRITE(*,*) 'Photon deleted!'
-            END IF ! DisplayLostParticles
-          END ASSOCIATE
+          CALL StoreLostPhotonProperties(ElemID,TRIM(__FILE__),__LINE__)
           Done = .TRUE.
           EXIT
         END IF
       ELSE
         ind2 = MINLOC(DistTemp(1:NrOfThroughSides),1)
         IF (DistTemp(ind2).LE.0.0) THEN
-          print*, 'NrOfThroughSides', NrOfThroughSides, DistTemp(1:NrOfThroughSides)
+          IPWRITE(UNIT_StdOut,*) "NrOfThroughSides =", NrOfThroughSides, "DistTemp(1:NrOfThroughSides) =",DistTemp(1:NrOfThroughSides)
           CALL abort(__STAMP__,' ERROR: Side Distance is negative!')
         END IF
         SideID = GlobSideTemp(ind2)
@@ -548,20 +501,9 @@ DO WHILE (.NOT.Done)
         IF(NrOfThroughSides.LT.2)THEN
           CALL PhotonIntersectionWithSide(LocalSide,ElemID,TriNum, IntersectionPos, PhotonLost)
           IF(PhotonLost)THEN
-            ASSOCIATE( LastPhotPos => PhotonProps%PhotonLastPos(1:3), &
-                       Pos         => PhotonProps%PhotonPos(1:3), &
-                       Dir         => PhotonProps%PhotonDirection(1:3) )
-              CALL StoreLostPhotonProperties(LastPhotPos,Pos,Dir,ElemID)
-              NbrOfLostParticles=NbrOfLostParticles+1
-              IF(DisplayLostParticles)THEN
-                IPWRITE(*,*) 'Error in open BC Photon TriaTracking! PhotonIntersectionWithSide() cannot determine intersection'&
-                //' because photon is parallel to side. ElemID:', ElemID
-                IPWRITE(*,*) 'LastPos:  ', PhotonProps%PhotonLastPos(1:3)
-                IPWRITE(*,*) 'Pos:      ', PhotonProps%PhotonPos(1:3)
-                IPWRITE(*,*) 'Direction:', PhotonProps%PhotonDirection(1:3)
-                IPWRITE(*,*) 'Photon deleted!'
-              END IF ! DisplayLostParticles
-            END ASSOCIATE
+            ! Error in open BC Photon TriaTracking! PhotonIntersectionWithSide() cannot determine intersection because photon is
+            ! parallel to side
+            CALL StoreLostPhotonProperties(ElemID,TRIM(__FILE__),__LINE__)
             Done = .TRUE.
             EXIT
           END IF ! PhotonLost
@@ -620,20 +562,9 @@ DO WHILE (.NOT.Done)
       IF((NrOfThroughSides.LT.2).AND.(UsePhotonTriaTracking))THEN
         CALL PhotonIntersectionWithSide(LocalSide,ElemID,TriNum, IntersectionPos, PhotonLost)
         IF(PhotonLost)THEN
-          ASSOCIATE( LastPhotPos => PhotonProps%PhotonLastPos(1:3), &
-                Pos         => PhotonProps%PhotonPos(1:3), &
-                Dir         => PhotonProps%PhotonDirection(1:3) )
-            CALL StoreLostPhotonProperties(LastPhotPos,Pos,Dir,ElemID)
-            NbrOfLostParticles=NbrOfLostParticles+1
-            IF(DisplayLostParticles)THEN
-              IPWRITE(*,*) 'Error in periodic Photon TriaTracking! PhotonIntersectionWithSide() cannot determine intersection'&
-              //' because photon is parallel to side. ElemID:', ElemID
-              IPWRITE(*,*) 'LastPos:  ', PhotonProps%PhotonLastPos(1:3)
-              IPWRITE(*,*) 'Pos:      ', PhotonProps%PhotonPos(1:3)
-              IPWRITE(*,*) 'Direction:', PhotonProps%PhotonDirection(1:3)
-              IPWRITE(*,*) 'Photon deleted!'
-            END IF ! DisplayLostParticles
-          END ASSOCIATE
+          ! Error in periodic Photon TriaTracking! PhotonIntersectionWithSide() cannot determine intersection because photon is
+          ! parallel to side
+          CALL StoreLostPhotonProperties(ElemID,TRIM(__FILE__),__LINE__)
           Done = .TRUE.
           EXIT
         END IF ! PhotonLost
@@ -676,20 +607,8 @@ DO WHILE (.NOT.Done)
 
     ! Check if lost during intersection
     IF(PhotonLost)THEN
-      ASSOCIATE( LastPhotPos => PhotonProps%PhotonLastPos(1:3), &
-                 Pos         => PhotonProps%PhotonPos(1:3), &
-                 Dir         => PhotonProps%PhotonDirection(1:3) )
-        CALL StoreLostPhotonProperties(LastPhotPos,Pos,Dir,ElemID)
-        NbrOfLostParticles=NbrOfLostParticles+1
-        IF(DisplayLostParticles)THEN
-          IPWRITE(*,*) 'Error in Photon TriaTracking! PhotonIntersectionWithSide() cannot determine intersection'&
-          //' because photon is parallel to side. ElemID:', ElemID
-          IPWRITE(*,*) 'LastPos:  ', PhotonProps%PhotonLastPos(1:3)
-          IPWRITE(*,*) 'Pos:      ', PhotonProps%PhotonPos(1:3)
-          IPWRITE(*,*) 'Direction:', PhotonProps%PhotonDirection(1:3)
-          IPWRITE(*,*) 'Photon deleted!'
-        END IF ! DisplayLostParticles
-      END ASSOCIATE
+      ! Error in Photon TriaTracking! PhotonIntersectionWithSide() cannot determine intersection because photon is parallel to side
+      CALL StoreLostPhotonProperties(ElemID,TRIM(__FILE__),__LINE__)
       Done = .TRUE.
       EXIT
     ELSE
@@ -714,6 +633,7 @@ DO WHILE (.NOT.Done)
          MPF_optIN=0.0,&
          Velo_optIN=PhotonProps%PhotonDirection(1:3))
   END IF ! PhotonModeBPO.EQ.2
+
   IF (ElemID.LT.1) CALL abort(__STAMP__ ,'ERROR: Element not defined! Please increase the size of the halo region (HaloEpsVelo)!')
 END DO  ! .NOT.PartisDone
 
