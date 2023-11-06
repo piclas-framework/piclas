@@ -32,7 +32,6 @@ TYPE tPhotonProps
   REAL               :: PhotonEnergy        !>
   INTEGER            :: ElemID              !>
   INTEGER            :: WaveLength          !>
-  REAL               :: PhotonStartPos(3)   !> super sampled ray path
 END TYPE
 
 TYPE (tPhotonProps)  :: PhotonProps         !>

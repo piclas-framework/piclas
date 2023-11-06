@@ -334,7 +334,8 @@ IF(myComputeNodeRank.EQ.0)THEN
   DEALLOCATE(HSize)
   IF(nSurfSampleHDF5.NE.Ray%nSurfSample)THEN
     SWRITE(UNIT_stdOut,'(A)') ' Number of nSurfSample in .h5 file differs from the ini file parameter "RayTracing-nSurfSample'
-    SWRITE(UNIT_stdOut,'(A,I0)') '        nSurfSampleHDF5: ', nSurfSampleHDF5
+    SWRITE(UNIT_stdOut,'(A)') ' '
+    SWRITE(UNIT_stdOut,'(A,I0)') ' nSurfSampleHDF5       : ', nSurfSampleHDF5
     SWRITE(UNIT_stdOut,'(A,I0)') ' RayTracing-nSurfSample: ', Ray%nSurfSample
     CALL abort(__STAMP__,'Number of nSurfSample in .h5 file differs from the ini file parameter "RayTracing-nSurfSample"!')
   END IF ! nSurfSampleHDF5.NE.Ray%nSurfSample
@@ -551,7 +552,7 @@ END FUNCTION SetRayPos
 
 FUNCTION SetPhotonStartDirection(iCNElem, iPhot, RandRot)
 !===================================================================================================================================
-! modified particle emmission for LD case
+! Set the starting direction in which the photon moves
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals

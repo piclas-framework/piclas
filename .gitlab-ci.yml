@@ -358,7 +358,7 @@ build_DSMC:
     - if [ -n "${DO_WEEKLY}" ]; then
         cd ..;
         mkdir -p build_radiation ; cd build_radiation; 
-        cmake -GNinja .. -DLIBS_BUILD_HDF5=OFF -DPICLAS_BUILD_POSTI=ON -DPOSTI_BUILD_SUPERB=ON -DPICLAS_READIN_CONSTANTS=ON -DPICLAS_TIMEDISCMETHOD=Radiation -DPICLAS_INTKIND8=ON ; ninja -j0 all
+        cmake -GNinja .. -DLIBS_BUILD_HDF5=OFF -DPICLAS_BUILD_POSTI=ON -DPOSTI_BUILD_SUPERB=ON -DPICLAS_READIN_CONSTANTS=ON -DPICLAS_TIMEDISCMETHOD=Radiation -DPICLAS_INTKIND8=ON ; ninja -j0 all;
       fi
 
 build_hopr:

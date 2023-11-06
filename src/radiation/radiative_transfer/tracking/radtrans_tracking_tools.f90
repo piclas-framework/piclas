@@ -696,18 +696,21 @@ IF(ABS(direction(3)).GT.1e6*(ABS(direction(1))+ABS(direction(2))))THEN
   ! only in z-dir
   DO iIntersec = 1, NbrOfSamples-1
     CALL RANDOM_NUMBER(RandVal(1))
-    SamplePos(1:3) = PhotonProps%PhotonStartPos(1:3) + (/1.0 , 1.0 , RandVal(1)/) * direction(1:3)
+    SamplePos(1:3) = PhotonProps%PhotonPos(1:3) + (/1.0 , 1.0 , RandVal(1)/) * direction(1:3)
     CALL GetNestestDOFInRefElem(Nloc,SamplePos(1:3),GlobalElemID,k,l,m)
     U_N_Ray(GlobalElemID)%U(idx,k,l,m) = U_N_Ray(GlobalElemID)%U(idx,k,l,m) + sublength*PhotonProps%PhotonEnergy
   END DO
 ELSE
   DO iIntersec = 1, NbrOfSamples-1
     CALL RANDOM_NUMBER(RandVal(1:3))
-    SamplePos(1:3) = PhotonProps%PhotonStartPos(1:3) + RandVal(1:3) * direction(1:3)
+    SamplePos(1:3) = PhotonProps%PhotonPos(1:3) + RandVal(1:3) * direction(1:3)
     CALL GetNestestDOFInRefElem(Nloc,SamplePos(1:3),GlobalElemID,k,l,m)
     U_N_Ray(GlobalElemID)%U(idx,k,l,m) = U_N_Ray(GlobalElemID)%U(idx,k,l,m) + sublength*PhotonProps%PhotonEnergy
   END DO
 END IF ! ABS(direction(3).GT.1e6*(ABS(direction(1))+ABS(direction(2))))
+PhotonProps%PhotonPos(1:3) = IntersectionPos(1:3)
+
+! Store intersection point as new starting point
 PhotonProps%PhotonPos(1:3) = IntersectionPos(1:3)
 
 END SUBROUTINE CalcAbsorptionRayTrace
@@ -1254,7 +1257,8 @@ END SUBROUTINE DiffusePhotonReflection2D
 
 SUBROUTINE PeriodicPhotonBC(iLocSide, Element, TriNum, IntersectionPos, IntersecAlreadyCalc, SideID)
 !----------------------------------------------------------------------------------------------------------------------------------!
-! Computes the perfect reflection in 3D
+! Computes the periodic movement of a photon and updates PhotonLastPos, PhotonPos and IntersectionPos to the periodically moves
+! location
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! MODULES                                                                                                                          !
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -1331,21 +1335,24 @@ IF (.NOT.IntersecAlreadyCalc) THEN
   IntersectionPos(3) = PoldZ + POI_fak * VelZ
 END IF
 
-! set last particle position on face
+! Set last particle position on face
 PhotonProps%PhotonLastPos = IntersectionPos
-! perform the periodic movement
+! Perform the periodic movement
 PVID = BoundaryType(SideInfo_Shared(SIDE_BCID,SideID),BC_ALPHA)
 PhotonProps%PhotonLastPos = PhotonProps%PhotonLastPos + SIGN( GEO%PeriodicVectors(1:3,ABS(PVID)),REAL(PVID))
-! update particle positon after periodic BC
+! Update particle positon after periodic BC
 !PartState(1:3,PartID) = PhotonProps%PhotonLastPos + (TrackInfo%lengthPartTrajectory-TrackInfo%alpha)*TrackInfo%PartTrajectory
 !TrackInfo%lengthPartTrajectory  = TrackInfo%lengthPartTrajectory - TrackInfo%alpha
 
 ! refmapping and tracing
-! move particle from old element to new element
+! Move particle from old element to new element
 Element = SideInfo_Shared(SIDE_NBELEMID,SideID)
 
-! Move the intersection point as it will be considered the starting point in the next iteration
+! Periodic movement the intersection point as it will be considered the starting point in the next iteration
 IntersectionPos = PhotonProps%PhotonLastPos
+
+! Periodic movement the photon position
+PhotonProps%PhotonPos = PhotonProps%PhotonLastPos
 
 END SUBROUTINE PeriodicPhotonBC
 

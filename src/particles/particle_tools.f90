@@ -229,34 +229,54 @@ CALL LBPauseTime(LB_UNFP,tLBStart)
 END SUBROUTINE UpdateNextFreePosition
 
 
-SUBROUTINE StoreLostPhotonProperties(LastPhotPos,Pos,Dir,ElemID)
+SUBROUTINE StoreLostPhotonProperties(ElemID,CallingFileName,LineNbrOfCall)
 !----------------------------------------------------------------------------------------------------------------------------------!
-! Store information of a lost particle (during restart and during the simulation)
+! Store information of a lost photons during tracking
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! MODULES                                                                                                                          !
 USE MOD_Globals                ,ONLY: abort,myrank
 USE MOD_Particle_Tracking_Vars ,ONLY: PartStateLost,PartLostDataSize,PartStateLostVecLength
 USE MOD_TimeDisc_Vars          ,ONLY: time
+USE MOD_Photon_TrackingVars    ,ONLY: PhotonProps
+USE MOD_Particle_Tracking_Vars ,ONLY: NbrOfLostParticles,DisplayLostParticles
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! insert modules here
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
 ! INPUT / OUTPUT VARIABLES
-REAL,INTENT(IN)             :: LastPhotPos(1:3)
-REAL,INTENT(IN)             :: Pos(1:3)
-REAL,INTENT(IN)             :: Dir(1:3)
+CHARACTER(LEN=*),INTENT(IN) :: CallingFileName ! Name of calling file
+INTEGER,INTENT(IN)          :: LineNbrOfCall   ! Line number from which this function was called from CallingFileName
 INTEGER,INTENT(IN)          :: ElemID ! Global element index
 INTEGER                     :: dims(2)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 ! Temporary arrays
-REAL, ALLOCATABLE    :: PartStateLost_tmp(:,:)   ! (1:11,1:NParts) 1st index: x,y,z,vx,vy,vz,SpecID,MPF,time,ElemID,iPart
-!                                                !                 2nd index: 1 to number of lost particles
-INTEGER              :: ALLOCSTAT
+REAL, ALLOCATABLE :: PartStateLost_tmp(:,:) ! (1:11,1:NParts) 1st index: x,y,z,vx,vy,vz,SpecID,MPF,time,ElemID,iPart
+!                                           !                 2nd index: 1 to number of lost particles
+INTEGER           :: ALLOCSTAT
+CHARACTER(LEN=60) :: hilf
 !===================================================================================================================================
+
+! Increment counter for lost particle per process
+NbrOfLostParticles=NbrOfLostParticles+1
+
+! Output in terminal if activated
+IF(DisplayLostParticles)THEN
+  WRITE(UNIT=hilf,FMT='(I0)') LineNbrOfCall
+  IPWRITE(*,*) 'Error in photon tracking in '//TRIM(CallingFileName)//' in line '//TRIM(hilf)//'! Photon lost. Element:', ElemID
+  IPWRITE(*,*) 'LastPos:  ', PhotonProps%PhotonLastPos(1:3)
+  IPWRITE(*,*) 'Pos:      ', PhotonProps%PhotonPos(1:3)
+  IPWRITE(*,*) 'Direction:', PhotonProps%PhotonDirection(1:3)
+  IPWRITE(*,*) 'Photon deleted!'
+END IF ! DisplayLostParticles
+
+! Check if size of the array must be increased
 dims = SHAPE(PartStateLost)
 
-ASSOCIATE( iMax => PartStateLostVecLength )
+ASSOCIATE( iMax        => PartStateLostVecLength           , &
+           LastPhotPos => PhotonProps%PhotonLastPos(1:3)   , &
+           PhotPos     => PhotonProps%PhotonPos(1:3)       , &
+           Dir         => PhotonProps%PhotonDirection(1:3) )
   ! Increase maximum number of boundary-impact particles
   iMax = iMax + 1
 
@@ -279,8 +299,8 @@ ASSOCIATE( iMax => PartStateLostVecLength )
 
   END IF
 
-  ! 1-3: Particle position (last valid position)
-  PartStateLost(1:3,iMax) = LastPhotPos(1:3)
+  ! 1-3: Particle position (current position)
+  PartStateLost(1:3,iMax) = PhotPos(1:3)
   ! 4-6: Particle velocity
   PartStateLost(4:6  ,iMax) = Dir(1:3)
   ! 7: SpeciesID
@@ -293,8 +313,8 @@ ASSOCIATE( iMax => PartStateLostVecLength )
   PartStateLost(10   ,iMax) = REAL(ElemID)
   ! 11: Particle ID
   PartStateLost(11   ,iMax) = REAL(0)
-  ! 12-14: Particle position (position of loss)
-  PartStateLost(12:14,iMax) = Pos(1:3)
+  ! 12-14: Particle position (starting point or last valid position)
+  PartStateLost(12:14,iMax) = LastPhotPos(1:3)
   ! 15: myrank
   PartStateLost(15,iMax) = myrank
   ! 16: missing type, i.e., 0: lost, 1: missing & found once, >1: missing & multiply found
