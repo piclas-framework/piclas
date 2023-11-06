@@ -240,33 +240,33 @@ IF(DSMC%CalcQualityFactors) THEN
   DSMC%CollProbMeanCount = DSMC%CollProbMeanCount + 1
 END IF
 
-#if (PP_TimeDiscMethod==42)
-! Sum of collision probabilities for the collision pair, required for the correct reaction rate
-IF(ChemReac%NumOfReact.GT.0) THEN
-  IF (ChemReac%CollCaseInfo(iCase)%NumOfReactionPaths.GT.0) THEN
-    CollProb = Coll_pData(iPair)%Prob
-    IF(SpecDSMC(iSpec_p1)%UseCollXSec) THEN
-      ! Calculate the collision probability for the null collision probability case
-      IF(BGGas%BackgroundSpecies(iSpec_p2)) THEN
-        IF(XSec_NullCollision) THEN
-          IF(BGGas%UseDistribution) THEN
-            CollProb = CollProb * SpecXSec(iCase)%ProbNullElem(iElem)
+IF (DSMC%ReservoirSimu) THEN
+  ! Sum of collision probabilities for the collision pair, required for the correct reaction rate
+  IF(ChemReac%NumOfReact.GT.0) THEN
+    IF (ChemReac%CollCaseInfo(iCase)%NumOfReactionPaths.GT.0) THEN
+      CollProb = Coll_pData(iPair)%Prob
+      IF(SpecDSMC(iSpec_p1)%UseCollXSec) THEN
+        ! Calculate the collision probability for the null collision probability case
+        IF(BGGas%BackgroundSpecies(iSpec_p2)) THEN
+          IF(XSec_NullCollision) THEN
+            IF(BGGas%UseDistribution) THEN
+              CollProb = CollProb * SpecXSec(iCase)%ProbNullElem(iElem)
+            ELSE
+              CollProb = CollProb * SpecXSec(iCase)%ProbNull
+            END IF
           ELSE
-            CollProb = CollProb * SpecXSec(iCase)%ProbNull
+            IF(BGGas%UseDistribution)THEN
+              CollProb = CollProb * BGGas%SpeciesFractionElem(BGGas%MapSpecToBGSpec(iSpec_p2),iElem)
+            ELSE
+              CollProb = CollProb * BGGas%SpeciesFraction(BGGas%MapSpecToBGSpec(iSpec_p2))
+            END IF ! BGGas%UseDistribution
           END IF
-        ELSE
-          IF(BGGas%UseDistribution)THEN
-            CollProb = CollProb * BGGas%SpeciesFractionElem(BGGas%MapSpecToBGSpec(iSpec_p2),iElem)
-          ELSE
-            CollProb = CollProb * BGGas%SpeciesFraction(BGGas%MapSpecToBGSpec(iSpec_p2))
-          END IF ! BGGas%UseDistribution
         END IF
       END IF
+      ChemReac%ReacCollMean(iCase) = ChemReac%ReacCollMean(iCase) + CollProb
     END IF
-    ChemReac%ReacCollMean(iCase) = ChemReac%ReacCollMean(iCase) + CollProb
   END IF
 END IF
-#endif
 
 END SUBROUTINE DSMC_prob_calc
 

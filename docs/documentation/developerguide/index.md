@@ -12,6 +12,7 @@ numbered:
 git_workflow.md
 building_guide.md
 styleguide.md
+bestpractices.md
 troubleshooting.md
 code_extension.md
 functions_and_subroutines.md
