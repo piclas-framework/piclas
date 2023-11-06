@@ -23,8 +23,9 @@ at best using the multi-node feature `PICLAS_SHARED_MEMORY=OMPI_COMM_TYPE_CORE`
 - `CALL WriteArrayToHDF5()` with collective=.FALSE. when it is not 100% certain that all processes enter this routine
 
 **Explanation**
-- Setting collective=.TRUE. triggers the usage of `H5FD_MPIO_COLLECTIVE_F` and `collective=.FALSE.` uses `H5FD_MPIO_INDEPENDENT_F` in
-  `H5PSET_DXPL_MPIO_F(PList_ID, H5FD_MPIO_INDEPENDENT_F, iError)`, which configures the "transfer mode" in the hdf5 output
+- Setting `collective=.TRUE.` triggers the usage of `H5FD_MPIO_COLLECTIVE_F` (`collective=.FALSE.` uses `H5FD_MPIO_INDEPENDENT_F`) in
+  `H5PSET_DXPL_MPIO_F(PList_ID, H5FD_MPIO_INDEPENDENT_F, iError)`, which configures the "transfer mode" in the hdf5 output.
+  Collective MPI output requires that all processes take part in the operation!
 
 **git hashes**
 - One of these bugs was specifically fixed in

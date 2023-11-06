@@ -565,6 +565,8 @@ CASE(103) ! dipole
   resu(:)=IniAmplitude*(1/r2-1/r1)
 CASE(104) ! solution to Laplace's equation: Phi_xx + Phi_yy + Phi_zz = 0
   resu(1) = ( COS(x(1))+SIN(x(1)) )*( COS(x(2))+SIN(x(2)) )*( COSH(SQRT(2.0)*x(3))+SINH(SQRT(2.0)*x(3)) )
+CASE(105) ! 3D periodic test case
+  resu(1)= SIN(x(1) + 1) * SIN(x(2) + 2) * SIN(x(3) + 3)
 CASE(200) ! Dielectric Sphere of Radius R in constant electric field E_0 from book:
   ! John David Jackson, Classical Electrodynamics, 3rd edition, New York: Wiley, 1999.
   ! E_0       : constant electric field in z-direction far away from sphere
@@ -938,6 +940,9 @@ CASE(103)
   dr2dx2(:)= r2+dr2dx(:)*dx2
   resu(1)=- IniAmplitude*( SUM((r1*dr1dx2(:)-2*dr1dx(:)**2)/(r1*r1*r1)) &
       -SUM((r2*dr2dx2(:)-2*dr2dx(:)**2)/(r2*r2*r2)) )
+CASE(105) ! 3D periodic test case
+  x(1:3) = Elem_xGP(1:3,i,j,k,iElem)
+  resu(1)=-3 * SIN(x(1) + 1) * SIN(x(2) + 2) * SIN(x(3) + 3)
 CASE DEFAULT
   resu=0.
   !  CALL abort(__STAMP__,&

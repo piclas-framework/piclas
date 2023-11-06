@@ -49,11 +49,10 @@ Vec                 :: lambda_local_conductors_petsc
 VecScatter          :: scatter_conductors_petsc
 IS                  :: idx_local_conductors_petsc
 IS                  :: idx_global_conductors_petsc
-INTEGER,ALLOCATABLE :: PETScGlobal(:)         !< PETScGlobal(SideID) maps the local SideID to global PETScSideID 
+INTEGER,ALLOCATABLE :: PETScGlobal(:)         !< PETScGlobal(SideID) maps the local SideID to global PETScSideID
 INTEGER,ALLOCATABLE :: PETScLocalToSideID(:)  !< PETScLocalToSideID(PETScLocalSideID) maps the local PETSc side to SideID
 REAL,ALLOCATABLE    :: Smat_BC(:,:,:,:)       !< side to side matrix for dirichlet (D) BCs, (ngpface,ngpface,6Sides,DSides)
-REAL,ALLOCATABLE    :: Smat_zeroPotential(:,:,:) !< side to side matrix for zero potential Side, (ngpface,ngpface,6Sides)
-INTEGER             :: nPETScSides            !< nSides - nDirichletSides - nZeroPotentialSides
+INTEGER             :: nPETScSides            !< nSides - nDirichletSides
 INTEGER             :: nPETScUniqueSides      !< nPETScSides - nMPISides_YOUR
 INTEGER             :: nPETScUniqueSidesGlobal
 #endif
@@ -74,13 +73,9 @@ REAL,ALLOCATABLE    :: InvPrecondDiag(:,:)    !< 1/diagonal of Precond
 REAL,ALLOCATABLE    :: qn_face(:,:,:)         !< for Neumann BC
 REAL,ALLOCATABLE    :: qn_face_MagStat(:,:,:) !< for Neumann BC
 INTEGER             :: nDirichletBCsides
-INTEGER             :: ZeroPotentialSideID    !< SideID, where the solution is set zero to enforce convergence
-REAL,PARAMETER      :: ZeroPotentialValue=0.  !< This can be set to an arbitrary value (in the range of the potential solution)
-INTEGER             :: HDGZeroPotentialDir    !< Direction in which a Dirichlet condition with phi=0 is superimposed on the boundary
-                                              !< conditions. Default chooses the direction automatically when no other Dirichlet
-                                              !< boundary conditions are defined.
 INTEGER             :: nNeumannBCsides
 INTEGER             :: nConductorBCsides      !< Number of processor-local sides that are conductors (FPC) in [1:nBCSides]
+LOGICAL             :: SetZeroPotentialDOF    !< Flag to set a single DOF, if only periodic and Neumann boundaries are present
 INTEGER,ALLOCATABLE :: ConductorBC(:)
 INTEGER,ALLOCATABLE :: DirichletBC(:)
 INTEGER,ALLOCATABLE :: NeumannBC(:)

@@ -117,14 +117,14 @@ DO iSpec = 1, nSpecies
   IF(SpecDSMC(iSpec)%UseElecXSec.AND.SpecDSMC(iSpec)%InterID.EQ.4) THEN
     CALL Abort(__STAMP__,'ERROR: Electronic relaxation should be enabled for the respective heavy species, not the electrons!')
   END IF
-#if (PP_TimeDiscMethod!=42)
-  IF(SpecDSMC(iSpec)%UseElecXSec.AND.(.NOT.BGGas%BackgroundSpecies(iSpec))) THEN
-    SWRITE(*,*) 'NOTE: Electronic relaxation via cross-sections for regular DSMC is currently only enabled for the RESERVOIR'
-    SWRITE(*,*) 'NOTE: timedisc to test the calculation of the probabilities during regression testing. For DSMC, a de-excitation'
-    SWRITE(*,*) 'NOTE: model should be implemented. Regression test: WEK_Reservoir/MCC_N2_XSec_Elec'
-    CALL Abort(__STAMP__,'ERROR: Electronic relaxation via cross-section (-UseElecXSec) is only supported with a background gas!')
+  IF(.NOT.DSMC%ReservoirSimu) THEN
+    IF(SpecDSMC(iSpec)%UseElecXSec.AND.(.NOT.BGGas%BackgroundSpecies(iSpec))) THEN
+      SWRITE(*,*) 'NOTE: Electronic relaxation via cross-sections for regular DSMC is currently only enabled using the flag'
+      SWRITE(*,*) 'NOTE: Particles-DSMCReservoirSim = T to test the calculation of the probabilities during regression testing.'
+      SWRITE(*,*) 'NOTE: For DSMC, a de-excitation model should be implemented. Regression test: WEK_Reservoir/MCC_N2_XSec_Elec'
+      CALL Abort(__STAMP__,'ERROR: Electronic relaxation via cross-section (-UseElecXSec) is only supported with a background gas!')
+    END IF
   END IF
-#endif
 END DO
 
 ! Enable MCC if any of the flags was set
