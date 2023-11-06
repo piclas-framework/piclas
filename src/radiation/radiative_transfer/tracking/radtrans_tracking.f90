@@ -287,16 +287,16 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                          :: NblocSideID, NbElemID, ind, nbSideID, nMortarElems, BCType, localSideID, iPBC
+INTEGER                          :: NblocSideID, NbElemID, ind, nbSideID, nMortarElems, BCType, localSideID, iPBC, GlobSideID
 INTEGER                          :: ElemID,OldElemID,nlocSides
 INTEGER                          :: LocalSide
 INTEGER                          :: NrOfThroughSides, ind2
 INTEGER                          :: SideID,TempSideID,iLocSide
 INTEGER                          :: TriNum, LocSidesTemp(1:6),TriNumTemp(1:6), GlobSideTemp(1:6)
-INTEGER                          :: SecondNrOfThroughSides, indSide
+INTEGER                          :: SecondNrOfThroughSides, indSide 
 INTEGER                          :: DoneLastElem(1:4,1:6) ! 1:3: 1=Element,2=LocalSide,3=TriNum 1:2: 1=last 2=beforelast
-LOGICAL                          :: ThroughSide, Done
-LOGICAL                          :: oldElemIsMortar, isMortarSideTemp(1:6), doCheckSide
+LOGICAL                          :: ThroughSide, Done, TempPointSelect(2), LastInterPointSelect(2),DummyPointSelect(2),FallBack
+LOGICAL                          :: oldElemIsMortar, isMortarSideTemp(1:6), doCheckSide, InterPointSelect(2), InterPointSelectTemp(2,6)
 REAL                             :: minRatio, intersecDist, intersecDistVec(3)
 REAL                             :: IntersectionPos(1:3), IntersectionPosTemp(1:3)
 REAL                             :: DistTemp(1:6)
@@ -307,10 +307,15 @@ REAL                             :: alpha,xi,eta
 Done = .FALSE.
 ElemID = PhotonProps%ElemID
 SideID = 0
+GlobSideID = 0
 DoneLastElem(:,:) = 0
+InterPointSelect = .FALSE.
+LastInterPointSelect = .FALSE.
 
 ! 1) Loop tracking until Photon is considered "done" (either absorbed or deleted)
 DO WHILE (.NOT.Done)
+  PhotonLost=.FALSE.
+  InterPointSelectTemp = .FALSE.
   oldElemIsMortar = .FALSE.
   NrOfThroughSides = 0
   LocSidesTemp(:) = 0
@@ -318,6 +323,7 @@ DO WHILE (.NOT.Done)
   TriNumTemp(:) = 0
   GlobSideTemp = 0
   isMortarSideTemp = .FALSE.
+  FallBack = .FALSE.
   nlocSides = ElemInfo_Shared(ELEM_LASTSIDEIND,ElemID) -  ElemInfo_Shared(ELEM_FIRSTSIDEIND,ElemID)
   LocSideLoop: DO iLocSide=1,nlocSides
     TempSideID = ElemInfo_Shared(ELEM_FIRSTSIDEIND,ElemID) + iLocSide
@@ -370,10 +376,16 @@ DO WHILE (.NOT.Done)
         END DO
       ELSE
         ! 2) Tracing on bilinear sides (bilinear algorithm for intersection calculation))
-        SideID   = GetGlobalNonUniqueSideID(ElemID,localSideID)
+        GlobSideID   = GetGlobalNonUniqueSideID(ElemID,localSideID)
         ThroughSide = .FALSE.
         !CALL ComputeBiLinearIntersection(foundHit,PartTrajectory,lengthPartTrajectory,locAlpha,xi,eta,iPart,SideID,alpha2=currentIntersect%alpha)
-        CALL PhotonComputeBiLinearIntersection(ThroughSide,SideID, intersecDist)
+        IF (SideInfo_Shared(SIDE_NBELEMID,TempSideID).EQ.DoneLastElem(1,1)) THEN
+          DummyPointSelect = LastInterPointSelect 
+        ELSE
+          DummyPointSelect = (/.FALSE.,.FALSE./)
+        END IF
+        CALL PhotonComputeBiLinearIntersection(ThroughSide,GlobSideID, intersecDist,TempPointSelect, DummyPointSelect)
+!        print*,intersecDist, SideInfo_Shared(SIDE_NBELEMID,TempSideID), DoneLastElem(1,1), DummyPointSelect, 'ThroughSide',ThroughSide,'which', TempPointSelect
         IF(ThroughSide)THEN
           NrOfThroughSides = NrOfThroughSides + 1
           LocSidesTemp(NrOfThroughSides) = localSideID
@@ -381,12 +393,49 @@ DO WHILE (.NOT.Done)
           DistTemp(NrOfThroughSides) = intersecDist
           SideID = TempSideID
           LocalSide = localSideID
-          IntersectionPos(1:3) = PhotonProps%PhotonLastPos(1:3) + intersecDist*PhotonProps%PhotonDirection(1:3)
+          InterPointSelect = TempPointSelect(1:2)
+          InterPointSelectTemp(1:2,NrOfThroughSides) = TempPointSelect(1:2)
+          IntersectionPos(1:3) = PhotonProps%PhotonPos(1:3) + intersecDist*PhotonProps%PhotonDirection(1:3)
+!          print*, NrOfThroughSides, SideID, IntersectionPos
         END IF ! foundHit
       END IF ! UsePhotonTriaTracking
     END IF  ! Mortar or regular side
   END DO LocSideLoop ! iLocSide=1,6
 
+  IF ((NrOfThroughSides.EQ.0).AND.(.NOT.UsePhotonTriaTracking)) THEN
+    FallBack = .TRUE.
+    LocSideLoop2: DO iLocSide=1,nlocSides
+      TempSideID = ElemInfo_Shared(ELEM_FIRSTSIDEIND,ElemID) + iLocSide
+      localSideID = SideInfo_Shared(SIDE_LOCALID,TempSideID)
+      ! Side is not one of the 6 local sides
+      IF (localSideID.LE.0) CYCLE
+      NbElemID = SideInfo_Shared(SIDE_NBELEMID,TempSideID)
+      IF (NbElemID.LT.0) THEN ! Mortar side
+        CALL ABORT(__STAMP__,'Mortars not allowed for photon tracing!')
+      ELSE  ! Regular side
+        ! A) TriaTracking
+        DO TriNum = 1,2
+          ThroughSide = .FALSE.
+          CALL PhotonThroughSideCheck3DFast(localSideID,ElemID,ThroughSide,TriNum)
+          IF (ThroughSide) THEN
+            CALL PhotonIntersectionWithSide(localSideID,ElemID,TriNum, IntersectionPos, PhotonLost)
+            IF (PhotonLost) CYCLE
+            NrOfThroughSides = NrOfThroughSides + 1
+            LocSidesTemp(NrOfThroughSides) = localSideID
+            TriNumTemp(NrOfThroughSides) = TriNum
+            GlobSideTemp(NrOfThroughSides) = TempSideID
+            ind = MAXLOC(ABS(PhotonProps%PhotonDirection),1)
+            intersecDist = (IntersectionPos(ind) - PhotonProps%PhotonPos(ind))/PhotonProps%PhotonDirection(ind)
+            InterPointSelect = (/.TRUE.,.TRUE./)
+            InterPointSelectTemp(1:2,NrOfThroughSides) = InterPointSelect
+            SideID = TempSideID
+            LocalSide = localSideID
+          END IF
+        END DO
+      END IF
+    END DO LocSideLoop2
+  END IF
+!  
   TriNum = TriNumTemp(1)
   ! ----------------------------------------------------------------------------
   ! Additional treatment if particle did not cross any sides or it crossed multiple sides
@@ -399,7 +448,9 @@ DO WHILE (.NOT.Done)
       ASSOCIATE( LastPhotPos => PhotonProps%PhotonLastPos(1:3), &
                  Pos         => PhotonProps%PhotonPos(1:3), &
                  Dir         => PhotonProps%PhotonDirection(1:3) )
-        CALL StoreLostPhotonProperties(LastPhotPos,Pos,Dir,ElemID)
+        print*, 'Dmand'
+!        read*
+        CALL StoreLostPhotonProperties(Pos,LastPhotPos,Dir,ElemID)
         NbrOfLostParticles=NbrOfLostParticles+1
         IF(DisplayLostParticles)THEN
           IPWRITE(*,*) 'Error in Photon TriaTracking (NrOfThroughSides=0)! Photon lost. Element:', ElemID
@@ -412,7 +463,7 @@ DO WHILE (.NOT.Done)
       Done = .TRUE.
       EXIT
     ELSE IF (NrOfThroughSides.GT.1) THEN
-      IF(UsePhotonTriaTracking)THEN
+      IF(UsePhotonTriaTracking.OR.FallBack)THEN
         ! Use the slower search method if particle appears to have crossed more than one side (possible for irregular hexagons
         ! and in the case of mortar elements)
         SecondNrOfThroughSides = 0
@@ -437,7 +488,7 @@ DO WHILE (.NOT.Done)
                 ASSOCIATE( LastPhotPos => PhotonProps%PhotonLastPos(1:3), &
                            Pos         => PhotonProps%PhotonPos(1:3), &
                            Dir         => PhotonProps%PhotonDirection(1:3) )
-                  CALL StoreLostPhotonProperties(LastPhotPos,Pos,Dir,ElemID)
+                  CALL StoreLostPhotonProperties(Pos,LastPhotPos,Dir,ElemID)
                   NbrOfLostParticles=NbrOfLostParticles+1
                   IF(DisplayLostParticles)THEN
                     IPWRITE(*,*) 'Error in Photon TriaTracking! PhotonIntersectionWithSide() cannot determine intersection'&
@@ -471,7 +522,7 @@ DO WHILE (.NOT.Done)
                 ASSOCIATE( LastPhotPos => PhotonProps%PhotonLastPos(1:3), &
                            Pos         => PhotonProps%PhotonPos(1:3), &
                            Dir         => PhotonProps%PhotonDirection(1:3) )
-                  CALL StoreLostPhotonProperties(LastPhotPos,Pos,Dir,ElemID)
+                  CALL StoreLostPhotonProperties(Pos,LastPhotPos,Dir,ElemID)
                   NbrOfLostParticles=NbrOfLostParticles+1
                   IF(DisplayLostParticles)THEN
                     IPWRITE(*,*) 'Error in Photon TriaTracking! PhotonIntersectionWithSide() cannot determine intersection'&
@@ -504,7 +555,7 @@ DO WHILE (.NOT.Done)
           ASSOCIATE( LastPhotPos => PhotonProps%PhotonLastPos(1:3), &
                      Pos         => PhotonProps%PhotonPos(1:3), &
                      Dir         => PhotonProps%PhotonDirection(1:3) )
-            CALL StoreLostPhotonProperties(LastPhotPos,Pos,Dir,ElemID)
+            CALL StoreLostPhotonProperties(Pos,LastPhotPos,Dir,ElemID)
             NbrOfLostParticles=NbrOfLostParticles+1
             IF(DisplayLostParticles)THEN
               IPWRITE(*,*) 'Error in Photon TriaTracking! Photon lost on second check. Element:', ElemID
@@ -528,13 +579,14 @@ DO WHILE (.NOT.Done)
         TriNum = 1
         intersecDist = DistTemp(ind2)
         oldElemIsMortar = .FALSE.
+        InterPointSelect = InterPointSelectTemp(1:2,ind2)
         IntersectionPos(1:3) = PhotonProps%PhotonLastPos(1:3) + intersecDist*PhotonProps%PhotonDirection(1:3)
       END IF
     END IF  ! NrOfThroughSides.EQ.0/.GT.1
   END IF  ! NrOfThroughSides.NE.1
 
   ! Dummy flag
-  IF(.NOT.UsePhotonTriaTracking) TriNum=1
+  IF((.NOT.UsePhotonTriaTracking).OR.(.NOT.FallBack)) TriNum=1
 
   ! ----------------------------------------------------------------------------
   ! 3) In case of a boundary, perform the appropriate boundary interaction
@@ -544,14 +596,14 @@ DO WHILE (.NOT.Done)
     BCType = PartBound%TargetBoundCond(iPBC)
     SELECT CASE(BCType)
     CASE(1) !PartBound%OpenBC)
-      IF(UsePhotonTriaTracking)THEN
+      IF(UsePhotonTriaTracking.OR.Fallback)THEN
         IF(NrOfThroughSides.LT.2)THEN
           CALL PhotonIntersectionWithSide(LocalSide,ElemID,TriNum, IntersectionPos, PhotonLost)
           IF(PhotonLost)THEN
             ASSOCIATE( LastPhotPos => PhotonProps%PhotonLastPos(1:3), &
                        Pos         => PhotonProps%PhotonPos(1:3), &
                        Dir         => PhotonProps%PhotonDirection(1:3) )
-              CALL StoreLostPhotonProperties(LastPhotPos,Pos,Dir,ElemID)
+              CALL StoreLostPhotonProperties(Pos,LastPhotPos,Dir,ElemID)
               NbrOfLostParticles=NbrOfLostParticles+1
               IF(DisplayLostParticles)THEN
                 IPWRITE(*,*) 'Error in open BC Photon TriaTracking! PhotonIntersectionWithSide() cannot determine intersection'&
@@ -590,14 +642,14 @@ DO WHILE (.NOT.Done)
       ! Check if specular of diffuse reflection
       IF (PartBound%PhotonSpecularReflection(iPBC)) THEN
         ! Specular reflection
-        IF ((NrOfThroughSides.LT.2).AND.(UsePhotonTriaTracking)) THEN
+        IF ((NrOfThroughSides.LT.2).AND.(UsePhotonTriaTracking.OR.Fallback)) THEN
           CALL PerfectPhotonReflection(LocalSide,ElemID,TriNum, IntersectionPos, .FALSE.)
         ELSE
           CALL PerfectPhotonReflection(LocalSide,ElemID,TriNum, IntersectionPos, .TRUE.)
         END IF
       ELSE
         ! Diffuse reflection
-        IF ((NrOfThroughSides.LT.2).AND.(UsePhotonTriaTracking)) THEN
+        IF ((NrOfThroughSides.LT.2).AND.(UsePhotonTriaTracking.OR.Fallback)) THEN
           CALL DiffusePhotonReflection(LocalSide,ElemID,TriNum, IntersectionPos, .FALSE.)
         ELSE
           CALL DiffusePhotonReflection(LocalSide,ElemID,TriNum, IntersectionPos, .TRUE.)
@@ -617,13 +669,13 @@ DO WHILE (.NOT.Done)
       END IF ! RadiationAbsorptionModel.EQ.0
 
     CASE(3) ! PartBound%PeriodicBC
-      IF((NrOfThroughSides.LT.2).AND.(UsePhotonTriaTracking))THEN
-        CALL PhotonIntersectionWithSide(LocalSide,ElemID,TriNum, IntersectionPos, PhotonLost)
+      IF((NrOfThroughSides.LT.2).AND.(UsePhotonTriaTracking.OR.Fallback))THEN
+        CALL PhotonIntersectionWithSide(LocalSide,ElemID,TriNum, IntersectionPos, PhotonLost)      
         IF(PhotonLost)THEN
           ASSOCIATE( LastPhotPos => PhotonProps%PhotonLastPos(1:3), &
                 Pos         => PhotonProps%PhotonPos(1:3), &
                 Dir         => PhotonProps%PhotonDirection(1:3) )
-            CALL StoreLostPhotonProperties(LastPhotPos,Pos,Dir,ElemID)
+            CALL StoreLostPhotonProperties(Pos,LastPhotPos,Dir,ElemID)
             NbrOfLostParticles=NbrOfLostParticles+1
             IF(DisplayLostParticles)THEN
               IPWRITE(*,*) 'Error in periodic Photon TriaTracking! PhotonIntersectionWithSide() cannot determine intersection'&
@@ -648,6 +700,7 @@ DO WHILE (.NOT.Done)
 
     IF ((BCType.EQ.2).OR.(BCType.EQ.10)) THEN
       DoneLastElem(:,:) = 0
+      LastInterPointSelect = .FALSE.
     ELSE
       DO ind2= 5, 1, -1
         DoneLastElem(:,ind2+1) = DoneLastElem(:,ind2)
@@ -656,6 +709,7 @@ DO WHILE (.NOT.Done)
       DoneLastElem(2,1) = LocalSide
       DoneLastElem(3,1) = TriNum
       DoneLastElem(4,1) = SideID
+      LastInterPointSelect= InterPointSelect
     END IF
   ELSE  ! BC(SideID).LE.0
     DO ind2= 5, 1, -1
@@ -665,6 +719,7 @@ DO WHILE (.NOT.Done)
     DoneLastElem(2,1) = LocalSide
     DoneLastElem(3,1) = TriNum
     DoneLastElem(4,1) = SideID
+    LastInterPointSelect = InterPointSelect
 
     IF (oldElemIsMortar) THEN
       ElemID = SideInfo_Shared(SIDE_ELEMID,SideID)
@@ -679,7 +734,7 @@ DO WHILE (.NOT.Done)
       ASSOCIATE( LastPhotPos => PhotonProps%PhotonLastPos(1:3), &
                  Pos         => PhotonProps%PhotonPos(1:3), &
                  Dir         => PhotonProps%PhotonDirection(1:3) )
-        CALL StoreLostPhotonProperties(LastPhotPos,Pos,Dir,ElemID)
+        CALL StoreLostPhotonProperties(Pos,LastPhotPos,Dir,ElemID)
         NbrOfLostParticles=NbrOfLostParticles+1
         IF(DisplayLostParticles)THEN
           IPWRITE(*,*) 'Error in Photon TriaTracking! PhotonIntersectionWithSide() cannot determine intersection'&
@@ -703,6 +758,8 @@ DO WHILE (.NOT.Done)
     END IF ! PhotonLost
   END IF  ! BC(SideID).GT./.LE. 0
 
+!  print*, DONE, PhotonProps%PhotonDirection, PhotonProps%PhotonPos, ElemID, SideID
+!  read*
   ! Check if output to PartStateBoundary is activated
   IF(PhotonModeBPO.EQ.2)THEN
     CALL StoreBoundaryParticleProperties(0,&
@@ -908,7 +965,7 @@ DO WHILE (.NOT.Done)
 END DO  ! .NOT.PartisDone
 END SUBROUTINE Photon2DSymTracking
 
-SUBROUTINE PhotonComputeBiLinearIntersection(isHit,SideID,Dist,ElemCheck_Opt)
+SUBROUTINE PhotonComputeBiLinearIntersection(isHit,SideID, Dist,PointSelect,OldPointSelect,ElemCheck_Opt)
 !===================================================================================================================================
 ! Compute the Intersection with planar surface, improved version by
 ! Haselbacher, A.; Najjar, F. M. & Ferry, J. P., An efficient and robust particle-localization algorithm for unstructured grids
@@ -916,9 +973,10 @@ SUBROUTINE PhotonComputeBiLinearIntersection(isHit,SideID,Dist,ElemCheck_Opt)
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
+USE MOD_Globals_Vars           ,ONLY: EpsMach
 USE MOD_Utils                  ,ONLY: QuadraticSolver
-USE MOD_Mesh_Tools             ,ONLY: GetCNSideID
-USE MOD_Particle_Mesh_Vars     ,ONLY: SideInfo_Shared
+USE MOD_Mesh_Tools             ,ONLY: GetCNSideID, GetCNElemID
+USE MOD_Particle_Mesh_Vars     ,ONLY: SideInfo_Shared, ElemRadiusNGeo
 USE MOD_Particle_Surfaces_Vars ,ONLY: BaseVectors0,BaseVectors1,BaseVectors2,BaseVectors3,SideNormVec,epsilonTol!,BaseVectorsScale
 USE MOD_Particle_Surfaces      ,ONLY: CalcNormAndTangBilinear
 USE MOD_Particle_Tracking_Vars ,ONLY: TrackingMethod
@@ -940,6 +998,8 @@ IMPLICIT NONE
 INTEGER,INTENT(IN)                :: SideID
 LOGICAL,INTENT(IN),OPTIONAL       :: ElemCheck_Opt
 REAL, INTENT(OUT)                 :: Dist
+LOGICAL,INTENT(OUT)               :: PointSelect(2)
+LOGICAL,INTENT(IN)                :: OldPointSelect(2)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 LOGICAL,INTENT(OUT)               :: isHit
@@ -957,9 +1017,10 @@ LOGICAL                           :: ElemCheck
 alpha    = -1.0
 xitild   = -2.0
 etatild  = -2.0
+Dist = 0.0
 isHit    = .FALSE.
+PointSelect = .FALSE.
 CNSideID = GetCNSideID(SideID)
-
 ! compute initial vectors
 BiLinearCoeff(:,1) = 0.25*BaseVectors3(:,SideID)
 BiLinearCoeff(:,2) = 0.25*BaseVectors1(:,SideID)
@@ -986,7 +1047,7 @@ scaleFac = DOT_PRODUCT(PhotonProps%PhotonDirection,SideNormVec(1:3,CNSideID))
 IF (ABS(scaleFac).LT.epsilontol) RETURN
 
 ! Haselbacher et al. define d = d - r_p
-BiLinearCoeff(:,4) = BiLinearCoeff(:,4) - PhotonProps%PhotonLastPos(1:3)
+BiLinearCoeff(:,4) = BiLinearCoeff(:,4) - PhotonProps%PhotonPos(1:3)
 
 ! Calculate component normal to ray
 NormalCoeff(:,1) = BiLinearCoeff(:,1) - SUM(BiLinearCoeff(:,1)*PhotonProps%PhotonDirection(:))*PhotonProps%PhotonDirection
@@ -1043,21 +1104,21 @@ SELECT CASE(nRoot)
         IPWRITE(UNIT_stdOut,'(I0,A,I0)') ' Both denominators zero when calculating Xi in bilinear intersection'
         IPWRITE(UNIT_stdOut,'(I0,A,I0)') ' global SideID:      ', SideID
         IPWRITE(UNIT_stdOut,'(I0,A,I0)') ' global ElemID:      ', SideInfo_Shared(SIDE_ELEMID,SideID)
-        IPWRITE(UNIT_stdOut,'(I0,A,3(1X,ES25.17E3))') ' LastPhotonPos:   ', PhotonProps%PhotonLastPos(1:3)
-        IPWRITE(UNIT_stdOut,'(I0,A,3(1X,ES25.17E3))') ' PhotonDirection:       ', PhotonProps%PhotonDirection(1:3)
+        IPWRITE(UNIT_stdOut,'(I0,A,3(1X,ES25.17E3))') ' LastPhotonPos:   ', PhotonProps%PhotonPos(1:3)
+        IPWRITE(UNIT_stdOut,'(I0,A,3(1X,ES25.17E3))') ' PhotonDirection:       ', PhotonProps%PhotonDirection(1:3)        
         CALL ABORT(__STAMP__,'Invalid intersection with bilinear side!',SideID)
       END IF
 
       IF( ABS(xi(1)).LE.1.0) THEN
         ! compute alpha only with valid xi and eta
         t(1) = ComputeSurfaceDistance2(BiLinearCoeff,xi(1),eta(1),PhotonProps%PhotonDirection)
-
-        IF (t(1).GT.0.) THEN
+        IF ((t(1).GT.ABS(EpsMach)).AND.(.NOT.OldPointSelect(1))) THEN
           alpha   = t(1)
           xitild  = xi(1)
           etatild = eta(1)
           isHit   = .TRUE.
           Dist = t(1)
+          PointSelect(1) = .TRUE.
 #ifdef CODE_ANALYZE
           IF(MPIRANKOUT.EQ.MyRank)THEN
             WRITE(UNIT_stdout,'(A,G0,A,G0)') '     | t(1): ',t(1),' | epsilonTolerance: ',epsilontol
@@ -1091,12 +1152,12 @@ SELECT CASE(nRoot)
 
       IF (Xi(1).EQ.HUGE(1.)) THEN
         return
-        IPWRITE(UNIT_stdOut,'(I0,A,I0)') ' Both denominators zero when calculating Xi in bilinear intersection'
-        IPWRITE(UNIT_stdOut,'(I0,A,I0)') ' global SideID:      ', SideID
-        IPWRITE(UNIT_stdOut,'(I0,A,I0)') ' global ElemID:      ', SideInfo_Shared(SIDE_ELEMID,SideID)
-        IPWRITE(UNIT_stdOut,'(I0,A,3(1X,ES25.17E3))') ' LastPhotonPos:   ', PhotonProps%PhotonLastPos(1:3)
-        IPWRITE(UNIT_stdOut,'(I0,A,3(1X,ES25.17E3))') ' PhotonDirection:       ', PhotonProps%PhotonDirection(1:3)
-        CALL ABORT(__STAMP__,'Invalid intersection with bilinear side!',SideID)
+!        IPWRITE(UNIT_stdOut,'(I0,A,I0)') ' Both denominators zero when calculating Xi in bilinear intersection'
+!        IPWRITE(UNIT_stdOut,'(I0,A,I0)') ' global SideID:      ', SideID
+!        IPWRITE(UNIT_stdOut,'(I0,A,I0)') ' global ElemID:      ', SideInfo_Shared(SIDE_ELEMID,SideID)
+!        IPWRITE(UNIT_stdOut,'(I0,A,3(1X,ES25.17E3))') ' LastPhotonPos:   ', PhotonProps%PhotonPos(1:3)
+!        IPWRITE(UNIT_stdOut,'(I0,A,3(1X,ES25.17E3))') ' PhotonDirection:       ', PhotonProps%PhotonDirection(1:3)
+!        CALL ABORT(__STAMP__,'Invalid intersection with bilinear side!',SideID)
       END IF
 
       IF( ABS(xi(1)).LE.1.0) THEN
@@ -1109,7 +1170,7 @@ SELECT CASE(nRoot)
         END IF
 #endif /*CODE_ANALYZE*/
 
-        IF (t(1).GT.0.) THEN
+        IF (t(1).GT.ABS(EpsMach)) THEN
           InterType = InterType+1
           isHit     = .TRUE.
 #ifdef CODE_ANALYZE
@@ -1128,12 +1189,12 @@ SELECT CASE(nRoot)
 
       IF (Xi(2).EQ.HUGE(1.)) THEN
         return
-        IPWRITE(UNIT_stdOut,'(I0,A,I0)') ' Both denominators zero when calculating Xi in bilinear intersection'
-        IPWRITE(UNIT_stdOut,'(I0,A,I0)') ' global SideID:      ', SideID
-        IPWRITE(UNIT_stdOut,'(I0,A,I0)') ' global ElemID:      ', SideInfo_Shared(SIDE_ELEMID,SideID)
-        IPWRITE(UNIT_stdOut,'(I0,A,3(1X,ES25.17E3))') ' LastPhotonPos:   ', PhotonProps%PhotonLastPos(1:3)
-        IPWRITE(UNIT_stdOut,'(I0,A,3(1X,ES25.17E3))') ' PhotonDirection:       ', PhotonProps%PhotonDirection(1:3)
-        CALL ABORT(__STAMP__,'Invalid intersection with bilinear side!',SideID)
+!        IPWRITE(UNIT_stdOut,'(I0,A,I0)') ' Both denominators zero when calculating Xi in bilinear intersection'
+!        IPWRITE(UNIT_stdOut,'(I0,A,I0)') ' global SideID:      ', SideID
+!        IPWRITE(UNIT_stdOut,'(I0,A,I0)') ' global ElemID:      ', SideInfo_Shared(SIDE_ELEMID,SideID)
+!        IPWRITE(UNIT_stdOut,'(I0,A,3(1X,ES25.17E3))') ' LastPhotonPos:   ', PhotonProps%PhotonPos(1:3)
+!        IPWRITE(UNIT_stdOut,'(I0,A,3(1X,ES25.17E3))') ' PhotonDirection:       ', PhotonProps%PhotonDirection(1:3)
+!        CALL ABORT(__STAMP__,'Invalid intersection with bilinear side!',SideID)
       END IF
 
       IF( ABS(xi(2)).LE.1.0) THEN
@@ -1146,7 +1207,7 @@ SELECT CASE(nRoot)
         END IF
 #endif /*CODE_ANALYZE*/
 
-        IF (t(2).GT.0.) THEN
+        IF (t(2).GT.ABS(EpsMach)) THEN
           InterType = InterType+2
           isHit     = .TRUE.
 #ifdef CODE_ANALYZE
@@ -1165,17 +1226,28 @@ SELECT CASE(nRoot)
 
       ! First intersection is only hit
       CASE(1)
-        alpha  =t  (1)
-        xitild =xi (1)
-        etatild=eta(1)
-        Dist = t(1)
-
+        IF (.NOT.OldPointSelect(1)) THEN
+          alpha  =t  (1)
+          xitild =xi (1)
+          etatild=eta(1)
+          Dist = t(1)
+          PointSelect(1)=.TRUE.
+        ELSE
+          isHit = .FALSE.
+          RETURN
+        END IF
       ! Second intersection is only hit
       CASE(2)
-        alpha  =t  (2)
-        xitild =xi (2)
-        etatild=eta(2)
-        Dist = t(2)
+        IF (.NOT.OldPointSelect(2)) THEN
+          alpha  =t  (2)
+          xitild =xi (2)
+          etatild=eta(2)
+          Dist = t(2)
+          PointSelect(2)=.TRUE.
+        ELSE
+          isHit = .FALSE.
+          RETURN
+        END IF
 
       ! Two intersections found, decide on the correct one
       CASE(3)
@@ -1193,16 +1265,20 @@ SELECT CASE(nRoot)
             etatild=-2
           ELSE
             ! Apparently we don't care about the direction of the PartTrajectory
-            IF(ABS(t(1)).LT.ABS(t(2)))THEN
+            IF((ABS(t(1)).LT.ABS(t(2))).AND.(.NOT.OldPointSelect(1)))THEN
               alpha  =t  (1)
               xitild =xi (1)
               etatild=eta(1)
               Dist = t(1)
-            ELSE
+              PointSelect(1)=.TRUE.
+            ELSE IF (.NOT.OldPointSelect(2)) THEN
               alpha  =t  (2)
               xitild =xi (2)
               etatild=eta(2)
               Dist = t(2)
+              PointSelect(2)=.TRUE.
+            ELSE
+              isHit = .FALSE.
             END IF
           END IF
         ! Inner side with double intersection, particle leaves and enters element

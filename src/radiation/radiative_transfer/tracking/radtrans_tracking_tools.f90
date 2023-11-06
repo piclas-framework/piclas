@@ -669,7 +669,7 @@ REAL              :: direction(3),subdirection(3),length,sublength
 REAL              :: RandVal(3)
 !--------------------------------------------------------------------------------------------------!
 ! Calculate the direction and length of the path of the ray through the element
-direction(1:3) = IntersectionPos(1:3)-PhotonProps%PhotonStartPos(1:3)
+direction(1:3) = IntersectionPos(1:3)-PhotonProps%PhotonPos(1:3)
 length = VECNORM(direction(1:3))
 
 ! Check primary or secondary direction
@@ -708,6 +708,7 @@ ELSE
     U_N_Ray(GlobalElemID)%U(idx,k,l,m) = U_N_Ray(GlobalElemID)%U(idx,k,l,m) + sublength*PhotonProps%PhotonEnergy
   END DO
 END IF ! ABS(direction(3).GT.1e6*(ABS(direction(1))+ABS(direction(2))))
+PhotonProps%PhotonPos(1:3) = IntersectionPos(1:3)
 
 END SUBROUTINE CalcAbsorptionRayTrace
 
