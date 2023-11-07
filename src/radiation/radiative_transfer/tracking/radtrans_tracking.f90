@@ -301,8 +301,6 @@ REAL                             :: minRatio, intersecDist, intersecDistVec(3)
 REAL                             :: IntersectionPos(1:3), IntersectionPosTemp(1:3)
 REAL                             :: DistTemp(1:6)
 LOGICAL                          :: PhotonLost
-LOGICAL                          :: foundHit
-REAL                             :: alpha,xi,eta
 !===================================================================================================================================
 Done = .FALSE.
 ElemID = PhotonProps%ElemID
@@ -903,11 +901,9 @@ USE MOD_Globals
 USE MOD_Globals_Vars           ,ONLY: EpsMach
 USE MOD_Utils                  ,ONLY: QuadraticSolver
 USE MOD_Mesh_Tools             ,ONLY: GetCNSideID, GetCNElemID
-USE MOD_Particle_Mesh_Vars     ,ONLY: SideInfo_Shared, ElemRadiusNGeo
+USE MOD_Particle_Mesh_Vars     ,ONLY: SideInfo_Shared
 USE MOD_Particle_Surfaces_Vars ,ONLY: BaseVectors0,BaseVectors1,BaseVectors2,BaseVectors3,SideNormVec,epsilonTol!,BaseVectorsScale
 USE MOD_Particle_Surfaces      ,ONLY: CalcNormAndTangBilinear
-USE MOD_Particle_Tracking_Vars ,ONLY: TrackingMethod
-USE MOD_Particle_Vars          ,ONLY: PartState,LastPartPos!,PEM
 USE MOD_Photon_TrackingVars    ,ONLY: PhotonProps
 #ifdef CODE_ANALYZE
 USE MOD_Particle_Surfaces_Vars ,ONLY: BezierControlPoints3D
