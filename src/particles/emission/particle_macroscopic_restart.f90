@@ -216,8 +216,8 @@ DO iElem = 1, nElems
 END DO ! nElems
 
 ! IF(locnPart.GE.PDM%maxParticleNumber) CALL abort(__STAMP__,'ERROR in MacroRestart: Increase maxParticleNumber!', locnPart)
-IPWRITE(*,*) "PDM%ParticleVecLength,locnPart",PDM%ParticleVecLength,locnPart
 PDM%ParticleVecLength = PDM%ParticleVecLength + locnPart
+IF(PDM%ParticleVecLength.GT.PDM%maxParticleNumber) CALL IncreaseMaxParticleNumber(PDM%ParticleVecLength*CEILING(1+0.5*PDM%MaxPartNumIncrease)-PDM%maxParticleNumber)
 
 END SUBROUTINE MacroRestart_InsertParticles
 

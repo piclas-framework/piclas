@@ -42,7 +42,7 @@ USE MOD_Timedisc_Vars          ,ONLY: dt,time
 USE MOD_Timedisc_Vars          ,ONLY: RKdtFrac,RKdtFracTotal
 USE MOD_Particle_Vars
 USE MOD_PIC_Vars
-USE MOD_part_tools             ,ONLY: UpdateNextFreePosition, GetNextFreePosition
+USE MOD_part_tools             ,ONLY: UpdateNextFreePosition, GetNextFreePosition, IncreaseMaxParticleNumber
 USE MOD_DSMC_Vars              ,ONLY: useDSMC, CollisMode, SpecDSMC
 USE MOD_part_emission_tools    ,ONLY: DSMC_SetInternalEnr_LauxVFD
 USE MOD_DSMC_PolyAtomicModel   ,ONLY: DSMC_SetInternalEnr_Poly
@@ -352,7 +352,8 @@ DO i=1,nSpecies
     END IF ! CalcPartBalance
     ! Update the current next free position and increase the particle vector length
     PDM%CurrentNextFreePosition = PDM%CurrentNextFreePosition + NbrOfParticle
-    PDM%ParticleVecLength = MIN(PDM%maxParticleNumber,PDM%ParticleVecLength + NbrOfParticle)
+    PDM%ParticleVecLength = PDM%ParticleVecLength + NbrOfParticle
+    IF(PDM%ParticleVecLength.GT.PDM%maxParticleNumber) CALL IncreaseMaxParticleNumber(PDM%ParticleVecLength*CEILING(1+0.5*PDM%MaxPartNumIncrease)-PDM%maxParticleNumber)
 
     ! Complete check if all particles were emitted successfully
 #if USE_MPI

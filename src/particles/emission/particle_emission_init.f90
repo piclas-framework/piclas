@@ -508,7 +508,8 @@ DO iSpec = 1,nSpecies
         END DO
       END IF
       ! Add new particles to particle vector length
-      PDM%ParticleVecLength = MIN(PDM%maxParticleNumber,PDM%ParticleVecLength + NbrOfParticle)
+      PDM%ParticleVecLength = PDM%ParticleVecLength + NbrOfParticle
+      IF(PDM%ParticleVecLength.GT.PDM%maxParticleNumber) CALL IncreaseMaxParticleNumber(PDM%ParticleVecLength*CEILING(1+0.5*PDM%MaxPartNumIncrease)-PDM%maxParticleNumber)
       ! Update
       CALL UpdateNextFreePosition()
     END IF  ! Species(iSpec)%Init(iInit)%ParticleEmissionType.EQ.0
@@ -531,7 +532,6 @@ IF(DoDielectric)THEN
     END DO
   END IF
 END IF
-CALL IncreaseMaxParticleNumber()
 
 LBWRITE(UNIT_stdOut,'(A)') ' INITIAL PARTICLE INSERTING DONE!'
 

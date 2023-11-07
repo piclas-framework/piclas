@@ -197,6 +197,9 @@ TYPE tParticleDataManagement
   INTEGER                                :: maxParticleNumber                 ! Maximum Number of all Particles
   INTEGER                                :: maxAllowedParticleNumber          ! Maximum allowed number of PDM%maxParticleNumber
   LOGICAL                                :: RearrangePartIDs                  ! Rearrange PartIDs during shrinking maxPartNum
+#if USE_MPI
+  LOGICAL                                :: UNFPafterMPIPartSend              ! UpdateNextFreePosition after MPI Part Send
+#endif
   INTEGER                                :: ParticleVecLength                 ! Vector Length for Particle Push Calculation
   INTEGER                                :: ParticleVecLengthOld              ! Vector Length for Particle Push Calculation
   REAL                                   :: MaxPartNumIncrease                ! How much shall the PDM%MaxParticleNumber be incresed if it is full

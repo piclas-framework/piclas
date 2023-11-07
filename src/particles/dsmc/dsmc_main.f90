@@ -127,10 +127,6 @@ DO iElem = 1, nElems ! element/cell main loop
 #endif /*USE_LOADBALANCE*/
 END DO ! iElem Loop
 
-! Advance particle vector length and the current next free position with newly created particles
-PDM%ParticleVecLength = MIN(PDM%maxParticleNumber,PDM%ParticleVecLength + DSMCSumOfFormedParticles)
-! PDM%CurrentNextFreePosition = PDM%CurrentNextFreePosition + DSMCSumOfFormedParticles
-
 IF(PDM%ParticleVecLength.GT.PDM%MaxParticleNumber) THEN
   CALL Abort(__STAMP__&
     ,'ERROR in DSMC: ParticleVecLength greater than MaxParticleNumber! Increase the MaxParticleNumber to at least: ' &

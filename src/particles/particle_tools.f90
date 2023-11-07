@@ -1628,30 +1628,55 @@ INTEGER,OPTIONAL,INTENT(IN) :: Offset
 INTEGER                     :: GetNextFreePosition
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
+INTEGER                     :: i
 !===================================================================================================================================
 IF(PRESENT(Offset)) THEN
-  IF(PDM%CurrentNextFreePosition+Offset.GT.PDM%MaxParticleNumber) CALL IncreaseMaxParticleNumber()
+  IF(PDM%CurrentNextFreePosition+Offset.GT.PDM%MaxParticleNumber) CALL IncreaseMaxParticleNumber(CEILING((PDM%CurrentNextFreePosition+Offset)*(1+PDM%MaxPartNumIncrease)-PDM%MaxParticleNumber))
   GetNextFreePosition = PDM%nextFreePosition(PDM%CurrentNextFreePosition+Offset)
+  ! If next free position is equal 0, determine how much more particles are needed to get a position within the particle vector
   IF(GetNextFreePosition.EQ.0) THEN
-    CALL IncreaseMaxParticleNumber()
+    IF(PDM%nextFreePosition(1).EQ.0) THEN
+      i = 0
+    ELSE
+      i = PDM%CurrentNextFreePosition+Offset
+      DO WHILE(PDM%nextFreePosition(i).EQ.0.AND.i.GT.0)
+        i = i - 1
+      END DO
+    END IF
+    ! Increase the maxpartnum + margin
+    CALL IncreaseMaxParticleNumber(CEILING((PDM%CurrentNextFreePosition+Offset-i)*(1+PDM%MaxPartNumIncrease)+PDM%maxParticleNumber*PDM%MaxPartNumIncrease))
     GetNextFreePosition = PDM%nextFreePosition(PDM%CurrentNextFreePosition+Offset)
   END IF
 ELSE
   PDM%CurrentNextFreePosition = PDM%CurrentNextFreePosition + 1
-  IF(PDM%CurrentNextFreePosition.GT.PDM%MaxParticleNumber) CALL IncreaseMaxParticleNumber()
+  IF(PDM%CurrentNextFreePosition.GT.PDM%MaxParticleNumber) CALL IncreaseMaxParticleNumber(CEILING((PDM%CurrentNextFreePosition)*(1+PDM%MaxPartNumIncrease)-PDM%MaxParticleNumber))
   GetNextFreePosition = PDM%nextFreePosition(PDM%CurrentNextFreePosition)
+  ! If next free position is equal 0, determine how much more particles are needed to get a position within the particle vector
   IF(GetNextFreePosition.EQ.0) THEN
-    CALL IncreaseMaxParticleNumber()
+    IF(PDM%nextFreePosition(1).EQ.0) THEN
+      i = 0
+    ELSE
+      i = PDM%CurrentNextFreePosition
+      DO WHILE(PDM%nextFreePosition(i).EQ.0.AND.i.GT.0)
+        i = i - 1
+      END DO
+    END IF
+    ! Increase the maxpartnum + margin
+    CALL IncreaseMaxParticleNumber(CEILING((PDM%CurrentNextFreePosition-i)*(1+PDM%MaxPartNumIncrease)+PDM%maxParticleNumber*PDM%MaxPartNumIncrease))
     GetNextFreePosition = PDM%nextFreePosition(PDM%CurrentNextFreePosition)
   END IF
-  IF(PDM%ParticleInside(GetNextFreePosition)) CALL ABORT(&
+  IF(PDM%ParticleInside(GetNextFreePosition)) THEN
+    CALL ABORT(&
   __STAMP__&
-  ,'This Particle is already in use',IntInfoOpt=PDM%MaxParticleNumber)
-  IF(GetNextFreePosition.GT.PDM%ParticleVecLength) PDM%ParticleVecLength = PDM%ParticleVecLength + 1
+  ,'This Particle is already in use',IntInfoOpt=GetNextFreePosition)
+  END IF
+  IF(GetNextFreePosition.GT.PDM%ParticleVecLength) PDM%ParticleVecLength = GetNextFreePosition
 END IF
-IF(GetNextFreePosition.EQ.0) CALL ABORT(&
+IF(GetNextFreePosition.EQ.0) THEN
+  CALL ABORT(&
 __STAMP__&
 ,'This should not happen, PDM%MaxParticleNumber reached',IntInfoOpt=PDM%MaxParticleNumber)
+END IF
 
 END FUNCTION GetNextFreePosition
 
@@ -1667,7 +1692,7 @@ USE MOD_DSMC_Vars
 #if USE_MPI
 USE MOD_Particle_MPI_Vars      ,ONLY: PartShiftVector, PartTargetProc
 #endif
-USE MOD_PICInterpolation_Vars  ,ONLY: FieldAtParticle
+USE MOD_PICInterpolation_Vars  ,ONLY: FieldAtParticle, DoInterpolation
 #if defined(IMPA) || defined(ROS)
 USE MOD_LinearSolver_Vars      ,ONLY: PartXK, R_PartXK
 #endif
@@ -1699,10 +1724,11 @@ IF(PRESENT(Amount)) THEN
   __STAMP__&
   ,'More Particles needed than allowed in PDM%maxAllowedParticleNumber',IntInfoOpt=NewSize)
 ELSE
-  IF(PDM%MaxParticleNumber.EQ.PDM%maxAllowedParticleNumber)CALL ABORT(&
+  NewSize=MAX(CEILING(PDM%MaxParticleNumber*(1+PDM%MaxPartNumIncrease)),PDM%MaxParticleNumber+1)
+  IF(PDM%MaxParticleNumber.GE.PDM%maxAllowedParticleNumber) CALL ABORT(&
   __STAMP__&
   ,'More Particles needed than allowed in PDM%maxAllowedParticleNumber',IntInfoOpt=NewSize)
-  NewSize=MIN(MAX(CEILING(PDM%MaxParticleNumber*(1+PDM%MaxPartNumIncrease)),PDM%MaxParticleNumber+1),PDM%maxAllowedParticleNumber)
+  NewSize=MIN(NewSize,PDM%maxAllowedParticleNumber)
   IPWRITE(*,*) "Increase by percent"
 END IF
 
@@ -1894,6 +1920,7 @@ IF(ALLOCATED(Pt)) THEN
 __STAMP__&
 ,'Cannot allocate increased Array in IncreaseMaxParticleNumber')
   Temp2Real(:,1:PDM%MaxParticleNumber)=Pt
+  IF(.NOT.DoInterpolation) Temp2Real(:,PDM%MaxParticleNumber+1:NewSize)=0
   CALL MOVE_ALLOC(Temp2Real,Pt)
 END IF
 
@@ -2200,14 +2227,10 @@ TYPE (tClonedParticles), ALLOCATABLE      :: ClonedParticles_New(:,:)
 ! REAL                        ::
 !===================================================================================================================================
 
-IF(useDSMC.OR.usevMPF) THEN
-  nPart=SUM(PEM%pNumber)
-ELSE
-  nPart=0
-  DO i=1,PDM%ParticleVecLength
-    IF(PDM%ParticleInside(i)) nPart = nPart + 1
-  END DO
-END IF
+nPart=0
+DO i=1,PDM%ParticleVecLength
+  IF(PDM%ParticleInside(i)) nPart = nPart + 1
+END DO
 
 IF(DSMC%DoAmbipolarDiff) THEN
   DO i=1,PDM%ParticleVecLength

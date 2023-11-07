@@ -573,11 +573,13 @@ USE MOD_DSMC_AmbipolarDiffusion,ONLY: AD_DeleteParticles
 USE MOD_part_tools             ,ONLY: CalcVelocity_maxwell_particle
 USE MOD_MCC_Vars               ,ONLY: PhotoIonFirstLine,PhotoIonLastLine,PhotoReacToReac,PhotonEnergies
 USE MOD_MCC_Vars               ,ONLY: NbrOfPhotonXsecReactions,SpecPhotonXSecInterpolated,MaxPhotonXSec
+USE MOD_Part_Tools             ,ONLY: GetNextFreePosition, IncreaseMaxParticleNumber
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-INTEGER, INTENT(IN)           :: iSpec,iInit,TotalNbrOfReactions
+INTEGER, INTENT(IN)           :: iSpec,iInit
+INTEGER, INTENT(INOUT)        :: TotalNbrOfReactions
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -687,8 +689,9 @@ NbrOfParticle = SUM(NumPhotoIonization)
 !> 2.) Delete left-over inserted particles
 IF(TotalNbrOfReactions.GT.NbrOfParticle) THEN
   DO iPart = NbrOfParticle+1,TotalNbrOfReactions
-    PDM%ParticleInside(PDM%nextFreePosition(iPart+PDM%CurrentNextFreePosition)) = .FALSE.
+    PDM%ParticleInside(GetNextFreePosition(iPart)) = .FALSE.
   END DO
+  TotalNbrOfReactions = NbrOfParticle
 ELSE IF(TotalNbrOfReactions.LT.NbrOfParticle) THEN
   CALL Abort(__STAMP__,'PhotoIonization: Something is wrong, trying to perform more reactions than anticipated!')
 END IF
@@ -704,14 +707,14 @@ iNewPart = 0; iPair = 0
 
 DO iPart = 1, NbrOfParticle
   ! Loop over the particles with a set position (from SetParticlePosition)
-  ParticleIndex = PDM%nextFreePosition(iPart+PDM%CurrentNextFreePosition)
+  ParticleIndex = GetNextFreePosition(iPart)
   IF (DSMC%DoAmbipolarDiff) THEN
     newAmbiParts = newAmbiParts + 1
     iPartIndx_NodeNewAmbi(newAmbiParts) = ParticleIndex
   END IF
   iNewPart = iNewPart + 1
   ! Get a new index for the second product
-  NewParticleIndex = PDM%nextFreePosition(iNewPart+PDM%CurrentNextFreePosition+NbrOfParticle)
+  NewParticleIndex = GetNextFreePosition(iNewPart+NbrOfParticle)
   IF (NewParticleIndex.EQ.0) THEN
     CALL Abort(__STAMP__,'ERROR in PhotoIonization: MaxParticleNumber should be increased!')
   END IF
@@ -769,14 +772,13 @@ DO iPart = 1, NbrOfParticle
   IF(DSMC%ElectronicModel.GT.0) PartStateIntEn(3,ParticleIndex) = 0.
 END DO
 
-! Add the particles initialized through the emission and the background particles
-PDM%ParticleVecLength = MIN(PDM%maxParticleNumber,PDM%ParticleVecLength + NbrOfParticle + iNewPart)
-! Update the current next free position
-PDM%CurrentNextFreePosition = PDM%CurrentNextFreePosition + NbrOfParticle + iNewPart
 
-IF(PDM%ParticleVecLength.GT.PDM%MaxParticleNumber) CALL Abort(__STAMP__&
-  ,'ERROR in PhotoIonization: ParticleVecLength greater than MaxParticleNumber! Increase the MaxParticleNumber to at least: ' &
-  , IntInfoOpt=PDM%ParticleVecLength)
+! Add the particles initialized through the emission and the background particles
+! Update the current next free position
+PDM%ParticleVecLength = PDM%ParticleVecLength + NbrOfParticle + iNewPart
+PDM%CurrentNextFreePosition = PDM%CurrentNextFreePosition + NbrOfParticle + iNewPart
+IF(PDM%ParticleVecLength.GT.PDM%maxParticleNumber) CALL IncreaseMaxParticleNumber(PDM%ParticleVecLength*CEILING(1+0.5*PDM%MaxPartNumIncrease)-PDM%maxParticleNumber)
+
 
 !> 4.) Perform the reaction, distribute the collision energy (including photon energy) and emit electrons perpendicular
 !>     to the photon's path
@@ -810,10 +812,6 @@ ELSE
     END DO
   END DO
 END IF ! NbrOfPhotonXsecReactions.GT.0
-
-! Advance particle vector length and the current next free position with newly created particles
-PDM%ParticleVecLength = MIN(PDM%maxParticleNumber,PDM%ParticleVecLength + DSMCSumOfFormedParticles)
-PDM%CurrentNextFreePosition = PDM%CurrentNextFreePosition + DSMCSumOfFormedParticles
 
 DSMCSumOfFormedParticles = 0
 

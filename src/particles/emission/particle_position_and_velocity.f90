@@ -311,12 +311,12 @@ ELSE
   DO i = 1,chunkSize
     ! Find a free position in the PDM array
     IF(AcceptedParts(i).NE.-1) THEN
-      ParticleIndexNbr = GetNextFreePosition(Species(FractNbr)%Init(iInit)%mySumOfMatchedParticles+1)
+      Species(FractNbr)%Init(iInit)%mySumOfMatchedParticles = Species(FractNbr)%Init(iInit)%mySumOfMatchedParticles + 1
+      ParticleIndexNbr = GetNextFreePosition(Species(FractNbr)%Init(iInit)%mySumOfMatchedParticles)
       PartState(1:DimSend,ParticleIndexNbr) = particle_positions(DimSend*(i-1)+1:DimSend*(i-1)+DimSend)
       PDM%ParticleInside(ParticleIndexNbr)=.TRUE.
       PEM%GlobalElemID(ParticleIndexNbr) = AcceptedParts(i)
       IF(TrackingMethod.EQ.REFMAPPING) CALL GetPositionInRefElem(PartState(1:DimSend,ParticleIndexNbr),PartPosRef(1:3,ParticleIndexNbr),AcceptedParts(i))
-      Species(FractNbr)%Init(iInit)%mySumOfMatchedParticles = Species(FractNbr)%Init(iInit)%mySumOfMatchedParticles + 1
       PDM%IsNewPart(ParticleIndexNbr)  = .TRUE.
       PDM%dtFracPush(ParticleIndexNbr) = .FALSE.
     END IF

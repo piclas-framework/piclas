@@ -35,7 +35,7 @@ SUBROUTINE ParticleSurfaceflux()
 ! Modules
 USE MOD_Globals
 USE MOD_Particle_Vars
-USE MOD_part_tools              ,ONLY: CalcRadWeightMPF
+USE MOD_part_tools              ,ONLY: CalcRadWeightMPF, IncreaseMaxParticleNumber
 USE MOD_DSMC_Vars               ,ONLY: useDSMC, CollisMode, RadialWeighting, DSMC
 USE MOD_Eval_xyz                ,ONLY: GetPositionInRefElem
 USE MOD_Mesh_Vars               ,ONLY: SideToElem, offsetElem
@@ -257,9 +257,6 @@ DO iSpec=1,nSpecies
 
         IF (useDSMC) THEN
           IF (DSMC%DoAmbipolarDiff) CALL AD_SetSFElectronVelo(iSpec,iSF,iSample,jSample,iSide,BCSideID,SideID,ElemID,NbrOfParticle,PartInsSubSide,particle_xis)
-          DO iPart = 1, NbrOfParticle
-            PositionNbr = GetNextFreePosition(iPart)
-          END DO
         END IF
 
         IF (SF%VeloIsNormal .AND. .NOT.TriaSurfaceFlux) DEALLOCATE(particle_xis)
@@ -294,7 +291,8 @@ DO iSpec=1,nSpecies
     END IF ! CalcPartBalance
     ! instead of an UpdateNextfreePosition we update the particleVecLength only - enough ?!?
     PDM%CurrentNextFreePosition = PDM%CurrentNextFreePosition + NbrOfParticle
-    PDM%ParticleVecLength = MIN(PDM%ParticleVecLength + NbrOfParticle,PDM%maxParticleNumber)
+    PDM%ParticleVecLength = PDM%ParticleVecLength + NbrOfParticle
+    IF(PDM%ParticleVecLength.GT.PDM%maxParticleNumber) CALL IncreaseMaxParticleNumber(PDM%ParticleVecLength*CEILING(1+0.5*PDM%MaxPartNumIncrease)-PDM%maxParticleNumber)
 #if USE_LOADBALANCE
     CALL LBPauseTime(LB_SURFFLUX,tLBStart)
 #endif /*USE_LOADBALANCE*/

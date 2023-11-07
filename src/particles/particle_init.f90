@@ -96,6 +96,11 @@ CALL prms%CreateRealOption(     'Part-MaxPartNumIncrease', 'How much shall the P
                                                                  , '0.1')
 CALL prms%CreateLogicalOption(  'Part-RearrangePartIDs', 'Rearrange PartIDs in the process of reducing maxPartNum to allow lower memory usage'&
                                                                  , '.TRUE.')
+#if USE_MPI
+CALL prms%CreateLogicalOption(  'Part-MPI-UNFP-afterPartSend', 'UpdateNextFreePosition after MPIParticleSend to reduce '//&
+                                                                'PDM%maxParticleNummber increase and decreace operations'&
+                                                                 , '.FALSE.')
+#endif
 CALL prms%CreateIntOption(      'Part-NumberOfRandomSeeds'    , 'Number of Seeds for Random Number Generator'//&
                                                                 'Choose nRandomSeeds \n'//&
                                                                 '=-1    Random \n'//&
@@ -434,6 +439,9 @@ WRITE(UNIT=hilf,FMT='(I0)') HUGE(PDM%maxAllowedParticleNumber)
 PDM%maxAllowedParticleNumber = GETINT('Part-maxParticleNumber',TRIM(hilf))
 PDM%MaxPartNumIncrease = GETREAL('Part-MaxPartNumIncrease','0.1')
 PDM%RearrangePartIDs = GETLOGICAL('Part-RearrangePartIDs','.TRUE.')
+#if USE_MPI
+PDM%UNFPafterMPIPartSend = GETLOGICAL('Part-MPI-UNFP-afterPartSend','.FALSE.')
+#endif
 PDM%maxParticleNumber=1
 PDM%ParticleVecLength=0
 CALL AllocateParticleArrays()

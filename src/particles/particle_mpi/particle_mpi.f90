@@ -446,6 +446,7 @@ USE MOD_Particle_MPI_Vars,       ONLY:nExchangeProcessors,ExchangeProcToGlobalPr
 USE MOD_Particle_Tracking_Vars,  ONLY:TrackingMethod
 USE MOD_Particle_Vars,           ONLY:PartState,PartSpecies,usevMPF,PartMPF,PEM,PDM,PartPosRef,Species
 USE MOD_Particle_Vars,           ONLY:UseRotRefFrame,PartVeloRotRef
+USE MOD_Part_Tools              ,ONLY: UpdateNextFreePosition
 #if defined(LSERK)
 USE MOD_Particle_Vars,           ONLY:Pt_temp
 #endif
@@ -878,6 +879,8 @@ DO iProc=0,nExchangeProcessors-1
 
   ! Deallocate sendBuffer after send was successful, see MPIParticleRecv
 END DO ! iProc
+
+IF(PDM%UNFPafterMPIPartSend) CALL UpdateNextFreePosition()
 
 END SUBROUTINE MPIParticleSend
 

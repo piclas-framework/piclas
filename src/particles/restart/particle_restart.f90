@@ -280,16 +280,9 @@ IF(.NOT.DoMacroscopicRestart) THEN
     SDEALLOCATE(MapPartDataToReadin)
 
     PDM%ParticleVecLength = PDM%ParticleVecLength + iPart
+    IF(PDM%ParticleVecLength.GT.PDM%maxParticleNumber) CALL IncreaseMaxParticleNumber(PDM%ParticleVecLength*CEILING(1+0.5*PDM%MaxPartNumIncrease)-PDM%maxParticleNumber)
     CALL UpdateNextFreePosition()
     LBWRITE(UNIT_stdOut,*)' DONE!'
-
-    ! if ParticleVecLength GT maxParticleNumber: Stop
-    IF (PDM%ParticleVecLength.GT.PDM%maxParticleNumber) THEN
-      SWRITE (UNIT_stdOut,*) "PDM%ParticleVecLength =", PDM%ParticleVecLength
-      SWRITE (UNIT_stdOut,*) "PDM%maxParticleNumber =", PDM%maxParticleNumber
-      CALL abort(__STAMP__&
-          ,' Number of Particles in Restart file is higher than MaxParticleNumber! Increase MaxParticleNumber!')
-    END IF ! PDM%ParticleVecLength.GT.PDM%maxParticleNumber
 
     ! Since the elementside-local node number are NOT persistant and dependent on the location
     ! of the MPI borders, all particle-element mappings need to be checked after a restart
@@ -719,6 +712,7 @@ IF(.NOT.DoMacroscopicRestart) THEN
       END DO ! iPart = 1, TotalNbrOfMissingParticlesSum
 
       PDM%ParticleVecLength = PDM%ParticleVecLength + NbrOfFoundParts
+      IF(PDM%ParticleVecLength.GT.PDM%maxParticleNumber) CALL IncreaseMaxParticleNumber(PDM%ParticleVecLength*CEILING(1+0.5*PDM%MaxPartNumIncrease)-PDM%maxParticleNumber)
 
       ! Combine number of found particles to make sure none are lost completely or found twice
       IF(MPIroot)THEN
@@ -782,7 +776,7 @@ IF(.NOT.DoMacroscopicRestart) THEN
       NbrOfLostParticles = 0
     END IF ! NbrOfMissingParticles.GT.0
 #endif /*USE_MPI*/
-    CALL IncreaseMaxParticleNumber()
+
     CALL UpdateNextFreePosition()
 
     ! Read-in the stored cloned particles
