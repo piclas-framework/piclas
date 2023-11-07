@@ -316,8 +316,8 @@ END IF
 SELECT CASE(RadiationSwitches%RadType)
 CASE(1) !calls radition solver module
   SWRITE(UNIT_stdOut,'(A)') ' Calculate Radiation Data per Cell ...'
-  ElemDisp = INT((lastElem-firstElem+1)/20)
-  ElemDisp = MAX(10,ElemDisp)
+  ElemDisp = INT((lastElem-firstElem+1)/100)
+  ElemDisp = MAX(1,ElemDisp)
 
   DO iElem = firstElem, lastElem
     IF((myRank.EQ.DisplRank).AND.(MOD(iElem-firstElem,ElemDisp).EQ.0)) CALL PrintStatusLineRadiation(REAL(iElem),REAL(firstElem),REAL(lastElem),.FALSE.,DisplRank)

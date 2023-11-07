@@ -156,7 +156,7 @@ REAL                :: RandRot(3,3) !, PartPos(1:3)
   photonCount = 0
   photVisCount = 0
   LocPhotNum = SUM(RadTransPhotPerCellLoc(:))
-  PhotDisp = INT(LocPhotNum/20)
+  PhotDisp = INT(LocPhotNum/100)
   PhotDisp = MAX(1,PhotDisp)
   DO iElem = 1, nComputeNodeElems
     IF (RadTransPhotPerCellLoc(iElem).GT.0) THEN
