@@ -286,8 +286,9 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
+INTEGER,PARAMETER                :: MaxIterPhoton=1000 ! Maximum number of cycles in the do while loop for each photon
 INTEGER                          :: NblocSideID, NbElemID, ind, nbSideID, nMortarElems, BCType, localSideID, iPBC, GlobSideID
-INTEGER                          :: ElemID,OldElemID,nlocSides
+INTEGER                          :: ElemID,OldElemID,nlocSides,IterPhoton
 INTEGER                          :: LocalSide
 INTEGER                          :: NrOfThroughSides, ind2
 INTEGER                          :: SideID,TempSideID,iLocSide
@@ -310,6 +311,7 @@ GlobSideID = 0
 DoneLastElem(:,:) = 0
 InterPointSelect = .FALSE.
 LastInterPointSelect = .FALSE.
+IterPhoton=0
 
 ! 1) Loop tracking until Photon is considered "done" (either absorbed or deleted)
 DO WHILE (.NOT.Done)
@@ -402,6 +404,13 @@ DO WHILE (.NOT.Done)
   END DO LocSideLoop ! iLocSide=1,6
 
   IF ((NrOfThroughSides.EQ.0).AND.(.NOT.UsePhotonTriaTracking)) THEN
+    ! Check if tracking fails to converge
+    IterPhoton = IterPhoton + 1 ! Stop when MaxIterPhoton is reached with this counter
+    IF(IterPhoton.GE.MaxIterPhoton)THEN
+      CALL StoreLostPhotonProperties(ElemID,TRIM(__FILE__),__LINE__,9999)
+      Done = .TRUE.
+      EXIT
+    END IF ! IterPhoton.GE.100
     FallBack = .TRUE.
     LocSideLoop2: DO iLocSide=1,nlocSides
       TempSideID = ElemInfo_Shared(ELEM_FIRSTSIDEIND,ElemID) + iLocSide
@@ -444,7 +453,7 @@ DO WHILE (.NOT.Done)
     ! the determinants
     IF (NrOfThroughSides.EQ.0) THEN
       ! Particle appears to have not crossed any of the checked sides (NrOfThroughSides=0). Deleted!
-      CALL StoreLostPhotonProperties(ElemID,TRIM(__FILE__),__LINE__)
+      CALL StoreLostPhotonProperties(ElemID,TRIM(__FILE__),__LINE__,999)
       Done = .TRUE.
       EXIT
     ELSE IF (NrOfThroughSides.GT.1) THEN
@@ -472,7 +481,7 @@ DO WHILE (.NOT.Done)
               IF(PhotonLost)THEN
                 ! Error in Photon TriaTracking! PhotonIntersectionWithSide() cannot determine intersection because photon is
                 ! parallel to side
-                CALL StoreLostPhotonProperties(ElemID,TRIM(__FILE__),__LINE__)
+                CALL StoreLostPhotonProperties(ElemID,TRIM(__FILE__),__LINE__,999)
                 Done = .TRUE.
                 EXIT
               END IF ! PhotonLost
@@ -495,7 +504,7 @@ DO WHILE (.NOT.Done)
               IF(PhotonLost)THEN
                 ! Error in Photon TriaTracking! PhotonIntersectionWithSide() cannot determine intersection because photon is
                 ! parallel to side
-                CALL StoreLostPhotonProperties(ElemID,TRIM(__FILE__),__LINE__)
+                CALL StoreLostPhotonProperties(ElemID,TRIM(__FILE__),__LINE__,999)
                 Done = .TRUE.
                 EXIT
               END IF ! PhotonLost
@@ -515,7 +524,7 @@ DO WHILE (.NOT.Done)
         END DO  ! ind2 = 1, NrOfThroughSides
         ! Particle that went through multiple sides first, but did not cross any sides during the second check -> Deleted!
         IF (SecondNrOfThroughSides.EQ.0) THEN
-          CALL StoreLostPhotonProperties(ElemID,TRIM(__FILE__),__LINE__)
+          CALL StoreLostPhotonProperties(ElemID,TRIM(__FILE__),__LINE__,999)
           Done = .TRUE.
           EXIT
         END IF
@@ -553,7 +562,7 @@ DO WHILE (.NOT.Done)
           IF(PhotonLost)THEN
             ! Error in open BC Photon TriaTracking! PhotonIntersectionWithSide() cannot determine intersection because photon is
             ! parallel to side
-            CALL StoreLostPhotonProperties(ElemID,TRIM(__FILE__),__LINE__)
+            CALL StoreLostPhotonProperties(ElemID,TRIM(__FILE__),__LINE__,999)
             Done = .TRUE.
             EXIT
           END IF ! PhotonLost
@@ -614,7 +623,7 @@ DO WHILE (.NOT.Done)
         IF(PhotonLost)THEN
           ! Error in periodic Photon TriaTracking! PhotonIntersectionWithSide() cannot determine intersection because photon is
           ! parallel to side
-          CALL StoreLostPhotonProperties(ElemID,TRIM(__FILE__),__LINE__)
+          CALL StoreLostPhotonProperties(ElemID,TRIM(__FILE__),__LINE__,999)
           Done = .TRUE.
           EXIT
         END IF ! PhotonLost
@@ -661,7 +670,7 @@ DO WHILE (.NOT.Done)
     ! Check if lost during intersection
     IF(PhotonLost)THEN
       ! Error in Photon TriaTracking! PhotonIntersectionWithSide() cannot determine intersection because photon is parallel to side
-      CALL StoreLostPhotonProperties(ElemID,TRIM(__FILE__),__LINE__)
+      CALL StoreLostPhotonProperties(ElemID,TRIM(__FILE__),__LINE__,999)
       Done = .TRUE.
       EXIT
     ELSE

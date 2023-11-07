@@ -229,7 +229,7 @@ CALL LBPauseTime(LB_UNFP,tLBStart)
 END SUBROUTINE UpdateNextFreePosition
 
 
-SUBROUTINE StoreLostPhotonProperties(ElemID,CallingFileName,LineNbrOfCall)
+SUBROUTINE StoreLostPhotonProperties(ElemID,CallingFileName,LineNbrOfCall,ErrorCode)
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! Store information of a lost photons during tracking
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -247,6 +247,9 @@ IMPLICIT NONE
 CHARACTER(LEN=*),INTENT(IN) :: CallingFileName ! Name of calling file
 INTEGER,INTENT(IN)          :: LineNbrOfCall   ! Line number from which this function was called from CallingFileName
 INTEGER,INTENT(IN)          :: ElemID ! Global element index
+INTEGER,INTENT(IN)          :: ErrorCode ! Code for identifying the type of error that was encountered.
+!                                        !  999: lost during tracking
+!                                        ! 9999: lost during tracking but reached MaxIterPhoton (bilinear tracking)
 INTEGER                     :: dims(2)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
@@ -304,7 +307,7 @@ ASSOCIATE( iMax        => PartStateLostVecLength           , &
   ! 4-6: Particle velocity
   PartStateLost(4:6  ,iMax) = Dir(1:3)
   ! 7: SpeciesID
-  PartStateLost(7    ,iMax) = REAL(999)
+  PartStateLost(7    ,iMax) = REAL(ErrorCode)
   ! 8: Macro particle factor
   PartStateLost(8    ,iMax) = 0.0
   ! 9: time of loss
