@@ -423,14 +423,15 @@ IF(SampleElecExcitation) THEN
       ExcitationLevelCounter = ExcitationLevelCounter + 1
       ExcitationLevelMapping(iCase,iLevel) = ExcitationLevelCounter
     END DO
-    IF(ExcitationLevelCounter.NE.SUM(SpecXSec(:)%NumElecLevel)) THEN
-      IPWRITE(UNIT_StdOut,*) "ExcitationLevelCounter        =", ExcitationLevelCounter
-      IPWRITE(UNIT_StdOut,*) "SUM(SpecXSec(:)%NumElecLevel) =", SUM(SpecXSec(:)%NumElecLevel)
-      CALL abort(__STAMP__,'Electronic excitation sampling: Wrong level counter!')
-    END IF
-    ALLOCATE(ExcitationSampleData(ExcitationLevelCounter,nElems))
-    ExcitationSampleData = 0.
   END DO
+  ! Sanity check
+  IF(ExcitationLevelCounter.NE.SUM(SpecXSec(:)%NumElecLevel)) THEN
+    IPWRITE(UNIT_StdOut,*) "ExcitationLevelCounter        =", ExcitationLevelCounter
+    IPWRITE(UNIT_StdOut,*) "SUM(SpecXSec(:)%NumElecLevel) =", SUM(SpecXSec(:)%NumElecLevel)
+    CALL abort(__STAMP__,'Electronic excitation sampling: Wrong level counter!')
+  END IF
+  ALLOCATE(ExcitationSampleData(ExcitationLevelCounter,nElems))
+  ExcitationSampleData = 0.
 END IF
 
 #if defined(PARTICLES) && USE_HDG

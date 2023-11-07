@@ -858,7 +858,7 @@ REAL,INTENT(IN)                :: OutputTime
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 CHARACTER(LEN=255)             :: FileName
-CHARACTER(LEN=255)             :: SpecID, LevelID
+CHARACTER(LEN=255)             :: SpecID, LevelID, SpecID2
 CHARACTER(LEN=255),ALLOCATABLE :: StrVarNames(:)
 CHARACTER(LEN=255),ALLOCATABLE :: StrVarNamesElecExci(:)
 INTEGER                        :: nVar,nVar_quality,nVarloc,nVarCount,ALLOCSTAT, iSpec, nVarRelax, nSpecOut, iCase, iLevel
@@ -994,22 +994,24 @@ IF (DSMC%CalcQualityFactors) THEN
 END IF
 
 IF(SampleElecExcitation) THEN
-  ! Number of excitation outputs (currently only electronic -> only species, multiply for additional excitation)
+  ! Number of excitation outputs (currently only electronic)
   ALLOCATE(StrVarNamesElecExci(1:ExcitationLevelCounter))
   nVarCount = 1
   DO iSpec = 1, nSpecies
     DO jSpec = iSpec, nSpecies
       iCase = CollInf%Coll_Case(iSpec,jSpec)
       IF(.NOT.SpecXSec(iCase)%UseElecXSec) CYCLE
-      ! Output of the non-election species
+      ! Output of the non-electron species as first and electron species as the second index, in case multiple electron species are defined
       IF(SpecDSMC(iSpec)%InterID.EQ.4) THEN
         WRITE(SpecID,'(I3.3)') jSpec
+        WRITE(SpecID2,'(I3.3)') iSpec
       ELSE
         WRITE(SpecID,'(I3.3)') iSpec
+        WRITE(SpecID2,'(I3.3)') jSpec
       END IF
       DO iLevel = 1, SpecXSec(iCase)%NumElecLevel
         WRITE(LevelID,'(F0.2)') SpecXSec(iCase)%ElecLevel(iLevel)%Threshold/ElementaryCharge
-        StrVarNamesElecExci(nVarCount)='Spec'//TRIM(SpecID)//'_ExcitationRate_Elec_'//TRIM(LevelID)
+        StrVarNamesElecExci(nVarCount)='Spec'//TRIM(SpecID)//'_Spec'//TRIM(SpecID2)//'_ExcitationRate_Elec_'//TRIM(LevelID)
         nVarCount = nVarCount + 1
       END DO
     END DO
