@@ -1816,6 +1816,7 @@ IF(ALLOCATED(PartSpecies)) THEN
 __STAMP__&
 ,'Cannot allocate increased Array in IncreaseMaxParticleNumber')
   Temp1Int(1:PDM%MaxParticleNumber)=PartSpecies
+  Temp1Int(PDM%MaxParticleNumber+1:NewSize)=0
   CALL MOVE_ALLOC(Temp1Int,PartSpecies)
 END IF
 
@@ -1872,6 +1873,7 @@ IF(ALLOCATED(PartState)) THEN
 __STAMP__&
 ,'Cannot allocate increased Array in IncreaseMaxParticleNumber')
   Temp2Real(:,1:PDM%MaxParticleNumber)=PartState
+  Temp2Real(:,PDM%MaxParticleNumber+1:NewSize)=0.0
   CALL MOVE_ALLOC(Temp2Real,PartState)
 END IF
 
@@ -1881,7 +1883,7 @@ IF(ALLOCATED(PartPosRef)) THEN
 __STAMP__&
 ,'Cannot allocate increased Array in IncreaseMaxParticleNumber')
   Temp2Real(:,1:PDM%MaxParticleNumber)=PartPosRef
-  ! Temp2Real(:,PDM%maxParticleNumber+1:NewSize) = -888.
+  Temp2Real(:,PDM%maxParticleNumber+1:NewSize) = -888.
   CALL MOVE_ALLOC(Temp2Real,PartPosRef)
 END IF
 
@@ -1902,6 +1904,7 @@ IF(ALLOCATED(Pt_temp)) THEN
 __STAMP__&
 ,'Cannot allocate increased Array in IncreaseMaxParticleNumber')
   Temp2Real(:,1:PDM%MaxParticleNumber)=Pt_temp
+  Temp2Real(:,PDM%MaxParticleNumber+1:NewSize)=0.0
   CALL MOVE_ALLOC(Temp2Real,Pt_temp)
 END IF
 
@@ -1920,7 +1923,7 @@ IF(ALLOCATED(Pt)) THEN
 __STAMP__&
 ,'Cannot allocate increased Array in IncreaseMaxParticleNumber')
   Temp2Real(:,1:PDM%MaxParticleNumber)=Pt
-  IF(.NOT.DoInterpolation) Temp2Real(:,PDM%MaxParticleNumber+1:NewSize)=0
+  Temp2Real(:,PDM%MaxParticleNumber+1:NewSize)=0
   CALL MOVE_ALLOC(Temp2Real,Pt)
 END IF
 
@@ -1948,6 +1951,7 @@ IF(ALLOCATED(PartVeloRotRef)) THEN
 __STAMP__&
 ,'Cannot allocate increased Array in IncreaseMaxParticleNumber')
   Temp2Real(:,1:PDM%MaxParticleNumber)=PartVeloRotRef
+  Temp2Real(:,PDM%MaxParticleNumber+1:NewSize)=0.0
   CALL MOVE_ALLOC(Temp2Real,PartVeloRotRef)
 END IF
 
@@ -2800,6 +2804,7 @@ END IF
 
 IF(ALLOCATED(PartSpecies)) THEN
   PartSpecies(NewID)=PartSpecies(OldID)
+  PartSpecies(OldID) = 0
 END IF
 
 IF(ALLOCATED(InterPlanePartIndx)) THEN
@@ -2831,10 +2836,12 @@ END IF
 
 IF(ALLOCATED(PartState)) THEN
   PartState(:,NewID)=PartState(:,OldID)
+  PartState(:,OldID) = 0.0
 END IF
 
 IF(ALLOCATED(PartPosRef)) THEN
   PartPosRef(:,NewID)=PartPosRef(:,OldID)
+  PartPosRef(:,OldID) = -888.
 END IF
 
 #if (PP_TimeDiscMethod==508) || (PP_TimeDiscMethod==509)
@@ -2845,6 +2852,7 @@ END IF
 
 IF(ALLOCATED(Pt_temp)) THEN
   Pt_temp(:,NewID)=Pt_temp(:,OldID)
+  Pt_temp(:,OldID) = 0.0
 END IF
 
 IF(ALLOCATED(LastPartPos)) THEN
@@ -2853,6 +2861,7 @@ END IF
 
 IF(ALLOCATED(Pt)) THEN
   Pt(:,NewID)=Pt(:,OldID)
+  Pt(:,OldID) = 0
 END IF
 
 IF(ALLOCATED(PartTimeStep)) THEN
@@ -2865,6 +2874,7 @@ END IF
 
 IF(ALLOCATED(PartVeloRotRef)) THEN
   PartVeloRotRef(:,NewID)=PartVeloRotRef(:,OldID)
+  PartVeloRotRef(:,OldID) = 0.0
 END IF
 
 IF(ALLOCATED(PartStateIntEn)) THEN
