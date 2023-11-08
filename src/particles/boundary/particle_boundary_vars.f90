@@ -238,7 +238,6 @@ TYPE tPartBoundary
   INTEGER , ALLOCATABLE                  :: SurfaceModel(:)               ! Model used for surface interaction (e.g. SEE models)
   LOGICAL , ALLOCATABLE                  :: Reactive(:)                   ! flag defining if surface is treated reactively
   LOGICAL , ALLOCATABLE                  :: Resample(:)                   ! Resample Equilibrium Distribution with reflection
-  REAL    , ALLOCATABLE                  :: SurfModelSEEPowerFit(:,:)     ! Power-fit coefficients (1=a, 2=b) of the form: a*T(ev)^b
   ! Radiative-equilibrium BC
   LOGICAL                                :: AdaptWallTemp
   LOGICAL , ALLOCATABLE                  :: UseAdaptedWallTemp(:)

@@ -42,6 +42,7 @@ USE MOD_Particle_Vars             ,ONLY: PartState,Species,PartSpecies,PartMPF,n
 USE MOD_Globals_Vars              ,ONLY: ElementaryCharge,ElectronMass
 USE MOD_SurfaceModel_Vars         ,ONLY: BulkElectronTempSEE
 USE MOD_SurfaceModel_Vars         ,ONLY: SurfModResultSpec,SurfModEmissionYield,SurfModEmissionEnergy,SurfModEnergyDistribution
+USE MOD_SurfaceModel_Vars         ,ONLY: SurfModSEEPowerFit
 USE MOD_Particle_Boundary_Vars    ,ONLY: PartBound
 USE MOD_SurfaceModel_Analyze_Vars ,ONLY: CalcElectronSEE,SEE
 USE MOD_Particle_Analyze_Tools    ,ONLY: CalcEkinPart2
@@ -87,8 +88,7 @@ CASE(4) ! 4: SEE-E by power-law: a*T(eV)^b
     ! Electron energy in [eV]
     eps_e = 0.5*Species(SpecID)%MassIC*velo2*Joule2eV ! Incident electron energy [eV]
     ! Power Fit
-    SEE_Prob = PartBound%SurfModelSEEPowerFit(1,locBCID)*eps_e**PartBound%SurfModelSEEPowerFit(2,locBCID)
-
+    SEE_Prob = SurfModSEEPowerFit(1,locBCID)*eps_e**SurfModSEEPowerFit(2,locBCID)
     ! If the yield is greater than 1.0 (or 2.0 or even higher) store the integer and roll the dice for the remainder
     ProductSpecNbr = INT(SEE_Prob)
     SEE_Prob = SEE_Prob - REAL(ProductSpecNbr)
