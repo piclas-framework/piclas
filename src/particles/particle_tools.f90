@@ -248,8 +248,9 @@ CHARACTER(LEN=*),INTENT(IN) :: CallingFileName ! Name of calling file
 INTEGER,INTENT(IN)          :: LineNbrOfCall   ! Line number from which this function was called from CallingFileName
 INTEGER,INTENT(IN)          :: ElemID ! Global element index
 INTEGER,INTENT(IN)          :: ErrorCode ! Code for identifying the type of error that was encountered.
-!                                        !  999: lost during tracking
-!                                        ! 9999: lost during tracking but reached MaxIterPhoton (bilinear tracking)
+!                                        !   999: lost during tracking
+!                                        !  9999: lost during tracking but reached MaxIterPhoton(1) (bilinear tracking)
+!                                        ! 99999: lost during tracking but reached MaxIterPhoton(2) (TriaTracking)
 INTEGER                     :: dims(2)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES

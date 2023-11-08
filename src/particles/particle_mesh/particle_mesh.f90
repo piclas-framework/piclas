@@ -91,7 +91,7 @@ CALL prms%CreateLogicalOption( 'DoBoundaryParticleOutputRay', 'Activates output 
 CALL prms%CreateIntOption(     'PartOut'&
   , 'If compiled with CODE_ANALYZE flag: For This particle number every tracking information is written as STDOUT.','0')
 CALL prms%CreateIntOption(     'MPIRankOut'&
-  , 'If compiled with CODE_ANALYZE flag: This MPI-Proc writes the tracking information for the defined PartOut.','0')
+  , 'If compiled with CODE_ANALYZE flag: This MPI-Proc writes the tracking information for the defined PartOut.','-1')
 CALL prms%CreateLogicalOption( 'MeasureTrackTime'&
   , 'If .TRUE. then the time how long the tracking routines are called are sampled and written for each MPI-Proc.','.FALSE.')
 CALL prms%CreateLogicalOption( 'CartesianPeriodic'&
@@ -328,8 +328,8 @@ IF((DoBoundaryParticleOutputRay).AND.(.NOT.DoBoundaryParticleOutputHDF5)) DoBoun
 IF(DoBoundaryParticleOutputHDF5) CALL InitPartStateBoundary()
 
 #ifdef CODE_ANALYZE
-PARTOUT            = GETINT('PartOut','0')
-MPIRankOut         = GETINT('MPIRankOut','0')
+PARTOUT            = GETINT('PartOut')
+MPIRankOut         = GETINT('MPIRankOut')
 #endif /*CODE_ANALYZE*/
 
 MeasureTrackTime  = GETLOGICAL('MeasureTrackTime')

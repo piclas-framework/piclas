@@ -286,9 +286,10 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER,PARAMETER                :: MaxIterPhoton=1000 ! Maximum number of cycles in the do while loop for each photon
+INTEGER(KIND=8),PARAMETER        :: MaxIterPhoton(1:2)=(/1000,1000000000/) ! Maximum number of cycles in the do while loop for each photon for bilinear and TriaTracking
+INTEGER(KIND=8)                  :: IterPhoton(2)
 INTEGER                          :: NblocSideID, NbElemID, ind, nbSideID, nMortarElems, BCType, localSideID, iPBC, GlobSideID
-INTEGER                          :: ElemID,OldElemID,nlocSides,IterPhoton
+INTEGER                          :: ElemID,OldElemID,nlocSides
 INTEGER                          :: LocalSide
 INTEGER                          :: NrOfThroughSides, ind2
 INTEGER                          :: SideID,TempSideID,iLocSide
@@ -302,17 +303,24 @@ REAL                             :: IntersectionPos(1:3), IntersectionPosTemp(1:
 REAL                             :: DistTemp(1:6)
 LOGICAL                          :: PhotonLost
 !===================================================================================================================================
-Done = .FALSE.
-ElemID = PhotonProps%ElemID
-SideID = 0
-GlobSideID = 0
-DoneLastElem(:,:) = 0
-InterPointSelect = .FALSE.
+Done                 = .FALSE.
+ElemID               = PhotonProps%ElemID
+SideID               = 0
+GlobSideID           = 0
+DoneLastElem(:,:)    = 0
+InterPointSelect     = .FALSE.
 LastInterPointSelect = .FALSE.
-IterPhoton=0
+IterPhoton           = 0_8
+TriNum               = 1
 
 ! 1) Loop tracking until Photon is considered "done" (either absorbed or deleted)
-DO WHILE (.NOT.Done)
+THEWHILELOOP: DO WHILE (.NOT.Done)
+  IterPhoton(2) = IterPhoton(2) + 1_8 ! Stop when MaxIterPhoton(2) is reached with this counter
+  IF(IterPhoton(2).GE.MaxIterPhoton(2))THEN
+    CALL StoreLostPhotonProperties(ElemID,TRIM(__FILE__),__LINE__,99999)
+    Done = .TRUE.
+    EXIT THEWHILELOOP
+  END IF
   PhotonLost=.FALSE.
   InterPointSelectTemp = .FALSE.
   oldElemIsMortar = .FALSE.
@@ -403,12 +411,12 @@ DO WHILE (.NOT.Done)
 
   IF ((NrOfThroughSides.EQ.0).AND.(.NOT.UsePhotonTriaTracking)) THEN
     ! Check if tracking fails to converge
-    IterPhoton = IterPhoton + 1 ! Stop when MaxIterPhoton is reached with this counter
-    IF(IterPhoton.GE.MaxIterPhoton)THEN
+    IterPhoton(1) = IterPhoton(1) + 1_8 ! Stop when MaxIterPhoton(2) is reached with this counter
+    IF(IterPhoton(1).GE.MaxIterPhoton(1))THEN
       CALL StoreLostPhotonProperties(ElemID,TRIM(__FILE__),__LINE__,9999)
       Done = .TRUE.
-      EXIT
-    END IF ! IterPhoton.GE.100
+      EXIT THEWHILELOOP
+    END IF
     FallBack = .TRUE.
     LocSideLoop2: DO iLocSide=1,nlocSides
       TempSideID = ElemInfo_Shared(ELEM_FIRSTSIDEIND,ElemID) + iLocSide
@@ -453,7 +461,7 @@ DO WHILE (.NOT.Done)
       ! Particle appears to have not crossed any of the checked sides (NrOfThroughSides=0). Deleted!
       CALL StoreLostPhotonProperties(ElemID,TRIM(__FILE__),__LINE__,999)
       Done = .TRUE.
-      EXIT
+      EXIT THEWHILELOOP
     ELSE IF (NrOfThroughSides.GT.1) THEN
       IF(UsePhotonTriaTracking.OR.FallBack)THEN
         ! Use the slower search method if particle appears to have crossed more than one side (possible for irregular hexagons
@@ -481,7 +489,7 @@ DO WHILE (.NOT.Done)
                 ! parallel to side
                 CALL StoreLostPhotonProperties(ElemID,TRIM(__FILE__),__LINE__,999)
                 Done = .TRUE.
-                EXIT
+                EXIT THEWHILELOOP
               END IF ! PhotonLost
               intersecDistVec(1:3) = IntersectionPosTemp(1:3) - PhotonProps%PhotonLastPos(1:3)
               intersecDist = DOT_PRODUCT(intersecDistVec, intersecDistVec)
@@ -504,7 +512,7 @@ DO WHILE (.NOT.Done)
                 ! parallel to side
                 CALL StoreLostPhotonProperties(ElemID,TRIM(__FILE__),__LINE__,999)
                 Done = .TRUE.
-                EXIT
+                EXIT THEWHILELOOP
               END IF ! PhotonLost
               intersecDistVec(1:3) = IntersectionPosTemp(1:3) - PhotonProps%PhotonLastPos(1:3)
               intersecDist = DOT_PRODUCT(intersecDistVec, intersecDistVec)
@@ -524,7 +532,7 @@ DO WHILE (.NOT.Done)
         IF (SecondNrOfThroughSides.EQ.0) THEN
           CALL StoreLostPhotonProperties(ElemID,TRIM(__FILE__),__LINE__,999)
           Done = .TRUE.
-          EXIT
+          EXIT THEWHILELOOP
         END IF
       ELSE
         ind2 = MINLOC(DistTemp(1:NrOfThroughSides),1)
@@ -544,8 +552,10 @@ DO WHILE (.NOT.Done)
   END IF  ! NrOfThroughSides.NE.1
 
   ! Dummy flag
-  IF((.NOT.UsePhotonTriaTracking).OR.(.NOT.FallBack)) TriNum=1
+  !IF((.NOT.UsePhotonTriaTracking).AND.(.NOT.FallBack)) TriNum=1
 
+  ! Dummy flag: only if both flags are false, set TriNum=1
+  IF(.NOT.(UsePhotonTriaTracking.OR.FallBack)) TriNum=1
   ! ----------------------------------------------------------------------------
   ! 3) In case of a boundary, perform the appropriate boundary interaction
   IF (SideInfo_Shared(SIDE_BCID,SideID).GT.0) THEN
@@ -562,7 +572,7 @@ DO WHILE (.NOT.Done)
             ! parallel to side
             CALL StoreLostPhotonProperties(ElemID,TRIM(__FILE__),__LINE__,999)
             Done = .TRUE.
-            EXIT
+            EXIT THEWHILELOOP
           END IF ! PhotonLost
         END IF ! NrOfThroughSides.LT.2
       END IF
@@ -590,16 +600,17 @@ DO WHILE (.NOT.Done)
       IF (PartBound%PhotonSpecularReflection(iPBC)) THEN
         ! Specular reflection
         IF ((NrOfThroughSides.LT.2).AND.(UsePhotonTriaTracking.OR.Fallback)) THEN
-          CALL PerfectPhotonReflection(LocalSide,ElemID,TriNum, IntersectionPos, .FALSE.)
+          CALL PerfectPhotonReflection(LocalSide, ElemID, TriNum, IntersectionPos, .FALSE.)
         ELSE
-          CALL PerfectPhotonReflection(LocalSide,ElemID,TriNum, IntersectionPos, .TRUE.)
+          !TriNum=1
+          CALL PerfectPhotonReflection(LocalSide, ElemID, TriNum, IntersectionPos, .TRUE.)
         END IF
       ELSE
         ! Diffuse reflection
         IF ((NrOfThroughSides.LT.2).AND.(UsePhotonTriaTracking.OR.Fallback)) THEN
-          CALL DiffusePhotonReflection(LocalSide,ElemID,TriNum, IntersectionPos, .FALSE.)
+          CALL DiffusePhotonReflection(LocalSide, ElemID, TriNum, IntersectionPos, .FALSE.)
         ELSE
-          CALL DiffusePhotonReflection(LocalSide,ElemID,TriNum, IntersectionPos, .TRUE.)
+          CALL DiffusePhotonReflection(LocalSide, ElemID, TriNum, IntersectionPos, .TRUE.)
         END IF
       END IF
 
@@ -623,7 +634,7 @@ DO WHILE (.NOT.Done)
           ! parallel to side
           CALL StoreLostPhotonProperties(ElemID,TRIM(__FILE__),__LINE__,999)
           Done = .TRUE.
-          EXIT
+          EXIT THEWHILELOOP
         END IF ! PhotonLost
       END IF ! NrOfThroughSides.LT.2
       CALL CalcAbsoprtion(IntersectionPos(1:3), ElemID, DONE)
@@ -670,7 +681,7 @@ DO WHILE (.NOT.Done)
       ! Error in Photon TriaTracking! PhotonIntersectionWithSide() cannot determine intersection because photon is parallel to side
       CALL StoreLostPhotonProperties(ElemID,TRIM(__FILE__),__LINE__,999)
       Done = .TRUE.
-      EXIT
+      EXIT THEWHILELOOP
     ELSE
       ! Absorption
       IF (oldElemIsMortar) THEN
@@ -682,8 +693,6 @@ DO WHILE (.NOT.Done)
     END IF ! PhotonLost
   END IF  ! BC(SideID).GT./.LE. 0
 
-!  print*, DONE, PhotonProps%PhotonDirection, PhotonProps%PhotonPos, ElemID, SideID
-!  read*
   ! Check if output to PartStateBoundary is activated
   IF(PhotonModeBPO.EQ.2)THEN
     CALL StoreBoundaryParticleProperties(0,&
@@ -697,7 +706,7 @@ DO WHILE (.NOT.Done)
   END IF ! PhotonModeBPO.EQ.2
 
   IF (ElemID.LT.1) CALL abort(__STAMP__ ,'ERROR: Element not defined! Please increase the size of the halo region (HaloEpsVelo)!')
-END DO  ! .NOT.PartisDone
+END DO THEWHILELOOP ! .NOT.PartisDone
 
 
 END SUBROUTINE PhotonTriaTracking
