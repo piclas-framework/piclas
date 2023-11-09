@@ -215,6 +215,11 @@ DO i = PDM%ParticleVecLengthOld+1,PDM%maxParticleNumber
   IF (CollInf%ProhibitDoubleColl) CollInf%OldCollPartner(i) = 0
   counter = counter + 1
   PDM%nextFreePosition(counter) = i
+#ifdef CODE_ANALYZE
+  IF(PDM%ParticleInside(i)) CALL ABORT(&
+  __STAMP__&
+  ,'Particle Inside is true but outside of PDM%ParticleVecLength',IntInfoOpt=i)
+#endif
 END DO
 
 ! Set nextFreePosition for occupied slots to zero
