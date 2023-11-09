@@ -1700,6 +1700,7 @@ USE MOD_Particle_MPI_Vars      ,ONLY: PartShiftVector, PartTargetProc
 USE MOD_PICInterpolation_Vars  ,ONLY: FieldAtParticle
 #if defined(IMPA) || defined(ROS)
 USE MOD_LinearSolver_Vars      ,ONLY: PartXK, R_PartXK
+USE MOD_TimeDisc_Vars          ,ONLY: nRKStages
 #endif
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -1710,6 +1711,9 @@ INTEGER,INTENT(IN),OPTIONAL :: Amount
 ! LOCAL VARIABLES
 INTEGER                                   :: NewSize, i, ii, ALLOCSTAT
 REAL,ALLOCATABLE                          :: Temp1Real(:),Temp2Real(:,:)
+#if defined(IMPA) || defined(ROS)
+REAL,ALLOCATABLE                          :: Temp3Real(:,:,:)
+#endif
 INTEGER,ALLOCATABLE                       :: Temp1Int(:)
 ! INTEGER,ALLOCATABLE                       :: Temp2Int(:,:)
 LOGICAL,ALLOCATABLE                       :: Temp1Log(:)
@@ -1971,27 +1975,6 @@ __STAMP__&
   CALL MOVE_ALLOC(Temp2Real,FieldAtParticle)
 END IF
 
-#if defined(IMPA) || defined(ROS)
-IF(ALLOCATED(PartXK)) THEN
-  ALLOCATE(Temp2Real(6,NewSize),STAT=ALLOCSTAT)
-  IF (ALLOCSTAT.NE.0) CALL ABORT(&
-__STAMP__&
-,'Cannot allocate increased Array in IncreaseMaxParticleNumber')
-  Temp2Real(:,1:PDM%MaxParticleNumber)=PartXK
-  CALL MOVE_ALLOC(Temp2Real,PartXK)
-END IF
-
-IF(ALLOCATED(R_PartXK)) THEN
-  ALLOCATE(Temp2Real(6,NewSize),STAT=ALLOCSTAT)
-  IF (ALLOCSTAT.NE.0) CALL ABORT(&
-__STAMP__&
-,'Cannot allocate increased Array in IncreaseMaxParticleNumber')
-  Temp2Real(:,1:PDM%MaxParticleNumber)=R_PartXK
-  CALL MOVE_ALLOC(Temp2Real,R_PartXK)
-END IF
-#endif
-
-
 
 !    __  __          __      __          __    ____  ___________________    __       ___
 !   / / / /___  ____/ /___ _/ /____     / /   / __ \/ ____/  _/ ____/   |  / /      /   |  ______________ ___  _______
@@ -2147,7 +2130,175 @@ IF(ALLOCATED(ClonedParticles)) THEN
 END SELECT
 END IF
 
+!    __  __          __      __          ______  _______  __    ____________________   ___
+!   / / / /___  ____/ /___ _/ /____     /  _/  |/  / __ \/ /   /  _/ ____/  _/_  __/  /   |  ______________ ___  _______
+!  / / / / __ \/ __  / __ `/ __/ _ \    / // /|_/ / /_/ / /    / // /    / /  / /    / /| | / ___/ ___/ __ `/ / / / ___/
+! / /_/ / /_/ / /_/ / /_/ / /_/  __/  _/ // /  / / ____/ /____/ // /____/ /  / /    / ___ |/ /  / /  / /_/ / /_/ (__  )
+! \____/ .___/\__,_/\__,_/\__/\___/  /___/_/  /_/_/   /_____/___/\____/___/ /_/    /_/  |_/_/  /_/   \__,_/\__, /____/
+!     /_/                                                                                                 /____/
 
+
+
+#if defined(IMPA) || defined(ROS)
+IF(ALLOCATED(PartXK)) THEN
+  ALLOCATE(Temp2Real(6,NewSize),STAT=ALLOCSTAT)
+  IF (ALLOCSTAT.NE.0) CALL ABORT(&
+__STAMP__&
+,'Cannot allocate increased Array in IncreaseMaxParticleNumber')
+  Temp2Real(:,1:PDM%MaxParticleNumber)=PartXK
+  CALL MOVE_ALLOC(Temp2Real,PartXK)
+END IF
+
+IF(ALLOCATED(R_PartXK)) THEN
+  ALLOCATE(Temp2Real(6,NewSize),STAT=ALLOCSTAT)
+  IF (ALLOCSTAT.NE.0) CALL ABORT(&
+__STAMP__&
+,'Cannot allocate increased Array in IncreaseMaxParticleNumber')
+  Temp2Real(:,1:PDM%MaxParticleNumber)=R_PartXK
+  CALL MOVE_ALLOC(Temp2Real,R_PartXK)
+END IF
+
+IF(ALLOCATED(PartStage)) THEN
+  ALLOCATE(Temp3Real(1:6,1:nRKStages-1,1:NewSize),STAT=ALLOCSTAT)
+  IF (ALLOCSTAT.NE.0) CALL ABORT(&
+__STAMP__&
+,'Cannot allocate increased Array in IncreaseMaxParticleNumber')
+  Temp3Real(:,:,1:PDM%MaxParticleNumber)=PartStage
+  CALL MOVE_ALLOC(Temp3Real,PartStage)
+END IF
+
+IF(ALLOCATED(PartStateN)) THEN
+  ALLOCATE(Temp2Real(6,NewSize),STAT=ALLOCSTAT)
+  IF (ALLOCSTAT.NE.0) CALL ABORT(&
+__STAMP__&
+,'Cannot allocate increased Array in IncreaseMaxParticleNumber')
+  Temp2Real(:,1:PDM%MaxParticleNumber)=PartStateN
+  CALL MOVE_ALLOC(Temp2Real,PartStateN)
+END IF
+
+IF(ALLOCATED(PartQ)) THEN
+  ALLOCATE(Temp2Real(6,NewSize),STAT=ALLOCSTAT)
+  IF (ALLOCSTAT.NE.0) CALL ABORT(&
+__STAMP__&
+,'Cannot allocate increased Array in IncreaseMaxParticleNumber')
+  Temp2Real(:,1:PDM%MaxParticleNumber)=PartQ
+  CALL MOVE_ALLOC(Temp2Real,PartQ)
+END IF
+
+IF(ALLOCATED(PEM%NormVec)) THEN
+  ALLOCATE(Temp2Real(3,NewSize),STAT=ALLOCSTAT)
+  IF (ALLOCSTAT.NE.0) CALL ABORT(&
+__STAMP__&
+,'Cannot allocate increased Array in IncreaseMaxParticleNumber')
+  Temp2Real(:,1:PDM%MaxParticleNumber)=PEM%NormVec
+  Temp2Real(:,PDM%MaxParticleNumber+1:NewSize)=0
+  CALL MOVE_ALLOC(Temp2Real,PEM%NormVec)
+END IF
+
+IF(ALLOCATED(PEM%PeriodicMoved)) THEN
+  ALLOCATE(Temp1Log(NewSize),STAT=ALLOCSTAT)
+  IF (ALLOCSTAT.NE.0) CALL ABORT(&
+__STAMP__&
+,'Cannot allocate increased Array in IncreaseMaxParticleNumber')
+  Temp1Log(1:PDM%MaxParticleNumber)=PEM%PeriodicMoved
+  Temp1Log(PDM%MaxParticleNumber+1:NewSize)=.FALSE.
+  CALL MOVE_ALLOC(Temp1Log,PEM%PeriodicMoved)
+END IF
+
+IF(ALLOCATED(PartDtFrac)) THEN
+  ALLOCATE(Temp1Real(NewSize),STAT=ALLOCSTAT)
+  IF (ALLOCSTAT.NE.0) CALL ABORT(&
+__STAMP__&
+,'Cannot allocate increased Array in IncreaseMaxParticleNumber')
+  Temp1Real(1:PDM%MaxParticleNumber)=PartDtFrac
+  Temp1Real(PDM%MaxParticleNumber+1:NewSize)=1.
+  CALL MOVE_ALLOC(Temp1Real,PartDtFrac)
+END IF
+#endif
+
+#ifdef IMPA
+IF(ALLOCATED(F_PartX0)) THEN
+  ALLOCATE(Temp2Real(6,NewSize),STAT=ALLOCSTAT)
+  IF (ALLOCSTAT.NE.0) CALL ABORT(&
+__STAMP__&
+,'Cannot allocate increased Array in IncreaseMaxParticleNumber')
+  Temp2Real(:,1:PDM%MaxParticleNumber)=F_PartX0
+  CALL MOVE_ALLOC(Temp2Real,F_PartX0)
+END IF
+
+IF(ALLOCATED(F_PartXk)) THEN
+  ALLOCATE(Temp2Real(6,NewSize),STAT=ALLOCSTAT)
+  IF (ALLOCSTAT.NE.0) CALL ABORT(&
+__STAMP__&
+,'Cannot allocate increased Array in IncreaseMaxParticleNumber')
+  Temp2Real(:,1:PDM%MaxParticleNumber)=F_PartXk
+  CALL MOVE_ALLOC(Temp2Real,F_PartXk)
+END IF
+
+IF(ALLOCATED(Norm_F_PartX0)) THEN
+  ALLOCATE(Temp1Real(NewSize),STAT=ALLOCSTAT)
+  IF (ALLOCSTAT.NE.0) CALL ABORT(&
+__STAMP__&
+,'Cannot allocate increased Array in IncreaseMaxParticleNumber')
+  Temp1Real(1:PDM%MaxParticleNumber)=Norm_F_PartX0
+  CALL MOVE_ALLOC(Temp1Real,Norm_F_PartX0)
+END IF
+
+IF(ALLOCATED(Norm_F_PartXk)) THEN
+  ALLOCATE(Temp1Real(NewSize),STAT=ALLOCSTAT)
+  IF (ALLOCSTAT.NE.0) CALL ABORT(&
+__STAMP__&
+,'Cannot allocate increased Array in IncreaseMaxParticleNumber')
+  Temp1Real(1:PDM%MaxParticleNumber)=Norm_F_PartXk
+  CALL MOVE_ALLOC(Temp1Real,Norm_F_PartXk)
+END IF
+
+IF(ALLOCATED(Norm_F_PartXk_old)) THEN
+  ALLOCATE(Temp1Real(NewSize),STAT=ALLOCSTAT)
+  IF (ALLOCSTAT.NE.0) CALL ABORT(&
+__STAMP__&
+,'Cannot allocate increased Array in IncreaseMaxParticleNumber')
+  Temp1Real(1:PDM%MaxParticleNumber)=Norm_F_PartXk_old
+  CALL MOVE_ALLOC(Temp1Real,Norm_F_PartXk_old)
+END IF
+
+IF(ALLOCATED(PartDeltaX)) THEN
+  ALLOCATE(Temp2Real(6,NewSize),STAT=ALLOCSTAT)
+  IF (ALLOCSTAT.NE.0) CALL ABORT(&
+__STAMP__&
+,'Cannot allocate increased Array in IncreaseMaxParticleNumber')
+  Temp2Real(:,1:PDM%MaxParticleNumber)=PartDeltaX
+  CALL MOVE_ALLOC(Temp2Real,PartDeltaX)
+END IF
+
+IF(ALLOCATED(PartLambdaAccept)) THEN
+  ALLOCATE(Temp1Log(NewSize),STAT=ALLOCSTAT)
+  IF (ALLOCSTAT.NE.0) CALL ABORT(&
+__STAMP__&
+,'Cannot allocate increased Array in IncreaseMaxParticleNumber')
+  Temp1Log(1:PDM%MaxParticleNumber)=PartLambdaAccept
+  CALL MOVE_ALLOC(Temp1Log,PartLambdaAccept)
+END IF
+
+IF(ALLOCATED(DoPartInNewton)) THEN
+  ALLOCATE(Temp1Log(NewSize),STAT=ALLOCSTAT)
+  IF (ALLOCSTAT.NE.0) CALL ABORT(&
+__STAMP__&
+,'Cannot allocate increased Array in IncreaseMaxParticleNumber')
+  Temp1Log(1:PDM%MaxParticleNumber)=DoPartInNewton
+  CALL MOVE_ALLOC(Temp1Log,DoPartInNewton)
+END IF
+
+IF(ALLOCATED(PartIsImplicit)) THEN
+  ALLOCATE(Temp1Log(NewSize),STAT=ALLOCSTAT)
+  IF (ALLOCSTAT.NE.0) CALL ABORT(&
+__STAMP__&
+,'Cannot allocate increased Array in IncreaseMaxParticleNumber')
+  Temp1Log(1:PDM%MaxParticleNumber)=PartIsImplicit
+  Temp1Log(PDM%MaxParticleNumber+1:NewSize)=.FALSE.
+  CALL MOVE_ALLOC(Temp1Log,PartIsImplicit)
+END IF
+#endif /* IMPA */
 
 
 IF(ALLOCATED(PDM%nextFreePosition)) THEN
@@ -2210,6 +2361,7 @@ USE MOD_Particle_MPI_Vars      ,ONLY: PartShiftVector, PartTargetProc
 USE MOD_PICInterpolation_Vars  ,ONLY: FieldAtParticle
 #if defined(IMPA) || defined(ROS)
 USE MOD_LinearSolver_Vars      ,ONLY: PartXK, R_PartXK
+USE MOD_TimeDisc_Vars          ,ONLY: nRKStages
 #endif
 USE MOD_MCC_Vars               ,ONLY: UseMCC
 USE MOD_DSMC_Vars              ,ONLY: BGGas
@@ -2222,6 +2374,9 @@ IMPLICIT NONE
 ! LOCAL VARIABLES
 INTEGER                                   :: NewSize, i, ii, ALLOCSTAT, nPart
 REAL,ALLOCATABLE                          :: Temp1Real(:),Temp2Real(:,:)
+#if defined(IMPA) || defined(ROS)
+REAL,ALLOCATABLE                          :: Temp3Real(:,:,:)
+#endif
 INTEGER,ALLOCATABLE                       :: Temp1Int(:)
 ! INTEGER,ALLOCATABLE                       :: Temp2Int(:,:)
 LOGICAL,ALLOCATABLE                       :: Temp1Log(:)
@@ -2499,27 +2654,6 @@ __STAMP__&
   CALL MOVE_ALLOC(Temp2Real,FieldAtParticle)
 END IF
 
-#if defined(IMPA) || defined(ROS)
-IF(ALLOCATED(PartXK)) THEN
-  ALLOCATE(Temp2Real(6,NewSize),STAT=ALLOCSTAT)
-  IF (ALLOCSTAT.NE.0) CALL ABORT(&
-__STAMP__&
-,'Cannot allocate increased Array in ReduceMaxParticleNumber')
-  Temp2Real=PartXK(:,1:NewSize)
-  CALL MOVE_ALLOC(Temp2Real,PartXK)
-END IF
-
-IF(ALLOCATED(R_PartXK)) THEN
-  ALLOCATE(Temp2Real(6,NewSize),STAT=ALLOCSTAT)
-  IF (ALLOCSTAT.NE.0) CALL ABORT(&
-__STAMP__&
-,'Cannot allocate increased Array in ReduceMaxParticleNumber')
-  Temp2Real=R_PartXK(:,1:NewSize)
-  CALL MOVE_ALLOC(Temp2Real,R_PartXK)
-END IF
-#endif
-
-
 
 !    __  __          __      __          __    ____  ___________________    __       ___
 !   / / / /___  ____/ /___ _/ /____     / /   / __ \/ ____/  _/ ____/   |  / /      /   |  ______________ ___  _______
@@ -2702,6 +2836,172 @@ END IF
 
 
 
+!    __  __          __      __          ______  _______  __    ____________________   ___
+!   / / / /___  ____/ /___ _/ /____     /  _/  |/  / __ \/ /   /  _/ ____/  _/_  __/  /   |  ______________ ___  _______
+!  / / / / __ \/ __  / __ `/ __/ _ \    / // /|_/ / /_/ / /    / // /    / /  / /    / /| | / ___/ ___/ __ `/ / / / ___/
+! / /_/ / /_/ / /_/ / /_/ / /_/  __/  _/ // /  / / ____/ /____/ // /____/ /  / /    / ___ |/ /  / /  / /_/ / /_/ (__  )
+! \____/ .___/\__,_/\__,_/\__/\___/  /___/_/  /_/_/   /_____/___/\____/___/ /_/    /_/  |_/_/  /_/   \__,_/\__, /____/
+!     /_/                                                                                                 /____/
+
+
+
+#if defined(IMPA) || defined(ROS)
+IF(ALLOCATED(PartXK)) THEN
+  ALLOCATE(Temp2Real(6,NewSize),STAT=ALLOCSTAT)
+  IF (ALLOCSTAT.NE.0) CALL ABORT(&
+__STAMP__&
+,'Cannot allocate increased Array in IncreaseMaxParticleNumber')
+  Temp2Real=PartXK(:,1:NewSize)
+  CALL MOVE_ALLOC(Temp2Real,PartXK)
+END IF
+
+IF(ALLOCATED(R_PartXK)) THEN
+  ALLOCATE(Temp2Real(6,NewSize),STAT=ALLOCSTAT)
+  IF (ALLOCSTAT.NE.0) CALL ABORT(&
+__STAMP__&
+,'Cannot allocate increased Array in IncreaseMaxParticleNumber')
+  Temp2Real=R_PartXK(:,1:NewSize)
+  CALL MOVE_ALLOC(Temp2Real,R_PartXK)
+END IF
+
+IF(ALLOCATED(PartStage)) THEN
+  ALLOCATE(Temp3Real(1:6,1:nRKStages-1,1:NewSize),STAT=ALLOCSTAT)
+  IF (ALLOCSTAT.NE.0) CALL ABORT(&
+__STAMP__&
+,'Cannot allocate increased Array in IncreaseMaxParticleNumber')
+  Temp3Real=PartStage(:,:,1:NewSize)
+  CALL MOVE_ALLOC(Temp3Real,PartStage)
+END IF
+
+IF(ALLOCATED(PartStateN)) THEN
+  ALLOCATE(Temp2Real(6,NewSize),STAT=ALLOCSTAT)
+  IF (ALLOCSTAT.NE.0) CALL ABORT(&
+__STAMP__&
+,'Cannot allocate increased Array in IncreaseMaxParticleNumber')
+  Temp2Real=PartStateN(:,1:NewSize)
+  CALL MOVE_ALLOC(Temp2Real,PartStateN)
+END IF
+
+IF(ALLOCATED(PartQ)) THEN
+  ALLOCATE(Temp2Real(6,NewSize),STAT=ALLOCSTAT)
+  IF (ALLOCSTAT.NE.0) CALL ABORT(&
+__STAMP__&
+,'Cannot allocate increased Array in IncreaseMaxParticleNumber')
+  Temp2Real=PartQ(:,1:NewSize)
+  CALL MOVE_ALLOC(Temp2Real,PartQ)
+END IF
+
+IF(ALLOCATED(PEM%NormVec)) THEN
+  ALLOCATE(Temp2Real(3,NewSize),STAT=ALLOCSTAT)
+  IF (ALLOCSTAT.NE.0) CALL ABORT(&
+__STAMP__&
+,'Cannot allocate increased Array in IncreaseMaxParticleNumber')
+  Temp2Real=PEM%NormVec(:,1:NewSize)
+  CALL MOVE_ALLOC(Temp2Real,PEM%NormVec)
+END IF
+
+IF(ALLOCATED(PEM%PeriodicMoved)) THEN
+  ALLOCATE(Temp1Log(NewSize),STAT=ALLOCSTAT)
+  IF (ALLOCSTAT.NE.0) CALL ABORT(&
+__STAMP__&
+,'Cannot allocate increased Array in IncreaseMaxParticleNumber')
+  Temp1Log=PEM%PeriodicMoved(1:NewSize)
+  CALL MOVE_ALLOC(Temp1Log,PEM%PeriodicMoved)
+END IF
+
+IF(ALLOCATED(PartDtFrac)) THEN
+  ALLOCATE(Temp1Real(NewSize),STAT=ALLOCSTAT)
+  IF (ALLOCSTAT.NE.0) CALL ABORT(&
+__STAMP__&
+,'Cannot allocate increased Array in IncreaseMaxParticleNumber')
+  Temp1Real=PartDtFrac(1:NewSize)
+  CALL MOVE_ALLOC(Temp1Real,PartDtFrac)
+END IF
+#endif
+
+#ifdef IMPA
+IF(ALLOCATED(F_PartX0)) THEN
+  ALLOCATE(Temp2Real(6,NewSize),STAT=ALLOCSTAT)
+  IF (ALLOCSTAT.NE.0) CALL ABORT(&
+__STAMP__&
+,'Cannot allocate increased Array in IncreaseMaxParticleNumber')
+  Temp2Real=F_PartX0(:,1:NewSize)
+  CALL MOVE_ALLOC(Temp2Real,F_PartX0)
+END IF
+
+IF(ALLOCATED(F_PartXk)) THEN
+  ALLOCATE(Temp2Real(6,NewSize),STAT=ALLOCSTAT)
+  IF (ALLOCSTAT.NE.0) CALL ABORT(&
+__STAMP__&
+,'Cannot allocate increased Array in IncreaseMaxParticleNumber')
+  Temp2Real=F_PartXk(:,1:NewSize)
+  CALL MOVE_ALLOC(Temp2Real,F_PartXk)
+END IF
+
+IF(ALLOCATED(Norm_F_PartX0)) THEN
+  ALLOCATE(Temp1Real(NewSize),STAT=ALLOCSTAT)
+  IF (ALLOCSTAT.NE.0) CALL ABORT(&
+__STAMP__&
+,'Cannot allocate increased Array in IncreaseMaxParticleNumber')
+  Temp1Real=Norm_F_PartX0(1:NewSize)
+  CALL MOVE_ALLOC(Temp1Real,Norm_F_PartX0)
+END IF
+
+IF(ALLOCATED(Norm_F_PartXk)) THEN
+  ALLOCATE(Temp1Real(NewSize),STAT=ALLOCSTAT)
+  IF (ALLOCSTAT.NE.0) CALL ABORT(&
+__STAMP__&
+,'Cannot allocate increased Array in IncreaseMaxParticleNumber')
+  Temp1Real=Norm_F_PartXk(1:NewSize)
+  CALL MOVE_ALLOC(Temp1Real,Norm_F_PartXk)
+END IF
+
+IF(ALLOCATED(Norm_F_PartXk_old)) THEN
+  ALLOCATE(Temp1Real(NewSize),STAT=ALLOCSTAT)
+  IF (ALLOCSTAT.NE.0) CALL ABORT(&
+__STAMP__&
+,'Cannot allocate increased Array in IncreaseMaxParticleNumber')
+  Temp1Real=Norm_F_PartXk_old(1:NewSize)
+  CALL MOVE_ALLOC(Temp1Real,Norm_F_PartXk_old)
+END IF
+
+IF(ALLOCATED(PartDeltaX)) THEN
+  ALLOCATE(Temp2Real(6,NewSize),STAT=ALLOCSTAT)
+  IF (ALLOCSTAT.NE.0) CALL ABORT(&
+__STAMP__&
+,'Cannot allocate increased Array in IncreaseMaxParticleNumber')
+  Temp2Real=PartDeltaX(:,1:NewSize)
+  CALL MOVE_ALLOC(Temp2Real,PartDeltaX)
+END IF
+
+IF(ALLOCATED(PartLambdaAccept)) THEN
+  ALLOCATE(Temp1Log(NewSize),STAT=ALLOCSTAT)
+  IF (ALLOCSTAT.NE.0) CALL ABORT(&
+__STAMP__&
+,'Cannot allocate increased Array in IncreaseMaxParticleNumber')
+  Temp1Log=PartLambdaAccept(1:NewSize)
+  CALL MOVE_ALLOC(Temp1Log,PartLambdaAccept)
+END IF
+
+IF(ALLOCATED(DoPartInNewton)) THEN
+  ALLOCATE(Temp1Log(NewSize),STAT=ALLOCSTAT)
+  IF (ALLOCSTAT.NE.0) CALL ABORT(&
+__STAMP__&
+,'Cannot allocate increased Array in IncreaseMaxParticleNumber')
+  Temp1Log=DoPartInNewton(1:NewSize)
+  CALL MOVE_ALLOC(Temp1Log,DoPartInNewton)
+END IF
+
+IF(ALLOCATED(PartIsImplicit)) THEN
+  ALLOCATE(Temp1Log(NewSize),STAT=ALLOCSTAT)
+  IF (ALLOCSTAT.NE.0) CALL ABORT(&
+__STAMP__&
+,'Cannot allocate increased Array in IncreaseMaxParticleNumber')
+  Temp1Log=PartIsImplicit(1:NewSize)
+  CALL MOVE_ALLOC(Temp1Log,PartIsImplicit)
+END IF
+#endif /* IMPA */
+
 
 IF(ALLOCATED(PDM%nextFreePosition)) THEN
   ALLOCATE(Temp1Int(NewSize),STAT=ALLOCSTAT)
@@ -2882,16 +3182,6 @@ IF(ALLOCATED(FieldAtParticle)) THEN
   FieldAtParticle(:,NewID)=FieldAtParticle(:,OldID)
 END IF
 
-#if defined(IMPA) || defined(ROS)
-IF(ALLOCATED(PartXK)) THEN
-  PartXK(:,NewID)=PartXK(:,OldID)
-END IF
-
-IF(ALLOCATED(R_PartXK)) THEN
-  R_PartXK(:,NewID)=R_PartXK(:,OldID)
-END IF
-#endif
-
 
 
 !    __  __          __      __          __    ____  ___________________    __       ___
@@ -2961,6 +3251,90 @@ IF(ALLOCATED(VibQuantsPar)) THEN
 END IF
 
 
+
+!    __  __          __      __          ______  _______  __    ____________________   ___
+!   / / / /___  ____/ /___ _/ /____     /  _/  |/  / __ \/ /   /  _/ ____/  _/_  __/  /   |  ______________ ___  _______
+!  / / / / __ \/ __  / __ `/ __/ _ \    / // /|_/ / /_/ / /    / // /    / /  / /    / /| | / ___/ ___/ __ `/ / / / ___/
+! / /_/ / /_/ / /_/ / /_/ / /_/  __/  _/ // /  / / ____/ /____/ // /____/ /  / /    / ___ |/ /  / /  / /_/ / /_/ (__  )
+! \____/ .___/\__,_/\__,_/\__/\___/  /___/_/  /_/_/   /_____/___/\____/___/ /_/    /_/  |_/_/  /_/   \__,_/\__, /____/
+!     /_/                                                                                                 /____/
+
+
+
+#if defined(IMPA) || defined(ROS)
+IF(ALLOCATED(PartXK)) THEN
+  PartXK(:,NewID)=PartXK(:,OldID)
+END IF
+
+IF(ALLOCATED(R_PartXK)) THEN
+  R_PartXK(:,NewID)=R_PartXK(:,OldID)
+END IF
+
+IF(ALLOCATED(PartStage)) THEN
+  PartStage(:,:,NewID)=PartStage(:,:,OldID)
+END IF
+
+IF(ALLOCATED(PartStateN)) THEN
+  PartStateN(:,NewID)=PartStateN(:,OldID)
+END IF
+
+IF(ALLOCATED(PartQ)) THEN
+  PartQ(:,NewID)=PartQ(:,OldID)
+END IF
+
+IF(ALLOCATED(PEM%NormVec)) THEN
+  PEM%NormVec(:,NewID)=PEM%NormVec(:,OldID)
+  PEM%NormVec(:,OldID) = 0.
+END IF
+
+IF(ALLOCATED(PEM%PeriodicMoved)) THEN
+  PEM%PeriodicMoved(NewID)=PEM%PeriodicMoved(OldID)
+  PEM%PeriodicMoved(OldID) = .FALSE.
+END IF
+
+IF(ALLOCATED(PartDtFrac)) THEN
+  PartDtFrac(NewID)=PartDtFrac(OldID)
+  PartDtFrac(OldID) = 1.
+END IF
+#endif
+
+#ifdef IMPA
+IF(ALLOCATED(F_PartX0)) THEN
+  F_PartX0(:,NewID)=F_PartX0(:,OldID)
+END IF
+
+IF(ALLOCATED(F_PartXk)) THEN
+  F_PartXk(:,NewID)=F_PartXk(:,OldID)
+END IF
+
+IF(ALLOCATED(Norm_F_PartX0)) THEN
+  Norm_F_PartX0(NewID)=Norm_F_PartX0(OldID)
+END IF
+
+IF(ALLOCATED(Norm_F_PartXk)) THEN
+  Norm_F_PartXk(NewID)=Norm_F_PartXk(OldID)
+END IF
+
+IF(ALLOCATED(Norm_F_PartXk_old)) THEN
+  Norm_F_PartXk_old(NewID)=Norm_F_PartXk_old(OldID)
+END IF
+
+IF(ALLOCATED(PartDeltaX)) THEN
+  PartDeltaX(:,NewID)=PartDeltaX(:,OldID)
+END IF
+
+IF(ALLOCATED(PartLambdaAccept)) THEN
+  PartLambdaAccept(NewID)=PartLambdaAccept(OldID)
+END IF
+
+IF(ALLOCATED(DoPartInNewton)) THEN
+  DoPartInNewton(NewID)=DoPartInNewton(OldID)
+END IF
+
+IF(ALLOCATED(PartIsImplicit)) THEN
+  PartIsImplicit(NewID)=PartIsImplicit(OldID)
+END IF
+#endif /* IMPA */
 END SUBROUTINE ChangePartID
 
 
