@@ -211,8 +211,8 @@ DO iSpec = 1, nSpecies
   IF(Species(iSpec)%TimeStepFactor.NE.1.) THEN
     VarTimeStep%UseSpeciesSpecific = .TRUE.
     IF(Species(iSpec)%TimeStepFactor.GT.1.) CALL CollectiveStop(__STAMP__,'ERROR: Species-specific time step only allows factors below 1!')
-#if (USE_HDG) && !(PP_TimeDiscMethod==508)
-    CALL CollectiveStop(__STAMP__,'ERROR: Species-specific time step is only implemented with Boris-Leapfrog time discretization!')
+#if (USE_HDG) && !(PP_TimeDiscMethod==500) && !(PP_TimeDiscMethod==508) && !(PP_TimeDiscMethod==509)
+    CALL CollectiveStop(__STAMP__,'ERROR: Species-specific time step is only implemented with Euler, Leapfrog & Boris-Leapfrog time discretization!')
 #endif /*(USE_HDG)*/
 #if !(USE_HDG) && !(PP_TimeDiscMethod==4)
     CALL CollectiveStop(__STAMP__,'ERROR: Species-specific time step is only implemented with HDG and/or DSMC')
