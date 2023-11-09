@@ -355,14 +355,9 @@ DO iSpec = 1, nSpecies
     END IF
     ! 2D simulation/variable time step only with cell_local and/or surface flux
     IF(UseVarTimeStep.OR.VarTimeStep%UseSpeciesSpecific) THEN
-      SELECT CASE(TRIM(Species(iSpec)%Init(iInit)%SpaceIC))
-      ! Do nothing
-      CASE('cell_local','background')
-      ! Abort for every other SpaceIC
-      CASE DEFAULT
+      IF(Species(iSpec)%Init(iInit)%ParticleEmissionType.GT.0) &
         CALL CollectiveStop(__STAMP__,'ERROR: Particle insertion/emission for variable time step '//&
-            'only possible with cell_local/background-SpaceIC and/or surface flux!')
-      END SELECT
+            'only possible with initial particle insertion and/or surface flux!')
     END IF
     !--- integer check for ParticleEmissionType 2
     IF((Species(iSpec)%Init(iInit)%ParticleEmissionType.EQ.2).AND. &
