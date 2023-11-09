@@ -84,23 +84,24 @@ TempErgy       = 0.0
 SELECT CASE(PartBound%SurfaceModel(locBCID))
 CASE(4) ! 4: SEE-E by power-law: a*T(eV)^b
   ProductSpecNbr = 0 ! do not create new particle (default value)
-  IF(PARTISELECTRON(PartID_IN))THEN ! Bombarding electron
+  ! Bombarding electron
+  IF(PARTISELECTRON(PartID_IN))THEN
     ! Electron energy in [eV]
     eps_e = 0.5*Species(SpecID)%MassIC*velo2*Joule2eV ! Incident electron energy [eV]
     ! Power Fit
     SEE_Prob = SurfModSEEPowerFit(1,locBCID)*eps_e**SurfModSEEPowerFit(2,locBCID)
-    ! If the yield is greater than 1.0 (or 2.0 or even higher) store the integer and roll the dice for the remainder
+    ! If the yield is greater than 1.0 (or 2.0 or even higher), set the number of products with the integer and roll the dice for the remainder
     ProductSpecNbr = INT(SEE_Prob)
     SEE_Prob = SEE_Prob - REAL(ProductSpecNbr)
 
-    ! Roll the dice
+    ! Roll the dice and if the yield is greater than the random number, add an additional electron
     CALL RANDOM_NUMBER(iRan)
-    IF(iRan.LT.SEE_Prob) ProductSpecNbr = ProductSpecNbr + 1 ! Create one additional electron
+    IF(iRan.LT.SEE_Prob) ProductSpecNbr = ProductSpecNbr + 1
 
     ! If the electron is reflected (ProductSpecNbr=1) or multiple electrons are created (ProductSpecNbr>1)
-    IF(ProductSpecNbr.GT.0) ProductSpec(2) = SurfModResultSpec(locBCID,SpecID)  ! Species of the injected electron
+    IF(ProductSpecNbr.GT.0) ProductSpec(2) = SurfModResultSpec(locBCID,SpecID)
 
-    ! When more than 1 electron is created, give them all part of the impacting energy, otherwise reflect the primary electron
+    ! When more than 1 electron is created, give them all part of the impacting energy
     IF(ProductSpecNbr.GT.1) eps_e = eps_e/REAL(ProductSpecNbr) ! [eV]
 
     ! Velocity of reflected primary or secondary electrons in [m/s]
@@ -119,11 +120,11 @@ CASE(5) ! 5: SEE by Levko2015 for copper electrodes
         I              => 15.6  & ! eV -> ionization threshold of N2
         )
     IF(PARTISELECTRON(PartID_IN))THEN ! Bombarding electron
-      ASSOCIATE (&
-            delta_star_max => 1.06 ,& !    -> empir. fit. const. copper electrode Ref, [19] R. Cimino et al.,Phys.Rev.Lett. 2004
-            s              => 1.35 ,& !    -> empir. fit. const. copper electrode Ref, [19] R. Cimino et al.,Phys.Rev.Lett. 2004
-            eps_max        => 262  ,& ! eV -> empir. fit. const. copper electrode Ref, [19] R. Cimino et al.,Phys.Rev.Lett. 2004
-            eps_0          => 150  ,& ! eV -> empir. fit. const. copper electrode Ref, [19] R. Cimino et al.,Phys.Rev.Lett. 2004
+      ASSOCIATE (& ! Empirical fitting constants for a copper electrode Ref. [19] R. Cimino et al., Phys.Rev.Lett. 2004
+            delta_star_max => 1.06 ,&
+            s              => 1.35 ,&
+            eps_max        => 262  ,& ! eV
+            eps_0          => 150  ,& ! eV
             mass           => Species(SpecID)%MassIC &! mass of bombarding particle
             )
         ! Electron energy in [eV]
