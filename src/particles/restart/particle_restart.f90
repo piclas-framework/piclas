@@ -137,7 +137,7 @@ IF(.NOT.DoMacroscopicRestart) THEN
       LastElemInd  = offsetElem+PP_nElems
       locnPart     = PartInt(ELEM_LastPartInd,LastElemInd)-PartInt(ELEM_FirstPartInd,FirstElemInd)
       offsetnPart  = PartInt(ELEM_FirstPartInd,FirstElemInd)
-      CALL IncreaseMaxParticleNumber(locnPart)
+      CALL IncreaseMaxParticleNumber(INT(locnPart))
 
       DO iLoop = 1_IK,locnPart
         ! Sanity check: SpecID > 0
