@@ -2295,7 +2295,9 @@ IF(ALLOCATED(InterPlanePartIndx)) InterPlanePartIndx(NewID)=InterPlanePartIndx(O
 IF(ALLOCATED(BGGas%PairingPartner)) BGGas%PairingPartner(NewID)=BGGas%PairingPartner(OldID)
 IF(ALLOCATED(CollInf%OldCollPartner)) THEN
   CollInf%OldCollPartner(NewID)=CollInf%OldCollPartner(OldID)
-  IF(CollInf%OldCollPartner(CollInf%OldCollPartner(NewID)).EQ.OldID) CollInf%OldCollPartner(CollInf%OldCollPartner(NewID))=NewID
+  IF(CollInf%OldCollPartner(NewID).GT.0.AND.CollInf%OldCollPartner(NewID).LE.PDM%maxParticleNumber) THEN
+    IF(CollInf%OldCollPartner(CollInf%OldCollPartner(NewID)).EQ.OldID) CollInf%OldCollPartner(CollInf%OldCollPartner(NewID))=NewID
+  END IF
 END IF
 IF(ALLOCATED(ElecRelaxPart)) ElecRelaxPart(NewID)=ElecRelaxPart(OldID)
 
