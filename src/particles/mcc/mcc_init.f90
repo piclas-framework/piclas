@@ -466,25 +466,27 @@ INTEGER,INTENT(IN)            :: iSpec
 INTEGER,INTENT(IN)            :: jSpec
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                       :: MaxDOF, bggSpec,iElem
+INTEGER                       :: MaxDOF, bggSpec, iElem, partSpec
 REAL                          :: MaxCollFreq, MaxCollFreqElem, Mass, dtVar
 REAL,ALLOCATABLE              :: Velocity(:)
 !===================================================================================================================================
-
-! Set the correct time step
-IF(VarTimeStep%UseSpeciesSpecific.AND..NOT.VarTimeStep%DisableForMCC) THEN
-  dtVar = ManualTimeStep * Species(iSpec)%TimeStepFactor
-ELSE
-  dtVar = ManualTimeStep
-END IF
 
 ! Select the background species as the target cloud and use the mass of particle species
 IF(BGGas%BackgroundSpecies(iSpec)) THEN
   bggSpec = BGGas%MapSpecToBGSpec(iSpec)
   Mass = Species(jSpec)%MassIC
+  partSpec = jSpec
 ELSE
   bggSpec = BGGas%MapSpecToBGSpec(jSpec)
   Mass = Species(iSpec)%MassIC
+  partSpec = iSpec
+END IF
+
+! Set the correct time step for the particle species
+IF(VarTimeStep%UseSpeciesSpecific.AND..NOT.VarTimeStep%DisableForMCC) THEN
+  dtVar = ManualTimeStep * Species(partSpec)%TimeStepFactor
+ELSE
+  dtVar = ManualTimeStep
 END IF
 
 MaxDOF = SIZE(SpecXSec(iCase)%CollXSecData,2)
