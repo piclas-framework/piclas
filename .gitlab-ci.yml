@@ -181,7 +181,7 @@ stages:
     - if: '$DO_NIGHTLY'
 
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
-# Defaults for DSMC tests
+# Defaults for DSMC tests (pull only)
 .defaults_DSMC: &defaults_DSMC
   extends: .default_param
   needs: [build_DSMC]
@@ -214,6 +214,27 @@ stages:
 
 .defaults_DSMC_weekly: &defaults_DSMC_weekly
   <<: *defaults_DSMC
+  rules:
+    - if: '$DO_WEEKLY'
+
+# Defaults for DSMC tests (pull-push: required if data from one job is to be accessed by another job afterwards)
+.defaults_DSMC_pull_push: &defaults_DSMC_pull_push
+  extends: .default_param
+  needs: [build_DSMC]
+  artifacts:
+    paths:
+      - build_DSMC_release
+      - build_radiation
+  cache:
+    - *reggie_cache
+    - key: "${CI_COMMIT_REF_SLUG}-DSMC"
+      paths:
+        - build_DSMC_release
+        - build_radiation
+      policy: pull-push
+
+.defaults_DSMC_weekly_pull_push: &defaults_DSMC_weekly_pull_push
+  <<: *defaults_DSMC_pull_push
   rules:
     - if: '$DO_WEEKLY'
 
@@ -356,9 +377,9 @@ build_DSMC:
     - mkdir -p build_DSMC_N1 ; cd build_DSMC_N1
     - cmake .. -DCMAKE_BUILD_TYPE=Release -DPICLAS_TIMEDISCMETHOD=DSMC -DLIBS_BUILD_HDF5=OFF -DPICLAS_POLYNOMIAL_DEGREE=1 ; $GENERATOR -j $NCORES all
     - if [ -n "${DO_WEEKLY}" ]; then
-        cd ..;
-        mkdir -p build_radiation ; cd build_radiation; 
-        cmake -GNinja .. -DLIBS_BUILD_HDF5=OFF -DPICLAS_BUILD_POSTI=ON -DPOSTI_BUILD_SUPERB=ON -DPICLAS_READIN_CONSTANTS=ON -DPICLAS_TIMEDISCMETHOD=Radiation -DPICLAS_INTKIND8=ON ; ninja -j0 all;
+        cd .. ;
+        mkdir -p build_radiation ; cd build_radiation ; 
+        cmake .. -DLIBS_BUILD_HDF5=OFF -DPICLAS_BUILD_POSTI=ON -DPOSTI_BUILD_SUPERB=ON -DPICLAS_READIN_CONSTANTS=ON -DPICLAS_TIMEDISCMETHOD=Radiation -DPICLAS_INTKIND8=ON ; $GENERATOR -j $NCORES all ;
       fi
 
 build_hopr:
@@ -831,20 +852,23 @@ WEK_PIC_poisson:
     - cd build ;  python ../reggie/reggie.py ../regressioncheck/WEK_PIC_poisson
 
 WEK_DSMC:
-  <<: *defaults_DSMC_weekly
+  <<: *defaults_DSMC_weekly_pull_push
+  needs: [build_DSMC]
   stage: reggie_weekly
   script:
-    - cd build_DSMC_release ;  python ../reggie/reggie.py ../regressioncheck/WEK_DSMC -e bin/piclas
+    # Use -s, --save   Do not remove output directories buildsXXXX in output_dir after successful run.
+    - cd build_DSMC_release ;  python ../reggie/reggie.py ../regressioncheck/WEK_DSMC -e bin/piclas -s
 
 WEK_Radiation:
-  <<: *defaults_DSMC_weekly
+  <<: *defaults_DSMC_weekly_pull_push
   needs: [WEK_DSMC]
   stage: reggie_weekly
   script:
     - cd build_radiation
-    - cp $(find ../build_DSMC_release/output_dir -name "70degCone2D_Set1_DSMCState_000.00020000000000000.h5" | head -n 1) ../regressioncheck/WEK_Radiation/Flow_N2-N_70degConeHot/.
+    - cp $(find ../build_DSMC_release/output_dir -name "70degCone2D_Set1_ConeHot_DSMCState_000.00020000000000000.h5" | head -n 1) ../regressioncheck/WEK_Radiation/Flow_N2-N_70degConeHot/.
     - cp $(find ../build_DSMC_release/output_dir -name "mesh_70degCone2D_Set1_noWake_mesh.h5" | head -n 1) ../regressioncheck/WEK_Radiation/Flow_N2-N_70degConeHot/.
-    - python ./../build_DSMC_release/reggie/reggie.py -e ./bin/piclas ../regressioncheck/WEK_Radiation/Flow_N2_70degCone
+    - rm -rf ../build_DSMC_release/output_dir
+    - python ../reggie/reggie.py -e ./bin/piclas ../regressioncheck/WEK_Radiation/Flow_N2-N_70degConeHot
 
 WEK_Reservoir:
   <<: *defaults_DSMC_weekly
