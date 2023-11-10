@@ -52,7 +52,7 @@ USE MOD_Globals
 USE MOD_Particle_Vars          ,ONLY: Species,Symmetry
 USE MOD_part_Emission_Tools    ,ONLY: IntegerDivide,SetCellLocalParticlePosition
 #if USE_MPI
-USE MOD_Particle_MPI_Vars      ,ONLY: PartMPI
+USE MOD_Particle_MPI_Vars      ,ONLY: PartMPIInitGroup
 USE MOD_Particle_Mesh_Vars     ,ONLY: LocalVolume
 #endif /*USE_MPI*/
 !----------------------------------------------------------------------------------------------------------------------------------
@@ -88,15 +88,15 @@ chunksize = 0
 #if USE_MPI
 ! emission group communicator
 InitGroup=Species(FractNbr)%Init(iInit)%InitCOMM
-IF(PartMPI%InitGroup(InitGroup)%COMM.EQ.MPI_COMM_NULL) THEN
+IF(PartMPIInitGroup(InitGroup)%COMM.EQ.MPI_COMM_NULL) THEN
   NbrofParticle=0
   RETURN
 END IF
-IF (PartMPI%InitGroup(InitGroup)%nProcs.GT.1) THEN
+IF (PartMPIInitGroup(InitGroup)%nProcs.GT.1) THEN
   IF (DoExactPartNumInsert) THEN !###$ ToDo
-    IF (PartMPI%InitGroup(InitGroup)%MPIROOT) THEN
-      ALLOCATE(ProcMeshVol(0:PartMPI%InitGroup(InitGroup)%nProcs-1))
-      ALLOCATE(ProcNbrOfParticle(0:PartMPI%InitGroup(InitGroup)%nProcs-1))
+    IF (PartMPIInitGroup(InitGroup)%MPIROOT) THEN
+      ALLOCATE(ProcMeshVol(0:PartMPIInitGroup(InitGroup)%nProcs-1))
+      ALLOCATE(ProcNbrOfParticle(0:PartMPIInitGroup(InitGroup)%nProcs-1))
       ProcMeshVol=0.
       ProcNbrOfParticle=0
     ELSE ! to reduce global memory allocation if a lot of procs are used
@@ -106,11 +106,11 @@ IF (PartMPI%InitGroup(InitGroup)%nProcs.GT.1) THEN
       ProcNbrOfParticle=0
     END IF !InitGroup%MPIroot
     CALL MPI_GATHER(LocalVolume,1,MPI_DOUBLE_PRECISION &
-        ,ProcMeshVol,1,MPI_DOUBLE_PRECISION,0,PartMPI%InitGroup(InitGroup)%COMM,iError)
-    IF (PartMPI%InitGroup(InitGroup)%MPIROOT) THEN
-      CALL IntegerDivide(NbrOfParticle,PartMPI%InitGroup(InitGroup)%nProcs,ProcMeshVol,ProcNbrOfParticle)
+        ,ProcMeshVol,1,MPI_DOUBLE_PRECISION,0,PartMPIInitGroup(InitGroup)%COMM,iError)
+    IF (PartMPIInitGroup(InitGroup)%MPIROOT) THEN
+      CALL IntegerDivide(NbrOfParticle,PartMPIInitGroup(InitGroup)%nProcs,ProcMeshVol,ProcNbrOfParticle)
     END IF
-    CALL MPI_SCATTER(ProcNbrOfParticle, 1, MPI_INTEGER, chunksize, 1, MPI_INTEGER, 0, PartMPI%InitGroup(InitGroup)%COMM, IERROR)
+    CALL MPI_SCATTER(ProcNbrOfParticle, 1, MPI_INTEGER, chunksize, 1, MPI_INTEGER, 0, PartMPIInitGroup(InitGroup)%COMM, IERROR)
     SDEALLOCATE(ProcMeshVol)
     SDEALLOCATE(ProcNbrOfParticle)
   END IF
@@ -149,7 +149,7 @@ USE MOD_part_emission_tools    ,ONLY: SetParticlePositionLiu2010SzaboNeutralizat
 USE MOD_DSMC_Vars              ,ONLY: RadialWeighting
 #if USE_MPI
 USE MOD_Particle_MPI_Emission  ,ONLY: SendEmissionParticlesToProcs
-USE MOD_Particle_MPI_Vars      ,ONLY: PartMPI
+USE MOD_Particle_MPI_Vars      ,ONLY: PartMPIInitGroup
 #endif /*USE_MPI*/
 !----------------------------------------------------------------------------------------------------------------------------------
 ! IMPLICIT VARIABLE HANDLING
@@ -185,7 +185,7 @@ chunkSize = nbrOfParticle
 ! emission group communicator
 #if USE_MPI
 InitGroup=Species(FractNbr)%Init(iInit)%InitCOMM
-IF(PartMPI%InitGroup(InitGroup)%COMM.EQ.MPI_COMM_NULL) THEN
+IF(PartMPIInitGroup(InitGroup)%COMM.EQ.MPI_COMM_NULL) THEN
   NbrofParticle=0
   RETURN
 END IF
@@ -194,15 +194,15 @@ IF ( (TRIM(Species(FractNbr)%Init(iInit)%SpaceIC).EQ.'circle_equidistant'       
      (TRIM(Species(FractNbr)%Init(iInit)%SpaceIC).EQ.'circle'                             ) .OR.  &
      (TRIM(Species(FractNbr)%Init(iInit)%SpaceIC).EQ.'line_with_equidistant_distribution' )) THEN
   nChunks = 1
-ELSE IF (nbrOfParticle.GT.(PartMPI%InitGroup(InitGroup)%nProcs*10)) THEN
-  nChunks = PartMPI%InitGroup(InitGroup)%nProcs
+ELSE IF (nbrOfParticle.GT.(PartMPIInitGroup(InitGroup)%nProcs*10)) THEN
+  nChunks = PartMPIInitGroup(InitGroup)%nProcs
 ELSE
   nChunks = 1
 END IF
 
 ! Set default chunkSize
 chunkSize = INT(nbrOfParticle/nChunks)
-IF (PartMPI%InitGroup(InitGroup)%MPIROOT) THEN
+IF (PartMPIInitGroup(InitGroup)%MPIROOT) THEN
   chunkSize = chunkSize*(1-nChunks) + nbrOfParticle
 END IF
 
@@ -218,7 +218,7 @@ END SELECT
 #if USE_MPI
 
 ! all proc taking part in particle inserting
-IF (PartMPI%InitGroup(InitGroup)%MPIROOT.OR.nChunks.GT.1) THEN
+IF (PartMPIInitGroup(InitGroup)%MPIROOT.OR.nChunks.GT.1) THEN
 #endif
   ! Allocate part pos buffer
   IF(RadialWeighting%DoRadialWeighting.AND.(chunkSize.GT.PDM%maxParticleNumber)) THEN
@@ -296,7 +296,7 @@ ELSE !no mpi root, nchunks=1
   chunkSize = 0
 END IF
 ! Need to open MPI communication regardless of the chunk number. Make it only dependent on the number of procs
-IF (PartMPI%InitGroup(InitGroup)%nProcs.GT.1) THEN
+IF (PartMPIInitGroup(InitGroup)%nProcs.GT.1) THEN
   CALL SendEmissionParticlesToProcs(chunkSize,DimSend,FractNbr,iInit,Species(FractNbr)%Init(iInit)%mySumOfMatchedParticles,particle_positions)
 ! Finish emission on local proc
 ELSE
@@ -331,8 +331,8 @@ CALL MPI_IREDUCE( Species(FractNbr)%Init(iInit)%mySumOfMatchedParticles &
                 , MPI_INTEGER                          &
                 , MPI_SUM                              &
                 , 0                                    &
-                , PartMPI%InitGroup(InitGroup)%COMM    &
-                , PartMPI%InitGroup(InitGroup)%Request &
+                , PartMPIInitGroup(InitGroup)%COMM    &
+                , PartMPIInitGroup(InitGroup)%Request &
                 , IERROR)
 #else
 ! in the serial case, particles are only emitted on the current processor
@@ -462,7 +462,9 @@ CASE('photon_SEE_energy')
   DO i = 1,NbrOfParticle
     PositionNbr = PDM%nextFreePosition(i+PDM%CurrentNextFreePosition)
     IF (PositionNbr .NE. 0) THEN
-        CALL CalcVelocity_FromWorkFuncSEE(FractNbr, Vec3D, iInit=iInit)
+        CALL CalcVelocity_FromWorkFuncSEE(Species(FractNbr)%Init(iInit)%WorkFunctionSEE, &
+                                          Species(FractNbr)%MassIC, Species(FractNbr)%Init(iInit)%NormalVector1IC, &
+                                          Species(FractNbr)%Init(iInit)%NormalIC, Vec3D(1:3))
         PartState(4:6,PositionNbr) = Vec3D(1:3)
         ASSOCIATE( PartBCIndex => Species(FractNbr)%Init(iInit)%PartBCIndex)
 
@@ -524,6 +526,10 @@ IF(UseRotRefFrame) THEN
     PositionNbr = PDM%nextFreePosition(i+PDM%CurrentNextFreePosition)
     IF (PositionNbr.GT.0) THEN
       PDM%InRotRefFrame(PositionNbr) = InRotRefFrameCheck(PositionNbr)
+      ! Initialize velocity in the rotational frame of reference
+      IF(PDM%InRotRefFrame(PositionNbr)) THEN
+        PartVeloRotRef(1:3,PositionNbr) = PartState(4:6,PositionNbr) - CROSS(RotRefFrameOmega(1:3),PartState(1:3,PositionNbr))
+      END IF
     END IF
   END DO
 END IF
@@ -542,7 +548,10 @@ SUBROUTINE SetPartPosAndVeloEmissionDistribution(iSpec,iInit,NbrOfParticle)
 ! modules
 !USE MOD_Globals
 USE MOD_PreProc
-USE MOD_Globals                ,ONLY: myrank,UNIT_StdOut,MPI_COMM_WORLD,abort
+#if USE_MPI
+USE MOD_Globals                ,ONLY: myrank
+#endif /*USE_MPI*/
+USE MOD_Globals                ,ONLY: UNIT_StdOut,abort
 USE MOD_part_tools             ,ONLY: InitializeParticleMaxwell,InterpolateEmissionDistribution2D
 USE MOD_Mesh_Vars              ,ONLY: nElems,offsetElem
 USE MOD_Particle_Vars          ,ONLY: Species, PDM, PartState, PEM, LastPartPos

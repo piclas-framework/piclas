@@ -46,11 +46,11 @@ USE MOD_HDF5_Output            ,ONLY: FlushHDF5
 ! Mesh
 USE MOD_Mesh_Vars              ,ONLY: OffsetElem
 ! DSMC
-USE MOD_DSMC_Vars              ,ONLY: UseDSMC,CollisMode,DSMC,PolyatomMolDSMC,SpecDSMC
+USE MOD_DSMC_Vars              ,ONLY: UseDSMC,DSMC,PolyatomMolDSMC,SpecDSMC
 ! Particles
 USE MOD_Dielectric_Vars        ,ONLY: DoDielectricSurfaceCharge
 USE MOD_HDF5_Input_Particles   ,ONLY: ReadEmissionVariablesFromHDF5,ReadNodeSourceExtFromHDF5
-USE MOD_Particle_Vars          ,ONLY: PartInt,PartData,nSpecies,usevMPF
+USE MOD_Particle_Vars          ,ONLY: PartInt,PartData,nSpecies
 USE MOD_PICDepo_Vars           ,ONLY: DoDeposition,RelaxDeposition,PartSourceOld
 ! Restart
 USE MOD_Restart_Vars           ,ONLY: RestartFile,InterpolateSolution,RestartNullifySolution
@@ -77,7 +77,7 @@ USE MOD_PICDepo_Vars           ,ONLY: PartSource
 USE MOD_TimeDisc_Vars          ,ONLY: time
 #endif /*USE_LOADBALANCE*/
 USE MOD_Particle_Vars          ,ONLY: VibQuantData,ElecDistriData,AD_Data
-USE MOD_Particle_Vars          ,ONLY: PartDataSize,PartIntSize
+USE MOD_Particle_Vars          ,ONLY: PartDataSize,PartIntSize,PartDataVarNames
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -93,13 +93,13 @@ INTEGER,PARAMETER                  :: ELEM_LastPartInd  = 2
 INTEGER(KIND=IK)                   :: locnPart,offsetnPart
 INTEGER                            :: iElem
 INTEGER                            :: FirstElemInd,LastelemInd,i,j,k
-INTEGER                            :: MaxQuantNum,iPolyatMole,iSpec,iVar,MaxElecQuant
+INTEGER                            :: MaxQuantNum,iPolyatMole,iSpec,iVar,MaxElecQuant,iRead
 ! VarNames
-CHARACTER(LEN=255),ALLOCATABLE     :: StrVarNames(:)
 CHARACTER(LEN=255),ALLOCATABLE     :: StrVarNames_HDF5(:)
+LOGICAL,ALLOCATABLE                :: VariableMapped(:)
 ! HDF5 checkes
 LOGICAL                            :: VibQuantDataExists,changedVars,DGSourceExists
-LOGICAL                            :: ElecDistriDataExists,AD_DataExists,implemented
+LOGICAL                            :: ElecDistriDataExists,AD_DataExists
 LOGICAL                            :: FileVersionExists
 REAL                               :: FileVersionHDF5Real
 INTEGER                            :: FileVersionHDF5Int
@@ -156,7 +156,7 @@ IF (PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance)) THEN
       CALL MPI_TYPE_CREATE_STRUCT(1,MPI_LENGTH,MPI_DISPLACEMENT,MPI_TYPE,MPI_STRUCT,iError)
       CALL MPI_TYPE_COMMIT(MPI_STRUCT,iError)
 
-      CALL MPI_ALLTOALLV(PartSourceLB,counts_send,disp_send,MPI_STRUCT,PartSource_HDF5,counts_recv,disp_recv,MPI_STRUCT,MPI_COMM_WORLD,iError)
+      CALL MPI_ALLTOALLV(PartSourceLB,counts_send,disp_send,MPI_STRUCT,PartSource_HDF5,counts_recv,disp_recv,MPI_STRUCT,MPI_COMM_PICLAS,iError)
     END ASSOCIATE
     DEALLOCATE(PartSourceLB)
 
@@ -212,7 +212,7 @@ IF (PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance)) THEN
       CALL MPI_TYPE_CREATE_STRUCT(1,MPI_LENGTH,MPI_DISPLACEMENT,MPI_TYPE,MPI_STRUCT,iError)
       CALL MPI_TYPE_COMMIT(MPI_STRUCT,iError)
 
-      CALL MPI_ALLTOALLV(NodeSourceExtEquiLB,counts_send,disp_send,MPI_STRUCT,NodeSourceExtEquiLBTmp,counts_recv,disp_recv,MPI_STRUCT,MPI_COMM_WORLD,iError)
+      CALL MPI_ALLTOALLV(NodeSourceExtEquiLB,counts_send,disp_send,MPI_STRUCT,NodeSourceExtEquiLBTmp,counts_recv,disp_recv,MPI_STRUCT,MPI_COMM_PICLAS,iError)
     END ASSOCIATE
     DEALLOCATE(NodeSourceExtEquiLB)
     ! Loop over all elements and store absolute charge values in equidistantly distributed nodes of PP_N=1
@@ -237,8 +237,13 @@ IF (PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance)) THEN
   ! Check the PartDataSize
   IF (PartDataSize.EQ.0) CALL Abort(__STAMP__,'PartDataSize.EQ.0 but should have been set before loadbalance!')
 
+  ! Variables will not have changed during the simulation, but flags and mapping have to be initialized
   ALLOCATE(readVarFromState(PartDataSize))
-  readVarFromState=.TRUE.
+  readVarFromState = .TRUE.
+  ALLOCATE(MapPartDataToReadin(PartDataSize))
+  DO iVar=1,PartDataSize
+    MapPartDataToReadin(iVar) = iVar
+  END DO
 
   ! Set polyatomic and electronic shell variables
   IF (useDSMC) THEN
@@ -280,7 +285,7 @@ IF (PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance)) THEN
     CALL MPI_TYPE_COMMIT(MPI_STRUCT,iError)
 
     ! Communicate PartInt over MPI
-    CALL MPI_ALLTOALLV(PartInt,counts_send,disp_send,MPI_STRUCT,PartIntTmp,counts_recv,disp_recv,MPI_STRUCT,MPI_COMM_WORLD,iError)
+    CALL MPI_ALLTOALLV(PartInt,counts_send,disp_send,MPI_STRUCT,PartIntTmp,counts_recv,disp_recv,MPI_STRUCT,MPI_COMM_PICLAS,iError)
   END ASSOCIATE
 
   ! Calculate the PartInt deltas
@@ -331,7 +336,7 @@ IF (PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance)) THEN
     CALL MPI_TYPE_COMMIT(MPI_STRUCT,iError)
 
     ! Communicate PartData over MPI
-    CALL MPI_ALLTOALLV(PartData,counts_send,disp_send,MPI_STRUCT,PartDataTmp,counts_recv,disp_recv,MPI_STRUCT,MPI_COMM_WORLD,iError)
+    CALL MPI_ALLTOALLV(PartData,counts_send,disp_send,MPI_STRUCT,PartDataTmp,counts_recv,disp_recv,MPI_STRUCT,MPI_COMM_PICLAS,iError)
   END ASSOCIATE
   CALL MOVE_ALLOC(PartDataTmp,PartData)
   PartDataExists   = .TRUE.
@@ -356,7 +361,7 @@ IF (PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance)) THEN
         CALL MPI_TYPE_COMMIT(MPI_STRUCT,iError)
 
         ! Communicate VibQuantData over MPI
-        CALL MPI_ALLTOALLV(VibQuantData,counts_send,disp_send,MPI_STRUCT,VibQuantDataTmp,counts_recv,disp_recv,MPI_STRUCT,MPI_COMM_WORLD,iError)
+        CALL MPI_ALLTOALLV(VibQuantData,counts_send,disp_send,MPI_STRUCT,VibQuantDataTmp,counts_recv,disp_recv,MPI_STRUCT,MPI_COMM_PICLAS,iError)
       END ASSOCIATE
       CALL MOVE_ALLOC(VibQuantDataTmp,VibQuantData)
     END IF
@@ -378,7 +383,7 @@ IF (PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance)) THEN
         CALL MPI_TYPE_COMMIT(MPI_STRUCT,iError)
 
         ! Communicate ElecDistriData over MPI
-        CALL MPI_ALLTOALLV(ElecDistriData,counts_send,disp_send,MPI_STRUCT,ElecDistriDataTmp,counts_recv,disp_recv,MPI_STRUCT,MPI_COMM_WORLD,iError)
+        CALL MPI_ALLTOALLV(ElecDistriData,counts_send,disp_send,MPI_STRUCT,ElecDistriDataTmp,counts_recv,disp_recv,MPI_STRUCT,MPI_COMM_PICLAS,iError)
       END ASSOCIATE
       CALL MOVE_ALLOC(ElecDistriDataTmp,ElecDistriData)
     END IF
@@ -400,7 +405,7 @@ IF (PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance)) THEN
         CALL MPI_TYPE_COMMIT(MPI_STRUCT,iError)
 
         ! Communicate AD_Data over MPI
-        CALL MPI_ALLTOALLV(AD_Data,counts_send,disp_send,MPI_STRUCT,AD_DataTmp,counts_recv,disp_recv,MPI_STRUCT,MPI_COMM_WORLD,iError)
+        CALL MPI_ALLTOALLV(AD_Data,counts_send,disp_send,MPI_STRUCT,AD_DataTmp,counts_recv,disp_recv,MPI_STRUCT,MPI_COMM_PICLAS,iError)
       END ASSOCIATE
       CALL MOVE_ALLOC(AD_DataTmp,AD_Data)
     END IF
@@ -421,7 +426,7 @@ ELSE
   IF(.NOT.RestartNullifySolution)THEN ! Use the solution in the restart file
     !-- read PartSource if relaxation is performed (might be needed for RestartHDG)
     IF (DoDeposition .AND. RelaxDeposition) THEN
-      CALL OpenDataFile(RestartFile,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_WORLD)
+      CALL OpenDataFile(RestartFile,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_PICLAS)
       CALL DatasetExists(File_ID,'DG_Source',DGSourceExists)
       IF(DGSourceExists)THEN
         IF(.NOT.InterpolateSolution)THEN! No interpolation needed, read solution directly from file
@@ -458,63 +463,6 @@ ELSE
 
   IF (DoMacroscopicRestart) RETURN
 
-  ! Reconstruct the VarNames
-  implemented=.FALSE.
-  IF(useDSMC)THEN
-    IF((CollisMode.GT.1).AND.(usevMPF).AND.(DSMC%ElectronicModel.GT.0))THEN
-      PartDataSize=11
-      ALLOCATE(StrVarNames(PartDataSize))
-      StrVarNames( 8)='Vibrational'
-      StrVarNames( 9)='Rotational'
-      StrVarNames(10)='Electronic'
-      StrVarNames(11)='MPF'
-      implemented = .TRUE.
-    ELSE IF ( (CollisMode .GT. 1) .AND. (usevMPF) ) THEN
-      PartDataSize=10
-      ALLOCATE(StrVarNames(PartDataSize))
-      StrVarNames( 8)='Vibrational'
-      StrVarNames( 9)='Rotational'
-      StrVarNames(10)='MPF'
-      implemented = .TRUE.
-    ELSE IF ( (CollisMode .GT. 1) .AND. (DSMC%ElectronicModel.GT.0) ) THEN
-      PartDataSize=10
-      ALLOCATE(StrVarNames(PartDataSize))
-      StrVarNames( 8)='Vibrational'
-      StrVarNames( 9)='Rotational'
-      StrVarNames(10)='Electronic'
-    ELSE IF (CollisMode.GT.1) THEN
-      implemented=.TRUE.
-      PartDataSize=9 !int ener + 2
-      ALLOCATE(StrVarNames(PartDataSize))
-      StrVarNames( 8)='Vibrational'
-      StrVarNames( 9)='Rotational'
-    ELSE IF (usevMPF) THEN
-      PartDataSize=8 !+ 1 vmpf
-      ALLOCATE(StrVarNames(PartDataSize))
-      StrVarNames( 8)='MPF'
-      implemented=.TRUE.
-    ELSE
-      PartDataSize=7 !+ 0
-      ALLOCATE(StrVarNames(PartDataSize))
-    END IF
-  ELSE IF (usevMPF) THEN
-    PartDataSize=8 !vmpf +1
-    ALLOCATE(StrVarNames(PartDataSize))
-    StrVarNames( 8)='MPF'
-  ELSE
-    PartDataSize=7
-    ALLOCATE(StrVarNames(PartDataSize))
-  END IF ! UseDSMC
-  StrVarNames(1)='ParticlePositionX'
-  StrVarNames(2)='ParticlePositionY'
-  StrVarNames(3)='ParticlePositionZ'
-  StrVarNames(4)='VelocityX'
-  StrVarNames(5)='VelocityY'
-  StrVarNames(6)='VelocityZ'
-  StrVarNames(7)='Species'
-  ALLOCATE(readVarFromState(PartDataSize))
-  readVarFromState=.TRUE.
-
   IF (useDSMC.AND.(DSMC%NumPolyatomMolecs.GT.0)) THEN
     MaxQuantNum = 0
     DO iSpec = 1, nSpecies
@@ -534,7 +482,7 @@ ELSE
     END DO
   END IF
 
-  CALL OpenDataFile(RestartFile,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_WORLD)
+  CALL OpenDataFile(RestartFile,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_PICLAS)
   ! ------------------------------------------------
   ! NodeSourceExt (external/additional charge source terms)
   ! ------------------------------------------------
@@ -579,7 +527,6 @@ ELSE
       END IF
     ENDIF
 
-
     ! ------------------------------------------------
     ! PartData
     ! ------------------------------------------------
@@ -593,47 +540,73 @@ ELSE
       PartDataSize_HDF5 = INT(HSize(1),4)
       DEALLOCATE(HSize)
 
+      ALLOCATE(readVarFromState(PartDataSize))
+      readVarFromState = .TRUE.
+      ALLOCATE(MapPartDataToReadin(PartDataSize))
+      MapPartDataToReadin = 0
+
       ALLOCATE(StrVarNames_HDF5(PartDataSize_HDF5))
       CALL ReadAttribute(File_ID,'VarNamesParticles',PartDataSize_HDF5,StrArray=StrVarNames_HDF5)
 
       IF (PartDataSize_HDF5.NE.PartDataSize) THEN
         changedVars=.TRUE.
-      ELSE IF (.NOT.ALL(StrVarNames_HDF5.EQ.StrVarNames)) THEN
+      ELSE IF (.NOT.ALL(StrVarNames_HDF5.EQ.PartDataVarNames)) THEN
         changedVars=.TRUE.
       ELSE
         changedVars=.FALSE.
+        DO iVar=1,PartDataSize
+          MapPartDataToReadin(iVar) = iVar
+        END DO
       END IF ! PartDataSize_HDF5.NE.PartDataSize
 
       IF (changedVars) THEN
-        SWRITE(*,*) 'WARNING: VarNamesParticles have changed from restart-file'
-        IF (.NOT.implemented) CALL Abort(__STAMP__,"change in VarNamesParticles not implemented yet")
-        ! Check which variables were found in the .h5 file and flag the ones that were not found
-        readVarFromState=.FALSE.
-        DO iVar=1,PartDataSize_HDF5
-          IF (TRIM(StrVarNames(iVar)).EQ.TRIM(StrVarNames_HDF5(iVar))) THEN
-            readVarFromState(iVar)=.TRUE.
-          ELSE
-            CALL Abort(__STAMP__,"not associated VarNamesParticles in HDF5!")
-          END IF
-        END DO ! iVar=1,PartDataSize_HDF5
+        ALLOCATE(VariableMapped(PartDataSize_HDF5))
+        VariableMapped = .FALSE.
+        SWRITE(*,*) 'WARNING: VarNamesParticles have changed from restart file'
+        ! Loop over all the expected variables in the simulation (determined in InitPartDataSize)
         DO iVar=1,PartDataSize
-          IF (.NOT.readVarFromState(iVar)) THEN
-            IF (TRIM(StrVarNames(iVar)).EQ.'Vibrational' .OR. TRIM(StrVarNames(iVar)).EQ.'Rotational') THEN
+          readVarFromState(iVar)=.FALSE.
+          ! Loop over all the read-in variables from the state file
+          DO iRead=1,PartDataSize_HDF5
+            ! Map variables found in the read-in PartData to the required
+            IF (TRIM(PartDataVarNames(iVar)).EQ.TRIM(StrVarNames_HDF5(iRead))) THEN
+              MapPartDataToReadin(iVar) = iRead
+              readVarFromState(iVar)=.TRUE.
+              VariableMapped(iRead) = .TRUE.
+              SWRITE(*,*) 'Mapped '//TRIM(StrVarNames_HDF5(iRead))//' to following position in the state file: ', iRead
+            END IF
+          END DO
+          ! Variable has not been found, which is supported for a few variables
+          IF(MapPartDataToReadin(iVar).EQ.0) THEN
+            IF (TRIM(PartDataVarNames(iVar)).EQ.'Vibrational' .OR. TRIM(PartDataVarNames(iVar)).EQ.'Rotational') THEN
               WRITE(UNIT=hilf,FMT='(I0)') iVar
-              SWRITE(*,*) 'WARNING: The following VarNamesParticles(iVar='//TRIM(hilf)//') will be set to zero: '//TRIM(StrVarNames(iVar))
-            ELSE IF(TRIM(StrVarNames(iVar)).EQ.'MPF') THEN
+              SWRITE(*,*) 'WARNING: The following VarNamesParticles(iVar='//TRIM(hilf)//') will be set to zero: '//TRIM(PartDataVarNames(iVar))
+            ELSE IF(TRIM(PartDataVarNames(iVar)).EQ.'MPF') THEN
               SWRITE(*,*) 'WARNING: The particle weighting factor will be initialized with the given global weighting factor!'
+            ELSE IF(StringBeginsWith(PartDataVarNames(iVar),'VelocityRotRef')) THEN
+              IF(TRIM(PartDataVarNames(iVar)).EQ.'VelocityRotRefX') THEN
+                SWRITE(*,*) 'WARNING: Velocity in rotational frame of reference has not been found, will be initialized with the '//&
+                            'PartState transformed into the rotational frame.'
+              END IF
             ELSE
-              CALL Abort(__STAMP__,"not associated VarNamesParticles to be reset! StrVarNames(iVar)="//TRIM(StrVarNames(iVar))//&
-              '. Note that initializing electronic DOF and vibrational molecular species with zero ist not imeplemted.')
-            END IF ! TRIM(StrVarNames(iVar)).EQ.'Vibrational' .OR. TRIM(StrVarNames(iVar)).EQ.'Rotational'
-          END IF ! .NOT.readVarFromState(iVar)
-        END DO ! iVar=1,PartDataSize
-      END IF ! changedVars
+              CALL Abort(__STAMP__,"ERROR: Not associated VarNamesParticles! PartDataVarNames(iVar)="//TRIM(PartDataVarNames(iVar)))
+            END IF
+          END IF
+        END DO
+        ! Inform user about variables that have been dropped from the state file
+        IF(ANY(.NOT.VariableMapped(:))) THEN
+          SWRITE(*,*) 'The following variables have been dropped from the state file:'
+          DO iRead=1,PartDataSize_HDF5
+            IF(.NOT.VariableMapped(iRead)) THEN
+              SWRITE(*,*) ' '//TRIM(StrVarNames_HDF5(iRead))
+            END IF
+          END DO
+        END IF
+        DEALLOCATE(VariableMapped)
+      END IF
 
       ALLOCATE(PartData(PartDataSize_HDF5,offsetnPart+1_IK:offsetnPart+locnPart))
       CALL ReadArray('PartData',2,(/INT(PartDataSize_HDF5,IK),locnPart/),offsetnPart,2,RealArray=PartData)
-
       ! ------------------------------------------------
       ! DSMC-specific arrays
       ! ------------------------------------------------

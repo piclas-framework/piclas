@@ -149,7 +149,7 @@ RestartNullifySolution = GETLOGICAL('RestartNullifySolution','F')
 IF (LEN_TRIM(RestartFile).GT.0) THEN
   ! Read in the state file we want to restart from
   DoRestart = .TRUE.
-  CALL OpenDataFile(RestartFile,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_WORLD)
+  CALL OpenDataFile(RestartFile,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_PICLAS)
 #ifdef PP_POIS
 #if (PP_nVar==8)
   !The following arrays are read from the file
@@ -318,6 +318,7 @@ USE MOD_Equation_Vars          ,ONLY: Phi
 #endif /*PP_POIS*/
 #if defined(PARTICLES)
 USE MOD_Particle_Restart       ,ONLY: ParticleRestart
+USE MOD_RayTracing             ,ONLY: RayTracing
 #endif /*defined(PARTICLES)*/
 #if USE_HDG
 USE MOD_Restart_Tools          ,ONLY: RecomputeLambda
@@ -346,6 +347,8 @@ IF(DoRestart)THEN
 #ifdef PARTICLES
   ! Restart particle arrays
   CALL ParticleRestart()
+  ! Get ray tracing volume and surface data
+  CALL RayTracing()
 #endif /*PARTICLES*/
 
 #if USE_HDG

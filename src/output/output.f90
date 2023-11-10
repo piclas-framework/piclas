@@ -287,14 +287,14 @@ IF(myRank.EQ.visRank)THEN
   !days = MOD(time_remaining,365.) ! Use this if years are also to be displayed
   days = time_remaining
   IF (Phot) THEN
-    WRITE(UNIT_stdOut,'(A,E10.4,A,E10.4,A,A,I6,A1,I0.2,A1,I0.2,A1,I0.2,A,A,A,A3,F6.2,A3,A1)',ADVANCE='NO') &
+    WRITE(UNIT_stdOut,'(A,E10.4,A,E10.4,A,A,I6,A1,I0.2,A1,I0.2,A1,I0.2,A,A,A,A4,I3,A4,A1)',ADVANCE='NO') &
         '  Photon = ', t,'  TotalPhotons = ', tEnd, ' ', ' eta = ',INT(days),':',INT(hours),':',INT(mins),':',INT(secs),'     |',&
-        REPEAT('☄️ ',CEILING(percent/4)),REPEAT('  ',INT((100-percent)/4)),'| [',percent,'%] ',&
+        REPEAT('☄️ ',CEILING(percent/4)),REPEAT('  ',INT((100-percent)/4)),'| [ ',NINT(percent),'% ] ',&
         ACHAR(13) ! ACHAR(13) is carriage return
   ELSE
-    WRITE(UNIT_stdOut,'(A,E10.4,A,E10.4,A,A,I6,A1,I0.2,A1,I0.2,A1,I0.2,A,A,A,A3,F6.2,A3,A1)',ADVANCE='NO') &
+    WRITE(UNIT_stdOut,'(A,E10.4,A,E10.4,A,A,I6,A1,I0.2,A1,I0.2,A1,I0.2,A,A,A,A4,I3,A4,A1)',ADVANCE='NO') &
         '  Elem = ', t,'  TotalElems = ', tEnd, ' ', ' eta = ',INT(days),':',INT(hours),':',INT(mins),':',INT(secs),'     |',&
-        REPEAT('☢ ',CEILING(percent/4)),REPEAT('  ',INT((100-percent)/4)),'| [',percent,'%] ',&
+        REPEAT('☢ ',CEILING(percent/4)),REPEAT('  ',INT((100-percent)/4)),'| [ ',NINT(percent),'% ] ',&
         ACHAR(13) ! ACHAR(13) is carriage return
   END IF
 #ifdef INTEL

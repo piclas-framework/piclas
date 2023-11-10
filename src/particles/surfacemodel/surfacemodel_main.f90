@@ -242,7 +242,7 @@ END IF
 !===================================================================================================================================
 ! Counter for surface analyze
 IF(CalcSurfCollCounter) THEN
-  ! Old particle was deleted/absorbed/adsorbed at the wall (in case it happend during a surface model and not during the 
+  ! Old particle was deleted/absorbed/adsorbed at the wall (in case it happend during a surface model and not during the
   ! SpeciesSwap routine)
   IF (ProductSpec(1).LE.0) THEN
     SurfAnalyzeNumOfAds(PartSpecImpact) = SurfAnalyzeNumOfAds(PartSpecImpact) + 1
@@ -282,25 +282,28 @@ LOGICAL,INTENT(IN),OPTIONAL :: SpecularReflectionOnly_opt
 ! LOCAL VARIABLES
 REAL    :: RanNum,ACC
 INTEGER :: iBC
+LOGICAL :: SpecularReflectionOnly
 !===================================================================================================================================
 iBC = PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID))
 ACC = PartBound%MomentumACC(iBC)
 
 ! Check if optional parameter was supplied
-ASSOCIATE( SpecularReflectionOnly => MERGE(SpecularReflectionOnly_opt, .FALSE., PRESENT(SpecularReflectionOnly_opt)) ) 
-  IF (SpecularReflectionOnly.OR.ACC.EQ.0.0) THEN
+IF (PRESENT(SpecularReflectionOnly_opt)) THEN; SpecularReflectionOnly = SpecularReflectionOnly_opt
+ELSE;                                          SpecularReflectionOnly = PartBound%OnlySpecular(iBC)
+END IF
+
+IF (SpecularReflectionOnly) THEN
+  CALL PerfectReflection(PartID,SideID,n_loc)
+ELSE IF(PartBound%OnlyDiffuse(iBC)) THEN
+  CALL DiffuseReflection(PartID,SideID,n_loc)
+ELSE
+  CALL RANDOM_NUMBER(RanNum)
+  IF(RanNum.GE.ACC) THEN
     CALL PerfectReflection(PartID,SideID,n_loc)
-  ELSE IF(ACC.LT.1.0) THEN
-    CALL RANDOM_NUMBER(RanNum)
-    IF(RanNum.GE.ACC) THEN
-      CALL PerfectReflection(PartID,SideID,n_loc)
-    ELSE
-      CALL DiffuseReflection(PartID,SideID,n_loc)
-    END IF
   ELSE
     CALL DiffuseReflection(PartID,SideID,n_loc)
   END IF
-END ASSOCIATE
+END IF
 
 END SUBROUTINE MaxwellScattering
 
@@ -327,6 +330,10 @@ USE MOD_Particle_Vars           ,ONLY: PEM
 USE MOD_SurfaceModel_Tools      ,ONLY: CalcRotWallVelo
 USE MOD_Particle_Mesh_Vars      ,ONLY: SideInfo_Shared
 USE MOD_Particle_Tracking_Vars  ,ONLY: TrackInfo
+USE MOD_Particle_Vars           ,ONLY: UseVarTimeStep, PartTimeStep, VarTimeStep
+USE MOD_TimeDisc_Vars           ,ONLY: dt,RKdtFrac
+USE MOD_Particle_Vars           ,ONLY: PDM, PartVeloRotRef
+USE MOD_part_RHS                ,ONLY: CalcPartRHSRotRefFrame
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -338,66 +345,68 @@ LOGICAL,INTENT(IN),OPTIONAL       :: opt_Symmetry
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-REAL                                 :: v_old(1:3),WallVelo(3), v_old_Ambi(1:3)
-REAL                                 :: LorentzFac, LorentzFacInv
-INTEGER                              :: locBCID
+REAL                                 :: WallVelo(3), v_old_Ambi(1:3), NewVeloPush(1:3), OldVelo(1:3)
+REAL                                 :: LorentzFac, LorentzFacInv, POI_fak
+INTEGER                              :: locBCID, SpecID
 LOGICAL                              :: Symmetry
 REAL                                 :: POI_vec(1:3)
-REAL                                 :: adaptTimeStep
+REAL                                 :: dtVar
 !===================================================================================================================================
 ! Initialize
-adaptTimeStep = 1.0
 Symmetry = .FALSE.
 
-WallVelo = PartBound%WallVelo(1:3,PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID)))
-locBCID  = PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID))
+locBCID   = PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID))
+SpecID    = PartSpecies(PartID)
+WallVelo  = PartBound%WallVelo(1:3,locBCID)
 IF(PRESENT(opt_Symmetry)) Symmetry = opt_Symmetry
 
 ! Get Point Of Intersection
 POI_vec(1:3) = LastPartPos(1:3,PartID) + TrackInfo%PartTrajectory(1:3)*TrackInfo%alpha
 
-!IF(PartBound%RotVelo(PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID)))) THEN
-!  WallVelo(1:3) = CalcRotWallVelo(locBCID,POI_vec)
-!END IF
+IF(PartBound%RotVelo(locBCID)) THEN
+  WallVelo(1:3) = CalcRotWallVelo(locBCID,POI_vec)
+END IF
+
+! Set the time step, considering whether a variable particle time step or Runge-Kutta time discretization is used
+IF (UseVarTimeStep) THEN
+  dtVar = dt*RKdtFrac*PartTimeStep(PartID)
+ELSE
+  dtVar = dt*RKdtFrac
+END IF
+! Species-specific time step
+IF(VarTimeStep%UseSpeciesSpecific) dtVar = dtVar * Species(SpecID)%TimeStepFactor
+
+IF(PDM%InRotRefFrame(PartID)) THEN
+  ! In case of RotRefFrame utilize the respective velocity
+  OldVelo = PartVeloRotRef(1:3,PartID)
+ELSE
+  OldVelo = PartState(4:6,PartID)
+END IF
 
 IF(SUM(ABS(WallVelo)).GT.0.)THEN
   SELECT CASE(PartLorentzType)
   CASE(3)
-    v_old = PartState(4:6,PartID)
-    PartState(4:6,PartID) = PartState(4:6,PartID) &
-                          - 2.*DOT_PRODUCT(PartState(4:6,PartID),n_loc)*n_loc + WallVelo
+    PartState(4:6,PartID) = PartState(4:6,PartID) - 2.*DOT_PRODUCT(PartState(4:6,PartID),n_loc)*n_loc + WallVelo
     ! sanity check of new particle velocity
     LorentzFac=1.0-DOT_PRODUCT(PartState(4:6,PartID),PartState(4:6,PartID))*c2_inv
-    IF(LorentzFac.LT.0.) CALL Abort(&
-                          __STAMP__&
-                          ,'Particle exceeds speed of light! PartID ',PartID)
+    IF(LorentzFac.LT.0.) CALL Abort(__STAMP__,'Particle exceeds speed of light! PartID ',PartID)
   CASE(5)
     ! map relativistic momentum to velocity
     LorentzFacInv         = 1.0+DOT_PRODUCT(PartState(4:6,PartID),PartState(4:6,PartID))*c2_inv
     LorentzFacInv         = 1.0/SQRT(LorentzFacInv)
     PartState(4:6,PartID) = LorentzFacInv*PartState(4:6,PartID)
-    v_old                 = PartState(4:6,PartID)
     ! update velocity
-    PartState(4:6,PartID) = PartState(4:6,PartID) &
-                          - 2.*DOT_PRODUCT(PartState(4:6,PartID),n_loc)*n_loc + WallVelo
+    PartState(4:6,PartID) = PartState(4:6,PartID) - 2.*DOT_PRODUCT(PartState(4:6,PartID),n_loc)*n_loc + WallVelo
     ! map back from velocity to relativistic momentum
     LorentzFac=1.0-DOT_PRODUCT(PartState(4:6,PartID),PartState(4:6,PartID))*c2_inv
-    IF(LorentzFac.LT.0.)THEN
-      CALL Abort(&
-        __STAMP__&
-        ,'Particle exceeds speed of light! PartID ',PartID)
-    END IF
+    IF(LorentzFac.LT.0.) CALL Abort(__STAMP__,'Particle exceeds speed of light! PartID ',PartID)
     LorentzFac=1.0/SQRT(LorentzFac)
     PartState(4:6,PartID) = LorentzFac*PartState(4:6,PartID)
   CASE DEFAULT
-    v_old = PartState(4:6,PartID)
-    PartState(4:6,PartID) = PartState(4:6,PartID) &
-                          - 2.*DOT_PRODUCT(PartState(4:6,PartID),n_loc)*n_loc + WallVelo
+      PartState(4:6,PartID) = PartState(4:6,PartID) - 2.*DOT_PRODUCT(PartState(4:6,PartID),n_loc)*n_loc + WallVelo
   END SELECT
 ELSE
-  v_old = PartState(4:6,PartID)
-  PartState(4:6,PartID) = PartState(4:6,PartID) &
-                        - 2.*DOT_PRODUCT(PartState(4:6,PartID),n_loc)*n_loc
+  PartState(4:6,PartID) = PartState(4:6,PartID) - 2.*DOT_PRODUCT(PartState(4:6,PartID),n_loc)*n_loc
   IF (DSMC%DoAmbipolarDiff) THEN
     IF(Species(PartSpecies(PartID))%ChargeIC.GT.0.0) THEN
       v_old_Ambi = AmbipolElecVelo(PartID)%ElecVelo(1:3)
@@ -410,15 +419,30 @@ END IF
 ! set particle position on face
 LastPartPos(1:3,PartID) = POI_vec(1:3)
 
+! Determine the correct velocity in case of a rotational frame of reference
+NewVeloPush(1:3) = PartState(4:6,PartID)
+! In case of RotRefFrame, the velocity in the rotational reference frame is mirrored as well
+IF(PDM%InRotRefFrame(PartID)) THEN
+  ! Mirror the velocity in the rotational frame
+  PartVeloRotRef(1:3,PartID) = PartVeloRotRef(1:3,PartID) - 2.*DOT_PRODUCT(PartVeloRotRef(1:3,PartID),n_loc)*n_loc
+  ! ALTERNATIVE: Transform the inertial velocity (which was mirrored)
+  ! PartVeloRotRef(1:3,PartID) = PartState(4:6,PartID) - CROSS(RotRefFrameOmega(1:3),LastPartPos(1:3,PartID))
+END IF
+
 TrackInfo%PartTrajectory(1:3)     = TrackInfo%PartTrajectory(1:3)-2.*DOT_PRODUCT(TrackInfo%PartTrajectory(1:3),n_loc)*n_loc
 
-! Check if rotated velo is used, otherwise mirror the LastPartPos
-!IF(PartBound%RotVelo(PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID))))THEN
-!  PartState(1:3,PartID)   = LastPartPos(1:3,PartID) + (1.0 - alpha/lengthPartTrajectory) * dt*RKdtFrac &
-!                          * PartState(4:6,PartID) * adaptTimeStep
-!ELSE
+! Check if rotational frame of reference is used, otherwise mirror the LastPartPos
+IF(PDM%InRotRefFrame(PartID)) THEN
+  POI_fak = 1.- (TrackInfo%lengthPartTrajectory-TrackInfo%alpha) / VECNORM(OldVelo*dtVar)
+  ! Add the acceleration due to new velocity vector at the POI
+  PartVeloRotRef(1:3,PartID) = PartVeloRotRef(1:3,PartID) + CalcPartRHSRotRefFrame(LastPartPos(1:3,PartID),PartVeloRotRef(1:3,PartID)) * dtVar * (1.0 - POI_fak)
+  ! IF(DOT_PRODUCT(PartVeloRotRef(1:3,PartID),n_loc).GT.0.) THEN
+  !   PartVeloRotRef(1:3,PartID) = PartVeloRotRef(1:3,PartID) - 2.*DOT_PRODUCT(PartVeloRotRef(1:3,PartID),n_loc)*n_loc
+  ! END IF
+  PartState(1:3,PartID) = LastPartPos(1:3,PartID) + (1.0 - POI_fak) * dtVar * PartVeloRotRef(1:3,PartID)
+ELSE
   PartState(1:3,PartID) = LastPartPos(1:3,PartID) + TrackInfo%PartTrajectory(1:3)*(TrackInfo%lengthPartTrajectory - TrackInfo%alpha)
-!END IF ! PartBound%RotVelo(PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID)))
+END IF
 
 ! #if !defined(IMPA) &&  !defined(ROS)
 ! compute moved particle || rest of movement
@@ -495,16 +519,14 @@ USE MOD_Globals                 ,ONLY: ABORT, OrthoNormVec, VECNORM, DOTPRODUCT
 USE MOD_DSMC_Vars               ,ONLY: DSMC, AmbipolElecVelo
 USE MOD_SurfaceModel_Tools      ,ONLY: GetWallTemperature, CalcRotWallVelo
 USE MOD_Particle_Boundary_Vars  ,ONLY: PartBound
-USE MOD_Particle_Vars           ,ONLY: PartState,LastPartPos,Species,PartSpecies,Symmetry,UseRotRefFrame
+USE MOD_Particle_Vars           ,ONLY: PartState,LastPartPos,Species,PartSpecies,Symmetry,PartVeloRotRef
 USE MOD_Particle_Vars           ,ONLY: UseVarTimeStep, PartTimeStep, VarTimeStep
 USE MOD_TimeDisc_Vars           ,ONLY: dt,RKdtFrac
 USE MOD_Mesh_Tools              ,ONLY: GetCNElemID
-#if defined(LSERK) || (PP_TimeDiscMethod==508) || (PP_TimeDiscMethod==509)
-USE MOD_Particle_Vars           ,ONLY: PDM
-#endif
+USE MOD_Particle_Vars           ,ONLY: PDM, RotRefFrameOmega
 USE MOD_SurfaceModel_Tools      ,ONLY: CalcPostWallCollVelo, SurfaceModel_EnergyAccommodation
 USE MOD_Particle_Tracking_Vars  ,ONLY: TrackInfo
-
+USE MOD_part_RHS                ,ONLY: CalcPartRHSRotRefFrame
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -522,6 +544,7 @@ REAL                              :: POI_fak, TildTrajectory(3), dtVar
 ! Symmetry
 REAL                              :: rotVelY, rotVelZ, rotPosY
 REAL                              :: nx, ny, nVal, VelX, VelY, VecX, VecY, Vector1(1:3), Vector2(1:3), OldVelo(1:3)
+REAL                              :: NewVeloPush(1:3)
 !===================================================================================================================================
 ! 1.) Get the wall velocity, temperature and accommodation coefficients
 locBCID=PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID))
@@ -551,8 +574,9 @@ END IF
 ! Species-specific time step
 IF(VarTimeStep%UseSpeciesSpecific) dtVar = dtVar * Species(SpecID)%TimeStepFactor
 
-IF(UseRotRefFrame) THEN ! In case of RotRefFrame OldVelo must be reconstructed 
-  OldVelo = (PartState(1:3,PartID) - LastPartPos(1:3,PartID)) / dtVar
+IF(PDM%InRotRefFrame(PartID)) THEN
+  ! In case of RotRefFrame utilize the respective velocity
+  OldVelo = PartVeloRotRef(1:3,PartID)
 ELSE
   OldVelo = PartState(4:6,PartID)
 END IF
@@ -628,7 +652,6 @@ END IF
 ! 5.) Perform internal energy accommodation at the wall
 CALL SurfaceModel_EnergyAccommodation(PartID,locBCID,WallTemp)
 
-
 ! 6.) Determine the new particle position after the reflection
 LastPartPos(1:3,PartID) = POI_vec(1:3)
 
@@ -640,7 +663,16 @@ POI_fak=1.- (TrackInfo%lengthPartTrajectory-TrackInfo%alpha)/SQRT(DOT_PRODUCT(Ti
 !PartState(1:3,PartID)   = LastPartPos(1:3,PartID) + (1.0 - alpha/lengthPartTrajectory) * dt*RKdtFrac * NewVelo(1:3)
 IF (PartBound%Resample(locBCID)) CALL RANDOM_NUMBER(POI_fak) !Resample Equilibirum Distribution
 
-PartState(1:3,PartID)   = LastPartPos(1:3,PartID) + (1.0 - POI_fak) * dtVar * NewVelo(1:3)
+! ! 6a.) Determine the correct velocity for the subsequent push in case of a rotational frame of reference
+NewVeloPush(1:3) = NewVelo(1:3)
+IF(PDM%InRotRefFrame(PartID)) THEN
+  NewVeloPush(1:3) = NewVeloPush(1:3) - CROSS(RotRefFrameOmega(1:3),LastPartPos(1:3,PartID))
+  NewVeloPush(1:3) = NewVeloPush(1:3) + CalcPartRHSRotRefFrame(LastPartPos(1:3,PartID),NewVeloPush(1:3)) * (1.0 - POI_fak) * dtVar
+  ! Store the new rotational reference frame velocity
+  PartVeloRotRef(1:3,PartID) = NewVeloPush(1:3)
+END IF
+
+PartState(1:3,PartID)   = LastPartPos(1:3,PartID) + (1.0 - POI_fak) * dtVar * NewVeloPush(1:3)
 
 ! 7.) Axisymmetric simulation: Rotate the vector back into the symmetry plane
 IF(Symmetry%Axisymmetric) THEN
@@ -887,7 +919,7 @@ END IF
 
 IF(ParticleSticks) THEN
   ! Remove the particle from the simulation (total energy was added to the sampled heat flux before the interaction)
-  CALL RemoveParticle(PartID)
+  CALL RemoveParticle(PartID,BCID=locBCID)
 ELSE
   ! Perform regular Maxwell scattering
   CALL MaxwellScattering(PartID,SideID,n_Loc)

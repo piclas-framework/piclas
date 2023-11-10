@@ -39,24 +39,26 @@ SUBROUTINE CreateParticle(SpecID,Pos,GlobElemID,Velocity,RotEnergy,VibEnergy,Ele
 USE MOD_Globals
 USE MOD_Particle_Vars           ,ONLY: PDM, PEM, PartState, LastPartPos, PartSpecies,PartPosRef, Species, usevMPF, PartMPF
 USE MOD_Particle_Vars           ,ONLY: UseVarTimeStep, PartTimeStep
+USE MOD_Particle_Vars           ,ONLY: UseRotRefFrame, RotRefFrameOmega, PartVeloRotRef
 USE MOD_DSMC_Vars               ,ONLY: useDSMC, CollisMode, DSMC, PartStateIntEn, RadialWeighting
 USE MOD_DSMC_Vars               ,ONLY: newAmbiParts, iPartIndx_NodeNewAmbi
 USE MOD_Particle_Tracking_Vars  ,ONLY: TrackingMethod
 USE MOD_Eval_xyz                ,ONLY: GetPositionInRefElem
 USE MOD_part_tools              ,ONLY: CalcRadWeightMPF
 USE MOD_Particle_TimeStep       ,ONLY: GetParticleTimeStep
+USE MOD_Part_Tools              ,ONLY: InRotRefFrameCheck
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
 ! INPUT / OUTPUT VARIABLES
-INTEGER, INTENT(IN)           :: SpecID        !< Species ID
-REAL, INTENT(IN)              :: Pos(1:3)      !< Position (x,y,z)
-INTEGER, INTENT(IN)           :: GlobElemID    !< global element ID
-REAL, INTENT(IN)              :: Velocity(1:3) !< Velocity (vx,vy,vz)
-REAL, INTENT(IN)              :: RotEnergy     !< Rotational energy
-REAL, INTENT(IN)              :: VibEnergy     !< Vibrational energy
-REAL, INTENT(IN)              :: ElecEnergy    !< Electronic energy
-INTEGER, INTENT(OUT),OPTIONAL :: NewPartID     !< ID of newly created particle
-REAL, INTENT(IN),OPTIONAL     :: NewMPF        !< MPF of newly created particle
+INTEGER, INTENT(IN)           :: SpecID           !< Species ID
+REAL, INTENT(IN)              :: Pos(1:3)         !< Position (x,y,z)
+INTEGER, INTENT(IN)           :: GlobElemID       !< global element ID
+REAL, INTENT(IN)              :: Velocity(1:3)    !< Velocity (vx,vy,vz)
+REAL, INTENT(IN)              :: RotEnergy        !< Rotational energy
+REAL, INTENT(IN)              :: VibEnergy        !< Vibrational energy
+REAL, INTENT(IN)              :: ElecEnergy       !< Electronic energy
+INTEGER, INTENT(OUT),OPTIONAL :: NewPartID        !< ID of newly created particle
+REAL, INTENT(IN),OPTIONAL     :: NewMPF           !< MPF of newly created particle
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! LOCAL VARIABLES
 INTEGER :: newParticleID
@@ -69,6 +71,9 @@ IF(newParticleID.GT.PDM%ParticleVecLength) PDM%ParticleVecLength = PDM%ParticleV
 
 IF(newParticleID.GT.PDM%MaxParticleNumber)THEN
   CALL abort(__STAMP__,'CreateParticle: newParticleID.GT.PDM%MaxParticleNumber. '//&
+                       'Increase Part-maxParticleNumber or use more processors. newParticleID=',IntInfoOpt=newParticleID)
+ELSEIF(newParticleID.EQ.0)THEN
+  CALL abort(__STAMP__,'CreateParticle: newParticleID.EQ.0'//&
                        'Increase Part-maxParticleNumber or use more processors. newParticleID=',IntInfoOpt=newParticleID)
 END IF
 
@@ -119,6 +124,16 @@ IF (usevMPF) THEN
     END IF
   END IF ! PRESENT(NewMPF)
 END IF ! usevMPF
+
+IF(UseRotRefFrame) THEN
+  PDM%InRotRefFrame(newParticleID) = InRotRefFrameCheck(newParticleID)
+  IF(PDM%InRotRefFrame(newParticleID)) THEN
+    ! Initialize the velocity in the RotRefFrame by transforming the regular velocity
+    PartVeloRotRef(1:3,newParticleID) = PartState(4:6,newParticleID) - CROSS(RotRefFrameOmega(1:3),PartState(1:3,newParticleID))
+  ELSE
+    PartVeloRotRef(1:3,newParticleID) = 0.
+  END IF
+END IF
 
 IF (PRESENT(NewPartID)) NewPartID=newParticleID
 
@@ -176,8 +191,15 @@ DoPartInNewton(PartID) = .FALSE.
 iSpec = PartSpecies(PartID)
 ! Count the number of particles per species and the kinetic energy per species
 IF(CalcPartBalance) THEN
-  nPartOut(iSpec)=nPartOut(iSpec) + 1
-  PartEkinOut(iSpec)=PartEkinOut(iSpec)+CalcEkinPart(PartID)
+  IF(PRESENT(BCID)) THEN
+    IF(PartBound%TargetBoundCond(BCID).NE.7) THEN  !skip crossing InterPlanes
+      nPartOut(iSpec)=nPartOut(iSpec) + 1
+      PartEkinOut(iSpec)=PartEkinOut(iSpec)+CalcEkinPart(PartID)
+    END IF
+  ELSE
+    nPartOut(iSpec)=nPartOut(iSpec) + 1
+    PartEkinOut(iSpec)=PartEkinOut(iSpec)+CalcEkinPart(PartID)
+  END IF
 END IF ! CalcPartBalance
 
 ! If a BCID is given (e.g. when a particle is removed at a boundary), check if it is
@@ -302,7 +324,7 @@ DO iPart = 1,PDM%ParticleVecLength
 END DO
 
 #if USE_MPI
-CALL MPI_ALLREDUCE(MPI_IN_PLACE,NbrOfElectronsRemoved,1,MPI_INTEGER,MPI_SUM,MPI_COMM_WORLD,iError)
+CALL MPI_ALLREDUCE(MPI_IN_PLACE,NbrOfElectronsRemoved,1,MPI_INTEGER,MPI_SUM,MPI_COMM_PICLAS,iError)
 #endif /*USE_MPI*/
 
 IF(NbrOfElectronsRemoved.GT.0.AND.MPIRoot) WRITE(UNIT_StdOut,'(A,I0,A)') '  Removed a total of ',NbrOfElectronsRemoved,' electrons.'

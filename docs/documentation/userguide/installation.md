@@ -7,6 +7,41 @@ used by the research group are given in Chapter {ref}`userguide/cluster_guide:Cl
 In that case, you can jump directly to the description of the download and installation procedure of PICLas in Section
 {ref}`sec:obtaining-the-source`.
 
+## AppImage executable download
+
+PICLas and its tools can be installed on a Linux machine without the need of compiling the source code.
+Currently, PICLas executables are only available as *[AppImage](https://appimage.org/)* for Linux.
+The only requirements are that [GNU C Library (glibc)](https://www.gnu.org/software/libc/) and [OpenMPI](https://www.open-mpi.org/)
+are pre-installed on the target system and available when running the AppImage executables.
+Static libraries for [OpenMPI](https://www.open-mpi.org/) are not distributed within the AppImage package because of the system-dependent optimizations
+(e.g. specific InfiniBand settings) and the AppImage of piclas is built with [version 4.1.0](https://www.open-mpi.org/software/ompi/v4.1/).
+Additional external libraries and versions that are used for compiling are [gcc (GCC) 8.3.1 20190311 (Red Hat 8.3.1-3)](https://gcc.gnu.org/gcc-8/),
+[HDF5 1.12.2](https://www.hdfgroup.org/2022/04/release-of-hdf5-1-12-2-newsletter-183/) and
+[PETSc 3.18.4](https://petsc.org/release/changes/318/).
+Other operating systems, such as Windows or MacOS might be supported in the future.
+
+Download the pre-compiled (on Centos7) executables from the [PICLas release tag assets](https://github.com/piclas-framework/piclas/releases).
+Note that versions prior to v3.0.0 are not supported for AppImage download.
+Unzip the files, switch into the directory an then and check their MD5 hashes by running
+
+    md5sum -c md5sum.txt
+
+which should produce output looking like
+
+    piclasDSMC: OK
+    piclasLeapfrogHDG: OK
+    piclas2vtk: OK
+    superB: OK
+
+indicating that everything is fine.
+After downloading the binary files, it has to be checked that all files are executable and if not simply run
+
+    chmod +x piclas*
+
+for all files beginning with piclas (add the other files to the list if required) before they can be used.
+If problems occur when executing the AppImage, check the [troubleshooting]( https://docs.appimage.org/user-guide/troubleshooting/index.html)
+section for possible fixes.
+
 ## Prerequisites
 **PICLas** has been used on various Linux distributions in the past. This includes Ubuntu 16.04 LTS and 18.04 LTS, 20.04 LTS
 20.10 and 21.04, OpenSUSE 42.1 and CentOS 7.

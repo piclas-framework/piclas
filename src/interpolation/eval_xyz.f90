@@ -91,7 +91,9 @@ ASSOCIATE( XCL_NGeo  => XCL_NGeo_Shared     &
          ,dXCL_NGeo  => dXCL_NGeo_Shared)
 #endif
 
-iMode = MERGE(1,2,PRESENT(ForceMode))
+IF (PRESENT(ForceMode)) THEN; iMode = 1
+ELSE;                         iMode = 2
+END IF
 
 IF (.NOT.PRESENT(DoReUseMap)) THEN
   CALL GetRefNewtonStartValue(X_in,Xi,ElemID)

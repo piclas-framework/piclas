@@ -282,9 +282,7 @@ ELSE
 END IF
 
 IF(DSMC%ReservoirSimu) THEN
-#if (PP_TimeDiscMethod==42)
   IF(DSMC%ReservoirRateStatistic) THEN
-#endif
     IF((ReactionProb.GT.1).AND.(ReactionProbGTUnityCounter.LT.100)) THEN
       ReactionProbGTUnityCounter=ReactionProbGTUnityCounter+1
       IPWRITE(*,*) 'Warning: ReactionProb greater than unity! ReacNbr:', iReac,'    ReactionProb:',ReactionProb
@@ -292,18 +290,14 @@ IF(DSMC%ReservoirSimu) THEN
         IPWRITE(*,*) ' Counted 100 ReactionProb greater than unity. Turning this warning off.'
       END IF
     END IF
-#if (PP_TimeDiscMethod==42)
   END IF
-#endif
 END IF
 ! ReactionProb should not be gt 1 to avoid meaningless high weighting of a single reaction
 IF (ReactionProb.GT.1) ReactionProb = 1.0
-#if (PP_TimeDiscMethod==42)
-IF (.NOT.DSMC%ReservoirRateStatistic) THEN
+IF (DSMC%ReservoirSimu.AND..NOT.DSMC%ReservoirRateStatistic) THEN
   ChemReac%NumReac(iReac) = ChemReac%NumReac(iReac) + ReactionProb
   ChemReac%ReacCount(iReac) = ChemReac%ReacCount(iReac) + 1
 END IF
-#endif
 
 END SUBROUTINE CalcReactionProb
 
@@ -351,7 +345,7 @@ SUBROUTINE DSMC_Chemistry(iPair, iReac)
 ! Routine performs an exchange reaction of the type A + B + C -> D + E + F, where A, B, C, D, E, F can be anything
 !===================================================================================================================================
 ! MODULES
-USE MOD_Globals                ,ONLY: abort,DOTPRODUCT,StringBeginsWith,UNIT_StdOut,myrank
+USE MOD_Globals                ,ONLY: abort,DOTPRODUCT,StringBeginsWith,UNIT_StdOut
 USE MOD_Globals_Vars
 USE MOD_DSMC_Vars              ,ONLY: Coll_pData, DSMC, CollInf, SpecDSMC, DSMCSumOfFormedParticles, ElectronicDistriPart
 USE MOD_DSMC_Vars              ,ONLY: ChemReac, PartStateIntEn, PolyatomMolDSMC, VibQuantsPar, RadialWeighting, BGGas, ElecRelaxPart
@@ -373,6 +367,9 @@ USE MOD_Particle_Vars          ,ONLY: Symmetry
 #endif /* CODE_ANALYZE */
 USE MOD_Particle_Analyze_Vars   ,ONLY: CalcPartBalance,nPartIn,nPartOut,PartEkinIn,PartEkinOut
 USE MOD_Particle_Analyze_Tools  ,ONLY: CalcEkinPart
+#if USE_MPI
+USE MOD_Globals                ,ONLY: myrank
+#endif /*USE_MPI*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -427,8 +424,7 @@ IF(EductReac(3).NE.0) THEN
 END IF
 
 ! Do not perform the reaction in case the reaction is to be calculated at a constant gas composition (DSMC%ReservoirSimuRate = T)
-#if (PP_TimeDiscMethod==42)
-IF (DSMC%ReservoirSimuRate) THEN
+IF (DSMC%ReservoirSimu.AND.DSMC%ReservoirSimuRate) THEN
   ! Count the number of reactions to determine the actual reaction rate
   IF (DSMC%ReservoirRateStatistic) THEN
     ChemReac%NumReac(iReac) = ChemReac%NumReac(iReac) + 1
@@ -436,7 +432,6 @@ IF (DSMC%ReservoirSimuRate) THEN
   ! Leave the routine again
   RETURN
 END IF
-#endif
 
 Xi_elec = 0.
 EZeroTempToExec = 0.
@@ -1553,8 +1548,6 @@ END IF ! NbrOfPhotonXsecReactions.GT.0
 DO iReac = 1, ChemReac%NumOfReact
   ! Only treat photoionization reactions
   IF(TRIM(ChemReac%ReactModel(iReac)).NE.'phIon') CYCLE
-  IF(NbrOfPhotonXsecReactions.GT.0) CALL abort(__STAMP__,&
-      'Photoionization reactions with constant cross-sections cannot be combined with XSec data cross-sections for photoionization')
   ! First reactant of the reaction is the actual heavy particle species
   ASSOCIATE( density      => BGGas%NumberDensity(BGGas%MapSpecToBGSpec(ChemReac%Reactants(iReac,1))) ,&
              CrossSection => ChemReac%CrossSection(iReac))
@@ -1567,7 +1560,7 @@ END DO
 END SUBROUTINE CalcPhotoIonizationNumber
 
 
-SUBROUTINE PhotoIonization_InsertProducts(iPair, iReac, iInit, InitSpec, iLineOpt)
+SUBROUTINE PhotoIonization_InsertProducts(iPair, iReac, b1, b2, normal, iLineOpt, PartBCIndex)
 !===================================================================================================================================
 !> Routine performing the photo-ionization reaction: initializing the heavy species at the background gas temperature (first
 !> reactant) and distributing the remaining collision energy onto the electrons
@@ -1594,8 +1587,10 @@ USE MOD_DSMC_CollisVec          ,ONLY: PostCollVec
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-INTEGER, INTENT(IN)           :: iPair, iReac, iInit, InitSpec
+INTEGER, INTENT(IN)           :: iPair, iReac
+REAL, INTENT(IN), OPTIONAL    :: b1(3),b2(3),normal(3)
 INTEGER, INTENT(IN), OPTIONAL :: iLineOpt
+INTEGER, INTENT(IN), OPTIONAL :: PartBCIndex
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1612,8 +1607,7 @@ EductReac(1:3) = ChemReac%Reactants(iReac,1:3)
 ProductReac(1:4) = ChemReac%Products(iReac,1:4)
 
 ! Do not perform the reaction in case the reaction is to be calculated at a constant gas composition (DSMC%ReservoirSimuRate = T)
-#if (PP_TimeDiscMethod==42)
-IF (DSMC%ReservoirSimuRate) THEN
+IF (DSMC%ReservoirSimu.AND.DSMC%ReservoirSimuRate) THEN
   ! Count the number of reactions to determine the actual reaction rate
   IF (DSMC%ReservoirRateStatistic) THEN
     ChemReac%NumReac(iReac) = ChemReac%NumReac(iReac) + 1
@@ -1621,7 +1615,6 @@ IF (DSMC%ReservoirSimuRate) THEN
   ! Leave the routine again
   RETURN
 END IF
-#endif
 
 Weight = 0.
 NumProd = 2; SumWeightProd = 0.
@@ -1812,27 +1805,22 @@ IF(IonizationReaction) THEN
     IF(SpecDSMC(iSpec)%InterID.EQ.4) THEN
       PartState(4:6,iPart) = VeloCOM(1:3) + SQRT(CRela2_Electron) * DiceUnitVector()
       ! Change the direction of its velocity vector (randomly) to be perpendicular to the photon's path
-      ASSOCIATE( b1          => Species(InitSpec)%Init(iInit)%NormalVector1IC(1:3) ,&
-                 b2          => Species(InitSpec)%Init(iInit)%NormalVector2IC(1:3) ,&
-                 normal      => Species(InitSpec)%Init(iInit)%NormalIC             ,&
-                 PartBCIndex => Species(InitSpec)%Init(iInit)%PartBCIndex)
-        ! Get random vector b3 in b1-b2-plane
-        CALL RANDOM_NUMBER(RandVal)
-        PartState(4:6,iPart) = GetRandomVectorInPlane(b1,b2,PartState(4:6,iPart),RandVal)
-        ! Rotate the resulting vector in the b3-NormalIC-plane
-        PartState(4:6,iPart) = GetRotatedVector(PartState(4:6,iPart),normal)
-        ! Store the particle information in PartStateBoundary.h5
-        IF(DoBoundaryParticleOutputHDF5) THEN
-          IF(usevMPF)THEN
-            MPF = Species(InitSpec)%Init(iInit)%MacroParticleFactor ! Use emission-specific MPF
-          ELSE
-            MPF = Species(InitSpec)%MacroParticleFactor ! Use species MPF
-          END IF ! usevMPF
-          ! Only store volume-emitted particle data in PartStateBoundary.h5 if the PartBCIndex is greater/equal zero
-          IF(PartBCIndex.GE.0) CALL StoreBoundaryParticleProperties(iPart,iSpec,PartState(1:3,iPart),&
-                                      UNITVECTOR(PartState(4:6,iPart)),normal,iPartBound=PartBCIndex,mode=2,MPF_optIN=MPF)
-        END IF ! DoBoundaryParticleOutputHDF5
-      END ASSOCIATE
+      ! Get random vector b3 in b1-b2-plane
+      CALL RANDOM_NUMBER(RandVal)
+      PartState(4:6,iPart) = GetRandomVectorInPlane(b1,b2,PartState(4:6,iPart),RandVal)
+      ! Rotate the resulting vector in the b3-NormalIC-plane
+      PartState(4:6,iPart) = GetRotatedVector(PartState(4:6,iPart),normal)
+      ! Store the particle information in PartStateBoundary.h5
+      IF(DoBoundaryParticleOutputHDF5) THEN
+        IF(usevMPF)THEN
+          MPF = PartMPF(iPart) ! Use emission-specific MPF
+        ELSE
+          MPF = Species(iSpec)%MacroParticleFactor ! Use species MPF
+        END IF ! usevMPF
+        ! Only store volume-emitted particle data in PartStateBoundary.h5 if the PartBCIndex is greater/equal zero
+        IF(PartBCIndex.GE.0) CALL StoreBoundaryParticleProperties(iPart,iSpec,PartState(1:3,iPart),&
+                                    UNITVECTOR(PartState(4:6,iPart)),normal,iPartBound=PartBCIndex,mode=2,MPF_optIN=MPF)
+      END IF ! DoBoundaryParticleOutputHDF5
     END IF
   END DO
 ELSE
@@ -1900,7 +1888,7 @@ END FUNCTION GetRandomVectorInPlane
 
 FUNCTION GetRotatedVector(VeloVec,NormVec)
 !===================================================================================================================================
-! Rotate the vector in the plane set up by VeloVec and NormVec by choosing an angle from a 4.0 / PI * COS(Theta_temp)**2
+! Rotate the vector in the plane set up by VeloVec and NormVec by choosing an angle from a 4.0 / PI * COS(Theta)**2
 ! distribution via the ARM
 !===================================================================================================================================
 ! MODULES
@@ -1921,7 +1909,7 @@ REAL               :: Vabs ! Absolute velocity
 REAL               :: RandVal, v(1:3)
 REAL               :: Theta, Theta_temp
 REAL               :: PDF_temp
-REAL, PARAMETER    :: PDF_max=4./ACOS(-1.)
+REAL, PARAMETER    :: PDF_max=4./PI
 LOGICAL            :: ARM_SEE_PDF
 !===================================================================================================================================
 v = UNITVECTOR(VeloVec)
@@ -1931,7 +1919,7 @@ Vabs = VECNORM(VeloVec)
 ARM_SEE_PDF=.TRUE.
 DO WHILE(ARM_SEE_PDF)
   CALL RANDOM_NUMBER(RandVal)
-  Theta_temp = RandVal * 0.5 * PI
+  Theta_temp = PI*(RandVal-0.5)
   PDF_temp = 4.0 / PI * COS(Theta_temp)**2
   CALL RANDOM_NUMBER(RandVal)
   IF ((PDF_temp/PDF_max).GT.RandVal) ARM_SEE_PDF = .FALSE.

@@ -34,7 +34,7 @@ SUBROUTINE TimeStepPoissonByBorisLeapfrog()
 ! Boris-Leapfrog (508) -push with HDG
 !===================================================================================================================================
 ! MODULES
-USE MOD_Globals                ,ONLY: Abort, LocalTime, CROSS, DOTPRODUCT, UNITVECTOR, VECNORM, PARTISELECTRON, MPIroot
+USE MOD_Globals                ,ONLY: Abort, LocalTime, CROSS, DOTPRODUCT, UNITVECTOR, VECNORM, PARTISELECTRON
 USE MOD_DG_Vars                ,ONLY: U
 USE MOD_PreProc
 USE MOD_TimeDisc_Vars          ,ONLY: dt,iter,time
@@ -263,18 +263,15 @@ CALL extrae_eventandcounters(int(9000001), int8(5))
 
 IF ((time.GE.DelayTime).OR.(iter.EQ.0)) CALL UpdateNextFreePosition()
 
-IF (useDSMC) THEN
-  IF (time.GE.DelayTime) THEN
+IF (time.GE.DelayTime) THEN
+  ! Direct Simulation Monte Carlo
+  IF (useDSMC) THEN
     CALL DSMC_main()
-#if USE_LOADBALANCE
-    CALL LBStartTime(tLBStart)
-#endif /*USE_LOADBALANCE*/
-    IF(UseSplitAndMerge) CALL SplitAndMerge()
-#if USE_LOADBALANCE
-    CALL LBPauseTime(LB_DSMC,tLBStart)
-#endif /*USE_LOADBALANCE*/
   END IF
+  ! Split & Merge: Variable particle weighting
+  IF(UseSplitAndMerge) CALL SplitAndMerge()
 END IF
+
 #ifdef EXTRAE
 CALL extrae_eventandcounters(int(9000001), int8(0))
 #endif /*EXTRAE*/

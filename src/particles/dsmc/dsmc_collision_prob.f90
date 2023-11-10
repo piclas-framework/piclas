@@ -43,7 +43,7 @@ SUBROUTINE DSMC_prob_calc(iElem, iPair, NodeVolume)
 USE MOD_Globals
 USE MOD_DSMC_Vars               ,ONLY: SpecDSMC, Coll_pData, CollInf, DSMC, BGGas, ChemReac, RadialWeighting, CollisMode
 USE MOD_MCC_Vars                ,ONLY: UseMCC, SpecXSec, XSec_NullCollision
-USE MOD_Particle_Vars           ,ONLY: PartSpecies, Species, UseVarTimeStep, usevMPF, PartTimeStep
+USE MOD_Particle_Vars           ,ONLY: PartSpecies, Species, UseVarTimeStep, usevMPF, PartTimeStep, PartState
 USE MOD_TimeDisc_Vars           ,ONLY: dt
 USE MOD_MCC_XSec                ,ONLY: XSec_CalcCollisionProb, XSec_CalcReactionProb, XSec_CalcVibRelaxProb, XSec_CalcElecRelaxProb
 USE MOD_part_tools              ,ONLY: GetParticleWeight
@@ -209,6 +209,10 @@ END SELECT
 
 IF (ISNAN(Coll_pData(iPair)%Prob)) THEN
   IPWRITE(UNIT_errOut,*)iPair,'in',iElem,'is NaN!'
+  IPWRITE(UNIT_errOut,*) '-----1.PartState--of--',iPart_p1,'-----------'
+  IPWRITE(UNIT_errOut,*)PartState(1:6,iPart_p1)
+  IPWRITE(UNIT_errOut,*) '-----2.PartState--of--',iPart_p2,'-----------'
+  IPWRITE(UNIT_errOut,*)PartState(1:6,iPart_p2)
   CALL Abort(__STAMP__,'Collision probability is NaN! CRela:',RealInfoOpt=SQRT(Coll_pData(iPair)%CRela2))
 END IF
 IF(DSMC%CalcQualityFactors) THEN
@@ -236,33 +240,33 @@ IF(DSMC%CalcQualityFactors) THEN
   DSMC%CollProbMeanCount = DSMC%CollProbMeanCount + 1
 END IF
 
-#if (PP_TimeDiscMethod==42)
-! Sum of collision probabilities for the collision pair, required for the correct reaction rate
-IF(ChemReac%NumOfReact.GT.0) THEN
-  IF (ChemReac%CollCaseInfo(iCase)%NumOfReactionPaths.GT.0) THEN
-    CollProb = Coll_pData(iPair)%Prob
-    IF(SpecDSMC(iSpec_p1)%UseCollXSec) THEN
-      ! Calculate the collision probability for the null collision probability case
-      IF(BGGas%BackgroundSpecies(iSpec_p2)) THEN
-        IF(XSec_NullCollision) THEN
-          IF(BGGas%UseDistribution) THEN
-            CollProb = CollProb * SpecXSec(iCase)%ProbNullElem(iElem)
+IF (DSMC%ReservoirSimu) THEN
+  ! Sum of collision probabilities for the collision pair, required for the correct reaction rate
+  IF(ChemReac%NumOfReact.GT.0) THEN
+    IF (ChemReac%CollCaseInfo(iCase)%NumOfReactionPaths.GT.0) THEN
+      CollProb = Coll_pData(iPair)%Prob
+      IF(SpecDSMC(iSpec_p1)%UseCollXSec) THEN
+        ! Calculate the collision probability for the null collision probability case
+        IF(BGGas%BackgroundSpecies(iSpec_p2)) THEN
+          IF(XSec_NullCollision) THEN
+            IF(BGGas%UseDistribution) THEN
+              CollProb = CollProb * SpecXSec(iCase)%ProbNullElem(iElem)
+            ELSE
+              CollProb = CollProb * SpecXSec(iCase)%ProbNull
+            END IF
           ELSE
-            CollProb = CollProb * SpecXSec(iCase)%ProbNull
+            IF(BGGas%UseDistribution)THEN
+              CollProb = CollProb * BGGas%SpeciesFractionElem(BGGas%MapSpecToBGSpec(iSpec_p2),iElem)
+            ELSE
+              CollProb = CollProb * BGGas%SpeciesFraction(BGGas%MapSpecToBGSpec(iSpec_p2))
+            END IF ! BGGas%UseDistribution
           END IF
-        ELSE
-          IF(BGGas%UseDistribution)THEN
-            CollProb = CollProb * BGGas%SpeciesFractionElem(BGGas%MapSpecToBGSpec(iSpec_p2),iElem)
-          ELSE
-            CollProb = CollProb * BGGas%SpeciesFraction(BGGas%MapSpecToBGSpec(iSpec_p2))
-          END IF ! BGGas%UseDistribution
         END IF
       END IF
+      ChemReac%ReacCollMean(iCase) = ChemReac%ReacCollMean(iCase) + CollProb
     END IF
-    ChemReac%ReacCollMean(iCase) = ChemReac%ReacCollMean(iCase) + CollProb
   END IF
 END IF
-#endif
 
 END SUBROUTINE DSMC_prob_calc
 

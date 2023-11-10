@@ -102,6 +102,11 @@ INTEGER(HID_T)                 :: Plist_ID
 CHARACTER(LEN=255)             :: ProgramName
 LOGICAL                        :: help
 !===================================================================================================================================
+IF(.NOT.FILEEXISTS(FileName))THEN
+  SWRITE(UNIT_stdOut,'(A)')' ERROR: The file does not exit! FileName: '//TRIM(FileName)
+  isValidHDF5File=.FALSE.
+  RETURN
+END IF ! .NOT.FILEEXISTS(FileName)
 isValidHDF5File=.TRUE.
 iError=0
 FileVersionRealRef=-1.0
@@ -182,7 +187,7 @@ CALL H5OPEN_F(iError)
 CALL H5PCREATE_F(H5P_FILE_ACCESS_F, Plist_ID, iError)
 #if USE_MPI
 ! Setup file access property list with parallel I/O access (MPI)
-CALL H5PSET_FAPL_MPIO_F(Plist_ID,MPI_COMM_WORLD, MPIInfo, iError)
+CALL H5PSET_FAPL_MPIO_F(Plist_ID,MPI_COMM_PICLAS, MPIInfo, iError)
 #endif /*USE_MPI*/
 
 ! Check if file exists
@@ -637,7 +642,7 @@ END IF
 CALL H5AOPEN_F(Loc_ID, TRIM(AttribName), Attr_ID, iError)
 
 IF(iError.NE.0) CALL abort(__STAMP__,&
-    'Attribute '//TRIM(AttribName)//' does not exist or h5 file already opened by a differen program')
+    'Attribute ['//TRIM(AttribName)//'] does not exist or h5 file already opened by a differen program')
 
 IF(PRESENT(RealArray))     RealArray=0.
 IF(PRESENT(RealScalar))    RealScalar=0.
@@ -699,7 +704,7 @@ IMPLICIT NONE
 ! INPUT/OUTPUT VARIABLES
 CHARACTER(LEN=*),INTENT(IN)    :: FileName          !< filename to check
 #if USE_MPI
-LOGICAL,INTENT(IN)             :: single            !< switch whether file is being accessed in parallel my MPI_COMM_WORLD
+LOGICAL,INTENT(IN)             :: single            !< switch whether file is being accessed in parallel my MPI_COMM_PICLAS
 #endif
 CHARACTER(LEN=255),INTENT(OUT) :: NextFileName_HDF5 !< output: follow up file according to checked file opened
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -720,7 +725,7 @@ CALL H5PCREATE_F(H5P_FILE_ACCESS_F, Plist_ID, iError)
 #if USE_MPI
 IF(.NOT.single)THEN
   ! Set property list to MPI IO
-  CALL H5PSET_FAPL_MPIO_F(Plist_ID, MPI_COMM_WORLD, MPI_INFO_NULL, iError)
+  CALL H5PSET_FAPL_MPIO_F(Plist_ID, MPI_COMM_PICLAS, MPI_INFO_NULL, iError)
 END IF
 #endif /*USE_MPI*/
 ! Open file

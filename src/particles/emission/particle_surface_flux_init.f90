@@ -139,7 +139,6 @@ USE MOD_Restart_Vars           ,ONLY: DoRestart, RestartTime
 USE MOD_DSMC_Vars              ,ONLY: AmbiPolarSFMapping, DSMC, useDSMC
 #if USE_MPI
 USE MOD_Particle_Vars          ,ONLY: DoPoissonRounding, DoTimeDepInflow
-USE MOD_Particle_MPI_Vars      ,ONLY: PartMPI
 #endif /*USE_MPI*/
 #ifdef CODE_ANALYZE
 USE MOD_Particle_Vars          ,ONLY: CountCircInflowType
@@ -182,8 +181,8 @@ DoSurfaceFlux=.FALSE.
 CALL ReadInAndPrepareSurfaceFlux(MaxSurfacefluxBCs, nDataBC)
 
 #if USE_MPI
-CALL MPI_ALLREDUCE(MPI_IN_PLACE,DoPoissonRounding,1,MPI_LOGICAL,MPI_LAND,PartMPI%COMM,iError) !set T if this is for all procs
-CALL MPI_ALLREDUCE(MPI_IN_PLACE,DoTimeDepInflow,1,MPI_LOGICAL,MPI_LAND,PartMPI%COMM,iError) !set T if this is for all procs
+CALL MPI_ALLREDUCE(MPI_IN_PLACE,DoPoissonRounding,1,MPI_LOGICAL,MPI_LAND,MPI_COMM_PICLAS,iError) !set T if this is for all procs
+CALL MPI_ALLREDUCE(MPI_IN_PLACE,DoTimeDepInflow,1,MPI_LOGICAL,MPI_LAND,MPI_COMM_PICLAS,iError) !set T if this is for all procs
 #endif /*USE_MPI*/
 
 CALL CreateSideListAndFinalizeAreasSurfFlux(nDataBC, BCdata_auxSFTemp)
@@ -253,7 +252,7 @@ DO iSpec=1,nSpecies
     IF(.NOT.Species(iSpec)%Surfaceflux(iSF)%CircularInflow) THEN
       totalAreaSF_global = 0.0
       CALL MPI_ALLREDUCE(Species(iSpec)%Surfaceflux(iSF)%totalAreaSF,totalAreaSF_global,1, &
-                          MPI_DOUBLE_PRECISION,MPI_SUM,PartMPI%COMM,IERROR)
+                          MPI_DOUBLE_PRECISION,MPI_SUM,MPI_COMM_PICLAS,IERROR)
       Species(iSpec)%Surfaceflux(iSF)%totalAreaSF = totalAreaSF_global
     END IF
 #endif
@@ -340,7 +339,7 @@ DO iSpec=1,nSpecies
 END DO    ! iSpec=1,nSpecies
 
 #if USE_MPI
-CALL MPI_ALLREDUCE(MPI_IN_PLACE,DoSurfaceFlux,1,MPI_LOGICAL,MPI_LOR,PartMPI%COMM,iError) !set T if at least 1 proc have SFs
+CALL MPI_ALLREDUCE(MPI_IN_PLACE,DoSurfaceFlux,1,MPI_LOGICAL,MPI_LOR,MPI_COMM_PICLAS,iError) !set T if at least 1 proc have SFs
 #endif  /*USE_MPI*/
 IF (.NOT.DoSurfaceFlux) THEN !-- no SFs defined
   LBWRITE(*,*) 'WARNING: No Sides for SurfacefluxBCs found! DoSurfaceFlux is now disabled!'
@@ -629,9 +628,8 @@ DO BCSideID=1,nBCSides
   iLocSide = SideToElem(S2E_LOC_SIDE_ID,BCSideID)
   SideID=GetGlobalNonUniqueSideID(offsetElem+ElemID,iLocSide)
   IF (TriaSurfaceFlux) THEN
-    IF (SurfFluxSideSize(1).NE.1 .OR. SurfFluxSideSize(2).NE.2) CALL abort(&
-__STAMP__&
-, 'SurfFluxSideSize must be 1,2 for TriaSurfaceFlux!')
+    IF (SurfFluxSideSize(1).NE.1 .OR. SurfFluxSideSize(2).NE.2) CALL abort(__STAMP__,&
+      'SurfFluxSideSize must be 1,2 for TriaSurfaceFlux!')
     DO jSample=1,SurfFluxSideSize(2); DO iSample=1,SurfFluxSideSize(1)
       CALL CalcNormAndTangTriangle(SideID=SideID,nVec=tmp_Vec_nOut(:,iSample,jSample) &
         ,tang1=tmp_Vec_t1(:,iSample,jSample) &
@@ -641,9 +639,8 @@ __STAMP__&
       SurfMeshSideAreas(BCSideID)=SurfMeshSideAreas(BCSideID)+tmp_SubSideAreas(iSample,jSample)
     END DO; END DO
   ELSE
-    IF (ANY(SurfFluxSideSize.NE.BezierSampleN)) CALL abort(&
-__STAMP__&
-, 'SurfFluxSideSize must be BezierSampleN,BezierSampleN for .NOT.TriaSurfaceFlux!')
+    IF (ANY(SurfFluxSideSize.NE.BezierSampleN)) CALL abort(__STAMP__,&
+      'SurfFluxSideSize must be BezierSampleN,BezierSampleN for .NOT.TriaSurfaceFlux!')
     CALL GetBezierSampledAreas(SideID=SideID &
       ,BezierSampleN=BezierSampleN &
       ,SurfMeshSubSideAreas=tmp_SubSideAreas &
@@ -695,9 +692,6 @@ USE MOD_Particle_Vars          ,ONLY: UseCircularInflow, Species, DoSurfaceFlux,
 USE MOD_DSMC_Symmetry          ,ONLY: DSMC_1D_CalcSymmetryArea, DSMC_2D_CalcSymmetryArea, DSMC_2D_CalcSymmetryAreaSubSides
 USE MOD_DSMC_Vars              ,ONLY: RadialWeighting
 USE MOD_Particle_Surfaces      ,ONLY: CalcNormAndTangTriangle
-#if USE_MPI
-USE MOD_Particle_MPI_Vars      ,ONLY: PartMPI
-#endif /*USE_MPI*/
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -829,9 +823,8 @@ DO iBC=1,countDataBC
       !----- symmetry specific area calculation end
       IF (TrackingMethod.NE.TRIATRACKING) THEN !check that all sides are planar if TriaSurfaceFlux is used for tracing or refmapping
         CNSideID = GetCNSideID(SideID)
-        IF (SideType(CNSideID).NE.PLANAR_RECT .AND. SideType(CNSideID).NE.PLANAR_NONRECT) CALL abort(&
-__STAMP__&
-,'every surfaceflux-sides must be planar if TriaSurfaceFlux is used for tracing or refmapping!!!')
+        IF (SideType(CNSideID).NE.PLANAR_RECT .AND. SideType(CNSideID).NE.PLANAR_NONRECT) CALL abort(__STAMP__,&
+          'every surfaceflux-sides must be planar if TriaSurfaceFlux is used for tracing or refmapping!!!')
       END IF ! TrackingMethod.NE.TRIATRACKING
 
       DO jSample=1,SurfFluxSideSize(2); DO iSample=1,SurfFluxSideSize(1)
@@ -853,9 +846,7 @@ __STAMP__&
     !-- next Side
     IF (BCSideID .EQ. TmpSideEnd(iBC)) THEN
       IF (TmpSideNumber(iBC).NE.iCount) THEN
-        CALL abort(&
-__STAMP__&
-,'Someting is wrong with TmpSideNumber of iBC',iBC,999.)
+        CALL abort(__STAMP__,'Someting is wrong with TmpSideNumber of iBC',iBC,999.)
       ELSE
 #ifdef CODE_ANALYZE
         IPWRITE(*,'(I4,I7,A53,I0)') iCount,' Sides have been found for Surfaceflux-linked PartBC ',TmpMapToBC(iBC)
@@ -875,7 +866,7 @@ END DO !iBC
    DO iPartBound=1,nPartBound
      areasLoc(iPartBound)=BCdata_auxSF(iPartBound)%LocalArea
    END DO
-   CALL MPI_ALLREDUCE(areasLoc,areasGlob,nPartBound,MPI_DOUBLE_PRECISION,MPI_SUM,PartMPI%COMM,IERROR)
+   CALL MPI_ALLREDUCE(areasLoc,areasGlob,nPartBound,MPI_DOUBLE_PRECISION,MPI_SUM,MPI_COMM_PICLAS,IERROR)
 #endif
    DO iPartBound=1,nPartBound
 #if USE_MPI
@@ -883,8 +874,6 @@ END DO !iBC
 #else
      BCdata_auxSF(iPartBound)%GlobalArea=BCdata_auxSF(iPartBound)%LocalArea
 #endif
-!     IPWRITE(*,'(I4,A,I4,2(x,E16.8))') 'areas:-', &
-!       iPartBound,BCdata_auxSF(iPartBound)%GlobalArea,BCdata_auxSF(iPartBound)%LocalArea
    END DO
 #if USE_MPI
    DEALLOCATE(areasLoc,areasGlob)
@@ -1054,9 +1043,6 @@ SUBROUTINE InitReduceNoiseSF(iSpec, iSF)
 ! MODULES
 USE MOD_Globals
 USE MOD_Particle_Vars          ,ONLY: Species
-#if USE_MPI
-USE MOD_Particle_MPI_Vars      ,ONLY: PartMPI
-#endif /*USE_MPI*/
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1078,9 +1064,9 @@ ELSE
 END IF !MPIroot
 #if USE_MPI
 CALL MPI_GATHER(Species(iSpec)%Surfaceflux(iSF)%VFR_total,1,MPI_DOUBLE_PRECISION &
-  ,Species(iSpec)%Surfaceflux(iSF)%VFR_total_allProcs,1,MPI_DOUBLE_PRECISION,0,PartMPI%COMM,iError)
+  ,Species(iSpec)%Surfaceflux(iSF)%VFR_total_allProcs,1,MPI_DOUBLE_PRECISION,0,MPI_COMM_PICLAS,iError)
 IF(MPIroot)THEN
-  DO iProc=0,PartMPI%nProcs-1
+  DO iProc=0,nProcessors-1
     Species(iSpec)%Surfaceflux(iSF)%VFR_total_allProcsTotal = Species(iSpec)%Surfaceflux(iSF)%VFR_total_allProcsTotal &
       + Species(iSpec)%Surfaceflux(iSF)%VFR_total_allProcs(iProc)
   END DO

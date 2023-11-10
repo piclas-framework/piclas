@@ -525,9 +525,12 @@ SUBROUTINE BGGas_DeleteParticles()
 ! Deletes all background gas particles and updates the particle index list
 !===================================================================================================================================
 ! MODULES
-USE MOD_DSMC_Vars,          ONLY : BGGas
-USE MOD_PARTICLE_Vars,      ONLY : PDM, PartSpecies
-USE MOD_part_tools,         ONLY : UpdateNextFreePosition
+USE MOD_DSMC_Vars           ,ONLY: BGGas
+USE MOD_PARTICLE_Vars       ,ONLY: PDM, PartSpecies
+USE MOD_part_tools          ,ONLY: UpdateNextFreePosition
+#if USE_LOADBALANCE
+USE MOD_LoadBalance_Timers  ,ONLY: LBStartTime, LBPauseTime
+#endif /*USE_LOADBALANCE*/
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -537,13 +540,24 @@ USE MOD_part_tools,         ONLY : UpdateNextFreePosition
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER                     :: iPart
+#if USE_LOADBALANCE
+REAL                        :: tLBStart
+#endif /*USE_LOADBALANCE*/
 !===================================================================================================================================
+#if USE_LOADBALANCE
+CALL LBStartTime(tLBStart)
+#endif /*USE_LOADBALANCE*/
+
 DO iPart = 1, PDM%ParticleVecLength
   IF (PDM%ParticleInside(iPart)) THEN
     IF(BGGas%BackgroundSpecies(PartSpecies(iPart))) PDM%ParticleInside(iPart) = .FALSE.
   END IF
 END DO
 BGGas%PairingPartner = 0
+
+#if USE_LOADBALANCE
+CALL LBPauseTime(LB_DSMC,tLBStart)
+#endif /*USE_LOADBALANCE*/
 
 CALL UpdateNextFreePosition()
 
@@ -785,6 +799,10 @@ IF(PDM%ParticleVecLength.GT.PDM%MaxParticleNumber) CALL Abort(__STAMP__&
 
 !> 4.) Perform the reaction, distribute the collision energy (including photon energy) and emit electrons perpendicular
 !>     to the photon's path
+ASSOCIATE(b1          => Species(iSpec)%Init(iInit)%NormalVector1IC(1:3) ,&
+          b2          => Species(iSpec)%Init(iInit)%NormalVector2IC(1:3) ,&
+          normal      => Species(iSpec)%Init(iInit)%NormalIC             ,&
+          PartBCIndex => Species(iSpec)%Init(iInit)%PartBCIndex)
 IF(NbrOfPhotonXsecReactions.GT.0)THEN
   DO iPart = 1, SUM(NumPhotoIonization(:))
     ! Loop over all randomized lines (found above)
@@ -797,10 +815,9 @@ IF(NbrOfPhotonXsecReactions.GT.0)THEN
         DO iPhotoReac = 1, NbrOfPhotonXsecReactions
           IF(PhotonEnergies(iLine,1+iPhotoReac).GT.0)THEN
             ! Reduce cross-section by one
-    !IPWRITE(UNIT_StdOut,'(I6,3(A,I3))') "  calling  iLine =",iLine," iPhotoReac =",iPhotoReac," iReac =",PhotoReacToReac(iPhotoReac)
             PhotonEnergies(iLine,1+iPhotoReac) = PhotonEnergies(iLine,1+iPhotoReac) - 1
             iPair = iPair + 1
-            CALL PhotoIonization_InsertProducts(iPair, PhotoReacToReac(iPhotoReac), iInit, iSpec, iLineOpt=iLine)
+            CALL PhotoIonization_InsertProducts(iPair, PhotoReacToReac(iPhotoReac), b1, b2, normal, iLineOpt=iLine, PartBCIndex=PartBCIndex)
           END IF ! PhotonEnergies(iLine,1+iPhotoReac).GT.0
         END DO ! iPhotoReac = 1, NbrOfPhotonXsecReactions
       END DO
@@ -811,10 +828,11 @@ ELSE
     IF(TRIM(ChemReac%ReactModel(iReac)).NE.'phIon') CYCLE
     DO iPart = 1, NumPhotoIonization(iReac)
       iPair = iPair + 1
-      CALL PhotoIonization_InsertProducts(iPair, iReac, iInit, iSpec)
+      CALL PhotoIonization_InsertProducts(iPair, iReac, b1, b2, normal, PartBCIndex=PartBCIndex)
     END DO
   END DO
 END IF ! NbrOfPhotonXsecReactions.GT.0
+END ASSOCIATE
 
 ! Advance particle vector length and the current next free position with newly created particles
 PDM%ParticleVecLength = PDM%ParticleVecLength + DSMCSumOfFormedParticles
@@ -862,7 +880,7 @@ REAL, ALLOCATABLE                 :: ElemDataHDF5(:,:)
 
 LBWRITE(UNIT_stdOut,*) 'BGGas distribution - Using macroscopic values from file: ',TRIM(MacroRestartFileName)
 
-CALL OpenDataFile(MacroRestartFileName,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_WORLD)
+CALL OpenDataFile(MacroRestartFileName,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_PICLAS)
 
 CALL GetDataSize(File_ID,'ElemData',nDims,HSize,attrib=.FALSE.)
 nVarHDF5  = INT(HSize(1),4)
@@ -1145,7 +1163,7 @@ END SUBROUTINE BGGas_InitRegions
 
 
 !===================================================================================================================================
-!> Background gas regions: Set the internal temperatures in case of DSMC and CollisMode = 2/3 (not yet available during 
+!> Background gas regions: Set the internal temperatures in case of DSMC and CollisMode = 2/3 (not yet available during
 !> BGGas_InitRegions). Loop over all elements, species and inits per species to set values for molecules and/or atoms.
 !===================================================================================================================================
 SUBROUTINE BGGas_RegionsSetInternalTemp()

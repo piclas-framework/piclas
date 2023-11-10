@@ -26,7 +26,7 @@ INTERFACE radiation_main
 END INTERFACE
 
 !-----------------------------------------------------------------------------------------------------------------------------------
-! GLOBAL VARIABLES 
+! GLOBAL VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
@@ -39,7 +39,7 @@ CONTAINS
 SUBROUTINE radiation_main(iElem)
 !===================================================================================================================================
 ! Main routine of the radiation solver, called cell-locally in the radtrans_init.f90 in each computational cell to calculate the
-! local emission and absorption coefficients needed to solve the radiative transfer equation 
+! local emission and absorption coefficients needed to solve the radiative transfer equation
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
@@ -116,10 +116,11 @@ USE MOD_Radiation_ExportSpectrum
   ! WRITE(*,*) 'continuum emission : ', em_cont, '[w/m³]'
   ! WRITE(*,*) 'total emission     : ', em_tot, '[w/m³]'
   ! WRITE(*,*) ''
- 
+
   DO iWave=1, RadiationParameter%WaveLenDiscrCoarse
     sumAbsSpecies =SUM(Radiation_Absorption_SpeciesWave(iWave, :))
-    IF(sumAbsSpecies.GT.0.0) Radiation_Absorption_SpecPercent(iWave,:,GetGlobalElemID(iElem)) = NINT(Radiation_Absorption_SpeciesWave(iWave, :)/sumAbsSpecies*10000.)
+    ! Cast to INTEGER KIND=2
+    IF(sumAbsSpecies.GT.0.0) Radiation_Absorption_SpecPercent(iWave,:,GetGlobalElemID(iElem)) = NINT(Radiation_Absorption_SpeciesWave(iWave, :)/sumAbsSpecies*10000., 2)
   END DO
 
   IF((RadiationSwitches%RadType.EQ.3) .AND. (nGlobalElems.EQ.1)) THEN

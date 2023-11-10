@@ -169,7 +169,7 @@ USE MOD_ReadInTools
     ALLOCATE(SpeciesRadiation(iSpec)%EnergyLevelName(length))
     DO iLoop=1, length
       READ(304,*,IOSTAT = errtemp) hilf 
-      DO WHILE (hilf(1:1).EQ.'c ')
+      DO WHILE (hilf(1:1).EQ.'c')
         READ(304,*,IOSTAT = errtemp) hilf    
       END DO
       SpeciesRadiation(iSpec)%EnergyLevelName(iLoop) = TRIM(hilf)

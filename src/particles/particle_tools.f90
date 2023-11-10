@@ -77,6 +77,8 @@ PUBLIC :: InitializeParticleMaxwell
 PUBLIC :: InterpolateEmissionDistribution2D
 PUBLIC :: MergeCells,InRotRefFrameCheck
 PUBLIC :: CalcPartSymmetryPos
+PUBLIC :: StoreLostPhotonProperties
+PUBLIC :: RotateVectorAroundAxis
 !===================================================================================================================================
 
 CONTAINS
@@ -225,6 +227,105 @@ CALL LBPauseTime(LB_UNFP,tLBStart)
 #endif /*USE_LOADBALANCE*/
 
 END SUBROUTINE UpdateNextFreePosition
+
+
+SUBROUTINE StoreLostPhotonProperties(ElemID,CallingFileName,LineNbrOfCall,ErrorCode)
+!----------------------------------------------------------------------------------------------------------------------------------!
+! Store information of a lost photons during tracking
+!----------------------------------------------------------------------------------------------------------------------------------!
+! MODULES                                                                                                                          !
+USE MOD_Globals                ,ONLY: abort,myrank
+USE MOD_Particle_Tracking_Vars ,ONLY: PartStateLost,PartLostDataSize,PartStateLostVecLength
+USE MOD_TimeDisc_Vars          ,ONLY: time
+USE MOD_Photon_TrackingVars    ,ONLY: PhotonProps
+USE MOD_Particle_Tracking_Vars ,ONLY: NbrOfLostParticles,DisplayLostParticles
+!----------------------------------------------------------------------------------------------------------------------------------!
+! insert modules here
+!----------------------------------------------------------------------------------------------------------------------------------!
+IMPLICIT NONE
+! INPUT / OUTPUT VARIABLES
+CHARACTER(LEN=*),INTENT(IN) :: CallingFileName ! Name of calling file
+INTEGER,INTENT(IN)          :: LineNbrOfCall   ! Line number from which this function was called from CallingFileName
+INTEGER,INTENT(IN)          :: ElemID ! Global element index
+INTEGER,INTENT(IN)          :: ErrorCode ! Code for identifying the type of error that was encountered.
+!                                        !   999: lost during tracking
+!                                        !  9999: lost during tracking but reached MaxIterPhoton(1) (bilinear tracking)
+!                                        ! 99999: lost during tracking but reached MaxIterPhoton(2) (TriaTracking)
+INTEGER                     :: dims(2)
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+! Temporary arrays
+REAL, ALLOCATABLE :: PartStateLost_tmp(:,:) ! (1:11,1:NParts) 1st index: x,y,z,vx,vy,vz,SpecID,MPF,time,ElemID,iPart
+!                                           !                 2nd index: 1 to number of lost particles
+INTEGER           :: ALLOCSTAT
+CHARACTER(LEN=60) :: hilf
+!===================================================================================================================================
+
+! Increment counter for lost particle per process
+NbrOfLostParticles=NbrOfLostParticles+1
+
+! Output in terminal if activated
+IF(DisplayLostParticles)THEN
+  WRITE(UNIT=hilf,FMT='(I0)') LineNbrOfCall
+  IPWRITE(*,*) 'Error in photon tracking in '//TRIM(CallingFileName)//' in line '//TRIM(hilf)//'! Photon lost. Element:', ElemID
+  IPWRITE(*,*) 'LastPos:  ', PhotonProps%PhotonLastPos(1:3)
+  IPWRITE(*,*) 'Pos:      ', PhotonProps%PhotonPos(1:3)
+  IPWRITE(*,*) 'Direction:', PhotonProps%PhotonDirection(1:3)
+  IPWRITE(*,*) 'Photon deleted!'
+END IF ! DisplayLostParticles
+
+! Check if size of the array must be increased
+dims = SHAPE(PartStateLost)
+
+ASSOCIATE( iMax        => PartStateLostVecLength           , &
+           LastPhotPos => PhotonProps%PhotonLastPos(1:3)   , &
+           PhotPos     => PhotonProps%PhotonPos(1:3)       , &
+           Dir         => PhotonProps%PhotonDirection(1:3) )
+  ! Increase maximum number of boundary-impact particles
+  iMax = iMax + 1
+
+  ! Check if array maximum is reached.
+  ! If this happens, re-allocate the arrays and increase their size (every time this barrier is reached, double the size)
+  IF(iMax.GT.dims(2))THEN
+
+    ! --- PartStateLost ---
+    ALLOCATE(PartStateLost_tmp(1:PartLostDataSize,1:dims(2)), STAT=ALLOCSTAT)
+    IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__,'ERROR in particle_boundary_tools.f90: Cannot allocate PartStateLost_tmp array!')
+    ! Save old data
+    PartStateLost_tmp(1:PartLostDataSize,1:dims(2)) = PartStateLost(1:PartLostDataSize,1:dims(2))
+
+    ! Re-allocate PartStateLost to twice the size
+    DEALLOCATE(PartStateLost)
+    ALLOCATE(PartStateLost(1:PartLostDataSize,1:2*dims(2)), STAT=ALLOCSTAT)
+    IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__,'ERROR in particle_boundary_tools.f90: Cannot allocate PartStateLost array!')
+    PartStateLost(1:PartLostDataSize,        1:  dims(2)) = PartStateLost_tmp(1:PartLostDataSize,1:dims(2))
+    PartStateLost(1:PartLostDataSize,dims(2)+1:2*dims(2)) = 0.
+
+  END IF
+
+  ! 1-3: Particle position (current position)
+  PartStateLost(1:3,iMax) = PhotPos(1:3)
+  ! 4-6: Particle velocity
+  PartStateLost(4:6  ,iMax) = Dir(1:3)
+  ! 7: SpeciesID
+  PartStateLost(7    ,iMax) = REAL(ErrorCode)
+  ! 8: Macro particle factor
+  PartStateLost(8    ,iMax) = 0.0
+  ! 9: time of loss
+  PartStateLost(9    ,iMax) = time
+  ! 10: Global element ID
+  PartStateLost(10   ,iMax) = REAL(ElemID)
+  ! 11: Particle ID
+  PartStateLost(11   ,iMax) = REAL(0)
+  ! 12-14: Particle position (starting point or last valid position)
+  PartStateLost(12:14,iMax) = LastPhotPos(1:3)
+  ! 15: myrank
+  PartStateLost(15,iMax) = myrank
+  ! 16: missing type, i.e., 0: lost, 1: missing & found once, >1: missing & multiply found
+  PartStateLost(16,iMax) = 0
+END ASSOCIATE
+
+END SUBROUTINE StoreLostPhotonProperties
 
 
 SUBROUTINE StoreLostParticleProperties(iPart,ElemID,UsePartState_opt,PartMissingType_opt)
@@ -1563,5 +1664,48 @@ ELSE
 END IF ! Symmetry%SphericalSymmetric
 
 END SUBROUTINE CalcPartSymmetryPos
+
+
+PPURE FUNCTION RotateVectorAroundAxis(VecIn,Axis,Angle)
+!===================================================================================================================================
+!> Rotate a given vector around one of the major axis using a given angle, output is the rotated vector
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+REAL,INTENT(IN)         :: VecIn(1:3)     !< 3D input vector
+INTEGER,INTENT(IN)      :: Axis           !< Major axis as rotational axis
+REAL,INTENT(IN)         :: Angle          !< Rotational angle
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+REAL                    :: RotateVectorAroundAxis(1:3)
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER                 :: k,l,m
+!===================================================================================================================================
+
+SELECT CASE(Axis)
+CASE(1) ! x-rotation axis
+  k = 1
+  l = 2
+  m = 3
+CASE(2) ! y-rotation axis
+  k = 2
+  l = 3
+  m = 1
+CASE(3) ! z-rotation axis
+  k = 3
+  l = 1
+  m = 2
+END SELECT
+
+RotateVectorAroundAxis(k) = VecIn(k)
+RotateVectorAroundAxis(l) = COS(Angle)*VecIn(l) - SIN(Angle)*VecIn(m)
+RotateVectorAroundAxis(m) = SIN(Angle)*VecIn(l) + COS(Angle)*VecIn(m)
+
+END FUNCTION RotateVectorAroundAxis
 
 END MODULE MOD_part_tools

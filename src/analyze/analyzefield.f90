@@ -63,6 +63,7 @@ USE MOD_Globals
 USE MOD_Preproc
 USE MOD_Analyze_Vars          ,ONLY: DoFieldAnalyze,CalcEpot,WEl
 USE MOD_Analyze_Vars          ,ONLY: CalcBoundaryFieldOutput,BFO
+USE MOD_Mesh_Vars             ,ONLY: BoundaryName
 #if (PP_nVar>=6)
 USE MOD_Analyze_Vars          ,ONLY: CalcPoyntingInt,nPoyntingIntPlanes,PosPoyntingInt
 #endif /*PP_nVar>=6*/
@@ -75,7 +76,6 @@ USE MOD_Dielectric_Vars       ,ONLY: DoDielectric
 #if USE_HDG
 USE MOD_HDG_Vars              ,ONLY: HDGNorm,iterationTotal,RunTimeTotal,UseFPC,FPC,UseEPC,EPC
 USE MOD_Analyze_Vars          ,ONLY: AverageElectricPotential,CalcAverageElectricPotential,EDC,CalcElectricTimeDerivative
-USE MOD_Mesh_Vars             ,ONLY: BoundaryName
 USE MOD_TimeDisc_Vars         ,ONLY: dt
 #endif /*USE_HDG*/
 #ifdef PARTICLES
@@ -246,8 +246,9 @@ IF(MPIROOT)THEN
       IF(CalcBoundaryFieldOutput)THEN
         DO iBoundary=1,BFO%NFieldBoundaries
           nOutputVarTotal = nOutputVarTotal + 1
-          WRITE(StrVarNameTmp,'(A,I0.3)') 'BFO-boundary',iBoundary
-          WRITE(tmpStr(nOutputVarTotal),'(A,I0.3,A)')delimiter//'"',nOutputVarTotal,'-'//TRIM(StrVarNameTmp)//'"'
+          WRITE(StrVarNameTmp,'(A,I0.3)') 'BFO-boundary-',iBoundary
+          WRITE(tmpStr(nOutputVarTotal),'(A,I0.3,A)')delimiter//'"',nOutputVarTotal,'-'//TRIM(StrVarNameTmp)//'-'//&
+              TRIM(BoundaryName(BFO%FieldBoundaries(iBoundary)))//'"'
         END DO
       END IF
 
@@ -367,7 +368,7 @@ IF(MPIROOT)THEN
   ! ! Add BoundaryFieldOutput for each boundary that is required
   IF(CalcBoundaryFieldOutput)THEN
     DO iBoundary=1,BFO%NFieldBoundaries
-      CALL CalculateBoundaryFieldOutput(iBoundary,Time,BoundaryFieldOutput)
+      CALL CalculateBoundaryFieldOutput(BFO%FieldBoundaries(iBoundary),Time,BoundaryFieldOutput)
       WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',',BoundaryFieldOutput
     END DO
   END IF ! CalcBoundaryFieldOutput
@@ -557,7 +558,7 @@ DO iELEM = 1, nElems
 END DO ! iElems
 
 #if USE_MPI
-  CALL MPI_REDUCE   (PoyntingIntegral(:) , SumSabs(:) , nPoyntingIntPlanes , MPI_DOUBLE_PRECISION ,MPI_SUM, 0, MPI_COMM_WORLD,IERROR)
+  CALL MPI_REDUCE(PoyntingIntegral(:) , SumSabs(:) , nPoyntingIntPlanes , MPI_DOUBLE_PRECISION ,MPI_SUM, 0, MPI_COMM_PICLAS,IERROR)
   PoyntingIntegral(:) = SumSabs(:)
 #endif /*USE_MPI*/
 
@@ -802,7 +803,7 @@ END DO ! iPlanes
 ! prolonged values of mu_r and no MPI information has to be sent. The master side cannot currently be outside of the dielectric
 ! region (e.g. in vacuum) because that is not allowed. If this would be allowed that MPI rank would need the information of the
 ! prolonged dielectric material properties from the slave side
-  CALL MPI_ALLREDUCE(MPI_IN_PLACE,PoyntingUseMuR_Inv,1,MPI_LOGICAL,MPI_LOR,MPI_COMM_WORLD,iError)
+  CALL MPI_ALLREDUCE(MPI_IN_PLACE,PoyntingUseMuR_Inv,1,MPI_LOGICAL,MPI_LOR,MPI_COMM_PICLAS,iError)
 #endif
 ! Determine mu_r on faces within a dielectric region for calculating the Poynting vector and communicate the
 ! prolonged values via MPI
@@ -814,9 +815,9 @@ ALLOCATE(sumFaces(nPoyntingIntPlanes))
 #if USE_MPI
 sumFaces=0
 sumAllFaces=0
-  CALL MPI_REDUCE(nFaces , sumFaces , nPoyntingIntPlanes , MPI_INTEGER, MPI_SUM,0, MPI_COMM_WORLD, IERROR)
+  CALL MPI_REDUCE(nFaces , sumFaces , nPoyntingIntPlanes , MPI_INTEGER, MPI_SUM,0, MPI_COMM_PICLAS, IERROR)
   !nFaces(:) = sumFaces(:)
-  CALL MPI_REDUCE(nPoyntingIntSides , sumAllFaces , 1 , MPI_INTEGER, MPI_SUM,0, MPI_COMM_WORLD, IERROR)
+  CALL MPI_REDUCE(nPoyntingIntSides , sumAllFaces , 1 , MPI_INTEGER, MPI_SUM,0, MPI_COMM_PICLAS, IERROR)
   !nPoyntingIntSides = sumAllFaces
 #else
 sumFaces=nFaces
@@ -995,18 +996,18 @@ Wpsi = Wpsi * smu0*0.5
 #if USE_MPI
 ! todo: only one reduce with array
 IF(MPIRoot)THEN
-  CALL MPI_REDUCE(MPI_IN_PLACE,WEl  , 1 , MPI_DOUBLE_PRECISION, MPI_SUM,0, MPI_COMM_WORLD, IERROR)
+  CALL MPI_REDUCE(MPI_IN_PLACE,WEl  , 1 , MPI_DOUBLE_PRECISION, MPI_SUM,0, MPI_COMM_PICLAS, IERROR)
 #if (PP_nVar==8)
-  CALL MPI_REDUCE(MPI_IN_PLACE,WMag , 1 , MPI_DOUBLE_PRECISION, MPI_SUM,0, MPI_COMM_WORLD, IERROR)
-  CALL MPI_REDUCE(MPI_IN_PLACE,Wphi , 1 , MPI_DOUBLE_PRECISION, MPI_SUM,0, MPI_COMM_WORLD, IERROR)
-  CALL MPI_REDUCE(MPI_IN_PLACE,Wpsi , 1 , MPI_DOUBLE_PRECISION, MPI_SUM,0, MPI_COMM_WORLD, IERROR)
+  CALL MPI_REDUCE(MPI_IN_PLACE,WMag , 1 , MPI_DOUBLE_PRECISION, MPI_SUM,0, MPI_COMM_PICLAS, IERROR)
+  CALL MPI_REDUCE(MPI_IN_PLACE,Wphi , 1 , MPI_DOUBLE_PRECISION, MPI_SUM,0, MPI_COMM_PICLAS, IERROR)
+  CALL MPI_REDUCE(MPI_IN_PLACE,Wpsi , 1 , MPI_DOUBLE_PRECISION, MPI_SUM,0, MPI_COMM_PICLAS, IERROR)
 #endif /*PP_nVar=8*/
 ELSE
-  CALL MPI_REDUCE(WEl         ,RD   , 1 , MPI_DOUBLE_PRECISION, MPI_SUM,0, MPI_COMM_WORLD, IERROR)
+  CALL MPI_REDUCE(WEl         ,RD   , 1 , MPI_DOUBLE_PRECISION, MPI_SUM,0, MPI_COMM_PICLAS, IERROR)
 #if (PP_nVar==8)
-  CALL MPI_REDUCE(WMag        ,RD   , 1 , MPI_DOUBLE_PRECISION, MPI_SUM,0, MPI_COMM_WORLD, IERROR)
-  CALL MPI_REDUCE(Wphi        ,RD   , 1 , MPI_DOUBLE_PRECISION, MPI_SUM,0, MPI_COMM_WORLD, IERROR)
-  CALL MPI_REDUCE(Wpsi        ,RD   , 1 , MPI_DOUBLE_PRECISION, MPI_SUM,0, MPI_COMM_WORLD, IERROR)
+  CALL MPI_REDUCE(WMag        ,RD   , 1 , MPI_DOUBLE_PRECISION, MPI_SUM,0, MPI_COMM_PICLAS, IERROR)
+  CALL MPI_REDUCE(Wphi        ,RD   , 1 , MPI_DOUBLE_PRECISION, MPI_SUM,0, MPI_COMM_PICLAS, IERROR)
+  CALL MPI_REDUCE(Wpsi        ,RD   , 1 , MPI_DOUBLE_PRECISION, MPI_SUM,0, MPI_COMM_PICLAS, IERROR)
 #endif /*PP_nVar=8*/
 END IF
 #endif /*USE_MPI*/
@@ -1196,14 +1197,14 @@ Wpsi = Wpsi * smu0*0.5
 
 #if USE_MPI
 IF(MPIRoot)THEN
-  CALL MPI_REDUCE(MPI_IN_PLACE,WEl  , 1 , MPI_DOUBLE_PRECISION, MPI_SUM,0, MPI_COMM_WORLD, IERROR)
+  CALL MPI_REDUCE(MPI_IN_PLACE,WEl  , 1 , MPI_DOUBLE_PRECISION, MPI_SUM,0, MPI_COMM_PICLAS, IERROR)
 #if (PP_nVar==8)
-  CALL MPI_REDUCE(MPI_IN_PLACE,WMag , 1 , MPI_DOUBLE_PRECISION, MPI_SUM,0, MPI_COMM_WORLD, IERROR)
+  CALL MPI_REDUCE(MPI_IN_PLACE,WMag , 1 , MPI_DOUBLE_PRECISION, MPI_SUM,0, MPI_COMM_PICLAS, IERROR)
 #endif /*PP_nVar=8*/
 ELSE
-  CALL MPI_REDUCE(WEl         ,RD   , 1 , MPI_DOUBLE_PRECISION, MPI_SUM,0, MPI_COMM_WORLD, IERROR)
+  CALL MPI_REDUCE(WEl         ,RD   , 1 , MPI_DOUBLE_PRECISION, MPI_SUM,0, MPI_COMM_PICLAS, IERROR)
 #if (PP_nVar==8)
-  CALL MPI_REDUCE(WMag        ,RD   , 1 , MPI_DOUBLE_PRECISION, MPI_SUM,0, MPI_COMM_WORLD, IERROR)
+  CALL MPI_REDUCE(WMag        ,RD   , 1 , MPI_DOUBLE_PRECISION, MPI_SUM,0, MPI_COMM_PICLAS, IERROR)
 #endif /*PP_nVar=8*/
 END IF
 #endif /*USE_MPI*/
@@ -1501,7 +1502,7 @@ END DO ! iElems
 !AverageElectricPotentialProc = AverageElectricPotentialProc / (1e-4 * 1.28e-2)
 
 #if USE_MPI
-  CALL MPI_ALLREDUCE(AverageElectricPotentialProc , AverageElectricPotential , 1 , MPI_DOUBLE_PRECISION , MPI_SUM , MPI_COMM_WORLD , IERROR)
+  CALL MPI_ALLREDUCE(AverageElectricPotentialProc , AverageElectricPotential , 1 , MPI_DOUBLE_PRECISION , MPI_SUM , MPI_COMM_PICLAS , IERROR)
 #else
   AverageElectricPotential = AverageElectricPotentialProc
 #endif /*USE_MPI*/
@@ -1584,7 +1585,7 @@ DO iElem=1,nElems
 END DO !iElem=1,nElems
 
 #if USE_MPI
-CALL MPI_ALLREDUCE(nAverageElecPotSides , AverageElectricPotentialFaces , 1 , MPI_INTEGER , MPI_SUM , MPI_COMM_WORLD , IERROR)
+CALL MPI_ALLREDUCE(nAverageElecPotSides , AverageElectricPotentialFaces , 1 , MPI_INTEGER , MPI_SUM , MPI_COMM_PICLAS , IERROR)
 #else
 AverageElectricPotentialFaces=nAverageElecPotSides
 #endif /*USE_MPI*/
@@ -1797,7 +1798,7 @@ END SUBROUTINE CalculateElectricDisplacementCurrentSurface
 #endif /*USE_HDG*/
 
 !===================================================================================================================================
-!> Determine the field boundary condition values for the given iBC
+!> Determine the field boundary output (BFO) values for the given iBC
 !===================================================================================================================================
 SUBROUTINE CalculateBoundaryFieldOutput(iBC,Time,BoundaryFieldOutput)
 ! MODULES
@@ -1833,10 +1834,12 @@ ASSOCIATE( x => (/0., 0., 0./) )
     CALL ExactFunc(BCState , x , BoundaryFieldOutput , t=Time)
   CASE(4) ! exact BC = Dirichlet BC !! Zero potential
     BoundaryFieldOutput = 0.
-  CASE(5) ! exact BC = Dirichlet BC !! ExactFunc via RefState (time is optional)
+  CASE(5,51,52,60) ! exact BC = Dirichlet BC !! ExactFunc via RefState (time is optional)
     CALL ExactFunc(  -1    , x , BoundaryFieldOutput , t=Time  , iRefState=BCState)
   CASE(6) ! exact BC = Dirichlet BC !! ExactFunc via RefState (Time is optional)
     CALL ExactFunc(  -2    , x , BoundaryFieldOutput , t=time  , iRefState=BCState)
+  CASE(50) ! exact BC = Dirichlet BC !! ExactFunc via bias voltage DC
+    CALL ExactFunc(  -5    , x , BoundaryFieldOutput )
   END SELECT ! BCType
 END ASSOCIATE
 #else

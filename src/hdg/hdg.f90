@@ -41,7 +41,10 @@ PUBLIC :: HDG, RestartHDG
 PUBLIC :: DefineParametersHDG
 #if USE_MPI
 PUBLIC :: SynchronizeChargeOnFPC,SynchronizeVoltageOnEPC
-#endif /*USE_MPI*/
+#if defined(PARTICLES)
+ PUBLIC :: SynchronizeBV
+#endif /*defined(PARTICLES)*/
+#endif /*USE_MPI */
 #endif /*USE_HDG*/
 !===================================================================================================================================
 
@@ -68,26 +71,24 @@ CALL prms%CreateLogicalOption('NewtonAdaptStartValue'  ,'Initial recomputation o
 CALL prms%CreateIntOption(    'AdaptIterNewtonToLinear','Maximum number of iterations where the exact source derivative is used before it is switched to the linearization', '100')
 CALL prms%CreateIntOption(    'MaxIterNewton'          ,'Maximum number of iterations in the Newton solver', '10000')
 CALL prms%CreateRealOption(   'EpsNonLinear'           ,'Abort residual of the Newton solver', '1.0E-6')
-CALL prms%CreateIntOption(    'PrecondType'            ,'Preconditioner type\n 0: no preconditioner\n 1: Side-block SPD preconditioner'&
-                                                      //' matrix (already Cholesky decomposed)\n 2: Inverse of diagonal preconditioned', '2')
+CALL prms%CreateIntOption(    'PrecondType'            ,'Preconditioner type\n 0: no preconditioner\n 1: Side-block SPD preconditioner matrix (already Cholesky decomposed)\n 2: Inverse of diagonal preconditioned', '2')
 CALL prms%CreateRealOption(   'epsCG'                  ,'Abort residual of the CG solver', '1.0E-6')
 CALL prms%CreateIntOption(    'OutIterCG'              ,'Number of iteration steps between output of CG solver info to std out', '1')
-
 CALL prms%CreateLogicalOption('useRelativeAbortCrit'   ,'Switch between relative and absolute abort criterion', '.FALSE.')
 CALL prms%CreateIntOption(    'MaxIterCG'              ,'Maximum number of iterations in the CG solver', '500')
 CALL prms%CreateLogicalOption('ExactLambda'            ,'Initially set lambda on all sides (volume and boundaries) via a pre-defined function (ExactFunc)', '.FALSE.')
-
 CALL prms%CreateIntOption(    'HDGSkip'                ,'Number of time step iterations until the HDG solver is called (i.e. all intermediate calls are skipped)', '0')
-CALL prms%CreateIntOption(    'HDGSkipInit'            ,'Number of time step iterations until the HDG solver is called (i.e. all intermediate calls are skipped)'&
-                                                      //' while time < HDGSkip_t0 (if HDGSkip > 0)', '0')
+CALL prms%CreateIntOption(    'HDGSkipInit'            ,'Number of time step iterations until the HDG solver is called (i.e. all intermediate calls are skipped) while time < HDGSkip_t0 (if HDGSkip > 0)', '0')
 CALL prms%CreateRealOption(   'HDGSkip_t0'             ,'Time during which HDGSkipInit is used instead of HDGSkip (if HDGSkip > 0)', '0.')
-
 CALL prms%CreateLogicalOption('HDGDisplayConvergence'  ,'Display divergence criteria: Iterations, RunTime and Residual', '.FALSE.')
-
-CALL prms%CreateIntOption(    'HDGZeroPotentialDir'    ,'Direction in which a Dirichlet condition with phi=0 is superimposed on the boundary conditions'&
-                                                      //' (1: x, 2: y, 3: z). The default chooses the direction automatically when no other Dirichlet boundary conditions are defined.'&
-                                                       ,'-1')
 CALL prms%CreateRealArrayOption( 'EPC-Resistance'      , 'Vector (length corresponds to the number of EPC boundaries) with the resistance for each EPC in Ohm', no=0)
+#if defined(PARTICLES)
+CALL prms%CreateLogicalOption(  'UseBiasVoltage'              , 'Activate usage of bias voltage adjustment (for specific boundaries only)', '.FALSE.')
+CALL prms%CreateIntOption(      'BiasVoltage-NPartBoundaries' , 'Number of particle boundaries where the total ion excess is to be calculated for bias voltage model')
+CALL prms%CreateIntArrayOption( 'Biasvoltage-PartBoundaries'  , 'Particle boundary index of boundaries where the total ion excess is to be calculated for bias voltage model', no=0)
+CALL prms%CreateRealOption(     'BiasVoltage-Frequency'       , 'Frequency of the sinusoidal field boundary where the bias voltage is applied (a value of 0.0 corresponds to a DC potential BC). The total particle electric current over one cycle is required to converge to zero.')
+CALL prms%CreateRealOption(     'BiasVoltage-Delta'           , 'Bias voltage difference used for adjusting the DC voltage of the corresponding BC')
+#endif /*defined(PARTICLES)*/
 
 ! --- BR electron fluid
 #if defined(PARTICLES)
@@ -126,7 +127,6 @@ USE MOD_Restart_Vars          ,ONLY: DoRestart
 USE PETSc
 USE MOD_Mesh_Vars             ,ONLY: nMPISides_YOUR
 #if USE_MPI
-USE MOD_MPI_Shared_Vars       ,ONLY: MPI_COMM_WORLD
 USE MOD_MPI                   ,ONLY: StartReceiveMPIDataInt,StartSendMPIDataInt,FinishExchangeMPIData
 USE MOD_MPI_Vars
 #endif /*USE_MPI*/
@@ -146,6 +146,7 @@ IMPLICIT NONE
 INTEGER           :: i,j,k,r,iElem,SideID
 INTEGER           :: BCType,BCState
 REAL              :: D(0:PP_N,0:PP_N)
+INTEGER           :: nDirichletBCsidesGlobal
 #if USE_PETSC
 PetscErrorCode    :: ierr
 INTEGER           :: iProc
@@ -246,7 +247,7 @@ DO SideID=1,nBCSides
   BCType =BoundaryType(BC(SideID),BC_TYPE)
   BCState=BoundaryType(BC(SideID),BC_STATE)
   SELECT CASE(BCType)
-  CASE(2,4,5,6,7,8) ! Dirichlet
+  CASE(HDGDIRICHLETBCSIDEIDS) ! Dirichlet
     nDirichletBCsides=nDirichletBCsides+1
   CASE(10,11) ! Neumann
     nNeumannBCsides=nNeumannBCsides+1
@@ -263,8 +264,29 @@ CALL InitFPC()
 ! Conductor: Initialize electric potential condition (resistive decharging of surface and electric potential calculation)
 CALL InitEPC()
 
-! Check if zero potential must be set on a boundary (or periodic side)
-CALL InitZeroPotential()
+#if defined(PARTICLES)
+! Bias Voltage: Initialize containers and sub-communicator
+! BCType: 50,X for bias voltage + DC boundary condition
+! BCType: 51,X for bias voltage + cos(wt) function boundary condition
+! BCType: 52,X for bias voltage + cos(wt) function + coupled power adjustment (for AC and not DC in this case)
+CALL InitBV()
+#endif /*defined(PARTICLES)*/
+
+! Get the global number of Dirichlet boundaries. If there are none, the potential of a single DOF must be set.
+#if USE_MPI
+  CALL MPI_ALLREDUCE(nDirichletBCsides , nDirichletBCsidesGlobal , 1 , MPI_INTEGER , MPI_MAX , MPI_COMM_PICLAS , IERROR)
+#else
+  nDirichletBCsidesGlobal = nDirichletBCsides
+#endif /*USE_MPI*/
+#if USE_PETSC
+IF(nDirichletBCsidesGlobal.EQ.0) THEN
+#else
+IF(MPIroot .AND. (nDirichletBCsidesGlobal.EQ.0)) THEN
+#endif
+  SetZeroPotentialDOF = .TRUE.
+ELSE
+  SetZeroPotentialDOF = .FALSE.
+END IF
 
 IF(nDirichletBCsides.GT.0)ALLOCATE(DirichletBC(nDirichletBCsides))
 IF(nNeumannBCsides  .GT.0)THEN
@@ -282,7 +304,7 @@ DO SideID=1,nBCSides
   BCType =BoundaryType(BC(SideID),BC_TYPE)
   BCState=BoundaryType(BC(SideID),BC_STATE)
   SELECT CASE(BCType)
-  CASE(2,4,5,6,7,8) ! Dirichlet
+  CASE(HDGDIRICHLETBCSIDEIDS) ! Dirichlet
     nDirichletBCsides=nDirichletBCsides+1
     DirichletBC(nDirichletBCsides)=SideID
     MaskedSide(SideID)=1
@@ -311,8 +333,7 @@ DO SideID=1,nSides
   END IF
 END DO
 nPETScUniqueSides = nSides-nDirichletBCSides-nMPISides_YOUR-nMortarMasterSides-nConductorBCsides
-IF(ZeroPotentialSideID.GT.0) nPETScUniqueSides = nPETScUniqueSides - 1
-CALL MPI_ALLGATHER(nPETScUniqueSides,1,MPI_INTEGER,OffsetPETScSideMPI,1,MPI_INTEGER,MPI_COMM_WORLD,IERROR)
+CALL MPI_ALLGATHER(nPETScUniqueSides,1,MPI_INTEGER,OffsetPETScSideMPI,1,MPI_INTEGER,MPI_COMM_PICLAS,IERROR)
 DO iProc=1, myrank
   OffsetPETScSide = OffsetPETScSide + OffsetPETScSideMPI(iProc)
 END DO
@@ -323,9 +344,9 @@ ALLOCATE(PETScGlobal(nSides))
 ALLOCATE(PETScLocalToSideID(nPETScUniqueSides+nMPISides_YOUR))
 PETScGlobal=-1
 PETScLocalToSideID=-1
-PETScLocalID=0 ! = nSides-nDirichletBCSides (-ZeroPotentialSide)
+PETScLocalID=0 ! = nSides-nDirichletBCSides
 DO SideID=1,nSides!-nMPISides_YOUR
-  IF((MaskedSide(SideID).GT.0).OR.(SideID.EQ.ZeroPotentialSideID)) CYCLE
+  IF(MaskedSide(SideID).GT.0) CYCLE
   PETScLocalID=PETScLocalID+1
   PETScLocalToSideID(PETScLocalID)=SideID
   PETScGlobal(SideID)=PETScLocalID+OffsetPETScSide-1 ! PETSc arrays start at 0!
@@ -420,10 +441,6 @@ ALLOCATE(Smat(nGP_face,nGP_face,6,6,PP_nElems))
 #if USE_PETSC
 ALLOCATE(Smat_BC(nGP_face,nGP_face,6,nDirichletBCSides))
 Smat_BC = 0.
-IF(ZeroPotentialSideID.GT.0) THEN
-  ALLOCATE(Smat_zeroPotential(nGP_face,nGP_face,6))
-  Smat_zeroPotential = 0.
-END IF
 
 PetscCallA(MatCreate(PETSC_COMM_WORLD,Smat_petsc,ierr))
 PetscCallA(MatSetBlockSize(Smat_petsc,nGP_face,ierr))
@@ -436,7 +453,7 @@ PetscCallA(MatSetType(Smat_petsc,MATSBAIJ,ierr)) ! Symmetric sparse (mpi) matrix
 !  ALLOCATE(FPC%GroupGlobal(1:FPC%nFPCBounds))
 !  FPC%GroupGlobal(1:FPC%nFPCBounds) = FPC%Group(1:FPC%nFPCBounds,3)
 !  ! TODO is this allreduce required?
-!  !CALL MPI_ALLREDUCE(FPC%Group(1:FPC%nFPCBounds,3),FPC%GroupGlobal(1:FPC%nFPCBounds), FPC%nFPCBounds, MPI_DOUBLE_PRECISION, MPI_SUM, MPI_COMM_WORLD, IERROR)
+!  !CALL MPI_ALLREDUCE(FPC%Group(1:FPC%nFPCBounds,3),FPC%GroupGlobal(1:FPC%nFPCBounds), FPC%nFPCBounds, MPI_DOUBLE_PRECISION, MPI_SUM, MPI_COMM_PICLAS, IERROR)
 !  nAffectedBlockSides = MAXVAL(FPC%GroupGlobal(:))
 !  DEALLOCATE(FPC%GroupGlobal)
 !  nAffectedBlockSides = MAX(22,nAffectedBlockSides*6)
@@ -444,7 +461,6 @@ PetscCallA(MatSetType(Smat_petsc,MATSBAIJ,ierr)) ! Symmetric sparse (mpi) matrix
 !  nAffectedBlockSides = 22
 !END IF ! FPC%nFPCBounds
 !!IPWRITE(UNIT_StdOut,*) "nAffectedBlockSides =", nAffectedBlockSides
-!!IF(myrank.eq.0) read*; CALL MPI_BARRIER(MPI_COMM_WORLD,iError)
 PetscCallA(MatSEQSBAIJSetPreallocation(Smat_petsc,nGP_face,22,PETSC_NULL_INTEGER,ierr))
 PetscCallA(MatMPISBAIJSetPreallocation(Smat_petsc,nGP_face,22,PETSC_NULL_INTEGER,22-1,PETSC_NULL_INTEGER,ierr))
 PetscCallA(MatZeroEntries(Smat_petsc,ierr))
@@ -518,130 +534,6 @@ END SUBROUTINE InitHDG
 
 
 !===================================================================================================================================
-!> Check if any Dirichlet BCs are present (globally, not only on the local processor).
-!> If there are none, an arbitrary potential is set at one of the boundaries to ensure
-!> convergence of the HDG solver. This is required for setups where fully periodic and/or Neumann boundaries are solely used.
-!> This only works for Cartesian meshes, i.e., that the boundary faces must be perpendicular to two of the three Cartesian axes
-!===================================================================================================================================
-SUBROUTINE InitZeroPotential()
-! MODULES
-USE MOD_PreProc
-USE MOD_Globals
-USE MOD_HDG_Vars    ,ONLY: ZeroPotentialSideID,HDGZeroPotentialDir
-USE MOD_Mesh        ,ONLY: GetMeshMinMaxBoundaries
-USE MOD_Mesh_Vars   ,ONLY: nBCs,BoundaryType,nSides,BC,xyzMinMax,NGeo,Face_xGP
-USE MOD_ReadInTools ,ONLY: PrintOption,GETINT
-#if USE_LOADBALANCE
-USE MOD_LoadBalance_Vars   ,ONLY: PerformLoadBalance
-#endif /*USE_LOADBALANCE*/
-IMPLICIT NONE
-!----------------------------------------------------------------------------------------------------------------------------------!
-! INPUT / OUTPUT VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-INTEGER           :: SideID,BCAlpha,BCType,BCState,iBC,nZeroPotentialSides,nZeroPotentialSidesGlobal,ZeroPotentialDir
-INTEGER           :: nZeroPotentialSidesMax,BCSide
-REAL,DIMENSION(3) :: x,v1,v2,v3
-REAL              :: norm,I(3,3)
-!===================================================================================================================================
-! Initialize variables
-HDGZeroPotentialDir = GETINT('HDGZeroPotentialDir')
-ZeroPotentialSideID = -1
-I(:,1)              = (/1. , 0. , 0./)
-I(:,2)              = (/0. , 1. , 0./)
-I(:,3)              = (/0. , 0. , 1./)
-
-! Every processor has to check every BC
-DO iBC=1,nBCs
-  BCType  = BoundaryType(iBC,BC_TYPE)  ! 1
-  BCState = BoundaryType(iBC,BC_STATE) ! 2
-  SELECT CASE(BCType)
-  CASE(1) ! periodic
-    ! do nothing
-  CASE(2,4,5,6,7,8) ! Dirichlet
-    ZeroPotentialSideID = 0 ! no zero potential required
-    EXIT ! as soon as one Dirichlet BC is found, no zero potential must be used
-  CASE(10,11) ! Neumann
-    ! do nothing
-  CASE(20) ! FPC
-    ! do nothing
-  CASE DEFAULT ! unknown BCType
-    CALL CollectiveStop(__STAMP__,' unknown BC Type in hdg.f90!',IntInfo=BCType)
-  END SELECT ! BCType
-END DO
-
-! If a Dirichlet BC is found ZeroPotentialSideID is zero and the following is skipped
-IF(ZeroPotentialSideID.EQ.-1)THEN
-  ! Check if the user has selected a specific direction
-  IF(HDGZeroPotentialDir.EQ.-1)THEN
-    ! Select the direction (x, y or z), which has the largest extent (to account for 1D and 2D setups for example)
-    CALL GetMeshMinMaxBoundaries()
-
-    ! Calc max extents in each direction for comparison
-    x(1) = xyzMinMax(2)-xyzMinMax(1)
-    x(2) = xyzMinMax(4)-xyzMinMax(3)
-    x(3) = xyzMinMax(6)-xyzMinMax(5)
-    ZeroPotentialDir=MAXLOC(x,DIM=1)
-  ELSE
-    ZeroPotentialDir = HDGZeroPotentialDir
-  END IF ! HDGZeroPotentialDir.EQ.-1
-  CALL PrintOption('Zero potential side activated in direction (1: x, 2: y, 3: z)','OUTPUT',IntOpt=ZeroPotentialDir)
-
-  nZeroPotentialSides = 0 ! Initialize
-  DO SideID=1,nSides ! Periodic sides are not within the 1,nBCSides list !
-    IF(MAXVAL(ABS(Face_xGP(:,:,:,SideID))).LE.0.) CYCLE ! slave sides
-    BCSide=BC(SideID)
-    IF(BCSide.EQ.0) CYCLE ! inner sides
-    BCType =BoundaryType(BCSide,BC_TYPE)
-    BCState=BoundaryType(BCSide,BC_STATE)
-    BCAlpha=BoundaryType(BCSide,BC_ALPHA)
-    IF(BCType.EQ.0) CYCLE ! skip inner sides
-
-    ! Check if the normal vector of the face points in the direction (or negative direction) of the ZeroPotentialDir (tolerance 1e-5)
-    v1(:) = Face_xGP(1:3 , NGeo , 0    , SideID) - Face_xGP(1:3 , 0 , 0 , SideID)
-    v2(:) = Face_xGP(1:3 , 0    , NGeo , SideID) - Face_xGP(1:3 , 0 , 0 , SideID)
-    v3(:) = CROSSNORM(v1,v2)
-    norm = ABS(DOT_PRODUCT(I(:,ZeroPotentialDir),v3))
-    IF(ALMOSTEQUALRELATIVE(norm, 1.0, 1E-5))THEN
-      ZeroPotentialSideID = SideID
-      nZeroPotentialSides = nZeroPotentialSides + 1
-    END IF ! ALMOSTEQUALRELATIVE(norm, 1.0, 1E-5)
-  END DO
-
-#if USE_MPI
-  ! Combine number of found zero potential sides to make sure that at least one is found
-  IF(MPIroot)THEN
-    CALL MPI_REDUCE(nZeroPotentialSides , nZeroPotentialSidesGlobal , 1 , MPI_INTEGER , MPI_SUM , 0 , MPI_COMM_WORLD , IERROR)
-    CALL MPI_REDUCE(nZeroPotentialSides , nZeroPotentialSidesMax    , 1 , MPI_INTEGER , MPI_MAX , 0 , MPI_COMM_WORLD , IERROR)
-  ELSE
-    CALL MPI_REDUCE(nZeroPotentialSides , 0                         , 1 , MPI_INTEGER , MPI_SUM , 0 , MPI_COMM_WORLD , IERROR)
-    CALL MPI_REDUCE(nZeroPotentialSides , 0                         , 1 , MPI_INTEGER , MPI_MAX , 0 , MPI_COMM_WORLD , IERROR)
-  END IF
-#else
-  nZeroPotentialSidesGlobal = nZeroPotentialSides
-#endif /*USE_MPI*/
-  LBWRITE(UNIT_StdOut,'(A,I0)') " Found (global) number of zero potential sides: ", nZeroPotentialSidesMax
-
-  ! Sanity checks for root
-  IF(MPIroot)THEN
-    ! 1) multiples sides found
-    IF(nZeroPotentialSidesMax.GT.1)THEN
-      LBWRITE(UNIT_StdOut,'(A)') " WARNING: Found more than 1 zero potential side on a proc and currently, only one can be considered."
-      LBWRITE(UNIT_StdOut,'(A,I0,A)') " WARNING: nZeroPotentialSidesGlobal: ", nZeroPotentialSidesMax, " (may lead to problems)"
-    END IF
-
-    ! 2) no sides found
-    IF(nZeroPotentialSidesGlobal.EQ.0)THEN
-      WRITE(UNIT_StdOut,*) " Sanity check: this fails when the mesh is not Cartesian. This needs to be implemented if required."
-      CALL abort(__STAMP__,'Setup has no Dirichlet BCs and no zero potential sides where found.')
-    END IF
-  END IF
-END IF ! ZeroPotentialSideID.EQ.0
-
-END SUBROUTINE InitZeroPotential
-
-
-!===================================================================================================================================
 !> Create containers and communicators for each floating boundary condition where impacting charges are accumulated.
 !>
 !> 1.) Loop over all field BCs and check if the current processor is either the MPI root or has at least one of the BCs that
@@ -655,7 +547,7 @@ END SUBROUTINE InitZeroPotential
 !===================================================================================================================================
 SUBROUTINE InitFPC()
 ! MODULES
-USE MOD_Globals  ! ,ONLY: MPIRoot,iError,myrank,UNIT_stdOut,MPI_COMM_WORLD
+USE MOD_Globals  ! ,ONLY: MPIRoot,iError,myrank,UNIT_stdOut,MPI_COMM_PICLAS
 USE MOD_Preproc
 USE MOD_Mesh_Vars          ,ONLY: nBCs,BoundaryType
 USE MOD_Analyze_Vars       ,ONLY: DoFieldAnalyze
@@ -677,6 +569,7 @@ IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------!
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
+INTEGER, PARAMETER  :: BCTypeFPC = 20
 INTEGER             :: BCType,BCState,iUniqueFPCBC
 INTEGER             :: SideID,iBC
 #if USE_MPI
@@ -699,7 +592,7 @@ FPC%nFPCBounds = 0
 FPC%nUniqueFPCBounds = 0
 DO iBC=1,nBCs
   BCType = BoundaryType(iBC,BC_TYPE)
-  IF(BCType.NE.20) CYCLE ! Skip non-FPC boundaries
+  IF(BCType.NE.BCTypeFPC) CYCLE ! Skip non-FPC boundaries
   BCState = BoundaryType(iBC,BC_STATE) ! State is iFPC
   FPC%nFPCBounds=FPC%nFPCBounds+1
   IF(BCState.LE.0) CALL CollectiveStop(__STAMP__,' BCState for FPC must be >0! BCState=',IntInfo=BCState)
@@ -716,7 +609,7 @@ FPC%Group = 0 ! Initialize
 ! contribute to the total floating boundary condition. If yes, then this processor is part of the communicator
 DO iBC=1,nBCs
   BCType = BoundaryType(iBC,BC_TYPE)
-  IF(BCType.NE.20) CYCLE ! Skip non-FPC boundaries
+  IF(BCType.NE.BCTypeFPC) CYCLE ! Skip non-FPC boundaries
   BCState = BoundaryType(iBC,BC_STATE) ! State is iFPC
   WRITE(UNIT=hilf,FMT='(I0)') BCState
   WRITE(UNIT=hilf2,FMT='(I0)') FPC%nFPCBounds
@@ -737,7 +630,7 @@ ALLOCATE(FPC%BCState(FPC%nUniqueFPCBounds))
 FPC%BCState = 0
 DO iBC=1,nBCs
   BCType = BoundaryType(iBC,BC_TYPE)
-  IF(BCType.NE.20) CYCLE
+  IF(BCType.NE.BCTypeFPC) CYCLE
   BCState = BoundaryType(iBC,BC_STATE) ! State is iFPC
   iUniqueFPCBC = FPC%Group(BCState,2)
   FPC%BCState(iUniqueFPCBC) = BCState
@@ -773,7 +666,7 @@ FPC%ChargeProc = 0.
 DO SideID=1,nBCSides
   iBC    = BC(SideID)
   BCType = BoundaryType(iBC,BC_TYPE)
-  IF(BCType.NE.20) CYCLE ! Skip non-FPC boundaries
+  IF(BCType.NE.BCTypeFPC) CYCLE ! Skip non-FPC boundaries
   BCState = BoundaryType(iBC,BC_STATE) ! BCState corresponds to iFPC
   FPC%Group(BCState,3) = FPC%Group(BCState,3) + 1
 END DO ! SideID=1,nBCSides
@@ -790,7 +683,7 @@ ELSE
   DO SideID=1,nBCSides
     iBC    = BC(SideID)
     BCType = BoundaryType(iBC,BC_TYPE)
-    IF(BCType.NE.20) CYCLE ! Skip non-FPC boundaries
+    IF(BCType.NE.BCTypeFPC) CYCLE ! Skip non-FPC boundaries
     BCState = BoundaryType(iBC,BC_STATE) ! BCState corresponds to iFPC
     iUniqueFPCBC = FPC%Group(BCState,2)
     BConProc(iUniqueFPCBC) = .TRUE.
@@ -829,7 +722,7 @@ ELSE
             ! Get boundary type
             BCType = BoundaryType(BCIndex,BC_TYPE)
             ! Check if FPC has been found
-            IF(BCType.EQ.20)THEN
+            IF(BCType.EQ.BCTypeFPC)THEN
 
               ! Check if the BC can be reached
               iGlobElemCenter(1:3) = (/ SUM(BoundsOfElem_Shared(1:2,1,iGlobElem)),&
@@ -851,7 +744,7 @@ ELSE
                 ! Go to next element
                 CYCLE iCNElemLoop
               END IF ! VECNORM( ...
-            END IF ! BCType.EQ.20
+            END IF ! BCType.EQ.BCTypeFPC
           END IF ! BCIndex.GT.0
         END DO ! iSide = ElemInfo_Shared(ELEM_FIRSTSIDEIND,iGlobElem)+1,ElemInfo_Shared(ELEM_LASTSIDEIND,iGlobElem)
       END DO iCNElemLoop ! iCNElem = 1,nComputeNodeTotalElems
@@ -871,7 +764,7 @@ DO iUniqueFPCBC = 1, FPC%nUniqueFPCBounds
   FPC%COMM(iUniqueFPCBC)%ID=iUniqueFPCBC
 
   ! create new emission communicator for floating boundary condition communication. Pass MPI_INFO_NULL as rank to follow the original ordering
-  CALL MPI_COMM_SPLIT(MPI_COMM_WORLD, color, MPI_INFO_NULL, FPC%COMM(iUniqueFPCBC)%UNICATOR, iError)
+  CALL MPI_COMM_SPLIT(MPI_COMM_PICLAS, color, MPI_INFO_NULL, FPC%COMM(iUniqueFPCBC)%UNICATOR, iError)
 
   ! Find my rank on the shared communicator, comm size and proc name
   IF(BConProc(iUniqueFPCBC))THEN
@@ -927,17 +820,16 @@ END SUBROUTINE InitFPC
 !> subsequently an electric potential is created.
 !>
 !> 1.) Loop over all field BCs and check if the current processor is either the MPI root or has at least one of the BCs that
-!>     contribute to the total floating boundary condition. If yes, then this processor is part of the communicator
-!> 2.) Create Mapping from floating boundary condition BC index to field BC index
-!> 3.) Create Mapping from field BC index to floating boundary condition BC index
-!> 4.0) Check if field BC is on current proc (or MPI root)
-!> 4.1.) Each processor loops over all of his elements
-!> 4.2.) Loop over all compute-node elements (every processor loops over all of these elements)
-!> 5.) Create MPI sub-communicators
+!>     contribute to the total electric potential boundary condition. If yes, then this processor is part of the communicator
+!> 2.) Create Mapping from electric potential boundary condition BC index to field BC index
+!> 3.) Check if field BC is on current proc (or MPI root)
+!> 3.1) Each processor loops over all of his elements
+!> 3.2) Loop over all compute-node elements (every processor loops over all of these elements)
+!> 4.) Create MPI sub-communicators
 !===================================================================================================================================
 SUBROUTINE InitEPC()
 ! MODULES
-USE MOD_Globals  ! ,ONLY: MPIRoot,iError,myrank,UNIT_stdOut,MPI_COMM_WORLD
+USE MOD_Globals  ! ,ONLY: MPIRoot,iError,myrank,UNIT_stdOut,MPI_COMM_PICLAS
 USE MOD_Preproc
 USE MOD_Mesh_Vars          ,ONLY: nBCs,BoundaryType
 USE MOD_Analyze_Vars       ,ONLY: DoFieldAnalyze
@@ -960,6 +852,7 @@ IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------!
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
+INTEGER, PARAMETER  :: BCTypeEPC = 8
 INTEGER             :: BCType,BCState,iUniqueEPCBC
 INTEGER             :: SideID,iBC
 #if USE_MPI
@@ -982,7 +875,7 @@ EPC%nEPCBounds = 0
 EPC%nUniqueEPCBounds = 0
 DO iBC=1,nBCs
   BCType = BoundaryType(iBC,BC_TYPE)
-  IF(BCType.NE.8) CYCLE ! Skip non-EPC boundaries
+  IF(BCType.NE.BCTypeEPC) CYCLE ! Skip non-EPC boundaries
   BCState = BoundaryType(iBC,BC_STATE) ! State is iEPC
   EPC%nEPCBounds=EPC%nEPCBounds+1
   IF(BCState.LE.0) CALL CollectiveStop(__STAMP__,' BCState for EPC must be >0! BCState=',IntInfo=BCState)
@@ -996,10 +889,10 @@ ALLOCATE(EPC%Group(1:EPC%nEPCBounds,3))
 EPC%Group = 0 ! Initialize
 
 ! 1.) Loop over all field BCs and check if the current processor is either the MPI root or has at least one of the BCs that
-! contribute to the total floating boundary condition. If yes, then this processor is part of the communicator
+! contribute to the total electric potential boundary condition. If yes, then this processor is part of the communicator
 DO iBC=1,nBCs
   BCType = BoundaryType(iBC,BC_TYPE)
-  IF(BCType.NE.8) CYCLE ! Skip non-EPC boundaries
+  IF(BCType.NE.BCTypeEPC) CYCLE ! Skip non-EPC boundaries
   BCState = BoundaryType(iBC,BC_STATE) ! State is iEPC
   WRITE(UNIT=hilf,FMT='(I0)') BCState
   WRITE(UNIT=hilf2,FMT='(I0)') EPC%nEPCBounds
@@ -1018,12 +911,12 @@ DoFieldAnalyze = .TRUE.
 ! Read resistances for each unique EPC
 EPC%Resistance  = GETREALARRAY('EPC-Resistance',EPC%nUniqueEPCBounds)
 
-! 2.) Create Mapping from floating boundary condition BC index to BCState
+! 2.) Create Mapping from electric potential boundary condition BC index to BCState
 ALLOCATE(EPC%BCState(EPC%nUniqueEPCBounds))
 EPC%BCState = 0
 DO iBC=1,nBCs
   BCType = BoundaryType(iBC,BC_TYPE)
-  IF(BCType.NE.8) CYCLE
+  IF(BCType.NE.BCTypeEPC) CYCLE
   BCState = BoundaryType(iBC,BC_STATE) ! State is iEPC
   iUniqueEPCBC = EPC%Group(BCState,2)
   EPC%BCState(iUniqueEPCBC) = BCState
@@ -1046,26 +939,18 @@ END IF ! .NOT.ALLOCATED(EPC%Charge)
 ALLOCATE(EPC%ChargeProc(1:EPC%nUniqueEPCBounds))
 EPC%ChargeProc = 0.
 
-!! 3.) Create Mapping from field BC index to floating boundary condition BC index
-!ALLOCATE(EPC%BCIDToEPCBCID(nBCs))
-!EPC%BCIDToEPCBCID = -1
-!DO iEPCBC = 1, EPC%NBoundaries
-!  iBC = EDC%FieldBoundaries(iEDCBC)
-!  EDC%BCIDToEDCBCID(iBC) = iEDCBC
-!END DO ! iEDCBC = 1, EDC%NBoundaries
-
 ! Get processor-local number of EPC sides associated with each i-th EPC boundary
 ! Check local sides
 DO SideID=1,nBCSides
   iBC    = BC(SideID)
   BCType = BoundaryType(iBC,BC_TYPE)
-  IF(BCType.NE.8) CYCLE ! Skip non-EPC boundaries
+  IF(BCType.NE.BCTypeEPC) CYCLE ! Skip non-EPC boundaries
   BCState = BoundaryType(iBC,BC_STATE) ! BCState corresponds to iEPC
   EPC%Group(BCState,3) = EPC%Group(BCState,3) + 1
 END DO ! SideID=1,nBCSides
 
 #if USE_MPI
-! 4.0) Check if field BC is on current proc (or MPI root)
+! 3) Check if field BC is on current proc (or MPI root)
 ALLOCATE(BConProc(EPC%nUniqueEPCBounds))
 BConProc = .FALSE.
 IF(MPIRoot)THEN
@@ -1076,7 +961,7 @@ ELSE
   DO SideID=1,nBCSides
     iBC    = BC(SideID)
     BCType = BoundaryType(iBC,BC_TYPE)
-    IF(BCType.NE.8) CYCLE ! Skip non-EPC boundaries
+    IF(BCType.NE.BCTypeEPC) CYCLE ! Skip non-EPC boundaries
     BCState = BoundaryType(iBC,BC_STATE) ! BCState corresponds to iEPC
     iUniqueEPCBC = EPC%Group(BCState,2)
     BConProc(iUniqueEPCBC) = .TRUE.
@@ -1087,7 +972,7 @@ ELSE
   IF(.NOT.(ALL(BConProc)))THEN
     ! Particles might impact the EPC on another proc/node. Therefore check if a particle can travel from a local element to an
     ! element that has at least one side, which is an EPC
-    ! 4.1.) Each processor loops over all of his elements
+    ! 3.1) Each processor loops over all of his elements
     iElemLoop: DO iElem = 1+offsetElem, nElems+offsetElem
 
       iElemCenter(1:3) = (/ SUM(BoundsOfElem_Shared(1:2,1,iElem)),&
@@ -1097,7 +982,7 @@ ELSE
                                 BoundsOfElem_Shared(2,2,iElem)-BoundsOfElem_Shared(1,2,iElem),&
                                 BoundsOfElem_Shared(2,3,iElem)-BoundsOfElem_Shared(1,3,iElem) /) / 2.)
 
-      ! 4.2.) Loop over all compute-node elements (every processor loops over all of these elements)
+      ! 3.2) Loop over all compute-node elements (every processor loops over all of these elements)
       ! Loop ALL compute-node elements (use global element index)
       iCNElemLoop: DO iCNElem = 1,nComputeNodeTotalElems
         iGlobElem = GetGlobalElemID(iCNElem)
@@ -1115,7 +1000,7 @@ ELSE
             ! Get boundary type
             BCType = BoundaryType(BCIndex,BC_TYPE)
             ! Check if EPC has been found
-            IF(BCType.EQ.8)THEN
+            IF(BCType.EQ.BCTypeEPC)THEN
 
               ! Check if the BC can be reached
               iGlobElemCenter(1:3) = (/ SUM(BoundsOfElem_Shared(1:2,1,iGlobElem)),&
@@ -1137,7 +1022,7 @@ ELSE
                 ! Go to next element
                 CYCLE iCNElemLoop
               END IF ! VECNORM( ...
-            END IF ! BCType.EQ.8
+            END IF ! BCType.EQ.BCTypeEPC
           END IF ! BCIndex.GT.0
         END DO ! iSide = ElemInfo_Shared(ELEM_FIRSTSIDEIND,iGlobElem)+1,ElemInfo_Shared(ELEM_LASTSIDEIND,iGlobElem)
       END DO iCNElemLoop ! iCNElem = 1,nComputeNodeTotalElems
@@ -1147,17 +1032,18 @@ ELSE
 
 END IF ! MPIRoot
 
-! 5.) Create MPI sub-communicators
+! 4.) Create MPI sub-communicators
 ALLOCATE(EPC%COMM(EPC%nUniqueEPCBounds))
 DO iUniqueEPCBC = 1, EPC%nUniqueEPCBounds
-  ! create new communicator
+  ! Create new communicator
   color = MERGE(iUniqueEPCBC, MPI_UNDEFINED, BConProc(iUniqueEPCBC))
 
-  ! set communicator id
+  ! Set communicator id
   EPC%COMM(iUniqueEPCBC)%ID=iUniqueEPCBC
 
-  ! create new emission communicator for floating boundary condition communication. Pass MPI_INFO_NULL as rank to follow the original ordering
-  CALL MPI_COMM_SPLIT(MPI_COMM_WORLD, color, MPI_INFO_NULL, EPC%COMM(iUniqueEPCBC)%UNICATOR, iError)
+  ! Create new emission communicator for Electric potential boundary condition communication.
+  ! Pass MPI_INFO_NULL as rank to follow the original ordering
+  CALL MPI_COMM_SPLIT(MPI_COMM_PICLAS, color, MPI_INFO_NULL, EPC%COMM(iUniqueEPCBC)%UNICATOR, iError)
 
   ! Find my rank on the shared communicator, comm size and proc name
   IF(BConProc(iUniqueEPCBC))THEN
@@ -1169,7 +1055,7 @@ DO iUniqueEPCBC = 1, EPC%nUniqueEPCBounds
 #if USE_LOADBALANCE
       IF(.NOT.PerformLoadBalance)&
 #endif /*USE_LOADBALANCE*/
-          WRITE(UNIT_StdOut,'(A,I0,A,I0,A,I0)') ' Floating boundary condition: Emission-Communicator ',iUniqueEPCBC,' on ',&
+          WRITE(UNIT_StdOut,'(A,I0,A,I0,A,I0)') ' Electric potential boundary condition: Emission-Communicator ',iUniqueEPCBC,' on ',&
               EPC%COMM(iUniqueEPCBC)%nProcs,' procs for BCState ',EPC%BCState(iUniqueEPCBC)
     END IF
   END IF ! BConProc(iUniqueEPCBC)
@@ -1206,6 +1092,234 @@ END DO ! iUniqueEPCBC = 1, EPC%nUniqueEPCBounds
 CALL ReadEPCDataFromH5()
 
 END SUBROUTINE InitEPC
+
+
+#if defined(PARTICLES)
+!===================================================================================================================================
+!> Create containers and communicators for each bias-voltage boundary condition where impacting charges are removed and
+!> subsequently an electric potential is created (the particle communication is part of the BPO analysis and required here).
+!>
+!> 1.) Activate bias voltage and check number of boundaries
+!> 2.) Get bias voltage parameters
+!> 3.) Check if actual bias voltage BC is on current process (or MPI root)
+!> 4.) Create MPI sub-communicators
+!===================================================================================================================================
+SUBROUTINE InitBV()
+! MODULES
+USE MOD_Globals                   ,ONLY: CollectiveStop,UNIT_StdOut
+USE MOD_ReadInTools               ,ONLY: GETLOGICAL,GETREAL,GETINT,GETINTARRAY
+USE MOD_Particle_Boundary_Vars    ,ONLY: PartBound
+USE MOD_Mesh_Vars                 ,ONLY: nBCs,BoundaryType,BoundaryName
+USE MOD_HDG_Vars                  ,ONLY: UseBiasVoltage,BiasVoltage
+USE MOD_SurfaceModel_Analyze_Vars ,ONLY: CalcBoundaryParticleOutput,BPO
+#if USE_LOADBALANCE
+USE MOD_LoadBalance_Vars          ,ONLY: PerformLoadBalance
+#endif /*USE_LOADBALANCE*/
+#if USE_MPI
+USE MOD_Globals                   ,ONLY: IERROR,MPI_COMM_NULL,MPI_DOUBLE_PRECISION,MPI_COMM_PICLAS,MPI_INFO_NULL,MPI_UNDEFINED,MPIRoot
+USE MOD_Mesh_Vars                 ,ONLY: nBCSides,BC
+#endif /*USE_MPI*/
+IMPLICIT NONE
+!----------------------------------------------------------------------------------------------------------------------------------!
+! INPUT / OUTPUT VARIABLES
+!----------------------------------------------------------------------------------------------------------------------------------!
+! LOCAL VARIABLES
+INTEGER, PARAMETER :: BCTypeBV(1:3) = (/50,51,52/) ! BCType which allows bias voltage control
+!                                                  ! 50: pure DC potential
+!                                                  ! 51: cos(wt) function with DC bias
+!                                                  ! 52: cos(wt) function with DC bias + coupled power for AC potential adjustment
+INTEGER             :: BCType,BVBoundaries,BCState,iBoundary
+INTEGER             :: iBC,iPBC
+#if USE_MPI
+INTEGER             :: color,SideID
+LOGICAL             :: BConProc
+#endif /*USE_MPI*/
+!===================================================================================================================================
+
+!> 1.) Activate bias voltage and check number of boundaries
+! Activate model
+UseBiasVoltage = GETLOGICAL('UseBiasVoltage')
+
+! Count the number of boundaries that allow bias voltage
+BVBoundaries = 0
+DO iBC=1,nBCs
+  BCType = BoundaryType(iBC,BC_TYPE)
+  IF(.NOT.ANY(BCType.EQ.BCTypeBV)) CYCLE ! Skip other boundaries
+  BVBoundaries = BVBoundaries + 1
+END DO
+
+! Skip the following if bias voltage is not active
+IF(.NOT.UseBiasVoltage)THEN
+  ! Sanity check before returning: bias voltage BCs cannot be used without activating the bias voltage model
+  IF(BVBoundaries.GT.0) CALL CollectiveStop(__STAMP__,' Bias voltage BCs require UseBiasVoltage=T!')
+
+  ! Exit this subroutine
+  RETURN
+END IF
+
+! CalcBoundaryParticleOutput=T and boundaries must be set correctly
+IF(.NOT.CalcBoundaryParticleOutput) CALL CollectiveStop(__STAMP__,' UseBiasVoltage=T requires CalcBoundaryParticleOutput=T!')
+
+! Check the number of boundaries that allow bias voltage: Must be exactly 1
+IF(BVBoundaries.NE.1) CALL CollectiveStop(__STAMP__,' UseBiasVoltage=T requires exactly one boundary with this feature!')
+
+!> 2.) Get bias voltage parameters
+BiasVoltage%NPartBoundaries = GETINT('BiasVoltage-NPartBoundaries')
+BiasVoltage%PartBoundaries  = GETINTARRAY('Biasvoltage-PartBoundaries',biasvoltage%npartboundaries)
+BiasVoltage%Frequency       = GETReal('BiasVoltage-Frequency')
+BiasVoltage%Delta           = GETReal('BiasVoltage-Delta')
+#if USE_LOADBALANCE
+! Do not nullify during load balance in order to keep the old value on the MPIRoot
+IF((.NOT.PerformLoadBalance).OR.(.NOT.MPIRoot))THEN
+#endif /*USE_LOADBALANCE*/
+  BiasVoltage%BVData = 0.
+  ! Update time
+  IF(BiasVoltage%Frequency.GT.0.0) BiasVoltage%BVData(3) = 1.0/BiasVoltage%Frequency
+#if USE_LOADBALANCE
+END IF
+#endif /*USE_LOADBALANCE*/
+
+IF(BiasVoltage%NPartBoundaries.LT.1) CALL CollectiveStop(__STAMP__,' UseBiasVoltage=T requires one or more particle boundaries!')
+
+DO iBoundary=1,BiasVoltage%NPartBoundaries
+  iPBC = BiasVoltage%PartBoundaries(iBoundary)
+  IF(.NOT.ANY(iPBC.EQ.BPO%PartBoundaries(:))) CALL CollectiveStop(__STAMP__,&
+      'One of Biasvoltage-PartBoundaries not defined in any BPO-PartBoundaries')
+  iBC = PartBound%MapToFieldBC(iPBC)
+  IF(iBC.GT.SIZE(BoundaryName)) CALL CollectiveStop(__STAMP__,'BiasVoltage-PartBoundaries BC index maps to wrong field BCID= ',&
+    IntInfo=iBC)
+  BCType  = BoundaryType(iBC,BC_TYPE)
+  BCState = BoundaryType(iBC,BC_STATE)
+  LBWRITE(UNIT_stdOut,'(A,I0,A,I0,A)') ' Activated bias voltage by collecting currents from ['//TRIM(BoundaryName(iBC))&
+      //'] with BCType [',BCType,'] and BCState [',BCState,']'
+END DO
+
+#if USE_MPI
+!> 3.) Check if actual bias voltage BC is on current process (or MPI root)
+BConProc = .FALSE.
+IF(MPIRoot)THEN
+  BConProc = .TRUE.
+ELSE
+  ! Check local sides
+  DO SideID=1,nBCSides
+    iBC    = BC(SideID)
+    BCType = BoundaryType(iBC,BC_TYPE)
+    IF(.NOT.ANY(BCType.EQ.BCTypeBV)) CYCLE ! Skip other boundaries
+    BConProc = .TRUE.
+  END DO ! SideID=1,nBCSides
+END IF ! MPIRoot
+
+! 4.) Create MPI sub-communicators
+! Create new communicator
+color = MERGE(BVBoundaries, MPI_UNDEFINED, BConProc)
+
+! Set communicator id
+BiasVoltage%COMM%ID = BVBoundaries
+
+! Create new emission communicator for electric potential boundary condition communication. Pass MPI_INFO_NULL as rank to follow the original ordering
+CALL MPI_COMM_SPLIT(MPI_COMM_PICLAS, color, MPI_INFO_NULL, BiasVoltage%COMM%UNICATOR, iError)
+
+! Find my rank on the shared communicator, comm size and process name
+IF(BConProc)THEN
+  CALL MPI_COMM_RANK(BiasVoltage%COMM%UNICATOR, BiasVoltage%COMM%MyRank, iError)
+  CALL MPI_COMM_SIZE(BiasVoltage%COMM%UNICATOR, BiasVoltage%COMM%nProcs, iError)
+
+  ! Inform about size of emission communicator
+  IF (BiasVoltage%COMM%MyRank.EQ.0) THEN
+#if USE_LOADBALANCE
+    IF(.NOT.PerformLoadBalance)&
+#endif /*USE_LOADBALANCE*/
+        WRITE(UNIT_StdOut,'(A,I0,A,I0)') ' Bias voltage communicator on ',BiasVoltage%COMM%nProcs,' procs for BCState ',BCState
+  END IF
+END IF ! BConProc
+#endif /*USE_MPI*/
+
+! When restarting, load the deposited charge on each EPC from the .h5 state file
+CALL ReadBVDataFromH5()
+
+END SUBROUTINE InitBV
+
+
+!===================================================================================================================================
+!> Read the bias voltage (BV) data from a .h5 state file.
+!> 1. The MPI root process reads the info and checks data consistency
+!> 2. The MPI root process distributes the information among the sub-communicator processes connected to the BV boundary.
+!===================================================================================================================================
+SUBROUTINE ReadBVDataFromH5()
+! MODULES
+USE MOD_io_hdf5
+USE MOD_Globals          ,ONLY: UNIT_stdOut,MPIRoot,IK,abort
+#if USE_LOADBALANCE
+USE MOD_LoadBalance_Vars ,ONLY: PerformLoadBalance,UseH5IOLoadBalance
+#endif /*USE_LOADBALANCE*/
+USE MOD_IO_HDF5          ,ONLY: OpenDataFile,CloseDataFile,File_ID
+USE MOD_Restart_Vars     ,ONLY: DoRestart,RestartFile
+USE MOD_HDF5_Input       ,ONLY: DatasetExists,ReadArray,GetDataSize
+USE MOD_HDG_Vars         ,ONLY: BiasVoltage,BVDataLength
+IMPLICIT NONE
+!----------------------------------------------------------------------------------------------------------------------------------!
+! INPUT / OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+CHARACTER(255) :: ContainerName
+LOGICAL        :: BVExists
+REAL           :: BVDataHDF5(1:BVDataLength)
+!===================================================================================================================================
+! Only required during restart
+IF(.NOT.DoRestart) RETURN
+
+#if USE_LOADBALANCE
+! Do not try to read the data from .h5 if load balance is performed without creating a .h5 restart file
+IF(PerformLoadBalance.AND..NOT.(UseH5IOLoadBalance)) RETURN
+#endif /*USE_LOADBALANCE*/
+
+! 1. The MPI root process reads the info and checks data consistency
+! Only root reads the values and distributes them via MPI Broadcast
+IF(MPIRoot)THEN
+  CALL OpenDataFile(RestartFile,create=.FALSE.,single=.TRUE.,readOnly=.TRUE.)
+  ! Check old parameter name
+  ContainerName='BiasVoltage'
+  CALL DatasetExists(File_ID,TRIM(ContainerName),BVExists)
+  ! Check for new parameter name
+  IF(BVExists)THEN
+    CALL ReadArray(TRIM(ContainerName) , 2 , (/1_IK , INT(BVDataLength,IK)/) , 0_IK , 1 , RealArray=BVDataHDF5)
+    WRITE(UNIT_stdOut,'(3(A,ES10.2E3))') " Read bias voltage from restart file ["//TRIM(RestartFile)//&
+        "] Bias voltage[V]: ",BVDataHDF5(1),", Ion excess[C]: ",BVDataHDF5(2),", next adjustment time[s]: ",BVDataHDF5(3)
+    BiasVoltage%BVData = BVDataHDF5
+  END IF ! BVExists
+  CALL CloseDataFile()
+END IF ! MPIRoot
+
+#if USE_MPI
+! 2. The MPI root process distributes the information among the sub-communicator processes for each EPC
+CALL SynchronizeBV()
+#endif /*USE_MPI*/
+
+END SUBROUTINE ReadBVDataFromH5
+
+
+#if USE_MPI
+!===================================================================================================================================
+!> Communicate the bias voltage values from MPIRoot to sub-communicator processes
+!===================================================================================================================================
+SUBROUTINE SynchronizeBV()
+! MODULES
+USE MOD_Globals  ,ONLY: IERROR,MPI_COMM_NULL,MPI_DOUBLE_PRECISION
+USE MOD_HDG_Vars ,ONLY: BiasVoltage,BVDataLength
+! insert modules here
+IMPLICIT NONE
+!----------------------------------------------------------------------------------------------------------------------------------!
+! INPUT / OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+!===================================================================================================================================
+IF(BiasVoltage%COMM%UNICATOR.NE.MPI_COMM_NULL)THEN
+  ! Broadcast from root to other processors on the sub-communicator
+  CALL MPI_BCAST(BiasVoltage%BVData, BVDataLength, MPI_DOUBLE_PRECISION, 0, BiasVoltage%COMM%UNICATOR, IERROR)
+END IF
+END SUBROUTINE SynchronizeBV
+#endif /*USE_MPI*/
+#endif /*defined(PARTICLES)*/
 
 
 !===================================================================================================================================
@@ -1560,7 +1674,11 @@ END IF
 #if defined(PARTICLES)
 IF(UseBRElectronFluid) THEN
   IF (HDGNonLinSolver.EQ.1) THEN
-    ForceCGSolverIteration_loc = MERGE(ForceCGSolverIteration_opt, .FALSE., PRESENT(ForceCGSolverIteration_opt))
+
+    IF (PRESENT(ForceCGSolverIteration_opt)) THEN; ForceCGSolverIteration_loc = ForceCGSolverIteration_opt
+    ELSE;                                          ForceCGSolverIteration_loc = .FALSE.
+    END IF
+
     CALL HDGNewton(t, U_out, iter, ForceCGSolverIteration_loc)
   ELSE
     CALL CollectiveStop(__STAMP__,'Defined HDGNonLinSolver not implemented (HDGFixPoint has been removed!) HDGNonLinSolver = ',&
@@ -1702,7 +1820,7 @@ DO iVar = 1, PP_nVar
         r=q*(PP_N+1) + p+1
        lambda(iVar,r:r,SideID)=0.
       END DO; END DO !p,q
-    CASE(5) ! exact BC = Dirichlet BC !! ExactFunc via RefState (time is optional) for reference state (with zero crossing)
+    CASE(5,51,52,60) ! exact BC = Dirichlet BC !! ExactFunc via RefState (time is optional) for reference state (with zero crossing)
       DO q=0,PP_N; DO p=0,PP_N
         r=q*(PP_N+1) + p+1
         CALL ExactFunc(-1,Face_xGP(:,p,q,SideID),lambda(iVar,r:r,SideID),t=time,iRefState=BCState)
@@ -1721,6 +1839,11 @@ DO iVar = 1, PP_nVar
       DO q=0,PP_N; DO p=0,PP_N
         r=q*(PP_N+1) + p+1
         CALL ExactFunc(-4,Face_xGP(:,p,q,SideID),lambda(PP_nVar,r:r,SideID),t=time,BCState=BCState)
+      END DO; END DO !p,q
+    CASE(50) ! exact BC = Dirichlet BC !! ExactFunc via DC bias voltage
+      DO q=0,PP_N; DO p=0,PP_N
+        r=q*(PP_N+1) + p+1
+        CALL ExactFunc(-5,Face_xGP(:,p,q,SideID),lambda(PP_nVar,r:r,SideID),t=time,BCState=BCState)
       END DO; END DO !p,q
     END SELECT ! BCType
   END DO !BCsideID=1,nDirichletBCSides
@@ -1783,8 +1906,8 @@ DO iVar = 1, PP_nVar
   END IF ! UseFPC
 #endif /*USE_PETSC && defined(PARTICLES)*/
 
-  ! Check if zero potential sides are present
-  IF(ZeroPotentialSideID.GT.0) lambda(iVar,:,ZeroPotentialSideID) = ZeroPotentialValue
+  ! Set potential to zero
+  IF(SetZeroPotentialDOF) lambda(iVar,1,1) = 0.
 END DO
 
 !volume source (volume RHS of u system)
@@ -1847,19 +1970,6 @@ DO iBCSide=1,nDirichletBCSides
                           RHS_face(1,:,SideID),1)
   END DO
 END DO
-!!!! add ZeroPotentialSide
-IF(ZeroPotentialSideID.GT.0)THEN
-  locBCSideID = SideToElem(S2E_LOC_SIDE_ID,ZeroPotentialSideID)
-  ElemID    = SideToElem(S2E_ELEM_ID,ZeroPotentialSideID)
-  DO iLocSide=1,6
-    SideID = ElemToSide(E2S_SIDE_ID,iLocSide,ElemID)
-    IF(PETScGlobal(SideID).EQ.-1) CYCLE
-    CALL DGEMV('N',nGP_face,nGP_face,-1., &
-                          Smat_zeroPotential(:,:,iLocSide), nGP_face, &
-                          lambda(1,:,ZeroPotentialSideID),1,1.,& !add to RHS_face
-                          RHS_face(1,:,SideID),1)
-  END DO
-END IF
 #endif
 
 #if (PP_nVar!=1)
@@ -1909,6 +2019,12 @@ DO iVar=1, PP_nVar
       PetscCallA(VecSetValuesBlocked(RHS_petsc,1,nPETScUniqueSidesGlobal-1-FPC%nUniqueFPCBounds+iUniqueFPCBC,RHS_conductor,INSERT_VALUES,ierr))
     END DO !iUniqueFPCBC = 1, FPC%nUniqueFPCBounds
   END IF ! MPIRoot
+
+  ! Reset the RHS of the first DOF if ZeroPotential must be set
+  IF(MPIroot .AND. SetZeroPotentialDOF) THEN
+    PetscCallA(VecSetValue(RHS_petsc,0,0,INSERT_VALUES,ierr))
+  END IF
+
   PetscCallA(VecAssemblyBegin(RHS_petsc,ierr))
   PetscCallA(VecAssemblyEnd(RHS_petsc,ierr))
 
@@ -2162,8 +2278,8 @@ DO BCsideID=1,nDirichletBCSides
       r=q*(PP_N+1) + p+1
       CALL ExactFunc(-3,Face_xGP(:,p,q,SideID),lambda(PP_nVar,r:r,SideID),t=time,iLinState=BCState)
     END DO; END DO !p,q
-    CASE(8) ! exact BC = Dirichlet BC !! ExactFunc via electric potential and decharing of a surface
-      CALL abort(__STAMP__,'Dirichlet BC=8 model not implemented for HDG Newton!')
+    CASE(8,50,51,52,60) ! exact BC = Dirichlet BC !! ExactFunc via electric potential and decharing of a surface
+      CALL abort(__STAMP__,'Dirichlet BC=8,50,51,52,60 model not implemented for HDG Newton!')
   END SELECT ! BCType
 END DO !BCsideID=1,nDirichletBCSides
 
@@ -2480,7 +2596,7 @@ REAL(KIND=8)      :: Rate
 
 #if USE_MPI
   IF(MPIroot) converged=(Norm_R2.LT.EpsNonLinear**2)
-  CALL MPI_BCAST(converged,1,MPI_LOGICAL,0,MPI_COMM_WORLD,iError)
+  CALL MPI_BCAST(converged,1,MPI_LOGICAL,0,MPI_COMM_PICLAS,iError)
 #else
   converged=(Norm_R2.LT.EpsNonLinear**2)
 #endif /*USE_MPI*/
@@ -2564,14 +2680,14 @@ CALL VectorDotProduct(VecSize,R(1:VecSize),R(1:VecSize),Norm_R2) !Z=V
 IF(useRelativeAbortCrit)THEN
 #if USE_MPI
   IF(MPIroot) converged=(Norm_R2.LT.1e-16)
-  CALL MPI_BCAST(converged,1,MPI_LOGICAL,0,MPI_COMM_WORLD,iError)
+  CALL MPI_BCAST(converged,1,MPI_LOGICAL,0,MPI_COMM_PICLAS,iError)
 #else
   converged=(Norm_R2.LT.1e-16)
 #endif /*USE_MPI*/
 ELSE
 #if USE_MPI
   IF(MPIroot) converged=(Norm_R2.LT.EpsCG**2)
-  CALL MPI_BCAST(converged,1,MPI_LOGICAL,0,MPI_COMM_WORLD,iError)
+  CALL MPI_BCAST(converged,1,MPI_LOGICAL,0,MPI_COMM_PICLAS,iError)
 #else
   converged=(Norm_R2.LT.EpsCG**2)
 #endif /*USE_MPI*/
@@ -2633,7 +2749,7 @@ DO iteration=1,MaxIterCG
   CALL SYSTEM_CLOCK(count=CounterStart)
 #endif /*defined(MEASURE_MPI_WAIT)*/
 
-  CALL MPI_BCAST(converged,1,MPI_LOGICAL,0,MPI_COMM_WORLD,iError)
+  CALL MPI_BCAST(converged,1,MPI_LOGICAL,0,MPI_COMM_PICLAS,iError)
 
 #if defined(MEASURE_MPI_WAIT)
   CALL SYSTEM_CLOCK(count=CounterEnd, count_rate=Rate)
@@ -2726,7 +2842,7 @@ END SUBROUTINE DisplayConvergence
 SUBROUTINE EvalResidual(RHS,lambda,R,iVar)
 ! MODULES
 USE MOD_Globals
-USE MOD_HDG_Vars           ,ONLY: nGP_face,nDirichletBCSides,DirichletBC,ZeroPotentialSideID,ZeroPotentialValue
+USE MOD_HDG_Vars           ,ONLY: nGP_face,nDirichletBCSides,DirichletBC,SetZeroPotentialDOF
 USE MOD_Mesh_Vars          ,ONLY: nSides
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -2759,8 +2875,8 @@ IF (iVar.EQ.4) THEN
     R(:,DirichletBC(BCsideID))=0.
   END DO ! SideID=1,nSides
 
-  ! Set potential to zero
-  IF(ZeroPotentialSideID.GT.0) R(:,ZeroPotentialSideID)= 0.
+  ! Set residual to zero
+  IF(SetZeroPotentialDOF) R(1,1) = 0.
 
 #if (PP_nVar!=1)
 END IF
@@ -2782,7 +2898,7 @@ END SUBROUTINE EvalResidual
 SUBROUTINE MatVec(lambda, mv, iVar)
 ! MODULES
 USE MOD_Globals
-USE MOD_HDG_Vars          ,ONLY: Smat,nGP_face,nDirichletBCSides,DirichletBC,ZeroPotentialSideID,ZeroPotentialValue
+USE MOD_HDG_Vars          ,ONLY: Smat,nGP_face,nDirichletBCSides,DirichletBC,SetZeroPotentialDOF
 USE MOD_Mesh_Vars         ,ONLY: nSides, SideToElem, ElemToSide, nMPIsides_YOUR
 USE MOD_FillMortar_HDG    ,ONLY: BigToSmallMortar_HDG,SmallToBigMortar_HDG
 #if USE_MPI
@@ -2919,13 +3035,13 @@ CALL SmallToBigMortar_HDG(1,mv)
 IF (iVar.EQ.4) THEN
 #endif
 
-!set mv on Dirichlet BC to zero!
-DO BCsideID=1,nDirichletBCSides
-  mv(:,DirichletBC(BCsideID))=0.
-END DO ! SideID=1,nSides
+  !set mv on Dirichlet BC to zero!
+  DO BCsideID=1,nDirichletBCSides
+    mv(:,DirichletBC(BCsideID))=0.
+  END DO ! SideID=1,nSides
 
   ! Set potential to zero
-  IF(ZeroPotentialSideID.GT.0) mv(:,ZeroPotentialSideID) = 0.
+  IF(SetZeroPotentialDOF) mv(1,1) = 0.
 
 #if (PP_nVar!=1)
 END IF
@@ -2998,7 +3114,7 @@ CALL LBPauseTime(LB_DG,tLBStart) ! Pause/Stop time measurement
 
 #if USE_MPI
   ResuSend=Resu
-  CALL MPI_ALLREDUCE(ResuSend,Resu,1,MPI_DOUBLE_PRECISION,MPI_SUM,MPI_COMM_WORLD,iError)
+  CALL MPI_ALLREDUCE(ResuSend,Resu,1,MPI_DOUBLE_PRECISION,MPI_SUM,MPI_COMM_PICLAS,iError)
 #endif
 
 #if defined(MEASURE_MPI_WAIT)
@@ -3152,14 +3268,13 @@ END SUBROUTINE RestartHDG
 !===================================================================================================================================
 SUBROUTINE FinalizeHDG()
 ! MODULES
-USE MOD_globals
+USE MOD_Globals
 USE MOD_HDG_Vars
 #if USE_PETSC
 USE petsc
 #endif
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Vars   ,ONLY: PerformLoadBalance,UseH5IOLoadBalance
-USE MOD_HDG_Vars           ,ONLY: lambda, nGP_face
 USE MOD_Particle_Mesh_Vars ,ONLY: ElemInfo_Shared
 USE MOD_Mesh_Vars          ,ONLY: nElems,offsetElem,nSides,SideToNonUniqueGlobalSide
 USE MOD_Mesh_Tools         ,ONLY: LambdaSideToMaster,GetMasteriLocSides
@@ -3176,6 +3291,9 @@ PetscErrorCode       :: ierr
 INTEGER             :: NonUniqueGlobalSideID
 INTEGER             :: iSide
 #endif /*USE_LOADBALANCE*/
+#if USE_MPI
+INTEGER             :: iBC
+#endif /*USE_MPI*/
 !===================================================================================================================================
 HDGInitIsDone = .FALSE.
 #if USE_PETSC
@@ -3187,7 +3305,6 @@ PetscCallA(PetscFinalize(ierr))
 SDEALLOCATE(PETScGlobal)
 SDEALLOCATE(PETScLocalToSideID)
 SDEALLOCATE(Smat_BC)
-SDEALLOCATE(Smat_zeroPotential)
 SDEALLOCATE(SmallMortarType)
 #endif
 SDEALLOCATE(NonlinVolumeFac)
@@ -3235,6 +3352,9 @@ SDEALLOCATE(FPC%BCState)
 SDEALLOCATE(FPC%VoltageProc)
 SDEALLOCATE(FPC%ChargeProc)
 #if USE_MPI
+DO iBC = 1, FPC%nUniqueFPCBounds
+  IF(FPC%COMM(iBC)%UNICATOR.NE.MPI_COMM_NULL) CALL MPI_COMM_FREE(FPC%COMM(iBC)%UNICATOR,iERROR)
+END DO
 SDEALLOCATE(FPC%COMM)
 #endif /*USE_MPI*/
 
@@ -3258,7 +3378,14 @@ SDEALLOCATE(EPC%BCState)
 SDEALLOCATE(EPC%VoltageProc)
 SDEALLOCATE(EPC%ChargeProc)
 #if USE_MPI
+DO iBC = 1, EPC%nUniqueEPCBounds
+  IF(EPC%COMM(iBC)%UNICATOR.NE.MPI_COMM_NULL)   CALL MPI_COMM_FREE(EPC%COMM(iBC)%UNICATOR,iERROR)
+END DO
 SDEALLOCATE(EPC%COMM)
+#if defined(PARTICLES)
+IF(BiasVoltage%COMM%UNICATOR.NE.MPI_COMM_NULL)  CALL MPI_COMM_FREE(BiasVoltage%COMM%UNICATOR,iERROR)
+IF(CPPCOMM%UNICATOR.NE.MPI_COMM_NULL)           CALL MPI_COMM_FREE(CPPCOMM%UNICATOR,iERROR)
+#endif /*defined(PARTICLES)*/
 #endif /*USE_MPI*/
 
 #if USE_LOADBALANCE

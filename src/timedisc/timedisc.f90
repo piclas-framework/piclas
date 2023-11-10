@@ -90,6 +90,7 @@ USE MOD_Particle_Analyze_Vars  ,ONLY: CalcEMFieldOutput
 USE MOD_HDF5_Output_Particles  ,ONLY: FillParticleData
 #endif /*PARTICLES*/
 #ifdef PARTICLES
+USE MOD_RayTracing             ,ONLY: RayTracing
 !USE MOD_PICDepo                ,ONLY: Deposition
 USE MOD_Particle_Vars          ,ONLY: DoImportIMDFile
 #if USE_MPI
@@ -121,6 +122,9 @@ USE MOD_HDG_Vars               ,ONLY: CalcBRVariableElectronTemp
 #if defined(MEASURE_MPI_WAIT)
 USE MOD_MPI_Vars               ,ONLY: MPIW8TimeSim
 #endif /*defined(MEASURE_MPI_WAIT)*/
+#if defined(PARTICLES)
+USE MOD_Particle_Analyze_Vars  ,ONLY: CalcPointsPerDebyeLength,CalcPICTimeStep
+#endif
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -199,6 +203,11 @@ iter_PID = 0
 ! fill recordpoints buffer (first iteration)
 !IF(RP_onProc) CALL RecordPoints(iter,t,forceSampling=.TRUE.)
 
+! Ray tracing
+#if defined(PARTICLES)
+IF(.NOT.DoRestart) CALL RayTracing()
+#endif /*defined(PARTICLES)*/
+
 CALL PrintStatusLine(time,dt,tStart,tEnd,1)
 
 #if defined(PARTICLES) && defined(CODE_ANALYZE)
@@ -206,6 +215,11 @@ CALL PrintStatusLine(time,dt,tStart,tEnd,1)
 CALL InitAnalyticalParticleState() ! Requires dt
 #endif /*defined(PARTICLES) && defined(CODE_ANALYZE)*/
 
+#if defined(PARTICLES)
+IF(CalcPointsPerDebyeLength.OR.CalcPICTimeStep)THEN
+  CALL CountPartsPerElem(ResetNumberOfParticles=.TRUE.) !for scaling of tParts of LB
+END IF ! CalcPointsPerDebyeLength.OR.CalcPICTimeStep
+#endif
 CALL PerformAnalyze(time,FirstOrLastIter=.TRUE.,OutPutHDF5=.FALSE.)
 
 #ifdef PARTICLES
@@ -225,7 +239,7 @@ IF(MeasureTrackTime)THEN
   tTracking=0
   tLocalization=0
 END IF
-IF(CalcEMFieldOutput) CALL WriteElectroMagneticPICFieldToHDF5() ! Write magnetic field to file 
+IF(CalcEMFieldOutput) CALL WriteElectroMagneticPICFieldToHDF5() ! Write magnetic field to file
 #endif /*PARTICLES*/
 
 ! No computation needed if tEnd=tStart!
@@ -275,8 +289,6 @@ DO !iter_t=0,MaxIter
   CALL TimeStep_DSMC()
 #elif (PP_TimeDiscMethod==6)
   CALL TimeStepByLSERK()
-#elif (PP_TimeDiscMethod==42)
-  CALL TimeStep_DSMC_Debug() ! Reservoir and Debug
 #elif (PP_TimeDiscMethod==100)
   CALL TimeStepByEulerImplicit() ! O1 Euler Implicit
 #elif (PP_TimeDiscMethod==120)
@@ -365,10 +377,10 @@ DO !iter_t=0,MaxIter
     MPIW8TimeSim = MPIW8TimeSim + (WallTimeEnd-WallTimeStart)
 #endif /*defined(MEASURE_MPI_WAIT)*/
 
-#if USE_MPI
 #if defined(PARTICLES) && !defined(LSERK) && !defined(IMPA) && !defined(ROS)
     CALL CountPartsPerElem(ResetNumberOfParticles=.TRUE.) !for scaling of tParts of LB
 #endif
+#if USE_MPI
 
 #if USE_LOADBALANCE
 #ifdef PARTICLES
@@ -407,7 +419,12 @@ DO !iter_t=0,MaxIter
     IF(MOD(iAnalyze,nSkipAnalyze).EQ.0 .OR. finalIter)THEN
 #endif /*USE_LOADBALANCE*/
       ! Analyze for output
-      CALL PerformAnalyze(time, FirstOrLastIter=finalIter, OutPutHDF5=.TRUE.) ! analyze routines are not called here in last iter
+#if defined(PARTICLES)
+      IF(CalcPointsPerDebyeLength.OR.CalcPICTimeStep)THEN
+        CALL CountPartsPerElem(ResetNumberOfParticles=.TRUE.) !for scaling of tParts of LB
+      END IF ! CalcPointsPerDebyeLength.OR.CalcPICTimeStep
+#endif
+      CALL PerformAnalyze(time, FirstOrLastIter=finalIter, OutPutHDF5=.TRUE.) ! analyze routines are called here in last iter
       ! write information out to std-out of console
       CALL PrintStatusLine(time,dt,tStart,tEnd,2)
       CALL WriteInfoStdOut()
@@ -528,7 +545,7 @@ IF(CountNbrOfLostParts)THEN
 #if USE_MPI
   NbrOfLostParticlesTotal_old_tmp = NbrOfLostParticlesTotal ! keep old value
   ! Allreduce is required because of the particle output to .h5 in which all processors must take place
-  CALL MPI_ALLREDUCE(NbrOfLostParticles , NbrOfLostParticlesTotal , 1 , MPI_INTEGER , MPI_SUM , MPI_COMM_WORLD , IERROR)
+  CALL MPI_ALLREDUCE(NbrOfLostParticles , NbrOfLostParticlesTotal , 1 , MPI_INTEGER , MPI_SUM , MPI_COMM_PICLAS , IERROR)
   NbrOfLostParticlesTotal = NbrOfLostParticlesTotal + NbrOfLostParticlesTotal_old_tmp ! add old value
 #else
   NbrOfLostParticlesTotal = NbrOfLostParticlesTotal + NbrOfLostParticles

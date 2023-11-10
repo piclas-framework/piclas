@@ -43,7 +43,8 @@ CALL prms%SetSection("Piclas Initialization")
 
 CALL prms%CreateIntOption(      'TimeStampLength' , 'Length of the floating number time stamp' , '21')
 #ifdef PARTICLES
-CALL prms%CreateLogicalOption(  'UseDSMC'         , "Flag for using DSMC in Calculation"       , '.FALSE.')
+CALL prms%CreateLogicalOption(  'UseDSMC'         , "Flag for using DSMC methods"              , '.FALSE.')
+CALL prms%CreateLogicalOption(  'UseRayTracing'   , "Flag for using ray tracing tools"         , '.FALSE.')
 #endif
 
 END SUBROUTINE DefineParametersPiclas
@@ -84,8 +85,6 @@ USE MOD_MPI                  ,ONLY: InitMPIvars
 #endif /*USE_MPI*/
 #ifdef PARTICLES
 USE MOD_DSMC_Vars            ,ONLY: UseDSMC
-USE MOD_Particle_Vars        ,ONLY: UseVarTimeStep, VarTimeStep
-USE MOD_Particle_TimeStep    ,ONLY: InitPartTimeStep
 USE MOD_ParticleInit         ,ONLY: InitParticleGlobals,InitParticles
 USE MOD_TTMInit              ,ONLY: InitTTM,InitIMD_TTM_Coupling
 USE MOD_TTM_Vars             ,ONLY: DoImportTTMFile
@@ -93,7 +92,6 @@ USE MOD_Particle_Analyze     ,ONLY: InitParticleAnalyze
 USE MOD_SurfaceModel_Analyze ,ONLY: InitSurfModelAnalyze
 USE MOD_Particle_MPI         ,ONLY: InitParticleMPI
 USE MOD_DSMC_Symmetry        ,ONLY: Init_Symmetry
-USE MOD_PICDepo_Method       ,ONLY: InitDepositionMethod
 #if USE_MPI
 USE mod_readIMD              ,ONLY: initReadIMDdata,read_IMD_results
 #endif /* USE_MPI */
@@ -157,17 +155,7 @@ ELSE
 END IF
 
 #ifdef PARTICLES
-!--- Variable time step
-VarTimeStep%UseLinearScaling = GETLOGICAL('Part-VariableTimeStep-LinearScaling')
-VarTimeStep%UseDistribution = GETLOGICAL('Part-VariableTimeStep-Distribution')
-IF (VarTimeStep%UseLinearScaling.OR.VarTimeStep%UseDistribution)  THEN
-  UseVarTimeStep = .TRUE.
-  IF(.NOT.IsLoadBalance) CALL InitPartTimeStep()
-ELSE
-  UseVarTimeStep = .FALSE.
-END IF
-CALL InitParticleGlobals()
-CALL InitDepositionMethod()
+CALL InitParticleGlobals(IsLoadBalance)
 #endif
 
 CALL InitMesh(2)
@@ -268,6 +256,7 @@ USE MOD_MPI                        ,ONLY: FinalizeMPI
 USE MOD_MPI_Shared                 ,ONLY: FinalizeMPIShared
 #endif /*USE_MPI*/
 #ifdef PARTICLES
+USE MOD_RayTracing_Init            ,ONLY: FinalizeRayTracing
 USE MOD_Particle_Surfaces          ,ONLY: FinalizeParticleSurfaces
 USE MOD_InitializeBackgroundField  ,ONLY: FinalizeBackGroundField
 USE MOD_SuperB_Init                ,ONLY: FinalizeSuperB
@@ -296,6 +285,9 @@ USE MOD_PIC_Vars                   ,ONLY: PICInitIsDone
 #if USE_MPI
 USE MOD_Particle_MPI               ,ONLY: FinalizeParticleMPI
 USE MOD_Particle_MPI_Vars          ,ONLY: ParticleMPIInitisdone
+#if defined(MEASURE_MPI_WAIT)
+USE MOD_MPI                        ,ONLY: OutputMPIW8Time
+#endif /*defined(MEASURE_MPI_WAIT)*/
 #endif /*USE_MPI*/
 #endif /*PARTICLES*/
 USE MOD_IO_HDF5                    ,ONLY: FinalizeElemData,ElementOut
@@ -332,6 +324,7 @@ CALL FinalizeRestart()
 CALL FinalizeMesh()
 CALL FinalizeMortar()
 #ifdef PARTICLES
+CALL FinalizeRayTracing()
 CALL FinalizeSurfaceModel()
 CALL FinalizeSurfaceModelAnalyze()
 CALL FinalizeParticleBoundarySampling()
@@ -389,6 +382,12 @@ IF(.NOT.IsLoadBalance)THEN
 #if USE_MPI
   ! Free the communicators!
   CALL FinalizeMPIShared()
+#if defined(MEASURE_MPI_WAIT)
+  ! Collect the MPI_WAIT() over all procs and output
+  IF(nProcessors.GT.1) CALL OutputMPIW8Time()
+#endif /*defined(MEASURE_MPI_WAIT)*/
+  ! Free the last communicator after OutputMPIW8Time
+  IF(MPI_COMM_PICLAS.NE.MPI_COMM_NULL) CALL MPI_COMM_FREE(MPI_COMM_PICLAS,IERROR)
 #endif /*USE_MPI*/
 ELSE
   CALL DisplaySimulationTime(Time, StartTime, 'RUNNING')

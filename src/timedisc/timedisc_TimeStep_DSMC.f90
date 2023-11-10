@@ -37,7 +37,7 @@ USE MOD_TimeDisc_Vars            ,ONLY: dt, IterDisplayStep, iter, TEnd, Time
 #ifdef PARTICLES
 USE MOD_Globals                  ,ONLY: abort, CROSS
 USE MOD_Particle_Vars            ,ONLY: PartState, LastPartPos, PDM, PEM, DoSurfaceFlux, WriteMacroVolumeValues
-USE MOD_Particle_Vars            ,ONLY: UseRotRefFrame, RotRefFrameOmega
+USE MOD_Particle_Vars            ,ONLY: UseRotRefFrame, RotRefFrameOmega, PartVeloRotRef
 USE MOD_Particle_Vars            ,ONLY: WriteMacroSurfaceValues, Symmetry, Species, PartSpecies
 USE MOD_Particle_Vars            ,ONLY: UseVarTimeStep, PartTimeStep, VarTimeStep
 USE MOD_Particle_Vars            ,ONLY: UseSplitAndMerge
@@ -52,6 +52,7 @@ USE MOD_SurfaceModel_Porous      ,ONLY: PorousBoundaryRemovalProb_Pressure
 USE MOD_SurfaceModel_Vars        ,ONLY: nPorousBC
 USE MOD_vMPF                     ,ONLY: SplitAndMerge
 USE MOD_part_RHS                 ,ONLY: CalcPartRHSRotRefFrame
+USE MOD_part_pos_and_velo        ,ONLY: SetParticleVelocity
 USE MOD_Part_Tools               ,ONLY: InRotRefFrameCheck
 USE MOD_Part_Tools               ,ONLY: CalcPartSymmetryPos
 #if USE_MPI
@@ -69,12 +70,27 @@ IMPLICIT NONE
 ! INPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-REAL                       :: timeEnd, timeStart, dtVar, RandVal, Pt_local(1:3), RotRefVelo(1:3)
 INTEGER                    :: iPart
+REAL                       :: timeEnd, timeStart, dtVar, RandVal
+! Rotational frame of reference
+REAL                       :: Pt_local(1:3), Pt_local_old(1:3), VeloRotRef_half(1:3), PartState_half(1:3)
 #if USE_LOADBALANCE
 REAL                  :: tLBStart
 #endif /*USE_LOADBALANCE*/
 !===================================================================================================================================
+! for reservoir simulation: no surface flux, particle push, tracking, ...
+IF (DSMC%ReservoirSimu) THEN ! fix grid should be defined for reservoir simu
+  CALL UpdateNextFreePosition()
+  CALL DSMC_main()
+  IF(DSMC%CompareLandauTeller) THEN
+    DO iPart=1,PDM%ParticleVecLength
+      PDM%nextFreePosition(iPart)=iPart
+    END DO
+    CALL SetParticleVelocity(1,1,PDM%ParticleVecLength)
+  END IF
+  RETURN
+END IF
+
 #if USE_LOADBALANCE
 CALL LBStartTime(tLBStart)
 #endif /*USE_LOADBALANCE*/
@@ -112,9 +128,19 @@ DO iPart=1,PDM%ParticleVecLength
     END IF
     IF(UseRotRefFrame) THEN
       IF(PDM%InRotRefFrame(iPart)) THEN
-        RotRefVelo(1:3) = PartState(4:6,iPart) - CROSS(RotRefFrameOmega(1:3),PartState(1:3,iPart))
-        CALL CalcPartRHSRotRefFrame(iPart,Pt_local(1:3),RotRefVelo(1:3))
-        PartState(1:3,iPart) = PartState(1:3,iPart) + (RotRefVelo(1:3)+dtVar*0.5*Pt_local(1:3)) * dtVar
+        ! Midpoint method
+        ! calculate the acceleration (force / mass) at the current time step
+        Pt_local_old(1:3) = CalcPartRHSRotRefFrame(PartState(1:3,iPart), PartVeloRotRef(1:3,iPart))
+        ! estimate the mid-point velocity in the rotational frame
+        VeloRotRef_half(1:3) = PartVeloRotRef(1:3,iPart) + 0.5*Pt_local_old(1:3)*dtVar
+        ! estimate the mid-point position
+        PartState_half(1:3) = PartState(1:3,iPart) + 0.5*PartVeloRotRef(1:3,iPart)*dtVar
+        ! calculate the acceleration (force / mass) at the mid-point
+        Pt_local(1:3) = CalcPartRHSRotRefFrame(PartState_half(1:3), VeloRotRef_half(1:3))
+        ! update the position using the mid-point velocity in the rotational frame
+        PartState(1:3,iPart) = PartState(1:3,iPart) + VeloRotRef_half(1:3)*dtVar
+        ! update the velocity in the rotational frame using the mid-point acceleration
+        PartVeloRotRef(1:3,iPart) = PartVeloRotRef(1:3,iPart) + Pt_local(1:3)*dtVar
       ELSE
         PartState(1:3,iPart) = PartState(1:3,iPart) + PartState(4:6,iPart) * dtVar
       END IF
@@ -208,21 +234,25 @@ END IF ! DSMC%UseOctree
 
 IF(UseRotRefFrame) THEN
   DO iPart = 1,PDM%ParticleVecLength
-    IF(PDM%ParticleInside(iPart)) PDM%InRotRefFrame(iPart) = InRotRefFrameCheck(iPart)
+    IF(PDM%ParticleInside(iPart)) THEN
+      IF(InRotRefFrameCheck(iPart)) THEN
+        ! Particle moved into the rotational frame of reference, initialize velocity
+        IF(.NOT.PDM%InRotRefFrame(iPart)) THEN
+          PartVeloRotRef(1:3,iPart) = PartState(4:6,iPart) - CROSS(RotRefFrameOmega(1:3),PartState(1:3,iPart))
+        END IF
+      ELSE
+        ! Particle left (or never was in) the rotational frame of reference
+        PartVeloRotRef(1:3,iPart) = 0.
+      END IF
+      PDM%InRotRefFrame(iPart) = InRotRefFrameCheck(iPart)
+    END IF
   END DO
 END IF
 
 CALL DSMC_main()
 
-#if USE_LOADBALANCE
-CALL LBStartTime(tLBStart)
-#endif /*USE_LOADBALANCE*/
-
+! Split & Merge: Variable particle weighting
 IF(UseSplitAndMerge) CALL SplitAndMerge()
-
-#if USE_LOADBALANCE
-CALL LBPauseTime(LB_DSMC,tLBStart)
-#endif /*USE_LOADBALANCE*/
 
 END SUBROUTINE TimeStep_DSMC
 

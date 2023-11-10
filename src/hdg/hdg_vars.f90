@@ -19,6 +19,9 @@
 !===================================================================================================================================
 MODULE MOD_HDG_Vars
 ! MODULES
+#if USE_MPI
+USE MOD_Globals
+#endif /*USE_MPI*/
 #if USE_PETSC
 USE PETSc
 #endif
@@ -46,11 +49,10 @@ Vec                 :: lambda_local_conductors_petsc
 VecScatter          :: scatter_conductors_petsc
 IS                  :: idx_local_conductors_petsc
 IS                  :: idx_global_conductors_petsc
-INTEGER,ALLOCATABLE :: PETScGlobal(:)         !< PETScGlobal(SideID) maps the local SideID to global PETScSideID 
+INTEGER,ALLOCATABLE :: PETScGlobal(:)         !< PETScGlobal(SideID) maps the local SideID to global PETScSideID
 INTEGER,ALLOCATABLE :: PETScLocalToSideID(:)  !< PETScLocalToSideID(PETScLocalSideID) maps the local PETSc side to SideID
 REAL,ALLOCATABLE    :: Smat_BC(:,:,:,:)       !< side to side matrix for dirichlet (D) BCs, (ngpface,ngpface,6Sides,DSides)
-REAL,ALLOCATABLE    :: Smat_zeroPotential(:,:,:) !< side to side matrix for zero potential Side, (ngpface,ngpface,6Sides)
-INTEGER             :: nPETScSides            !< nSides - nDirichletSides - nZeroPotentialSides
+INTEGER             :: nPETScSides            !< nSides - nDirichletSides
 INTEGER             :: nPETScUniqueSides      !< nPETScSides - nMPISides_YOUR
 INTEGER             :: nPETScUniqueSidesGlobal
 #endif
@@ -71,13 +73,9 @@ REAL,ALLOCATABLE    :: InvPrecondDiag(:,:)    !< 1/diagonal of Precond
 REAL,ALLOCATABLE    :: qn_face(:,:,:)         !< for Neumann BC
 REAL,ALLOCATABLE    :: qn_face_MagStat(:,:,:) !< for Neumann BC
 INTEGER             :: nDirichletBCsides
-INTEGER             :: ZeroPotentialSideID    !< SideID, where the solution is set zero to enforce convergence
-REAL,PARAMETER      :: ZeroPotentialValue=0.  !< This can be set to an arbitrary value (in the range of the potential solution)
-INTEGER             :: HDGZeroPotentialDir    !< Direction in which a Dirichlet condition with phi=0 is superimposed on the boundary
-                                              !< conditions. Default chooses the direction automatically when no other Dirichlet
-                                              !< boundary conditions are defined.
 INTEGER             :: nNeumannBCsides
 INTEGER             :: nConductorBCsides      !< Number of processor-local sides that are conductors (FPC) in [1:nBCSides]
+LOGICAL             :: SetZeroPotentialDOF    !< Flag to set a single DOF, if only periodic and Neumann boundaries are present
 INTEGER,ALLOCATABLE :: ConductorBC(:)
 INTEGER,ALLOCATABLE :: DirichletBC(:)
 INTEGER,ALLOCATABLE :: NeumannBC(:)
@@ -161,15 +159,11 @@ LOGICAL               :: BRNullCollisionDefault        !< Flag (backup of read-i
 
 #if USE_MPI
 TYPE tMPIGROUP
-  INTEGER                     :: ID                  !< MPI communicator ID
-  INTEGER                     :: UNICATOR            !< MPI communicator for floating boundary condition
-  INTEGER                     :: Request             !< MPI request for asynchronous communication
-  INTEGER                     :: nProcs              !< number of MPI processes part of the FPC group
-  INTEGER                     :: nProcsWithSides     !< number of MPI processes part of the FPC group and actual FPC sides
-  INTEGER                     :: MyRank              !< MyRank of PartMPIVAR%COMM
-  LOGICAL                     :: MPIRoot             !< Root, MPIRank=0
-  INTEGER,ALLOCATABLE         :: GroupToComm(:)      !< list containing the rank in PartMPI%COMM
-  INTEGER,ALLOCATABLE         :: CommToGroup(:)      !< list containing the rank in PartMPI%COMM
+  INTEGER                     :: ID                     !< MPI communicator ID
+  INTEGER                     :: UNICATOR=MPI_COMM_NULL !< MPI communicator for floating boundary condition
+  INTEGER                     :: nProcs                 !< number of MPI processes part of the FPC group
+  INTEGER                     :: nProcsWithSides        !< number of MPI processes part of the FPC group and actual FPC sides
+  INTEGER                     :: MyRank                 !< MyRank within communicator
 END TYPE
 #endif /*USE_MPI*/
 
@@ -203,7 +197,7 @@ END TYPE
 
 TYPE(tFPC)   :: FPC
 !===================================================================================================================================
-!-- Electric Potential Condition (for decharging )
+!-- Electric Potential Condition (for decharging)
 !===================================================================================================================================
 
 LOGICAL                       :: UseEPC             !< Automatic flag when EPCs are active
@@ -232,6 +226,47 @@ TYPE tEPC
 END TYPE
 
 TYPE(tEPC)   :: EPC
+#if defined(PARTICLES)
+!===================================================================================================================================
+!-- Coupled Power Potential (CPP)
+!-- Special BC with floating potential that is defined by the absorbed power of the charged particles
+!===================================================================================================================================
+
+LOGICAL           :: UseCoupledPowerPotential !< Switch calculation on/off
+INTEGER,PARAMETER :: CPPDataLength=6          !< Number of variables in BVData
+
+#if USE_MPI
+TYPE(tMPIGROUP) :: CPPCOMM       !< communicator and ID for parallel execution
+#endif /*USE_MPI*/
+
+REAL    :: CoupledPowerPotential(CPPDataLength) !< (/min, start, max/) electric potential, e.g., used at all BoundaryType = (/2,2/)
+REAL    :: CoupledPowerTarget                   !< Target input power at all BoundaryType = (/2,2/)
+REAL    :: CoupledPowerRelaxFac                 !< Relaxation factor for calculation of new electric potential
+REAL    :: CoupledPowerFrequency                !< Frequency with which the integrated power is calculated (must be consistent Part-AnalyzeStep, i.e., that one cycle with period T=1/f must be larger than Part-AnalyzeStep * dt)
+INTEGER :: CoupledPowerMode                     !< Method for power adjustment with 1: instantaneous power, 2: moving average power, 3: integrated power
+
+!===================================================================================================================================
+!-- Bias Voltage (for calculating a BC voltage bias for certain BCs)
+!===================================================================================================================================
+
+LOGICAL           :: UseBiasVoltage !< Automatic flag when bias voltage is to be used
+INTEGER,PARAMETER :: BVDataLength=3 !< Number of variables in BVData
+
+TYPE tBV
+#if USE_MPI
+  TYPE(tMPIGROUP)     :: COMM                 !< communicator and ID for parallel execution
+#endif /*USE_MPI*/
+  INTEGER             :: NPartBoundaries      !< Total number of boundaries where the particles are counted
+  INTEGER,ALLOCATABLE :: PartBoundaries(:)    !< Part-boundary number on which the particles are counted
+  REAL                :: Frequency            !< Adaption nrequency with which the bias voltage is adjusted (every period T = 1/f the bias voltage is changed)
+  REAL                :: Delta                !< Voltage difference used to change the current bias voltage (may also be adjusted over time automatically)
+  REAL                :: BVData(BVDataLength) !< 1: bias voltage
+!                                             !< 2: Ion excess
+!                                             !< 3: sim. time when next adjustment happens
+END TYPE
+
+TYPE(tBV)   :: BiasVoltage
+#endif /*defined(PARTICLES)*/
 !===================================================================================================================================
 
 #if USE_MPI

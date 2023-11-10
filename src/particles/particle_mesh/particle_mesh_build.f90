@@ -28,6 +28,7 @@ PRIVATE
 PUBLIC:: BuildElementRadiusTria,BuildElemTypeAndBasisTria,BuildEpsOneCell,BuildBCElemDistance
 PUBLIC:: BuildNodeNeighbourhood,BuildElementOriginShared,BuildElementBasisAndRadius
 PUBLIC:: BuildSideOriginAndRadius,BuildLinearSideBaseVectors, BuildMesh2DInfo
+PUBLIC:: BuildSideSlabAndBoundingBox
 !===================================================================================================================================
 
 CONTAINS
@@ -41,19 +42,19 @@ SUBROUTINE BuildMesh2DInfo()
 ! MODULES
 USE MOD_Globals
 USE MOD_PreProc
-USE MOD_Mesh_Vars               ,ONLY: nElems
 USE MOD_Particle_Boundary_Vars  ,ONLY: PartBound
 USE MOD_Particle_Mesh_Vars      ,ONLY: GEO
-USE MOD_Particle_Mesh_Vars      ,ONLY: SideIsSymSide, nComputeNodeSides, ElemBaryNGeo
-USE MOD_Particle_Mesh_Vars      ,ONLY: NodeCoords_Shared,ElemSideNodeID_Shared, SideInfo_Shared, ElemInfo_Shared
+USE MOD_Particle_Mesh_Vars      ,ONLY: ElemBaryNGeo
+USE MOD_Particle_Mesh_Vars      ,ONLY: NodeCoords_Shared,ElemSideNodeID_Shared, SideInfo_Shared
 USE MOD_Mesh_Tools              ,ONLY: GetGlobalElemID
 USE MOD_Particle_Mesh_Tools     ,ONLY: GetGlobalNonUniqueSideID
 #if USE_MPI
 USE MOD_MPI_Shared             
 USE MOD_MPI_Shared_Vars         ,ONLY: MPI_COMM_SHARED, nComputeNodeTotalElems
-USE MOD_Particle_Mesh_Vars      ,ONLY: nNonUniqueGlobalSides, SideIsSymSide_Shared, SideIsSymSide_Shared_Win
 USE MOD_Particle_Mesh_Vars      ,ONLY: ElemSideNodeID2D_Shared_Win, SideNormalEdge2D_Shared_Win
 USE MOD_MPI_Shared_Vars         ,ONLY: myComputeNodeRank, nComputeNodeProcessors
+#else
+USE MOD_Mesh_Vars               ,ONLY: nElems
 #endif /*USE_MPI*/
 USE MOD_Particle_Mesh_Vars      ,ONLY: ElemSideNodeID2D_Shared, SideNormalEdge2D_Shared
 ! IMPLICIT VARIABLE HANDLING
@@ -64,53 +65,12 @@ USE MOD_Particle_Mesh_Vars      ,ONLY: ElemSideNodeID2D_Shared, SideNormalEdge2D
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                         :: SideID, iLocSide, iNode, BCSideID, locElemID, CNElemID, iSide, iELem
+INTEGER                         :: SideID, iLocSide, iNode, iELem
 REAL                            :: VecCell(2), FaceMidPoint(2), NormVec(2), EdgeVec(2), nVal
-INTEGER                         :: firstElem,lastElem, firstSide, lastSide, GlobalElemID, tmpNode
+INTEGER                         :: firstElem,lastElem, GlobalElemID, tmpNode
 LOGICAL                         :: DefineSide
 !===================================================================================================================================
-
 #if USE_MPI
-CALL Allocate_Shared((/nNonUniqueGlobalSides/),SideIsSymSide_Shared_Win,SideIsSymSide_Shared)
-CALL MPI_WIN_LOCK_ALL(0,SideIsSymSide_Shared_Win,IERROR)
-
-SideIsSymSide => SideIsSymSide_Shared
-#else
-! allocate local array for ElemInfo
-ALLOCATE(SideIsSymSide(nComputeNodeSides))
-#endif  /*USE_MPI*/
-
-#if USE_MPI
-  firstSide = INT(REAL( myComputeNodeRank   *nNonUniqueGlobalSides)/REAL(nComputeNodeProcessors))+1
-  lastSide  = INT(REAL((myComputeNodeRank+1)*nNonUniqueGlobalSides)/REAL(nComputeNodeProcessors))
-#else
-  firstSide = 1
-  lastSide  = nComputeNodeSides
-#endif
-
-DO iSide = firstSide, lastSide
-  ! ignore non-BC sides
-  IF (SideInfo_Shared(SIDE_BCID,iSide).LE.0) THEN
-    SideIsSymSide(iSide) = .FALSE.
-    CYCLE
-  END IF
-
-#if USE_MPI
-  ! ignore sides outside of halo region
-  IF (ElemInfo_Shared(ELEM_HALOFLAG,SideInfo_Shared(SIDE_ELEMID,iSide)).EQ.0) THEN
-    SideIsSymSide(iSide) = .FALSE.
-    CYCLE
-  END IF
-#endif /*USE_MPI*/
-  IF (PartBound%TargetBoundCond(PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,iSide))).EQ.PartBound%SymmetryBC) THEN
-    SideIsSymSide(iSide) = .TRUE.
-  ELSE
-    SideIsSymSide(iSide) = .FALSE.
-  END IF
-END DO
-#if USE_MPI
-CALL BARRIER_AND_SYNC(SideIsSymSide_Shared_Win,MPI_COMM_SHARED)
-
 CALL Allocate_Shared((/2,6,nComputeNodeTotalElems/),ElemSideNodeID2D_Shared_Win,ElemSideNodeID2D_Shared)
 CALL MPI_WIN_LOCK_ALL(0,ElemSideNodeID2D_Shared_Win,IERROR)
 CALL Allocate_Shared((/4,6,nComputeNodeTotalElems/),SideNormalEdge2D_Shared_Win,SideNormalEdge2D_Shared)
@@ -303,6 +263,7 @@ USE MOD_Mesh_Vars               ,ONLY: XCL_NGeo
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Vars        ,ONLY: PerformLoadBalance
 #endif /*USE_LOADBALANCE*/
+USE MOD_Photon_TrackingVars     ,ONLY: UsePhotonTriaTracking
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -323,32 +284,40 @@ LBWRITE(UNIT_StdOut,'(A)') ' Identifying side types and whether elements are cur
 
 ! elements
 #if USE_MPI
-CALL Allocate_Shared((/nComputeNodeTotalElems/),ElemCurved_Shared_Win,ElemCurved_Shared)
-CALL MPI_WIN_LOCK_ALL(0,ElemCurved_Shared_Win,IERROR)
+IF(UsePhotonTriaTracking)THEN
+  CALL Allocate_Shared((/nComputeNodeTotalElems/),ElemCurved_Shared_Win,ElemCurved_Shared)
+  CALL MPI_WIN_LOCK_ALL(0,ElemCurved_Shared_Win,IERROR)
+END IF ! UsePhotonTriaTracking
 CALL Allocate_Shared((/3,6,nComputeNodeTotalElems/),XiEtaZetaBasis_Shared_Win,XiEtaZetaBasis_Shared)
 CALL MPI_WIN_LOCK_ALL(0,XiEtaZetaBasis_Shared_Win,IERROR)
 CALL Allocate_Shared((/6,nComputeNodeTotalElems/),slenXiEtaZetaBasis_Shared_Win,slenXiEtaZetaBasis_Shared)
 CALL MPI_WIN_LOCK_ALL(0,slenXiEtaZetaBasis_Shared_Win,IERROR)
-ElemCurved         => ElemCurved_Shared
+IF(UsePhotonTriaTracking)THEN
+  ElemCurved         => ElemCurved_Shared
+END IF ! UsePhotonTriaTracking
 XiEtaZetaBasis     => XiEtaZetaBasis_Shared
 slenXiEtaZetaBasis => slenXiEtaZetaBasis_Shared
 
 ASSOCIATE(XCL_NGeo     => XCL_NGeo_Shared)
 
 #else
-ALLOCATE(ElemCurved(            1:nElems) &
-        ,XiEtaZetaBasis(1:3,1:6,1:nElems) &
-        ,slenXiEtaZetaBasis(1:6,1:nElems))
+IF(UsePhotonTriaTracking)THEN
+  ALLOCATE(ElemCurved(            1:nElems))
+END IF ! UsePhotonTriaTracking
+ALLOCATE(XiEtaZetaBasis(1:3,1:6,1:nElems))
+ALLOCATE(slenXiEtaZetaBasis(1:6,1:nElems))
 #endif /*USE_MPI*/
 
-! only CN root nullifies
+IF(UsePhotonTriaTracking)THEN
+  ! only CN root nullifies
 #if USE_MPI
-IF (myComputeNodeRank.EQ.0) THEN
+  IF (myComputeNodeRank.EQ.0) THEN
 #endif /*USE_MPI*/
-  ElemCurved   = .FALSE.
+    ElemCurved   = .FALSE.
 #if USE_MPI
-END IF
+  END IF
 #endif /*USE_MPI*/
+END IF ! UsePhotonTriaTracking
 
 #if USE_MPI
 firstElem = INT(REAL( myComputeNodeRank   )*REAL(nComputeNodeTotalElems)/REAL(nComputeNodeProcessors))+1
@@ -388,7 +357,9 @@ END DO
 
 #if USE_MPI
 END ASSOCIATE
-CALL BARRIER_AND_SYNC(ElemCurved_Shared_Win        ,MPI_COMM_SHARED)
+IF(UsePhotonTriaTracking)THEN
+  CALL BARRIER_AND_SYNC(ElemCurved_Shared_Win      ,MPI_COMM_SHARED)
+END IF ! UsePhotonTriaTracking
 CALL BARRIER_AND_SYNC(XiEtaZetaBasis_Shared_Win    ,MPI_COMM_SHARED)
 CALL BARRIER_AND_SYNC(slenXiEtaZetaBasis_Shared_Win,MPI_COMM_SHARED)
 #endif /*USE_MPI*/
@@ -523,7 +494,14 @@ CALL BARRIER_AND_SYNC(ElemsJ_Shared_Win,MPI_COMM_SHARED)
 ElemsJ => sJ
 #endif /* USE_MPI*/
 
-IF (TrackingMethod.EQ.TRIATRACKING) RETURN
+! Exit routine here if TriaTracking is active
+IF (TrackingMethod.EQ.TRIATRACKING)THEN
+  IF(MPIRoot)THEN
+    GETTIME(EndT)
+    CALL DisplayMessageAndTime(EndT-StartT, 'DONE!')
+  END IF ! MPIRoot
+  RETURN
+END IF
 
 ! allocate epsOneCell
 #if USE_MPI
@@ -636,10 +614,10 @@ INTEGER,ALLOCATABLE            :: intSideBCMetrics(:)
 #if USE_MPI
 REAL                           :: BC_halo_eps_velo,BC_halo_diag,deltaT
 INTEGER                        :: sendbuf,recvbuf
-#endif /*USE_MPI*/
 #if (PP_TimeDiscMethod==501) || (PP_TimeDiscMethod==502) || (PP_TimeDiscMethod==506)
 INTEGER                        :: iStage
 #endif
+#endif /*USE_MPI*/
 !===================================================================================================================================
 
 LBWRITE(UNIT_StdOut,'(132("-"))')
@@ -1032,23 +1010,26 @@ SUBROUTINE BuildNodeNeighbourhood()
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! MODULES                                                                                                                          !
 !----------------------------------------------------------------------------------------------------------------------------------!
-USE MOD_Globals            ,ONLY: abort!,myRank
+USE MOD_Globals            ,ONLY: abort,UNIT_stdOUt,DisplayMessageAndTime!,myRank
 USE MOD_Particle_Mesh_Vars ,ONLY: nUniqueGlobalNodes
 USE MOD_Particle_Mesh_Vars ,ONLY: ElemNodeID_Shared,NodeInfo_Shared
 USE MOD_Particle_Mesh_Vars ,ONLY: NodeToElemMapping,NodeToElemInfo,ElemToElemMapping,ElemToElemInfo
 #if USE_MPI
+USE MOD_Globals            ,ONLY: MPIRoot
 USE MPI
 USE MOD_MPI_Shared
 USE MOD_MPI_Shared_Vars    ,ONLY: nComputeNodeTotalElems
 USE MOD_MPI_Shared_Vars    ,ONLY: nComputeNodeProcessors,myComputeNodeRank
 USE MOD_MPI_Shared_Vars    ,ONLY: MPI_COMM_SHARED
-USE MOD_Particle_Mesh_Vars ,ONLY: NodeToElemMapping,NodeToElemInfo,ElemToElemMapping,ElemToElemInfo
 USE MOD_Particle_Mesh_Vars ,ONLY: NodeToElemMapping_Shared,NodeToElemInfo_Shared,ElemToElemMapping_Shared,ElemToElemInfo_Shared
 USE MOD_Particle_Mesh_Vars ,ONLY: NodeToElemMapping_Shared_Win,NodeToElemInfo_Shared_Win
 USE MOD_Particle_Mesh_Vars ,ONLY: ElemToElemMapping_Shared_Win,ElemToElemInfo_Shared_Win
 #else
 USE MOD_Mesh_Vars          ,ONLY: nElems
 #endif /*USE_MPI*/
+#if USE_LOADBALANCE
+USE MOD_LoadBalance_Vars   ,ONLY: PerformLoadBalance
+#endif /*USE_LOADBALANCE*/
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
 ! INPUT / OUTPUT VARIABLES
@@ -1062,7 +1043,10 @@ INTEGER,ALLOCATABLE            :: CheckedElemIDs(:)
 #if USE_MPI
 INTEGER                        :: sendbuf,recvbuf,iError
 #endif /*USE_MPI*/
+REAL                           :: StartT,EndT
 !===================================================================================================================================
+LBWRITE(UNIT_StdOut,'(A)',ADVANCE='NO') ' Building node neighbourhood ...'
+GETTIME(StartT)
 
 ! 1.1 Get number of CN elements attached to each UNIQUE node and store in NbrOfElemsOnUniqueNode(UniqueNodeID)
 ! 1.2 Store the total number of counted elements in nNodeToElemMapping = SUM(NbrOfElemsOnUniqueNode)
@@ -1166,9 +1150,13 @@ CALL BARRIER_AND_SYNC(NodeToElemMapping_Shared_Win,MPI_COMM_SHARED)
 CALL Allocate_Shared((/2,nComputeNodeTotalElems/),ElemToElemMapping_Shared_Win,ElemToElemMapping_Shared)
 CALL MPI_WIN_LOCK_ALL(0,ElemToElemMapping_Shared_Win,IERROR)
 ElemToElemMapping => ElemToElemMapping_Shared
+IF (myComputeNodeRank.EQ.0) ElemToElemMapping = 0
+CALL BARRIER_AND_SYNC(ElemToElemMapping_Shared_Win,MPI_COMM_SHARED)
 #else
 ALLOCATE(ElemToElemMapping(2,nElems))
+ElemToElemMapping = 0
 #endif /*USE_MPI*/
+
 
 ! 5. Fill ElemToElemMapping = [offset, Nbr of CN elements]
 !    Note that the number of elements stored in ElemToElemMapping(2,iElem) must be shifted after communication with other procs
@@ -1278,9 +1266,7 @@ DO iElem = firstElem, lastElem
       CountElems = CountElems + 1
       OffsetElemToElemCounter = OffsetElemToElemCounter + 1
 
-      IF(CountElems.GT.500) CALL abort(&
-      __STAMP__&
-      ,'CountElems > 500. Inrease the number and try again!')
+      IF(CountElems.GT.500) CALL abort(__STAMP__,'CountElems > 500. Inrease the number and try again!')
 
       CheckedElemIDs(CountElems) = TestElemID
       ElemToElemInfo(OffsetElemToElemCounter) = TestElemID
@@ -1294,6 +1280,9 @@ END DO ! iElem = firstElem, lastElem
 CALL BARRIER_AND_SYNC(ElemToElemInfo_Shared_Win   ,MPI_COMM_SHARED)
 CALL BARRIER_AND_SYNC(ElemToElemMapping_Shared_Win,MPI_COMM_SHARED)
 #endif /*USE_MPI*/
+
+GETTIME(EndT)
+CALL DisplayMessageAndTime(EndT-StartT, 'DONE!')
 
 END SUBROUTINE BuildNodeNeighbourhood
 
@@ -1781,6 +1770,119 @@ CALL BARRIER_AND_SYNC(BaseVectorsScale_Shared_Win,MPI_COMM_SHARED)
 LBWRITE(UNIT_stdOut,'(A)')' DONE!'
 LBWRITE(UNIT_StdOut,'(132("-"))')
 END SUBROUTINE BuildLinearSideBaseVectors
+
+
+!===================================================================================================================================
+!> Builds SideSlabNormals_Shared, SideSlabIntervals_Shared and  BoundingBoxIsEmpty_Shared from Bezier control points
+!===================================================================================================================================
+SUBROUTINE BuildSideSlabAndBoundingBox()
+! MODULES
+USE MOD_Globals
+USE MOD_Preproc
+USE MOD_Particle_Mesh_Vars
+USE MOD_Particle_Surfaces_Vars ,ONLY: BezierControlPoints3D,BezierControlPoints3DElevated,SideSlabNormals,SideSlabIntervals
+USE MOD_Particle_Surfaces_Vars ,ONLY: BoundingBoxIsEmpty,BezierElevation
+USE MOD_Mesh_Tools             ,ONLY: GetCNElemID,GetGlobalSideID
+USE MOD_Mesh_Vars              ,ONLY: NGeo,NGeoElevated
+USE MOD_Particle_Surfaces      ,ONLY: GetSideSlabNormalsAndIntervals
+#if USE_MPI
+USE MOD_MPI_Shared
+USE MOD_MPI_Shared_Vars
+#endif /* USE_MPI */
+IMPLICIT NONE
+!----------------------------------------------------------------------------------------------------------------------------------!
+! INPUT / OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER          :: firstSide,lastSide,iSide,SideID
+#if !USE_MPI
+INTEGER          :: ALLOCSTAT
+#endif
+#ifdef CODE_ANALYZE
+! TODO
+! REAL             :: dx,dy,dz
+#endif /*CODE_ANALYZE*/
+!===================================================================================================================================
+
+#if USE_MPI
+CALL Allocate_Shared((/3,3,nComputeNodeTotalSides/),SideSlabNormals_Shared_Win,SideSlabNormals_Shared)
+CALL MPI_WIN_LOCK_ALL(0,SideSlabNormals_Shared_Win,IERROR)
+CALL Allocate_Shared((/6,nComputeNodeTotalSides/),SideSlabIntervals_Shared_Win,SideSlabIntervals_Shared)
+CALL MPI_WIN_LOCK_ALL(0,SideSlabIntervals_Shared_Win,IERROR)
+CALL Allocate_Shared((/nComputeNodeTotalSides/),BoundingBoxIsEmpty_Shared_Win,BoundingBoxIsEmpty_Shared)
+CALL MPI_WIN_LOCK_ALL(0,BoundingBoxIsEmpty_Shared_Win,IERROR)
+firstSide = INT(REAL (myComputeNodeRank   )*REAL(nComputeNodeTotalSides)/REAL(nComputeNodeProcessors))+1
+lastSide  = INT(REAL((myComputeNodeRank+1))*REAL(nComputeNodeTotalSides)/REAL(nComputeNodeProcessors))
+SideSlabNormals    => SideSlabNormals_Shared
+SideSlabIntervals  => SideSlabIntervals_Shared
+BoundingBoxIsEmpty => BoundingBoxIsEmpty_Shared
+CALL MPI_BARRIER(MPI_COMM_SHARED,iError)
+#else
+ALLOCATE(SideSlabNormals(1:3,1:3,1:nNonUniqueGlobalSides) &
+        ,SideSlabIntervals(  1:6,1:nNonUniqueGlobalSides) &
+        ,BoundingBoxIsEmpty(     1:nNonUniqueGlobalSides) &
+        ,STAT=ALLOCSTAT)
+IF (ALLOCSTAT.NE.0) CALL ABORT(__STAMP__,'  Cannot allocate SideMetrics arrays!')
+firstSide = 1
+lastSide  = nNonUniqueGlobalSides
+#endif /* USE_MPI */
+! TODO: bounding box volumes must be calculated for all unique sides.
+!#ifdef CODE_ANALYZE
+!    ALLOCATE(SideBoundingBoxVolume(nSides))
+!#endif /*CODE_ANALYZE*/
+
+IF (BezierElevation.GT.0) THEN
+  DO iSide = firstSide,LastSide
+    ! ignore sides that are not on the compute node
+    ! IF (GetCNElemID(SideInfo_Shared(SIDE_ELEMID,iSide)).EQ.-1) CYCLE
+
+    SideID = GetGlobalSideID(iSide)
+
+    ! Ignore small mortar sides attached to big mortar sides
+    IF (SideInfo_Shared(SIDE_LOCALID,SideID).LT.1 .OR. SideInfo_Shared(SIDE_LOCALID,SideID).GT.6) CYCLE
+
+    ! BezierControlPoints are always on nonUniqueGlobalSide
+    CALL GetSideSlabNormalsAndIntervals(BezierControlPoints3DElevated(1:3,0:NGeoElevated,0:NGeoElevated,SideID) &
+                                       ,SideSlabNormals(   1:3,1:3,iSide)                                       &
+                                       ,SideSlabInterVals( 1:6    ,iSide)                                       &
+                                       ,BoundingBoxIsEmpty(iSide))
+  END DO
+ELSE
+  DO iSide=firstSide,LastSide
+    ! ignore sides that are not on the compute node
+    ! IF (GetCNElemID(SideInfo_Shared(SIDE_ELEMID,iSide)).EQ.-1) CYCLE
+
+    SideID = GetGlobalSideID(iSide)
+
+    ! Ignore small mortar sides attached to big mortar sides
+    IF (SideInfo_Shared(SIDE_LOCALID,SideID).LT.1 .OR. SideInfo_Shared(SIDE_LOCALID,SideID).GT.6) CYCLE
+
+    ! BezierControlPoints are always on nonUniqueGlobalSide
+    CALL GetSideSlabNormalsAndIntervals(BezierControlPoints3D(1:3,0:NGeo,0:NGeo,SideID)                         &
+                                       ,SideSlabNormals(   1:3,1:3,iSide)                                       &
+                                       ,SideSlabInterVals( 1:6    ,iSide)                                       &
+                                       ,BoundingBoxIsEmpty(iSide))
+  END DO
+END IF
+#if USE_MPI
+CALL BARRIER_AND_SYNC(SideSlabNormals_Shared_Win   ,MPI_COMM_SHARED)
+CALL BARRIER_AND_SYNC(SideSlabIntervals_Shared_Win ,MPI_COMM_SHARED)
+CALL BARRIER_AND_SYNC(BoundingBoxIsEmpty_Shared_Win,MPI_COMM_SHARED)
+#endif /* USE_MPI */
+!#ifdef CODE_ANALYZE
+! TODO: bounding box volumes must be calculated for all unique sides.
+!               offsetSideID = ElemInfo_Shared(SideIf
+!               DO iSide=offsetMPISides_YOUR,LastSide
+!                 dx=ABS(SideSlabIntervals(2)-SideSlabIntervals(1))
+!                 dy=ABS(SideSlabIntervals(4)-SideSlabIntervals(3))
+!                 dz=ABS(SideSlabIntervals(6)-SideSlabIntervals(5))
+!                 SideID = SideInfo
+!                 SideBoundingBoxVolume(SideID)=dx*dy*dz
+!               END DO
+!#endif /*CODE_ANALYZE*/
+
+
+END SUBROUTINE BuildSideSlabAndBoundingBox
 
 
 END MODULE MOD_Particle_Mesh_Build
