@@ -88,7 +88,11 @@ REAL, ALLOCATABLE                      :: S_initial(:)           ! Initial stick
 REAL, ALLOCATABLE                      :: MaxCoverage(:)         ! Maximal surface coverage
 REAL, ALLOCATABLE                      :: DissOrder(:)           ! Molecular (1) or dissociative (2) adsorption
 REAL, ALLOCATABLE                      :: EqConstant(:)          ! Equilibrium constant for adsorption/desorption
-REAL, ALLOCATABLE                      :: StickCoeff(:)          ! Sticking coefficient 
+REAL, ALLOCATABLE                      :: StickCoeff(:)          ! Sticking coefficient
+! Parameter for the dissociative-adsorption
+LOGICAL, ALLOCATABLE                   :: DissociativeAds(:)     ! Dissociative adsorption where the other molecule half is desorbed
+INTEGER, ALLOCATABLE                   :: AdsorbedProduct(:)     ! Species ID of the particle that stays adsorbed on the surface
+INTEGER, ALLOCATABLE                   :: GasProduct(:)          ! Species ID of the particle that remains in the gas phase
 ! Parameters for the desorption
 REAL, ALLOCATABLE                      :: E_initial(:)           ! Desorption energy at zero coverage [K]
 REAL, ALLOCATABLE                      :: W_interact(:)          ! Scaling factor for Edes [K]
@@ -104,8 +108,8 @@ LOGICAL                                :: Diffusion              ! Activates ins
 LOGICAL                                :: TotDiffusion           ! Activates instantaneous diffussion over all boundaries
 INTEGER                                :: CatBoundNum            ! Number of catalytic boundaries
 TYPE(tBoundMap), ALLOCATABLE           :: BoundMap(:)            ! Map of the reactions to the boundaries
-TYPE(tPureSurf), ALLOCATABLE           :: PSMap(:)               ! Map for reactions occurring only on the surface   
-TYPE(tCollCaseInfo), ALLOCATABLE       :: CollCaseInfo(:)        ! Information of collision cases (nCase) 
+TYPE(tPureSurf), ALLOCATABLE           :: PSMap(:)               ! Map for reactions occurring only on the surface
+TYPE(tCollCaseInfo), ALLOCATABLE       :: CollCaseInfo(:)        ! Information of collision cases (nCase)
 TYPE(typeSurfaceFlux), POINTER         :: SurfaceFlux(:)         ! Surface flux data (using the regular surface flux type)
 TYPE(tSFAux), ALLOCATABLE              :: SFAux(:)               ! Additional surface flux data, where variables differ from the regular surface flux type
 END TYPE
@@ -122,8 +126,8 @@ INTEGER,ALLOCATABLE                      :: ChemCountReacWall(:,:,:,:,:)    ! Co
 
 #if USE_MPI
 INTEGER                                  :: ChemWallProp_Shared_Win         ! Adsorption count / heat flux
-REAL,ALLOCPOINT                          :: ChemWallProp_Shared(:,:,:,:,:)    
-REAL,POINTER                             :: ChemSampWall_Shared(:,:,:,:,:)  ! Sampling direct impact mechanism    
+REAL,ALLOCPOINT                          :: ChemWallProp_Shared(:,:,:,:,:)
+REAL,POINTER                             :: ChemSampWall_Shared(:,:,:,:,:)  ! Sampling direct impact mechanism
 INTEGER                                  :: ChemSampWall_Shared_Win
 #endif
 
@@ -137,7 +141,7 @@ LOGICAL                          :: SurfModSEEelectronTempAutoamtic ! BulkElectr
 ! === Sticking coefficient from simple models/interpolation
 REAL, ALLOCATABLE                :: StickingCoefficientData(:,:)    ! Data for the model using non-bounce and condensation probability
                                                                     ! [:,1]: Maximum impact angle for model parameters
-                                                                    ! [:,2]: Cut-off angle for non-bounce probability
+                                                                   ! [:,2]: Cut-off angle for non-bounce probability
                                                                     ! [:,3:4]: Temperature limits for linear interpolation of condensation probability
 !===================================================================================================================================
 END MODULE MOD_SurfaceModel_Vars

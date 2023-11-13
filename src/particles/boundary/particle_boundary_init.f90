@@ -388,15 +388,12 @@ DO iPartBound=1,nPartBound
       IF (PartBound%CoverageIni(iPartBound, iSpec).GT.PartBound%MaxCoverage(iPartBound, iSpec)) THEN
         CALL abort(__STAMP__,'ERROR: Surface coverage can not be larger than the maximum value', iPartBound)
       END IF
-      PartBound%TotalCoverage(iPartBound) = PartBound%TotalCoverage(iPartBound) + PartBound%CoverageIni(iPartBound, iSpec)
     END DO
     PartBound%TotalCoverage(iPartBound) = SUM(PartBound%CoverageIni(iPartBound,:))
     PartBound%MaxTotalCoverage(iPartBound) = GETREAL('Part-Boundary'//TRIM(hilf)//'-MaxTotalCoverage', '1.')
     ! Check if the maximum of the coverage is reached
     IF (PartBound%TotalCoverage(iPartBound).GT.PartBound%MaxTotalCoverage(iPartBound)) THEN
-      CALL abort(&
-    __STAMP__&
-    ,'ERROR: Maximum surface coverage reached.', iPartBound)
+      CALL abort(__STAMP__,'ERROR: Maximum surface coverage reached.', iPartBound)
     END IF
     IF (PartBound%NbrOfSpeciesSwaps(iPartBound).GT.0) THEN
       !read Species to be changed at wall (in, out), out=0: delete

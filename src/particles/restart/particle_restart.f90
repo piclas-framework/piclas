@@ -1188,6 +1188,7 @@ DO iSide = 1, nComputeNodeSurfSides
   ! Initial surface coverage
     ChemWallProp(iSpec,1,1,1,iSide) = SurfData(iSpec,ReadInSide)
   END DO
+  ! Heat flux on the surface element
   ChemWallProp(1,2,1,1,iSide) = SurfData(nSpecies+1,ReadInSide)*OutputTime*SurfSideArea_Shared(1,1,iSide)
 END DO
 
