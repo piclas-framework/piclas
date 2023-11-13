@@ -775,9 +775,17 @@ END DO
 
 ! Add the particles initialized through the emission and the background particles
 ! Update the current next free position
-PDM%ParticleVecLength = PDM%ParticleVecLength + NbrOfParticle + iNewPart
+IF(iNewPart+NbrOfParticle.GT.0) PDM%ParticleVecLength = MAX(PDM%ParticleVecLength,GetNextFreePosition(iNewPart+NbrOfParticle))
 PDM%CurrentNextFreePosition = PDM%CurrentNextFreePosition + NbrOfParticle + iNewPart
-IF(PDM%ParticleVecLength.GT.PDM%maxParticleNumber) CALL IncreaseMaxParticleNumber(PDM%ParticleVecLength*CEILING(1+0.5*PDM%MaxPartNumIncrease)-PDM%maxParticleNumber)
+#ifdef CODE_ANALYZE
+IF(PDM%ParticleVecLength.GT.PDM%maxParticleNumber) CALL Abort(__STAMP__,'PDM%ParticleVeclength exceeds PDM%maxParticleNumber, Difference:',IntInfoOpt=PDM%ParticleVeclength-PDM%maxParticleNumber)
+DO iPart=PDM%ParticleVecLength+1,PDM%maxParticleNumber
+  IF (PDM%ParticleInside(iPart)) THEN
+    IPWRITE(*,*) iPart,PDM%ParticleVecLength,PDM%maxParticleNumber
+    CALL Abort(__STAMP__,'Particle outside PDM%ParticleVeclength',IntInfoOpt=iPart)
+  END IF
+END DO
+#endif
 
 
 !> 4.) Perform the reaction, distribute the collision energy (including photon energy) and emit electrons perpendicular

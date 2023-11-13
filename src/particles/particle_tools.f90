@@ -1636,6 +1636,7 @@ INTEGER                     :: GetNextFreePosition
 INTEGER                     :: i
 !===================================================================================================================================
 IF(PRESENT(Offset)) THEN
+  ! This shouldn't happen but better be save than sorry
   IF(PDM%CurrentNextFreePosition+Offset.GT.PDM%MaxParticleNumber) CALL IncreaseMaxParticleNumber(CEILING((PDM%CurrentNextFreePosition+Offset)*(1+PDM%MaxPartNumIncrease)-PDM%MaxParticleNumber))
   GetNextFreePosition = PDM%nextFreePosition(PDM%CurrentNextFreePosition+Offset)
   ! If next free position is equal 0, determine how much more particles are needed to get a position within the particle vector
@@ -1654,6 +1655,7 @@ IF(PRESENT(Offset)) THEN
   END IF
 ELSE
   PDM%CurrentNextFreePosition = PDM%CurrentNextFreePosition + 1
+  ! This shouldn't happen but better be save than sorry
   IF(PDM%CurrentNextFreePosition.GT.PDM%MaxParticleNumber) CALL IncreaseMaxParticleNumber(CEILING((PDM%CurrentNextFreePosition)*(1+PDM%MaxPartNumIncrease)-PDM%MaxParticleNumber))
   GetNextFreePosition = PDM%nextFreePosition(PDM%CurrentNextFreePosition)
   ! If next free position is equal 0, determine how much more particles are needed to get a position within the particle vector
@@ -1950,7 +1952,7 @@ END DO
 
 IF(DSMC%DoAmbipolarDiff) THEN
   DO i=1,PDM%ParticleVecLength
-    IF(ALLOCATED(AmbipolElecVelo(i)%ElecVelo))nPart = nPart + 1
+    IF(PDM%ParticleInside(i).AND.ALLOCATED(AmbipolElecVelo(i)%ElecVelo)) nPart = nPart + 1
   END DO
 END IF
 

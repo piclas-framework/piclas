@@ -508,8 +508,16 @@ DO iSpec = 1,nSpecies
         END DO
       END IF
       ! Add new particles to particle vector length
-      PDM%ParticleVecLength = PDM%ParticleVecLength + NbrOfParticle
-      IF(PDM%ParticleVecLength.GT.PDM%maxParticleNumber) CALL IncreaseMaxParticleNumber(PDM%ParticleVecLength*CEILING(1+0.5*PDM%MaxPartNumIncrease)-PDM%maxParticleNumber)
+      IF(NbrOfParticle.GT.0) PDM%ParticleVecLength = MAX(PDM%ParticleVecLength,GetNextFreePosition(NbrOfParticle))
+#ifdef CODE_ANALYZE
+      IF(PDM%ParticleVecLength.GT.PDM%maxParticleNumber) CALL Abort(__STAMP__,'PDM%ParticleVeclength exceeds PDM%maxParticleNumber, Difference:',IntInfoOpt=PDM%ParticleVeclength-PDM%maxParticleNumber)
+      DO iPart=PDM%ParticleVecLength+1,PDM%maxParticleNumber
+        IF (PDM%ParticleInside(iPart)) THEN
+          IPWRITE(*,*) iPart,PDM%ParticleVecLength,PDM%maxParticleNumber
+          CALL Abort(__STAMP__,'Particle outside PDM%ParticleVeclength',IntInfoOpt=iPart)
+        END IF
+      END DO
+#endif
       ! Update
       CALL UpdateNextFreePosition()
     END IF  ! Species(iSpec)%Init(iInit)%ParticleEmissionType.EQ.0

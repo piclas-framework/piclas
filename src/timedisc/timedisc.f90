@@ -343,7 +343,6 @@ DO !iter_t=0,MaxIter
 #endif /*defined(PARTICLES) && USE_HDG*/
   CALL PerformAnalyze(time,FirstOrLastIter=finalIter,OutPutHDF5=.FALSE.) ! analyze routines are not called here in last iter
 #ifdef PARTICLES
-  CALL ReduceMaxParticleNumber()
   ! sampling of near adaptive boundary element values
   IF(UseAdaptive.OR.(nPorousBC.GT.0)) CALL AdaptiveBCSampling()
 #endif /*PARICLES*/
@@ -495,6 +494,7 @@ DO !iter_t=0,MaxIter
 
   IF(time.GE.tEnd)EXIT ! done, worst case: one additional time step
 #ifdef PARTICLES
+  CALL ReduceMaxParticleNumber()
   ! Switch flag to false after the number of particles has been written to std out and before the time next step is started
   GlobalNbrOfParticlesUpdated = .FALSE.
 #endif /*PARTICLES*/

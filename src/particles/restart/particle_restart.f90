@@ -280,7 +280,15 @@ IF(.NOT.DoMacroscopicRestart) THEN
     SDEALLOCATE(MapPartDataToReadin)
 
     PDM%ParticleVecLength = PDM%ParticleVecLength + iPart
-    IF(PDM%ParticleVecLength.GT.PDM%maxParticleNumber) CALL IncreaseMaxParticleNumber(PDM%ParticleVecLength*CEILING(1+0.5*PDM%MaxPartNumIncrease)-PDM%maxParticleNumber)
+#ifdef CODE_ANALYZE
+    IF(PDM%ParticleVecLength.GT.PDM%maxParticleNumber) CALL Abort(__STAMP__,'PDM%ParticleVeclength exceeds PDM%maxParticleNumber, Difference:',IntInfoOpt=PDM%ParticleVeclength-PDM%maxParticleNumber)
+    DO iPart=PDM%ParticleVecLength+1,PDM%maxParticleNumber
+      IF (PDM%ParticleInside(iPart)) THEN
+        IPWRITE(*,*) iPart,PDM%ParticleVecLength,PDM%maxParticleNumber
+        CALL Abort(__STAMP__,'Particle outside PDM%ParticleVeclength',IntInfoOpt=iPart)
+      END IF
+    END DO
+#endif
     CALL UpdateNextFreePosition()
     LBWRITE(UNIT_stdOut,*)' DONE!'
 
@@ -712,7 +720,16 @@ IF(.NOT.DoMacroscopicRestart) THEN
       END DO ! iPart = 1, TotalNbrOfMissingParticlesSum
 
       PDM%ParticleVecLength = PDM%ParticleVecLength + NbrOfFoundParts
-      IF(PDM%ParticleVecLength.GT.PDM%maxParticleNumber) CALL IncreaseMaxParticleNumber(PDM%ParticleVecLength*CEILING(1+0.5*PDM%MaxPartNumIncrease)-PDM%maxParticleNumber)
+#ifdef CODE_ANALYZE
+      IF(PDM%ParticleVecLength.GT.PDM%maxParticleNumber) CALL Abort(__STAMP__,'PDM%ParticleVeclength exceeds PDM%maxParticleNumber, Difference:',IntInfoOpt=PDM%ParticleVeclength-PDM%maxParticleNumber)
+      DO iPart=PDM%ParticleVecLength+1,PDM%maxParticleNumber
+        IF (PDM%ParticleInside(iPart)) THEN
+          IPWRITE(*,*) iPart,PDM%ParticleVecLength,PDM%maxParticleNumber
+          CALL Abort(__STAMP__,'Particle outside PDM%ParticleVeclength',IntInfoOpt=iPart)
+        END IF
+      END DO
+#endif
+      ! IF(PDM%ParticleVecLength.GT.PDM%maxParticleNumber) CALL IncreaseMaxParticleNumber(PDM%ParticleVecLength*CEILING(1+0.5*PDM%MaxPartNumIncrease)-PDM%maxParticleNumber)
 
       ! Combine number of found particles to make sure none are lost completely or found twice
       IF(MPIroot)THEN

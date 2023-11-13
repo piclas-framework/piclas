@@ -1321,10 +1321,17 @@ DO iProc=0,nExchangeProcessors-1
 
 END DO ! iProc
 
-PDM%ParticleVecLength         = MIN(PDM%ParticleVecLength + PartMPIExchange%nMPIParticles,PDM%maxParticleNumber)
-PDM%CurrentNextFreePosition   = PDM%CurrentNextFreePosition + PartMPIExchange%nMPIParticles
-IF(PDM%ParticleVecLength.GT.PDM%MaxParticleNumber) CALL ABORT(__STAMP__&
-    ,' ParticleVecLegnth>MaxParticleNumber due to MPI-communication! Increase Part-maxParticleNumber or use more processors.')
+IF(PartMPIExchange%nMPIParticles.GT.0) PDM%ParticleVecLength = MAX(PDM%ParticleVecLength,GetNextFreePosition(PartMPIExchange%nMPIParticles))
+PDM%CurrentNextFreePosition = PDM%CurrentNextFreePosition + PartMPIExchange%nMPIParticles
+#ifdef CODE_ANALYZE
+IF(PDM%ParticleVecLength.GT.PDM%maxParticleNumber) CALL Abort(__STAMP__,'PDM%ParticleVeclength exceeds PDM%maxParticleNumber, Difference:',IntInfoOpt=PDM%ParticleVeclength-PDM%maxParticleNumber)
+DO PartID=PDM%ParticleVecLength+1,PDM%maxParticleNumber
+  IF (PDM%ParticleInside(PartID)) THEN
+    IPWRITE(*,*) PartID,PDM%ParticleVecLength,PDM%maxParticleNumber
+    CALL Abort(__STAMP__,'Particle outside PDM%ParticleVeclength',IntInfoOpt=PartID)
+  END IF
+END DO
+#endif
 
 IF(RadialWeighting%PerformCloning) THEN
   ! Checking whether received particles have to be cloned or deleted

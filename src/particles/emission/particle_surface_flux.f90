@@ -291,8 +291,16 @@ DO iSpec=1,nSpecies
     END IF ! CalcPartBalance
     ! instead of an UpdateNextfreePosition we update the particleVecLength only - enough ?!?
     PDM%CurrentNextFreePosition = PDM%CurrentNextFreePosition + NbrOfParticle
-    PDM%ParticleVecLength = PDM%ParticleVecLength + NbrOfParticle
-    IF(PDM%ParticleVecLength.GT.PDM%maxParticleNumber) CALL IncreaseMaxParticleNumber(PDM%ParticleVecLength*CEILING(1+0.5*PDM%MaxPartNumIncrease)-PDM%maxParticleNumber)
+    IF(iPartTotal.GT.0) PDM%ParticleVecLength = MAX(PDM%ParticleVecLength,GetNextFreePosition(iPartTotal))
+#ifdef CODE_ANALYZE
+    IF(PDM%ParticleVecLength.GT.PDM%maxParticleNumber) CALL Abort(__STAMP__,'PDM%ParticleVeclength exceeds PDM%maxParticleNumber, Difference:',IntInfoOpt=PDM%ParticleVeclength-PDM%maxParticleNumber)
+    DO iPart=PDM%ParticleVecLength+1,PDM%maxParticleNumber
+      IF (PDM%ParticleInside(iPart)) THEN
+        IPWRITE(*,*) iPart,PDM%ParticleVecLength,PDM%maxParticleNumber
+        CALL Abort(__STAMP__,'Particle outside PDM%ParticleVeclength',IntInfoOpt=iPart)
+      END IF
+    END DO
+#endif
 #if USE_LOADBALANCE
     CALL LBPauseTime(LB_SURFFLUX,tLBStart)
 #endif /*USE_LOADBALANCE*/
