@@ -26,7 +26,7 @@ PRIVATE
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
 
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
-PUBLIC :: DefineParametersParticleBoundary, InitializeVariablesPartBoundary, FinalizeParticleBoundary
+PUBLIC :: DefineParametersParticleBoundary, InitializeVariablesPartBoundary, InitParticleBoundarySurfSides, FinalizeParticleBoundary
 PUBLIC :: InitAdaptiveWallTemp, InitRotPeriodicMapping, InitRotPeriodicInterPlaneMapping
 !===================================================================================================================================
 
@@ -208,7 +208,9 @@ dummy_int  = CountOption('Part-nBounds') ! check if Part-nBounds is present in .
 nPartBound = GETINT('Part-nBounds')      ! get number of particle boundaries
 ! Read-in number of porous boundaries
 nPorousBC  = GETINT('Surf-nPorousBC')
-IF ((nPartBound.LE.0).OR.(dummy_int.LT.0)) CALL abort(__STAMP__  ,'ERROR: nPartBound .LE. 0:', nPartBound)
+IF((nPartBound.LE.0).OR.(dummy_int.LT.0)) CALL abort(__STAMP__  ,'ERROR: nPartBound .LE. 0:', nPartBound)
+
+IF(nPartBound.NE.nBCs) CALL abort(__STAMP__  ,'ERROR: Part-nBounds is not equal to the number of BCs read-in from the mesh!')
 
 ALLOCATE(PartBound%SourceBoundName(  1:nPartBound))
 PartBound%SourceBoundName = ''
@@ -433,10 +435,6 @@ DO iPartBound=1,nPartBound
   CASE('periodic')
     PartBound%TargetBoundCond(iPartBound) = PartBound%PeriodicBC
     PartMeshHasPeriodicBCs = .TRUE.
-  CASE('simple_anode')
-    PartBound%TargetBoundCond(iPartBound) = PartBound%SimpleAnodeBC
-  CASE('simple_cathode')
-    PartBound%TargetBoundCond(iPartBound) = PartBound%SimpleCathodeBC
   CASE('symmetric')
 #if defined(IMPA) || defined(ROS)
     PartMeshHasReflectiveBCs=.TRUE.
@@ -542,7 +540,7 @@ END DO
 
 IF(ANY(PartBound%SurfaceModel.EQ.1)) THEN
   ! Open the species database
-  CALL OpenDataFile(TRIM(SpeciesDatabase),create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_WORLD)
+  CALL OpenDataFile(TRIM(SpeciesDatabase),create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_PICLAS)
   ! Check if the correct dataset exists
   StickingCoefficientExists = .FALSE.
   dsetname = TRIM('/Surface-Chemistry/StickingCoefficient')
@@ -560,6 +558,330 @@ IF(ANY(PartBound%SurfaceModel.EQ.1)) THEN
 END IF
 
 END SUBROUTINE InitializeVariablesPartBoundary
+
+
+SUBROUTINE InitParticleBoundarySurfSides()
+!===================================================================================================================================
+! Initialize the counters (nComputeNodeSurfSides,nComputeNodeSurfTotalSides,nComputeNodeSurfOutputSides) and
+! mappings (GlobalSide2SurfSide,SurfSide2GlobalSide) of the particle boundary surface sides
+! 1) all procs identify surfaces on the node (plus halo region) for sampling and/or boundary conditions
+! 2) the compute-node leaders communicate the number of surfaces
+!===================================================================================================================================
+! MODULES                                                                                                                          !
+!----------------------------------------------------------------------------------------------------------------------------------!
+USE MOD_Globals
+USE MOD_Particle_Mesh_Vars      ,ONLY: SideInfo_Shared
+USE MOD_Particle_Boundary_Vars  ,ONLY: PartBound
+USE MOD_Particle_Boundary_Vars  ,ONLY: nComputeNodeSurfSides,nComputeNodeSurfTotalSides,nComputeNodeSurfOutputSides
+USE MOD_Particle_Boundary_Vars  ,ONLY: GlobalSide2SurfSide,SurfSide2GlobalSide
+#if USE_MPI
+USE MOD_Mesh_Vars               ,ONLY: nBCSides, offsetElem, SideToElem
+USE MOD_Particle_Mesh_Vars      ,ONLY: ElemInfo_Shared
+USE MOD_MPI_Shared
+USE MOD_MPI_Shared_Vars         ,ONLY: MPI_COMM_SHARED
+USE MOD_MPI_Shared_Vars         ,ONLY: myComputeNodeRank,nComputeNodeProcessors
+USE MOD_Particle_Mesh_Vars      ,ONLY: nNonUniqueGlobalSides
+!USE MOD_Particle_Mesh_Vars      ,ONLY: offsetComputeNodeElem,nComputeNodeElems
+USE MOD_MPI_Shared_Vars         ,ONLY: myLeaderGroupRank,nLeaderGroupProcs
+USE MOD_Particle_Boundary_Vars  ,ONLY: GlobalSide2SurfSide_Shared,GlobalSide2SurfSide_Shared_Win
+USE MOD_Particle_Boundary_Vars  ,ONLY: SurfSide2GlobalSide_Shared,SurfSide2GlobalSide_Shared_Win
+USE MOD_Particle_Boundary_Vars  ,ONLY: nComputeNodeInnerBCs
+USE MOD_Particle_Boundary_Vars  ,ONLY: SurfCOMM
+#else
+USE MOD_Particle_Mesh_Vars      ,ONLY: nComputeNodeSides
+#endif /*USE_MPI*/
+#if USE_LOADBALANCE
+USE MOD_LoadBalance_Vars        ,ONLY: PerformLoadBalance
+#endif /*USE_LOADBALANCE*/
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!----------------------------------------------------------------------------------------------------------------------------------!
+! INPUT VARIABLES
+!----------------------------------------------------------------------------------------------------------------------------------!
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER                                :: iSide,firstSide,lastSide,iSurfSide,GlobalSideID
+INTEGER                                :: nSurfSidesProc, nBCSidesProc
+INTEGER                                :: offsetSurfTotalSidesProc
+INTEGER,ALLOCATABLE                    :: GlobalSide2SurfSideProc(:,:)
+#if USE_MPI
+INTEGER                                :: offsetSurfSidesProc
+INTEGER                                :: GlobalElemID,GlobalElemRank
+INTEGER                                :: sendbuf,recvbuf
+INTEGER                                :: NbGlobalElemID, NbElemRank, NbLeaderID, nSurfSidesTmp
+INTEGER                                :: color
+#endif /*USE_MPI*/
+INTEGER                                :: NbGlobalSideID
+!===================================================================================================================================
+
+LBWRITE(UNIT_stdOut,'(A)') ' INIT SURFACE SIDES ...'
+
+! Allocate shared array for surf sides
+#if USE_MPI
+CALL Allocate_Shared((/3,nNonUniqueGlobalSides/),GlobalSide2SurfSide_Shared_Win,GlobalSide2SurfSide_Shared)
+CALL MPI_WIN_LOCK_ALL(0,GlobalSide2SurfSide_Shared_Win,IERROR)
+GlobalSide2SurfSide => GlobalSide2SurfSide_Shared
+#else
+ALLOCATE(GlobalSide2SurfSide(1:3,1:nComputeNodeSides))
+#endif /*USE_MPI*/
+
+! only CN root nullifies
+#if USE_MPI
+IF (myComputeNodeRank.EQ.0) THEN
+#endif /* USE_MPI*/
+  GlobalSide2SurfSide = -1.
+#if USE_MPI
+END IF
+
+CALL BARRIER_AND_SYNC(GlobalSide2SurfSide_Shared_Win,MPI_COMM_SHARED)
+#endif /* USE_MPI*/
+
+! get number of BC-Sides
+#if USE_MPI
+! NO HALO REGION REDUCTION
+firstSide = INT(REAL( myComputeNodeRank   )*REAL(nNonUniqueGlobalSides)/REAL(nComputeNodeProcessors))+1
+lastSide  = INT(REAL((myComputeNodeRank+1))*REAL(nNonUniqueGlobalSides)/REAL(nComputeNodeProcessors))
+ALLOCATE(GlobalSide2SurfSideProc(1:3,firstSide:lastSide))
+#else
+firstSide = 1
+lastSide  = nComputeNodeSides
+ALLOCATE(GlobalSide2SurfSideProc(1:3,1:nComputeNodeSides))
+#endif /*USE_MPI*/
+
+GlobalSide2SurfSideProc    = -1
+nComputeNodeSurfSides      = 0
+nSurfSidesProc             = 0
+
+! check every BC side
+DO iSide = firstSide,lastSide
+  ! ignore non-BC sides
+  IF (SideInfo_Shared(SIDE_BCID,iSide).LE.0) CYCLE
+
+#if USE_MPI
+  ! ignore sides outside of halo region
+  IF (ElemInfo_Shared(ELEM_HALOFLAG,SideInfo_Shared(SIDE_ELEMID,iSide)).EQ.0) CYCLE
+#endif /*USE_MPI*/
+
+  ! count number of reflective and rotationally periodic BC sides
+  IF ((PartBound%TargetBoundCond(PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,iSide))).EQ.PartBound%ReflectiveBC) .OR. &
+      (PartBound%TargetBoundCond(PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,iSide))).EQ.PartBound%RotPeriodicBC).OR. &
+      (PartBound%TargetBoundCond(PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,iSide))).EQ.PartBound%RotPeriodicInterPlaneBC))THEN
+    nSurfSidesProc = nSurfSidesProc + 1
+    ! check if element for this side is on the current compute-node
+    ! IF ((SideInfo_Shared(SIDE_ID,iSide).GT.ElemInfo_Shared(ELEM_FIRSTSIDEIND,offsetComputeNodeElem+1))                  .AND. &
+    !     (SideInfo_Shared(SIDE_ID,iSide).LE.ElemInfo_Shared(ELEM_LASTSIDEIND ,offsetComputeNodeElem+nComputeNodeElems))) THEN
+    ! IF ((iSide.GE.(ElemInfo_Shared(ELEM_FIRSTSIDEIND,offsetComputeNodeElem+1)+1))                  .AND. &
+    !     (iSide.LE.ElemInfo_Shared(ELEM_LASTSIDEIND ,offsetComputeNodeElem+nComputeNodeElems))) THEN
+    !   nComputeNodeSurfSides  = nComputeNodeSurfSides + 1
+    ! END IF
+
+    ! TODO: Add another check to determine the surface side in halo_eps from current proc. Node-wide halo can become quite large with
+    !       with 128 procs!
+
+    ! Write local mapping from Side to Surf side. The rank is already correct, the offset must be corrected by the proc offset later
+    GlobalSide2SurfSideProc(SURF_SIDEID,iSide) = nSurfSidesProc
+#if USE_MPI
+    GlobalSide2SurfSideProc(SURF_RANK  ,iSide) = ElemInfo_Shared(ELEM_RANK,SideInfo_Shared(SIDE_ELEMID,iSide))
+    ! get global Elem ID
+    GlobalElemID   = SideInfo_Shared(SIDE_ELEMID,iSide)
+    GlobalElemRank = ElemInfo_Shared(ELEM_RANK,GlobalElemID)
+    ! running on one node, everything belongs to us
+    IF (nLeaderGroupProcs.EQ.1) THEN
+      GlobalSide2SurfSideProc(SURF_LEADER,iSide) = myLeaderGroupRank
+    ELSE
+      ! find the compute node
+      GlobalSide2SurfSideProc(SURF_LEADER,iSide) = INT(GlobalElemRank/nComputeNodeProcessors)
+    END IF
+#else
+    GlobalSide2SurfSideProc(SURF_RANK  ,iSide) = 0
+    GlobalSide2SurfSideProc(SURF_LEADER,iSide) = GlobalSide2SurfSideProc(SURF_RANK,iSide)
+#endif /*USE_MPI*/
+
+#if USE_MPI
+    ! check if element for this side is on the current compute-node. Alternative version to the check above
+    IF (GlobalSide2SurfSideProc(SURF_LEADER,iSide).EQ.myLeaderGroupRank) nComputeNodeSurfSides  = nComputeNodeSurfSides + 1
+#endif /*USE_MPI*/
+  END IF ! reflective side
+END DO
+
+! Find CN global number of total surf sides and write Side to Surf Side mapping into shared array
+#if USE_MPI
+sendbuf = nSurfSidesProc - nComputeNodeSurfSides
+recvbuf = 0
+CALL MPI_EXSCAN(sendbuf,recvbuf,1,MPI_INTEGER,MPI_SUM,MPI_COMM_SHARED,iError)
+offsetSurfTotalSidesProc   = recvbuf
+! last proc knows CN total number of BC elems
+sendbuf = offsetSurfTotalSidesProc + nSurfSidesProc - nComputeNodeSurfSides
+CALL MPI_BCAST(sendbuf,1,MPI_INTEGER,nComputeNodeProcessors-1,MPI_COMM_SHARED,iError)
+nComputeNodeSurfTotalSides = sendbuf
+
+! Find CN global number of local surf sides and write Side to Surf Side mapping into shared array
+sendbuf = nComputeNodeSurfSides
+recvbuf = 0
+CALL MPI_EXSCAN(sendbuf,recvbuf,1,MPI_INTEGER,MPI_SUM,MPI_COMM_SHARED,iError)
+offsetSurfSidesProc   = recvbuf
+! last proc knows CN total number of BC elems
+sendbuf = offsetSurfSidesProc + nComputeNodeSurfSides
+CALL MPI_BCAST(sendbuf,1,MPI_INTEGER,nComputeNodeProcessors-1,MPI_COMM_SHARED,iError)
+nComputeNodeSurfSides = sendbuf
+nComputeNodeSurfTotalSides = nComputeNodeSurfTotalSides + nComputeNodeSurfSides
+
+! increment SURF_SIDEID by offset
+nSurfSidesTmp = 0
+DO iSide = firstSide,lastSide
+  IF (GlobalSide2SurfSideProc(SURF_SIDEID,iSide).EQ.-1) CYCLE
+
+  ! sort compute-node local sides first
+  IF (GlobalSide2SurfSideProc(SURF_LEADER,iSide).EQ.myLeaderGroupRank) THEN
+    nSurfSidesTmp = nSurfSidesTmp + 1
+
+    GlobalSide2SurfSide(:          ,iSide) = GlobalSide2SurfSideProc(:,iSide)
+    GlobalSide2SurfSide(SURF_SIDEID,iSide) = nSurfSidesTmp + offsetSurfSidesProc
+  END IF
+END DO
+
+nSurfSidesTmp = 0
+DO iSide = firstSide,lastSide
+  IF (GlobalSide2SurfSideProc(SURF_SIDEID,iSide).EQ.-1) CYCLE
+
+  ! sampling sides in halo region follow at the end
+  IF (GlobalSide2SurfSideProc(SURF_LEADER,iSide).NE.myLeaderGroupRank) THEN
+    nSurfSidesTmp = nSurfSidesTmp + 1
+
+    GlobalSide2SurfSide(:          ,iSide) = GlobalSide2SurfSideProc(:,iSide)
+    GlobalSide2SurfSide(SURF_SIDEID,iSide) = nSurfSidesTmp + nComputeNodeSurfSides + offsetSurfTotalSidesProc
+  END IF
+END DO
+#else
+offsetSurfTotalSidesProc  = 0
+nComputeNodeSurfSides = nSurfSidesProc
+nComputeNodeSurfTotalSides = nSurfSidesProc
+GlobalSide2SurfSide(:,firstSide:lastSide) = GlobalSide2SurfSideProc(:,firstSide:lastSide)
+#endif /*USE_MPI*/
+
+! Build inverse mapping
+#if USE_MPI
+CALL Allocate_Shared((/3,nComputeNodeSurfTotalSides/),SurfSide2GlobalSide_Shared_Win,SurfSide2GlobalSide_Shared)
+CALL MPI_WIN_LOCK_ALL(0,SurfSide2GlobalSide_Shared_Win,IERROR)
+SurfSide2GlobalSide => SurfSide2GlobalSide_Shared
+
+DO iSide = firstSide,lastSide
+  IF (GlobalSide2SurfSideProc(SURF_SIDEID,iSide).EQ.-1) CYCLE
+
+  SurfSide2GlobalSide(:          ,GlobalSide2SurfSide(SURF_SIDEID,iSide)) = GlobalSide2SurfSide(:,iSide)
+  SurfSide2GlobalSide(SURF_SIDEID,GlobalSide2SurfSide(SURF_SIDEID,iSide)) = iSide
+END DO
+
+CALL BARRIER_AND_SYNC(GlobalSide2SurfSide_Shared_Win,MPI_COMM_SHARED)
+CALL BARRIER_AND_SYNC(SurfSide2GlobalSide_Shared_Win,MPI_COMM_SHARED)
+#else
+ALLOCATE(SurfSide2GlobalSide(1:1,1:nComputeNodeSurfTotalSides))
+DO iSide = firstSide,lastSide
+  IF (GlobalSide2SurfSide(SURF_SIDEID,iSide).EQ.-1) CYCLE
+  SurfSide2GlobalSide(SURF_SIDEID,GlobalSide2SurfSide(SURF_SIDEID,iSide)) =iSide
+END DO
+#endif /*USE_MPI*/
+
+! Determine the number of surface output sides (inner BCs are not counted twice and rotationally periodic BCs excluded)
+#if USE_MPI
+IF (myComputeNodeRank.EQ.0) THEN
+  nComputeNodeInnerBCs = 0
+#endif /*USE_MPI*/
+  nComputeNodeSurfOutputSides = 0
+  DO iSurfSide = 1,nComputeNodeSurfSides
+    GlobalSideID = SurfSide2GlobalSide(SURF_SIDEID,iSurfSide)
+    ! Check if the surface side has a neighbor (and is therefore an inner BCs)
+    IF(SideInfo_Shared(SIDE_NBSIDEID,GlobalSideID).GT.0) THEN
+      ! Abort inner BC + Mortar! (too complex and confusing to implement)
+      ! This test catches large Mortar sides, i.e.,  SideInfo_Shared(SIDE_NBELEMID,NonUniqueGlobalSideID) gives the 2 or 4
+      ! connecting small Mortar sides. It is assumed that inner BC result in being flagged as a "SurfSide" and therefore are checked
+      ! here.
+      IF(SideInfo_Shared(SIDE_LOCALID,GlobalSideID).EQ.-1)THEN
+        IPWRITE(UNIT_StdOut,'(I12,A,I0)')   " NonUniqueGlobalSideID                               = ",GlobalSideID
+        IPWRITE(UNIT_StdOut,'(I12,A,I0)')   " SideInfo_Shared(SIDE_LOCALID,NonUniqueGlobalSideID) = ",&
+            SideInfo_Shared(SIDE_LOCALID,GlobalSideID)
+        IPWRITE(UNIT_StdOut,'(I12,A,I0,A)') " SideInfo_Shared(SIDE_ELEMID,NonUniqueGlobalSideID)  = ",&
+            SideInfo_Shared(SIDE_ELEMID,GlobalSideID)," (GlobalElemID)"
+        CALL abort(__STAMP__,'Inner BC + Mortar is not implemented!')
+      END IF
+      ! Only add the side with the smaller index
+      NbGlobalSideID = SideInfo_Shared(SIDE_NBSIDEID,GlobalSideID)
+      IF(GlobalSideID.GT.NbGlobalSideID)THEN
+#if USE_MPI
+        !--- switcheroo check 1 of 2: Non-HALO sides
+        ! Only required for sampling on the larger NonUniqueGlobalSideID of the two sides of the inner BC
+        ! Count larger inner BCs as these may have to be sent to a different leader processor
+        NbGlobalElemID = SideInfo_Shared(SIDE_ELEMID,NbGlobalSideID)
+        NbElemRank = ElemInfo_Shared(ELEM_RANK,NbGlobalElemID)
+        NbLeaderID = INT(NbElemRank/nComputeNodeProcessors)
+        IF(NbLeaderID.NE.INT(myRank/nComputeNodeProcessors))THEN
+          nComputeNodeInnerBCs(1) = nComputeNodeInnerBCs(1) + 1
+        END IF
+#endif
+        CYCLE! Skip sides with the larger index
+      END IF
+    END IF
+    ! Skip rotationally periodic boundary sides for the output
+    IF(PartBound%TargetBoundCond(PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,GlobalSideID))).EQ.PartBound%RotPeriodicBC) CYCLE
+    ! Skip intermediate planes BCs for the output
+    IF(PartBound%TargetBoundCond(PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,GlobalSideID))).EQ.PartBound%RotPeriodicInterPlaneBC) CYCLE
+    ! Count the number of output sides
+    nComputeNodeSurfOutputSides = nComputeNodeSurfOutputSides + 1
+  END DO
+#if USE_MPI
+  !--- switcheroo check 2 of 2: HALO sides
+  ! Count number of inner BC in halo region
+  ! Only required for sampling on the larger NonUniqueGlobalSideID of the two sides of the inner BC
+  DO iSurfSide = nComputeNodeSurfSides+1, nComputeNodeSurfTotalSides
+    GlobalSideID = SurfSide2GlobalSide(SURF_SIDEID,iSurfSide)
+    ! Check if the surface side has a neighbor (and is therefore an inner BCs)
+    IF(SideInfo_Shared(SIDE_NBSIDEID,GlobalSideID).GT.0) THEN
+      ! Only add the side with the smaller index
+      IF(GlobalSideID.GT.SideInfo_Shared(SIDE_NBSIDEID,GlobalSideID))THEN
+        ! Count larger inner BCs as these may have to be sent to a different leader processor
+        nComputeNodeInnerBCs(2) = nComputeNodeInnerBCs(2) + 1
+      END IF
+    END IF
+  END DO ! iSurfSide = nComputeNodeSurfSides+1, nComputeNodeSurfTotalSides
+END IF
+#endif
+
+! free temporary arrays
+DEALLOCATE(GlobalSide2SurfSideProc)
+
+! create a communicator between processors with a BC side (including open BCs and sides in the halo region)
+#if USE_MPI
+! Count the number of BC sides per processors. Note: cannot be done in the loop above, since it might happen that a processor
+! might not get his own elements and thus will not be added to the communicator.
+nBCSidesProc = 0
+DO iSide=1,nBCSides
+  GlobalElemID = SideToElem(S2E_ELEM_ID,iSide) + offsetElem
+  IF (ElemInfo_Shared(ELEM_HALOFLAG,GlobalElemID).EQ.0) CYCLE
+  nBCSidesProc = nBCSidesProc + 1
+END DO
+
+! Set the control of subset assignment (nonnegative integer). Processes with the same color are in the same new communicator.
+! Make sure to include the root
+IF(MPIRoot) THEN
+  color = 1337
+ELSE
+  color = MERGE(1337, MPI_UNDEFINED, nBCSidesProc.GT.0)
+END IF
+! Create new surface communicator. Pass MPI_INFO_NULL as rank to follow the original ordering
+CALL MPI_COMM_SPLIT(MPI_COMM_PICLAS, color, MPI_INFO_NULL, SurfCOMM%UNICATOR, iError)
+! Find my rank on the shared communicator, comm size and proc name
+IF(SurfCOMM%UNICATOR.NE.MPI_COMM_NULL)THEN
+  CALL MPI_COMM_RANK(SurfCOMM%UNICATOR, SurfCOMM%MyRank, iError)
+  CALL MPI_COMM_SIZE(SurfCOMM%UNICATOR, SurfCOMM%nProcs, iError)
+  ! inform about size of emission communicator
+  LBWRITE(UNIT_StdOut,'(A,I0,A)') ' Surface sides: Communicator on ', SurfCOMM%nProcs,' procs'
+END IF ! nBCSidesProc.GT.0
+#endif /*USE_MPI*/
+
+LBWRITE(UNIT_stdOut,'(A)') ' INIT SURFACE SIDES DONE!'
+
+END SUBROUTINE InitParticleBoundarySurfSides
 
 
 SUBROUTINE InitParticleBoundaryRotPeriodic(nRotPeriodicBCs)
@@ -962,7 +1284,7 @@ WRITE(UNIT=hilf,FMT='(ES10.4)') halo_eps_velo
 DatasetName = 'RotPeriodicMap-v'//TRIM(hilf)
 WRITE(UNIT=hilf,FMT='(ES10.4)') ManualTimeStep
 DatasetName = TRIM(DatasetName)//'-dt'//TRIM(hilf)
-CALL OpenDataFile(MeshFile,create=.FALSE.,single=.FALSE.,readOnly=.FALSE.,communicatorOpt=MPI_COMM_WORLD)
+CALL OpenDataFile(MeshFile,create=.FALSE.,single=.FALSE.,readOnly=.FALSE.,communicatorOpt=MPI_COMM_PICLAS)
 CALL DatasetExists(File_ID,TRIM(DatasetName),DatasetFound)
 CALL CloseDataFile()
 
@@ -1394,7 +1716,7 @@ END DO
 CALL BARRIER_AND_SYNC(NumRotPeriodicNeigh_Shared_Win, MPI_COMM_SHARED)
 CALL BARRIER_AND_SYNC(RotPeriodicSideMapping_temp_Shared_Win, MPI_COMM_SHARED)
 ! The allreduce is only required when a global array for writing to .h5 is to be used
-!CALL MPI_ALLREDUCE(MAXVAL(NumRotPeriodicNeigh) , MaxNumRotPeriodicNeigh , 1 , MPI_INTEGER , MPI_MAX , MPI_COMM_WORLD , iError)
+!CALL MPI_ALLREDUCE(MAXVAL(NumRotPeriodicNeigh) , MaxNumRotPeriodicNeigh , 1 , MPI_INTEGER , MPI_MAX , MPI_COMM_PICLAS , iError)
 #endif /*USE_MPI*/
 MaxNumRotPeriodicNeigh = MAXVAL(NumRotPeriodicNeigh)
 
@@ -1426,7 +1748,7 @@ DO iSide=1, nRotPeriodicSides
 END DO
 
 #if USE_MPI
-CALL MPI_ALLREDUCE(notMapped , notMappedTotal , 1 , MPI_INTEGER , MPI_SUM , MPI_COMM_WORLD , IERROR)
+CALL MPI_ALLREDUCE(notMapped , notMappedTotal , 1 , MPI_INTEGER , MPI_SUM , MPI_COMM_PICLAS , IERROR)
 #else
 notMappedTotal = notMapped
 #endif /*USE_MPI*/
@@ -1754,6 +2076,19 @@ SDEALLOCATE(PartBound%Reactive)
 SDEALLOCATE(PartBound%Dielectric)
 SDEALLOCATE(PartBound%BoundaryParticleOutputHDF5)
 SDEALLOCATE(PartBound%RadiativeEmissivity)
+
+! Mapping arrays are allocated even if the node does not have sampling surfaces
+#if USE_MPI
+IF(SurfCOMM%UNICATOR.NE.MPI_COMM_NULL) CALL MPI_COMM_FREE(SurfCOMM%UNICATOR,iERROR)
+CALL MPI_BARRIER(MPI_COMM_SHARED,iERROR)
+CALL UNLOCK_AND_FREE(GlobalSide2SurfSide_Shared_Win)
+CALL UNLOCK_AND_FREE(SurfSide2GlobalSide_Shared_Win)
+CALL MPI_BARRIER(MPI_COMM_SHARED,iERROR)
+ADEALLOCATE(GlobalSide2SurfSide_Shared)
+ADEALLOCATE(SurfSide2GlobalSide_Shared)
+#endif /*USE_MPI*/
+ADEALLOCATE(GlobalSide2SurfSide)
+ADEALLOCATE(SurfSide2GlobalSide)
 
 ! Rotational periodic boundary condition
 IF(PartBound%UseRotPeriodicBC)THEN

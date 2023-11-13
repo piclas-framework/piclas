@@ -169,7 +169,7 @@ StrVarNames(1)='dummy'
 FileName=TRIM(ProjectName)//'_MyInvisibleRank.h5'
 IF(MPIRoot) CALL GenerateFileSkeleton('MyInvisibleRank',N_variables,StrVarNames,TRIM(MeshFile),OutputTime,FileNameIn=FileName)
 #if USE_MPI
-  CALL MPI_BARRIER(MPI_COMM_WORLD,iError)
+  CALL MPI_BARRIER(MPI_COMM_PICLAS,iError)
 #endif
 
 ! Write all 'ElemData' arrays to a single container in the state.h5 file
@@ -212,7 +212,7 @@ StrVarNames(1)='dummy'
 FileName=TRIM(ProjectName)//'_LostRotPeriodicSides.h5'
 IF(MPIRoot) CALL GenerateFileSkeleton('LostRotPeriodicSides',N_variables,StrVarNames,TRIM(MeshFile),OutputTime,FileNameIn=FileName)
 #if USE_MPI
-  CALL MPI_BARRIER(MPI_COMM_WORLD,iError)
+  CALL MPI_BARRIER(MPI_COMM_PICLAS,iError)
 #endif
 
 ! Write all 'ElemData' arrays to a single container in the state.h5 file

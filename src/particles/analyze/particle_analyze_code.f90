@@ -451,7 +451,7 @@ END SUBROUTINE CalcAnalyticalParticleState
 SUBROUTINE CalcErrorParticle(t,iter,PartStateAnalytic)
 ! MODULES
 USE MOD_PICInterpolation_Vars ,ONLY: L_2_Error_Part,AnalyticPartDim,L_2_Error_Part_time
-USE MOD_Particle_Vars         ,ONLY: PartState, PDM, PartVeloRotRef, UseRotRefFrame
+USE MOD_Particle_Vars         ,ONLY: PartState, PDM
 USE MOD_Globals_Vars          ,ONLY: c2_inv
 USE MOD_globals               ,ONLY: DOTPRODUCT
 #if (PP_TimeDiscMethod==508) || (PP_TimeDiscMethod==509)
@@ -460,6 +460,9 @@ USE MOD_Particle_Vars         ,ONLY: Pt
 USE MOD_part_RHS              ,ONLY: CalcPartRHSSingleParticle
 !USE MOD_PICInterpolation      ,ONLY: InterpolateFieldToParticle ! already known from previous call (causes circular definition)
 #endif /*(PP_TimeDiscMethod==508) || (PP_TimeDiscMethod==509)*/
+#if (PP_TimeDiscMethod==4)
+USE MOD_Particle_Vars         ,ONLY: PartVeloRotRef, UseRotRefFrame
+#endif /*(PP_TimeDiscMethod==4)*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
@@ -565,11 +568,10 @@ END SUBROUTINE CalcErrorParticle
 SUBROUTINE AnalyticParticleMovement(time,iter)
 ! MODULES
 USE MOD_Preproc
-USE MOD_Globals               ,ONLY: UNIT_StdOut
+USE MOD_Globals               ,ONLY: UNIT_StdOut,MPIRoot
 USE MOD_Analyze_Vars          ,ONLY: OutputErrorNorms
 USE MOD_Particle_Analyze_Vars ,ONLY: TrackParticlePosition
 USE MOD_PICInterpolation_Vars ,ONLY: L_2_Error_Part,AnalyticPartDim
-USE MOD_Particle_MPI_Vars     ,ONLY: PartMPI
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
@@ -585,7 +587,7 @@ CHARACTER(LEN=40)             :: formatStr
 !===================================================================================================================================
 
 CALL CalcErrorParticle(time,iter,PartStateAnalytic)
-IF(PartMPI%MPIRoot.AND.OutputErrorNorms) THEN
+IF(MPIRoot.AND.OutputErrorNorms) THEN
   WRITE(UNIT_StdOut,'(A13,ES16.7)')' Sim time  : ',time
   WRITE(formatStr,'(A5,I1,A7)')'(A13,',AnalyticPartDim,'ES16.7)'
   WRITE(UNIT_StdOut,formatStr)' L2_Part   : ',L_2_Error_Part

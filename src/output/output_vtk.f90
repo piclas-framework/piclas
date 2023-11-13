@@ -180,7 +180,6 @@ LOGICAL                     :: nValAtLastDimension_loc
 REAL                        :: StartT,EndT ! Timer
 !===================================================================================================================================
 GETTIME(StartT)
-
 IF (PRESENT(DGFV))                THEN; DGFV_loc = DGFV
 ELSE;                                   DGFV_loc = 0
 END IF
@@ -208,7 +207,7 @@ SWRITE(UNIT_stdOut,'(A)',ADVANCE='NO') '['//TRIM(FileString)//'] ...'
 
 ! get total number of elements on all processors
 #if USE_MPI
-CALL MPI_GATHER(nElems,1,MPI_INTEGER,nElems_glob,1,MPI_INTEGER,0,MPI_COMM_WORLD,iError)
+CALL MPI_GATHER(nElems,1,MPI_INTEGER,nElems_glob,1,MPI_INTEGER,0,MPI_COMM_PICLAS,iError)
 #else
 nElems_glob(0) = nElems
 #endif
@@ -310,16 +309,16 @@ DO iVal=1,nVal
     DO iProc=1,nProcessors-1
       nElems_proc=nElems_glob(iProc)
       IF (nElems_proc.GT.0) THEN
-        CALL MPI_RECV(buf(:,:,:,1:nElems_proc),nElems_proc*NVisu_elem,MPI_DOUBLE_PRECISION,iProc,0,MPI_COMM_WORLD,MPIstatus,iError)
+        CALL MPI_RECV(buf(:,:,:,1:nElems_proc),nElems_proc*NVisu_elem,MPI_DOUBLE_PRECISION,iProc,0,MPI_COMM_PICLAS,MPIstatus,iError)
         WRITE(ivtk) REAL(buf(:,:,:,1:nElems_proc),4)
       END IF
     END DO !iProc
   ELSE
     IF (nElems.GT.0) THEN
       IF (nValAtLastDimension_loc) THEN
-        CALL MPI_SEND(Value(:,:,:,:,iVal),nElems*NVisu_elem,MPI_DOUBLE_PRECISION, 0,0,MPI_COMM_WORLD,iError)
+        CALL MPI_SEND(Value(:,:,:,:,iVal),nElems*NVisu_elem,MPI_DOUBLE_PRECISION, 0,0,MPI_COMM_PICLAS,iError)
       ELSE
-        CALL MPI_SEND(Value(iVal,:,:,:,:),nElems*NVisu_elem,MPI_DOUBLE_PRECISION, 0,0,MPI_COMM_WORLD,iError)
+        CALL MPI_SEND(Value(iVal,:,:,:,:),nElems*NVisu_elem,MPI_DOUBLE_PRECISION, 0,0,MPI_COMM_PICLAS,iError)
       END IF
     END IF
 #endif /*USE_MPI*/
@@ -342,13 +341,13 @@ IF(MPIRoot)THEN
   DO iProc=1,nProcessors-1
     nElems_proc=nElems_glob(iProc)
     IF (nElems_proc.GT.0) THEN
-      CALL MPI_RECV(buf2(:,:,:,:,1:nElems_proc),nElems_proc*NVisu_elem*3,MPI_DOUBLE_PRECISION,iProc,0,MPI_COMM_WORLD,MPIstatus,iError)
+      CALL MPI_RECV(buf2(:,:,:,:,1:nElems_proc),nElems_proc*NVisu_elem*3,MPI_DOUBLE_PRECISION,iProc,0,MPI_COMM_PICLAS,MPIstatus,iError)
       WRITE(ivtk) REAL(buf2(:,:,:,:,1:nElems_proc),4)
     END IF
   END DO !iProc
 ELSE
   IF (nElems.GT.0) THEN
-    CALL MPI_SEND(Coord(:,:,:,:,:),nElems*NVisu_elem*3,MPI_DOUBLE_PRECISION, 0,0,MPI_COMM_WORLD,iError)
+    CALL MPI_SEND(Coord(:,:,:,:,:),nElems*NVisu_elem*3,MPI_DOUBLE_PRECISION, 0,0,MPI_COMM_PICLAS,iError)
   END IF
 #endif /*USE_MPI*/
 END IF !MPIroot

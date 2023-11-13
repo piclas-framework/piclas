@@ -75,7 +75,6 @@ USE MOD_Part_BR_Elecron_Fluid  ,ONLY: CreateElectronsFromBRFluid
 #endif /*USE_HDG*/
 ! MPI
 #if USE_MPI
-USE MOD_Particle_MPI_Vars      ,ONLY: PartMPI
 USE MOD_Particle_Vars          ,ONLY: PartDataSize
 #endif /*USE_MPI*/
 USE MOD_Particle_Vars          ,ONLY: VibQuantData,ElecDistriData,AD_Data
@@ -112,14 +111,14 @@ INTEGER                            :: NbrOfMissingParticles
 INTEGER,ALLOCATABLE                :: IndexOfFoundParticles(:),CompleteIndexOfFoundParticles(:)
 INTEGER                            :: CompleteNbrOfLost,CompleteNbrOfFound,CompleteNbrOfDuplicate
 REAL, ALLOCATABLE                  :: RecBuff(:,:)
-INTEGER                            :: TotalNbrOfMissingParticles(0:PartMPI%nProcs-1), Displace(0:PartMPI%nProcs-1),CurrentPartNum
-INTEGER                            :: OffsetTotalNbrOfMissingParticles(0:PartMPI%nProcs-1)
-INTEGER                            :: NbrOfFoundParts, RecCount(0:PartMPI%nProcs-1)
+INTEGER                            :: TotalNbrOfMissingParticles(0:nProcessors-1), Displace(0:nProcessors-1),CurrentPartNum
+INTEGER                            :: OffsetTotalNbrOfMissingParticles(0:nProcessors-1)
+INTEGER                            :: NbrOfFoundParts, RecCount(0:nProcessors-1)
 INTEGER, ALLOCATABLE               :: SendBuffPoly(:), RecBuffPoly(:)
 REAL, ALLOCATABLE                  :: SendBuffAmbi(:), RecBuffAmbi(:), SendBuffElec(:), RecBuffElec(:)
-INTEGER                            :: LostPartsPoly(0:PartMPI%nProcs-1), DisplacePoly(0:PartMPI%nProcs-1)
-INTEGER                            :: LostPartsElec(0:PartMPI%nProcs-1), DisplaceElec(0:PartMPI%nProcs-1)
-INTEGER                            :: LostPartsAmbi(0:PartMPI%nProcs-1), DisplaceAmbi(0:PartMPI%nProcs-1)
+INTEGER                            :: LostPartsPoly(0:nProcessors-1), DisplacePoly(0:nProcessors-1)
+INTEGER                            :: LostPartsElec(0:nProcessors-1), DisplaceElec(0:nProcessors-1)
+INTEGER                            :: LostPartsAmbi(0:nProcessors-1), DisplaceAmbi(0:nProcessors-1)
 INTEGER                            :: iProc
 #endif /*USE_MPI*/
 !===================================================================================================================================
@@ -444,12 +443,12 @@ IF(.NOT.DoMacroscopicRestart) THEN
     ! Step 2: All particles that are not found within MyProc need to be communicated to the others and located there
     ! Combine number of lost particles of all processes and allocate variables
     ! Note: Particles that are lost on MyProc are also searched for here again
-    CALL MPI_ALLGATHER(NbrOfLostParticles, 1, MPI_INTEGER, TotalNbrOfMissingParticles, 1, MPI_INTEGER, PartMPI%COMM, IERROR)
+    CALL MPI_ALLGATHER(NbrOfLostParticles, 1, MPI_INTEGER, TotalNbrOfMissingParticles, 1, MPI_INTEGER, MPI_COMM_PICLAS, IERROR)
     NbrOfLostParticles=0
     IF (useDSMC) THEN
-      IF (DSMC%NumPolyatomMolecs.GT.0) CALL MPI_ALLGATHER(CounterPoly, 1, MPI_INTEGER, LostPartsPoly, 1, MPI_INTEGER, PartMPI%COMM, IERROR)
-      IF (DSMC%ElectronicModel.EQ.2)   CALL MPI_ALLGATHER(CounterElec, 1, MPI_INTEGER, LostPartsElec, 1, MPI_INTEGER, PartMPI%COMM, IERROR)
-      IF (DSMC%DoAmbipolarDiff)        CALL MPI_ALLGATHER(CounterAmbi, 1, MPI_INTEGER, LostPartsAmbi, 1, MPI_INTEGER, PartMPI%COMM, IERROR)
+      IF (DSMC%NumPolyatomMolecs.GT.0) CALL MPI_ALLGATHER(CounterPoly, 1, MPI_INTEGER, LostPartsPoly, 1, MPI_INTEGER, MPI_COMM_PICLAS, IERROR)
+      IF (DSMC%ElectronicModel.EQ.2)   CALL MPI_ALLGATHER(CounterElec, 1, MPI_INTEGER, LostPartsElec, 1, MPI_INTEGER, MPI_COMM_PICLAS, IERROR)
+      IF (DSMC%DoAmbipolarDiff)        CALL MPI_ALLGATHER(CounterAmbi, 1, MPI_INTEGER, LostPartsAmbi, 1, MPI_INTEGER, MPI_COMM_PICLAS, IERROR)
     END IF ! useDSMC
 
     !TotalNbrOfMissingParticlesSum = SUM(INT(TotalNbrOfMissingParticles,8))
@@ -460,9 +459,9 @@ IF(.NOT.DoMacroscopicRestart) THEN
 
       ! Set offsets
       OffsetTotalNbrOfMissingParticles(0) = 0
-      DO iProc = 1, PartMPI%nProcs-1
+      DO iProc = 1, nProcessors-1
         OffsetTotalNbrOfMissingParticles(iProc) = OffsetTotalNbrOfMissingParticles(iProc-1) + TotalNbrOfMissingParticles(iProc-1)
-      END DO ! iProc = 0, PartMPI%nProcs-1
+      END DO ! iProc = 0, nProcessors-1
 
       ALLOCATE(RecBuff(PartDataSize,1:TotalNbrOfMissingParticlesSum))
       IF (useDSMC) THEN
@@ -484,7 +483,7 @@ IF(.NOT.DoMacroscopicRestart) THEN
       END IF ! useDSMC
 
       ! Fill SendBuffer
-      NbrOfMissingParticles = OffsetTotalNbrOfMissingParticles(PartMPI%MyRank) + 1
+      NbrOfMissingParticles = OffsetTotalNbrOfMissingParticles(myRank) + 1
       CounterPoly = 0
       CounterAmbi = 0
       CounterElec = 0
@@ -550,7 +549,7 @@ IF(.NOT.DoMacroscopicRestart) THEN
       CounterElec = 0
       CounterAmbi = 0
 
-      DO iProc = 0, PartMPI%nProcs-1
+      DO iProc = 0, nProcessors-1
         RecCount(iProc) = TotalNbrOfMissingParticles(iProc)
         Displace(iProc) = NbrOfMissingParticles
         NbrOfMissingParticles = NbrOfMissingParticles + TotalNbrOfMissingParticles(iProc)
@@ -572,7 +571,7 @@ IF(.NOT.DoMacroscopicRestart) THEN
             CounterAmbi = CounterAmbi + LostPartsAmbi(iProc)
           END IF
         END IF ! useDSMC
-      END DO ! iProc = 0, PartMPI%nProcs-1
+      END DO ! iProc = 0, nProcessors-1
 
       CALL MPI_ALLGATHERV( MPI_IN_PLACE                                     &
                          , 0                                                &
@@ -581,19 +580,19 @@ IF(.NOT.DoMacroscopicRestart) THEN
                          , PartDataSize*TotalNbrOfMissingParticles(:)       &
                          , PartDataSize*OffsetTotalNbrOfMissingParticles(:) &
                          , MPI_DOUBLE_PRECISION                             &
-                         , PartMPI%COMM                                     &
+                         , MPI_COMM_PICLAS                                     &
                          , IERROR)
 
       IF (useDSMC) THEN
         ! Polyatomic
-        IF (DSMC%NumPolyatomMolecs.GT.0) CALL MPI_ALLGATHERV(SendBuffPoly, LostPartsPoly(PartMPI%MyRank), MPI_INTEGER, &
-            RecBuffPoly, LostPartsPoly, DisplacePoly, MPI_INTEGER, PartMPI%COMM, IERROR)
+        IF (DSMC%NumPolyatomMolecs.GT.0) CALL MPI_ALLGATHERV(SendBuffPoly, LostPartsPoly(myRank), MPI_INTEGER, &
+            RecBuffPoly, LostPartsPoly, DisplacePoly, MPI_INTEGER, MPI_COMM_PICLAS, IERROR)
         ! Electronic
-        IF (DSMC%ElectronicModel.EQ.2)   CALL MPI_ALLGATHERV(SendBuffElec, LostPartsElec(PartMPI%MyRank), MPI_INTEGER, &
-            RecBuffElec, LostPartsElec, DisplaceElec, MPI_DOUBLE_PRECISION, PartMPI%COMM, IERROR)
+        IF (DSMC%ElectronicModel.EQ.2)   CALL MPI_ALLGATHERV(SendBuffElec, LostPartsElec(myRank), MPI_INTEGER, &
+            RecBuffElec, LostPartsElec, DisplaceElec, MPI_DOUBLE_PRECISION, MPI_COMM_PICLAS, IERROR)
         ! Ambipolar Diffusion
-        IF (DSMC%DoAmbipolarDiff)        CALL MPI_ALLGATHERV(SendBuffAmbi, LostPartsAmbi(PartMPI%MyRank), MPI_INTEGER, &
-            RecBuffAmbi, LostPartsAmbi, DisplaceAmbi, MPI_DOUBLE_PRECISION, PartMPI%COMM, IERROR)
+        IF (DSMC%DoAmbipolarDiff)        CALL MPI_ALLGATHERV(SendBuffAmbi, LostPartsAmbi(myRank), MPI_INTEGER, &
+            RecBuffAmbi, LostPartsAmbi, DisplaceAmbi, MPI_DOUBLE_PRECISION, MPI_COMM_PICLAS, IERROR)
       END IF
 
       ! Keep track which particles are found on the current proc
@@ -622,8 +621,8 @@ IF(.NOT.DoMacroscopicRestart) THEN
 
         ! Do not search particles twice: Skip my own particles, because these have already been searched for before they are
         ! sent to all other procs
-        ASSOCIATE( myFirst => OffsetTotalNbrOfMissingParticles(PartMPI%MyRank) + 1 ,&
-                   myLast  => OffsetTotalNbrOfMissingParticles(PartMPI%MyRank) + TotalNbrOfMissingParticles(PartMPI%MyRank))
+        ASSOCIATE( myFirst => OffsetTotalNbrOfMissingParticles(myRank) + 1 ,&
+                   myLast  => OffsetTotalNbrOfMissingParticles(myRank) + TotalNbrOfMissingParticles(myRank))
           IF((iPart.GE.myFirst).AND.(iPart.LE.myLast))THEN
             IndexOfFoundParticles(iPart) = 0
             CYCLE
@@ -721,9 +720,9 @@ IF(.NOT.DoMacroscopicRestart) THEN
 
       ! Combine number of found particles to make sure none are lost completely or found twice
       IF(MPIroot)THEN
-        CALL MPI_REDUCE(IndexOfFoundParticles,CompleteIndexOfFoundParticles,TotalNbrOfMissingParticlesSum,MPI_INTEGER,MPI_SUM,0,PartMPI%COMM,IERROR)
+        CALL MPI_REDUCE(IndexOfFoundParticles,CompleteIndexOfFoundParticles,TotalNbrOfMissingParticlesSum,MPI_INTEGER,MPI_SUM,0,MPI_COMM_PICLAS,IERROR)
       ELSE
-        CALL MPI_REDUCE(IndexOfFoundParticles,0                            ,TotalNbrOfMissingParticlesSum,MPI_INTEGER,MPI_SUM,0,PartMPI%COMM,IERROR)
+        CALL MPI_REDUCE(IndexOfFoundParticles,0                            ,TotalNbrOfMissingParticlesSum,MPI_INTEGER,MPI_SUM,0,MPI_COMM_PICLAS,IERROR)
       END IF
 
       CompleteNbrOfFound      = 0
@@ -766,7 +765,7 @@ IF(.NOT.DoMacroscopicRestart) THEN
         DEALLOCATE(CompleteIndexOfFoundParticles)
       END IF ! MPIRoot
 
-      CALL MPI_BCAST(NbrOfLostParticlesTotal,1,MPI_INTEGER,0,MPI_COMM_WORLD,iError)
+      CALL MPI_BCAST(NbrOfLostParticlesTotal,1,MPI_INTEGER,0,MPI_COMM_PICLAS,iError)
       NbrOfLostParticlesTotal_old = NbrOfLostParticlesTotal
     END IF ! TotalNbrOfMissingParticlesSum.GT.0
 
@@ -1112,7 +1111,7 @@ CHARACTER(LEN=255)                :: File_Type
 
 SWRITE(UNIT_stdOut,*) 'Using macroscopic values from file: ',TRIM(MacroRestartFileName)
 
-CALL OpenDataFile(MacroRestartFileName,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_WORLD)
+CALL OpenDataFile(MacroRestartFileName,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_PICLAS)
 
 ! Check if the provided file is a DSMC state file.
 CALL ReadAttribute(File_ID,'File_Type',1,StrScalar=File_Type)

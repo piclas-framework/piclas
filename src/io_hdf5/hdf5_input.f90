@@ -183,7 +183,7 @@ CALL H5OPEN_F(iError)
 CALL H5PCREATE_F(H5P_FILE_ACCESS_F, Plist_ID, iError)
 #if USE_MPI
 ! Setup file access property list with parallel I/O access (MPI)
-CALL H5PSET_FAPL_MPIO_F(Plist_ID,MPI_COMM_WORLD, MPIInfo, iError)
+CALL H5PSET_FAPL_MPIO_F(Plist_ID,MPI_COMM_PICLAS, MPIInfo, iError)
 #endif /*USE_MPI*/
 
 ! Check if file exists
@@ -374,7 +374,7 @@ LBWRITE(UNIT_stdOut,'(A,A)')' GET SIZE OF DATA IN HDF5 FILE... '
 ! Dimensional shift (optional) if arrays with rank > 5 are processed (e.g. DG_Solution from state files with an additional
 ! dimension that corresponds to time)
 IF (PRESENT(nDimsOffset_opt)) THEN; nDimsOffset_loc = nDimsOffset_opt
-ELSE;                               nDimsOffset_loc = 0
+ELSE                              ; nDimsOffset_loc = 0
 END IF
 
 ! Read in attributes
@@ -764,7 +764,7 @@ IMPLICIT NONE
 ! INPUT/OUTPUT VARIABLES
 CHARACTER(LEN=*),INTENT(IN)    :: FileName          !< filename to check
 #if USE_MPI
-LOGICAL,INTENT(IN)             :: single            !< switch whether file is being accessed in parallel my MPI_COMM_WORLD
+LOGICAL,INTENT(IN)             :: single            !< switch whether file is being accessed in parallel my MPI_COMM_PICLAS
 #endif
 CHARACTER(LEN=255),INTENT(OUT) :: NextFileName_HDF5 !< output: follow up file according to checked file opened
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -785,7 +785,7 @@ CALL H5PCREATE_F(H5P_FILE_ACCESS_F, Plist_ID, iError)
 #if USE_MPI
 IF(.NOT.single)THEN
   ! Set property list to MPI IO
-  CALL H5PSET_FAPL_MPIO_F(Plist_ID, MPI_COMM_WORLD, MPI_INFO_NULL, iError)
+  CALL H5PSET_FAPL_MPIO_F(Plist_ID, MPI_COMM_PICLAS, MPI_INFO_NULL, iError)
 END IF
 #endif /*USE_MPI*/
 ! Open file

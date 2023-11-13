@@ -156,7 +156,7 @@ IF (PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance)) THEN
       CALL MPI_TYPE_CREATE_STRUCT(1,MPI_LENGTH,MPI_DISPLACEMENT,MPI_TYPE,MPI_STRUCT,iError)
       CALL MPI_TYPE_COMMIT(MPI_STRUCT,iError)
 
-      CALL MPI_ALLTOALLV(PartSourceLB,counts_send,disp_send,MPI_STRUCT,PartSource_HDF5,counts_recv,disp_recv,MPI_STRUCT,MPI_COMM_WORLD,iError)
+      CALL MPI_ALLTOALLV(PartSourceLB,counts_send,disp_send,MPI_STRUCT,PartSource_HDF5,counts_recv,disp_recv,MPI_STRUCT,MPI_COMM_PICLAS,iError)
     END ASSOCIATE
     DEALLOCATE(PartSourceLB)
 
@@ -212,7 +212,7 @@ IF (PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance)) THEN
       CALL MPI_TYPE_CREATE_STRUCT(1,MPI_LENGTH,MPI_DISPLACEMENT,MPI_TYPE,MPI_STRUCT,iError)
       CALL MPI_TYPE_COMMIT(MPI_STRUCT,iError)
 
-      CALL MPI_ALLTOALLV(NodeSourceExtEquiLB,counts_send,disp_send,MPI_STRUCT,NodeSourceExtEquiLBTmp,counts_recv,disp_recv,MPI_STRUCT,MPI_COMM_WORLD,iError)
+      CALL MPI_ALLTOALLV(NodeSourceExtEquiLB,counts_send,disp_send,MPI_STRUCT,NodeSourceExtEquiLBTmp,counts_recv,disp_recv,MPI_STRUCT,MPI_COMM_PICLAS,iError)
     END ASSOCIATE
     DEALLOCATE(NodeSourceExtEquiLB)
     ! Loop over all elements and store absolute charge values in equidistantly distributed nodes of PP_N=1
@@ -285,7 +285,7 @@ IF (PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance)) THEN
     CALL MPI_TYPE_COMMIT(MPI_STRUCT,iError)
 
     ! Communicate PartInt over MPI
-    CALL MPI_ALLTOALLV(PartInt,counts_send,disp_send,MPI_STRUCT,PartIntTmp,counts_recv,disp_recv,MPI_STRUCT,MPI_COMM_WORLD,iError)
+    CALL MPI_ALLTOALLV(PartInt,counts_send,disp_send,MPI_STRUCT,PartIntTmp,counts_recv,disp_recv,MPI_STRUCT,MPI_COMM_PICLAS,iError)
   END ASSOCIATE
 
   ! Calculate the PartInt deltas
@@ -336,7 +336,7 @@ IF (PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance)) THEN
     CALL MPI_TYPE_COMMIT(MPI_STRUCT,iError)
 
     ! Communicate PartData over MPI
-    CALL MPI_ALLTOALLV(PartData,counts_send,disp_send,MPI_STRUCT,PartDataTmp,counts_recv,disp_recv,MPI_STRUCT,MPI_COMM_WORLD,iError)
+    CALL MPI_ALLTOALLV(PartData,counts_send,disp_send,MPI_STRUCT,PartDataTmp,counts_recv,disp_recv,MPI_STRUCT,MPI_COMM_PICLAS,iError)
   END ASSOCIATE
   CALL MOVE_ALLOC(PartDataTmp,PartData)
   PartDataExists   = .TRUE.
@@ -361,7 +361,7 @@ IF (PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance)) THEN
         CALL MPI_TYPE_COMMIT(MPI_STRUCT,iError)
 
         ! Communicate VibQuantData over MPI
-        CALL MPI_ALLTOALLV(VibQuantData,counts_send,disp_send,MPI_STRUCT,VibQuantDataTmp,counts_recv,disp_recv,MPI_STRUCT,MPI_COMM_WORLD,iError)
+        CALL MPI_ALLTOALLV(VibQuantData,counts_send,disp_send,MPI_STRUCT,VibQuantDataTmp,counts_recv,disp_recv,MPI_STRUCT,MPI_COMM_PICLAS,iError)
       END ASSOCIATE
       CALL MOVE_ALLOC(VibQuantDataTmp,VibQuantData)
     END IF
@@ -383,7 +383,7 @@ IF (PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance)) THEN
         CALL MPI_TYPE_COMMIT(MPI_STRUCT,iError)
 
         ! Communicate ElecDistriData over MPI
-        CALL MPI_ALLTOALLV(ElecDistriData,counts_send,disp_send,MPI_STRUCT,ElecDistriDataTmp,counts_recv,disp_recv,MPI_STRUCT,MPI_COMM_WORLD,iError)
+        CALL MPI_ALLTOALLV(ElecDistriData,counts_send,disp_send,MPI_STRUCT,ElecDistriDataTmp,counts_recv,disp_recv,MPI_STRUCT,MPI_COMM_PICLAS,iError)
       END ASSOCIATE
       CALL MOVE_ALLOC(ElecDistriDataTmp,ElecDistriData)
     END IF
@@ -405,7 +405,7 @@ IF (PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance)) THEN
         CALL MPI_TYPE_COMMIT(MPI_STRUCT,iError)
 
         ! Communicate AD_Data over MPI
-        CALL MPI_ALLTOALLV(AD_Data,counts_send,disp_send,MPI_STRUCT,AD_DataTmp,counts_recv,disp_recv,MPI_STRUCT,MPI_COMM_WORLD,iError)
+        CALL MPI_ALLTOALLV(AD_Data,counts_send,disp_send,MPI_STRUCT,AD_DataTmp,counts_recv,disp_recv,MPI_STRUCT,MPI_COMM_PICLAS,iError)
       END ASSOCIATE
       CALL MOVE_ALLOC(AD_DataTmp,AD_Data)
     END IF
@@ -426,7 +426,7 @@ ELSE
   IF(.NOT.RestartNullifySolution)THEN ! Use the solution in the restart file
     !-- read PartSource if relaxation is performed (might be needed for RestartHDG)
     IF (DoDeposition .AND. RelaxDeposition) THEN
-      CALL OpenDataFile(RestartFile,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_WORLD)
+      CALL OpenDataFile(RestartFile,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_PICLAS)
       CALL DatasetExists(File_ID,'DG_Source',DGSourceExists)
       IF(DGSourceExists)THEN
         IF(.NOT.InterpolateSolution)THEN! No interpolation needed, read solution directly from file
@@ -482,7 +482,7 @@ ELSE
     END DO
   END IF
 
-  CALL OpenDataFile(RestartFile,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_WORLD)
+  CALL OpenDataFile(RestartFile,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_PICLAS)
   ! ------------------------------------------------
   ! NodeSourceExt (external/additional charge source terms)
   ! ------------------------------------------------

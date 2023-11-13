@@ -123,21 +123,6 @@ DoParticleLatencyHiding = GETLOGICAL('DoParticleLatencyHiding')
 IF(DoParticleLatencyHiding) CALL abort(__STAMP__,'DoParticleLatencyHiding=T not imeplemented for this time disc!')
 #endif /*!(PP_TimeDiscMethod==400)*/
 
-#if USE_MPI
-CALL MPI_COMM_DUP (MPI_COMM_WORLD,PartMPI%COMM,iError)
-CALL MPI_COMM_RANK(PartMPI%COMM,PartMPI%myRank,iError)
-CALL MPI_COMM_SIZE(PartMPI%COMM,PartMPI%nProcs,iError)
-
-IF(PartMPI%nProcs.NE.nProcessors) CALL ABORT(__STAMP__,' MPI Communicater-size does not match!', IERROR)
-PartCommSize    = 0
-PartMPI%MPIRoot = .FALSE.
-IF(PartMPI%MyRank.EQ.0) PartMPI%MPIRoot=.TRUE.
-#else
-PartMPI%myRank  = 0
-PartMPI%nProcs  = 1
-PartMPI%MPIRoot = .TRUE.
-#endif  /*USE_MPI*/
-
 ParticleMPIInitIsDone=.TRUE.
 LBWRITE(UNIT_stdOut,'(A)')' INIT PARTICLE MPI DONE!'
 LBWRITE(UNIT_StdOut,'(132("-"))')
@@ -261,7 +246,7 @@ SUBROUTINE IRecvNbOfParticles()
 ! MODULES
 USE MOD_Globals
 USE MOD_Preproc
-USE MOD_Particle_MPI_Vars,      ONLY:PartMPI,PartMPIExchange
+USE MOD_Particle_MPI_Vars,      ONLY:PartMPIExchange
 USE MOD_Particle_MPI_Vars,      ONLY:nExchangeProcessors,ExchangeProcToGlobalProc
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -279,7 +264,7 @@ DO iProc=0,nExchangeProcessors-1
                 , MPI_INTEGER                                                &
                 , ExchangeProcToGlobalProc(EXCHANGE_PROC_RANK,iProc)         &
                 , 1001                                                       &
-                , PartMPI%COMM                                               &
+                , MPI_COMM_PICLAS                                               &
                 , PartMPIExchange%RecvRequest(1,iProc)                       &
                 , IERROR )
  ! IF(IERROR.NE.MPI_SUCCESS) CALL ABORT(__STAMP__&
@@ -289,7 +274,11 @@ END DO ! iProc
 END SUBROUTINE IRecvNbOfParticles
 
 
+#if defined(IMPA)
 SUBROUTINE SendNbOfParticles(doParticle_In)
+#else
+SUBROUTINE SendNbOfParticles()
+#endif /*defined(IMPA)*/
 !===================================================================================================================================
 ! This routine sends the number of send particles, for which the following steps are performed:
 ! 1) Compute number of Send Particles
@@ -306,7 +295,7 @@ USE MOD_Preproc
 USE MOD_Part_Tools             ,ONLY: isDepositParticle
 USE MOD_DSMC_Vars              ,ONLY: DSMC,SpecDSMC, useDSMC, PolyatomMolDSMC
 USE MOD_Particle_Mesh_Vars     ,ONLY: ElemInfo_Shared
-USE MOD_Particle_MPI_Vars      ,ONLY: PartMPI,PartMPIExchange,PartTargetProc
+USE MOD_Particle_MPI_Vars      ,ONLY: PartMPIExchange,PartTargetProc
 USE MOD_Particle_MPI_Vars,      ONLY: nExchangeProcessors,ExchangeProcToGlobalProc,GlobalProcToExchangeProc, halo_eps_velo
 USE MOD_Particle_Vars          ,ONLY: PartState,PartSpecies,PEM,PDM,Species
 ! variables for parallel deposition
@@ -314,17 +303,23 @@ USE MOD_Particle_Vars          ,ONLY: PartState,PartSpecies,PEM,PDM,Species
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
+#if defined(IMPA)
 LOGICAL,INTENT(IN),OPTIONAL   :: doParticle_In(1:PDM%ParticleVecLength)
+#endif /*defined(IMPA)*/
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
+#if defined(IMPA)
 LOGICAL                       :: doPartInExists
+#endif /*defined(IMPA)*/
 INTEGER                       :: iPart,ElemID, iPolyatMole
 INTEGER                       :: iProc,ProcID
 !===================================================================================================================================
+#if defined(IMPA)
 doPartInExists=.FALSE.
 IF(PRESENT(DoParticle_IN)) doPartInExists=.TRUE.
+#endif /*defined(IMPA)*/
 
 ! 1) get number of send particles
 !--- Count number of particles in cells in the halo region and add them to the message
@@ -335,12 +330,15 @@ DO iPart=1,PDM%ParticleVecLength
   !         ! Activate phantom/ghost particles
   !         IF(PartSpecies(iPart).LT.0) PDM%ParticleInside(iPart) = .TRUE.
 
-  ! TODO: Info why and under which conditions the following 'CYCLE' is called
+#if defined(IMPA)
   IF(doPartInExists)THEN
     IF (.NOT.(PDM%ParticleInside(iPart).AND.DoParticle_In(iPart))) CYCLE
   ELSE
+#endif /*defined(IMPA)*/
     IF (.NOT.PDM%ParticleInside(iPart)) CYCLE
+#if defined(IMPA)
   END IF
+#endif /*defined(IMPA)*/
 
   ! This is already the global ElemID
   ElemID = PEM%GlobalElemID(iPart)
@@ -397,7 +395,7 @@ DO iProc=0,nExchangeProcessors-1
                 , MPI_INTEGER                                                &
                 , ExchangeProcToGlobalProc(EXCHANGE_PROC_RANK,iProc)         &
                 , 1001                                                       &
-                , PartMPI%COMM                                               &
+                , MPI_COMM_PICLAS                                               &
                 , PartMPIExchange%SendRequest(1,iProc)                       &
                 , IERROR )
   IF(IERROR.NE.MPI_SUCCESS) CALL ABORT(&
@@ -428,7 +426,7 @@ USE MOD_Globals
 USE MOD_Preproc
 USE MOD_DSMC_Vars,               ONLY:useDSMC, CollisMode, DSMC, PartStateIntEn, SpecDSMC, PolyatomMolDSMC, VibQuantsPar
 USE MOD_DSMC_Vars,               ONLY:ElectronicDistriPart, AmbipolElecVelo
-USE MOD_Particle_MPI_Vars,       ONLY:PartMPI,PartMPIExchange,PartCommSize,PartSendBuf,PartRecvBuf,PartTargetProc!,PartHaloElemToProc
+USE MOD_Particle_MPI_Vars,       ONLY:PartMPIExchange,PartCommSize,PartSendBuf,PartRecvBuf,PartTargetProc!,PartHaloElemToProc
 USE MOD_Particle_MPI_Vars,       ONLY:nExchangeProcessors,ExchangeProcToGlobalProc
 USE MOD_Particle_Tracking_Vars,  ONLY:TrackingMethod
 USE MOD_Particle_Vars,           ONLY:PartState,PartSpecies,usevMPF,PartMPF,PEM,PDM,PartPosRef,Species
@@ -827,7 +825,7 @@ DO iProc=0,nExchangeProcessors-1
                 , MPI_DOUBLE_PRECISION                                       &
                 , ExchangeProcToGlobalProc(EXCHANGE_PROC_RANK,iProc)         &
                 , 1002                                                       &
-                , PartMPI%COMM                                               &
+                , MPI_COMM_PICLAS                                               &
                 , PartMPIExchange%RecvRequest(2,iProc)                       &
                 , IERROR )
   IF(IERROR.NE.MPI_SUCCESS) CALL ABORT(__STAMP__,' MPI Communication error', IERROR)
@@ -858,7 +856,7 @@ DO iProc=0,nExchangeProcessors-1
                 , MPI_DOUBLE_PRECISION                                       &
                 , ExchangeProcToGlobalProc(EXCHANGE_PROC_RANK,iProc)         &
                 , 1002                                                       &
-                , PartMPI%COMM                                               &
+                , MPI_COMM_PICLAS                                               &
                 , PartMPIExchange%SendRequest(2,iProc)                       &
                 , IERROR )
   IF(IERROR.NE.MPI_SUCCESS) CALL ABORT(__STAMP__,' MPI Communication error', IERROR)
@@ -882,7 +880,7 @@ USE MOD_Globals
 USE MOD_Preproc
 USE MOD_DSMC_Vars              ,ONLY: useDSMC, CollisMode, DSMC, PartStateIntEn, SpecDSMC, PolyatomMolDSMC, VibQuantsPar
 USE MOD_DSMC_Vars              ,ONLY: ElectronicDistriPart, AmbipolElecVelo
-USE MOD_Particle_MPI_Vars      ,ONLY: PartMPIExchange,PartCommSize,PartRecvBuf,PartSendBuf!,PartMPI
+USE MOD_Particle_MPI_Vars      ,ONLY: PartMPIExchange,PartCommSize,PartRecvBuf,PartSendBuf
 USE MOD_Particle_MPI_Vars      ,ONLY: nExchangeProcessors
 USE MOD_Particle_Tracking_Vars ,ONLY: TrackingMethod
 USE MOD_Particle_Vars          ,ONLY: PartState,PartSpecies,usevMPF,PartMPF,PEM,PDM, PartPosRef, Species, LastPartPos
@@ -1356,18 +1354,17 @@ DO iSpec=1,nSpecies
 END DO ! iSpec
 IF(nInitRegions.GT.0) THEN
   DO iInitRegions=1,nInitRegions
-    IF(PartMPI%InitGroup(iInitRegions)%COMM.NE.MPI_COMM_NULL) THEN
-      CALL MPI_COMM_FREE(PartMPI%InitGroup(iInitRegions)%Comm,iERROR)
+    IF(PartMPIInitGroup(iInitRegions)%COMM.NE.MPI_COMM_NULL) THEN
+      CALL MPI_COMM_FREE(PartMPIInitGroup(iInitRegions)%Comm,iERROR)
     END IF
   END DO ! iInitRegions
 END IF
-IF(PartMPI%COMM.NE.MPI_COMM_NULL) CALL MPI_COMM_FREE(PartMPI%COMM,iERROR)
 
 SDEALLOCATE( PartMPIExchange%nPartsSend)
 SDEALLOCATE( PartMPIExchange%nPartsRecv)
 SDEALLOCATE( PartMPIExchange%RecvRequest)
 SDEALLOCATE( PartMPIExchange%SendRequest)
-SDEALLOCATE( PartMPI%InitGroup)
+SDEALLOCATE( PartMPIInitGroup)
 SDEALLOCATE( PartSendBuf)
 SDEALLOCATE( PartRecvBuf)
 SDEALLOCATE( ExchangeProcToGlobalProc)

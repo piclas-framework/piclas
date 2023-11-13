@@ -722,16 +722,20 @@ IF (DSMC%CalcQualityFactors) THEN
         DSMC_MacroVal(nVarCount+2,iElem) = BGK_QualityFacSamp(6,iElem) / BGK_QualityFacSamp(2,iElem)
         ! Mean expected Prandtl number
         DSMC_MacroVal(nVarCount+3,iElem) = BGK_QualityFacSamp(7,iElem) / BGK_QualityFacSamp(2,iElem)
+        ! Mean viscosity
+        DSMC_MacroVal(nVarCount+4,iElem) = BGK_QualityFacSamp(8,iElem) / BGK_QualityFacSamp(2,iElem)
+        ! Mean thermal conductivity
+        DSMC_MacroVal(nVarCount+5,iElem) = BGK_QualityFacSamp(9,iElem) / BGK_QualityFacSamp(2,iElem)
       END IF
       IF(BGK_QualityFacSamp(4,iElem).GT.0) THEN
         ! Max relaxation factor (maximal value of all octree subcells)
-        DSMC_MacroVal(nVarCount+4,iElem) = BGK_QualityFacSamp(3,iElem) / BGK_QualityFacSamp(4,iElem)
+        DSMC_MacroVal(nVarCount+6,iElem) = BGK_QualityFacSamp(3,iElem) / BGK_QualityFacSamp(4,iElem)
         ! Max rotational relaxation factor
-        DSMC_MacroVal(nVarCount+5,iElem) = BGK_QualityFacSamp(5,iElem) / BGK_QualityFacSamp(4,iElem)
+        DSMC_MacroVal(nVarCount+7,iElem) = BGK_QualityFacSamp(5,iElem) / BGK_QualityFacSamp(4,iElem)
       END IF
       ! Ratio between BGK and DSMC usage per cell
-      DSMC_MacroVal(nVarCount+6,iElem) = BGK_QualityFacSamp(4,iElem) / iter_loc
-      nVarCount = nVarCount + 6
+      DSMC_MacroVal(nVarCount+8,iElem) = BGK_QualityFacSamp(4,iElem) / iter_loc
+      nVarCount = nVarCount + 8
     END IF
     ! variable rotation and vibration relaxation
     IF(Collismode.GT.1) THEN
@@ -771,7 +775,7 @@ END IF
 IF (DoVirtualCellMerge) THEN
   DO iElem = 1, nElems
     IF (VirtMergedCells(iElem)%isMerged) THEN
-      DSMC_MacroVal(:,iElem) = DSMC_MacroVal(:,VirtMergedCells(iElem)%MasterCell-offSetElem) 
+      DSMC_MacroVal(:,iElem) = DSMC_MacroVal(:,VirtMergedCells(iElem)%MasterCell-offSetElem)
     END IF
   END DO
 END IF
@@ -781,7 +785,7 @@ END SUBROUTINE DSMC_output_calc
 
 SUBROUTINE CalcMacroElecExcitation(MacroElecExcitation)
 !===================================================================================================================================
-!> 
+!>
 !===================================================================================================================================
 ! MODULES
 USE MOD_PreProc
@@ -802,7 +806,7 @@ REAL,INTENT(INOUT)      :: MacroElecExcitation(1:ExcitationLevelCounter,nElems)
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-! INTEGER                 :: 
+! INTEGER                 ::
 REAL                    :: TimeSample
 !===================================================================================================================================
 
@@ -820,7 +824,7 @@ ELSE
   TimeSample = (Time-(1-DSMC%TimeFracSamp)*TEnd)
 END IF
 
-! Rate 
+! Rate
 MacroElecExcitation = ExcitationSampleData / TimeSample
 
 END SUBROUTINE CalcMacroElecExcitation
@@ -884,7 +888,7 @@ IF (DSMC%CalcQualityFactors) THEN
   IF(UseVarTimeStep) nVar_quality = nVar_quality + 1
   IF(DoVirtualCellMerge) nVar_quality = nVar_quality + 1
   IF(RadialWeighting%PerformCloning) nVar_quality = nVar_quality + 2
-  IF(BGKInitDone) nVar_quality = nVar_quality + 6
+  IF(BGKInitDone) nVar_quality = nVar_quality + 8
   IF(FPInitDone) nVar_quality = nVar_quality + 5
 ELSE
   nVar_quality=0
@@ -970,10 +974,12 @@ IF (DSMC%CalcQualityFactors) THEN
     StrVarNames(nVarCount+1) ='BGK_MeanRelaxationFactor'
     StrVarNames(nVarCount+2) ='BGK_MeanPrandtlNumber'
     StrVarNames(nVarCount+3) ='BGK_ExpectedPrandtlNumber'
-    StrVarNames(nVarCount+4) ='BGK_MaxRelaxationFactor'
-    StrVarNames(nVarCount+5) ='BGK_MaxRotationRelaxFactor'
-    StrVarNames(nVarCount+6) ='BGK_DSMC_Ratio'
-    nVarCount=nVarCount+6
+    StrVarNames(nVarCount+4) ='BGK_Viscosity'
+    StrVarNames(nVarCount+5) ='BGK_ThermalConductivity'
+    StrVarNames(nVarCount+6) ='BGK_MaxRelaxationFactor'
+    StrVarNames(nVarCount+7) ='BGK_MaxRotationRelaxFactor'
+    StrVarNames(nVarCount+8) ='BGK_DSMC_Ratio'
+    nVarCount=nVarCount+8
   END IF
   IF(FPInitDone) THEN
     StrVarNames(nVarCount+1) ='FP_MeanRelaxationFactor'
@@ -1017,7 +1023,7 @@ IF(MPIRoot) THEN
   CALL WriteAttributeToHDF5(File_ID,'Time',1,RealScalar=OutputTime)
   CALL WriteAttributeToHDF5(File_ID,'MeshFile',1,StrScalar=(/TRIM(MeshFileName)/))
   CALL WriteAttributeToHDF5(File_ID,'NSpecies',1,IntegerScalar=nSpecies)
-  ! Standard variable names 
+  ! Standard variable names
   CALL WriteAttributeToHDF5(File_ID,'VarNamesAdd',nVar+nVar_quality,StrArray=StrVarNames)
   ! Additional variable names: electronic excitation rate output
   IF(SampleElecExcitation) CALL WriteAttributeToHDF5(File_ID,'VarNamesExci',ExcitationLevelCounter,StrArray=StrVarNamesElecExci)
@@ -1025,11 +1031,11 @@ IF(MPIRoot) THEN
 END IF
 
 #if USE_MPI
-CALL MPI_BARRIER(MPI_COMM_WORLD,iError)
+CALL MPI_BARRIER(MPI_COMM_PICLAS,iError)
 #endif
 
 ! Open data file for parallel output
-CALL OpenDataFile(FileName,create=.false.,single=.FALSE.,readOnly=.FALSE.,communicatorOpt=MPI_COMM_WORLD)
+CALL OpenDataFile(FileName,create=.false.,single=.FALSE.,readOnly=.FALSE.,communicatorOpt=MPI_COMM_PICLAS)
 
 ALLOCATE(DSMC_MacroVal(1:nVar+nVar_quality,nElems), STAT=ALLOCSTAT)
 IF (ALLOCSTAT.NE.0) THEN
@@ -1206,11 +1212,8 @@ IMPLICIT NONE
 ! LOCAL VARIABLES
 INTEGER           :: nOutput
 !-----------------------------------------------------------------------------------------------------------------------------------
-
-#if (PP_TimeDiscMethod==42)
 ! Do not perform sampling in the case of a reservoir simulation
 IF (DSMC%ReservoirSimu) RETURN
-#endif
 
 ! Use user given TimeFracSamp
 IF((Time.GE.(1-DSMC%TimeFracSamp)*TEnd).AND.(.NOT.SamplingActive))  THEN

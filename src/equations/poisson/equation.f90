@@ -45,11 +45,8 @@ INTERFACE FinalizeEquation
 END INTERFACE
 
 PUBLIC :: InitEquation,ExactFunc,CalcSource,FinalizeEquation, CalcSourceHDG,DivCleaningDamping
-#if USE_MPI && defined(PARTICLES)
-PUBLIC :: SynchronizeCPP
-#endif /*USE_MPI && defined(PARTICLES)*/
+PUBLIC :: DefineParametersEquation
 !===================================================================================================================================
-PUBLIC::DefineParametersEquation
 CONTAINS
 
 !==================================================================================================================================
@@ -290,7 +287,7 @@ USE MOD_HDG_Vars         ,ONLY: CPPDataLength,CoupledPowerMode,CoupledPowerFrequ
 USE MOD_ReadInTools      ,ONLY: GETREALARRAY,GETREAL,GETINTFROMSTR,CountOption
 USE MOD_Mesh_Vars        ,ONLY: BoundaryType,nBCs
 #if USE_MPI
-USE MOD_Globals          ,ONLY: IERROR,MPI_COMM_NULL,MPI_DOUBLE_PRECISION,MPI_COMM_WORLD,MPI_INFO_NULL,MPI_UNDEFINED,MPIRoot
+USE MOD_Globals          ,ONLY: IERROR,MPI_COMM_NULL,MPI_DOUBLE_PRECISION,MPI_COMM_PICLAS,MPI_INFO_NULL,MPI_UNDEFINED,MPIRoot
 USE MOD_Globals          ,ONLY: UNIT_StdOut
 USE MOD_HDG_Vars         ,ONLY: CPPCOMM
 USE MOD_Mesh_Vars        ,ONLY: nBCSides,BC
@@ -380,8 +377,8 @@ color = MERGE(CPPBoundaries, MPI_UNDEFINED, BConProc)
 ! set communicator id
 CPPCOMM%ID = CPPBoundaries
 
-! create new emission communicator for electric potential boundary condition communication. Pass MPI_INFO_NULL as rank to follow the original ordering
-CALL MPI_COMM_SPLIT(MPI_COMM_WORLD, color, MPI_INFO_NULL, CPPCOMM%UNICATOR, iError)
+! create new emission communicator for coupled power potential communication. Pass MPI_INFO_NULL as rank to follow the original ordering
+CALL MPI_COMM_SPLIT(MPI_COMM_PICLAS, color, MPI_INFO_NULL, CPPCOMM%UNICATOR, iError)
 
 ! Find my rank on the shared communicator, comm size and proc name
 IF(BConProc)THEN
@@ -421,6 +418,9 @@ USE MOD_IO_HDF5          ,ONLY: OpenDataFile,CloseDataFile,File_ID
 USE MOD_Restart_Vars     ,ONLY: DoRestart,RestartFile
 USE MOD_HDF5_Input       ,ONLY: DatasetExists,ReadArray,GetDataSize
 USE MOD_HDG_Vars         ,ONLY: CoupledPowerPotential,CPPDataLength
+#if USE_MPI
+USE MOD_Equation_Tools   ,ONLY: SynchronizeCPP
+#endif /*USE_MPI*/
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! INPUT / OUTPUT VARIABLES
@@ -466,31 +466,7 @@ CALL SynchronizeCPP()
 #endif /*USE_MPI*/
 
 END SUBROUTINE ReadCPPDataFromH5
-
-
-#if USE_MPI
-!===================================================================================================================================
-!> Communicate the CPP values from MPIRoot to sub-communicator processes
-!===================================================================================================================================
-SUBROUTINE SynchronizeCPP()
-! MODULES
-USE MOD_Globals  ,ONLY: IERROR,MPI_COMM_NULL,MPI_DOUBLE_PRECISION
-USE MOD_HDG_Vars ,ONLY: CPPCOMM
-USE MOD_HDG_Vars ,ONLY: CoupledPowerPotential,CPPDataLength
-IMPLICIT NONE
-!----------------------------------------------------------------------------------------------------------------------------------!
-! INPUT / OUTPUT VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-!===================================================================================================================================
-IF(CPPCOMM%UNICATOR.NE.MPI_COMM_NULL)THEN
-  ! Broadcast from root to other processors on the sub-communicator
-  CALL MPI_BCAST(CoupledPowerPotential, CPPDataLength, MPI_DOUBLE_PRECISION, 0, CPPCOMM%UNICATOR, IERROR)
-END IF
-END SUBROUTINE SynchronizeCPP
-#endif /*USE_MPI*/
 #endif /*defined(PARTICLES)*/
-
 
 SUBROUTINE ExactFunc(ExactFunction,x,resu,t,ElemID,iRefState,iLinState,BCState)
 !===================================================================================================================================
@@ -589,6 +565,8 @@ CASE(103) ! dipole
   resu(:)=IniAmplitude*(1/r2-1/r1)
 CASE(104) ! solution to Laplace's equation: Phi_xx + Phi_yy + Phi_zz = 0
   resu(1) = ( COS(x(1))+SIN(x(1)) )*( COS(x(2))+SIN(x(2)) )*( COSH(SQRT(2.0)*x(3))+SINH(SQRT(2.0)*x(3)) )
+CASE(105) ! 3D periodic test case
+  resu(1)= SIN(x(1) + 1) * SIN(x(2) + 2) * SIN(x(3) + 3)
 CASE(200) ! Dielectric Sphere of Radius R in constant electric field E_0 from book:
   ! John David Jackson, Classical Electrodynamics, 3rd edition, New York: Wiley, 1999.
   ! E_0       : constant electric field in z-direction far away from sphere
@@ -763,7 +741,7 @@ CASE(400,401) ! Point Source in Dielectric Region with epsR_1  = 1 for x < 0 (va
         SWRITE(*,*) "r1=",r1
         CALL abort(__STAMP__,'Point source in dielectric region: Cannot evaluate the exact function at the singularity!')
       END IF
-      resu(1:PP_nVar) = (2.0*Q/eps12) * 1./r1 
+      resu(1:PP_nVar) = (2.0*Q/eps12) * 1./r1
     END IF
   END ASSOCIATE
 CASE(500) ! Coaxial capacitor with Floating Boundary Condition (FPC) with from
@@ -962,6 +940,9 @@ CASE(103)
   dr2dx2(:)= r2+dr2dx(:)*dx2
   resu(1)=- IniAmplitude*( SUM((r1*dr1dx2(:)-2*dr1dx(:)**2)/(r1*r1*r1)) &
       -SUM((r2*dr2dx2(:)-2*dr2dx(:)**2)/(r2*r2*r2)) )
+CASE(105) ! 3D periodic test case
+  x(1:3) = Elem_xGP(1:3,i,j,k,iElem)
+  resu(1)=-3 * SIN(x(1) + 1) * SIN(x(2) + 2) * SIN(x(3) + 3)
 CASE DEFAULT
   resu=0.
   !  CALL abort(__STAMP__,&
