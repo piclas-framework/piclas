@@ -71,6 +71,9 @@ REAL              :: tLBStart
 
 ! Reset the number of particles created during the DSMC loop
 DSMCSumOfFormedParticles = 0
+DSMC%MaxMCSoverMFP = 0.0
+DSMC%ParticlePairingCounter = 0 ! Counts ParticleParing Calls
+DSMC%ResolvedCellCounter = 0 ! Counts resolved cells
 ! Insert background gas particles for every simulation particle
 IF((BGGas%NumberOfSpecies.GT.0).AND.(.NOT.UseMCC)) CALL BGGas_InsertParticles()
 

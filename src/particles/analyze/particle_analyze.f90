@@ -889,7 +889,7 @@ REAL                :: EkinMax(nSpecies)
 #if (PP_TimeDiscMethod==2 || PP_TimeDiscMethod==4 || PP_TimeDiscMethod==300 || PP_TimeDiscMethod==400 || (PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=509) || PP_TimeDiscMethod==120)
 REAL                :: ETotal
 REAL                :: IntEn(nSpecAnalyze,3),IntTemp(nSpecies,3),TempTotal(nSpecAnalyze), Xi_Vib(nSpecies), Xi_Elec(nSpecies)
-REAL                :: MaxCollProb, MeanCollProb, MeanFreePath
+REAL                :: MaxCollProb, MeanCollProb, MeanFreePath, MaxMCSoverMFP, ResolvedCellPercentage
 REAL                :: NumSpecTmp(nSpecAnalyze), RotRelaxProb(2), VibRelaxProb(2)
 INTEGER             :: bgSpec
 #endif
@@ -1172,6 +1172,12 @@ ParticleAnalyzeSampleTime = Time - ParticleAnalyzeSampleTime ! Set ParticleAnaly
           WRITE(unit_index,'(A1)',ADVANCE='NO') ','
           WRITE(unit_index,'(I3.3,A)',ADVANCE='NO') OutputCounter,'-MeanFreePath'
           OutputCounter = OutputCounter + 1
+          WRITE(unit_index,'(A1)',ADVANCE='NO') ','
+          WRITE(unit_index,'(I3.3,A)',ADVANCE='NO') OutputCounter,'-MaxMCSoverMFP'
+          OutputCounter = OutputCounter + 1
+          WRITE(unit_index,'(A1)',ADVANCE='NO') ','
+          WRITE(unit_index,'(I3.3,A)',ADVANCE='NO') OutputCounter,'-ResolvedCellPercentage'
+          OutputCounter = OutputCounter + 1
           IF(CalcRelaxProb) THEN
             WRITE(unit_index,'(A1)',ADVANCE='NO') ','
             WRITE(unit_index,'(I3.3,A)',ADVANCE='NO') OutputCounter,'-RotRelaxPmean'
@@ -1355,6 +1361,8 @@ ParticleAnalyzeSampleTime = Time - ParticleAnalyzeSampleTime ! Set ParticleAnaly
   MaxCollProb = 0.0
   MeanCollProb = 0.0
   MeanFreePath = 0.0
+  MaxMCSoverMFP = 0.0
+  ResolvedCellPercentage = 0.0
   IF(DSMC%CalcQualityFactors.OR.CalcReacRates) THEN
     NumSpecTmp = NumSpec
     IF(BGGas%NumberOfSpecies.GT.0) THEN
@@ -1377,7 +1385,9 @@ ParticleAnalyzeSampleTime = Time - ParticleAnalyzeSampleTime ! Set ParticleAnaly
   END IF
   IF(DSMC%CalcQualityFactors) THEN
     IF(iter.GT.0) THEN
+      MaxMCSoverMFP = DSMC%MaxMCSoverMFP
       MaxCollProb = DSMC%CollProbMax
+      ResolvedCellPercentage = REAL(DSMC%ResolvedCellCounter) / REAL(DSMC%ParticlePairingCounter) * 100
       IF(DSMC%CollProbMeanCount.GT.0) MeanCollProb = DSMC%CollProbMean / DSMC%CollProbMeanCount
       IF (MPIRoot) THEN
         IF(TempTotal(nSpecAnalyze).GT.0.0) MeanFreePath = CalcMeanFreePath(NumSpecTmp(1:nSpecies), NumSpecTmp(nSpecAnalyze), &
@@ -1648,6 +1658,8 @@ IF (MPIRoot) THEN
     WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',', MeanCollProb
     WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',', MaxCollProb
     WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',', MeanFreePath
+    WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',', MaxMCSoverMFP
+    WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',', ResolvedCellPercentage
     IF(CalcRelaxProb) THEN
       WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',', RotRelaxProb(2)
       WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',', RotRelaxProb(1)
