@@ -351,8 +351,10 @@ DO i=1,nSpecies
       END DO ! iPart
     END IF ! CalcPartBalance
     ! Update the current next free position and increase the particle vector length
-    PDM%CurrentNextFreePosition = PDM%CurrentNextFreePosition + NbrOfParticle
-    IF(NbrOfParticle.GT.0) PDM%ParticleVecLength = MAX(PDM%ParticleVecLength,GetNextFreePosition(NbrOfParticle))
+    IF(NbrOfParticle.GT.0) THEN
+      PDM%CurrentNextFreePosition = PDM%CurrentNextFreePosition + NbrOfParticle
+      PDM%ParticleVecLength = MAX(PDM%ParticleVecLength,GetNextFreePosition(0))
+    END IF
 #ifdef CODE_ANALYZE
     IF(PDM%ParticleVecLength.GT.PDM%maxParticleNumber) CALL Abort(__STAMP__,'PDM%ParticleVeclength exceeds PDM%maxParticleNumber, Difference:',IntInfoOpt=PDM%ParticleVeclength-PDM%maxParticleNumber)
     DO iPart=PDM%ParticleVecLength+1,PDM%maxParticleNumber

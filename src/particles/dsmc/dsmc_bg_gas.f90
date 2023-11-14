@@ -775,8 +775,10 @@ END DO
 
 ! Add the particles initialized through the emission and the background particles
 ! Update the current next free position
-IF(iNewPart+NbrOfParticle.GT.0) PDM%ParticleVecLength = MAX(PDM%ParticleVecLength,GetNextFreePosition(iNewPart+NbrOfParticle))
-PDM%CurrentNextFreePosition = PDM%CurrentNextFreePosition + NbrOfParticle + iNewPart
+IF(iNewPart+NbrOfParticle.GT.0) THEN
+  PDM%CurrentNextFreePosition = PDM%CurrentNextFreePosition + NbrOfParticle + iNewPart
+  PDM%ParticleVecLength = MAX(PDM%ParticleVecLength,GetNextFreePosition(0))
+END IF
 #ifdef CODE_ANALYZE
 IF(PDM%ParticleVecLength.GT.PDM%maxParticleNumber) CALL Abort(__STAMP__,'PDM%ParticleVeclength exceeds PDM%maxParticleNumber, Difference:',IntInfoOpt=PDM%ParticleVeclength-PDM%maxParticleNumber)
 DO iPart=PDM%ParticleVecLength+1,PDM%maxParticleNumber

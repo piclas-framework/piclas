@@ -1321,8 +1321,10 @@ DO iProc=0,nExchangeProcessors-1
 
 END DO ! iProc
 
-IF(PartMPIExchange%nMPIParticles.GT.0) PDM%ParticleVecLength = MAX(PDM%ParticleVecLength,GetNextFreePosition(PartMPIExchange%nMPIParticles))
-PDM%CurrentNextFreePosition = PDM%CurrentNextFreePosition + PartMPIExchange%nMPIParticles
+IF(PartMPIExchange%nMPIParticles.GT.0) THEN
+  PDM%CurrentNextFreePosition = PDM%CurrentNextFreePosition + PartMPIExchange%nMPIParticles
+  PDM%ParticleVecLength = MAX(PDM%ParticleVecLength,GetNextFreePosition(0))
+END IF
 #ifdef CODE_ANALYZE
 IF(PDM%ParticleVecLength.GT.PDM%maxParticleNumber) CALL Abort(__STAMP__,'PDM%ParticleVeclength exceeds PDM%maxParticleNumber, Difference:',IntInfoOpt=PDM%ParticleVeclength-PDM%maxParticleNumber)
 DO PartID=PDM%ParticleVecLength+1,PDM%maxParticleNumber
