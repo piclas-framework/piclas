@@ -1636,42 +1636,71 @@ INTEGER                     :: GetNextFreePosition
 INTEGER                     :: i
 !===================================================================================================================================
 IF(PRESENT(Offset)) THEN
-  ! This shouldn't happen but better be save than sorry
-  IF(PDM%CurrentNextFreePosition+Offset.GT.PDM%MaxParticleNumber) CALL IncreaseMaxParticleNumber(CEILING((PDM%CurrentNextFreePosition+Offset)*(1+PDM%MaxPartNumIncrease)-PDM%MaxParticleNumber))
+  ! IF(PDM%CurrentNextFreePosition+Offset.GT.PDM%MaxParticleNumber) CALL IncreaseMaxParticleNumber(CEILING((PDM%CurrentNextFreePosition+Offset)*(1+PDM%MaxPartNumIncrease)-PDM%MaxParticleNumber))
+  IF(PDM%CurrentNextFreePosition+Offset.GT.PDM%MaxParticleNumber) THEN
+    CALL IncreaseMaxParticleNumber()
+    IF(PDM%CurrentNextFreePosition.GT.PDM%MaxParticleNumber) THEN
+      ! This only happens if PDM%CurrentNextFreePosition+Offset is way off (which shouldn't happen)
+      IPWRITE(UNIT_stdOut,*) "WARNING: PDM%CurrentNextFreePosition+Offset is way off in particle_tools.f90 GetNextFreePosition(Offset), 1"
+      CALL IncreaseMaxParticleNumber(CEILING((PDM%CurrentNextFreePosition+Offset)*(1+PDM%MaxPartNumIncrease)-PDM%MaxParticleNumber))
+    END IF
+  END IF
+
   GetNextFreePosition = PDM%nextFreePosition(PDM%CurrentNextFreePosition+Offset)
   ! If next free position is equal 0, determine how much more particles are needed to get a position within the particle vector
   IF(GetNextFreePosition.EQ.0) THEN
-    IF(PDM%nextFreePosition(1).EQ.0) THEN
-      i = 0
-    ELSE
-      i = PDM%CurrentNextFreePosition+Offset
-      DO WHILE(PDM%nextFreePosition(i).EQ.0.AND.i.GT.0)
-        i = i - 1
-      END DO
-    END IF
-    ! Increase the maxpartnum + margin
-    CALL IncreaseMaxParticleNumber(CEILING((PDM%CurrentNextFreePosition+Offset-i)*(1+PDM%MaxPartNumIncrease)+PDM%maxParticleNumber*PDM%MaxPartNumIncrease))
+    CALL IncreaseMaxParticleNumber()
     GetNextFreePosition = PDM%nextFreePosition(PDM%CurrentNextFreePosition+Offset)
+    IF(GetNextFreePosition.EQ.0) THEN
+      ! This only happens if PDM%CurrentNextFreePosition+Offset is way off (which shouldn't happen)
+      IPWRITE(UNIT_stdOut,*) "WARNING: PDM%CurrentNextFreePosition+Offset is way off in particle_tools.f90 GetNextFreePosition(Offset), 2"
+      IF(PDM%nextFreePosition(1).EQ.0) THEN
+        i = 0
+      ELSE
+        i = PDM%CurrentNextFreePosition+Offset
+        DO WHILE(PDM%nextFreePosition(i).EQ.0.AND.i.GT.0)
+          i = i - 1
+        END DO
+      END IF
+      ! Increase the maxpartnum + margin
+      CALL IncreaseMaxParticleNumber(CEILING((PDM%CurrentNextFreePosition+Offset-i)*(1+PDM%MaxPartNumIncrease)+PDM%maxParticleNumber*PDM%MaxPartNumIncrease))
+      GetNextFreePosition = PDM%nextFreePosition(PDM%CurrentNextFreePosition+Offset)
+    END IF
   END IF
 ELSE
   PDM%CurrentNextFreePosition = PDM%CurrentNextFreePosition + 1
-  ! This shouldn't happen but better be save than sorry
-  IF(PDM%CurrentNextFreePosition.GT.PDM%MaxParticleNumber) CALL IncreaseMaxParticleNumber(CEILING((PDM%CurrentNextFreePosition)*(1+PDM%MaxPartNumIncrease)-PDM%MaxParticleNumber))
+  ! IF(PDM%CurrentNextFreePosition.GT.PDM%MaxParticleNumber) CALL IncreaseMaxParticleNumber(CEILING((PDM%CurrentNextFreePosition)*(1+PDM%MaxPartNumIncrease)-PDM%MaxParticleNumber))
+  IF(PDM%CurrentNextFreePosition.GT.PDM%MaxParticleNumber) THEN
+    CALL IncreaseMaxParticleNumber()
+    IF(PDM%CurrentNextFreePosition.GT.PDM%MaxParticleNumber) THEN
+      ! This only happens if PDM%CurrentNextFreePosition is way off (which shouldn't happen)
+      IPWRITE(UNIT_stdOut,*) "WARNING: PDM%CurrentNextFreePosition is way off in particle_tools.f90 GetNextFreePosition(), 1"
+      CALL IncreaseMaxParticleNumber(CEILING((PDM%CurrentNextFreePosition)*(1+PDM%MaxPartNumIncrease)-PDM%MaxParticleNumber))
+    END IF
+  END IF
+
   GetNextFreePosition = PDM%nextFreePosition(PDM%CurrentNextFreePosition)
   ! If next free position is equal 0, determine how much more particles are needed to get a position within the particle vector
   IF(GetNextFreePosition.EQ.0) THEN
-    IF(PDM%nextFreePosition(1).EQ.0) THEN
-      i = 0
-    ELSE
-      i = PDM%CurrentNextFreePosition
-      DO WHILE(PDM%nextFreePosition(i).EQ.0.AND.i.GT.0)
-        i = i - 1
-      END DO
-    END IF
-    ! Increase the maxpartnum + margin
-    CALL IncreaseMaxParticleNumber(CEILING((PDM%CurrentNextFreePosition-i)*(1+PDM%MaxPartNumIncrease)+PDM%maxParticleNumber*PDM%MaxPartNumIncrease))
+    CALL IncreaseMaxParticleNumber()
     GetNextFreePosition = PDM%nextFreePosition(PDM%CurrentNextFreePosition)
+    IF(GetNextFreePosition.EQ.0) THEN
+      ! This only happens if PDM%CurrentNextFreePosition is way off (which shouldn't happen)
+      IPWRITE(UNIT_stdOut,*) "WARNING: PDM%CurrentNextFreePosition is way off in particle_tools.f90 GetNextFreePosition(), 2"
+      IF(PDM%nextFreePosition(1).EQ.0) THEN
+        i = 0
+      ELSE
+        i = PDM%CurrentNextFreePosition
+        DO WHILE(PDM%nextFreePosition(i).EQ.0.AND.i.GT.0)
+          i = i - 1
+        END DO
+      END IF
+      ! Increase the maxpartnum + margin
+      CALL IncreaseMaxParticleNumber(CEILING((PDM%CurrentNextFreePosition-i)*(1+PDM%MaxPartNumIncrease)+PDM%maxParticleNumber*PDM%MaxPartNumIncrease))
+      GetNextFreePosition = PDM%nextFreePosition(PDM%CurrentNextFreePosition)
+    END IF
   END IF
+
   IF(PDM%ParticleInside(GetNextFreePosition)) THEN
     CALL ABORT(&
   __STAMP__&
@@ -1722,7 +1751,7 @@ TYPE (tClonedParticles), ALLOCATABLE      :: ClonedParticles_New(:,:)
 IF(PRESENT(Amount)) THEN
   IF(Amount.EQ.0) RETURN
   NewSize=PDM%MaxParticleNumber+Amount
-  IPWRITE(*,*) "Increase by amount"
+  IPWRITE(*,*) "Increase by amount",PDM%MaxParticleNumber,NewSize
   IF(NewSize.GT.PDM%maxAllowedParticleNumber)CALL ABORT(&
   __STAMP__&
   ,'More Particles needed than allowed in PDM%maxAllowedParticleNumber',IntInfoOpt=NewSize)
@@ -1732,10 +1761,8 @@ ELSE
   __STAMP__&
   ,'More Particles needed than allowed in PDM%maxAllowedParticleNumber',IntInfoOpt=NewSize)
   NewSize=MIN(NewSize,PDM%maxAllowedParticleNumber)
-  IPWRITE(*,*) "Increase by percent"
+  IPWRITE(*,*) "Increase by percent",PDM%MaxParticleNumber,NewSize
 END IF
-
-IPWRITE(*,*) PDM%MaxParticleNumber,NewSize
 
 IF(ALLOCATED(PEM%GlobalElemID)) CALL ChangeSizeArray(PEM%GlobalElemID,PDM%maxParticleNumber,NewSize)
 IF(ALLOCATED(PEM%pNext)) CALL ChangeSizeArray(PEM%pNext,PDM%maxParticleNumber,NewSize)
@@ -2185,6 +2212,7 @@ END IF
 IF(PDM%ParticleVecLength.GT.NewSize) PDM%ParticleVecLength = NewSize
 PDM%MaxParticleNumber=NewSize
 
+CALL UpdateNextFreePosition()
 ! read(*,*)
 
 END SUBROUTINE ReduceMaxParticleNumber
@@ -2215,15 +2243,6 @@ INTEGER,INTENT(IN)        :: NewID
 ! LOCAL VARIABLES
 INTEGER                                   :: i,TempPartID
 !===================================================================================================================================
-
-
-
-!    __  __          __      __          _____   ________   ___
-!   / / / /___  ____/ /___ _/ /____     /  _/ | / /_  __/  /   |  ______________ ___  _______
-!  / / / / __ \/ __  / __ `/ __/ _ \    / //  |/ / / /    / /| | / ___/ ___/ __ `/ / / / ___/
-! / /_/ / /_/ / /_/ / /_/ / /_/  __/  _/ // /|  / / /    / ___ |/ /  / /  / /_/ / /_/ (__  )
-! \____/ .___/\__,_/\__,_/\__/\___/  /___/_/ |_/ /_/    /_/  |_/_/  /_/   \__,_/\__, /____/
-!     /_/                                                                      /____/
 
 IF(ALLOCATED(PEM%GlobalElemID)) PEM%GlobalElemID(NewID)=PEM%GlobalElemID(OldID)
 IF(ALLOCATED(PEM%pNext)) THEN
