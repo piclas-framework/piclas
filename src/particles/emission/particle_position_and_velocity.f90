@@ -307,7 +307,7 @@ ELSE
     IF(AcceptedParts(i).NE.-1) AcceptedParts(0) = AcceptedParts(0) + 1
   END DO
   Species(FractNbr)%Init(iInit)%mySumOfMatchedParticles = 0
-  CALL IncreaseMaxParticleNumber(AcceptedParts(0))
+  IF (Species(FractNbr)%Init(iInit)%ParticleEmissionType.EQ.0) CALL IncreaseMaxParticleNumber(AcceptedParts(0))
   DO i = 1,chunkSize
     ! Find a free position in the PDM array
     IF(AcceptedParts(i).NE.-1) THEN

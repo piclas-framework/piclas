@@ -937,7 +937,7 @@ REAL                             :: adaptTimestep
 INTEGER                          :: CNElemID
 !-----------------------------------------------------------------------------------------------------------------------------------
   IF (UseExactPartNum) THEN
-    CALL IncreaseMaxParticleNumber(chunkSize)
+    IF (Species(iSpec)%Init(iInit)%ParticleEmissionType.EQ.0) CALL IncreaseMaxParticleNumber(chunkSize)
     CellChunkSize(:)=0
     ASSOCIATE( start => GetCNElemID(1+offsetElem),&
                end   => GetCNElemID(nElems+offsetElem))
@@ -947,7 +947,7 @@ INTEGER                          :: CNElemID
     PartDens = Species(iSpec)%Init(iInit)%PartDensity / Species(iSpec)%MacroParticleFactor   ! numerical Partdensity is needed
     IF(RadialWeighting%DoRadialWeighting) PartDens = PartDens * 2. / (RadialWeighting%PartScaleFactor)
     chunkSize_tmp = INT(PartDens * LocalVolume)
-    CALL IncreaseMaxParticleNumber(chunkSize_tmp)
+    IF (Species(iSpec)%Init(iInit)%ParticleEmissionType.EQ.0) CALL IncreaseMaxParticleNumber(chunkSize_tmp)
   END IF
 
   ichunkSize = 1
