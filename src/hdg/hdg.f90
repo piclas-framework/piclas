@@ -649,6 +649,7 @@ FPC%VoltageProc = 0.
 IF(.NOT.ALLOCATED(FPC%Charge))THEN
   ALLOCATE(FPC%Charge(1:FPC%nUniqueFPCBounds))
   FPC%Charge = 0.
+  FPC%Charge = 2.5e-11
 END IF ! .NOT.ALLOCATED(FPC%Charge)
 ALLOCATE(FPC%ChargeProc(1:FPC%nUniqueFPCBounds))
 FPC%ChargeProc = 0.

@@ -478,11 +478,12 @@ USE MOD_Globals_Vars    ,ONLY: PI,ElementaryCharge,eps0
 USE MOD_Equation_Vars   ,ONLY: IniCenter,IniHalfwidth,IniAmplitude,RefState,LinPhi,LinPhiHeight,LinPhiNormal,LinPhiBasePoint
 #if defined(PARTICLES)
 USE MOD_HDG_Vars        ,ONLY: CoupledPowerPotential,UseCoupledPowerPotential,BiasVoltage,UseBiasVoltage
-USE MOD_Particle_Vars   ,ONLY: Species,nSpecies
+USE MOD_Particle_Vars   ,ONLY: Species,nSpecies,PartState,PDM
 #endif /*defined(PARTICLES)*/
 USE MOD_Dielectric_Vars ,ONLY: DielectricRatio,Dielectric_E_0,DielectricRadiusValue,DielectricEpsR
 USE MOD_Mesh_Vars       ,ONLY: ElemBaryNGeo
 USE MOD_HDG_Vars        ,ONLY: FPC,EPC
+USE MOD_TimeDisc_Vars   ,ONLY: time
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -500,6 +501,9 @@ REAL,INTENT(OUT)                :: Resu(1:PP_nVar)    ! state in conservative va
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 REAL                            :: Omega,r1,r2,r_2D,r_3D,r_bary,cos_theta,eps1,eps2,xi,a(3),b(3),Q
+#if defined(PARTICLES)
+INTEGER                         :: i,iPart
+#endif /*defined(PARTICLES)*/
 !===================================================================================================================================
 SELECT CASE (ExactFunction)
 #if defined(PARTICLES)
@@ -528,7 +532,7 @@ CASE(-2) ! Signal without zero-crossing (always positive or negative), otherwise
          ! Amplitude, Frequency and Phase Shift supplied by RefState
   ! RefState(1,iRefState): amplitude
   ! RefState(2,iRefState): frequency
-  ! RefState(3,iRefState): phase shift
+  ! efState(3,iRefState): phase shift
   Omega   = 2.*PI*RefState(2,iRefState)
   r1      = RefState(1,iRefState) / 2.0
   Resu(:) = r1*(COS(Omega*t+RefState(3,iRefState)) + 1.0)
@@ -780,6 +784,57 @@ CASE(600) ! 2 cubes with two different charges
     FPC%Charge(2)=10.0
   END IF ! ALLOCATED(FPC%Charge)
   resu = 0.
+CASE(700) ! Analytical solution of a charged particle moving in cylindrical coordinates between two grounded walls
+#if defined(PARTICLES)
+  eps1 = -ElementaryCharge/(4.0*PI*eps0)
+  !eps1 = -ElementaryCharge/(PI*eps0)
+  !eps1 = -ElementaryCharge/((4*PI*eps0)**(3./2.))
+  !IF(ALLOCATED(Species))THEN
+    !eps1 = -Species(1)%ChargeIC/(4.0*PI*eps0)
+    !eps1 = Species(1)%ChargeIC/(PI*eps0)
+  !ELSE
+    !eps1=0
+  !END IF ! ALLOCATED(Species)
+  r1 = x(1)**2 + x(2)**2
+  resu = 0.
+  !DO iPart = 1, PDM%ParticleVecLength
+    !IF(.NOT.PDM%ParticleInside(iPart)) CYCLE
+    !ASSOCIATE( z => x(3), zq => PartState(3,1), H => 80e-3, iMax => 20 )
+    ASSOCIATE( z => x(3), zq => 70e-3-5e6*time, H => 80e-3, iMax => 20 )
+      resu = resu + 1./SQRT(r1+(z-zq)**2) - 1./SQRT(r1+(z+zq)**2)
+      DO i = 1, iMax
+        resu = resu + 1./SQRT(r1+(z+REAL(2*i)*H-zq)**2) + 1./SQRT(r1+(z-REAL(2*i)*H-zq)**2)
+      END DO ! i = 1, iMax
+      DO i = 1, iMax
+        resu = resu - 1./SQRT(r1+(z+REAL(2*i)*H+zq)**2) - 1./SQRT(r1+(z-REAL(2*i)*H+zq)**2)
+      END DO ! i = 1, iMax
+    END ASSOCIATE
+    resu = eps1 * resu
+  !END DO ! iPart = 1, PDM%ParticleVecLength
+#else
+  CALL abort(__STAMP__,'ExactFunc=700 requires PARTICLES=ON')
+#endif /*defined(PARTICLES)*/
+CASE(800) ! Dielectric slab on electrode (left) with plasma between slab and other electrode opposite
+  ASSOCIATE( x     => x(1)   , &
+             y     => x(2)   , &
+             z     => x(3)   , &
+             L     => 1e-3   , &
+             d     => 10e-9  , &
+             eps1  => 10.0   , &
+             sigma => 1e-2   , &
+             rho0  => -1e-4  , &
+             Phi0  => -10    )
+    ASSOCIATE( PhiF => ((d/L)/((d/L)+eps1))*( L*(sigma + 0.5*rho0*L)/eps0 + Phi0 ) )
+      ASSOCIATE( a => 0.5*rho0*L/eps0 + (Phi0 - PhiF)/L ,&
+                 b => PhiF)
+        IF(x.GE.0.0)THEN
+          resu = -0.5*rho0*x**2/eps0 + a*x + b
+        ELSE
+          resu = b * (x/d + 1.0)
+        END IF ! x.GE.0.0
+      END ASSOCIATE
+    END ASSOCIATE
+  END ASSOCIATE
 CASE DEFAULT
   CALL abort(__STAMP__,'Exactfunction not specified!', IntInfoOpt=ExactFunction)
 END SELECT ! ExactFunction
@@ -950,6 +1005,18 @@ CASE DEFAULT
 END SELECT ! ExactFunction
 
 #ifdef PARTICLES
+
+! Specific source terms after particle deposition
+#if defined(CODE_ANALYZE)
+SELECT CASE(IniExactFunc)
+CASE(800) ! plasma between electrodes
+  IF(Elem_xGP(1,i,j,k,iElem).GT.0.0)THEN
+    PartSource(4,i,j,k,iElem) = PartSource(4,i,j,k,iElem) - 1e-4
+    !resu = resu -1e-4/eps0
+  END IF ! x.GT.0.0
+END SELECT
+#endif /*defined(CODE_ANALYZE)*/
+
 IF(DoDeposition)THEN
   source_e=0.
   IF(UseBRElectronFluid.AND.PRESENT(Phi))THEN
@@ -977,6 +1044,7 @@ IF(DoDeposition)THEN
   resu(1)= - (PartSource(4,i,j,k,iElem)-source_e)/eps0
 #endif
 END IF
+
 #endif /*PARTICLES*/
 
 END SUBROUTINE CalcSourceHDG
