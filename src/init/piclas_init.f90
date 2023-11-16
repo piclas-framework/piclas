@@ -65,7 +65,9 @@ USE MOD_Restart              ,ONLY: InitRestart
 USE MOD_Restart_Vars         ,ONLY: DoRestart
 USE MOD_Mesh                 ,ONLY: InitMesh
 USE MOD_Mesh_Vars            ,ONLY: GetMeshMinMaxBoundariesIsDone
+#if !(PP_TimeDiscMethod==4) && !(PP_TimeDiscMethod==300) && !(PP_TimeDiscMethod==400)
 USE MOD_Equation             ,ONLY: InitEquation
+#endif
 USE MOD_GetBoundaryFlux      ,ONLY: InitBC
 USE MOD_DG                   ,ONLY: InitDG
 USE MOD_Mortar               ,ONLY: InitMortar
@@ -170,7 +172,9 @@ CALL InitMesh(2)
 #if USE_MPI
 CALL InitMPIvars()
 #endif /*USE_MPI*/
+#if !(PP_TimeDiscMethod==4) && !(PP_TimeDiscMethod==300) && !(PP_TimeDiscMethod==400)
 CALL InitEquation()
+#endif
 CALL InitBC()
 #if !(USE_HDG)
 CALL InitPML() ! Perfectly Matched Layer (PML): electromagnetic-wave-absorbing layer
