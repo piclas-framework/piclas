@@ -197,6 +197,9 @@ ELSE
   IF(CustomNumReact.GT.0) THEN
     CALL Abort(__STAMP__,' Custom reactions in addition to a chemistry model are not supported yet!')
   END IF
+  IF(ChemReac%NumOfReact.LE.0) THEN
+    CALL Abort(__STAMP__,' No reactions found for the selected chemistry model: '//TRIM(ChemReac%ChemistryModel))
+  END IF
 END IF
 
 IF(ChemReac%NumOfReact.LE.0) THEN
