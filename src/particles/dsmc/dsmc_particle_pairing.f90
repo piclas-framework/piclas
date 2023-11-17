@@ -616,12 +616,19 @@ IF(DSMC%CalcQualityFactors) THEN
     ! Calculation of the mean free path with VHS model and the current translational temperature in the cell
     DSMC%MeanFreePath = CalcMeanFreePath(REAL(CollInf%Coll_SpecPartNum), REAL(SUM(CollInf%Coll_SpecPartNum)), NodeVolume, &
                                           DSMC%InstantTransTemp(nSpecies+1))
-    ! Determination of the maximum MCS/MFP for the cell
     IF((DSMC%CollSepCount.GT.0).AND.(DSMC%MeanFreePath.GT.0.0)) DSMC%MCSoverMFP = &
                                                     MAX(DSMC%MCSoverMFP,(DSMC%CollSepDist/DSMC%CollSepCount)/DSMC%MeanFreePath)
+    ! Calculation of the maximum MCS/MFP for the cell and number of resolved Cells
     IF(DSMC%MCSoverMFP .GE. DSMC%MaxMCSoverMFP) DSMC%MaxMCSoverMFP = DSMC%MCSoverMFP
-    IF( (TotalPartNum .GE. 7) .AND. (DSMC%MCSoverMFP .LE. 1) .AND. (DSMC%CollProbMax .LE. 1) &
-        .AND. (DSMC%CollProbMean .LE. 1)) DSMC%ResolvedCellCounter = DSMC%ResolvedCellCounter + 1 ! Number of resolved Cells     
+    #if USE_MPI
+      IF(MPIRoot)THEN
+        CALL MPI_REDUCE(MPI_IN_PLACE,DSMC%MaxMCSoverMFP,1,MPI_DOUBLE_PRECISION,MPI_MAX,0,MPI_COMM_PICLAS, IERROR)
+      ELSE
+        CALL MPI_REDUCE(DSMC%MaxMCSoverMFP,DSMC%MaxMCSoverMFP,1,MPI_DOUBLE_PRECISION,MPI_MAX,0,MPI_COMM_PICLAS, IERROR)
+      END IF
+    #endif /*USE_MPI*/
+    IF( (DSMC%MCSoverMFP .LE. 1) .AND. (DSMC%CollProbMax .LE. 1) .AND. (DSMC%CollProbMean .LE. 1)) DSMC%ResolvedCellCounter = & 
+                                                    DSMC%ResolvedCellCounter + 1     
   END IF
 END IF
 
