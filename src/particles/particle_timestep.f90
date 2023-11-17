@@ -12,7 +12,7 @@
 !==================================================================================================================================
 #include "piclas.h"
 
-MODULE MOD_Particle_VarTimeStep
+MODULE MOD_Particle_TimeStep
 !===================================================================================================================================
 ! Add comments please!
 !===================================================================================================================================
@@ -25,8 +25,9 @@ PRIVATE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
-PUBLIC :: VarTimeStep_Init, CalcVarTimeStep, VarTimeStep_CalcElemFacs, VarTimeStep_InitDistribution!, VarTimeStep_SmoothDistribution
-PUBLIC :: DefineParametersVaribleTimeStep
+PUBLIC :: DefineParametersVariableTimeStep
+PUBLIC :: InitPartTimeStep, GetParticleTimeStep, GetSpeciesTimeStep, VarTimeStep_CalcElemFacs, VarTimeStep_InitDistribution
+
 !===================================================================================================================================
 
 CONTAINS
@@ -34,7 +35,7 @@ CONTAINS
 !==================================================================================================================================
 !> Define parameters for particles
 !==================================================================================================================================
-SUBROUTINE DefineParametersVaribleTimeStep()
+SUBROUTINE DefineParametersVariableTimeStep()
 ! MODULES
 USE MOD_ReadInTools ,ONLY: prms,addStrListEntry
 IMPLICIT NONE
@@ -91,13 +92,17 @@ CALL prms%CreateRealOption(   'Part-VariableTimeStep-ScaleFactor2DFront', &
                               'FRONT: Time step decreases towards the stagnation point')
 CALL prms%CreateRealOption(   'Part-VariableTimeStep-ScaleFactor2DBack', &
                               'BACK: Time step increases away from the stagnation points')
+! === Species-specific time step (activated through e.g. Species1-TimeStepFactor = 0.1)
+CALL prms%CreateLogicalOption('Part-VariableTimeStep-DisableForMCC', &
+                              'Disable the variable time step for the MCC routines to perform collisions at the manual '//&
+                              'time step (e.g. to accelerate convergence to thermal/chemical equilibrium)', '.FALSE.')
 
-END SUBROUTINE DefineParametersVaribleTimeStep
+END SUBROUTINE DefineParametersVariableTimeStep
 
 
-SUBROUTINE VarTimeStep_Init()
+SUBROUTINE InitPartTimeStep()
 !===================================================================================================================================
-!> Initialization of the variable time step
+!> Initialization of the variable time step (only in the case of UseLinearScaling or UseDistribution)
 !===================================================================================================================================
 ! MODULES                                                                                                                          !
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -159,7 +164,7 @@ IF(VarTimeStep%UseDistribution) THEN
 END IF
 SWRITE(UNIT_StdOut,'(132("-"))')
 
-END SUBROUTINE VarTimeStep_Init
+END SUBROUTINE InitPartTimeStep
 
 
 SUBROUTINE VarTimeStep_InitDistribution()
@@ -205,15 +210,15 @@ nVar_TimeStep = 0
 
 IF(DoRestart) THEN
 ! Try to get the time step factor distribution directly from state file
-  CALL OpenDataFile(TRIM(RestartFile),create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_WORLD)
-  CALL DatasetExists(File_ID,'PartTimeStep',TimeStepExists)
+  CALL OpenDataFile(TRIM(RestartFile),create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_PICLAS)
+  CALL DatasetExists(File_ID,'ElemTimeStep',TimeStepExists)
   IF(TimeStepExists) THEN
     ! Allocate the array for the element-wise time step factor
     ALLOCATE(VarTimeStep%ElemFac(nGlobalElems))
     VarTimeStep%ElemFac = 1.0
     ! Read-in of the time step
     ASSOCIATE(nGlobalElems    => INT(nGlobalElems,IK))
-      CALL ReadArray('PartTimeStep',2,(/nGlobalElems, 1_IK/),0_IK,1,RealArray=VarTimeStep%ElemFac(1:nGlobalElems))
+      CALL ReadArray('ElemTimeStep',2,(/nGlobalElems, 1_IK/),0_IK,1,RealArray=VarTimeStep%ElemFac(1:nGlobalElems))
     END ASSOCIATE
     SWRITE(UNIT_stdOut,*)'Variable Time Step: Read-in of timestep distribution from state file.'
 #if USE_MPI
@@ -242,7 +247,7 @@ IF(VarTimeStep%AdaptDistribution) THEN
     'ERROR: It is required to use a restart and macroscopic restart when adapting the time step distribution!')
   END IF
   ! Open DSMC state file
-  CALL OpenDataFile(MacroRestartFileName,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_WORLD)
+  CALL OpenDataFile(MacroRestartFileName,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_PICLAS)
 
   CALL GetDataProps('ElemData',nVar_HDF5,N_HDF5,nGlobalElems)
 
@@ -397,9 +402,11 @@ SWRITE(UNIT_StdOut,'(132("-"))')
 END SUBROUTINE VarTimeStep_InitDistribution
 
 
-REAL FUNCTION CalcVarTimeStep(xPos, yPos, iElem)
+REAL FUNCTION GetParticleTimeStep(xPos, yPos, iElem)
 !===================================================================================================================================
-!> Calculates/determines the time step at a position x/y (only in 2D/Axi) or of the given element number (3D and VTS distribution)
+!> Calculates/determines the time step
+!> a) at a position x/y (only in 2D/Axi) [VarTimeStep%UseLinearScaling]
+!> b) of the given element number (3D and VTS distribution) [VarTimeStep%UseDistribution]
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
@@ -419,13 +426,13 @@ INTEGER, INTENT(IN), OPTIONAL   :: iElem
 REAL          :: xFactor
 !===================================================================================================================================
 
-CalcVarTimeStep = 1.
+GetParticleTimeStep = 1.
 
 IF(VarTimeStep%UseLinearScaling) THEN
   IF(Symmetry%Order.EQ.2) THEN
     IF (VarTimeStep%Use2DTimeFunc) THEN
       IF(.NOT.PRESENT(xPos).OR..NOT.PRESENT(yPos)) CALL abort(__STAMP__,&
-        'ERROR: Position in x-direction is required in the call of CalcVarTimeStep for linear scaling in 2D!')
+        'ERROR: Position in x-direction is required in the call of GetParticleTimeStep for linear scaling in 2D!')
       IF (xPos.LT.VarTimeStep%StagnationPoint) THEN
         xFactor = ABS((VarTimeStep%StagnationPoint-xPos)/(VarTimeStep%StagnationPoint-GEO%xminglob) &
                       * (VarTimeStep%TimeScaleFac2DFront - 1.0))
@@ -433,29 +440,69 @@ IF(VarTimeStep%UseLinearScaling) THEN
         xFactor = ABS((xPos-VarTimeStep%StagnationPoint)/(GEO%xmaxglob-VarTimeStep%StagnationPoint) &
                       * (VarTimeStep%TimeScaleFac2DBack - 1.0))
       END IF
-      CalcVarTimeStep = (1. + yPos/GEO%ymaxglob*(VarTimeStep%ScaleFac-1.0))*(1.+xFactor)
+      GetParticleTimeStep = (1. + yPos/GEO%ymaxglob*(VarTimeStep%ScaleFac-1.0))*(1.+xFactor)
     ELSE
       IF(.NOT.PRESENT(yPos)) CALL abort(__STAMP__,&
-        'ERROR: Position in x-direction is required in the call of CalcVarTimeStep for linear scaling in 2D!')
-      CalcVarTimeStep = (1. + yPos/GEO%ymaxglob*(VarTimeStep%ScaleFac-1.0))
+        'ERROR: Position in x-direction is required in the call of GetParticleTimeStep for linear scaling in 2D!')
+      GetParticleTimeStep = (1. + yPos/GEO%ymaxglob*(VarTimeStep%ScaleFac-1.0))
     END IF
   ELSE
     IF(.NOT.PRESENT(iElem)) CALL abort(__STAMP__,&
-      'ERROR: Element number is required in the call of CalcVarTimeStep for distribution/scaling in 3D!')
-    CalcVarTimeStep = VarTimeStep%ElemFac(iElem)
+      'ERROR: Element number is required in the call of GetParticleTimeStep for distribution/scaling in 3D!')
+    GetParticleTimeStep = VarTimeStep%ElemFac(iElem)
   END IF
 ELSE IF(VarTimeStep%UseDistribution) THEN
   IF(.NOT.PRESENT(iElem)) CALL abort(__STAMP__,&
-    'ERROR: Element number is required in the call of CalcVarTimeStep for distribution!')
-  CalcVarTimeStep = VarTimeStep%ElemFac(iElem)
+    'ERROR: Element number is required in the call of GetParticleTimeStep for distribution!')
+  GetParticleTimeStep = VarTimeStep%ElemFac(iElem)
 ELSE
-  CALL abort(__STAMP__,&
-    'ERROR: CalcVarTimeStep should not be utilized without LinearScaling/Distribution flag!')
+  CALL abort(__STAMP__,'ERROR: GetParticleTimeStep should not be utilized without LinearScaling/Distribution flag!')
 END IF
 
 RETURN
 
-END FUNCTION CalcVarTimeStep
+END FUNCTION GetParticleTimeStep
+
+
+PURE REAL FUNCTION GetSpeciesTimeStep(iCase)
+!===================================================================================================================================
+!> Determines the species-specific time step from the collision case
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals
+USE MOD_Particle_Vars           ,ONLY: VarTimeStep, Species
+USE MOD_DSMC_Vars               ,ONLY: CollInf
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+INTEGER, INTENT(IN)   :: iCase
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+INTEGER               :: iSpec, jSpec, SpecID
+!===================================================================================================================================
+
+GetSpeciesTimeStep = 1.
+
+! ManualTimeStep has been utilized for the collisions
+IF(VarTimeStep%DisableForMCC) RETURN
+
+! Determine the particle species (one will be the background species with a TimeStepFactor of 1)
+iSpec = CollInf%collidingSpecies(iCase,1)
+jSpec = CollInf%collidingSpecies(iCase,2)
+IF(Species(iSpec)%TimeStepFactor.LT.1.) THEN
+  SpecID = iSpec
+ELSE IF(Species(jSpec)%TimeStepFactor.LT.1.) THEN
+  SpecID = jSpec
+END IF
+GetSpeciesTimeStep = Species(SpecID)%TimeStepFactor
+
+RETURN
+
+END FUNCTION GetSpeciesTimeStep
 
 
 SUBROUTINE VarTimeStep_CalcElemFacs()
@@ -518,4 +565,4 @@ END IF
 
 END SUBROUTINE VarTimeStep_CalcElemFacs
 
-END MODULE MOD_Particle_VarTimeStep
+END MODULE MOD_Particle_TimeStep

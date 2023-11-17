@@ -31,6 +31,7 @@ END INTERFACE
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
 LOGICAL                  :: gatheredWrite       !< flag whether every process should output data or data should first be gathered
+!LOGICAL                  :: output2D            !< Flag whether to use true 2D input/output or not
 LOGICAL                  :: UseCollectiveIO     !< flag whether DistributedWriteArray() should use H5FD_MPIO_COLLECTIVE_F instead of H5FD_MPIO_INDEPENDENT_F
 INTEGER(HID_T)           :: File_ID             !< file which is currently opened
 INTEGER(HID_T)           :: Plist_File_ID       !< property list of file which is currently opened

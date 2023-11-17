@@ -28,7 +28,6 @@ SET_PROPERTY(CACHE PICLAS_TIMEDISCMETHOD PROPERTY STRINGS Euler-Explicit
                                                           RK4
                                                           RK14
                                                           DSMC
-                                                          RESERVOIR
                                                           FP-Flow
                                                           BGK-Flow
                                                           CN
@@ -79,7 +78,7 @@ ENDIF()
 CMAKE_DEPENDENT_OPTION(PICLAS_LOADBALANCE "Use load balance time measurement" ON "LIBS_USE_MPI" OFF)
 
 OPTION(PICLAS_INTKIND8 "Enable particle numbers larger than 2147483647 (on most systems, huge(4-byte-integer)))" OFF)
-IF (PICLAS_INTKIND8)
+IF(PICLAS_INTKIND8)
    ADD_DEFINITIONS(-DINTKIND8)
 ENDIF()
 
@@ -160,8 +159,6 @@ IF(PICLAS_PARTICLES)
 ELSE()
   IF(PICLAS_TIMEDISCMETHOD STREQUAL "DSMC")
     MESSAGE(SEND_ERROR "DSMC cannot be used without particles.")
-  ELSEIF(PICLAS_TIMEDISCMETHOD STREQUAL "RESERVOIR")
-    MESSAGE(SEND_ERROR "RESERVOIR cannot be used without particles.")
   ELSEIF(PICLAS_TIMEDISCMETHOD STREQUAL "BGK-Flow")
     MESSAGE(SEND_ERROR "BGK-Flow cannot be used without particles.")
   ELSEIF(PICLAS_TIMEDISCMETHOD STREQUAL "FP-Flow")
@@ -240,9 +237,6 @@ ELSEIF(PICLAS_TIMEDISCMETHOD STREQUAL "RK14")
 ELSEIF(PICLAS_TIMEDISCMETHOD STREQUAL "DSMC")
   FILE(GLOB timediscF90 ${CMAKE_CURRENT_SOURCE_DIR}/src/timedisc/timedisc_TimeStep_DSMC.f90)
   ADD_DEFINITIONS(-DPP_TimeDiscMethod=4)
-ELSEIF(PICLAS_TIMEDISCMETHOD STREQUAL "RESERVOIR")
-  FILE(GLOB timediscF90 ${CMAKE_CURRENT_SOURCE_DIR}/src/timedisc/timedisc_TimeStep_DSMC_Debug.f90)
-  ADD_DEFINITIONS(-DPP_TimeDiscMethod=42)
 ELSEIF(PICLAS_TIMEDISCMETHOD STREQUAL "CN")
   FILE(GLOB timediscF90 ${CMAKE_CURRENT_SOURCE_DIR}/src/timedisc/timedisc_TimeStepByImplicitRK.f90)
   ADD_DEFINITIONS(-DPP_TimeDiscMethod=120 -DIMPA)
@@ -451,6 +445,7 @@ FILE(GLOB_RECURSE hdgF90 ./src/hdg/*.f90
                          ./src/dg/dg_vars.f90
                          ./src/interpolation/prolongtoface.f90
                          ./src/equations/${PICLAS_EQNSYSNAME}/equation.f90
+                         ./src/equations/${PICLAS_EQNSYSNAME}/equation_tools.f90
                          ./src/equations/${PICLAS_EQNSYSNAME}/equation_vars.f90
                          ./src/equations/${PICLAS_EQNSYSNAME}/timeavg.f90
                          ./src/equations/${PICLAS_EQNSYSNAME}/timeavg_vars.f90
@@ -556,6 +551,8 @@ SET_TARGET_PROPERTIES(libpiclasshared PROPERTIES OUTPUT_NAME "libpiclas")
 ADD_DEPENDENCIES(libpiclasshared libpiclasstatic userblocklib stacksizelib memusagelib ${INTERNALLIBS})
 ADD_EXEC(piclas ./src/piclas.f90)
 ADD_DEPENDENCIES(piclas libpiclasstatic userblocklib stacksizelib memusagelib ${INTERNALLIBS})
+# Make sure that the script is executed even though cmake is not explicitly executed after the commit is changed in git
+ADD_DEPENDENCIES(piclas UpdateGitCommitHash)
 
 # special compiler flags to avoid warnings for empty functions of testcase.f90 and overwrite of intrinsic abort in globals.f90
 IF (CMAKE_Fortran_COMPILER_ID MATCHES "GNU")

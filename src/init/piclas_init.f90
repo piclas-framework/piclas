@@ -28,7 +28,6 @@ END INTERFACE
 PUBLIC:: FinalizePiclas
 PUBLIC:: InitPiclas
 !===================================================================================================================================
-!PUBLIC:: InitDefineParameters
 
 CONTAINS
 
@@ -85,8 +84,8 @@ USE MOD_MPI                  ,ONLY: InitMPIvars
 #endif /*USE_MPI*/
 #ifdef PARTICLES
 USE MOD_DSMC_Vars            ,ONLY: UseDSMC
-USE MOD_Particle_Vars        ,ONLY: VarTimeStep
-USE MOD_Particle_VarTimeStep ,ONLY: VarTimeStep_Init
+USE MOD_Particle_Vars        ,ONLY: UseVarTimeStep, VarTimeStep
+USE MOD_Particle_TimeStep    ,ONLY: InitPartTimeStep
 USE MOD_ParticleInit         ,ONLY: InitParticleGlobals,InitParticles
 USE MOD_TTMInit              ,ONLY: InitTTM,InitIMD_TTM_Coupling
 USE MOD_TTM_Vars             ,ONLY: DoImportTTMFile
@@ -139,14 +138,11 @@ CALL Init_Symmetry()
 #endif /*PARTICLES*/
 
 ! Initialization
-!CALL InitInterpolation()
 IF(IsLoadBalance)THEN
   DoRestart=.TRUE.
   RestartInitIsDone=.TRUE.
   InterpolationInitIsDone=.TRUE.
   RestartNullifySolution=.FALSE.
-  !BuildNewMesh       =.FALSE. !not used anymore?
-  !WriteNewMesh       =.FALSE. !not used anymore?
   InterpolateSolution=.FALSE.
   N_Restart=PP_N
   CALL InitMortar()
@@ -161,10 +157,10 @@ END IF
 VarTimeStep%UseLinearScaling = GETLOGICAL('Part-VariableTimeStep-LinearScaling')
 VarTimeStep%UseDistribution = GETLOGICAL('Part-VariableTimeStep-Distribution')
 IF (VarTimeStep%UseLinearScaling.OR.VarTimeStep%UseDistribution)  THEN
-  VarTimeStep%UseVariableTimeStep = .TRUE.
-  IF(.NOT.IsLoadBalance) CALL VarTimeStep_Init()
+  UseVarTimeStep = .TRUE.
+  IF(.NOT.IsLoadBalance) CALL InitPartTimeStep()
 ELSE
-  VarTimeStep%UseVariableTimeStep = .FALSE.
+  UseVarTimeStep = .FALSE.
 END IF
 CALL InitParticleGlobals()
 CALL InitDepositionMethod()
@@ -172,13 +168,10 @@ CALL InitDepositionMethod()
 
 CALL InitMesh(2)
 #if USE_MPI
-CALL InitMPIVars()
+CALL InitMPIvars()
 #endif /*USE_MPI*/
 CALL InitEquation()
 CALL InitBC()
-!#ifdef PARTICLES
-!CALL InitParticles()
-!#endif
 #if !(USE_HDG)
 CALL InitPML() ! Perfectly Matched Layer (PML): electromagnetic-wave-absorbing layer
 #endif /*USE_HDG*/
@@ -187,16 +180,12 @@ CALL InitDG()
 #if defined(ROS) || defined(IMPA)
 CALL InitLinearSolver()
 #endif /*ROS /IMEX*/
-!#if defined(IMEX)
-!CALL InitCSR()
-!#endif /*IMEX*/
 #ifdef PARTICLES
 CALL InitParticleMPI
 CALL InitParticles()
 #if defined(IMPA) || defined(ROS)
 CALL InitPartSolver()
 #endif
-!CALL GetSideType
 #endif
 CALL InitAnalyze()
 CALL InitRecordPoints()
@@ -224,8 +213,7 @@ CALL read_IMD_results()
 
 CALL InitInterfaces() ! set Riemann solver identifier for face connectivity (vacuum, dielectric, PML ...)
 
-! do this last!
-!CALL IgnoredStrings()
+! !do this last
 ! write out parameters that are not used and remove multiple and unused, that are not needed to do restart if no parameter.ini is
 ! read in
 IF (.NOT.IsLoadBalance) THEN
@@ -299,6 +287,9 @@ USE MOD_PIC_Vars                   ,ONLY: PICInitIsDone
 #if USE_MPI
 USE MOD_Particle_MPI               ,ONLY: FinalizeParticleMPI
 USE MOD_Particle_MPI_Vars          ,ONLY: ParticleMPIInitisdone
+#if defined(MEASURE_MPI_WAIT)
+USE MOD_MPI                        ,ONLY: OutputMPIW8Time
+#endif /*defined(MEASURE_MPI_WAIT)*/
 #endif /*USE_MPI*/
 #endif /*PARTICLES*/
 USE MOD_IO_HDF5                    ,ONLY: FinalizeElemData,ElementOut
@@ -392,6 +383,12 @@ IF(.NOT.IsLoadBalance)THEN
 #if USE_MPI
   ! Free the communicators!
   CALL FinalizeMPIShared()
+#if defined(MEASURE_MPI_WAIT)
+  ! Collect the MPI_WAIT() over all procs and output
+  IF(nProcessors.GT.1) CALL OutputMPIW8Time()
+#endif /*defined(MEASURE_MPI_WAIT)*/
+  ! Free the last communicator after OutputMPIW8Time
+  IF(MPI_COMM_PICLAS.NE.MPI_COMM_NULL) CALL MPI_COMM_FREE(MPI_COMM_PICLAS,IERROR)
 #endif /*USE_MPI*/
 ELSE
   CALL DisplaySimulationTime(Time, StartTime, 'RUNNING')

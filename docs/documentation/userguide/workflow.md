@@ -25,6 +25,10 @@ For some external libraries and programs that **PICLas** uses, the following opt
 
 * ``CTAGS_PATH``: This variable specifies the Ctags install directory, an optional program used to jump between tags in the source file.
 
+* `LIBS_BUILD_HOPR`: Enable the compilation of the mesh pre-processor HOPR during the PICLas compilation. The executable `hopr` will be placed in the build/bin/ folder next to the other executables. For more details, on the utilization of HOPR, see {ref}`sec:mesh-generation`.
+
+* `LIBS_DOWNLOAD_HOPR`: Enable downloading the mesh pre-processor HOPR during the PICLas compilation from GitHub. The executable `hopr` will be linked in the build/bin/ folder next to the other executables. For more details, on the utilization of HOPR, see {ref}`sec:mesh-generation`.
+
 * ``LIBS_BUILD_HDF5``: This will be set to ON if no pre-built HDF5 installation was found on your machine. In this case a HDF5 version
 will be built and used instead. For a detailed description of the installation of HDF5, please refer to Section {ref}`sec:hdf5-installation`.
 
@@ -48,6 +52,25 @@ the CMake configuration file for HDF5 (optional).
     * ``PICLAS_SHARED_MEMORY_CORES``: Number of MPI threads per virtual node (default is 2). Assumes that all MPI threads run on the
       same physical node.
 
+Some settings are not shown in the graphical user interface, but can be changed via command line
+
+* ``PICLAS_INSTRUCTION``: Processor instruction settings (mainly depending on the hardware on which the compilation process is
+  performed or the target hardware where piclas will be executed). This variable is set automatically depending on the machine where
+  piclas is compiled. CMake prints the value of this parameter during configuration
+
+      -- Compiling Nitro/Release/Profile with [GNU] (v12.2.0) fortran compiler using PICLAS_INSTRUCTION [-march=native] instructions.
+
+  When compiling piclas on one machine and executing the code on a different one, the instruction setting should be set to
+  `generic`. This can be accomplished by running
+
+      cmake -DPICLAS_INSTRUCTION=-mtune=generic
+
+  To reset the instruction settings, run cmake again but with
+
+      -DPICLAS_INSTRUCTION=
+
+  which resorts to using the automatic determination depending on the detected machine.
+
 (sec:solver-settings)=
 ## Solver settings
 
@@ -61,7 +84,6 @@ Before setting up a simulation, the code must be compiled with the desired param
     * RK4: Runge-Kutta 4th order in time
     * RK14: Low storage Runge-Kutta 4, 14 stages version - Niegemann et al 2012
     * DSMC: Direct Simulation Monte Carlo, Section {ref}`sec:DSMC`
-    * RESERVOIR: Simplified DSMC module for single cell reservoir simulations
     * FP-Flow: Fokker-Planck-based collision operator, Section {ref}`sec:FP-Flow`
     * BGK-Flow: Bhatnagar-Gross-Krook collision operator, Section {ref}`sec:BGK-Flow`
 * ``PICLAS_EQNSYSNAME``: Equation system to be solved
@@ -129,7 +151,7 @@ The concept of the parameter file is described as followed:
 * The order of defined variables is irrelevant, except for the special case when redefining boundaries.
 However, it is preferable to group similar variables together.
 
-The options and underlying models are discussed in Chapter {ref}`userguide/features-and-models/index:Features & Models`, while the available 
+The options and underlying models are discussed in Chapter {ref}`userguide/features-and-models/index:Features & Models`, while the available
 output options are given in Chapter {ref}`userguide/visu_output:Visualization & Output`.
 Due to the sheer number of parameters available, it is advisable to build upon an existing parameter file from one of the tutorials
 in Chapter {ref}`userguide/tutorials/index:Tutorials`.
@@ -169,6 +191,18 @@ The grid elements are organized along a space-filling curved, which gives a uniq
 the mesh is simply divided into parts along the space filling curve. Thus, domain decomposition is done *fully automatic* and is
 not limited by e.g. an integer factor between the number of cores and elements. The only limitation is that the number of cores
 may not exceed the number of elements.
+
+### Profile-guided optimization (PGO)
+
+To further increase performance for production runs, profile-guided optimization can be utilized with the GNU compiler. This requires the execution of a representative simulation run with PICLas compiled using profiling instrumentation. For this purpose, the code has to be configured and compiled using the following additional settings and the `Profile` build type:
+
+    -DPICLAS_PERFORMANCE=ON -DUSE_PGO=ON -DCMAKE_BUILD_TYPE=Profile
+
+A short representative simulation has to be performed, where additional files with the profiling information will be stored. Note that the test run should be relatively short as the code will be substantially slower than the regular `Release` build type. Afterwards, the code can be configured and compiled again for the production runs, using the `Release` build type:
+
+    -DPICLAS_PERFORMANCE=ON -DUSE_PGO=ON -DCMAKE_BUILD_TYPE=Release
+
+Warnings regarding missing profiling files (`-Wmissing-profile`) can be ignored, if they concern modules not relevant for the current simulation method (e.g. `bgk_colloperator.f90` will be missing profile information if only a DSMC simulation has been performed).
 
 ## Post-processing
 

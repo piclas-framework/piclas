@@ -71,7 +71,8 @@ SUBROUTINE InitMCC()
 USE MOD_Globals
 USE MOD_ReadInTools
 USE MOD_Globals_Vars  ,ONLY: ElementaryCharge
-USE MOD_PARTICLE_Vars ,ONLY: nSpecies
+USE MOD_Particle_Vars ,ONLY: nSpecies, SampleElecExcitation, ExcitationLevelCounter, ExcitationSampleData, ExcitationLevelMapping
+USE MOD_Particle_Vars ,ONLY: VarTimeStep
 USE MOD_Mesh_Vars     ,ONLY: nElems
 USE MOD_DSMC_Vars     ,ONLY: BGGas, SpecDSMC, CollInf, DSMC, ChemReac, CollisMode
 USE MOD_MCC_Vars      ,ONLY: UseMCC, XSec_Database, SpecXSec, XSec_NullCollision, XSec_Relaxation
@@ -116,14 +117,14 @@ DO iSpec = 1, nSpecies
   IF(SpecDSMC(iSpec)%UseElecXSec.AND.SpecDSMC(iSpec)%InterID.EQ.4) THEN
     CALL Abort(__STAMP__,'ERROR: Electronic relaxation should be enabled for the respective heavy species, not the electrons!')
   END IF
-#if (PP_TimeDiscMethod!=42)
-  IF(SpecDSMC(iSpec)%UseElecXSec.AND.(.NOT.BGGas%BackgroundSpecies(iSpec))) THEN
-    SWRITE(*,*) 'NOTE: Electronic relaxation via cross-sections for regular DSMC is currently only enabled for the RESERVOIR'
-    SWRITE(*,*) 'NOTE: timedisc to test the calculation of the probabilities during regression testing. For DSMC, a de-excitation'
-    SWRITE(*,*) 'NOTE: model should be implemented. Regression test: WEK_Reservoir/MCC_N2_XSec_Elec'
-    CALL Abort(__STAMP__,'ERROR: Electronic relaxation via cross-section (-UseElecXSec) is only supported with a background gas!')
+  IF(.NOT.DSMC%ReservoirSimu) THEN
+    IF(SpecDSMC(iSpec)%UseElecXSec.AND.(.NOT.BGGas%BackgroundSpecies(iSpec))) THEN
+      SWRITE(*,*) 'NOTE: Electronic relaxation via cross-sections for regular DSMC is currently only enabled using the flag'
+      SWRITE(*,*) 'NOTE: Particles-DSMCReservoirSim = T to test the calculation of the probabilities during regression testing.'
+      SWRITE(*,*) 'NOTE: For DSMC, a de-excitation model should be implemented. Regression test: WEK_Reservoir/MCC_N2_XSec_Elec'
+      CALL Abort(__STAMP__,'ERROR: Electronic relaxation via cross-section (-UseElecXSec) is only supported with a background gas!')
+    END IF
   END IF
-#endif
 END DO
 
 ! Enable MCC if any of the flags was set
@@ -142,6 +143,9 @@ END IF
 IF(UseMCC.AND.(DSMC%VibRelaxProb.EQ.2.0)) CALL abort(__STAMP__&
       ,'ERROR: Monte Carlo Collisions and variable vibrational relaxation probability (DSMC-based) are not compatible!')
 
+IF(.NOT.UseMCC.AND.VarTimeStep%UseSpeciesSpecific) CALL abort(__STAMP__,&
+      'ERROR: Only MCC is implemented with a species-specific time step!')
+
 ! Leave the routine
 IF(.NOT.UseMCC) RETURN
 
@@ -150,8 +154,16 @@ IF(.NOT.UseMCC) RETURN
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Read-in of the cross-section database
 XSec_Database = GETSTR('Particles-CollXSec-Database')
-! Null collision method only works with a background gas
-IF(BGGas%NumberOfSpecies.GT.0) XSec_NullCollision = GETLOGICAL('Particles-CollXSec-NullCollision')
+! Checks/read-in depending on background gas
+IF(BGGas%NumberOfSpecies.GT.0) THEN
+  ! Null collision method only works with a background gas
+  XSec_NullCollision = GETLOGICAL('Particles-CollXSec-NullCollision')
+  ! Disable variable time step for MCC but keep it for the push (parameter is defined in DefineParametersVariableTimeStep)
+  IF(VarTimeStep%UseSpeciesSpecific) VarTimeStep%DisableForMCC = GETLOGICAL('Part-VariableTimeStep-DisableForMCC')
+ELSE
+  ! Variable time step is only implemented with a background gas
+  IF(VarTimeStep%UseSpeciesSpecific) CALL abort(__STAMP__,'ERROR: Only MCC is implemented with a species-specific time step!')
+END IF
 
 ALLOCATE(SpecXSec(CollInf%NumCase))
 SpecXSec(:)%UseCollXSec = .FALSE.
@@ -161,6 +173,7 @@ SpecXSec(:)%NumElecLevel = 0
 SpecXSec(:)%CollXSec_Effective = .FALSE.
 SpecXSec(:)%SpeciesToRelax = 0
 SpecXSec(:)%ProbNull = 0.
+SpecXSec(:)%NumElecLevel = 0
 TotalProb = 0.
 
 DO iSpec = 1, nSpecies
@@ -395,6 +408,26 @@ IF (CollisMode.EQ.3) THEN
   END IF
 END IF
 
+! Allocation of electronic excitation array
+IF(SampleElecExcitation) THEN
+  ExcitationLevelCounter = 0
+  ALLOCATE(ExcitationLevelMapping(CollInf%NumCase,MAXVAL(SpecXSec(:)%NumElecLevel)))
+  DO iCase = 1, CollInf%NumCase
+    IF(.NOT.SpecXSec(iCase)%UseElecXSec) CYCLE
+    DO iLevel = 1, SpecXSec(iCase)%NumElecLevel
+      ExcitationLevelCounter = ExcitationLevelCounter + 1
+      ExcitationLevelMapping(iCase,iLevel) = ExcitationLevelCounter
+    END DO
+    IF(ExcitationLevelCounter.NE.SUM(SpecXSec(:)%NumElecLevel)) THEN
+      IPWRITE(UNIT_StdOut,*) "ExcitationLevelCounter        =", ExcitationLevelCounter
+      IPWRITE(UNIT_StdOut,*) "SUM(SpecXSec(:)%NumElecLevel) =", SUM(SpecXSec(:)%NumElecLevel)
+      CALL abort(__STAMP__,'Electronic excitation sampling: Wrong level counter!')
+    END IF
+    ALLOCATE(ExcitationSampleData(ExcitationLevelCounter,nElems))
+    ExcitationSampleData = 0.
+  END DO
+END IF
+
 #if defined(PARTICLES) && USE_HDG
 BRNullCollisionDefault = XSec_NullCollision ! Backup read-in parameter value (for switching null collision on/off)
 IF(XSec_NullCollision.AND.UseBRElectronFluid)THEN
@@ -409,12 +442,13 @@ END SUBROUTINE InitMCC
 SUBROUTINE DetermineNullCollProb(iCase,iSpec,jSpec)
 !===================================================================================================================================
 !> Routine for the MCC method: calculates the maximal collision frequency for a given species and the collision probability
+!> Utilizing the ManualTimeStep as dt is not yet defined.
 !===================================================================================================================================
 ! MODULES
 USE MOD_ReadInTools
 USE MOD_Globals_Vars          ,ONLY: Pi
 USE MOD_Mesh_Vars             ,ONLY: nElems
-USE MOD_Particle_Vars         ,ONLY: Species
+USE MOD_Particle_Vars         ,ONLY: Species, VarTimeStep
 USE MOD_TimeDisc_Vars         ,ONLY: ManualTimeStep
 USE MOD_DSMC_Vars             ,ONLY: BGGas
 USE MOD_MCC_Vars              ,ONLY: SpecXSec
@@ -427,9 +461,16 @@ INTEGER,INTENT(IN)            :: jSpec
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER                       :: MaxDOF, bggSpec,iElem
-REAL                          :: MaxCollFreq, MaxCollFreqElem, Mass
+REAL                          :: MaxCollFreq, MaxCollFreqElem, Mass, dtVar
 REAL,ALLOCATABLE              :: Velocity(:)
 !===================================================================================================================================
+
+! Set the correct time step
+IF(VarTimeStep%UseSpeciesSpecific.AND..NOT.VarTimeStep%DisableForMCC) THEN
+  dtVar = ManualTimeStep * Species(iSpec)%TimeStepFactor
+ELSE
+  dtVar = ManualTimeStep
+END IF
 
 ! Select the background species as the target cloud and use the mass of particle species
 IF(BGGas%BackgroundSpecies(iSpec)) THEN
@@ -454,13 +495,13 @@ IF(BGGas%UseDistribution) THEN
     ! Calculate the maximal collision frequency: Step 2
     MaxCollFreqElem = MaxCollFreq * BGGas%Distribution(bggSpec,7,iElem)
     ! Determine the collision probability
-    SpecXSec(iCase)%ProbNullElem(iElem) = 1. - EXP(-MaxCollFreqElem*ManualTimeStep)
+    SpecXSec(iCase)%ProbNullElem(iElem) = 1. - EXP(-MaxCollFreqElem*dtVar)
   END DO ! iElem = 1, nElems
 ELSE
   ! Calculate the maximal collision frequency: Step 2
   MaxCollFreq = MaxCollFreq * BGGas%NumberDensity(bggSpec)
   ! Determine the collision probability
-  SpecXSec(iCase)%ProbNull = 1. - EXP(-MaxCollFreq*ManualTimeStep)
+  SpecXSec(iCase)%ProbNull = 1. - EXP(-MaxCollFreq*dtVar)
 END IF
 
 DEALLOCATE(Velocity)

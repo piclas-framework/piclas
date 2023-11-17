@@ -15,9 +15,6 @@ MODULE MOD_DSMC_Vars
 ! Contains the DSMC variables
 !===================================================================================================================================
 ! MODULES
-#if USE_MPI
-USE MOD_Particle_MPI_Vars, ONLY: tPartMPIConnect
-#endif
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 PUBLIC
@@ -49,7 +46,7 @@ INTEGER                       :: SelectionProc              ! Mode of Selection 
 INTEGER                       :: PairE_vMPF(2)              ! 1: Pair chosen for energy redistribution
                                                             ! 2: partical with minimal MPF of this Pair
 LOGICAL                       :: useDSMC
-REAL    , ALLOCATABLE         :: PartStateIntEn(:,:)        ! 1st index: 1:npartmax 
+REAL    , ALLOCATABLE         :: PartStateIntEn(:,:)        ! 1st index: 1:npartmax
 !                                                           ! 2nd index: Evib, Erot, Eel
 
 LOGICAL                       :: useRelaxProbCorrFactor     ! Use the relaxation probability correction factor of Lumpkin
@@ -91,8 +88,8 @@ TYPE tClonedParticles
   REAL                        :: LastPartPos(1:3)
   REAL                        :: WeightingFactor
   INTEGER, ALLOCATABLE        :: VibQuants(:)
-  REAL, ALLOCATABLE           :: DistriFunc(:) 
-  REAL, ALLOCATABLE           :: AmbiPolVelo(:) 
+  REAL, ALLOCATABLE           :: DistriFunc(:)
+  REAL, ALLOCATABLE           :: AmbiPolVelo(:)
 END TYPE
 
 TYPE(tClonedParticles),ALLOCATABLE :: ClonedParticles(:,:)
@@ -168,7 +165,7 @@ TYPE tSpeciesDSMC                                          ! DSMC Species Parame
   LOGICAL                           :: UseElecXSec          ! Flag if the electronic relaxation probability should be treated,
                                                             ! using read-in cross-sectional data (currently only with BGG)
   REAL,ALLOCATABLE                  :: CollFreqPreFactor(:) ! Prefactors for calculating the collision frequency in each time step
-  REAL,ALLOCATABLE                  :: ElecRelaxCorrectFac(:) ! Correction factor for electronical landau-teller relaxation
+  REAL,ALLOCATABLE                  :: ElecRelaxCorrectFac(:) ! Correction factor for electronic landau-teller relaxation
   REAL                              :: MaxMeanXiElec(2)     ! 1: max mean XiElec 2: Temperature corresponding to max mean XiElec
 END TYPE tSpeciesDSMC
 
@@ -185,7 +182,7 @@ TYPE tDSMC
   INTEGER                       :: NumOutput                ! number of Outputs
   REAL                          :: DeltaTimeOutput          ! Time interval for Output
   LOGICAL                       :: ReservoirSimu            ! Flag for reservoir simulation
-  LOGICAL                       :: ReservoirSimuRate        ! Does not performe the collision.
+  LOGICAL                       :: ReservoirSimuRate        ! Does not perform the collision.
                                                             ! Switch to enable to create reaction rates curves
   LOGICAL                       :: ReservoirSurfaceRate     ! Switch enabling surface rate output without changing surface coverages
   LOGICAL                       :: ReservoirRateStatistic   ! if false, calculate the reaction coefficient rate by the probability
@@ -252,9 +249,7 @@ TYPE tDSMC
                                                             ! coefficient with the equilibrium constant by partition functions
   REAL                          :: PartitionMaxTemp         ! Temperature limit for pre-stored partition function (DEF: 20 000K)
   REAL                          :: PartitionInterval        ! Temperature interval for pre-stored partition function (DEF: 10K)
-#if (PP_TimeDiscMethod==42)
   LOGICAL                       :: CompareLandauTeller      ! Keeps the translational temperature at the fixed value of the init
-#endif
   LOGICAL                       :: MergeSubcells            ! Merge subcells after quadtree division if number of particles within
                                                             ! subcell is less than 7
   LOGICAL                       :: DoAmbipolarDiff
@@ -492,26 +487,6 @@ END TYPE
 
 TYPE (tElectronicDistriPart), ALLOCATABLE    :: ElectronicDistriPart(:)
 
-REAL,ALLOCATABLE                  :: MacroSurfaceVal(:,:,:,:)      ! variables,p,q,sides
-REAL,ALLOCATABLE                  :: MacroSurfaceSpecVal(:,:,:,:,:)! Macrovalues for Species specific surface output
-                                                                   ! (4,p,q,nSurfSides,nSpecies)
-                                                                   ! 1: Surface Collision Counter
-                                                                   ! 2: Accomodation
-                                                                   ! 3: Coverage
-                                                                   ! 4 (or 2): Impact energy trans
-                                                                   ! 5 (or 3): Impact energy rot
-                                                                   ! 6 (or 4): Impact energy vib
-
-! some variables redefined
-!TYPE tMacroSurfaceVal                                       ! DSMC sample for Wall
-!  REAL                           :: Heatflux                !
-!  REAL                           :: Force(3)                ! x, y, z direction
-!  REAL, ALLOCATABLE              :: Counter(:)              ! Wall-Collision counter of all Species
-!  REAL                           :: CounterOut              ! Wall-Collision counter for Output
-!END TYPE
-!
-!TYPE(tMacroSurfaceVal), ALLOCATABLE     :: MacroSurfaceVal(:) ! Wall sample array (number of BC-Sides)
-
 ! MacValout and MacroVolSample have to be separated due to autoinitialrestart
 INTEGER(KIND=8)                  :: iter_macvalout             ! iterations since last macro volume output
 INTEGER(KIND=8)                  :: iter_macsurfvalout         ! iterations since last macro surface output
@@ -534,28 +509,21 @@ REAL,ALLOCATABLE          :: DSMC_Solution(:,:,:) !1:3 v, 4:6 v^2, 7 dens, 8 Evi
 TYPE tTreeNode
 !  TYPE (tTreeNode), POINTER       :: One, Two, Three, Four, Five, Six, Seven, Eight !8 Childnodes of Octree Treenode
   TYPE (tTreeNode), POINTER       :: ChildNode       => null()       !8 Childnodes of Octree Treenode
-  REAL                            :: MidPoint(1:3)          ! approx Middle Point of Treenode
   INTEGER                         :: PNum_Node              ! Particle Number of Treenode
   INTEGER, ALLOCATABLE            :: iPartIndx_Node(:)      ! Particle Index List of Treenode
   REAL, ALLOCATABLE               :: MappedPartStates(:,:)  ! PartPos in [-1,1] Space
-  LOGICAL, ALLOCATABLE            :: MatchedPart(:)         ! Flag signaling that mapped particle is inside of macroparticle
-  REAL                            :: NodeVolume(8)
   INTEGER                         :: NodeDepth
 END TYPE
 
 TYPE tNodeVolume
-    TYPE (tNodeVolume), POINTER             :: SubNode1 => null()
-    TYPE (tNodeVolume), POINTER             :: SubNode2 => null()
-    TYPE (tNodeVolume), POINTER             :: SubNode3 => null()
-    TYPE (tNodeVolume), POINTER             :: SubNode4 => null()
-    TYPE (tNodeVolume), POINTER             :: SubNode5 => null()
-    TYPE (tNodeVolume), POINTER             :: SubNode6 => null()
-    TYPE (tNodeVolume), POINTER             :: SubNode7 => null()
-    TYPE (tNodeVolume), POINTER             :: SubNode8 => null()
+    TYPE (tNodeVolume), POINTER             :: SubNode(:) => null()
+    REAL                                    :: VrelSimgaMax(2)
     REAL                                    :: Volume
     REAL                                    :: Area
     REAL                                    :: Length
     REAL,ALLOCATABLE                        :: PartNum(:,:)
+    REAL                                    :: MidPoint(1:3)
+    INTEGER                                 :: NodeDepth
 END TYPE
 
 TYPE tElemNodeVolumes

@@ -68,11 +68,8 @@ INTEGER :: i,iSide
 INTEGER :: locType,locState
 INTEGER :: MaxBCState,MaxBCStateGlobal
 !===================================================================================================================================
-IF((.NOT.InterpolationInitIsDone).AND.(.NOT.MeshInitIsDone).AND.(.NOT.EquationInitIsDone))THEN
-   CALL abort(&
-__STAMP__&
-,"InitBC not ready to be called or already called.")
-END IF
+IF((.NOT.InterpolationInitIsDone).AND.(.NOT.MeshInitIsDone).AND.(.NOT.EquationInitIsDone)) CALL abort(__STAMP__,&
+    "InitBC not ready to be called or already called.")
 ! determine globally max MaxBCState
 MaxBCState = 0
 DO iSide=1,nBCSides
@@ -98,7 +95,7 @@ DO iSide=1,nBCSides
 END DO
 MaxBCStateGLobal=MaxBCState
 #if USE_MPI
-CALL MPI_ALLREDUCE(MPI_IN_PLACE,MaxBCStateGlobal,1,MPI_INTEGER,MPI_MAX,MPI_COMM_WORLD,iError)
+CALL MPI_ALLREDUCE(MPI_IN_PLACE,MaxBCStateGlobal,1,MPI_INTEGER,MPI_MAX,MPI_COMM_PICLAS,iError)
 #endif /*USE_MPI*/
 
 ! Sanity check for BCs

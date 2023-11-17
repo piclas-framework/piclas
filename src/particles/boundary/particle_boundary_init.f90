@@ -26,14 +26,14 @@ PRIVATE
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
 
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
-PUBLIC :: DefineParametersParticleBoundary, InitializeVariablesPartBoundary, InitializeVariablesAuxBC, FinalizeParticleBoundary
-PUBLIC :: InitParticleBoundaryRotPeriodic, InitAdaptiveWallTemp
+PUBLIC :: DefineParametersParticleBoundary, InitializeVariablesPartBoundary, InitParticleBoundarySurfSides, FinalizeParticleBoundary
+PUBLIC :: InitAdaptiveWallTemp, InitRotPeriodicMapping, InitRotPeriodicInterPlaneMapping
 !===================================================================================================================================
 
 CONTAINS
 
 !==================================================================================================================================
-!> Define parameters for particle boundaries and AuxBC
+!> Define parameters for particle boundaries
 !==================================================================================================================================
 SUBROUTINE DefineParametersParticleBoundary()
 ! MODULES
@@ -42,6 +42,12 @@ IMPLICIT NONE
 !==================================================================================================================================
 CALL prms%SetSection("Particle Boundaries")
 
+CALL prms%CreateIntOption(      'Part-RotPeriodicAxi' , 'Axis of rotational periodicity: x = 1, y = 2, z = 3')
+CALL prms%CreateRealOption(     'PartBound-RotPeriodicTol' , 'Tolerance for rotationally periodic BCs: symmetry angle is '//&
+                                'multiplied by 1-x to slightly move the particle / cell center into the domain','1E-4')
+CALL prms%CreateLogicalOption(  'PartBound-OutputBCDataForTesting' , 'Flag to enable output of information which was automatically '//&
+                                'determined for regression testing purposes, currently: Min/Max of multiple rot periodic BCs, '//&
+                                'interplane positions along RotPeriodicAxi', '.FALSE.')
 CALL prms%CreateIntOption(      'Part-nBounds', 'Number of particle boundaries.', '1')
 CALL prms%CreateStringOption(   'Part-Boundary[$]-SourceName', &
                                   'No Default. Source Name of Boundary[i]. Has to be selected for all'//&
@@ -55,7 +61,7 @@ CALL prms%CreateStringOption(   'Part-Boundary[$]-Condition', &
                                   '- simple_cathode.\n'//&
                                   '- rot_periodic.\n'//&
                                   'If condition=reflective (Part-Boundary[$]-=PB): PB-MomentumACC,PB-WallTemp,PB-TransACC,PB-VibACC,PB-RotACC,'//&
-                                  'PB-WallVelo,Voltage,SpeciesSwaps.\nIf condition=periodic:Part-nPeriodicVectors', 'open', numberedmulti=.TRUE.)
+                                  'PB-WallVelo,SpeciesSwaps.\nIf condition=periodic:Part-nPeriodicVectors', 'open', numberedmulti=.TRUE.)
 CALL prms%CreateLogicalOption('Part-Boundary[$]-Dielectric' , 'Define if particle boundary [$] is a '//&
                               'dielectric interface, i.e. an interface between a dielectric and a non-dielectric or a between two'//&
                               ' different dielectrics [.TRUE.] or not [.FALSE.] (requires reflective BC and species swap for nSpecies)'&
@@ -64,8 +70,6 @@ CALL prms%CreateLogicalOption('Part-Boundary[$]-BoundaryParticleOutput' , 'Defin
                               'boundary [$] are to be stored in an additional .h5 file for post-processing analysis [.TRUE.] '//&
                               'or not [.FALSE.].'&
                               , '.FALSE.', numberedmulti=.TRUE.)
-CALL prms%CreateRealOption(     'Part-Boundary[$]-Voltage', &
-                                  'Deprecated parameter, do not utilize!', '1.0e20', numberedmulti=.TRUE.)
 CALL prms%CreateLogicalOption(  'Part-Boundary[$]-UseAdaptedWallTemp', &
                                 'Use an adapted wall temperature, calculated if Part-AdaptWallTemp = T, otherwise read-in '//&
                                 'from the restart file','.FALSE.', numberedmulti=.TRUE.)
@@ -108,18 +112,23 @@ CALL prms%CreateRealOption(     'Part-Boundary[$]-RotFreq'  &
                                 , numberedmulti=.TRUE.)
 CALL prms%CreateIntOption(      'Part-Boundary[$]-RotAxis'  &
                                 , 'Definition of rotation axis, only major axis: x=1,y=2,z=3.' , numberedmulti=.TRUE.)
-CALL prms%CreateIntOption(      'Part-Boundary[$]-RotPeriodicDir' , 'Direction of rotation periodicity, either 1 or -1. '//&
+CALL prms%CreateRealOption(      'Part-Boundary[$]-RotPeriodicAngle' , 'Angle and Direction of rotation periodicity, either + or - '//&
                                 'Note: Rotation direction based on right-hand rule!', numberedmulti=.TRUE.)
+CALL prms%CreateIntOption(      'Part-Boundary[$]-AssociatedPlane'  &
+                                , 'Corresponding intermediate planes in case of multiple rotationally periodic BCs' , numberedmulti=.TRUE.)
 !CALL prms%CreateLogicalOption(  'Part-RotPeriodicReBuild', 'Force re-creation of rotational periodic mapping (which might already exist in the mesh file).', '.FALSE.')
 CALL prms%CreateRealOption(     'Part-Boundary[$]-WallTemp2'  &
                                 , 'Second wall temperature (in [K]) of reflective particle boundary for a temperature gradient.' &
                                 , '0.', numberedmulti=.TRUE.)
-CALL prms%CreateRealArrayOption('Part-Boundary[$]-TemperatureGradientStart'  &
+CALL prms%CreateRealArrayOption('Part-Boundary[$]-TempGradStart'  &
                                 , 'Impose a temperature gradient by supplying a start/end vector and a second wall temperature.' &
                                 , '0. , 0. , 0.', numberedmulti=.TRUE.)
-CALL prms%CreateRealArrayOption('Part-Boundary[$]-TemperatureGradientEnd'  &
+CALL prms%CreateRealArrayOption('Part-Boundary[$]-TempGradEnd'  &
                                 , 'Impose a temperature gradient by supplying a start/end vector and a second wall temperature.' &
                                 , '0. , 0. , 0.', numberedmulti=.TRUE.)
+CALL prms%CreateIntOption(      'Part-Boundary[$]-TempGradDir', 'Optional definition of the temperature '//&
+                                'gradient direction along a major axis: x = 1, y = 2, z = 3. Default = 0: Gradient is along '//&
+                                'the vector defined by the start and end values', '0', numberedmulti=.TRUE.)
 CALL prms%CreateIntOption(      'Part-Boundary[$]-SurfaceModel'  &
                                 , 'Defining surface to be treated reactively by defining Model used for particle surface interaction. If any >0 then look in section SurfaceModel.\n'//&
                                 '0: Maxwell scattering\n'//&
@@ -148,6 +157,7 @@ CALL prms%CreateRealOption(     'Part-Boundary[$]-Species[$]-MaxCoverage'  &
 CALL prms%CreateRealOption(     'Part-Boundary[$]-MaxTotalCoverage'  &
                                 , 'Maximal coverage valure for the surface (default = 1.)'&
                                 , numberedmulti=.TRUE.)
+CALL prms%SetSection('Particle Boundaries: Species Swap')
 CALL prms%CreateIntOption(      'Part-Boundary[$]-NbrOfSpeciesSwaps'  &
                                 , 'TODO-DEFINE-PARAMETER\n'//&
                                   'Number of Species to be changed at wall.', '0', numberedmulti=.TRUE.)
@@ -158,74 +168,6 @@ CALL prms%CreateIntArrayOption( 'Part-Boundary[$]-SpeciesSwaps[$]'  &
                                 , 'TODO-DEFINE-PARAMETER'//&
                                   'Species to be changed at wall (out=: delete)', '0 , 0'&
                                 , numberedmulti=.TRUE.)
-CALL prms%CreateIntOption(      'Part-nAuxBCs'  &
-                                , 'TODO-DEFINE-PARAMETER'//&
-                                  'Number of auxillary BCs that are checked during tracing',  '0')
-CALL prms%CreateIntOption(      'Part-AuxBC[$]-NbrOfSpeciesSwaps'  &
-                                , 'TODO-DEFINE-PARAMETER'//&
-                                  'Number of Species to be changed at wall.',  '0', numberedmulti=.TRUE.)
-CALL prms%CreateStringOption(   'Part-AuxBC[$]-Condition'  &
-                                , 'TODO-DEFINE-PARAMETER'//&
-                                  'Used auxillary boundary condition for boundary[$].'//&
-                                  '- open'//&
-                                  '- reflective'//&
-                                  '- periodic)'//&
-                                  '-> more details see also Part-Boundary[$]-Condition',  'open', numberedmulti=.TRUE.)
-CALL prms%CreateRealOption(     'Part-AuxBC[$]-MomentumACC'  &
-                                , 'TODO-DEFINE-PARAMETER'//&
-                                  'Momentum accommodation',  '0.', numberedmulti=.TRUE.)
-CALL prms%CreateRealOption(     'Part-AuxBC[$]-WallTemp'  &
-                                , 'TODO-DEFINE-PARAMETER'//&
-                                  'Wall temperature of boundary[$]',  '0.', numberedmulti=.TRUE.)
-CALL prms%CreateRealOption(     'Part-AuxBC[$]-TransACC'  &
-                                , 'TODO-DEFINE-PARAMETER'//&
-                                  'Translation accommodation on boundary [$]',  '0.', numberedmulti=.TRUE.)
-CALL prms%CreateRealOption(     'Part-AuxBC[$]-VibACC'  &
-                                , 'TODO-DEFINE-PARAMETER'//&
-                                  'Vibrational accommodation on boundary [$]',  '0.', numberedmulti=.TRUE.)
-CALL prms%CreateRealOption(     'Part-AuxBC[$]-RotACC'  &
-                                , 'TODO-DEFINE-PARAMETER'//&
-                                  'Rotational accommodation on boundary [$]',  '0.', numberedmulti=.TRUE.)
-CALL prms%CreateRealOption(     'Part-AuxBC[$]-ElecACC'  &
-                                , 'TODO-DEFINE-PARAMETER'//&
-                                  'Electronic accommodation on boundary [$]',  '0.', numberedmulti=.TRUE.)
-CALL prms%CreateLogicalOption(  'Part-AuxBC[$]-Resample'  &
-                                , 'TODO-DEFINE-PARAMETER'//&
-                                  'Resample Equilibirum Distribution with reflection',  '.FALSE.'&
-                                , numberedmulti=.TRUE.)
-CALL prms%CreateRealArrayOption('Part-AuxBC[$]-WallVelo'  &
-                                , 'TODO-DEFINE-PARAMETER'//&
-                                  'Emitted velocity on boundary [$]', '0. , 0. , 0.', numberedmulti=.TRUE.)
-CALL prms%CreateRealOption(     'Part-AuxBC[$]-ProbOfSpeciesSwaps'  &
-                                , 'TODO-DEFINE-PARAMETER'//&
-                                  'Probability of SpeciesSwaps at wall',  '1.', numberedmulti=.TRUE.)
-CALL prms%CreateIntArrayOption( 'Part-AuxBC[$]-SpeciesSwaps[$]'  &
-                                , 'TODO-DEFINE-PARAMETER'//&
-                                  'Species to be changed at wall (out=: delete)', '0 , 0'&
-                                , numberedmulti=.TRUE.)
-CALL prms%CreateStringOption(   'Part-AuxBC[$]-Type'  &
-                                , 'TODO-DEFINE-PARAMETER'//&
-                                  'Type of BC (plane, ...)',  'plane', numberedmulti=.TRUE.)
-CALL prms%CreateRealArrayOption('Part-AuxBC[$]-r_vec'  &
-                                , 'TODO-DEFINE-PARAMETER', '0. , 0. , 0.', numberedmulti=.TRUE.)
-CALL prms%CreateRealOption(     'Part-AuxBC[$]-radius'  &
-                                , 'TODO-DEFINE-PARAMETER', numberedmulti=.TRUE.) !def. might be calculated!!!
-CALL prms%CreateRealArrayOption('Part-AuxBC[$]-n_vec'  &
-                                , 'TODO-DEFINE-PARAMETER', '1. , 0. , 0.', numberedmulti=.TRUE.)
-CALL prms%CreateRealArrayOption('Part-AuxBC[$]-axis'  &
-                                , 'TODO-DEFINE-PARAMETER', '1. , 0. , 0.', numberedmulti=.TRUE.)
-CALL prms%CreateRealOption(     'Part-AuxBC[$]-lmin'  &
-                                , 'TODO-DEFINE-PARAMETER', numberedmulti=.TRUE.) !def. might be calculated!!!
-CALL prms%CreateRealOption(     'Part-AuxBC[$]-lmax'  &
-                                , 'TODO-DEFINE-PARAMETER', numberedmulti=.TRUE.) !def. is calculated!!!
-CALL prms%CreateLogicalOption(  'Part-AuxBC[$]-inwards'  &
-                                , 'TODO-DEFINE-PARAMETER',  '.TRUE.', numberedmulti=.TRUE.)
-CALL prms%CreateRealOption(     'Part-AuxBC[$]-rmax'  &
-                                , 'TODO-DEFINE-PARAMETER',  '0.', numberedmulti=.TRUE.)
-CALL prms%CreateRealOption(     'Part-AuxBC[$]-halfangle'  &
-                                , 'TODO-DEFINE-PARAMETER',  '45.', numberedmulti=.TRUE.)
-CALL prms%CreateRealOption(     'Part-AuxBC[$]-zfac'  &
-                                , 'TODO-DEFINE-PARAMETER',  '1.', numberedmulti=.TRUE.)
 CALL prms%CreateLogicalOption(  'Part-AdaptWallTemp','Perform wall temperature adaptation at every macroscopic output.', '.FALSE.')
 
 END SUBROUTINE DefineParametersParticleBoundary
@@ -237,20 +179,25 @@ SUBROUTINE InitializeVariablesPartBoundary()
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
+USE MOD_IO_HDF5
 USE MOD_Globals_Vars           ,ONLY: PI
 USE MOD_ReadInTools
 USE MOD_Dielectric_Vars        ,ONLY: DoDielectricSurfaceCharge
 USE MOD_DSMC_Vars              ,ONLY: useDSMC, BGGas
 USE MOD_Mesh_Vars              ,ONLY: BoundaryName,BoundaryType, nBCs
-USE MOD_Particle_Vars
-USE MOD_SurfaceModel_Vars      
-USE MOD_Particle_Boundary_Vars ,ONLY: PartBound,nPartBound,DoBoundaryParticleOutputHDF5,PartStateBoundary, AdaptWallTemp
-USE MOD_Particle_Boundary_Vars ,ONLY: nVarPartStateBoundary 
+USE MOD_Particle_Vars          ,ONLY: PDM, nSpecies, PartMeshHasPeriodicBCs, RotRefFrameAxis, SpeciesDatabase, Species
+USE MOD_SurfaceModel_Vars      ,ONLY: nPorousBC
+USE MOD_Particle_Boundary_Vars ,ONLY: PartBound,nPartBound,DoBoundaryParticleOutputHDF5,PartStateBoundary
+USE MOD_Particle_Boundary_Vars ,ONLY: nVarPartStateBoundary
 USE MOD_Particle_Tracking_Vars ,ONLY: TrackingMethod
 USE MOD_Particle_Surfaces_Vars ,ONLY: BCdata_auxSF
-USE MOD_Particle_Mesh_Vars     ,ONLY: GEO
 USE MOD_Particle_Emission_Init ,ONLY: InitializeVariablesSpeciesBoundary
 USE MOD_PICDepo_Vars           ,ONLY: DepositionType,DoHaloDepo
+USE MOD_HDF5_input             ,ONLY: OpenDataFile, ReadArray, DatasetExists, GetDataSize, nDims, HSize, CloseDataFile
+USE MOD_SurfaceModel_Vars      ,ONLY: StickingCoefficientData
+#if defined(IMPA) || defined(ROS)
+USE MOD_Particle_Vars          ,ONLY: PartMeshHasReflectiveBCs
+#endif
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Vars       ,ONLY: PerformLoadBalance
 #endif /*USE_LOADBALANCE*/
@@ -262,19 +209,23 @@ USE MOD_LoadBalance_Vars       ,ONLY: PerformLoadBalance
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER               :: iPartBound, iBC, iPBC, iSwaps, MaxNbrOfSpeciesSwaps, RotAxis, iSpec
+INTEGER               :: iPartBound, iBC, iPBC, iSwaps, MaxNbrOfSpeciesSwaps, RotAxis, nRotPeriodicBCs, TempGradDir
 INTEGER               :: ALLOCSTAT, dummy_int
 REAL                  :: omegaTemp, RotFreq
 CHARACTER(32)         :: hilf , hilf2
 CHARACTER(200)        :: tmpString
-LOGICAL               :: DeprecatedVoltage
+CHARACTER(LEN=64)     :: dsetname
+LOGICAL               :: StickingCoefficientExists,FoundPartBoundSEE
+INTEGER               :: iInit,iSpec
 !===================================================================================================================================
 ! Read in boundary parameters
 dummy_int  = CountOption('Part-nBounds') ! check if Part-nBounds is present in .ini file
 nPartBound = GETINT('Part-nBounds')      ! get number of particle boundaries
 ! Read-in number of porous boundaries
 nPorousBC  = GETINT('Surf-nPorousBC')
-IF ((nPartBound.LE.0).OR.(dummy_int.LT.0)) CALL abort(__STAMP__  ,'ERROR: nPartBound .LE. 0:', nPartBound)
+IF((nPartBound.LE.0).OR.(dummy_int.LT.0)) CALL abort(__STAMP__  ,'ERROR: nPartBound .LE. 0:', nPartBound)
+
+IF(nPartBound.NE.nBCs) CALL abort(__STAMP__  ,'ERROR: Part-nBounds is not equal to the number of BCs read-in from the mesh!')
 
 ALLOCATE(PartBound%SourceBoundName(  1:nPartBound))
 PartBound%SourceBoundName = ''
@@ -282,6 +233,10 @@ ALLOCATE(PartBound%TargetBoundCond(  1:nPartBound))
 PartBound%TargetBoundCond = -1
 ALLOCATE(PartBound%MomentumACC(      1:nPartBound))
 PartBound%MomentumACC = -1
+ALLOCATE(PartBound%OnlySpecular(     1:nPartBound))
+PartBound%OnlySpecular = .FALSE.
+ALLOCATE(PartBound%OnlyDiffuse(      1:nPartBound))
+PartBound%OnlyDiffuse = .FALSE.
 ALLOCATE(PartBound%WallTemp(         1:nPartBound))
 PartBound%WallTemp = -1.
 ALLOCATE(PartBound%WallTemp2(        1:nPartBound))
@@ -304,14 +259,24 @@ ALLOCATE(PartBound%RotVelo(          1:nPartBound))
 PartBound%RotVelo = .FALSE.
 ALLOCATE(PartBound%RotOmega(       1:3,1:nPartBound))
 PartBound%RotOmega = 0.
-ALLOCATE(PartBound%RotPeriodicDir(  1:nPartBound))
-PartBound%RotPeriodicDir = 0
+ALLOCATE(PartBound%NormalizedRadiusDir(1:2, 1:nPartBound))
+PartBound%NormalizedRadiusDir = 0
+ALLOCATE(PartBound%RotPeriodicAngle(  1:nPartBound))
+PartBound%RotPeriodicAngle = 0
+ALLOCATE(PartBound%AssociatedPlane(  1:nPartBound))
+PartBound%AssociatedPlane = -1
+ALLOCATE(PartBound%AngleRatioOfInterPlanes(  1:nPartBound))
+PartBound%AngleRatioOfInterPlanes = 1
+ALLOCATE(PartBound%nSidesOnInterPlane(  1:nPartBound))
+PartBound%nSidesOnInterPlane = 0
 ALLOCATE(PartBound%TempGradStart(1:3,1:nPartBound))
 PartBound%TempGradStart = 0.
 ALLOCATE(PartBound%TempGradEnd(  1:3,1:nPartBound))
 PartBound%TempGradEnd = 0.
 ALLOCATE(PartBound%TempGradVec(  1:3,1:nPartBound))
 PartBound%TempGradVec = 0.
+ALLOCATE(PartBound%TempGradDir(1:nPartBound))
+PartBound%TempGradDir = 0
 ALLOCATE(PartBound%SurfaceModel(     1:nPartBound))
 PartBound%SurfaceModel = 0
 ALLOCATE(PartBound%CoverageIni(nPartBound, nSpecies))
@@ -328,15 +293,15 @@ ALLOCATE(PartBound%MolPerUnitCell(nPartBound))
 PartBound%MolPerUnitCell = 0.
 ALLOCATE(PartBound%Reactive(         1:nPartBound))
 PartBound%Reactive = .FALSE.
-ALLOCATE(PartBound%Voltage(1:nPartBound))
-PartBound%Voltage = 0.
-DeprecatedVoltage = .FALSE.
 ALLOCATE(PartBound%NbrOfSpeciesSwaps(1:nPartBound))
 PartBound%NbrOfSpeciesSwaps = 0
 ALLOCATE(PartBound%UseAdaptedWallTemp(1:nPartBound))
 PartBound%UseAdaptedWallTemp = .FALSE.
 ALLOCATE(PartBound%RadiativeEmissivity(1:nPartBound))
 PartBound%RadiativeEmissivity = 1.
+
+! Output of wall temperature per default off
+PartBound%OutputWallTemp = .FALSE.
 
 !--determine MaxNbrOfSpeciesSwaps for correct allocation
 MaxNbrOfSpeciesSwaps=0
@@ -361,8 +326,16 @@ ALLOCATE(PartBound%BoundaryParticleOutputHDF5(1:nPartBound))
 PartBound%BoundaryParticleOutputHDF5=.FALSE.
 DoBoundaryParticleOutputHDF5=.FALSE.
 
-PartMeshHasPeriodicBCs=.FALSE.
-GEO%RotPeriodicBC =.FALSE.
+PartMeshHasPeriodicBCs= .FALSE.
+PartBound%UseRotPeriodicBC     = .FALSE.
+nRotPeriodicBCs       = 0
+PartBound%UseInterPlaneBC      = .FALSE.
+! TODO: REMOVE THIS CALL WHEN MERGED WITH UNIFIED SPECIES DATABASE BRANCH
+SpeciesDatabase = GETSTR('Particles-Species-Database', 'none')
+
+! Read-in flag for output of boundary-related data in a csv for regression testing
+PartBound%OutputBCDataForTesting         = GETLOGICAL('PartBound-OutputBCDataForTesting')
+
 #if defined(IMPA) || defined(ROS)
 PartMeshHasReflectiveBCs=.FALSE.
 #endif
@@ -373,14 +346,17 @@ DO iPartBound=1,nPartBound
   SELECT CASE (TRIM(tmpString))
   CASE('open')
     PartBound%TargetBoundCond(iPartBound) = PartBound%OpenBC          ! definitions see typesdef_pic
-    PartBound%Voltage(iPartBound)         = GETREAL('Part-Boundary'//TRIM(hilf)//'-Voltage')
-    IF(ABS(PartBound%Voltage(iPartBound)).LT.1e20) DeprecatedVoltage=.TRUE.
   CASE('reflective')
 #if defined(IMPA) || defined(ROS)
     PartMeshHasReflectiveBCs=.TRUE.
 #endif
     PartBound%TargetBoundCond(iPartBound) = PartBound%ReflectiveBC
     PartBound%MomentumACC(iPartBound)     = GETREAL('Part-Boundary'//TRIM(hilf)//'-MomentumACC')
+    IF(PartBound%MomentumACC(iPartBound).EQ.0.0) THEN
+      PartBound%OnlySpecular(iPartBound) = .TRUE.
+    ELSE IF(PartBound%MomentumACC(iPartBound).EQ.1.0) THEN
+      PartBound%OnlyDiffuse(iPartBound)  = .TRUE.
+    END IF
     PartBound%WallTemp(iPartBound)        = GETREAL('Part-Boundary'//TRIM(hilf)//'-WallTemp')
     PartBound%TransACC(iPartBound)        = GETREAL('Part-Boundary'//TRIM(hilf)//'-TransACC')
     PartBound%VibACC(iPartBound)          = GETREAL('Part-Boundary'//TRIM(hilf)//'-VibACC')
@@ -404,17 +380,41 @@ DO iPartBound=1,nPartBound
           CALL abort(__STAMP__,'ERROR Rotational Wall Velocity: Axis must be between 1 and 3. Selected axis: ',IntInfoOpt=RotRefFrameAxis)
       END SELECT
     END IF
+    ! Utilize an adaptive wall temparature
     PartBound%UseAdaptedWallTemp(iPartBound) = GETLOGICAL('Part-Boundary'//TRIM(hilf)//'-UseAdaptedWallTemp')
+    ! Activate wall temperature output in the DSMCSurfState, required for the initialization of the array as well
+    IF(PartBound%UseAdaptedWallTemp(iPartBound)) PartBound%OutputWallTemp = .TRUE.
     PartBound%RadiativeEmissivity(iPartBound) = GETREAL('Part-Boundary'//TRIM(hilf)//'-RadiativeEmissivity')
-    PartBound%Voltage(iPartBound)         = GETREAL('Part-Boundary'//TRIM(hilf)//'-Voltage')
-    IF(ABS(PartBound%Voltage(iPartBound)).LT.1e20) DeprecatedVoltage=.TRUE.
+    ! Selection of the surface model (e.q. SEE, sticking, etc.)
     PartBound%SurfaceModel(iPartBound)    = GETINT('Part-Boundary'//TRIM(hilf)//'-SurfaceModel')
+    ! Impose a wall temperature gradient
     PartBound%WallTemp2(iPartBound)         = GETREAL('Part-Boundary'//TRIM(hilf)//'-WallTemp2')
     IF(PartBound%WallTemp2(iPartBound).GT.0.) THEN
-      PartBound%TempGradStart(1:3,iPartBound) = GETREALARRAY('Part-Boundary'//TRIM(hilf)//'-TemperatureGradientStart',3)
-      PartBound%TempGradEnd(1:3,iPartBound)   = GETREALARRAY('Part-Boundary'//TRIM(hilf)//'-TemperatureGradientEnd',3)
+      ! Activate wall temperature output in the DSMCSurfState
+      PartBound%OutputWallTemp = .TRUE.
+      PartBound%TempGradStart(1:3,iPartBound) = GETREALARRAY('Part-Boundary'//TRIM(hilf)//'-TempGradStart',3)
+      PartBound%TempGradEnd(1:3,iPartBound)   = GETREALARRAY('Part-Boundary'//TRIM(hilf)//'-TempGradEnd',3)
+      PartBound%TempGradDir(iPartBound)   = GETINT('Part-Boundary'//TRIM(hilf)//'-TempGradDir')
+      TempGradDir = PartBound%TempGradDir(iPartBound)
+      IF((TempGradDir.LT.0).AND.(TempGradDir.GT.3)) THEN
+        CALL abort(__STAMP__,'ERROR Wall Temperature Gradient: Input must be between 1 (=x), 2 (=y), 3 (=z) or 0. Input: ', &
+                    IntInfoOpt=TempGradDir)
+      END IF
+      ! Calculate the magnitude of the temperature gradient
       PartBound%WallTempDelta(iPartBound)   = PartBound%WallTemp2(iPartBound) - PartBound%WallTemp(iPartBound)
-      PartBound%TempGradVec(1:3,iPartBound) = PartBound%TempGradEnd(1:3,iPartBound) - PartBound%TempGradStart(1:3,iPartBound)
+      ! Determine the direction of the temperature gradient
+      SELECT CASE(TempGradDir)
+      CASE(0)
+        PartBound%TempGradVec(1:3,iPartBound) = PartBound%TempGradEnd(1:3,iPartBound) - PartBound%TempGradStart(1:3,iPartBound)
+      CASE(1,2,3)
+        PartBound%TempGradVec(TempGradDir,iPartBound) = PartBound%TempGradEnd(TempGradDir,iPartBound) &
+                                                        - PartBound%TempGradStart(TempGradDir,iPartBound)
+      END SELECT
+      ! Sanity check: defined vector shall be above zero
+      IF(ALL(PartBound%TempGradVec(1:3,iPartBound).EQ.0.)) THEN
+        SWRITE(*,*) 'ERROR Temperature gradient vector: ', PartBound%TempGradVec(1:3,iPartBound)
+        CALL abort(__STAMP__,'ERROR Wall Temperature Gradient: gradient vector appears to be zero!')
+      END IF
     END IF
     ! check for correct surfacemodel input
     IF (PartBound%SurfaceModel(iPartBound).GT.0)THEN
@@ -422,14 +422,18 @@ DO iPartBound=1,nPartBound
       SELECT CASE (PartBound%SurfaceModel(iPartBound))
       CASE (0)
         PartBound%Reactive(iPartBound)        = .FALSE.
+      CASE (1)
+        PartBound%Reactive(iPartBound)        = .FALSE.
+        IF(TRIM(SpeciesDatabase).EQ.'none') &
+          CALL abort(__STAMP__,'ERROR in InitializeVariablesPartBoundary: SpeciesDatabase is required for the boundary #', iPartBound)
       CASE (20)
         PartBound%Reactive(iPartBound)        = .FALSE.
       CASE (SEE_MODELS_ID)
         ! SEE models require reactive BC
         PartBound%Reactive(iPartBound)        = .TRUE. 
       CASE DEFAULT
-        CALL abort(__STAMP__,'Error in particle init: only allowed SurfaceModels: 0,SEE_MODELS_ID! SurfaceModel=',&
-        IntInfoOpt=PartBound%SurfaceModel(iPartBound))
+        CALL abort(__STAMP__,'Error in particle init: only allowed SurfaceModels: 0,1,20,SEE_MODELS_ID! SurfaceModel=',&
+                  IntInfoOpt=PartBound%SurfaceModel(iPartBound))
       END SELECT
     END IF
     PartBound%LatticeVec(iPartBound) = GETREAL('Part-Boundary'//TRIM(hilf)//'-LatticeVector', '0.')
@@ -481,10 +485,6 @@ DO iPartBound=1,nPartBound
   CASE('periodic')
     PartBound%TargetBoundCond(iPartBound) = PartBound%PeriodicBC
     PartMeshHasPeriodicBCs = .TRUE.
-  CASE('simple_anode')
-    PartBound%TargetBoundCond(iPartBound) = PartBound%SimpleAnodeBC
-  CASE('simple_cathode')
-    PartBound%TargetBoundCond(iPartBound) = PartBound%SimpleCathodeBC
   CASE('symmetric')
 #if defined(IMPA) || defined(ROS)
     PartMeshHasReflectiveBCs=.TRUE.
@@ -495,37 +495,47 @@ DO iPartBound=1,nPartBound
     PartBound%TargetBoundCond(iPartBound) = PartBound%SymmetryAxis
     PartBound%WallVelo(1:3,iPartBound)    = (/0.,0.,0./)
   CASE('rot_periodic')
-    GEO%RotPeriodicBC = .TRUE.
+    PartBound%UseRotPeriodicBC = .TRUE.
+    nRotPeriodicBCs  = nRotPeriodicBCs + 1
     PartBound%TargetBoundCond(iPartBound)  = PartBound%RotPeriodicBC
-    PartBound%RotPeriodicDir(iPartBound) = GETINT('Part-Boundary'//TRIM(hilf)//'-RotPeriodicDir')
-    IF(ABS(PartBound%RotPeriodicDir(iPartBound)).NE.1) THEN
-      CALL abort(__STAMP__,'Direction for rotational periodicity must be 1 or -1, using the right-hand rule!')
+    PartBound%RotPeriodicAngle(iPartBound) = GETREAL('Part-Boundary'//TRIM(hilf)//'-RotPeriodicAngle')
+    IF(ALMOSTZERO(PartBound%RotPeriodicAngle(iPartBound))) THEN
+      CALL abort(__STAMP__,'Angle for rotational periodicity can not be zero (using the right-hand rule!)')
+    END IF
+   ! Rotate the particle slightly inside the domain
+    PartBound%RotPeriodicAngle(iPartBound) = PartBound%RotPeriodicAngle(iPartBound) / 180. * PI
+  CASE('rot_periodic_inter_plane')
+    PartBound%UseInterPlaneBC = .TRUE.
+    PartBound%TargetBoundCond(iPartBound)  = PartBound%RotPeriodicInterPlaneBC
+    PartBound%AssociatedPlane(iPartBound)  = GETINT('Part-Boundary'//TRIM(hilf)//'-AssociatedPlane')
+    IF(PartBound%AssociatedPlane(iPartBound).LE.0.OR.PartBound%AssociatedPlane(iPartBound).GT.nPartBound) THEN
+      CALL abort(__STAMP__,'ERROR: Associated inter-plane BC number is outside of the available BCs: ',IntInfoOpt=iPartBound)
     END IF
   CASE DEFAULT
     SWRITE(*,*) ' Boundary does not exist: ', TRIM(tmpString)
     CALL abort(__STAMP__,'Particle Boundary Condition does not exist')
   END SELECT
   PartBound%SourceBoundName(iPartBound) = TRIM(GETSTR('Part-Boundary'//TRIM(hilf)//'-SourceName'))
-
   ! Surface particle output to .h5
   PartBound%BoundaryParticleOutputHDF5(iPartBound)      = GETLOGICAL('Part-Boundary'//TRIM(hilf)//'-BoundaryParticleOutput')
   IF(PartBound%BoundaryParticleOutputHDF5(iPartBound)) DoBoundaryParticleOutputHDF5=.TRUE.
 END DO
 
+! Check if there is an particle init with photon SEE
+FoundPartBoundSEE=.FALSE.
+SpecLoop: DO iSpec=1,nSpecies
+  DO iInit=1, Species(iSpec)%NumberOfInits
+    IF(StringBeginsWith(Species(iSpec)%Init(iInit)%SpaceIC,'photon_SEE'))THEN
+      FoundPartBoundSEE = .TRUE.
+      EXIT SpecLoop
+    END IF ! StringBeginsWith(Species(iSpec)%Init(iInit)%SpaceIC,'photon_SEE')
+  END DO
+END DO SpecLoop
+
 ! Connect emission inits to particle boundaries for output
-IF(DoBoundaryParticleOutputHDF5) CALL InitializeVariablesSpeciesBoundary()
+IF(DoBoundaryParticleOutputHDF5.OR.FoundPartBoundSEE) CALL InitializeVariablesSpeciesBoundary()
 
-AdaptWallTemp = GETLOGICAL('Part-AdaptWallTemp')
-
-IF(GEO%RotPeriodicBC) THEN
-  GEO%RotPeriodicAxi   = GETINT('Part-RotPeriodicAxi')
-  GEO%RotPeriodicAngle = GETREAL('Part-RotPeriodicAngle')
-  IF(ALMOSTZERO(GEO%RotPeriodicAngle)) THEN
-    CALL abort(__STAMP__,'Angle for for rotational periodicity must not be zero!')
-  END IF
-  ! Rotate the particle slightly inside the domain
-  GEO%RotPeriodicAngle = GEO%RotPeriodicAngle / 180. * PI * 0.99999
-END IF
+PartBound%AdaptWallTemp = GETLOGICAL('Part-AdaptWallTemp')
 
 ! Surface particle output to .h5
 IF(DoBoundaryParticleOutputHDF5)THEN
@@ -537,9 +547,11 @@ IF(DoBoundaryParticleOutputHDF5)THEN
   END IF ! .NOT.ALLOCATED(PartStateBoundary)
 END IF
 
-! Set mapping from field boundary to particle boundary index
+! Set mapping from field boundary to particle boundary index and vice versa
 ALLOCATE(PartBound%MapToPartBC(1:nBCs))
 PartBound%MapToPartBC(:)=-10
+ALLOCATE(PartBound%MapToFieldBC(1:nPartBound))
+PartBound%MapToFieldBC=-1
 DO iPBC=1,nPartBound
   DO iBC = 1, nBCs
     IF (BoundaryType(iBC,BC_TYPE).EQ.0) THEN
@@ -554,15 +566,19 @@ DO iPBC=1,nPartBound
     END IF
     IF (TRIM(BoundaryName(iBC)).EQ.TRIM(PartBound%SourceBoundName(iPBC))) THEN
       PartBound%MapToPartBC(iBC) = iPBC !PartBound%TargetBoundCond(iPBC)
-      LBWRITE(*,*)"... Mapped PartBound",iPBC,"on FieldBound",BoundaryType(iBC,1),",i.e.:",TRIM(BoundaryName(iBC))
+      PartBound%MapToFieldBC(iPBC) = iBC ! part BC to field BC
+      LBWRITE(*,*) " | Mapped PartBound",iPBC,"on FieldBound", iBC,", i.e.: ",TRIM(BoundaryName(iBC))
     END IF
   END DO
 END DO
-! Errorhandler for PartBound-Types that could not be mapped to the
-! FieldBound-Types.
+! Errorhandler for PartBound-Types that could not be mapped to the FieldBound-Types
 DO iBC = 1,nBCs
   IF (PartBound%MapToPartBC(iBC).EQ.-10) CALL abort(__STAMP__,' PartBound%MapToPartBC for Boundary is not set. iBC: :',iBC)
 END DO
+
+IF(PartBound%UseRotPeriodicBC) CALL InitParticleBoundaryRotPeriodic(nRotPeriodicBCs)
+
+IF(PartBound%UseInterPlaneBC) CALL InitParticleBoundaryInterPlane()
 
 !-- Floating Potential
 ALLOCATE(BCdata_auxSF(1:nPartBound))
@@ -572,18 +588,719 @@ DO iPartBound=1,nPartBound
   BCdata_auxSF(iPartBound)%LocalArea=0.
 END DO
 
-!-- Sanity check: Deprecated voltage parameter
-IF(DeprecatedVoltage) CALL abort(__STAMP__&
-  ,'Part-Boundary-Voltage is no longer supported. Use corresponding RefState parameter as described in the user guide.')
+IF(ANY(PartBound%SurfaceModel.EQ.1)) THEN
+  ! Open the species database
+  CALL OpenDataFile(TRIM(SpeciesDatabase),create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_PICLAS)
+  ! Check if the correct dataset exists
+  StickingCoefficientExists = .FALSE.
+  dsetname = TRIM('/Surface-Chemistry/StickingCoefficient')
+  CALL DatasetExists(File_ID,TRIM(dsetname),StickingCoefficientExists)
+  IF(.NOT.StickingCoefficientExists) CALL abort(__STAMP__,'ERROR in InitializeVariablesPartBoundary: '//  &
+                                      'No /Surface-Chemistry/StickingCoefficient dataset found in SpeciesDatabase!')
+  ! Get dimensions
+  CALL GetDataSize(File_ID,dsetname,nDims,HSize,attrib=.FALSE.)
+  ! Allocate the data array
+  ALLOCATE(StickingCoefficientData(INT(HSize(1),4),INT(HSize(2),4)))
+  StickingCoefficientData = 0.
+  ! Read-in array
+  CALL ReadArray(TRIM(dsetname),2,INT(HSize,IK),0_IK,1,RealArray=StickingCoefficientData)
+  CALL CloseDataFile()
+END IF
 
 END SUBROUTINE InitializeVariablesPartBoundary
+
+
+SUBROUTINE InitParticleBoundarySurfSides()
+!===================================================================================================================================
+! Initialize the counters (nComputeNodeSurfSides,nComputeNodeSurfTotalSides,nComputeNodeSurfOutputSides) and
+! mappings (GlobalSide2SurfSide,SurfSide2GlobalSide) of the particle boundary surface sides
+! 1) all procs identify surfaces on the node (plus halo region) for sampling and/or boundary conditions
+! 2) the compute-node leaders communicate the number of surfaces
+!===================================================================================================================================
+! MODULES                                                                                                                          !
+!----------------------------------------------------------------------------------------------------------------------------------!
+USE MOD_Globals
+USE MOD_Particle_Mesh_Vars      ,ONLY: SideInfo_Shared
+USE MOD_Particle_Boundary_Vars  ,ONLY: PartBound
+USE MOD_Particle_Boundary_Vars  ,ONLY: nComputeNodeSurfSides,nComputeNodeSurfTotalSides,nComputeNodeSurfOutputSides
+USE MOD_Particle_Boundary_Vars  ,ONLY: GlobalSide2SurfSide,SurfSide2GlobalSide
+#if USE_MPI
+USE MOD_Mesh_Vars               ,ONLY: nBCSides, offsetElem, SideToElem
+USE MOD_Particle_Mesh_Vars      ,ONLY: ElemInfo_Shared
+USE MOD_MPI_Shared
+USE MOD_MPI_Shared_Vars         ,ONLY: MPI_COMM_SHARED
+USE MOD_MPI_Shared_Vars         ,ONLY: myComputeNodeRank,nComputeNodeProcessors
+USE MOD_Particle_Mesh_Vars      ,ONLY: nNonUniqueGlobalSides
+!USE MOD_Particle_Mesh_Vars      ,ONLY: offsetComputeNodeElem,nComputeNodeElems
+USE MOD_MPI_Shared_Vars         ,ONLY: myLeaderGroupRank,nLeaderGroupProcs
+USE MOD_Particle_Boundary_Vars  ,ONLY: GlobalSide2SurfSide_Shared,GlobalSide2SurfSide_Shared_Win
+USE MOD_Particle_Boundary_Vars  ,ONLY: SurfSide2GlobalSide_Shared,SurfSide2GlobalSide_Shared_Win
+USE MOD_Particle_Boundary_Vars  ,ONLY: nComputeNodeInnerBCs
+USE MOD_Particle_Boundary_Vars  ,ONLY: SurfCOMM
+#else
+USE MOD_Particle_Mesh_Vars      ,ONLY: nComputeNodeSides
+#endif /*USE_MPI*/
+#if USE_LOADBALANCE
+USE MOD_LoadBalance_Vars        ,ONLY: PerformLoadBalance
+#endif /*USE_LOADBALANCE*/
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!----------------------------------------------------------------------------------------------------------------------------------!
+! INPUT VARIABLES
+!----------------------------------------------------------------------------------------------------------------------------------!
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER                                :: iSide,firstSide,lastSide,iSurfSide,GlobalSideID
+INTEGER                                :: nSurfSidesProc, nBCSidesProc
+INTEGER                                :: offsetSurfTotalSidesProc
+INTEGER,ALLOCATABLE                    :: GlobalSide2SurfSideProc(:,:)
+#if USE_MPI
+INTEGER                                :: offsetSurfSidesProc
+INTEGER                                :: GlobalElemID,GlobalElemRank
+INTEGER                                :: sendbuf,recvbuf
+INTEGER                                :: NbGlobalElemID, NbElemRank, NbLeaderID, nSurfSidesTmp
+INTEGER                                :: color
+#endif /*USE_MPI*/
+INTEGER                                :: NbGlobalSideID
+!===================================================================================================================================
+
+LBWRITE(UNIT_stdOut,'(A)') ' INIT SURFACE SIDES ...'
+
+! Allocate shared array for surf sides
+#if USE_MPI
+CALL Allocate_Shared((/3,nNonUniqueGlobalSides/),GlobalSide2SurfSide_Shared_Win,GlobalSide2SurfSide_Shared)
+CALL MPI_WIN_LOCK_ALL(0,GlobalSide2SurfSide_Shared_Win,IERROR)
+GlobalSide2SurfSide => GlobalSide2SurfSide_Shared
+#else
+ALLOCATE(GlobalSide2SurfSide(1:3,1:nComputeNodeSides))
+#endif /*USE_MPI*/
+
+! only CN root nullifies
+#if USE_MPI
+IF (myComputeNodeRank.EQ.0) THEN
+#endif /* USE_MPI*/
+  GlobalSide2SurfSide = -1.
+#if USE_MPI
+END IF
+
+CALL BARRIER_AND_SYNC(GlobalSide2SurfSide_Shared_Win,MPI_COMM_SHARED)
+#endif /* USE_MPI*/
+
+! get number of BC-Sides
+#if USE_MPI
+! NO HALO REGION REDUCTION
+firstSide = INT(REAL( myComputeNodeRank   )*REAL(nNonUniqueGlobalSides)/REAL(nComputeNodeProcessors))+1
+lastSide  = INT(REAL((myComputeNodeRank+1))*REAL(nNonUniqueGlobalSides)/REAL(nComputeNodeProcessors))
+ALLOCATE(GlobalSide2SurfSideProc(1:3,firstSide:lastSide))
+#else
+firstSide = 1
+lastSide  = nComputeNodeSides
+ALLOCATE(GlobalSide2SurfSideProc(1:3,1:nComputeNodeSides))
+#endif /*USE_MPI*/
+
+GlobalSide2SurfSideProc    = -1
+nComputeNodeSurfSides      = 0
+nSurfSidesProc             = 0
+
+! check every BC side
+DO iSide = firstSide,lastSide
+  ! ignore non-BC sides
+  IF (SideInfo_Shared(SIDE_BCID,iSide).LE.0) CYCLE
+
+#if USE_MPI
+  ! ignore sides outside of halo region
+  IF (ElemInfo_Shared(ELEM_HALOFLAG,SideInfo_Shared(SIDE_ELEMID,iSide)).EQ.0) CYCLE
+#endif /*USE_MPI*/
+
+  ! count number of reflective and rotationally periodic BC sides
+  IF ((PartBound%TargetBoundCond(PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,iSide))).EQ.PartBound%ReflectiveBC) .OR. &
+      (PartBound%TargetBoundCond(PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,iSide))).EQ.PartBound%RotPeriodicBC).OR. &
+      (PartBound%TargetBoundCond(PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,iSide))).EQ.PartBound%RotPeriodicInterPlaneBC))THEN
+    nSurfSidesProc = nSurfSidesProc + 1
+    ! check if element for this side is on the current compute-node
+    ! IF ((SideInfo_Shared(SIDE_ID,iSide).GT.ElemInfo_Shared(ELEM_FIRSTSIDEIND,offsetComputeNodeElem+1))                  .AND. &
+    !     (SideInfo_Shared(SIDE_ID,iSide).LE.ElemInfo_Shared(ELEM_LASTSIDEIND ,offsetComputeNodeElem+nComputeNodeElems))) THEN
+    ! IF ((iSide.GE.(ElemInfo_Shared(ELEM_FIRSTSIDEIND,offsetComputeNodeElem+1)+1))                  .AND. &
+    !     (iSide.LE.ElemInfo_Shared(ELEM_LASTSIDEIND ,offsetComputeNodeElem+nComputeNodeElems))) THEN
+    !   nComputeNodeSurfSides  = nComputeNodeSurfSides + 1
+    ! END IF
+
+    ! TODO: Add another check to determine the surface side in halo_eps from current proc. Node-wide halo can become quite large with
+    !       with 128 procs!
+
+    ! Write local mapping from Side to Surf side. The rank is already correct, the offset must be corrected by the proc offset later
+    GlobalSide2SurfSideProc(SURF_SIDEID,iSide) = nSurfSidesProc
+#if USE_MPI
+    GlobalSide2SurfSideProc(SURF_RANK  ,iSide) = ElemInfo_Shared(ELEM_RANK,SideInfo_Shared(SIDE_ELEMID,iSide))
+    ! get global Elem ID
+    GlobalElemID   = SideInfo_Shared(SIDE_ELEMID,iSide)
+    GlobalElemRank = ElemInfo_Shared(ELEM_RANK,GlobalElemID)
+    ! running on one node, everything belongs to us
+    IF (nLeaderGroupProcs.EQ.1) THEN
+      GlobalSide2SurfSideProc(SURF_LEADER,iSide) = myLeaderGroupRank
+    ELSE
+      ! find the compute node
+      GlobalSide2SurfSideProc(SURF_LEADER,iSide) = INT(GlobalElemRank/nComputeNodeProcessors)
+    END IF
+#else
+    GlobalSide2SurfSideProc(SURF_RANK  ,iSide) = 0
+    GlobalSide2SurfSideProc(SURF_LEADER,iSide) = GlobalSide2SurfSideProc(SURF_RANK,iSide)
+#endif /*USE_MPI*/
+
+#if USE_MPI
+    ! check if element for this side is on the current compute-node. Alternative version to the check above
+    IF (GlobalSide2SurfSideProc(SURF_LEADER,iSide).EQ.myLeaderGroupRank) nComputeNodeSurfSides  = nComputeNodeSurfSides + 1
+#endif /*USE_MPI*/
+  END IF ! reflective side
+END DO
+
+! Find CN global number of total surf sides and write Side to Surf Side mapping into shared array
+#if USE_MPI
+sendbuf = nSurfSidesProc - nComputeNodeSurfSides
+recvbuf = 0
+CALL MPI_EXSCAN(sendbuf,recvbuf,1,MPI_INTEGER,MPI_SUM,MPI_COMM_SHARED,iError)
+offsetSurfTotalSidesProc   = recvbuf
+! last proc knows CN total number of BC elems
+sendbuf = offsetSurfTotalSidesProc + nSurfSidesProc - nComputeNodeSurfSides
+CALL MPI_BCAST(sendbuf,1,MPI_INTEGER,nComputeNodeProcessors-1,MPI_COMM_SHARED,iError)
+nComputeNodeSurfTotalSides = sendbuf
+
+! Find CN global number of local surf sides and write Side to Surf Side mapping into shared array
+sendbuf = nComputeNodeSurfSides
+recvbuf = 0
+CALL MPI_EXSCAN(sendbuf,recvbuf,1,MPI_INTEGER,MPI_SUM,MPI_COMM_SHARED,iError)
+offsetSurfSidesProc   = recvbuf
+! last proc knows CN total number of BC elems
+sendbuf = offsetSurfSidesProc + nComputeNodeSurfSides
+CALL MPI_BCAST(sendbuf,1,MPI_INTEGER,nComputeNodeProcessors-1,MPI_COMM_SHARED,iError)
+nComputeNodeSurfSides = sendbuf
+nComputeNodeSurfTotalSides = nComputeNodeSurfTotalSides + nComputeNodeSurfSides
+
+! increment SURF_SIDEID by offset
+nSurfSidesTmp = 0
+DO iSide = firstSide,lastSide
+  IF (GlobalSide2SurfSideProc(SURF_SIDEID,iSide).EQ.-1) CYCLE
+
+  ! sort compute-node local sides first
+  IF (GlobalSide2SurfSideProc(SURF_LEADER,iSide).EQ.myLeaderGroupRank) THEN
+    nSurfSidesTmp = nSurfSidesTmp + 1
+
+    GlobalSide2SurfSide(:          ,iSide) = GlobalSide2SurfSideProc(:,iSide)
+    GlobalSide2SurfSide(SURF_SIDEID,iSide) = nSurfSidesTmp + offsetSurfSidesProc
+  END IF
+END DO
+
+nSurfSidesTmp = 0
+DO iSide = firstSide,lastSide
+  IF (GlobalSide2SurfSideProc(SURF_SIDEID,iSide).EQ.-1) CYCLE
+
+  ! sampling sides in halo region follow at the end
+  IF (GlobalSide2SurfSideProc(SURF_LEADER,iSide).NE.myLeaderGroupRank) THEN
+    nSurfSidesTmp = nSurfSidesTmp + 1
+
+    GlobalSide2SurfSide(:          ,iSide) = GlobalSide2SurfSideProc(:,iSide)
+    GlobalSide2SurfSide(SURF_SIDEID,iSide) = nSurfSidesTmp + nComputeNodeSurfSides + offsetSurfTotalSidesProc
+  END IF
+END DO
+#else
+offsetSurfTotalSidesProc  = 0
+nComputeNodeSurfSides = nSurfSidesProc
+nComputeNodeSurfTotalSides = nSurfSidesProc
+GlobalSide2SurfSide(:,firstSide:lastSide) = GlobalSide2SurfSideProc(:,firstSide:lastSide)
+#endif /*USE_MPI*/
+
+! Build inverse mapping
+#if USE_MPI
+CALL Allocate_Shared((/3,nComputeNodeSurfTotalSides/),SurfSide2GlobalSide_Shared_Win,SurfSide2GlobalSide_Shared)
+CALL MPI_WIN_LOCK_ALL(0,SurfSide2GlobalSide_Shared_Win,IERROR)
+SurfSide2GlobalSide => SurfSide2GlobalSide_Shared
+
+DO iSide = firstSide,lastSide
+  IF (GlobalSide2SurfSideProc(SURF_SIDEID,iSide).EQ.-1) CYCLE
+
+  SurfSide2GlobalSide(:          ,GlobalSide2SurfSide(SURF_SIDEID,iSide)) = GlobalSide2SurfSide(:,iSide)
+  SurfSide2GlobalSide(SURF_SIDEID,GlobalSide2SurfSide(SURF_SIDEID,iSide)) = iSide
+END DO
+
+CALL BARRIER_AND_SYNC(GlobalSide2SurfSide_Shared_Win,MPI_COMM_SHARED)
+CALL BARRIER_AND_SYNC(SurfSide2GlobalSide_Shared_Win,MPI_COMM_SHARED)
+#else
+ALLOCATE(SurfSide2GlobalSide(1:1,1:nComputeNodeSurfTotalSides))
+DO iSide = firstSide,lastSide
+  IF (GlobalSide2SurfSide(SURF_SIDEID,iSide).EQ.-1) CYCLE
+  SurfSide2GlobalSide(SURF_SIDEID,GlobalSide2SurfSide(SURF_SIDEID,iSide)) =iSide
+END DO
+#endif /*USE_MPI*/
+
+! Determine the number of surface output sides (inner BCs are not counted twice and rotationally periodic BCs excluded)
+#if USE_MPI
+IF (myComputeNodeRank.EQ.0) THEN
+  nComputeNodeInnerBCs = 0
+#endif /*USE_MPI*/
+  nComputeNodeSurfOutputSides = 0
+  DO iSurfSide = 1,nComputeNodeSurfSides
+    GlobalSideID = SurfSide2GlobalSide(SURF_SIDEID,iSurfSide)
+    ! Check if the surface side has a neighbor (and is therefore an inner BCs)
+    IF(SideInfo_Shared(SIDE_NBSIDEID,GlobalSideID).GT.0) THEN
+      ! Abort inner BC + Mortar! (too complex and confusing to implement)
+      ! This test catches large Mortar sides, i.e.,  SideInfo_Shared(SIDE_NBELEMID,NonUniqueGlobalSideID) gives the 2 or 4
+      ! connecting small Mortar sides. It is assumed that inner BC result in being flagged as a "SurfSide" and therefore are checked
+      ! here.
+      IF(SideInfo_Shared(SIDE_LOCALID,GlobalSideID).EQ.-1)THEN
+        IPWRITE(UNIT_StdOut,'(I12,A,I0)')   " NonUniqueGlobalSideID                               = ",GlobalSideID
+        IPWRITE(UNIT_StdOut,'(I12,A,I0)')   " SideInfo_Shared(SIDE_LOCALID,NonUniqueGlobalSideID) = ",&
+            SideInfo_Shared(SIDE_LOCALID,GlobalSideID)
+        IPWRITE(UNIT_StdOut,'(I12,A,I0,A)') " SideInfo_Shared(SIDE_ELEMID,NonUniqueGlobalSideID)  = ",&
+            SideInfo_Shared(SIDE_ELEMID,GlobalSideID)," (GlobalElemID)"
+        CALL abort(__STAMP__,'Inner BC + Mortar is not implemented!')
+      END IF
+      ! Only add the side with the smaller index
+      NbGlobalSideID = SideInfo_Shared(SIDE_NBSIDEID,GlobalSideID)
+      IF(GlobalSideID.GT.NbGlobalSideID)THEN
+#if USE_MPI
+        !--- switcheroo check 1 of 2: Non-HALO sides
+        ! Only required for sampling on the larger NonUniqueGlobalSideID of the two sides of the inner BC
+        ! Count larger inner BCs as these may have to be sent to a different leader processor
+        NbGlobalElemID = SideInfo_Shared(SIDE_ELEMID,NbGlobalSideID)
+        NbElemRank = ElemInfo_Shared(ELEM_RANK,NbGlobalElemID)
+        NbLeaderID = INT(NbElemRank/nComputeNodeProcessors)
+        IF(NbLeaderID.NE.INT(myRank/nComputeNodeProcessors))THEN
+          nComputeNodeInnerBCs(1) = nComputeNodeInnerBCs(1) + 1
+        END IF
+#endif
+        CYCLE! Skip sides with the larger index
+      END IF
+    END IF
+    ! Skip rotationally periodic boundary sides for the output
+    IF(PartBound%TargetBoundCond(PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,GlobalSideID))).EQ.PartBound%RotPeriodicBC) CYCLE
+    ! Skip intermediate planes BCs for the output
+    IF(PartBound%TargetBoundCond(PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,GlobalSideID))).EQ.PartBound%RotPeriodicInterPlaneBC) CYCLE
+    ! Count the number of output sides
+    nComputeNodeSurfOutputSides = nComputeNodeSurfOutputSides + 1
+  END DO
+#if USE_MPI
+  !--- switcheroo check 2 of 2: HALO sides
+  ! Count number of inner BC in halo region
+  ! Only required for sampling on the larger NonUniqueGlobalSideID of the two sides of the inner BC
+  DO iSurfSide = nComputeNodeSurfSides+1, nComputeNodeSurfTotalSides
+    GlobalSideID = SurfSide2GlobalSide(SURF_SIDEID,iSurfSide)
+    ! Check if the surface side has a neighbor (and is therefore an inner BCs)
+    IF(SideInfo_Shared(SIDE_NBSIDEID,GlobalSideID).GT.0) THEN
+      ! Only add the side with the smaller index
+      IF(GlobalSideID.GT.SideInfo_Shared(SIDE_NBSIDEID,GlobalSideID))THEN
+        ! Count larger inner BCs as these may have to be sent to a different leader processor
+        nComputeNodeInnerBCs(2) = nComputeNodeInnerBCs(2) + 1
+      END IF
+    END IF
+  END DO ! iSurfSide = nComputeNodeSurfSides+1, nComputeNodeSurfTotalSides
+END IF
+#endif
+
+! free temporary arrays
+DEALLOCATE(GlobalSide2SurfSideProc)
+
+! create a communicator between processors with a BC side (including open BCs and sides in the halo region)
+#if USE_MPI
+! Count the number of BC sides per processors. Note: cannot be done in the loop above, since it might happen that a processor
+! might not get his own elements and thus will not be added to the communicator.
+nBCSidesProc = 0
+DO iSide=1,nBCSides
+  GlobalElemID = SideToElem(S2E_ELEM_ID,iSide) + offsetElem
+  IF (ElemInfo_Shared(ELEM_HALOFLAG,GlobalElemID).EQ.0) CYCLE
+  nBCSidesProc = nBCSidesProc + 1
+END DO
+
+! Set the control of subset assignment (nonnegative integer). Processes with the same color are in the same new communicator.
+! Make sure to include the root
+IF(MPIRoot) THEN
+  color = 1337
+ELSE
+  color = MERGE(1337, MPI_UNDEFINED, nBCSidesProc.GT.0)
+END IF
+! Create new surface communicator. Pass MPI_INFO_NULL as rank to follow the original ordering
+CALL MPI_COMM_SPLIT(MPI_COMM_PICLAS, color, MPI_INFO_NULL, SurfCOMM%UNICATOR, iError)
+! Find my rank on the shared communicator, comm size and proc name
+IF(SurfCOMM%UNICATOR.NE.MPI_COMM_NULL)THEN
+  CALL MPI_COMM_RANK(SurfCOMM%UNICATOR, SurfCOMM%MyRank, iError)
+  CALL MPI_COMM_SIZE(SurfCOMM%UNICATOR, SurfCOMM%nProcs, iError)
+  ! inform about size of emission communicator
+  LBWRITE(UNIT_StdOut,'(A,I0,A)') ' Surface sides: Communicator on ', SurfCOMM%nProcs,' procs'
+END IF ! nBCSidesProc.GT.0
+#endif /*USE_MPI*/
+
+LBWRITE(UNIT_stdOut,'(A)') ' INIT SURFACE SIDES DONE!'
+
+END SUBROUTINE InitParticleBoundarySurfSides
+
+
+SUBROUTINE InitParticleBoundaryRotPeriodic(nRotPeriodicBCs)
+!===================================================================================================================================
+!>
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals
+USE MOD_ReadInTools
+USE MOD_Mesh_Vars              ,ONLY: NGeo
+USE MOD_Mesh_Tools             ,ONLY: GetCornerNodeMapCGNS
+USE MOD_Particle_Boundary_Vars ,ONLY: PartBound,nPartBound
+USE MOD_Particle_Mesh_Vars     ,ONLY: nNonUniqueGlobalSides
+USE MOD_Particle_Mesh_Vars     ,ONLY: ElemInfo_Shared,SideInfo_Shared,NodeCoords_Shared
+#if USE_LOADBALANCE
+USE MOD_LoadBalance_Vars       ,ONLY: PerformLoadBalance
+#endif /*USE_LOADBALANCE*/
+! IMPLICIT VARIABLE HANDLING
+ IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+INTEGER               :: nRotPeriodicBCs
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER               :: iPartBound, ElemID, iSide, LocSideID, nStart, iPartBound2, NodeMap(4,6)
+REAL                  :: Pmax, Pmin
+LOGICAL,ALLOCATABLE   :: PartnerFound(:)
+!===================================================================================================================================
+
+LBWRITE(UNIT_StdOut,'(132("-"))')
+LBWRITE(UNIT_stdOut,'(A)') ' INIT ROTATIONAL PERIODIC BOUNDARY CONDITION...'
+
+ALLOCATE(PartBound%RotPeriodicMin(  1:nPartBound))
+PartBound%RotPeriodicMin = HUGE(1.)
+ALLOCATE(PartBound%RotPeriodicMax(  1:nPartBound))
+PartBound%RotPeriodicMax = -HUGE(1.)
+ALLOCATE(PartnerFound(  1:nPartBound))
+PartnerFound = .FALSE.
+
+PartBound%RotPeriodicAxis   = GETINT('Part-RotPeriodicAxi')
+PartBound%RotPeriodicTol = 1. - GETREAL('PartBound-RotPeriodicTol')
+IF(MOD(nRotPeriodicBCs,2).NE.0) THEN
+  ! Check whether two corresponding RotPeriodic BCs are always set
+  CALL abort(__STAMP__,'ERROR: Uneven number of rot_periodic BCs. Check whether two corresponding RotPeriodic BCs are set!')
+ELSE IF(nRotPeriodicBCs.EQ.2) THEN
+  PartBound%RotPeriodicMin = -HUGE(1.)
+  PartBound%RotPeriodicMax = HUGE(1.)
+ELSE
+  ! Get the node map to convert from the CGNS format (as given by HOPR, ElemSideNodeID_Shared not yet available)
+  CALL GetCornerNodeMapCGNS(NGeo,NodeMapCGNS=NodeMap)
+  ! Determine the min and max values along the rot periodic axis of the BC region
+  ! Loop over all sides
+  DO iSide = 1,nNonUniqueGlobalSides
+    ! Ignore non-BC sides
+    IF (SideInfo_Shared(SIDE_BCID,iSide).LE.0) CYCLE
+    iPartBound = PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,iSide))
+    ! Consider only rotationally periodic BC sides
+    IF (PartBound%TargetBoundCond(iPartBound).EQ.PartBound%RotPeriodicBC)THEN
+      ElemID = SideInfo_Shared(SIDE_ELEMID,iSide)
+      LocSideID = SideInfo_Shared(SIDE_LOCALID,iSide)
+      IF (LocSideID.LE.0) CYCLE
+      ! Find start of CGNS mapping from flip
+      IF (SideInfo_Shared(SIDE_ID,iSide).GT.0) THEN
+        nStart = 0
+      ELSE
+        nStart = MAX(0,MOD(SideInfo_Shared(SIDE_FLIP,iSide),10)-1)
+      END IF
+      ! Get the minimum and maximum coordinate of the side
+      Pmax = MAXVAL(NodeCoords_Shared(PartBound%RotPeriodicAxis, (/ElemInfo_Shared(ELEM_FIRSTNODEIND,ElemID)+NodeMap(MOD(nStart  ,4)+1,LocSideID), &
+                                                    ElemInfo_Shared(ELEM_FIRSTNODEIND,ElemID)+NodeMap(MOD(nStart+1,4)+1,LocSideID), &
+                                                    ElemInfo_Shared(ELEM_FIRSTNODEIND,ElemID)+NodeMap(MOD(nStart+2,4)+1,LocSideID), &
+                                                    ElemInfo_Shared(ELEM_FIRSTNODEIND,ElemID)+NodeMap(MOD(nStart+3,4)+1,LocSideID)/)))
+      Pmin = MINVAL(NodeCoords_Shared(PartBound%RotPeriodicAxis, (/ElemInfo_Shared(ELEM_FIRSTNODEIND,ElemID)+NodeMap(MOD(nStart  ,4)+1,LocSideID), &
+                                                    ElemInfo_Shared(ELEM_FIRSTNODEIND,ElemID)+NodeMap(MOD(nStart+1,4)+1,LocSideID), &
+                                                    ElemInfo_Shared(ELEM_FIRSTNODEIND,ElemID)+NodeMap(MOD(nStart+2,4)+1,LocSideID), &
+                                                    ElemInfo_Shared(ELEM_FIRSTNODEIND,ElemID)+NodeMap(MOD(nStart+3,4)+1,LocSideID)/)))
+      PartBound%RotPeriodicMax(iPartBound) = MAX(Pmax,PartBound%RotPeriodicMax(iPartBound))
+      PartBound%RotPeriodicMin(iPartBound) = MIN(Pmin,PartBound%RotPeriodicMin(iPartBound))
+    END IF
+  END DO
+  ! Sanity check: is the maximum greater than the minimum and identification of BCs with the same coordinates
+  LBWRITE(UNIT_stdOut,'(A)') ' | Automatically determined minimal and maximum coordinates along the rotational axis:'
+  DO iPartBound=1,nPartBound
+    IF(PartBound%TargetBoundCond(iPartBound).EQ.PartBound%RotPeriodicBC) THEN
+      IF(PartBound%RotPeriodicMin(iPartBound).GE.PartBound%RotPeriodicMax(iPartBound)) THEN
+        SWRITE(UNIT_stdOut,*) 'ERROR: PartBound%RotPeriodicMin(iPartBound) > PartBound%RotPeriodicMax(iPartBound)'
+        SWRITE(UNIT_stdOut,*) 'Min: ', PartBound%RotPeriodicMin(iPartBound), 'Max: ', PartBound%RotPeriodicMax(iPartBound)
+        CALL abort(__STAMP__,'ERROR: Minimum coordinate at rotational axis is greater than maximum coordinate at BC: ',&
+                    IntInfoOpt=iPartBound)
+      END IF
+      IF(PartnerFound(iPartBound)) CYCLE
+      DO iPartBound2=1,nPartBound
+        IF((iPartBound.EQ.iPartBound2).OR.PartnerFound(iPartBound2)) CYCLE
+        IF(PartBound%TargetBoundCond(iPartBound2).EQ.PartBound%RotPeriodicBC) THEN
+          IF(ALMOSTEQUALRELATIVE(PartBound%RotPeriodicMin(iPartBound),PartBound%RotPeriodicMin(iPartBound2),1E-5) &
+            .AND.ALMOSTEQUALRELATIVE(PartBound%RotPeriodicMax(iPartBound),PartBound%RotPeriodicMax(iPartBound2),1E-5)) THEN
+            LBWRITE(UNIT_stdOut,'(A,ES25.14E3,A,ES25.14E3,A,A,A,A)') ' | Minimum: ', PartBound%RotPeriodicMin(iPartBound), &
+              ' Maximum: ',PartBound%RotPeriodicMax(iPartBound), ' for BCs: ', TRIM(PartBound%SourceBoundName(iPartBound)), &
+              ' and ', TRIM(PartBound%SourceBoundName(iPartBound2))
+            PartnerFound(iPartBound) = .TRUE.
+            PartnerFound(iPartBound2) = .TRUE.
+          END IF
+        END IF
+      END DO
+    END IF
+  END DO
+END IF
+
+IF(PartBound%OutputBCDataForTesting) THEN
+  CALL WriteRotPeriodicMinMax()
+END IF
+
+LBWRITE(UNIT_stdOut,'(A)')' INIT ROTATIONAL PERIODIC BOUNDARY CONDITION DONE!'
+
+END SUBROUTINE InitParticleBoundaryRotPeriodic
+
+
+SUBROUTINE InitParticleBoundaryInterPlane()
+!===================================================================================================================================
+!>
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals
+USE MOD_Globals_Vars           ,ONLY: PI
+USE MOD_Mesh_Vars              ,ONLY: NGeo
+USE MOD_Mesh_Tools             ,ONLY: GetCornerNodeMapCGNS
+USE MOD_Particle_Boundary_Vars ,ONLY: PartBound,nPartBound
+USE MOD_Particle_Mesh_Vars     ,ONLY: nNonUniqueGlobalSides
+USE MOD_Particle_Mesh_Vars     ,ONLY: ElemInfo_Shared,SideInfo_Shared,NodeCoords_Shared
+#if USE_LOADBALANCE
+USE MOD_LoadBalance_Vars       ,ONLY: PerformLoadBalance
+#endif /*USE_LOADBALANCE*/
+! IMPLICIT VARIABLE HANDLING
+ IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER               :: iPartBound, ElemID, iSide
+INTEGER, ALLOCATABLE  :: InterPlanePositionCount(:)
+INTEGER               :: NodeMap(4,6), LocSideID, nStart
+!===================================================================================================================================
+
+LBWRITE(UNIT_StdOut,'(132("-"))')
+LBWRITE(UNIT_stdOut,'(A)') ' INIT INTERPLANE BOUNDARY CONDITION...'
+
+IF(.NOT.PartBound%UseRotPeriodicBC) THEN
+  CALL abort(__STAMP__,'ERROR: Interplane BCs are currently only implemented in combination with rot_periodic BCs!')
+END IF
+
+ALLOCATE(InterPlanePositionCount(nPartBound))
+InterPlanePositionCount = 0
+
+ALLOCATE(PartBound%RotAxisPosition(1:nPartBound))
+PartBound%RotAxisPosition = 0
+
+! Get the node map to convert from the CGNS format (as given by HOPR, ElemSideNodeID_Shared not yet available)
+CALL GetCornerNodeMapCGNS(NGeo,NodeMapCGNS=NodeMap)
+
+! check every BC side
+DO iSide = 1,nNonUniqueGlobalSides
+  ! ignore non-BC sides
+  IF (SideInfo_Shared(SIDE_BCID,iSide).LE.0) CYCLE
+  iPartBound = PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,iSide))
+  ! consider only rotationally periodic BC sides
+  IF (PartBound%TargetBoundCond(iPartBound).EQ.PartBound%RotPeriodicInterPlaneBC)THEN
+    ElemID    = SideInfo_Shared(SIDE_ELEMID ,iSide)
+    LocSideID = SideInfo_Shared(SIDE_LOCALID,iSide)
+    IF (LocSideID.LE.0) CYCLE
+    ! Find start of CGNS mapping from flip
+    IF (SideInfo_Shared(SIDE_ID,iSide).GT.0) THEN
+      nStart = 0
+    ELSE
+      nStart = MAX(0,MOD(SideInfo_Shared(SIDE_FLIP,iSide),10)-1)
+    END IF
+    PartBound%RotAxisPosition(iPartBound) = PartBound%RotAxisPosition(iPartBound) &
+      + SUM(NodeCoords_Shared(PartBound%RotPeriodicAxis, (/ElemInfo_Shared(ELEM_FIRSTNODEIND,ElemID)+NodeMap(MOD(nStart  ,4)+1,LocSideID), &
+                                                    ElemInfo_Shared(ELEM_FIRSTNODEIND,ElemID)+NodeMap(MOD(nStart+1,4)+1,LocSideID), &
+                                                    ElemInfo_Shared(ELEM_FIRSTNODEIND,ElemID)+NodeMap(MOD(nStart+2,4)+1,LocSideID), &
+                                                    ElemInfo_Shared(ELEM_FIRSTNODEIND,ElemID)+NodeMap(MOD(nStart+3,4)+1,LocSideID)/))) / 4.
+    InterPlanePositionCount(iPartBound) = InterPlanePositionCount(iPartBound) + 1
+  END IF
+END DO
+! Average of the inter-plane position and sanity check whether the associated BCs have the same position
+LBWRITE(UNIT_stdOut,'(A)') ' | Automatically determined interplane coordinates along the rotational axis:'
+DO iPartBound=1,nPartBound
+  IF(PartBound%TargetBoundCond(iPartBound).EQ.PartBound%RotPeriodicInterPlaneBC) THEN
+    IF(PartBound%AssociatedPlane(iPartBound).LE.0.OR.PartBound%AssociatedPlane(iPartBound).GT.nPartBound) THEN
+      CALL abort(__STAMP__,'ERROR: Associated inter-plane BC number is not defined! BC ID: ',IntInfoOpt=iPartBound)
+    END IF
+    IF(InterPlanePositionCount(iPartBound).EQ.0) THEN
+      CALL abort(__STAMP__,'ERROR: No sides for the inter-plane BC found, BC ID: ',IntInfoOpt=iPartBound)
+    END IF
+    PartBound%RotAxisPosition(iPartBound) = PartBound%RotAxisPosition(iPartBound) / InterPlanePositionCount(iPartBound)
+    IF(iPartBound.GT.PartBound%AssociatedPlane(iPartBound)) THEN
+      IF(.NOT.ALMOSTEQUALRELATIVE(PartBound%RotAxisPosition(iPartBound),PartBound%RotAxisPosition(PartBound%AssociatedPlane(iPartBound)),1E-5)) THEN
+        IPWRITE(*,*) 'BC 1: ', PartBound%AssociatedPlane(iPartBound), 'BC 2: ', iPartBound
+        IPWRITE(*,*) 'Position: ', PartBound%RotAxisPosition(PartBound%AssociatedPlane(iPartBound)), 'Max: ', PartBound%RotAxisPosition(iPartBound)
+        CALL abort(__STAMP__,'ERROR: Position of the associated interplane BCs is not almost equal!')
+      ELSE
+        LBWRITE(*,'(A,ES25.14E3,A,A,A,A)') ' | Rotational axis position: ', PartBound%RotAxisPosition(iPartBound), ' for BCs: ', &
+          TRIM(PartBound%SourceBoundName(iPartBound)), ' and ', TRIM(PartBound%SourceBoundName(PartBound%AssociatedPlane(iPartBound)))
+      END IF
+    END IF
+  END IF
+END DO
+
+IF(PartBound%OutputBCDataForTesting) THEN
+  CALL WriteInterPlanePosition()
+END IF
+
+LBWRITE(UNIT_stdOut,'(A)')' INIT INTERPLANE BOUNDARY CONDITION DONE!'
+LBWRITE(UNIT_StdOut,'(132("-"))')
+
+END SUBROUTINE InitParticleBoundaryInterPlane
+
+!===================================================================================================================================
+!> Write the rotational periodic BC min/max values along the rotational symmetry axis for regression testing to RotPeriodicMinMax.csv
+!===================================================================================================================================
+SUBROUTINE WriteRotPeriodicMinMax()
+!----------------------------------------------------------------------------------------------------------------------------------!
+! MODULES                                                                                                                          !
+!----------------------------------------------------------------------------------------------------------------------------------!
+USE MOD_Globals                 ,ONLY: FILEEXISTS,unit_stdout,abort,MPIRoot
+USE MOD_Restart_Vars            ,ONLY: DoRestart
+USE MOD_Particle_Boundary_Vars  ,ONLY: nPartBound, PartBound
+USE MOD_LoadBalance_Vars        ,ONLY: PerformLoadBalance
+!----------------------------------------------------------------------------------------------------------------------------------!
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+CHARACTER(LEN=21),PARAMETER               :: outfile='RotPeriodicMinMax.csv'
+INTEGER                                   :: ioUnit,iVar,iPartBound
+CHARACTER(LEN=150)                        :: formatStr
+INTEGER,PARAMETER                         :: nOutputVar=4
+CHARACTER(LEN=255),DIMENSION(nOutputVar)  :: StrVarNames(nOutputVar)=(/ CHARACTER(LEN=255) :: &
+    'BoundaryIndex',     &
+    'BoundaryName',  &
+    'RotPeriodicBCMin', &
+    'RotPeriodicBCMax' /)
+CHARACTER(LEN=255),DIMENSION(nOutputVar)  :: tmpStr ! needed because PerformAnalyze is called multiple times at the beginning
+CHARACTER(LEN=1000)                       :: tmpStr2
+CHARACTER(LEN=1),PARAMETER                :: delimiter=","
+LOGICAL                                   :: CreateFile
+!===================================================================================================================================
+! only the root shall write this file
+IF(.NOT.MPIRoot)RETURN
+
+! check if file is to be created (for new simulations and manual restarts as input parameters could have been changed)
+CreateFile = .TRUE.
+IF(DoRestart.AND..NOT.PerformLoadBalance) CreateFile = .FALSE.
+
+! create file with header
+IF(CreateFile) THEN
+  OPEN(NEWUNIT=ioUnit,FILE=TRIM(outfile),STATUS="replace")
+  tmpStr=""
+  DO iVar=1,nOutputVar
+    WRITE(tmpStr(iVar),'(A)')delimiter//'"'//TRIM(StrVarNames(iVar))//'"'
+  END DO
+  WRITE(formatStr,'(A1)')'('
+  DO iVar=1,nOutputVar
+    IF(iVar.EQ.nOutputVar)THEN ! skip writing "," and the end of the line
+      WRITE(formatStr,'(A,A1,I2)')TRIM(formatStr),'A',LEN_TRIM(tmpStr(iVar))
+    ELSE
+      WRITE(formatStr,'(A,A1,I2,A1)')TRIM(formatStr),'A',LEN_TRIM(tmpStr(iVar)),','
+    END IF
+  END DO
+
+  WRITE(formatStr,'(A,A1)')TRIM(formatStr),')' ! finish the format
+  WRITE(tmpStr2,formatStr)tmpStr               ! use the format and write the header names to a temporary string
+  tmpStr2(1:1) = " "                           ! remove possible delimiter at the beginning (e.g. a comma)
+  WRITE(ioUnit,'(A)')TRIM(ADJUSTL(tmpStr2))    ! clip away the front and rear white spaces of the temporary string
+
+  DO iPartBound=1,nPartBound
+    IF(PartBound%TargetBoundCond(iPartBound).EQ.PartBound%RotPeriodicBC) THEN
+      WRITE(tmpStr2,'(I3,A1,A,A1,E23.16E3,A1,E23.16E3)')&
+          iPartBound, &                                             ! BoundaryIndex
+          delimiter,TRIM(PartBound%SourceBoundName(iPartBound)), &  ! BoundaryName
+          delimiter,PartBound%RotPeriodicMin(iPartBound), &         ! RotPeriodicBCMin
+          delimiter,PartBound%RotPeriodicMax(iPartBound)            ! RotPeriodicBCMax
+      WRITE(ioUnit,'(A)')TRIM(ADJUSTL(tmpStr2)) ! clip away the front and rear white spaces of the data line
+    END IF
+  END DO
+  CLOSE(ioUnit)
+END IF
+
+END SUBROUTINE WriteRotPeriodicMinMax
+
+
+!===================================================================================================================================
+!> Write the interplane positions values along the rotational symmetry axis for regression testing to InterPlanePosition.csv
+!===================================================================================================================================
+SUBROUTINE WriteInterPlanePosition()
+!----------------------------------------------------------------------------------------------------------------------------------!
+! MODULES                                                                                                                          !
+!----------------------------------------------------------------------------------------------------------------------------------!
+USE MOD_Globals                 ,ONLY: FILEEXISTS,unit_stdout,abort,MPIRoot
+USE MOD_Restart_Vars            ,ONLY: DoRestart
+USE MOD_Particle_Boundary_Vars  ,ONLY: nPartBound, PartBound
+USE MOD_LoadBalance_Vars        ,ONLY: PerformLoadBalance
+!----------------------------------------------------------------------------------------------------------------------------------!
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+CHARACTER(LEN=22),PARAMETER               :: outfile='InterPlanePosition.csv'
+INTEGER                                   :: ioUnit,iVar,iPartBound
+CHARACTER(LEN=150)                        :: formatStr
+INTEGER,PARAMETER                         :: nOutputVar=3
+CHARACTER(LEN=255),DIMENSION(nOutputVar)  :: StrVarNames(nOutputVar)=(/ CHARACTER(LEN=255) :: &
+    'BoundaryIndex',     &
+    'BoundaryName',  &
+    'InterPlanePosition' /)
+CHARACTER(LEN=255),DIMENSION(nOutputVar)  :: tmpStr ! needed because PerformAnalyze is called multiple times at the beginning
+CHARACTER(LEN=1000)                       :: tmpStr2
+CHARACTER(LEN=1),PARAMETER                :: delimiter=","
+LOGICAL                                   :: CreateFile
+!===================================================================================================================================
+! only the root shall write this file
+IF(.NOT.MPIRoot)RETURN
+
+! check if file is to be created (for new simulations and manual restarts as input parameters could have been changed)
+CreateFile = .TRUE.
+IF(DoRestart.AND..NOT.PerformLoadBalance) CreateFile = .FALSE.
+
+! create file with header
+IF(CreateFile) THEN
+  OPEN(NEWUNIT=ioUnit,FILE=TRIM(outfile),STATUS="replace")
+  tmpStr=""
+  DO iVar=1,nOutputVar
+    WRITE(tmpStr(iVar),'(A)')delimiter//'"'//TRIM(StrVarNames(iVar))//'"'
+  END DO
+  WRITE(formatStr,'(A1)')'('
+  DO iVar=1,nOutputVar
+    IF(iVar.EQ.nOutputVar)THEN ! skip writing "," and the end of the line
+      WRITE(formatStr,'(A,A1,I2)')TRIM(formatStr),'A',LEN_TRIM(tmpStr(iVar))
+    ELSE
+      WRITE(formatStr,'(A,A1,I2,A1)')TRIM(formatStr),'A',LEN_TRIM(tmpStr(iVar)),','
+    END IF
+  END DO
+
+  WRITE(formatStr,'(A,A1)')TRIM(formatStr),')' ! finish the format
+  WRITE(tmpStr2,formatStr)tmpStr               ! use the format and write the header names to a temporary string
+  tmpStr2(1:1) = " "                           ! remove possible delimiter at the beginning (e.g. a comma)
+  WRITE(ioUnit,'(A)')TRIM(ADJUSTL(tmpStr2))    ! clip away the front and rear white spaces of the temporary string
+
+  DO iPartBound=1,nPartBound
+    IF(PartBound%TargetBoundCond(iPartBound).EQ.PartBound%RotPeriodicInterPlaneBC) THEN
+      WRITE(tmpStr2,'(I3,A1,A,A1,E23.16E3,A1,E23.16E3)')&
+          iPartBound, &                                             ! BoundaryIndex
+          delimiter,TRIM(PartBound%SourceBoundName(iPartBound)), &  ! BoundaryName
+          delimiter,PartBound%RotAxisPosition(iPartBound)           ! InterPlanePosition
+      WRITE(ioUnit,'(A)')TRIM(ADJUSTL(tmpStr2)) ! clip away the front and rear white spaces of the data line
+    END IF
+  END DO
+  CLOSE(ioUnit)
+END IF
+
+END SUBROUTINE WriteInterPlanePosition
 
 
 !===================================================================================================================================
 !> Read mapping for rotational periodicity from mesh file. If it does not yet exist, build the mapping and store in mesh.h5 for
 !> faster initialization later on.
 !===================================================================================================================================
-SUBROUTINE InitParticleBoundaryRotPeriodic()
+SUBROUTINE InitRotPeriodicMapping()
 ! MODULES
 USE MOD_Globals
 USE MOD_HDF5_Input
@@ -594,7 +1311,7 @@ USE MOD_TimeDisc_Vars     ,ONLY: ManualTimeStep
 USE MOD_ReadInTools       ,ONLY: GETLOGICAL
 USE MOD_Globals_Vars      ,ONLY: ProjectName
 #if USE_LOADBALANCE
-USE MOD_LoadBalance_Vars  ,ONLY: PerformLoadBalance
+USE MOD_LoadBalance_Vars       ,ONLY: PerformLoadBalance
 #endif /*USE_LOADBALANCE*/
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -607,7 +1324,7 @@ REAL              :: StartT,EndT
 INTEGER           :: notMappedTotal
 !===================================================================================================================================
 
-LBWRITE(UNIT_stdOut,'(A)') ' INIT ROTATIONAL PERIODIC BOUNDARY...'
+LBWRITE(UNIT_stdOut,'(A)') ' INIT ROTATIONAL PERIODIC BOUNDARY MAPPING...'
 !RotPeriodicReBuild = GETLOGICAL('Part-RotPeriodicReBuild')
 GETTIME(StartT)
 
@@ -617,7 +1334,7 @@ WRITE(UNIT=hilf,FMT='(ES10.4)') halo_eps_velo
 DatasetName = 'RotPeriodicMap-v'//TRIM(hilf)
 WRITE(UNIT=hilf,FMT='(ES10.4)') ManualTimeStep
 DatasetName = TRIM(DatasetName)//'-dt'//TRIM(hilf)
-CALL OpenDataFile(MeshFile,create=.FALSE.,single=.FALSE.,readOnly=.FALSE.,communicatorOpt=MPI_COMM_WORLD)
+CALL OpenDataFile(MeshFile,create=.FALSE.,single=.FALSE.,readOnly=.FALSE.,communicatorOpt=MPI_COMM_PICLAS)
 CALL DatasetExists(File_ID,TRIM(DatasetName),DatasetFound)
 CALL CloseDataFile()
 
@@ -653,25 +1370,28 @@ END IF ! notMappedTotal.GT.0
 GETTIME(EndT)
 CALL DisplayMessageAndTime(EndT-StartT, 'INIT ROTATIONAL PERIODIC BOUNDARY DONE!')
 
-END SUBROUTINE InitParticleBoundaryRotPeriodic
+END SUBROUTINE InitRotPeriodicMapping
 
 
 !===================================================================================================================================
-!> Build Mapping for rotational periodicity: RotPeriodicSide -> SideID2 (Side on corresponding BC).
-!> In RotPeriodicBC (particle_boundary_condition.f90): SideID -> SurfSideID -> RotPeriodicSide
-!>                                                     RotPeriodicSide -> SideID2
-!> (1) counting rotational periodic sides and build mapping from SurfSideID -> RotPeriodicSide
+!> Build mapping for rotational periodicity: RotPeriodicSide -> SideID2 (Side on corresponding BC).
+!> In RotPeriodicBoundary (particle_boundary_condition.f90): SideID -> SurfSideID -> RotPeriodicSide
+!>                                                           RotPeriodicSide -> SideID2
+!> (1) Counting rotational periodic sides and build mapping from SurfSideID -> RotPeriodicSide
 !> (2) Build bounding boxes (in 2D reference system) for all nRotPeriodicSides
-!> (3) find Side on corresponding BC and build mapping RotPeriodicSide -> SideID2 (and vice versa)
-!>     counting potential rotational periodic sides (for not conform meshes)
-!> (4) reallocate array due to number of potential rotational periodic sides
+!> (3a) Find side on corresponding BC and build mapping RotPeriodicSide -> SideID2 (and vice versa)
+!>      counting potential rotational periodic sides (for not conform meshes)
+!> (3b) Add elements to the mapping, which are neighbouring the already found sides based on the node connection
+!>      (especially relevant for tet2hex meshes)
+!> (4) Reallocate array due to number of potential rotational periodic sides
+!> (5) Store the element number in the mapping array
 !===================================================================================================================================
 SUBROUTINE BuildParticleBoundaryRotPeriodic(notMappedTotal)
 ! MODULES
 USE MOD_Globals
 USE MOD_Particle_Boundary_Vars  ,ONLY: nComputeNodeSurfTotalSides,SurfSide2GlobalSide,PartBound
 USE MOD_Particle_Boundary_Vars  ,ONLY: RotPeriodicSideMapping, NumRotPeriodicNeigh, SurfSide2RotPeriodicSide
-USE MOD_Particle_Mesh_Vars      ,ONLY: SideInfo_Shared, NodeCoords_Shared, ElemSideNodeID_Shared, GEO, ElemInfo_Shared
+USE MOD_Particle_Mesh_Vars      ,ONLY: SideInfo_Shared, NodeCoords_Shared, ElemSideNodeID_Shared, ElemInfo_Shared
 USE MOD_Mesh_Tools              ,ONLY: GetCNElemID, GetGlobalElemID
 USE MOD_Particle_Mesh_Vars      ,ONLY: SideInfo_Shared, NodeInfo_Shared, NodeToElemInfo, NodeToElemMapping
 USE MOD_Mesh_Vars               ,ONLY: LostRotPeriodicSides,nElems
@@ -702,7 +1422,7 @@ INTEGER,INTENT(OUT)  :: notMappedTotal
 INTEGER                           :: iSide, jSide, nRotPeriodicSides, SideID,SideID2, MaxNumRotPeriodicNeigh, iNode, iNeigh, jNeigh
 INTEGER                           :: NodeID, CNElemID, LocSideID, k, l, m, CNElemID2, LocSideID2, TestElemID, UniqueNodeID
 INTEGER                           :: iElem, jElem, NewNeighNumber, kNeigh
-LOGICAL                           :: mySide, FoundConnection
+LOGICAL                           :: mySide, FoundConnection, abortAfterWriteOut
 REAL                              :: iNodeVec(1:3), jNodeVec(1:3)
 REAL                              :: iNodeR, iNodeH, jNodeR, jNodeH, Node2Rmin, Node2Rmax, Node2Hmin, Node2Hmax, dh, dr
 INTEGER,PARAMETER                 :: NbrOfRotConnections=1000
@@ -715,6 +1435,7 @@ REAL,ALLOCPOINT,DIMENSION(:,:)    :: BoundingBox
 
 nRotPeriodicSides = 0
 offsetSide        = 0
+abortAfterWriteOut = .FALSE.
 
 ! Surf sides are shared, array calculation can be distributed
 #if USE_MPI
@@ -794,7 +1515,7 @@ RotPeriodicSideMapping_temp = 0
 notMapped=0
 MaxNumRotPeriodicNeigh = 0
 ! Defining rotation matrix
-SELECT CASE(GEO%RotPeriodicAxi)
+SELECT CASE(PartBound%RotPeriodicAxis)
   CASE(1) ! x-rotation axis
     k = 1
     l = 2
@@ -857,7 +1578,7 @@ END DO ! iSide = firstSide, lastSide
 CALL BARRIER_AND_SYNC(BoundingBox_Shared_Win , MPI_COMM_SHARED)
 #endif /*USE_MPI*/
 
-! (3) find Side on corresponding BC and build mapping RotPeriodicSide -> SideID2 (and vice versa)
+! (3a) find Side on corresponding BC and build mapping RotPeriodicSide -> SideID2 (and vice versa)
 !     counting potential rotational periodic sides (for non-conforming meshes)
 ! Use named loops: Loop over the assigned iSides and compare against all nRotPeriodicSides
 iSideLoop: DO iSide = firstSide, lastSide
@@ -870,8 +1591,8 @@ iSideLoop: DO iSide = firstSide, lastSide
     FoundConnection = .FALSE.
 
     ! Check if both sides are on the same boundary, i.e., they cannot be connected
-    IF(PartBound%RotPeriodicDir(PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID))).EQ. &
-        PartBound%RotPeriodicDir(PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID2)))) CYCLE jSideLoop
+    IF(PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID)).EQ. &
+        PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID2))) CYCLE jSideLoop
 
     ! Check if jSide is assigned to the proc
     mySide = (jSide.GE.firstSide).AND.(jSide.LE.lastSide)
@@ -978,27 +1699,27 @@ iSideLoop: DO iSide = firstSide, lastSide
 
   END DO jSideLoop ! jSide = 1, nRotPeriodicSides
 
-  ! Check if iSide could not be mapped to any other side. There should be at least one
+  ! Check if iSide could not be mapped to any other side
   IF(NumRotPeriodicNeigh(iSide).EQ.0) THEN
-    IF(ElemInfo_Shared(ELEM_HALOFLAG,SideInfo_Shared(SIDE_ELEMID,SideID)).NE.3) THEN
-      ! Count number of sides that could not be mapped (warning output + info in h5 file when CalcMeshInfo=T)
-      notMapped = notMapped + 1
-    ELSE
+    IF(ElemInfo_Shared(ELEM_HALOFLAG,SideInfo_Shared(SIDE_ELEMID,SideID)).EQ.3) THEN
       ! Found side on element that is a neighbor element in rot halo region (they have halo flag 3)
+      ! If a particle ends up there, an abort is in place RotPeriodicBoundary routine, as RotPeriodicSideMapping will get an -1 later
       NumRotPeriodicNeigh(iSide) = 1
       RotPeriodicSideMapping_temp(iSide,NumRotPeriodicNeigh(iSide)) = 0
-    END IF ! ElemInfo_Shared(ELEM_HALOFLAG,SideInfo_Shared(SIDE_ELEMID,SideID)).NE.3
+    END IF
   END IF ! NumRotPeriodicNeigh(iSide).EQ.0
 
 END DO iSideLoop ! iSide = firstSide, lastSide
 
-! Addition of neighbour elements for each node of a mapped side (especially a problem for tetrahedron-based meshes)
+! (3b) Addition of neighbour elements for each node of a mapped side (especially a problem for tetrahedron-based meshes)
 DO iSide = firstSide, lastSide
   NewNeighNumber = NumRotPeriodicNeigh(iSide)
   DO iNeigh=1, NumRotPeriodicNeigh(iSide)
+    IF(RotPeriodicSideMapping_temp(iSide,iNeigh).EQ.0) CYCLE
     SideID = RotPeriodicSideMapping_temp(iSide,iNeigh)
     CNElemID  = GetCNElemID(SideInfo_Shared(SIDE_ELEMID,SideID))
     LocSideID = SideInfo_Shared(SIDE_LOCALID,SideID)
+    ! Loop over the nodes of the neighbour side
     kNodeLoop: DO iNode = 1, 4
       NodeID = ElemSideNodeID_Shared(iNode,LocSideID,CNElemID) + 1
       UniqueNodeID = NodeInfo_Shared(NodeID)
@@ -1022,11 +1743,22 @@ DO iSide = firstSide, lastSide
         NewNeighNumber = NewNeighNumber + 1
         IF(NewNeighNumber.GT.NbrOfRotConnections) CALL abort(__STAMP__,&
             ' NewNeighNumber: Number of rotational periodic side exceed fixed number of ',IntInfoOpt=NbrOfRotConnections)
+        ! Storing the global element ID with a negative sign in the side mapping array, treated during step (5)
         RotPeriodicSideMapping_temp(iSide,NewNeighNumber) = -GetGlobalElemID(TestElemID)
       END DO ElemLoop
     END DO kNodeLoop
   END DO
   NumRotPeriodicNeigh(iSide) = NewNeighNumber
+  ! Check if iSide still could not be mapped to any other side.
+  IF(NumRotPeriodicNeigh(iSide).EQ.0) THEN
+    SideID = Rot2Glob_temp(iSide)
+    IF(ElemInfo_Shared(ELEM_HALOFLAG,SideInfo_Shared(SIDE_ELEMID,SideID)).NE.3) THEN
+      ! Count number of sides that could not be mapped (warning output + info in h5 file when CalcMeshInfo=T)
+      ! This is acceptable when the halo region (ELEM_HALOFLAG = 2) of the node merely reaches the rotational BC but does not extend any further.
+      notMapped = notMapped + 1
+      IF(ElemInfo_Shared(ELEM_HALOFLAG,SideInfo_Shared(SIDE_ELEMID,SideID)).EQ.1) abortAfterWriteOut = .TRUE.
+    END IF
+  END IF
 END DO
 
 ! (4) reallocate array due to number of potential rotational periodic sides
@@ -1034,7 +1766,7 @@ END DO
 CALL BARRIER_AND_SYNC(NumRotPeriodicNeigh_Shared_Win, MPI_COMM_SHARED)
 CALL BARRIER_AND_SYNC(RotPeriodicSideMapping_temp_Shared_Win, MPI_COMM_SHARED)
 ! The allreduce is only required when a global array for writing to .h5 is to be used
-!CALL MPI_ALLREDUCE(MAXVAL(NumRotPeriodicNeigh) , MaxNumRotPeriodicNeigh , 1 , MPI_INTEGER , MPI_MAX , MPI_COMM_WORLD , iError)
+!CALL MPI_ALLREDUCE(MAXVAL(NumRotPeriodicNeigh) , MaxNumRotPeriodicNeigh , 1 , MPI_INTEGER , MPI_MAX , MPI_COMM_PICLAS , iError)
 #endif /*USE_MPI*/
 MaxNumRotPeriodicNeigh = MAXVAL(NumRotPeriodicNeigh)
 
@@ -1049,24 +1781,29 @@ ALLOCATE(RotPeriodicSideMapping(nRotPeriodicSides,MaxNumRotPeriodicNeigh))
 RotPeriodicSideMapping = -1
 #endif /*USE_MPI*/
 
+! (5) store the side to element mapping in the final array, make sure to convert the negative ElemIDs
+!     (stored directly in the temporary array during 3b)
 DO iSide=1, nRotPeriodicSides
   DO iNeigh=1, MaxNumRotPeriodicNeigh
     SideID = RotPeriodicSideMapping_temp(iSide,iNeigh)
-    IF(SideID.GT.0)THEN
+    IF(SideID.GT.0) THEN
+      ! Sides added during (3a), get the global element ID for these neighbours
       GlobalElemID = SideInfo_Shared(SIDE_ELEMID,SideID)
       RotPeriodicSideMapping(iSide,iNeigh) = GlobalElemID
     ELSE IF(SideID.LT.0) THEN
+      ! Global elements added during (3b) directly with a negative sign
       RotPeriodicSideMapping(iSide,iNeigh) = ABS(SideID)
-    END IF ! SideID.NE.0
+    END IF
   END DO
 END DO
 
 #if USE_MPI
-CALL MPI_ALLREDUCE(notMapped , notMappedTotal , 1 , MPI_INTEGER , MPI_SUM , MPI_COMM_WORLD , IERROR)
+CALL MPI_ALLREDUCE(notMapped , notMappedTotal , 1 , MPI_INTEGER , MPI_SUM , MPI_COMM_PICLAS , IERROR)
 #else
 notMappedTotal = notMapped
 #endif /*USE_MPI*/
 
+! Write out of potentially not mapped sides, abort if a local side did not find a neighbour
 IF(notMappedTotal.GT.0)THEN
   IF(CalcMeshInfo)THEN
     ALLOCATE(LostRotPeriodicSides(1:nElems))
@@ -1074,7 +1811,7 @@ IF(notMappedTotal.GT.0)THEN
     CALL AddToElemData(ElementOut,'LostRotPeriodicSides',LongIntArray=LostRotPeriodicSides)
     CALL WriteLostRotPeriodicSidesToHDF5()
   END IF ! CalcMeshInfo
-  !IF(MPIroot) CALL abort(__STAMP__,'At least one rot periodic side did not find a corresponding side.')
+  IF(abortAfterWriteOut) CALL abort(__STAMP__,' ERROR: At least one rot periodic side on the local compute-node did not find a corresponding side.')
 END IF ! notMappedTotal.GT.0
 
 #if USE_MPI
@@ -1096,6 +1833,163 @@ DEALLOCATE(BoundingBox)
 
 END SUBROUTINE BuildParticleBoundaryRotPeriodic
 
+!===================================================================================================================================
+!> Build the mapping for the intermediate plane between two rotational periodic segments.
+!> Allocate index list for particles that are created at inter planes
+!===================================================================================================================================
+SUBROUTINE InitRotPeriodicInterPlaneMapping()
+! MODULES
+USE MOD_Globals
+USE MOD_Particle_Boundary_Vars    ,ONLY: SurfSide2GlobalSide
+USE MOD_Particle_Boundary_Vars    ,ONLY: PartBound,nPartBound,InterPlaneSideMapping
+USE MOD_Particle_Mesh_Vars        ,ONLY: SideInfo_Shared, ElemInfo_Shared, ElemSideNodeID_Shared,NodeCoords_Shared
+USE MOD_Particle_Vars             ,ONLY: InterPlanePartIndx, PDM
+USE MOD_Mesh_Tools                ,ONLY: GetCNElemID
+#if USE_MPI
+!USE MOD_MPI_Shared_Vars         ,ONLY: myComputeNodeRank,nComputeNodeProcessors
+!USE MOD_MPI_Shared
+USE MOD_Particle_Boundary_Vars    ,ONLY: nComputeNodeSurfTotalSides
+#else
+USE MOD_Particle_Boundary_Vars  ,ONLY: nSurfTotalSides
+#endif /*USE_MPI*/
+IMPLICIT NONE
+!----------------------------------------------------------------------------------------------------------------------------------!
+! INPUT / OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER                           :: iPartBound,firstSide,lastSide,MaxNumInterPlaneSide, iSide, SideID, ElemID
+INTEGER                           :: RotSideID, CNElemID, ilocSide,InterPlaneLocalSideNum, InterSideID, BCID
+INTEGER                           :: k,m,l
+INTEGER                           :: iNode,jNode
+REAL                              :: InterNode_1,RotNode_1,InterNode_2,RotNode_2
+INTEGER,ALLOCATABLE               :: SideCounter(:)
+INTEGER                           :: ALLOCSTAT
+LOGICAL                           :: HasInterPlaneOnProc(nPartBound)
+!===================================================================================================================================
+
+ALLOCATE(InterPlanePartIndx(1:PDM%maxParticleNumber), STAT=ALLOCSTAT)
+IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__,'ERROR in particle_boundary_init.f90: Cannot allocate InterPlanePartIndx array!')
+
+HasInterPlaneOnProc = .FALSE.
+
+#if USE_MPI
+firstSide = 1 ! INT(REAL( myComputeNodeRank   )*REAL(nComputeNodeSurfTotalSides)/REAL(nComputeNodeProcessors))+1
+lastSide  = nComputeNodeSurfTotalSides ! INT(REAL((myComputeNodeRank+1))*REAL(nComputeNodeSurfTotalSides)/REAL(nComputeNodeProcessors))
+#else
+firstSide = 1
+lastSide  = nSurfTotalSides
+#endif /*USE_MPI*/
+! First loop: calculating the number of sides per inter plane and finds the maximum number
+iBCLoop1: DO iPartBound=1,nPartBound
+  PartBound%nSidesOnInterPlane(iPartBound) = 0
+  IF (PartBound%TargetBoundCond(iPartBound).NE.PartBound%RotPeriodicInterPlaneBC) CYCLE iBCLoop1
+  iSideLoop1: DO iSide = firstSide, lastSide
+    SideID = SurfSide2GlobalSide(SURF_SIDEID,iSide)
+    IF(PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID)).EQ.iPartBound) THEN
+      PartBound%nSidesOnInterPlane(iPartBound) = PartBound%nSidesOnInterPlane(iPartBound) + 1
+    END IF
+  END DO iSideLoop1 ! iSide = firstSide, lastSide
+END DO iBCLoop1 ! iPartBound=1, nPartBound
+
+! Allocate inter plane mapping array
+MaxNumInterPlaneSide = MAXVAL(PartBound%nSidesOnInterPlane)
+ALLOCATE(InterPlaneSideMapping(nPartBound,MaxNumInterPlaneSide))
+
+! Second loop: Fill the mapping array
+ALLOCATE(SideCounter(nPartBound))
+SideCounter = 1
+iBCLoop2: DO iPartBound=1,nPartBound
+  IF (PartBound%TargetBoundCond(iPartBound).NE.PartBound%RotPeriodicInterPlaneBC) CYCLE iBCLoop2
+  iSideLoop2: DO iSide = firstSide, lastSide
+    SideID = SurfSide2GlobalSide(SURF_SIDEID,iSide)
+    IF(PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID)).EQ.iPartBound) THEN
+      InterPlaneSideMapping(iPartBound,SideCounter(iPartBound)) = SideID
+      SideCounter(iPartBound) = SideCounter(iPartBound) + 1
+    END IF
+  END DO iSideLoop2 ! iSide = firstSide, lastSide
+END DO iBCLoop2 ! iPartBound=1,nPartBound
+
+! Third loop: Find the r_o vector for the random positioning calculation
+! InterSideID = GlobalSideID on intermediate plane side
+! RotSideID   = GlobalSideID on rot periodic side
+! Find the node that is on both the inter plane and the rot peri side. The coords of this node can be used to
+! define a nomalized vector in radius direction at the border of the inter plane.
+SELECT CASE(PartBound%RotPeriodicAxis)
+  CASE(1) ! x-rotation axis
+    k = 1
+    l = 2
+    m = 3
+  CASE(2) ! y-rotation axis
+    k = 2
+    l = 3
+    m = 1
+  CASE(3) ! z-rotation axis
+    k = 3
+    l = 1
+    m = 2
+END SELECT
+iBCLoop3: DO iPartBound=1,nPartBound
+  ! Skip non-interPlane BCs
+  IF (PartBound%TargetBoundCond(iPartBound).NE.PartBound%RotPeriodicInterPlaneBC) CYCLE iBCLoop3
+  firstSide = 1
+  lastSide  = PartBound%nSidesOnInterPlane(iPartBound)
+  ! Loop over all the sides on the interplane
+  interSideLoop: DO iSide = firstSide, lastSide
+    InterSideID = InterPlaneSideMapping(iPartBound,iSide)  ! GlobalSideID!
+    ElemID = SideInfo_Shared(SIDE_ELEMID,InterSideID)
+    InterPlaneLocalSideNum = SideInfo_Shared(SIDE_LOCALID,InterSideID) ! 1-6 of the element local sides
+    CNElemID  = GetCNElemID(ElemID)
+    LocSideLoop: DO ilocSide = 1, 6
+      RotSideID=ElemInfo_Shared(ELEM_FIRSTSIDEIND,ElemID)+ilocSide
+      ! Skip myself
+      IF(RotSideID.EQ.InterSideID) CYCLE LocSideLoop
+      ! Skip non-BC sides
+      BCID = SideInfo_Shared(SIDE_BCID,RotSideID)
+      IF(BCID.EQ.0) CYCLE LocSideLoop
+      ! Skip non-rotPeriodic BCs
+      IF(PartBound%TargetBoundCond(PartBound%MapToPartBC(BCID)).NE.PartBound%RotPeriodicBC) CYCLE
+      PartBound%RotPeriodicAngle(iPartBound) = PartBound%RotPeriodicAngle(PartBound%MapToPartBC(BCID))
+      HasInterPlaneOnProc(iPartBound) = .TRUE.
+      ! Loop over the local side nodes of InterSideID
+      iNodeLoop: DO iNode=1, 4
+        InterNode_1 = NodeCoords_Shared(l,ElemSideNodeID_Shared(iNode,InterPlaneLocalSideNum,CNElemID)+1)
+        InterNode_2 = NodeCoords_Shared(m,ElemSideNodeID_Shared(iNode,InterPlaneLocalSideNum,CNElemID)+1)
+        ! Cycle if node is on rotation axis (radius = 0)
+        IF( (ALMOSTZERO(InterNode_1)).AND.(ALMOSTZERO(InterNode_2)) ) CYCLE iNodeLoop
+        ! Loop over the local side nodes of RotSideID
+        jNodeLoop: DO jNode=1, 4
+          RotNode_1   = NodeCoords_Shared(l,ElemSideNodeID_Shared(jNode,ilocSide,CNElemID)+1)
+          IF(InterNode_1.EQ.RotNode_1) THEN
+            RotNode_2   = NodeCoords_Shared(m,ElemSideNodeID_Shared(jNode,ilocSide,CNElemID)+1)
+            IF(InterNode_2.EQ.RotNode_2) THEN
+              ! iNode/jNode is on both BCs
+              PartBound%NormalizedRadiusDir(1,iPartBound) = InterNode_1 / (SQRT(InterNode_1**2 + InterNode_2**2))
+              PartBound%NormalizedRadiusDir(2,iPartBound) = InterNode_2 / (SQRT(InterNode_1**2 + InterNode_2**2))
+              EXIT iNodeLoop
+            END IF
+          END IF
+        END DO jNodeLoop
+      END DO iNodeLoop
+      EXIT interSideLoop
+    END DO LocSideLoop
+  END DO interSideLoop ! iSide = firstSide, lastSide
+END DO iBCLoop3 ! iPartBound=1,nPartBound
+
+! Fourth loop: Save angleRatioOfInterPlanes
+iBCLoop4: DO iPartBound=1,nPartBound
+  IF (PartBound%TargetBoundCond(iPartBound).NE.PartBound%RotPeriodicInterPlaneBC) CYCLE iBCLoop4
+  IF(HasInterPlaneOnProc(iPartBound)) THEN
+    PartBound%AngleRatioOfInterPlanes(iPartBound) = ABS( PartBound%RotPeriodicAngle(PartBound%AssociatedPlane(iPartBound)) &
+                                                      / PartBound%RotPeriodicAngle(iPartBound) )
+  ELSE
+    PartBound%AngleRatioOfInterPlanes(iPartBound) = -1.
+  END IF
+END DO iBCLoop4 ! iPartBound=1,nPartBound
+
+DEALLOCATE(SideCounter)
+
+END SUBROUTINE InitRotPeriodicInterPlaneMapping
+
 
 !===================================================================================================================================
 !> Allocate shared array for the side-local wall temperature: BoundaryWallTemp_Shared and initialize with read-in wall temperature
@@ -1103,8 +1997,10 @@ END SUBROUTINE BuildParticleBoundaryRotPeriodic
 SUBROUTINE InitAdaptiveWallTemp()
 ! MODULES
 USE MOD_Globals
+USE MOD_Mesh_Tools                ,ONLY: GetCNElemID
 USE MOD_Particle_Boundary_Vars    ,ONLY: PartBound, nComputeNodeSurfTotalSides, BoundaryWallTemp, SurfSide2GlobalSide,nSurfSample
-USE MOD_Particle_Mesh_Vars        ,ONLY: SideInfo_Shared
+USE MOD_Particle_Mesh_Vars        ,ONLY: SideInfo_Shared, NodeCoords_Shared, ElemSideNodeID_Shared
+USE MOD_SurfaceModel_Tools        ,ONLY: CalcWallTempGradient
 #if USE_MPI
 USE MOD_MPI_Shared
 USE MOD_MPI_Shared_Vars           ,ONLY: MPI_COMM_SHARED, myComputeNodeRank, nComputeNodeProcessors
@@ -1119,9 +2015,10 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                           :: firstSide, lastSide, iSide, SideID, iBC
+INTEGER                           :: firstSide, lastSide, iSide, SideID, iBC, ElemID, CNElemID, LocSideID, iNode
+REAL                              :: SideMidpoint(1:3)
 !===================================================================================================================================
-IF (.NOT.(ANY(PartBound%UseAdaptedWallTemp))) RETURN
+IF (.NOT.PartBound%OutputWallTemp) RETURN
 
 #if USE_MPI
 !> Then shared arrays for boundary sampling
@@ -1145,7 +2042,20 @@ DO iSide = firstSide,LastSide
   ! get global SideID. This contains only nonUniqueSide, no special mortar treatment required
   SideID = SurfSide2GlobalSide(SURF_SIDEID,iSide)
   iBC = PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID))
-  IF (PartBound%MomentumACC(iBC).GT.0.0) BoundaryWallTemp(:,:,iSide) = PartBound%WallTemp(iBC)
+  IF (PartBound%MomentumACC(iBC).GT.0.0) THEN
+    IF(PartBound%WallTemp2(iBC).GT.0.) THEN
+      ElemID    = SideInfo_Shared(SIDE_ELEMID ,SideID)
+      CNElemID  = GetCNElemID(ElemID)
+      LocSideID = SideInfo_Shared(SIDE_LOCALID,SideID)
+      SideMidpoint(1:3) = 0.
+      DO iNode = 1,4
+        SideMidpoint(1:3) = SideMidpoint(1:3) + NodeCoords_Shared(1:3,ElemSideNodeID_Shared(iNode,LocSideID,CNElemID)+1) / 4
+      END DO
+      BoundaryWallTemp(:,:,iSide) = CalcWallTempGradient(SideMidpoint,iBC)
+    ELSE
+      BoundaryWallTemp(:,:,iSide) = PartBound%WallTemp(iBC)
+    END IF
+  END IF
 END DO
 
 #if USE_MPI
@@ -1153,285 +2063,6 @@ CALL BARRIER_AND_SYNC(BoundaryWallTemp_Shared_Win,MPI_COMM_SHARED)
 #endif /*USE_MPI*/
 
 END SUBROUTINE InitAdaptiveWallTemp
-
-
-SUBROUTINE InitializeVariablesAuxBC()
-!===================================================================================================================================
-! Initialize the variables first
-!===================================================================================================================================
-! MODULES
-USE MOD_Globals
-USE MOD_ReadInTools
-USE MOD_Globals_Vars           ,ONLY: Pi
-USE MOD_Particle_Boundary_Vars ,ONLY: PartAuxBC
-USE MOD_Particle_Boundary_Vars ,ONLY: nAuxBCs,AuxBCType,AuxBCMap,AuxBC_plane,AuxBC_cylinder,AuxBC_cone,AuxBC_parabol,UseAuxBCs
-USE MOD_Particle_Boundary_Tools,ONLY: MarkAuxBCElems
-! IMPLICIT VARIABLE HANDLING
- IMPLICIT NONE
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-INTEGER               :: iPartBound, iSwaps, MaxNbrOfSpeciesSwaps
-INTEGER               :: iAuxBC, nAuxBCplanes, nAuxBCcylinders, nAuxBCcones, nAuxBCparabols
-CHARACTER(32)         :: hilf , hilf2
-CHARACTER(200)        :: tmpString
-REAL                  :: n_vec(3), cos2, rmax
-REAL, DIMENSION(3,1)  :: norm,norm1,norm2
-REAL, DIMENSION(3,3)  :: rot1, rot2
-REAL                  :: alpha1, alpha2
-!===================================================================================================================================
-nAuxBCs=GETINT('Part-nAuxBCs','0')
-IF (nAuxBCs.GT.0) THEN
-  UseAuxBCs=.TRUE.
-  ALLOCATE (AuxBCType(1:nAuxBCs) &
-            ,AuxBCMap(1:nAuxBCs) )
-  AuxBCMap=0
-  !- Read in BC parameters
-  ALLOCATE(PartAuxBC%TargetBoundCond(1:nAuxBCs))
-  ALLOCATE(PartAuxBC%MomentumACC(1:nAuxBCs))
-  ALLOCATE(PartAuxBC%WallTemp(1:nAuxBCs))
-  ALLOCATE(PartAuxBC%TransACC(1:nAuxBCs))
-  ALLOCATE(PartAuxBC%VibACC(1:nAuxBCs))
-  ALLOCATE(PartAuxBC%RotACC(1:nAuxBCs))
-  ALLOCATE(PartAuxBC%ElecACC(1:nAuxBCs))
-  ALLOCATE(PartAuxBC%Resample(1:nAuxBCs))
-  ALLOCATE(PartAuxBC%WallVelo(1:3,1:nAuxBCs))
-  ALLOCATE(PartAuxBC%NbrOfSpeciesSwaps(1:nAuxBCs))
-  !--determine MaxNbrOfSpeciesSwaps for correct allocation
-  MaxNbrOfSpeciesSwaps=0
-  DO iPartBound=1,nAuxBCs
-    WRITE(UNIT=hilf,FMT='(I0)') iPartBound
-    PartAuxBC%NbrOfSpeciesSwaps(iPartBound)= GETINT('Part-AuxBC'//TRIM(hilf)//'-NbrOfSpeciesSwaps','0')
-    MaxNbrOfSpeciesSwaps=max(PartAuxBC%NbrOfSpeciesSwaps(iPartBound),MaxNbrOfSpeciesSwaps)
-  END DO
-  IF (MaxNbrOfSpeciesSwaps.gt.0) THEN
-    ALLOCATE(PartAuxBC%ProbOfSpeciesSwaps(1:nAuxBCs))
-    ALLOCATE(PartAuxBC%SpeciesSwaps(1:2,1:MaxNbrOfSpeciesSwaps,1:nAuxBCs))
-  END IF
-  !--
-  DO iPartBound=1,nAuxBCs
-    WRITE(UNIT=hilf,FMT='(I0)') iPartBound
-    tmpString = TRIM(GETSTR('Part-AuxBC'//TRIM(hilf)//'-Condition','open'))
-    SELECT CASE (TRIM(tmpString))
-    CASE('open')
-      PartAuxBC%TargetBoundCond(iPartBound) = PartAuxBC%OpenBC          ! definitions see typesdef_pic
-    CASE('reflective')
-      PartAuxBC%TargetBoundCond(iPartBound) = PartAuxBC%ReflectiveBC
-      PartAuxBC%MomentumACC(iPartBound)     = GETREAL('Part-AuxBC'//TRIM(hilf)//'-MomentumACC')
-      PartAuxBC%WallTemp(iPartBound)        = GETREAL('Part-AuxBC'//TRIM(hilf)//'-WallTemp')
-      PartAuxBC%TransACC(iPartBound)        = GETREAL('Part-AuxBC'//TRIM(hilf)//'-TransACC')
-      PartAuxBC%VibACC(iPartBound)          = GETREAL('Part-AuxBC'//TRIM(hilf)//'-VibACC')
-      PartAuxBC%RotACC(iPartBound)          = GETREAL('Part-AuxBC'//TRIM(hilf)//'-RotACC')
-      PartAuxBC%ElecACC(iPartBound)         = GETREAL('Part-AuxBC'//TRIM(hilf)//'-ElecACC')
-      PartAuxBC%Resample(iPartBound)        = GETLOGICAL('Part-AuxBC'//TRIM(hilf)//'-Resample')
-      PartAuxBC%WallVelo(1:3,iPartBound)    = GETREALARRAY('Part-AuxBC'//TRIM(hilf)//'-WallVelo',3)
-      IF (PartAuxBC%NbrOfSpeciesSwaps(iPartBound).gt.0) THEN
-        !read Species to be changed at wall (in, out), out=0: delete
-        PartAuxBC%ProbOfSpeciesSwaps(iPartBound)= GETREAL('Part-AuxBC'//TRIM(hilf)//'-ProbOfSpeciesSwaps','1.')
-        DO iSwaps=1,PartAuxBC%NbrOfSpeciesSwaps(iPartBound)
-          WRITE(UNIT=hilf2,FMT='(I0)') iSwaps
-          PartAuxBC%SpeciesSwaps(1:2,iSwaps,iPartBound) = &
-            GETINTARRAY('Part-AuxBC'//TRIM(hilf)//'-SpeciesSwaps'//TRIM(hilf2),2,'0. , 0.')
-        END DO
-      END IF
-    CASE DEFAULT
-      SWRITE(*,*) ' AuxBC Condition does not exists: ', TRIM(tmpString)
-      CALL abort(__STAMP__,'AuxBC Condition does not exist')
-    END SELECT
-  END DO
-  !- read and count types
-  nAuxBCplanes = 0
-  nAuxBCcylinders = 0
-  nAuxBCcones = 0
-  nAuxBCparabols = 0
-  DO iAuxBC=1,nAuxBCs
-    WRITE(UNIT=hilf,FMT='(I0)') iAuxBC
-    AuxBCType(iAuxBC) = TRIM(GETSTR('Part-AuxBC'//TRIM(hilf)//'-Type','plane'))
-    SELECT CASE (TRIM(AuxBCType(iAuxBC)))
-    CASE ('plane')
-      nAuxBCplanes = nAuxBCplanes + 1
-      AuxBCMap(iAuxBC) = nAuxBCplanes
-    CASE ('cylinder')
-      nAuxBCcylinders = nAuxBCcylinders + 1
-      AuxBCMap(iAuxBC) = nAuxBCcylinders
-    CASE ('cone')
-      nAuxBCcones = nAuxBCcones + 1
-      AuxBCMap(iAuxBC) = nAuxBCcones
-    CASE ('parabol')
-      nAuxBCparabols = nAuxBCparabols + 1
-      AuxBCMap(iAuxBC) = nAuxBCparabols
-    CASE DEFAULT
-      SWRITE(*,*) ' AuxBC does not exist: ', TRIM(AuxBCType(iAuxBC))
-      CALL abort(__STAMP__,'AuxBC does not exist')
-    END SELECT
-  END DO
-  !- allocate type-specifics
-  IF (nAuxBCplanes.GT.0) THEN
-    ALLOCATE (AuxBC_plane(1:nAuxBCplanes))
-  END IF
-  IF (nAuxBCcylinders.GT.0) THEN
-    ALLOCATE (AuxBC_cylinder(1:nAuxBCcylinders))
-  END IF
-  IF (nAuxBCcones.GT.0) THEN
-    ALLOCATE (AuxBC_cone(1:nAuxBCcones))
-  END IF
-  IF (nAuxBCparabols.GT.0) THEN
-    ALLOCATE (AuxBC_parabol(1:nAuxBCparabols))
-  END IF
-  !- read type-specifics
-  DO iAuxBC=1,nAuxBCs
-    WRITE(UNIT=hilf,FMT='(I0)') iAuxBC
-    SELECT CASE (TRIM(AuxBCType(iAuxBC)))
-    CASE ('plane')
-      AuxBC_plane(AuxBCMap(iAuxBC))%r_vec = GETREALARRAY('Part-AuxBC'//TRIM(hilf)//'-r_vec',3,'0. , 0. , 0.')
-      WRITE(UNIT=hilf2,FMT='(G0)') HUGE(AuxBC_plane(AuxBCMap(iAuxBC))%radius)
-      AuxBC_plane(AuxBCMap(iAuxBC))%radius= GETREAL('Part-AuxBC'//TRIM(hilf)//'-radius',TRIM(hilf2))
-      n_vec                               = GETREALARRAY('Part-AuxBC'//TRIM(hilf)//'-n_vec',3,'1. , 0. , 0.')
-      IF (DOT_PRODUCT(n_vec,n_vec).EQ.0.) THEN
-        CALL abort(&
-          __STAMP__&
-          ,'Part-AuxBC-n_vec is zero for AuxBC',iAuxBC)
-      ELSE !scale vector
-        AuxBC_plane(AuxBCMap(iAuxBC))%n_vec = n_vec/SQRT(DOT_PRODUCT(n_vec,n_vec))
-      END IF
-    CASE ('cylinder')
-      AuxBC_cylinder(AuxBCMap(iAuxBC))%r_vec = GETREALARRAY('Part-AuxBC'//TRIM(hilf)//'-r_vec',3,'0. , 0. , 0.')
-      n_vec                                  = GETREALARRAY('Part-AuxBC'//TRIM(hilf)//'-axis',3,'1. , 0. , 0.')
-      IF (DOT_PRODUCT(n_vec,n_vec).EQ.0.) THEN
-        CALL abort(&
-          __STAMP__&
-          ,'Part-AuxBC-axis is zero for AuxBC',iAuxBC)
-      ELSE !scale vector
-        AuxBC_cylinder(AuxBCMap(iAuxBC))%axis = n_vec/SQRT(DOT_PRODUCT(n_vec,n_vec))
-      END IF
-      AuxBC_cylinder(AuxBCMap(iAuxBC))%radius  = GETREAL('Part-AuxBC'//TRIM(hilf)//'-radius','1.')
-      WRITE(UNIT=hilf2,FMT='(G0)') -HUGE(AuxBC_cylinder(AuxBCMap(iAuxBC))%lmin)
-      AuxBC_cylinder(AuxBCMap(iAuxBC))%lmin  = GETREAL('Part-AuxBC'//TRIM(hilf)//'-lmin',TRIM(hilf2))
-      WRITE(UNIT=hilf2,FMT='(G0)') HUGE(AuxBC_cylinder(AuxBCMap(iAuxBC))%lmin)
-      AuxBC_cylinder(AuxBCMap(iAuxBC))%lmax  = GETREAL('Part-AuxBC'//TRIM(hilf)//'-lmax',TRIM(hilf2))
-      AuxBC_cylinder(AuxBCMap(iAuxBC))%inwards = GETLOGICAL('Part-AuxBC'//TRIM(hilf)//'-inwards','.TRUE.')
-    CASE ('cone')
-      AuxBC_cone(AuxBCMap(iAuxBC))%r_vec = GETREALARRAY('Part-AuxBC'//TRIM(hilf)//'-r_vec',3,'0. , 0. , 0.')
-      n_vec                              = GETREALARRAY('Part-AuxBC'//TRIM(hilf)//'-axis',3,'1. , 0. , 0.')
-      IF (DOT_PRODUCT(n_vec,n_vec).EQ.0.) THEN
-        CALL abort(&
-          __STAMP__&
-          ,'Part-AuxBC-axis is zero for AuxBC',iAuxBC)
-      ELSE !scale vector
-        AuxBC_cone(AuxBCMap(iAuxBC))%axis = n_vec/SQRT(DOT_PRODUCT(n_vec,n_vec))
-      END IF
-      AuxBC_cone(AuxBCMap(iAuxBC))%lmin  = GETREAL('Part-AuxBC'//TRIM(hilf)//'-lmin','0.')
-      IF (AuxBC_cone(AuxBCMap(iAuxBC))%lmin.LT.0.) CALL abort(&
-          __STAMP__&
-          ,'Part-AuxBC-lminis .lt. zero for AuxBC',iAuxBC)
-      WRITE(UNIT=hilf2,FMT='(G0)') HUGE(AuxBC_cone(AuxBCMap(iAuxBC))%lmin)
-      AuxBC_cone(AuxBCMap(iAuxBC))%lmax  = GETREAL('Part-AuxBC'//TRIM(hilf)//'-lmax',TRIM(hilf2))
-      rmax  = GETREAL('Part-AuxBC'//TRIM(hilf)//'-rmax','0.')
-      ! either define rmax at lmax or the halfangle
-      IF (rmax.EQ.0.) THEN
-        AuxBC_cone(AuxBCMap(iAuxBC))%halfangle  = GETREAL('Part-AuxBC'//TRIM(hilf)//'-halfangle','45.')*PI/180.
-      ELSE
-        AuxBC_cone(AuxBCMap(iAuxBC))%halfangle  = ATAN(rmax/AuxBC_cone(AuxBCMap(iAuxBC))%lmax)
-      END IF
-      IF (AuxBC_cone(AuxBCMap(iAuxBC))%halfangle.LE.0.) CALL abort(&
-          __STAMP__&
-          ,'Part-AuxBC-halfangle is .le. zero for AuxBC',iAuxBC)
-      AuxBC_cone(AuxBCMap(iAuxBC))%inwards = GETLOGICAL('Part-AuxBC'//TRIM(hilf)//'-inwards','.TRUE.')
-      cos2 = COS(AuxBC_cone(AuxBCMap(iAuxBC))%halfangle)**2
-      AuxBC_cone(AuxBCMap(iAuxBC))%geomatrix(:,1) &
-        = AuxBC_cone(AuxBCMap(iAuxBC))%axis(1)*AuxBC_cone(AuxBCMap(iAuxBC))%axis - (/cos2,0.,0./)
-      AuxBC_cone(AuxBCMap(iAuxBC))%geomatrix(:,2) &
-        = AuxBC_cone(AuxBCMap(iAuxBC))%axis(2)*AuxBC_cone(AuxBCMap(iAuxBC))%axis - (/0.,cos2,0./)
-      AuxBC_cone(AuxBCMap(iAuxBC))%geomatrix(:,3) &
-        = AuxBC_cone(AuxBCMap(iAuxBC))%axis(3)*AuxBC_cone(AuxBCMap(iAuxBC))%axis - (/0.,0.,cos2/)
-    CASE ('parabol')
-      AuxBC_parabol(AuxBCMap(iAuxBC))%r_vec = GETREALARRAY('Part-AuxBC'//TRIM(hilf)//'-r_vec',3,'0. , 0. , 0.')
-      n_vec                              = GETREALARRAY('Part-AuxBC'//TRIM(hilf)//'-axis',3,'1. , 0. , 0.')
-      IF (DOT_PRODUCT(n_vec,n_vec).EQ.0.) THEN
-        CALL abort(&
-          __STAMP__&
-          ,'Part-AuxBC-axis is zero for AuxBC',iAuxBC)
-      ELSE !scale vector
-        AuxBC_parabol(AuxBCMap(iAuxBC))%axis = n_vec/SQRT(DOT_PRODUCT(n_vec,n_vec))
-      END IF
-      AuxBC_parabol(AuxBCMap(iAuxBC))%lmin  = GETREAL('Part-AuxBC'//TRIM(hilf)//'-lmin','0.')
-      IF (AuxBC_parabol(AuxBCMap(iAuxBC))%lmin.LT.0.) CALL abort(&
-          __STAMP__&
-          ,'Part-AuxBC-lmin is .lt. zero for AuxBC',iAuxBC)
-      WRITE(UNIT=hilf2,FMT='(G0)') HUGE(AuxBC_parabol(AuxBCMap(iAuxBC))%lmin)
-      AuxBC_parabol(AuxBCMap(iAuxBC))%lmax  = GETREAL('Part-AuxBC'//TRIM(hilf)//'-lmax',TRIM(hilf2))
-      AuxBC_parabol(AuxBCMap(iAuxBC))%zfac  = GETREAL('Part-AuxBC'//TRIM(hilf)//'-zfac','1.')
-      AuxBC_parabol(AuxBCMap(iAuxBC))%inwards = GETLOGICAL('Part-AuxBC'//TRIM(hilf)//'-inwards','.TRUE.')
-
-      norm(:,1)=AuxBC_parabol(AuxBCMap(iAuxBC))%axis
-      IF (.NOT.ALMOSTZERO(SQRT(norm(1,1)**2+norm(3,1)**2))) THEN !collinear with y?
-        alpha1=ATAN2(norm(1,1),norm(3,1))
-        CALL roty(rot1,alpha1)
-        norm1=MATMUL(rot1,norm)
-      ELSE
-        alpha1=0.
-        CALL ident(rot1)
-        norm1=norm
-      END IF
-      IF (.NOT.ALMOSTZERO(SQRT(norm1(2,1)**2+norm1(3,1)**2))) THEN !collinear with x?
-        alpha2=-ATAN2(norm1(2,1),norm1(3,1))
-        CALL rotx(rot2,alpha2)
-        norm2=MATMUL(rot2,norm1)
-      ELSE
-        CALL abort(&
-          __STAMP__&
-          ,'vector is collinear with x-axis. this should not be possible... AuxBC:',iAuxBC)
-      END IF
-      AuxBC_parabol(AuxBCMap(iAuxBC))%rotmatrix(:,:)=MATMUL(rot2,rot1)
-      AuxBC_parabol(AuxBCMap(iAuxBC))%geomatrix4(:,:)=0.
-      AuxBC_parabol(AuxBCMap(iAuxBC))%geomatrix4(1,1)=1.
-      AuxBC_parabol(AuxBCMap(iAuxBC))%geomatrix4(2,2)=1.
-      AuxBC_parabol(AuxBCMap(iAuxBC))%geomatrix4(3,3)=0.
-      AuxBC_parabol(AuxBCMap(iAuxBC))%geomatrix4(3,4)=-0.5*AuxBC_parabol(AuxBCMap(iAuxBC))%zfac
-      AuxBC_parabol(AuxBCMap(iAuxBC))%geomatrix4(4,3)=-0.5*AuxBC_parabol(AuxBCMap(iAuxBC))%zfac
-    CASE DEFAULT
-      SWRITE(*,*) ' AuxBC does not exist: ', TRIM(AuxBCType(iAuxBC))
-      CALL abort(__STAMP__,'AuxBC does not exist for AuxBC',iAuxBC)
-    END SELECT
-  END DO
-  CALL MarkAuxBCElems()
-ELSE
-  UseAuxBCs=.FALSE.
-END IF
-
-END SUBROUTINE InitializeVariablesAuxBC
-
-
-SUBROUTINE rotx(mat,a)
-IMPLICIT NONE
-REAL, INTENT(OUT), DIMENSION(3,3) :: mat
-REAL, INTENT(IN) :: a
-mat(:,1)=(/1.0 , 0.     , 0.  /)
-mat(:,2)=(/0.0 , COS(a) ,-SIN(a)/)
-mat(:,3)=(/0.0 , SIN(a) , COS(a)/)
-END SUBROUTINE
-
-
-SUBROUTINE roty(mat,a)
-IMPLICIT NONE
-REAL, INTENT(OUT), DIMENSION(3,3) :: mat
-REAL, INTENT(IN) :: a
-mat(:,1)=(/ COS(a) , 0., SIN(a)/)
-mat(:,2)=(/ 0.     , 1., 0.  /)
-mat(:,3)=(/-SIN(a) , 0., COS(a)/)
-END SUBROUTINE
-
-
-SUBROUTINE ident(mat)
-IMPLICIT NONE
-REAL, INTENT(OUT), DIMENSION(3,3) :: mat
-INTEGER :: j
-mat = 0.
-FORALL(j = 1:3) mat(j,j) = 1.
-END SUBROUTINE
 
 
 SUBROUTINE FinalizeParticleBoundary()
@@ -1449,7 +2080,6 @@ USE MOD_MPI_Shared
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Vars   ,ONLY: PerformLoadBalance,UseH5IOLoadBalance
 #endif /*USE_LOADBALANCE*/
-USE MOD_Particle_Mesh_Vars ,ONLY: GEO
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
 ! INPUT VARIABLES
@@ -1461,12 +2091,15 @@ IMPLICIT NONE
 SDEALLOCATE(PartBound%SourceBoundName)
 SDEALLOCATE(PartBound%TargetBoundCond)
 SDEALLOCATE(PartBound%MomentumACC)
+SDEALLOCATE(PartBound%OnlySpecular)
+SDEALLOCATE(PartBound%OnlyDiffuse)
 SDEALLOCATE(PartBound%WallTemp)
 SDEALLOCATE(PartBound%WallTemp2)
 SDEALLOCATE(PartBound%WallTempDelta)
 SDEALLOCATE(PartBound%TempGradStart)
 SDEALLOCATE(PartBound%TempGradEnd)
 SDEALLOCATE(PartBound%TempGradVec)
+SDEALLOCATE(PartBound%TempGradDir)
 SDEALLOCATE(PartBound%TransACC)
 SDEALLOCATE(PartBound%VibACC)
 SDEALLOCATE(PartBound%RotACC)
@@ -1475,12 +2108,19 @@ SDEALLOCATE(PartBound%Resample)
 SDEALLOCATE(PartBound%WallVelo)
 SDEALLOCATE(PartBound%RotVelo)
 SDEALLOCATE(PartBound%RotOmega)
-SDEALLOCATE(PartBound%RotPeriodicDir)
-SDEALLOCATE(PartBound%Voltage)
+SDEALLOCATE(PartBound%NormalizedRadiusDir)
+SDEALLOCATE(PartBound%RotAxisPosition)
+SDEALLOCATE(PartBound%RotPeriodicAngle)
+SDEALLOCATE(PartBound%RotPeriodicMin)
+SDEALLOCATE(PartBound%RotPeriodicMax)
+SDEALLOCATE(PartBound%AssociatedPlane)
+SDEALLOCATE(PartBound%AngleRatioOfInterPlanes)
+SDEALLOCATE(PartBound%nSidesOnInterPlane)
 SDEALLOCATE(PartBound%NbrOfSpeciesSwaps)
 SDEALLOCATE(PartBound%ProbOfSpeciesSwaps)
 SDEALLOCATE(PartBound%SpeciesSwaps)
 SDEALLOCATE(PartBound%MapToPartBC)
+SDEALLOCATE(PartBound%MapToFieldBC)
 SDEALLOCATE(PartBound%SurfaceModel)
 SDEALLOCATE(PartBound%CoverageIni)
 SDEALLOCATE(PartBound%MaxCoverage)
@@ -1493,8 +2133,21 @@ SDEALLOCATE(PartBound%Dielectric)
 SDEALLOCATE(PartBound%BoundaryParticleOutputHDF5)
 SDEALLOCATE(PartBound%RadiativeEmissivity)
 
+! Mapping arrays are allocated even if the node does not have sampling surfaces
+#if USE_MPI
+IF(SurfCOMM%UNICATOR.NE.MPI_COMM_NULL) CALL MPI_COMM_FREE(SurfCOMM%UNICATOR,iERROR)
+CALL MPI_BARRIER(MPI_COMM_SHARED,iERROR)
+CALL UNLOCK_AND_FREE(GlobalSide2SurfSide_Shared_Win)
+CALL UNLOCK_AND_FREE(SurfSide2GlobalSide_Shared_Win)
+CALL MPI_BARRIER(MPI_COMM_SHARED,iERROR)
+ADEALLOCATE(GlobalSide2SurfSide_Shared)
+ADEALLOCATE(SurfSide2GlobalSide_Shared)
+#endif /*USE_MPI*/
+ADEALLOCATE(GlobalSide2SurfSide)
+ADEALLOCATE(SurfSide2GlobalSide)
+
 ! Rotational periodic boundary condition
-IF(GEO%RotPeriodicBC)THEN
+IF(PartBound%UseRotPeriodicBC)THEN
 #if USE_MPI
   CALL MPI_BARRIER(MPI_COMM_SHARED,iERROR)
   CALL UNLOCK_AND_FREE(SurfSide2RotPeriodicSide_Shared_Win)
@@ -1506,15 +2159,16 @@ IF(GEO%RotPeriodicBC)THEN
   CALL UNLOCK_AND_FREE(RotPeriodicSideMapping_Shared_Win)
   ADEALLOCATE(RotPeriodicSideMapping_Shared)
   ADEALLOCATE(RotPeriodicSideMapping)
+  ADEALLOCATE(InterPlaneSideMapping)
 #else
   SDEALLOCATE(SurfSide2RotPeriodicSide)
   SDEALLOCATE(NumRotPeriodicNeigh)
   SDEALLOCATE(RotPeriodicSideMapping)
 #endif
-END IF ! GEO%RotPeriodicBC
+END IF ! PartBound%UseRotPeriodicBC
 
 ! Adaptive wall temperature (e.g. calculate from sampled heat flux)
-IF (ANY(PartBound%UseAdaptedWallTemp)) THEN
+IF (PartBound%OutputWallTemp) THEN
 #if USE_MPI
   CALL MPI_BARRIER(MPI_COMM_SHARED,iERROR)
   CALL UNLOCK_AND_FREE(BoundaryWallTemp_Shared_Win)

@@ -15,6 +15,9 @@
 !===================================================================================================================================
 MODULE MOD_Analyze_Vars
 ! MODULES
+#if USE_MPI
+USE MOD_Globals
+#endif /*USE_MPI*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 PUBLIC
@@ -33,13 +36,14 @@ REAL              :: OutputTimeFixed             !< fixed time for writing state
 LOGICAL           :: CalcMeshInfo                !< Output myrank, ElemID and tracking info to ElemData
 LOGICAL           :: CalcHaloInfo                !< Output halo element information to ElemData
 INTEGER           :: AnalyzeCount                !< number of analyzes (for info)
-REAL              :: AnalyzeTime                 !< accumulated time of analyzes (for info)
+REAL              :: AnalyzeTime                 !< Accumulated wall time of analyzes (for info)
 REAL,ALLOCATABLE  :: S(:,:,:,:), STEM(:,:,:)     !< vector, abs for TEM waves
 LOGICAL           :: DoFieldAnalyze              !< perform analyze
 LOGICAL           :: DoMeasureAnalyzeTime        !< measure time that is spent in analyze routines and count the number of analysis
                                                  !< calls (to std out stream)
 INTEGER(KIND=8)   :: FieldAnalyzeStep            !< Analyze is performed each Nth time step
 LOGICAL           :: DoCalcErrorNorms            !< perform L2, LInf error calculation
+LOGICAL           :: OutputErrorNormsToH5        !< Set true to write the analytical solution, the L2 and LInf error norms at analyze step to .h5 state file. Default = F
 LOGICAL           :: DoSurfModelAnalyze          !< perform analyze for SurfaceModel
 LOGICAL           :: CalcEpot                    !< Computation of the energy stored in the electric and
 REAL              :: Wel                         !< energy of the electric field
@@ -88,6 +92,29 @@ TYPE tBoundaryFieldOutput
 END TYPE
 
 TYPE(tBoundaryFieldOutput)   :: BFO
+!===================================================================================================================================
+!-- Electric displacement current
+
+#if USE_MPI
+TYPE tMPIGROUP
+  INTEGER                     :: ID                     !< MPI communicator ID
+  INTEGER                     :: UNICATOR=MPI_COMM_NULL !< MPI communicator for electric displacement current
+  INTEGER                     :: nProcs                 !< number of MPI processes for particles
+  INTEGER                     :: MyRank                 !< MyRank within communicator
+END TYPE
+#endif /*USE_MPI*/
+
+TYPE tEDC
+  REAL,ALLOCATABLE            :: Current(:)          !< Electric displacement current for each (required) BC index
+#if USE_MPI
+  TYPE(tMPIGROUP),ALLOCATABLE :: COMM(:)             !< communicator and ID for parallel execution
+#endif /*USE_MPI*/
+  INTEGER                     :: NBoundaries         !< Total number of boundaries where the electric displacement current is evaluated
+  INTEGER,ALLOCATABLE         :: FieldBoundaries(:)  !< Field-boundary number on which the particles are counted
+  INTEGER,ALLOCATABLE         :: BCIDToEDCBCID(:)    !< Mapping BCID to EDC BCID (1:nPartBound)
+END TYPE
+
+TYPE(tEDC)   :: EDC
 !===================================================================================================================================
 LOGICAL           :: AnalyzeInitIsDone = .FALSE.
 END MODULE MOD_Analyze_Vars

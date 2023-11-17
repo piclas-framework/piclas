@@ -30,6 +30,7 @@ SUBROUTINE InitDefineParameters()
 USE MOD_Globals                    ,ONLY: UNIT_stdOut
 #if USE_MPI
 USE MOD_Globals                    ,ONLY: MPIRoot
+USE MOD_MPI_Shared                 ,ONLY: DefineParametersMPIShared
 #endif /*USE_MPI*/
 USE MOD_Globals_Init               ,ONLY: DefineParametersGlobals
 USE MOD_ReadInTools                ,ONLY: prms
@@ -76,13 +77,13 @@ USE MOD_SurfaceModel_Analyze       ,ONLY: DefineParametersSurfModelAnalyze
 USE MOD_BGK_Init                   ,ONLY: DefineParametersBGK
 USE MOD_FPFlow_Init                ,ONLY: DefineParametersFPFlow
 USE MOD_SurfaceModel_Porous        ,ONLY: DefineParametersPorousBC
-USE MOD_Particle_VarTimeStep       ,ONLY: DefineParametersVaribleTimeStep
+USE MOD_Particle_TimeStep          ,ONLY: DefineParametersVariableTimeStep
 USE MOD_DSMC_Symmetry              ,ONLY: DefineParametersParticleSymmetry
 USE MOD_SuperB_Init                ,ONLY: DefineParametersSuperB
 USE MOD_SurfaceModel_Chemistry     ,ONLY: DefineParametersSurfaceChemistry
 #if USE_MPI
 USE mod_readIMD                    ,ONLY: DefineParametersReadIMDdata
-#endif /* USE_MPI */
+#endif
 #endif
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! Insert modules here
@@ -98,6 +99,9 @@ SWRITE(UNIT_stdOut,'(A)') ' DEFINING PARAMETERS ...'
 SWRITE(UNIT_stdOut,'(132("="))')
 
 CALL DefineParametersMPI()
+#if USE_MPI
+CALL DefineParametersMPIShared()
+#endif /*USE_MPI*/
 CALL DefineParametersIO()
 CALL DefineParametersGlobals()
 CALL DefineParametersLoadBalance()
@@ -129,7 +133,7 @@ CALL DefineParametersParticleBoundary()
 CALL DefineParametersParticleBoundarySampling()
 CALL DefineParametersParticleSamplingAdaptive()
 CALL DefineParametersParticleSymmetry()
-CALL DefineParametersVaribleTimeStep()
+CALL DefineParametersVariableTimeStep()
 CALL DefineParametersPorousBC()
 CALL DefineParametersParticleMesh()
 CALL DefineParametersParticleBGM()

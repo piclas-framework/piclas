@@ -15,11 +15,11 @@ the repositories.
 Two methods for checking out the code are described in the following.
 
 #### Method 1 (Proxy Jump)
-To clone a repository from, e.g., gitlab.com on a HLRS system, the ssh proxy jump must first be set up. Simply connect to
+To clone a repository from, e.g., github.com on a HLRS system, the ssh proxy jump must first be set up. Simply connect to
 the system via ssh and add the following lines to the ssh configuration file under `~/.ssh/config` on the cluster
 
-    Host gitlab.com
-       HostName   gitlab.com
+    Host github.com
+       HostName   github.com
        ProxyJump  RemoteHost
 
 where the *RemoteHost* has internet access and can be accessed via ssh from the HLRS system. It is also defined
@@ -31,9 +31,9 @@ where the *RemoteHost* has internet access and can be accessed via ssh from the 
 
 Then simply clone the repository via
 
-    git clone git@gitlab.com:mygroup/myproject.git
+    git clone git@github.com:mygroup/myproject.git
 
-and all the ssh traffic via `gitlab.com` is automatically re-routed over the *RemoteHost*.
+and all the ssh traffic via `github.com` is automatically re-routed over the *RemoteHost*.
 
 #### Method 2 (Remote Forwarding)
 
@@ -46,7 +46,7 @@ To avoid using the above command every time, you can add the following to your `
     host hlrs
        hostname        hazelhen.hww.de
        user            username
-       RemoteForward   7777 gitlab.com:22
+       RemoteForward   7777 github.com:22
 
 and login with `ssh hlrs`. Now you can clone the repository when logged onto the cluster by
 

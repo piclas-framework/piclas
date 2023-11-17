@@ -78,6 +78,9 @@ USE MOD_Interpolation_Vars    ,ONLY: NodeType
 USE MOD_ReadInTools           ,ONLY: PrintOption
 USE MOD_SuperB                ,ONLY: SuperB
 USE MOD_SuperB_Vars           ,ONLY: BGFieldFrequency,UseTimeDepCoil,nTimePoints,BGFieldTDep
+#if USE_LOADBALANCE
+USE MOD_LoadBalance_Vars      ,ONLY: PerformLoadBalance
+#endif /*USE_LOADBALANCE*/
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
@@ -97,8 +100,8 @@ REAL                                    :: BGFieldScaling
 LOGICAL                                 :: BGFieldExists,DG_SolutionExists
 !===================================================================================================================================
 
-SWRITE(UNIT_stdOut,'(132("-"))')
-SWRITE(UNIT_stdOut,'(A)')' INIT BACKGROUND FIELD...'
+LBWRITE(UNIT_stdOut,'(132("-"))')
+LBWRITE(UNIT_stdOut,'(A)')' INIT BACKGROUND FIELD...'
 
 ! 1) Determine whether a field will be read-in or calculated
 UseTimeDepCoil=.FALSE.! Initialize
@@ -111,8 +114,8 @@ ELSE
   IF(FILEEXISTS(TRIM(BGFileName))) THEN
   ! 1b) If a filename not given, check if the BGField for the current case exists, if it does -> read-in of the available field
     CalcBField = .FALSE.
-    SWRITE(UNIT_stdOut,'(A)')' No file name for the background field was given, but an existing file was found!'
-    SWRITE(UNIT_stdOut,*) 'File name: ', TRIM(BGFileName)
+    LBWRITE(UNIT_stdOut,'(A)')' No file name for the background field was given, but an existing file was found!'
+    LBWRITE(UNIT_stdOut,*) 'File name: ', TRIM(BGFileName)
   ELSE
   ! 1c) If no filename was given and no current BGField for this case exists, check if permanent magnets/coils were given -> superB
     CalcBField = .TRUE.
@@ -126,7 +129,7 @@ IF(CalcBField) THEN
 ELSE
   BGFieldScaling = GETREAL('PIC-BGFieldScaling','1.')
   ! 2b) Read-in the parameters from the BGField file
-  CALL OpenDataFile(BGFileName,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_WORLD)
+  CALL OpenDataFile(BGFileName,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_PICLAS)
   CALL DatasetExists(File_ID,'BGField',BGFieldExists) ! backward compatibility
   CALL DatasetExists(File_ID,'DG_Solution',DG_SolutionExists)
   IF(BGFieldExists) THEN
@@ -171,7 +174,7 @@ IF (CalcBField) THEN
   ! Calculate the background B-field via SuperB
   CALL SuperB()
 ELSE
-  SWRITE(UNIT_stdOut,'(A)')' Reading background field from file ['//TRIM(BGFileName)//']... '
+  LBWRITE(UNIT_stdOut,'(A)')' Reading background field from file ['//TRIM(BGFileName)//']... '
   ALLOCATE(VarNames(nVar_BField))
   CALL ReadAttribute(File_ID,'VarNames',nVar_BField,StrArray=VarNames)
 
@@ -241,9 +244,9 @@ ELSE
   ! END IF
 
   IF(NBG.NE.N_In)THEN
-    SWRITE(UNIT_stdOut,'(A)')' Changing polynomial degree of BG-Field.'
+    LBWRITE(UNIT_stdOut,'(A)')' Changing polynomial degree of BG-Field.'
     IF(NBG.GT.N_IN) THEN
-      SWRITE(UNIT_stdOut,'(A)')' WARNING: BG-Field is used with higher polynomial degree than given!'
+      LBWRITE(UNIT_stdOut,'(A)')' WARNING: BG-Field is used with higher polynomial degree than given!'
     END IF
     ALLOCATE( Vdm_BGFieldIn_BGField(0:NBG,0:N_IN) &
             , wGP_tmp(0:N_in)                     &
@@ -293,8 +296,8 @@ ELSE
   SDEALLOCATE(xGP_tmp)
 END IF ! CalcBField
 
-SWRITE(UNIT_stdOut,'(A)')' INIT BACKGROUND FIELD DONE!'
-SWRITE(UNIT_StdOut,'(132("-"))')
+LBWRITE(UNIT_stdOut,'(A)')' INIT BACKGROUND FIELD DONE!'
+LBWRITE(UNIT_StdOut,'(132("-"))')
 
 END SUBROUTINE InitializeBackgroundField
 

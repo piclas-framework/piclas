@@ -36,9 +36,9 @@ SUBROUTINE TimeStep_BGK()
 USE MOD_PreProc
 USE MOD_TimeDisc_Vars          ,ONLY: dt, IterDisplayStep, iter, TEnd, Time
 USE MOD_Globals                ,ONLY: abort, CROSS
-USE MOD_Particle_Vars          ,ONLY: PartState, LastPartPos, PDM, PEM, DoSurfaceFlux, WriteMacroVolumeValues
-USE MOD_Particle_Vars          ,ONLY: UseRotRefFrame, RotRefFrameOmega
-USE MOD_Particle_Vars          ,ONLY: VarTimeStep, Symmetry
+USE MOD_Particle_Vars          ,ONLY: PartState, LastPartPos, PDM, PEM, DoSurfaceFlux, WriteMacroVolumeValues, Symmetry
+USE MOD_Particle_Vars          ,ONLY: UseRotRefFrame, RotRefFrameOmega, PartVeloRotRef
+USE MOD_Particle_Vars          ,ONLY: UseVarTimeStep, PartTimeStep
 USE MOD_DSMC_Vars              ,ONLY: DSMC, CollisMode
 USE MOD_part_tools             ,ONLY: UpdateNextFreePosition
 USE MOD_part_emission          ,ONLY: ParticleInserting
@@ -48,9 +48,11 @@ USE MOD_Particle_Tracking_vars ,ONLY: tTracking,MeasureTrackTime
 USE MOD_Eval_xyz               ,ONLY: GetPositionInRefElem
 USE MOD_part_RHS               ,ONLY: CalcPartRHSRotRefFrame
 USE MOD_Part_Tools             ,ONLY: InRotRefFrameCheck
+USE MOD_Part_Tools             ,ONLY: CalcPartSymmetryPos
 #if USE_MPI
 USE MOD_Particle_MPI           ,ONLY: IRecvNbOfParticles, MPIParticleSend,MPIParticleRecv,SendNbOfparticles
 USE MOD_Particle_MPI_Vars      ,ONLY: DoParticleLatencyHiding
+USE MOD_Globals                ,ONLY: CollectiveStop
 #endif /*USE_MPI*/
 USE MOD_BGK                    ,ONLY: BGK_main, BGK_DSMC_main
 USE MOD_BGK_Vars               ,ONLY: CoupledBGKDSMC,DoBGKCellAdaptation
@@ -65,69 +67,61 @@ IMPLICIT NONE
 ! LOCAL VARIABLES
 REAL                  :: timeEnd, timeStart
 INTEGER               :: iPart
-REAL                  :: RandVal, dtVar, NewYPart, NewYVelo, Pt_local(1:3), RotRefVelo(1:3)
+REAL                  :: RandVal, dtVar
+! Rotational frame of reference
+REAL                  :: Pt_local(1:3), Pt_local_old(1:3), VeloRotRef_half(1:3), PartState_half(1:3)
 !===================================================================================================================================
 #ifdef EXTRAE
 CALL extrae_eventandcounters(int(9000001), int8(5))
 #endif /*EXTRAE*/
+
 IF (DoSurfaceFlux) THEN
   CALL ParticleSurfaceflux()
 END IF
 
 DO iPart=1,PDM%ParticleVecLength
   IF (PDM%ParticleInside(iPart)) THEN
-  ! Variable time step: getting the right time step for the particle (can be constant across an element)
-  IF (VarTimeStep%UseVariableTimeStep) THEN
-    dtVar = dt * VarTimeStep%ParticleTimeStep(iPart)
-  ELSE
-    dtVar = dt
-  END IF
-  IF (PDM%dtFracPush(iPart)) THEN
-    ! Surface flux (dtFracPush): previously inserted particles are pushed a random distance between 0 and v*dt
-    !                            LastPartPos and LastElem already set!
-    CALL RANDOM_NUMBER(RandVal)
-    dtVar = dtVar * RandVal
-    PDM%dtFracPush(iPart) = .FALSE.
-  ELSE
-    LastPartPos(1:3,iPart)=PartState(1:3,iPart)
-    PEM%LastGlobalElemID(iPart)=PEM%GlobalElemID(iPart)
-  END IF
-  IF(UseRotRefFrame) THEN
-    IF(PDM%InRotRefFrame(iPart)) THEN
-      RotRefVelo(1:3) = PartState(4:6,iPart) - CROSS(RotRefFrameOmega(1:3),PartState(1:3,iPart))
-      CALL CalcPartRHSRotRefFrame(iPart,Pt_local(1:3),RotRefVelo(1:3))
-      PartState(1:3,iPart) = PartState(1:3,iPart) + (RotRefVelo(1:3)+dtVar*0.5*Pt_local(1:3)) * dtVar
+    ! Variable time step: getting the right time step for the particle (can be constant across an element)
+    IF (UseVarTimeStep) THEN
+      dtVar = dt * PartTimeStep(iPart)
+    ELSE
+      dtVar = dt
+    END IF
+    IF (PDM%dtFracPush(iPart)) THEN
+      ! Surface flux (dtFracPush): previously inserted particles are pushed a random distance between 0 and v*dt
+      !                            LastPartPos and LastElem already set!
+      CALL RANDOM_NUMBER(RandVal)
+      dtVar = dtVar * RandVal
+      PDM%dtFracPush(iPart) = .FALSE.
+    ELSE
+      LastPartPos(1:3,iPart)=PartState(1:3,iPart)
+      PEM%LastGlobalElemID(iPart)=PEM%GlobalElemID(iPart)
+    END IF
+    IF(UseRotRefFrame) THEN
+      IF(PDM%InRotRefFrame(iPart)) THEN
+        ! Midpoint method
+        ! calculate the acceleration (force / mass) at the current time step
+        Pt_local_old(1:3) = CalcPartRHSRotRefFrame(PartState(1:3,iPart), PartVeloRotRef(1:3,iPart))
+        ! estimate the mid-point velocity in the rotational frame
+        VeloRotRef_half(1:3) = PartVeloRotRef(1:3,iPart) + 0.5*Pt_local_old(1:3)*dtVar
+        ! estimate the mid-point position
+        PartState_half(1:3) = PartState(1:3,iPart) + 0.5*PartVeloRotRef(1:3,iPart)*dtVar
+        ! calculate the acceleration (force / mass) at the mid-point
+        Pt_local(1:3) = CalcPartRHSRotRefFrame(PartState_half(1:3), VeloRotRef_half(1:3))
+        ! update the position using the mid-point velocity in the rotational frame
+        PartState(1:3,iPart) = PartState(1:3,iPart) + VeloRotRef_half(1:3)*dtVar
+        ! update the velocity in the rotational frame using the mid-point acceleration
+        PartVeloRotRef(1:3,iPart) = PartVeloRotRef(1:3,iPart) + Pt_local(1:3)*dtVar
+      ELSE
+        PartState(1:3,iPart) = PartState(1:3,iPart) + PartState(4:6,iPart) * dtVar
+      END IF
     ELSE
       PartState(1:3,iPart) = PartState(1:3,iPart) + PartState(4:6,iPart) * dtVar
     END IF
-  ELSE
-    PartState(1:3,iPart) = PartState(1:3,iPart) + PartState(4:6,iPart) * dtVar
-  END IF
-  ! Axisymmetric treatment of particles: rotation of the position and velocity vector
-  IF(Symmetry%Axisymmetric) THEN
-    IF (PartState(2,iPart).LT.0.0) THEN
-      NewYPart = -SQRT(PartState(2,iPart)**2 + (PartState(3,iPart))**2)
-    ELSE
-      NewYPart = SQRT(PartState(2,iPart)**2 + (PartState(3,iPart))**2)
-    END IF
-    ! Rotation: Vy' =   Vy * cos(alpha) + Vz * sin(alpha) =   Vy * y/y' + Vz * z/y'
-    !           Vz' = - Vy * sin(alpha) + Vz * cos(alpha) = - Vy * z/y' + Vz * y/y'
-    ! Right-hand system, using new y and z positions after tracking, position vector and velocity vector DO NOT have to
-    ! coincide (as opposed to Bird 1994, p. 391, where new positions are calculated with the velocity vector)
-    NewYVelo = (PartState(5,iPart)*(PartState(2,iPart))+PartState(6,iPart)*PartState(3,iPart))/NewYPart
-    PartState(6,iPart) = (-PartState(5,iPart)*PartState(3,iPart)+PartState(6,iPart)*(PartState(2,iPart)))/NewYPart
-    PartState(2,iPart) = NewYPart
-    PartState(3,iPart) = 0.0
-    PartState(5,iPart) = NewYVelo
-    END IF
+    ! Axisymmetric treatment of particles: rotation of the position and velocity vector
+    CALL CalcPartSymmetryPos(PartState(1:3,iPart),PartState(4:6,iPart))
   END IF
 END DO
-
-! Resetting the particle positions in the second/third dimension for the 1D/2D/axisymmetric case
-IF(Symmetry%Order.LT.3) THEN
-  LastPartPos(Symmetry%Order+1:3,1:PDM%ParticleVecLength) = 0.0
-  PartState(Symmetry%Order+1:3,1:PDM%ParticleVecLength) = 0.0
-END IF
 
 #ifdef EXTRAE
 CALL extrae_eventandcounters(int(9000001), int8(0))
@@ -168,8 +162,8 @@ END IF
 CALL MPIParticleSend(.TRUE.)
 #endif /*USE_MPI*/
 
-IF(DoBGKCellAdaptation)THEN
-  IF(Symmetry%Order.EQ.2)THEN
+IF(DoBGKCellAdaptation.OR.(CoupledBGKDSMC.AND.DSMC%UseOctree)) THEN
+  IF(Symmetry%Order.EQ.2) THEN
     DO iPart=1,PDM%ParticleVecLength
       IF (PDM%ParticleInside(iPart)) THEN
         ! Store reference position in LastPartPos array to reduce memory demand
@@ -184,21 +178,32 @@ IF(DoBGKCellAdaptation)THEN
       END IF
     END DO
   END IF ! Symmetry%Order.EQ.2
-END IF ! DoBGKCellAdaptation
+END IF ! DoBGKCellAdaptation.OR.(CoupledBGKDSMC.AND.DSMC%UseOctree)
 
 IF(UseRotRefFrame) THEN
   DO iPart = 1,PDM%ParticleVecLength
-    IF(PDM%ParticleInside(iPart)) PDM%InRotRefFrame(iPart) = InRotRefFrameCheck(iPart)
+    IF(PDM%ParticleInside(iPart)) THEN
+      IF(InRotRefFrameCheck(iPart)) THEN
+        ! Particle moved into the rotational frame of reference, initialize velocity
+        IF(.NOT.PDM%InRotRefFrame(iPart)) THEN
+          PartVeloRotRef(1:3,iPart) = PartState(4:6,iPart) - CROSS(RotRefFrameOmega(1:3),PartState(1:3,iPart))
+        END IF
+      ELSE
+        ! Particle left (or never was in) the rotational frame of reference
+        PartVeloRotRef(1:3,iPart) = 0.
+      END IF
+      PDM%InRotRefFrame(iPart) = InRotRefFrameCheck(iPart)
+    END IF
   END DO
 END IF
 
 #if USE_MPI
 IF(DoParticleLatencyHiding)THEN
-  IF (CoupledBGKDSMC) THEN
-    CALL BGK_DSMC_main(1)
-  ELSE
+  ! IF (CoupledBGKDSMC) THEN
+  !   CALL BGK_DSMC_main(1)
+  ! ELSE
     CALL BGK_main(1)
-  END IF
+  ! END IF
 END IF ! DoParticleLatencyHiding
 
 ! finish communication
@@ -215,11 +220,11 @@ CALL MPIParticleRecv(.TRUE.)
 !#endif /*EXTRAE*/
 #if USE_MPI
 IF(DoParticleLatencyHiding)THEN
-  IF (CoupledBGKDSMC) THEN
-    CALL BGK_DSMC_main(2)
-  ELSE
+  ! IF (CoupledBGKDSMC) THEN
+  !   CALL BGK_DSMC_main(2)
+  ! ELSE
     CALL BGK_main(2)
-  END IF
+  ! END IF
 ELSE
 #endif /*USE_MPI*/
   IF (CoupledBGKDSMC) THEN

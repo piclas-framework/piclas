@@ -34,7 +34,7 @@ SUBROUTINE ParticleInserting()
 !===================================================================================================================================
 ! Modules
 #if USE_MPI
-USE MOD_Particle_MPI_Vars      ,ONLY: PartMPI
+USE MOD_Particle_MPI_Vars      ,ONLY: PartMPIInitGroup
 #endif /*USE_MPI*/
 USE MOD_Globals
 USE MOD_Globals_Vars           ,ONLY: c,PI
@@ -49,6 +49,7 @@ USE MOD_Particle_Analyze_Vars  ,ONLY: CalcPartBalance,nPartIn,PartEkinIn
 USE MOD_Particle_Analyze_Tools ,ONLY: CalcEkinPart
 USE MOD_part_emission_tools    ,ONLY: SetParticleChargeAndMass,SetParticleMPF,SamplePoissonDistri,SetParticleTimeStep,CalcNbrOfPhotons
 USE MOD_part_emission_tools    ,ONLY: CountNeutralizationParticles
+USE MOD_PICDepo_Tools          ,ONLY: DepositPhotonSEEHoles
 USE MOD_part_pos_and_velo      ,ONLY: SetParticlePosition,SetParticleVelocity
 USE MOD_DSMC_BGGas             ,ONLY: BGGas_PhotoIonization
 USE MOD_DSMC_ChemReact         ,ONLY: CalcPhotoIonizationNumber
@@ -57,6 +58,7 @@ USE MOD_ReadInTools            ,ONLY: PrintOption
 #if defined(MEASURE_MPI_WAIT)
 USE MOD_Particle_MPI_Vars      ,ONLY: MPIW8TimePart,MPIW8CountPart
 #endif /*defined(MEASURE_MPI_WAIT)*/
+USE MOD_SurfaceModel_Analyze_Vars ,ONLY: SEE,CalcElectronSEE
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -66,12 +68,13 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 ! Local variable declaration
-INTEGER                          :: i , iPart, PositionNbr, iInit, IntSample
-INTEGER                          :: NbrOfParticle
+INTEGER                          :: i, iPart, PositionNbr, iInit, IntSample
+INTEGER                          :: NbrOfParticle,iSEEBC
 INTEGER(KIND=8)                  :: inserted_Particle_iter,inserted_Particle_time
 INTEGER(KIND=8)                  :: inserted_Particle_diff
 REAL                             :: PartIns, RandVal1
 REAL                             :: RiseFactor, RiseTime,NbrOfPhotons
+REAL                             :: dtVar, TimeVar
 #if USE_MPI
 INTEGER                          :: InitGroup
 #endif
@@ -84,6 +87,14 @@ REAL(KIND=8)                     :: Rate
 
 !---  Emission at time step
 DO i=1,nSpecies
+  ! Species-specific time step
+  IF(VarTimeStep%UseSpeciesSpecific) THEN
+    dtVar = dt * Species(i)%TimeStepFactor
+    TimeVar = Time * Species(i)%TimeStepFactor
+  ELSE
+    dtVar = dt
+    TimeVar = Time
+  END IF
   DO iInit = 1, Species(i)%NumberOfInits
     ! Reset the number of particles per species AND init region
     NbrOfParticle = 0
@@ -93,9 +104,9 @@ DO i=1,nSpecies
     SELECT CASE(Species(i)%Init(iInit)%ParticleEmissionType)
       CASE(1) ! Emission Type: Particles per !!!!!SECOND!!!!!!!! (not per ns)
         IF (.NOT.DoPoissonRounding .AND. .NOT.DoTimeDepInflow) THEN
-          PartIns=Species(i)%Init(iInit)%ParticleNumber * dt*RKdtFrac  ! emitted particles during time-slab
+          PartIns=Species(i)%Init(iInit)%ParticleNumber * dtVar*RKdtFrac  ! emitted particles during time-slab
           inserted_Particle_iter = INT(PartIns,8)                                     ! number of particles to be inserted
-          PartIns=Species(i)%Init(iInit)%ParticleNumber * (time + dt*RKdtFracTotal) ! total number of emitted particle over
+          PartIns=Species(i)%Init(iInit)%ParticleNumber * (TimeVar + dtVar*RKdtFracTotal) ! total number of emitted particle over
                                                                                       ! simulation
           !-- random-round the inserted_Particle_time for preventing periodicity
           ! PO & SC: why, sometimes we do not want this add, TB is bad!
@@ -136,7 +147,7 @@ DO i=1,nSpecies
           ELSE
             RiseFactor=1.
           EnD IF
-          PartIns=Species(i)%Init(iInit)%ParticleNumber * dt*RKdtFrac * RiseFactor  ! emitted particles during time-slab
+          PartIns=Species(i)%Init(iInit)%ParticleNumber * dtVar*RKdtFrac * RiseFactor  ! emitted particles during time-slab
           CALL RANDOM_NUMBER(RandVal1)
           IF (EXP(-PartIns).LE.TINY(PartIns)) THEN
             IPWRITE(*,*)'WARNING: target is too large for poisson sampling: switching now to Random rounding...'
@@ -158,7 +169,7 @@ DO i=1,nSpecies
             RiseFactor=1.
           EnD IF
           ! emitted particles during time-slab
-          PartIns=Species(i)%Init(iInit)%ParticleNumber * dt*RKdtFrac * RiseFactor &
+          PartIns=Species(i)%Init(iInit)%ParticleNumber * dtVar*RKdtFrac * RiseFactor &
                   + Species(i)%Init(iInit)%InsertedParticleMisMatch
           CALL RANDOM_NUMBER(RandVal1)
           NbrOfParticle = INT(PartIns + RandVal1)
@@ -166,10 +177,10 @@ DO i=1,nSpecies
 #if USE_MPI
         ! communicate number of particles with all procs in the same init group
         InitGroup=Species(i)%Init(iInit)%InitCOMM
-        IF(PartMPI%InitGroup(InitGroup)%COMM.NE.MPI_COMM_NULL) THEN
+        IF(PartMPIInitGroup(InitGroup)%COMM.NE.MPI_COMM_NULL) THEN
           ! only procs which are part of group take part in the communication
             !NbrOfParticle based on RandVals!
-          CALL MPI_BCAST(NbrOfParticle, 1, MPI_INTEGER,0,PartMPI%InitGroup(InitGroup)%COMM,IERROR)
+          CALL MPI_BCAST(NbrOfParticle, 1, MPI_INTEGER,0,PartMPIInitGroup(InitGroup)%COMM,IERROR)
         ELSE
           NbrOfParticle=0
         END IF
@@ -268,11 +279,11 @@ DO i=1,nSpecies
        ! Communicate number of particles with all procs in the same init group
        InitGroup=Species(i)%Init(iInit)%InitCOMM
        NeutralizationBalanceGlobal=0 ! always nullify
-       IF(PartMPI%InitGroup(InitGroup)%COMM.NE.MPI_COMM_NULL) THEN
+       IF(PartMPIInitGroup(InitGroup)%COMM.NE.MPI_COMM_NULL) THEN
          ! Loop over all elements and count the ion surplus per element if element-local emission is used
          IF(nNeutralizationElems.GT.0) CALL CountNeutralizationParticles()
          ! Only processors which are part of group take part in the communication
-         CALL MPI_ALLREDUCE(NeutralizationBalance,NeutralizationBalanceGlobal,1,MPI_INTEGER,MPI_SUM,PartMPI%InitGroup(InitGroup)%COMM,IERROR)
+         CALL MPI_ALLREDUCE(NeutralizationBalance,NeutralizationBalanceGlobal,1,MPI_INTEGER,MPI_SUM,PartMPIInitGroup(InitGroup)%COMM,IERROR)
        ELSE
          NeutralizationBalanceGlobal=0
        END IF
@@ -293,18 +304,30 @@ DO i=1,nSpecies
         NbrOfParticle = 0
     END SELECT
 
+    ! Create particles by setting their position in space and checking if a host cell can be found
+    ! Warning: this routine returns the emitted number of particles for each processor and changes the value of NbrOfParticle here
     CALL SetParticlePosition(i,iInit,NbrOfParticle)
+
     ! Pairing of "electrons" with the background species and performing the reaction
     SELECT CASE(TRIM(Species(i)%Init(iInit)%SpaceIC))
     CASE('photon_cylinder','photon_honeycomb','photon_rectangle')
       CALL BGGas_PhotoIonization(i,iInit,NbrOfParticle)
       CYCLE
     END SELECT
+    ! Check if photon SEE electric current is to be measured
+    IF(StringBeginsWith(Species(i)%Init(iInit)%SpaceIC,'photon_SEE').AND.CalcElectronSEE.AND.(NbrOfParticle.GT.0))THEN
+      ! Note that the negative value of the charge -q is used below
+      iSEEBC = SEE%BCIDToSEEBCID(Species(i)%Init(iInit)%PartBCIndex)
+      SEE%RealElectronOut(iSEEBC) = SEE%RealElectronOut(iSEEBC) - MPF*NbrOfParticle*Species(i)%ChargeIC
+    END IF
 
     CALL SetParticleVelocity(i,iInit,NbrOfParticle)
     CALL SetParticleChargeAndMass(i,NbrOfParticle)
     IF (usevMPF) CALL SetParticleMPF(i,iInit,NbrOfParticle)
-    IF (VarTimeStep%UseVariableTimeStep) CALL SetParticleTimeStep(NbrOfParticle)
+    ! Check if photon SEE is to be considered in the surface charging
+    IF(StringBeginsWith(Species(i)%Init(iInit)%SpaceIC,'photon_SEE').AND.(NbrOfParticle.GT.0)) CALL DepositPhotonSEEHoles(&
+        Species(i)%Init(iInit)%PartBCIndex,NbrOfParticle)
+    IF (UseVarTimeStep) CALL SetParticleTimeStep(NbrOfParticle)
     ! define molecule stuff
     IF (useDSMC.AND.(CollisMode.GT.1)) THEN
       iPart = 1
@@ -331,18 +354,18 @@ DO i=1,nSpecies
     ! Complete check if all particles were emitted successfully
 #if USE_MPI
     InitGroup=Species(i)%Init(iInit)%InitCOMM
-    IF (PartMPI%InitGroup(InitGroup)%COMM.NE.MPI_COMM_NULL .AND. Species(i)%Init(iInit)%sumOfRequestedParticles.GT.0) THEN
+    IF (PartMPIInitGroup(InitGroup)%COMM.NE.MPI_COMM_NULL .AND. Species(i)%Init(iInit)%sumOfRequestedParticles.GT.0) THEN
 #if defined(MEASURE_MPI_WAIT)
       CALL SYSTEM_CLOCK(count=CounterStart)
 #endif /*defined(MEASURE_MPI_WAIT)*/
-      CALL MPI_WAIT(PartMPI%InitGroup(InitGroup)%Request, MPI_STATUS_IGNORE, iError)
+      CALL MPI_WAIT(PartMPIInitGroup(InitGroup)%Request, MPI_STATUS_IGNORE, iError)
 #if defined(MEASURE_MPI_WAIT)
       CALL SYSTEM_CLOCK(count=CounterEnd, count_rate=Rate)
       MPIW8TimePart(5)  = MPIW8TimePart(5) + REAL(CounterEnd-CounterStart,8)/Rate
       MPIW8CountPart(5) = MPIW8CountPart(5) + 1_8
 #endif /*defined(MEASURE_MPI_WAIT)*/
 
-      IF(PartMPI%InitGroup(InitGroup)%MPIRoot) THEN
+      IF(PartMPIInitGroup(InitGroup)%MPIRoot) THEN
 #endif
         ! add number of matching error to particle emission to fit
         ! number of added particles
@@ -362,7 +385,7 @@ DO i=1,nSpecies
         !  WRITE(UNIT_stdOut,'(A,I0,A)') 'ParticleEmission_parallel: matched all (',NbrOfParticle,') particles!'
         END IF
 #if USE_MPI
-      END IF ! PartMPI%iProc.EQ.0
+      END IF ! PartMPIInitGroup(InitGroup)%MPIRoot
     END IF
 #endif
   END DO  ! iInit

@@ -40,9 +40,12 @@ CONTAINS
 !===================================================================================================================================
 SUBROUTINE SplitAndMerge()
 ! MODULES
-USE MOD_PARTICLE_Vars ,ONLY: vMPFMergeThreshold, vMPFSplitThreshold, PEM, nSpecies, PartSpecies,PDM
-USE MOD_Mesh_Vars     ,ONLY: nElems
-USE MOD_part_tools    ,ONLY: UpdateNextFreePosition
+USE MOD_PARTICLE_Vars         ,ONLY: vMPFMergeThreshold, vMPFSplitThreshold, PEM, nSpecies, PartSpecies,PDM
+USE MOD_Mesh_Vars             ,ONLY: nElems
+USE MOD_part_tools            ,ONLY: UpdateNextFreePosition
+#if USE_LOADBALANCE
+USE MOD_LoadBalance_Timers    ,ONLY: LBStartTime, LBElemSplitTime
+#endif /*USE_LOADBALANCE*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -52,15 +55,21 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER               :: iElem, iLoop, iPart, nPartCell, iSpec
-INTEGER, ALLOCATABLE  :: iPartIndx_Node(:), nPart(:),iPartIndx_Node_Temp(:,:)
+INTEGER, ALLOCATABLE  :: iPartIndx_Node(:,:), nPart(:)
+#if USE_LOADBALANCE
+REAL                  :: tLBStart
+#endif /*USE_LOADBALANCE*/
 !===================================================================================================================================
+#if USE_LOADBALANCE
+CALL LBStartTime(tLBStart)
+#endif /*USE_LOADBALANCE*/
 ALLOCATE(nPart(nSpecies))
 DO iElem = 1, nElems
   nPart(:) = 0
   nPartCell = PEM%pNumber(iElem)
-  ALLOCATE(iPartIndx_Node_Temp(nSpecies,nPartCell))
+  ALLOCATE(iPartIndx_Node(nSpecies,nPartCell))
   DO iSpec = 1, nSpecies
-    iPartIndx_Node_Temp(iSpec,1:nPartCell) = 0
+    iPartIndx_Node(iSpec,1:nPartCell) = 0
   END DO
   iPart = PEM%pStart(iElem)
 
@@ -72,29 +81,29 @@ DO iElem = 1, nElems
     END IF
     iSpec = PartSpecies(iPart)
     nPart(iSpec) = nPart(iSpec) + 1
-    iPartIndx_Node_Temp(iSpec,nPart(iSpec)) = iPart
+    iPartIndx_Node(iSpec,nPart(iSpec)) = iPart
     iPart = PEM%pNext(iPart)
   END DO
 
   DO iSpec = 1, nSpecies
-    IF((vMPFMergeThreshold(iSpec).EQ.0).AND.(vMPFSplitThreshold(iSpec).EQ.0)) CYCLE            ! Skip default values
-    IF(nPart(iSpec).EQ.0) CYCLE                     ! Skip when no particles are present
+    ! Skip default values
+    IF((vMPFMergeThreshold(iSpec).EQ.0).AND.(vMPFSplitThreshold(iSpec).EQ.0)) CYCLE
+    ! Skip when no particles are present
+    IF(nPart(iSpec).EQ.0) CYCLE
 
-    ! 2.) build partindx list for species
-    ALLOCATE(iPartIndx_Node(nPart(iSpec)))
-    iPartIndx_Node(1:nPart(iSpec)) = iPartIndx_Node_Temp(iSpec,1:nPart(iSpec))
-
-    ! 3.) Call split or merge routine
+    ! 2.) Call split or merge routine
     IF(nPart(iSpec).GT.vMPFMergeThreshold(iSpec).AND.(vMPFMergeThreshold(iSpec).NE.0)) THEN   ! Merge
-      CALL MergeParticles(iPartIndx_Node, nPart(iSpec), vMPFMergeThreshold(iSpec),iElem)
+      CALL MergeParticles(iPartIndx_Node(iSpec,1:nPart(iSpec)), nPart(iSpec), vMPFMergeThreshold(iSpec),iElem)
     ELSE IF(nPart(iSpec).LT.vMPFSplitThreshold(iSpec)) THEN                                   ! Split
-      CALL SplitParticles(iPartIndx_Node, nPart(iSpec), vMPFSplitThreshold(iSpec))
+      CALL SplitParticles(iPartIndx_Node(iSpec,1:nPart(iSpec)), nPart(iSpec), vMPFSplitThreshold(iSpec))
     END IF
-    DEALLOCATE(iPartIndx_Node)
 
   END DO
-  DEALLOCATE(iPartIndx_Node_Temp)
+  DEALLOCATE(iPartIndx_Node)
 
+#if USE_LOADBALANCE
+  CALL LBElemSplitTime(iElem,tLBStart)
+#endif /*USE_LOADBALANCE*/
 END DO
 CALL UpdateNextFreePosition()
 DEALLOCATE(nPart)
@@ -554,7 +563,8 @@ END SUBROUTINE MergeParticles
 SUBROUTINE SplitParticles(iPartIndx_Node, nPartIn, nPartNew)
 ! MODULES
 USE MOD_Globals
-USE MOD_Particle_Vars         ,ONLY: PartState, PDM, PartMPF, PartSpecies, PEM, PartPosRef, VarTimeStep, vMPFSplitLimit
+USE MOD_Particle_Vars         ,ONLY: PartState, PDM, PartMPF, PartSpecies, PEM, PartPosRef, vMPFSplitLimit
+USE MOD_Particle_Vars         ,ONLY: UseVarTimeStep, PartTimeStep
 USE MOD_DSMC_Vars             ,ONLY: PartStateIntEn, CollisMode, SpecDSMC, DSMC, PolyatomMolDSMC, VibQuantsPar
 USE MOD_Particle_Tracking_Vars,ONLY: TrackingMethod
 !#ifdef CODE_ANALYZE
@@ -613,7 +623,7 @@ DO WHILE(iNewPart.LT.nSplit)
     IF(DSMC%ElectronicModel.GT.0) PartStateIntEn(3,PositionNbr) = PartStateIntEn(3,PartIndx)
   END IF
   PartMPF(PositionNbr) = PartMPF(PartIndx)
-  IF(VarTimeStep%UseVariableTimeStep) VarTimeStep%ParticleTimeStep(PositionNbr) = VarTimeStep%ParticleTimeStep(PartIndx)
+  IF(UseVarTimeStep) PartTimeStep(PositionNbr) = PartTimeStep(PartIndx)
   PEM%GlobalElemID(PositionNbr) = PEM%GlobalElemID(PartIndx)
   PEM%LastGlobalElemID(PositionNbr) = PEM%GlobalElemID(PartIndx)
   LocalElemID = PEM%LocalElemID(PositionNbr)

@@ -158,19 +158,18 @@ INTEGER,PARAMETER   :: N_variables=1
 CHARACTER(LEN=255),ALLOCATABLE  :: StrVarNames(:)
 CHARACTER(LEN=255)  :: FileName
 REAL                :: StartT,EndT
-REAL                :: OutputTime!,FutureTime
+REAL                :: OutputTime
 !===================================================================================================================================
 SWRITE(UNIT_stdOut,'(a)',ADVANCE='NO')' WRITE MyInvisibleRank TO HDF5 FILE...'
 GETTIME(StartT)
 OutputTime=0.0
-!FutureTime=0.0
 ALLOCATE(StrVarNames(1:N_variables))
 StrVarNames(1)='dummy'
 ! Generate skeleton for the file with all relevant data on a single proc (MPIRoot)
 FileName=TRIM(ProjectName)//'_MyInvisibleRank.h5'
 IF(MPIRoot) CALL GenerateFileSkeleton('MyInvisibleRank',N_variables,StrVarNames,TRIM(MeshFile),OutputTime,FileNameIn=FileName)
 #if USE_MPI
-  CALL MPI_BARRIER(MPI_COMM_WORLD,iError)
+  CALL MPI_BARRIER(MPI_COMM_PICLAS,iError)
 #endif
 
 ! Write all 'ElemData' arrays to a single container in the state.h5 file
@@ -202,19 +201,18 @@ INTEGER,PARAMETER   :: N_variables=1
 CHARACTER(LEN=255),ALLOCATABLE  :: StrVarNames(:)
 CHARACTER(LEN=255)  :: FileName
 REAL                :: StartT,EndT
-REAL                :: OutputTime!,FutureTime
+REAL                :: OutputTime
 !===================================================================================================================================
 SWRITE(UNIT_stdOut,'(a)',ADVANCE='NO')' WRITE LostRotPeriodicSides TO HDF5 FILE...'
 GETTIME(StartT)
 OutputTime=0.0
-!FutureTime=0.0
 ALLOCATE(StrVarNames(1:N_variables))
 StrVarNames(1)='dummy'
 ! Generate skeleton for the file with all relevant data on a single proc (MPIRoot)
 FileName=TRIM(ProjectName)//'_LostRotPeriodicSides.h5'
 IF(MPIRoot) CALL GenerateFileSkeleton('LostRotPeriodicSides',N_variables,StrVarNames,TRIM(MeshFile),OutputTime,FileNameIn=FileName)
 #if USE_MPI
-  CALL MPI_BARRIER(MPI_COMM_WORLD,iError)
+  CALL MPI_BARRIER(MPI_COMM_PICLAS,iError)
 #endif
 
 ! Write all 'ElemData' arrays to a single container in the state.h5 file

@@ -134,13 +134,12 @@ Case(PRM_DEPO_CVWM) ! cell_volweight_mean
   DepositionType   = 'cell_volweight_mean'
   DepositionMethod => DepositionMethod_CVWM
 CASE DEFAULT
-  CALL CollectiveStop(__STAMP__,&
-      'Unknown DepositionMethod!' ,IntInfo=DepositionType_loc)
+  CALL CollectiveStop(__STAMP__,'Unknown DepositionMethod!' ,IntInfo=DepositionType_loc)
 END SELECT
 
 ! If shape function is used, the radius must be read here as it is used for the BGM setup
 IF(StringBeginsWith(DepositionType,'shape_function'))THEN
-  
+
   ! Check if adaptive SF is used
   IF(TRIM(DepositionType).EQ.'shape_function_adaptive')THEN
     ! When using shape function adaptive, the radius is scaled as such that only the direct element neighbours are considered for
@@ -222,7 +221,7 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
 LOGICAL,INTENT(IN),OPTIONAL :: doParticle_In(1:PDM%ParticleVecLength) ! TODO: definition of this variable
-INTEGER,INTENT(IN),OPTIONAL :: stage_opt 
+INTEGER,INTENT(IN),OPTIONAL :: stage_opt
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -262,7 +261,7 @@ END IF
 ALLOCATE(BGMSourceCellVol(SourceDim:4,0:1,0:1,0:1,1:nElems))
 BGMSourceCellVol(:,:,:,:,:) = 0.0
 DO iPart = 1,PDM%ParticleVecLength
-  ! TODO: Info why and under which conditions the following 'CYCLE' is called
+  ! TODO: The cycle with .AND.doParticle_In is used for analysis or IMPA
   IF(PRESENT(doParticle_In))THEN
     IF (.NOT.(PDM%ParticleInside(iPart).AND.doParticle_In(iPart))) CYCLE
   ELSE
@@ -359,9 +358,9 @@ USE MOD_Eval_xyz           ,ONLY: GetPositionInRefElem
 USE MOD_Mesh_Vars          ,ONLY: nElems,offsetElem
 USE MOD_Particle_Vars      ,ONLY: Species,PartSpecies,PDM,PEM,usevMPF,PartMPF
 USE MOD_Particle_Vars      ,ONLY: PartState
-USE MOD_Particle_Mesh_Vars ,ONLY: ElemNodeID_Shared, NodeInfo_Shared, NodeCoords_Shared
+USE MOD_Particle_Mesh_Vars ,ONLY: ElemNodeID_Shared, NodeInfo_Shared, NodeCoords_Shared, GEO
 USE MOD_PICDepo_Vars       ,ONLY: PartSource,CellVolWeightFac,NodeSourceExt,NodeVolume,NodeSource, nDepoNodes, DepoNodetoGlobalNode
-USE MOD_PICDepo_Vars       ,ONLY: nDepoNodesTotal
+USE MOD_PICDepo_Vars       ,ONLY: nDepoNodesTotal,Periodic_Nodes,Periodic_nNodes,Periodic_offsetNode
 USE MOD_Mesh_Tools         ,ONLY: GetCNElemID
 USE MOD_Part_Tools         ,ONLY: isDepositParticle
 #if USE_MPI
@@ -383,14 +382,14 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
 LOGICAL,INTENT(IN),OPTIONAL :: doParticle_In(1:PDM%ParticleVecLength) ! TODO: definition of this variable
-INTEGER,INTENT(IN),OPTIONAL :: stage_opt 
+INTEGER,INTENT(IN),OPTIONAL :: stage_opt
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 REAL               :: Charge, TSource(1:4), PartDistDepo(8), DistSum
 REAL               :: alpha1, alpha2, alpha3, TempPartPos(1:3)
-INTEGER            :: kk, ll, mm, iPart, iElem
+INTEGER            :: kk, ll, mm, iPart, iElem, jNode, jGlobNode
 INTEGER            :: NodeID(1:8), iNode, globalNode
 LOGICAL            :: SucRefPos
 #if !((USE_HDG) && (PP_nVar==1))
@@ -464,16 +463,28 @@ DO iPart=1,PDM%ParticleVecLength
       alpha1=0.5*(TempPartPos(1)+1.0)
       alpha2=0.5*(TempPartPos(2)+1.0)
       alpha3=0.5*(TempPartPos(3)+1.0)
+      PartDistDepo(1) = (1-alpha1)*(1-alpha2)*(1-alpha3)
+      PartDistDepo(2) = (alpha1)*(1-alpha2)*(1-alpha3)
+      PartDistDepo(3) = (alpha1)*  (alpha2)*(1-alpha3)
+      PartDistDepo(4) = (1-alpha1)*  (alpha2)*(1-alpha3)
+      PartDistDepo(5) = (1-alpha1)*(1-alpha2)*  (alpha3)
+      PartDistDepo(6) = (alpha1)*(1-alpha2)*  (alpha3)
+      PartDistDepo(7) = (alpha1)*  (alpha2)*  (alpha3)
+      PartDistDepo(8) = (1-alpha1)*  (alpha2)*  (alpha3)
 
       NodeID = NodeInfo_Shared(ElemNodeID_Shared(:,PEM%CNElemID(iPart)))
-      NodeSource(SourceDim:4,NodeID(1)) = NodeSource(SourceDim:4,NodeID(1)) + (TSource(SourceDim:4)*(1-alpha1)*(1-alpha2)*(1-alpha3))
-      NodeSource(SourceDim:4,NodeID(2)) = NodeSource(SourceDim:4,NodeID(2)) + (TSource(SourceDim:4)*  (alpha1)*(1-alpha2)*(1-alpha3))
-      NodeSource(SourceDim:4,NodeID(3)) = NodeSource(SourceDim:4,NodeID(3)) + (TSource(SourceDim:4)*  (alpha1)*  (alpha2)*(1-alpha3))
-      NodeSource(SourceDim:4,NodeID(4)) = NodeSource(SourceDim:4,NodeID(4)) + (TSource(SourceDim:4)*(1-alpha1)*  (alpha2)*(1-alpha3))
-      NodeSource(SourceDim:4,NodeID(5)) = NodeSource(SourceDim:4,NodeID(5)) + (TSource(SourceDim:4)*(1-alpha1)*(1-alpha2)*  (alpha3))
-      NodeSource(SourceDim:4,NodeID(6)) = NodeSource(SourceDim:4,NodeID(6)) + (TSource(SourceDim:4)*  (alpha1)*(1-alpha2)*  (alpha3))
-      NodeSource(SourceDim:4,NodeID(7)) = NodeSource(SourceDim:4,NodeID(7)) + (TSource(SourceDim:4)*  (alpha1)*  (alpha2)*  (alpha3))
-      NodeSource(SourceDim:4,NodeID(8)) = NodeSource(SourceDim:4,NodeID(8)) + (TSource(SourceDim:4)*(1-alpha1)*  (alpha2)*  (alpha3))
+      DO iNode=1, 8
+        NodeSource(SourceDim:4,NodeID(iNode)) = NodeSource(SourceDim:4,NodeID(iNode)) + (TSource(SourceDim:4)*PartDistDepo(iNode))
+        IF (GEO%nPeriodicVectors.GT.0) THEN
+          IF (Periodic_nNodes(NodeID(iNode)).GT.0) THEN
+            DO jNode = Periodic_offsetNode(NodeID(iNode))+1,Periodic_offsetNode(NodeID(iNode))+Periodic_nNodes(NodeID(iNode))
+              jGlobNode                         = Periodic_Nodes(jNode)
+              NodeSource(SourceDim:4,jGlobNode) = NodeSource(SourceDim:4,jGlobNode) + (TSource(SourceDim:4)*PartDistDepo(iNode))
+            END DO ! jNode
+          END IF ! Periodic_nNodes(NodeID(iNode)).GT.0
+        END IF
+      END DO
+
     ELSE ! not SucRefPos
       NodeID = ElemNodeID_Shared(:,PEM%CNElemID(iPart))
       DO iNode = 1, 8
@@ -490,6 +501,16 @@ DO iPart=1,PDM%ParticleVecLength
       DO iNode = 1, 8
         NodeSource(SourceDim:4,NodeInfo_Shared(NodeID(iNode))) = NodeSource(SourceDim:4,NodeInfo_Shared(NodeID(iNode)))  &
           +  PartDistDepo(iNode)/DistSum*TSource(SourceDim:4)
+        IF (GEO%nPeriodicVectors.GT.0) THEN
+          ASSOCIATE(NodeInfoID => NodeInfo_Shared(NodeID(iNode)))
+          IF (Periodic_nNodes(NodeInfoID).GT.0) THEN
+            DO jNode = Periodic_offsetNode(NodeInfoID)+1,Periodic_offsetNode(NodeInfoID)+Periodic_nNodes(NodeInfoID)
+              jGlobNode                         = Periodic_Nodes(jNode)
+              NodeSource(SourceDim:4,jGlobNode) = NodeSource(SourceDim:4,jGlobNode) +  PartDistDepo(iNode)/DistSum*TSource(SourceDim:4)
+            END DO ! jNode
+          END IF ! Periodic_nNodes(NodeID(iNode)).GT.0
+          END ASSOCIATE
+        END IF
       END DO
     END IF ! SucRefPos
 #if USE_LOADBALANCE
@@ -524,7 +545,7 @@ DO iProc = 1, nNodeRecvExchangeProcs
             , MPI_DOUBLE_PRECISION                           &
             , NodeRecvDepoRankToGlobalRank(iProc)                &
             , 666                                            &
-            , MPI_COMM_WORLD                                 &
+            , MPI_COMM_PICLAS                                 &
             , RecvRequest(iProc)                             &
             , IERROR)
 END DO
@@ -540,7 +561,7 @@ DO iProc = 1, nNodeSendExchangeProcs
                 , MPI_DOUBLE_PRECISION                       &
                 , NodeSendDepoRankToGlobalRank(iProc)            &
                 , 666                                        &
-                , MPI_COMM_WORLD                             &
+                , MPI_COMM_PICLAS                             &
                 , SendRequest(iProc)                         &
                 , IERROR)
 END DO
@@ -572,7 +593,7 @@ IF(doCalculateCurrentDensity)THEN
         , MPI_DOUBLE_PRECISION                                      &
         , NodeRecvDepoRankToGlobalRank(iProc)                           &
         , 666                                                       &
-        , MPI_COMM_WORLD                                            &
+        , MPI_COMM_PICLAS                                            &
         , RecvRequest(iProc)                                        &
         , IERROR)
   END DO
@@ -587,7 +608,7 @@ IF(doCalculateCurrentDensity)THEN
         , MPI_DOUBLE_PRECISION                                      &
         , NodeSendDepoRankToGlobalRank(iProc)                           &
         , 666                                                       &
-        , MPI_COMM_WORLD                                            &
+        , MPI_COMM_PICLAS                                            &
         , SendRequest(iProc)                                        &
         , IERROR)
   END DO
@@ -766,14 +787,14 @@ IF ((stage.EQ.0).OR.(stage.EQ.1)) THEN
   END DO
 #if USE_MPI
   ! Communication
-  ! 1 of 2: Inner-Node Communication  
+  ! 1 of 2: Inner-Node Communication
   DO iProc = 1,nShapeExchangeProcs
       CALL MPI_IRECV( ShapeMapping(iProc)%RecvBuffer(1:4,0:PP_N,0:PP_N,0:PP_N,1:ShapeMapping(iProc)%nRecvShapeElems)&
                     , ShapeMapping(iProc)%nRecvShapeElems*4*(PP_N+1)**3                                   &
                     , MPI_DOUBLE_PRECISION                &
                     , ShapeMapping(iProc)%Rank            &
                     , 2001                                &
-                    , MPI_COMM_WORLD                     &
+                    , MPI_COMM_PICLAS                     &
                     , RecvRequest(iProc)                  &
                     , IERROR)
 !    IF (myComputeNodeRank.NE.0) THEN
@@ -782,7 +803,7 @@ IF ((stage.EQ.0).OR.(stage.EQ.1)) THEN
                   , MPI_DOUBLE_PRECISION                   &
                   , ShapeMapping(iProc)%Rank                                      &
                   , 2001                                   &
-                  , MPI_COMM_WORLD                        &
+                  , MPI_COMM_PICLAS                        &
                   , SendRequest(iProc)                            &
                   , IERROR)
 !    END IF

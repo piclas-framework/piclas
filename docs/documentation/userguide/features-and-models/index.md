@@ -6,6 +6,7 @@ maxdepth: 1
 caption: Table of Contents
 ---
 particle-tracking.md
+poisson-field-solver.md
 BC-field-solver.md
 BC-particle-solver.md
 particle-initialization-and-emission.md

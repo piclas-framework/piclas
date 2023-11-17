@@ -208,7 +208,7 @@ END DO
 !--- Split communicator from MPI_COMM_LEADER_SHARED
 color = MERGE(1201,MPI_UNDEFINED,SurfOnNode)
 
-! create new SurfMesh communicator for SurfMesh communication. Pass MPI_INFO_NULL as rank to follow the original ordering
+! create new communicator between node leaders with surfaces. Pass MPI_INFO_NULL as rank to follow the original ordering
 CALL MPI_COMM_SPLIT(MPI_COMM_LEADERS_SHARED, color, MPI_INFO_NULL, MPI_COMM_LEADERS_SURF, IERROR)
 
 ! Do not participate in remainder of communication if no surf sides on node
@@ -744,8 +744,6 @@ INTEGER                         :: iPos,p,q
 INTEGER                         :: MessageSize,iSurfSide,SurfSideID
 INTEGER                         :: nValues
 INTEGER                         :: RecvRequest(0:nSurfLeaders-1),SendRequest(0:nSurfLeaders-1)
-!INTEGER                         :: iPos,p,q,iProc,iReact
-!INTEGER                         :: recv_status_list(1:MPI_STATUS_SIZE,1:SurfCOMM%nMPINeighbors)
 !===================================================================================================================================
 ! nodes without sampling surfaces do not take part in this routine
 IF (.NOT.SurfOnNode) RETURN

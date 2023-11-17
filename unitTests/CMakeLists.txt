@@ -40,10 +40,16 @@ endfunction()
 
 # Enable testing in general
 ENABLE_TESTING()
+# ... and make it parallel
+INCLUDE(ProcessorCount)
+PROCESSORCOUNT(N)
+SET(ENV{CTEST_PARALLEL_LEVEL} "${N}")
+MESSAGE(STATUS "Executing unit tests with $ENV{CTEST_PARALLEL_LEVEL} processes")
 
 # Add the unit tests
 add_unit_test(ReadInTools   ./unitTests/ReadInTools.f90)
 add_unit_test(MatrixInverse ./unitTests/MatrixInverse.f90)
+add_unit_test(MortarBasis   ./unitTests/MortarBasis.f90)
 #add_unit_test(NodesAndWeights ./unitTests/NodesAndWeights.f90)
 #add_unit_test(Vandermonde ./unitTests/Vandermonde.f90)
 #add_unit_test(DerivativeMatrix ./unitTests/DerivativeMatrix.f90)
@@ -56,5 +62,5 @@ ADD_CUSTOM_TARGET( all_tests ALL
                    DEPENDS ${UNIT_TEST_TARGETS})
 ADD_CUSTOM_COMMAND(TARGET all_tests
                    COMMENT "Run unit tests"
-                   POST_BUILD COMMAND ctest --output-on-failure
+                   POST_BUILD COMMAND ctest --output-on-failure -j${N}
                    WORKING_DIRECTORY ${CMAKE_BINARY_DIR})

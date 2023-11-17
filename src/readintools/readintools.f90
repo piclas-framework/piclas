@@ -817,7 +817,7 @@ END IF
 
 !broadcast number of lines, read and broadcast file content
 #if USE_MPI
-CALL MPI_BCAST(nLines,1,MPI_INTEGER,0,MPI_COMM_WORLD,iError)
+CALL MPI_BCAST(nLines,1,MPI_INTEGER,0,MPI_COMM_PICLAS,iError)
 #endif
 ALLOCATE(FileContent(nLines))
 
@@ -828,7 +828,7 @@ IF ((MPIROOT).AND.(nLines.GT.0)) THEN
 END IF
 IF (MPIROOT) CLOSE(iniUnit)
 #if USE_MPI
-CALL MPI_BCAST(FileContent,LEN(FileContent)*nLines,MPI_CHARACTER,0,MPI_COMM_WORLD,iError)
+CALL MPI_BCAST(FileContent,LEN(FileContent)*nLines,MPI_CHARACTER,0,MPI_COMM_PICLAS,iError)
 #endif
 
 ! infinte loop. Exit at EOF
@@ -873,6 +873,7 @@ current => prms%firstLink
 DO WHILE (associated(current))
   this%maxNameLen = MAX(this%maxNameLen, current%opt%GETNAMELEN())
   this%maxValueLen = MAX(this%maxValueLen, current%opt%GETVALUELEN())
+  this%maxValueLen = MIN(this%maxValueLen, 50)
   current => current%next
 END DO
 
@@ -2139,7 +2140,7 @@ IF (MPIRoot) THEN
   CLOSE(iniUnit)
 END IF
 #if USE_MPI
-CALL MPI_BCAST(userblockFound,1,MPI_LOGICAL,0,MPI_COMM_WORLD,iError)
+CALL MPI_BCAST(userblockFound,1,MPI_LOGICAL,0,MPI_COMM_PICLAS,iError)
 #endif /*USE_MPI*/
 
 END SUBROUTINE ExtractParameterFile
@@ -2203,7 +2204,7 @@ IF(.NOT.MPIRoot)RETURN
 #if USE_LOADBALANCE
 IF (PerformLoadBalance) THEN
   SELECT CASE(TRIM(InfoOpt))
-    CASE("INFO","PARAM","CALCUL.","OUTPUT")
+    CASE("INFO","PARAM","CALCUL.","OUTPUT","HDF5")
       RETURN
   END SELECT
 END IF

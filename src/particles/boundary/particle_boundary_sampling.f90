@@ -14,13 +14,12 @@
 
 MODULE MOD_Particle_Boundary_Sampling
 !===================================================================================================================================
-!! Determines how particles interact with a given boundary condition
+!> Particle boundary sampling: calculation and output of heat flux, forces, and impact properties at boundaries
 !===================================================================================================================================
 ! MODULES
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 PRIVATE
-
 !-----------------------------------------------------------------------------------------------------------------------------------
 INTERFACE DefineParametersParticleBoundarySampling
   MODULE PROCEDURE DefineParametersParticleBoundarySampling
@@ -40,6 +39,7 @@ END INTERFACE
 
 PUBLIC::DefineParametersParticleBoundarySampling
 PUBLIC::InitParticleBoundarySampling
+PUBLIC::CalcSurfaceValues
 PUBLIC::WriteSurfSampleToHDF5, WriteSurfSampleChemToHDF5
 PUBLIC::FinalizeParticleBoundarySampling
 !===================================================================================================================================
@@ -80,36 +80,32 @@ USE MOD_Particle_Boundary_Vars  ,ONLY: nSurfSample,dXiEQ_SurfSample,PartBound,Xi
 USE MOD_Particle_Boundary_Vars  ,ONLY: nComputeNodeSurfSides,nComputeNodeSurfTotalSides,nComputeNodeSurfOutputSides
 USE MOD_Particle_Boundary_Vars  ,ONLY: nSurfBC,SurfBCName
 USE MOD_Particle_Boundary_Vars  ,ONLY: nSurfTotalSides
-USE MOD_Particle_Boundary_Vars  ,ONLY: GlobalSide2SurfSide,SurfSide2GlobalSide
+USE MOD_Particle_Boundary_Vars  ,ONLY: SurfSide2GlobalSide
 USE MOD_SurfaceModel_Vars       ,ONLY: nPorousBC
 USE MOD_Particle_Boundary_Vars  ,ONLY: CalcSurfaceImpact
-USE MOD_Particle_Boundary_Vars  ,ONLY: SurfSideArea,SurfSampSize
-USE MOD_Particle_Boundary_Vars  ,ONLY: SampWallState
+USE MOD_Particle_Boundary_Vars  ,ONLY: SurfSideArea,SurfSampSize,SurfOutputSize,SurfSpecOutputSize
+USE MOD_Particle_Boundary_Vars  ,ONLY: SampWallState, SWIVarTimeStep, SWIStickingCoefficient
 USE MOD_Particle_Boundary_Vars  ,ONLY: SampWallPumpCapacity
 USE MOD_Particle_Boundary_Vars  ,ONLY: SampWallImpactEnergy
 USE MOD_Particle_Boundary_Vars  ,ONLY: SampWallImpactVector
 USE MOD_Particle_Boundary_Vars  ,ONLY: SampWallImpactAngle
 USE MOD_Particle_Boundary_Vars  ,ONLY: SampWallImpactNumber
+USE MOD_Particle_Boundary_Vars  ,ONLY: MacroSurfaceVal,MacroSurfaceSpecVal
 USE MOD_Mesh_Tools              ,ONLY: GetCNElemID
 USE MOD_Particle_Mesh_Vars      ,ONLY: SideInfo_Shared,NodeCoords_Shared
 USE MOD_Particle_Mesh_Vars      ,ONLY: ElemSideNodeID_Shared
 USE MOD_Particle_Surfaces       ,ONLY: EvaluateBezierPolynomialAndGradient
 USE MOD_Particle_Surfaces_Vars  ,ONLY: BezierControlPoints3D
 USE MOD_Particle_Tracking_Vars  ,ONLY: TrackingMethod
-USE MOD_Particle_Vars           ,ONLY: nSpecies,VarTimeStep
+USE MOD_Particle_Vars           ,ONLY: nSpecies,UseVarTimeStep,VarTimeStep
 USE MOD_Particle_Vars           ,ONLY: Symmetry
 USE MOD_ReadInTools             ,ONLY: GETINT,GETLOGICAL,GETINTARRAY
 #if USE_MPI
-USE MOD_Particle_Mesh_Vars      ,ONLY: ElemInfo_Shared
 USE MOD_MPI_Shared
 USE MOD_MPI_Shared_Vars         ,ONLY: MPI_COMM_SHARED
 USE MOD_MPI_Shared_Vars         ,ONLY: MPI_COMM_LEADERS_SURF,mySurfRank
 USE MOD_MPI_Shared_Vars         ,ONLY: myComputeNodeRank,nComputeNodeProcessors
-USE MOD_Particle_Mesh_Vars      ,ONLY: nNonUniqueGlobalSides
-!USE MOD_Particle_Mesh_Vars      ,ONLY: offsetComputeNodeElem,nComputeNodeElems
-USE MOD_MPI_Shared_Vars         ,ONLY: myLeaderGroupRank,nLeaderGroupProcs
-USE MOD_Particle_Boundary_Vars  ,ONLY: GlobalSide2SurfSide_Shared,GlobalSide2SurfSide_Shared_Win
-USE MOD_Particle_Boundary_Vars  ,ONLY: SurfSide2GlobalSide_Shared,SurfSide2GlobalSide_Shared_Win
+USE MOD_Particle_Boundary_Vars  ,ONLY: SurfSide2GlobalSide_Shared
 USE MOD_Particle_Boundary_Vars  ,ONLY: SurfSideArea_Shared,SurfSideArea_Shared_Win
 USE MOD_Particle_Boundary_Vars  ,ONLY: SampWallState_Shared,SampWallState_Shared_Win
 USE MOD_Particle_Boundary_Vars  ,ONLY: SampWallPumpCapacity_Shared,SampWallPumpCapacity_Shared_Win
@@ -118,7 +114,6 @@ USE MOD_Particle_Boundary_Vars  ,ONLY: SampWallImpactVector_Shared,SampWallImpac
 USE MOD_Particle_Boundary_Vars  ,ONLY: SampWallImpactAngle_Shared,SampWallImpactAngle_Shared_Win
 USE MOD_Particle_Boundary_Vars  ,ONLY: SampWallImpactNumber_Shared,SampWallImpactNumber_Shared_Win
 USE MOD_Particle_MPI_Boundary_Sampling,ONLY: InitSurfCommunication
-USE MOD_Particle_Boundary_Vars  ,ONLY: nComputeNodeInnerBCs
 #else
 USE MOD_MPI_Shared_Vars         ,ONLY: mySurfRank
 USE MOD_Particle_Mesh_Vars      ,ONLY: nComputeNodeSides
@@ -136,11 +131,7 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER                                :: iBC
-INTEGER                                :: iSide,firstSide,lastSide,iSurfSide,GlobalSideID
-INTEGER                                :: nSurfSidesProc
-INTEGER                                :: offsetSurfTotalSidesProc
-INTEGER,ALLOCATABLE                    :: GlobalSide2SurfSideProc(:,:)
-!INTEGER,ALLOCATABLE                    :: SurfSide2GlobalSideProc(:,:)
+INTEGER                                :: iSide,firstSide,lastSide
 CHARACTER(20)                          :: hilf
 CHARACTER(LEN=255),ALLOCATABLE         :: BCName(:)
 ! surface area
@@ -152,13 +143,6 @@ REAL,DIMENSION(2,3)                    :: gradXiEta3D
 REAL,DIMENSION(:),ALLOCATABLE          :: Xi_NGeo,wGP_NGeo
 REAL                                   :: XiOut(1:2),E,F,G,D,tmp1,tmpI2,tmpJ2
 REAL                                   :: xNod, zNod, yNod, Vector1(3), Vector2(3), nx, ny, nz
-#if USE_MPI
-INTEGER                                :: offsetSurfSidesProc
-INTEGER                                :: GlobalElemID,GlobalElemRank
-INTEGER                                :: sendbuf,recvbuf
-INTEGER                                :: NbGlobalElemID, NbElemRank, NbLeaderID, nSurfSidesTmp
-#endif /*USE_MPI*/
-INTEGER                                :: NbGlobalSideID
 !===================================================================================================================================
 
 ! Get input parameters
@@ -173,250 +157,36 @@ IF((nSurfSample.GT.1).AND.(TrackingMethod.EQ.TRIATRACKING)) &
 ! Sampling of impact energy for each species (trans, rot, vib), impact vector (x,y,z) and angle
 CalcSurfaceImpact = GETLOGICAL('CalcSurfaceImpact')
 
-! Allocate shared array for surf sides
-#if USE_MPI
-CALL Allocate_Shared((/3,nNonUniqueGlobalSides/),GlobalSide2SurfSide_Shared_Win,GlobalSide2SurfSide_Shared)
-CALL MPI_WIN_LOCK_ALL(0,GlobalSide2SurfSide_Shared_Win,IERROR)
-GlobalSide2SurfSide => GlobalSide2SurfSide_Shared
-#else
-ALLOCATE(GlobalSide2SurfSide(1:3,1:nComputeNodeSides))
-#endif /*USE_MPI*/
-
-! only CN root nullifies
-#if USE_MPI
-IF (myComputeNodeRank.EQ.0) THEN
-#endif /* USE_MPI*/
-  GlobalSide2SurfSide = -1.
-#if USE_MPI
-END IF
-
-CALL BARRIER_AND_SYNC(GlobalSide2SurfSide_Shared_Win,MPI_COMM_SHARED)
-#endif /* USE_MPI*/
-
-! get number of BC-Sides
-#if USE_MPI
-! NO HALO REGION REDUCTION
-firstSide = INT(REAL( myComputeNodeRank   )*REAL(nNonUniqueGlobalSides)/REAL(nComputeNodeProcessors))+1
-lastSide  = INT(REAL((myComputeNodeRank+1))*REAL(nNonUniqueGlobalSides)/REAL(nComputeNodeProcessors))
-ALLOCATE(GlobalSide2SurfSideProc(1:3,firstSide:lastSide))
-        !,SurfSide2GlobalSideProc(1:3,1         :INT(nNonUniqueGlobalSides/REAL(nComputeNodeProcessors))))
-#else
-firstSide = 1
-lastSide  = nComputeNodeSides
-ALLOCATE(GlobalSide2SurfSideProc(1:3,1:nComputeNodeSides))
-        !,SurfSide2GlobalSideProc(1:3,1:nComputeNodeSides))
-#endif /*USE_MPI*/
-
-GlobalSide2SurfSideProc    = -1
-!SurfSide2GlobalSideProc    = -1
-nComputeNodeSurfSides      = 0
-nSurfSidesProc             = 0
-
-! check every BC side
-DO iSide = firstSide,lastSide
-  ! ignore non-BC sides
-  IF (SideInfo_Shared(SIDE_BCID,iSide).LE.0) CYCLE
-
-#if USE_MPI
-  ! ignore sides outside of halo region
-  IF (ElemInfo_Shared(ELEM_HALOFLAG,SideInfo_Shared(SIDE_ELEMID,iSide)).EQ.0) CYCLE
-#endif /*USE_MPI*/
-
-  ! count number of reflective and rotationally periodic BC sides
-  IF ( (PartBound%TargetBoundCond(PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,iSide))).EQ.PartBound%ReflectiveBC) .OR. &
-       (PartBound%TargetBoundCond(PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,iSide))).EQ.PartBound%RotPeriodicBC) ) THEN
-    nSurfSidesProc = nSurfSidesProc + 1
-    ! check if element for this side is on the current compute-node
-    ! IF ((SideInfo_Shared(SIDE_ID,iSide).GT.ElemInfo_Shared(ELEM_FIRSTSIDEIND,offsetComputeNodeElem+1))                  .AND. &
-    !     (SideInfo_Shared(SIDE_ID,iSide).LE.ElemInfo_Shared(ELEM_LASTSIDEIND ,offsetComputeNodeElem+nComputeNodeElems))) THEN
-!    IF ((iSide.GE.(ElemInfo_Shared(ELEM_FIRSTSIDEIND,offsetComputeNodeElem+1)+1))                  .AND. &
-!        (iSide.LE.ElemInfo_Shared(ELEM_LASTSIDEIND ,offsetComputeNodeElem+nComputeNodeElems))) THEN
-!      nComputeNodeSurfSides  = nComputeNodeSurfSides + 1
-!    END IF
-
-    ! TODO: Add another check to determine the surface side in halo_eps from current proc. Node-wide halo can become quite large with
-    !       with 128 procs!
-
-    ! Write local mapping from Side to Surf side. The rank is already correct, the offset must be corrected by the proc offset later
-    GlobalSide2SurfSideProc(SURF_SIDEID,iSide) = nSurfSidesProc
-#if USE_MPI
-    GlobalSide2SurfSideProc(SURF_RANK  ,iSide) = ElemInfo_Shared(ELEM_RANK,SideInfo_Shared(SIDE_ELEMID,iSide))
-    ! get global Elem ID
-    GlobalElemID   = SideInfo_Shared(SIDE_ELEMID,iSide)
-    GlobalElemRank = ElemInfo_Shared(ELEM_RANK,GlobalElemID)
-    ! running on one node, everything belongs to us
-    IF (nLeaderGroupProcs.EQ.1) THEN
-      GlobalSide2SurfSideProc(SURF_LEADER,iSide) = myLeaderGroupRank
-    ELSE
-      ! find the compute node
-      GlobalSide2SurfSideProc(SURF_LEADER,iSide) = INT(GlobalElemRank/nComputeNodeProcessors)
-        END IF
-#else
-    GlobalSide2SurfSideProc(SURF_RANK  ,iSide) = 0
-    GlobalSide2SurfSideProc(SURF_LEADER,iSide) = GlobalSide2SurfSideProc(SURF_RANK,iSide)
-#endif /*USE_MPI*/
-
-#if USE_MPI
-    ! check if element for this side is on the current compute-node. Alternative version to the check above
-    IF (GlobalSide2SurfSideProc(SURF_LEADER,iSide).EQ.myLeaderGroupRank) THEN
-#endif /*USE_MPI*/
-      nComputeNodeSurfSides  = nComputeNodeSurfSides + 1
-#if USE_MPI
-    END IF
-#endif /*USE_MPI*/
-  END IF ! reflective side
-END DO
-
-! Find CN global number of total surf sides and write Side to Surf Side mapping into shared array
-#if USE_MPI
-sendbuf = nSurfSidesProc - nComputeNodeSurfSides
-recvbuf = 0
-CALL MPI_EXSCAN(sendbuf,recvbuf,1,MPI_INTEGER,MPI_SUM,MPI_COMM_SHARED,iError)
-offsetSurfTotalSidesProc   = recvbuf
-! last proc knows CN total number of BC elems
-sendbuf = offsetSurfTotalSidesProc + nSurfSidesProc - nComputeNodeSurfSides
-CALL MPI_BCAST(sendbuf,1,MPI_INTEGER,nComputeNodeProcessors-1,MPI_COMM_SHARED,iError)
-nComputeNodeSurfTotalSides = sendbuf
-
-! Find CN global number of local surf sides and write Side to Surf Side mapping into shared array
-sendbuf = nComputeNodeSurfSides
-recvbuf = 0
-CALL MPI_EXSCAN(sendbuf,recvbuf,1,MPI_INTEGER,MPI_SUM,MPI_COMM_SHARED,iError)
-offsetSurfSidesProc   = recvbuf
-! last proc knows CN total number of BC elems
-sendbuf = offsetSurfSidesProc + nComputeNodeSurfSides
-CALL MPI_BCAST(sendbuf,1,MPI_INTEGER,nComputeNodeProcessors-1,MPI_COMM_SHARED,iError)
-nComputeNodeSurfSides = sendbuf
-nComputeNodeSurfTotalSides = nComputeNodeSurfTotalSides + nComputeNodeSurfSides
-
-! increment SURF_SIDEID by offset
-nSurfSidesTmp = 0
-DO iSide = firstSide,lastSide
-  IF (GlobalSide2SurfSideProc(SURF_SIDEID,iSide).EQ.-1) CYCLE
-
-  ! sort compute-node local sides first
-  IF (GlobalSide2SurfSideProc(SURF_LEADER,iSide).EQ.myLeaderGroupRank) THEN
-    nSurfSidesTmp = nSurfSidesTmp + 1
-
-    GlobalSide2SurfSide(:          ,iSide) = GlobalSide2SurfSideProc(:,iSide)
-    GlobalSide2SurfSide(SURF_SIDEID,iSide) = nSurfSidesTmp + offsetSurfSidesProc
-  END IF
-END DO
-
-nSurfSidesTmp = 0
-DO iSide = firstSide,lastSide
-  IF (GlobalSide2SurfSideProc(SURF_SIDEID,iSide).EQ.-1) CYCLE
-
-  ! sampling sides in halo region follow at the end
-  IF (GlobalSide2SurfSideProc(SURF_LEADER,iSide).NE.myLeaderGroupRank) THEN
-    nSurfSidesTmp = nSurfSidesTmp + 1
-
-    GlobalSide2SurfSide(:          ,iSide) = GlobalSide2SurfSideProc(:,iSide)
-    GlobalSide2SurfSide(SURF_SIDEID,iSide) = nSurfSidesTmp + nComputeNodeSurfSides + offsetSurfTotalSidesProc
-  END IF
-END DO
-#else
-offsetSurfTotalSidesProc  = 0
-nComputeNodeSurfTotalSides = nSurfSidesProc
-GlobalSide2SurfSide(:,firstSide:lastSide) = GlobalSide2SurfSideProc(:,firstSide:lastSide)
-#endif /*USE_MPI*/
-
-! Build inverse mapping
-#if USE_MPI
-CALL Allocate_Shared((/3,nComputeNodeSurfTotalSides/),SurfSide2GlobalSide_Shared_Win,SurfSide2GlobalSide_Shared)
-CALL MPI_WIN_LOCK_ALL(0,SurfSide2GlobalSide_Shared_Win,IERROR)
-SurfSide2GlobalSide => SurfSide2GlobalSide_Shared
-
-DO iSide = firstSide,lastSide
-  IF (GlobalSide2SurfSideProc(SURF_SIDEID,iSide).EQ.-1) CYCLE
-
-  SurfSide2GlobalSide(:          ,GlobalSide2SurfSide(SURF_SIDEID,iSide)) = GlobalSide2SurfSide(:,iSide)
-  SurfSide2GlobalSide(SURF_SIDEID,GlobalSide2SurfSide(SURF_SIDEID,iSide)) = iSide
-END DO
-
-CALL BARRIER_AND_SYNC(GlobalSide2SurfSide_Shared_Win,MPI_COMM_SHARED)
-CALL BARRIER_AND_SYNC(SurfSide2GlobalSide_Shared_Win,MPI_COMM_SHARED)
-#else
-ALLOCATE(SurfSide2GlobalSide(1:1,1:nComputeNodeSurfTotalSides))
-!SurfSide2GlobalSide = SurfSide2GlobalSideProc(:,1:nComputeNodeSurfTotalSides)
-DO iSide = firstSide,lastSide
-  IF (GlobalSide2SurfSide(SURF_SIDEID,iSide).EQ.-1) CYCLE
-  SurfSide2GlobalSide(SURF_SIDEID,GlobalSide2SurfSide(SURF_SIDEID,iSide)) =iSide
-END DO
-#endif /*USE_MPI*/
-
-! Determine the number of surface output sides (inner BCs are not counted twice and rotationally periodic BCs excluded)
-#if USE_MPI
-IF (myComputeNodeRank.EQ.0) THEN
-  nComputeNodeInnerBCs = 0
-#endif /*USE_MPI*/
-  nComputeNodeSurfOutputSides = 0
-  DO iSurfSide = 1,nComputeNodeSurfSides
-    GlobalSideID = SurfSide2GlobalSide(SURF_SIDEID,iSurfSide)
-    ! Check if the surface side has a neighbor (and is therefore an inner BCs)
-    IF(SideInfo_Shared(SIDE_NBSIDEID,GlobalSideID).GT.0) THEN
-      ! Abort inner BC + Mortar! (too complex and confusing to implement)
-      ! This test catches large Mortar sides, i.e.,  SideInfo_Shared(SIDE_NBELEMID,NonUniqueGlobalSideID) gives the 2 or 4
-      ! connecting small Mortar sides. It is assumed that inner BC result in being flagged as a "SurfSide" and therefore are checked
-      ! here.
-      IF(SideInfo_Shared(SIDE_LOCALID,GlobalSideID).EQ.-1)THEN
-        IPWRITE(UNIT_StdOut,'(I12,A,I0)')   " NonUniqueGlobalSideID                               = ",GlobalSideID
-        IPWRITE(UNIT_StdOut,'(I12,A,I0)')   " SideInfo_Shared(SIDE_LOCALID,NonUniqueGlobalSideID) = ",&
-            SideInfo_Shared(SIDE_LOCALID,GlobalSideID)
-        IPWRITE(UNIT_StdOut,'(I12,A,I0,A)') " SideInfo_Shared(SIDE_ELEMID,NonUniqueGlobalSideID)  = ",&
-            SideInfo_Shared(SIDE_ELEMID,GlobalSideID)," (GlobalElemID)"
-        CALL abort(__STAMP__,'Inner BC + Mortar is not implemented!')
-      END IF
-      ! Only add the side with the smaller index
-      NbGlobalSideID = SideInfo_Shared(SIDE_NBSIDEID,GlobalSideID)
-      IF(GlobalSideID.GT.NbGlobalSideID)THEN
-#if USE_MPI
-        !--- switcheroo check 1 of 2: Non-HALO sides
-        ! Only required for sampling on the larger NonUniqueGlobalSideID of the two sides of the inner BC
-        ! Count larger inner BCs as these may have to be sent to a different leader processor
-        NbGlobalElemID = SideInfo_Shared(SIDE_ELEMID,NbGlobalSideID)
-        NbElemRank = ElemInfo_Shared(ELEM_RANK,NbGlobalElemID)
-        NbLeaderID = INT(NbElemRank/nComputeNodeProcessors)
-        IF(NbLeaderID.NE.INT(myRank/nComputeNodeProcessors))THEN
-          nComputeNodeInnerBCs(1) = nComputeNodeInnerBCs(1) + 1
-        END IF
-#endif
-        CYCLE! Skip sides with the larger index
-      END IF
-    END IF
-    ! Skip rotationally periodic boundary sides for the output
-    IF(PartBound%TargetBoundCond(PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,GlobalSideID))).EQ.PartBound%RotPeriodicBC) CYCLE
-    ! Count the number of output sides
-    nComputeNodeSurfOutputSides = nComputeNodeSurfOutputSides + 1
-  END DO
-#if USE_MPI
-  !--- switcheroo check 2 of 2: HALO sides
-  ! Count number of inner BC in halo region
-  ! Only required for sampling on the larger NonUniqueGlobalSideID of the two sides of the inner BC
-  DO iSurfSide = nComputeNodeSurfSides+1, nComputeNodeSurfTotalSides
-    GlobalSideID = SurfSide2GlobalSide(SURF_SIDEID,iSurfSide)
-    ! Check if the surface side has a neighbor (and is therefore an inner BCs)
-    IF(SideInfo_Shared(SIDE_NBSIDEID,GlobalSideID).GT.0) THEN
-      ! Only add the side with the smaller index
-      IF(GlobalSideID.GT.SideInfo_Shared(SIDE_NBSIDEID,GlobalSideID))THEN
-        ! Count larger inner BCs as these may have to be sent to a different leader processor
-        nComputeNodeInnerBCs(2) = nComputeNodeInnerBCs(2) + 1
-      END IF
-    END IF
-  END DO ! iSurfSide = nComputeNodeSurfSides+1, nComputeNodeSurfTotalSides
-END IF
-#endif
-
-! free temporary arrays
-DEALLOCATE(GlobalSide2SurfSideProc)
-!DEALLOCATE(SurfSide2GlobalSideProc)
-
 ! flag if there is at least one surf side on the node (sides in halo region do also count)
 SurfOnNode = MERGE(.TRUE.,.FALSE.,nComputeNodeSurfTotalSides.GT.0)
 
-!> Energy + Force + nSpecies
+!> Setting the number of sampling (SurfSampSize -> SampWallState) and output (SurfOutputSize -> MacroSurfaceVal) variables
+!> Optional sampling variables require an additional SampWallIndex (SWI)
+! Default: Energy + Force + nSpecies
 SurfSampSize = SAMPWALL_NVARS+nSpecies
-IF(VarTimeStep%UseVariableTimeStep) SurfSampSize = SurfSampSize + 1
+! Default: Heatflux + Force + Total impact counter + iBC
+SurfOutputSize = MACROSURF_NVARS
+! Optional variables (number of sampling and output variables can differ)
+! Variable time step (required for correct heat flux calculation)
+IF(UseVarTimeStep.OR.VarTimeStep%UseSpeciesSpecific) THEN
+  SurfSampSize = SurfSampSize + 1
+  SWIVarTimeStep = SurfSampSize
+END IF
+! Sticking coefficient (empirical model)
+IF(ANY(PartBound%SurfaceModel.EQ.1)) THEN
+  SurfSampSize = SurfSampSize + 1
+  SWIStickingCoefficient = SurfSampSize
+  SurfOutputSize = SurfOutputSize + 1
+END IF
+! Pump capacity (Porous BC)
+IF (nPorousBC.GT.0) SurfOutputSize = SurfOutputSize + nPorousBC
+! Wall temperature (Adaptive radiative-equilibrium BC)
+IF (PartBound%OutputWallTemp) SurfOutputSize = SurfOutputSize + 1
+!> Additional species-specific output (SurfSpecOutputSize -> MacroSurfaceSpecVal)
+! Species-specific counter of impacts
+SurfSpecOutputSize = 1
+! Sampling of impact energy for each species (trans, rot, vib, elec), impact vector (x,y,z), angle, total number, number per second: Add 10 variables
+IF (CalcSurfaceImpact) SurfSpecOutputSize = SurfSpecOutputSize + 10
 
 !> Leader communication
 #if USE_MPI
@@ -433,6 +203,12 @@ nOutputSides    = nComputeNodeSurfOutputSides
 
 ! surface sampling array do not need to be allocated if there are no sides within halo_eps range
 IF(.NOT.SurfOnNode) RETURN
+
+!> Allocate the output container
+ALLOCATE(MacroSurfaceVal(1:SurfOutputSize         , 1:nSurfSample , 1:nSurfSample , nComputeNodeSurfOutputSides))
+MacroSurfaceVal     = 0.
+ALLOCATE(MacroSurfaceSpecVal(1:SurfSpecOutputSize , 1:nSurfSample , 1:nSurfSample , nComputeNodeSurfOutputSides , nSpecies))
+MacroSurfaceSpecVal = 0.
 
 ! create boundary name mapping for surfaces SurfaceBC number mapping
 nSurfBC = 0
@@ -573,6 +349,10 @@ CALL LegendreGaussNodesAndWeights(NGeo,Xi_NGeo,wGP_NGeo)
 ! compute area of sub-faces
 tmp1=dXiEQ_SurfSample/2.0 !(b-a)/2
 
+#if USE_MPI
+SurfSide2GlobalSide => SurfSide2GlobalSide_Shared
+#endif
+
 DO iSide = firstSide,LastSide
   ! get global SideID. This contains only nonUniqueSide, no special mortar treatment required
   SideID = SurfSide2GlobalSide(SURF_SIDEID,iSide)
@@ -676,6 +456,262 @@ END IF
 END SUBROUTINE InitParticleBoundarySampling
 
 
+SUBROUTINE CalcSurfaceValues(during_dt_opt)
+!===================================================================================================================================
+!> Calculates macroscopic surface values from samples
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals
+USE MOD_Globals_Vars               ,ONLY: StefanBoltzmannConst
+USE MOD_DSMC_Vars                  ,ONLY: DSMC
+USE MOD_Mesh_Vars                  ,ONLY: MeshFile
+USE MOD_Particle_Boundary_Vars     ,ONLY: SurfOnNode
+USE MOD_SurfaceModel_Vars          ,ONLY: nPorousBC
+USE MOD_Particle_Boundary_Vars     ,ONLY: nSurfSample,CalcSurfaceImpact
+USE MOD_Particle_Boundary_Vars     ,ONLY: SurfSide2GlobalSide, GlobalSide2SurfSide, PartBound
+USE MOD_Particle_Boundary_Vars     ,ONLY: nComputeNodeSurfSides, BoundaryWallTemp
+USE MOD_Particle_Boundary_Vars     ,ONLY: PorousBCInfo_Shared,MapSurfSideToPorousSide_Shared
+USE MOD_Particle_Boundary_vars     ,ONLY: SurfOutputSize, SWIVarTimeStep, SWIStickingCoefficient
+USE MOD_Particle_Boundary_Vars     ,ONLY: MacroSurfaceVal, MacroSurfaceSpecVal
+USE MOD_Particle_Mesh_Vars         ,ONLY: SideInfo_Shared
+USE MOD_Particle_Vars              ,ONLY: WriteMacroSurfaceValues,nSpecies,MacroValSampTime,UseVarTimeStep,Symmetry,VarTimeStep
+USE MOD_Particle_Vars              ,ONLY: Species
+USE MOD_Restart_Vars               ,ONLY: RestartTime
+USE MOD_TimeDisc_Vars              ,ONLY: TEnd
+USE MOD_Timedisc_Vars              ,ONLY: time,dt
+#if USE_MPI
+USE MOD_MPI_Shared                 ,ONLY: BARRIER_AND_SYNC
+USE MOD_MPI_Shared_Vars            ,ONLY: MPI_COMM_LEADERS_SURF, MPI_COMM_SHARED
+USE MOD_Particle_Boundary_Vars     ,ONLY: SampWallPumpCapacity_Shared
+USE MOD_Particle_Boundary_vars     ,ONLY: SampWallState_Shared,SampWallImpactNumber_Shared,SampWallImpactEnergy_Shared
+USE MOD_Particle_Boundary_vars     ,ONLY: SampWallImpactVector_Shared,SampWallImpactAngle_Shared
+USE MOD_Particle_Boundary_vars     ,ONLY: SurfSideArea_Shared
+USE MOD_Particle_MPI_Boundary_Sampling,ONLY: ExchangeSurfData
+USE MOD_Particle_Boundary_Vars    ,ONLY: BoundaryWallTemp_Shared_Win
+#else
+USE MOD_Particle_Boundary_Vars     ,ONLY: SampWallPumpCapacity
+USE MOD_Particle_Boundary_vars     ,ONLY: SampWallState,SampWallImpactNumber,SampWallImpactEnergy
+USE MOD_Particle_Boundary_vars     ,ONLY: SampWallImpactVector,SampWallImpactAngle
+USE MOD_Particle_Boundary_vars     ,ONLY: SurfSideArea
+#endif
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+LOGICAL, INTENT(IN), OPTIONAL      :: during_dt_opt !routine was called during timestep (i.e. before iter=iter+1, time=time+dt...)
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER                            :: iSpec,iSurfSide,p,q, iPBC, nVarCount, OutputCounter
+REAL                               :: TimeSample, ActualTime, TimeSampleTemp, CounterSum, nImpacts, IterNum
+LOGICAL                            :: during_dt
+INTEGER                            :: idx, GlobalSideID, SurfSideNb, iBC
+!===================================================================================================================================
+
+IF (PRESENT(during_dt_opt)) THEN
+  during_dt=during_dt_opt
+ELSE
+  during_dt=.FALSE.
+END IF
+IF (during_dt) THEN
+  ActualTime=time+dt
+ELSE
+  ActualTime=time
+END IF
+
+! Determine the sampling time for the calculation of fluxes
+IF (WriteMacroSurfaceValues) THEN
+  ! Elapsed time since last sampling (variable dt's possible!)
+  TimeSample = Time - MacroValSampTime
+  MacroValSampTime = Time
+ELSE IF (RestartTime.GT.(1-DSMC%TimeFracSamp)*TEnd) THEN
+  ! Sampling at the end of the simulation: When a restart is performed and the sampling starts immediately, determine the correct sampling time
+  ! (e.g. sampling is set to 20% of tend = 1s, and restart is performed at 0.9s, sample time = 0.1s)
+  TimeSample = Time - RestartTime
+ELSE
+  ! Sampling at the end of the simulation: calculated from the user given input
+  TimeSample = (Time-(1-DSMC%TimeFracSamp)*TEnd)
+END IF
+
+IF(ALMOSTZERO(TimeSample)) RETURN
+
+IF(.NOT.SurfOnNode) RETURN
+
+#if USE_MPI
+CALL ExchangeSurfData()
+
+! Only surface sampling leaders take part in the remainder of this routine
+IF (MPI_COMM_LEADERS_SURF.EQ.MPI_COMM_NULL) THEN
+  IF (PartBound%OutputWallTemp) THEN
+    CALL BARRIER_AND_SYNC(BoundaryWallTemp_Shared_Win,MPI_COMM_SHARED)
+  END IF
+  RETURN
+END IF
+#endif /*USE_MPI*/
+
+#if USE_MPI
+ASSOCIATE(SampWallState        => SampWallState_Shared           ,&
+          SampWallImpactNumber => SampWallImpactNumber_Shared    ,&
+          SampWallImpactEnergy => SampWallImpactEnergy_Shared    ,&
+          SampWallImpactVector => SampWallImpactVector_Shared    ,&
+          SampWallImpactAngle  => SampWallImpactAngle_Shared     ,&
+          SampWallPumpCapacity => SampWallPumpCapacity_Shared    ,&
+          SurfSideArea         => SurfSideArea_Shared)
+#endif
+
+OutputCounter = 0
+! Determine the total number of iterations
+IterNum = REAL(NINT(TimeSample / dt))
+
+DO iSurfSide = 1,nComputeNodeSurfSides
+  !================== INNER BC CHECK
+  GlobalSideID = SurfSide2GlobalSide(SURF_SIDEID,iSurfSide)
+  IF(SideInfo_Shared(SIDE_NBSIDEID,GlobalSideID).GT.0) THEN
+    IF(GlobalSideID.LT.SideInfo_Shared(SIDE_NBSIDEID,GlobalSideID)) THEN
+      SurfSideNb = GlobalSide2SurfSide(SURF_SIDEID,SideInfo_Shared(SIDE_NBSIDEID,GlobalSideID))
+      SampWallState(:,:,:,iSurfSide) = SampWallState(:,:,:,iSurfSide) + SampWallState(:,:,:,SurfSideNb)
+    ELSE
+      CYCLE
+    END IF
+  END IF
+  !================== ROTATIONALLY PERIODIC BC CHECK
+  IF(PartBound%TargetBoundCond(PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,GlobalSideID))).EQ.PartBound%RotPeriodicBC) CYCLE
+  !================== INTER PLANE BC CHECK
+  IF(PartBound%TargetBoundCond(PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,GlobalSideID))).EQ.PartBound%RotPeriodicInterPlaneBC) CYCLE
+
+  OutputCounter = OutputCounter + 1
+
+  DO q = 1,nSurfSample
+    DO p = 1,nSurfSample
+      ! --- Default output (force per area, heat flux, simulation particle impact per iteration, boundary index)
+      CounterSum = SUM(SampWallState(SAMPWALL_NVARS+1:SAMPWALL_NVARS+nSpecies,p,q,iSurfSide))
+
+      IF(CounterSum.GT.0.0) THEN
+        ! Correct the sample time in the case of a cell local time step with the average time step factor for each side
+        IF(UseVarTimeStep .OR. VarTimeStep%UseSpeciesSpecific) THEN
+          TimeSampleTemp = TimeSample * SampWallState(SWIVarTimeStep,p,q,iSurfSide) / CounterSum
+        ELSE
+          TimeSampleTemp = TimeSample
+        END IF
+
+        ! Force per area in x,y,z-direction
+        MacroSurfaceVal(1:3,p,q,OutputCounter) = SampWallState(SAMPWALL_DELTA_MOMENTUMX:SAMPWALL_DELTA_MOMENTUMZ,p,q,iSurfSide) &
+                                              / (SurfSideArea(p,q,iSurfSide)*TimeSampleTemp)
+        ! Deleting the y/z-component for 1D/2D/axisymmetric simulations
+        IF(Symmetry%Order.LT.3) MacroSurfaceVal(Symmetry%Order+1:3,p,q,iSurfSide) = 0.
+        ! Heat flux (energy difference per second per area -> W/m2)
+        MacroSurfaceVal(4,p,q,OutputCounter) = (SampWallState(SAMPWALL_ETRANSOLD,p,q,iSurfSide)  &
+                                          + SampWallState(SAMPWALL_EROTOLD  ,p,q,iSurfSide)  &
+                                          + SampWallState(SAMPWALL_EVIBOLD  ,p,q,iSurfSide)  &
+                                          + SampWallState(SAMPWALL_EELECOLD ,p,q,iSurfSide)  &
+                                          - SampWallState(SAMPWALL_ETRANSNEW,p,q,iSurfSide)  &
+                                          - SampWallState(SAMPWALL_EROTNEW  ,p,q,iSurfSide)  &
+                                          - SampWallState(SAMPWALL_EVIBNEW  ,p,q,iSurfSide)  &
+                                          - SampWallState(SAMPWALL_EELECNEW ,p,q,iSurfSide)) &
+                                            / (SurfSideArea(p,q,iSurfSide) * TimeSampleTemp)
+      END IF
+
+      ! Number of simulation particle impacts per iteration
+      MacroSurfaceVal(5,p,q,OutputCounter) = CounterSum / IterNum
+
+      ! Boundary index
+      MacroSurfaceVal(6,p,q,OutputCounter) = PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,GlobalSideID))
+
+      ! --- Output of optional variables
+      nVarCount = MACROSURF_NVARS
+      ! Output of the pump capacity
+      IF(nPorousBC.GT.0) THEN
+        DO iPBC=1, nPorousBC
+          IF(MapSurfSideToPorousSide_Shared(iSurfSide).EQ.0) CYCLE
+          IF(PorousBCInfo_Shared(1,MapSurfSideToPorousSide_Shared(iSurfSide)).EQ.iPBC) THEN
+            nVarCount = nVarCount + 1
+            ! Pump capacity is already in cubic meter per second (diving by the number of iterations)
+            MacroSurfaceVal(nVarCount,p,q,OutputCounter) = SampWallPumpCapacity(iSurfSide) / IterNum
+          END IF
+        END DO
+      END IF
+      ! Output of the wall temperature
+      IF (PartBound%OutputWallTemp) THEN
+        IF ((MacroSurfaceVal(4,p,q,OutputCounter).GT.0.0).AND.PartBound%AdaptWallTemp) THEN
+          iBC = PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,GlobalSideID))
+          BoundaryWallTemp(p,q,iSurfSide) = (MacroSurfaceVal(4,p,q,OutputCounter) &
+              /(StefanBoltzmannConst*PartBound%RadiativeEmissivity(iBC)))**(1./4.)
+        END IF
+        nVarCount = nVarCount + 1
+        MacroSurfaceVal(nVarCount,p,q,OutputCounter) = BoundaryWallTemp(p,q,iSurfSide)
+      END IF
+      ! Output of the sticking probability
+      IF(ANY(PartBound%SurfaceModel.EQ.1)) THEN
+        nVarCount = nVarCount + 1
+        IF(nVarCount.GT.SurfOutputSize) CALL Abort(__STAMP__,'ERROR in CalcSurfaceValues: Number of output variables greater than the allocated array!')
+        IF(CounterSum.GT.0) MacroSurfaceVal(nVarCount,p,q,OutputCounter) = SampWallState(SWIStickingCoefficient,p,q,iSurfSide) / CounterSum
+      END IF
+      ! --- Species-specific output (in a separate array)
+      DO iSpec=1,nSpecies
+        idx = 1
+        ! Species-specific counter of simulation particle impacts per iteration
+        MacroSurfaceSpecVal(idx,p,q,OutputCounter,iSpec) = SampWallState(SAMPWALL_NVARS+iSpec,p,q,iSurfSide) / IterNum
+        ! Sampling of impact energy for each species (trans, rot, vib), impact vector (x,y,z) and angle
+        IF(CalcSurfaceImpact)THEN
+          nImpacts = SampWallImpactNumber(iSpec,p,q,iSurfSide)
+          IF(nImpacts.GT.0.)THEN
+            ! Add average impact energy for each species (trans, rot, vib)
+            idx = idx + 1
+            MacroSurfaceSpecVal(idx,p,q,OutputCounter,iSpec) = SampWallImpactEnergy(iSpec,1,p,q,iSurfSide) / nImpacts
+            idx = idx + 1
+            MacroSurfaceSpecVal(idx,p,q,OutputCounter,iSpec) = SampWallImpactEnergy(iSpec,2,p,q,iSurfSide) / nImpacts
+            idx = idx + 1
+            MacroSurfaceSpecVal(idx,p,q,OutputCounter,iSpec) = SampWallImpactEnergy(iSpec,3,p,q,iSurfSide) / nImpacts
+            idx = idx + 1
+            MacroSurfaceSpecVal(idx,p,q,OutputCounter,iSpec) = SampWallImpactEnergy(iSpec,4,p,q,iSurfSide) / nImpacts
+
+            ! Add average impact vector (x,y,z) for each species
+            idx = idx + 1
+            MacroSurfaceSpecVal(idx,p,q,OutputCounter,iSpec) = SampWallImpactVector(iSpec,1,p,q,iSurfSide) / nImpacts
+            idx = idx + 1
+            MacroSurfaceSpecVal(idx,p,q,OutputCounter,iSpec) = SampWallImpactVector(iSpec,2,p,q,iSurfSide) / nImpacts
+            idx = idx + 1
+            MacroSurfaceSpecVal(idx,p,q,OutputCounter,iSpec) = SampWallImpactVector(iSpec,3,p,q,iSurfSide) / nImpacts
+
+            ! Add average impact angle for each species
+            idx = idx + 1
+            MacroSurfaceSpecVal(idx,p,q,OutputCounter,iSpec) = SampWallImpactAngle(iSpec,p,q,iSurfSide) / nImpacts
+
+            ! Add number of impacts (real particles with weighting factor)
+            idx = idx + 1
+            MacroSurfaceSpecVal(idx,p,q,OutputCounter,iSpec) = nImpacts
+
+            ! Add number of impacts per second
+            idx = idx + 1
+            IF(VarTimeStep%UseSpeciesSpecific) THEN
+              TimeSampleTemp = TimeSample * Species(iSpec)%TimeStepFactor
+            ELSE
+              TimeSampleTemp = TimeSample
+            END IF
+            MacroSurfaceSpecVal(idx,p,q,OutputCounter,iSpec) = nImpacts / (SurfSideArea(p,q,iSurfSide) * TimeSampleTemp)
+          END IF ! nImpacts.GT.0.
+        END IF ! CalcSurfaceImpact
+      END DO ! iSpec=1,nSpecies
+    END DO ! q=1,nSurfSample
+  END DO ! p=1,nSurfSample
+END DO ! iSurfSide=1,nComputeNodeSurfSides
+
+#if USE_MPI
+END ASSOCIATE
+IF (PartBound%OutputWallTemp) THEN
+  CALL BARRIER_AND_SYNC(BoundaryWallTemp_Shared_Win,MPI_COMM_SHARED)
+END IF
+#endif /*USE_MPI*/
+
+CALL WriteSurfSampleToHDF5(TRIM(MeshFile),ActualTime)
+
+MacroSurfaceVal = 0.
+MacroSurfaceSpecVal = 0.
+
+END SUBROUTINE CalcSurfaceValues
+
+
 SUBROUTINE WriteSurfSampleToHDF5(MeshFileName,OutputTime)
 !===================================================================================================================================
 !> write the final values of the surface sampling to a HDF5 state file
@@ -685,7 +721,7 @@ SUBROUTINE WriteSurfSampleToHDF5(MeshFileName,OutputTime)
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Globals
 USE MOD_Globals_Vars            ,ONLY: ProjectName
-USE MOD_DSMC_Vars               ,ONLY: MacroSurfaceVal,MacroSurfaceSpecVal, CollisMode, DSMC
+USE MOD_DSMC_Vars               ,ONLY: CollisMode
 USE MOD_HDF5_Output             ,ONLY: WriteAttributeToHDF5,WriteArrayToHDF5,WriteHDF5Header
 USE MOD_IO_HDF5
 USE MOD_MPI_Shared_Vars         ,ONLY: mySurfRank
@@ -695,6 +731,8 @@ USE MOD_SurfaceModel_Vars       ,ONLY: SurfChemReac, ChemWallProp_Shared_Win, Ch
 USE MOD_Particle_Boundary_Vars  ,ONLY: nOutputSides, nComputeNodeSurfSides
 USE MOD_Particle_Boundary_Vars  ,ONLY: nComputeNodeSurfOutputSides,offsetComputeNodeSurfOutputSide
 USE MOD_Particle_Boundary_Vars  ,ONLY: nSurfBC,SurfBCName, PartBound
+USE MOD_Particle_Boundary_Vars  ,ONLY: SurfOutputSize,SurfSpecOutputSize
+USE MOD_Particle_Boundary_Vars  ,ONLY: MacroSurfaceVal,MacroSurfaceSpecVal
 USE MOD_Particle_Vars           ,ONLY: nSpecies
 #if USE_MPI
 USE MOD_Particle_Boundary_Vars  ,ONLY: nSurfTotalSides, SurfSideArea_Shared, SurfSideArea
@@ -715,8 +753,7 @@ CHARACTER(LEN=255)                  :: H5_Name
 CHARACTER(LEN=255)                  :: NodeTypeTemp
 CHARACTER(LEN=255)                  :: SpecID, PBCID
 CHARACTER(LEN=255),ALLOCATABLE      :: Str2DVarNames(:)
-INTEGER                             :: nVar2D, nVar2D_Spec, nVar2D_Total, nVarCount, iSpec, iPBC, iSurfSide
-INTEGER                             :: p, q, OutputCounter
+INTEGER                             :: nVar2D_Total, nVarCount, iSpec, iPBC
 REAL                                :: StartT,EndT
 !===================================================================================================================================
 
@@ -737,18 +774,7 @@ END IF
 FileName   = TIMESTAMP(TRIM(ProjectName)//'_DSMCSurfState',OutputTime)
 FileString = TRIM(FileName)//'.h5'
 
-! Create dataset attribute "SurfVarNames"
-nVar2D      = MACROSURF_NVARS
-nVar2D_Spec = 1
-
-! Sampling of impact energy for each species (trans, rot, vib, elec), impact vector (x,y,z), angle, total number, number per second: Add 10 variables
-IF (CalcSurfaceImpact) nVar2D_Spec = nVar2D_Spec + 10
-
-IF (nPorousBC.GT.0)    nVar2D = nVar2D + nPorousBC
-
-IF (ANY(PartBound%UseAdaptedWallTemp)) nVar2D = nVar2D + 1
-
-nVar2D_Total = nVar2D + nVar2D_Spec*nSpecies
+nVar2D_Total = SurfOutputSize + SurfSpecOutputSize*nSpecies
 
 ! Generate skeleton for the file with all relevant data on a single proc (MPIRoot)
 #if USE_MPI
@@ -804,19 +830,19 @@ IF (mySurfRank.EQ.0) THEN
   CALL AddVarName(Str2DVarNames,nVar2D_Total,nVarCount,'Total_SimPartPerIter')
   CALL AddVarName(Str2DVarNames,nVar2D_Total,nVarCount,'iBC')
 
-  ! Add the heat flux due to catalytic reactions on the surface
-  IF(SurfChemReac%NumOfReact.GT.0) THEN
-    OutputCounter = 0
-    DO iSurfSide = 1,nComputeNodeSurfSides
-      OutputCounter = OutputCounter + 1
-      DO q = 1,nSurfSample
-        DO p = 1,nSurfSample
-          MacroSurfaceVal(4,p,q,OutputCounter) = MacroSurfaceVal(4,p,q,OutputCounter) + SUM(ChemWallProp(:,2,p, q, iSurfSide)) &
-                                                / (SurfSideArea(p,q,iSurfSide)*OutputTime)
-        END DO ! q=1,nSurfSample
-      END DO ! p=1,nSurfSample
-    END DO ! iSurfSide=1,nComputeNodeSurfSides
-  END IF
+  ! ! Add the heat flux due to catalytic reactions on the surface
+  ! IF(SurfChemReac%NumOfReact.GT.0) THEN
+  !   OutputCounter = 0
+  !   DO iSurfSide = 1,nComputeNodeSurfSides
+  !     OutputCounter = OutputCounter + 1
+  !     DO q = 1,nSurfSample
+  !       DO p = 1,nSurfSample
+  !         MacroSurfaceVal(4,p,q,OutputCounter) = MacroSurfaceVal(4,p,q,OutputCounter) + SUM(ChemWallProp(:,2,p, q, iSurfSide)) &
+  !                                               / (SurfSideArea(p,q,iSurfSide)*OutputTime)
+  !       END DO ! q=1,nSurfSample
+  !     END DO ! p=1,nSurfSample
+  !   END DO ! iSurfSide=1,nComputeNodeSurfSides
+  ! END IF
 
   IF(nPorousBC.GT.0) THEN
     DO iPBC = 1, nPorousBC
@@ -825,7 +851,8 @@ IF (mySurfRank.EQ.0) THEN
     END DO
   END IF
 
-  IF (ANY(PartBound%UseAdaptedWallTemp)) CALL AddVarName(Str2DVarNames,nVar2D_Total,nVarCount,'Wall_Temperature')
+  IF (PartBound%OutputWallTemp) CALL AddVarName(Str2DVarNames,nVar2D_Total,nVarCount,'Wall_Temperature')
+  IF (ANY(PartBound%SurfaceModel.EQ.1)) CALL AddVarName(Str2DVarNames,nVar2D_Total,nVarCount,'Sticking_Coefficient')
 
   CALL WriteAttributeToHDF5(File_ID,'VarNamesSurface',nVar2D_Total,StrArray=Str2DVarNames)
 
@@ -849,23 +876,23 @@ ASSOCIATE (&
       nGlobalSides         => INT(nOutputSides,IK)                    , &
       nLocalSides          => INT(nComputeNodeSurfOutputSides,IK)     , &
       offsetSurfSide       => INT(offsetComputeNodeSurfOutputSide,IK) , &
-      nVar2D_Spec          => INT(nVar2D_Spec,IK)                     , &
-      nVar2D               => INT(nVar2D,IK))
+      SurfOutputSize       => INT(SurfOutputSize,IK)                  , &
+      SurfSpecOutputSize   => INT(SurfSpecOutputSize,IK))
   DO iSpec = 1,nSpecies
     CALL WriteArrayToHDF5(DataSetName=H5_Name             , rank=4                                           , &
                             nValGlobal =(/nVar2D_Total      , nSurfSample , nSurfSample , nGlobalSides   /)  , &
-                            nVal       =(/nVar2D_Spec       , nSurfSample , nSurfSample , nLocalSides/)      , &
+                            nVal       =(/SurfSpecOutputSize       , nSurfSample , nSurfSample , nLocalSides/)      , &
                             offset     =(/INT(nVarCount,IK) , 0_IK        , 0_IK        , offsetSurfSide/)   , &
                             collective =.FALSE.                                                              , &
-                            RealArray  = MacroSurfaceSpecVal(1:nVar2D_Spec,1:nSurfSample,1:nSurfSample,1:nLocalSides,iSpec))
-    nVarCount = nVarCount + INT(nVar2D_Spec)
+                            RealArray  = MacroSurfaceSpecVal(1:SurfSpecOutputSize,1:nSurfSample,1:nSurfSample,1:nLocalSides,iSpec))
+    nVarCount = nVarCount + INT(SurfSpecOutputSize)
   END DO
   CALL WriteArrayToHDF5(DataSetName=H5_Name            , rank=4                                              , &
                         nValGlobal =(/nVar2D_Total     , nSurfSample, nSurfSample , nGlobalSides/)           , &
-                        nVal       =(/nVar2D           , nSurfSample, nSurfSample , nLocalSides/)            , &
+                        nVal       =(/SurfOutputSize           , nSurfSample, nSurfSample , nLocalSides/)            , &
                         offset     =(/INT(nVarCount,IK), 0_IK       , 0_IK        , offsetSurfSide/)         , &
                         collective =.FALSE.                                                                  , &
-                        RealArray  = MacroSurfaceVal(1:nVar2D,1:nSurfSample,1:nSurfSample,1:nLocalSides))
+                        RealArray  = MacroSurfaceVal(1:SurfOutputSize,1:nSurfSample,1:nSurfSample,1:nLocalSides))
 END ASSOCIATE
 
 CALL CloseDataFile()
@@ -1126,7 +1153,6 @@ USE MOD_DSMC_Vars                      ,ONLY: DSMC
 USE MOD_Particle_Boundary_Vars
 USE MOD_Particle_Vars               ,ONLY: WriteMacroSurfaceValues
 USE MOD_SurfaceModel_Vars           ,ONLY: nPorousBC
-USE MOD_Particle_Mesh_Vars          ,ONLY: GEO
 #if USE_MPI
 USE MOD_MPI_Shared_Vars                ,ONLY: MPI_COMM_SHARED,MPI_COMM_LEADERS_SURF
 USE MOD_MPI_Shared
@@ -1143,18 +1169,7 @@ IMPLICIT NONE
 !===================================================================================================================================
 
 ! Return if nothing was allocated
-IF (.NOT.WriteMacroSurfaceValues.AND..NOT.DSMC%CalcSurfaceVal.AND..NOT.(ANY(PartBound%Reactive)).AND..NOT.(nPorousBC.GT.0).AND..NOT.GEO%RotPeriodicBC) RETURN
-
-! First, free every shared memory window. This requires MPI_BARRIER as per MPI3.1 specification
-#if USE_MPI
-! Mapping arrays are allocated even if the node does not have sampling surfaces
-CALL MPI_BARRIER(MPI_COMM_SHARED,iERROR)
-CALL UNLOCK_AND_FREE(GlobalSide2SurfSide_Shared_Win)
-CALL UNLOCK_AND_FREE(SurfSide2GlobalSide_Shared_Win)
-CALL MPI_BARRIER(MPI_COMM_SHARED,iERROR)
-ADEALLOCATE(GlobalSide2SurfSide_Shared)
-ADEALLOCATE(SurfSide2GlobalSide_Shared)
-#endif /*USE_MPI*/
+IF (.NOT.WriteMacroSurfaceValues.AND..NOT.DSMC%CalcSurfaceVal.AND..NOT.(ANY(PartBound%Reactive))) RETURN
 
 ! Return if no sampling surfaces on node
 IF (.NOT.SurfOnNode) RETURN
@@ -1201,8 +1216,8 @@ SDEALLOCATE(SampWallImpactVector)
 SDEALLOCATE(SampWallImpactAngle)
 SDEALLOCATE(SampWallImpactNumber)
 ADEALLOCATE(SurfSideArea)
-ADEALLOCATE(GlobalSide2SurfSide)
-ADEALLOCATE(SurfSide2GlobalSide)
+SDEALLOCATE(MacroSurfaceVal)
+SDEALLOCATE(MacroSurfaceSpecVal)
 
 END SUBROUTINE FinalizeParticleBoundarySampling
 

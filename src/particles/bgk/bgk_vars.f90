@@ -35,7 +35,7 @@ INTEGER                                        :: ESBGKModel                    
 INTEGER                                        :: BGKMixtureModel                    ! 1 Approx; 2 Exact Solution A; 3 Metropolis
 INTEGER                                        :: BGKMinPartPerCell
 LOGICAL                                        :: BGKMovingAverage
-INTEGER                                        :: BGKMovingAverageLength
+REAL                                           :: BGKMovingAverageFac
 LOGICAL                                        :: BGKUseQuantVibEn
 LOGICAL                                        :: BGKDoVibRelaxation
 REAL                                           :: BGKSplittingDens
@@ -48,21 +48,16 @@ REAL                                           :: BGK_MaxRelaxFactor
 REAL                                           :: BGK_MaxRotRelaxFactor
 REAL                                           :: BGK_PrandtlNumber
 REAL                                           :: BGK_ExpectedPrandtlNumber
+REAL                                           :: BGK_Viscosity
+REAL                                           :: BGK_ThermalConductivity
 
 TYPE tElemNodeAveraging
     TYPE (tNodeAverage), POINTER               :: Root => null()
 END TYPE
 
 TYPE tNodeAverage
-    TYPE (tNodeAverage), POINTER               :: SubNode1 => null()
-    TYPE (tNodeAverage), POINTER               :: SubNode2 => null()
-    TYPE (tNodeAverage), POINTER               :: SubNode3 => null()
-    TYPE (tNodeAverage), POINTER               :: SubNode4 => null()
-    TYPE (tNodeAverage), POINTER               :: SubNode5 => null()
-    TYPE (tNodeAverage), POINTER               :: SubNode6 => null()
-    TYPE (tNodeAverage), POINTER               :: SubNode7 => null()
-    TYPE (tNodeAverage), POINTER               :: SubNode8 => null()
-    REAL, ALLOCATABLE                          :: AverageValues(:,:)
+    TYPE (tNodeAverage), POINTER               :: SubNode(:) => null()
+    REAL, ALLOCATABLE                          :: AverageValues(:)
     INTEGER                                    :: CorrectStep
 END TYPE
 

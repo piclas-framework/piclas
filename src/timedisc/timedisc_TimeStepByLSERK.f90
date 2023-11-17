@@ -53,19 +53,19 @@ USE MOD_Equation_Vars          ,ONLY: Phi,Phit,nTotalPhi
 USE MOD_TimeDisc_Vars          ,ONLY: Phit_temp
 #endif /*PP_POIS*/
 #ifdef PARTICLES
+USE MOD_Particle_Analyze_Tools ,ONLY: CalcCoupledPowerPart
+USE MOD_Particle_Analyze_Vars  ,ONLY: CalcCoupledPower,PCoupl
 USE MOD_Particle_Tracking      ,ONLY: PerformTracking
 USE MOD_Particle_Tracking_vars ,ONLY: tTracking,tLocalization,MeasureTrackTime
 USE MOD_PICDepo                ,ONLY: Deposition
 USE MOD_PICInterpolation       ,ONLY: InterpolateFieldToParticle
-USE MOD_Particle_Vars          ,ONLY: PartState, Pt, Pt_temp, LastPartPos, DelayTime, PEM, PDM, &
-                                      doParticleMerge,DoFieldIonization
+USE MOD_Particle_Vars          ,ONLY: PartState, Pt, Pt_temp, LastPartPos, DelayTime, PEM, PDM, DoFieldIonization
 USE MOD_PICModels              ,ONLY: FieldIonization
 USE MOD_part_RHS               ,ONLY: CalcPartRHS
 USE MOD_PICInterpolation_Vars  ,ONLY: DoInterpolation
 USE MOD_part_emission          ,ONLY: ParticleInserting
 USE MOD_DSMC                   ,ONLY: DSMC_main
 USE MOD_DSMC_Vars              ,ONLY: useDSMC
-USE MOD_part_MPFtools          ,ONLY: StartParticleMerge
 USE MOD_Part_Tools             ,ONLY: UpdateNextFreePosition,isPushParticle
 USE MOD_Particle_Localization  ,ONLY: CountPartsPerElem
 USE MOD_TimeDisc_Vars          ,ONLY: iter
@@ -97,6 +97,9 @@ REAL                          :: tLBStart ! load balance
 ! RK coefficients
 b_dt = RK_b*dt
 
+#if defined(PARTICLES)
+IF (CalcCoupledPower) PCoupl = 0. ! if output of coupled power is active: reset PCoupl
+#endif /*defined(PARTICLES)*/
 DO iStage = 1,nRKStages
   IF (iStage.EQ.1) THEN
     tStage = time
@@ -109,7 +112,7 @@ DO iStage = 1,nRKStages
   CALL LBStartTime(tLBStart)
 #endif /*USE_LOADBALANCE*/
 #if USE_MPI
-  CALL IRecvNbofParticles()
+  IF(time.GE.DelayTime) CALL IRecvNbofParticles()
 #endif /*USE_MPI*/
 
 #if USE_LOADBALANCE
@@ -125,12 +128,9 @@ DO iStage = 1,nRKStages
 
   CALL CountPartsPerElem(ResetNumberOfParticles=.TRUE.) !for scaling of tParts of LB. Also done for state output of PartsPerElem
 
-  IF ((time.GE.DelayTime).OR.(iter.EQ.0)) THEN
-    ! Forces on particle
-    IF (time.GE.DelayTime) CALL InterpolateFieldToParticle()
-  END IF
-
+  ! Forces on particle
   IF (time.GE.DelayTime) THEN
+    CALL InterpolateFieldToParticle()
     IF(DoFieldIonization) CALL FieldIonization()
     IF(DoInterpolation)   CALL CalcPartRHS()
   END IF
@@ -156,8 +156,10 @@ DO iStage = 1,nRKStages
           PartState(1:3,iPart) = PartState(1:3,iPart) + PartState(4:6,iPart)*b_dt(iStage)
           ! Don't push the velocity component of neutral particles!
           IF (isPushParticle(iPart)) THEN
+            IF (CalcCoupledPower) CALL CalcCoupledPowerPart(iPart,'before')
             Pt_temp(  4:6,iPart) = Pt(       1:3,iPart)
             PartState(4:6,iPart) = PartState(4:6,iPart) + Pt(1:3,iPart)*b_dt(iStage)
+            IF (CalcCoupledPower) CALL CalcCoupledPowerPart(iPart,'after')
           END IF
         END IF ! PDM%ParticleInside(iPart)
       END DO ! iPart=1,PDM%ParticleVecLength
@@ -168,8 +170,10 @@ DO iStage = 1,nRKStages
           PartState(1:3,iPart) = PartState(1:3,iPart) + Pt_temp(1:3,iPart)*b_dt(iStage)
           ! Don't push the velocity component of neutral particles!
           IF (isPushParticle(iPart)) THEN
+            IF (CalcCoupledPower) CALL CalcCoupledPowerPart(iPart,'before')
             Pt_temp(  4:6,iPart) =        Pt(1:3,iPart) - RK_a(iStage) * Pt_temp(4:6,iPart)
             PartState(4:6,iPart) = PartState(4:6,iPart) + Pt_temp(4:6,iPart)*b_dt(iStage)
+            IF (CalcCoupledPower) CALL CalcCoupledPowerPart(iPart,'after')
           END IF
         END IF ! PDM%ParticleInside(iPart)
       END DO ! iPart=1,PDM%ParticleVecLength
@@ -182,7 +186,7 @@ DO iStage = 1,nRKStages
   CALL extrae_eventandcounters(int(9000001), int8(0))
 #endif /*EXTRAE*/
 
-  IF ((time.GE.DelayTime).OR.(iter.EQ.0)) THEN
+  IF (time.GE.DelayTime) THEN
     IF(MeasureTrackTime) CALL CPU_TIME(TimeStart)
     CALL PerformTracking()
 #ifdef EXTRAE
@@ -283,46 +287,18 @@ END DO
 #ifdef EXTRAE
   CALL extrae_eventandcounters(int(9000001), int8(5))
 #endif /*EXTRAE*/
-IF (doParticleMerge) THEN
-  IF (.NOT.(useDSMC)) THEN
-#if USE_LOADBALANCE
-    CALL LBStartTime(tLBStart)
-#endif /*USE_LOADBALANCE*/
-    ALLOCATE(PEM%pStart(1:PP_nElems)           , &
-             PEM%pNumber(1:PP_nElems)          , &
-             PEM%pNext(1:PDM%maxParticleNumber), &
-             PEM%pEnd(1:PP_nElems) )
-#if USE_LOADBALANCE
-    CALL LBPauseTime(LB_SPLITMERGE,tLBStart)
-#endif /*USE_LOADBALANCE*/
-  END IF
-END IF
 
 IF ((time.GE.DelayTime).OR.(time.EQ.0)) CALL UpdateNextFreePosition()
 
-IF (doParticleMerge) THEN
-  CALL StartParticleMerge()
-  IF (.NOT.(useDSMC)) THEN
-    DEALLOCATE(PEM%pStart , &
-               PEM%pNumber, &
-               PEM%pNext  , &
-               PEM%pEnd   )
+IF (time.GE.DelayTime) THEN
+  ! Direct Simulation Monte Carlo
+  IF (useDSMC) THEN
+    CALL DSMC_main()
   END IF
-  CALL UpdateNextFreePosition()
+  ! Split & Merge: Variable particle weighting
+  IF(UseSplitAndMerge) CALL SplitAndMerge()
 END IF
 
-IF (useDSMC) THEN
-  IF (time.GE.DelayTime) THEN
-    CALL DSMC_main()
-#if USE_LOADBALANCE
-    CALL LBStartTime(tLBStart)
-#endif /*USE_LOADBALANCE*/
-    IF(UseSplitAndMerge) CALL SplitAndMerge()
-#if USE_LOADBALANCE
-    CALL LBPauseTime(LB_DSMC,tLBStart)
-#endif /*USE_LOADBALANCE*/
-  END IF
-END IF
 #ifdef EXTRAE
 CALL extrae_eventandcounters(int(9000001), int8(0))
 #endif /*EXTRAE*/

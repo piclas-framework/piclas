@@ -285,6 +285,7 @@ spec_pair = TRIM(SpecDSMC(jSpec)%Name)//'-'//TRIM(SpecDSMC(iSpec)%Name)
 
 GroupFound = .FALSE.
 SpecXSec(iCase)%UseElecXSec = .FALSE.
+SpecXSec(iCase)%NumElecLevel = 0
 
 ! Initialize FORTRAN interface.
 CALL H5OPEN_F(err)
@@ -429,7 +430,7 @@ SUBROUTINE XSec_CalcCollisionProb(iPair,iElem,SpecNum1,SpecNum2,CollCaseNum,Macr
 ! MODULES
 USE MOD_DSMC_Vars             ,ONLY: SpecDSMC, Coll_pData, CollInf, BGGas, RadialWeighting
 USE MOD_MCC_Vars              ,ONLY: SpecXSec, XSec_NullCollision
-USE MOD_Particle_Vars         ,ONLY: PartSpecies, Species, VarTimeStep, usevMPF
+USE MOD_Particle_Vars         ,ONLY: PartSpecies, Species, UseVarTimeStep, usevMPF
 USE MOD_part_tools            ,ONLY: GetParticleWeight
 IMPLICIT NONE
 ! INPUT VARIABLES
@@ -454,7 +455,7 @@ IF(SpecXSec(iCase)%UseCollXSec) THEN
   END IF
   Weight1 = GetParticleWeight(iPart_p1)
   Weight2 = GetParticleWeight(iPart_p2)
-  IF (RadialWeighting%DoRadialWeighting.OR.VarTimeStep%UseVariableTimeStep.OR.usevMPF) THEN
+  IF (RadialWeighting%DoRadialWeighting.OR.UseVarTimeStep.OR.usevMPF) THEN
     ReducedMass = (Species(iSpec_p1)%MassIC *Weight1  * Species(iSpec_p2)%MassIC * Weight2) &
       / (Species(iSpec_p1)%MassIC * Weight1+ Species(iSpec_p2)%MassIC * Weight2)
     ReducedMassUnweighted = ReducedMass * 2. / (Weight1 + Weight2)
@@ -508,7 +509,7 @@ SUBROUTINE XSec_CalcVibRelaxProb(iPair,iElem,SpecNum1,SpecNum2,MacroParticleFact
 ! MODULES
 USE MOD_DSMC_Vars             ,ONLY: SpecDSMC, Coll_pData, CollInf, BGGas, RadialWeighting
 USE MOD_MCC_Vars              ,ONLY: SpecXSec
-USE MOD_Particle_Vars         ,ONLY: PartSpecies, Species, VarTimeStep, usevMPF
+USE MOD_Particle_Vars         ,ONLY: PartSpecies, Species, UseVarTimeStep, usevMPF
 USE MOD_part_tools            ,ONLY: GetParticleWeight
 IMPLICIT NONE
 ! INPUT VARIABLES
@@ -530,7 +531,7 @@ Weight2 = GetParticleWeight(iPart_p2)
 SpecXSec(iCase)%VibProb = 0.
 SumVibCrossSection = 0.
 
-IF (RadialWeighting%DoRadialWeighting.OR.VarTimeStep%UseVariableTimeStep.OR.usevMPF) THEN
+IF (RadialWeighting%DoRadialWeighting.OR.UseVarTimeStep.OR.usevMPF) THEN
   ReducedMass = (Species(iSpec_p1)%MassIC *Weight1  * Species(iSpec_p2)%MassIC * Weight2) &
     / (Species(iSpec_p1)%MassIC * Weight1+ Species(iSpec_p2)%MassIC * Weight2)
   ReducedMassUnweighted = ReducedMass * 2./(Weight1 + Weight2)
@@ -580,18 +581,16 @@ SUBROUTINE XSec_ElectronicRelaxation(iPair,iCase,iPart_p1,iPart_p2,DoElec1,DoEle
 !> 1. Interpolate the cross-section (MCC) or use the probability (VHS)
 !> 2. Determine which electronic level is to be excited
 !> 3. Reduce the total collision probability if no electronic excitation occurred
-!> 4. 4. Count the number of relaxation process for the relaxation rate (TimeDisc=42 only)
+!> 4. Count the number of relaxation process for the relaxation rate (Only with Particles-DSMCReservoirSim = T)
 !===================================================================================================================================
 ! MODULES
 USE MOD_DSMC_Vars             ,ONLY: SpecDSMC, Coll_pData, PartStateIntEn
 USE MOD_MCC_Vars              ,ONLY: SpecXSec
 USE MOD_part_tools            ,ONLY: GetParticleWeight
-USE MOD_Particle_Vars         ,ONLY: PartSpecies
-#if (PP_TimeDiscMethod==42)
+USE MOD_Particle_Vars         ,ONLY: PartSpecies, PEM, WriteMacroVolumeValues
 USE MOD_Particle_Analyze_Vars ,ONLY: CalcRelaxProb
-USE MOD_Particle_Vars         ,ONLY: Species, usevMPF
-USE MOD_DSMC_Vars             ,ONLY: DSMC, RadialWeighting
-#endif
+USE MOD_Particle_Vars         ,ONLY: Species, usevMPF, SampleElecExcitation, ExcitationSampleData, ExcitationLevelMapping
+USE MOD_DSMC_Vars             ,ONLY: RadialWeighting, SamplingActive
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
@@ -602,11 +601,9 @@ LOGICAL,INTENT(OUT)           :: DoElec1, DoElec2
 INTEGER,INTENT(OUT)           :: ElecLevelRelax
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                       :: iSpec_p1, iSpec_p2, iLevel
+INTEGER                       :: iSpec_p1, iSpec_p2, iLevel, ElecLevel, ElemID
 REAL                          :: ProbSum, ProbElec, iRan
-#if (PP_TimeDiscMethod==42)
-REAL                          :: MacroParticleFactor
-#endif
+REAL                          :: WeightedParticle
 !===================================================================================================================================
 
 iSpec_p1 = PartSpecies(iPart_p1)
@@ -653,27 +650,29 @@ IF(PartStateIntEn(3,iPart_p1).EQ.0.0.AND.PartStateIntEn(3,iPart_p2).EQ.0.0) THEN
   END IF  ! SUM(SpecXSec(iCase)%ElecLevel(:)%Prob).GT.0.
 END IF    ! Electronic energy = 0, ground-state
 
-#if (PP_TimeDiscMethod==42)
 ! 4. Count the number of relaxation process for the relaxation rate
-IF(CalcRelaxProb) THEN
-  IF(usevMPF.OR.RadialWeighting%DoRadialWeighting) THEN
-    ! Weighting factor already included in GetParticleWeight
-    MacroParticleFactor = 1.
-  ELSE
-    ! Weighting factor should be the same for all species anyway (BGG: first species is the non-BGG particle species)
-    MacroParticleFactor = Species(iSpec_p1)%MacroParticleFactor
-  END IF
-  IF (DSMC%ElectronicModel.EQ.3) THEN
+IF(CalcRelaxProb.OR.SamplingActive.OR.WriteMacroVolumeValues) THEN
+  IF(ElecLevelRelax.GT.0) THEN
+    IF(usevMPF.OR.RadialWeighting%DoRadialWeighting) THEN
+      ! Weighting factor already included in GetParticleWeight
+      WeightedParticle = 1.
+    ELSE
+      ! Weighting factor should be the same for all species anyway (BGG: first species is the non-BGG particle species)
+      WeightedParticle = Species(iSpec_p1)%MacroParticleFactor
+    END IF
     IF(DoElec1) THEN
-      SpecXSec(iCase)%ElecLevel(ElecLevelRelax)%Counter = SpecXSec(iCase)%ElecLevel(ElecLevelRelax)%Counter &
-                                                          + GetParticleWeight(iPart_p1) * MacroParticleFactor
+      WeightedParticle = GetParticleWeight(iPart_p1) * WeightedParticle
     ELSE IF(DoElec2) THEN
-      SpecXSec(iCase)%ElecLevel(ElecLevelRelax)%Counter = SpecXSec(iCase)%ElecLevel(ElecLevelRelax)%Counter &
-                                                          + GetParticleWeight(iPart_p2) * MacroParticleFactor
+      WeightedParticle = GetParticleWeight(iPart_p2) * WeightedParticle
+    END IF
+    SpecXSec(iCase)%ElecLevel(ElecLevelRelax)%Counter = SpecXSec(iCase)%ElecLevel(ElecLevelRelax)%Counter + WeightedParticle
+    IF(SampleElecExcitation) THEN
+      ElecLevel = ExcitationLevelMapping(iCase,ElecLevelRelax)
+      ElemID = PEM%LocalElemID(iPart_p1)
+      ExcitationSampleData(ElecLevel,ElemID) = ExcitationSampleData(ElecLevel,ElemID) + WeightedParticle
     END IF
   END IF
 END IF
-#endif
 
 END SUBROUTINE XSec_ElectronicRelaxation
 
@@ -686,7 +685,7 @@ SUBROUTINE XSec_CalcElecRelaxProb(iPair,SpecNum1,SpecNum2,MacroParticleFactor,Vo
 USE MOD_Globals_Vars          ,ONLY: ElementaryCharge
 USE MOD_DSMC_Vars             ,ONLY: SpecDSMC, Coll_pData, CollInf, BGGas, RadialWeighting
 USE MOD_MCC_Vars              ,ONLY: SpecXSec
-USE MOD_Particle_Vars         ,ONLY: PartSpecies, Species, VarTimeStep, usevMPF
+USE MOD_Particle_Vars         ,ONLY: PartSpecies, Species, UseVarTimeStep, usevMPF
 USE MOD_part_tools            ,ONLY: GetParticleWeight
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -707,7 +706,7 @@ Weight1 = GetParticleWeight(iPart_p1)
 Weight2 = GetParticleWeight(iPart_p2)
 SpecXSec(iCase)%ElecLevel(:)%Prob = 0.
 
-IF (RadialWeighting%DoRadialWeighting.OR.VarTimeStep%UseVariableTimeStep.OR.usevMPF) THEN
+IF (RadialWeighting%DoRadialWeighting.OR.UseVarTimeStep.OR.usevMPF) THEN
   ReducedMass = (Species(iSpec_p1)%MassIC *Weight1  * Species(iSpec_p2)%MassIC * Weight2) &
     / (Species(iSpec_p1)%MassIC * Weight1+ Species(iSpec_p2)%MassIC * Weight2)
   ReducedMassUnweighted = ReducedMass * 2./(Weight1 + Weight2)
@@ -1139,7 +1138,7 @@ USE MOD_Globals_Vars
 USE MOD_Globals               ,ONLY: abort
 USE MOD_DSMC_Vars             ,ONLY: SpecDSMC, Coll_pData, CollInf, BGGas, ChemReac, RadialWeighting, DSMC, PartStateIntEn
 USE MOD_MCC_Vars              ,ONLY: SpecXSec
-USE MOD_Particle_Vars         ,ONLY: PartSpecies, Species, VarTimeStep, usevMPF
+USE MOD_Particle_Vars         ,ONLY: PartSpecies, Species, UseVarTimeStep, usevMPF, PartTimeStep
 USE MOD_TimeDisc_Vars         ,ONLY: dt
 USE MOD_part_tools            ,ONLY: GetParticleWeight
 IMPLICIT NONE
@@ -1181,7 +1180,7 @@ DO iPath = 1, ChemReac%CollCaseInfo(iCase)%NumOfReactionPaths
       EZeroPoint_Educt = EZeroPoint_Educt + SpecDSMC(EductReac(2))%EZeroPoint * Weight(2)
     END IF
 
-    IF (RadialWeighting%DoRadialWeighting.OR.VarTimeStep%UseVariableTimeStep.OR.usevMPF) THEN
+    IF (RadialWeighting%DoRadialWeighting.OR.UseVarTimeStep.OR.usevMPF) THEN
       ReducedMass = (Species(EductReac(1))%MassIC *Weight(1) * Species(EductReac(2))%MassIC * Weight(2)) &
         / (Species(EductReac(1))%MassIC * Weight(1) + Species(EductReac(2))%MassIC * Weight(2))
       ReducedMassUnweighted = ReducedMass * 2./(Weight(1)+Weight(2))
@@ -1206,8 +1205,8 @@ DO iPath = 1, ChemReac%CollCaseInfo(iCase)%NumOfReactionPaths
       END IF
     END DO
 
-    IF (VarTimeStep%UseVariableTimeStep) THEN
-      dtCell = dt * (VarTimeStep%ParticleTimeStep(ReactInx(1)) + VarTimeStep%ParticleTimeStep(ReactInx(2)))*0.5
+    IF (UseVarTimeStep) THEN
+      dtCell = dt * (PartTimeStep(ReactInx(1)) + PartTimeStep(ReactInx(2)))*0.5
     ELSE
       dtCell = dt
     END IF
@@ -1279,12 +1278,10 @@ DO iPath = 1, ChemReac%CollCaseInfo(iCase)%NumOfReactionPaths
       END IF
     END ASSOCIATE
     ! Calculation of reaction rate coefficient
-#if (PP_TimeDiscMethod==42)
-    IF (.NOT.DSMC%ReservoirRateStatistic) THEN
+    IF (DSMC%ReservoirSimu.AND..NOT.DSMC%ReservoirRateStatistic) THEN
       ChemReac%NumReac(ReacTest) = ChemReac%NumReac(ReacTest) + ChemReac%CollCaseInfo(iCase)%ReactionProb(iPath)
       ChemReac%ReacCount(ReacTest) = ChemReac%ReacCount(ReacTest) + 1
     END IF
-#endif
   END IF
 END DO
 

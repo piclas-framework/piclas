@@ -57,7 +57,7 @@ USE MOD_Analyze_Vars         ,ONLY: CalcMeshInfo
 USE MOD_MPI_Vars             ,ONLY: offsetElemMPI
 USE MOD_LoadDistribution     ,ONLY: ApplyWeightDistributionMethod
 #ifdef PARTICLES
-USE MOD_Particle_VarTimeStep ,ONLY: VarTimeStep_InitDistribution
+USE MOD_Particle_TimeStep    ,ONLY: VarTimeStep_InitDistribution
 USE MOD_Particle_Vars        ,ONLY: VarTimeStep
 USE MOD_LoadBalance_Vars     ,ONLY: ElemTimePart
 #endif /*PARTICLES*/
@@ -96,6 +96,9 @@ GETTIME(StartT)
 IF (PerformLoadBalance) THEN
   nElemsOld     = nElems
   offsetElemOld = offsetElem
+#if ! defined(PARTICLES)
+  CALL CollectiveStop(__STAMP__,'Load balance not implemented for PARTICLES=OFF')
+#endif /*defined(PARTICLES)*/
   IF (myComputeNodeRank.EQ.0) &
     ElemInfoRank_Shared  = ElemInfo_Shared(ELEM_RANK,:)
   CALL BARRIER_AND_SYNC(ElemInfoRank_Shared_Win,MPI_COMM_SHARED)
@@ -143,7 +146,7 @@ IF (DoRestart.OR.PerformLoadBalance) THEN
   END IF
 
   ! 2) Distribute logical information ElemTimeExists
-  CALL MPI_BCAST(ElemTimeExists,1,MPI_LOGICAL,0,MPI_COMM_WORLD,iError)
+  CALL MPI_BCAST(ElemTimeExists,1,MPI_LOGICAL,0,MPI_COMM_PICLAS,iError)
 
   ! Distribute the elements according to the selected distribution method
   CALL ApplyWeightDistributionMethod(ElemTimeExists)
@@ -152,7 +155,7 @@ ELSE
   CALL WeightDistribution_Equal(nProcessors,nGlobalElems,offsetElemMPI)
 
   ! Send the load distribution to all other procs
-  CALL MPI_BCAST(offsetElemMPI,nProcessors+1,MPI_INTEGER,0,MPI_COMM_WORLD,iERROR)
+  CALL MPI_BCAST(offsetElemMPI,nProcessors+1,MPI_INTEGER,0,MPI_COMM_PICLAS,iERROR)
 
 END IF ! IF(DoRestart.OR.PerformLoadBalance)
 
@@ -322,7 +325,7 @@ IF (PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance)) THEN
     DO iProc = 0,nProcessors-1
       ElemPerProc(iProc) = offsetElemMPIOld(iProc+1) - offsetElemMPIOld(iProc)
     END DO
-    CALL MPI_GATHERV(ElemTime,nElems,MPI_DOUBLE_PRECISION,ElemGlobalTime,ElemPerProc,offsetElemMPIOld(0:nProcessors-1),MPI_DOUBLE_PRECISION,0,MPI_COMM_WORLD,iError)
+    CALL MPI_GATHERV(ElemTime,nElems,MPI_DOUBLE_PRECISION,ElemGlobalTime,ElemPerProc,offsetElemMPIOld(0:nProcessors-1),MPI_DOUBLE_PRECISION,0,MPI_COMM_PICLAS,iError)
   ELSE
     ALLOCATE(ElemTimeTmp(1:nElems))
 
@@ -332,7 +335,7 @@ IF (PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance)) THEN
             counts_recv  => INT(MPInElemRecv     ) ,&
             disp_recv    => INT(MPIoffsetElemRecv))
       ! Communicate PartInt over MPI
-      CALL MPI_ALLTOALLV(ElemTime,counts_send,disp_send,MPI_DOUBLE_PRECISION,ElemTimeTmp,counts_recv,disp_recv,MPI_DOUBLE_PRECISION,MPI_COMM_WORLD,iError)
+      CALL MPI_ALLTOALLV(ElemTime,counts_send,disp_send,MPI_DOUBLE_PRECISION,ElemTimeTmp,counts_recv,disp_recv,MPI_DOUBLE_PRECISION,MPI_COMM_PICLAS,iError)
     END ASSOCIATE
 
     DEALLOCATE(ElemTime)
@@ -364,7 +367,7 @@ ELSE
       ! When this happens, the root process and its processors that are on the same node always return ElemTimeExists=T
       ! This points to a corrupt state file (accompanied by SpecID=0 particles within the file)
       ! If the load balance step is performed without h5 I/O in the future, this check can be removed
-      CALL OpenDataFile(RestartFile,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_WORLD)
+      CALL OpenDataFile(RestartFile,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_PICLAS)
       CALL DatasetExists(File_ID,'ElemTime',ElemTimeExists)
       IF(.NOT.ElemTimeExists) CALL abort(__STAMP__,'ElemTime does not exit for some processors in .h5 which indicates a corrupt state file')
       CALL CloseDataFile()
@@ -389,8 +392,8 @@ ELSE
         END IF ! MPIRoot
 
         ! Send from root to all other processes
-        CALL MPI_SCATTERV(ElemGlobalTime, ElemProc, offsetElemMPI, MPI_DOUBLE_PRECISION, ElemTime_tmp, nElems, MPI_DOUBLE_PRECISION, 0, MPI_COMM_WORLD, IERROR)
-        
+        CALL MPI_SCATTERV(ElemGlobalTime, ElemProc, offsetElemMPI, MPI_DOUBLE_PRECISION, ElemTime_tmp, nElems, MPI_DOUBLE_PRECISION, 0, MPI_COMM_PICLAS, IERROR)
+
         ! Deallocate temporary array
         IF(MPIRoot) DEALLOCATE(ElemProc)
       END IF ! FlushInitialState
@@ -400,7 +403,7 @@ ELSE
       SDEALLOCATE(ElemTime_tmp)
       ALLOCATE(ElemTime_tmp(1:nElems))
       ElemTime_tmp  = 0.
-      CALL OpenDataFile(RestartFile,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_WORLD)
+      CALL OpenDataFile(RestartFile,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_PICLAS)
       CALL ReadArray('ElemTime',2,(/1_IK,INT(nElems,IK)/),INT(offsetElem,IK),2,RealArray=ElemTime_tmp)
       CALL CloseDataFile()
 

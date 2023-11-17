@@ -145,7 +145,7 @@ SUBROUTINE InitParticleMesh()
 USE MOD_Globals
 USE MOD_Preproc
 USE MOD_Mesh_Tools             ,ONLY: InitGetGlobalElemID,InitGetCNElemID,GetCNElemID
-USE MOD_Mesh_Tools             ,ONLY: InitGetGlobalSideID,InitGetCNSideID,GetGlobalSideID
+USE MOD_Mesh_Tools             ,ONLY: InitGetGlobalSideID,InitGetCNSideID,GetGlobalSideID,InitElemNodeIDs
 USE MOD_Mesh_Vars              ,ONLY: deleteMeshPointer,NodeCoords
 USE MOD_Mesh_Vars              ,ONLY: NGeo,NGeoElevated
 USE MOD_Mesh_Vars              ,ONLY: useCurveds
@@ -155,7 +155,7 @@ USE MOD_Analyze_Vars           ,ONLY: CalcHaloInfo
 USE MOD_Particle_BGM           ,ONLY: BuildBGMAndIdentifyHaloRegion
 USE MOD_Particle_Mesh_Vars
 USE MOD_Particle_Mesh_Tools    ,ONLY: InitPEM_LocalElemID,InitPEM_CNElemID,GetMeshMinMax,IdentifyElemAndSideType
-USE MOD_Particle_Mesh_Tools    ,ONLY: CalcParticleMeshMetrics,InitElemNodeIDs,InitParticleGeometry,CalcBezierControlPoints
+USE MOD_Particle_Mesh_Tools    ,ONLY: CalcParticleMeshMetrics,InitParticleGeometry,CalcBezierControlPoints
 USE MOD_Particle_Mesh_Tools    ,ONLY: CalcXCL_NGeo
 USE MOD_Particle_Surfaces      ,ONLY: GetSideSlabNormalsAndIntervals
 USE MOD_Particle_Surfaces_Vars ,ONLY: BezierSampleN,BezierSampleXi,SurfFluxSideSize,TriaSurfaceFlux
@@ -169,8 +169,8 @@ USE MOD_Particle_Tracking_Vars ,ONLY: TrackingMethod, DisplayLostParticles
 USE MOD_PICInterpolation_Vars  ,ONLY: DoInterpolation
 USE MOD_PICDepo_Vars           ,ONLY: DoDeposition,DepositionType
 USE MOD_ReadInTools            ,ONLY: GETREAL,GETINT,GETLOGICAL,GetRealArray, GETINTFROMSTR
-USE MOD_Particle_Vars          ,ONLY: Symmetry
-USE MOD_SurfaceModel_Vars
+USE MOD_Particle_Vars          ,ONLY: Symmetry, DoVirtualCellMerge
+USE MOD_Particle_Boundary_Vars ,ONLY: PartBound
 #ifdef CODE_ANALYZE
 !USE MOD_Particle_Surfaces_Vars ,ONLY: SideBoundingBoxVolume
 USE MOD_Particle_Tracking_Vars ,ONLY: PartOut,MPIRankOut
@@ -349,7 +349,9 @@ SELECT CASE(TRIM(DepositionType))
     FindNeighbourElems = .TRUE.
 END SELECT
 ! Rotational periodic BC requires the neighbourhood to add elements of the BC nodes
-IF(GEO%RotPeriodicBC) FindNeighbourElems = .TRUE.
+IF(PartBound%UseRotPeriodicBC) FindNeighbourElems = .TRUE.
+
+IF(DoVirtualCellMerge) FindNeighbourElems = .TRUE.
 
 SELECT CASE(TrackingMethod)
   CASE(TRIATRACKING)
@@ -828,6 +830,7 @@ SDEALLOCATE(GEO%DirPeriodicVectors)
 SDEALLOCATE(GEO%PeriodicVectors)
 SDEALLOCATE(GEO%FIBGM)
 SDEALLOCATE(GEO%TFIBGM)
+SDEALLOCATE(GEO%XMinMax)
 #if USE_MPI
 SDEALLOCATE(IsExchangeElem)
 #endif /*USE_MPI*/

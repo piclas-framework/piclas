@@ -20,9 +20,6 @@ The `Part-Boundary1-SourceName=` corresponds to the name given during the prepro
 |  `reflective`  | Allows the definition of specular and diffuse reflection, Section {ref}`sec:particle-boundary-conditions-reflective` |
 | `rot_periodic` | Allows the definition of rotational periodicity, Section {ref}`sec:particle-boundary-conditions-rotBC`               |
 
-For `rot_periodic` exactly two corresponding boundaries must be defined. Every particle crossing one of these boundaries will be
-inserted at the corresponding other boundary that is rotationally shifted.
-
 (sec:particle-boundary-conditions-reflective)=
 ## Reflective Wall
 
@@ -70,14 +67,20 @@ The wall velocity will then be superimposed onto the particle velocity.
 ### Linear temperature gradient
 
 A linear temperature gradient across a boundary can be defined by supplying a second wall temperature and the start and end vector
+as well as an optional direction to which the gradient shall be limited (default: 0, x = 1, y = 2, z = 3)
 
-    Part-Boundary2-WallTemp2=500.
-    Part-Boundary2-TemperatureGradientStart=(/0.,0.,0./)
-    Part-Boundary2-TemperatureGradientEnd=(/0.,0.,1./)
+    Part-Boundary2-WallTemp2      = 500.
+    Part-Boundary2-TempGradStart  = (/0.,0.,0./)
+    Part-Boundary2-TempGradEnd    = (/1.,0.,1./)
+    Part-Boundary2-TempGradDir    = 0
 
-Between these two points the temperature will be interpolated, where the start vector corresponds to the first wall temperature,
-whereas the end vector to the second wall temperature. Beyond these position values, the first and second temperature will be used
-as the constant wall temperature, respectively.
+In the default case of the `TempGradDir = 0`, the temperature will be interpolated between the start and end vector, where the
+start vector corresponds to the first wall temperature `WallTemp`, and the end vector to the second wall temperature `WallTemp2`.
+Position values (which are projected onto the temperature gradient vector) beyond the gradient vector utilize the first (Start)
+and second temperature (End) as the constant wall temperature, respectively. In the special case of `TempGradDir = 1/2/3`, the
+temperature gradient will only be applied along the chosen the direction. As oppposed to the default case, the positions of the
+surfaces are not projected onto the gradient vector before checking wether they are inside the box spanned by `TempGradStart` and
+`TempGradEnd`. The applied surface temperature is output in the `DSMCSurfState` as `Wall_Temperature` for verification.
 
 ### Radiative equilibrium
 
@@ -106,26 +109,42 @@ It should be noted that the the adaptation should be performed multiple times to
 The rotational periodic boundary condition can be used in order to reduce the computational effort in case of an existing
 rotational periodicity. In contrast to symmetric boundary conditions, a macroscopic flow velocity in azimuthal direction can be
 simulated (e.g. circular flow around a rotating cylinder). Exactly two corresponding boundaries must be defined by setting
-`rot_periodic` as BC condition and the rotation direction for each BCs.
+`rot_periodic` as the BC condition and the rotating angle for each BC. Multiple pairs of boundary conditions with different angles
+can be defined.
 
-    Part-Boundary1-SourceName=BC_Rot_Peri_plus
-    Part-Boundary1-Condition=rot_periodic
-    Part-Boundary1-RotPeriodicDir=1
+    Part-Boundary1-SourceName       = BC_Rot_Peri_plus
+    Part-Boundary1-Condition        = rot_periodic
+    Part-Boundary1-RotPeriodicAngle = 90.
 
-    Part-Boundary2-SourceName=BC_Rot_Peri_minus
-    Part-Boundary2-Condition=rot_periodic
-    Part-Boundary2-RotPeriodicDir=-1
+    Part-Boundary2-SourceName       = BC_Rot_Peri_minus
+    Part-Boundary2-Condition        = rot_periodic
+    Part-Boundary2-RotPeriodicAngle = -90.
 
-CAUTION! The correct sign for the direction must be determined. Here, the rotation direction is defined by the rotation axis
-`Part-RotPeriodicAxi` that must be defined separately, and the right-hand rule.
+CAUTION! The correct sign for the rotating angle must be determined. The position of particles that cross one rotational 
+periodic boundary is tranformed according to this angle, which is defined by the right-hand rule and the rotation axis:
 
-    Part-RotPeriodicAxi=1    ! (x=1, y=2, z=3)
+    Part-RotPeriodicAxi = 1    ! (x = 1, y = 2, z = 3)
 
 The usage of rotational periodic boundary conditions is limited to cases, where the rotational periodic axis is one of the three
-Cartesian coordinate axis (x, y, z) with its origin at (0, 0, 0). Finally the rotation angle `Part-RotPeriodicAngle` [°] must be
-defined.
+Cartesian coordinate axis (x, y, z) with its origin at (0, 0, 0).
 
-    Part-RotPeriodicAngle=90
+### Intermediate Plane Definition
+If several segments with different rotation angles are defined, exactly two corresponding BCs must be defined for each segment.
+Since the plane between these segments with different rotational symmetry angles represents a non-conforming connection, additional 
+two BCs must be defined as `rot_periodic_inter_plane` at this intermediate plane. Both BCs must refer to each other in the 
+definition in order to ensure the connection.
+
+    Part-Boundary40-SourceName       = BC_INT_R1_BOT
+    Part-Boundary40-Condition        = rot_periodic_inter_plane
+    Part-Boundary40-AssociatedPlane  = 41
+
+    Part-Boundary41-SourceName       = BC_INT_S1_TOP
+    Part-Boundary41-Condition        = rot_periodic_inter_plane
+    Part-Boundary41-AssociatedPlane  = 40 
+
+Note that using the intermediate plane definition with two corresponding BCs allows the user to mesh the segments independently, 
+creating a non-conforming interface at the intermediate plane. However, use of these non-conformal grids has so far only been 
+possible in pure DSMC simulations.
 
 ## Porous Wall / Pump
 
@@ -200,6 +219,7 @@ The available conditions (`Part-BoundaryX-SurfaceModel=`) are described in the t
 |    Model    | Description                                                                                                                                                                                  |
 | :---------: | :------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | 0 (default) | Standard extended Maxwellian scattering                                                                                                                                                      |
+|      1      | Empirical modelling of sticking coefficient/probability                                                                                                                                                  |
 |      5      | Secondary electron emission as given by Ref. {cite}`Levko2015`.                                                                                                                              |
 |      7      | Secondary electron emission due to ion impact (SEE-I with $Ar^{+}$ on different metals) as used in Ref. {cite}`Pflug2014` and given by Ref. {cite}`Depla2009` with a default yield of 13 \%. |
 |      8      | Secondary electron emission due to ion impact (SEE-E with $e^{-}$ on dielectric surfaces) as used in Ref. {cite}`Liu2010` and given by Ref. {cite}`Morozov2004`.                             |
@@ -215,7 +235,45 @@ For surface sampling output, where the surface is split into, e.g., $3\times3$ s
     Particles-DSMC-CalcSurfaceVal = T
     Part-IterationForMacroVal     = 200
 
-where `BezierSampleN=DSMC-nSurfSample`. In this example, sampling is performed over 200 iterations.
+where `BezierSampleN=DSMC-nSurfSample`. In this example, sampling is performed over and every 200 iterations.
+
+### Empirical model for a sticking coefficient
+
+To model the sticking of gas particles on cold surfaces, an empirical model is available, which is based on experimental measurements. The sticking coefficient is modelled through the product of a non-bounce probability $B(\alpha)$ and a condensation probability $C(\alpha,T)$
+
+$$ p_s (\alpha,T) = B(\alpha) C(\alpha,T) $$
+
+The non-bounce probability introduces a linear dependency on the impact angle $\alpha$
+
+$$
+B(\alpha) = \begin{cases}
+   1 , & |\alpha| < \alpha_{\mathrm{B}} \\
+   \dfrac{90^{\circ}-|\alpha|}{90^{\circ}-|\alpha_{\mathrm{B}}|} , & \alpha_{\mathrm{B}} \leq |\alpha| \leq 90^{\circ} \\
+\end{cases}
+$$
+
+$\alpha_{\mathrm{B}}$ is a model-dependent cut-off angle. The condensation probability introduces a linear dependency on the surface temperature $T$
+
+$$
+C(\alpha, T) = \begin{cases}
+   1 , & T < T_1 \\
+   \dfrac{T_2(\alpha)-T}{T_2(\alpha)-T_1(\alpha)} , & T_1 \leq T \leq T_2 \\
+   0 , & T > T_2 \\
+\end{cases}
+$$
+
+The temperature limits $T_1$ and $T_2$ are model parameters and can be given for different impact angle ranges defined by the maximum impact angle $\alpha_{\mathrm{max}}$. These model parameters are read-in through the species database and have to be provided in the `/Surface-Chemistry/StickingCoefficient` dataset in the following format (example values):
+
+| $\alpha_{\mathrm{max}}$ [deg] | $\alpha_{\mathrm{B}}$ [deg] | $T_1$ [K] | $T_2$ [K] |
+| ----------------------------: | --------------------------: | --------: | --------: |
+|                            45 |                          80 |        50 |       100 |
+|                            90 |                          70 |        20 |        50 |
+
+In this example, within impact angles of $0°\leq\alpha\leq45°$, the model parameters of the first row will be used and for $45°<\alpha\leq90°$ the second row. The number of rows is not limited. The species database is read-in by
+
+    Particles-Species-Database = Species_Database.h5
+
+As additional output, the cell-local sticking coefficient will be added to the sampled surface output. A particle sticking to the surface will be deleted and its energy added to the heat flux sampling. This model can be combined with the linear temperature gradient and radiative equilibrium modelling as described in Section {ref}`sec:particle-boundary-conditions-reflective`.
 
 ### Secondary Electron Emission (SEE)
 

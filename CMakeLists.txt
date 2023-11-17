@@ -121,6 +121,8 @@ IF(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/.git)
   MESSAGE(STATUS "Current git commit ${GIT_COMMIT} will be written to ${commit}")
   EXECUTE_PROCESS(COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/tools/cmake/setCommitHash.sh ${commit})
 ENDIF()
+# Make sure that the script is executed even though cmake is not explicitly executed after the commit is changed in git
+ADD_CUSTOM_TARGET(UpdateGitCommitHash COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/tools/cmake/setCommitHash.sh ${commit})
 
 # =========================================================================
 # Check IPO support:
@@ -250,7 +252,8 @@ GETLISTOFVARSSTARTINGWITH("PICLAS_" piclasVars)
 GETLISTOFVARSSTARTINGWITH("HDF5_"   piclasVars2)
 GETLISTOFVARSSTARTINGWITH("CMAKE_"  piclasVars3)
 GETLISTOFVARSSTARTINGWITH("POSTI_"  piclasVars4)
-FOREACH (_var IN LISTS piclasVars piclasVars2 piclasVars3 piclasVars4)
+GETLISTOFVARSSTARTINGWITH("LIBS_"   piclasVars5)
+FOREACH (_var IN LISTS piclasVars piclasVars2 piclasVars3 piclasVars4 piclasVars5)
   GET_PROPERTY(currentHelpString CACHE "${_var}" PROPERTY HELPSTRING)
   # Skip empty variables
   IF(NOT ${${_var}} STREQUAL "")
@@ -265,6 +268,14 @@ FOREACH (_var IN LISTS piclasVars piclasVars2 piclasVars3 piclasVars4)
     ENDIF()
   ENDIF()
 ENDFOREACH()
+
+# =========================================================================
+# HOPR pre-processor
+# =========================================================================
+OPTION(LIBS_BUILD_HOPR "Build HOPR pre-processor by compiling the source code downloaded from https://github.com/hopr-framework/hopr.git" OFF)
+SET(HOPR_TAG "v1.2.0" CACHE STRING "HOPR version tag for downloading the executable or compiling the source code (from GitHub)")
+SET(HOPR_DOWNLOAD_URL "https://github.com/hopr-framework/hopr/releases/download/${HOPR_TAG}/hopr-linux64.zip")
+OPTION(LIBS_DOWNLOAD_HOPR "Download HOPR pre-processor AppImage executable from ${HOPR_DOWNLOAD_URL}" OFF)
 
 # =========================================================================
 # ADD LIBRARIES

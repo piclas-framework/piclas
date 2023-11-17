@@ -35,11 +35,59 @@ INTERFACE beta
   MODULE PROCEDURE beta
 END INTERFACE
 
-PUBLIC:: DepositParticleOnNodes,CalcCellLocNodeVolumes,ReadTimeAverage,beta
+INTERFACE DepositPhotonSEEHoles
+  MODULE PROCEDURE DepositPhotonSEEHoles
+END INTERFACE
+
+PUBLIC:: DepositParticleOnNodes,CalcCellLocNodeVolumes,ReadTimeAverage,beta,DepositPhotonSEEHoles
 !===================================================================================================================================
 
 CONTAINS
 
+!===================================================================================================================================
+!> Deposit surface charge of positive charges (electron holes) due to SEE from a surface
+!> Check if the current iBC is connected to a dielectric region (surface charge currently only for dielectrics)
+!===================================================================================================================================
+SUBROUTINE DepositPhotonSEEHoles(iBC,NbrOfParticle)
+! MODULES
+USE MOD_Particle_Boundary_Vars ,ONLY: PartBound
+USE MOD_PICDepo_Vars           ,ONLY: DoDeposition
+USE MOD_Dielectric_Vars        ,ONLY: DoDielectricSurfaceCharge
+USE MOD_Particle_Vars          ,ONLY: PEM, PDM, PartSpecies, PartState, Species, usevMPF, PartMPF
+IMPLICIT NONE
+!----------------------------------------------------------------------------------------------------------------------------------!
+! INPUT / OUTPUT VARIABLES
+INTEGER,INTENT(IN) :: iBC           !< BC of emitted particle (only if defined and >0)
+INTEGER,INTENT(IN) :: NbrOfParticle !< Number of newly inserted electrons
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER  :: iPart          !< i-th inserted electron
+INTEGER  :: ParticleIndex  !< index of i-th inserted electron in particle array
+REAL     :: MPF            !< macro-particle factor
+REAL     :: ChargeHole     !< Charge of SEE electrons holes
+!===================================================================================================================================
+! Only continue when Species(i)%Init(iInit)%PartBCIndex.GT.0
+IF(iBC.LE.0) RETURN
+! Check if deposition and surface charge is active and if the current BC is a charged BC
+IF(DoDeposition.AND.DoDielectricSurfaceCharge.AND.PartBound%Dielectric(iBC))THEN
+  DO iPart = 1, NbrOfParticle
+    ! Get index from next free position array
+    ParticleIndex = PDM%nextFreePosition(iPart+PDM%CurrentNextFreePosition)
+
+    ! Get charge
+    IF(usevMPF)THEN
+      MPF = PartMPF(ParticleIndex)
+    ELSE
+      MPF = Species(PartSpecies(ParticleIndex))%MacroParticleFactor
+    END IF ! usevMPF
+    ChargeHole = -Species(PartSpecies(ParticleIndex))%ChargeIC*MPF
+
+    ! Create electron hole (i.e. positive surface charge)
+    CALL DepositParticleOnNodes(ChargeHole, PartState(1:3,ParticleIndex), PEM%GlobalElemID(ParticleIndex))
+  END DO
+END IF
+
+END SUBROUTINE DepositPhotonSEEHoles
 
 !===================================================================================================================================
 !> Deposit the charge of a single particle on the nodes corresponding to the deposition method 'cell_volweight_mean', where the
@@ -158,8 +206,8 @@ USE MOD_PICDepo_Vars       ,ONLY: NodeVolume_Shared, NodeVolume_Shared_Win
 #else
 USE MOD_Mesh_Vars          ,ONLY: nElems
 #endif
-USE MOD_PICDepo_Vars       ,ONLY: NodeVolume
-USE MOD_Particle_Mesh_Vars ,ONLY: ElemsJ, ElemNodeID_Shared, nUniqueGlobalNodes, NodeInfo_Shared
+USE MOD_PICDepo_Vars       ,ONLY: NodeVolume,Periodic_nNodes,Periodic_offsetNode,Periodic_Nodes
+USE MOD_Particle_Mesh_Vars ,ONLY: ElemsJ, ElemNodeID_Shared, nUniqueGlobalNodes, NodeInfo_Shared,GEO
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -170,27 +218,25 @@ IMPLICIT NONE
 ! LOCAL VARIABLES
 REAL                             :: Vdm_loc(0:1,0:PP_N),wGP_loc,xGP_loc(0:1),DetJac(1,0:1,0:1,0:1)
 REAL                             :: DetLocal(1,0:PP_N,0:PP_N,0:PP_N)
-INTEGER                          :: j,k,l,iElem, firstElem, lastElem
+INTEGER                          :: j,k,l,iElem, firstElem, lastElem, iNode, jNode
+REAL                             :: NodeVolumeLoc(1:nUniqueGlobalNodes)
 #if USE_MPI
 INTEGER                          :: MessageSize
-REAL                             :: NodeVolumeLoc(1:nUniqueGlobalNodes)
 #if USE_DEBUG
 INTEGER                          :: I
 #endif /*USE_DEBUG*/
 #endif
 INTEGER                          :: NodeID(1:8)
 !===================================================================================================================================
+NodeVolumeLoc = 0.
 #if USE_MPI
 CALL Allocate_Shared((/nUniqueGlobalNodes/),NodeVolume_Shared_Win,NodeVolume_Shared)
 CALL MPI_WIN_LOCK_ALL(0,NodeVolume_Shared_Win,IERROR)
 NodeVolume => NodeVolume_Shared
 firstElem = INT(REAL( myComputeNodeRank   )*REAL(nComputeNodeTotalElems)/REAL(nComputeNodeProcessors))+1
 lastElem  = INT(REAL((myComputeNodeRank+1))*REAL(nComputeNodeTotalElems)/REAL(nComputeNodeProcessors))
-NodeVolumeLoc = 0.
 ! only CN root nullifies
-IF (myComputeNodeRank.EQ.0) THEN
-  NodeVolume = 0.0
-END IF
+IF (myComputeNodeRank.EQ.0) NodeVolume = 0.0
 ! This sync/barrier is required as it cannot be guaranteed that the zeros have been written to memory by the time the MPI_REDUCE
 ! is executed (see MPI specification). Until the Sync is complete, the status is undefined, i.e., old or new value or utter nonsense.
 CALL BARRIER_AND_SYNC(NodeVolume_Shared_Win,MPI_COMM_SHARED)
@@ -247,7 +293,29 @@ ELSE
   CALL MPI_REDUCE(NodeVolumeLoc , 0          , MessageSize , MPI_DOUBLE_PRECISION , MPI_SUM , 0 , MPI_COMM_SHARED , IERROR)
 END IF
 CALL BARRIER_AND_SYNC(NodeVolume_Shared_Win,MPI_COMM_SHARED)
+#endif
+IF (GEO%nPeriodicVectors.GT.0) THEN
+#if USE_MPI
+  IF (myComputeNodeRank.EQ.0) THEN
+#endif /*USE_MPI*/
+    ! Root node acquires the periodic contribution
+    NodeVolumeLoc = 0.
+    DO iNode = 1,nUniqueGlobalNodes
+      IF (Periodic_nNodes(iNode).GT.0) THEN
+        DO jNode = Periodic_offsetNode(iNode)+1,Periodic_offsetNode(iNode)+Periodic_nNodes(iNode)
+          NodeVolumeLoc(iNode) = NodeVolumeLoc(iNode) + NodeVolume(Periodic_Nodes(jNode))
+        END DO ! jNode
+      END IF ! Periodic_nNodes(iNode).GT.0
+    END DO ! iNode = nUniqueGlobalNodes
+    ! Only node root adds periodic contribution to shared array
+    NodeVolume = NodeVolume + NodeVolumeLoc
+#if USE_MPI
+  END IF ! myComputeNodeRank.EQ.0
+  CALL BARRIER_AND_SYNC(NodeVolume_Shared_Win,MPI_COMM_SHARED)
+#endif
+END IF
 
+#if USE_MPI
 #if USE_DEBUG
 ! Sanity Check: Only check UniqueGlobalNodes that are on the compute node (total)
 DO iElem = firstElem, lastElem
@@ -310,7 +378,7 @@ IF(MPIRoot) THEN
   IF(.NOT.FILEEXISTS(FileName))  CALL abort(__STAMP__, &
         'TimeAverage-File "'//TRIM(FileName)//'" does not exist',999,999.)
 END IF
-CALL OpenDataFile(TRIM(FileName),create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_WORLD)
+CALL OpenDataFile(TRIM(FileName),create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_PICLAS)
 
 ! get attributes
 CALL DatasetExists(File_ID,'DG_Solution',SolutionExists)

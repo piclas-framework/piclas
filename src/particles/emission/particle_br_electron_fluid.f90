@@ -48,25 +48,18 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 !===================================================================================================================================
-CALL prms%CreateIntOption(      'BRNbrOfRegions'        , 'Number of regions to be mapped to Elements', '0')
-
-CALL prms%CreateStringOption(   'BRVariableElectronTemp', 'Variable electron reference temperature when using Boltzmann relation'//&
-                                                          ' electron model (default is using a constant temperature)','constant')
-CALL prms%CreateRealArrayOption('BRRegionBounds[$]'     , 'BRRegionBounds ((xmin,xmax,ymin,...)|1:BRNbrOfRegions)'&
-                                                        , '0. , 0. , 0. , 0. , 0. , 0.', numberedmulti=.TRUE.)
-CALL prms%CreateRealArrayOption('Part-RegionElectronRef[$]'   , 'rho_ref, phi_ref, and Te[eV] for Region#'&
-                                                              , '0. , 0. , 1.', numberedmulti=.TRUE.)
-CALL prms%CreateRealOption(     'Part-RegionElectronRef[$]-PhiMax'   , 'max. expected phi for Region#\n'//&
-                                                                '(linear approx. above! def.: phi_ref)', numberedmulti=.TRUE.)
-CALL prms%CreateLogicalOption(  'BRConvertElectronsToFluid'   , 'Remove all electrons when using BR electron fluid', '.FALSE.')
-CALL prms%CreateLogicalOption(  'BRConvertFluidToElectrons'   , 'Create electrons from BR electron fluid (requires'//&
-                                                                ' ElectronDensityCell ElectronTemperatureCell from .h5 state file)'&
-                                                              , '.FALSE.')
-CALL prms%CreateRealOption(     'BRConvertFluidToElectronsTime', "Time when BR fluid electrons are to be converted to kinetic particles", '-1.0')
-CALL prms%CreateRealOption(     'BRConvertElectronsToFluidTime', "Time when kinetic electrons should be converted to BR fluid electrons", '-1.0')
-CALL prms%CreateLogicalOption(  'BRConvertModelRepeatedly'     , 'Repeat the switch between BR and kinetic multiple times', '.FALSE.')
-CALL prms%CreateRealOption(     'BRTimeStepMultiplier'         , "Factor that is multiplied with the ManualTimeStep when using BR model", '1.0')
-CALL prms%CreateLogicalOption(  'BRAutomaticElectronRef'       , 'Automatically obtain the reference parameters (from a fully kinetic simulation)', '.FALSE.')
+CALL prms%CreateIntOption(      'BRNbrOfRegions'                   , 'Number of regions to be mapped to Elements', '0')
+CALL prms%CreateStringOption(   'BRVariableElectronTemp'           , 'Variable electron reference temperature when using Boltzmann relation electron model (default is using a constant temperature)','constant')
+CALL prms%CreateRealArrayOption('BRRegionBounds[$]'                , 'BRRegionBounds ((xmin,xmax,ymin,...)|1:BRNbrOfRegions)', '0. , 0. , 0. , 0. , 0. , 0.', numberedmulti=.TRUE.)
+CALL prms%CreateRealArrayOption('Part-RegionElectronRef[$]'        , 'rho_ref, phi_ref, and Te[eV] for Region#', '0. , 0. , 1.', numberedmulti=.TRUE.)
+CALL prms%CreateRealOption(     'Part-RegionElectronRef[$]-PhiMax' , 'max. expected phi for Region#\n (linear approx. above! def.: phi_ref)', numberedmulti=.TRUE.)
+CALL prms%CreateLogicalOption(  'BRConvertElectronsToFluid'        , 'Remove all electrons when using BR electron fluid', '.FALSE.')
+CALL prms%CreateLogicalOption(  'BRConvertFluidToElectrons'        , 'Create electrons from BR electron fluid (requires ElectronDensityCell ElectronTemperatureCell from .h5 state file)', '.FALSE.')
+CALL prms%CreateRealOption(     'BRConvertFluidToElectronsTime'    , "Time when BR fluid electrons are to be converted to kinetic particles", '-1.0')
+CALL prms%CreateRealOption(     'BRConvertElectronsToFluidTime'    , "Time when kinetic electrons should be converted to BR fluid electrons", '-1.0')
+CALL prms%CreateLogicalOption(  'BRConvertModelRepeatedly'         , 'Repeat the switch between BR and kinetic multiple times', '.FALSE.')
+CALL prms%CreateRealOption(     'BRTimeStepMultiplier'             , "Factor that is multiplied with the ManualTimeStep when using BR model", '1.0')
+CALL prms%CreateLogicalOption(  'BRAutomaticElectronRef'           , 'Automatically obtain the reference parameters (from a fully kinetic simulation)', '.FALSE.')
 END SUBROUTINE DefineParametersBR
 
 
@@ -264,7 +257,7 @@ IF(BRNbrOfRegions.GT.0)THEN
       END IF ! MPIRoot
 #if USE_MPI
       ! Broadcast from root to other processors
-      CALL MPI_BCAST(RegionElectronRefHDF5,3, MPI_DOUBLE_PRECISION,0,MPI_COMM_WORLD,iERROR)
+      CALL MPI_BCAST(RegionElectronRefHDF5,3, MPI_DOUBLE_PRECISION,0,MPI_COMM_PICLAS,iERROR)
 #endif /*USE_MPI*/
     END IF ! DoRestart
 
@@ -620,7 +613,7 @@ END DO ! iBRElem = 1, nBRAverageElems
 
 ! Sum the number of elements (later required for averaging the cell-constant values globally on each processor)
 #if USE_MPI
-CALL MPI_ALLREDUCE(RegionElectronRefNew , RegionElectronRefNewGlobal , 3 , MPI_DOUBLE_PRECISION , MPI_SUM , MPI_COMM_WORLD , IERROR)
+CALL MPI_ALLREDUCE(RegionElectronRefNew , RegionElectronRefNewGlobal , 3 , MPI_DOUBLE_PRECISION , MPI_SUM , MPI_COMM_PICLAS , IERROR)
 #else
 RegionElectronRefNewGlobal = RegionElectronRefNew
 #endif /*USE_MPI*/
@@ -910,7 +903,7 @@ END FUNCTION LesserThanWithTolerance
 SUBROUTINE CreateElectronsFromBRFluid(CreateFromRestartFile)
 ! MODULES
 USE MOD_Globals
-USE MOD_Globals             ,ONLY: abort,MPIRoot,UNIT_stdOut,IK,MPI_COMM_WORLD
+USE MOD_Globals             ,ONLY: abort,MPIRoot,UNIT_stdOut,IK,MPI_COMM_PICLAS
 USE MOD_Globals_Vars        ,ONLY: ElementaryCharge,BoltzmannConst
 USE MOD_PreProc
 USE MOD_Particle_Vars       ,ONLY: PDM,PEM,PartState,nSpecies,Species,PartSpecies,usevMPF
@@ -954,7 +947,7 @@ BRNbrOfElectronsCreated=0
 IF(CreateFromRestartFile)THEN
   ALLOCATE(ElectronDensityCell(1,1:PP_nElems))
   ALLOCATE(ElectronTemperatureCell(1,1:PP_nElems))
-  CALL OpenDataFile(RestartFile,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_WORLD)
+  CALL OpenDataFile(RestartFile,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_PICLAS)
   CALL DatasetExists(File_ID,'ElectronDensityCell',ElectronDensityCellExists)
   IF(ElectronDensityCellExists)THEN
     ! Associate construct for integer KIND=8 possibility
@@ -1002,9 +995,7 @@ DO iSpec = 1, nSpecies
     EXIT
   END IF
 END DO
-IF (ElecSpecIndx.LE.0) CALL abort(&
-  __STAMP__&
-  ,'Electron species not found. Cannot create electrons without the defined species!')
+IF (ElecSpecIndx.LE.0) CALL abort(__STAMP__,'Electron species not found. Cannot create electrons without the defined species!')
 
 WRITE(UNIT=hilf,FMT='(I0)') iSpec
 SWRITE(UNIT_stdOut,'(A)')'  Using iSpec='//TRIM(hilf)//' as electron species index from BR fluid conversion.'
@@ -1035,14 +1026,12 @@ DO iElem=1,PP_nElems
     PDM%CurrentNextFreePosition = PDM%CurrentNextFreePosition + 1
     ParticleIndexNbr            = PDM%nextFreePosition(PDM%CurrentNextFreePosition)
     IF (ParticleIndexNbr.EQ.0) THEN
-      CALL Abort(&
-      __STAMP__&
-      ,'ERROR in CreateElectronsFromBRFluid(): New Particle Number greater max Part Num!')
+      CALL abort(__STAMP__,'ERROR in CreateElectronsFromBRFluid(): New Particle Number greater max Part Num!')
     END IF
     PDM%ParticleVecLength       = PDM%ParticleVecLength + 1
 
     !Set new SpeciesID of new particle (electron)
-    PDM%ParticleInside(ParticleIndexNbr) = .true.
+    PDM%ParticleInside(ParticleIndexNbr) = .TRUE.
     PartSpecies(ParticleIndexNbr) = ElecSpecIndx
 
     ! Place the electron randomly in the reference cell
@@ -1061,7 +1050,8 @@ DO iElem=1,PP_nElems
     END IF
 
     ! Set the element ID of the electron to the current element ID
-    PEM%GlobalElemID(ParticleIndexNbr) = iElem + offsetElem
+    PEM%GlobalElemID(ParticleIndexNbr)     = iElem + offsetElem
+    PEM%LastGlobalElemID(ParticleIndexNbr) = PEM%GlobalElemID(ParticleIndexNbr)
 
     ! Set the electron velocity using the Maxwellian distribution (use the function that is suitable for small numbers)
     IF(CreateFromRestartFile)THEN
@@ -1079,7 +1069,7 @@ IF(CreateFromRestartFile)THEN
 END IF ! CreateFromRestartFile
 
 #if USE_MPI
-CALL MPI_ALLREDUCE(MPI_IN_PLACE,BRNbrOfElectronsCreated,1,MPI_INTEGER,MPI_SUM,MPI_COMM_WORLD,iError)
+CALL MPI_ALLREDUCE(MPI_IN_PLACE,BRNbrOfElectronsCreated,1,MPI_INTEGER,MPI_SUM,MPI_COMM_PICLAS,iError)
 #endif /*USE_MPI*/
 
 SWRITE(UNIT_StdOut,'(A,I0,A)') '  Created a total of ',BRNbrOfElectronsCreated,' electrons.'
@@ -1215,7 +1205,7 @@ CALL WriteBRAverageElemToHDF5(isBRAverageElem)
 
 ! Sum the number of elements (later required for averaging the cell-constant values globally on each processor)
 #if USE_MPI
-CALL MPI_ALLREDUCE(nBRAverageElems , nBRAverageElemsGlobal , 1 , MPI_INTEGER , MPI_SUM , MPI_COMM_WORLD , IERROR)
+CALL MPI_ALLREDUCE(nBRAverageElems , nBRAverageElemsGlobal , 1 , MPI_INTEGER , MPI_SUM , MPI_COMM_PICLAS , IERROR)
 #else
 nBRAverageElemsGlobal = nBRAverageElems
 #endif /*USE_MPI*/
