@@ -105,7 +105,7 @@ DO SideID=firstSideID_wo_BC,lastSideID
   E_slave=0.
   E_master=0.
   DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
-    E_slave(:) = E_slave(:) + wGP(i)*wGP(j)*wGP(k)*E(1:3,i,j,k,ElemIDm)/((PP_N+1.)**3)   !now only E from master, do something with MPI
+    E_slave(:) = E_slave(:) + wGP(i)*wGP(j)*wGP(k)*E(1:3,i,j,k,ElemIDs)/((PP_N+1.)**3)
     E_master(:) = E_master(:) + wGP(i)*wGP(j)*wGP(k)*E(1:3,i,j,k,ElemIDm)/((PP_N+1.)**3)
   END DO; END DO; END DO
   CALL Riemann(Flux_Master(:,:,:,SideID),U_Master(:,:,:,SideID),U_Slave(:,:,:,SideID),NormVec_FV(:,:,:,SideID), &

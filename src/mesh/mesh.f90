@@ -393,7 +393,7 @@ IF (ABS(meshMode).GT.1) THEN
 #endif /*USE_FV*/
 #if !(USE_FV) || (USE_HDG)
 #ifdef PARTICLES
-  ALLOCATE(dXCL_NGeo(1:3,1:3,0:NGeo,0:NGeo,0:NGeo,1:nElems))
+  IF(.NOT.ALLOCATED(dXCL_NGeo)) ALLOCATE(dXCL_NGeo(1:3,1:3,0:NGeo,0:NGeo,0:NGeo,1:nElems))
   dXCL_NGeo = 0.
   CALL CalcMetrics(XCL_NGeo_Out=XCL_NGeo,dXCL_NGeo_Out=dXCL_NGeo)
 #else

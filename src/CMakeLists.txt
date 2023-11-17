@@ -532,6 +532,7 @@ FILE(GLOB_RECURSE hdgfvF90 ./src/hdg/*.f90
                         ./src/equations/drift_diffusion/getboundaryflux.f90
                         ./src/equations/drift_diffusion/getboundarygrad.f90
                         ./src/equations/poisson/equation.f90
+                        ./src/equations/poisson/equation_tools.f90
                         ./src/equations/poisson/equation_vars.f90
                         ./src/equations/poisson/timeavg.f90
                         ./src/equations/poisson/timeavg_vars.f90

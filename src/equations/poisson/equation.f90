@@ -739,7 +739,7 @@ CASE(400,401) ! Point Source in Dielectric Region with epsR_1  = 1 for x < 0 (va
         SWRITE(*,*) "r1=",r1
         CALL abort(__STAMP__,'Point source in dielectric region: Cannot evaluate the exact function at the singularity!')
       END IF
-      resu(1:PP_nVar) = (2.0*Q/eps12) * 1./r1 
+      resu(1:PP_nVar) = (2.0*Q/eps12) * 1./r1
     END IF
   END ASSOCIATE
 CASE(500) ! Coaxial capacitor with Floating Boundary Condition (FPC) with from
@@ -981,7 +981,7 @@ END IF
 #endif /*PARTICLES*/
 
 #ifdef drift_diffusion
-resu(1) = (U_FV(1,0,0,0,iElem) * ElementaryCharge)/eps0  ! minus * minus => no minus
+resu(1) = - ((PartSource(4,i,j,k,iElem) - U_FV(1,0,0,0,iElem)) * ElementaryCharge)/eps0
 #endif
 
 

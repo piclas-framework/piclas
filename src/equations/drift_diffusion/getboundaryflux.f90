@@ -135,6 +135,7 @@ USE MOD_Equation_Vars_FV,ONLY: IniExactFunc_FV,RefState_FV
 USE MOD_Gradient_Vars   ,ONLY: Grad_dx_master
 USE MOD_Riemann
 USE MOD_Equation_FV     ,ONLY: ExactFunc_FV
+USE MOD_Interpolation_Vars ,ONLY: wGP
 !----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT / OUTPUT VARIABLES
 REAL,INTENT(IN)                      :: t       !< current time (provided by time integration scheme)
@@ -151,8 +152,8 @@ REAL,INTENT(OUT)                     :: Flux( PP_nVar_FV,0:0,0:0,1:nBCSides)
 ! LOCAL VARIABLES
 INTEGER                              :: iBC,iSide,SideID,ElemID
 INTEGER                              :: BCType,BCState,nBCLoc
-REAL                                 :: UPrim_boundary(PP_nVar_FV,0:0,0:0), GradSide
-INTEGER                              :: p,q
+REAL                                 :: UPrim_boundary(PP_nVar_FV,0:0,0:0), GradSide, E_master(3)
+INTEGER                              :: p,q, i, j, k
 !==================================================================================================================================
 DO iBC=1,nBCs
   IF(nBCByType(iBC).LE.0) CYCLE
@@ -162,7 +163,7 @@ DO iBC=1,nBCs
 
   SELECT CASE(BCType)
   CASE(1) !Periodic already filled!
-  
+
   CASE(2) !Exact function or RefState_FV
     DO iSide=1,nBCLoc
       SideID=BCSideID(iBC,iSide)
@@ -177,10 +178,16 @@ DO iBC=1,nBCs
                                        +(Grad_dx_master(2,SideID))**2 &
                                        +(Grad_dx_master(3,SideID))**2))
 #endif
+
+      E_master = 0.
+      DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
+        E_master(:) = E_master(:) + wGP(i)*wGP(j)*wGP(k)*E(1:3,i,j,k,ElemID)/((PP_N+1.)**3)
+      END DO; END DO; END DO
+
       CALL Riemann(Flux(:,:,:,SideID),UPrim_master(:,:,:,SideID),UPrim_boundary,NormVec(:,:,:,SideID),&
-                   GradSide,E(1:3,0,0,0,ElemID),E(1:3,0,0,0,ElemID))
+                   GradSide,E_master(1:3),E_master(1:3))
     END DO
-  
+
   CASE(3) !von Neumann
     DO iSide=1,nBCLoc
       SideID=BCSideID(iBC,iSide)

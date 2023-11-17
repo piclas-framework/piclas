@@ -26,15 +26,15 @@ PRIVATE
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
 
-#if !(USE_FV)
 #if USE_HDG
 #if defined(PARTICLES)
 PUBLIC :: WriteBRAverageElemToHDF5
 #endif /*defined(PARTICLES)*/
 #else
+#if !(USE_FV)
 PUBLIC :: WritePMLzetaGlobalToHDF5
-#endif /*USE_HDG*/
 #endif /*USE_FV*/
+#endif /*USE_HDG*/
 
 PUBLIC :: WriteDielectricGlobalToHDF5,WriteBGFieldToHDF5,WriteBGFieldAnalyticToHDF5
 #if (PP_nVar==8)
@@ -126,7 +126,6 @@ SDEALLOCATE(DielectricGlobal)
 SDEALLOCATE(StrVarNames)
 END SUBROUTINE WriteDielectricGlobalToHDF5
 
-#if !(USE_FV)
 #if USE_HDG
 #if defined(PARTICLES)
 SUBROUTINE WriteBRAverageElemToHDF5(isBRAverageElem)
@@ -204,6 +203,7 @@ END SUBROUTINE WriteBRAverageElemToHDF5
 
 
 #else
+#if !(USE_FV)
 SUBROUTINE WritePMLzetaGlobalToHDF5()
 !===================================================================================================================================
 ! write PMLzetaGlobal field to HDF5 file
@@ -285,8 +285,8 @@ CALL DisplayMessageAndTime(EndT-StartT, 'DONE', DisplayDespiteLB=.TRUE., Display
 SDEALLOCATE(PMLzetaGlobal)
 SDEALLOCATE(StrVarNames)
 END SUBROUTINE WritePMLzetaGlobalToHDF5
-#endif /*USE_HDG*/
 #endif /*USE_FV*/
+#endif /*USE_HDG*/
 
 
 SUBROUTINE WriteBGFieldToHDF5(OutputTime)

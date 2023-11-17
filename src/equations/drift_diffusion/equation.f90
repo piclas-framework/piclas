@@ -150,9 +150,9 @@ CASE(1)
 
 CASE(2) !shock
   IF (x(1).LT.0.) THEN
-    Resu = 2.e21
+    Resu = RefState_FV(:,1)
   ELSE
-    Resu = 1.e21
+    Resu = RefState_FV(:,2)
   END IF
 
 CASE DEFAULT

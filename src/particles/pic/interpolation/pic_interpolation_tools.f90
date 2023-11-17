@@ -333,9 +333,6 @@ USE MOD_PICInterpolation_Vars ,ONLY: useBGField
 USE MOD_Interpolation_Vars    ,ONLY: BGField,BGType,BGDataSize
 USE MOD_Globals
 USE MOD_PreProc
-#if USE_FV
-USE MOD_FV_Vars            ,ONLY: U
-#else
 #if ! (USE_HDG)
 USE MOD_DG_Vars       ,ONLY: U
 #endif
@@ -351,7 +348,6 @@ USE MOD_Equation_Vars ,ONLY: B
 USE MOD_Equation_Vars ,ONLY: B,E
 #endif /*PP_nVar==1*/
 #endif /*USE_HDG*/
-#endif /*USE_FV*/
 !----------------------------------------------------------------------------------------------------------------------------------
   IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
