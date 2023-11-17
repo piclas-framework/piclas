@@ -544,7 +544,7 @@ INTEGER                     :: firstSide, lastSide, SideNumber
 INTEGER                     :: iSpec , PositionNbr, iSF, iSide, BoundID, SideID
 INTEGER                     :: BCSideID, ElemID, iLocSide, iSample, jSample
 INTEGER                     :: Node1, Node2, globElemId
-INTEGER                     :: CatBoundNum   
+INTEGER                     :: CatBoundNum
 INTEGER                     :: SurfSideID
 INTEGER                     :: SubP, SubQ
 REAL                        :: Coverage_Sum

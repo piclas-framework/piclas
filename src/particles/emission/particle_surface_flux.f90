@@ -527,8 +527,7 @@ SUBROUTINE SetInnerEnergies(iSpec, iSF, NbrOfParticle)
 USE MOD_Globals
 USE MOD_DSMC_Vars               ,ONLY: SpecDSMC
 USE MOD_Particle_Vars           ,ONLY: PDM
-USE MOD_DSMC_PolyAtomicModel    ,ONLY: DSMC_SetInternalEnr_Poly
-USE MOD_DSMC_Relaxation         ,ONLY: DSMC_SetInternalEnr_Diatomic
+USE MOD_DSMC_PolyAtomicModel    ,ONLY: DSMC_SetInternalEnr
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------

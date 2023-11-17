@@ -466,7 +466,7 @@ USE MOD_Globals_Vars               ,ONLY: StefanBoltzmannConst
 USE MOD_DSMC_Vars                  ,ONLY: DSMC
 USE MOD_Mesh_Vars                  ,ONLY: MeshFile
 USE MOD_Particle_Boundary_Vars     ,ONLY: SurfOnNode
-USE MOD_SurfaceModel_Vars          ,ONLY: nPorousBC
+USE MOD_SurfaceModel_Vars          ,ONLY: nPorousBC, SurfChemReac, ChemWallProp
 USE MOD_Particle_Boundary_Vars     ,ONLY: nSurfSample,CalcSurfaceImpact
 USE MOD_Particle_Boundary_Vars     ,ONLY: SurfSide2GlobalSide, GlobalSide2SurfSide, PartBound
 USE MOD_Particle_Boundary_Vars     ,ONLY: nComputeNodeSurfSides, BoundaryWallTemp
@@ -610,6 +610,12 @@ DO iSurfSide = 1,nComputeNodeSurfSides
                                           - SampWallState(SAMPWALL_EVIBNEW  ,p,q,iSurfSide)  &
                                           - SampWallState(SAMPWALL_EELECNEW ,p,q,iSurfSide)) &
                                             / (SurfSideArea(p,q,iSurfSide) * TimeSampleTemp)
+      END IF
+
+      ! Add the heat flux due to catalytic reactions on the surface
+      IF(SurfChemReac%NumOfReact.GT.0) THEN
+        MacroSurfaceVal(4,p,q,OutputCounter) = MacroSurfaceVal(4,p,q,OutputCounter) + SUM(ChemWallProp(:,2,p, q, iSurfSide)) &
+                                              / (SurfSideArea(p,q,iSurfSide)*TimeSampleTemp)
       END IF
 
       ! Number of simulation particle impacts per iteration
@@ -829,20 +835,6 @@ IF (mySurfRank.EQ.0) THEN
   CALL AddVarName(Str2DVarNames,nVar2D_Total,nVarCount,'Total_HeatFlux')
   CALL AddVarName(Str2DVarNames,nVar2D_Total,nVarCount,'Total_SimPartPerIter')
   CALL AddVarName(Str2DVarNames,nVar2D_Total,nVarCount,'iBC')
-
-  ! ! Add the heat flux due to catalytic reactions on the surface
-  ! IF(SurfChemReac%NumOfReact.GT.0) THEN
-  !   OutputCounter = 0
-  !   DO iSurfSide = 1,nComputeNodeSurfSides
-  !     OutputCounter = OutputCounter + 1
-  !     DO q = 1,nSurfSample
-  !       DO p = 1,nSurfSample
-  !         MacroSurfaceVal(4,p,q,OutputCounter) = MacroSurfaceVal(4,p,q,OutputCounter) + SUM(ChemWallProp(:,2,p, q, iSurfSide)) &
-  !                                               / (SurfSideArea(p,q,iSurfSide)*OutputTime)
-  !       END DO ! q=1,nSurfSample
-  !     END DO ! p=1,nSurfSample
-  !   END DO ! iSurfSide=1,nComputeNodeSurfSides
-  ! END IF
 
   IF(nPorousBC.GT.0) THEN
     DO iPBC = 1, nPorousBC
