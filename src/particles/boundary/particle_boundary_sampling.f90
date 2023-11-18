@@ -33,14 +33,9 @@ INTERFACE FinalizeParticleBoundarySampling
   MODULE PROCEDURE FinalizeParticleBoundarySampling
 END INTERFACE
 
-INTERFACE WriteSurfSampleToHDF5
-  MODULE PROCEDURE WriteSurfSampleToHDF5
-END INTERFACE
-
 PUBLIC::DefineParametersParticleBoundarySampling
 PUBLIC::InitParticleBoundarySampling
 PUBLIC::CalcSurfaceValues
-PUBLIC::WriteSurfSampleToHDF5, WriteSurfSampleChemToHDF5
 PUBLIC::FinalizeParticleBoundarySampling
 !===================================================================================================================================
 
@@ -711,6 +706,7 @@ END IF
 #endif /*USE_MPI*/
 
 CALL WriteSurfSampleToHDF5(TRIM(MeshFile),ActualTime)
+IF(SurfChemReac%NumOfReact.GT.0) CALL WriteSurfSampleChemToHDF5(TRIM(MeshFile),ActualTime)
 
 MacroSurfaceVal = 0.
 MacroSurfaceSpecVal = 0.
@@ -733,15 +729,14 @@ USE MOD_IO_HDF5
 USE MOD_MPI_Shared_Vars         ,ONLY: mySurfRank
 USE MOD_SurfaceModel_Vars       ,ONLY: nPorousBC
 USE MOD_Particle_Boundary_Vars  ,ONLY: nSurfSample,CalcSurfaceImpact
-USE MOD_SurfaceModel_Vars       ,ONLY: SurfChemReac, ChemWallProp_Shared_Win, ChemWallProp
-USE MOD_Particle_Boundary_Vars  ,ONLY: nOutputSides, nComputeNodeSurfSides
+USE MOD_Particle_Boundary_Vars  ,ONLY: nOutputSides
 USE MOD_Particle_Boundary_Vars  ,ONLY: nComputeNodeSurfOutputSides,offsetComputeNodeSurfOutputSide
 USE MOD_Particle_Boundary_Vars  ,ONLY: nSurfBC,SurfBCName, PartBound
 USE MOD_Particle_Boundary_Vars  ,ONLY: SurfOutputSize,SurfSpecOutputSize
 USE MOD_Particle_Boundary_Vars  ,ONLY: MacroSurfaceVal,MacroSurfaceSpecVal
 USE MOD_Particle_Vars           ,ONLY: nSpecies
 #if USE_MPI
-USE MOD_Particle_Boundary_Vars  ,ONLY: nSurfTotalSides, SurfSideArea_Shared, SurfSideArea
+USE MOD_Particle_Boundary_Vars  ,ONLY: nSurfTotalSides
 USE MOD_MPI_Shared_Vars         ,ONLY: MPI_COMM_LEADERS_SURF
 #endif
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -909,15 +904,15 @@ USE MOD_DSMC_Vars               ,ONLY: CollisMode
 USE MOD_HDF5_Output             ,ONLY: WriteAttributeToHDF5,WriteArrayToHDF5,WriteHDF5Header
 USE MOD_IO_HDF5
 USE MOD_MPI_Shared_Vars         ,ONLY: mySurfRank
-USE MOD_SurfaceModel_Vars       ,ONLY: ChemWallProp_Shared_Win, ChemWallProp, SurfChemReac !, ChemCountReacWall
-USE MOD_Particle_Boundary_Vars  ,ONLY: nSurfSample
+USE MOD_SurfaceModel_Vars       ,ONLY: ChemWallProp, SurfChemReac !, ChemCountReacWall
+USE MOD_Particle_Boundary_Vars  ,ONLY: nSurfSample, SurfSideArea
 USE MOD_Particle_Boundary_Vars  ,ONLY: nOutputSides, nComputeNodeSurfSides
 USE MOD_Particle_boundary_Vars  ,ONLY: nComputeNodeSurfOutputSides,offsetComputeNodeSurfOutputSide
-USE MOD_Particle_Boundary_Vars  ,ONLY: nSurfBC,SurfBCName, PartBound
+USE MOD_Particle_Boundary_Vars  ,ONLY: nSurfBC,SurfBCName
 USE MOD_Particle_Vars           ,ONLY: nSpecies
 #if USE_MPI
-USE MOD_Particle_Boundary_Vars  ,ONLY: nSurfTotalSides, SurfSideArea_Shared, SurfSideArea
-USE MOD_MPI_Shared_Vars         ,ONLY: MPI_COMM_LEADERS_SURF, MPI_COMM_SHARED
+USE MOD_Particle_Boundary_Vars  ,ONLY: nSurfTotalSides
+USE MOD_MPI_Shared_Vars         ,ONLY: MPI_COMM_LEADERS_SURF
 USE MOD_MPI_Shared
 #endif
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -933,10 +928,10 @@ REAL,INTENT(IN)                      :: OutputTime
 CHARACTER(LEN=255)                  :: FileName,FileString,Statedummy
 CHARACTER(LEN=255)                  :: H5_Name
 CHARACTER(LEN=255)                  :: NodeTypeTemp
-CHARACTER(LEN=255)                  :: SpecID, PBCID, ReacID
+CHARACTER(LEN=255)                  :: SpecID, ReacID
 CHARACTER(LEN=255),ALLOCATABLE      :: Str2DVarNames(:)
 INTEGER                             :: nVar2D, nVar2D_Spec, nVar2D_Total, nVarCount, nVar2D_Heat !, nVar2D_Count
-INTEGER                             :: iSpec, iPBC, iSurfSide, nReac, iReac
+INTEGER                             :: iSpec, iSurfSide, nReac, iReac
 INTEGER                             :: p,q,OutputCounter
 REAL                                :: tstart,tend, tout
 REAL, ALLOCATABLE                   :: MacroSurfaceSpecChemVal(:,:,:,:,:)
