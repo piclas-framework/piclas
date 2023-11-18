@@ -350,8 +350,9 @@ IF (WriteMacroSurfaceValues.OR.DSMC%CalcSurfaceVal.OR.ANY(PartBound%Reactive).OR
   CALL InitAdaptiveWallTemp()
 END IF
 
-! Initialize surface reactions
+! Initialize arrays for surface chemistry
 CALL SurfaceModel_Chemistry_Init()
+
 ! Initialize porous boundary condition (requires BCdata_auxSF and InitParticleBoundarySurfSides)
 IF(nPorousBC.GT.0) CALL InitPorousBoundaryCondition()
 
@@ -403,6 +404,7 @@ USE MOD_Part_RHS               ,ONLY: InitPartRHS
 USE MOD_Particle_Mesh          ,ONLY: InitParticleMesh
 USE MOD_Particle_Emission_Init ,ONLY: InitializeVariablesSpeciesInits
 USE MOD_Particle_Boundary_Init ,ONLY: InitializeVariablesPartBoundary
+USE MOD_SurfaceModel_Chemistry ,ONLY: InitializeVariablesSurfaceChemistry
 USE MOD_Particle_Tracking_Vars ,ONLY: TrackingMethod
 USE MOD_Particle_Surfaces_Vars ,ONLY: TriaSurfaceFlux
 USE MOD_PICInit                ,ONLY: InitPIC
@@ -521,6 +523,7 @@ CALL InitializeVariablesIonization()
 CALL InitializeVariablesVarTimeStep()
 CALL InitializeVariablesAmbipolarDiff()
 CALL InitializeVariablesRotationalRefFrame()
+CALL InitializeVariablesSurfaceChemistry()
 
 END SUBROUTINE InitializeVariables
 

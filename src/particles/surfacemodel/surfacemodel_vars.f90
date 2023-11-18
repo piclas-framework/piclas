@@ -62,8 +62,6 @@ END TYPE
 
 LOGICAL                                  :: DoChemSurface          ! Call the surface catalysis routines
 
-  CHARACTER(LEN=256)                     :: SpeciesDatabase        ! Name of the species database
-
 TYPE tSurfReactions
   INTEGER                                :: NumOfReact             ! Number of catalytic reactions
   CHARACTER(LEN=64),ALLOCATABLE          :: CatName(:)
@@ -105,8 +103,8 @@ TYPE tSurfReactions
   LOGICAL                                :: TotDiffusion           ! Activates instantaneous diffussion over all boundaries
   INTEGER                                :: CatBoundNum            ! Number of catalytic boundaries
   TYPE(tBoundMap), ALLOCATABLE           :: BoundMap(:)            ! Map of the reactions to the boundaries
-  TYPE(tPureSurf), ALLOCATABLE           :: PSMap(:)               ! Map for reactions occurring only on the surface   
-  TYPE(tCollCaseInfo), ALLOCATABLE       :: CollCaseInfo(:)        ! Information of collision cases (nCase) 
+  TYPE(tPureSurf), ALLOCATABLE           :: PSMap(:)               ! Map for reactions occurring only on the surface
+  TYPE(tCollCaseInfo), ALLOCATABLE       :: CollCaseInfo(:)        ! Information of collision cases (nCase)
   TYPE(tSurfaceFlux), POINTER            :: SurfaceFlux(:)         ! Surface flux data (using the regular surface flux type)
   TYPE(tSFAux), ALLOCATABLE              :: SFAux(:)               ! Additional surface flux data, where variables differ from the regular surface flux type
 END TYPE
@@ -116,15 +114,15 @@ TYPE tSFAux
   REAL, ALLOCATABLE                      :: a_nIn(:,:,:,:)       ! Speed ratio projected to inwards normal (additionally to regular surface flux variable due to missing species dependency)
 END TYPE
 
-REAL,ALLOCATABLE                         :: ChemSampWall(:,:,:,:,:)         ! Sampling direct impact mechanism
-REAL,ALLOCATABLE                         :: ChemDesorpWall(:,:,:,:,:)       ! Desorption numbers
-REAL,ALLOCPOINT                          :: ChemWallProp(:,:,:,:,:)         ! Adsorption count / heat flux
-! INTEGER,ALLOCATABLE                      :: ChemCountReacWall(:,:,:,:,:)    ! Count the number of catalytic reactions on the subside
+REAL,ALLOCATABLE                         :: ChemDesorpWall(:,:,:,:,:)     ! Desorption numbers
+REAL,ALLOCPOINT                          :: ChemWallProp(:,:,:,:,:)       ! Adsorption count / heat flux
+REAL,ALLOCPOINT                          :: ChemSampWall(:,:,:,:,:)       ! Sampling direct impact mechanism
+! INTEGER,ALLOCATABLE                      :: ChemCountReacWall(:,:,:,:,:)! Count the number of catalytic reactions on the subside
 
 #if USE_MPI
-INTEGER                                  :: ChemWallProp_Shared_Win         ! Adsorption count / heat flux
-REAL,ALLOCPOINT                          :: ChemWallProp_Shared(:,:,:,:,:)    
-REAL,POINTER                             :: ChemSampWall_Shared(:,:,:,:,:)  ! Sampling direct impact mechanism    
+REAL,ALLOCPOINT                          :: ChemWallProp_Shared(:,:,:,:,:)  ! Adsorption count / heat flux
+INTEGER                                  :: ChemWallProp_Shared_Win
+REAL,ALLOCPOINT                          :: ChemSampWall_Shared(:,:,:,:,:)  ! Sampling direct impact mechanism
 INTEGER                                  :: ChemSampWall_Shared_Win
 #endif
 

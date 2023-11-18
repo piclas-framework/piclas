@@ -157,7 +157,6 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 ! Local variable declaration
-INTEGER               :: iReac, SurfNumReac, CatBoundNum
 INTEGER               :: iSpec,iSF,SideID,BCSideID,iSide,ElemID,iLocSide,iSample,jSample,currentBC, MaxSF, iSFElec
 INTEGER               :: iCopy1, iCopy2, iCopy3, MaxSurfacefluxBCs,nDataBC
 REAL                  :: tmp_SubSideDmax(SurfFluxSideSize(1),SurfFluxSideSize(2))
@@ -314,7 +313,7 @@ DO iSF=1,SurfChemReac%CatBoundNum
         END DO; END DO
       END IF
       ! Initialize surface flux
-      CALL InitSurfChemFlux(iSF, iSide, tmp_SubSideAreas, BCdata_auxSFTemp)
+      CALL InitSurfChemFlux(iSF, iSide)
       ! Initialize acceptance-rejection on SF
       IF (SurfChemReac%Surfaceflux(iSF)%AcceptReject) THEN
         DO jSample=1,SurfFluxSideSize(2); DO iSample=1,SurfFluxSideSize(1)
@@ -763,7 +762,6 @@ TYPE(tBCdata_auxSFRadWeight), ALLOCATABLE, INTENT(INOUT)        :: BCdata_auxSFT
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER               :: iReac
 INTEGER               :: TmpMapToBC(1:nDataBC), TmpSideStart(1:nDataBC), TmpSideNumber(1:nDataBC), TmpSideEnd(1:nDataBC)
 ! PartBC, Start of Linked List for Sides in SurfacefluxBC, Number of Particles in Sides in SurfacefluxBC, End of Linked List for Sides in SurfacefluxBC
 INTEGER               :: TmpSideNext(1:nBCSides) !Next: Sides of diff. BCs ar not overlapping!
@@ -1260,30 +1258,26 @@ END DO
 END SUBROUTINE CalcConstMassflowWeightForZeroMassFlow
 
 
-SUBROUTINE InitSurfChemFlux(iSF, iSide, tmp_SubSideAreas, BCdata_auxSFTemp)
+SUBROUTINE InitSurfChemFlux(iSF, iSide)
 !===================================================================================================================================
 !> Initialize surface flux variables in SurfFluxSubSideData type
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
+USE MOD_SurfaceModel_Vars       ,ONLY: SurfChemReac
 USE MOD_Globals_Vars            ,ONLY: BoltzmannConst, PI
-USE MOD_Particle_Surfaces_Vars  ,ONLY: SurfFluxSideSize, SurfMeshSubSideData, tBCdata_auxSFRadWeight, BCdata_auxSF
+USE MOD_Particle_Surfaces_Vars  ,ONLY: SurfFluxSideSize, SurfMeshSubSideData, BCdata_auxSF
 USE MOD_Particle_Vars           ,ONLY: Species, nSpecies
-USE MOD_SurfaceModel_Vars
-USE MOD_DSMC_Vars               ,ONLY: RadialWeighting
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
 INTEGER, INTENT(IN)   :: iSF, iSide
-REAL, INTENT(IN)      :: tmp_SubSideAreas(SurfFluxSideSize(1),SurfFluxSideSize(2))
-TYPE(tBCdata_auxSFRadWeight), ALLOCATABLE, INTENT(IN)        :: BCdata_auxSFTemp(:)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER               :: iSpec, iReac
-INTEGER               :: jSample, iSample, currentBC, BCSideID
+INTEGER               :: iSpec, jSample, iSample, currentBC, BCSideID
 REAL                  :: vec_nIn(3), vec_t1(3), vec_t2(3), projFak, v_thermal, a
 !===================================================================================================================================
 currentBC = SurfChemReac%Surfaceflux(iSF)%BC
@@ -1333,22 +1327,16 @@ END SUBROUTINE InitSurfChemFlux
 
 SUBROUTINE ReadInAndPrepareSurfChemFlux(nDataBC)
 !===================================================================================================================================
-! Initialize the variables first
+!>
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
 USE MOD_ReadInTools
 USE MOD_Globals_Vars           ,ONLY: BoltzmannConst, Pi
 USE MOD_Particle_Boundary_Vars ,ONLY: PartBound,nPartBound
-USE MOD_SurfaceModel_Tools     ,ONLY: GetWallTemperature
 USE MOD_SurfaceModel_Vars
-USE MOD_Particle_Surfaces_Vars ,ONLY: BCdata_auxSF, BezierSampleN, SurfMeshSubSideData, SurfMeshSideAreas, tBCdata_auxSFRadWeight
-USE MOD_Particle_Surfaces_Vars ,ONLY: SurfFluxSideSize, TriaSurfaceFlux
-USE MOD_Particle_Surfaces      ,ONLY: GetBezierSampledAreas
-USE MOD_Particle_Vars          ,ONLY: Species, nSpecies, DoSurfaceFlux
-USE MOD_Particle_Vars          ,ONLY: UseCircularInflow, DoForceFreeSurfaceFlux
-USE MOD_Particle_Sampling_Vars ,ONLY: UseAdaptive
-USE MOD_Restart_Vars           ,ONLY: DoRestart, RestartTime
+USE MOD_Particle_Surfaces_Vars ,ONLY: BCdata_auxSF
+USE MOD_Particle_Surfaces_Vars ,ONLY: TriaSurfaceFlux
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1359,7 +1347,7 @@ INTEGER, INTENT(INOUT) :: nDataBC
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER               :: iSF, iBound
-INTEGER               :: iReac, CatBoundNum
+INTEGER               :: CatBoundNum
 !===================================================================================================================================
 CatBoundNum = SurfChemReac%CatBoundNum
 ALLOCATE(SurfChemReac%SurfaceFlux(1:CatBoundNum))

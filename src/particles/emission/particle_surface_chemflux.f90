@@ -63,7 +63,7 @@ USE MOD_MPI_Shared_vars         ,ONLY: MPI_COMM_SHARED
 USE MOD_MPI_Shared              ,ONLY: BARRIER_AND_SYNC
 #endif
 !#if defined(IMPA) || defined(ROS)
-USE MOD_Particle_Tracking_Vars  ,ONLY: TrackingMethod, TrackInfo
+USE MOD_Particle_Tracking_Vars  ,ONLY: TrackInfo
 !#endif /*IMPA*/
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Timers      ,ONLY: LBStartTime, LBElemSplitTime, LBPauseTime
@@ -88,22 +88,18 @@ REAL                        :: BetaCoeff
 REAL                        :: WallTemp
 REAL                        :: SurfMol
 REAL                        :: MPF
-INTEGER                     :: SurfNumOfReac, iReac, ReactantCount, BoundID, nSF
+INTEGER                     :: iReac, ReactantCount, BoundID, nSF
 INTEGER                     :: iVal, iReactant, iValReac, SurfSideID, iBias
 INTEGER                     :: SubP, SubQ
-INTEGER, ALLOCATABLE        :: SurfReacBias(:)
-
+INTEGER                     :: SurfReacBias(SurfChemReac%NumOfReact)
 #if USE_LOADBALANCE
 REAL                        :: tLBStart
 #endif /*USE_LOADBALANCE*/
 !===================================================================================================================================  
 ! 1.) Determine the surface parameters
-SurfNumOfReac = SurfChemReac%NumOfReact
 nSF = SurfChemReac%CatBoundNum
 SubP = TrackInfo%p
 SubQ = TrackInfo%q
-
-ALLOCATE(SurfReacBias(SurfNumOfReac))
 
 DO iSF = 1, nSF
   BoundID = SurfChemReac%Surfaceflux(iSF)%BC
@@ -131,10 +127,10 @@ DO iSF = 1, nSF
       END IF
 
       ! Randomize the order in which the reactions are called to remove biases
-      CALL RemoveBias(SurfNumOfReac, SurfReacBias)
+      SurfReacBias = RemoveBias(SurfChemReac%NumOfReact)
 
       ! Loop over the different types of pure surface reactions
-      DO iBias = 1, SurfNumOfReac
+      DO iBias = 1, SurfChemReac%NumOfReact
         iReac = SurfReacBias(iBias)
         IF (SurfChemReac%PSMap(BoundID)%PureSurfReac(iReac)) THEN
 
@@ -475,7 +471,7 @@ END SUBROUTINE ParticleSurfChemFlux
 !===================================================================================================================================
 !> Bias treatment for multiple reactions on the same surface element
 !===================================================================================================================================
-SUBROUTINE RemoveBias(SurfNumOfReac, SurfReacBias)
+PPURE FUNCTION RemoveBias(SurfNumOfReac)
 ! MODULES
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -484,7 +480,7 @@ IMPLICIT NONE
 INTEGER, INTENT(IN)         :: SurfNumOfReac
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
-INTEGER, ALLOCATABLE, INTENT(OUT) :: SurfReacBias(:)
+INTEGER                     :: RemoveBias(SurfNumOfReac)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER                     :: i, j, k, m
@@ -492,20 +488,20 @@ INTEGER                     :: temp
 REAL                        :: RanNum
 !===================================================================================================================================
 
-SurfReacBias = [(i,i=1,SurfNumOfReac)]
+RemoveBias = [(i,i=1,SurfNumOfReac)]
 ! Shuffle
 m = SurfNumOfReac
 DO k = 1, 2
     DO i = 1, m
       CALL RANDOM_NUMBER(RanNum)
       j = 1 + FLOOR(m*RanNum)
-      temp = SurfReacBias(j)
-      SurfReacBias(j) = SurfReacBias(i)
-      SurfReacBias(i) = temp
+      temp = RemoveBias(j)
+      RemoveBias(j) = RemoveBias(i)
+      RemoveBias(i) = temp
     END DO
 END DO
 
-END SUBROUTINE RemoveBias
+END FUNCTION RemoveBias
 
 !===================================================================================================================================
 !> (Instantaneous) Diffusion of particles along the surface 
@@ -517,7 +513,6 @@ USE MOD_Particle_Vars
 USE MOD_MPI_Shared_Vars         ,ONLY: myComputeNodeRank, nComputeNodeProcessors
 USE MOD_Mesh_Vars               ,ONLY: SideToElem, offsetElem
 USE MOD_Particle_Mesh_Tools     ,ONLY: GetGlobalNonUniqueSideID
-USE MOD_Timedisc_Vars           ,ONLY: dt
 USE MOD_Particle_Surfaces_Vars
 USE MOD_Particle_Boundary_Vars 
 USE MOD_SurfaceModel
@@ -526,7 +521,7 @@ USE MOD_SurfaceModel_Vars      ,ONLY: ChemWallProp_Shared_Win,SurfChemReac, Chem
 USE MOD_MPI_Shared_vars        ,ONLY: MPI_COMM_SHARED
 USE MOD_MPI_Shared             ,ONLY: BARRIER_AND_SYNC
 !#if defined(IMPA) || defined(ROS)
-USE MOD_Particle_Tracking_Vars  ,ONLY: TrackingMethod, TrackInfo
+USE MOD_Particle_Tracking_Vars  ,ONLY: TrackInfo
 !#endif /*IMPA*/
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Timers      ,ONLY: LBStartTime, LBElemSplitTime, LBPauseTime
@@ -541,14 +536,13 @@ IMPLICIT NONE
 ! LOCAL VARIABLES
 ! Local variable declaration
 INTEGER                     :: firstSide, lastSide, SideNumber
-INTEGER                     :: iSpec , PositionNbr, iSF, iSide, BoundID, SideID
-INTEGER                     :: BCSideID, ElemID, iLocSide, iSample, jSample
-INTEGER                     :: Node1, Node2, globElemId
+INTEGER                     :: iSpec , iSF, iSide, BoundID, SideID
+INTEGER                     :: BCSideID, ElemID, iLocSide
+INTEGER                     :: globElemId
 INTEGER                     :: CatBoundNum
 INTEGER                     :: SurfSideID
 INTEGER                     :: SubP, SubQ
 REAL                        :: Coverage_Sum
-
 #if USE_LOADBALANCE
 REAL                        :: tLBStart
 #endif /*USE_LOADBALANCE*/

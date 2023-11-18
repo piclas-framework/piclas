@@ -26,7 +26,7 @@ PRIVATE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
-PUBLIC :: DefineParametersSurfaceChemistry, SurfaceModel_Chemistry_Init
+PUBLIC :: DefineParametersSurfaceChemistry, InitializeVariablesSurfaceChemistry, SurfaceModel_Chemistry_Init
 !===================================================================================================================================
 
 CONTAINS
@@ -46,7 +46,6 @@ CALL prms%CreateIntOption(      'Surface-Species','Bulk species of the boundary'
 CALL prms%CreateStringOption(   'Surface-Reaction[$]-Type',  &
                                 'No default, options are A (adsorption), D (desorption), ER (Eley-Rideal), LH (Langmuir-Hinshelwood), LHD', &
                                  numberedmulti=.TRUE.)
-CALL prms%CreateStringOption(   'Surface-Database', 'none')
 CALL prms%CreateStringOption(   'Surface-Reaction[$]-SurfName', 'none' ,numberedmulti=.TRUE.)
 CALL prms%CreateLogicalOption(  'OverwriteCatParameters', 'Flag to set catalytic parameters manually', '.FALSE.')
 CALL prms%CreateIntArrayOption( 'Surface-Reaction[$]-Reactants'  &
@@ -90,26 +89,20 @@ CALL prms%CreateIntArrayOption( 'Surface-Reaction[$]-Boundaries', 'Array of boun
                                     numberedmulti=.TRUE., no=0)
 END SUBROUTINE DefineParametersSurfaceChemistry
 
-SUBROUTINE SurfaceModel_Chemistry_Init()
+
+SUBROUTINE InitializeVariablesSurfaceChemistry()
 !===================================================================================================================================
 ! Readin of variables and definition of reaction cases
 !===================================================================================================================================
 ! MODULES 
 USE MOD_Globals
 USE MOD_ReadInTools
-USE MOD_PARTICLE_Vars           ,ONLY: nSpecies
-USE MOD_Mesh_Vars               ,ONLY: SideToElem, offsetElem
-USE MOD_Particle_Mesh_Tools     ,ONLY: GetGlobalNonUniqueSideID
-USE MOD_Particle_Mesh_Vars      ,ONLY: SideInfo_Shared
-USE MOD_Particle_Boundary_Vars  
-USE MOD_SurfaceModel_Vars     
-USE MOD_Particle_Surfaces_Vars
+USE MOD_PARTICLE_Vars           ,ONLY: nSpecies, SpeciesDatabase
+USE MOD_Particle_Boundary_Vars  ,ONLY: PartBound, nPartBound
+USE MOD_SurfaceModel_Vars       ,ONLY: SurfChemReac, DoChemSurface
+! USE MOD_Particle_Surfaces_Vars
 USE MOD_io_hdf5
 USE MOD_HDF5_input,         ONLY:ReadAttribute, DatasetExists, AttributeExists
-#if USE_MPI
-USE MOD_MPI_Shared_Vars         ,ONLY: MPI_COMM_SHARED, myComputeNodeRank
-USE MOD_MPI_Shared
-#endif
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -119,16 +112,12 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 CHARACTER(LEN=64)     :: dsetname
-CHARACTER(LEN=64)     :: AttribName
 INTEGER(HID_T)        :: file_id_specdb                       ! File identifier
-INTEGER(HID_T)        :: dset_id_specdb                       ! Dataset identifier
 LOGICAL               :: DataSetFound
 LOGICAL               :: Attr_Exists
-INTEGER(HID_T)        :: Loc_ID, Attr_ID
-CHARACTER(LEN=32)      :: hilf, hilf2
-INTEGER               :: iReac, iReac2, iSpec, iBound, iVal, err
+CHARACTER(LEN=32)     :: hilf
+INTEGER               :: iReac, iReac2, iBound, iVal, err
 INTEGER               :: ReadInNumOfReact
-INTEGER               :: iSide, SideID, iBC
 REAL, ALLOCATABLE     :: StoichCoeff(:,:)
 !===================================================================================================================================
 
@@ -246,8 +235,7 @@ SurfChemReac%SurfSpecies                   = GETINT('Surface-Species','0')
 SurfChemReac%Diffusion                     = GETLOGICAL('Surface-Diffusion', '.FALSE.')
 SurfChemReac%TotDiffusion                  = GETLOGICAL('Surface-TotalDiffusion', '.FALSE.')
 
-!SpeciesDatabase
-SpeciesDatabase                            = GETSTR('Surface-Database', 'none')
+! SpeciesDatabase
 SurfChemReac%OverwriteCatParameters        = GETLOGICAL('OverwriteCatParameters', '.FALSE.')
 
 IF (SpeciesDatabase.EQ.'none') THEN
@@ -476,6 +464,37 @@ IF (SurfChemReac%OverwriteCatParameters) THEN
   END DO
 
 END IF
+
+END SUBROUTINE InitializeVariablesSurfaceChemistry
+
+
+SUBROUTINE SurfaceModel_Chemistry_Init()
+!===================================================================================================================================
+! Allocation of side-specific arrays for chemistry modelling
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals
+USE MOD_PARTICLE_Vars           ,ONLY: nSpecies
+USE MOD_Particle_Mesh_Vars      ,ONLY: SideInfo_Shared
+USE MOD_Particle_Boundary_Vars  ,ONLY: PartBound, nSurfSample, nComputeNodeSurfTotalSides, SurfSide2GlobalSide
+USE MOD_SurfaceModel_Vars       ,ONLY: ChemSampWall, ChemDesorpWall, ChemWallProp
+! USE MOD_Particle_Surfaces_Vars
+#if USE_MPI
+USE MOD_MPI_Shared
+USE MOD_MPI_Shared_Vars         ,ONLY: MPI_COMM_SHARED, myComputeNodeRank
+USE MOD_SurfaceModel_Vars       ,ONLY: ChemSampWall_Shared, ChemSampWall_Shared_Win
+USE MOD_SurfaceModel_Vars       ,ONLY: ChemWallProp_Shared, ChemWallProp_Shared_Win
+#endif
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER               :: iSide, iSpec, iBC, SideID
+!===================================================================================================================================
 
 ALLOCATE( ChemSampWall(1:nSpecies,2,1:nSurfSample,1:nSurfSample,1:nComputeNodeSurfTotalSides))
 ChemSampWall = 0.0

@@ -230,15 +230,12 @@ SDEALLOCATE(SurfChemReac%Prefactor)
   END IF
   ADEALLOCATE(ChemSampWall_Shared)
   ADEALLOCATE(ChemWallProp_Shared)
-  SDEALLOCATE(ChemDesorpWall)
-  ! SDEALLOCATE(ChemCountReacWall)
-  SDEALLOCATE(ChemSampWall)
 #else
-  SDEALLOCATE(ChemDesorpWall)
-  ! SDEALLOCATE(ChemCountReacWall)
-  SDEALLOCATE(ChemSampWall)
-  SDEALLOCATE(ChemWallProp)
 #endif
+SDEALLOCATE(ChemDesorpWall)
+! SDEALLOCATE(ChemCountReacWall)
+ADEALLOCATE(ChemSampWall)
+ADEALLOCATE(ChemWallProp)
 
 SNULLIFY(SurfChemReac%Surfaceflux)
 SDEALLOCATE(SurfChemReac%SFAux)
