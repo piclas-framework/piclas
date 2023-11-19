@@ -478,7 +478,7 @@ USE MOD_Globals_Vars    ,ONLY: PI,ElementaryCharge,eps0
 USE MOD_Equation_Vars   ,ONLY: IniCenter,IniHalfwidth,IniAmplitude,RefState,LinPhi,LinPhiHeight,LinPhiNormal,LinPhiBasePoint
 #if defined(PARTICLES)
 USE MOD_HDG_Vars        ,ONLY: CoupledPowerPotential,UseCoupledPowerPotential,BiasVoltage,UseBiasVoltage
-USE MOD_Particle_Vars   ,ONLY: Species,nSpecies,PartState,PDM
+USE MOD_Particle_Vars   ,ONLY: Species,nSpecies!,PartState,PDM
 #endif /*defined(PARTICLES)*/
 USE MOD_Dielectric_Vars ,ONLY: DielectricRatio,Dielectric_E_0,DielectricRadiusValue,DielectricEpsR
 USE MOD_Mesh_Vars       ,ONLY: ElemBaryNGeo
@@ -502,7 +502,7 @@ REAL,INTENT(OUT)                :: Resu(1:PP_nVar)    ! state in conservative va
 ! LOCAL VARIABLES
 REAL                            :: Omega,r1,r2,r_2D,r_3D,r_bary,cos_theta,eps1,eps2,xi,a(3),b(3),Q
 #if defined(PARTICLES)
-INTEGER                         :: i,iPart
+INTEGER                         :: i!,iPart
 #endif /*defined(PARTICLES)*/
 !===================================================================================================================================
 SELECT CASE (ExactFunction)
