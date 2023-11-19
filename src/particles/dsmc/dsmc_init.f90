@@ -902,6 +902,13 @@ ELSE !CollisMode.GT.0
     CALL abort(__STAMP__,'Particles-DSMC-UseNearestNeighbour = T not allowed for RESERVOIR simulations!')
   END IF
   IF(DSMC%UseOctree) THEN
+    DO iSpec = 1, nSpecies
+      DO iInit = 1, Species(iSpec)%NumberOfInits
+        IF (TRIM(Species(iSpec)%Init(iInit)%SpaceIC).EQ.'point') THEN
+          CALL abort(__STAMP__,'ERROR: No combination of octree and SpaceIC=point possible!')
+        END IF
+      END DO
+    END DO
     IF(NGeo.GT.PP_N) CALL abort(__STAMP__,' Set PP_N to NGeo, else, the volume is not computed correctly.')
     CALL DSMC_init_octree()
   END IF
