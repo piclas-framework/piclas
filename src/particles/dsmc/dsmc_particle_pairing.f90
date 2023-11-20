@@ -620,13 +620,6 @@ IF(DSMC%CalcQualityFactors) THEN
                                                     MAX(DSMC%MCSoverMFP,(DSMC%CollSepDist/DSMC%CollSepCount)/DSMC%MeanFreePath)
     ! Calculation of the maximum MCS/MFP for the cell and number of resolved Cells
     IF(DSMC%MCSoverMFP .GE. DSMC%MaxMCSoverMFP) DSMC%MaxMCSoverMFP = DSMC%MCSoverMFP
-    #if USE_MPI
-      IF(MPIRoot)THEN
-        CALL MPI_REDUCE(MPI_IN_PLACE,DSMC%MaxMCSoverMFP,1,MPI_DOUBLE_PRECISION,MPI_MAX,0,MPI_COMM_PICLAS, IERROR)
-      ELSE
-        CALL MPI_REDUCE(DSMC%MaxMCSoverMFP,DSMC%MaxMCSoverMFP,1,MPI_DOUBLE_PRECISION,MPI_MAX,0,MPI_COMM_PICLAS, IERROR)
-      END IF
-    #endif /*USE_MPI*/
     IF( (DSMC%MCSoverMFP .LE. 1) .AND. (DSMC%CollProbMax .LE. 1) .AND. (DSMC%CollProbMean .LE. 1)) DSMC%ResolvedCellCounter = & 
                                                     DSMC%ResolvedCellCounter + 1     
   END IF

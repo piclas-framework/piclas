@@ -1385,6 +1385,16 @@ ParticleAnalyzeSampleTime = Time - ParticleAnalyzeSampleTime ! Set ParticleAnaly
   END IF
   IF(DSMC%CalcQualityFactors) THEN
     IF(iter.GT.0) THEN
+      write (*,*) "Before USE_MPI"
+#if USE_MPI
+      IF(MPIRoot)THEN
+        write (*,*) "MPI Root"
+        CALL MPI_REDUCE(MPI_IN_PLACE,DSMC%MaxMCSoverMFP,1,MPI_DOUBLE_PRECISION,MPI_MAX,0,MPI_COMM_PICLAS, IERROR)
+      ELSE
+        write (*,*) "MPI Not Root"
+        CALL MPI_REDUCE(DSMC%MaxMCSoverMFP,DSMC%MaxMCSoverMFP,1,MPI_DOUBLE_PRECISION,MPI_MAX,0,MPI_COMM_PICLAS, IERROR)
+      END IF
+#endif /*USE_MPI*/
       MaxMCSoverMFP = DSMC%MaxMCSoverMFP
       MaxCollProb = DSMC%CollProbMax
       ResolvedCellPercentage = REAL(DSMC%ResolvedCellCounter) / REAL(DSMC%ParticlePairingCounter) * 100
