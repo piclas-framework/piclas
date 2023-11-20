@@ -135,7 +135,7 @@ INTEGER            :: i,BCType,BCState
 CHARACTER(LEN=255) :: BCName
 INTEGER            :: nRefStateMax
 INTEGER            :: nLinState,nLinStateMax
-INTEGER,PARAMETER  :: BYTypeRefstate(1:4)=(/5,51,52,60/)
+INTEGER,PARAMETER  :: BCTypeRefstate(1:4)=(/5,51,52,60/)
 CHARACTER(LEN=32)  :: hilf
 !===================================================================================================================================
 IF((.NOT.InterpolationInitIsDone).OR.EquationInitIsDone)THEN
@@ -156,7 +156,7 @@ DO i=1,nBCs
   BCType  = BoundaryType(i,BC_TYPE)
   BCState = BoundaryType(i,BC_STATE)
   BCName  = BoundaryName(i)
-  IF(ANY(BCType.EQ.BYTypeRefstate).AND.BCState.LE.0) THEN
+  IF(ANY(BCType.EQ.BCTypeRefstate).AND.BCState.LE.0) THEN
     SWRITE(*,'(A)') "Error found for the following boundary condition"
     SWRITE(*,'(A,I0)') "   BC: ",i
     SWRITE(*,'(A,I0)') " Type: ",BCType
@@ -164,7 +164,7 @@ DO i=1,nBCs
     SWRITE(*,'(A)')    " Name: "//TRIM(BCName)
     WRITE(UNIT=hilf,FMT='(I0)') BCType
     CALL abort(__STAMP__,'BCState is <= 0 for BCType='//TRIM(hilf)//' is not allowed! Set a positive integer for the n-th RefState')
-  ELSEIF(ANY(BCType.EQ.BYTypeRefstate).AND.BCState.GT.0)THEN
+  ELSEIF(ANY(BCType.EQ.BCTypeRefstate).AND.BCState.GT.0)THEN
     nRefStateMax = MAX(nRefStateMax,BCState)
   ELSEIF(BCType.EQ.7.AND.BCState.GT.0)THEN
     nLinStateMax = MAX(nLinStateMax,BCState)
@@ -550,7 +550,7 @@ CASE(-1) ! Signal with zero-crossing: Amplitude, Frequency and Phase Shift suppl
     Resu(:) = RefState(1,iRefState)*COS(Omega*t+RefState(3,iRefState))
 #if defined(PARTICLES)
   END IF ! UseCoupledPowerPotential
-  ! Add bias potential (only if bias voltage model is activated, BYType is 51 for DC or 52 for AC)
+  ! Add bias potential (only if bias voltage model is activated, BCType is 51 for DC or 52 for AC)
   IF(UseBiasVoltage) Resu(:) = Resu(:) + BiasVoltage%BVData(1)
 #endif /*defined(PARTICLES)*/
 CASE(0) ! constant 0.
@@ -778,12 +778,18 @@ CASE(500) ! Coaxial capacitor with Floating Boundary Condition (FPC) with from
       END ASSOCIATE
     END ASSOCIATE
   END ASSOCIATE
+#if !(USE_PETSC)
+  CALL abort(__STAMP__,'ExactFunc=500 requires PICLAS_PETSC=ON')
+#endif /*!(USE_PETSC)*/
 CASE(600) ! 2 cubes with two different charges
   IF(ALLOCATED(FPC%Charge))THEN
     FPC%Charge(1)=5.0
     FPC%Charge(2)=10.0
   END IF ! ALLOCATED(FPC%Charge)
   resu = 0.
+#if !(USE_PETSC)
+  CALL abort(__STAMP__,'ExactFunc=600 requires PICLAS_PETSC=ON')
+#endif /*!(USE_PETSC)*/
 CASE(700) ! Analytical solution of a charged particle moving in cylindrical coordinates between two grounded walls
 #if defined(PARTICLES)
   eps1 = -ElementaryCharge/(4.0*PI*eps0)
@@ -815,15 +821,19 @@ CASE(700) ! Analytical solution of a charged particle moving in cylindrical coor
   CALL abort(__STAMP__,'ExactFunc=700 requires PARTICLES=ON')
 #endif /*defined(PARTICLES)*/
 CASE(800) ! Dielectric slab on electrode (left) with plasma between slab and other electrode opposite
+  IF(ALLOCATED(FPC%Charge))THEN
+    FPC%Charge(1)=2.5e-11
+  END IF ! ALLOCATED(FPC%Charge)
+  resu = 0.
   ASSOCIATE( x     => x(1)   , &
              y     => x(2)   , &
              z     => x(3)   , &
-             L     => 1e-3   , &
-             d     => 10e-9  , &
-             eps1  => 10.0   , &
-             sigma => 1e-2   , &
+             L     =>  1e-3  , &
+             d     =>  1e-8  , &
+             eps1  =>  1e1   , &
+             sigma =>  1e-2  , &
              rho0  => -1e-4  , &
-             Phi0  => -10    )
+             Phi0  => -1e1    )
     ASSOCIATE( PhiF => ((d/L)/((d/L)+eps1))*( L*(sigma + 0.5*rho0*L)/eps0 + Phi0 ) )
       ASSOCIATE( a => 0.5*rho0*L/eps0 + (Phi0 - PhiF)/L ,&
                  b => PhiF)
@@ -835,6 +845,9 @@ CASE(800) ! Dielectric slab on electrode (left) with plasma between slab and oth
       END ASSOCIATE
     END ASSOCIATE
   END ASSOCIATE
+#if !(USE_PETSC)
+  CALL abort(__STAMP__,'ExactFunc=800 requires PICLAS_PETSC=ON')
+#endif /*!(USE_PETSC)*/
 CASE DEFAULT
   CALL abort(__STAMP__,'Exactfunction not specified!', IntInfoOpt=ExactFunction)
 END SELECT ! ExactFunction
@@ -946,10 +959,10 @@ PPURE SUBROUTINE CalcSourceHDG(i,j,k,iElem,resu, Phi, warning_linear, warning_li
 USE MOD_Globals
 USE MOD_PreProc
 USE MOD_Mesh_Vars          ,ONLY: Elem_xGP
+USE MOD_Globals_Vars       ,ONLY: eps0
 #ifdef PARTICLES
 USE MOD_PICDepo_Vars       ,ONLY: PartSource,DoDeposition
 USE MOD_HDG_Vars           ,ONLY: ElemToBRRegion,UseBRElectronFluid,RegionElectronRef
-USE MOD_Globals_Vars       ,ONLY: eps0
 #if IMPA
 USE MOD_LinearSolver_Vars  ,ONLY: ExplicitPartSource
 #endif
@@ -998,6 +1011,12 @@ CASE(103)
 CASE(105) ! 3D periodic test case
   x(1:3) = Elem_xGP(1:3,i,j,k,iElem)
   resu(1)=-3 * SIN(x(1) + 1) * SIN(x(2) + 2) * SIN(x(3) + 3)
+#if ! defined(PARTICLES)
+CASE(800) ! plasma between electrodes + particles
+  IF(Elem_xGP(1,i,j,k,iElem).GT.0.0)THEN
+    resu = 1e-4/eps0
+  END IF ! x.GT.0.0
+#endif /* ! defined(PARTICLES)*/
 CASE DEFAULT
   resu=0.
   !  CALL abort(__STAMP__,&
@@ -1009,10 +1028,9 @@ END SELECT ! ExactFunction
 ! Specific source terms after particle deposition
 #if defined(CODE_ANALYZE)
 SELECT CASE(IniExactFunc)
-CASE(800) ! plasma between electrodes
+CASE(800) ! plasma between electrodes + particles
   IF(Elem_xGP(1,i,j,k,iElem).GT.0.0)THEN
     PartSource(4,i,j,k,iElem) = PartSource(4,i,j,k,iElem) - 1e-4
-    !resu = resu -1e-4/eps0
   END IF ! x.GT.0.0
 END SELECT
 #endif /*defined(CODE_ANALYZE)*/

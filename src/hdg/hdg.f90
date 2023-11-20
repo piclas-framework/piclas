@@ -649,7 +649,6 @@ FPC%VoltageProc = 0.
 IF(.NOT.ALLOCATED(FPC%Charge))THEN
   ALLOCATE(FPC%Charge(1:FPC%nUniqueFPCBounds))
   FPC%Charge = 0.
-  FPC%Charge = 2.5e-11
 END IF ! .NOT.ALLOCATED(FPC%Charge)
 ALLOCATE(FPC%ChargeProc(1:FPC%nUniqueFPCBounds))
 FPC%ChargeProc = 0.
@@ -1886,7 +1885,7 @@ DO iVar = 1, PP_nVar
 #endif
 
   ! Floating boundary BCs
-#if USE_PETSC && defined(PARTICLES)
+#if USE_PETSC
   IF(UseFPC)THEN
 #if USE_MPI
     ! Communicate the accumulated charged on each BC to all processors on the communicator
@@ -1905,7 +1904,7 @@ DO iVar = 1, PP_nVar
     ! Apply charge to RHS, which this is done below: RHS_conductor(1)=FPC%Charge(iUniqueFPCBC)/eps0
 
   END IF ! UseFPC
-#endif /*USE_PETSC && defined(PARTICLES)*/
+#endif /*USE_PETSC*/
 
   ! Set potential to zero
   IF(SetZeroPotentialDOF) lambda(iVar,1,1) = 0.
