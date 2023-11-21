@@ -549,7 +549,7 @@ IF (BGKCollModel.EQ.1) THEN
     AverageValues(7) = BGKMovingAverageFac*u0ij(1,3) + (1.-BGKMovingAverageFac)*AverageValues(7)
     AverageValues(8) = BGKMovingAverageFac*u0ij(2,3) + (1.-BGKMovingAverageFac)*AverageValues(8)
   END IF
-  dens = AverageValues(1)  
+  dens = AverageValues(1)
   u2 = AverageValues(2)
   u0ij(1,1)=AverageValues(3); u0ij(2,2)=AverageValues(4); u0ij(3,3)=AverageValues(5);
   u0ij(1,2)=AverageValues(6); u0ij(1,3)=AverageValues(7); u0ij(2,3)=AverageValues(8);
@@ -697,7 +697,7 @@ IF (nSpecies.GT.1) THEN ! gas mixture
     ! Extension for inner degrees of freedom using S. Brull, Communications in Mathematical Sciences 19, 2177-2194, 2021,
     ! "An Ellipsoidal Statistical Model for a monoatomic and polyatomic gas mixture"
     PrandtlCorrection = PrandtlCorrection + DOFFraction(iSpec)*MassIC_Mixture/Species(iSpec)%MassIC/TotalDOFWeight
-    C_P = C_P + ((5. + (Xi_VibSpec(iSpec)+Xi_RotSpec(iSpec)))/2.) * BoltzmannConst / Species(iSpec)%MassIC * MassFraction(iSpec) 
+    C_P = C_P + ((5. + (Xi_VibSpec(iSpec)+Xi_RotSpec(iSpec)))/2.) * BoltzmannConst / Species(iSpec)%MassIC * MassFraction(iSpec)
   END DO
 
   SELECT CASE(BGKMixtureModel)
@@ -748,7 +748,7 @@ IF (nSpecies.GT.1) THEN ! gas mixture
       dynamicvis = dynamicvis + REAL(totalWeightSpec(iSpec)) * dynamicvisSpec(iSpec) / Phi(iSpec)
       thermalcond = thermalcond + REAL(totalWeightSpec(iSpec)) * thermalcondspec(iSpec) / Phi(iSpec)
     END DO
-  
+
   CASE(2) ! Collision integrals (VHS)
     DO iSpec = 1, nSpecies
       IF ((nSpec(iSpec).LT.2).OR.ALMOSTZERO(u2Spec(iSpec))) THEN
@@ -1066,7 +1066,7 @@ IF (nRelax.GT.0) THEN
     ! Generate random normals for the sampling of new velocities of all relaxing particles
     CALL BGK_BuildTransGaussNums(nRelax, iRanPart)
   END SELECT
-  
+
   ! Loop over all particles undergoing a relaxation towards the target distribution function
   DO iLoop = 1, nRelax
     iPart = iPartIndx_NodeRelax(iLoop)
@@ -1399,7 +1399,7 @@ END DO
 END SUBROUTINE BGK_BuildTransGaussNums
 
 
-SUBROUTINE CalcTEquiMultiPoly(nPart, nSpec, nXiVibDOF, Xi_vib_DOF, CellTemp, TRotSpec, TVibSpec, Xi_Vib_Spec, Xi_Vib_oldSpec, RotExpSpec, & 
+SUBROUTINE CalcTEquiMultiPoly(nPart, nSpec, nXiVibDOF, Xi_vib_DOF, CellTemp, TRotSpec, TVibSpec, Xi_Vib_Spec, Xi_Vib_oldSpec, RotExpSpec, &
       VibExpSpec, TEqui, rotrelaxfreqSpec, vibrelaxfreqSpec, dtCell, DoVibRelaxIn)
 !===================================================================================================================================
 ! Calculation of the vibrational temperature (zero-point search) for polyatomic molecule mixtures
@@ -1502,7 +1502,7 @@ DO WHILE ( ABS( TEqui - TEqui_Old ) .GT. eps_prec )
       END IF
       ! new calculation of number of rotational relaxing molecules
       RotFracSpec(iSpec) = nSpec(iSpec)*(1.-RotExpSpec(iSpec))
-      
+
       IF(DoVibRelax) THEN
         ! if difference small: equilibrium, no beta
         IF (ABS(TVibSpec(iSpec)-TEqui).LT.1E-3) THEN

@@ -929,12 +929,14 @@ SUBROUTINE ImpactMechanisms(PartID,SideID,GlobalElemID,n_Loc,PartPosImpact,locBC
 USE MOD_Globals                   ,ONLY: abort,OrthoNormVec
 USE MOD_Globals_Vars              ,ONLY: PI, BoltzmannConst
 USE MOD_TimeDisc_Vars             ,ONLY: dt
-USE MOD_Particle_Vars             ,ONLY: PartSpecies,Species,usevMPF
+USE MOD_Particle_Vars             ,ONLY: PartSpecies,Species,usevMPF, WriteMacroSurfaceValues
 USE MOD_Particle_Boundary_Vars    ,ONLY: PartBound, GlobalSide2SurfSide,SurfSideArea_Shared
-USE MOD_SurfaceModel_Vars         ,ONLY: SurfChemReac , ChemWallProp, ChemSampWall, ChemCountReacWall
+USE MOD_SurfaceModel_Vars         ,ONLY: SurfChemReac, ChemWallProp, ChemSampWall, ChemCountReacWall
+USE MOD_SurfaceModel_Tools        ,ONLY: CalcPostWallCollVelo
 USE MOD_Particle_Mesh_Vars        ,ONLY: BoundsOfElem_Shared
-USE MOD_DSMC_Vars                 ,ONLY: RadialWeighting, VarWeighting, CollisMode, SpecDSMC, useDSMC
+USE MOD_DSMC_Vars                 ,ONLY: RadialWeighting, VarWeighting, CollisMode, SpecDSMC, useDSMC, DSMC, SamplingActive
 USE MOD_part_emission_tools       ,ONLY: DSMC_SetInternalEnr_LauxVFD
+USE MOD_Particle_Boundary_Tools   ,ONLY: CalcWallSample
 USE MOD_DSMC_PolyAtomicModel      ,ONLY: DSMC_SetInternalEnr_Poly
 USE MOD_part_operations           ,ONLY: RemoveParticle, CreateParticle
 USE MOD_Particle_Tracking_Vars    ,ONLY: TrackInfo
@@ -1160,7 +1162,6 @@ CASE('A')
     ChemSampWall(iProd, 1,SubP,SubQ, SurfSideID) = ChemSampWall(iProd, 1,SubP,SubQ, SurfSideID) + DissOrder * partWeight
 
     ! Re-insert the other half of the molecule into the gas-phase
-    TempErgy = SQRT(2*BoltzmannConst*WallTemp/Species(speciesID)%MassIC)
     WallVelo = PartBound%WallVelo(1:3,locBCID)
     CALL OrthoNormVec(n_loc,tang1,tang2)
 
@@ -1171,7 +1172,7 @@ CASE('A')
 
     iProd = SurfChemReac%GasProduct(iReac)
 
-    NewVelo(1:3) = VeloFromDistribution('deltadistribution',TempErgy,1,1)
+    NewVelo(1:3) = CalcPostWallCollVelo(iProd,0.,WallTemp,BetaCoeff)
     NewVelo(1:3) = tang1(1:3)*NewVelo(1) + tang2(1:3)*NewVelo(2) - n_loc(1:3)*NewVelo(3) + WallVelo(1:3)
     NewPos(1:3) = eps*BoundsOfElemCenter(1:3) + eps2*PartPosImpact(1:3)
 
@@ -1184,6 +1185,9 @@ CASE('A')
         CALL DSMC_SetInternalEnr_LauxVFD(iProd,locBCID,NewPartID,4)
       END IF
     END IF
+
+    IF((DSMC%CalcSurfaceVal.AND.SamplingActive).OR.(DSMC%CalcSurfaceVal.AND.WriteMacroSurfaceValues)) &
+    CALL CalcWallSample(NewPartID,SurfSideID,'new',SurfaceNormal_opt=n_loc)
 
     ! Count the number of surface reactions
     ChemCountReacWall(iReac, 1, SubP, SubQ, SurfSideID) = ChemCountReacWall(iReac, 1, SubP, SubQ, SurfSideID) + 1
@@ -1217,7 +1221,6 @@ CASE('ER')
 
   ! Create the Eley-Rideal reaction product
   ! Incomplete energy accomodation: remaining energy is added to the product
-  TempErgy = SQRT(2*BoltzmannConst*WallTemp/Species(speciesID)%MassIC)
   WallVelo = PartBound%WallVelo(1:3,locBCID)
   CALL OrthoNormVec(n_loc,tang1,tang2)
 
@@ -1230,7 +1233,7 @@ CASE('ER')
     IF(SurfChemReac%Products(iReac,iValProd).NE.0) THEN
       iProd = SurfChemReac%Products(iReac,iValProd)
 
-      NewVelo(1:3) = VeloFromDistribution('deltadistribution',TempErgy,1,1)
+      NewVelo(1:3) = CalcPostWallCollVelo(iProd,0.,WallTemp,BetaCoeff)
       NewVelo(1:3) = tang1(1:3)*NewVelo(1) + tang2(1:3)*NewVelo(2) - n_loc(1:3)*NewVelo(3) + WallVelo(1:3)
       NewPos(1:3) = eps*BoundsOfElemCenter(1:3) + eps2*PartPosImpact(1:3)
 
@@ -1243,6 +1246,10 @@ CASE('ER')
           CALL DSMC_SetInternalEnr_LauxVFD(iProd,locBCID,NewPartID,4)
         END IF
       END IF
+
+      ! Sampling of newly created particles
+      IF((DSMC%CalcSurfaceVal.AND.SamplingActive).OR.(DSMC%CalcSurfaceVal.AND.WriteMacroSurfaceValues)) &
+      CALL CalcWallSample(NewPartID,SurfSideID,'new',SurfaceNormal_opt=n_loc)
     END IF
   END DO
 
@@ -1259,8 +1266,6 @@ CASE('ER')
   ELSE
     ChemSampWall(speciesID, 1,SubP,SubQ, SurfSideID) = ChemSampWall(speciesID, 1,SubP,SubQ, SurfSideID) - partWeight
   END IF
-
-  CALL MaxwellScattering(PartID,SideID,n_Loc)
 
   ! Count the number of surface reactions
   ChemCountReacWall(iReac, 1, SubP, SubQ, SurfSideID) = ChemCountReacWall(iReac, 1, SubP, SubQ, SurfSideID) + 1

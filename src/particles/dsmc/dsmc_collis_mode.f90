@@ -106,13 +106,13 @@ IF (DSMC%ReservoirSimuRate) RETURN
   cRelaNew(1:3) = PostCollVec(iPair)
 
  ! deltaV particle 1 (post collision particle 1 velocity in laboratory frame)
-  PartState(4,iPart1) = VeloMx + FracMassCent2 * cRelaNew(1) 
+  PartState(4,iPart1) = VeloMx + FracMassCent2 * cRelaNew(1)
   PartState(5,iPart1) = VeloMy + FracMassCent2 * cRelaNew(2)
   PartState(6,iPart1) = VeloMz + FracMassCent2 * cRelaNew(3)
  ! deltaV particle 2 (post collision particle 2 velocity in laboratory frame)
-  PartState(4,iPart2) = VeloMx - FracMassCent1 * cRelaNew(1) 
+  PartState(4,iPart2) = VeloMx - FracMassCent1 * cRelaNew(1)
   PartState(5,iPart2) = VeloMy - FracMassCent1 * cRelaNew(2)
-  PartState(6,iPart2) = VeloMz - FracMassCent1 * cRelaNew(3) 
+  PartState(6,iPart2) = VeloMz - FracMassCent1 * cRelaNew(3)
 #ifdef CODE_ANALYZE
   Momentum_new(1:3) = Species(iSpec2)%MassIC* (/VeloMx - FracMassCent1*cRelaNew(1),&
                                                 VeloMy - FracMassCent1*cRelaNew(2),&
@@ -246,13 +246,13 @@ END SUBROUTINE DSMC_Elastic_Col
 !
 !    ! Transformation to laboratory frame
 !    ! deltaV particle 1
-!    PartState(4,iPart1) = VeloMx + FracMassCent2*CRelaxN  
-!    PartState(5,iPart1) = VeloMy + FracMassCent2*CRelayN  
-!    PartState(6,iPart1) = VeloMz + FracMassCent2*CRelazN  
+!    PartState(4,iPart1) = VeloMx + FracMassCent2*CRelaxN
+!    PartState(5,iPart1) = VeloMy + FracMassCent2*CRelayN
+!    PartState(6,iPart1) = VeloMz + FracMassCent2*CRelazN
 !    ! deltaV particle 2
-!    PartState(4,iPart2) = VeloMx - FracMassCent1*CRelaxN 
-!    PartState(5,iPart2) = VeloMy - FracMassCent1*CRelayN  
-!    PartState(6,iPart2) = VeloMz - FracMassCent1*CRelazN  
+!    PartState(4,iPart2) = VeloMx - FracMassCent1*CRelaxN
+!    PartState(5,iPart2) = VeloMy - FracMassCent1*CRelayN
+!    PartState(6,iPart2) = VeloMz - FracMassCent1*CRelazN
 !
 !    ! Decision concerning CEX
 !    P_CEX = 0.5
@@ -672,12 +672,12 @@ IF (DSMC%ReservoirSimuRate) RETURN
 
   ! deltaV particle 1 (post collision particle 1 velocity in laboratory frame)
   PartState(4,iPart1) = VeloMx + FracMassCent2*cRelaNew(1)
-  PartState(5,iPart1) = VeloMy + FracMassCent2*cRelaNew(2) 
-  PartState(6,iPart1) = VeloMz + FracMassCent2*cRelaNew(3) 
+  PartState(5,iPart1) = VeloMy + FracMassCent2*cRelaNew(2)
+  PartState(6,iPart1) = VeloMz + FracMassCent2*cRelaNew(3)
   ! deltaV particle 2 (post collision particle 2 velocity in laboratory frame)
   PartState(4,iPart2) = VeloMx - FracMassCent1*cRelaNew(1)
-  PartState(5,iPart2) = VeloMy - FracMassCent1*cRelaNew(2) 
-  PartState(6,iPart2) = VeloMz - FracMassCent1*cRelaNew(3) 
+  PartState(5,iPart2) = VeloMy - FracMassCent1*cRelaNew(2)
+  PartState(6,iPart2) = VeloMz - FracMassCent1*cRelaNew(3)
 
 #ifdef CODE_ANALYZE
   Energy_new= 0.5*Species(iSpec2)%MassIC*((VeloMx - FracMassCent1*cRelaNew(1))**2 &
@@ -962,7 +962,7 @@ IF (DSMC%ReservoirSimuRate) RETURN
         ! --------------------------------------------------------------------------------------------------!
         !  Multi-mode relaxation with the Metropolis-Hastings method
         ! --------------------------------------------------------------------------------------------------!
-        CALL DSMC_VibRelaxPoly(iPair,iPart2,FakXi)        
+        CALL DSMC_VibRelaxPoly(iPair,iPart2,FakXi)
       ELSE
         ! --------------------------------------------------------------------------------------------------!
         !  Single-mode relaxation of a previously selected mode
@@ -1030,7 +1030,7 @@ IF (DSMC%ReservoirSimuRate) RETURN
   ! Relaxation of first particle
   IF ( DoElec1 ) THEN
     ! calculate energy for electronic relaxation of particle 1
-    Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec + PartStateIntEn(3,iPart1)*GetParticleWeight(iPart1) 
+    Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec + PartStateIntEn(3,iPart1)*GetParticleWeight(iPart1)
     CALL ElectronicEnergyExchange(iPair,iPart1,FakXi)
     Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec - PartStateIntEn(3,iPart1)*GetParticleWeight(iPart1)
   END IF
@@ -1038,9 +1038,9 @@ IF (DSMC%ReservoirSimuRate) RETURN
   ! Electronic relaxation of second particle
   IF ( DoElec2 ) THEN
     ! calculate energy for electronic relaxation of particle 2
-    Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec + PartStateIntEn(3,iPart2)*GetParticleWeight(iPart2) 
+    Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec + PartStateIntEn(3,iPart2)*GetParticleWeight(iPart2)
     CALL ElectronicEnergyExchange(iPair,iPart2,FakXi)
-    Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec - PartStateIntEn(3,iPart2)*GetParticleWeight(iPart2) 
+    Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec - PartStateIntEn(3,iPart2)*GetParticleWeight(iPart2)
   END IF
 !--------------------------------------------------------------------------------------------------!
 ! Calculation of new particle velocities
@@ -1066,12 +1066,12 @@ IF (DSMC%ReservoirSimuRate) RETURN
 
   ! deltaV particle 1 (post collision particle 1 velocity in laboratory frame)
   PartState(4,iPart1) = VeloMx + FracMassCent2*cRelaNew(1)
-  PartState(5,iPart1) = VeloMy + FracMassCent2*cRelaNew(2) 
-  PartState(6,iPart1) = VeloMz + FracMassCent2*cRelaNew(3) 
+  PartState(5,iPart1) = VeloMy + FracMassCent2*cRelaNew(2)
+  PartState(6,iPart1) = VeloMz + FracMassCent2*cRelaNew(3)
   ! deltaV particle 2 (post collision particle 2 velocity in laboratory frame)
   PartState(4,iPart2) = VeloMx - FracMassCent1*cRelaNew(1)
-  PartState(5,iPart2) = VeloMy - FracMassCent1*cRelaNew(2) 
-  PartState(6,iPart2) = VeloMz - FracMassCent1*cRelaNew(3) 
+  PartState(5,iPart2) = VeloMy - FracMassCent1*cRelaNew(2)
+  PartState(6,iPart2) = VeloMz - FracMassCent1*cRelaNew(3)
 
 #ifdef CODE_ANALYZE
   Energy_new= 0.5*Species(PartSpecies(iPart2))%MassIC*((VeloMx - FracMassCent1*cRelaNew(1))**2 &
@@ -1282,7 +1282,7 @@ ALLOCATE(ReactionProbArray(ChemReac%CollCaseInfo(iCase)%NumOfReactionPaths))
 ReactionProbArray = 0.
 ! Reset the complete array (only populated for the specific collision case)
 PerformReaction = .FALSE.
-DO iPath = 1, ChemReac%CollCaseInfo(iCase)%NumOfReactionPaths 
+DO iPath = 1, ChemReac%CollCaseInfo(iCase)%NumOfReactionPaths
   ReacTest = ChemReac%CollCaseInfo(iCase)%ReactionIndex(iPath)
   IF(TRIM(ChemReac%ReactModel(ReacTest)).EQ.'QK') THEN
     CALL QK_TestReaction(iPair,ReacTest,PerformReaction(iPath))
@@ -1325,7 +1325,7 @@ IF(ReacCounter.GT.0) THEN
       RelaxToDo = .FALSE.
       IF(ReacCounter.GT.1) THEN
         ! Determine which reaction will occur, perform it and leave the loop
-        ReactionProb = ReactionProb + 1./REAL(ReacCounter)  
+        ReactionProb = ReactionProb + 1./REAL(ReacCounter)
         IF(ReactionProb.GT.iRan) THEN
           CALL DSMC_Chemistry(iPair, ReacTest)
           ! Exit the routine
