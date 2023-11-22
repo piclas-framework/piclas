@@ -345,7 +345,7 @@ CALL InitParticleBoundarySurfSides()
 IF(PartBound%UseRotPeriodicBC) CALL InitRotPeriodicMapping()
 IF(PartBound%UseInterPlaneBC)  CALL InitRotPeriodicInterPlaneMapping()
 ! Initialize surface sampling (the following IF arguments have to be considered in FinalizeParticleBoundarySampling as well)
-IF (WriteMacroSurfaceValues.OR.DSMC%CalcSurfaceVal.OR.ANY(PartBound%Reactive).OR.(SurfChemReac%NumOfReact.GT.0)) THEN
+IF (WriteMacroSurfaceValues.OR.DSMC%CalcSurfaceVal.OR.ANY(PartBound%Reactive)) THEN
   CALL InitParticleBoundarySampling()
   CALL InitAdaptiveWallTemp()
 END IF

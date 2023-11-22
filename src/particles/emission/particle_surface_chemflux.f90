@@ -68,6 +68,7 @@ USE MOD_MPI_Shared              ,ONLY: BARRIER_AND_SYNC
 USE MOD_Particle_Tracking_Vars  ,ONLY: TrackInfo
 !#endif /*IMPA*/
 #if USE_LOADBALANCE
+USE MOD_LoadBalance_Vars        ,ONLY: nSurfacefluxPerElem
 USE MOD_LoadBalance_Timers      ,ONLY: LBStartTime, LBElemSplitTime, LBPauseTime
 #endif /*USE_LOADBALANCE*/
 ! IMPLICIT VARIABLE HANDLING
@@ -393,6 +394,10 @@ DO iSF = 1, nSF
       ! 3.) Insert the product species into the gas phase
       DO iSpec = 1, nSpecies
 
+#if USE_LOADBALANCE
+        CALL LBStartTime(tLBStart)
+#endif /*USE_LOADBALANCE*/
+
         IF (INT(ChemDesorpWall(iSpec,1, SubP, SubQ, SurfSideID)/SurfElemMPF).GE.1) THEN
 
           ! Define the necessary variables
@@ -444,7 +449,14 @@ DO iSF = 1, nSF
 
             CALL SetSurfacefluxVelocities(2,iSpec,iSF,iSample,jSample,iSide,BCSideID,SideID,NbrOfParticle,PartInsSubSide)
             PartsEmitted = PartsEmitted + PartInsSubSide
+#if USE_LOADBALANCE
+            !used for calculating LoadBalance of tCurrent(LB_SURFFLUX)
+            nSurfacefluxPerElem(ElemID)=nSurfacefluxPerElem(ElemID)+PartInsSubSide
+#endif /*USE_LOADBALANCE*/
           END DO; END DO !jSample=1,SurfFluxSideSize(2); iSample=1,SurfFluxSideSize(1)
+#if USE_LOADBALANCE
+      CALL LBElemSplitTime(ElemID,tLBStart)
+#endif /*USE_LOADBALANCE*/
         END IF ! iSide
         IF (NbrOfParticle.NE.iPartTotal) CALL abort(__STAMP__, 'ERROR in ParticleSurfChemFlux: NbrOfParticle.NE.iPartTotal')
 
@@ -473,6 +485,9 @@ DO iSF = 1, nSF
 
         PDM%CurrentNextFreePosition = PDM%CurrentNextFreePosition + NbrOfParticle
         PDM%ParticleVecLength = PDM%ParticleVecLength + NbrOfParticle
+#if USE_LOADBALANCE
+        CALL LBPauseTime(LB_SURFFLUX,tLBStart)
+#endif /*USE_LOADBALANCE*/
 
         IF (NbrOfParticle.NE.PartsEmitted) THEN
           ! should be equal for including the following lines in tSurfaceFlux

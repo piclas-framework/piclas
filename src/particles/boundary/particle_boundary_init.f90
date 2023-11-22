@@ -427,7 +427,7 @@ DO iPartBound=1,nPartBound
         IF(TRIM(SpeciesDatabase).EQ.'none') &
           CALL abort(__STAMP__,'ERROR in InitializeVariablesPartBoundary: SpeciesDatabase is required for the boundary #', iPartBound)
       CASE (20)
-        PartBound%Reactive(iPartBound)        = .FALSE.
+        PartBound%Reactive(iPartBound)        = .TRUE.
       CASE (SEE_MODELS_ID)
         ! SEE models require reactive BC
         PartBound%Reactive(iPartBound)        = .TRUE.
