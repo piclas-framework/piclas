@@ -292,7 +292,7 @@ END DO !iSpec
 DO iSF=1,SurfChemReac%CatBoundNum
   currentBC = SurfChemReac%Surfaceflux(iSF)%BC
   IF (BCdata_auxSF(currentBC)%SideNumber.GT.0) THEN
-    
+
     ! Loop over sides on the surface flux
     DO iSide=1,BCdata_auxSF(currentBC)%SideNumber
       BCSideID=BCdata_auxSF(currentBC)%SideList(iSide)
@@ -1307,7 +1307,7 @@ DO jSample=1,SurfFluxSideSize(2); DO iSample=1,SurfFluxSideSize(1)
     !-- store species-specific data in separate arrays to be able to re-use the surface flux types
     SurfChemReac%SFAux(iSF)%a_nIn(iSample,jSample,iSide,iSpec) = a
   END DO !iSpec
-  
+
   SurfChemReac%Surfaceflux(iSF)%SurfFluxSubSideData(iSample,jSample,iSide)%projFak = projFak
   IF (.NOT.SurfChemReac%Surfaceflux(iSF)%VeloIsNormal) THEN
     SurfChemReac%Surfaceflux(iSF)%SurfFluxSubSideData(iSample,jSample,iSide)%Velo_t1 &
@@ -1358,7 +1358,7 @@ SurfChemReac%Surfaceflux(:)%BC=-1
 
 iSF = 1
 DO iBound=1,nPartBound
-  IF (SurfChemReac%BoundisChemSurf(iBound)) THEN 
+  IF (SurfChemReac%BoundisChemSurf(iBound)) THEN
     SurfChemReac%Surfaceflux(iSF)%BC = iBound
     iSF = iSF + 1
   END IF

@@ -101,7 +101,7 @@ SumOfResultSpec = 0
 DO iSpec = 1,nSpecies
   WRITE(UNIT=hilf,FMT='(I0)') iSpec
 
-  ! Loop particle boundaries 
+  ! Loop particle boundaries
   DO iPartBound=1,nPartBound
     IF(.NOT.PartBound%Reactive(iPartBound)) CYCLE
     WRITE(UNIT=hilf2,FMT='(I0)') iPartBound
@@ -220,7 +220,7 @@ SDEALLOCATE(SurfChemReac%C_b)
 SDEALLOCATE(SurfChemReac%Rate)
 SDEALLOCATE(SurfChemReac%Prob)
 SDEALLOCATE(SurfChemReac%ArrheniusEnergy)
-SDEALLOCATE(SurfChemReac%Prefactor) 
+SDEALLOCATE(SurfChemReac%Prefactor)
 
 #if USE_MPI
   CALL MPI_BARRIER(MPI_COMM_SHARED,iERROR)
@@ -233,7 +233,6 @@ SDEALLOCATE(SurfChemReac%Prefactor)
 #else
 #endif
 SDEALLOCATE(ChemDesorpWall)
-! SDEALLOCATE(ChemCountReacWall)
 ADEALLOCATE(ChemSampWall)
 ADEALLOCATE(ChemWallProp)
 

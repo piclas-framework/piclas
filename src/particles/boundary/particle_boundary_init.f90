@@ -430,7 +430,7 @@ DO iPartBound=1,nPartBound
         PartBound%Reactive(iPartBound)        = .FALSE.
       CASE (SEE_MODELS_ID)
         ! SEE models require reactive BC
-        PartBound%Reactive(iPartBound)        = .TRUE. 
+        PartBound%Reactive(iPartBound)        = .TRUE.
       CASE DEFAULT
         CALL abort(__STAMP__,'Error in particle init: only allowed SurfaceModels: 0,1,20,SEE_MODELS_ID! SurfaceModel=',&
                   IntInfoOpt=PartBound%SurfaceModel(iPartBound))

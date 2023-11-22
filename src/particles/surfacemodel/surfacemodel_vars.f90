@@ -21,7 +21,7 @@ MODULE MOD_SurfaceModel_Vars
 USE MOD_DSMC_Vars                   ,ONLY: tCollCaseInfo
 USE MOD_Particle_SurfaceFlux_Vars   ,ONLY: tSurfaceFlux
 
-IMPLICIT NONE 
+IMPLICIT NONE
 PUBLIC
 SAVE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -87,7 +87,11 @@ TYPE tSurfReactions
   REAL, ALLOCATABLE                      :: MaxCoverage(:)         ! Maximal surface coverage
   REAL, ALLOCATABLE                      :: DissOrder(:)           ! Molecular (1) or dissociative (2) adsorption
   REAL, ALLOCATABLE                      :: EqConstant(:)          ! Equilibrium constant for adsorption/desorption
-  REAL, ALLOCATABLE                      :: StickCoeff(:)          ! Sticking coefficient 
+  REAL, ALLOCATABLE                      :: StickCoeff(:)          ! Sticking coefficient
+  ! Parameter for the dissociative-adsorption
+  LOGICAL, ALLOCATABLE                   :: DissociativeAds(:)     ! Dissociative adsorption where the other molecule half is desorbed
+  INTEGER, ALLOCATABLE                   :: AdsorbedProduct(:)     ! Species ID of the particle that stays adsorbed on the surface
+  INTEGER, ALLOCATABLE                   :: GasProduct(:)          ! Species ID of the particle that remains in the gas phase
   ! Parameters for the desorption
   REAL, ALLOCATABLE                      :: E_initial(:)           ! Desorption energy at zero coverage [K]
   REAL, ALLOCATABLE                      :: W_interact(:)          ! Scaling factor for Edes [K]
@@ -117,7 +121,6 @@ END TYPE
 REAL,ALLOCATABLE                         :: ChemDesorpWall(:,:,:,:,:)     ! Desorption numbers
 REAL,ALLOCPOINT                          :: ChemWallProp(:,:,:,:,:)       ! Adsorption count / heat flux
 REAL,ALLOCPOINT                          :: ChemSampWall(:,:,:,:,:)       ! Sampling direct impact mechanism
-! INTEGER,ALLOCATABLE                      :: ChemCountReacWall(:,:,:,:,:)! Count the number of catalytic reactions on the subside
 
 #if USE_MPI
 REAL,ALLOCPOINT                          :: ChemWallProp_Shared(:,:,:,:,:)  ! Adsorption count / heat flux

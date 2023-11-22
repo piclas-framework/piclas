@@ -67,7 +67,7 @@ USE MOD_Particle_Boundary_Vars ,ONLY: PartBound
 USE MOD_Particle_Vars          ,ONLY: PartInt,PartData,PartState,PartSpecies,PEM,PDM,usevMPF,PartMPF,PartPosRef,SpecReset,Species
 USE MOD_Particle_Vars          ,ONLY: DoVirtualCellMerge
 ! Restart
-USE MOD_Restart_Vars           ,ONLY: DoMacroscopicRestart
+USE MOD_Restart_Vars           ,ONLY: DoMacroscopicRestart, DoCatalyticRestart
 ! HDG
 #if USE_HDG
 USE MOD_HDG_Vars               ,ONLY: UseBRElectronFluid,BRConvertElectronsToFluid,BRConvertFluidToElectrons
@@ -127,6 +127,8 @@ INTEGER                            :: iProc
 ! Distribute or read the particle solution
 ! ===========================================================================
 CALL ParticleReadin()
+
+IF(DoCatalyticRestart) CALL CatalyticRestart()
 
 IF(.NOT.DoMacroscopicRestart) THEN
   IF(PartIntExists)THEN
@@ -1081,6 +1083,91 @@ CALL BARRIER_AND_SYNC(BoundaryWallTemp_Shared_Win,MPI_COMM_SHARED)
 
 END SUBROUTINE RestartAdaptiveWallTemp
 
+SUBROUTINE CatalyticRestart()
+!===================================================================================================================================
+!> Restart of the catalytic surface values
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals
+USE MOD_PreProc
+USE MOD_io_hdf5
+USE MOD_HDF5_Input              ,ONLY: OpenDataFile,ReadArray,GetDataSize,ReadAttribute
+USE MOD_HDF5_Input              ,ONLY: HSize,File_ID,GetDataProps
+USE MOD_Restart_Vars            ,ONLY: CatalyticFileName
+USE MOD_SurfaceModel_Vars       ,ONLY: ChemWallProp
+USE MOD_Particle_Boundary_Vars  ,ONLY: SurfSideArea_Shared
+USE MOD_Particle_Boundary_Vars  ,ONLY: nComputeNodeSurfSides, offsetComputeNodeSurfSide
+USE MOD_Particle_Vars           ,ONLY: nSpecies
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+CHARACTER(LEN=255)              :: File_Type
+CHARACTER(LEN=255),ALLOCATABLE  :: VarNamesSurf_HDF5(:)
+INTEGER                         :: iSpec, nVarSurf, nSurfSample, nSurfaceSidesReadin
+REAL, ALLOCATABLE               :: tempSurfData(:,:,:,:), SurfData(:,:)
+REAL                            :: OutputTime
+INTEGER                         :: iSide, ReadInSide
+!===================================================================================================================================
+
+SWRITE(UNIT_stdOut,*) 'Using catalytic values from file: ',TRIM(CatalyticFileName)
+
+CALL OpenDataFile(CatalyticFileName,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_PICLAS)
+
+! Check if the provided file is a DSMC surface chemistry state file.
+CALL ReadAttribute(File_ID,'File_Type',1,StrScalar=File_Type)
+
+IF(TRIM(File_Type).NE.'DSMCSurfChemState') THEN
+  SWRITE(*,*) 'ERROR: The given file type is: ', TRIM(File_Type)
+  CALL abort(__STAMP__,'ERROR: Given file for the catalytic restart is not of the type "DSMCSurfChemState", please check the input file!')
+END IF
+
+CALL ReadAttribute(File_ID,'DSMC_nSurfSample',1,IntScalar=nSurfSample)
+CALL ReadAttribute(File_ID,'Time',1,RealScalar=OutputTime)
+
+CALL GetDataSize(File_ID,'SurfaceData',nDims,HSize)
+nVarSurf = INT(HSize(1),4)
+nSurfaceSidesReadin = INT(HSize(4),4)
+ALLOCATE(VarNamesSurf_HDF5(nVarSurf))
+CALL ReadAttribute(File_ID,'VarNamesSurface',nVarSurf,StrArray=VarNamesSurf_HDF5(1:nVarSurf))
+
+ALLOCATE(SurfData(1:nVarSurf,1:nSurfaceSidesReadin))
+ALLOCATE(tempSurfData(1:nVarSurf,nSurfSample,nSurfSample,1:nSurfaceSidesReadin))
+SurfData=0.
+tempSurfData = 0.
+ASSOCIATE(nVarSurf        => INT(nVarSurf,IK),  &
+          nSurfaceSidesReadin => INT(nSurfaceSidesReadin,IK))
+  CALL ReadArray('SurfaceData',4,(/nVarSurf, 1_IK, 1_IK, nSurfaceSidesReadin/), &
+                  0_IK,4,RealArray=tempSurfData(:,:,:,:))
+END ASSOCIATE
+
+! Copy data from tmp array
+DO iSide = 1, nSurfaceSidesReadin
+  SurfData(1:nVarSurf,iSide) = tempSurfData(1:nVarSurf,1,1,iSide)
+END DO
+
+CALL CloseDataFile()
+
+! Read-In of the coverage values per species
+DO iSide = 1, nComputeNodeSurfSides
+  ReadInSide = iSide + offsetComputeNodeSurfSide
+  DO iSpec = 1, nSpecies
+  ! Initial surface coverage
+    ChemWallProp(iSpec,1,1,1,iSide) = SurfData(iSpec,ReadInSide)
+  END DO
+  ! Heat flux on the surface element
+  ChemWallProp(1,2,1,1,iSide) = SurfData(nSpecies+1,ReadInSide)*OutputTime*SurfSideArea_Shared(1,1,iSide)
+END DO
+
+SDEALLOCATE(VarNamesSurf_HDF5)
+SDEALLOCATE(SurfData)
+SDEALLOCATE(tempSurfData)
+
+END SUBROUTINE CatalyticRestart
 
 SUBROUTINE MacroscopicRestart()
 !===================================================================================================================================
