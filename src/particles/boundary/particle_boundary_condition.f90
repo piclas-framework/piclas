@@ -543,7 +543,7 @@ IF(DoCreateParticles) THEN
   ELSE IF(DeleteOrCloneProb.GT.1.0) THEN
     NewPartNumber = INT(DeleteOrCloneProb) - 1
     DeleteOrCloneProb = DeleteOrCloneProb - INT(DeleteOrCloneProb)
-    CALL RANDOM_NUMBER(RanNum) 
+    CALL RANDOM_NUMBER(RanNum)
     IF(RanNum.LE.DeleteOrCloneProb) THEN
       NewPartNumber = NewPartNumber + 1
     END IF
@@ -566,7 +566,7 @@ IF(DoCreateParticles) THEN
       ! For creating inter particles:
       ! - LastPartPos(1:3,NewPartID) must be redefined as long as LastPartPos is set to PartState in CreateParticle routine
       ! - ParticleInside for InterParticles must be .FALSE. in order to avoid error looping over the original PDM%ParticleVecLength
-      !   in ParticleTriaTracking() routine. The inside flag is set to .TRUE. 
+      !   in ParticleTriaTracking() routine. The inside flag is set to .TRUE.
       !   when we loop over all inter particle in SingleParticleTriaTracking routine
       ! in case of sub cycling step particle information befor sub cycling must be used => interplane particle can act like origin particle
       IF(RotRefSubTimeStep) THEN
@@ -716,29 +716,19 @@ PartState_rotated(1:3)    = RotateVectorAroundAxis(PartState(1:3,PartID)  ,PartB
 
 ! (5) Treatment of velocity in rotational frame of reference
 IF(UseRotRefFrame) THEN
-  ! Setting the PartState to the POI to determine whether the particle moved into a RotRefFrame (is later overwritten anyway)
-  PartState(1:3,PartID) = POI_rotated(1:3)
-  ! Check is repeated in the FUNCTION InRotRefFrameCheck at the current PartState(1:3)
-  IF(InRotRefFrameCheck(PartID)) THEN
-    ! Particle moved into a RotRefFrame
-    IF(PDM%InRotRefFrame(PartID)) THEN
-      ! Particle comes from a RotRefFrame: rotate the old PartVeloRotRef
-      Velo_old(1:3) = PartVeloRotRef(1:3,PartID)
-      PartVeloRotRef(1:3,PartID) = RotateVectorAroundAxis(Velo_old(1:3),PartBound%RotPeriodicAxis,RotAlpha)
-    ELSE
-      ! Particle comes from an inertial frame: initialize the new PartVeloRotRef
-      PartVeloRotRef(1:3,PartID) = PartState(4:6,PartID) - CROSS(RotRefFrameOmega(1:3),PartState(1:3,PartID))
-    END IF
-    ! Calculate the acceleration
-    PartVeloRotRef(1:3,PartID) = PartVeloRotRef(1:3,PartID) + CalcPartRHSRotRefFrame(PartState(1:3,PartID),PartVeloRotRef(1:3,PartID)) &
-                                                              * dtVar * (1.0 - TrackInfo%alpha/TrackInfo%lengthPartTrajectory)
-  ELSE
+  ! Check from which frame are we coming from and adapt logical accordingly (assuming that an interplane is ALWAYS between two different reference frames)
+  IF(PDM%InRotRefFrame(PartID)) THEN
+    ! Particle comes from the rotational frame and CONSEQUENTLY moves to the inertial frame
     PartVeloRotRef(1:3,PartID) = 0.
+    PDM%InRotRefFrame(PartID) = .FALSE.
+  ELSE
+    ! Particle comes from an inertial frame: initialize the new PartVeloRotRef at the target location
+    PartVeloRotRef(1:3,PartID) = PartState(4:6,PartID) - CROSS(RotRefFrameOmega(1:3),PartState_rotated(1:3))
+    PDM%InRotRefFrame(PartID) = .TRUE.
   END IF
-  PDM%InRotRefFrame(PartID) = InRotRefFrameCheck(PartID)
 END IF
 
-! (7) Track the particle, moving inside the domain through the interplane BC
+! (6) Track the particle, moving inside the domain through the interplane BC
 ParticleFound = .FALSE.
 PartState(1:3,PartID) = PartState_rotated(1:3)
 LastPartPos(1:3,PartID) = LastPartPos_rotated(1:3)
