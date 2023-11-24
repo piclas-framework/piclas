@@ -148,6 +148,7 @@ USE MOD_DSMC_BGGas       ,ONLY: BGGas_Initialize
 USE MOD_LoadBalance_Vars ,ONLY: PerformLoadBalance
 #endif /*USE_MPI*/
 USE MOD_Restart_Vars     ,ONLY: DoRestart
+USE MOD_Analyze_Vars     ,ONLY: DoSurfModelAnalyze
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -328,6 +329,7 @@ DO iSpec = 1, nSpecies
       NeutralizationSource = TRIM(GETSTR('Part-Species'//TRIM(hilf2)//'-NeutralizationSource'))
       NeutralizationBalance = 0
       UseNeutralization = .TRUE.
+      DoSurfModelAnalyze = .TRUE.
       IF((TRIM(Species(iSpec)%Init(iInit)%SpaceIC).EQ.'3D_Liu2010_neutralization').OR.&
          (TRIM(Species(iSpec)%Init(iInit)%SpaceIC).EQ.'3D_Liu2010_neutralization_Szabo'))THEN
         Species(iSpec)%Init(iInit)%FirstQuadrantOnly = GETLOGICAL('Part-Species'//TRIM(hilf2)//'-FirstQuadrantOnly')
@@ -755,9 +757,6 @@ SUBROUTINE DetermineInitialParticleNumber()
 !>
 !===================================================================================================================================
 ! MODULES
-#if USE_MPI
-USE MOD_Particle_MPI_Vars   ,ONLY: PartMPI
-#endif /*USE_MPI*/
 USE MOD_Globals
 USE MOD_Globals_Vars        ,ONLY: PI
 USE MOD_DSMC_Vars           ,ONLY: RadialWeighting, DSMC
@@ -841,7 +840,7 @@ DO iSpec=1,nSpecies
     END IF
     ! Sum-up the number of particles to be inserted
 #if USE_MPI
-    insertParticles = insertParticles + INT(REAL(Species(iSpec)%Init(iInit)%ParticleNumber)/REAL(PartMPI%nProcs),8)
+    insertParticles = insertParticles + INT(REAL(Species(iSpec)%Init(iInit)%ParticleNumber)/REAL(nProcessors),8)
 #else
     insertParticles = insertParticles + INT(Species(iSpec)%Init(iInit)%ParticleNumber,8)
 #endif

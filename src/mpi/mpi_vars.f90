@@ -32,7 +32,6 @@ INTEGER,ALLOCATABLE :: SendRequest_Geo(:),RecRequest_Geo(:)
 INTEGER             :: iNbProc
 INTEGER             :: nSendVal,nRecVal,DataSizeSide
 INTEGER             :: SideID_start,SideID_end
-LOGICAL             :: MPIInitIsDone=.FALSE.
 #if USE_MPI
 INTEGER               :: nNbProcs         ! number of neighbor procs
 INTEGER,ALLOCATABLE   :: NbProc(:)        ! iProc list of neighbor procs; allocated from 1:nNbProcs

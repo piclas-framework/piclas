@@ -1,13 +1,9 @@
 # MPI Implementation
 
 This chapter describes how PICLas subroutines and functions are parallelized.
-
+Please also read the general rules for using {ref}`developerguide/bestpractices:MPI`.
 
 ## General Remarks: Things to consider
-In case any new communicator (e.g. SurfCOMM%COMM) is built during init or anywhere else with
-`CALL MPI_COMM_SPLIT(NEWCOMMUNICATOR,iERROR)` or such, it is necessary to finalize it with `CALL MPI_COMM_FREE(NEWCOMMUNICATOR,iERROR)`.
-
-Else, load balancing will produce undefined errors that are almost impossible to find.
 
 Debug MPI
 
@@ -121,3 +117,65 @@ Additionally to conventional sides, mappings for the sides that belong to a boun
     PEM%GlobalElemID(iPart)         ! Global element ID
     PEM%CNElemID(iPart)             ! Compute-node local element ID (GlobalElem2CNTotalElem(PEM%GlobalElemID(iPart)))
     PEM%LocalElemID(iPart)          ! Core local element ID (PEM%GlobalElemID(iPart) - offsetElem)
+
+## Custom communicators
+
+To limit the number of communicating processors, feature specific communicators can be built. In the following, an example is given
+for a communicator, which only contains processors with a local surface side (part of the `InitParticleBoundarySurfSides` routine). First, a global variable `SurfCOMM`, which is based on the `tMPIGROUP` type, is required:
+```
+TYPE tMPIGROUP
+  INTEGER         :: UNICATOR=MPI_COMM_NULL     !< MPI communicator for surface sides
+  INTEGER         :: nProcs                     !< number of MPI processes
+  INTEGER         :: MyRank                     !< MyRank, ordered from 0 to nProcs - 1
+END TYPE
+TYPE (tMPIGROUP)    :: SurfCOMM
+```
+To create a subset of processors, a condition is required, which is defined by the `color` variable:
+```
+color = MERGE(1337, MPI_UNDEFINED, nSurfSidesProc.GT.0)
+```
+Here, every processor with the same `color` will be part of the same communicator. The condition `nSurfSidesProc.GT.0` in this case includes every processor with a surface side. Every other processor will be set to `MPI_UNDEFINED` and consequently be part of `MPI_COMM_NULL`. Now, the communicator itself can be created:
+```
+CALL MPI_COMM_SPLIT(MPI_COMM_PICLAS, color, MPI_INFO_NULL, SurfCOMM%UNICATOR, iError)
+```
+`MPI_COMM_PICLAS` denotes the global PICLas communicator containing every processor (but can also be a previously created subset) and the `MPI_INFO_NULL` entry denotes the rank assignment within the new communicator (default: numbering from 0 to nProcs - 1). Additional information can be stored within the created variable:
+```
+IF(SurfCOMM%UNICATOR.NE.MPI_COMM_NULL) THEN
+  ! Stores the rank within the given communicator as MyRank
+  CALL MPI_COMM_RANK(SurfCOMM%UNICATOR, SurfCOMM%MyRank, iError)
+  ! Stores the total number of processors of the given communicator as nProcs
+  CALL MPI_COMM_SIZE(SurfCOMM%UNICATOR, SurfCOMM%nProcs, iError)
+END IF
+```
+Through the IF clause, only processors that are part of the communicator can be addressed. And finally, it is important to free the communicator during the finalization routine:
+```
+IF(SurfCOMM%UNICATOR.NE.MPI_COMM_NULL) CALL MPI_COMM_FREE(SurfCOMM%UNICATOR,iERROR)
+```
+This works for communicators, which have been initialized with MPI_COMM_NULL, either initially during the variable definition or during the split call.
+If not initialized initially, you have to make sure that the freeing call is only performed, if the respective split routine has been called to guarantee
+that either a communicator exists and/or every (other) processor has been set to MPI_COMM_NULL.
+
+### Available communicators
+
+| Handle                  | Description                                   | Derived from            |
+| ----------------------- | --------------------------------------------- | ----------------------- |
+| MPI_COMM_WORLD          | Default global communicator                   | -                       |
+| MPI_COMM_PICLAS         | Duplicate of MPI_COMM_WORLD                   | MPI_COMM_PICLAS         |
+| MPI_COMM_NODE           | Processors on a node                          | MPI_COMM_PICLAS         |
+| MPI_COMM_LEADERS        | Group of node leaders                         | MPI_COMM_PICLAS         |
+| MPI_COMM_WORKERS        | All remaining processors, who are not leaders | MPI_COMM_PICLAS         |
+| MPI_COMM_SHARED         | Processors on a node                          | MPI_COMM_PICLAS         |
+| MPI_COMM_LEADERS_SHARED | Group of node leaders (myComputeNodeRank = 0) | MPI_COMM_PICLAS         |
+| MPI_COMM_LEADERS_SURF   | Node leaders with surface sides               | MPI_COMM_LEADERS_SHARED |
+
+#### Feature-specific
+
+| Handle                              | Description                                                            | Derived from    |
+| ----------------------------------- | ---------------------------------------------------------------------- | --------------- |
+| PartMPIInitGroup(nInitRegions)%COMM | Emission groups                                                        | MPI_COMM_PICLAS |
+| SurfCOMM%UNICATOR                   | Processors with a surface side (e.g. reflective), including halo sides | MPI_COMM_PICLAS |
+| CPPCOMM%UNICATOR                    | Coupled power potential                                                | MPI_COMM_PICLAS |
+| EDC%COMM(iEDCBC)%UNICATOR           | Electric displacement current (per BC)                                 | MPI_COMM_PICLAS |
+| FPC%COMM(iUniqueFPCBC)%UNICATOR     | Floating potential (per BC)                                            | MPI_COMM_PICLAS |
+| EPC%COMM(iUniqueEPCBC)%UNICATOR     | Electric potential (per BC)                                            | MPI_COMM_PICLAS |
+| BiasVoltage%COMM%UNICATOR           | Bias voltage                                                           | MPI_COMM_PICLAS |

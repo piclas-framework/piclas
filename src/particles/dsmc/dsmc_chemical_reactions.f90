@@ -282,9 +282,7 @@ ELSE
 END IF
 
 IF(DSMC%ReservoirSimu) THEN
-#if (PP_TimeDiscMethod==42)
   IF(DSMC%ReservoirRateStatistic) THEN
-#endif
     IF((ReactionProb.GT.1).AND.(ReactionProbGTUnityCounter.LT.100)) THEN
       ReactionProbGTUnityCounter=ReactionProbGTUnityCounter+1
       IPWRITE(*,*) 'Warning: ReactionProb greater than unity! ReacNbr:', iReac,'    ReactionProb:',ReactionProb
@@ -292,18 +290,14 @@ IF(DSMC%ReservoirSimu) THEN
         IPWRITE(*,*) ' Counted 100 ReactionProb greater than unity. Turning this warning off.'
       END IF
     END IF
-#if (PP_TimeDiscMethod==42)
   END IF
-#endif
 END IF
 ! ReactionProb should not be gt 1 to avoid meaningless high weighting of a single reaction
 IF (ReactionProb.GT.1) ReactionProb = 1.0
-#if (PP_TimeDiscMethod==42)
-IF (.NOT.DSMC%ReservoirRateStatistic) THEN
+IF (DSMC%ReservoirSimu.AND..NOT.DSMC%ReservoirRateStatistic) THEN
   ChemReac%NumReac(iReac) = ChemReac%NumReac(iReac) + ReactionProb
   ChemReac%ReacCount(iReac) = ChemReac%ReacCount(iReac) + 1
 END IF
-#endif
 
 END SUBROUTINE CalcReactionProb
 
@@ -427,8 +421,7 @@ IF(EductReac(3).NE.0) THEN
 END IF
 
 ! Do not perform the reaction in case the reaction is to be calculated at a constant gas composition (DSMC%ReservoirSimuRate = T)
-#if (PP_TimeDiscMethod==42)
-IF (DSMC%ReservoirSimuRate) THEN
+IF (DSMC%ReservoirSimu.AND.DSMC%ReservoirSimuRate) THEN
   ! Count the number of reactions to determine the actual reaction rate
   IF (DSMC%ReservoirRateStatistic) THEN
     ChemReac%NumReac(iReac) = ChemReac%NumReac(iReac) + 1
@@ -436,7 +429,6 @@ IF (DSMC%ReservoirSimuRate) THEN
   ! Leave the routine again
   RETURN
 END IF
-#endif
 
 Xi_elec = 0.
 EZeroTempToExec = 0.
@@ -1611,8 +1603,7 @@ EductReac(1:3) = ChemReac%Reactants(iReac,1:3)
 ProductReac(1:4) = ChemReac%Products(iReac,1:4)
 
 ! Do not perform the reaction in case the reaction is to be calculated at a constant gas composition (DSMC%ReservoirSimuRate = T)
-#if (PP_TimeDiscMethod==42)
-IF (DSMC%ReservoirSimuRate) THEN
+IF (DSMC%ReservoirSimu.AND.DSMC%ReservoirSimuRate) THEN
   ! Count the number of reactions to determine the actual reaction rate
   IF (DSMC%ReservoirRateStatistic) THEN
     ChemReac%NumReac(iReac) = ChemReac%NumReac(iReac) + 1
@@ -1620,7 +1611,6 @@ IF (DSMC%ReservoirSimuRate) THEN
   ! Leave the routine again
   RETURN
 END IF
-#endif
 
 Weight = 0.
 NumProd = 2; SumWeightProd = 0.
