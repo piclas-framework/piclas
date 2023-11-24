@@ -358,6 +358,7 @@ MeshVolume = SUM(ElemVolume_Shared)
 
 END SUBROUTINE DSMC_1D_InitVolumes
 
+
 SUBROUTINE DSMC_2D_InitRadialWeighting()
 !===================================================================================================================================
 !> Read-in and initialize the variables required for the cloning procedures. Two modes with a delayed clone insertion are available:
@@ -370,6 +371,9 @@ USE MOD_ReadInTools
 USE MOD_Restart_Vars            ,ONLY: DoRestart
 USE MOD_PARTICLE_Vars           ,ONLY: PDM
 USE MOD_DSMC_Vars               ,ONLY: RadialWeighting, ClonedParticles
+#if USE_LOADBALANCE
+USE MOD_LoadBalance_Vars        ,ONLY: DoLoadBalance, UseH5IOLoadBalance
+#endif /*USE_LOADBALANCE*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -379,12 +383,18 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 !===================================================================================================================================
+
+! Clone read-in during load balance is currently only supported via the HDF5 output
+#if USE_LOADBALANCE
+IF(DoLoadBalance.AND.(.NOT.UseH5IOLoadBalance)) THEN
+  CALL abort(__STAMP__,'ERROR: Radial weighting only supports a load balance using an HDF5 output (UseH5IOLoadBalance = T)!')
+END IF
+#endif /*USE_LOADBALANCE*/
+
 ! Linear increasing weighting factor in the radial direction up to the domain boundary
 RadialWeighting%PartScaleFactor = GETREAL('Particles-RadialWeighting-PartScaleFactor')
 IF(RadialWeighting%PartScaleFactor.LT.1.) THEN
-  CALL Abort(&
-      __STAMP__,&
-    'ERROR in 2D axisymmetric simulation: PartScaleFactor has to be greater than 1!',RealInfoOpt=RadialWeighting%PartScaleFactor)
+  CALL Abort(__STAMP__,'ERROR in 2D axisymmetric simulation: PartScaleFactor has to be greater than 1!',RealInfoOpt=RadialWeighting%PartScaleFactor)
 END IF
 RadialWeighting%CloneMode = GETINT('Particles-RadialWeighting-CloneMode')
 RadialWeighting%CloneInputDelay = GETINT('Particles-RadialWeighting-CloneDelay')
@@ -401,9 +411,7 @@ RadialWeighting%NextClone = 0
 SELECT CASE(RadialWeighting%CloneMode)
   CASE(1)
     IF(RadialWeighting%CloneInputDelay.LT.1) THEN
-      CALL Abort(&
-          __STAMP__,&
-        'ERROR in 2D axisymmetric simulation: Clone delay should be greater than 0')
+      CALL Abort(__STAMP__,'ERROR in 2D axisymmetric simulation: Clone delay should be greater than 0')
     END IF
     ALLOCATE(RadialWeighting%ClonePartNum(0:(RadialWeighting%CloneInputDelay-1)))
     ALLOCATE(ClonedParticles(1:INT(PDM%maxParticleNumber/RadialWeighting%CloneInputDelay),0:(RadialWeighting%CloneInputDelay-1)))
@@ -411,18 +419,14 @@ SELECT CASE(RadialWeighting%CloneMode)
     IF(.NOT.DoRestart) RadialWeighting%CloneDelayDiff = 1
   CASE(2)
     IF(RadialWeighting%CloneInputDelay.LT.2) THEN
-      CALL Abort(&
-          __STAMP__,&
-        'ERROR in 2D axisymmetric simulation: Clone delay should be greater than 1')
+      CALL Abort(__STAMP__,'ERROR in 2D axisymmetric simulation: Clone delay should be greater than 1')
     END IF
     ALLOCATE(RadialWeighting%ClonePartNum(0:RadialWeighting%CloneInputDelay))
     ALLOCATE(ClonedParticles(1:INT(PDM%maxParticleNumber/RadialWeighting%CloneInputDelay),0:RadialWeighting%CloneInputDelay))
     RadialWeighting%ClonePartNum = 0
     IF(.NOT.DoRestart) RadialWeighting%CloneDelayDiff = 0
   CASE DEFAULT
-    CALL Abort(&
-        __STAMP__,&
-      'ERROR in Radial Weighting of 2D/Axisymmetric: The selected cloning mode is not available! Choose between 1 and 2.'//&
+    CALL Abort(__STAMP__,'ERROR in Radial Weighting of 2D/Axisymmetric: The selected cloning mode is not available! Choose between 1 and 2.'//&
         ' CloneMode=1: Delayed insertion of clones; CloneMode=2: Delayed randomized insertion of clones')
 END SELECT
 
