@@ -35,3 +35,30 @@ Finally, the `WriteSurfSampleToHDF5` routine writes the prepared `MacroSurfaceVa
     IF (ANY(PartBound%SurfaceModel.EQ.1)) CALL AddVarName(Str2DVarNames,nVar2D_Total,nVarCount,'Sticking_Coefficient')
 
 The order of the variable names and their position in the `MacroSurfaceVal` array has to be the same. Thus, make sure to place the `AddVarName` call at the same position, where you placed the calculation and writing into the `MacroSurfaceVal` array, otherwise the names and values will be mixed up.
+
+## Insert new particles
+
+To add new particles, first create a new particle ID using the GetNextFreePosition function contained in `src/particles/particle_tools.f90`
+
+    NewParticleID = GetNextFreePosition()
+
+This directly increments the variable PDM%CurrentNextFreePosition by 1 and if necessary adjusts PDM%ParticleVecLength by 1. If this is not desired, it is possible to pass an offset. Then the two variables will not be incremented, which must be done later by the developer. This can happen if the particle generation process is divided into several functions, where each function contains a loop over all new particles (e.g. `src/particles/emission/particle_emission.f90`).
+
+    DO iPart=1,nPart
+        NewParticleID = GetNextFreePosition(iPart)
+    END DO
+    PDM%CurrentNextFreePosition = PDM%CurrentNextFreePosition + nPart
+    PDM%ParticleVecLength = MAX(PDM%ParticleVecLength,GetNextFreePosition(0))
+
+For the new particle to become a valid particle, the inside flag must be set to true and various other arrays must be filled with meaningful data. See SUBROUTINE CreateParticle in `src/particles/particle_operations.f90`. A basic example of the most important variables is given below:
+
+    newParticleID = GetNextFreePosition()
+    PDM%ParticleInside(newParticleID) = .TRUE.
+    PDM%FracPush(newParticleID) = .FALSE.
+    PDM%IsNewPart(newParticleID) = .TRUE.
+    PEM%GlobalElemID(newParticleID) = GlobElemID
+    PEM%LastGlobalElemID(newParticleID) = GlobElemID
+    PartSpecies(newParticleID) = SpecID
+    LastPartPos(1:3,newParticleID) = Pos(1:3)
+    PartState(1:3,newParticleID) = Pos(1:3)
+    PartState(4:6,newParticleID) = Velocity(1:3)
