@@ -149,7 +149,7 @@ IF(.NOT.UseMCC.AND.VarTimeStep%UseSpeciesSpecific) CALL abort(__STAMP__,&
 ! Disable SampleElecExcitation if electronic excitation has not been enabled for at least one species
 IF(SampleElecExcitation.AND.(.NOT.ANY(SpecDSMC(:)%UseElecXSec))) THEN
   SampleElecExcitation = .FALSE.
-  LBWRITE(*,*) '| WARNING: Part-SampElectronicExcitation has been disabled as no electronic excitation has been enabled through -UseElecXSec = T!'
+  LBWRITE(*,*) '| WARNING: Part-SampleElectronicExcitation has been disabled as no electronic excitation has been enabled through -UseElecXSec = T!'
 END IF
 ! Leave the routine
 IF(.NOT.UseMCC) RETURN
@@ -417,6 +417,7 @@ END IF
 IF(SampleElecExcitation) THEN
   ExcitationLevelCounter = 0
   ALLOCATE(ExcitationLevelMapping(CollInf%NumCase,MAXVAL(SpecXSec(:)%NumElecLevel)))
+  ! Count the number of excitation levels for all collision cases
   DO iCase = 1, CollInf%NumCase
     IF(.NOT.SpecXSec(iCase)%UseElecXSec) CYCLE
     DO iLevel = 1, SpecXSec(iCase)%NumElecLevel
@@ -834,7 +835,7 @@ DO iLine = PhotoIonFirstLine, PhotoIonLastLine
   IF(SpecPhotonXSecInterpolated(iLine,NbrOfPhotonXsecReactions+3).LE.0.)THEN
     ZeroLine = iLine
     EXIT
-  END IF ! 
+  END IF !
 END DO ! iLine = PhotoIonFirstLine, PhotoIonLastLine
 
 IF(ZeroLine.GT.0)THEN

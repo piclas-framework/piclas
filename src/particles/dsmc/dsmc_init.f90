@@ -343,7 +343,7 @@ END IF
 DSMC%GammaQuant   = GETREAL('Particles-DSMC-GammaQuant')
 DSMC%ElectronicModel         = GETINT('Particles-DSMC-ElectronicModel')
 IF(SampleElecExcitation.AND.(DSMC%ElectronicModel.NE.3)) CALL CollectiveStop(__STAMP__,&
-    'Part-SampElectronicExcitation = T requires Particles-DSMC-ElectronicModel = 3')
+    'Part-SampleElectronicExcitation = T requires Particles-DSMC-ElectronicModel = 3')
 IF (DSMC%ElectronicModel.GT.0) THEN
   ! Allocate internal energy array WITH electronic energy
   ALLOCATE(PartStateIntEn(1:3,PDM%maxParticleNumber))
