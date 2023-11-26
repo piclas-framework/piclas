@@ -918,6 +918,7 @@ USE MOD_Particle_Mesh_Vars      ,ONLY: BoundsOfElem_Shared,ElemVolume_Shared,Ele
 USE MOD_Mesh_Tools              ,ONLY: GetCNElemID
 USE MOD_Particle_Tracking       ,ONLY: ParticleInsideCheck
 USE MOD_Particle_Vars           ,ONLY: Species, PDM, PartState, PEM, Symmetry, UseVarTimeStep, PartTimeStep, PartMPF
+USE MOD_Particle_Vars           ,ONLY: usevMPF, vMPFSplitThreshold
 USE MOD_Particle_TimeStep       ,ONLY: GetParticleTimeStep
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -936,7 +937,7 @@ INTEGER, INTENT(INOUT)           :: chunkSize
 INTEGER                          :: iElem, ichunkSize, iGlobalElem
 INTEGER                          :: iPart,  nPart
 REAL                             :: iRan, RandomPos(3)
-REAL                             :: PartDens
+REAL                             :: PartDens, CellLocalPartMPF
 LOGICAL                          :: InsideFlag
 INTEGER                          :: CellChunkSize(1+offsetElem:nElems+offsetElem)
 INTEGER                          :: chunkSize_tmp, ParticleIndexNbr
@@ -956,10 +957,12 @@ INTEGER                          :: CNElemID
     PartDens = Species(iSpec)%Init(iInit)%PartDensity / Species(iSpec)%MacroParticleFactor   ! numerical Partdensity is needed
     IF(RadialWeighting%DoRadialWeighting) PartDens = PartDens * 2. / (RadialWeighting%PartScaleFactor)
     chunkSize_tmp = INT(PartDens * LocalVolume)
-    IF(chunkSize_tmp.GE.PDM%maxParticleNumber) THEN
-      CALL abort(__STAMP__,&
-      'ERROR in SetCellLocalParticlePosition: Maximum particle number during sanity check! max. particles needed: ',&
-      IntInfoOpt=chunkSize_tmp)
+    IF(.NOT.usevMPF) THEN
+      IF(chunkSize_tmp.GE.PDM%maxParticleNumber) THEN
+        CALL abort(__STAMP__,&
+        'ERROR in SetCellLocalParticlePosition: Maximum particle number during sanity check! max. particles needed: ',&
+        IntInfoOpt=chunkSize_tmp)
+      END IF
     END IF
   END IF
 
@@ -975,12 +978,22 @@ INTEGER                          :: CNElemID
         IF(RadialWeighting%DoRadialWeighting) THEN
           PartDens = Species(iSpec)%Init(iInit)%PartDensity / CalcRadWeightMPF(ElemMidPoint_Shared(2,CNElemID), iSpec)
         END IF
-        CALL RANDOM_NUMBER(iRan)
-        IF(UseVarTimeStep) THEN
-          adaptTimestep = GetParticleTimeStep(ElemMidPoint_Shared(1,CNElemID), ElemMidPoint_Shared(2,CNElemID), iElem)
-          nPart = INT(PartDens / adaptTimestep * ElemVolume_Shared(CNElemID) + iRan)
+        IF(usevMPF) THEN
+          IF(vMPFSplitThreshold(iSpec).GT.0) THEN
+            nPart = vMPFSplitThreshold(iSpec)
+            CellLocalPartMPF = Species(iSpec)%Init(iInit)%PartDensity * ElemVolume_Shared(CNElemID) / REAL(nPart)
+          ELSE
+            CALL RANDOM_NUMBER(iRan)
+            nPart = INT(PartDens * ElemVolume_Shared(CNElemID) + iRan)
+          END IF
         ELSE
-          nPart = INT(PartDens * ElemVolume_Shared(CNElemID) + iRan)
+          CALL RANDOM_NUMBER(iRan)
+          IF(UseVarTimeStep) THEN
+            adaptTimestep = GetParticleTimeStep(ElemMidPoint_Shared(1,CNElemID), ElemMidPoint_Shared(2,CNElemID), iElem)
+            nPart = INT(PartDens / adaptTimestep * ElemVolume_Shared(CNElemID) + iRan)
+          ELSE
+            nPart = INT(PartDens * ElemVolume_Shared(CNElemID) + iRan)
+          END IF
         END IF
       END IF
       DO iPart = 1, nPart
@@ -1012,6 +1025,13 @@ INTEGER                          :: CNElemID
           END IF
           IF(RadialWeighting%DoRadialWeighting) THEN
             PartMPF(ParticleIndexNbr) = CalcRadWeightMPF(PartState(2,ParticleIndexNbr),iSpec,ParticleIndexNbr)
+          END IF
+          IF(usevMPF) THEN
+            IF(vMPFSplitThreshold(iSpec).GT.0) THEN
+              PartMPF(ParticleIndexNbr) = CellLocalPartMPF
+            ELSE
+              PartMPF(ParticleIndexNbr) = Species(iSpec)%MacroParticleFactor
+            END IF
           END IF
         ELSE
           WRITE(UNIT_stdOut,*) ""
@@ -2323,7 +2343,7 @@ DO iElem = 1, nElems
       ! Count number of emitted particles to compare with chunkSize later on
       emittedParticles = emittedParticles + 1
       ! Emit at random position in element (assume tri-linear element geometry, if position is outside discard the position)
-      ASSOCIATE( Bounds => BoundsOfElem_Shared(1:2,1:3,GlobalElemID) ) ! 1-2: Min, Max value; 1-3: x,y,z 
+      ASSOCIATE( Bounds => BoundsOfElem_Shared(1:2,1:3,GlobalElemID) ) ! 1-2: Min, Max value; 1-3: x,y,z
         InsideFlag = .FALSE.
         DO WHILE(.NOT.InsideFlag)
           CALL RANDOM_NUMBER(RandomPos)

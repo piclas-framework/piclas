@@ -446,9 +446,12 @@ SUBROUTINE InitialParticleInserting()
 USE MOD_Globals
 USE MOD_ReadInTools
 USE MOD_Dielectric_Vars         ,ONLY: DoDielectric,isDielectricElem,DielectricNoParticles
-USE MOD_DSMC_Vars               ,ONLY: useDSMC, DSMC
+USE MOD_DSMC_Vars               ,ONLY: useDSMC, DSMC, SpecDSMC
 USE MOD_Part_Emission_Tools     ,ONLY: SetParticleChargeAndMass,SetParticleMPF,SetParticleTimeStep
-USE MOD_Part_Pos_and_Velo       ,ONLY: SetParticlePosition,SetParticleVelocity,SetPartPosAndVeloEmissionDistribution
+USE MOD_part_emission_tools     ,ONLY: DSMC_SetInternalEnr_LauxVFD
+USE MOD_DSMC_PolyAtomicModel    ,ONLY: DSMC_SetInternalEnr_Poly
+USE MOD_Part_Pos_and_Velo       ,ONLY: CellLocalParticleEmission
+USE MOD_Part_Pos_and_Velo       ,ONLY: SetParticlePosition,SetParticleVelocity,ParticleEmissionFromDistribution
 USE MOD_DSMC_AmbipolarDiffusion ,ONLY: AD_SetInitElectronVelo
 USE MOD_Part_Tools              ,ONLY: UpdateNextFreePosition
 USE MOD_Particle_Vars           ,ONLY: Species,nSpecies,PDM,PEM, usevMPF, SpecReset, UseVarTimeStep
@@ -482,10 +485,20 @@ DO iSpec = 1,nSpecies
     IF (Species(iSpec)%Init(iInit)%ParticleEmissionType.EQ.0) THEN
       IF(Species(iSpec)%Init(iInit)%ParticleNumber.GT.HUGE(1)) CALL abort(__STAMP__,&
           ' Integer of initial particle number larger than max integer size: ',IntInfoOpt=HUGE(1))
-      ! Set particle position and velocity
       SELECT CASE(TRIM(Species(iSpec)%Init(iInit)%SpaceIC))
+      ! --------------------------------------------------------------------------------------------------
+      ! Cell-local particle emission: every processors loops over its own elements
+      CASE('cell_local')
+        LBWRITE(UNIT_stdOut,'(A,I0,A)') ' Initial cell local particle emission for species ',iSpec,' ... '
+        CALL CellLocalParticleEmission(iSpec,iInit,NbrOfParticle)
+        ! TODO: MOVE EVERYTHING INTO THE EMISSION ROUTINE
+        CALL SetParticleVelocity(iSpec,iInit,NbrOfParticle)
+      ! --------------------------------------------------------------------------------------------------
+      ! Cell-local particle emission from a given distribution
       CASE('EmissionDistribution')
-        CALL SetPartPosAndVeloEmissionDistribution(iSpec,iInit,NbrOfParticle)
+        CALL ParticleEmissionFromDistribution(iSpec,iInit,NbrOfParticle)
+      ! --------------------------------------------------------------------------------------------------
+      ! Global particle emission
       CASE DEFAULT
         NbrOfParticle = INT(Species(iSpec)%Init(iInit)%ParticleNumber,4)
         LBWRITE(UNIT_stdOut,'(A,I0,A)') ' Set particle position for species ',iSpec,' ... '
@@ -502,7 +515,11 @@ DO iSpec = 1,nSpecies
         DO iPart = 1, NbrOfParticle
           PositionNbr = PDM%nextFreePosition(iPart+PDM%CurrentNextFreePosition)
           IF (PositionNbr .NE. 0) THEN
-            PDM%PartInit(PositionNbr) = iInit
+            IF (SpecDSMC(iSpec)%PolyatomicMol) THEN
+              CALL DSMC_SetInternalEnr_Poly(iSpec,iInit,PositionNbr,1)
+            ELSE
+              CALL DSMC_SetInternalEnr_LauxVFD(iSpec,iInit,PositionNbr,1)
+            END IF
           ELSE
             CALL abort(__STAMP__,'ERROR in InitialParticleInserting: No free particle index - maximum nbr of particles reached?')
           END IF

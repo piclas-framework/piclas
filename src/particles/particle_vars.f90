@@ -197,8 +197,6 @@ TYPE tParticleDataManagement
   INTEGER                                :: maxParticleNumber                 ! Maximum Number of all Particles
   INTEGER                                :: ParticleVecLength                 ! Vector Length for Particle Push Calculation
   INTEGER                                :: ParticleVecLengthOld              ! Vector Length for Particle Push Calculation
-  INTEGER , ALLOCATABLE                  :: PartInit(:)                       ! (1:NParts), initial emission condition number
-                                                                              ! the calculation area
   INTEGER ,ALLOCATABLE                   :: nextFreePosition(:)  !  =>NULL()  ! next_free_Position(1:maxParticleNumber)
                                                                               ! List of free Positon
   LOGICAL ,ALLOCATABLE                   :: ParticleInside(:)                 ! Particle_inside (1:maxParticleNumber)
