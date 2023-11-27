@@ -263,7 +263,7 @@ USE MOD_LoadBalance_Vars           ,ONLY: nPartsPerElem
 USE MOD_Mesh_Vars                  ,ONLY: nElems
 USE MOD_SurfaceModel_Porous        ,ONLY: InitPorousBoundaryCondition
 USE MOD_Particle_Boundary_Sampling ,ONLY: InitParticleBoundarySampling
-USE MOD_SurfaceModel_Vars          ,ONLY: nPorousBC,SurfChemReac,BulkElectronTempSEE
+USE MOD_SurfaceModel_Vars          ,ONLY: nPorousBC,BulkElectronTempSEE
 USE MOD_Particle_Boundary_Vars     ,ONLY: PartBound
 USE MOD_Particle_Tracking_Vars     ,ONLY: TrackingMethod
 USE MOD_Particle_Vars              ,ONLY: ParticlesInitIsDone,WriteMacroVolumeValues,WriteMacroSurfaceValues,nSpecies
@@ -410,7 +410,7 @@ USE MOD_Particle_Surfaces_Vars ,ONLY: TriaSurfaceFlux
 USE MOD_PICInit                ,ONLY: InitPIC
 USE MOD_PICDepo_Vars           ,ONLY: DoDeposition
 USE MOD_PICInterpolation_Vars  ,ONLY: DoInterpolation
-USE MOD_SurfaceModel_Vars      ,ONLY: SurfChemReac
+USE MOD_SurfaceModel_Vars      ,ONLY: SurfChem
 #if USE_MPI
 USE MOD_Particle_MPI_Emission  ,ONLY: InitEmissionComm
 USE MOD_Particle_MPI_Halo      ,ONLY: IdentifyPartExchangeProcs
@@ -442,7 +442,7 @@ CALL InitializeVariablesRandomNumbers()
 ! initialization of surface model flags
 DoPoissonRounding = GETLOGICAL('Particles-DoPoissonRounding','.FALSE.')
 DoTimeDepInflow   = GETLOGICAL('Particles-DoTimeDepInflow','.FALSE.')
-SurfChemReac%NumOfReact = GETINT('Surface-NumOfReactions', '0')
+SurfChem%NumOfReact = GETINT('Surface-NumOfReactions', '0')
 DelayTime = GETREAL('Part-DelayTime','0.')
 !--- Read Manual Time Step: Old variable name still supported
 ManualTimeStepParticle = GETREAL('Particles-ManualTimeStep')

@@ -106,7 +106,7 @@ USE MOD_Globals
 USE MOD_ReadInTools
 USE MOD_PARTICLE_Vars           ,ONLY: nSpecies, SpeciesDatabase
 USE MOD_Particle_Boundary_Vars  ,ONLY: PartBound, nPartBound
-USE MOD_SurfaceModel_Vars       ,ONLY: SurfChemReac, DoChemSurface
+USE MOD_SurfaceModel_Vars       ,ONLY: SurfChem, SurfChemReac, DoChemSurface
 ! USE MOD_Particle_Surfaces_Vars
 USE MOD_io_hdf5
 USE MOD_HDF5_input,         ONLY:ReadAttribute, DatasetExists, AttributeExists
@@ -125,134 +125,74 @@ LOGICAL               :: Attr_Exists
 CHARACTER(LEN=32)     :: hilf
 INTEGER               :: iReac, iReac2, iBound, iVal, err
 INTEGER               :: ReadInNumOfReact
-REAL, ALLOCATABLE     :: StoichCoeff(:,:)
 !===================================================================================================================================
 
-IF(SurfChemReac%NumOfReact.LE.0) THEN
+IF(SurfChem%NumOfReact.LE.0) THEN
   RETURN
 END IF
-ReadInNumOfReact = SurfChemReac%NumOfReact
+ReadInNumOfReact = SurfChem%NumOfReact
 IF(ReadInNumOfReact.GT.0) THEN
   DoChemSurface = .TRUE.
 END IF
-SWRITE(*,*) '| Number of considered reaction paths on Surfaces: ', SurfChemReac%NumOfReact
+SWRITE(*,*) '| Number of considered reaction paths on Surfaces: ', SurfChem%NumOfReact
 !----------------------------------------------------------------------------------------------------------------------------------
-ALLOCATE(StoichCoeff(nSpecies,2))
-ALLOCATE(SurfChemReac%ReactType(SurfChemReac%NumOfReact))
-SurfChemReac%ReactType = '0'
-ALLOCATE(SurfChemReac%CatName(SurfChemReac%NumOfReact))
-SurfChemReac%CatName = '0'
-ALLOCATE(SurfChemReac%Reactants(SurfChemReac%NumOfReact,2))
-SurfChemReac%Reactants = 0
-ALLOCATE(SurfChemReac%Products(SurfChemReac%NumOfReact,2))
-SurfChemReac%Products = 0
-ALLOCATE(SurfChemReac%Inhibition(SurfChemReac%NumOfReact))
-SurfChemReac%Inhibition = 0
-ALLOCATE(SurfChemReac%Promotion(SurfChemReac%NumOfReact))
-SurfChemReac%Promotion = 0
-ALLOCATE(SurfChemReac%BoundisChemSurf(nPartBound))
-SurfChemReac%BoundisChemSurf = .FALSE.
-ALLOCATE(SurfChemReac%NumOfBounds(SurfChemReac%NumOfReact))
-SurfChemReac%NumOfBounds = 0
-ALLOCATE(SurfChemReac%BoundMap(SurfChemReac%NumOfReact))
-ALLOCATE(SurfChemReac%PSMap(nPartBound))
-SurfChemReac%CatBoundNum = 0
-
+ALLOCATE(SurfChemReac(ReadInNumOfReact))
 ! Surface map
+ALLOCATE(SurfChem%BoundisChemSurf(nPartBound))
+SurfChem%BoundisChemSurf = .FALSE.
+ALLOCATE(SurfChem%PSMap(nPartBound))
+SurfChem%CatBoundNum = 0
 DO iBound=1, nPartBound
-  ALLOCATE(SurfChemReac%PSMap(iBound)%PureSurfReac(ReadInNumOfReact))
-  SurfChemReac%PSMap(iBound)%PureSurfReac = .FALSE.
+  ALLOCATE(SurfChem%PSMap(iBound)%PureSurfReac(ReadInNumOfReact))
+  SurfChem%PSMap(iBound)%PureSurfReac = .FALSE.
 END DO
-
-! Adsorption parameter
-ALLOCATE(SurfChemReac%S_initial(SurfChemReac%NumOfReact))
-SurfChemReac%S_initial = 0.0
-ALLOCATE(SurfChemReac%EqConstant(SurfChemReac%NumOfReact))
-SurfChemReac%EqConstant = 1.0
-ALLOCATE(SurfChemReac%DissOrder(SurfChemReac%NumOfReact))
-SurfChemReac%DissOrder = 0.0
-ALLOCATE(SurfChemReac%StickCoeff(SurfChemReac%NumOfReact))
-SurfChemReac%StickCoeff = 0.0
-ALLOCATE(SurfChemReac%DissociativeAds(SurfChemReac%NumOfReact))
-SurfChemReac%DissociativeAds = .FALSE.
-ALLOCATE(SurfChemReac%AdsorbedProduct(SurfChemReac%NumOfReact))
-SurfChemReac%AdsorbedProduct = 0.0
-ALLOCATE(SurfChemReac%GasProduct(SurfChemReac%NumOfReact))
-SurfChemReac%GasProduct = 0.0
-
-! Desorption parameter
-ALLOCATE(SurfChemReac%E_initial(SurfChemReac%NumOfReact))
-SurfChemReac%E_initial = 0.0
-ALLOCATE(SurfChemReac%W_interact(SurfChemReac%NumOfReact))
-SurfChemReac%W_interact = 0.0
-ALLOCATE(SurfChemReac%C_a(SurfChemReac%NumOfReact))
-SurfChemReac%C_a = 0.0
-ALLOCATE(SurfChemReac%C_b(SurfChemReac%NumOfReact))
-SurfChemReac%C_b = 0.0
-
-! General reaction parameter
-ALLOCATE(SurfChemReac%Rate(SurfChemReac%NumOfReact))
-SurfChemReac%Rate = 0.0
-ALLOCATE(SurfChemReac%Prob(SurfChemReac%NumOfReact))
-SurfChemReac%Prob = 0.0
-ALLOCATE(SurfChemReac%ArrheniusEnergy(SurfChemReac%NumOfReact))
-SurfChemReac%ArrheniusEnergy = 0.0
-ALLOCATE(SurfChemReac%Prefactor(SurfChemReac%NumOfReact))
-SurfChemReac%Prefactor = 0.0
-ALLOCATE(SurfChemReac%EReact(SurfChemReac%NumOfReact))
-SurfChemReac%EReact = 0.0
-ALLOCATE(SurfChemReac%EScale(SurfChemReac%NumOfReact))
-SurfChemReac%EScale = 0.0
-ALLOCATE(SurfChemReac%HeatAccommodation(SurfChemReac%NumOfReact))
-SurfChemReac%HeatAccommodation = 0.0
 
 ! Get the reaction names, reactive species and boundaries
 DO iReac = 1, ReadInNumOfReact
   WRITE(UNIT=hilf,FMT='(I0)') iReac
-  SurfChemReac%CatName(iReac)              = TRIM(GETSTR('Surface-Reaction'//TRIM(hilf)//'-SurfName'))
-  SurfChemReac%Reactants(iReac,:)           = GETINTARRAY('Surface-Reaction'//TRIM(hilf)//'-Reactants',2,'0,0')
-  SurfChemReac%Products(iReac,:)            = GETINTARRAY('Surface-Reaction'//TRIM(hilf)//'-Products',2,'0,0')
+  SurfChemReac(iReac)%CatName              = TRIM(GETSTR('Surface-Reaction'//TRIM(hilf)//'-SurfName'))
+  SurfChemReac(iReac)%Reactants(:)           = GETINTARRAY('Surface-Reaction'//TRIM(hilf)//'-Reactants',2,'0,0')
+  SurfChemReac(iReac)%Products(:)            = GETINTARRAY('Surface-Reaction'//TRIM(hilf)//'-Products',2,'0,0')
 
-  SurfChemReac%NumOfBounds(iReac)           = GETINT('Surface-Reaction'//TRIM(hilf)//'-NumOfBoundaries')
-  IF (SurfChemReac%NumOfBounds(iReac).EQ.0) THEN
+  SurfChemReac(iReac)%NumOfBounds           = GETINT('Surface-Reaction'//TRIM(hilf)//'-NumOfBoundaries')
+  IF (SurfChemReac(iReac)%NumOfBounds.EQ.0) THEN
       CALL abort(__STAMP__,'ERROR: At least one boundary must be defined for each surface reaction!',iReac)
   END IF
 
-  SurfChemReac%BoundMap(iReac)%Boundaries = GETINTARRAY('Surface-Reaction'//TRIM(hilf)//'-Boundaries', &
-                                            SurfChemReac%NumOfBounds(iReac))
+  SurfChemReac(iReac)%Boundaries = GETINTARRAY('Surface-Reaction'//TRIM(hilf)//'-Boundaries',SurfChemReac(iReac)%NumOfBounds)
   ! Define the surface model
-  PartBound%SurfaceModel(SurfChemReac%BoundMap(iReac)%Boundaries) = 20
+  PartBound%SurfaceModel(SurfChemReac(iReac)%Boundaries) = 20
 
-  DO iReac2 = 1, SurfChemReac%NumOfBounds(iReac)
-    SurfChemReac%BoundisChemSurf(SurfChemReac%BoundMap(iReac)%Boundaries(iReac2)) = .TRUE.
+  DO iReac2 = 1, SurfChemReac(iReac)%NumOfBounds
+    SurfChem%BoundisChemSurf(SurfChemReac(iReac)%Boundaries(iReac2)) = .TRUE.
   END DO
 
   ! Select pure surface reactions
-  DO iVal = 1, SurfChemReac%NumOfBounds(iReac)
-    iBound = SurfChemReac%BoundMap(iReac)%Boundaries(iVal)
-    SurfChemReac%PSMap(iBound)%PureSurfReac(iReac) = .TRUE.
+  DO iVal = 1, SurfChemReac(iReac)%NumOfBounds
+    iBound = SurfChemReac(iReac)%Boundaries(iVal)
+    SurfChem%PSMap(iBound)%PureSurfReac(iReac) = .TRUE.
   END DO
 END DO
 
 ! Determine the number of boundaries with a surface reaction on them
 DO iBound = 1, nPartBound
-  IF (SurfChemReac%BoundisChemSurf(iBound)) THEN
-    SurfChemReac%CatBoundNum = SurfChemReac%CatBoundNum + 1
+  IF (SurfChem%BoundisChemSurf(iBound)) THEN
+    SurfChem%CatBoundNum = SurfChem%CatBoundNum + 1
   END IF
 END DO
 
 ! Bulk species involved in the reactions
-SurfChemReac%SurfSpecies                   = GETINT('Surface-Species','0')
+SurfChem%SurfSpecies                   = GETINT('Surface-Species','0')
 
 ! Diffusion
-SurfChemReac%Diffusion                     = GETLOGICAL('Surface-Diffusion', '.FALSE.')
-SurfChemReac%TotDiffusion                  = GETLOGICAL('Surface-TotalDiffusion', '.FALSE.')
+SurfChem%Diffusion                     = GETLOGICAL('Surface-Diffusion', '.FALSE.')
+SurfChem%TotDiffusion                  = GETLOGICAL('Surface-TotalDiffusion', '.FALSE.')
 
 ! SpeciesDatabase
-SurfChemReac%OverwriteCatParameters        = GETLOGICAL('OverwriteCatParameters', '.FALSE.')
+SurfChem%OverwriteCatParameters        = GETLOGICAL('OverwriteCatParameters', '.FALSE.')
 
 IF (SpeciesDatabase.EQ.'none') THEN
-  SurfChemReac%OverwriteCatParameters = .TRUE.
+  SurfChem%OverwriteCatParameters = .TRUE.
 END IF
 
 IF(SpeciesDatabase.NE.'none') THEN
@@ -262,77 +202,77 @@ IF(SpeciesDatabase.NE.'none') THEN
 
   DO iReac = 1, ReadInNumOfReact
     WRITE(UNIT=hilf,FMT='(I0)') iReac
-    dsetname = TRIM('/Surface-Chemistry/'//TRIM(SurfChemReac%CatName(iReac)))
+    dsetname = TRIM('/Surface-Chemistry/'//TRIM(SurfChemReac(iReac)%CatName))
 
     CALL DatasetExists(file_id_specdb,TRIM(dsetname),DataSetFound)
     IF(.NOT.DataSetFound)THEN
-      SurfChemReac%OverwriteCatParameters = .TRUE.
+      SurfChem%OverwriteCatParameters = .TRUE.
       SWRITE(*,*) 'WARNING: DataSet not found: ['//TRIM(dsetname)//'] ['//TRIM(SpeciesDatabase)//']'
     ELSE
-      CALL ReadAttribute(file_id_specdb,'Type',1,DatasetName = dsetname,StrScalar=SurfChemReac%ReactType(iReac))
+      CALL ReadAttribute(file_id_specdb,'Type',1,DatasetName = dsetname,StrScalar=SurfChemReac(iReac)%ReactType)
       CALL AttributeExists(file_id_specdb,'Inhibition',TRIM(dsetname), AttrExists=Attr_Exists)
       IF (Attr_Exists) THEN
-        CALL ReadAttribute(file_id_specdb,'Inhibition',1,DatasetName = dsetname,IntScalar=SurfChemReac%Inhibition(iReac))
+        CALL ReadAttribute(file_id_specdb,'Inhibition',1,DatasetName = dsetname,IntScalar=SurfChemReac(iReac)%Inhibition)
       ELSE
-        SurfChemReac%Inhibition(iReac)= 0
+        SurfChemReac(iReac)%Inhibition= 0
       END IF
       CALL AttributeExists(file_id_specdb,'Promotion',TRIM(dsetname), AttrExists=Attr_Exists)
       IF (Attr_Exists) THEN
-        CALL ReadAttribute(file_id_specdb,'Promotion',1,DatasetName = dsetname,IntScalar=SurfChemReac%Promotion(iReac))
+        CALL ReadAttribute(file_id_specdb,'Promotion',1,DatasetName = dsetname,IntScalar=SurfChemReac(iReac)%Promotion)
       ELSE
-        SurfChemReac%Promotion(iReac)= 0
+        SurfChemReac(iReac)%Promotion= 0
       END IF
       CALL AttributeExists(file_id_specdb,'ReactHeat',TRIM(dsetname), AttrExists=Attr_Exists)
       IF (Attr_Exists) THEN
-        CALL ReadAttribute(file_id_specdb,'ReactHeat',1,DatasetName = dsetname,RealScalar=SurfChemReac%EReact(iReac))
+        CALL ReadAttribute(file_id_specdb,'ReactHeat',1,DatasetName = dsetname,RealScalar=SurfChemReac(iReac)%EReact)
       ELSE
-        SurfChemReac%EReact(iReac)= 0.
+        SurfChemReac(iReac)%EReact= 0.
       END IF
       CALL AttributeExists(file_id_specdb,'HeatScaling',TRIM(dsetname), AttrExists=Attr_Exists)
       IF (Attr_Exists) THEN
-        CALL ReadAttribute(file_id_specdb,'HeatScaling',1,DatasetName = dsetname,RealScalar=SurfChemReac%EScale(iReac))
+        CALL ReadAttribute(file_id_specdb,'HeatScaling',1,DatasetName = dsetname,RealScalar=SurfChemReac(iReac)%EScale)
       ELSE
-        SurfChemReac%EScale(iReac)= 0.
+        SurfChemReac(iReac)%EScale= 0.
       END IF
       CALL AttributeExists(file_id_specdb,'EnergyAccommodation',TRIM(dsetname), AttrExists=Attr_Exists)
       IF (Attr_Exists) THEN
-        CALL ReadAttribute(file_id_specdb,'EnergyAccommodation',1,DatasetName = dsetname,RealScalar=SurfChemReac%HeatAccommodation(iReac))
+        CALL ReadAttribute(file_id_specdb,'EnergyAccommodation',1,DatasetName = dsetname,RealScalar=SurfChemReac(iReac)%HeatAccommodation)
       ELSE
-        SurfChemReac%HeatAccommodation(iReac)= 0.
+        SurfChemReac(iReac)%HeatAccommodation= 0.
       END IF
 
-      SELECT CASE (TRIM(SurfChemReac%ReactType(iReac)))
+      SELECT CASE (TRIM(SurfChemReac(iReac)%ReactType))
       CASE('A')
-        SurfChemReac%DissociativeAds(iReac) = GETLOGICAL('Surface-Reaction'//TRIM(hilf)//'-DissociativeAdsorption', '.FALSE.')
+        SurfChemReac(iReac)%DissociativeAds = GETLOGICAL('Surface-Reaction'//TRIM(hilf)//'-DissociativeAdsorption', '.FALSE.')
         CALL AttributeExists(file_id_specdb,'StickingCoefficient',TRIM(dsetname), AttrExists=Attr_Exists)
         IF (Attr_Exists) THEN
-          CALL ReadAttribute(file_id_specdb,'StickingCoefficient',1,DatasetName = dsetname,RealScalar=SurfChemReac%S_initial(iReac))
+          CALL ReadAttribute(file_id_specdb,'StickingCoefficient',1,DatasetName = dsetname,RealScalar=SurfChemReac(iReac)%S_initial)
         ELSE
-          SurfChemReac%S_initial(iReac)= 1.
+          SurfChemReac(iReac)%S_initial= 1.
         END IF
         CALL AttributeExists(file_id_specdb,'EqConstant',TRIM(dsetname), AttrExists=Attr_Exists)
         IF (Attr_Exists) THEN
-          CALL ReadAttribute(file_id_specdb,'EqConstant',1,DatasetName = dsetname,RealScalar=SurfChemReac%EqConstant(iReac))
+          CALL ReadAttribute(file_id_specdb,'EqConstant',1,DatasetName = dsetname,RealScalar=SurfChemReac(iReac)%EqConstant)
         ELSE
-          SurfChemReac%EqConstant(iReac)= 1.
+          SurfChemReac(iReac)%EqConstant= 1.
         END IF
         CALL AttributeExists(file_id_specdb,'DissOrder',TRIM(dsetname), AttrExists=Attr_Exists)
         IF (Attr_Exists) THEN
-          CALL ReadAttribute(file_id_specdb,'DissOrder',1,DatasetName = dsetname,RealScalar=SurfChemReac%DissOrder(iReac))
+          CALL ReadAttribute(file_id_specdb,'DissOrder',1,DatasetName = dsetname,RealScalar=SurfChemReac(iReac)%DissOrder)
         ELSE
-          SurfChemReac%DissOrder(iReac)= 1.
+          SurfChemReac(iReac)%DissOrder= 1.
         END IF
         ! Special case: dissociative adsorption
-        IF (SurfChemReac%DissociativeAds(iReac)) THEN
+        IF (SurfChemReac(iReac)%DissociativeAds) THEN
           CALL AttributeExists(file_id_specdb,'AdsorptionProduct',TRIM(dsetname), AttrExists=Attr_Exists)
           IF (Attr_Exists) THEN
-            CALL ReadAttribute(file_id_specdb,'AdsorptionProduct',1,DatasetName = dsetname,IntScalar=SurfChemReac%AdsorbedProduct(iReac))
+            CALL ReadAttribute(file_id_specdb,'AdsorptionProduct',1,DatasetName = dsetname,IntScalar=SurfChemReac(iReac)%AdsorbedProduct)
           ELSE
             CALL abort(__STAMP__,'Product not defined for the dissociative-adsorption')
           END IF
           CALL AttributeExists(file_id_specdb,'GasPhaseProduct',TRIM(dsetname), AttrExists=Attr_Exists)
           IF (Attr_Exists) THEN
-            CALL ReadAttribute(file_id_specdb,'GasPhaseProduct',1,DatasetName = dsetname,IntScalar=SurfChemReac%GasProduct(iReac))
+            CALL ReadAttribute(file_id_specdb,'GasPhaseProduct',1,DatasetName = dsetname,IntScalar=SurfChemReac(iReac)%GasProduct)
           ELSE
             CALL abort(__STAMP__,'Product not defined for the dissociative-adsorption')
           END IF
@@ -341,85 +281,85 @@ IF(SpeciesDatabase.NE.'none') THEN
       CASE('D')
         CALL AttributeExists(file_id_specdb,'LateralInteraction',TRIM(dsetname), AttrExists=Attr_Exists)
         IF (Attr_Exists) THEN
-          CALL ReadAttribute(file_id_specdb,'LateralInteraction',1,DatasetName = dsetname,RealScalar=SurfChemReac%W_interact(iReac))
+          CALL ReadAttribute(file_id_specdb,'LateralInteraction',1,DatasetName = dsetname,RealScalar=SurfChemReac(iReac)%W_interact)
         ELSE
-          SurfChemReac%W_interact(iReac)= 0.
+          SurfChemReac(iReac)%W_interact= 0.
         END IF
         CALL AttributeExists(file_id_specdb,'Ca',TRIM(dsetname), AttrExists=Attr_Exists)
         IF (Attr_Exists) THEN
-          CALL ReadAttribute(file_id_specdb,'Ca',1,DatasetName = dsetname,RealScalar=SurfChemReac%C_a(iReac))
+          CALL ReadAttribute(file_id_specdb,'Ca',1,DatasetName = dsetname,RealScalar=SurfChemReac(iReac)%C_a)
         ELSE
-          SurfChemReac%C_a(iReac)= 0.
+          SurfChemReac(iReac)%C_a= 0.
         END IF
         CALL AttributeExists(file_id_specdb,'Cb',TRIM(dsetname), AttrExists=Attr_Exists)
         IF (Attr_Exists) THEN
-          CALL ReadAttribute(file_id_specdb,'Cb',1,DatasetName = dsetname,RealScalar=SurfChemReac%C_b(iReac))
+          CALL ReadAttribute(file_id_specdb,'Cb',1,DatasetName = dsetname,RealScalar=SurfChemReac(iReac)%C_b)
         ELSE
-          SurfChemReac%C_b(iReac)= 0.
+          SurfChemReac(iReac)%C_b= 0.
         END IF
         CALL AttributeExists(file_id_specdb,'Prefactor',TRIM(dsetname), AttrExists=Attr_Exists)
         IF (Attr_Exists) THEN
-          CALL ReadAttribute(file_id_specdb,'Prefactor',1,DatasetName = dsetname,RealScalar=SurfChemReac%Prefactor(iReac))
+          CALL ReadAttribute(file_id_specdb,'Prefactor',1,DatasetName = dsetname,RealScalar=SurfChemReac(iReac)%Prefactor)
         ELSE
-          SurfChemReac%Prefactor(iReac)= 0.
+          SurfChemReac(iReac)%Prefactor= 0.
         END IF
         CALL AttributeExists(file_id_specdb,'Energy',TRIM(dsetname), AttrExists=Attr_Exists)
         IF (Attr_Exists) THEN
-          CALL ReadAttribute(file_id_specdb,'Energy',1,DatasetName = dsetname,RealScalar=SurfChemReac%E_initial(iReac))
+          CALL ReadAttribute(file_id_specdb,'Energy',1,DatasetName = dsetname,RealScalar=SurfChemReac(iReac)%E_initial)
         ELSE
-          SurfChemReac%E_initial(iReac)= 0.
+          SurfChemReac(iReac)%E_initial= 0.
         END IF
         CALL AttributeExists(file_id_specdb,'DissOrder',TRIM(dsetname), AttrExists=Attr_Exists)
         IF (Attr_Exists) THEN
-          CALL ReadAttribute(file_id_specdb,'DissOrder',1,DatasetName = dsetname,RealScalar=SurfChemReac%DissOrder(iReac))
+          CALL ReadAttribute(file_id_specdb,'DissOrder',1,DatasetName = dsetname,RealScalar=SurfChemReac(iReac)%DissOrder)
         ELSE
-          SurfChemReac%DissOrder(iReac)= 1.
+          SurfChemReac(iReac)%DissOrder= 1.
         END IF
 
       CASE('LH')
         CALL AttributeExists(file_id_specdb,'Energy',TRIM(dsetname), AttrExists=Attr_Exists)
         IF (Attr_Exists) THEN
-          CALL ReadAttribute(file_id_specdb,'Energy',1,DatasetName = dsetname,RealScalar=SurfChemReac%ArrheniusEnergy(iReac))
+          CALL ReadAttribute(file_id_specdb,'Energy',1,DatasetName = dsetname,RealScalar=SurfChemReac(iReac)%ArrheniusEnergy)
         ELSE
-          SurfChemReac%ArrheniusEnergy(iReac)= 0.
+          SurfChemReac(iReac)%ArrheniusEnergy= 0.
         END IF
         CALL AttributeExists(file_id_specdb,'Prefactor',TRIM(dsetname), AttrExists=Attr_Exists)
         IF (Attr_Exists) THEN
-          CALL ReadAttribute(file_id_specdb,'Prefactor',1,DatasetName = dsetname,RealScalar=SurfChemReac%Prefactor(iReac))
+          CALL ReadAttribute(file_id_specdb,'Prefactor',1,DatasetName = dsetname,RealScalar=SurfChemReac(iReac)%Prefactor)
         ELSE
-          SurfChemReac%Prefactor(iReac)= 1.
+          SurfChemReac(iReac)%Prefactor= 1.
         END IF
 
       CASE('LHD')
         CALL AttributeExists(file_id_specdb,'Energy',TRIM(dsetname), AttrExists=Attr_Exists)
         IF (Attr_Exists) THEN
-          CALL ReadAttribute(file_id_specdb,'Energy',1,DatasetName = dsetname,RealScalar=SurfChemReac%ArrheniusEnergy(iReac))
+          CALL ReadAttribute(file_id_specdb,'Energy',1,DatasetName = dsetname,RealScalar=SurfChemReac(iReac)%ArrheniusEnergy)
         ELSE
-          SurfChemReac%ArrheniusEnergy(iReac)= 0.
+          SurfChemReac(iReac)%ArrheniusEnergy= 0.
         END IF
         CALL AttributeExists(file_id_specdb,'Prefactor',TRIM(dsetname), AttrExists=Attr_Exists)
         IF (Attr_Exists) THEN
-          CALL ReadAttribute(file_id_specdb,'Prefactor',1,DatasetName = dsetname,RealScalar=SurfChemReac%Prefactor(iReac))
+          CALL ReadAttribute(file_id_specdb,'Prefactor',1,DatasetName = dsetname,RealScalar=SurfChemReac(iReac)%Prefactor)
         ELSE
-          SurfChemReac%Prefactor(iReac)= 1.
+          SurfChemReac(iReac)%Prefactor= 1.
         END IF
 
       CASE('ER')
         CALL AttributeExists(file_id_specdb,'Energy',TRIM(dsetname), AttrExists=Attr_Exists)
         IF (Attr_Exists) THEN
-          CALL ReadAttribute(file_id_specdb,'Energy',1,DatasetName = dsetname,RealScalar=SurfChemReac%ArrheniusEnergy(iReac))
+          CALL ReadAttribute(file_id_specdb,'Energy',1,DatasetName = dsetname,RealScalar=SurfChemReac(iReac)%ArrheniusEnergy)
         ELSE
-          SurfChemReac%ArrheniusEnergy(iReac)= 0.
+          SurfChemReac(iReac)%ArrheniusEnergy = 0.
         END IF
         CALL AttributeExists(file_id_specdb,'Prefactor',TRIM(dsetname), AttrExists=Attr_Exists)
         IF (Attr_Exists) THEN
-          CALL ReadAttribute(file_id_specdb,'Prefactor',1,DatasetName = dsetname,RealScalar=SurfChemReac%Prefactor(iReac))
+          CALL ReadAttribute(file_id_specdb,'Prefactor',1,DatasetName = dsetname,RealScalar=SurfChemReac(iReac)%Prefactor)
         ELSE
-          SurfChemReac%Prefactor(iReac)= 1.
+          SurfChemReac(iReac)%Prefactor = 1.
         END IF
 
       CASE DEFAULT
-        SWRITE(*,*) ' Reaction Type does not exists: ', TRIM(SurfChemReac%ReactType(iReac))
+        SWRITE(*,*) ' Reaction Type does not exists: ', TRIM(SurfChemReac(iReac)%ReactType)
         CALL abort(__STAMP__,'Surface Reaction Type does not exist')
       END SELECT
 
@@ -432,55 +372,55 @@ IF(SpeciesDatabase.NE.'none') THEN
 END IF !SpeciesDatabase
 
 
-IF (SurfChemReac%OverwriteCatParameters) THEN
+IF (SurfChem%OverwriteCatParameters) THEN
   ! Loop over the surface reactions
   DO iReac = 1, ReadInNumOfReact
     WRITE(UNIT=hilf,FMT='(I0)') iReac
-    SurfChemReac%ReactType(iReac)             = TRIM(GETSTR('Surface-Reaction'//TRIM(hilf)//'-Type'))
+    SurfChemReac(iReac)%ReactType             = TRIM(GETSTR('Surface-Reaction'//TRIM(hilf)//'-Type'))
 
-    SurfChemReac%Inhibition(iReac)            = GETINT('Surface-Reaction'//TRIM(hilf)//'-Inhibition','0')
-    SurfChemReac%Promotion(iReac)             = GETINT('Surface-Reaction'//TRIM(hilf)//'-Promotion','0')
-    SurfChemReac%EReact(iReac)                = GETREAL('Surface-Reaction'//TRIM(hilf)//'-ReactHeat','0.')
-    SurfChemReac%EScale(iReac)                = GETREAL('Surface-Reaction'//TRIM(hilf)//'-HeatScaling','0.')
-    SurfChemReac%HeatAccommodation(iReac)     = GETREAL('Surface-Reaction'//TRIM(hilf)//'-EnergyAccommodation','1.')
+    SurfChemReac(iReac)%Inhibition            = GETINT('Surface-Reaction'//TRIM(hilf)//'-Inhibition','0')
+    SurfChemReac(iReac)%Promotion             = GETINT('Surface-Reaction'//TRIM(hilf)//'-Promotion','0')
+    SurfChemReac(iReac)%EReact                = GETREAL('Surface-Reaction'//TRIM(hilf)//'-ReactHeat','0.')
+    SurfChemReac(iReac)%EScale                = GETREAL('Surface-Reaction'//TRIM(hilf)//'-HeatScaling','0.')
+    SurfChemReac(iReac)%HeatAccommodation     = GETREAL('Surface-Reaction'//TRIM(hilf)//'-EnergyAccommodation','1.')
 
-    SELECT CASE (TRIM(SurfChemReac%ReactType(iReac)))
+    SELECT CASE (TRIM(SurfChemReac(iReac)%ReactType))
     CASE('A')
-      SurfChemReac%S_initial(iReac) = GETREAL('Surface-Reaction'//TRIM(hilf)//'-StickingCoefficient','1.')
-      SurfChemReac%EqConstant(iReac) = GETREAL('Surface-Reaction'//TRIM(hilf)//'-EqConstant','1.')
-      SurfChemReac%DissOrder(iReac) = GETREAL('Surface-Reaction'//TRIM(hilf)//'-DissOrder','1.')
-      SurfChemReac%DissociativeAds(iReac) = GETLOGICAL('Surface-Reaction'//TRIM(hilf)//'-DissociativeAdsorption', '.FALSE.')
+      SurfChemReac(iReac)%S_initial = GETREAL('Surface-Reaction'//TRIM(hilf)//'-StickingCoefficient','1.')
+      SurfChemReac(iReac)%EqConstant = GETREAL('Surface-Reaction'//TRIM(hilf)//'-EqConstant','1.')
+      SurfChemReac(iReac)%DissOrder = GETREAL('Surface-Reaction'//TRIM(hilf)//'-DissOrder','1.')
+      SurfChemReac(iReac)%DissociativeAds = GETLOGICAL('Surface-Reaction'//TRIM(hilf)//'-DissociativeAdsorption', '.FALSE.')
       ! Special case of the dissociative adsorption, half of the molecule is desorbed back into the gas-phase
-      IF (SurfChemReac%DissociativeAds(iReac)) THEN
-        SurfChemReac%AdsorbedProduct(iReac) = GETINT('Surface-Reaction'//TRIM(hilf)//'-AdsorptionProduct','0')
-        SurfChemReac%GasProduct(iReac)      = GETINT('Surface-Reaction'//TRIM(hilf)//'-GasPhaseProduct','0')
-        IF ((SurfChemReac%GasProduct(iReac).EQ.0).OR.(SurfChemReac%GasProduct(iReac).EQ.0)) THEN
+      IF (SurfChemReac(iReac)%DissociativeAds) THEN
+        SurfChemReac(iReac)%AdsorbedProduct = GETINT('Surface-Reaction'//TRIM(hilf)//'-AdsorptionProduct','0')
+        SurfChemReac(iReac)%GasProduct      = GETINT('Surface-Reaction'//TRIM(hilf)//'-GasPhaseProduct','0')
+        IF ((SurfChemReac(iReac)%GasProduct.EQ.0).OR.(SurfChemReac(iReac)%GasProduct.EQ.0)) THEN
           CALL abort(__STAMP__,'Product not defined for the dissociative-adsorption')
         END IF
       END IF
 
     CASE('D')
-      SurfChemReac%W_interact(iReac) = GETREAL('Surface-Reaction'//TRIM(hilf)//'-LateralInteraction','0.')
-      SurfChemReac%C_a(iReac) = GETREAL('Surface-Reaction'//TRIM(hilf)//'-Ca','0.')
-      SurfChemReac%C_b(iReac) = GETREAL('Surface-Reaction'//TRIM(hilf)//'-Cb','0.')
-      SurfChemReac%Prefactor(iReac) = GETREAL('Surface-Reaction'//TRIM(hilf)//'-Prefactor','0.')
-      SurfChemReac%E_initial(iReac) = GETREAL('Surface-Reaction'//TRIM(hilf)//'-Energy','0.')
-      SurfChemReac%DissOrder(iReac) = GETREAL('Surface-Reaction'//TRIM(hilf)//'-DissOrder','1.')
+      SurfChemReac(iReac)%W_interact = GETREAL('Surface-Reaction'//TRIM(hilf)//'-LateralInteraction','0.')
+      SurfChemReac(iReac)%C_a = GETREAL('Surface-Reaction'//TRIM(hilf)//'-Ca','0.')
+      SurfChemReac(iReac)%C_b = GETREAL('Surface-Reaction'//TRIM(hilf)//'-Cb','0.')
+      SurfChemReac(iReac)%Prefactor = GETREAL('Surface-Reaction'//TRIM(hilf)//'-Prefactor','0.')
+      SurfChemReac(iReac)%E_initial = GETREAL('Surface-Reaction'//TRIM(hilf)//'-Energy','0.')
+      SurfChemReac(iReac)%DissOrder = GETREAL('Surface-Reaction'//TRIM(hilf)//'-DissOrder','1.')
 
     CASE('LH')
-      SurfChemReac%ArrheniusEnergy(iReac) = GETREAL('Surface-Reaction'//TRIM(hilf)//'-Energy','0.')
-      SurfChemReac%Prefactor(iReac) = GETREAL('Surface-Reaction'//TRIM(hilf)//'-Prefactor','1.')
+      SurfChemReac(iReac)%ArrheniusEnergy = GETREAL('Surface-Reaction'//TRIM(hilf)//'-Energy','0.')
+      SurfChemReac(iReac)%Prefactor = GETREAL('Surface-Reaction'//TRIM(hilf)//'-Prefactor','1.')
 
     CASE('LHD')
-      SurfChemReac%ArrheniusEnergy(iReac) = GETREAL('Surface-Reaction'//TRIM(hilf)//'-Energy','0.')
-      SurfChemReac%Prefactor(iReac) = GETREAL('Surface-Reaction'//TRIM(hilf)//'-Prefactor','1.')
+      SurfChemReac(iReac)%ArrheniusEnergy = GETREAL('Surface-Reaction'//TRIM(hilf)//'-Energy','0.')
+      SurfChemReac(iReac)%Prefactor = GETREAL('Surface-Reaction'//TRIM(hilf)//'-Prefactor','1.')
 
     CASE('ER')
-      SurfChemReac%ArrheniusEnergy(iReac) = GETREAL('Surface-Reaction'//TRIM(hilf)//'-Energy','0.')
-      SurfChemReac%Prefactor(iReac) = GETREAL('Surface-Reaction'//TRIM(hilf)//'-Prefactor','1.')
+      SurfChemReac(iReac)%ArrheniusEnergy = GETREAL('Surface-Reaction'//TRIM(hilf)//'-Energy','0.')
+      SurfChemReac(iReac)%Prefactor = GETREAL('Surface-Reaction'//TRIM(hilf)//'-Prefactor','1.')
 
     CASE DEFAULT
-      SWRITE(*,*) ' Reaction Type does not exists: ', TRIM(SurfChemReac%ReactType(iReac))
+      SWRITE(*,*) ' Reaction Type does not exists: ', TRIM(SurfChemReac(iReac)%ReactType)
       CALL abort(__STAMP__,'Surface Reaction Type does not exist')
     END SELECT
   END DO
@@ -591,7 +531,7 @@ USE MOD_TimeDisc_Vars             ,ONLY: dt
 USE MOD_Particle_Vars             ,ONLY: PartSpecies,Species,usevMPF,PartMPF, WriteMacroSurfaceValues
 USE MOD_Particle_Tracking_Vars    ,ONLY: TrackInfo
 USE MOD_Particle_Boundary_Vars    ,ONLY: PartBound, GlobalSide2SurfSide, dXiEQ_SurfSample,SurfSideArea_Shared
-USE MOD_SurfaceModel_Vars         ,ONLY: nPorousBC, SurfChemReac , ChemWallProp, ChemSampWall
+USE MOD_SurfaceModel_Vars         ,ONLY: nPorousBC, SurfChemReac, SurfChem, ChemWallProp, ChemSampWall
 USE MOD_Particle_Mesh_Vars        ,ONLY: SideInfo_Shared, BoundsOfElem_Shared
 USE MOD_Particle_Vars             ,ONLY: PDM, LastPartPos
 USE MOD_DSMC_Vars                 ,ONLY: RadialWeighting, DSMC, SamplingActive
@@ -648,7 +588,7 @@ StickCoeff = 0.0
 Prob = 0.0
 iReac_ER = 0
 speciesID = PartSpecies(PartID)
-SurfNumOfReac = SurfChemReac%NumOfReact
+SurfNumOfReac = SurfChem%NumOfReact
 ! MacroParticleFactor
 partWeight = GetParticleWeight(PartID)
 IF(.NOT.(usevMPF.OR.RadialWeighting%DoRadialWeighting)) THEN
@@ -665,23 +605,23 @@ ELSE
 END IF ! LatticeVec.GT.0
 
 DO iReac = 1, SurfNumOfReac
-  SELECT CASE (TRIM(SurfChemReac%ReactType(iReac)))
+  SELECT CASE (TRIM(SurfChemReac(iReac)%ReactType))
 
   ! 1.) Calculate the sticking coefficient by the Kisliuk model (adsorption)
   CASE('A')
-    IF(ANY(SurfChemReac%Reactants(iReac,:).EQ.speciesID)) THEN
+    IF(ANY(SurfChemReac(iReac)%Reactants(:).EQ.speciesID)) THEN
       iReac_Ads = iReac
 
       ! Absolute coverage in terms of the number of surface molecules
       ! Special case: dissociative adsorption
-      IF (SurfChemReac%DissociativeAds(iReac)) THEN
-        iProd = SurfChemReac%AdsorbedProduct(iReac)
+      IF (SurfChemReac(iReac)%DissociativeAds) THEN
+        iProd = SurfChemReac(iReac)%AdsorbedProduct
         Coverage = ChemWallProp(iProd,1,SubP,SubQ,SurfSideID)
       ELSE
-        IF(ANY(SurfChemReac%Products(iReac,:).NE.0)) THEN
-          DO iValProd=1, SIZE(SurfChemReac%Products(iReac,:))
-            IF(SurfChemReac%Products(iReac,iValProd).NE.0) THEN
-              iProd = SurfChemReac%Products(iReac,iValProd)
+        IF(ANY(SurfChemReac(iReac)%Products(:).NE.0)) THEN
+          DO iValProd=1, SIZE(SurfChemReac(iReac)%Products(:))
+            IF(SurfChemReac(iReac)%Products(iValProd).NE.0) THEN
+              iProd = SurfChemReac(iReac)%Products(iValProd)
               Coverage = ChemWallProp(iProd,1,SubP,SubQ,SurfSideID)
             END IF
           END DO
@@ -694,25 +634,25 @@ DO iReac = 1, SurfNumOfReac
       MaxCoverage = PartBound%MaxCoverage(locBCID,speciesID)
       TotalCoverage = SUM(ChemWallProp(:,1,SubP, SubQ, SurfSideID))
       MaxTotalCov = PartBound%MaxTotalCoverage(locBCID)
-      DissOrder = SurfChemReac%DissOrder(iReac)
-      S_0 = SurfChemReac%S_initial(iReac)
-      EqConstant = SurfChemReac%EqConstant(iReac)
-      StickCoeff = SurfChemReac%StickCoeff(iReac)
+      DissOrder = SurfChemReac(iReac)%DissOrder
+      S_0 = SurfChemReac(iReac)%S_initial
+      EqConstant = SurfChemReac(iReac)%EqConstant
+      StickCoeff = SurfChemReac(iReac)%StickCoeff
 
       ! Determine the heat of adsorption in dependence of the coverage [J]
-      AdsHeat = (SurfChemReac%EReact(iReac) - Coverage * SurfChemReac%EScale(iReac)) * BoltzmannConst
+      AdsHeat = (SurfChemReac(iReac)%EReact - Coverage * SurfChemReac(iReac)%EScale) * BoltzmannConst
 
       ! Theta = free surface sites required for the adsorption
       ! Determination of possible coadsorption processes
-      IF(SurfChemReac%Inhibition(iReac).NE.0) THEN
-        iCoadsReac = SurfChemReac%Inhibition(iReac)
-        iCoadsSpec = SurfChemReac%Reactants(iCoadsReac,1)
+      IF(SurfChemReac(iReac)%Inhibition.NE.0) THEN
+        iCoadsReac = SurfChemReac(iReac)%Inhibition
+        iCoadsSpec = SurfChemReac(iCoadsReac)%Reactants(1)
         CoAds_Coverage = ChemWallProp(iCoadsSpec,1,SubP, SubQ, SurfSideID)
         CoAds_MaxCov = PartBound%MaxCoverage(locBCID,iCoadsSpec)
         Theta = 1.0 - Coverage/MaxCoverage - CoAds_Coverage/CoAds_MaxCov
-      ELSE IF(SurfChemReac%Promotion(iReac).NE.0) THEN
-        iCoadsReac = SurfChemReac%Promotion(iReac)
-        iCoadsSpec = SurfChemReac%Reactants(iCoadsReac,1)
+      ELSE IF(SurfChemReac(iReac)%Promotion.NE.0) THEN
+        iCoadsReac = SurfChemReac(iReac)%Promotion
+        iCoadsSpec = SurfChemReac(iCoadsReac)%Reactants(1)
         CoAds_Coverage = ChemWallProp(iCoadsSpec,1,SubP, SubQ, SurfSideID)
         CoAds_MaxCov = PartBound%MaxCoverage(locBCID,iCoadsSpec)
         Theta = 1.0 - Coverage/MaxCoverage + CoAds_Coverage/CoAds_MaxCov
@@ -733,21 +673,21 @@ DO iReac = 1, SurfNumOfReac
 
   ! 2.) Calculate the reaction probability by the Arrhenius equation (bias-free for multiple channels)
   CASE('ER')
-    IF(ANY(SurfChemReac%Reactants(iReac,:).EQ.speciesID)) THEN
+    IF(ANY(SurfChemReac(iReac)%Reactants(:).EQ.speciesID)) THEN
 
       ! Definition of the variables
       WallTemp = PartBound%WallTemp(locBCID)
-      nu = SurfChemReac%Prefactor(iReac)
-      E_act = SurfChemReac%ArrheniusEnergy(iReac)
-      Rate = SurfChemReac%Rate(iReac)
-      BetaCoeff = SurfChemReac%HeatAccommodation(iReac)
+      nu = SurfChemReac(iReac)%Prefactor
+      E_act = SurfChemReac(iReac)%ArrheniusEnergy
+      Rate = SurfChemReac(iReac)%Rate
+      BetaCoeff = SurfChemReac(iReac)%HeatAccommodation
 
       ! Check for the coverage values of the reactant adsorbed on the surface
-      IF(ANY(SurfChemReac%Reactants(iReac,:).NE.speciesID)) THEN
-        DO iValReac=1, SIZE(SurfChemReac%Reactants(iReac,:))
-          IF(SurfChemReac%Reactants(iReac,iValReac).NE.speciesID .AND. SurfChemReac%Reactants(iReac,iValReac).NE.0) THEN
-            iReactant = SurfChemReac%Reactants(iReac,iValReac)
-            IF(iReactant.NE.SurfChemReac%SurfSpecies) THEN
+      IF(ANY(SurfChemReac(iReac)%Reactants(:).NE.speciesID)) THEN
+        DO iValReac=1, SIZE(SurfChemReac(iReac)%Reactants(:))
+          IF(SurfChemReac(iReac)%Reactants(iValReac).NE.speciesID .AND. SurfChemReac(iReac)%Reactants(iValReac).NE.0) THEN
+            iReactant = SurfChemReac(iReac)%Reactants(iValReac)
+            IF(iReactant.NE.SurfChem%SurfSpecies) THEN
               Coverage = ChemWallProp(iReactant,1,SubP, SubQ, SurfSideID)
               AdCountIter = ChemSampWall(iReactant, 1,SubP,SubQ, SurfSideID)
             ELSE  ! Involvement of the bulk species
@@ -764,7 +704,7 @@ DO iReac = 1, SurfNumOfReac
       AdsDens = Coverage * SurfMol / SurfSideArea_Shared(SubP, SubQ,SurfSideID)
 
       ! Determine the reaction heat in dependence of the coverage [J]
-      ReacHeat = (SurfChemReac%EReact(iReac) - Coverage * SurfChemReac%EScale(iReac)) * BoltzmannConst
+      ReacHeat = (SurfChemReac(iReac)%EReact - Coverage * SurfChemReac(iReac)%EScale) * BoltzmannConst
 
       ! Bias free calculation for multiple reaction channels
       IF(iReac_ER.EQ.0) THEN
@@ -837,13 +777,13 @@ SELECT CASE(TRIM(InteractionType))
 ! 4a.) Adsorption: delete the incoming particle and update the surface values
 CASE('A')
   ! Dissociative adsorption
-  IF (SurfChemReac%DissociativeAds(iReac)) THEN
+  IF (SurfChemReac(iReac)%DissociativeAds) THEN
     CALL RemoveParticle(PartID)
 
     ! Heat flux on the surface created by the adsorption
     ChemSampWall(speciesID, 2,SubP,SubQ, SurfSideID) = ChemSampWall(speciesID, 2,SubP,SubQ, SurfSideID) + AdsHeat * partWeight
     ! Update the number of adsorbed molecules by binding half of the molecule to the surface
-    iProd = SurfChemReac%AdsorbedProduct(iReac)
+    iProd = SurfChemReac(iReac)%AdsorbedProduct
     ChemSampWall(iProd, 1,SubP,SubQ, SurfSideID) = ChemSampWall(iProd, 1,SubP,SubQ, SurfSideID) + DissOrder * partWeight
 
     ! Re-insert the other half of the molecule into the gas-phase
@@ -855,7 +795,7 @@ CASE('A')
                                 SUM(BoundsOfElem_Shared(1:2,2,GlobalElemID)), &
                                 SUM(BoundsOfElem_Shared(1:2,3,GlobalElemID)) /) / 2.
 
-    iProd = SurfChemReac%GasProduct(iReac)
+    iProd = SurfChemReac(iReac)%GasProduct
 
     NewVelo(1:3) = CalcPostWallCollVelo(iProd,0.,WallTemp,BetaCoeff)
     NewVelo(1:3) = tang1(1:3)*NewVelo(1) + tang2(1:3)*NewVelo(2) - n_loc(1:3)*NewVelo(3) + WallVelo(1:3)
@@ -874,10 +814,10 @@ CASE('A')
     ! Heat flux on the surface created by the adsorption
     ChemSampWall(speciesID, 2,SubP,SubQ, SurfSideID) = ChemSampWall(speciesID, 2,SubP,SubQ, SurfSideID) + AdsHeat * partWeight
     ! Update the number of adsorbed molecules
-    IF(ANY(SurfChemReac%Products(iReac,:).NE.0)) THEN
-      DO iValProd=1, SIZE(SurfChemReac%Products(iReac,:))
-        IF(SurfChemReac%Products(iReac,iValProd).NE.0) THEN
-          iProd = SurfChemReac%Reactants(iReac,iValProd)
+    IF(ANY(SurfChemReac(iReac)%Products(:).NE.0)) THEN
+      DO iValProd=1, SIZE(SurfChemReac(iReac)%Products(:))
+        IF(SurfChemReac(iReac)%Products(iValProd).NE.0) THEN
+          iProd = SurfChemReac(iReac)%Reactants(iValProd)
           ChemSampWall(iProd, 1,SubP,SubQ, SurfSideID) = ChemSampWall(iProd, 1,SubP,SubQ, SurfSideID) + DissOrder * partWeight
         END IF
       END DO
@@ -903,9 +843,9 @@ CASE('ER')
                               SUM(BoundsOfElem_Shared(1:2,2,GlobalElemID)), &
                               SUM(BoundsOfElem_Shared(1:2,3,GlobalElemID)) /) / 2.
 
-  DO iValProd=1, SIZE(SurfChemReac%Products(iReac,:))
-    IF(SurfChemReac%Products(iReac,iValProd).NE.0) THEN
-      iProd = SurfChemReac%Products(iReac,iValProd)
+  DO iValProd=1, SIZE(SurfChemReac(iReac)%Products(:))
+    IF(SurfChemReac(iReac)%Products(iValProd).NE.0) THEN
+      iProd = SurfChemReac(iReac)%Products(iValProd)
 
       NewVelo(1:3) = CalcPostWallCollVelo(iProd,0.,WallTemp,BetaCoeff)
       NewVelo(1:3) = tang1(1:3)*NewVelo(1) + tang2(1:3)*NewVelo(2) - n_loc(1:3)*NewVelo(3) + WallVelo(1:3)
@@ -922,11 +862,11 @@ CASE('ER')
   END DO
 
   ! Update the number of adsorbed molecules
-  IF(ANY(SurfChemReac%Reactants(iReac,:).NE.speciesID)) THEN
-    DO iValReac=1, SIZE(SurfChemReac%Reactants(iReac,:))
-      IF(SurfChemReac%Reactants(iReac,iValReac).NE.speciesID .AND. SurfChemReac%Reactants(iReac,iValReac).NE.0) THEN
-        iReactant = SurfChemReac%Reactants(iReac,iValReac)
-        IF(iReactant.NE.SurfChemReac%SurfSpecies) THEN
+  IF(ANY(SurfChemReac(iReac)%Reactants(:).NE.speciesID)) THEN
+    DO iValReac=1, SIZE(SurfChemReac(iReac)%Reactants(:))
+      IF(SurfChemReac(iReac)%Reactants(iValReac).NE.speciesID .AND. SurfChemReac(iReac)%Reactants(iValReac).NE.0) THEN
+        iReactant = SurfChemReac(iReac)%Reactants(iValReac)
+        IF(iReactant.NE.SurfChem%SurfSpecies) THEN
           ChemSampWall(iReactant, 1,SubP,SubQ, SurfSideID) = ChemSampWall(iReactant, 1,SubP,SubQ, SurfSideID) - partWeight
         END IF
       END IF

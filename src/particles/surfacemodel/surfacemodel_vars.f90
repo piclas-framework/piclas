@@ -52,67 +52,67 @@ END TYPE
 TYPE(tPorousBC), ALLOCATABLE     :: PorousBC(:)                     ! Container for the porous BC, allocated with nPorousBC
 !=== Heterogenous Surface BC ========================================================================================================
 
-TYPE tBoundMap
-  INTEGER, ALLOCATABLE                   :: Boundaries(:)          ! Map of the reactions to the boundaries
-END TYPE
-
 TYPE tPureSurf
   LOGICAL, ALLOCATABLE                   :: PureSurfReac(:)        ! List of boundaries on which LH/D reactions occur
 END TYPE
 
 LOGICAL                                  :: DoChemSurface          ! Call the surface catalysis routines
 
-TYPE tSurfReactions
+TYPE tSurfChemistry ! General surface chemistry parameter
   INTEGER                                :: NumOfReact             ! Number of catalytic reactions
-  CHARACTER(LEN=64),ALLOCATABLE          :: CatName(:)
   LOGICAL                                :: OverwriteCatParameters ! Flag to read the cat parameters manually
   INTEGER                                :: SurfSpecies            ! Bulk species of the surface, involved in the reactions
-  CHARACTER(LEN=255),ALLOCATABLE         :: ReactType(:)           ! Type of Reaction (reaction num)
-                                                                   !    A (adsorption)
-                                                                   !    D (desorption)
-                                                                   !    LH (Langmuir-Hinshelwood)
-                                                                   !    LHD (LH with instant desorption)
-                                                                   !    ER (Eley-Rideal)
-  INTEGER, ALLOCATABLE                   :: Reactants(:,:)         ! Reactants: indices of the species starting the reaction [NumOfReact,3]
-  INTEGER, ALLOCATABLE                   :: Products(:,:)          ! Products: indices of the species resulting from the reaction [NumOfReact,4]
-  INTEGER, ALLOCATABLE                   :: Inhibition(:)          ! Reaction number of inhibiting reactions
-  INTEGER, ALLOCATABLE                   :: Promotion(:)           ! Reaction number of promoting reactions
-  INTEGER, ALLOCATABLE                   :: NumOfBounds(:)         ! Number of catalytic boundaries
-  ! Surface energy accommodation
-  REAL, ALLOCATABLE                      :: EReact(:)              ! Reaction energy [K]
-  REAL, ALLOCATABLE                      :: EScale(:)              ! Scaling factor for E_reac [K]
-  REAL, ALLOCATABLE                      :: HeatAccommodation(:)   ! Beta coefficient for the energy accommodation
-  ! Parameters for the adsorption
-  REAL, ALLOCATABLE                      :: S_initial(:)           ! Initial sticking coefficient at zero coverage
-  REAL, ALLOCATABLE                      :: MaxCoverage(:)         ! Maximal surface coverage
-  REAL, ALLOCATABLE                      :: DissOrder(:)           ! Molecular (1) or dissociative (2) adsorption
-  REAL, ALLOCATABLE                      :: EqConstant(:)          ! Equilibrium constant for adsorption/desorption
-  REAL, ALLOCATABLE                      :: StickCoeff(:)          ! Sticking coefficient
-  ! Parameter for the dissociative-adsorption
-  LOGICAL, ALLOCATABLE                   :: DissociativeAds(:)     ! Dissociative adsorption where the other molecule half is desorbed
-  INTEGER, ALLOCATABLE                   :: AdsorbedProduct(:)     ! Species ID of the particle that stays adsorbed on the surface
-  INTEGER, ALLOCATABLE                   :: GasProduct(:)          ! Species ID of the particle that remains in the gas phase
-  ! Parameters for the desorption
-  REAL, ALLOCATABLE                      :: E_initial(:)           ! Desorption energy at zero coverage [K]
-  REAL, ALLOCATABLE                      :: W_interact(:)          ! Scaling factor for Edes [K]
-  REAL, ALLOCATABLE                      :: C_a(:)                 ! Pre-exponential factor
-  REAL, ALLOCATABLE                      :: C_b(:)                 ! Pre-exponential factor
-  ! General Parameters
-  REAL, ALLOCATABLE                      :: Rate(:)                ! Catalytic reaction rate [Cov/s*m^2]
-  REAL, ALLOCATABLE                      :: Prob(:)                ! Catalytic reaction probability
-  REAL, ALLOCATABLE                      :: Prefactor(:)           ! Pre-exponential factor [1/s]
-  REAL, ALLOCATABLE                      :: ArrheniusEnergy(:)     ! Catalytic reaction energy [K]
-  LOGICAL, ALLOCATABLE                   :: BoundisChemSurf(:)     ! Boundary with catalytic activity
   LOGICAL                                :: Diffusion              ! Activates instantaneous diffussion over the whole boundary
   LOGICAL                                :: TotDiffusion           ! Activates instantaneous diffussion over all boundaries
   INTEGER                                :: CatBoundNum            ! Number of catalytic boundaries
-  TYPE(tBoundMap), ALLOCATABLE           :: BoundMap(:)            ! Map of the reactions to the boundaries
+  LOGICAL, ALLOCATABLE                   :: BoundisChemSurf(:)     ! Boundary with catalytic activity
   TYPE(tPureSurf), ALLOCATABLE           :: PSMap(:)               ! Map for reactions occurring only on the surface
   TYPE(tCollCaseInfo), ALLOCATABLE       :: CollCaseInfo(:)        ! Information of collision cases (nCase)
   TYPE(tSurfaceFlux), POINTER            :: SurfaceFlux(:)         ! Surface flux data (using the regular surface flux type)
   TYPE(tSFAux), ALLOCATABLE              :: SFAux(:)               ! Additional surface flux data, where variables differ from the regular surface flux type
 END TYPE
-TYPE(tSurfReactions)                     :: SurfChemReac
+TYPE(tSurfChemistry)                     :: SurfChem
+
+TYPE tSurfReactions
+  CHARACTER(LEN=64)                      :: CatName
+  CHARACTER(LEN=255)                     :: ReactType              ! Type of Reaction (reaction num)
+                                                                   !    A (adsorption)
+                                                                   !    D (desorption)
+                                                                   !    LH (Langmuir-Hinshelwood)
+                                                                   !    LHD (LH with instant desorption)
+                                                                   !    ER (Eley-Rideal)
+  INTEGER                                :: Reactants(2)           ! Reactants: indices of the species starting the reaction [NumOfReact,3]
+  INTEGER                                :: Products(2)            ! Products: indices of the species resulting from the reaction [NumOfReact,4]
+  INTEGER                                :: Inhibition             ! Reaction number of inhibiting reactions
+  INTEGER                                :: Promotion              ! Reaction number of promoting reactions
+  INTEGER                                :: NumOfBounds            ! Number of catalytic boundaries
+  INTEGER, ALLOCATABLE                   :: Boundaries(:)          ! Map of the reactions to the boundaries
+  ! Surface energy accommodation
+  REAL                                   :: EReact                 ! Reaction energy [K]
+  REAL                                   :: EScale                 ! Scaling factor for E_reac [K]
+  REAL                                   :: HeatAccommodation      ! Beta coefficient for the energy accommodation
+  ! Parameters for the adsorption
+  REAL                                   :: S_initial              ! Initial sticking coefficient at zero coverage
+  REAL                                   :: MaxCoverage            ! Maximal surface coverage
+  REAL                                   :: DissOrder              ! Molecular (1) or dissociative (2) adsorption
+  REAL                                   :: EqConstant             ! Equilibrium constant for adsorption/desorption
+  REAL                                   :: StickCoeff             ! Sticking coefficient
+  ! Parameter for the dissociative-adsorption
+  LOGICAL                                :: DissociativeAds        ! Dissociative adsorption where the other molecule half is desorbed
+  INTEGER                                :: AdsorbedProduct        ! Species ID of the particle that stays adsorbed on the surface
+  INTEGER                                :: GasProduct             ! Species ID of the particle that remains in the gas phase
+  ! Parameters for the desorption
+  REAL                                   :: E_initial              ! Desorption energy at zero coverage [K]
+  REAL                                   :: W_interact             ! Scaling factor for Edes [K]
+  REAL                                   :: C_a                    ! Pre-exponential factor
+  REAL                                   :: C_b                    ! Pre-exponential factor
+  ! General Parameters
+  REAL                                   :: Rate                   ! Catalytic reaction rate [Cov/s*m^2]
+  REAL                                   :: Prob                   ! Catalytic reaction probability
+  REAL                                   :: Prefactor              ! Pre-exponential factor [1/s]
+  REAL                                   :: ArrheniusEnergy        ! Catalytic reaction energy [K]
+END TYPE
+TYPE(tSurfReactions), ALLOCATABLE        :: SurfChemReac(:)
 
 TYPE tSFAux
   REAL, ALLOCATABLE                      :: a_nIn(:,:,:,:)       ! Speed ratio projected to inwards normal (additionally to regular surface flux variable due to missing species dependency)

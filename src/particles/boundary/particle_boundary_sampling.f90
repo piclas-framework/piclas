@@ -461,7 +461,7 @@ USE MOD_Globals_Vars               ,ONLY: StefanBoltzmannConst
 USE MOD_DSMC_Vars                  ,ONLY: DSMC
 USE MOD_Mesh_Vars                  ,ONLY: MeshFile
 USE MOD_Particle_Boundary_Vars     ,ONLY: SurfOnNode
-USE MOD_SurfaceModel_Vars          ,ONLY: nPorousBC, SurfChemReac, ChemWallProp
+USE MOD_SurfaceModel_Vars          ,ONLY: nPorousBC, SurfChem, ChemWallProp
 USE MOD_Particle_Boundary_Vars     ,ONLY: nSurfSample,CalcSurfaceImpact
 USE MOD_Particle_Boundary_Vars     ,ONLY: SurfSide2GlobalSide, GlobalSide2SurfSide, PartBound
 USE MOD_Particle_Boundary_Vars     ,ONLY: nComputeNodeSurfSides, BoundaryWallTemp
@@ -608,7 +608,7 @@ DO iSurfSide = 1,nComputeNodeSurfSides
       END IF
 
       ! Add the heat flux due to catalytic reactions on the surface
-      IF(SurfChemReac%NumOfReact.GT.0) THEN
+      IF(SurfChem%NumOfReact.GT.0) THEN
         MacroSurfaceVal(4,p,q,OutputCounter) = MacroSurfaceVal(4,p,q,OutputCounter) + SUM(ChemWallProp(:,2,p, q, iSurfSide)) &
                                               / (SurfSideArea(p,q,iSurfSide)*TimeSampleTemp)
       END IF
@@ -706,7 +706,7 @@ END IF
 #endif /*USE_MPI*/
 
 CALL WriteSurfSampleToHDF5(TRIM(MeshFile),ActualTime)
-IF(SurfChemReac%NumOfReact.GT.0) CALL WriteSurfSampleChemToHDF5(TRIM(MeshFile),ActualTime)
+IF(SurfChem%NumOfReact.GT.0) CALL WriteSurfSampleChemToHDF5(TRIM(MeshFile),ActualTime)
 
 MacroSurfaceVal = 0.
 MacroSurfaceSpecVal = 0.
@@ -904,7 +904,7 @@ USE MOD_DSMC_Vars               ,ONLY: CollisMode
 USE MOD_HDF5_Output             ,ONLY: WriteAttributeToHDF5,WriteArrayToHDF5,WriteHDF5Header
 USE MOD_IO_HDF5
 USE MOD_MPI_Shared_Vars         ,ONLY: mySurfRank
-USE MOD_SurfaceModel_Vars       ,ONLY: ChemWallProp, SurfChemReac
+USE MOD_SurfaceModel_Vars       ,ONLY: ChemWallProp, SurfChem
 USE MOD_Particle_Boundary_Vars  ,ONLY: nSurfSample, SurfSideArea
 USE MOD_Particle_Boundary_Vars  ,ONLY: nOutputSides, nComputeNodeSurfSides
 USE MOD_Particle_boundary_Vars  ,ONLY: nComputeNodeSurfOutputSides,offsetComputeNodeSurfOutputSide
@@ -937,7 +937,7 @@ REAL                                :: tstart,tend, tout
 REAL, ALLOCATABLE                   :: MacroSurfaceSpecChemVal(:,:,:,:,:)
 REAL, ALLOCATABLE                   :: MacroSurfaceHeatVal(:,:,:,:)
 !===================================================================================================================================
-nReac = SurfChemReac%NumOfReact
+nReac = SurfChem%NumOfReact
 
 #if USE_MPI
 ! Return if not a sampling leader

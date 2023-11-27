@@ -1183,7 +1183,7 @@ USE MOD_Part_Tools                ,ONLY: InRotRefFrameCheck
 USE MOD_Particle_SurfaceFlux_Vars ,ONLY: tSurfaceFlux
 USE MOD_Mesh_Vars                 ,ONLY: SideToElem
 USE MOD_DSMC_Vars                 ,ONLY: AmbiPolarSFMapping, AmbipolElecVelo, DSMC
-USE MOD_SurfaceModel_Vars         ,ONLY: SurfChemReac
+USE MOD_SurfaceModel_Vars         ,ONLY: SurfChem
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1217,8 +1217,8 @@ CASE(1)
   a = SF%SurfFluxSubSideData(iSample,jSample,iSide)%a_nIn
 CASE(2)
   ! 2: Surface flux at a boundary
-  SF => SurfChemReac%Surfaceflux(iSF)
-  a = SurfChemReac%SFAux(iSF)%a_nIn(iSample,jSample,iSide,iSpec)
+  SF => SurfChem%Surfaceflux(iSF)
+  a = SurfChem%SFAux(iSF)%a_nIn(iSample,jSample,iSide,iSpec)
 CASE(3)
   ! 3: Ambipolar diffusion: setting velocity of electrons
   ! Only insert electron for positively charged species

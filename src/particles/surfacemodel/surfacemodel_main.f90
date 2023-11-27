@@ -53,7 +53,7 @@ USE MOD_TimeDisc_Vars             ,ONLY: dt
 USE MOD_Particle_Vars             ,ONLY: PartSpecies,WriteMacroSurfaceValues,Species,usevMPF,PartMPF
 USE MOD_Particle_Tracking_Vars    ,ONLY: TrackingMethod, TrackInfo
 USE MOD_Particle_Boundary_Vars    ,ONLY: PartBound, GlobalSide2SurfSide, dXiEQ_SurfSample,SurfSideArea_Shared
-USE MOD_SurfaceModel_Vars         ,ONLY: nPorousBC, SurfChemReac , ChemSampWall
+USE MOD_SurfaceModel_Vars         ,ONLY: nPorousBC, SurfChem
 USE MOD_Particle_Mesh_Vars        ,ONLY: SideInfo_Shared, BoundsOfElem_Shared
 USE MOD_Particle_Vars             ,ONLY: PDM, LastPartPos
 USE MOD_Particle_Vars             ,ONLY: UseCircularInflow
@@ -135,7 +135,7 @@ IF (PartBound%NbrOfSpeciesSwaps(iBC).GT.0) CALL SpeciesSwap(PartID,SideID)
 ! Counter for surface analyze
 IF(CalcSurfCollCounter) SurfAnalyzeCount(PartSpecImpact) = SurfAnalyzeCount(PartSpecImpact) + 1
 ! Sampling
-DoSample = (DSMC%CalcSurfaceVal.AND.SamplingActive).OR.(DSMC%CalcSurfaceVal.AND.WriteMacroSurfaceValues).OR.(SurfChemReac%NumOfReact.GT.0)
+DoSample = (DSMC%CalcSurfaceVal.AND.SamplingActive).OR.(DSMC%CalcSurfaceVal.AND.WriteMacroSurfaceValues).OR.(SurfChem%NumOfReact.GT.0)
 IF(DoSample) THEN
   IF (TrackingMethod.EQ.TRIATRACKING) THEN
     TrackInfo%p = 1 ; TrackInfo%q = 1

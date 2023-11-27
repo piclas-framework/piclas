@@ -190,7 +190,6 @@ USE MOD_DSMC_ElectronicModel    ,ONLY: InitElectronShell
 USE MOD_Particle_Boundary_Vars  ,ONLY: PartBound
 USE MOD_DSMC_Relaxation         ,ONLY: DSMC_SetInternalEnr_Diatomic
 ! USE MOD_DSMC_PolyAtomicModel    ,ONLY: DSMC_SetInternalEnr_Poly
-USE MOD_SurfaceModel_Vars       ,ONLY: SurfChemReac
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------

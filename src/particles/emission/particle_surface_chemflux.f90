@@ -56,7 +56,7 @@ USE MOD_Particle_Mesh_Tools     ,ONLY: GetGlobalNonUniqueSideID
 USE MOD_Timedisc_Vars           ,ONLY: dt
 USE MOD_Particle_Surfaces_Vars
 USE MOD_Particle_Boundary_Vars
-USE MOD_SurfaceModel_Vars      ,ONLY: ChemWallProp_Shared_Win,SurfChemReac, ChemWallProp, ChemDesorpWall
+USE MOD_SurfaceModel_Vars      ,ONLY: ChemWallProp_Shared_Win, SurfChem, SurfChemReac, ChemWallProp, ChemDesorpWall
 USE MOD_Particle_Surfaces      ,ONLY: CalcNormAndTangTriangle
 USE MOD_Particle_SurfFlux       ,ONLY: SetSurfacefluxVelocities, CalcPartPosTriaSurface, DefineSideDirectVec2D
 USE MOD_DSMC_PolyAtomicModel    ,ONLY: DSMC_SetInternalEnr
@@ -94,19 +94,19 @@ REAL                        :: MPF
 INTEGER                     :: iReac, ReactantCount, BoundID, nSF
 INTEGER                     :: iVal, iReactant, iValReac, SurfSideID, iBias
 INTEGER                     :: SubP, SubQ
-INTEGER                     :: SurfReacBias(SurfChemReac%NumOfReact)
+INTEGER                     :: SurfReacBias(SurfChem%NumOfReact)
 #if USE_LOADBALANCE
 REAL                        :: tLBStart
 #endif /*USE_LOADBALANCE*/
 !===================================================================================================================================
 ! 1.) Determine the surface parameters
-nSF = SurfChemReac%CatBoundNum
+nSF = SurfChem%CatBoundNum
 SubP = TrackInfo%p
 SubQ = TrackInfo%q
 
 DO iSF = 1, nSF
-  BoundID = SurfChemReac%Surfaceflux(iSF)%BC
-  IF(ANY(SurfChemReac%PSMap(BoundID)%PureSurfReac)) THEN
+  BoundID = SurfChem%Surfaceflux(iSF)%BC
+  IF(ANY(SurfChem%PSMap(BoundID)%PureSurfReac)) THEN
 
     DO iSide = 1, BCdata_auxSF(BoundID)%SideNumber
       BCSideID=BCdata_auxSF(BoundID)%SideList(iSide)
@@ -140,27 +140,27 @@ DO iSF = 1, nSF
       END IF
 
       ! Randomize the order in which the reactions are called to remove biases
-      SurfReacBias = RemoveBias(SurfChemReac%NumOfReact)
+      SurfReacBias = RemoveBias(SurfChem%NumOfReact)
 
       ! Loop over the different types of pure surface reactions
-      DO iBias = 1, SurfChemReac%NumOfReact
+      DO iBias = 1, SurfChem%NumOfReact
         iReac = SurfReacBias(iBias)
-        IF (SurfChemReac%PSMap(BoundID)%PureSurfReac(iReac)) THEN
+        IF (SurfChem%PSMap(BoundID)%PureSurfReac(iReac)) THEN
 
           ! 2.) Calculate the number of newly created products and update the surface properties
-          SELECT CASE (TRIM(SurfChemReac%ReactType(iReac)))
+          SELECT CASE (TRIM(SurfChemReac(iReac)%ReactType))
 
           ! 2a) Langmuir-Hinshelwood reaction with instantaneous desorption (Arrhenius model)
           CASE('LHD')
             AdsDens = 1.
             Coverage = 1.
             ! Product of the reactant coverage values
-            DO iVal=1,SIZE(SurfChemReac%Reactants(iReac,:))
-              IF(SurfChemReac%Reactants(iReac,iVal).GT.0) THEN
-                iSpec = SurfChemReac%Reactants(iReac,iVal)
+            DO iVal=1,SIZE(SurfChemReac(iReac)%Reactants(:))
+              IF(SurfChemReac(iReac)%Reactants(iVal).GT.0) THEN
+                iSpec = SurfChemReac(iReac)%Reactants(iVal)
                 ! Test for multiples of the same reactant
-                ReactantCount = COUNT(SurfChemReac%Reactants(iReac,:).EQ.iSpec)
-                IF(iSpec.NE.SurfChemReac%SurfSpecies) THEN
+                ReactantCount = COUNT(SurfChemReac(iReac)%Reactants(:).EQ.iSpec)
+                IF(iSpec.NE.SurfChem%SurfSpecies) THEN
                   Coverage = Coverage * ChemWallProp(iSpec,1,SubP,SubQ,SurfSideID)
                   ! Get the particle density per surface area from the coverage
                   AdsDens = AdsDens * ChemWallProp(iSpec,1,SubP,SubQ,SurfSideID) * SurfMolAbs
@@ -169,18 +169,18 @@ DO iSF = 1, nSF
             END DO
 
             ! Determine the reaction energy in dependence of the surface coverage [J]
-            BetaCoeff = SurfChemReac%HeatAccommodation(iReac)
-            ReacHeat = (SurfChemReac%EReact(iReac) - Coverage*SurfChemReac%EScale(iReac)) * BoltzmannConst
+            BetaCoeff = SurfChemReac(iReac)%HeatAccommodation
+            ReacHeat = (SurfChemReac(iReac)%EReact - Coverage*SurfChemReac(iReac)%EScale) * BoltzmannConst
 
-            nu = SurfChemReac%Prefactor(iReac)
-            E_act =  SurfChemReac%ArrheniusEnergy(iReac)
+            nu = SurfChemReac(iReac)%Prefactor
+            E_act =  SurfChemReac(iReac)%ArrheniusEnergy
 
             ! Calculate the rate in dependence of the temperature and coverage
             Rate = nu * AdsDens * exp(-E_act/WallTemp) ! Energy in K
 
-            DO iVal=1,SIZE(SurfChemReac%Products(iReac,:))
-              IF (SurfChemReac%Products(iReac,iVal).NE.0) THEN
-                iSpec = SurfChemReac%Products(iReac,iVal)
+            DO iVal=1,SIZE(SurfChemReac(iReac)%Products(:))
+              IF (SurfChemReac(iReac)%Products(iVal).NE.0) THEN
+                iSpec = SurfChemReac(iReac)%Products(iVal)
 
                 ! Randomize the reaction process
                 CALL RANDOM_NUMBER(RanNum)
@@ -189,10 +189,10 @@ DO iSF = 1, nSF
                 ChemDesorpWall(iSpec, 1, SubP, SubQ, SurfSideID) =  Rate * dt * Area * (-LOG(RanNum)) / ReactantCount + &
                                                                     ChemDesorpWall(iSpec, 1, SubP, SubQ, SurfSideID)
 
-                DO iValReac=1, SIZE(SurfChemReac%Reactants(iReac,:))
-                  IF (SurfChemReac%Reactants(iReac,iValReac).NE.0) THEN
-                    iReactant = SurfChemReac%Reactants(iReac,iValReac)
-                    IF(iReactant.NE.SurfChemReac%SurfSpecies) THEN
+                DO iValReac=1, SIZE(SurfChemReac(iReac)%Reactants(:))
+                  IF (SurfChemReac(iReac)%Reactants(iValReac).NE.0) THEN
+                    iReactant = SurfChemReac(iReac)%Reactants(iValReac)
+                    IF(iReactant.NE.SurfChem%SurfSpecies) THEN
                       Coverage = ChemWallProp(iReactant,1,SubP,SubQ,SurfSideID)
                     ELSE
                       Coverage = 1.
@@ -212,10 +212,10 @@ DO iSF = 1, nSF
                 IF(INT(ChemDesorpWall(iSpec,1, SubP, SubQ, SurfSideID),8).GE.1) THEN
                   ChemWallProp(iSpec,2, SubP, SubQ, SurfSideID) = ChemWallProp(iSpec,2, SubP, SubQ, SurfSideID) &
                                                  + INT(ChemDesorpWall(iSpec,1, SubP, SubQ, SurfSideID),8) * ReacHeat * BetaCoeff
-                  DO iValReac=1, SIZE(SurfChemReac%Reactants(iReac,:))
-                    IF(SurfChemReac%Reactants(iReac,iValReac).NE.0) THEN
-                      iReactant = SurfChemReac%Reactants(iReac,iValReac)
-                      IF(iReactant.NE.SurfChemReac%SurfSpecies) THEN
+                  DO iValReac=1, SIZE(SurfChemReac(iReac)%Reactants(:))
+                    IF(SurfChemReac(iReac)%Reactants(iValReac).NE.0) THEN
+                      iReactant = SurfChemReac(iReac)%Reactants(iValReac)
+                      IF(iReactant.NE.SurfChem%SurfSpecies) THEN
                         ChemWallProp(iReactant,1, SubP, SubQ, SurfSideID) = ChemWallProp(iReactant,1, SubP, SubQ, SurfSideID) &
                                                                   - INT(ChemDesorpWall(iSpec,1, SubP, SubQ, SurfSideID),8)/SurfMol
                       END IF
@@ -230,12 +230,12 @@ DO iSF = 1, nSF
             Coverage = 1.
             AdsDens = 1.
             ! Product of the reactant coverage values
-            DO iVal=1,SIZE(SurfChemReac%Reactants(iReac,:))
-              IF(SurfChemReac%Reactants(iReac,iVal).GT.0) THEN
-                iSpec = SurfChemReac%Reactants(iReac,iVal)
+            DO iVal=1,SIZE(SurfChemReac(iReac)%Reactants(:))
+              IF(SurfChemReac(iReac)%Reactants(iVal).GT.0) THEN
+                iSpec = SurfChemReac(iReac)%Reactants(iVal)
                 ! Test for multiples of the same reactant
-                ReactantCount = COUNT(SurfChemReac%Reactants(iReac,:).EQ.iSpec)
-                IF(iSpec.NE.SurfChemReac%SurfSpecies) THEN
+                ReactantCount = COUNT(SurfChemReac(iReac)%Reactants(:).EQ.iSpec)
+                IF(iSpec.NE.SurfChem%SurfSpecies) THEN
                   Coverage = Coverage * ChemWallProp(iSpec,1,SubP,SubQ,SurfSideID)
                   ! Calculate the absolute particle density per unit element
                   AdsDens = AdsDens * ChemWallProp(iSpec,1,SubP,SubQ,SurfSideID) * SurfMolAbs
@@ -245,10 +245,10 @@ DO iSF = 1, nSF
 
             ! Determine the reaction energy in dependence of the surface coverage [J]
             ! Complete accomodation due to the intermediate desorption step
-            ReacHeat = (SurfChemReac%EReact(iReac) - Coverage*SurfChemReac%EScale(iReac)) * BoltzmannConst
+            ReacHeat = (SurfChemReac(iReac)%EReact - Coverage*SurfChemReac(iReac)%EScale) * BoltzmannConst
 
-            nu = SurfChemReac%Prefactor(iReac)
-            E_act =  SurfChemReac%ArrheniusEnergy(iReac)
+            nu = SurfChemReac(iReac)%Prefactor
+            E_act =  SurfChemReac(iReac)%ArrheniusEnergy
             ! Calculate the rate in dependence of the temperature and coverage
             Rate = nu * AdsDens * exp(-E_act/WallTemp)! Energy in K
 
@@ -258,14 +258,14 @@ DO iSF = 1, nSF
             ! Reaction product number
             DesCount =  Rate * dt * Area * (-LOG(RanNum))/(SurfMol*ReactantCount)
 
-            DO iVal=1,SIZE(SurfChemReac%Products(iReac,:))
-              IF (SurfChemReac%Products(iReac,iVal).NE.0) THEN
-                iSpec = SurfChemReac%Products(iReac,iVal)
+            DO iVal=1,SIZE(SurfChemReac(iReac)%Products(:))
+              IF (SurfChemReac(iReac)%Products(iVal).NE.0) THEN
+                iSpec = SurfChemReac(iReac)%Products(iVal)
 
-                DO iValReac=1, SIZE(SurfChemReac%Reactants(iReac,:))
-                  IF (SurfChemReac%Reactants(iReac,iValReac).NE.0) THEN
-                    iReactant = SurfChemReac%Reactants(iReac,iValReac)
-                    IF(iReactant.NE.SurfChemReac%SurfSpecies) THEN
+                DO iValReac=1, SIZE(SurfChemReac(iReac)%Reactants(:))
+                  IF (SurfChemReac(iReac)%Reactants(iValReac).NE.0) THEN
+                    iReactant = SurfChemReac(iReac)%Reactants(iValReac)
+                    IF(iReactant.NE.SurfChem%SurfSpecies) THEN
                       Coverage = ChemWallProp(iReactant,1,SubP,SubQ,SurfSideID)
                     ELSE
                       Coverage = 1.
@@ -289,10 +289,10 @@ DO iSF = 1, nSF
                   ChemWallProp(iSpec,1, SubP, SubQ, SurfSideID) = PartBound%MaxCoverage(BoundID, iSpec)
                 END IF
                 ChemWallProp(iSpec,2, SubP, SubQ, SurfSideID) = ChemWallProp(iSpec,2, SubP, SubQ, SurfSideID) + DesCount*ReacHeat*SurfMol
-                DO iValReac=1, SIZE(SurfChemReac%Reactants(iReac,:))
-                  IF(SurfChemReac%Reactants(iReac,iValReac).NE.0) THEN
-                    iReactant = SurfChemReac%Reactants(iReac,iValReac)
-                    IF(iReactant.NE.SurfChemReac%SurfSpecies) THEN
+                DO iValReac=1, SIZE(SurfChemReac(iReac)%Reactants(:))
+                  IF(SurfChemReac(iReac)%Reactants(iValReac).NE.0) THEN
+                    iReactant = SurfChemReac(iReac)%Reactants(iValReac)
+                    IF(iReactant.NE.SurfChem%SurfSpecies) THEN
                       ChemWallProp(iReactant,1, SubP, SubQ, SurfSideID) = ChemWallProp(iReactant,1,SubP,SubQ,SurfSideID) - DesCount
                     END IF
                   END IF
@@ -303,16 +303,16 @@ DO iSF = 1, nSF
 
           ! c) Thermal desorption (Polanyi-Wigner equation)
           CASE('D')
-            DO iVal=1, SIZE(SurfChemReac%Products(iReac,:))
-              IF (SurfChemReac%Products(iReac,iVal).NE.0) THEN
-                iSpec = SurfChemReac%Products(iReac,iVal)
+            DO iVal=1, SIZE(SurfChemReac(iReac)%Products(:))
+              IF (SurfChemReac(iReac)%Products(iVal).NE.0) THEN
+                iSpec = SurfChemReac(iReac)%Products(iVal)
 
                 ! Number of adsorbed particles on the subside
-                IF(ANY(SurfChemReac%Reactants(iReac,:).NE.0)) THEN
-                  DO iValReac=1, SIZE(SurfChemReac%Reactants(iReac,:))
-                    IF(SurfChemReac%Reactants(iReac,iValReac).NE.0) THEN
-                      iReactant = SurfChemReac%Reactants(iReac,iValReac)
-                      IF(iReactant.NE.SurfChemReac%SurfSpecies) THEN
+                IF(ANY(SurfChemReac(iReac)%Reactants(:).NE.0)) THEN
+                  DO iValReac=1, SIZE(SurfChemReac(iReac)%Reactants(:))
+                    IF(SurfChemReac(iReac)%Reactants(iValReac).NE.0) THEN
+                      iReactant = SurfChemReac(iReac)%Reactants(iValReac)
+                      IF(iReactant.NE.SurfChem%SurfSpecies) THEN
                         Coverage = ChemWallProp(iReactant,1,SubP, SubQ, SurfSideID)
                       ELSE
                         Coverage = 1.
@@ -328,22 +328,22 @@ DO iSF = 1, nSF
                 AdsDens = Coverage * SurfMolAbs
 
                 ! Calculate the desorption energy in dependence of the coverage [J]
-                DesHeat = (SurfChemReac%EReact(iReac) - Coverage*SurfChemReac%EScale(iReac)) * BoltzmannConst
+                DesHeat = (SurfChemReac(iReac)%EReact - Coverage*SurfChemReac(iReac)%EScale) * BoltzmannConst
 
                 ! Define the variables
-                DissOrder = SurfChemReac%DissOrder(iReac)
-                nu = SurfChemReac%Prefactor(iReac)
+                DissOrder = SurfChemReac(iReac)%DissOrder
+                nu = SurfChemReac(iReac)%Prefactor
 
                 ! Calculate the desorption prefactor in dependence of coverage and temperature of the boundary
                 IF(nu.EQ.0.) THEN
-                  nu = 10.**(SurfChemReac%C_a(iReac) + SurfChemReac%C_b(iReac) * Coverage)
+                  nu = 10.**(SurfChemReac(iReac)%C_a + SurfChemReac(iReac)%C_b * Coverage)
                   IF (DissOrder.EQ.2) THEN
                     ! Convert the prefactor to coverage values for the associative desorption
-                    nu = 10.**(SurfChemReac%C_a(iReac) + SurfChemReac%C_b(iReac) * Coverage) *10.**(15)
+                    nu = 10.**(SurfChemReac(iReac)%C_a + SurfChemReac(iReac)%C_b * Coverage) *10.**(15) !!
                   END IF
                 END IF
 
-                E_act = SurfChemReac%E_initial(iReac) + Coverage * SurfChemReac%W_interact(iReac)
+                E_act = SurfChemReac(iReac)%E_initial + Coverage * SurfChemReac(iReac)%W_interact
                 Rate = nu * AdsDens**DissOrder * exp(-E_act/WallTemp)  ! Energy in K
                 ! Randomize the desorption process
                 CALL RANDOM_NUMBER(RanNum)
@@ -361,11 +361,11 @@ DO iSF = 1, nSF
                 IF(INT(ChemDesorpWall(iSpec,1, SubP, SubQ, SurfSideID)/Species(iSpec)%MacroParticleFactor).GE.1) THEN
                   ChemWallProp(iSpec,2, SubP, SubQ, SurfSideID) = ChemWallProp(iSpec,2, SubP, SubQ, SurfSideID) &
                                                               - INT(ChemDesorpWall(iSpec,1, SubP, SubQ, SurfSideID),8) * DesHeat
-                  IF(ANY(SurfChemReac%Reactants(iReac,:).NE.0)) THEN
-                    DO iValReac=1, SIZE(SurfChemReac%Reactants(iReac,:))
-                      IF(SurfChemReac%Reactants(iReac,iValReac).NE.0) THEN
-                        iReactant = SurfChemReac%Reactants(iReac,iValReac)
-                        IF (iReactant.NE.SurfChemReac%SurfSpecies) THEN
+                  IF(ANY(SurfChemReac(iReac)%Reactants(:).NE.0)) THEN
+                    DO iValReac=1, SIZE(SurfChemReac(iReac)%Reactants(:))
+                      IF(SurfChemReac(iReac)%Reactants(iValReac).NE.0) THEN
+                        iReactant = SurfChemReac(iReac)%Reactants(iValReac)
+                        IF (iReactant.NE.SurfChem%SurfSpecies) THEN
                           ChemWallProp(iReactant,1,SubP, SubQ, SurfSideID) = ChemWallProp(iReactant,1,SubP, SubQ, SurfSideID) &
                                                         - DissOrder*INT(ChemDesorpWall(iSpec,1, SubP, SubQ, SurfSideID),8)/SurfMol
                         END IF
@@ -558,7 +558,7 @@ USE MOD_Particle_Surfaces_Vars
 USE MOD_Particle_Boundary_Vars
 USE MOD_SurfaceModel
 USE MOD_SurfaceModel_Chemistry
-USE MOD_SurfaceModel_Vars      ,ONLY: ChemWallProp_Shared_Win,SurfChemReac, ChemWallProp
+USE MOD_SurfaceModel_Vars      ,ONLY: ChemWallProp_Shared_Win, SurfChem, ChemWallProp
 USE MOD_MPI_Shared_vars        ,ONLY: MPI_COMM_SHARED
 USE MOD_MPI_Shared             ,ONLY: BARRIER_AND_SYNC
 !#if defined(IMPA) || defined(ROS)
@@ -588,7 +588,7 @@ REAL                        :: Coverage_Sum
 REAL                        :: tLBStart
 #endif /*USE_LOADBALANCE*/
 !===================================================================================================================================
-CatBoundNum = SurfChemReac%CatBoundNum
+CatBoundNum = SurfChem%CatBoundNum
 
 SubP = TrackInfo%p
 SubQ = TrackInfo%q
@@ -604,15 +604,15 @@ lastSide  = nSurfTotalSides
 SideNumber = lastSide - firstSide + 1
 
 ! Average/diffusion over all catalytic boundaries
-IF(SurfChemReac%TotDiffusion) THEN
+IF(SurfChem%TotDiffusion) THEN
   DO iSpec = 1, nSpecies
     ChemWallProp(iSpec,1,SubP,SubQ,:) = SUM(ChemWallProp(iSpec,1,SubP,SubQ,:))/SideNumber
   END DO
 
 ! Diffusion over a single reactive boundary
-ELSE IF(SurfChemReac%Diffusion) THEN
+ELSE IF(SurfChem%Diffusion) THEN
   DO iSF = 1, CatBoundNum
-    BoundID = SurfChemReac%Surfaceflux(iSF)%BC
+    BoundID = SurfChem%Surfaceflux(iSF)%BC
     SideNumber = BCdata_auxSF(BoundID)%SideNumber
 
     ! Determine the sum of the coverage on all indivual subsides
