@@ -105,15 +105,15 @@ IF (DoSurfaceFlux) THEN
   CALL ParticleSurfaceflux()
 END IF
 
-  IF (DoChemSurface) THEN
-    CALL ExchangeChemSurfData()
+IF (DoChemSurface) THEN
+  CALL ExchangeChemSurfData()
 
-    IF (time.GT.0.0) THEN
-      CALL ParticleSurfChemFlux()
-      CALL ParticleSurfDiffusion()
-    END IF
-
+  IF (time.GT.0.0) THEN
+    CALL ParticleSurfChemFlux()
+    CALL ParticleSurfDiffusion()
   END IF
+
+END IF
 
 #if USE_LOADBALANCE
 CALL LBStartTime(tLBStart)

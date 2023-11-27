@@ -199,7 +199,7 @@ SDEALLOCATE(SurfModEnergyDistribution)
 SDEALLOCATE(SurfChemReac)
 #if USE_MPI
   CALL MPI_BARRIER(MPI_COMM_SHARED,iERROR)
-  IF(SurfChem%NumOfReact.GT.0) THEN
+  IF(DoChemSurface) THEN
     CALL UNLOCK_AND_FREE(ChemWallProp_Shared_Win)
     CALL UNLOCK_AND_FREE(ChemSampWall_Shared_Win)
   END IF

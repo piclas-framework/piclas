@@ -271,7 +271,7 @@ USE MOD_Particle_Sampling_Vars     ,ONLY: UseAdaptive
 USE MOD_Particle_Emission_Init     ,ONLY: InitialParticleInserting
 USE MOD_Particle_SurfFlux_Init     ,ONLY: InitializeParticleSurfaceflux
 USE MOD_SurfaceModel_Init          ,ONLY: InitSurfaceModel
-USE MOD_SurfaceModel_Chemistry     ,ONLY: SurfaceModel_Chemistry_Init
+USE MOD_SurfaceModel_Chemistry     ,ONLY: InitSurfaceModelChemistry
 USE MOD_Particle_Surfaces          ,ONLY: InitParticleSurfaces
 USE MOD_Particle_Sampling_Adapt    ,ONLY: InitAdaptiveBCSampling
 USE MOD_Particle_Boundary_Init     ,ONLY: InitParticleBoundarySurfSides
@@ -351,7 +351,7 @@ IF (WriteMacroSurfaceValues.OR.DSMC%CalcSurfaceVal.OR.ANY(PartBound%Reactive)) T
 END IF
 
 ! Initialize arrays for surface chemistry
-CALL SurfaceModel_Chemistry_Init()
+CALL InitSurfaceModelChemistry()
 
 ! Initialize porous boundary condition (requires BCdata_auxSF and InitParticleBoundarySurfSides)
 IF(nPorousBC.GT.0) CALL InitPorousBoundaryCondition()

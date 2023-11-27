@@ -70,19 +70,22 @@ TYPE tSurfChemistry ! General surface chemistry parameter
   TYPE(tCollCaseInfo), ALLOCATABLE       :: CollCaseInfo(:)        ! Information of collision cases (nCase)
   TYPE(tSurfaceFlux), POINTER            :: SurfaceFlux(:)         ! Surface flux data (using the regular surface flux type)
   TYPE(tSFAux), ALLOCATABLE              :: SFAux(:)               ! Additional surface flux data, where variables differ from the regular surface flux type
+  ! Event probability
+  TYPE(tCollCaseInfo), ALLOCATABLE       :: EventProbInfo(:)       ! Number of reaction paths and their probability per species
 END TYPE
 TYPE(tSurfChemistry)                     :: SurfChem
 
 TYPE tSurfReactions
   CHARACTER(LEN=64)                      :: CatName
   CHARACTER(LEN=255)                     :: ReactType              ! Type of Reaction (reaction num)
+                                                                   !    P (event probability)
                                                                    !    A (adsorption)
                                                                    !    D (desorption)
                                                                    !    LH (Langmuir-Hinshelwood)
                                                                    !    LHD (LH with instant desorption)
                                                                    !    ER (Eley-Rideal)
-  INTEGER                                :: Reactants(2)           ! Reactants: indices of the species starting the reaction [NumOfReact,3]
-  INTEGER                                :: Products(2)            ! Products: indices of the species resulting from the reaction [NumOfReact,4]
+  INTEGER                                :: Reactants(2)           ! Reactants: indices of the species starting the reaction [NumOfReact,2]
+  INTEGER                                :: Products(3)            ! Products: indices of the species resulting from the reaction [NumOfReact,3]
   INTEGER                                :: Inhibition             ! Reaction number of inhibiting reactions
   INTEGER                                :: Promotion              ! Reaction number of promoting reactions
   INTEGER                                :: NumOfBounds            ! Number of catalytic boundaries

@@ -49,19 +49,18 @@ USE MOD_Globals                   ,ONLY: abort,UNITVECTOR,OrthoNormVec
 USE MOD_Globals                   ,ONLY: myrank
 #endif /*USE_MPI*/
 USE MOD_Globals_Vars              ,ONLY: PI, BoltzmannConst
-USE MOD_TimeDisc_Vars             ,ONLY: dt
 USE MOD_Particle_Vars             ,ONLY: PartSpecies,WriteMacroSurfaceValues,Species,usevMPF,PartMPF
 USE MOD_Particle_Tracking_Vars    ,ONLY: TrackingMethod, TrackInfo
-USE MOD_Particle_Boundary_Vars    ,ONLY: PartBound, GlobalSide2SurfSide, dXiEQ_SurfSample,SurfSideArea_Shared
-USE MOD_SurfaceModel_Vars         ,ONLY: nPorousBC, SurfChem
-USE MOD_Particle_Mesh_Vars        ,ONLY: SideInfo_Shared, BoundsOfElem_Shared
+USE MOD_Particle_Boundary_Vars    ,ONLY: PartBound, GlobalSide2SurfSide, dXiEQ_SurfSample
+USE MOD_SurfaceModel_Vars         ,ONLY: nPorousBC, SurfChem, SurfModEnergyDistribution
+USE MOD_Particle_Mesh_Vars        ,ONLY: SideInfo_Shared
 USE MOD_Particle_Vars             ,ONLY: PDM, LastPartPos
 USE MOD_Particle_Vars             ,ONLY: UseCircularInflow
 USE MOD_Dielectric_Vars           ,ONLY: DoDielectricSurfaceCharge
 USE MOD_DSMC_Vars                 ,ONLY: DSMC, SamplingActive, RadialWeighting
 USE MOD_SurfaceModel_Analyze_Vars ,ONLY: CalcSurfCollCounter, SurfAnalyzeCount, SurfAnalyzeNumOfAds, SurfAnalyzeNumOfDes
-USE MOD_SurfaceModel_Tools        ,ONLY: MaxwellScattering, SurfaceModel_ParticleEmission
-USE MOD_SurfaceModel_Chemistry    ,ONLY: SurfaceModelChemistry
+USE MOD_SurfaceModel_Tools        ,ONLY: MaxwellScattering, SurfaceModelParticleEmission
+USE MOD_SurfaceModel_Chemistry    ,ONLY: SurfaceModelChemistry, SurfaceModelEventProbability
 USE MOD_SEE                       ,ONLY: SecondaryElectronEmission
 USE MOD_SurfaceModel_Porous       ,ONLY: PorousBoundaryTreatment
 USE MOD_Particle_Boundary_Tools   ,ONLY: CalcWallSample
@@ -89,8 +88,7 @@ INTEGER            :: ProductSpec(1:2) !< 1: product species of incident particl
 INTEGER            :: ProductSpecNbr   !< number of emitted particles for ProductSpec(2)
 REAL               :: TempErgy         !< temperature, energy or velocity used for VeloFromDistribution
 REAL               :: Xitild,Etatild
-INTEGER            :: PartSpecImpact, locBCID
-INTEGER            :: iBC, SurfSideID
+INTEGER            :: PartSpecImpact, locBCID, SurfSideID
 LOGICAL            :: SpecularReflectionOnly,DoSample
 REAL               :: ChargeImpact,PartPosImpact(1:3) !< Charge and position of impact of bombarding particle
 REAL               :: ChargeRefl                      !< Charge of reflected particle
@@ -98,8 +96,6 @@ REAL               :: MPF                             !< macro-particle factor
 REAL               :: ChargeHole                      !< Charge of SEE electrons holes
 INTEGER            :: iProd
 !===================================================================================================================================
-iBC = PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID))
-
 !===================================================================================================================================
 ! 0.) Initial surface pre-treatment
 !===================================================================================================================================
@@ -116,7 +112,7 @@ ProductSpecNbr = 0
 
 ! Store info of impacting particle for possible surface charging
 PartPosImpact(1:3) = LastPartPos(1:3,PartID)+TrackInfo%PartTrajectory(1:3)*TrackInfo%alpha
-IF(DoDielectricSurfaceCharge.AND.PartBound%Dielectric(iBC)) THEN ! Surface charging active + dielectric surface contact
+IF(DoDielectricSurfaceCharge.AND.PartBound%Dielectric(locBCID)) THEN ! Surface charging active + dielectric surface contact
   IF(usevMPF)THEN
     MPF = PartMPF(PartID)
   ELSE
@@ -127,7 +123,7 @@ END IF
 !===================================================================================================================================
 ! 1.) Species Swap
 !===================================================================================================================================
-IF (PartBound%NbrOfSpeciesSwaps(iBC).GT.0) CALL SpeciesSwap(PartID,SideID)
+IF (PartBound%NbrOfSpeciesSwaps(locBCID).GT.0) CALL SpeciesSwap(PartID,SideID)
 
 !===================================================================================================================================
 ! 2.) Count and sample the properties BEFORE the surface interaction
@@ -155,7 +151,7 @@ END IF
 IF(.NOT.PDM%ParticleInside(PartID)) THEN
   ! Increase the counter for deleted/absorbed/adsorbed particles
   IF(CalcSurfCollCounter) SurfAnalyzeNumOfAds(PartSpecImpact) = SurfAnalyzeNumOfAds(PartSpecImpact) + 1
-  IF(DoDeposition.AND.DoDielectricSurfaceCharge.AND.PartBound%Dielectric(iBC)) &
+  IF(DoDeposition.AND.DoDielectricSurfaceCharge.AND.PartBound%Dielectric(locBCID)) &
       CALL DepositParticleOnNodes(ChargeImpact, PartPosImpact, GlobalElemID)
   RETURN
 END IF
@@ -171,6 +167,10 @@ CASE (0) ! Maxwellian scattering (diffuse/specular reflection)
 CASE (1)  ! Sticking coefficient model using tabulated, empirical values
 !-----------------------------------------------------------------------------------------------------------------------------------
   CALL StickingCoefficientModel(PartID,SideID,n_Loc)
+!-----------------------------------------------------------------------------------------------------------------------------------
+CASE (2)  ! Event probability model
+!-----------------------------------------------------------------------------------------------------------------------------------
+  CALL SurfaceModelEventProbability(PartID,SideID,GlobalElemID,n_loc,PartPosImpact(1:3))
 !-----------------------------------------------------------------------------------------------------------------------------------
 CASE(20)  ! Catalytic gas-surface interaction: Adsorption or Eley-Rideal reaction
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -195,9 +195,10 @@ CASE (SEE_MODELS_ID)
   END IF
   ! Emit the secondary electrons
   IF (ProductSpec(2).GT.0) THEN
-    CALL SurfaceModel_ParticleEmission(n_loc, PartID, SideID, ProductSpec, ProductSpecNbr, TempErgy, GlobalElemID,PartPosImpact(1:3))
+    CALL SurfaceModelParticleEmission(n_loc, PartID, SideID, ProductSpec(2), ProductSpecNbr, TempErgy, GlobalElemID, &
+                                      PartPosImpact(1:3),EnergyDistribution=SurfModEnergyDistribution(locBCID))
     ! Deposit opposite charge of SEE on node
-    IF(DoDeposition.AND.DoDielectricSurfaceCharge.AND.PartBound%Dielectric(iBC)) THEN
+    IF(DoDeposition.AND.DoDielectricSurfaceCharge.AND.PartBound%Dielectric(locBCID)) THEN
       ! Get MPF
       IF (usevMPF) THEN
         IF (RadialWeighting%DoRadialWeighting) THEN
@@ -223,7 +224,7 @@ END SELECT
 !===================================================================================================================================
 ! 4.) PIC ONLY: Deposit charges on dielectric surface (when activated), if these were removed/changed in SurfaceModel
 !===================================================================================================================================
-IF(DoDeposition.AND.DoDielectricSurfaceCharge.AND.PartBound%Dielectric(iBC)) THEN ! Surface charging active + dielectric surface contact
+IF(DoDeposition.AND.DoDielectricSurfaceCharge.AND.PartBound%Dielectric(locBCID)) THEN ! Surface charging active + dielectric surface contact
   IF(.NOT.PDM%ParticleInside(PartID))THEN
     ! Particle was deleted on surface contact: deposit impacting charge
     CALL DepositParticleOnNodes(ChargeImpact, PartPosImpact, GlobalElemID)
@@ -264,7 +265,7 @@ END IF
 ! Sampling
 IF(DoSample) THEN
   ! Sample momentum, heatflux and collision counter on surface (only the original impacting particle, not the newly created parts
-  ! through SurfaceModel_ParticleEmission), checking if the particle was deleted/absorbed/adsorbed at the wall
+  ! through SurfaceModelParticleEmission), checking if the particle was deleted/absorbed/adsorbed at the wall
   IF(PDM%ParticleInside(PartID)) CALL CalcWallSample(PartID,SurfSideID,'new',SurfaceNormal_opt=n_loc)
 END IF
 
