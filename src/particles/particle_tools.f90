@@ -1751,7 +1751,7 @@ TYPE (tClonedParticles), ALLOCATABLE      :: ClonedParticles_New(:,:)
 IF(PRESENT(Amount)) THEN
   IF(Amount.EQ.0) RETURN
   NewSize=PDM%MaxParticleNumber+Amount
-  IPWRITE(*,*) "Increase by amount",PDM%MaxParticleNumber,NewSize
+  ! IPWRITE(*,*) "Increase by amount",PDM%MaxParticleNumber,NewSize
   IF(NewSize.GT.PDM%maxAllowedParticleNumber)CALL ABORT(&
   __STAMP__&
   ,'More Particles needed than allowed in PDM%maxAllowedParticleNumber',IntInfoOpt=NewSize)
@@ -1761,7 +1761,7 @@ ELSE
   __STAMP__&
   ,'More Particles needed than allowed in PDM%maxAllowedParticleNumber',IntInfoOpt=NewSize)
   NewSize=MIN(NewSize,PDM%maxAllowedParticleNumber)
-  IPWRITE(*,*) "Increase by percent",PDM%MaxParticleNumber,NewSize
+  ! IPWRITE(*,*) "Increase by percent",PDM%MaxParticleNumber,NewSize
 END IF
 
 IF(ALLOCATED(PEM%GlobalElemID)) CALL ChangeSizeArray(PEM%GlobalElemID,PDM%maxParticleNumber,NewSize)
@@ -1992,7 +1992,7 @@ IF (nPart.GE.PDM%maxParticleNumber/(1.+PDM%MaxPartNumIncrease)**2) RETURN
 Newsize=MAX(CEILING(nPart*(1.+PDM%MaxPartNumIncrease)),1)
 IF (Newsize.EQ.PDM%maxParticleNumber) RETURN
 
-IPWRITE(*,*) "Decrease",PDM%maxParticleNumber,nPart,NewSize
+! IPWRITE(*,*) "Decrease",PDM%maxParticleNumber,nPart,NewSize
 IF(.NOT.PDM%RearrangePartIDs) THEN
   ! Search for highest occupied particle index and set Newsize to this Value
   i=PDM%maxParticleNumber
