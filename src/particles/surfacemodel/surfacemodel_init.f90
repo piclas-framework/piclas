@@ -197,6 +197,9 @@ IMPLICIT NONE
 SDEALLOCATE(SurfModResultSpec)
 SDEALLOCATE(SurfModEnergyDistribution)
 SDEALLOCATE(SurfChemReac)
+SDEALLOCATE(SurfChem%BoundisChemSurf)
+SDEALLOCATE(SurfChem%PSMap)
+SDEALLOCATE(SurfChem%EventProbInfo)
 #if USE_MPI
   CALL MPI_BARRIER(MPI_COMM_SHARED,iERROR)
   IF(DoChemSurface) THEN

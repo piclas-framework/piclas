@@ -172,9 +172,9 @@ DO iReac = 1, ReadInNumOfReact
     IF(SurfChemReac(iReac)%Reactants(2).NE.0) CALL abort(__STAMP__,' ERROR: Probability based model only supports one reactant!')
     SpecID = SurfChemReac(iReac)%Reactants(1)
     SurfChem%EventProbInfo(SpecID)%NumOfReactionPaths = SurfChem%EventProbInfo(SpecID)%NumOfReactionPaths + 1
-  CASE('A','D','LH','LHD')
-    SurfChemReac(iReac)%CatName               = TRIM(GETSTR('Surface-Reaction'//TRIM(hilf)//'-SurfName'))
+  CASE('A','D','LH','LHD','ER')
     PartBound%SurfaceModel(SurfChemReac(iReac)%Boundaries) = 20
+    PartBound%Reactive(iPartBound) = .TRUE.
     DO iReac2 = 1, SurfChemReac(iReac)%NumOfBounds
       SurfChem%BoundisChemSurf(SurfChemReac(iReac)%Boundaries(iReac2)) = .TRUE.
     END DO
