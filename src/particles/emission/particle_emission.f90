@@ -331,8 +331,7 @@ DO i=1,nSpecies
     IF (UseVarTimeStep) CALL SetParticleTimeStep(NbrOfParticle)
     ! define molecule stuff
     IF (useDSMC.AND.(CollisMode.GT.1)) THEN
-      iPart = 1
-      DO WHILE (iPart.LE.NbrOfParticle)
+      DO iPart = 1, NbrOfParticle
         PositionNbr = PDM%nextFreePosition(iPart+PDM%CurrentNextFreePosition)
         IF (PositionNbr.NE.0) THEN
           IF (SpecDSMC(i)%PolyatomicMol) THEN
@@ -341,7 +340,6 @@ DO i=1,nSpecies
             CALL DSMC_SetInternalEnr_LauxVFD(i,iInit,PositionNbr,1)
           END IF
         END IF
-        iPart = iPart + 1
       END DO
     END IF
     ! Compute number of input particles and energy

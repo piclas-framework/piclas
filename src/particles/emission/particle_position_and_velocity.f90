@@ -541,7 +541,7 @@ USE MOD_PreProc
 USE MOD_Globals                ,ONLY: myrank,UNIT_StdOut,abort
 USE MOD_part_tools             ,ONLY: InitializeParticleMaxwell,InterpolateEmissionDistribution2D
 USE MOD_Mesh_Vars              ,ONLY: nElems,offsetElem
-USE MOD_Particle_Vars          ,ONLY: Species, PDM, PartState, PEM, LastPartPos
+USE MOD_Particle_Vars          ,ONLY: Species, PDM, PartState, PEM, LastPartPos, PartSpecies
 USE MOD_Particle_Tracking      ,ONLY: ParticleInsideCheck
 USE MOD_Mesh_Tools             ,ONLY: GetCNElemID
 USE MOD_Particle_Emission_Vars ,ONLY: EmissionDistributionDim, EmissionDistributionN
@@ -737,6 +737,7 @@ DO iElem = 1, nElems
                     (PositionNbr.EQ.0)) CALL abort(__STAMP__,'Emission: Increase maxParticleNumber!',PositionNbr)
                 PartState(1:3,PositionNbr) = RandomPos(1:3)
                 CALL InitializeParticleMaxwell(PositionNbr,iSpec,iElem,Mode=2,iInit=iInit)
+                PartSpecies(PositionNbr) = iSpec
               END IF
             END DO ! nPart
           END DO ! k
@@ -787,6 +788,7 @@ DO iElem = 1, nElems
                (PositionNbr.EQ.0)) CALL abort(__STAMP__,'Emission: Increase maxParticleNumber!',PositionNbr)
             PartState(1:3,PositionNbr) = RandomPos(1:3)
             CALL InitializeParticleMaxwell(PositionNbr,iSpec,iElem,Mode=2,iInit=iInit)
+            PartSpecies(PositionNbr) = iSpec
           END IF
         END DO ! nPart
 
