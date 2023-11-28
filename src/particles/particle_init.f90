@@ -1587,14 +1587,14 @@ IF(SpeciesDatabase.NE.'none') THEN
       CALL AttributeExists(file_id_specdb,'ChargeIC',TRIM(dsetname), AttrExists=AttrExists)
       IF (AttrExists) THEN
         CALL ReadAttribute(file_id_specdb,'ChargeIC',1,DatasetName = dsetname,RealScalar=Species(iSpec)%ChargeIC)
-      ELSE 
+      ELSE
         Species(iSpec)%ChargeIC = 0.0
       END IF
-      CALL PrintOption('ChargeIC','READIN',RealOpt=Species(iSpec)%ChargeIC)
+      CALL PrintOption('ChargeIC','DB',RealOpt=Species(iSpec)%ChargeIC)
       CALL ReadAttribute(file_id_specdb,'MassIC',1,DatasetName = dsetname,RealScalar=Species(iSpec)%MassIC)
-      CALL PrintOption('MassIC','READIN',RealOpt=Species(iSpec)%MassIC)
+      CALL PrintOption('MassIC','DB',RealOpt=Species(iSpec)%MassIC)
       CALL ReadAttribute(file_id_specdb,'InteractionID',1,DatasetName = dsetname,IntScalar=Species(iSpec)%InterID)
-      CALL PrintOption('InteractionID','READIN',IntOpt=Species(iSpec)%InterID)
+      CALL PrintOption('InteractionID','DB',IntOpt=Species(iSpec)%InterID)
     ELSE
       Species(iSpec)%DoOverwriteParameters = .TRUE.
       SWRITE(*,*) 'WARNING: DataSet not found: ['//TRIM(dsetname)//'] ['//TRIM(SpeciesDatabase)//']'

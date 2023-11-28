@@ -371,7 +371,7 @@ IF (SpeciesDatabase.EQ.'none') THEN
   ELSEIF(DSMC%ElectronicModel.EQ.1.OR.DSMC%ElectronicModel.EQ.2.OR.DSMC%ElectronicModel.EQ.4) THEN
     CALL Abort(__STAMP__,'ERROR: Electronic models 1, 2 & 4 require an electronic levels database and CollisMode > 1!')
   END IF
-ELSE 
+ELSE
   IF ((CollisMode .GT. 1).OR.(CollisMode .EQ. 0)) THEN
     DSMC%EpsElecBin = GETREAL('EpsMergeElectronicState','1E-4')
   END IF
@@ -431,21 +431,21 @@ IF(DoFieldIonization.OR.CollisMode.NE.0) THEN
         dsetname = TRIM('/Species/'//TRIM(Species(iSpec)%Name))
         ! Reference temperature
         CALL ReadAttribute(file_id_specdb,'Tref',1,DatasetName = dsetname,RealScalar=SpecDSMC(iSpec)%Tref)
-        CALL PrintOption('Tref','READ-IN',RealOpt=SpecDSMC(iSpec)%Tref)
+        CALL PrintOption('Tref','DB',RealOpt=SpecDSMC(iSpec)%Tref)
         ! Reference diameter
         CALL ReadAttribute(file_id_specdb,'dref',1,DatasetName = dsetname,RealScalar=SpecDSMC(iSpec)%dref)
-        CALL PrintOption('dref','READIN',RealOpt=SpecDSMC(iSpec)%dref)
+        CALL PrintOption('dref','DB',RealOpt=SpecDSMC(iSpec)%dref)
         ! Viscosity exponent
         CALL ReadAttribute(file_id_specdb,'omega',1,DatasetName = dsetname,RealScalar=SpecDSMC(iSpec)%omega)
-        CALL PrintOption('omega','READIN',RealOpt=SpecDSMC(iSpec)%omega)
+        CALL PrintOption('omega','DB',RealOpt=SpecDSMC(iSpec)%omega)
         ! Alpha parameter (VSS only)
         CALL AttributeExists(file_id_specdb,'alphaVSS',TRIM(dsetname), AttrExists=AttrExists)
         IF (AttrExists) THEN
           CALL ReadAttribute(file_id_specdb,'alphaVSS',1,DatasetName = dsetname,RealScalar=SpecDSMC(iSpec)%alphaVSS)
-        ELSE 
+        ELSE
           SpecDSMC(iSpec)%alphaVSS = 1.0
         END IF
-        CALL PrintOption('alphaVSS','READIN',RealOpt=SpecDSMC(iSpec)%alphaVSS)
+        CALL PrintOption('alphaVSS','DB',RealOpt=SpecDSMC(iSpec)%alphaVSS)
         ! check for faulty parameters
         IF((Species(iSpec)%InterID * SpecDSMC(iSpec)%Tref * SpecDSMC(iSpec)%dref * SpecDSMC(iSpec)%alphaVSS) .EQ. 0) THEN
           CALL Abort(__STAMP__,'ERROR in species data: check collision parameters \n'//&
@@ -701,8 +701,8 @@ ELSE !CollisMode.GT.0
               CALL ReadAttribute(file_id_specdb,'PolyatomicMol',1,DatasetName = dsetname,IntScalar=IntToLog)
               IF(IntToLog.EQ.1) SpecDSMC(iSpec)%PolyatomicMol = .TRUE.
               CALL PrintOption('Species Name','INFO',StrOpt=TRIM(Species(iSpec)%Name))
-              CALL PrintOption('PolyatomicMol','READIN',LogOpt=SpecDSMC(iSpec)%PolyatomicMol)
-            ELSE 
+              CALL PrintOption('PolyatomicMol','DB',LogOpt=SpecDSMC(iSpec)%PolyatomicMol)
+            ELSE
               SpecDSMC(iSpec)%PolyatomicMol = .FALSE.
             END IF
             IF(SpecDSMC(iSpec)%PolyatomicMol.AND.DSMC%DoTEVRRelaxation)  THEN
@@ -714,16 +714,16 @@ ELSE !CollisMode.GT.0
             ELSEIF ((Species(iSpec)%InterID.EQ.2).OR.(Species(iSpec)%InterID.EQ.20)) THEN
               SpecDSMC(iSpec)%Xi_Rot     = 2
               CALL ReadAttribute(file_id_specdb,'CharaTempVib',1,DatasetName = dsetname,RealScalar=SpecDSMC(iSpec)%CharaTVib)
-              CALL PrintOption('CharaTempVib','READIN',RealOpt=SpecDSMC(iSpec)%CharaTVib)
+              CALL PrintOption('CharaTempVib','DB',RealOpt=SpecDSMC(iSpec)%CharaTVib)
               CALL AttributeExists(file_id_specdb,'CharaTempRot',TRIM(dsetname), AttrExists=AttrExists)
               IF (AttrExists) THEN
                 CALL ReadAttribute(file_id_specdb,'CharaTempRot',1,DatasetName = dsetname,RealScalar=SpecDSMC(iSpec)%CharaTRot)
-              ELSE 
+              ELSE
                 SpecDSMC(iSpec)%CharaTRot = 0.0
               END IF
-              CALL PrintOption('CharaTempRot','READIN',RealOpt=SpecDSMC(iSpec)%CharaTRot)
+              CALL PrintOption('CharaTempRot','DB',RealOpt=SpecDSMC(iSpec)%CharaTRot)
               CALL ReadAttribute(file_id_specdb,'Ediss_eV',1,DatasetName = dsetname,RealScalar=SpecDSMC(iSpec)%Ediss_eV)
-              CALL PrintOption('Ediss_eV','READIN',RealOpt=SpecDSMC(iSpec)%Ediss_eV)
+              CALL PrintOption('Ediss_eV','DB',RealOpt=SpecDSMC(iSpec)%Ediss_eV)
               ! Set the limit for the acceptance-rejection
               SpecDSMC(iSpec)%MaxVibQuant = 200
               ! Calculation of the zero-point energy
@@ -752,7 +752,7 @@ ELSE !CollisMode.GT.0
                   hilf2=TRIM(hilf)//'-'//TRIM(hilf2)
                   SpecDSMC(iSpec)%MW_ConstA(jSpec)     = GETREAL('Part-Species'//TRIM(hilf)//'-MWConstA-'//TRIM(hilf2))
                   SpecDSMC(iSpec)%MW_ConstB(jSpec)     = GETREAL('Part-Species'//TRIM(hilf)//'-MWConstB-'//TRIM(hilf2))
-    
+
                   IF(SpecDSMC(iSpec)%MW_ConstA(jSpec).EQ.0) THEN
                     CALL Abort(&
                     __STAMP__&
@@ -1025,7 +1025,7 @@ ELSE !CollisMode.GT.0
           CALL ReadAttribute(file_id_specdb,'HeatOfFormation_K',1,DatasetName = dsetname,RealScalar=SpecDSMC(iSpec)%HeatOfFormation)
           SpecDSMC(iSpec)%HeatOfFormation = SpecDSMC(iSpec)%HeatOfFormation * BoltzmannConst
         ENDIF
-        CALL PrintOption('HeatOfFormation [J], '//TRIM(Species(iSpec)%Name),'READIN',RealOpt=SpecDSMC(iSpec)%HeatOfFormation)
+        CALL PrintOption('HeatOfFormation [J], '//TRIM(Species(iSpec)%Name),'DB',RealOpt=SpecDSMC(iSpec)%HeatOfFormation)
       END DO ! iSpec = nSpecies
       ! Close the file.
       CALL H5FCLOSE_F(file_id_specdb, err)
@@ -1062,12 +1062,12 @@ ELSE !CollisMode.GT.0
               SpecDSMC(iSpec)%PreviousState=jSpec
             END IF
           END DO
-        ELSE 
+        ELSE
           SpecDSMC(iSpec)%PreviousState = 0
         END IF
         IF(SpecDSMC(iSpec)%PreviousState.GT.0) THEN
           CALL PrintOption('Previous species of '//TRIM(Species(iSpec)%Name)//' (ground state or previous ionized level)', &
-            'READIN',StrOpt=TRIM(Species(SpecDSMC(iSpec)%PreviousState)%Name))
+            'DB',StrOpt=TRIM(Species(SpecDSMC(iSpec)%PreviousState)%Name))
         END IF
       END DO
       ! Close the file.
@@ -1087,7 +1087,7 @@ ELSE !CollisMode.GT.0
       END IF
     END DO
 
-    DO iSpec=1,nSpecies 
+    DO iSpec=1,nSpecies
       WRITE(UNIT=hilf,FMT='(I0)') iSpec
       ! Read-in of species for field ionization (only required if it cannot be determined automatically)
       IF(Species(iSpec)%InterID.NE.4) THEN
@@ -1383,7 +1383,7 @@ DO iSpec = 1, nSpecies
         dsetname = TRIM('/Species/'//TRIM(Species(iSpec)%Name))
         CALL ReadAttribute(file_id_specdb,'HeatOfFormation_K',1,DatasetName = dsetname,RealScalar=SpecDSMC(iSpec)%HeatOfFormation)
         SpecDSMC(iSpec)%HeatOfFormation = SpecDSMC(iSpec)%HeatOfFormation * BoltzmannConst
-        CALL PrintOption('HeatOfFormation [J], '//TRIM(Species(iSpec)%Name),'READIN',RealOpt=SpecDSMC(iSpec)%HeatOfFormation)
+        CALL PrintOption('HeatOfFormation [J], '//TRIM(Species(iSpec)%Name),'DB',RealOpt=SpecDSMC(iSpec)%HeatOfFormation)
         ! Close the file.
         CALL H5FCLOSE_F(file_id_specdb, err)
         ! Close FORTRAN interface.
@@ -1721,6 +1721,7 @@ SDEALLOCATE(ChemReac%ReactNumRecomb)
 SDEALLOCATE(ChemReac%Hab)
 SDEALLOCATE(ChemReac%DeleteProductsList)
 SDEALLOCATE(ChemReac%CollCaseInfo)
+SDEALLOCATE(ChemReac%totalReacToModel)
 
 SDEALLOCATE(CollInf%collidingSpecies)
 SDEALLOCATE(CollInf%Coll_Case)

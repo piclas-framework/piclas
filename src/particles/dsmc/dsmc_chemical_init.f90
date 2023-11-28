@@ -717,17 +717,17 @@ DO iSpec = 1, nSpecies
     WRITE(UNIT=hilf,FMT='(I0)') iSpec
     IF(SpeciesDatabase.NE.'none') THEN
       ! Initialize FORTRAN interface.
-      CALL H5OPEN_F(err)    
+      CALL H5OPEN_F(err)
       CALL H5FOPEN_F (TRIM(SpeciesDatabase), H5F_ACC_RDONLY_F, file_id_specdb, err)
       dsetname = TRIM('/Species/'//TRIM(Species(iSpec)%Name))
       CALL ReadAttribute(file_id_specdb,'SymmetryFactor',1,DatasetName = dsetname,IntScalar=SpecDSMC(iSpec)%SymmetryFactor)
-      CALL PrintOption('SymmetryFactor '//TRIM(Species(iSpec)%Name),'READIN',IntOpt=SpecDSMC(iSpec)%SymmetryFactor)
+      CALL PrintOption('SymmetryFactor '//TRIM(Species(iSpec)%Name),'DB',IntOpt=SpecDSMC(iSpec)%SymmetryFactor)
       ! Close the file.
       CALL H5FCLOSE_F(file_id_specdb, err)
       ! Close FORTRAN interface.
       CALL H5CLOSE_F(err)
     END IF
-    
+
     IF(Species(iSpec)%DoOverwriteParameters) THEN
       WRITE(UNIT=hilf,FMT='(I0)') iSpec
       SpecDSMC(iSpec)%SymmetryFactor = GETINT('Part-Species'//TRIM(hilf)//'-SymmetryFactor')
@@ -1216,12 +1216,12 @@ CALL DatasetExists(file_id_specdb,TRIM(dsetname2),ReactionFound)
 IF(.NOT.ReactionFound) CALL abort(__STAMP__,'ERROR in parameter.ini: Defined reaction has not been found in the database!')
 
 CALL ReadAttribute(file_id_specdb,'Arrhenius-Prefactor',1,DatasetName = dsetname2,RealScalar=ChemReac%Arrhenius_Prefactor(iReac))
-CALL PrintOption('Arrhenius-Prefactor','READIN',RealOpt=ChemReac%Arrhenius_Prefactor(iReac))
+CALL PrintOption('Arrhenius-Prefactor','DB',RealOpt=ChemReac%Arrhenius_Prefactor(iReac))
 CALL ReadAttribute(file_id_specdb,'Arrhenius-Powerfactor',1,DatasetName = dsetname2,RealScalar=ChemReac%Arrhenius_Powerfactor(iReac))
-CALL PrintOption('Arrhenius-Powerfactor','READIN',RealOpt=ChemReac%Arrhenius_Powerfactor(iReac))
+CALL PrintOption('Arrhenius-Powerfactor','DB',RealOpt=ChemReac%Arrhenius_Powerfactor(iReac))
 CALL ReadAttribute(file_id_specdb,'Activation-Energy_K',1,DatasetName = dsetname2,RealScalar=ChemReac%EActiv(iReac))
 ChemReac%EActiv(iReac) = ChemReac%EActiv(iReac)*BoltzmannConst
-CALL PrintOption('Activation-Energy_K','READIN',RealOpt=ChemReac%EActiv(iReac))
+CALL PrintOption('Activation-Energy_K','DB',RealOpt=ChemReac%EActiv(iReac))
 
 END SUBROUTINE ReadArrheniusFromDatabase
 END MODULE MOD_DSMC_ChemInit
