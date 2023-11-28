@@ -57,7 +57,7 @@ CALL prms%CreateIntArrayOption( 'Surface-Reaction[$]-Products'  &
                                            ,'Products of Reaction[$] (Product1, Product2, Product3)', '0 , 0, 0' &
                                            , numberedmulti=.TRUE.)
  CALL prms%CreateRealOption(     'Surface-Reaction[$]-ReactHeat', &
-                                    'Heat flux to or from the surface due to the reaction', '0.' , numberedmulti=.TRUE.)
+                                    'Heat flux to or from the surface due to the reaction [K]', '0.' , numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'Surface-Reaction[$]-HeatScaling', &
                                     'Linear dependence of the heat flux on the coverage', '0.' , numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'Surface-Reaction[$]-EnergyAccommodation', &
@@ -66,8 +66,8 @@ CALL prms%CreateIntOption(      'Surface-Reaction[$]-Inhibition','Inhibition/Coa
                                 '0', numberedmulti=.TRUE.)
 CALL prms%CreateIntOption(      'Surface-Reaction[$]-Promotion','Promotion/Coadsorption behaviour due to other reactions', &
                                 '0', numberedmulti=.TRUE.)
-CALL prms%CreateRealOption(     'Surface-Reaction[$]-StickingCoefficient', &
-                                    'Ratio of adsorbed to impinging particles on a reactive surface', '0.' , numberedmulti=.TRUE.)
+CALL prms%CreateRealOption(     'Surface-Reaction[$]-StickingCoefficient','Ratio of adsorbed to impinging particles on a\n' //&
+                                'reactive surface, Langmuir or Kisluik model', '0.' , numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'Surface-Reaction[$]-DissOrder',  &
                                     'Associative = 1, dissociative = 2', '0.' , numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'Surface-Reaction[$]-EqConstant',  &
@@ -87,7 +87,7 @@ CALL prms%CreateRealOption(     'Surface-Reaction[$]-Cb', &
 CALL prms%CreateRealOption(     'Surface-Reaction[$]-Prefactor', &
                                     'Arrhenius prefactor for the reaction/desorption', '0.' , numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'Surface-Reaction[$]-Energy', &
-                                    'Arrhenius energy for the reaction/desorption', '0.' , numberedmulti=.TRUE.)
+                                    'Arrhenius energy for the reaction/desorption [K]', '0.' , numberedmulti=.TRUE.)
 CALL prms%CreateLogicalOption(  'Surface-Diffusion', 'Diffusion along the surface', '.FALSE.')
 CALL prms%CreateLogicalOption(  'Surface-TotalDiffusion', 'Diffusion along all possible surface', '.FALSE.')
 CALL prms%CreateIntOption(      'Surface-Reaction[$]-NumOfBoundaries', 'Num of boundaries for surface reaction.', &
@@ -173,8 +173,15 @@ DO iReac = 1, ReadInNumOfReact
     SpecID = SurfChemReac(iReac)%Reactants(1)
     SurfChem%EventProbInfo(SpecID)%NumOfReactionPaths = SurfChem%EventProbInfo(SpecID)%NumOfReactionPaths + 1
   CASE('A','D','LH','LHD','ER')
-    PartBound%SurfaceModel(SurfChemReac(iReac)%Boundaries) = 20
-    PartBound%Reactive(iPartBound) = .TRUE.
+    ! Check if a surface model is already defined, if not set the boundary to reactive
+    IF (ANY(PartBound%SurfaceModel(SurfChemReac(iReac)%Boundaries).GT.0)) THEN
+      IF (ANY(PartBound%SurfaceModel(SurfChemReac(iReac)%Boundaries).NE.20)) THEN
+        SWRITE(*,*) 'WARNING: The surface model for boundary ', SurfChemReac(iReac)%Boundaries, ' is set to catalytic.'
+      END IF
+    ELSE
+      PartBound%SurfaceModel(SurfChemReac(iReac)%Boundaries) = 20
+      PartBound%Reactive(SurfChemReac(iReac)%Boundaries) = .TRUE.
+    END IF
     DO iReac2 = 1, SurfChemReac(iReac)%NumOfBounds
       SurfChem%BoundisChemSurf(SurfChemReac(iReac)%Boundaries(iReac2)) = .TRUE.
     END DO
@@ -548,7 +555,8 @@ END SUBROUTINE InitSurfaceModelChemistry
 !> 2.) Calculate the reaction probability by the Arrhenius equation (bias-free for multiple channels)
 !> 3.) Choose the occuring pathway by comparison with a random number
 !> 4.) Perform the chosen process
-!>   a.) Adsorption: delete the incoming particle and update the surface values
+!>   a.) Adsorption: delete the incoming particle and update the surface values, for the special case of dissociative adsorption,
+!>       the dissociated half is inserted in the gas phase
 !>   b.) ER: delete the incoming particle, update the surface values and create the gas phase products
 !===================================================================================================================================
 SUBROUTINE SurfaceModelChemistry(PartID,SideID,GlobalElemID,n_Loc,PartPosImpact)
@@ -562,7 +570,6 @@ USE MOD_SurfaceModel_Tools        ,ONLY: MaxwellScattering, CalcPostWallCollVelo
 USE MOD_Particle_Boundary_Tools   ,ONLY: CalcWallSample
 ! VARIABLES
 USE MOD_Globals_Vars              ,ONLY: PI, BoltzmannConst
-USE MOD_TimeDisc_Vars             ,ONLY: dt
 USE MOD_Particle_Vars             ,ONLY: PartSpecies,Species,usevMPF, WriteMacroSurfaceValues
 USE MOD_Particle_Tracking_Vars    ,ONLY: TrackInfo
 USE MOD_Particle_Boundary_Vars    ,ONLY: PartBound, GlobalSide2SurfSide, SurfSideArea_Shared
@@ -582,7 +589,6 @@ REAL,INTENT(IN)    :: PartPosImpact(1:3)  !< Charge and position of impact of bo
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER            :: ProductSpecNbr   !< number of emitted particles for ProductSpec(2)
-REAL               :: TempErgy         !< temperature, energy or velocity used for VeloFromDistribution
 INTEGER            :: locBCID, SurfSideID
 CHARACTER(LEN=5)   :: InteractionType
 REAL               :: RanNum, RanNum2
@@ -603,7 +609,7 @@ INTEGER            :: speciesID
 INTEGER            :: iReac_Ads, iReac_ER, iReac_ER_new
 INTEGER            :: iReac, iValProd, iProd, iReactant, iValReac
 INTEGER            :: iCoadsReac, iCoadsSpec
-INTEGER            :: NewPartID, iNewPart
+INTEGER            :: NewPartID
 INTEGER            :: SubP, SubQ
 !===================================================================================================================================
 ! 0.) Determine the surface parameters: Coverage and number of surface molecules
@@ -860,7 +866,7 @@ CASE('ER')
   CALL RemoveParticle(PartID)
 
   ! Heat flux on the surface created by the reaction
-  ChemSampWall(speciesID, 2,SubP,SubQ, SurfSideID) = ChemSampWall(speciesID, 2,SubP,SubQ, SurfSideID) + ReacHeat * partWeight * BetaCoeff
+  ChemSampWall(speciesID,2,SubP,SubQ,SurfSideID) = ChemSampWall(speciesID,2,SubP,SubQ,SurfSideID) + ReacHeat*partWeight*BetaCoeff
 
   ! Create the Eley-Rideal reaction product
   ! Incomplete energy accomodation: remaining energy is added to the product

@@ -525,7 +525,6 @@ END SUBROUTINE AnalyzePartPos
 SUBROUTINE SetInnerEnergies(iSpec, iSF, NbrOfParticle)
 ! MODULES
 USE MOD_Globals
-USE MOD_DSMC_Vars               ,ONLY: SpecDSMC
 USE MOD_Particle_Vars           ,ONLY: PDM
 USE MOD_DSMC_PolyAtomicModel    ,ONLY: DSMC_SetInternalEnr
 ! IMPLICIT VARIABLE HANDLING

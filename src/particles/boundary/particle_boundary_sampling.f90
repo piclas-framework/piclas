@@ -928,10 +928,10 @@ REAL,INTENT(IN)                      :: OutputTime
 CHARACTER(LEN=255)                  :: FileName,FileString,Statedummy
 CHARACTER(LEN=255)                  :: H5_Name
 CHARACTER(LEN=255)                  :: NodeTypeTemp
-CHARACTER(LEN=255)                  :: SpecID, ReacID
+CHARACTER(LEN=255)                  :: SpecID
 CHARACTER(LEN=255),ALLOCATABLE      :: Str2DVarNames(:)
 INTEGER                             :: nVar2D, nVar2D_Spec, nVar2D_Total, nVarCount, nVar2D_Heat
-INTEGER                             :: iSpec, iSurfSide, nReac, iReac
+INTEGER                             :: iSpec, iSurfSide, nReac
 INTEGER                             :: p,q,OutputCounter
 REAL                                :: tstart,tend, tout
 REAL, ALLOCATABLE                   :: MacroSurfaceSpecChemVal(:,:,:,:,:)
