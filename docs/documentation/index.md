@@ -7,7 +7,11 @@
 
 # Welcome to the PICLas Documentation!
 
-![alt](../logo.png)
+```{image} ../logo.png
+:alt: logo
+:width: 600px
+:align: center
+```
 
 [**PICLas**](https://github.com/piclas-framework/piclas)  is a three-dimensional simulation
 framework for Particle-in-Cell, Direct Simulation Monte Carlo and other particle methods that can be coupled for
