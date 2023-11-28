@@ -1307,6 +1307,7 @@ SUBROUTINE WriteClonesToHDF5(FileName)
 ! MODULES
 USE MOD_PreProc
 USE MOD_Globals
+USE MOD_TimeDisc_Vars ,ONLY: ManualTimeStep
 USE MOD_DSMC_Vars     ,ONLY: UseDSMC, CollisMode, DSMC, PolyatomMolDSMC, SpecDSMC
 USE MOD_DSMC_Vars     ,ONLY: RadialWeighting, ClonedParticles
 USE MOD_PARTICLE_Vars ,ONLY: nSpecies, usevMPF, Species, PartDataSize
@@ -1365,7 +1366,7 @@ CASE DEFAULT
 END SELECT
 
 DO pcount = 0,tempDelay
-    locnPart = locnPart + RadialWeighting%ClonePartNum(pcount)
+  locnPart = locnPart + RadialWeighting%ClonePartNum(pcount)
 END DO
 
 ! Communicate the total number and offset
@@ -1476,7 +1477,6 @@ CALL OpenDataFile(FileName,create=.FALSE.,single=.FALSE.,readOnly=.FALSE.,commun
 #else
 CALL OpenDataFile(FileName,create=.FALSE.,single=.TRUE.,readOnly=.FALSE.)
 #endif
-CALL WriteAttributeToHDF5(File_ID,'VarNamesParticleClones',PartDataSizeLoc,StrArray=StrVarNames)
 
 ASSOCIATE (&
       offsetnPart     => INT(offsetnPart,IK)   ,&
@@ -1518,6 +1518,14 @@ END IF
 END ASSOCIATE
 
 CALL CloseDataFile()
+
+! Output of clone species variables as attribute to the dataset
+IF(MPIRoot) THEN
+  CALL OpenDataFile(FileName,create=.FALSE.,single=.TRUE.,readOnly=.FALSE.)
+  CALL WriteAttributeToHDF5(File_ID,'VarNamesParticleClones',PartDataSizeLoc,StrArray=StrVarNames,DatasetName='CloneData')
+  CALL WriteAttributeToHDF5(File_ID,'ManualTimeStep',1,RealScalar=ManualTimeStep,DatasetName='CloneData')
+  CALL CloseDataFile()
+END IF
 
 DEALLOCATE(StrVarNames)
 DEALLOCATE(PartData)

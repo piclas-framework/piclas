@@ -660,6 +660,7 @@ SUBROUTINE ClonesReadin()
 USE MOD_Globals
 USE MOD_HDF5_input
 USE MOD_io_hdf5
+USE MOD_TimeDisc_Vars     ,ONLY: ManualTimeStep
 USE MOD_Mesh_Vars         ,ONLY: offsetElem, nElems
 USE MOD_DSMC_Vars         ,ONLY: useDSMC, CollisMode, DSMC, PolyatomMolDSMC, SpecDSMC
 USE MOD_DSMC_Vars         ,ONLY: RadialWeighting, ClonedParticles
@@ -681,19 +682,39 @@ REAL,ALLOCATABLE          :: CloneData(:,:)
 INTEGER                   :: iPolyatmole, MaxQuantNum, iSpec, compareDelay, MaxElecQuant
 INTEGER,ALLOCATABLE       :: pcount(:), VibQuantData(:,:)
 REAL, ALLOCATABLE         :: ElecDistriData(:,:), AD_Data(:,:)
-LOGICAL                   :: CloneExists
+LOGICAL                   :: CloneExists,TimeStepExists,ResetClones
+REAL                      :: OldTimeStep
 !===================================================================================================================================
+ResetClones = .FALSE.
 
+! Determining whether clones have been written to State file
 CALL DatasetExists(File_ID,'CloneData',CloneExists)
 IF(.NOT.CloneExists) THEN
   LBWRITE(*,*) 'No clone data found! Restart without cloning.'
+  ResetClones = .TRUE.
+END IF ! CloneExists
+
+! Determining the old time step
+CALL DatasetExists(File_ID,'ManualTimeStep',TimeStepExists,attrib=.TRUE.,DSetName_attrib='CloneData')
+IF(TimeStepExists) THEN
+  CALL ReadAttribute(File_ID,'ManualTimeStep',1,RealScalar=OldTimeStep,DatasetName='CloneData')
+  IF(OldTimeStep.NE.ManualTimeStep) THEN
+    ResetClones = .TRUE.
+    LBWRITE(*,*) 'Changed timestep of read-in CloneData. Resetting the array to avoid wrong cloning due to different time steps.'
+  END IF
+ELSE
+  ResetClones = .TRUE.
+  LBWRITE(*,*) 'Unknown timestep of read-in CloneData. Resetting the array to avoid wrong cloning due to different time steps.'
+END IF
+! Reset the clones if the time step has changed and leave the routine (also if no CloneData was found)
+IF(ResetClones) THEN
   IF(RadialWeighting%CloneMode.EQ.1) THEN
     RadialWeighting%CloneDelayDiff = 1
   ELSEIF (RadialWeighting%CloneMode.EQ.2) THEN
     RadialWeighting%CloneDelayDiff = 0
   END IF ! RadialWeighting%CloneMode.EQ.1
   RETURN
-END IF ! CloneExists
+END IF
 
 CALL GetDataSize(File_ID,'CloneData',nDimsClone,SizeClone)
 
