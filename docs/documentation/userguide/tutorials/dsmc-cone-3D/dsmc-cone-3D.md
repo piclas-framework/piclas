@@ -60,7 +60,7 @@ The following commands are required to save all elements even if they are not pa
     Save "70degCone_3D.msh";
 
 The mesh file in the file format `.h5` used by **piclas** has to be converted using HOPR by supplying an input file `hopr.ini` using the corresponding mode:
-    
+
     Mode = 5
 
 As another possibility, the `SplitToHex` option can be enabled in the `hopr.ini` file instead of using the `SubdivionAlgorithm` command in Gmsh. The expected result for the 3D mesh is shown in {numref}`fig:dsmc-cone-gmsh-mesh`.
@@ -68,7 +68,7 @@ As another possibility, the `SplitToHex` option can be enabled in the `hopr.ini`
 ```{figure} mesh/dsmc-cone-gmsh-mesh.jpg
 ---
 name: fig:dsmc-cone-gmsh-mesh
-width: 90%
+width: 600px
 ---
 
 3D mesh of the 70° cone.
@@ -109,7 +109,7 @@ An exemplary simulation result using the 3D mesh generated with Gmsh is shown in
 ```{figure} results/dsmc-cone-gmsh-visu.jpg
 ---
 name: fig:dsmc-cone-gmsh-visu
-width: 90%
+width: 600px
 ---
 
 Translational temperature around the 70° cone.
