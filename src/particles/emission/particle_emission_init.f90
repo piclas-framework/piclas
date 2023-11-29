@@ -458,8 +458,8 @@ USE MOD_DSMC_Vars               ,ONLY: useDSMC, DSMC, SpecDSMC, CollisMode
 USE MOD_Part_Emission_Tools     ,ONLY: SetParticleChargeAndMass,SetParticleMPF,SetParticleTimeStep
 USE MOD_part_emission_tools     ,ONLY: DSMC_SetInternalEnr_LauxVFD
 USE MOD_DSMC_PolyAtomicModel    ,ONLY: DSMC_SetInternalEnr_Poly
-USE MOD_Part_Pos_and_Velo       ,ONLY: CellLocalParticleEmission
 USE MOD_Part_Pos_and_Velo       ,ONLY: SetParticlePosition,SetParticleVelocity,ParticleEmissionFromDistribution
+USE MOD_Part_Pos_and_Velo       ,ONLY: ParticleEmissionCellLocal
 USE MOD_DSMC_AmbipolarDiffusion ,ONLY: AD_SetInitElectronVelo
 USE MOD_Part_Tools              ,ONLY: UpdateNextFreePosition, IncreaseMaxParticleNumber
 USE MOD_Particle_Vars           ,ONLY: Species,nSpecies,PDM,PEM, usevMPF, SpecReset, UseVarTimeStep
@@ -499,7 +499,7 @@ DO iSpec = 1,nSpecies
       ! Cell-local particle emission: every processors loops over its own elements
       CASE('cell_local')
         LBWRITE(UNIT_stdOut,'(A,I0,A)') ' Initial cell local particle emission for species ',iSpec,' ... '
-        CALL CellLocalParticleEmission(iSpec,iInit,NbrOfParticle)
+        CALL ParticleEmissionCellLocal(iSpec,iInit,NbrOfParticle)
         ! TODO: MOVE EVERYTHING INTO THE EMISSION ROUTINE
         CALL SetParticleVelocity(iSpec,iInit,NbrOfParticle)
         ! SetParticleMPF cannot be performed anymore since the PartMPF was set based on the SplitThreshold

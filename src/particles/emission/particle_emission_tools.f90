@@ -88,7 +88,6 @@ END INTERFACE
 PUBLIC :: CalcVelocity_taylorgreenvortex, CalcVelocity_gyrotroncircle
 PUBLIC :: IntegerDivide,SetParticleChargeAndMass,SetParticleMPF,CalcVelocity_maxwell_lpn,SamplePoissonDistri
 PUBLIC :: BessK,DEVI,SYNGE,QUASIREL
-PUBLIC :: SetCellLocalParticlePosition
 PUBLIC :: SetParticlePositionPoint, SetParticlePositionEquidistLine, SetParticlePositionLine, SetParticlePositionDisk
 PUBLIC :: SetParticlePositionCircle, SetParticlePositionGyrotronCircle, SetParticlePositionCuboidCylinder
 PUBLIC :: SetParticlePositionSphere, SetParticlePositionSinDeviation, SetParticleTimeStep
@@ -889,142 +888,6 @@ __STAMP__&
 END DO
 
 END SUBROUTINE SamplePoissonDistri
-
-
-SUBROUTINE SetCellLocalParticlePosition(chunkSize,iSpec,iInit,UseExactPartNum)
-!===================================================================================================================================
-!> routine for inserting particles positions locally in every cell
-!===================================================================================================================================
-! MODULES
-USE MOD_Globals
-USE MOD_DSMC_Vars               ,ONLY: RadialWeighting
-USE MOD_part_tools              ,ONLY: CalcRadWeightMPF
-USE MOD_Eval_xyz                ,ONLY: GetPositionInRefElem
-USE MOD_Mesh_Vars               ,ONLY: nElems,offsetElem
-USE MOD_Particle_Mesh_Vars      ,ONLY: LocalVolume
-USE MOD_Particle_Mesh_Vars      ,ONLY: BoundsOfElem_Shared,ElemVolume_Shared,ElemMidPoint_Shared
-USE MOD_Mesh_Tools              ,ONLY: GetCNElemID
-USE MOD_Particle_Tracking       ,ONLY: ParticleInsideCheck
-USE MOD_Particle_Vars           ,ONLY: Species, PDM, PartState, PEM, Symmetry, UseVarTimeStep, PartTimeStep, PartMPF, PartSpecies
-USE MOD_Particle_Vars           ,ONLY: usevMPF, UseSplitAndMerge, vMPFSplitThreshold
-USE MOD_Particle_TimeStep       ,ONLY: GetParticleTimeStep
-USE MOD_Part_Tools              ,ONLY: IncreaseMaxParticleNumber, GetNextFreePosition
-! IMPLICIT VARIABLE HANDLING
-IMPLICIT NONE
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
-INTEGER, INTENT(IN)              :: iSpec
-INTEGER, INTENT(IN)              :: iInit
-LOGICAL, INTENT(IN)              :: UseExactPartNum
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INOUTPUT VARIABLES
-INTEGER, INTENT(INOUT)           :: chunkSize
-!-----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-INTEGER                          :: iElem, ichunkSize, iGlobalElem
-INTEGER                          :: iPart,  nPart
-REAL                             :: iRan, RandomPos(3)
-REAL                             :: PartDens, CellLocalPartMPF
-LOGICAL                          :: InsideFlag
-INTEGER                          :: CellChunkSize(1+offsetElem:nElems+offsetElem)
-INTEGER                          :: chunkSize_tmp, PartID
-INTEGER                          :: CNElemID
-!-----------------------------------------------------------------------------------------------------------------------------------
-! Approximate the total number of particles to be inserted
-IF (UseExactPartNum) THEN
-  IF (Species(iSpec)%Init(iInit)%ParticleEmissionType.EQ.0) CALL IncreaseMaxParticleNumber(chunkSize)
-  CellChunkSize(:)=0
-  ASSOCIATE( start => GetCNElemID(1+offsetElem),&
-              end   => GetCNElemID(nElems+offsetElem))
-    CALL IntegerDivide(chunkSize,nElems,ElemVolume_Shared(start:end),CellChunkSize(:))
-  END ASSOCIATE
-ELSE
-  PartDens = Species(iSpec)%Init(iInit)%PartDensity / Species(iSpec)%MacroParticleFactor   ! numerical Partdensity is needed
-  IF(RadialWeighting%DoRadialWeighting) PartDens = PartDens * 2. / (RadialWeighting%PartScaleFactor)
-  chunkSize_tmp = INT(PartDens * LocalVolume)
-  IF (Species(iSpec)%Init(iInit)%ParticleEmissionType.EQ.0) CALL IncreaseMaxParticleNumber(chunkSize_tmp)
-END IF
-
-! Loop over all local elements and insert particles
-ichunkSize = 1
-PartID = 1
-DO iElem = 1, nElems
-  iGlobalElem = iElem + offsetElem
-  CNElemID = GetCNElemID(iGlobalElem)
-  ASSOCIATE( Bounds => BoundsOfElem_Shared(1:2,1:3,iGlobalElem), &
-              MinPos => Species(iSpec)%Init(iInit)%MinLocation(1:3), &
-              MaxPos => Species(iSpec)%Init(iInit)%MaxLocation(1:3)) ! 1-2: Min, Max value; 1-3: x,y,z
-    IF ((ElemMidPoint_Shared(1,CNElemID).LE.MinPos(1)).OR.(ElemMidPoint_Shared(1,CNElemID).GE.MaxPos(1))) CYCLE
-    IF ((ElemMidPoint_Shared(2,CNElemID).LE.MinPos(2)).OR.(ElemMidPoint_Shared(2,CNElemID).GE.MaxPos(2))) CYCLE
-    IF ((ElemMidPoint_Shared(3,CNElemID).LE.MinPos(3)).OR.(ElemMidPoint_Shared(3,CNElemID).GE.MaxPos(3))) CYCLE
-    IF (UseExactPartNum) THEN
-      nPart = CellChunkSize(iGlobalElem)
-    ELSE
-      ! Apply radial weighting
-      IF(RadialWeighting%DoRadialWeighting) THEN
-        PartDens = Species(iSpec)%Init(iInit)%PartDensity / CalcRadWeightMPF(ElemMidPoint_Shared(2,CNElemID), iSpec)
-      ELSE
-        PartDens = Species(iSpec)%Init(iInit)%PartDensity / Species(iSpec)%MacroParticleFactor
-      END IF
-      ! Apply variable time step
-      IF(UseVarTimeStep) THEN
-        PartDens = PartDens / GetParticleTimeStep(ElemMidPoint_Shared(1,CNElemID), ElemMidPoint_Shared(2,CNElemID), iElem)
-      END IF
-      ! Calculate the number of particles
-      CALL RANDOM_NUMBER(iRan)
-      nPart = INT(PartDens * ElemVolume_Shared(CNElemID) + iRan)
-      ! Variable weights: If a threshold for splitting has been defined for the species, insert that as the minimal number of particles
-      IF(UseSplitAndMerge) THEN
-        IF(vMPFSplitThreshold(iSpec).GT.0) THEN
-          nPart = vMPFSplitThreshold(iSpec)
-          CellLocalPartMPF = Species(iSpec)%Init(iInit)%PartDensity * ElemVolume_Shared(CNElemID) / REAL(nPart)
-        END IF
-      END IF
-      DO iPart = 1, nPart
-        PartID = GetNextFreePosition(ichunkSize)
-        InsideFlag=.FALSE.
-        DO WHILE(.NOT.InsideFlag)
-          CALL RANDOM_NUMBER(RandomPos)
-          IF(Symmetry%Axisymmetric.AND.(.NOT.RadialWeighting%DoRadialWeighting)) THEN
-            ! Treatment of axisymmetry without weighting
-            RandomPos(1) = Bounds(1,1) + RandomPos(1)*(Bounds(2,1)-Bounds(1,1))
-            RandomPos(2) = SQRT(RandomPos(2)*(Bounds(2,2)**2-Bounds(1,2)**2)+Bounds(1,2)**2)
-          ELSE
-            RandomPos = Bounds(1,:) + RandomPos*(Bounds(2,:)-Bounds(1,:))
-          END IF
-          IF(Symmetry%Order.LE.2) RandomPos(3) = 0.
-          IF(Symmetry%Order.LE.1) RandomPos(2) = 0.
-          InsideFlag = ParticleInsideCheck(RandomPos,iPart,iGlobalElem)
-        END DO
-        PartSpecies(PartID) = iSpec
-        PartState(1:3,PartID) = RandomPos(1:3)
-        PDM%ParticleInside(PartID) = .TRUE.
-        PDM%IsNewPart(PartID)=.TRUE.
-        PDM%dtFracPush(PartID) = .FALSE.
-        PEM%GlobalElemID(PartID) = iGlobalElem
-        ichunkSize = ichunkSize + 1
-        IF (UseVarTimeStep) PartTimeStep(PartID) = GetParticleTimeStep(PartState(1,PartID), PartState(2,PartID),iElem)
-        ! Check if vMPF (and radial weighting is used) to determine the MPF of the new particle
-        IF(usevMPF) THEN
-          IF(RadialWeighting%DoRadialWeighting) THEN
-            PartMPF(PartID) = CalcRadWeightMPF(PartState(2,PartID),iSpec,PartID)
-          ELSE
-            PartMPF(PartID) = Species(iSpec)%MacroParticleFactor
-          END IF
-        END IF
-        ! Correct the PartMPF in case the SplitThreshold was used as a fixed number of particles per cell
-        IF(UseSplitAndMerge) THEN
-          IF(vMPFSplitThreshold(iSpec).GT.0) PartMPF(PartID) = CellLocalPartMPF
-        END IF
-      END DO
-    END IF
-  END ASSOCIATE
-END DO
-chunkSize = ichunkSize - 1
-
-END SUBROUTINE SetCellLocalParticlePosition
 
 
 SUBROUTINE SetParticlePositionPoint(FractNbr,iInit,chunkSize,particle_positions)
@@ -2276,7 +2139,6 @@ SUBROUTINE SetParticlePositionLiu2010SzaboNeutralization(chunkSize,particle_posi
 ! modules
 USE MOD_Globals
 USE MOD_Mesh_Vars              ,ONLY: nElems,offsetElem
-USE MOD_Particle_Tracking      ,ONLY: ParticleInsideCheck
 USE MOD_Particle_Tracking_Vars ,ONLY: TrackingMethod
 USE MOD_Particle_Mesh_Vars     ,ONLY: BoundsOfElem_Shared
 USE MOD_Particle_Vars          ,ONLY: isNeutralizationElem,NeutralizationBalanceElem
