@@ -1398,15 +1398,15 @@ ParticleAnalyzeSampleTime = Time - ParticleAnalyzeSampleTime ! Set ParticleAnaly
       MaxCollProb = DSMC%CollProbMax
       ! ResolvedCellPercentage:
 #if USE_MPI
-      IF(MPIRoot)THEN
-        CALL MPI_REDUCE(MPI_IN_PLACE,DSMC%ResolvedCellCounter,1,MPI_REAL,MPI_SUM,0,MPI_COMM_PICLAS, IERROR)
-        CALL MPI_REDUCE(MPI_IN_PLACE,DSMC%ParticlePairingCounter,1,MPI_REAL,MPI_SUM,0,MPI_COMM_PICLAS, IERROR)
-      ELSE
-        CALL MPI_REDUCE(DSMC%ResolvedCellCounter,DSMC%ResolvedCellCounter,1,MPI_REAL,MPI_SUM,0,MPI_COMM_PICLAS, IERROR)
-        CALL MPI_REDUCE(DSMC%ParticlePairingCounter,DSMC%ParticlePairingCounter,1,MPI_REAL,MPI_SUM,0,MPI_COMM_PICLAS, IERROR)
-      END IF
+        IF(MPIRoot)THEN
+          CALL MPI_REDUCE(MPI_IN_PLACE,DSMC%ResolvedCellCounter,1,MPI_REAL,MPI_SUM,0,MPI_COMM_PICLAS, IERROR)
+          CALL MPI_REDUCE(MPI_IN_PLACE,DSMC%ParticlePairingCounter,1,MPI_REAL,MPI_SUM,0,MPI_COMM_PICLAS, IERROR)
+        ELSE
+          CALL MPI_REDUCE(DSMC%ResolvedCellCounter,DSMC%ResolvedCellCounter,1,MPI_REAL,MPI_SUM,0,MPI_COMM_PICLAS, IERROR)
+          CALL MPI_REDUCE(DSMC%ParticlePairingCounter,DSMC%ParticlePairingCounter,1,MPI_REAL,MPI_SUM,0,MPI_COMM_PICLAS, IERROR)
+        END IF
 #endif /*USE_MPI*/
-      ResolvedCellPercentage = REAL(DSMC%ResolvedCellCounter) / REAL(DSMC%ParticlePairingCounter) * 100
+        IF(DSMC%ParticlePairingCounter.GT.0) ResolvedCellPercentage = REAL(DSMC%ResolvedCellCounter) / REAL(DSMC%ParticlePairingCounter) * 100
       ! MeanCollProb:
       IF(DSMC%CollProbMeanCount.GT.0) MeanCollProb = DSMC%CollProbMean / DSMC%CollProbMeanCount
       ! MeanFreePath:
