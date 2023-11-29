@@ -206,8 +206,9 @@ SUBROUTINE SetParticleTimeStep(NbrOfParticle)
 !> the particle vector, loops over the total number of particles and the indices in the nextFreePosition array.
 !===================================================================================================================================
 ! MODULES
-USE MOD_Particle_Vars           ,ONLY: PDM, PartTimeStep, PEM, PartState
+USE MOD_Particle_Vars           ,ONLY: PartTimeStep, PEM, PartState
 USE MOD_Particle_TimeStep       ,ONLY: GetParticleTimeStep
+USE MOD_Part_Tools              ,ONLY: GetNextFreePosition
 !----------------------------------------------------------------------------------------------------------------------------------
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -221,7 +222,7 @@ INTEGER,INTENT(IN)              :: NbrOfParticle
 INTEGER                         :: iPart, PositionNbr
 !===================================================================================================================================
 DO iPart=1, NbrOfParticle
-  PositionNbr = PDM%nextFreePosition(iPart+PDM%CurrentNextFreePosition)
+  PositionNbr = GetNextFreePosition(iPart)
   PartTimeStep(PositionNbr) = GetParticleTimeStep(PartState(1,PositionNbr), PartState(2,PositionNbr),PEM%LocalElemID(PositionNbr))
 END DO
 
@@ -234,7 +235,8 @@ SUBROUTINE SetParticleChargeAndMass(FractNbr,NbrOfParticle)
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_Particle_Vars,    ONLY : PDM, PartSpecies
+USE MOD_Particle_Vars    ,ONLY: PartSpecies
+USE MOD_Part_Tools       ,ONLY: GetNextFreePosition
 !----------------------------------------------------------------------------------------------------------------------------------
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -246,15 +248,11 @@ INTEGER,INTENT(IN)                       :: FractNbr
 INTEGER,INTENT(INOUT)                    :: NbrOfParticle
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                                  :: i,PositionNbr
+INTEGER                                  :: iPart,PositionNbr
 !===================================================================================================================================
-DO i=1, NbrOfParticle
-  PositionNbr = PDM%nextFreePosition(i+PDM%CurrentNextFreePosition)
-  IF (PositionNbr .NE. 0) THEN
-    PartSpecies(PositionNbr) = FractNbr
-  ELSE
-    CALL abort(__STAMP__,'ERROR in SetParticlePosition:ParticleIndexNbr.EQ.0 - maximum nbr of particles reached?')
-  END IF
+DO iPart=1, NbrOfParticle
+  PositionNbr = GetNextFreePosition(iPart)
+  PartSpecies(PositionNbr) = FractNbr
 END DO
 
 END SUBROUTINE SetParticleChargeAndMass
@@ -266,9 +264,9 @@ SUBROUTINE SetParticleMPF(FractNbr,iInit,NbrOfParticle)
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_Particle_Vars ,ONLY: PDM, PartMPF, Species, PartState
+USE MOD_Particle_Vars ,ONLY: PartMPF, Species, PartState
 USE MOD_DSMC_Vars     ,ONLY: RadialWeighting
-USE MOD_part_tools    ,ONLY: CalcRadWeightMPF
+USE MOD_part_tools    ,ONLY: CalcRadWeightMPF, GetNextFreePosition
 !===================================================================================================================================
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -281,25 +279,19 @@ INTEGER,INTENT(IN)        :: iInit
 INTEGER,INTENT(INOUT)     :: NbrOfParticle
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                   :: i,PositionNbr
+INTEGER                   :: iPart,PositionNbr
 !===================================================================================================================================
-i = 1
-DO WHILE (i .le. NbrOfParticle)
-  PositionNbr = PDM%nextFreePosition(i+PDM%CurrentNextFreePosition)
-  IF (PositionNbr .NE. 0) THEN
-    IF(RadialWeighting%DoRadialWeighting) THEN
-      PartMPF(PositionNbr) = CalcRadWeightMPF(PartState(2,PositionNbr),FractNbr,PositionNbr)
-    ELSE
-      IF(iInit.EQ.-1)THEN
-        PartMPF(PositionNbr) = Species(FractNbr)%MacroParticleFactor
-      ELSE
-        PartMPF(PositionNbr) = Species(FractNbr)%Init(iInit)%MacroParticleFactor ! Use emission-specific MPF (default is species MPF)
-      END IF ! iInit.EQ.-1
-    END IF
+DO iPart=1,NbrOfParticle
+  PositionNbr = GetNextFreePosition(iPart)
+  IF(RadialWeighting%DoRadialWeighting) THEN
+    PartMPF(PositionNbr) = CalcRadWeightMPF(PartState(2,PositionNbr),FractNbr,PositionNbr)
   ELSE
-    CALL abort(__STAMP__,'ERROR in SetParticlePosition:ParticleIndexNbr.EQ.0 - maximum nbr of particles reached?')
+    IF(iInit.EQ.-1)THEN
+      PartMPF(PositionNbr) = Species(FractNbr)%MacroParticleFactor
+    ELSE
+      PartMPF(PositionNbr) = Species(FractNbr)%Init(iInit)%MacroParticleFactor ! Use emission-specific MPF (default is species MPF)
+    END IF ! iInit.EQ.-1
   END IF
-  i = i + 1
 END DO
 
 END SUBROUTINE SetParticleMPF
@@ -908,7 +900,7 @@ USE MOD_Globals
 USE MOD_DSMC_Vars               ,ONLY: RadialWeighting
 USE MOD_part_tools              ,ONLY: CalcRadWeightMPF
 USE MOD_Eval_xyz                ,ONLY: GetPositionInRefElem
-USE MOD_Mesh_Vars               ,ONLY: nElems,offsetElem,ElemBaryNGeo
+USE MOD_Mesh_Vars               ,ONLY: nElems,offsetElem
 USE MOD_Particle_Mesh_Vars      ,ONLY: LocalVolume
 USE MOD_Particle_Mesh_Vars      ,ONLY: BoundsOfElem_Shared,ElemVolume_Shared,ElemMidPoint_Shared
 USE MOD_Mesh_Tools              ,ONLY: GetCNElemID
@@ -916,6 +908,7 @@ USE MOD_Particle_Tracking       ,ONLY: ParticleInsideCheck
 USE MOD_Particle_Vars           ,ONLY: Species, PDM, PartState, PEM, Symmetry, UseVarTimeStep, PartTimeStep, PartMPF, PartSpecies
 USE MOD_Particle_Vars           ,ONLY: usevMPF, UseSplitAndMerge, vMPFSplitThreshold
 USE MOD_Particle_TimeStep       ,ONLY: GetParticleTimeStep
+USE MOD_Part_Tools              ,ONLY: IncreaseMaxParticleNumber, GetNextFreePosition
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -939,11 +932,9 @@ INTEGER                          :: CellChunkSize(1+offsetElem:nElems+offsetElem
 INTEGER                          :: chunkSize_tmp, PartID
 INTEGER                          :: CNElemID
 !-----------------------------------------------------------------------------------------------------------------------------------
-! Approximate the total number of particles to be inserted and abort otherwise
+! Approximate the total number of particles to be inserted
 IF (UseExactPartNum) THEN
-  IF(chunkSize.GE.PDM%maxParticleNumber) THEN
-    CALL abort(__STAMP__,'SetCellLocalParticlePosition: Maximum particle number reached! max. particles needed: ',chunksize)
-  END IF
+  IF (Species(iSpec)%Init(iInit)%ParticleEmissionType.EQ.0) CALL IncreaseMaxParticleNumber(chunkSize)
   CellChunkSize(:)=0
   ASSOCIATE( start => GetCNElemID(1+offsetElem),&
               end   => GetCNElemID(nElems+offsetElem))
@@ -953,13 +944,7 @@ ELSE
   PartDens = Species(iSpec)%Init(iInit)%PartDensity / Species(iSpec)%MacroParticleFactor   ! numerical Partdensity is needed
   IF(RadialWeighting%DoRadialWeighting) PartDens = PartDens * 2. / (RadialWeighting%PartScaleFactor)
   chunkSize_tmp = INT(PartDens * LocalVolume)
-  IF(.NOT.usevMPF) THEN
-    IF(chunkSize_tmp.GE.PDM%maxParticleNumber) THEN
-      CALL abort(__STAMP__,&
-      'ERROR in SetCellLocalParticlePosition: Maximum particle number during sanity check! max. particles needed: ',&
-      IntInfoOpt=chunkSize_tmp)
-    END IF
-  END IF
+  IF (Species(iSpec)%Init(iInit)%ParticleEmissionType.EQ.0) CALL IncreaseMaxParticleNumber(chunkSize_tmp)
 END IF
 
 ! Loop over all local elements and insert particles
@@ -997,10 +982,8 @@ DO iElem = 1, nElems
           CellLocalPartMPF = Species(iSpec)%Init(iInit)%PartDensity * ElemVolume_Shared(CNElemID) / REAL(nPart)
         END IF
       END IF
-    END IF
-    DO iPart = 1, nPart
-      PartID = PDM%nextFreePosition(iChunksize + PDM%CurrentNextFreePosition)
-      IF (PartID .GT. 0) THEN
+      DO iPart = 1, nPart
+        PartID = GetNextFreePosition(ichunkSize)
         InsideFlag=.FALSE.
         DO WHILE(.NOT.InsideFlag)
           CALL RANDOM_NUMBER(RandomPos)
@@ -1022,9 +1005,7 @@ DO iElem = 1, nElems
         PDM%dtFracPush(PartID) = .FALSE.
         PEM%GlobalElemID(PartID) = iGlobalElem
         ichunkSize = ichunkSize + 1
-        IF (UseVarTimeStep) THEN
-          PartTimeStep(PartID) = GetParticleTimeStep(PartState(1,PartID), PartState(2,PartID),iElem)
-        END IF
+        IF (UseVarTimeStep) PartTimeStep(PartID) = GetParticleTimeStep(PartState(1,PartID), PartState(2,PartID),iElem)
         ! Check if vMPF (and radial weighting is used) to determine the MPF of the new particle
         IF(usevMPF) THEN
           IF(RadialWeighting%DoRadialWeighting) THEN
@@ -1037,16 +1018,8 @@ DO iElem = 1, nElems
         IF(UseSplitAndMerge) THEN
           IF(vMPFSplitThreshold(iSpec).GT.0) PartMPF(PartID) = CellLocalPartMPF
         END IF
-      ELSE
-        WRITE(UNIT_stdOut,*) ""
-        IPWRITE(UNIT_stdOut,*) "ERROR:"
-        IPWRITE(UNIT_stdOut,*) "                iPart :", iPart
-        IPWRITE(UNIT_stdOut,*) "               PartID :", PartID
-        IPWRITE(UNIT_stdOut,*) "PDM%maxParticleNumber :", PDM%maxParticleNumber
-        CALL abort(__STAMP__&
-            ,'ERROR in SetCellLocalParticlePosition: Maximum particle number reached during inserting! --> PartID.LE.0')
-      END IF
-    END DO
+      END DO
+    END IF
   END ASSOCIATE
 END DO
 chunkSize = ichunkSize - 1
@@ -1332,7 +1305,7 @@ SUBROUTINE SetParticlePositionCuboidCylinder(FractNbr,iInit,chunkSize,particle_p
 !===================================================================================================================================
 ! modules
 USE MOD_Globals
-USE MOD_Particle_Vars          ,ONLY: Species, Symmetry, PDM
+USE MOD_Particle_Vars          ,ONLY: Species, Symmetry
 USE MOD_Part_Tools             ,ONLY: CalcPartSymmetryPos, CalcRadWeightMPF
 USE MOD_DSMC_Vars              ,ONLY: RadialWeighting
 !----------------------------------------------------------------------------------------------------------------------------------
@@ -1397,10 +1370,6 @@ INTEGER                 :: i, chunkSize2
         IF(Species(FractNbr)%MacroParticleFactor/RadWeightMPF.LT.iRan) THEN
           i=i+1
           CYCLE
-        ELSE IF(chunkSize2.GT.PDM%maxParticleNumber) THEN
-          IPWRITE(UNIT_stdOut,*)'Inserted percentage of particles',REAL(i)/REAL(chunkSize)*100
-          CALL CollectiveStop(__STAMP__,&
-            'Number of to be inserted particles per init-proc exceeds max. particle number! ')
         END IF
       END IF
     END IF
@@ -1420,7 +1389,7 @@ SUBROUTINE SetParticlePositionSphere(FractNbr,iInit,chunkSize,particle_positions
 !===================================================================================================================================
 ! modules
 USE MOD_Globals
-USE MOD_Particle_Vars          ,ONLY: Species, Symmetry, PDM
+USE MOD_Particle_Vars          ,ONLY: Species, Symmetry
 USE MOD_Part_tools             ,ONLY: DICEUNITVECTOR, CalcPartSymmetryPos, CalcRadWeightMPF
 USE MOD_DSMC_Vars              ,ONLY: RadialWeighting
 !----------------------------------------------------------------------------------------------------------------------------------
@@ -1459,10 +1428,6 @@ INTEGER                 :: i, chunkSize2
         IF(Species(FractNbr)%MacroParticleFactor/RadWeightMPF.LT.iRan) THEN
           i=i+1
           CYCLE
-        ELSE IF(chunkSize2.GT.PDM%maxParticleNumber) THEN
-          IPWRITE(UNIT_stdOut,*)'Inserted percentage of particles',REAL(i)/REAL(chunkSize)*100
-          CALL CollectiveStop(__STAMP__,&
-            'Number of to be inserted particles per init-proc exceeds max. particle number! ')
         END IF
       END IF
     END IF

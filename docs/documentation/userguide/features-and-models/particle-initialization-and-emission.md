@@ -1,18 +1,21 @@
 (sec:particle-initialization-and-emission)=
 # Particle Initialization & Emission
 
+The RAM to store the particles is dynamically allocated. However, it is possible to restrict the number of particles per MPI process by setting
+
+    Part-MaxParticleNumber=1000000
+
+New memory is allocated in separate chunks because allocating memory for the particle data and copying it to the new memory area is expensive. The chunksize is relative to the particles used and can be set with
+
+    Part-MaxPartNumIncrease=0.1
+
+A higher value increases the amount of unnecessary RAM allocated to particles, while a lower value increases the number of memory adjustment operations. The optimal trade-off depends on the simulation and the machine, but it only affects the performance of the simulations, not the quality of the results.
+
 The following section gives an overview of the available options regarding the definition of species and particle initialization
 and emission. Simulation particles can be inserted initially within the computational domain and/or emitted at every time step.
 First of all, the number of species is defined by
 
     Part-nSpecies=1
-    Part-MaxParticleNumber=1000000
-
-The maximum particle number is defined per core and should be chosen according to the number of simulation particles you expect,
-including a margin to account for imbalances due transient flow features and/or the occurrence of new particles due to chemical
-reactions. Example: A node of a HPC cluster has 2 CPUs, each has 12 cores. Thus, the node has 24 cores that share a total of
-128GB RAM. Allocating 1000000 particles per core means, you can simulate up to 24 Million particles on a single node in this
-example (assuming an even particle distribution). The limiting factor here is the amount of RAM available per node.
 
 Regardless whether a standalone PIC, DSMC, or a coupled simulation is performed, the atomic mass [kg], the charge [C] and the
 weighting factor $w$ [-], sometimes referred to as macro-particle factor (MPF), are required for each species.
