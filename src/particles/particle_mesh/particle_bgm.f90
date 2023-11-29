@@ -1242,17 +1242,17 @@ DO iElem = offsetElem+1,offsetElem+nElems
           ! Perform logical OR and place data on CN root
           CALL MPI_FETCH_AND_OP(.TRUE.   ,dummyLog,MPI_LOGICAL,0,INT(posRank*SIZE_INT,MPI_ADDRESS_KIND),MPI_LOR,FIBGMToProcFlag_Shared_Win  ,IERROR)
         END ASSOCIATE
-
-        ! Store the min/max extent
-        CALL MPI_FETCH_AND_OP(iBGM,dummyInt,MPI_INTEGER,0,INT(((ProcRank)*(3)*(2) + (1-1)*(2) + (1-1))*SIZE_INT,MPI_ADDRESS_KIND),MPI_MIN,FIBGMToProcExtent_Shared_Win,IERROR)
-        CALL MPI_FETCH_AND_OP(jBGM,dummyInt,MPI_INTEGER,0,INT(((ProcRank)*(3)*(2) + (2-1)*(2) + (1-1))*SIZE_INT,MPI_ADDRESS_KIND),MPI_MIN,FIBGMToProcExtent_Shared_Win,IERROR)
-        CALL MPI_FETCH_AND_OP(kBGM,dummyInt,MPI_INTEGER,0,INT(((ProcRank)*(3)*(2) + (3-1)*(2) + (1-1))*SIZE_INT,MPI_ADDRESS_KIND),MPI_MIN,FIBGMToProcExtent_Shared_Win,IERROR)
-        CALL MPI_FETCH_AND_OP(iBGM,dummyInt,MPI_INTEGER,0,INT(((ProcRank)*(3)*(2) + (1-1)*(2) + (2-1))*SIZE_INT,MPI_ADDRESS_KIND),MPI_MAX,FIBGMToProcExtent_Shared_Win,IERROR)
-        CALL MPI_FETCH_AND_OP(jBGM,dummyInt,MPI_INTEGER,0,INT(((ProcRank)*(3)*(2) + (2-1)*(2) + (2-1))*SIZE_INT,MPI_ADDRESS_KIND),MPI_MAX,FIBGMToProcExtent_Shared_Win,IERROR)
-        CALL MPI_FETCH_AND_OP(kBGM,dummyInt,MPI_INTEGER,0,INT(((ProcRank)*(3)*(2) + (3-1)*(2) + (2-1))*SIZE_INT,MPI_ADDRESS_KIND),MPI_MAX,FIBGMToProcExtent_Shared_Win,IERROR)
       END DO
     END DO
   END DO
+
+  ! Store the min/max extent
+  CALL MPI_FETCH_AND_OP(ElemToBGM_Shared(1,iElem),dummyInt,MPI_INTEGER,0,INT(((ProcRank)*(3)*(2) + (1-1)*(2) + (1-1))*SIZE_INT,MPI_ADDRESS_KIND),MPI_MIN,FIBGMToProcExtent_Shared_Win,IERROR)
+  CALL MPI_FETCH_AND_OP(ElemToBGM_Shared(3,iElem),dummyInt,MPI_INTEGER,0,INT(((ProcRank)*(3)*(2) + (2-1)*(2) + (1-1))*SIZE_INT,MPI_ADDRESS_KIND),MPI_MIN,FIBGMToProcExtent_Shared_Win,IERROR)
+  CALL MPI_FETCH_AND_OP(ElemToBGM_Shared(5,iElem),dummyInt,MPI_INTEGER,0,INT(((ProcRank)*(3)*(2) + (3-1)*(2) + (1-1))*SIZE_INT,MPI_ADDRESS_KIND),MPI_MIN,FIBGMToProcExtent_Shared_Win,IERROR)
+  CALL MPI_FETCH_AND_OP(ElemToBGM_Shared(2,iElem),dummyInt,MPI_INTEGER,0,INT(((ProcRank)*(3)*(2) + (1-1)*(2) + (2-1))*SIZE_INT,MPI_ADDRESS_KIND),MPI_MAX,FIBGMToProcExtent_Shared_Win,IERROR)
+  CALL MPI_FETCH_AND_OP(ElemToBGM_Shared(4,iElem),dummyInt,MPI_INTEGER,0,INT(((ProcRank)*(3)*(2) + (2-1)*(2) + (2-1))*SIZE_INT,MPI_ADDRESS_KIND),MPI_MAX,FIBGMToProcExtent_Shared_Win,IERROR)
+  CALL MPI_FETCH_AND_OP(ElemToBGM_Shared(6,iElem),dummyInt,MPI_INTEGER,0,INT(((ProcRank)*(3)*(2) + (3-1)*(2) + (2-1))*SIZE_INT,MPI_ADDRESS_KIND),MPI_MAX,FIBGMToProcExtent_Shared_Win,IERROR)
 END DO
 
 CALL MPI_WIN_FLUSH(0,FIBGM_nTotalElems_Shared_Win,iError)
