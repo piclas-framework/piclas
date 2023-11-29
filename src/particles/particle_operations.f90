@@ -46,7 +46,7 @@ USE MOD_Particle_Tracking_Vars  ,ONLY: TrackingMethod
 USE MOD_Eval_xyz                ,ONLY: GetPositionInRefElem
 USE MOD_part_tools              ,ONLY: CalcRadWeightMPF
 USE MOD_Particle_TimeStep       ,ONLY: GetParticleTimeStep
-USE MOD_Part_Tools              ,ONLY: InRotRefFrameCheck
+USE MOD_Part_Tools              ,ONLY: InRotRefFrameCheck, GetNextFreePosition
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
 ! INPUT / OUTPUT VARIABLES
@@ -64,15 +64,7 @@ REAL, INTENT(IN),OPTIONAL     :: NewMPF           !< MPF of newly created partic
 INTEGER :: newParticleID
 !===================================================================================================================================
 
-! Do not increase the ParticleVecLength for Phantom particles!
-PDM%CurrentNextFreePosition = PDM%CurrentNextFreePosition + 1
-newParticleID = PDM%nextFreePosition(PDM%CurrentNextFreePosition)
-IF(newParticleID.GT.PDM%ParticleVecLength) PDM%ParticleVecLength = PDM%ParticleVecLength + 1
-
-IF(newParticleID.GT.PDM%MaxParticleNumber)THEN
-  CALL abort(__STAMP__,'CreateParticle: newParticleID.GT.PDM%MaxParticleNumber. '//&
-                       'Increase Part-maxParticleNumber or use more processors. newParticleID=',IntInfoOpt=newParticleID)
-END IF
+newParticleID = GetNextFreePosition()
 
 PartSpecies(newParticleID)     = SpecID
 LastPartPos(1:3,newParticleID) = Pos(1:3)
