@@ -36,6 +36,18 @@ Finally, the `WriteSurfSampleToHDF5` routine writes the prepared `MacroSurfaceVa
 
 The order of the variable names and their position in the `MacroSurfaceVal` array has to be the same. Thus, make sure to place the `AddVarName` call at the same position, where you placed the calculation and writing into the `MacroSurfaceVal` array, otherwise the names and values will be mixed up.
 
+## Arrays with size of PDM%maxParticleNumber
+
+If an array is to store particle information, it is usually allocated with
+
+    ALLOCATE(ParticleInformation(1:PDM%maxParticleNumber))
+
+But since PDM%maxParticleNumber is dynamic, this behavior must also be captured by this array. Therefore its size has to be changed in the routines `IncreaseMaxParticleNumber` and `ReduceMaxParticleNumber` in `src/particles/particle_tools.f90`.
+
+    IF(ALLOCATED(ParticleInformation)) CALL ChangeSizeArray(ParticleInformation,PDM%maxParticleNumber,NewSize, Default)
+
+Default is an optional parameter if the new array memory is to be initialized with a specific value. The same must be done for TYPES of size PDM%maxParticleNumber. Please check both routines to see how to do it.
+
 ## Insert new particles
 
 To add new particles, first create a new particle ID using the GetNextFreePosition function contained in `src/particles/particle_tools.f90`
