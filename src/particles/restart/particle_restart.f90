@@ -61,7 +61,7 @@ USE MOD_Mesh_Tools             ,ONLY: GetCNElemID
 USE MOD_Mesh_Vars              ,ONLY: offsetElem
 ! Particles
 USE MOD_HDF5_Input_Particles   ,ONLY: ReadEmissionVariablesFromHDF5
-USE MOD_Part_Operations        ,ONLY: RemoveAllElectrons
+USE MOD_Part_Operations        ,ONLY: RemoveAllElectrons, RemoveParticle
 USE MOD_Part_Tools             ,ONLY: UpdateNextFreePosition,StoreLostParticleProperties, MergeCells
 USE MOD_Particle_Boundary_Vars ,ONLY: PartBound
 USE MOD_Particle_Vars          ,ONLY: PartInt,PartData,PartState,PartSpecies,PEM,PDM,usevMPF,PartMPF,PartPosRef,SpecReset,Species
@@ -748,11 +748,11 @@ IF(.NOT.DoMacroscopicRestart) THEN
             PartState(1:6,CurrentPartNum)        = RecBuff(1:6,iPart)
             PartSpecies(CurrentPartNum)          = INT(RecBuff(7,iPart))
             PEM%LastGlobalElemID(CurrentPartNum) = -1
-            PDM%ParticleInside(CurrentPartNum)   = .FALSE.
             IF(usevMPF) PartMPF(CurrentPartNum)  = RecBuff(8,iPart) ! only required when using vMPF
 
             CALL StoreLostParticleProperties(CurrentPartNum, PEM%GlobalElemID(CurrentPartNum), &
                                              UsePartState_opt=.TRUE., PartMissingType_opt=CompleteIndexOfFoundParticles(iPart))
+            CALL RemoveParticle(CurrentPartNum)
           END IF ! CountNbrOfLostParts
         END DO
 

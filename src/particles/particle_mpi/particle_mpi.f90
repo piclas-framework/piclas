@@ -431,6 +431,7 @@ USE MOD_Particle_MPI_Vars,       ONLY:nExchangeProcessors,ExchangeProcToGlobalPr
 USE MOD_Particle_Tracking_Vars,  ONLY:TrackingMethod
 USE MOD_Particle_Vars,           ONLY:PartState,PartSpecies,usevMPF,PartMPF,PEM,PDM,PartPosRef,Species
 USE MOD_Particle_Vars,           ONLY:UseRotRefFrame,PartVeloRotRef
+USE MOD_part_operations         ,ONLY: RemoveParticle
 #if defined(LSERK)
 USE MOD_Particle_Vars,           ONLY:Pt_temp
 #endif
@@ -733,13 +734,7 @@ DO iProc=0,nExchangeProcessors-1
       ! increment message position to next element, PartCommSize.EQ.jPos
       iPos=iPos+PartCommSize
       ! particle is ready for send, now it can deleted
-      PDM%ParticleInside(iPart) = .FALSE.
-
-#ifdef IMPA
-      DoPartInNewton(  iPart) = .FALSE.
-      PartLambdaAccept(iPart) = .TRUE.
-      PartIsImplicit(  iPart) = .FALSE.
-#endif /*IMPA*/
+      CALL RemoveParticle(iPart)
     END IF ! Particle is particle with target proc-id equals local proc id
   END DO  ! iPart
 
