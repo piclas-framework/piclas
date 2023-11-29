@@ -154,13 +154,12 @@ ReactionPathPerSpecies = 0
 ! Get the reaction names, reactive species and boundaries
 DO iReac = 1, ReadInNumOfReact
   WRITE(UNIT=hilf,FMT='(I0)') iReac
-  SurfChemReac(iReac)%CatName              = TRIM(GETSTR('Surface-Reaction'//TRIM(hilf)//'-SurfName'))
   SurfChemReac(iReac)%Reactants(:)           = GETINTARRAY('Surface-Reaction'//TRIM(hilf)//'-Reactants',2,'0,0')
   SurfChemReac(iReac)%Products(:)            = GETINTARRAY('Surface-Reaction'//TRIM(hilf)//'-Products',3,'0,0,0')
   SurfChemReac(iReac)%ReactType             = TRIM(GETSTR('Surface-Reaction'//TRIM(hilf)//'-Type'))
   SurfChemReac(iReac)%NumOfBounds           = GETINT('Surface-Reaction'//TRIM(hilf)//'-NumOfBoundaries')
   IF (SurfChemReac(iReac)%NumOfBounds.EQ.0) THEN
-      CALL abort(__STAMP__,'ERROR: At least one boundary must be defined for each surface reaction!',iReac)
+    CALL abort(__STAMP__,'ERROR: At least one boundary must be defined for each surface reaction!',iReac)
   END IF
 
   SurfChemReac(iReac)%Boundaries = GETINTARRAY('Surface-Reaction'//TRIM(hilf)//'-Boundaries',SurfChemReac(iReac)%NumOfBounds)
@@ -173,6 +172,7 @@ DO iReac = 1, ReadInNumOfReact
     SpecID = SurfChemReac(iReac)%Reactants(1)
     SurfChem%EventProbInfo(SpecID)%NumOfReactionPaths = SurfChem%EventProbInfo(SpecID)%NumOfReactionPaths + 1
   CASE('A','D','LH','LHD','ER')
+    SurfChemReac(iReac)%CatName              = TRIM(GETSTR('Surface-Reaction'//TRIM(hilf)//'-SurfName'))
     ! Check if a surface model is already defined, if not set the boundary to reactive
     IF (ANY(PartBound%SurfaceModel(SurfChemReac(iReac)%Boundaries).GT.0)) THEN
       IF (ANY(PartBound%SurfaceModel(SurfChemReac(iReac)%Boundaries).NE.20)) THEN
