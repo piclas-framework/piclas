@@ -845,7 +845,11 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
+#if USE_HDG
+#if USE_MPI
 INTEGER                     :: iEDCBC
+#endif /*USE_MPI*/
+#endif /*USE_HDG*/
 !===================================================================================================================================
 #if PP_nVar>=6
 IF(CalcPoyntingInt) CALL FinalizePoyntingInt()

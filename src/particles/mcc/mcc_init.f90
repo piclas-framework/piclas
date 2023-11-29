@@ -146,6 +146,11 @@ IF(UseMCC.AND.(DSMC%VibRelaxProb.EQ.2.0)) CALL abort(__STAMP__&
 IF(.NOT.UseMCC.AND.VarTimeStep%UseSpeciesSpecific) CALL abort(__STAMP__,&
       'ERROR: Only MCC is implemented with a species-specific time step!')
 
+! Disable SampleElecExcitation if electronic excitation has not been enabled for at least one species
+IF(SampleElecExcitation.AND.(.NOT.ANY(SpecDSMC(:)%UseElecXSec))) THEN
+  SampleElecExcitation = .FALSE.
+  LBWRITE(*,*) '| WARNING: Part-SampleElectronicExcitation has been disabled as no electronic excitation has been enabled through -UseElecXSec = T!'
+END IF
 ! Leave the routine
 IF(.NOT.UseMCC) RETURN
 
@@ -387,8 +392,8 @@ DO iSpec = 1, nSpecies
           CALL abort(__STAMP__,'Total null collision probability is above unity. Please reduce the time step! Probability is: '&
           ,RealInfoOpt=TotalProb(partSpec))
         ELSEIF(TotalProb(partSpec).GT.0.1) THEN
-          SWRITE(*,*) 'Total null collision probability is above 0.1. A value of 1E-2 is recommended in literature!'
-          SWRITE(*,*) 'Particle Species: ', TRIM(SpecDSMC(partSpec)%Name), ' Probability: ', TotalProb(partSpec)
+          LBWRITE(*,*) 'Total null collision probability is above 0.1. A value of 1E-2 is recommended in literature!'
+          LBWRITE(*,*) 'Particle Species: ', TRIM(SpecDSMC(partSpec)%Name), ' Probability: ', TotalProb(partSpec)
         END IF ! TotalProb(partSpec).GT.1.0
       END IF ! XSec_NullCollision
     END IF ! SpecXSec(iCase)%UseCollXSec
@@ -412,20 +417,22 @@ END IF
 IF(SampleElecExcitation) THEN
   ExcitationLevelCounter = 0
   ALLOCATE(ExcitationLevelMapping(CollInf%NumCase,MAXVAL(SpecXSec(:)%NumElecLevel)))
+  ! Count the number of excitation levels for all collision cases
   DO iCase = 1, CollInf%NumCase
     IF(.NOT.SpecXSec(iCase)%UseElecXSec) CYCLE
     DO iLevel = 1, SpecXSec(iCase)%NumElecLevel
       ExcitationLevelCounter = ExcitationLevelCounter + 1
       ExcitationLevelMapping(iCase,iLevel) = ExcitationLevelCounter
     END DO
-    IF(ExcitationLevelCounter.NE.SUM(SpecXSec(:)%NumElecLevel)) THEN
-      IPWRITE(UNIT_StdOut,*) "ExcitationLevelCounter        =", ExcitationLevelCounter
-      IPWRITE(UNIT_StdOut,*) "SUM(SpecXSec(:)%NumElecLevel) =", SUM(SpecXSec(:)%NumElecLevel)
-      CALL abort(__STAMP__,'Electronic excitation sampling: Wrong level counter!')
-    END IF
-    ALLOCATE(ExcitationSampleData(ExcitationLevelCounter,nElems))
-    ExcitationSampleData = 0.
   END DO
+  ! Sanity check
+  IF(ExcitationLevelCounter.NE.SUM(SpecXSec(:)%NumElecLevel)) THEN
+    IPWRITE(UNIT_StdOut,*) "ExcitationLevelCounter        =", ExcitationLevelCounter
+    IPWRITE(UNIT_StdOut,*) "SUM(SpecXSec(:)%NumElecLevel) =", SUM(SpecXSec(:)%NumElecLevel)
+    CALL abort(__STAMP__,'Electronic excitation sampling: Wrong level counter!')
+  END IF
+  ALLOCATE(ExcitationSampleData(ExcitationLevelCounter,nElems))
+  ExcitationSampleData = 0.
 END IF
 
 #if defined(PARTICLES) && USE_HDG
@@ -828,7 +835,7 @@ DO iLine = PhotoIonFirstLine, PhotoIonLastLine
   IF(SpecPhotonXSecInterpolated(iLine,NbrOfPhotonXsecReactions+3).LE.0.)THEN
     ZeroLine = iLine
     EXIT
-  END IF ! 
+  END IF !
 END DO ! iLine = PhotoIonFirstLine, PhotoIonLastLine
 
 IF(ZeroLine.GT.0)THEN
