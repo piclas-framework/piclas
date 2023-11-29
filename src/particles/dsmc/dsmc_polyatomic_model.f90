@@ -176,7 +176,7 @@ DEALLOCATE(iRan, iQuant_old)
 END SUBROUTINE DSMC_FindFirstVibPick
 
 
-SUBROUTINE DSMC_SetInternalEnr(iSpec, iInit, iPart, init_or_sf, iReac)
+SUBROUTINE DSMC_SetInternalEnr(iSpec, iInit, iPart, init_or_sf)
 !===================================================================================================================================
 !> Energy distribution according to dissertation of Laux (diatomic)
 !===================================================================================================================================
@@ -195,13 +195,10 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
 INTEGER, INTENT(IN)             :: iSpec, iInit, iPart, init_or_sf
-INTEGER, INTENT(IN), OPTIONAL   :: iReac
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-REAL                            :: iRan
-INTEGER                         :: iQuant
 REAL                            :: TVib                       ! vibrational temperature
 REAL                            :: TRot                       ! rotational temperature
 INTEGER                         :: ElemID

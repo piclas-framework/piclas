@@ -838,7 +838,7 @@ CASE('A')
 
     CALL CreateParticle(iProd,NewPos(1:3),GlobalElemID,NewVelo(1:3),0.,0.,0.,NewPartID=NewPartID, NewMPF=partWeight)
 
-    CALL DSMC_SetInternalEnr(iProd,locBCID,NewPartID,4,iReac)
+    CALL DSMC_SetInternalEnr(iProd,locBCID,NewPartID,4)
 
     IF((DSMC%CalcSurfaceVal.AND.SamplingActive).OR.(DSMC%CalcSurfaceVal.AND.WriteMacroSurfaceValues)) &
     CALL CalcWallSample(NewPartID,SurfSideID,'new',SurfaceNormal_opt=n_loc)
@@ -888,7 +888,7 @@ CASE('ER')
 
       CALL CreateParticle(iProd,NewPos(1:3),GlobalElemID,NewVelo(1:3),0.,0.,0.,NewPartID=NewPartID, NewMPF=partWeight)
 
-      CALL DSMC_SetInternalEnr(iProd,locBCID,NewPartID,4,iReac)
+      CALL DSMC_SetInternalEnr(iProd,locBCID,NewPartID,4)
 
       ! Sampling of newly created particles
       IF((DSMC%CalcSurfaceVal.AND.SamplingActive).OR.(DSMC%CalcSurfaceVal.AND.WriteMacroSurfaceValues)) &

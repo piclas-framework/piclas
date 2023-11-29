@@ -472,7 +472,7 @@ DO iSF = 1, nSF
         IF (useDSMC.AND.(CollisMode.GT.1)) THEN
           DO iPart = 1,NbrOfParticle
             PositionNbr = PDM%nextFreePosition(iPart+PDM%CurrentNextFreePosition)
-            IF (PositionNbr .NE. 0) CALL DSMC_SetInternalEnr(iSpec, BoundID, PositionNbr, 3, iReac)
+            IF (PositionNbr .NE. 0) CALL DSMC_SetInternalEnr(iSpec, BoundID, PositionNbr, 3)
           END DO
         END IF
 
