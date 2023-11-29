@@ -1166,7 +1166,7 @@ SUBROUTINE WriteAdaptiveWallTempToHDF5(FileName)
 USE MOD_PreProc
 USE MOD_Globals
 USE MOD_IO_HDF5
-USE MOD_Particle_Boundary_Vars    ,ONLY: nSurfSample, nSurfTotalSides, nComputeNodeSurfSides, offsetComputeNodeSurfSide
+USE MOD_Particle_Boundary_Vars    ,ONLY: nSurfSample, nGlobalSurfSides, nComputeNodeSurfSides, offsetComputeNodeSurfSide
 USE MOD_Particle_Boundary_Vars    ,ONLY: BoundaryWallTemp, SurfSide2GlobalSide
 #if USE_MPI
 USE MOD_MPI_Shared_Vars                ,ONLY: MPI_COMM_LEADERS_SURF
@@ -1190,7 +1190,7 @@ IF (MPI_COMM_LEADERS_SURF.EQ.MPI_COMM_NULL) RETURN
 CALL MPI_BARRIER(MPI_COMM_LEADERS_SURF,iERROR)
 
 ! Return if no sampling sides
-IF (nSurfTotalSides      .EQ.0) RETURN
+IF (nGlobalSurfSides      .EQ.0) RETURN
 #endif
 
 WRITE(H5_Name,'(A)') 'AdaptiveBoundaryWallTemp'
@@ -1205,7 +1205,7 @@ CALL OpenDataFile(FileName,create=.FALSE.,single=.TRUE.,readOnly=.FALSE.)
 ! Associate construct for integer KIND=8 possibility
 ASSOCIATE (&
       nSurfSample          => INT(nSurfSample,IK)               , &
-      nGlobalSides         => INT(nSurfTotalSides,IK)           , &
+      nGlobalSides         => INT(nGlobalSurfSides,IK)           , &
       nLocalSides          => INT(nComputeNodeSurfSides,IK)     , &
       offsetSurfSide       => INT(offsetComputeNodeSurfSide,IK))
   CALL WriteArrayToHDF5(DataSetName = H5_Name , rank = 3                   , &

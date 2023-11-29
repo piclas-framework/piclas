@@ -823,7 +823,7 @@ USE MOD_Globals
 USE MOD_HDF5_input
 USE MOD_io_hdf5
 USE MOD_Restart_Vars              ,ONLY: RestartFile
-USE MOD_Particle_Boundary_Vars    ,ONLY: nSurfSample, nSurfTotalSides
+USE MOD_Particle_Boundary_Vars    ,ONLY: nSurfSample, nGlobalSurfSides
 USE MOD_Particle_Boundary_Vars    ,ONLY: BoundaryWallTemp, GlobalSide2SurfSide
 #if USE_MPI
 USE MOD_MPI_Shared
@@ -844,52 +844,48 @@ INTEGER                   :: iSide, tmpSide, iSurfSide
 LOGICAL                   :: AdaptiveWallTempExists
 !===================================================================================================================================
 
-IF (nSurfTotalSides.EQ.0) RETURN
+! Leave routine if no surface sides have been defined in the domain
+IF (nGlobalSurfSides.EQ.0) RETURN
 
-CALL OpenDataFile(RestartFile,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_PICLAS)
+#if USE_MPI
+CALL OpenDataFile(RestartFile,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_LEADERS_SURF)
+#else
+CALL OpenDataFile(RestartFile,create=.FALSE.,single=.TRUE.,readOnly=.TRUE.)
+#endif
 
-CALL DatasetExists(File_ID,'AdaptiveBoundaryWallTemp',AdaptiveWallTempExists)
-IF (.NOT.AdaptiveWallTempExists) THEN
-  SWRITE(*,*) 'No side-local temperature found. The wall temperature will be adapted during the next macroscopic output.'
-  RETURN
-END IF
-
-CALL DatasetExists(File_ID,'AdaptiveBoundaryGlobalSideIndx',AdaptiveWallTempExists)
-IF (.NOT.AdaptiveWallTempExists) THEN
-  CALL Abort(__STAMP__,&
-    'ERROR during Restart: AdaptiveBoundaryWallTemp was found in the restart file but not the GlobalSideIndx array!')
-END IF
-
-ALLOCATE(tmpGlobalSideInx(nSurfTotalSides), &
-      tmpWallTemp(nSurfSample,nSurfSample,nSurfTotalSides))
 ! Associate construct for integer KIND=8 possibility
 #if USE_MPI
 ! Return if not a sampling leader
 IF (MPI_COMM_LEADERS_SURF.NE.MPI_COMM_NULL) THEN
 #endif
-  ASSOCIATE (&
-        nSurfSample          => INT(nSurfSample,IK)                     , &
-        nGlobalSides         => INT(nSurfTotalSides,IK))
+  CALL DatasetExists(File_ID,'AdaptiveBoundaryWallTemp',AdaptiveWallTempExists)
+  IF (.NOT.AdaptiveWallTempExists) THEN
+    SWRITE(*,*) 'No side-local temperature found. The wall temperature will be adapted during the next macroscopic output.'
+    RETURN
+  END IF
+
+  CALL DatasetExists(File_ID,'AdaptiveBoundaryGlobalSideIndx',AdaptiveWallTempExists)
+  IF (.NOT.AdaptiveWallTempExists) THEN
+    CALL Abort(__STAMP__,&
+      'ERROR during Restart: AdaptiveBoundaryWallTemp was found in the restart file but not the GlobalSideIndx array!')
+  END IF
+
+  ALLOCATE(tmpGlobalSideInx(nGlobalSurfSides),tmpWallTemp(nSurfSample,nSurfSample,nGlobalSurfSides))
+
+  ASSOCIATE (nSurfSample          => INT(nSurfSample,IK), &
+             nGlobalSides         => INT(nGlobalSurfSides,IK))
     CALL ReadArray('AdaptiveBoundaryGlobalSideIndx',1,(/nGlobalSides/),0_IK,1,IntegerArray_i4=tmpGlobalSideInx)
     CALL ReadArray('AdaptiveBoundaryWallTemp',3,(/nSurfSample, nSurfSample, nGlobalSides/),0_IK,1,RealArray=tmpWallTemp)
   END ASSOCIATE
-
-  DO iSide = 1, nSurfTotalSides
+  ! Mapping of the temperature on the global side to the node-local surf side
+  DO iSide = 1, nGlobalSurfSides
     tmpSide = tmpGlobalSideInx(iSide)
     IF (GlobalSide2SurfSide(SURF_SIDEID,tmpSide).EQ.-1) CYCLE
     iSurfSide = GlobalSide2SurfSide(SURF_SIDEID,tmpSide)
     BoundaryWallTemp(:,:,iSurfSide) = tmpWallTemp(:,:,iSide)
   END DO
 #if USE_MPI
-ELSE
-  ASSOCIATE (&
-        nSurfSample          => INT(0,IK)                     , &
-        nGlobalSides         => INT(0,IK))
-    CALL ReadArray('AdaptiveBoundaryGlobalSideIndx',1,(/nGlobalSides/),0_IK,1,IntegerArray_i4=tmpGlobalSideInx)
-    CALL ReadArray('AdaptiveBoundaryWallTemp',3,(/nSurfSample, nSurfSample, nGlobalSides/),0_IK,1,RealArray=tmpWallTemp)
-  END ASSOCIATE
 END IF
-
 CALL BARRIER_AND_SYNC(BoundaryWallTemp_Shared_Win,MPI_COMM_SHARED)
 #endif
 
