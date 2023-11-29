@@ -80,7 +80,7 @@ USE MOD_Globals
 USE MOD_Particle_Vars
 USE MOD_Globals_Vars            ,ONLY: BoltzmannConst
 USE MOD_part_emission_tools     ,ONLY: CalcVelocity_maxwell_lpn
-USE MOD_part_tools              ,ONLY: BuildTransGaussNums
+USE MOD_part_tools              ,ONLY: BuildTransGaussNums, GetNextFreePosition
 USE MOD_DSMC_Vars               ,ONLY: DSMC, AmbipolElecVelo
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE
@@ -117,33 +117,27 @@ END IF
 SELECT CASE(TRIM(velocityDistribution))
 CASE('constant')
   DO i = 1,NbrOfParticle
-    PositionNbr = PDM%nextFreePosition(i+PDM%CurrentNextFreePosition)
-    IF (PositionNbr.GT.0) THEN
-      IF (ALLOCATED(AmbipolElecVelo(PositionNbr)%ElecVelo)) DEALLOCATE(AmbipolElecVelo(PositionNbr)%ElecVelo)
-      ALLOCATE(AmbipolElecVelo(PositionNbr)%ElecVelo(3))
-      AmbipolElecVelo(PositionNbr)%ElecVelo(1:3) = VeloVecIC(1:3) * VeloIC 
-    END IF
+    PositionNbr = GetNextFreePosition(i)
+    IF (ALLOCATED(AmbipolElecVelo(PositionNbr)%ElecVelo)) DEALLOCATE(AmbipolElecVelo(PositionNbr)%ElecVelo)
+    ALLOCATE(AmbipolElecVelo(PositionNbr)%ElecVelo(3))
+    AmbipolElecVelo(PositionNbr)%ElecVelo(1:3) = VeloVecIC(1:3) * VeloIC
   END DO
 CASE('maxwell_lpn')
   DO i = 1,NbrOfParticle
-    PositionNbr = PDM%nextFreePosition(i+PDM%CurrentNextFreePosition)
-    IF (PositionNbr.GT.0) THEN
-      CALL CalcVelocity_maxwell_lpn(DSMC%AmbiDiffElecSpec, Vec3D, Temperature=Species(FractNbr)%Init(iInit)%MWTemperatureIC)
-      IF (ALLOCATED(AmbipolElecVelo(PositionNbr)%ElecVelo)) DEALLOCATE(AmbipolElecVelo(PositionNbr)%ElecVelo)
-      ALLOCATE(AmbipolElecVelo(PositionNbr)%ElecVelo(3))
-      AmbipolElecVelo(PositionNbr)%ElecVelo(1:3) = VeloIC *VeloVecIC(1:3) + Vec3D(1:3)
-    END IF
+    PositionNbr = GetNextFreePosition(i)
+    CALL CalcVelocity_maxwell_lpn(DSMC%AmbiDiffElecSpec, Vec3D, Temperature=Species(FractNbr)%Init(iInit)%MWTemperatureIC)
+    IF (ALLOCATED(AmbipolElecVelo(PositionNbr)%ElecVelo)) DEALLOCATE(AmbipolElecVelo(PositionNbr)%ElecVelo)
+    ALLOCATE(AmbipolElecVelo(PositionNbr)%ElecVelo(3))
+    AmbipolElecVelo(PositionNbr)%ElecVelo(1:3) = VeloIC *VeloVecIC(1:3) + Vec3D(1:3)
   END DO
 CASE('maxwell')
   CALL BuildTransGaussNums(NbrOfParticle, iRanPart)
   maxwellfac = SQRT(BoltzmannConst*Species(FractNbr)%Init(iInit)%MWTemperatureIC/Species(DSMC%AmbiDiffElecSpec)%MassIC)
   DO i = 1,NbrOfParticle
-    PositionNbr = PDM%nextFreePosition(i+PDM%CurrentNextFreePosition)
-    IF (PositionNbr.GT.0) THEN
-      IF (ALLOCATED(AmbipolElecVelo(PositionNbr)%ElecVelo)) DEALLOCATE(AmbipolElecVelo(PositionNbr)%ElecVelo)
-      ALLOCATE(AmbipolElecVelo(PositionNbr)%ElecVelo(3))
-      AmbipolElecVelo(PositionNbr)%ElecVelo(1:3) = VeloIC *VeloVecIC(1:3) + iRanPart(1:3,i)*maxwellfac
-    END IF
+    PositionNbr = GetNextFreePosition(i)
+    IF (ALLOCATED(AmbipolElecVelo(PositionNbr)%ElecVelo)) DEALLOCATE(AmbipolElecVelo(PositionNbr)%ElecVelo)
+    ALLOCATE(AmbipolElecVelo(PositionNbr)%ElecVelo(3))
+    AmbipolElecVelo(PositionNbr)%ElecVelo(1:3) = VeloIC *VeloVecIC(1:3) + iRanPart(1:3,i)*maxwellfac
   END DO
 CASE DEFAULT
   CALL abort(&
@@ -166,6 +160,7 @@ USE MOD_Particle_Surfaces_Vars, ONLY : SurfMeshSubSideData, TriaSurfaceFlux
 USE MOD_Particle_Surfaces,      ONLY : CalcNormAndTangBezier
 USE MOD_Particle_Sampling_Vars  ,ONLY: AdaptBCMapElemToSample, AdaptBCMacroVal
 USE MOD_DSMC_Vars               ,ONLY: AmbiPolarSFMapping, AmbipolElecVelo, DSMC
+USE MOD_Part_Tools              ,ONLY: GetNextFreePosition
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -256,31 +251,29 @@ CASE('constant')
   iPart = 0
   DO i = NbrOfParticle-PartIns+1,NbrOfParticle
     iPart = iPart + 1
-    PositionNbr = PDM%nextFreePosition(i+PDM%CurrentNextFreePosition)
-    IF (PositionNbr .NE. 0) THEN
-      ! In case of side-normal velocities: calc n-vector at particle position, xi was saved in PartState(4:5)
-      IF (Species(DSMC%AmbiDiffElecSpec)%Surfaceflux(iSF)%VeloIsNormal .AND. TriaSurfaceFlux) THEN
-        vec_nIn(1:3) = SurfMeshSubSideData(iSample,jSample,BCSideID)%vec_nIn(1:3)
-        vec_t1(1:3) = 0. !dummy
-        vec_t2(1:3) = 0. !dummy
-      ELSE IF (Species(DSMC%AmbiDiffElecSpec)%Surfaceflux(iSF)%VeloIsNormal) THEN
-        ! CALL CalcNormAndTangBezier( nVec=vec_nIn(1:3),xi=PartState(4,PositionNbr),eta=PartState(5,PositionNbr),SideID=SideID )
-        CALL CalcNormAndTangBezier( nVec=vec_nIn(1:3),xi=particle_xis(2*(iPart-1)+1),eta=particle_xis(2*(iPart-1)+2),SideID=SideID )
-        vec_nIn(1:3) = -vec_nIn(1:3)
-        vec_t1(1:3) = 0. !dummy
-        vec_t2(1:3) = 0. !dummy
-      ELSE
-        vec_nIn(1:3) = VeloVecIC(1:3)
-      END IF !VeloIsNormal
-      ! Build complete velo-vector
-      Vec3D(1:3) = vec_nIn(1:3) * Species(DSMC%AmbiDiffElecSpec)%Surfaceflux(iSF)%VeloIC
-      ! PartState(4:6,PositionNbr) = Vec3D(1:3)
-      IF (PositionNbr.GT.0) THEN
-        IF (ALLOCATED(AmbipolElecVelo(PositionNbr)%ElecVelo)) DEALLOCATE(AmbipolElecVelo(PositionNbr)%ElecVelo)
-        ALLOCATE(AmbipolElecVelo(PositionNbr)%ElecVelo(3))
-        AmbipolElecVelo(PositionNbr)%ElecVelo(1:3) = Vec3D(1:3)
-      END IF
-    END IF !PositionNbr .NE. 0
+    PositionNbr = GetNextFreePosition(i)
+    ! In case of side-normal velocities: calc n-vector at particle position, xi was saved in PartState(4:5)
+    IF (Species(DSMC%AmbiDiffElecSpec)%Surfaceflux(iSF)%VeloIsNormal .AND. TriaSurfaceFlux) THEN
+      vec_nIn(1:3) = SurfMeshSubSideData(iSample,jSample,BCSideID)%vec_nIn(1:3)
+      vec_t1(1:3) = 0. !dummy
+      vec_t2(1:3) = 0. !dummy
+    ELSE IF (Species(DSMC%AmbiDiffElecSpec)%Surfaceflux(iSF)%VeloIsNormal) THEN
+      ! CALL CalcNormAndTangBezier( nVec=vec_nIn(1:3),xi=PartState(4,PositionNbr),eta=PartState(5,PositionNbr),SideID=SideID )
+      CALL CalcNormAndTangBezier( nVec=vec_nIn(1:3),xi=particle_xis(2*(iPart-1)+1),eta=particle_xis(2*(iPart-1)+2),SideID=SideID )
+      vec_nIn(1:3) = -vec_nIn(1:3)
+      vec_t1(1:3) = 0. !dummy
+      vec_t2(1:3) = 0. !dummy
+    ELSE
+      vec_nIn(1:3) = VeloVecIC(1:3)
+    END IF !VeloIsNormal
+    ! Build complete velo-vector
+    Vec3D(1:3) = vec_nIn(1:3) * Species(DSMC%AmbiDiffElecSpec)%Surfaceflux(iSF)%VeloIC
+    ! PartState(4:6,PositionNbr) = Vec3D(1:3)
+    IF (PositionNbr.GT.0) THEN
+      IF (ALLOCATED(AmbipolElecVelo(PositionNbr)%ElecVelo)) DEALLOCATE(AmbipolElecVelo(PositionNbr)%ElecVelo)
+      ALLOCATE(AmbipolElecVelo(PositionNbr)%ElecVelo(3))
+      AmbipolElecVelo(PositionNbr)%ElecVelo(1:3) = Vec3D(1:3)
+    END IF
   END DO !i = ...NbrOfParticle
 CASE('maxwell','maxwell_lpn')
   !-- determine envelope for most efficient ARM [Garcia and Wagner 2006, JCP217-2]
@@ -306,151 +299,145 @@ CASE('maxwell','maxwell_lpn')
   iPart = 0
   DO i = NbrOfParticle-PartIns+1,NbrOfParticle
     iPart = iPart + 1
-    PositionNbr = PDM%nextFreePosition(i+PDM%CurrentNextFreePosition)
-    IF (PositionNbr .NE. 0) THEN
-      !-- 0a.: In case of side-normal velocities: calc n-/t-vectors at particle position, xi was saved in PartState(4:5)
-      IF (Species(DSMC%AmbiDiffElecSpec)%Surfaceflux(iSF)%VeloIsNormal .AND. TriaSurfaceFlux) THEN
-        vec_nIn(1:3) = SurfMeshSubSideData(iSample,jSample,BCSideID)%vec_nIn(1:3)
-        vec_t1(1:3) = SurfMeshSubSideData(iSample,jSample,BCSideID)%vec_t1(1:3)
-        vec_t2(1:3) = SurfMeshSubSideData(iSample,jSample,BCSideID)%vec_t2(1:3)
-      ELSE IF (Species(DSMC%AmbiDiffElecSpec)%Surfaceflux(iSF)%VeloIsNormal) THEN
-        ! CALL CalcNormAndTangBezier( nVec=vec_nIn(1:3),tang1=vec_t1(1:3),tang2=vec_t2(1:3) &
-        !   ,xi=PartState(4,PositionNbr),eta=PartState(5,PositionNbr),SideID=SideID )
-        CALL CalcNormAndTangBezier( nVec=vec_nIn(1:3),tang1=vec_t1(1:3),tang2=vec_t2(1:3) &
-          ,xi=particle_xis(2*(iPart-1)+1),eta=particle_xis(2*(iPart-1)+2),SideID=SideID )
-        vec_nIn(1:3) = -vec_nIn(1:3)
-      END IF !VeloIsNormal
-      !-- 1.: determine zstar (initial generation of potentially too many RVu is for needed indentities of RVu used multiple times!
-      SELECT CASE(envelope)
-      CASE(0)
-        CALL RANDOM_NUMBER(RandVal1)
-        zstar = -SQRT(-LOG(RandVal1))
-      CASE(1)
-        DO
-          CALL RANDOM_NUMBER(RandVal2)
-          zstar = -SQRT(a*a-LOG(RandVal2(1)))
-          IF ( -(a-zstar)/zstar .GT. RandVal2(2)) THEN
+    PositionNbr = GetNextFreePosition(i)
+    !-- 0a.: In case of side-normal velocities: calc n-/t-vectors at particle position, xi was saved in PartState(4:5)
+    IF (Species(DSMC%AmbiDiffElecSpec)%Surfaceflux(iSF)%VeloIsNormal .AND. TriaSurfaceFlux) THEN
+      vec_nIn(1:3) = SurfMeshSubSideData(iSample,jSample,BCSideID)%vec_nIn(1:3)
+      vec_t1(1:3) = SurfMeshSubSideData(iSample,jSample,BCSideID)%vec_t1(1:3)
+      vec_t2(1:3) = SurfMeshSubSideData(iSample,jSample,BCSideID)%vec_t2(1:3)
+    ELSE IF (Species(DSMC%AmbiDiffElecSpec)%Surfaceflux(iSF)%VeloIsNormal) THEN
+      ! CALL CalcNormAndTangBezier( nVec=vec_nIn(1:3),tang1=vec_t1(1:3),tang2=vec_t2(1:3) &
+      !   ,xi=PartState(4,PositionNbr),eta=PartState(5,PositionNbr),SideID=SideID )
+      CALL CalcNormAndTangBezier( nVec=vec_nIn(1:3),tang1=vec_t1(1:3),tang2=vec_t2(1:3) &
+        ,xi=particle_xis(2*(iPart-1)+1),eta=particle_xis(2*(iPart-1)+2),SideID=SideID )
+      vec_nIn(1:3) = -vec_nIn(1:3)
+    END IF !VeloIsNormal
+    !-- 1.: determine zstar (initial generation of potentially too many RVu is for needed indentities of RVu used multiple times!
+    SELECT CASE(envelope)
+    CASE(0)
+      CALL RANDOM_NUMBER(RandVal1)
+      zstar = -SQRT(-LOG(RandVal1))
+    CASE(1)
+      DO
+        CALL RANDOM_NUMBER(RandVal2)
+        zstar = -SQRT(a*a-LOG(RandVal2(1)))
+        IF ( -(a-zstar)/zstar .GT. RandVal2(2)) THEN
+          EXIT
+        END IF
+      END DO
+    CASE(2)
+      z = 0.5*(a-SQRT(a*a+2.))
+      beta  = a-(1.0-a)*(a-z)
+      DO
+        CALL RANDOM_NUMBER(RandVal3)
+        IF (EXP(-(beta*beta))/(EXP(-(beta*beta))+2.0*(a-z)*(a-beta)*EXP(-(z*z))).GT.RandVal3(1)) THEN
+          zstar=-SQRT(beta*beta-LOG(RandVal3(2)))
+          IF ( -(a-zstar)/zstar .GT. RandVal3(3)) THEN
             EXIT
           END IF
-        END DO
-      CASE(2)
-        z = 0.5*(a-SQRT(a*a+2.))
-        beta  = a-(1.0-a)*(a-z)
-        DO
-          CALL RANDOM_NUMBER(RandVal3)
-          IF (EXP(-(beta*beta))/(EXP(-(beta*beta))+2.0*(a-z)*(a-beta)*EXP(-(z*z))).GT.RandVal3(1)) THEN
-            zstar=-SQRT(beta*beta-LOG(RandVal3(2)))
-            IF ( -(a-zstar)/zstar .GT. RandVal3(3)) THEN
-              EXIT
-            END IF
-          ELSE
-            zstar=beta+(a-beta)*RandVal3(2)
-            IF ( (a-zstar)/(a-z)*EXP(z*z-(zstar*zstar)) .GT. RandVal3(3)) THEN
-              EXIT
-            END IF
+        ELSE
+          zstar=beta+(a-beta)*RandVal3(2)
+          IF ( (a-zstar)/(a-z)*EXP(z*z-(zstar*zstar)) .GT. RandVal3(3)) THEN
+            EXIT
           END IF
-        END DO
-      CASE(3)
-        DO
-          CALL RANDOM_NUMBER(RandVal3)
-          u = RandVal3(1)
-          IF ( a*SQRT(PI)/(a*SQRT(PI)+1+a*a) .GT. u) THEN
+        END IF
+      END DO
+    CASE(3)
+      DO
+        CALL RANDOM_NUMBER(RandVal3)
+        u = RandVal3(1)
+        IF ( a*SQRT(PI)/(a*SQRT(PI)+1+a*a) .GT. u) THEN
 !            IF (.NOT.DoZigguratSampling) THEN !polar method
-              IF (RandN_in_Mem) THEN !reusing second RandN form previous polar method
-                RandN = RandN_save
-                RandN_in_Mem=.FALSE.
-              ELSE
-                Velosq = 2
-                DO WHILE ((Velosq .GE. 1.) .OR. (Velosq .EQ. 0.))
-                  CALL RANDOM_NUMBER(RandVal2)
-                  Velo1 = 2.*RandVal2(1) - 1.
-                  Velo2 = 2.*RandVal2(2) - 1.
-                  Velosq = Velo1**2 + Velo2**2
-                END DO
-                RandN = Velo1*SQRT(-2*LOG(Velosq)/Velosq)
-                RandN_save = Velo2*SQRT(-2*LOG(Velosq)/Velosq)
-                RandN_in_Mem=.TRUE.
-              END IF
+            IF (RandN_in_Mem) THEN !reusing second RandN form previous polar method
+              RandN = RandN_save
+              RandN_in_Mem=.FALSE.
+            ELSE
+              Velosq = 2
+              DO WHILE ((Velosq .GE. 1.) .OR. (Velosq .EQ. 0.))
+                CALL RANDOM_NUMBER(RandVal2)
+                Velo1 = 2.*RandVal2(1) - 1.
+                Velo2 = 2.*RandVal2(2) - 1.
+                Velosq = Velo1**2 + Velo2**2
+              END DO
+              RandN = Velo1*SQRT(-2*LOG(Velosq)/Velosq)
+              RandN_save = Velo2*SQRT(-2*LOG(Velosq)/Velosq)
+              RandN_in_Mem=.TRUE.
+            END IF
 !            ELSE !ziggurat method
 !              RandN=rnor()
 !            END IF
-            zstar = -1./SQRT(2.)*ABS(RandN)
+          zstar = -1./SQRT(2.)*ABS(RandN)
+          EXIT
+        ELSE IF ( (a*SQRT(PI)+1.)/(a*SQRT(PI)+1+a*a) .GT. u) THEN
+          zstar = -SQRT(-LOG(RandVal3(2)))
+          EXIT
+        ELSE
+          zstar = (1.0-SQRT(RandVal3(2)))*a
+          IF (EXP(-(zstar*zstar)).GT.RandVal3(3)) THEN
             EXIT
-          ELSE IF ( (a*SQRT(PI)+1.)/(a*SQRT(PI)+1+a*a) .GT. u) THEN
-            zstar = -SQRT(-LOG(RandVal3(2)))
-            EXIT
-          ELSE
-            zstar = (1.0-SQRT(RandVal3(2)))*a
-            IF (EXP(-(zstar*zstar)).GT.RandVal3(3)) THEN
-              EXIT
-            END IF
           END IF
-        END DO
-      CASE(4)
-        DO
-          CALL RANDOM_NUMBER(RandVal3)
-          IF (1.0/(2.0*a*SQRT(PI)+1.0).GT.RandVal3(1)) THEN
-            zstar=-SQRT(-LOG(RandVal3(2)))
-          ELSE
+        END IF
+      END DO
+    CASE(4)
+      DO
+        CALL RANDOM_NUMBER(RandVal3)
+        IF (1.0/(2.0*a*SQRT(PI)+1.0).GT.RandVal3(1)) THEN
+          zstar=-SQRT(-LOG(RandVal3(2)))
+        ELSE
 !            IF (.NOT.DoZigguratSampling) THEN !polar method
-              IF (RandN_in_Mem) THEN !reusing second RandN form previous polar method
-                RandN = RandN_save
-                RandN_in_Mem=.FALSE.
-              ELSE
-                Velosq = 2
-                DO WHILE ((Velosq .GE. 1.) .OR. (Velosq .EQ. 0.))
-                  CALL RANDOM_NUMBER(RandVal2)
-                  Velo1 = 2.*RandVal2(1) - 1.
-                  Velo2 = 2.*RandVal2(2) - 1.
-                  Velosq = Velo1**2 + Velo2**2
-                END DO
-                RandN = Velo1*SQRT(-2*LOG(Velosq)/Velosq)
-                RandN_save = Velo2*SQRT(-2*LOG(Velosq)/Velosq)
-                RandN_in_Mem=.TRUE.
-              END IF
+            IF (RandN_in_Mem) THEN !reusing second RandN form previous polar method
+              RandN = RandN_save
+              RandN_in_Mem=.FALSE.
+            ELSE
+              Velosq = 2
+              DO WHILE ((Velosq .GE. 1.) .OR. (Velosq .EQ. 0.))
+                CALL RANDOM_NUMBER(RandVal2)
+                Velo1 = 2.*RandVal2(1) - 1.
+                Velo2 = 2.*RandVal2(2) - 1.
+                Velosq = Velo1**2 + Velo2**2
+              END DO
+              RandN = Velo1*SQRT(-2*LOG(Velosq)/Velosq)
+              RandN_save = Velo2*SQRT(-2*LOG(Velosq)/Velosq)
+              RandN_in_Mem=.TRUE.
+            END IF
 !            ELSE !ziggurat method
 !              RandN=rnor()
 !            END IF
-            zstar = 1./SQRT(2.)*RandN
-          END IF
-          IF ( (a-zstar)/a .GT. RandVal3(3)) THEN
-            EXIT
-          END IF
-        END DO
-      CASE DEFAULT
-        CALL abort(__STAMP__,'ERROR in SurfaceFlux: Wrong envelope in SetSurfacefluxVelocities!')
-      END SELECT
-      !-- 2.: sample normal directions and build complete velo-vector
-      Vec3D(1:3) = vec_nIn(1:3) * SQRT(2.*BoltzmannConst*T/Species(DSMC%AmbiDiffElecSpec)%MassIC)*(a-zstar)
+          zstar = 1./SQRT(2.)*RandN
+        END IF
+        IF ( (a-zstar)/a .GT. RandVal3(3)) THEN
+          EXIT
+        END IF
+      END DO
+    CASE DEFAULT
+      CALL abort(__STAMP__,'ERROR in SurfaceFlux: Wrong envelope in SetSurfacefluxVelocities!')
+    END SELECT
+    !-- 2.: sample normal directions and build complete velo-vector
+    Vec3D(1:3) = vec_nIn(1:3) * SQRT(2.*BoltzmannConst*T/Species(DSMC%AmbiDiffElecSpec)%MassIC)*(a-zstar)
 !      IF (.NOT.DoZigguratSampling) THEN !polar method
-        Velosq = 2
-        DO WHILE ((Velosq .GE. 1.) .OR. (Velosq .EQ. 0.))
-          CALL RANDOM_NUMBER(RandVal2)
-          Velo1 = 2.*RandVal2(1) - 1.
-          Velo2 = 2.*RandVal2(2) - 1.
-          Velosq = Velo1**2 + Velo2**2
-        END DO
-        Velo1 = Velo1*SQRT(-2*LOG(Velosq)/Velosq)
-        Velo2 = Velo2*SQRT(-2*LOG(Velosq)/Velosq)
+      Velosq = 2
+      DO WHILE ((Velosq .GE. 1.) .OR. (Velosq .EQ. 0.))
+        CALL RANDOM_NUMBER(RandVal2)
+        Velo1 = 2.*RandVal2(1) - 1.
+        Velo2 = 2.*RandVal2(2) - 1.
+        Velosq = Velo1**2 + Velo2**2
+      END DO
+      Velo1 = Velo1*SQRT(-2*LOG(Velosq)/Velosq)
+      Velo2 = Velo2*SQRT(-2*LOG(Velosq)/Velosq)
 !      ELSE !ziggurat method
 !        Velo1=rnor()
 !        Velo2=rnor()
 !      END IF
-      Vec3D(1:3) = Vec3D(1:3) + vec_t1(1:3) * ( Velo_t1+Velo1*SQRT(BoltzmannConst*T/Species(DSMC%AmbiDiffElecSpec)%MassIC) )
-      Vec3D(1:3) = Vec3D(1:3) + vec_t2(1:3) * ( Velo_t2+Velo2*SQRT(BoltzmannConst*T/Species(DSMC%AmbiDiffElecSpec)%MassIC) )
-      IF (PositionNbr.GT.0) THEN
-        IF (ALLOCATED(AmbipolElecVelo(PositionNbr)%ElecVelo)) DEALLOCATE(AmbipolElecVelo(PositionNbr)%ElecVelo)
-        ALLOCATE(AmbipolElecVelo(PositionNbr)%ElecVelo(3))
-        AmbipolElecVelo(PositionNbr)%ElecVelo(1:3) = Vec3D(1:3)
-      END IF
-    ELSE !PositionNbr .EQ. 0
-      CALL abort(__STAMP__,'PositionNbr .EQ. 0!')
-    END IF !PositionNbr .NE. 0
+    Vec3D(1:3) = Vec3D(1:3) + vec_t1(1:3) * ( Velo_t1+Velo1*SQRT(BoltzmannConst*T/Species(DSMC%AmbiDiffElecSpec)%MassIC) )
+    Vec3D(1:3) = Vec3D(1:3) + vec_t2(1:3) * ( Velo_t2+Velo2*SQRT(BoltzmannConst*T/Species(DSMC%AmbiDiffElecSpec)%MassIC) )
+    IF (ALLOCATED(AmbipolElecVelo(PositionNbr)%ElecVelo)) DEALLOCATE(AmbipolElecVelo(PositionNbr)%ElecVelo)
+    ALLOCATE(AmbipolElecVelo(PositionNbr)%ElecVelo(3))
+    AmbipolElecVelo(PositionNbr)%ElecVelo(1:3) = Vec3D(1:3)
   END DO !i = ...NbrOfParticle
 CASE DEFAULT
   CALL abort(__STAMP__,'ERROR in SurfaceFlux: Wrong velocity distribution!')
 END SELECT
-  
+
 END SUBROUTINE AD_SetSFElectronVelo
 
 
@@ -459,12 +446,13 @@ SUBROUTINE AD_InsertParticles(iPartIndx_Node, nPart, iPartIndx_NodeTotalAmbi, To
 !> Creating electrons for each actual ion simulation particle, using the stored velocity vector for the electron
 !===================================================================================================================================
 ! MODULES
-USE MOD_Globals                
+USE MOD_Globals
 USE MOD_DSMC_Vars               ,ONLY: BGGas, CollisMode, DSMC, PartStateIntEn, AmbipolElecVelo, RadialWeighting
 USE MOD_DSMC_Vars               ,ONLY: DSMCSumOfFormedParticles, newAmbiParts, iPartIndx_NodeNewAmbi
 USE MOD_PARTICLE_Vars           ,ONLY: PDM, PartSpecies, PartState, PEM, Species, PartMPF, Symmetry, usevMPF
 USE MOD_PARTICLE_Vars           ,ONLY: UseVarTimeStep, PartTimeStep
 USE MOD_Particle_Tracking       ,ONLY: ParticleInsideCheck
+USE MOD_Part_Tools              ,ONLY: GetNextFreePosition
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -506,12 +494,7 @@ TotalPartNum = nPart
 
 DO iLoop = 1, nNewElectrons
   DSMCSumOfFormedParticles = DSMCSumOfFormedParticles + 1
-  PositionNbr = PDM%nextFreePosition(DSMCSumOfFormedParticles+PDM%CurrentNextFreePosition)
-  IF (PositionNbr.EQ.0) THEN
-    CALL Abort(&
-__STAMP__&
-,'ERROR in Ambipolar Diffusion: MaxParticleNumber too small!')
-  END IF
+  PositionNbr = GetNextFreePosition()
   InsideFlag=.FALSE.
   iElem = PEM%GlobalElemID(iPartIndx_Node(1))
   DO WHILE(.NOT.InsideFlag)
@@ -633,7 +616,7 @@ END IF
 DO iLoop = 1, nElectron
   IF (ALLOCATED(AmbipolElecVelo(IonIndX(iLoop))%ElecVelo)) DEALLOCATE(AmbipolElecVelo(IonIndX(iLoop))%ElecVelo)
   ALLOCATE(AmbipolElecVelo(IonIndX(iLoop))%ElecVelo(3))
-  AmbipolElecVelo(IonIndX(iLoop))%ElecVelo(1:3) = PartState(4:6,ElecIndx(iLoop)) 
+  AmbipolElecVelo(IonIndX(iLoop))%ElecVelo(1:3) = PartState(4:6,ElecIndx(iLoop))
   PDM%ParticleInside(ElecIndx(iLoop)) = .FALSE.
 END DO
 
