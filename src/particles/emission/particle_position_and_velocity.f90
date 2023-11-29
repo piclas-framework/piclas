@@ -33,17 +33,14 @@ INTERFACE SetParticleVelocity
   MODULE PROCEDURE SetParticleVelocity
 END INTERFACE
 
-INTERFACE SetPartPosAndVeloEmissionDistribution
-  MODULE PROCEDURE SetPartPosAndVeloEmissionDistribution
-END INTERFACE
-
 !===================================================================================================================================
-PUBLIC :: SetParticleVelocity, SetParticlePosition, SetPartPosAndVeloEmissionDistribution
+PUBLIC :: CellLocalParticleEmission
+PUBLIC :: SetParticleVelocity, SetParticlePosition, ParticleEmissionFromDistribution
 !===================================================================================================================================
 CONTAINS
 
 
-SUBROUTINE SetParticlePositionCellLocal(FractNbr,iInit,NbrOfParticle)
+SUBROUTINE CellLocalParticleEmission(FractNbr,iInit,NbrOfParticle)
 !===================================================================================================================================
 ! Set particle position for processor-local particles (only in processor elements)
 !===================================================================================================================================
@@ -126,7 +123,7 @@ IF ((chunksize.GT.0).OR.(Species(FractNbr)%Init(iInit)%PartDensity.GT.0.)) THEN
 END IF
 NbrOfParticle = chunksize
 
-END SUBROUTINE SetParticlePositionCellLocal
+END SUBROUTINE CellLocalParticleEmission
 
 
 SUBROUTINE SetParticlePosition(FractNbr,iInit,NbrOfParticle)
@@ -137,7 +134,7 @@ SUBROUTINE SetParticlePosition(FractNbr,iInit,NbrOfParticle)
 USE MOD_Globals
 USE MOD_Particle_Vars          ,ONLY: Species,PDM,PartState,FractNbrOld,chunkSizeOld,NeutralizationBalance
 USE MOD_Particle_Localization  ,ONLY: LocateParticleInElement
-USE MOD_part_emission_tools    ,ONLY: IntegerDivide,SetCellLocalParticlePosition,SetParticlePositionPoint
+USE MOD_part_emission_tools    ,ONLY: IntegerDivide,SetParticlePositionPoint
 USE MOD_part_emission_tools    ,ONLY: SetParticlePositionEquidistLine, SetParticlePositionLine, SetParticlePositionDisk
 USE MOD_part_emission_tools    ,ONLY: SetParticlePositionCuboidCylinder, SetParticlePositionGyrotronCircle,SetParticlePositionCircle
 USE MOD_part_emission_tools    ,ONLY: SetParticlePositionSphere, SetParticlePositionSinDeviation
@@ -170,11 +167,6 @@ INTEGER                                  :: DimSend
 INTEGER                                  :: InitGroup
 #endif
 !===================================================================================================================================
-IF (TRIM(Species(FractNbr)%Init(iInit)%SpaceIC).EQ.'cell_local') THEN
-  CALL SetParticlePositionCellLocal(FractNbr,iInit,NbrOfParticle)
-  RETURN
-END IF
-
 Species(FractNbr)%Init(iInit)%sumOfRequestedParticles = NbrOfParticle
 IF((NbrOfParticle.LE.0).AND.(ABS(Species(FractNbr)%Init(iInit)%PartDensity).LE.0.)) RETURN
 
@@ -543,14 +535,14 @@ END SUBROUTINE SetParticleVelocity
 !> Each processor creates all species randomly in each element using the sub-volumes defined by the Gaussian quadrature and
 !> guarantees that at least one particle is created for each sub volume (depending of course on the MPF).
 !===================================================================================================================================
-SUBROUTINE SetPartPosAndVeloEmissionDistribution(iSpec,iInit,NbrOfParticle)
+SUBROUTINE ParticleEmissionFromDistribution(iSpec,iInit,NbrOfParticle)
 ! modules
 !USE MOD_Globals
 USE MOD_PreProc
 USE MOD_Globals                ,ONLY: myrank,UNIT_StdOut,abort
 USE MOD_part_tools             ,ONLY: InitializeParticleMaxwell,InterpolateEmissionDistribution2D
 USE MOD_Mesh_Vars              ,ONLY: nElems,offsetElem
-USE MOD_Particle_Vars          ,ONLY: Species, PDM, PartState, PEM, LastPartPos
+USE MOD_Particle_Vars          ,ONLY: Species, PDM, PartState, PEM, LastPartPos, PartSpecies
 USE MOD_Particle_Tracking      ,ONLY: ParticleInsideCheck
 USE MOD_Mesh_Tools             ,ONLY: GetCNElemID
 USE MOD_Particle_Emission_Vars ,ONLY: EmissionDistributionDim, EmissionDistributionN
@@ -746,6 +738,7 @@ DO iElem = 1, nElems
                     (PositionNbr.EQ.0)) CALL abort(__STAMP__,'Emission: Increase maxParticleNumber!',PositionNbr)
                 PartState(1:3,PositionNbr) = RandomPos(1:3)
                 CALL InitializeParticleMaxwell(PositionNbr,iSpec,iElem,Mode=2,iInit=iInit)
+                PartSpecies(PositionNbr) = iSpec
               END IF
             END DO ! nPart
           END DO ! k
@@ -796,6 +789,7 @@ DO iElem = 1, nElems
                (PositionNbr.EQ.0)) CALL abort(__STAMP__,'Emission: Increase maxParticleNumber!',PositionNbr)
             PartState(1:3,PositionNbr) = RandomPos(1:3)
             CALL InitializeParticleMaxwell(PositionNbr,iSpec,iElem,Mode=2,iInit=iInit)
+            PartSpecies(PositionNbr) = iSpec
           END IF
         END DO ! nPart
 
@@ -808,7 +802,7 @@ DO iElem = 1, nElems
   END SELECT
 
 END DO ! iElem = 1, nElems
-END SUBROUTINE SetPartPosAndVeloEmissionDistribution
+END SUBROUTINE ParticleEmissionFromDistribution
 
 
 END  MODULE MOD_part_pos_and_velo

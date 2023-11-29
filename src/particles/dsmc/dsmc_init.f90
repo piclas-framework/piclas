@@ -296,9 +296,8 @@ USE MOD_Symmetry_Vars          ,ONLY: Symmetry
 USE MOD_Particle_Vars          ,ONLY: DoFieldIonization,SampleElecExcitation
 USE MOD_DSMC_ParticlePairing   ,ONLY: DSMC_init_octree
 USE MOD_DSMC_ChemInit          ,ONLY: DSMC_chemical_init
-USE MOD_DSMC_PolyAtomicModel   ,ONLY: InitPolyAtomicMolecs, DSMC_SetInternalEnr_Poly
+USE MOD_DSMC_PolyAtomicModel   ,ONLY: InitPolyAtomicMolecs
 USE MOD_DSMC_CollisVec         ,ONLY: DiceDeflectedVelocityVector4Coll, DiceVelocityVector4Coll, PostCollVec
-USE MOD_part_emission_tools    ,ONLY: DSMC_SetInternalEnr_LauxVFD
 USE MOD_DSMC_BGGas             ,ONLY: BGGas_RegionsSetInternalTemp
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Vars       ,ONLY: PerformLoadBalance
@@ -627,17 +626,15 @@ ELSE !CollisMode.GT.0
     SpecDSMC(1:nSpecies)%MaxVibQuant = 0
     SpecDSMC(1:nSpecies)%CharaTVib = 0
     SpecDSMC(1:nSpecies)%EZeroPoint = 0.0
-    SpecDSMC(1:nSpecies)%PolyatomicMol=.false.
+    SpecDSMC(1:nSpecies)%PolyatomicMol = .FALSE.
     SpecDSMC(1:nSpecies)%SpecToPolyArray = 0
-    useRelaxProbCorrFactor=GETLOGICAL('Particles-DSMC-useRelaxProbCorrFactor','.FALSE.')
+    useRelaxProbCorrFactor=GETLOGICAL('Particles-DSMC-useRelaxProbCorrFactor')
     DO iSpec = 1, nSpecies
       IF(SpecDSMC(iSpec)%InterID.NE.4) THEN
         WRITE(UNIT=hilf,FMT='(I0)') iSpec
-        SpecDSMC(iSpec)%PolyatomicMol=GETLOGICAL('Part-Species'//TRIM(hilf)//'-PolyatomicMol','.FALSE.')
+        SpecDSMC(iSpec)%PolyatomicMol=GETLOGICAL('Part-Species'//TRIM(hilf)//'-PolyatomicMol')
         IF(SpecDSMC(iSpec)%PolyatomicMol.AND.DSMC%DoTEVRRelaxation)  THEN
-          CALL Abort(&
-              __STAMP__&
-              ,'! Simulation of Polyatomic Molecules and T-E-V-R relaxation not possible yet!!!')
+          CALL Abort(__STAMP__,'! Simulation of Polyatomic Molecules and T-E-V-R relaxation not possible yet!!!')
         END IF
         IF(SpecDSMC(iSpec)%PolyatomicMol) THEN
           DSMC%NumPolyatomMolecs = DSMC%NumPolyatomMolecs + 1
@@ -658,9 +655,7 @@ ELSE !CollisMode.GT.0
           SpecDSMC(iSpec)%CollNumRotInf = GETREAL('Part-Species'//TRIM(hilf)//'-CollNumRotInf')
           SpecDSMC(iSpec)%TempRefRot    = GETREAL('Part-Species'//TRIM(hilf)//'-TempRefRot')
           IF(SpecDSMC(iSpec)%CollNumRotInf*SpecDSMC(iSpec)%TempRefRot.EQ.0) THEN
-            CALL Abort(&
-            __STAMP__&
-            ,'Error! CollNumRotRef or TempRefRot is equal to zero for species:', iSpec)
+            CALL Abort(__STAMP__,'Error! CollNumRotRef or TempRefRot is equal to zero for species:', iSpec)
           END IF
         END IF
         ! Read in species values for vibrational relaxation models of Milikan-White if necessary
@@ -676,23 +671,17 @@ ELSE !CollisMode.GT.0
               SpecDSMC(iSpec)%MW_ConstB(jSpec)     = GETREAL('Part-Species'//TRIM(hilf)//'-MWConstB-'//TRIM(hilf2))
 
               IF(SpecDSMC(iSpec)%MW_ConstA(jSpec).EQ.0) THEN
-                CALL Abort(&
-                __STAMP__&
-                ,'Error! MW_ConstA is equal to zero for species:', iSpec)
+                CALL Abort(__STAMP__,'Error! MW_ConstA is equal to zero for species:', iSpec)
               END IF
               IF(SpecDSMC(iSpec)%MW_ConstB(jSpec).EQ.0) THEN
-                CALL Abort(&
-                __STAMP__&
-                ,'Error! MW_ConstB is equal to zero for species:', iSpec)
+                CALL Abort(__STAMP__,'Error! MW_ConstB is equal to zero for species:', iSpec)
               END IF
             END DO
           END IF
           SpecDSMC(iSpec)%VibCrossSec    = GETREAL('Part-Species'//TRIM(hilf)//'-VibCrossSection')
           ! Only molecules or charged molecules
           IF((SpecDSMC(iSpec)%VibCrossSec.EQ.0).AND.((SpecDSMC(iSpec)%InterID.EQ.2).OR.(SpecDSMC(iSpec)%InterID.EQ.20))) THEN
-            CALL Abort(&
-            __STAMP__&
-            ,'Error! VibCrossSec is equal to zero for species:', iSpec)
+            CALL Abort(__STAMP__,'Error! VibCrossSec is equal to zero for species:', iSpec)
           END IF
         END IF
         ! Setting the values of Rot-/Vib-RelaxProb to a fix value (electronic: species-specific values are possible)
@@ -759,9 +748,7 @@ ELSE !CollisMode.GT.0
       IF((SelectionProc.NE.2).AND.DSMC%PolySingleMode) THEN
         ! Single-mode relaxation of vibrational modes of polyatomic molecules only possible when the prohibiting double relaxation
         ! method is used (Gimelshein, SelectionProc = 2)
-        CALL Abort(&
-            __STAMP__&
-            ,'ERROR: No single-mode polyatomic relaxation possible with chosen selection procedure! SelectionProc:', SelectionProc)
+        CALL Abort(__STAMP__,'ERROR: No single-mode polyatomic relaxation possible with chosen selection procedure! SelectionProc:', SelectionProc)
       END IF
       IF(.NOT.ALLOCATED(VibQuantsPar)) ALLOCATE(VibQuantsPar(PDM%maxParticleNumber))
       ALLOCATE(PolyatomMolDSMC(DSMC%NumPolyatomMolecs))
@@ -792,20 +779,6 @@ ELSE !CollisMode.GT.0
     END IF
     !-----------------------------------------------------------------------------------------------------------------------------------
     ! Setting the internal energy value of every particle
-    DO iPart = 1, PDM%ParticleVecLength
-      IF (PDM%ParticleInside(iPart)) THEN
-        IF (Species(PartSpecies(iPart))%NumberOfInits.GT.0) THEN
-          iInit = PDM%PartInit(iPart)
-          IF (SpecDSMC(PartSpecies(iPart))%PolyatomicMol) THEN
-            CALL DSMC_SetInternalEnr_Poly(PartSpecies(iPart),iInit,iPart,1)
-          ELSE
-            CALL DSMC_SetInternalEnr_LauxVFD(PartSpecies(iPart),iInit,iPart,1)
-          END IF
-        END IF
-      END IF
-    END DO
-    ! Array not required anymore after the initialization is completed
-    DEALLOCATE(PDM%PartInit)
     IF(BGGas%UseRegions) THEN
       CALL BGGas_RegionsSetInternalTemp()
     END IF
@@ -1402,7 +1375,6 @@ SDEALLOCATE(DSMC%InstantTransTemp)
 IF(DSMC%CalcQualityFactors) THEN
   SDEALLOCATE(DSMC%QualityFacSamp)
 END IF
-SDEALLOCATE(PDM%PartInit)
 SDEALLOCATE(Coll_pData)
 SDEALLOCATE(SampDSMC)
 SDEALLOCATE(MacroDSMC)
