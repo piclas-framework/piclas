@@ -185,9 +185,9 @@ IF(CalcPartBalance) THEN
       nPartOut(iSpec)=nPartOut(iSpec) + 1
       PartEkinOut(iSpec)=PartEkinOut(iSpec)+CalcEkinPart(PartID)
     END IF
-  ELSE
-    nPartOut(iSpec)=nPartOut(iSpec) + 1
-    PartEkinOut(iSpec)=PartEkinOut(iSpec)+CalcEkinPart(PartID)
+  ! ELSE
+  !   nPartOut(iSpec)=nPartOut(iSpec) + 1
+  !   PartEkinOut(iSpec)=PartEkinOut(iSpec)+CalcEkinPart(PartID)
   END IF
 END IF ! CalcPartBalance
 

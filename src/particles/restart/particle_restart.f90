@@ -233,6 +233,7 @@ IF(.NOT.DoMacroscopicRestart) THEN
           END IF
         END IF
         PDM%ParticleInside(iPart) = .TRUE.
+        PDM%isNewPart(iPart)      = .TRUE.
       END DO ! iLoop = 1_IK,locnPart
 
       iPart = 0
@@ -632,7 +633,8 @@ IF(.NOT.DoMacroscopicRestart) THEN
         END ASSOCIATE
 
         PartState(     1:6,CurrentPartNum) = RecBuff(1:6,iPart)
-        PDM%ParticleInside(CurrentPartNum) = .true.
+        PDM%ParticleInside(CurrentPartNum) = .TRUE.
+        PDM%isNewPart(CurrentPartNum)      = .TRUE.
 
         CALL LocateParticleInElement(CurrentPartNum,doHALO=.FALSE.)
         IF (PDM%ParticleInside(CurrentPartNum)) THEN

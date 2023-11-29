@@ -154,6 +154,7 @@ DO iStage = 1,nRKStages
         IF (PDM%ParticleInside(iPart)) THEN
           Pt_temp(  1:3,iPart) = PartState(4:6,iPart)
           PartState(1:3,iPart) = PartState(1:3,iPart) + PartState(4:6,iPart)*b_dt(iStage)
+          PDM%IsNewPart(iPart) = .FALSE.
           ! Don't push the velocity component of neutral particles!
           IF (isPushParticle(iPart)) THEN
             IF (CalcCoupledPower) CALL CalcCoupledPowerPart(iPart,'before')
