@@ -1524,6 +1524,8 @@ IF(MPIRoot) THEN
   CALL OpenDataFile(FileName,create=.FALSE.,single=.TRUE.,readOnly=.FALSE.)
   CALL WriteAttributeToHDF5(File_ID,'VarNamesParticleClones',PartDataSizeLoc,StrArray=StrVarNames,DatasetName='CloneData')
   CALL WriteAttributeToHDF5(File_ID,'ManualTimeStep',1,RealScalar=ManualTimeStep,DatasetName='CloneData')
+  CALL WriteAttributeToHDF5(File_ID,'WeightingFactor',1,RealScalar=Species(1)%MacroParticleFactor,DatasetName='CloneData')
+  CALL WriteAttributeToHDF5(File_ID,'RadialWeightingFactor',1,RealScalar=RadialWeighting%PartScaleFactor,DatasetName='CloneData')
   CALL CloseDataFile()
 END IF
 
