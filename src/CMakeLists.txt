@@ -358,7 +358,7 @@ ENDIF()
 IF(BUILD_TYPE_LC MATCHES "sanitize" AND LIBS_USE_MPI)
   SET(ACTIVATE_UNIT_TEST OFF)
   # Check if unit tests were previously activated
-  IF(PICLAS_UNITTESTS)
+  IF(PICLAS_UNITTESTS AND LIBS_MPI_NAME MATCHES "OpenMPI")
     MESSAGE(WARNING "Unit tests automatically disabled (PICLAS_UNITTESTS=OFF) with\n CMAKE_BUILD_TYPE = ${CMAKE_BUILD_TYPE}\n LIBS_USE_MPI = ${LIBS_USE_MPI}\nas the tests will always fail due to memory errors returned from the MPI library.")
     SET(PICLAS_UNITTESTS OFF)
   ENDIF()
