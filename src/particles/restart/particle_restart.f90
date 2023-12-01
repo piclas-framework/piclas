@@ -848,14 +848,17 @@ LOGICAL                   :: AdaptiveWallTempExists
 IF (nGlobalSurfSides.EQ.0) RETURN
 
 #if USE_MPI
-CALL OpenDataFile(RestartFile,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_LEADERS_SURF)
+! Only the surface leaders open the file
+IF (MPI_COMM_LEADERS_SURF.NE.MPI_COMM_NULL) THEN
+  CALL OpenDataFile(RestartFile,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_LEADERS_SURF)
+END IF
 #else
 CALL OpenDataFile(RestartFile,create=.FALSE.,single=.TRUE.,readOnly=.TRUE.)
 #endif
 
 ! Associate construct for integer KIND=8 possibility
 #if USE_MPI
-! Return if not a sampling leader
+! Only the surface leaders read the array
 IF (MPI_COMM_LEADERS_SURF.NE.MPI_COMM_NULL) THEN
 #endif
   CALL DatasetExists(File_ID,'AdaptiveBoundaryWallTemp',AdaptiveWallTempExists)
@@ -886,6 +889,7 @@ IF (MPI_COMM_LEADERS_SURF.NE.MPI_COMM_NULL) THEN
   END DO
 #if USE_MPI
 END IF
+! Distribute the temperature distribution onto the shared array
 CALL BARRIER_AND_SYNC(BoundaryWallTemp_Shared_Win,MPI_COMM_SHARED)
 #endif
 
