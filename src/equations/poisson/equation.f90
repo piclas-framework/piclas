@@ -148,6 +148,14 @@ LBWRITE(UNIT_stdOut,'(A)') ' INIT POISSON...'
 ! Read in boundary parameters
 IniExactFunc = GETINT('IniExactFunc')
 
+! Sanity checks
+SELECT CASE (IniExactFunc)
+CASE(800) ! Dielectric slab on electrode (left) with plasma between slab and other electrode opposite
+#if ! (defined(CODE_ANALYZE) && USE_PETSC)
+  CALL abort(__STAMP__,'IniExactFunc=800 requires PICLAS_CODE_ANALYZE=ON and PICLAS_PETSC=ON')
+#endif /*! (defined(CODE_ANALYZE) && USE_PETSC)*/
+END SELECT
+
 ! Sanity Check BCs
 nRefStateMax = 0
 nLinStateMax = 0
@@ -822,7 +830,11 @@ CASE(700) ! Analytical solution of a charged particle moving in cylindrical coor
 #endif /*defined(PARTICLES)*/
 CASE(800) ! Dielectric slab on electrode (left) with plasma between slab and other electrode opposite
   IF(ALLOCATED(FPC%Charge))THEN
-    FPC%Charge(1)=2.5e-11
+#if USE_MPI
+    FPC%ChargeProc = 0.0
+    IF(MPIRoot) &
+#endif /*USE_MPI*/
+    FPC%ChargeProc(1)=2.5e-11
   END IF ! ALLOCATED(FPC%Charge)
   resu = 0.
   ASSOCIATE( x     => x(1)   , &
@@ -989,6 +1001,11 @@ REAL,DIMENSION(3)               :: dx1,dx2,dr1dx,dr2dx,dr1dx2,dr2dx2
 REAL                            :: source_e
 INTEGER                         :: RegionID
 #endif /*PARTICLES*/
+#if defined(CODE_ANALYZE)
+REAL                            :: source
+#else
+REAL,PARAMETER                  :: source = 0.0
+#endif /*defined(CODE_ANALYZE)*/
 !===================================================================================================================================
 IF(PRESENT(warning_linear)) warning_linear=.FALSE. ! Initialize
 IF(PRESENT(warning_linear_phi)) warning_linear_phi=0. ! Initialize
@@ -1027,10 +1044,13 @@ END SELECT ! ExactFunction
 
 ! Specific source terms after particle deposition
 #if defined(CODE_ANALYZE)
+source = 0.
 SELECT CASE(IniExactFunc)
 CASE(800) ! plasma between electrodes + particles
   IF(Elem_xGP(1,i,j,k,iElem).GT.0.0)THEN
-    PartSource(4,i,j,k,iElem) = PartSource(4,i,j,k,iElem) - 1e-4
+    source = - 1e-4
+  !ELSE
+    !PartSource(4,i,j,k,iElem) = PartSource(4,i,j,k,iElem) * 1000.
   END IF ! x.GT.0.0
 END SELECT
 #endif /*defined(CODE_ANALYZE)*/
@@ -1057,9 +1077,9 @@ IF(DoDeposition)THEN
     END IF
   END IF ! UseBRElectronFluid
 #if IMPA
-  resu(1)= - (PartSource(4,i,j,k,iElem)+ExplicitPartSource(4,i,j,k,iElem)-source_e)/eps0
+  resu(1)= - (PartSource(4,i,j,k,iElem)+source+ExplicitPartSource(4,i,j,k,iElem)-source_e)/eps0
 #else
-  resu(1)= - (PartSource(4,i,j,k,iElem)-source_e)/eps0
+  resu(1)= - (PartSource(4,i,j,k,iElem)+source-source_e)/eps0
 #endif
 END IF
 

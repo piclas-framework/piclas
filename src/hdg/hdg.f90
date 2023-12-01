@@ -1787,7 +1787,7 @@ PetscScalar, POINTER :: lambda_pointer(:)
 KSPConvergedReason   :: reason
 PetscInt             :: iterations
 PetscReal            :: petscnorm
-INTEGER              :: ElemID,iBCSide,locBCSideID, PETScLocalID
+INTEGER              :: ElemID,iBCSide,PETScLocalID
 INTEGER              :: PETScID_start, PETScID_stop
 REAL                 :: timeStartPiclas,timeEndPiclas
 REAL                 :: RHS_conductor(nGP_face)
