@@ -199,8 +199,8 @@ CALL prms%CreateLogicalOption(  'Particles-DSMC-CalcSurfaceVal'&
   , 'Set [T] to activate sampling, analyze and h5 output for surfaces. Therefore either time fraction or iteration sampling'//&
   ' have to be enabled as well.', '.FALSE.')
 
-CALL prms%CreateLogicalOption(  'Part-SampElectronicExcitation'&
-  , 'Set [T] to activate sampling of electronic energy excitation', '.FALSE.')
+CALL prms%CreateLogicalOption(  'Part-SampleElectronicExcitation'&
+  , 'Set [T] to activate sampling of electronic energy excitation (currently only available for ElectronicModel = 3)', '.FALSE.')
 
 ! === Rotational frame of reference
 CALL prms%CreateLogicalOption(  'Part-UseRotationalReferenceFrame', 'Activate rotational frame of reference', '.FALSE.')
@@ -847,7 +847,7 @@ USE MOD_LoadBalance_Vars       ,ONLY: PerformLoadBalance
 ! Include surface values in the macroscopic output
 DSMC%CalcSurfaceVal = GETLOGICAL('Particles-DSMC-CalcSurfaceVal')
 ! Include electronic energy excitation in the macroscopic output
-SampleElecExcitation = GETLOGICAL('Part-SampElectronicExcitation')
+SampleElecExcitation = GETLOGICAL('Part-SampleElectronicExcitation')
 ! Sampling for and output every given number of iterations (sample is reset after an output)
 WriteMacroValues = GETLOGICAL('Part-WriteMacroValues')
 IF(WriteMacroValues)THEN
