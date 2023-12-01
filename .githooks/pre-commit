@@ -126,11 +126,13 @@ if [ -n "$CHANGED" ]; then
 
     # Check if file is executable
     if [ -x "$file" ]; then
-      # Error header
-      ERROR=1
-      EXEERR=1
-      LINE=$($LS_EXE -alhs "$file")
-      EXELINE="$LINE\n$EXELINE"
+      if [ "$file" != ".githooks/pre-commit" ] && [ "$file" != "docs/documentation/buildPDF.sh" ] && [ "$file" != "docs/documentation/buildHTML.sh" ] ; then
+        # Error header
+        ERROR=1
+        EXEERR=1
+        LINE=$($LS_EXE -alhs "$file")
+        EXELINE="$LINE\n$EXELINE"
+      fi
     fi
 
     # Check for tab characters in specific file endings
