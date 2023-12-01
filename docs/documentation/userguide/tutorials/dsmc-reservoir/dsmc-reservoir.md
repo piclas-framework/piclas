@@ -25,7 +25,7 @@ The size of the simulation domain is set to [$\pu{4.64e-6}\times\pu{4.64e-6}\tim
 ```{figure} mesh/dsmc-reservoir-mesh-corners.svg
 ---
 name: fig:dsmc-reservoir-mesh-corners
-width: 50%
+width: 400px
 ---
 Order of the corners to define the used mesh. The first node is placed at the origin.
 ```
@@ -33,7 +33,7 @@ Order of the corners to define the used mesh. The first node is placed at the or
 Afterwards this element is scaled via
 
     postScaleMesh  = T
-    meshScale      = 4.64E-6 
+    meshScale      = 4.64E-6
 
 The number of mesh elements for the block in each direction can be adjusted by changing the line
 
@@ -58,13 +58,13 @@ For more information about hopr, visit [https://github.com/hopr-framework/hopr](
 
 Install **piclas** by compiling the source code as described in Chapter {ref}`userguide/installation:Installation` and make sure to set the correct compile flags (ie. chose the correct simulation method)
 
-    PICLAS_TIMEDISCMETHOD = RESERVOIR
+    PICLAS_TIMEDISCMETHOD = DSMC
 
 or simply run the following command from inside the *build* directory
 
-    cmake ../ -DPICLAS_TIMEDISCMETHOD=RESERVOIR
+    cmake ../ -DPICLAS_TIMEDISCMETHOD=DSMC
 
-to configure the build process and run `make` afterwards to build the executable. For this setup, the reservoir method, which is based on the DSMC method, is needed to allow for reservoir specific settings. It is recommended to either utilize a separate build folder (e.g. build_DSMC/) or to delete the contents of the folder beforehand to avoid conflicts between different compiler options (e.g. the setting `PICLAS_EQNSYSNAME = poisson` from the plasma wave tutorial is in conflict with the DSMC method). An overview over the available solver and discretization options is given in Section {ref}`sec:solver-settings`. The physical parameters for this test case are summarized in {numref}`tab:dsmc_chem_off_phys`.
+to configure the build process and run `make` afterwards to build the executable. It is recommended to either utilize a separate build folder (e.g. build_DSMC/) or to delete the contents of the folder beforehand to avoid conflicts between different compiler options (e.g. the setting `PICLAS_EQNSYSNAME = poisson` from the plasma wave tutorial is in conflict with the DSMC method). An overview over the available solver and discretization options is given in Section {ref}`sec:solver-settings`. The physical parameters for this test case are summarized in {numref}`tab:dsmc_chem_off_phys`.
 
 ```{table} Physical properties at the simulation start
 ---
@@ -109,14 +109,14 @@ where, the path to the mesh file `MeshFile`, project name and particle tracking 
 where the final simulation time `tend` [s], the time step for the field and particle solver is set via `ManualTimeStep` [s]. The time between restart/checkpoint file output is defined via `Analyze_dt` (which is also the output time for specific analysis functions in the field solver context). The number of time step iterations `IterDisplayStep` defines the interval between information output regarding the current status of the simulation, which is written to std.out. The `Particles-HaloEpsVelo` [m/s] determines the size of the halo region for MPI communication and should not be smaller than the fastest particles in the simulation.
 
 (sec:tutorial-dsmc-analysis-setup)=
-### Analysis setup 
+### Analysis setup
 
 For this case our focus is on the run-time analysis to investigate the transient behavior of the reservoir. The first parameter `Part-AnalyzeStep` allows to perform the output every N$^\text{th}$ iteration to reduce the size of the output file and to increase the computational speed. Different parameters for run-time analysis can be enabled, in this case the number of particles per species (`CalcNumSpec`) and the temperature output (`CalcTemp`). It is also recommended to enable `Particles-DSMC-CalcQualityFactors`, which provides outputs to evaluate the quality of the simulation results such as the mean and maximum collision probabilities. The parameter `TimeStampLength = 13` reduces the output filename length. It can be needed for postprocessing, as e.g. ParaView sometimes does not sort the files correctly if the timestamps are too long. The displayed time solution would then be faulty.
 
     ! =============================================================================== !
     ! Particle Analysis
     ! =============================================================================== !
-    
+
     Part-AnalyzeStep = 1
     CalcNumSpec = T
     CalcTemp    = T
@@ -188,8 +188,7 @@ $$ N_{\text{CO}_2,\text{sim}} = \frac{n_{\text{CO}_2} V}{w_{\text{CO}_2}} $$
 (sec:tutorial-dsmc-dsmc-setup)=
 ### DSMC setup
 
-Finally, DSMC has to be enabled (`UseDSMC = T`) and the particle movement is disabled via `Particles-DSMCReservoirSim = T` to reduce the computational effort. Keep in mind that the latter needs a compiled 
-version of piclas using `PICLAS_TIMEDISCMETHOD = RESERVOIR`. Besides these settings `Particles-DSMC-CollisMode` is an important parameter. If set to 1, only elastic collisions 
+Finally, DSMC has to be enabled (`UseDSMC = T`) and the particle movement is disabled via `Particles-DSMCReservoirSim = T` to reduce the computational effort. Besides these settings `Particles-DSMC-CollisMode` is an important parameter. If set to 1, only elastic collisions
 are performed, if set to 2 relaxation processes are allowed and if set to 3 chemistry is enabled. Additionally, constant values for the rotational (`Particles-DSMC-RotRelaxProb`) and vibrational (`Particles-DSMC-VibRelaxProb`) relaxation probabilities are defined.
 
     ! =============================================================================== !
@@ -199,7 +198,7 @@ are performed, if set to 2 relaxation processes are allowed and if set to 3 chem
     Particles-DSMCReservoirSim  = T
     Particles-DSMC-CollisMode   = 2
     Particles-DSMC-RotRelaxProb = 0.2
-    Particles-DSMC-VibRelaxProb = 0.02 
+    Particles-DSMC-VibRelaxProb = 0.02
 
 Besides the data given in the **parameter.ini**, a proper DSMC simulation needs additional species information, which is defined in the **DSMC.ini**. The species numeration needs to be the same in both files.
 
@@ -274,7 +273,7 @@ In addition to `std.out`, which contains information about the simulation proces
 ```{figure} results/dsmc-reservoir-temperature-relaxation.svg
 ---
 name: fig:dsmc-reservoir-temperature-relaxation
-width: 50%
+width: 400px
 ---
 
 Temperature relaxation process towards thermal equilibrium.
@@ -342,7 +341,7 @@ Therefore, in this example with one reaction and each of the three species as po
 In order to investigate the transient behavior, a longer simulation time was chosen. This results in comparatively long computing times, which is why the use of several computing cores is recommended. The number of cores may not exceed the number of cells. This results in a maximum of 4 cores for the described simulation. Another important note is that bash does not understand aliases which are not at the start of a line. Thus a copy of the **piclas** binary must be located in the current folder
 
     cp $PICLAS_PATH/build/bin/piclas .
-    
+
 or the whole path to the binary must be used instead. Assuming a run with 4 cores is desired and the **piclas** binary is located at the current directory, the command
 
     mpirun -np 4 piclas parameter.ini DSMC.ini | tee std.out
@@ -376,7 +375,7 @@ The `Projectname_visuPart_Timestamp.vtu` files contain simulation particle speci
 ```{figure} results/dsmc-reservoir-species.jpg
 ---
 name: fig:dsmc-reservoir-species
-width: 100%
+width: 600px
 ---
 
 Comparison of the present species (simulation particles) at start (left) and end (right) time of the simulation.
@@ -387,7 +386,7 @@ While the figure above is only capable of giving a general overview about the pr
 ```{figure} results/dsmc-reservoir-reaction.jpg
 ---
 name: fig:dsmc-reservoir-reaction
-width: 100%
+width: 600px
 ---
 
 Development of species composition (left) and translational temperature and dissociation rate (right) over time.
