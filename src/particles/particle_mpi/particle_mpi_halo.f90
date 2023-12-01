@@ -591,12 +591,15 @@ ElemLoop:  DO iElem = 1,nComputeNodeTotalElems
           ! Check rot periodic Elems and if iSide is on rot periodic BC
           IF(PartBound%UseRotPeriodicBC) THEN
             DO iPartBound = 1, nPartBound
+              ! skip no rot periodic BCs
               IF(PartBound%TargetBoundCond(iPartBound).NE.PartBound%RotPeriodicBC) CYCLE
               alpha = PartBound%RotPeriodicAngle(iPartBound) * PartBound%RotPeriodicTol
               ASSOCIATE(RotBoundMin => PartBound%RotPeriodicMin(iPartBound)-MPI_halo_eps_woshape, &
                         RotBoundMax => PartBound%RotPeriodicMax(iPartBound)+MPI_halo_eps_woshape)
+                ! in which plane of rotation (i.e. iPartBound) is the iElem
                 IF( (BoundsOfElemCenter(PartBound%RotPeriodicAxis)-BoundsOfElemCenter(4).GE.RotBoundMax).OR. &
                     (BoundsOfElemCenter(PartBound%RotPeriodicAxis)+BoundsOfElemCenter(4).LE.RotBoundMin) ) CYCLE
+                ! skip sides that are not in the same plane of rotation as iElem and iPartBound
                 IF( (MPISideBoundsOfNbElemCenter(PartBound%RotPeriodicAxis,iSide)-MPISideBoundsOfNbElemCenter(4,iSide).GE.RotBoundMax).OR. &
                     (MPISideBoundsOfNbElemCenter(PartBound%RotPeriodicAxis,iSide)+MPISideBoundsOfNbElemCenter(4,iSide).LE.RotBoundMin) ) CYCLE
               END ASSOCIATE
@@ -850,6 +853,7 @@ ElemLoop:  DO iElem = 1,nComputeNodeTotalElems
       ! Check rot periodic Elems and if iSide is on rot periodic BC
       IF(PartBound%UseRotPeriodicBC) THEN
         DO iPartBound = 1, nPartBound
+          ! skip no rot periodic BCs
           IF(PartBound%TargetBoundCond(iPartBound).NE.PartBound%RotPeriodicBC) CYCLE
           alpha = PartBound%RotPeriodicAngle(iPartBound) * PartBound%RotPeriodicTol
           RotBoundsOfElemCenter(1:3) = RotateVectorAroundAxis(BoundsOfElemCenter(1:3),PartBound%RotPeriodicAxis,alpha)
