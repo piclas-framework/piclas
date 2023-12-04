@@ -414,7 +414,7 @@ SELECT CASE(RadialWeighting%CloneMode)
       CALL Abort(__STAMP__,'ERROR in 2D axisymmetric simulation: Clone delay should be greater than 0')
     END IF
     ALLOCATE(RadialWeighting%ClonePartNum(0:(RadialWeighting%CloneInputDelay-1)))
-    ALLOCATE(ClonedParticles(1:INT(PDM%maxParticleNumber/RadialWeighting%CloneInputDelay),0:(RadialWeighting%CloneInputDelay-1)))
+    ALLOCATE(ClonedParticles(1:PDM%maxParticleNumber,0:(RadialWeighting%CloneInputDelay-1)))
     RadialWeighting%ClonePartNum = 0
     IF(.NOT.DoRestart) RadialWeighting%CloneDelayDiff = 1
   CASE(2)
@@ -422,7 +422,7 @@ SELECT CASE(RadialWeighting%CloneMode)
       CALL Abort(__STAMP__,'ERROR in 2D axisymmetric simulation: Clone delay should be greater than 1')
     END IF
     ALLOCATE(RadialWeighting%ClonePartNum(0:RadialWeighting%CloneInputDelay))
-    ALLOCATE(ClonedParticles(1:INT(PDM%maxParticleNumber/RadialWeighting%CloneInputDelay),0:RadialWeighting%CloneInputDelay))
+    ALLOCATE(ClonedParticles(1:PDM%maxParticleNumber,0:RadialWeighting%CloneInputDelay))
     RadialWeighting%ClonePartNum = 0
     IF(.NOT.DoRestart) RadialWeighting%CloneDelayDiff = 0
   CASE DEFAULT

@@ -1870,7 +1870,7 @@ END IF
 IF(ALLOCATED(ClonedParticles)) THEN
   SELECT CASE(RadialWeighting%CloneMode)
   CASE(1)
-    ALLOCATE(ClonedParticles_new(1:INT(NewSize/RadialWeighting%CloneInputDelay),0:(RadialWeighting%CloneInputDelay-1)),STAT=ALLOCSTAT)
+    ALLOCATE(ClonedParticles_new(1:NewSize,0:(RadialWeighting%CloneInputDelay-1)),STAT=ALLOCSTAT)
     IF (ALLOCSTAT.NE.0) CALL ABORT(&
   __STAMP__&
   ,'Cannot allocate increased Array in IncreaseMaxParticleNumber')
@@ -1890,7 +1890,7 @@ IF(ALLOCATED(ClonedParticles)) THEN
     DEALLOCATE(ClonedParticles)
     CALL MOVE_ALLOC(ClonedParticles_New,ClonedParticles)
   CASE(2)
-    ALLOCATE(ClonedParticles_new(1:INT(NewSize/RadialWeighting%CloneInputDelay),0:RadialWeighting%CloneInputDelay),STAT=ALLOCSTAT)
+    ALLOCATE(ClonedParticles_new(1:NewSize,0:RadialWeighting%CloneInputDelay),STAT=ALLOCSTAT)
     IF (ALLOCSTAT.NE.0) CALL ABORT(&
   __STAMP__&
   ,'Cannot allocate increased Array in IncreaseMaxParticleNumber')
@@ -2137,13 +2137,13 @@ END IF
 IF(ALLOCATED(ClonedParticles)) THEN
   SELECT CASE(RadialWeighting%CloneMode)
   CASE(1)
-    ALLOCATE(ClonedParticles_new(1:INT(NewSize/RadialWeighting%CloneInputDelay),0:(RadialWeighting%CloneInputDelay-1)),STAT=ALLOCSTAT)
+    ALLOCATE(ClonedParticles_new(1:NewSize,0:(RadialWeighting%CloneInputDelay-1)),STAT=ALLOCSTAT)
     IF (ALLOCSTAT.NE.0) CALL ABORT(&
   __STAMP__&
   ,'Cannot allocate increased Array in ReduceMaxParticleNumber')
     DO ii=0,RadialWeighting%CloneInputDelay-1
       DO i=1,RadialWeighting%ClonePartNum(ii)
-        IF(i.LE.INT(NewSize/RadialWeighting%CloneInputDelay)) THEN
+        IF(i.LE.NewSize) THEN
           ClonedParticles_new(i,ii)%Species=ClonedParticles(i,ii)%Species
           ClonedParticles_new(i,ii)%PartState(1:6)=ClonedParticles(i,ii)%PartState(1:6)
           ClonedParticles_new(i,ii)%PartStateIntEn(1:3)=ClonedParticles(i,ii)%PartStateIntEn(1:3)
@@ -2159,19 +2159,18 @@ IF(ALLOCATED(ClonedParticles)) THEN
           SDEALLOCATE(ClonedParticles(i,ii)%AmbiPolVelo)
         END IF
       END DO
-      IF(RadialWeighting%ClonePartNum(ii).GT.INT(NewSize/RadialWeighting%CloneInputDelay)) &
-         RadialWeighting%ClonePartNum(ii)=INT(NewSize/RadialWeighting%CloneInputDelay)
+      IF(RadialWeighting%ClonePartNum(ii).GT.NewSize) RadialWeighting%ClonePartNum(ii)=NewSize
     END DO
     DEALLOCATE(ClonedParticles)
     CALL MOVE_ALLOC(ClonedParticles_New,ClonedParticles)
   CASE(2)
-    ALLOCATE(ClonedParticles_new(1:INT(NewSize/RadialWeighting%CloneInputDelay),0:RadialWeighting%CloneInputDelay),STAT=ALLOCSTAT)
+    ALLOCATE(ClonedParticles_new(1:NewSize,0:RadialWeighting%CloneInputDelay),STAT=ALLOCSTAT)
     IF (ALLOCSTAT.NE.0) CALL ABORT(&
   __STAMP__&
   ,'Cannot allocate increased Array in ReduceMaxParticleNumber')
     DO ii=0,RadialWeighting%CloneInputDelay
       DO i=1,RadialWeighting%ClonePartNum(ii)
-        IF(i.LE.INT(NewSize/RadialWeighting%CloneInputDelay)) THEN
+        IF(i.LE.NewSize) THEN
           ClonedParticles_new(i,ii)%Species=ClonedParticles(i,ii)%Species
           ClonedParticles_new(i,ii)%PartState(1:6)=ClonedParticles(i,ii)%PartState(1:6)
           ClonedParticles_new(i,ii)%PartStateIntEn(1:3)=ClonedParticles(i,ii)%PartStateIntEn(1:3)
@@ -2187,8 +2186,7 @@ IF(ALLOCATED(ClonedParticles)) THEN
           SDEALLOCATE(ClonedParticles(i,ii)%AmbiPolVelo)
         END IF
       END DO
-      IF(RadialWeighting%ClonePartNum(ii).GT.INT(NewSize/RadialWeighting%CloneInputDelay)) &
-         RadialWeighting%ClonePartNum(ii)=INT(NewSize/RadialWeighting%CloneInputDelay)
+      IF(RadialWeighting%ClonePartNum(ii).GT.NewSize) RadialWeighting%ClonePartNum(ii)=NewSize
     END DO
     DEALLOCATE(ClonedParticles)
     CALL MOVE_ALLOC(ClonedParticles_New,ClonedParticles)
@@ -2213,7 +2211,6 @@ IF(PDM%ParticleVecLength.GT.NewSize) PDM%ParticleVecLength = NewSize
 PDM%MaxParticleNumber=NewSize
 
 CALL UpdateNextFreePosition()
-! read(*,*)
 
 END SUBROUTINE ReduceMaxParticleNumber
 
