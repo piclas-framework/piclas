@@ -1395,7 +1395,14 @@ ParticleAnalyzeSampleTime = Time - ParticleAnalyzeSampleTime ! Set ParticleAnaly
 #endif /*USE_MPI*/
       MaxMCSoverMFP = DSMC%MaxMCSoverMFP
       ! MaxCollProb
-      MaxCollProb = DSMC%CollProbMax
+#if USE_MPI
+      IF(MPIRoot)THEN
+        CALL MPI_REDUCE(MPI_IN_PLACE,DSMC%CollProMaxProcMax,1,MPI_DOUBLE_PRECISION,MPI_MAX,0,MPI_COMM_PICLAS, IERROR)
+      ELSE
+        CALL MPI_REDUCE(DSMC%CollProMaxProcMax,DSMC%CollProMaxProcMax,1,MPI_DOUBLE_PRECISION,MPI_MAX,0,MPI_COMM_PICLAS, IERROR)
+      END IF
+#endif /*USE_MPI*/
+      MaxCollProb = DSMC%CollProMaxProcMax
       ! ResolvedCellPercentage:
 #if USE_MPI
         IF(MPIRoot)THEN
