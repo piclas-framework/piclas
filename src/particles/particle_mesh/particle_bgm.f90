@@ -349,12 +349,12 @@ ALLOCATE(ElemToBGM_Shared(   1:6,    1:nElems))
 DO iElem = firstElem, lastElem
 
   ! BGM indices must be >0 --> move by 1
-  ElemToBGM_Shared(1,iElem) = MAX(FLOOR((xmin-GEO%xminglob)/GEO%FIBGMdeltas(1)),0) + moveBGMindex
-  ElemToBGM_Shared(2,iElem) = MIN(FLOOR((xmax-GEO%xminglob)/GEO%FIBGMdeltas(1))    + moveBGMindex,GEO%FIBGMimaxglob)
-  ElemToBGM_Shared(3,iElem) = MAX(FLOOR((ymin-GEO%yminglob)/GEO%FIBGMdeltas(2)),0) + moveBGMindex
-  ElemToBGM_Shared(4,iElem) = MIN(FLOOR((ymax-GEO%yminglob)/GEO%FIBGMdeltas(2))    + moveBGMindex,GEO%FIBGMjmaxglob)
-  ElemToBGM_Shared(5,iElem) = MAX(FLOOR((zmin-GEO%zminglob)/GEO%FIBGMdeltas(3)),0) + moveBGMindex
-  ElemToBGM_Shared(6,iElem) = MIN(FLOOR((zmax-GEO%zminglob)/GEO%FIBGMdeltas(3))    + moveBGMindex,GEO%FIBGMkmaxglob)
+  ElemToBGM_Shared(1,iElem) = MAX(FLOOR((BoundsOfElem_Shared(1,1,iElem)-GEO%xminglob)/GEO%FIBGMdeltas(1)),0) + moveBGMindex
+  ElemToBGM_Shared(2,iElem) = MIN(FLOOR((BoundsOfElem_Shared(2,1,iElem)-GEO%xminglob)/GEO%FIBGMdeltas(1))    + moveBGMindex,GEO%FIBGMimaxglob)
+  ElemToBGM_Shared(3,iElem) = MAX(FLOOR((BoundsOfElem_Shared(1,2,iElem)-GEO%yminglob)/GEO%FIBGMdeltas(2)),0) + moveBGMindex
+  ElemToBGM_Shared(4,iElem) = MIN(FLOOR((BoundsOfElem_Shared(2,2,iElem)-GEO%yminglob)/GEO%FIBGMdeltas(2))    + moveBGMindex,GEO%FIBGMjmaxglob)
+  ElemToBGM_Shared(5,iElem) = MAX(FLOOR((BoundsOfElem_Shared(1,3,iElem)-GEO%zminglob)/GEO%FIBGMdeltas(3)),0) + moveBGMindex
+  ElemToBGM_Shared(6,iElem) = MIN(FLOOR((BoundsOfElem_Shared(2,3,iElem)-GEO%zminglob)/GEO%FIBGMdeltas(3))    + moveBGMindex,GEO%FIBGMkmaxglob)
 END DO ! iElem = firstElem, lastElem
 
 #if USE_MPI
