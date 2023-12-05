@@ -1327,7 +1327,6 @@ PartSpecies(iPart) = iSpec
 PEM%GlobalElemID(iPart) = iElem+offSetElem
 PEM%LastGlobalElemID(iPart) = iElem+offSetElem
 PDM%ParticleInside(iPart) = .TRUE.
-PDM%isNewPart(iPart) = .TRUE.
 
 ! 4) Set particle time step and weights (if required)
 IF (UseVarTimeStep) THEN

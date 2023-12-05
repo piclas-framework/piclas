@@ -142,7 +142,6 @@ DO iPart = 1, PDM%ParticleVecLength
         ElectronIndex = GetNextFreePosition()
         !Set new Species of new particle
         PDM%ParticleInside(ElectronIndex) = .TRUE.
-        PDM%isNewPart(ElectronIndex)      = .TRUE.
         PartSpecies(ElectronIndex)        = DSMC%ElectronSpecies
         PartState(1:3,ElectronIndex)      = PartState(1:3,iPart)
         PartState(4:6,ElectronIndex)      = Species(DSMC%ElectronSpecies)%MassIC / Species(oldSpec)%MassIC * PartState(4:6,iPart)
@@ -240,7 +239,6 @@ DO iPart = 1, PDM%ParticleVecLength
         END IF
         !Set new Species of new particle
         PDM%ParticleInside(ElectronIndex) = .TRUE.
-        PDM%isNewPart(ElectronIndex)      = .TRUE.
         PartSpecies(ElectronIndex)        = DSMC%ElectronSpecies
         PartState(1:3,ElectronIndex)      = PartState(1:3,iPart)
         PartState(4:6,ElectronIndex)      = Species(DSMC%ElectronSpecies)%MassIC / Species(oldSpec)%MassIC * PartState(4:6,iPart)

@@ -507,8 +507,7 @@ DO iLoop = 1, nNewElectrons
   PartState(1:3,PositionNbr) = RandomPos(1:3)
   PartSpecies(PositionNbr) = DSMC%AmbiDiffElecSpec
   PEM%GlobalElemID(PositionNbr) = iElem
-  PDM%ParticleInside(PositionNbr) = .TRUE.
-  PDM%isNewPart(PositionNbr) = .TRUE.
+  PDM%ParticleInside(PositionNbr) = .true.
   PartState(4:6,PositionNbr) = AmbipolElecVelo(IonIndX(iLoop))%ElecVelo(1:3)
   DEALLOCATE(AmbipolElecVelo(IonIndX(iLoop))%ElecVelo)
   IF ((CollisMode.EQ.2).OR.(CollisMode.EQ.3)) THEN

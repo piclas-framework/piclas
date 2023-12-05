@@ -72,7 +72,6 @@ IF(ElemID.EQ.-1)THEN
   CALL RemoveParticle(PartID)
 ELSE
   PDM%ParticleInside(PartID)=.TRUE.
-  PDM%isNewPart(PartID)     = .TRUE.
   IF(TrackingMethod.EQ.REFMAPPING) CALL GetPositionInRefElem(PartState(1:3,PartID),PartPosRef(1:3,PartID),ElemID)
 END IF ! ElemID.EQ.-1
 END SUBROUTINE LocateParticleInElement
