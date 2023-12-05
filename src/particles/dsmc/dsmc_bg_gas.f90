@@ -545,7 +545,6 @@ CALL LBStartTime(tLBStart)
 
 DO iPart = 1, PDM%ParticleVecLength
   IF (PDM%ParticleInside(iPart)) THEN
-    ! No Pt_temp=0 necessary, because it is a ghost particle
     IF(BGGas%BackgroundSpecies(PartSpecies(iPart))) PDM%ParticleInside(iPart) = .FALSE.
   END IF
 END DO

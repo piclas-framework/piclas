@@ -54,7 +54,6 @@ SUBROUTINE LocateParticleInElement(PartID,doHALO)
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! MODULES                                                                                                                          !
 USE MOD_Particle_Vars          ,ONLY: PDM,PEM,PartState,PartPosRef
-USE MOD_part_operations        ,ONLY: RemoveParticle
 USE MOD_Eval_xyz               ,ONLY: GetPositionInRefElem
 USE MOD_Particle_Tracking_Vars ,ONLY: TrackingMethod
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -69,7 +68,7 @@ INTEGER           :: ElemID
 ElemID = SinglePointToElement(PartState(1:3,PartID),doHALO=doHALO)
 PEM%GlobalElemID(PartID) = ElemID
 IF(ElemID.EQ.-1)THEN
-  CALL RemoveParticle(PartID)
+  PDM%ParticleInside(PartID)=.FALSE.
 ELSE
   PDM%ParticleInside(PartID)=.TRUE.
   IF(TrackingMethod.EQ.REFMAPPING) CALL GetPositionInRefElem(PartState(1:3,PartID),PartPosRef(1:3,PartID),ElemID)
