@@ -406,7 +406,8 @@ RadialWeighting%CellLocalWeighting = GETLOGICAL('Particles-RadialWeighting-CellL
 RadialWeighting%nSubSides=GETINT('Particles-RadialWeighting-SurfFluxSubSides')
 
 RadialWeighting%NextClone = 0
-RadialWeighting%CloneVecLength = 10
+RadialWeighting%CloneVecLengthDelta = 100
+RadialWeighting%CloneVecLength = RadialWeighting%CloneVecLengthDelta
 
 SELECT CASE(RadialWeighting%CloneMode)
   CASE(1)
@@ -505,8 +506,8 @@ IF(DoCloning) THEN
     END IF
   END SELECT
   ! Storing the particle information
+  IF(RadialWeighting%ClonePartNum(DelayCounter)+1.GT.RadialWeighting%CloneVecLength) CALL IncreaseClonedParticlesType()
   RadialWeighting%ClonePartNum(DelayCounter) = RadialWeighting%ClonePartNum(DelayCounter) + 1
-  IF(RadialWeighting%ClonePartNum(DelayCounter).GT.RadialWeighting%CloneVecLength) CALL IncreaseClonedParticlesType()
   cloneIndex = RadialWeighting%ClonePartNum(DelayCounter)
   ClonedParticles(cloneIndex,DelayCounter)%PartState(1:6)= PartState(1:6,iPart)
   IF (useDSMC.AND.(CollisMode.GT.1)) THEN
@@ -1020,7 +1021,7 @@ INTEGER                              :: NewSize,i,ii,ALLOCSTAT
 TYPE (tClonedParticles), ALLOCATABLE :: ClonedParticles_new(:,:)
 !===================================================================================================================================
 
-NewSize = MAX(CEILING(RadialWeighting%CloneVecLength * (1+PDM%MaxPartNumIncrease)),RadialWeighting%CloneVecLength+10)
+NewSize = MAX(CEILING(RadialWeighting%CloneVecLength * (1+PDM%MaxPartNumIncrease)),RadialWeighting%CloneVecLength+RadialWeighting%CloneVecLengthDelta)
 
 SELECT CASE(RadialWeighting%CloneMode)
 CASE(1)
@@ -1029,7 +1030,7 @@ CASE(1)
 __STAMP__&
 ,'Cannot allocate increased new ClonedParticles Array')
   DO ii=0,RadialWeighting%CloneInputDelay-1
-    DO i=1,RadialWeighting%ClonePartNum(ii)-1
+    DO i=1,RadialWeighting%ClonePartNum(ii)
       ClonedParticles_new(i,ii)%Species=ClonedParticles(i,ii)%Species
       ClonedParticles_new(i,ii)%PartState(1:6)=ClonedParticles(i,ii)%PartState(1:6)
       ClonedParticles_new(i,ii)%PartStateIntEn(1:3)=ClonedParticles(i,ii)%PartStateIntEn(1:3)
@@ -1049,7 +1050,7 @@ CASE(2)
 __STAMP__&
 ,'Cannot allocate increased new ClonedParticles Array')
   DO ii=0,RadialWeighting%CloneInputDelay
-    DO i=1,RadialWeighting%ClonePartNum(ii)-1
+    DO i=1,RadialWeighting%ClonePartNum(ii)
       ClonedParticles_new(i,ii)%Species=ClonedParticles(i,ii)%Species
       ClonedParticles_new(i,ii)%PartState(1:6)=ClonedParticles(i,ii)%PartState(1:6)
       ClonedParticles_new(i,ii)%PartStateIntEn(1:3)=ClonedParticles(i,ii)%PartStateIntEn(1:3)
@@ -1098,7 +1099,7 @@ IF (MAXVAL(RadialWeighting%ClonePartNum(:)).GE.PDM%maxParticleNumber/(1.+PDM%Max
 
 NewSize = MAX(CEILING(MAXVAL(RadialWeighting%ClonePartNum(:))*(1.+PDM%MaxPartNumIncrease)),1)
 
-IF (NewSize.GT.RadialWeighting%CloneVecLength-10) RETURN
+IF (NewSize.GT.RadialWeighting%CloneVecLength-RadialWeighting%CloneVecLengthDelta) RETURN
 
 SELECT CASE(RadialWeighting%CloneMode)
 CASE(1)
