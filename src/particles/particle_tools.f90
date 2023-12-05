@@ -1916,7 +1916,6 @@ INTEGER                                   :: NewSize, i, ii, ALLOCSTAT, nPart
 TYPE (tAmbipolElecVelo), ALLOCATABLE      :: AmbipolElecVelo_New(:)
 TYPE (tElectronicDistriPart), ALLOCATABLE :: ElectronicDistriPart_New(:)
 TYPE (tPolyatomMolVibQuant), ALLOCATABLE  :: VibQuantsPar_New(:)
-TYPE (tClonedParticles), ALLOCATABLE      :: ClonedParticles_New(:,:)
 ! REAL                        ::
 !===================================================================================================================================
 
