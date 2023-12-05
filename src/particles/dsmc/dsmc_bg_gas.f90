@@ -69,7 +69,6 @@ USE MOD_DSMC_Vars             ,ONLY: BGGas
 USE MOD_Mesh_Vars             ,ONLY: nElems
 USE MOD_Particle_Vars         ,ONLY: PDM, Species, nSpecies, UseVarTimeStep, VarTimeStep
 USE MOD_Restart_Vars          ,ONLY: DoMacroscopicRestart, MacroRestartFileName
-USE MOD_Symmetry_Vars         ,ONLY: Symmetry
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -86,7 +85,6 @@ REAL              :: SpeciesDensTmp(1:nSpecies)
 IF(BGGas%UseDistribution) MacroRestartFileName = GETSTR('Particles-MacroscopicRestart-Filename')
 
 ! 1.) Check compatibility with other features and whether required parameters have been read-in
-!IF((Symmetry%Order.EQ.2).OR.UseVarTimeStep) THEN
 IF(UseVarTimeStep) THEN
   IF(.NOT.VarTimeStep%UseSpeciesSpecific) CALL abort(__STAMP__, &
     'ERROR: Variable timestep (except species-specific) are not implemented with a background gas yet!')

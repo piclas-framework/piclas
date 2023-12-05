@@ -234,8 +234,10 @@ USE MOD_Particle_Mesh_Vars   ,ONLY: ElemInfo_Shared,SideInfo_Shared,NodeCoords_S
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Vars     ,ONLY: PerformLoadBalance,UseH5IOLoadBalance,offsetElemMPIOld
 #endif /*USE_LOADBALANCE*/
+#if USE_HDG
 ! Axisymmetric HDG
 USE MOD_Symmetry_Vars        ,ONLY: Symmetry
+#endif /*USE_HDG*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------

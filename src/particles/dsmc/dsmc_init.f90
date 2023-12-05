@@ -291,7 +291,7 @@ USE MOD_ReadInTools
 USE MOD_DSMC_Vars
 USE MOD_Mesh_Vars              ,ONLY: nElems, NGEo
 USE MOD_Globals_Vars           ,ONLY: Pi, BoltzmannConst, ElementaryCharge
-USE MOD_Particle_Vars          ,ONLY: nSpecies, Species, PDM, PartSpecies, UseVarTimeStep, usevMPF
+USE MOD_Particle_Vars          ,ONLY: nSpecies, Species, PDM, UseVarTimeStep, usevMPF
 USE MOD_Symmetry_Vars          ,ONLY: Symmetry
 USE MOD_Particle_Vars          ,ONLY: DoFieldIonization,SampleElecExcitation
 USE MOD_DSMC_ParticlePairing   ,ONLY: DSMC_init_octree
@@ -311,7 +311,7 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 CHARACTER(32)         :: hilf , hilf2
-INTEGER               :: iCase, iSpec, jSpec, iPart, iInit, iDOF, VarNum
+INTEGER               :: iCase, iSpec, jSpec, iInit, iDOF, VarNum
 INTEGER               :: iColl, jColl, pColl  ! for collision parameter read in
 REAL                  :: A1, A2, delta_ij     ! species constant for cross section (p. 24 Laux)
 LOGICAL               :: PostCollPointerSet
@@ -1335,7 +1335,6 @@ SUBROUTINE FinalizeDSMC()
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Globals
 USE MOD_DSMC_Vars
-USE MOD_Particle_Vars, ONLY:PDM
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
 ! INPUT VARIABLES

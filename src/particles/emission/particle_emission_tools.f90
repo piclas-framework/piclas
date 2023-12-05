@@ -908,7 +908,7 @@ USE MOD_Globals
 USE MOD_DSMC_Vars               ,ONLY: RadialWeighting
 USE MOD_part_tools              ,ONLY: CalcRadWeightMPF
 USE MOD_Eval_xyz                ,ONLY: GetPositionInRefElem
-USE MOD_Mesh_Vars               ,ONLY: nElems,offsetElem,ElemBaryNGeo
+USE MOD_Mesh_Vars               ,ONLY: nElems,offsetElem
 USE MOD_Particle_Mesh_Vars      ,ONLY: LocalVolume
 USE MOD_Particle_Mesh_Vars      ,ONLY: BoundsOfElem_Shared,ElemVolume_Shared,ElemMidPoint_Shared
 USE MOD_Mesh_Tools              ,ONLY: GetCNElemID
