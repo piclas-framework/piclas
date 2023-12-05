@@ -1000,9 +1000,9 @@ END SUBROUTINE DSMC_2D_TreatIdenticalParticles
 
 SUBROUTINE IncreaseClonedParticlesType()
 !===================================================================================================================================
-!> Check if particle pairs have a zero relative velocity (and thus a collision probability of zero), if they do, break up the pair
-!> and use either a left-over particle (uneven number of particles in a cell) or swap the collision partners with the next pair in
-!> the list.
+!> Increases RadialWeighting%CloneVecLength and the ClonedParticles(iPart,iDelay) type
+!> Note: RadialWeighting%ClonePartNum is reduced by one when storing the old data since it was increased in DSMC_2D_RadialWeighting
+!>       above the current size of ClonedParticles
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
@@ -1029,7 +1029,7 @@ CASE(1)
 __STAMP__&
 ,'Cannot allocate increased new ClonedParticles Array')
   DO ii=0,RadialWeighting%CloneInputDelay-1
-    DO i=1,RadialWeighting%ClonePartNum(ii)
+    DO i=1,RadialWeighting%ClonePartNum(ii)-1
       ClonedParticles_new(i,ii)%Species=ClonedParticles(i,ii)%Species
       ClonedParticles_new(i,ii)%PartState(1:6)=ClonedParticles(i,ii)%PartState(1:6)
       ClonedParticles_new(i,ii)%PartStateIntEn(1:3)=ClonedParticles(i,ii)%PartStateIntEn(1:3)
@@ -1049,7 +1049,7 @@ CASE(2)
 __STAMP__&
 ,'Cannot allocate increased new ClonedParticles Array')
   DO ii=0,RadialWeighting%CloneInputDelay
-    DO i=1,RadialWeighting%ClonePartNum(ii)
+    DO i=1,RadialWeighting%ClonePartNum(ii)-1
       ClonedParticles_new(i,ii)%Species=ClonedParticles(i,ii)%Species
       ClonedParticles_new(i,ii)%PartState(1:6)=ClonedParticles(i,ii)%PartState(1:6)
       ClonedParticles_new(i,ii)%PartStateIntEn(1:3)=ClonedParticles(i,ii)%PartStateIntEn(1:3)
@@ -1077,9 +1077,7 @@ END SUBROUTINE IncreaseClonedParticlesType
 
 SUBROUTINE ReduceClonedParticlesType()
 !===================================================================================================================================
-!> Check if particle pairs have a zero relative velocity (and thus a collision probability of zero), if they do, break up the pair
-!> and use either a left-over particle (uneven number of particles in a cell) or swap the collision partners with the next pair in
-!> the list.
+!> Reduces RadialWeighting%CloneVecLength and the ClonedParticles(iPart,iDelay) type
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
