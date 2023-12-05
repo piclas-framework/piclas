@@ -674,6 +674,9 @@ END DO
 ! 3.) Reset the list
 RadialWeighting%ClonePartNum(DelayCounter) = 0
 
+! 3.1) Reduce ClonedParticles if necessary
+CALL ReduceClonedParticlesType()
+
 END SUBROUTINE DSMC_2D_SetInClones
 
 
@@ -1070,5 +1073,85 @@ END SELECT
 RadialWeighting%CloneVecLength = NewSize
 
 END SUBROUTINE IncreaseClonedParticlesType
+
+
+SUBROUTINE ReduceClonedParticlesType()
+!===================================================================================================================================
+!> Check if particle pairs have a zero relative velocity (and thus a collision probability of zero), if they do, break up the pair
+!> and use either a left-over particle (uneven number of particles in a cell) or swap the collision partners with the next pair in
+!> the list.
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals
+USE MOD_DSMC_Vars             ,ONLY: RadialWeighting, ClonedParticles, tClonedParticles
+USE MOD_Particle_Vars         ,ONLY: PDM
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER                              :: NewSize,i,ii,ALLOCSTAT
+TYPE (tClonedParticles), ALLOCATABLE :: ClonedParticles_new(:,:)
+!===================================================================================================================================
+IF (MAXVAL(RadialWeighting%ClonePartNum(:)).GE.PDM%maxParticleNumber/(1.+PDM%MaxPartNumIncrease)**2) RETURN
+
+NewSize = MAX(CEILING(MAXVAL(RadialWeighting%ClonePartNum(:))*(1.+PDM%MaxPartNumIncrease)),1)
+
+IF (NewSize.GT.RadialWeighting%CloneVecLength-10) RETURN
+
+SELECT CASE(RadialWeighting%CloneMode)
+CASE(1)
+  ALLOCATE(ClonedParticles_new(1:NewSize,0:(RadialWeighting%CloneInputDelay-1)),STAT=ALLOCSTAT)
+  IF (ALLOCSTAT.NE.0) CALL ABORT(&
+__STAMP__&
+,'Cannot allocate increased new ClonedParticles Array')
+  DO ii=0,RadialWeighting%CloneInputDelay-1
+    DO i=1,RadialWeighting%ClonePartNum(ii)
+      ClonedParticles_new(i,ii)%Species=ClonedParticles(i,ii)%Species
+      ClonedParticles_new(i,ii)%PartState(1:6)=ClonedParticles(i,ii)%PartState(1:6)
+      ClonedParticles_new(i,ii)%PartStateIntEn(1:3)=ClonedParticles(i,ii)%PartStateIntEn(1:3)
+      ClonedParticles_new(i,ii)%Element=ClonedParticles(i,ii)%Element
+      ClonedParticles_new(i,ii)%LastPartPos(1:3)=ClonedParticles(i,ii)%LastPartPos(1:3)
+      ClonedParticles_new(i,ii)%WeightingFactor=ClonedParticles(i,ii)%WeightingFactor
+      CALL MOVE_ALLOC(ClonedParticles(i,ii)%VibQuants,ClonedParticles_new(i,ii)%VibQuants)
+      CALL MOVE_ALLOC(ClonedParticles(i,ii)%DistriFunc,ClonedParticles_new(i,ii)%DistriFunc)
+      CALL MOVE_ALLOC(ClonedParticles(i,ii)%AmbiPolVelo,ClonedParticles_new(i,ii)%AmbiPolVelo)
+    END DO
+  END DO
+  DEALLOCATE(ClonedParticles)
+  CALL MOVE_ALLOC(ClonedParticles_New,ClonedParticles)
+CASE(2)
+  ALLOCATE(ClonedParticles_new(1:NewSize,0:RadialWeighting%CloneInputDelay),STAT=ALLOCSTAT)
+  IF (ALLOCSTAT.NE.0) CALL ABORT(&
+__STAMP__&
+,'Cannot allocate increased new ClonedParticles Array')
+  DO ii=0,RadialWeighting%CloneInputDelay
+    DO i=1,RadialWeighting%ClonePartNum(ii)
+      ClonedParticles_new(i,ii)%Species=ClonedParticles(i,ii)%Species
+      ClonedParticles_new(i,ii)%PartState(1:6)=ClonedParticles(i,ii)%PartState(1:6)
+      ClonedParticles_new(i,ii)%PartStateIntEn(1:3)=ClonedParticles(i,ii)%PartStateIntEn(1:3)
+      ClonedParticles_new(i,ii)%Element=ClonedParticles(i,ii)%Element
+      ClonedParticles_new(i,ii)%LastPartPos(1:3)=ClonedParticles(i,ii)%LastPartPos(1:3)
+      ClonedParticles_new(i,ii)%WeightingFactor=ClonedParticles(i,ii)%WeightingFactor
+      CALL MOVE_ALLOC(ClonedParticles(i,ii)%VibQuants,ClonedParticles_new(i,ii)%VibQuants)
+      CALL MOVE_ALLOC(ClonedParticles(i,ii)%DistriFunc,ClonedParticles_new(i,ii)%DistriFunc)
+      CALL MOVE_ALLOC(ClonedParticles(i,ii)%AmbiPolVelo,ClonedParticles_new(i,ii)%AmbiPolVelo)
+    END DO
+  END DO
+  DEALLOCATE(ClonedParticles)
+  CALL MOVE_ALLOC(ClonedParticles_New,ClonedParticles)
+CASE DEFAULT
+  CALL Abort(&
+      __STAMP__,&
+    'ERROR in Radial Weighting of 2D/Axisymmetric: The selected cloning mode is not available! Choose between 1 and 2.'//&
+      ' CloneMode=1: Delayed insertion of clones; CloneMode=2: Delayed randomized insertion of clones')
+END SELECT
+
+RadialWeighting%CloneVecLength = NewSize
+
+END SUBROUTINE ReduceClonedParticlesType
 
 END MODULE MOD_DSMC_Symmetry
