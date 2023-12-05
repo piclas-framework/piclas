@@ -336,6 +336,7 @@ TYPE tGeometry
   ! required for cartesian BGM for desposition
   INTEGER, ALLOCATABLE                   :: PeriodicBGMVectors(:,:)  ! = periodic vectors in backgroundmesh coords
   ! FIBGM
+  LOGICAL                                :: AutomaticFIBGM           ! Flag if the FIBGM is defined automatically
   REAL                                   :: FIBGMdeltas(3)           ! size of background mesh cell for particle init
   REAL                                   :: FactorFIBGM(3)           ! scaling factor for FIBGM
 
