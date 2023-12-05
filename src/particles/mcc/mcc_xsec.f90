@@ -650,7 +650,7 @@ IF(PartStateIntEn(3,iPart_p1).EQ.0.0.AND.PartStateIntEn(3,iPart_p2).EQ.0.0) THEN
   END IF  ! SUM(SpecXSec(iCase)%ElecLevel(:)%Prob).GT.0.
 END IF    ! Electronic energy = 0, ground-state
 
-! 4. Count the number of relaxation process for the relaxation rate
+! 4. Count the number of relaxation process for the relaxation rate and cell-local sampling
 IF(CalcRelaxProb.OR.SamplingActive.OR.WriteMacroVolumeValues) THEN
   IF(ElecLevelRelax.GT.0) THEN
     IF(usevMPF.OR.RadialWeighting%DoRadialWeighting) THEN
@@ -666,6 +666,7 @@ IF(CalcRelaxProb.OR.SamplingActive.OR.WriteMacroVolumeValues) THEN
       WeightedParticle = GetParticleWeight(iPart_p2) * WeightedParticle
     END IF
     SpecXSec(iCase)%ElecLevel(ElecLevelRelax)%Counter = SpecXSec(iCase)%ElecLevel(ElecLevelRelax)%Counter + WeightedParticle
+    ! Sampling of the cell-local excitation rate
     IF(SampleElecExcitation) THEN
       ElecLevel = ExcitationLevelMapping(iCase,ElecLevelRelax)
       ElemID = PEM%LocalElemID(iPart_p1)

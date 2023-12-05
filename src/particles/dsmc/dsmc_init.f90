@@ -293,7 +293,7 @@ USE MOD_Mesh_Vars              ,ONLY: nElems, NGEo
 USE MOD_Globals_Vars           ,ONLY: Pi, BoltzmannConst, ElementaryCharge
 USE MOD_Particle_Vars          ,ONLY: nSpecies, Species, PDM, UseVarTimeStep, usevMPF
 USE MOD_Symmetry_Vars          ,ONLY: Symmetry
-USE MOD_Particle_Vars          ,ONLY: DoFieldIonization,SampleElecExcitation
+USE MOD_Particle_Vars          ,ONLY: DoFieldIonization, SampleElecExcitation
 USE MOD_DSMC_ParticlePairing   ,ONLY: DSMC_init_octree
 USE MOD_DSMC_ChemInit          ,ONLY: DSMC_chemical_init
 USE MOD_DSMC_PolyAtomicModel   ,ONLY: InitPolyAtomicMolecs
@@ -343,7 +343,7 @@ END IF
 DSMC%GammaQuant   = GETREAL('Particles-DSMC-GammaQuant')
 DSMC%ElectronicModel         = GETINT('Particles-DSMC-ElectronicModel')
 IF(SampleElecExcitation.AND.(DSMC%ElectronicModel.NE.3)) CALL CollectiveStop(__STAMP__,&
-    'Part-SampElectronicExcitation = T requires Particles-DSMC-ElectronicModel = 3')
+    'Part-SampleElectronicExcitation = T requires Particles-DSMC-ElectronicModel = 3')
 IF (DSMC%ElectronicModel.GT.0) THEN
   ! Allocate internal energy array WITH electronic energy
   ALLOCATE(PartStateIntEn(1:3,PDM%maxParticleNumber))
@@ -1428,6 +1428,8 @@ SDEALLOCATE(CollInf%alphaVSS)
 SDEALLOCATE(CollInf%omega)
 SDEALLOCATE(CollInf%dref)
 SDEALLOCATE(CollInf%Tref)
+SDEALLOCATE(CollInf%OldCollPartner)
+CollInf%ProhibitDoubleColl=.FALSE.
 !SDEALLOCATE(VibQuantsPar)
 ! SDEALLOCATE(XiEq_Surf)
 SDEALLOCATE(DSMC_Solution)

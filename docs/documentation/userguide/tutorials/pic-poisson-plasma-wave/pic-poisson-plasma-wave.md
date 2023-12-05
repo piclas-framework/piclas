@@ -80,6 +80,7 @@ boundary for the same periodic vector.
 ```{figure} mesh/tut-pic-pw-mesh.jpg
 ---
 name: fig:plasma-wave-mesh
+width: 700px
 ---
 
 Mesh with $60\times1\times1$ elements and a size of [$2\pi\times0.2\times0.2$] m$^{3}$.
@@ -306,7 +307,7 @@ Each type of the initialization set might have a different set of parameters and
 
 
 To calculate the number of simulation particles of, e.g. electrons, defined by `Part-Species1-Init1-ParticleNumber`, the given
-number density $n_{e}$ in {numref}`tab:pic_poisson_plasma_wave_phys`, the selected weighting factor $w_{e}$ and the volume of the 
+number density $n_{e}$ in {numref}`tab:pic_poisson_plasma_wave_phys`, the selected weighting factor $w_{e}$ and the volume of the
 complete domain ($V=2\pi\cdot0.2\cdot0.2\pu{m^{3}}$) are utilized.
 
 $$ N_{e,sim} = \frac{n_{e} V}{w_{e}} $$
@@ -351,7 +352,7 @@ The command
 
 executes the code and dumps all output into the file *std.out*.
 To reduce the computation time, the simulation can be run using the Message Passing Interface (MPI) on multiple cores, in this case 4
-	
+
     mpirun -np 4 piclas parameter.ini | tee std.out
 
 If the run has completed successfully, which should take only a brief moment, the contents of the working folder should look like
@@ -413,7 +414,7 @@ The parameters for **piclas2vtk** are stored in the **parameter.ini** file under
 where `NVisu` is the polynomial visualization degree on which the field solution is interpolated.
 Depending on the used polynomial degree `N` and subsequently the degree of visualization `NVisu`, which should always be higher than
 `N`, the resulting electric potential $\Phi$ and its derivative the electric field strength **E** might show signs of oscillations.
-This is because the PIC simulation is always subject to noise that is influenced by the discretization (number of elements and 
+This is because the PIC simulation is always subject to noise that is influenced by the discretization (number of elements and
 polynomial degree as well as number of particles) and is visible in the solution as this is a snapshot of the current simulation.
 
 Additionally, the flag `VisuParticles` activates the output of particle position, velocity and species to the *vtk*-files.
@@ -431,6 +432,7 @@ The electric potential field can be viewed, e.g., by opening `plasma_wave_Soluti
 ```{figure} results/tut-pic-pw-results.jpg
 ---
 name: fig:plasma-wave-results
+width: 700px
 ---
 
 Resulting electric potential and field.

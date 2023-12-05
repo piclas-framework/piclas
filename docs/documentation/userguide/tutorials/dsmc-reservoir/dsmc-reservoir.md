@@ -25,7 +25,7 @@ The size of the simulation domain is set to [$\pu{4.64e-6}\times\pu{4.64e-6}\tim
 ```{figure} mesh/dsmc-reservoir-mesh-corners.svg
 ---
 name: fig:dsmc-reservoir-mesh-corners
-width: 50%
+width: 400px
 ---
 Order of the corners to define the used mesh. The first node is placed at the origin.
 ```
@@ -273,7 +273,7 @@ In addition to `std.out`, which contains information about the simulation proces
 ```{figure} results/dsmc-reservoir-temperature-relaxation.svg
 ---
 name: fig:dsmc-reservoir-temperature-relaxation
-width: 50%
+width: 400px
 ---
 
 Temperature relaxation process towards thermal equilibrium.
@@ -375,7 +375,7 @@ The `Projectname_visuPart_Timestamp.vtu` files contain simulation particle speci
 ```{figure} results/dsmc-reservoir-species.jpg
 ---
 name: fig:dsmc-reservoir-species
-width: 100%
+width: 600px
 ---
 
 Comparison of the present species (simulation particles) at start (left) and end (right) time of the simulation.
@@ -386,7 +386,7 @@ While the figure above is only capable of giving a general overview about the pr
 ```{figure} results/dsmc-reservoir-reaction.jpg
 ---
 name: fig:dsmc-reservoir-reaction
-width: 100%
+width: 600px
 ---
 
 Development of species composition (left) and translational temperature and dissociation rate (right) over time.

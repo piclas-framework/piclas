@@ -354,9 +354,11 @@ IF(PartBound%UseRotPeriodicBC) FindNeighbourElems = .TRUE.
 
 IF(DoVirtualCellMerge) FindNeighbourElems = .TRUE.
 
+! Build ConcaveElemSide_Shared, ElemSideNodeID_Shared, ElemMidPoint_Shared
+CALL InitParticleGeometry()
+
 SELECT CASE(TrackingMethod)
   CASE(TRIATRACKING)
-    CALL InitParticleGeometry()
     CALL InitElemNodeIDs()
     ! Compute convex element radius^2
     CALL BuildElementRadiusTria()
@@ -372,8 +374,6 @@ SELECT CASE(TrackingMethod)
     IF (DoDeposition) CALL BuildEpsOneCell()
 
   CASE(TRACING,REFMAPPING)
-    ! ElemMidPoint_Shared required
-    IF(TriaSurfaceFlux.OR.TRIM(DepositionType).EQ.'shape_function_adaptive') CALL InitParticleGeometry()
     ! ElemNodeID_Shared required
     IF(FindNeighbourElems) CALL InitElemNodeIDs()
 

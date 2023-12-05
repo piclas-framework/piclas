@@ -130,10 +130,6 @@ IF (CollisMode.NE.0) THEN
   END DO ! iElem Loop
 END IF ! CollisMode.NE.0
 
-! Advance particle vector length and the current next free position with newly created particles
-PDM%ParticleVecLength = PDM%ParticleVecLength + DSMCSumOfFormedParticles
-PDM%CurrentNextFreePosition = PDM%CurrentNextFreePosition + DSMCSumOfFormedParticles
-
 IF(PDM%ParticleVecLength.GT.PDM%MaxParticleNumber) THEN
   CALL Abort(__STAMP__&
     ,'ERROR in DSMC: ParticleVecLength greater than MaxParticleNumber! Increase the MaxParticleNumber to at least: ' &

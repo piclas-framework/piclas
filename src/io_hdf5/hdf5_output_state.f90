@@ -405,7 +405,7 @@ ASSOCIATE (&
   END IF ! nProcessors.GT.1
 #endif /*USE_MPI*/
 
-  ASSOCIATE( nOutputSides => INT(SortedEnd-SortedStart+1,IK) ,&
+  ASSOCIATE( nGlobalOutputSides => INT(SortedEnd-SortedStart+1,IK) ,&
         SortedOffset => INT(SortedOffset,IK)            ,&
         SortedStart  => INT(SortedStart,IK)             ,&
         SortedEnd    => INT(SortedEnd,IK)               ,&
@@ -413,7 +413,7 @@ ASSOCIATE (&
     CALL GatheredWriteArray(FileName,create=.FALSE.,&
         DataSetName = 'DG_SolutionLambda', rank=3,&
         nValGlobal  = (/PP_nVarTmp , nGP_face , nGlobalUniqueSides/) , &
-        nVal        = (/PP_nVarTmp , nGP_face , nOutputSides/)       , &
+        nVal        = (/PP_nVarTmp , nGP_face , nGlobalOutputSides/)       , &
         offset      = (/0_IK       , 0_IK     , SortedOffset/)       , &
         collective  = .TRUE.                                         , &
         RealArray   = SortedLambda(:,:,SortedStart:SortedEnd))
