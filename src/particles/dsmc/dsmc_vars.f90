@@ -75,6 +75,7 @@ TYPE tRadialWeighting
   INTEGER                     :: CloneInputDelay
   LOGICAL                     :: CellLocalWeighting
   INTEGER                     :: nSubSides
+  INTEGER                     :: CloneVecLength
 END TYPE tRadialWeighting
 
 TYPE(tRadialWeighting)        :: RadialWeighting

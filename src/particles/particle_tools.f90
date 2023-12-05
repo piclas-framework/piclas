@@ -1745,7 +1745,6 @@ INTEGER                                   :: NewSize, i, ii, ALLOCSTAT
 TYPE (tAmbipolElecVelo), ALLOCATABLE      :: AmbipolElecVelo_New(:)
 TYPE (tElectronicDistriPart), ALLOCATABLE :: ElectronicDistriPart_New(:)
 TYPE (tPolyatomMolVibQuant), ALLOCATABLE  :: VibQuantsPar_New(:)
-TYPE (tClonedParticles), ALLOCATABLE      :: ClonedParticles_New(:,:)
 ! REAL                        ::
 !===================================================================================================================================
 IF(PRESENT(Amount)) THEN
@@ -1866,57 +1865,6 @@ __STAMP__&
   DEALLOCATE(VibQuantsPar)
   CALL MOVE_ALLOC(VibQuantsPar_New,VibQuantsPar)
 END IF
-
-IF(ALLOCATED(ClonedParticles)) THEN
-  SELECT CASE(RadialWeighting%CloneMode)
-  CASE(1)
-    ALLOCATE(ClonedParticles_new(1:NewSize,0:(RadialWeighting%CloneInputDelay-1)),STAT=ALLOCSTAT)
-    IF (ALLOCSTAT.NE.0) CALL ABORT(&
-  __STAMP__&
-  ,'Cannot allocate increased Array in IncreaseMaxParticleNumber')
-    DO ii=0,RadialWeighting%CloneInputDelay-1
-      DO i=1,RadialWeighting%ClonePartNum(ii)
-        ClonedParticles_new(i,ii)%Species=ClonedParticles(i,ii)%Species
-        ClonedParticles_new(i,ii)%PartState(1:6)=ClonedParticles(i,ii)%PartState(1:6)
-        ClonedParticles_new(i,ii)%PartStateIntEn(1:3)=ClonedParticles(i,ii)%PartStateIntEn(1:3)
-        ClonedParticles_new(i,ii)%Element=ClonedParticles(i,ii)%Element
-        ClonedParticles_new(i,ii)%LastPartPos(1:3)=ClonedParticles(i,ii)%LastPartPos(1:3)
-        ClonedParticles_new(i,ii)%WeightingFactor=ClonedParticles(i,ii)%WeightingFactor
-        CALL MOVE_ALLOC(ClonedParticles(i,ii)%VibQuants,ClonedParticles_new(i,ii)%VibQuants)
-        CALL MOVE_ALLOC(ClonedParticles(i,ii)%DistriFunc,ClonedParticles_new(i,ii)%DistriFunc)
-        CALL MOVE_ALLOC(ClonedParticles(i,ii)%AmbiPolVelo,ClonedParticles_new(i,ii)%AmbiPolVelo)
-      END DO
-    END DO
-    DEALLOCATE(ClonedParticles)
-    CALL MOVE_ALLOC(ClonedParticles_New,ClonedParticles)
-  CASE(2)
-    ALLOCATE(ClonedParticles_new(1:NewSize,0:RadialWeighting%CloneInputDelay),STAT=ALLOCSTAT)
-    IF (ALLOCSTAT.NE.0) CALL ABORT(&
-  __STAMP__&
-  ,'Cannot allocate increased Array in IncreaseMaxParticleNumber')
-    DO ii=0,RadialWeighting%CloneInputDelay
-      DO i=1,RadialWeighting%ClonePartNum(ii)
-        ClonedParticles_new(i,ii)%Species=ClonedParticles(i,ii)%Species
-        ClonedParticles_new(i,ii)%PartState(1:6)=ClonedParticles(i,ii)%PartState(1:6)
-        ClonedParticles_new(i,ii)%PartStateIntEn(1:3)=ClonedParticles(i,ii)%PartStateIntEn(1:3)
-        ClonedParticles_new(i,ii)%Element=ClonedParticles(i,ii)%Element
-        ClonedParticles_new(i,ii)%LastPartPos(1:3)=ClonedParticles(i,ii)%LastPartPos(1:3)
-        ClonedParticles_new(i,ii)%WeightingFactor=ClonedParticles(i,ii)%WeightingFactor
-        CALL MOVE_ALLOC(ClonedParticles(i,ii)%VibQuants,ClonedParticles_new(i,ii)%VibQuants)
-        CALL MOVE_ALLOC(ClonedParticles(i,ii)%DistriFunc,ClonedParticles_new(i,ii)%DistriFunc)
-        CALL MOVE_ALLOC(ClonedParticles(i,ii)%AmbiPolVelo,ClonedParticles_new(i,ii)%AmbiPolVelo)
-      END DO
-    END DO
-    DEALLOCATE(ClonedParticles)
-    CALL MOVE_ALLOC(ClonedParticles_New,ClonedParticles)
-  CASE DEFAULT
-    CALL Abort(&
-        __STAMP__,&
-      'ERROR in Radial Weighting of 2D/Axisymmetric: The selected cloning mode is not available! Choose between 1 and 2.'//&
-        ' CloneMode=1: Delayed insertion of clones; CloneMode=2: Delayed randomized insertion of clones')
-END SELECT
-END IF
-
 
 IF(ALLOCATED(PDM%nextFreePosition)) THEN
   CALL ChangeSizeArray(PDM%nextFreePosition,PDM%maxParticleNumber,NewSize,0)
@@ -2132,70 +2080,6 @@ __STAMP__&
   END DO
   DEALLOCATE(VibQuantsPar)
   CALL MOVE_ALLOC(VibQuantsPar_New,VibQuantsPar)
-END IF
-
-IF(ALLOCATED(ClonedParticles)) THEN
-  SELECT CASE(RadialWeighting%CloneMode)
-  CASE(1)
-    ALLOCATE(ClonedParticles_new(1:NewSize,0:(RadialWeighting%CloneInputDelay-1)),STAT=ALLOCSTAT)
-    IF (ALLOCSTAT.NE.0) CALL ABORT(&
-  __STAMP__&
-  ,'Cannot allocate increased Array in ReduceMaxParticleNumber')
-    DO ii=0,RadialWeighting%CloneInputDelay-1
-      DO i=1,RadialWeighting%ClonePartNum(ii)
-        IF(i.LE.NewSize) THEN
-          ClonedParticles_new(i,ii)%Species=ClonedParticles(i,ii)%Species
-          ClonedParticles_new(i,ii)%PartState(1:6)=ClonedParticles(i,ii)%PartState(1:6)
-          ClonedParticles_new(i,ii)%PartStateIntEn(1:3)=ClonedParticles(i,ii)%PartStateIntEn(1:3)
-          ClonedParticles_new(i,ii)%Element=ClonedParticles(i,ii)%Element
-          ClonedParticles_new(i,ii)%LastPartPos(1:3)=ClonedParticles(i,ii)%LastPartPos(1:3)
-          ClonedParticles_new(i,ii)%WeightingFactor=ClonedParticles(i,ii)%WeightingFactor
-          CALL MOVE_ALLOC(ClonedParticles(i,ii)%VibQuants,ClonedParticles_new(i,ii)%VibQuants)
-          CALL MOVE_ALLOC(ClonedParticles(i,ii)%DistriFunc,ClonedParticles_new(i,ii)%DistriFunc)
-          CALL MOVE_ALLOC(ClonedParticles(i,ii)%AmbiPolVelo,ClonedParticles_new(i,ii)%AmbiPolVelo)
-        ELSE
-          SDEALLOCATE(ClonedParticles(i,ii)%VibQuants)
-          SDEALLOCATE(ClonedParticles(i,ii)%DistriFunc)
-          SDEALLOCATE(ClonedParticles(i,ii)%AmbiPolVelo)
-        END IF
-      END DO
-      IF(RadialWeighting%ClonePartNum(ii).GT.NewSize) RadialWeighting%ClonePartNum(ii)=NewSize
-    END DO
-    DEALLOCATE(ClonedParticles)
-    CALL MOVE_ALLOC(ClonedParticles_New,ClonedParticles)
-  CASE(2)
-    ALLOCATE(ClonedParticles_new(1:NewSize,0:RadialWeighting%CloneInputDelay),STAT=ALLOCSTAT)
-    IF (ALLOCSTAT.NE.0) CALL ABORT(&
-  __STAMP__&
-  ,'Cannot allocate increased Array in ReduceMaxParticleNumber')
-    DO ii=0,RadialWeighting%CloneInputDelay
-      DO i=1,RadialWeighting%ClonePartNum(ii)
-        IF(i.LE.NewSize) THEN
-          ClonedParticles_new(i,ii)%Species=ClonedParticles(i,ii)%Species
-          ClonedParticles_new(i,ii)%PartState(1:6)=ClonedParticles(i,ii)%PartState(1:6)
-          ClonedParticles_new(i,ii)%PartStateIntEn(1:3)=ClonedParticles(i,ii)%PartStateIntEn(1:3)
-          ClonedParticles_new(i,ii)%Element=ClonedParticles(i,ii)%Element
-          ClonedParticles_new(i,ii)%LastPartPos(1:3)=ClonedParticles(i,ii)%LastPartPos(1:3)
-          ClonedParticles_new(i,ii)%WeightingFactor=ClonedParticles(i,ii)%WeightingFactor
-          CALL MOVE_ALLOC(ClonedParticles(i,ii)%VibQuants,ClonedParticles_new(i,ii)%VibQuants)
-          CALL MOVE_ALLOC(ClonedParticles(i,ii)%DistriFunc,ClonedParticles_new(i,ii)%DistriFunc)
-          CALL MOVE_ALLOC(ClonedParticles(i,ii)%AmbiPolVelo,ClonedParticles_new(i,ii)%AmbiPolVelo)
-        ELSE
-          SDEALLOCATE(ClonedParticles(i,ii)%VibQuants)
-          SDEALLOCATE(ClonedParticles(i,ii)%DistriFunc)
-          SDEALLOCATE(ClonedParticles(i,ii)%AmbiPolVelo)
-        END IF
-      END DO
-      IF(RadialWeighting%ClonePartNum(ii).GT.NewSize) RadialWeighting%ClonePartNum(ii)=NewSize
-    END DO
-    DEALLOCATE(ClonedParticles)
-    CALL MOVE_ALLOC(ClonedParticles_New,ClonedParticles)
-  CASE DEFAULT
-    CALL Abort(&
-        __STAMP__,&
-      'ERROR in Radial Weighting of 2D/Axisymmetric: The selected cloning mode is not available! Choose between 1 and 2.'//&
-        ' CloneMode=1: Delayed insertion of clones; CloneMode=2: Delayed randomized insertion of clones')
-END SELECT
 END IF
 
 IF(ALLOCATED(PDM%nextFreePosition)) THEN
