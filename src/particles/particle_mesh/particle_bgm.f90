@@ -206,9 +206,6 @@ INTEGER,ALLOCATABLE            :: NumberOfElements(:)
 REAL                           :: StartT,EndT ! Timer
 !===================================================================================================================================
 
-! Read periodic vectors from parameter file
-CALL InitPeriodicBC()
-
 #if USE_MPI
 CALL Allocate_Shared((/2,3,nGlobalElems/),BoundsOfElem_Shared_Win,BoundsOfElem_Shared)
 CALL MPI_WIN_LOCK_ALL(0,BoundsOfElem_Shared_Win,IERROR)
@@ -311,6 +308,9 @@ ELSE
   GEO%FIBGMdeltas    = GEO%FIBGMdeltas/REAL(nGlobalElems)
   SWRITE(*,*) "GEO%FIBGMdeltas",GEO%FIBGMdeltas
 END IF
+
+! Read periodic vectors from parameter file
+CALL InitPeriodicBC()
 
 ! Ensure BGM does not protrude beyond mesh when divisible by FIBGMdeltas
 BGMiminglob = 0 + moveBGMindex
