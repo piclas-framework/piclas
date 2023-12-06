@@ -620,10 +620,9 @@ IF(DSMC%CalcQualityFactors) THEN
                                                     MAX(DSMC%MCSoverMFP,(DSMC%CollSepDist/DSMC%CollSepCount)/DSMC%MeanFreePath)
     ! Calculation of the maximum MCS/MFP of all cells for this processor and number of resolved Cells for this processor
     IF(DSMC%MCSoverMFP .GE. DSMC%MaxMCSoverMFP) DSMC%MaxMCSoverMFP = DSMC%MCSoverMFP
+    ! Calculate number of resolved Cells for this processor
     IF( (DSMC%MCSoverMFP .LE. 1) .AND. (DSMC%CollProbMax .LE. 1) .AND. (DSMC%CollProbMean .LE. 1)) DSMC%ResolvedCellCounter = & 
                                                     DSMC%ResolvedCellCounter + 1
-    ! Calculation of the maximum CollProbMax of all cells for this processor
-    IF(DSMC%CollProbMax .GE. DSMC%CollProMaxProcMax) DSMC%CollProMaxProcMax = DSMC%CollProbMax
   END IF
 END IF
 

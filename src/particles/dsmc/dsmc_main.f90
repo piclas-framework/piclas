@@ -71,10 +71,11 @@ REAL              :: tLBStart
 
 ! Reset the number of particles created during the DSMC loop
 DSMCSumOfFormedParticles = 0
+
 DSMC%MaxMCSoverMFP = 0.0
 DSMC%ParticlePairingCounter = 0 ! Counts ParticleParing Calls
 DSMC%ResolvedCellCounter = 0 ! Counts resolved cells
-DSMC%CollProMaxProcMax = 0.0 ! Maximum CollProbMax of every Cell in Process
+DSMC%CollProbMaxProcMax = 0.0 ! Maximum CollProbMax of every Cell in Process
 ! Insert background gas particles for every simulation particle
 IF((BGGas%NumberOfSpecies.GT.0).AND.(.NOT.UseMCC)) CALL BGGas_InsertParticles()
 
@@ -85,7 +86,6 @@ END IF
 #if USE_LOADBALANCE
 CALL LBStartTime(tLBStart)
 #endif /*USE_LOADBALANCE*/
-
 IF (CollisMode.NE.0) THEN
   DO iElem = 1, nElems ! element/cell main loop
     IF(PRESENT(DoElement)) THEN
