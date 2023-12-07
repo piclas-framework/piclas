@@ -462,9 +462,7 @@ IF(EductReac(3).NE.0) THEN
     ProductReac(2) = PartSpecies(ReactInx(3))
     NumEduct = 3
   END IF
-  IF(ProductReac(3).EQ.0) THEN
-    CALL RemoveParticle(ReactInx(3))
-  ELSE
+  IF(ProductReac(3).NE.0) THEN
     PartSpecies(ReactInx(3)) = ProductReac(3)
     NumProd = 3
   END IF
@@ -1028,6 +1026,7 @@ ELSEIF(ProductReac(3).EQ.0) THEN
     END IF
     ! Centre of mass velocity
     VeloCOM(1:3) = FracMassCent1 * PartState(4:6,ReactInx(1)) + FracMassCent2 * PartState(4:6,ReactInx(2))
+    CALL RemoveParticle(ReactInx(3))
   END IF
   ERel_React1_React3 = Coll_pData(iPair)%Ec
 
