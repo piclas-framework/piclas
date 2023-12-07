@@ -317,7 +317,6 @@ ELSE
       PDM%ParticleInside(ParticleIndexNbr)=.TRUE.
       PEM%GlobalElemID(ParticleIndexNbr) = AcceptedParts(i)
       IF(TrackingMethod.EQ.REFMAPPING) CALL GetPositionInRefElem(PartState(1:DimSend,ParticleIndexNbr),PartPosRef(1:3,ParticleIndexNbr),AcceptedParts(i))
-      PDM%IsNewPart(ParticleIndexNbr)  = .TRUE.
       PDM%dtFracPush(ParticleIndexNbr) = .FALSE.
     END IF
   END DO
@@ -742,7 +741,6 @@ DO iElem = 1, nElems
                 PositionNbr                     = GetNextFreePosition(NbrOfParticle)
                 PEM%GlobalElemID(PositionNbr)   = GlobalElemID
                 PDM%ParticleInside(PositionNbr) = .TRUE.
-                PDM%isNewPart(PositionNbr) = .TRUE.
                 PartState(1:3,PositionNbr) = RandomPos(1:3)
                 IF(TrackingMethod.EQ.REFMAPPING) &
                   CALL GetPositionInRefElem(PartState(1:3,PositionNbr),PartPosRef(1:3,PositionNbr),GlobalElemID)
@@ -793,7 +791,6 @@ DO iElem = 1, nElems
             PositionNbr                     = GetNextFreePosition(NbrOfParticle)
             PEM%GlobalElemID(PositionNbr)   = GlobalElemID
             PDM%ParticleInside(PositionNbr) = .TRUE.
-            PDM%isNewPart(PositionNbr) = .TRUE.
             PartState(1:3,PositionNbr) = RandomPos(1:3)
             CALL InitializeParticleMaxwell(PositionNbr,iSpec,iElem,Mode=2,iInit=iInit)
           END IF
