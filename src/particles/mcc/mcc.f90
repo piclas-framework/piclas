@@ -536,6 +536,8 @@ DO iSpec = 1, nSpecies
       ! Determine collision probabilities
       IF(DSMC%CalcQualityFactors) THEN
         DSMC%CollProbMax = MAX(CollProb, DSMC%CollProbMax)
+        ! Calculation of the maximum CollProbMax of all cells for this processor
+        IF(DSMC%CollProbMax .GE. DSMC%CollProbMaxProcMax) DSMC%CollProbMaxProcMax = DSMC%CollProbMax
         ! Remove the correction factor for the mean collision probability
         IF(SpecXSec(iSpec)%UseCollXSec) THEN
           IF(XSec_NullCollision) THEN
@@ -580,6 +582,12 @@ IF(DSMC%CalcQualityFactors) THEN
     ! Determination of the MCS/MFP for the case without octree
     IF((DSMC%CollSepCount.GT.0.0).AND.(DSMC%MeanFreePath.GT.0.0)) DSMC%MCSoverMFP = (DSMC%CollSepDist/DSMC%CollSepCount) &
                                                                                     / DSMC%MeanFreePath
+    ! Calculation of the maximum MCS/MFP of all cells for this processor
+    IF(DSMC%MCSoverMFP .GE. DSMC%MaxMCSoverMFP) DSMC%MaxMCSoverMFP = DSMC%MCSoverMFP
+    ! Calculate number of resolved Cells for this processor
+    DSMC%ParticleCalcCollCounter = DSMC%ParticleCalcCollCounter + 1 ! Counts Particle Collision Calculation
+    IF( (DSMC%MCSoverMFP .LE. 1) .AND. (DSMC%CollProbMax .LE. 1) .AND. (DSMC%CollProbMean .LE. 1)) DSMC%ResolvedCellCounter = & 
+                                                    DSMC%ResolvedCellCounter + 1
   END IF
 END IF
 

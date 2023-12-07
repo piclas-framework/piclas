@@ -512,6 +512,12 @@ IF(DSMC%CalcQualityFactors) THEN
     ! Determination of the MCS/MFP for the case without octree
     IF((DSMC%CollSepCount.GT.0.0).AND.(DSMC%MeanFreePath.GT.0.0)) DSMC%MCSoverMFP = (DSMC%CollSepDist/DSMC%CollSepCount) &
                                                                                     / DSMC%MeanFreePath
+    ! Calculation of the maximum MCS/MFP of all cells for this processor and number of resolved Cells for this processor
+    IF(DSMC%MCSoverMFP .GE. DSMC%MaxMCSoverMFP) DSMC%MaxMCSoverMFP = DSMC%MCSoverMFP
+    ! Calculate number of resolved Cells for this processor
+    DSMC%ParticleCalcCollCounter = DSMC%ParticleCalcCollCounter + 1 ! Counts Particle Collision Calculation
+    IF( (DSMC%MCSoverMFP .LE. 1) .AND. (DSMC%CollProbMax .LE. 1) .AND. (DSMC%CollProbMean .LE. 1)) DSMC%ResolvedCellCounter = & 
+                                                    DSMC%ResolvedCellCounter + 1
   END IF
 END IF
 DEALLOCATE(Coll_pData)

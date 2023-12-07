@@ -73,7 +73,7 @@ REAL              :: tLBStart
 DSMCSumOfFormedParticles = 0
 
 DSMC%MaxMCSoverMFP = 0.0
-DSMC%ParticlePairingCounter = 0 ! Counts ParticleParing Calls
+DSMC%ParticleCalcCollCounter = 0 ! Counts Particle Collison Calculations
 DSMC%ResolvedCellCounter = 0 ! Counts resolved cells
 DSMC%CollProbMaxProcMax = 0.0 ! Maximum CollProbMax of every Cell in Process
 ! Insert background gas particles for every simulation particle

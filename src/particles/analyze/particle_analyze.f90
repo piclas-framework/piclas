@@ -1385,7 +1385,7 @@ ParticleAnalyzeSampleTime = Time - ParticleAnalyzeSampleTime ! Set ParticleAnaly
   END IF
   IF(DSMC%CalcQualityFactors) THEN
     IF(iter.GT.0) THEN
-      ! MaxMCSoverMFP:
+      ! MaxMCSoverMFP  for all processes:
 #if USE_MPI
       IF(MPIRoot)THEN
         CALL MPI_REDUCE(MPI_IN_PLACE,DSMC%MaxMCSoverMFP,1,MPI_DOUBLE_PRECISION,MPI_MAX,0,MPI_COMM_PICLAS, IERROR)
@@ -1394,7 +1394,7 @@ ParticleAnalyzeSampleTime = Time - ParticleAnalyzeSampleTime ! Set ParticleAnaly
       END IF
 #endif /*USE_MPI*/
       MaxMCSoverMFP = DSMC%MaxMCSoverMFP
-      ! MaxCollProb
+      ! Maximum MaxCollProb for all processes:
 #if USE_MPI
       IF(MPIRoot)THEN
         CALL MPI_REDUCE(MPI_IN_PLACE,DSMC%CollProbMaxProcMax,1,MPI_DOUBLE_PRECISION,MPI_MAX,0,MPI_COMM_PICLAS, IERROR)
@@ -1407,13 +1407,13 @@ ParticleAnalyzeSampleTime = Time - ParticleAnalyzeSampleTime ! Set ParticleAnaly
 #if USE_MPI
         IF(MPIRoot)THEN
           CALL MPI_REDUCE(MPI_IN_PLACE,DSMC%ResolvedCellCounter,1,MPI_REAL,MPI_SUM,0,MPI_COMM_PICLAS, IERROR)
-          CALL MPI_REDUCE(MPI_IN_PLACE,DSMC%ParticlePairingCounter,1,MPI_REAL,MPI_SUM,0,MPI_COMM_PICLAS, IERROR)
+          CALL MPI_REDUCE(MPI_IN_PLACE,DSMC%ParticleCalcCollCounter,1,MPI_REAL,MPI_SUM,0,MPI_COMM_PICLAS, IERROR)
         ELSE
           CALL MPI_REDUCE(DSMC%ResolvedCellCounter,DSMC%ResolvedCellCounter,1,MPI_REAL,MPI_SUM,0,MPI_COMM_PICLAS, IERROR)
-          CALL MPI_REDUCE(DSMC%ParticlePairingCounter,DSMC%ParticlePairingCounter,1,MPI_REAL,MPI_SUM,0,MPI_COMM_PICLAS, IERROR)
+          CALL MPI_REDUCE(DSMC%ParticleCalcCollCounter,DSMC%ParticleCalcCollCounter,1,MPI_REAL,MPI_SUM,0,MPI_COMM_PICLAS, IERROR)
         END IF
 #endif /*USE_MPI*/
-        IF(DSMC%ParticlePairingCounter.GT.0) ResolvedCellPercentage = REAL(DSMC%ResolvedCellCounter) / REAL(DSMC%ParticlePairingCounter) * 100
+        IF(DSMC%ParticleCalcCollCounter.GT.0) ResolvedCellPercentage = REAL(DSMC%ResolvedCellCounter) / REAL(DSMC%ParticleCalcCollCounter) * 100
       ! MeanCollProb:
       IF(DSMC%CollProbMeanCount.GT.0) MeanCollProb = DSMC%CollProbMean / DSMC%CollProbMeanCount
       ! MeanFreePath:

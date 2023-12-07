@@ -609,7 +609,6 @@ DO iPair = 1, nPair
   END IF
 END DO
 
-DSMC%ParticlePairingCounter = DSMC%ParticlePairingCounter + 1 ! Counts Particle Pairing Calls
 ! 6.) Calculate the mean free path and the mean collision separation distance within a cell
 IF(DSMC%CalcQualityFactors) THEN
   IF((Time.GE.(1-DSMC%TimeFracSamp)*TEnd).OR.WriteMacroVolumeValues) THEN
@@ -621,6 +620,7 @@ IF(DSMC%CalcQualityFactors) THEN
     ! Calculation of the maximum MCS/MFP of all cells for this processor and number of resolved Cells for this processor
     IF(DSMC%MCSoverMFP .GE. DSMC%MaxMCSoverMFP) DSMC%MaxMCSoverMFP = DSMC%MCSoverMFP
     ! Calculate number of resolved Cells for this processor
+    DSMC%ParticleCalcCollCounter = DSMC%ParticleCalcCollCounter + 1 ! Counts Particle Collision Calculation
     IF( (DSMC%MCSoverMFP .LE. 1) .AND. (DSMC%CollProbMax .LE. 1) .AND. (DSMC%CollProbMean .LE. 1)) DSMC%ResolvedCellCounter = & 
                                                     DSMC%ResolvedCellCounter + 1
   END IF
