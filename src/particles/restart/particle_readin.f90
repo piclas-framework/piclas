@@ -751,6 +751,18 @@ CloneDataSize = INT(SizeClone(1),4)
 ClonePartNum = INT(SizeClone(2),4)
 DEALLOCATE(SizeClone)
 
+! Allocate ClonedParticles array
+IF(ClonePartNum.GT.RadialWeighting%CloneVecLength) THEN
+  RadialWeighting%CloneVecLength = ClonePartNum + 10
+  SDEALLOCATE(ClonedParticles)
+  SELECT CASE(RadialWeighting%CloneMode)
+    CASE(1)
+      ALLOCATE(ClonedParticles(1:RadialWeighting%CloneVecLength,0:(RadialWeighting%CloneInputDelay-1)))
+    CASE(2)
+      ALLOCATE(ClonedParticles(1:RadialWeighting%CloneVecLength,0:RadialWeighting%CloneInputDelay))
+  END SELECT
+END IF
+
 IF(ClonePartNum.GT.0) THEN
   ALLOCATE(CloneData(1:CloneDataSize,1:ClonePartNum))
   ASSOCIATE(ClonePartNum  => INT(ClonePartNum,IK)  ,&
