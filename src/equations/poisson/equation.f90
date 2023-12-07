@@ -828,7 +828,7 @@ CASE(700) ! Analytical solution of a charged particle moving in cylindrical coor
 #else
   CALL abort(__STAMP__,'ExactFunc=700 requires PARTICLES=ON')
 #endif /*defined(PARTICLES)*/
-CASE(800) ! Dielectric slab on electrode (left) with plasma between slab and other electrode opposite
+CASE(800,900) ! Dielectric slab on electrode (left) with plasma between slab and other electrode opposite
   IF(ALLOCATED(FPC%Charge))THEN
 #if USE_MPI
     FPC%ChargeProc = 0.0
