@@ -575,6 +575,8 @@ IF(bggPartIndex.NE.0) THEN
   PDM%ParticleInside(bggPartIndex) = .FALSE.
 END IF
 IF(DSMC%CalcQualityFactors) THEN
+  ! Calculation of Mean Collision Probability
+  IF(DSMC%CollProbMeanCount.GT.0) DSMC%CollProbMean = DSMC%CollProbSum / DSMC%CollProbMeanCount
   IF((Time.GE.(1-DSMC%TimeFracSamp)*TEnd).OR.WriteMacroVolumeValues) THEN
     ! Calculation of the mean free path
     DSMC%MeanFreePath = CalcMeanFreePath(REAL(CollInf%Coll_SpecPartNum),SUM(CollInf%Coll_SpecPartNum), &
@@ -584,8 +586,6 @@ IF(DSMC%CalcQualityFactors) THEN
                                                                                     / DSMC%MeanFreePath
     ! Calculation of the maximum MCS/MFP of all cells for this processor
     IF(DSMC%MCSoverMFP .GE. DSMC%MaxMCSoverMFP) DSMC%MaxMCSoverMFP = DSMC%MCSoverMFP
-    ! Calculation of Mean Collision Probability
-    IF(DSMC%CollProbMeanCount.GT.0) DSMC%CollProbMean = DSMC%CollProbSum / DSMC%CollProbMeanCount
     ! Calculate number of resolved Cells for this processor
     DSMC%ParticleCalcCollCounter = DSMC%ParticleCalcCollCounter + 1 ! Counts Particle Collision Calculation
     IF( (DSMC%MCSoverMFP .LE. 1) .AND. (DSMC%CollProbMax .LE. 1) .AND. (DSMC%CollProbMean .LE. 1)) DSMC%ResolvedCellCounter = & 
