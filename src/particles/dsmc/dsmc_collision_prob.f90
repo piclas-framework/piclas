@@ -238,7 +238,7 @@ IF(DSMC%CalcQualityFactors) THEN
       END IF
     END IF
   END IF
-  DSMC%CollProbMean = DSMC%CollProbMean + CollProb
+  DSMC%CollProbSum = DSMC%CollProbSum + CollProb
   DSMC%CollProbMeanCount = DSMC%CollProbMeanCount + 1
 END IF
 

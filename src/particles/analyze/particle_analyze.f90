@@ -889,7 +889,7 @@ REAL                :: EkinMax(nSpecies)
 #if (PP_TimeDiscMethod==2 || PP_TimeDiscMethod==4 || PP_TimeDiscMethod==300 || PP_TimeDiscMethod==400 || (PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=509) || PP_TimeDiscMethod==120)
 REAL                :: ETotal
 REAL                :: IntEn(nSpecAnalyze,3),IntTemp(nSpecies,3),TempTotal(nSpecAnalyze), Xi_Vib(nSpecies), Xi_Elec(nSpecies)
-REAL                :: MaxCollProb, MeanCollProb, MeanFreePath, MaxMCSoverMFP, ResolvedCellPercentage
+REAL                :: MaxCollProb, MeanCollProb, MeanFreePath, MaxMCSoverMFP, ResolvedCellPercentage, ResolvedTimestep
 REAL                :: NumSpecTmp(nSpecAnalyze), RotRelaxProb(2), VibRelaxProb(2)
 INTEGER             :: bgSpec
 #endif
@@ -1163,9 +1163,17 @@ ParticleAnalyzeSampleTime = Time - ParticleAnalyzeSampleTime ! Set ParticleAnaly
           END IF
         END IF
         IF(DSMC%CalcQualityFactors) THEN ! calculates maximum collision probability, mean collision probability & mean free path
-          WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-          WRITE(unit_index,'(I3.3,A)',ADVANCE='NO') OutputCounter,'-Pmean'
-          OutputCounter = OutputCounter + 1
+          IF (DSMC%ReservoirSimu) THEN
+            ! In case of a reservoir simulation, MeanCollProb is the ouput in PartAnalyze
+            ! Otherwise its the ResolvedTimestep
+            WRITE(unit_index,'(A1)',ADVANCE='NO') ','
+            WRITE(unit_index,'(I3.3,A)',ADVANCE='NO') OutputCounter,'-Pmean'
+            OutputCounter = OutputCounter + 1
+          ELSE
+            WRITE(unit_index,'(A1)',ADVANCE='NO') ','
+            WRITE(unit_index,'(I3.3,A)',ADVANCE='NO') OutputCounter,'-ResolvedTimestep'
+            OutputCounter = OutputCounter + 1
+          END IF
           WRITE(unit_index,'(A1)',ADVANCE='NO') ','
           WRITE(unit_index,'(I3.3,A)',ADVANCE='NO') OutputCounter,'-Pmax'
           OutputCounter = OutputCounter + 1
@@ -1363,6 +1371,7 @@ ParticleAnalyzeSampleTime = Time - ParticleAnalyzeSampleTime ! Set ParticleAnaly
   MeanFreePath = 0.0
   MaxMCSoverMFP = 0.0
   ResolvedCellPercentage = 0.0
+  ResolvedTimestep = 0.0
   IF(DSMC%CalcQualityFactors.OR.CalcReacRates) THEN
     NumSpecTmp = NumSpec
     IF(BGGas%NumberOfSpecies.GT.0) THEN
@@ -1414,8 +1423,20 @@ ParticleAnalyzeSampleTime = Time - ParticleAnalyzeSampleTime ! Set ParticleAnaly
         END IF
 #endif /*USE_MPI*/
         IF(DSMC%ParticleCalcCollCounter.GT.0) ResolvedCellPercentage = REAL(DSMC%ResolvedCellCounter) / REAL(DSMC%ParticleCalcCollCounter) * 100
-      ! MeanCollProb:
-      IF(DSMC%CollProbMeanCount.GT.0) MeanCollProb = DSMC%CollProbMean / DSMC%CollProbMeanCount
+        IF (DSMC%ReservoirSimu) THEN
+          ! In case of a reservoir simulation, MeanCollProb is the ouput in PartAnalyze
+          ! Otherwise its the ResolvedTimestep
+          MeanCollProb = DSMC%CollProbMean
+        ELSE
+#if USE_MPI
+          IF(MPIRoot)THEN
+            CALL MPI_REDUCE(MPI_IN_PLACE,DSMC%ResolvedTimestepCounter,1,MPI_REAL,MPI_SUM,0,MPI_COMM_PICLAS, IERROR)
+          ELSE
+            CALL MPI_REDUCE(DSMC%ResolvedTimestepCounter,DSMC%ResolvedTimestepCounter,1,MPI_REAL,MPI_SUM,0,MPI_COMM_PICLAS, IERROR)
+          END IF
+#endif /*USE_MPI*/
+          IF(DSMC%ParticleCalcCollCounter.GT.0) ResolvedTimestep = REAL(DSMC%ResolvedTimestepCounter) / REAL(DSMC%ParticleCalcCollCounter) * 100
+        END IF
       ! MeanFreePath:
       IF (MPIRoot) THEN
         IF(TempTotal(nSpecAnalyze).GT.0.0) MeanFreePath = CalcMeanFreePath(NumSpecTmp(1:nSpecies), NumSpecTmp(nSpecAnalyze), &
@@ -1684,7 +1705,13 @@ IF (MPIRoot) THEN
     END IF
   END IF
   IF(DSMC%CalcQualityFactors) THEN
-    WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',', MeanCollProb
+    IF (DSMC%ReservoirSimu) THEN
+      ! In case of a reservoir simulation, MeanCollProb is the ouput in PartAnalyze
+      ! Otherwise its the ResolvedTimestep
+      WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',', MeanCollProb
+    ELSE
+      WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',', ResolvedTimestep
+    END IF
     WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',', MaxCollProb
     WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',', MeanFreePath
     WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',', MaxMCSoverMFP

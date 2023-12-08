@@ -619,10 +619,18 @@ IF(DSMC%CalcQualityFactors) THEN
                                                     MAX(DSMC%MCSoverMFP,(DSMC%CollSepDist/DSMC%CollSepCount)/DSMC%MeanFreePath)
     ! Calculation of the maximum MCS/MFP of all cells for this processor and number of resolved Cells for this processor
     IF(DSMC%MCSoverMFP .GE. DSMC%MaxMCSoverMFP) DSMC%MaxMCSoverMFP = DSMC%MCSoverMFP
+    ! Calculation of Mean Collision Probability
+    IF(DSMC%CollProbMeanCount.GT.0) DSMC%CollProbMean = DSMC%CollProbSum / DSMC%CollProbMeanCount
     ! Calculate number of resolved Cells for this processor
     DSMC%ParticleCalcCollCounter = DSMC%ParticleCalcCollCounter + 1 ! Counts Particle Collision Calculation
     IF( (DSMC%MCSoverMFP .LE. 1) .AND. (DSMC%CollProbMax .LE. 1) .AND. (DSMC%CollProbMean .LE. 1)) DSMC%ResolvedCellCounter = & 
                                                     DSMC%ResolvedCellCounter + 1
+    ! Calculation of ResolvedTimestep. Number of Cells with ResolvedTimestep
+    IF (.NOT.DSMC%ReservoirSimu) THEN
+      ! In case of a reservoir simulation, MeanCollProb is the ouput in PartAnalyze
+      ! Otherwise its the ResolvedTimestep
+      IF ( DSMC%CollProbMean .LE. 1) DSMC%ResolvedTimestepCounter = DSMC%ResolvedTimestepCounter + 1
+    END IF
   END IF
 END IF
 

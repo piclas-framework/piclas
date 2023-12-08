@@ -195,7 +195,8 @@ TYPE tDSMC
   LOGICAL                       :: CalcSurfaceVal           ! Flag for calculation of surfacevalues like heatflux or force at walls
   LOGICAL                       :: CalcSurfaceTime          ! Flag for sampling in time-domain or iterations
   REAL                          :: CalcSurfaceSumTime       ! Flag for sampling in time-domain or iterations
-  REAL                          :: CollProbMean             ! Summation of collision probability
+  REAL                          :: CollProbSum              ! Summation of collision probability
+  REAL                          :: CollProbMean             ! Mean of collision probability
   REAL                          :: CollProbMax              ! Maximal collision probability per cell
   REAL, ALLOCATABLE             :: CalcRotProb(:,:)         ! Summation of rotation relaxation probability (nSpecies + 1,3)
                                                             !     1: Mean Prob
@@ -211,6 +212,7 @@ TYPE tDSMC
   REAL                          :: MCSoverMFP               ! Subcell local mean collision distance over mean free path
   INTEGER                       :: ParticleCalcCollCounter  ! Counts Calculation/Calls of Collison. Used for ResolvedCellPercentage
   INTEGER                       :: ResolvedCellCounter      ! Counts resolved Cells. Used for ResolvedCellPercentage
+  INTEGER                       :: ResolvedTimestepCounter  ! Counts Cells with MeanCollProb below 1
   INTEGER                       :: CollProbMeanCount        ! counter of possible collision pairs
   INTEGER                       :: CollSepCount             ! counter of actual collision pairs
   REAL                          :: CollSepDist              ! Summation of mean collision separation distance
