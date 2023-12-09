@@ -74,7 +74,7 @@ USE MOD_Particle_Boundary_Vars  ,ONLY: SurfOnNode
 USE MOD_Particle_Boundary_Vars  ,ONLY: nSurfSample,dXiEQ_SurfSample,PartBound,XiEQ_SurfSample
 USE MOD_Particle_Boundary_Vars  ,ONLY: nComputeNodeSurfSides,nComputeNodeSurfTotalSides,nComputeNodeSurfOutputSides
 USE MOD_Particle_Boundary_Vars  ,ONLY: nSurfBC,SurfBCName
-USE MOD_Particle_Boundary_Vars  ,ONLY: nSurfTotalSides
+USE MOD_Particle_Boundary_Vars  ,ONLY: nGlobalSurfSides
 USE MOD_Particle_Boundary_Vars  ,ONLY: SurfSide2GlobalSide
 USE MOD_SurfaceModel_Vars       ,ONLY: nPorousBC
 USE MOD_Particle_Boundary_Vars  ,ONLY: CalcSurfaceImpact
@@ -112,7 +112,7 @@ USE MOD_Particle_MPI_Boundary_Sampling,ONLY: InitSurfCommunication
 #else
 USE MOD_MPI_Shared_Vars         ,ONLY: mySurfRank
 USE MOD_Particle_Mesh_Vars      ,ONLY: nComputeNodeSides
-USE MOD_Particle_Boundary_Vars  ,ONLY: nOutputSides
+USE MOD_Particle_Boundary_Vars  ,ONLY: nGlobalOutputSides
 #endif /*USE_MPI*/
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Vars        ,ONLY: PerformLoadBalance
@@ -188,12 +188,12 @@ IF (CalcSurfaceImpact) SurfSpecOutputSize = SurfSpecOutputSize + 10
 IF (myComputeNodeRank.EQ.0) THEN
   CALL InitSurfCommunication()
 END IF
-! The leaders are synchronized at this point, but behind the other procs. nSurfTotalSides is only required when compiled without
+! The leaders are synchronized at this point, but behind the other procs. nGlobalSurfSides is only required when compiled without
 ! MPI, so perform latency hiding by postponing synchronization
 #else
 mySurfRank      = 0
-nSurfTotalSides = nComputeNodeSurfTotalSides
-nOutputSides    = nComputeNodeSurfOutputSides
+nGlobalSurfSides = nComputeNodeSurfTotalSides
+nGlobalOutputSides    = nComputeNodeSurfOutputSides
 #endif /* USE_MPI */
 
 ! surface sampling array do not need to be allocated if there are no sides within halo_eps range
@@ -317,7 +317,7 @@ lastSide  = INT(REAL((myComputeNodeRank+1))*REAL(nComputeNodeSurfTotalSides)/REA
 ALLOCATE(SurfSideArea(1:nSurfSample,1:nSurfSample,1:nComputeNodeSurfTotalSides))
 
 firstSide = 1
-lastSide  = nSurfTotalSides
+lastSide  = nGlobalSurfSides
 #endif /*USE_MPI*/
 
 #if USE_MPI
@@ -436,12 +436,12 @@ DEALLOCATE(Xi_NGeo,wGP_NGeo)
 
 #if USE_MPI
 ! Delayed synchronization
-CALL MPI_BCAST(nSurfTotalSides,1,MPI_INTEGER,0,MPI_COMM_SHARED,iError)
+CALL MPI_BCAST(nGlobalSurfSides,1,MPI_INTEGER,0,MPI_COMM_SHARED,iError)
 CALL MPI_BARRIER(MPI_COMM_SHARED,iError)
 
 IF (mySurfRank.EQ.0) THEN
 #endif
-  LBWRITE(UNIT_StdOut,'(A,I8)')       ' | Number of sampling sides:           '    , nSurfTotalSides
+  LBWRITE(UNIT_StdOut,'(A,I8)')       ' | Number of sampling sides:           '    , nGlobalSurfSides
   LBWRITE(UNIT_StdOut,'(A,ES10.4E2)') ' | Surface-Area:                         ', Area
   LBWRITE(UNIT_stdOut,'(A)') ' INIT SURFACE SAMPLING DONE'
 #if USE_MPI
@@ -729,14 +729,14 @@ USE MOD_IO_HDF5
 USE MOD_MPI_Shared_Vars         ,ONLY: mySurfRank
 USE MOD_SurfaceModel_Vars       ,ONLY: nPorousBC
 USE MOD_Particle_Boundary_Vars  ,ONLY: nSurfSample,CalcSurfaceImpact
-USE MOD_Particle_Boundary_Vars  ,ONLY: nOutputSides
-USE MOD_Particle_Boundary_Vars  ,ONLY: nComputeNodeSurfOutputSides,offsetComputeNodeSurfOutputSide
+USE MOD_Particle_Boundary_Vars  ,ONLY: nGlobalOutputSides
+USE MOD_Particle_boundary_Vars  ,ONLY: nComputeNodeSurfOutputSides,offsetComputeNodeSurfOutputSide
 USE MOD_Particle_Boundary_Vars  ,ONLY: nSurfBC,SurfBCName, PartBound
 USE MOD_Particle_Boundary_Vars  ,ONLY: SurfOutputSize,SurfSpecOutputSize
 USE MOD_Particle_Boundary_Vars  ,ONLY: MacroSurfaceVal,MacroSurfaceSpecVal
 USE MOD_Particle_Vars           ,ONLY: nSpecies
 #if USE_MPI
-USE MOD_Particle_Boundary_Vars  ,ONLY: nSurfTotalSides
+USE MOD_Particle_Boundary_Vars  ,ONLY: nGlobalSurfSides
 USE MOD_MPI_Shared_Vars         ,ONLY: MPI_COMM_LEADERS_SURF
 #endif
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -764,7 +764,7 @@ IF (MPI_COMM_LEADERS_SURF.EQ.MPI_COMM_NULL) RETURN
 CALL MPI_BARRIER(MPI_COMM_LEADERS_SURF,iERROR)
 
 ! Return if no sampling sides
-IF (nSurfTotalSides      .EQ.0) RETURN
+IF (nGlobalSurfSides      .EQ.0) RETURN
 #endif /*USE_MPI*/
 
 IF (mySurfRank.EQ.0) THEN
@@ -860,7 +860,7 @@ WRITE(H5_Name,'(A)') 'SurfaceData'
 ASSOCIATE (&
       nVar2D_Total         => INT(nVar2D_Total,IK)                    , &
       nSurfSample          => INT(nSurfSample,IK)                     , &
-      nGlobalSides         => INT(nOutputSides,IK)                    , &
+      nGlobalSides         => INT(nGlobalOutputSides,IK)                    , &
       nLocalSides          => INT(nComputeNodeSurfOutputSides,IK)     , &
       offsetSurfSide       => INT(offsetComputeNodeSurfOutputSide,IK) , &
       SurfOutputSize       => INT(SurfOutputSize,IK)                  , &
@@ -906,12 +906,12 @@ USE MOD_IO_HDF5
 USE MOD_MPI_Shared_Vars         ,ONLY: mySurfRank
 USE MOD_SurfaceModel_Vars       ,ONLY: ChemWallProp, SurfChem
 USE MOD_Particle_Boundary_Vars  ,ONLY: nSurfSample, SurfSideArea
-USE MOD_Particle_Boundary_Vars  ,ONLY: nOutputSides, nComputeNodeSurfSides
+USE MOD_Particle_Boundary_Vars  ,ONLY: nGlobalOutputSides, nComputeNodeSurfSides
 USE MOD_Particle_boundary_Vars  ,ONLY: nComputeNodeSurfOutputSides,offsetComputeNodeSurfOutputSide
 USE MOD_Particle_Boundary_Vars  ,ONLY: nSurfBC,SurfBCName
 USE MOD_Particle_Vars           ,ONLY: nSpecies
 #if USE_MPI
-USE MOD_Particle_Boundary_Vars  ,ONLY: nSurfTotalSides
+USE MOD_Particle_Boundary_Vars  ,ONLY: nGlobalSurfSides
 USE MOD_MPI_Shared_Vars         ,ONLY: MPI_COMM_LEADERS_SURF
 USE MOD_MPI_Shared
 #endif
@@ -945,7 +945,7 @@ IF (MPI_COMM_LEADERS_SURF.EQ.MPI_COMM_NULL) RETURN
 CALL MPI_BARRIER(MPI_COMM_LEADERS_SURF,iERROR)
 
 ! Return if no sampling sides
-IF (nSurfTotalSides.EQ.0) RETURN
+IF (nGlobalSurfSides.EQ.0) RETURN
 #endif /*USE_MPI*/
 
 IF (mySurfRank.EQ.0) THEN
@@ -1032,7 +1032,7 @@ WRITE(H5_Name,'(A)') 'SurfaceData'
 ASSOCIATE (&
       nVar2D_Total         => INT(nVar2D_Total,IK)                    , &
       nSurfSample          => INT(nSurfSample,IK)                     , &
-      nGlobalSides         => INT(nOutputSides,IK)                    , &
+      nGlobalSides         => INT(nGlobalOutputSides,IK)              , &
       nLocalSides          => INT(nComputeNodeSurfOutputSides,IK)     , &
       offsetSurfSide       => INT(offsetComputeNodeSurfOutputSide,IK) , &
       nVar2D_Spec          => INT(nVar2D_Spec,IK)                     , &

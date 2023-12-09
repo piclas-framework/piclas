@@ -219,10 +219,6 @@ ELSE IF ( (MOD(iter,IterDisplayStep).EQ.0) .OR. &
           (Time.ge.(1-DSMC%TimeFracSamp)*TEnd) .OR. &
           WriteMacroVolumeValues.OR.WriteMacroSurfaceValues ) THEN
   CALL UpdateNextFreePosition() !postpone UNFP for CollisMode=0 to next IterDisplayStep or when needed for DSMC-Sampling
-ELSE IF (PDM%nextFreePosition(PDM%CurrentNextFreePosition+1).GT.PDM%maxParticleNumber .OR. &
-         PDM%nextFreePosition(PDM%CurrentNextFreePosition+1).EQ.0) THEN
-  ! gaps in PartState are not filled until next UNFP and array might overflow more easily!
-  CALL abort(__STAMP__,'maximum nbr of particles reached!')
 END IF
 
 IF(DSMC%UseOctree)THEN

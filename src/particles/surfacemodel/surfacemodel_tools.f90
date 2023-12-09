@@ -510,7 +510,6 @@ USE MOD_Particle_Vars             ,ONLY: WriteMacroSurfaceValues
 USE MOD_Particle_Boundary_Tools   ,ONLY: CalcWallSample
 USE MOD_Particle_Boundary_Vars    ,ONLY: Partbound, GlobalSide2SurfSide
 USE MOD_Particle_Mesh_Vars        ,ONLY: SideInfo_Shared
-USE MOD_SurfaceModel_Vars         ,ONLY: SurfModEnergyDistribution
 USE MOD_DSMC_Vars                 ,ONLY: DSMC, SamplingActive
 USE MOD_Particle_Vars             ,ONLY: usevMPF,PartMPF
 USE MOD_part_tools                ,ONLY: CalcRadWeightMPF

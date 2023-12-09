@@ -80,7 +80,7 @@ USE MOD_Globals
 USE MOD_Particle_Vars
 USE MOD_Globals_Vars            ,ONLY: BoltzmannConst
 USE MOD_part_emission_tools     ,ONLY: CalcVelocity_maxwell_lpn
-USE MOD_part_tools              ,ONLY: BuildTransGaussNums
+USE MOD_part_tools              ,ONLY: BuildTransGaussNums, GetNextFreePosition
 USE MOD_DSMC_Vars               ,ONLY: DSMC, AmbipolElecVelo
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE
@@ -117,33 +117,27 @@ END IF
 SELECT CASE(TRIM(velocityDistribution))
 CASE('constant')
   DO i = 1,NbrOfParticle
-    PositionNbr = PDM%nextFreePosition(i+PDM%CurrentNextFreePosition)
-    IF (PositionNbr.GT.0) THEN
-      IF (ALLOCATED(AmbipolElecVelo(PositionNbr)%ElecVelo)) DEALLOCATE(AmbipolElecVelo(PositionNbr)%ElecVelo)
-      ALLOCATE(AmbipolElecVelo(PositionNbr)%ElecVelo(3))
-      AmbipolElecVelo(PositionNbr)%ElecVelo(1:3) = VeloVecIC(1:3) * VeloIC 
-    END IF
+    PositionNbr = GetNextFreePosition(i)
+    IF (ALLOCATED(AmbipolElecVelo(PositionNbr)%ElecVelo)) DEALLOCATE(AmbipolElecVelo(PositionNbr)%ElecVelo)
+    ALLOCATE(AmbipolElecVelo(PositionNbr)%ElecVelo(3))
+    AmbipolElecVelo(PositionNbr)%ElecVelo(1:3) = VeloVecIC(1:3) * VeloIC
   END DO
 CASE('maxwell_lpn')
   DO i = 1,NbrOfParticle
-    PositionNbr = PDM%nextFreePosition(i+PDM%CurrentNextFreePosition)
-    IF (PositionNbr.GT.0) THEN
-      CALL CalcVelocity_maxwell_lpn(DSMC%AmbiDiffElecSpec, Vec3D, Temperature=Species(FractNbr)%Init(iInit)%MWTemperatureIC)
-      IF (ALLOCATED(AmbipolElecVelo(PositionNbr)%ElecVelo)) DEALLOCATE(AmbipolElecVelo(PositionNbr)%ElecVelo)
-      ALLOCATE(AmbipolElecVelo(PositionNbr)%ElecVelo(3))
-      AmbipolElecVelo(PositionNbr)%ElecVelo(1:3) = VeloIC *VeloVecIC(1:3) + Vec3D(1:3)
-    END IF
+    PositionNbr = GetNextFreePosition(i)
+    CALL CalcVelocity_maxwell_lpn(DSMC%AmbiDiffElecSpec, Vec3D, Temperature=Species(FractNbr)%Init(iInit)%MWTemperatureIC)
+    IF (ALLOCATED(AmbipolElecVelo(PositionNbr)%ElecVelo)) DEALLOCATE(AmbipolElecVelo(PositionNbr)%ElecVelo)
+    ALLOCATE(AmbipolElecVelo(PositionNbr)%ElecVelo(3))
+    AmbipolElecVelo(PositionNbr)%ElecVelo(1:3) = VeloIC *VeloVecIC(1:3) + Vec3D(1:3)
   END DO
 CASE('maxwell')
   CALL BuildTransGaussNums(NbrOfParticle, iRanPart)
   maxwellfac = SQRT(BoltzmannConst*Species(FractNbr)%Init(iInit)%MWTemperatureIC/Species(DSMC%AmbiDiffElecSpec)%MassIC)
   DO i = 1,NbrOfParticle
-    PositionNbr = PDM%nextFreePosition(i+PDM%CurrentNextFreePosition)
-    IF (PositionNbr.GT.0) THEN
-      IF (ALLOCATED(AmbipolElecVelo(PositionNbr)%ElecVelo)) DEALLOCATE(AmbipolElecVelo(PositionNbr)%ElecVelo)
-      ALLOCATE(AmbipolElecVelo(PositionNbr)%ElecVelo(3))
-      AmbipolElecVelo(PositionNbr)%ElecVelo(1:3) = VeloIC *VeloVecIC(1:3) + iRanPart(1:3,i)*maxwellfac
-    END IF
+    PositionNbr = GetNextFreePosition(i)
+    IF (ALLOCATED(AmbipolElecVelo(PositionNbr)%ElecVelo)) DEALLOCATE(AmbipolElecVelo(PositionNbr)%ElecVelo)
+    ALLOCATE(AmbipolElecVelo(PositionNbr)%ElecVelo(3))
+    AmbipolElecVelo(PositionNbr)%ElecVelo(1:3) = VeloIC *VeloVecIC(1:3) + iRanPart(1:3,i)*maxwellfac
   END DO
 CASE DEFAULT
   CALL abort(&
@@ -154,19 +148,18 @@ END SELECT
 END SUBROUTINE AD_SetInitElectronVelo
 
 
-
-
 SUBROUTINE AD_InsertParticles(iPartIndx_Node, nPart, iPartIndx_NodeTotalAmbi, TotalPartNum)
 !===================================================================================================================================
 !> Creating electrons for each actual ion simulation particle, using the stored velocity vector for the electron
 !===================================================================================================================================
 ! MODULES
-USE MOD_Globals                
+USE MOD_Globals
 USE MOD_DSMC_Vars               ,ONLY: BGGas, CollisMode, DSMC, PartStateIntEn, AmbipolElecVelo, RadialWeighting
 USE MOD_DSMC_Vars               ,ONLY: DSMCSumOfFormedParticles, newAmbiParts, iPartIndx_NodeNewAmbi
 USE MOD_PARTICLE_Vars           ,ONLY: PDM, PartSpecies, PartState, PEM, Species, PartMPF, Symmetry, usevMPF
 USE MOD_PARTICLE_Vars           ,ONLY: UseVarTimeStep, PartTimeStep
 USE MOD_Particle_Tracking       ,ONLY: ParticleInsideCheck
+USE MOD_Part_Tools              ,ONLY: GetNextFreePosition
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -208,12 +201,7 @@ TotalPartNum = nPart
 
 DO iLoop = 1, nNewElectrons
   DSMCSumOfFormedParticles = DSMCSumOfFormedParticles + 1
-  PositionNbr = PDM%nextFreePosition(DSMCSumOfFormedParticles+PDM%CurrentNextFreePosition)
-  IF (PositionNbr.EQ.0) THEN
-    CALL Abort(&
-__STAMP__&
-,'ERROR in Ambipolar Diffusion: MaxParticleNumber too small!')
-  END IF
+  PositionNbr = GetNextFreePosition()
   InsideFlag=.FALSE.
   iElem = PEM%GlobalElemID(iPartIndx_Node(1))
   DO WHILE(.NOT.InsideFlag)
@@ -335,7 +323,7 @@ END IF
 DO iLoop = 1, nElectron
   IF (ALLOCATED(AmbipolElecVelo(IonIndX(iLoop))%ElecVelo)) DEALLOCATE(AmbipolElecVelo(IonIndX(iLoop))%ElecVelo)
   ALLOCATE(AmbipolElecVelo(IonIndX(iLoop))%ElecVelo(3))
-  AmbipolElecVelo(IonIndX(iLoop))%ElecVelo(1:3) = PartState(4:6,ElecIndx(iLoop)) 
+  AmbipolElecVelo(IonIndX(iLoop))%ElecVelo(1:3) = PartState(4:6,ElecIndx(iLoop))
   PDM%ParticleInside(ElecIndx(iLoop)) = .FALSE.
 END DO
 

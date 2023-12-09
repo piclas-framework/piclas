@@ -33,10 +33,8 @@ REAL,ALLOCPOINT,DIMENSION(:,:,:)        :: SurfSideArea                  !> Area
 REAL,ALLOCPOINT,DIMENSION(:,:,:)        :: BoundaryWallTemp              !> Wall Temperature for Adaptive Case
 ! ====================================================================
 ! Mesh info
-INTEGER                                 :: nSurfTotalSides
-
-!!!!!!!!! Number of output sides
-INTEGER                                 :: nOutputSides
+INTEGER                                 :: nGlobalSurfSides
+INTEGER                                 :: nGlobalOutputSides            ! Simulation-wide number of surface output sides
 
 INTEGER                                 :: nComputeNodeSurfSides         !> Number of surface sampling sides on compute node
 INTEGER                                 :: nComputeNodeSurfOutputSides   !> Number of output surface sampling sides on compute node (inner BCs only counted once)
@@ -274,7 +272,7 @@ TYPE tPartBoundary
   INTEGER , ALLOCATABLE                  :: AssociatedPlane(:)          ! Link between both coressponding intermediate planes
   INTEGER , ALLOCATABLE                  :: nSidesOnInterPlane(:)       ! Number of Sides on intermediate plane
   REAL    , ALLOCATABLE                  :: NormalizedRadiusDir(:,:)    ! Normalized vector in radius direction that is used to
-                                                                        ! calculate a random position on same radius within the 
+                                                                        ! calculate a random position on same radius within the
                                                                         ! rot periodic segment
   REAL    , ALLOCATABLE                  :: RotAxisPosition(:)          ! Position of inter plane at rotation axis
   REAL    , ALLOCATABLE                  :: AngleRatioOfInterPlanes(:)  ! Ratio of rotation angles for the intermediate planes

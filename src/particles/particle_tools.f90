@@ -78,6 +78,7 @@ PUBLIC :: InterpolateEmissionDistribution2D
 PUBLIC :: MergeCells,InRotRefFrameCheck
 PUBLIC :: CalcPartSymmetryPos
 PUBLIC :: RotateVectorAroundAxis
+PUBLIC :: IncreaseMaxParticleNumber, GetNextFreePosition, ReduceMaxParticleNumber
 !===================================================================================================================================
 
 CONTAINS
@@ -214,12 +215,17 @@ DO i = PDM%ParticleVecLengthOld+1,PDM%maxParticleNumber
   IF (CollInf%ProhibitDoubleColl) CollInf%OldCollPartner(i) = 0
   counter = counter + 1
   PDM%nextFreePosition(counter) = i
+#ifdef CODE_ANALYZE
+  IF(PDM%ParticleInside(i)) CALL ABORT(&
+  __STAMP__&
+  ,'Particle Inside is true but outside of PDM%ParticleVecLength',IntInfoOpt=i)
+#endif
 END DO
 
 ! Set nextFreePosition for occupied slots to zero
 PDM%nextFreePosition(counter+1:PDM%maxParticleNumber) = 0
 ! If maxParticleNumber are inside, counter is greater than maxParticleNumber
-IF (counter+1.GT.PDM%MaxParticleNumber) PDM%nextFreePosition(PDM%MaxParticleNumber) = 0
+! IF (counter+1.GT.PDM%MaxParticleNumber) PDM%nextFreePosition(PDM%MaxParticleNumber) = 0
 
 #if USE_LOADBALANCE
 CALL LBPauseTime(LB_UNFP,tLBStart)
@@ -1607,5 +1613,673 @@ RotateVectorAroundAxis(l) = COS(Angle)*VecIn(l) - SIN(Angle)*VecIn(m)
 RotateVectorAroundAxis(m) = SIN(Angle)*VecIn(l) + COS(Angle)*VecIn(m)
 
 END FUNCTION RotateVectorAroundAxis
+
+
+FUNCTION GetNextFreePosition(Offset)
+!===================================================================================================================================
+!> Returns the next free position in the particle vector, if no space is available it increses the maximum particle number
+!> ATTENTION: If optional argument is used, the PDM%CurrentNextFreePosition will not be updated
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals
+USE MOD_Particle_Vars        ,ONLY: PDM
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+INTEGER,OPTIONAL,INTENT(IN) :: Offset
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+INTEGER                     :: GetNextFreePosition
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER                     :: i
+!===================================================================================================================================
+IF(PRESENT(Offset)) THEN
+  ! IF(PDM%CurrentNextFreePosition+Offset.GT.PDM%MaxParticleNumber) CALL IncreaseMaxParticleNumber(CEILING((PDM%CurrentNextFreePosition+Offset)*(1+PDM%MaxPartNumIncrease)-PDM%MaxParticleNumber))
+  IF(PDM%CurrentNextFreePosition+Offset.GT.PDM%MaxParticleNumber) THEN
+    CALL IncreaseMaxParticleNumber()
+    IF(PDM%CurrentNextFreePosition.GT.PDM%MaxParticleNumber) THEN
+      ! This only happens if PDM%CurrentNextFreePosition+Offset is way off (which shouldn't happen)
+      IPWRITE(UNIT_stdOut,*) "WARNING: PDM%CurrentNextFreePosition+Offset is way off in particle_tools.f90 GetNextFreePosition(Offset), 1"
+      CALL IncreaseMaxParticleNumber(CEILING((PDM%CurrentNextFreePosition+Offset)*(1+PDM%MaxPartNumIncrease)-PDM%MaxParticleNumber))
+    END IF
+  END IF
+
+  GetNextFreePosition = PDM%nextFreePosition(PDM%CurrentNextFreePosition+Offset)
+  ! If next free position is equal 0, determine how much more particles are needed to get a position within the particle vector
+  IF(GetNextFreePosition.EQ.0) THEN
+    CALL IncreaseMaxParticleNumber()
+    GetNextFreePosition = PDM%nextFreePosition(PDM%CurrentNextFreePosition+Offset)
+    IF(GetNextFreePosition.EQ.0) THEN
+      ! This only happens if PDM%CurrentNextFreePosition+Offset is way off (which shouldn't happen)
+      IPWRITE(UNIT_stdOut,*) "WARNING: PDM%CurrentNextFreePosition+Offset is way off in particle_tools.f90 GetNextFreePosition(Offset), 2"
+      IF(PDM%nextFreePosition(1).EQ.0) THEN
+        i = 0
+      ELSE
+        i = PDM%CurrentNextFreePosition+Offset
+        DO WHILE(PDM%nextFreePosition(i).EQ.0.AND.i.GT.0)
+          i = i - 1
+        END DO
+      END IF
+      ! Increase the maxpartnum + margin
+      CALL IncreaseMaxParticleNumber(CEILING((PDM%CurrentNextFreePosition+Offset-i)*(1+PDM%MaxPartNumIncrease)+PDM%maxParticleNumber*PDM%MaxPartNumIncrease))
+      GetNextFreePosition = PDM%nextFreePosition(PDM%CurrentNextFreePosition+Offset)
+    END IF
+  END IF
+ELSE
+  PDM%CurrentNextFreePosition = PDM%CurrentNextFreePosition + 1
+  ! IF(PDM%CurrentNextFreePosition.GT.PDM%MaxParticleNumber) CALL IncreaseMaxParticleNumber(CEILING((PDM%CurrentNextFreePosition)*(1+PDM%MaxPartNumIncrease)-PDM%MaxParticleNumber))
+  IF(PDM%CurrentNextFreePosition.GT.PDM%MaxParticleNumber) THEN
+    CALL IncreaseMaxParticleNumber()
+    IF(PDM%CurrentNextFreePosition.GT.PDM%MaxParticleNumber) THEN
+      ! This only happens if PDM%CurrentNextFreePosition is way off (which shouldn't happen)
+      IPWRITE(UNIT_stdOut,*) "WARNING: PDM%CurrentNextFreePosition is way off in particle_tools.f90 GetNextFreePosition(), 1"
+      CALL IncreaseMaxParticleNumber(CEILING((PDM%CurrentNextFreePosition)*(1+PDM%MaxPartNumIncrease)-PDM%MaxParticleNumber))
+    END IF
+  END IF
+
+  GetNextFreePosition = PDM%nextFreePosition(PDM%CurrentNextFreePosition)
+  ! If next free position is equal 0, determine how much more particles are needed to get a position within the particle vector
+  IF(GetNextFreePosition.EQ.0) THEN
+    CALL IncreaseMaxParticleNumber()
+    GetNextFreePosition = PDM%nextFreePosition(PDM%CurrentNextFreePosition)
+    IF(GetNextFreePosition.EQ.0) THEN
+      ! This only happens if PDM%CurrentNextFreePosition is way off (which shouldn't happen)
+      IPWRITE(UNIT_stdOut,*) "WARNING: PDM%CurrentNextFreePosition is way off in particle_tools.f90 GetNextFreePosition(), 2"
+      IF(PDM%nextFreePosition(1).EQ.0) THEN
+        i = 0
+      ELSE
+        i = PDM%CurrentNextFreePosition
+        DO WHILE(PDM%nextFreePosition(i).EQ.0.AND.i.GT.0)
+          i = i - 1
+        END DO
+      END IF
+      ! Increase the maxpartnum + margin
+      CALL IncreaseMaxParticleNumber(CEILING((PDM%CurrentNextFreePosition-i)*(1+PDM%MaxPartNumIncrease)+PDM%maxParticleNumber*PDM%MaxPartNumIncrease))
+      GetNextFreePosition = PDM%nextFreePosition(PDM%CurrentNextFreePosition)
+    END IF
+  END IF
+
+  IF(PDM%ParticleInside(GetNextFreePosition)) THEN
+    CALL ABORT(&
+  __STAMP__&
+  ,'This Particle is already in use',IntInfoOpt=GetNextFreePosition)
+  END IF
+  IF(GetNextFreePosition.GT.PDM%ParticleVecLength) PDM%ParticleVecLength = GetNextFreePosition
+END IF
+IF(GetNextFreePosition.EQ.0) THEN
+  CALL ABORT(&
+__STAMP__&
+,'This should not happen, PDM%MaxParticleNumber reached',IntInfoOpt=PDM%MaxParticleNumber)
+END IF
+
+END FUNCTION GetNextFreePosition
+
+
+SUBROUTINE IncreaseMaxParticleNumber(Amount)
+!===================================================================================================================================
+! Increases MaxParticleNumber and increases size of all depended arrays
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals
+USE MOD_Array_Operations       ,ONLY: ChangeSizeArray
+USE MOD_Particle_Vars
+USE MOD_DSMC_Vars
+#if USE_MPI
+USE MOD_Particle_MPI_Vars      ,ONLY: PartShiftVector, PartTargetProc
+#endif
+USE MOD_PICInterpolation_Vars  ,ONLY: FieldAtParticle
+#if defined(IMPA) || defined(ROS)
+USE MOD_LinearSolver_Vars      ,ONLY: PartXK, R_PartXK
+USE MOD_TimeDisc_Vars          ,ONLY: nRKStages
+#endif
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+INTEGER,INTENT(IN),OPTIONAL :: Amount
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER                                   :: NewSize, i, ii, ALLOCSTAT
+TYPE (tAmbipolElecVelo), ALLOCATABLE      :: AmbipolElecVelo_New(:)
+TYPE (tElectronicDistriPart), ALLOCATABLE :: ElectronicDistriPart_New(:)
+TYPE (tPolyatomMolVibQuant), ALLOCATABLE  :: VibQuantsPar_New(:)
+! REAL                        ::
+!===================================================================================================================================
+IF(PRESENT(Amount)) THEN
+  IF(Amount.EQ.0) RETURN
+  NewSize=PDM%MaxParticleNumber+Amount
+  ! IPWRITE(*,*) "Increase by amount",PDM%MaxParticleNumber,NewSize
+  IF(NewSize.GT.PDM%maxAllowedParticleNumber)CALL ABORT(&
+  __STAMP__&
+  ,'More Particles needed than allowed in PDM%maxAllowedParticleNumber',IntInfoOpt=NewSize)
+ELSE
+  NewSize=MAX(CEILING(PDM%MaxParticleNumber*(1+PDM%MaxPartNumIncrease)),PDM%MaxParticleNumber+1)
+  IF(PDM%MaxParticleNumber.GE.PDM%maxAllowedParticleNumber) CALL ABORT(&
+  __STAMP__&
+  ,'More Particles needed than allowed in PDM%maxAllowedParticleNumber',IntInfoOpt=NewSize)
+  NewSize=MIN(NewSize,PDM%maxAllowedParticleNumber)
+  ! IPWRITE(*,*) "Increase by percent",PDM%MaxParticleNumber,NewSize
+END IF
+
+IF(ALLOCATED(PEM%GlobalElemID)) CALL ChangeSizeArray(PEM%GlobalElemID,PDM%maxParticleNumber,NewSize)
+IF(ALLOCATED(PEM%pNext)) CALL ChangeSizeArray(PEM%pNext,PDM%maxParticleNumber,NewSize)
+IF(ALLOCATED(PEM%LastGlobalElemID)) CALL ChangeSizeArray(PEM%LastGlobalElemID,PDM%maxParticleNumber,NewSize)
+
+IF(ALLOCATED(PDM%ParticleInside)) CALL ChangeSizeArray(PDM%ParticleInside,PDM%maxParticleNumber,NewSize,.FALSE.)
+IF(ALLOCATED(PDM%IsNewPart)) CALL ChangeSizeArray(PDM%IsNewPart,PDM%maxParticleNumber,NewSize,.FALSE.)
+IF(ALLOCATED(PDM%dtFracPush)) CALL ChangeSizeArray(PDM%dtFracPush,PDM%maxParticleNumber,NewSize,.FALSE.)
+IF(ALLOCATED(PDM%InRotRefFrame)) CALL ChangeSizeArray(PDM%InRotRefFrame,PDM%maxParticleNumber,NewSize,.FALSE.)
+IF(ALLOCATED(PDM%PartInit)) CALL ChangeSizeArray(PDM%PartInit,PDM%maxParticleNumber,NewSize)
+
+IF(ALLOCATED(PartState)) CALL ChangeSizeArray(PartState,PDM%maxParticleNumber,NewSize,0.)
+IF(ALLOCATED(LastPartPos)) CALL ChangeSizeArray(LastPartPos,PDM%maxParticleNumber,NewSize)
+IF(ALLOCATED(PartPosRef)) CALL ChangeSizeArray(PartPosRef,PDM%maxParticleNumber,NewSize,-888.)
+IF(ALLOCATED(PartSpecies)) CALL ChangeSizeArray(PartSpecies,PDM%maxParticleNumber,NewSize,0)
+IF(ALLOCATED(PartTimeStep)) CALL ChangeSizeArray(PartTimeStep,PDM%maxParticleNumber,NewSize)
+IF(ALLOCATED(PartMPF)) CALL ChangeSizeArray(PartMPF,PDM%maxParticleNumber,NewSize)
+IF(ALLOCATED(PartVeloRotRef)) CALL ChangeSizeArray(PartVeloRotRef,PDM%maxParticleNumber,NewSize,0.)
+IF(ALLOCATED(PartStateIntEn)) CALL ChangeSizeArray(PartStateIntEn,PDM%maxParticleNumber,NewSize)
+
+IF(ALLOCATED(Pt_temp)) CALL ChangeSizeArray(Pt_temp,PDM%maxParticleNumber,NewSize,0.)
+IF(ALLOCATED(Pt)) CALL ChangeSizeArray(Pt,PDM%maxParticleNumber,NewSize,0.)
+IF(ALLOCATED(FieldAtParticle)) CALL ChangeSizeArray(FieldAtParticle,PDM%maxParticleNumber,NewSize)
+
+IF(ALLOCATED(InterPlanePartIndx)) CALL ChangeSizeArray(InterPlanePartIndx,PDM%maxParticleNumber,NewSize)
+IF(ALLOCATED(BGGas%PairingPartner)) CALL ChangeSizeArray(BGGas%PairingPartner,PDM%maxParticleNumber,NewSize)
+IF(ALLOCATED(CollInf%OldCollPartner)) CALL ChangeSizeArray(CollInf%OldCollPartner,PDM%maxParticleNumber,NewSize)
+IF(ALLOCATED(ElecRelaxPart)) CALL ChangeSizeArray(ElecRelaxPart,PDM%maxParticleNumber,NewSize)
+
+#if (PP_TimeDiscMethod==508) || (PP_TimeDiscMethod==509)
+IF(ALLOCATED(velocityAtTime)) CALL ChangeSizeArray(velocityAtTime,PDM%maxParticleNumber,NewSize)
+#endif
+
+#if USE_MPI
+IF(ALLOCATED(PartTargetProc)) CALL ChangeSizeArray(PartTargetProc,PDM%maxParticleNumber,NewSize)
+IF(ALLOCATED(PartShiftVector)) CALL ChangeSizeArray(PartShiftVector,PDM%maxParticleNumber,NewSize)
+#endif
+
+#if defined(IMPA) || defined(ROS)
+IF(ALLOCATED(PartXK)) CALL ChangeSizeArray(PartXK,PDM%maxParticleNumber,NewSize)
+IF(ALLOCATED(R_PartXK)) CALL ChangeSizeArray(R_PartXK,PDM%maxParticleNumber,NewSize)
+IF(ALLOCATED(PartStage)) CALL ChangeSizeArray(PartStage,PDM%maxParticleNumber,NewSize)
+IF(ALLOCATED(PartStateN)) CALL ChangeSizeArray(PartStateN,PDM%maxParticleNumber,NewSize)
+IF(ALLOCATED(PartQ)) CALL ChangeSizeArray(PartQ,PDM%maxParticleNumber,NewSize)
+IF(ALLOCATED(PEM%NormVec)) CALL ChangeSizeArray(PEM%NormVec,PDM%maxParticleNumber,NewSize,0.)
+IF(ALLOCATED(PEM%PeriodicMoved)) CALL ChangeSizeArray(PEM%PeriodicMoved,PDM%maxParticleNumber,NewSize,.FALSE.)
+IF(ALLOCATED(PartDtFrac)) CALL ChangeSizeArray(PartDtFrac,PDM%maxParticleNumber,NewSize,1.)
+#endif
+
+#ifdef IMPA
+IF(ALLOCATED(F_PartX0)) CALL ChangeSizeArray(F_PartX0,PDM%maxParticleNumber,NewSize)
+IF(ALLOCATED(F_PartXk)) CALL ChangeSizeArray(F_PartXk,PDM%maxParticleNumber,NewSize)
+IF(ALLOCATED(Norm_F_PartX0)) CALL ChangeSizeArray(Norm_F_PartX0,PDM%maxParticleNumber,NewSize)
+IF(ALLOCATED(Norm_F_PartXk)) CALL ChangeSizeArray(Norm_F_PartXk,PDM%maxParticleNumber,NewSize)
+IF(ALLOCATED(Norm_F_PartXk_old)) CALL ChangeSizeArray(Norm_F_PartXk_old,PDM%maxParticleNumber,NewSize)
+IF(ALLOCATED(PartDeltaX)) CALL ChangeSizeArray(PartDeltaX,PDM%maxParticleNumber,NewSize)
+IF(ALLOCATED(PartLambdaAccept)) CALL ChangeSizeArray(PartLambdaAccept,PDM%maxParticleNumber,NewSize)
+IF(ALLOCATED(DoPartInNewton)) CALL ChangeSizeArray(DoPartInNewton,PDM%maxParticleNumber,NewSize)
+IF(ALLOCATED(PartIsImplicit)) CALL ChangeSizeArray(PartIsImplicit,PDM%maxParticleNumber,NewSize,.FALSE.)
+#endif /* IMPA */
+
+!    __  __          __      __          ________  ______  ___________    ___
+!   / / / /___  ____/ /___ _/ /____     /_  __/\ \/ / __ \/ ____/ ___/   /   |  ______________ ___  _______
+!  / / / / __ \/ __  / __ `/ __/ _ \     / /    \  / /_/ / __/  \__ \   / /| | / ___/ ___/ __ `/ / / / ___/
+! / /_/ / /_/ / /_/ / /_/ / /_/  __/    / /     / / ____/ /___ ___/ /  / ___ |/ /  / /  / /_/ / /_/ (__  )
+! \____/ .___/\__,_/\__,_/\__/\___/    /_/     /_/_/   /_____//____/  /_/  |_/_/  /_/   \__,_/\__, /____/
+!     /_/                                                                                    /____/
+
+IF(ALLOCATED(AmbipolElecVelo)) THEN
+  ALLOCATE(AmbipolElecVelo_New(NewSize),STAT=ALLOCSTAT)
+  IF (ALLOCSTAT.NE.0) CALL ABORT(&
+__STAMP__&
+,'Cannot allocate increased Array in IncreaseMaxParticleNumber')
+  DO i=1,PDM%maxParticleNumber
+    CALL MOVE_ALLOC(AmbipolElecVelo(i)%ElecVelo,AmbipolElecVelo_New(i)%ElecVelo)
+  END DO
+  DEALLOCATE(AmbipolElecVelo)
+  CALL MOVE_ALLOC(AmbipolElecVelo_New,AmbipolElecVelo)
+END IF
+
+IF(ALLOCATED(ElectronicDistriPart)) THEN
+  ALLOCATE(ElectronicDistriPart_New(NewSize),STAT=ALLOCSTAT)
+  IF (ALLOCSTAT.NE.0) CALL ABORT(&
+__STAMP__&
+,'Cannot allocate increased Array in IncreaseMaxParticleNumber')
+  DO i=1,PDM%maxParticleNumber
+    CALL MOVE_ALLOC(ElectronicDistriPart(i)%DistriFunc,ElectronicDistriPart_New(i)%DistriFunc)
+  END DO
+  DEALLOCATE(ElectronicDistriPart)
+  CALL MOVE_ALLOC(ElectronicDistriPart_New,ElectronicDistriPart)
+END IF
+
+IF(ALLOCATED(VibQuantsPar)) THEN
+  ALLOCATE(VibQuantsPar_New(NewSize),STAT=ALLOCSTAT)
+  IF (ALLOCSTAT.NE.0) CALL ABORT(&
+__STAMP__&
+,'Cannot allocate increased Array in IncreaseMaxParticleNumber')
+  DO i=1,PDM%maxParticleNumber
+    CALL MOVE_ALLOC(VibQuantsPar(i)%Quants,VibQuantsPar_New(i)%Quants)
+  END DO
+  DEALLOCATE(VibQuantsPar)
+  CALL MOVE_ALLOC(VibQuantsPar_New,VibQuantsPar)
+END IF
+
+IF(ALLOCATED(PDM%nextFreePosition)) THEN
+  CALL ChangeSizeArray(PDM%nextFreePosition,PDM%maxParticleNumber,NewSize,0)
+
+  !Search for first entry where new poition is available
+  i=1
+  DO WHILE(PDM%nextFreePosition(i).NE.0)
+    i=i+1
+  END DO
+  i=i-1
+  ! Fill the free spots with the new entrys
+  DO ii=1,NewSize-PDM%MaxParticleNumber
+    PDM%nextFreePosition(i+ii)=ii+PDM%MaxParticleNumber
+  END DO
+END IF
+
+PDM%MaxParticleNumber=NewSize
+
+END SUBROUTINE IncreaseMaxParticleNumber
+
+
+SUBROUTINE ReduceMaxParticleNumber()
+!===================================================================================================================================
+! Reduces MaxParticleNumber and increases size of all depended arrays
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals
+USE MOD_Array_Operations       ,ONLY: ChangeSizeArray
+USE MOD_Particle_Vars
+USE MOD_DSMC_Vars
+#if USE_MPI
+USE MOD_Particle_MPI_Vars      ,ONLY: PartShiftVector, PartTargetProc
+#endif
+USE MOD_PICInterpolation_Vars  ,ONLY: FieldAtParticle
+#if defined(IMPA) || defined(ROS)
+USE MOD_LinearSolver_Vars      ,ONLY: PartXK, R_PartXK
+USE MOD_TimeDisc_Vars          ,ONLY: nRKStages
+#endif
+USE MOD_MCC_Vars               ,ONLY: UseMCC
+USE MOD_DSMC_Vars              ,ONLY: BGGas
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER                                   :: NewSize, i, ii, ALLOCSTAT, nPart
+TYPE (tAmbipolElecVelo), ALLOCATABLE      :: AmbipolElecVelo_New(:)
+TYPE (tElectronicDistriPart), ALLOCATABLE :: ElectronicDistriPart_New(:)
+TYPE (tPolyatomMolVibQuant), ALLOCATABLE  :: VibQuantsPar_New(:)
+! REAL                        ::
+!===================================================================================================================================
+
+nPart=0
+DO i=1,PDM%ParticleVecLength
+  IF(PDM%ParticleInside(i)) nPart = nPart + 1
+END DO
+
+IF(DSMC%DoAmbipolarDiff) THEN
+  DO i=1,PDM%ParticleVecLength
+    IF(PDM%ParticleInside(i).AND.ALLOCATED(AmbipolElecVelo(i)%ElecVelo)) nPart = nPart + 1
+  END DO
+END IF
+
+IF(BGGas%NumberOfSpecies.GT.0.AND..NOT.UseMCC) nPart=nPart*2
+
+! Reduce Arrays only for at least PDM%maxParticleNumber*PDM%MaxPartNumIncrease free spots
+IF (nPart.GE.PDM%maxParticleNumber/(1.+PDM%MaxPartNumIncrease)**2) RETURN
+
+! Maintain nPart*PDM%MaxPartNumIncrease free spots
+Newsize=MAX(CEILING(nPart*(1.+PDM%MaxPartNumIncrease)),1)
+IF (Newsize.EQ.PDM%maxParticleNumber) RETURN
+
+! IPWRITE(*,*) "Decrease",PDM%maxParticleNumber,nPart,NewSize
+IF(.NOT.PDM%RearrangePartIDs) THEN
+  ! Search for highest occupied particle index and set Newsize to this Value
+  i=PDM%maxParticleNumber
+  DO WHILE(.NOT.PDM%ParticleInside(i).OR.i.EQ.NewSize)
+    i=i-1
+  END DO
+  NewSize=i
+ELSE
+  ! Rearrange particles with IDs>NewSize to lower IDs
+  DO i=NewSize+1,PDM%maxParticleNumber
+    IF(PDM%ParticleInside(i)) THEN
+      PDM%CurrentNextFreePosition = PDM%CurrentNextFreePosition + 1
+      ii = PDM%nextFreePosition(PDM%CurrentNextFreePosition)
+      IF(ii.EQ.0.OR.ii.GT.NewSize) THEN
+        CALL UpdateNextFreePosition()
+        PDM%CurrentNextFreePosition = PDM%CurrentNextFreePosition + 1
+        ii = PDM%nextFreePosition(PDM%CurrentNextFreePosition)
+        IF(ii.EQ.0.OR.ii.GT.NewSize) CALL ABORT(&
+      __STAMP__&
+      ,'This should not happen')
+      END IF
+      IF(PDM%ParticleVecLength.LT.ii) PDM%ParticleVecLength = ii
+      CALL ChangePartID(i,ii)
+    END IF
+  END DO
+END IF
+
+
+
+IF(ALLOCATED(PEM%GlobalElemID)) CALL ChangeSizeArray(PEM%GlobalElemID,PDM%maxParticleNumber,NewSize)
+IF(ALLOCATED(PEM%pNext)) CALL ChangeSizeArray(PEM%pNext,PDM%maxParticleNumber,NewSize)
+IF(ALLOCATED(PEM%LastGlobalElemID)) CALL ChangeSizeArray(PEM%LastGlobalElemID,PDM%maxParticleNumber,NewSize)
+
+IF(ALLOCATED(PDM%ParticleInside)) CALL ChangeSizeArray(PDM%ParticleInside,PDM%maxParticleNumber,NewSize,.FALSE.)
+IF(ALLOCATED(PDM%IsNewPart)) CALL ChangeSizeArray(PDM%IsNewPart,PDM%maxParticleNumber,NewSize,.FALSE.)
+IF(ALLOCATED(PDM%dtFracPush)) CALL ChangeSizeArray(PDM%dtFracPush,PDM%maxParticleNumber,NewSize,.FALSE.)
+IF(ALLOCATED(PDM%InRotRefFrame)) CALL ChangeSizeArray(PDM%InRotRefFrame,PDM%maxParticleNumber,NewSize,.FALSE.)
+IF(ALLOCATED(PDM%PartInit)) CALL ChangeSizeArray(PDM%PartInit,PDM%maxParticleNumber,NewSize)
+
+IF(ALLOCATED(PartState)) CALL ChangeSizeArray(PartState,PDM%maxParticleNumber,NewSize,0.)
+IF(ALLOCATED(LastPartPos)) CALL ChangeSizeArray(LastPartPos,PDM%maxParticleNumber,NewSize)
+IF(ALLOCATED(PartPosRef)) CALL ChangeSizeArray(PartPosRef,PDM%maxParticleNumber,NewSize,-888.)
+IF(ALLOCATED(PartSpecies)) CALL ChangeSizeArray(PartSpecies,PDM%maxParticleNumber,NewSize,0)
+IF(ALLOCATED(PartTimeStep)) CALL ChangeSizeArray(PartTimeStep,PDM%maxParticleNumber,NewSize)
+IF(ALLOCATED(PartMPF)) CALL ChangeSizeArray(PartMPF,PDM%maxParticleNumber,NewSize)
+IF(ALLOCATED(PartVeloRotRef)) CALL ChangeSizeArray(PartVeloRotRef,PDM%maxParticleNumber,NewSize,0.)
+IF(ALLOCATED(PartStateIntEn)) CALL ChangeSizeArray(PartStateIntEn,PDM%maxParticleNumber,NewSize)
+
+IF(ALLOCATED(Pt_temp)) CALL ChangeSizeArray(Pt_temp,PDM%maxParticleNumber,NewSize,0.)
+IF(ALLOCATED(Pt)) CALL ChangeSizeArray(Pt,PDM%maxParticleNumber,NewSize,0.)
+IF(ALLOCATED(FieldAtParticle)) CALL ChangeSizeArray(FieldAtParticle,PDM%maxParticleNumber,NewSize)
+
+IF(ALLOCATED(InterPlanePartIndx)) CALL ChangeSizeArray(InterPlanePartIndx,PDM%maxParticleNumber,NewSize)
+IF(ALLOCATED(BGGas%PairingPartner)) CALL ChangeSizeArray(BGGas%PairingPartner,PDM%maxParticleNumber,NewSize)
+IF(ALLOCATED(CollInf%OldCollPartner)) CALL ChangeSizeArray(CollInf%OldCollPartner,PDM%maxParticleNumber,NewSize)
+IF(ALLOCATED(ElecRelaxPart)) CALL ChangeSizeArray(ElecRelaxPart,PDM%maxParticleNumber,NewSize)
+
+#if (PP_TimeDiscMethod==508) || (PP_TimeDiscMethod==509)
+IF(ALLOCATED(velocityAtTime)) CALL ChangeSizeArray(velocityAtTime,PDM%maxParticleNumber,NewSize)
+#endif
+
+#if USE_MPI
+IF(ALLOCATED(PartTargetProc)) CALL ChangeSizeArray(PartTargetProc,PDM%maxParticleNumber,NewSize)
+IF(ALLOCATED(PartShiftVector)) CALL ChangeSizeArray(PartShiftVector,PDM%maxParticleNumber,NewSize)
+#endif
+
+#if defined(IMPA) || defined(ROS)
+IF(ALLOCATED(PartXK)) CALL ChangeSizeArray(PartXK,PDM%maxParticleNumber,NewSize)
+IF(ALLOCATED(R_PartXK)) CALL ChangeSizeArray(R_PartXK,PDM%maxParticleNumber,NewSize)
+IF(ALLOCATED(PartStage)) CALL ChangeSizeArray(PartStage,PDM%maxParticleNumber,NewSize)
+IF(ALLOCATED(PartStateN)) CALL ChangeSizeArray(PartStateN,PDM%maxParticleNumber,NewSize)
+IF(ALLOCATED(PartQ)) CALL ChangeSizeArray(PartQ,PDM%maxParticleNumber,NewSize)
+IF(ALLOCATED(PEM%NormVec)) CALL ChangeSizeArray(PEM%NormVec,PDM%maxParticleNumber,NewSize,0.)
+IF(ALLOCATED(PEM%PeriodicMoved)) CALL ChangeSizeArray(PEM%PeriodicMoved,PDM%maxParticleNumber,NewSize,.FALSE.)
+IF(ALLOCATED(PartDtFrac)) CALL ChangeSizeArray(PartDtFrac,PDM%maxParticleNumber,NewSize,1.)
+#endif
+
+#ifdef IMPA
+IF(ALLOCATED(F_PartX0)) CALL ChangeSizeArray(F_PartX0,PDM%maxParticleNumber,NewSize)
+IF(ALLOCATED(F_PartXk)) CALL ChangeSizeArray(F_PartXk,PDM%maxParticleNumber,NewSize)
+IF(ALLOCATED(Norm_F_PartX0)) CALL ChangeSizeArray(Norm_F_PartX0,PDM%maxParticleNumber,NewSize)
+IF(ALLOCATED(Norm_F_PartXk)) CALL ChangeSizeArray(Norm_F_PartXk,PDM%maxParticleNumber,NewSize)
+IF(ALLOCATED(Norm_F_PartXk_old)) CALL ChangeSizeArray(Norm_F_PartXk_old,PDM%maxParticleNumber,NewSize)
+IF(ALLOCATED(PartDeltaX)) CALL ChangeSizeArray(PartDeltaX,PDM%maxParticleNumber,NewSize)
+IF(ALLOCATED(PartLambdaAccept)) CALL ChangeSizeArray(PartLambdaAccept,PDM%maxParticleNumber,NewSize)
+IF(ALLOCATED(DoPartInNewton)) CALL ChangeSizeArray(DoPartInNewton,PDM%maxParticleNumber,NewSize)
+IF(ALLOCATED(PartIsImplicit)) CALL ChangeSizeArray(PartIsImplicit,PDM%maxParticleNumber,NewSize,.FALSE.)
+#endif /* IMPA */
+
+!    __  __          __      __          ________  ______  ___________    ___
+!   / / / /___  ____/ /___ _/ /____     /_  __/\ \/ / __ \/ ____/ ___/   /   |  ______________ ___  _______
+!  / / / / __ \/ __  / __ `/ __/ _ \     / /    \  / /_/ / __/  \__ \   / /| | / ___/ ___/ __ `/ / / / ___/
+! / /_/ / /_/ / /_/ / /_/ / /_/  __/    / /     / / ____/ /___ ___/ /  / ___ |/ /  / /  / /_/ / /_/ (__  )
+! \____/ .___/\__,_/\__,_/\__/\___/    /_/     /_/_/   /_____//____/  /_/  |_/_/  /_/   \__,_/\__, /____/
+!     /_/                                                                                    /____/
+
+IF(ALLOCATED(AmbipolElecVelo)) THEN
+  ALLOCATE(AmbipolElecVelo_New(NewSize),STAT=ALLOCSTAT)
+  IF (ALLOCSTAT.NE.0) CALL ABORT(&
+__STAMP__&
+,'Cannot allocate increased Array in ReduceMaxParticleNumber')
+  DO i=1,NewSize
+    CALL MOVE_ALLOC(AmbipolElecVelo(i)%ElecVelo,AmbipolElecVelo_New(i)%ElecVelo)
+  END DO
+  DO i=NewSize+1,PDM%maxParticleNumber
+    SDEALLOCATE(AmbipolElecVelo(i)%ElecVelo)
+  END DO
+  DEALLOCATE(AmbipolElecVelo)
+  CALL MOVE_ALLOC(AmbipolElecVelo_New,AmbipolElecVelo)
+END IF
+
+IF(ALLOCATED(ElectronicDistriPart)) THEN
+  ALLOCATE(ElectronicDistriPart_New(NewSize),STAT=ALLOCSTAT)
+  IF (ALLOCSTAT.NE.0) CALL ABORT(&
+__STAMP__&
+,'Cannot allocate increased Array in ReduceMaxParticleNumber')
+  DO i=1,NewSize
+    CALL MOVE_ALLOC(ElectronicDistriPart(i)%DistriFunc,ElectronicDistriPart_New(i)%DistriFunc)
+  END DO
+  DO i=NewSize+1,PDM%maxParticleNumber
+    SDEALLOCATE(ElectronicDistriPart(i)%DistriFunc)
+  END DO
+  DEALLOCATE(ElectronicDistriPart)
+  CALL MOVE_ALLOC(ElectronicDistriPart_New,ElectronicDistriPart)
+END IF
+
+IF(ALLOCATED(VibQuantsPar)) THEN
+  ALLOCATE(VibQuantsPar_New(NewSize),STAT=ALLOCSTAT)
+  IF (ALLOCSTAT.NE.0) CALL ABORT(&
+__STAMP__&
+,'Cannot allocate increased Array in ReduceMaxParticleNumber')
+  DO i=1,NewSize
+    CALL MOVE_ALLOC(VibQuantsPar(i)%Quants,VibQuantsPar_New(i)%Quants)
+  END DO
+  DO i=NewSize+1,PDM%maxParticleNumber
+    SDEALLOCATE(VibQuantsPar(i)%Quants)
+  END DO
+  DEALLOCATE(VibQuantsPar)
+  CALL MOVE_ALLOC(VibQuantsPar_New,VibQuantsPar)
+END IF
+
+IF(ALLOCATED(PDM%nextFreePosition)) THEN
+  CALL ChangeSizeArray(PDM%nextFreePosition,PDM%maxParticleNumber,NewSize,0)
+
+  !Set all NextFreePositions to zero which points to a partID>NewSize
+  DO i=1,NewSize
+    IF(PDM%nextFreePosition(i).GT.NewSize) PDM%nextFreePosition(i)=0
+  END DO
+END IF
+
+IF(PDM%ParticleVecLength.GT.NewSize) PDM%ParticleVecLength = NewSize
+PDM%MaxParticleNumber=NewSize
+
+CALL UpdateNextFreePosition()
+
+END SUBROUTINE ReduceMaxParticleNumber
+
+
+SUBROUTINE ChangePartID(OldID,NewID)
+!===================================================================================================================================
+! Change PartID from OldID to NewID
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals
+USE MOD_Particle_Vars
+USE MOD_DSMC_Vars
+#if USE_MPI
+USE MOD_Particle_MPI_Vars      ,ONLY: PartShiftVector, PartTargetProc
+#endif
+USE MOD_PICInterpolation_Vars  ,ONLY: FieldAtParticle
+#if defined(IMPA) || defined(ROS)
+USE MOD_LinearSolver_Vars      ,ONLY: PartXK, R_PartXK
+#endif
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+INTEGER,INTENT(IN)        :: OldID
+INTEGER,INTENT(IN)        :: NewID
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER                                   :: i,TempPartID
+!===================================================================================================================================
+
+IF(ALLOCATED(PEM%GlobalElemID)) PEM%GlobalElemID(NewID)=PEM%GlobalElemID(OldID)
+IF(ALLOCATED(PEM%pNext)) THEN
+  PEM%pNext(NewID)=PEM%pNext(OldID)
+  ! Update pNext onto this particle
+  TempPartID = PEM%pStart(PEM%LocalElemID(OldID))
+  IF (TempPartID.EQ.OldID) THEN
+    PEM%pStart(PEM%LocalElemID(OldID)) = NewID
+  ELSE
+    DO i=1,PEM%pNumber(PEM%LocalElemID(OldID))
+      IF(PEM%pNext(TempPartID).EQ.OldID) THEN
+        PEM%pNext(TempPartID) = NewID
+        EXIT
+      END IF
+      TempPartID = PEM%pNext(TempPartID)
+    END DO
+  END IF
+END IF
+IF(ALLOCATED(PEM%LastGlobalElemID)) PEM%LastGlobalElemID(NewID)=PEM%LastGlobalElemID(OldID)
+
+IF(ALLOCATED(PDM%ParticleInside)) THEN
+  PDM%ParticleInside(NewID)=PDM%ParticleInside(OldID)
+  PDM%ParticleInside(OldID)=.FALSE.
+END IF
+IF(ALLOCATED(PDM%IsNewPart)) THEN
+  PDM%IsNewPart(NewID)=PDM%IsNewPart(OldID)
+  PDM%IsNewPart(OldID)=.FALSE.
+END IF
+IF(ALLOCATED(PDM%dtFracPush)) THEN
+  PDM%dtFracPush(NewID)=PDM%dtFracPush(OldID)
+  PDM%dtFracPush(OldID)=.FALSE.
+END IF
+IF(ALLOCATED(PDM%InRotRefFrame)) THEN
+  PDM%InRotRefFrame(NewID)=PDM%InRotRefFrame(OldID)
+  PDM%InRotRefFrame(OldID)=.FALSE.
+END IF
+IF(ALLOCATED(PDM%PartInit)) PDM%PartInit(NewID)=PDM%PartInit(OldID)
+
+IF(ALLOCATED(PartState)) THEN
+  PartState(:,NewID)=PartState(:,OldID)
+  PartState(:,OldID) = 0.0
+END IF
+IF(ALLOCATED(LastPartPos)) LastPartPos(:,NewID)=LastPartPos(:,OldID)
+IF(ALLOCATED(PartPosRef)) THEN
+  PartPosRef(:,NewID)=PartPosRef(:,OldID)
+  PartPosRef(:,OldID) = -888.
+END IF
+IF(ALLOCATED(PartSpecies)) THEN
+  PartSpecies(NewID)=PartSpecies(OldID)
+  PartSpecies(OldID) = 0
+END IF
+IF(ALLOCATED(PartTimeStep)) PartTimeStep(NewID)=PartTimeStep(OldID)
+IF(ALLOCATED(PartMPF)) PartMPF(NewID)=PartMPF(OldID)
+IF(ALLOCATED(PartVeloRotRef)) THEN
+  PartVeloRotRef(:,NewID)=PartVeloRotRef(:,OldID)
+  PartVeloRotRef(:,OldID) = 0.0
+END IF
+IF(ALLOCATED(PartStateIntEn)) PartStateIntEn(:,NewID)=PartStateIntEn(:,OldID)
+
+IF(ALLOCATED(Pt_temp)) THEN
+  Pt_temp(:,NewID)=Pt_temp(:,OldID)
+  Pt_temp(:,OldID) = 0.0
+END IF
+IF(ALLOCATED(Pt)) THEN
+  Pt(:,NewID)=Pt(:,OldID)
+  Pt(:,OldID) = 0
+END IF
+IF(ALLOCATED(FieldAtParticle)) FieldAtParticle(:,NewID)=FieldAtParticle(:,OldID)
+
+IF(ALLOCATED(InterPlanePartIndx)) InterPlanePartIndx(NewID)=InterPlanePartIndx(OldID)
+IF(ALLOCATED(BGGas%PairingPartner)) BGGas%PairingPartner(NewID)=BGGas%PairingPartner(OldID)
+IF(ALLOCATED(CollInf%OldCollPartner)) THEN
+  CollInf%OldCollPartner(NewID)=CollInf%OldCollPartner(OldID)
+  IF(CollInf%OldCollPartner(NewID).GT.0.AND.CollInf%OldCollPartner(NewID).LE.PDM%maxParticleNumber) THEN
+    IF(CollInf%OldCollPartner(CollInf%OldCollPartner(NewID)).EQ.OldID) CollInf%OldCollPartner(CollInf%OldCollPartner(NewID))=NewID
+  END IF
+END IF
+IF(ALLOCATED(ElecRelaxPart)) ElecRelaxPart(NewID)=ElecRelaxPart(OldID)
+
+#if (PP_TimeDiscMethod==508) || (PP_TimeDiscMethod==509)
+IF(ALLOCATED(velocityAtTime)) velocityAtTime(:,NewID)=velocityAtTime(:,OldID)
+#endif
+
+#if USE_MPI
+IF(ALLOCATED(PartTargetProc)) PartTargetProc(NewID)=PartTargetProc(OldID)
+IF(ALLOCATED(PartShiftVector)) PartShiftVector(:,NewID)=PartShiftVector(:,OldID)
+#endif
+
+#if defined(IMPA) || defined(ROS)
+IF(ALLOCATED(PartXK)) PartXK(:,NewID)=PartXK(:,OldID)
+IF(ALLOCATED(R_PartXK)) R_PartXK(:,NewID)=R_PartXK(:,OldID)
+IF(ALLOCATED(PartStage)) PartStage(:,:,NewID)=PartStage(:,:,OldID)
+IF(ALLOCATED(PartStateN)) PartStateN(:,NewID)=PartStateN(:,OldID)
+IF(ALLOCATED(PartQ)) PartQ(:,NewID)=PartQ(:,OldID)
+IF(ALLOCATED(PEM%NormVec)) THEN
+  PEM%NormVec(:,NewID)=PEM%NormVec(:,OldID)
+  PEM%NormVec(:,OldID) = 0.
+END IF
+IF(ALLOCATED(PEM%PeriodicMoved)) THEN
+  PEM%PeriodicMoved(NewID)=PEM%PeriodicMoved(OldID)
+  PEM%PeriodicMoved(OldID) = .FALSE.
+END IF
+IF(ALLOCATED(PartDtFrac)) THEN
+  PartDtFrac(NewID)=PartDtFrac(OldID)
+  PartDtFrac(OldID) = 1.
+END IF
+#endif
+
+#ifdef IMPA
+IF(ALLOCATED(F_PartX0)) F_PartX0(:,NewID)=F_PartX0(:,OldID)
+IF(ALLOCATED(F_PartXk)) F_PartXk(:,NewID)=F_PartXk(:,OldID)
+IF(ALLOCATED(Norm_F_PartX0)) Norm_F_PartX0(NewID)=Norm_F_PartX0(OldID)
+IF(ALLOCATED(Norm_F_PartXk)) Norm_F_PartXk(NewID)=Norm_F_PartXk(OldID)
+IF(ALLOCATED(Norm_F_PartXk_old)) Norm_F_PartXk_old(NewID)=Norm_F_PartXk_old(OldID)
+IF(ALLOCATED(PartDeltaX)) PartDeltaX(:,NewID)=PartDeltaX(:,OldID)
+IF(ALLOCATED(PartLambdaAccept)) PartLambdaAccept(NewID)=PartLambdaAccept(OldID)
+IF(ALLOCATED(DoPartInNewton)) DoPartInNewton(NewID)=DoPartInNewton(OldID)
+IF(ALLOCATED(PartIsImplicit)) PartIsImplicit(NewID)=PartIsImplicit(OldID)
+#endif /* IMPA */
+
+
+!    __  __          __      __          ________  ______  ___________    ___
+!   / / / /___  ____/ /___ _/ /____     /_  __/\ \/ / __ \/ ____/ ___/   /   |  ______________ ___  _______
+!  / / / / __ \/ __  / __ `/ __/ _ \     / /    \  / /_/ / __/  \__ \   / /| | / ___/ ___/ __ `/ / / / ___/
+! / /_/ / /_/ / /_/ / /_/ / /_/  __/    / /     / / ____/ /___ ___/ /  / ___ |/ /  / /  / /_/ / /_/ (__  )
+! \____/ .___/\__,_/\__,_/\__/\___/    /_/     /_/_/   /_____//____/  /_/  |_/_/  /_/   \__,_/\__, /____/
+!     /_/                                                                                    /____/
+
+IF(ALLOCATED(AmbipolElecVelo)) THEN
+  IF(ALLOCATED(AmbipolElecVelo(OldID)%ElecVelo)) THEN
+    IF(ALLOCATED(AmbipolElecVelo(NewID)%ElecVelo)) DEALLOCATE(AmbipolElecVelo(NewID)%ElecVelo)
+    CALL MOVE_ALLOC(AmbipolElecVelo(OldID)%ElecVelo,AmbipolElecVelo(NewID)%ElecVelo)
+  ELSE
+    IF(ALLOCATED(AmbipolElecVelo(NewID)%ElecVelo)) DEALLOCATE(AmbipolElecVelo(NewID)%ElecVelo)
+  END IF
+END IF
+
+IF(ALLOCATED(ElectronicDistriPart)) THEN
+  IF(ALLOCATED(ElectronicDistriPart(OldID)%DistriFunc)) THEN
+    IF(ALLOCATED(ElectronicDistriPart(NewID)%DistriFunc)) DEALLOCATE(ElectronicDistriPart(NewID)%DistriFunc)
+    CALL MOVE_ALLOC(ElectronicDistriPart(OldID)%DistriFunc,ElectronicDistriPart(NewID)%DistriFunc)
+  ELSE
+    IF(ALLOCATED(ElectronicDistriPart(NewID)%DistriFunc)) DEALLOCATE(ElectronicDistriPart(NewID)%DistriFunc)
+  END IF
+END IF
+
+IF(ALLOCATED(VibQuantsPar)) THEN
+  IF(ALLOCATED(VibQuantsPar(OldID)%Quants)) THEN
+    IF(ALLOCATED(VibQuantsPar(NewID)%Quants)) DEALLOCATE(VibQuantsPar(NewID)%Quants)
+    CALL MOVE_ALLOC(VibQuantsPar(OldID)%Quants,VibQuantsPar(NewID)%Quants)
+  ELSE
+    IF(ALLOCATED(VibQuantsPar(NewID)%Quants)) DEALLOCATE(VibQuantsPar(NewID)%Quants)
+  END IF
+END IF
+
+END SUBROUTINE ChangePartID
+
+
 
 END MODULE MOD_part_tools
