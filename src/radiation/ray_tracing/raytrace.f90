@@ -62,7 +62,7 @@ USE MOD_MPI_Shared
 USE MOD_Photon_TrackingVars     ,ONLY: PhotonSampWall_Shared, PhotonSampWall_Shared_Win,PhotonSampWallProc
 USE MOD_RayTracing_Vars         ,ONLY: RayElemPassedEnergy_Shared,RayElemPassedEnergy_Shared_Win
 #endif /*USE_MPI*/
-USE MOD_Photon_TrackingVars     ,ONLY: PhotonSampWall,PhotonModeBPO,UsePhotonTriaTracking
+USE MOD_Photon_TrackingVars     ,ONLY: PhotonSampWall,PhotonModeBPO
 USE MOD_Mesh_Vars               ,ONLY: nGlobalElems,nElems
 USE MOD_RayTracing_Vars         ,ONLY: UseRayTracing,PerformRayTracing,RayElemEmission
 USE MOD_DSMC_Vars               ,ONLY: DSMC
