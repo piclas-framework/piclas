@@ -372,6 +372,11 @@ END ASSOCIATE
 
 
 IF(RadiationSwitches%SortCellsY) THEN !Sort cells if manually created input is used
+	IF(nProcessors.GT.1) THEN
+		CALL abort(&
+                __STAMP__&
+                ,' ERROR: Radiation - Sort cells in y-direction only possible on one processor!')
+	END IF
   ALLOCATE(SortElemInd(nElems), SortElemYPos(nElems))
   DO iElem = 1, nElems
     SortElemInd(iElem) = iElem
