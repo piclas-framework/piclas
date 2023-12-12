@@ -465,7 +465,7 @@ USE MOD_Globals
 USE MOD_Globals_Vars            ,ONLY: PI
 USE MOD_Mesh_Tools              ,ONLY: GetCNElemID
 USE MOD_Particle_Vars           ,ONLY: PartState,LastPartPos,Species,PartSpecies
-USE MOD_Particle_Vars           ,ONLY: RotRefSubTimeStep, NewPosSubCycling, GlobalElemIDSubCycling, LastPartPosSubCycling
+USE MOD_Particle_Vars           ,ONLY: RotRefSubTimeStep, NewPosSubCycling, GlobalElemIDSubCycling, LastPartPosSubCycling,nSubCyclingSteps
 USE MOD_Particle_Vars           ,ONLY: InRotRefFrameSubCycling, PartVeloRotRefSubCycling, LastVeloRotRefSubCycling
 USE MOD_Particle_Mesh_Vars      ,ONLY: ElemInfo_Shared, SideInfo_Shared, ElemSideNodeID_Shared, NodeCoords_Shared
 USE MOD_Particle_Boundary_Vars  ,ONLY: PartBound, InterPlaneSideMapping
@@ -639,7 +639,8 @@ END IF
 ! Species-specific time step
 IF(VarTimeStep%UseSpeciesSpecific) dtVar = dtVar * Species(PartSpecies(PartID))%TimeStepFactor
 
-IF(RotRefSubTimeStep) dtVar = 0.1 * dtVar
+!IF(RotRefSubTimeStep) dtVar = 0.1 * dtVar
+IF(RotRefSubTimeStep) dtVar = dtVar / REAL(nSubCyclingSteps)
 
 ! (2) Calculate the POI and a new random POI on corresponding inter plane using a random angle within the periodic segment
 POI(1:3) = LastPartPos(1:3,PartID) + TrackInfo%PartTrajectory(1:3)*TrackInfo%alpha

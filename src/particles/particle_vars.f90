@@ -75,6 +75,7 @@ REAL    , ALLOCATABLE :: PartVeloRotRef(:,:)                                 ! (
 REAL    , ALLOCATABLE :: LastPartVeloRotRef(:,:)                             ! (1:3,1:NParts) Last Velocity in the rotational reference frame
 ! Rot Ref Sub Cycling
 LOGICAL               :: UseRotSubCycling                                    ! Flag if sub cycling is active
+INTEGER               :: nSubCyclingSteps                                    ! Number of subcyling steps
 REAL                  :: LastPartPosSubCycling(3)                            ! Last position befor SubCycling
 REAL                  :: NewPosSubCycling(3)                                 ! New particle position befor SubCycling
 REAL                  :: PartVeloRotRefSubCycling(3)                         ! Velocity in the rotational reference frame befor SubCycling
