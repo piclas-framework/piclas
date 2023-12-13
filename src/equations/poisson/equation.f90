@@ -150,10 +150,10 @@ IniExactFunc = GETINT('IniExactFunc')
 
 ! Sanity checks
 SELECT CASE (IniExactFunc)
-CASE(800) ! Dielectric slab on electrode (left) with plasma between slab and other electrode opposite
-#if ! (defined(CODE_ANALYZE) && USE_PETSC)
-  CALL abort(__STAMP__,'IniExactFunc=800 requires PICLAS_CODE_ANALYZE=ON and PICLAS_PETSC=ON')
-#endif /*! (defined(CODE_ANALYZE) && USE_PETSC)*/
+CASE(800,801,900) ! Dielectric slab on electrode (left) with plasma between slab and other electrode opposite
+#if ! (defined(CODE_ANALYZE) && USE_PETSC && PARTICLES)
+  CALL abort(__STAMP__,'IniExactFunc=800,801,900 requires PICLAS_CODE_ANALYZE=ON, PICLAS_PETSC=ON and PICLAS_PARTICLES=ON')
+#endif /*! (defined(CODE_ANALYZE) && USE_PETSC && PARTICLES)*/
 END SELECT
 
 ! Sanity Check BCs
@@ -828,14 +828,7 @@ CASE(700) ! Analytical solution of a charged particle moving in cylindrical coor
 #else
   CALL abort(__STAMP__,'ExactFunc=700 requires PARTICLES=ON')
 #endif /*defined(PARTICLES)*/
-CASE(800,900) ! Dielectric slab on electrode (left) with plasma between slab and other electrode opposite
-  IF(ALLOCATED(FPC%Charge))THEN
-#if USE_MPI
-    FPC%ChargeProc = 0.0
-    IF(MPIRoot) &
-#endif /*USE_MPI*/
-    FPC%ChargeProc(1)=2.5e-11
-  END IF ! ALLOCATED(FPC%Charge)
+CASE(800,801,900) ! Dielectric slab on electrode (left) with plasma between slab and other electrode opposite
   resu = 0.
   ASSOCIATE( x     => x(1)   , &
              y     => x(2)   , &
@@ -857,9 +850,6 @@ CASE(800,900) ! Dielectric slab on electrode (left) with plasma between slab and
       END ASSOCIATE
     END ASSOCIATE
   END ASSOCIATE
-#if !(USE_PETSC)
-  CALL abort(__STAMP__,'ExactFunc=800 requires PICLAS_PETSC=ON')
-#endif /*!(USE_PETSC)*/
 CASE DEFAULT
   CALL abort(__STAMP__,'Exactfunction not specified!', IntInfoOpt=ExactFunction)
 END SELECT ! ExactFunction
@@ -958,7 +948,11 @@ END DO
 END SUBROUTINE DivCleaningDamping
 
 
+#if defined(CODE_ANALYZE)
+      SUBROUTINE CalcSourceHDG(i,j,k,iElem,resu, Phi, warning_linear, warning_linear_phi)
+#else
 PPURE SUBROUTINE CalcSourceHDG(i,j,k,iElem,resu, Phi, warning_linear, warning_linear_phi)
+#endif /*defined(CODE_ANALYZE)*/
 !===================================================================================================================================
 ! Determine the right-hand-side of Poisson's equation (either by an analytic function or deposition of charge from particles)
 ! TODO: currently particles are enforced, which means that they over-write the exact function solution because
@@ -978,6 +972,10 @@ USE MOD_HDG_Vars           ,ONLY: ElemToBRRegion,UseBRElectronFluid,RegionElectr
 #if IMPA
 USE MOD_LinearSolver_Vars  ,ONLY: ExplicitPartSource
 #endif
+#if defined(CODE_ANALYZE)
+USE MOD_Mesh_Vars          ,ONLY: offSetElem
+USE MOD_Particle_Mesh_Vars ,ONLY: BoundsOfElem_Shared
+#endif /*defined(CODE_ANALYZE)*/
 #endif /*PARTICLES*/
 USE MOD_Equation_Vars      ,ONLY: IniExactFunc
 USE MOD_Equation_Vars      ,ONLY: IniCenter,IniHalfwidth,IniAmplitude
@@ -994,19 +992,18 @@ REAL,INTENT(OUT),OPTIONAL       :: warning_linear_phi
 REAL,INTENT(IN),OPTIONAL        :: Phi
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-REAL                            :: x(3)
+REAL                            :: xvec(3)
 REAL                            :: r1,r2
 REAL,DIMENSION(3)               :: dx1,dx2,dr1dx,dr2dx,dr1dx2,dr2dx2
 #ifdef PARTICLES
-REAL                            :: source_e
+REAL                            :: source_e ! Electron charge density for Boltzmann relation (electrons as isothermal fluid!)
 INTEGER                         :: RegionID
-#endif /*PARTICLES*/
 #if defined(CODE_ANALYZE)
-REAL                            :: source
-#else
-REAL,PARAMETER                  :: source = 0.0
+REAL                            :: ElemCharLengthX
 #endif /*defined(CODE_ANALYZE)*/
+#endif /*PARTICLES*/
 !===================================================================================================================================
+ASSOCIATE( x => Elem_xGP(1,i,j,k,iElem), y => Elem_xGP(2,i,j,k,iElem), z => Elem_xGP(3,i,j,k,iElem))
 IF(PRESENT(warning_linear)) warning_linear=.FALSE. ! Initialize
 IF(PRESENT(warning_linear_phi)) warning_linear_phi=0. ! Initialize
 ! Calculate IniExactFunc before particles are superimposed, because the IniExactFunc might be needed by the CalcError function
@@ -1014,43 +1011,52 @@ SELECT CASE (IniExactFunc)
 CASE(0) ! Particles
   resu=0. ! empty
 CASE(103)
-  x(1:3) = Elem_xGP(1:3,i,j,k,iElem)
-  dx1=(x(:)-(IniCenter(:)-(/IniHalfwidth,0.,0./)))
-  dx2=(x(:)-(IniCenter(:)+(/IniHalfwidth,0.,0./)))
+  dx1=(Elem_xGP(1:3,i,j,k,iElem)-(IniCenter(:)-(/IniHalfwidth,0.,0./)))
+  dx2=(Elem_xGP(1:3,i,j,k,iElem)-(IniCenter(:)+(/IniHalfwidth,0.,0./)))
   r1=SQRT(SUM(dx1**2))
   r2=SQRT(SUM(dx2**2))
   dr1dx(:)= r1*dx1
   dr2dx(:)= r2*dx2
   dr1dx2(:)= r1+dr1dx(:)*dx1
   dr2dx2(:)= r2+dr2dx(:)*dx2
-  resu(1)=- IniAmplitude*( SUM((r1*dr1dx2(:)-2*dr1dx(:)**2)/(r1*r1*r1)) &
-      -SUM((r2*dr2dx2(:)-2*dr2dx(:)**2)/(r2*r2*r2)) )
+  resu(1)=- IniAmplitude*( SUM((r1*dr1dx2(:)-2*dr1dx(:)**2)/(r1*r1*r1)) - SUM((r2*dr2dx2(:)-2*dr2dx(:)**2)/(r2*r2*r2)) )
 CASE(105) ! 3D periodic test case
-  x(1:3) = Elem_xGP(1:3,i,j,k,iElem)
-  resu(1)=-3 * SIN(x(1) + 1) * SIN(x(2) + 2) * SIN(x(3) + 3)
-#if ! defined(PARTICLES)
-CASE(800) ! plasma between electrodes + particles
-  IF(Elem_xGP(1,i,j,k,iElem).GT.0.0)THEN
-    resu = 1e-4/eps0
-  END IF ! x.GT.0.0
-#endif /* ! defined(PARTICLES)*/
+  xvec(1:3) = Elem_xGP(1:3,i,j,k,iElem)
+  resu(1)=-3 * SIN(xvec(1) + 1) * SIN(xvec(2) + 2) * SIN(xvec(3) + 3)
 CASE DEFAULT
   resu=0.
-  !  CALL abort(__STAMP__,&
-  !'Exactfunction not specified!',999,999.)
 END SELECT ! ExactFunction
 
-#ifdef PARTICLES
-
-! Specific source terms after particle deposition
+#if defined(PARTICLES)
 #if defined(CODE_ANALYZE)
-source = 0.
+! Specific source terms after particle deposition
 SELECT CASE(IniExactFunc)
 CASE(800) ! plasma between electrodes + particles
-  IF(Elem_xGP(1,i,j,k,iElem).GT.0.0)THEN
-    source = - 1e-4
-  !ELSE
-    !PartSource(4,i,j,k,iElem) = PartSource(4,i,j,k,iElem) * 1000.
+  ! Check Dirichlet elements
+  IF(ElemHasDirichletBC(iElem))THEN
+    ! Get length on element in 1D
+    ASSOCIATE( Bounds => BoundsOfElem_Shared(1:2,1:3,iElem + offsetElem) ) ! 1-2: Min, Max value; 1-3: x,y,z
+      ElemCharLengthX = ABS(Bounds(2,1)-Bounds(1,1)) ! ABS(max - min)
+      ! Add scaled value in BC elements
+      IF((x.GT.0.0).AND.(x.LT.1.0e-3))THEN
+        IF(x.GT.0.5e-3)THEN
+          ! Negative gradient
+          PartSource(4,i,j,k,iElem) = PartSource(4,i,j,k,iElem) - 1e-4*(1e-3-x)/ElemCharLengthX
+        ELSE
+          ! Positive gradient
+          PartSource(4,i,j,k,iElem) = PartSource(4,i,j,k,iElem) - 1e-4*x/ElemCharLengthX
+        END IF ! x.GT.0.5e-3
+      END IF ! (x.GT.0.0).AND.(x.LT.1.0e-3)
+      !WRITE (*,*) "x,source =", x,PartSource(4,i,j,k,iElem),NINT(x*1e9), " nm", " TRUE"
+    END ASSOCIATE
+  ELSE
+    ! Add constant value
+    IF((x.GT.0.0).AND.(x.LT.1.0e-3)) PartSource(4,i,j,k,iElem) = PartSource(4,i,j,k,iElem) - 1e-4
+  !WRITE (*,*) "x,source =", x,PartSource(4,i,j,k,iElem),NINT(x*1e9), " nm"
+  END IF ! ElemHasDirichletBC(iElem)
+CASE(801) ! plasma between electrodes + particles: Linear source
+  IF(x.GT.0.0)THEN
+    PartSource(4,i,j,k,iElem) = PartSource(4,i,j,k,iElem) - 1e-4*(1.0 - Elem_xGP(2,i,j,k,iElem)/1e-3)
   END IF ! x.GT.0.0
 END SELECT
 #endif /*defined(CODE_ANALYZE)*/
@@ -1062,7 +1068,7 @@ IF(DoDeposition)THEN
     IF (RegionID .NE. 0) THEN
       source_e = Phi-RegionElectronRef(2,RegionID)
       IF (source_e .LT. 0.) THEN
-        source_e = RegionElectronRef(1,RegionID) &         !--- boltzmann relation (electrons as isothermal fluid!)
+        source_e = RegionElectronRef(1,RegionID) &         !--- Boltzmann relation (electrons as isothermal fluid!)
             * EXP( (source_e) / RegionElectronRef(3,RegionID) )
       ELSE
         ! Store delta for output
@@ -1077,15 +1083,55 @@ IF(DoDeposition)THEN
     END IF
   END IF ! UseBRElectronFluid
 #if IMPA
-  resu(1)= - (PartSource(4,i,j,k,iElem)+source+ExplicitPartSource(4,i,j,k,iElem)-source_e)/eps0
+  resu(1)= - (PartSource(4,i,j,k,iElem)+ExplicitPartSource(4,i,j,k,iElem)-source_e)/eps0
 #else
-  resu(1)= - (PartSource(4,i,j,k,iElem)+source-source_e)/eps0
+  resu(1)= - (PartSource(4,i,j,k,iElem)-source_e)/eps0
 #endif
 END IF
-
-#endif /*PARTICLES*/
+#endif /*defined(PARTICLES)*/
+END ASSOCIATE
 
 END SUBROUTINE CalcSourceHDG
+
+
+!===================================================================================================================================
+!> Check if elements has at least one side that is a Dirichlet BC
+!===================================================================================================================================
+LOGICAL FUNCTION ElemHasDirichletBC(iElem) RESULT(L)
+! MODULES
+USE MOD_Particle_Mesh_Tools ,ONLY: GetGlobalNonUniqueSideID
+USE MOD_Particle_Mesh_Vars  ,ONLY: SideInfo_Shared
+USE MOD_Mesh_Vars           ,ONLY: offSetElem
+USE MOD_Mesh_Vars           ,ONLY: BoundaryType
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+INTEGER,INTENT(IN) :: iElem
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER :: BCType,BCIndex,GlobalSideID,iLocSide
+!===================================================================================================================================
+L = .FALSE.
+! Check 6 local sides for Dirichlet BC
+DO iLocSide = 1, 6
+  GlobalSideID = GetGlobalNonUniqueSideID(iElem+offSetElem,iLocSide)
+  BCIndex = SideInfo_Shared(SIDE_BCID,GlobalSideID)
+  ! Only check BC sides with BC index > 0
+  IF(BCIndex.GT.0)THEN
+    ! Get boundary type
+    BCType = BoundaryType(BCIndex,BC_TYPE)
+    ! Check if Dirichlet BC has been found
+    SELECT CASE(BCType)
+    CASE(HDGDIRICHLETBCSIDEIDS) ! Dirichlet
+      L = .TRUE.
+      RETURN
+    END SELECT ! BCType
+  END IF ! BCIndex.GT.0
+END DO ! iLocSide = 1, 6
+END FUNCTION ElemHasDirichletBC
 
 
 FUNCTION shapefunc(r)
