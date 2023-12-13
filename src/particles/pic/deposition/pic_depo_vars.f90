@@ -24,6 +24,7 @@ SAVE
 ! GLOBAL VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 LOGICAL                         :: DoDeposition              ! flag to switch deposition on/off
+LOGICAL                         :: DoDirichletDeposition     ! flag to switch deposition on Dirichlet sides on/off
 LOGICAL                         :: RelaxDeposition           ! relaxation of current PartSource with RelaxFac into PartSourceOld
 LOGICAL                         :: DoHaloDepo                ! Flag for enlarging the deposition region (implicit and dielectric)
 REAL                            :: RelaxFac

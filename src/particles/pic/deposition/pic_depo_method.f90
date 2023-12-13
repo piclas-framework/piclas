@@ -69,7 +69,8 @@ IMPLICIT NONE
 ! LOCAL VARIABLES
 !==================================================================================================================================
 CALL prms%SetSection("PIC Deposition")
-CALL prms%CreateLogicalOption('PIC-DoDeposition', 'Switch deposition of charge (and current density) on/off', '.TRUE.')
+CALL prms%CreateLogicalOption('PIC-DoDeposition'         , 'Switch deposition of charge (and current density) on/off', '.TRUE.')
+CALL prms%CreateLogicalOption('PIC-DoDirichletDeposition', 'Switch deposition of charge (and current density) on Dirichlet sides on/off', '.TRUE.')
 
 CALL prms%CreateIntFromStringOption('PIC-Deposition-Type', "Type/Method used in the deposition step: \n"           //&
                                     '1.1)  shape_function ('//TRIM(int2strf(PRM_DEPO_SF))//')\n'                   //&
@@ -95,6 +96,7 @@ SUBROUTINE InitDepositionMethod()
 USE MOD_Globals
 USE MOD_ReadInTools            ,ONLY: GETINTFROMSTR
 USE MOD_PICDepo_Vars           ,ONLY: DepositionType,r_sf,dim_sf,dim_sf_dir,SFAdaptiveSmoothing,alpha_sf,sfDepo3D,VerifyChargeStr
+USE MOD_PICDepo_Vars           ,ONLY: DoDirichletDeposition
 USE MOD_Particle_Tracking_Vars ,ONLY: TrackingMethod
 USE MOD_ReadInTools            ,ONLY: GETREAL,PrintOption,GETINT,GETLOGICAL
 !----------------------------------------------------------------------------------------------------------------------------------
@@ -102,13 +104,14 @@ IMPLICIT NONE
 ! INPUT / OUTPUT VARIABLES
 !----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                 :: DepositionType_loc
+INTEGER           :: DepositionType_loc
 CHARACTER(32)     :: hilf_geo
 CHARACTER(1)      :: hilf_dim
 !==================================================================================================================================
 r_sf=-1.0 ! default
 VerifyChargeStr='' ! Initialize
-DepositionType_loc = GETINTFROMSTR('PIC-Deposition-Type')
+DepositionType_loc    = GETINTFROMSTR('PIC-Deposition-Type')
+DoDirichletDeposition = GETLOGICAL('PIC-DoDirichletDeposition')
 
 ! check for interpolation type incompatibilities (cannot be done at interpolation_init
 ! because DepositionType_loc is not known yet)
@@ -121,12 +124,15 @@ SELECT CASE(DepositionType_loc)
 Case(PRM_DEPO_SF) ! shape_function
   DepositionMethod => DepositionMethod_SF
   DepositionType   = 'shape_function'
+  IF(.NOT.DoDirichletDeposition) CALL CollectiveStop(__STAMP__,'PIC-DoDirichletDeposition=F not implemented for shape_function')
 Case(PRM_DEPO_SF_CC) ! shape_function
   DepositionMethod => DepositionMethod_SF
   DepositionType   = 'shape_function_cc'
+  IF(.NOT.DoDirichletDeposition) CALL CollectiveStop(__STAMP__,'PIC-DoDirichletDeposition=F not implemented for shape_function_cc')
 Case(PRM_DEPO_SF_ADAPTIVE) ! shape_function
   DepositionMethod => DepositionMethod_SF
   DepositionType   = 'shape_function_adaptive'
+  IF(.NOT.DoDirichletDeposition) CALL CollectiveStop(__STAMP__,'PIC-DoDirichletDeposition=F not implemented for shape_function_adaptive')
 Case(PRM_DEPO_CVW) ! cell_volweight
   DepositionType   = 'cell_volweight'
   DepositionMethod => DepositionMethod_CVW
@@ -360,7 +366,7 @@ USE MOD_Particle_Vars      ,ONLY: Species,PartSpecies,PDM,PEM,usevMPF,PartMPF
 USE MOD_Particle_Vars      ,ONLY: PartState
 USE MOD_Particle_Mesh_Vars ,ONLY: ElemNodeID_Shared, NodeInfo_Shared, NodeCoords_Shared, GEO
 USE MOD_PICDepo_Vars       ,ONLY: PartSource,CellVolWeightFac,NodeSourceExt,NodeVolume,NodeSource, nDepoNodes, DepoNodetoGlobalNode
-USE MOD_PICDepo_Vars       ,ONLY: nDepoNodesTotal,Periodic_Nodes,Periodic_nNodes,Periodic_offsetNode
+USE MOD_PICDepo_Vars       ,ONLY: nDepoNodesTotal,Periodic_Nodes,Periodic_nNodes,Periodic_offsetNode,DoDirichletDeposition
 USE MOD_Mesh_Tools         ,ONLY: GetCNElemID
 USE MOD_Part_Tools         ,ONLY: isDepositParticle
 #if USE_MPI
@@ -670,6 +676,9 @@ DO iNode = 1, nDepoNodes
   IF(NodeVolume(globalNode).GT.0.) NodeSource(SourceDim:4,globalNode) = NodeSource(SourceDim:4,globalNode)/NodeVolume(globalNode)
 END DO
 
+! Nullify Dirichlet Nodes
+IF(.NOT.DoDirichletDeposition) CALL NullifyNodeSourceDirichletSides(SourceDim)
+
 #if USE_LOADBALANCE
 CALL LBElemPauseTime_avg(tLBStart) ! Average over the number of elems
 #endif /*USE_LOADBALANCE*/
@@ -841,8 +850,51 @@ IF ((stage.EQ.0).OR.(stage.EQ.2)) THEN
 
 END IF
 
-
-
 END SUBROUTINE DepositionMethod_SF
+
+!===================================================================================================================================
+!> Set NodeSource to zero on Dirichlet sides to account for mirror charges
+!===================================================================================================================================
+SUBROUTINE NullifyNodeSourceDirichletSides(SourceDim )
+! MODULES
+USE MOD_HDG_Vars           ,ONLY: nDirichletBCSides,DirichletBC
+USE MOD_Particle_Mesh_Vars ,ONLY: ElemSideNodeID_Shared,NodeInfo_Shared
+USE MOD_Mesh_Vars          ,ONLY: SideToElem,ElemToSide
+USE MOD_Mesh_Tools         ,ONLY: GetCNElemID
+USE MOD_Mesh_Vars          ,ONLY: offsetElem
+USE MOD_PICDepo_Vars       ,ONLY: NodeSource
+IMPLICIT NONE
+!----------------------------------------------------------------------------------------------------------------------------------!
+! INPUT / OUTPUT VARIABLES
+INTEGER,INTENT(IN) :: SourceDim
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER :: iDirichletBCID,SideID,CNElemID,iLocSide,UniqueNodeID,NonUniqueNodeID,ElemID,iLocSideTest,iNode
+!===================================================================================================================================
+! Loop over all Dirichlet sides (process-local)
+DO iDirichletBCID = 1,nDirichletBCSides
+  ! Get local Side and element index
+  SideID   = DirichletBC(iDirichletBCID)
+  ElemID   = SideToElem(S2E_ELEM_ID,iDirichletBCID)
+  ! Get compute-node element index
+  CNElemID = GetCNElemID(ElemID+offsetElem)
+  ! Loop over all six sides and find the local side index that matches the Dirichlet side
+  DO iLocSideTest=1,6
+    iLocSide = iLocSideTest
+    IF(SideID.EQ.ElemToSide(E2S_SIDE_ID,iLocSideTest,ElemID)) EXIT
+  END DO
+  ! Loop over the four side nodes
+  DO iNode = 1, 4
+    ! Get the non-unique node index
+    NonUniqueNodeID = ElemSideNodeID_Shared(iNode,iLocSide,CNElemID) + 1
+    ! Get the unique node index
+    UniqueNodeID = NodeInfo_Shared(NonUniqueNodeID)
+    ! Set the node source on the Dirichlet side to zero (do not compensate the loss)
+    NodeSource(SourceDim:4,UniqueNodeID) = 0.
+  END DO ! iNode = 1, 4
+END DO ! iDirichletBCID = 1,nDirichletBCSides
+
+
+END SUBROUTINE NullifyNodeSourceDirichletSides
 
 END MODULE MOD_PICDepo_Method
