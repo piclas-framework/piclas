@@ -114,7 +114,10 @@ USE MOD_Particle_Boundary_Vars  ,ONLY: PartBound, nPartBound
 USE MOD_SurfaceModel_Vars       ,ONLY: SurfChem, SurfChemReac, DoChemSurface
 ! USE MOD_Particle_Surfaces_Vars
 USE MOD_io_hdf5
-USE MOD_HDF5_input,         ONLY:ReadAttribute, DatasetExists, AttributeExists
+USE MOD_HDF5_input              ,ONLY:ReadAttribute, DatasetExists, AttributeExists
+#if USE_LOADBALANCE
+USE MOD_LoadBalance_Vars        ,ONLY: PerformLoadBalance
+#endif /*USE_LOADBALANCE*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -136,7 +139,7 @@ INTEGER               :: iSpec, SpecID, ReactionPathPerSpecies(nSpecies), BCID
 IF(SurfChem%NumOfReact.LE.0) RETURN
 
 ReadInNumOfReact = SurfChem%NumOfReact
-SWRITE(*,*) '| Number of considered reaction paths on Surfaces: ', SurfChem%NumOfReact
+LBWRITE(*,*) '| Number of considered reaction paths on Surfaces: ', SurfChem%NumOfReact
 !----------------------------------------------------------------------------------------------------------------------------------
 ALLOCATE(SurfChemReac(ReadInNumOfReact))
 ! Surface map
