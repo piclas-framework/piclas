@@ -31,7 +31,7 @@ PUBLIC :: RemoveAllElectrons
 
 CONTAINS
 
-SUBROUTINE CreateParticle(SpecID,Pos,GlobElemID,Velocity,RotEnergy,VibEnergy,ElecEnergy,NewPartID,NewMPF)
+SUBROUTINE CreateParticle(SpecID,Pos,GlobElemID,Velocity,RotEnergy,VibEnergy,ElecEnergy,NewPartID,NewMPF,NewTimestep)
 !===================================================================================================================================
 !> creates a single particle at correct array position and assign properties
 !===================================================================================================================================
@@ -59,6 +59,7 @@ REAL, INTENT(IN)              :: VibEnergy        !< Vibrational energy
 REAL, INTENT(IN)              :: ElecEnergy       !< Electronic energy
 INTEGER, INTENT(OUT),OPTIONAL :: NewPartID        !< ID of newly created particle
 REAL, INTENT(IN),OPTIONAL     :: NewMPF           !< MPF of newly created particle
+REAL, INTENT(IN),OPTIONAL     :: NewTimestep      !< Timestep of the newly created particle
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! LOCAL VARIABLES
 INTEGER :: newParticleID
@@ -104,7 +105,11 @@ PEM%LastGlobalElemID(newParticleID) = GlobElemID
 
 ! Set particle time step and weight (if required)
 IF (UseVarTimeStep) THEN
-  PartTimeStep(newParticleID) = GetParticleTimeStep(PartState(1,newParticleID),PartState(2,newParticleID),PEM%LocalElemID(newParticleID))
+  IF(PRESENT(NewTimestep)) THEN
+    PartTimeStep(newParticleID) = NewTimestep
+  ELSE
+    PartTimeStep(newParticleID) = GetParticleTimeStep(PartState(1,newParticleID),PartState(2,newParticleID),PEM%LocalElemID(newParticleID))
+  END IF
 END IF
 
 ! Set new particle MPF

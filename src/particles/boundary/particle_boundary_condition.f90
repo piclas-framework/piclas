@@ -483,6 +483,7 @@ USE MOD_Particle_Vars           ,ONLY: UseRotRefFrame, RotRefFrameOmega, PartVel
 USE MOD_Part_Tools              ,ONLY: InRotRefFrameCheck
 USE MOD_part_RHS                ,ONLY: CalcPartRHSRotRefFrame
 USE MOD_part_tools              ,ONLY: RotateVectorAroundAxis
+USE MOD_Particle_Vars           ,ONLY: UseVarTimeStep, PartTimeStep
 #ifdef CODE_ANALYZE
 USE MOD_Particle_Tracking_Vars  ,ONLY: PartOut,MPIRankOut
 #endif /*CODE_ANALYZE*/
@@ -568,39 +569,57 @@ IF(DoCreateParticles) THEN
       ! - ParticleInside for InterParticles must be .FALSE. in order to avoid error looping over the original PDM%ParticleVecLength
       !   in ParticleTriaTracking() routine. The inside flag is set to .TRUE.
       !   when we loop over all inter particle in SingleParticleTriaTracking routine
-      ! in case of sub cycling step particle information befor sub cycling must be used => interplane particle can act like origin particle
+      ! in case of sub cycling step particle information before sub cycling must be used => interplane particle can act like origin particle
       IF(RotRefSubTimeStep) THEN
         IF (usevMPF) THEN
-          CALL CreateParticle( PartSpecies(PartID), NewPosSubCycling(1:3), GlobalElemIDSubCycling, PartState(4:6,PartID) &
-                             , RotEnergy=RotEnergy,VibEnergy=VibEnergy,ElecEnergy=ElecEnergy &
-                             , NewPartID=NewPartID, NewMPF=PartMPF(PartID) )
-          LastPartPos(1:3,NewPartID)    = LastPartPosSubCycling(1:3)
-          PDM%ParticleInside(NewPartID) = .FALSE.
-          InterPlanePartIndx(InterPlanePartNumber) = NewPartID
+          IF(UseVarTimeStep) THEN
+            CALL CreateParticle( PartSpecies(PartID), NewPosSubCycling(1:3), GlobalElemIDSubCycling, PartState(4:6,PartID) &
+                              , RotEnergy=RotEnergy,VibEnergy=VibEnergy,ElecEnergy=ElecEnergy &
+                              , NewPartID=NewPartID, NewMPF=PartMPF(PartID), NewTimestep = PartTimeStep(PartID) )
+          ELSE
+            CALL CreateParticle( PartSpecies(PartID), NewPosSubCycling(1:3), GlobalElemIDSubCycling, PartState(4:6,PartID) &
+                              , RotEnergy=RotEnergy,VibEnergy=VibEnergy,ElecEnergy=ElecEnergy &
+                              , NewPartID=NewPartID, NewMPF=PartMPF(PartID) )
+          END IF
         ELSE
-          CALL CreateParticle( PartSpecies(PartID), NewPosSubCycling(1:3), GlobalElemIDSubCycling,PartState(4:6,PartID) &
-                             , RotEnergy=RotEnergy,VibEnergy=VibEnergy,ElecEnergy=ElecEnergy &
-                             , NewPartID=NewPartID )
-          LastPartPos(1:3,NewPartID)    = LastPartPosSubCycling(1:3)
-          PDM%ParticleInside(NewPartID) = .FALSE.
-          InterPlanePartIndx(InterPlanePartNumber) = NewPartID
+          IF(UseVarTimeStep) THEN
+            CALL CreateParticle( PartSpecies(PartID), NewPosSubCycling(1:3), GlobalElemIDSubCycling,PartState(4:6,PartID) &
+                              , RotEnergy=RotEnergy,VibEnergy=VibEnergy,ElecEnergy=ElecEnergy &
+                              , NewPartID=NewPartID, NewTimestep = PartTimeStep(PartID) )
+          ELSE
+            CALL CreateParticle( PartSpecies(PartID), NewPosSubCycling(1:3), GlobalElemIDSubCycling,PartState(4:6,PartID) &
+                              , RotEnergy=RotEnergy,VibEnergy=VibEnergy,ElecEnergy=ElecEnergy &
+                              , NewPartID=NewPartID )
+          END IF
         END IF
+        LastPartPos(1:3,NewPartID)    = LastPartPosSubCycling(1:3)
+        PDM%ParticleInside(NewPartID) = .FALSE.
+        InterPlanePartIndx(InterPlanePartNumber) = NewPartID
       ELSE
         IF (usevMPF) THEN
-          CALL CreateParticle( PartSpecies(PartID), PartState(1:3,PartID), ElemID, PartState(4:6,PartID) &
-                             , RotEnergy=RotEnergy,VibEnergy=VibEnergy,ElecEnergy=ElecEnergy &
-                             , NewPartID=NewPartID, NewMPF=PartMPF(PartID) )
-          LastPartPos(1:3,NewPartID)    = LastPartPos(1:3,PartID)
-          PDM%ParticleInside(NewPartID) = .FALSE.
-          InterPlanePartIndx(InterPlanePartNumber) = NewPartID
+          IF(UseVarTimeStep) THEN
+            CALL CreateParticle( PartSpecies(PartID), PartState(1:3,PartID), ElemID, PartState(4:6,PartID) &
+                              , RotEnergy=RotEnergy,VibEnergy=VibEnergy,ElecEnergy=ElecEnergy &
+                              , NewPartID=NewPartID, NewMPF=PartMPF(PartID), NewTimestep = PartTimeStep(PartID) )
+          ELSE
+            CALL CreateParticle( PartSpecies(PartID), PartState(1:3,PartID), ElemID, PartState(4:6,PartID) &
+                              , RotEnergy=RotEnergy,VibEnergy=VibEnergy,ElecEnergy=ElecEnergy &
+                              , NewPartID=NewPartID, NewMPF=PartMPF(PartID) )
+          END IF
         ELSE
-          CALL CreateParticle( PartSpecies(PartID), PartState(1:3,PartID), ElemID,PartState(4:6,PartID) &
-                             , RotEnergy=RotEnergy,VibEnergy=VibEnergy,ElecEnergy=ElecEnergy &
-                             , NewPartID=NewPartID )
-          LastPartPos(1:3,NewPartID)    = LastPartPos(1:3,PartID)
-          PDM%ParticleInside(NewPartID) = .FALSE.
-          InterPlanePartIndx(InterPlanePartNumber) = NewPartID
+          IF(UseVarTimeStep) THEN
+            CALL CreateParticle( PartSpecies(PartID), PartState(1:3,PartID), ElemID,PartState(4:6,PartID) &
+                              , RotEnergy=RotEnergy,VibEnergy=VibEnergy,ElecEnergy=ElecEnergy &
+                              , NewPartID=NewPartID, NewTimestep = PartTimeStep(PartID) )
+          ELSE
+            CALL CreateParticle( PartSpecies(PartID), PartState(1:3,PartID), ElemID,PartState(4:6,PartID) &
+                              , RotEnergy=RotEnergy,VibEnergy=VibEnergy,ElecEnergy=ElecEnergy &
+                              , NewPartID=NewPartID )
+          END IF
         END IF
+        LastPartPos(1:3,NewPartID)    = LastPartPos(1:3,PartID)
+        PDM%ParticleInside(NewPartID) = .FALSE.
+        InterPlanePartIndx(InterPlanePartNumber) = NewPartID
       END IF
       ! Treatment for the rotational frame of reference: stored here, will be rotated together with the regular velocity later
       IF(UseRotRefFrame) THEN
