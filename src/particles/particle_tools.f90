@@ -25,10 +25,6 @@ INTERFACE UpdateNextFreePosition
   MODULE PROCEDURE UpdateNextFreePosition
 END INTERFACE
 
-INTERFACE VeloFromDistribution
-  MODULE PROCEDURE VeloFromDistribution
-END INTERFACE
-
 INTERFACE DiceUnitVector
   MODULE PROCEDURE DiceUnitVector
 END INTERFACE

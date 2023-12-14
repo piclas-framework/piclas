@@ -56,6 +56,10 @@ TYPE tPureSurf
   LOGICAL, ALLOCATABLE                   :: PureSurfReac(:)        ! List of boundaries on which LH/D reactions occur
 END TYPE
 
+TYPE, EXTENDS(tCollCaseInfo) :: tEventProbInfo
+  REAL, ALLOCATABLE                      :: ProdAcc(:)             ! Reaction-specific thermal accommodation
+END TYPE
+
 LOGICAL                                  :: DoChemSurface          ! Call the surface catalysis routines
 
 TYPE tSurfChemistry ! General surface chemistry parameter
@@ -71,7 +75,7 @@ TYPE tSurfChemistry ! General surface chemistry parameter
   TYPE(tSurfaceFlux), POINTER            :: SurfaceFlux(:)         ! Surface flux data (using the regular surface flux type)
   TYPE(tSFAux), ALLOCATABLE              :: SFAux(:)               ! Additional surface flux data, where variables differ from the regular surface flux type
   ! Event probability
-  TYPE(tCollCaseInfo), ALLOCATABLE       :: EventProbInfo(:)       ! Number of reaction paths and their probability per species
+  TYPE(tEventProbInfo), ALLOCATABLE      :: EventProbInfo(:)       ! Number of reaction paths and their probability per species
 END TYPE
 TYPE(tSurfChemistry)                     :: SurfChem
 

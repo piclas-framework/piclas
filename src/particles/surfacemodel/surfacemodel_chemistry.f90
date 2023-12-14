@@ -96,6 +96,9 @@ CALL prms%CreateIntArrayOption( 'Surface-Reaction[$]-Boundaries', 'Array of boun
                                     numberedmulti=.TRUE., no=0)
  CALL prms%CreateRealOption(     'Surface-Reaction[$]-EventProbability', &
                                     'Simple probability-based surface chemistry (Type = P)',numberedmulti=.TRUE.)
+ CALL prms%CreateRealOption(     'Surface-Reaction[$]-ProductAccommodation', &
+                                    'Reaction-specific translation thermal accommodation of the product species (Type = P), default is to ' //&
+                                    'utilizethe surface-specific accommodation coefficient (TransACC)', '-1.',numberedmulti=.TRUE.)
 END SUBROUTINE DefineParametersSurfaceChemistry
 
 
@@ -127,7 +130,7 @@ LOGICAL               :: Attr_Exists
 CHARACTER(LEN=32)     :: hilf
 INTEGER               :: iReac, iReac2, iBound, iVal, err
 INTEGER               :: ReadInNumOfReact
-INTEGER               :: iSpec, SpecID, ReactionPathPerSpecies(nSpecies)
+INTEGER               :: iSpec, SpecID, ReactionPathPerSpecies(nSpecies), BCID
 !===================================================================================================================================
 
 IF(SurfChem%NumOfReact.LE.0) RETURN
@@ -211,6 +214,8 @@ DO iSpec = 1, nSpecies
     SurfChem%EventProbInfo(iSpec)%ReactionIndex = 0
     ALLOCATE(SurfChem%EventProbInfo(iSpec)%ReactionProb(SurfChem%EventProbInfo(iSpec)%NumOfReactionPaths))
     SurfChem%EventProbInfo(iSpec)%ReactionProb = 0.
+    ALLOCATE(SurfChem%EventProbInfo(iSpec)%ProdAcc(SurfChem%EventProbInfo(iSpec)%NumOfReactionPaths))
+    SurfChem%EventProbInfo(iSpec)%ProdAcc = -1.
   END IF
 END DO
 
@@ -451,10 +456,29 @@ IF (SurfChem%OverwriteCatParameters) THEN
       SurfChemReac(iReac)%Prefactor = GETREAL('Surface-Reaction'//TRIM(hilf)//'-Prefactor','1.')
 
     CASE('P')
-      SpecID = SurfChemReac(Ireac)%Reactants(1)
+      SpecID = SurfChemReac(iReac)%Reactants(1)
       ReactionPathPerSpecies(SpecID) = ReactionPathPerSpecies(SpecID) + 1
       SurfChem%EventProbInfo(SpecID)%ReactionIndex(ReactionPathPerSpecies(SpecID)) = iReac
       SurfChem%EventProbInfo(SpecID)%ReactionProb(ReactionPathPerSpecies(SpecID)) = GETREAL('Surface-Reaction'//TRIM(hilf)//'-EventProbability')
+      SurfChem%EventProbInfo(SpecID)%ProdAcc(ReactionPathPerSpecies(SpecID)) = GETREAL('Surface-Reaction'//TRIM(hilf)//'-ProductAccommodation')
+      ! Sanity checks
+      IF(SurfChem%EventProbInfo(SpecID)%ProdAcc(ReactionPathPerSpecies(SpecID)).NE.-1.) THEN
+        ! If a reaction-specific accommodation coefficient is used, check if it is between 0 and 1
+        IF ((SurfChem%EventProbInfo(SpecID)%ProdAcc(ReactionPathPerSpecies(SpecID)).LT.0.).OR. &
+            (SurfChem%EventProbInfo(SpecID)%ProdAcc(ReactionPathPerSpecies(SpecID)).GT.1.)) THEN
+          CALL abort(__STAMP__,'Reaction-specific thermal accommodation must be between 0 and 1 for reaction: ', IntInfoOpt=iReac)
+        END IF
+        ! If the reaction-specific accommodation coefficient is greater than 0, check if a wall temperature has been defined
+        IF(SurfChem%EventProbInfo(SpecID)%ProdAcc(ReactionPathPerSpecies(SpecID)).GT.0.) THEN
+          DO iVal = 1, SurfChemReac(iReac)%NumOfBounds
+            BCID = SurfChemReac(iReac)%Boundaries(iVal)
+            IF(PartBound%WallTemp(BCID).EQ.0.) THEN
+              CALL abort(__STAMP__,'Reaction-specific thermal accommodation requires a wall temperature for boundary '//&
+                        TRIM(PartBound%SourceBoundName(BCID))//' used for reaction: ', IntInfoOpt=iReac)
+            END IF
+          END DO
+        END IF
+      END IF
     END SELECT
   END DO
 END IF
@@ -869,7 +893,7 @@ CASE('ER')
   ChemSampWall(speciesID,2,SubP,SubQ,SurfSideID) = ChemSampWall(speciesID,2,SubP,SubQ,SurfSideID) + ReacHeat*partWeight*BetaCoeff
 
   ! Create the Eley-Rideal reaction product
-  ! Incomplete energy accomodation: remaining energy is added to the product
+  ! Incomplete energy accommodation: remaining energy is added to the product
   WallVelo = PartBound%WallVelo(1:3,locBCID)
   CALL OrthoNormVec(n_loc,tang1,tang2)
 
@@ -924,14 +948,18 @@ SUBROUTINE SurfaceModelEventProbability(PartID,SideID,GlobalElemID,n_loc,PartPos
 ! MODULES
 ! ROUTINES / FUNCTIONS
 USE MOD_Globals
-USE MOD_SurfaceModel_Tools        ,ONLY: SurfaceModelParticleEmission, MaxwellScattering
-USE MOD_part_operations           ,ONLY: RemoveParticle
+USE MOD_SurfaceModel_Tools        ,ONLY: SurfaceModelParticleEmission, MaxwellScattering, CalcPostWallCollVelo, CalcRotWallVelo
+USE MOD_SurfaceModel_Tools        ,ONLY: SurfaceModelEnergyAccommodation, DiffuseReflection
+USE MOD_part_operations           ,ONLY: CreateParticle, RemoveParticle
+USE MOD_Particle_Boundary_Tools   ,ONLY: CalcWallSample
+USE MOD_Mesh_Tools                ,ONLY: GetCNElemID
 ! VARIABLES
 USE MOD_Globals_Vars              ,ONLY: BoltzmannConst
-USE MOD_Particle_Vars             ,ONLY: PartSpecies,Species
+USE MOD_Particle_Vars             ,ONLY: PartSpecies, PartState, usevMPF, PartMPF, WriteMacroSurfaceValues
 USE MOD_Particle_Boundary_Vars    ,ONLY: PartBound, GlobalSide2SurfSide
 USE MOD_SurfaceModel_Vars         ,ONLY: SurfChem, SurfChemReac
-USE MOD_Particle_Mesh_Vars        ,ONLY: SideInfo_Shared
+USE MOD_Particle_Mesh_Vars        ,ONLY: SideInfo_Shared, ElemMidPoint_Shared
+USE MOD_DSMC_Vars                 ,ONLY: DSMC, SamplingActive, BGGas
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -944,52 +972,79 @@ REAL,INTENT(IN)    :: PartPosImpact(1:3)    !< Charge and position of impact of 
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER            :: locBCID, SurfSideID
-INTEGER            :: SpecID, ProdSpecID
-INTEGER            :: iPath, iProd, ReacTodo
+INTEGER            :: locBCID, SurfSideID, CNElemID
+INTEGER            :: SpecID, ProdSpecID, NewPartID
+INTEGER            :: iPath, iProd, ReacTodo, PathTodo
 INTEGER            :: NumProd, NumReac
-REAL               :: TempErgy              !< temperature, energy or velocity used for SurfaceModelParticleEmission
-REAL               :: RanNum
-REAL               :: WallTemp
-REAL               :: TotalProb
+REAL               :: RanNum, WallTemp, TransACC, VeloSquare, TotalProb, OldMPF
+REAL               :: tang1(1:3), tang2(1:3), WallVelo(3), NewVelo(3), NewPos(1:3)
+REAL,PARAMETER     :: eps=1e-6, eps2=1.0-eps
 !===================================================================================================================================
 locBCID     = PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID))
 SurfSideID  = GlobalSide2SurfSide(SURF_SIDEID,SideID)
+CNElemID    = GetCNElemID(GlobalElemID)
 WallTemp    = PartBound%WallTemp(locBCID)
+WallVelo    = PartBound%WallVelo(1:3,locBCID)
 SpecID      = PartSpecies(PartID)
 NumReac     = 0
 ReacTodo    = 0
+PathTodo    = 0
 TotalProb   = 0.
+IF(PartBound%RotVelo(locBCID)) THEN
+  WallVelo(1:3) = CalcRotWallVelo(locBCID,PartPosImpact)
+END IF
 ! ----------------------------------------------------------------------------------------------------------------------------------
 ! 1.) Check whether species has any reactions to perform at the boundary
 IF(SurfChem%EventProbInfo(SpecID)%NumOfReactionPaths.EQ.0) THEN
-  ReacTodo = 0
+  PathTodo = 0
 ELSE
-  IF(SurfChem%EventProbInfo(SpecID)%NumOfReactionPaths.GT.1) THEN
-  ! 2a.) Determine which reaction path to follow
-    CALL RANDOM_NUMBER(RanNum)
-    DO iPath = 1, SurfChem%EventProbInfo(SpecID)%NumOfReactionPaths
-      TotalProb = TotalProb + SurfChem%EventProbInfo(SpecID)%ReactionProb(iPath)
-      IF(TotalProb.GT.RanNum) THEN
-        ReacTodo = SurfChem%EventProbInfo(SpecID)%ReactionIndex(iPath)
-        EXIT
-      END IF
-    END DO
-  ELSE
-  ! 2b.) Only one available reaction
-    ReacTodo = SurfChem%EventProbInfo(SpecID)%ReactionIndex(1)
-  END IF
+! 2a.) Determine which reaction path to follow
+  CALL RANDOM_NUMBER(RanNum)
+  DO iPath = 1, SurfChem%EventProbInfo(SpecID)%NumOfReactionPaths
+    TotalProb = TotalProb + SurfChem%EventProbInfo(SpecID)%ReactionProb(iPath)
+    IF(TotalProb.GT.RanNum) THEN
+      PathTodo = iPath
+      EXIT
+    END IF
+  END DO
 END IF
 
-IF(ReacTodo.GT.0) THEN
+IF(PathTodo.GT.0) THEN
+  ReacTodo = SurfChem%EventProbInfo(SpecID)%ReactionIndex(PathTodo)
   NumProd = COUNT(SurfChemReac(ReacTodo)%Products(:).GT.0)
   ! Create products if any have been defined
   IF(NumProd.GT.0) THEN
+    CALL OrthoNormVec(n_loc,tang1,tang2)
+    VeloSquare = DOTPRODUCT(PartState(4:6,PartID)) / NumProd
+    IF(SurfChem%EventProbInfo(SpecID)%ProdAcc(PathTodo).EQ.-1) THEN
+      TransACC = PartBound%TransACC(locBCID)
+    ELSE
+      TransACC = SurfChem%EventProbInfo(SpecID)%ProdAcc(PathTodo)
+    END IF
     DO iProd = 1, NumProd
       ProdSpecID = SurfChemReac(ReacTodo)%Products(iProd)
-      TempErgy = SQRT(2*BoltzmannConst*WallTemp/Species(ProdSpecID)%MassIC)
-      CALL SurfaceModelParticleEmission(n_loc, PartID, SideID, ProdSpecID, 1, TempErgy, GlobalElemID, PartPosImpact(1:3), &
-                                        EnergyDistribution = 'deltadistribution')
+      ! Do not emit background gas species (but consider them in the energy distribution in VeloSquare)
+      IF(BGGas%BackgroundSpecies(ProdSpecID)) CYCLE
+      ! Calculate the velocity based on the accommodation coefficient
+      NewVelo(1:3) = CalcPostWallCollVelo(ProdSpecID,VeloSquare,WallTemp,TransACC)
+      ! Perform vector transformation from the local to the global coordinate system and add wall velocity
+      NewVelo(1:3) = tang1(1:3)*NewVelo(1) + tang2(1:3)*NewVelo(2) - n_loc(1:3)*NewVelo(3) + WallVelo(1:3)
+      ! Create new position by using POI and moving the particle by eps in the direction of the element center
+      NewPos(1:3) = eps*ElemMidPoint_Shared(1:3,CNElemID) + eps2*PartPosImpact(1:3)
+      IF(usevMPF)THEN
+        ! Get MPF of old particle
+        OldMPF = PartMPF(PartID)
+        ! New particle acquires the MPF of the impacting particle (not necessarily the MPF of the newly created particle species)
+        CALL CreateParticle(ProdSpecID,NewPos(1:3),GlobalElemID,NewVelo(1:3),0.,0.,0.,NewPartID=NewPartID, NewMPF=OldMPF)
+      ELSE
+        ! New particle acquires the MPF of the new particle species
+        CALL CreateParticle(ProdSpecID,NewPos(1:3),GlobalElemID,NewVelo(1:3),0.,0.,0.,NewPartID=NewPartID)
+      END IF ! usevMPF
+      ! Adding the energy that is transferred from the surface onto the internal energies of the particle
+      CALL SurfaceModelEnergyAccommodation(NewPartID,locBCID,WallTemp)
+      ! Sampling of newly created particles
+      IF((DSMC%CalcSurfaceVal.AND.SamplingActive).OR.(DSMC%CalcSurfaceVal.AND.WriteMacroSurfaceValues)) &
+        CALL CalcWallSample(NewPartID,SurfSideID,'new',SurfaceNormal_opt=n_loc)
     END DO
   END IF
   ! Remove original reactant
