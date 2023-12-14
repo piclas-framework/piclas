@@ -241,10 +241,12 @@ SUBROUTINE radiation_molecules(iElem, em_mol)
             Voigt_dist2   = Voigt_dist1**2
             Voigt_dist225 = Voigt_dist2 * SQRT(SQRT(Voigt_dist1))
 
-            Voigt = Voigt_const1 * EXP(-2.772*Voigt_dist2) + Voigt_const2 / (1.+4.*Voigt_dist2) &
-                  + 0.016 * Voigt_const2 * (1.-Voigt_arg_dimless) * (EXP(-0.4*Voigt_dist225) &
-                  - 10. / (10. + Voigt_dist225))
-
+            Voigt = Voigt_const1 * EXP(MAX(-1.E8,-2.772*Voigt_dist2)) + Voigt_const2 / (1.+4.*Voigt_dist2) &
+                  + 0.016 * Voigt_const2 * (1.-Voigt_arg_dimless) * (EXP(MAX(-1.E5,-0.4*Voigt_dist225) &
+                  - 10. / (10. + Voigt_dist225)))
+            IF((Voigt_dist225.GT.1E5).OR.(Voigt_dist2.GT.1E8)) CALL abort(&
+                __STAMP__&
+                ,' ERROR: Voigt_dist225 is too big!')
             Voigt_int(iVoigt) = Voigt_int(iVoigt-1) + Voigt * Voigt_int_step
           END DO
 

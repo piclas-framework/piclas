@@ -218,6 +218,7 @@ IF (RadObservationPointMethod.GT.0) THEN
 #endif /*USE_MPI*/
   IF (myRank.EQ.0) THEN
     IF(ObservationDoConvolution) THEN
+
       CALL SpectralConvolution(RadObservation_Emission,RadObservation_Emission_Conv)
       OPEN(unit=20,file='Radiation_ObservationPoint.csv', status='replace',action='write')
       WRITE(20,*) 'x,y1,y2,y3'
@@ -404,11 +405,9 @@ REAL    :: topwidth_half, basewidth_half, slope
 REAL    :: wavelength_min_base, wavelength_max_base, wavelength_min_top, wavelength_max_top
 REAL    :: fractionl, fractionr, delta_base, delta_top
 !===================================================================================================================================
-
 topwidth = RadObservationPoint%SlitFunction(1)*1.E-10
 basewidth = RadObservationPoint%SlitFunction(2)*1.E-10
-
-iWave_min = 1!0
+iWave_min = 1
 
 basewidth_half = 0.5 * basewidth
 topwidth_half  = 0.5 * topwidth
@@ -423,7 +422,6 @@ DO iWave=1, RadiationParameter%WaveLenDiscr
   DO WHILE(RadiationParameter%WaveLen(iWave_min+1) .LT. wavelength_min_base)
     iWave_min = iWave_min + 1
   END DO
-
   ! --- slit function
   DO i = iWave_min, RadiationParameter%WaveLenDiscr-1
     IF(RadiationParameter%WaveLen(i) .LT. wavelength_min_base) THEN
@@ -445,6 +443,8 @@ DO iWave=1, RadiationParameter%WaveLenDiscr
       delta_base = wavelength_min_top - RadiationParameter%WaveLen(i)
       delta_top  = RadiationParameter%WaveLen(i+1) - wavelength_min_top
     ELSEIF(RadiationParameter%WaveLen(i+1) .LT. wavelength_max_top) THEN
+      fractionl  = 0.
+      fractionr  = 0.
       delta_base = 0.
       delta_top  = RadiationParameter%WaveLenIncr
     ELSEIF(RadiationParameter%WaveLen(i  ) .LT. wavelength_max_top) THEN

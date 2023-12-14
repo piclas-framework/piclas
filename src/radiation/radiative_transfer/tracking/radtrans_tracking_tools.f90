@@ -279,7 +279,11 @@ sy=PhotonProps%PhotonDirection(2)
 sz=PhotonProps%PhotonDirection(3)
 
 IF (sx .EQ. 0.0) THEN
-  l = (x_photon_start-xNode1)/(xNode2-xNode1)
+  IF (xNode1.EQ.xNode2) THEN
+    l = (y_photon_start-yNode1)/(yNode2-yNode1)
+  ELSE
+    l = (x_photon_start-xNode1)/(xNode2-xNode1)
+  END IF
   a = sy*sy + sz*sz
   b = 2*sy*y_photon_start
   c = y_photon_start*y_photon_start - yNode1*yNode1 + 2.*l*yNode1*yNode1 - l*l*yNode1*yNode1 &
@@ -419,7 +423,11 @@ sy=Dir(2)
 sz=Dir(3)
 
 IF (sx .EQ. 0.0) THEN
-  l = (x_photon_start-xNode1)/(xNode2-xNode1)
+  IF (xNode1.EQ.xNode2) THEN
+    l = (y_photon_start-yNode1)/(yNode2-yNode1)
+  ELSE
+    l = (x_photon_start-xNode1)/(xNode2-xNode1)
+  END IF
   a = sy*sy + sz*sz
   b = 2*sy*y_photon_start
   c = y_photon_start*y_photon_start - yNode1*yNode1 + 2.*l*yNode1*yNode1 - l*l*yNode1*yNode1 &
