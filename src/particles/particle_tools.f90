@@ -1767,7 +1767,6 @@ IF(ALLOCATED(PDM%ParticleInside)) CALL ChangeSizeArray(PDM%ParticleInside,PDM%ma
 IF(ALLOCATED(PDM%IsNewPart)) CALL ChangeSizeArray(PDM%IsNewPart,PDM%maxParticleNumber,NewSize,.FALSE.)
 IF(ALLOCATED(PDM%dtFracPush)) CALL ChangeSizeArray(PDM%dtFracPush,PDM%maxParticleNumber,NewSize,.FALSE.)
 IF(ALLOCATED(PDM%InRotRefFrame)) CALL ChangeSizeArray(PDM%InRotRefFrame,PDM%maxParticleNumber,NewSize,.FALSE.)
-IF(ALLOCATED(PDM%PartInit)) CALL ChangeSizeArray(PDM%PartInit,PDM%maxParticleNumber,NewSize)
 
 IF(ALLOCATED(PartState)) CALL ChangeSizeArray(PartState,PDM%maxParticleNumber,NewSize,0.)
 IF(ALLOCATED(LastPartPos)) CALL ChangeSizeArray(LastPartPos,PDM%maxParticleNumber,NewSize)
@@ -1973,7 +1972,6 @@ IF(ALLOCATED(PDM%ParticleInside)) CALL ChangeSizeArray(PDM%ParticleInside,PDM%ma
 IF(ALLOCATED(PDM%IsNewPart)) CALL ChangeSizeArray(PDM%IsNewPart,PDM%maxParticleNumber,NewSize,.FALSE.)
 IF(ALLOCATED(PDM%dtFracPush)) CALL ChangeSizeArray(PDM%dtFracPush,PDM%maxParticleNumber,NewSize,.FALSE.)
 IF(ALLOCATED(PDM%InRotRefFrame)) CALL ChangeSizeArray(PDM%InRotRefFrame,PDM%maxParticleNumber,NewSize,.FALSE.)
-IF(ALLOCATED(PDM%PartInit)) CALL ChangeSizeArray(PDM%PartInit,PDM%maxParticleNumber,NewSize)
 
 IF(ALLOCATED(PartState)) CALL ChangeSizeArray(PartState,PDM%maxParticleNumber,NewSize,0.)
 IF(ALLOCATED(LastPartPos)) CALL ChangeSizeArray(LastPartPos,PDM%maxParticleNumber,NewSize)
@@ -2155,7 +2153,6 @@ IF(ALLOCATED(PDM%InRotRefFrame)) THEN
   PDM%InRotRefFrame(NewID)=PDM%InRotRefFrame(OldID)
   PDM%InRotRefFrame(OldID)=.FALSE.
 END IF
-IF(ALLOCATED(PDM%PartInit)) PDM%PartInit(NewID)=PDM%PartInit(OldID)
 
 IF(ALLOCATED(PartState)) THEN
   PartState(:,NewID)=PartState(:,OldID)

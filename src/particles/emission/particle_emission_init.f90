@@ -105,6 +105,11 @@ CALL prms%CreateIntOption(      'Part-Species[$]-Init[$]-BGG-Distribution-Specie
                                   'distribution of the DSMCState file', numberedmulti=.TRUE.)
 CALL prms%CreateIntOption(      'Part-Species[$]-Init[$]-BGG-Region'  &
                                 , 'Number of the region in which the given conditions shall be applied to', numberedmulti=.TRUE.)
+
+! === Cell local
+CALL prms%CreateRealArrayOption('Part-Species[$]-Init[$]-MinimalLocation', 'Minimal location', '-999. , -999., -999.', numberedmulti=.TRUE.)
+CALL prms%CreateRealArrayOption('Part-Species[$]-Init[$]-MaximalLocation', 'Maximal location', '999. , 999. , 999.', numberedmulti=.TRUE.)
+
 ! === Neutralization BC
 CALL prms%CreateStringOption(   'Part-Species[$]-Init[$]-NeutralizationSource'  , 'Name of the boundary used for calculating the charged particle balance used for thruster neutralization (no default).' ,numberedmulti=.TRUE.)
 ! === Photoionization
@@ -250,6 +255,9 @@ DO iSpec = 1, nSpecies
           'For this emission type RadiusIC must be greater than Radius2IC!')
     CASE('cuboid','photon_rectangle')
       Species(iSpec)%Init(iInit)%CuboidHeightIC = GETREAL('Part-Species'//TRIM(hilf2)//'-CuboidHeightIC')
+    CASE('cell_local')
+      Species(iSpec)%Init(iInit)%MinLocation            = GETREALARRAY('Part-Species'//TRIM(hilf2)//'-MinimalLocation',3)
+      Species(iSpec)%Init(iInit)%MaxLocation            = GETREALARRAY('Part-Species'//TRIM(hilf2)//'-MaximalLocation',3)
     END SELECT
     ! Space-ICs requiring basic geometry information and other options (all excluding cell_local and background)
     IF((TRIM(Species(iSpec)%Init(iInit)%SpaceIC).NE.'cell_local').AND. &
@@ -446,9 +454,11 @@ SUBROUTINE InitialParticleInserting()
 USE MOD_Globals
 USE MOD_ReadInTools
 USE MOD_Dielectric_Vars         ,ONLY: DoDielectric,isDielectricElem,DielectricNoParticles
-USE MOD_DSMC_Vars               ,ONLY: useDSMC, DSMC
+USE MOD_DSMC_Vars               ,ONLY: useDSMC, DSMC, CollisMode
 USE MOD_Part_Emission_Tools     ,ONLY: SetParticleChargeAndMass,SetParticleMPF,SetParticleTimeStep
-USE MOD_Part_Pos_and_Velo       ,ONLY: SetParticlePosition,SetParticleVelocity,SetPartPosAndVeloEmissionDistribution
+USE MOD_DSMC_PolyAtomicModel    ,ONLY: DSMC_SetInternalEnr
+USE MOD_Part_Pos_and_Velo       ,ONLY: SetParticlePosition,SetParticleVelocity,ParticleEmissionFromDistribution
+USE MOD_Part_Pos_and_Velo       ,ONLY: ParticleEmissionCellLocal
 USE MOD_DSMC_AmbipolarDiffusion ,ONLY: AD_SetInitElectronVelo
 USE MOD_Part_Tools              ,ONLY: UpdateNextFreePosition, IncreaseMaxParticleNumber
 USE MOD_Particle_Vars           ,ONLY: Species,nSpecies,PDM,PEM, usevMPF, SpecReset, UseVarTimeStep
@@ -483,31 +493,44 @@ DO iSpec = 1,nSpecies
     IF (Species(iSpec)%Init(iInit)%ParticleEmissionType.EQ.0) THEN
       IF(Species(iSpec)%Init(iInit)%ParticleNumber.GT.HUGE(1)) CALL abort(__STAMP__,&
           ' Integer of initial particle number larger than max integer size: ',IntInfoOpt=HUGE(1))
-      ! Set particle position and velocity
       SELECT CASE(TRIM(Species(iSpec)%Init(iInit)%SpaceIC))
+      ! --------------------------------------------------------------------------------------------------
+      ! Cell-local particle emission: every processors loops over its own elements
+      CASE('cell_local')
+        LBWRITE(UNIT_stdOut,'(A,I0,A)') ' Initial cell local particle emission for species ',iSpec,' ... '
+        CALL ParticleEmissionCellLocal(iSpec,iInit,NbrOfParticle)
+        ! TODO: MOVE EVERYTHING INTO THE EMISSION ROUTINE
+        CALL SetParticleVelocity(iSpec,iInit,NbrOfParticle)
+        ! SetParticleMPF cannot be performed anymore since the PartMPF was set based on the SplitThreshold
+        ! SetParticleTimeStep is done during the emission as well
+        ! SetParticleChargeAndMass is done as well
+      ! --------------------------------------------------------------------------------------------------
+      ! Cell-local particle emission from a given distribution
       CASE('EmissionDistribution')
-        CALL SetPartPosAndVeloEmissionDistribution(iSpec,iInit,NbrOfParticle)
+        CALL ParticleEmissionFromDistribution(iSpec,iInit,NbrOfParticle)
+        ! Particle velocity and species is set inside the above routine
+        IF (usevMPF) CALL SetParticleMPF(iSpec,iInit,NbrOfParticle)
+        IF (UseVarTimeStep) CALL SetParticleTimeStep(NbrOfParticle)
+      ! --------------------------------------------------------------------------------------------------
+      ! Global particle emission
       CASE DEFAULT
         NbrOfParticle = INT(Species(iSpec)%Init(iInit)%ParticleNumber,4)
         LBWRITE(UNIT_stdOut,'(A,I0,A)') ' Set particle position for species ',iSpec,' ... '
         CALL SetParticlePosition(iSpec,iInit,NbrOfParticle)
         LBWRITE(UNIT_stdOut,'(A,I0,A)') ' Set particle velocities for species ',iSpec,' ... '
         CALL SetParticleVelocity(iSpec,iInit,NbrOfParticle)
+        IF (usevMPF) CALL SetParticleMPF(iSpec,iInit,NbrOfParticle)
+        CALL SetParticleChargeAndMass(iSpec,NbrOfParticle)
+        IF (UseVarTimeStep) CALL SetParticleTimeStep(NbrOfParticle)
       END SELECT
-      LBWRITE(UNIT_stdOut,'(A,I0,A)') ' Set particle charge and mass for species ',iSpec,' ... '
-      CALL SetParticleChargeAndMass(iSpec,NbrOfParticle)
-      IF (usevMPF) CALL SetParticleMPF(iSpec,iInit,NbrOfParticle)
-      IF (UseVarTimeStep) CALL SetParticleTimeStep(NbrOfParticle)
       IF (useDSMC) THEN
         IF (DSMC%DoAmbipolarDiff) CALL AD_SetInitElectronVelo(iSpec,iInit,NbrOfParticle)
-        DO iPart = 1, NbrOfParticle
-          PositionNbr = GetNextFreePosition(iPart)
-          IF (PositionNbr .NE. 0) THEN
-            PDM%PartInit(PositionNbr) = iInit
-          ELSE
-            CALL abort(__STAMP__,'ERROR in InitialParticleInserting: No free particle index - maximum nbr of particles reached?')
-          END IF
-        END DO
+        IF((CollisMode.EQ.2).OR.(CollisMode.EQ.3)) THEN
+          DO iPart = 1, NbrOfParticle
+            PositionNbr = GetNextFreePosition(iPart)
+            IF (PositionNbr .NE. 0) CALL DSMC_SetInternalEnr(iSpec,iInit,PositionNbr,1)
+          END DO
+        END IF
       END IF
       ! Add new particles to particle vector length
       IF(NbrOfParticle.GT.0) PDM%ParticleVecLength = MAX(PDM%ParticleVecLength,GetNextFreePosition(NbrOfParticle))

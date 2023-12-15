@@ -45,10 +45,10 @@ SUBROUTINE InitPolyAtomicMolecs(iSpec)
 ! Initialization of variables for polyatomic molecules
 !===================================================================================================================================
 ! MODULES
-  USE MOD_Globals
-  USE MOD_Globals_Vars,           ONLY : BoltzmannConst
-  USE MOD_DSMC_Vars,              ONLY : DSMC, SpecDSMC, PolyatomMolDSMC
-  USE MOD_ReadInTools
+USE MOD_Globals
+USE MOD_Globals_Vars,           ONLY : BoltzmannConst
+USE MOD_DSMC_Vars,              ONLY : DSMC, SpecDSMC, PolyatomMolDSMC
+USE MOD_ReadInTools
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -61,52 +61,50 @@ SUBROUTINE InitPolyAtomicMolecs(iSpec)
   CHARACTER(32)                  :: hilf, hilf2
   INTEGER                        :: iPolyatMole, iVibDOF
 !===================================================================================================================================
-  WRITE(UNIT=hilf,FMT='(I0)') iSpec
-  iPolyatMole = SpecDSMC(iSpec)%SpecToPolyArray
-  PolyatomMolDSMC(iPolyatMole)%LinearMolec = GETLOGICAL('Part-Species'//TRIM(hilf)//'-LinearMolec')
-  IF (PolyatomMolDSMC(iPolyatMole)%LinearMolec) THEN
-    SpecDSMC(iSpec)%Xi_Rot = 2
-  ELSE
-    SpecDSMC(iSpec)%Xi_Rot = 3
-  END IF
-  PolyatomMolDSMC(iPolyatMole)%NumOfAtoms = GETINT('Part-Species'//TRIM(hilf)//'-NumOfAtoms')
-  ! TSHO not implemented with polyatomic molecules, but Ediss_eV required for the calculation of polyatomic temp. (upper bound)
-  SpecDSMC(iSpec)%Ediss_eV   = GETREAL('Part-Species'//TRIM(hilf)//'-Ediss_eV','0.')
-  IF(SpecDSMC(iSpec)%Ediss_eV.EQ.0.) THEN
-    CALL abort(&
-      __STAMP__&
-      ,'ERROR in Polyatomic Species-Ini: Missing dissociation energy, Species: ',iSpec)
-  END IF
-  PolyatomMolDSMC(iPolyatMole)%VibDOF = 3*PolyatomMolDSMC(iPolyatMole)%NumOfAtoms - 3 - SpecDSMC(iSpec)%Xi_Rot
-  ALLOCATE(PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(PolyatomMolDSMC(iPolyatMole)%VibDOF))
-  IF(DSMC%PolySingleMode) THEN
-    ALLOCATE(PolyatomMolDSMC(iPolyatMole)%GammaVib(PolyatomMolDSMC(iPolyatMole)%VibDOF))
-    PolyatomMolDSMC(iPolyatMole)%GammaVib(:) = 0.0
-    ALLOCATE(PolyatomMolDSMC(iPolyatMole)%VibRelaxProb(PolyatomMolDSMC(iPolyatMole)%VibDOF))
-    PolyatomMolDSMC(iPolyatMole)%VibRelaxProb(:) = 0.0
-  END IF
+WRITE(UNIT=hilf,FMT='(I0)') iSpec
+iPolyatMole = SpecDSMC(iSpec)%SpecToPolyArray
+PolyatomMolDSMC(iPolyatMole)%LinearMolec = GETLOGICAL('Part-Species'//TRIM(hilf)//'-LinearMolec')
+IF (PolyatomMolDSMC(iPolyatMole)%LinearMolec) THEN
+  SpecDSMC(iSpec)%Xi_Rot = 2
+ELSE
+  SpecDSMC(iSpec)%Xi_Rot = 3
+END IF
+PolyatomMolDSMC(iPolyatMole)%NumOfAtoms = GETINT('Part-Species'//TRIM(hilf)//'-NumOfAtoms')
+! TSHO not implemented with polyatomic molecules, but Ediss_eV required for the calculation of polyatomic temp. (upper bound)
+SpecDSMC(iSpec)%Ediss_eV   = GETREAL('Part-Species'//TRIM(hilf)//'-Ediss_eV','0.')
+IF(SpecDSMC(iSpec)%Ediss_eV.EQ.0.) THEN
+  CALL abort(__STAMP__,'ERROR in Polyatomic Species-Ini: Missing dissociation energy, Species: ',iSpec)
+END IF
+PolyatomMolDSMC(iPolyatMole)%VibDOF = 3*PolyatomMolDSMC(iPolyatMole)%NumOfAtoms - 3 - SpecDSMC(iSpec)%Xi_Rot
+ALLOCATE(PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(PolyatomMolDSMC(iPolyatMole)%VibDOF))
+IF(DSMC%PolySingleMode) THEN
+  ALLOCATE(PolyatomMolDSMC(iPolyatMole)%GammaVib(PolyatomMolDSMC(iPolyatMole)%VibDOF))
+  PolyatomMolDSMC(iPolyatMole)%GammaVib(:) = 0.0
+  ALLOCATE(PolyatomMolDSMC(iPolyatMole)%VibRelaxProb(PolyatomMolDSMC(iPolyatMole)%VibDOF))
+  PolyatomMolDSMC(iPolyatMole)%VibRelaxProb(:) = 0.0
+END IF
 ! Read-in of characteristic rotational temperature
-  ALLOCATE(PolyatomMolDSMC(iPolyatMole)%CharaTRotDOF(3))
-  IF(PolyatomMolDSMC(iPolyatMole)%LinearMolec) THEN
-    PolyatomMolDSMC(iPolyatMole)%CharaTRotDOF(1) = GETREAL('Part-Species'//TRIM(hilf)//'-CharaTempRot','0')
-    PolyatomMolDSMC(iPolyatMole)%CharaTRotDOF(2:3) = 1
-  ELSE
-    DO iVibDOF = 1,3
-      WRITE(UNIT=hilf2,FMT='(I0)') iVibDOF
-      PolyatomMolDSMC(iPolyatMole)%CharaTRotDOF(iVibDOF) = &
-        GETREAL('Part-Species'//TRIM(hilf)//'-CharaTempRot'//TRIM(hilf2),'0')
-    END DO
-  END IF
-  ! Read-in of characteristic vibrational temperature and calculation of zero-point energy
-  DO iVibDOF = 1, PolyatomMolDSMC(iPolyatMole)%VibDOF
+ALLOCATE(PolyatomMolDSMC(iPolyatMole)%CharaTRotDOF(3))
+IF(PolyatomMolDSMC(iPolyatMole)%LinearMolec) THEN
+  PolyatomMolDSMC(iPolyatMole)%CharaTRotDOF(1) = GETREAL('Part-Species'//TRIM(hilf)//'-CharaTempRot','0')
+  PolyatomMolDSMC(iPolyatMole)%CharaTRotDOF(2:3) = 1
+ELSE
+  DO iVibDOF = 1,3
     WRITE(UNIT=hilf2,FMT='(I0)') iVibDOF
-    PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iVibDOF) = GETREAL('Part-Species'//TRIM(hilf)//'-CharaTempVib'//TRIM(hilf2))
-    SpecDSMC(iSpec)%EZeroPoint = SpecDSMC(iSpec)%EZeroPoint &
-      + DSMC%GammaQuant*PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iVibDOF)*BoltzmannConst
+    PolyatomMolDSMC(iPolyatMole)%CharaTRotDOF(iVibDOF) = &
+      GETREAL('Part-Species'//TRIM(hilf)//'-CharaTempRot'//TRIM(hilf2),'0')
   END DO
-  ALLOCATE(PolyatomMolDSMC(iPolyatMole)%MaxVibQuantDOF(PolyatomMolDSMC(iPolyatMole)%VibDOF))
-  ! Maximum number of quantum number per DOF cut at 80 to reduce computational effort
-  PolyatomMolDSMC(iPolyatMole)%MaxVibQuantDOF(1:PolyatomMolDSMC(iPolyatMole)%VibDOF) = 80
+END IF
+! Read-in of characteristic vibrational temperature and calculation of zero-point energy
+DO iVibDOF = 1, PolyatomMolDSMC(iPolyatMole)%VibDOF
+  WRITE(UNIT=hilf2,FMT='(I0)') iVibDOF
+  PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iVibDOF) = GETREAL('Part-Species'//TRIM(hilf)//'-CharaTempVib'//TRIM(hilf2))
+  SpecDSMC(iSpec)%EZeroPoint = SpecDSMC(iSpec)%EZeroPoint &
+    + DSMC%GammaQuant*PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iVibDOF)*BoltzmannConst
+END DO
+ALLOCATE(PolyatomMolDSMC(iPolyatMole)%MaxVibQuantDOF(PolyatomMolDSMC(iPolyatMole)%VibDOF))
+! Maximum number of quantum number per DOF cut at 80 to reduce computational effort
+PolyatomMolDSMC(iPolyatMole)%MaxVibQuantDOF(1:PolyatomMolDSMC(iPolyatMole)%VibDOF) = 80
 
 END SUBROUTINE InitPolyAtomicMolecs
 
