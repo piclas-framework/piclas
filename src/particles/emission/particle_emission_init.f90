@@ -466,9 +466,11 @@ IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER               :: iSpec, NbrOfParticle,iInit,iPart,PositionNbr
+REAL                  :: StartT, EndT
 !===================================================================================================================================
 
 LBWRITE(UNIT_stdOut,'(A)') ' INITIAL PARTICLE INSERTING...'
+GETTIME(StartT)
 
 CALL UpdateNextFreePosition()
 
@@ -543,7 +545,8 @@ IF(DoDielectric)THEN
   END IF
 END IF
 
-LBWRITE(UNIT_stdOut,'(A)') ' INITIAL PARTICLE INSERTING DONE!'
+GETTIME(EndT)
+CALL DisplayMessageAndTime(EndT-StartT, ' INITIAL PARTICLE INSERTING DONE!')
 
 END SUBROUTINE InitialParticleInserting
 
