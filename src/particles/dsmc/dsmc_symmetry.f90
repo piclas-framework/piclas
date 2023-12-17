@@ -517,8 +517,6 @@ END SUBROUTINE DSMC_2D_TreatIdenticalParticles
 SUBROUTINE IncreaseClonedParticlesType()
 !===================================================================================================================================
 !> Increases RadialWeighting%CloneVecLength and the ClonedParticles(iPart,iDelay) type
-!> Note: RadialWeighting%ClonePartNum is reduced by one when storing the old data since it was increased in DSMC_2D_RadialWeighting
-!>       above the current size of ClonedParticles
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
