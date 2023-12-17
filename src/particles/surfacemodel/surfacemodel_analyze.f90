@@ -860,6 +860,8 @@ DO iBPO = 1, BPO%NPartBoundaries
     ELSE
       ! Check the surface model
       SELECT CASE(PartBound%SurfaceModel(iPartBound))
+      CASE(2)
+        ! Event probability model
       CASE(SEE_MODELS_ID)
         ! all secondary electron models
       CASE DEFAULT
