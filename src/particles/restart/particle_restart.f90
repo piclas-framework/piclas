@@ -233,6 +233,7 @@ IF(.NOT.DoMacroscopicRestart) THEN
           END IF
         END IF
         PDM%ParticleInside(iPart) = .TRUE.
+        PDM%isNewPart(iPart)      = .TRUE.
       END DO ! iLoop = 1_IK,locnPart
 
       iPart = 0
