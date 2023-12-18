@@ -138,29 +138,29 @@ DO iSpec=1,nSpecies
         IF(Symmetry%Axisymmetric) CALL DefineSideDirectVec2D(SideID, xyzNod, minPos, RVec)
 
         !-- compute number of to be inserted particles
-        IF (.NOT.RadialWeighting%DoRadialWeighting) THEN
-          IF(.NOT.SF%Adaptive) THEN
-            IF (.NOT.DoPoissonRounding .AND. .NOT.DoTimeDepInflow) THEN
-              IF(SF%ThermionicEmission.AND.SF%SchottkyEffectTE) THEN
-#if (USE_HDG)
-                CALL CalcPartInsThermionicEmissionSchottky(iSpec,iSF,iSample,jSample,iSide,iLocSide,ElemID,PartInsSubSide)
-#endif
-              ELSE
-                PartInsSubSide=PartInsSubSides(iSample,jSample,iSide)
-              END IF
-            ELSE IF(DoPoissonRounding .AND. .NOT.DoTimeDepInflow)THEN
-              CALL CalcPartInsPoissonDistr(iSpec, iSF, iSample, jSample, iSide, PartInsSubSide)
-            ELSE !DoTimeDepInflow
-              CALL RANDOM_NUMBER(RandVal1)
-              PartInsSubSide = INT(SF%PartDensity / Species(iSpec)%MacroParticleFactor &
-                             * dt*RKdtFrac * SF%SurfFluxSubSideData(iSample,jSample,iSide)%nVFR+RandVal1)
-            END IF !DoPoissonRounding
-          ELSE !SF%Adaptive
-            CALL CalcPartInsAdaptive(iSpec, iSF, BCSideID, iSide, iSample, jSample, PartInsSubSide)
-          END IF ! Adaptive SurfaceFlux
-        ELSE
+        IF(SF%Adaptive) THEN
+          ! Adaptive surface flux: Number of particles depends on velocity/temperature/mass flow (includes treatment for RadialWeighting)
+          CALL CalcPartInsAdaptive(iSpec, iSF, BCSideID, iSide, iSample, jSample, minPos, RVec, PartInsSubSide, PartInsSideRadWeight)
+        ELSE IF(RadialWeighting%DoRadialWeighting) THEN
+          ! Radial weighting: Number of particles depends on the modified area and includes insertion over subsides
           CALL CalcPartInsRadWeight(iSpec, iSF, iSample, jSample, iSide, minPos, RVec, PartInsSubSide, PartInsSideRadWeight)
-        END IF ! noAdaptive.AND.(.NOT.Symmetry2DAxisymmetric)
+        ELSE
+          IF (.NOT.DoPoissonRounding .AND. .NOT.DoTimeDepInflow) THEN
+            IF(SF%ThermionicEmission.AND.SF%SchottkyEffectTE) THEN
+#if (USE_HDG)
+              CALL CalcPartInsThermionicEmissionSchottky(iSpec,iSF,iSample,jSample,iSide,iLocSide,ElemID,PartInsSubSide)
+#endif
+            ELSE
+              PartInsSubSide=PartInsSubSides(iSample,jSample,iSide)
+            END IF
+          ELSE IF(DoPoissonRounding .AND. .NOT.DoTimeDepInflow)THEN
+            CALL CalcPartInsPoissonDistr(iSpec, iSF, iSample, jSample, iSide, PartInsSubSide)
+          ELSE !DoTimeDepInflow
+            CALL RANDOM_NUMBER(RandVal1)
+            PartInsSubSide = INT(SF%PartDensity / Species(iSpec)%MacroParticleFactor &
+                            * dt*RKdtFrac * SF%SurfFluxSubSideData(iSample,jSample,iSide)%nVFR+RandVal1)
+          END IF !DoPoissonRounding
+        END IF ! SF%Adaptive
         !-- proceed with calculated to be inserted particles
         IF (PartInsSubSide.LT.0) THEN
           IPWRITE(*,*) 'ERROR in ParticleSurfaceflux: Calculated number of particles to insert below zero! PartInsSubSide: ', PartInsSubSide
@@ -181,7 +181,7 @@ DO iSpec=1,nSpecies
 
         !-- Set Positions
         IF(Symmetry%Axisymmetric) THEN
-          CALL CalcPartPosRadWeight(iSpec, iSF, iSide, minPos, RVec, PartInsSubSide, PartInsSideRadWeight, particle_positions, allowedRejections)
+          CALL CalcPartPosAxisym(iSpec, iSF, iSide, minPos, RVec, PartInsSubSide, PartInsSideRadWeight, particle_positions, allowedRejections)
         ELSE
           DO WHILE (iPart+allowedRejections .LE. PartInsSubSide)
             IF (TriaSurfaceFlux) THEN
@@ -709,7 +709,7 @@ END FUNCTION CalcPartPosTriaSurface
 !===================================================================================================================================
 !> Calculate a random particle position for the case of radial weighting (2D axisymmetric)
 !===================================================================================================================================
-SUBROUTINE CalcPartPosRadWeight(iSpec,iSF,iSide,minPos,RVec,PartInsSubSide,PartInsSideRadWeight,particle_positions,allowedRejections)
+SUBROUTINE CalcPartPosAxisym(iSpec,iSF,iSide,minPos,RVec,PartInsSubSide,PartInsSideRadWeight,particle_positions,allowedRejections)
 ! MODULES
 ! IMPLICIT VARIABLE HANDLING
 USE MOD_Globals
@@ -800,7 +800,7 @@ ELSE
   END DO
 END IF
 
-END SUBROUTINE CalcPartPosRadWeight
+END SUBROUTINE CalcPartPosAxisym
 
 
 !===================================================================================================================================
@@ -895,7 +895,7 @@ END SUBROUTINE CalcPartInsPoissonDistr
 !===================================================================================================================================
 !> Calculate the particle number per side for the case of adaptive surface flux BCs
 !===================================================================================================================================
-SUBROUTINE CalcPartInsAdaptive(iSpec, iSF, BCSideID, iSide, iSample, jSample, PartInsSubSide)
+SUBROUTINE CalcPartInsAdaptive(iSpec, iSF, BCSideID, iSide, iSample, jSample, minPos, RVec, PartInsSubSide, PartInsSideRadWeight)
 ! MODULES
 ! IMPLICIT VARIABLE HANDLING
 USE MOD_Globals
@@ -905,27 +905,30 @@ USE MOD_Particle_Vars           ,ONLY: Species, VarTimeStep
 USE MOD_Particle_Sampling_Vars  ,ONLY: AdaptBCMacroVal, AdaptBCMapElemToSample, AdaptBCBackupVelocity, AdaptBCPartNumOut
 USE MOD_Particle_Surfaces_Vars  ,ONLY: SurfMeshSubSideData
 USE MOD_Mesh_Vars               ,ONLY: SideToElem
+USE MOD_DSMC_Vars               ,ONLY: RadialWeighting
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
 INTEGER, INTENT(IN)         :: iSpec, iSF, BCSideID, iSide, jSample, iSample
-INTEGER, INTENT(OUT)        :: PartInsSubSide
+REAL, INTENT(IN)            :: minPos(2), RVec(2)
+INTEGER, INTENT(OUT)        :: PartInsSubSide, PartInsSideRadWeight(:)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 REAL                        :: ElemPartDensity, T, pressure, VeloVec(3), vec_nIn(3), veloNormal, VeloIC, VeloVecIC(3)
 REAL                        :: projFak, a, v_thermal, vSF, nVFR, RandVal1, dtVar
-INTEGER                     :: ElemID, SampleElemID
+INTEGER                     :: iSub, ElemID, SampleElemID
 !===================================================================================================================================
 
 ! Species-specific time step
 IF(VarTimeStep%UseSpeciesSpecific) THEN
-  dtVar = dt * Species(iSpec)%TimeStepFactor
+  dtVar = dt * RKdtFrac * Species(iSpec)%TimeStepFactor
 ELSE
-  dtVar = dt
+  dtVar = dt * RKdtFrac
 END IF
 
+! 1) Calculate the velocity, density and/or temperature based on the selected BC type
 ElemID = SideToElem(1,BCSideID)
 SampleElemID = AdaptBCMapElemToSample(ElemID)
 SELECT CASE(Species(iSpec)%Surfaceflux(iSF)%AdaptiveType)
@@ -935,7 +938,7 @@ CASE(1) ! Pressure inlet (pressure, temperature const)
 CASE(2) ! adaptive Outlet/freestream
   ElemPartDensity = AdaptBCMacroVal(4,SampleElemID,iSpec)
   pressure = Species(iSpec)%Surfaceflux(iSF)%AdaptivePressure
-  T = pressure / (BoltzmannConst * AdaptBCMacroVal(4,SampleElemID,iSpec))
+  T = pressure / (BoltzmannConst * ElemPartDensity)
 CASE(3) ! Mass flow, temperature constant
   VeloVec(1:3) = AdaptBCMacroVal(1:3,SampleElemID,iSpec)
   vec_nIn(1:3) = SurfMeshSubSideData(iSample,jSample,BCSideID)%vec_nIn(1:3)
@@ -978,30 +981,53 @@ vec_nIn(1:3) = SurfMeshSubSideData(iSample,jSample,BCSideID)%vec_nIn(1:3)
 projFak = DOT_PRODUCT(vec_nIn,VeloVecIC) !VeloVecIC projected to inwards normal
 v_thermal = SQRT(2.*BoltzmannConst*T/Species(iSpec)%MassIC) !thermal speed
 a = 0 !dummy for projected speed ratio in constant v-distri
-!-- compute total volume flow rate through surface
+
+! 2) Compute total volume flow rate through surface depending on the area and velocity/temperature
 SELECT CASE(TRIM(Species(iSpec)%Surfaceflux(iSF)%velocityDistribution))
 CASE('constant')
   vSF = VeloIC * projFak !Velo proj. to inwards normal
-  nVFR = MAX(SurfMeshSubSideData(iSample,jSample,BCSideID)%area * vSF,0.) !VFR proj. to inwards normal (only positive parts!)
+  vSF = MAX(vSF,0.) !VFR proj. to inwards normal (only positive parts!)
 CASE('maxwell','maxwell_lpn')
   IF ( ALMOSTEQUAL(v_thermal,0.)) THEN
     v_thermal = 1.
   END IF
   a = VeloIC * projFak / v_thermal !speed ratio proj. to inwards n (can be negative!)
   vSF = v_thermal / (2.0*SQRT(PI)) * ( EXP(-(a*a)) + a*SQRT(PI)*(1+ERF(a)) ) !mean flux velocity through normal sub-face
-  nVFR = SurfMeshSubSideData(iSample,jSample,BCSideID)%area * vSF !VFR projected to inwards normal of sub-side
 CASE DEFAULT
   CALL abort(__STAMP__,'ERROR in CalcPartInsAdaptive: Wrong velocity distribution!')
 END SELECT
+
+IF(RadialWeighting%DoRadialWeighting) THEN
+  ! In case of adaptive SF, nVFR is initialized as only a weighted area
+  nVFR = Species(iSpec)%Surfaceflux(iSF)%SurfFluxSubSideData(iSample,jSample,iSide)%nVFR * vSF
+ELSE
+  nVFR = SurfMeshSubSideData(iSample,jSample,BCSideID)%area * vSF
+END IF
+
+! 3) Calculate the actual number of particles per side
 IF(Species(iSpec)%Surfaceflux(iSF)%AdaptiveType.EQ.4) THEN
+  ! TODO: RADIAL WEIGHTING TREATMENT
   CALL RANDOM_NUMBER(RandVal1)
   PartInsSubSide = INT(Species(iSpec)%Surfaceflux(iSF)%ConstMassflowWeight(iSample,jSample,iSide)     &
-                          * (Species(iSpec)%Surfaceflux(iSF)%AdaptiveMassflow * dtVar*RKdtFrac    &
+                          * (Species(iSpec)%Surfaceflux(iSF)%AdaptiveMassflow * dtVar    &
                               / (Species(iSpec)%MassIC * Species(iSpec)%MacroParticleFactor)  &
                               + REAL(AdaptBCPartNumOut(iSpec,iSF))) +RandVal1)
 ELSE
   CALL RANDOM_NUMBER(RandVal1)
-  PartInsSubSide = INT(ElemPartDensity / Species(iSpec)%MacroParticleFactor * dtVar*RKdtFrac * nVFR+RandVal1)
+  PartInsSubSide = INT(ElemPartDensity / Species(iSpec)%MacroParticleFactor * dtVar * nVFR + RandVal1)
+  ! Radial weighting: subdivide the side into smaller subsides to improve distribution
+  IF(RadialWeighting%DoRadialWeighting.AND..NOT.RadialWeighting%CellLocalWeighting) THEN
+    ! Skip sides parallel to rotational axis
+    IF(.NOT.ALMOSTEQUAL(minPos(2),minPos(2)+RVec(2))) THEN
+      PartInsSubSide = 0
+      DO iSub = 1, RadialWeighting%nSubSides
+        CALL RANDOM_NUMBER(RandVal1)
+        PartInsSideRadWeight(iSub) = INT(ElemPartDensity / Species(iSpec)%MacroParticleFactor &
+                * dtVar * Species(iSpec)%Surfaceflux(iSF)%nVFRSub(iSide,iSub) * vSF + RandVal1)
+        PartInsSubSide = PartInsSubSide + PartInsSideRadWeight(iSub)
+      END DO
+    END IF
+  END IF
 END IF
 
 ! DEBUG OUTPUT
