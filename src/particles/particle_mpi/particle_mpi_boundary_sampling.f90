@@ -56,7 +56,7 @@ USE MOD_MPI_Shared_Vars         ,ONLY: mySurfRank,nSurfLeaders
 USE MOD_Particle_Boundary_Vars  ,ONLY: nComputeNodeSurfSides,nComputeNodeSurfTotalSides,offsetComputeNodeSurfSide
 USE MOD_Particle_Boundary_Vars  ,ONLY: SurfOnNode,SurfSampSize,nSurfSample,CalcSurfaceImpact
 USE MOD_Particle_Boundary_Vars  ,ONLY: SurfMapping
-USE MOD_Particle_Boundary_Vars  ,ONLY: nSurfTotalSides, nOutputSides
+USE MOD_Particle_Boundary_Vars  ,ONLY: nGlobalSurfSides, nGlobalOutputSides
 USE MOD_Particle_Boundary_Vars  ,ONLY: nComputeNodeSurfOutputSides,offsetComputeNodeSurfOutputSide
 USE MOD_Particle_Boundary_Vars  ,ONLY: SurfSide2GlobalSide
 USE MOD_Particle_MPI_Vars       ,ONLY: SurfSendBuf,SurfRecvBuf
@@ -351,7 +351,7 @@ END DO ! iProc
 !--- Save number of output sides per node (inner BCs are only included once here)
 IF (nSurfLeaders.EQ.1) THEN
   offsetComputeNodeSurfOutputSide = 0
-  nOutputSides           = nComputeNodeSurfOutputSides
+  nGlobalOutputSides           = nComputeNodeSurfOutputSides
 ELSE
   sendbuf = nComputeNodeSurfOutputSides
   recvbuf = 0
@@ -360,14 +360,14 @@ ELSE
   ! last proc knows CN total number of BC elems
   sendbuf = offsetComputeNodeSurfOutputSide + nComputeNodeSurfOutputSides
   CALL MPI_BCAST(sendbuf,1,MPI_INTEGER,nSurfLeaders-1,MPI_COMM_LEADERS_SURF,iError)
-  nOutputSides = sendbuf
+  nGlobalOutputSides = sendbuf
 END IF
 
 
 !--- Save number of total surf sides
 IF (nSurfLeaders.EQ.1) THEN
   offsetComputeNodeSurfSide = 0
-  nSurfTotalSides           = nComputeNodeSurfSides
+  nGlobalSurfSides           = nComputeNodeSurfSides
 ELSE
   sendbuf = nComputeNodeSurfSides
   recvbuf = 0
@@ -376,7 +376,7 @@ ELSE
   ! last proc knows CN total number of BC elems
   sendbuf = offsetComputeNodeSurfSide + nComputeNodeSurfSides
   CALL MPI_BCAST(sendbuf,1,MPI_INTEGER,nSurfLeaders-1,MPI_COMM_LEADERS_SURF,iError)
-  nSurfTotalSides = sendbuf
+  nGlobalSurfSides = sendbuf
 END IF
 
 IF (mySurfRank.EQ.0) THEN

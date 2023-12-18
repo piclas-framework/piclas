@@ -134,8 +134,8 @@ SUBROUTINE SetParticlePosition(FractNbr,iInit,NbrOfParticle)
 !===================================================================================================================================
 ! modules
 USE MOD_Globals
-USE MOD_Particle_Vars          ,ONLY: Species,PDM,PartState,FractNbrOld,chunkSizeOld,NeutralizationBalance
-USE MOD_Particle_Localization  ,ONLY: LocateParticleInElement
+USE MOD_Particle_Vars          ,ONLY: Species,PDM,PartState,FractNbrOld,chunkSizeOld,NeutralizationBalance, PartPosRef, PEM
+USE MOD_Particle_Localization  ,ONLY: SinglePointToElement
 USE MOD_part_emission_tools    ,ONLY: IntegerDivide,SetCellLocalParticlePosition,SetParticlePositionPoint
 USE MOD_part_emission_tools    ,ONLY: SetParticlePositionEquidistLine, SetParticlePositionLine, SetParticlePositionDisk
 USE MOD_part_emission_tools    ,ONLY: SetParticlePositionCuboidCylinder, SetParticlePositionGyrotronCircle,SetParticlePositionCircle
@@ -146,7 +146,9 @@ USE MOD_part_emission_tools    ,ONLY: SetParticlePositionPhotonHoneycomb, SetPar
 USE MOD_part_emission_tools    ,ONLY: SetParticlePositionLandmark,SetParticlePositionLandmarkNeutralization
 USE MOD_part_emission_tools    ,ONLY: SetParticlePositionLiu2010Neutralization,SetParticlePositionLiu2010Neutralization3D
 USE MOD_part_emission_tools    ,ONLY: SetParticlePositionLiu2010SzaboNeutralization
-USE MOD_DSMC_Vars              ,ONLY: RadialWeighting
+USE MOD_Eval_xyz               ,ONLY: GetPositionInRefElem
+USE MOD_Particle_Tracking_Vars ,ONLY: TrackingMethod
+USE MOD_Part_Tools             ,ONLY: IncreaseMaxParticleNumber, GetNextFreePosition
 #if USE_MPI
 USE MOD_Particle_MPI_Emission  ,ONLY: SendEmissionParticlesToProcs
 USE MOD_Particle_MPI_Vars      ,ONLY: PartMPIInitGroup
@@ -165,6 +167,7 @@ INTEGER,INTENT(INOUT)                    :: NbrOfParticle
 REAL,ALLOCATABLE                         :: particle_positions(:)
 INTEGER                                  :: i,ParticleIndexNbr,allocStat,nChunks, chunkSize
 INTEGER                                  :: DimSend
+INTEGER, ALLOCATABLE                     :: AcceptedParts(:)
 #if USE_MPI
 INTEGER                                  :: InitGroup
 #endif
@@ -221,15 +224,9 @@ END SELECT
 IF (PartMPIInitGroup(InitGroup)%MPIROOT.OR.nChunks.GT.1) THEN
 #endif
   ! Allocate part pos buffer
-  IF(RadialWeighting%DoRadialWeighting.AND.(chunkSize.GT.PDM%maxParticleNumber)) THEN
-    ALLOCATE( particle_positions(1:PDM%maxParticleNumber*DimSend), STAT=allocStat )
-    IF (allocStat .NE. 0) &
-      CALL abort(__STAMP__,'ERROR in SetParticlePosition: cannot allocate particle_positions!')
-  ELSE
-    ALLOCATE( particle_positions(1:chunkSize*DimSend), STAT=allocStat )
-    IF (allocStat .NE. 0) &
-      CALL abort(__STAMP__,'ERROR in SetParticlePosition: cannot allocate particle_positions!')
-  END IF
+  ALLOCATE( particle_positions(1:chunkSize*DimSend), STAT=allocStat )
+  IF (allocStat .NE. 0) &
+    CALL abort(__STAMP__,'ERROR in SetParticlePosition: cannot allocate particle_positions!')
   ! Sanity check
   IF (allocStat .NE. 0) CALL abort(__STAMP__,'ERROR in SetParticlePosition: cannot allocate particle_positions!')
 
@@ -301,26 +298,30 @@ IF (PartMPIInitGroup(InitGroup)%nProcs.GT.1) THEN
 ! Finish emission on local proc
 ELSE
 #endif /*USE_MPI*/
-  Species(FractNbr)%Init(iInit)%mySumOfMatchedParticles = 0
   ParticleIndexNbr = 1
+  ALLOCATE(AcceptedParts(0:chunkSize))
+  AcceptedParts=-1
+  AcceptedParts(0)=0
+  DO i = 1,chunkSize
+    AcceptedParts(i) = SinglePointToElement(particle_positions(DimSend*(i-1)+1:DimSend*(i-1)+DimSend),doHALO=.FALSE.)
+    IF(AcceptedParts(i).NE.-1) AcceptedParts(0) = AcceptedParts(0) + 1
+  END DO
+  Species(FractNbr)%Init(iInit)%mySumOfMatchedParticles = 0
+  IF (Species(FractNbr)%Init(iInit)%ParticleEmissionType.EQ.0) CALL IncreaseMaxParticleNumber(AcceptedParts(0))
   DO i = 1,chunkSize
     ! Find a free position in the PDM array
-    IF ((i.EQ.1).OR.PDM%ParticleInside(ParticleIndexNbr)) THEN
-      ParticleIndexNbr = PDM%nextFreePosition(Species(FractNbr)%Init(iInit)%mySumOfMatchedParticles + 1 + PDM%CurrentNextFreePosition)
-    END IF
-    IF (ParticleIndexNbr.NE.0) THEN
+    IF(AcceptedParts(i).NE.-1) THEN
+      Species(FractNbr)%Init(iInit)%mySumOfMatchedParticles = Species(FractNbr)%Init(iInit)%mySumOfMatchedParticles + 1
+      ParticleIndexNbr = GetNextFreePosition(Species(FractNbr)%Init(iInit)%mySumOfMatchedParticles)
       PartState(1:DimSend,ParticleIndexNbr) = particle_positions(DimSend*(i-1)+1:DimSend*(i-1)+DimSend)
-      PDM%ParticleInside( ParticleIndexNbr) = .TRUE.
-      CALL LocateParticleInElement(ParticleIndexNbr,doHALO=.FALSE.)
-      IF (PDM%ParticleInside(ParticleIndexNbr)) THEN
-        Species(FractNbr)%Init(iInit)%mySumOfMatchedParticles = Species(FractNbr)%Init(iInit)%mySumOfMatchedParticles + 1
-        PDM%IsNewPart(ParticleIndexNbr)  = .TRUE.
-        PDM%dtFracPush(ParticleIndexNbr) = .FALSE.
-      END IF
-    ELSE
-      CALL ABORT(__STAMP__,'ERROR in SetParticlePosition:ParticleIndexNbr.EQ.0 - maximum nbr of particles reached?')
+      PDM%ParticleInside(ParticleIndexNbr)=.TRUE.
+      PEM%GlobalElemID(ParticleIndexNbr) = AcceptedParts(i)
+      IF(TrackingMethod.EQ.REFMAPPING) CALL GetPositionInRefElem(PartState(1:DimSend,ParticleIndexNbr),PartPosRef(1:3,ParticleIndexNbr),AcceptedParts(i))
+      PDM%IsNewPart(ParticleIndexNbr)  = .TRUE.
+      PDM%dtFracPush(ParticleIndexNbr) = .FALSE.
     END IF
   END DO
+  DEALLOCATE(AcceptedParts)
 #if USE_MPI
 END IF
 
@@ -363,7 +364,7 @@ USE MOD_part_emission_tools     ,ONLY: CalcVelocity_maxwell_lpn, CalcVelocity_ta
 USE MOD_part_emission_tools     ,ONLY: CalcVelocity_gyrotroncircle
 USE MOD_Particle_Boundary_Vars  ,ONLY: DoBoundaryParticleOutputHDF5
 USE MOD_Particle_Boundary_Tools ,ONLY: StoreBoundaryParticleProperties
-USE MOD_part_tools              ,ONLY: BuildTransGaussNums, InRotRefFrameCheck
+USE MOD_part_tools              ,ONLY: BuildTransGaussNums, InRotRefFrameCheck, GetNextFreePosition
 USE MOD_Particle_Vars           ,ONLY: CalcBulkElectronTemp,BulkElectronTemp
 #if USE_HDG
 USE MOD_HDG_Vars                ,ONLY: UseFPC,FPC,UseEPC,EPC
@@ -378,7 +379,7 @@ INTEGER,INTENT(IN)              :: FractNbr,iInit
 INTEGER,INTENT(INOUT)           :: NbrOfParticle
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                         :: i, PositionNbr
+INTEGER                         :: iPart, PositionNbr
 CHARACTER(30)                   :: velocityDistribution
 REAL                            :: VeloIC, VeloVecIC(3), maxwellfac, VeloVecNorm
 REAL                            :: iRanPart(3, NbrOfParticle), Vec3D(3),MPF
@@ -401,15 +402,15 @@ END IF
 
 SELECT CASE(TRIM(velocityDistribution))
 CASE('constant')
-  DO i = 1,NbrOfParticle
-    PositionNbr = PDM%nextFreePosition(i+PDM%CurrentNextFreePosition)
+  DO iPart = 1,NbrOfParticle
+    PositionNbr = GetNextFreePosition(iPart)
     IF (PositionNbr.GT.0) THEN
       PartState(4:6,PositionNbr) = VeloVecIC(1:3) * VeloIC
     END IF
   END DO
 CASE('gyrotron_circle')
-  DO i = 1,NbrOfParticle
-    PositionNbr = PDM%nextFreePosition(i+PDM%CurrentNextFreePosition)
+  DO iPart = 1,NbrOfParticle
+    PositionNbr = GetNextFreePosition(iPart)
     IF (PositionNbr.GT.0) THEN
       CALL CalcVelocity_gyrotroncircle(FractNbr, Vec3D, iInit, PositionNbr)
       PartState(4:6,PositionNbr) = Vec3D(1:3)
@@ -419,8 +420,8 @@ CASE('maxwell_lpn','2D_landmark','2D_landmark_copy','2D_landmark_neutralization'
   ! maxwell_lpn: Maxwell low particle number
   ! 2D_landmark: Ionization profile from T. Charoy, 2D axial-azimuthal particle-in-cell benchmark for low-temperature partially
   !              magnetized plasmas (2019)
-  DO i = 1,NbrOfParticle
-    PositionNbr = PDM%nextFreePosition(i+PDM%CurrentNextFreePosition)
+  DO iPart = 1,NbrOfParticle
+    PositionNbr = GetNextFreePosition(iPart)
     IF (PositionNbr.GT.0) THEN
       CALL CalcVelocity_maxwell_lpn(FractNbr, Vec3D, iInit=iInit)
       PartState(4:6,PositionNbr) = Vec3D(1:3)
@@ -430,8 +431,8 @@ CASE('2D_Liu2010_neutralization','3D_Liu2010_neutralization','2D_Liu2010_neutral
   IF(.NOT.CalcBulkElectronTemp) CALL abort(__STAMP__,&
       'Velocity distribution 2D_Liu2010_neutralization requires CalcBulkElectronTemp=T')
   ! Use the global electron temperature if available
-  DO i = 1,NbrOfParticle
-    PositionNbr = PDM%nextFreePosition(i+PDM%CurrentNextFreePosition)
+  DO iPart = 1,NbrOfParticle
+    PositionNbr = GetNextFreePosition(iPart)
     IF (PositionNbr.GT.0) THEN
       CALL CalcVelocity_maxwell_lpn(FractNbr, Vec3D, Temperature=BulkElectronTemp*eV2Kelvin)
       PartState(4:6,PositionNbr) = Vec3D(1:3)
@@ -440,8 +441,8 @@ CASE('2D_Liu2010_neutralization','3D_Liu2010_neutralization','2D_Liu2010_neutral
     END IF
   END DO
 CASE('taylorgreenvortex')
-  DO i = 1,NbrOfParticle
-    PositionNbr = PDM%nextFreePosition(i+PDM%CurrentNextFreePosition)
+  DO iPart = 1,NbrOfParticle
+    PositionNbr = GetNextFreePosition(iPart)
     IF (PositionNbr.GT.0) THEN
        CALL CalcVelocity_taylorgreenvortex(FractNbr, Vec3D, iInit=iInit, Element=PEM%GlobalElemID(PositionNbr))
        PartState(4:6,PositionNbr) = Vec3D(1:3)
@@ -450,17 +451,17 @@ CASE('taylorgreenvortex')
 CASE('maxwell')
   CALL BuildTransGaussNums(NbrOfParticle, iRanPart)
   maxwellfac = SQRT(BoltzmannConst*Species(FractNbr)%Init(iInit)%MWTemperatureIC/Species(FractNbr)%MassIC)
-  DO i = 1,NbrOfParticle
-    PositionNbr = PDM%nextFreePosition(i+PDM%CurrentNextFreePosition)
+  DO iPart = 1,NbrOfParticle
+    PositionNbr = GetNextFreePosition(iPart)
     IF (PositionNbr.GT.0) THEN
-       PartState(4:6,PositionNbr) = VeloIC *VeloVecIC(1:3) + iRanPart(1:3,i)*maxwellfac
+       PartState(4:6,PositionNbr) = VeloIC *VeloVecIC(1:3) + iRanPart(1:3,iPart)*maxwellfac
     END IF
   END DO
 CASE('IMD') ! read IMD particle velocity from *.chkpt file -> velocity space has already been read when particles position was done
   ! do nothing
 CASE('photon_SEE_energy')
-  DO i = 1,NbrOfParticle
-    PositionNbr = PDM%nextFreePosition(i+PDM%CurrentNextFreePosition)
+  DO iPart = 1,NbrOfParticle
+    PositionNbr = GetNextFreePosition(iPart)
     IF (PositionNbr .NE. 0) THEN
         CALL CalcVelocity_FromWorkFuncSEE(Species(FractNbr)%Init(iInit)%WorkFunctionSEE, &
                                           Species(FractNbr)%MassIC, Species(FractNbr)%Init(iInit)%NormalVector1IC, &
@@ -522,8 +523,8 @@ CASE DEFAULT
 END SELECT
 
 IF(UseRotRefFrame) THEN
-  DO i = 1,NbrOfParticle
-    PositionNbr = PDM%nextFreePosition(i+PDM%CurrentNextFreePosition)
+  DO iPart = 1,NbrOfParticle
+    PositionNbr = GetNextFreePosition(iPart)
     IF (PositionNbr.GT.0) THEN
       PDM%InRotRefFrame(PositionNbr) = InRotRefFrameCheck(PositionNbr)
       ! Initialize velocity in the rotational frame of reference
@@ -552,9 +553,9 @@ USE MOD_PreProc
 USE MOD_Globals                ,ONLY: myrank
 #endif /*USE_MPI*/
 USE MOD_Globals                ,ONLY: UNIT_StdOut,abort
-USE MOD_part_tools             ,ONLY: InitializeParticleMaxwell,InterpolateEmissionDistribution2D
+USE MOD_part_tools             ,ONLY: InitializeParticleMaxwell,InterpolateEmissionDistribution2D, GetNextFreePosition
 USE MOD_Mesh_Vars              ,ONLY: nElems,offsetElem
-USE MOD_Particle_Vars          ,ONLY: Species, PDM, PartState, PEM, LastPartPos
+USE MOD_Particle_Vars          ,ONLY: Species, PDM, PartState, PEM, LastPartPos, PartPosRef
 USE MOD_Particle_Tracking      ,ONLY: ParticleInsideCheck
 USE MOD_Mesh_Tools             ,ONLY: GetCNElemID
 USE MOD_Particle_Emission_Vars ,ONLY: EmissionDistributionDim, EmissionDistributionN
@@ -564,7 +565,7 @@ USE MOD_ChangeBasis            ,ONLY: ChangeBasis3D
 USE MOD_Equation               ,ONLY: ExactFunc
 USE MOD_Mesh_Vars              ,ONLY: Elem_xGP,sJ
 USE MOD_Interpolation_Vars     ,ONLY: NodeTypeVISU,NodeType
-USE MOD_Eval_xyz               ,ONLY: TensorProductInterpolation
+USE MOD_Eval_xyz               ,ONLY: TensorProductInterpolation, GetPositionInRefElem
 USE MOD_Mesh_Vars              ,ONLY: NGeo,XCL_NGeo,XiCL_NGeo,wBaryCL_NGeo,offsetElem
 USE MOD_Particle_Mesh_Vars     ,ONLY: ElemVolume_Shared,BoundsOfElem_Shared
 USE MOD_Mesh_Tools             ,ONLY: GetCNElemID
@@ -743,12 +744,12 @@ DO iElem = 1, nElems
               ! Exclude particles outside of the element
               IF (InsideFlag) THEN
                 NbrOfParticle = NbrOfParticle + 1
-                PositionNbr                     = PDM%nextFreePosition(NbrOfParticle+PDM%CurrentNextFreePosition)
+                PositionNbr                     = GetNextFreePosition(NbrOfParticle)
                 PEM%GlobalElemID(PositionNbr)   = GlobalElemID
                 PDM%ParticleInside(PositionNbr) = .TRUE.
-                IF((PositionNbr.GE.PDM%maxParticleNumber).OR.&
-                    (PositionNbr.EQ.0)) CALL abort(__STAMP__,'Emission: Increase maxParticleNumber!',PositionNbr)
                 PartState(1:3,PositionNbr) = RandomPos(1:3)
+                IF(TrackingMethod.EQ.REFMAPPING) &
+                  CALL GetPositionInRefElem(PartState(1:3,PositionNbr),PartPosRef(1:3,PositionNbr),GlobalElemID)
                 CALL InitializeParticleMaxwell(PositionNbr,iSpec,iElem,Mode=2,iInit=iInit)
               END IF
             END DO ! nPart
@@ -780,7 +781,7 @@ DO iElem = 1, nElems
           SELECT CASE(TrackingMethod)
           CASE(REFMAPPING,TRACING)
             ! Attention: NbrOfParticle+PDM%CurrentNextFreePosition + 1
-            PositionNbr                   = PDM%nextFreePosition(NbrOfParticle+PDM%CurrentNextFreePosition + 1)
+            PositionNbr                   = GetNextFreePosition(NbrOfParticle+1)
             PEM%GlobalElemID(PositionNbr) = GlobalElemID
             LastPartPos(1:3,PositionNbr)  = RandomPos(1:3)
             InsideFlag                    = ParticleInsideCheck(RandomPos,PositionNbr,GlobalElemID)
@@ -793,11 +794,9 @@ DO iElem = 1, nElems
           ! Exclude particles outside of the element
           IF (InsideFlag) THEN
             NbrOfParticle = NbrOfParticle + 1
-            PositionNbr                     = PDM%nextFreePosition(NbrOfParticle+PDM%CurrentNextFreePosition)
+            PositionNbr                     = GetNextFreePosition(NbrOfParticle)
             PEM%GlobalElemID(PositionNbr)   = GlobalElemID
             PDM%ParticleInside(PositionNbr) = .TRUE.
-            IF((PositionNbr.GE.PDM%maxParticleNumber).OR.&
-               (PositionNbr.EQ.0)) CALL abort(__STAMP__,'Emission: Increase maxParticleNumber!',PositionNbr)
             PartState(1:3,PositionNbr) = RandomPos(1:3)
             CALL InitializeParticleMaxwell(PositionNbr,iSpec,iElem,Mode=2,iInit=iInit)
           END IF

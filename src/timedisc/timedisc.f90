@@ -124,6 +124,7 @@ USE MOD_MPI_Vars               ,ONLY: MPIW8TimeSim
 #endif /*defined(MEASURE_MPI_WAIT)*/
 #if defined(PARTICLES)
 USE MOD_Particle_Analyze_Vars  ,ONLY: CalcPointsPerDebyeLength,CalcPICTimeStep
+USE MOD_Part_Tools             ,ONLY: ReduceMaxParticleNumber
 #endif
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -499,6 +500,7 @@ DO !iter_t=0,MaxIter
 
   IF(time.GE.tEnd)EXIT ! done, worst case: one additional time step
 #ifdef PARTICLES
+  CALL ReduceMaxParticleNumber()
   ! Switch flag to false after the number of particles has been written to std out and before the time next step is started
   GlobalNbrOfParticlesUpdated = .FALSE.
 #endif /*PARTICLES*/

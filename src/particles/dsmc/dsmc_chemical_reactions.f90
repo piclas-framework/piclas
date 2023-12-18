@@ -359,7 +359,7 @@ USE MOD_DSMC_Relaxation        ,ONLY: DSMC_VibRelaxDiatomic, CalcXiTotalEqui
 USE MOD_DSMC_CollisVec         ,ONLY: PostCollVec
 USE MOD_Particle_Tracking_Vars ,ONLY: TrackingMethod
 USE MOD_Particle_Analyze_Vars  ,ONLY: ChemEnergySum
-USE MOD_part_tools             ,ONLY: GetParticleWeight
+USE MOD_part_tools             ,ONLY: GetParticleWeight, GetNextFreePosition
 USE MOD_part_operations        ,ONLY: RemoveParticle
 #ifdef CODE_ANALYZE
 USE MOD_Globals                ,ONLY: unit_stdout,myrank
@@ -506,8 +506,7 @@ IF(EductReac(3).EQ.0) THEN
   IF(ProductReac(3).NE.0) THEN
     ! === Get free particle index for the 3rd product
     DSMCSumOfFormedParticles = DSMCSumOfFormedParticles + 1
-    ReactInx(3) = PDM%nextFreePosition(DSMCSumOfFormedParticles+PDM%CurrentNextFreePosition)
-    IF (ReactInx(3).EQ.0) CALL abort(__STAMP__,'New Particle Number greater max Part Num in DSMC_Chemistry. Reaction: ',iReac)
+    ReactInx(3) = GetNextFreePosition()
     PDM%ParticleInside(ReactInx(3)) = .true.
     PDM%IsNewPart(ReactInx(3)) = .true.
     PDM%dtFracPush(ReactInx(3)) = .FALSE.
@@ -546,8 +545,7 @@ END IF
 IF(ProductReac(4).NE.0) THEN
   ! === Get free particle index for the 4th product
   DSMCSumOfFormedParticles = DSMCSumOfFormedParticles + 1
-  ReactInx(4) = PDM%nextFreePosition(DSMCSumOfFormedParticles+PDM%CurrentNextFreePosition)
-  IF (ReactInx(4).EQ.0) CALL abort(__STAMP__,'New Particle Number greater max Part Num in DSMC_Chemistry. Reaction: ',iReac)
+  ReactInx(4) = GetNextFreePosition()
   PDM%ParticleInside(ReactInx(4)) = .true.
   PDM%IsNewPart(ReactInx(4)) = .true.
   PDM%dtFracPush(ReactInx(4)) = .FALSE.
@@ -1577,6 +1575,7 @@ USE MOD_Particle_Vars           ,ONLY: UseVarTimeStep, PartTimeStep
 USE MOD_Particle_Tracking_Vars  ,ONLY: TrackingMethod
 USE MOD_Particle_Analyze_Vars   ,ONLY: ChemEnergySum
 USE MOD_part_tools              ,ONLY: GetParticleWeight, DiceUnitVector, CalcERot_particle, CalcEVib_particle, CalcEElec_particle
+USE MOD_Part_Tools              ,ONLY: GetNextFreePosition
 USE MOD_part_emission_tools     ,ONLY: CalcVelocity_maxwell_lpn
 USE MOD_Particle_Analyze_Vars   ,ONLY: CalcPartBalance,nPartIn,PartEkinIn
 USE MOD_Particle_Analyze_Tools  ,ONLY: CalcEkinPart
@@ -1642,8 +1641,7 @@ IF(EductReac(3).EQ.0) THEN
   IF(ProductReac(3).NE.0) THEN
     ! === Get free particle index for the 3rd product
     DSMCSumOfFormedParticles = DSMCSumOfFormedParticles + 1
-    ReactInx(3) = PDM%nextFreePosition(DSMCSumOfFormedParticles+PDM%CurrentNextFreePosition)
-    IF (ReactInx(3).EQ.0) CALL abort(__STAMP__,'New Particle Number greater max Part Num in DSMC_Chemistry. Reaction: ',iReac)
+    ReactInx(3) = GetNextFreePosition()
     PDM%ParticleInside(ReactInx(3)) = .true.
     PDM%IsNewPart(ReactInx(3)) = .true.
     PDM%dtFracPush(ReactInx(3)) = .FALSE.
@@ -1673,8 +1671,7 @@ END IF
 IF(ProductReac(4).NE.0) THEN
   ! === Get free particle index for the 4th product
   DSMCSumOfFormedParticles = DSMCSumOfFormedParticles + 1
-  ReactInx(4) = PDM%nextFreePosition(DSMCSumOfFormedParticles+PDM%CurrentNextFreePosition)
-  IF (ReactInx(4).EQ.0) CALL abort(__STAMP__,'New Particle Number greater max Part Num in DSMC_Chemistry. Reaction: ',iReac)
+  ReactInx(4) = GetNextFreePosition()
   PDM%ParticleInside(ReactInx(4)) = .true.
   PDM%IsNewPart(ReactInx(4)) = .true.
   PDM%dtFracPush(ReactInx(4)) = .FALSE.

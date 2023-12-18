@@ -349,7 +349,7 @@ SUBROUTINE WritePhotonSurfSampleToHDF5()
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Globals
 USE MOD_IO_HDF5
-USE MOD_Particle_Boundary_Vars ,ONLY: nComputeNodeSurfOutputSides,noutputsides, nSurfBC
+USE MOD_Particle_Boundary_Vars ,ONLY: nComputeNodeSurfOutputSides,nGlobalOutputSides, nSurfBC
 USE MOD_Particle_Boundary_Vars ,ONLY: offsetComputeNodeSurfOutputSide, SurfBCName, nComputeNodeSurfSides
 USE MOD_Particle_Boundary_Vars ,ONLY: SurfSide2GlobalSide, GlobalSide2SurfSide
 USE MOD_HDF5_Output            ,ONLY: WriteAttributeToHDF5,WriteArrayToHDF5,WriteHDF5Header
@@ -358,7 +358,7 @@ USE MOD_Particle_Mesh_Vars     ,ONLY: SideInfo_Shared
 USE MOD_MPI_Shared_Vars        ,ONLY: mySurfRank
 #if USE_MPI
 USE MOD_MPI_Shared_Vars        ,ONLY: MPI_COMM_LEADERS_SURF
-USE MOD_Particle_Boundary_Vars ,ONLY: nSurfTotalSides
+USE MOD_Particle_Boundary_Vars ,ONLY: nGlobalSurfSides
 USE MOD_Photon_TrackingVars    ,ONLY: PhotonSurfSideArea_Shared
 #else
 USE MOD_Photon_TrackingVars    ,ONLY: PhotonSurfSideArea
@@ -391,7 +391,7 @@ IF (MPI_COMM_LEADERS_SURF.EQ.MPI_COMM_NULL) RETURN
 CALL MPI_BARRIER(MPI_COMM_LEADERS_SURF,iERROR)
 
 ! Return if no sampling sides
-IF (nSurfTotalSides.EQ.0) RETURN
+IF (nGlobalSurfSides.EQ.0) RETURN
 #endif /*USE_MPI*/
 IF (mySurfRank.EQ.0) THEN
   WRITE(UNIT_stdOut,'(a)',ADVANCE='NO')' WRITE Radiation SurfSTATE TO HDF5 FILE...'
@@ -440,7 +440,7 @@ ASSOCIATE(PhotonSurfSideArea   => PhotonSurfSideArea_Shared)
 
 ASSOCIATE (&
       nSurfSample    => INT(Ray%nSurfSample                 , IK)  , &
-      nGlobalSides   => INT(nOutputSides                    , IK)  , &
+      nGlobalSides   => INT(nGlobalOutputSides              , IK)  , &
       LocalnBCSides  => INT(nComputeNodeSurfOutputSides     , IK)  , &
       offsetSurfSide => INT(offsetComputeNodeSurfOutputSide , IK)  , &
       nVar2D         => INT(nVar2D                          , IK))

@@ -402,6 +402,15 @@ which calculates the species-dependent averaged impact energy (trans, rot, vib, 
 impact angle of $0^{\circ}$), number of real particle impacts over the sampling duration and number of real particle impacts
 per area per second.
 
+(sec:sampling-elec-excitation)=
+### Electronic excitation
+
+To sample the cell-local excitation of electronic energy levels, an additional flag has to be set
+
+    Part-SampleElectronicExcitation = T
+
+This option adds an additional container to the DSMCState output, which after a successful conversion with `piclas2vtk` will produce an additional file `*_visuExcitationData_*.vtu`. Here the excitation rate is given per second [1/s] for each electronic level. This option is currently only supported with the cross-section based electronic excitation (see Section {ref}`sec:background-gas-electronic-xsec`).
+
 ## Integral Variables
 This analysis measures integral values from the field- and/or particle-solver data over time and writes different .csv files.
 Mainly field-related data is stored in `FieldAnalyze.csv`, whereas particle-related analysis is divided into mostly global data in
