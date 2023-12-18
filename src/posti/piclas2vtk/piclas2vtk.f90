@@ -248,7 +248,11 @@ DO iArgs = iArgsStart,nArgs
   CALL ReadAttribute(File_ID,'File_Type',1,StrScalar=File_Type)
   ! Check which containers are present
   CALL DatasetExists(File_ID , 'DG_Solution'  , DGSolutionExists)
-  IF(TRIM(File_Type).EQ.'PartStateBoundary') DGSolutionExists = .FALSE.
+  IF(TRIM(File_Type).EQ.'PartStateBoundary'.OR.TRIM(File_Type).EQ.'PartStateLost') THEN
+  ! Enable particle visualization for lost particle container (otherwise you get an empty file)
+    DGSolutionExists = .FALSE.
+    VisuParticles = .TRUE.
+  END IF
   CALL DatasetExists(File_ID , 'ElemData'     , ElemDataExists)
   CALL DatasetExists(File_ID , 'ExcitationData', ExcitationDataExists)
   CALL DatasetExists(File_ID , 'AdaptiveInfo' , AdaptiveInfoExists)
