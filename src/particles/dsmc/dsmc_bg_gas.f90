@@ -1030,7 +1030,7 @@ END SUBROUTINE BGGas_TraceSpeciesSplit
 !> 1. Read-in geometry information based on selected type (e.g. cylinder)
 !> 2. Determine which elements are the defined regions by comparing the element midpoint
 !> 3. Write the corresponding region properties into the BGGas%Distribution array
-!> 4. Calculate the element locall species fraction in case of a multi-species background gas
+!> 4. Calculate the element local species fraction in case of a multi-species background gas
 !> 5. Activate BGGas%UseDistribution to utilize the same arrays and routines during computation (but do not use it for read-in)
 !===================================================================================================================================
 SUBROUTINE BGGas_InitRegions()
