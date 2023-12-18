@@ -875,7 +875,7 @@ INTEGER :: iDirichletBCID,SideID,CNElemID,iLocSide,UniqueNodeID,NonUniqueNodeID,
 DO iDirichletBCID = 1,nDirichletBCSides
   ! Get local Side and element index
   SideID   = DirichletBC(iDirichletBCID)
-  ElemID   = SideToElem(S2E_ELEM_ID,iDirichletBCID)
+  ElemID   = SideToElem(S2E_ELEM_ID,SideID)
   ! Get compute-node element index
   CNElemID = GetCNElemID(ElemID+offsetElem)
   ! Loop over all six sides and find the local side index that matches the Dirichlet side
