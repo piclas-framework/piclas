@@ -385,9 +385,11 @@ IF(PartBound%UseRotPeriodicBC) FindNeighbourElems = .TRUE.
 
 IF(DoVirtualCellMerge) FindNeighbourElems = .TRUE.
 
+! Build ConcaveElemSide_Shared, ElemSideNodeID_Shared, ElemMidPoint_Shared
+CALL InitParticleGeometry()
+
 SELECT CASE(TrackingMethod)
   CASE(TRIATRACKING)
-    CALL InitParticleGeometry()
     CALL InitElemNodeIDs()
     ! Compute convex element radius^2
     CALL BuildElementRadiusTria() ! Required for ElemBaryNGeo_Shared, ElemRadius2NGEO_Shared, ElemRadiusNGEO_Shared (only for shape function)

@@ -377,8 +377,6 @@ END IF
 
 CALL InitializeVariables()
 
-! Insert the initial particles
-CALL InitialParticleInserting()
 ! Initialize particle surface flux to be performed per iteration
 CALL InitializeParticleSurfaceflux()
 
@@ -437,6 +435,9 @@ IF (useDSMC) THEN
 ELSE IF (WriteMacroVolumeValues.OR.WriteMacroSurfaceValues) THEN
   DSMC%ElectronicModel = 0
 END IF
+
+! Insert the initial particles
+CALL InitialParticleInserting()
 
 ! Both routines have to be called AFTER InitializeVariables and InitDSMC
 CALL InitPartDataSize()
@@ -679,10 +680,6 @@ IF (useDSMC.OR.usevMPF) THEN
            PEM%pEnd(1:nElems)                           , &
            PEM%pNext(1:PDM%maxParticleNumber)           , STAT=ALLOCSTAT)
   IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__, ' Cannot allocate DSMC PEM arrays!')
-END IF
-IF (useDSMC) THEN
-  ALLOCATE(PDM%PartInit(1:PDM%maxParticleNumber), STAT=ALLOCSTAT)
-  IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__,' Cannot allocate PDM%PartInit array!')
 END IF
 
 END SUBROUTINE AllocateParticleArrays
