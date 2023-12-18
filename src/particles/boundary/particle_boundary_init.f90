@@ -1361,7 +1361,7 @@ USE MOD_MPI_Shared_Vars         ,ONLY: MPI_COMM_SHARED
 USE MOD_MPI_Shared_Vars         ,ONLY: myComputeNodeRank,nComputeNodeProcessors
 USE MOD_MPI_Shared
 #else
-USE MOD_Particle_Boundary_Vars  ,ONLY: nSurfTotalSides
+USE MOD_Particle_Boundary_Vars  ,ONLY: nGlobalSurfSides
 #endif /*USE_MPI*/
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
@@ -1405,7 +1405,7 @@ firstSide = INT(REAL( myComputeNodeRank   )*REAL(nComputeNodeSurfTotalSides)/REA
 lastSide  = INT(REAL((myComputeNodeRank+1))*REAL(nComputeNodeSurfTotalSides)/REAL(nComputeNodeProcessors))
 #else
 firstSide = 1
-lastSide  = nSurfTotalSides
+lastSide  = nGlobalSurfSides
 ALLOCATE(SurfSide2RotPeriodicSide(firstSide:lastSide))
 SurfSide2RotPeriodicSide(:) = -1
 ALLOCATE(Rot2Glob_temp(firstSide:lastSide))
@@ -1802,7 +1802,7 @@ USE MOD_Mesh_Tools                ,ONLY: GetCNElemID
 !USE MOD_MPI_Shared
 USE MOD_Particle_Boundary_Vars    ,ONLY: nComputeNodeSurfTotalSides
 #else
-USE MOD_Particle_Boundary_Vars  ,ONLY: nSurfTotalSides
+USE MOD_Particle_Boundary_Vars  ,ONLY: nGlobalSurfSides
 #endif /*USE_MPI*/
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -1829,7 +1829,7 @@ firstSide = 1 ! INT(REAL( myComputeNodeRank   )*REAL(nComputeNodeSurfTotalSides)
 lastSide  = nComputeNodeSurfTotalSides ! INT(REAL((myComputeNodeRank+1))*REAL(nComputeNodeSurfTotalSides)/REAL(nComputeNodeProcessors))
 #else
 firstSide = 1
-lastSide  = nSurfTotalSides
+lastSide  = nGlobalSurfSides
 #endif /*USE_MPI*/
 ! First loop: calculating the number of sides per inter plane and finds the maximum number
 iBCLoop1: DO iPartBound=1,nPartBound

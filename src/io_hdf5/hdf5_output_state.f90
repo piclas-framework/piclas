@@ -55,7 +55,7 @@ USE MOD_Restart_Vars           ,ONLY: RestartFile,DoInitialAutoRestart
 #ifdef PARTICLES
 USE MOD_DSMC_Vars              ,ONLY: RadialWeighting
 USE MOD_PICDepo_Vars           ,ONLY: OutputSource,PartSource
-USE MOD_Particle_Sampling_Vars ,ONLY: UseAdaptive
+USE MOD_Particle_Sampling_Vars ,ONLY: UseAdaptiveBC
 USE MOD_SurfaceModel_Vars      ,ONLY: nPorousBC
 USE MOD_Particle_Boundary_Vars ,ONLY: DoBoundaryParticleOutputHDF5, PartBound
 USE MOD_Dielectric_Vars        ,ONLY: DoDielectricSurfaceCharge
@@ -415,7 +415,7 @@ ASSOCIATE (&
   END IF ! nProcessors.GT.1
 #endif /*USE_MPI*/
 
-  ASSOCIATE( nOutputSides => INT(SortedEnd-SortedStart+1,IK) ,&
+  ASSOCIATE( nGlobalOutputSides => INT(SortedEnd-SortedStart+1,IK) ,&
         SortedOffset => INT(SortedOffset,IK)            ,&
         SortedStart  => INT(SortedStart,IK)             ,&
         SortedEnd    => INT(SortedEnd,IK)               ,&
@@ -423,7 +423,7 @@ ASSOCIATE (&
     CALL GatheredWriteArray(FileName,create=.FALSE.,&
         DataSetName = 'DG_SolutionLambda', rank=3,&
         nValGlobal  = (/PP_nVarTmp , nGP_face , nGlobalUniqueSides/) , &
-        nVal        = (/PP_nVarTmp , nGP_face , nOutputSides/)       , &
+        nVal        = (/PP_nVarTmp , nGP_face , nGlobalOutputSides/)       , &
         offset      = (/0_IK       , 0_IK     , SortedOffset/)       , &
         collective  = .TRUE.                                         , &
         RealArray   = SortedLambda(:,:,SortedStart:SortedEnd))
@@ -578,7 +578,7 @@ IF(DoBoundaryParticleOutputHDF5) THEN
     CALL WriteBoundaryParticleToHDF5(MeshFileName,OutputTime_loc)
   END IF
 END IF
-IF(UseAdaptive.OR.(nPorousBC.GT.0)) CALL WriteAdaptiveInfoToHDF5(FileName)
+IF(UseAdaptiveBC.OR.(nPorousBC.GT.0)) CALL WriteAdaptiveInfoToHDF5(FileName)
 CALL WriteVibProbInfoToHDF5(FileName)
 IF(RadialWeighting%PerformCloning) CALL WriteClonesToHDF5(FileName)
 IF (PartBound%OutputWallTemp) CALL WriteAdaptiveWallTempToHDF5(FileName)

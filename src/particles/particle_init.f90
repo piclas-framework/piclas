@@ -199,8 +199,8 @@ CALL prms%CreateLogicalOption(  'Particles-DSMC-CalcSurfaceVal'&
   , 'Set [T] to activate sampling, analyze and h5 output for surfaces. Therefore either time fraction or iteration sampling'//&
   ' have to be enabled as well.', '.FALSE.')
 
-CALL prms%CreateLogicalOption(  'Part-SampElectronicExcitation'&
-  , 'Set [T] to activate sampling of electronic energy excitation', '.FALSE.')
+CALL prms%CreateLogicalOption(  'Part-SampleElectronicExcitation'&
+  , 'Set [T] to activate sampling of electronic energy excitation (currently only available for ElectronicModel = 3)', '.FALSE.')
 
 ! === Rotational frame of reference
 CALL prms%CreateLogicalOption(  'Part-UseRotationalReferenceFrame', 'Activate rotational frame of reference', '.FALSE.')
@@ -275,7 +275,7 @@ USE MOD_SurfaceModel_Vars          ,ONLY: nPorousBC,BulkElectronTempSEE
 USE MOD_Particle_Boundary_Vars     ,ONLY: PartBound
 USE MOD_Particle_Tracking_Vars     ,ONLY: TrackingMethod
 USE MOD_Particle_Vars              ,ONLY: ParticlesInitIsDone,WriteMacroVolumeValues,WriteMacroSurfaceValues,nSpecies
-USE MOD_Particle_Sampling_Vars     ,ONLY: UseAdaptive
+USE MOD_Particle_Sampling_Vars     ,ONLY: UseAdaptiveBC
 USE MOD_Particle_Emission_Init     ,ONLY: InitialParticleInserting
 USE MOD_Particle_SurfFlux_Init     ,ONLY: InitializeParticleSurfaceflux
 USE MOD_SurfaceModel_Init          ,ONLY: InitSurfaceModel
@@ -332,8 +332,6 @@ END IF
 
 CALL InitializeVariables()
 
-! Insert the initial particles
-CALL InitialParticleInserting()
 ! Initialize particle surface flux to be performed per iteration
 CALL InitializeParticleSurfaceflux()
 
@@ -361,9 +359,9 @@ END IF
 IF(nPorousBC.GT.0) CALL InitPorousBoundaryCondition()
 
 ! Allocate sampling of near adaptive boundary element values
-IF(UseAdaptive.OR.(nPorousBC.GT.0)) CALL InitAdaptiveBCSampling()
+IF(UseAdaptiveBC.OR.(nPorousBC.GT.0)) CALL InitAdaptiveBCSampling()
 
-! Initialize backrgound gas regions (requires completed InitParticleGeometry for ElemMidPoint_Shared)
+! Initialize background gas regions (requires completed InitParticleGeometry for ElemMidPoint_Shared)
 IF(BGGas%UseRegions) CALL BGGas_InitRegions()
 
 IF (useDSMC) THEN
@@ -381,6 +379,9 @@ IF (useDSMC) THEN
 ELSE IF (WriteMacroVolumeValues.OR.WriteMacroSurfaceValues) THEN
   DSMC%ElectronicModel = 0
 END IF
+
+! Insert the initial particles
+CALL InitialParticleInserting()
 
 ! Both routines have to be called AFTER InitializeVariables and InitDSMC
 CALL InitPartDataSize()
@@ -624,10 +625,6 @@ IF (useDSMC.OR.usevMPF) THEN
            PEM%pNext(1:PDM%maxParticleNumber)           , STAT=ALLOCSTAT)
   IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__, ' Cannot allocate DSMC PEM arrays!')
 END IF
-IF (useDSMC) THEN
-  ALLOCATE(PDM%PartInit(1:PDM%maxParticleNumber), STAT=ALLOCSTAT)
-  IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__,' Cannot allocate PDM%PartInit array!')
-END IF
 
 END SUBROUTINE AllocateParticleArrays
 
@@ -847,7 +844,7 @@ USE MOD_LoadBalance_Vars       ,ONLY: PerformLoadBalance
 ! Include surface values in the macroscopic output
 DSMC%CalcSurfaceVal = GETLOGICAL('Particles-DSMC-CalcSurfaceVal')
 ! Include electronic energy excitation in the macroscopic output
-SampleElecExcitation = GETLOGICAL('Part-SampElectronicExcitation')
+SampleElecExcitation = GETLOGICAL('Part-SampleElectronicExcitation')
 ! Sampling for and output every given number of iterations (sample is reset after an output)
 WriteMacroValues = GETLOGICAL('Part-WriteMacroValues')
 IF(WriteMacroValues)THEN

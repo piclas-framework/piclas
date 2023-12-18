@@ -1285,7 +1285,7 @@ USE MOD_Particle_Analyze_Vars   ,ONLY: FlowRateSurfFlux,PressureAdaptiveBC,PartA
 USE MOD_DSMC_Vars               ,ONLY: RadialWeighting
 USE MOD_Particle_Vars           ,ONLY: Species,nSpecies,usevMPF,VarTimeStep
 USE MOD_Particle_Surfaces_Vars  ,ONLY: BCdata_auxSF, SurfFluxSideSize, SurfMeshSubSideData
-USE MOD_Particle_Sampling_Vars  ,ONLY: UseAdaptive, AdaptBCMacroVal, AdaptBCMapElemToSample, AdaptBCAreaSurfaceFlux
+USE MOD_Particle_Sampling_Vars  ,ONLY: UseAdaptiveBC, AdaptBCMacroVal, AdaptBCMapElemToSample, AdaptBCAreaSurfaceFlux
 USE MOD_Particle_Sampling_Vars  ,ONLY: AdaptBCAverageValBC, AdaptBCAverageMacroVal
 USE MOD_Mesh_Vars               ,ONLY: SideToElem
 #if USE_MPI
@@ -1308,7 +1308,7 @@ INTEGER             :: MaxSurfaceFluxBCs
 
 IF(iter.EQ.0) RETURN
 
-IF(UseAdaptive) PressureAdaptiveBC = 0.
+IF(UseAdaptiveBC) PressureAdaptiveBC = 0.
 ! 1) Calculate the processor-local mass flow rate and sum-up the area weighted pressure
 DO iSpec = 1, nSpecies
   ! If usevMPF or DoRadialWeighting then the MacroParticleFactor is already included in the GetParticleWeight
@@ -1333,7 +1333,7 @@ DO iSpec = 1, nSpecies
     ! Reset the mass flow rate
     Species(iSpec)%Surfaceflux(iSF)%SampledMassflow = 0.
     ! Calculate the average pressure
-    IF(UseAdaptive) THEN
+    IF(UseAdaptiveBC) THEN
       currentBC = Species(iSpec)%Surfaceflux(iSF)%BC
       ! Average of the BC for the output
       IF(.NOT.AdaptBCAverageValBC) THEN
@@ -1365,13 +1365,13 @@ MaxSurfaceFluxBCs = MAXVAL(Species(:)%nSurfacefluxBCs)
 IF (MPIRoot) THEN
   CALL MPI_REDUCE(MPI_IN_PLACE,FlowRateSurfFlux(1:nSpecAnalyze,1:MaxSurfaceFluxBCs),nSpecAnalyze*MaxSurfaceFluxBCs,&
                   MPI_DOUBLE_PRECISION,MPI_SUM,0,MPI_COMM_PICLAS,IERROR)
-  IF(UseAdaptive.AND.(.NOT.AdaptBCAverageValBC)) THEN
+  IF(UseAdaptiveBC.AND.(.NOT.AdaptBCAverageValBC)) THEN
     CALL MPI_REDUCE(MPI_IN_PLACE,PressureAdaptiveBC(1:nSpecAnalyze,1:MaxSurfaceFluxBCs),nSpecAnalyze*MaxSurfaceFluxBCs,&
                     MPI_DOUBLE_PRECISION,MPI_SUM,0,MPI_COMM_PICLAS,IERROR)
   END IF
 ELSE ! no Root
   CALL MPI_REDUCE(FlowRateSurfFlux,FlowRateSurfFlux,nSpecAnalyze*MaxSurfaceFluxBCs,MPI_DOUBLE_PRECISION,MPI_SUM,0,MPI_COMM_PICLAS,IERROR)
-  IF(UseAdaptive.AND.(.NOT.AdaptBCAverageValBC)) CALL MPI_REDUCE(PressureAdaptiveBC,PressureAdaptiveBC,nSpecAnalyze*MaxSurfaceFluxBCs,MPI_DOUBLE_PRECISION,MPI_SUM,0,MPI_COMM_PICLAS,IERROR)
+  IF(UseAdaptiveBC.AND.(.NOT.AdaptBCAverageValBC)) CALL MPI_REDUCE(PressureAdaptiveBC,PressureAdaptiveBC,nSpecAnalyze*MaxSurfaceFluxBCs,MPI_DOUBLE_PRECISION,MPI_SUM,0,MPI_COMM_PICLAS,IERROR)
 END IF
 #endif /*USE_MPI*/
 
@@ -1384,7 +1384,7 @@ IF (MPIRoot) THEN
       FlowRateSurfFlux = FlowRateSurfFlux / MIN(PartAnalyzeStep,iter)
     END IF
   END IF
-  IF(UseAdaptive) THEN
+  IF(UseAdaptiveBC) THEN
     IF(AdaptBCAverageValBC) THEN
       PressureAdaptiveBC(:,:) = AdaptBCAverageMacroVal(3,:,:)
     ELSE
