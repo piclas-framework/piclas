@@ -1,6 +1,7 @@
 # MPI Implementation
 
 This chapter describes how PICLas subroutines and functions are parallelized.
+Please also read the general rules for using {ref}`developerguide/bestpractices:MPI`.
 
 ## General Remarks: Things to consider
 

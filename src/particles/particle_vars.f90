@@ -195,8 +195,14 @@ END INTERFACE
 TYPE tParticleDataManagement
   INTEGER                                :: CurrentNextFreePosition           ! Index of nextfree index in nextFreePosition-Array
   INTEGER                                :: maxParticleNumber                 ! Maximum Number of all Particles
+  INTEGER                                :: maxAllowedParticleNumber          ! Maximum allowed number of PDM%maxParticleNumber
+  LOGICAL                                :: RearrangePartIDs                  ! Rearrange PartIDs during shrinking maxPartNum
+#if USE_MPI
+  LOGICAL                                :: UNFPafterMPIPartSend              ! UpdateNextFreePosition after MPI Part Send
+#endif
   INTEGER                                :: ParticleVecLength                 ! Vector Length for Particle Push Calculation
   INTEGER                                :: ParticleVecLengthOld              ! Vector Length for Particle Push Calculation
+  REAL                                   :: MaxPartNumIncrease                ! How much shall the PDM%MaxParticleNumber be incresed if it is full
   INTEGER , ALLOCATABLE                  :: PartInit(:)                       ! (1:NParts), initial emission condition number
                                                                               ! the calculation area
   INTEGER ,ALLOCATABLE                   :: nextFreePosition(:)  !  =>NULL()  ! next_free_Position(1:maxParticleNumber)
@@ -218,19 +224,23 @@ LOGICAL                                  :: WriteMacroVolumeValues =.FALSE.   ! 
 LOGICAL                                  :: WriteMacroSurfaceValues=.FALSE.   ! Output of macroscopic values on surface
 INTEGER                                  :: MacroValSamplIterNum              ! Number of iterations for sampling
                                                                               ! macroscopic values
-LOGICAL                                  :: SampleElecExcitation              ! Sampling the electronic excitation rate per species
-INTEGER                                  :: ExcitationLevelCounter            ! 
-REAL, ALLOCATABLE                        :: ExcitationSampleData(:,:)         ! 
-INTEGER, ALLOCATABLE                     :: ExcitationLevelMapping(:,:)       ! 
-
+REAL                                     :: MacroValSampTime                  ! Sampling time for WriteMacroVal. (e.g., for td201)
+! Sampling of electronic excitation rates
+LOGICAL                                  :: SampleElecExcitation              ! Enable sampling the electronic excitation rate per level
+INTEGER                                  :: ExcitationLevelCounter            ! Counter of electronic levels to be sampled (for all species)
+REAL, ALLOCATABLE                        :: ExcitationSampleData(:,:)         ! Sampled rates [1:ExcitationLevelCounter,1:nElems]
+INTEGER, ALLOCATABLE                     :: ExcitationLevelMapping(:,:)       ! Mapping of collision case and level to the total electronic
+                                                                              ! number of levels [1:CollInf%NumCase,1:MAXVAL(SpecXSec(:)%NumElecLevel)]
+! Variable particle weighting (vMPF)
+LOGICAL                                  :: usevMPF                           ! use the vMPF per particle
 INTEGER, ALLOCATABLE                     :: vMPFMergeThreshold(:)             ! Max particle number per cell and (iSpec)
 INTEGER, ALLOCATABLE                     :: vMPFSplitThreshold(:)             ! Min particle number per cell and (iSpec)
 REAL                                     :: vMPFSplitLimit                    ! Do not split particles below this MPF threshold
 LOGICAL                                  :: UseSplitAndMerge                  ! Flag for particle merge
 REAL, ALLOCATABLE                        :: CellEelec_vMPF(:,:)
 REAL, ALLOCATABLE                        :: CellEvib_vMPF(:,:)
-REAL                                     :: MacroValSampTime                  ! Sampling time for WriteMacroVal. (e.g., for td201)
-LOGICAL                                  :: usevMPF                           ! use the vMPF per particle
+
+! Surface flux flags
 LOGICAL                                  :: DoSurfaceFlux                     ! Flag for emitting by SurfaceFluxBCs
 LOGICAL                                  :: DoPoissonRounding                 ! Perform Poisson sampling instead of random rounding
 LOGICAL                                  :: DoTimeDepInflow                   ! Insertion and SurfaceFlux w simple random rounding
@@ -284,7 +294,7 @@ INTEGER               :: RotRefFrameAxis          ! axis of rotational frame of 
 REAL                  :: RotRefFrameFreq          ! frequency of rotational frame of reference
 REAL                  :: RotRefFrameOmega(3)      ! angular velocity of rotational frame of reference
 INTEGER               :: nRefFrameRegions         ! number of rotational frame of reference regions
-REAL, ALLOCATABLE     :: RotRefFramRegion(:,:)    ! MIN/MAX defintion for multiple rotational frame of reference region     
+REAL, ALLOCATABLE     :: RotRefFramRegion(:,:)    ! MIN/MAX defintion for multiple rotational frame of reference region
                                                   ! (i,RegionNumber), MIN:i=1, MAX:i=2
 !===================================================================================================================================
 END MODULE MOD_Particle_Vars

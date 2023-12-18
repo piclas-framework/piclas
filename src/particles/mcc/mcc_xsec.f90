@@ -581,7 +581,7 @@ SUBROUTINE XSec_ElectronicRelaxation(iPair,iCase,iPart_p1,iPart_p2,DoElec1,DoEle
 !> 1. Interpolate the cross-section (MCC) or use the probability (VHS)
 !> 2. Determine which electronic level is to be excited
 !> 3. Reduce the total collision probability if no electronic excitation occurred
-!> 4. Count the number of relaxation process for the relaxation rate (TimeDisc=42 only)
+!> 4. Count the number of relaxation process for the relaxation rate (Only with Particles-DSMCReservoirSim = T)
 !===================================================================================================================================
 ! MODULES
 USE MOD_DSMC_Vars             ,ONLY: SpecDSMC, Coll_pData, PartStateIntEn
@@ -650,7 +650,7 @@ IF(PartStateIntEn(3,iPart_p1).EQ.0.0.AND.PartStateIntEn(3,iPart_p2).EQ.0.0) THEN
   END IF  ! SUM(SpecXSec(iCase)%ElecLevel(:)%Prob).GT.0.
 END IF    ! Electronic energy = 0, ground-state
 
-! 4. Count the number of relaxation process for the relaxation rate
+! 4. Count the number of relaxation process for the relaxation rate and cell-local sampling
 IF(CalcRelaxProb.OR.SamplingActive.OR.WriteMacroVolumeValues) THEN
   IF(ElecLevelRelax.GT.0) THEN
     IF(usevMPF.OR.RadialWeighting%DoRadialWeighting) THEN
@@ -666,6 +666,7 @@ IF(CalcRelaxProb.OR.SamplingActive.OR.WriteMacroVolumeValues) THEN
       WeightedParticle = GetParticleWeight(iPart_p2) * WeightedParticle
     END IF
     SpecXSec(iCase)%ElecLevel(ElecLevelRelax)%Counter = SpecXSec(iCase)%ElecLevel(ElecLevelRelax)%Counter + WeightedParticle
+    ! Sampling of the cell-local excitation rate
     IF(SampleElecExcitation) THEN
       ElecLevel = ExcitationLevelMapping(iCase,ElecLevelRelax)
       ElemID = PEM%LocalElemID(iPart_p1)
@@ -1278,12 +1279,10 @@ DO iPath = 1, ChemReac%CollCaseInfo(iCase)%NumOfReactionPaths
       END IF
     END ASSOCIATE
     ! Calculation of reaction rate coefficient
-#if (PP_TimeDiscMethod==42)
-    IF (.NOT.DSMC%ReservoirRateStatistic) THEN
+    IF (DSMC%ReservoirSimu.AND..NOT.DSMC%ReservoirRateStatistic) THEN
       ChemReac%NumReac(ReacTest) = ChemReac%NumReac(ReacTest) + ChemReac%CollCaseInfo(iCase)%ReactionProb(iPath)
       ChemReac%ReacCount(ReacTest) = ChemReac%ReacCount(ReacTest) + 1
     END IF
-#endif
   END IF
 END DO
 
