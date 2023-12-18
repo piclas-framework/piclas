@@ -66,20 +66,20 @@ The type of the region is defined by the following parameter
 
 Different `SpaceIC` are available and an overview is given in the table below.
 
-|     Distribution     |                                    Description                                   |                   Reference                  |
-|    ---------------   | -------------------------------------------------------------------------------- |  ------------------------------------------  |
-|      cell_local      |         Particles are inserted in every cell at a constant number density        |                                              |
-|         disc         |                     Particles are inserted on a circular disc                    |     Section {ref}`sec:particle-disk-init`    |
-|        cuboid        |  Particles are inserted in the given cuboid volume at a constant number density  |    Section {ref}`sec:particle-cuboid-init`   |
-|       cylinder       | Particles are inserted in the given cylinder volume at a constant number density |   Section {ref}`sec:particle-cylinder-init`  |
-|        sphere        |  Particles are inserted in the given sphere volume at a constant number density  |    Section {ref}`sec:particle-sphere-init`   |
-|    photon_cylinder   |   Ionization of a background gas through photon impact (cylinder distribution)   | Section {ref}`sec:particle-photo-ionization` |
-|    photon_SEE_disc   |       Secondary electron emission through photon impact (disk distribution)      | Section {ref}`sec:particle-photo-ionization` |
-|   photon_honeycomb   |   Ionization of a background gas through photon impact (honeycomb distribution)  | Section {ref}`sec:particle-photo-ionization` |
-| photon_SEE_honeycomb |    Secondary electron emission through photon impact (honeycomb distribution)    | Section {ref}`sec:particle-photo-ionization` |
-|   photon_rectangle   |  Ionization of a background gas through photon impact (rectangular distribution) | Section {ref}`sec:particle-photo-ionization` |
-| photon_SEE_rectangle |   Secondary electron emission through photon impact (rectangular distribution)   | Section {ref}`sec:particle-photo-ionization` |
-| EmissionDistribution |    Initial only ($t=0$) field-based ($n, T, v$) particle distribution from .h5   |  Section {ref}`sec:particle-emission-distri` |
+| Distribution         | Description                                                                      | Reference                                    |
+| -------------------- | -------------------------------------------------------------------------------- | -------------------------------------------- |
+| cell_local           | Particles are inserted in every cell at a constant number density                | Section {ref}`sec:particle-cell-local`       |
+| disc                 | Particles are inserted on a circular disc                                        | Section {ref}`sec:particle-disk-init`        |
+| cuboid               | Particles are inserted in the given cuboid volume at a constant number density   | Section {ref}`sec:particle-cuboid-init`      |
+| cylinder             | Particles are inserted in the given cylinder volume at a constant number density | Section {ref}`sec:particle-cylinder-init`    |
+| sphere               | Particles are inserted in the given sphere volume at a constant number density   | Section {ref}`sec:particle-sphere-init`      |
+| photon_cylinder      | Ionization of a background gas through photon impact (cylinder distribution)     | Section {ref}`sec:particle-photo-ionization` |
+| photon_SEE_disc      | Secondary electron emission through photon impact (disk distribution)            | Section {ref}`sec:particle-photo-ionization` |
+| photon_honeycomb     | Ionization of a background gas through photon impact (honeycomb distribution)    | Section {ref}`sec:particle-photo-ionization` |
+| photon_SEE_honeycomb | Secondary electron emission through photon impact (honeycomb distribution)       | Section {ref}`sec:particle-photo-ionization` |
+| photon_rectangle     | Ionization of a background gas through photon impact (rectangular distribution)  | Section {ref}`sec:particle-photo-ionization` |
+| photon_SEE_rectangle | Secondary electron emission through photon impact (rectangular distribution)     | Section {ref}`sec:particle-photo-ionization` |
+| EmissionDistribution | Initial only ($t=0$) field-based ($n, T, v$) particle distribution from .h5      | Section {ref}`sec:particle-emission-distri`  |
 
 Common parameters required for most of the insertion routines are given below. The drift velocity is defined by the direction
 vector `VeloVecIC`, which is a unit vector, and a velocity magnitude [m/s]. The thermal velocity of particle is determined based
@@ -102,6 +102,21 @@ considered, the electronic temperature [K] has to be defined
 
 The parameters given so far are sufficient to define an initialization region for a molecular species using the `cell_local` option.
 Additional options required for other insertion regions are described in the following.
+
+(sec:particle-cell-local)=
+### Cell local
+
+Additional options are available to limit the local emission to certain limits in each dimension (x,y,z) as defined by:
+
+    Part-Species1-Init1-MinimalLocation       = (/ -1.0, -1.0, -999. /)
+    Part-Species1-Init1-MaximalLocation       = (/  1.0,  1.0,  999. /)
+
+To limit the insertion only to a specific dimension, simply provide a sufficiently large number for the other dimensions. This approach
+can also be utilized for 2D and axisymmetric simulations.
+
+When using a variable particle weighting as described in Section {ref}`sec:variable-particle-weighting`, the variable `Part-Species1-vMPFSplitThreshold`
+will be utilized as the target number of particles per cell during the insertion and the weighting factor will be determined from the
+given number density and cell volume.
 
 (sec:particle-disk-init)=
 ### Circular Disc
@@ -295,12 +310,12 @@ There are different methods implemented to neutralize a charged particle flow, e
 propulsion systems. Currently all methods require a specific geometry to function properly. For more details, see the regression
 tests under *regressioncheck/NIG_PIC_poisson_Boris-Leapfrog*. The following table lists the *SpaceIC* emission types
 
-|           Distribution          |                                                                Description                                                               |
-|         ---------------         |                             --------------------------------------------------------------------------------                             |
-|    2D_landmark_neutralization   |                   Charoy 2019 2D PIC benchmark, electrons are injected with 10 eV at the cathode if the anode current is negative        |
-|    2D_Liu2010_neutralization    |                    Liu 2010 2D PIC benchmark, electrons are injected at the cathode if the cathode current is negative                   |
+| Distribution                    | Description                                                                                                                              |
+| ------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| 2D_landmark_neutralization      | Charoy 2019 2D PIC benchmark, electrons are injected with 10 eV at the cathode if the anode current is negative                          |
+| 2D_Liu2010_neutralization       | Liu 2010 2D PIC benchmark, electrons are injected at the cathode if the cathode current is negative                                      |
 | 2D_Liu2010_neutralization_Szabo | Liu 2010 2D PIC benchmark, electrons are injected in the first cell layer at the cathode if the net charge in these elements is positive |
-|    3D_Liu2010_neutralization    |                    Liu 2010 3D PIC benchmark, electrons are injected at the cathode if the cathode current is negative                   |
+| 3D_Liu2010_neutralization       | Liu 2010 3D PIC benchmark, electrons are injected at the cathode if the cathode current is negative                                      |
 | 3D_Liu2010_neutralization_Szabo | Liu 2010 3D PIC benchmark, electrons are injected in the first cell layer at the cathode if the net charge in these elements is positive |
 
 For the *XD_Liu2010_neutralization* emission, a constant emitted electron temperature is defined via
