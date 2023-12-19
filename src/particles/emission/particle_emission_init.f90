@@ -471,6 +471,7 @@ USE MOD_Particle_Sampling_Vars  ,ONLY: UseAdaptiveBC, AdaptBCMacroVal, AdaptBCMa
 USE MOD_Particle_Sampling_Adapt ,ONLY: AdaptiveBCSampling
 USE MOD_SurfaceModel_Vars       ,ONLY: nPorousBC
 USE MOD_Particle_Surfaces_Vars  ,ONLY: BCdata_auxSF, SurfFluxSideSize, SurfMeshSubSideData
+USE MOD_DSMC_Init               ,ONLY: SetVarVibProb2Elems
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Vars        ,ONLY: PerformLoadBalance
 #endif /*USE_LOADBALANCE*/
@@ -613,6 +614,9 @@ IF(UseAdaptiveBC.OR.(nPorousBC.GT.0)) THEN
     END DO      ! iSF=1,Species(iSpec)%nSurfacefluxBCs
   END DO        ! iSpec=1,nSpecies
 END IF
+
+IF((DSMC%VibRelaxProb.EQ.2).AND.(CollisMode.GE.2)) CALL SetVarVibProb2Elems()
+
 LBWRITE(UNIT_stdOut,'(A)') ' INITIAL PARTICLE INSERTING DONE!'
 
 END SUBROUTINE InitialParticleInserting
