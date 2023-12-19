@@ -536,14 +536,10 @@ DO iSpec = 1,nSpecies
         IF((CollisMode.EQ.2).OR.(CollisMode.EQ.3)) THEN
           DO iPart = 1, NbrOfParticle
             PositionNbr = GetNextFreePosition(iPart)
-            IF (PositionNbr .NE. 0) THEN
-              IF (SpecDSMC(iSpec)%PolyatomicMol) THEN
-                CALL DSMC_SetInternalEnr_Poly(iSpec,iInit,PositionNbr,1)
-              ELSE
-                CALL DSMC_SetInternalEnr_LauxVFD(iSpec,iInit,PositionNbr,1)
-              END IF
+            IF (SpecDSMC(iSpec)%PolyatomicMol) THEN
+              CALL DSMC_SetInternalEnr_Poly(iSpec,iInit,PositionNbr,1)
             ELSE
-              CALL abort(__STAMP__,'ERROR in InitialParticleInserting: No free particle index - maximum nbr of particles reached?')
+              CALL DSMC_SetInternalEnr_LauxVFD(iSpec,iInit,PositionNbr,1)
             END IF
           END DO
         END IF
