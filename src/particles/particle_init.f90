@@ -318,7 +318,7 @@ USE MOD_SurfaceModel_Vars          ,ONLY: nPorousBC,BulkElectronTempSEE
 USE MOD_Particle_Boundary_Vars     ,ONLY: PartBound
 USE MOD_Particle_Tracking_Vars     ,ONLY: TrackingMethod
 USE MOD_Particle_Vars              ,ONLY: ParticlesInitIsDone,WriteMacroVolumeValues,WriteMacroSurfaceValues,nSpecies
-USE MOD_Particle_Sampling_Vars     ,ONLY: UseAdaptive
+USE MOD_Particle_Sampling_Vars     ,ONLY: UseAdaptiveBC
 USE MOD_Particle_Emission_Init     ,ONLY: InitialParticleInserting
 USE MOD_Particle_SurfFlux_Init     ,ONLY: InitializeParticleSurfaceflux
 USE MOD_SurfaceModel_Init          ,ONLY: InitSurfaceModel
@@ -409,7 +409,7 @@ END IF
 IF(nPorousBC.GT.0) CALL InitPorousBoundaryCondition()
 
 ! Allocate sampling of near adaptive boundary element values
-IF(UseAdaptive.OR.(nPorousBC.GT.0)) CALL InitAdaptiveBCSampling()
+IF(UseAdaptiveBC.OR.(nPorousBC.GT.0)) CALL InitAdaptiveBCSampling()
 
 ! Initialize background gas regions (requires completed InitParticleGeometry for ElemMidPoint_Shared)
 IF(BGGas%UseRegions) CALL BGGas_InitRegions()

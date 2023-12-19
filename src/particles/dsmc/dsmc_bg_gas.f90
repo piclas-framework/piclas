@@ -85,7 +85,7 @@ REAL              :: SpeciesDensTmp(1:nSpecies)
 IF(BGGas%UseDistribution) MacroRestartFileName = GETSTR('Particles-MacroscopicRestart-Filename')
 
 ! 1.) Check compatibility with other features and whether required parameters have been read-in
-IF((Symmetry%Order.EQ.2).OR.UseVarTimeStep) THEN
+IF(UseVarTimeStep) THEN
   IF(.NOT.VarTimeStep%UseSpeciesSpecific) CALL abort(__STAMP__, &
     'ERROR: 2D/Axisymmetric and variable timestep (except species-specific) are not implemented with a background gas yet!')
 END IF
