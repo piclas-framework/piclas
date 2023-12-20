@@ -1253,7 +1253,6 @@ DO iProc=0,nExchangeProcessors-1
 
     ! Set Flag for received parts in order to localize them later
     PDM%ParticleInside(PartID) = .TRUE.
-    PDM%isNewPart(PartID) = .TRUE.
 #if defined(IMPA) || defined(ROS)
     ! only for fully implicit
     !IF(PartIsImplicit(PartID))THEN

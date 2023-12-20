@@ -233,7 +233,6 @@ IF(.NOT.DoMacroscopicRestart) THEN
           END IF
         END IF
         PDM%ParticleInside(iPart) = .TRUE.
-        PDM%isNewPart(iPart)      = .TRUE.
       END DO ! iLoop = 1_IK,locnPart
 
       iPart = 0
@@ -648,7 +647,6 @@ IF(.NOT.DoMacroscopicRestart) THEN
         IF (PEM%GlobalElemID(CurrentPartNum).GT.0) THEN
           PEM%LastGlobalElemID(CurrentPartNum) = PEM%GlobalElemID(CurrentPartNum)
           PDM%ParticleInside(CurrentPartNum)=.TRUE.
-          PDM%isNewPart(CurrentPartNum)     = .TRUE.
           IF(TrackingMethod.EQ.REFMAPPING) CALL GetPositionInRefElem(PartState(1:3,CurrentPartNum),PartPosRef(1:3,CurrentPartNum),PEM%GlobalElemID(iPart))
           IndexOfFoundParticles(iPart) = 1
           PEM%LastGlobalElemID(CurrentPartNum) = PEM%GlobalElemID(CurrentPartNum)
