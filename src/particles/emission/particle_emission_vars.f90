@@ -47,7 +47,9 @@ TYPE tInit                                                                   ! P
   REAL                               :: CylinderHeightIC                 ! third measure of cylinder
                                                                          ! (set 0 for flat rectangle),
                                                                          ! negative value = opposite direction
-  REAL                               :: VeloIC                           ! velocity for inital Data
+  REAL                               :: MinLocation(3)                   ! Minimal location for cell_local
+  REAL                               :: MaxLocation(3)                   ! Maximal location for cell_local
+  REAL                               :: VeloIC                           ! Velocity magnitude [m/s]
   REAL                               :: VeloVecIC(3)                     ! normalized velocity vector
   REAL                               :: Amplitude                        ! Amplitude for sin-deviation initiation.
   REAL                               :: WaveNumber                       ! WaveNumber for sin-deviation initiation.
@@ -129,7 +131,7 @@ CHARACTER(255)       :: EmissionDistributionFileName  !< File name form which th
 INTEGER              :: EmissionDistributionN         !< Polynomial degree for particle emission in each element
 INTEGER              :: EmissionDistributionDim       !< Spatial dimension of variable external field data: 1D, 2D or 3D
 LOGICAL              :: EmissionDistributionAxisSym   !< True if the data is axis symmetric, e.g., B(r,z)
-INTEGER              :: EmissionDistributionRadInd    !< Index of radial r-coordinate when using 2D data and axis symmetric 
+INTEGER              :: EmissionDistributionRadInd    !< Index of radial r-coordinate when using 2D data and axis symmetric
 INTEGER              :: EmissionDistributionAxisDir   !< Direction that is used for the axial symmetric direction (1,2 or 3)
 INTEGER              :: EmissionDistributionNum(1:3)  !< Number of points in x, y and z-direction
 REAL                 :: EmissionDistributionMin(1:3)  !< Minimum values in x,y,z
