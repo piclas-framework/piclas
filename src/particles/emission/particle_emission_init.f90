@@ -445,9 +445,10 @@ USE MOD_DSMC_Vars               ,ONLY: useDSMC, DSMC
 USE MOD_Part_Emission_Tools     ,ONLY: SetParticleChargeAndMass,SetParticleMPF,SetParticleTimeStep
 USE MOD_Part_Pos_and_Velo       ,ONLY: SetParticlePosition,SetParticleVelocity,SetPartPosAndVeloEmissionDistribution
 USE MOD_DSMC_AmbipolarDiffusion ,ONLY: AD_SetInitElectronVelo
-USE MOD_Part_Tools              ,ONLY: UpdateNextFreePosition
+USE MOD_Part_Tools              ,ONLY: UpdateNextFreePosition, IncreaseMaxParticleNumber
 USE MOD_Particle_Vars           ,ONLY: Species,nSpecies,PDM,PEM, usevMPF, SpecReset, UseVarTimeStep
 USE MOD_Restart_Vars            ,ONLY: DoRestart
+USE MOD_Part_Tools              ,ONLY: GetNextFreePosition
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Vars        ,ONLY: PerformLoadBalance
 #endif /*USE_LOADBALANCE*/
@@ -495,7 +496,7 @@ DO iSpec = 1,nSpecies
       IF (useDSMC) THEN
         IF (DSMC%DoAmbipolarDiff) CALL AD_SetInitElectronVelo(iSpec,iInit,NbrOfParticle)
         DO iPart = 1, NbrOfParticle
-          PositionNbr = PDM%nextFreePosition(iPart+PDM%CurrentNextFreePosition)
+          PositionNbr = GetNextFreePosition(iPart)
           IF (PositionNbr .NE. 0) THEN
             PDM%PartInit(PositionNbr) = iInit
           ELSE
@@ -504,7 +505,16 @@ DO iSpec = 1,nSpecies
         END DO
       END IF
       ! Add new particles to particle vector length
-      PDM%ParticleVecLength = PDM%ParticleVecLength + NbrOfParticle
+      IF(NbrOfParticle.GT.0) PDM%ParticleVecLength = MAX(PDM%ParticleVecLength,GetNextFreePosition(NbrOfParticle))
+#ifdef CODE_ANALYZE
+      IF(PDM%ParticleVecLength.GT.PDM%maxParticleNumber) CALL Abort(__STAMP__,'PDM%ParticleVeclength exceeds PDM%maxParticleNumber, Difference:',IntInfoOpt=PDM%ParticleVeclength-PDM%maxParticleNumber)
+      DO iPart=PDM%ParticleVecLength+1,PDM%maxParticleNumber
+        IF (PDM%ParticleInside(iPart)) THEN
+          IPWRITE(*,*) iPart,PDM%ParticleVecLength,PDM%maxParticleNumber
+          CALL Abort(__STAMP__,'Particle outside PDM%ParticleVeclength',IntInfoOpt=iPart)
+        END IF
+      END DO
+#endif
       ! Update
       CALL UpdateNextFreePosition()
     END IF  ! Species(iSpec)%Init(iInit)%ParticleEmissionType.EQ.0
@@ -746,7 +756,7 @@ USE MOD_Globals
 USE MOD_Globals_Vars        ,ONLY: PI
 USE MOD_DSMC_Vars           ,ONLY: RadialWeighting, DSMC
 USE MOD_Particle_Mesh_Vars  ,ONLY: LocalVolume
-USE MOD_Particle_Vars       ,ONLY: PDM,Species,nSpecies,SpecReset,Symmetry
+USE MOD_Particle_Vars       ,ONLY: Species,nSpecies,SpecReset,Symmetry
 USE MOD_ReadInTools
 USE MOD_Restart_Vars        ,ONLY: DoRestart
 ! IMPLICIT VARIABLE HANDLING
@@ -831,14 +841,6 @@ DO iSpec=1,nSpecies
 #endif
   END DO ! iInit = 1, Species(iSpec)%NumberOfInits
 END DO ! iSpec=1,nSpecies
-
-IF(.NOT.RadialWeighting%DoRadialWeighting) THEN
-  IF (insertParticles.GT.PDM%maxParticleNumber) THEN
-    IPWRITE(UNIT_stdOut,*)' Maximum particle number : ',PDM%maxParticleNumber
-    IPWRITE(UNIT_stdOut,*)' To be inserted particles: ',INT(insertParticles,4)
-    CALL abort(__STAMP__,'Number of to be inserted particles per init-proc exceeds max. particle number! ')
-  END IF
-END IF
 
 END SUBROUTINE DetermineInitialParticleNumber
 

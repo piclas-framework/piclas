@@ -785,7 +785,7 @@ END SUBROUTINE DSMC_output_calc
 
 SUBROUTINE CalcMacroElecExcitation(MacroElecExcitation)
 !===================================================================================================================================
-!>
+!> Calculation of the excitation rate [1/s] based on the sum of excitation events (sum of particle weights) and the sampling time
 !===================================================================================================================================
 ! MODULES
 USE MOD_PreProc
@@ -993,6 +993,7 @@ IF (DSMC%CalcQualityFactors) THEN
   END IF
 END IF
 
+! Sampling of electronic excitation: Construct the variables name based on first and second species as well as the level threshold
 IF(SampleElecExcitation) THEN
   ! Number of excitation outputs (currently only electronic)
   ALLOCATE(StrVarNamesElecExci(1:ExcitationLevelCounter))
@@ -1047,6 +1048,7 @@ IF (ALLOCSTAT.NE.0) THEN
 END IF
 CALL DSMC_output_calc(nVar,nVar_quality,nVarloc+nVarRelax,DSMC_MacroVal)
 
+! Calculation of electronic excitation rates
 IF(SampleElecExcitation) THEN
   ALLOCATE(MacroElecExcitation(1:ExcitationLevelCounter,nElems), STAT=ALLOCSTAT)
   IF (ALLOCSTAT.NE.0) THEN
@@ -1067,6 +1069,7 @@ ASSOCIATE (&
                         nVal       =(/nVarX    , PP_nElems/)    , &
                         offset     =(/0_IK     , offsetElem/)   , &
                         collective =.false.,  RealArray=DSMC_MacroVal(:,:))
+  ! Output of electronic excitation rates in a separate container
   IF(SampleElecExcitation) THEN
     CALL WriteArrayToHDF5(DataSetName='ExcitationData' , rank=2         , &
                           nValGlobal =(/nVarExci , nGlobalElems/) , &

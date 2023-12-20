@@ -91,8 +91,16 @@ CALL prms%CreateIntArrayOption( 'InitialIonizationSpeciesID', 'Supply a vector w
 CALL prms%CreateRealOption(     'InitialIonizationChargeAverage' , 'Average charge for each atom/molecule in the cell '//&
                                                                    '(corresponds to the ionization degree)')
 
-CALL prms%CreateIntOption(      'Part-MaxParticleNumber', 'Maximum number of Particles per proc (used for array init)'&
-                                                                 , '1')
+CALL prms%CreateIntOption(      'Part-MaxParticleNumber', 'Maximum allowed particles per core, 0=no limit')
+CALL prms%CreateRealOption(     'Part-MaxPartNumIncrease', 'How much shall the PDM%MaxParticleNumber be incresed if it is full'&
+                                                                 , '0.1')
+CALL prms%CreateLogicalOption(  'Part-RearrangePartIDs', 'Rearrange PartIDs in the process of reducing maxPartNum to allow lower memory usage'&
+                                                                 , '.TRUE.')
+#if USE_MPI
+CALL prms%CreateLogicalOption(  'Part-MPI-UNFP-afterPartSend', 'UpdateNextFreePosition after MPIParticleSend to reduce '//&
+                                                                'PDM%maxParticleNummber increase and decreace operations'&
+                                                                 , '.FALSE.')
+#endif
 CALL prms%CreateIntOption(      'Part-NumberOfRandomSeeds'    , 'Number of Seeds for Random Number Generator'//&
                                                                 'Choose nRandomSeeds \n'//&
                                                                 '=-1    Random \n'//&
@@ -191,8 +199,8 @@ CALL prms%CreateLogicalOption(  'Particles-DSMC-CalcSurfaceVal'&
   , 'Set [T] to activate sampling, analyze and h5 output for surfaces. Therefore either time fraction or iteration sampling'//&
   ' have to be enabled as well.', '.FALSE.')
 
-CALL prms%CreateLogicalOption(  'Part-SampElectronicExcitation'&
-  , 'Set [T] to activate sampling of electronic energy excitation', '.FALSE.')
+CALL prms%CreateLogicalOption(  'Part-SampleElectronicExcitation'&
+  , 'Set [T] to activate sampling of electronic energy excitation (currently only available for ElectronicModel = 3)', '.FALSE.')
 
 ! === Rotational frame of reference
 CALL prms%CreateLogicalOption(  'Part-UseRotationalReferenceFrame', 'Activate rotational frame of reference', '.FALSE.')
@@ -427,9 +435,18 @@ USE MOD_HDG_Vars               ,ONLY: UseCoupledPowerPotential
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 REAL              :: ManualTimeStepParticle ! temporary variable
+CHARACTER(32)     :: hilf
 !===================================================================================================================================
 ! Read basic particle parameter
-PDM%maxParticleNumber = GETINT('Part-maxParticleNumber','1')
+WRITE(UNIT=hilf,FMT='(I0)') HUGE(PDM%maxAllowedParticleNumber)
+PDM%maxAllowedParticleNumber = GETINT('Part-maxParticleNumber',TRIM(hilf))
+PDM%MaxPartNumIncrease = GETREAL('Part-MaxPartNumIncrease','0.1')
+PDM%RearrangePartIDs = GETLOGICAL('Part-RearrangePartIDs','.TRUE.')
+#if USE_MPI
+PDM%UNFPafterMPIPartSend = GETLOGICAL('Part-MPI-UNFP-afterPartSend','.FALSE.')
+#endif
+PDM%maxParticleNumber=1
+PDM%ParticleVecLength=0
 CALL AllocateParticleArrays()
 CALL InitializeVariablesRandomNumbers()
 
@@ -830,7 +847,7 @@ USE MOD_LoadBalance_Vars       ,ONLY: PerformLoadBalance
 ! Include surface values in the macroscopic output
 DSMC%CalcSurfaceVal = GETLOGICAL('Particles-DSMC-CalcSurfaceVal')
 ! Include electronic energy excitation in the macroscopic output
-SampleElecExcitation = GETLOGICAL('Part-SampElectronicExcitation')
+SampleElecExcitation = GETLOGICAL('Part-SampleElectronicExcitation')
 ! Sampling for and output every given number of iterations (sample is reset after an output)
 WriteMacroValues = GETLOGICAL('Part-WriteMacroValues')
 IF(WriteMacroValues)THEN
@@ -1174,6 +1191,7 @@ USE MOD_DSMC_Vars           ,ONLY: CollisMode,DSMC,PartStateIntEn
 USE MOD_part_emission_tools ,ONLY: CalcVelocity_maxwell_lpn
 USE MOD_DSMC_Vars           ,ONLY: useDSMC
 USE MOD_Eval_xyz            ,ONLY: TensorProductInterpolation
+USE MOD_Part_Tools          ,ONLY: GetNextFreePosition
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Vars    ,ONLY: PerformLoadBalance
 #endif /*USE_LOADBALANCE*/
@@ -1282,9 +1300,7 @@ DO iElem=1,PP_nElems
   DO iPart=1,ElemCharge(iElem) ! 1 electron for each charge of each element
 
     ! Set the next free position in the particle vector list
-    PDM%CurrentNextFreePosition = PDM%CurrentNextFreePosition + 1
-    ParticleIndexNbr            = PDM%nextFreePosition(PDM%CurrentNextFreePosition)
-    PDM%ParticleVecLength       = PDM%ParticleVecLength + 1
+    ParticleIndexNbr            = GetNextFreePosition()
 
     !Set new SpeciesID of new particle (electron)
     PDM%ParticleInside(ParticleIndexNbr) = .true.
