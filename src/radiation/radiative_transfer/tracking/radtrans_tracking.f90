@@ -50,7 +50,7 @@ USE MOD_MPI_Shared_Vars        ,ONLY: myComputeNodeRank,nComputeNodeProcessors
 USE MOD_Photon_TrackingVars    ,ONLY: PhotonSurfSideSamplingMidPoints_Shared,PhotonSurfSideSamplingMidPoints_Shared_Win
 USE MOD_Photon_TrackingVars    ,ONLY: PhotonSurfSideArea_Shared,PhotonSurfSideArea_Shared_Win
 #else
-USE MOD_Particle_Boundary_Vars ,ONLY: nSurfTotalSides
+USE MOD_Particle_Boundary_Vars ,ONLY: nGlobalSurfSides
 #endif /*USE_MPI*/
 USE MOD_Particle_Vars          ,ONLY: Symmetry
 USE MOD_Basis                  ,ONLY: LegendreGaussNodesAndWeights
@@ -101,7 +101,7 @@ ALLOCATE(PhotonSurfSideArea(1:Ray%nSurfSample,1:Ray%nSurfSample,1:nComputeNodeSu
 ALLOCATE(PhotonSurfSideSamplingMidPoints(1:3,1:Ray%nSurfSample,1:Ray%nSurfSample,1:nComputeNodeSurfTotalSides))
 
 firstSide = 1
-lastSide  = nSurfTotalSides
+lastSide  = nGlobalSurfSides
 #endif /*USE_MPI*/
 
 #if USE_MPI

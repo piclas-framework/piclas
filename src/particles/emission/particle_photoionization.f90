@@ -58,7 +58,7 @@ USE MOD_Timedisc_Vars           ,ONLY: iStage, RK_c, nRKStages
 !USE MOD_Particle_Boundary_Vars  ,ONLY: nComputeNodeSurfTotalSides
 !USE MOD_MPI_Shared_Vars         ,ONLY: nComputeNodeProcessors,myComputeNodeRank
 #else
-USE MOD_Particle_Boundary_Vars  ,ONLY: nSurfTotalSides
+USE MOD_Particle_Boundary_Vars  ,ONLY: nGlobalSurfSides
 #endif /*USE_MPI*/
 !USE MOD_Photon_TrackingVars     ,ONLY: PhotonSampWall
 USE MOD_Photon_TrackingVars     ,ONLY: PhotonSampWall_loc,PhotonSurfSideArea
@@ -107,7 +107,7 @@ END IF
 !lastSide  = INT(REAL((myComputeNodeRank+1))*REAL(nComputeNodeSurfTotalSides)/REAL(nComputeNodeProcessors))
 !#else
 !firstSide = 1
-!lastSide  = nSurfTotalSides
+!lastSide  = nGlobalSurfSides
 !#endif /*USE_MPI*/
 
 ASSOCIATE( tau         => Ray%PulseDuration      ,&
