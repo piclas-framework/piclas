@@ -1717,7 +1717,7 @@ END FUNCTION RotateVectorAroundAxis
 
 FUNCTION GetNextFreePosition(Offset)
 !===================================================================================================================================
-!> Returns the next free position in the particle vector, if no space is available it increses the maximum particle number
+!> Returns the next free position in the particle vector, if no space is available it increases the maximum particle number
 !> ATTENTION: If optional argument is used, the PDM%CurrentNextFreePosition will not be updated
 !===================================================================================================================================
 ! MODULES
@@ -1801,18 +1801,10 @@ ELSE
     END IF
   END IF
 
-  IF(PDM%ParticleInside(GetNextFreePosition)) THEN
-    CALL ABORT(&
-  __STAMP__&
-  ,'This Particle is already in use',IntInfoOpt=GetNextFreePosition)
-  END IF
+  IF(PDM%ParticleInside(GetNextFreePosition)) CALL ABORT(__STAMP__,'This Particle is already in use',IntInfoOpt=GetNextFreePosition)
   IF(GetNextFreePosition.GT.PDM%ParticleVecLength) PDM%ParticleVecLength = GetNextFreePosition
 END IF
-IF(GetNextFreePosition.EQ.0) THEN
-  CALL ABORT(&
-__STAMP__&
-,'This should not happen, PDM%MaxParticleNumber reached',IntInfoOpt=PDM%MaxParticleNumber)
-END IF
+IF(GetNextFreePosition.EQ.0) CALL ABORT(__STAMP__,'This should not happen, PDM%MaxParticleNumber reached',IntInfoOpt=PDM%MaxParticleNumber)
 
 END FUNCTION GetNextFreePosition
 
