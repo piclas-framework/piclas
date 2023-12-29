@@ -421,8 +421,7 @@ SELECT CASE(TrackingMethod)
   CASE(TRACING,REFMAPPING)
     ! Build stuff required for tracing algorithms
     CALL BuildSideSlabAndBoundingBox() ! Required for SideSlabNormals_Shared, SideSlabIntervals_Shared, BoundingBoxIsEmpty_Shared
-    ! ElemMidPoint_Shared required
-    IF(TriaSurfaceFlux.OR.TRIM(DepositionType).EQ.'shape_function_adaptive') CALL InitParticleGeometry()
+
     ! ElemNodeID_Shared required
     IF(FindNeighbourElems) CALL InitElemNodeIDs()
 
