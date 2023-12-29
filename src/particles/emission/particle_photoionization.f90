@@ -278,7 +278,7 @@ USE MOD_RayTracing_Vars         ,ONLY: UseRayTracing, Ray,RayElemEmission
 USE MOD_RayTracing_Vars         ,ONLY: U_N_Ray_loc,N_DG_Ray_loc,N_Inter_Ray
 USE MOD_RayTracing_Vars         ,ONLY: RaySecondaryVectorX,RaySecondaryVectorY,RaySecondaryVectorZ
 USE MOD_Particle_Vars           ,ONLY: Species, PartState, usevMPF, PartMPF, PDM, PEM, PartSpecies
-USE MOD_DSMC_Vars               ,ONLY: ChemReac, DSMC, SpecDSMC, BGGas, Coll_pData, CollisMode, PartStateIntEn, DSMCSumOfFormedParticles
+USE MOD_DSMC_Vars               ,ONLY: ChemReac, DSMC, SpecDSMC, BGGas, Coll_pData, CollisMode, PartStateIntEn
 USE MOD_DSMC_Vars               ,ONLY: newAmbiParts, iPartIndx_NodeNewAmbi
 ! Functions/Subroutines
 USE MOD_Eval_xyz                ,ONLY: TensorProductInterpolation
@@ -292,6 +292,7 @@ USE MOD_TimeDisc_Vars           ,ONLY: iStage,nRKStages,RK_c
 #endif /*defined(LSERK)*/
 USE MOD_Particle_Boundary_Tools ,ONLY: StoreBoundaryParticleProperties
 USE MOD_Particle_Boundary_Vars  ,ONLY: DoBoundaryParticleOutputRay
+USE MOD_Part_Tools              ,ONLY: GetNextFreePosition
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -401,7 +402,6 @@ DO iVar = 1, 2
             nPair = INT(NbrOfReactions+RandNum)
             ALLOCATE(Coll_pData(nPair))
             Coll_pData%Ec = 0.
-            DSMCSumOfFormedParticles = 0
             ! Loop over all newly created particles
             DO iPair = 1, nPair
               ! Get a random position in the subelement
@@ -416,8 +416,7 @@ DO iVar = 1, 2
               ! Get the physical coordinates that correspond to the reference coordinates
               CALL TensorProductInterpolation(Xi(1:3),3,NGeo,XiCL_NGeo,wBaryCL_NGeo,XCL_NGeo(1:3,0:NGeo,0:NGeo,0:NGeo,iElem),RandomPos(1:3))
               ! Create new particle from the background gas
-              DSMCSumOfFormedParticles = DSMCSumOfFormedParticles + 1
-              PartID = PDM%nextFreePosition(PDM%CurrentNextFreePosition+DSMCSumOfFormedParticles)
+              PartID = GetNextFreePosition()
               IF(PartID.GT.PDM%MaxParticleNumber)THEN
                 CALL abort(__STAMP__,'Raytrace Photoionization: PartID.GT.PDM%MaxParticleNumber. '//&
                                     'Increase Part-maxParticleNumber or use more processors. PartID=',IntInfoOpt=PartID)
@@ -454,8 +453,7 @@ DO iVar = 1, 2
               PEM%GlobalElemID(PartID)     = iGlobalElem
               PEM%LastGlobalElemID(PartID) = iGlobalElem
               ! Create second particle (only the index and the flags/elements needs to be set)
-              DSMCSumOfFormedParticles = DSMCSumOfFormedParticles + 1
-              newPartID = PDM%nextFreePosition(PDM%CurrentNextFreePosition+DSMCSumOfFormedParticles)
+              newPartID = GetNextFreePosition()
               IF(newPartID.GT.PDM%MaxParticleNumber)THEN
                 CALL abort(__STAMP__,'Raytrace Photoionization: newPartID.GT.PDM%MaxParticleNumber. '//&
                                     'Increase Part-maxParticleNumber or use more processors. newPartID=',IntInfoOpt=newPartID)
@@ -506,10 +504,6 @@ DO iVar = 1, 2
                 ! DO NOT store the electron particle information in PartStateBoundary.h5
                 CALL PhotoIonization_InsertProducts(iPair, iReac, RayBaseVector1IC, RayBaseVector2IC, RayDirection, PartBCIndex=-1)
               END IF
-              ! Advance particle vector length and the current next free position with newly created particles
-              PDM%ParticleVecLength = PDM%ParticleVecLength + DSMCSumOfFormedParticles
-              PDM%CurrentNextFreePosition = PDM%CurrentNextFreePosition + DSMCSumOfFormedParticles
-              DSMCSumOfFormedParticles = 0
             END DO  ! iPart = 1, nPair
             DEALLOCATE(Coll_pData)
           END DO    ! iReac = 1, ChemReac%NumOfReact
