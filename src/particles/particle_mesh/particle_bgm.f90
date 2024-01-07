@@ -1524,7 +1524,7 @@ IF(.NOT. ((PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance))) )THEN
 END IF ! .NOT. ((PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance)) .AND. DoDeposition)
 #endif /*USE_LOADBALANCE*/
 
-!CALL UNLOCK_AND_FREE(ElemToBGM_Shared_Win)
+CALL UNLOCK_AND_FREE(ElemToBGM_Shared_Win)
 CALL UNLOCK_AND_FREE(BoundsOfElem_Shared_Win)
 CALL UNLOCK_AND_FREE(FIBGM_nTotalElems_Shared_Win)
 CALL UNLOCK_AND_FREE(FIBGM_nElems_Shared_Win)
