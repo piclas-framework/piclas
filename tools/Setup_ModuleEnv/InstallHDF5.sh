@@ -63,8 +63,10 @@ do
   then
     LOADMODULES=0
     # Set desired versions
+
     # GCC
-    USECOMPILERVERSION=13.1.0
+    #USECOMPILERVERSION=13.1.0
+    USECOMPILERVERSION=13.2.0
 
     # OpenMPI
     #MPINAMES='openmpi'
