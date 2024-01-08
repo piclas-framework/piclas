@@ -46,7 +46,8 @@ fi
 # --------------------------------------------------------------------------------------------------
 NBROFCORES=$(grep ^cpu\\scores /proc/cpuinfo | uniq |  awk '{print $4}')
 # chose which mpi you want to have installed (openmpi or mpich)
-WHICHMPI=openmpi
+#WHICHMPI=openmpi
+WHICHMPI=mpich
 # choose for which compilers mpi is build (gcc or intel)
 WHICHCOMPILER=gcc
 
@@ -72,7 +73,8 @@ if [ "${WHICHMPI}" == "openmpi" ]; then
   MPIVERSION=4.1.5
 elif [ "${WHICHMPI}" == "mpich" ]; then
   # DOWNLOAD and INSTALL MPICH (example mpich-3.2.0)
-  MPIVERSION=3.2
+  #MPIVERSION=3.2
+  MPIVERSION=4.1.2
 else
   echo -e "${RED}ERROR: Setting is neither 'openmpi' nor 'mpich'${NC}"
   echo -e "${RED}ERROR: no mpi installed will be installed. Exit.${NC}"
@@ -189,7 +191,7 @@ if [ "${WHICHCOMPILER}" == "gcc" ] || [ "${WHICHCOMPILER}" == "intel" ]; then
       # Change to build directory
       cd ${BUILDDIR}
 
-      # Configure setup
+      # Configure setup for openmpi or mpich using the same command
       if [ "${WHICHCOMPILER}" == "gcc" ]; then
         ../configure --prefix=${MPIINSTALLDIR}/${WHICHCOMPILER}/${COMPILERVERSION} CC=$(which gcc) CXX=$(which g++) FC=$(which gfortran)
       elif [ "${WHICHCOMPILER}" == "intel" ]; then
@@ -208,7 +210,7 @@ if [ "${WHICHCOMPILER}" == "gcc" ] || [ "${WHICHCOMPILER}" == "intel" ]; then
         make install 2>&1 | tee install.out
       fi
 
-      # Create modulefile if installation seems successful (check if mpicc, mpicxx, mpifort exists in installdir)
+      # Create module file if installation seems to have been successful (check if mpicc, mpicxx, mpifort exists in installdir)
       if [ -e "${MPIINSTALLDIR}/${WHICHCOMPILER}/${COMPILERVERSION}/bin/mpicc" ] && [ -e "${MPIINSTALLDIR}/${WHICHCOMPILER}/${COMPILERVERSION}/bin/mpicxx" ] && [ -e "${MPIINSTALLDIR}/${WHICHCOMPILER}/${COMPILERVERSION}/bin/mpifort" ]; then
         if [ ! -d "${MPIMODULEFILEDIR}" ]; then
           mkdir -p ${MPIMODULEFILEDIR}

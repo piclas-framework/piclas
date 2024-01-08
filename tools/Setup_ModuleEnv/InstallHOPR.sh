@@ -79,6 +79,8 @@ load_module () {
 # Check command line arguments
 RERUNMODE=0
 LOADMODULES=1
+# default to openmpi
+WHICHMPI='openmpi'
 for ARG in "$@"
 do
 
@@ -112,7 +114,22 @@ do
     #OPENMPIVERSION=4.0.2
     #OPENMPIVERSION=3.1.6
     #OPENMPIVERSION=4.1.1
-    OPENMPIVERSION=4.1.5
+    #OPENMPIVERSION=4.1.5
+
+    MPICHVERSION=4.1.2
+
+    # chose which mpi you want to have installed (openmpi or mpich), default is openmpi
+    if [[ -n ${MPICHVERSION} ]]; then
+      WHICHMPI='mpich'
+      MPIVERSION=${MPICHVERSION}
+    else
+      if [[ -z ${OPENMPIVERSION} ]]; then
+        echo "${RED}ERROR: Set either OPENMPIVERSION or MPICHVERSION in InstallPETSc.sh when running with '-m'${NC}. Exit."
+        exit
+      else
+        MPIVERSION=${OPENMPIVERSION}
+      fi
+    fi
 
     #HDF5VERSION=1.10.5
     #HDF5VERSION=1.10.6
@@ -159,14 +176,14 @@ if [[ -n $(module purge 2>&1) ]]; then
   exit
 fi
 
-# take the first gcc compiler installed with first compatible openmpi and hdf5
+# take the first gcc compiler installed with first compatible openmpi/mpich and hdf5
 echo " "
 if [[ $LOADMODULES -eq 1 ]]; then
   CMAKEVERSION=$(ls ${MODULESDIR}/utilities/cmake/ | sed 's/ /\n/g' | grep -i "[0-9]\." | head -n 1 | tail -n 1)
   GCCVERSION=$(ls ${MODULESDIR}/compilers/gcc/ | sed 's/ /\n/g' | grep -i "[0-9]\." | head -n 1 | tail -n 1)
-  OPENMPIVERSION=$(ls ${MODULESDIR}/MPI/openmpi/ | sed 's/ /\n/g' | grep -i "[0-9]\." | head -n 1 | tail -n 1)
+  MPIVERSION=$(ls ${MODULESDIR}/MPI/${WHICHMPI}/ | sed 's/ /\n/g' | grep -i "[0-9]\." | head -n 1 | tail -n 1)
   HDF5VERSION=$(ls ${MODULESDIR}/libraries/hdf5/ | sed 's/ /\n/g' | grep -i "[0-9]\." | head -n 1 | tail -n 1)
-  echo -e "Modules found automatically.\n\nCMAKEVERSION=${CMAKEVERSION}\nGCCVERSION=${GCCVERSION}\nOPENMPIVERSION=${OPENMPIVERSION}\nHDF5VERSION=${HDF5VERSION}\n\nWARNING: The combination might not be possible!"
+  echo -e "Modules found automatically.\n\nCMAKEVERSION=${CMAKEVERSION}\nGCCVERSION=${GCCVERSION}\n${WHICHMPI}-MPIVERSION=${MPIVERSION}\nHDF5VERSION=${HDF5VERSION}\n\nWARNING: The combination might not be possible!"
   if [[ ${RERUNMODE} -eq 0 ]]; then
     read -p "Press [Enter] to continue or [Crtl+c] to abort!"
   fi
@@ -175,11 +192,11 @@ else
 fi
 
 check_module "cmake" "${CMAKEVERSION}"
-check_module "gcc  " "${GCCVERSION}"
-check_module "mpi  " "${OPENMPIVERSION}"
-check_module "hdf5 " "${HDF5VERSION}"
+check_module "gcc" "${GCCVERSION}"
+check_module "${WHICHMPI}" "${MPIVERSION}"
+check_module "hdf5" "${HDF5VERSION}"
 
-HOPRMODULEFILEDIR=${MODULESDIR}/utilities/hopr/${HOPRVERSION}/gcc/${GCCVERSION}/openmpi/${OPENMPIVERSION}/hdf5
+HOPRMODULEFILEDIR=${MODULESDIR}/utilities/hopr/${HOPRVERSION}/gcc/${GCCVERSION}/${WHICHMPI}/${MPIVERSION}/hdf5
 MODULEFILE=${HOPRMODULEFILEDIR}/${HDF5VERSION}
 
 # if no HOPR module for this compiler found, install HOPR and create module
@@ -190,8 +207,8 @@ if [ ! -e "${MODULEFILE}" ]; then
   module purge
   load_module "cmake/${CMAKEVERSION}"
   load_module "gcc/${GCCVERSION}"
-  load_module "openmpi/${OPENMPIVERSION}/gcc/${GCCVERSION}"
-  load_module "hdf5/${HDF5VERSION}/gcc/${GCCVERSION}/openmpi/${OPENMPIVERSION}"
+  load_module "${WHICHMPI}/${MPIVERSION}/gcc/${GCCVERSION}"
+  load_module "hdf5/${HDF5VERSION}/gcc/${GCCVERSION}/${WHICHMPI}/${MPIVERSION}"
   module list
   echo " "
   echo -e "$GREEN""Important: If the compilation step fails, run the script again and if it still fails \n1) try compiling single, .i.e., remove -j from make -j or \n2) try make -j 2 (not all available threads)$NC"
@@ -202,7 +219,7 @@ if [ ! -e "${MODULEFILE}" ]; then
   fi
 
   # Install destination
-  HOPRINSTALLDIR=/opt/hopr/${HOPRVERSION}/gcc-${GCCVERSION}/openmpi-${OPENMPIVERSION}/hdf5-${HDF5VERSION}
+  HOPRINSTALLDIR=/opt/hopr/${HOPRVERSION}/gcc-${GCCVERSION}/${WHICHMPI}-${MPIVERSION}/hdf5-${HDF5VERSION}
 
   # Create and change to install directory
   mkdir -p ${HOPRINSTALLDIR}
@@ -308,9 +325,10 @@ if [ ! -e "${MODULEFILE}" ]; then
     sed -i 's/hoprversion/'${HOPRVERSION}'/gI' ${MODULEFILE}
     sed -i 's/CMAKEVERSIONFLAG/'${CMAKEVERSION}'/gI' ${MODULEFILE}
     sed -i 's/GCCVERSIONFLAG/'${GCCVERSION}'/gI' ${MODULEFILE}
-    sed -i 's/MPIVERSIONFLAG/'${OPENMPIVERSION}'/gI' ${MODULEFILE}
+    sed -i 's/MPIVERSIONFLAG/'${MPIVERSION}'/gI' ${MODULEFILE}
     sed -i 's/HDF5VERSIONFLAG/'${HDF5VERSION}'/gI' ${MODULEFILE}
     sed -i 's\HOPRTOPDIR\'${HOPRBUILDDIR}'\gI' ${MODULEFILE}
+    sed -i 's\HOPRWHICHMPI\'${WHICHMPI}'\gI' ${MODULEFILE}
   else
     echo -e "$RED""No module file created for HOPR-${HOPRVERSION} for GCC-${GCCVERSION}$NC"
     echo -e "$RED""no installation found in ${HOPRBUILDDIR}/bin$NC"
