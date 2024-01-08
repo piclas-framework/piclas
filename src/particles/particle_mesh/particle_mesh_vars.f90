@@ -214,7 +214,7 @@ INTEGER         :: FIBGM_offsetElem_Shared_Win
 
 INTEGER         :: FIBGMToProc_Shared_Win
 INTEGER         :: FIBGMToProcFlag_Shared_Win
-INTEGER           :: FIBGMToProcExtent_Shared_Win
+INTEGER         :: FIBGMToProcExtent_Shared_Win
 INTEGER         :: FIBGMProcs_Shared_Win
 
 INTEGER         :: CNTotalElem2GlobalElem_Shared_Win
