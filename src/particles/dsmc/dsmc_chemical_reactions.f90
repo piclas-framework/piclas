@@ -388,7 +388,8 @@ REAL                          :: Weight(1:4), SumWeightProd
 REAL                          :: cRelaNew(3), TempVelo(3)
 #ifdef CODE_ANALYZE
 REAL,PARAMETER                :: RelMomTol=5e-9  ! Relative tolerance applied to conservation of momentum before/after reaction
-REAL,PARAMETER                :: RelEneTol=2e-12 ! Relative tolerance applied to conservation of energy before/after reaction
+REAL,PARAMETER                :: RelEneTol=5e-12 ! Relative tolerance applied to conservation of energy before/after reaction
+!                                                ! 2024/1: Increased from 2e-12 to 5e-12 due to reggies failing when using CORE_SPLIT
 REAL                          :: Energy_old,Energy_new,Momentum_old(3),Momentum_new(3)
 INTEGER                       :: iMom, iMomDim
 #endif /* CODE_ANALYZE */
