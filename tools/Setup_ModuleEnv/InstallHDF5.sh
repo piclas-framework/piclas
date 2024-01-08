@@ -63,7 +63,7 @@ do
   then
     LOADMODULES=0
     # Set desired versions
-    USECOMPILERVERSION=13.1.0
+    USECOMPILERVERSION=13.2.0
     USEMPIVERSION=4.1.5
     # Force --rerun via 'set'
     echo ""
