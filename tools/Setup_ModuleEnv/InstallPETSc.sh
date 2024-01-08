@@ -73,6 +73,8 @@ load_module () {
 # Check command line arguments
 RERUNMODE=0
 LOADMODULES=1
+# default to openmpi
+WHICHMPI='openmpi'
 for ARG in "$@"
 do
 
@@ -96,6 +98,7 @@ do
     #CMAKEVERSION=3.17.0-d
     #CMAKEVERSION=3.20.3
     #CMAKEVERSION=3.21.3
+    #CMAKEVERSION=3.24.2
     CMAKEVERSION=3.26.4
 
     #GCCVERSION=9.2.0
@@ -113,7 +116,22 @@ do
     #OPENMPIVERSION=3.1.6
     #OPENMPIVERSION=4.1.1
     #OPENMPIVERSION=4.1.4
-    OPENMPIVERSION=4.1.5
+    #OPENMPIVERSION=4.1.5
+
+    MPICHVERSION=4.1.2
+
+    # chose which mpi you want to have installed (openmpi or mpich), default is openmpi
+    if [[ -n ${MPICHVERSION} ]]; then
+      WHICHMPI='mpich'
+      MPIVERSION=${MPICHVERSION}
+    else
+      if [[ -z ${OPENMPIVERSION} ]]; then
+        echo "${RED}ERROR: Set either OPENMPIVERSION or MPICHVERSION in InstallPETSc.sh when running with '-m'${NC}. Exit."
+        exit
+      else
+        MPIVERSION=${OPENMPIVERSION}
+      fi
+    fi
 
   fi
 
@@ -123,9 +141,6 @@ do
   fi
 
 done
-
-# chose which mpi you want to have installed (openmpi or mpich), default is openmpi
-WHICHMPI=openmpi
 
 # DOWNLOAD and INSTALL PETSc (example PETSc-3.17.0)
 #PETSCVERSION=3.17.0
@@ -174,13 +189,13 @@ if [[ -n $(module purge 2>&1) ]]; then
   exit
 fi
 
-# take the first gcc compiler installed with first compatible openmpi
+# take the first gcc compiler installed with first compatible openmpi or mpich
 echo " "
 if [[ $LOADMODULES -eq 1 ]]; then
   CMAKEVERSION=$(ls ${MODULESDIR}/utilities/cmake/ | sed 's/ /\n/g' | grep -i "[0-9]\." | head -n 1 | tail -n 1)
   GCCVERSION=$(ls ${MODULESDIR}/compilers/gcc/ | sed 's/ /\n/g' | grep -i "[0-9]\." | head -n 1 | tail -n 1)
-  OPENMPIVERSION=$(ls ${MODULESDIR}/MPI/openmpi/ | sed 's/ /\n/g' | grep -i "[0-9]\." | head -n 1 | tail -n 1)
-  echo -e "Modules found automatically.\n\nCMAKEVERSION=${CMAKEVERSION}\nGCCVERSION=${GCCVERSION}\nOPENMPIVERSION=${OPENMPIVERSION}\n\nWARNING: The combination might not be possible!"
+  MPIVERSION=$(ls ${MODULESDIR}/MPI/${WHICHMPI}/ | sed 's/ /\n/g' | grep -i "[0-9]\." | head -n 1 | tail -n 1)
+  echo -e "Modules found automatically.\n\nCMAKEVERSION=${CMAKEVERSION}\nGCCVERSION=${GCCVERSION}\n${WHICHMPI}-MPIVERSION=${MPIVERSION}\n\nWARNING: The combination might not be possible!"
   if [[ ${RERUNMODE} -eq 0 ]]; then
     read -p "Press [Enter] to continue or [Crtl+c] to abort!"
   fi
@@ -189,11 +204,11 @@ else
 fi
 
 check_module "cmake" "${CMAKEVERSION}"
-check_module "gcc  " "${GCCVERSION}"
-check_module "mpi  " "${OPENMPIVERSION}"
+check_module "gcc" "${GCCVERSION}"
+check_module "${WHICHMPI}" "${MPIVERSION}"
 
-PETSCMODULEFILEDIR=${MODULESDIR}/utilities/petsc/${PETSCVERSION}${DEBUGDIR}/gcc/${GCCVERSION}/openmpi
-MODULEFILE=${PETSCMODULEFILEDIR}/${OPENMPIVERSION}
+PETSCMODULEFILEDIR=${MODULESDIR}/utilities/petsc/${PETSCVERSION}${DEBUGDIR}/gcc/${GCCVERSION}/${WHICHMPI}
+MODULEFILE=${PETSCMODULEFILEDIR}/${MPIVERSION}
 
 # if no PETSc module for this compiler found, install PETSc and create module
 if [ ! -e "${MODULEFILE}" ]; then
@@ -203,7 +218,7 @@ if [ ! -e "${MODULEFILE}" ]; then
   module purge
   load_module "cmake/${CMAKEVERSION}"
   load_module "gcc/${GCCVERSION}"
-  load_module "openmpi/${OPENMPIVERSION}/gcc/${GCCVERSION}"
+  load_module "${WHICHMPI}/${MPIVERSION}/gcc/${GCCVERSION}"
   module list
   echo " "
   echo -e "$GREEN""Important: If the compilation step fails, run the script again and if it still fails \n1) try compiling single, .i.e., remove -j from make -j or \n2) try make -j 2 (not all available threads)$NC"
@@ -214,7 +229,7 @@ if [ ! -e "${MODULEFILE}" ]; then
   fi
 
   # Install destination
-  PETSCINSTALLDIR=/opt/petsc/${PETSCVERSION}${DEBUGDIR}/gcc-${GCCVERSION}/openmpi-${OPENMPIVERSION}
+  PETSCINSTALLDIR=/opt/petsc/${PETSCVERSION}${DEBUGDIR}/gcc-${GCCVERSION}/${WHICHMPI}-${MPIVERSION}
 
   # Change to sources directors
   cd ${SOURCESDIR}
@@ -226,7 +241,7 @@ if [ ! -e "${MODULEFILE}" ]; then
     while true; do
       echo " "
       echo "${YELLOW}${CLONEDIR} already exists.${NC}"
-      echo "${YELLOW}Do you want to continue the installation (y/n)?${NC}"
+      echo "${YELLOW}Do you want to continue the installation with the existing files under ${CLONEDIR} (y/n)?${NC}"
       # Inquiry
       if [[ ${RERUNMODE} -eq 0 ]]; then
         read -p "${YELLOW}Otherwise the directory will be removed and a fresh installation will be performed. [Y/n]${NC}" yn
@@ -277,7 +292,7 @@ if [ ! -e "${MODULEFILE}" ]; then
   fi
 
   # Configure
-  MPIINSTALLDIR=${INSTALLDIR}/${WHICHMPI}/${OPENMPIVERSION}/gcc/${GCCVERSION}
+  MPIINSTALLDIR=${INSTALLDIR}/${WHICHMPI}/${MPIVERSION}/gcc/${GCCVERSION}
   if [[ ! -d ${MPIINSTALLDIR} ]]; then
     echo -e "$RED""Failed: Cannot find MPI directory ${MPIINSTALLDIR}$NC"
     exit
@@ -332,8 +347,9 @@ if [ ! -e "${MODULEFILE}" ]; then
     sed -i 's/petscversion/'${PETSCVERSION}'/gI' ${MODULEFILE}
     sed -i 's/CMAKEVERSIONFLAG/'${CMAKEVERSION}'/gI' ${MODULEFILE}
     sed -i 's/GCCVERSIONFLAG/'${GCCVERSION}'/gI' ${MODULEFILE}
-    sed -i 's/MPIVERSIONFLAG/'${OPENMPIVERSION}'/gI' ${MODULEFILE}
+    sed -i 's/MPIVERSIONFLAG/'${MPIVERSION}'/gI' ${MODULEFILE}
     sed -i 's\PETSCTOPDIR\'${PETSCINSTALLDIR}'\gI' ${MODULEFILE}
+    sed -i 's\PETSCWHICHMPI\'${WHICHMPI}'\gI' ${MODULEFILE}
   else
     echo -e "$RED""No module file created for PETSc-${PETSCVERSION} for GCC-${GCCVERSION}$NC"
     echo -e "$RED""no installation found in ${PETSCINSTALLDIR}/include$NC"

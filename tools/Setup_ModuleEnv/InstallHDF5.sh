@@ -63,15 +63,30 @@ do
   then
     LOADMODULES=0
     # Set desired versions
+
+    # GCC
+    #USECOMPILERVERSION=13.1.0
     USECOMPILERVERSION=13.2.0
-    USEMPIVERSION=4.1.5
+
+    # OpenMPI
+    #MPINAMES='openmpi'
+    #USEMPIVERSION=4.1.5
+
+    # MPICH
+    MPINAMES='mpich'
+    USEMPIVERSION=4.1.2
+
     # Force --rerun via 'set'
     echo ""
-    echo "Running '-m' with GCC $USECOMPILERVERSION and  OpenMPI $USEMPIVERSION"
+    echo "Running '-m' with GCC $USECOMPILERVERSION and $MPINAMES $USEMPIVERSION"
     set -- -rerun
     break
   fi
 done
+
+if [[ $LOADMODULES -eq 1 ]]; then
+  MPINAMES='openmpi mpich'
+fi
 
 NBROFCORES=$(grep ^cpu\\scores /proc/cpuinfo | uniq |  awk '{print $4}')
 INSTALLDIR=/opt
@@ -105,7 +120,6 @@ TARFILE=${SOURCESDIR}/hdf5-${HDF5VERSION}.tar.gz
 
 # Change to sources directors
 cd ${SOURCESDIR}
-pwd
 
 echo -e "Download HF5 version ${GREEN}${HDF5VERSION}${NC}."
 read -p "Press [Enter] to continue or [Crtl+c] to abort!"
@@ -239,7 +253,6 @@ for WHICHCOMPILER in ${COMPILERNAMES}; do
     # ============================================================================================================================================================================
     #--- build hdf5 with mpi
     # ============================================================================================================================================================================
-    MPINAMES='openmpi mpich'
     for WHICHMPI in ${MPINAMES}; do
       echo "${GREEN}    $WHICHMPI ------------------------------------------------------------------------------${NC}"
       if [ ! -d "${INSTALLDIR}/modules/modulefiles/libraries/hdf5/${HDF5VERSION}/${WHICHCOMPILER}/${COMPILERVERSION}/${WHICHMPI}" ]; then
