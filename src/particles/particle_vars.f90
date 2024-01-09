@@ -202,9 +202,7 @@ TYPE tParticleDataManagement
 #endif
   INTEGER                                :: ParticleVecLength                 ! Vector Length for Particle Push Calculation
   INTEGER                                :: ParticleVecLengthOld              ! Vector Length for Particle Push Calculation
-  REAL                                   :: MaxPartNumIncrease                ! How much shall the PDM%MaxParticleNumber be incresed if it is full
-  INTEGER , ALLOCATABLE                  :: PartInit(:)                       ! (1:NParts), initial emission condition number
-                                                                              ! the calculation area
+  REAL                                   :: MaxPartNumIncrease                ! How much shall the PDM%MaxParticleNumber be increased if it is full
   INTEGER ,ALLOCATABLE                   :: nextFreePosition(:)  !  =>NULL()  ! next_free_Position(1:maxParticleNumber)
                                                                               ! List of free Positon
   LOGICAL ,ALLOCATABLE                   :: ParticleInside(:)                 ! Particle_inside (1:maxParticleNumber)

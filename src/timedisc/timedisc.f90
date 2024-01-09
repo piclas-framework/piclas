@@ -95,7 +95,7 @@ USE MOD_Particle_Vars          ,ONLY: DoImportIMDFile
 #if USE_MPI
 USE MOD_PICDepo_Vars           ,ONLY: DepositionType
 #endif /*USE_MPI*/
-USE MOD_Particle_Sampling_Vars ,ONLY: UseAdaptive
+USE MOD_Particle_Sampling_Vars ,ONLY: UseAdaptiveBC
 USE MOD_Particle_Tracking_vars ,ONLY: tTracking,tLocalization,nTracks,MeasureTrackTime
 #if (USE_MPI) && (USE_LOADBALANCE) && defined(PARTICLES)
 USE MOD_DSMC_Vars              ,ONLY: DSMC
@@ -342,7 +342,7 @@ DO !iter_t=0,MaxIter
   CALL PerformAnalyze(time,FirstOrLastIter=finalIter,OutPutHDF5=.FALSE.) ! analyze routines are not called here in last iter
 #ifdef PARTICLES
   ! sampling of near adaptive boundary element values
-  IF(UseAdaptive.OR.(nPorousBC.GT.0)) CALL AdaptiveBCSampling()
+  IF(UseAdaptiveBC.OR.(nPorousBC.GT.0)) CALL AdaptiveBCSampling()
 #endif /*PARICLES*/
 
   ! Analysis (possible PerformAnalyze+WriteStateToHDF5 and/or LoadBalance)
