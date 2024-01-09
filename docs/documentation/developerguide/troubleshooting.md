@@ -77,3 +77,58 @@ at best using the multi-node feature `PICLAS_SHARED_MEMORY=OMPI_COMM_TYPE_CORE`
 **git hashes**
 - One of these bugs was specifically fixed in
   [8d1129be95abc91bf56e94bf7f12987e4c214666](https://github.com/piclas-framework/piclas/commit/8d1129be95abc91bf56e94bf7f12987e4c214666)
+
+
+## Possible memory leak detection when using MPICH
+**Error Description**
+- The error output looks like this
+
+      ====================================================================================================================================
+      PICLAS FINISHED! [ 2.41 sec ] [ 0:00:00:02 ]
+      ====================================================================================================================================
+      Abort(810645775): Fatal error in internal_Finalize: Other MPI error, error stack:
+      internal_Finalize(50)...........: MPI_Finalize failed
+      MPII_Finalize(400)..............:
+      MPID_Finalize(652)..............:
+      MPIDI_OFI_mpi_finalize_hook(856):
+      destroy_vni_context(1094).......: OFI domain close failed (ofi_init.c:1094:destroy_vni_context:Device or resource busy)
+      [WARNING] yaksa: 4 leaked handle pool objects
+
+  and shows that piclas finishes successfully, but an MPI error is invoked afterwards.
+  Note that last line containing "[WARNING] yaksa: 4 leaked handle pool objects" might not be there and sometimes reflects the
+  number of processes minus one.
+
+**Necessary Conditions**
+- MPICH must be used instead of OpenMPI. The problem even occurs when only one single process is used.
+
+
+**Finding the Bug**
+- Activate `PICLAS_DEBUG_MEMORY=ON` and check all the pairs of, e.g.,
+
+      myrank=      0               Allocated ElemBaryNGeo_Shared_Win with WIN_SIZE =                  240
+
+  with
+
+      myrank=      0                          Unlocking ElemBaryNGeo_Shared_Win with MPI_WIN_UNLOCK_ALL()
+      myrank=      0                     Freeing window ElemBaryNGeo_Shared_Win with       MPI_WIN_FREE()
+
+  to find the missing `CALL UNLOCK_AND_FREE(ElemBaryNGeo_Shared_Win)` by running piclas and storing the output in, e.g., `std.out`
+  and then running the following command
+
+      keep=0; STDOUT='std.out'; for line in $(grep -i allocated ${STDOUT} | grep -in win_size | xargs); do if [ $keep == 1 ]; then printf 'Checking [%s]' "$line"; if [[ $(grep -iw "${line}" ${STDOUT} | grep -ivc "Allocated") -lt 2 ]]; then echo " ---> Could not find MPI_WIN_UNLOCK_ALL() and MPI_WIN_FREE() for this variable"; else echo "... okay"; fi; keep=0; elif [ "$line" == 'Allocated' ]; then keep=1; else keep=0; fi; done
+
+  Replace `std.out` in the command if a different file name is used.
+  If a variable is not correctly freed, the output of the script should look like this
+
+      Checking [SideIsSymSide_Shared_Win] ---> Could not find MPI_WIN_UNLOCK_ALL() and MPI_WIN_FREE() for this variable
+
+**Resolution**
+- Add the missing `CALL UNLOCK_AND_FREE(MYNAME_Win)`, where `MYNAME` is the name of the shared memory window.
+
+**Explanation**
+- `MPI_WIN_UNLOCK_ALL()` and `MPI_WIN_FREE()` must be applied to shared memory windows before `CALL MPI_FINALIZE(iError)` is called.
+
+**git hashes**
+- One of these bugs was specifically fixed in
+  [1a151c24bab7ea22809d3d7554ff5ddf18379cf1](https://github.com/piclas-framework/piclas/commit/1a151c24bab7ea22809d3d7554ff5ddf18379cf1)
+
