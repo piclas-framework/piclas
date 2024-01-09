@@ -443,6 +443,7 @@ USE MOD_Particle_Mesh_Vars
 #if USE_MPI
 USE MOD_MPI_Shared
 USE MOD_MPI_Shared_Vars
+USE MOD_Particle_Vars             ,ONLY: Symmetry
 #endif
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Vars          ,ONLY: PerformLoadBalance
@@ -459,7 +460,8 @@ IMPLICIT NONE
 #if USE_MPI
 CALL MPI_BARRIER(MPI_COMM_SHARED,iERROR)
 
-! volumes
+! symmetry sides and elem volumes/characteristic lengths
+IF(Symmetry%Order.EQ.2) CALL UNLOCK_AND_FREE(SideIsSymSide_Shared_Win)
 CALL UNLOCK_AND_FREE(ElemVolume_Shared_Win)
 CALL UNLOCK_AND_FREE(ElemCharLength_Shared_Win)
 #endif /*USE_MPI*/
