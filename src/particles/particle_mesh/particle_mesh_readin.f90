@@ -39,15 +39,10 @@ INTERFACE FinishCommunicateMeshReadin
   MODULE PROCEDURE FinishCommunicateMeshReadin
 END INTERFACE
 
-INTERFACE FinalizeMeshReadin
-  MODULE PROCEDURE FinalizeMeshReadin
-END INTERFACE
-
 PUBLIC :: ReadMeshBasics
 PUBLIC :: ReadMeshSideNeighbors
 PUBLIC :: StartCommunicateMeshReadin
 PUBLIC :: FinishCommunicateMeshReadin
-PUBLIC :: FinalizeMeshReadin
 !===================================================================================================================================
 
 CONTAINS
@@ -430,93 +425,6 @@ CommMeshReadinWallTime=EndT-StartT
 CALL DisplayMessageAndTime(CommMeshReadinWallTime, 'DONE!')
 
 END SUBROUTINE FinishCommunicateMeshReadin
-
-
-SUBROUTINE FinalizeMeshReadin(meshMode)
-!===================================================================================================================================
-! Finalizes the shared mesh readin
-!===================================================================================================================================
-! MODULES
-USE MOD_Globals
-USE MOD_Mesh_Vars
-USE MOD_Particle_Mesh_Vars
-#if USE_MPI
-USE MOD_MPI_Shared
-USE MOD_MPI_Shared_Vars
-USE MOD_Particle_Vars             ,ONLY: Symmetry
-#endif
-#if USE_LOADBALANCE
-USE MOD_LoadBalance_Vars          ,ONLY: PerformLoadBalance
-#endif /*USE_LOADBALANCE*/
-! IMPLICIT VARIABLE HANDLING
-IMPLICIT NONE
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT/OUTPUT VARIABLES
-INTEGER,INTENT(IN) :: meshMode !<  0: only read and build Elem_xGP,
-                               !< -1: as 0 + build connectivity and read node info (automatically read for PARTICLES=ON)
-                               !<  1: as 0 + build connectivity
-                               !<  2: as 1 + calc metrics
-                               !<  3: as 2 but skip InitParticleMesh
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-!===================================================================================================================================
-
-! First, free every shared memory window. This requires MPI_BARRIER as per MPI3.1 specification
-#if USE_MPI
-CALL MPI_BARRIER(MPI_COMM_SHARED,iERROR)
-
-! symmetry sides and elem volumes/characteristic lengths
-IF(ABS(meshMode).GT.1)THEN
-  IF(Symmetry%Order.EQ.2) CALL UNLOCK_AND_FREE(SideIsSymSide_Shared_Win)
-  CALL UNLOCK_AND_FREE(ElemVolume_Shared_Win)
-  CALL UNLOCK_AND_FREE(ElemCharLength_Shared_Win)
-END IF ! ABS(meshMode).GT.1
-#endif /*USE_MPI*/
-
-! Then, free the pointers or arrays
-ADEALLOCATE(SideIsSymSide_Shared)
-ADEALLOCATE(ElemVolume_Shared)
-ADEALLOCATE(ElemCharLength_Shared)
-
-#if USE_MPI
-! Free communication arrays
-SDEALLOCATE(displsElem)
-SDEALLOCATE(recvcountElem)
-SDEALLOCATE(displsSide)
-SDEALLOCATE(recvcountSide)
-
-#if USE_LOADBALANCE
-IF (PerformLoadBalance) THEN
-  CALL MPI_BARRIER(MPI_COMM_SHARED,iERROR)
-  RETURN
-END IF
-#endif /*USE_LOADBALANCE*/
-
-! elems
-CALL UNLOCK_AND_FREE(ElemInfo_Shared_Win)
-
-! sides
-CALL UNLOCK_AND_FREE(SideInfo_Shared_Win)
-
-! nodes
-CALL UNLOCK_AND_FREE(NodeInfo_Shared_Win)
-CALL UNLOCK_AND_FREE(NodeCoords_Shared_Win)
-
-CALL MPI_BARRIER(MPI_COMM_SHARED,iERROR)
-#endif /*USE_MPI*/
-
-ADEALLOCATE(ElemInfo_Shared)
-ADEALLOCATE(SideInfo_Shared)
-ADEALLOCATE(NodeInfo_Shared)
-ADEALLOCATE(NodeCoords_Shared)
-
-! Free communication arrays
-#if USE_MPI
-SDEALLOCATE(displsNode)
-SDEALLOCATE(recvcountNode)
-#endif /*USE_MPI*/
-
-END SUBROUTINE FinalizeMeshReadin
 
 
 END MODULE MOD_Particle_Mesh_Readin

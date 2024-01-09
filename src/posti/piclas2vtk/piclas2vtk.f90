@@ -53,7 +53,7 @@ USE MOD_MPI_Shared
 USE MOD_MPI_Shared_Vars       ,ONLY: nComputeNodeTotalElems
 #endif /*USE_MPI*/
 USE MOD_Preproc
-USE MOD_Particle_Mesh_Readin  ,ONLY: FinalizeMeshReadin
+USE MOD_Mesh_ReadIn           ,ONLY: FinalizeMeshReadin
 #if USE_MPI
 #if defined(PARTICLES)
 USE MOD_Particle_Mesh_Vars    ,ONLY: ConcaveElemSide_Shared_Win,ElemSideNodeID_Shared_Win,ElemMidPoint_Shared_Win
