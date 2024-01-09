@@ -432,7 +432,7 @@ CALL DisplayMessageAndTime(CommMeshReadinWallTime, 'DONE!')
 END SUBROUTINE FinishCommunicateMeshReadin
 
 
-SUBROUTINE FinalizeMeshReadin()
+SUBROUTINE FinalizeMeshReadin(meshMode)
 !===================================================================================================================================
 ! Finalizes the shared mesh readin
 !===================================================================================================================================
@@ -452,6 +452,11 @@ USE MOD_LoadBalance_Vars          ,ONLY: PerformLoadBalance
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT/OUTPUT VARIABLES
+INTEGER,INTENT(IN) :: meshMode !<  0: only read and build Elem_xGP,
+                               !< -1: as 0 + build connectivity and read node info (automatically read for PARTICLES=ON)
+                               !<  1: as 0 + build connectivity
+                               !<  2: as 1 + calc metrics
+                               !<  3: as 2 but skip InitParticleMesh
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 !===================================================================================================================================
@@ -461,9 +466,11 @@ IMPLICIT NONE
 CALL MPI_BARRIER(MPI_COMM_SHARED,iERROR)
 
 ! symmetry sides and elem volumes/characteristic lengths
-IF(Symmetry%Order.EQ.2) CALL UNLOCK_AND_FREE(SideIsSymSide_Shared_Win)
-CALL UNLOCK_AND_FREE(ElemVolume_Shared_Win)
-CALL UNLOCK_AND_FREE(ElemCharLength_Shared_Win)
+IF(ABS(meshMode).GT.1)THEN
+  IF(Symmetry%Order.EQ.2) CALL UNLOCK_AND_FREE(SideIsSymSide_Shared_Win)
+  CALL UNLOCK_AND_FREE(ElemVolume_Shared_Win)
+  CALL UNLOCK_AND_FREE(ElemCharLength_Shared_Win)
+END IF ! ABS(meshMode).GT.1
 #endif /*USE_MPI*/
 
 ! Then, free the pointers or arrays

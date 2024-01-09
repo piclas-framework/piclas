@@ -548,7 +548,7 @@ IMPLICIT NONE
 !===================================================================================================================================
 
 ! Particle mesh readin happens during mesh readin, finalize with gathered routine here
-CALL FinalizeMeshReadin()
+CALL FinalizeMeshReadin(2)
 
 CALL FinalizeBGM()
 

@@ -44,6 +44,7 @@ USE MOD_Mesh                  ,ONLY: DefineParametersMesh,InitMesh
 USE MOD_Mesh_Tools            ,ONLY: InitElemNodeIDs
 #ifdef PARTICLES
 USE MOD_Particle_Mesh_Tools   ,ONLY: InitParticleGeometry
+USE MOD_Particle_Mesh_Vars    ,ONLY: ConcaveElemSide_Shared,ElemSideNodeID_Shared,ElemMidPoint_Shared
 #endif /*PARTICLES*/
 USE MOD_Particle_Mesh_Vars    ,ONLY: NodeCoords_Shared, ElemNodeID_Shared, NodeInfo_Shared
 USE MOD_Mesh_Tools            ,ONLY: InitGetCNElemID, InitGetGlobalElemID
@@ -52,6 +53,15 @@ USE MOD_MPI_Shared
 USE MOD_MPI_Shared_Vars       ,ONLY: nComputeNodeTotalElems
 #endif /*USE_MPI*/
 USE MOD_Preproc
+USE MOD_Particle_Mesh_Readin  ,ONLY: FinalizeMeshReadin
+#if USE_MPI
+#if defined(PARTICLES)
+USE MOD_Particle_Mesh_Vars    ,ONLY: ConcaveElemSide_Shared_Win,ElemSideNodeID_Shared_Win,ElemMidPoint_Shared_Win
+#endif /*defined(PARTICLES)*/
+USE MOD_Particle_Mesh_Vars    ,ONLY: ElemNodeID_Shared_Win
+USE MOD_MPI_Shared_vars       ,ONLY: MPI_COMM_SHARED
+USE MOD_MPI_Shared
+#endif /*USE_MPI*/
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
@@ -356,6 +366,35 @@ DO iArgs = iArgsStart,nArgs
     END IF
   END IF
 END DO ! iArgs = 2, nArgs
+
+! Finalize
+IF(ReadMeshFinished)THEN
+  CALL FinalizeMeshReadin(-1)
+  ! First, free every shared memory window. This requires MPI_BARRIER as per MPI3.1 specification
+#if USE_MPI
+  CALL MPI_BARRIER(MPI_COMM_SHARED,iERROR)
+#endif /*USE_MPI*/
+
+#if defined(PARTICLES)
+#if USE_MPI
+  ! InitParticleGeometry()
+  CALL UNLOCK_AND_FREE(ConcaveElemSide_Shared_Win)
+  CALL UNLOCK_AND_FREE(ElemSideNodeID_Shared_Win)
+  CALL UNLOCK_AND_FREE(ElemMidPoint_Shared_Win)
+#endif /*USE_MPI*/
+  ! InitParticleGeometry
+  ADEALLOCATE(ConcaveElemSide_Shared)
+  ADEALLOCATE(ElemSideNodeID_Shared)
+  ADEALLOCATE(ElemMidPoint_Shared)
+#endif /*defined(PARTICLES)*/
+
+#if USE_MPI
+  ! From InitElemNodeIDs
+  CALL UNLOCK_AND_FREE(ElemNodeID_Shared_Win)
+#endif /*USE_MPI*/
+  ADEALLOCATE(ElemNodeID_Shared)
+END IF ! ReadMeshFinished
+
 
 ! Measure processing duration
 GETTIME(Time)
