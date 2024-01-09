@@ -561,11 +561,9 @@ SELECT CASE (TrackingMethod)
     CALL MPI_BARRIER(MPI_COMM_SHARED,iERROR)
 
     ! InitParticleGeometry()
-    IF(TRIM(DepositionType).EQ.'shape_function_adaptive')THEN
-      CALL UNLOCK_AND_FREE(ConcaveElemSide_Shared_Win)
-      CALL UNLOCK_AND_FREE(ElemSideNodeID_Shared_Win)
-      CALL UNLOCK_AND_FREE(ElemMidPoint_Shared_Win)
-    END IF ! TRIM(DepositionType).EQ.'shape_function_adaptive'
+    CALL UNLOCK_AND_FREE(ConcaveElemSide_Shared_Win)
+    CALL UNLOCK_AND_FREE(ElemSideNodeID_Shared_Win)
+    CALL UNLOCK_AND_FREE(ElemMidPoint_Shared_Win)
 
     ! BuildSideOriginAndRadius()
     IF (TrackingMethod.EQ.REFMAPPING) THEN
