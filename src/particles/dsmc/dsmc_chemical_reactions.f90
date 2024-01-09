@@ -463,9 +463,7 @@ IF(EductReac(3).NE.0) THEN
     ProductReac(2) = PartSpecies(ReactInx(3))
     NumEduct = 3
   END IF
-  IF(ProductReac(3).EQ.0) THEN
-    CALL RemoveParticle(ReactInx(3))
-  ELSE
+  IF(ProductReac(3).NE.0) THEN
     PartSpecies(ReactInx(3)) = ProductReac(3)
     NumProd = 3
   END IF
@@ -1010,6 +1008,7 @@ ELSEIF(ProductReac(3).EQ.0) THEN
     VeloCOM(1:3) = FracMassCent1 * PartState(4:6,ReactInx(1)) + FracMassCent2 * PartState(4:6,ReactInx(3))
     ! When RHS is set, ReactInx(2) is utilized, not an error as the old state cancels out after the particle push in the time disc,
     ! therefore, there is no need to set change the index as the proper species, ProductReac(2), was utilized for the relaxation
+    CALL RemoveParticle(ReactInx(3))
   ELSE
     ! Scattering 2 -> 2
     IF(StringBeginsWith(ChemReac%ReactModel(iReac),'phIon')) THEN

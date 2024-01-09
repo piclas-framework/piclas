@@ -81,7 +81,7 @@ DO i = 1,PDM%ParticleVecLength
 #else
   IF (PDM%ParticleInside(i)) THEN
 #endif /*IMPA*/
-  CALL SingleParticleTriaTracking(i=i)
+    CALL SingleParticleTriaTracking(i=i)
   END IF
   ! Particle treatment for an axisymmetric simulation (cloning/deleting particles)
   IF(RadialWeighting%PerformCloning) THEN
@@ -138,6 +138,7 @@ USE MOD_Particle_Boundary_Vars      ,ONLY: PartBound
 USE MOD_Particle_Intersection       ,ONLY: ParticleThroughSideCheck3DFast, ParticleThroughSideLastPosCheck, IntersectionWithWall
 USE MOD_Particle_Boundary_Condition ,ONLY: GetBoundaryInteraction
 USE MOD_part_tools                  ,ONLY: ParticleOnProc, InRotRefFrameCheck
+USE MOD_part_operations             ,ONLY: RemoveParticle
 #if USE_LOADBALANCE
 USE MOD_Mesh_Vars                   ,ONLY: offsetElem
 USE MOD_LoadBalance_Timers          ,ONLY: LBStartTime, LBElemSplitTime, LBElemPauseTime
@@ -272,11 +273,11 @@ DO WHILE (.NOT.PartisDone)
           IPWRITE(*,*) 'Velo:    ', PartState(4:6,i)
           IPWRITE(*,*) 'Particle deleted!'
         END IF ! DisplayLostParticles
-        PDM%ParticleInside(i) = .FALSE.
         IF(CountNbrOfLostParts) THEN
           CALL StoreLostParticleProperties(i, ElemID)
           NbrOfLostParticles=NbrOfLostParticles+1
         END IF
+        CALL RemoveParticle(i)
         PartisDone = .TRUE.
         EXIT
       ELSE IF (NrOfThroughSides.GT.1) THEN
@@ -367,11 +368,11 @@ DO WHILE (.NOT.PartisDone)
             IPWRITE(*,*) 'Velo:    ', PartState(4:6,i)
             IPWRITE(*,*) 'Particle deleted!'
           END IF ! DisplayLostParticles
-          PDM%ParticleInside(i) = .FALSE.
           IF(CountNbrOfLostParts) THEN
             CALL StoreLostParticleProperties(i, ElemID)
             NbrOfLostParticles=NbrOfLostParticles+1
           END IF
+          CALL RemoveParticle(i)
           PartisDone = .TRUE.
           EXIT
         END IF
