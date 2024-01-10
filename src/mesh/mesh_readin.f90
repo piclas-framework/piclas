@@ -1398,7 +1398,13 @@ END IF
 CALL UNLOCK_AND_FREE(ElemInfo_Shared_Win)
 
 ! sides
-CALL UNLOCK_AND_FREE(SideInfo_Shared_Win)
+#if !defined(PARTICLES)
+IF(ABS(meshMode).GT.1)THEN
+#endif /*!defined(PARTICLES)*/
+  CALL UNLOCK_AND_FREE(SideInfo_Shared_Win)
+#if !defined(PARTICLES)
+END IF ! ABS(meshMode).GT.1
+#endif /*!defined(PARTICLES)*/
 
 ! nodes
 CALL UNLOCK_AND_FREE(NodeInfo_Shared_Win)
