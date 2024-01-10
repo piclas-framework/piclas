@@ -121,7 +121,12 @@ do
 
     # chose which mpi you want to have installed (openmpi or mpich), default is openmpi
     if [[ -n ${MPICHVERSION} ]]; then
+      # Set mpich or mpich-debug
+      # MPICH "debug", which uses MPICH installation with --with-device=ch3:sock.
+      # This will use the older ch3:sock channel that does not busy poll.
+      # This channel will be slower for intra-node communication, but it will perform much better in the oversubscription scenario.
       WHICHMPI='mpich'
+      #WHICHMPI='mpich-debug'
       MPIVERSION=${MPICHVERSION}
     else
       if [[ -z ${OPENMPIVERSION} ]]; then

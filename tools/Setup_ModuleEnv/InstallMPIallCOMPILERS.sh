@@ -48,6 +48,7 @@ NBROFCORES=$(grep ^cpu\\scores /proc/cpuinfo | uniq |  awk '{print $4}')
 # chose which mpi you want to have installed (openmpi or mpich)
 #WHICHMPI=openmpi
 WHICHMPI=mpich
+#WHICHMPI=mpich-debug
 # choose for which compilers mpi is build (gcc or intel)
 WHICHCOMPILER=gcc
 
@@ -60,6 +61,7 @@ if [[ ! -f ${TEMPLATEPATH} ]]; then
   exit
 fi
 
+CONFIGSUFFIX=''
 if [ "${WHICHMPI}" == "openmpi" ]; then
   # DOWNLOAD and INSTALL OPENMPI (example OpenMPI-2.1.6)
   #MPIVERSION=2.1.6
@@ -75,12 +77,19 @@ elif [ "${WHICHMPI}" == "mpich" ]; then
   # DOWNLOAD and INSTALL MPICH (example mpich-3.2.0)
   #MPIVERSION=3.2
   MPIVERSION=4.1.2
+elif [ "${WHICHMPI}" == "mpich-debug" ]; then
+  # DOWNLOAD and INSTALL MPICH (example mpich-3.2.0)
+  #MPIVERSION=3.2
+  MPIVERSION=4.1.2
+  CONFIGSUFFIX='--with-device=ch3:sock'
 else
   echo -e "${RED}ERROR: Setting is neither 'openmpi' nor 'mpich'${NC}"
   echo -e "${RED}ERROR: no mpi installed will be installed. Exit.${NC}"
   exit
 fi
 
+WHICHMPISHORT=$(echo $WHICHMPI | cut -d "-" -f1)
+WHICHMPIDEBUG=$(echo $WHICHMPI | cut -d "-" -f2)
 MPIINSTALLDIR=${INSTALLDIR}/${WHICHMPI}/${MPIVERSION}
 COMPILERPREFIX=compilers/ # required for modules 5.0.0
 COMPILERPREFIX=
@@ -105,6 +114,7 @@ if [ "${WHICHCOMPILER}" == "gcc" ] || [ "${WHICHCOMPILER}" == "intel" ]; then
     MPIMODULEFILE=${MPIMODULEFILEDIR}/${COMPILERVERSION}
     BUILDDIR=${SOURCESDIR}/${WHICHMPI}-${MPIVERSION}/build_${WHICHCOMPILER}-${COMPILERVERSION}
     TARFILE=${SOURCESDIR}/${WHICHMPI}-${MPIVERSION}.tar.gz
+    TARFILESHORT=${SOURCESDIR}/${WHICHMPISHORT}-${MPIVERSION}.tar.gz
 
     # Remove INSTALL module directory during re-run
     if [[ -n ${1} ]]; then
@@ -146,21 +156,21 @@ if [ "${WHICHCOMPILER}" == "gcc" ] || [ "${WHICHCOMPILER}" == "intel" ]; then
       cd ${SOURCESDIR}
 
       # Download tar.gz file
-      if [[ ! -f ${TARFILE} ]]; then
-        if [ "${WHICHMPI}" == "openmpi" ]; then
+      if [[ ! -f ${TARFILESHORT} ]]; then
+        if [ "${WHICHMPISHORT}" == "openmpi" ]; then
           wget "https://www.open-mpi.org/software/ompi/v${MPIVERSION%.*}/downloads/openmpi-${MPIVERSION}.tar.gz"
-        elif [ "${WHICHMPI}" == "mpich" ]; then
+        elif [ "${WHICHMPISHORT}" == "mpich" ]; then
           wget "http://www.mpich.org/static/downloads/${MPIVERSION}/mpich-${MPIVERSION}.tar.gz"
         fi
       fi
 
       # Check if tar.gz file was correctly downloaded
-      if [[ ! -f ${TARFILE} ]]; then
-        if [ "${WHICHMPI}" == "openmpi" ]; then
+      if [[ ! -f ${TARFILESHORT} ]]; then
+        if [ "${WHICHMPISHORT}" == "openmpi" ]; then
           echo -e "${RED}no mpi install-file downloaded for OpenMPI-${MPIVERSION}${NC}"
           echo -e "${RED}check if https://www.open-mpi.org/software/ompi/v${MPIVERSION%.*}/downloads/openmpi-${MPIVERSION}.tar.gz exists${NC}"
           break
-        elif [ "${WHICHMPI}" == "mpich" ]; then
+        elif [ "${WHICHMPISHORT}" == "mpich" ]; then
           echo -e "${RED}no mpi install-file downloaded for MPICH-${MPIVERSION}${NC}"
           echo -e "${RED}check if http://www.mpich.org/static/downloads/${MPIVERSION}/mpich-${MPIVERSION}.tar.gz exists${NC}"
           break
@@ -168,7 +178,11 @@ if [ "${WHICHCOMPILER}" == "gcc" ] || [ "${WHICHCOMPILER}" == "intel" ]; then
       fi
 
       # Extract tar.gz file
-      tar -xzf ${WHICHMPI}-${MPIVERSION}.tar.gz
+      #tar -xzf ${WHICHMPISHORT}-${MPIVERSION}.tar.gz
+      if [ "${WHICHMPIDEBUG}" == "debug" ]; then
+        mv ${TARFILESHORT} ${TARFILE}
+      fi
+      tar -xzf ${TARFILE}
 
       # Check if extraction failed
       if [ ${PIPESTATUS[0]} -ne 0 ]; then
@@ -193,9 +207,9 @@ if [ "${WHICHCOMPILER}" == "gcc" ] || [ "${WHICHCOMPILER}" == "intel" ]; then
 
       # Configure setup for openmpi or mpich using the same command
       if [ "${WHICHCOMPILER}" == "gcc" ]; then
-        ../configure --prefix=${MPIINSTALLDIR}/${WHICHCOMPILER}/${COMPILERVERSION} CC=$(which gcc) CXX=$(which g++) FC=$(which gfortran)
+        ../configure ${CONFIGSUFFIX} --prefix=${MPIINSTALLDIR}/${WHICHCOMPILER}/${COMPILERVERSION} CC=$(which gcc) CXX=$(which g++) FC=$(which gfortran)
       elif [ "${WHICHCOMPILER}" == "intel" ]; then
-        ../configure --prefix=${MPIINSTALLDIR}/${WHICHCOMPILER}/${COMPILERVERSION} CC=$(which icc) CXX=$(which icpc) FC=$(which ifort)
+        ../configure ${CONFIGSUFFIX} --prefix=${MPIINSTALLDIR}/${WHICHCOMPILER}/${COMPILERVERSION} CC=$(which icc) CXX=$(which icpc) FC=$(which ifort)
       fi
 
       # Compile source files with NBROFCORES threads
@@ -224,6 +238,9 @@ if [ "${WHICHCOMPILER}" == "gcc" ] || [ "${WHICHCOMPILER}" == "intel" ]; then
         # Remove SOURCE tar.gz file after successful installation
         if [[ -f ${TARFILE} ]]; then
           rm ${TARFILE}
+        fi
+        if [[ -f ${TARFILESHORT} ]]; then
+          rm ${TARFILESHORT}
         fi
       else
         echo -e "${RED}No module file created for ${WHICHMPI}-${MPIVERSION} for ${WHICHCOMPILER}-${COMPILERVERSION}${NC}"

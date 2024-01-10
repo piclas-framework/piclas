@@ -76,6 +76,12 @@ do
     MPINAMES='mpich'
     USEMPIVERSION=4.1.2
 
+    # MPICH "debug", which uses MPICH installation with --with-device=ch3:sock.
+    # This will use the older ch3:sock channel that does not busy poll.
+    # This channel will be slower for intra-node communication, but it will perform much better in the oversubscription scenario.
+    #MPINAMES='mpich-debug'
+    #USEMPIVERSION=4.1.2
+
     # Force --rerun via 'set'
     echo ""
     echo "Running '-m' with GCC $USECOMPILERVERSION and $MPINAMES $USEMPIVERSION"
@@ -85,7 +91,7 @@ do
 done
 
 if [[ $LOADMODULES -eq 1 ]]; then
-  MPINAMES='openmpi mpich'
+  MPINAMES='openmpi mpich mpich-debug'
 fi
 
 NBROFCORES=$(grep ^cpu\\scores /proc/cpuinfo | uniq |  awk '{print $4}')

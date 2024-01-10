@@ -28,7 +28,11 @@ before_script:
     fi
   - if [ -n "${DO_MPICH}" ]; then
       module purge;
-      module  load   cmake/3.26.4     gcc/13.2.0   mpich/4.1.2/gcc/13.2.0     hdf5/1.14.0/gcc/13.2.0/mpich/4.1.2     hopr/master/gcc/13.2.0/mpich/4.1.2/hdf5/1.14.0     petsc/3.19.3/gcc/13.2.0/mpich/4.1.2;
+      module load   cmake/3.26.4    gcc/13.2.0  mpich/4.1.2/gcc/13.2.0        hdf5/1.14.0/gcc/13.2.0/mpich/4.1.2        hopr/master/gcc/13.2.0/mpich/4.1.2/hdf5/1.14.0        petsc/3.19.3/gcc/13.2.0/mpich/4.1.2;
+    fi
+  - if [ -n "${DO_MPICH_DEBUG}" ]; then
+      module purge;
+      module load   cmake/3.26.4    gcc/13.2.0  mpich-debug/4.1.2/gcc/13.2.0  hdf5/1.14.0/gcc/13.2.0/mpich-debug/4.1.2  hopr/master/gcc/13.2.0/mpich-debug/4.1.2/hdf5/1.14.0  petsc/3.19.3/gcc/13.2.0/mpich-debug/4.1.2;
     fi
   - module list
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
