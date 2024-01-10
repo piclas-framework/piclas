@@ -573,7 +573,7 @@ SUBROUTINE InitParticleBoundarySurfSides()
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Globals
 USE MOD_Particle_Mesh_Vars      ,ONLY: SideInfo_Shared
-USE MOD_Particle_Boundary_Vars  ,ONLY: PartBound
+USE MOD_Particle_Boundary_Vars  ,ONLY: PartBound,SurfOnNode
 USE MOD_Particle_Boundary_Vars  ,ONLY: nComputeNodeSurfSides,nComputeNodeSurfTotalSides,nComputeNodeSurfOutputSides
 USE MOD_Particle_Boundary_Vars  ,ONLY: GlobalSide2SurfSide,SurfSide2GlobalSide
 #if USE_MPI
@@ -583,7 +583,6 @@ USE MOD_MPI_Shared
 USE MOD_MPI_Shared_Vars         ,ONLY: MPI_COMM_SHARED
 USE MOD_MPI_Shared_Vars         ,ONLY: myComputeNodeRank,nComputeNodeProcessors
 USE MOD_Particle_Mesh_Vars      ,ONLY: nNonUniqueGlobalSides
-!USE MOD_Particle_Mesh_Vars      ,ONLY: offsetComputeNodeElem,nComputeNodeElems
 USE MOD_MPI_Shared_Vars         ,ONLY: myLeaderGroupRank,nLeaderGroupProcs
 USE MOD_Particle_Boundary_Vars  ,ONLY: GlobalSide2SurfSide_Shared,GlobalSide2SurfSide_Shared_Win
 USE MOD_Particle_Boundary_Vars  ,ONLY: SurfSide2GlobalSide_Shared,SurfSide2GlobalSide_Shared_Win
@@ -852,24 +851,14 @@ END IF
 ! free temporary arrays
 DEALLOCATE(GlobalSide2SurfSideProc)
 
-! create a communicator between processors with a BC side (including open BCs and sides in the halo region)
-#if USE_MPI
-! Count the number of BC sides per processors. Note: cannot be done in the loop above, since it might happen that a processor
-! might not get his own elements and thus will not be added to the communicator.
-nBCSidesProc = 0
-DO iSide=1,nBCSides
-  GlobalElemID = SideToElem(S2E_ELEM_ID,iSide) + offsetElem
-  IF (ElemInfo_Shared(ELEM_HALOFLAG,GlobalElemID).EQ.0) CYCLE
-  nBCSidesProc = nBCSidesProc + 1
-END DO
+! flag if there is at least one surf side on the node (sides in halo region do also count)
+SurfOnNode = MERGE(.TRUE.,.FALSE.,nComputeNodeSurfTotalSides.GT.0)
 
-! Set the control of subset assignment (nonnegative integer). Processes with the same color are in the same new communicator.
+#if USE_MPI
+! Create a communicator if BCs are on the node
+! Set the control of subset assignment (non-negative integer). Processes with the same color are in the same new communicator.
 ! Make sure to include the root
-IF(MPIRoot) THEN
-  color = 1337
-ELSE
-  color = MERGE(1337, MPI_UNDEFINED, nBCSidesProc.GT.0)
-END IF
+color = MERGE(1337, MPI_UNDEFINED, MPIRoot.OR.SurfOnNode)
 ! Create new surface communicator. Pass MPI_INFO_NULL as rank to follow the original ordering
 CALL MPI_COMM_SPLIT(MPI_COMM_PICLAS, color, MPI_INFO_NULL, SurfCOMM%UNICATOR, iError)
 ! Find my rank on the shared communicator, comm size and proc name

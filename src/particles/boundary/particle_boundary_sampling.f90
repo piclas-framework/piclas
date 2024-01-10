@@ -157,9 +157,6 @@ IF((nSurfSample.GT.1).AND.(TrackingMethod.EQ.TRIATRACKING)) &
 ! Sampling of impact energy for each species (trans, rot, vib), impact vector (x,y,z) and angle
 CalcSurfaceImpact = GETLOGICAL('CalcSurfaceImpact')
 
-! flag if there is at least one surf side on the node (sides in halo region do also count)
-SurfOnNode = MERGE(.TRUE.,.FALSE.,nComputeNodeSurfTotalSides.GT.0)
-
 !> Setting the number of sampling (SurfSampSize -> SampWallState) and output (SurfOutputSize -> MacroSurfaceVal) variables
 !> Optional sampling variables require an additional SampWallIndex (SWI)
 ! Default: Energy + Force + nSpecies
@@ -190,9 +187,7 @@ IF (CalcSurfaceImpact) SurfSpecOutputSize = SurfSpecOutputSize + 10
 
 !> Leader communication
 #if USE_MPI
-IF (myComputeNodeRank.EQ.0) THEN
-  CALL InitSurfCommunication()
-END IF
+IF (myComputeNodeRank.EQ.0) CALL InitSurfCommunication()
 ! The leaders are synchronized at this point, but behind the other procs. nGlobalSurfSides is only required when compiled without
 ! MPI, so perform latency hiding by postponing synchronization
 #else
