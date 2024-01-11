@@ -195,13 +195,16 @@ DataSizeSide  =(PP_N+1)*(PP_N+1)
 GroupSize=GETINT('GroupSize','0')
 IF(GroupSize.LT.1)THEN ! group procs by node
   ! Split the node communicator (shared memory) from the global communicator on physical processor or node level
-#if (CORE_SPLIT==1)
-  CALL MPI_COMM_SPLIT(MPI_COMM_PICLAS,myRank,0,MPI_COMM_NODE,iError)
-#elif (CORE_SPLIT==0)
+#if (CORE_SPLIT==0)
+  ! 1.) MPI_COMM_TYPE_SHARED
   ! Note that using SharedMemoryMethod=OMPI_COMM_TYPE_CORE somehow does not work in every case (intel/amd processors)
   ! Also note that OMPI_COMM_TYPE_CORE is undefined when not using OpenMPI
   CALL MPI_COMM_SPLIT_TYPE(MPI_COMM_PICLAS,SharedMemoryMethod,0,MPI_INFO_NULL,MPI_COMM_NODE,IERROR)
+#elif (CORE_SPLIT==1)
+  ! 2.) OMPI_COMM_TYPE_CORE
+  CALL MPI_COMM_SPLIT(MPI_COMM_PICLAS,myRank,0,MPI_COMM_NODE,iError)
 #else
+  ! 3.) PICLAS_COMM_TYPE_NODE
   ! Check if more nodes than procs are required or
   ! if the resulting split would create unequal procs per node
   IF((CORE_SPLIT.GE.nProcessors_Global).OR.(MOD(nProcessors_Global,CORE_SPLIT).GT.0))THEN
