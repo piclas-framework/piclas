@@ -216,8 +216,6 @@ Modelling of reactive surfaces is enabled by setting `Part-BoundaryX-Condition=r
 appropriate particle boundary surface model `Part-BoundaryX-SurfaceModel`.
 The available conditions (`Part-BoundaryX-SurfaceModel=`) are described in the table below.
 
-TODO: Update to fit and include the catalytic model!
-
 |    Model    | Description                                                                                                                                                                                  |
 | :---------: | :------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | 0 (default) | Standard extended Maxwellian scattering                                                                                                                                                      |
@@ -228,6 +226,7 @@ TODO: Update to fit and include the catalytic model!
 |      9      | Secondary electron emission due to ion impact (SEE-I with $Ar^{+}$) with a constant yield of 1 \%. Emitted electrons have an energy of 6.8 eV upon emission.                                 |
 |     10      | Secondary electron emission due to ion impact (SEE-I with $Ar^{+}$ on copper) as used in Ref. {cite}`Theis2021` originating from {cite}`Phelps1999`                                          |
 |     11      | Secondary electron emission due to electron impact (SEE-E with $e^{-}$ on quartz (SiO$_{2}$)) as described in Ref. {cite}`Zeng2020` originating from {cite}`Dunaevsky2003`                   |
+|      20     | Finite-rate catalysis model, Section {ref}`sec:catalytic-surface` |
 
 For surface sampling output, where the surface is split into, e.g., $3\times3$ sub-surfaces, the following parameters mus be set
 
@@ -341,19 +340,21 @@ An energy-dependent model (linear and power fit of measured SEE yields) of secon
 quartz (SiO$_{2}$) surface as described in Ref. {cite}`Zeng2020` originating from {cite}`Dunaevsky2003` is
 activated via `Part-BoundaryX-SurfaceModel=11`. For more details, see the original publications.
 
-(sec:catalytic-surface)=, General information
+(sec:catalytic-surface)=
 ## Catalytic Surfaces
 
-Catalytic reactions can be modeled in PICLas using a finite-rate reaction model with an implicit treatment of the reactive surface. For a better resolution of the parameters, the catalytic boundaries are discretized into a certain number of subsides. The catalytic activity can be defined for all reflective boundaries in the simulation and requires the definition of the boundary temperature in the parameter input file. Different surface crystal structures can be defined by the lattice constant of the unit cell `Part-BoundaryX-LatticeVec` and the number of particles in the unit cell `Part-BoundaryX-NbrOfMol-UnitCell`. These parameters are used in the calculation of the number of active surface sites.
-By default, the simulation is started with a clean surface, but an initial species-specific coverage can be specified by `Part-BoundaryX-SpeciesX-Coverage`, which represents the relative number of surface active sites that are occupied by adsorbate particles. Maximum values for the coverage values can be specified by:
+Catalytic reactions can be modeled in PICLas using a finite-rate reaction model with an implicit treatment of the reactive surface. For a better resolution of the parameters, the catalytic boundaries are discretized into a certain number of subsides. A definition of the boundary temperature in the parameter input file is required in all cases. Different types of surfaces can be defined by the lattice constant of the unit cell `Part-BoundaryX-LatticeVec` and the number of particles in the unit cell `Part-BoundaryX-NbrOfMol-UnitCell`. These parameters are used in the calculation of the number of active sites.
+
+By default, the simulation is started with a clean surface, but an initial species-specific coverage can be specified by `Part-BoundaryX-SpeciesX-Coverage`, which represents the relative number of active sites that are occupied by adsorbate particles. Maximum values for the coverage values can be specified by:
  
     Part-Boundary1-Species1-MaxCoverage
     Part-Boundary1-MaxTotalCoverage
 
-Multi-layer adsorption is enabled by a maximum total coverage greater than 1.
+Multi-layer adsorption is enabled by a maximal total coverage greater than 1.
+
 The reaction paths are defined in the input parameter file. First, the number of gas-surface reactions to be read in must be defined:
 
-    DSMC-NumOfReactions = 2
+    Surface-NumOfReactions = 2
 
 A catalytic reaction and the boundary on which it takes place is then defined by
 
@@ -364,7 +365,7 @@ A catalytic reaction and the boundary on which it takes place is then defined by
     Surface-Reaction1-NumOfBoundaries    = 2
     Surface-Reaction1-Boundaries         = (/1,3/)
     
-All reactants and products are defined by their respective species index. In the case of multiple reacting, the order does not addect the input. For the catalytic reaction type, the following options are available:
+All reactants and products are defined by their respective species index. In the case of multiple reacting, the order does not influence the input. The following optiona are available for the catalytic reaction type:
 
 |   Model   |                                   Description                   |
 |   ----:   | -------------------------------------------------               |
@@ -374,47 +375,52 @@ All reactants and products are defined by their respective species index. In the
 |    LH     | Langmuir-Hinshelwood reaction: Arrhenius based chemistry        |
 |    LHD    | Langmuir-Hisnhelwood reaction with instantaneous desorption     |
 
-For the treatment of multiple possible reaction paths of the same species, a possible bias in the reaction rate is avoided by a randomized treatment. Bulk species can participate in the reaction. In this case, the bulk species is defined by `Surface-Species` and the corresponding species index. All reaction types allow for the definition of a reaction enthalpy. In addition, this value can be linearly increased (negative factor) or decreased (positive factor) by a scaling factor for the heat of reaction. Both values are given in [K].
+For the treatment of multiple reaction paths of the same species, a possible bias in the reaction rate is avoided by a randomized treatment. Bulk species can participate in the reaction. In this case, the bulk species is defined by `Surface-Species` and the corresponding species index. All reaction types allow for the definition of a reaction enthalpy. In addition, this value can be linearly increased (negative factor) or decreased (positive factor) by a scaling factor for the heat of reaction. Both values are given in [K].
    
-   Surface-Reaction1-ReactHeat      = 17101.4     
-   Surface-Reaction1-HeatScaling    = 1202.9
+    Surface-Reaction1-ReactHeat      = 17101.4     
+    Surface-Reaction1-HeatScaling    = 1202.9
    
 Depending on the reaction type, different additional parameters have to be defined. More details on the specific cases are given in the following subsections. An example input file for CO and O2 on a palladium surface can be found in the regression tests `regressioncheck/WEK_DSMC/ChannelFlow_SurfChem_AdsorpDesorp_CO_O2`.
 
 ### Adsorption
 
-For the modelling of adsorption of a gas particle on the surface, two models are available: the simple Langmuir model, with a linear dependence of the adsorption probability on the surface coverage, and the precursor-based Kisliuk model:
+For the modelling of the adsorption of a gas particle on the surface, two models are available: the simple Langmuir model, with a linear dependence of the adsorption probability on the surface coverage, and the precursor-based Kisliuk model:
 
-$$S = S_0 (1 + K(1/{\theta^{\alpha} - 1))^{-1}$$ 
+$$ S = S_0 (1 + K (1/\theta^{\alpha} - 1))^{-1}$$ 
 
-where $S_0$ is the binding coefficient for a clean surface, $\alpha$ is the dissociation constant (2 for dissociative adsorption) and $K$ is the equilibrium constant between adsorption and desorption from the precursor state. For $K = 1$, the model simplifies to the Langmuir case. The parameters can be defined in PICLas as follows:
+here $S_0$ is the binding coefficient for a clean surface, $\alpha$ is the dissociation constant (2 for dissociative adsorption) and $K$ is the equilibrium constant between adsorption and desorption from the precursor state. For $K = 1$, the model simplifies to the Langmuir case. The parameters can be defined in PICLas as follows:
 
-   Surface-Reaction1-StickingCoefficient  = 0.2
-   Surface-Reaction1-DissOrder            = 1
-   Surface-Reaction1-EqConstant           = 0.6
+    Surface-Reaction1-StickingCoefficient  = 0.2
+    Surface-Reaction1-DissOrder            = 1
+    Surface-Reaction1-EqConstant           = 0.6
    
-A special case of adsorption is the dissociative adsorption (`Surface-ReactionX-DissociativeAdsorption = true`), where only half of the molecule binds to the surface, while the other half remains in the gas phase. The adsorbate half (`Surface-ReactionX-AdsorptionProduct`) and the gas phase product (`Surface-ReactionX-GasPhaseProduct`) are specified by their respective species indices. The adsorption probability is calculated analogously to the general case.
+A special case of adsorption is the dissociative adsorption (`Surface-ReactionX-DissociativeAdsorption = true`), where only half of the molecule binds to the surface, while the other half remains in the gas phase. The adsorbate half `Surface-ReactionX-AdsorptionProduct` and the gas phase product `Surface-ReactionX-GasPhaseProduct` are specified by their respective species indices. The adsorption probability is calculated analogously to the general case.
+
 Lateral interactions between multiple adsorbate species, which can disfavor further adsorption can be taken into account by the command `Surface-ReactionX-Inhibition` and the species index of the inhibiting species. 
 
 ### Desorption
 
 The desorption of an adsorbate particle into the gas phase is modelled by the Polanyi-Wigner equation. 
 
-$$k(T) = A T^b \theta^{\alpha} e^{-E_\mathrm{a}/T}$$
+$$k(T) = A T^b \theta^{\alpha}_{A} e^{-E_\mathrm{a}/T}$$
 
 where $A$ is the prefactor ([1/s, m$^2$/s] depending on the dissociation constant), $\alpha$ the dissociation constant and $E_\mathrm{a}$ the
 activation energy [K]. These parameters can be defined in PICLas as follows:
 
-   Surface-Reaction[$]-Prefactor
-   Surface-Reaction[$]-Energy
+    Surface-ReactionX-Prefactor
+    Surface-ReactionX-Energy
 
 ### Catalytic Reaction
 
-The Eley-Rideal and the Langmuir-Hinshelwood reaction types use Arrhenius-type reaction rates along with the coverage of the adsorbate reactants $\theta$, to reproduce of the catalytic reaction.
+The Eley-Rideal and the Langmuir-Hinshelwood reaction use Arrhenius-type reaction rates along with the coverage of all surface-bound reactants $\theta_{AB}$, to reproduce of the catalytic reaction.
 
-$$k(T) = A T^b \theta e^{-E_\mathrm{a}/T}$$ 
+$$k(T) = A T^b \theta_{AB} e^{-E_\mathrm{a}/T}$$ 
 
-The Arrhenius prefactor ([m$^3$/s] for the Eley-Rideal reaction and [m$^2$/s]  for the Langmuir-Hinshelwood case) and the activation energy are read in analogously to the desorption case. For the reactions, an energy accommodation coefficient (`Surface-ReactionX-EnergyAccommodation`) with values between 0 and 1 can be specified, which defines the amount of the reaction energy that is transferred to the surface. 
+The Arrhenius prefactor ([m$^3$/s] for the Eley-Rideal reaction and [m$^2$/s]  for the Langmuir-Hinshelwood case) and the activation energy are read in analogously to the desorption case. For the reactions, an energy accommodation coefficient `Surface-ReactionX-EnergyAccommodation` with values between 0 and 1 can be specified, which defines the amount of the reaction energy that is transferred to the surface. 
+
+In the general Langmuir-Hinshelwood case with the reaction type `LH`, the product species stays adsorbed on the surface, until a desorption takes place in a later step. For reactions in combination with very high desorption rates, the reaction type `LHD` is more fitting. The product species are inserted directly into the gas phase without an intermediate desorption step.
+
+Example inputs for both catalytic reactions can be found in the regression tests: `regressioncheck/NIG_Reservoir/CAT_RATES_ER` and `regressioncheck/NIG_Reservoir/CAT_RATES_LH`.
    
 ### Diffusion
 
@@ -422,7 +428,7 @@ With `Surface-Diffusion = true` an instantaneous diffusion over all catalytic bo
 
 ### Parameter Read-In from the Species Database
 
-All information about a catalytic reaction can be retrieved from the species database. Here the catalytic reaction parameters are stored in containers and accessed via the reaction name, e.g. (`Adsorption_CO_Pt`).
+All information about a catalytic reaction can be retrieved from the species database. Here the catalytic reaction parameters are stored in containers and accessed via the reaction name, e.g. `Adsorption_CO_Pt`.
 
 ## Deposition of Charges on Dielectric Surfaces
 
