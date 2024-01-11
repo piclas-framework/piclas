@@ -762,94 +762,96 @@ GlobalSide2SurfSide(:,firstSide:lastSide) = GlobalSide2SurfSideProc(:,firstSide:
 #endif /*USE_MPI*/
 
 ! Build inverse mapping
+IF(nComputeNodeSurfTotalSides.GT.0)THEN
 #if USE_MPI
-CALL Allocate_Shared((/3,nComputeNodeSurfTotalSides/),SurfSide2GlobalSide_Shared_Win,SurfSide2GlobalSide_Shared)
-CALL MPI_WIN_LOCK_ALL(0,SurfSide2GlobalSide_Shared_Win,IERROR)
-SurfSide2GlobalSide => SurfSide2GlobalSide_Shared
+  CALL Allocate_Shared((/3,nComputeNodeSurfTotalSides/),SurfSide2GlobalSide_Shared_Win,SurfSide2GlobalSide_Shared)
+  CALL MPI_WIN_LOCK_ALL(0,SurfSide2GlobalSide_Shared_Win,IERROR)
+  SurfSide2GlobalSide => SurfSide2GlobalSide_Shared
 
-DO iSide = firstSide,lastSide
-  IF (GlobalSide2SurfSideProc(SURF_SIDEID,iSide).EQ.-1) CYCLE
+  DO iSide = firstSide,lastSide
+    IF (GlobalSide2SurfSideProc(SURF_SIDEID,iSide).EQ.-1) CYCLE
 
-  SurfSide2GlobalSide(:          ,GlobalSide2SurfSide(SURF_SIDEID,iSide)) = GlobalSide2SurfSide(:,iSide)
-  SurfSide2GlobalSide(SURF_SIDEID,GlobalSide2SurfSide(SURF_SIDEID,iSide)) = iSide
-END DO
-
-CALL BARRIER_AND_SYNC(GlobalSide2SurfSide_Shared_Win,MPI_COMM_SHARED)
-CALL BARRIER_AND_SYNC(SurfSide2GlobalSide_Shared_Win,MPI_COMM_SHARED)
-#else
-ALLOCATE(SurfSide2GlobalSide(1:1,1:nComputeNodeSurfTotalSides))
-DO iSide = firstSide,lastSide
-  IF (GlobalSide2SurfSide(SURF_SIDEID,iSide).EQ.-1) CYCLE
-  SurfSide2GlobalSide(SURF_SIDEID,GlobalSide2SurfSide(SURF_SIDEID,iSide)) =iSide
-END DO
-#endif /*USE_MPI*/
-
-! Determine the number of surface output sides (inner BCs are not counted twice and rotationally periodic BCs excluded)
-#if USE_MPI
-IF (myComputeNodeRank.EQ.0) THEN
-  nComputeNodeInnerBCs = 0
-#endif /*USE_MPI*/
-  nComputeNodeSurfOutputSides = 0
-  DO iSurfSide = 1,nComputeNodeSurfSides
-    GlobalSideID = SurfSide2GlobalSide(SURF_SIDEID,iSurfSide)
-    ! Check if the surface side has a neighbor (and is therefore an inner BCs)
-    IF(SideInfo_Shared(SIDE_NBSIDEID,GlobalSideID).GT.0) THEN
-      ! Abort inner BC + Mortar! (too complex and confusing to implement)
-      ! This test catches large Mortar sides, i.e.,  SideInfo_Shared(SIDE_NBELEMID,NonUniqueGlobalSideID) gives the 2 or 4
-      ! connecting small Mortar sides. It is assumed that inner BC result in being flagged as a "SurfSide" and therefore are checked
-      ! here.
-      IF(SideInfo_Shared(SIDE_LOCALID,GlobalSideID).EQ.-1)THEN
-        IPWRITE(UNIT_StdOut,'(I12,A,I0)')   " NonUniqueGlobalSideID                               = ",GlobalSideID
-        IPWRITE(UNIT_StdOut,'(I12,A,I0)')   " SideInfo_Shared(SIDE_LOCALID,NonUniqueGlobalSideID) = ",&
-            SideInfo_Shared(SIDE_LOCALID,GlobalSideID)
-        IPWRITE(UNIT_StdOut,'(I12,A,I0,A)') " SideInfo_Shared(SIDE_ELEMID,NonUniqueGlobalSideID)  = ",&
-            SideInfo_Shared(SIDE_ELEMID,GlobalSideID)," (GlobalElemID)"
-        CALL abort(__STAMP__,'Inner BC + Mortar is not implemented!')
-      END IF
-      ! Only add the side with the smaller index
-      NbGlobalSideID = SideInfo_Shared(SIDE_NBSIDEID,GlobalSideID)
-      IF(GlobalSideID.GT.NbGlobalSideID)THEN
-#if USE_MPI
-        !--- switcheroo check 1 of 2: Non-HALO sides
-        ! Only required for sampling on the larger NonUniqueGlobalSideID of the two sides of the inner BC
-        ! Count larger inner BCs as these may have to be sent to a different leader processor
-        NbGlobalElemID = SideInfo_Shared(SIDE_ELEMID,NbGlobalSideID)
-        NbElemRank = ElemInfo_Shared(ELEM_RANK,NbGlobalElemID)
-        NbLeaderID = INT(NbElemRank/nComputeNodeProcessors)
-        IF(NbLeaderID.NE.INT(myRank/nComputeNodeProcessors))THEN
-          nComputeNodeInnerBCs(1) = nComputeNodeInnerBCs(1) + 1
-        END IF
-#endif
-        CYCLE! Skip sides with the larger index
-      END IF
-    END IF
-    ! Skip rotationally periodic boundary sides for the output
-    IF(PartBound%TargetBoundCond(PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,GlobalSideID))).EQ.PartBound%RotPeriodicBC) CYCLE
-    ! Skip intermediate planes BCs for the output
-    IF(PartBound%TargetBoundCond(PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,GlobalSideID))).EQ.PartBound%RotPeriodicInterPlaneBC) CYCLE
-    ! Count the number of output sides
-    nComputeNodeSurfOutputSides = nComputeNodeSurfOutputSides + 1
+    SurfSide2GlobalSide(:          ,GlobalSide2SurfSide(SURF_SIDEID,iSide)) = GlobalSide2SurfSide(:,iSide)
+    SurfSide2GlobalSide(SURF_SIDEID,GlobalSide2SurfSide(SURF_SIDEID,iSide)) = iSide
   END DO
+
+  CALL BARRIER_AND_SYNC(GlobalSide2SurfSide_Shared_Win,MPI_COMM_SHARED)
+  CALL BARRIER_AND_SYNC(SurfSide2GlobalSide_Shared_Win,MPI_COMM_SHARED)
+#else
+  ALLOCATE(SurfSide2GlobalSide(1:1,1:nComputeNodeSurfTotalSides))
+  DO iSide = firstSide,lastSide
+    IF (GlobalSide2SurfSide(SURF_SIDEID,iSide).EQ.-1) CYCLE
+    SurfSide2GlobalSide(SURF_SIDEID,GlobalSide2SurfSide(SURF_SIDEID,iSide)) =iSide
+  END DO
+#endif /*USE_MPI*/
+
+  ! Determine the number of surface output sides (inner BCs are not counted twice and rotationally periodic BCs excluded)
 #if USE_MPI
-  !--- switcheroo check 2 of 2: HALO sides
-  ! Count number of inner BC in halo region
-  ! Only required for sampling on the larger NonUniqueGlobalSideID of the two sides of the inner BC
-  DO iSurfSide = nComputeNodeSurfSides+1, nComputeNodeSurfTotalSides
-    GlobalSideID = SurfSide2GlobalSide(SURF_SIDEID,iSurfSide)
-    ! Check if the surface side has a neighbor (and is therefore an inner BCs)
-    IF(SideInfo_Shared(SIDE_NBSIDEID,GlobalSideID).GT.0) THEN
-      ! Only add the side with the smaller index
-      IF(GlobalSideID.GT.SideInfo_Shared(SIDE_NBSIDEID,GlobalSideID))THEN
-        ! Count larger inner BCs as these may have to be sent to a different leader processor
-        nComputeNodeInnerBCs(2) = nComputeNodeInnerBCs(2) + 1
+  IF (myComputeNodeRank.EQ.0) THEN
+    nComputeNodeInnerBCs = 0
+#endif /*USE_MPI*/
+    nComputeNodeSurfOutputSides = 0
+    DO iSurfSide = 1,nComputeNodeSurfSides
+      GlobalSideID = SurfSide2GlobalSide(SURF_SIDEID,iSurfSide)
+      ! Check if the surface side has a neighbor (and is therefore an inner BCs)
+      IF(SideInfo_Shared(SIDE_NBSIDEID,GlobalSideID).GT.0) THEN
+        ! Abort inner BC + Mortar! (too complex and confusing to implement)
+        ! This test catches large Mortar sides, i.e.,  SideInfo_Shared(SIDE_NBELEMID,NonUniqueGlobalSideID) gives the 2 or 4
+        ! connecting small Mortar sides. It is assumed that inner BC result in being flagged as a "SurfSide" and therefore are checked
+        ! here.
+        IF(SideInfo_Shared(SIDE_LOCALID,GlobalSideID).EQ.-1)THEN
+          IPWRITE(UNIT_StdOut,'(I12,A,I0)')   " NonUniqueGlobalSideID                               = ",GlobalSideID
+          IPWRITE(UNIT_StdOut,'(I12,A,I0)')   " SideInfo_Shared(SIDE_LOCALID,NonUniqueGlobalSideID) = ",&
+              SideInfo_Shared(SIDE_LOCALID,GlobalSideID)
+          IPWRITE(UNIT_StdOut,'(I12,A,I0,A)') " SideInfo_Shared(SIDE_ELEMID,NonUniqueGlobalSideID)  = ",&
+              SideInfo_Shared(SIDE_ELEMID,GlobalSideID)," (GlobalElemID)"
+          CALL abort(__STAMP__,'Inner BC + Mortar is not implemented!')
+        END IF
+        ! Only add the side with the smaller index
+        NbGlobalSideID = SideInfo_Shared(SIDE_NBSIDEID,GlobalSideID)
+        IF(GlobalSideID.GT.NbGlobalSideID)THEN
+#if USE_MPI
+          !--- switcheroo check 1 of 2: Non-HALO sides
+          ! Only required for sampling on the larger NonUniqueGlobalSideID of the two sides of the inner BC
+          ! Count larger inner BCs as these may have to be sent to a different leader processor
+          NbGlobalElemID = SideInfo_Shared(SIDE_ELEMID,NbGlobalSideID)
+          NbElemRank = ElemInfo_Shared(ELEM_RANK,NbGlobalElemID)
+          NbLeaderID = INT(NbElemRank/nComputeNodeProcessors)
+          IF(NbLeaderID.NE.INT(myRank/nComputeNodeProcessors))THEN
+            nComputeNodeInnerBCs(1) = nComputeNodeInnerBCs(1) + 1
+          END IF
+#endif
+          CYCLE! Skip sides with the larger index
+        END IF
       END IF
-    END IF
-  END DO ! iSurfSide = nComputeNodeSurfSides+1, nComputeNodeSurfTotalSides
-END IF
+      ! Skip rotationally periodic boundary sides for the output
+      IF(PartBound%TargetBoundCond(PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,GlobalSideID))).EQ.PartBound%RotPeriodicBC) CYCLE
+      ! Skip intermediate planes BCs for the output
+      IF(PartBound%TargetBoundCond(PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,GlobalSideID))).EQ.PartBound%RotPeriodicInterPlaneBC) CYCLE
+      ! Count the number of output sides
+      nComputeNodeSurfOutputSides = nComputeNodeSurfOutputSides + 1
+    END DO
+#if USE_MPI
+    !--- switcheroo check 2 of 2: HALO sides
+    ! Count number of inner BC in halo region
+    ! Only required for sampling on the larger NonUniqueGlobalSideID of the two sides of the inner BC
+    DO iSurfSide = nComputeNodeSurfSides+1, nComputeNodeSurfTotalSides
+      GlobalSideID = SurfSide2GlobalSide(SURF_SIDEID,iSurfSide)
+      ! Check if the surface side has a neighbor (and is therefore an inner BCs)
+      IF(SideInfo_Shared(SIDE_NBSIDEID,GlobalSideID).GT.0) THEN
+        ! Only add the side with the smaller index
+        IF(GlobalSideID.GT.SideInfo_Shared(SIDE_NBSIDEID,GlobalSideID))THEN
+          ! Count larger inner BCs as these may have to be sent to a different leader processor
+          nComputeNodeInnerBCs(2) = nComputeNodeInnerBCs(2) + 1
+        END IF
+      END IF
+    END DO ! iSurfSide = nComputeNodeSurfSides+1, nComputeNodeSurfTotalSides
+  END IF
 #endif
 
-! free temporary arrays
-DEALLOCATE(GlobalSide2SurfSideProc)
+  ! free temporary arrays
+  DEALLOCATE(GlobalSide2SurfSideProc)
+END IF ! nComputeNodeSurfTotalSides.GT.0
 
 ! flag if there is at least one surf side on the node (sides in halo region do also count)
 SurfOnNode = MERGE(.TRUE.,.FALSE.,nComputeNodeSurfTotalSides.GT.0)
@@ -2073,7 +2075,7 @@ SDEALLOCATE(PartBound%RadiativeEmissivity)
 IF(SurfCOMM%UNICATOR.NE.MPI_COMM_NULL) CALL MPI_COMM_FREE(SurfCOMM%UNICATOR,iERROR)
 CALL MPI_BARRIER(MPI_COMM_SHARED,iERROR)
 CALL UNLOCK_AND_FREE(GlobalSide2SurfSide_Shared_Win)
-CALL UNLOCK_AND_FREE(SurfSide2GlobalSide_Shared_Win)
+IF(nComputeNodeSurfTotalSides.GT.0) CALL UNLOCK_AND_FREE(SurfSide2GlobalSide_Shared_Win)
 CALL MPI_BARRIER(MPI_COMM_SHARED,iERROR)
 ADEALLOCATE(GlobalSide2SurfSide_Shared)
 ADEALLOCATE(SurfSide2GlobalSide_Shared)
