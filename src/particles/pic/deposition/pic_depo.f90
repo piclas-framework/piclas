@@ -1920,7 +1920,7 @@ USE MOD_LoadBalance_Vars   ,ONLY: PerformLoadBalance,UseH5IOLoadBalance
 USE MOD_LoadBalance_Vars   ,ONLY: PartSourceLB,NodeSourceExtEquiLB
 USE MOD_Mesh_Vars          ,ONLY: nElems
 USE MOD_Dielectric_Vars    ,ONLY: DoDielectricSurfaceCharge
-USE MOD_Particle_Mesh_Vars ,ONLY: ElemNodeID_Shared,NodeInfo_Shared
+USE MOD_Particle_Mesh_Vars ,ONLY: ElemNodeID_Shared,NodeInfo_Shared,ElemNodeID_Shared_Win
 USE MOD_Mesh_Tools         ,ONLY: GetCNElemID
 USE MOD_Mesh_Vars          ,ONLY: offsetElem
 USE MOD_Particle_Mesh_Vars ,ONLY: GlobalElem2CNTotalElem,GlobalElem2CNTotalElem_Shared,GlobalElem2CNTotalElem_Shared_Win
@@ -2034,7 +2034,6 @@ IF ((PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance))) THEN
       NodeSourceExtEquiLB(1,1,1,1,iElem) = NodeSourceExt(NodeID(7))
       NodeSourceExtEquiLB(1,0,1,1,iElem) = NodeSourceExt(NodeID(8))
     END DO!iElem
-    ADEALLOCATE(ElemNodeID_Shared)
   END IF ! DoDielectricSurfaceCharge
 
   IF (nComputeNodeProcessors.NE.nProcessors_Global) THEN
@@ -2042,6 +2041,12 @@ IF ((PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance))) THEN
     ADEALLOCATE(GlobalElem2CNTotalElem)
     ADEALLOCATE(GlobalElem2CNTotalElem_Shared)
   END IF ! nComputeNodeProcessors.NE.nProcessors_Global
+END IF
+! This step was skipped in particle_mesh.f90: FinalizeParticleMesh()
+IF(PerformLoadBalance.AND.DoDielectricSurfaceCharge)THEN
+  ! From InitElemNodeIDs
+  CALL UNLOCK_AND_FREE(ElemNodeID_Shared_Win)
+  ADEALLOCATE(ElemNodeID_Shared)
 END IF
 #endif /*USE_LOADBALANCE*/
 
