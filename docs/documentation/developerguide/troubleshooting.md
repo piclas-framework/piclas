@@ -115,12 +115,17 @@ at best using the multi-node feature `PICLAS_SHARED_MEMORY=OMPI_COMM_TYPE_CORE`
   to find the missing `CALL UNLOCK_AND_FREE(ElemBaryNGeo_Shared_Win)` by running piclas and storing the output in, e.g., `std.out`
   and then running the following command
 
-      keep=0; STDOUT='std.out'; for line in $(grep -i allocated ${STDOUT} | grep -in win_size | xargs); do if [ $keep == 1 ]; then printf 'Checking [%s]' "$line"; if [[ $(grep -iw "${line}" ${STDOUT} | grep -ivc "Allocated") -lt 2 ]]; then echo " ---> Could not find MPI_WIN_UNLOCK_ALL() and MPI_WIN_FREE() for this variable"; else echo "... okay"; fi; keep=0; elif [ "$line" == 'Allocated' ]; then keep=1; else keep=0; fi; done
+      keep=0; STDOUT='std.out'; dashes='----------------------------------------'; for line in $(grep -i allocated ${STDOUT} | grep -in win_size | xargs); do if [ $keep == 1 ]; then printf 'Checking [%s] %s' "$line" "${dashes:${#line}}"; NbrOfA=$(grep -iw "${line}" ${STDOUT} | grep -ic "Allocated"); printf ' allocated %sx' "$NbrOfA"; NbrOfDA=$(grep -iw "${line}" ${STDOUT} | grep -ic "Unlocking"); printf ' deallocated %sx' "$NbrOfDA"; if [[ $NbrOfDA -lt $NbrOfA ]]; then echo " ---> Could not find all required MPI_WIN_UNLOCK_ALL() and MPI_WIN_FREE() for this variable"; else echo "... okay"; fi; keep=0; elif [ "$line" == 'Allocated' ]; then keep=1; else keep=0; fi; done
 
   Replace `std.out` in the command if a different file name is used.
   If a variable is not correctly freed, the output of the script should look like this
 
-      Checking [SideIsSymSide_Shared_Win] ---> Could not find MPI_WIN_UNLOCK_ALL() and MPI_WIN_FREE() for this variable
+      Checking [ElemSideNodeID_Shared_Win] --------------- allocated 2x deallocated 2x... okay
+      Checking [ElemMidPoint_Shared_Win] ----------------- allocated 2x deallocated 2x... okay
+      Checking [ElemNodeID_Shared_Win] ------------------- allocated 2x deallocated 1x ---> Could not find all required MPI_WIN_UNLOCK_ALL() and MPI_WIN_FREE() for this variable
+      Checking [ElemBaryNGeo_Shared_Win] ----------------- allocated 2x deallocated 2x... okay
+      Checking [ElemRadius2NGeo_Shared_Win] -------------- allocated 2x deallocated 2x... okay
+      Checking [ElemCurved_Shared_Win] ------------------- allocated 2x deallocated 2x... okay
 
 **Resolution**
 - Add the missing `CALL UNLOCK_AND_FREE(MYNAME_Win)`, where `MYNAME` is the name of the shared memory window.
