@@ -667,6 +667,7 @@ REAL                          :: PrandtlCorrection, dynamicvisSpec(nSpecies), th
 REAL                          :: TotalDOFWeight, C_P, CellTempSpec(nSpecies+1)
 !===================================================================================================================================
 MassIC_Mixture = TotalMass / totalWeight
+thermalcond=0.
 IF (nSpecies.GT.1) THEN ! gas mixture
   MolarFraction(1:nSpecies) = totalWeightSpec(1:nSpecies) / totalWeight
   MassFraction(1:nSpecies) = MolarFraction(1:nSpecies) * Species(1:nSpecies)%MassIC / MassIC_Mixture
