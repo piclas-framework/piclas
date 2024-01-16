@@ -573,7 +573,7 @@ SUBROUTINE InitParticleBoundarySurfSides()
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Globals
 USE MOD_Particle_Mesh_Vars      ,ONLY: SideInfo_Shared
-USE MOD_Particle_Boundary_Vars  ,ONLY: PartBound,SurfOnNode
+USE MOD_Particle_Boundary_Vars  ,ONLY: PartBound
 USE MOD_Particle_Boundary_Vars  ,ONLY: nComputeNodeSurfSides,nComputeNodeSurfTotalSides,nComputeNodeSurfOutputSides
 USE MOD_Particle_Boundary_Vars  ,ONLY: GlobalSide2SurfSide,SurfSide2GlobalSide
 #if USE_MPI
@@ -613,7 +613,8 @@ INTEGER                                :: sendbuf,recvbuf
 INTEGER                                :: NbGlobalElemID, NbElemRank, NbLeaderID, nSurfSidesTmp
 INTEGER                                :: color
 #endif /*USE_MPI*/
-INTEGER                                :: NbGlobalSideID
+INTEGER                                :: NbGlobalSideID,PartBoundCondition
+LOGICAL                                :: BCOnNode,ReflectiveOrOpenBCFound
 !===================================================================================================================================
 
 LBWRITE(UNIT_stdOut,'(A)') ' INIT SURFACE SIDES ...'
@@ -650,26 +651,34 @@ lastSide  = nComputeNodeSides
 ALLOCATE(GlobalSide2SurfSideProc(1:3,1:nComputeNodeSides))
 #endif /*USE_MPI*/
 
-GlobalSide2SurfSideProc    = -1
-nComputeNodeSurfSides      = 0
-nSurfSidesProc             = 0
+GlobalSide2SurfSideProc = -1
+nComputeNodeSurfSides   = 0
+nSurfSidesProc          = 0
+ReflectiveOrOpenBCFound = .FALSE.
 
-! check every BC side
+! Check every BC side
 DO iSide = firstSide,lastSide
-  ! ignore non-BC sides
+  ! Ignore non-BC sides
   IF (SideInfo_Shared(SIDE_BCID,iSide).LE.0) CYCLE
 
 #if USE_MPI
-  ! ignore sides outside of halo region
+  ! Ignore sides outside of halo region
   IF (ElemInfo_Shared(ELEM_HALOFLAG,SideInfo_Shared(SIDE_ELEMID,iSide)).EQ.0) CYCLE
 #endif /*USE_MPI*/
 
-  ! count number of reflective and rotationally periodic BC sides
-  IF ((PartBound%TargetBoundCond(PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,iSide))).EQ.PartBound%ReflectiveBC) .OR. &
-      (PartBound%TargetBoundCond(PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,iSide))).EQ.PartBound%RotPeriodicBC).OR. &
-      (PartBound%TargetBoundCond(PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,iSide))).EQ.PartBound%RotPeriodicInterPlaneBC))THEN
+  ! Get the particle boundary condition index
+  PartBoundCondition = PartBound%TargetBoundCond(PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,iSide)))
+
+  ! Check if any process finds an open or reflective BC in the halo region (required for SurfCOMM%UNICATOR below)
+  IF ((PartBoundCondition.EQ.PartBound%OpenBC) .OR. &
+      (PartBoundCondition.EQ.PartBound%ReflectiveBC)) ReflectiveOrOpenBCFound = .TRUE.
+
+  ! Count number of reflective and rotationally periodic BC sides
+  IF ((PartBoundCondition.EQ.PartBound%ReflectiveBC) .OR. &
+      (PartBoundCondition.EQ.PartBound%RotPeriodicBC).OR. &
+      (PartBoundCondition.EQ.PartBound%RotPeriodicInterPlaneBC))THEN
     nSurfSidesProc = nSurfSidesProc + 1
-    ! check if element for this side is on the current compute-node
+    ! Check if element for this side is on the current compute-node
     ! IF ((SideInfo_Shared(SIDE_ID,iSide).GT.ElemInfo_Shared(ELEM_FIRSTSIDEIND,offsetComputeNodeElem+1))                  .AND. &
     !     (SideInfo_Shared(SIDE_ID,iSide).LE.ElemInfo_Shared(ELEM_LASTSIDEIND ,offsetComputeNodeElem+nComputeNodeElems))) THEN
     ! IF ((iSide.GE.(ElemInfo_Shared(ELEM_FIRSTSIDEIND,offsetComputeNodeElem+1)+1))                  .AND. &
@@ -684,14 +693,14 @@ DO iSide = firstSide,lastSide
     GlobalSide2SurfSideProc(SURF_SIDEID,iSide) = nSurfSidesProc
 #if USE_MPI
     GlobalSide2SurfSideProc(SURF_RANK  ,iSide) = ElemInfo_Shared(ELEM_RANK,SideInfo_Shared(SIDE_ELEMID,iSide))
-    ! get global Elem ID
+    ! Get global Elem ID
     GlobalElemID   = SideInfo_Shared(SIDE_ELEMID,iSide)
     GlobalElemRank = ElemInfo_Shared(ELEM_RANK,GlobalElemID)
-    ! running on one node, everything belongs to us
+    ! Running on one node, everything belongs to us
     IF (nLeaderGroupProcs.EQ.1) THEN
       GlobalSide2SurfSideProc(SURF_LEADER,iSide) = myLeaderGroupRank
     ELSE
-      ! find the compute node
+      ! Find the compute node
       GlobalSide2SurfSideProc(SURF_LEADER,iSide) = INT(GlobalElemRank/nComputeNodeProcessors)
     END IF
 #else
@@ -700,10 +709,10 @@ DO iSide = firstSide,lastSide
 #endif /*USE_MPI*/
 
 #if USE_MPI
-    ! check if element for this side is on the current compute-node. Alternative version to the check above
+    ! Check if element for this side is on the current compute-node. Alternative version to the check above
     IF (GlobalSide2SurfSideProc(SURF_LEADER,iSide).EQ.myLeaderGroupRank) nComputeNodeSurfSides  = nComputeNodeSurfSides + 1
 #endif /*USE_MPI*/
-  END IF ! reflective side
+  END IF ! Reflective side
 END DO
 
 ! Find CN global number of total surf sides and write Side to Surf Side mapping into shared array
@@ -853,14 +862,14 @@ IF(nComputeNodeSurfTotalSides.GT.0)THEN
   DEALLOCATE(GlobalSide2SurfSideProc)
 END IF ! nComputeNodeSurfTotalSides.GT.0
 
-! flag if there is at least one surf side on the node (sides in halo region do also count)
-SurfOnNode = MERGE(.TRUE.,.FALSE.,nComputeNodeSurfTotalSides.GT.0)
-
 #if USE_MPI
+! Flag if there is at least one BC side on the node (sides in halo region do also count). MPI_LOR: return the logical or
+CALL MPI_ALLREDUCE(ReflectiveOrOpenBCFound, BCOnNode, 1, MPI_LOGICAL, MPI_LOR, MPI_COMM_SHARED, iError)
+
 ! Create a communicator if BCs are on the node
 ! Set the control of subset assignment (non-negative integer). Processes with the same color are in the same new communicator.
 ! Make sure to include the root
-color = MERGE(1337, MPI_UNDEFINED, MPIRoot.OR.SurfOnNode)
+color = MERGE(1337, MPI_UNDEFINED, MPIRoot.OR.BCOnNode)
 ! Create new surface communicator. Pass MPI_INFO_NULL as rank to follow the original ordering
 CALL MPI_COMM_SPLIT(MPI_COMM_PICLAS, color, MPI_INFO_NULL, SurfCOMM%UNICATOR, iError)
 ! Find my rank on the shared communicator, comm size and proc name
