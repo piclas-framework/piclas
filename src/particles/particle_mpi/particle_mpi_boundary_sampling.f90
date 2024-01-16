@@ -205,9 +205,6 @@ DO iProc = 0,nLeaderGroupProcs-1
   IF (IERROR.NE.MPI_SUCCESS) CALL ABORT(__STAMP__,' MPI Communication error', IERROR)
 END DO
 
-! Flag if there is at least one surf side on the node (sides in halo region do also count)
-SurfTotalSideOnNode = MERGE(.TRUE.,.FALSE.,nComputeNodeSurfTotalSides.GT.0)
-
 !--- Split communicator from MPI_COMM_LEADER_SHARED
 color = MERGE(1201,MPI_UNDEFINED,SurfTotalSideOnNode)
 

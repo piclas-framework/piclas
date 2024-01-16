@@ -157,6 +157,9 @@ IF((nSurfSample.GT.1).AND.(TrackingMethod.EQ.TRIATRACKING)) &
 ! Sampling of impact energy for each species (trans, rot, vib), impact vector (x,y,z) and angle
 CalcSurfaceImpact = GETLOGICAL('CalcSurfaceImpact')
 
+! Flag if there is at least one surf side on the node (sides in halo region do also count)
+SurfTotalSideOnNode = MERGE(.TRUE.,.FALSE.,nComputeNodeSurfTotalSides.GT.0)
+
 !> Setting the number of sampling (SurfSampSize -> SampWallState) and output (SurfOutputSize -> MacroSurfaceVal) variables
 !> Optional sampling variables require an additional SampWallIndex (SWI)
 ! Default: Energy + Force + nSpecies
