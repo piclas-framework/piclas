@@ -292,6 +292,11 @@ USE MOD_MPI                        ,ONLY: OutputMPIW8Time
 #endif /*PARTICLES*/
 USE MOD_IO_HDF5                    ,ONLY: FinalizeElemData,ElementOut
 USE MOD_TimeDiscInit               ,ONLY: FinalizeTimeDisc
+#if (PP_TimeDiscMethod==600)
+USE MOD_Radiation_Init             ,ONLY: FinalizeRadiation
+USE MOD_RadiationTrans_Init        ,ONLY: FinalizeRadiationTransport
+USE MOD_Photon_Tracking            ,ONLY: FinalizePhotonSurfSample
+#endif
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
 ! INPUT VARIABLES
@@ -361,6 +366,12 @@ PICInitIsDone = .FALSE.
 #if USE_MPI
 ParticleMPIInitIsDone=.FALSE.
 #endif /*USE_MPI*/
+
+#if (PP_TimeDiscMethod==600)
+CALL FinalizeRadiation()
+CALL FinalizeRadiationTransport()
+CALL FinalizePhotonSurfSample()
+#endif
 
 CALL FinalizeTTM() ! FD grid based data from a Two-Temperature Model (TTM) from Molecular Dynamics (MD) Code IMD
 #endif /*PARTICLES*/

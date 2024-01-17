@@ -25,11 +25,7 @@ INTERFACE InitRadiationTransport
   MODULE PROCEDURE InitRadiationTransport
 END INTERFACE
 
-!INTERFACE FinalizeRadiationTransport
-!  MODULE PROCEDURE FinalizeRadiationTransport
-!END INTERFACE
-
-PUBLIC::InitRadiationTransport, DefineParametersRadiationTrans, HALTON
+PUBLIC::InitRadiationTransport, DefineParametersRadiationTrans, HALTON, FinalizeRadiationTransport
 !===================================================================================================================================
 
 CONTAINS
@@ -791,5 +787,55 @@ INTEGER, INTENT(IN)             :: n
 
   RETURN
 END FUNCTION PRIME
+
+
+SUBROUTINE FinalizeRadiationTransport()
+!===================================================================================================================================
+!> Deallocating radiation variables
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals
+USE MOD_RadiationTrans_Vars
+#if USE_MPI
+USE MOD_MPI_Shared_Vars    ,ONLY: MPI_COMM_SHARED
+USE MOD_MPI_Shared
+USE MOD_Particle_Mesh_Vars ,ONLY: ElemSideNodeID2D_Shared_Win,SideNormalEdge2D_Shared_Win
+#endif
+USE MOD_Particle_Vars      ,ONLY: Symmetry
+USE MOD_Particle_Mesh_Vars ,ONLY: ElemSideNodeID2D_Shared,SideNormalEdge2D_Shared
+!-----------------------------------------------------------------------------------------------------------------------------------
+IMPLICIT NONE
+! INPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+!===================================================================================================================================
+
+#if USE_MPI
+! First, free every shared memory window. This requires MPI_BARRIER as per MPI3.1 specification
+CALL MPI_BARRIER(MPI_COMM_SHARED,iERROR)
+CALL UNLOCK_AND_FREE(RadiationElemAbsEnergy_Shared_Win)
+CALL UNLOCK_AND_FREE(RadiationElemAbsEnergySpec_Shared_Win)
+CALL UNLOCK_AND_FREE(RadTransPhotPerCell_Shared_Win)
+CALL UNLOCK_AND_FREE(Radiation_Emission_Spec_Total_Shared_Win)
+CALL UNLOCK_AND_FREE(RadTransObsVolumeFrac_Shared_Win)
+IF(RadiationPhotonWaveLengthModel.EQ.1) CALL UNLOCK_AND_FREE(Radiation_Emission_Spec_Max_Shared_Win)
+IF(Symmetry%Order.EQ.2)THEN
+  CALL UNLOCK_AND_FREE(ElemSideNodeID2D_Shared_Win)
+  CALL UNLOCK_AND_FREE(SideNormalEdge2D_Shared_Win)
+END IF
+CALL MPI_BARRIER(MPI_COMM_SHARED,iERROR)
+#endif /*USE_MPI*/
+ADEALLOCATE(RadiationElemAbsEnergy_Shared)
+ADEALLOCATE(RadiationElemAbsEnergySpec_Shared)
+ADEALLOCATE(RadTransPhotPerCell_Shared)
+ADEALLOCATE(Radiation_Emission_Spec_Total_Shared)
+ADEALLOCATE(RadTransObsVolumeFrac_Shared)
+ADEALLOCATE(Radiation_Emission_Spec_Max_Shared)
+ADEALLOCATE(ElemSideNodeID2D_Shared)
+ADEALLOCATE(SideNormalEdge2D_Shared)
+
+END SUBROUTINE FinalizeRadiationTransport
 
 END MODULE MOD_RadiationTrans_Init

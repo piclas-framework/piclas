@@ -230,6 +230,7 @@ USE MOD_Photon_TrackingVars ,ONLY: PhotonSurfSideSamplingMidPoints_Shared,Photon
 USE MOD_Photon_TrackingVars ,ONLY: PhotonSurfSideArea_Shared,PhotonSurfSideArea_Shared_Win
 USE MOD_MPI_Shared
 #endif /*USE_MPI*/
+USE MOD_Photon_TrackingVars
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! INPUT / OUTPUT VARIABLES
@@ -237,12 +238,17 @@ IMPLICIT NONE
 ! LOCAL VARIABLES
 !===================================================================================================================================
 #if USE_MPI
+! First, free every shared memory window. This requires MPI_BARRIER as per MPI3.1 specification
+CALL MPI_BARRIER(MPI_COMM_SHARED,iERROR)
 CALL UNLOCK_AND_FREE(PhotonSurfSideSamplingMidPoints_Shared_Win)
 CALL UNLOCK_AND_FREE(PhotonSurfSideArea_Shared_Win)
-ADEALLOCATE(PhotonSurfSideSamplingMidPoints_Shared)
-ADEALLOCATE(PhotonSurfSideArea_Shared)
+CALL UNLOCK_AND_FREE(PhotonSampWall_Shared_Win)
 CALL MPI_BARRIER(MPI_COMM_SHARED,iERROR)
 #endif /*USE_MPI*/
+
+ADEALLOCATE(PhotonSampWall_Shared)
+ADEALLOCATE(PhotonSurfSideSamplingMidPoints_Shared)
+ADEALLOCATE(PhotonSurfSideArea_Shared)
 
 ADEALLOCATE(PhotonSurfSideSamplingMidPoints)
 ADEALLOCATE(PhotonSurfSideArea)

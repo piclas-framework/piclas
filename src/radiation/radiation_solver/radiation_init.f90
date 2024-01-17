@@ -25,10 +25,6 @@ INTERFACE InitRadiation
   MODULE PROCEDURE InitRadiation
 END INTERFACE
 
-INTERFACE FinalizeRadiation
-  MODULE PROCEDURE FinalizeRadiation
-END INTERFACE
-
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! GLOBAL VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -507,9 +503,11 @@ SUBROUTINE FinalizeRadiation()
 !> Deallocating radiation variables
 !===================================================================================================================================
 ! MODULES
+USE MOD_Globals
 USE MOD_Radiation_Vars
 #if USE_MPI
-!USE MOD_MPI_Shared_Vars    !,ONLY: MPI_COMM_SHARED
+!USE MOD_MPI_Shared_Vars
+USE MOD_MPI_Shared_Vars     ,ONLY: MPI_COMM_SHARED
 USE MOD_MPI_Shared
 #endif
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -526,10 +524,13 @@ SDEALLOCATE(SpeciesRadiation)
 SDEALLOCATE(RadiationParameter%WaveLen)
 
 #if USE_MPI
+! First, free every shared memory window. This requires MPI_BARRIER as per MPI3.1 specification
+CALL MPI_BARRIER(MPI_COMM_SHARED,iERROR)
 CALL UNLOCK_AND_FREE(Radiation_Emission_Spec_Shared_Win)
 CALL UNLOCK_AND_FREE(Radiation_Absorption_Spec_Shared_Win)
 CALL UNLOCK_AND_FREE(Radiation_ElemEnergy_Species_Shared_Win)
 CALL UNLOCK_AND_FREE(Radiation_Absorption_SpecPercent_Shared_Win)
+CALL MPI_BARRIER(MPI_COMM_SHARED,iERROR)
 #endif /*USE_MPI*/
 ADEALLOCATE(Radiation_Emission_Spec)
 ADEALLOCATE(Radiation_Absorption_Spec)
