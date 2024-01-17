@@ -3,7 +3,6 @@
 # Load modules on new boltzplatz reggie
 before_script:
   - ulimit -s unlimited
-  - module list
   - python3 -V || true
   - python2 -V || true
   - if [ -n "${DO_CORE_SPLIT}" ]; then
@@ -27,6 +26,15 @@ before_script:
       export GENERATOR=make;
       export NCORES=;
     fi
+  - if [ -n "${DO_MPICH}" ]; then
+      module purge;
+      module load   cmake/3.26.4    gcc/13.2.0  mpich/4.1.2/gcc/13.2.0        hdf5/1.14.0/gcc/13.2.0/mpich/4.1.2        hopr/master/gcc/13.2.0/mpich/4.1.2/hdf5/1.14.0        petsc/3.19.3/gcc/13.2.0/mpich/4.1.2;
+    fi
+  - if [ -n "${DO_MPICH_DEBUG}" ]; then
+      module purge;
+      module load   cmake/3.26.4    gcc/13.2.0  mpich-debug/4.1.2/gcc/13.2.0  hdf5/1.14.0/gcc/13.2.0/mpich-debug/4.1.2  hopr/master/gcc/13.2.0/mpich-debug/4.1.2/hdf5/1.14.0  petsc/3.19.3/gcc/13.2.0/mpich-debug/4.1.2;
+    fi
+  - module list
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 # Stages
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
@@ -57,6 +65,7 @@ stages:
     name: "${CI_PIPELINE_ID}-${CI_COMMIT_REF_NAME}-${CI_JOB_NAME}"
     expire_in: 1 day
     when: on_failure
+
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 # Default parameters for the testing stage only (reusing the previous template)
 .default_param: &default_param
@@ -67,6 +76,7 @@ stages:
   key: "reggie"
   paths: [reggie]
   policy: pull
+
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 # Defaults for the standard maxwell tests (utilizing "extends" to merge the other "artifacts" options with the specific path)
 .defaults: &defaults
@@ -95,6 +105,7 @@ stages:
   <<: *defaults
   rules:
     - if: '$DO_WEEKLY'
+
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 # Defaults for other maxwell tests with PICLAS_DEBUG_MEMORY=ON
 .defaults_maxwell: &defaults_maxwell
@@ -217,6 +228,7 @@ reggie_download:
   stage: build
   script:
     - git clone git@piclas.boltzplatz.eu:reggie2.0/reggie2.0.git reggie
+    - if [ -f "reggie/.git/refs/heads/master" ]; then cat reggie/.git/refs/heads/master ; fi
 
 build:
   extends: .default_build_param

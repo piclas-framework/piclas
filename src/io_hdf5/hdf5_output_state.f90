@@ -854,14 +854,6 @@ IF(.NOT.DoRestart)THEN
     CALL FillParticleData()
     CALL WriteStateToHDF5(TRIM(MeshFile),t,tFuture)
     SWRITE(UNIT_StdOut,'(A)')'   Particles: StateFile (IMD MD data) created. Terminating successfully!'
-#if USE_MPI
-    CALL FinalizeMPI()
-    CALL MPI_FINALIZE(iERROR)
-    IF(iERROR.NE.0)THEN
-      CALL abort(__STAMP__, ' MPI_FINALIZE(iERROR) returned non-zero integer value',iERROR)
-    END IF
-#endif /*USE_MPI*/
-    STOP 0 ! terminate successfully
   ELSE
     CALL abort(__STAMP__, ' IMDLengthScale.LE.0.0 which is not allowed')
   END IF

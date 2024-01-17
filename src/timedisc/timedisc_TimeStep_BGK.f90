@@ -206,6 +206,8 @@ END IF ! DoParticleLatencyHiding
 CALL MPIParticleRecv(.TRUE.)
 #endif /*USE_MPI*/
 
+! After MPI communication of particles, call UNFP including the MPI particles
+CALL UpdateNextFreePosition()
 
 !#ifdef EXTRAE
 !CALL extrae_eventandcounters(int(9000001), int8(51))

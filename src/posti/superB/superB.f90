@@ -42,6 +42,7 @@ USE MOD_Mesh                  ,ONLY: InitMesh
 USE MOD_MPI_Shared
 #endif /*USE_MPI*/
 USE MOD_Globals_Init          ,ONLY: DefineParametersGlobals
+USE MOD_Mesh_ReadIn           ,ONLY: FinalizeMeshReadin
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
@@ -145,6 +146,7 @@ SDEALLOCATE(BGFieldAnalytic)
 ! Finalize SuperB
 CALL FinalizeSuperB()
 CALL FinalizeMesh()
+CALL FinalizeMeshReadin(2)
 
 GETTIME(SystemTime)
 SWRITE(UNIT_stdOut,'(132("="))')

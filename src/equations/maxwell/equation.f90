@@ -1607,7 +1607,7 @@ PPURE SUBROUTINE ExactFunc_TE_Circular_Waveguide(t,x,resu)
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_Globals_Vars  ,ONLY: c,c2,eps0,PI,c_inv,mu0
+USE MOD_Globals_Vars  ,ONLY: c,PI,c_inv,mu0
 USE MOD_Equation_Vars ,ONLY: TEScale,TEPulse,TEFrequency,TEPolarization
 USE MOD_Equation_Vars ,ONLY: TERadius,TEModeRoot,TEDelay,TEPulseSigma,TEPulseSeriesFrequence
 USE MOD_Equation_Vars ,ONLY: TEPulseNumber,TEDirection,TEMode,TEPulseShape
