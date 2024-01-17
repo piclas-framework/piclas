@@ -82,8 +82,7 @@ CALL prms%CreateLogicalOption('Radiation-bb-atoms',                    'Enable a
 CALL prms%CreateLogicalOption('Radiation-bb-molecules',                'Enable molecular bound-bound radiation', '.FALSE.')
 CALL prms%CreateLogicalOption('Radiation-MacroRadInput',               'Reading in flow field data as radiation input', '.FALSE.')
 CALL prms%CreateLogicalOption('Radiation-MacroInput-SortCellsY',       'Sorts Cells in y-direction', '.FALSE.')
-CALL prms%CreateLogicalOption('Radiation-UseElectronicExcitation',     'Use el. excitation to populate upper state densitites', &
-						                        '.TRUE.')
+CALL prms%CreateLogicalOption('Radiation-UseElectronicExcitation',     'Use el. excitation to populate upper state densitites', '.TRUE.')
 CALL prms%CreateRealOption(   'Radiation-NumDensElectrons',            'Electron number density, 1/cm3', '0.0')
 CALL prms%CreateRealOption(   'Radiation-TElectrons',                  'Electron temperature, K', '0.0')
 CALL prms%CreateStringOption( 'Radiation-Species[$]-SpectraFileName',  'File name of data file', 'none', numberedmulti=.TRUE.)
@@ -372,11 +371,11 @@ END ASSOCIATE
 
 
 IF(RadiationSwitches%SortCellsY) THEN !Sort cells if manually created input is used
-	IF(nProcessors.GT.1) THEN
-		CALL abort(&
+  IF(nProcessors.GT.1) THEN
+    CALL abort(&
                 __STAMP__&
                 ,' ERROR: Radiation - Sort cells in y-direction only possible on one processor!')
-	END IF
+  END IF
   ALLOCATE(SortElemInd(nElems), SortElemYPos(nElems))
   DO iElem = 1, nElems
     SortElemInd(iElem) = iElem

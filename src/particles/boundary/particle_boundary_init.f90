@@ -617,7 +617,6 @@ USE MOD_Particle_Boundary_Vars  ,ONLY: PartBound
 USE MOD_Particle_Boundary_Vars  ,ONLY: nComputeNodeSurfSides,nComputeNodeSurfTotalSides,nComputeNodeSurfOutputSides
 USE MOD_Particle_Boundary_Vars  ,ONLY: GlobalSide2SurfSide,SurfSide2GlobalSide
 #if USE_MPI
-USE MOD_Mesh_Vars               ,ONLY: nBCSides, offsetElem, SideToElem
 USE MOD_Particle_Mesh_Vars      ,ONLY: ElemInfo_Shared
 USE MOD_MPI_Shared
 USE MOD_MPI_Shared_Vars         ,ONLY: MPI_COMM_SHARED
@@ -643,7 +642,7 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER                                :: iSide,firstSide,lastSide,iSurfSide,GlobalSideID
-INTEGER                                :: nSurfSidesProc, nBCSidesProc
+INTEGER                                :: nSurfSidesProc
 INTEGER                                :: offsetSurfTotalSidesProc
 INTEGER,ALLOCATABLE                    :: GlobalSide2SurfSideProc(:,:)
 #if USE_MPI
@@ -918,7 +917,7 @@ IF(SurfCOMM%UNICATOR.NE.MPI_COMM_NULL)THEN
   CALL MPI_COMM_SIZE(SurfCOMM%UNICATOR, SurfCOMM%nProcs, iError)
   ! inform about size of emission communicator
   LBWRITE(UNIT_StdOut,'(A,I0,A)') ' Surface sides: Communicator on ', SurfCOMM%nProcs,' procs'
-END IF ! nBCSidesProc.GT.0
+END IF
 #endif /*USE_MPI*/
 
 LBWRITE(UNIT_stdOut,'(A)') ' INIT SURFACE SIDES DONE!'
