@@ -738,34 +738,61 @@ NIG_PIC_Deposition:
     - cd build ; python ../reggie/reggie.py ../regressioncheck/NIG_PIC_Deposition/
 
 # 2023-10-28: Deactivate RK3 for photoionization for now in order to save time when running the reggies. This features is currently only used in combination with Leapfrog anyway.
-#
-# NIG_Photoionization_release_RK3:
-#   <<: *defaults_poisson_nightly
-#   stage: reggie_nightly
-#   script:
-#     - cd build_poisson_release_RK3;  python ../reggie/reggie.py ../regressioncheck/NIG_Photoionization -e ./bin/piclas
-#
-# NIG_Photoionization_debug_RK3:
-#   <<: *defaults_poisson_nightly
-#   stage: reggie_nightly
-#   script:
-#     - cd build_poisson_debug_RK3;  python ../reggie/reggie.py ../regressioncheck/NIG_Photoionization -e ./bin/piclas
-#
-# NIG_Photoionization_petsc_release_RK3:
-#   <<: *defaults_poisson_petsc_nightly
-#   stage: reggie_nightly
-#   script:
-#     - cd build_poisson_petsc_release_RK3;  python ../reggie/reggie.py ../regressioncheck/NIG_Photoionization -e ./bin/piclas
-#
-# NIG_Photoionization_petsc_debug_RK3:
-#   <<: *defaults_poisson_petsc_nightly
-#   stage: reggie_nightly
-#   script:
-#     - cd build_poisson_petsc_debug_RK3;  python ../reggie/reggie.py ../regressioncheck/NIG_Photoionization -e ./bin/piclas
+# 2024-01-17: Moved to weekly (reactivated 4 + move to weekly, move release_Leapfrog and debug_Leapfrog from nightly to weekly to reduce time further)
 
-NIG_Photoionization_release_Leapfrog:
+# --- weekly
+
+WEK_Photoionization_release_RK3:
   <<: *defaults_poisson_nightly
-  stage: reggie_nightly
+  stage: reggie_weekly
+  script:
+    - cd build_poisson_release_RK3;  python ../reggie/reggie.py ../regressioncheck/NIG_Photoionization -e ./bin/piclas
+  rules:
+    - if: '$DO_CORE_SPLIT'
+      when: never
+    - if: '$DO_NODE_SPLIT'
+      when: never
+    - if: '$DO_WEKHTLY'
+
+WEK_Photoionization_debug_RK3:
+  <<: *defaults_poisson_nightly
+  stage: reggie_weekly
+  script:
+    - cd build_poisson_debug_RK3;  python ../reggie/reggie.py ../regressioncheck/NIG_Photoionization -e ./bin/piclas
+  rules:
+    - if: '$DO_CORE_SPLIT'
+      when: never
+    - if: '$DO_NODE_SPLIT'
+      when: never
+    - if: '$DO_WEKHTLY'
+
+WEK_Photoionization_petsc_release_RK3:
+  <<: *defaults_poisson_petsc_nightly
+  stage: reggie_weekly
+  script:
+    - cd build_poisson_petsc_release_RK3;  python ../reggie/reggie.py ../regressioncheck/NIG_Photoionization -e ./bin/piclas
+  rules:
+    - if: '$DO_CORE_SPLIT'
+      when: never
+    - if: '$DO_NODE_SPLIT'
+      when: never
+    - if: '$DO_WEKHTLY'
+
+WEK_Photoionization_petsc_debug_RK3:
+  <<: *defaults_poisson_petsc_nightly
+  stage: reggie_weekly
+  script:
+    - cd build_poisson_petsc_debug_RK3;  python ../reggie/reggie.py ../regressioncheck/NIG_Photoionization -e ./bin/piclas
+  rules:
+    - if: '$DO_CORE_SPLIT'
+      when: never
+    - if: '$DO_NODE_SPLIT'
+      when: never
+    - if: '$DO_WEKHTLY'
+
+WEK_Photoionization_release_Leapfrog:
+  <<: *defaults_poisson_nightly
+  stage: reggie_weekly
   script:
     - cd build_poisson_release_Leapfrog;  python ../reggie/reggie.py ../regressioncheck/NIG_Photoionization -e ./bin/piclas
   rules:
@@ -773,11 +800,11 @@ NIG_Photoionization_release_Leapfrog:
       when: never
     - if: '$DO_NODE_SPLIT'
       when: never
-    - if: '$DO_NIGHTLY'
+    - if: '$DO_WEKHTLY'
 
-NIG_Photoionization_debug_Leapfrog:
+WEK_Photoionization_debug_Leapfrog:
   <<: *defaults_poisson_nightly
-  stage: reggie_nightly
+  stage: reggie_weekly
   script:
     - cd build_poisson_debug_Leapfrog;  python ../reggie/reggie.py ../regressioncheck/NIG_Photoionization -e ./bin/piclas
   rules:
@@ -785,7 +812,9 @@ NIG_Photoionization_debug_Leapfrog:
       when: never
     - if: '$DO_NODE_SPLIT'
       when: never
-    - if: '$DO_NIGHTLY'
+    - if: '$DO_WEKHTLY'
+
+# --- nightly
 
 NIG_Photoionization_petsc_release_Leapfrog:
   <<: *defaults_poisson_petsc_nightly
