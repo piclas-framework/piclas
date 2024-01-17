@@ -224,7 +224,10 @@ END IF ! CalcPointsPerDebyeLength.OR.CalcPICTimeStep
 CALL PerformAnalyze(time,FirstOrLastIter=.TRUE.,OutPutHDF5=.FALSE.)
 
 #ifdef PARTICLES
-IF(DoImportIMDFile) CALL WriteIMDStateToHDF5() ! Write IMD particles to state file (and TTM if it exists)
+IF(DoImportIMDFile)THEN
+  CALL WriteIMDStateToHDF5() ! Write IMD particles to state file (and TTM if it exists)
+  IF(.NOT.DoRestart) RETURN
+END IF ! DoImportIMDFile
 #endif /*PARTICLES*/
 IF((.NOT.DoRestart).OR.FlushInitialState.OR.(.NOT.FILEEXISTS(TRIM(TIMESTAMP(TRIM(ProjectName)//'_State',time))//'.h5'))) THEN
 #if defined(PARTICLES)

@@ -511,7 +511,7 @@ SUBROUTINE ExchangeRadiationSurfData()
 ! MODULES                                                                                                                          !
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Globals
-USE MOD_Particle_Boundary_Vars ,ONLY: SurfOnNode, SurfMapping, nComputeNodeSurfTotalSides, GlobalSide2SurfSide
+USE MOD_Particle_Boundary_Vars ,ONLY: SurfTotalSideOnNode, SurfMapping, nComputeNodeSurfTotalSides, GlobalSide2SurfSide
 USE MOD_Particle_MPI_Vars      ,ONLY: SurfSendBuf,SurfRecvBuf
 USE MOD_Photon_TrackingVars    ,ONLY: PhotonSampWallProc, PhotonSampWall_Shared, PhotonSampWall_Shared_Win
 USE MOD_RayTracing_Vars        ,ONLY: Ray
@@ -530,7 +530,7 @@ INTEGER                         :: iPos,iProc,p,q
 INTEGER                         :: RecvRequest(0:nSurfLeaders-1),SendRequest(0:nSurfLeaders-1)
 !===================================================================================================================================
 ! nodes without sampling surfaces do not take part in this routine
-IF (.NOT.SurfOnNode) RETURN
+IF (.NOT.SurfTotalSideOnNode) RETURN
 
 MessageSize = 2*nComputeNodeSurfTotalSides*(Ray%nSurfSample**2)
 IF (myComputeNodeRank.EQ.0) THEN

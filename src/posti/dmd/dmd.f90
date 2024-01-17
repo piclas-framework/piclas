@@ -124,6 +124,7 @@ CALL WriteDmdStateFile()
 
 CALL FinalizeDMD()
 CALL FinalizeMesh()
+GETTIME(EndT)
 #if USE_MPI
 CALL FinalizeMPI()
 CALL MPI_FINALIZE(iError)
@@ -131,7 +132,6 @@ IF(iError .NE. 0) STOP 'MPI finalize error'
 #endif
 
 SWRITE(UNIT_stdOut,'(132("="))')
-GETTIME(EndT)
 CALL DisplayMessageAndTime(EndT-StartT, 'DMD TOOL FINISHED! ', DisplayDespiteLB=.TRUE., DisplayLine=.FALSE.)
 SWRITE(UNIT_stdOut,'(132("="))')
 

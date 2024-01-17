@@ -155,6 +155,14 @@ def CleanSingleLines(stdfile,args):
                 # remove UCX warnings (e.g. on hawk)
                 #[[1669126882.059241] [r34c2t5n4:1727877:0]           mpool.c:54   UCX  WARN  object 0x1dce980 {flags:0x20040 recv length 16 host memory} was not returned to mpool ucp_requests]
                 changedLines+=1
+            elif line_stripped.startswith('myrank') and hasNumbers(line_stripped) and ('MPI_WIN_UNLOCK_ALL' in line_stripped or 'MPI_WIN_FREE' in line_stripped or 'with WIN_SIZE =' in line_stripped):
+                # remove [myrank=      0                         Unlocking SampWallState_Shared_Win with MPI_WIN_UNLOCK_ALL()]
+                #     or [myrank=      0                    Freeing window SampWallState_Shared_Win with       MPI_WIN_FREE()]
+                #     or [myrank=      0     Allocated CNTotalSide2GlobalSide_Shared_Win with WIN_SIZE =              8769432]
+                changedLines+=1
+            elif 'WARNING: Memory reaching maximum, RAM is at' in line_stripped:
+                # Remove [ WARNING: Memory reaching maximum, RAM is at *****%]
+                changedLines+=1
             else:
                 # Write the line to the new (clean) file
                 output_new.write(line)

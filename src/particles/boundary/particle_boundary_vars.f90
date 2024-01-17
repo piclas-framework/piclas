@@ -25,7 +25,7 @@ IMPLICIT NONE
 PUBLIC
 SAVE
 
-LOGICAL                                 :: SurfOnNode
+LOGICAL                                 :: SurfTotalSideOnNode
 INTEGER                                 :: SurfSampSize                  !> Energy + Force + nSpecies
 INTEGER                                 :: SurfOutputSize                !> Energy + Force + nSpecies
 INTEGER                                 :: SurfSpecOutputSize            !> Energy + Force + nSpecies
@@ -125,6 +125,8 @@ INTEGER                                 :: SampWallImpactNumber_Shared_Win
 
 ! ====================================================================
 ! Rotational periodic sides
+INTEGER                           :: nRotPeriodicSides         ! Number of rotational periodic sides on a compute node
+INTEGER                           :: MaxNumRotPeriodicNeigh    ! Maximum number of rotationally periodic neighbours
 INTEGER,ALLOCPOINT,DIMENSION(:)   :: NumRotPeriodicNeigh       ! Number of adjacent Neigbours sites in rotational periodic BC
 INTEGER,ALLOCPOINT,DIMENSION(:,:) :: RotPeriodicSideMapping    ! Mapping between rotational periodic sides.
 INTEGER,ALLOCPOINT,DIMENSION(:)   :: SurfSide2RotPeriodicSide  ! Mapping between surf side and periodic sides.

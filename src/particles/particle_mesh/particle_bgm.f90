@@ -1246,23 +1246,25 @@ DO iElem = offsetElem+1,offsetElem+nElems
           CALL MPI_FETCH_AND_OP(increment,dummyInt,MPI_INTEGER,0,INT(posElem*SIZE_INT,MPI_ADDRESS_KIND),MPI_SUM,FIBGM_nTotalElems_Shared_Win,IERROR)
           ! Perform logical OR and place data on CN root
           CALL MPI_FETCH_AND_OP(.TRUE.   ,dummyLog,MPI_LOGICAL,0,INT(posRank*SIZE_INT,MPI_ADDRESS_KIND),MPI_LOR,FIBGMToProcFlag_Shared_Win  ,IERROR)
+          ! MPI_FETCH_AND_OP does guarantee completion before MPI_WIN_FLUSH, so ensure it before leaving the scope
+          CALL MPI_WIN_FLUSH(0,FIBGM_nTotalElems_Shared_Win,iError)
+          CALL MPI_WIN_FLUSH(0,FIBGMToProcFlag_Shared_Win  ,iError)
         END ASSOCIATE
-
-        ! Store the min/max extent
-        CALL MPI_FETCH_AND_OP(iBGM,dummyInt,MPI_INTEGER,0,INT(((ProcRank)*(3)*(2) + (1-1)*(2) + (1-1))*SIZE_INT,MPI_ADDRESS_KIND),MPI_MIN,FIBGMToProcExtent_Shared_Win,IERROR)
-        CALL MPI_FETCH_AND_OP(jBGM,dummyInt,MPI_INTEGER,0,INT(((ProcRank)*(3)*(2) + (2-1)*(2) + (1-1))*SIZE_INT,MPI_ADDRESS_KIND),MPI_MIN,FIBGMToProcExtent_Shared_Win,IERROR)
-        CALL MPI_FETCH_AND_OP(kBGM,dummyInt,MPI_INTEGER,0,INT(((ProcRank)*(3)*(2) + (3-1)*(2) + (1-1))*SIZE_INT,MPI_ADDRESS_KIND),MPI_MIN,FIBGMToProcExtent_Shared_Win,IERROR)
-        CALL MPI_FETCH_AND_OP(iBGM,dummyInt,MPI_INTEGER,0,INT(((ProcRank)*(3)*(2) + (1-1)*(2) + (2-1))*SIZE_INT,MPI_ADDRESS_KIND),MPI_MAX,FIBGMToProcExtent_Shared_Win,IERROR)
-        CALL MPI_FETCH_AND_OP(jBGM,dummyInt,MPI_INTEGER,0,INT(((ProcRank)*(3)*(2) + (2-1)*(2) + (2-1))*SIZE_INT,MPI_ADDRESS_KIND),MPI_MAX,FIBGMToProcExtent_Shared_Win,IERROR)
-        CALL MPI_FETCH_AND_OP(kBGM,dummyInt,MPI_INTEGER,0,INT(((ProcRank)*(3)*(2) + (3-1)*(2) + (2-1))*SIZE_INT,MPI_ADDRESS_KIND),MPI_MAX,FIBGMToProcExtent_Shared_Win,IERROR)
       END DO
     END DO
   END DO
+
+  ! Store the min/max extent
+  CALL MPI_FETCH_AND_OP(ElemToBGM_Shared(1,iElem),dummyInt,MPI_INTEGER,0,INT(((ProcRank)*(3)*(2) + (1-1)*(2) + (1-1))*SIZE_INT,MPI_ADDRESS_KIND),MPI_MIN,FIBGMToProcExtent_Shared_Win,IERROR)
+  CALL MPI_FETCH_AND_OP(ElemToBGM_Shared(3,iElem),dummyInt,MPI_INTEGER,0,INT(((ProcRank)*(3)*(2) + (2-1)*(2) + (1-1))*SIZE_INT,MPI_ADDRESS_KIND),MPI_MIN,FIBGMToProcExtent_Shared_Win,IERROR)
+  CALL MPI_FETCH_AND_OP(ElemToBGM_Shared(5,iElem),dummyInt,MPI_INTEGER,0,INT(((ProcRank)*(3)*(2) + (3-1)*(2) + (1-1))*SIZE_INT,MPI_ADDRESS_KIND),MPI_MIN,FIBGMToProcExtent_Shared_Win,IERROR)
+  CALL MPI_FETCH_AND_OP(ElemToBGM_Shared(2,iElem),dummyInt,MPI_INTEGER,0,INT(((ProcRank)*(3)*(2) + (1-1)*(2) + (2-1))*SIZE_INT,MPI_ADDRESS_KIND),MPI_MAX,FIBGMToProcExtent_Shared_Win,IERROR)
+  CALL MPI_FETCH_AND_OP(ElemToBGM_Shared(4,iElem),dummyInt,MPI_INTEGER,0,INT(((ProcRank)*(3)*(2) + (2-1)*(2) + (2-1))*SIZE_INT,MPI_ADDRESS_KIND),MPI_MAX,FIBGMToProcExtent_Shared_Win,IERROR)
+  CALL MPI_FETCH_AND_OP(ElemToBGM_Shared(6,iElem),dummyInt,MPI_INTEGER,0,INT(((ProcRank)*(3)*(2) + (3-1)*(2) + (2-1))*SIZE_INT,MPI_ADDRESS_KIND),MPI_MAX,FIBGMToProcExtent_Shared_Win,IERROR)
+  ! MPI_FETCH_AND_OP does guarantee completion before MPI_WIN_FLUSH, so ensure it before leaving the scope
+  CALL MPI_WIN_FLUSH(0,FIBGMToProcExtent_Shared_Win,iError)
 END DO
 
-CALL MPI_WIN_FLUSH(0,FIBGM_nTotalElems_Shared_Win,iError)
-CALL MPI_WIN_FLUSH(0,FIBGMToProcFlag_Shared_Win  ,iError)
-CALL MPI_WIN_FLUSH(0,FIBGMToProcExtent_Shared_Win,iError)
 CALL BARRIER_AND_SYNC(FIBGMToProcFlag_Shared_Win  ,MPI_COMM_SHARED)
 CALL BARRIER_AND_SYNC(FIBGMToProcExtent_Shared_Win,MPI_COMM_SHARED)
 CALL BARRIER_AND_SYNC(FIBGM_nTotalElems_Shared_Win,MPI_COMM_SHARED)
@@ -1522,14 +1524,16 @@ IF (.NOT.PerformLoadBalance) THEN
 #if USE_LOADBALANCE
 END IF
 IF(.NOT. ((PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance))) )THEN
+#endif /*USE_LOADBALANCE*/
   ! Mapping arrays are only allocated if not running on one node
   IF (nComputeNodeProcessors.NE.nProcessors_Global) THEN
     CALL UNLOCK_AND_FREE(GlobalElem2CNTotalElem_Shared_Win)
   END IF ! nComputeNodeProcessors.NE.nProcessors_Global
+#if USE_LOADBALANCE
 END IF ! .NOT. ((PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance)) .AND. DoDeposition)
 #endif /*USE_LOADBALANCE*/
 
-!CALL UNLOCK_AND_FREE(ElemToBGM_Shared_Win)
+CALL UNLOCK_AND_FREE(ElemToBGM_Shared_Win)
 CALL UNLOCK_AND_FREE(BoundsOfElem_Shared_Win)
 CALL UNLOCK_AND_FREE(FIBGM_nTotalElems_Shared_Win)
 CALL UNLOCK_AND_FREE(FIBGM_nElems_Shared_Win)
@@ -1583,24 +1587,24 @@ IF (nComputeNodeProcessors.NE.nProcessors_Global) THEN
 END IF ! nComputeNodeProcessors.NE.nProcessors_Global
 ADEALLOCATE(CNTotalSide2GlobalSide)
 ADEALLOCATE(CNTotalSide2GlobalSide_Shared)
-#endif /*USE_MPI*/
 
-#if USE_MPI
 CALL FinalizeHaloInfo()
-#endif /*USE_MPI*/
 
 #if USE_LOADBALANCE
 ! This will be deallocated in FinalizeDeposition() when using load balance
 !IF(.NOT. ((PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance)).AND.DoDeposition) )THEN
 ! Note that no inquiry for DoDeposition is made here because the surface charging container is to be preserved
 IF(.NOT. ((PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance))) )THEN
+#endif /*USE_LOADBALANCE*/
   ! Mapping arrays are only allocated if not running on one node
   IF (nComputeNodeProcessors.NE.nProcessors_Global) THEN
     ADEALLOCATE(GlobalElem2CNTotalElem)
     ADEALLOCATE(GlobalElem2CNTotalElem_Shared)
   END IF ! nComputeNodeProcessors.NE.nProcessors_Global
+#if USE_LOADBALANCE
 END IF ! .NOT. ((PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance)) .AND. DoDeposition)
 #endif /*USE_LOADBALANCE*/
+#endif /*USE_MPI*/
 
 END SUBROUTINE FinalizeBGM
 

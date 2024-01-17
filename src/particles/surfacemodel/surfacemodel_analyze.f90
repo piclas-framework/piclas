@@ -845,13 +845,14 @@ DO iBPO = 1, BPO%NPartBoundaries
       SWRITE(UNIT_stdOut,'(A,I0)')'  iPartBound = ',iPartBound
       SWRITE(UNIT_stdOut,'(A,A)') '  SourceName = ',TRIM(PartBound%SourceBoundName(iPartBound))
       SWRITE(UNIT_stdOut,'(A,I0)')'   Condition = ',PartBound%TargetBoundCond(iPartBound)
-      SWRITE(UNIT_stdOut,'(A)')'\n  Conditions are'//&
-                          '  OpenBC          = 1  \n'//&
-          '                  ReflectiveBC    = 2  \n'//&
-          '                  PeriodicBC      = 3  \n'//&
-          '                  RotPeriodicBC   = 6  \n'//&
-          '                  SymmetryBC      = 10 \n'//&
-          '                  SymmetryAxis    = 11 '
+      SWRITE(UNIT_stdOut,'(A)')'\n  Conditions and availability are'//&
+                          '  OpenBC                    = 1  (yes)\n'//&
+          '                  ReflectiveBC              = 2  (yes)\n'//&
+          '                  PeriodicBC                = 3  (no)\n'//&
+          '                  RotPeriodicBC             = 6  (no)\n'//&
+          '                  RotPeriodicInterPlaneBC   = 6  (no)\n'//&
+          '                  SymmetryBC                = 10 (no)\n'//&
+          '                  SymmetryAxis              = 11 (no)'
       CALL CollectiveStop(__STAMP__,'PartBound%TargetBoundCond(iPartBound) is not implemented for CalcBoundaryParticleOutput',&
           IntInfo=PartBound%TargetBoundCond(iPartBound))
     END IF ! PartBound%NbrOfSpeciesSwaps(iPartBound).GT.0
