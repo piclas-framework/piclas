@@ -367,7 +367,7 @@ END DO ! iArgs = 2, nArgs
 
 ! Finalize
 IF(ReadMeshFinished)THEN
-  CALL FinalizeMeshReadin(-1)
+  CALL FinalizeMeshReadin(-2)
   ! First, free every shared memory window. This requires MPI_BARRIER as per MPI3.1 specification
 #if USE_MPI
   CALL MPI_BARRIER(MPI_COMM_SHARED,iERROR)
