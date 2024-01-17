@@ -476,14 +476,17 @@ REAL, INTENT(IN)                 :: MacroVal(14)
 ! LOCAL VARIABLES
 REAL                            :: rho, Temp, uVelo(3), cVel(3), cMag, q(3)
 INTEGER                         :: iVel,jVel,kVel, upos
-REAL                            :: skew(1:3), delta(1:3), alpha(1:3), ksi(1:3), omega(1:3), Phi(1:3)
+REAL                            :: skew(1:3), delta(1:3), alpha(1:3), ksi(1:3), omega(1:3), Phi(1:3), max_skew
 !===================================================================================================================================
 rho = MacroVal(1)
 uVelo(1:3) = MacroVal(2:4)
 Temp = MacroVal(5)
 q(1:3) = MacroVal(12:14)
 
-skew = (1-DVMSpeciesData%Prandtl)*2.*(q/rho)*(DVMSpeciesData%R_S*Temp)**(-3./2.)
+max_skew = 0.5 * (4. - Pi) * (2. / (Pi - 2.)) ** 1.5
+skew = -1.5+(1-DVMSpeciesData%Prandtl)*2.*(q/rho)*(DVMSpeciesData%R_S*Temp)**(-3./2.)
+skew = SIGN(1.,skew)*MIN(ABS(skew),0.9999*max_skew)
+
 delta = (SIGN(1.,skew)*(2*ABS(skew)/(4-Pi))**(1./3.))/SQRT(2./Pi*(1+(2*ABS(skew)/(4-Pi))**(2./3.)))
 alpha = delta/SQRT(1.-delta*delta)
 omega = SQRT(DVMSpeciesData%R_S*Temp/(1.-2*delta*delta/Pi))
