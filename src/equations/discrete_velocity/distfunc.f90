@@ -24,8 +24,8 @@ PRIVATE
 ! GLOBAL VARIABLES
 !----------------------------------------------------------------------------------------------------------------------------------
 
-PUBLIC:: MacroValuesFromDistribution
-PUBLIC:: MaxwellDistribution, MaxwellDistributionCons, ShakhovDistribution, ESBGKDistribution, GradDistribution
+PUBLIC:: MacroValuesFromDistribution, MaxwellDistribution, MaxwellDistributionCons
+PUBLIC:: ShakhovDistribution, ESBGKDistribution, GradDistribution, SkewNormalDistribution
 PUBLIC:: MaxwellScattering, RescaleU, RescaleInit, ForceStep
 !==================================================================================================================================
 
@@ -132,7 +132,7 @@ IF (tDeriv.GT.0.) THEN
         MacroVal(9:11)  = Macroval(9:11)*prefac/(1./DVMSpeciesData%Prandtl+prefac*(1.-1./DVMSpeciesData%Prandtl))
         MacroVal(12:14) = MacroVal(12:14)*prefac
 
-      CASE(2) !Shakhov
+      CASE(2,5) !Shakhov/SN
         MacroVal(6:8)   = Macroval(6:8)*prefac+(1.-prefac)*MacroVal(5)*DVMSpeciesData%R_S*rho
         MacroVal(9:11)  = MacroVal(9:11)*prefac
         MacroVal(12:14) = MacroVal(12:14)*prefac/(DVMSpeciesData%Prandtl+prefac*(1-DVMSpeciesData%Prandtl))
@@ -145,7 +145,7 @@ IF (tDeriv.GT.0.) THEN
       SELECT CASE(DVMBGKModel)
       CASE(1) !ESBGK
         CALL abort(__STAMP__,'DUGKS with ESBGK not implemented!')
-      CASE(2) !Shakhov
+      CASE(2,5) !Shakhov/SN
         Macroval(6:8)   = Macroval(6:8)*2.*tau/(2.*tau+tDeriv) + MacroVal(5)*DVMSpeciesData%R_S*rho*tDeriv/(2.*tau+tDeriv)
         Macroval(9:11)  = Macroval(9:11)*2.*tau/(2.*tau+tDeriv)
         MacroVal(12:14) = MacroVal(12:14)*2.*tau/(2.*tau+tDeriv*DVMSpeciesData%Prandtl)
@@ -457,6 +457,56 @@ END DO; END DO; END DO
 
 END SUBROUTINE
 
+SUBROUTINE SkewNormalDistribution(MacroVal,fSkew)
+!===================================================================================================================================
+! Skew-normal distribution from macro values
+!===================================================================================================================================
+! MODULES
+USE MOD_Equation_Vars_FV         ,ONLY: DVMnVelos, DVMVelos, DVMSpeciesData, DVMDim, Pi
+USE MOD_PreProc
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+REAL,INTENT(OUT)                 :: fSkew(PP_nVar_FV)
+REAL, INTENT(IN)                 :: MacroVal(14)
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+REAL                            :: rho, Temp, uVelo(3), cVel(3), cMag, q(3)
+INTEGER                         :: iVel,jVel,kVel, upos
+REAL                            :: skew(1:3), delta(1:3), alpha(1:3), ksi(1:3), omega(1:3), Phi(1:3)
+!===================================================================================================================================
+rho = MacroVal(1)
+uVelo(1:3) = MacroVal(2:4)
+Temp = MacroVal(5)
+q(1:3) = MacroVal(12:14)
+
+skew = (1-DVMSpeciesData%Prandtl)*2.*(q/rho)*(DVMSpeciesData%R_S*Temp)**(-3./2.)
+delta = (SIGN(1.,skew)*(2*ABS(skew)/(4-Pi))**(1./3.))/SQRT(2./Pi*(1+(2*ABS(skew)/(4-Pi))**(2./3.)))
+alpha = delta/SQRT(1.-delta*delta)
+omega = SQRT(DVMSpeciesData%R_S*Temp/(1.-2*delta*delta/Pi))
+ksi = uVelo - SQRT(2/Pi)*omega*delta
+
+DO kVel=1, DVMnVelos(3);   DO jVel=1, DVMnVelos(2);   DO iVel=1, DVMnVelos(1)
+  upos= iVel+(jVel-1)*DVMnVelos(1)+(kVel-1)*DVMnVelos(1)*DVMnVelos(2)
+  cVel(1) = (DVMVelos(iVel,1) - ksi(1))/omega(1)
+  cVel(2) = (DVMVelos(jVel,2) - ksi(2))/omega(2)
+  cVel(3) = (DVMVelos(kVel,3) - ksi(3))/omega(3)
+  cMag = DOT_PRODUCT(cVel,cVel)
+  Phi = 1.+ERF(alpha*cVel/sqrt(2.))
+
+  fSkew(upos) = rho*Phi(1)*Phi(2)*Phi(3)*EXP(-cMag/2.)/PRODUCT(omega(1:DVMDim))/(2.*Pi)**(DVMDim/2.)
+
+  IF (DVMDim.LT.3) THEN
+    fSkew(PP_nVar_FV/2+upos) = fSkew(upos)*DVMSpeciesData%R_S*Temp*(DVMSpeciesData%Internal_DOF+3.-DVMDim)
+  END IF
+
+END DO; END DO; END DO
+
+END SUBROUTINE
+
 SUBROUTINE MaxwellScattering(fBoundary,U,NormVec,tilde,tDeriv)
 !===================================================================================================================================
 ! Gets accurate density for the half maxwellian at diffusive boundaries
@@ -508,6 +558,8 @@ SELECT CASE (DVMBGKModel)
     CALL MaxwellDistribution(MacroVal,fTarget)
   CASE(4)
     CALL MaxwellDistributionCons(MacroVal,fTarget)
+  CASE(5)
+    CALL SkewNormalDistribution(MacroVal,fTarget)
   CASE DEFAULT
     CALL abort(__STAMP__,'DVM BGK Model not implemented.')
 END SELECT
@@ -587,6 +639,8 @@ DO iElem =1, nElems
         CALL MaxwellDistribution(MacroVal,fTarget)
       CASE(4)
         CALL MaxwellDistributionCons(MacroVal,fTarget)
+      CASE(5)
+        CALL SkewNormalDistribution(MacroVal,fTarget)
       CASE DEFAULT
         CALL abort(__STAMP__,'DVM BGK Model not implemented.')
     END SELECT
@@ -630,6 +684,8 @@ DO iElem =1, nElems
         CALL MaxwellDistribution(MacroVal,fTarget)
       CASE(4)
         CALL MaxwellDistributionCons(MacroVal,fTarget)
+      CASE(5)
+        CALL SkewNormalDistribution(MacroVal,fTarget)
       CASE DEFAULT
         CALL abort(__STAMP__,'DVM BGK Model not implemented.')
     END SELECT

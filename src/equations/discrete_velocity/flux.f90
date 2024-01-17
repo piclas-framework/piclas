@@ -48,8 +48,8 @@ USE MOD_Globals      ,ONLY: Abort
 USE MOD_TimeDisc_Vars,ONLY : dt
 USE MOD_FV_Vars      ,ONLY: U
 USE MOD_Equation_Vars,ONLY: DVMnVelos, DVMVelos, DVMBGKModel, DVMMethod, DVMDim
-USE MOD_DistFunc     ,ONLY: MacroValuesFromDistribution
-USE MOD_DistFunc     ,ONLY: MaxwellDistribution, MaxwellDistributionCons, ShakhovDistribution, ESBGKDistribution
+USE MOD_DistFunc     ,ONLY: MacroValuesFromDistribution, MaxwellDistribution, MaxwellDistributionCons
+USE MOD_DistFunc     ,ONLY: ShakhovDistribution, ESBGKDistribution, SkewNormalDistribution
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
@@ -77,6 +77,8 @@ DO k=0,PP_N
           CALL MaxwellDistribution(MacroVal,fTarget)
         CASE(4)
           CALL MaxwellDistributionCons(MacroVal,fTarget)
+        CASE(5)
+          CALL SkewNormalDistribution(MacroVal,fTarget)
         CASE DEFAULT
           CALL abort(__STAMP__,'DVM BGK Model not implemented')
       END SELECT
