@@ -69,7 +69,7 @@ END INTERFACE
 ! Overload the MPI interface because MPICH fails to provide it
 ! > https://github.com/pmodels/mpich/issues/2659
 ! > https://www.mpi-forum.org/docs/mpi-3.1/mpi31-report/node263.htm
-#if LIBS_MPICH
+#if LIBS_MPICH_FIX_SHM_INTERFACE
 INTERFACE MPI_WIN_ALLOCATE_SHARED
   SUBROUTINE PMPI_WIN_ALLOCATE_SHARED(SIZE, DISP_UNIT, INFO, COMM, BASEPTR, WIN, IERROR)
       USE, INTRINSIC ::  ISO_C_BINDING, ONLY : C_PTR
@@ -89,7 +89,7 @@ INTERFACE MPI_WIN_SHARED_QUERY
       TYPE(C_PTR)    :: BASEPTR
   END SUBROUTINE
 END INTERFACE
-#endif /*LIBS_MPICH*/
+#endif /*LIBS_MPICH_FIX_SHM_INTERFACE*/
 
 INTERFACE Abort
   MODULE PROCEDURE AbortProg

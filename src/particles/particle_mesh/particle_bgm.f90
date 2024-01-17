@@ -1519,10 +1519,12 @@ IF (.NOT.PerformLoadBalance) THEN
 #if USE_LOADBALANCE
 END IF
 IF(.NOT. ((PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance))) )THEN
+#endif /*USE_LOADBALANCE*/
   ! Mapping arrays are only allocated if not running on one node
   IF (nComputeNodeProcessors.NE.nProcessors_Global) THEN
     CALL UNLOCK_AND_FREE(GlobalElem2CNTotalElem_Shared_Win)
   END IF ! nComputeNodeProcessors.NE.nProcessors_Global
+#if USE_LOADBALANCE
 END IF ! .NOT. ((PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance)) .AND. DoDeposition)
 #endif /*USE_LOADBALANCE*/
 
@@ -1580,24 +1582,24 @@ IF (nComputeNodeProcessors.NE.nProcessors_Global) THEN
 END IF ! nComputeNodeProcessors.NE.nProcessors_Global
 ADEALLOCATE(CNTotalSide2GlobalSide)
 ADEALLOCATE(CNTotalSide2GlobalSide_Shared)
-#endif /*USE_MPI*/
 
-#if USE_MPI
 CALL FinalizeHaloInfo()
-#endif /*USE_MPI*/
 
 #if USE_LOADBALANCE
 ! This will be deallocated in FinalizeDeposition() when using load balance
 !IF(.NOT. ((PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance)).AND.DoDeposition) )THEN
 ! Note that no inquiry for DoDeposition is made here because the surface charging container is to be preserved
 IF(.NOT. ((PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance))) )THEN
+#endif /*USE_LOADBALANCE*/
   ! Mapping arrays are only allocated if not running on one node
   IF (nComputeNodeProcessors.NE.nProcessors_Global) THEN
     ADEALLOCATE(GlobalElem2CNTotalElem)
     ADEALLOCATE(GlobalElem2CNTotalElem_Shared)
   END IF ! nComputeNodeProcessors.NE.nProcessors_Global
+#if USE_LOADBALANCE
 END IF ! .NOT. ((PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance)) .AND. DoDeposition)
 #endif /*USE_LOADBALANCE*/
+#endif /*USE_MPI*/
 
 END SUBROUTINE FinalizeBGM
 

@@ -95,7 +95,7 @@ IF (CollisMode.NE.0) THEN
       IF(DSMC%RotRelaxProb.GT.2) DSMC%CalcRotProb = 0.
       DSMC%CalcVibProb = 0.
     END IF
-    CALL InitCalcVibRelaxProb
+    CALL InitCalcVibRelaxProb()
     IF(BGGas%NumberOfSpecies.GT.0) THEN
       ! Decide between MCC and DSMC-based background gas
       IF(UseMCC) THEN
