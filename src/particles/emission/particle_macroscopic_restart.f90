@@ -38,6 +38,7 @@ SUBROUTINE MacroRestart_InsertParticles()
 USE MOD_Globals
 USE MOD_Globals_Vars            ,ONLY: Pi
 USE MOD_DSMC_Vars               ,ONLY: RadialWeighting, DSMC
+USE MOD_Mesh_Tools              ,ONLY: GetCNElemID
 USE MOD_part_tools              ,ONLY: CalcRadWeightMPF,InitializeParticleMaxwell, IncreaseMaxParticleNumber
 USE MOD_Mesh_Vars               ,ONLY: nElems,offsetElem
 USE MOD_Particle_TimeStep       ,ONLY: GetParticleTimeStep
@@ -57,7 +58,7 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                             :: iElem,iSpec,iPart,nPart,locnPart,iHeight,yPartitions,GlobalElemID
+INTEGER                             :: iElem,iSpec,iPart,nPart,locnPart,iHeight,yPartitions,CNElemID,GlobalElemID
 REAL                                :: iRan, RandomPos(3), PartDens, MaxPosTemp, MinPosTemp
 REAL                                :: TempVol, Volume
 LOGICAL                             :: InsideFlag
@@ -69,6 +70,7 @@ locnPart = 1
 
 DO iElem = 1, nElems
   GlobalElemID = iElem + offsetElem
+  CNElemID = GetCNElemID(GlobalElemID)
   ASSOCIATE( Bounds => BoundsOfElem_Shared(1:2,1:3,GlobalElemID) ) ! 1-2: Min, Max value; 1-3: x,y,z
 ! #################### 2D ##########################################################################################################
     IF (Symmetry%Axisymmetric) THEN
@@ -95,7 +97,7 @@ DO iElem = 1, nElems
               RandomPos(1) = Bounds(1,1) + RandomPos(1)*(Bounds(2,1)-Bounds(1,1))
               RandomPos(2) = MinPosTemp + RandomPos(2)*(MaxPosTemp-MinPosTemp)
               RandomPos(3) = 0.0
-              InsideFlag = ParticleInsideCheck(RandomPos,1,GlobalElemID)
+              InsideFlag = ParticleInsideCheck(RandomPos,iPart,GlobalElemID)
               IF (InsideFlag) THEN
                 IF (locnPart.GE.PDM%maxParticleNumber) CALL IncreaseMaxParticleNumber()
                 PartState(1:3,locnPart) = RandomPos(1:3)
@@ -113,9 +115,9 @@ DO iElem = 1, nElems
           PartDens = MacroRestartValues(iElem,iSpec,DSMC_NUMDENS) / Species(iSpec)%MacroParticleFactor
           CALL RANDOM_NUMBER(iRan)
           IF(UseVarTimeStep) THEN
-            PartDens = PartDens / GetParticleTimeStep(ElemMidPoint_Shared(1,GlobalElemID), ElemMidPoint_Shared(2,GlobalElemID), iElem)
+            PartDens = PartDens / GetParticleTimeStep(ElemMidPoint_Shared(1,CNElemID), ElemMidPoint_Shared(2,CNElemID), iElem)
           END IF
-          nPart = INT(PartDens * ElemVolume_Shared(GlobalElemID) + iRan)
+          nPart = INT(PartDens * ElemVolume_Shared(CNElemID) + iRan)
           CALL IncreaseMaxParticleNumber(nPart)
           DO iPart = 1, nPart
             InsideFlag=.FALSE.
@@ -141,9 +143,9 @@ DO iElem = 1, nElems
         PartDens = MacroRestartValues(iElem,iSpec,DSMC_NUMDENS) / Species(iSpec)%MacroParticleFactor
         CALL RANDOM_NUMBER(iRan)
         IF(UseVarTimeStep) THEN
-          PartDens = PartDens / GetParticleTimeStep(ElemMidPoint_Shared(1,GlobalElemID), ElemMidPoint_Shared(2,GlobalElemID), iElem)
+          PartDens = PartDens / GetParticleTimeStep(ElemMidPoint_Shared(1,CNElemID), ElemMidPoint_Shared(2,CNElemID), iElem)
         END IF
-        nPart = INT(PartDens * ElemVolume_Shared(GlobalElemID) + iRan)
+        nPart = INT(PartDens * ElemVolume_Shared(CNElemID) + iRan)
         CALL IncreaseMaxParticleNumber(nPart)
 
         DO iPart = 1, nPart
@@ -168,9 +170,9 @@ DO iElem = 1, nElems
         PartDens = MacroRestartValues(iElem,iSpec,DSMC_NUMDENS) / Species(iSpec)%MacroParticleFactor
         CALL RANDOM_NUMBER(iRan)
         IF(UseVarTimeStep) THEN
-          PartDens = PartDens / GetParticleTimeStep(ElemMidPoint_Shared(1,GlobalElemID), ElemMidPoint_Shared(2,GlobalElemID), iElem)
+          PartDens = PartDens / GetParticleTimeStep(ElemMidPoint_Shared(1,CNElemID), ElemMidPoint_Shared(2,CNElemID), iElem)
         END IF
-        nPart = INT(PartDens * ElemVolume_Shared(GlobalElemID) + iRan)
+        nPart = INT(PartDens * ElemVolume_Shared(CNElemID) + iRan)
         CALL IncreaseMaxParticleNumber(nPart)
         DO iPart = 1, nPart
           InsideFlag=.FALSE.
@@ -196,9 +198,9 @@ DO iElem = 1, nElems
         PartDens = MacroRestartValues(iElem,iSpec,DSMC_NUMDENS) / Species(iSpec)%MacroParticleFactor
         CALL RANDOM_NUMBER(iRan)
         IF(UseVarTimeStep) THEN
-          PartDens = PartDens / GetParticleTimeStep(ElemMidPoint_Shared(1,GlobalElemID), ElemMidPoint_Shared(2,GlobalElemID), iElem)
+          PartDens = PartDens / GetParticleTimeStep(ElemMidPoint_Shared(1,CNElemID), ElemMidPoint_Shared(2,CNElemID), iElem)
         END IF
-        nPart = INT(PartDens * ElemVolume_Shared(GlobalElemID) + iRan)
+        nPart = INT(PartDens * ElemVolume_Shared(CNElemID) + iRan)
         CALL IncreaseMaxParticleNumber(nPart)
         DO iPart = 1, nPart
           InsideFlag=.FALSE.
@@ -216,7 +218,6 @@ DO iElem = 1, nElems
   END ASSOCIATE
 END DO ! nElems
 
-! IF(locnPart.GE.PDM%maxParticleNumber) CALL abort(__STAMP__,'ERROR in MacroRestart: Increase maxParticleNumber!', locnPart)
 PDM%ParticleVecLength = PDM%ParticleVecLength + locnPart
 #ifdef CODE_ANALYZE
 IF(PDM%ParticleVecLength.GT.PDM%maxParticleNumber) CALL Abort(__STAMP__,'PDM%ParticleVeclength exceeds PDM%maxParticleNumber, Difference:',IntInfoOpt=PDM%ParticleVeclength-PDM%maxParticleNumber)

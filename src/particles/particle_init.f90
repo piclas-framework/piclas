@@ -1299,7 +1299,8 @@ DO iElem=1,PP_nElems
     ParticleIndexNbr            = GetNextFreePosition()
 
     !Set new SpeciesID of new particle (electron)
-    PDM%ParticleInside(ParticleIndexNbr) = .true.
+    PDM%ParticleInside(ParticleIndexNbr) = .TRUE.
+    PDM%isNewPart(ParticleIndexNbr) = .TRUE.
     PartSpecies(ParticleIndexNbr) = ElecSpecIndx
 
     ! Place the electron randomly in the reference cell

@@ -527,7 +527,7 @@ USE MOD_PICDepo_Vars           ,ONLY: DepositionType
 USE MOD_PICInterpolation_Vars  ,ONLY: DoInterpolation
 #endif /*USE_MPI*/
 USE MOD_Particle_BGM           ,ONLY: FinalizeBGM
-USE MOD_Particle_Mesh_Readin   ,ONLY: FinalizeMeshReadin
+USE MOD_Mesh_ReadIn            ,ONLY: FinalizeMeshReadin
 USE MOD_Particle_Tracking_Vars ,ONLY: TrackingMethod,Distance,ListDistance,PartStateLost
 #if USE_MPI
 USE MOD_MPI_Shared_vars        ,ONLY: MPI_COMM_SHARED
@@ -553,7 +553,7 @@ IMPLICIT NONE
 !===================================================================================================================================
 
 ! Particle mesh readin happens during mesh readin, finalize with gathered routine here
-CALL FinalizeMeshReadin()
+CALL FinalizeMeshReadin(2)
 
 CALL FinalizeBGM()
 
@@ -566,11 +566,9 @@ SELECT CASE (TrackingMethod)
     CALL MPI_BARRIER(MPI_COMM_SHARED,iERROR)
 
     ! InitParticleGeometry()
-    IF(TRIM(DepositionType).EQ.'shape_function_adaptive')THEN
-      CALL UNLOCK_AND_FREE(ConcaveElemSide_Shared_Win)
-      CALL UNLOCK_AND_FREE(ElemSideNodeID_Shared_Win)
-      CALL UNLOCK_AND_FREE(ElemMidPoint_Shared_Win)
-    END IF ! TRIM(DepositionType).EQ.'shape_function_adaptive'
+    CALL UNLOCK_AND_FREE(ConcaveElemSide_Shared_Win)
+    CALL UNLOCK_AND_FREE(ElemSideNodeID_Shared_Win)
+    CALL UNLOCK_AND_FREE(ElemMidPoint_Shared_Win)
 
     ! BuildSideOriginAndRadius()
     IF (TrackingMethod.EQ.REFMAPPING) THEN

@@ -74,7 +74,7 @@ SUBROUTINE InitParticleBoundarySampling()
 USE MOD_Globals
 USE MOD_Basis                   ,ONLY: LegendreGaussNodesAndWeights
 USE MOD_Mesh_Vars               ,ONLY: NGeo,nBCs,BoundaryName
-USE MOD_Particle_Boundary_Vars  ,ONLY: SurfOnNode
+USE MOD_Particle_Boundary_Vars  ,ONLY: SurfTotalSideOnNode
 USE MOD_Particle_Boundary_Vars  ,ONLY: nSurfSample,dXiEQ_SurfSample,PartBound,XiEQ_SurfSample
 USE MOD_Particle_Boundary_Vars  ,ONLY: nComputeNodeSurfSides,nComputeNodeSurfTotalSides,nComputeNodeSurfOutputSides
 USE MOD_Particle_Boundary_Vars  ,ONLY: nSurfBC,SurfBCName
@@ -157,8 +157,8 @@ IF((nSurfSample.GT.1).AND.(TrackingMethod.EQ.TRIATRACKING)) &
 ! Sampling of impact energy for each species (trans, rot, vib), impact vector (x,y,z) and angle
 CalcSurfaceImpact = GETLOGICAL('CalcSurfaceImpact')
 
-! flag if there is at least one surf side on the node (sides in halo region do also count)
-SurfOnNode = MERGE(.TRUE.,.FALSE.,nComputeNodeSurfTotalSides.GT.0)
+! Flag if there is at least one surf side on the node (sides in halo region do also count)
+SurfTotalSideOnNode = MERGE(.TRUE.,.FALSE.,nComputeNodeSurfTotalSides.GT.0)
 
 !> Setting the number of sampling (SurfSampSize -> SampWallState) and output (SurfOutputSize -> MacroSurfaceVal) variables
 !> Optional sampling variables require an additional SampWallIndex (SWI)
@@ -190,9 +190,7 @@ IF (CalcSurfaceImpact) SurfSpecOutputSize = SurfSpecOutputSize + 10
 
 !> Leader communication
 #if USE_MPI
-IF (myComputeNodeRank.EQ.0) THEN
-  CALL InitSurfCommunication()
-END IF
+IF (myComputeNodeRank.EQ.0) CALL InitSurfCommunication()
 ! The leaders are synchronized at this point, but behind the other procs. nGlobalSurfSides is only required when compiled without
 ! MPI, so perform latency hiding by postponing synchronization
 #else
@@ -202,7 +200,7 @@ nGlobalOutputSides    = nComputeNodeSurfOutputSides
 #endif /* USE_MPI */
 
 ! surface sampling array do not need to be allocated if there are no sides within halo_eps range
-IF(.NOT.SurfOnNode) RETURN
+IF(.NOT.SurfTotalSideOnNode) RETURN
 
 !> Allocate the output container
 ALLOCATE(MacroSurfaceVal(1:SurfOutputSize         , 1:nSurfSample , 1:nSurfSample , nComputeNodeSurfOutputSides))
@@ -465,7 +463,7 @@ USE MOD_Globals
 USE MOD_Globals_Vars               ,ONLY: StefanBoltzmannConst
 USE MOD_DSMC_Vars                  ,ONLY: DSMC
 USE MOD_Mesh_Vars                  ,ONLY: MeshFile
-USE MOD_Particle_Boundary_Vars     ,ONLY: SurfOnNode
+USE MOD_Particle_Boundary_Vars     ,ONLY: SurfTotalSideOnNode
 USE MOD_SurfaceModel_Vars          ,ONLY: nPorousBC
 USE MOD_Particle_Boundary_Vars     ,ONLY: nSurfSample,CalcSurfaceImpact
 USE MOD_Particle_Boundary_Vars     ,ONLY: SurfSide2GlobalSide, GlobalSide2SurfSide, PartBound
@@ -537,7 +535,7 @@ END IF
 
 IF(ALMOSTZERO(TimeSample)) RETURN
 
-IF(.NOT.SurfOnNode) RETURN
+IF(.NOT.SurfTotalSideOnNode) RETURN
 
 #if USE_MPI
 CALL ExchangeSurfData()
@@ -944,7 +942,7 @@ IMPLICIT NONE
 IF (.NOT.WriteMacroSurfaceValues.AND..NOT.DSMC%CalcSurfaceVal.AND..NOT.(ANY(PartBound%Reactive))) RETURN
 
 ! Return if no sampling surfaces on node
-IF (.NOT.SurfOnNode) RETURN
+IF (.NOT.SurfTotalSideOnNode) RETURN
 
 ! First, free every shared memory window. This requires MPI_BARRIER as per MPI3.1 specification
 #if USE_MPI

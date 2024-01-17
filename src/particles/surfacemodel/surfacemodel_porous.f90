@@ -428,7 +428,7 @@ SUBROUTINE PorousBoundaryRemovalProb_Pressure()
 USE MOD_Globals
 USE MOD_DSMC_Vars                   ,ONLY: DSMC, RadialWeighting
 USE MOD_Mesh_Vars                   ,ONLY: nElems,offsetElem
-USE MOD_Particle_Boundary_Vars      ,ONLY: SurfOnNode, SurfSide2GlobalSide
+USE MOD_Particle_Boundary_Vars      ,ONLY: SurfTotalSideOnNode, SurfSide2GlobalSide
 USE MOD_SurfaceModel_Vars           ,ONLY: nPorousBC, PorousBC
 USE MOD_SurfaceModel_Analyze_Vars   ,ONLY: CalcPorousBCInfo, PorousBCOutput
 USE MOD_Particle_Boundary_Vars      ,ONLY: nPorousSides, PorousBCProperties_Shared, PorousBCInfo_Shared, SampWallPumpCapacity
@@ -455,7 +455,7 @@ REAL                          :: PumpingSpeedTemp,DeltaPressure,partWeight,SumPa
 REAL                          :: SumPartImpinged(nPorousBC)
 !===================================================================================================================================
 
-IF (.NOT.SurfOnNode) RETURN
+IF (.NOT.SurfTotalSideOnNode) RETURN
 
 IF(usevMPF.OR.RadialWeighting%DoRadialWeighting) THEN
   partWeight = 1.
@@ -610,7 +610,7 @@ USE MOD_Globals
 USE MOD_MPI_Shared              ,ONLY: BARRIER_AND_SYNC
 USE MOD_MPI_Shared_Vars         ,ONLY: MPI_COMM_SHARED,MPI_COMM_LEADERS_SURF
 USE MOD_MPI_Shared_Vars         ,ONLY: nSurfLeaders,myComputeNodeRank,mySurfRank
-USE MOD_Particle_Boundary_Vars  ,ONLY: SurfOnNode
+USE MOD_Particle_Boundary_Vars  ,ONLY: SurfTotalSideOnNode
 USE MOD_Particle_Boundary_Vars  ,ONLY: MapSurfSideToPorousSide_Shared
 USE MOD_Particle_Boundary_Vars  ,ONLY: GlobalSide2SurfSide
 USE MOD_Particle_Boundary_Vars  ,ONLY: SurfMapping
@@ -630,7 +630,7 @@ INTEGER                         :: nValues
 INTEGER                         :: RecvRequest(0:nSurfLeaders-1),SendRequest(0:nSurfLeaders-1)
 !===================================================================================================================================
 ! nodes without sampling surfaces do not take part in this routine
-IF (.NOT.SurfOnNode) RETURN
+IF (.NOT.SurfTotalSideOnNode) RETURN
 
 nValues = 2
 ! 1.) Collect the information from the proc-local shadow arrays in the compute-node shared array
@@ -767,7 +767,7 @@ USE MOD_Globals
 USE MOD_MPI_Shared              ,ONLY: BARRIER_AND_SYNC
 USE MOD_MPI_Shared_Vars         ,ONLY: MPI_COMM_SHARED,MPI_COMM_LEADERS_SURF
 USE MOD_MPI_Shared_Vars         ,ONLY: nSurfLeaders,myComputeNodeRank,mySurfRank
-USE MOD_Particle_Boundary_Vars  ,ONLY: SurfOnNode
+USE MOD_Particle_Boundary_Vars  ,ONLY: SurfTotalSideOnNode
 USE MOD_Particle_Boundary_Vars  ,ONLY: GlobalSide2SurfSide
 USE MOD_Particle_Boundary_Vars  ,ONLY: SurfMapping, MapSurfSideToPorousSide_Shared
 USE MOD_Particle_Boundary_Vars  ,ONLY: PorousBCProperties_Shared,PorousBCProperties_Shared_Win
@@ -786,7 +786,7 @@ INTEGER                             :: nValues
 INTEGER                             :: RecvRequest(0:nSurfLeaders-1),SendRequest(0:nSurfLeaders-1)
 !===================================================================================================================================
 ! nodes without sampling surfaces do not take part in this routine
-IF (.NOT.SurfOnNode) RETURN
+IF (.NOT.SurfTotalSideOnNode) RETURN
 
 ! 1) Synchronize the removal probability
 CALL BARRIER_AND_SYNC(PorousBCProperties_Shared_Win,MPI_COMM_SHARED)
@@ -910,7 +910,7 @@ USE MOD_Globals
 USE MOD_MPI_Shared_Vars         ,ONLY: MPI_COMM_LEADERS_SHARED,MPI_COMM_LEADERS_SURF
 USE MOD_MPI_Shared_Vars         ,ONLY: MPIRankSurfLeader
 USE MOD_MPI_Shared_Vars         ,ONLY: myLeaderGroupRank,nSurfLeaders,nLeaderGroupProcs
-USE MOD_Particle_Boundary_Vars  ,ONLY: SurfOnNode,nComputeNodeSurfTotalSides
+USE MOD_Particle_Boundary_Vars  ,ONLY: SurfTotalSideOnNode,nComputeNodeSurfTotalSides
 USE MOD_Particle_Boundary_Vars  ,ONLY: SurfMapping
 USE MOD_Particle_Boundary_Vars  ,ONLY: SurfSide2GlobalSide
 USE MOD_Particle_Boundary_Vars  ,ONLY: nPorousSides, PorousBCInfo_Shared
@@ -983,7 +983,7 @@ DO iProc = 0,nLeaderGroupProcs-1
   IF (IERROR.NE.MPI_SUCCESS) CALL ABORT(__STAMP__,' MPI Communication error', IERROR)
 END DO
 
-IF (.NOT.SurfOnNode) RETURN
+IF (.NOT.SurfTotalSideOnNode) RETURN
 SurfMapping(:)%nRecvPorousSides = 0
 SurfMapping(:)%nSendPorousSides = 0
 

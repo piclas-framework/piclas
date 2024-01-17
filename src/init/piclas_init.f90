@@ -388,6 +388,7 @@ IF(.NOT.IsLoadBalance)THEN
   IF(nProcessors.GT.1) CALL OutputMPIW8Time()
 #endif /*defined(MEASURE_MPI_WAIT)*/
   ! Free the last communicator after OutputMPIW8Time
+  CALL MPI_BARRIER  (MPI_COMM_PICLAS,iError)
   IF(MPI_COMM_PICLAS.NE.MPI_COMM_NULL) CALL MPI_COMM_FREE(MPI_COMM_PICLAS,IERROR)
 #endif /*USE_MPI*/
 ELSE
