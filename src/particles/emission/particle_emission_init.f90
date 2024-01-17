@@ -471,6 +471,7 @@ USE MOD_Particle_Sampling_Vars  ,ONLY: UseAdaptiveBC, AdaptBCMacroVal, AdaptBCMa
 USE MOD_Particle_Sampling_Adapt ,ONLY: AdaptiveBCSampling
 USE MOD_SurfaceModel_Vars       ,ONLY: nPorousBC
 USE MOD_Particle_Surfaces_Vars  ,ONLY: BCdata_auxSF, SurfFluxSideSize, SurfMeshSubSideData
+USE MOD_DSMC_Init               ,ONLY: SetVarVibProb2Elems
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Vars        ,ONLY: PerformLoadBalance
 #endif /*USE_LOADBALANCE*/
@@ -536,14 +537,10 @@ DO iSpec = 1,nSpecies
         IF((CollisMode.EQ.2).OR.(CollisMode.EQ.3)) THEN
           DO iPart = 1, NbrOfParticle
             PositionNbr = GetNextFreePosition(iPart)
-            IF (PositionNbr .NE. 0) THEN
-              IF (SpecDSMC(iSpec)%PolyatomicMol) THEN
-                CALL DSMC_SetInternalEnr_Poly(iSpec,iInit,PositionNbr,1)
-              ELSE
-                CALL DSMC_SetInternalEnr_LauxVFD(iSpec,iInit,PositionNbr,1)
-              END IF
+            IF (SpecDSMC(iSpec)%PolyatomicMol) THEN
+              CALL DSMC_SetInternalEnr_Poly(iSpec,iInit,PositionNbr,1)
             ELSE
-              CALL abort(__STAMP__,'ERROR in InitialParticleInserting: No free particle index - maximum nbr of particles reached?')
+              CALL DSMC_SetInternalEnr_LauxVFD(iSpec,iInit,PositionNbr,1)
             END IF
           END DO
         END IF
@@ -617,6 +614,9 @@ IF(UseAdaptiveBC.OR.(nPorousBC.GT.0)) THEN
     END DO      ! iSF=1,Species(iSpec)%nSurfacefluxBCs
   END DO        ! iSpec=1,nSpecies
 END IF
+
+IF((DSMC%VibRelaxProb.EQ.2).AND.(CollisMode.GE.2)) CALL SetVarVibProb2Elems()
+
 LBWRITE(UNIT_stdOut,'(A)') ' INITIAL PARTICLE INSERTING DONE!'
 
 END SUBROUTINE InitialParticleInserting

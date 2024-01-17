@@ -1327,6 +1327,7 @@ PartSpecies(iPart) = iSpec
 PEM%GlobalElemID(iPart) = iElem+offSetElem
 PEM%LastGlobalElemID(iPart) = iElem+offSetElem
 PDM%ParticleInside(iPart) = .TRUE.
+PDM%isNewPart(iPart) = .TRUE.
 
 ! 4) Set particle time step and weights (if required)
 IF (UseVarTimeStep) THEN
@@ -1788,7 +1789,7 @@ IF(ALLOCATED(FieldAtParticle)) CALL ChangeSizeArray(FieldAtParticle,PDM%maxParti
 IF(ALLOCATED(InterPlanePartIndx)) CALL ChangeSizeArray(InterPlanePartIndx,PDM%maxParticleNumber,NewSize)
 IF(ALLOCATED(BGGas%PairingPartner)) CALL ChangeSizeArray(BGGas%PairingPartner,PDM%maxParticleNumber,NewSize)
 IF(ALLOCATED(CollInf%OldCollPartner)) CALL ChangeSizeArray(CollInf%OldCollPartner,PDM%maxParticleNumber,NewSize)
-IF(ALLOCATED(ElecRelaxPart)) CALL ChangeSizeArray(ElecRelaxPart,PDM%maxParticleNumber,NewSize)
+IF(ALLOCATED(ElecRelaxPart)) CALL ChangeSizeArray(ElecRelaxPart,PDM%maxParticleNumber,NewSize,.TRUE.)
 
 #if (PP_TimeDiscMethod==508) || (PP_TimeDiscMethod==509)
 IF(ALLOCATED(velocityAtTime)) CALL ChangeSizeArray(velocityAtTime,PDM%maxParticleNumber,NewSize)
@@ -1993,7 +1994,7 @@ IF(ALLOCATED(FieldAtParticle)) CALL ChangeSizeArray(FieldAtParticle,PDM%maxParti
 IF(ALLOCATED(InterPlanePartIndx)) CALL ChangeSizeArray(InterPlanePartIndx,PDM%maxParticleNumber,NewSize)
 IF(ALLOCATED(BGGas%PairingPartner)) CALL ChangeSizeArray(BGGas%PairingPartner,PDM%maxParticleNumber,NewSize)
 IF(ALLOCATED(CollInf%OldCollPartner)) CALL ChangeSizeArray(CollInf%OldCollPartner,PDM%maxParticleNumber,NewSize)
-IF(ALLOCATED(ElecRelaxPart)) CALL ChangeSizeArray(ElecRelaxPart,PDM%maxParticleNumber,NewSize)
+IF(ALLOCATED(ElecRelaxPart)) CALL ChangeSizeArray(ElecRelaxPart,PDM%maxParticleNumber,NewSize,.TRUE.)
 
 #if (PP_TimeDiscMethod==508) || (PP_TimeDiscMethod==509)
 IF(ALLOCATED(velocityAtTime)) CALL ChangeSizeArray(velocityAtTime,PDM%maxParticleNumber,NewSize)
