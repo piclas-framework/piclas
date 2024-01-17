@@ -188,9 +188,9 @@ IF (myComputeNodeRank.EQ.0) CALL InitSurfCommunication()
 ! The leaders are synchronized at this point, but behind the other procs. nGlobalSurfSides is only required when compiled without
 ! MPI, so perform latency hiding by postponing synchronization
 #else
-mySurfRank      = 0
-nGlobalSurfSides = nComputeNodeSurfTotalSides
-nGlobalOutputSides    = nComputeNodeSurfOutputSides
+mySurfRank         = 0
+nGlobalSurfSides   = nComputeNodeSurfTotalSides
+nGlobalOutputSides = nComputeNodeSurfOutputSides
 #endif /* USE_MPI */
 
 ! surface sampling array do not need to be allocated if there are no sides within halo_eps range
@@ -919,10 +919,10 @@ SUBROUTINE FinalizeParticleBoundarySampling()
 ! MODULES                                                                                                                          !
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Globals
-USE MOD_DSMC_Vars                      ,ONLY: DSMC
+!USE MOD_DSMC_Vars                      ,ONLY: DSMC
 USE MOD_Particle_Boundary_Vars
-USE MOD_Particle_Vars               ,ONLY: WriteMacroSurfaceValues
-USE MOD_SurfaceModel_Vars           ,ONLY: nPorousBC
+!USE MOD_Particle_Vars                  ,ONLY: WriteMacroSurfaceValues
+USE MOD_SurfaceModel_Vars              ,ONLY: nPorousBC
 #if USE_MPI
 USE MOD_MPI_Shared_Vars                ,ONLY: MPI_COMM_SHARED,MPI_COMM_LEADERS_SURF
 USE MOD_MPI_Shared
@@ -939,7 +939,7 @@ IMPLICIT NONE
 !===================================================================================================================================
 
 ! Return if nothing was allocated
-IF (.NOT.WriteMacroSurfaceValues.AND..NOT.DSMC%CalcSurfaceVal.AND..NOT.(ANY(PartBound%Reactive))) RETURN
+!IF (.NOT.WriteMacroSurfaceValues.AND..NOT.DSMC%CalcSurfaceVal.AND..NOT.(ANY(PartBound%Reactive))) RETURN
 
 ! Return if no sampling surfaces on node
 IF (.NOT.SurfTotalSideOnNode) RETURN
@@ -947,7 +947,6 @@ IF (.NOT.SurfTotalSideOnNode) RETURN
 ! First, free every shared memory window. This requires MPI_BARRIER as per MPI3.1 specification
 #if USE_MPI
 CALL MPI_BARRIER(MPI_COMM_SHARED,iERROR)
-
 CALL UNLOCK_AND_FREE(SampWallState_Shared_Win)
 CALL UNLOCK_AND_FREE(SurfSideArea_Shared_Win)
 IF(nPorousBC.GT.0) CALL UNLOCK_AND_FREE(SampWallPumpCapacity_Shared_Win)
