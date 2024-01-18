@@ -26,6 +26,7 @@ SAVE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! GLOBAL VARIABLES
 
+LOGICAL            :: nSurfSampleAndTriaTracking
 LOGICAL            :: ParticleMeshInitIsDone
 REAL               :: meshScale
 LOGICAL            :: MeshWasCurved      =.FALSE.

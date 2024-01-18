@@ -218,7 +218,6 @@ INTEGER          :: ALLOCSTAT
 ! TODO
 ! REAL             :: dx,dy,dz
 #endif /*CODE_ANALYZE*/
-LOGICAL           :: nSurfSampleAndTriaTracking
 CHARACTER(3)      :: hilf
 !===================================================================================================================================
 
@@ -714,7 +713,7 @@ SELECT CASE (TrackingMethod)
     END IF
 
     !IF (DoInterpolation.OR.DSMC%UseOctree) THEN ! use this in future if possible
-    IF (DoInterpolation.OR.DoDeposition.OR.UseRayTracing) THEN
+    IF (DoInterpolation.OR.DoDeposition.OR.UseRayTracing.OR.nSurfSampleAndTriaTracking) THEN
 #if USE_LOADBALANCE
       IF (.NOT.PerformLoadBalance) THEN
 #endif /*USE_LOADBALANCE*/
@@ -726,11 +725,13 @@ SELECT CASE (TrackingMethod)
       END IF !PerformLoadBalance
 #endif /*USE_LOADBALANCE*/
 
-      ! BuildElemTypeAndBasisTria()
-      CALL UNLOCK_AND_FREE(ElemCurved_Shared_Win)
-      CALL UNLOCK_AND_FREE(XiEtaZetaBasis_Shared_Win)
-      CALL UNLOCK_AND_FREE(slenXiEtaZetaBasis_Shared_Win)
-    END IF ! DoInterpolation.OR.DoDeposition.OR.UseRayTracing
+      IF (DoInterpolation.OR.DoDeposition.OR.UseRayTracing) THEN
+        ! BuildElemTypeAndBasisTria()
+        CALL UNLOCK_AND_FREE(ElemCurved_Shared_Win)
+        CALL UNLOCK_AND_FREE(XiEtaZetaBasis_Shared_Win)
+        CALL UNLOCK_AND_FREE(slenXiEtaZetaBasis_Shared_Win)
+      END IF ! DoInterpolation.OR.DoDeposition.OR.UseRayTracing
+    END IF ! DoInterpolation.OR.DoDeposition.OR.UseRayTracing.OR.nSurfSampleAndTriaTracking
 
     ! BuildEpsOneCell()
     IF (DoDeposition) CALL UNLOCK_AND_FREE(ElemsJ_Shared_Win)
