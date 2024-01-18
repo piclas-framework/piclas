@@ -651,7 +651,7 @@ IF (myComputeNodeRank.EQ.0) THEN
   END DO ! iProc
 END IF
 
-CALL BARRIER_AND_SYNC(PhotonSampWall_Shared_Win         ,MPI_COMM_SHARED)
+CALL BARRIER_AND_SYNC(PhotonSampWall_Shared_Win,MPI_COMM_SHARED)
 
 END SUBROUTINE ExchangeRadiationSurfData
 

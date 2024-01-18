@@ -60,6 +60,7 @@ USE MOD_Photon_TrackingOutput   ,ONLY: WritePhotonSurfSampleToHDF5,WritePhotonVo
 USE MOD_MPI_Shared_Vars
 USE MOD_MPI_Shared
 USE MOD_Photon_TrackingVars     ,ONLY: PhotonSampWall_Shared, PhotonSampWall_Shared_Win,PhotonSampWallProc
+USE MOD_Photon_TrackingVars     ,ONLY: PhotonSampWall_Shared_Win_allocated
 USE MOD_RayTracing_Vars         ,ONLY: RayElemPassedEnergy_Shared,RayElemPassedEnergy_Shared_Win
 #endif /*USE_MPI*/
 USE MOD_Photon_TrackingVars     ,ONLY: PhotonSampWall,PhotonModeBPO
@@ -84,6 +85,9 @@ INTEGER :: ALLOCSTAT
 REAL    :: RectPower,SumPhotonEnACC
 REAL    :: StartT,EndT ! Timer
 !===================================================================================================================================
+#if USE_MPI
+PhotonSampWall_Shared_Win_allocated = .FALSE.
+#endif /*USE_MPI*/
 
 IF(.NOT.UseRayTracing) RETURN
 
@@ -134,6 +138,7 @@ CALL Allocate_Shared((/RayElemSize,nGlobalElems/),RayElemPassedEnergy_Shared_Win
 CALL MPI_WIN_LOCK_ALL(0,RayElemPassedEnergy_Shared_Win,IERROR)
 !> Shared arrays for boundary sampling
 CALL Allocate_Shared((/2,Ray%nSurfSample,Ray%nSurfSample,nComputeNodeSurfTotalSides/),PhotonSampWall_Shared_Win,PhotonSampWall_Shared)
+PhotonSampWall_Shared_Win_allocated = .TRUE.
 CALL MPI_WIN_LOCK_ALL(0,PhotonSampWall_Shared_Win,IERROR)
 PhotonSampWall => PhotonSampWall_Shared
 IF(myComputeNodeRank.EQ.0) RayElemPassedEnergy_Shared = 0.

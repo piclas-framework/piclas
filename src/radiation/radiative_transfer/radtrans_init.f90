@@ -90,8 +90,8 @@ USE MOD_RadiationTrans_Vars        ,ONLY: RadTransObsVolumeFrac_Shared_Win, RadT
 USE MOD_Radiation_Vars             ,ONLY: Radiation_Absorption_Spec_Shared_Win, RadiationInput
 USE MOD_Radiation_Vars             ,ONLY: Radiation_Emission_Spec_Shared_Win, MacroRadInputParameters
 USE MOD_Radiation_Vars             ,ONLY: Radiation_Absorption_SpecPercent_Shared_Win
-USE MOD_Photon_TrackingVars        ,ONLY: PhotonSampWallProc
-USE MOD_Photon_TrackingVars        ,ONLY: PhotonSampWall_Shared, PhotonSampWall_Shared_Win,PhotonSampWallProc
+USE MOD_Photon_TrackingVars        ,ONLY: PhotonSampWallProc,PhotonSampWall_Shared_Win_allocated
+USE MOD_Photon_TrackingVars        ,ONLY: PhotonSampWall_Shared,PhotonSampWall_Shared_Win,PhotonSampWallProc
 #else
 USE MOD_Mesh_Vars                  ,ONLY: nElems
 #endif
@@ -474,6 +474,7 @@ ALLOCATE(PhotonSampWallProc(2,1:Ray%nSurfSample,1:Ray%nSurfSample,1:nComputeNode
 PhotonSampWallProc=0.0
 !> Then shared arrays for boundary sampling
 CALL Allocate_Shared((/2,Ray%nSurfSample,Ray%nSurfSample,nComputeNodeSurfTotalSides/),PhotonSampWall_Shared_Win,PhotonSampWall_Shared)
+PhotonSampWall_Shared_Win_allocated = .TRUE.
 CALL MPI_WIN_LOCK_ALL(0,PhotonSampWall_Shared_Win,IERROR)
 PhotonSampWall => PhotonSampWall_Shared
 

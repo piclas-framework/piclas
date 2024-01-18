@@ -227,7 +227,7 @@ USE MOD_Photon_TrackingVars ,ONLY: PhotonSurfSideArea,PhotonSurfSideSamplingMidP
 #if USE_MPI
 USE MOD_MPI_Shared_Vars     ,ONLY: MPI_COMM_SHARED
 USE MOD_Photon_TrackingVars ,ONLY: PhotonSurfSideSamplingMidPoints_Shared,PhotonSurfSideSamplingMidPoints_Shared_Win
-USE MOD_Photon_TrackingVars ,ONLY: PhotonSurfSideArea_Shared,PhotonSurfSideArea_Shared_Win
+USE MOD_Photon_TrackingVars ,ONLY: PhotonSurfSideArea_Shared,PhotonSurfSideArea_Shared_Win,PhotonSampWall_Shared_Win_allocated
 USE MOD_MPI_Shared
 #endif /*USE_MPI*/
 USE MOD_Photon_TrackingVars
@@ -242,7 +242,8 @@ IMPLICIT NONE
 CALL MPI_BARRIER(MPI_COMM_SHARED,iERROR)
 CALL UNLOCK_AND_FREE(PhotonSurfSideSamplingMidPoints_Shared_Win)
 CALL UNLOCK_AND_FREE(PhotonSurfSideArea_Shared_Win)
-CALL UNLOCK_AND_FREE(PhotonSampWall_Shared_Win)
+IF(PhotonSampWall_Shared_Win_allocated) CALL UNLOCK_AND_FREE(PhotonSampWall_Shared_Win)
+PhotonSampWall_Shared_Win_allocated = .FALSE.
 CALL MPI_BARRIER(MPI_COMM_SHARED,iERROR)
 ADEALLOCATE(PhotonSampWall_Shared)
 ADEALLOCATE(PhotonSurfSideSamplingMidPoints_Shared)

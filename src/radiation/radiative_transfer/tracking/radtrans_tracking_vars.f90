@@ -53,6 +53,7 @@ LOGICAL              :: UsePhotonTriaTracking !> True/False: Use TriaTracking me
 #if USE_MPI
 INTEGER              :: PhotonSampWall_Shared_Win
 REAL,POINTER         :: PhotonSampWall_Shared(:,:,:,:)
+LOGICAL              :: PhotonSampWall_Shared_Win_allocated
 REAL,ALLOCATABLE     :: PhotonSampWallProc(:,:,:,:)
 #endif /*USE_MPI*/
 
