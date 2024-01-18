@@ -922,7 +922,7 @@ USE MOD_Particle_Surfaces      ,ONLY: CalcNormAndTangBilinear
 USE MOD_Photon_TrackingVars    ,ONLY: PhotonProps
 #ifdef CODE_ANALYZE
 USE MOD_Particle_Surfaces_Vars ,ONLY: BezierControlPoints3D
-USE MOD_Particle_Tracking_Vars ,ONLY: PartOut,MPIRankOut
+USE MOD_Particle_Tracking_Vars ,ONLY: MPIRankOut
 USE MOD_Mesh_Vars              ,ONLY: NGeo
 #endif /*CODE_ANALYZE*/
 #if USE_MPI
