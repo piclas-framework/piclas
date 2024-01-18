@@ -1362,9 +1362,8 @@ INTEGER,INTENT(IN) :: meshMode !<  0: only read and build Elem_xGP,
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 !===================================================================================================================================
-
 ! First, free every shared memory window. This requires MPI_BARRIER as per MPI3.1 specification
-#if USE_MPI
+#if USE_MPI && defined(PARTICLES)
 CALL MPI_BARRIER(MPI_COMM_SHARED,iERROR)
 
 ! symmetry sides and elem volumes/characteristic lengths
@@ -1373,7 +1372,7 @@ IF(ABS(meshMode).GT.1)THEN
   CALL UNLOCK_AND_FREE(ElemVolume_Shared_Win)
   CALL UNLOCK_AND_FREE(ElemCharLength_Shared_Win)
 END IF ! ABS(meshMode).GT.1
-#endif /*USE_MPI*/
+#endif /*USE_MPI && defined(PARTICLES)*/
 
 ! Then, free the pointers or arrays
 ADEALLOCATE(SideIsSymSide_Shared)
@@ -1398,13 +1397,9 @@ END IF
 CALL UNLOCK_AND_FREE(ElemInfo_Shared_Win)
 
 ! sides
-#if !defined(PARTICLES)
-IF(ABS(meshMode).GT.1)THEN
-#endif /*!defined(PARTICLES)*/
-  CALL UNLOCK_AND_FREE(SideInfo_Shared_Win)
-#if !defined(PARTICLES)
-END IF ! ABS(meshMode).GT.1
-#endif /*!defined(PARTICLES)*/
+#if defined(PARTICLES)
+CALL UNLOCK_AND_FREE(SideInfo_Shared_Win)
+#endif /*defined(PARTICLES)*/
 
 ! nodes
 CALL UNLOCK_AND_FREE(NodeInfo_Shared_Win)

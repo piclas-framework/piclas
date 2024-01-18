@@ -244,11 +244,10 @@ CALL UNLOCK_AND_FREE(PhotonSurfSideSamplingMidPoints_Shared_Win)
 CALL UNLOCK_AND_FREE(PhotonSurfSideArea_Shared_Win)
 CALL UNLOCK_AND_FREE(PhotonSampWall_Shared_Win)
 CALL MPI_BARRIER(MPI_COMM_SHARED,iERROR)
-#endif /*USE_MPI*/
-
 ADEALLOCATE(PhotonSampWall_Shared)
 ADEALLOCATE(PhotonSurfSideSamplingMidPoints_Shared)
 ADEALLOCATE(PhotonSurfSideArea_Shared)
+#endif /*USE_MPI*/
 
 ADEALLOCATE(PhotonSurfSideSamplingMidPoints)
 ADEALLOCATE(PhotonSurfSideArea)
