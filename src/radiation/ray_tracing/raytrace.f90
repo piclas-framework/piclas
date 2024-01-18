@@ -85,11 +85,12 @@ INTEGER :: ALLOCSTAT
 REAL    :: RectPower,SumPhotonEnACC
 REAL    :: StartT,EndT ! Timer
 !===================================================================================================================================
+
+IF(.NOT.UseRayTracing) RETURN
+
 #if USE_MPI
 PhotonSampWall_Shared_Win_allocated = .FALSE.
 #endif /*USE_MPI*/
-
-IF(.NOT.UseRayTracing) RETURN
 
 ! Allocate process-local element arrays which are either filled from the global shared array when ray tracing is performed or read
 ! from .h5 when a restart is performed
