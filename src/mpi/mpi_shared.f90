@@ -1371,9 +1371,8 @@ LWRITE(UNIT_stdOut,'(A,I7,A85)') "myrank=",myrank," Freeing window "//TRIM(SM_WI
 #endif /*DEBUG_MEMORY*/
 CALL MPI_WIN_FREE(      SharedWindow,iError)
 
-IF(iError.NE.0)THEN
-  CALL abort(__STAMP__,'ERROR in UNLOCK_AND_FREE_1() for '//TRIM(SM_WIN_NAME)//': iError returned non-zero value =',IntInfoOpt=iError)
-END IF ! iError.NE.0
+IF(iError.NE.MPI_SUCCESS) CALL abort(__STAMP__,'ERROR in UNLOCK_AND_FREE_1() for '//TRIM(SM_WIN_NAME)//': non-zero value iError=',&
+    IntInfoOpt=iError)
 END SUBROUTINE UNLOCK_AND_FREE_1
 
 
