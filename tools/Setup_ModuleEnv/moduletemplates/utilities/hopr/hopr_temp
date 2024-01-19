@@ -15,8 +15,8 @@ module-whatis   "Sets the environment for using hopr-hoprversion"
 conflict hopr
 
 prereq gcc/GCCVERSIONFLAG
-prereq openmpi/MPIVERSIONFLAG/gcc/GCCVERSIONFLAG
-prereq hdf5/HDF5VERSIONFLAG/gcc/GCCVERSIONFLAG/openmpi/MPIVERSIONFLAG
+prereq HOPRWHICHMPI/MPIVERSIONFLAG/gcc/GCCVERSIONFLAG
+prereq hdf5/HDF5VERSIONFLAG/gcc/GCCVERSIONFLAG/HOPRWHICHMPI/MPIVERSIONFLAG
 
 # for Tcl script use only
 set     topdir          HOPRTOPDIR
