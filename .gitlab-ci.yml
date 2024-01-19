@@ -27,11 +27,35 @@ before_script:
       export GENERATOR=make;
       export NCORES=;
     fi
+  - if [ "${CI_JOB_NAME}" == "reggie_download" ]; then
+      if [ ! -d "reggie" ]; then mkdir reggie ; fi ;
+      day=$(date +%d);
+      echo $day > reggie/.day;
+      ls -la reggie;
+      cat reggie/.day;
+    fi
+  - if [ ! -f "reggie/.day" ]; then
+        echo "reggie/.day does not exist! Setting even day number.";
+        day=0 ;
+      else
+        day=$(cat reggie/.day);
+    fi
+  - if [ "$(($day % 2))" == "0" ]; then
+        echo "Even day number ($day). Loading OpenMPI";
+        module purge;
+        module load  cmake/3.26.4    gcc/13.2.0  openmpi/4.1.5/gcc/13.2.0      hdf5/1.14.0/gcc/13.2.0/openmpi/4.1.5      hopr/master/gcc/13.2.0/openmpi/4.1.5/hdf5/1.14.0      petsc/3.19.3/gcc/13.2.0/openmpi/4.1.5;
+      else
+        echo "Odd day number ($day). Loading MPICH";
+        module purge;
+        module load  cmake/3.26.4    gcc/13.2.0  mpich/4.1.2/gcc/13.2.0        hdf5/1.14.0/gcc/13.2.0/mpich/4.1.2        hopr/master/gcc/13.2.0/mpich/4.1.2/hdf5/1.14.0        petsc/3.19.3/gcc/13.2.0/mpich/4.1.2;
+    fi
   - if [ -n "${DO_MPICH}" ]; then
+      echo "DO_MPICH activated. Loading MPICH.";
       module purge;
       module load   cmake/3.26.4    gcc/13.2.0  mpich/4.1.2/gcc/13.2.0        hdf5/1.14.0/gcc/13.2.0/mpich/4.1.2        hopr/master/gcc/13.2.0/mpich/4.1.2/hdf5/1.14.0        petsc/3.19.3/gcc/13.2.0/mpich/4.1.2;
     fi
   - if [ -n "${DO_MPICH_DEBUG}" ]; then
+      echo "DO_MPICH_DEBUG activated. Loading MPICH with --with-device=ch3:sock which allows over-subscription without performance loss but cannot be used for shared memory arrays safely!";
       module purge;
       module load   cmake/3.26.4    gcc/13.2.0  mpich-debug/4.1.2/gcc/13.2.0  hdf5/1.14.0/gcc/13.2.0/mpich-debug/4.1.2  hopr/master/gcc/13.2.0/mpich-debug/4.1.2/hdf5/1.14.0  petsc/3.19.3/gcc/13.2.0/mpich-debug/4.1.2;
     fi
@@ -259,7 +283,12 @@ reggie_download:
     policy: push
   stage: build
   script:
-    - if [ ! -d "reggie" ]; then git clone git@piclas.boltzplatz.eu:reggie2.0/reggie2.0.git reggie ; fi
+    - if [ ! -d "reggie/.git" ]; then
+        if [ -f "reggie/.day" ]; then mv reggie/.day .; fi ;
+        if [ -d "reggie" ]; then rm -rf reggie ; fi ;
+        git clone git@piclas.boltzplatz.eu:reggie2.0/reggie2.0.git reggie ;
+        if [ -f ".day" ]; then mv .day reggie/. ; fi ;
+      fi
     - if [ -f "reggie/.git/refs/heads/master" ]; then cat reggie/.git/refs/heads/master ; fi
 
 build:
@@ -268,9 +297,10 @@ build:
   artifacts:
     paths: [build]
   cache:
-    key: "${CI_COMMIT_REF_SLUG}"
-    paths: [build]
-    policy: push
+    - *reggie_cache
+    - key: "${CI_COMMIT_REF_SLUG}"
+      paths: [build]
+      policy: push
   stage: build
   script:
     - mkdir -p build ; cd build
@@ -283,9 +313,10 @@ build_maxwell:
   artifacts:
     paths: [build_maxwell]
   cache:
-    key: "${CI_COMMIT_REF_SLUG}-MAX"
-    paths: [build_maxwell]
-    policy: push
+    - *reggie_cache
+    - key: "${CI_COMMIT_REF_SLUG}-MAX"
+      paths: [build_maxwell]
+      policy: push
   stage: build
   script:
     - mkdir -p build_maxwell ; cd build_maxwell
@@ -301,13 +332,14 @@ build_poisson:
       - build_poisson_debug_RK3
       - build_poisson_debug_Leapfrog
   cache:
-    key: "${CI_COMMIT_REF_SLUG}-POI"
-    paths:
-      - build_poisson_release_RK3
-      - build_poisson_release_Leapfrog
-      - build_poisson_debug_RK3
-      - build_poisson_debug_Leapfrog
-    policy: push
+    - *reggie_cache
+    - key: "${CI_COMMIT_REF_SLUG}-POI"
+      paths:
+        - build_poisson_release_RK3
+        - build_poisson_release_Leapfrog
+        - build_poisson_debug_RK3
+        - build_poisson_debug_Leapfrog
+      policy: push
   stage: build
   script:
     - mkdir -p build_poisson_release_RK3 ; cd build_poisson_release_RK3
@@ -333,13 +365,14 @@ build_poisson_petsc:
       - build_poisson_petsc_debug_RK3
       - build_poisson_petsc_debug_Leapfrog
   cache:
-    key: "${CI_COMMIT_REF_SLUG}-POI-PETSC"
-    paths:
-      - build_poisson_petsc_release_RK3
-      - build_poisson_petsc_release_Leapfrog
-      - build_poisson_petsc_debug_RK3
-      - build_poisson_petsc_debug_Leapfrog
-    policy: push
+    - *reggie_cache
+    - key: "${CI_COMMIT_REF_SLUG}-POI-PETSC"
+      paths:
+        - build_poisson_petsc_release_RK3
+        - build_poisson_petsc_release_Leapfrog
+        - build_poisson_petsc_debug_RK3
+        - build_poisson_petsc_debug_Leapfrog
+      policy: push
   stage: build
   script:
     - mkdir -p build_poisson_petsc_release_RK3 ; cd build_poisson_petsc_release_RK3
@@ -365,13 +398,14 @@ build_DSMC:
       - build_DSMC_N1
       - build_radiation
   cache:
-    key: "${CI_COMMIT_REF_SLUG}-DSMC"
-    paths:
-      - build_DSMC_release
-      - build_DSMC_debug
-      - build_DSMC_N1
-      - build_radiation
-    policy: push
+    - *reggie_cache
+    - key: "${CI_COMMIT_REF_SLUG}-DSMC"
+      paths:
+        - build_DSMC_release
+        - build_DSMC_debug
+        - build_DSMC_N1
+        - build_radiation
+      policy: push
   stage: build
   script:
     - mkdir -p build_DSMC_release ; cd build_DSMC_release
@@ -392,6 +426,8 @@ build_hopr:
   extends: .default_build_param
   artifacts:
     paths: [hopr]
+  cache:
+    - *reggie_cache
   stage: build
   script:
     - git clone https://github.com/hopr-framework/hopr.git hopr;
@@ -427,6 +463,8 @@ build_hopr_in_piclas:
 build_no_git:
   tags: [withmodules-concurrent]
   stage: build
+  cache:
+    <<: *reggie_cache
   script:
     - echo " Installing branch $CI_COMMIT_REF_NAME without git"
     - git clone --depth=1 --branch=$CI_COMMIT_REF_NAME git@piclas.boltzplatz.eu:piclas/piclas.git piclas-no-git
@@ -440,6 +478,8 @@ build_no_git:
 build_no_git_libs:
   tags: [withmodules-concurrent]
   stage: build
+  cache:
+    <<: *reggie_cache
   script:
     - echo " Installing branch $CI_COMMIT_REF_NAME without git but with external libs"
     - git clone --depth=1 --branch=$CI_COMMIT_REF_NAME git@piclas.boltzplatz.eu:piclas/piclas.git piclas-no-git-but-libs
