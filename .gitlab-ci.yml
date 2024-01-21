@@ -927,16 +927,24 @@ WEK_PIC_poisson:
     - cd build ;  python ../reggie/reggie.py ../regressioncheck/WEK_PIC_poisson
 
 WEK_DSMC:
-  <<: *defaults_DSMC_weekly_pull_push
+  <<: *defaults_DSMC_weekly
   needs: [build_DSMC]
   stage: reggie_weekly
   script:
     # Use -s, --save   Do not remove output directories buildsXXXX in output_dir after successful run.
     - cd build_DSMC_release ;  python ../reggie/reggie.py ../regressioncheck/WEK_DSMC -e bin/piclas -s
 
+WEK_DSMC_Radiation:
+  <<: *defaults_DSMC_weekly_pull_push
+  needs: [build_DSMC]
+  stage: reggie_weekly
+  script:
+    # Use -s, --save   Do not remove output directories buildsXXXX in output_dir after successful run.
+    - cd build_DSMC_release ;  python ../reggie/reggie.py ../regressioncheck/WEK_DSMC_Radiation -e bin/piclas -s
+
 WEK_Radiation:
   <<: *defaults_DSMC_weekly_pull_push
-  needs: [WEK_DSMC]
+  needs: [WEK_DSMC_Radiation]
   stage: reggie_weekly
   script:
     - cd build_radiation
