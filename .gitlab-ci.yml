@@ -931,8 +931,7 @@ WEK_DSMC:
   needs: [build_DSMC]
   stage: reggie_weekly
   script:
-    # Use -s, --save   Do not remove output directories buildsXXXX in output_dir after successful run.
-    - cd build_DSMC_release ;  python ../reggie/reggie.py ../regressioncheck/WEK_DSMC -e bin/piclas -s
+    - cd build_DSMC_release ;  python ../reggie/reggie.py ../regressioncheck/WEK_DSMC -e bin/piclas
 
 WEK_DSMC_Radiation:
   <<: *defaults_DSMC_weekly_pull_push
