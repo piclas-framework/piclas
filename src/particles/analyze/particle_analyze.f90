@@ -120,7 +120,7 @@ USE MOD_PICDepo_Vars          ,ONLY: DoDeposition,SFAdaptiveDOF,r_sf,DepositionT
 USE MOD_PICDepo_Vars          ,ONLY: SFAdaptiveSmoothing
 USE MOD_ReadInTools           ,ONLY: GETLOGICAL, GETINT, GETSTR, GETINTARRAY, GETREALARRAY, GETREAL
 USE MOD_ReadInTools           ,ONLY: PrintOption
-USE MOD_Particle_Sampling_Vars,ONLY: UseAdaptive
+USE MOD_Particle_Sampling_Vars,ONLY: UseAdaptiveBC
 USE MOD_TimeDisc_Vars         ,ONLY: TEnd
 USE MOD_TimeDisc_Vars         ,ONLY: ManualTimeStep
 USE MOD_Restart_Vars          ,ONLY: RestartTime
@@ -630,7 +630,7 @@ CalcSurfFluxInfo = GETLOGICAL('CalcSurfFluxInfo')
 IF(CalcSurfFluxInfo) THEN
   ALLOCATE(FlowRateSurfFlux(1:nSpecAnalyze,1:MAXVAL(Species(:)%nSurfacefluxBCs)))
   FlowRateSurfFlux = 0.
-  IF(UseAdaptive) THEN
+  IF(UseAdaptiveBC) THEN
     ALLOCATE(PressureAdaptiveBC(1:nSpecAnalyze,1:MAXVAL(Species(:)%nSurfacefluxBCs)))
     PressureAdaptiveBC = 0.
   END IF
@@ -845,7 +845,7 @@ USE MOD_Particle_Vars           ,ONLY: Species,nSpecies
 USE MOD_PIC_Analyze             ,ONLY: CalcDepositedCharge
 USE MOD_Restart_Vars            ,ONLY: RestartTime,DoRestart
 USE MOD_TimeDisc_Vars           ,ONLY: iter, dt, IterDisplayStep
-USE MOD_Particle_Sampling_Vars  ,ONLY: UseAdaptive
+USE MOD_Particle_Sampling_Vars  ,ONLY: UseAdaptiveBC
 USE MOD_Particle_Analyze_Tools  ,ONLY: CalcNumPartsOfSpec,CalcShapeEfficiencyR,CalcKineticEnergy,CalcKineticEnergyAndMaximum
 USE MOD_Particle_Analyze_Tools  ,ONLY: CalcNumberDensity,CalcSurfaceFluxInfo,CalcTransTemp,CalcVelocities
 USE MOD_Particle_Analyze_Output ,ONLY: DisplayCoupledPowerPart
@@ -976,7 +976,7 @@ ParticleAnalyzeSampleTime = Time - ParticleAnalyzeSampleTime ! Set ParticleAnaly
                 WRITE(unit_index,'(I3.3,A15,I3.3,A4,I3.3)',ADVANCE='NO') OutputCounter,'-Massflow-Spec-',iSpec,'-SF-',iSF
               END IF
               OutputCounter = OutputCounter + 1
-              IF(UseAdaptive) THEN
+              IF(UseAdaptiveBC) THEN
                 WRITE(unit_index,'(A1)',ADVANCE='NO') ','
                 WRITE(unit_index,'(I3.3,A15,I3.3,A4,I3.3)',ADVANCE='NO') OutputCounter,'-Pressure-Spec-',iSpec,'-SF-',iSF
                 OutputCounter = OutputCounter + 1
@@ -1597,7 +1597,7 @@ IF (MPIRoot) THEN
     DO iSpec = 1, nSpecies
       DO iSF = 1, Species(iSpec)%nSurfacefluxBCs
         WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',', FlowRateSurfFlux(iSpec,iSF)
-        IF(UseAdaptive) WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',', PressureAdaptiveBC(iSpec,iSF)
+        IF(UseAdaptiveBC) WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',', PressureAdaptiveBC(iSpec,iSF)
       END DO
     END DO
   END IF

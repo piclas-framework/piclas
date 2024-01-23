@@ -77,8 +77,8 @@ DSMC%ParticleCalcCollCounter = 0 ! Counts Particle Collison Calculations
 DSMC%ResolvedCellCounter = 0 ! Counts resolved cells
 DSMC%ResolvedTimestepCounter = 0 ! Counts cells with MeanCollProb below 1
 DSMC%CollProbMaxProcMax = 0.0 ! Maximum CollProbMax of every Cell in Process
-! Insert background gas particles for every simulation particle
-IF((BGGas%NumberOfSpecies.GT.0).AND.(.NOT.UseMCC)) CALL BGGas_InsertParticles()
+! Insert background gas particles for every simulation particle (except when using MCC and free-molecular flow)
+IF((BGGas%NumberOfSpecies.GT.0).AND.(.NOT.UseMCC).AND.(CollisMode.NE.0)) CALL BGGas_InsertParticles()
 
 IF ((DSMC%ElectronicModel.EQ.4).AND.(CollisMode.EQ.3)) THEN
   ElecRelaxPart(1:PDM%ParticleVecLength) = .TRUE.
@@ -100,7 +100,7 @@ IF (CollisMode.NE.0) THEN
       IF(DSMC%RotRelaxProb.GT.2) DSMC%CalcRotProb = 0.
       DSMC%CalcVibProb = 0.
     END IF
-    CALL InitCalcVibRelaxProb
+    CALL InitCalcVibRelaxProb()
     IF(BGGas%NumberOfSpecies.GT.0) THEN
       ! Decide between MCC and DSMC-based background gas
       IF(UseMCC) THEN
@@ -133,10 +133,6 @@ IF (CollisMode.NE.0) THEN
 #endif /*USE_LOADBALANCE*/
   END DO ! iElem Loop
 END IF ! CollisMode.NE.0
-
-! Advance particle vector length and the current next free position with newly created particles
-PDM%ParticleVecLength = PDM%ParticleVecLength + DSMCSumOfFormedParticles
-PDM%CurrentNextFreePosition = PDM%CurrentNextFreePosition + DSMCSumOfFormedParticles
 
 IF(PDM%ParticleVecLength.GT.PDM%MaxParticleNumber) THEN
   CALL Abort(__STAMP__&

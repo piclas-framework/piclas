@@ -920,7 +920,7 @@ USE MOD_Restart_Vars        ,ONLY: RestartFile
 USE MOD_Particle_Mesh_Vars  ,ONLY: ElemVolume_Shared
 USE MOD_HDG_Vars            ,ONLY: ElemToBRRegion,RegionElectronRef
 USE MOD_Mesh_Tools          ,ONLY: GetCNElemID
-USE MOD_Part_Tools          ,ONLY: UpdateNextFreePosition
+USE MOD_Part_Tools          ,ONLY: UpdateNextFreePosition, GetNextFreePosition
 USE MOD_TimeDisc_Vars       ,ONLY: time
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
@@ -1022,16 +1022,11 @@ DO iElem=1,PP_nElems
   DO iPart=1,ElemCharge
     BRNbrOfElectronsCreated = BRNbrOfElectronsCreated + 1
 
-    ! Set the next free position in the particle vector list
-    PDM%CurrentNextFreePosition = PDM%CurrentNextFreePosition + 1
-    ParticleIndexNbr            = PDM%nextFreePosition(PDM%CurrentNextFreePosition)
-    IF (ParticleIndexNbr.EQ.0) THEN
-      CALL abort(__STAMP__,'ERROR in CreateElectronsFromBRFluid(): New Particle Number greater max Part Num!')
-    END IF
-    PDM%ParticleVecLength       = PDM%ParticleVecLength + 1
+    ParticleIndexNbr            = GetNextFreePosition()
 
     !Set new SpeciesID of new particle (electron)
     PDM%ParticleInside(ParticleIndexNbr) = .TRUE.
+    PDM%isNewPart(ParticleIndexNbr) = .TRUE.
     PartSpecies(ParticleIndexNbr) = ElecSpecIndx
 
     ! Place the electron randomly in the reference cell

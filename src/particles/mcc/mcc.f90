@@ -62,7 +62,7 @@ USE MOD_DSMC_Vars               ,ONLY: newAmbiParts, iPartIndx_NodeNewAmbi
 ! ROUTINES
 USE MOD_DSMC_Analyze            ,ONLY: CalcMeanFreePath
 USE MOD_DSMC_BGGas              ,ONLY: BGGas_AssignParticleProperties
-USE MOD_part_tools              ,ONLY: GetParticleWeight, CalcVelocity_maxwell_particle
+USE MOD_part_tools              ,ONLY: GetParticleWeight, CalcVelocity_maxwell_particle, GetNextFreePosition
 USE MOD_Part_Emission_Tools     ,ONLY: CalcVelocity_maxwell_lpn
 USE MOD_DSMC_Collis             ,ONLY: DSMC_perform_collision
 USE MOD_Mesh_Tools              ,ONLY: GetCNElemID
@@ -273,7 +273,7 @@ DO iSpec = 1, nSpecies
             ! Clone the regular particle (re-using the index of the previous particle if it didn't collide)
             IF(PartIndex.EQ.0) THEN
               DSMCSumOfFormedParticles = DSMCSumOfFormedParticles + 1
-              PartIndex = PDM%nextFreePosition(DSMCSumOfFormedParticles+PDM%CurrentNextFreePosition)
+              PartIndex = GetNextFreePosition()
               IF (PartIndex.EQ.0) THEN
                 CALL Abort(__STAMP__,'ERROR in MCC: MaxParticleNumber should be increased!')
               END IF
@@ -409,7 +409,7 @@ DO iSpec = 1, nSpecies
           IF(ChemReac%CollCaseInfo(iCase)%HasXSecReaction) THEN
             IF(bggPartIndex.EQ.0) THEN
               DSMCSumOfFormedParticles = DSMCSumOfFormedParticles + 1
-              bggPartIndex = PDM%nextFreePosition(DSMCSumOfFormedParticles+PDM%CurrentNextFreePosition)
+              bggPartIndex = GetNextFreePosition()
               IF (bggPartIndex.EQ.0) THEN
                 CALL Abort(__STAMP__,'ERROR in MCC: MaxParticleNumber should be increased!')
               END IF
@@ -465,7 +465,7 @@ DO iSpec = 1, nSpecies
         ! Creating a new background gas particle
         IF(bggPartIndex.EQ.0) THEN
           DSMCSumOfFormedParticles = DSMCSumOfFormedParticles + 1
-          bggPartIndex = PDM%nextFreePosition(DSMCSumOfFormedParticles+PDM%CurrentNextFreePosition)
+          bggPartIndex = GetNextFreePosition()
           IF (bggPartIndex.EQ.0) THEN
             CALL Abort(__STAMP__,'ERROR in MCC: MaxParticleNumber should be increased!')
           END IF

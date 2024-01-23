@@ -134,9 +134,10 @@ USE MOD_Particle_Surfaces      ,ONLY: GetBezierSampledAreas
 USE MOD_Particle_Vars          ,ONLY: Species, nSpecies, DoSurfaceFlux
 USE MOD_Particle_Vars          ,ONLY: UseCircularInflow, DoForceFreeSurfaceFlux
 USE MOD_Particle_Vars          ,ONLY: VarTimeStep
-USE MOD_Particle_Sampling_Vars ,ONLY: UseAdaptive
+USE MOD_Particle_Sampling_Vars ,ONLY: UseAdaptiveBC
 USE MOD_Restart_Vars           ,ONLY: DoRestart, RestartTime
 USE MOD_DSMC_Vars              ,ONLY: AmbiPolarSFMapping, DSMC, useDSMC
+USE MOD_Particle_Vars          ,ONLY: Symmetry
 #if USE_MPI
 USE MOD_Particle_Vars          ,ONLY: DoPoissonRounding, DoTimeDepInflow
 #endif /*USE_MPI*/
@@ -172,7 +173,7 @@ SurfMeshSideAreas=0.
 CALL BCSurfMeshSideAreasandNormals()
 
 UseCircularInflow=.FALSE.
-UseAdaptive=.FALSE.
+UseAdaptiveBC=.FALSE.
 MaxSurfacefluxBCs=0
 nDataBC=0
 DoSurfaceFlux=.FALSE.
@@ -320,6 +321,7 @@ DO iSpec=1,nSpecies
     IF(Species(iSpec)%Surfaceflux(iSF)%Adaptive) THEN
       IF(Species(iSpec)%Surfaceflux(iSF)%AdaptiveType.EQ.4) THEN
         currentBC = Species(iSpec)%Surfaceflux(iSF)%BC
+        IF(Symmetry%Axisymmetric) CALL abort(__STAMP__, 'ERROR: AdaptiveType = 4 is not implemented with axisymmetric simulations!')
         ! Weighting factor to account for a
         ALLOCATE(Species(iSpec)%Surfaceflux(iSF)%ConstMassflowWeight(1:SurfFluxSideSize(1),1:SurfFluxSideSize(2), &
                   1:BCdata_auxSF(currentBC)%SideNumber))
@@ -328,6 +330,7 @@ DO iSpec=1,nSpecies
         IF(ALMOSTEQUAL(Species(iSpec)%Surfaceflux(iSF)%AdaptiveMassflow,0.)) CALL CalcConstMassflowWeightForZeroMassFlow(iSpec,iSF)
         ! Circular inflow in combination with AdaptiveType = 4 requires the partial circle area per tria side
         IF(Species(iSpec)%Surfaceflux(iSF)%CircularInflow) THEN
+          IF(Symmetry%Axisymmetric) CALL abort(__STAMP__, 'ERROR: Circular inflow is not implemented with axisymmetric simulations!')
           ALLOCATE(Species(iSpec)%Surfaceflux(iSF)%CircleAreaPerTriaSide(1:SurfFluxSideSize(1),1:SurfFluxSideSize(2), &
                   1:BCdata_auxSF(currentBC)%SideNumber))
           Species(iSpec)%Surfaceflux(iSF)%CircleAreaPerTriaSide = 0.0
@@ -382,8 +385,8 @@ USE MOD_Globals
 USE MOD_ReadInTools
 USE MOD_Globals_Vars           ,ONLY: BoltzmannConst, Pi
 USE MOD_Particle_Vars          ,ONLY: nSpecies, Species, UseVarTimeStep, VarTimeStep, DoPoissonRounding, DoTimeDepInflow
-USE MOD_Particle_Vars          ,ONLY: Symmetry, UseCircularInflow
-USE MOD_Particle_Sampling_Vars ,ONLY: UseAdaptive
+USE MOD_Particle_Vars          ,ONLY: UseCircularInflow
+USE MOD_Particle_Sampling_Vars ,ONLY: UseAdaptiveBC
 USE MOD_Particle_Boundary_Vars ,ONLY: PartBound,nPartBound
 USE MOD_DSMC_Vars              ,ONLY: useDSMC, BGGas
 USE MOD_Particle_Surfaces_Vars ,ONLY: BCdata_auxSF, BezierSampleN, TriaSurfaceFlux
@@ -547,13 +550,12 @@ DO iSpec=1,nSpecies
     SF%Adaptive         = GETLOGICAL('Part-Species'//TRIM(hilf2)//'-Adaptive')
     IF(SF%Adaptive) THEN
       DoPoissonRounding = .TRUE.
-      UseAdaptive  = .TRUE.
+      UseAdaptiveBC  = .TRUE.
       IF(TrackingMethod.EQ.REFMAPPING) THEN
         CALL abort(__STAMP__,'ERROR: Adaptive surface flux boundary conditions are not implemented with RefMapping!')
       END IF
-      IF((Symmetry%Order.LE.2).OR.(UseVarTimeStep.AND..NOT.VarTimeStep%UseDistribution)) THEN
-        CALL abort(__STAMP__&
-            ,'ERROR: Adaptive surface flux boundary conditions are not implemented with 2D/axisymmetric or variable time step!')
+      IF(UseVarTimeStep.AND..NOT.VarTimeStep%UseDistribution) THEN
+        CALL abort(__STAMP__,'ERROR: Adaptive surface flux boundary conditions are not implemented with variable time step!')
       END IF
       SF%AdaptiveType         = GETINT('Part-Species'//TRIM(hilf2)//'-Adaptive-Type')
       SELECT CASE(SF%AdaptiveType)
@@ -981,8 +983,7 @@ DO jSample=1,SurfFluxSideSize(2); DO iSample=1,SurfFluxSideSize(1)
   !-- compute total volume flow rate through surface
   SELECT CASE(TRIM(Species(iSpec)%Surfaceflux(iSF)%velocityDistribution))
   CASE('constant')
-    vSF = Species(iSpec)%Surfaceflux(iSF)%VeloIC * projFak ! Velo proj. to inwards normal
-    nVFR = MAX(tmp_SubSideAreas(iSample,jSample) * vSF,0.) ! VFR proj. to inwards normal (only positive parts!)
+    vSF = MAX(Species(iSpec)%Surfaceflux(iSF)%VeloIC * projFak,0.) ! VFR proj. to inwards normal (only positive parts!)
   CASE('maxwell','maxwell_lpn')
     IF ( ALMOSTEQUAL(v_thermal,0.)) THEN
       CALL abort(__STAMP__,' ERROR in SurfaceFlux: Calculated thermal velocity is zero! Temperature input might be missing (-MWTemperatureIC) ')
@@ -993,26 +994,27 @@ DO jSample=1,SurfFluxSideSize(2); DO iSample=1,SurfFluxSideSize(1)
     ELSE
       vSF = v_thermal / (2.0*SQRT(PI))  ! mean flux velocity through normal sub-face
     END IF
-    ! Calculate the volume flow rate. In case of an emission current and mass flow, it contains only the area
-    IF(Species(iSpec)%Surfaceflux(iSF)%UseEmissionCurrent.OR.Species(iSpec)%Surfaceflux(iSF)%UseMassflow) THEN
-      nVFR = tmp_SubSideAreas(iSample,jSample) ! Area
-      ! vSF set to 1 to allow the utilization with radial weighting (untested)
-      vSF = 1.
-    ELSE
-      nVFR = tmp_SubSideAreas(iSample,jSample) * vSF ! VFR projected to inwards normal of sub-side
-    END IF
-    IF(RadialWeighting%DoRadialWeighting) THEN
-      nVFR = nVFR / BCdata_auxSFTemp(currentBC)%WeightingFactor(iSide)
-      DO iSub = 1, RadialWeighting%nSubSides
-        IF(ABS(BCdata_auxSFTemp(currentBC)%SubSideWeight(iSide,iSub)).GT.0.)THEN
-          Species(iSpec)%Surfaceflux(iSF)%nVFRSub(iSide,iSub) = BCdata_auxSFTemp(currentBC)%SubSideArea(iSide,iSub) &
-                                                             * vSF / BCdata_auxSFTemp(currentBC)%SubSideWeight(iSide,iSub)
-        END IF
-      END DO
-    END IF
   CASE DEFAULT
     CALL abort(__STAMP__, 'ERROR in SurfaceFlux: Wrong velocity distribution!')
   END SELECT
+  ! Calculate the volume flow rate. In case of an emission current and mass flow, it contains only the area
+  IF(Species(iSpec)%Surfaceflux(iSF)%UseEmissionCurrent .OR. Species(iSpec)%Surfaceflux(iSF)%UseMassflow .OR. &
+      Species(iSpec)%Surfaceflux(iSF)%Adaptive) THEN
+    nVFR = tmp_SubSideAreas(iSample,jSample) ! Area
+    ! vSF set to 1 to allow the utilization with radial weighting (untested)
+    vSF = 1.
+  ELSE
+    nVFR = tmp_SubSideAreas(iSample,jSample) * vSF ! VFR projected to inwards normal of sub-side
+  END IF
+  IF(RadialWeighting%DoRadialWeighting) THEN
+    nVFR = nVFR / BCdata_auxSFTemp(currentBC)%WeightingFactor(iSide)
+    DO iSub = 1, RadialWeighting%nSubSides
+      IF(ABS(BCdata_auxSFTemp(currentBC)%SubSideWeight(iSide,iSub)).GT.0.)THEN
+        Species(iSpec)%Surfaceflux(iSF)%nVFRSub(iSide,iSub) = BCdata_auxSFTemp(currentBC)%SubSideArea(iSide,iSub) &
+                                                            * vSF / BCdata_auxSFTemp(currentBC)%SubSideWeight(iSide,iSub)
+      END IF
+    END DO
+  END IF
   IF (Species(iSpec)%Surfaceflux(iSF)%CircularInflow) THEN
     ! Check whether cell is completely outside of the circular inflow region and set the volume flow rate to zero
     IF (Species(iSpec)%Surfaceflux(iSF)%SurfFluxSideRejectType(iSide).EQ.1) nVFR = 0.

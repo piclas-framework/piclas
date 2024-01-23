@@ -70,6 +70,7 @@ USE MOD_TimeDisc_Vars         ,ONLY: dt
 USE MOD_Particle_Vars         ,ONLY: PDM, Species, PartSpecies,  usevMPF, PartState, PEM, PartMPF
 USE MOD_DSMC_Vars             ,ONLY: DSMC, SpecDSMC
 USE MOD_PICInterpolation_Vars ,ONLY: FieldAtParticle
+USE MOD_Part_Tools            ,ONLY: GetNextFreePosition
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -78,7 +79,7 @@ USE MOD_PICInterpolation_Vars ,ONLY: FieldAtParticle
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                 :: iPart, MaxElecQua, ChargedNum, SumOfFormedParticles, ElectronIndex
+INTEGER                 :: iPart, MaxElecQua, ChargedNum, ElectronIndex
 REAL                    :: IonizationEnergy_eV, iRan, QuantumTunnelProb, EffQuantNum
 REAL                    :: CriticalValue_GV
 REAL              :: E_GV
@@ -90,7 +91,6 @@ REAL(KIND=8)      :: a(NN) = (/(10.0**ii, ii=1,NN, 1)/)
 REAL(KIND=8)      :: b(KK) = (/(ii, ii=1,KK, 1)/)
 #endif /* CODE_ANALYZE */
 !===================================================================================================================================
-SumOfFormedParticles = 0
 
 DO iPart = 1, PDM%ParticleVecLength
   IF(PDM%ParticleInside(iPart)) THEN
@@ -139,14 +139,10 @@ DO iPart = 1, PDM%ParticleVecLength
       CALL RANDOM_NUMBER(iRan)
       IF(QuantumTunnelProb.GT.iRan) THEN
         !.... Get free particle index for the 3rd particle produced
-        SumOfFormedParticles = SumOfFormedParticles + 1
-        ElectronIndex = PDM%nextFreePosition(SumOfFormedParticles+PDM%CurrentNextFreePosition)
-        IF (ElectronIndex.EQ.0) THEN
-          CALL abort(__STAMP__,&
-              'New Particle Number greater max Part Num in Field Ionization.')
-        END IF
+        ElectronIndex = GetNextFreePosition()
         !Set new Species of new particle
         PDM%ParticleInside(ElectronIndex) = .TRUE.
+        PDM%isNewPart(ElectronIndex)      = .TRUE.
         PartSpecies(ElectronIndex)        = DSMC%ElectronSpecies
         PartState(1:3,ElectronIndex)      = PartState(1:3,iPart)
         PartState(4:6,ElectronIndex)      = Species(DSMC%ElectronSpecies)%MassIC / Species(oldSpec)%MassIC * PartState(4:6,iPart)
@@ -161,9 +157,6 @@ DO iPart = 1, PDM%ParticleVecLength
     END ASSOCIATE
   END IF
 END DO
-
-PDM%ParticleVecLength = PDM%ParticleVecLength + SumOfFormedParticles
-PDM%CurrentNextFreePosition = PDM%CurrentNextFreePosition + SumOfFormedParticles
 
 END SUBROUTINE ADK_Bruhwiler2003
 
@@ -182,6 +175,7 @@ USE MOD_TimeDisc_Vars         ,ONLY: dt
 USE MOD_Particle_Vars         ,ONLY: PDM, Species, PartSpecies,  usevMPF, PartState, PEM, PartMPF
 USE MOD_DSMC_Vars             ,ONLY: DSMC, SpecDSMC
 USE MOD_PICInterpolation_Vars ,ONLY: FieldAtParticle
+USE MOD_Part_Tools            ,ONLY: GetNextFreePosition
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -190,7 +184,7 @@ USE MOD_PICInterpolation_Vars ,ONLY: FieldAtParticle
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER             :: iPart, MaxElecQua, SumOfFormedParticles, ElectronIndex
+INTEGER             :: iPart, MaxElecQua, ElectronIndex
 REAL                :: IonizationEnergy_eV, iRan, QuantumTunnelProb
 REAL                :: n
 #ifdef CODE_ANALYZE
@@ -202,7 +196,6 @@ REAL(KIND=8)        :: b(KK) = (/(ii, ii=1,KK, 1)/)
 REAL                :: E
 #endif /* CODE_ANALYZE */
 !===================================================================================================================================
-SumOfFormedParticles = 0
 
 DO iPart = 1, PDM%ParticleVecLength
   IF(PDM%ParticleInside(iPart)) THEN
@@ -240,14 +233,14 @@ DO iPart = 1, PDM%ParticleVecLength
       CALL RANDOM_NUMBER(iRan)
       IF(QuantumTunnelProb.GT.iRan) THEN
         !.... Get free particle index for the 3rd particle produced
-        SumOfFormedParticles = SumOfFormedParticles + 1
-        ElectronIndex = PDM%nextFreePosition(SumOfFormedParticles+PDM%CurrentNextFreePosition)
+        ElectronIndex = GetNextFreePosition()
         IF (ElectronIndex.EQ.0) THEN
           CALL abort(__STAMP__,&
               'New Particle Number greater max Part Num in Field Ionization.')
         END IF
         !Set new Species of new particle
         PDM%ParticleInside(ElectronIndex) = .TRUE.
+        PDM%isNewPart(ElectronIndex)      = .TRUE.
         PartSpecies(ElectronIndex)        = DSMC%ElectronSpecies
         PartState(1:3,ElectronIndex)      = PartState(1:3,iPart)
         PartState(4:6,ElectronIndex)      = Species(DSMC%ElectronSpecies)%MassIC / Species(oldSpec)%MassIC * PartState(4:6,iPart)
@@ -262,9 +255,6 @@ DO iPart = 1, PDM%ParticleVecLength
     END ASSOCIATE
   END IF
 END DO
-
-PDM%ParticleVecLength = PDM%ParticleVecLength + SumOfFormedParticles
-PDM%CurrentNextFreePosition = PDM%CurrentNextFreePosition + SumOfFormedParticles
 
 END SUBROUTINE ADK_Yu2018
 
