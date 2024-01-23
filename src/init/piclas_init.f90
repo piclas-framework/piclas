@@ -43,7 +43,8 @@ CALL prms%SetSection("Piclas Initialization")
 
 CALL prms%CreateIntOption(      'TimeStampLength' , 'Length of the floating number time stamp' , '21')
 #ifdef PARTICLES
-CALL prms%CreateLogicalOption(  'UseDSMC'         , "Flag for using DSMC in Calculation"       , '.FALSE.')
+CALL prms%CreateLogicalOption(  'UseDSMC'         , "Flag for using DSMC methods"              , '.FALSE.')
+CALL prms%CreateLogicalOption(  'UseRayTracing'   , "Flag for using ray tracing tools"         , '.FALSE.')
 #endif
 
 END SUBROUTINE DefineParametersPiclas
@@ -84,8 +85,6 @@ USE MOD_MPI                  ,ONLY: InitMPIvars
 #endif /*USE_MPI*/
 #ifdef PARTICLES
 USE MOD_DSMC_Vars            ,ONLY: UseDSMC
-USE MOD_Particle_Vars        ,ONLY: UseVarTimeStep, VarTimeStep
-USE MOD_Particle_TimeStep    ,ONLY: InitPartTimeStep
 USE MOD_ParticleInit         ,ONLY: InitParticleGlobals,InitParticles
 USE MOD_TTMInit              ,ONLY: InitTTM,InitIMD_TTM_Coupling
 USE MOD_TTM_Vars             ,ONLY: DoImportTTMFile
@@ -93,7 +92,6 @@ USE MOD_Particle_Analyze     ,ONLY: InitParticleAnalyze
 USE MOD_SurfaceModel_Analyze ,ONLY: InitSurfModelAnalyze
 USE MOD_Particle_MPI         ,ONLY: InitParticleMPI
 USE MOD_DSMC_Symmetry        ,ONLY: Init_Symmetry
-USE MOD_PICDepo_Method       ,ONLY: InitDepositionMethod
 #if USE_MPI
 USE mod_readIMD              ,ONLY: initReadIMDdata,read_IMD_results
 #endif /* USE_MPI */
@@ -103,6 +101,10 @@ USE MOD_ParticleSolver       ,ONLY: InitPartSolver
 #endif
 #if USE_HDG
 USE MOD_HDG                  ,ONLY: InitHDG
+#endif
+#if (PP_TimeDiscMethod==600)
+USE MOD_RadiationTrans_Init        ,ONLY: InitRadiationTransport
+USE MOD_Radiation_Init             ,ONLY: InitRadiation
 #endif
 USE MOD_Interfaces           ,ONLY: InitInterfaces
 USE MOD_ReadInTools          ,ONLY: GETLOGICAL,GETREALARRAY,GETINT
@@ -153,17 +155,7 @@ ELSE
 END IF
 
 #ifdef PARTICLES
-!--- Variable time step
-VarTimeStep%UseLinearScaling = GETLOGICAL('Part-VariableTimeStep-LinearScaling')
-VarTimeStep%UseDistribution = GETLOGICAL('Part-VariableTimeStep-Distribution')
-IF (VarTimeStep%UseLinearScaling.OR.VarTimeStep%UseDistribution)  THEN
-  UseVarTimeStep = .TRUE.
-  IF(.NOT.IsLoadBalance) CALL InitPartTimeStep()
-ELSE
-  UseVarTimeStep = .FALSE.
-END IF
-CALL InitParticleGlobals()
-CALL InitDepositionMethod()
+CALL InitParticleGlobals(IsLoadBalance)
 #endif
 
 CALL InitMesh(2)
@@ -196,6 +188,11 @@ CALL InitSurfModelAnalyze()
 
 #if USE_HDG
 CALL InitHDG() ! Hybridizable Discontinuous Galerkin Method (HDGSEM)
+#endif
+
+#if (PP_TimeDiscMethod==600)
+CALL InitRadiation()
+CALL InitRadiationTransport()
 #endif
 
 #ifdef PARTICLES
@@ -259,6 +256,7 @@ USE MOD_MPI                        ,ONLY: FinalizeMPI
 USE MOD_MPI_Shared                 ,ONLY: FinalizeMPIShared
 #endif /*USE_MPI*/
 #ifdef PARTICLES
+USE MOD_RayTracing_Init            ,ONLY: FinalizeRayTracing
 USE MOD_Particle_Surfaces          ,ONLY: FinalizeParticleSurfaces
 USE MOD_InitializeBackgroundField  ,ONLY: FinalizeBackGroundField
 USE MOD_SuperB_Init                ,ONLY: FinalizeSuperB
@@ -294,6 +292,11 @@ USE MOD_MPI                        ,ONLY: OutputMPIW8Time
 #endif /*PARTICLES*/
 USE MOD_IO_HDF5                    ,ONLY: FinalizeElemData,ElementOut
 USE MOD_TimeDiscInit               ,ONLY: FinalizeTimeDisc
+#if (PP_TimeDiscMethod==600)
+USE MOD_Radiation_Init             ,ONLY: FinalizeRadiation
+USE MOD_RadiationTrans_Init        ,ONLY: FinalizeRadiationTransport
+USE MOD_Photon_Tracking            ,ONLY: FinalizePhotonSurfSample
+#endif
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
 ! INPUT VARIABLES
@@ -326,6 +329,7 @@ CALL FinalizeRestart()
 CALL FinalizeMesh()
 CALL FinalizeMortar()
 #ifdef PARTICLES
+CALL FinalizeRayTracing()
 CALL FinalizeSurfaceModel()
 CALL FinalizeSurfaceModelAnalyze()
 CALL FinalizeParticleBoundarySampling()
@@ -362,6 +366,12 @@ PICInitIsDone = .FALSE.
 #if USE_MPI
 ParticleMPIInitIsDone=.FALSE.
 #endif /*USE_MPI*/
+
+#if (PP_TimeDiscMethod==600)
+CALL FinalizeRadiation()
+CALL FinalizeRadiationTransport()
+CALL FinalizePhotonSurfSample()
+#endif
 
 CALL FinalizeTTM() ! FD grid based data from a Two-Temperature Model (TTM) from Molecular Dynamics (MD) Code IMD
 #endif /*PARTICLES*/

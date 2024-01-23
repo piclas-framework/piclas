@@ -562,7 +562,7 @@ INTEGER :: NonUniqueGlobalSide,LocSideID,SideID,MortarSideID
 INTEGER :: iMortar,nMortars
 INTEGER :: locMortarSide
 #if USE_DEBUG
-INTEGER :: checkRank
+INTEGER :: checkRank ! Only for debugging
 #endif /*USE_DEBUG*/
 !===================================================================================================================================
 #if USE_DEBUG

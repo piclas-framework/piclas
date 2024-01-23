@@ -33,6 +33,7 @@ END INTERFACE
 PUBLIC :: WriteStateToHDF5
 #if defined(PARTICLES)
 PUBLIC :: WriteIMDStateToHDF5
+PUBLIC :: WriteElemDataToSeparateContainer
 #endif /*PARTICLES*/
 !===================================================================================================================================
 

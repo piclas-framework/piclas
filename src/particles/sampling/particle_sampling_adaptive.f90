@@ -70,8 +70,11 @@ USE MOD_Restart_Vars            ,ONLY: DoRestart
 USE MOD_SurfaceModel_Vars       ,ONLY: nPorousBC
 USE MOD_Particle_Boundary_Vars  ,ONLY: nPorousSides, PorousBCInfo_Shared, SurfSide2GlobalSide
 USE MOD_Particle_Mesh_Vars      ,ONLY: SideInfo_Shared, ElemVolume_Shared
-USE MOD_LoadBalance_Vars        ,ONLY: DoLoadBalance, PerformLoadBalance, UseH5IOLoadBalance
+USE MOD_LoadBalance_Vars        ,ONLY: DoLoadBalance, PerformLoadBalance
 USE MOD_Mesh_Tools              ,ONLY: GetCNElemID
+#if USE_LOADBALANCE
+USE MOD_LoadBalance_Vars        ,ONLY: UseH5IOLoadBalance
+#endif /*USE_LOADBALANCE*/
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
