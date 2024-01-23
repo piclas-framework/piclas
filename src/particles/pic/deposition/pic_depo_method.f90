@@ -148,6 +148,9 @@ Case(PRM_DEPO_SF_ADAPTIVE) ! shape_function
 Case(PRM_DEPO_CVW) ! cell_volweight
   DepositionType   = 'cell_volweight'
   DepositionMethod => DepositionMethod_CVW
+#if USE_HDG
+  IF(.NOT.DoDirichletDeposition) CALL CollectiveStop(__STAMP__,'PIC-DoDirichletDeposition=F not implemented for cell_volweight')
+#endif /*USE_HDG*/
 Case(PRM_DEPO_CVWM) ! cell_volweight_mean
   DepositionType   = 'cell_volweight_mean'
   DepositionMethod => DepositionMethod_CVWM
