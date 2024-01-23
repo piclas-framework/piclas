@@ -156,9 +156,11 @@ Convergence tests (spatially by varying either the polynomial degree of the solu
 
 Convergence tests (spatially by varying either the number of mesh cells) for Poisson's equations on conforming, non-conforming (hanging nodes/Mortars) Cartesian meshes with exact Dirichlet boundaries: [Link CMAKE-CONFIG](regressioncheck/NIG_convtest_poisson/builds.ini).
 
-| **No.** |  **Case**   | **CMAKE-CONFIG** |               **Feature**                | **Execution** | **Comparing** |                         **Readme**                          |
-| :-----: | :---------: | :--------------: | :--------------------------------------: | :-----------: | :-----------: | :---------------------------------------------------------: |
-|  23-x   | h_N1_mortar |                  | h-convergence (N=1, non-conforming mesh) |   nProcs=1    |               | [Link](regressioncheck/NIG_convtest_poisson/h_N1/readme.md) |
+| **No.** |                  **Case**                  | **CMAKE-CONFIG** |                **Feature**               | **Execution** |    **Comparing**    |                                            **Readme**                                            |
+| :-----: | :----------------------------------------: | :--------------: | :--------------------------------------: | :-----------: |    :-----------:    |       :-----------------------------------------------------------------------------------:      |
+|         |             Dielectric_slab_FPC            |                  |            h-convergence (N=1)           |  nProcs=1,2,7 | analytical solution |            [Link](regressioncheck/NIG_convtest_poisson/Dielectric_slab_FPC/readme.md)            |
+|         |  Dielectric_sphere_in_sphere_curved_mortar |                  |            h-convergence (N=2)           |  nProcs=1,2,7 | analytical solution | [Link](regressioncheck/NIG_convtest_poisson/Dielectric_sphere_in_sphere_curved_mortar/readme.md) |
+|   23-x  |                 h_N1_mortar                |                  | h-convergence (N=1, non-conforming mesh) |  nProcs=1,3,7 | analytical solution |                    [Link](regressioncheck/NIG_convtest_poisson/h_N1/readme.md)                   |
 
 #### NIG_convtest_t_Maxwell
 
