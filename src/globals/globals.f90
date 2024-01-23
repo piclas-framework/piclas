@@ -46,15 +46,18 @@ INTEGER            :: MPI_COMM_WORKERS ! all non-master nodes
 INTEGER            :: MPI_COMM_PICLAS  ! all nodes
 #else
 INTEGER,PARAMETER  :: MPI_COMM_PICLAS=-1 ! DUMMY when compiling single (MPI=OFF)
+INTEGER,PARAMETER  :: MPI_COMM_LEADERS=-1 ! DUMMY when compiling single (MPI=OFF)
 #endif
 LOGICAL            :: MemoryMonitor      !> Flag for turning RAM monitoring ON/OFF. Used for the detection of RAM overflows (e.g. due to memory leaks)
 
 INTEGER            :: doPrintHelp ! 0: no help, 1: help, 2: markdown-help
 
+! SELECTED_INT_KIND(R) return the kind value of the smallest integer type that can represent all values ranging from -10^R (exclusive)
+! to 10^R (exclusive). If there is no integer kind that accommodates this range, SELECTED_INT_KIND returns -1.
 #ifdef INTKIND8
-INTEGER, PARAMETER :: IK = SELECTED_INT_KIND(18)
+INTEGER, PARAMETER :: IK = SELECTED_INT_KIND(18) ! Value of selected_int_kind(18) is 8
 #else
-INTEGER, PARAMETER :: IK = SELECTED_INT_KIND(8)
+INTEGER, PARAMETER :: IK = SELECTED_INT_KIND(8)  ! Value of selected_int_kind(8)  is 4
 #endif
 
 #if defined(PARTICLES)
@@ -213,6 +216,7 @@ END INTERFACE
 
 PUBLIC :: setstacksizeunlimited
 PUBLIC :: processmemusage
+PUBLIC :: WarningMemusage
 
 !===================================================================================================================================
 CONTAINS
@@ -397,7 +401,7 @@ WRITE(UNIT_stdOut,*)'___________________________________________________________
 WRITE(UNIT_stdOut,*)'Program abort caused on Proc ',myRank,' in File : ',TRIM(SourceFile),' Line ',SourceLine
 WRITE(UNIT_stdOut,*)'This file was compiled at ',TRIM(CompDate),'  ',TRIM(CompTime)
 WRITE(UNIT_stdOut,'(A10,A)',ADVANCE='NO')'Message: ',TRIM(ErrorMessage)
-IF(PRESENT(IntInfoOpt)) WRITE(UNIT_stdOut,'(I8)',ADVANCE='NO')IntInfo
+IF(PRESENT(IntInfoOpt)) WRITE(UNIT_stdOut,'(I0)',ADVANCE='NO')IntInfo
 IF(PRESENT(RealInfoOpt)) WRITE(UNIT_stdOut,'(ES25.14E3)')RealInfo
 WRITE(UNIT_stdOut,*)
 WRITE(UNIT_stdOut,'(A,A,A)')'See ',TRIM(ErrorFileName),' for more details'
@@ -1510,5 +1514,96 @@ END SELECT
 END SUBROUTINE DisplayNumberOfParticles
 #endif /*defined(PARTICLES)*/
 
+
+!===================================================================================================================================
+!> Check the current memory usage and display a message if a certain threshold is reached
+!===================================================================================================================================
+SUBROUTINE WarningMemusage(Threshold)
+! MODULES
+USE MOD_Globals_Vars    ,ONLY: memory
+#if USE_MPI
+USE MOD_MPI_Shared_Vars ,ONLY: myComputeNodeRank,myLeaderGroupRank
+USE MOD_MPI_Shared_Vars ,ONLY: MPI_COMM_LEADERS_SHARED,MPI_COMM_SHARED
+#if defined(MEASURE_MPI_WAIT)
+USE MOD_MPI_Vars        ,ONLY: MPIW8TimeMM,MPIW8CountMM
+#endif /*defined(MEASURE_MPI_WAIT)*/
+#endif /*USE_MPI*/
+!USE MOD_StringTools     ,ONLY: set_formatting,clear_formatting
+IMPLICIT NONE
+!----------------------------------------------------------------------------------------------------------------------------------!
+! INPUT / OUTPUT VARIABLES
+REAL,INTENT(IN) :: Threshold
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+CHARACTER(32) :: hilf,hilf2,hilf3
+#if USE_MPI
+REAL                       :: ProcMemoryUsed    ! Used memory on a single proc
+REAL                       :: NodeMemoryUsed    ! Sum of used memory across one compute node
+#endif /*USE_MPI*/
+REAL                       :: MemUsagePercent
+#if defined(MEASURE_MPI_WAIT)
+INTEGER(KIND=8)               :: CounterStart,CounterEnd
+REAL(KIND=8)                  :: Rate
+#endif /*defined(MEASURE_MPI_WAIT)*/
+!===================================================================================================================================
+CALL ProcessMemUsage(memory(1),memory(2),memory(3)) ! memUsed,memAvail,memTotal
+
+! Only CN roots communicate available and total memory info (count once per node)
+#if USE_MPI
+#if defined(MEASURE_MPI_WAIT)
+CALL SYSTEM_CLOCK(count=CounterStart)
+#endif /*defined(MEASURE_MPI_WAIT)*/
+IF(nProcessors.GT.1)THEN
+  ! Collect data on node roots
+  ProcMemoryUsed = memory(1)
+  IF (myComputeNodeRank.EQ.0) THEN
+    CALL MPI_REDUCE(ProcMemoryUsed , NodeMemoryUsed , 1 , MPI_DOUBLE_PRECISION , MPI_SUM , 0 , MPI_COMM_SHARED , IERROR)
+    memory(1) = NodeMemoryUsed
+  ELSE
+    CALL MPI_REDUCE(ProcMemoryUsed , 0              , 1 , MPI_DOUBLE_PRECISION , MPI_SUM , 0 , MPI_COMM_SHARED , IERROR)
+  END IF
+
+  ! collect data from node roots on first root node
+  IF (myComputeNodeRank.EQ.0) THEN ! only leaders
+    IF (myLeaderGroupRank.EQ.0) THEN ! first node leader MUST be MPIRoot
+      CALL MPI_REDUCE(MPI_IN_PLACE , memory(1:3) , 3 , MPI_DOUBLE_PRECISION , MPI_SUM , 0 , MPI_COMM_LEADERS_SHARED , IERROR)
+    ELSE
+      CALL MPI_REDUCE(memory(1:3)       , 0      , 3 , MPI_DOUBLE_PRECISION , MPI_SUM , 0 , MPI_COMM_LEADERS_SHARED , IERROR)
+    END IF ! myLeaderGroupRank.EQ.0
+  END IF ! myComputeNodeRank.EQ.0
+END IF ! nProcessors.EQ.1
+#if defined(MEASURE_MPI_WAIT)
+CALL SYSTEM_CLOCK(count=CounterEnd, count_rate=Rate)
+MPIW8TimeMM  = MPIW8TimeMM + REAL(CounterEnd-CounterStart,8)/Rate
+MPIW8CountMM = MPIW8CountMM + 1_8
+#endif /*defined(MEASURE_MPI_WAIT)*/
+#endif /*USE_MPI*/
+
+! --------------------------------------------------
+! Only MPI root outputs the data to file
+! --------------------------------------------------
+IF(.NOT.MPIRoot)RETURN
+
+! Sanity checks
+IF(ABS(memory(3)).LE.0.) CALL abort(__STAMP__,'Could not retrieve total available memory')
+IF((Threshold.GT.1.0).OR.(Threshold.LE.0.0)) CALL abort(__STAMP__,'Threshold in WarningMemusage must be in the range 0 < X <= 1')
+! Convert kB to GB
+memory(1:3)=memory(1:3)/1048576.
+! Check if X% of the total memory available is reached
+MemUsagePercent = (memory(1)/memory(3))*100.0
+!MemUsagePercent = 99.32
+IF(MemUsagePercent.GT.Threshold)THEN
+  WRITE(UNIT=hilf ,FMT='(F16.1)') memory(1)
+  WRITE(UNIT=hilf2,FMT='(F16.1)') memory(3)
+  WRITE(UNIT=hilf3,FMT='(F5.1)') MemUsagePercent
+  !CALL set_formatting("red")
+  !SWRITE(UNIT_stdOut,'(A,F5.2,A)') ' WARNING: Memory reaching maximum, RAM is at ',MemUsagePercent,'%'
+  WRITE(UNIT_stdOut,'(A)') "WARNING: Allocated memory ["//TRIM(ADJUSTL(hilf))//&
+      "] GB on at least one node is close to the global limit of ["&
+      //TRIM(ADJUSTL(hilf2))//"] GB, which is "//TRIM(ADJUSTL(hilf3))//"%. Watch out for the OOM killer!"
+  !CALL clear_formatting()
+END IF
+
+END SUBROUTINE WarningMemusage
 
 END MODULE MOD_Globals

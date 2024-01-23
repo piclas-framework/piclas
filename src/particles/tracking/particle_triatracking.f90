@@ -207,7 +207,7 @@ DO WHILE (.NOT.PartisDone)
       TempSideID = ElemInfo_Shared(ELEM_FIRSTSIDEIND,ElemID) + iLocSide
       ! Skip symmetry side
       IF(Symmetry%Order.EQ.2) THEN
-        IF(SideIsSymSide_Shared(TempSideID)) CYCLE
+        IF(SideIsSymSide(TempSideID)) CYCLE
       END IF
       localSideID = SideInfo_Shared(SIDE_LOCALID,TempSideID)
       ! Side is not one of the 6 local sides

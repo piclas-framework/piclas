@@ -86,6 +86,7 @@ INTEGER                       :: SampSizeAllocate
 INTEGER                       :: NbGlobalElemID, GlobalSideID, NbGlobalSideID, NbElemRank, NbLeaderID, GlobalElemID, ElemRank
 INTEGER                       :: TestCounter(2),iCNinnerBC
 INTEGER                       :: SwitchGlobalSideID(1:3,1:SUM(nComputeNodeInnerBCs)),nSideTmp
+INTEGER                       :: allocstat
 !===================================================================================================================================
 
 nRecvSurfSidesTmp = 0
@@ -321,8 +322,10 @@ DO iCNinnerBC = 1, SUM(nComputeNodeInnerBCs)
 END DO ! iSide = 1, nComputeNodeInnerBCs
 
 !--- Allocate send and recv buffer for each surf leader
-ALLOCATE(SurfSendBuf(0:nSurfLeaders-1))
-ALLOCATE(SurfRecvBuf(0:nSurfLeaders-1))
+ALLOCATE(SurfSendBuf(0:nSurfLeaders-1),STAT=allocstat)
+IF(allocstat.ne.0) CALL abort(__STAMP__,'Could not allocate SurfSendBuf')
+ALLOCATE(SurfRecvBuf(0:nSurfLeaders-1),STAT=allocstat)
+IF(allocstat.ne.0) CALL abort(__STAMP__,'Could not allocate SurfRecvBuf')
 
 DO iProc = 0,nSurfLeaders-1
   ! Get message size
@@ -332,13 +335,15 @@ DO iProc = 0,nSurfLeaders-1
 
   ! Only allocate send buffer if we are expecting sides from this leader node
   IF (SurfMapping(iProc)%nSendSurfSides.GT.0) THEN
-    ALLOCATE(SurfSendBuf(iProc)%content(SampSizeAllocate*(nSurfSample**2)*SurfMapping(iProc)%nSendSurfSides))
+    ALLOCATE(SurfSendBuf(iProc)%content(SampSizeAllocate*(nSurfSample**2)*SurfMapping(iProc)%nSendSurfSides),STAT=allocstat)
+    IF(allocstat.ne.0) CALL abort(__STAMP__,'Could not allocate SurfSendBuf(iProc)%content')
     SurfSendBuf(iProc)%content = 0.
   END IF
 
   ! Only allocate recv buffer if we are expecting sides from this leader node
   IF (SurfMapping(iProc)%nRecvSurfSides.GT.0) THEN
-    ALLOCATE(SurfRecvBuf(iProc)%content(SampSizeAllocate*(nSurfSample**2)*SurfMapping(iProc)%nRecvSurfSides))
+    ALLOCATE(SurfRecvBuf(iProc)%content(SampSizeAllocate*(nSurfSample**2)*SurfMapping(iProc)%nRecvSurfSides),STAT=allocstat)
+    IF(allocstat.ne.0) CALL abort(__STAMP__,'Could not allocate SurfRecvBuf(iProc)%content')
     SurfRecvBuf(iProc)%content = 0.
   END IF
 END DO ! iProc
@@ -374,6 +379,12 @@ ELSE
   nGlobalSurfSides = sendbuf
 END IF
 
+IF (mySurfRank.EQ.0) THEN
+#if USE_LOADBALANCE
+  IF(.NOT.PerformLoadBalance)&
+#endif /*USE_LOADBALANCE*/
+    WRITE(UNIT_stdOUt,'(A,I0,A)') ' Starting surface communication between ', nSurfLeaders, ' compute nodes... DONE!'
+END IF
 
 END SUBROUTINE InitSurfCommunication
 

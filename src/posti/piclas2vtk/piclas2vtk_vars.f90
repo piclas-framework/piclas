@@ -40,6 +40,7 @@ TYPE tSurfaceConnect
   INTEGER                         :: nSurfaceBCSides              !< Number of Sides on Surface (reflective)
   REAL, ALLOCATABLE               :: NodeCoords(:,:)
   INTEGER, ALLOCATABLE            :: SideSurfNodeMap(:,:)         !< Mapping from glob Side to SurfaceNodeNum (1:4, nSurfaceBCSides)
+  INTEGER, ALLOCATABLE            :: SurfSideToSide(:)
 END TYPE
 
 TYPE (tSurfaceConnect)               :: SurfConnect

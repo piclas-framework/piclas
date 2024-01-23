@@ -473,7 +473,7 @@ SUBROUTINE ExactFunc(ExactFunction,x,resu,t,ElemID,iRefState,iLinState,BCState)
 ! Specifies all the initial conditions. The state in conservative variables is returned.
 !===================================================================================================================================
 ! MODULES
-USE MOD_Globals         ,ONLY: Abort,mpiroot
+USE MOD_Globals         ,ONLY: Abort
 USE MOD_Globals_Vars    ,ONLY: PI,ElementaryCharge,eps0
 USE MOD_Equation_Vars   ,ONLY: IniCenter,IniHalfwidth,IniAmplitude,RefState,LinPhi,LinPhiHeight,LinPhiNormal,LinPhiBasePoint
 #if defined(PARTICLES)
@@ -483,6 +483,9 @@ USE MOD_Particle_Vars   ,ONLY: Species,nSpecies
 USE MOD_Dielectric_Vars ,ONLY: DielectricRatio,Dielectric_E_0,DielectricRadiusValue,DielectricEpsR
 USE MOD_Mesh_Vars       ,ONLY: ElemBaryNGeo
 USE MOD_HDG_Vars        ,ONLY: FPC,EPC
+#if USE_MPI
+USE MOD_Globals         ,ONLY: mpiroot
+#endif /*USE_MPI*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------

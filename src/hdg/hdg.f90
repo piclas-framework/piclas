@@ -1129,9 +1129,9 @@ INTEGER, PARAMETER :: BCTypeBV(1:3) = (/50,51,52/) ! BCType which allows bias vo
 !                                                  ! 51: cos(wt) function with DC bias
 !                                                  ! 52: cos(wt) function with DC bias + coupled power for AC potential adjustment
 INTEGER             :: BCType,BVBoundaries,BCState,iBoundary
-INTEGER             :: SideID,iBC,iPBC
+INTEGER             :: iBC,iPBC
 #if USE_MPI
-INTEGER             :: color
+INTEGER             :: color,SideID
 LOGICAL             :: BConProc
 #endif /*USE_MPI*/
 !===================================================================================================================================
@@ -1787,7 +1787,7 @@ PetscScalar, POINTER :: lambda_pointer(:)
 KSPConvergedReason   :: reason
 PetscInt             :: iterations
 PetscReal            :: petscnorm
-INTEGER              :: ElemID,iBCSide,locBCSideID, PETScLocalID
+INTEGER              :: ElemID,iBCSide,PETScLocalID
 INTEGER              :: PETScID_start, PETScID_stop
 REAL                 :: timeStartPiclas,timeEndPiclas
 REAL                 :: RHS_conductor(nGP_face)

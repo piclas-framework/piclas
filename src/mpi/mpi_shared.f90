@@ -45,11 +45,14 @@ INTERFACE Allocate_Shared
   MODULE PROCEDURE Allocate_Shared_Logical_1
   MODULE PROCEDURE Allocate_Shared_Logical_2
   MODULE PROCEDURE Allocate_Shared_Int_1
+  MODULE PROCEDURE Allocate_Shared_Int_1_nValINT8
+  MODULE PROCEDURE Allocate_Shared_Int_1_nValKIND_DataPointKIND2
   MODULE PROCEDURE Allocate_Shared_Int_2
   MODULE PROCEDURE Allocate_Shared_Int_3
   MODULE PROCEDURE Allocate_Shared_Int_4
   ! MODULE PROCEDURE Allocate_Shared_Int_1_Kind_IK
   MODULE PROCEDURE Allocate_Shared_Real_1
+  MODULE PROCEDURE Allocate_Shared_Real_1_nValINT8
   MODULE PROCEDURE Allocate_Shared_Real_2
   MODULE PROCEDURE Allocate_Shared_Real_3
   MODULE PROCEDURE Allocate_Shared_Real_4
@@ -750,6 +753,202 @@ IF (.NOT.ASSOCIATED(DataPointer)) CALL abort(__STAMP__,'ERROR: Datapointer ('//T
 
 END SUBROUTINE ALLOCATE_SHARED_REAL_1
 
+SUBROUTINE Allocate_Shared_Real_1_nValINT8(nVal,SM_WIN,DataPointer&
+#ifdef DEBUG_MEMORY
+        ,SM_WIN_NAME,SM_CALL_FILE,SM_CALL_FILE_LINE&
+#endif /*DEBUG_MEMORY*/
+)
+! MODULES
+USE,INTRINSIC :: ISO_C_BINDING
+USE MOD_Globals
+USE MOD_MPI_Vars
+USE MOD_MPI_Shared_Vars
+IMPLICIT NONE
+!----------------------------------------------------------------------------------------------------------------------------------
+! INPUT/OUTPUT VARIABLES
+INTEGER(KIND=SELECTED_INT_KIND(18)),INTENT(IN) :: nVal(1)           !> Local number of variables in each rank
+INTEGER,INTENT(OUT)                       :: SM_WIN                 !> Shared memory window
+REAL   ,INTENT(OUT),POINTER               :: DataPointer(:)         !> Pointer to the RMA window
+#ifdef DEBUG_MEMORY
+CHARACTER(LEN=*),INTENT(IN)               :: SM_WIN_NAME              !> Shared memory window name
+CHARACTER(LEN=*),INTENT(IN)               :: SM_CALL_FILE             !> File from which the call comes
+INTEGER,INTENT(IN)                        :: SM_CALL_FILE_LINE        !> Line in file from which the call comes
+#endif /*DEBUG_MEMORY*/
+!----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+TYPE(C_PTR)                               :: SM_PTR                   !> Base pointer, translated to DataPointer later
+INTEGER                                   :: DISP_UNIT                !> Displacement unit
+INTEGER(KIND=MPI_ADDRESS_KIND)            :: WIN_SIZE                 !> Size of the allocated memory window on current proc
+#if defined(DEBUG_MEMORY)
+CHARACTER(32)                             :: hilf                     !> Convert line number from int to string
+#endif /*defined(DEBUG_MEMORY)*/
+CHARACTER(32),PARAMETER                   :: FuncName='ALLOCATE_SHARED_REAL_1_nValReal8'
+!==================================================================================================================================
+! Only node MPI root actually allocates the memory, all other nodes allocate memory with zero length but use the same displacement
+WIN_SIZE  = MERGE(MPI_SIZE(PRODUCT(INT(nVal,KIND=8)),KIND(DataPointer)),INT(0,MPI_ADDRESS_KIND),myComputeNodeRank.EQ.0)
+DISP_UNIT = 1
+
+#ifdef DEBUG_MEMORY
+WRITE(UNIT=hilf,FMT='(I0)') SM_CALL_FILE_LINE
+LWRITE(UNIT_stdOut,'(A,I7,A65,I20)') "myrank=",myrank," Allocated "//TRIM(SM_WIN_NAME)//" with WIN_SIZE = ",WIN_SIZE
+#endif /*DEBUG_MEMORY*/
+
+IF (ASSOCIATED(DataPointer)) CALL abort(&
+__STAMP__&
+,'ERROR: Datapointer (Real1 INT8) already associated'&
+#ifdef DEBUG_MEMORY
+//' for '//TRIM(SM_WIN_NAME)//' in file '//TRIM(SM_CALL_FILE)//' in line '//TRIM(hilf)&
+#endif /*DEBUG_MEMORY*/
+)
+
+! Allocate MPI-3 remote memory access (RMA) type memory window
+CALL MPI_WIN_ALLOCATE_SHARED(WIN_SIZE, DISP_UNIT, MPI_INFO_SHARED_LOOSE, MPI_COMM_SHARED, SM_PTR, SM_WIN, IERROR)
+IF (IERROR.NE.MPI_SUCCESS)  CALL abort(__STAMP__,'ERROR: MPI_WIN_ALLOCATE_SHARED returned IERROR.NE.MPI_SUCCESS ('//TRIM(FuncName)//')')
+
+! Node MPI root already knows the location in virtual memory, all other find it here
+IF (myComputeNodeRank.NE.0) THEN
+  CALL MPI_WIN_SHARED_QUERY(SM_WIN, 0, WIN_SIZE, DISP_UNIT, SM_PTR, IERROR)
+  IF (IERROR.NE.MPI_SUCCESS)  CALL abort(__STAMP__,'ERROR: MPI_WIN_SHARED_QUERY returned IERROR.NE.MPI_SUCCESS ('//TRIM(FuncName)//')')
+END IF
+IF (WIN_SIZE.LT.0) CALL abort(__STAMP__,'ERROR: WIN_SIZE ('//TRIM(FuncName)//') is zero')
+
+! SM_PTR can now be associated with a Fortran pointer and thus used to access the shared data
+CALL C_F_POINTER(SM_PTR, DataPointer, nVal)
+IF (.NOT.ASSOCIATED(DataPointer)) CALL abort(__STAMP__,'ERROR: Datapointer ('//TRIM(FuncName)//') could not be associated')
+
+END SUBROUTINE Allocate_Shared_Real_1_nValINT8
+
+
+SUBROUTINE Allocate_Shared_Int_1_nValINT8(nVal,SM_WIN,DataPointer&
+#ifdef DEBUG_MEMORY
+        ,SM_WIN_NAME,SM_CALL_FILE,SM_CALL_FILE_LINE&
+#endif /*DEBUG_MEMORY*/
+)
+! MODULES
+USE,INTRINSIC :: ISO_C_BINDING
+USE MOD_Globals
+USE MOD_MPI_Vars
+USE MOD_MPI_Shared_Vars
+IMPLICIT NONE
+!----------------------------------------------------------------------------------------------------------------------------------
+! INPUT/OUTPUT VARIABLES
+INTEGER(KIND=SELECTED_INT_KIND(18)),INTENT(IN) :: nVal(1)           !> Local number of variables in each rank
+INTEGER,INTENT(OUT)                       :: SM_WIN                 !> Shared memory window
+INTEGER   ,INTENT(OUT),POINTER            :: DataPointer(:)         !> Pointer to the RMA window
+#ifdef DEBUG_MEMORY
+CHARACTER(LEN=*),INTENT(IN)               :: SM_WIN_NAME              !> Shared memory window name
+CHARACTER(LEN=*),INTENT(IN)               :: SM_CALL_FILE             !> File from which the call comes
+INTEGER,INTENT(IN)                        :: SM_CALL_FILE_LINE        !> Line in file from which the call comes
+#endif /*DEBUG_MEMORY*/
+!----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+TYPE(C_PTR)                               :: SM_PTR                   !> Base pointer, translated to DataPointer later
+INTEGER                                   :: DISP_UNIT                !> Displacement unit
+INTEGER(KIND=MPI_ADDRESS_KIND)            :: WIN_SIZE                 !> Size of the allocated memory window on current proc
+#if defined(DEBUG_MEMORY)
+CHARACTER(32)                             :: hilf                     !> Convert line number from int to string
+#endif /*defined(DEBUG_MEMORY)*/
+CHARACTER(32),PARAMETER                   :: FuncName='ALLOCATE_SHARED_REAL_1_nValInt8'
+!==================================================================================================================================
+! Only node MPI root actually allocates the memory, all other nodes allocate memory with zero length but use the same displacement
+WIN_SIZE  = MERGE(MPI_SIZE(PRODUCT(INT(nVal,KIND=8)),KIND(DataPointer)),INT(0,MPI_ADDRESS_KIND),myComputeNodeRank.EQ.0)
+DISP_UNIT = 1
+
+#ifdef DEBUG_MEMORY
+WRITE(UNIT=hilf,FMT='(I0)') SM_CALL_FILE_LINE
+LWRITE(UNIT_stdOut,'(A,I7,A65,I20)') "myrank=",myrank," Allocated "//TRIM(SM_WIN_NAME)//" with WIN_SIZE = ",WIN_SIZE
+#endif /*DEBUG_MEMORY*/
+
+IF (ASSOCIATED(DataPointer)) CALL abort(&
+__STAMP__&
+,'ERROR: Datapointer (Integer1 INT8) already associated'&
+#ifdef DEBUG_MEMORY
+//' for '//TRIM(SM_WIN_NAME)//' in file '//TRIM(SM_CALL_FILE)//' in line '//TRIM(hilf)&
+#endif /*DEBUG_MEMORY*/
+)
+
+! Allocate MPI-3 remote memory access (RMA) type memory window
+CALL MPI_WIN_ALLOCATE_SHARED(WIN_SIZE, DISP_UNIT, MPI_INFO_SHARED_LOOSE, MPI_COMM_SHARED, SM_PTR, SM_WIN, IERROR)
+IF (IERROR.NE.MPI_SUCCESS)  CALL abort(__STAMP__,'ERROR: MPI_WIN_ALLOCATE_SHARED returned IERROR.NE.MPI_SUCCESS ('//TRIM(FuncName)//')')
+
+! Node MPI root already knows the location in virtual memory, all other find it here
+IF (myComputeNodeRank.NE.0) THEN
+  CALL MPI_WIN_SHARED_QUERY(SM_WIN, 0, WIN_SIZE, DISP_UNIT, SM_PTR, IERROR)
+  IF (IERROR.NE.MPI_SUCCESS)  CALL abort(__STAMP__,'ERROR: MPI_WIN_SHARED_QUERY returned IERROR.NE.MPI_SUCCESS ('//TRIM(FuncName)//')')
+END IF
+IF (WIN_SIZE.LT.0) CALL abort(__STAMP__,'ERROR: WIN_SIZE ('//TRIM(FuncName)//') is zero')
+
+! SM_PTR can now be associated with a Fortran pointer and thus used to access the shared data
+CALL C_F_POINTER(SM_PTR, DataPointer, nVal)
+IF (.NOT.ASSOCIATED(DataPointer)) CALL abort(__STAMP__,'ERROR: Datapointer ('//TRIM(FuncName)//') could not be associated')
+
+END SUBROUTINE Allocate_Shared_Int_1_nValINT8
+
+
+SUBROUTINE Allocate_Shared_Int_1_nValKIND_DataPointKIND2(nVal,SM_WIN,DataPointer&
+#ifdef DEBUG_MEMORY
+        ,SM_WIN_NAME,SM_CALL_FILE,SM_CALL_FILE_LINE&
+#endif /*DEBUG_MEMORY*/
+)
+! MODULES
+USE,INTRINSIC :: ISO_C_BINDING
+USE MOD_Globals
+USE MOD_MPI_Vars
+USE MOD_MPI_Shared_Vars
+IMPLICIT NONE
+!----------------------------------------------------------------------------------------------------------------------------------
+! INPUT/OUTPUT VARIABLES
+INTEGER(KIND=IK),INTENT(IN)               :: nVal(1)                  !> Local number of variables in each rank
+INTEGER,INTENT(OUT)                       :: SM_WIN                   !> Shared memory window
+INTEGER(KIND=2),INTENT(OUT),POINTER       :: DataPointer(:)         !> Pointer to the RMA window
+#ifdef DEBUG_MEMORY
+CHARACTER(LEN=*),INTENT(IN)               :: SM_WIN_NAME              !> Shared memory window name
+CHARACTER(LEN=*),INTENT(IN)               :: SM_CALL_FILE             !> File from which the call comes
+INTEGER,INTENT(IN)                        :: SM_CALL_FILE_LINE        !> Line in file from which the call comes
+#endif /*DEBUG_MEMORY*/
+!----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+TYPE(C_PTR)                               :: SM_PTR                   !> Base pointer, translated to DataPointer later
+INTEGER                                   :: DISP_UNIT                !> Displacement unit
+INTEGER(KIND=MPI_ADDRESS_KIND)            :: WIN_SIZE                 !> Size of the allocated memory window on current proc
+#if defined(DEBUG_MEMORY)
+CHARACTER(32)                             :: hilf                     !> Convert line number from int to string
+#endif /*defined(DEBUG_MEMORY)*/
+CHARACTER(64),PARAMETER                   :: FuncName='ALLOCATE_SHARED_INT_1_nValKIND_KIND2'
+!==================================================================================================================================
+! Only node MPI root actually allocates the memory, all other nodes allocate memory with zero length but use the same displacement
+WIN_SIZE  = MERGE(MPI_SIZE(PRODUCT(INT(nVal,KIND=8)),KIND(DataPointer)),INT(0,MPI_ADDRESS_KIND),myComputeNodeRank.EQ.0)
+DISP_UNIT = 1
+
+#ifdef DEBUG_MEMORY
+WRITE(UNIT=hilf,FMT='(I0)') SM_CALL_FILE_LINE
+LWRITE(UNIT_stdOut,'(A,I7,A65,I20)') "myrank=",myrank," Allocated "//TRIM(SM_WIN_NAME)//" with WIN_SIZE = ",WIN_SIZE
+#endif /*DEBUG_MEMORY*/
+
+IF (ASSOCIATED(DataPointer)) CALL abort(&
+__STAMP__&
+,'ERROR: Datapointer (Integer1 INT8) already associated'&
+#ifdef DEBUG_MEMORY
+//' for '//TRIM(SM_WIN_NAME)//' in file '//TRIM(SM_CALL_FILE)//' in line '//TRIM(hilf)&
+#endif /*DEBUG_MEMORY*/
+)
+
+! Allocate MPI-3 remote memory access (RMA) type memory window
+CALL MPI_WIN_ALLOCATE_SHARED(WIN_SIZE, DISP_UNIT, MPI_INFO_SHARED_LOOSE, MPI_COMM_SHARED, SM_PTR, SM_WIN, IERROR)
+IF (IERROR.NE.MPI_SUCCESS)  CALL abort(__STAMP__,'ERROR: MPI_WIN_ALLOCATE_SHARED returned IERROR.NE.MPI_SUCCESS ('//TRIM(FuncName)//')')
+
+! Node MPI root already knows the location in virtual memory, all other find it here
+IF (myComputeNodeRank.NE.0) THEN
+  CALL MPI_WIN_SHARED_QUERY(SM_WIN, 0, WIN_SIZE, DISP_UNIT, SM_PTR, IERROR)
+  IF (IERROR.NE.MPI_SUCCESS)  CALL abort(__STAMP__,'ERROR: MPI_WIN_SHARED_QUERY returned IERROR.NE.MPI_SUCCESS ('//TRIM(FuncName)//')')
+END IF
+IF (WIN_SIZE.LT.0) CALL abort(__STAMP__,'ERROR: WIN_SIZE ('//TRIM(FuncName)//') is zero')
+
+! SM_PTR can now be associated with a Fortran pointer and thus used to access the shared data
+CALL C_F_POINTER(SM_PTR, DataPointer, nVal)
+IF (.NOT.ASSOCIATED(DataPointer)) CALL abort(__STAMP__,'ERROR: Datapointer ('//TRIM(FuncName)//') could not be associated')
+
+END SUBROUTINE Allocate_Shared_Int_1_nValKIND_DataPointKIND2
 
 !==================================================================================================================================
 !> Allocate data with MPI-3 shared memory option
@@ -1172,9 +1371,8 @@ LWRITE(UNIT_stdOut,'(A,I7,A85)') "myrank=",myrank," Freeing window "//TRIM(SM_WI
 #endif /*DEBUG_MEMORY*/
 CALL MPI_WIN_FREE(      SharedWindow,iError)
 
-IF(iError.NE.0)THEN
-  CALL abort(__STAMP__,'ERROR in UNLOCK_AND_FREE_1() for '//TRIM(SM_WIN_NAME)//': iError returned non-zero value =',IntInfoOpt=iError)
-END IF ! iError.NE.0
+IF(iError.NE.MPI_SUCCESS) CALL abort(__STAMP__,'ERROR in UNLOCK_AND_FREE_1() for '//TRIM(SM_WIN_NAME)//': non-zero value iError=',&
+    IntInfoOpt=iError)
 END SUBROUTINE UNLOCK_AND_FREE_1
 
 

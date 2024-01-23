@@ -64,6 +64,8 @@ REAL, PARAMETER            :: eV2Kelvin=1.16045250061657e4          !> Conversio
 REAL, PARAMETER            :: Joule2eV=6.241506363094e+18           !> Conversion factor [J]  -> [eV] (Joule to electron volt)
 REAL, PARAMETER            :: eV2Joule=1.60217734e-19               !> Conversion factor [eV] -> [J]  (electron volt to Joule)
 CHARACTER(LEN=5)           :: TimeStampLenStr,TimeStampLenStr2      !> Strings for timestamp format of time
+REAL,PARAMETER             :: BohrRadius     = 5.2917721067E-11     !> Radius, 1st Bohr orbit for H (a0) [m]
+REAL,PARAMETER             :: AtomicMassUnit = 1.660539040E-27      !> Atomic mass unit [kg]
 
 REAL,PARAMETER             :: maxEXP= LOG(HUGE(maxexp))
 ! Set variables (natural constants and derived quantities) from user input or hard coded

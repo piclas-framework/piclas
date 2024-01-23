@@ -748,7 +748,7 @@ END SUBROUTINE SyncElectronSEE
 !===================================================================================================================================
 SUBROUTINE InitBoundaryParticleOutput()
 ! MODULES
-USE MOD_Globals                   ,ONLY: CollectiveStop,UNIT_stdOut
+USE MOD_Globals
 USE MOD_SurfaceModel_Analyze_Vars ,ONLY: BPO
 USE MOD_Particle_Boundary_Vars    ,ONLY: nPartBound,PartBound
 USE MOD_ReadInTools               ,ONLY: GETLOGICAL,GETINT,GETINTARRAY
@@ -765,14 +765,20 @@ USE MOD_Analyze_Vars              ,ONLY: CalcElectricTimeDerivative,FieldAnalyze
 USE MOD_LoadBalance_Vars          ,ONLY: PerformLoadBalance
 #endif /*USE_LOADBALANCE*/
 #endif /*USE_HDG*/
-USE MOD_Mesh_Vars                 ,ONLY: nBCs
+USE MOD_Mesh_Vars                 ,ONLY: nBCs,BC,nBCSides,BoundaryName
+USE MOD_TimeDisc_Vars             ,ONLY: iter
+USE MOD_Mesh_Vars                 ,ONLY: SurfElem
+USE MOD_Interpolation_Vars        ,ONLY: wGPSurf
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! INPUT / OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER           :: iPartBound,iSpec,iBPO,iBC
+INTEGER           :: iPartBound,iSpec,iBPO,iBC,BCSideID
+REAL,ALLOCATABLE  :: TotalSurfArea(:)
+CHARACTER(LEN=32) :: hilf
+!REAL              :: area
 !===================================================================================================================================
 DoSurfModelAnalyze = .TRUE.
 BPO%NPartBoundaries = GETINT('BPO-NPartBoundaries')
@@ -847,8 +853,7 @@ DO iBPO = 1, BPO%NPartBoundaries
           '                  RotPeriodicInterPlaneBC   = 6  (no)\n'//&
           '                  SymmetryBC                = 10 (no)\n'//&
           '                  SymmetryAxis              = 11 (no)'
-      CALL CollectiveStop(__STAMP__&
-          ,'PartBound%TargetBoundCond(iPartBound) is not implemented for CalcBoundaryParticleOutput',&
+      CALL CollectiveStop(__STAMP__,'PartBound%TargetBoundCond(iPartBound) is not implemented for CalcBoundaryParticleOutput',&
           IntInfo=PartBound%TargetBoundCond(iPartBound))
     END IF ! PartBound%NbrOfSpeciesSwaps(iPartBound).GT.0
   END IF ! .NOT.ANY(PartBound%TargetBoundCond(iPartBound).EQ. ...
@@ -864,13 +869,47 @@ DO iBPO = 1, BPO%NPartBoundaries
       CASE(SEE_MODELS_ID)
         ! all secondary electron models
       CASE DEFAULT
-        CALL CollectiveStop(__STAMP__,'CalcBoundaryParticleOutput not implemented for this '//&
-        'PartBound%SurfaceModel(iPartBound). Either select different surface model or activate NbrOfSpeciesSwaps',&
+        WRITE(UNIT=hilf,FMT='(I0)') iPartBound
+        CALL CollectiveStop(__STAMP__,'CalcBoundaryParticleOutput not implemented for '//&
+        'PartBound%SurfaceModel(iPartBound='//TRIM(hilf)//'). Either select different surface model or activate NbrOfSpeciesSwaps',&
             IntInfo=PartBound%SurfaceModel(iPartBound))
       END SELECT
     END IF ! PartBound%NbrOfSpeciesSwaps(iPartBound).GT.0
   END IF ! PartBound%TargetBoundCond(BPO%PartBoundaries(iPartBound).EQ.2)
 END DO ! iPartBound = 1, BPO%NPartBoundaries
+
+! Display the total area of the all BPO%NPartBoundaries. MPI requires all-reduce to root process
+IF(iter.EQ.0)THEN ! First iteration: Only output this information once
+  ALLOCATE(TotalSurfArea(1:BPO%NPartBoundaries))
+  TotalSurfArea = 0.
+  ! Loop over all BC sides and get surface area
+  DO BCSideID = 1,nBCSides
+    ! Get particle boundary ID
+    iPartBound = PartBound%MapToPartBC(BC(BCSideID))
+    ! get BPO boundary ID
+    iBPO = BPO%BCIDToBPOBCID(iPartBound)
+    ! Check if this boundary is tracked
+    IF(iBPO.GT.0)THEN
+      TotalSurfArea(iBPO) = TotalSurfArea(iBPO) + SUM(SurfElem(:,:,BCSideID)*wGPSurf(:,:))
+    END IF ! iBPO.GT.0
+  END DO ! BCSideID = 1,nBCSides
+#if USE_MPI
+  IF(MPIroot)THEN
+    CALL MPI_REDUCE(MPI_IN_PLACE , TotalSurfArea , BPO%NPartBoundaries , MPI_DOUBLE_PRECISION , MPI_SUM , 0 , MPI_COMM_PICLAS , iError)
+    WRITE(UNIT_stdOut,'(A)') "Total area used for BoundaryParticleOutput (BPO):"
+    DO iBPO = 1, BPO%NPartBoundaries
+      IF(iBPO.GT.9)THEN
+        WRITE(UNIT_stdOut,'(A,I0,A,ES15.7,A)') "BPO-",iBPO,": ",TotalSurfArea(iBPO)," "//TRIM(BoundaryName(BPO%FieldBoundaries(iBPO)))
+      ELSE
+        WRITE(UNIT_stdOut,'(A,I0,A,ES16.7,A)') "BPO-",iBPO,": ",TotalSurfArea(iBPO)," "//TRIM(BoundaryName(BPO%FieldBoundaries(iBPO)))
+      END IF ! iBPO.GT.9
+    END DO ! iBPO = 1, BPO%NPartBoundaries
+  ELSE
+    CALL MPI_REDUCE(TotalSurfArea  , 0           , BPO%NPartBoundaries , MPI_DOUBLE_PRECISION , MPI_SUM , 0 , MPI_COMM_PICLAS , iError)
+  END IF
+#endif /*USE_MPI*/
+  DEALLOCATE(TotalSurfArea)
+END IF ! iter.EQ.0
 
 END SUBROUTINE InitBoundaryParticleOutput
 
@@ -882,6 +921,8 @@ END SUBROUTINE InitBoundaryParticleOutput
 !> 1) Check if secondary electron emission occurs
 !> 1.1) Count number of different SEE boundaries via reflective particle BC
 !> 1.2) Count number of different photon SEE boundaries
+!> 1.3) Count number of ray tracing photon SEE boundaries. WARNING: The combination of Init-based photon SEE and ray tracing photon
+!       SEE is not allowed
 !> 2.) Create Mapping from SEE BC index to particle BC index
 !> 2.1) Create mapping for reactive surface SEE (non-photon impacts)
 !> 2.2) Create mapping for photon-surface SEE
@@ -930,13 +971,26 @@ DO iSpec=1,nSpecies
 END DO
 NPartBoundariesPhotonSEE = SEE%NPartBoundaries - NPartBoundariesReflectiveSEE
 
+! 1.3) Count number of ray tracing photon SEE boundaries. WARNING: The combination of Init-based photon SEE and ray tracing photon
+!      SEE is not allowed
+DO iPartBound = 1, nPartBound
+  IF(PartBound%PhotonSEEYield(iPartBound).GT.0.0)THEN
+    ! Sanity checks
+    IF(NPartBoundariesPhotonSEE.GT.0) CALL abort(__STAMP__,'The combination of Init-based + ray tracing photon SEE is not allowed!')
+    ! Remove the following check when the model is implemented (deposited charge holes by SEE)
+    IF(PartBound%Dielectric(iPartBound)) CALL abort(__STAMP__,'Dielectric surfaces and ray tracing ist not implemented')
+    SEE%NPartBoundaries = SEE%NPartBoundaries + 1
+  END IF ! PartBound%PhotonSEEYield(iPartBound).GT.0.0
+END DO ! iPartBound = 1, nPartBound
+NPartBoundariesPhotonSEE = SEE%NPartBoundaries - NPartBoundariesReflectiveSEE
+
 ! If not SEE boundaries exist, no measurement of the current can be performed
 IF(SEE%NPartBoundaries.EQ.0) RETURN
 
 ! Automatically activate when CalcBoundaryParticleOutput=T
 IF(CalcBoundaryParticleOutput)THEN
   CalcElectronSEE = .TRUE.
-  CALL PrintOption('SEE current measurement activated (CalcBoundaryParticleOutput=T): CalcElectronSEE','INFO',&
+  CALL PrintOption('SEE current activated (CalcBoundaryParticleOutput=T): CalcElectronSEE','INFO',&
       LogOpt=CalcElectronSEE)
 ELSE
   CalcElectronSEE = GETLOGICAL('CalcElectronSEE','.FALSE.')
@@ -960,7 +1014,7 @@ DO iPartBound=1,nPartBound
     SEE%PartBoundaries(SEE%NPartBoundaries) = iPartBound
   END SELECT
 END DO ! iPartBound=1,nPartBound
-! 2.2) Create mapping for photon-surface SEE
+! 2.2) Create mapping for photon-surface SEE (Init-based)
 DO iSpec=1,nSpecies
   DO iInit=1, Species(iSpec)%NumberOfInits
     IF(Species(iSpec)%Init(iInit)%PartBCIndex.GT.0)THEN
@@ -971,6 +1025,13 @@ DO iSpec=1,nSpecies
     END IF
   END DO
 END DO
+! 2.3) Create mapping for photon-surface SEE (ray tracing)
+DO iPartBound = 1, nPartBound
+  IF(PartBound%PhotonSEEYield(iPartBound).GT.0.0)THEN
+    SEE%NPartBoundaries = SEE%NPartBoundaries + 1
+    SEE%PartBoundaries(SEE%NPartBoundaries) = iPartBound
+  END IF ! PartBound%PhotonSEEYield(iPartBound).GT.0.0
+END DO ! iPartBound = 1, nPartBound
 
 ! Allocate the container
 ALLOCATE(SEE%RealElectronOut(1:SEE%NPartBoundaries))
