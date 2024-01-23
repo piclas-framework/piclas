@@ -143,6 +143,7 @@ DO iPartBound=1,nPartBound
   SELECT CASE(PartBound%SurfaceModel(iPartBound))
   ! 4: SEE Power-fit model by Goebel & Katz „Fundamentals of Electric Propulsion - Ion and Hall Thrusters“
   CASE(4)
+    CALL abort(__STAMP__,'SEE model power fit: Implementation not yet finished, regression test and documentation is missing!')
     SurfModSEEPowerFit(1:2,iPartBound) = GETREALARRAY('Part-Boundary'//TRIM(hilf2)//'-SurfModSEEPowerFit',2)
   ! 5: SEE by Levko2015
   ! 6: SEE by Pagonakis2016 (originally from Harrower1956)
