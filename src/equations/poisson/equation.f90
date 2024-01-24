@@ -1097,6 +1097,7 @@ END ASSOCIATE
 END SUBROUTINE CalcSourceHDG
 
 
+#if defined(PARTICLES) && defined(CODE_ANALYZE)
 !===================================================================================================================================
 !> Check if elements has at least one side that is a Dirichlet BC
 !===================================================================================================================================
@@ -1135,6 +1136,7 @@ DO iLocSide = 1, 6
   END IF ! BCIndex.GT.0
 END DO ! iLocSide = 1, 6
 END FUNCTION ElemHasDirichletBC
+#endif /*defined(PARTICLES) && defined(CODE_ANALYZE)*/
 
 
 FUNCTION shapefunc(r)
