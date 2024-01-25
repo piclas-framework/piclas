@@ -166,6 +166,11 @@ The simulation may be restarted from an existing state file
 
     piclas parameter.ini [DSMC.ini] [restart_file.h5]
 
+The state file , e.g., TestCase_State_000.5000000000000000.h5, contains all the required information to continue the simulation from
+this point in time
+
+    piclas parameter.ini DSMC.ini TestCase_State_000.5000000000000000.h5
+
 A state file is generated at the end of the simulation and also at every time step defined by `Analyze_dt`. **Note:** When
 restarting from an earlier time (or zero), all later state files possibly contained in your directory are deleted!
 

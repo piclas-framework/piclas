@@ -92,7 +92,7 @@ are discussed in Section {ref}`sec:2D-axisymmetric`
 
 ### Species-specific time step
 
-This option is decoupled from the other two time step options as the time step is not applied on a per-particle basis but for each species. Currently, its main application is for PIC-MCC simulations (only Poisson field solver with Boris-Leapfrog time discretization method), where there are large differences in the time scales (e.g. electron movement requires a time step of several orders of magnitude smaller than for the ions). The species-specific time step is actvitated per species by setting a factor
+This option is decoupled from the other two time step options as the time step is not applied on a per-particle basis but for each species. Currently, its main application is for PIC-MCC simulations (only Poisson field solver with Euler, Leapfrog and Boris-Leapfrog time discretization methods), where there are large differences in the time scales (e.g. electron movement requires a time step of several orders of magnitude smaller than for the ions). The species-specific time step is actvitated per species by setting a factor
 
     Part-Species1-TimeStepFactor = 0.01
 
@@ -228,7 +228,7 @@ Variable particle weighting is currently supported for PIC (with and without bac
 
     Part-vMPF                           = T
 
-The split and merge algorithm is called at the end of every time step. In order to manipulate the number of particles per species per cell, merge and split thresholds can be defined as is shown in the following. 
+The split and merge algorithm is called at the end of every time step. In order to manipulate the number of particles per species per cell, merge and split thresholds can be defined as is shown in the following.
 
     Part-Species2-vMPFMergeThreshold    = 100
 
@@ -264,7 +264,7 @@ Currently, only merging based on the number of particles within the cell is impl
 Furthermore, the spread or aggressiveness of the merge algorithm can be changed, i.e. how deep the merge extends into the mesh starting from each cell. 0 is the least aggressive merge, 3 the most aggressive merge.
 
     Part-CellMergeSpread                = 0
-  
+
 There is also the possibility to define a maximum number of cells that can be merged. In this way, a desired "resolution" of the virtual cells can be achieved.
 
     Part-MaxNumbCellsMerge              = 5

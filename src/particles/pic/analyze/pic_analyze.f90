@@ -79,7 +79,7 @@ ChargeNumerical=0. ! Nullify
 DO iElem=1,nElems
   ! Interpolate the physical position Elem_xGP to the analyze position, needed for exact function
   CALL ChangeBasis3D(3,PP_N,NAnalyze,N_InterAnalyze(PP_N)%Vdm_GaussN_NAnalyze,N_VolMesh(iElem)%Elem_xGP(1:3,:,:,:),Coords_NAnalyze(1:3,:,:,:))
-  ! Interpolate the Jacobian to the analyze grid: be careful we interpolate the inverse of the inverse of the jacobian ;-)
+  ! Interpolate the Jacobian to the analyze grid: be careful we interpolate the inverse of the inverse of the Jacobian ;-)
   J_N(1,0:PP_N,0:PP_N,0:PP_N)=1./N_VolMesh(iElem)%sJ(:,:,:)
   CALL ChangeBasis3D(1,PP_N,NAnalyze,N_InterAnalyze(PP_N)%Vdm_GaussN_NAnalyze,J_N(1:1,0:PP_N,0:PP_N,0:PP_N),J_NAnalyze(1:1,:,:,:))
   ! Interpolate the solution to the analyze grid

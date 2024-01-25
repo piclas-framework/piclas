@@ -565,7 +565,9 @@ CASE('photon_SEE_energy')
   DO iPart = 1,NbrOfParticle
     PositionNbr = GetNextFreePosition(iPart)
     IF (PositionNbr .NE. 0) THEN
-        CALL CalcVelocity_FromWorkFuncSEE(FractNbr, Vec3D, iInit=iInit)
+        CALL CalcVelocity_FromWorkFuncSEE(Species(FractNbr)%Init(iInit)%WorkFunctionSEE, &
+                                          Species(FractNbr)%MassIC, Species(FractNbr)%Init(iInit)%NormalVector1IC, &
+                                          Species(FractNbr)%Init(iInit)%NormalIC, Vec3D(1:3))
         PartState(4:6,PositionNbr) = Vec3D(1:3)
         ASSOCIATE( PartBCIndex => Species(FractNbr)%Init(iInit)%PartBCIndex)
 
@@ -649,7 +651,10 @@ SUBROUTINE ParticleEmissionFromDistribution(iSpec,iInit,NbrOfParticle)
 ! modules
 !USE MOD_Globals
 USE MOD_PreProc
-USE MOD_Globals                ,ONLY: myrank,UNIT_StdOut,abort
+#if USE_MPI
+USE MOD_Globals                ,ONLY: myrank
+#endif /*USE_MPI*/
+USE MOD_Globals                ,ONLY: UNIT_StdOut,abort
 USE MOD_part_tools             ,ONLY: InitializeParticleMaxwell,InterpolateEmissionDistribution2D, GetNextFreePosition
 USE MOD_Mesh_Vars              ,ONLY: nElems,offsetElem
 USE MOD_Particle_Vars          ,ONLY: Species, PDM, PartState, PEM, LastPartPos, PartPosRef, PartSpecies

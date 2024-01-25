@@ -609,6 +609,8 @@ USE MOD_MPI_Shared_Vars    ,ONLY: nComputeNodeTotalElems
 USE MOD_Particle_MPI_Vars  ,ONLY: halo_eps
 USE MOD_Mesh_Vars          ,ONLY: nElems, offsetElem
 #endif /*USE_MPI && defined(PARTICLES)*/
+USE MOD_Equation_Vars      ,ONLY: IniExactFunc
+USE MOD_Particle_Mesh_Vars ,ONLY: GEO
 IMPLICIT NONE
 ! INPUT / OUTPUT VARIABLES
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -697,6 +699,26 @@ IF(.NOT.ALLOCATED(FPC%Charge))THEN
 END IF ! .NOT.ALLOCATED(FPC%Charge)
 ALLOCATE(FPC%ChargeProc(1:FPC%nUniqueFPCBounds))
 FPC%ChargeProc = 0.
+
+! Set initial value depending on IniExactFunc
+SELECT CASE (IniExactFunc)
+CASE(800,900) ! Dielectric slab on electrode (left) with plasma between slab and other electrode opposite
+  ! Set initial value
+  FPC%Charge(1)  = 1.0e-2*(GEO%ymaxglob-GEO%yminglob)*(GEO%zmaxglob-GEO%zminglob) ! C/m2
+  FPC%Voltage(1) = 1.1293922903231239 ! V
+CASE(801) ! Dielectric slab on electrode (left) with plasma between slab and other electrode opposite: 2D case
+  ! Set initial value
+  FPC%Charge(1)  = 5e-11*(1.0 - 0.05) ! C/m2
+  FPC%Charge(2)  = 5e-11*(1.0 - 0.15) ! C/m2
+  FPC%Charge(3)  = 5e-11*(1.0 - 0.25) ! C/m2
+  FPC%Charge(4)  = 5e-11*(1.0 - 0.35) ! C/m2
+  FPC%Charge(5)  = 5e-11*(1.0 - 0.45) ! C/m2
+  FPC%Charge(6)  = 5e-11*(1.0 - 0.55) ! C/m2
+  FPC%Charge(7)  = 5e-11*(1.0 - 0.65) ! C/m2
+  FPC%Charge(8)  = 5e-11*(1.0 - 0.75) ! C/m2
+  FPC%Charge(9)  = 5e-11*(1.0 - 0.85) ! C/m2
+  FPC%Charge(10) = 5e-11*(1.0 - 0.95) ! C/m2
+END SELECT
 
 !! 3.) Create Mapping from field BC index to floating boundary condition BC index
 !ALLOCATE(FPC%BCIDToFPCBCID(nBCs))
@@ -1174,9 +1196,9 @@ INTEGER, PARAMETER :: BCTypeBV(1:3) = (/50,51,52/) ! BCType which allows bias vo
 !                                                  ! 51: cos(wt) function with DC bias
 !                                                  ! 52: cos(wt) function with DC bias + coupled power for AC potential adjustment
 INTEGER             :: BCType,BVBoundaries,BCState,iBoundary
-INTEGER             :: SideID,iBC,iPBC
+INTEGER             :: iBC,iPBC
 #if USE_MPI
-INTEGER             :: color
+INTEGER             :: color,SideID
 LOGICAL             :: BConProc
 #endif /*USE_MPI*/
 !===================================================================================================================================
@@ -1837,7 +1859,7 @@ PetscScalar, POINTER :: lambda_pointer(:)
 KSPConvergedReason   :: reason
 PetscInt             :: iterations
 PetscReal            :: petscnorm
-INTEGER              :: ElemID,iBCSide,locBCSideID, PETScLocalID
+INTEGER              :: ElemID,iBCSide,PETScLocalID
 INTEGER              :: PETScID_start, PETScID_stop
 REAL                 :: timeStartPiclas,timeEndPiclas
 REAL                 :: RHS_conductor(nGP_face)
@@ -1931,7 +1953,7 @@ DO iVar = 1, PP_nVar
 #endif
 
   ! Floating boundary BCs
-#if USE_PETSC && defined(PARTICLES)
+#if USE_PETSC
   IF(UseFPC)THEN
 #if USE_MPI
     ! Communicate the accumulated charged on each BC to all processors on the communicator
@@ -1950,7 +1972,7 @@ DO iVar = 1, PP_nVar
     ! Apply charge to RHS, which this is done below: RHS_conductor(1)=FPC%Charge(iUniqueFPCBC)/eps0
 
   END IF ! UseFPC
-#endif /*USE_PETSC && defined(PARTICLES)*/
+#endif /*USE_PETSC*/
 
   ! Set potential to zero (only one process does this)
   IF(SetZeroPotentialDOF) HDG_Surf_N(1)%lambda(iVar,1) = 0.

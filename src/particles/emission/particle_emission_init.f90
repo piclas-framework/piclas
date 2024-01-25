@@ -216,8 +216,8 @@ DO iSpec = 1, nSpecies
   IF(Species(iSpec)%TimeStepFactor.NE.1.) THEN
     VarTimeStep%UseSpeciesSpecific = .TRUE.
     IF(Species(iSpec)%TimeStepFactor.GT.1.) CALL CollectiveStop(__STAMP__,'ERROR: Species-specific time step only allows factors below 1!')
-#if (USE_HDG) && !(PP_TimeDiscMethod==508)
-    CALL CollectiveStop(__STAMP__,'ERROR: Species-specific time step is only implemented with Boris-Leapfrog time discretization!')
+#if (USE_HDG) && !(PP_TimeDiscMethod==500) && !(PP_TimeDiscMethod==508) && !(PP_TimeDiscMethod==509)
+    CALL CollectiveStop(__STAMP__,'ERROR: Species-specific time step is only implemented with Euler, Leapfrog & Boris-Leapfrog time discretization!')
 #endif /*(USE_HDG)*/
 #if !(USE_HDG) && !(PP_TimeDiscMethod==4)
     CALL CollectiveStop(__STAMP__,'ERROR: Species-specific time step is only implemented with HDG and/or DSMC')
@@ -363,14 +363,9 @@ DO iSpec = 1, nSpecies
     END IF
     ! 2D simulation/variable time step only with cell_local and/or surface flux
     IF(UseVarTimeStep.OR.VarTimeStep%UseSpeciesSpecific) THEN
-      SELECT CASE(TRIM(Species(iSpec)%Init(iInit)%SpaceIC))
-      ! Do nothing
-      CASE('cell_local','background')
-      ! Abort for every other SpaceIC
-      CASE DEFAULT
+      IF(Species(iSpec)%Init(iInit)%ParticleEmissionType.GT.0) &
         CALL CollectiveStop(__STAMP__,'ERROR: Particle insertion/emission for variable time step '//&
-            'only possible with cell_local/background-SpaceIC and/or surface flux!')
-      END SELECT
+            'only possible with initial particle insertion and/or surface flux!')
     END IF
     !--- integer check for ParticleEmissionType 2
     IF((Species(iSpec)%Init(iInit)%ParticleEmissionType.EQ.2).AND. &

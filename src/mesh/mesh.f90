@@ -128,7 +128,8 @@ USE MOD_Mesh_Vars              ,ONLY: firstMortarInnerSide,lastMortarInnerSide
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT/OUTPUT VARIABLES
 INTEGER,INTENT(IN) :: meshMode !<  0: only read and build Elem_xGP,
-                               !< -1: as 0 + build connectivity and read node info (automatically read for PARTICLES=ON)
+                               !< -2: as 0 + build connectivity and always set ReadNodes=T: read node info (automatically read for PARTICLES=ON) + build FacexGP and keep NodeCoords
+                               !< -1: as 0 + build connectivity and always set ReadNodes=T: read node info (automatically read for PARTICLES=ON)
                                !<  1: as 0 + build connectivity
                                !<  2: as 1 + calc metrics
                                !<  3: as 2 but skip InitParticleMesh
@@ -330,7 +331,7 @@ IF (ABS(meshMode).GT.0) THEN
   LBWRITE(UNIT_stdOut,'(A)') "NOW CALLING fillMeshInfo..."
 #if USE_HDG && USE_LOADBALANCE
   ! Call with meshMode to check whether, e.g., HDG load balance info need to be determined or not
-  CALL fillMeshInfo(ABS(meshMode))
+  CALL fillMeshInfo(meshMode)
 #else
   CALL fillMeshInfo()
 #endif /*USE_HDG && USE_LOADBALANCE*/
@@ -442,7 +443,7 @@ IF (ABS(meshMode).GT.1) THEN
 
 #ifndef PARTICLES
   ! dealloacte pointers
-  LBWRITE(UNIT_stdOut,'(A)') "NOW CALLING deleteMeshPointer..."
+  LBWRITE(UNIT_stdOut,'(A)') "InitMesh: NOW CALLING deleteMeshPointer..."
   CALL deleteMeshPointer()
 #endif
 
@@ -450,10 +451,10 @@ IF (ABS(meshMode).GT.1) THEN
   CALL InitElemVolumes()
 
 #ifndef PARTICLES
-  DEALLOCATE(NodeCoords)
+  IF(meshMode.GT.1) DEALLOCATE(NodeCoords)
 #endif
 
-  IF(ABS(meshMode).NE.3)THEN
+  IF((ABS(meshMode).NE.3).AND.(meshMode.GT.1))THEN
 #ifdef PARTICLES
     IF(RadialWeighting%DoRadialWeighting) THEN
       usevMPF = .TRUE.

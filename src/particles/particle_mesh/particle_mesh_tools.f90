@@ -1375,7 +1375,7 @@ USE MOD_Mesh_Vars              ,ONLY: N_VolMesh,N_VolMesh_Shared
 USE MOD_Mesh_Vars              ,ONLY: NGeo,dXCL_NGeo
 USE MOD_Particle_Mesh_Vars
 #if USE_MPI
-USE MOD_Mesh_Vars              ,ONLY: nGlobalElems,offsetElem,nElems
+USE MOD_Mesh_Vars              ,ONLY: NGeo,nGlobalElems,offsetElem,nElems
 USE MOD_MPI_Shared
 USE MOD_MPI_Shared_Vars
 #endif

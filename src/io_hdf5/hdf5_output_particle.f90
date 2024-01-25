@@ -643,7 +643,12 @@ DO iPart=offsetnPart+1_IK,offsetnPart+locnPart
   ! Take ABS() from SpecID as is might be negative (for storing particles that are emitted from a surface)
   SpecID = INT(ABS(PartStateBoundary(7,pcount)))
   IF(SpecID.EQ.0) CALL abort(__STAMP__,'Error in WriteBoundaryParticleToHDF5: SpecID = PartStateBoundary(7,pcount) = 0')
-  PartData(8,iPart)=CalcEkinPart2(PartStateBoundary(4:6,pcount),SpecID,1.0) / ElementaryCharge
+  ! Check if photon is emitted during ray tracing
+  IF(SpecID.EQ.999)THEN
+    PartData(8,iPart)=0 ! insert photon energy here
+  ELSE
+    PartData(8,iPart)=CalcEkinPart2(PartStateBoundary(4:6,pcount),SpecID,1.0) / ElementaryCharge
+  END IF ! SpecID.EQ.999
 
   ! MPF: Macro particle factor
   PartData(9,iPart)=PartStateBoundary(8,pcount)
@@ -1113,7 +1118,9 @@ USE MOD_IO_HDF5
 USE MOD_Timedisc_Vars           ,ONLY: iter
 USE MOD_Restart_Vars            ,ONLY: DoRestart
 USE MOD_Particle_Vars           ,ONLY: nSpecies, Species
+#if USE_MPI
 USE MOD_Particle_Sampling_Vars  ,ONLY: AdaptBCPartNumOut
+#endif /*USE_MPI*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------

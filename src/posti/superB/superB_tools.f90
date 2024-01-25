@@ -216,7 +216,7 @@ SUBROUTINE ExactFuncSuperB(ExactFunctionNumber,iCoilOrMagnet,x,resu)
 !   2X : Magnets
 !===================================================================================================================================
 ! MODULES
-USE MOD_Globals       ,ONLY: Abort,VECNORM,OrthoNormVec,UNITVECTOR,CROSSNORM,DOTPRODUCT
+USE MOD_Globals       ,ONLY: Abort,VECNORM,UNITVECTOR,CROSSNORM,DOTPRODUCT
 USE MOD_Globals       ,ONLY: SphericalCoordinates,TransformVectorFromSphericalCoordinates
 USE MOD_Globals_Vars  ,ONLY: Pi,mu0
 USE MOD_SuperB_Vars   ,ONLY: CoilInfo,PermanentMagnetInfo
