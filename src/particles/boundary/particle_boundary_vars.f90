@@ -132,7 +132,7 @@ INTEGER,ALLOCPOINT,DIMENSION(:,:) :: RotPeriodicSideMapping    ! Mapping between
 INTEGER,ALLOCPOINT,DIMENSION(:)   :: SurfSide2RotPeriodicSide  ! Mapping between surf side and periodic sides.
 ! ====================================================================
 ! Intermediate plane for multi rotational periodic sides
-INTEGER,ALLOCPOINT,DIMENSION(:,:) :: InterPlaneSideMapping    ! Mapping between inter plane BC_ID and SideID.
+INTEGER,ALLOCATABLE               :: InterPlaneSideMapping(:,:)! Mapping between inter plane BC_ID and SideID.
 ! ====================================================================
 #if USE_MPI
 INTEGER,POINTER,DIMENSION(:)    :: SurfSide2RotPeriodicSide_Shared

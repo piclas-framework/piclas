@@ -2191,17 +2191,13 @@ IF(PartBound%UseRotPeriodicBC.AND.nComputeNodeSurfTotalSides.GT.0)THEN
   IF(nRotPeriodicSides     .GT.0) CALL UNLOCK_AND_FREE(NumRotPeriodicNeigh_Shared_Win)
   IF(MaxNumRotPeriodicNeigh.GT.0) CALL UNLOCK_AND_FREE(RotPeriodicSideMapping_Shared_Win)
   ADEALLOCATE(SurfSide2RotPeriodicSide_Shared)
-  ADEALLOCATE(SurfSide2RotPeriodicSide)
   ADEALLOCATE(NumRotPeriodicNeigh_Shared)
-  ADEALLOCATE(NumRotPeriodicNeigh)
   ADEALLOCATE(RotPeriodicSideMapping_Shared)
-  ADEALLOCATE(RotPeriodicSideMapping)
-  ADEALLOCATE(InterPlaneSideMapping)
-#else
-  SDEALLOCATE(SurfSide2RotPeriodicSide)
-  SDEALLOCATE(NumRotPeriodicNeigh)
-  SDEALLOCATE(RotPeriodicSideMapping)
 #endif
+  ADEALLOCATE(SurfSide2RotPeriodicSide)
+  ADEALLOCATE(NumRotPeriodicNeigh)
+  ADEALLOCATE(RotPeriodicSideMapping)
+  SDEALLOCATE(InterPlaneSideMapping)
 END IF ! PartBound%UseRotPeriodicBC
 
 ! Adaptive wall temperature (e.g. calculate from sampled heat flux)
