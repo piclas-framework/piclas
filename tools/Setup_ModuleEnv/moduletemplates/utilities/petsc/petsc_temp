@@ -15,7 +15,7 @@ module-whatis   "Sets the environment for using petsc-petscversion"
 conflict petsc
 
 prereq gcc/GCCVERSIONFLAG
-prereq openmpi/MPIVERSIONFLAG/gcc/GCCVERSIONFLAG
+prereq PETSCWHICHMPI/MPIVERSIONFLAG/gcc/GCCVERSIONFLAG
 
 # for Tcl script use only
 set     topdir          PETSCTOPDIR

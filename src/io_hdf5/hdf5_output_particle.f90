@@ -643,7 +643,12 @@ DO iPart=offsetnPart+1_IK,offsetnPart+locnPart
   ! Take ABS() from SpecID as is might be negative (for storing particles that are emitted from a surface)
   SpecID = INT(ABS(PartStateBoundary(7,pcount)))
   IF(SpecID.EQ.0) CALL abort(__STAMP__,'Error in WriteBoundaryParticleToHDF5: SpecID = PartStateBoundary(7,pcount) = 0')
-  PartData(8,iPart)=CalcEkinPart2(PartStateBoundary(4:6,pcount),SpecID,1.0) / ElementaryCharge
+  ! Check if photon is emitted during ray tracing
+  IF(SpecID.EQ.999)THEN
+    PartData(8,iPart)=0 ! insert photon energy here
+  ELSE
+    PartData(8,iPart)=CalcEkinPart2(PartStateBoundary(4:6,pcount),SpecID,1.0) / ElementaryCharge
+  END IF ! SpecID.EQ.999
 
   ! MPF: Macro particle factor
   PartData(9,iPart)=PartStateBoundary(8,pcount)
@@ -1113,7 +1118,9 @@ USE MOD_IO_HDF5
 USE MOD_Timedisc_Vars           ,ONLY: iter
 USE MOD_Restart_Vars            ,ONLY: DoRestart
 USE MOD_Particle_Vars           ,ONLY: nSpecies, Species
+#if USE_MPI
 USE MOD_Particle_Sampling_Vars  ,ONLY: AdaptBCPartNumOut
+#endif /*USE_MPI*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1166,7 +1173,7 @@ SUBROUTINE WriteAdaptiveWallTempToHDF5(FileName)
 USE MOD_PreProc
 USE MOD_Globals
 USE MOD_IO_HDF5
-USE MOD_Particle_Boundary_Vars    ,ONLY: nSurfSample, nSurfTotalSides, nComputeNodeSurfSides, offsetComputeNodeSurfSide
+USE MOD_Particle_Boundary_Vars    ,ONLY: nSurfSample, nGlobalSurfSides, nComputeNodeSurfSides, offsetComputeNodeSurfSide
 USE MOD_Particle_Boundary_Vars    ,ONLY: BoundaryWallTemp, SurfSide2GlobalSide
 #if USE_MPI
 USE MOD_MPI_Shared_Vars                ,ONLY: MPI_COMM_LEADERS_SURF
@@ -1190,7 +1197,7 @@ IF (MPI_COMM_LEADERS_SURF.EQ.MPI_COMM_NULL) RETURN
 CALL MPI_BARRIER(MPI_COMM_LEADERS_SURF,iERROR)
 
 ! Return if no sampling sides
-IF (nSurfTotalSides      .EQ.0) RETURN
+IF (nGlobalSurfSides      .EQ.0) RETURN
 #endif
 
 WRITE(H5_Name,'(A)') 'AdaptiveBoundaryWallTemp'
@@ -1205,7 +1212,7 @@ CALL OpenDataFile(FileName,create=.FALSE.,single=.TRUE.,readOnly=.FALSE.)
 ! Associate construct for integer KIND=8 possibility
 ASSOCIATE (&
       nSurfSample          => INT(nSurfSample,IK)               , &
-      nGlobalSides         => INT(nSurfTotalSides,IK)           , &
+      nGlobalSides         => INT(nGlobalSurfSides,IK)           , &
       nLocalSides          => INT(nComputeNodeSurfSides,IK)     , &
       offsetSurfSide       => INT(offsetComputeNodeSurfSide,IK))
   CALL WriteArrayToHDF5(DataSetName = H5_Name , rank = 3                   , &
@@ -1307,6 +1314,7 @@ SUBROUTINE WriteClonesToHDF5(FileName)
 ! MODULES
 USE MOD_PreProc
 USE MOD_Globals
+USE MOD_TimeDisc_Vars ,ONLY: ManualTimeStep
 USE MOD_DSMC_Vars     ,ONLY: UseDSMC, CollisMode, DSMC, PolyatomMolDSMC, SpecDSMC
 USE MOD_DSMC_Vars     ,ONLY: RadialWeighting, ClonedParticles
 USE MOD_PARTICLE_Vars ,ONLY: nSpecies, usevMPF, Species, PartDataSize
@@ -1365,7 +1373,7 @@ CASE DEFAULT
 END SELECT
 
 DO pcount = 0,tempDelay
-    locnPart = locnPart + RadialWeighting%ClonePartNum(pcount)
+  locnPart = locnPart + RadialWeighting%ClonePartNum(pcount)
 END DO
 
 ! Communicate the total number and offset
@@ -1476,7 +1484,6 @@ CALL OpenDataFile(FileName,create=.FALSE.,single=.FALSE.,readOnly=.FALSE.,commun
 #else
 CALL OpenDataFile(FileName,create=.FALSE.,single=.TRUE.,readOnly=.FALSE.)
 #endif
-CALL WriteAttributeToHDF5(File_ID,'VarNamesParticleClones',PartDataSizeLoc,StrArray=StrVarNames)
 
 ASSOCIATE (&
       offsetnPart     => INT(offsetnPart,IK)   ,&
@@ -1518,6 +1525,16 @@ END IF
 END ASSOCIATE
 
 CALL CloseDataFile()
+
+! Output of clone species variables as attribute to the dataset
+IF(MPIRoot) THEN
+  CALL OpenDataFile(FileName,create=.FALSE.,single=.TRUE.,readOnly=.FALSE.)
+  CALL WriteAttributeToHDF5(File_ID,'VarNamesParticleClones',PartDataSizeLoc,StrArray=StrVarNames,DatasetName='CloneData')
+  CALL WriteAttributeToHDF5(File_ID,'ManualTimeStep',1,RealScalar=ManualTimeStep,DatasetName='CloneData')
+  CALL WriteAttributeToHDF5(File_ID,'WeightingFactor',1,RealScalar=Species(1)%MacroParticleFactor,DatasetName='CloneData')
+  CALL WriteAttributeToHDF5(File_ID,'RadialWeightingFactor',1,RealScalar=RadialWeighting%PartScaleFactor,DatasetName='CloneData')
+  CALL CloseDataFile()
+END IF
 
 DEALLOCATE(StrVarNames)
 DEALLOCATE(PartData)

@@ -345,7 +345,7 @@ SUBROUTINE DSMC_Chemistry(iPair, iReac)
 ! Routine performs an exchange reaction of the type A + B + C -> D + E + F, where A, B, C, D, E, F can be anything
 !===================================================================================================================================
 ! MODULES
-USE MOD_Globals                ,ONLY: abort,DOTPRODUCT,StringBeginsWith,UNIT_StdOut,myrank
+USE MOD_Globals                ,ONLY: abort,DOTPRODUCT,StringBeginsWith,UNIT_StdOut
 USE MOD_Globals_Vars
 USE MOD_DSMC_Vars              ,ONLY: Coll_pData, DSMC, CollInf, SpecDSMC, DSMCSumOfFormedParticles, ElectronicDistriPart
 USE MOD_DSMC_Vars              ,ONLY: ChemReac, PartStateIntEn, PolyatomMolDSMC, VibQuantsPar, RadialWeighting, BGGas, ElecRelaxPart
@@ -359,7 +359,7 @@ USE MOD_DSMC_Relaxation        ,ONLY: DSMC_VibRelaxDiatomic, CalcXiTotalEqui
 USE MOD_DSMC_CollisVec         ,ONLY: PostCollVec
 USE MOD_Particle_Tracking_Vars ,ONLY: TrackingMethod
 USE MOD_Particle_Analyze_Vars  ,ONLY: ChemEnergySum
-USE MOD_part_tools             ,ONLY: GetParticleWeight
+USE MOD_part_tools             ,ONLY: GetParticleWeight, GetNextFreePosition
 USE MOD_part_operations        ,ONLY: RemoveParticle
 #ifdef CODE_ANALYZE
 USE MOD_Globals                ,ONLY: unit_stdout,myrank
@@ -367,6 +367,9 @@ USE MOD_Particle_Vars          ,ONLY: Symmetry
 #endif /* CODE_ANALYZE */
 USE MOD_Particle_Analyze_Vars   ,ONLY: CalcPartBalance,nPartIn,nPartOut,PartEkinIn,PartEkinOut
 USE MOD_Particle_Analyze_Tools  ,ONLY: CalcEkinPart
+#if USE_MPI
+USE MOD_Globals                ,ONLY: myrank
+#endif /*USE_MPI*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -388,7 +391,8 @@ REAL                          :: Weight(1:4), SumWeightProd
 REAL                          :: cRelaNew(3), TempVelo(3)
 #ifdef CODE_ANALYZE
 REAL,PARAMETER                :: RelMomTol=5e-9  ! Relative tolerance applied to conservation of momentum before/after reaction
-REAL,PARAMETER                :: RelEneTol=2e-12 ! Relative tolerance applied to conservation of energy before/after reaction
+REAL,PARAMETER                :: RelEneTol=5e-12 ! Relative tolerance applied to conservation of energy before/after reaction
+!                                                ! 2024/1: Increased from 2e-12 to 5e-12 due to reggies failing when using CORE_SPLIT
 REAL                          :: Energy_old,Energy_new,Momentum_old(3),Momentum_new(3)
 INTEGER                       :: iMom, iMomDim
 #endif /* CODE_ANALYZE */
@@ -462,9 +466,7 @@ IF(EductReac(3).NE.0) THEN
     ProductReac(2) = PartSpecies(ReactInx(3))
     NumEduct = 3
   END IF
-  IF(ProductReac(3).EQ.0) THEN
-    CALL RemoveParticle(ReactInx(3))
-  ELSE
+  IF(ProductReac(3).NE.0) THEN
     PartSpecies(ReactInx(3)) = ProductReac(3)
     NumProd = 3
   END IF
@@ -503,8 +505,7 @@ IF(EductReac(3).EQ.0) THEN
   IF(ProductReac(3).NE.0) THEN
     ! === Get free particle index for the 3rd product
     DSMCSumOfFormedParticles = DSMCSumOfFormedParticles + 1
-    ReactInx(3) = PDM%nextFreePosition(DSMCSumOfFormedParticles+PDM%CurrentNextFreePosition)
-    IF (ReactInx(3).EQ.0) CALL abort(__STAMP__,'New Particle Number greater max Part Num in DSMC_Chemistry. Reaction: ',iReac)
+    ReactInx(3) = GetNextFreePosition()
     PDM%ParticleInside(ReactInx(3)) = .true.
     PDM%IsNewPart(ReactInx(3)) = .true.
     PDM%dtFracPush(ReactInx(3)) = .FALSE.
@@ -543,8 +544,7 @@ END IF
 IF(ProductReac(4).NE.0) THEN
   ! === Get free particle index for the 4th product
   DSMCSumOfFormedParticles = DSMCSumOfFormedParticles + 1
-  ReactInx(4) = PDM%nextFreePosition(DSMCSumOfFormedParticles+PDM%CurrentNextFreePosition)
-  IF (ReactInx(4).EQ.0) CALL abort(__STAMP__,'New Particle Number greater max Part Num in DSMC_Chemistry. Reaction: ',iReac)
+  ReactInx(4) = GetNextFreePosition()
   PDM%ParticleInside(ReactInx(4)) = .true.
   PDM%IsNewPart(ReactInx(4)) = .true.
   PDM%dtFracPush(ReactInx(4)) = .FALSE.
@@ -1011,6 +1011,7 @@ ELSEIF(ProductReac(3).EQ.0) THEN
     VeloCOM(1:3) = FracMassCent1 * PartState(4:6,ReactInx(1)) + FracMassCent2 * PartState(4:6,ReactInx(3))
     ! When RHS is set, ReactInx(2) is utilized, not an error as the old state cancels out after the particle push in the time disc,
     ! therefore, there is no need to set change the index as the proper species, ProductReac(2), was utilized for the relaxation
+    CALL RemoveParticle(ReactInx(3))
   ELSE
     ! Scattering 2 -> 2
     IF(StringBeginsWith(ChemReac%ReactModel(iReac),'phIon')) THEN
@@ -1545,8 +1546,6 @@ END IF ! NbrOfPhotonXsecReactions.GT.0
 DO iReac = 1, ChemReac%NumOfReact
   ! Only treat photoionization reactions
   IF(TRIM(ChemReac%ReactModel(iReac)).NE.'phIon') CYCLE
-  IF(NbrOfPhotonXsecReactions.GT.0) CALL abort(__STAMP__,&
-      'Photoionization reactions with constant cross-sections cannot be combined with XSec data cross-sections for photoionization')
   ! First reactant of the reaction is the actual heavy particle species
   ASSOCIATE( density      => BGGas%NumberDensity(BGGas%MapSpecToBGSpec(ChemReac%Reactants(iReac,1))) ,&
              CrossSection => ChemReac%CrossSection(iReac))
@@ -1559,7 +1558,7 @@ END DO
 END SUBROUTINE CalcPhotoIonizationNumber
 
 
-SUBROUTINE PhotoIonization_InsertProducts(iPair, iReac, iInit, InitSpec, iLineOpt)
+SUBROUTINE PhotoIonization_InsertProducts(iPair, iReac, b1, b2, normal, iLineOpt, PartBCIndex)
 !===================================================================================================================================
 !> Routine performing the photo-ionization reaction: initializing the heavy species at the background gas temperature (first
 !> reactant) and distributing the remaining collision energy onto the electrons
@@ -1576,6 +1575,7 @@ USE MOD_Particle_Vars           ,ONLY: UseVarTimeStep, PartTimeStep
 USE MOD_Particle_Tracking_Vars  ,ONLY: TrackingMethod
 USE MOD_Particle_Analyze_Vars   ,ONLY: ChemEnergySum
 USE MOD_part_tools              ,ONLY: GetParticleWeight, DiceUnitVector, CalcERot_particle, CalcEVib_particle, CalcEElec_particle
+USE MOD_Part_Tools              ,ONLY: GetNextFreePosition
 USE MOD_part_emission_tools     ,ONLY: CalcVelocity_maxwell_lpn
 USE MOD_Particle_Analyze_Vars   ,ONLY: CalcPartBalance,nPartIn,PartEkinIn
 USE MOD_Particle_Analyze_Tools  ,ONLY: CalcEkinPart
@@ -1586,8 +1586,10 @@ USE MOD_DSMC_CollisVec          ,ONLY: PostCollVec
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-INTEGER, INTENT(IN)           :: iPair, iReac, iInit, InitSpec
+INTEGER, INTENT(IN)           :: iPair, iReac
+REAL, INTENT(IN), OPTIONAL    :: b1(3),b2(3),normal(3)
 INTEGER, INTENT(IN), OPTIONAL :: iLineOpt
+INTEGER, INTENT(IN), OPTIONAL :: PartBCIndex
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1639,8 +1641,7 @@ IF(EductReac(3).EQ.0) THEN
   IF(ProductReac(3).NE.0) THEN
     ! === Get free particle index for the 3rd product
     DSMCSumOfFormedParticles = DSMCSumOfFormedParticles + 1
-    ReactInx(3) = PDM%nextFreePosition(DSMCSumOfFormedParticles+PDM%CurrentNextFreePosition)
-    IF (ReactInx(3).EQ.0) CALL abort(__STAMP__,'New Particle Number greater max Part Num in DSMC_Chemistry. Reaction: ',iReac)
+    ReactInx(3) = GetNextFreePosition()
     PDM%ParticleInside(ReactInx(3)) = .true.
     PDM%IsNewPart(ReactInx(3)) = .true.
     PDM%dtFracPush(ReactInx(3)) = .FALSE.
@@ -1670,8 +1671,7 @@ END IF
 IF(ProductReac(4).NE.0) THEN
   ! === Get free particle index for the 4th product
   DSMCSumOfFormedParticles = DSMCSumOfFormedParticles + 1
-  ReactInx(4) = PDM%nextFreePosition(DSMCSumOfFormedParticles+PDM%CurrentNextFreePosition)
-  IF (ReactInx(4).EQ.0) CALL abort(__STAMP__,'New Particle Number greater max Part Num in DSMC_Chemistry. Reaction: ',iReac)
+  ReactInx(4) = GetNextFreePosition()
   PDM%ParticleInside(ReactInx(4)) = .true.
   PDM%IsNewPart(ReactInx(4)) = .true.
   PDM%dtFracPush(ReactInx(4)) = .FALSE.
@@ -1802,27 +1802,22 @@ IF(IonizationReaction) THEN
     IF(SpecDSMC(iSpec)%InterID.EQ.4) THEN
       PartState(4:6,iPart) = VeloCOM(1:3) + SQRT(CRela2_Electron) * DiceUnitVector()
       ! Change the direction of its velocity vector (randomly) to be perpendicular to the photon's path
-      ASSOCIATE( b1          => Species(InitSpec)%Init(iInit)%NormalVector1IC(1:3) ,&
-                 b2          => Species(InitSpec)%Init(iInit)%NormalVector2IC(1:3) ,&
-                 normal      => Species(InitSpec)%Init(iInit)%NormalIC             ,&
-                 PartBCIndex => Species(InitSpec)%Init(iInit)%PartBCIndex)
-        ! Get random vector b3 in b1-b2-plane
-        CALL RANDOM_NUMBER(RandVal)
-        PartState(4:6,iPart) = GetRandomVectorInPlane(b1,b2,PartState(4:6,iPart),RandVal)
-        ! Rotate the resulting vector in the b3-NormalIC-plane
-        PartState(4:6,iPart) = GetRotatedVector(PartState(4:6,iPart),normal)
-        ! Store the particle information in PartStateBoundary.h5
-        IF(DoBoundaryParticleOutputHDF5) THEN
-          IF(usevMPF)THEN
-            MPF = Species(InitSpec)%Init(iInit)%MacroParticleFactor ! Use emission-specific MPF
-          ELSE
-            MPF = Species(InitSpec)%MacroParticleFactor ! Use species MPF
-          END IF ! usevMPF
-          ! Only store volume-emitted particle data in PartStateBoundary.h5 if the PartBCIndex is greater/equal zero
-          IF(PartBCIndex.GE.0) CALL StoreBoundaryParticleProperties(iPart,iSpec,PartState(1:3,iPart),&
-                                      UNITVECTOR(PartState(4:6,iPart)),normal,iPartBound=PartBCIndex,mode=2,MPF_optIN=MPF)
-        END IF ! DoBoundaryParticleOutputHDF5
-      END ASSOCIATE
+      ! Get random vector b3 in b1-b2-plane
+      CALL RANDOM_NUMBER(RandVal)
+      PartState(4:6,iPart) = GetRandomVectorInPlane(b1,b2,PartState(4:6,iPart),RandVal)
+      ! Rotate the resulting vector in the b3-NormalIC-plane
+      PartState(4:6,iPart) = GetRotatedVector(PartState(4:6,iPart),normal)
+      ! Store the particle information in PartStateBoundary.h5
+      IF(DoBoundaryParticleOutputHDF5) THEN
+        IF(usevMPF)THEN
+          MPF = PartMPF(iPart) ! Use emission-specific MPF
+        ELSE
+          MPF = Species(iSpec)%MacroParticleFactor ! Use species MPF
+        END IF ! usevMPF
+        ! Only store volume-emitted particle data in PartStateBoundary.h5 if the PartBCIndex is greater/equal zero
+        IF(PartBCIndex.GE.0) CALL StoreBoundaryParticleProperties(iPart,iSpec,PartState(1:3,iPart),&
+                                    UNITVECTOR(PartState(4:6,iPart)),normal,iPartBound=PartBCIndex,mode=2,MPF_optIN=MPF)
+      END IF ! DoBoundaryParticleOutputHDF5
     END IF
   END DO
 ELSE

@@ -44,6 +44,7 @@ USE MOD_Mesh                  ,ONLY: DefineParametersMesh,InitMesh
 USE MOD_Mesh_Tools            ,ONLY: InitElemNodeIDs
 #ifdef PARTICLES
 USE MOD_Particle_Mesh_Tools   ,ONLY: InitParticleGeometry
+USE MOD_Particle_Mesh_Vars    ,ONLY: ConcaveElemSide_Shared,ElemSideNodeID_Shared,ElemMidPoint_Shared
 #endif /*PARTICLES*/
 USE MOD_Particle_Mesh_Vars    ,ONLY: NodeCoords_Shared, ElemNodeID_Shared, NodeInfo_Shared
 USE MOD_Mesh_Tools            ,ONLY: InitGetCNElemID, InitGetGlobalElemID
@@ -52,6 +53,15 @@ USE MOD_MPI_Shared
 USE MOD_MPI_Shared_Vars       ,ONLY: nComputeNodeTotalElems
 #endif /*USE_MPI*/
 USE MOD_Preproc
+USE MOD_Mesh_ReadIn           ,ONLY: FinalizeMeshReadin
+#if USE_MPI
+#if defined(PARTICLES)
+USE MOD_Particle_Mesh_Vars    ,ONLY: ConcaveElemSide_Shared_Win,ElemSideNodeID_Shared_Win,ElemMidPoint_Shared_Win
+#endif /*defined(PARTICLES)*/
+USE MOD_Particle_Mesh_Vars    ,ONLY: ElemNodeID_Shared_Win
+USE MOD_MPI_Shared_vars       ,ONLY: MPI_COMM_SHARED
+USE MOD_MPI_Shared
+#endif /*USE_MPI*/
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
@@ -230,9 +240,7 @@ CALL InitInterpolation(NVisu)
 DO iArgs = iArgsStart,nArgs
   InputStateFile = Args(iArgs)
   ! Check if the argument is a valid .h5 file
-  IF(.NOT.ISVALIDHDF5FILE(InputStateFile)) THEN
-    CALL Abort(__STAMP__,'ERROR - Please supply only .h5 files after parameter file.')
-  END IF
+  IF(.NOT.ISVALIDHDF5FILE(InputStateFile)) CALL Abort(__STAMP__,'ERROR - Please supply only .h5 files after parameter file.')
 
   SWRITE(UNIT_stdOut,'(132("="))')
   SWRITE(UNIT_stdOut,'(A,I3,A,I3,A)') 'Processing state ',iArgs-iArgsStart+1,' of ',nArgs-iArgsStart+1,'...'
@@ -248,7 +256,11 @@ DO iArgs = iArgsStart,nArgs
   CALL ReadAttribute(File_ID,'File_Type',1,StrScalar=File_Type)
   ! Check which containers are present
   CALL DatasetExists(File_ID , 'DG_Solution'  , DGSolutionExists)
-  IF(TRIM(File_Type).EQ.'PartStateBoundary') DGSolutionExists = .FALSE.
+  IF(TRIM(File_Type).EQ.'PartStateBoundary'.OR.TRIM(File_Type).EQ.'PartStateLost') THEN
+  ! Enable particle visualization for lost particle container (otherwise you get an empty file)
+    DGSolutionExists = .FALSE.
+    VisuParticles = .TRUE.
+  END IF
   CALL DatasetExists(File_ID , 'ElemData'     , ElemDataExists)
   CALL DatasetExists(File_ID , 'ExcitationData', ExcitationDataExists)
   CALL DatasetExists(File_ID , 'AdaptiveInfo' , AdaptiveInfoExists)
@@ -268,7 +280,7 @@ DO iArgs = iArgsStart,nArgs
 
   ! Read-in of the mesh
   IF(.NOT.ReadMeshFinished) THEN
-    CALL InitMesh(-1,MeshFile_IN=MeshFile)
+    CALL InitMesh(-2,MeshFile_IN=MeshFile)
     CALL InitGetGlobalElemID()
     CALL InitGetCNElemID()
 #if USE_MPI
@@ -329,11 +341,11 @@ DO iArgs = iArgsStart,nArgs
   END IF
   ! === ElemData ===================================================================================================================
   IF(ElemDataExists) THEN
-    CALL ConvertElemData(InputStateFile,'ElemData','VarNamesAdd')
+    CALL ConvertElemData(InputStateFile,'ElemData','VarNamesAdd',iArgs)
   END IF
   ! === ElemData ===================================================================================================================
   IF(ExcitationDataExists) THEN
-    CALL ConvertElemData(InputStateFile,'ExcitationData','VarNamesExci')
+    CALL ConvertElemData(InputStateFile,'ExcitationData','VarNamesExci',iArgs)
   END IF
   ! === SurfaceData ================================================================================================================
   IF(SurfaceDataExists) THEN
@@ -348,10 +360,39 @@ DO iArgs = iArgsStart,nArgs
   ! === AdaptiveInfo
   IF(VisuAdaptiveInfo) THEN
     IF(AdaptiveInfoExists) THEN
-      CALL ConvertElemData(InputStateFile,'AdaptiveInfo','VarNamesAdaptive')
+      CALL ConvertElemData(InputStateFile,'AdaptiveInfo','VarNamesAdaptive',iArgs)
     END IF
   END IF
 END DO ! iArgs = 2, nArgs
+
+! Finalize
+IF(ReadMeshFinished)THEN
+  CALL FinalizeMeshReadin(-2)
+  ! First, free every shared memory window. This requires MPI_BARRIER as per MPI3.1 specification
+#if USE_MPI
+  CALL MPI_BARRIER(MPI_COMM_SHARED,iERROR)
+#endif /*USE_MPI*/
+
+#if defined(PARTICLES)
+#if USE_MPI
+  ! InitParticleGeometry()
+  CALL UNLOCK_AND_FREE(ConcaveElemSide_Shared_Win)
+  CALL UNLOCK_AND_FREE(ElemSideNodeID_Shared_Win)
+  CALL UNLOCK_AND_FREE(ElemMidPoint_Shared_Win)
+#endif /*USE_MPI*/
+  ! InitParticleGeometry
+  ADEALLOCATE(ConcaveElemSide_Shared)
+  ADEALLOCATE(ElemSideNodeID_Shared)
+  ADEALLOCATE(ElemMidPoint_Shared)
+#endif /*defined(PARTICLES)*/
+
+#if USE_MPI
+  ! From InitElemNodeIDs
+  CALL UNLOCK_AND_FREE(ElemNodeID_Shared_Win)
+#endif /*USE_MPI*/
+  ADEALLOCATE(ElemNodeID_Shared)
+END IF ! ReadMeshFinished
+
 
 ! Measure processing duration
 GETTIME(Time)
@@ -369,16 +410,18 @@ END PROGRAM piclas2vtk
 !===================================================================================================================================
 !> Subroutine to write 3D point data to VTK format
 !===================================================================================================================================
-SUBROUTINE WriteDataToVTK_PICLas(data_size,FileString,nVar,VarNameVisu,nNodes,Coords,nElems,Array,ConnectInfo)
+SUBROUTINE WriteDataToVTK_PICLas(dim,data_size,FileString,nVar,VarNameVisu,nNodes,Coords,nElems,Array,ConnectInfo)
 ! MODULES
 USE MOD_Globals
+USE MOD_Particle_Boundary_Vars    ,ONLY: nSurfSample
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
+INTEGER,INTENT(IN)            :: dim
 INTEGER,INTENT(IN)            :: nVar,nElems,nNodes,data_size           !> Number of nodal output variables
-REAL,INTENT(IN)               :: Coords(1:3,nNodes)                     !> Coordinates x, y and z
-REAL,INTENT(IN)               :: Array(nVar,nElems)                     !> Array with nVar properties for each coordinate
+REAL,INTENT(IN)               :: Coords(1:3,0:nSurfSample*(MERGE(1,0,nSurfSample.GT.1)),0:nSurfSample*(MERGE(1,0,nSurfSample.GT.1.AND.dim.GT.1)),0:nSurfSample*(MERGE(1,0,nSurfSample.GT.1.AND.dim.GT.2)),nNodes)                     !> Coordinates x, y and z
+REAL,INTENT(IN)               :: Array(1:nVar,0:(nSurfSample-1)*(MERGE(1,0,nSurfSample.GT.1)),0:(nSurfSample-1)*(MERGE(1,0,nSurfSample.GT.1.AND.dim.GT.1)),0:(nSurfSample-1)*(MERGE(1,0,nSurfSample.GT.1.AND.dim.GT.2)),1:nElems)                       !< Array with nVar properties for each coordinate
 CHARACTER(LEN=*),INTENT(IN)   :: FileString                             !> Output file name
 CHARACTER(LEN=*),INTENT(IN)   :: VarNameVisu(nVar)                      !> Variable names
 INTEGER,INTENT(IN)            :: ConnectInfo(data_size,nElems)          !> Node connection information
@@ -387,18 +430,44 @@ INTEGER,INTENT(IN)            :: ConnectInfo(data_size,nElems)          !> Node 
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER                       :: iVal,iElem,Offset,nBytes,nVTKPoints,nVTKCells,ivtk=44,iVar,iNode, int_size, ElemType
-INTEGER                       :: Vertex(data_size,nElems), iLen, str_len
+INTEGER                       :: iLen, str_len, NVisu, NVisuCoords,NodeID,NodeIDElem,NPlot_p1_2,i,j,NVisuValue
 CHARACTER(LEN=35)             :: StrOffset,TempStr1,TempStr2
 CHARACTER(LEN=200)            :: Buffer, tmp, tmp2, VarNameString
 CHARACTER(LEN=1)              :: lf, components_string
 REAL(KIND=4)                  :: float
-INTEGER,ALLOCATABLE           :: VarNameCombine(:), VarNameCombineLen(:)
+INTEGER,ALLOCATABLE           :: VarNameCombine(:), VarNameCombineLen(:), Vertex(:,:)
 REAL                          :: StartT,EndT ! Timer
 !===================================================================================================================================
 GETTIME(StartT)
 
-nVTKPoints=nNodes
-nVTKCells=nElems
+SELECT CASE(data_size)
+CASE(8,1) ! VTK_HEXAHEDRON, VTK_VERTEX
+  nVTKPoints=nNodes
+  nVTKCells=nElems
+  NVisu = 1
+  NVisuValue = 0
+  NVisuCoords = 0
+CASE(4)   ! VTK_QUAD
+  IF(nSurfSample.GT.1) THEN
+    NPlot_p1_2 = (nSurfSample+1)**2
+    nVTKPoints = nElems * NPlot_p1_2
+    nVTKCells = nElems * nSurfSample**2
+    NVisu = nSurfSample
+    NVisuValue = nSurfSample - 1
+    NVisuCoords = nSurfSample
+  ELSE
+    nVTKPoints=nNodes
+    nVTKCells=nElems
+    NVisu = 1
+    NVisuValue = 0
+    NVisuCoords = 0
+  END IF
+CASE DEFAULT
+  CALL abort(__STAMP__,'Wrong data size given to WriteDataToVTK_PICLas routine!')
+END SELECT
+
+ALLOCATE(Vertex(data_size,nVTKCells))
+Vertex = 0
 
 ! Check if no output is present and print info that no file will be created
 IF(nElems.LT.1)THEN
@@ -514,21 +583,39 @@ Buffer='_';WRITE(ivtk) TRIM(Buffer)
 nBytes = nVTKCells*INT(SIZEOF(FLOAT),4)
 DO iVal=1,nVar
   IF (VarNameCombine(iVal).EQ.0) THEN
-    WRITE(ivtk) nBytes,REAL(Array(iVal,1:nVTKCells),4)
+    WRITE(ivtk) nBytes,REAL(Array(iVal,0:NVisuValue,0:NVisuValue*(MERGE(1,0,dim.GT.1)),0:NVisuValue*(MERGE(1,0,dim.GT.2)),1:nElems),4)
   ELSEIF(VarNameCombine(iVal).EQ.1) THEN
-    WRITE(ivtk) nBytes*VarNameCombineLen(iVal),REAL(Array(iVal:iVal+VarNameCombineLen(iVal)-1,1:nVTKCells),4)
+    WRITE(ivtk) nBytes*VarNameCombineLen(iVal),REAL(Array(iVal:iVal+VarNameCombineLen(iVal)-1,0:NVisuValue,0:NVisuValue*(MERGE(1,0,dim.GT.1)),0:NVisuValue*(MERGE(1,0,dim.GT.2)),1:nElems),4)
   ENDIF
 END DO
 ! Points
 nBytes = 3*nVTKPoints*INT(SIZEOF(FLOAT),4)
 WRITE(ivtk) nBytes
-WRITE(ivtk) REAL(Coords(1:3,1:nVTKPoints),4)
+WRITE(ivtk) REAL(Coords(1:3,0:NVisuCoords,0:NVisuCoords*(MERGE(1,0,dim.GT.1)),0:NVisuCoords*(MERGE(1,0,dim.GT.2)),1:nNodes),4)
 ! Connectivity
-DO iElem=1,nVTKCells
-  DO iNode=1,data_size
-    Vertex(iNode,iElem) = ConnectInfo(iNode,iElem)-1
+IF(nSurfSample.GT.1) THEN
+  NodeID = 0
+  NodeIDElem = 0
+  DO iElem=1,nElems
+    DO j=1,NVisu
+      DO i=1,NVisu
+        NodeID = NodeID+1
+        ! CGNS to VTK_QUAD: P4, P1, P2, P3
+        Vertex(:,NodeID) =  (/NodeIDElem+i+   j   *(NVisu+1)-1,    &
+                              NodeIDElem+i+  (j-1)*(NVisu+1)-1,    &
+                              NodeIDElem+i+1+(j-1)*(NVisu+1)-1,    &
+                              NodeIDElem+i+1+ j   *(NVisu+1)-1    /)
+      END DO
+    END DO
+    NodeIDElem=NodeIDElem+NPlot_p1_2
+  END DO ! iElem
+ELSE
+  DO iElem=1,nVTKCells
+    DO iNode=1,data_size
+      Vertex(iNode,iElem) = ConnectInfo(iNode,iElem)-1
+    END DO
   END DO
-END DO
+END IF
 nBytes = data_size*nVTKCells*INT(SIZEOF(int_size),4)
 WRITE(ivtk) nBytes
 WRITE(ivtk) Vertex(:,:)
@@ -545,7 +632,7 @@ CASE(4)
 CASE(1)
   ElemType = 2  ! VTK_VERTEX
 CASE DEFAULT
-  CALL abort(__STAMP__,'Wrong data size given to WritaDataToVTK_PICLas routine!')
+  CALL abort(__STAMP__,'Wrong data size given to WriteDataToVTK_PICLas routine!')
 END SELECT
 WRITE(ivtk) nBytes
 WRITE(ivtk) (ElemType,iElem=1,nVTKCells)
@@ -936,8 +1023,8 @@ DO iPart=1,nParts
 END DO
 
 FileString=TRIM(TIMESTAMP(TRIM(ProjectName)//'_visuPart',OutputTime))//'.vtu'
-CALL WriteDataToVTK_PICLas(1,FileString,nPartsVar,VarNamesParticle,nParts,PartData(1:3,1:nParts),nParts,&
-                            PartData(4:nPartsVar+3,1:nParts),ConnectInfo(1,1:nParts))
+ CALL WriteDataToVTK_PICLas(1,1,FileString,nPartsVar,VarNamesParticle,nParts,PartData(1:3,1:nParts),nParts,&
+                             PartData(4:nPartsVar+3,1:nParts),ConnectInfo(1,1:nParts))
 
 SDEALLOCATE(VarNamesParticle)
 SDEALLOCATE(tmpArray)
@@ -952,7 +1039,7 @@ END SUBROUTINE ConvertPartData
 !===================================================================================================================================
 !> Convert element/volume data (single value per cell, e.g. DSMC/BGK results) to a VTK format
 !===================================================================================================================================
-SUBROUTINE ConvertElemData(InputStateFile,ArrayName,VarName)
+SUBROUTINE ConvertElemData(InputStateFile, ArrayName, VarName, iArgs)
 ! MODULES
 USE MOD_Globals
 USE MOD_Globals_Vars    ,ONLY: ProjectName
@@ -967,11 +1054,12 @@ IMPLICIT NONE
 CHARACTER(LEN=255),INTENT(IN)   :: InputStateFile
 CHARACTER(LEN=*),INTENT(IN)     :: ArrayName
 CHARACTER(LEN=*),INTENT(IN)     :: VarName
+INTEGER, INTENT(IN)             :: iArgs
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-CHARACTER(LEN=255)              :: FileString, File_Type
+CHARACTER(LEN=255)              :: FileString, File_Type, File_Num
 REAL                            :: OutputTime
 INTEGER                         :: nDims,nVarAdd
 CHARACTER(LEN=255),ALLOCATABLE  :: VarNamesAdd(:)
@@ -981,8 +1069,9 @@ REAL,ALLOCATABLE                :: ElemData(:,:)
 ! Read in solution
 CALL OpenDataFile(InputStateFile,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_PICLAS)
 CALL ReadAttribute(File_ID,'Project_Name',1,StrScalar=ProjectName)
-CALL ReadAttribute(File_ID,'Time',1,RealScalar=OutputTime)
 CALL ReadAttribute(File_ID,'File_Type',1,StrScalar=File_Type)
+OutputTime = 0. ! default
+IF(TRIM(File_Type).NE.'RadiationState') CALL ReadAttribute(File_ID,'Time',1,RealScalar=OutputTime)
 CALL GetDataSize(File_ID,TRIM(ArrayName),nDims,HSize)
 nVarAdd=INT(HSize(1),4)
 DEALLOCATE(HSize)
@@ -1000,15 +1089,18 @@ IF (nVarAdd.GT.0) THEN
     CALL ReadArray(TRIM(ArrayName),2,(/nVarAdd, nElems/),offsetElem,2,RealArray=ElemData(1:nVarAdd,1:nElems))
   END ASSOCIATE
   ! Default
-  FileString=TRIM(TIMESTAMP(TRIM(ProjectName)//'_Solution_'//TRIM(ArrayName),OutputTime))//'.vtu'
+  IF(TRIM(File_Type).NE.'RadiationState') FileString=TRIM(TIMESTAMP(TRIM(ProjectName)//'_Solution_'//TRIM(ArrayName),OutputTime))//'.vtu'
   ! Special file types
   SELECT CASE(TRIM(File_Type))
     CASE('DSMCState','DSMCHOState')
       FileString=TRIM(TIMESTAMP(TRIM(ProjectName)//'_visuDSMC',OutputTime))//'.vtu'
       IF(TRIM(ArrayName).EQ.'ExcitationData') FileString=TRIM(TIMESTAMP(TRIM(ProjectName)//'_visuExcitationData',OutputTime))//'.vtu'
+    CASE('RadiationState')
+      WRITE(File_Num, "(I3.3)") iArgs
+      FileString=TRIM(TRIM(ProjectName)//'_RadVisu_'//TRIM(File_Num))//'.vtu'
   END SELECT
   ! TODO: This is probably borked for NGeo>1 because then NodeCoords are not the corner nodes
-  CALL WriteDataToVTK_PICLas(8,FileString,nVarAdd,VarNamesAdd(1:nVarAdd),nUniqueNodes,NodeCoords_Connect(1:3,1:nUniqueNodes),nElems,&
+  CALL WriteDataToVTK_PICLas(3,8,FileString,nVarAdd,VarNamesAdd(1:nVarAdd),nUniqueNodes,NodeCoords_Connect(1:3,1:nUniqueNodes),nElems,&
                               ElemData(1:nVarAdd,1:nElems),ElemUniqueNodeID(1:8,1:nElems))
 END IF
 
@@ -1026,10 +1118,15 @@ END SUBROUTINE ConvertElemData
 SUBROUTINE ConvertSurfaceData(InputStateFile)
 ! MODULES
 USE MOD_Globals
-USE MOD_Globals_Vars    ,ONLY: ProjectName
-USE MOD_IO_HDF5         ,ONLY: HSize
-USE MOD_HDF5_Input      ,ONLY: OpenDataFile,CloseDataFile,ReadAttribute,GetDataSize,File_ID,ReadArray
-USE MOD_piclas2vtk_Vars ,ONLY: SurfConnect
+USE MOD_Globals_Vars            ,ONLY: ProjectName
+USE MOD_IO_HDF5                 ,ONLY: HSize
+USE MOD_HDF5_Input              ,ONLY: OpenDataFile,CloseDataFile,ReadAttribute,GetDataSize,File_ID,ReadArray
+USE MOD_Particle_Boundary_Vars  ,ONLY: nSurfSample
+USE MOD_piclas2vtk_Vars         ,ONLY: SurfConnect
+USE MOD_Interpolation           ,ONLY: GetVandermonde
+USE MOD_ChangeBasis             ,ONLY: ChangeBasis2D
+USE MOD_Interpolation_Vars      ,ONLY: NodeTypeVISU
+USE MOD_Mesh_Vars               ,ONLY: Face_xGP, Ngeo
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1039,24 +1136,33 @@ CHARACTER(LEN=255),INTENT(IN)   :: InputStateFile
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-CHARACTER(LEN=255)              :: FileString
+CHARACTER(LEN=255)              :: FileString, File_Type
 CHARACTER(LEN=255),ALLOCATABLE  :: VarNamesSurf_HDF5(:)
-INTEGER                         :: nDims, nVarSurf, nSurfSample, nSurfaceSidesReadin
+INTEGER                         :: nDims, nVarSurf, nSurfaceSidesReadin
 REAL                            :: OutputTime
-REAL, ALLOCATABLE               :: tempSurfData(:,:,:,:), SurfData(:,:), Coords(:,:)
+REAL, ALLOCATABLE               :: tempSurfData(:,:,:,:,:)
 INTEGER                         :: iSide
+REAL,ALLOCATABLE                :: Vdm_EQNgeo_NVisu(:,:)               !< Vandermonde from equidistant mesh to visualization nodes
+REAL,ALLOCATABLE                :: NodeCoords_visu(:,:,:,:,:)          !< Coordinates of visualization nodes
 !===================================================================================================================================
 
 ! Read in solution
 CALL OpenDataFile(InputStateFile,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_PICLAS)
 CALL ReadAttribute(File_ID,'Project_Name',1,StrScalar=ProjectName)
-CALL ReadAttribute(File_ID,'Time',1,RealScalar=OutputTime)
-CALL ReadAttribute(File_ID,'DSMC_nSurfSample',1,IntScalar=nSurfSample)
-IF(nSurfSample.NE.1) THEN
-  CALL abort(&
-      __STAMP__&
-      ,'Error in piclas2vtk: Conversion to VTK only possible for DSMC_nSurfSample=1!')
+CALL ReadAttribute(File_ID,'File_Type',1,StrScalar=File_Type)
+IF(TRIM(File_Type).NE.'RadiationSurfState') THEN  
+  CALL ReadAttribute(File_ID,'Time',1,RealScalar=OutputTime)
+ELSE
+  nSurfSample = 1
 END IF
+!CALL ReadAttribute(File_ID,'Time',1,RealScalar=OutputTime)
+!CALL ReadAttribute(File_ID,'DSMC_nSurfSample',1,IntScalar=nSurfSample)
+!IF(nSurfSample.NE.1) THEN
+  !CALL abort(&
+      !__STAMP__&
+      !,'Error in piclas2vtk: Conversion to VTK only possible for DSMC_nSurfSample=1!')
+!END IF
+CALL ReadAttribute(File_ID,'DSMC_nSurfSample',1,IntScalar=nSurfSample)
 
 CALL GetDataSize(File_ID,'SurfaceData',nDims,HSize)
 nVarSurf = INT(HSize(1),4)
@@ -1065,39 +1171,58 @@ ALLOCATE(VarNamesSurf_HDF5(nVarSurf))
 CALL ReadAttribute(File_ID,'VarNamesSurface',nVarSurf,StrArray=VarNamesSurf_HDF5(1:nVarSurf))
 
 IF((nVarSurf.GT.0).AND.(SurfConnect%nSurfaceBCSides.GT.0))THEN
-  ALLOCATE(SurfData(1:nVarSurf,1:SurfConnect%nSurfaceBCSides))
-  ALLOCATE(tempSurfData(1:nVarSurf,nSurfSample,nSurfSample,1:nSurfaceSidesReadin))
-  SurfData=0.
+  ALLOCATE(tempSurfData(1:nVarSurf,nSurfSample,nSurfSample,0:0,1:nSurfaceSidesReadin))
   tempSurfData = 0.
-  ASSOCIATE(nVarSurf        => INT(nVarSurf,IK),  &
+  ASSOCIATE(nVarSurf            => INT(nVarSurf,IK),    &
+            nSurfSample         => INT(nSurfSample,IK), &
             nSurfaceSidesReadin => INT(nSurfaceSidesReadin,IK))
-    CALL ReadArray('SurfaceData',4,(/nVarSurf, 1_IK, 1_IK, nSurfaceSidesReadin/), &
-                    0_IK,4,RealArray=tempSurfData(:,:,:,:))
+    CALL ReadArray('SurfaceData',4,(/nVarSurf, nSurfSample, nSurfSample, nSurfaceSidesReadin/), &
+                    0_IK,4,RealArray=tempSurfData(:,:,:,0,:))
   END ASSOCIATE
 
   ! Sanity check
   IF(SurfConnect%nSurfaceBCSides.NE.nSurfaceSidesReadin)THEN
     WRITE (UNIT_stdOut,*) "SurfConnect%nSurfaceBCSides =", SurfConnect%nSurfaceBCSides
     WRITE (UNIT_stdOut,*) "nSurfaceSidesReadin         =", nSurfaceSidesReadin
-    CALL abort(&
-    __STAMP__&
-    ,'Error: SurfConnect%nSurfaceBCSides.NE.nSurfaceSidesReadin')
+    CALL abort(__STAMP__,'Error: SurfConnect%nSurfaceBCSides.NE.nSurfaceSidesReadin')
   END IF ! SurfConnect%nSurfaceBCSides.NE.nSurfaceSidesReadin
-
-  ! Copy data from tmp array
-  DO iSide = 1, SurfConnect%nSurfaceBCSides
-    SurfData(1:nVarSurf,iSide) = tempSurfData(1:nVarSurf,1,1,iSide)
-  END DO ! iSide = 1, SurfConnect%nSurfaceBCSides
 END IF
 
-FileString=TRIM(TIMESTAMP(TRIM(ProjectName)//'_visuSurf',OutputTime))//'.vtu'
-CALL WriteDataToVTK_PICLas(4,FileString,nVarSurf,VarNamesSurf_HDF5,SurfConnect%nSurfaceNode,SurfConnect%NodeCoords(1:3,1:SurfConnect%nSurfaceNode),&
-    SurfConnect%nSurfaceBCSides,SurfData,SurfConnect%SideSurfNodeMap(1:4,1:SurfConnect%nSurfaceBCSides))
+IF(nSurfSample.GT.1) THEN
+  ALLOCATE(Vdm_EQNgeo_NVisu(0:nSurfSample,0:NGeo))
+  ! Use NodeTypeVISU, which is hard-coded to NodeTypeVISU='VISU'
+  CALL GetVandermonde(NGeo,'GAUSS',nSurfSample,NodeTypeVISU,Vdm_EQNgeo_NVisu,modal=.FALSE.)
+  ALLOCATE(NodeCoords_visu(1:3,0:nSurfSample,0:nSurfSample,0:0,SurfConnect%nSurfaceBCSides))
+  NodeCoords_visu = 0.
+  ! Interpolate mesh onto visu grid
+  DO iSide=1,SurfConnect%nSurfaceBCSides
+    CALL ChangeBasis2D(3,NGeo,nSurfSample,Vdm_EQNgeo_NVisu,Face_xGP(1:3,:,:,SurfConnect%SurfSideToSide(iSide)),NodeCoords_visu(1:3,:,:,0,iSide))
+  END DO
+ELSE
+  ALLOCATE(NodeCoords_visu(1:3,0:0,0:0,0:0,1:SurfConnect%nSurfaceNode))
+  NodeCoords_visu = 0.
+  NodeCoords_visu(1:3,0,0,0,1:SurfConnect%nSurfaceNode) = SurfConnect%NodeCoords(1:3,1:SurfConnect%nSurfaceNode)
+END IF
+
+IF(TRIM(File_Type).NE.'RadiationSurfState') THEN 
+  FileString=TRIM(TIMESTAMP(TRIM(ProjectName)//'_visuSurf',OutputTime))//'.vtu'
+ELSE
+  FileString=TRIM(TRIM(ProjectName)//'_RadSurfVisu')//'.vtu'
+END IF
+!CALL WriteDataToVTK_PICLas(4,FileString,nVarSurf,VarNamesSurf_HDF5,SurfConnect%nSurfaceNode,SurfConnect%NodeCoords(1:3,1:SurfConnect%nSurfaceNode),&
+    !SurfConnect%nSurfaceBCSides,SurfData,SurfConnect%SideSurfNodeMap(1:4,1:SurfConnect%nSurfaceBCSides))
+
+IF(nSurfSample.GT.1) THEN
+  ! Number of nodes is calculated inside the routine in case of super-sampling: nSurfaceBCSides = nSurfaceNode
+  CALL WriteDataToVTK_PICLas(2,4,FileString,nVarSurf,VarNamesSurf_HDF5,SurfConnect%nSurfaceBCSides,NodeCoords_visu,&
+      SurfConnect%nSurfaceBCSides,tempSurfData,SurfConnect%SideSurfNodeMap)
+ELSE
+  CALL WriteDataToVTK_PICLas(2,4,FileString,nVarSurf,VarNamesSurf_HDF5,SurfConnect%nSurfaceNode,NodeCoords_visu,&
+      SurfConnect%nSurfaceBCSides,tempSurfData,SurfConnect%SideSurfNodeMap)
+END IF
 
 SDEALLOCATE(VarNamesSurf_HDF5)
-SDEALLOCATE(SurfData)
 SDEALLOCATE(tempSurfData)
-SDEALLOCATE(Coords)
 
 CALL CloseDataFile()
 
@@ -1112,12 +1237,11 @@ SUBROUTINE BuildSurfMeshConnectivity(InputStateFile)
 USE MOD_Globals
 USE MOD_IO_HDF5            ,ONLY: HSize
 USE MOD_HDF5_Input         ,ONLY: OpenDataFile,CloseDataFile,ReadAttribute,GetDataSize,File_ID,ReadArray,GetDataSize
-USE MOD_Mesh_ReadIn        ,ONLY: readMesh
 USE MOD_Mesh_Tools         ,ONLY: GetCNElemID
 USE MOD_Mesh_Vars          ,ONLY: BoundaryName
+USE MOD_Mesh_Vars          ,ONLY: nBCSides, BC, SideToElem, offsetElem
 USE MOD_piclas2vtk_Vars    ,ONLY: SurfConnect
-USE MOD_Particle_Mesh_Vars ,ONLY: ElemSideNodeID_Shared,SideInfo_Shared,NodeCoords_Shared,NodeInfo_Shared
-USE MOD_Particle_Mesh_Vars ,ONLY: nNonUniqueGlobalSides
+USE MOD_Particle_Mesh_Vars ,ONLY: ElemSideNodeID_Shared,NodeCoords_Shared,NodeInfo_Shared
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1128,9 +1252,9 @@ CHARACTER(LEN=255),INTENT(IN)   :: InputStateFile
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 CHARACTER(LEN=255),ALLOCATABLE  :: SurfBCName_HDF5(:)
-INTEGER                         :: nDims, iNode, nSurfBC_HDF5, iName, nSides
+INTEGER                         :: nDims, iNode, nSurfBC_HDF5, iName, locElemID
 INTEGER                         :: CNElemID, iLocSide, iSide, iNode2, iBC, nSurfSides, nUniqueSurfSide
-INTEGER, ALLOCATABLE            :: TempBCSurfNodes(:), TempSideSurfNodeMap(:,:), SideToSurfSide(:), NonUnique2UniqueSide(:)
+INTEGER, ALLOCATABLE            :: TempBCSurfNodes(:), TempSideSurfNodeMap(:,:), SideToSurfSide(:)
 REAL, ALLOCATABLE               :: TempNodeCoords(:,:)
 LOGICAL                         :: IsSortedSurfNode
 !===================================================================================================================================
@@ -1147,47 +1271,38 @@ DO iName = 1,nSurfBC_HDF5
   SWRITE(UNIT_stdOut,'(A3,A38,I2.1,A5,A3,A33,A13)')' | ','BC',iName,'Name',' | ',TRIM(SurfBCName_HDF5(iName)),' | HDF5    | '
 END DO
 
-nSides = nNonUniqueGlobalSides
-
 ! create sideid to surfaceid map for all surface-sides contained in statefile
-ALLOCATE(SideToSurfSide(1:nSides))
-SideToSurfSide(1:nSides) = -1
-ALLOCATE(NonUnique2UniqueSide(1:nSides))
-NonUnique2UniqueSide(1:nSides) = -1
+ALLOCATE(SideToSurfSide(1:nBCSides))
+SideToSurfSide(1:nBCSides) = -1
 ! if side is surface (BC_reflective defined in State file) then map respective surface side number
 nSurfSides = 0
 nUniqueSurfSide = 0
-DO iSide = 1,nSides
-  IF(SideInfo_Shared(SIDE_BCID,iSide).EQ.0) CYCLE
+DO iSide = 1,nBCSides
   DO iBC=1,nSurfBC_HDF5
-    IF((TRIM(BoundaryName(SideInfo_Shared(SIDE_BCID,iSide))) .EQ. TRIM(SurfBCName_HDF5(iBC)))) THEN
+    IF((TRIM(BoundaryName(BC(iSide))) .EQ. TRIM(SurfBCName_HDF5(iBC)))) THEN
       nSurfSides = nSurfSides + 1
       SideToSurfSide(iSide) = nSurfSides
-      IF(SideInfo_Shared(SIDE_NBSIDEID,iSide).GT.0) THEN
-        ! Cycling over non-unique sides
-        IF(iSide.GT.SideInfo_Shared(SIDE_NBSIDEID,iSide)) CYCLE
-      END IF
-      nUniqueSurfSide = nUniqueSurfSide + 1
-      NonUnique2UniqueSide(nSurfSides) = nUniqueSurfSide
     END IF
   END DO
 END DO
 
 ! Build connectivity for the surface mesh
-ALLOCATE(TempBCSurfNodes(4*nSides))
-ALLOCATE(TempNodeCoords(1:3,4*nSides))
-ALLOCATE(TempSideSurfNodeMap(1:4,1:nSides))
+ALLOCATE(TempBCSurfNodes(4*nBCSides))
+ALLOCATE(TempNodeCoords(1:3,4*nBCSides))
+ALLOCATE(TempSideSurfNodeMap(1:4,1:nBCSides))
 SurfConnect%nSurfaceNode=0
 SurfConnect%nSurfaceBCSides=0
+ALLOCATE(SurfConnect%SurfSideToSide(nBCSides))
+SurfConnect%SurfSideToSide = 0
 
-DO iSide=1, nSides
+DO iSide=1, nBCSides
   ! Cycling over non-reflective sides
   IF (SideToSurfSide(iSide).EQ.-1) CYCLE
-  ! Cycling over non-unique sides
-  IF (NonUnique2UniqueSide(SideToSurfSide(iSide)).EQ.-1) CYCLE
   SurfConnect%nSurfaceBCSides = SurfConnect%nSurfaceBCSides + 1
-  CNElemID = GetCNElemID(SideInfo_Shared(SIDE_ELEMID,iSide))
-  iLocSide = SideInfo_Shared(SIDE_LOCALID,iSide)
+  locElemID = SideToElem(S2E_ELEM_ID,iSide)
+  iLocSide = SideToElem(S2E_LOC_SIDE_ID,iSide)
+  CNElemID = GetCNElemID(offsetElem+locElemID)
+  SurfConnect%SurfSideToSide(SurfConnect%nSurfaceBCSides) = iSide
   DO iNode2 = 1, 4
     IsSortedSurfNode = .FALSE.
     DO iNode = 1, SurfConnect%nSurfaceNode
@@ -1215,7 +1330,6 @@ SurfConnect%NodeCoords(1:3,1:SurfConnect%nSurfaceNode) = TempNodeCoords(1:3,1:Su
 SDEALLOCATE(TempBCSurfNodes)
 SDEALLOCATE(TempSideSurfNodeMap)
 SDEALLOCATE(TempNodeCoords)
-SDEALLOCATE(NonUnique2UniqueSide)
 SDEALLOCATE(SurfBCName_HDF5)
 SDEALLOCATE(SideToSurfSide)
 CALL CloseDataFile()

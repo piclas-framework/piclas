@@ -151,10 +151,6 @@ ELSE IF ( (MOD(iter,IterDisplayStep).EQ.0) .OR. &
           (Time.ge.(1-DSMC%TimeFracSamp)*TEnd) .OR. &
           WriteMacroVolumeValues ) THEN
   CALL UpdateNextFreePosition(.TRUE.) !postpone UNFP for CollisMode=0 to next IterDisplayStep or when needed for DSMC-Sampling
-ELSE IF (PDM%nextFreePosition(PDM%CurrentNextFreePosition+1).GT.PDM%maxParticleNumber .OR. &
-         PDM%nextFreePosition(PDM%CurrentNextFreePosition+1).EQ.0) THEN
-  ! gaps in PartState are not filled until next UNFP and array might overflow more easily!
-  CALL abort(__STAMP__,'maximum nbr of particles reached!')
 END IF
 
 #if USE_MPI
@@ -210,6 +206,8 @@ END IF ! DoParticleLatencyHiding
 CALL MPIParticleRecv(.TRUE.)
 #endif /*USE_MPI*/
 
+! After MPI communication of particles, call UNFP including the MPI particles
+CALL UpdateNextFreePosition()
 
 !#ifdef EXTRAE
 !CALL extrae_eventandcounters(int(9000001), int8(51))
