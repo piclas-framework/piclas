@@ -253,7 +253,7 @@ PPURE FUNCTION GetEMField(ElemID,PartPosRef_loc)
 USE MOD_PreProc
 USE MOD_Eval_xyz      ,ONLY: EvaluateFieldAtRefPos
 #if ! (USE_HDG)
-USE MOD_DG_Vars       ,ONLY: U
+USE MOD_DG_Vars       ,ONLY: U_N
 #endif
 #ifdef PP_POIS
 USE MOD_Equation_Vars ,ONLY: E
@@ -290,7 +290,7 @@ HelperU(1:3,:,:,:) = E(1:3,:,:,:,ElemID)
 HelperU(4:6,:,:,:) = U(4:6,:,:,:,ElemID)
 CALL EvaluateFieldAtRefPos(PartPosRef_loc(1:3),6,PP_N,HelperU,6,GetEMField(1:6),ElemID)
 #else
-CALL EvaluateFieldAtRefPos(PartPosRef_loc(1:3),6,PP_N,U(1:6,:,:,:,ElemID),6,GetEMField(1:6),ElemID)
+CALL EvaluateFieldAtRefPos(PartPosRef_loc(1:3),6,PP_N,U_N(ElemID)%U(1:6,:,:,:),6,GetEMField(1:6),ElemID)
 #endif
 #else
 #ifdef PP_POIS
@@ -329,7 +329,7 @@ USE MOD_Interpolation_Vars    ,ONLY: BGField,BGType,BGDataSize
 USE MOD_Globals
 USE MOD_PreProc
 #if ! (USE_HDG)
-USE MOD_DG_Vars       ,ONLY: U
+USE MOD_DG_Vars       ,ONLY: U_N
 #endif
 #ifdef PP_POIS
 USE MOD_Equation_Vars ,ONLY: E
@@ -366,7 +366,7 @@ GetEMFieldDW(1:6)=0.
 HelperU(1:3,:,:,:) = E(1:3,:,:,:,ElemID)
 HelperU(4:6,:,:,:) = U(4:6,:,:,:,ElemID)
 #else
-HelperU(1:6,:,:,:) = U(1:6,:,:,:,ElemID)
+HelperU(1:6,:,:,:) = U_N(ElemID)%U(1:6,:,:,:)
 #endif
 #else
 #ifdef PP_POIS

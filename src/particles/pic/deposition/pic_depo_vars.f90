@@ -31,18 +31,20 @@ LOGICAL                         :: RelaxDeposition           ! relaxation of cur
 LOGICAL                         :: DoHaloDepo                ! Flag for enlarging the deposition region (implicit and dielectric)
 REAL                            :: RelaxFac
 
-REAL,ALLOCATABLE                 :: PartSource(:,:,:,:,:)    ! PartSource(1:4,PP_N,PP_N,PP_N,nElems) containing
-!                                                            ! current and charge density source terms for Maxwell/Poisson systems
-REAL,ALLOCATABLE                :: PartSourceGlob(:,:,:,:,:)
-!REAL,ALLOCATABLE                :: PartSourceProc(:,:,:,:,:)
-!REAL,ALLOCATABLE                :: PartSourceLoc(:,:,:,:,:)
-REAL,ALLOCATABLE                :: PartSourceTmp (:,:,:,:)
+! DG solution particle volume source terms
+TYPE N_PartSource_Vol
+  REAL,ALLOCATABLE  :: PartSource(:,:,:,:)      !< PartSource(1:4,PP_N,PP_N,PP_N,nElems) containing
+                                                !< current and charge density source terms for Maxwell/Poisson systems
+  REAL,ALLOCATABLE  :: PartSourceOld(:,:,:,:,:) !< PartSource(:,2,PP_N,PP_N,PP_N,nElems) prev. and sec. prev. Source
+  REAL,ALLOCATABLE  :: PartSourceTmp (:,:,:,:)  !< Shape function temporary container
+END TYPE N_PartSource_Vol
+
+! Part Source
+TYPE(N_PartSource_Vol),ALLOCATABLE :: PS_N(:)       !< Solution variable for each equation, node and element,
+
 INTEGER, ALLOCATABLE            :: nDepoDOFPerProc(:)
 INTEGER, ALLOCATABLE            :: nDepoOffsetProc(:)
 
-LOGICAL                         :: PartSourceConstExists
-REAL,ALLOCATABLE                :: PartSourceConst(:,:,:,:,:)! PartSource(1:4,PP_N,PP_N,PP_N,nElems) const. part of Source
-REAL,ALLOCATABLE                :: PartSourceOld(:,:,:,:,:,:)! PartSource(:,2,PP_N,PP_N,PP_N,nElems) prev. and sec. prev. Source
 REAL,ALLOCATABLE                :: GaussBorder(:)            ! 1D coords of gauss points in -1|1 space
 INTEGER,ALLOCATABLE             :: GaussBGMIndex(:,:,:,:,:)  ! Background mesh index of gausspoints (1:3,PP_N,PP_N,PP_N,nElems)
 REAL,ALLOCATABLE                :: GaussBGMFactor(:,:,:,:,:) ! BGM factor of gausspoints (1:3,PP_N,PP_N,PP_N,nElems)
@@ -104,7 +106,15 @@ REAL                            :: totalChargePeriodicSF     ! total charge of p
 INTEGER                         :: NKnots
 REAL,ALLOCATABLE                :: Knots(:)
 LOGICAL                         :: OutputSource              ! write the source to hdf5
-REAL,ALLOCATABLE                :: CellVolWeightFac(:)
+
+TYPE, PUBLIC :: CVWInterpolation
+  REAL,ALLOCATABLE  :: Fac(:)
+  REAL, ALLOCATABLE :: Vdm_tmp(:,:)
+  REAL, ALLOCATABLE :: DetLocal(:,:,:,:)
+END TYPE CVWInterpolation
+
+TYPE(CVWInterpolation),ALLOCATABLE    :: CellVolWeight(:)          !< Array of prebuild interpolation matrices
+
 INTEGER                         :: VolIntOrder
 REAL,ALLOCATABLE                :: VolInt_X(:)
 REAL,ALLOCATABLE                :: VolInt_W(:)

@@ -436,11 +436,12 @@ SUBROUTINE CalcErrorPartSource(PartSource_nVar,L_2_PartSource,L_Inf_PartSource)
 ! MODULES
 USE MOD_Globals
 USE MOD_PreProc
+USE MOD_DG_Vars            ,ONLY: N_DG
 USE MOD_ChangeBasis        ,ONLY: ChangeBasis3D
 USE MOD_Equation           ,ONLY: ExactFunc
 USE MOD_Interpolation_Vars ,ONLY: NAnalyze,N_InterAnalyze,wAnalyze
 USE MOD_Mesh_Vars          ,ONLY: N_VolMesh
-USE MOD_PICDepo_Vars       ,ONLY: PartSourceOld
+USE MOD_PICDepo_Vars       ,ONLY: PS_N
 USE MOD_Particle_Mesh_Vars ,ONLY: MeshVolume
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -453,9 +454,8 @@ REAL,INTENT(OUT)              :: L_2_PartSource(PartSource_nVar)   !< L2 error o
 REAL,INTENT(OUT)              :: L_Inf_PartSource(PartSource_nVar) !< LInf error of the source
 !----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                       :: iElem,k,l,m
+INTEGER                       :: iElem,k,l,m,Nloc
 REAL                          :: J_NAnalyze(1,0:NAnalyze,0:NAnalyze,0:NAnalyze)
-REAL                          :: J_N(1,0:PP_N,0:PP_N,0:PP_N)
 REAL                          :: IntegrationWeight
 
 REAL                          :: PartSource_NAnalyze1(1:PartSource_nVar,0:NAnalyze,0:NAnalyze,0:NAnalyze)
@@ -467,14 +467,14 @@ L_Inf_PartSource(:)=-1.E10
 L_2_PartSource(:)=0.
 ! Interpolate values of Error-Grid from GP's
 DO iElem=1,PP_nElems
+  Nloc = N_DG(iElem)
   ! Interpolate the Jacobian to the analyze grid: be carefull we interpolate the inverse of the inverse of the jacobian ;-)
-  J_N(1,0:PP_N,0:PP_N,0:PP_N)=1./N_VolMesh(iElem)%sJ(:,:,:)
-  CALL ChangeBasis3D(1,PP_N,NAnalyze,N_InterAnalyze(PP_N)%Vdm_GaussN_NAnalyze,J_N(1:1,0:PP_N,0:PP_N,0:PP_N),J_NAnalyze(1:1,:,:,:))
-  CALL ChangeBasis3D(PartSource_nVar,PP_N,NAnalyze,N_InterAnalyze(PP_N)%Vdm_GaussN_NAnalyze &
-      ,PartSourceOld(1:PartSource_nVar,1,:,:,:,iElem),PartSource_NAnalyze1(1:PartSource_nVar,:,:,:))
-  CALL ChangeBasis3D(PartSource_nVar,PP_N,NAnalyze,N_InterAnalyze(PP_N)%Vdm_GaussN_NAnalyze &
-      ,PartSourceOld(1:PartSource_nVar,2,:,:,:,iElem),PartSource_NAnalyze2(1:PartSource_nVar,:,:,:))
-  PartSourceOld(1:PartSource_nVar,2,:,:,:,iElem)=PartSourceOld(1:PartSource_nVar,1,:,:,:,iElem)
+  CALL ChangeBasis3D(1,Nloc,NAnalyze,N_InterAnalyze(Nloc)%Vdm_GaussN_NAnalyze,1./N_VolMesh(iElem)%sJ(:,:,:),J_NAnalyze(1:1,:,:,:))
+  CALL ChangeBasis3D(PartSource_nVar,Nloc,NAnalyze,N_InterAnalyze(Nloc)%Vdm_GaussN_NAnalyze &
+      ,PS_N(iElem)%PartSourceOld(1:PartSource_nVar,1,:,:,:),PartSource_NAnalyze1(1:PartSource_nVar,:,:,:))
+  CALL ChangeBasis3D(PartSource_nVar,Nloc,NAnalyze,N_InterAnalyze(Nloc)%Vdm_GaussN_NAnalyze &
+      ,PS_N(iElem)%PartSourceOld(1:PartSource_nVar,2,:,:,:),PartSource_NAnalyze2(1:PartSource_nVar,:,:,:))
+  PS_N(iElem)%PartSourceOld(1:PartSource_nVar,2,:,:,:) = PS_N(iElem)%PartSourceOld(1:PartSource_nVar,1,:,:,:)
   DO m=0,NAnalyze
     DO l=0,NAnalyze
       DO k=0,NAnalyze

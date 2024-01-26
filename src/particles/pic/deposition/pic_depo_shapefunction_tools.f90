@@ -478,8 +478,8 @@ SUBROUTINE depoChargeOnDOFsSFChargeCon(Position,SourceSize,Fac,r_sf, r2_sf, r2_s
 ! use MODULES
 USE MOD_PreProc
 USE MOD_Globals
-USE MOD_PICDepo_Vars       ,ONLY: alpha_sf,ChargeSFDone,PartSourceTmp
-USE MOD_Mesh_Vars          ,ONLY: offSetElem
+USE MOD_PICDepo_Vars       ,ONLY: alpha_sf,ChargeSFDone,PS_N
+USE MOD_Mesh_Vars          ,ONLY: offSetElem,N_VolMesh
 USE MOD_Particle_Mesh_Vars ,ONLY: GEO, ElemBaryNgeo, FIBGM_offsetElem, FIBGM_nElems, FIBGM_Element, Elem_xGP_Shared
 USE MOD_Particle_Mesh_Vars ,ONLY: ElemRadiusNGeo, ElemsJ
 USE MOD_Preproc
@@ -489,6 +489,7 @@ USE MOD_Interpolation_Vars ,ONLY: N_Inter
 USE MOD_Mesh_Vars          ,ONLY: nElems
 USE MOD_LoadBalance_Vars   ,ONLY: nDeposPerElem
 #endif  /*USE_LOADBALANCE*/
+USE MOD_DG_Vars            ,ONLY: N_DG
 !-----------------------------------------------------------------------------------------------------------------------------------
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -523,14 +524,13 @@ TYPE SPElem
 END TYPE
 TYPE (SPElem), POINTER :: first => null()
 TYPE (SPElem), POINTER :: element
-INTEGER           :: I
+INTEGER           :: I,Nloc
 !----------------------------------------------------------------------------------------------------------------------------------
 I=5-SourceSize
 ChargeSFDone(:) = .FALSE.
 firstElem = .TRUE.
 
 ALLOCATE(first)
-ALLOCATE(first%PartSourceLoc(1:4,0:PP_N,0:PP_N,0:PP_N))
 nUsedElems = 0
 totalCharge = 0.0
 !-- determine which background mesh cells (and interpolation points within) need to be considered
@@ -561,16 +561,21 @@ DO kk = kmin,kmax
 #if USE_LOADBALANCE
         IF ((localElem.GE.1).AND.localElem.LE.nElems) nDeposPerElem(localElem)=nDeposPerElem(localElem)+1
 #endif /*USE_LOADBALANCE*/
+#if USE_MPI
+        CALL abort(__STAMP__,'PS_N(localElem)%PartSourceTmp and Nloc must be extended to halo elements')
+#else
+        Nloc = N_DG(CNElemID)
+#endif /*USE_MPI*/
           !--- go through all gauss points
-        DO m=0,PP_N; DO l=0,PP_N; DO k=0,PP_N
+        DO m=0,Nloc; DO l=0,Nloc; DO k=0,Nloc
           !-- calculate distance between gauss and particle
           !radius2 = SUM((Position(1:3) - Elem_xGP_Shared(1:3,k,l,m,globElemID))**2.)
           radius2 = SFRadius2(Position(1:3) - Elem_xGP_Shared(1:3,k,l,m,globElemID))
-          !-- calculate charge and current density at ip point using a shape function
-          !-- currently only one shapefunction available, more to follow (including structure change)
+          !-- calculate charge and current density at interpolation point using a shape function
+          !-- currently only one shape function available, more to follow (including structure change)
           IF (radius2 .LE. r2_sf) THEN
             IF (.NOT.elemDone) THEN
-              PartSourceTmp = 0.0
+              PS_N(CNElemID)%PartSourceTmp = 0.0
               nUsedElems = nUsedElems + 1
               elemDone = .TRUE.
             END IF
@@ -580,25 +585,29 @@ DO kk = kmin,kmax
               S1 = S*S1
             END DO
             IF (SourceSize.EQ.1) THEN
-              PartSourceTmp(4,k,l,m) = Fac(4) * S1
+              PS_N(CNElemID)%PartSourceTmp(  4,k,l,m) = Fac(  4) * S1
             ELSE
-              PartSourceTmp(1:4,k,l,m) = Fac(1:4) * S1
+              PS_N(CNElemID)%PartSourceTmp(1:4,k,l,m) = Fac(1:4) * S1
             END IF
-            totalCharge = totalCharge  + N_Inter(PP_N)%wGP(k)*N_Inter(PP_N)%wGP(l)*N_Inter(PP_N)%wGP(m)*PartSourceTmp(4,k,l,m)/ElemsJ(k,l,m,CNElemID)
+            totalCharge = totalCharge  + N_Inter(Nloc)%wGP(k)*N_Inter(Nloc)%wGP(l)*N_Inter(Nloc)%wGP(m)*PS_N(CNElemID)%PartSourceTmp(4,k,l,m)/N_VolMesh(CNElemID)%sJ(k,l,m)
+#if USE_MPI
+            CALL abort(__STAMP__,'CNElemID is required here but N_VolMesh(1:nElems)!')
+#endif /*USE_MPI*/
           END IF
         END DO; END DO; END DO
 
         IF (elemDone) THEN
           IF (firstElem) THEN
-            first%PartSourceLoc(:,:,:,:) = PartSourceTmp(:,:,:,:)
+            ALLOCATE(first%PartSourceLoc(1:4,0:Nloc,0:Nloc,0:Nloc))
+            first%PartSourceLoc(:,:,:,:) = PS_N(CNElemID)%PartSourceTmp(:,:,:,:)
             first%globElemID = globElemID
             firstElem = .FALSE.
           ELSE
             ALLOCATE(element)
-            ALLOCATE(element%PartSourceLoc(1:4,0:PP_N,0:PP_N,0:PP_N))
+            ALLOCATE(element%PartSourceLoc(1:4,0:Nloc,0:Nloc,0:Nloc))
             element%next => first%next
             first%next => element
-            element%PartSourceLoc(:,:,:,:) = PartSourceTmp(:,:,:,:)
+            element%PartSourceLoc(:,:,:,:) = PS_N(CNElemID)%PartSourceTmp(:,:,:,:)
             element%globElemID = globElemID
           END IF
         END IF
@@ -788,14 +797,12 @@ SUBROUTINE UpdatePartSource(dim1,k,l,m,globElemID,Source)
 ! MODULES                                                                                                                          !
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Globals
-USE MOD_PICDepo_Vars       ,ONLY: PartSource
+USE MOD_PICDepo_Vars       ,ONLY: PS_N
 USE MOD_Mesh_Vars          ,ONLY: offsetElem
 USE MOD_Mesh_Tools         ,ONLY: GetCNElemID
 #if USE_MPI
-USE MOD_PICDepo_Vars       ,ONLY: SendElemShapeID, CNRankToSendRank, ShapeMapping !PartSourceGlob
+USE MOD_PICDepo_Vars       ,ONLY: SendElemShapeID, CNRankToSendRank, ShapeMapping
 USE MOD_Particle_Mesh_Vars ,ONLY: ElemInfo_Shared
-!USE MOD_MPI_Shared_Vars, ONLY: myComputeNodeRank, ComputeNodeRootRank
-!USE MOD_Particle_Mesh_Vars   ,ONLY: nComputeNodeElems, ElemInfo_Shared
 #endif
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
@@ -819,32 +826,18 @@ CNElemID = GetCNElemID(globElemID)
 #if USE_MPI
 IF (ElemOnMyProc(globElemID)) THEN
 #endif /*USE_MPI*/
-  PartSource(dim1:4,k,l,m,localElem) = PartSource(dim1:4,k,l,m,localElem) + Source(dim1:4)
-!#if !((USE_HDG) && (PP_nVar==1))
-!#endif
+  PS_N(localElem)%PartSource(dim1:4,k,l,m) = PS_N(localElem)%PartSource(dim1:4,k,l,m) + Source(dim1:4)
 #if USE_MPI
 ELSE
-!  IF (myComputeNodeRank.EQ.0) THEN  
-!    PartSourceGlob(dim1:4,k,l,m,CNElemID) = PartSourceGlob(dim1:4,k,l,m,CNElemID) + Source(dim1:4)
-!  ELSE
-    ASSOCIATE( ShapeID => SendElemShapeID(CNElemID))
-      IF(ShapeID.EQ.-1)THEN
-        IPWRITE(UNIT_StdOut,*) "CNElemID   =", CNElemID
-        IPWRITE(UNIT_StdOut,*) "globElemID =", globElemID
-        CALL abort(__STAMP__,'SendElemShapeID(CNElemID)=-1 and therefore not correctly mapped. Increase Particles-HaloEpsVelo!')
-      END IF
-!      IF (CNElemID.GT.nComputeNodeElems) THEN
-!        ExRankID = CNRankToSendRank(0)
-!      ELSE        
-!      ExRankID = CNRankToSendRank(ElemInfo_Shared(ELEM_RANK,globElemID)-ComputeNodeRootRank)
-      ExRankID = CNRankToSendRank(ElemInfo_Shared(ELEM_RANK,globElemID))
-!      END IF
-  !    PartSourceProc(dim1:4,k,l,m,ShapeID) = PartSourceProc(dim1:4,k,l,m,ShapeID) + Source(dim1:4)
-      ShapeMapping(ExRankID)%SendBuffer(dim1:4,k,l,m,ShapeID) = ShapeMapping(ExRankID)%SendBuffer(dim1:4,k,l,m,ShapeID) + Source(dim1:4)
-    END ASSOCIATE
-!  END IF
-!#if !((USE_HDG) && (PP_nVar==1))
-!#endif
+  ASSOCIATE( ShapeID => SendElemShapeID(CNElemID))
+    IF(ShapeID.EQ.-1)THEN
+      IPWRITE(UNIT_StdOut,*) "CNElemID   =", CNElemID
+      IPWRITE(UNIT_StdOut,*) "globElemID =", globElemID
+      CALL abort(__STAMP__,'SendElemShapeID(CNElemID)=-1 and therefore not correctly mapped. Increase Particles-HaloEpsVelo!')
+    END IF
+    ExRankID = CNRankToSendRank(ElemInfo_Shared(ELEM_RANK,globElemID))
+    ShapeMapping(ExRankID)%SendBuffer(dim1:4,k,l,m,ShapeID) = ShapeMapping(ExRankID)%SendBuffer(dim1:4,k,l,m,ShapeID) + Source(dim1:4)
+  END ASSOCIATE
 END IF
 #endif /*USE_MPI*/
 

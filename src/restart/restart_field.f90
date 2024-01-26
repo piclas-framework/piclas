@@ -106,11 +106,10 @@ USE MOD_HDG_Vars           ,ONLY: lambda_petsc,PETScGlobal,PETScLocalToSideID,nP
 USE MOD_PML_Vars           ,ONLY: DoPML,PMLToElem,U2,nPMLElems,PMLnVar
 USE MOD_Restart_Vars       ,ONLY: Vdm_GaussNRestart_GaussN
 #if USE_LOADBALANCE
-USE MOD_Mesh_Vars          ,ONLY: nElems
 USE MOD_LoadBalance_Vars   ,ONLY: MPInElemSend,MPInElemRecv,MPIoffsetElemSend,MPIoffsetElemRecv
 #endif /*USE_LOADBALANCE*/
 #endif /*USE_HDG*/
-USE MOD_Mesh_Vars          ,ONLY: OffsetElem
+USE MOD_Mesh_Vars          ,ONLY: nElems,OffsetElem
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------

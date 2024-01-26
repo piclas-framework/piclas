@@ -929,7 +929,11 @@ REAL                            :: ElemCharLengthX
 #endif /*defined(CODE_ANALYZE)*/
 #endif /*PARTICLES*/
 !===================================================================================================================================
-ASSOCIATE( x => Elem_xGP(1,i,j,k,iElem), y => Elem_xGP(2,i,j,k,iElem), z => Elem_xGP(3,i,j,k,iElem))
+ASSOCIATE( &
+      x  => N_VolMesh(iElem)%Elem_xGP(1,i,j,k), &
+      y  => N_VolMesh(iElem)%Elem_xGP(2,i,j,k), &
+      z  => N_VolMesh(iElem)%Elem_xGP(3,i,j,k), &
+      xx => N_VolMesh(iElem)%Elem_xGP(1:3,i,j,k))
 IF(PRESENT(warning_linear)) warning_linear=.FALSE. ! Initialize
 IF(PRESENT(warning_linear_phi)) warning_linear_phi=0. ! Initialize
 ! Calculate IniExactFunc before particles are superimposed, because the IniExactFunc might be needed by the CalcError function
@@ -938,9 +942,8 @@ CASE(0) ! Particles
   resu=0. ! empty
 CASE(103)
   Nloc = N_DG(iElem)
-  x(1:3) = N_VolMesh(iElem)%Elem_xGP(1:3,i,j,k)
-  dx1=(N_VolMesh(iElem)%Elem_xGP(1:3,i,j,k)-(IniCenter(:)-(/IniHalfwidth,0.,0./)))
-  dx2=(N_VolMesh(iElem)%Elem_xGP(1:3,i,j,k)-(IniCenter(:)+(/IniHalfwidth,0.,0./)))
+  dx1=(xx-(IniCenter(:)-(/IniHalfwidth,0.,0./)))
+  dx2=(xx-(IniCenter(:)+(/IniHalfwidth,0.,0./)))
   r1=SQRT(SUM(dx1**2))
   r2=SQRT(SUM(dx2**2))
   dr1dx(:)= r1*dx1
@@ -949,7 +952,7 @@ CASE(103)
   dr2dx2(:)= r2+dr2dx(:)*dx2
   resu(1)=- IniAmplitude*( SUM((r1*dr1dx2(:)-2*dr1dx(:)**2)/(r1*r1*r1)) - SUM((r2*dr2dx2(:)-2*dr2dx(:)**2)/(r2*r2*r2)) )
 CASE(105) ! 3D periodic test case
-  xvec(1:3) = Elem_xGP(1:3,i,j,k,iElem)
+  xvec(1:3) = xx
   resu(1)=-3 * SIN(xvec(1) + 1) * SIN(xvec(2) + 2) * SIN(xvec(3) + 3)
 CASE DEFAULT
   resu=0.

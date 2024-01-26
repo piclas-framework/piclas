@@ -55,7 +55,7 @@ USE MOD_Equation_Vars          ,ONLY: StrVarNames
 USE MOD_Restart_Vars           ,ONLY: RestartFile,DoInitialAutoRestart
 #ifdef PARTICLES
 USE MOD_DSMC_Vars              ,ONLY: RadialWeighting
-USE MOD_PICDepo_Vars           ,ONLY: OutputSource,PartSource
+USE MOD_PICDepo_Vars           ,ONLY: OutputSource,PS_N
 USE MOD_Particle_Sampling_Vars ,ONLY: UseAdaptiveBC
 USE MOD_SurfaceModel_Vars      ,ONLY: nPorousBC
 USE MOD_Particle_Boundary_Vars ,ONLY: DoBoundaryParticleOutputHDF5, PartBound
@@ -160,6 +160,7 @@ REAL                           :: Utemp(1:7,0:PP_N,0:PP_N,0:PP_N,PP_nElems)
 #else
 INTEGER                        :: iElem,Nloc
 REAL                           :: U(PP_nVar,0:Nmax,0:Nmax,0:Nmax,PP_nElems)
+REAL                           :: PartSource(1:4,0:Nmax,0:Nmax,0:Nmax,PP_nElems)
 #ifndef maxwell
 REAL,ALLOCATABLE               :: Utemp(:,:,:,:,:)
 #endif /*not maxwell*/
@@ -454,7 +455,7 @@ ASSOCIATE (&
         Utemp(1,:,:,:,iElem)   = U_N(iElem)%U(1,:,:,:)
         Utemp(2:4,:,:,:,iElem) = U_N(iElem)%E(1:3,:,:,:)
       ELSE
-        CALL ChangeBasis3D(1,Nloc,NMax,PREF_VDM(Nloc,NMax)%Vdm, U_N(iElem)%U(1,:,:,:),Utemp(1,:,:,:,iElem))
+        CALL ChangeBasis3D(1,Nloc,NMax,PREF_VDM(Nloc,NMax)%Vdm, U_N(iElem)%U(1  ,:,:,:),Utemp(1  ,:,:,:,iElem))
         CALL ChangeBasis3D(3,Nloc,NMax,PREF_VDM(Nloc,NMax)%Vdm, U_N(iElem)%E(1:3,:,:,:),Utemp(2:4,:,:,:,iElem))
       END IF ! Nloc.Eq.Nmax
     END DO ! iElem = 1, nElems
@@ -532,6 +533,14 @@ ASSOCIATE (&
       CALL WriteAttributeToHDF5(File_ID,'VarNamesSource',INT(nVar,4),StrArray=LocalStrVarnames)
       CALL CloseDataFile()
     END IF
+    DO iElem = 1, INT(PP_nElems)
+      Nloc = N_DG(iElem)
+      IF(Nloc.Eq.Nmax)THEN
+        PartSource(:,:,:,:,iElem) = PS_N(iElem)%PartSource(:,:,:,:)
+      ELSE
+        CALL ChangeBasis3D(4,Nloc,NMax,PREF_VDM(Nloc,NMax)%Vdm,PS_N(iElem)%PartSource(:,:,:,:),PartSource(:,:,:,:,iElem))
+      END IF ! Nloc.Eq.Nmax
+    END DO ! iElem = 1, nElems
     CALL GatheredWriteArray(FileName,create=.FALSE.,&
         DataSetName='DG_Source', rank=5,  &
         nValGlobal=(/nVar , N+1_IK , N+1_IK , N+1_IK , nGlobalElems/) , &

@@ -112,6 +112,8 @@ USE MOD_Particle_Mesh_Vars     ,ONLY: ElemInfo_Shared
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Vars       ,ONLY: PerformLoadBalance
 #endif /*USE_LOADBALANCE*/
+USE MOD_Interpolation_Vars     ,ONLY: NMin,NMax
+USE MOD_DG_Vars                ,ONLY: N_DG
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -121,9 +123,8 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 REAL,ALLOCATABLE          :: xGP_tmp(:),wGP_tmp(:)
-INTEGER                   :: ALLOCSTAT, iElem, i, j, k, kk, ll, mm, iNode
-REAL                      :: DetLocal(1,0:PP_N,0:PP_N,0:PP_N), DetJac(1,0:1,0:1,0:1)
-REAL, ALLOCATABLE         :: Vdm_tmp(:,:)
+INTEGER                   :: ALLOCSTAT, iElem, i, j, k, kk, ll, mm, iNode, Nloc
+REAL                      :: DetJac(1,0:1,0:1,0:1)
 CHARACTER(255)            :: TimeAverageFile
 INTEGER                   :: UniqueNodeID
 #if USE_MPI
@@ -151,23 +152,26 @@ IF(.NOT.DoDeposition) THEN
 END IF
 
 !--- Allocate arrays for charge density collection and initialize
-ALLOCATE(PartSource(1:4,0:PP_N,0:PP_N,0:PP_N,nElems))
-PartSource = 0.0
-PartSourceConstExists=.FALSE.
+DO iElem = 1, nElems
+  Nloc = N_DG(iElem)
+  ALLOCATE(PS_N(iElem)%PartSource(1:4,0:Nloc,0:Nloc,0:Nloc))
+  PS_N(iElem)%PartSource = 0.0
+END DO ! iElem = 1, nElems
 
 !--- check if relaxation of current PartSource with RelaxFac into PartSourceOld
 RelaxDeposition = GETLOGICAL('PIC-RelaxDeposition','F')
 IF (RelaxDeposition) THEN
   RelaxFac     = GETREAL('PIC-RelaxFac','0.001')
+  DO iElem = 1, nElems
+    Nloc = N_DG(iElem)
 #if ((USE_HDG) && (PP_nVar==1))
-  ALLOCATE(PartSourceOld(1,1:2,0:PP_N,0:PP_N,0:PP_N,nElems),STAT=ALLOCSTAT)
+    ALLOCATE(PS_N(iElem)%PartSourceOld(1  ,1:2,0:PP_N,0:PP_N,0:PP_N),STAT=ALLOCSTAT)
 #else
-  ALLOCATE(PartSourceOld(1:4,1:2,0:PP_N,0:PP_N,0:PP_N,nElems),STAT=ALLOCSTAT)
+    ALLOCATE(PS_N(iElem)%PartSourceOld(1:4,1:2,0:PP_N,0:PP_N,0:PP_N),STAT=ALLOCSTAT)
 #endif
-  IF (ALLOCSTAT.NE.0) THEN
-    CALL abort(__STAMP__,'ERROR in pic_depo.f90: Cannot allocate PartSourceOld!')
-  END IF
-  PartSourceOld=0.
+    IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__,'ERROR in pic_depo.f90: Cannot allocate PartSourceOld!')
+    PS_N(iElem)%PartSourceOld = 0.
+  END DO ! iElem = 1, nElems
   OutputSource = .TRUE.
 ELSE
   OutputSource = GETLOGICAL('PIC-OutputSource','F')
@@ -191,11 +195,11 @@ IF (TRIM(TimeAverageFile).NE.'none') THEN
         DO ll = 0, PP_N
           DO mm = 0, PP_N
 #if ((USE_HDG) && (PP_nVar==1))
-            PartSourceOld(1,1,mm,ll,kk,iElem) = PartSource(4,mm,ll,kk,iElem)
-            PartSourceOld(1,2,mm,ll,kk,iElem) = PartSource(4,mm,ll,kk,iElem)
+            PS_N(iElem)%PartSourceOld(1  ,1,mm,ll,kk) = PS_N(iElem)%PartSource(4  ,mm,ll,kk)
+            PS_N(iElem)%PartSourceOld(1  ,2,mm,ll,kk) = PS_N(iElem)%PartSource(4  ,mm,ll,kk)
 #else
-            PartSourceOld(1:4,1,mm,ll,kk,iElem) = PartSource(1:4,mm,ll,kk,iElem)
-            PartSourceOld(1:4,2,mm,ll,kk,iElem) = PartSource(1:4,mm,ll,kk,iElem)
+            PS_N(iElem)%PartSourceOld(1:4,1,mm,ll,kk) = PS_N(iElem)%PartSource(1:4,mm,ll,kk)
+            PS_N(iElem)%PartSourceOld(1:4,2,mm,ll,kk) = PS_N(iElem)%PartSource(1:4,mm,ll,kk)
 #endif
           END DO !mm
         END DO !ll
@@ -206,43 +210,59 @@ END IF
 
 !--- init DepositionType-specific vars
 SELECT CASE(TRIM(DepositionType))
+! ------------------------------------------------
 CASE('cell_volweight')
-  ALLOCATE(CellVolWeightFac(0:PP_N),wGP_tmp(0:PP_N) , xGP_tmp(0:PP_N))
+! ------------------------------------------------
+  ALLOCATE(CellVolWeight(Nmin:Nmax))
   ALLOCATE(CellVolWeight_Volumes(0:1,0:1,0:1,nElems))
-  CellVolWeightFac(0:PP_N) = N_Inter(PP_N)%xGP(0:PP_N)
-  CellVolWeightFac(0:PP_N) = (CellVolWeightFac(0:PP_N)+1.0)/2.0
+  ALLOCATE(wGP_tmp(0:PP_N), xGP_tmp(0:PP_N))
   CALL LegendreGaussNodesAndWeights(1,xGP_tmp,wGP_tmp)
-  ALLOCATE( Vdm_tmp(0:1,0:PP_N))
-  CALL InitializeVandermonde(PP_N,1,N_Inter(PP_N)%wBary,N_Inter(PP_N)%xGP,xGP_tmp,Vdm_tmp)
+
+  DO Nloc=Nmin,Nmax
+    ALLOCATE(CellVolWeight(Nloc)%Fac(0:Nloc))
+    CellVolWeight(Nloc)%Fac(0:Nloc) = N_Inter(Nloc)%xGP(0:Nloc)
+    CellVolWeight(Nloc)%Fac(0:Nloc) = (CellVolWeight(Nloc)%Fac(0:Nloc)+1.0)/2.0
+
+    ALLOCATE(CellVolWeight(Nloc)%Vdm_tmp(0:1,0:PP_N))
+    CALL InitializeVandermonde(PP_N,1,N_Inter(PP_N)%wBary,N_Inter(PP_N)%xGP,xGP_tmp,CellVolWeight(Nloc)%Vdm_tmp)
+
+    ALLOCATE(CellVolWeight(Nloc)%DetLocal(1,0:Nloc,0:Nloc,0:Nloc))
+  END DO
+
   DO iElem=1, nElems
-    DO k=0,PP_N
-      DO j=0,PP_N
-        DO i=0,PP_N
-          DetLocal(1,i,j,k)=1./N_VolMesh(iElem)%sJ(i,j,k)
-        END DO ! i=0,PP_N
-      END DO ! j=0,PP_N
-    END DO ! k=0,PP_N
-    CALL ChangeBasis3D(1,PP_N, 1,Vdm_tmp, DetLocal(:,:,:,:),DetJac(:,:,:,:))
+    Nloc = N_DG(iElem)
+    DO k=0,Nloc
+      DO j=0,Nloc
+        DO i=0,Nloc
+          CellVolWeight(Nloc)%DetLocal(1,i,j,k)=1./N_VolMesh(iElem)%sJ(i,j,k)
+        END DO ! i=0,Nloc
+      END DO ! j=0,Nloc
+    END DO ! k=0,Nloc
+    CALL ChangeBasis3D(1, Nloc, 1, CellVolWeight(Nloc)%Vdm_tmp, CellVolWeight(Nloc)%DetLocal(:,:,:,:), DetJac(:,:,:,:))
     DO k=0,1
       DO j=0,1
         DO i=0,1
           CellVolWeight_Volumes(i,j,k,iElem) = DetJac(1,i,j,k)*wGP_tmp(i)*wGP_tmp(j)*wGP_tmp(k)
-        END DO ! i=0,PP_N
-      END DO ! j=0,PP_N
-    END DO ! k=0,PP_N
+        END DO ! i=0,1
+      END DO ! j=0,1
+    END DO ! k=0,1
   END DO
-  DEALLOCATE(Vdm_tmp)
   DEALLOCATE(wGP_tmp, xGP_tmp)
+! ------------------------------------------------
 CASE('cell_volweight_mean')
+! ------------------------------------------------
 #if USE_MPI
   ALLOCATE(DoNodeMapping(0:nProcessors_Global-1),SendNode(1:nUniqueGlobalNodes))
   DoNodeMapping = .FALSE.
   SendNode = .FALSE.
 #endif
   IF ((TRIM(InterpolationType).NE.'cell_volweight')) THEN
-    ALLOCATE(CellVolWeightFac(0:PP_N))
-    CellVolWeightFac(0:PP_N) = N_Inter(PP_N)%xGP(0:PP_N)
-    CellVolWeightFac(0:PP_N) = (CellVolWeightFac(0:PP_N)+1.0)/2.0
+    ALLOCATE(CellVolWeight(Nmin:Nmax))
+    DO Nloc=Nmin,Nmax
+      ALLOCATE(CellVolWeight(Nloc)%Fac(0:Nloc))
+      CellVolWeight(Nloc)%Fac(0:Nloc) = N_Inter(Nloc)%xGP(0:Nloc)
+      CellVolWeight(Nloc)%Fac(0:Nloc) = (CellVolWeight(Nloc)%Fac(0:Nloc)+1.0)/2.0
+    END DO
   END IF
 
   ALLOCATE(NodeSource(1:4,1:nUniqueGlobalNodes))
@@ -493,7 +513,16 @@ CASE('cell_volweight_mean')
 ! Initialize sub-cell volumes around nodes
   CALL CalcCellLocNodeVolumes()
 
+! ------------------------------------------------
 CASE('shape_function', 'shape_function_cc', 'shape_function_adaptive')
+! ------------------------------------------------
+  !--- Allocate arrays for shape function charge density collection and initialize
+  DO iElem = 1, nElems
+    Nloc = N_DG(iElem)
+    ALLOCATE(PS_N(iElem)%PartSourceTmp(1:4,0:Nloc,0:Nloc,0:Nloc))
+    PS_N(iElem)%PartSourceTmp = 0.0
+  END DO ! iElem = 1, nElems
+
 #if USE_MPI
   ALLOCATE(RecvRequest(nShapeExchangeProcs),SendRequest(nShapeExchangeProcs))
 #endif
@@ -510,7 +539,6 @@ CASE('shape_function', 'shape_function_cc', 'shape_function_adaptive')
   CALL InitPeriodicSFCaseMatrix()
 
   ! --- Set element flag for cycling already completed elements
-!  ALLOCATE(PartSourceLoc(1:4,0:PP_N,0:PP_N,0:PP_N,1:nElems))
 #if USE_MPI
   ALLOCATE(ChargeSFDone(1:nComputeNodeTotalElems))
   ALLOCATE(nDepoDOFPerProc(0:nComputeNodeProcessors-1),nDepoOffsetProc(0:nComputeNodeProcessors-1))
@@ -521,9 +549,6 @@ CASE('shape_function', 'shape_function_cc', 'shape_function_adaptive')
   DO iProc = 0, nComputeNodeProcessors-1
     nDepoOffsetProc(iProc) = (offsetElemMPI(iProc + ComputeNodeRootRank) - offsetElemMPI(ComputeNodeRootRank))*(PP_N+1)**3*4
   END DO
-  IF(myComputeNodeRank.EQ.0) THEN
-   ALLOCATE(PartSourceGlob(1:4,0:PP_N,0:PP_N,0:PP_N,1:nComputeNodeTotalElems))
-  END IF
 #else
   ALLOCATE(ChargeSFDone(1:nElems))
 #endif /*USE_MPI*/
@@ -531,14 +556,6 @@ CASE('shape_function', 'shape_function_cc', 'shape_function_adaptive')
 CASE DEFAULT
   CALL abort(__STAMP__,'Unknown DepositionType in pic_depo.f90')
 END SELECT
-
-IF (PartSourceConstExists) THEN
-  ALLOCATE(PartSourceConst(1:4,0:PP_N,0:PP_N,0:PP_N,nElems),STAT=ALLOCSTAT)
-  IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__,'ERROR in pic_depo.f90: Cannot allocate PartSourceConst!')
-  PartSourceConst=0.
-END IF
-
-ALLOCATE(PartSourceTmp(    1:4,0:PP_N,0:PP_N,0:PP_N))
 
 LBWRITE(UNIT_stdOut,'(A)')' INIT PARTICLE DEPOSITION DONE!'
 
@@ -849,6 +866,7 @@ USE MOD_MPI_Shared            ,ONLY: BARRIER_AND_SYNC
 USE MOD_HDG_Vars              ,ONLY: HDGSkip, HDGSkipInit, HDGSkip_t0
 USE MOD_TimeDisc_Vars         ,ONLY: time
 #endif  /*USE_HDG*/
+USE MOD_Mesh_Vars             ,ONLY: nElems
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -860,7 +878,7 @@ INTEGER,INTENT(IN),OPTIONAL      :: stage_opt ! TODO: definition of this variabl
 ! OUTPUT variable declaration
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Local variable declaration
-INTEGER         :: stage
+INTEGER         :: stage,iElem
 !-----------------------------------------------------------------------------------------------------------------------------------
 !============================================================================================================================
 ! Return, if no deposition is required
@@ -887,7 +905,11 @@ IF (iter.GT.0 .AND. HDGSkip.NE.0) THEN
 END IF
 #endif /*USE_HDG*/
 
-IF((stage.EQ.0).OR.(stage.EQ.1)) PartSource = 0.0
+IF((stage.EQ.0).OR.(stage.EQ.1))THEN
+  DO iElem = 1, nElems
+    PS_N(iElem)%PartSource = 0.0
+  END DO ! iElem = 1, nElems
+END IF
 
 IF(PRESENT(doParticle_In)) THEN
   CALL DepositionMethod(doParticle_In, stage_opt=stage)
@@ -1939,9 +1961,6 @@ INTEGER           :: iElem
 INTEGER           :: NodeID(1:8)
 #endif /*USE_LOADBALANCE*/
 !===================================================================================================================================
-SDEALLOCATE(PartSourceConst)
-SDEALLOCATE(PartSourceOld)
-SDEALLOCATE(PartSourceTmp)
 SDEALLOCATE(GaussBorder)
 SDEALLOCATE(Vdm_EquiN_GaussN)
 SDEALLOCATE(Knots)
@@ -1958,11 +1977,9 @@ SDEALLOCATE(swGPNDepo)
 SDEALLOCATE(wBaryNDepo)
 SDEALLOCATE(NDepochooseK)
 SDEALLOCATE(tempcharge)
-SDEALLOCATE(CellVolWeightFac)
+SDEALLOCATE(CellVolWeight)
 SDEALLOCATE(CellVolWeight_Volumes)
 SDEALLOCATE(ChargeSFDone)
-!SDEALLOCATE(PartSourceLoc)
-SDEALLOCATE(PartSourceGlob)
 SDEALLOCATE(PeriodicSFCaseMatrix)
 
 #if USE_MPI
@@ -2050,8 +2067,7 @@ IF(PerformLoadBalance.AND.DoDielectricSurfaceCharge)THEN
   ADEALLOCATE(ElemNodeID_Shared)
 END IF
 #endif /*USE_LOADBALANCE*/
-
-SDEALLOCATE(PartSource)
+SDEALLOCATE(PS_N) ! PartSource, PartSourceOld and PartSourceTmp
 SDEALLOCATE(DepoNodetoGlobalNode)
 SDEALLOCATE(NodeSource)
 SDEALLOCATE(NodeSourceExt)

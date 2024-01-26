@@ -41,7 +41,6 @@ USE MOD_Globals                ,ONLY: Abort, LocalTime
 USE MOD_PreProc
 USE MOD_TimeDisc_Vars          ,ONLY: dt,iStage,time,iter
 USE MOD_TimeDisc_Vars          ,ONLY: RK_c,nRKStages
-USE MOD_DG_Vars                ,ONLY: U
 #ifdef PARTICLES
 USE MOD_TimeDisc_Vars          ,ONLY: RK_a,RK_b,dt_Min,dtWeight
 USE MOD_TimeDisc_Vars          ,ONLY: RKdtFracTotal,RKdtFrac
@@ -117,7 +116,7 @@ IF ((time.GE.DelayTime).OR.(iter.EQ.0)) THEN
 END IF
 #endif /*PARTICLES*/
 
-CALL HDG(tStage,U,iter)
+CALL HDG(tStage,iter)
 
 #ifdef PARTICLES
 ! set last data already here, since surfaceflux moved before interpolation
@@ -255,7 +254,7 @@ DO iStage=2,nRKStages
   END IF
 #endif /*PARTICLES*/
 
-  CALL HDG(tStage,U,iter)
+  CALL HDG(tStage,iter)
 
 #ifdef PARTICLES
 #if USE_LOADBALANCE

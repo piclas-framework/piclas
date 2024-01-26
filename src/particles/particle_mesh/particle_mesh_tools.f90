@@ -1407,7 +1407,7 @@ Elem_xGP_Shared (1:3    ,0:PP_N,0:PP_N,0:PP_N,1:nGlobalElems) => Elem_xGP_Array
 dXCL_NGeo_Shared(1:3,1:3,0:NGeo,0:NGeo,0:NGeo,1:nGlobalElems) => dXCL_NGeo_Array
 
 DO iElem = 1,nElems
-  Elem_xGP_Shared (:  ,:,:,:,offsetElem+iElem) = N_VolMesh(iElem)%Elem_xGP (:  ,:,:,:,iElem)
+  Elem_xGP_Shared (:  ,:,:,:,offsetElem+iElem) = N_VolMesh(iElem)%Elem_xGP (:  ,:,:,:)
   dXCL_NGeo_Shared(:,:,:,:,:,offsetElem+iElem) =                  dXCL_NGeo(:,:,:,:,:,iElem)
 END DO ! iElem = 1, nElems
 

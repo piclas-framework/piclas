@@ -48,9 +48,9 @@ USE MOD_DSMC_Vars              ,ONLY: UseDSMC,DSMC,PolyatomMolDSMC,SpecDSMC,Radi
 USE MOD_Dielectric_Vars        ,ONLY: DoDielectricSurfaceCharge
 USE MOD_HDF5_Input_Particles   ,ONLY: ReadEmissionVariablesFromHDF5,ReadNodeSourceExtFromHDF5
 USE MOD_Particle_Vars          ,ONLY: PartInt,PartData,nSpecies
-USE MOD_PICDepo_Vars           ,ONLY: DoDeposition,RelaxDeposition,PartSourceOld
+USE MOD_PICDepo_Vars           ,ONLY: DoDeposition,RelaxDeposition,PS_N
 ! Restart
-USE MOD_Restart_Vars           ,ONLY: RestartFile,InterpolateSolution,RestartNullifySolution
+USE MOD_Restart_Vars           ,ONLY: N_Restart,RestartFile,InterpolateSolution,RestartNullifySolution
 USE MOD_Restart_Vars           ,ONLY: DoMacroscopicRestart
 ! HDG
 #if USE_HDG
@@ -75,6 +75,10 @@ USE MOD_TimeDisc_Vars          ,ONLY: time
 #endif /*USE_LOADBALANCE*/
 USE MOD_Particle_Vars          ,ONLY: VibQuantData,ElecDistriData,AD_Data
 USE MOD_Particle_Vars          ,ONLY: PartDataSize,PartIntSize,PartDataVarNames
+USE MOD_DG_Vars                ,ONLY: N_DG
+USE MOD_Interpolation_Vars     ,ONLY: PREF_VDM
+USE MOD_Interpolation_Vars     ,ONLY: N_Inter
+USE MOD_ChangeBasis            ,ONLY: ChangeBasis3D
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -125,6 +129,8 @@ INTEGER                            :: MPI_LENGTH(1),MPI_TYPE(1),MPI_STRUCT
 INTEGER(KIND=MPI_ADDRESS_KIND)     :: MPI_DISPLACEMENT(1)
 #endif /*USE_LOADBALANCE*/
 CHARACTER(LEN=32)                  :: hilf
+REAL,ALLOCATABLE                   :: Uloc(:,:,:,:),PartSourceloc(:,:,:,:)
+INTEGER                            :: Nloc
 !===================================================================================================================================
 
 FirstElemInd = offsetElem+1
@@ -434,27 +440,47 @@ ELSE
       CALL DatasetExists(File_ID,'DG_Source',DGSourceExists)
       IF(DGSourceExists)THEN
         IF(.NOT.InterpolateSolution)THEN! No interpolation needed, read solution directly from file
-          ALLOCATE(PartSource_HDF5(1:4,0:PP_N,0:PP_N,0:PP_N,PP_nElems))
 
           ! Associate construct for integer KIND=8 possibility
           ASSOCIATE (&
-                    PP_NTmp       => INT(PP_N,IK)       ,&
+                    Nres          => INT(N_Restart,IK)       ,&
                     OffsetElemTmp => INT(OffsetElem,IK) ,&
                     PP_nElemsTmp  => INT(PP_nElems,IK))
-            CALL ReadArray('DG_Source' ,5,(/4_IK,PP_NTmp+1,PP_NTmp+1,PP_NTmp+1,PP_nElemsTmp/),OffsetElemTmp,5,RealArray=PartSource_HDF5)
-          END ASSOCIATE
+            ALLOCATE(PartSource_HDF5(1:4,0:Nres,0:Nres,0:Nres,PP_nElems))
+            CALL ReadArray('DG_Source' ,5,(/4_IK,Nres+1_IK,Nres+1_IK,Nres+1_IK,PP_nElemsTmp/),OffsetElemTmp,5,RealArray=PartSource_HDF5)
 
-          DO iElem =1,PP_nElems
-            DO k=0, PP_N; DO j=0, PP_N; DO i=0, PP_N
+            DO iElem =1,PP_nElems
+              Nloc = N_DG(iElem)
+              ALLOCATE(PartSourceloc(1:4,0:Nloc,0:Nloc,0:Nloc))
+
+              IF(Nloc.EQ.N_Restart)THEN
+                PartSourceloc(1:4,0:Nloc,0:Nloc,0:Nloc) = PartSource_HDF5(1:4,0:Nres,0:Nres,0:Nres,iElem)
+              ELSEIF(Nloc.GT.N_Restart)THEN
+                ! N_Restart -> Nloc (e.g. 1 -> 5)
+                CALL ChangeBasis3D(4, N_Restart, Nloc, PREF_VDM(N_Restart, Nloc)%Vdm, PartSource_HDF5(1:4,0:Nres,0:Nres,0:Nres,iElem), PartSourceloc(1:4,0:Nloc,0:Nloc,0:Nloc))
+              ELSE
+                ! N_Restart -> Nloc (e.g. 5 -> 1)
+                ALLOCATE(Uloc(1:4,0:Nres,0:Nres,0:Nres))
+                !transform the slave side to the same degree as the master: switch to Legendre basis
+                CALL ChangeBasis3D(4, N_Restart, N_Restart, N_Inter(N_Restart)%sVdm_Leg, PartSource_HDF5(1:4,0:Nres,0:Nres,0:Nres,iElem), Uloc(1:4,0:Nres,0:Nres,0:Nres))
+                ! switch back to nodal basis
+                CALL ChangeBasis3D(4, Nloc, Nloc, N_Inter(Nloc)%Vdm_Leg, Uloc(1:4,0:Nloc,0:Nloc,0:Nloc), PartSourceloc(1:4,0:Nloc,0:Nloc,0:Nloc))
+                DEALLOCATE(Uloc)
+              END IF ! Nloc.EQ.N_Restart
+
+              DO k=0, Nloc; DO j=0, Nloc; DO i=0, Nloc
 #if ((USE_HDG) && (PP_nVar==1))
-              PartSourceOld(1,1,i,j,k,iElem) = PartSource_HDF5(4,i,j,k,iElem)
-              PartSourceOld(1,2,i,j,k,iElem) = PartSource_HDF5(4,i,j,k,iElem)
+                PS_N(iElem)%PartSourceOld(1  ,1,i,j,k) = PartSourceloc(  4,i,j,k)
+                PS_N(iElem)%PartSourceOld(1  ,2,i,j,k) = PartSourceloc(  4,i,j,k)
 #else
-              PartSourceOld(1:4,1,i,j,k,iElem) = PartSource_HDF5(1:4,i,j,k,iElem)
-              PartSourceOld(1:4,2,i,j,k,iElem) = PartSource_HDF5(1:4,i,j,k,iElem)
+                PS_N(iElem)%PartSourceOld(1:4,1,i,j,k) = PartSourceloc(1:4,i,j,k)
+                PS_N(iElem)%PartSourceOld(1:4,2,i,j,k) = PartSourceloc(1:4,i,j,k)
 #endif
-            END DO; END DO; END DO
-          END DO
+              END DO; END DO; END DO
+
+              DEALLOCATE(PartSourceloc)
+            END DO
+          END ASSOCIATE
 
           DEALLOCATE(PartSource_HDF5)
         ELSE ! We need to interpolate the solution to the new computational grid

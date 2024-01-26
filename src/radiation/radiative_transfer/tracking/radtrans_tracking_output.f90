@@ -38,7 +38,7 @@ SUBROUTINE WritePhotonVolSampleToHDF5()
 ! MODULES
 USE MOD_Globals
 USE MOD_PreProc
-USE MOD_Mesh_Vars            ,ONLY: nElems,MeshFile,offSetElem,sJ
+USE MOD_Mesh_Vars            ,ONLY: nElems,MeshFile,offSetElem,N_VolMesh
 USE MOD_RayTracing_Vars      ,ONLY: Ray,nVarRay,U_N_Ray,U_N_Ray_loc,N_DG_Ray,PREF_VDM_Ray,N_DG_Ray_loc,N_Inter_Ray
 USE MOD_RayTracing_Vars      ,ONLY: RayElemPassedEnergyLoc1st,RayElemPassedEnergyLoc2nd
 USE MOD_RayTracing_Vars      ,ONLY: RaySecondaryVectorX,RaySecondaryVectorY,RaySecondaryVectorZ,ElemVolume,RayElemEmission
@@ -169,7 +169,7 @@ ASSOCIATE( RayElemPassedEnergy => RayElemPassedEnergy_Shared )
     ! Get the element volumes on Nloc
     ! Apply integration weights and the Jacobian
     ! Interpolate the Jacobian to the analyze grid: be careful we interpolate the inverse of the inverse of the Jacobian ;-)
-    J_N(1,0:PP_N,0:PP_N,0:PP_N)=1./sJ(:,:,:,iElem)
+    J_N(1,0:PP_N,0:PP_N,0:PP_N)=1./N_VolMesh(iElem)%sJ(:,:,:)
     ! p-refinement: Interpolate lower degree to higher degree (other way around would require model=T)
     J_Nloc = 0.
     IF(PP_N.EQ.Nloc)THEN
@@ -249,7 +249,7 @@ ASSOCIATE( RayElemPassedEnergy => RayElemPassedEnergy_Shared )
 
     ! Apply integration weights and the Jacobian
     ! Interpolate the Jacobian to the analyze grid: be careful we interpolate the inverse of the inverse of the Jacobian ;-)
-    J_N(1,0:PP_N,0:PP_N,0:PP_N)=1./sJ(:,:,:,iElem)
+    J_N(1,0:PP_N,0:PP_N,0:PP_N)=1./N_VolMesh(iElem)%sJ(:,:,:)
     CALL ChangeBasis3D(1,PP_N,Ray%NMax,Vdm_GaussN_NMax,J_N(1:1,0:PP_N,0:PP_N,0:PP_N),J_Nmax(1:1,:,:,:))
     DO m=0,Ray%NMax
       DO l=0,Ray%NMax

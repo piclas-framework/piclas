@@ -54,7 +54,6 @@ USE MOD_Particle_Mesh_Vars     ,ONLY: ElemEpsOneCell
 USE MOD_Particle_Tracking_Vars ,ONLY: TrackingMethod,NbrOfLostParticles,CountNbrOfLostParts
 USE MOD_Particle_Tracking_Vars ,ONLY: NbrOfLostParticlesTotal,TotalNbrOfMissingParticlesSum,NbrOfLostParticlesTotal_old
 ! Interpolation
-USE MOD_ChangeBasis            ,ONLY: ChangeBasis3D
 USE MOD_Eval_XYZ               ,ONLY: GetPositionInRefElem
 ! Mesh
 USE MOD_Mesh_Tools             ,ONLY: GetCNElemID

@@ -2454,19 +2454,20 @@ SUBROUTINE CalcPowerDensity()
 ! MODULES                                                                                                                          !
 USE MOD_Timeaverage_Vars ,ONLY: DoPowerDensity,PowerDensity
 USE MOD_Particle_Vars    ,ONLY: nSpecies,PartSpecies,PDM
-USE MOD_PICDepo_Vars     ,ONLY: PartSource
+USE MOD_PICDepo_Vars     ,ONLY: PS_N
 USE MOD_Part_RHS         ,ONLY: PartVeloToImp
 USE MOD_Preproc
 USE MOD_PICDepo          ,ONLY: Deposition
 USE MOD_Mesh_Tools       ,ONLY: GetCNElemID
 #if ! (USE_HDG)
-USE MOD_DG_Vars          ,ONLY: U
+USE MOD_DG_Vars          ,ONLY: U_N
 #else
 #if PP_nVar==1
 USE MOD_Equation_Vars    ,ONLY: E
 #else
 #endif
 #endif
+USE MOD_DG_Vars          ,ONLY: N_DG
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! insert modules here
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -2477,7 +2478,7 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER              :: iSpec,iSpec2
+INTEGER              :: iSpec,iSpec2,Nloc
 INTEGER              :: iElem,i,j,k,iPart
 LOGICAL              :: doParticle(1:PDM%MaxParticleNumber)
 !===================================================================================================================================
@@ -2508,15 +2509,16 @@ DO iSpec=1,nSpecies
 
   ! compute power density
   DO iElem=1,PP_nElems
-    DO k=0,PP_N
-      DO j=0,PP_N
-        DO i=0,PP_N
+    Nloc = N_DG(iElem)
+    DO k=0,Nloc
+      DO j=0,Nloc
+        DO i=0,Nloc
           ! 1:3 PowerDensity, 4 charge density
 #if !(USE_HDG)
-          PowerDensity(1,i,j,k,iElem,iSpec2)=PartSource(1,i,j,k,iElem)*U(1,i,j,k,iElem)
-          PowerDensity(2,i,j,k,iElem,iSpec2)=PartSource(2,i,j,k,iElem)*U(2,i,j,k,iElem)
-          PowerDensity(3,i,j,k,iElem,iSpec2)=PartSource(3,i,j,k,iElem)*U(3,i,j,k,iElem)
-          PowerDensity(4,i,j,k,iElem,iSpec2)=PartSource(4,i,j,k,iElem)
+          PowerDensity(1,i,j,k,iElem,iSpec2)=PS_N(iElem)%PartSource(1,i,j,k)*U_N(iElem)%U(1,i,j,k)
+          PowerDensity(2,i,j,k,iElem,iSpec2)=PS_N(iElem)%PartSource(2,i,j,k)*U_N(iElem)%U(2,i,j,k)
+          PowerDensity(3,i,j,k,iElem,iSpec2)=PS_N(iElem)%PartSource(3,i,j,k)*U_N(iElem)%U(3,i,j,k)
+          PowerDensity(4,i,j,k,iElem,iSpec2)=PS_N(iElem)%PartSource(4,i,j,k)
 #else
 #if PP_nVar==1
           PowerDensity(1,i,j,k,iElem,iSpec2)=PartSource(1,i,j,k,iElem)*E(1,i,j,k,iElem)
@@ -2528,12 +2530,12 @@ DO iSpec=1,nSpecies
           PowerDensity(4,i,j,k,iElem,iSpec2)=PartSource(4,i,j,k,iElem)
 #endif
           ! 5:7 current density
-          PowerDensity(5,i,j,k,iElem,iSpec2)=PartSource(1,i,j,k,iElem)
-          PowerDensity(6,i,j,k,iElem,iSpec2)=PartSource(2,i,j,k,iElem)
-          PowerDensity(7,i,j,k,iElem,iSpec2)=PartSource(3,i,j,k,iElem)
-        END DO ! i=0,PP_N
-      END DO ! j=0,PP_N
-    END DO ! k=0,PP_N
+          PowerDensity(5,i,j,k,iElem,iSpec2)=PS_N(iElem)%PartSource(1,i,j,k)
+          PowerDensity(6,i,j,k,iElem,iSpec2)=PS_N(iElem)%PartSource(2,i,j,k)
+          PowerDensity(7,i,j,k,iElem,iSpec2)=PS_N(iElem)%PartSource(3,i,j,k)
+        END DO ! i=0,Nloc
+      END DO ! j=0,Nloc
+    END DO ! k=0,Nloc
   END DO ! iElem=1,PP_nElems
 END DO
 

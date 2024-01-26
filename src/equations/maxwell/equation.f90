@@ -1027,8 +1027,8 @@ USE MOD_Globals_Vars      ,ONLY: PI,eps0
 USE MOD_PreProc
 USE MOD_Equation_Vars     ,ONLY: c_corr,IniExactFunc, DipoleOmega,tPulse,xDipole
 #ifdef PARTICLES
-USE MOD_PICDepo_Vars      ,ONLY: PartSource,DoDeposition
-USE MOD_Dielectric_Vars   ,ONLY: DoDielectric,isDielectricElem,ElemToDielectric,DielectricEps,ElemToDielectric
+USE MOD_PICDepo_Vars      ,ONLY: PS_N,DoDeposition
+USE MOD_Dielectric_Vars   ,ONLY: DoDielectric,isDielectricElem,ElemToDielectric,DielectricVol,ElemToDielectric
 #if IMPA
 USE MOD_LinearSolver_Vars ,ONLY: ExplicitPartSource
 #endif
@@ -1048,7 +1048,7 @@ REAL,INTENT(IN)                 :: t,coeff
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                         :: i,j,k,iElem
+INTEGER                         :: i,j,k,iElem,iDielectricElem
 REAL                            :: eps0inv, x(1:3)
 REAL                            :: r           ! for Dipole
 REAL,PARAMETER                  :: Q=1, d=1    ! for Dipole
@@ -1063,28 +1063,29 @@ eps0inv = 1./eps0
 IF(DoDeposition)THEN
   IF(DoDielectric)THEN
     DO iElem=1,PP_nElems
+      iDielectricElem = ElemToDielectric(iElem)
       Nloc = N_DG(iElem)
       IF(isDielectricElem(iElem)) THEN ! 1.) PML version - PML element
         DO k=0,Nloc; DO j=0,Nloc; DO i=0,Nloc
 #if IMPA
-          PartSourceLoc=PartSource(:,i,j,k)+ExplicitPartSource(:,i,j,k)
+          PartSourceLoc=PS_N(iElem)%PartSource(:,i,j,k)+ExplicitPartSource(:,i,j,k)
 #else
-          PartSourceLoc=PartSource(:,i,j,k)
+          PartSourceLoc=PS_N(iElem)%PartSource(:,i,j,k)
 #endif
           !  Get PartSource from Particles
           !U_N(iElem)%Ut(1:3,i,j,k) = U_N(iElem)%Ut(1:3,i,j,k) - eps0inv *coeff* PartSource(1:3,i,j,k) * DielectricEpsR_inv
           !U_N(iElem)%Ut(  8,i,j,k) = U_N(iElem)%Ut(  8,i,j,k) + eps0inv *coeff* PartSource(  4,i,j,k) * c_corr * DielectricEpsR_inv
           U_N(iElem)%Ut(1:3,i,j,k) = U_N(iElem)%Ut(1:3,i,j,k) - eps0inv *coeff* PartSourceloc(1:3) &
-                                                      / DielectricEps(i,j,k,ElemToDielectric(iElem)) ! only use x
+                                                      / DielectricVol(iDielectricElem)%DielectricEps(i,j,k) ! only use x
           U_N(iElem)%Ut(  8,i,j,k) = U_N(iElem)%Ut(  8,i,j,k) + eps0inv *coeff* PartSourceloc( 4 ) * c_corr &
-                                                      / DielectricEps(i,j,k,ElemToDielectric(iElem)) ! only use x
+                                                      / DielectricVol(iDielectricElem)%DielectricEps(i,j,k) ! only use x
         END DO; END DO; END DO
       ELSE
         DO k=0,Nloc; DO j=0,Nloc; DO i=0,Nloc
 #if IMPA
-          PartSourceLoc=PartSource(:,i,j,k)+ExplicitPartSource(:,i,j,k)
+          PartSourceLoc=PS_N(iElem)%PartSource(:,i,j,k)+ExplicitPartSource(:,i,j,k)
 #else
-          PartSourceLoc=PartSource(:,i,j,k)
+          PartSourceLoc=PS_N(iElem)%PartSource(:,i,j,k)
 #endif
           !  Get PartSource from Particles
           U_N(iElem)%Ut(1:3,i,j,k) = U_N(iElem)%Ut(1:3,i,j,k) - eps0inv *coeff* PartSourceloc(1:3)
@@ -1097,9 +1098,9 @@ IF(DoDeposition)THEN
       Nloc = N_DG(iElem)
       DO k=0,Nloc; DO j=0,Nloc; DO i=0,Nloc
 #if IMPA
-        PartSourceLoc=PartSource(:,i,j,k)+ExplicitPartSource(:,i,j,k)
+        PartSourceLoc=PS_N(iElem)%PartSource(:,i,j,k)+ExplicitPartSource(:,i,j,k)
 #else
-        PartSourceLoc=PartSource(:,i,j,k)
+        PartSourceLoc=PS_N(iElem)%PartSource(:,i,j,k)
 #endif
         !  Get PartSource from Particles
         U_N(iElem)%Ut(1:3,i,j,k) = U_N(iElem)%Ut(1:3,i,j,k) - eps0inv *coeff* PartSourceloc(1:3)

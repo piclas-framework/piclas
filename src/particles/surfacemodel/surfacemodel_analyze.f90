@@ -767,20 +767,21 @@ USE MOD_LoadBalance_Vars          ,ONLY: PerformLoadBalance
 #endif /*USE_HDG*/
 USE MOD_Mesh_Vars                 ,ONLY: nBCs,BC,nBCSides,BoundaryName
 USE MOD_TimeDisc_Vars             ,ONLY: iter
-USE MOD_Mesh_Vars                 ,ONLY: SurfElem
-USE MOD_Interpolation_Vars        ,ONLY: wGPSurf
+USE MOD_Mesh_Vars                 ,ONLY: N_SurfMesh
+USE MOD_Interpolation_Vars        ,ONLY: N_Inter
+USE MOD_DG_Vars                   ,ONLY: DG_Elems_master,DG_Elems_slave
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! INPUT / OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER           :: iPartBound,iSpec,iBPO,iBC,BCSideID
+INTEGER           :: iPartBound,iSpec,iBPO,iBC,BCSideID,Nloc
 REAL,ALLOCATABLE  :: TotalSurfArea(:)
 CHARACTER(LEN=32) :: hilf
 !REAL              :: area
 !===================================================================================================================================
-DoSurfModelAnalyze = .TRUE.
+DoSurfModelAnalyze  = .TRUE.
 BPO%NPartBoundaries = GETINT('BPO-NPartBoundaries')
 BPO%PartBoundaries  = GETINTARRAY('BPO-PartBoundaries',BPO%NPartBoundaries)
 BPO%NSpecies        = GETINT('BPO-NSpecies')
@@ -890,7 +891,8 @@ IF(iter.EQ.0)THEN ! First iteration: Only output this information once
     iBPO = BPO%BCIDToBPOBCID(iPartBound)
     ! Check if this boundary is tracked
     IF(iBPO.GT.0)THEN
-      TotalSurfArea(iBPO) = TotalSurfArea(iBPO) + SUM(SurfElem(:,:,BCSideID)*wGPSurf(:,:))
+      Nloc = MAX(DG_Elems_master(BCSideID),DG_Elems_slave(BCSideID))
+      TotalSurfArea(iBPO) = TotalSurfArea(iBPO) + SUM(N_SurfMesh(BCSideID)%SurfElem(:,:)*N_Inter(Nloc)%wGPSurf(:,:))
     END IF ! iBPO.GT.0
   END DO ! BCSideID = 1,nBCSides
 #if USE_MPI

@@ -221,7 +221,7 @@ SUBROUTINE DepositionMethod_CVW(doParticle_In, stage_opt)
 USE MOD_Preproc
 USE MOD_Particle_Vars          ,ONLY: Species, PartSpecies,PDM,PEM,PartPosRef,usevMPF,PartMPF
 USE MOD_Particle_Vars          ,ONLY: PartState
-USE MOD_PICDepo_Vars           ,ONLY: PartSource,CellVolWeight_Volumes,CellVolWeightFac
+USE MOD_PICDepo_Vars           ,ONLY: PS_N,CellVolWeight_Volumes,CellVolWeight
 USE MOD_Part_Tools             ,ONLY: isDepositParticle
 USE MOD_Mesh_Tools             ,ONLY: GetCNElemID
 #if USE_LOADBALANCE
@@ -237,6 +237,7 @@ USE MOD_TimeDisc_Vars          ,ONLY: dt,dt_Min
 #if USE_MPI
 USE MOD_MPI_Shared             ,ONLY: BARRIER_AND_SYNC
 #endif /*USE_MPI*/
+USE MOD_DG_Vars                ,ONLY: N_DG
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -261,7 +262,7 @@ LOGICAL            :: doCalculateCurrentDensity
 INTEGER            :: SourceDim
 #endif
 INTEGER            :: kk, ll, mm
-INTEGER            :: iPart,iElem
+INTEGER            :: iPart,iElem,Nloc
 !===================================================================================================================================
 
 #if USE_LOADBALANCE
@@ -335,14 +336,15 @@ DO iElem=1, nElems
 END DO
 
 DO iElem = 1, nElems
-  DO kk = 0, PP_N
-    DO ll = 0, PP_N
-      DO mm = 0, PP_N
-        alpha1 = CellVolWeightFac(kk)
-        alpha2 = CellVolWeightFac(ll)
-        alpha3 = CellVolWeightFac(mm)
-        PartSource(SourceDim:4,kk,ll,mm,iElem) = &
-            PartSource(SourceDim:4,kk,ll,mm,iElem) + &
+  Nloc = N_DG(iElem)
+  DO kk = 0, Nloc
+    DO ll = 0, Nloc
+      DO mm = 0, Nloc
+        alpha1 = CellVolWeight(Nloc)%Fac(kk)
+        alpha2 = CellVolWeight(Nloc)%Fac(ll)
+        alpha3 = CellVolWeight(Nloc)%Fac(mm)
+        PS_N(iElem)%PartSource(SourceDim:4,kk,ll,mm) = &
+            PS_N(iElem)%PartSource(SourceDim:4,kk,ll,mm) + &
             BGMSourceCellVol(:,0,0,0,iElem) * (1-alpha1) * (1-alpha2) * (1-alpha3)    + &
             BGMSourceCellVol(:,0,0,1,iElem) * (1-alpha1) * (1-alpha2) *   (alpha3)    + &
             BGMSourceCellVol(:,0,1,0,iElem) * (1-alpha1) *   (alpha2) * (1-alpha3)    + &
@@ -380,7 +382,7 @@ USE MOD_Mesh_Vars          ,ONLY: nElems,offsetElem
 USE MOD_Particle_Vars      ,ONLY: Species,PartSpecies,PDM,PEM,usevMPF,PartMPF
 USE MOD_Particle_Vars      ,ONLY: PartState
 USE MOD_Particle_Mesh_Vars ,ONLY: ElemNodeID_Shared, NodeInfo_Shared, NodeCoords_Shared, GEO
-USE MOD_PICDepo_Vars       ,ONLY: PartSource,CellVolWeightFac,NodeSourceExt,NodeVolume,NodeSource, nDepoNodes, DepoNodetoGlobalNode
+USE MOD_PICDepo_Vars       ,ONLY: PS_N,CellVolWeight,NodeSourceExt,NodeVolume,NodeSource, nDepoNodes, DepoNodetoGlobalNode
 USE MOD_PICDepo_Vars       ,ONLY: nDepoNodesTotal,Periodic_Nodes,Periodic_nNodes,Periodic_offsetNode
 #if USE_HDG
 USE MOD_PICDepo_Vars       ,ONLY: DoDirichletDeposition
@@ -401,6 +403,7 @@ USE MOD_TimeDisc_Vars      ,ONLY: dt,dt_Min
 #if defined(MEASURE_MPI_WAIT)
 USE MOD_Particle_MPI_Vars  ,ONLY: MPIW8TimePart,MPIW8CountPart
 #endif /*defined(MEASURE_MPI_WAIT)*/
+USE MOD_DG_Vars            ,ONLY: N_DG
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -413,7 +416,7 @@ INTEGER,INTENT(IN),OPTIONAL :: stage_opt
 ! LOCAL VARIABLES
 REAL               :: Charge, TSource(1:4), PartDistDepo(8), DistSum
 REAL               :: alpha1, alpha2, alpha3, TempPartPos(1:3)
-INTEGER            :: kk, ll, mm, iPart, iElem, jNode, jGlobNode
+INTEGER            :: kk, ll, mm, iPart, iElem, jNode, jGlobNode, Nloc
 INTEGER            :: NodeID(1:8), iNode, globalNode
 LOGICAL            :: SucRefPos
 #if !((USE_HDG) && (PP_nVar==1))
@@ -710,13 +713,14 @@ CALL LBStartTime(tLBStart) ! Start time measurement
 DO iElem = 1, nElems
   ! Get UniqueNodeID from NonUniqueNodeID = ElemNodeID_Shared(:,GetCNElemID(iElem))
   NodeID = NodeInfo_Shared(ElemNodeID_Shared(:,GetCNElemID(iElem+offsetElem)))
-  DO kk = 0, PP_N
-    DO ll = 0, PP_N
-      DO mm = 0, PP_N
-        alpha1 = CellVolWeightFac(kk)
-        alpha2 = CellVolWeightFac(ll)
-        alpha3 = CellVolWeightFac(mm)
-        Partsource(SourceDim:4,kk,ll,mm,iElem) = &
+  Nloc = N_DG(iElem)
+  DO kk = 0, Nloc
+    DO ll = 0, Nloc
+      DO mm = 0, Nloc
+        alpha1 = CellVolWeight(Nloc)%Fac(kk)
+        alpha2 = CellVolWeight(Nloc)%Fac(ll)
+        alpha3 = CellVolWeight(Nloc)%Fac(mm)
+        PS_N(iElem)%Partsource(SourceDim:4,kk,ll,mm) = &
              NodeSource(SourceDim:4,NodeID(1)) * (1-alpha1) * (1-alpha2) * (1-alpha3) + &
              NodeSource(SourceDim:4,NodeID(2)) * (alpha1)   * (1-alpha2) * (1-alpha3) + &
              NodeSource(SourceDim:4,NodeID(3)) * (alpha1)   * (alpha2)   * (1-alpha3) + &

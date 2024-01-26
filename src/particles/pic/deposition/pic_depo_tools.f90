@@ -349,7 +349,7 @@ USE MOD_PreProc
 USE MOD_IO_HDF5
 USE MOD_HDF5_Input,              ONLY:ReadArray,ReadAttribute,File_ID,OpenDataFile,CloseDataFile,DatasetExists
 USE MOD_Particle_Vars,           ONLY:nSpecies
-USE MOD_PICDepo_Vars,            ONLY:PartSource
+!USE MOD_PICDepo_Vars,            ONLY:PartSource
 USE MOD_Mesh_Vars,               ONLY:OffsetElem,nGlobalElems
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -424,8 +424,7 @@ DO iSpec=1,nSpecies
     END IF
   END DO
 END DO
-IF (.NOT.ANY(PartSourceToVar.NE.0)) CALL abort(__STAMP__, &
-  'No PartSource found in TimeAverage-File "'//TRIM(FileName)//'"!!!',999,999.)
+IF (.NOT.ANY(PartSourceToVar.NE.0)) CALL abort(__STAMP__, 'No PartSource found in TimeAverage-File "'//TRIM(FileName))
 DEALLOCATE(VarNames)
 
 !-- read state
@@ -434,26 +433,27 @@ CALL ReadAttribute(File_ID,'N',1,IntScalar=N_HDF5)
 IF(N_HDF5.EQ.PP_N)THEN! No interpolation needed, read solution directly from file
   ! Associate construct for integer KIND=8 possibility
   ASSOCIATE (&
+        Tmp_N       => INT(PP_N,IK)     ,&
         nVars       => INT(nVars,IK)     ,&
         PP_nElems   => INT(PP_nElems,IK) ,&
         OffsetElem  => INT(OffsetElem,IK) )
-        CALL ReadArray('DG_Solution',5,(/nVars,INT(PP_N,IK)+1_IK,INT(PP_N,IK)+1_IK,INT(PP_N,IK)+1_IK,PP_nElems/),OffsetElem,5,RealArray=U)
+        CALL ReadArray('DG_Solution',5,(/nVars,Tmp_N+1_IK,Tmp_N+1_IK,Tmp_N+1_IK,PP_nElems/),OffsetElem,5,RealArray=U)
   END ASSOCIATE
 ELSE
-  CALL abort(__STAMP__, &
-        'N_HDF5.NE.PP_N !',999,999.)
+  CALL abort(__STAMP__, 'N_HDF5.NE.PP_N !',999,999.)
 END IF
 CALL CloseDataFile()
 
 !-- save to PartSource
-PartSource(4,:,:,:,:)=0.
+!PartSource(4,:,:,:,:)=0.
 DO iSpec=1,nSpecies
   IF (PartSourceToVar(iSpec).NE.0) THEN
     DO iElem=1,PP_nElems
       DO kk = 0, PP_N
         DO ll = 0, PP_N
           DO mm = 0, PP_N
-            PartSource(4,mm,ll,kk,iElem)=PartSource(4,mm,ll,kk,iElem)+U(PartSourceToVar(iSpec),mm,ll,kk,iElem)
+            CALL abort(__STAMP__,'not implemented')
+            !PartSource(4,mm,ll,kk,iElem)=PartSource(4,mm,ll,kk,iElem)+U(PartSourceToVar(iSpec),mm,ll,kk,iElem)
           END DO
         END DO
       END DO

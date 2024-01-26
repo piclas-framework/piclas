@@ -1126,7 +1126,7 @@ USE MOD_piclas2vtk_Vars         ,ONLY: SurfConnect
 USE MOD_Interpolation           ,ONLY: GetVandermonde
 USE MOD_ChangeBasis             ,ONLY: ChangeBasis2D
 USE MOD_Interpolation_Vars      ,ONLY: NodeTypeVISU
-USE MOD_Mesh_Vars               ,ONLY: Face_xGP, Ngeo
+USE MOD_Mesh_Vars               ,ONLY: N_SurfMesh,Ngeo
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1138,7 +1138,7 @@ CHARACTER(LEN=255),INTENT(IN)   :: InputStateFile
 ! LOCAL VARIABLES
 CHARACTER(LEN=255)              :: FileString, File_Type
 CHARACTER(LEN=255),ALLOCATABLE  :: VarNamesSurf_HDF5(:)
-INTEGER                         :: nDims, nVarSurf, nSurfaceSidesReadin
+INTEGER                         :: nDims, nVarSurf, nSurfaceSidesReadin, iSurfCinnectSide
 REAL                            :: OutputTime
 REAL, ALLOCATABLE               :: tempSurfData(:,:,:,:,:)
 INTEGER                         :: iSide
@@ -1196,7 +1196,8 @@ IF(nSurfSample.GT.1) THEN
   NodeCoords_visu = 0.
   ! Interpolate mesh onto visu grid
   DO iSide=1,SurfConnect%nSurfaceBCSides
-    CALL ChangeBasis2D(3,NGeo,nSurfSample,Vdm_EQNgeo_NVisu,Face_xGP(1:3,:,:,SurfConnect%SurfSideToSide(iSide)),NodeCoords_visu(1:3,:,:,0,iSide))
+    iSurfCinnectSide = SurfConnect%SurfSideToSide(iSide)
+    CALL ChangeBasis2D(3,NGeo,nSurfSample,Vdm_EQNgeo_NVisu,N_SurfMesh(iSurfCinnectSide)%Face_xGP(1:3,:,:),NodeCoords_visu(1:3,:,:,0,iSide))
   END DO
 ELSE
   ALLOCATE(NodeCoords_visu(1:3,0:0,0:0,0:0,1:SurfConnect%nSurfaceNode))
