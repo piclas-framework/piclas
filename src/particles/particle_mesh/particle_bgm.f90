@@ -100,6 +100,7 @@ USE MOD_Particle_Mesh_Vars     ,ONLY: NodeCoords_Shared
 USE MOD_Particle_Mesh_Vars     ,ONLY: ElemInfo_Shared,FIBGM_nElems,ElemToBGM_Shared,FIBGM_offsetElem
 USE MOD_Particle_Mesh_Vars     ,ONLY: BoundsOfElem_Shared,GEO,FIBGM_Element
 USE MOD_Particle_Boundary_Vars ,ONLY: PartBound
+USE MOD_Particle_Vars          ,ONLY: Symmetry
 #if (PP_TimeDiscMethod==501) || (PP_TimeDiscMethod==502) || (PP_TimeDiscMethod==506)
 USE MOD_TimeDisc_Vars          ,ONLY: iStage,nRKStages,RK_c
 #endif
@@ -205,6 +206,7 @@ REAL                           :: halo_eps
 INTEGER,ALLOCATABLE            :: NumberOfElements(:)
 #endif /*CODE_ANALYZE*/
 REAL                           :: StartT,EndT ! Timer
+REAL                           :: FIBGMdeltas1(3),ElemWeights(3),FIBGMdeltas2(3)
 !===================================================================================================================================
 
 #if USE_MPI
@@ -297,17 +299,44 @@ IF(.NOT.GEO%AutomaticFIBGM) THEN
   GEO%FIBGMdeltas(1:3) = GEO%FIBGMdeltas(1:3)/GEO%FactorFIBGM(1:3)
 ELSE
   ! Generate FIBGM parameter automatically
-  GEO%FIBGMdeltas(1:3) = 0
+
+  ! Average length weighted
+  ! Determine FIBGMdeltas by averageing the bounding box of all elements weighted by the size of the box in the distinct direction
+  FIBGMdeltas1(1:3) = 0
+  ElemWeights(1:3) = 0
   DO iElem = firstElem, lastElem
-    GEO%FIBGMdeltas(1) = GEO%FIBGMdeltas(1) + BoundsOfElem_Shared(2,1,iElem)-BoundsOfElem_Shared(1,1,iElem)
-    GEO%FIBGMdeltas(2) = GEO%FIBGMdeltas(2) + BoundsOfElem_Shared(2,2,iElem)-BoundsOfElem_Shared(1,2,iElem)
-    GEO%FIBGMdeltas(3) = GEO%FIBGMdeltas(3) + BoundsOfElem_Shared(2,3,iElem)-BoundsOfElem_Shared(1,3,iElem)
+    ElemWeights(1)  = ElemWeights(1)  + (BoundsOfElem_Shared(2,1,iElem)-BoundsOfElem_Shared(1,1,iElem))
+    FIBGMdeltas1(1) = FIBGMdeltas1(1) + (BoundsOfElem_Shared(2,1,iElem)-BoundsOfElem_Shared(1,1,iElem))**2
+    ElemWeights(2)  = ElemWeights(2)  + (BoundsOfElem_Shared(2,2,iElem)-BoundsOfElem_Shared(1,2,iElem))
+    FIBGMdeltas1(2) = FIBGMdeltas1(2) + (BoundsOfElem_Shared(2,2,iElem)-BoundsOfElem_Shared(1,2,iElem))**2
+    ElemWeights(3)  = ElemWeights(3)  + (BoundsOfElem_Shared(2,3,iElem)-BoundsOfElem_Shared(1,3,iElem))
+    FIBGMdeltas1(3) = FIBGMdeltas1(3) + (BoundsOfElem_Shared(2,3,iElem)-BoundsOfElem_Shared(1,3,iElem))**2
   END DO
 #if USE_MPI
-  CALL MPI_ALLREDUCE(MPI_IN_PLACE,GEO%FIBGMdeltas,3,MPI_DOUBLE_PRECISION,MPI_SUM,MPI_COMM_PICLAS,iError)
+  CALL MPI_ALLREDUCE(MPI_IN_PLACE,FIBGMdeltas1,3,MPI_DOUBLE_PRECISION,MPI_SUM,MPI_COMM_PICLAS,iError)
+  CALL MPI_ALLREDUCE(MPI_IN_PLACE,ElemWeights ,3,MPI_DOUBLE_PRECISION,MPI_SUM,MPI_COMM_PICLAS,iError)
 #endif
-  GEO%FIBGMdeltas    = GEO%FIBGMdeltas/REAL(nGlobalElems)
-  SWRITE(*,*) "GEO%FIBGMdeltas",GEO%FIBGMdeltas
+  ! FIBGMdeltas1    = FIBGMdeltas1/REAL(nGlobalElems)
+  FIBGMdeltas1    = FIBGMdeltas1/ElemWeights
+
+  ! Min
+  ! Determine a maximum FIBGMdeltas size by the smallest element in such a way that not to many elemems are in this FIBGM element
+  FIBGMdeltas2(1:3) = HUGE(FIBGMdeltas1(1))
+  DO iElem = firstElem, lastElem
+    FIBGMdeltas2(1) = MIN(FIBGMdeltas2(1),BoundsOfElem_Shared(2,1,iElem)-BoundsOfElem_Shared(1,1,iElem))
+    FIBGMdeltas2(2) = MIN(FIBGMdeltas2(2),BoundsOfElem_Shared(2,2,iElem)-BoundsOfElem_Shared(1,2,iElem))
+    FIBGMdeltas2(3) = MIN(FIBGMdeltas2(3),BoundsOfElem_Shared(2,3,iElem)-BoundsOfElem_Shared(1,3,iElem))
+  END DO
+#if USE_MPI
+  CALL MPI_ALLREDUCE(MPI_IN_PLACE,FIBGMdeltas2(1:3),3,MPI_DOUBLE_PRECISION,MPI_MIN,MPI_COMM_PICLAS,iError)
+#endif
+  ! Similar to Octree 50 (~25 including SideElems) Elements per FIBGM cell
+  FIBGMdeltas2    = FIBGMdeltas2 * 25.**(1./Symmetry%Order)
+
+  ! Use the minimum of both possible deltas
+  GEO%FIBGMdeltas(1) = MIN(FIBGMdeltas1(1),FIBGMdeltas2(1))
+  GEO%FIBGMdeltas(2) = MIN(FIBGMdeltas1(2),FIBGMdeltas2(2))
+  GEO%FIBGMdeltas(3) = MIN(FIBGMdeltas1(3),FIBGMdeltas2(3))
 END IF
 
 ! Read periodic vectors from parameter file
