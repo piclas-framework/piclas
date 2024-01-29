@@ -1907,7 +1907,6 @@ END IF
 END SUBROUTINE ComputePeriodicVec
 
 
-
 SUBROUTINE InitVolumes_2D()
 !===================================================================================================================================
 !> Routine determines the symmetry sides and calculates the 2D (area faces in symmetry plane) and axisymmetric volumes (cells are
@@ -1930,7 +1929,7 @@ USE MOD_Particle_Surfaces       ,ONLY: CalcNormAndTangTriangle
 USE MOD_MPI_Shared
 USE MOD_MPI_Shared_Vars         ,ONLY: MPI_COMM_SHARED
 USE MOD_Particle_Mesh_Vars      ,ONLY: nNonUniqueGlobalSides, offsetComputeNodeElem, ElemInfo_Shared
-USE MOD_Particle_Mesh_Vars      ,ONLY: ElemVolume_Shared_Win,ElemCharLength_Shared_Win,SideIsSymSide_Shared_Win
+USE MOD_Particle_Mesh_Vars      ,ONLY: ElemVolume_Shared_Win,ElemCharLength_Shared_Win,SideIsSymSide_Shared_Win,SideIsSymSide
 USE MOD_MPI_Shared_Vars         ,ONLY: myComputeNodeRank,nComputeNodeProcessors,MPI_COMM_LEADERS_SHARED
 #else
 USE MOD_Particle_Mesh_Vars      ,ONLY: nComputeNodeSides
@@ -1957,6 +1956,9 @@ INTEGER                         :: firstElem, lastElem, firstSide, lastSide
 #if USE_MPI
 CALL Allocate_Shared((/nNonUniqueGlobalSides/),SideIsSymSide_Shared_Win,SideIsSymSide_Shared)
 CALL MPI_WIN_LOCK_ALL(0,SideIsSymSide_Shared_Win,IERROR)
+SideIsSymSide => SideIsSymSide_Shared
+! only CN root nullifies
+IF(myComputeNodeRank.EQ.0) SideIsSymSide = .FALSE.
 #else
 ALLOCATE(SideIsSymSide_Shared(nComputeNodeSides))
 #endif  /*USE_MPI*/
