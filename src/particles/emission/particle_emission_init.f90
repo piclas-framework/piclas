@@ -480,9 +480,11 @@ IMPLICIT NONE
 ! LOCAL VARIABLES
 INTEGER             :: iSpec,NbrOfParticle,iInit,iPart,PositionNbr,iSF,iSide,ElemID,SampleElemID,currentBC,jSample,iSample,BCSideID
 REAL                :: TimeStepOverWeight, v_thermal, dtVar
+REAL                :: StartT,EndT
 !===================================================================================================================================
 
 LBWRITE(UNIT_stdOut,'(A)') ' INITIAL PARTICLE INSERTING...'
+GETTIME(StartT)
 
 CALL UpdateNextFreePosition()
 
@@ -612,7 +614,8 @@ END IF
 
 IF((DSMC%VibRelaxProb.EQ.2).AND.(CollisMode.GE.2)) CALL SetVarVibProb2Elems()
 
-LBWRITE(UNIT_stdOut,'(A)') ' INITIAL PARTICLE INSERTING DONE!'
+GETTIME(EndT)
+CALL DisplayMessageAndTime(EndT-StartT,'INITIAL PARTICLE INSERTING DONE!')
 
 END SUBROUTINE InitialParticleInserting
 
