@@ -75,6 +75,8 @@ TYPE tRadialWeighting
   INTEGER                     :: CloneInputDelay
   LOGICAL                     :: CellLocalWeighting
   INTEGER                     :: nSubSides
+  INTEGER                     :: CloneVecLength
+  INTEGER                     :: CloneVecLengthDelta
 END TYPE tRadialWeighting
 
 TYPE(tRadialWeighting)        :: RadialWeighting
@@ -435,6 +437,8 @@ TYPE tChemReactions
   TYPE(tCollCaseInfo), ALLOCATABLE:: CollCaseInfo(:)        ! Information of collision cases (nCase)
   ! XSec Chemistry
   LOGICAL                         :: AnyXSecReaction        ! Defines if any XSec reaction is present
+  ! Photo-ionization Chemistry
+  LOGICAL                         :: AnyPhIonReaction       ! Defines if any photo-ionization reaction is present
 END TYPE
 
 TYPE(tChemReactions)              :: ChemReac

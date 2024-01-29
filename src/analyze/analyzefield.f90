@@ -97,7 +97,7 @@ INTEGER            :: unit_index, nOutputVarTotal
 INTEGER            :: iPlane
 REAL               :: PoyntingIntegral(1:nPoyntingIntPlanes)
 #endif /*PP_nVar>=6*/
-CHARACTER(LEN=150) :: formatStr
+CHARACTER(LEN=1000) :: formatStr
 #if (PP_nVar==8)
 INTEGER,PARAMETER  :: helpInt=4
 #else
@@ -126,7 +126,7 @@ CHARACTER(LEN=255),DIMENSION(nOutputVar) :: StrVarNames(nOutputVar)=(/ CHARACTER
     'HDG-Norm' &
 #endif /*USE_HDG*/
     /)
-CHARACTER(LEN=255),ALLOCATABLE :: tmpStr(:) ! needed because PerformAnalyze is called multiple times at the beginning
+CHARACTER(LEN=500),ALLOCATABLE :: tmpStr(:) ! needed because PerformAnalyze is called multiple times at the beginning
 CHARACTER(LEN=5000)            :: tmpStr2
 CHARACTER(LEN=1),PARAMETER     :: delimiter=","
 INTEGER                        :: I,iBoundary

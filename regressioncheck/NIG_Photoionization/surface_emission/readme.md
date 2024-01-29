@@ -1,4 +1,5 @@
 # Photoionization: Surface Emission via SEE
+* **Comparing**: the total number of real electrons in the system with an analytical expression
 * Particle emission due to secondary electron emission from a surface
 * no deposition, no interpolation 
 * comparison of the number of emitted electrons with the analytic solution

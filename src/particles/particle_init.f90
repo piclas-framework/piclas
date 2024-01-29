@@ -199,8 +199,8 @@ CALL prms%CreateLogicalOption(  'Particles-DSMC-CalcSurfaceVal'&
   , 'Set [T] to activate sampling, analyze and h5 output for surfaces. Therefore either time fraction or iteration sampling'//&
   ' have to be enabled as well.', '.FALSE.')
 
-CALL prms%CreateLogicalOption(  'Part-SampElectronicExcitation'&
-  , 'Set [T] to activate sampling of electronic energy excitation', '.FALSE.')
+CALL prms%CreateLogicalOption(  'Part-SampleElectronicExcitation'&
+  , 'Set [T] to activate sampling of electronic energy excitation (currently only available for ElectronicModel = 3)', '.FALSE.')
 
 ! === Rotational frame of reference
 CALL prms%CreateLogicalOption(  'Part-UseRotationalReferenceFrame', 'Activate rotational frame of reference', '.FALSE.')
@@ -217,19 +217,28 @@ END SUBROUTINE DefineParametersParticles
 !===================================================================================================================================
 ! Global particle parameters needed for other particle inits
 !===================================================================================================================================
-SUBROUTINE InitParticleGlobals()
+SUBROUTINE InitParticleGlobals(IsLoadBalance)
 ! MODULES
 USE MOD_Globals
+USE MOD_Globals_Vars           ,ONLY: ProjectName
 USE MOD_ReadInTools
 USE MOD_Particle_Tracking_Vars ,ONLY: TrackingMethod
 USE MOD_Particle_Vars          ,ONLY: Symmetry
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Vars       ,ONLY: PerformLoadBalance
 #endif /*USE_LOADBALANCE*/
+USE MOD_PICDepo_Method         ,ONLY: InitDepositionMethod
+USE MOD_Particle_Vars          ,ONLY: UseVarTimeStep, VarTimeStep
+USE MOD_ReadInTools            ,ONLY: GETLOGICAL
+USE MOD_RayTracing_Vars        ,ONLY: UseRayTracing,PerformRayTracing
+USE MOD_Particle_TimeStep      ,ONLY: InitPartTimeStep
+USE MOD_Photon_TrackingVars    ,ONLY: RadiationSurfState,RadiationVolState
+USE MOD_Restart_Vars           ,ONLY: DoRestart
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
+LOGICAL,INTENT(IN) :: IsLoadBalance
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -238,7 +247,17 @@ IMPLICIT NONE
 
 LBWRITE(UNIT_stdOut,'(A)')' INIT PARTICLE GLOBALS...'
 
-! Find tracking method immediately, a lot of the later variables depend on it
+!--- Variable time step
+VarTimeStep%UseLinearScaling = GETLOGICAL('Part-VariableTimeStep-LinearScaling')
+VarTimeStep%UseDistribution = GETLOGICAL('Part-VariableTimeStep-Distribution')
+IF (VarTimeStep%UseLinearScaling.OR.VarTimeStep%UseDistribution)  THEN
+  UseVarTimeStep = .TRUE.
+  IF(.NOT.IsLoadBalance) CALL InitPartTimeStep()
+ELSE
+  UseVarTimeStep = .FALSE.
+END IF
+
+!--- Find tracking method immediately, a lot of the later variables depend on it
 TrackingMethod = GETINTFROMSTR('TrackingMethod')
 SELECT CASE(TrackingMethod)
 CASE(REFMAPPING,TRACING,TRIATRACKING)
@@ -250,6 +269,30 @@ IF (Symmetry%Order.LE.2) THEN
   TrackingMethod = TRIATRACKING
   LBWRITE(UNIT_stdOut,'(A)') "TrackingMethod set to TriaTracking due to Symmetry2D."
 END IF
+
+!--- Particle-in-cell deposition method
+CALL InitDepositionMethod()
+
+!--- Ray Tracing
+! 1) Activate ray tracing based emission (also required for plasma simulation)
+UseRayTracing = GETLOGICAL('UseRayTracing')
+! 2) Activate actual ray tracing algorithms that track rays through the complete mesh (full mesh mode)
+RadiationSurfState = TRIM(ProjectName)//'_RadiationSurfState.h5'
+RadiationVolState  = TRIM(ProjectName)//'_RadiationVolState.h5'
+PerformRayTracing  = .FALSE. ! default
+IF(UseRayTracing)THEN
+  IF(FILEEXISTS(RadiationSurfState).AND.FILEEXISTS(RadiationVolState))THEN
+    PerformRayTracing = .FALSE.
+  ELSE
+    PerformRayTracing = .TRUE.
+    IF(DoRestart) CALL abort(__STAMP__,'Restart simulation requires '//TRIM(RadiationSurfState)//' and '//TRIM(RadiationVolState))
+  END IF ! FILEEXISTS(RadiationSurfState).AND.FILEEXISTS(RadiationVolState)
+END IF ! UseRayTracing
+
+#if (PP_TimeDiscMethod==600)
+! Radiation solver/transport always requires PerformRayTracing = T
+PerformRayTracing = .TRUE.
+#endif
 
 LBWRITE(UNIT_stdOut,'(A)')' INIT PARTICLE GLOBALS DONE'
 
@@ -275,7 +318,7 @@ USE MOD_SurfaceModel_Vars          ,ONLY: nPorousBC,BulkElectronTempSEE
 USE MOD_Particle_Boundary_Vars     ,ONLY: PartBound
 USE MOD_Particle_Tracking_Vars     ,ONLY: TrackingMethod
 USE MOD_Particle_Vars              ,ONLY: ParticlesInitIsDone,WriteMacroVolumeValues,WriteMacroSurfaceValues,nSpecies
-USE MOD_Particle_Sampling_Vars     ,ONLY: UseAdaptive
+USE MOD_Particle_Sampling_Vars     ,ONLY: UseAdaptiveBC
 USE MOD_Particle_Emission_Init     ,ONLY: InitialParticleInserting
 USE MOD_Particle_SurfFlux_Init     ,ONLY: InitializeParticleSurfaceflux
 USE MOD_SurfaceModel_Init          ,ONLY: InitSurfaceModel
@@ -286,7 +329,7 @@ USE MOD_Particle_Boundary_Init     ,ONLY: InitRotPeriodicMapping, InitAdaptiveWa
 USE MOD_DSMC_BGGas                 ,ONLY: BGGas_InitRegions
 #if USE_MPI
 USE MOD_Particle_MPI               ,ONLY: InitParticleCommSize
-!USE MOD_Particle_MPI_Emission      ,ONLY: InitEmissionParticlesToProcs
+!USE MOD_Particle_MPI_Emission      ,ONLY: InitEmissionParticlesToProcs                                                                                                                      ! USE MOD_Particle_MPI_Emission      ,ONLY: InitEmissionParticlesToProcs
 #endif
 #if (PP_TimeDiscMethod==300)
 USE MOD_FPFlow_Init                ,ONLY: InitFPFlow
@@ -300,6 +343,8 @@ USE MOD_Particle_Vars              ,ONLY: BulkElectronTemp
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Vars           ,ONLY: PerformLoadBalance
 #endif /*USE_LOADBALANCE*/
+USE MOD_RayTracing_Init            ,ONLY: InitRayTracing
+USE MOD_Mesh_Vars                  ,ONLY: NodeCoords
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -332,8 +377,6 @@ END IF
 
 CALL InitializeVariables()
 
-! Insert the initial particles
-CALL InitialParticleInserting()
 ! Initialize particle surface flux to be performed per iteration
 CALL InitializeParticleSurfaceflux()
 
@@ -352,8 +395,13 @@ CALL InitParticleBoundarySurfSides()
 IF(PartBound%UseRotPeriodicBC) CALL InitRotPeriodicMapping()
 IF(PartBound%UseInterPlaneBC)  CALL InitRotPeriodicInterPlaneMapping()
 ! Initialize surface sampling (the following IF arguments have to be considered in FinalizeParticleBoundarySampling as well)
+#if (PP_TimeDiscMethod==600)
+CALL InitParticleBoundarySampling()
+#endif
 IF (WriteMacroSurfaceValues.OR.DSMC%CalcSurfaceVal.OR.(ANY(PartBound%Reactive))) THEN
+#if !(PP_TimeDiscMethod==600)
   CALL InitParticleBoundarySampling()
+#endif
   CALL InitAdaptiveWallTemp()
 END IF
 
@@ -361,10 +409,16 @@ END IF
 IF(nPorousBC.GT.0) CALL InitPorousBoundaryCondition()
 
 ! Allocate sampling of near adaptive boundary element values
-IF(UseAdaptive.OR.(nPorousBC.GT.0)) CALL InitAdaptiveBCSampling()
+IF(UseAdaptiveBC.OR.(nPorousBC.GT.0)) CALL InitAdaptiveBCSampling()
 
-! Initialize backrgound gas regions (requires completed InitParticleGeometry for ElemMidPoint_Shared)
+! Initialize background gas regions (requires completed InitParticleGeometry for ElemMidPoint_Shared)
 IF(BGGas%UseRegions) CALL BGGas_InitRegions()
+
+! Ray tracing
+CALL InitRayTracing()
+
+! Was deallocated in InitParticleMesh previously
+DEALLOCATE(NodeCoords)
 
 IF (useDSMC) THEN
   CALL InitDSMC()
@@ -381,6 +435,9 @@ IF (useDSMC) THEN
 ELSE IF (WriteMacroVolumeValues.OR.WriteMacroSurfaceValues) THEN
   DSMC%ElectronicModel = 0
 END IF
+
+! Insert the initial particles
+CALL InitialParticleInserting()
 
 ! Both routines have to be called AFTER InitializeVariables and InitDSMC
 CALL InitPartDataSize()
@@ -624,10 +681,6 @@ IF (useDSMC.OR.usevMPF) THEN
            PEM%pNext(1:PDM%maxParticleNumber)           , STAT=ALLOCSTAT)
   IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__, ' Cannot allocate DSMC PEM arrays!')
 END IF
-IF (useDSMC) THEN
-  ALLOCATE(PDM%PartInit(1:PDM%maxParticleNumber), STAT=ALLOCSTAT)
-  IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__,' Cannot allocate PDM%PartInit array!')
-END IF
 
 END SUBROUTINE AllocateParticleArrays
 
@@ -835,6 +888,7 @@ USE MOD_Particle_Boundary_Vars ,ONLY: PartBound
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Vars       ,ONLY: PerformLoadBalance
 #endif /*USE_LOADBALANCE*/
+USE MOD_RayTracing_Vars        ,ONLY: UseRayTracing
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -845,9 +899,16 @@ USE MOD_LoadBalance_Vars       ,ONLY: PerformLoadBalance
 ! LOCAL VARIABLES
 !===================================================================================================================================
 ! Include surface values in the macroscopic output
-DSMC%CalcSurfaceVal = GETLOGICAL('Particles-DSMC-CalcSurfaceVal')
+IF(UseRayTracing)THEN
+  ! Automatically activate when UseRayTracing = T
+  DSMC%CalcSurfaceVal = .TRUE.
+  CALL PrintOption('Surface sampling activated (UseRayTracing=T): Particles-DSMC-CalcSurfaceVal','INFO',&
+      LogOpt=DSMC%CalcSurfaceVal)
+ELSE
+  DSMC%CalcSurfaceVal = GETLOGICAL('Particles-DSMC-CalcSurfaceVal')
+END IF ! UseRayTracing
 ! Include electronic energy excitation in the macroscopic output
-SampleElecExcitation = GETLOGICAL('Part-SampElectronicExcitation')
+SampleElecExcitation = GETLOGICAL('Part-SampleElectronicExcitation')
 ! Sampling for and output every given number of iterations (sample is reset after an output)
 WriteMacroValues = GETLOGICAL('Part-WriteMacroValues')
 IF(WriteMacroValues)THEN

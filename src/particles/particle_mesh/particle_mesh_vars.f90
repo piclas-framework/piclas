@@ -26,6 +26,7 @@ SAVE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! GLOBAL VARIABLES
 
+LOGICAL            :: nSurfSampleAndTriaTracking
 LOGICAL            :: ParticleMeshInitIsDone
 REAL               :: meshScale
 LOGICAL            :: MeshWasCurved      =.FALSE.
@@ -44,6 +45,7 @@ INTEGER            :: offsetComputeNodeElem                 !> elem offset of co
 INTEGER            :: offsetComputeNodeSide                 !> side offset of compute-node root
 INTEGER            :: offsetComputeNodeNode                 !> node offset of compute-node root
 INTEGER            :: nUniqueGlobalNodes                    !> MAXVAL(NodeInfo_Shared)
+LOGICAL            :: UseBezierControlPoints                !> Flag is automatically set when BezierControlPoints3D are built
 
 #if USE_MPI
 LOGICAL, ALLOCATABLE :: IsExchangeElem(:) !> Exchange elements may receive particles during MPI communication and cannot be used for latency hiding
@@ -186,7 +188,14 @@ REAL,ALLOCPOINT    :: ElemCharLengthY_Shared(:)
 REAL,ALLOCPOINT    :: ElemCharLengthZ_Shared(:)
 LOGICAL,ALLOCPOINT :: SideIsSymSide_Shared(:)
 
+
+INTEGER,ALLOCPOINT :: ElemSideNodeID2D_Shared(:,:,:)         !> Contains the 4 corner nodes of the local sides in an element
+LOGICAL,ALLOCPOINT :: SideIsSymSide(:)
+REAL,ALLOCPOINT    :: SideNormalEdge2D_Shared(:,:,:)
+
 #if USE_MPI
+INTEGER            :: SideNormalEdge2D_Shared_Win
+INTEGER            :: ElemSideNodeID2D_Shared_Win
 INTEGER            :: SideIsSymSide_Shared_Win
 ! integers to hold shared memory windows
 INTEGER         :: NodeToElemMapping_Shared_Win
@@ -214,7 +223,7 @@ INTEGER         :: FIBGM_offsetElem_Shared_Win
 
 INTEGER         :: FIBGMToProc_Shared_Win
 INTEGER         :: FIBGMToProcFlag_Shared_Win
-INTEGER           :: FIBGMToProcExtent_Shared_Win
+INTEGER         :: FIBGMToProcExtent_Shared_Win
 INTEGER         :: FIBGMProcs_Shared_Win
 
 INTEGER         :: CNTotalElem2GlobalElem_Shared_Win

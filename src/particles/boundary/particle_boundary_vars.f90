@@ -25,7 +25,7 @@ IMPLICIT NONE
 PUBLIC
 SAVE
 
-LOGICAL                                 :: SurfOnNode
+LOGICAL                                 :: SurfTotalSideOnNode
 INTEGER                                 :: SurfSampSize                  !> Energy + Force + nSpecies
 INTEGER                                 :: SurfOutputSize                !> Energy + Force + nSpecies
 INTEGER                                 :: SurfSpecOutputSize            !> Energy + Force + nSpecies
@@ -33,11 +33,11 @@ REAL,ALLOCPOINT,DIMENSION(:,:,:)        :: SurfSideArea                  !> Area
 REAL,ALLOCPOINT,DIMENSION(:,:,:)        :: BoundaryWallTemp              !> Wall Temperature for Adaptive Case
 ! ====================================================================
 ! Mesh info
-INTEGER                                 :: nSurfTotalSides
-INTEGER                                 :: nOutputSides
+INTEGER                                 :: nGlobalSurfSides
+INTEGER                                 :: nGlobalOutputSides
 
 INTEGER                                 :: nComputeNodeSurfSides         !> Number of surface sampling sides on compute node
-INTEGER                                 :: nComputeNodeSurfOutputSides   !> Number of output surface sampling sides on compute node (inner BCs only counted once)
+INTEGER                                 :: nComputeNodeSurfOutputSides   !> Number of output surface sampling sides on compute node (inner BCs only counted once and rotationally periodic BCs excluded)
 INTEGER                                 :: nComputeNodeSurfTotalSides    !> Number of surface sampling sides on compute node (including halo region)
 INTEGER                                 :: offsetComputeNodeSurfSide     !> elem offset of compute-node root
 INTEGER                                 :: offsetComputeNodeSurfOutputSide     !> elem offset of compute-node root
@@ -125,6 +125,8 @@ INTEGER                                 :: SampWallImpactNumber_Shared_Win
 
 ! ====================================================================
 ! Rotational periodic sides
+INTEGER                           :: nRotPeriodicSides         ! Number of rotational periodic sides on a compute node
+INTEGER                           :: MaxNumRotPeriodicNeigh    ! Maximum number of rotationally periodic neighbours
 INTEGER,ALLOCPOINT,DIMENSION(:)   :: NumRotPeriodicNeigh       ! Number of adjacent Neigbours sites in rotational periodic BC
 INTEGER,ALLOCPOINT,DIMENSION(:,:) :: RotPeriodicSideMapping    ! Mapping between rotational periodic sides.
 INTEGER,ALLOCPOINT,DIMENSION(:)   :: SurfSide2RotPeriodicSide  ! Mapping between surf side and periodic sides.
@@ -228,6 +230,12 @@ TYPE tPartBoundary
   INTEGER , ALLOCATABLE                  :: TempGradDir(:)
   ! Linear and rotational wall velocity
   REAL    , ALLOCATABLE                  :: WallVelo(:,:)
+  REAL    , ALLOCATABLE                  :: PhotonEnACC(:)
+  REAL    , ALLOCATABLE                  :: PhotonSEEYield(:)
+  REAL    , ALLOCATABLE                  :: PhotonSEEWorkFunction(:)
+  REAL    , ALLOCATABLE                  :: PhotonSEEMacroParticleFactor(:)
+  INTEGER , ALLOCATABLE                  :: PhotonSEEElectronSpecies(:)
+  LOGICAL , ALLOCATABLE                  :: PhotonSpecularReflection(:)
   LOGICAL , ALLOCATABLE                  :: RotVelo(:)                    ! Flag for rotating walls
   REAL    , ALLOCATABLE                  :: RotOmega(:,:)                 ! Angular velocity
   ! Species swap BCs
@@ -266,7 +274,7 @@ TYPE tPartBoundary
   INTEGER , ALLOCATABLE                  :: AssociatedPlane(:)          ! Link between both coressponding intermediate planes
   INTEGER , ALLOCATABLE                  :: nSidesOnInterPlane(:)       ! Number of Sides on intermediate plane
   REAL    , ALLOCATABLE                  :: NormalizedRadiusDir(:,:)    ! Normalized vector in radius direction that is used to
-                                                                        ! calculate a random position on same radius within the 
+                                                                        ! calculate a random position on same radius within the
                                                                         ! rot periodic segment
   REAL    , ALLOCATABLE                  :: RotAxisPosition(:)          ! Position of inter plane at rotation axis
   REAL    , ALLOCATABLE                  :: AngleRatioOfInterPlanes(:)  ! Ratio of rotation angles for the intermediate planes
@@ -280,12 +288,9 @@ TYPE(tPartBoundary)                      :: PartBound                     ! Boun
 
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Boundary particle output
-!-----------------------------------------------------------------------------------------------------------------------------------
-LOGICAL              :: DoBoundaryParticleOutputHDF5   ! Flag set automatically if particles crossing specific
-!                                                  ! boundaries are to be saved to .h5 (position of intersection,
-!                                                  ! velocity, species, internal energies)
-REAL, ALLOCATABLE    :: PartStateBoundary(:,:)     ! (1:11,1:NParts) 1st index: x,y,z,vx,vy,vz,SpecID,Ekin,MPF,time,impact angle,
-!                                                  !                            BCindex
+LOGICAL              :: DoBoundaryParticleOutputHDF5 ! Flag set automatically if particles crossing specific  boundaries are to be saved to .h5 (position of intersection, velocity, species, internal energies)
+LOGICAL              :: DoBoundaryParticleOutputRay ! User-defined flag to output surface SEE or volume ionization emission particles to .h5 based on the ray tracing model
+REAL, ALLOCATABLE    :: PartStateBoundary(:,:)     ! (1:11,1:NParts) 1st index: x,y,z,vx,vy,vz,SpecID,Ekin,MPF,time,impact angle, BCindex
 !                                                  !                 2nd index: 1 to number of boundary-crossed particles
 INTEGER, PARAMETER   :: nVarPartStateBoundary=11
 INTEGER              :: PartStateBoundaryVecLength ! Number of boundary-crossed particles

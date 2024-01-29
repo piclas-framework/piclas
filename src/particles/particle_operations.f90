@@ -132,13 +132,13 @@ END SUBROUTINE CreateParticle
 SUBROUTINE RemoveParticle(PartID,BCID,alpha,crossedBC)
 !===================================================================================================================================
 !> Removes a single particle "PartID" by setting the required variables.
-!> If CalcPartBalance/UseAdaptive/CalcSurfFluxInfo = T: adds/substracts the particle to/from the respective counter
+!> If CalcPartBalance/UseAdaptiveBC/CalcSurfFluxInfo = T: adds/substracts the particle to/from the respective counter
 !>  !!!NOTE!!! This routine is inside particle analyze because of circular definition of modules (CalcEkinPart)
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals_Vars              ,ONLY: ElementaryCharge
-USE MOD_Particle_Vars             ,ONLY: PDM, PartSpecies, Species, PartMPF, usevMPF
-USE MOD_Particle_Sampling_Vars    ,ONLY: UseAdaptive, AdaptBCPartNumOut
+USE MOD_Particle_Vars             ,ONLY: PDM, PartSpecies, Species, PartMPF, usevMPF, PartState, PartPosRef, Pt
+USE MOD_Particle_Sampling_Vars    ,ONLY: UseAdaptiveBC, AdaptBCPartNumOut
 USE MOD_Particle_Vars             ,ONLY: UseNeutralization, NeutralizationSource, NeutralizationBalance,nNeutralizationElems
 USE MOD_Particle_Boundary_Vars    ,ONLY: PartBound
 USE MOD_Particle_Analyze_Vars     ,ONLY: CalcPartBalance,nPartOut,PartEkinOut,CalcSurfFluxInfo
@@ -198,7 +198,7 @@ END IF ! CalcPartBalance
 IF(PRESENT(BCID)) THEN
 
   ! Check if adaptive BC or surface flux info
-  IF(UseAdaptive.OR.CalcSurfFluxInfo) THEN
+  IF(UseAdaptiveBC.OR.CalcSurfFluxInfo) THEN
     DO iSF=1,Species(iSpec)%nSurfacefluxBCs
       IF(Species(iSpec)%Surfaceflux(iSF)%BC.EQ.BCID) THEN
         Species(iSpec)%Surfaceflux(iSF)%SampledMassflow = Species(iSpec)%Surfaceflux(iSF)%SampledMassflow &
@@ -206,7 +206,7 @@ IF(PRESENT(BCID)) THEN
         IF(Species(iSpec)%Surfaceflux(iSF)%AdaptiveType.EQ.4)  AdaptBCPartNumOut(iSpec,iSF) = AdaptBCPartNumOut(iSpec,iSF) + 1
       END IF
     END DO
-  END IF ! UseAdaptive.OR.CalcSurfFluxInfo
+  END IF ! UseAdaptiveBC.OR.CalcSurfFluxInfo
 
   ! Ion thruster simulations: Landmark and Liu2010 (SPT-100) if neutralization current is determined from the particle flux over the
   ! neutralization boundary condition instead of looking into the first row of elements along that BC

@@ -77,6 +77,7 @@ PUBLIC :: InitializeParticleMaxwell
 PUBLIC :: InterpolateEmissionDistribution2D
 PUBLIC :: MergeCells,InRotRefFrameCheck
 PUBLIC :: CalcPartSymmetryPos
+PUBLIC :: StoreLostPhotonProperties
 PUBLIC :: RotateVectorAroundAxis
 PUBLIC :: IncreaseMaxParticleNumber, GetNextFreePosition, ReduceMaxParticleNumber
 !===================================================================================================================================
@@ -232,6 +233,105 @@ CALL LBPauseTime(LB_UNFP,tLBStart)
 #endif /*USE_LOADBALANCE*/
 
 END SUBROUTINE UpdateNextFreePosition
+
+
+SUBROUTINE StoreLostPhotonProperties(ElemID,CallingFileName,LineNbrOfCall,ErrorCode)
+!----------------------------------------------------------------------------------------------------------------------------------!
+! Store information of a lost photons during tracking
+!----------------------------------------------------------------------------------------------------------------------------------!
+! MODULES                                                                                                                          !
+USE MOD_Globals                ,ONLY: abort,myrank
+USE MOD_Particle_Tracking_Vars ,ONLY: PartStateLost,PartLostDataSize,PartStateLostVecLength
+USE MOD_TimeDisc_Vars          ,ONLY: time
+USE MOD_Photon_TrackingVars    ,ONLY: PhotonProps
+USE MOD_Particle_Tracking_Vars ,ONLY: NbrOfLostParticles,DisplayLostParticles
+!----------------------------------------------------------------------------------------------------------------------------------!
+! insert modules here
+!----------------------------------------------------------------------------------------------------------------------------------!
+IMPLICIT NONE
+! INPUT / OUTPUT VARIABLES
+CHARACTER(LEN=*),INTENT(IN) :: CallingFileName ! Name of calling file
+INTEGER,INTENT(IN)          :: LineNbrOfCall   ! Line number from which this function was called from CallingFileName
+INTEGER,INTENT(IN)          :: ElemID ! Global element index
+INTEGER,INTENT(IN)          :: ErrorCode ! Code for identifying the type of error that was encountered.
+!                                        !   999: lost during tracking
+!                                        !  9999: lost during tracking but reached MaxIterPhoton(1) (bilinear tracking)
+!                                        ! 99999: lost during tracking but reached MaxIterPhoton(2) (TriaTracking)
+INTEGER                     :: dims(2)
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+! Temporary arrays
+REAL, ALLOCATABLE :: PartStateLost_tmp(:,:) ! (1:11,1:NParts) 1st index: x,y,z,vx,vy,vz,SpecID,MPF,time,ElemID,iPart
+!                                           !                 2nd index: 1 to number of lost particles
+INTEGER           :: ALLOCSTAT
+CHARACTER(LEN=60) :: hilf
+!===================================================================================================================================
+
+! Increment counter for lost particle per process
+NbrOfLostParticles=NbrOfLostParticles+1
+
+! Output in terminal if activated
+IF(DisplayLostParticles)THEN
+  WRITE(UNIT=hilf,FMT='(I0)') LineNbrOfCall
+  IPWRITE(*,*) 'Error in photon tracking in '//TRIM(CallingFileName)//' in line '//TRIM(hilf)//'! Photon lost. Element:', ElemID
+  IPWRITE(*,*) 'LastPos:  ', PhotonProps%PhotonLastPos(1:3)
+  IPWRITE(*,*) 'Pos:      ', PhotonProps%PhotonPos(1:3)
+  IPWRITE(*,*) 'Direction:', PhotonProps%PhotonDirection(1:3)
+  IPWRITE(*,*) 'Photon deleted!'
+END IF ! DisplayLostParticles
+
+! Check if size of the array must be increased
+dims = SHAPE(PartStateLost)
+
+ASSOCIATE( iMax        => PartStateLostVecLength           , &
+           LastPhotPos => PhotonProps%PhotonLastPos(1:3)   , &
+           PhotPos     => PhotonProps%PhotonPos(1:3)       , &
+           Dir         => PhotonProps%PhotonDirection(1:3) )
+  ! Increase maximum number of boundary-impact particles
+  iMax = iMax + 1
+
+  ! Check if array maximum is reached.
+  ! If this happens, re-allocate the arrays and increase their size (every time this barrier is reached, double the size)
+  IF(iMax.GT.dims(2))THEN
+
+    ! --- PartStateLost ---
+    ALLOCATE(PartStateLost_tmp(1:PartLostDataSize,1:dims(2)), STAT=ALLOCSTAT)
+    IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__,'ERROR in particle_boundary_tools.f90: Cannot allocate PartStateLost_tmp array!')
+    ! Save old data
+    PartStateLost_tmp(1:PartLostDataSize,1:dims(2)) = PartStateLost(1:PartLostDataSize,1:dims(2))
+
+    ! Re-allocate PartStateLost to twice the size
+    DEALLOCATE(PartStateLost)
+    ALLOCATE(PartStateLost(1:PartLostDataSize,1:2*dims(2)), STAT=ALLOCSTAT)
+    IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__,'ERROR in particle_boundary_tools.f90: Cannot allocate PartStateLost array!')
+    PartStateLost(1:PartLostDataSize,        1:  dims(2)) = PartStateLost_tmp(1:PartLostDataSize,1:dims(2))
+    PartStateLost(1:PartLostDataSize,dims(2)+1:2*dims(2)) = 0.
+
+  END IF
+
+  ! 1-3: Particle position (current position)
+  PartStateLost(1:3,iMax) = PhotPos(1:3)
+  ! 4-6: Particle velocity
+  PartStateLost(4:6  ,iMax) = Dir(1:3)
+  ! 7: SpeciesID
+  PartStateLost(7    ,iMax) = REAL(ErrorCode)
+  ! 8: Macro particle factor
+  PartStateLost(8    ,iMax) = 0.0
+  ! 9: time of loss
+  PartStateLost(9    ,iMax) = time
+  ! 10: Global element ID
+  PartStateLost(10   ,iMax) = REAL(ElemID)
+  ! 11: Particle ID
+  PartStateLost(11   ,iMax) = REAL(0)
+  ! 12-14: Particle position (starting point or last valid position)
+  PartStateLost(12:14,iMax) = LastPhotPos(1:3)
+  ! 15: myrank
+  PartStateLost(15,iMax) = myrank
+  ! 16: missing type, i.e., 0: lost, 1: missing & found once, >1: missing & multiply found
+  PartStateLost(16,iMax) = 0
+END ASSOCIATE
+
+END SUBROUTINE StoreLostPhotonProperties
 
 
 SUBROUTINE StoreLostParticleProperties(iPart,ElemID,UsePartState_opt,PartMissingType_opt)
@@ -1617,7 +1717,7 @@ END FUNCTION RotateVectorAroundAxis
 
 FUNCTION GetNextFreePosition(Offset)
 !===================================================================================================================================
-!> Returns the next free position in the particle vector, if no space is available it increses the maximum particle number
+!> Returns the next free position in the particle vector, if no space is available it increases the maximum particle number
 !> ATTENTION: If optional argument is used, the PDM%CurrentNextFreePosition will not be updated
 !===================================================================================================================================
 ! MODULES
@@ -1701,18 +1801,10 @@ ELSE
     END IF
   END IF
 
-  IF(PDM%ParticleInside(GetNextFreePosition)) THEN
-    CALL ABORT(&
-  __STAMP__&
-  ,'This Particle is already in use',IntInfoOpt=GetNextFreePosition)
-  END IF
+  IF(PDM%ParticleInside(GetNextFreePosition)) CALL ABORT(__STAMP__,'This Particle is already in use',IntInfoOpt=GetNextFreePosition)
   IF(GetNextFreePosition.GT.PDM%ParticleVecLength) PDM%ParticleVecLength = GetNextFreePosition
 END IF
-IF(GetNextFreePosition.EQ.0) THEN
-  CALL ABORT(&
-__STAMP__&
-,'This should not happen, PDM%MaxParticleNumber reached',IntInfoOpt=PDM%MaxParticleNumber)
-END IF
+IF(GetNextFreePosition.EQ.0) CALL ABORT(__STAMP__,'This should not happen, PDM%MaxParticleNumber reached',IntInfoOpt=PDM%MaxParticleNumber)
 
 END FUNCTION GetNextFreePosition
 
@@ -1745,7 +1837,6 @@ INTEGER                                   :: NewSize, i, ii, ALLOCSTAT
 TYPE (tAmbipolElecVelo), ALLOCATABLE      :: AmbipolElecVelo_New(:)
 TYPE (tElectronicDistriPart), ALLOCATABLE :: ElectronicDistriPart_New(:)
 TYPE (tPolyatomMolVibQuant), ALLOCATABLE  :: VibQuantsPar_New(:)
-TYPE (tClonedParticles), ALLOCATABLE      :: ClonedParticles_New(:,:)
 ! REAL                        ::
 !===================================================================================================================================
 IF(PRESENT(Amount)) THEN
@@ -1772,7 +1863,6 @@ IF(ALLOCATED(PDM%ParticleInside)) CALL ChangeSizeArray(PDM%ParticleInside,PDM%ma
 IF(ALLOCATED(PDM%IsNewPart)) CALL ChangeSizeArray(PDM%IsNewPart,PDM%maxParticleNumber,NewSize,.FALSE.)
 IF(ALLOCATED(PDM%dtFracPush)) CALL ChangeSizeArray(PDM%dtFracPush,PDM%maxParticleNumber,NewSize,.FALSE.)
 IF(ALLOCATED(PDM%InRotRefFrame)) CALL ChangeSizeArray(PDM%InRotRefFrame,PDM%maxParticleNumber,NewSize,.FALSE.)
-IF(ALLOCATED(PDM%PartInit)) CALL ChangeSizeArray(PDM%PartInit,PDM%maxParticleNumber,NewSize)
 
 IF(ALLOCATED(PartState)) CALL ChangeSizeArray(PartState,PDM%maxParticleNumber,NewSize,0.)
 IF(ALLOCATED(LastPartPos)) CALL ChangeSizeArray(LastPartPos,PDM%maxParticleNumber,NewSize)
@@ -1790,7 +1880,7 @@ IF(ALLOCATED(FieldAtParticle)) CALL ChangeSizeArray(FieldAtParticle,PDM%maxParti
 IF(ALLOCATED(InterPlanePartIndx)) CALL ChangeSizeArray(InterPlanePartIndx,PDM%maxParticleNumber,NewSize)
 IF(ALLOCATED(BGGas%PairingPartner)) CALL ChangeSizeArray(BGGas%PairingPartner,PDM%maxParticleNumber,NewSize)
 IF(ALLOCATED(CollInf%OldCollPartner)) CALL ChangeSizeArray(CollInf%OldCollPartner,PDM%maxParticleNumber,NewSize)
-IF(ALLOCATED(ElecRelaxPart)) CALL ChangeSizeArray(ElecRelaxPart,PDM%maxParticleNumber,NewSize)
+IF(ALLOCATED(ElecRelaxPart)) CALL ChangeSizeArray(ElecRelaxPart,PDM%maxParticleNumber,NewSize,.TRUE.)
 
 #if (PP_TimeDiscMethod==508) || (PP_TimeDiscMethod==509)
 IF(ALLOCATED(velocityAtTime)) CALL ChangeSizeArray(velocityAtTime,PDM%maxParticleNumber,NewSize)
@@ -1867,57 +1957,6 @@ __STAMP__&
   CALL MOVE_ALLOC(VibQuantsPar_New,VibQuantsPar)
 END IF
 
-IF(ALLOCATED(ClonedParticles)) THEN
-  SELECT CASE(RadialWeighting%CloneMode)
-  CASE(1)
-    ALLOCATE(ClonedParticles_new(1:INT(NewSize/RadialWeighting%CloneInputDelay),0:(RadialWeighting%CloneInputDelay-1)),STAT=ALLOCSTAT)
-    IF (ALLOCSTAT.NE.0) CALL ABORT(&
-  __STAMP__&
-  ,'Cannot allocate increased Array in IncreaseMaxParticleNumber')
-    DO ii=0,RadialWeighting%CloneInputDelay-1
-      DO i=1,RadialWeighting%ClonePartNum(ii)
-        ClonedParticles_new(i,ii)%Species=ClonedParticles(i,ii)%Species
-        ClonedParticles_new(i,ii)%PartState(1:6)=ClonedParticles(i,ii)%PartState(1:6)
-        ClonedParticles_new(i,ii)%PartStateIntEn(1:3)=ClonedParticles(i,ii)%PartStateIntEn(1:3)
-        ClonedParticles_new(i,ii)%Element=ClonedParticles(i,ii)%Element
-        ClonedParticles_new(i,ii)%LastPartPos(1:3)=ClonedParticles(i,ii)%LastPartPos(1:3)
-        ClonedParticles_new(i,ii)%WeightingFactor=ClonedParticles(i,ii)%WeightingFactor
-        CALL MOVE_ALLOC(ClonedParticles(i,ii)%VibQuants,ClonedParticles_new(i,ii)%VibQuants)
-        CALL MOVE_ALLOC(ClonedParticles(i,ii)%DistriFunc,ClonedParticles_new(i,ii)%DistriFunc)
-        CALL MOVE_ALLOC(ClonedParticles(i,ii)%AmbiPolVelo,ClonedParticles_new(i,ii)%AmbiPolVelo)
-      END DO
-    END DO
-    DEALLOCATE(ClonedParticles)
-    CALL MOVE_ALLOC(ClonedParticles_New,ClonedParticles)
-  CASE(2)
-    ALLOCATE(ClonedParticles_new(1:INT(NewSize/RadialWeighting%CloneInputDelay),0:RadialWeighting%CloneInputDelay),STAT=ALLOCSTAT)
-    IF (ALLOCSTAT.NE.0) CALL ABORT(&
-  __STAMP__&
-  ,'Cannot allocate increased Array in IncreaseMaxParticleNumber')
-    DO ii=0,RadialWeighting%CloneInputDelay
-      DO i=1,RadialWeighting%ClonePartNum(ii)
-        ClonedParticles_new(i,ii)%Species=ClonedParticles(i,ii)%Species
-        ClonedParticles_new(i,ii)%PartState(1:6)=ClonedParticles(i,ii)%PartState(1:6)
-        ClonedParticles_new(i,ii)%PartStateIntEn(1:3)=ClonedParticles(i,ii)%PartStateIntEn(1:3)
-        ClonedParticles_new(i,ii)%Element=ClonedParticles(i,ii)%Element
-        ClonedParticles_new(i,ii)%LastPartPos(1:3)=ClonedParticles(i,ii)%LastPartPos(1:3)
-        ClonedParticles_new(i,ii)%WeightingFactor=ClonedParticles(i,ii)%WeightingFactor
-        CALL MOVE_ALLOC(ClonedParticles(i,ii)%VibQuants,ClonedParticles_new(i,ii)%VibQuants)
-        CALL MOVE_ALLOC(ClonedParticles(i,ii)%DistriFunc,ClonedParticles_new(i,ii)%DistriFunc)
-        CALL MOVE_ALLOC(ClonedParticles(i,ii)%AmbiPolVelo,ClonedParticles_new(i,ii)%AmbiPolVelo)
-      END DO
-    END DO
-    DEALLOCATE(ClonedParticles)
-    CALL MOVE_ALLOC(ClonedParticles_New,ClonedParticles)
-  CASE DEFAULT
-    CALL Abort(&
-        __STAMP__,&
-      'ERROR in Radial Weighting of 2D/Axisymmetric: The selected cloning mode is not available! Choose between 1 and 2.'//&
-        ' CloneMode=1: Delayed insertion of clones; CloneMode=2: Delayed randomized insertion of clones')
-END SELECT
-END IF
-
-
 IF(ALLOCATED(PDM%nextFreePosition)) THEN
   CALL ChangeSizeArray(PDM%nextFreePosition,PDM%maxParticleNumber,NewSize,0)
 
@@ -1968,7 +2007,6 @@ INTEGER                                   :: NewSize, i, ii, ALLOCSTAT, nPart
 TYPE (tAmbipolElecVelo), ALLOCATABLE      :: AmbipolElecVelo_New(:)
 TYPE (tElectronicDistriPart), ALLOCATABLE :: ElectronicDistriPart_New(:)
 TYPE (tPolyatomMolVibQuant), ALLOCATABLE  :: VibQuantsPar_New(:)
-TYPE (tClonedParticles), ALLOCATABLE      :: ClonedParticles_New(:,:)
 ! REAL                        ::
 !===================================================================================================================================
 
@@ -2030,7 +2068,6 @@ IF(ALLOCATED(PDM%ParticleInside)) CALL ChangeSizeArray(PDM%ParticleInside,PDM%ma
 IF(ALLOCATED(PDM%IsNewPart)) CALL ChangeSizeArray(PDM%IsNewPart,PDM%maxParticleNumber,NewSize,.FALSE.)
 IF(ALLOCATED(PDM%dtFracPush)) CALL ChangeSizeArray(PDM%dtFracPush,PDM%maxParticleNumber,NewSize,.FALSE.)
 IF(ALLOCATED(PDM%InRotRefFrame)) CALL ChangeSizeArray(PDM%InRotRefFrame,PDM%maxParticleNumber,NewSize,.FALSE.)
-IF(ALLOCATED(PDM%PartInit)) CALL ChangeSizeArray(PDM%PartInit,PDM%maxParticleNumber,NewSize)
 
 IF(ALLOCATED(PartState)) CALL ChangeSizeArray(PartState,PDM%maxParticleNumber,NewSize,0.)
 IF(ALLOCATED(LastPartPos)) CALL ChangeSizeArray(LastPartPos,PDM%maxParticleNumber,NewSize)
@@ -2048,7 +2085,7 @@ IF(ALLOCATED(FieldAtParticle)) CALL ChangeSizeArray(FieldAtParticle,PDM%maxParti
 IF(ALLOCATED(InterPlanePartIndx)) CALL ChangeSizeArray(InterPlanePartIndx,PDM%maxParticleNumber,NewSize)
 IF(ALLOCATED(BGGas%PairingPartner)) CALL ChangeSizeArray(BGGas%PairingPartner,PDM%maxParticleNumber,NewSize)
 IF(ALLOCATED(CollInf%OldCollPartner)) CALL ChangeSizeArray(CollInf%OldCollPartner,PDM%maxParticleNumber,NewSize)
-IF(ALLOCATED(ElecRelaxPart)) CALL ChangeSizeArray(ElecRelaxPart,PDM%maxParticleNumber,NewSize)
+IF(ALLOCATED(ElecRelaxPart)) CALL ChangeSizeArray(ElecRelaxPart,PDM%maxParticleNumber,NewSize,.TRUE.)
 
 #if (PP_TimeDiscMethod==508) || (PP_TimeDiscMethod==509)
 IF(ALLOCATED(velocityAtTime)) CALL ChangeSizeArray(velocityAtTime,PDM%maxParticleNumber,NewSize)
@@ -2134,72 +2171,6 @@ __STAMP__&
   CALL MOVE_ALLOC(VibQuantsPar_New,VibQuantsPar)
 END IF
 
-IF(ALLOCATED(ClonedParticles)) THEN
-  SELECT CASE(RadialWeighting%CloneMode)
-  CASE(1)
-    ALLOCATE(ClonedParticles_new(1:INT(NewSize/RadialWeighting%CloneInputDelay),0:(RadialWeighting%CloneInputDelay-1)),STAT=ALLOCSTAT)
-    IF (ALLOCSTAT.NE.0) CALL ABORT(&
-  __STAMP__&
-  ,'Cannot allocate increased Array in ReduceMaxParticleNumber')
-    DO ii=0,RadialWeighting%CloneInputDelay-1
-      DO i=1,RadialWeighting%ClonePartNum(ii)
-        IF(i.LE.INT(NewSize/RadialWeighting%CloneInputDelay)) THEN
-          ClonedParticles_new(i,ii)%Species=ClonedParticles(i,ii)%Species
-          ClonedParticles_new(i,ii)%PartState(1:6)=ClonedParticles(i,ii)%PartState(1:6)
-          ClonedParticles_new(i,ii)%PartStateIntEn(1:3)=ClonedParticles(i,ii)%PartStateIntEn(1:3)
-          ClonedParticles_new(i,ii)%Element=ClonedParticles(i,ii)%Element
-          ClonedParticles_new(i,ii)%LastPartPos(1:3)=ClonedParticles(i,ii)%LastPartPos(1:3)
-          ClonedParticles_new(i,ii)%WeightingFactor=ClonedParticles(i,ii)%WeightingFactor
-          CALL MOVE_ALLOC(ClonedParticles(i,ii)%VibQuants,ClonedParticles_new(i,ii)%VibQuants)
-          CALL MOVE_ALLOC(ClonedParticles(i,ii)%DistriFunc,ClonedParticles_new(i,ii)%DistriFunc)
-          CALL MOVE_ALLOC(ClonedParticles(i,ii)%AmbiPolVelo,ClonedParticles_new(i,ii)%AmbiPolVelo)
-        ELSE
-          SDEALLOCATE(ClonedParticles(i,ii)%VibQuants)
-          SDEALLOCATE(ClonedParticles(i,ii)%DistriFunc)
-          SDEALLOCATE(ClonedParticles(i,ii)%AmbiPolVelo)
-        END IF
-      END DO
-      IF(RadialWeighting%ClonePartNum(ii).GT.INT(NewSize/RadialWeighting%CloneInputDelay)) &
-         RadialWeighting%ClonePartNum(ii)=INT(NewSize/RadialWeighting%CloneInputDelay)
-    END DO
-    DEALLOCATE(ClonedParticles)
-    CALL MOVE_ALLOC(ClonedParticles_New,ClonedParticles)
-  CASE(2)
-    ALLOCATE(ClonedParticles_new(1:INT(NewSize/RadialWeighting%CloneInputDelay),0:RadialWeighting%CloneInputDelay),STAT=ALLOCSTAT)
-    IF (ALLOCSTAT.NE.0) CALL ABORT(&
-  __STAMP__&
-  ,'Cannot allocate increased Array in ReduceMaxParticleNumber')
-    DO ii=0,RadialWeighting%CloneInputDelay
-      DO i=1,RadialWeighting%ClonePartNum(ii)
-        IF(i.LE.INT(NewSize/RadialWeighting%CloneInputDelay)) THEN
-          ClonedParticles_new(i,ii)%Species=ClonedParticles(i,ii)%Species
-          ClonedParticles_new(i,ii)%PartState(1:6)=ClonedParticles(i,ii)%PartState(1:6)
-          ClonedParticles_new(i,ii)%PartStateIntEn(1:3)=ClonedParticles(i,ii)%PartStateIntEn(1:3)
-          ClonedParticles_new(i,ii)%Element=ClonedParticles(i,ii)%Element
-          ClonedParticles_new(i,ii)%LastPartPos(1:3)=ClonedParticles(i,ii)%LastPartPos(1:3)
-          ClonedParticles_new(i,ii)%WeightingFactor=ClonedParticles(i,ii)%WeightingFactor
-          CALL MOVE_ALLOC(ClonedParticles(i,ii)%VibQuants,ClonedParticles_new(i,ii)%VibQuants)
-          CALL MOVE_ALLOC(ClonedParticles(i,ii)%DistriFunc,ClonedParticles_new(i,ii)%DistriFunc)
-          CALL MOVE_ALLOC(ClonedParticles(i,ii)%AmbiPolVelo,ClonedParticles_new(i,ii)%AmbiPolVelo)
-        ELSE
-          SDEALLOCATE(ClonedParticles(i,ii)%VibQuants)
-          SDEALLOCATE(ClonedParticles(i,ii)%DistriFunc)
-          SDEALLOCATE(ClonedParticles(i,ii)%AmbiPolVelo)
-        END IF
-      END DO
-      IF(RadialWeighting%ClonePartNum(ii).GT.INT(NewSize/RadialWeighting%CloneInputDelay)) &
-         RadialWeighting%ClonePartNum(ii)=INT(NewSize/RadialWeighting%CloneInputDelay)
-    END DO
-    DEALLOCATE(ClonedParticles)
-    CALL MOVE_ALLOC(ClonedParticles_New,ClonedParticles)
-  CASE DEFAULT
-    CALL Abort(&
-        __STAMP__,&
-      'ERROR in Radial Weighting of 2D/Axisymmetric: The selected cloning mode is not available! Choose between 1 and 2.'//&
-        ' CloneMode=1: Delayed insertion of clones; CloneMode=2: Delayed randomized insertion of clones')
-END SELECT
-END IF
-
 IF(ALLOCATED(PDM%nextFreePosition)) THEN
   CALL ChangeSizeArray(PDM%nextFreePosition,PDM%maxParticleNumber,NewSize,0)
 
@@ -2213,7 +2184,6 @@ IF(PDM%ParticleVecLength.GT.NewSize) PDM%ParticleVecLength = NewSize
 PDM%MaxParticleNumber=NewSize
 
 CALL UpdateNextFreePosition()
-! read(*,*)
 
 END SUBROUTINE ReduceMaxParticleNumber
 
@@ -2279,7 +2249,6 @@ IF(ALLOCATED(PDM%InRotRefFrame)) THEN
   PDM%InRotRefFrame(NewID)=PDM%InRotRefFrame(OldID)
   PDM%InRotRefFrame(OldID)=.FALSE.
 END IF
-IF(ALLOCATED(PDM%PartInit)) PDM%PartInit(NewID)=PDM%PartInit(OldID)
 
 IF(ALLOCATED(PartState)) THEN
   PartState(:,NewID)=PartState(:,OldID)

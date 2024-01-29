@@ -16,7 +16,7 @@ Before the actual simulation is conducted, a mesh file in the HDF5 format has to
 ```{figure} mesh/dsmc-cone-mesh-bcs.jpg
 ---
 name: fig:dsmc-cone-mesh
-width: 90%
+width: 600px
 ---
 
 Mesh of the 70° Cone.
@@ -71,7 +71,7 @@ ranges from zero to a positive value. Additionally, the mesh shall be centered a
 row. As the loaded file only consists of a surface, which is meshed with Gmsh and then extruded using Hopr, the surface needs to be translated:
 
     Translate {0, 0, -1} {
-        Surface{1}; 
+        Surface{1};
     }
 
 Physical groups are used to define the boundary conditions at all curves:
@@ -113,7 +113,7 @@ The mesh can be created by simplying executing Gmsh from the terminal:
     gmsh 70degCone_2DSurf.geo
 
 The resulting mesh shall consist of quad elements and not triangles. Finally, it has to be converted to the file format used by **piclas** using HOPR by supplying an input file `hopr.ini` using the corresponding mode:
-    
+
     Mode = 5
 
 To extrude the 2D quadrangular mesh to a 3D hexahedral mesh with only one element in the third direction, the following commands next to be set in the `hopr.ini`:
@@ -130,7 +130,7 @@ Again, to create the `.h5` mesh file, you would simply run
 
     hopr hopr_gmsh.ini
 
-This would create the mesh file `70degCone_2D_mesh.h5` in HDF5 format. 
+This would create the mesh file `70degCone_2D_mesh.h5` in HDF5 format.
 
 ## Flow simulation with DSMC
 
@@ -180,7 +180,7 @@ In axially symmetrical cases, the simulation effort can be greatly reduced. For 
     Particles-Symmetry-Order         = 2
     Particles-Symmetry2DAxisymmetric = T
 
-First of all, certain requirements are placed on the grid. The $y$-axis acts as the symmetry axis, while the $x$-axis defines the radial direction. Therefore grid lies in the $xy$-plane and should have an extension of one cell in the $z$-direction, the extent in $z$-direction is irrelevant whilst it is centered on $z=0$. In addition, the boundary at $y = 0$ must be provided with the condition `symmetric_axis` and the boundaries parallel to the $xy$-plane with the condition `symmetric`. 
+First of all, certain requirements are placed on the grid. The $y$-axis acts as the symmetry axis, while the $x$-axis defines the radial direction. Therefore grid lies in the $xy$-plane and should have an extension of one cell in the $z$-direction, the extent in $z$-direction is irrelevant whilst it is centered on $z=0$. In addition, the boundary at $y = 0$ must be provided with the condition `symmetric_axis` and the boundaries parallel to the $xy$-plane with the condition `symmetric`.
 
     Part-Boundary4-SourceName  = SYMAXIS
     Part-Boundary4-Condition   = symmetric_axis
@@ -281,9 +281,9 @@ re-balancing step via HDF5, which will create a state file and restart from this
 
 After running a simulation, especially if done for the first time it is strongly recommended to ensure the quality of the results. For this purpose, the `Particles-DSMC-CalcQualityFactors = T` should be set, to enable the calculation of quality factors such as the maximum collision probability and the mean collision separation distance over the mean free path. All needed datasets can be found in the `*_DSMCState_*.h5` or the converted `*_visuDSMC_*.vtu`.
 
-First of all, it should be ensured that a sufficient number of simulation particles were available for the averaging, which forms the basis of the shown data. The value `*_SimPartNum` indicates the average number of simulated particles in the respective cell. For a sufficient sampling size, it should be guaranteed that at least 10 particles are in each cell, however, this number is very case-specific. The value `DSMC_MCSoverMFP` is an other indicator for the quality of the particle discretization of the simulation area. A value above 1 indicates that the mean collision separation distance is greater than the mean free path, which is a signal for too few simulation particles. For 3D simulations it is sufficient to adjust the `Part-Species[$]-MacroParticleFactor` accordingly in **parameter.ini**. In 2D axisymmetric simulations, the associated scaling factors such as `Particles-RadialWeighting-PartScaleFactor` can also be optimized (see Section {ref}`sec:2D-axisymmetric`). 
+First of all, it should be ensured that a sufficient number of simulation particles were available for the averaging, which forms the basis of the shown data. The value `*_SimPartNum` indicates the average number of simulated particles in the respective cell. For a sufficient sampling size, it should be guaranteed that at least 10 particles are in each cell, however, this number is very case-specific. The value `DSMC_MCSoverMFP` is an other indicator for the quality of the particle discretization of the simulation area. A value above 1 indicates that the mean collision separation distance is greater than the mean free path, which is a signal for too few simulation particles. For 3D simulations it is sufficient to adjust the `Part-Species[$]-MacroParticleFactor` accordingly in **parameter.ini**. In 2D axisymmetric simulations, the associated scaling factors such as `Particles-RadialWeighting-PartScaleFactor` can also be optimized (see Section {ref}`sec:2D-axisymmetric`).
 
-Similarly, the values `DSMC_MeanCollProb` and` DSMC_MaxCollProb` should be below 1 in order to avoid nonphysical values. While the former indicates the averaged collision probability per timestep, the latter stores the maximum collision probability. If this limit is not met, more collisions should have ocurred within a time step than possible. A refinement of the time step `ManualTimeStep` in **parameter.ini** is therefore necessary. If a variable timestep is also used in the simulation, there are further options (see Section {ref}`sec:variable-time-step`). 
+Similarly, the values `DSMC_MeanCollProb` and` DSMC_MaxCollProb` should be below 1 in order to avoid nonphysical values. While the former indicates the averaged collision probability per timestep, the latter stores the maximum collision probability. If this limit is not met, more collisions should have ocurred within a time step than possible. A refinement of the time step `ManualTimeStep` in **parameter.ini** is therefore necessary. If a variable timestep is also used in the simulation, there are further options (see Section {ref}`sec:variable-time-step`).
 
 ```{table} Target value to ensure physical results and a connected input parameter
 ---
@@ -304,12 +304,12 @@ To visualize the data which represents the properties in the domain (e.g. temper
 
     ./piclas2vtk dsmc_cone_DSMCState_000.00*
 
-to generate the corresponding VTK files, which can then be loaded into your visualization tool. The resulting translational temperature and velocity in the domain are shown in {numref}`fig:dsmc-cone-visu`. The visualized variables are `Total_TempTransMean`, which is mean translational temperature and the magnitude of the velocities `Total_VeloX`, `Total_VeloX`, `Total_VeloX` (which is automatically generated by ParaView). Since the data is stored on the original mesh (and not the internally refined octree mesh), the data initially looks as shown in the two upper halves. **ParaView** offers the possibility to interpolate this data using the `CellDatatoPointData` filter. The data visualized in this way can be seen in the lower half of the image. 
+to generate the corresponding VTK files, which can then be loaded into your visualization tool. The resulting translational temperature and velocity in the domain are shown in {numref}`fig:dsmc-cone-visu`. The visualized variables are `Total_TempTransMean`, which is mean translational temperature and the magnitude of the velocities `Total_VeloX`, `Total_VeloX`, `Total_VeloX` (which is automatically generated by ParaView). Since the data is stored on the original mesh (and not the internally refined octree mesh), the data initially looks as shown in the two upper halves. **ParaView** offers the possibility to interpolate this data using the `CellDatatoPointData` filter. The data visualized in this way can be seen in the lower half of the image.
 
 ```{figure} results/dsmc-cone-visu.jpg
 ---
 name: fig:dsmc-cone-visu
-width: 90%
+width: 600px
 ---
 
 Translational temperature and velocity in front of the 70° Cone, top: original data; bottom: interpolated data.
@@ -327,7 +327,7 @@ to generate the corresponding VTK files, which can then be loaded into your visu
 ```{figure} results/dsmc-cone-heatflux.svg
 ---
 name: fig:dsmc-cone-heatflux
-width: 50%
+width: 400px
 ---
 
 Experimental heat flux data compared with simulation results from PIClas.

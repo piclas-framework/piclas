@@ -466,7 +466,10 @@ END IF
 ! 6.4) new translation energy
 ! Sanity check: catch problem when bulk of particles consists solely of clones (all have the same velocity vector)
 alpha = 0.! Initialize
-IF((E_trans.GT.0.).AND.(E_trans_new.GT.0.)) alpha = MERGE(SQRT(E_trans/E_trans_new), 0., ISFINITE(SQRT(E_trans/E_trans_new)))
+IF (E_trans.GT.0. .AND. E_trans_new.GT.0. ) THEN
+  IF (ISFINITE(SQRT(E_trans/E_trans_new))) THEN; alpha = SQRT(E_trans/E_trans_new)
+  ELSE                                         ; alpha = 0.; END IF
+END IF
 #ifdef CODE_ANALYZE
 Energy_new = CellEvib_vMPF(iSpec, iElem) + CellEelec_vMPF(iSpec, iElem)
 #endif /* CODE_ANALYZE */

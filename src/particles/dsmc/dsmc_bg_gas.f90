@@ -67,7 +67,7 @@ USE MOD_ReadInTools
 USE MOD_Globals               ,ONLY: abort
 USE MOD_DSMC_Vars             ,ONLY: BGGas
 USE MOD_Mesh_Vars             ,ONLY: nElems
-USE MOD_Particle_Vars         ,ONLY: PDM, Symmetry, Species, nSpecies, UseVarTimeStep, VarTimeStep
+USE MOD_Particle_Vars         ,ONLY: PDM, Species, nSpecies, UseVarTimeStep, VarTimeStep
 USE MOD_Restart_Vars          ,ONLY: DoMacroscopicRestart, MacroRestartFileName
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -85,7 +85,7 @@ REAL              :: SpeciesDensTmp(1:nSpecies)
 IF(BGGas%UseDistribution) MacroRestartFileName = GETSTR('Particles-MacroscopicRestart-Filename')
 
 ! 1.) Check compatibility with other features and whether required parameters have been read-in
-IF((Symmetry%Order.EQ.2).OR.UseVarTimeStep) THEN
+IF(UseVarTimeStep) THEN
   IF(.NOT.VarTimeStep%UseSpeciesSpecific) CALL abort(__STAMP__, &
     'ERROR: 2D/Axisymmetric and variable timestep (except species-specific) are not implemented with a background gas yet!')
 END IF
@@ -806,6 +806,10 @@ END DO
 
 !> 4.) Perform the reaction, distribute the collision energy (including photon energy) and emit electrons perpendicular
 !>     to the photon's path
+ASSOCIATE(b1          => Species(iSpec)%Init(iInit)%NormalVector1IC(1:3) ,&
+          b2          => Species(iSpec)%Init(iInit)%NormalVector2IC(1:3) ,&
+          normal      => Species(iSpec)%Init(iInit)%NormalIC             ,&
+          PartBCIndex => Species(iSpec)%Init(iInit)%PartBCIndex)
 IF(NbrOfPhotonXsecReactions.GT.0)THEN
   DO iPart = 1, SUM(NumPhotoIonization(:))
     ! Loop over all randomized lines (found above)
@@ -818,10 +822,9 @@ IF(NbrOfPhotonXsecReactions.GT.0)THEN
         DO iPhotoReac = 1, NbrOfPhotonXsecReactions
           IF(PhotonEnergies(iLine,1+iPhotoReac).GT.0)THEN
             ! Reduce cross-section by one
-    !IPWRITE(UNIT_StdOut,'(I6,3(A,I3))') "  calling  iLine =",iLine," iPhotoReac =",iPhotoReac," iReac =",PhotoReacToReac(iPhotoReac)
             PhotonEnergies(iLine,1+iPhotoReac) = PhotonEnergies(iLine,1+iPhotoReac) - 1
             iPair = iPair + 1
-            CALL PhotoIonization_InsertProducts(iPair, PhotoReacToReac(iPhotoReac), iInit, iSpec, iLineOpt=iLine)
+            CALL PhotoIonization_InsertProducts(iPair, PhotoReacToReac(iPhotoReac), b1, b2, normal, iLineOpt=iLine, PartBCIndex=PartBCIndex)
           END IF ! PhotonEnergies(iLine,1+iPhotoReac).GT.0
         END DO ! iPhotoReac = 1, NbrOfPhotonXsecReactions
       END DO
@@ -832,10 +835,11 @@ ELSE
     IF(TRIM(ChemReac%ReactModel(iReac)).NE.'phIon') CYCLE
     DO iPart = 1, NumPhotoIonization(iReac)
       iPair = iPair + 1
-      CALL PhotoIonization_InsertProducts(iPair, iReac, iInit, iSpec)
+      CALL PhotoIonization_InsertProducts(iPair, iReac, b1, b2, normal, PartBCIndex=PartBCIndex)
     END DO
   END DO
 END IF ! NbrOfPhotonXsecReactions.GT.0
+END ASSOCIATE
 
 DSMCSumOfFormedParticles = 0
 
@@ -1030,7 +1034,7 @@ END SUBROUTINE BGGas_TraceSpeciesSplit
 !> 1. Read-in geometry information based on selected type (e.g. cylinder)
 !> 2. Determine which elements are the defined regions by comparing the element midpoint
 !> 3. Write the corresponding region properties into the BGGas%Distribution array
-!> 4. Calculate the element locall species fraction in case of a multi-species background gas
+!> 4. Calculate the element local species fraction in case of a multi-species background gas
 !> 5. Activate BGGas%UseDistribution to utilize the same arrays and routines during computation (but do not use it for read-in)
 !===================================================================================================================================
 SUBROUTINE BGGas_InitRegions()
