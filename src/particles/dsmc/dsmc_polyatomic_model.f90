@@ -248,7 +248,7 @@ IF ((SpecDSMC(iSpec)%InterID.EQ.2).OR.(SpecDSMC(iSpec)%InterID.EQ.20)) THEN
     END IF
   END IF
   IF(SpecDSMC(iSpec)%PolyatomicMol) THEN
-    CALL DSMC_SetInternalEnr_Poly(iSpec, iPart, TRot, TVib)
+    CALL DSMC_SetInternalEnr_Poly(iSpec, iPart, iPart, init_or_sf)
   ELSE
     CALL DSMC_SetInternalEnr_Diatomic(iSpec, iPart, TRot, TVib)
   END IF
@@ -267,30 +267,83 @@ ENDIF
 END SUBROUTINE DSMC_SetInternalEnr
 
 
-SUBROUTINE DSMC_SetInternalEnr_Poly_ARM_SingleMode(iSpec, iPart, TRot, TVib)
+SUBROUTINE DSMC_SetInternalEnr_Poly_ARM_SingleMode(iSpecies, iInit, iPart, init_or_sf)
 !===================================================================================================================================
 ! Initialization of polyatomic molecules by treating every mode separately in a loop
 !===================================================================================================================================
 ! MODULES
+USE MOD_Globals               ,ONLY: Abort
 USE MOD_Globals_Vars          ,ONLY: BoltzmannConst
-USE MOD_DSMC_Vars             ,ONLY: PartStateIntEn, SpecDSMC, DSMC,PolyatomMolDSMC,VibQuantsPar
-USE MOD_SurfaceModel_Vars
+USE MOD_DSMC_Vars             ,ONLY: PartStateIntEn, SpecDSMC, DSMC,PolyatomMolDSMC,VibQuantsPar,BGGas
+USE MOD_Particle_Vars         ,ONLY: PEM, Species
+USE MOD_Particle_Sampling_Vars,ONLY: AdaptBCMacroVal, AdaptBCMapElemToSample
+USE MOD_DSMC_ElectronicModel  ,ONLY: InitElectronShell
+USE MOD_Particle_Boundary_Vars ,ONLY: PartBound
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-INTEGER, INTENT(IN)             :: iSpec, iPart
-REAL, INTENT(IN)                :: TRot, TVib
+INTEGER, INTENT(IN)           :: iSpecies, iInit, iPart, init_or_sf
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 REAL                          :: iRan, iRan2, NormProb
 INTEGER                       :: iQuant, iDOF, iPolyatMole
+REAL                          :: TVib                       ! vibrational temperature
+REAL                          :: TRot                       ! rotational temperature
+INTEGER                       :: ElemID
 !===================================================================================================================================
+ElemID = PEM%LocalElemID(iPart)
+SELECT CASE (init_or_sf)
+  CASE(1) !iInit
+    TVib=SpecDSMC(iSpecies)%Init(iInit)%TVib
+    TRot=SpecDSMC(iSpecies)%Init(iInit)%TRot
+  CASE(2) !SurfaceFlux
+    IF(Species(iSpecies)%Surfaceflux(iInit)%Adaptive) THEN
+      SELECT CASE(Species(iSpecies)%Surfaceflux(iInit)%AdaptiveType)
+        CASE(1,3,4) ! Pressure and massflow inlet (pressure/massflow, temperature const)
+          TVib=SpecDSMC(iSpecies)%Surfaceflux(iInit)%TVib
+          TRot=SpecDSMC(iSpecies)%Surfaceflux(iInit)%TRot
+        CASE(2) ! adaptive Outlet/freestream
+          TVib = Species(iSpecies)%Surfaceflux(iInit)%AdaptivePressure &
+                  / (BoltzmannConst * AdaptBCMacroVal(4,AdaptBCMapElemToSample(ElemID),iSpecies))
+          TRot = TVib
+        CASE DEFAULT
+          CALL abort(&
+          __STAMP__&
+          ,'Wrong adaptive type for Surfaceflux in vib/rot poly!')
+      END SELECT
+    ELSE
+      TVib=SpecDSMC(iSpecies)%Surfaceflux(iInit)%TVib
+      TRot=SpecDSMC(iSpecies)%Surfaceflux(iInit)%TRot
+    END IF
+    CASE(3) !reactive surface
+      TVib=PartBound%WallTemp(iInit)
+      TRot=PartBound%WallTemp(iInit)
+    CASE(4) !reactive surface
+      TVib=PartBound%WallTemp(iInit)
+      TRot=PartBound%WallTemp(iInit)
+  CASE DEFAULT
+    CALL abort(&
+    __STAMP__&
+    ,'Neither iInit nor SurfaceFlux defined as reference!')
+END SELECT
+
+! Background gas distribution
+IF(BGGas%NumberOfSpecies.GT.0) THEN
+  IF(BGGas%BackgroundSpecies(iSpecies).AND.BGGas%UseDistribution) THEN
+    TVib = BGGas%Distribution(BGGas%MapSpecToBGSpec(iSpecies),DSMC_TVIB,ElemID)
+    TRot = BGGas%Distribution(BGGas%MapSpecToBGSpec(iSpecies),DSMC_TROT,ElemID)
+  END IF
+END IF
+
+IF (DSMC%ElectronicModel.GT.0) THEN
+  CALL InitElectronShell(iSpecies,iPart,iInit,init_or_sf)
+ENDIF
 
 ! Set vibrational energy
-iPolyatMole = SpecDSMC(iSpec)%SpecToPolyArray
+iPolyatMole = SpecDSMC(iSpecies)%SpecToPolyArray
 IF(ALLOCATED(VibQuantsPar(iPart)%Quants)) DEALLOCATE(VibQuantsPar(iPart)%Quants)
 ALLOCATE(VibQuantsPar(iPart)%Quants(PolyatomMolDSMC(iPolyatMole)%VibDOF))
 PartStateIntEn( 1,iPart) = 0.0
@@ -307,10 +360,10 @@ DO iDOF = 1, PolyatomMolDSMC(iPolyatMole)%VibDOF
 END DO
 
 ! Set rotational energy
-IF (SpecDSMC(iSpec)%Xi_Rot.EQ.2) THEN
+IF (SpecDSMC(iSpecies)%Xi_Rot.EQ.2) THEN
   CALL RANDOM_NUMBER(iRan2)
   PartStateIntEn( 2,iPart) = -BoltzmannConst*TRot*LOG(iRan2)
-ELSE IF (SpecDSMC(iSpec)%Xi_Rot.EQ.3) THEN
+ELSE IF (SpecDSMC(iSpecies)%Xi_Rot.EQ.3) THEN
   CALL RANDOM_NUMBER(iRan2)
   PartStateIntEn( 2,iPart) = iRan2*10 !the distribution function has only non-negligible  values betwenn 0 and 10
   NormProb = SQRT(PartStateIntEn( 2,iPart))*EXP(-PartStateIntEn( 2,iPart))/(SQRT(0.5)*EXP(-0.5))

@@ -123,7 +123,7 @@ END IF
 !===================================================================================================================================
 ! 1.) Species Swap
 !===================================================================================================================================
-IF (PartBound%NbrOfSpeciesSwaps(iBC).GT.0) CALL SpeciesSwap(PartID,SideID)
+IF (PartBound%NbrOfSpeciesSwaps(locBCID).GT.0) CALL SpeciesSwap(PartID,SideID)
 
 !===================================================================================================================================
 ! 2.) Count and sample the properties BEFORE the surface interaction

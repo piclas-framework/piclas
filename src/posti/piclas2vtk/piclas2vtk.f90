@@ -1205,13 +1205,11 @@ ELSE
 END IF
 
 IF(TRIM(File_Type).NE.'RadiationSurfState') THEN
-  FileString=TRIM(TIMESTAMP(TRIM(ProjectName)//'_visuSurf',OutputTime))//'.vtu'
-IF (FileTypeExists) THEN
-  SELECT CASE(TRIM(File_Type))
-    CASE('DSMCSurfChemState')
-      FileString=TRIM(TIMESTAMP(TRIM(ProjectName)//'_visuSurfChem',OutputTime))//'.vtu'
-  END SELECT
-END IF
+  IF(TRIM(File_Type).NE.'DSMCSurfChemState') THEN
+    FileString=TRIM(TIMESTAMP(TRIM(ProjectName)//'_visuSurf',OutputTime))//'.vtu'
+  ELSE
+    FileString=TRIM(TIMESTAMP(TRIM(ProjectName)//'_visuSurfChem',OutputTime))//'.vtu'
+  END IF
 ELSE
   FileString=TRIM(TRIM(ProjectName)//'_RadSurfVisu')//'.vtu'
 END IF

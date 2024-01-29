@@ -403,7 +403,7 @@ USE MOD_Globals
 USE MOD_MPI_Shared              ,ONLY: BARRIER_AND_SYNC
 USE MOD_MPI_Shared_Vars         ,ONLY: MPI_COMM_SHARED,MPI_COMM_LEADERS_SURF, nComputeNodeProcessors
 USE MOD_MPI_Shared_Vars         ,ONLY: nSurfLeaders,myComputeNodeRank,mySurfRank
-USE MOD_Particle_Boundary_Vars  ,ONLY: SurfOnNode, PartBound
+USE MOD_Particle_Boundary_Vars  ,ONLY: SurfTotalSideOnNode, PartBound
 USE MOD_Particle_Boundary_Vars  ,ONLY: nSurfSample
 USE MOD_Particle_Boundary_Vars  ,ONLY: nComputeNodeSurfTotalSides
 USE MOD_Particle_Boundary_Vars  ,ONLY: GlobalSide2SurfSide
@@ -429,7 +429,7 @@ INTEGER                         :: nValues, SurfChemVarNum, SurfChemSampSize
 INTEGER                         :: RecvRequest(0:nSurfLeaders-1),SendRequest(0:nSurfLeaders-1)
 !===================================================================================================================================
 ! nodes without sampling surfaces do not take part in this routine
-IF (.NOT.SurfOnNode) RETURN
+IF (.NOT.SurfTotalSideOnNode) RETURN
 
 #if USE_MPI
 SurfChemVarNum   = 2
