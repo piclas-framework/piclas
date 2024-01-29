@@ -70,8 +70,11 @@ END SUBROUTINE DefineParametersBR
 SUBROUTINE InitSwitchBRElectronModel()
 ! MODULES                                                                                                                          !
 USE MOD_HDG_Vars
-USE MOD_Globals     ,ONLY: myrank, abort, UNIT_StdOut
+USE MOD_Globals     ,ONLY: abort, UNIT_StdOut
 USE MOD_ReadInTools ,ONLY: GETLOGICAL,GETREAL,PrintOption
+#if USE_MPI
+USE MOD_Globals     ,ONLY: myrank
+#endif /*USE_MPI*/
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
 ! INPUT / OUTPUT VARIABLES
@@ -1026,6 +1029,7 @@ DO iElem=1,PP_nElems
 
     !Set new SpeciesID of new particle (electron)
     PDM%ParticleInside(ParticleIndexNbr) = .TRUE.
+    PDM%isNewPart(ParticleIndexNbr) = .TRUE.
     PartSpecies(ParticleIndexNbr) = ElecSpecIndx
 
     ! Place the electron randomly in the reference cell

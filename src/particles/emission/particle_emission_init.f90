@@ -216,8 +216,8 @@ DO iSpec = 1, nSpecies
   IF(Species(iSpec)%TimeStepFactor.NE.1.) THEN
     VarTimeStep%UseSpeciesSpecific = .TRUE.
     IF(Species(iSpec)%TimeStepFactor.GT.1.) CALL CollectiveStop(__STAMP__,'ERROR: Species-specific time step only allows factors below 1!')
-#if (USE_HDG) && !(PP_TimeDiscMethod==508)
-    CALL CollectiveStop(__STAMP__,'ERROR: Species-specific time step is only implemented with Boris-Leapfrog time discretization!')
+#if (USE_HDG) && !(PP_TimeDiscMethod==500) && !(PP_TimeDiscMethod==508) && !(PP_TimeDiscMethod==509)
+    CALL CollectiveStop(__STAMP__,'ERROR: Species-specific time step is only implemented with Euler, Leapfrog & Boris-Leapfrog time discretization!')
 #endif /*(USE_HDG)*/
 #if !(USE_HDG) && !(PP_TimeDiscMethod==4)
     CALL CollectiveStop(__STAMP__,'ERROR: Species-specific time step is only implemented with HDG and/or DSMC')
@@ -363,14 +363,9 @@ DO iSpec = 1, nSpecies
     END IF
     ! 2D simulation/variable time step only with cell_local and/or surface flux
     IF(UseVarTimeStep.OR.VarTimeStep%UseSpeciesSpecific) THEN
-      SELECT CASE(TRIM(Species(iSpec)%Init(iInit)%SpaceIC))
-      ! Do nothing
-      CASE('cell_local','background')
-      ! Abort for every other SpaceIC
-      CASE DEFAULT
+      IF(Species(iSpec)%Init(iInit)%ParticleEmissionType.GT.0) &
         CALL CollectiveStop(__STAMP__,'ERROR: Particle insertion/emission for variable time step '//&
-            'only possible with cell_local/background-SpaceIC and/or surface flux!')
-      END SELECT
+            'only possible with initial particle insertion and/or surface flux!')
     END IF
     !--- integer check for ParticleEmissionType 2
     IF((Species(iSpec)%Init(iInit)%ParticleEmissionType.EQ.2).AND. &
@@ -470,6 +465,7 @@ USE MOD_Particle_Sampling_Vars  ,ONLY: UseAdaptiveBC, AdaptBCMacroVal, AdaptBCMa
 USE MOD_Particle_Sampling_Adapt ,ONLY: AdaptiveBCSampling
 USE MOD_SurfaceModel_Vars       ,ONLY: nPorousBC
 USE MOD_Particle_Surfaces_Vars  ,ONLY: BCdata_auxSF, SurfFluxSideSize, SurfMeshSubSideData
+USE MOD_DSMC_Init               ,ONLY: SetVarVibProb2Elems
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Vars        ,ONLY: PerformLoadBalance
 #endif /*USE_LOADBALANCE*/
@@ -535,7 +531,11 @@ DO iSpec = 1,nSpecies
         IF((CollisMode.EQ.2).OR.(CollisMode.EQ.3)) THEN
           DO iPart = 1, NbrOfParticle
             PositionNbr = GetNextFreePosition(iPart)
-            IF (PositionNbr .NE. 0) CALL DSMC_SetInternalEnr(iSpec,iInit,PositionNbr,1)
+            IF (SpecDSMC(iSpec)%PolyatomicMol) THEN
+              CALL DSMC_SetInternalEnr_Poly(iSpec,iInit,PositionNbr,1)
+            ELSE
+              CALL DSMC_SetInternalEnr_LauxVFD(iSpec,iInit,PositionNbr,1)
+            END IF
           END DO
         END IF
       END IF
@@ -608,6 +608,9 @@ IF(UseAdaptiveBC.OR.(nPorousBC.GT.0)) THEN
     END DO      ! iSF=1,Species(iSpec)%nSurfacefluxBCs
   END DO        ! iSpec=1,nSpecies
 END IF
+
+IF((DSMC%VibRelaxProb.EQ.2).AND.(CollisMode.GE.2)) CALL SetVarVibProb2Elems()
+
 LBWRITE(UNIT_stdOut,'(A)') ' INITIAL PARTICLE INSERTING DONE!'
 
 END SUBROUTINE InitialParticleInserting

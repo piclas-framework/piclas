@@ -54,7 +54,7 @@ USE MOD_MPI_Shared_Vars         ,ONLY: myLeaderGroupRank,nLeaderGroupProcs
 USE MOD_MPI_Shared_Vars         ,ONLY: MPIRankSharedLeader,MPIRankSurfLeader
 USE MOD_MPI_Shared_Vars         ,ONLY: mySurfRank,nSurfLeaders
 USE MOD_Particle_Boundary_Vars  ,ONLY: nComputeNodeSurfSides,nComputeNodeSurfTotalSides,offsetComputeNodeSurfSide
-USE MOD_Particle_Boundary_Vars  ,ONLY: SurfOnNode,SurfSampSize,nSurfSample,CalcSurfaceImpact
+USE MOD_Particle_Boundary_Vars  ,ONLY: SurfTotalSideOnNode,SurfSampSize,nSurfSample,CalcSurfaceImpact
 USE MOD_Particle_Boundary_Vars  ,ONLY: SurfMapping
 USE MOD_Particle_Boundary_Vars  ,ONLY: nGlobalSurfSides, nGlobalOutputSides
 USE MOD_Particle_Boundary_Vars  ,ONLY: nComputeNodeSurfOutputSides,offsetComputeNodeSurfOutputSide
@@ -86,6 +86,7 @@ INTEGER                       :: SampSizeAllocate
 INTEGER                       :: NbGlobalElemID, GlobalSideID, NbGlobalSideID, NbElemRank, NbLeaderID, GlobalElemID, ElemRank
 INTEGER                       :: TestCounter(2),iCNinnerBC
 INTEGER                       :: SwitchGlobalSideID(1:3,1:SUM(nComputeNodeInnerBCs)),nSideTmp
+INTEGER                       :: allocstat
 !===================================================================================================================================
 
 nRecvSurfSidesTmp = 0
@@ -206,13 +207,13 @@ DO iProc = 0,nLeaderGroupProcs-1
 END DO
 
 !--- Split communicator from MPI_COMM_LEADER_SHARED
-color = MERGE(1201,MPI_UNDEFINED,SurfOnNode)
+color = MERGE(1201,MPI_UNDEFINED,SurfTotalSideOnNode)
 
 ! create new communicator between node leaders with surfaces. Pass MPI_INFO_NULL as rank to follow the original ordering
 CALL MPI_COMM_SPLIT(MPI_COMM_LEADERS_SHARED, color, MPI_INFO_NULL, MPI_COMM_LEADERS_SURF, IERROR)
 
 ! Do not participate in remainder of communication if no surf sides on node
-IF (.NOT.SurfOnNode) RETURN
+IF (.NOT.SurfTotalSideOnNode) RETURN
 
 ! Find my rank on the shared communicator, comm size and proc name
 CALL MPI_COMM_RANK(MPI_COMM_LEADERS_SURF, mySurfRank  , IERROR)
@@ -321,8 +322,10 @@ DO iCNinnerBC = 1, SUM(nComputeNodeInnerBCs)
 END DO ! iSide = 1, nComputeNodeInnerBCs
 
 !--- Allocate send and recv buffer for each surf leader
-ALLOCATE(SurfSendBuf(0:nSurfLeaders-1))
-ALLOCATE(SurfRecvBuf(0:nSurfLeaders-1))
+ALLOCATE(SurfSendBuf(0:nSurfLeaders-1),STAT=allocstat)
+IF(allocstat.ne.0) CALL abort(__STAMP__,'Could not allocate SurfSendBuf')
+ALLOCATE(SurfRecvBuf(0:nSurfLeaders-1),STAT=allocstat)
+IF(allocstat.ne.0) CALL abort(__STAMP__,'Could not allocate SurfRecvBuf')
 
 DO iProc = 0,nSurfLeaders-1
   ! Get message size
@@ -332,13 +335,15 @@ DO iProc = 0,nSurfLeaders-1
 
   ! Only allocate send buffer if we are expecting sides from this leader node
   IF (SurfMapping(iProc)%nSendSurfSides.GT.0) THEN
-    ALLOCATE(SurfSendBuf(iProc)%content(SampSizeAllocate*(nSurfSample**2)*SurfMapping(iProc)%nSendSurfSides))
+    ALLOCATE(SurfSendBuf(iProc)%content(SampSizeAllocate*(nSurfSample**2)*SurfMapping(iProc)%nSendSurfSides),STAT=allocstat)
+    IF(allocstat.ne.0) CALL abort(__STAMP__,'Could not allocate SurfSendBuf(iProc)%content')
     SurfSendBuf(iProc)%content = 0.
   END IF
 
   ! Only allocate recv buffer if we are expecting sides from this leader node
   IF (SurfMapping(iProc)%nRecvSurfSides.GT.0) THEN
-    ALLOCATE(SurfRecvBuf(iProc)%content(SampSizeAllocate*(nSurfSample**2)*SurfMapping(iProc)%nRecvSurfSides))
+    ALLOCATE(SurfRecvBuf(iProc)%content(SampSizeAllocate*(nSurfSample**2)*SurfMapping(iProc)%nRecvSurfSides),STAT=allocstat)
+    IF(allocstat.ne.0) CALL abort(__STAMP__,'Could not allocate SurfRecvBuf(iProc)%content')
     SurfRecvBuf(iProc)%content = 0.
   END IF
 END DO ! iProc
@@ -374,6 +379,12 @@ ELSE
   nGlobalSurfSides = sendbuf
 END IF
 
+IF (mySurfRank.EQ.0) THEN
+#if USE_LOADBALANCE
+  IF(.NOT.PerformLoadBalance)&
+#endif /*USE_LOADBALANCE*/
+    WRITE(UNIT_stdOUt,'(A,I0,A)') ' Starting surface communication between ', nSurfLeaders, ' compute nodes... DONE!'
+END IF
 
 END SUBROUTINE InitSurfCommunication
 
@@ -717,7 +728,7 @@ USE MOD_Globals
 USE MOD_MPI_Shared              ,ONLY: BARRIER_AND_SYNC
 USE MOD_MPI_Shared_Vars         ,ONLY: MPI_COMM_SHARED,MPI_COMM_LEADERS_SURF
 USE MOD_MPI_Shared_Vars         ,ONLY: nSurfLeaders,myComputeNodeRank,mySurfRank
-USE MOD_Particle_Boundary_Vars  ,ONLY: SurfOnNode
+USE MOD_Particle_Boundary_Vars  ,ONLY: SurfTotalSideOnNode
 USE MOD_Particle_Boundary_Vars  ,ONLY: SurfSampSize,nSurfSample
 USE MOD_Particle_Boundary_Vars  ,ONLY: nComputeNodeSurfTotalSides
 USE MOD_Particle_Boundary_Vars  ,ONLY: GlobalSide2SurfSide
@@ -746,7 +757,7 @@ INTEGER                         :: nValues
 INTEGER                         :: RecvRequest(0:nSurfLeaders-1),SendRequest(0:nSurfLeaders-1)
 !===================================================================================================================================
 ! nodes without sampling surfaces do not take part in this routine
-IF (.NOT.SurfOnNode) RETURN
+IF (.NOT.SurfTotalSideOnNode) RETURN
 
 ! collect the information from the proc-local shadow arrays in the compute-node shared array
 MessageSize = SurfSampSize*nSurfSample*nSurfSample*nComputeNodeSurfTotalSides
@@ -1014,7 +1025,7 @@ SUBROUTINE FinalizeSurfCommunication()
 ! Deallocated arrays used for sampling surface communication
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! MODULES
-USE MOD_Particle_Boundary_Vars  ,ONLY: SurfOnNode
+USE MOD_Particle_Boundary_Vars  ,ONLY: SurfTotalSideOnNode
 USE MOD_Particle_Boundary_Vars  ,ONLY: SurfMapping
 USE MOD_Particle_MPI_Vars       ,ONLY: SurfSendBuf,SurfRecvBuf
 USE MOD_MPI_Shared_Vars         ,ONLY: myComputeNodeRank,mySurfRank
@@ -1032,7 +1043,7 @@ INTEGER                       :: iProc
 IF (myComputeNodeRank.NE.0) RETURN
 
 ! nodes without sampling surfaces do not take part in this routine
-IF (.NOT.SurfOnNode) RETURN
+IF (.NOT.SurfTotalSideOnNode) RETURN
 
 SDEALLOCATE(MPIRankSharedLeader)
 SDEALLOCATE(MPIRankSurfLeader)

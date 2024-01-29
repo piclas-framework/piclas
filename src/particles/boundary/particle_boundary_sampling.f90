@@ -20,6 +20,7 @@ MODULE MOD_Particle_Boundary_Sampling
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 PRIVATE
+
 !-----------------------------------------------------------------------------------------------------------------------------------
 INTERFACE DefineParametersParticleBoundarySampling
   MODULE PROCEDURE DefineParametersParticleBoundarySampling
@@ -70,7 +71,7 @@ USE MOD_Globals
 USE MOD_Basis                   ,ONLY: LegendreGaussNodesAndWeights
 USE MOD_DSMC_Symmetry           ,ONLY: DSMC_2D_CalcSymmetryArea, DSMC_1D_CalcSymmetryArea
 USE MOD_Mesh_Vars               ,ONLY: NGeo,nBCs,BoundaryName
-USE MOD_Particle_Boundary_Vars  ,ONLY: SurfOnNode
+USE MOD_Particle_Boundary_Vars  ,ONLY: SurfTotalSideOnNode
 USE MOD_Particle_Boundary_Vars  ,ONLY: nSurfSample,dXiEQ_SurfSample,PartBound,XiEQ_SurfSample
 USE MOD_Particle_Boundary_Vars  ,ONLY: nComputeNodeSurfSides,nComputeNodeSurfTotalSides,nComputeNodeSurfOutputSides
 USE MOD_Particle_Boundary_Vars  ,ONLY: nSurfBC,SurfBCName
@@ -100,7 +101,6 @@ USE MOD_MPI_Shared
 USE MOD_MPI_Shared_Vars         ,ONLY: MPI_COMM_SHARED
 USE MOD_MPI_Shared_Vars         ,ONLY: MPI_COMM_LEADERS_SURF,mySurfRank
 USE MOD_MPI_Shared_Vars         ,ONLY: myComputeNodeRank,nComputeNodeProcessors
-USE MOD_Particle_Boundary_Vars  ,ONLY: SurfSide2GlobalSide_Shared
 USE MOD_Particle_Boundary_Vars  ,ONLY: SurfSideArea_Shared,SurfSideArea_Shared_Win
 USE MOD_Particle_Boundary_Vars  ,ONLY: SampWallState_Shared,SampWallState_Shared_Win
 USE MOD_Particle_Boundary_Vars  ,ONLY: SampWallPumpCapacity_Shared,SampWallPumpCapacity_Shared_Win
@@ -127,7 +127,6 @@ IMPLICIT NONE
 ! LOCAL VARIABLES
 INTEGER                                :: iBC
 INTEGER                                :: iSide,firstSide,lastSide
-CHARACTER(20)                          :: hilf
 CHARACTER(LEN=255),ALLOCATABLE         :: BCName(:)
 ! surface area
 INTEGER                                :: SideID,ElemID,CNElemID,LocSideID
@@ -137,23 +136,18 @@ REAL                                   :: area,nVal
 REAL,DIMENSION(2,3)                    :: gradXiEta3D
 REAL,DIMENSION(:),ALLOCATABLE          :: Xi_NGeo,wGP_NGeo
 REAL                                   :: XiOut(1:2),E,F,G,D,tmp1,tmpI2,tmpJ2
-REAL                                   :: xNod, zNod, yNod, Vector1(3), Vector2(3), nx, ny, nz
+REAL                                   :: xNod(3), Vector1(3), Vector2(3), nx, ny, nz
+LOGICAL                                :: UseBezierControlPointsForArea
 !===================================================================================================================================
 
 ! Get input parameters
 LBWRITE(UNIT_stdOut,'(A)') ' INIT SURFACE SAMPLING ...'
 
-WRITE(UNIT=hilf,FMT='(I0)') NGeo
-nSurfSample = GETINT('DSMC-nSurfSample',TRIM(hilf))
-
-IF((nSurfSample.GT.1).AND.(TrackingMethod.EQ.TRIATRACKING)) &
-  CALL abort(__STAMP__,'nSurfSample cannot be >1 if TrackingMethod = triatracking')
-
 ! Sampling of impact energy for each species (trans, rot, vib), impact vector (x,y,z) and angle
 CalcSurfaceImpact = GETLOGICAL('CalcSurfaceImpact')
 
-! flag if there is at least one surf side on the node (sides in halo region do also count)
-SurfOnNode = MERGE(.TRUE.,.FALSE.,nComputeNodeSurfTotalSides.GT.0)
+! Flag if there is at least one surf side on the node (sides in halo region do also count)
+SurfTotalSideOnNode = MERGE(.TRUE.,.FALSE.,nComputeNodeSurfTotalSides.GT.0)
 
 !> Setting the number of sampling (SurfSampSize -> SampWallState) and output (SurfOutputSize -> MacroSurfaceVal) variables
 !> Optional sampling variables require an additional SampWallIndex (SWI)
@@ -185,19 +179,17 @@ IF (CalcSurfaceImpact) SurfSpecOutputSize = SurfSpecOutputSize + 10
 
 !> Leader communication
 #if USE_MPI
-IF (myComputeNodeRank.EQ.0) THEN
-  CALL InitSurfCommunication()
-END IF
+IF (myComputeNodeRank.EQ.0) CALL InitSurfCommunication()
 ! The leaders are synchronized at this point, but behind the other procs. nGlobalSurfSides is only required when compiled without
 ! MPI, so perform latency hiding by postponing synchronization
 #else
-mySurfRank      = 0
-nGlobalSurfSides = nComputeNodeSurfTotalSides
-nGlobalOutputSides    = nComputeNodeSurfOutputSides
+mySurfRank         = 0
+nGlobalSurfSides   = nComputeNodeSurfTotalSides
+nGlobalOutputSides = nComputeNodeSurfOutputSides
 #endif /* USE_MPI */
 
 ! surface sampling array do not need to be allocated if there are no sides within halo_eps range
-IF(.NOT.SurfOnNode) RETURN
+IF(.NOT.SurfTotalSideOnNode) RETURN
 
 !> Allocate the output container
 ALLOCATE(MacroSurfaceVal(1:SurfOutputSize         , 1:nSurfSample , 1:nSurfSample , nComputeNodeSurfOutputSides))
@@ -344,32 +336,31 @@ CALL LegendreGaussNodesAndWeights(NGeo,Xi_NGeo,wGP_NGeo)
 ! compute area of sub-faces
 tmp1=dXiEQ_SurfSample/2.0 !(b-a)/2
 
-#if USE_MPI
-SurfSide2GlobalSide => SurfSide2GlobalSide_Shared
-#endif
-
 DO iSide = firstSide,LastSide
   ! get global SideID. This contains only nonUniqueSide, no special mortar treatment required
   SideID = SurfSide2GlobalSide(SURF_SIDEID,iSide)
+
+  UseBezierControlPointsForArea = .FALSE.
 
   IF (TrackingMethod.EQ.TRIATRACKING) THEN
     ElemID    = SideInfo_Shared(SIDE_ELEMID ,SideID)
     CNElemID  = GetCNElemID(ElemID)
     LocSideID = SideInfo_Shared(SIDE_LOCALID,SideID)
-    area = 0.
-    xNod = NodeCoords_Shared(1,ElemSideNodeID_Shared(1,LocSideID,CNElemID)+1)
-    yNod = NodeCoords_Shared(2,ElemSideNodeID_Shared(1,LocSideID,CNElemID)+1)
-    zNod = NodeCoords_Shared(3,ElemSideNodeID_Shared(1,LocSideID,CNElemID)+1)
+    IF((Symmetry%Order.NE.3).AND.nSurfSample.GT.1) CALL abort(__STAMP__,'nSurfSample>1 not implemented for this symmetry!')
+
     IF(Symmetry%Order.EQ.3) THEN
+      ! Check if triangles are used for the calculation of the surface area or not
+      IF(nSurfSample.GT.1)THEN
+        ! Do not use triangles
+        UseBezierControlPointsForArea = .TRUE.
+      ELSE
+        xNod(1:3) = NodeCoords_Shared(1:3,ElemSideNodeID_Shared(1,LocSideID,CNElemID)+1)
+      area = 0.
       DO TriNum = 1,2
         Node1 = TriNum+1     ! normal = cross product of 1-2 and 1-3 for first triangle
         Node2 = TriNum+2     !          and 1-3 and 1-4 for second triangle
-        Vector1(1) = NodeCoords_Shared(1,ElemSideNodeID_Shared(Node1,LocSideID,CNElemID)+1) - xNod
-        Vector1(2) = NodeCoords_Shared(2,ElemSideNodeID_Shared(Node1,LocSideID,CNElemID)+1) - yNod
-        Vector1(3) = NodeCoords_Shared(3,ElemSideNodeID_Shared(Node1,LocSideID,CNElemID)+1) - zNod
-        Vector2(1) = NodeCoords_Shared(1,ElemSideNodeID_Shared(Node2,LocSideID,CNElemID)+1) - xNod
-        Vector2(2) = NodeCoords_Shared(2,ElemSideNodeID_Shared(Node2,LocSideID,CNElemID)+1) - yNod
-        Vector2(3) = NodeCoords_Shared(3,ElemSideNodeID_Shared(Node2,LocSideID,CNElemID)+1) - zNod
+          Vector1(1:3) = NodeCoords_Shared(1:3,ElemSideNodeID_Shared(Node1,LocSideID,CNElemID)+1) - xNod(1:3)
+          Vector2(1:3) = NodeCoords_Shared(1:3,ElemSideNodeID_Shared(Node2,LocSideID,CNElemID)+1) - xNod(1:3)
         nx = - Vector1(2) * Vector2(3) + Vector1(3) * Vector2(2) !NV (inwards)
         ny = - Vector1(3) * Vector2(1) + Vector1(1) * Vector2(3)
         nz = - Vector1(1) * Vector2(2) + Vector1(2) * Vector2(1)
@@ -377,13 +368,18 @@ DO iSide = firstSide,LastSide
         area = area + nVal/2.
       END DO
       SurfSideArea(1,1,iSide) = area
+      END IF ! nSurfSample.GT.1
     ELSE IF(Symmetry%Order.EQ.2) THEN
       SurfSideArea(1,1,iSide) = DSMC_2D_CalcSymmetryArea(LocSideID, CNElemID)
     ELSE IF(Symmetry%Order.EQ.1) THEN
       SurfSideArea(1,1,iSide) = DSMC_1D_CalcSymmetryArea(LocSideID, CNElemID)
     END IF
   ELSE ! TrackingMethod.NE.TRIATRACKING
-    ! call here stephens algorithm to compute area
+    UseBezierControlPointsForArea = .TRUE.
+  END IF ! TrackingMethod.EQ.TRIATRACKIN
+
+  ! Instead of triangles use Bezier control points (curved or triangle tracking with nSurfSample>1)
+  IF(UseBezierControlPointsForArea)THEN
     DO jSample=1,nSurfSample
       DO iSample=1,nSurfSample
         area=0.
@@ -406,7 +402,8 @@ DO iSide = firstSide,LastSide
         SurfSideArea(iSample,jSample,iSide) = area
       END DO ! iSample=1,nSurfSample
     END DO ! jSample=1,nSurfSample
-  END IF
+  END IF ! UseBezierControlPointsForArea
+
 END DO ! iSide = firstSide,lastSide
 
 #if USE_MPI
@@ -460,7 +457,7 @@ USE MOD_Globals
 USE MOD_Globals_Vars               ,ONLY: StefanBoltzmannConst
 USE MOD_DSMC_Vars                  ,ONLY: DSMC
 USE MOD_Mesh_Vars                  ,ONLY: MeshFile
-USE MOD_Particle_Boundary_Vars     ,ONLY: SurfOnNode
+USE MOD_Particle_Boundary_Vars     ,ONLY: SurfTotalSideOnNode
 USE MOD_SurfaceModel_Vars          ,ONLY: nPorousBC, DoChemSurface, ChemWallProp
 USE MOD_Particle_Boundary_Vars     ,ONLY: nSurfSample,CalcSurfaceImpact
 USE MOD_Particle_Boundary_Vars     ,ONLY: SurfSide2GlobalSide, GlobalSide2SurfSide, PartBound
@@ -531,7 +528,7 @@ END IF
 
 IF(ALMOSTZERO(TimeSample)) RETURN
 
-IF(.NOT.SurfOnNode) RETURN
+IF(.NOT.SurfTotalSideOnNode) RETURN
 
 #if USE_MPI
 CALL ExchangeSurfData()
@@ -565,6 +562,7 @@ DO iSurfSide = 1,nComputeNodeSurfSides
   IF(SideInfo_Shared(SIDE_NBSIDEID,GlobalSideID).GT.0) THEN
     IF(GlobalSideID.LT.SideInfo_Shared(SIDE_NBSIDEID,GlobalSideID)) THEN
       SurfSideNb = GlobalSide2SurfSide(SURF_SIDEID,SideInfo_Shared(SIDE_NBSIDEID,GlobalSideID))
+      ! Add your contribution to my inner BC
       SampWallState(:,:,:,iSurfSide) = SampWallState(:,:,:,iSurfSide) + SampWallState(:,:,:,SurfSideNb)
     ELSE
       CYCLE
@@ -857,6 +855,7 @@ CALL OpenDataFile(FileString,create=.FALSE.,single=.TRUE.,readOnly=.FALSE.)
 
 nVarCount=0
 WRITE(H5_Name,'(A)') 'SurfaceData'
+! WARNING: Only the sampling leaders write the data to .h5
 ASSOCIATE (&
       nVar2D_Total         => INT(nVar2D_Total,IK)                    , &
       nSurfSample          => INT(nSurfSample,IK)                     , &
@@ -1100,10 +1099,10 @@ SUBROUTINE FinalizeParticleBoundarySampling()
 ! MODULES                                                                                                                          !
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Globals
-USE MOD_DSMC_Vars                      ,ONLY: DSMC
+!USE MOD_DSMC_Vars                      ,ONLY: DSMC
 USE MOD_Particle_Boundary_Vars
-USE MOD_Particle_Vars               ,ONLY: WriteMacroSurfaceValues
-USE MOD_SurfaceModel_Vars           ,ONLY: nPorousBC
+!USE MOD_Particle_Vars                  ,ONLY: WriteMacroSurfaceValues
+USE MOD_SurfaceModel_Vars              ,ONLY: nPorousBC
 #if USE_MPI
 USE MOD_MPI_Shared_Vars                ,ONLY: MPI_COMM_SHARED,MPI_COMM_LEADERS_SURF
 USE MOD_MPI_Shared
@@ -1120,15 +1119,14 @@ IMPLICIT NONE
 !===================================================================================================================================
 
 ! Return if nothing was allocated
-IF (.NOT.WriteMacroSurfaceValues.AND..NOT.DSMC%CalcSurfaceVal.AND..NOT.(ANY(PartBound%Reactive))) RETURN
+!IF (.NOT.WriteMacroSurfaceValues.AND..NOT.DSMC%CalcSurfaceVal.AND..NOT.(ANY(PartBound%Reactive))) RETURN
 
 ! Return if no sampling surfaces on node
-IF (.NOT.SurfOnNode) RETURN
+IF (.NOT.SurfTotalSideOnNode) RETURN
 
 ! First, free every shared memory window. This requires MPI_BARRIER as per MPI3.1 specification
 #if USE_MPI
 CALL MPI_BARRIER(MPI_COMM_SHARED,iERROR)
-
 CALL UNLOCK_AND_FREE(SampWallState_Shared_Win)
 CALL UNLOCK_AND_FREE(SurfSideArea_Shared_Win)
 IF(nPorousBC.GT.0) CALL UNLOCK_AND_FREE(SampWallPumpCapacity_Shared_Win)
@@ -1167,6 +1165,8 @@ SDEALLOCATE(SampWallImpactVector)
 SDEALLOCATE(SampWallImpactAngle)
 SDEALLOCATE(SampWallImpactNumber)
 ADEALLOCATE(SurfSideArea)
+ADEALLOCATE(GlobalSide2SurfSide)
+ADEALLOCATE(SurfSide2GlobalSide)
 SDEALLOCATE(MacroSurfaceVal)
 SDEALLOCATE(MacroSurfaceSpecVal)
 

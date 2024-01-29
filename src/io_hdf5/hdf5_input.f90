@@ -107,6 +107,11 @@ INTEGER(HID_T)                 :: Plist_ID
 CHARACTER(LEN=255)             :: ProgramName
 LOGICAL                        :: help
 !===================================================================================================================================
+IF(.NOT.FILEEXISTS(FileName))THEN
+  SWRITE(UNIT_stdOut,'(A)')' ERROR: The file does not exit! FileName: '//TRIM(FileName)
+  isValidHDF5File=.FALSE.
+  RETURN
+END IF ! .NOT.FILEEXISTS(FileName)
 isValidHDF5File=.TRUE.
 iError=0
 FileVersionRealRef=-1.0
@@ -219,6 +224,7 @@ ELSE
   ! Close FORTRAN predefined datatypes
   CALL H5CLOSE_F(iError)
 END IF
+
 END FUNCTION ISVALIDMESHFILE
 
 !==================================================================================================================================
@@ -650,7 +656,7 @@ END IF
 CALL H5AOPEN_F(Loc_ID, TRIM(AttribName), Attr_ID, iError)
 
 IF(iError.NE.0) CALL abort(__STAMP__,&
-    'Attribute '//TRIM(AttribName)//' does not exist or h5 file already opened by a different program')
+    'Attribute ['//TRIM(AttribName)//'] does not exist or h5 file already opened by a differen program')
 
 IF(PRESENT(RealArray))     RealArray=0.
 IF(PRESENT(RealScalar))    RealScalar=0.

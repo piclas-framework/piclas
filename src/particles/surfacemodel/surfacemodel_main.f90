@@ -33,8 +33,8 @@ CONTAINS
 !===================================================================================================================================
 !> Selection and execution of a gas-surface interaction model
 !> 0.) Initial surface pre-treatment: Porous BC and initialization of charge deposition on dielectrics
-!> 1.) species swap
-!> 2.) Count and sample the properties BEFORE the surface interaction
+!> 1.) Count and sample the properties BEFORE the surface interaction
+!> 2.) Perform the species swap
 !> 3.) Perform the selected gas-surface interaction, currently implemented models:
 !           0: Maxwell Scattering
 !          20: Adsorption or Eley-Rideal reaction
@@ -123,7 +123,7 @@ END IF
 !===================================================================================================================================
 ! 1.) Species Swap
 !===================================================================================================================================
-IF (PartBound%NbrOfSpeciesSwaps(locBCID).GT.0) CALL SpeciesSwap(PartID,SideID)
+IF (PartBound%NbrOfSpeciesSwaps(iBC).GT.0) CALL SpeciesSwap(PartID,SideID)
 
 !===================================================================================================================================
 ! 2.) Count and sample the properties BEFORE the surface interaction
@@ -145,6 +145,10 @@ IF(DoSample) THEN
   ! Sample momentum, heatflux and collision counter on surface
   CALL CalcWallSample(PartID,SurfSideID,'old',SurfaceNormal_opt=n_loc)
 END IF
+!===================================================================================================================================
+! 2.) Species Swap
+!===================================================================================================================================
+IF (PartBound%NbrOfSpeciesSwaps(locBCID).GT.0) CALL SpeciesSwap(PartID,SideID)
 !===================================================================================================================================
 ! Particle was deleted during the species swap/circular flow, leave the routine
 !===================================================================================================================================
@@ -293,31 +297,35 @@ INTEGER,INTENT(IN),OPTIONAL       :: targetSpecies_IN
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                           :: targetSpecies, iSwaps
+INTEGER                           :: targetSpecies, iSwaps, locBCID
 REAL                              :: RanNum
-INTEGER                           :: locBCID
+LOGICAL                           :: PerformSwap
 !===================================================================================================================================
 
+PerformSwap = .TRUE.
 locBCID = PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID))
-CALL RANDOM_NUMBER(RanNum)
-IF(RanNum.LE.PartBound%ProbOfSpeciesSwaps(PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID)))) THEN
+IF(PartBound%ProbOfSpeciesSwaps(locBCID).LT.1.) THEN
+  CALL RANDOM_NUMBER(RanNum)
+  PerformSwap = RanNum.LE.PartBound%ProbOfSpeciesSwaps(locBCID)
+END IF
+
+IF(PerformSwap) THEN
   targetSpecies=-1 ! Dummy initialization value
   IF(PRESENT(targetSpecies_IN))THEN
     targetSpecies = targetSpecies_IN
   ELSE ! Normal swap routine
-    DO iSwaps=1,PartBound%NbrOfSpeciesSwaps(PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID)))
-      IF (PartSpecies(PartID).eq.PartBound%SpeciesSwaps(1,iSwaps,PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID)))) &
-          targetSpecies = PartBound%SpeciesSwaps(2,iSwaps,PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID)))
+    DO iSwaps=1,PartBound%NbrOfSpeciesSwaps(locBCID)
+      IF (PartSpecies(PartID).EQ.PartBound%SpeciesSwaps(1,iSwaps,locBCID)) targetSpecies = PartBound%SpeciesSwaps(2,iSwaps,locBCID)
     END DO
   END IF ! PRESENT(targetSpecies_IN)
-  !swap species
-  IF (targetSpecies.eq.0) THEN
+  ! Swap species
+  IF (targetSpecies.EQ.0) THEN
     ! Delete particle -> same as PartBound%OpenBC
-    CALL RemoveParticle(PartID,BCID=PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID)))
-  ELSE IF (targetSpecies.gt.0) THEN
+    CALL RemoveParticle(PartID,BCID=locBCID)
+  ELSE IF (targetSpecies.GT.0) THEN
     ! Swap species
     PartSpecies(PartID)=targetSpecies
-  END IF ! targetSpecies.eq.0
+  END IF ! targetSpecies.EQ.0
 END IF ! RanNum.LE.PartBound%ProbOfSpeciesSwaps
 
 END SUBROUTINE SpeciesSwap

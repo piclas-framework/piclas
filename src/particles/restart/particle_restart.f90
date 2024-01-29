@@ -48,7 +48,7 @@ USE MOD_Particle_Restart_Vars
 USE MOD_DSMC_Vars              ,ONLY: UseDSMC,CollisMode,PartStateIntEn,DSMC,VibQuantsPar,PolyatomMolDSMC,SpecDSMC
 USE MOD_DSMC_Vars              ,ONLY: ElectronicDistriPart, AmbipolElecVelo
 ! Localization
-USE MOD_Particle_Localization  ,ONLY: LocateParticleInElement
+USE MOD_Particle_Localization  ,ONLY: LocateParticleInElement,SinglePointToElement
 USE MOD_Particle_Mesh_Tools    ,ONLY: ParticleInsideQuad3D
 USE MOD_Particle_Mesh_Vars     ,ONLY: ElemEpsOneCell
 USE MOD_Particle_Tracking_Vars ,ONLY: TrackingMethod,NbrOfLostParticles,CountNbrOfLostParts
@@ -61,7 +61,7 @@ USE MOD_Mesh_Tools             ,ONLY: GetCNElemID
 USE MOD_Mesh_Vars              ,ONLY: offsetElem
 ! Particles
 USE MOD_HDF5_Input_Particles   ,ONLY: ReadEmissionVariablesFromHDF5
-USE MOD_Part_Operations        ,ONLY: RemoveAllElectrons
+USE MOD_Part_Operations        ,ONLY: RemoveAllElectrons, RemoveParticle
 USE MOD_Part_Tools             ,ONLY: UpdateNextFreePosition,StoreLostParticleProperties, MergeCells
 USE MOD_Particle_Boundary_Vars ,ONLY: PartBound
 USE MOD_Particle_Vars          ,ONLY: PartInt,PartData,PartState,PartSpecies,PEM,PDM,usevMPF,PartMPF,PartPosRef,SpecReset,Species
@@ -313,10 +313,15 @@ IF(.NOT.DoMacroscopicRestart) THEN
           ! Particle not in correct element, try to find them within MyProc
           IF (.NOT.InElementCheck) THEN
             NbrOfMissingParticles = NbrOfMissingParticles + 1
-            CALL LocateParticleInElement(iPart,doHALO=.FALSE.)
+            PEM%GlobalElemID(iPart) = SinglePointToElement(PartState(1:3,iPart),doHALO=.FALSE.)
 
             ! Particle not found within MyProc
-            IF (.NOT.PDM%ParticleInside(iPart)) THEN
+            IF (PEM%GlobalElemID(iPart).GT.0) THEN
+              PEM%LastGlobalElemID(iPart) = PEM%GlobalElemID(iPart)
+              PDM%ParticleInside(iPart)=.TRUE.
+              IF(TrackingMethod.EQ.REFMAPPING) CALL GetPositionInRefElem(PartState(1:3,iPart),PartPosRef(1:3,iPart),PEM%GlobalElemID(iPart))
+            ELSE
+              PDM%ParticleInside(iPart)=.FALSE.
               NbrOfLostParticles = NbrOfLostParticles + 1
 #if !(USE_MPI)
               IF (CountNbrOfLostParts) CALL StoreLostParticleProperties(iPart, PEM%GlobalElemID(iPart), UsePartState_opt=.TRUE.)
@@ -341,8 +346,6 @@ IF(.NOT.DoMacroscopicRestart) THEN
                     CounterAmbi = CounterAmbi + 3
                 END IF
               END IF ! useDSMC
-            ELSE
-              PEM%LastGlobalElemID(iPart) = PEM%GlobalElemID(iPart)
             END IF
           END IF
         END DO ! iPart = 1,PDM%ParticleVecLength
@@ -361,10 +364,15 @@ IF(.NOT.DoMacroscopicRestart) THEN
           ! Particle not in correct element, try to find them within MyProc
           IF (.NOT.InElementCheck) THEN
             NbrOfMissingParticles = NbrOfMissingParticles + 1
-            CALL LocateParticleInElement(iPart,doHALO=.FALSE.)
+            PEM%GlobalElemID(iPart) = SinglePointToElement(PartState(1:3,iPart),doHALO=.FALSE.)
 
             ! Particle not found within MyProc
-            IF (.NOT.PDM%ParticleInside(iPart)) THEN
+            IF (PEM%GlobalElemID(iPart).GT.0) THEN
+              PEM%LastGlobalElemID(iPart) = PEM%GlobalElemID(iPart)
+              PDM%ParticleInside(iPart)=.TRUE.
+              IF(TrackingMethod.EQ.REFMAPPING) CALL GetPositionInRefElem(PartState(1:3,iPart),PartPosRef(1:3,iPart),PEM%GlobalElemID(iPart))
+            ELSE
+              PDM%ParticleInside(iPart)=.FALSE.
               NbrOfLostParticles = NbrOfLostParticles + 1
 #if !(USE_MPI)
               IF (CountNbrOfLostParts) CALL StoreLostParticleProperties(iPart, PEM%GlobalElemID(iPart), UsePartState_opt=.TRUE.)
@@ -389,8 +397,6 @@ IF(.NOT.DoMacroscopicRestart) THEN
                     CounterAmbi = CounterAmbi + 3
                 END IF
               END IF ! useDSMC
-            ELSE
-              PEM%LastGlobalElemID(iPart) = PEM%GlobalElemID(iPart)
             END IF ! .NOT.PDM%ParticleInside(iPart)
           END IF ! .NOT.InElementCheck
         END DO ! iPart = 1,PDM%ParticleVecLength
@@ -409,10 +415,15 @@ IF(.NOT.DoMacroscopicRestart) THEN
           ! Particle not in correct element, try to find them within MyProc
           IF (.NOT.InElementCheck) THEN
             NbrOfMissingParticles = NbrOfMissingParticles + 1
-            CALL LocateParticleInElement(iPart,doHALO=.FALSE.)
+            PEM%GlobalElemID(iPart) = SinglePointToElement(PartState(1:3,iPart),doHALO=.FALSE.)
 
             ! Particle not found within MyProc
-            IF (.NOT.PDM%ParticleInside(iPart)) THEN
+            IF (PEM%GlobalElemID(iPart).GT.0) THEN
+              PEM%LastGlobalElemID(iPart) = PEM%GlobalElemID(iPart)
+              PDM%ParticleInside(iPart)=.TRUE.
+              IF(TrackingMethod.EQ.REFMAPPING) CALL GetPositionInRefElem(PartState(1:3,iPart),PartPosRef(1:3,iPart),PEM%GlobalElemID(iPart))
+            ELSE
+              PDM%ParticleInside(iPart)=.FALSE.
               NbrOfLostParticles = NbrOfLostParticles + 1
 #if !(USE_MPI)
               IF (CountNbrOfLostParts) CALL StoreLostParticleProperties(iPart, PEM%GlobalElemID(iPart), UsePartState_opt=.TRUE.)
@@ -438,8 +449,6 @@ IF(.NOT.DoMacroscopicRestart) THEN
                 END IF
               END IF ! useDSMC
               PartPosRef(1:3,iPart) = -888.
-            ELSE
-              PEM%LastGlobalElemID(iPart) = PEM%GlobalElemID(iPart)
             END IF
           END IF
         END DO ! iPart = 1,PDM%ParticleVecLength
@@ -636,10 +645,13 @@ IF(.NOT.DoMacroscopicRestart) THEN
         END ASSOCIATE
 
         PartState(     1:6,CurrentPartNum) = RecBuff(1:6,iPart)
-        PDM%ParticleInside(CurrentPartNum) = .true.
 
-        CALL LocateParticleInElement(CurrentPartNum,doHALO=.FALSE.)
-        IF (PDM%ParticleInside(CurrentPartNum)) THEN
+        PEM%GlobalElemID(CurrentPartNum) = SinglePointToElement(PartState(1:3,CurrentPartNum),doHALO=.FALSE.)
+
+        IF (PEM%GlobalElemID(CurrentPartNum).GT.0) THEN
+          PEM%LastGlobalElemID(CurrentPartNum) = PEM%GlobalElemID(CurrentPartNum)
+          PDM%ParticleInside(CurrentPartNum)=.TRUE.
+          IF(TrackingMethod.EQ.REFMAPPING) CALL GetPositionInRefElem(PartState(1:3,CurrentPartNum),PartPosRef(1:3,CurrentPartNum),PEM%GlobalElemID(iPart))
           IndexOfFoundParticles(iPart) = 1
           PEM%LastGlobalElemID(CurrentPartNum) = PEM%GlobalElemID(CurrentPartNum)
 
@@ -711,6 +723,7 @@ IF(.NOT.DoMacroscopicRestart) THEN
 
           CurrentPartNum = CurrentPartNum + 1
         ELSE ! Lost
+          PDM%ParticleInside(iPart)=.FALSE.
           IndexOfFoundParticles(iPart) = 0
         END IF
 
@@ -769,6 +782,7 @@ IF(.NOT.DoMacroscopicRestart) THEN
 
             CALL StoreLostParticleProperties(CurrentPartNum, PEM%GlobalElemID(CurrentPartNum), &
                                              UsePartState_opt=.TRUE., PartMissingType_opt=CompleteIndexOfFoundParticles(iPart))
+            CALL RemoveParticle(CurrentPartNum)
           END IF ! CountNbrOfLostParts
         END DO
 

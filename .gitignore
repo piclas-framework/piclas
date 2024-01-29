@@ -80,3 +80,7 @@ doxygen/
 
 # unit test
 unitTests/bin/
+
+# gitlab-ci-local temp files and folders
+.gitlab-ci-local/
+reggie/

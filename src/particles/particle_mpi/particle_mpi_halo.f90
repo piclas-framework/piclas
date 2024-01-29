@@ -37,7 +37,7 @@ PUBLIC :: FinalizePartExchangeProcs
 
 CONTAINS
 
-SUBROUTINE IdentifyPartExchangeProcs
+SUBROUTINE IdentifyPartExchangeProcs()
 !===================================================================================================================================
 ! Identifies processors in physical range for particle exchange communication. This communication has to occur at every RK step and
 ! would be too costly if done as an all-to-all communication
@@ -1061,12 +1061,12 @@ IF(CheckExchangeProcs)THEN
   CALL MPI_ALLREDUCE(nNonSymmetricExchangeProcs, nNonSymmetricExchangeProcsGlob, 1, MPI_INTEGER, MPI_SUM, MPI_COMM_PICLAS, IERROR)
   ! Check sum of nNonSymmetricExchangeProcs over all processors
   IF(nNonSymmetricExchangeProcsGlob.GT.0)THEN
-    SWRITE(UNIT_StdOut,'(X,131("~"))')
+    SWRITE(UNIT_StdOut,'(1X,131("~"))')
     SWRITE(Unit_StdOut,'(A,I0,A)') ' | Found ',nNonSymmetricExchangeProcsGlob, ' previously missing non-symmetric particle exchange procs'
     SWRITE(Unit_StdOut,'(A)')" | See ElemData container 'myInvisibleRank' for more information on which MPI ranks are non-symmetric"
     SWRITE(Unit_StdOut,'(A)')" | This information is written to "//TRIM(ProjectName)//"_MyInvisibleRank.h5 (only when CheckExchangeProcs=T)"
     SWRITE(Unit_StdOut,'(A)')" | This check is optional. You can disable it via CheckExchangeProcs = F"
-    SWRITE(UNIT_StdOut,'(X,131("~"))')
+    SWRITE(UNIT_StdOut,'(1X,131("~"))')
     CALL AddToElemData(ElementOut,'myInvisibleRank',LongIntArray=myInvisibleRank)
     CALL WriteMyInvisibleRankToHDF5()
     ! Only root aborts

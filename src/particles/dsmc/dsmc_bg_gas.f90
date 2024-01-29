@@ -67,7 +67,7 @@ USE MOD_ReadInTools
 USE MOD_Globals               ,ONLY: abort
 USE MOD_DSMC_Vars             ,ONLY: BGGas
 USE MOD_Mesh_Vars             ,ONLY: nElems
-USE MOD_Particle_Vars         ,ONLY: PDM, Symmetry, Species, nSpecies, UseVarTimeStep, VarTimeStep
+USE MOD_Particle_Vars         ,ONLY: PDM, Species, nSpecies, UseVarTimeStep, VarTimeStep
 USE MOD_Restart_Vars          ,ONLY: DoMacroscopicRestart, MacroRestartFileName
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -541,6 +541,7 @@ CALL LBStartTime(tLBStart)
 
 DO iPart = 1, PDM%ParticleVecLength
   IF (PDM%ParticleInside(iPart)) THEN
+    ! No Pt_temp=0 necessary, because it is a ghost particle
     IF(BGGas%BackgroundSpecies(PartSpecies(iPart))) PDM%ParticleInside(iPart) = .FALSE.
   END IF
 END DO
@@ -796,6 +797,10 @@ END DO
 
 !> 4.) Perform the reaction, distribute the collision energy (including photon energy) and emit electrons perpendicular
 !>     to the photon's path
+ASSOCIATE(b1          => Species(iSpec)%Init(iInit)%NormalVector1IC(1:3) ,&
+          b2          => Species(iSpec)%Init(iInit)%NormalVector2IC(1:3) ,&
+          normal      => Species(iSpec)%Init(iInit)%NormalIC             ,&
+          PartBCIndex => Species(iSpec)%Init(iInit)%PartBCIndex)
 IF(NbrOfPhotonXsecReactions.GT.0)THEN
   DO iPart = 1, SUM(NumPhotoIonization(:))
     ! Loop over all randomized lines (found above)
@@ -808,10 +813,9 @@ IF(NbrOfPhotonXsecReactions.GT.0)THEN
         DO iPhotoReac = 1, NbrOfPhotonXsecReactions
           IF(PhotonEnergies(iLine,1+iPhotoReac).GT.0)THEN
             ! Reduce cross-section by one
-    !IPWRITE(UNIT_StdOut,'(I6,3(A,I3))') "  calling  iLine =",iLine," iPhotoReac =",iPhotoReac," iReac =",PhotoReacToReac(iPhotoReac)
             PhotonEnergies(iLine,1+iPhotoReac) = PhotonEnergies(iLine,1+iPhotoReac) - 1
             iPair = iPair + 1
-            CALL PhotoIonization_InsertProducts(iPair, PhotoReacToReac(iPhotoReac), iInit, iSpec, iLineOpt=iLine)
+            CALL PhotoIonization_InsertProducts(iPair, PhotoReacToReac(iPhotoReac), b1, b2, normal, iLineOpt=iLine, PartBCIndex=PartBCIndex)
           END IF ! PhotonEnergies(iLine,1+iPhotoReac).GT.0
         END DO ! iPhotoReac = 1, NbrOfPhotonXsecReactions
       END DO
@@ -822,10 +826,11 @@ ELSE
     IF(TRIM(ChemReac%ReactModel(iReac)).NE.'phIon') CYCLE
     DO iPart = 1, NumPhotoIonization(iReac)
       iPair = iPair + 1
-      CALL PhotoIonization_InsertProducts(iPair, iReac, iInit, iSpec)
+      CALL PhotoIonization_InsertProducts(iPair, iReac, b1, b2, normal, PartBCIndex=PartBCIndex)
     END DO
   END DO
 END IF ! NbrOfPhotonXsecReactions.GT.0
+END ASSOCIATE
 
 DSMCSumOfFormedParticles = 0
 

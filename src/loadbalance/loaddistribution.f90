@@ -1317,7 +1317,7 @@ REAL(KIND=8)                  :: Rate
 ! Get process memory info
 CALL ProcessMemUsage(memory(1),memory(2),memory(3)) ! memUsed,memAvail,memTotal
 
-! only CN roots communicate available and total memory info (count once per node)
+! Only CN roots communicate available and total memory info (count once per node)
 #if USE_MPI
 #if defined(MEASURE_MPI_WAIT)
 CALL SYSTEM_CLOCK(count=CounterStart)
@@ -1379,7 +1379,7 @@ IF(MemoryMonitor)THEN
     !MemUsagePercent = 99.32
     IF((memory(1).GT.memory(4)).AND.(MemUsagePercent.GT.95.0))THEN
       CALL set_formatting("red")
-      SWRITE(UNIT_stdOut,'(A,F5.2,A)') ' WARNING: Memory reaching maximum, RAM is at ',MemUsagePercent,'%'
+      SWRITE(UNIT_stdOut,'(A,F6.2,A)') ' WARNING: Memory reaching maximum, RAM is at ',MemUsagePercent,'%'
       CALL clear_formatting()
     END IF
   END IF ! WriteHeader

@@ -92,6 +92,7 @@ USE MOD_Particle_Intersection       ,ONLY: ComputePlanarCurvedIntersection
 USE MOD_Particle_Intersection       ,ONLY: ComputeBiLinearIntersection
 USE MOD_Eval_xyz                    ,ONLY: GetPositionInRefElem
 USE MOD_Part_Tools                  ,ONLY: StoreLostParticleProperties
+USE MOD_part_operations             ,ONLY: RemoveParticle
 #ifdef CODE_ANALYZE
 #ifdef IMPA
 USE MOD_Particle_Vars               ,ONLY: PartIsImplicit,PartDtFrac
@@ -375,7 +376,7 @@ DO iPart=1,PDM%ParticleVecLength
               IPWRITE(UNIT_stdOut,'(I0,A,I0)') ' Removing particle with id: ',iPart
             END IF ! DisplayLostParticles
             PartIsDone=.TRUE.
-            PDM%ParticleInside(iPart)=.FALSE.
+            CALL RemoveParticle(iPart)
 #ifdef IMPA
             DoParticle=.FALSE.
 #endif /*IMPA*/
