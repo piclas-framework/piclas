@@ -388,7 +388,7 @@ USE MOD_Particle_Vars          ,ONLY: nSpecies, Species, UseVarTimeStep, VarTime
 USE MOD_Particle_Vars          ,ONLY: UseCircularInflow
 USE MOD_Particle_Sampling_Vars ,ONLY: UseAdaptiveBC
 USE MOD_Particle_Boundary_Vars ,ONLY: PartBound,nPartBound
-USE MOD_DSMC_Vars              ,ONLY: useDSMC, BGGas
+USE MOD_DSMC_Vars              ,ONLY: useDSMC, BGGas, RadialWeighting
 USE MOD_Particle_Surfaces_Vars ,ONLY: BCdata_auxSF, BezierSampleN, TriaSurfaceFlux
 USE MOD_Particle_Tracking_Vars ,ONLY: TrackingMethod
 USE MOD_Mesh_Vars              ,ONLY: NGeo
@@ -434,6 +434,9 @@ DO iSpec=1,nSpecies
     SF%BC = GETINT('Part-Species'//TRIM(hilf2)//'-BC')
     ! Sanity check: BC index must be within the number of defined particle boundary conditions
     IF (SF%BC.LT.1 .OR. SF%BC.GT.nPartBound) CALL abort(__STAMP__, 'SurfacefluxBCs must be between 1 and nPartBound!')
+    ! Default surface flux type (constant particle number per side)
+    SF%Type = 0
+    SF%AdaptiveType = 0
     ! Initialize SF-specific variables
     WRITE(UNIT=hilf2,FMT='(I0)') iSF
     hilf2=TRIM(hilf)//'-Surfaceflux'//TRIM(hilf2)
@@ -547,11 +550,15 @@ DO iSpec=1,nSpecies
     ELSE
       SF%ARM_DmaxSampleN = 0
     END IF
+    ! === Set the surface flux type
+    IF(DoPoissonRounding) SF%Type = 3
+    IF(DoTimeDepInflow)   SF%Type = 4
+    IF(RadialWeighting%DoRadialWeighting) SF%Type = 2
     ! === ADAPTIVE BC ==============================================================================================================
     SF%Adaptive         = GETLOGICAL('Part-Species'//TRIM(hilf2)//'-Adaptive')
     IF(SF%Adaptive) THEN
-      DoPoissonRounding = .TRUE.
       UseAdaptiveBC  = .TRUE.
+      SF%Type = 1
       IF(TrackingMethod.EQ.REFMAPPING) THEN
         CALL abort(__STAMP__,'ERROR: Adaptive surface flux boundary conditions are not implemented with RefMapping!')
       END IF
@@ -583,8 +590,6 @@ DO iSpec=1,nSpecies
             ,'ERROR in adaptive surface flux: using a reflective BC without circularInflow is only allowed for Type 4!')
         END IF
       END IF
-    ELSE
-      SF%AdaptiveType = 0
     END IF
     ! === THERMIONIC EMISSION ======================================================================================================
     SF%ThermionicEmission = GETLOGICAL('Part-Species'//TRIM(hilf2)//'-ThermionicEmission')
@@ -631,9 +636,8 @@ DO BCSideID=1,nBCSides
   iLocSide = SideToElem(S2E_LOC_SIDE_ID,BCSideID)
   SideID=GetGlobalNonUniqueSideID(offsetElem+ElemID,iLocSide)
   IF (TriaSurfaceFlux) THEN
-    IF (SurfFluxSideSize(1).NE.1 .OR. SurfFluxSideSize(2).NE.2) CALL abort(&
-__STAMP__&
-, 'SurfFluxSideSize must be 1,2 for TriaSurfaceFlux!')
+    IF (SurfFluxSideSize(1).NE.1 .OR. SurfFluxSideSize(2).NE.2) CALL abort(__STAMP__,&
+      'SurfFluxSideSize must be 1,2 for TriaSurfaceFlux!')
     DO jSample=1,SurfFluxSideSize(2); DO iSample=1,SurfFluxSideSize(1)
       CALL CalcNormAndTangTriangle(SideID=SideID,nVec=tmp_Vec_nOut(:,iSample,jSample) &
         ,tang1=tmp_Vec_t1(:,iSample,jSample) &
@@ -643,9 +647,8 @@ __STAMP__&
       SurfMeshSideAreas(BCSideID)=SurfMeshSideAreas(BCSideID)+tmp_SubSideAreas(iSample,jSample)
     END DO; END DO
   ELSE
-    IF (ANY(SurfFluxSideSize.NE.BezierSampleN)) CALL abort(&
-__STAMP__&
-, 'SurfFluxSideSize must be BezierSampleN,BezierSampleN for .NOT.TriaSurfaceFlux!')
+    IF (ANY(SurfFluxSideSize.NE.BezierSampleN)) CALL abort(__STAMP__,&
+      'SurfFluxSideSize must be BezierSampleN,BezierSampleN for .NOT.TriaSurfaceFlux!')
     CALL GetBezierSampledAreas(SideID=SideID &
       ,BezierSampleN=BezierSampleN &
       ,SurfMeshSubSideAreas=tmp_SubSideAreas &
@@ -1240,11 +1243,12 @@ help2=TRIM(help)//'-Surfaceflux'//TRIM(help2)
 
 ! Consider influence of electric field on the material work function (Schottky effect)
 SF%SchottkyEffectTE = GETLOGICAL('Part-Species'//TRIM(help2)//'-ThermionicEmission-SchottkyEffect')
-#if !(USE_HDG)
 IF(SF%SchottkyEffectTE) THEN
+  SF%Type = 5
+#if !(USE_HDG)
   CALL abort(__STAMP__,'ERROR in Surface Flux: Thermionic emission with Schottky effect requires an electric field!')
-END IF
 #endif
+END IF
 ! Material-specific work function read-in in eV and converted to K
 SF%WorkFunctionTE = GETREAL('Part-Species'//TRIM(help2)//'-ThermionicEmission-WorkFunction') * eV2Joule
 ! Material-specific constant read-in in A/(cm^2 K^2) and converted to m^2

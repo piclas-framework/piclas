@@ -1,4 +1,5 @@
-# Photoionization: Volumetric Emission
+# Photoionization in the volume (circle and honeycomb)
+* **Comparing**: the total number of real electrons in the system with an analytical expression
 * Particle emission due to photoionization of $`H_{2}`$ in a volume only (no surface emission)
 * no deposition, no interpolation 
 * comparison of the number of emitted electrons with the analytic solution

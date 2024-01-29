@@ -70,10 +70,6 @@ INTERFACE CalcIntensity_Gaussian
   MODULE PROCEDURE CalcIntensity_Gaussian
 END INTERFACE
 
-INTERFACE CalcVelocity_FromWorkFuncSEE
-  MODULE PROCEDURE CalcVelocity_FromWorkFuncSEE
-END INTERFACE
-
 INTERFACE DSMC_SetInternalEnr_LauxVFD
   MODULE PROCEDURE DSMC_SetInternalEnr_LauxVFD
 END INTERFACE
@@ -83,6 +79,10 @@ INTERFACE CalcVectorAdditionCoeffs
   MODULE PROCEDURE CalcVectorAdditionCoeffs
 END INTERFACE
 #endif /*CODE_ANALYZE*/
+
+INTERFACE InsideQuadrilateral
+  MODULE PROCEDURE InsideQuadrilateral
+END INTERFACE
 
 !===================================================================================================================================
 PUBLIC :: CalcVelocity_taylorgreenvortex, CalcVelocity_gyrotroncircle
@@ -106,6 +106,7 @@ PUBLIC :: SetParticlePositionLiu2010Neutralization3D
 PUBLIC :: CalcVectorAdditionCoeffs
 #endif /*CODE_ANALYZE*/
 PUBLIC :: CountNeutralizationParticles
+PUBLIC :: InsideQuadrilateral
 !===================================================================================================================================
 CONTAINS
 
@@ -1556,7 +1557,7 @@ CalcPhotonEnergy = PlanckConst * c / lambda
 END FUNCTION CalcPhotonEnergy
 
 
-SUBROUTINE CalcVelocity_FromWorkFuncSEE(FractNbr, Vec3D, iInit)
+SUBROUTINE CalcVelocity_FromWorkFuncSEE(W, m, t_vec, n_vec, Vec3D)
 !===================================================================================================================================
 !> Subroutine to sample photon SEE electrons velocities from given energy distribution based on a work function.
 !> Perform ARM for the energy distribution and a second ARM for the emission angle (between the impacting photon and the emitting
@@ -1565,12 +1566,11 @@ SUBROUTINE CalcVelocity_FromWorkFuncSEE(FractNbr, Vec3D, iInit)
 ! MODULES
 USE MOD_Globals
 USE MOD_Globals_Vars            ,ONLY: PI, ElementaryCharge
-USE MOD_Particle_Vars           ,ONLY: Species
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-INTEGER,INTENT(IN)               :: FractNbr
-INTEGER,INTENT(IN), OPTIONAL     :: iInit
+REAL,INTENT(IN)               :: W, m                 ! Work function, mass
+REAL,INTENT(IN)               :: t_vec(3), n_vec(3)   ! Tangential and normal vector
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 REAL,INTENT(OUT)                 :: Vec3D(3)
@@ -1580,19 +1580,14 @@ REAL               :: RandVal
 REAL               :: E_temp, E_max, VeloABS
 REAL               :: Theta, Chi!, Psi_temp
 REAL               :: PDF_temp, PDF_max
-REAL, PARAMETER    :: PDF_max2=4./ACOS(-1.)
+REAL, PARAMETER    :: PDF_max2=4./PI
 REAL               :: VeloVec_norm(3), RotationAxi(3)
 LOGICAL            :: ARM_SEE_PDF
 REAL               :: Theta_temp
 !===================================================================================================================================
 
-ASSOCIATE( W     => Species(FractNbr)%Init(iInit)%WorkFunctionSEE ,&
-           m     => Species(FractNbr)%MassIC                      ,&
-           t_vec => Species(FractNbr)%Init(iInit)%NormalVector1IC ,&
-           n_vec => Species(FractNbr)%Init(iInit)%NormalIC        )
-
 ! ARM for energy distribution
-E_max = 25.0*W ! in eV (this yields an integral of 0.9956759, i.e., 95.57% of electrons have this or a lower energy)
+E_max = 25.0*W ! in eV (this yields an integral of 0.9956759, i.e., 99.57% of electrons have this or a lower energy)
 PDF_max = 81.0 / (128.0 * W)  ! PDF_max at E = W/3 (derivation of 6W^2E/(E+W)^4 == 0)
 ARM_SEE_PDF=.TRUE.
 DO WHILE(ARM_SEE_PDF)
@@ -1634,8 +1629,6 @@ VeloVec_norm = VeloVec_norm * SIN(Theta) + CROSS(RotationAxi,VeloVec_norm) * COS
 
 ! Calc VeloVec
 Vec3D = VeloVec_norm * VeloABS
-
-END ASSOCIATE
 
 END SUBROUTINE CalcVelocity_FromWorkFuncSEE
 
@@ -2010,6 +2003,83 @@ ASSOCIATE( x => pos(1), y => pos(2) )
   L = DOT_PRODUCT(corner,normal).GT.0.0
 END ASSOCIATE
 END FUNCTION InsideHexagon
+
+!===================================================================================================================================
+!> Calculate determinant of 3 points
+!===================================================================================================================================
+PPURE REAL FUNCTION pointDet(P1,P2,P3)
+! MODULES
+IMPLICIT NONE
+!----------------------------------------------------------------------------------------------------------------------------------!
+! INPUT / OUTPUT VARIABLES
+REAL,INTENT(IN)     :: P1(2),P2(2),P3(2)
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+!===================================================================================================================================
+pointDet = (P1(1)-P3(1))*(P2(2)-P3(2)) - (P2(1)-P3(1))*(P1(2)-P3(2))
+END FUNCTION pointDet
+
+!===================================================================================================================================
+!> Check if x,y is inside side
+!===================================================================================================================================
+PPURE LOGICAL FUNCTION InsideQuadrilateral(X,NonUniqueGlobalSideID) RESULT(L)
+! MODULES
+USE MOD_Particle_Mesh_Vars ,ONLY: NodeCoords_Shared,SideInfo_Shared,ElemSideNodeID_Shared
+USE MOD_Mesh_Tools         ,ONLY: GetCNElemID
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+REAL,INTENT(IN)    :: X(2)
+INTEGER,INTENT(IN) :: NonUniqueGlobalSideID
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+LOGICAL         :: pos,neg
+INTEGER         :: iNode,CNElemID,locSideID
+REAL            :: P(1:2,1:4),d(3)
+!===================================================================================================================================
+CNElemID  = GetCNElemID(SideInfo_Shared(SIDE_ELEMID,NonUniqueGlobalSideID))
+locSideID = SideInfo_Shared(SIDE_LOCALID,NonUniqueGlobalSideID)
+
+DO iNode = 1,4
+  P(1:2,iNode) = NodeCoords_Shared(1:2,ElemSideNodeID_Shared(iNode,locSideID,CNElemID)+1)
+END DO
+
+! ! sorted
+! P(1:2,1) = (/0,0/)
+! P(1:2,2) = (/1,0/)
+! P(1:2,3) = (/1,1/)
+! P(1:2,4) = (/0,1/)
+! 
+! ! not sorted
+! P(1:2,1) = (/0,0/)
+! P(1:2,2) = (/1,1/)
+! P(1:2,3) = (/1,0/)
+! P(1:2,4) = (/0,1/)
+
+d(1) = pointDet(X,P(1:2,1),P(1:2,2))
+d(2) = pointDet(X,P(1:2,2),P(1:2,3))
+d(3) = pointDet(X,P(1:2,3),P(1:2,1))
+
+pos = (d(1).GT.0).OR.(d(2).GT.0).OR.(d(3).GT.0)
+neg = (d(1).LT.0).OR.(d(2).LT.0).OR.(d(3).LT.0)
+
+L = .NOT.(pos.AND.neg)
+
+IF(.NOT.L)THEN
+  d(1) = pointDet(X,P(1:2,1),P(1:2,3))
+  d(2) = pointDet(X,P(1:2,3),P(1:2,4))
+  d(3) = pointDet(X,P(1:2,4),P(1:2,1))
+
+  pos = (d(1).GT.0).OR.(d(2).GT.0).OR.(d(3).GT.0)
+  neg = (d(1).LT.0).OR.(d(2).LT.0).OR.(d(3).LT.0)
+
+  L = .NOT.(pos.AND.neg)
+END IF ! .NOT.L
+
+END FUNCTION InsideQuadrilateral
 
 
 SUBROUTINE SetParticlePositionLandmark(chunkSize,particle_positions,mode)

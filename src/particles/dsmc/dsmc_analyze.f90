@@ -867,7 +867,8 @@ INTEGER                        :: jSpec
 REAL,ALLOCATABLE               :: DSMC_MacroVal(:,:), MacroElecExcitation(:,:)
 REAL                           :: StartT,EndT
 !===================================================================================================================================
-SWRITE(UNIT_stdOut,'(A)',ADVANCE='NO')' WRITE DSMC TO HDF5 FILE...'
+FileName=TRIM(TIMESTAMP(TRIM(ProjectName)//'_DSMCState',OutputTime))//'.h5'
+SWRITE(UNIT_stdOut,'(A)',ADVANCE='NO')' WRITE DSMC TO HDF5 FILE ['//TRIM(FileName)//'] ...'
 GETTIME(StartT)
 
 IF(nSpecies.EQ.1) THEN
@@ -1021,7 +1022,6 @@ IF(SampleElecExcitation) THEN
 END IF
 
 ! Generate skeleton for the file with all relevant data on a single proc (MPIRoot)
-FileName=TRIM(TIMESTAMP(TRIM(ProjectName)//'_DSMCState',OutputTime))//'.h5'
 IF(MPIRoot) THEN
   CALL OpenDataFile(TRIM(FileName),create=.TRUE.,single=.TRUE.,readOnly=.FALSE.)
   CALL WriteHDF5Header(TRIM('DSMCState'),File_ID)

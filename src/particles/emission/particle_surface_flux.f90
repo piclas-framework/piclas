@@ -98,9 +98,8 @@ DO iSpec=1,nSpecies
 #endif
       IF(.NOT.ALMOSTEQUAL(SF%AdaptiveMassflow,0.)) CALL CalcConstMassflowWeight(iSpec,iSF)
     END IF
-    !Calc Particles for insertion in standard case
-    IF ((.NOT.DoPoissonRounding).AND.(.NOT. DoTimeDepInflow).AND.(.NOT.RadialWeighting%DoRadialWeighting) &
-        .AND.(.NOT.SF%Adaptive)) CALL CalcPartInsSubSidesStandardCase(iSpec,iSF, PartInsSubSides)
+    ! Calc Particles for insertion in standard case
+    IF (SF%Type.EQ.0) CALL CalcPartInsSubSidesStandardCase(iSpec,iSF, PartInsSubSides)
 
 !----- 0.: go through (sub)sides if present in proc
     IF (BCdata_auxSF(currentBC)%SideNumber.EQ.0) THEN
@@ -139,29 +138,33 @@ DO iSpec=1,nSpecies
         IF(Symmetry%Axisymmetric) CALL DefineSideDirectVec2D(SideID, xyzNod, minPos, RVec)
 
         !-- compute number of to be inserted particles
-        IF(SF%Adaptive) THEN
+        SELECT CASE(SF%Type)
+        CASE(0)
+          ! Standard surface flux with fixed number of particles per side
+          PartInsSubSide=PartInsSubSides(iSample,jSample,iSide)
+        CASE(1)
           ! Adaptive surface flux: Number of particles depends on velocity/temperature/mass flow (includes treatment for RadialWeighting)
           CALL CalcPartInsAdaptive(iSpec, iSF, BCSideID, iSide, iSample, jSample, minPos, RVec, PartInsSubSide, PartInsSideRadWeight)
-        ELSE IF(RadialWeighting%DoRadialWeighting) THEN
+        CASE(2)
           ! Radial weighting: Number of particles depends on the modified area and includes insertion over subsides
           CALL CalcPartInsRadWeight(iSpec, iSF, iSample, jSample, iSide, minPos, RVec, PartInsSubSide, PartInsSideRadWeight)
-        ELSE
-          IF (.NOT.DoPoissonRounding .AND. .NOT.DoTimeDepInflow) THEN
-            IF(SF%ThermionicEmission.AND.SF%SchottkyEffectTE) THEN
+        CASE(3)
+          ! DoPoissonRounding .AND. .NOT.DoTimeDepInflow
+          CALL CalcPartInsPoissonDistr(iSpec, iSF, iSample, jSample, iSide, PartInsSubSide)
+        CASE(4)
+          ! DoTimeDepInflow
+          CALL RANDOM_NUMBER(RandVal1)
+          PartInsSubSide = INT(SF%PartDensity / Species(iSpec)%MacroParticleFactor &
+                          * dt*RKdtFrac * SF%SurfFluxSubSideData(iSample,jSample,iSide)%nVFR+RandVal1)
 #if (USE_HDG)
-              CALL CalcPartInsThermionicEmissionSchottky(iSpec,iSF,iSample,jSample,iSide,iLocSide,ElemID,PartInsSubSide)
+        CASE(5)
+          ! SF%ThermionicEmission.AND.SF%SchottkyEffectTE
+          CALL CalcPartInsThermionicEmissionSchottky(iSpec,iSF,iSample,jSample,iSide,iLocSide,ElemID,PartInsSubSide)
 #endif
-            ELSE
-              PartInsSubSide=PartInsSubSides(iSample,jSample,iSide)
-            END IF
-          ELSE IF(DoPoissonRounding .AND. .NOT.DoTimeDepInflow)THEN
-            CALL CalcPartInsPoissonDistr(iSpec, iSF, iSample, jSample, iSide, PartInsSubSide)
-          ELSE !DoTimeDepInflow
-            CALL RANDOM_NUMBER(RandVal1)
-            PartInsSubSide = INT(SF%PartDensity / Species(iSpec)%MacroParticleFactor &
-                            * dt*RKdtFrac * SF%SurfFluxSubSideData(iSample,jSample,iSide)%nVFR+RandVal1)
-          END IF !DoPoissonRounding
-        END IF ! SF%Adaptive
+        CASE DEFAULT
+          CALL abort(__STAMP__,'ERROR in ParticleSurfaceflux: Given surface flux type is not defined!')
+        END SELECT
+
         !-- proceed with calculated to be inserted particles
         IF (PartInsSubSide.LT.0) THEN
           IPWRITE(*,*) 'ERROR in ParticleSurfaceflux: Calculated number of particles to insert below zero! PartInsSubSide: ', PartInsSubSide
