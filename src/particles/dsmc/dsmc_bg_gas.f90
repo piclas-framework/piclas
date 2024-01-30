@@ -287,10 +287,10 @@ SUBROUTINE BGGas_AssignParticleProperties(SpecID,PartIndex,bggPartIndex,GetVeloc
 USE MOD_Globals
 USE MOD_Particle_Vars           ,ONLY: PDM, PEM, PartState,PartSpecies,PartPosRef, usevMPF, PartMPF
 USE MOD_Particle_Vars           ,ONLY: UseVarTimeStep, PartTimeStep
-USE MOD_DSMC_Vars               ,ONLY: CollisMode, BGGas
+USE MOD_DSMC_Vars               ,ONLY: CollisMode, SpecDSMC, BGGas
 USE MOD_Particle_Tracking_Vars  ,ONLY: TrackingMethod
-USE MOD_part_emission_tools     ,ONLY: CalcVelocity_maxwell_lpn
-USE MOD_DSMC_PolyAtomicModel    ,ONLY: DSMC_SetInternalEnr
+USE MOD_part_emission_tools     ,ONLY: CalcVelocity_maxwell_lpn, DSMC_SetInternalEnr_LauxVFD
+USE MOD_DSMC_PolyAtomicModel    ,ONLY: DSMC_SetInternalEnr_Poly
 USE MOD_part_tools              ,ONLY: CalcVelocity_maxwell_particle
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
@@ -340,7 +340,11 @@ END IF
 ! Internal energy
 IF(CollisMode.GT.1) THEN
   IF(GetInternalEnergy) THEN
-    CALL DSMC_SetInternalEnr(SpecID,1,bggPartIndex,1)
+    IF(SpecDSMC(SpecID)%PolyatomicMol) THEN
+      CALL DSMC_SetInternalEnr_Poly(SpecID,1,bggPartIndex,1)
+    ELSE
+      CALL DSMC_SetInternalEnr_LauxVFD(SpecID,1,bggPartIndex,1)
+    END IF
   END IF
 END IF
 ! Simulation flags
@@ -571,10 +575,12 @@ SUBROUTINE BGGas_PhotoIonization(iSpec,iInit,TotalNbrOfReactions)
 USE MOD_Globals
 USE MOD_DSMC_Analyze           ,ONLY: CalcGammaVib, CalcMeanFreePath
 USE MOD_DSMC_Vars              ,ONLY: Coll_pData, CollisMode, ChemReac, PartStateIntEn, DSMC
-USE MOD_DSMC_Vars              ,ONLY: DSMCSumOfFormedParticles
+USE MOD_DSMC_Vars              ,ONLY: SpecDSMC, DSMCSumOfFormedParticles
 USE MOD_DSMC_Vars              ,ONLY: newAmbiParts, iPartIndx_NodeNewAmbi, BGGas
 USE MOD_Particle_Vars          ,ONLY: PEM, PDM, PartSpecies, PartState, Species, usevMPF, PartMPF, Species, PartPosRef
-USE MOD_DSMC_PolyAtomicModel ,ONLY: DSMC_SetInternalEnr
+USE MOD_part_emission_tools    ,ONLY: DSMC_SetInternalEnr_LauxVFD
+USE MOD_DSMC_PolyAtomicModel   ,ONLY: DSMC_SetInternalEnr_Poly
+USE MOD_part_pos_and_velo      ,ONLY: SetParticleVelocity
 USE MOD_Particle_Tracking_Vars ,ONLY: TrackingMethod
 USE MOD_part_emission_tools    ,ONLY: CalcVelocity_maxwell_lpn
 USE MOD_DSMC_ChemReact         ,ONLY: PhotoIonization_InsertProducts
@@ -744,7 +750,11 @@ DO iPart = 1, NbrOfParticle
   ! Particle element
   PEM%GlobalElemID(NewParticleIndex) = PEM%GlobalElemID(ParticleIndex)
   IF(CollisMode.GT.1) THEN
-    CALL DSMC_SetInternalEnr(bgSpec,1,NewParticleIndex,1)
+    IF(SpecDSMC(bgSpec)%PolyatomicMol) THEN
+      CALL DSMC_SetInternalEnr_Poly(bgSpec,1,NewParticleIndex,1)
+    ELSE
+      CALL DSMC_SetInternalEnr_LauxVFD(bgSpec,1,NewParticleIndex,1)
+    END IF
   END IF
   IF(BGGas%UseDistribution) THEN
     iBGGSpec = BGGas%MapSpecToBGSpec(bgSpec)
