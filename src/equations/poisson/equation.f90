@@ -113,11 +113,10 @@ USE MOD_Globals_Vars       ,ONLY: PI
 USE MOD_ReadInTools        ,ONLY: GETREALARRAY,GETREAL,GETINT,CountOption
 USE MOD_Interpolation_Vars ,ONLY: InterpolationInitIsDone
 USE MOD_Mesh_Vars          ,ONLY: BoundaryName,BoundaryType,nBCs
-USE MOD_Mesh_Vars          ,ONLY: nSides
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Vars   ,ONLY: PerformLoadBalance
 #endif /*USE_LOADBALANCE*/
-USE MOD_DG_Vars            ,ONLY: DG_Elems_master,DG_Elems_slave,N_DG
+USE MOD_DG_Vars            ,ONLY: N_DG
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -135,7 +134,7 @@ INTEGER            :: nRefStateMax
 INTEGER            :: nLinState,nLinStateMax
 INTEGER,PARAMETER  :: BCTypeRefstate(1:4)=(/5,51,52,60/)
 CHARACTER(LEN=32)  :: hilf
-INTEGER            :: Nloc,NSideMin,iElem,iSide
+INTEGER            :: Nloc,iElem
 !===================================================================================================================================
 IF((.NOT.InterpolationInitIsDone).OR.EquationInitIsDone)THEN
    LBWRITE(*,*) "InitPoisson not ready to be called or already called."
@@ -892,7 +891,7 @@ USE MOD_Mesh_Vars          ,ONLY: N_VolMesh
 USE MOD_DG_vars            ,ONLY: N_DG
 USE MOD_Globals_Vars       ,ONLY: eps0
 #ifdef PARTICLES
-USE MOD_PICDepo_Vars       ,ONLY: PartSource,DoDeposition
+USE MOD_PICDepo_Vars       ,ONLY: PS_N,DoDeposition
 USE MOD_HDG_Vars           ,ONLY: ElemToBRRegion,UseBRElectronFluid,RegionElectronRef
 #if IMPA
 USE MOD_LinearSolver_Vars  ,ONLY: ExplicitPartSource
@@ -1014,9 +1013,9 @@ IF(DoDeposition)THEN
     END IF
   END IF ! UseBRElectronFluid
 #if IMPA
-  resu(1)= - (PartSource(4,i,j,k,iElem)+ExplicitPartSource(4,i,j,k,iElem)-source_e)/eps0
+  resu(1)= - (PS_N(iElem)%PartSource(4,i,j,k)+ExplicitPartSource(4,i,j,k,iElem)-source_e)/eps0
 #else
-  resu(1)= - (PartSource(4,i,j,k,iElem)-source_e)/eps0
+  resu(1)= - (PS_N(iElem)%PartSource(4,i,j,k)-source_e)/eps0
 #endif
 END IF
 #endif /*defined(PARTICLES)*/

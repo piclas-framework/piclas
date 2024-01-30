@@ -493,6 +493,8 @@ CALL BARRIER_AND_SYNC(ElemsJ_Shared_Win,MPI_COMM_SHARED)
 #else
 !ElemsJ => sJ
 #endif /* USE_MPI*/
+IPWRITE(UNIT_StdOut,'(I0,A,I0)') ": v "//TRIM(__FILE__)//" +",__LINE__
+read*
 
 ! Exit routine here if TriaTracking is active
 IF (TrackingMethod.EQ.TRIATRACKING)THEN

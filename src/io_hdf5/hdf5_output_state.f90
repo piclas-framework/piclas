@@ -160,7 +160,7 @@ REAL                           :: Utemp(1:7,0:PP_N,0:PP_N,0:PP_N,PP_nElems)
 #else
 INTEGER                        :: iElem,Nloc
 REAL                           :: U(PP_nVar,0:Nmax,0:Nmax,0:Nmax,PP_nElems)
-REAL                           :: PartSource(1:4,0:Nmax,0:Nmax,0:Nmax,PP_nElems)
+!REAL                           :: PartSource(1:4,0:Nmax,0:Nmax,0:Nmax,PP_nElems)
 #ifndef maxwell
 REAL,ALLOCATABLE               :: Utemp(:,:,:,:,:)
 #endif /*not maxwell*/
@@ -180,12 +180,13 @@ INTEGER                        :: SideID_start, SideID_end,iNbProc,SendID
 REAL,ALLOCATABLE               :: SortedLambda(:,:,:)          ! lambda, ((PP_N+1)^2,nSides)
 INTEGER                        :: SortedOffset,SortedStart,SortedEnd
 #ifdef PARTICLES
-INTEGER                        :: i,j,k,iElem
+INTEGER                        :: i,j,k
 REAL,ALLOCATABLE               :: BVDataHDF5(:,:)
 #endif /*PARTICLES*/
 REAL,ALLOCATABLE               :: FPCDataHDF5(:,:),EPCDataHDF5(:,:)
 INTEGER                        :: nVarFPC,nVarEPC
 #endif /*USE_HDG*/
+REAL                           :: PartSource(1:4,0:Nmax,0:Nmax,0:Nmax,PP_nElems)
 !===================================================================================================================================
 #ifdef EXTRAE
 CALL extrae_eventandcounters(int(9000001), int8(3))
@@ -533,8 +534,8 @@ ASSOCIATE (&
       CALL WriteAttributeToHDF5(File_ID,'VarNamesSource',INT(nVar,4),StrArray=LocalStrVarnames)
       CALL CloseDataFile()
     END IF
-    DO iElem = 1, INT(PP_nElems)
       Nloc = N_DG(iElem)
+    DO iElem = 1, INT(PP_nElems)
       IF(Nloc.Eq.Nmax)THEN
         PartSource(:,:,:,:,iElem) = PS_N(iElem)%PartSource(:,:,:,:)
       ELSE

@@ -245,6 +245,7 @@ USE MOD_Interpolation_Vars ,ONLY: N_Inter
 USE MOD_DG_Vars            ,ONLY: U_N
 #endif
 USE MOD_HDG_Vars           ,ONLY: RegionElectronRef
+USE MOD_DG_Vars            ,ONLY: N_DG
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------

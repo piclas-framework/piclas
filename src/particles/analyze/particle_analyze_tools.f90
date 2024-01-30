@@ -2521,13 +2521,13 @@ DO iSpec=1,nSpecies
           PowerDensity(4,i,j,k,iElem,iSpec2)=PS_N(iElem)%PartSource(4,i,j,k)
 #else
 #if PP_nVar==1
-          PowerDensity(1,i,j,k,iElem,iSpec2)=PartSource(1,i,j,k,iElem)*E(1,i,j,k,iElem)
-          PowerDensity(2,i,j,k,iElem,iSpec2)=PartSource(2,i,j,k,iElem)*E(2,i,j,k,iElem)
-          PowerDensity(3,i,j,k,iElem,iSpec2)=PartSource(3,i,j,k,iElem)*E(3,i,j,k,iElem)
+          PowerDensity(1,i,j,k,iElem,iSpec2)=PS_N(iElem)%PartSource(1,i,j,k)*E(1,i,j,k,iElem)
+          PowerDensity(2,i,j,k,iElem,iSpec2)=PS_N(iElem)%PartSource(2,i,j,k)*E(2,i,j,k,iElem)
+          PowerDensity(3,i,j,k,iElem,iSpec2)=PS_N(iElem)%PartSource(3,i,j,k)*E(3,i,j,k,iElem)
 #else
           PowerDensity(1:3,i,j,k,iElem,iSpec2)=0.
 #endif
-          PowerDensity(4,i,j,k,iElem,iSpec2)=PartSource(4,i,j,k,iElem)
+          PowerDensity(4,i,j,k,iElem,iSpec2)=PS_N(iElem)%PartSource(4,i,j,k)
 #endif
           ! 5:7 current density
           PowerDensity(5,i,j,k,iElem,iSpec2)=PS_N(iElem)%PartSource(1,i,j,k)

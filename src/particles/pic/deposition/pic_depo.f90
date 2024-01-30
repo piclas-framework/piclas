@@ -96,10 +96,10 @@ USE MOD_PICDepo_Tools          ,ONLY: CalcCellLocNodeVolumes,ReadTimeAverage
 USE MOD_PICInterpolation_Vars  ,ONLY: InterpolationType
 USE MOD_Preproc
 USE MOD_ReadInTools            ,ONLY: GETREAL,GETINT,GETLOGICAL,GETSTR,GETREALARRAY,GETINTARRAY
-USE MOD_Mesh_Vars              ,ONLY: offsetElem
 USE MOD_Mesh_Tools             ,ONLY: GetGlobalElemID, GetCNElemID
-USE MOD_Particle_Mesh_Vars     ,ONLY: NodeInfo_Shared
 #if USE_MPI
+USE MOD_Mesh_Vars              ,ONLY: offsetElem
+USE MOD_Particle_Mesh_Vars     ,ONLY: NodeInfo_Shared
 USE MOD_Particle_Mesh_Vars     ,ONLY: NodeToElemInfo,NodeToElemMapping,ElemNodeID_Shared
 USE MOD_MPI_vars               ,ONLY: offsetElemMPI
 USE MOD_MPI_Shared_Vars        ,ONLY: ComputeNodeRootRank
@@ -126,8 +126,8 @@ REAL,ALLOCATABLE          :: xGP_tmp(:),wGP_tmp(:)
 INTEGER                   :: ALLOCSTAT, iElem, i, j, k, kk, ll, mm, iNode, Nloc
 REAL                      :: DetJac(1,0:1,0:1,0:1)
 CHARACTER(255)            :: TimeAverageFile
-INTEGER                   :: UniqueNodeID
 #if USE_MPI
+INTEGER                   :: UniqueNodeID
 INTEGER                   :: GlobalRankToNodeSendDepoRank(0:nProcessors_Global-1)
 INTEGER                   :: jElem,TestElemID
 INTEGER                   :: NonUniqueNodeID

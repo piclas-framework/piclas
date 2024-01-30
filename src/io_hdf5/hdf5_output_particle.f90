@@ -225,7 +225,8 @@ USE MOD_Mesh_Vars          ,ONLY: nElems
 USE MOD_PreProc
 USE MOD_HDG_Vars           ,ONLY: ElemToBRRegion,RegionElectronRef
 USE MOD_DG_Vars            ,ONLY: U_N
-USE MOD_PICDepo_Vars       ,ONLY: PartSource
+USE MOD_PICDepo_Vars       ,ONLY: PS_N
+USE MOD_DG_Vars            ,ONLY: N_DG
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -234,16 +235,17 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER :: iElem,RegionID
+INTEGER :: iElem,RegionID,Nloc
 INTEGER :: i,j,k
 REAL    :: source_e
 !===================================================================================================================================
 ! Loop over all elements and all DOF and add the contribution of the BR electron density to PartSource
 DO iElem=1,nElems
+  Nloc = N_DG(iElem)
   ! BR electron fluid region
   RegionID=ElemToBRRegion(iElem)
   IF (RegionID.GT.0) THEN
-    DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
+    DO k=0,Nloc; DO j=0,Nloc; DO i=0,Nloc
 #if ((USE_HDG) && (PP_nVar==1))
       source_e = U_N(iElem)%U(1,i,j,k)-RegionElectronRef(2,RegionID)
 #else
@@ -256,7 +258,7 @@ DO iElem=1,nElems
         source_e = RegionElectronRef(1,RegionID) &         !--- linearized boltzmann relation at positive exponent
             * (1. + ((source_e) / RegionElectronRef(3,RegionID)) )
       END IF
-      PartSource(4,i,j,k,iElem) = PartSource(4,i,j,k,iElem) - source_e
+      PS_N(iElem)%PartSource(4,i,j,k) = PS_N(iElem)%PartSource(4,i,j,k) - source_e
     END DO; END DO; END DO
   END IF
 END DO ! iElem=1,PP_nElems
