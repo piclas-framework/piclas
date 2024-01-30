@@ -1219,7 +1219,7 @@ CLASS(link),POINTER          :: check
 CLASS(Option),POINTER        :: multi
 CLASS(OPTION),ALLOCATABLE    :: newopt
 CHARACTER(LEN=:),ALLOCATABLE :: testname
-INTEGER                      :: i,k
+INTEGER                      :: i,k,trimDigits,j,foundIndex,numberOfIndexes
 CHARACTER(LEN=20)            :: fmtName
 ! Temporary arrays to create new options
 CHARACTER(LEN=255)           :: tmpValue
@@ -1294,22 +1294,48 @@ DO WHILE (associated(current))
       SDEALLOCATE(testname) ! safety check
       ALLOCATE(CHARACTER(LEN_TRIM(name)) :: testname)
       ! Testname must not be trimmed! Otherwise, the INDEX test will fail as testname < name
+
+      ! Check how many indexes are present
+      numberOfIndexes = 0
       testname = name
       DO i = 1, LEN(name)
         ! Start replacing the index from the left
         IF(INDEX('0123456789',testname(i:i)).GT.0) THEN
+          numberOfIndexes = numberOfIndexes + 1
+          DO k = i+1, LEN(testname)
+            ! Check if it is a multi-digit number and remove all following numbers
+            IF(SCAN(testname(i+1:i+1),'0123456789').EQ.0) EXIT
+            testname(i+1:LEN(testname)-1) = testname(i+2:LEN(testname))
+            testname(LEN(testname):LEN(testname)) = ' '
+          END DO
+        END IF
+      END DO
+      IF (numberOfIndexes.GT.3) CALL abort(__STAMP__,'Variable name has more than three indexes! Change variable name!')
+
+      ! General options can be checked for a maximum of three $ per variable!
+      ! Replacing one index X by $ (up to three options are tested in the following order: $-X-X, X-$-X, X-X-$ / $-X, X-$)
+      DO i = 1, LEN(name)
+        ! Loop can be skipped if variable consists of only one digit to be possibly replaced by $ --> done by third loop, replacing all digits by $
+        IF (numberOfIndexes.EQ.1) EXIT
+        ! Reset testname to name
+        testname = name
+        trimDigits = 0
+        ! Start replacing one index after each other from left to right
+        IF(INDEX('0123456789',testname(i:i)).GT.0) THEN
+          ! Skip if index before is digit - then it is a multi-digit number (already done)
+          IF(SCAN(testname(i-1:i-1),'0123456789').GT.0) CYCLE
           testname(i:i) = '$'
           DO k = i+1, LEN(testname)
             ! Check if it is a multi-digit number and remove all following numbers
             IF(SCAN(testname(i+1:i+1),'0123456789').EQ.0) EXIT
-
             testname(i+1:LEN(testname)-1) = testname(i+2:LEN(testname))
             testname(LEN(testname):LEN(testname)) = ' '
+            trimDigits = trimDigits + 1
           END DO
           ! Check if we can find this name
           check => prms%firstLink
           DO WHILE (associated(check))
-            IF (check%opt%NAMEEQUALS(TRIM(testname)) .AND. check%opt%isSet) THEN
+            IF (check%opt%NAMEEQUALS(testname(1:LEN(testname)-trimDigits)) .AND. check%opt%isSet) THEN
               multi => check%opt
               ! copy value from option to result variable
               SELECT TYPE (multi)
@@ -1372,6 +1398,176 @@ DO WHILE (associated(current))
           END DO
         END IF
       END DO
+
+      ! Replacing two indexes X out of three by $ (three options are tested in the following order: $-$-X, $-X-$, X-$-$)
+      DO j = 1, 3
+        ! Loop can be skipped if variable consists of only one or two digits to be possibly replaced by $
+        IF (numberOfIndexes.EQ.1.OR.numberOfIndexes.EQ.2) EXIT
+        ! Reset testname to name
+        testname = name
+        trimDigits = 0
+        foundIndex = 0
+        DO i = 1, LEN(name)
+          ! Start replacing the index from the left
+          IF(INDEX('0123456789',testname(i:i)).GT.0) THEN
+            ! Skip to keep index X
+            foundIndex = foundIndex + 1
+            IF (foundIndex.EQ.(4-j)) CYCLE
+            testname(i:i) = '$'
+            DO k = i+1, LEN(testname)
+              ! Check if it is a multi-digit number and remove all following numbers
+              IF(SCAN(testname(i+1:i+1),'0123456789').EQ.0) EXIT
+              testname(i+1:LEN(testname)-1) = testname(i+2:LEN(testname))
+              testname(LEN(testname):LEN(testname)) = ' '
+              trimDigits = trimDigits + 1
+            END DO
+          END IF
+        END DO
+        ! Check if we can find this name
+        check => prms%firstLink
+        DO WHILE (associated(check))
+          IF (check%opt%NAMEEQUALS(testname(1:LEN(testname)-trimDigits)) .AND. check%opt%isSet) THEN
+            multi => check%opt
+            ! copy value from option to result variable
+            SELECT TYPE (multi)
+              CLASS IS (IntOption)
+                SELECT TYPE(value)
+                  TYPE IS (INTEGER)
+                    value = multi%value
+                    ! insert option with numbered name ($ replaced by number)
+                    ALLOCATE(intopt)
+                    WRITE(tmpValue, *) multi%value
+                    CALL prms%CreateOption(intopt, name, 'description', value=tmpValue, multiple=.FALSE., numberedmulti=.FALSE.,removed=.TRUE.)
+                END SELECT
+              CLASS IS (RealOption)
+                SELECT TYPE(value)
+                  TYPE IS (REAL)
+                    value = multi%value
+                    ! insert option with numbered name ($ replaced by number)
+                    ALLOCATE(realopt)
+                    WRITE(tmpValue, *) multi%value
+                    CALL prms%CreateOption(realopt, name, 'description', value=tmpValue, multiple=.FALSE., numberedmulti=.FALSE.,removed=.TRUE.)
+                END SELECT
+              CLASS IS (LogicalOption)
+                SELECT TYPE(value)
+                  TYPE IS (LOGICAL)
+                    value = multi%value
+                    ! insert option with numbered name ($ replaced by number)
+                    ALLOCATE(logicalopt)
+                    WRITE(tmpValue, *) multi%value
+                    CALL prms%CreateOption(logicalopt, name, 'description', value=tmpValue, multiple=.FALSE., numberedmulti=.FALSE.,removed=.TRUE.)
+                END SELECT
+              CLASS IS (StringOption)
+                SELECT TYPE(value)
+                  TYPE IS (STR255)
+                    value%chars = multi%value
+                    ! insert option with numbered name ($ replaced by number)
+                    ALLOCATE(stringopt)
+                    WRITE(tmpValue,'(A)') multi%value
+                    CALL prms%CreateOption(stringopt, name, 'description', value=tmpValue, multiple=.FALSE., numberedmulti=.FALSE.,removed=.TRUE.)
+                END SELECT
+            END SELECT
+
+            ! print option and value to stdout. Custom print, so do it here
+            WRITE(fmtName,*) prms%maxNameLen
+            SWRITE(UNIT_stdOut,'(a3)', ADVANCE='NO')  " | "
+            CALL set_formatting("blue")
+            SWRITE(UNIT_stdOut,"(a"//fmtName//")", ADVANCE='NO') TRIM(name)
+            CALL clear_formatting()
+            SWRITE(UNIT_stdOut,'(a3)', ADVANCE='NO')  " | "
+            CALL multi%printValue(prms%maxValueLen)
+            SWRITE(UNIT_stdOut,"(a3)", ADVANCE='NO') ' | '
+            CALL set_formatting("blue")
+            SWRITE(UNIT_stdOut,'(a7)', ADVANCE='NO')  "*MULTI"
+            CALL clear_formatting()
+            SWRITE(UNIT_stdOut,"(a3)") ' | '
+            ! Indicate that parameter was read at least once and therefore remove the warning that the parameter was not used
+            multi%isUsedMulti = .TRUE.
+            RETURN
+          END IF
+          check => check%next
+        END DO
+      END DO
+
+      ! Replacing all (up to three) indexes X by $ ($-$-$ / $-$ / $)
+      testname = name
+      DO i = 1, LEN(name)
+        ! Start replacing the index from the left
+        IF(INDEX('0123456789',testname(i:i)).GT.0) THEN
+          testname(i:i) = '$'
+          DO k = i+1, LEN(testname)
+            ! Check if it is a multi-digit number and remove all following numbers
+            IF(SCAN(testname(i+1:i+1),'0123456789').EQ.0) EXIT
+            testname(i+1:LEN(testname)-1) = testname(i+2:LEN(testname))
+            testname(LEN(testname):LEN(testname)) = ' '
+          END DO
+        END IF
+      END DO
+      ! Check if we can find this name
+      check => prms%firstLink
+      DO WHILE (associated(check))
+        IF (check%opt%NAMEEQUALS(TRIM(testname)) .AND. check%opt%isSet) THEN
+          multi => check%opt
+          ! copy value from option to result variable
+          SELECT TYPE (multi)
+            CLASS IS (IntOption)
+              SELECT TYPE(value)
+                TYPE IS (INTEGER)
+                  value = multi%value
+                  ! insert option with numbered name ($ replaced by number)
+                  ALLOCATE(intopt)
+                  WRITE(tmpValue, *) multi%value
+                  CALL prms%CreateOption(intopt, name, 'description', value=tmpValue, multiple=.FALSE., numberedmulti=.FALSE.,removed=.TRUE.)
+              END SELECT
+            CLASS IS (RealOption)
+              SELECT TYPE(value)
+                TYPE IS (REAL)
+                  value = multi%value
+                  ! insert option with numbered name ($ replaced by number)
+                  ALLOCATE(realopt)
+                  WRITE(tmpValue, *) multi%value
+                  CALL prms%CreateOption(realopt, name, 'description', value=tmpValue, multiple=.FALSE., numberedmulti=.FALSE.,removed=.TRUE.)
+              END SELECT
+            CLASS IS (LogicalOption)
+              SELECT TYPE(value)
+                TYPE IS (LOGICAL)
+                  value = multi%value
+                  ! insert option with numbered name ($ replaced by number)
+                  ALLOCATE(logicalopt)
+                  WRITE(tmpValue, *) multi%value
+                  CALL prms%CreateOption(logicalopt, name, 'description', value=tmpValue, multiple=.FALSE., numberedmulti=.FALSE.,removed=.TRUE.)
+              END SELECT
+            CLASS IS (StringOption)
+              SELECT TYPE(value)
+                TYPE IS (STR255)
+                  value%chars = multi%value
+                  ! insert option with numbered name ($ replaced by number)
+                  ALLOCATE(stringopt)
+                  WRITE(tmpValue,'(A)') multi%value
+                  CALL prms%CreateOption(stringopt, name, 'description', value=tmpValue, multiple=.FALSE., numberedmulti=.FALSE.,removed=.TRUE.)
+              END SELECT
+          END SELECT
+
+          ! print option and value to stdout. Custom print, so do it here
+          WRITE(fmtName,*) prms%maxNameLen
+          SWRITE(UNIT_stdOut,'(a3)', ADVANCE='NO')  " | "
+          CALL set_formatting("blue")
+          SWRITE(UNIT_stdOut,"(a"//fmtName//")", ADVANCE='NO') TRIM(name)
+          CALL clear_formatting()
+          SWRITE(UNIT_stdOut,'(a3)', ADVANCE='NO')  " | "
+          CALL multi%printValue(prms%maxValueLen)
+          SWRITE(UNIT_stdOut,"(a3)", ADVANCE='NO') ' | '
+          CALL set_formatting("blue")
+          SWRITE(UNIT_stdOut,'(a7)', ADVANCE='NO')  "*MULTI"
+          CALL clear_formatting()
+          SWRITE(UNIT_stdOut,"(a3)") ' | '
+          ! Indicate that parameter was read at least once and therefore remove the warning that the parameter was not used
+          multi%isUsedMulti = .TRUE.
+          RETURN
+        END IF
+        check => check%next
+      END DO
+
       ! create new instance of multiple option
       ALLOCATE(newopt, source=current%opt)
       ! set name of new option like name in read line and set it being not multiple numbered
