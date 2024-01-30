@@ -38,7 +38,8 @@ SET_PROPERTY(CACHE PICLAS_TIMEDISCMETHOD PROPERTY STRINGS Euler-Explicit
                                                           ROS3
                                                           ROS4
                                                           ROS46
-                                                          ROS6)
+                                                          ROS6
+                                                          Radiation)
 
 # =========================================================================
 # Shared memory region splitting
@@ -279,6 +280,9 @@ ELSEIF(PICLAS_TIMEDISCMETHOD STREQUAL "FP-Flow")
 ELSEIF(PICLAS_TIMEDISCMETHOD STREQUAL "BGK-Flow")
    FILE(GLOB timediscF90 ${CMAKE_CURRENT_SOURCE_DIR}/src/timedisc/timedisc_TimeStep_BGK.f90)
    ADD_DEFINITIONS(-DPP_TimeDiscMethod=400)
+ELSEIF(PICLAS_TIMEDISCMETHOD STREQUAL "Radiation")
+   FILE(GLOB timediscF90 ${CMAKE_CURRENT_SOURCE_DIR}/src/timedisc/timedisc_TimeStep_Radiation.f90)
+   ADD_DEFINITIONS(-DPP_TimeDiscMethod=600)
 ELSE()
    MESSAGE(SEND_ERROR "Unknown time discretization method.")
 ENDIF()
@@ -485,7 +489,12 @@ ENDIF()
                   #./src/piclaslib.f90)
 FILE(GLOB_RECURSE particlesF90 ./src/particles/*.f90
                                ./src/posti/superB/*.f90
-                               ./src/interpolation/eval_xyz.f90)
+                               ./src/interpolation/eval_xyz.f90
+                               ./src/radiation/ray_tracing/*.f90
+                               ./src/radiation/radiative_transfer/radtrans_vars.f90
+                               ./src/radiation/radiative_transfer/tracking/*.f90
+                               ./src/radiation/radiation_solver/radiation_vars.f90)
+
 FILE(GLOB noparticlesF90 ./src/particles/analyze/particle_analyze_vars.f90
                          ./src/particles/particle_mesh/particle_surfaces_vars.f90
                          ./src/particles/particle_mesh/particle_mesh_vars.f90
@@ -496,6 +505,8 @@ FILE(GLOB noparticlesF90 ./src/particles/analyze/particle_analyze_vars.f90
                          ./src/particles/boundary/particle_boundary_vars.f90)
 
 FILE(GLOB_RECURSE extraeF90 ./src/extrae/*.f90)
+
+FILE(GLOB_RECURSE radiationF90 ./src/radiation/*.f90)
 
 IF(PICLAS_EXTRAE)
   LIST(APPEND piclasF90 ${extraeF90})
@@ -522,6 +533,9 @@ IF (PICLAS_PARTICLES)
 ELSE()
   LIST(APPEND piclasF90 ${noparticlesF90})
 ENDIF(PICLAS_PARTICLES)
+IF (PICLAS_TIMEDISCMETHOD STREQUAL "Radiation")
+  LIST(APPEND piclasF90 ${radiationF90})
+ENDIF()
 
 # define libs
 ADD_LIBRARY(          libpiclasstaticF90 OBJECT ${piclasF90} )

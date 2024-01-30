@@ -1023,8 +1023,7 @@ END SUBROUTINE ReadReacPhotonXSec
 
 SUBROUTINE ReadReacPhotonSpectrum(iPhotoReac)
 !===================================================================================================================================
-!> Read-in of photoionization reaction cross-sections from a given database. Check whether the
-!> group exists. Trying to swap the species indices if dataset not found.
+!> TODO:
 !===================================================================================================================================
 ! use module
 USE MOD_io_hdf5
