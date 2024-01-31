@@ -34,9 +34,14 @@ INTERFACE FinalizeParticleBoundarySampling
   MODULE PROCEDURE FinalizeParticleBoundarySampling
 END INTERFACE
 
+INTERFACE WriteSurfSampleToHDF5
+  MODULE PROCEDURE WriteSurfSampleToHDF5
+END INTERFACE
+
 PUBLIC::DefineParametersParticleBoundarySampling
 PUBLIC::InitParticleBoundarySampling
 PUBLIC::CalcSurfaceValues
+PUBLIC::WriteSurfSampleToHDF5
 PUBLIC::FinalizeParticleBoundarySampling
 !===================================================================================================================================
 

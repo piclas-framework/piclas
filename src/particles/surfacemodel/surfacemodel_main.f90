@@ -121,12 +121,7 @@ IF(DoDielectricSurfaceCharge.AND.PartBound%Dielectric(locBCID)) THEN ! Surface c
   ChargeImpact = Species(PartSpecies(PartID))%ChargeIC*MPF
 END IF
 !===================================================================================================================================
-! 1.) Species Swap
-!===================================================================================================================================
-IF (PartBound%NbrOfSpeciesSwaps(locBCID).GT.0) CALL SpeciesSwap(PartID,SideID)
-
-!===================================================================================================================================
-! 2.) Count and sample the properties BEFORE the surface interaction
+! 1.) Count and sample the properties BEFORE the surface interaction
 !===================================================================================================================================
 ! Counter for surface analyze
 IF(CalcSurfCollCounter) SurfAnalyzeCount(PartSpecImpact) = SurfAnalyzeCount(PartSpecImpact) + 1
