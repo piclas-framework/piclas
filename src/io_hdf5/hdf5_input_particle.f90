@@ -187,7 +187,6 @@ USE mpi
 USE MOD_Globals
 !USE MOD_PreProc
 USE MOD_Particle_Vars     ,ONLY: Species,nSpecies
-USE MOD_Particle_MPI_Vars ,ONLY: PartMPI
 USE MOD_Particle_Vars     ,ONLY: NeutralizationBalanceGlobal
 !USE MOD_Particle_Vars     ,ONLY: NeutralizationBalance
 USE MOD_HDF5_Input        ,ONLY: ReadArray,DatasetExists
@@ -215,7 +214,7 @@ DO iSpec=1,nSpecies
 
        ! Only the root reads the data and replaces his value, which will be communicated via the all-reduce (he also does the
        ! initial output)
-       IF(PartMPI%MPIRoot)THEN
+       IF(MPIRoot)THEN
 
          IF(.NOT.FILEEXISTS(RestartFile)) &
              CALL abort(__STAMP__,'Error in ReadEmissionVariablesFromHDF5() becuase RestartFile does not exist: '//TRIM(RestartFile))
@@ -242,7 +241,7 @@ DO iSpec=1,nSpecies
 !       ! Communicate number of particles with all procs in the same init group to the global root for output
 !       InitGroup=Species(iSpec)%Init(iInit)%InitCOMM
 !       ! Only processors which are part of group take part in the communication
-!        CALL MPI_BCAST(Box_X, 3, MPI_DOUBLE_PRECISION, 0, MPI_COMM_WORLD, iError)
+!        CALL MPI_BCAST(Box_X, 3, MPI_DOUBLE_PRECISION, 0, MPI_COMM_PICLAS, iError)
 !#endif /*USE_MPI*/
 
      END SELECT

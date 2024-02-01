@@ -91,7 +91,7 @@ END DO ! iElem
 
 LoadSend = PreSum(OldElems)
 
-CALL MPI_EXSCAN(LoadSend,LowerBoundary,1,MPI_DOUBLE_PRECISION,MPI_SUM,MPI_COMM_WORLD,iERROR)
+CALL MPI_EXSCAN(LoadSend,LowerBoundary,1,MPI_DOUBLE_PRECISION,MPI_SUM,MPI_COMM_PICLAS,iERROR)
 IF(MPIRoot) LowerBoundary = 0.
 
 UpperBoundary = LowerBoundary + PreSum(OldElems)
@@ -143,7 +143,7 @@ DO iRank = minRank,maxRank
   END IF
 END DO ! iRank=minRank,maxRank
 
-CALL MPI_ALLTOALL(send_count,1,MPI_INTEGER,recv_count,1, MPI_INTEGER,MPI_COMM_WORLD,iERROR)
+CALL MPI_ALLTOALL(send_count,1,MPI_INTEGER,recv_count,1, MPI_INTEGER,MPI_COMM_PICLAS,iERROR)
 NewElems = SUM(recv_count)
 
 DEALLOCATE(PreSum,send_count,recv_count,split)
@@ -213,7 +213,7 @@ IF (PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance)) THEN
   END DO
   ! Sanity check
   IF(.NOT.ALLOCATED(PartInt)) CALL abort(__STAMP__,'PartInt is not allocated') ! Missing call to FillParticleData()
-  CALL MPI_GATHERV(PartInt,nElemsOld,MPI_DOUBLE_PRECISION,PartIntGlob,ElemPerProc,offsetElemMPIOld(0:nProcessors-1),MPI_DOUBLE_PRECISION,0,MPI_COMM_WORLD,iError)
+  CALL MPI_GATHERV(PartInt,nElemsOld,MPI_DOUBLE_PRECISION,PartIntGlob,ElemPerProc,offsetElemMPIOld(0:nProcessors-1),MPI_DOUBLE_PRECISION,0,MPI_COMM_PICLAS,iError)
   PartIntExists = .TRUE.
 ELSE
   ! Readin of PartInt: Read in only by MPIRoot in single mode because the root performs the distribution of elements (domain decomposition)
@@ -285,7 +285,7 @@ END IF ! MPIRoot
 #endif /*PARTICLES*/
 
 ! Distribute PartsInElem to all procs (Every proc needs to get the information to arrive at the same timedisc)
-CALL MPI_BCAST(PartsInElem,nGlobalElems,MPI_INTEGER,0,MPI_COMM_WORLD,iError)
+CALL MPI_BCAST(PartsInElem,nGlobalElems,MPI_INTEGER,0,MPI_COMM_PICLAS,iError)
 
 ! Every proc needs to get the information to arrive at the same timedisc
 ! No historical data and no particles in restart file
@@ -332,7 +332,7 @@ SELECT CASE(WeightDistributionMethod_loc)
 END SELECT ! WeightDistributionMethod_loc
 
 ! Send the load distribution to all other procs
-CALL MPI_BCAST(offsetElemMPI,nProcs+1,MPI_INTEGER,0,MPI_COMM_WORLD,iERROR)
+CALL MPI_BCAST(offsetElemMPI,nProcs+1,MPI_INTEGER,0,MPI_COMM_PICLAS,iERROR)
 
 #ifdef PARTICLES
 ! Set PartDistri for every processor
@@ -600,7 +600,7 @@ INTEGER                        :: ElemDistri(0:nProcs-1)
 REAL                           :: LoadDiff(  0:nProcs-1)
 !===================================================================================================================================
 ! Distribute ElemGlobalTime to all procs
-CALL MPI_BCAST(ElemGlobalTime,nGlobalElems,MPI_DOUBLE_PRECISION,0,MPI_COMM_WORLD,iError)
+CALL MPI_BCAST(ElemGlobalTime,nGlobalElems,MPI_DOUBLE_PRECISION,0,MPI_COMM_PICLAS,iError)
 
 ! Do Rebalance
 WeightSum = 0.
@@ -698,7 +698,7 @@ DO iProc = 1,nProcs
   ErrorCode    = 0
   IF(NewElems.LE.0) ErrorCode = ErrorCode+100
 
-  CALL MPI_ALLGATHER(NewElems,1,MPI_INTEGER,ElemDistri(:),1,MPI_INTEGER,MPI_COMM_WORLD,iERROR)
+  CALL MPI_ALLGATHER(NewElems,1,MPI_INTEGER,ElemDistri(:),1,MPI_INTEGER,MPI_COMM_PICLAS,iERROR)
 
   ! calculate proc offset
   offsetElemMPI(0) = 0
@@ -1317,7 +1317,7 @@ REAL(KIND=8)                  :: Rate
 ! Get process memory info
 CALL ProcessMemUsage(memory(1),memory(2),memory(3)) ! memUsed,memAvail,memTotal
 
-! only CN roots communicate available and total memory info (count once per node)
+! Only CN roots communicate available and total memory info (count once per node)
 #if USE_MPI
 #if defined(MEASURE_MPI_WAIT)
 CALL SYSTEM_CLOCK(count=CounterStart)
@@ -1379,7 +1379,7 @@ IF(MemoryMonitor)THEN
     !MemUsagePercent = 99.32
     IF((memory(1).GT.memory(4)).AND.(MemUsagePercent.GT.95.0))THEN
       CALL set_formatting("red")
-      SWRITE(UNIT_stdOut,'(A,F5.2,A)') ' WARNING: Memory reaching maximum, RAM is at ',MemUsagePercent,'%'
+      SWRITE(UNIT_stdOut,'(A,F6.2,A)') ' WARNING: Memory reaching maximum, RAM is at ',MemUsagePercent,'%'
       CALL clear_formatting()
     END IF
   END IF ! WriteHeader

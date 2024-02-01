@@ -114,9 +114,6 @@ USE MOD_Globals_Vars
 USE MOD_ReadInTools
 USE MOD_TTM_Vars
 USE MOD_Restart_Vars      ,ONLY: DoRestart
-#if USE_MPI
-USE MOD_Particle_MPI_Vars ,ONLY: PartMPI
-#endif /*USE_MPI*/
 USE MOD_Mesh_Vars         ,ONLY: ElemBaryNGeo
 USE MOD_Globals_Vars      ,ONLY: BoltzmannConst,eps0
 USE MOD_IO_HDF5           ,ONLY: AddToElemData,ElementOut
@@ -196,7 +193,7 @@ IF(DoImportTTMFile.EQV..TRUE.)THEN
         ElemIsDone=.FALSE.
         LBWRITE(UNIT_stdOut,'(A,A)') " Reading TTM data from file (TTMFile): ",TRIM(TTMFile)
 #if USE_MPI
-        IF(.NOT.PartMPI%MPIROOT)THEN
+        IF(.NOT.MPIRoot)THEN
           CALL abort(&
               __STAMP__&
               ,'ERROR: Cannot SetParticlePosition in multi-core environment for SpaceIC=IMD!')
@@ -774,6 +771,7 @@ USE MOD_DSMC_Vars           ,ONLY: CollisMode,DSMC,PartStateIntEn
 USE MOD_part_emission_tools ,ONLY: CalcVelocity_maxwell_lpn
 USE MOD_DSMC_Vars           ,ONLY: useDSMC
 USE MOD_Eval_xyz            ,ONLY: TensorProductInterpolation
+USE MOD_Part_Tools          ,ONLY: GetNextFreePosition
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
 ! INPUT VARIABLES
@@ -867,13 +865,11 @@ IF (ElecSpecIndx.EQ.-1) CALL abort(&
 DO iElem=1,PP_nElems
   DO iPart=1,ElemCharge(iElem) ! 1 electron for each charge of each element
 
-    ! Set the next free position in the particle vector list
-    PDM%CurrentNextFreePosition          = PDM%CurrentNextFreePosition + 1
-    ParticleIndexNbr                     = PDM%nextFreePosition(PDM%CurrentNextFreePosition)
-    PDM%ParticleVecLength                = PDM%ParticleVecLength + 1
+    ParticleIndexNbr                     = GetNextFreePosition()
 
     !Set new SpeciesID of new particle (electron)
-    PDM%ParticleInside(ParticleIndexNbr) = .true.
+    PDM%ParticleInside(ParticleIndexNbr) = .TRUE.
+    PDM%isNewPart(ParticleIndexNbr)      = .TRUE.
     PartSpecies(ParticleIndexNbr)        = ElecSpecIndx
 
     ! Place the electron randomly in the reference cell

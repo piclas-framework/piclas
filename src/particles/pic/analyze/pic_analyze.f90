@@ -55,9 +55,6 @@ USE MOD_LinearSolver_Vars     ,ONLY: ImplicitSource
 #else
 USE MOD_PICDepo_Vars          ,ONLY: PartSource
 #endif
-#if USE_MPI
-USE MOD_Particle_MPI_Vars     ,ONLY: PartMPI
-#endif /*USE_MPI*/
 USE MOD_ChangeBasis           ,ONLY: ChangeBasis3D
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -82,7 +79,7 @@ ChargeNumerical=0. ! Nullify
 DO iElem=1,nElems
   ! Interpolate the physical position Elem_xGP to the analyze position, needed for exact function
   CALL ChangeBasis3D(3,PP_N,NAnalyze,Vdm_GaussN_NAnalyze,Elem_xGP(1:3,:,:,:,iElem),Coords_NAnalyze(1:3,:,:,:))
-  ! Interpolate the Jacobian to the analyze grid: be careful we interpolate the inverse of the inverse of the jacobian ;-)
+  ! Interpolate the Jacobian to the analyze grid: be careful we interpolate the inverse of the inverse of the Jacobian ;-)
   J_N(1,0:PP_N,0:PP_N,0:PP_N)=1./sJ(:,:,:,iElem)
   CALL ChangeBasis3D(1,PP_N,NAnalyze,Vdm_GaussN_NAnalyze,J_N(1:1,0:PP_N,0:PP_N,0:PP_N),J_NAnalyze(1:1,:,:,:))
   ! Interpolate the solution to the analyze grid
@@ -117,12 +114,12 @@ END DO
 
 ! Collect info on MPI root process
 #if USE_MPI
-   IF(PartMPI%MPIRoot) THEN
-     CALL MPI_REDUCE(MPI_IN_PLACE     , ChargeAnalytical , 1 , MPI_DOUBLE_PRECISION , MPI_SUM , 0 , PartMPI%COMM , IERROR)
-     CALL MPI_REDUCE(MPI_IN_PLACE     , ChargeNumerical  , 1 , MPI_DOUBLE_PRECISION , MPI_SUM , 0 , PartMPI%COMM , IERROR)
+   IF(MPIRoot) THEN
+     CALL MPI_REDUCE(MPI_IN_PLACE     , ChargeAnalytical , 1 , MPI_DOUBLE_PRECISION , MPI_SUM , 0 , MPI_COMM_PICLAS , IERROR)
+     CALL MPI_REDUCE(MPI_IN_PLACE     , ChargeNumerical  , 1 , MPI_DOUBLE_PRECISION , MPI_SUM , 0 , MPI_COMM_PICLAS , IERROR)
    ELSE
-     CALL MPI_REDUCE(ChargeAnalytical , 0                , 1 , MPI_DOUBLE_PRECISION , MPI_SUM , 0 , PartMPI%COMM , IERROR)
-     CALL MPI_REDUCE(ChargeNumerical  , 0                , 1 , MPI_DOUBLE_PRECISION , MPI_SUM , 0 , PartMPI%COMM , IERROR)
+     CALL MPI_REDUCE(ChargeAnalytical , 0                , 1 , MPI_DOUBLE_PRECISION , MPI_SUM , 0 , MPI_COMM_PICLAS , IERROR)
+     CALL MPI_REDUCE(ChargeNumerical  , 0                , 1 , MPI_DOUBLE_PRECISION , MPI_SUM , 0 , MPI_COMM_PICLAS , IERROR)
    END IF
 #endif
 
@@ -164,7 +161,6 @@ USE MOD_LinearSolver_Vars,      ONLY:ImplicitSource
 #else
 USE MOD_PICDepo_Vars,           ONLY:PartSource
 #endif
-USE MOD_Particle_MPI_Vars,      ONLY:PartMPI
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -213,14 +209,14 @@ END DO
 
 ! MPI Communication
 #if USE_MPI
-IF (PartMPI%MPIRoot) THEN
-  CALL MPI_REDUCE(MPI_IN_PLACE,Charge , 2 , MPI_DOUBLE_PRECISION, MPI_SUM,0, PartMPI%COMM, IERROR)
+IF (MPIRoot) THEN
+  CALL MPI_REDUCE(MPI_IN_PLACE,Charge , 2 , MPI_DOUBLE_PRECISION, MPI_SUM,0, MPI_COMM_PICLAS, IERROR)
 ELSE ! no Root
-  CALL MPI_REDUCE(Charge,RECBR  ,2,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM, IERROR)
+  CALL MPI_REDUCE(Charge,RECBR  ,2,MPI_DOUBLE_PRECISION,MPI_SUM,0,MPI_COMM_PICLAS, IERROR)
 END IF
 #endif
 
-IF (PartMPI%MPIRoot) THEN
+IF (MPIRoot) THEN
   PartCharge(1)=Charge(1)
   ! absolute error
   PartCharge(2)=ABS(Charge(2)-Charge(1))

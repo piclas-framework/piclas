@@ -127,7 +127,8 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT/OUTPUT VARIABLES
 INTEGER,INTENT(IN) :: meshMode !<  0: only read and build Elem_xGP,
-                               !< -1: as 0 + build connectivity and read node info (automatically read for PARTICLES=ON)
+                               !< -2: as 0 + build connectivity and always set ReadNodes=T: read node info (automatically read for PARTICLES=ON) + build FacexGP and keep NodeCoords
+                               !< -1: as 0 + build connectivity and always set ReadNodes=T: read node info (automatically read for PARTICLES=ON)
                                !<  1: as 0 + build connectivity
                                !<  2: as 1 + calc metrics
                                !<  3: as 2 but skip InitParticleMesh
@@ -199,7 +200,7 @@ IF ( (DoLoadBalance.OR.DoInitialAutoRestart) .AND. (.NOT.DoWriteStateToHDF5) .AN
 END IF
 IF (.NOT.(PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance))) THEN
 #endif /*USE_LOADBALANCE*/
-  CALL OpenDataFile(MeshFile,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_WORLD)
+  CALL OpenDataFile(MeshFile,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_PICLAS)
   CALL ReadAttribute(File_ID,'Ngeo',1,IntScalar=NGeo)
   CALL PrintOption('NGeo','INFO',IntOpt=NGeo)
   CALL CloseDataFile()
@@ -293,7 +294,7 @@ IF (ABS(meshMode).GT.0) THEN
   LBWRITE(UNIT_stdOut,'(A)') "NOW CALLING fillMeshInfo..."
 #if USE_HDG && USE_LOADBALANCE
   ! Call with meshMode to check whether, e.g., HDG load balance info need to be determined or not
-  CALL fillMeshInfo(ABS(meshMode))
+  CALL fillMeshInfo(meshMode)
 #else
   CALL fillMeshInfo()
 #endif /*USE_HDG && USE_LOADBALANCE*/
@@ -304,7 +305,7 @@ IF (ABS(meshMode).GT.0) THEN
 
 END IF ! meshMode.GT.0
 
-IF (ABS(meshMode).GT.1) THEN
+IF ((ABS(meshMode).GT.1)) THEN
 
   ! ----- CONNECTIVITY IS NOW COMPLETE AT THIS POINT -----
 
@@ -364,7 +365,7 @@ IF (ABS(meshMode).GT.1) THEN
 
 #ifndef PARTICLES
   ! dealloacte pointers
-  LBWRITE(UNIT_stdOut,'(A)') "NOW CALLING deleteMeshPointer..."
+  LBWRITE(UNIT_stdOut,'(A)') "InitMesh: NOW CALLING deleteMeshPointer..."
   CALL deleteMeshPointer()
 #endif
 
@@ -372,12 +373,12 @@ IF (ABS(meshMode).GT.1) THEN
   CALL InitElemVolumes()
 
 #ifndef PARTICLES
-  DEALLOCATE(NodeCoords)
+  IF(meshMode.GT.1) DEALLOCATE(NodeCoords)
 #endif
   DEALLOCATE(dXCL_N)
   DEALLOCATE(Ja_Face)
 
-  IF(ABS(meshMode).NE.3)THEN
+  IF((ABS(meshMode).NE.3).AND.(meshMode.GT.1))THEN
 #ifdef PARTICLES
     IF(RadialWeighting%DoRadialWeighting) THEN
       usevMPF = .TRUE.
@@ -719,9 +720,9 @@ IF(GetMeshMinMaxBoundariesIsDone) RETURN
    xmax_loc(3) = xyzMinMax(6)
 
    ! Find global min
-   CALL MPI_ALLREDUCE(xmin_loc(1:3),xmin(1:3), 3, MPI_DOUBLE_PRECISION, MPI_MIN, MPI_COMM_WORLD, IERROR)
+   CALL MPI_ALLREDUCE(xmin_loc(1:3),xmin(1:3), 3, MPI_DOUBLE_PRECISION, MPI_MIN, MPI_COMM_PICLAS, IERROR)
    ! Find global max
-   CALL MPI_ALLREDUCE(xmax_loc(1:3),xmax(1:3), 3, MPI_DOUBLE_PRECISION, MPI_MAX, MPI_COMM_WORLD, IERROR)
+   CALL MPI_ALLREDUCE(xmax_loc(1:3),xmax(1:3), 3, MPI_DOUBLE_PRECISION, MPI_MAX, MPI_COMM_PICLAS, IERROR)
 
    ! Map global min/max values to xyzMinMax(1:6)
    xyzMinMax(1) = xmin(1)
@@ -805,6 +806,8 @@ USE MOD_Mesh_Vars          ,ONLY: offsetElem
 USE MOD_Particle_Mesh_Vars ,ONLY: nComputeNodeElems,offsetComputeNodeElem
 USE MOD_MPI_Shared_Vars    ,ONLY: MPI_COMM_SHARED,myComputeNodeRank,MPI_COMM_LEADERS_SHARED
 USE MOD_Particle_Mesh_Vars ,ONLY: ElemVolume_Shared_Win,ElemCharLength_Shared_Win
+#else
+USE MOD_Globals            ,ONLY: MPI_COMM_PICLAS
 #endif /*PARTICLES*/
 #endif /*USE_MPI*/
 #if USE_LOADBALANCE
@@ -891,7 +894,7 @@ END IF
 CALL MPI_BCAST(MeshVolume,1, MPI_DOUBLE_PRECISION,0,MPI_COMM_SHARED,iERROR)
 #else
 ! In this case, no shared array is created and all arrays are processor-local
-CALL MPI_ALLREDUCE(LocalVolume,MeshVolume,1,MPI_DOUBLE_PRECISION,MPI_SUM,MPI_COMM_WORLD,IERROR)
+CALL MPI_ALLREDUCE(LocalVolume,MeshVolume,1,MPI_DOUBLE_PRECISION,MPI_SUM,MPI_COMM_PICLAS,IERROR)
 #endif /*PARTICLES*/
 #else
 MeshVolume = LocalVolume
@@ -929,8 +932,7 @@ USE MOD_Mesh_Vars ,ONLY: firstMortarMPISide,nSides,nSidesMaster,nSidesSlave
 USE MOD_Globals   ,ONLY: UNIT_StdOut
 USE MOD_Mesh_Vars ,ONLY: nGlobalUniqueSidesFromMesh,nGlobalUniqueSides,nMortarMPISides,nUniqueSides
 #if USE_MPI
-USE MOD_Globals   ,ONLY: myrank
-USE MOD_Globals   ,ONLY: iError,MPI_COMM_WORLD
+USE MOD_Globals   ,ONLY: myrank,MPI_COMM_PICLAS,iError
 USE mpi
 #endif /*USE_MPI*/
 #endif /*USE_HDG*/
@@ -973,7 +975,7 @@ nSidesSlave     = lastSlaveSide -firstSlaveSide+1
 #if USE_HDG
 nUniqueSides = lastMPISide_MINE + nMortarMPISides !big mortars are at the end of the side list!
 #if USE_MPI
-CALL MPI_ALLREDUCE(nUniqueSides,nGlobalUniqueSides,1,MPI_INTEGER,MPI_SUM,MPI_COMM_WORLD,iError)
+CALL MPI_ALLREDUCE(nUniqueSides,nGlobalUniqueSides,1,MPI_INTEGER,MPI_SUM,MPI_COMM_PICLAS,iError)
 #else
 nGlobalUniqueSides=nSides
 #endif /*USE_MPI*/

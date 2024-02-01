@@ -26,8 +26,9 @@ PRIVATE
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
 
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
-PUBLIC :: DefineParametersParticleBoundary, InitializeVariablesPartBoundary, FinalizeParticleBoundary
+PUBLIC :: DefineParametersParticleBoundary, InitializeVariablesPartBoundary, InitParticleBoundarySurfSides, FinalizeParticleBoundary
 PUBLIC :: InitAdaptiveWallTemp, InitRotPeriodicMapping, InitRotPeriodicInterPlaneMapping
+PUBLIC :: InitPartStateBoundary
 !===================================================================================================================================
 
 CONTAINS
@@ -95,6 +96,24 @@ CALL prms%CreateRealOption(     'Part-Boundary[$]-RotACC'  &
 CALL prms%CreateRealOption(     'Part-Boundary[$]-ElecACC '  &
                                 , 'Electronic accommodation coefficient of reflective particle boundary [$].' &
                                 , '0.', numberedmulti=.TRUE.)
+CALL prms%CreateLogicalOption(  'Part-Boundary[$]-PhotonSpecularReflection'  &
+                                , 'Enables a perfect specular reflection for photons (FALSE: diffuse with PhotonEnACC) [$].' &
+                                , '.FALSE.', numberedmulti=.TRUE.)
+CALL prms%CreateRealOption(     'Part-Boundary[$]-PhotonEnACC'  &
+                                , 'Energy accommodation coefficient of reflective photon boundary [$].' &
+                                , '0.', numberedmulti=.TRUE.)
+CALL prms%CreateRealOption(     'Part-Boundary[$]-PhotonSEE-Yield'  &
+                                , 'Secondary photo-electron yield [$].' &
+                                , '0.', numberedmulti=.TRUE.)
+CALL prms%CreateRealOption(     'Part-Boundary[$]-PhotonSEE-WorkFunction'  &
+                                , 'Secondary photo-electron work function [$].' &
+                                , '0.', numberedmulti=.TRUE.)
+CALL prms%CreateRealOption(     'Part-Boundary[$]-PhotonSEE-MacroParticleFactor'  &
+                                , 'Secondary photo-electron weighting factor, specific for electrons emitted from the boundary [$].' &
+                                , '0.', numberedmulti=.TRUE.)
+CALL prms%CreateIntOption(      'Part-Boundary[$]-PhotonSEE-ElectronSpecies'  &
+                                , 'Secondary photo-electron species index [$].' &
+                                , numberedmulti=.TRUE.)
 CALL prms%CreateLogicalOption(  'Part-Boundary[$]-Resample', &
                                   'Sample particle properties from equilibrium distribution after reflection', '.FALSE.'&
                                 , numberedmulti=.TRUE.)
@@ -132,6 +151,7 @@ CALL prms%CreateIntOption(      'Part-Boundary[$]-TempGradDir', 'Optional defini
 CALL prms%CreateIntOption(      'Part-Boundary[$]-SurfaceModel'  &
                                 , 'Defining surface to be treated reactively by defining Model used for particle surface interaction. If any >0 then look in section SurfaceModel.\n'//&
                                 '0: Maxwell scattering\n'//&
+                                '4: SEE-E Power-fit model by Goebel & Katz „Fundamentals of Electric Propulsion - Ion and Hall Thrusters“\n'//&
                                 '5: SEE-E and SEE-I (secondary e- emission due to e- or i+ bombardment) by Levko2015 for copper electrodes\n'//&
                                 '6: SEE-E (secondary e- emission due to e- bombardment) by Pagonakis2016 for molybdenum, originally from Harrower1956. Currently not available\n'//&
                                 '7: SEE-I (bombarding electrons are removed, Ar+ on different materials is considered for '//&
@@ -170,9 +190,9 @@ USE MOD_ReadInTools
 USE MOD_Dielectric_Vars        ,ONLY: DoDielectricSurfaceCharge
 USE MOD_DSMC_Vars              ,ONLY: useDSMC, BGGas
 USE MOD_Mesh_Vars              ,ONLY: BoundaryName,BoundaryType, nBCs
-USE MOD_Particle_Vars          ,ONLY: PDM, nSpecies, PartMeshHasPeriodicBCs, RotRefFrameAxis, SpeciesDatabase, Species
+USE MOD_Particle_Vars          ,ONLY: nSpecies, PartMeshHasPeriodicBCs, RotRefFrameAxis, SpeciesDatabase, Species, usevMPF
 USE MOD_SurfaceModel_Vars      ,ONLY: nPorousBC
-USE MOD_Particle_Boundary_Vars ,ONLY: PartBound,nPartBound,DoBoundaryParticleOutputHDF5,PartStateBoundary
+USE MOD_Particle_Boundary_Vars ,ONLY: PartBound,nPartBound,DoBoundaryParticleOutputHDF5
 USE MOD_Particle_Boundary_Vars ,ONLY: nVarPartStateBoundary
 USE MOD_Particle_Tracking_Vars ,ONLY: TrackingMethod
 USE MOD_Particle_Surfaces_Vars ,ONLY: BCdata_auxSF
@@ -195,7 +215,7 @@ USE MOD_LoadBalance_Vars       ,ONLY: PerformLoadBalance
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER               :: iPartBound, iBC, iPBC, iSwaps, MaxNbrOfSpeciesSwaps, RotAxis, nRotPeriodicBCs, TempGradDir
-INTEGER               :: ALLOCSTAT, dummy_int
+INTEGER               :: dummy_int
 REAL                  :: omegaTemp, RotFreq
 CHARACTER(32)         :: hilf , hilf2
 CHARACTER(200)        :: tmpString
@@ -208,7 +228,9 @@ dummy_int  = CountOption('Part-nBounds') ! check if Part-nBounds is present in .
 nPartBound = GETINT('Part-nBounds')      ! get number of particle boundaries
 ! Read-in number of porous boundaries
 nPorousBC  = GETINT('Surf-nPorousBC')
-IF ((nPartBound.LE.0).OR.(dummy_int.LT.0)) CALL abort(__STAMP__  ,'ERROR: nPartBound .LE. 0:', nPartBound)
+IF((nPartBound.LE.0).OR.(dummy_int.LT.0)) CALL abort(__STAMP__  ,'ERROR: nPartBound .LE. 0:', nPartBound)
+
+IF(nPartBound.NE.nBCs) CALL abort(__STAMP__  ,'ERROR: Part-nBounds is not equal to the number of BCs read-in from the mesh!')
 
 ALLOCATE(PartBound%SourceBoundName(  1:nPartBound))
 PartBound%SourceBoundName = ''
@@ -234,10 +256,26 @@ ALLOCATE(PartBound%RotACC(           1:nPartBound))
 PartBound%RotACC = -1.
 ALLOCATE(PartBound%ElecACC(          1:nPartBound))
 PartBound%ElecACC = -1.
+! Photon reflection
+ALLOCATE(PartBound%PhotonSpecularReflection(1:nPartBound))
+PartBound%PhotonSpecularReflection = .FALSE.
+ALLOCATE(PartBound%PhotonEnACC(      1:nPartBound))
+PartBound%PhotonEnACC = 0.0
+! Photon SEE
+ALLOCATE(PartBound%PhotonSEEYield(      1:nPartBound))
+PartBound%PhotonSEEYield = 0.
+ALLOCATE(PartBound%PhotonSEEWorkFunction(1:nPartBound))
+PartBound%PhotonSEEWorkFunction = 0.
+ALLOCATE(PartBound%PhotonSEEMacroParticleFactor(1:nPartBound))
+PartBound%PhotonSEEMacroParticleFactor = 0.
+ALLOCATE(PartBound%PhotonSEEElectronSpecies(1:nPartBound))
+PartBound%PhotonSEEElectronSpecies = 0
 ALLOCATE(PartBound%Resample(         1:nPartBound))
 PartBound%Resample = .FALSE.
+! Linear wall velocity
 ALLOCATE(PartBound%WallVelo(     1:3,1:nPartBound))
 PartBound%WallVelo = 0.
+! Rotational wall velocity
 ALLOCATE(PartBound%RotVelo(          1:nPartBound))
 PartBound%RotVelo = .FALSE.
 ALLOCATE(PartBound%RotOmega(       1:3,1:nPartBound))
@@ -336,6 +374,18 @@ DO iPartBound=1,nPartBound
     PartBound%Resample(iPartBound)        = GETLOGICAL('Part-Boundary'//TRIM(hilf)//'-Resample')
     PartBound%WallVelo(1:3,iPartBound)    = GETREALARRAY('Part-Boundary'//TRIM(hilf)//'-WallVelo',3)
     PartBound%RotVelo(iPartBound)         = GETLOGICAL('Part-Boundary'//TRIM(hilf)//'-RotVelo')
+    PartBound%PhotonSpecularReflection(iPartBound)     = GETLOGICAL('Part-Boundary'//TRIM(hilf)//'-PhotonSpecularReflection')
+    PartBound%PhotonEnACC(iPartBound)     = GETREAL('Part-Boundary'//TRIM(hilf)//'-PhotonEnACC')
+    PartBound%PhotonSEEYield(iPartBound)     = GETREAL('Part-Boundary'//TRIM(hilf)//'-PhotonSEE-Yield')
+    IF(PartBound%PhotonSEEYield(iPartBound).GT.0.) THEN
+      PartBound%PhotonSEEWorkFunction(iPartBound)     = GETREAL('Part-Boundary'//TRIM(hilf)//'-PhotonSEE-WorkFunction')
+      PartBound%PhotonSEEElectronSpecies(iPartBound)  = GETINT('Part-Boundary'//TRIM(hilf)//'-PhotonSEE-ElectronSpecies')
+      IF(usevMPF) THEN
+        WRITE(UNIT=hilf2,FMT='(G0)') Species(PartBound%PhotonSEEElectronSpecies(iPartBound))%MacroParticleFactor
+        PartBound%PhotonSEEMacroParticleFactor(iPartBound) = GETREAL('Part-Boundary'//TRIM(hilf)//'-PhotonSEE-MacroParticleFactor',&
+                                                                      TRIM(hilf2))
+      END IF
+    END IF
     IF(PartBound%RotVelo(iPartBound)) THEN
       RotFreq                             = GETREAL('Part-Boundary'//TRIM(hilf)//'-RotFreq')
       RotAxis                             = GETINT('Part-Boundary'//TRIM(hilf)//'-RotAxis')
@@ -435,10 +485,6 @@ DO iPartBound=1,nPartBound
   CASE('periodic')
     PartBound%TargetBoundCond(iPartBound) = PartBound%PeriodicBC
     PartMeshHasPeriodicBCs = .TRUE.
-  CASE('simple_anode')
-    PartBound%TargetBoundCond(iPartBound) = PartBound%SimpleAnodeBC
-  CASE('simple_cathode')
-    PartBound%TargetBoundCond(iPartBound) = PartBound%SimpleCathodeBC
   CASE('symmetric')
 #if defined(IMPA) || defined(ROS)
     PartMeshHasReflectiveBCs=.TRUE.
@@ -492,14 +538,7 @@ IF(DoBoundaryParticleOutputHDF5.OR.FoundPartBoundSEE) CALL InitializeVariablesSp
 PartBound%AdaptWallTemp = GETLOGICAL('Part-AdaptWallTemp')
 
 ! Surface particle output to .h5
-IF(DoBoundaryParticleOutputHDF5)THEN
-  ! This array is not de-allocated during load balance as it is only written to .h5 during WriteStateToHDF5()
-  IF(.NOT.ALLOCATED(PartStateBoundary))THEN
-    ALLOCATE(PartStateBoundary(1:nVarPartStateBoundary,1:PDM%maxParticleNumber), STAT=ALLOCSTAT)
-    IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__,'ERROR in particle_init.f90: Cannot allocate PartStateBoundary array!')
-    PartStateBoundary=0.
-  END IF ! .NOT.ALLOCATED(PartStateBoundary)
-END IF
+IF(DoBoundaryParticleOutputHDF5) CALL InitPartStateBoundary()
 
 ! Set mapping from field boundary to particle boundary index and vice versa
 ALLOCATE(PartBound%MapToPartBC(1:nBCs))
@@ -544,7 +583,7 @@ END DO
 
 IF(ANY(PartBound%SurfaceModel.EQ.1)) THEN
   ! Open the species database
-  CALL OpenDataFile(TRIM(SpeciesDatabase),create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_WORLD)
+  CALL OpenDataFile(TRIM(SpeciesDatabase),create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_PICLAS)
   ! Check if the correct dataset exists
   StickingCoefficientExists = .FALSE.
   dsetname = TRIM('/Surface-Chemistry/StickingCoefficient')
@@ -562,6 +601,329 @@ IF(ANY(PartBound%SurfaceModel.EQ.1)) THEN
 END IF
 
 END SUBROUTINE InitializeVariablesPartBoundary
+
+
+SUBROUTINE InitParticleBoundarySurfSides()
+!===================================================================================================================================
+! Initialize the counters (nComputeNodeSurfSides,nComputeNodeSurfTotalSides,nComputeNodeSurfOutputSides) and
+! mappings (GlobalSide2SurfSide,SurfSide2GlobalSide) of the particle boundary surface sides
+! 1) all procs identify surfaces on the node (plus halo region) for sampling and/or boundary conditions
+! 2) the compute-node leaders communicate the number of surfaces
+!===================================================================================================================================
+! MODULES                                                                                                                          !
+!----------------------------------------------------------------------------------------------------------------------------------!
+USE MOD_Globals
+USE MOD_Particle_Mesh_Vars      ,ONLY: SideInfo_Shared
+USE MOD_Particle_Boundary_Vars  ,ONLY: PartBound
+USE MOD_Particle_Boundary_Vars  ,ONLY: nComputeNodeSurfSides,nComputeNodeSurfTotalSides,nComputeNodeSurfOutputSides
+USE MOD_Particle_Boundary_Vars  ,ONLY: GlobalSide2SurfSide,SurfSide2GlobalSide
+#if USE_MPI
+USE MOD_Particle_Mesh_Vars      ,ONLY: ElemInfo_Shared
+USE MOD_MPI_Shared
+USE MOD_MPI_Shared_Vars         ,ONLY: MPI_COMM_SHARED
+USE MOD_MPI_Shared_Vars         ,ONLY: myComputeNodeRank,nComputeNodeProcessors
+USE MOD_Particle_Mesh_Vars      ,ONLY: nNonUniqueGlobalSides
+USE MOD_MPI_Shared_Vars         ,ONLY: myLeaderGroupRank,nLeaderGroupProcs
+USE MOD_Particle_Boundary_Vars  ,ONLY: GlobalSide2SurfSide_Shared,GlobalSide2SurfSide_Shared_Win
+USE MOD_Particle_Boundary_Vars  ,ONLY: SurfSide2GlobalSide_Shared,SurfSide2GlobalSide_Shared_Win
+USE MOD_Particle_Boundary_Vars  ,ONLY: nComputeNodeInnerBCs
+USE MOD_Particle_Boundary_Vars  ,ONLY: SurfCOMM
+#else
+USE MOD_Particle_Mesh_Vars      ,ONLY: nComputeNodeSides
+#endif /*USE_MPI*/
+#if USE_LOADBALANCE
+USE MOD_LoadBalance_Vars        ,ONLY: PerformLoadBalance
+#endif /*USE_LOADBALANCE*/
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!----------------------------------------------------------------------------------------------------------------------------------!
+! INPUT VARIABLES
+!----------------------------------------------------------------------------------------------------------------------------------!
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER                                :: iSide,firstSide,lastSide,iSurfSide,GlobalSideID
+INTEGER                                :: nSurfSidesProc
+INTEGER                                :: offsetSurfTotalSidesProc
+INTEGER,ALLOCATABLE                    :: GlobalSide2SurfSideProc(:,:)
+#if USE_MPI
+INTEGER                                :: offsetSurfSidesProc
+INTEGER                                :: GlobalElemID,GlobalElemRank
+INTEGER                                :: sendbuf,recvbuf
+INTEGER                                :: NbGlobalElemID, NbElemRank, NbLeaderID, nSurfSidesTmp
+INTEGER                                :: color
+#endif /*USE_MPI*/
+INTEGER                                :: NbGlobalSideID,PartBoundCondition
+LOGICAL                                :: BCOnNode,ReflectiveOrOpenBCFound
+!===================================================================================================================================
+
+LBWRITE(UNIT_stdOut,'(A)') ' INIT SURFACE SIDES ...'
+
+! Allocate shared array for surf sides
+#if USE_MPI
+CALL Allocate_Shared((/3,nNonUniqueGlobalSides/),GlobalSide2SurfSide_Shared_Win,GlobalSide2SurfSide_Shared)
+CALL MPI_WIN_LOCK_ALL(0,GlobalSide2SurfSide_Shared_Win,IERROR)
+GlobalSide2SurfSide => GlobalSide2SurfSide_Shared
+#else
+ALLOCATE(GlobalSide2SurfSide(1:3,1:nComputeNodeSides))
+#endif /*USE_MPI*/
+
+! only CN root nullifies
+#if USE_MPI
+IF (myComputeNodeRank.EQ.0) THEN
+#endif /* USE_MPI*/
+  GlobalSide2SurfSide = -1.
+#if USE_MPI
+END IF
+
+CALL BARRIER_AND_SYNC(GlobalSide2SurfSide_Shared_Win,MPI_COMM_SHARED)
+#endif /* USE_MPI*/
+
+! get number of BC-Sides
+#if USE_MPI
+! NO HALO REGION REDUCTION
+firstSide = INT(REAL( myComputeNodeRank   )*REAL(nNonUniqueGlobalSides)/REAL(nComputeNodeProcessors))+1
+lastSide  = INT(REAL((myComputeNodeRank+1))*REAL(nNonUniqueGlobalSides)/REAL(nComputeNodeProcessors))
+ALLOCATE(GlobalSide2SurfSideProc(1:3,firstSide:lastSide))
+#else
+firstSide = 1
+lastSide  = nComputeNodeSides
+ALLOCATE(GlobalSide2SurfSideProc(1:3,1:nComputeNodeSides))
+#endif /*USE_MPI*/
+
+GlobalSide2SurfSideProc = -1
+nComputeNodeSurfSides   = 0
+nSurfSidesProc          = 0
+ReflectiveOrOpenBCFound = .FALSE.
+
+! Check every BC side
+DO iSide = firstSide,lastSide
+  ! Ignore non-BC sides
+  IF (SideInfo_Shared(SIDE_BCID,iSide).LE.0) CYCLE
+
+#if USE_MPI
+  ! Ignore sides outside of halo region
+  IF (ElemInfo_Shared(ELEM_HALOFLAG,SideInfo_Shared(SIDE_ELEMID,iSide)).EQ.0) CYCLE
+#endif /*USE_MPI*/
+
+  ! Get the particle boundary condition index
+  PartBoundCondition = PartBound%TargetBoundCond(PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,iSide)))
+
+  ! Check if any process finds an open or reflective BC in the halo region (required for SurfCOMM%UNICATOR below)
+  IF ((PartBoundCondition.EQ.PartBound%OpenBC) .OR. &
+      (PartBoundCondition.EQ.PartBound%ReflectiveBC)) ReflectiveOrOpenBCFound = .TRUE.
+
+  ! Count number of reflective and rotationally periodic BC sides
+  IF ((PartBoundCondition.EQ.PartBound%ReflectiveBC) .OR. &
+      (PartBoundCondition.EQ.PartBound%RotPeriodicBC).OR. &
+      (PartBoundCondition.EQ.PartBound%RotPeriodicInterPlaneBC))THEN
+    nSurfSidesProc = nSurfSidesProc + 1
+    ! Check if element for this side is on the current compute-node
+    ! IF ((SideInfo_Shared(SIDE_ID,iSide).GT.ElemInfo_Shared(ELEM_FIRSTSIDEIND,offsetComputeNodeElem+1))                  .AND. &
+    !     (SideInfo_Shared(SIDE_ID,iSide).LE.ElemInfo_Shared(ELEM_LASTSIDEIND ,offsetComputeNodeElem+nComputeNodeElems))) THEN
+    ! IF ((iSide.GE.(ElemInfo_Shared(ELEM_FIRSTSIDEIND,offsetComputeNodeElem+1)+1))                  .AND. &
+    !     (iSide.LE.ElemInfo_Shared(ELEM_LASTSIDEIND ,offsetComputeNodeElem+nComputeNodeElems))) THEN
+    !   nComputeNodeSurfSides  = nComputeNodeSurfSides + 1
+    ! END IF
+
+    ! TODO: Add another check to determine the surface side in halo_eps from current proc. Node-wide halo can become quite large with
+    !       with 128 procs!
+
+    ! Write local mapping from Side to Surf side. The rank is already correct, the offset must be corrected by the proc offset later
+    GlobalSide2SurfSideProc(SURF_SIDEID,iSide) = nSurfSidesProc
+#if USE_MPI
+    GlobalSide2SurfSideProc(SURF_RANK  ,iSide) = ElemInfo_Shared(ELEM_RANK,SideInfo_Shared(SIDE_ELEMID,iSide))
+    ! Get global Elem ID
+    GlobalElemID   = SideInfo_Shared(SIDE_ELEMID,iSide)
+    GlobalElemRank = ElemInfo_Shared(ELEM_RANK,GlobalElemID)
+    ! Running on one node, everything belongs to us
+    IF (nLeaderGroupProcs.EQ.1) THEN
+      GlobalSide2SurfSideProc(SURF_LEADER,iSide) = myLeaderGroupRank
+    ELSE
+      ! Find the compute node
+      GlobalSide2SurfSideProc(SURF_LEADER,iSide) = INT(GlobalElemRank/nComputeNodeProcessors)
+    END IF
+#else
+    GlobalSide2SurfSideProc(SURF_RANK  ,iSide) = 0
+    GlobalSide2SurfSideProc(SURF_LEADER,iSide) = GlobalSide2SurfSideProc(SURF_RANK,iSide)
+#endif /*USE_MPI*/
+
+#if USE_MPI
+    ! Check if element for this side is on the current compute-node. Alternative version to the check above
+    IF (GlobalSide2SurfSideProc(SURF_LEADER,iSide).EQ.myLeaderGroupRank) nComputeNodeSurfSides  = nComputeNodeSurfSides + 1
+#endif /*USE_MPI*/
+  END IF ! Reflective side
+END DO
+
+! Find CN global number of total surf sides and write Side to Surf Side mapping into shared array
+#if USE_MPI
+sendbuf = nSurfSidesProc - nComputeNodeSurfSides
+recvbuf = 0
+CALL MPI_EXSCAN(sendbuf,recvbuf,1,MPI_INTEGER,MPI_SUM,MPI_COMM_SHARED,iError)
+offsetSurfTotalSidesProc   = recvbuf
+! last proc knows CN total number of BC elems
+sendbuf = offsetSurfTotalSidesProc + nSurfSidesProc - nComputeNodeSurfSides
+CALL MPI_BCAST(sendbuf,1,MPI_INTEGER,nComputeNodeProcessors-1,MPI_COMM_SHARED,iError)
+nComputeNodeSurfTotalSides = sendbuf
+
+! Find CN global number of local surf sides and write Side to Surf Side mapping into shared array
+sendbuf = nComputeNodeSurfSides
+recvbuf = 0
+CALL MPI_EXSCAN(sendbuf,recvbuf,1,MPI_INTEGER,MPI_SUM,MPI_COMM_SHARED,iError)
+offsetSurfSidesProc   = recvbuf
+! last proc knows CN total number of BC elems
+sendbuf = offsetSurfSidesProc + nComputeNodeSurfSides
+CALL MPI_BCAST(sendbuf,1,MPI_INTEGER,nComputeNodeProcessors-1,MPI_COMM_SHARED,iError)
+nComputeNodeSurfSides = sendbuf
+nComputeNodeSurfTotalSides = nComputeNodeSurfTotalSides + nComputeNodeSurfSides
+
+! increment SURF_SIDEID by offset
+nSurfSidesTmp = 0
+DO iSide = firstSide,lastSide
+  IF (GlobalSide2SurfSideProc(SURF_SIDEID,iSide).EQ.-1) CYCLE
+
+  ! sort compute-node local sides first
+  IF (GlobalSide2SurfSideProc(SURF_LEADER,iSide).EQ.myLeaderGroupRank) THEN
+    nSurfSidesTmp = nSurfSidesTmp + 1
+
+    GlobalSide2SurfSide(:          ,iSide) = GlobalSide2SurfSideProc(:,iSide)
+    GlobalSide2SurfSide(SURF_SIDEID,iSide) = nSurfSidesTmp + offsetSurfSidesProc
+  END IF
+END DO
+
+nSurfSidesTmp = 0
+DO iSide = firstSide,lastSide
+  IF (GlobalSide2SurfSideProc(SURF_SIDEID,iSide).EQ.-1) CYCLE
+
+  ! sampling sides in halo region follow at the end
+  IF (GlobalSide2SurfSideProc(SURF_LEADER,iSide).NE.myLeaderGroupRank) THEN
+    nSurfSidesTmp = nSurfSidesTmp + 1
+
+    GlobalSide2SurfSide(:          ,iSide) = GlobalSide2SurfSideProc(:,iSide)
+    GlobalSide2SurfSide(SURF_SIDEID,iSide) = nSurfSidesTmp + nComputeNodeSurfSides + offsetSurfTotalSidesProc
+  END IF
+END DO
+#else
+offsetSurfTotalSidesProc  = 0
+nComputeNodeSurfSides = nSurfSidesProc
+nComputeNodeSurfTotalSides = nSurfSidesProc
+GlobalSide2SurfSide(:,firstSide:lastSide) = GlobalSide2SurfSideProc(:,firstSide:lastSide)
+#endif /*USE_MPI*/
+
+! Build inverse mapping
+IF(nComputeNodeSurfTotalSides.GT.0)THEN
+#if USE_MPI
+  CALL Allocate_Shared((/3,nComputeNodeSurfTotalSides/),SurfSide2GlobalSide_Shared_Win,SurfSide2GlobalSide_Shared)
+  CALL MPI_WIN_LOCK_ALL(0,SurfSide2GlobalSide_Shared_Win,IERROR)
+  SurfSide2GlobalSide => SurfSide2GlobalSide_Shared
+
+  DO iSide = firstSide,lastSide
+    IF (GlobalSide2SurfSideProc(SURF_SIDEID,iSide).EQ.-1) CYCLE
+
+    SurfSide2GlobalSide(:          ,GlobalSide2SurfSide(SURF_SIDEID,iSide)) = GlobalSide2SurfSide(:,iSide)
+    SurfSide2GlobalSide(SURF_SIDEID,GlobalSide2SurfSide(SURF_SIDEID,iSide)) = iSide
+  END DO
+
+  CALL BARRIER_AND_SYNC(GlobalSide2SurfSide_Shared_Win,MPI_COMM_SHARED)
+  CALL BARRIER_AND_SYNC(SurfSide2GlobalSide_Shared_Win,MPI_COMM_SHARED)
+#else
+  ALLOCATE(SurfSide2GlobalSide(1:1,1:nComputeNodeSurfTotalSides))
+  DO iSide = firstSide,lastSide
+    IF (GlobalSide2SurfSide(SURF_SIDEID,iSide).EQ.-1) CYCLE
+    SurfSide2GlobalSide(SURF_SIDEID,GlobalSide2SurfSide(SURF_SIDEID,iSide)) =iSide
+  END DO
+#endif /*USE_MPI*/
+
+  ! Determine the number of surface output sides (inner BCs are not counted twice and rotationally periodic BCs excluded)
+#if USE_MPI
+  IF (myComputeNodeRank.EQ.0) THEN
+    nComputeNodeInnerBCs = 0
+#endif /*USE_MPI*/
+    nComputeNodeSurfOutputSides = 0
+    DO iSurfSide = 1,nComputeNodeSurfSides
+      GlobalSideID = SurfSide2GlobalSide(SURF_SIDEID,iSurfSide)
+      ! Check if the surface side has a neighbor (and is therefore an inner BCs)
+      IF(SideInfo_Shared(SIDE_NBSIDEID,GlobalSideID).GT.0) THEN
+        ! Abort inner BC + Mortar! (too complex and confusing to implement)
+        ! This test catches large Mortar sides, i.e.,  SideInfo_Shared(SIDE_NBELEMID,NonUniqueGlobalSideID) gives the 2 or 4
+        ! connecting small Mortar sides. It is assumed that inner BC result in being flagged as a "SurfSide" and therefore are checked
+        ! here.
+        IF(SideInfo_Shared(SIDE_LOCALID,GlobalSideID).EQ.-1)THEN
+          IPWRITE(UNIT_StdOut,'(I12,A,I0)')   " NonUniqueGlobalSideID                               = ",GlobalSideID
+          IPWRITE(UNIT_StdOut,'(I12,A,I0)')   " SideInfo_Shared(SIDE_LOCALID,NonUniqueGlobalSideID) = ",&
+              SideInfo_Shared(SIDE_LOCALID,GlobalSideID)
+          IPWRITE(UNIT_StdOut,'(I12,A,I0,A)') " SideInfo_Shared(SIDE_ELEMID,NonUniqueGlobalSideID)  = ",&
+              SideInfo_Shared(SIDE_ELEMID,GlobalSideID)," (GlobalElemID)"
+          CALL abort(__STAMP__,'Inner BC + Mortar is not implemented!')
+        END IF
+        ! Only add the side with the smaller index
+        NbGlobalSideID = SideInfo_Shared(SIDE_NBSIDEID,GlobalSideID)
+        IF(GlobalSideID.GT.NbGlobalSideID)THEN
+#if USE_MPI
+          !--- switcheroo check 1 of 2: Non-HALO sides
+          ! Only required for sampling on the larger NonUniqueGlobalSideID of the two sides of the inner BC
+          ! Count larger inner BCs as these may have to be sent to a different leader processor
+          NbGlobalElemID = SideInfo_Shared(SIDE_ELEMID,NbGlobalSideID)
+          NbElemRank = ElemInfo_Shared(ELEM_RANK,NbGlobalElemID)
+          NbLeaderID = INT(NbElemRank/nComputeNodeProcessors)
+          IF(NbLeaderID.NE.INT(myRank/nComputeNodeProcessors))THEN
+            nComputeNodeInnerBCs(1) = nComputeNodeInnerBCs(1) + 1
+          END IF
+#endif
+          CYCLE! Skip sides with the larger index
+        END IF
+      END IF
+      ! Skip rotationally periodic boundary sides for the output
+      IF(PartBound%TargetBoundCond(PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,GlobalSideID))).EQ.PartBound%RotPeriodicBC) CYCLE
+      ! Skip intermediate planes BCs for the output
+      IF(PartBound%TargetBoundCond(PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,GlobalSideID))).EQ.PartBound%RotPeriodicInterPlaneBC) CYCLE
+      ! Count the number of output sides
+      nComputeNodeSurfOutputSides = nComputeNodeSurfOutputSides + 1
+    END DO
+#if USE_MPI
+    !--- switcheroo check 2 of 2: HALO sides
+    ! Count number of inner BC in halo region
+    ! Only required for sampling on the larger NonUniqueGlobalSideID of the two sides of the inner BC
+    DO iSurfSide = nComputeNodeSurfSides+1, nComputeNodeSurfTotalSides
+      GlobalSideID = SurfSide2GlobalSide(SURF_SIDEID,iSurfSide)
+      ! Check if the surface side has a neighbor (and is therefore an inner BCs)
+      IF(SideInfo_Shared(SIDE_NBSIDEID,GlobalSideID).GT.0) THEN
+        ! Only add the side with the smaller index
+        IF(GlobalSideID.GT.SideInfo_Shared(SIDE_NBSIDEID,GlobalSideID))THEN
+          ! Count larger inner BCs as these may have to be sent to a different leader processor
+          nComputeNodeInnerBCs(2) = nComputeNodeInnerBCs(2) + 1
+        END IF
+      END IF
+    END DO ! iSurfSide = nComputeNodeSurfSides+1, nComputeNodeSurfTotalSides
+  END IF
+#endif
+
+  ! free temporary arrays
+  DEALLOCATE(GlobalSide2SurfSideProc)
+END IF ! nComputeNodeSurfTotalSides.GT.0
+
+#if USE_MPI
+! Flag if there is at least one BC side on the node (sides in halo region do also count). MPI_LOR: return the logical or
+CALL MPI_ALLREDUCE(ReflectiveOrOpenBCFound, BCOnNode, 1, MPI_LOGICAL, MPI_LOR, MPI_COMM_SHARED, iError)
+
+! Create a communicator if BCs are on the node
+! Set the control of subset assignment (non-negative integer). Processes with the same color are in the same new communicator.
+! Make sure to include the root
+color = MERGE(1337, MPI_UNDEFINED, MPIRoot.OR.BCOnNode)
+! Create new surface communicator. Pass MPI_INFO_NULL as rank to follow the original ordering
+CALL MPI_COMM_SPLIT(MPI_COMM_PICLAS, color, MPI_INFO_NULL, SurfCOMM%UNICATOR, iError)
+! Find my rank on the shared communicator, comm size and proc name
+IF(SurfCOMM%UNICATOR.NE.MPI_COMM_NULL)THEN
+  CALL MPI_COMM_RANK(SurfCOMM%UNICATOR, SurfCOMM%MyRank, iError)
+  CALL MPI_COMM_SIZE(SurfCOMM%UNICATOR, SurfCOMM%nProcs, iError)
+  ! inform about size of emission communicator
+  LBWRITE(UNIT_StdOut,'(A,I0,A)') ' Surface sides: Communicator on ', SurfCOMM%nProcs,' procs'
+END IF
+#endif /*USE_MPI*/
+
+LBWRITE(UNIT_stdOut,'(A)') ' INIT SURFACE SIDES DONE!'
+
+END SUBROUTINE InitParticleBoundarySurfSides
 
 
 SUBROUTINE InitParticleBoundaryRotPeriodic(nRotPeriodicBCs)
@@ -927,6 +1289,31 @@ END SUBROUTINE WriteInterPlanePosition
 
 
 !===================================================================================================================================
+!> Check if PartStateBoundary is already allocated (e.g. if this routine is called during load balance) and if not allocate it
+!===================================================================================================================================
+SUBROUTINE InitPartStateBoundary()
+! MODULES
+USE MOD_Globals                ,ONLY: abort
+USE MOD_Particle_Boundary_Vars ,ONLY: PartStateBoundary
+USE MOD_Particle_Vars          ,ONLY: PDM
+USE MOD_Particle_Boundary_Vars ,ONLY: nVarPartStateBoundary
+IMPLICIT NONE
+!----------------------------------------------------------------------------------------------------------------------------------!
+! INPUT / OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER :: ALLOCSTAT
+!===================================================================================================================================
+! This array is not de-allocated during load balance as it is only written to .h5 during WriteStateToHDF5()
+
+IF(ALLOCATED(PartStateBoundary)) RETURN
+ALLOCATE(PartStateBoundary(1:nVarPartStateBoundary,1:MIN(1000,PDM%maxParticleNumber)), STAT=ALLOCSTAT)
+IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__,'ERROR in particle_init.f90: Cannot allocate PartStateBoundary array!')
+PartStateBoundary=0.
+END SUBROUTINE InitPartStateBoundary
+
+
+!===================================================================================================================================
 !> Read mapping for rotational periodicity from mesh file. If it does not yet exist, build the mapping and store in mesh.h5 for
 !> faster initialization later on.
 !===================================================================================================================================
@@ -964,7 +1351,7 @@ WRITE(UNIT=hilf,FMT='(ES10.4)') halo_eps_velo
 DatasetName = 'RotPeriodicMap-v'//TRIM(hilf)
 WRITE(UNIT=hilf,FMT='(ES10.4)') ManualTimeStep
 DatasetName = TRIM(DatasetName)//'-dt'//TRIM(hilf)
-CALL OpenDataFile(MeshFile,create=.FALSE.,single=.FALSE.,readOnly=.FALSE.,communicatorOpt=MPI_COMM_WORLD)
+CALL OpenDataFile(MeshFile,create=.FALSE.,single=.FALSE.,readOnly=.FALSE.,communicatorOpt=MPI_COMM_PICLAS)
 CALL DatasetExists(File_ID,TRIM(DatasetName),DatasetFound)
 CALL CloseDataFile()
 
@@ -1019,8 +1406,8 @@ END SUBROUTINE InitRotPeriodicMapping
 SUBROUTINE BuildParticleBoundaryRotPeriodic(notMappedTotal)
 ! MODULES
 USE MOD_Globals
-USE MOD_Particle_Boundary_Vars  ,ONLY: nComputeNodeSurfTotalSides,SurfSide2GlobalSide,PartBound
-USE MOD_Particle_Boundary_Vars  ,ONLY: RotPeriodicSideMapping, NumRotPeriodicNeigh, SurfSide2RotPeriodicSide
+USE MOD_Particle_Boundary_Vars  ,ONLY: nComputeNodeSurfTotalSides,SurfSide2GlobalSide,PartBound,nRotPeriodicSides
+USE MOD_Particle_Boundary_Vars  ,ONLY: RotPeriodicSideMapping, NumRotPeriodicNeigh, SurfSide2RotPeriodicSide,MaxNumRotPeriodicNeigh
 USE MOD_Particle_Mesh_Vars      ,ONLY: SideInfo_Shared, NodeCoords_Shared, ElemSideNodeID_Shared, ElemInfo_Shared
 USE MOD_Mesh_Tools              ,ONLY: GetCNElemID, GetGlobalElemID
 USE MOD_Particle_Mesh_Vars      ,ONLY: SideInfo_Shared, NodeInfo_Shared, NodeToElemInfo, NodeToElemMapping
@@ -1039,7 +1426,7 @@ USE MOD_MPI_Shared_Vars         ,ONLY: MPI_COMM_SHARED
 USE MOD_MPI_Shared_Vars         ,ONLY: myComputeNodeRank,nComputeNodeProcessors
 USE MOD_MPI_Shared
 #else
-USE MOD_Particle_Boundary_Vars  ,ONLY: nSurfTotalSides
+USE MOD_Particle_Boundary_Vars  ,ONLY: nGlobalSurfSides
 #endif /*USE_MPI*/
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
@@ -1049,7 +1436,7 @@ IMPLICIT NONE
 INTEGER,INTENT(OUT)  :: notMappedTotal
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                           :: iSide, jSide, nRotPeriodicSides, SideID,SideID2, MaxNumRotPeriodicNeigh, iNode, iNeigh, jNeigh
+INTEGER                           :: iSide, jSide, SideID,SideID2, iNode, iNeigh, jNeigh
 INTEGER                           :: NodeID, CNElemID, LocSideID, k, l, m, CNElemID2, LocSideID2, TestElemID, UniqueNodeID
 INTEGER                           :: iElem, jElem, NewNeighNumber, kNeigh
 LOGICAL                           :: mySide, FoundConnection, abortAfterWriteOut
@@ -1063,372 +1450,407 @@ INTEGER,ALLOCPOINT,DIMENSION(:,:) :: RotPeriodicSideMapping_temp
 REAL,ALLOCPOINT,DIMENSION(:,:)    :: BoundingBox
 !===================================================================================================================================
 
-nRotPeriodicSides = 0
-offsetSide        = 0
-abortAfterWriteOut = .FALSE.
+nRotPeriodicSides      = 0
+offsetSide             = 0
+abortAfterWriteOut     = .FALSE.
+notMapped              = 0
+MaxNumRotPeriodicNeigh = 0
 
-! Surf sides are shared, array calculation can be distributed
+IF(nComputeNodeSurfTotalSides.GT.0)THEN
+
+  ! Surf sides are shared, array calculation can be distributed
 #if USE_MPI
-CALL Allocate_Shared((/nComputeNodeSurfTotalSides/) , SurfSide2RotPeriodicSide_Shared_Win , SurfSide2RotPeriodicSide_Shared)
-CALL MPI_WIN_LOCK_ALL(0 , SurfSide2RotPeriodicSide_Shared_Win , IERROR)
-CALL Allocate_Shared((/nComputeNodeSurfTotalSides/) , Rot2Glob_temp_Shared_Win            , Rot2Glob_temp_Shared)
-CALL MPI_WIN_LOCK_ALL(0 , Rot2Glob_temp_Shared_Win            , IERROR)
-SurfSide2RotPeriodicSide => SurfSide2RotPeriodicSide_Shared
-Rot2Glob_temp            => Rot2Glob_temp_Shared
-IF (myComputeNodeRank.EQ.0) SurfSide2RotPeriodicSide = -1.
-IF (myComputeNodeRank.EQ.0) Rot2Glob_temp            = -1.
-CALL BARRIER_AND_SYNC(SurfSide2RotPeriodicSide_Shared_Win , MPI_COMM_SHARED)
-CALL BARRIER_AND_SYNC(Rot2Glob_temp_Shared_Win            , MPI_COMM_SHARED)
-firstSide = INT(REAL( myComputeNodeRank   )*REAL(nComputeNodeSurfTotalSides)/REAL(nComputeNodeProcessors))+1
-lastSide  = INT(REAL((myComputeNodeRank+1))*REAL(nComputeNodeSurfTotalSides)/REAL(nComputeNodeProcessors))
+  CALL Allocate_Shared((/nComputeNodeSurfTotalSides/) , SurfSide2RotPeriodicSide_Shared_Win , SurfSide2RotPeriodicSide_Shared)
+  CALL MPI_WIN_LOCK_ALL(0 , SurfSide2RotPeriodicSide_Shared_Win , IERROR)
+  CALL Allocate_Shared((/nComputeNodeSurfTotalSides/) , Rot2Glob_temp_Shared_Win            , Rot2Glob_temp_Shared)
+  CALL MPI_WIN_LOCK_ALL(0 , Rot2Glob_temp_Shared_Win            , IERROR)
+  SurfSide2RotPeriodicSide => SurfSide2RotPeriodicSide_Shared
+  Rot2Glob_temp            => Rot2Glob_temp_Shared
+  IF (myComputeNodeRank.EQ.0) SurfSide2RotPeriodicSide = -1.
+  IF (myComputeNodeRank.EQ.0) Rot2Glob_temp            = -1.
+  CALL BARRIER_AND_SYNC(SurfSide2RotPeriodicSide_Shared_Win , MPI_COMM_SHARED)
+  CALL BARRIER_AND_SYNC(Rot2Glob_temp_Shared_Win            , MPI_COMM_SHARED)
+  firstSide = INT(REAL( myComputeNodeRank   )*REAL(nComputeNodeSurfTotalSides)/REAL(nComputeNodeProcessors))+1
+  lastSide  = INT(REAL((myComputeNodeRank+1))*REAL(nComputeNodeSurfTotalSides)/REAL(nComputeNodeProcessors))
 #else
-firstSide = 1
-lastSide  = nSurfTotalSides
-ALLOCATE(SurfSide2RotPeriodicSide(firstSide:lastSide))
-SurfSide2RotPeriodicSide(:) = -1
-ALLOCATE(Rot2Glob_temp(firstSide:lastSide))
+  firstSide = 1
+  lastSide  = nGlobalSurfSides
+  ALLOCATE(SurfSide2RotPeriodicSide(firstSide:lastSide))
+  SurfSide2RotPeriodicSide(:) = -1
+  ALLOCATE(Rot2Glob_temp(firstSide:lastSide))
 #endif /*USE_MPI*/
 
-! (1) Count rotational periodic sides and build mapping from SurfSideID -> RotPeriodicSide
+  ! (1) Count rotational periodic sides and build mapping from SurfSideID -> RotPeriodicSide
 #if USE_MPI
-! Only when more than 1 core per node
-IF(nComputeNodeProcessors.GT.1)THEN
-  ! Loop once and get offset
+  ! Only when more than 1 core per node
+  IF(nComputeNodeProcessors.GT.1)THEN
+    ! Loop once and get offset
+    DO iSide=firstSide, lastSide
+      SideID = SurfSide2GlobalSide(SURF_SIDEID,iSide)
+      IF(PartBound%TargetBoundCond(PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID))).EQ.PartBound%RotPeriodicBC) &
+          nRotPeriodicSides = nRotPeriodicSides + 1
+    END DO
+
+    CALL MPI_EXSCAN(nRotPeriodicSides,offsetSide,1,MPI_INTEGER,MPI_SUM,MPI_COMM_SHARED,iError)
+    nRotPeriodicSides = offsetSide
+  END IF ! nComputeNodeProcessors.GT.1
+#endif /*USE_MPI*/
+
   DO iSide=firstSide, lastSide
     SideID = SurfSide2GlobalSide(SURF_SIDEID,iSide)
-    IF(PartBound%TargetBoundCond(PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID))).EQ.PartBound%RotPeriodicBC) &
-        nRotPeriodicSides = nRotPeriodicSides + 1
-  END DO
-
-  CALL MPI_EXSCAN(nRotPeriodicSides,offsetSide,1,MPI_INTEGER,MPI_SUM,MPI_COMM_SHARED,iError)
-  nRotPeriodicSides = offsetSide
-END IF ! nComputeNodeProcessors.GT.1
-#endif /*USE_MPI*/
-
-DO iSide=firstSide, lastSide
-  SideID = SurfSide2GlobalSide(SURF_SIDEID,iSide)
-  IF(PartBound%TargetBoundCond(PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID))).EQ.PartBound%RotPeriodicBC) THEN
-    nRotPeriodicSides = nRotPeriodicSides + 1
-    Rot2Glob_temp(nRotPeriodicSides) = SideID
-    SurfSide2RotPeriodicSide(iSide) = nRotPeriodicSides ! Store RotSideID
-  END IF
-END DO
-
-#if USE_MPI
-! last proc knows CN total number of rot periodic sides
-CALL MPI_BCAST(nRotPeriodicSides,1,MPI_INTEGER,nComputeNodeProcessors-1,MPI_COMM_SHARED,iError)
-CALL BARRIER_AND_SYNC(SurfSide2RotPeriodicSide_Shared_Win , MPI_COMM_SHARED)
-CALL BARRIER_AND_SYNC(Rot2Glob_temp_Shared_Win            , MPI_COMM_SHARED)
-CALL Allocate_Shared((/nRotPeriodicSides/) , NumRotPeriodicNeigh_Shared_Win , NumRotPeriodicNeigh_Shared)
-CALL MPI_WIN_LOCK_ALL(0 , NumRotPeriodicNeigh_Shared_Win , IERROR)
-NumRotPeriodicNeigh => NumRotPeriodicNeigh_Shared
-CALL Allocate_Shared((/nRotPeriodicSides,NbrOfRotConnections/) , RotPeriodicSideMapping_temp_Shared_Win , RotPeriodicSideMapping_temp_Shared)
-CALL MPI_WIN_LOCK_ALL(0 , RotPeriodicSideMapping_temp_Shared_Win , IERROR)
-RotPeriodicSideMapping_temp => RotPeriodicSideMapping_temp_Shared
-IF (myComputeNodeRank.EQ.0) NumRotPeriodicNeigh = 0
-IF (myComputeNodeRank.EQ.0) RotPeriodicSideMapping_temp = 0
-CALL BARRIER_AND_SYNC(NumRotPeriodicNeigh_Shared_Win         , MPI_COMM_SHARED)
-CALL BARRIER_AND_SYNC(RotPeriodicSideMapping_temp_Shared_Win , MPI_COMM_SHARED)
-firstSide = INT(REAL( myComputeNodeRank   )*REAL(nRotPeriodicSides)/REAL(nComputeNodeProcessors))+1
-lastSide  = INT(REAL((myComputeNodeRank+1))*REAL(nRotPeriodicSides)/REAL(nComputeNodeProcessors))
-#else
-firstSide = 1
-lastSide  = nRotPeriodicSides
-ALLOCATE(NumRotPeriodicNeigh(nRotPeriodicSides))
-NumRotPeriodicNeigh = 0
-! number of potential rotational periodic sides is unknown => allocate mapping array with fixed number of NbrOfRotConnections
-! and reallocate at the end of subroutine
-ALLOCATE(RotPeriodicSideMapping_temp(nRotPeriodicSides,NbrOfRotConnections))
-RotPeriodicSideMapping_temp = 0
-#endif /*USE_MPI*/
-
-notMapped=0
-MaxNumRotPeriodicNeigh = 0
-! Defining rotation matrix
-SELECT CASE(PartBound%RotPeriodicAxis)
-  CASE(1) ! x-rotation axis
-    k = 1
-    l = 2
-    m = 3
-  CASE(2) ! y-rotation axis
-    k = 2
-    l = 3
-    m = 1
-  CASE(3) ! z-rotation axis
-    k = 3
-    l = 1
-    m = 2
-END SELECT
-
-! (2) Build bounding boxes (in 2D reference system) for all nRotPeriodicSides
-#if USE_MPI
-CALL Allocate_Shared((/4,nRotPeriodicSides/) , BoundingBox_Shared_Win , BoundingBox_Shared)
-CALL MPI_WIN_LOCK_ALL(0 , BoundingBox_Shared_Win , IERROR)
-BoundingBox => BoundingBox_Shared
-CALL BARRIER_AND_SYNC(BoundingBox_Shared_Win , MPI_COMM_SHARED)
-#else
-ALLOCATE(BoundingBox(4,nRotPeriodicSides))
-#endif /*USE_MPI*/
-
-DO iSide = firstSide, lastSide
-
-  ! Get side information
-  SideID    = Rot2Glob_temp(iSide)
-  CNElemID  = GetCNElemID(SideInfo_Shared(SIDE_ELEMID,SideID))
-  LocSideID = SideInfo_Shared(SIDE_LOCALID,SideID)
-
-  ! Loop over all 4 nodes
-  DO iNode=1, 4
-    NodeID        = ElemSideNodeID_Shared(iNode,LocSideID,CNElemID) + 1
-    jNodeVec(1:3) = NodeCoords_Shared(1:3,NodeID)
-    jNodeH        = jNodeVec(k)
-    jNodeR        = SQRT(jNodeVec(l)**2+jNodeVec(m)**2)
-    IF(iNode.EQ. 1) THEN
-      Node2Hmin = jNodeH
-      Node2Hmax = jNodeH
-      Node2Rmin = jNodeR
-      Node2Rmax = jNodeR
-    ELSE
-      Node2Hmin = MIN(Node2Hmin,jNodeH)
-      Node2Hmax = MAX(Node2Hmax,jNodeH)
-      Node2Rmin = MIN(Node2Rmin,jNodeR)
-      Node2Rmax = MAX(Node2Rmax,jNodeR)
+    IF(PartBound%TargetBoundCond(PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID))).EQ.PartBound%RotPeriodicBC) THEN
+      nRotPeriodicSides = nRotPeriodicSides + 1
+      Rot2Glob_temp(nRotPeriodicSides) = SideID
+      SurfSide2RotPeriodicSide(iSide) = nRotPeriodicSides ! Store RotSideID
     END IF
   END DO
-  ! Add tolerance by increasing the bounding box size by 1 percent of the length in h and r
-  dh = Node2Hmax-Node2Hmin
-  dr = Node2Rmax-Node2Rmin
-  BoundingBox(1,iSide) = Node2Hmin-dh*0.01
-  BoundingBox(2,iSide) = Node2Hmax+dh*0.01
-  BoundingBox(3,iSide) = Node2Rmin-dr*0.01
-  BoundingBox(4,iSide) = Node2Rmax+dr*0.01
-
-END DO ! iSide = firstSide, lastSide
 #if USE_MPI
-CALL BARRIER_AND_SYNC(BoundingBox_Shared_Win , MPI_COMM_SHARED)
+  ! last proc knows CN total number of rot periodic sides
+  CALL MPI_BCAST(nRotPeriodicSides,1,MPI_INTEGER,nComputeNodeProcessors-1,MPI_COMM_SHARED,iError)
 #endif /*USE_MPI*/
 
-! (3a) find Side on corresponding BC and build mapping RotPeriodicSide -> SideID2 (and vice versa)
-!     counting potential rotational periodic sides (for non-conforming meshes)
-! Use named loops: Loop over the assigned iSides and compare against all nRotPeriodicSides
-iSideLoop: DO iSide = firstSide, lastSide
-  SideID    = Rot2Glob_temp(iSide)
-  CNElemID  = GetCNElemID(SideInfo_Shared(SIDE_ELEMID,SideID))
-  LocSideID = SideInfo_Shared(SIDE_LOCALID,SideID)
+  IF(nRotPeriodicSides.GT.0)THEN
+#if USE_MPI
+    CALL BARRIER_AND_SYNC(SurfSide2RotPeriodicSide_Shared_Win , MPI_COMM_SHARED)
+    CALL BARRIER_AND_SYNC(Rot2Glob_temp_Shared_Win            , MPI_COMM_SHARED)
+    CALL Allocate_Shared((/nRotPeriodicSides/) , NumRotPeriodicNeigh_Shared_Win , NumRotPeriodicNeigh_Shared)
+    CALL MPI_WIN_LOCK_ALL(0 , NumRotPeriodicNeigh_Shared_Win , IERROR)
+    NumRotPeriodicNeigh => NumRotPeriodicNeigh_Shared
+    CALL Allocate_Shared((/nRotPeriodicSides,NbrOfRotConnections/) , RotPeriodicSideMapping_temp_Shared_Win , RotPeriodicSideMapping_temp_Shared)
+    CALL MPI_WIN_LOCK_ALL(0 , RotPeriodicSideMapping_temp_Shared_Win , IERROR)
+    RotPeriodicSideMapping_temp => RotPeriodicSideMapping_temp_Shared
+    IF (myComputeNodeRank.EQ.0) NumRotPeriodicNeigh = 0
+    IF (myComputeNodeRank.EQ.0) RotPeriodicSideMapping_temp = 0
+    CALL BARRIER_AND_SYNC(NumRotPeriodicNeigh_Shared_Win         , MPI_COMM_SHARED)
+    CALL BARRIER_AND_SYNC(RotPeriodicSideMapping_temp_Shared_Win , MPI_COMM_SHARED)
+    firstSide = INT(REAL( myComputeNodeRank   )*REAL(nRotPeriodicSides)/REAL(nComputeNodeProcessors))+1
+    lastSide  = INT(REAL((myComputeNodeRank+1))*REAL(nRotPeriodicSides)/REAL(nComputeNodeProcessors))
+#else
+    firstSide = 1
+    lastSide  = nRotPeriodicSides
+    ALLOCATE(NumRotPeriodicNeigh(nRotPeriodicSides))
+    NumRotPeriodicNeigh = 0
+    ! number of potential rotational periodic sides is unknown => allocate mapping array with fixed number of NbrOfRotConnections
+    ! and reallocate at the end of subroutine
+    ALLOCATE(RotPeriodicSideMapping_temp(nRotPeriodicSides,NbrOfRotConnections))
+    RotPeriodicSideMapping_temp = 0
+#endif /*USE_MPI*/
 
-  jSideLoop: DO jSide = 1, nRotPeriodicSides
-    SideID2 = Rot2Glob_temp(jSide)
-    FoundConnection = .FALSE.
+    ! Defining rotation matrix
+    SELECT CASE(PartBound%RotPeriodicAxis)
+    CASE(1) ! x-rotation axis
+      k = 1
+      l = 2
+      m = 3
+    CASE(2) ! y-rotation axis
+      k = 2
+      l = 3
+      m = 1
+    CASE(3) ! z-rotation axis
+      k = 3
+      l = 1
+      m = 2
+    END SELECT
 
-    ! Check if both sides are on the same boundary, i.e., they cannot be connected
-    IF(PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID)).EQ. &
-        PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID2))) CYCLE jSideLoop
+    ! (2) Build bounding boxes (in 2D reference system) for all nRotPeriodicSides
+#if USE_MPI
+    CALL Allocate_Shared((/4,nRotPeriodicSides/) , BoundingBox_Shared_Win , BoundingBox_Shared)
+    CALL MPI_WIN_LOCK_ALL(0 , BoundingBox_Shared_Win , IERROR)
+    BoundingBox => BoundingBox_Shared
+    CALL BARRIER_AND_SYNC(BoundingBox_Shared_Win , MPI_COMM_SHARED)
+#else
+    ALLOCATE(BoundingBox(4,nRotPeriodicSides))
+#endif /*USE_MPI*/
 
-    ! Check if jSide is assigned to the proc
-    mySide = (jSide.GE.firstSide).AND.(jSide.LE.lastSide)
+    DO iSide = firstSide, lastSide
 
-    ! Check if the side was added in a previous step
-    IF(mySide)THEN
-      DO iNeigh = 1, NumRotPeriodicNeigh(jSide)
-        IF(RotPeriodicSideMapping_temp(jSide,iNeigh).EQ.SideID) CYCLE jSideLoop
-      END DO ! iNeigh = 1, NumRotPeriodicNeigh(jSide)
-    END IF ! mySide
+      ! Get side information
+      SideID    = Rot2Glob_temp(iSide)
+      CNElemID  = GetCNElemID(SideInfo_Shared(SIDE_ELEMID,SideID))
+      LocSideID = SideInfo_Shared(SIDE_LOCALID,SideID)
 
-    ! Loop the 4 nodes of iSide and test against the bounding box of jSide
-    iNodeLoop: DO iNode = 1, 4
-      NodeID = ElemSideNodeID_Shared(iNode,LocSideID,CNElemID) + 1
-      ! Calculate node coordinates in reference system
-      iNodeVec(1:3) = NodeCoords_Shared(1:3,NodeID)
-      iNodeH        = iNodeVec(k)
-      iNodeR        = SQRT(iNodeVec(l)**2+iNodeVec(m)**2)
+      ! Loop over all 4 nodes
+      DO iNode=1, 4
+        NodeID        = ElemSideNodeID_Shared(iNode,LocSideID,CNElemID) + 1
+        jNodeVec(1:3) = NodeCoords_Shared(1:3,NodeID)
+        jNodeH        = jNodeVec(k)
+        jNodeR        = SQRT(jNodeVec(l)**2+jNodeVec(m)**2)
+        IF(iNode.EQ. 1) THEN
+          Node2Hmin = jNodeH
+          Node2Hmax = jNodeH
+          Node2Rmin = jNodeR
+          Node2Rmax = jNodeR
+        ELSE
+          Node2Hmin = MIN(Node2Hmin,jNodeH)
+          Node2Hmax = MAX(Node2Hmax,jNodeH)
+          Node2Rmin = MIN(Node2Rmin,jNodeR)
+          Node2Rmax = MAX(Node2Rmax,jNodeR)
+        END IF
+      END DO
+      ! Add tolerance by increasing the bounding box size by 1 percent of the length in h and r
+      dh = Node2Hmax-Node2Hmin
+      dr = Node2Rmax-Node2Rmin
+      BoundingBox(1,iSide) = Node2Hmin-dh*0.01
+      BoundingBox(2,iSide) = Node2Hmax+dh*0.01
+      BoundingBox(3,iSide) = Node2Rmin-dr*0.01
+      BoundingBox(4,iSide) = Node2Rmax+dr*0.01
 
-      ! Cycle if outside of bounding box of jSide
-      IF(BoundingBox(1,jSide).GT.iNodeH) CYCLE iNodeLoop
-      IF(BoundingBox(2,jSide).LT.iNodeH) CYCLE iNodeLoop
-      IF(BoundingBox(3,jSide).GT.iNodeR) CYCLE iNodeLoop
-      IF(BoundingBox(4,jSide).LT.iNodeR) CYCLE iNodeLoop
+    END DO ! iSide = firstSide, lastSide
+#if USE_MPI
+    CALL BARRIER_AND_SYNC(BoundingBox_Shared_Win , MPI_COMM_SHARED)
+#endif /*USE_MPI*/
 
-      FoundConnection = .TRUE.
+    ! (3a) find Side on corresponding BC and build mapping RotPeriodicSide -> SideID2 (and vice versa)
+    !     counting potential rotational periodic sides (for non-conforming meshes)
+    ! Use named loops: Loop over the assigned iSides and compare against all nRotPeriodicSides
+    iSideLoop: DO iSide = firstSide, lastSide
+      SideID    = Rot2Glob_temp(iSide)
+      CNElemID  = GetCNElemID(SideInfo_Shared(SIDE_ELEMID,SideID))
+      LocSideID = SideInfo_Shared(SIDE_LOCALID,SideID)
 
-      ! Check if the side was added in a previous step
-      DO iNeigh = 1, NumRotPeriodicNeigh(iSide)
-        IF(RotPeriodicSideMapping_temp(iSide,iNeigh).EQ.SideID2) CYCLE iNodeLoop
-      END DO ! iNeigh = 1, NumRotPeriodicNeigh(iSide)
+      jSideLoop: DO jSide = 1, nRotPeriodicSides
+        SideID2 = Rot2Glob_temp(jSide)
+        FoundConnection = .FALSE.
 
-      ! Found connection
-      NumRotPeriodicNeigh(iSide) = NumRotPeriodicNeigh(iSide) + 1
-      IF(NumRotPeriodicNeigh(iSide).GT.NbrOfRotConnections) CALL abort(__STAMP__,&
-            ' ERROR: Number of rotational periodic side exceed fixed number of ',IntInfoOpt=NbrOfRotConnections)
-      RotPeriodicSideMapping_temp(iSide,NumRotPeriodicNeigh(iSide)) = SideID2
+        ! Check if both sides are on the same boundary, i.e., they cannot be connected
+        IF(PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID)).EQ. &
+            PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID2))) CYCLE jSideLoop
 
-      ! Only do vice versa mapping if the processor has been assigned this side
-      IF(mySide)THEN
+        ! Check if jSide is assigned to the proc
+        mySide = (jSide.GE.firstSide).AND.(jSide.LE.lastSide)
+
         ! Check if the side was added in a previous step
-        DO iNeigh = 1, NumRotPeriodicNeigh(jSide)
-          IF(RotPeriodicSideMapping_temp(jSide,iNeigh).EQ.SideID) CYCLE iNodeLoop
-        END DO ! iNeigh = 1, NumRotPeriodicNeigh(iSide)
-        NumRotPeriodicNeigh(jSide) = NumRotPeriodicNeigh(jSide) + 1
-        IF(NumRotPeriodicNeigh(jSide).GT.NbrOfRotConnections) CALL abort(__STAMP__,&
-            ' jSide: Number of rotational periodic side exceed fixed number of ',IntInfoOpt=NbrOfRotConnections)
-        RotPeriodicSideMapping_temp(jSide,NumRotPeriodicNeigh(jSide)) = SideID
-      END IF ! mySide
-
-      ! Exit loop over nodes when side has been assigned
-      EXIT iNodeLoop
-
-    END DO iNodeLoop ! iNode = 1, 4
-
-    IF(.NOT.FoundConnection) THEN
-      ! Double check is needed if bounding box of jSide is within the original side (iSide) -> check whether jSide is within
-      ! bounding box of iSide. Need to get the NodeIDs of jSide (= SideID2).
-      CNElemID2  = GetCNElemID(SideInfo_Shared(SIDE_ELEMID,SideID2))
-      LocSideID2 = SideInfo_Shared(SIDE_LOCALID,SideID2)
-
-      ! Loop the 4 nodes of jSide and test against the bounding box of iSide
-      jNodeLoop: DO iNode = 1, 4
-        NodeID = ElemSideNodeID_Shared(iNode,LocSideID2,CNElemID2) + 1
-        ! Calculate node coordinates in reference system
-        iNodeVec(1:3) = NodeCoords_Shared(1:3,NodeID)
-        iNodeH        = iNodeVec(k)
-        iNodeR        = SQRT(iNodeVec(l)**2+iNodeVec(m)**2)
-
-        ! Cycle if outside of bounding box of iSide
-        IF(BoundingBox(1,iSide).GT.iNodeH) CYCLE jNodeLoop
-        IF(BoundingBox(2,iSide).LT.iNodeH) CYCLE jNodeLoop
-        IF(BoundingBox(3,iSide).GT.iNodeR) CYCLE jNodeLoop
-        IF(BoundingBox(4,iSide).LT.iNodeR) CYCLE jNodeLoop
-
-        ! Check if the side was added in a previous step
-        DO iNeigh = 1, NumRotPeriodicNeigh(iSide)
-          IF(RotPeriodicSideMapping_temp(iSide,iNeigh).EQ.SideID2) CYCLE jNodeLoop
-        END DO ! iNeigh = 1, NumRotPeriodicNeigh(iSide)
-
-        ! Found connection
-        NumRotPeriodicNeigh(iSide) = NumRotPeriodicNeigh(iSide) + 1
-        IF(NumRotPeriodicNeigh(iSide).GT.NbrOfRotConnections) CALL abort(__STAMP__,&
-              ' ERROR: Number of rotational periodic side exceed fixed number of ',IntInfoOpt=NbrOfRotConnections)
-        RotPeriodicSideMapping_temp(iSide,NumRotPeriodicNeigh(iSide)) = SideID2
-
-        ! Only do vice versa mapping if the processor has been assigned this side
         IF(mySide)THEN
-          ! Check if the side was added in a previous step
           DO iNeigh = 1, NumRotPeriodicNeigh(jSide)
-            IF(RotPeriodicSideMapping_temp(jSide,iNeigh).EQ.SideID) CYCLE jNodeLoop
-          END DO ! iNeigh = 1, NumRotPeriodicNeigh(iSide)
-          NumRotPeriodicNeigh(jSide) = NumRotPeriodicNeigh(jSide) + 1
-          IF(NumRotPeriodicNeigh(jSide).GT.NbrOfRotConnections) CALL abort(__STAMP__,&
-              ' jSide: Number of rotational periodic side exceed fixed number of ',IntInfoOpt=NbrOfRotConnections)
-          RotPeriodicSideMapping_temp(jSide,NumRotPeriodicNeigh(jSide)) = SideID
+            IF(RotPeriodicSideMapping_temp(jSide,iNeigh).EQ.SideID) CYCLE jSideLoop
+          END DO ! iNeigh = 1, NumRotPeriodicNeigh(jSide)
         END IF ! mySide
 
-        ! Exit loop over nodes when side has been assigned
-        EXIT jNodeLoop
+        ! Loop the 4 nodes of iSide and test against the bounding box of jSide
+        iNodeLoop: DO iNode = 1, 4
+          NodeID = ElemSideNodeID_Shared(iNode,LocSideID,CNElemID) + 1
+          ! Calculate node coordinates in reference system
+          iNodeVec(1:3) = NodeCoords_Shared(1:3,NodeID)
+          iNodeH        = iNodeVec(k)
+          iNodeR        = SQRT(iNodeVec(l)**2+iNodeVec(m)**2)
 
-      END DO jNodeLoop ! iNode = 1, 4
-    END IF ! .NOT.FoundConnection
+          ! Cycle if outside of bounding box of jSide
+          IF(BoundingBox(1,jSide).GT.iNodeH) CYCLE iNodeLoop
+          IF(BoundingBox(2,jSide).LT.iNodeH) CYCLE iNodeLoop
+          IF(BoundingBox(3,jSide).GT.iNodeR) CYCLE iNodeLoop
+          IF(BoundingBox(4,jSide).LT.iNodeR) CYCLE iNodeLoop
 
-  END DO jSideLoop ! jSide = 1, nRotPeriodicSides
+          FoundConnection = .TRUE.
 
-  ! Check if iSide could not be mapped to any other side
-  IF(NumRotPeriodicNeigh(iSide).EQ.0) THEN
-    IF(ElemInfo_Shared(ELEM_HALOFLAG,SideInfo_Shared(SIDE_ELEMID,SideID)).EQ.3) THEN
-      ! Found side on element that is a neighbor element in rot halo region (they have halo flag 3)
-      ! If a particle ends up there, an abort is in place RotPeriodicBoundary routine, as RotPeriodicSideMapping will get an -1 later
-      NumRotPeriodicNeigh(iSide) = 1
-      RotPeriodicSideMapping_temp(iSide,NumRotPeriodicNeigh(iSide)) = 0
-    END IF
-  END IF ! NumRotPeriodicNeigh(iSide).EQ.0
+          ! Check if the side was added in a previous step
+          DO iNeigh = 1, NumRotPeriodicNeigh(iSide)
+            IF(RotPeriodicSideMapping_temp(iSide,iNeigh).EQ.SideID2) CYCLE iNodeLoop
+          END DO ! iNeigh = 1, NumRotPeriodicNeigh(iSide)
 
-END DO iSideLoop ! iSide = firstSide, lastSide
+          ! Found connection
+          NumRotPeriodicNeigh(iSide) = NumRotPeriodicNeigh(iSide) + 1
+          IF(NumRotPeriodicNeigh(iSide).GT.NbrOfRotConnections) CALL abort(__STAMP__,&
+              ' ERROR: Number of rotational periodic side exceed fixed number of ',IntInfoOpt=NbrOfRotConnections)
+          RotPeriodicSideMapping_temp(iSide,NumRotPeriodicNeigh(iSide)) = SideID2
 
-! (3b) Addition of neighbour elements for each node of a mapped side (especially a problem for tetrahedron-based meshes)
-DO iSide = firstSide, lastSide
-  NewNeighNumber = NumRotPeriodicNeigh(iSide)
-  DO iNeigh=1, NumRotPeriodicNeigh(iSide)
-    IF(RotPeriodicSideMapping_temp(iSide,iNeigh).EQ.0) CYCLE
-    SideID = RotPeriodicSideMapping_temp(iSide,iNeigh)
-    CNElemID  = GetCNElemID(SideInfo_Shared(SIDE_ELEMID,SideID))
-    LocSideID = SideInfo_Shared(SIDE_LOCALID,SideID)
-    ! Loop over the nodes of the neighbour side
-    kNodeLoop: DO iNode = 1, 4
-      NodeID = ElemSideNodeID_Shared(iNode,LocSideID,CNElemID) + 1
-      UniqueNodeID = NodeInfo_Shared(NodeID)
-      ElemLoop: DO iElem = NodeToElemMapping(1,UniqueNodeID) + 1, NodeToElemMapping(1,UniqueNodeID) + NodeToElemMapping(2,UniqueNodeID)
-        TestElemID = NodeToElemInfo(iElem)
-        ! Check if its the same element
-        IF(CNElemID.EQ.TestElemID) CYCLE ElemLoop
-        ! Check if element is already in the list of the OLD neighbours
-        NeighLoop: DO jNeigh=1, NumRotPeriodicNeigh(iSide)
-          ! Skip yourself
-          IF(iNeigh.EQ.jNeigh) CYCLE NeighLoop
-          CNElemID2  = GetCNElemID(SideInfo_Shared(SIDE_ELEMID,RotPeriodicSideMapping_temp(iSide,jNeigh)))
-          IF(CNElemID2.EQ.TestElemID) CYCLE ElemLoop
-        END DO NeighLoop
-        ! Check if element is already in the list of the NEW neighbours
-        NewNeighLoop: DO kNeigh = NumRotPeriodicNeigh(iSide),NewNeighNumber
-          jElem = ABS(RotPeriodicSideMapping_temp(iSide,kNeigh))
-          IF(jElem.EQ.GetGlobalElemID(TestElemID)) CYCLE ElemLoop
-        END DO NewNeighLoop
-        ! Add element to the neighbour list
-        NewNeighNumber = NewNeighNumber + 1
-        IF(NewNeighNumber.GT.NbrOfRotConnections) CALL abort(__STAMP__,&
-            ' NewNeighNumber: Number of rotational periodic side exceed fixed number of ',IntInfoOpt=NbrOfRotConnections)
-        ! Storing the global element ID with a negative sign in the side mapping array, treated during step (5)
-        RotPeriodicSideMapping_temp(iSide,NewNeighNumber) = -GetGlobalElemID(TestElemID)
-      END DO ElemLoop
-    END DO kNodeLoop
-  END DO
-  NumRotPeriodicNeigh(iSide) = NewNeighNumber
-  ! Check if iSide still could not be mapped to any other side.
-  IF(NumRotPeriodicNeigh(iSide).EQ.0) THEN
-    SideID = Rot2Glob_temp(iSide)
-    IF(ElemInfo_Shared(ELEM_HALOFLAG,SideInfo_Shared(SIDE_ELEMID,SideID)).NE.3) THEN
-      ! Count number of sides that could not be mapped (warning output + info in h5 file when CalcMeshInfo=T)
-      ! This is acceptable when the halo region (ELEM_HALOFLAG = 2) of the node merely reaches the rotational BC but does not extend any further.
-      notMapped = notMapped + 1
-      IF(ElemInfo_Shared(ELEM_HALOFLAG,SideInfo_Shared(SIDE_ELEMID,SideID)).EQ.1) abortAfterWriteOut = .TRUE.
-    END IF
-  END IF
-END DO
+          ! Only do vice versa mapping if the processor has been assigned this side
+          IF(mySide)THEN
+            ! Check if the side was added in a previous step
+            DO iNeigh = 1, NumRotPeriodicNeigh(jSide)
+              IF(RotPeriodicSideMapping_temp(jSide,iNeigh).EQ.SideID) CYCLE iNodeLoop
+            END DO ! iNeigh = 1, NumRotPeriodicNeigh(iSide)
+            NumRotPeriodicNeigh(jSide) = NumRotPeriodicNeigh(jSide) + 1
+            IF(NumRotPeriodicNeigh(jSide).GT.NbrOfRotConnections) CALL abort(__STAMP__,&
+                ' jSide: Number of rotational periodic side exceed fixed number of ',IntInfoOpt=NbrOfRotConnections)
+            RotPeriodicSideMapping_temp(jSide,NumRotPeriodicNeigh(jSide)) = SideID
+          END IF ! mySide
 
-! (4) reallocate array due to number of potential rotational periodic sides
+          ! Exit loop over nodes when side has been assigned
+          EXIT iNodeLoop
+
+        END DO iNodeLoop ! iNode = 1, 4
+
+        IF(.NOT.FoundConnection) THEN
+          ! Double check is needed if bounding box of jSide is within the original side (iSide) -> check whether jSide is within
+          ! bounding box of iSide. Need to get the NodeIDs of jSide (= SideID2).
+          CNElemID2  = GetCNElemID(SideInfo_Shared(SIDE_ELEMID,SideID2))
+          LocSideID2 = SideInfo_Shared(SIDE_LOCALID,SideID2)
+
+          ! Loop the 4 nodes of jSide and test against the bounding box of iSide
+          jNodeLoop: DO iNode = 1, 4
+            NodeID = ElemSideNodeID_Shared(iNode,LocSideID2,CNElemID2) + 1
+            ! Calculate node coordinates in reference system
+            iNodeVec(1:3) = NodeCoords_Shared(1:3,NodeID)
+            iNodeH        = iNodeVec(k)
+            iNodeR        = SQRT(iNodeVec(l)**2+iNodeVec(m)**2)
+
+            ! Cycle if outside of bounding box of iSide
+            IF(BoundingBox(1,iSide).GT.iNodeH) CYCLE jNodeLoop
+            IF(BoundingBox(2,iSide).LT.iNodeH) CYCLE jNodeLoop
+            IF(BoundingBox(3,iSide).GT.iNodeR) CYCLE jNodeLoop
+            IF(BoundingBox(4,iSide).LT.iNodeR) CYCLE jNodeLoop
+
+            ! Check if the side was added in a previous step
+            DO iNeigh = 1, NumRotPeriodicNeigh(iSide)
+              IF(RotPeriodicSideMapping_temp(iSide,iNeigh).EQ.SideID2) CYCLE jNodeLoop
+            END DO ! iNeigh = 1, NumRotPeriodicNeigh(iSide)
+
+            ! Found connection
+            NumRotPeriodicNeigh(iSide) = NumRotPeriodicNeigh(iSide) + 1
+            IF(NumRotPeriodicNeigh(iSide).GT.NbrOfRotConnections) CALL abort(__STAMP__,&
+                ' ERROR: Number of rotational periodic side exceed fixed number of ',IntInfoOpt=NbrOfRotConnections)
+            RotPeriodicSideMapping_temp(iSide,NumRotPeriodicNeigh(iSide)) = SideID2
+
+            ! Only do vice versa mapping if the processor has been assigned this side
+            IF(mySide)THEN
+              ! Check if the side was added in a previous step
+              DO iNeigh = 1, NumRotPeriodicNeigh(jSide)
+                IF(RotPeriodicSideMapping_temp(jSide,iNeigh).EQ.SideID) CYCLE jNodeLoop
+              END DO ! iNeigh = 1, NumRotPeriodicNeigh(iSide)
+              NumRotPeriodicNeigh(jSide) = NumRotPeriodicNeigh(jSide) + 1
+              IF(NumRotPeriodicNeigh(jSide).GT.NbrOfRotConnections) CALL abort(__STAMP__,&
+                  ' jSide: Number of rotational periodic side exceed fixed number of ',IntInfoOpt=NbrOfRotConnections)
+              RotPeriodicSideMapping_temp(jSide,NumRotPeriodicNeigh(jSide)) = SideID
+            END IF ! mySide
+
+            ! Exit loop over nodes when side has been assigned
+            EXIT jNodeLoop
+
+          END DO jNodeLoop ! iNode = 1, 4
+        END IF ! .NOT.FoundConnection
+
+      END DO jSideLoop ! jSide = 1, nRotPeriodicSides
+
+      ! Check if iSide could not be mapped to any other side
+      IF(NumRotPeriodicNeigh(iSide).EQ.0) THEN
+        IF(ElemInfo_Shared(ELEM_HALOFLAG,SideInfo_Shared(SIDE_ELEMID,SideID)).EQ.3) THEN
+          ! Found side on element that is a neighbor element in rot halo region (they have halo flag 3)
+          ! If a particle ends up there, an abort is in place RotPeriodicBoundary routine, as RotPeriodicSideMapping will get an -1 later
+          NumRotPeriodicNeigh(iSide) = 1
+          RotPeriodicSideMapping_temp(iSide,NumRotPeriodicNeigh(iSide)) = 0
+        END IF
+      END IF ! NumRotPeriodicNeigh(iSide).EQ.0
+
+    END DO iSideLoop ! iSide = firstSide, lastSide
+
+    ! (3b) Addition of neighbour elements for each node of a mapped side (especially a problem for tetrahedron-based meshes)
+    DO iSide = firstSide, lastSide
+      NewNeighNumber = NumRotPeriodicNeigh(iSide)
+      DO iNeigh=1, NumRotPeriodicNeigh(iSide)
+        IF(RotPeriodicSideMapping_temp(iSide,iNeigh).EQ.0) CYCLE
+        SideID = RotPeriodicSideMapping_temp(iSide,iNeigh)
+        CNElemID  = GetCNElemID(SideInfo_Shared(SIDE_ELEMID,SideID))
+        LocSideID = SideInfo_Shared(SIDE_LOCALID,SideID)
+        ! Loop over the nodes of the neighbour side
+        kNodeLoop: DO iNode = 1, 4
+          NodeID = ElemSideNodeID_Shared(iNode,LocSideID,CNElemID) + 1
+          UniqueNodeID = NodeInfo_Shared(NodeID)
+          ElemLoop: DO iElem = NodeToElemMapping(1,UniqueNodeID) + 1, NodeToElemMapping(1,UniqueNodeID) + NodeToElemMapping(2,UniqueNodeID)
+            TestElemID = NodeToElemInfo(iElem)
+            ! Check if its the same element
+            IF(CNElemID.EQ.TestElemID) CYCLE ElemLoop
+            ! Check if element is already in the list of the OLD neighbours
+            NeighLoop: DO jNeigh=1, NumRotPeriodicNeigh(iSide)
+              ! Skip yourself
+              IF(iNeigh.EQ.jNeigh) CYCLE NeighLoop
+              CNElemID2  = GetCNElemID(SideInfo_Shared(SIDE_ELEMID,RotPeriodicSideMapping_temp(iSide,jNeigh)))
+              IF(CNElemID2.EQ.TestElemID) CYCLE ElemLoop
+            END DO NeighLoop
+            ! Check if element is already in the list of the NEW neighbours
+            NewNeighLoop: DO kNeigh = NumRotPeriodicNeigh(iSide),NewNeighNumber
+              jElem = ABS(RotPeriodicSideMapping_temp(iSide,kNeigh))
+              IF(jElem.EQ.GetGlobalElemID(TestElemID)) CYCLE ElemLoop
+            END DO NewNeighLoop
+            ! Add element to the neighbour list
+            NewNeighNumber = NewNeighNumber + 1
+            IF(NewNeighNumber.GT.NbrOfRotConnections) CALL abort(__STAMP__,&
+                ' NewNeighNumber: Number of rotational periodic side exceed fixed number of ',IntInfoOpt=NbrOfRotConnections)
+            ! Storing the global element ID with a negative sign in the side mapping array, treated during step (5)
+            RotPeriodicSideMapping_temp(iSide,NewNeighNumber) = -GetGlobalElemID(TestElemID)
+          END DO ElemLoop
+        END DO kNodeLoop
+      END DO
+      NumRotPeriodicNeigh(iSide) = NewNeighNumber
+      ! Check if iSide still could not be mapped to any other side.
+      IF(NumRotPeriodicNeigh(iSide).EQ.0) THEN
+        SideID = Rot2Glob_temp(iSide)
+        IF(ElemInfo_Shared(ELEM_HALOFLAG,SideInfo_Shared(SIDE_ELEMID,SideID)).NE.3) THEN
+          ! Count number of sides that could not be mapped (warning output + info in h5 file when CalcMeshInfo=T)
+          ! This is acceptable when the halo region (ELEM_HALOFLAG = 2) of the node merely reaches the rotational BC but does not extend any further.
+          notMapped = notMapped + 1
+          IF(ElemInfo_Shared(ELEM_HALOFLAG,SideInfo_Shared(SIDE_ELEMID,SideID)).EQ.1) abortAfterWriteOut = .TRUE.
+        END IF
+      END IF
+    END DO
+
+    ! (4) reallocate array due to number of potential rotational periodic sides
 #if USE_MPI
-CALL BARRIER_AND_SYNC(NumRotPeriodicNeigh_Shared_Win, MPI_COMM_SHARED)
-CALL BARRIER_AND_SYNC(RotPeriodicSideMapping_temp_Shared_Win, MPI_COMM_SHARED)
-! The allreduce is only required when a global array for writing to .h5 is to be used
-!CALL MPI_ALLREDUCE(MAXVAL(NumRotPeriodicNeigh) , MaxNumRotPeriodicNeigh , 1 , MPI_INTEGER , MPI_MAX , MPI_COMM_WORLD , iError)
+    CALL BARRIER_AND_SYNC(NumRotPeriodicNeigh_Shared_Win, MPI_COMM_SHARED)
+    CALL BARRIER_AND_SYNC(RotPeriodicSideMapping_temp_Shared_Win, MPI_COMM_SHARED)
+    ! The allreduce is only required when a global array for writing to .h5 is to be used
+    !CALL MPI_ALLREDUCE(MAXVAL(NumRotPeriodicNeigh) , MaxNumRotPeriodicNeigh , 1 , MPI_INTEGER , MPI_MAX , MPI_COMM_PICLAS , iError)
 #endif /*USE_MPI*/
-MaxNumRotPeriodicNeigh = MAXVAL(NumRotPeriodicNeigh)
+    MaxNumRotPeriodicNeigh = MAXVAL(NumRotPeriodicNeigh)
 
+    IF(MaxNumRotPeriodicNeigh.GT.0)THEN
 #if USE_MPI
-CALL Allocate_Shared((/nRotPeriodicSides,MaxNumRotPeriodicNeigh/) , RotPeriodicSideMapping_Shared_Win , RotPeriodicSideMapping_Shared)
-CALL MPI_WIN_LOCK_ALL(0 , RotPeriodicSideMapping_Shared_Win , IERROR)
-RotPeriodicSideMapping => RotPeriodicSideMapping_Shared
-IF (myComputeNodeRank.EQ.0) RotPeriodicSideMapping = -1
-CALL BARRIER_AND_SYNC(RotPeriodicSideMapping_Shared_Win , MPI_COMM_SHARED)
+      CALL Allocate_Shared((/nRotPeriodicSides,MaxNumRotPeriodicNeigh/) , RotPeriodicSideMapping_Shared_Win , RotPeriodicSideMapping_Shared)
+      CALL MPI_WIN_LOCK_ALL(0 , RotPeriodicSideMapping_Shared_Win , IERROR)
+      RotPeriodicSideMapping => RotPeriodicSideMapping_Shared
+      IF (myComputeNodeRank.EQ.0) RotPeriodicSideMapping = -1
+      CALL BARRIER_AND_SYNC(RotPeriodicSideMapping_Shared_Win , MPI_COMM_SHARED)
 #else
-ALLOCATE(RotPeriodicSideMapping(nRotPeriodicSides,MaxNumRotPeriodicNeigh))
-RotPeriodicSideMapping = -1
+      ALLOCATE(RotPeriodicSideMapping(nRotPeriodicSides,MaxNumRotPeriodicNeigh))
+      RotPeriodicSideMapping = -1
 #endif /*USE_MPI*/
 
-! (5) store the side to element mapping in the final array, make sure to convert the negative ElemIDs
-!     (stored directly in the temporary array during 3b)
-DO iSide=1, nRotPeriodicSides
-  DO iNeigh=1, MaxNumRotPeriodicNeigh
-    SideID = RotPeriodicSideMapping_temp(iSide,iNeigh)
-    IF(SideID.GT.0) THEN
-      ! Sides added during (3a), get the global element ID for these neighbours
-      GlobalElemID = SideInfo_Shared(SIDE_ELEMID,SideID)
-      RotPeriodicSideMapping(iSide,iNeigh) = GlobalElemID
-    ELSE IF(SideID.LT.0) THEN
-      ! Global elements added during (3b) directly with a negative sign
-      RotPeriodicSideMapping(iSide,iNeigh) = ABS(SideID)
-    END IF
-  END DO
-END DO
+      ! (5) store the side to element mapping in the final array, make sure to convert the negative ElemIDs
+      !     (stored directly in the temporary array during 3b)
+      DO iSide=1, nRotPeriodicSides
+        DO iNeigh=1, MaxNumRotPeriodicNeigh
+          SideID = RotPeriodicSideMapping_temp(iSide,iNeigh)
+          IF(SideID.GT.0) THEN
+            ! Sides added during (3a), get the global element ID for these neighbours
+            GlobalElemID = SideInfo_Shared(SIDE_ELEMID,SideID)
+            RotPeriodicSideMapping(iSide,iNeigh) = GlobalElemID
+          ELSE IF(SideID.LT.0) THEN
+            ! Global elements added during (3b) directly with a negative sign
+            RotPeriodicSideMapping(iSide,iNeigh) = ABS(SideID)
+          END IF
+        END DO
+      END DO
+    END IF ! MaxNumRotPeriodicNeigh.GT.0
+
+    ! Deallocate temporary arrays
+#if USE_MPI
+    CALL MPI_BARRIER(MPI_COMM_SHARED,iERROR)
+    CALL UNLOCK_AND_FREE(RotPeriodicSideMapping_temp_Shared_Win)
+    ADEALLOCATE(RotPeriodicSideMapping_temp_Shared)
+    ADEALLOCATE(RotPeriodicSideMapping_temp)
+    CALL UNLOCK_AND_FREE(BoundingBox_Shared_Win)
+    ADEALLOCATE(BoundingBox_Shared)
+    ADEALLOCATE(BoundingBox)
+#else
+    DEALLOCATE(RotPeriodicSideMapping_temp)
+    DEALLOCATE(BoundingBox)
+#endif /*USE_MPI*/
+
+  END IF ! nRotPeriodicSides.GT.0
 
 #if USE_MPI
-CALL MPI_ALLREDUCE(notMapped , notMappedTotal , 1 , MPI_INTEGER , MPI_SUM , MPI_COMM_WORLD , IERROR)
+  CALL MPI_BARRIER(MPI_COMM_SHARED,iERROR)
+  CALL UNLOCK_AND_FREE(Rot2Glob_temp_Shared_Win)
+  ADEALLOCATE(Rot2Glob_temp_Shared)
+  ADEALLOCATE(Rot2Glob_temp)
+#else
+  DEALLOCATE(Rot2Glob_temp)
+#endif /*USE_MPI*/
+
+END IF ! nComputeNodeSurfTotalSides.GT.0
+
+! Sanity check
+#if USE_MPI
+CALL MPI_ALLREDUCE(notMapped , notMappedTotal , 1 , MPI_INTEGER , MPI_SUM , MPI_COMM_PICLAS , IERROR)
 #else
 notMappedTotal = notMapped
 #endif /*USE_MPI*/
@@ -1444,22 +1866,7 @@ IF(notMappedTotal.GT.0)THEN
   IF(abortAfterWriteOut) CALL abort(__STAMP__,' ERROR: At least one rot periodic side on the local compute-node did not find a corresponding side.')
 END IF ! notMappedTotal.GT.0
 
-#if USE_MPI
-CALL MPI_BARRIER(MPI_COMM_SHARED,iERROR)
-CALL UNLOCK_AND_FREE(Rot2Glob_temp_Shared_Win)
-ADEALLOCATE(Rot2Glob_temp_Shared)
-ADEALLOCATE(Rot2Glob_temp)
-CALL UNLOCK_AND_FREE(RotPeriodicSideMapping_temp_Shared_Win)
-ADEALLOCATE(RotPeriodicSideMapping_temp_Shared)
-ADEALLOCATE(RotPeriodicSideMapping_temp)
-CALL UNLOCK_AND_FREE(BoundingBox_Shared_Win)
-ADEALLOCATE(BoundingBox_Shared)
-ADEALLOCATE(BoundingBox)
-#else
-DEALLOCATE(Rot2Glob_temp)
-DEALLOCATE(RotPeriodicSideMapping_temp)
-DEALLOCATE(BoundingBox)
-#endif /*USE_MPI*/
+
 
 END SUBROUTINE BuildParticleBoundaryRotPeriodic
 
@@ -1480,7 +1887,7 @@ USE MOD_Mesh_Tools                ,ONLY: GetCNElemID
 !USE MOD_MPI_Shared
 USE MOD_Particle_Boundary_Vars    ,ONLY: nComputeNodeSurfTotalSides
 #else
-USE MOD_Particle_Boundary_Vars  ,ONLY: nSurfTotalSides
+USE MOD_Particle_Boundary_Vars  ,ONLY: nGlobalSurfSides
 #endif /*USE_MPI*/
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -1507,7 +1914,7 @@ firstSide = 1 ! INT(REAL( myComputeNodeRank   )*REAL(nComputeNodeSurfTotalSides)
 lastSide  = nComputeNodeSurfTotalSides ! INT(REAL((myComputeNodeRank+1))*REAL(nComputeNodeSurfTotalSides)/REAL(nComputeNodeProcessors))
 #else
 firstSide = 1
-lastSide  = nSurfTotalSides
+lastSide  = nGlobalSurfSides
 #endif /*USE_MPI*/
 ! First loop: calculating the number of sides per inter plane and finds the maximum number
 iBCLoop1: DO iPartBound=1,nPartBound
@@ -1737,6 +2144,12 @@ SDEALLOCATE(PartBound%ElecACC)
 SDEALLOCATE(PartBound%Resample)
 SDEALLOCATE(PartBound%WallVelo)
 SDEALLOCATE(PartBound%RotVelo)
+SDEALLOCATE(PartBound%PhotonEnACC)
+SDEALLOCATE(PartBound%PhotonSEEYield)
+SDEALLOCATE(PartBound%PhotonSEEWorkFunction)
+SDEALLOCATE(PartBound%PhotonSEEMacroParticleFactor)
+SDEALLOCATE(PartBound%PhotonSEEElectronSpecies)
+SDEALLOCATE(PartBound%PhotonSpecularReflection)
 SDEALLOCATE(PartBound%RotOmega)
 SDEALLOCATE(PartBound%NormalizedRadiusDir)
 SDEALLOCATE(PartBound%RotAxisPosition)
@@ -1757,17 +2170,30 @@ SDEALLOCATE(PartBound%Dielectric)
 SDEALLOCATE(PartBound%BoundaryParticleOutputHDF5)
 SDEALLOCATE(PartBound%RadiativeEmissivity)
 
+! Mapping arrays are allocated even if the node does not have sampling surfaces
+#if USE_MPI
+IF(SurfCOMM%UNICATOR.NE.MPI_COMM_NULL) CALL MPI_COMM_FREE(SurfCOMM%UNICATOR,iERROR)
+CALL MPI_BARRIER(MPI_COMM_SHARED,iERROR)
+CALL UNLOCK_AND_FREE(GlobalSide2SurfSide_Shared_Win)
+IF(nComputeNodeSurfTotalSides.GT.0) CALL UNLOCK_AND_FREE(SurfSide2GlobalSide_Shared_Win)
+CALL MPI_BARRIER(MPI_COMM_SHARED,iERROR)
+ADEALLOCATE(GlobalSide2SurfSide_Shared)
+ADEALLOCATE(SurfSide2GlobalSide_Shared)
+#endif /*USE_MPI*/
+ADEALLOCATE(GlobalSide2SurfSide)
+ADEALLOCATE(SurfSide2GlobalSide)
+
 ! Rotational periodic boundary condition
-IF(PartBound%UseRotPeriodicBC)THEN
+IF(PartBound%UseRotPeriodicBC.AND.nComputeNodeSurfTotalSides.GT.0)THEN
 #if USE_MPI
   CALL MPI_BARRIER(MPI_COMM_SHARED,iERROR)
   CALL UNLOCK_AND_FREE(SurfSide2RotPeriodicSide_Shared_Win)
-  CALL UNLOCK_AND_FREE(NumRotPeriodicNeigh_Shared_Win)
+  IF(nRotPeriodicSides     .GT.0) CALL UNLOCK_AND_FREE(NumRotPeriodicNeigh_Shared_Win)
+  IF(MaxNumRotPeriodicNeigh.GT.0) CALL UNLOCK_AND_FREE(RotPeriodicSideMapping_Shared_Win)
   ADEALLOCATE(SurfSide2RotPeriodicSide_Shared)
   ADEALLOCATE(SurfSide2RotPeriodicSide)
   ADEALLOCATE(NumRotPeriodicNeigh_Shared)
   ADEALLOCATE(NumRotPeriodicNeigh)
-  CALL UNLOCK_AND_FREE(RotPeriodicSideMapping_Shared_Win)
   ADEALLOCATE(RotPeriodicSideMapping_Shared)
   ADEALLOCATE(RotPeriodicSideMapping)
   ADEALLOCATE(InterPlaneSideMapping)

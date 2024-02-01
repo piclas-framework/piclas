@@ -84,7 +84,6 @@ Before setting up a simulation, the code must be compiled with the desired param
     * RK4: Runge-Kutta 4th order in time
     * RK14: Low storage Runge-Kutta 4, 14 stages version - Niegemann et al 2012
     * DSMC: Direct Simulation Monte Carlo, Section {ref}`sec:DSMC`
-    * RESERVOIR: Simplified DSMC module for single cell reservoir simulations
     * FP-Flow: Fokker-Planck-based collision operator, Section {ref}`sec:FP-Flow`
     * BGK-Flow: Bhatnagar-Gross-Krook collision operator, Section {ref}`sec:BGK-Flow`
 * ``PICLAS_EQNSYSNAME``: Equation system to be solved
@@ -152,7 +151,7 @@ The concept of the parameter file is described as followed:
 * The order of defined variables is irrelevant, except for the special case when redefining boundaries.
 However, it is preferable to group similar variables together.
 
-The options and underlying models are discussed in Chapter {ref}`userguide/features-and-models/index:Features & Models`, while the available 
+The options and underlying models are discussed in Chapter {ref}`userguide/features-and-models/index:Features & Models`, while the available
 output options are given in Chapter {ref}`userguide/visu_output:Visualization & Output`.
 Due to the sheer number of parameters available, it is advisable to build upon an existing parameter file from one of the tutorials
 in Chapter {ref}`userguide/tutorials/index:Tutorials`.
@@ -166,6 +165,11 @@ After the mesh generation, compilation of the binary and setup of the parameter 
 The simulation may be restarted from an existing state file
 
     piclas parameter.ini [DSMC.ini] [restart_file.h5]
+
+The state file , e.g., TestCase_State_000.5000000000000000.h5, contains all the required information to continue the simulation from
+this point in time
+
+    piclas parameter.ini DSMC.ini TestCase_State_000.5000000000000000.h5
 
 A state file is generated at the end of the simulation and also at every time step defined by `Analyze_dt`. **Note:** When
 restarting from an earlier time (or zero), all later state files possibly contained in your directory are deleted!
@@ -192,6 +196,18 @@ The grid elements are organized along a space-filling curved, which gives a uniq
 the mesh is simply divided into parts along the space filling curve. Thus, domain decomposition is done *fully automatic* and is
 not limited by e.g. an integer factor between the number of cores and elements. The only limitation is that the number of cores
 may not exceed the number of elements.
+
+### Profile-guided optimization (PGO)
+
+To further increase performance for production runs, profile-guided optimization can be utilized with the GNU compiler. This requires the execution of a representative simulation run with PICLas compiled using profiling instrumentation. For this purpose, the code has to be configured and compiled using the following additional settings and the `Profile` build type:
+
+    -DPICLAS_PERFORMANCE=ON -DUSE_PGO=ON -DCMAKE_BUILD_TYPE=Profile
+
+A short representative simulation has to be performed, where additional files with the profiling information will be stored. Note that the test run should be relatively short as the code will be substantially slower than the regular `Release` build type. Afterwards, the code can be configured and compiled again for the production runs, using the `Release` build type:
+
+    -DPICLAS_PERFORMANCE=ON -DUSE_PGO=ON -DCMAKE_BUILD_TYPE=Release
+
+Warnings regarding missing profiling files (`-Wmissing-profile`) can be ignored, if they concern modules not relevant for the current simulation method (e.g. `bgk_colloperator.f90` will be missing profile information if only a DSMC simulation has been performed).
 
 ## Post-processing
 

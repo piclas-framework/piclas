@@ -62,20 +62,12 @@ INTERFACE QUASIREL
   MODULE PROCEDURE QUASIREL
 END INTERFACE
 
-INTERFACE SetCellLocalParticlePosition
-  MODULE PROCEDURE SetCellLocalParticlePosition
-END INTERFACE
-
 INTERFACE CalcNbrOfPhotons
   MODULE PROCEDURE CalcNbrOfPhotons
 END INTERFACE
 
 INTERFACE CalcIntensity_Gaussian
   MODULE PROCEDURE CalcIntensity_Gaussian
-END INTERFACE
-
-INTERFACE CalcVelocity_FromWorkFuncSEE
-  MODULE PROCEDURE CalcVelocity_FromWorkFuncSEE
 END INTERFACE
 
 INTERFACE DSMC_SetInternalEnr_LauxVFD
@@ -88,11 +80,14 @@ INTERFACE CalcVectorAdditionCoeffs
 END INTERFACE
 #endif /*CODE_ANALYZE*/
 
+INTERFACE InsideQuadrilateral
+  MODULE PROCEDURE InsideQuadrilateral
+END INTERFACE
+
 !===================================================================================================================================
 PUBLIC :: CalcVelocity_taylorgreenvortex, CalcVelocity_gyrotroncircle
 PUBLIC :: IntegerDivide,SetParticleChargeAndMass,SetParticleMPF,CalcVelocity_maxwell_lpn,SamplePoissonDistri
 PUBLIC :: BessK,DEVI,SYNGE,QUASIREL
-PUBLIC :: SetCellLocalParticlePosition
 PUBLIC :: SetParticlePositionPoint, SetParticlePositionEquidistLine, SetParticlePositionLine, SetParticlePositionDisk
 PUBLIC :: SetParticlePositionCircle, SetParticlePositionGyrotronCircle, SetParticlePositionCuboidCylinder
 PUBLIC :: SetParticlePositionSphere, SetParticlePositionSinDeviation, SetParticleTimeStep
@@ -111,6 +106,7 @@ PUBLIC :: SetParticlePositionLiu2010Neutralization3D
 PUBLIC :: CalcVectorAdditionCoeffs
 #endif /*CODE_ANALYZE*/
 PUBLIC :: CountNeutralizationParticles
+PUBLIC :: InsideQuadrilateral
 !===================================================================================================================================
 CONTAINS
 
@@ -210,8 +206,9 @@ SUBROUTINE SetParticleTimeStep(NbrOfParticle)
 !> the particle vector, loops over the total number of particles and the indices in the nextFreePosition array.
 !===================================================================================================================================
 ! MODULES
-USE MOD_Particle_Vars           ,ONLY: PDM, PartTimeStep, PEM, PartState
+USE MOD_Particle_Vars           ,ONLY: PartTimeStep, PEM, PartState
 USE MOD_Particle_TimeStep       ,ONLY: GetParticleTimeStep
+USE MOD_Part_Tools              ,ONLY: GetNextFreePosition
 !----------------------------------------------------------------------------------------------------------------------------------
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -225,7 +222,7 @@ INTEGER,INTENT(IN)              :: NbrOfParticle
 INTEGER                         :: iPart, PositionNbr
 !===================================================================================================================================
 DO iPart=1, NbrOfParticle
-  PositionNbr = PDM%nextFreePosition(iPart+PDM%CurrentNextFreePosition)
+  PositionNbr = GetNextFreePosition(iPart)
   PartTimeStep(PositionNbr) = GetParticleTimeStep(PartState(1,PositionNbr), PartState(2,PositionNbr),PEM%LocalElemID(PositionNbr))
 END DO
 
@@ -238,7 +235,8 @@ SUBROUTINE SetParticleChargeAndMass(FractNbr,NbrOfParticle)
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_Particle_Vars,    ONLY : PDM, PartSpecies
+USE MOD_Particle_Vars    ,ONLY: PartSpecies
+USE MOD_Part_Tools       ,ONLY: GetNextFreePosition
 !----------------------------------------------------------------------------------------------------------------------------------
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -250,15 +248,11 @@ INTEGER,INTENT(IN)                       :: FractNbr
 INTEGER,INTENT(INOUT)                    :: NbrOfParticle
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                                  :: i,PositionNbr
+INTEGER                                  :: iPart,PositionNbr
 !===================================================================================================================================
-DO i=1, NbrOfParticle
-  PositionNbr = PDM%nextFreePosition(i+PDM%CurrentNextFreePosition)
-  IF (PositionNbr .NE. 0) THEN
-    PartSpecies(PositionNbr) = FractNbr
-  ELSE
-    CALL abort(__STAMP__,'ERROR in SetParticlePosition:ParticleIndexNbr.EQ.0 - maximum nbr of particles reached?')
-  END IF
+DO iPart=1, NbrOfParticle
+  PositionNbr = GetNextFreePosition(iPart)
+  PartSpecies(PositionNbr) = FractNbr
 END DO
 
 END SUBROUTINE SetParticleChargeAndMass
@@ -270,9 +264,9 @@ SUBROUTINE SetParticleMPF(FractNbr,iInit,NbrOfParticle)
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_Particle_Vars ,ONLY: PDM, PartMPF, Species, PartState
+USE MOD_Particle_Vars ,ONLY: PartMPF, Species, PartState
 USE MOD_DSMC_Vars     ,ONLY: RadialWeighting
-USE MOD_part_tools    ,ONLY: CalcRadWeightMPF
+USE MOD_part_tools    ,ONLY: CalcRadWeightMPF, GetNextFreePosition
 !===================================================================================================================================
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -285,25 +279,19 @@ INTEGER,INTENT(IN)        :: iInit
 INTEGER,INTENT(INOUT)     :: NbrOfParticle
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                   :: i,PositionNbr
+INTEGER                   :: iPart,PositionNbr
 !===================================================================================================================================
-i = 1
-DO WHILE (i .le. NbrOfParticle)
-  PositionNbr = PDM%nextFreePosition(i+PDM%CurrentNextFreePosition)
-  IF (PositionNbr .NE. 0) THEN
-    IF(RadialWeighting%DoRadialWeighting) THEN
-      PartMPF(PositionNbr) = CalcRadWeightMPF(PartState(2,PositionNbr),FractNbr,PositionNbr)
-    ELSE
-      IF(iInit.EQ.-1)THEN
-        PartMPF(PositionNbr) = Species(FractNbr)%MacroParticleFactor
-      ELSE
-        PartMPF(PositionNbr) = Species(FractNbr)%Init(iInit)%MacroParticleFactor ! Use emission-specific MPF (default is species MPF)
-      END IF ! iInit.EQ.-1
-    END IF
+DO iPart=1,NbrOfParticle
+  PositionNbr = GetNextFreePosition(iPart)
+  IF(RadialWeighting%DoRadialWeighting) THEN
+    PartMPF(PositionNbr) = CalcRadWeightMPF(PartState(2,PositionNbr),FractNbr,PositionNbr)
   ELSE
-    CALL abort(__STAMP__,'ERROR in SetParticlePosition:ParticleIndexNbr.EQ.0 - maximum nbr of particles reached?')
+    IF(iInit.EQ.-1)THEN
+      PartMPF(PositionNbr) = Species(FractNbr)%MacroParticleFactor
+    ELSE
+      PartMPF(PositionNbr) = Species(FractNbr)%Init(iInit)%MacroParticleFactor ! Use emission-specific MPF (default is species MPF)
+    END IF ! iInit.EQ.-1
   END IF
-  i = i + 1
 END DO
 
 END SUBROUTINE SetParticleMPF
@@ -903,132 +891,6 @@ END DO
 END SUBROUTINE SamplePoissonDistri
 
 
-SUBROUTINE SetCellLocalParticlePosition(chunkSize,iSpec,iInit,UseExactPartNum)
-!===================================================================================================================================
-!> routine for inserting particles positions locally in every cell
-!===================================================================================================================================
-! MODULES
-USE MOD_Globals
-USE MOD_DSMC_Vars               ,ONLY: RadialWeighting
-USE MOD_part_tools              ,ONLY: CalcRadWeightMPF
-USE MOD_Eval_xyz                ,ONLY: GetPositionInRefElem
-USE MOD_Mesh_Vars               ,ONLY: nElems,offsetElem
-USE MOD_Particle_Mesh_Vars      ,ONLY: LocalVolume
-USE MOD_Particle_Mesh_Vars      ,ONLY: BoundsOfElem_Shared,ElemVolume_Shared,ElemMidPoint_Shared
-USE MOD_Mesh_Tools              ,ONLY: GetCNElemID
-USE MOD_Particle_Tracking       ,ONLY: ParticleInsideCheck
-USE MOD_Particle_Vars           ,ONLY: Species, PDM, PartState, PEM, Symmetry, UseVarTimeStep, PartTimeStep, PartMPF
-USE MOD_Particle_TimeStep       ,ONLY: GetParticleTimeStep
-! IMPLICIT VARIABLE HANDLING
-IMPLICIT NONE
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
-INTEGER, INTENT(IN)              :: iSpec
-INTEGER, INTENT(IN)              :: iInit
-LOGICAL, INTENT(IN)              :: UseExactPartNum
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INOUTPUT VARIABLES
-INTEGER, INTENT(INOUT)           :: chunkSize
-!-----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-INTEGER                          :: iElem, ichunkSize, iGlobalElem
-INTEGER                          :: iPart,  nPart
-REAL                             :: iRan, RandomPos(3)
-REAL                             :: PartDens
-LOGICAL                          :: InsideFlag
-INTEGER                          :: CellChunkSize(1+offsetElem:nElems+offsetElem)
-INTEGER                          :: chunkSize_tmp, ParticleIndexNbr
-REAL                             :: adaptTimestep
-INTEGER                          :: CNElemID
-!-----------------------------------------------------------------------------------------------------------------------------------
-  IF (UseExactPartNum) THEN
-    IF(chunkSize.GE.PDM%maxParticleNumber) THEN
-      CALL abort(__STAMP__,'SetCellLocalParticlePosition: Maximum particle number reached! max. particles needed: ',chunksize)
-    END IF
-    CellChunkSize(:)=0
-    ASSOCIATE( start => GetCNElemID(1+offsetElem),&
-               end   => GetCNElemID(nElems+offsetElem))
-      CALL IntegerDivide(chunkSize,nElems,ElemVolume_Shared(start:end),CellChunkSize(:))
-    END ASSOCIATE
-  ELSE
-    PartDens = Species(iSpec)%Init(iInit)%PartDensity / Species(iSpec)%MacroParticleFactor   ! numerical Partdensity is needed
-    IF(RadialWeighting%DoRadialWeighting) PartDens = PartDens * 2. / (RadialWeighting%PartScaleFactor)
-    chunkSize_tmp = INT(PartDens * LocalVolume)
-    IF(chunkSize_tmp.GE.PDM%maxParticleNumber) THEN
-      CALL abort(__STAMP__,&
-      'ERROR in SetCellLocalParticlePosition: Maximum particle number during sanity check! max. particles needed: ',&
-      IntInfoOpt=chunkSize_tmp)
-    END IF
-  END IF
-
-  ichunkSize = 1
-  ParticleIndexNbr = 1
-  DO iElem = 1, nElems
-    iGlobalElem = iElem + offsetElem
-    CNElemID = GetCNElemID(iGlobalElem)
-    ASSOCIATE( Bounds => BoundsOfElem_Shared(1:2,1:3,iGlobalElem) ) ! 1-2: Min, Max value; 1-3: x,y,z
-      IF (UseExactPartNum) THEN
-        nPart = CellChunkSize(iGlobalElem)
-      ELSE
-        IF(RadialWeighting%DoRadialWeighting) THEN
-          PartDens = Species(iSpec)%Init(iInit)%PartDensity / CalcRadWeightMPF(ElemMidPoint_Shared(2,CNElemID), iSpec)
-        END IF
-        CALL RANDOM_NUMBER(iRan)
-        IF(UseVarTimeStep) THEN
-          adaptTimestep = GetParticleTimeStep(ElemMidPoint_Shared(1,CNElemID), ElemMidPoint_Shared(2,CNElemID), iElem)
-          nPart = INT(PartDens / adaptTimestep * ElemVolume_Shared(CNElemID) + iRan)
-        ELSE
-          nPart = INT(PartDens * ElemVolume_Shared(CNElemID) + iRan)
-        END IF
-      END IF
-      DO iPart = 1, nPart
-        ParticleIndexNbr = PDM%nextFreePosition(iChunksize + PDM%CurrentNextFreePosition)
-        IF (ParticleIndexNbr .ne. 0) THEN
-          InsideFlag=.FALSE.
-          DO WHILE(.NOT.InsideFlag)
-            CALL RANDOM_NUMBER(RandomPos)
-            IF(Symmetry%Axisymmetric.AND.(.NOT.RadialWeighting%DoRadialWeighting)) THEN
-              ! Treatment of axisymmetry without weighting
-              RandomPos(1) = Bounds(1,1) + RandomPos(1)*(Bounds(2,1)-Bounds(1,1))
-              RandomPos(2) = SQRT(RandomPos(2)*(Bounds(2,2)**2-Bounds(1,2)**2)+Bounds(1,2)**2)
-            ELSE
-              RandomPos = Bounds(1,:) + RandomPos*(Bounds(2,:)-Bounds(1,:))
-            END IF
-            IF(Symmetry%Order.LE.2) RandomPos(3) = 0.
-            IF(Symmetry%Order.LE.1) RandomPos(2) = 0.
-            InsideFlag = ParticleInsideCheck(RandomPos,iPart,iGlobalElem)
-          END DO
-          PartState(1:3,ParticleIndexNbr) = RandomPos(1:3)
-          PDM%ParticleInside(ParticleIndexNbr) = .TRUE.
-          PDM%IsNewPart(ParticleIndexNbr)=.TRUE.
-          PDM%dtFracPush(ParticleIndexNbr) = .FALSE.
-          PEM%GlobalElemID(ParticleIndexNbr) = iGlobalElem
-          ichunkSize = ichunkSize + 1
-          IF (UseVarTimeStep) THEN
-            PartTimeStep(ParticleIndexNbr) = &
-              GetParticleTimeStep(PartState(1,ParticleIndexNbr), PartState(2,ParticleIndexNbr),iElem)
-          END IF
-          IF(RadialWeighting%DoRadialWeighting) THEN
-            PartMPF(ParticleIndexNbr) = CalcRadWeightMPF(PartState(2,ParticleIndexNbr),iSpec,ParticleIndexNbr)
-          END IF
-        ELSE
-          WRITE(UNIT_stdOut,*) ""
-          IPWRITE(UNIT_stdOut,*) "ERROR:"
-          IPWRITE(UNIT_stdOut,*) "                iPart :", iPart
-          IPWRITE(UNIT_stdOut,*) "PDM%maxParticleNumber :", PDM%maxParticleNumber
-          CALL abort(__STAMP__&
-              ,'ERROR in SetCellLocalParticlePosition: Maximum particle number reached during inserting! --> ParticleIndexNbr.EQ.0')
-        END IF
-      END DO
-    END ASSOCIATE
-  END DO
-  chunkSize = ichunkSize - 1
-
-END SUBROUTINE SetCellLocalParticlePosition
-
-
 SUBROUTINE SetParticlePositionPoint(FractNbr,iInit,chunkSize,particle_positions)
 !===================================================================================================================================
 ! Set particle position
@@ -1307,7 +1169,7 @@ SUBROUTINE SetParticlePositionCuboidCylinder(FractNbr,iInit,chunkSize,particle_p
 !===================================================================================================================================
 ! modules
 USE MOD_Globals
-USE MOD_Particle_Vars          ,ONLY: Species, Symmetry, PDM
+USE MOD_Particle_Vars          ,ONLY: Species, Symmetry
 USE MOD_Part_Tools             ,ONLY: CalcPartSymmetryPos, CalcRadWeightMPF
 USE MOD_DSMC_Vars              ,ONLY: RadialWeighting
 !----------------------------------------------------------------------------------------------------------------------------------
@@ -1372,10 +1234,6 @@ INTEGER                 :: i, chunkSize2
         IF(Species(FractNbr)%MacroParticleFactor/RadWeightMPF.LT.iRan) THEN
           i=i+1
           CYCLE
-        ELSE IF(chunkSize2.GT.PDM%maxParticleNumber) THEN
-          IPWRITE(UNIT_stdOut,*)'Inserted percentage of particles',REAL(i)/REAL(chunkSize)*100
-          CALL CollectiveStop(__STAMP__,&
-            'Number of to be inserted particles per init-proc exceeds max. particle number! ')
         END IF
       END IF
     END IF
@@ -1395,7 +1253,7 @@ SUBROUTINE SetParticlePositionSphere(FractNbr,iInit,chunkSize,particle_positions
 !===================================================================================================================================
 ! modules
 USE MOD_Globals
-USE MOD_Particle_Vars          ,ONLY: Species, Symmetry, PDM
+USE MOD_Particle_Vars          ,ONLY: Species, Symmetry
 USE MOD_Part_tools             ,ONLY: DICEUNITVECTOR, CalcPartSymmetryPos, CalcRadWeightMPF
 USE MOD_DSMC_Vars              ,ONLY: RadialWeighting
 !----------------------------------------------------------------------------------------------------------------------------------
@@ -1434,10 +1292,6 @@ INTEGER                 :: i, chunkSize2
         IF(Species(FractNbr)%MacroParticleFactor/RadWeightMPF.LT.iRan) THEN
           i=i+1
           CYCLE
-        ELSE IF(chunkSize2.GT.PDM%maxParticleNumber) THEN
-          IPWRITE(UNIT_stdOut,*)'Inserted percentage of particles',REAL(i)/REAL(chunkSize)*100
-          CALL CollectiveStop(__STAMP__,&
-            'Number of to be inserted particles per init-proc exceeds max. particle number! ')
         END IF
       END IF
     END IF
@@ -1701,7 +1555,7 @@ CalcPhotonEnergy = PlanckConst * c / lambda
 END FUNCTION CalcPhotonEnergy
 
 
-SUBROUTINE CalcVelocity_FromWorkFuncSEE(FractNbr, Vec3D, iInit)
+SUBROUTINE CalcVelocity_FromWorkFuncSEE(W, m, t_vec, n_vec, Vec3D)
 !===================================================================================================================================
 !> Subroutine to sample photon SEE electrons velocities from given energy distribution based on a work function.
 !> Perform ARM for the energy distribution and a second ARM for the emission angle (between the impacting photon and the emitting
@@ -1710,12 +1564,11 @@ SUBROUTINE CalcVelocity_FromWorkFuncSEE(FractNbr, Vec3D, iInit)
 ! MODULES
 USE MOD_Globals
 USE MOD_Globals_Vars            ,ONLY: PI, ElementaryCharge
-USE MOD_Particle_Vars           ,ONLY: Species
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-INTEGER,INTENT(IN)               :: FractNbr
-INTEGER,INTENT(IN), OPTIONAL     :: iInit
+REAL,INTENT(IN)               :: W, m                 ! Work function, mass
+REAL,INTENT(IN)               :: t_vec(3), n_vec(3)   ! Tangential and normal vector
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 REAL,INTENT(OUT)                 :: Vec3D(3)
@@ -1725,19 +1578,14 @@ REAL               :: RandVal
 REAL               :: E_temp, E_max, VeloABS
 REAL               :: Theta, Chi!, Psi_temp
 REAL               :: PDF_temp, PDF_max
-REAL, PARAMETER    :: PDF_max2=4./ACOS(-1.)
+REAL, PARAMETER    :: PDF_max2=4./PI
 REAL               :: VeloVec_norm(3), RotationAxi(3)
 LOGICAL            :: ARM_SEE_PDF
 REAL               :: Theta_temp
 !===================================================================================================================================
 
-ASSOCIATE( W     => Species(FractNbr)%Init(iInit)%WorkFunctionSEE ,&
-           m     => Species(FractNbr)%MassIC                      ,&
-           t_vec => Species(FractNbr)%Init(iInit)%NormalVector1IC ,&
-           n_vec => Species(FractNbr)%Init(iInit)%NormalIC        )
-
 ! ARM for energy distribution
-E_max = 25.0*W ! in eV (this yields an integral of 0.9956759, i.e., 95.57% of electrons have this or a lower energy)
+E_max = 25.0*W ! in eV (this yields an integral of 0.9956759, i.e., 99.57% of electrons have this or a lower energy)
 PDF_max = 81.0 / (128.0 * W)  ! PDF_max at E = W/3 (derivation of 6W^2E/(E+W)^4 == 0)
 ARM_SEE_PDF=.TRUE.
 DO WHILE(ARM_SEE_PDF)
@@ -1779,8 +1627,6 @@ VeloVec_norm = VeloVec_norm * SIN(Theta) + CROSS(RotationAxi,VeloVec_norm) * COS
 
 ! Calc VeloVec
 Vec3D = VeloVec_norm * VeloABS
-
-END ASSOCIATE
 
 END SUBROUTINE CalcVelocity_FromWorkFuncSEE
 
@@ -2156,6 +2002,83 @@ ASSOCIATE( x => pos(1), y => pos(2) )
 END ASSOCIATE
 END FUNCTION InsideHexagon
 
+!===================================================================================================================================
+!> Calculate determinant of 3 points
+!===================================================================================================================================
+PPURE REAL FUNCTION pointDet(P1,P2,P3)
+! MODULES
+IMPLICIT NONE
+!----------------------------------------------------------------------------------------------------------------------------------!
+! INPUT / OUTPUT VARIABLES
+REAL,INTENT(IN)     :: P1(2),P2(2),P3(2)
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+!===================================================================================================================================
+pointDet = (P1(1)-P3(1))*(P2(2)-P3(2)) - (P2(1)-P3(1))*(P1(2)-P3(2))
+END FUNCTION pointDet
+
+!===================================================================================================================================
+!> Check if x,y is inside side
+!===================================================================================================================================
+PPURE LOGICAL FUNCTION InsideQuadrilateral(X,NonUniqueGlobalSideID) RESULT(L)
+! MODULES
+USE MOD_Particle_Mesh_Vars ,ONLY: NodeCoords_Shared,SideInfo_Shared,ElemSideNodeID_Shared
+USE MOD_Mesh_Tools         ,ONLY: GetCNElemID
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+REAL,INTENT(IN)    :: X(2)
+INTEGER,INTENT(IN) :: NonUniqueGlobalSideID
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+LOGICAL         :: pos,neg
+INTEGER         :: iNode,CNElemID,locSideID
+REAL            :: P(1:2,1:4),d(3)
+!===================================================================================================================================
+CNElemID  = GetCNElemID(SideInfo_Shared(SIDE_ELEMID,NonUniqueGlobalSideID))
+locSideID = SideInfo_Shared(SIDE_LOCALID,NonUniqueGlobalSideID)
+
+DO iNode = 1,4
+  P(1:2,iNode) = NodeCoords_Shared(1:2,ElemSideNodeID_Shared(iNode,locSideID,CNElemID)+1)
+END DO
+
+! ! sorted
+! P(1:2,1) = (/0,0/)
+! P(1:2,2) = (/1,0/)
+! P(1:2,3) = (/1,1/)
+! P(1:2,4) = (/0,1/)
+! 
+! ! not sorted
+! P(1:2,1) = (/0,0/)
+! P(1:2,2) = (/1,1/)
+! P(1:2,3) = (/1,0/)
+! P(1:2,4) = (/0,1/)
+
+d(1) = pointDet(X,P(1:2,1),P(1:2,2))
+d(2) = pointDet(X,P(1:2,2),P(1:2,3))
+d(3) = pointDet(X,P(1:2,3),P(1:2,1))
+
+pos = (d(1).GT.0).OR.(d(2).GT.0).OR.(d(3).GT.0)
+neg = (d(1).LT.0).OR.(d(2).LT.0).OR.(d(3).LT.0)
+
+L = .NOT.(pos.AND.neg)
+
+IF(.NOT.L)THEN
+  d(1) = pointDet(X,P(1:2,1),P(1:2,3))
+  d(2) = pointDet(X,P(1:2,3),P(1:2,4))
+  d(3) = pointDet(X,P(1:2,4),P(1:2,1))
+
+  pos = (d(1).GT.0).OR.(d(2).GT.0).OR.(d(3).GT.0)
+  neg = (d(1).LT.0).OR.(d(2).LT.0).OR.(d(3).LT.0)
+
+  L = .NOT.(pos.AND.neg)
+END IF ! .NOT.L
+
+END FUNCTION InsideQuadrilateral
+
 
 SUBROUTINE SetParticlePositionLandmark(chunkSize,particle_positions,mode)
 !===================================================================================================================================
@@ -2286,7 +2209,6 @@ SUBROUTINE SetParticlePositionLiu2010SzaboNeutralization(chunkSize,particle_posi
 ! modules
 USE MOD_Globals
 USE MOD_Mesh_Vars              ,ONLY: nElems,offsetElem
-USE MOD_Particle_Tracking      ,ONLY: ParticleInsideCheck
 USE MOD_Particle_Tracking_Vars ,ONLY: TrackingMethod
 USE MOD_Particle_Mesh_Vars     ,ONLY: BoundsOfElem_Shared
 USE MOD_Particle_Vars          ,ONLY: isNeutralizationElem,NeutralizationBalanceElem
@@ -2323,7 +2245,7 @@ DO iElem = 1, nElems
       ! Count number of emitted particles to compare with chunkSize later on
       emittedParticles = emittedParticles + 1
       ! Emit at random position in element (assume tri-linear element geometry, if position is outside discard the position)
-      ASSOCIATE( Bounds => BoundsOfElem_Shared(1:2,1:3,GlobalElemID) ) ! 1-2: Min, Max value; 1-3: x,y,z 
+      ASSOCIATE( Bounds => BoundsOfElem_Shared(1:2,1:3,GlobalElemID) ) ! 1-2: Min, Max value; 1-3: x,y,z
         InsideFlag = .FALSE.
         DO WHILE(.NOT.InsideFlag)
           CALL RANDOM_NUMBER(RandomPos)

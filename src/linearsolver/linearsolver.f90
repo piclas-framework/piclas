@@ -170,7 +170,7 @@ nRestarts             = GETINT('nRestarts','1')
 #if !(USE_HDG)
 nDofGlobalMPI=nDofGlobal
 #if USE_MPI
-  CALL MPI_ALLREDUCE(MPI_IN_PLACE,nDofGlobalMPI,1,MPI_INTEGER,MPI_SUM,MPI_COMM_WORLD,iError)
+  CALL MPI_ALLREDUCE(MPI_IN_PLACE,nDofGlobalMPI,1,MPI_INTEGER,MPI_SUM,MPI_COMM_PICLAS,iError)
 #endif
 
 eps_LinearSolver      = GETREAL('eps_LinearSolver','1e-3')

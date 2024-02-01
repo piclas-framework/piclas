@@ -52,6 +52,7 @@ USE MOD_Part_Tools             ,ONLY: CalcPartSymmetryPos
 #if USE_MPI
 USE MOD_Particle_MPI           ,ONLY: IRecvNbOfParticles, MPIParticleSend,MPIParticleRecv,SendNbOfparticles
 USE MOD_Particle_MPI_Vars      ,ONLY: DoParticleLatencyHiding
+USE MOD_Globals                ,ONLY: CollectiveStop
 #endif /*USE_MPI*/
 USE MOD_BGK                    ,ONLY: BGK_main, BGK_DSMC_main
 USE MOD_BGK_Vars               ,ONLY: CoupledBGKDSMC,DoBGKCellAdaptation
@@ -150,10 +151,6 @@ ELSE IF ( (MOD(iter,IterDisplayStep).EQ.0) .OR. &
           (Time.ge.(1-DSMC%TimeFracSamp)*TEnd) .OR. &
           WriteMacroVolumeValues ) THEN
   CALL UpdateNextFreePosition(.TRUE.) !postpone UNFP for CollisMode=0 to next IterDisplayStep or when needed for DSMC-Sampling
-ELSE IF (PDM%nextFreePosition(PDM%CurrentNextFreePosition+1).GT.PDM%maxParticleNumber .OR. &
-         PDM%nextFreePosition(PDM%CurrentNextFreePosition+1).EQ.0) THEN
-  ! gaps in PartState are not filled until next UNFP and array might overflow more easily!
-  CALL abort(__STAMP__,'maximum nbr of particles reached!')
 END IF
 
 #if USE_MPI
@@ -161,8 +158,8 @@ END IF
 CALL MPIParticleSend(.TRUE.)
 #endif /*USE_MPI*/
 
-IF(DoBGKCellAdaptation)THEN
-  IF(Symmetry%Order.EQ.2)THEN
+IF(DoBGKCellAdaptation.OR.(CoupledBGKDSMC.AND.DSMC%UseOctree)) THEN
+  IF(Symmetry%Order.EQ.2) THEN
     DO iPart=1,PDM%ParticleVecLength
       IF (PDM%ParticleInside(iPart)) THEN
         ! Store reference position in LastPartPos array to reduce memory demand
@@ -177,7 +174,7 @@ IF(DoBGKCellAdaptation)THEN
       END IF
     END DO
   END IF ! Symmetry%Order.EQ.2
-END IF ! DoBGKCellAdaptation
+END IF ! DoBGKCellAdaptation.OR.(CoupledBGKDSMC.AND.DSMC%UseOctree)
 
 IF(UseRotRefFrame) THEN
   DO iPart = 1,PDM%ParticleVecLength
@@ -198,17 +195,19 @@ END IF
 
 #if USE_MPI
 IF(DoParticleLatencyHiding)THEN
-  IF (CoupledBGKDSMC) THEN
-    CALL BGK_DSMC_main(1)
-  ELSE
+  ! IF (CoupledBGKDSMC) THEN
+  !   CALL BGK_DSMC_main(1)
+  ! ELSE
     CALL BGK_main(1)
-  END IF
+  ! END IF
 END IF ! DoParticleLatencyHiding
 
 ! finish communication
 CALL MPIParticleRecv(.TRUE.)
 #endif /*USE_MPI*/
 
+! After MPI communication of particles, call UNFP including the MPI particles
+CALL UpdateNextFreePosition()
 
 !#ifdef EXTRAE
 !CALL extrae_eventandcounters(int(9000001), int8(51))
@@ -219,11 +218,11 @@ CALL MPIParticleRecv(.TRUE.)
 !#endif /*EXTRAE*/
 #if USE_MPI
 IF(DoParticleLatencyHiding)THEN
-  IF (CoupledBGKDSMC) THEN
-    CALL BGK_DSMC_main(2)
-  ELSE
+  ! IF (CoupledBGKDSMC) THEN
+  !   CALL BGK_DSMC_main(2)
+  ! ELSE
     CALL BGK_main(2)
-  END IF
+  ! END IF
 ELSE
 #endif /*USE_MPI*/
   IF (CoupledBGKDSMC) THEN

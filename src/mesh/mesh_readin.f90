@@ -42,6 +42,11 @@ INTERFACE INVMAP
   MODULE PROCEDURE INVMAP
 END INTERFACE
 
+INTERFACE FinalizeMeshReadin
+  MODULE PROCEDURE FinalizeMeshReadin
+END INTERFACE
+
+PUBLIC :: FinalizeMeshReadin
 PUBLIC::ReadMesh,Qsort1Int,INVMAP
 !===================================================================================================================================
 
@@ -283,7 +288,7 @@ IF (.NOT.PerformLoadBalance) THEN
   GETTIME(StartT)
 
   ! Get ElemInfo from Mesh file
-  CALL OpenDataFile(FileString,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_WORLD)
+  CALL OpenDataFile(FileString,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_PICLAS)
   CALL GetDataSize(File_ID,'ElemInfo',nDims,HSize)
   CALL ReadAttribute(File_ID,'nUniqueSides',1,IntScalar=nGlobalUniqueSidesFromMesh)
   CALL ReadAttribute(File_ID,'nSides',1,IntScalar=nNonUniqueGlobalSides)
@@ -383,7 +388,7 @@ END IF
 #if defined(PARTICLES) && USE_LOADBALANCE
 IF (.NOT.PerformLoadBalance) THEN
 #endif /*defined(PARTICLES) && USE_LOADBALANCE*/
-  CALL OpenDataFile(FileString,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_WORLD)
+  CALL OpenDataFile(FileString,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_PICLAS)
   CALL ReadBCs()
 #if defined(PARTICLES) && USE_LOADBALANCE
 END IF
@@ -633,7 +638,7 @@ IF(ReadNodes) CALL ReadMeshNodes()
 #if defined(PARTICLES) && USE_LOADBALANCE
 IF (.NOT.PerformLoadBalance) &
 #endif /*defined(PARTICLES) && USE_LOADBALANCE*/
-  CALL OpenDataFile(FileString,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_WORLD)
+  CALL OpenDataFile(FileString,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_PICLAS)
 
 ! Backup required if useCurveds=F
 NGeoOld = NGeo
@@ -799,7 +804,7 @@ CALL FinishCommunicateMeshReadin()
 #endif
 
 #if USE_MPI
-CALL MPI_ALLREDUCE(MPI_IN_PLACE,ReduceData,11,MPI_INTEGER,MPI_SUM,MPI_COMM_WORLD,iError)
+CALL MPI_ALLREDUCE(MPI_IN_PLACE,ReduceData,11,MPI_INTEGER,MPI_SUM,MPI_COMM_PICLAS,iError)
 #endif /*USE_MPI*/
 
 nGlobalMortarSides=ReduceData(9)
@@ -1007,7 +1012,7 @@ ASSOCIATE (&
       offsetNodeID => INT(offsetNodeID,IK) )
   ALLOCATE(NodeCoords_indx(3,nNodeIDs))
   ! read all nodes
-  CALL OpenDataFile(MeshFile,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_WORLD)
+  CALL OpenDataFile(MeshFile,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_PICLAS)
   CALL ReadArray('NodeCoords',2,(/3_IK,nNodeIDs/),offsetNodeID,2,RealArray=NodeCoords_indx)
   CALL CloseDataFile()
 END ASSOCIATE
@@ -1020,7 +1025,7 @@ IF (useCurveds.OR.NGeo.EQ.1) THEN
         nNodeIDs     => INT(nNodeIDs,IK)     ,&
         offsetNodeID => INT(offsetNodeID,IK) )
     ALLOCATE(NodeInfo(FirstNodeInd:LastNodeInd))
-    CALL OpenDataFile(MeshFile,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_WORLD)
+    CALL OpenDataFile(MeshFile,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_PICLAS)
     CALL ReadArray('GlobalNodeIDs',1,(/nNodeIDs/),offsetNodeID,1,IntegerArray_i4=NodeInfo)
     CALL CloseDataFile()
   END ASSOCIATE
@@ -1327,5 +1332,95 @@ DO
 END DO
 RETURN
 END SUBROUTINE Partition1Int
+
+
+SUBROUTINE FinalizeMeshReadin(meshMode)
+!===================================================================================================================================
+! Finalizes the shared mesh readin
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals
+USE MOD_Mesh_Vars
+USE MOD_Particle_Mesh_Vars
+#if USE_MPI
+USE MOD_MPI_Shared
+USE MOD_MPI_Shared_Vars
+USE MOD_Particle_Vars             ,ONLY: Symmetry
+#endif
+#if USE_LOADBALANCE
+USE MOD_LoadBalance_Vars          ,ONLY: PerformLoadBalance
+#endif /*USE_LOADBALANCE*/
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT/OUTPUT VARIABLES
+INTEGER,INTENT(IN) :: meshMode !<  0: only read and build Elem_xGP,
+                               !< -1: as 0 + build connectivity and read node info (automatically read for PARTICLES=ON)
+                               !<  1: as 0 + build connectivity
+                               !<  2: as 1 + calc metrics
+                               !<  3: as 2 but skip InitParticleMesh
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+!===================================================================================================================================
+! First, free every shared memory window. This requires MPI_BARRIER as per MPI3.1 specification
+#if USE_MPI && defined(PARTICLES)
+CALL MPI_BARRIER(MPI_COMM_SHARED,iERROR)
+
+! symmetry sides and elem volumes/characteristic lengths
+IF(ABS(meshMode).GT.1)THEN
+  IF(Symmetry%Order.EQ.2) CALL UNLOCK_AND_FREE(SideIsSymSide_Shared_Win)
+  CALL UNLOCK_AND_FREE(ElemVolume_Shared_Win)
+  CALL UNLOCK_AND_FREE(ElemCharLength_Shared_Win)
+END IF ! ABS(meshMode).GT.1
+#endif /*USE_MPI && defined(PARTICLES)*/
+
+! Then, free the pointers or arrays
+ADEALLOCATE(SideIsSymSide_Shared)
+ADEALLOCATE(ElemVolume_Shared)
+ADEALLOCATE(ElemCharLength_Shared)
+
+#if USE_MPI
+! Free communication arrays
+SDEALLOCATE(displsElem)
+SDEALLOCATE(recvcountElem)
+SDEALLOCATE(displsSide)
+SDEALLOCATE(recvcountSide)
+
+#if USE_LOADBALANCE
+IF (PerformLoadBalance) THEN
+  CALL MPI_BARRIER(MPI_COMM_SHARED,iERROR)
+  RETURN
+END IF
+#endif /*USE_LOADBALANCE*/
+
+! elems
+CALL UNLOCK_AND_FREE(ElemInfo_Shared_Win)
+
+! sides
+#if defined(PARTICLES)
+CALL UNLOCK_AND_FREE(SideInfo_Shared_Win)
+#endif /*defined(PARTICLES)*/
+
+! nodes
+CALL UNLOCK_AND_FREE(NodeInfo_Shared_Win)
+CALL UNLOCK_AND_FREE(NodeCoords_Shared_Win)
+
+CALL MPI_BARRIER(MPI_COMM_SHARED,iERROR)
+#endif /*USE_MPI*/
+
+ADEALLOCATE(ElemInfo_Shared)
+ADEALLOCATE(SideInfo_Shared)
+ADEALLOCATE(NodeInfo_Shared)
+ADEALLOCATE(NodeCoords_Shared)
+
+! Free communication arrays
+#if USE_MPI
+SDEALLOCATE(displsNode)
+SDEALLOCATE(recvcountNode)
+#endif /*USE_MPI*/
+
+END SUBROUTINE FinalizeMeshReadin
+
+
 
 END MODULE MOD_Mesh_ReadIn

@@ -63,7 +63,7 @@ USE MOD_DSMC_Vars               ,ONLY: newAmbiParts, iPartIndx_NodeNewAmbi
 ! ROUTINES
 USE MOD_DSMC_Analyze            ,ONLY: CalcMeanFreePath
 USE MOD_DSMC_BGGas              ,ONLY: BGGas_AssignParticleProperties
-USE MOD_part_tools              ,ONLY: GetParticleWeight, CalcVelocity_maxwell_particle
+USE MOD_part_tools              ,ONLY: GetParticleWeight, CalcVelocity_maxwell_particle, GetNextFreePosition
 USE MOD_Part_Emission_Tools     ,ONLY: CalcVelocity_maxwell_lpn
 USE MOD_DSMC_Collis             ,ONLY: DSMC_perform_collision
 USE MOD_Mesh_Tools              ,ONLY: GetCNElemID
@@ -274,7 +274,7 @@ DO iSpec = 1, nSpecies
             ! Clone the regular particle (re-using the index of the previous particle if it didn't collide)
             IF(PartIndex.EQ.0) THEN
               DSMCSumOfFormedParticles = DSMCSumOfFormedParticles + 1
-              PartIndex = PDM%nextFreePosition(DSMCSumOfFormedParticles+PDM%CurrentNextFreePosition)
+              PartIndex = GetNextFreePosition()
               IF (PartIndex.EQ.0) THEN
                 CALL Abort(__STAMP__,'ERROR in MCC: MaxParticleNumber should be increased!')
               END IF
@@ -410,7 +410,7 @@ DO iSpec = 1, nSpecies
           IF(ChemReac%CollCaseInfo(iCase)%HasXSecReaction) THEN
             IF(bggPartIndex.EQ.0) THEN
               DSMCSumOfFormedParticles = DSMCSumOfFormedParticles + 1
-              bggPartIndex = PDM%nextFreePosition(DSMCSumOfFormedParticles+PDM%CurrentNextFreePosition)
+              bggPartIndex = GetNextFreePosition()
               IF (bggPartIndex.EQ.0) THEN
                 CALL Abort(__STAMP__,'ERROR in MCC: MaxParticleNumber should be increased!')
               END IF
@@ -466,7 +466,7 @@ DO iSpec = 1, nSpecies
         ! Creating a new background gas particle
         IF(bggPartIndex.EQ.0) THEN
           DSMCSumOfFormedParticles = DSMCSumOfFormedParticles + 1
-          bggPartIndex = PDM%nextFreePosition(DSMCSumOfFormedParticles+PDM%CurrentNextFreePosition)
+          bggPartIndex = GetNextFreePosition()
           IF (bggPartIndex.EQ.0) THEN
             CALL Abort(__STAMP__,'ERROR in MCC: MaxParticleNumber should be increased!')
           END IF
@@ -504,7 +504,7 @@ DO iSpec = 1, nSpecies
       ELSE  ! No collision
         IF(SplitInProgress) THEN
           ! Save the index of the first particle that did not collide
-          IF(SplitRestPart.EQ.0) THEN 
+          IF(SplitRestPart.EQ.0) THEN
             SplitRestPart = PartIndex
             ! Reset the PartIndex to use a new particle (unless it is the last particle, keep the index to check whether it can be deleted)
             IF(iPartSplit.NE.SplitPartNum) PartIndex = 0
@@ -547,23 +547,23 @@ DO iSpec = 1, nSpecies
         DSMC%CollProbMean = DSMC%CollProbMean + CollProb
         DSMC%CollProbMeanCount = DSMC%CollProbMeanCount + 1
       END IF ! DSMC%CalcQualityFactors
-
-#if (PP_TimeDiscMethod==42)
-      ! Sum of collision probabilities for the collision pair, required for the correct reaction rate
-      IF(ChemReac%NumOfReact.GT.0) THEN
-        IF (ChemReac%CollCaseInfo(iCase)%NumOfReactionPaths.GT.0) THEN
-          IF(SpecXSec(iSpec)%UseCollXSec) THEN
-            ! Calculate the collision probability for the null collision probability case
-            IF(XSec_NullCollision) THEN
-              CollProb = CollProb * ProbNull
-            ELSE
-              CollProb = CollProb * BGGasFraction
+      ! Reservoir simulation: determination of the reaction probabilities
+      IF (DSMC%ReservoirSimu) THEN
+        ! Sum of collision probabilities for the collision pair, required for the correct reaction rate
+        IF(ChemReac%NumOfReact.GT.0) THEN
+          IF (ChemReac%CollCaseInfo(iCase)%NumOfReactionPaths.GT.0) THEN
+            IF(SpecXSec(iSpec)%UseCollXSec) THEN
+              ! Calculate the collision probability for the null collision probability case
+              IF(XSec_NullCollision) THEN
+                CollProb = CollProb * ProbNull
+              ELSE
+                CollProb = CollProb * BGGasFraction
+              END IF
             END IF
+            ChemReac%ReacCollMean(iCase) = ChemReac%ReacCollMean(iCase) + CollProb
           END IF
-          ChemReac%ReacCollMean(iCase) = ChemReac%ReacCollMean(iCase) + CollProb
-        END IF
-      END IF ! ChemReac%NumOfReact.GT.0
-#endif
+        END IF  ! ChemReac%NumOfReact.GT.0
+      END IF    ! DSMC%ReservoirSimu
     END DO    ! DO WHILE(iLoop.LE.SpecPairNum(iCase))
     SDEALLOCATE(PartIndexCase)
   END DO      ! bgSpec = 1, BGGas%NumberOfSpecies
@@ -709,13 +709,11 @@ DO iPath = 1, ChemReac%CollCaseInfo(iCase)%NumOfReactionPaths
     ELSE
       ChemReac%CollCaseInfo(iCase)%ReactionProb(iPath) = 0.
     END IF
-    ! Calculation of reaction rate coefficient
-#if (PP_TimeDiscMethod==42)
-    IF (.NOT.DSMC%ReservoirRateStatistic) THEN
+    ! Reservoir simulation: Calculation of reaction rate coefficient
+    IF (DSMC%ReservoirSimu.AND..NOT.DSMC%ReservoirRateStatistic) THEN
       ChemReac%NumReac(ReacTest) = ChemReac%NumReac(ReacTest) + ChemReac%CollCaseInfo(iCase)%ReactionProb(iPath)
       ChemReac%ReacCount(ReacTest) = ChemReac%ReacCount(ReacTest) + 1
     END IF
-#endif
   END IF
 END DO
 

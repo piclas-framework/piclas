@@ -32,9 +32,9 @@ Mesh.Algorithm = 1;
 //
 Mesh.RecombinationAlgorithm = 2;
 //
-Mesh 2;
-//
 Mesh.RecombineAll = 1;
+//
+Mesh 2;
 //
 Mesh.SaveAll = 1;
 //
@@ -42,4 +42,3 @@ Mesh.Binary = 0;
 Mesh.MshFileVersion = 4.1;
 //
 Save "70degCone_2D.msh";
-

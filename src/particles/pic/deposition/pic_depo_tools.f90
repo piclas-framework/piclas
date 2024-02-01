@@ -53,7 +53,8 @@ SUBROUTINE DepositPhotonSEEHoles(iBC,NbrOfParticle)
 USE MOD_Particle_Boundary_Vars ,ONLY: PartBound
 USE MOD_PICDepo_Vars           ,ONLY: DoDeposition
 USE MOD_Dielectric_Vars        ,ONLY: DoDielectricSurfaceCharge
-USE MOD_Particle_Vars          ,ONLY: PEM, PDM, PartSpecies, PartState, Species, usevMPF, PartMPF
+USE MOD_Particle_Vars          ,ONLY: PEM, PartSpecies, PartState, Species, usevMPF, PartMPF
+USE MOD_Part_Tools             ,ONLY: GetNextFreePosition
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! INPUT / OUTPUT VARIABLES
@@ -72,7 +73,7 @@ IF(iBC.LE.0) RETURN
 IF(DoDeposition.AND.DoDielectricSurfaceCharge.AND.PartBound%Dielectric(iBC))THEN
   DO iPart = 1, NbrOfParticle
     ! Get index from next free position array
-    ParticleIndex = PDM%nextFreePosition(iPart+PDM%CurrentNextFreePosition)
+    ParticleIndex = GetNextFreePosition(iPart)
 
     ! Get charge
     IF(usevMPF)THEN
@@ -378,7 +379,7 @@ IF(MPIRoot) THEN
   IF(.NOT.FILEEXISTS(FileName))  CALL abort(__STAMP__, &
         'TimeAverage-File "'//TRIM(FileName)//'" does not exist',999,999.)
 END IF
-CALL OpenDataFile(TRIM(FileName),create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_WORLD)
+CALL OpenDataFile(TRIM(FileName),create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_PICLAS)
 
 ! get attributes
 CALL DatasetExists(File_ID,'DG_Solution',SolutionExists)
