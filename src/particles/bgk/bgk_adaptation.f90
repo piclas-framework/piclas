@@ -389,7 +389,7 @@ DO iLoop = 1, 8
   END IF
 END DO
 
-MeshAdapt(iElem) = TreeNode%ChildNode%NodeDepth
+MeshAdapt(1,iElem) = REAL(TreeNode%ChildNode%NodeDepth)
 
 END SUBROUTINE AddBGKOctreeNode
 
@@ -793,7 +793,7 @@ DO iLoop = 1, 4
   END IF
 END DO
 
-MeshAdapt(iElem) = TreeNode%NodeDepth
+MeshAdapt(1,iElem) = REAL(TreeNode%NodeDepth)
 
 END SUBROUTINE AddBGKQuadtreeNode
 

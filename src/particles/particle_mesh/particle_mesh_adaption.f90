@@ -360,7 +360,7 @@ REAL                          :: Subcell_wGP, PartPosMapped(3), DetLocal(1,0:PP_
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Number of subcells from the split order
 nCells = (AdaptMesh(iElem)%SplitOrder+1)**3
-MeshAdapt(iElem) = nCells
+MeshAdapt(1,iElem) = REAL(nCells)
 
 ! Particle number in the element
 nPart = PEM%pNumber(iElem)
@@ -491,6 +491,10 @@ END IF
 DEALLOCATE(SubPartNum)
 DEALLOCATE(SubPartIndx)
 
+CALL CalcSubcellNum_X(iElem,nSplit,AdaptMesh(iElem)%RefineDir)
+CALL CalcSubcellNum_Y(iElem,nSplit,AdaptMesh(iElem)%RefineDir)
+CALL CalcSubcellNum_Z(iElem,nSplit,AdaptMesh(iElem)%RefineDir)
+
 RETURN
 END SUBROUTINE SubcellAdaption
 
@@ -534,7 +538,8 @@ REAL                          :: Subcell_wGP, PartPosMapped(3), DetLocal(1,0:PP_
 ! Number of subcells from the split order
 nCells2D = (AdaptMesh(iElem)%SplitOrder+1)**2
 nCells = (AdaptMesh(iElem)%SplitOrder+1)**3
-MeshAdapt(iElem) = nCells2D
+MeshAdapt(1,iElem) = REAL(nCells2D)
+MeshAdapt(4,iElem) = 1.
 ! Particle number in the element
 nPart = PEM%pNumber(iElem)
 iPart = PEM%pStart(iElem)
@@ -680,6 +685,9 @@ END IF
 DEALLOCATE(SubPartNum)
 DEALLOCATE(SubPartIndx)
 
+CALL CalcSubcellNum_X(iElem,nOrder,AdaptMesh(iElem)%RefineDir)
+CALL CalcSubcellNum_Y(iElem,nOrder,AdaptMesh(iElem)%RefineDir)
+
 RETURN
 END SUBROUTINE SubcellAdaption2D
 
@@ -716,7 +724,7 @@ REAL                          :: PartPosMapped(3)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Number of subcells from the split order
 nCells = (AdaptMesh(iElem)%SplitOrder+1)**3
-MeshAdapt(iElem) = nCells
+MeshAdapt(1,iElem) = REAL(nCells)
 
 ! Particle number in the element
 nPart = PEM%pNumber(iElem)
@@ -796,6 +804,10 @@ END DO
 DEALLOCATE(SubPartNum)
 DEALLOCATE(SubPartIndx)
 
+CALL CalcSubcellNum_X(iElem,nSplit,AdaptMesh(iElem)%RefineDir)
+CALL CalcSubcellNum_Y(iElem,nSplit,AdaptMesh(iElem)%RefineDir)
+CALL CalcSubcellNum_Z(iElem,nSplit,AdaptMesh(iElem)%RefineDir)
+
 RETURN
 END SUBROUTINE MergedCellAssingement
 
@@ -834,7 +846,9 @@ REAL                          :: PartPosMapped(3)
 ! Number of subcells from the split order
 nCells2D = (AdaptMesh(iElem)%SplitOrder+1)**2
 nCells = (AdaptMesh(iElem)%SplitOrder+1)**3
-MeshAdapt(iElem) = nCells2D
+MeshAdapt(1,iElem) = REAL(nCells2D)
+MeshAdapt(4,iElem) = 1.
+
 ! Particle number in the element
 nPart = PEM%pNumber(iElem)
 iPart = PEM%pStart(iElem)
@@ -916,6 +930,9 @@ END DO
 
 DEALLOCATE(SubPartNum)
 DEALLOCATE(SubPartIndx)
+
+CALL CalcSubcellNum_X(iElem,nOrder,AdaptMesh(iElem)%RefineDir)
+CALL CalcSubcellNum_Y(iElem,nOrder,AdaptMesh(iElem)%RefineDir)
 
 RETURN
 END SUBROUTINE MergedCellAssingement2D
@@ -1015,10 +1032,10 @@ IF ((SubPartNum(tempCell).LT.MinPartCell).AND.(tempCell.NE.tempCellLast)) THEN
   AdaptMesh(iElem)%SubcellMap(tempCellLast) = tempCellLast
 END IF
 
-MeshAdapt(iElem) = 0
+MeshAdapt(1,iElem) = 0.
 DO iCell = 1, nCells
   IF (SubPartNum(iCell).GT.0) THEN
-    MeshAdapt(iElem) = MeshAdapt(iElem) + 1
+    MeshAdapt(1,iElem) = MeshAdapt(1,iElem) + 1.
     ! Collision routines for the subcells, considered are only the particles in the respective subcell
 #if (PP_TimeDiscMethod==300)
       CALL FP_CollisionOperator(SubPartIndx(iCell,1:SubPartNum(iCell)), SubPartNum(iCell), AdaptMesh(iElem)%Subvolume(iCell))
@@ -1034,6 +1051,12 @@ DO iCell = 1, nCells
 #endif
   END IF
 END DO
+
+CALL CalcSubcellNum_X(iElem,nSplit,AdaptMesh(iElem)%RefineDir)
+CALL CalcSubcellNum_Y(iElem,nSplit,AdaptMesh(iElem)%RefineDir)
+IF (Symmetry%Order.NE.2) THEN
+  CALL CalcSubcellNum_Z(iElem,nSplit,AdaptMesh(iElem)%RefineDir)
+END IF
 
 RETURN
 END SUBROUTINE CombineSubcells
@@ -1407,6 +1430,179 @@ MapToGeo = 0.125  *(P(:,1)*(1-xi(1)) * (1-xi(2)) * (1-xi(3))  &
 
 END FUNCTION MapToGeo
 
+
+SUBROUTINE CalcSubcellNum_X(iElem,Order, dir)
+!===================================================================================================================================
+! Determine the number of subcells in x-direction
+!===================================================================================================================================
+! MODULES
+  USE MOD_Particle_Mesh_Vars     ,ONLY: PeanoCurve, AdaptMesh, MeshAdapt
+  USE MOD_Particle_Vars          ,ONLY: Symmetry
+! IMPLICIT VARIABLE HANDLING
+  IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+  INTEGER, INTENT(IN) :: iElem,Order, dir(3)
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+  INTEGER              :: nCells, TestCellID, TestCoord(3), xVal, yVal, zVal
+  INTEGER              :: SubcellID, LastID, z_Order
+  INTEGER, ALLOCATABLE :: CellCount(:,:)
+!===================================================================================================================================
+! TODO : first determine the element orientation
+  ! Total and directional subcell number
+nCells = (Order+1)**3
+
+ALLOCATE(CellCount(0:Order,0:Order))
+CellCount = 0
+
+! Set the cell number in z-direction to 1
+IF (Symmetry%Order.EQ.2) THEN
+  z_Order = 0
+ELSE
+  z_Order = Order
+END IF
+
+! Loop over the cells in y- and z-direction
+DO yVal = 0, Order; DO zVal = 0, z_Order
+  TestCoord(AdaptMesh(iElem)%CellOrientation(2)) = yVal
+  TestCoord(AdaptMesh(iElem)%CellOrientation(3)) = zVal
+  LastID = 0
+  ! Loop over the cells in x-direction
+  DO xVal = 0, Order
+    TestCoord(AdaptMesh(iElem)%CellOrientation(1)) = xVal
+    ! Determine the subcell ID for the test coordinate
+    CALL SubcellID_PeanoCurve(Order, dir, TestCoord, TestCellID)
+    ! Check if the cell is merged
+    SubcellID = AdaptMesh(iElem)%SubcellMap(TestCellID)
+    IF (SubcellID.NE.LastID) THEN
+      ! Set the new cell ID
+      LastID = SubcellID
+      CellCount(yVal,zVal) = CellCount(yVal,zVal) + 1
+    END IF
+  END DO
+END DO; END DO
+
+MeshAdapt(2,iElem) = SUM(CellCount(:,:))/((Order+1)*(z_Order+1))
+
+DEALLOCATE(CellCount)
+
+END SUBROUTINE CalcSubcellNum_X
+
+SUBROUTINE CalcSubcellNum_Y(iElem,Order, dir)
+!===================================================================================================================================
+! Determine the number of subcells in y-direction
+!===================================================================================================================================
+! MODULES
+  USE MOD_Particle_Mesh_Vars     ,ONLY: PeanoCurve, AdaptMesh, MeshAdapt
+  USE MOD_Particle_Vars          ,ONLY: Symmetry
+! IMPLICIT VARIABLE HANDLING
+  IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+  INTEGER, INTENT(IN) :: iElem,Order, dir(3)
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+  INTEGER              :: nCells, TestCellID, TestCoord(3), xVal, yVal, zVal
+  INTEGER              :: SubcellID, LastID, z_Order
+  INTEGER, ALLOCATABLE :: CellCount(:,:)
+!===================================================================================================================================
+! TODO : first determine the element orientation
+  ! Total and directional subcell number
+nCells = (Order+1)**3
+
+ALLOCATE(CellCount(0:Order,0:Order))
+CellCount = 0
+
+! Set the cell number in z-direction to 1
+IF (Symmetry%Order.EQ.2) THEN
+  z_Order = 0
+ELSE
+  z_Order = Order
+END IF
+
+! Loop over the cells in x- and z-direction
+DO xVal = 0, Order; DO zVal = 0, z_Order
+  TestCoord(AdaptMesh(iElem)%CellOrientation(1)) = xVal
+  TestCoord(AdaptMesh(iElem)%CellOrientation(3)) = zVal
+  LastID = 0
+  ! Loop over the cells in y-direction
+  DO yVal = 0, Order
+    TestCoord(AdaptMesh(iElem)%CellOrientation(2)) = yVal
+    ! Determine the subcell ID for the test coordinate
+    CALL SubcellID_PeanoCurve(Order, dir, TestCoord, TestCellID)
+    ! Check if the cell is merged
+    SubcellID = AdaptMesh(iElem)%SubcellMap(TestCellID)
+    IF (SubcellID.NE.LastID) THEN
+      ! Set the new cell ID
+      LastID = SubcellID
+      CellCount(xVal,zVal) = CellCount(xVal,zVal) + 1
+    END IF
+  END DO
+END DO; END DO
+
+  MeshAdapt(3,iElem) = SUM(CellCount)/((Order+1)*(z_Order+1))
+
+DEALLOCATE(CellCount)
+
+END SUBROUTINE CalcSubcellNum_Y
+
+SUBROUTINE CalcSubcellNum_Z(iElem,Order, dir)
+!===================================================================================================================================
+! Determine the number of subcells in z-direction
+!===================================================================================================================================
+! MODULES
+  USE MOD_Particle_Mesh_Vars     ,ONLY: PeanoCurve, AdaptMesh, MeshAdapt
+  USE MOD_Particle_Vars          ,ONLY: Symmetry
+! IMPLICIT VARIABLE HANDLING
+  IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+  INTEGER, INTENT(IN) :: iElem,Order, dir(3)
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+  INTEGER              :: nCells, TestCellID, TestCoord(3), xVal, yVal, zVal
+  INTEGER              :: SubcellID, LastID
+  INTEGER, ALLOCATABLE :: CellCount(:,:)
+!===================================================================================================================================
+! TODO : first determine the element orientation
+  ! Total and directional subcell number
+nCells = (Order+1)**3
+
+ALLOCATE(CellCount(0:Order,0:Order))
+CellCount = 0
+
+! Loop over the cells in x- and z-direction
+DO xVal = 0, Order; DO yVal = 0, Order
+  TestCoord(AdaptMesh(iElem)%CellOrientation(1)) = xVal
+  TestCoord(AdaptMesh(iElem)%CellOrientation(2)) = yVal
+  LastID = 0
+  ! Loop over the cells in y-direction
+  DO zVal = 0, Order
+    TestCoord(AdaptMesh(iElem)%CellOrientation(3)) = zVal
+    ! Determine the subcell ID for the test coordinate
+    CALL SubcellID_PeanoCurve(Order, dir, TestCoord, TestCellID)
+    ! Check if the cell is merged
+    SubcellID = AdaptMesh(iElem)%SubcellMap(TestCellID)
+    IF (SubcellID.NE.LastID) THEN
+      ! Set the new cell ID
+      LastID = SubcellID
+      CellCount(xVal,yVal) = CellCount(xVal,yVal) + 1
+    END IF
+  END DO
+END DO; END DO
+
+  MeshAdapt(4,iElem) = SUM(CellCount)/((Order+1)*(Order+1))
+
+DEALLOCATE(CellCount)
+
+END SUBROUTINE CalcSubcellNum_Z
 
 SUBROUTINE BuildPeanoCurve(Order, dir)
 !===================================================================================================================================

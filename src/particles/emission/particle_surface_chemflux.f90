@@ -63,6 +63,10 @@ USE MOD_MPI_Shared_vars         ,ONLY: MPI_COMM_SHARED
 USE MOD_MPI_Shared              ,ONLY: BARRIER_AND_SYNC
 #endif
 USE MOD_Particle_Tracking_Vars  ,ONLY: TrackInfo
+#if USE_LOADBALANCE
+USE MOD_LoadBalance_Vars        ,ONLY: nSurfacefluxPerElem
+USE MOD_LoadBalance_Timers      ,ONLY: LBStartTime, LBElemSplitTime, LBPauseTime
+#endif /*USE_LOADBALANCE*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -81,6 +85,9 @@ REAL                        :: BetaCoeff, WallTemp, SurfMol, SurfMolAbs, SurfEle
 INTEGER                     :: SurfNumOfReac, iReac, ReactantCount, BoundID, nSF
 INTEGER                     :: iVal, iReactant, iValReac, SurfSideID, iBias, SubP, SubQ
 INTEGER, ALLOCATABLE        :: SurfReacBias(:)
+#if USE_LOADBALANCE
+REAL                        :: tLBStart
+#endif /*USE_LOADBALANCE*/
 !===================================================================================================================================
 ! 1.) Determine the surface parameters
 SurfNumOfReac = SurfChemReac%NumOfReact; nSF = SurfChemReac%CatBoundNum
@@ -379,6 +386,10 @@ DO iSF = 1, nSF
       ! 3.) Insert the product species into the gas phase
       DO iSpec = 1, nSpecies
 
+#if USE_LOADBALANCE
+        CALL LBStartTime(tLBStart)
+#endif /*USE_LOADBALANCE*/
+
         IF (INT(ChemDesorpWall(iSpec,1, SubP, SubQ, SurfSideID)/SurfElemMPF,8).GE.1) THEN
 
           ! Define the necessary variables
@@ -430,7 +441,14 @@ DO iSF = 1, nSF
             CALL SetSurfChemfluxVelocities(iSpec,iSF,iSample,jSample,iSide,BCSideID,SideID,NbrOfParticle,PartInsSubSide)
 
             PartsEmitted = PartsEmitted + PartInsSubSide
+#if USE_LOADBALANCE
+            !used for calculating LoadBalance of tCurrent(LB_SURFFLUX)
+            nSurfacefluxPerElem(ElemID)=nSurfacefluxPerElem(ElemID)+PartInsSubSide
+#endif /*USE_LOADBALANCE*/
           END DO; END DO !jSample=1,SurfFluxSideSize(2); iSample=1,SurfFluxSideSize(1)
+#if USE_LOADBALANCE
+          CALL LBElemSplitTime(ElemID,tLBStart)
+#endif /*USE_LOADBALANCE*/
         END IF ! iSide
         IF (NbrOfParticle.NE.iPartTotal) CALL abort(__STAMP__, 'ERROR in ParticleSurfChemFlux: NbrOfParticle.NE.iPartTotal')
 
@@ -456,6 +474,9 @@ DO iSF = 1, nSF
 
         PDM%CurrentNextFreePosition = PDM%CurrentNextFreePosition + NbrOfParticle
         PDM%ParticleVecLength = PDM%ParticleVecLength + NbrOfParticle
+#if USE_LOADBALANCE
+        CALL LBPauseTime(LB_SURFFLUX,tLBStart)
+#endif /*USE_LOADBALANCE*/
 
         IF (NbrOfParticle.NE.PartsEmitted) THEN
           ! should be equal for including the following lines in tSurfaceFlux

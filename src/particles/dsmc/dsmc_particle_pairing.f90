@@ -748,7 +748,7 @@ RECURSIVE SUBROUTINE AddOctreeNode(TreeNode, iElem, NodeVol)
     END IF
   END DO
 
-MeshAdapt(iElem) = TreeNode%NodeDepth
+MeshAdapt(1,iElem) = REAL(TreeNode%NodeDepth)
 
 END SUBROUTINE AddOctreeNode
 
@@ -1046,7 +1046,7 @@ DO iLoop = 1, 4
   END IF
 END DO
 
-MeshAdapt(iElem) = TreeNode%NodeDepth
+MeshAdapt(1,iElem) = REAL(TreeNode%NodeDepth)
 
 END SUBROUTINE AddQuadTreeNode
 
@@ -1233,7 +1233,7 @@ DO iLoop = 1, 2
   END IF
 END DO
 
-MeshAdapt(iElem) = TreeNode%NodeDepth
+MeshAdapt(1,iElem) = REAL(TreeNode%NodeDepth)
 
 END SUBROUTINE AddDoTreeNode
 

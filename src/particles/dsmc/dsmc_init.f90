@@ -903,8 +903,8 @@ ELSE !CollisMode.GT.0
     CALL Init_MeshAdaption()
   END IF
 
-  ALLOCATE(MeshAdapt(nElems))
-  MeshAdapt = 0
+  ALLOCATE(MeshAdapt(4,nElems))
+  MeshAdapt = 0.
 
   DSMC%UseOctree = GETLOGICAL('Particles-DSMC-UseOctree')
   DSMC%UseNearestNeighbour = GETLOGICAL('Particles-DSMC-UseNearestNeighbour')

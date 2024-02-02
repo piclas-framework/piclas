@@ -757,9 +757,20 @@ IF (DSMC%CalcQualityFactors) THEN
         nVarCount = nVarCount + 8
       END IF
     END IF
-    IF (DSMC%UseOctree.OR.DoSubcellAdaption) THEN
-      DSMC_MacroVal(nVarCount+1,iElem) = MeshAdapt(iElem)
-      nVarCount = nVarCount + 1
+    IF (DoSubcellAdaption) THEN
+      DSMC_MacroVal(nVarCount+1:nVarCount+4,iElem) = MeshAdapt(1:4,iElem)
+      nVarCount = nVarCount + 4
+    END IF
+    IF (DSMC%UseOctree) THEN
+      DSMC_MacroVal(nVarCount+1,iElem) = MeshAdapt(1,iElem)
+      DSMC_MacroVal(nVarCount+2,iElem) = 2.**MeshAdapt(1,iElem)
+      DSMC_MacroVal(nVarCount+3,iElem) = 2.**MeshAdapt(1,iElem)
+      IF (Symmetry%Order.EQ.2) THEN
+        DSMC_MacroVal(nVarCount+4,iElem) = 1
+      ELSE
+        DSMC_MacroVal(nVarCount+4,iElem) = 2.**MeshAdapt(1,iElem)
+      END IF
+      nVarCount = nVarCount + 4
     END IF
     ! variable rotation and vibration relaxation
     IF(Collismode.GT.1) THEN
@@ -971,7 +982,7 @@ IF (DSMC%CalcQualityFactors) THEN
       nVar_quality = nVar_quality + 5
     END IF
   END IF
-  IF (DSMC%UseOctree.OR.DoSubcellAdaption) nVar_quality = nVar_quality + 1
+  IF (DSMC%UseOctree.OR.DoSubcellAdaption) nVar_quality = nVar_quality + 4
 ELSE
   nVar_quality=0
 END IF
@@ -1116,10 +1127,16 @@ IF (DSMC%CalcQualityFactors) THEN
   END IF
   IF (DSMC%UseOctree) THEN
     StrVarNames(nVarCount+1) ='Octree_Node_Depth'
-    nVarCount = nVarCount + 1
+    StrVarNames(nVarCount+2) ='Octree_X'
+    StrVarNames(nVarCount+3) ='Octree_Y'
+    StrVarNames(nVarCount+4) ='Octree_Z'
+    nVarCount = nVarCount + 4
   ELSE IF (DoSubcellAdaption) THEN
     StrVarNames(nVarCount+1) ='Subcell_Number'
-    nVarCount = nVarCount + 1
+    StrVarNames(nVarCount+2) ='Subcell_X'
+    StrVarNames(nVarCount+3) ='Subcell_Y'
+    StrVarNames(nVarCount+4) ='Subcell_Z'
+    nVarCount = nVarCount + 4
   END IF
 END IF
 IF(DSMC%CalcCellMPF) THEN

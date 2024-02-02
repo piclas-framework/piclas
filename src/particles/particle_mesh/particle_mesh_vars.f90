@@ -360,7 +360,7 @@ END TYPE
 
 LOGICAL                                  :: DoSubcellAdaption
 
-INTEGER,ALLOCATABLE                      :: MeshAdapt(:)
+REAL,ALLOCATABLE                         :: MeshAdapt(:,:)
 
 TYPE(tMeshAdaption), ALLOCATABLE         :: AdaptMesh(:)
 

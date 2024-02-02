@@ -161,8 +161,8 @@ IF(DSMC%CalcQualityFactors) THEN
   BGK_MeanRelaxFactorCounter  = BGK_MeanRelaxFactorCounter + 1
   BGK_MaxRelaxFactor          = MAX(BGK_MaxRelaxFactor,relaxfreq*dtCell)
   BGK_PrandtlNumber           = BGK_PrandtlNumber + Prandtl
-  BGK_Viscosity               = BGK_Viscosity + dynamicvis
-  BGK_ThermalConductivity     = BGK_ThermalConductivity + thermalcond
+  !BGK_Viscosity               = BGK_Viscosity + dynamicvis
+  !BGK_ThermalConductivity     = BGK_ThermalConductivity + thermalcond
 END IF
 
 ! 3.) Treatment of molecules: determination of the rotational and vibrational relaxation frequency using the collision frequency,
