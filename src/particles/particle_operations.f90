@@ -159,6 +159,7 @@ USE MOD_Globals                   ,ONLY: abort
 USE MOD_HDG_Vars                  ,ONLY: UseFPC,FPC,UseEPC,EPC
 USE MOD_Mesh_Vars                 ,ONLY: BoundaryType
 #endif /*USE_HDG*/
+USE MOD_Particle_Vars             ,ONLY: PartState, LastPartPos
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
 ! INPUT / OUTPUT VARIABLES
@@ -298,6 +299,15 @@ IF(PRESENT(BCID)) THEN
     END IF ! BCType.EQ.8
   END IF ! UseEPC
 #endif /*USE_HDG*/
+
+  ! Debugging: Move particles that impact the left BC to a specific location
+  !IF(TRIM(BoundaryName(PartBound%MapToFieldBC(BCID))).EQ.'BC_LEFT')THEN
+  !  PartSpecies(PartID)        = 3
+  !  PDM%ParticleInside(PartID) = .TRUE.
+  !  PartState(1,PartID)        = -9e-9 ! (/-9e-9, 0., 0./)
+  !  LastPartPos(1,PartID)      = -9e-9 ! (/-9e-9, 0., 0./)
+  !  PartState(4:6,PartID)      = (/0., 0., 0./)
+  !END IF ! TRIM(BoundaryName(PartBound%MapToFieldBC(BCID))).EQ.'BC_LEFT'
 END IF ! PRESENT(BCID)
 
 ! Tracking-relevant variables (not required if a particle is removed within the domain, e.g. removal due to radial weighting)
