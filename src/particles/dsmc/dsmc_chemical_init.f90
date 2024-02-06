@@ -141,14 +141,10 @@ USE MOD_DSMC_Vars               ,ONLY: ChemReac, DSMC, SpecDSMC, BGGas, CollInf
 USE MOD_PARTICLE_Vars           ,ONLY: nSpecies, Species, SpeciesDatabase
 USE MOD_Particle_Analyze_Vars   ,ONLY: ChemEnergySum
 USE MOD_DSMC_ChemReact          ,ONLY: CalcPartitionFunction
-USE MOD_part_emission_tools     ,ONLY: CalcPhotonEnergy
 USE MOD_DSMC_QK_Chemistry       ,ONLY: QK_Init
 USE MOD_MCC_Vars                ,ONLY: NbrOfPhotonXsecReactions
 USE MOD_io_hdf5
 USE MOD_HDF5_input              ,ONLY: ReadAttribute, DatasetExists, AttributeExists
-#if USE_LOADBALANCE
-USE MOD_LoadBalance_Vars        ,ONLY: PerformLoadBalance
-#endif /*USE_LOADBALANCE*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -158,10 +154,10 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 CHARACTER(LEN=3)      :: hilf
-INTEGER               :: iReac, iReac2, iSpec, iPart, iReacDiss, iSpec2, iInit
+INTEGER               :: iReac, iReac2, iSpec, iPart, iReacDiss, iSpec2
 INTEGER, ALLOCATABLE  :: DummyRecomb(:,:)
 LOGICAL               :: DoScat
-REAL                  :: BGGasEVib, PhotonEnergy, omega, ChargeProducts, ChargeReactants
+REAL                  :: BGGasEVib, omega, ChargeProducts, ChargeReactants
 INTEGER               :: Reactant1, Reactant2, Reactant3, MaxSpecies, ReadInNumOfReact, CustomNumReact
 !===================================================================================================================================
 
@@ -352,9 +348,11 @@ IF(SpeciesDatabase.EQ.'none') THEN
       CASE('phIon')
         ! Photo-ionization reactions
         ChemReac%CrossSection(iReac)                 = GETREAL('DSMC-Reaction'//TRIM(hilf)//'-CrossSection')
+        ChemReac%AnyPhIonReaction = .TRUE.
       CASE('phIonXSec')
         ! Photo-ionization reactions (data read-in from database)
         NbrOfPhotonXsecReactions = NbrOfPhotonXsecReactions + 1
+        ChemReac%AnyPhIonReaction = .TRUE.
       CASE DEFAULT
         CALL abort(__STAMP__,'Selected reaction model is not supported in reaction number: ', IntInfoOpt=iReac)
     END SELECT
@@ -446,25 +444,10 @@ DO iReac = 1, ChemReac%NumOfReact
         __STAMP__,'ERROR: Ionization reactions require the definition of at least the ionization energy as electronic level!',iReac)
     END IF
   END DO
-  ! Check whether the photon energy is sufficient to trigger the chemical reaction
-  IF(TRIM(ChemReac%ReactModel(iReac)).EQ.'phIon') THEN
-    PhotonEnergy = 0.
-    DO iSpec = 1, nSpecies
-      DO iInit = 1, Species(iSpec)%NumberOfInits
-        SELECT CASE(TRIM(Species(iSpec)%Init(iInit)%SpaceIC))
-        CASE('photon_cylinder','photon_honeycomb','photon_rectangle')
-          PhotonEnergy = CalcPhotonEnergy(Species(iSpec)%Init(iInit)%WaveLength)
-          EXIT
-        END SELECT
-      END DO
-    END DO
-
-    ChemReac%EForm(iReac) = ChemReac%EForm(iReac) + PhotonEnergy
-    IF(ChemReac%EForm(iReac).LE.0.0) THEN
-      CALL abort(__STAMP__,'ERROR: Photon energy is not sufficient for the given ionization reaction: ',iReac)
-    END IF
-  END IF ! TRIM(ChemReac%ReactModel(iReac)).EQ.'phIon'
 END DO ! iReac = 1, ChemReac%NumOfReact
+
+! Photoionization
+CALL InitPhotonReactions()
 
 ! Populate the background reaction arrays and initialize the required partition functions
 IF(DSMC%BackwardReacRate) THEN
@@ -690,9 +673,6 @@ USE MOD_PARTICLE_Vars           ,ONLY: nSpecies, Species, SpeciesDatabase
 USE MOD_DSMC_ChemReact          ,ONLY: CalcPartitionFunction
 USE MOD_io_hdf5
 USE MOD_HDF5_input              ,ONLY: ReadAttribute
-#if USE_MPI
-USE MOD_LoadBalance_Vars       ,ONLY: PerformLoadBalance
-#endif /*USE_MPI*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -977,9 +957,6 @@ USE MOD_DSMC_Vars         ,ONLY: ChemReac
 USE MOD_HDF5_Input        ,ONLY: DatasetExists,nDims,HSize,ReadAttribute,GetDataSize,AttributeExists
 USE MOD_StringTools       ,ONLY: STRICMP
 USE MOD_MCC_Vars          ,ONLY: NbrOfPhotonXsecReactions
-#if USE_LOADBALANCE
-USE MOD_LoadBalance_Vars  ,ONLY: PerformLoadBalance
-#endif /*USE_LOADBALANCE*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1079,9 +1056,11 @@ IF(ChemReac%ChemistryModel.EQ.'none') THEN
       CASE('phIon')
         ! Photo-ionization reactions
         ChemReac%CrossSection(iReac)                 = GETREAL('DSMC-Reaction'//TRIM(hilf)//'-CrossSection')
+        ChemReac%AnyPhIonReaction = .TRUE.
       CASE('phIonXSec')
         ! Photo-ionization reactions (data read-in from database)
         NbrOfPhotonXsecReactions = NbrOfPhotonXsecReactions + 1
+        ChemReac%AnyPhIonReaction = .TRUE.
       CASE DEFAULT
         CALL abort(__STAMP__,'Selected reaction model is not supported in reaction number: ', IntInfoOpt=iReac)
     END SELECT
@@ -1166,9 +1145,11 @@ ELSE
       CASE('phIon')
         ! Photo-ionization reactions
         ChemReac%CrossSection(iReac)                 = GETREAL('DSMC-Reaction'//TRIM(hilf)//'-CrossSection')
+        ChemReac%AnyPhIonReaction = .TRUE.
       CASE('phIonXSec')
         ! Photo-ionization reactions (data read-in from database)
         NbrOfPhotonXsecReactions = NbrOfPhotonXsecReactions + 1
+        ChemReac%AnyPhIonReaction = .TRUE.
       CASE DEFAULT
         CALL abort(__STAMP__,'Selected reaction model as part of a chemistry model is not supported in reaction number: ', IntInfoOpt=iReac)
     END SELECT
@@ -1195,9 +1176,6 @@ USE MOD_Globals_Vars      ,ONLY: BoltzmannConst
 USE MOD_DSMC_Vars         ,ONLY: ChemReac
 USE MOD_HDF5_Input        ,ONLY: DatasetExists,ReadAttribute
 USE MOD_ReadInTools       ,ONLY: PrintOption
-#if USE_LOADBALANCE
-USE MOD_LoadBalance_Vars  ,ONLY: PerformLoadBalance
-#endif /*USE_LOADBALANCE*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1224,4 +1202,64 @@ ChemReac%EActiv(iReac) = ChemReac%EActiv(iReac)*BoltzmannConst
 CALL PrintOption('Activation-Energy_K','DB',RealOpt=ChemReac%EActiv(iReac))
 
 END SUBROUTINE ReadArrheniusFromDatabase
+
+
+!===================================================================================================================================
+!> Calculation and sanity check of ChemReac%EForm(iReac) for photoionization reactions, i.e.,  ChemReac%ReactModel(iReac).EQ.'phIon'
+!> The sanity check will determine if the photon energy is sufficient to trigger any reactions.
+!===================================================================================================================================
+SUBROUTINE InitPhotonReactions()
+! MODULES
+USE MOD_Globals             ,ONLY: abort
+USE MOD_DSMC_Vars           ,ONLY: ChemReac,CollisMode,UseDSMC
+USE MOD_part_emission_tools ,ONLY: CalcPhotonEnergy
+USE MOD_PARTICLE_Vars       ,ONLY: nSpecies
+USE MOD_RayTracing_Vars     ,ONLY: RayPartBound,Ray
+USE MOD_Particle_Vars       ,ONLY: Species
+USE MOD_MCC_Vars            ,ONLY: NbrOfPhotonXsecReactions
+IMPLICIT NONE
+!----------------------------------------------------------------------------------------------------------------------------------!
+! INPUT / OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+REAL    :: PhotonEnergy
+INTEGER :: iInit, iSpec, iReac
+!===================================================================================================================================
+IF(.NOT.UseDSMC) RETURN
+IF(CollisMode.NE.3) RETURN
+
+DO iReac = 1, ChemReac%NumOfReact
+  ! Check whether the photon energy is sufficient to trigger the chemical reaction
+  IF(TRIM(ChemReac%ReactModel(iReac)).EQ.'phIon') THEN
+    PhotonEnergy = 0.
+
+    ! Const. photon energy from wavelength given in ray tracing model
+    IF(RayPartBound.GT.0)THEN
+      PhotonEnergy = CalcPhotonEnergy(Ray%WaveLength)
+    END IF ! RayPartBound.GT.0
+
+    ! Const. photon energy from wavelength given in particle emission model
+    DO iSpec = 1, nSpecies
+      DO iInit = 1, Species(iSpec)%NumberOfInits
+        SELECT CASE(TRIM(Species(iSpec)%Init(iInit)%SpaceIC))
+        CASE('photon_cylinder','photon_honeycomb','photon_rectangle')
+          PhotonEnergy = CalcPhotonEnergy(Species(iSpec)%Init(iInit)%WaveLength)
+          EXIT
+        END SELECT
+      END DO
+    END DO
+
+    ChemReac%EForm(iReac) = ChemReac%EForm(iReac) + PhotonEnergy
+    IF(ChemReac%EForm(iReac).LE.0.0) THEN
+      CALL abort(__STAMP__,'ERROR: Photon energy is not sufficient for the given ionization reaction: ',iReac)
+    END IF
+    ! Abort if photon-ionization reactions using cross-sections have been defined
+    IF(NbrOfPhotonXsecReactions.GT.0) CALL abort(__STAMP__,&
+      'Photoionization reactions with constant cross-sections cannot be combined with XSec data cross-sections for photoionization')
+  END IF ! TRIM(ChemReac%ReactModel(iReac)).EQ.'phIon'
+END DO ! iReac = 1, ChemReac%NumOfReact
+
+END SUBROUTINE InitPhotonReactions
+
+
 END MODULE MOD_DSMC_ChemInit

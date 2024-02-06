@@ -158,7 +158,8 @@ IF(UseTimeDepCoil) THEN
     ASSOCIATE( f => CurrentInfo(iCoil)%CurrentFreq )
       BGFieldFrequency = f ! Set frequency for output to h5 file as attribute
       BGFieldCurrent   = CoilInfo(iCoil)%Current ! Set current maximum for output to h5 file as attribute
-      timestep         = MERGE(1./(f*REAL(nTimePoints-1)), 0., f.GT.0.)
+      IF (f.GT.0.) THEN; timestep = 1./(f*REAL(nTimePoints-1))
+      ELSE             ; timestep = 0.; END IF
     END ASSOCIATE
     SWRITE(UNIT_stdOut,'(A)') '...Calculation of the B-Field'
     DO iTimePoint = 1, nTimePoints
@@ -177,7 +178,7 @@ END IF
 ! ------------------------------------------------------------
 ! Write BGField (time-constant) or WriteBGFieldToHDF5 (time-dependent) fields to h5
 CALL WriteBGFieldToHDF5()
-! Output analytic field solution if required 
+! Output analytic field solution if required
 IF(DoCalcErrorNormsSuperB) CALL WriteBGFieldAnalyticToHDF5()
 
 ! Deallocate stuff

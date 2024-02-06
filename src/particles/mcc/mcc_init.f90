@@ -146,6 +146,11 @@ IF(UseMCC.AND.(DSMC%VibRelaxProb.EQ.2.0)) CALL abort(__STAMP__&
 IF(.NOT.UseMCC.AND.VarTimeStep%UseSpeciesSpecific) CALL abort(__STAMP__,&
       'ERROR: Only MCC is implemented with a species-specific time step!')
 
+! Disable SampleElecExcitation if electronic excitation has not been enabled for at least one species
+IF(SampleElecExcitation.AND.(.NOT.ANY(SpecDSMC(:)%UseElecXSec))) THEN
+  SampleElecExcitation = .FALSE.
+  LBWRITE(*,*) '| WARNING: Part-SampleElectronicExcitation has been disabled as no electronic excitation has been enabled through -UseElecXSec = T!'
+END IF
 ! Leave the routine
 IF(.NOT.UseMCC) RETURN
 
@@ -389,8 +394,8 @@ DO iSpec = 1, nSpecies
           CALL abort(__STAMP__,'Total null collision probability is above unity. Please reduce the time step! Probability is: '&
           ,RealInfoOpt=TotalProb(partSpec))
         ELSEIF(TotalProb(partSpec).GT.0.1) THEN
-          SWRITE(*,*) 'Total null collision probability is above 0.1. A value of 1E-2 is recommended in literature!'
-          SWRITE(*,*) 'Particle Species: ', TRIM(Species(partSpec)%Name), ' Probability: ', TotalProb(partSpec)
+          LBWRITE(*,*) 'Total null collision probability is above 0.1. A value of 1E-2 is recommended in literature!'
+          LBWRITE(*,*) 'Particle Species: ', TRIM(Species(partSpec)%Name), ' Probability: ', TotalProb(partSpec)
         END IF ! TotalProb(partSpec).GT.1.0
       END IF ! XSec_NullCollision
     END IF ! SpecXSec(iCase)%UseCollXSec
@@ -414,20 +419,22 @@ END IF
 IF(SampleElecExcitation) THEN
   ExcitationLevelCounter = 0
   ALLOCATE(ExcitationLevelMapping(CollInf%NumCase,MAXVAL(SpecXSec(:)%NumElecLevel)))
+  ! Count the number of excitation levels for all collision cases
   DO iCase = 1, CollInf%NumCase
     IF(.NOT.SpecXSec(iCase)%UseElecXSec) CYCLE
     DO iLevel = 1, SpecXSec(iCase)%NumElecLevel
       ExcitationLevelCounter = ExcitationLevelCounter + 1
       ExcitationLevelMapping(iCase,iLevel) = ExcitationLevelCounter
     END DO
-    IF(ExcitationLevelCounter.NE.SUM(SpecXSec(:)%NumElecLevel)) THEN
-      IPWRITE(UNIT_StdOut,*) "ExcitationLevelCounter        =", ExcitationLevelCounter
-      IPWRITE(UNIT_StdOut,*) "SUM(SpecXSec(:)%NumElecLevel) =", SUM(SpecXSec(:)%NumElecLevel)
-      CALL abort(__STAMP__,'Electronic excitation sampling: Wrong level counter!')
-    END IF
-    ALLOCATE(ExcitationSampleData(ExcitationLevelCounter,nElems))
-    ExcitationSampleData = 0.
   END DO
+  ! Sanity check
+  IF(ExcitationLevelCounter.NE.SUM(SpecXSec(:)%NumElecLevel)) THEN
+    IPWRITE(UNIT_StdOut,*) "ExcitationLevelCounter        =", ExcitationLevelCounter
+    IPWRITE(UNIT_StdOut,*) "SUM(SpecXSec(:)%NumElecLevel) =", SUM(SpecXSec(:)%NumElecLevel)
+    CALL abort(__STAMP__,'Electronic excitation sampling: Wrong level counter!')
+  END IF
+  ALLOCATE(ExcitationSampleData(ExcitationLevelCounter,nElems))
+  ExcitationSampleData = 0.
 END IF
 
 #if defined(PARTICLES) && USE_HDG
@@ -462,25 +469,27 @@ INTEGER,INTENT(IN)            :: iSpec
 INTEGER,INTENT(IN)            :: jSpec
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                       :: MaxDOF, bggSpec,iElem
+INTEGER                       :: MaxDOF, bggSpec, iElem, partSpec
 REAL                          :: MaxCollFreq, MaxCollFreqElem, Mass, dtVar
 REAL,ALLOCATABLE              :: Velocity(:)
 !===================================================================================================================================
-
-! Set the correct time step
-IF(VarTimeStep%UseSpeciesSpecific.AND..NOT.VarTimeStep%DisableForMCC) THEN
-  dtVar = ManualTimeStep * Species(iSpec)%TimeStepFactor
-ELSE
-  dtVar = ManualTimeStep
-END IF
 
 ! Select the background species as the target cloud and use the mass of particle species
 IF(BGGas%BackgroundSpecies(iSpec)) THEN
   bggSpec = BGGas%MapSpecToBGSpec(iSpec)
   Mass = Species(jSpec)%MassIC
+  partSpec = jSpec
 ELSE
   bggSpec = BGGas%MapSpecToBGSpec(jSpec)
   Mass = Species(iSpec)%MassIC
+  partSpec = iSpec
+END IF
+
+! Set the correct time step for the particle species
+IF(VarTimeStep%UseSpeciesSpecific.AND..NOT.VarTimeStep%DisableForMCC) THEN
+  dtVar = ManualTimeStep * Species(partSpec)%TimeStepFactor
+ELSE
+  dtVar = ManualTimeStep
 END IF
 
 MaxDOF = SIZE(SpecXSec(iCase)%CollXSecData,2)
@@ -831,7 +840,7 @@ DO iLine = PhotoIonFirstLine, PhotoIonLastLine
   IF(SpecPhotonXSecInterpolated(iLine,NbrOfPhotonXsecReactions+3).LE.0.)THEN
     ZeroLine = iLine
     EXIT
-  END IF ! 
+  END IF !
 END DO ! iLine = PhotoIonFirstLine, PhotoIonLastLine
 
 IF(ZeroLine.GT.0)THEN

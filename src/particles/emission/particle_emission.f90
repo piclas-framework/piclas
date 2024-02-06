@@ -42,7 +42,7 @@ USE MOD_Timedisc_Vars          ,ONLY: dt,time
 USE MOD_Timedisc_Vars          ,ONLY: RKdtFrac,RKdtFracTotal
 USE MOD_Particle_Vars
 USE MOD_PIC_Vars
-USE MOD_part_tools             ,ONLY: UpdateNextFreePosition
+USE MOD_part_tools             ,ONLY: UpdateNextFreePosition, GetNextFreePosition, IncreaseMaxParticleNumber
 USE MOD_DSMC_Vars              ,ONLY: useDSMC, CollisMode, SpecDSMC
 USE MOD_part_emission_tools    ,ONLY: DSMC_SetInternalEnr_LauxVFD
 USE MOD_DSMC_PolyAtomicModel   ,ONLY: DSMC_SetInternalEnr_Poly
@@ -60,6 +60,7 @@ USE MOD_ReadInTools            ,ONLY: PrintOption
 USE MOD_Particle_MPI_Vars      ,ONLY: MPIW8TimePart,MPIW8CountPart
 #endif /*defined(MEASURE_MPI_WAIT)*/
 USE MOD_SurfaceModel_Analyze_Vars ,ONLY: SEE,CalcElectronSEE
+USE MOD_Particle_Photoionization  ,ONLY: PhotoIonization_RayTracing_Volume, PhotoIonization_RayTracing_SEE
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -85,6 +86,12 @@ INTEGER(KIND=8)                  :: CounterStart,CounterEnd
 REAL(KIND=8)                     :: Rate
 #endif /*defined(MEASURE_MPI_WAIT)*/
 !===================================================================================================================================
+
+!--- Ray tracing based volume photo-ionization
+CALL PhotoIonization_RayTracing_Volume()
+
+!--- Ray tracing based secondary electron emission
+CALL PhotoIonization_RayTracing_SEE()
 
 !---  Emission at time step
 DO i=1,nSpecies
@@ -226,9 +233,10 @@ DO i=1,nSpecies
                 ! Calculation of the number of photons depending on the cylinder height (ratio of actual to virtual cylinder height, which
                 ! is spanned by the disk and the length given by c*dt)
                 IF(TRIM(Species(i)%Init(iInit)%SpaceIC).EQ.'photon_rectangle')THEN
+                  ! Rectangular area -> cuboid: Equally distributed over c*dt
                   NbrOfPhotons = NbrOfPhotons * Species(i)%Init(iInit)%CuboidHeightIC / (c*dt)
                 ELSE
-                  ! Cylinder and honeycomb
+                  ! Cylinder and honeycomb: Equally distributed over c*dt
                   NbrOfPhotons = NbrOfPhotons * Species(i)%Init(iInit)%CylinderHeightIC / (c*dt)
                 END IF
                 ! Calculation of the number of electron resulting from the chemical reactions in the photoionization region
@@ -331,9 +339,8 @@ DO i=1,nSpecies
     IF (UseVarTimeStep) CALL SetParticleTimeStep(NbrOfParticle)
     ! define molecule stuff
     IF (useDSMC.AND.(CollisMode.GT.1)) THEN
-      iPart = 1
-      DO WHILE (iPart.LE.NbrOfParticle)
-        PositionNbr = PDM%nextFreePosition(iPart+PDM%CurrentNextFreePosition)
+      DO iPart = 1, NbrOfParticle
+        PositionNbr = GetNextFreePosition(iPart)
         IF (PositionNbr.NE.0) THEN
           IF (SpecDSMC(i)%PolyatomicMol) THEN
             CALL DSMC_SetInternalEnr_Poly(i,iInit,PositionNbr,1)
@@ -341,20 +348,30 @@ DO i=1,nSpecies
             CALL DSMC_SetInternalEnr_LauxVFD(i,iInit,PositionNbr,1)
           END IF
         END IF
-        iPart = iPart + 1
       END DO
     END IF
     ! Compute number of input particles and energy
     IF(CalcPartBalance.AND.(NbrOfParticle.GT.0)) THEN
       nPartIn(i)=nPartIn(i) + NbrOfparticle
       DO iPart=1,NbrOfParticle
-        PositionNbr = PDM%nextFreePosition(iPart+PDM%CurrentNextFreePosition)
-        IF (PositionNbr .NE. 0) PartEkinIn(i) = PartEkinIn(i) + CalcEkinPart(PositionNbr)
+        PositionNbr = GetNextFreePosition(iPart)
+        PartEkinIn(i) = PartEkinIn(i) + CalcEkinPart(PositionNbr)
       END DO ! iPart
     END IF ! CalcPartBalance
     ! Update the current next free position and increase the particle vector length
-    PDM%CurrentNextFreePosition = PDM%CurrentNextFreePosition + NbrOfParticle
-    PDM%ParticleVecLength = PDM%ParticleVecLength + NbrOfParticle
+    IF(NbrOfParticle.GT.0) THEN
+      PDM%CurrentNextFreePosition = PDM%CurrentNextFreePosition + NbrOfParticle
+      PDM%ParticleVecLength = MAX(PDM%ParticleVecLength,GetNextFreePosition(0))
+    END IF
+#ifdef CODE_ANALYZE
+    IF(PDM%ParticleVecLength.GT.PDM%maxParticleNumber) CALL Abort(__STAMP__,'PDM%ParticleVeclength exceeds PDM%maxParticleNumber, Difference:',IntInfoOpt=PDM%ParticleVeclength-PDM%maxParticleNumber)
+    DO iPart=PDM%ParticleVecLength+1,PDM%maxParticleNumber
+      IF (PDM%ParticleInside(iPart)) THEN
+        IPWRITE(*,*) iPart,PDM%ParticleVecLength,PDM%maxParticleNumber
+        CALL Abort(__STAMP__,'Particle outside PDM%ParticleVeclength',IntInfoOpt=iPart)
+      END IF
+    END DO
+#endif
 
     ! Complete check if all particles were emitted successfully
 #if USE_MPI

@@ -75,6 +75,8 @@ TYPE tRadialWeighting
   INTEGER                     :: CloneInputDelay
   LOGICAL                     :: CellLocalWeighting
   INTEGER                     :: nSubSides
+  INTEGER                     :: CloneVecLength
+  INTEGER                     :: CloneVecLengthDelta
 END TYPE tRadialWeighting
 
 TYPE(tRadialWeighting)        :: RadialWeighting
@@ -427,6 +429,8 @@ TYPE tChemReactions
   CHARACTER(LEN=255)              :: ChemistryModel         ! Defines a set of chemical reactions to read-in from the species database
   CHARACTER(LEN=200),ALLOCATABLE  :: ReactionName(:)        ! Name of reaction to identify reaction [NumofReact]
   INTEGER,ALLOCATABLE             :: totalReacToModel(:)    ! Mapping from all available reactions in the database to the model reactions
+  ! Photo-ionization Chemistry
+  LOGICAL                         :: AnyPhIonReaction       ! Defines if any photo-ionization reaction is present
 END TYPE
 
 TYPE(tChemReactions)              :: ChemReac

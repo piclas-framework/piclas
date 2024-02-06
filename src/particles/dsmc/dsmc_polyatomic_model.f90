@@ -116,7 +116,6 @@ IF (PolyatomMolDSMC(iPolyatMole)%LinearMolec) THEN
 ELSE
   SpecDSMC(iSpec)%Xi_Rot = 3
 END IF
-
 PolyatomMolDSMC(iPolyatMole)%VibDOF = 3*PolyatomMolDSMC(iPolyatMole)%NumOfAtoms - 3 - SpecDSMC(iSpec)%Xi_Rot
 ALLOCATE(PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(PolyatomMolDSMC(iPolyatMole)%VibDOF))
 IF(DSMC%PolySingleMode) THEN
@@ -154,12 +153,10 @@ IF(SpeciesDatabase.NE.'none') THEN
       CALL PrintOption('CharaTempRot'//TRIM(hilf2)//' '//TRIM(Species(iSpec)%Name),'DB',RealOpt=PolyatomMolDSMC(iPolyatMole)%CharaTRotDOF(iVibDOF))
     END DO
   END IF
-  ! Read-in of characteristic vibrational temperature and calculation of zero-point energy
+  ! Read-in of characteristic vibrational temperature
   DO iVibDOF = 1, PolyatomMolDSMC(iPolyatMole)%VibDOF
     WRITE(UNIT=hilf2,FMT='(I0)') iVibDOF
     CALL ReadAttribute(file_id_specdb,TRIM('CharaTempVib'//TRIM(hilf2)),1,DatasetName = dsetname,RealScalar=PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iVibDOF))
-    SpecDSMC(iSpec)%EZeroPoint = SpecDSMC(iSpec)%EZeroPoint &
-        + DSMC%GammaQuant*PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iVibDOF)*BoltzmannConst
     CALL PrintOption('CharaTempVib'//TRIM(hilf2)//' '//TRIM(Species(iSpec)%Name),'DB',RealOpt=PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iVibDOF))
   END DO
   ! Close the file.
@@ -175,18 +172,20 @@ IF(Species(iSpec)%DoOverwriteParameters) THEN
   ELSE
     DO iVibDOF = 1,3
       WRITE(UNIT=hilf2,FMT='(I0)') iVibDOF
-      PolyatomMolDSMC(iPolyatMole)%CharaTRotDOF(iVibDOF) = &
-        GETREAL('Part-Species'//TRIM(hilf)//'-CharaTempRot'//TRIM(hilf2),'0')
+      PolyatomMolDSMC(iPolyatMole)%CharaTRotDOF(iVibDOF) = GETREAL('Part-Species'//TRIM(hilf)//'-CharaTempRot'//TRIM(hilf2),'0')
     END DO
   END IF
-  ! Read-in of characteristic vibrational temperature and calculation of zero-point energy
+  ! Read-in of characteristic vibrational temperature
   DO iVibDOF = 1, PolyatomMolDSMC(iPolyatMole)%VibDOF
     WRITE(UNIT=hilf2,FMT='(I0)') iVibDOF
     PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iVibDOF) = GETREAL('Part-Species'//TRIM(hilf)//'-CharaTempVib'//TRIM(hilf2))
-    SpecDSMC(iSpec)%EZeroPoint = SpecDSMC(iSpec)%EZeroPoint &
-      + DSMC%GammaQuant*PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iVibDOF)*BoltzmannConst
   END DO
 END IF
+
+! Calculation of zero-point energy
+DO iVibDOF = 1, PolyatomMolDSMC(iPolyatMole)%VibDOF
+  SpecDSMC(iSpec)%EZeroPoint = SpecDSMC(iSpec)%EZeroPoint + DSMC%GammaQuant*PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iVibDOF)*BoltzmannConst
+END DO
 
 ALLOCATE(PolyatomMolDSMC(iPolyatMole)%MaxVibQuantDOF(PolyatomMolDSMC(iPolyatMole)%VibDOF))
 ! Maximum number of quantum number per DOF cut at 80 to reduce computational effort

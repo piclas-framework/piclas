@@ -103,6 +103,11 @@ INTEGER(HID_T)                 :: Plist_ID
 CHARACTER(LEN=255)             :: ProgramName
 LOGICAL                        :: help
 !===================================================================================================================================
+IF(.NOT.FILEEXISTS(FileName))THEN
+  SWRITE(UNIT_stdOut,'(A)')' ERROR: The file does not exit! FileName: '//TRIM(FileName)
+  isValidHDF5File=.FALSE.
+  RETURN
+END IF ! .NOT.FILEEXISTS(FileName)
 isValidHDF5File=.TRUE.
 iError=0
 FileVersionRealRef=-1.0
@@ -215,6 +220,7 @@ ELSE
   ! Close FORTRAN predefined datatypes
   CALL H5CLOSE_F(iError)
 END IF
+
 END FUNCTION ISVALIDMESHFILE
 
 !==================================================================================================================================
@@ -313,22 +319,29 @@ END SUBROUTINE GetAttributeSize
 !> during this operation.
 !> auto error messages off
 !==================================================================================================================================
-SUBROUTINE DatasetExists(Loc_ID,DSetName,Exists,attrib)
+SUBROUTINE DatasetExists(Loc_ID_in,DSetName,Exists,attrib,DSetName_attrib)
 ! MODULES
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
-! INPUT/OUTPUT VARIABLES
-CHARACTER(LEN=*)                     :: DSetName !< name if dataset to be checked
-INTEGER(HID_T),INTENT(IN)            :: Loc_ID   !< ID of dataset
-LOGICAL,INTENT(IN),OPTIONAL          :: attrib   !< check dataset or attribute
-LOGICAL,INTENT(OUT)                  :: Exists   !< result: dataset exists
+! INPUT VARIABLES
+CHARACTER(LEN=*)                     :: DSetName        !< name if dataset to be checked
+INTEGER(HID_T),INTENT(IN)            :: Loc_ID_in       !< ID of dataset
+LOGICAL,INTENT(IN),OPTIONAL          :: attrib          !< check dataset or attribute
+CHARACTER(LEN=*),OPTIONAL            :: DSetName_attrib !< name if dataset to be checked
+! OUTPUT VARIABLES
+LOGICAL,INTENT(OUT)                  :: Exists          !< result: dataset exists
 !----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
+INTEGER(HID_T)                       :: Loc_ID
 LOGICAL                              :: attrib_loc
 !==================================================================================================================================
-
+Loc_ID=Loc_ID_in
 IF (PRESENT(attrib)) THEN
   attrib_loc=attrib
+  IF(PRESENT(DSetName_attrib))THEN
+    ! Open dataset
+    IF(TRIM(DSetName_attrib).NE.'') CALL H5DOPEN_F(File_ID, TRIM(DSetName_attrib),Loc_ID, iError)
+  END IF
 ELSE
   attrib_loc=.FALSE.
 END IF
@@ -643,7 +656,7 @@ END IF
 CALL H5AOPEN_F(Loc_ID, TRIM(AttribName), Attr_ID, iError)
 
 IF(iError.NE.0) CALL abort(__STAMP__,&
-    'Attribute '//TRIM(AttribName)//' does not exist or h5 file already opened by a different program')
+    'Attribute ['//TRIM(AttribName)//'] does not exist or h5 file already opened by a different program')
 
 IF(PRESENT(RealArray))     RealArray=0.
 IF(PRESENT(RealScalar))    RealScalar=0.

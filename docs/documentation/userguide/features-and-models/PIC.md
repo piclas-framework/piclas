@@ -18,8 +18,16 @@ A linear deposition method that also considers neighbouring elements can be sele
 
     PIC-Deposition-Type = cell_volweight_mean
 
-The method also considers the corner nodes of each element to which all neighbouring elements
+and is referred to as the CVWM method.
+This method also considers the corner nodes of each element to which all neighbouring elements
 contribute, hence, resulting in a non-local deposition scheme.
+Note that the CVWM method allows switching of charge deposition on Dirichlet boundaries via
+
+    PIC-DoDirichletDeposition = F
+
+which simply nullifies the deposited charge on wall boundary nodes for Dirichlet sides to account for mirror charges.
+The default value for this parameter is true and it is currently only available for the CVWM method in combination with the HDG
+method.
 
 ### Shape Function
 
