@@ -25,7 +25,7 @@ PRIVATE
 !----------------------------------------------------------------------------------------------------------------------------------
 
 PUBLIC:: MacroValuesFromDistribution, MaxwellDistribution, MaxwellDistributionCons
-PUBLIC:: ShakhovDistribution, ESBGKDistribution, GradDistribution, SkewNormalDistribution
+PUBLIC:: ShakhovDistribution, ESBGKDistribution, GradDistribution, SkewNormalDistribution, SkewtDistribution
 PUBLIC:: MaxwellScattering, RescaleU, RescaleInit, ForceStep
 !==================================================================================================================================
 
@@ -119,6 +119,7 @@ IF (DVMBGKModel.EQ.1) tau = tau/DVMSpeciesData%Prandtl !ESBGK
 
 Macroval(6:11)  = PressTens(1:6)
 MacroVal(12:14) = Heatflux(1:3)
+! print*, 2.*(HeatFlux(1)/rho)*(DVMSpeciesData%R_S*MacroVal(5))**(-3./2.)
 IF (tDeriv.GT.0.) THEN
   SELECT CASE (tilde)
   CASE(1) ! higher moments from f~
@@ -132,7 +133,7 @@ IF (tDeriv.GT.0.) THEN
         MacroVal(9:11)  = Macroval(9:11)*prefac/(1./DVMSpeciesData%Prandtl+prefac*(1.-1./DVMSpeciesData%Prandtl))
         MacroVal(12:14) = MacroVal(12:14)*prefac
 
-      CASE(2,5) !Shakhov/SN
+      CASE(2,5,6) !Shakhov/SN
         MacroVal(6:8)   = Macroval(6:8)*prefac+(1.-prefac)*MacroVal(5)*DVMSpeciesData%R_S*rho
         MacroVal(9:11)  = MacroVal(9:11)*prefac
         MacroVal(12:14) = MacroVal(12:14)*prefac/(DVMSpeciesData%Prandtl+prefac*(1-DVMSpeciesData%Prandtl))
@@ -140,22 +141,28 @@ IF (tDeriv.GT.0.) THEN
       CASE(3,4) !Maxwell
         MacroVal(6:8)   = Macroval(6:8)*prefac+(1.-prefac)*MacroVal(5)*DVMSpeciesData%R_S*rho
         Macroval(9:14)  = prefac*Macroval(9:14) ! non-eq moments should be zero anyway
+      CASE DEFAULT
+        CALL abort(__STAMP__,'DVM-BGKCollModel does not exist')
       END SELECT
     CASE(2) !DUGKS
       SELECT CASE(DVMBGKModel)
       CASE(1) !ESBGK
         CALL abort(__STAMP__,'DUGKS with ESBGK not implemented!')
-      CASE(2,5) !Shakhov/SN
+      CASE(2,5,6) !Shakhov/SN
         Macroval(6:8)   = Macroval(6:8)*2.*tau/(2.*tau+tDeriv) + MacroVal(5)*DVMSpeciesData%R_S*rho*tDeriv/(2.*tau+tDeriv)
         Macroval(9:11)  = Macroval(9:11)*2.*tau/(2.*tau+tDeriv)
         MacroVal(12:14) = MacroVal(12:14)*2.*tau/(2.*tau+tDeriv*DVMSpeciesData%Prandtl)
       CASE(3,4) !Maxwell
         Macroval(6:8)   = Macroval(6:8)*2.*tau/(2.*tau+tDeriv) + MacroVal(5)*DVMSpeciesData%R_S*rho*tDeriv/(2.*tau+tDeriv)
         Macroval(9:14)  = Macroval(9:14)*2.*tau/(2.*tau+tDeriv) ! non-eq moments should be zero anyway
+      CASE DEFAULT
+        CALL abort(__STAMP__,'DVM-BGKCollModel does not exist')
       END SELECT
     END SELECT
   CASE(2) ! higher moments from f^
     MacroVal(6:14) = 0. ! will get copied from earlier f~ macroval
+  CASE DEFAULT
+    CALL abort(__STAMP__,'DVM-Method does not exist')
   END SELECT
 END IF
 
@@ -485,7 +492,12 @@ q(1:3) = MacroVal(12:14)
 
 max_skew = 0.5 * (4. - Pi) * (2. / (Pi - 2.)) ** 1.5
 skew = (1-DVMSpeciesData%Prandtl)*2.*(q/rho)*(DVMSpeciesData%R_S*Temp)**(-3./2.)
-skew = SIGN(1.,skew)*MIN(ABS(skew),0.9999*max_skew)
+! IF (ABS(skew(1)).GT.max_skew) THEN
+!   skew(1) = 0.9999*max_skew
+!   ! print*, skew(1), max_skew
+!   ! read*
+! END IF
+skew = SIGN(1.,skew)*MIN(ABS(skew),0.9*max_skew)
 
 delta = (SIGN(1.,skew)*(2*ABS(skew)/(4-Pi))**(1./3.))/SQRT(2./Pi*(1+(2*ABS(skew)/(4-Pi))**(2./3.)))
 alpha = delta/SQRT(1.-delta*delta)
@@ -509,6 +521,143 @@ DO kVel=1, DVMnVelos(3);   DO jVel=1, DVMnVelos(2);   DO iVel=1, DVMnVelos(1)
 END DO; END DO; END DO
 
 END SUBROUTINE
+
+SUBROUTINE SkewtDistribution(MacroVal,fSkewt)
+!===================================================================================================================================
+! skewed t dist
+!===================================================================================================================================
+! MODULES
+USE MOD_Equation_Vars_FV         ,ONLY: DVMnVelos, DVMVelos, DVMSpeciesData, DVMDim, Pi
+USE MOD_PreProc
+USE MOD_IncBeta                  ,ONLY: betain
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+REAL,INTENT(OUT)                 :: fSkewt(PP_nVar_FV)
+REAL, INTENT(IN)                 :: MacroVal(14)
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+REAL                            :: rho, Temp, uVelo(3), cVel(3), cMag, q(3), cCumu(3), cCumuMag, betalog(1:3), gamma1
+INTEGER                         :: iVel,jVel,kVel, upos, iLoop, ifault
+REAL                            :: skew(1:3), delta, alpha(1:3), ksi(1:3), omega(1:3), nu(1:3), max_skew, b1, Phi(1:3), stut(1:3)
+LOGICAL                         :: IsSN(1:3)
+!===================================================================================================================================
+rho = MacroVal(1)
+uVelo(1:3) = MacroVal(2:4)
+Temp = MacroVal(5)
+q(1:3) = MacroVal(12:14)
+
+max_skew = 0.5 * (4. - Pi) * (2. / (Pi - 2.)) ** 1.5
+skew = (1-DVMSpeciesData%Prandtl)*2.*(q/rho)*(DVMSpeciesData%R_S*Temp)**(-3./2.)
+IsSN = .TRUE.
+nu = 100.
+DO iLoop = 1, 3
+  gamma1 = skew(iLoop)
+  IF (ABS(gamma1).GT.max_skew) THEN
+    IsSN(iLoop) = .FALSE.
+    IF (ABS(gamma1).LT.1.3) THEN
+      nu(iLoop) = 8.
+    ELSE IF (ABS(gamma1).LT.2.) THEN
+      nu(iLoop) = 5.
+    ELSE IF (ABS(gamma1).LT.3.5) THEN
+      nu(iLoop) = 4.
+    ELSE IF (ABS(gamma1).LT.6.) THEN
+      nu(iLoop) = 3.5
+    ELSE IF (ABS(gamma1).LT.10.) THEN
+      nu(iLoop) = 3.3
+    ELSE IF (ABS(gamma1).LT.14.) THEN
+      nu(iLoop) = 3.2
+    ELSE IF (ABS(gamma1).LT.26.) THEN
+      nu(iLoop) = 3.1
+    ELSE
+      IF (ABS(gamma1).GT.50.) gamma1 = SIGN(50.,gamma1)
+      nu(iLoop) = 3.05
+    END IF
+    b1 = SQRT(nu(iLoop))*GAMMA(0.5*(nu(iLoop)-1.))/(SQRT(Pi)*GAMMA(0.5*nu(iLoop)))
+    delta = CalcdeltafromSkew(skew(iLoop),b1,nu(iLoop))
+    alpha(iLoop) = delta/SQRT(1.-delta**2.)
+    omega(iLoop) = SQRT(DVMSpeciesData%R_S*Temp/(nu(iLoop)/(nu(iLoop)-2.)-(b1*delta)**2))
+    ksi(iLoop) = uVelo(iLoop)-omega(iLoop)*delta*b1
+  ELSE
+    delta = (SIGN(1.,skew(iLoop))*(2*ABS(skew(iLoop))/(4-Pi))**(1./3.))/SQRT(2./Pi*(1+(2*ABS(skew(iLoop))/(4-Pi))**(2./3.)))
+    alpha(iLoop) = delta/SQRT(1.-delta*delta)
+    omega(iLoop) = SQRT(DVMSpeciesData%R_S*Temp/(1.-2*delta*delta/Pi))
+    ksi(iLoop) = uVelo(iLoop) - SQRT(2/Pi)*omega(iLoop)*delta
+  END IF
+END DO
+
+betalog = lgamma (0.5*(nu+1)) + lgamma (0.5) - lgamma (0.5*nu+1)
+
+DO kVel=1, DVMnVelos(3);   DO jVel=1, DVMnVelos(2);   DO iVel=1, DVMnVelos(1)
+  upos= iVel+(jVel-1)*DVMnVelos(1)+(kVel-1)*DVMnVelos(1)*DVMnVelos(2)
+  cVel(1) = (DVMVelos(iVel,1) - ksi(1))/omega(1)
+  cVel(2) = (DVMVelos(jVel,2) - ksi(2))/omega(2)
+  cVel(3) = (DVMVelos(kVel,3) - ksi(3))/omega(3)
+
+  IF (ANY(.NOT.IsSN)) THEN ! nonono faut faire des dist 1D puis multiplier p-e sn avec st
+    cCumu = alpha*cVel*SQRT((nu+1)/(cVel**2+nu))
+    stut = GAMMA((nu+1)/2.)/(SQRT(nu*Pi)*GAMMA(nu/2.))*(1.+(cVel**2)/nu)**(-(nu+1)/2.)
+    DO iLoop = 1, DVMDim
+      IF (cCumu(iLoop).LE.0.) THEN
+        stut(iLoop) = stut(iLoop)*0.5*betain((nu(iLoop)+1)/((nu(iLoop)+1)+cCumu(iLoop)**2),0.5*(nu(iLoop)+1),0.5,betalog(iLoop),ifault)
+      ELSE
+        stut(iLoop) = stut(iLoop)*(1-0.5*betain((nu(iLoop)+1)/((nu(iLoop)+1)+cCumu(iLoop)**2),0.5*(nu(iLoop)+1),0.5,betalog(iLoop),ifault))
+      END IF
+    END DO
+    fSkewt(upos) = 2**DVMDim*rho*PRODUCT(stut(1:DVMDim))/PRODUCT(omega(1:DVMDim))
+  ELSE
+    cMag = DOT_PRODUCT(cVel,cVel)
+    Phi = 1.+ERF(alpha*cVel/sqrt(2.))
+    fSkewt(upos) = rho*Phi(1)*Phi(2)*Phi(3)*EXP(-cMag/2.)/PRODUCT(omega(1:DVMDim))/(2.*Pi)**(DVMDim/2.)
+  END IF
+
+  IF (DVMDim.LT.3) THEN
+    fSkewt(PP_nVar_FV/2+upos) = fSkewt(upos)*DVMSpeciesData%R_S*Temp*(DVMSpeciesData%Internal_DOF+3.-DVMDim)
+  END IF
+
+END DO; END DO; END DO
+
+END SUBROUTINE
+
+REAL FUNCTION CalcdeltafromSkew(gamma1,b1,nu)
+!===================================================================================================================================
+!> Calculation of
+!===================================================================================================================================
+! MODULES
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+REAL, INTENT(IN)      :: gamma1, b1, nu
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+REAL                  :: Lowerdelta, Upperdelta, Middledelta !< Upper, lower and final value of modified zero point search
+REAL,PARAMETER        :: eps_prec=1E-12           !< Relative precision of root-finding algorithm
+REAL                  :: tmpgamma
+!===================================================================================================================================
+
+Lowerdelta = -1.0
+Upperdelta = 1.0
+Middledelta = -1.0
+DO WHILE (.NOT.ALMOSTEQUALRELATIVE(0.5*(Lowerdelta + Upperdelta),Middledelta,eps_prec))
+  Middledelta = 0.5*(Lowerdelta + Upperdelta)
+  tmpgamma = b1*Middledelta*(nu*(3.-Middledelta**2)/(nu-3.)-3.*nu/(nu-2.)+2.*(b1*Middledelta)**2)
+  tmpgamma = tmpgamma/((nu/(nu-2.)-b1**2*Middledelta**2))**(3./2.)
+  IF (tmpgamma.LT.gamma1) THEN
+    Lowerdelta = Middledelta
+  ELSE
+    Upperdelta = Middledelta
+  END IF
+  CalcdeltafromSkew = Middledelta
+END DO
+
+END FUNCTION CalcdeltafromSkew
 
 SUBROUTINE MaxwellScattering(fBoundary,U,NormVec,tilde,tDeriv)
 !===================================================================================================================================
@@ -563,6 +712,8 @@ SELECT CASE (DVMBGKModel)
     CALL MaxwellDistributionCons(MacroVal,fTarget)
   CASE(5)
     CALL SkewNormalDistribution(MacroVal,fTarget)
+  CASE(6)
+    CALL SkewtDistribution(MacroVal,fTarget)
   CASE DEFAULT
     CALL abort(__STAMP__,'DVM BGK Model not implemented.')
 END SELECT
@@ -593,7 +744,7 @@ SUBROUTINE RescaleU(tilde,tDeriv)
 ! Rescales distribution function for EDDVM/DUGKS
 !===================================================================================================================================
 ! MODULES
-USE MOD_Equation_Vars_FV,  ONLY : DVMBGKModel, DVMMomentSave, DVMMethod
+USE MOD_Equation_Vars_FV,  ONLY : DVMBGKModel, DVMMomentSave, DVMMethod, DVMSpeciesData
 USE MOD_Globals,        ONLY :abort
 USE MOD_PreProc
 USE MOD_Mesh_Vars,      ONLY : nElems
@@ -644,6 +795,12 @@ DO iElem =1, nElems
         CALL MaxwellDistributionCons(MacroVal,fTarget)
       CASE(5)
         CALL SkewNormalDistribution(MacroVal,fTarget)
+      CASE(6)
+        CALL SkewtDistribution(MacroVal,fTarget)
+        ! print*, MacroVal
+        ! print*, 'skewness target'
+        ! CALL MacroValuesFromDistribution(MacroVal(:),fTarget,tDeriv,tau,tilde)
+        ! read*
       CASE DEFAULT
         CALL abort(__STAMP__,'DVM BGK Model not implemented.')
     END SELECT
@@ -689,6 +846,8 @@ DO iElem =1, nElems
         CALL MaxwellDistributionCons(MacroVal,fTarget)
       CASE(5)
         CALL SkewNormalDistribution(MacroVal,fTarget)
+      CASE(6)
+        CALL SkewtDistribution(MacroVal,fTarget)
       CASE DEFAULT
         CALL abort(__STAMP__,'DVM BGK Model not implemented.')
     END SELECT
