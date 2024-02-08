@@ -1036,7 +1036,7 @@ USE MOD_Analyze_Vars              ,ONLY: DoCalcErrorNorms,OutputErrorNorms,Field
 USE MOD_Analyze_Vars              ,ONLY: AnalyzeCount,AnalyzeTime,DoMeasureAnalyzeTime
 USE MOD_Restart_Vars              ,ONLY: DoRestart
 USE MOD_TimeDisc_Vars             ,ONLY: iter,tEnd
-#if defined(LSERK) || defined(IMPA) || defined(ROS) || USE_HDG
+#if defined(LSERK) || defined(IMPA) || defined(ROS) || USE_HDG || defined(discrete_velocity)
 USE MOD_RecordPoints              ,ONLY: RecordPoints
 #endif
 USE MOD_LoadDistribution          ,ONLY: WriteElemTimeStatistics
@@ -1076,7 +1076,7 @@ USE MOD_PICInterpolation_Vars     ,ONLY: DoInterpolationAnalytic
 #if (PP_nVar>=6)
 USE MOD_AnalyzeField              ,ONLY: CalcPoyntingIntegral
 #endif /*PP_nVar>=6*/
-#if defined(LSERK) || defined(IMPA) || defined(ROS) || USE_HDG
+#if defined(LSERK) || defined(IMPA) || defined(ROS) || USE_HDG || defined(discrete_velocity)
 USE MOD_Analyze_Vars              ,ONLY: DoFieldAnalyze
 USE MOD_RecordPoints_Vars         ,ONLY: RP_onProc
 #endif /*defined(LSERK) ||  defined(IMPA) || defined(ROS) || USE_HDG*/
@@ -1124,7 +1124,7 @@ REAL                          :: L_Inf_Error_FV(PP_nVar_FV)
 #if (USE_FV) && (USE_HDG)
 REAL                          :: L_2_Error_HDGFV(PP_nVar_FV+PP_nVar)
 #endif /*HDG+FV*/
-#if defined(LSERK) || defined(IMPA) || defined(ROS) || USE_HDG
+#if defined(LSERK) || defined(IMPA) || defined(ROS) || USE_HDG || defined(discrete_velocity)
 #if USE_LOADBALANCE
 REAL                          :: tLBStart ! load balance
 #endif /*USE_LOADBALANCE*/
@@ -1283,14 +1283,16 @@ IF(DoCalcErrorNorms) THEN
 END IF
 
 ! the following analysis are restricted to Runge-Kutta based time-discs and temporal varying electrodynamic fields
-#if defined(LSERK) || defined(IMPA) || defined(ROS) || USE_HDG
+#if defined(LSERK) || defined(IMPA) || defined(ROS) || USE_HDG || defined(discrete_velocity)
 
 !----------------------------------------------------------------------------------------------------------------------------------
 ! Maxwell's equation: Compute Poynting Vector and field energies
 !----------------------------------------------------------------------------------------------------------------------------------
+#ifndef discrete_velocity
 IF (DoFieldAnalyze) THEN
   IF(DoPerformFieldAnalyze) CALL AnalyzeField(OutputTime)
 END IF
+#endif
 
 !----------------------------------------------------------------------------------------------------------------------------------
 ! Recordpoints buffer

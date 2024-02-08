@@ -413,6 +413,7 @@ SUBROUTINE GradDistribution(MacroVal,fGrad)
 ! MODULES
 USE MOD_Equation_Vars_FV         ,ONLY: DVMnVelos, DVMVelos, DVMSpeciesData, DVMDim, Pi
 USE MOD_PreProc
+USE MOD_Globals
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -426,15 +427,20 @@ REAL, INTENT(IN)                 :: MacroVal(14)
 REAL                            :: rho,Temp,uVelo(3),cVel(3),cMag,gM,q(3),pressTens(3,3),ShakhFac1,ShakhFac2,pressFac,pressProduct
 INTEGER                         :: iVel,jVel,kVel, upos
 !===================================================================================================================================
+! here the traceless pressure tensor is used (init with MacroVal(6:8)=0 for Tx=Ty=Tz)
+IF (ABS(SUM(MacroVal(6:8))).GT.0.) CALL abort(__STAMP__,'Diagonal entries of the pressure tensor should add up to zero')
+
 rho              = MacroVal(1)
 uVelo(1:3)       = MacroVal(2:4)
 Temp             = MacroVal(5)
-q(1:3)           = MacroVal(12:14)
-pressTens        = 0. !diagonal determined by temperature -> Txx=Tyy=Tzz
+pressTens(1,1)   = MacroVal(6)
+pressTens(2,2)   = MacroVal(7)
+pressTens(3,3)   = MacroVal(8)
 pressTens(1,2:3) = MacroVal(9:10)
 pressTens(2:3,1) = MacroVal(9:10)
 pressTens(2,3)   = MacroVal(11)
 pressTens(3,2)   = MacroVal(11)
+q(1:3)           = MacroVal(12:14)
 
 DO kVel=1, DVMnVelos(3);   DO jVel=1, DVMnVelos(2);   DO iVel=1, DVMnVelos(1)
   upos= iVel+(jVel-1)*DVMnVelos(1)+(kVel-1)*DVMnVelos(1)*DVMnVelos(2)
@@ -556,7 +562,7 @@ IsSN = .TRUE.
 nu = 100.
 DO iLoop = 1, 3
   gamma1 = skew(iLoop)
-  IF (ABS(gamma1).GT.max_skew) THEN
+  IF (ABS(gamma1).GT.0.9*max_skew) THEN
     IsSN(iLoop) = .FALSE.
     IF (ABS(gamma1).LT.1.3) THEN
       nu(iLoop) = 8.
