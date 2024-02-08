@@ -491,9 +491,9 @@ END IF
 DEALLOCATE(SubPartNum)
 DEALLOCATE(SubPartIndx)
 
-CALL CalcSubcellNum_X(iElem,nSplit,AdaptMesh(iElem)%RefineDir)
-CALL CalcSubcellNum_Y(iElem,nSplit,AdaptMesh(iElem)%RefineDir)
-CALL CalcSubcellNum_Z(iElem,nSplit,AdaptMesh(iElem)%RefineDir)
+CALL CalcSubcellNum_X(iElem,nOrder,AdaptMesh(iElem)%RefineDir)
+CALL CalcSubcellNum_Y(iElem,nOrder,AdaptMesh(iElem)%RefineDir)
+CALL CalcSubcellNum_Z(iElem,nOrder,AdaptMesh(iElem)%RefineDir)
 
 RETURN
 END SUBROUTINE SubcellAdaption
@@ -804,9 +804,9 @@ END DO
 DEALLOCATE(SubPartNum)
 DEALLOCATE(SubPartIndx)
 
-CALL CalcSubcellNum_X(iElem,nSplit,AdaptMesh(iElem)%RefineDir)
-CALL CalcSubcellNum_Y(iElem,nSplit,AdaptMesh(iElem)%RefineDir)
-CALL CalcSubcellNum_Z(iElem,nSplit,AdaptMesh(iElem)%RefineDir)
+CALL CalcSubcellNum_X(iElem,nOrder,AdaptMesh(iElem)%RefineDir)
+CALL CalcSubcellNum_Y(iElem,nOrder,AdaptMesh(iElem)%RefineDir)
+CALL CalcSubcellNum_Z(iElem,nOrder,AdaptMesh(iElem)%RefineDir)
 
 RETURN
 END SUBROUTINE MergedCellAssingement
