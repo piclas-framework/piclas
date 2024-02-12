@@ -188,9 +188,15 @@ IF (PRESENT(MeshFile_IN)) THEN
 ELSE
   MeshFile = GETSTR('MeshFile')
 END IF
-validMesh = ISVALIDMESHFILE(MeshFile)
-IF(.NOT.validMesh) &
-    CALL CollectiveStop(__STAMP__,'ERROR - Mesh file ['//TRIM(MeshFile)//'] is not a valid HDF5 mesh.')
+
+#if USE_LOADBALANCE
+IF (.NOT.PerformLoadBalance) THEN
+#endif /*USE_LOADBALANCE*/
+  validMesh = ISVALIDMESHFILE(MeshFile)
+  IF(.NOT.validMesh) CALL CollectiveStop(__STAMP__,'ERROR - Mesh file not a valid HDF5 mesh.')
+#if USE_LOADBALANCE
+END IF
+#endif /*USE_LOADBALANCE*/
 
 
 useCurveds=GETLOGICAL('useCurveds')
@@ -249,6 +255,7 @@ END IF
 IF (PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance)) THEN
   CALL MoveCoords()
 ELSE
+! Build the coordinates of the solution gauss points in the volume
 #endif /*USE_LOADBALANCE*/
   SDEALLOCATE(Elem_xGP)
   ALLOCATE(Elem_xGP      (3,0:PP_N,0:PP_N,0:PP_N,nElems))
@@ -325,15 +332,15 @@ IF (ABS(meshMode).GT.1) THEN
   ELSE
     ! deallocate existing arrays
     ! mesh basis
-    SDEALLOCATE(Xi_NGeo)
-    SDEALLOCATE(XiCL_NGeo)
-    SDEALLOCATE(DCL_N)
-    SDEALLOCATE(DCL_NGeo)
-    SDEALLOCATE(Vdm_CLN_GaussN)
-    SDEALLOCATE(Vdm_CLNGeo_GaussN)
-    SDEALLOCATE(Vdm_CLNGeo_CLN)
-    SDEALLOCATE(Vdm_NGeo_CLNGeo)
-    SDEALLOCATE(wBaryCL_NGeo)
+    ! SDEALLOCATE(Xi_NGeo)
+    ! SDEALLOCATE(XiCL_NGeo)
+    ! SDEALLOCATE(DCL_N)
+    ! SDEALLOCATE(DCL_NGeo)
+    ! SDEALLOCATE(Vdm_CLN_GaussN)
+    ! SDEALLOCATE(Vdm_CLNGeo_GaussN)
+    ! SDEALLOCATE(Vdm_CLNGeo_CLN)
+    ! SDEALLOCATE(Vdm_NGeo_CLNGeo)
+    ! SDEALLOCATE(wBaryCL_NGeo)
 
     ! mesh metrics
     SDEALLOCATE(      dXCL_N)
