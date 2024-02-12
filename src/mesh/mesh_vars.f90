@@ -46,6 +46,8 @@ REAL,ALLOCATABLE :: Vdm_CLNGeo_GaussN(:,:)
 REAL,ALLOCATABLE :: Vdm_NGeo_CLNGeo(:,:)
 REAL,ALLOCATABLE :: DCL_NGeo(:,:)
 REAL,ALLOCATABLE :: DCL_N(:,:)
+REAL,ALLOCATABLE :: Vdm_CLN_N(:,:)
+REAL,ALLOCATABLE :: XCL_N(:,:,:,:,:)             !< mapping X(xi) P\in N
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! GLOBAL VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -74,19 +76,20 @@ REAL,ALLOCATABLE    :: Vdm_CLNGeo1_CLNGeo(:,:)
 !< #endif /*PARTICLES*/
 REAL,ALLOCATABLE        :: XiCL_NGeo(:)
 REAL,ALLOCATABLE,TARGET :: XCL_NGeo(:,:,:,:,:)
-REAL,ALLOCATABLE,TARGET :: dXCL_NGeo(:,:,:,:,:,:) !jacobi matrix of the mapping P\in NGeo
-REAL,ALLOCATABLE        :: dXCL_N(:,:,:,:,:,:) !jacobi matrix of the mapping P\in NGeo
-REAL,ALLOCATABLE        :: detJac_Ref(:,:,:,:,:)      !< determinant of the mesh Jacobian for each Gauss point at degree 3*NGeo
+REAL,ALLOCATABLE,TARGET :: dXCL_NGeo(:,:,:,:,:,:) !< jacobi matrix of the mapping P\in NGeo
+REAL,ALLOCATABLE        :: dXCL_N(:,:,:,:,:,:)    !< jacobi matrix of the mapping P\in NGeo
+REAL,ALLOCATABLE        :: detJac_Ref(:,:,:,:,:)  !< determinant of the mesh Jacobian for each Gauss point at degree 3*NGeo
+REAL,ALLOCATABLE        :: JaCL_N(:,:,:,:,:,:)    !< metric terms P\in N
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! surface vectors
 !-----------------------------------------------------------------------------------------------------------------------------------
-REAL,ALLOCATABLE :: NormVec(:,:,:,:)           !< normal vector for each side       (1:3,0:N,0:N,nSides)
-REAL,ALLOCATABLE :: TangVec1(:,:,:,:)          !< tangential vector 1 for each side (1:3,0:N,0:N,nSides)
-REAL,ALLOCATABLE :: TangVec2(:,:,:,:)          !< tangential vector 3 for each side (1:3,0:N,0:N,nSides)
-REAL,ALLOCATABLE :: SurfElem(:,:,:)            !< surface area for each side        (    0:N,0:N,nSides)
-REAL,ALLOCATABLE :: Ja_Face(:,:,:,:,:)         !< surface  metrics for each side
-REAL,ALLOCATABLE :: nVecLoc(:,:,:,:,:)         !< element local normal vector       (1:3,0:N,0:N,1:6,1:nElems)
-REAL,ALLOCATABLE :: SurfLoc(:,:,:,:)           !< element local surface element     (    0:N,0:N,1:6,1:nElems)
+REAL,ALLOCATABLE :: NormVec(:,:,:,:)              !< normal vector for each side       (1:3,0:N,0:N,nSides)
+REAL,ALLOCATABLE :: TangVec1(:,:,:,:)             !< tangential vector 1 for each side (1:3,0:N,0:N,nSides)
+REAL,ALLOCATABLE :: TangVec2(:,:,:,:)             !< tangential vector 3 for each side (1:3,0:N,0:N,nSides)
+REAL,ALLOCATABLE :: SurfElem(:,:,:)               !< surface area for each side        (    0:N,0:N,nSides)
+REAL,ALLOCATABLE :: Ja_Face(:,:,:,:,:)            !< surface  metrics for each side
+REAL,ALLOCATABLE :: nVecLoc(:,:,:,:,:)            !< element local normal vector       (1:3,0:N,0:N,1:6,1:nElems)
+REAL,ALLOCATABLE :: SurfLoc(:,:,:,:)              !< element local surface element     (    0:N,0:N,1:6,1:nElems)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! mapping from GaussPoints to Side or Neighbor Volume
 !-----------------------------------------------------------------------------------------------------------------------------------
