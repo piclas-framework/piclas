@@ -138,17 +138,21 @@ SUBROUTINE RemoveParticle(PartID,BCID,alpha,crossedBC)
 ! MODULES
 USE MOD_Globals_Vars              ,ONLY: ElementaryCharge
 USE MOD_Particle_Vars             ,ONLY: PDM, PartSpecies, Species, PartMPF, usevMPF, PartState, PartPosRef, Pt
-USE MOD_Particle_Sampling_Vars    ,ONLY: UseAdaptiveBC, AdaptBCPartNumOut
+USE MOD_Particle_Sampling_Vars    ,ONLY: UseAdaptive, AdaptBCPartNumOut
 USE MOD_Particle_Vars             ,ONLY: UseNeutralization, NeutralizationSource, NeutralizationBalance,nNeutralizationElems
 USE MOD_Particle_Boundary_Vars    ,ONLY: PartBound
 USE MOD_Particle_Analyze_Vars     ,ONLY: CalcPartBalance,nPartOut,PartEkinOut,CalcSurfFluxInfo
 USE MOD_SurfaceModel_Analyze_Vars ,ONLY: CalcBoundaryParticleOutput,BPO
+USE MOD_Particle_Tracking_Vars    ,ONLY: TrackingMethod
 #if defined(IMPA)
-USE MOD_Particle_Vars             ,ONLY: PartIsImplicit,DoPartInNewton
+USE MOD_Particle_Vars             ,ONLY: PartIsImplicit,DoPartInNewton, PEM, PartLambdaAccept
 #endif /*IMPA*/
+#if defined(LSERK)
+USE MOD_Particle_Vars             ,ONLY: Pt_temp
+#endif
 USE MOD_Particle_Analyze_Tools    ,ONLY: CalcEkinPart
 USE MOD_part_tools                ,ONLY: GetParticleWeight
-USE MOD_DSMC_Vars                 ,ONLY: CollInf
+USE MOD_DSMC_Vars                 ,ONLY: CollInf, AmbipolElecVelo, ElectronicDistriPart, VibQuantsPar
 USE MOD_Mesh_Vars                 ,ONLY: BoundaryName
 #if USE_HDG
 USE MOD_Globals                   ,ONLY: abort
@@ -171,11 +175,37 @@ INTEGER                       :: iBC,iUniqueFPCBC,iUniqueEPCBC,BCState
 #endif /*USE_HDG*/
 !===================================================================================================================================
 
+! Set default values of part arrays
+
 PDM%ParticleInside(PartID) = .FALSE.
+PDM%IsNewPart(PartID)      = .FALSE.
+PDM%dtFracPush(PartID)     = .FALSE.
+PDM%InRotRefFrame(PartID)  = .FALSE.
+PartState(1:6,PartID)      = 0.
+IF(TrackingMethod.EQ.REFMAPPING) PartPosRef(1:3,PartID) = -888.
+PartSpecies(PartID)        = 0
+Pt(1:3,PartID)             = 0.
+
+IF(ALLOCATED(AmbipolElecVelo)) THEN
+  SDEALLOCATE(AmbipolElecVelo(PartID)%ElecVelo)
+END IF
+IF(ALLOCATED(ElectronicDistriPart)) THEN
+  SDEALLOCATE(ElectronicDistriPart(PartID)%DistriFunc)
+END IF
+IF(ALLOCATED(VibQuantsPar)) THEN
+  SDEALLOCATE(VibQuantsPar(PartID)%Quants)
+END IF
+
 #ifdef IMPA
-PartIsImplicit(PartID) = .FALSE.
-DoPartInNewton(PartID) = .FALSE.
+PartIsImplicit(PartID)   = .FALSE.
+DoPartInNewton(PartID)   = .FALSE.
+PartLambdaAccept(PartID) = .TRUE.
+PEM%PeriodicMoved(PartID)  = .FALSE.
 #endif /*IMPA*/
+
+#if defined(LSERK)
+Pt_temp(1:6,PartID)   = 0.
+#endif
 
 iSpec = PartSpecies(PartID)
 ! Count the number of particles per species and the kinetic energy per species
