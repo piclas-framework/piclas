@@ -40,7 +40,8 @@ before_script:
       else
         day=$(cat reggie/.day);
     fi
-  - if [ "$(($day % 2))" == "0" ]; then
+  - echo "Perform arithmetic with 0-prefixed numbers by telling bash to use base-10 by specifying 10#"
+  - if [ "$((10#$day % 2))" == "0" ]; then
         echo "Even day number ($day). Loading OpenMPI";
         module purge;
         module load  cmake/3.26.4    gcc/13.2.0  openmpi/4.1.5/gcc/13.2.0      hdf5/1.14.0/gcc/13.2.0/openmpi/4.1.5      hopr/master/gcc/13.2.0/openmpi/4.1.5/hdf5/1.14.0      petsc/3.19.3/gcc/13.2.0/openmpi/4.1.5;
