@@ -235,7 +235,6 @@ IF(.NOT.DoMacroscopicRestart) THEN
           END IF
         END IF
         PDM%ParticleInside(iPart) = .TRUE.
-        PDM%isNewPart(iPart)      = .TRUE.
       END DO ! iLoop = 1_IK,locnPart
 
       iPart = 0
@@ -776,6 +775,7 @@ IF(.NOT.DoMacroscopicRestart) THEN
             PartState(1:6,CurrentPartNum)        = RecBuff(1:6,iPart)
             PartSpecies(CurrentPartNum)          = INT(RecBuff(7,iPart))
             PEM%LastGlobalElemID(CurrentPartNum) = -1
+            PDM%ParticleInside(CurrentPartNum)   = .FALSE.
             IF(usevMPF) PartMPF(CurrentPartNum)  = RecBuff(8,iPart) ! only required when using vMPF
 
             CALL StoreLostParticleProperties(CurrentPartNum, PEM%GlobalElemID(CurrentPartNum), &
