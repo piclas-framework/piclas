@@ -113,7 +113,7 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 !LOGICAL                :: directions(1:3)
-INTEGER                :: iPV
+INTEGER                :: iPV, iDim
 REAL                   :: eps(1:3)
 !===================================================================================================================================
 
@@ -168,6 +168,15 @@ END DO
 
 ! check if periodic vector is multiple of FIBGM-deltas
 ! some tolerance
+
+IF(GEO%AutomaticFIBGM) THEN
+  ! Adjust Automatic FIBGM to be a integer divide of periodic vectors
+  DO iDim=1,3
+    IF(SUM(GEO%PeriodicVectors(iDim,:)).GT.0) &
+      GEO%FIBGMDeltas(iDim) = SUM(GEO%PeriodicVectors(iDim,:))/CEILING(SUM(GEO%PeriodicVectors(iDim,:))/GEO%FIBGMDeltas(iDim))
+  END DO
+END IF
+
 eps(1)=1.E-9*(GEO%FIBGMDeltas(1))
 eps(2)=1.E-9*(GEO%FIBGMDeltas(2))
 eps(3)=1.E-9*(GEO%FIBGMDeltas(3))

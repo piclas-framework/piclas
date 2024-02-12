@@ -339,7 +339,7 @@ ELSE
   GEO%FIBGMdeltas(3) = MIN(FIBGMdeltas1(3),FIBGMdeltas2(3))
 END IF
 
-! Read periodic vectors from parameter file
+! Read periodic vectors from parameter file, if AutoFIBGM: GEO%FIBGMdeltas may be adjusted here
 CALL InitPeriodicBC()
 
 ! Ensure BGM does not protrude beyond mesh when divisible by FIBGMdeltas
