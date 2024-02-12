@@ -177,6 +177,20 @@ INTEGER                       :: iBC,iUniqueFPCBC,iUniqueEPCBC,BCState
 
 ! Set default values of part arrays
 
+iSpec = PartSpecies(PartID)
+! Count the number of particles per species and the kinetic energy per species
+IF(CalcPartBalance) THEN
+  IF(PRESENT(BCID)) THEN
+    IF(PartBound%TargetBoundCond(BCID).NE.7) THEN  !skip crossing InterPlanes
+      nPartOut(iSpec)=nPartOut(iSpec) + 1
+      PartEkinOut(iSpec)=PartEkinOut(iSpec)+CalcEkinPart(PartID)
+    END IF
+  ELSE
+    nPartOut(iSpec)=nPartOut(iSpec) + 1
+    PartEkinOut(iSpec)=PartEkinOut(iSpec)+CalcEkinPart(PartID)
+  END IF
+END IF ! CalcPartBalance
+
 PDM%ParticleInside(PartID) = .FALSE.
 PDM%IsNewPart(PartID)      = .FALSE.
 PDM%dtFracPush(PartID)     = .FALSE.
@@ -207,19 +221,6 @@ PEM%PeriodicMoved(PartID)  = .FALSE.
 Pt_temp(1:6,PartID)   = 0.
 #endif
 
-iSpec = PartSpecies(PartID)
-! Count the number of particles per species and the kinetic energy per species
-IF(CalcPartBalance) THEN
-  IF(PRESENT(BCID)) THEN
-    IF(PartBound%TargetBoundCond(BCID).NE.7) THEN  !skip crossing InterPlanes
-      nPartOut(iSpec)=nPartOut(iSpec) + 1
-      PartEkinOut(iSpec)=PartEkinOut(iSpec)+CalcEkinPart(PartID)
-    END IF
-  ELSE
-    nPartOut(iSpec)=nPartOut(iSpec) + 1
-    PartEkinOut(iSpec)=PartEkinOut(iSpec)+CalcEkinPart(PartID)
-  END IF
-END IF ! CalcPartBalance
 
 ! If a BCID is given (e.g. when a particle is removed at a boundary), check if it is
 !   - an adaptive surface flux BC or
