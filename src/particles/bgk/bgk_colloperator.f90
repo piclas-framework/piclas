@@ -52,7 +52,7 @@ SUBROUTINE BGK_CollisionOperator(iPartIndx_Node, nPart, NodeVolume, AveragingVal
 USE MOD_Globals               ,ONLY: DOTPRODUCT, CROSS
 USE MOD_Particle_Vars         ,ONLY: PartState, Species, PartSpecies, nSpecies, usevMPF, UseVarTimeStep
 USE MOD_Particle_Vars         ,ONLY: UseRotRefFrame, RotRefFrameOmega, PartVeloRotRef, PDM
-USE MOD_DSMC_Vars             ,ONLY: SpecDSMC, DSMC, PartStateIntEn, PolyatomMolDSMC, RadialWeighting, CollInf
+USE MOD_DSMC_Vars             ,ONLY: DSMC, PartStateIntEn, PolyatomMolDSMC, RadialWeighting, CollInf
 USE MOD_TimeDisc_Vars         ,ONLY: dt
 USE MOD_BGK_Vars              ,ONLY: SpecBGK, BGKDoVibRelaxation, BGKMovingAverage
 USE MOD_BGK_Vars              ,ONLY: BGK_MeanRelaxFactor, BGK_MeanRelaxFactorCounter, BGK_MaxRelaxFactor, BGK_MaxRotRelaxFactor
@@ -646,7 +646,7 @@ SUBROUTINE CalcGasProperties(nSpec, dens, InnerDOF, totalWeightSpec, totalWeight
 !===================================================================================================================================
 ! MODULES
 USE MOD_Particle_Vars         ,ONLY: Species, nSpecies
-USE MOD_DSMC_Vars             ,ONLY: SpecDSMC, CollInf, DSMC
+USE MOD_DSMC_Vars             ,ONLY: CollInf, DSMC
 USE MOD_BGK_Vars              ,ONLY: BGK_ExpectedPrandtlNumber, BGKMixtureModel, BGKCollModel
 USE MOD_Globals_Vars          ,ONLY: BoltzmannConst, Pi
 ! IMPLICIT VARIABLE HANDLING
@@ -1640,7 +1640,7 @@ SUBROUTINE CalcViscosityThermalCondColIntVHS(CellTemp, Xi, dens, Xi_RotSpec, Xi_
 !> Sphere model). Solving an equation system depending on the number of species.
 !===================================================================================================================================
 ! MODULES
-USE MOD_DSMC_Vars,              ONLY : CollInf, SpecDSMC
+USE MOD_DSMC_Vars,              ONLY : CollInf
 USE MOD_Globals_Vars,           ONLY : BoltzmannConst
 USE MOD_Particle_Vars,          ONLY : Species, nSpecies
 IMPLICIT NONE

@@ -1603,7 +1603,7 @@ END SUBROUTINE InitRandomSeed
 SUBROUTINE InitializeSpeciesParameter()
 !===================================================================================================================================
 !> Initialize the species parameter: read-in the species name, and then either read-in from the database or the parameter file.
-!> Possbility to overwrite specific parameters with custom values.
+!> Possbility to overwrite specific species with custom values or use species not defined in the database.
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
@@ -1636,12 +1636,18 @@ SpeciesDatabase       = GETSTR('Particles-Species-Database')
 DO iSpec = 1, nSpecies
   WRITE(UNIT=hilf,FMT='(I0)') iSpec
   Species(iSpec)%Name    = TRIM(GETSTR('Part-Species'//TRIM(hilf)//'-SpeciesName'))
-  IF(Species(iSpec)%Name.EQ.'none') CALL abort(__STAMP__,'ERROR: Please define a species name for species:', iSpec)
   Species(iSpec)%DoOverwriteParameters = GETLOGICAL('Part-Species'//TRIM(hilf)//'-DoOverwriteParameters')
 END DO ! iSpec
 
 ! If no database is used, use the overwrite per default
 IF(SpeciesDatabase.EQ.'none') Species(:)%DoOverwriteParameters = .TRUE.
+
+! Check whether SpeciesName is provided and if not, whether DoOverwriteParameters is activated (regular parameter read-in from file)
+! Abort when SpeciesName is not provided and DoOverwriteParameters is not activated
+DO iSpec = 1, nSpecies
+  IF(Species(iSpec)%Name.EQ.'none'.AND..NOT.Species(iSpec)%DoOverwriteParameters) &
+    CALL abort(__STAMP__,'ERROR: Please define a species name for species:', iSpec)
+END DO ! iSpec
 
 ! Read-in the values from the database
 IF(SpeciesDatabase.NE.'none') THEN
