@@ -81,7 +81,7 @@ DO i = 1,PDM%ParticleVecLength
 #else
   IF (PDM%ParticleInside(i)) THEN
 #endif /*IMPA*/
-  CALL SingleParticleTriaTracking(i=i)
+    CALL SingleParticleTriaTracking(i=i)
   END IF
   ! Particle treatment for an axisymmetric simulation (cloning/deleting particles)
   IF(RadialWeighting%PerformCloning) THEN
