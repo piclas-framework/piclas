@@ -869,7 +869,7 @@ ELSE !CollisMode.GT.0
   DSMC%UseOctree = GETLOGICAL('Particles-DSMC-UseOctree')
   IF(DSMC%ReservoirSimu.AND.DSMC%UseOctree) CALL abort(__STAMP__,'Particles-DSMC-UseOctree = T not allowed for RESERVOIR simulations!')
   DSMC%UseNearestNeighbour = GETLOGICAL('Particles-DSMC-UseNearestNeighbour')
-  IF(DSMC%ReservoirSimu.AND.DSMC%UseNearestNeighbour.AND.(DoRestart.OR.((TEnd/ManualTimeStep).GT.1))) THEN
+  IF(DSMC%ReservoirSimu.AND.DSMC%UseNearestNeighbour.AND.(DoRestart.OR.(NINT(TEnd/ManualTimeStep).GT.1))) THEN
     CALL abort(__STAMP__,'Particles-DSMC-UseNearestNeighbour = T not allowed for RESERVOIR simulations, if you simulate more than one time step!')
   END IF
   IF(DSMC%UseOctree) THEN
