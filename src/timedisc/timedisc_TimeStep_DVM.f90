@@ -13,7 +13,7 @@
 #include "piclas.h"
 
 
-#if (PP_TimeDiscMethod==600)
+#if (PP_TimeDiscMethod==700)
 MODULE MOD_TimeStep
 !===================================================================================================================================
 ! Module for the Temporal discretization
@@ -64,4 +64,4 @@ END SUBROUTINE TimeStep_DVM
 
 
 END MODULE MOD_TimeStep
-#endif /*PP_TimeDiscMethod==600*/
+#endif /*PP_TimeDiscMethod==700*/

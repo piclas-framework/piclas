@@ -67,7 +67,7 @@ USE MOD_Gradient_Vars,      ONLY: Grad_dx_master, Grad_dx_slave, Gradient_elem
 USE MOD_Mesh_Vars,          ONLY: nSides, SideToElem
 USE MOD_Mesh_Vars,          ONLY: firstBCSide,firstInnerSide, lastInnerSide
 USE MOD_Mesh_Vars,          ONLY: firstMPISide_YOUR,lastMPISide_YOUR,lastMPISide_MINE,firstMortarMPISide,lastMortarMPISide
-#if (PP_TimeDiscMethod==600) /*DVM*/
+#ifdef discrete_velocity
 USE MOD_TimeDisc_Vars,      ONLY: dt
 USE MOD_Equation_Vars_FV,   ONLY: DVMnVelos, DVMVelos, DVMDim
 #endif
@@ -99,7 +99,7 @@ DO SideID=firstSideID,lastSideID
   ! neighbor side !ElemID=-1 if not existing
   ElemID     = SideToElem(S2E_NB_ELEM_ID,SideID)
   IF (ElemID.LT.0) CYCLE !mpi-mortar whatever
-#if (PP_TimeDiscMethod==600)
+#ifdef discrete_velocity
   !DVM specific reconstruction
   DO kVel=1, DVMnVelos(3);   DO jVel=1, DVMnVelos(2);   DO iVel=1, DVMnVelos(1)
     upos= iVel+(jVel-1)*DVMnVelos(1)+(kVel-1)*DVMnVelos(1)*DVMnVelos(2)
@@ -137,7 +137,7 @@ END IF
 DO SideID=firstSideID,lastSideID
   ElemID    = SideToElem(S2E_ELEM_ID,SideID)
   IF (ElemID.LT.0) CYCLE !for small mortar sides without info on big master element
-#if (PP_TimeDiscMethod==600)
+#ifdef discrete_velocity
   !DVM specific reconstruction
   DO kVel=1, DVMnVelos(3);   DO jVel=1, DVMnVelos(2);   DO iVel=1, DVMnVelos(1)
     upos= iVel+(jVel-1)*DVMnVelos(1)+(kVel-1)*DVMnVelos(1)*DVMnVelos(2)

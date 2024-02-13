@@ -643,7 +643,7 @@ LOGWRITE(*,*)'-------------------------------------------------------'
 ! CAUTION: MY-MORTAR-MPI-Sides are missing
 IF(ALLOCATED(offsetSideMPI))DEALLOCATE(offsetSideMPI)
 ALLOCATE(offsetSideMPI(nProcessors))
-CALL MPI_ALLGATHER(nSides-nMPISides_YOUR,1,MPI_INTEGER,offsetSideMPI,1,MPI_INTEGER,MPI_COMM_WORLD,IERROR)
+CALL MPI_ALLGATHER(nSides-nMPISides_YOUR,1,MPI_INTEGER,offsetSideMPI,1,MPI_INTEGER,MPI_COMM_PICLAS,IERROR)
 offsetSide=0 ! set default for restart!!!
 DO iProc=1, myrank
   offsetSide = offsetSide + offsetSideMPI(iProc)
@@ -679,8 +679,8 @@ ELSE
   ALLOCATE(nNBProcs_glob(1)) ! dummy for debug
   ALLOCATE(ProcInfo_glob(1,1)) ! dummy for debug
 END IF !MPIroot
-CALL MPI_GATHER(nNBProcs,1,MPI_INTEGER,nNBProcs_glob,1,MPI_INTEGER,0,MPI_COMM_WORLD,iError)
-CALL MPI_GATHER(ProcInfo,9,MPI_INTEGER,ProcInfo_glob,9,MPI_INTEGER,0,MPI_COMM_WORLD,iError)
+CALL MPI_GATHER(nNBProcs,1,MPI_INTEGER,nNBProcs_glob,1,MPI_INTEGER,0,MPI_COMM_PICLAS,iError)
+CALL MPI_GATHER(ProcInfo,9,MPI_INTEGER,ProcInfo_glob,9,MPI_INTEGER,0,MPI_COMM_PICLAS,iError)
 IF(MPIroot)THEN
   nNBmax=MAXVAL(nNBProcs_glob) ! count, total number of columns in table
   ALLOCATE(NBinfo_glob(6,nNBmax,0:nProcessors))
@@ -688,7 +688,7 @@ IF(MPIroot)THEN
 ELSE
   ALLOCATE(NBinfo_glob(1,1,1)) ! dummy for debug
 END IF
-CALL MPI_BCAST(nNBmax,1,MPI_INTEGER,0,MPI_COMM_WORLD,iError)
+CALL MPI_BCAST(nNBmax,1,MPI_INTEGER,0,MPI_COMM_PICLAS,iError)
 ALLOCATE(NBinfo(6,nNbmax))
 NBinfo=0
 NBinfo(1,1:nNBProcs)=NBProc
@@ -697,7 +697,7 @@ NBinfo(3,1:nNBProcs)=nMPISides_MINE_Proc
 NBinfo(4,1:nNBProcs)=nMPISides_YOUR_Proc
 NBinfo(5,1:nNBProcs)=offsetMPISides_MINE(0:nNBProcs-1)
 NBinfo(6,1:nNBProcs)=offsetMPISides_YOUR(0:nNBProcs-1)
-CALL MPI_GATHER(NBinfo,6*nNBmax,MPI_INTEGER,NBinfo_glob,6*nNBmax,MPI_INTEGER,0,MPI_COMM_WORLD,iError)
+CALL MPI_GATHER(NBinfo,6*nNBmax,MPI_INTEGER,NBinfo_glob,6*nNBmax,MPI_INTEGER,0,MPI_COMM_PICLAS,iError)
 DEALLOCATE(NBinfo)
 IF(MPIroot)THEN
   OPEN(NEWUNIT=ioUnit,FILE=filename,STATUS='REPLACE')
@@ -964,11 +964,11 @@ END DO
 
 #if USE_MPI
 IF(MPIroot)THEN
-  CALL MPI_REDUCE(MPI_IN_PLACE,nSides_flip,5,MPI_INTEGER,MPI_SUM,0,MPI_COMM_WORLD,iError)
-  CALL MPI_REDUCE(MPI_IN_PLACE     ,nSides_MortarType,3,MPI_INTEGER,MPI_SUM,0,MPI_COMM_WORLD,iError)
+  CALL MPI_REDUCE(MPI_IN_PLACE,nSides_flip,5,MPI_INTEGER,MPI_SUM,0,MPI_COMM_PICLAS,iError)
+  CALL MPI_REDUCE(MPI_IN_PLACE     ,nSides_MortarType,3,MPI_INTEGER,MPI_SUM,0,MPI_COMM_PICLAS,iError)
 ELSE
-  CALL MPI_REDUCE(nSides_flip,dummy,5,MPI_INTEGER,MPI_SUM,0,MPI_COMM_WORLD,iError)
-  CALL MPI_REDUCE(nSides_MortarType,nSides_MortarType,3,MPI_INTEGER,MPI_SUM,0,MPI_COMM_WORLD,iError)
+  CALL MPI_REDUCE(nSides_flip,dummy,5,MPI_INTEGER,MPI_SUM,0,MPI_COMM_PICLAS,iError)
+  CALL MPI_REDUCE(nSides_MortarType,nSides_MortarType,3,MPI_INTEGER,MPI_SUM,0,MPI_COMM_PICLAS,iError)
 END IF
 #endif /*USE_MPI*/
 LBWRITE(UNIT_StdOut,'(132("."))')
@@ -1236,7 +1236,7 @@ DO iNbProc=1,nNbProcs
     SideID_start=OffsetMPISides_MINE(iNbProc-1)+1
     SideID_end  =OffsetMPISides_MINE(iNbProc)
     CALL MPI_ISEND(Flip_MINE(SideID_start:SideID_end),nSendVal,MPI_INTEGER,  &
-                    nbProc(iNbProc),0,MPI_COMM_WORLD,SendRequest(iNbProc),iError)
+                    nbProc(iNbProc),0,MPI_COMM_PICLAS,SendRequest(iNbProc),iError)
   END IF
   ! Start receive flip to YOUR
   IF(nMPISides_YOUR_Proc(iNbProc).GT.0)THEN
@@ -1244,7 +1244,7 @@ DO iNbProc=1,nNbProcs
     SideID_start=OffsetMPISides_YOUR(iNbProc-1)+1
     SideID_end  =OffsetMPISides_YOUR(iNbProc)
     CALL MPI_IRECV(Flip_YOUR(SideID_start:SideID_end),nRecVal,MPI_INTEGER,  &
-                    nbProc(iNbProc),0,MPI_COMM_WORLD,RecRequest(iNbProc),iError)
+                    nbProc(iNbProc),0,MPI_COMM_PICLAS,RecRequest(iNbProc),iError)
   END IF
 END DO !iProc=1,nNBProcs
 DO iNbProc=1,nNbProcs
@@ -1339,7 +1339,7 @@ DO iNbProc=1,nNbProcs
   SideID_end  =OffsetMPISides_send(iNbProc,2)
   IF(nSendVal.GT.0)THEN
     CALL MPI_ISEND(ElemID_MINE(SideID_start:SideID_end),nSendVal,MPI_INTEGER,  &
-                    nbProc(iNbProc),0,MPI_COMM_WORLD,SendRequest(iNbProc),iError)
+                    nbProc(iNbProc),0,MPI_COMM_PICLAS,SendRequest(iNbProc),iError)
   END IF
   ! Start receive flip to YOUR
   nRecVal     =nMPISides_rec(iNbProc,2)
@@ -1347,7 +1347,7 @@ DO iNbProc=1,nNbProcs
   SideID_end  =OffsetMPISides_rec(iNbProc,2)
   IF(nRecVal.GT.0)THEN
     CALL MPI_IRECV(ElemID_YOUR(SideID_start:SideID_end),nRecVal,MPI_INTEGER,  &
-                    nbProc(iNbProc),0,MPI_COMM_WORLD,RecRequest(iNbProc),iError)
+                    nbProc(iNbProc),0,MPI_COMM_PICLAS,RecRequest(iNbProc),iError)
   END IF
 END DO !iProc=1,nNBProcs
 DO iNbProc=1,nNbProcs
@@ -1367,7 +1367,7 @@ DO iNbProc=1,nNbProcs
   SideID_end  =OffsetMPISides_send(iNbProc,1)
   IF(nSendVal.GT.0)THEN
     CALL MPI_ISEND(ElemID_MINE(SideID_start:SideID_end),nSendVal,MPI_INTEGER,  &
-                    nbProc(iNbProc),0,MPI_COMM_WORLD,SendRequest(iNbProc),iError)
+                    nbProc(iNbProc),0,MPI_COMM_PICLAS,SendRequest(iNbProc),iError)
   END IF
   ! Start receive flip to YOUR
   nRecVal     =nMPISides_rec(iNbProc,1)
@@ -1375,7 +1375,7 @@ DO iNbProc=1,nNbProcs
   SideID_end  =OffsetMPISides_rec(iNbProc,1)
   IF(nRecVal.GT.0)THEN
     CALL MPI_IRECV(ElemID_YOUR(SideID_start:SideID_end),nRecVal,MPI_INTEGER,  &
-                    nbProc(iNbProc),0,MPI_COMM_WORLD,RecRequest(iNbProc),iError)
+                    nbProc(iNbProc),0,MPI_COMM_PICLAS,RecRequest(iNbProc),iError)
   END IF
 END DO !iProc=1,nNBProcs
 DO iNbProc=1,nNbProcs

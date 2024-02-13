@@ -149,7 +149,7 @@ RestartNullifySolution = GETLOGICAL('RestartNullifySolution','F')
 IF (LEN_TRIM(RestartFile).GT.0) THEN
   ! Read in the state file we want to restart from
   DoRestart = .TRUE.
-  CALL OpenDataFile(RestartFile,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_WORLD)
+  CALL OpenDataFile(RestartFile,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_PICLAS)
 #ifdef PP_POIS
 #if (PP_nVar==8)
   !The following arrays are read from the file
@@ -167,7 +167,7 @@ IF (LEN_TRIM(RestartFile).GT.0) THEN
   IF(DG_SolutionUExists)THEN
     CALL GetDataProps('DG_SolutionU',nVar_Restart,N_Restart,nElems_Restart,NodeType_Restart)
   END IF
-#elif (PP_TimeDiscMethod==600) /*DVM*/
+#elif (PP_TimeDiscMethod==700) /*DVM*/
   CALL GetDataProps('DVM_Solution',nVar_Restart,N_Restart,nElems_Restart,NodeType_Restart)
 #else
   CALL GetDataProps('DG_Solution',nVar_Restart,N_Restart,nElems_Restart,NodeType_Restart)
@@ -185,7 +185,7 @@ IF (LEN_TRIM(RestartFile).GT.0) THEN
       SWRITE(UNIT_StdOut,'(A,I5)')"nVar_Restart =", nVar_Restart
 #if USE_HDG
       SWRITE(UNIT_StdOut,'(A)')" HDG: Restarting from a different equation system."
-#elif (PP_TimeDiscMethod==600) /*DVM*/
+#elif (PP_TimeDiscMethod==700) /*DVM*/
       SWRITE(UNIT_StdOut,'(A)')"DVM: Restarting from macroscopic values."
 #else
 #ifdef drift_diffusion
@@ -330,6 +330,7 @@ USE MOD_Equation_Vars          ,ONLY: Phi
 #endif /*PP_POIS*/
 #if defined(PARTICLES)
 USE MOD_Particle_Restart       ,ONLY: ParticleRestart
+USE MOD_RayTracing             ,ONLY: RayTracing
 #endif /*defined(PARTICLES)*/
 #if USE_HDG
 USE MOD_Restart_Tools          ,ONLY: RecomputeLambda
@@ -358,6 +359,8 @@ IF(DoRestart)THEN
 #ifdef PARTICLES
   ! Restart particle arrays
   CALL ParticleRestart()
+  ! Get ray tracing volume and surface data
+  CALL RayTracing()
 #endif /*PARTICLES*/
 
 #if USE_HDG

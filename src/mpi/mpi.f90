@@ -111,17 +111,15 @@ ELSE
   CALL MPI_INIT(iError)
   CALL MPI_INITIALIZED(initDone,iError)
   IF(.NOT.initDone) CALL MPI_INIT(iError)
-  IF(iError .NE. 0) &
-    CALL Abort(__STAMP__,'Error in MPI_INIT',iError)
-  MPI_COMM_LOC = MPI_COMM_WORLD
+  IF(iError .NE. 0) CALL Abort(__STAMP__,'Error in MPI_INIT',iError)
+  ! General communicator
+  CALL MPI_COMM_DUP (MPI_COMM_WORLD,MPI_COMM_PICLAS,iError)
+  MPI_COMM_LOC = MPI_COMM_PICLAS
 END IF
 
 CALL MPI_COMM_RANK(MPI_COMM_LOC, myRank     , iError)
 CALL MPI_COMM_SIZE(MPI_COMM_LOC, nProcessors, iError)
-IF(iError .NE. 0) &
-  CALL Abort(&
-  __STAMP__&
-  ,'Could not get rank and number of processors',iError)
+IF(iError .NE. 0) CALL Abort(__STAMP__,'Could not get rank and number of processors',iError)
 MPIRoot=(myRank .EQ. 0)
 #else  /*USE_MPI*/
 myRank      = 0
@@ -131,7 +129,6 @@ MPIRoot     =.TRUE.
 MPILocalRoot=.TRUE.
 #endif  /*USE_MPI*/
 
-! At this point the initialization is not completed. We first have to create a new MPI communicator. MPIInitIsDone will be set
 END SUBROUTINE InitMPI
 
 
@@ -199,13 +196,16 @@ DataSizeSide  =(PP_N+1)*(PP_N+1)
 GroupSize=GETINT('GroupSize','0')
 IF(GroupSize.LT.1)THEN ! group procs by node
   ! Split the node communicator (shared memory) from the global communicator on physical processor or node level
-#if (CORE_SPLIT==1)
-  CALL MPI_COMM_SPLIT(MPI_COMM_WORLD,myRank,0,MPI_COMM_NODE,iError)
-#elif (CORE_SPLIT==0)
+#if (CORE_SPLIT==0)
+  ! 1.) MPI_COMM_TYPE_SHARED
   ! Note that using SharedMemoryMethod=OMPI_COMM_TYPE_CORE somehow does not work in every case (intel/amd processors)
   ! Also note that OMPI_COMM_TYPE_CORE is undefined when not using OpenMPI
-  CALL MPI_COMM_SPLIT_TYPE(MPI_COMM_WORLD,SharedMemoryMethod,0,MPI_INFO_NULL,MPI_COMM_NODE,IERROR)
+  CALL MPI_COMM_SPLIT_TYPE(MPI_COMM_PICLAS,SharedMemoryMethod,0,MPI_INFO_NULL,MPI_COMM_NODE,IERROR)
+#elif (CORE_SPLIT==1)
+  ! 2.) OMPI_COMM_TYPE_CORE
+  CALL MPI_COMM_SPLIT(MPI_COMM_PICLAS,myRank,0,MPI_COMM_NODE,iError)
 #else
+  ! 3.) PICLAS_COMM_TYPE_NODE
   ! Check if more nodes than procs are required or
   ! if the resulting split would create unequal procs per node
   IF((CORE_SPLIT.GE.nProcessors_Global).OR.(MOD(nProcessors_Global,CORE_SPLIT).GT.0))THEN
@@ -217,11 +217,11 @@ IF(GroupSize.LT.1)THEN ! group procs by node
     ! Group procs so that every CORE_SPLIT procs are in the same group
     color = INT(REAL(myrank*CORE_SPLIT)/REAL(nProcessors_Global))+1
   END IF ! (CORE_SPLIT.GE.nProcessors_Global).OR.(MOD().GT.0)
-  CALL MPI_COMM_SPLIT(MPI_COMM_WORLD,color,0,MPI_COMM_NODE,iError)
+  CALL MPI_COMM_SPLIT(MPI_COMM_PICLAS,color,0,MPI_COMM_NODE,iError)
 #endif
 ELSE ! use groupsize
   color=myRank/GroupSize
-  CALL MPI_COMM_SPLIT(MPI_COMM_WORLD,color,0,MPI_COMM_NODE,iError)
+  CALL MPI_COMM_SPLIT(MPI_COMM_PICLAS,color,0,MPI_COMM_NODE,iError)
 END IF
 CALL MPI_COMM_RANK(MPI_COMM_NODE,myLocalRank,iError)
 CALL MPI_COMM_SIZE(MPI_COMM_NODE,nLocalProcs,iError)
@@ -241,12 +241,12 @@ MPI_COMM_WORKERS=MPI_COMM_NULL
 myLeaderRank=-1
 myWorkerRank=-1
 IF(myLocalRank.EQ.0)THEN
-  CALL MPI_COMM_SPLIT(MPI_COMM_WORLD,0,0,MPI_COMM_LEADERS,iError)
+  CALL MPI_COMM_SPLIT(MPI_COMM_PICLAS,0,0,MPI_COMM_LEADERS,iError)
   CALL MPI_COMM_RANK( MPI_COMM_LEADERS,myLeaderRank,iError)
   CALL MPI_COMM_SIZE( MPI_COMM_LEADERS,nLeaderProcs,iError)
   nWorkerProcs=nProcessors-nLeaderProcs
 ELSE
-  CALL MPI_COMM_SPLIT(MPI_COMM_WORLD,1,0,MPI_COMM_WORKERS,iError)
+  CALL MPI_COMM_SPLIT(MPI_COMM_PICLAS,1,0,MPI_COMM_WORKERS,iError)
   CALL MPI_COMM_RANK( MPI_COMM_WORKERS,myWorkerRank,iError)
   CALL MPI_COMM_SIZE( MPI_COMM_WORKERS,nWorkerProcs,iError)
   nLeaderProcs=nProcessors-nWorkerProcs
@@ -285,7 +285,7 @@ DO iNbProc=1,nNbProcs
     SideID_start=OffsetMPISides_rec(iNbProc-1,SendID)+1
     SideID_end  =OffsetMPISides_rec(iNbProc,SendID)
     CALL MPI_IRECV(FaceData(:,:,:,SideID_start:SideID_end),nRecVal,MPI_DOUBLE_PRECISION,  &
-                    nbProc(iNbProc),0,MPI_COMM_WORLD,MPIRequest(iNbProc),iError)
+                    nbProc(iNbProc),0,MPI_COMM_PICLAS,MPIRequest(iNbProc),iError)
   ELSE
     MPIRequest(iNbProc)=MPI_REQUEST_NULL
   END IF
@@ -320,7 +320,7 @@ DO iNbProc=1,nNbProcs
     SideID_start=OffsetMPISides_send(iNbProc-1,SendID)+1
     SideID_end  =OffsetMPISides_send(iNbProc,SendID)
     CALL MPI_ISEND(FaceData(:,:,:,SideID_start:SideID_end),nSendVal,MPI_DOUBLE_PRECISION,  &
-                    nbProc(iNbProc),0,MPI_COMM_WORLD,MPIRequest(iNbProc),iError)
+                    nbProc(iNbProc),0,MPI_COMM_PICLAS,MPIRequest(iNbProc),iError)
   ELSE
     MPIRequest(iNbProc)=MPI_REQUEST_NULL
   END IF
@@ -414,14 +414,14 @@ SUBROUTINE StartReceiveMPIDataInt(firstDim,FaceData,LowerBound,UpperBound,MPIReq
       SideID_start=OffsetMPISides_rec(iNbProc-1,SendID)+1
       SideID_end  =OffsetMPISides_rec(iNbProc,SendID)
       CALL MPI_IRECV(FaceData(:,SideID_start:SideID_end),nRecVal,MPI_INTEGER,  &
-                      nbProc(iNbProc),0,MPI_COMM_WORLD,MPIRequest(iNbProc),iError)
+                      nbProc(iNbProc),0,MPI_COMM_PICLAS,MPIRequest(iNbProc),iError)
     ELSE
       MPIRequest(iNbProc)=MPI_REQUEST_NULL
     END IF
   END DO !iProc=1,nNBProcs
   END SUBROUTINE StartReceiveMPIDataInt
-  
-  
+
+
   !===================================================================================================================================
   !> See above, but for for send direction
   !===================================================================================================================================
@@ -449,7 +449,7 @@ SUBROUTINE StartReceiveMPIDataInt(firstDim,FaceData,LowerBound,UpperBound,MPIReq
       SideID_start=OffsetMPISides_send(iNbProc-1,SendID)+1
       SideID_end  =OffsetMPISides_send(iNbProc,SendID)
       CALL MPI_ISEND(FaceData(:,SideID_start:SideID_end),nSendVal,MPI_INTEGER,  &
-                      nbProc(iNbProc),0,MPI_COMM_WORLD,MPIRequest(iNbProc),iError)
+                      nbProc(iNbProc),0,MPI_COMM_PICLAS,MPIRequest(iNbProc),iError)
     ELSE
       MPIRequest(iNbProc)=MPI_REQUEST_NULL
     END IF
@@ -580,6 +580,7 @@ SDEALLOCATE(OffsetMPISides_rec)
 ! Free the communicators
 IF(MPI_COMM_NODE   .NE.MPI_COMM_NULL) CALL MPI_COMM_FREE(MPI_COMM_NODE   ,IERROR)
 IF(MPI_COMM_LEADERS.NE.MPI_COMM_NULL) CALL MPI_COMM_FREE(MPI_COMM_LEADERS,IERROR)
+IF(MPI_COMM_WORKERS.NE.MPI_COMM_NULL) CALL MPI_COMM_FREE(MPI_COMM_WORKERS,IERROR)
 
 #if USE_LOADBALANCE
 IF (.NOT.(PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance))) THEN
@@ -688,19 +689,19 @@ MPIW8Count(MPIW8SIZEFIELD+3:MPIW8SIZEFIELD+MPIW8SIZEPART+2) = MPIW8CountPart
 IF(MPIroot)THEN
   ALLOCATE(MPIW8TimeProc(MPIW8SIZE*nProcessors))
   ALLOCATE(MPIW8CountProc(MPIW8SIZE*nProcessors))
-  CALL MPI_REDUCE(MPIW8TimeSim , MPIW8TimeSimeGlobal , 1         , MPI_DOUBLE_PRECISION , MPI_SUM , 0 , MPI_COMM_WORLD , iError)
-  CALL MPI_REDUCE(MPIW8Time    , MPIW8TimeGlobal     , MPIW8SIZE , MPI_DOUBLE_PRECISION , MPI_SUM , 0 , MPI_COMM_WORLD , iError)
-  CALL MPI_REDUCE(MPIW8Count   , MPIW8CountGlobal    , MPIW8SIZE , MPI_INTEGER8         , MPI_SUM , 0 , MPI_COMM_WORLD , iError)
+  CALL MPI_REDUCE(MPIW8TimeSim , MPIW8TimeSimeGlobal , 1         , MPI_DOUBLE_PRECISION , MPI_SUM , 0 , MPI_COMM_PICLAS , iError)
+  CALL MPI_REDUCE(MPIW8Time    , MPIW8TimeGlobal     , MPIW8SIZE , MPI_DOUBLE_PRECISION , MPI_SUM , 0 , MPI_COMM_PICLAS , iError)
+  CALL MPI_REDUCE(MPIW8Count   , MPIW8CountGlobal    , MPIW8SIZE , MPI_INTEGER8         , MPI_SUM , 0 , MPI_COMM_PICLAS , iError)
 
-  CALL MPI_GATHER(MPIW8Time  , MPIW8SIZE , MPI_DOUBLE_PRECISION , MPIW8TimeProc  , MPIW8SIZE , MPI_DOUBLE_PRECISION , 0 , MPI_COMM_WORLD , iError)
-  CALL MPI_GATHER(MPIW8Count , MPIW8SIZE , MPI_INTEGER8         , MPIW8CountProc , MPIW8SIZE , MPI_INTEGER8         , 0 , MPI_COMM_WORLD , iError)
+  CALL MPI_GATHER(MPIW8Time  , MPIW8SIZE , MPI_DOUBLE_PRECISION , MPIW8TimeProc  , MPIW8SIZE , MPI_DOUBLE_PRECISION , 0 , MPI_COMM_PICLAS , iError)
+  CALL MPI_GATHER(MPIW8Count , MPIW8SIZE , MPI_INTEGER8         , MPIW8CountProc , MPIW8SIZE , MPI_INTEGER8         , 0 , MPI_COMM_PICLAS , iError)
 ELSE
-  CALL MPI_REDUCE(MPIW8TimeSim , 0 , 1         , MPI_DOUBLE_PRECISION , MPI_SUM , 0 , MPI_COMM_WORLD , IError)
-  CALL MPI_REDUCE(MPIW8Time    , 0 , MPIW8SIZE , MPI_DOUBLE_PRECISION , MPI_SUM , 0 , MPI_COMM_WORLD , IError)
-  CALL MPI_REDUCE(MPIW8Count   , 0 , MPIW8SIZE , MPI_INTEGER8         , MPI_SUM , 0 , MPI_COMM_WORLD , IError)
+  CALL MPI_REDUCE(MPIW8TimeSim , 0 , 1         , MPI_DOUBLE_PRECISION , MPI_SUM , 0 , MPI_COMM_PICLAS , IError)
+  CALL MPI_REDUCE(MPIW8Time    , 0 , MPIW8SIZE , MPI_DOUBLE_PRECISION , MPI_SUM , 0 , MPI_COMM_PICLAS , IError)
+  CALL MPI_REDUCE(MPIW8Count   , 0 , MPIW8SIZE , MPI_INTEGER8         , MPI_SUM , 0 , MPI_COMM_PICLAS , IError)
 
-  CALL MPI_GATHER(MPIW8Time  , MPIW8SIZE , MPI_DOUBLE_PRECISION , 0 , 0 , 0 , 0 , MPI_COMM_WORLD , iError)
-  CALL MPI_GATHER(MPIW8Count , MPIW8SIZE , MPI_INTEGER8         , 0 , 0 , 0 , 0 , MPI_COMM_WORLD , iError)
+  CALL MPI_GATHER(MPIW8Time  , MPIW8SIZE , MPI_DOUBLE_PRECISION , 0 , 0 , 0 , 0 , MPI_COMM_PICLAS , iError)
+  CALL MPI_GATHER(MPIW8Count , MPIW8SIZE , MPI_INTEGER8         , 0 , 0 , 0 , 0 , MPI_COMM_PICLAS , iError)
 END IF
 
 ! --------------------------------------------------

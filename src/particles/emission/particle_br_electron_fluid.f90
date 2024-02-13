@@ -70,8 +70,11 @@ END SUBROUTINE DefineParametersBR
 SUBROUTINE InitSwitchBRElectronModel()
 ! MODULES                                                                                                                          !
 USE MOD_HDG_Vars
-USE MOD_Globals     ,ONLY: myrank, abort, UNIT_StdOut
+USE MOD_Globals     ,ONLY: abort, UNIT_StdOut
 USE MOD_ReadInTools ,ONLY: GETLOGICAL,GETREAL,PrintOption
+#if USE_MPI
+USE MOD_Globals     ,ONLY: myrank
+#endif /*USE_MPI*/
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
 ! INPUT / OUTPUT VARIABLES
@@ -257,7 +260,7 @@ IF(BRNbrOfRegions.GT.0)THEN
       END IF ! MPIRoot
 #if USE_MPI
       ! Broadcast from root to other processors
-      CALL MPI_BCAST(RegionElectronRefHDF5,3, MPI_DOUBLE_PRECISION,0,MPI_COMM_WORLD,iERROR)
+      CALL MPI_BCAST(RegionElectronRefHDF5,3, MPI_DOUBLE_PRECISION,0,MPI_COMM_PICLAS,iERROR)
 #endif /*USE_MPI*/
     END IF ! DoRestart
 
@@ -613,7 +616,7 @@ END DO ! iBRElem = 1, nBRAverageElems
 
 ! Sum the number of elements (later required for averaging the cell-constant values globally on each processor)
 #if USE_MPI
-CALL MPI_ALLREDUCE(RegionElectronRefNew , RegionElectronRefNewGlobal , 3 , MPI_DOUBLE_PRECISION , MPI_SUM , MPI_COMM_WORLD , IERROR)
+CALL MPI_ALLREDUCE(RegionElectronRefNew , RegionElectronRefNewGlobal , 3 , MPI_DOUBLE_PRECISION , MPI_SUM , MPI_COMM_PICLAS , IERROR)
 #else
 RegionElectronRefNewGlobal = RegionElectronRefNew
 #endif /*USE_MPI*/
@@ -903,7 +906,7 @@ END FUNCTION LesserThanWithTolerance
 SUBROUTINE CreateElectronsFromBRFluid(CreateFromRestartFile)
 ! MODULES
 USE MOD_Globals
-USE MOD_Globals             ,ONLY: abort,MPIRoot,UNIT_stdOut,IK,MPI_COMM_WORLD
+USE MOD_Globals             ,ONLY: abort,MPIRoot,UNIT_stdOut,IK,MPI_COMM_PICLAS
 USE MOD_Globals_Vars        ,ONLY: ElementaryCharge,BoltzmannConst
 USE MOD_PreProc
 USE MOD_Particle_Vars       ,ONLY: PDM,PEM,PartState,nSpecies,Species,PartSpecies,usevMPF
@@ -920,7 +923,7 @@ USE MOD_Restart_Vars        ,ONLY: RestartFile
 USE MOD_Particle_Mesh_Vars  ,ONLY: ElemVolume_Shared
 USE MOD_HDG_Vars            ,ONLY: ElemToBRRegion,RegionElectronRef
 USE MOD_Mesh_Tools          ,ONLY: GetCNElemID
-USE MOD_Part_Tools          ,ONLY: UpdateNextFreePosition
+USE MOD_Part_Tools          ,ONLY: UpdateNextFreePosition, GetNextFreePosition
 USE MOD_TimeDisc_Vars       ,ONLY: time
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
@@ -947,7 +950,7 @@ BRNbrOfElectronsCreated=0
 IF(CreateFromRestartFile)THEN
   ALLOCATE(ElectronDensityCell(1,1:PP_nElems))
   ALLOCATE(ElectronTemperatureCell(1,1:PP_nElems))
-  CALL OpenDataFile(RestartFile,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_WORLD)
+  CALL OpenDataFile(RestartFile,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_PICLAS)
   CALL DatasetExists(File_ID,'ElectronDensityCell',ElectronDensityCellExists)
   IF(ElectronDensityCellExists)THEN
     ! Associate construct for integer KIND=8 possibility
@@ -1022,16 +1025,11 @@ DO iElem=1,PP_nElems
   DO iPart=1,ElemCharge
     BRNbrOfElectronsCreated = BRNbrOfElectronsCreated + 1
 
-    ! Set the next free position in the particle vector list
-    PDM%CurrentNextFreePosition = PDM%CurrentNextFreePosition + 1
-    ParticleIndexNbr            = PDM%nextFreePosition(PDM%CurrentNextFreePosition)
-    IF (ParticleIndexNbr.EQ.0) THEN
-      CALL abort(__STAMP__,'ERROR in CreateElectronsFromBRFluid(): New Particle Number greater max Part Num!')
-    END IF
-    PDM%ParticleVecLength       = PDM%ParticleVecLength + 1
+    ParticleIndexNbr            = GetNextFreePosition()
 
     !Set new SpeciesID of new particle (electron)
     PDM%ParticleInside(ParticleIndexNbr) = .TRUE.
+    PDM%isNewPart(ParticleIndexNbr) = .TRUE.
     PartSpecies(ParticleIndexNbr) = ElecSpecIndx
 
     ! Place the electron randomly in the reference cell
@@ -1069,7 +1067,7 @@ IF(CreateFromRestartFile)THEN
 END IF ! CreateFromRestartFile
 
 #if USE_MPI
-CALL MPI_ALLREDUCE(MPI_IN_PLACE,BRNbrOfElectronsCreated,1,MPI_INTEGER,MPI_SUM,MPI_COMM_WORLD,iError)
+CALL MPI_ALLREDUCE(MPI_IN_PLACE,BRNbrOfElectronsCreated,1,MPI_INTEGER,MPI_SUM,MPI_COMM_PICLAS,iError)
 #endif /*USE_MPI*/
 
 SWRITE(UNIT_StdOut,'(A,I0,A)') '  Created a total of ',BRNbrOfElectronsCreated,' electrons.'
@@ -1205,7 +1203,7 @@ CALL WriteBRAverageElemToHDF5(isBRAverageElem)
 
 ! Sum the number of elements (later required for averaging the cell-constant values globally on each processor)
 #if USE_MPI
-CALL MPI_ALLREDUCE(nBRAverageElems , nBRAverageElemsGlobal , 1 , MPI_INTEGER , MPI_SUM , MPI_COMM_WORLD , IERROR)
+CALL MPI_ALLREDUCE(nBRAverageElems , nBRAverageElemsGlobal , 1 , MPI_INTEGER , MPI_SUM , MPI_COMM_PICLAS , IERROR)
 #else
 nBRAverageElemsGlobal = nBRAverageElems
 #endif /*USE_MPI*/

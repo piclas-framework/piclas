@@ -94,7 +94,8 @@ fi
 #GCCVERSION='12.2.0'
 
 # Check requirements and update the pre-requisites inquiry below if necessary
-GCCVERSION='13.1.0'
+#GCCVERSION='13.1.0'
+GCCVERSION='13.2.0'
 
 # --------------------------------------------------------------------------------------------------
 # Check pre-requisites

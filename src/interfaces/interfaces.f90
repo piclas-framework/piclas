@@ -64,14 +64,14 @@ SUBROUTINE InitInterfaces
 !===================================================================================================================================
 !> Check every face and set the correct identifier for selecting the corresponding Riemann solver
 !> possible connections are (Master <-> Slave direction is important):
-!>   - vaccuum    <-> vacuum       : RIEMANN_VACUUM            = 0
+!>   - vacuum     <-> vacuum       : RIEMANN_VACUUM            = 0
 !>   - PML        <-> vacuum       : RIEMANN_PML               = 1
 !>   - PML        <-> PML          : RIEMANN_PML               = 1
 !>   - dielectric <-> dielectric   : RIEMANN_DIELECTRIC        = 2
 !>   - dielectric  -> vacuum       : RIEMANN_DIELECTRIC2VAC    = 3 ! for conservative fluxes (one flux)
-!>   - vacuum      -> dielectri    : RIEMANN_VAC2DIELECTRIC    = 4 ! for conservative fluxes (one flux)
+!>   - vacuum      -> dielectric   : RIEMANN_VAC2DIELECTRIC    = 4 ! for conservative fluxes (one flux)
 !>   - dielectric  -> vacuum       : RIEMANN_DIELECTRIC2VAC_NC = 5 ! for non-conservative fluxes (two fluxes)
-!>   - vacuum      -> dielectri    : RIEMANN_VAC2DIELECTRIC_NC = 6 ! for non-conservative fluxes (two fluxes)
+!>   - vacuum      -> dielectric   : RIEMANN_VAC2DIELECTRIC_NC = 6 ! for non-conservative fluxes (two fluxes)
 !===================================================================================================================================
 ! MODULES
 USE MOD_globals
@@ -128,29 +128,53 @@ DO SideID=1,nSides
   ! b)     - dielectric <-> dielectric   : RIEMANN_DIELECTRIC     = 2
   ! a1)    - dielectric  -> vacuum       : RIEMANN_DIELECTRIC2VAC = 3 or 5 (when using non-conservative fluxes)
   ! a2)    - vacuum      -> dielectric   : RIEMANN_VAC2DIELECTRIC = 4 or 6 (when using non-conservative fluxes)
+  ! am1)   - vacuum      -> dielectric mortar : RIEMANN_VAC2DIELECTRIC = 4 or 6 (when using non-conservative fluxes)
+  ! am2)   - dielectric  -> vacuum mortar     : RIEMANN_DIELECTRIC2VAC = 3 or 5 (when using non-conservative fluxes)
   IF(DoDielectric) THEN
     IF (isDielectricFace(SideID))THEN ! 1.) RiemannDielectric
       IF(isDielectricInterFace(SideID))THEN
         ! a) physical <-> dielectric region: for Riemann solver, select A+ and A- as functions of f(Eps0,Mu0) or f(EpsR,MuR)
         ElemID = SideToElem(S2E_ELEM_ID,SideID) ! get master element ID for checking if it is in a physical or dielectric region
-        IF(MortarType(1,SideID).GE.0) CALL abort(__STAMP__,'Mortars not fully implemented for dielectric <-> vacuum interfaces')
         IF(ElemID.EQ.-1) THEN
-          InterfaceRiemann(SideID)=-1
-          CYCLE ! skip
-        END IF
-        IF(isDielectricElem(ElemID))THEN
-          ! a1) master is DIELECTRIC and slave PHYSICAL
-          IF(DielectricFluxNonConserving)THEN ! use one flux (conserving) or two fluxes (non-conserving) at the interface
-            InterfaceRiemann(SideID)=RIEMANN_DIELECTRIC2VAC_NC ! use two different Riemann solvers
+          IF(MortarType(1,SideID).EQ.0) THEN
+            ! small mortar slave sides have no corresponding master element
+            IF(SideToElem(S2E_NB_ELEM_ID,SideID).GT.0) THEN
+              IF(isDielectricElem(SideToElem(S2E_NB_ELEM_ID,SideID)))THEN
+                ! am1) big elem is PHYSICAL and small slave DIELECTRIC
+                IF(DielectricFluxNonConserving)THEN
+                  InterfaceRiemann(SideID)=RIEMANN_VAC2DIELECTRIC_NC ! use two different Riemann solvers
+                ELSE
+                  InterfaceRiemann(SideID)=RIEMANN_VAC2DIELECTRIC ! A+(EpsR,MuR) and A-(Eps0,Mu0)
+                END IF
+              ELSE
+                ! am2) big elem is DIELECTRIC and small slave PHYSICAL
+                IF(DielectricFluxNonConserving)THEN ! use one flux (conserving) or two fluxes (non-conserving) at the interface
+                  InterfaceRiemann(SideID)=RIEMANN_DIELECTRIC2VAC_NC ! use two different Riemann solvers
+                ELSE
+                  InterfaceRiemann(SideID)=RIEMANN_DIELECTRIC2VAC ! A+(Eps0,Mu0) and A-(EpsR,MuR)
+                END IF
+              END IF
+            ELSE
+              InterfaceRiemann(SideID)=-1
+            END IF
           ELSE
-            InterfaceRiemann(SideID)=RIEMANN_DIELECTRIC2VAC ! A+(Eps0,Mu0) and A-(EpsR,MuR)
+            InterfaceRiemann(SideID)=-1
           END IF
         ELSE
-          ! a2) master is PHYSICAL and slave DIELECTRIC
-          IF(DielectricFluxNonConserving)THEN
-            InterfaceRiemann(SideID)=RIEMANN_VAC2DIELECTRIC_NC ! use two different Riemann solvers
+          IF(isDielectricElem(ElemID))THEN
+            ! a1) master is DIELECTRIC and slave PHYSICAL
+            IF(DielectricFluxNonConserving)THEN ! use one flux (conserving) or two fluxes (non-conserving) at the interface
+              InterfaceRiemann(SideID)=RIEMANN_DIELECTRIC2VAC_NC ! use two different Riemann solvers
+            ELSE
+              InterfaceRiemann(SideID)=RIEMANN_DIELECTRIC2VAC ! A+(Eps0,Mu0) and A-(EpsR,MuR)
+            END IF
           ELSE
-            InterfaceRiemann(SideID)=RIEMANN_VAC2DIELECTRIC ! A+(EpsR,MuR) and A-(Eps0,Mu0)
+            ! a2) master is PHYSICAL and slave DIELECTRIC
+            IF(DielectricFluxNonConserving)THEN
+              InterfaceRiemann(SideID)=RIEMANN_VAC2DIELECTRIC_NC ! use two different Riemann solvers
+            ELSE
+              InterfaceRiemann(SideID)=RIEMANN_VAC2DIELECTRIC ! A+(EpsR,MuR) and A-(Eps0,Mu0)
+            END IF
           END IF
         END IF
       ELSE
@@ -822,9 +846,9 @@ IF(PRESENT(DisplayInfo))THEN
     END DO
     sumGlobalFaces      = 0
     sumGlobalInterFaces = 0
-    CALL MPI_REDUCE(nElems           ,nGlobalSpecialElems,1,MPI_INTEGER,MPI_SUM,0,MPI_COMM_WORLD,iError)
-    CALL MPI_REDUCE(nMasterfaces     ,nGlobalFaces       ,1,MPI_INTEGER,MPI_SUM,0,MPI_COMM_WORLD,IERROR)
-    CALL MPI_REDUCE(nMasterInterFaces,nGlobalInterfaces  ,1,MPI_INTEGER,MPI_SUM,0,MPI_COMM_WORLD,IERROR)
+    CALL MPI_REDUCE(nElems           ,nGlobalSpecialElems,1,MPI_INTEGER,MPI_SUM,0,MPI_COMM_PICLAS,iError)
+    CALL MPI_REDUCE(nMasterfaces     ,nGlobalFaces       ,1,MPI_INTEGER,MPI_SUM,0,MPI_COMM_PICLAS,IERROR)
+    CALL MPI_REDUCE(nMasterInterFaces,nGlobalInterfaces  ,1,MPI_INTEGER,MPI_SUM,0,MPI_COMM_PICLAS,IERROR)
 #else
     nGlobalSpecialElems = nElems
     sumGlobalFaces      = nFaces

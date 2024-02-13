@@ -382,7 +382,7 @@ CASE('cell_volweight_mean')
                   , MPI_INTEGER                  &
                   , iProc                        &
                   , 1999                         &
-                  , MPI_COMM_WORLD               &
+                  , MPI_COMM_PICLAS               &
                   , RecvRequestNonSymDepo(iProc)           &
                   , IERROR)
   END DO
@@ -395,7 +395,7 @@ CASE('cell_volweight_mean')
                   , MPI_INTEGER                       &
                   , iProc                             &
                   , 1999                              &
-                  , MPI_COMM_WORLD                    &
+                  , MPI_COMM_PICLAS                    &
                   , SendRequestNonSymDepo(iProc)      &
                   , IERROR)
   END DO
@@ -437,7 +437,7 @@ CASE('cell_volweight_mean')
                   , MPI_INTEGER                                                 &
                   , NodeRecvDepoRankToGlobalRank(iProc)                         &
                   , 666                                                         &
-                  , MPI_COMM_WORLD                                              &
+                  , MPI_COMM_PICLAS                                              &
                   , RecvRequest(iProc)                                          &
                   , IERROR)
   END DO
@@ -464,7 +464,7 @@ CASE('cell_volweight_mean')
                   , MPI_INTEGER                                                 &
                   , NodeSendDepoRankToGlobalRank(iProc)                         &
                   , 666                                                         &
-                  , MPI_COMM_WORLD                                              &
+                  , MPI_COMM_PICLAS                                              &
                   , SendRequest(iProc)                                          &
                   , IERROR)
   END DO
@@ -981,7 +981,7 @@ DO iProc = 1, nNodeRecvExchangeProcs
       , MPI_DOUBLE_PRECISION                           &
       , NodeRecvDepoRankToGlobalRank(iProc)                &
       , 666                                            &
-      , MPI_COMM_WORLD                                 &
+      , MPI_COMM_PICLAS                                 &
       , RecvRequest(iProc)                             &
       , IERROR)
 END DO
@@ -997,7 +997,7 @@ DO iProc = 1, nNodeSendExchangeProcs
       , MPI_DOUBLE_PRECISION                       &
       , NodeSendDepoRankToGlobalRank(iProc)            &
       , 666                                        &
-      , MPI_COMM_WORLD                             &
+      , MPI_COMM_PICLAS                             &
       , SendRequest(iProc)                         &
       , IERROR)
 END DO
@@ -1298,7 +1298,7 @@ DO iProc = 0,nProcessors_Global-1
                 , MPI_INTEGER                                                 &
                 , iProc                        &
                 , 1667                                                         &
-                , MPI_COMM_WORLD                                              &
+                , MPI_COMM_PICLAS                                              &
                 , RecvRequestNonSymDepo(iProc)                                          &
                 , IERROR)
   CALL MPI_ISEND( SendPeriodicNodes(iProc) &
@@ -1306,7 +1306,7 @@ DO iProc = 0,nProcessors_Global-1
                 , MPI_INTEGER                       &
                 , iProc                             &
                 , 1667                              &
-                , MPI_COMM_WORLD                    &
+                , MPI_COMM_PICLAS                    &
                 , SendRequestNonSymDepo(iProc)      &
                 , IERROR)
 END DO
@@ -1329,7 +1329,7 @@ DO iProc = 0,nProcessors_Global-1
                   , MPI_INTEGER                                                 &
                   , iProc                        &
                   , 667                                                         &
-                  , MPI_COMM_WORLD                                              &
+                  , MPI_COMM_PICLAS                                              &
                   , RecvRequestNonSymDepo(iProc)                                          &
                   , IERROR)
   END IF
@@ -1339,7 +1339,7 @@ DO iProc = 0,nProcessors_Global-1
                   , MPI_INTEGER                       &
                   , iProc                             &
                   , 667                              &
-                  , MPI_COMM_WORLD                    &
+                  , MPI_COMM_PICLAS                    &
                   , SendRequestNonSymDepo(iProc)      &
                   , IERROR)
   END IF
@@ -1437,7 +1437,7 @@ DO iProc = 0,nProcessors_Global-1
                 , MPI_INTEGER                                                 &
                 , iProc                        &
                 , 1667                                                         &
-                , MPI_COMM_WORLD                                              &
+                , MPI_COMM_PICLAS                                              &
                 , RecvRequestNonSymDepo(iProc)                                          &
                 , IERROR)
   CALL MPI_ISEND( SendPeriodicNodes(iProc) &
@@ -1445,7 +1445,7 @@ DO iProc = 0,nProcessors_Global-1
                 , MPI_INTEGER                       &
                 , iProc                             &
                 , 1667                              &
-                , MPI_COMM_WORLD                    &
+                , MPI_COMM_PICLAS                    &
                 , SendRequestNonSymDepo(iProc)      &
                 , IERROR)
 END DO
@@ -1468,7 +1468,7 @@ DO iProc = 0,nProcessors_Global-1
                   , MPI_INTEGER                                                 &
                   , iProc                        &
                   , 667                                                         &
-                  , MPI_COMM_WORLD                                              &
+                  , MPI_COMM_PICLAS                                              &
                   , RecvRequestNonSymDepo(iProc)                                          &
                   , IERROR)
   END IF
@@ -1478,7 +1478,7 @@ DO iProc = 0,nProcessors_Global-1
                   , MPI_INTEGER                       &
                   , iProc                             &
                   , 667                              &
-                  , MPI_COMM_WORLD                    &
+                  , MPI_COMM_PICLAS                    &
                   , SendRequestNonSymDepo(iProc)      &
                   , IERROR)
   END IF
@@ -1520,7 +1520,7 @@ DO iProc = 0,nProcessors_Global-1
                   , MPI_INTEGER                                                 &
                   , iProc                        &
                   , 667                                                         &
-                  , MPI_COMM_WORLD                                              &
+                  , MPI_COMM_PICLAS                                              &
                   , RecvRequestNonSymDepo(iProc)                                          &
                   , IERROR)
   END IF
@@ -1530,7 +1530,7 @@ DO iProc = 0,nProcessors_Global-1
                   , MPI_INTEGER                       &
                   , iProc                             &
                   , 667                              &
-                  , MPI_COMM_WORLD                    &
+                  , MPI_COMM_PICLAS                    &
                   , SendRequestNonSymDepo(iProc)      &
                   , IERROR)
   END IF
@@ -1648,7 +1648,7 @@ IF (GEO%nPeriodicVectors.GT.1) THEN
                   , MPI_INTEGER                                                 &
                   , iProc                        &
                   , 1667                                                         &
-                  , MPI_COMM_WORLD                                              &
+                  , MPI_COMM_PICLAS                                              &
                   , RecvRequestNonSymDepo(iProc)                                          &
                   , IERROR)
     CALL MPI_ISEND( SendPeriodicNodes(iProc) &
@@ -1656,7 +1656,7 @@ IF (GEO%nPeriodicVectors.GT.1) THEN
                   , MPI_INTEGER                       &
                   , iProc                             &
                   , 1667                              &
-                  , MPI_COMM_WORLD                    &
+                  , MPI_COMM_PICLAS                    &
                   , SendRequestNonSymDepo(iProc)      &
                   , IERROR)
   END DO
@@ -1679,7 +1679,7 @@ IF (GEO%nPeriodicVectors.GT.1) THEN
                     , MPI_INTEGER                                                 &
                     , iProc                        &
                     , 667                                                         &
-                    , MPI_COMM_WORLD                                              &
+                    , MPI_COMM_PICLAS                                              &
                     , RecvRequestNonSymDepo(iProc)                                          &
                     , IERROR)
     END IF
@@ -1689,7 +1689,7 @@ IF (GEO%nPeriodicVectors.GT.1) THEN
                     , MPI_INTEGER                       &
                     , iProc                             &
                     , 667                              &
-                    , MPI_COMM_WORLD                    &
+                    , MPI_COMM_PICLAS                    &
                     , SendRequestNonSymDepo(iProc)      &
                     , IERROR)
     END IF
@@ -1733,7 +1733,7 @@ IF (GEO%nPeriodicVectors.GT.1) THEN
                     , MPI_INTEGER                                                 &
                     , iProc                        &
                     , 667                                                         &
-                    , MPI_COMM_WORLD                                              &
+                    , MPI_COMM_PICLAS                                              &
                     , RecvRequestNonSymDepo(iProc)                                          &
                     , IERROR)
     END IF
@@ -1743,7 +1743,7 @@ IF (GEO%nPeriodicVectors.GT.1) THEN
                     , MPI_INTEGER                       &
                     , iProc                             &
                     , 667                              &
-                    , MPI_COMM_WORLD                    &
+                    , MPI_COMM_PICLAS                    &
                     , SendRequestNonSymDepo(iProc)      &
                     , IERROR)
     END IF
@@ -1786,7 +1786,7 @@ DO iNode = 1, nUniqueGlobalNodes
     IF (ANY(PeriodicNodeMap(iNode)%Mapping.EQ.0)) THEN
       DO jNode = 1, PeriodicNodeMap(iNode)%nPeriodicNodes
         IF (PeriodicNodeMap(iNode)%Mapping(jNode).EQ.0) THEN
-          DO kNode =1, jNode - 1              
+          DO kNode =1, jNode - 1
             zGlobalNode = PeriodicNodeMap(iNode)%Mapping(kNode)
             DO zNode = 1, PeriodicNodeMap(zGlobalNode)%nPeriodicNodes
               IF ((PeriodicNodeMap(zGlobalNode)%Mapping(zNode).NE.0).AND.(PeriodicNodeMap(zGlobalNode)%Mapping(zNode).NE.iNode)) THEN
@@ -1920,7 +1920,7 @@ USE MOD_LoadBalance_Vars   ,ONLY: PerformLoadBalance,UseH5IOLoadBalance
 USE MOD_LoadBalance_Vars   ,ONLY: PartSourceLB,NodeSourceExtEquiLB
 USE MOD_Mesh_Vars          ,ONLY: nElems
 USE MOD_Dielectric_Vars    ,ONLY: DoDielectricSurfaceCharge
-USE MOD_Particle_Mesh_Vars ,ONLY: ElemNodeID_Shared,NodeInfo_Shared
+USE MOD_Particle_Mesh_Vars ,ONLY: ElemNodeID_Shared,NodeInfo_Shared,ElemNodeID_Shared_Win
 USE MOD_Mesh_Tools         ,ONLY: GetCNElemID
 USE MOD_Mesh_Vars          ,ONLY: offsetElem
 USE MOD_Particle_Mesh_Vars ,ONLY: GlobalElem2CNTotalElem,GlobalElem2CNTotalElem_Shared,GlobalElem2CNTotalElem_Shared_Win
@@ -2034,14 +2034,20 @@ IF ((PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance))) THEN
       NodeSourceExtEquiLB(1,1,1,1,iElem) = NodeSourceExt(NodeID(7))
       NodeSourceExtEquiLB(1,0,1,1,iElem) = NodeSourceExt(NodeID(8))
     END DO!iElem
-    ADEALLOCATE(ElemNodeID_Shared)
   END IF ! DoDielectricSurfaceCharge
 
+  ! Finalize here because GetCNElemID() is required in this routine for load balancing of NodeSourceExtEquiLB = NodeSourceExt
   IF (nComputeNodeProcessors.NE.nProcessors_Global) THEN
     CALL UNLOCK_AND_FREE(GlobalElem2CNTotalElem_Shared_Win)
     ADEALLOCATE(GlobalElem2CNTotalElem)
     ADEALLOCATE(GlobalElem2CNTotalElem_Shared)
   END IF ! nComputeNodeProcessors.NE.nProcessors_Global
+END IF
+! This step was skipped in particle_mesh.f90: FinalizeParticleMesh()
+IF(PerformLoadBalance.AND.DoDielectricSurfaceCharge)THEN
+  ! From InitElemNodeIDs
+  CALL UNLOCK_AND_FREE(ElemNodeID_Shared_Win)
+  ADEALLOCATE(ElemNodeID_Shared)
 END IF
 #endif /*USE_LOADBALANCE*/
 

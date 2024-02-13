@@ -54,6 +54,7 @@ PUBLIC :: ParticleThroughSideLastPosCheck
 #ifdef CODE_ANALYZE
 PUBLIC :: OutputTrajectory
 #endif /*CODE_ANALYZE*/
+PUBLIC :: ComputeXi,ComputeSurfaceDistance2
 !-----------------------------------------------------------------------------------------------------------------------------------
 !-----------------------------------------------------------------------------------------------------------------------------------
 !===================================================================================================================================
@@ -769,9 +770,9 @@ NormalCoeff(:,3) = BiLinearCoeff(:,3) - SUM(BiLinearCoeff(:,3)*PartTrajectory(:)
 NormalCoeff(:,4) = BiLinearCoeff(:,4) - SUM(BiLinearCoeff(:,4)*PartTrajectory(:))*PartTrajectory
 
 ! A1 is X_xz = X_z - X_x
-a1(:) = NormalCoeff(3,:) - NormalCoeff(1,:)
+A1(:) = NormalCoeff(3,:) - NormalCoeff(1,:)
 ! A2 is X_yz = X_z - X_y
-a2(:) = NormalCoeff(3,:) - NormalCoeff(2,:)
+A2(:) = NormalCoeff(3,:) - NormalCoeff(2,:)
 
 ! Bring into quadratic form
 A = a1(1)*a2(3) - a2(1)*a1(3)
@@ -799,11 +800,11 @@ CALL QuadraticSolver(A,B,C,nRoot,Eta(1),Eta(2))
 ! nRoot equals the number of possible intersections with the bilinear surface. However, only values between [-1,1] are valid
 SELECT CASE(nRoot)
   ! No intersection
-  CASE(0)
+  CASE(0) ! nRoot = 0
     RETURN
 
   ! One possible intersection
-  CASE(1)
+  CASE(1) ! nRoot = 1
 #ifdef CODE_ANALYZE
     IF(PARTOUT.GT.0 .AND. MPIRANKOUT.EQ.MyRank)THEN
       IF(PartID.EQ.PARTOUT)THEN
@@ -870,7 +871,7 @@ SELECT CASE(nRoot)
       RETURN
     END IF ! ABS(eta(1)).LE.1.0
 
-  CASE(2)
+  CASE(2) ! nRoot = 2
 #ifdef CODE_ANALYZE
     IF(PARTOUT.GT.0 .AND. MPIRANKOUT.EQ.MyRank)THEN
       IF(PartID.EQ.PARTOUT)THEN

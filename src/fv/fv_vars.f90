@@ -32,7 +32,7 @@ REAL,ALLOCATABLE                      :: U_master_FV(:,:,:,:),U_slave_FV(:,:,:,:
 REAL,ALLOCATABLE                      :: Flux_Master_FV(:,:,:,:)
 REAL,ALLOCATABLE                      :: Flux_Slave_FV(:,:,:,:)
 
-#if (PP_TimeDiscMethod==600)
+#if (PP_TimeDiscMethod==700)
 ! Output
 REAL,ALLOCATABLE                      :: DVM_ElemData1(:)
 REAL,ALLOCATABLE                      :: DVM_ElemData2(:)

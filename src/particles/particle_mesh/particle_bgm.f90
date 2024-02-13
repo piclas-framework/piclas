@@ -133,6 +133,7 @@ USE MOD_Particle_Mesh_Vars     ,ONLY: GlobalSide2CNTotalSide
 USE MOD_Particle_Mesh_Vars     ,ONLY: CNTotalSide2GlobalSide
 USE MOD_Particle_Mesh_Vars     ,ONLY: GlobalElem2CNTotalElem
 USE MOD_Particle_Mesh_Vars     ,ONLY: CNTotalElem2GlobalElem
+USE MOD_RayTracing_Vars        ,ONLY: PerformRayTracing
 #endif /*USE_MPI*/
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Vars       ,ONLY: PerformLoadBalance
@@ -351,7 +352,12 @@ END IF
 
 #if USE_MPI
 SafetyFactor  = GETREAL('Part-SafetyFactor')
-halo_eps_velo = GETREAL('Particles-HaloEpsVelo')
+IF(PerformRayTracing)THEN
+  halo_eps_velo = 1e200
+  CALL PrintOption('Full mesh mode activated (PerformRayTracing=T): Particles-HaloEpsVelo','INFO',RealOpt=halo_eps_velo)
+ELSE
+  halo_eps_velo = GETREAL('Particles-HaloEpsVelo')
+END IF ! PerformRayTracing
 
 ! Adaptive SF: Determine global shape function radius from maximum of characteristic length in each cell
 IF((TRIM(DepositionType).EQ.'shape_function_adaptive').AND.SFAdaptiveSmoothing)THEN
@@ -382,7 +388,7 @@ IF((TRIM(DepositionType).EQ.'shape_function_adaptive').AND.SFAdaptiveSmoothing)T
     END SELECT
     CharacteristicLengthMax = MAX(CharacteristicLengthMax,CharacteristicLength)
   END DO ! iElem = 1, nElems
-  CALL MPI_ALLREDUCE(MPI_IN_PLACE,CharacteristicLengthMax,1,MPI_DOUBLE_PRECISION,MPI_MAX,MPI_COMM_WORLD,iError)
+  CALL MPI_ALLREDUCE(MPI_IN_PLACE,CharacteristicLengthMax,1,MPI_DOUBLE_PRECISION,MPI_MAX,MPI_COMM_PICLAS,iError)
   r_sf = 1.1 * CharacteristicLengthMax ! Increase by 10%
   IF(CharacteristicLength.LE.0.) CALL abort(__STAMP__,'CharacteristicLength.LE.0. is not allowed.')
   CALL PrintOption('Global shape function radius from elements: PIC-shapefunction-radius' , 'INFO.' , RealOpt=r_sf)
@@ -399,14 +405,13 @@ ELSE
 #if !(USE_HDG)
     deltaT = CalcTimeStep()
 #else
-     CALL abort(__STAMP__&
-  , 'ManualTimeStep.LLE0.0 -> ManualTimeStep is not defined correctly! ManualTimeStep = ',RealInfoOpt=ManualTimeStep)
+     CALL abort(__STAMP__, 'ManualTimeStep<=0.0: time step is not defined correctly! ManualTimeStep = ',RealInfoOpt=ManualTimeStep)
 #endif /*USE_HDG*/
   ELSE
     deltaT=ManualTimeStep
   END IF
   IF (halo_eps_velo.EQ.0) halo_eps_velo = c
-#if (PP_TimeDiscMethod==4 || PP_TimeDiscMethod==200 || PP_TimeDiscMethod==42)
+#if (PP_TimeDiscMethod==4 || PP_TimeDiscMethod==200)
   IF (halo_eps_velo.EQ.c) CALL abort(__STAMP__, 'halo_eps_velo.EQ.c -> Halo Eps Velocity for MPI not defined')
 #endif
 #if (PP_TimeDiscMethod==501) || (PP_TimeDiscMethod==502) || (PP_TimeDiscMethod==506)
@@ -709,7 +714,7 @@ ELSE
   IF (MeshHasPeriodic)    CALL CheckPeriodicSides   (EnlargeBGM)
   CALL BARRIER_AND_SYNC(ElemInfo_Shared_Win,MPI_COMM_SHARED)
   IF (PartBound%UseRotPeriodicBC) CALL CheckRotPeriodicSides(EnlargeBGM)
-  CALL BARRIER_AND_SYNC(ElemInfo_Shared_Win,MPI_COMM_SHARED) 
+  CALL BARRIER_AND_SYNC(ElemInfo_Shared_Win,MPI_COMM_SHARED)
   IF (PartBound%UseInterPlaneBC) CALL CheckInterPlaneSides(EnlargeBGM)
   CALL BARRIER_AND_SYNC(ElemInfo_Shared_Win,MPI_COMM_SHARED)
 
@@ -1111,53 +1116,65 @@ ELSE
 END IF ! nComputeNodeProcessors.EQ.nProcessors_Global
 
 #ifdef CODE_ANALYZE
-! Sanity checks
-IF (  SUM(ElemInfo_Shared(ELEM_HALOFLAG,:)  ,MASK=ElemInfo_Shared(ELEM_HALOFLAG,:).EQ.1).NE.nComputeNodeElems) &
-  CALL ABORT(__STAMP__,'Error with number of local elements on compute node')
+ASSOCIATE( Sum1 => COUNT(ElemInfo_Shared(ELEM_HALOFLAG,:).EQ.1), &
+           Sum2 => COUNT(ElemInfo_Shared(ELEM_HALOFLAG,:).EQ.2), &
+           Sum3 => COUNT(ElemInfo_Shared(ELEM_HALOFLAG,:).EQ.3), &
+           Sum4 => COUNT(ElemInfo_Shared(ELEM_HALOFLAG,:).EQ.4))
 
-IF ((SUM(ElemInfo_Shared(ELEM_HALOFLAG,:)  ,MASK=ElemInfo_Shared(ELEM_HALOFLAG,:).EQ.1) &
-    +SUM(ElemInfo_Shared(ELEM_HALOFLAG,:)/2,MASK=ElemInfo_Shared(ELEM_HALOFLAG,:).EQ.2) &
-    +SUM(ElemInfo_Shared(ELEM_HALOFLAG,:)/3,MASK=ElemInfo_Shared(ELEM_HALOFLAG,:).EQ.3)).NE.nComputeNodeTotalElems) &
-  CALL ABORT(__STAMP__,'Error with number of halo elements on compute node')
+  ! Sanity checks
+  IF (Sum1.NE.nComputeNodeElems) THEN
+    IPWRITE(UNIT_StdOut,*) "SUM(ElemInfo_Shared(ELEM_HALOFLAG,:)  ,MASK=ElemInfo_Shared(ELEM_HALOFLAG,:).EQ.1):", Sum1
+    IPWRITE(UNIT_StdOut,*) "nComputeNodeElems =", nComputeNodeElems
+    CALL ABORT(__STAMP__,'Error with number of local elements on compute node')
+  END IF
 
-! Debug output
-IF (myRank.EQ.0) THEN
-  LBWRITE(Unit_StdOut,'(A)') ' DETERMINED compute-node (CN) halo region ...'
-  LBWRITE(Unit_StdOut,'(A)') ' | CN Rank | Local Elements | Halo Elements (non-peri) | Halo Elements (peri) |'
-  CALL FLUSH(UNIT_stdOut)
-  ALLOCATE(NumberOfElements(3*nLeaderGroupProcs))
-END IF
+  IF (Sum1+Sum2+Sum3+Sum4.NE.nComputeNodeTotalElems) THEN
+    IPWRITE(UNIT_StdOut,*) "SUM(ElemInfo_Shared(ELEM_HALOFLAG,:)  ,MASK=ElemInfo_Shared(ELEM_HALOFLAG,:).EQ.1):", Sum1
+    IPWRITE(UNIT_StdOut,*) "SUM(ElemInfo_Shared(ELEM_HALOFLAG,:)/2,MASK=ElemInfo_Shared(ELEM_HALOFLAG,:).EQ.2):", Sum2
+    IPWRITE(UNIT_StdOut,*) "SUM(ElemInfo_Shared(ELEM_HALOFLAG,:)/3,MASK=ElemInfo_Shared(ELEM_HALOFLAG,:).EQ.3):", Sum3
+    IPWRITE(UNIT_StdOut,*) "SUM(ElemInfo_Shared(ELEM_HALOFLAG,:)/4,MASK=ElemInfo_Shared(ELEM_HALOFLAG,:).EQ.4):", Sum4
+    IPWRITE(UNIT_StdOut,*) "Sum1+Sum2+Sum3+Sum4    =", Sum1+Sum2+Sum3+Sum4
+    IPWRITE(UNIT_StdOut,*) "nComputeNodeTotalElems =", nComputeNodeTotalElems
+    CALL ABORT(__STAMP__,'Error with number of halo elements on compute node')
+  END IF
 
-IF (myComputeNodeRank.EQ.0) THEN
-  ASSOCIATE( sendBuf => (/ &
-        SUM(ElemInfo_Shared(ELEM_HALOFLAG,:)  ,MASK=ElemInfo_Shared(ELEM_HALOFLAG,:).EQ.1),  &
-        SUM(ElemInfo_Shared(ELEM_HALOFLAG,:)/2,MASK=ElemInfo_Shared(ELEM_HALOFLAG,:).EQ.2),  &
-        SUM(ElemInfo_Shared(ELEM_HALOFLAG,:)/3,MASK=ElemInfo_Shared(ELEM_HALOFLAG,:).EQ.3)/) )
-    IF (myRank.EQ.0) THEN
-      CALL MPI_GATHER(sendBuf , 3 , MPI_INTEGER , NumberOfElements , 3 , MPI_INTEGER , 0 , MPI_COMM_LEADERS_SHARED , iError)
-    ELSE
-      CALL MPI_GATHER(sendBuf , 3 , MPI_INTEGER , MPI_IN_PLACE     , 3 , MPI_INTEGER , 0 , MPI_COMM_LEADERS_SHARED , iError)
-    END IF
-  END ASSOCIATE
-END IF
+  ! Debug output
+  IF (myRank.EQ.0) THEN
+    LBWRITE(Unit_StdOut,'(A)') ' DETERMINED compute-node (CN) halo region ...'
+    LBWRITE(Unit_StdOut,'(A)') ' | CN Rank | Local Elements | Halo Elements (non-peri) | Halo Elements (peri) | Halo Elements (Mortar) |'
+    CALL FLUSH(UNIT_stdOut)
+    ALLOCATE(NumberOfElements(4*nLeaderGroupProcs))
+  END IF
+
+  IF (myComputeNodeRank.EQ.0) THEN
+    ASSOCIATE( sendBuf => (/ Sum1, Sum2, Sum3, Sum4/) )
+      IF (myRank.EQ.0) THEN
+        CALL MPI_GATHER(sendBuf , 4 , MPI_INTEGER , NumberOfElements , 4 , MPI_INTEGER , 0 , MPI_COMM_LEADERS_SHARED , iError)
+      ELSE
+        CALL MPI_GATHER(sendBuf , 4 , MPI_INTEGER , MPI_IN_PLACE     , 4 , MPI_INTEGER , 0 , MPI_COMM_LEADERS_SHARED , iError)
+      END IF
+    END ASSOCIATE
+  END IF
+END ASSOCIATE
 
 IF (MPIRoot) THEN
 #if USE_LOADBALANCE
   IF(.NOT.PerformLoadBalance)THEN
 #endif /*USE_LOADBALANCE*/
     DO iProc = 0,nLeaderGroupProcs-1
-      WRITE(Unit_StdOut,'(A,I7,A,I15,A,I25,A,I21,A)')  &
+      WRITE(Unit_StdOut,'(A,I7,A,I15,A,I25,A,I21,A,I23,A)')  &
                                         ' |>',iProc, &
-                                        ' |'  ,NumberOfElements(iProc*3+1), &
-                                        ' |'  ,NumberOfElements(iProc*3+2), &
-                                        ' |'  ,NumberOfElements(iProc*3+3), ' |'
+                                        ' |'  ,NumberOfElements(iProc*4+1), &
+                                        ' |'  ,NumberOfElements(iProc*4+2), &
+                                        ' |'  ,NumberOfElements(iProc*4+3), &
+                                        ' |'  ,NumberOfElements(iProc*4+4), ' |'
     END DO
     WRITE(Unit_StdOut,'(A)') ' '
 #if USE_LOADBALANCE
   END IF ! .NOT.PerformLoadBalance
 #endif /*USE_LOADBALANCE*/
 END IF
-CALL MPI_BARRIER(MPI_COMM_WORLD,iError)
+CALL MPI_BARRIER(MPI_COMM_PICLAS,iError)
 #else
 hilf=' '
 #endif /*CODE_ANALYZE*/
@@ -1240,23 +1257,25 @@ DO iElem = offsetElem+1,offsetElem+nElems
           CALL MPI_FETCH_AND_OP(increment,dummyInt,MPI_INTEGER,0,INT(posElem*SIZE_INT,MPI_ADDRESS_KIND),MPI_SUM,FIBGM_nTotalElems_Shared_Win,IERROR)
           ! Perform logical OR and place data on CN root
           CALL MPI_FETCH_AND_OP(.TRUE.   ,dummyLog,MPI_LOGICAL,0,INT(posRank*SIZE_INT,MPI_ADDRESS_KIND),MPI_LOR,FIBGMToProcFlag_Shared_Win  ,IERROR)
+          ! MPI_FETCH_AND_OP does guarantee completion before MPI_WIN_FLUSH, so ensure it before leaving the scope
+          CALL MPI_WIN_FLUSH(0,FIBGM_nTotalElems_Shared_Win,iError)
+          CALL MPI_WIN_FLUSH(0,FIBGMToProcFlag_Shared_Win  ,iError)
         END ASSOCIATE
-
-        ! Store the min/max extent
-        CALL MPI_FETCH_AND_OP(iBGM,dummyInt,MPI_INTEGER,0,INT(((ProcRank)*(3)*(2) + (1-1)*(2) + (1-1))*SIZE_INT,MPI_ADDRESS_KIND),MPI_MIN,FIBGMToProcExtent_Shared_Win,IERROR)
-        CALL MPI_FETCH_AND_OP(jBGM,dummyInt,MPI_INTEGER,0,INT(((ProcRank)*(3)*(2) + (2-1)*(2) + (1-1))*SIZE_INT,MPI_ADDRESS_KIND),MPI_MIN,FIBGMToProcExtent_Shared_Win,IERROR)
-        CALL MPI_FETCH_AND_OP(kBGM,dummyInt,MPI_INTEGER,0,INT(((ProcRank)*(3)*(2) + (3-1)*(2) + (1-1))*SIZE_INT,MPI_ADDRESS_KIND),MPI_MIN,FIBGMToProcExtent_Shared_Win,IERROR)
-        CALL MPI_FETCH_AND_OP(iBGM,dummyInt,MPI_INTEGER,0,INT(((ProcRank)*(3)*(2) + (1-1)*(2) + (2-1))*SIZE_INT,MPI_ADDRESS_KIND),MPI_MAX,FIBGMToProcExtent_Shared_Win,IERROR)
-        CALL MPI_FETCH_AND_OP(jBGM,dummyInt,MPI_INTEGER,0,INT(((ProcRank)*(3)*(2) + (2-1)*(2) + (2-1))*SIZE_INT,MPI_ADDRESS_KIND),MPI_MAX,FIBGMToProcExtent_Shared_Win,IERROR)
-        CALL MPI_FETCH_AND_OP(kBGM,dummyInt,MPI_INTEGER,0,INT(((ProcRank)*(3)*(2) + (3-1)*(2) + (2-1))*SIZE_INT,MPI_ADDRESS_KIND),MPI_MAX,FIBGMToProcExtent_Shared_Win,IERROR)
       END DO
     END DO
   END DO
+
+  ! Store the min/max extent
+  CALL MPI_FETCH_AND_OP(ElemToBGM_Shared(1,iElem),dummyInt,MPI_INTEGER,0,INT(((ProcRank)*(3)*(2) + (1-1)*(2) + (1-1))*SIZE_INT,MPI_ADDRESS_KIND),MPI_MIN,FIBGMToProcExtent_Shared_Win,IERROR)
+  CALL MPI_FETCH_AND_OP(ElemToBGM_Shared(3,iElem),dummyInt,MPI_INTEGER,0,INT(((ProcRank)*(3)*(2) + (2-1)*(2) + (1-1))*SIZE_INT,MPI_ADDRESS_KIND),MPI_MIN,FIBGMToProcExtent_Shared_Win,IERROR)
+  CALL MPI_FETCH_AND_OP(ElemToBGM_Shared(5,iElem),dummyInt,MPI_INTEGER,0,INT(((ProcRank)*(3)*(2) + (3-1)*(2) + (1-1))*SIZE_INT,MPI_ADDRESS_KIND),MPI_MIN,FIBGMToProcExtent_Shared_Win,IERROR)
+  CALL MPI_FETCH_AND_OP(ElemToBGM_Shared(2,iElem),dummyInt,MPI_INTEGER,0,INT(((ProcRank)*(3)*(2) + (1-1)*(2) + (2-1))*SIZE_INT,MPI_ADDRESS_KIND),MPI_MAX,FIBGMToProcExtent_Shared_Win,IERROR)
+  CALL MPI_FETCH_AND_OP(ElemToBGM_Shared(4,iElem),dummyInt,MPI_INTEGER,0,INT(((ProcRank)*(3)*(2) + (2-1)*(2) + (2-1))*SIZE_INT,MPI_ADDRESS_KIND),MPI_MAX,FIBGMToProcExtent_Shared_Win,IERROR)
+  CALL MPI_FETCH_AND_OP(ElemToBGM_Shared(6,iElem),dummyInt,MPI_INTEGER,0,INT(((ProcRank)*(3)*(2) + (3-1)*(2) + (2-1))*SIZE_INT,MPI_ADDRESS_KIND),MPI_MAX,FIBGMToProcExtent_Shared_Win,IERROR)
+  ! MPI_FETCH_AND_OP does guarantee completion before MPI_WIN_FLUSH, so ensure it before leaving the scope
+  CALL MPI_WIN_FLUSH(0,FIBGMToProcExtent_Shared_Win,iError)
 END DO
 
-CALL MPI_WIN_FLUSH(0,FIBGM_nTotalElems_Shared_Win,iError)
-CALL MPI_WIN_FLUSH(0,FIBGMToProcFlag_Shared_Win  ,iError)
-CALL MPI_WIN_FLUSH(0,FIBGMToProcExtent_Shared_Win,iError)
 CALL BARRIER_AND_SYNC(FIBGMToProcFlag_Shared_Win  ,MPI_COMM_SHARED)
 CALL BARRIER_AND_SYNC(FIBGMToProcExtent_Shared_Win,MPI_COMM_SHARED)
 CALL BARRIER_AND_SYNC(FIBGM_nTotalElems_Shared_Win,MPI_COMM_SHARED)
@@ -1516,14 +1535,16 @@ IF (.NOT.PerformLoadBalance) THEN
 #if USE_LOADBALANCE
 END IF
 IF(.NOT. ((PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance))) )THEN
+#endif /*USE_LOADBALANCE*/
   ! Mapping arrays are only allocated if not running on one node
   IF (nComputeNodeProcessors.NE.nProcessors_Global) THEN
     CALL UNLOCK_AND_FREE(GlobalElem2CNTotalElem_Shared_Win)
   END IF ! nComputeNodeProcessors.NE.nProcessors_Global
+#if USE_LOADBALANCE
 END IF ! .NOT. ((PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance)) .AND. DoDeposition)
 #endif /*USE_LOADBALANCE*/
 
-!CALL UNLOCK_AND_FREE(ElemToBGM_Shared_Win)
+CALL UNLOCK_AND_FREE(ElemToBGM_Shared_Win)
 CALL UNLOCK_AND_FREE(BoundsOfElem_Shared_Win)
 CALL UNLOCK_AND_FREE(FIBGM_nTotalElems_Shared_Win)
 CALL UNLOCK_AND_FREE(FIBGM_nElems_Shared_Win)
@@ -1577,24 +1598,24 @@ IF (nComputeNodeProcessors.NE.nProcessors_Global) THEN
 END IF ! nComputeNodeProcessors.NE.nProcessors_Global
 ADEALLOCATE(CNTotalSide2GlobalSide)
 ADEALLOCATE(CNTotalSide2GlobalSide_Shared)
-#endif /*USE_MPI*/
 
-#if USE_MPI
 CALL FinalizeHaloInfo()
-#endif /*USE_MPI*/
 
 #if USE_LOADBALANCE
 ! This will be deallocated in FinalizeDeposition() when using load balance
 !IF(.NOT. ((PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance)).AND.DoDeposition) )THEN
 ! Note that no inquiry for DoDeposition is made here because the surface charging container is to be preserved
 IF(.NOT. ((PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance))) )THEN
+#endif /*USE_LOADBALANCE*/
   ! Mapping arrays are only allocated if not running on one node
   IF (nComputeNodeProcessors.NE.nProcessors_Global) THEN
     ADEALLOCATE(GlobalElem2CNTotalElem)
     ADEALLOCATE(GlobalElem2CNTotalElem_Shared)
   END IF ! nComputeNodeProcessors.NE.nProcessors_Global
+#if USE_LOADBALANCE
 END IF ! .NOT. ((PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance)) .AND. DoDeposition)
 #endif /*USE_LOADBALANCE*/
+#endif /*USE_MPI*/
 
 END SUBROUTINE FinalizeBGM
 
@@ -2000,10 +2021,10 @@ END SUBROUTINE CheckRotPeriodicSides
 SUBROUTINE CheckInterPlaneSides(EnlargeBGM)
 !===================================================================================================================================
 !> checks the elements against inter plane
-!> In addition to halo flat elements (normal halo region), find all elements on both side of a intermediate plane that 
+!> In addition to halo flat elements (normal halo region), find all elements on both side of a intermediate plane that
 !> are within range of the proc during a loop over all BCs:
 !> (1) Loop over all compute-node elements and check if they are within InterplaneRegion => Node is within InterplaneRegion
-!> (2) Loop over all elements that are NOT on the compute node and add them as halo elements if they are within the corresponding 
+!> (2) Loop over all elements that are NOT on the compute node and add them as halo elements if they are within the corresponding
 !>     InterplaneRegion
 !===================================================================================================================================
 ! MODULES                                                                                                                          !
@@ -2057,7 +2078,7 @@ DO iPartBound = 1,nPartBound
     END IF
   END DO
   IF(InInterPlaneRegion) THEN
-! (2) Loop over all elements that are NOT on the compute node and add them as halo elements if they are within the corresponding 
+! (2) Loop over all elements that are NOT on the compute node and add them as halo elements if they are within the corresponding
 !     InterplaneRegion
     DO iElem = firstElem,lastElem
       ! only consider elements that are not already flagged

@@ -56,34 +56,25 @@ SUBROUTINE InitAdaptiveBCSampling()
 !> 2) Allocate the sampling arrays and create mapping from SampleElemID to ElemID
 !>  2a) Initializing the array with the given velocity vector and magnitude
 !> 3) Read-in of the additional variables for sampling and and array allocation
-!> 4) If a restart is performed,
-!>  4a) Check if adaptiveinfo exists in state, read it in and write to AdaptBCMacroValues
-!>  4b) If TruncateRunningAverage: read-in of AdaptiveRunningAverage to continue the sample
-!>  4c) SurfaceFlux, Type=4: read-in of AdaptBCPartNumOut to avoid mass flux jumps
-!> 5) Initialize the macroscopic values from either the macroscopic restart or the surface flux (if no values have been read-in)
-!> 6) Sampling of near adaptive boundary element values in the first time step to get initial distribution
-!> 7) Approximation of particles leaving the domain, assuming zero bulk velocity, using the macrorestart values or init sampling
+!> 4) Sampling of near adaptive boundary element values in the first time step to get initial distribution
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_IO_HDF5
 USE MOD_ReadInTools
 USE MOD_Particle_Sampling_Vars
-USE MOD_Globals_Vars            ,ONLY: BoltzmannConst, Pi
-USE MOD_TimeDisc_Vars           ,ONLY: ManualTimeStep, RKdtFrac
 USE MOD_HDF5_INPUT              ,ONLY: ReadArray, ReadAttribute, DatasetExists, GetDataSize
 USE MOD_Mesh_Vars               ,ONLY: offsetElem, nElems, SideToElem
-USE MOD_Particle_Vars           ,ONLY: Species, nSpecies, UseCircularInflow, VarTimeStep
+USE MOD_Particle_Vars           ,ONLY: Species, nSpecies, UseCircularInflow
 USE MOD_Particle_Surfaces_Vars  ,ONLY: BCdata_auxSF, SurfFluxSideSize, SurfMeshSubSideData
-USE MOD_Restart_Vars            ,ONLY: DoRestart,RestartFile, DoMacroscopicRestart, MacroRestartValues, MacroRestartFileName
+USE MOD_Restart_Vars            ,ONLY: DoRestart
 USE MOD_SurfaceModel_Vars       ,ONLY: nPorousBC
 USE MOD_Particle_Boundary_Vars  ,ONLY: nPorousSides, PorousBCInfo_Shared, SurfSide2GlobalSide
 USE MOD_Particle_Mesh_Vars      ,ONLY: SideInfo_Shared, ElemVolume_Shared
-USE MOD_LoadBalance_Vars        ,ONLY: DoLoadBalance, PerformLoadBalance, UseH5IOLoadBalance
+USE MOD_LoadBalance_Vars        ,ONLY: DoLoadBalance, PerformLoadBalance
 USE MOD_Mesh_Tools              ,ONLY: GetCNElemID
-#if USE_MPI
-USE MOD_Particle_MPI_Vars       ,ONLY: PartMPI
-#endif /*USE_MPI*/
+#if USE_LOADBALANCE
+USE MOD_LoadBalance_Vars        ,ONLY: UseH5IOLoadBalance
+#endif /*USE_LOADBALANCE*/
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -92,13 +83,10 @@ USE MOD_Particle_MPI_Vars       ,ONLY: PartMPI
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-LOGICAL                           :: AdaptiveDataExists, RunningAverageExists, UseAdaptiveType4, AdaptBCPartNumOutExists
-REAL                              :: TimeStepOverWeight, v_thermal, dtVar, WeightingFactor(1:nSpecies)
-REAL,ALLOCATABLE                  :: ElemData_HDF5(:,:), ElemData2_HDF5(:,:,:,:)
-INTEGER                           :: iElem, iSpec, iSF, iSide, ElemID, SampleElemID, nVar, GlobalSideID, GlobalElemID, currentBC
-INTEGER                           :: jSample, iSample, BCSideID, nElemReadin, nVarTotal, iVar, nVarArrayStart, nVarArrayEnd
-INTEGER                           :: SampIterEnd, nSurfacefluxBCs
-INTEGER,ALLOCATABLE               :: GlobalElemIndex(:)
+LOGICAL                           :: UseAdaptiveType4
+INTEGER                           :: iElem, iSpec, iSF, iSide, ElemID, SampleElemID, GlobalSideID, GlobalElemID, currentBC
+INTEGER                           :: jSample, iSample, BCSideID
+INTEGER                           :: nSurfacefluxBCs
 #if USE_MPI
 INTEGER                           :: offSetElemAdaptBCSampleMPI(0:nProcessors-1)
 #endif
@@ -113,7 +101,7 @@ IF(DoLoadBalance.AND.(.NOT.UseH5IOLoadBalance)) THEN
 END IF
 #endif /*USE_LOADBALANCE*/
 
-AdaptiveDataExists = .FALSE.; RunningAverageExists = .FALSE.; UseAdaptiveType4 = .FALSE.
+UseAdaptiveType4 = .FALSE.
 AdaptBCSampleElemNum = 0
 ALLOCATE(AdaptBCMapElemToSample(nElems))
 AdaptBCMapElemToSample = 0
@@ -166,16 +154,16 @@ END DO
 
 #if USE_MPI
 IF(UseCircularInflow) THEN
-  IF(PartMPI%MPIRoot)THEN
-    CALL MPI_REDUCE(MPI_IN_PLACE,AdaptBCAreaSurfaceFlux,nSpecies*nSurfacefluxBCs,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,iError)
+  IF(MPIRoot)THEN
+    CALL MPI_REDUCE(MPI_IN_PLACE,AdaptBCAreaSurfaceFlux,nSpecies*nSurfacefluxBCs,MPI_DOUBLE_PRECISION,MPI_SUM,0,MPI_COMM_PICLAS,iError)
   ELSE
-    CALL MPI_REDUCE(AdaptBCAreaSurfaceFlux,0,nSpecies*nSurfacefluxBCs,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,iError)
+    CALL MPI_REDUCE(AdaptBCAreaSurfaceFlux,0,nSpecies*nSurfacefluxBCs,MPI_DOUBLE_PRECISION,MPI_SUM,0,MPI_COMM_PICLAS,iError)
   END IF
 END IF
 #endif /*USE_MPI*/
 
 #if USE_MPI
-CALL MPI_ALLREDUCE(MPI_IN_PLACE,AdaptBCVolSurfaceFlux,nSpecies*nSurfacefluxBCs,MPI_DOUBLE_PRECISION,MPI_SUM,PartMPI%COMM,iError)
+CALL MPI_ALLREDUCE(MPI_IN_PLACE,AdaptBCVolSurfaceFlux,nSpecies*nSurfacefluxBCs,MPI_DOUBLE_PRECISION,MPI_SUM,MPI_COMM_PICLAS,iError)
 #endif /*USE_MPI*/
 
 ! 1b) Add elements for the porous BCs
@@ -214,9 +202,9 @@ END IF
 
 #if USE_MPI
 ! Gather the number of sampling elements per proc
-CALL MPI_GATHER(AdaptBCSampleElemNum,1,MPI_INTEGER_INT_KIND,offSetElemAdaptBCSampleMPI,1,MPI_INTEGER_INT_KIND,0,MPI_COMM_WORLD,iError)
+CALL MPI_GATHER(AdaptBCSampleElemNum,1,MPI_INTEGER_INT_KIND,offSetElemAdaptBCSampleMPI,1,MPI_INTEGER_INT_KIND,0,MPI_COMM_PICLAS,iError)
 ! Distribute the number of elements per proc to each each proc
-CALL MPI_BCAST(offSetElemAdaptBCSampleMPI,nProcessors,MPI_INTEGER,0,MPI_COMM_WORLD,iERROR)
+CALL MPI_BCAST(offSetElemAdaptBCSampleMPI,nProcessors,MPI_INTEGER,0,MPI_COMM_PICLAS,iERROR)
 ! Determine the offset for the sampling elements
 IF(myRank.EQ.0) THEN
   offSetElemAdaptBCSample = 0
@@ -290,155 +278,8 @@ ELSE
   END IF
 END IF
 
-! 4) If restart is done, check if adaptiveinfo exists in state, read it in and write to AdaptBCMacroValues
-IF (DoRestart) THEN
-  CALL OpenDataFile(RestartFile,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_WORLD)
-  ! read local ParticleInfo from HDF5
-  CALL DatasetExists(File_ID,'AdaptiveInfo',AdaptiveDataExists)
-  IF(AdaptiveDataExists)THEN
-    CALL GetDataSize(File_ID,'AdaptiveInfo',nDims,HSize)
-    nVarTotal=INT(HSize(1),4)
-    DEALLOCATE(HSize)
-    ALLOCATE(ElemData_HDF5(1:nVarTotal,1:nElems))
-    ! Associate construct for integer KIND=8 possibility
-    ASSOCIATE (&
-          offsetElem => INT(offsetElem,IK),&
-          nElems     => INT(nElems,IK)    ,&
-          nVarTotal  => INT(nVarTotal,IK)    )
-      CALL ReadArray('AdaptiveInfo',2,(/nVarTotal, nElems/),offsetElem,2,RealArray=ElemData_HDF5(:,:))
-    END ASSOCIATE
-    nVar = 7
-    iVar = 1
-    DO iSpec = 1,nSpecies
-      DO SampleElemID = 1,AdaptBCSampleElemNum
-        ElemID = AdaptBCMapSampleToElem(SampleElemID)
-        AdaptBCMacroVal(1:7,SampleElemID,iSpec)   = ElemData_HDF5(iVar:iVar-1+nVar,ElemID)
-      END DO
-      iVar = iVar + nVar
-    END DO
-    SDEALLOCATE(ElemData_HDF5)
-    LBWRITE(*,*) '| Macroscopic values successfully read-in from restart file.'
-  END IF
-  ! Read-in the running average values from the state file
-  IF(AdaptBCTruncAverage) THEN
-    ! Avoid deleting the sampling iteration after a restart during a later load balacing step
-    IF(.NOT.PerformLoadBalance) AdaptBCSampIterReadIn = 0
-    CALL DatasetExists(File_ID,'AdaptiveRunningAverage',RunningAverageExists)
-    IF(RunningAverageExists)THEN
-      ! Read-in the number of sampling iterations from the restart file (might differ from the current number)
-      IF(.NOT.PerformLoadBalance) CALL ReadAttribute(File_ID,'AdaptBCSampIter',1,IntScalar=AdaptBCSampIterReadIn)
-      ! Get the data size of the read-in array
-      CALL GetDataSize(File_ID,'AdaptiveRunningAverage',nDims,HSize)
-      nVar=INT(HSize(2),4)
-      nElemReadin = INT(HSize(3),4)
-      DEALLOCATE(HSize)
-      ! Skip the read-in if the array size does not correspond to the current adaptive BC configuration (e.g. a new adaptive BC was added)
-      IF(AdaptBCSampleElemNumGlobal.NE.nElemReadin) THEN
-        CALL abort(__STAMP__,&
-          'TruncateRunningAverage: Number of read-in elements does not correspond to current number of sample elements!')
-      END IF
-      ! Treatment of different number of iterations between read-in and parameter input
-      IF(AdaptBCSampIter.EQ.nVar) THEN
-        nVarArrayStart = 1
-        nVarArrayEnd = nVar
-        SampIterEnd = AdaptBCSampIter
-        IF(AdaptBCSampIterReadIn.LT.nVar.AND..NOT.PerformLoadBalance) THEN
-          LBWRITE(*,*) '| TruncateRunningAverage: Array not filled in previous simulation run. Continuing at: ', AdaptBCSampIterReadIn + 1
-        END IF
-      ELSE IF(AdaptBCSampIter.GT.nVar) THEN
-        nVarArrayStart = 1
-        nVarArrayEnd = nVar
-        SampIterEnd = nVar
-        LBWRITE(*,*) '| TruncateRunningAverage: Smaller number of sampling iterations in restart file. Continuing at: ', AdaptBCSampIterReadIn + 1
-      ELSE
-        nVarArrayStart = nVar - AdaptBCSampIter + 1
-        nVarArrayEnd = nVar
-        SampIterEnd = AdaptBCSampIter
-        AdaptBCSampIterReadIn = AdaptBCSampIter
-        LBWRITE(*,*) '| TruncateRunningAverage: Greater number of sampling iterations in restart file. Using the last ', AdaptBCSampIterReadIn, ' sample iterations.'
-      END IF
-      ALLOCATE(ElemData2_HDF5(1:8,1:nVar,1:nElemReadin,1:nSpecies))
-      ALLOCATE(GlobalElemIndex(1:nElemReadin))
-      ! Associate construct for integer KIND=8 possibility
-      ASSOCIATE (&
-            nSpecies    => INT(nSpecies,IK) ,&
-            nElemReadin => INT(nElemReadin,IK)    ,&
-            nVar        => INT(nVar,IK)    )
-        CALL ReadArray('AdaptiveRunningAverage',4,(/8_IK, nVar, nElemReadin, nSpecies/),0_IK,3,RealArray=ElemData2_HDF5(:,:,:,:))
-        CALL ReadArray('AdaptiveRunningAverageIndex',1,(/nElemReadin/),0_IK,1,IntegerArray_i4=GlobalElemIndex(:))
-      END ASSOCIATE
-      ! Map the read-in values to the sampling array (GlobalElemID -> LocalElemID -> SampleElemID)
-      IF(AdaptBCSampleElemNum.GT.0) THEN
-        DO iElem = 1,nElemReadin
-          GlobalElemID = GlobalElemIndex(iElem)
-          ! Skip elements outside my local region
-          IF((GlobalElemID.LT.1+offsetElem).OR.(GlobalElemID.GT.nElems+offsetElem)) CYCLE
-          ! Get the sample element ID
-          SampleElemID = AdaptBCMapElemToSample(GlobalElemID-offsetElem)
-          IF(SampleElemID.GT.0) AdaptBCAverage(1:8,1:SampIterEnd,SampleElemID,1:nSpecies) = ElemData2_HDF5(1:8,nVarArrayStart:nVarArrayEnd,iElem,1:nSpecies)
-        END DO
-        ! Scaling of the weighted particle number in case of a macroscopic restart with a particle weighting change
-        IF(DoMacroscopicRestart.AND..NOT.PerformLoadBalance) THEN
-          CALL ReadAttribute(File_ID,'AdaptBCWeightingFactor',nSpecies,RealArray=WeightingFactor)
-          DO iSpec = 1, nSpecies
-            IF(WeightingFactor(iSpec).NE.Species(iSpec)%MacroParticleFactor) THEN
-              AdaptBCAverage(7:8,1:SampIterEnd,:,iSpec) = AdaptBCAverage(7:8,1:SampIterEnd,:,iSpec) * WeightingFactor(iSpec) &
-                                                                                                / Species(iSpec)%MacroParticleFactor
-            END IF
-          END DO
-          LBWRITE(*,*) '| TruncateRunningAverage: Sample successfully initiliazed from restart file and scaled due to MacroscopicRestart.'
-        ELSE
-          LBWRITE(*,*) '| TruncateRunningAverage: Sample successfully initiliazed from restart file.'
-        END IF
-      END IF
-      IF(.NOT.AdaptiveDataExists) THEN
-        ! Calculate the macro values initially from the sample for the first iteration
-        CALL AdaptiveBCSampling(initTruncAverage_opt=.TRUE.)
-        LBWRITE(*,*) '| TruncateRunningAverage: AdaptiveInfo not found in state file. Macroscopic values calculated from sample.'
-      END IF
-      SDEALLOCATE(ElemData2_HDF5)
-      SDEALLOCATE(GlobalElemIndex)
-    ELSE
-      LBWRITE(*,*) '| TruncateRunningAverage: No running average values found. Values initiliazed with zeros.'
-    END IF
-  END IF
-  CALL CloseDataFile()
-  ! Read-in of the number of particles leaving the domain through the adaptive BC type 4 (required for the calculation of the massflow)
-  IF(UseAdaptiveType4.AND..NOT.PerformLoadBalance) THEN
-    IF(MPIRoot)THEN
-      CALL OpenDataFile(RestartFile,create=.FALSE.,single=.TRUE.,readOnly=.TRUE.)
-      CALL DatasetExists(File_ID,'AdaptBCPartNumOut',AdaptBCPartNumOutExists)
-      IF(AdaptBCPartNumOutExists) THEN
-        ! Associate construct for integer KIND=8 possibility
-        ASSOCIATE (&
-              nSpecies     => INT(nSpecies,IK) ,&
-              nSurfFluxBCs => INT(nSurfacefluxBCs,IK)  )
-          CALL ReadArray('AdaptBCPartNumOut',2,(/nSpecies,nSurfFluxBCs/),0_IK,1,IntegerArray_i4=AdaptBCPartNumOut(:,:))
-        END ASSOCIATE
-        LBWRITE(*,*) '| Surface Flux, Type=4: Number of particles leaving the domain successfully read-in from restart file.'
-      END IF
-      CALL CloseDataFile()
-    END IF
-  END IF
-END IF
-
-! 5) Initialize the macroscopic values from either the macroscopic restart or the surface flux (if no values have been read-in)
-IF(AdaptiveDataExists) RETURN
-
-IF (DoMacroscopicRestart) THEN
-  DO SampleElemID = 1,AdaptBCSampleElemNum
-    ElemID = AdaptBCMapSampleToElem(SampleElemID)
-    AdaptBCMacroVal(DSMC_VELOX,SampleElemID,iSpec) = MacroRestartValues(ElemID,iSpec,DSMC_VELOX)
-    AdaptBCMacroVal(DSMC_VELOY,SampleElemID,iSpec) = MacroRestartValues(ElemID,iSpec,DSMC_VELOY)
-    AdaptBCMacroVal(DSMC_VELOZ,SampleElemID,iSpec) = MacroRestartValues(ElemID,iSpec,DSMC_VELOZ)
-    AdaptBCMacroVal(4,SampleElemID,iSpec)          = MacroRestartValues(ElemID,iSpec,DSMC_NUMDENS)
-  END DO
-  LBWRITE(*,*) '| Marcroscopic values have been initialized from: ', TRIM(MacroRestartFileName)
-  IF(nPorousBC.GT.0) THEN
-    CALL abort(__STAMP__,&
-      'Macroscopic restart with porous BC and without state file including adaptive BC info not implemented!')
-  END IF
-ELSE
+IF(.NOT.DoRestart.AND..NOT.PerformLoadBalance) THEN
+! 4) Initialize values from parameter file as a fallback
   DO iSpec=1,nSpecies
     DO iSF=1,Species(iSpec)%nSurfacefluxBCs
       currentBC = Species(iSpec)%Surfaceflux(iSF)%BC
@@ -459,48 +300,7 @@ ELSE
       END DO
     END DO
   END DO
-  LBWRITE(*,*) '| Macroscopic values have been initialized with the input parameters for the velocity and number density (fallback).'
-END IF
-
-! 6) Sampling of near adaptive boundary element values in the first time step to get initial distribution
-IF(.NOT.DoRestart.AND..NOT.PerformLoadBalance) THEN
-  CALL AdaptiveBCSampling(initSampling_opt=.TRUE.)
-  LBWRITE(*,*) '| Sampling of inserted particles has been performed for an initial distribution.'
-END IF
-
-! 7) Approximation of particles leaving the domain, assuming zero bulk velocity, using the macrorestart values or init sampling
-IF(UseAdaptiveType4.AND.(.NOT.AdaptBCPartNumOutExists.OR.DoMacroscopicRestart)) THEN
-  ! Species-specific time step
-  IF(VarTimeStep%UseSpeciesSpecific) THEN
-    dtVar = ManualTimeStep * RKdtFrac * Species(iSpec)%TimeStepFactor
-  ELSE
-    dtVar = ManualTimeStep * RKdtFrac
-  END IF
-  DO iSpec=1,nSpecies
-    DO iSF=1,Species(iSpec)%nSurfacefluxBCs
-      currentBC = Species(iSpec)%Surfaceflux(iSF)%BC
-      ! Skip processors without a surface flux
-      IF (BCdata_auxSF(currentBC)%SideNumber.EQ.0) CYCLE
-      ! Skip other regular surface flux and other types
-      IF(.NOT.Species(iSpec)%Surfaceflux(iSF)%AdaptiveType.EQ.4) CYCLE
-      ! Calculate the velocity for the surface flux with the thermal velocity assuming a zero bulk velocity
-      TimeStepOverWeight = dtVar / Species(iSpec)%MacroParticleFactor
-      v_thermal = SQRT(2.*BoltzmannConst*Species(iSpec)%Surfaceflux(iSF)%MWTemperatureIC/Species(iSpec)%MassIC) / (2.0*SQRT(PI))
-      ! Loop over sides on the surface flux
-      DO iSide=1,BCdata_auxSF(currentBC)%SideNumber
-        BCSideID=BCdata_auxSF(currentBC)%SideList(iSide)
-        ElemID = SideToElem(S2E_ELEM_ID,BCdata_auxSF(currentBC)%SideList(iSide))
-        SampleElemID = AdaptBCMapElemToSample(ElemID)
-        IF(SampleElemID.GT.0) THEN
-          DO jSample=1,SurfFluxSideSize(2); DO iSample=1,SurfFluxSideSize(1)
-            AdaptBCPartNumOut(iSpec,iSF) = AdaptBCPartNumOut(iSpec,iSF) + INT(AdaptBCMacroVal(4,SampleElemID,iSpec) &
-              * TimeStepOverWeight * SurfMeshSubSideData(iSample,jSample,BCSideID)%area * v_thermal)
-          END DO; END DO
-        END IF  ! SampleElemID.GT.0
-      END DO    ! iSide=1,BCdata_auxSF(currentBC)%SideNumber
-    END DO      ! iSF=1,Species(iSpec)%nSurfacefluxBCs
-  END DO        ! iSpec=1,nSpecies
-  SWRITE(*,*) '| Surface Flux, Type=4: Number of particles leaving the domain approximated for the first iteration.'
+  LBWRITE(*,*) '| Macroscopic values have been initialized with the input parameters for velocity and number density (fallback).'
 END IF
 
 END SUBROUTINE InitAdaptiveBCSampling
@@ -603,7 +403,7 @@ ELSE
   RelaxationFactor = AdaptBCRelaxFactor
   IF(AdaptBCSampIter.GT.0) THEN
     IF(AdaptBCTruncAverage.AND.(RestartSampIter.GT.0).AND.(RestartSampIter.LT.AdaptBCSampIter)) THEN
-      ! Truncated average: get the correct number of samples to calculate the average number density while the 
+      ! Truncated average: get the correct number of samples to calculate the average number density while the
       ! sampling array is populated
       SamplingIteration = RestartSampIter
     ELSE
@@ -680,9 +480,9 @@ IF(AdaptBCAverageValBC) THEN
     ! MPI Communication
 #if USE_MPI
     IF(MPIRoot)THEN
-      CALL MPI_REDUCE(MPI_IN_PLACE,AdaptBCMeanValues,8*nSpecies*nSurfacefluxBCs,MPI_DOUBLE_PRECISION,MPI_SUM,0,MPI_COMM_WORLD,iError)
+      CALL MPI_REDUCE(MPI_IN_PLACE,AdaptBCMeanValues,8*nSpecies*nSurfacefluxBCs,MPI_DOUBLE_PRECISION,MPI_SUM,0,MPI_COMM_PICLAS,iError)
     ELSE
-      CALL MPI_REDUCE(AdaptBCMeanValues,0.,8*nSpecies*nSurfacefluxBCs,MPI_DOUBLE_PRECISION,MPI_SUM,0,MPI_COMM_WORLD,iError)
+      CALL MPI_REDUCE(AdaptBCMeanValues,0.,8*nSpecies*nSurfacefluxBCs,MPI_DOUBLE_PRECISION,MPI_SUM,0,MPI_COMM_PICLAS,iError)
     END IF
 #endif /*USE_MPI*/
     IF(MPIRoot) THEN
@@ -741,8 +541,8 @@ IF(AdaptBCAverageValBC) THEN
       END DO
     END IF
 #if USE_MPI
-    CALL MPI_BCAST(AdaptBCMeanValues,8*nSpecies*nSurfacefluxBCs, MPI_DOUBLE_PRECISION,0,MPI_COMM_WORLD,iERROR)
-    CALL MPI_BCAST(AdaptBCAverageMacroVal,3*nSpecies*nSurfacefluxBCs, MPI_DOUBLE_PRECISION,0,MPI_COMM_WORLD,iERROR)
+    CALL MPI_BCAST(AdaptBCMeanValues,8*nSpecies*nSurfacefluxBCs, MPI_DOUBLE_PRECISION,0,MPI_COMM_PICLAS,iERROR)
+    CALL MPI_BCAST(AdaptBCAverageMacroVal,3*nSpecies*nSurfacefluxBCs, MPI_DOUBLE_PRECISION,0,MPI_COMM_PICLAS,iERROR)
 #endif /*USE_MPI*/
   END IF
 END IF

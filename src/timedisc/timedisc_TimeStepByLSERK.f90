@@ -154,6 +154,7 @@ DO iStage = 1,nRKStages
         IF (PDM%ParticleInside(iPart)) THEN
           Pt_temp(  1:3,iPart) = PartState(4:6,iPart)
           PartState(1:3,iPart) = PartState(1:3,iPart) + PartState(4:6,iPart)*b_dt(iStage)
+          PDM%IsNewPart(iPart) = .FALSE.
           ! Don't push the velocity component of neutral particles!
           IF (isPushParticle(iPart)) THEN
             IF (CalcCoupledPower) CALL CalcCoupledPowerPart(iPart,'before')
@@ -166,8 +167,14 @@ DO iStage = 1,nRKStages
     ELSE
       DO iPart=1,PDM%ParticleVecLength
         IF (PDM%ParticleInside(iPart)) THEN
-          Pt_temp(  1:3,iPart) = PartState(4:6,iPart) - RK_a(iStage) * Pt_temp(1:3,iPart)
-          PartState(1:3,iPart) = PartState(1:3,iPart) + Pt_temp(1:3,iPart)*b_dt(iStage)
+          IF(.NOT.PDM%IsNewPart(iPart)) THEN
+            Pt_temp(  1:3,iPart) = PartState(4:6,iPart) - RK_a(iStage) * Pt_temp(1:3,iPart)
+            PartState(1:3,iPart) = PartState(1:3,iPart) + Pt_temp(1:3,iPart)*b_dt(iStage)
+          ELSE
+            Pt_temp(  1:3,iPart) = PartState(4:6,iPart)
+            PartState(1:3,iPart) = PartState(1:3,iPart)
+            PDM%IsNewPart(iPart) = .FALSE.
+          END IF
           ! Don't push the velocity component of neutral particles!
           IF (isPushParticle(iPart)) THEN
             IF (CalcCoupledPower) CALL CalcCoupledPowerPart(iPart,'before')
@@ -290,18 +297,15 @@ END DO
 
 IF ((time.GE.DelayTime).OR.(time.EQ.0)) CALL UpdateNextFreePosition()
 
-IF (useDSMC) THEN
-  IF (time.GE.DelayTime) THEN
+IF (time.GE.DelayTime) THEN
+  ! Direct Simulation Monte Carlo
+  IF (useDSMC) THEN
     CALL DSMC_main()
-#if USE_LOADBALANCE
-    CALL LBStartTime(tLBStart)
-#endif /*USE_LOADBALANCE*/
-    IF(UseSplitAndMerge) CALL SplitAndMerge()
-#if USE_LOADBALANCE
-    CALL LBPauseTime(LB_DSMC,tLBStart)
-#endif /*USE_LOADBALANCE*/
   END IF
+  ! Split & Merge: Variable particle weighting
+  IF(UseSplitAndMerge) CALL SplitAndMerge()
 END IF
+
 #ifdef EXTRAE
 CALL extrae_eventandcounters(int(9000001), int8(0))
 #endif /*EXTRAE*/

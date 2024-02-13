@@ -775,7 +775,7 @@ END IF
 IF (DoVirtualCellMerge) THEN
   DO iElem = 1, nElems
     IF (VirtMergedCells(iElem)%isMerged) THEN
-      DSMC_MacroVal(:,iElem) = DSMC_MacroVal(:,VirtMergedCells(iElem)%MasterCell-offSetElem) 
+      DSMC_MacroVal(:,iElem) = DSMC_MacroVal(:,VirtMergedCells(iElem)%MasterCell-offSetElem)
     END IF
   END DO
 END IF
@@ -785,13 +785,13 @@ END SUBROUTINE DSMC_output_calc
 
 SUBROUTINE CalcMacroElecExcitation(MacroElecExcitation)
 !===================================================================================================================================
-!> 
+!> Calculation of the excitation rate [1/s] based on the sum of excitation events (sum of particle weights) and the sampling time
 !===================================================================================================================================
 ! MODULES
 USE MOD_PreProc
 USE MOD_Globals
 USE MOD_Mesh_Vars             ,ONLY: nElems
-USE MOD_Particle_Vars         ,ONLY: WriteMacroSurfaceValues,MacroValSampTime
+USE MOD_Particle_Vars         ,ONLY: WriteMacroVolumeValues,WriteMacroSurfaceValues,MacroValSampTime
 USE MOD_Particle_Vars         ,ONLY: ExcitationSampleData,ExcitationLevelCounter
 USE MOD_Restart_Vars          ,ONLY: RestartTime
 USE MOD_TimeDisc_Vars         ,ONLY: TEnd
@@ -806,15 +806,17 @@ REAL,INTENT(INOUT)      :: MacroElecExcitation(1:ExcitationLevelCounter,nElems)
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-! INTEGER                 :: 
+! INTEGER                 ::
 REAL                    :: TimeSample
 !===================================================================================================================================
 
-! Determine the sampling time for the calculation of the rate (TODO: SAME AS IN CalcSurfaceValues)
-IF (WriteMacroSurfaceValues) THEN
+! Determine the sampling time for the calculation of the rate
+IF (WriteMacroVolumeValues) THEN
   ! Elapsed time since last sampling (variable dt's possible!)
   TimeSample = Time - MacroValSampTime
-  MacroValSampTime = Time
+  ! Set MacroValSampTime to the current time for the next output, BUT only if it is not used in CalcSurfaceValues, otherwise CalcSurfaceValues will be skipped
+  ! TODO: Have a global calculation of the sample time before the output regardless of surface and/or volume output
+  IF(.NOT.WriteMacroSurfaceValues) MacroValSampTime = Time
 ELSE IF (RestartTime.GT.(1-DSMC%TimeFracSamp)*TEnd) THEN
   ! Sampling at the end of the simulation: When a restart is performed and the sampling starts immediately, determine the correct sampling time
   ! (e.g. sampling is set to 20% of tend = 1s, and restart is performed at 0.9s, sample time = 0.1s)
@@ -824,7 +826,7 @@ ELSE
   TimeSample = (Time-(1-DSMC%TimeFracSamp)*TEnd)
 END IF
 
-! Rate 
+! Rate
 MacroElecExcitation = ExcitationSampleData / TimeSample
 
 END SUBROUTINE CalcMacroElecExcitation
@@ -856,7 +858,7 @@ REAL,INTENT(IN)                :: OutputTime
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 CHARACTER(LEN=255)             :: FileName
-CHARACTER(LEN=255)             :: SpecID, LevelID
+CHARACTER(LEN=255)             :: SpecID, LevelID, SpecID2
 CHARACTER(LEN=255),ALLOCATABLE :: StrVarNames(:)
 CHARACTER(LEN=255),ALLOCATABLE :: StrVarNamesElecExci(:)
 INTEGER                        :: nVar,nVar_quality,nVarloc,nVarCount,ALLOCSTAT, iSpec, nVarRelax, nSpecOut, iCase, iLevel
@@ -864,7 +866,8 @@ INTEGER                        :: jSpec
 REAL,ALLOCATABLE               :: DSMC_MacroVal(:,:), MacroElecExcitation(:,:)
 REAL                           :: StartT,EndT
 !===================================================================================================================================
-SWRITE(UNIT_stdOut,'(A)',ADVANCE='NO')' WRITE DSMC TO HDF5 FILE...'
+FileName=TRIM(TIMESTAMP(TRIM(ProjectName)//'_DSMCState',OutputTime))//'.h5'
+SWRITE(UNIT_stdOut,'(A)',ADVANCE='NO')' WRITE DSMC TO HDF5 FILE ['//TRIM(FileName)//'] ...'
 GETTIME(StartT)
 
 IF(nSpecies.EQ.1) THEN
@@ -991,23 +994,26 @@ IF (DSMC%CalcQualityFactors) THEN
   END IF
 END IF
 
+! Sampling of electronic excitation: Construct the variables name based on first and second species as well as the level threshold
 IF(SampleElecExcitation) THEN
-  ! Number of excitation outputs (currently only electronic -> only species, multiply for additional excitation)
+  ! Number of excitation outputs (currently only electronic)
   ALLOCATE(StrVarNamesElecExci(1:ExcitationLevelCounter))
   nVarCount = 1
   DO iSpec = 1, nSpecies
     DO jSpec = iSpec, nSpecies
       iCase = CollInf%Coll_Case(iSpec,jSpec)
       IF(.NOT.SpecXSec(iCase)%UseElecXSec) CYCLE
-      ! Output of the non-election species
+      ! Output of the non-electron species as first and electron species as the second index, in case multiple electron species are defined
       IF(SpecDSMC(iSpec)%InterID.EQ.4) THEN
         WRITE(SpecID,'(I3.3)') jSpec
+        WRITE(SpecID2,'(I3.3)') iSpec
       ELSE
         WRITE(SpecID,'(I3.3)') iSpec
+        WRITE(SpecID2,'(I3.3)') jSpec
       END IF
       DO iLevel = 1, SpecXSec(iCase)%NumElecLevel
         WRITE(LevelID,'(F0.2)') SpecXSec(iCase)%ElecLevel(iLevel)%Threshold/ElementaryCharge
-        StrVarNamesElecExci(nVarCount)='Spec'//TRIM(SpecID)//'_ExcitationRate_Elec_'//TRIM(LevelID)
+        StrVarNamesElecExci(nVarCount)='Spec'//TRIM(SpecID)//'_Spec'//TRIM(SpecID2)//'_ExcitationRate_Elec_'//TRIM(LevelID)
         nVarCount = nVarCount + 1
       END DO
     END DO
@@ -1015,7 +1021,6 @@ IF(SampleElecExcitation) THEN
 END IF
 
 ! Generate skeleton for the file with all relevant data on a single proc (MPIRoot)
-FileName=TRIM(TIMESTAMP(TRIM(ProjectName)//'_DSMCState',OutputTime))//'.h5'
 IF(MPIRoot) THEN
   CALL OpenDataFile(TRIM(FileName),create=.TRUE.,single=.TRUE.,readOnly=.FALSE.)
   CALL WriteHDF5Header(TRIM('DSMCState'),File_ID)
@@ -1023,7 +1028,7 @@ IF(MPIRoot) THEN
   CALL WriteAttributeToHDF5(File_ID,'Time',1,RealScalar=OutputTime)
   CALL WriteAttributeToHDF5(File_ID,'MeshFile',1,StrScalar=(/TRIM(MeshFileName)/))
   CALL WriteAttributeToHDF5(File_ID,'NSpecies',1,IntegerScalar=nSpecies)
-  ! Standard variable names 
+  ! Standard variable names
   CALL WriteAttributeToHDF5(File_ID,'VarNamesAdd',nVar+nVar_quality,StrArray=StrVarNames)
   ! Additional variable names: electronic excitation rate output
   IF(SampleElecExcitation) CALL WriteAttributeToHDF5(File_ID,'VarNamesExci',ExcitationLevelCounter,StrArray=StrVarNamesElecExci)
@@ -1031,11 +1036,11 @@ IF(MPIRoot) THEN
 END IF
 
 #if USE_MPI
-CALL MPI_BARRIER(MPI_COMM_WORLD,iError)
+CALL MPI_BARRIER(MPI_COMM_PICLAS,iError)
 #endif
 
 ! Open data file for parallel output
-CALL OpenDataFile(FileName,create=.false.,single=.FALSE.,readOnly=.FALSE.,communicatorOpt=MPI_COMM_WORLD)
+CALL OpenDataFile(FileName,create=.false.,single=.FALSE.,readOnly=.FALSE.,communicatorOpt=MPI_COMM_PICLAS)
 
 ALLOCATE(DSMC_MacroVal(1:nVar+nVar_quality,nElems), STAT=ALLOCSTAT)
 IF (ALLOCSTAT.NE.0) THEN
@@ -1043,6 +1048,7 @@ IF (ALLOCSTAT.NE.0) THEN
 END IF
 CALL DSMC_output_calc(nVar,nVar_quality,nVarloc+nVarRelax,DSMC_MacroVal)
 
+! Calculation of electronic excitation rates
 IF(SampleElecExcitation) THEN
   ALLOCATE(MacroElecExcitation(1:ExcitationLevelCounter,nElems), STAT=ALLOCSTAT)
   IF (ALLOCSTAT.NE.0) THEN
@@ -1063,6 +1069,7 @@ ASSOCIATE (&
                         nVal       =(/nVarX    , PP_nElems/)    , &
                         offset     =(/0_IK     , offsetElem/)   , &
                         collective =.false.,  RealArray=DSMC_MacroVal(:,:))
+  ! Output of electronic excitation rates in a separate container
   IF(SampleElecExcitation) THEN
     CALL WriteArrayToHDF5(DataSetName='ExcitationData' , rank=2         , &
                           nValGlobal =(/nVarExci , nGlobalElems/) , &
@@ -1212,11 +1219,8 @@ IMPLICIT NONE
 ! LOCAL VARIABLES
 INTEGER           :: nOutput
 !-----------------------------------------------------------------------------------------------------------------------------------
-
-#if (PP_TimeDiscMethod==42)
 ! Do not perform sampling in the case of a reservoir simulation
 IF (DSMC%ReservoirSimu) RETURN
-#endif
 
 ! Use user given TimeFracSamp
 IF((Time.GE.(1-DSMC%TimeFracSamp)*TEnd).AND.(.NOT.SamplingActive))  THEN

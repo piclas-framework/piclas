@@ -40,9 +40,12 @@ CONTAINS
 !===================================================================================================================================
 SUBROUTINE SplitAndMerge()
 ! MODULES
-USE MOD_PARTICLE_Vars ,ONLY: vMPFMergeThreshold, vMPFSplitThreshold, PEM, nSpecies, PartSpecies,PDM
-USE MOD_Mesh_Vars     ,ONLY: nElems
-USE MOD_part_tools    ,ONLY: UpdateNextFreePosition
+USE MOD_PARTICLE_Vars         ,ONLY: vMPFMergeThreshold, vMPFSplitThreshold, PEM, nSpecies, PartSpecies,PDM
+USE MOD_Mesh_Vars             ,ONLY: nElems
+USE MOD_part_tools            ,ONLY: UpdateNextFreePosition
+#if USE_LOADBALANCE
+USE MOD_LoadBalance_Timers    ,ONLY: LBStartTime, LBElemSplitTime
+#endif /*USE_LOADBALANCE*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -52,15 +55,21 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER               :: iElem, iLoop, iPart, nPartCell, iSpec
-INTEGER, ALLOCATABLE  :: iPartIndx_Node(:), nPart(:),iPartIndx_Node_Temp(:,:)
+INTEGER, ALLOCATABLE  :: iPartIndx_Node(:,:), nPart(:)
+#if USE_LOADBALANCE
+REAL                  :: tLBStart
+#endif /*USE_LOADBALANCE*/
 !===================================================================================================================================
+#if USE_LOADBALANCE
+CALL LBStartTime(tLBStart)
+#endif /*USE_LOADBALANCE*/
 ALLOCATE(nPart(nSpecies))
 DO iElem = 1, nElems
   nPart(:) = 0
   nPartCell = PEM%pNumber(iElem)
-  ALLOCATE(iPartIndx_Node_Temp(nSpecies,nPartCell))
+  ALLOCATE(iPartIndx_Node(nSpecies,nPartCell))
   DO iSpec = 1, nSpecies
-    iPartIndx_Node_Temp(iSpec,1:nPartCell) = 0
+    iPartIndx_Node(iSpec,1:nPartCell) = 0
   END DO
   iPart = PEM%pStart(iElem)
 
@@ -72,29 +81,29 @@ DO iElem = 1, nElems
     END IF
     iSpec = PartSpecies(iPart)
     nPart(iSpec) = nPart(iSpec) + 1
-    iPartIndx_Node_Temp(iSpec,nPart(iSpec)) = iPart
+    iPartIndx_Node(iSpec,nPart(iSpec)) = iPart
     iPart = PEM%pNext(iPart)
   END DO
 
   DO iSpec = 1, nSpecies
-    IF((vMPFMergeThreshold(iSpec).EQ.0).AND.(vMPFSplitThreshold(iSpec).EQ.0)) CYCLE            ! Skip default values
-    IF(nPart(iSpec).EQ.0) CYCLE                     ! Skip when no particles are present
+    ! Skip default values
+    IF((vMPFMergeThreshold(iSpec).EQ.0).AND.(vMPFSplitThreshold(iSpec).EQ.0)) CYCLE
+    ! Skip when no particles are present
+    IF(nPart(iSpec).EQ.0) CYCLE
 
-    ! 2.) build partindx list for species
-    ALLOCATE(iPartIndx_Node(nPart(iSpec)))
-    iPartIndx_Node(1:nPart(iSpec)) = iPartIndx_Node_Temp(iSpec,1:nPart(iSpec))
-
-    ! 3.) Call split or merge routine
+    ! 2.) Call split or merge routine
     IF(nPart(iSpec).GT.vMPFMergeThreshold(iSpec).AND.(vMPFMergeThreshold(iSpec).NE.0)) THEN   ! Merge
-      CALL MergeParticles(iPartIndx_Node, nPart(iSpec), vMPFMergeThreshold(iSpec),iElem)
+      CALL MergeParticles(iPartIndx_Node(iSpec,1:nPart(iSpec)), nPart(iSpec), vMPFMergeThreshold(iSpec),iElem)
     ELSE IF(nPart(iSpec).LT.vMPFSplitThreshold(iSpec)) THEN                                   ! Split
-      CALL SplitParticles(iPartIndx_Node, nPart(iSpec), vMPFSplitThreshold(iSpec))
+      CALL SplitParticles(iPartIndx_Node(iSpec,1:nPart(iSpec)), nPart(iSpec), vMPFSplitThreshold(iSpec))
     END IF
-    DEALLOCATE(iPartIndx_Node)
 
   END DO
-  DEALLOCATE(iPartIndx_Node_Temp)
+  DEALLOCATE(iPartIndx_Node)
 
+#if USE_LOADBALANCE
+  CALL LBElemSplitTime(iElem,tLBStart)
+#endif /*USE_LOADBALANCE*/
 END DO
 CALL UpdateNextFreePosition()
 DEALLOCATE(nPart)
@@ -265,7 +274,7 @@ IF(CollisMode.GT.1) THEN
       END IF
     END IF
     DOF_rot = SpecDSMC(iSpec)%Xi_Rot
-    T_rot = 2.*E_rot/(DOF_rot*totalWeight*BoltzmannConst)    
+    T_rot = 2.*E_rot/(DOF_rot*totalWeight*BoltzmannConst)
   END IF
   IF(DSMC%ElectronicModel.GT.0.AND.SpecDSMC(iSpec)%InterID.NE.4) THEN
     T_elec = CalcTelec(E_elec/totalWeight, iSpec)
@@ -323,7 +332,7 @@ IF(CollisMode.GT.1) THEN
   IF(DSMC%ElectronicModel.GT.0.AND.SpecDSMC(iSpec)%InterID.NE.4) THEN
     Energy_Sum = E_elec
     IF (E_elec.GT.0.0) THEN
-      IF (E_elec_new.EQ.0.0) THEN 
+      IF (E_elec_new.EQ.0.0) THEN
 !        E_elec_new = 0.0
         DO iLoop = 1, nPartNew  ! temporal continuous energy distribution
           iPart = iPartIndx_Node(iLoop)
@@ -333,7 +342,7 @@ IF(CollisMode.GT.1) THEN
           partWeight = GetParticleWeight(iPart)
           E_elec_new = E_elec_new + partWeight * PartStateIntEn(3,iPart)
         END DO
-      END IF       
+      END IF
       alpha = E_elec/E_elec_new
       DO iLoop = 1, nPartNew
 !        alpha = E_elec/E_elec_new
@@ -371,7 +380,7 @@ IF(CollisMode.GT.1) THEN
     Energy_Sum = Energy_Sum + E_vib
     IF (E_vib.GT.0.0) THEN
       IF (E_vib_new.EQ.0.0) THEN
-        IF(SpecDSMC(iSpec)%PolyatomicMol) THEN 
+        IF(SpecDSMC(iSpec)%PolyatomicMol) THEN
           DO iLoop = 1, nPartNew  ! temporal continuous energy distribution
             iPart = iPartIndx_Node(iLoop)
             PartStateIntEn(1,iPart) = 0.0
@@ -402,7 +411,7 @@ IF(CollisMode.GT.1) THEN
             END DO
           END DO
         END IF
-      END IF       
+      END IF
       alpha = E_vib/E_vib_new
       DO iLoop = 1, nPartNew
         iPart = iPartIndx_Node(iLoop)
@@ -445,7 +454,7 @@ IF(CollisMode.GT.1) THEN
     Energy_Sum = 0.0
 
 ! 6.3) ensuring rotational excitation
-    alpha = E_rot/E_rot_new 
+    alpha = E_rot/E_rot_new
     DO iLoop = 1, nPartNew
       iPart = iPartIndx_Node(iLoop)
       partWeight = GetParticleWeight(iPart)
@@ -457,7 +466,10 @@ END IF
 ! 6.4) new translation energy
 ! Sanity check: catch problem when bulk of particles consists solely of clones (all have the same velocity vector)
 alpha = 0.! Initialize
-IF((E_trans.GT.0.).AND.(E_trans_new.GT.0.)) alpha = MERGE(SQRT(E_trans/E_trans_new), 0., ISFINITE(SQRT(E_trans/E_trans_new)))
+IF (E_trans.GT.0. .AND. E_trans_new.GT.0. ) THEN
+  IF (ISFINITE(SQRT(E_trans/E_trans_new))) THEN; alpha = SQRT(E_trans/E_trans_new)
+  ELSE                                         ; alpha = 0.; END IF
+END IF
 #ifdef CODE_ANALYZE
 Energy_new = CellEvib_vMPF(iSpec, iElem) + CellEelec_vMPF(iSpec, iElem)
 #endif /* CODE_ANALYZE */
@@ -558,6 +570,7 @@ USE MOD_Particle_Vars         ,ONLY: PartState, PDM, PartMPF, PartSpecies, PEM, 
 USE MOD_Particle_Vars         ,ONLY: UseVarTimeStep, PartTimeStep
 USE MOD_DSMC_Vars             ,ONLY: PartStateIntEn, CollisMode, SpecDSMC, DSMC, PolyatomMolDSMC, VibQuantsPar
 USE MOD_Particle_Tracking_Vars,ONLY: TrackingMethod
+USE MOD_Part_Tools            ,ONLY: GetNextFreePosition
 !#ifdef CODE_ANALYZE
 !USE MOD_Globals               ,ONLY: unit_stdout,myrank,abort
 !USE MOD_Particle_Vars         ,ONLY: Symmetry
@@ -579,13 +592,13 @@ INTEGER               :: nSplit, iPart, iNewPart, PartIndx, PositionNbr, LocalEl
 iNewPart = 0
 nPart = nPartIn
 nSplit = nPartNew - nPart
-DO WHILE(iNewPart.LT.nSplit)
+DO iNewPart=1,nSplit
   ! Get a random particle (only from the initially available)
   CALL RANDOM_NUMBER(iRan)
   iPart = INT(iRan*nPart) + 1
   PartIndx = iPartIndx_Node(iPart)
   ! Check whether the weighting factor would drop below vMPFSplitLimit (can be below one)
-  ! If the resulting MPF is less than 1 you go sub-atomic where the concept of time and space become irrelevant... 
+  ! If the resulting MPF is less than 1 you go sub-atomic where the concept of time and space become irrelevant...
   IF((PartMPF(PartIndx) / 2.).LT.vMPFSplitLimit) THEN
     ! Skip this particle
     iPartIndx_Node(iPart) = iPartIndx_Node(nPart)
@@ -598,9 +611,7 @@ DO WHILE(iNewPart.LT.nSplit)
   IF((PartMPF(PartIndx) / 2.).LT.vMPFSplitLimit) CALL abort(__STAMP__,'Particle split below limit: PartMPF(PartIndx) / 2.=',&
       RealInfoOpt=PartMPF(PartIndx) / 2.)
   PartMPF(PartIndx) = PartMPF(PartIndx) / 2.   ! split particle
-  iNewPart = iNewPart + 1
-  PositionNbr = PDM%nextFreePosition(iNewPart+PDM%CurrentNextFreePosition)
-  IF (PositionNbr.EQ.0) CALL Abort(__STAMP__,'ERROR in particle split: MaxParticleNumber reached!')
+  PositionNbr = GetNextFreePosition()
   PartState(1:6,PositionNbr) = PartState(1:6,PartIndx)
   IF(TrackingMethod.EQ.REFMAPPING) PartPosRef(1:3,PositionNbr)=PartPosRef(1:3,PartIndx)
   PartSpecies(PositionNbr) = PartSpecies(PartIndx)
@@ -626,9 +637,6 @@ DO WHILE(iNewPart.LT.nSplit)
   PEM%pNumber(LocalElemID) = PEM%pNumber(LocalElemID) + 1
 END DO
 
-! Advance particle vector length and the current next free position with newly created particles
-PDM%ParticleVecLength = PDM%ParticleVecLength + iNewPart
-PDM%CurrentNextFreePosition = PDM%CurrentNextFreePosition + iNewPart
 
 END SUBROUTINE SplitParticles
 

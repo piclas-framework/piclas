@@ -52,6 +52,7 @@ USE MOD_SurfaceModel_Porous      ,ONLY: PorousBoundaryRemovalProb_Pressure
 USE MOD_SurfaceModel_Vars        ,ONLY: nPorousBC
 USE MOD_vMPF                     ,ONLY: SplitAndMerge
 USE MOD_part_RHS                 ,ONLY: CalcPartRHSRotRefFrame
+USE MOD_part_pos_and_velo        ,ONLY: SetParticleVelocity
 USE MOD_Part_Tools               ,ONLY: InRotRefFrameCheck
 USE MOD_Part_Tools               ,ONLY: CalcPartSymmetryPos
 #if USE_MPI
@@ -77,6 +78,19 @@ REAL                       :: Pt_local(1:3), Pt_local_old(1:3), VeloRotRef_half(
 REAL                  :: tLBStart
 #endif /*USE_LOADBALANCE*/
 !===================================================================================================================================
+! for reservoir simulation: no surface flux, particle push, tracking, ...
+IF (DSMC%ReservoirSimu) THEN ! fix grid should be defined for reservoir simu
+  CALL UpdateNextFreePosition()
+  CALL DSMC_main()
+  IF(DSMC%CompareLandauTeller) THEN
+    DO iPart=1,PDM%ParticleVecLength
+      PDM%nextFreePosition(iPart)=iPart
+    END DO
+    CALL SetParticleVelocity(1,1,PDM%ParticleVecLength)
+  END IF
+  RETURN
+END IF
+
 #if USE_LOADBALANCE
 CALL LBStartTime(tLBStart)
 #endif /*USE_LOADBALANCE*/
@@ -193,10 +207,6 @@ ELSE IF ( (MOD(iter,IterDisplayStep).EQ.0) .OR. &
           (Time.ge.(1-DSMC%TimeFracSamp)*TEnd) .OR. &
           WriteMacroVolumeValues.OR.WriteMacroSurfaceValues ) THEN
   CALL UpdateNextFreePosition() !postpone UNFP for CollisMode=0 to next IterDisplayStep or when needed for DSMC-Sampling
-ELSE IF (PDM%nextFreePosition(PDM%CurrentNextFreePosition+1).GT.PDM%maxParticleNumber .OR. &
-         PDM%nextFreePosition(PDM%CurrentNextFreePosition+1).EQ.0) THEN
-  ! gaps in PartState are not filled until next UNFP and array might overflow more easily!
-  CALL abort(__STAMP__,'maximum nbr of particles reached!')
 END IF
 
 IF(DSMC%UseOctree)THEN
@@ -237,15 +247,8 @@ END IF
 
 CALL DSMC_main()
 
-#if USE_LOADBALANCE
-CALL LBStartTime(tLBStart)
-#endif /*USE_LOADBALANCE*/
-
+! Split & Merge: Variable particle weighting
 IF(UseSplitAndMerge) CALL SplitAndMerge()
-
-#if USE_LOADBALANCE
-CALL LBPauseTime(LB_DSMC,tLBStart)
-#endif /*USE_LOADBALANCE*/
 
 END SUBROUTINE TimeStep_DSMC
 

@@ -88,9 +88,14 @@ USE MOD_SurfaceModel_Porous        ,ONLY: DefineParametersPorousBC
 USE MOD_Particle_TimeStep          ,ONLY: DefineParametersVariableTimeStep
 USE MOD_DSMC_Symmetry              ,ONLY: DefineParametersParticleSymmetry
 USE MOD_SuperB_Init                ,ONLY: DefineParametersSuperB
+USE MOD_RayTracing_Init            ,ONLY: DefineParametersRayTracing
 #if USE_MPI
 USE mod_readIMD                    ,ONLY: DefineParametersReadIMDdata
 #endif
+#endif
+#if (PP_TimeDiscMethod==600)
+USE MOD_RadiationTrans_Init        ,ONLY: DefineParametersRadiationTrans
+USE MOD_Radiation_Init             ,ONLY: DefineParametersRadiation
 #endif
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! Insert modules here
@@ -140,6 +145,7 @@ CALL DefineParametersDielectric()
 CALL DefineParametersAnalyze()
 CALL DefineParametersRecordPoints()
 #ifdef PARTICLES
+CALL DefineParametersRayTracing()
 CALL DefineParametersSuperB()
 CALL DefineParametersParticles()
 CALL DefineParametersParticleEmission()
@@ -164,6 +170,10 @@ CALL DefineParametersFPFlow()
 #endif
 #if (PP_TimeDiscMethod==400)
 CALL DefineParametersBGK()
+#endif
+#if (PP_TimeDiscMethod==600)
+CALL DefineParametersRadiation()
+CALL DefineParametersRadiationTrans()
 #endif
 CALL DefineParametersSurfModel()
 CALL DefineParametersSurfModelAnalyze()

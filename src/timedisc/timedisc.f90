@@ -93,12 +93,13 @@ USE MOD_Particle_Analyze_Vars  ,ONLY: CalcEMFieldOutput
 USE MOD_HDF5_Output_Particles  ,ONLY: FillParticleData
 #endif /*PARTICLES*/
 #ifdef PARTICLES
+USE MOD_RayTracing             ,ONLY: RayTracing
 !USE MOD_PICDepo                ,ONLY: Deposition
 USE MOD_Particle_Vars          ,ONLY: DoImportIMDFile
 #if USE_MPI
 USE MOD_PICDepo_Vars           ,ONLY: DepositionType
 #endif /*USE_MPI*/
-USE MOD_Particle_Sampling_Vars ,ONLY: UseAdaptive
+USE MOD_Particle_Sampling_Vars ,ONLY: UseAdaptiveBC
 USE MOD_Particle_Tracking_vars ,ONLY: tTracking,tLocalization,nTracks,MeasureTrackTime
 #if (USE_MPI) && (USE_LOADBALANCE) && defined(PARTICLES)
 USE MOD_DSMC_Vars              ,ONLY: DSMC
@@ -126,6 +127,7 @@ USE MOD_MPI_Vars               ,ONLY: MPIW8TimeSim
 #endif /*defined(MEASURE_MPI_WAIT)*/
 #if defined(PARTICLES)
 USE MOD_Particle_Analyze_Vars  ,ONLY: CalcPointsPerDebyeLength,CalcPICTimeStep
+USE MOD_Part_Tools             ,ONLY: ReduceMaxParticleNumber
 #endif
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -205,6 +207,11 @@ iter_PID = 0
 ! fill recordpoints buffer (first iteration)
 !IF(RP_onProc) CALL RecordPoints(iter,t,forceSampling=.TRUE.)
 
+! Ray tracing
+#if defined(PARTICLES)
+IF(.NOT.DoRestart) CALL RayTracing()
+#endif /*defined(PARTICLES)*/
+
 CALL PrintStatusLine(time,dt,tStart,tEnd,1)
 
 #if defined(PARTICLES) && defined(CODE_ANALYZE)
@@ -220,7 +227,10 @@ END IF ! CalcPointsPerDebyeLength.OR.CalcPICTimeStep
 CALL PerformAnalyze(time,FirstOrLastIter=.TRUE.,OutPutHDF5=.FALSE.)
 
 #ifdef PARTICLES
-IF(DoImportIMDFile) CALL WriteIMDStateToHDF5() ! Write IMD particles to state file (and TTM if it exists)
+IF(DoImportIMDFile)THEN
+  CALL WriteIMDStateToHDF5() ! Write IMD particles to state file (and TTM if it exists)
+  IF(.NOT.DoRestart) RETURN
+END IF ! DoImportIMDFile
 #endif /*PARTICLES*/
 IF((.NOT.DoRestart).OR.FlushInitialState.OR.(.NOT.FILEEXISTS(TRIM(TIMESTAMP(TRIM(ProjectName)//'_State',time))//'.h5'))) THEN
 #if defined(PARTICLES)
@@ -289,8 +299,6 @@ DO !iter_t=0,MaxIter
   CALL TimeStep_DSMC()
 #elif (PP_TimeDiscMethod==6)
   CALL TimeStepByLSERK()
-#elif (PP_TimeDiscMethod==42)
-  CALL TimeStep_DSMC_Debug() ! Reservoir and Debug
 #elif (PP_TimeDiscMethod==100)
   CALL TimeStepByEulerImplicit() ! O1 Euler Implicit
 #elif (PP_TimeDiscMethod==120)
@@ -315,9 +323,9 @@ DO !iter_t=0,MaxIter
   CALL TimeStep_FPFlow()
 #elif (PP_TimeDiscMethod==400)
   CALL TimeStep_BGK()
-#elif (PP_TimeDiscMethod==600)
+#elif (PP_TimeDiscMethod==700)
   CALL TimeStep_DVM()
-#elif (PP_TimeDiscMethod==601)
+#elif (PP_TimeDiscMethod==701)
   CALL TimeStep_ExplicitFV()
 #elif (PP_TimeDiscMethod>=500) && (PP_TimeDiscMethod<=509)
 #if USE_HDG
@@ -333,6 +341,8 @@ DO !iter_t=0,MaxIter
 #else
   CALL abort(__STAMP__,'Timedisc 50x only available for EQNSYS Poisson! PP_N=',IntInfoOpt=PP_N)
 #endif /*USE_HDG*/
+#elif (PP_TimeDiscMethod==600)
+  CALL TimeStep_Radiation()
 #endif
   ! calling the analyze routines
   iter     = iter+1
@@ -353,7 +363,7 @@ DO !iter_t=0,MaxIter
   CALL PerformAnalyze(time,FirstOrLastIter=finalIter,OutPutHDF5=.FALSE.) ! analyze routines are not called here in last iter
 #ifdef PARTICLES
   ! sampling of near adaptive boundary element values
-  IF(UseAdaptive.OR.(nPorousBC.GT.0)) CALL AdaptiveBCSampling()
+  IF(UseAdaptiveBC.OR.(nPorousBC.GT.0)) CALL AdaptiveBCSampling()
 #endif /*PARICLES*/
 
   ! Analysis (possible PerformAnalyze+WriteStateToHDF5 and/or LoadBalance)
@@ -503,6 +513,7 @@ DO !iter_t=0,MaxIter
 
   IF(time.GE.tEnd)EXIT ! done, worst case: one additional time step
 #ifdef PARTICLES
+  CALL ReduceMaxParticleNumber()
   ! Switch flag to false after the number of particles has been written to std out and before the time next step is started
   GlobalNbrOfParticlesUpdated = .FALSE.
 #endif /*PARTICLES*/
@@ -549,7 +560,7 @@ IF(CountNbrOfLostParts)THEN
 #if USE_MPI
   NbrOfLostParticlesTotal_old_tmp = NbrOfLostParticlesTotal ! keep old value
   ! Allreduce is required because of the particle output to .h5 in which all processors must take place
-  CALL MPI_ALLREDUCE(NbrOfLostParticles , NbrOfLostParticlesTotal , 1 , MPI_INTEGER , MPI_SUM , MPI_COMM_WORLD , IERROR)
+  CALL MPI_ALLREDUCE(NbrOfLostParticles , NbrOfLostParticlesTotal , 1 , MPI_INTEGER , MPI_SUM , MPI_COMM_PICLAS , IERROR)
   NbrOfLostParticlesTotal = NbrOfLostParticlesTotal + NbrOfLostParticlesTotal_old_tmp ! add old value
 #else
   NbrOfLostParticlesTotal = NbrOfLostParticlesTotal + NbrOfLostParticles

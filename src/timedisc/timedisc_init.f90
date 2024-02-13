@@ -200,8 +200,6 @@ dt=HUGE(1.)
   SWRITE(UNIT_stdOut,'(A)') ' Method of time integration: Direct Simulation Monte Carlo (DSMC)'
 #elif (PP_TimeDiscMethod==6)
   SWRITE(UNIT_stdOut,'(A)') ' Method of time integration: LSERK4-14 '
-#elif (PP_TimeDiscMethod==42)
-  SWRITE(UNIT_stdOut,'(A)') ' Method of time integration: DSMC Reservoir and Debug'
 #elif (PP_TimeDiscMethod==120)
   SWRITE(UNIT_stdOut,'(A)') ' Method of time integration: Heun/Crank-Nicolson1-2-2'
 #elif (PP_TimeDiscMethod==121)
@@ -240,10 +238,13 @@ dt=HUGE(1.)
 #elif (PP_TimeDiscMethod==509)
   SWRITE(UNIT_stdOut,'(A)') ' Method of time integration: Leapfrog, Poisson'
 #elif (PP_TimeDiscMethod==600)
+  SWRITE(UNIT_stdOut,'(A)') ' Method of time integration: Radiation'
+#elif (PP_TimeDiscMethod==700)
   SWRITE(UNIT_stdOut,'(A)') ' Method of time integration: ED-DVM or DUGKS'
-#elif (PP_TimeDiscMethod==601)
+#elif (PP_TimeDiscMethod==701)
   SWRITE(UNIT_stdOut,'(A)') ' Method of time integration: Explicit finite volumes'
 # endif
+#endif
 
 RKdtFrac      = 1.
 RKdtFracTotal = 1.
@@ -369,7 +370,9 @@ USE MOD_LoadBalance_Vars ,ONLY: DoLoadBalance,LoadBalanceSample,PerformLBSample
 #endif /*USE_LOADBALANCE*/
 #if (PP_TimeDiscMethod==509)
 USE MOD_TimeDisc_Vars    ,ONLY: iter,dt_old
+#if USE_MPI
 USE MOD_Globals          ,ONLY: MPIRoot
+#endif /*USE_MPI*/
 #endif /*(PP_TimeDiscMethod==509)*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE

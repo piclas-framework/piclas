@@ -35,7 +35,6 @@ SET_PROPERTY(CACHE PICLAS_TIMEDISCMETHOD PROPERTY STRINGS Euler-Explicit
                                                           RK4
                                                           RK14
                                                           DSMC
-                                                          RESERVOIR
                                                           FP-Flow
                                                           BGK-Flow
                                                           ED-DVM
@@ -48,7 +47,8 @@ SET_PROPERTY(CACHE PICLAS_TIMEDISCMETHOD PROPERTY STRINGS Euler-Explicit
                                                           ROS3
                                                           ROS4
                                                           ROS46
-                                                          ROS6)
+                                                          ROS6
+                                                          Radiation)
 
 # =========================================================================
 # Shared memory region splitting
@@ -72,14 +72,14 @@ IF(PICLAS_SHARED_MEMORY STREQUAL "MPI_COMM_TYPE_SHARED")
   UNSET(PICLAS_SHARED_MEMORY_CORES CACHE)
   ADD_DEFINITIONS(-DCORE_SPLIT=0)
   MESSAGE(STATUS "Shared memory split type for subcommunicators set to node-level")
-ELSEIF(PICLAS_SHARED_MEMORY STREQUAL "PICLAS_COMM_TYPE_NODE")
-  SET(PICLAS_SHARED_MEMORY_CORES "2" CACHE STRING "Number of cores per node when setting PICLAS_SHARED_MEMORY=PICLAS_COMM_TYPE_NODE. All cores must be on the same physical node!")
-  ADD_DEFINITIONS(-DCORE_SPLIT=${PICLAS_SHARED_MEMORY_CORES})
-  MESSAGE(STATUS "Shared memory split type for subcommunicators set to sub-node-level with user-specific value [PICLAS_SHARED_MEMORY_CORES = ${PICLAS_SHARED_MEMORY_CORES}] cores per node")
 ELSEIF(PICLAS_SHARED_MEMORY STREQUAL "OMPI_COMM_TYPE_CORE")
   UNSET(PICLAS_SHARED_MEMORY_CORES CACHE)
   ADD_DEFINITIONS(-DCORE_SPLIT=1)
   MESSAGE(STATUS "Shared memory split type for subcommunicators set to core-level")
+ELSEIF(PICLAS_SHARED_MEMORY STREQUAL "PICLAS_COMM_TYPE_NODE")
+  SET(PICLAS_SHARED_MEMORY_CORES "2" CACHE STRING "Number of cores per node when setting PICLAS_SHARED_MEMORY=PICLAS_COMM_TYPE_NODE. All cores must be on the same physical node!")
+  ADD_DEFINITIONS(-DCORE_SPLIT=${PICLAS_SHARED_MEMORY_CORES})
+  MESSAGE(STATUS "Shared memory split type for subcommunicators set to sub-node-level with user-specific value [PICLAS_SHARED_MEMORY_CORES = ${PICLAS_SHARED_MEMORY_CORES}] cores per node")
 ENDIF()
 
 # =========================================================================
@@ -185,8 +185,6 @@ IF(PICLAS_PARTICLES)
 ELSE()
   IF(PICLAS_TIMEDISCMETHOD STREQUAL "DSMC")
     MESSAGE(SEND_ERROR "DSMC cannot be used without particles.")
-  ELSEIF(PICLAS_TIMEDISCMETHOD STREQUAL "RESERVOIR")
-    MESSAGE(SEND_ERROR "RESERVOIR cannot be used without particles.")
   ELSEIF(PICLAS_TIMEDISCMETHOD STREQUAL "BGK-Flow")
     MESSAGE(SEND_ERROR "BGK-Flow cannot be used without particles.")
   ELSEIF(PICLAS_TIMEDISCMETHOD STREQUAL "FP-Flow")
@@ -265,9 +263,6 @@ ELSEIF(PICLAS_TIMEDISCMETHOD STREQUAL "RK14")
 ELSEIF(PICLAS_TIMEDISCMETHOD STREQUAL "DSMC")
   FILE(GLOB timediscF90 ${CMAKE_CURRENT_SOURCE_DIR}/src/timedisc/timedisc_TimeStep_DSMC.f90)
   ADD_DEFINITIONS(-DPP_TimeDiscMethod=4)
-ELSEIF(PICLAS_TIMEDISCMETHOD STREQUAL "RESERVOIR")
-  FILE(GLOB timediscF90 ${CMAKE_CURRENT_SOURCE_DIR}/src/timedisc/timedisc_TimeStep_DSMC_Debug.f90)
-  ADD_DEFINITIONS(-DPP_TimeDiscMethod=42)
 ELSEIF(PICLAS_TIMEDISCMETHOD STREQUAL "CN")
   FILE(GLOB timediscF90 ${CMAKE_CURRENT_SOURCE_DIR}/src/timedisc/timedisc_TimeStepByImplicitRK.f90)
   ADD_DEFINITIONS(-DPP_TimeDiscMethod=120 -DIMPA)
@@ -310,12 +305,15 @@ ELSEIF(PICLAS_TIMEDISCMETHOD STREQUAL "FP-Flow")
 ELSEIF(PICLAS_TIMEDISCMETHOD STREQUAL "BGK-Flow")
    FILE(GLOB timediscF90 ${CMAKE_CURRENT_SOURCE_DIR}/src/timedisc/timedisc_TimeStep_BGK.f90)
    ADD_DEFINITIONS(-DPP_TimeDiscMethod=400)
+ELSEIF(PICLAS_TIMEDISCMETHOD STREQUAL "Radiation")
+   FILE(GLOB timediscF90 ${CMAKE_CURRENT_SOURCE_DIR}/src/timedisc/timedisc_TimeStep_Radiation.f90)
+   ADD_DEFINITIONS(-DPP_TimeDiscMethod=600)
 ELSEIF(PICLAS_TIMEDISCMETHOD STREQUAL "ED-DVM")
   FILE(GLOB timediscF90 ${CMAKE_CURRENT_SOURCE_DIR}/src/timedisc/timedisc_TimeStep_DVM.f90)
-  ADD_DEFINITIONS(-DPP_TimeDiscMethod=600)
+  ADD_DEFINITIONS(-DPP_TimeDiscMethod=700)
 ELSEIF(PICLAS_TIMEDISCMETHOD STREQUAL "Explicit-FV")
   FILE(GLOB timediscF90 ${CMAKE_CURRENT_SOURCE_DIR}/src/timedisc/timedisc_TimeStep_ExplicitFV.f90)
-  ADD_DEFINITIONS(-DPP_TimeDiscMethod=601)
+  ADD_DEFINITIONS(-DPP_TimeDiscMethod=701)
 ELSE()
    MESSAGE(SEND_ERROR "Unknown time discretization method.")
 ENDIF()
@@ -420,7 +418,7 @@ ENDIF()
 IF(BUILD_TYPE_LC MATCHES "sanitize" AND LIBS_USE_MPI)
   SET(ACTIVATE_UNIT_TEST OFF)
   # Check if unit tests were previously activated
-  IF(PICLAS_UNITTESTS)
+  IF(PICLAS_UNITTESTS AND LIBS_MPI_NAME MATCHES "OpenMPI")
     MESSAGE(WARNING "Unit tests automatically disabled (PICLAS_UNITTESTS=OFF) with\n CMAKE_BUILD_TYPE = ${CMAKE_BUILD_TYPE}\n LIBS_USE_MPI = ${LIBS_USE_MPI}\nas the tests will always fail due to memory errors returned from the MPI library.")
     SET(PICLAS_UNITTESTS OFF)
   ENDIF()
@@ -572,7 +570,12 @@ ENDIF()
                   #./src/piclaslib.f90)
 FILE(GLOB_RECURSE particlesF90 ./src/particles/*.f90
                                ./src/posti/superB/*.f90
-                               ./src/interpolation/eval_xyz.f90)
+                               ./src/interpolation/eval_xyz.f90
+                               ./src/radiation/ray_tracing/*.f90
+                               ./src/radiation/radiative_transfer/radtrans_vars.f90
+                               ./src/radiation/radiative_transfer/tracking/*.f90
+                               ./src/radiation/radiation_solver/radiation_vars.f90)
+
 FILE(GLOB noparticlesF90 ./src/particles/analyze/particle_analyze_vars.f90
                          ./src/particles/particle_mesh/particle_surfaces_vars.f90
                          ./src/particles/particle_mesh/particle_mesh_vars.f90
@@ -583,6 +586,8 @@ FILE(GLOB noparticlesF90 ./src/particles/analyze/particle_analyze_vars.f90
                          ./src/particles/boundary/particle_boundary_vars.f90)
 
 FILE(GLOB_RECURSE extraeF90 ./src/extrae/*.f90)
+
+FILE(GLOB_RECURSE radiationF90 ./src/radiation/*.f90)
 
 IF(PICLAS_EXTRAE)
   LIST(APPEND piclasF90 ${extraeF90})
@@ -615,6 +620,9 @@ IF (PICLAS_PARTICLES)
 ELSE()
   LIST(APPEND piclasF90 ${noparticlesF90})
 ENDIF(PICLAS_PARTICLES)
+IF (PICLAS_TIMEDISCMETHOD STREQUAL "Radiation")
+  LIST(APPEND piclasF90 ${radiationF90})
+ENDIF()
 
 # define libs
 ADD_LIBRARY(          libpiclasstaticF90 OBJECT ${piclasF90} )
