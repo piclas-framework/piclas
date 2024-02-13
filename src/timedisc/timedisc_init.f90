@@ -243,7 +243,6 @@ dt=HUGE(1.)
   SWRITE(UNIT_stdOut,'(A)') ' Method of time integration: ED-DVM or DUGKS'
 #elif (PP_TimeDiscMethod==701)
   SWRITE(UNIT_stdOut,'(A)') ' Method of time integration: Explicit finite volumes'
-# endif
 #endif
 
 RKdtFrac      = 1.
