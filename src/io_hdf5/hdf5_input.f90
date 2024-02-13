@@ -630,7 +630,7 @@ REAL              ,INTENT(OUT),OPTIONAL,TARGET :: RealScalar        !< Scalar re
 INTEGER           ,INTENT(OUT),OPTIONAL,TARGET :: IntScalar         !< Scalar integer attribute
 CHARACTER(LEN=255),INTENT(OUT),OPTIONAL,TARGET :: StrScalar         !< Scalar string attribute
 CHARACTER(LEN=255),INTENT(OUT),OPTIONAL,TARGET :: StrArray(nVal)    !< Array for character array attributes
-LOGICAL           ,INTENT(OUT),OPTIONAL        :: LogicalScalar     !< Scalar logical attribute    
+LOGICAL           ,INTENT(OUT),OPTIONAL        :: LogicalScalar     !< Scalar logical attribute
 !----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER(HID_T)                 :: Attr_ID,Type_ID,Loc_ID,memtype
@@ -714,8 +714,8 @@ IF(PRESENT(StrScalar).OR.PRESENT(StrArray)) CALL H5TCLOSE_F(Type_ID, iError)
 
 ! Close the attribute.
 CALL H5ACLOSE_F(Attr_ID, iError)
-! Close the dataset and property list.
-CALL H5DCLOSE_F(Loc_ID, iError)
+! Close the dataset and property list (in case it was opened).
+IF(Loc_ID.NE.File_ID_in) CALL H5DCLOSE_F(Loc_ID, iError)
 LOGWRITE(*,*)'...DONE!'
 END SUBROUTINE ReadAttribute
 
