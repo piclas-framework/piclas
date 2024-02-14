@@ -162,14 +162,15 @@ IF(InterPlanePartNumber.GT.0) THEN
     InterPartID = InterPlanePartIndx(i)
     PDM%ParticleInside(InterPartID) = .TRUE.
     IF(UseRotSubCycling) THEN
-      RotRefSubTimeStep=.FALSE.
+!      RotRefSubTimeStep=.FALSE.
+      RotRefSubTimeStep=.TRUE.
       LastPartPosSubCycling(1:3)    = LastPartPos(1:3,InterPartID)
       NewPosSubCycling(1:3)         = PartState(1:3,InterPartID)
       PartVeloRotRefSubCycling(1:3) = PartVeloRotRef(1:3,InterPartID)
       LastVeloRotRefSubCycling(1:3) = LastPartVeloRotRef(1:3,InterPartID)
       GlobalElemIDSubCycling        = PEM%LastGlobalElemID(InterPartID)
       InRotRefFrameSubCycling       = PDM%InRotRefFrame(InterPartID)
-      CALL SingleParticleTriaTracking(i=InterPartID,IsInterPlanePart=.TRUE.)
+!      CALL SingleParticleTriaTracking(i=InterPartID,IsInterPlanePart=.TRUE.)
       IF(RotRefSubTimeStep) THEN
   !--- split time step in 10 sub-steps
         IF (UseVarTimeStep) THEN

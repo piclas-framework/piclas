@@ -332,7 +332,7 @@ USE MOD_Particle_Mesh_Vars      ,ONLY: SideInfo_Shared
 USE MOD_Particle_Tracking_Vars  ,ONLY: TrackInfo
 USE MOD_Particle_Vars           ,ONLY: UseVarTimeStep, PartTimeStep, VarTimeStep
 USE MOD_TimeDisc_Vars           ,ONLY: dt,RKdtFrac
-USE MOD_Particle_Vars           ,ONLY: PDM, PartVeloRotRef
+USE MOD_Particle_Vars           ,ONLY: PDM, PartVeloRotRef, RotRefFrameOmega
 USE MOD_part_RHS                ,ONLY: CalcPartRHSRotRefFrame
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -423,26 +423,38 @@ END IF
 LastPartPos(1:3,PartID) = POI_vec(1:3)
 
 ! Determine the correct velocity in case of a rotational frame of reference
-NewVeloPush(1:3) = PartState(4:6,PartID)
+!NewVeloPush(1:3) = PartState(4:6,PartID)
 ! In case of RotRefFrame, the velocity in the rotational reference frame is mirrored as well
-IF(PDM%InRotRefFrame(PartID)) THEN
+!IF(PDM%InRotRefFrame(PartID)) THEN
   ! Mirror the velocity in the rotational frame
-  PartVeloRotRef(1:3,PartID) = PartVeloRotRef(1:3,PartID) - 2.*DOT_PRODUCT(PartVeloRotRef(1:3,PartID),n_loc)*n_loc
+!  PartVeloRotRef(1:3,PartID) = PartVeloRotRef(1:3,PartID) - 2.*DOT_PRODUCT(PartVeloRotRef(1:3,PartID),n_loc)*n_loc
   ! ALTERNATIVE: Transform the inertial velocity (which was mirrored)
   ! PartVeloRotRef(1:3,PartID) = PartState(4:6,PartID) - CROSS(RotRefFrameOmega(1:3),LastPartPos(1:3,PartID))
-END IF
+!END IF
 
 TrackInfo%PartTrajectory(1:3)     = TrackInfo%PartTrajectory(1:3)-2.*DOT_PRODUCT(TrackInfo%PartTrajectory(1:3),n_loc)*n_loc
 
 ! Check if rotational frame of reference is used, otherwise mirror the LastPartPos
 IF(PDM%InRotRefFrame(PartID)) THEN
   POI_fak = 1.- (TrackInfo%lengthPartTrajectory-TrackInfo%alpha) / VECNORM(OldVelo*dtVar)
+
+
+! ! 6a.) Determine the correct velocity for the subsequent push in case of a rotational frame of reference
+  NewVeloPush(1:3) = PartState(4:6,PartID)
+  IF(PDM%InRotRefFrame(PartID)) THEN
+    NewVeloPush(1:3) = NewVeloPush(1:3) - CROSS(RotRefFrameOmega(1:3),LastPartPos(1:3,PartID))
+    NewVeloPush(1:3) = NewVeloPush(1:3) + CalcPartRHSRotRefFrame(LastPartPos(1:3,PartID),NewVeloPush(1:3)) * (1.0 - POI_fak) * dtVar
+    ! Store the new rotational reference frame velocity
+    PartVeloRotRef(1:3,PartID) = NewVeloPush(1:3)
+  END IF
+
   ! Add the acceleration due to new velocity vector at the POI
-  PartVeloRotRef(1:3,PartID) = PartVeloRotRef(1:3,PartID) + CalcPartRHSRotRefFrame(LastPartPos(1:3,PartID),PartVeloRotRef(1:3,PartID)) * dtVar * (1.0 - POI_fak)
+  !!PartVeloRotRef(1:3,PartID) = PartVeloRotRef(1:3,PartID) + CalcPartRHSRotRefFrame(LastPartPos(1:3,PartID),PartVeloRotRef(1:3,PartID)) * dtVar * (1.0 - POI_fak)
   ! IF(DOT_PRODUCT(PartVeloRotRef(1:3,PartID),n_loc).GT.0.) THEN
   !   PartVeloRotRef(1:3,PartID) = PartVeloRotRef(1:3,PartID) - 2.*DOT_PRODUCT(PartVeloRotRef(1:3,PartID),n_loc)*n_loc
   ! END IF
-  PartState(1:3,PartID) = LastPartPos(1:3,PartID) + (1.0 - POI_fak) * dtVar * PartVeloRotRef(1:3,PartID)
+  !!PartState(1:3,PartID) = LastPartPos(1:3,PartID) + (1.0 - POI_fak) * dtVar * PartVeloRotRef(1:3,PartID)
+  PartState(1:3,PartID)   = LastPartPos(1:3,PartID) + (1.0 - POI_fak) * dtVar * NewVeloPush(1:3)
 ELSE
   PartState(1:3,PartID) = LastPartPos(1:3,PartID) + TrackInfo%PartTrajectory(1:3)*(TrackInfo%lengthPartTrajectory - TrackInfo%alpha)
 END IF
