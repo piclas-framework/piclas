@@ -31,9 +31,10 @@ PUBLIC :: RemoveAllElectrons
 
 CONTAINS
 
-SUBROUTINE CreateParticle(SpecID,Pos,GlobElemID,Velocity,RotEnergy,VibEnergy,ElecEnergy,NewPartID,NewMPF,NewTimestep)
+SUBROUTINE CreateParticle(SpecID,Pos,GlobElemID,Velocity,RotEnergy,VibEnergy,ElecEnergy,OldPartID,NewPartID,NewMPF,NewTimestep)
 !===================================================================================================================================
 !> creates a single particle at correct array position and assign properties
+!> OldPartID can be supplied to get the MPF and Timestep, however, NewMPF and NewTimestep have priority
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
@@ -46,7 +47,7 @@ USE MOD_Particle_Tracking_Vars  ,ONLY: TrackingMethod
 USE MOD_Eval_xyz                ,ONLY: GetPositionInRefElem
 USE MOD_part_tools              ,ONLY: CalcRadWeightMPF
 USE MOD_Particle_TimeStep       ,ONLY: GetParticleTimeStep
-USE MOD_Part_Tools              ,ONLY: InRotRefFrameCheck
+USE MOD_Part_Tools              ,ONLY: InRotRefFrameCheck, GetNextFreePosition
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
 ! INPUT / OUTPUT VARIABLES
@@ -57,6 +58,7 @@ REAL, INTENT(IN)              :: Velocity(1:3)    !< Velocity (vx,vy,vz)
 REAL, INTENT(IN)              :: RotEnergy        !< Rotational energy
 REAL, INTENT(IN)              :: VibEnergy        !< Vibrational energy
 REAL, INTENT(IN)              :: ElecEnergy       !< Electronic energy
+INTEGER, INTENT(IN),OPTIONAL  :: OldPartID        !< ID of old particle (if available)
 INTEGER, INTENT(OUT),OPTIONAL :: NewPartID        !< ID of newly created particle
 REAL, INTENT(IN),OPTIONAL     :: NewMPF           !< MPF of newly created particle
 REAL, INTENT(IN),OPTIONAL     :: NewTimestep      !< Timestep of the newly created particle
@@ -65,15 +67,7 @@ REAL, INTENT(IN),OPTIONAL     :: NewTimestep      !< Timestep of the newly creat
 INTEGER :: newParticleID
 !===================================================================================================================================
 
-! Do not increase the ParticleVecLength for Phantom particles!
-PDM%CurrentNextFreePosition = PDM%CurrentNextFreePosition + 1
-newParticleID = PDM%nextFreePosition(PDM%CurrentNextFreePosition)
-IF(newParticleID.GT.PDM%ParticleVecLength) PDM%ParticleVecLength = PDM%ParticleVecLength + 1
-
-IF(newParticleID.GT.PDM%MaxParticleNumber)THEN
-  CALL abort(__STAMP__,'CreateParticle: newParticleID.GT.PDM%MaxParticleNumber. '//&
-                       'Increase Part-maxParticleNumber or use more processors. newParticleID=',IntInfoOpt=newParticleID)
-END IF
+newParticleID = GetNextFreePosition()
 
 PartSpecies(newParticleID)     = SpecID
 LastPartPos(1:3,newParticleID) = Pos(1:3)
@@ -107,6 +101,8 @@ PEM%LastGlobalElemID(newParticleID) = GlobElemID
 IF (UseVarTimeStep) THEN
   IF(PRESENT(NewTimestep)) THEN
     PartTimeStep(newParticleID) = NewTimestep
+  ELSE IF(PRESENT(OldPartID)) THEN
+    PartTimeStep(newParticleID) = PartTimeStep(OldPartID)
   ELSE
     PartTimeStep(newParticleID) = GetParticleTimeStep(PartState(1,newParticleID),PartState(2,newParticleID),PEM%LocalElemID(newParticleID))
   END IF
@@ -117,6 +113,9 @@ IF (usevMPF) THEN
   IF(PRESENT(NewMPF))THEN
     ! MPF is already defined via input
     PartMPF(newParticleID) = NewMPF
+  ELSE IF(PRESENT(OldPartID)) THEN
+    ! MPF is available from the "original" particle
+    PartMPF(newParticleID) = PartMPF(OldPartID)
   ELSE
     ! Check if vMPF (and radial weighting is used) to determine the MPF of the new particle
     IF (RadialWeighting%DoRadialWeighting) THEN
@@ -145,23 +144,27 @@ END SUBROUTINE CreateParticle
 SUBROUTINE RemoveParticle(PartID,BCID,alpha,crossedBC)
 !===================================================================================================================================
 !> Removes a single particle "PartID" by setting the required variables.
-!> If CalcPartBalance/UseAdaptive/CalcSurfFluxInfo = T: adds/substracts the particle to/from the respective counter
+!> If CalcPartBalance/UseAdaptiveBC/CalcSurfFluxInfo = T: adds/substracts the particle to/from the respective counter
 !>  !!!NOTE!!! This routine is inside particle analyze because of circular definition of modules (CalcEkinPart)
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals_Vars              ,ONLY: ElementaryCharge
-USE MOD_Particle_Vars             ,ONLY: PDM, PartSpecies, Species, PartMPF, usevMPF
-USE MOD_Particle_Sampling_Vars    ,ONLY: UseAdaptive, AdaptBCPartNumOut
+USE MOD_Particle_Vars             ,ONLY: PDM, PartSpecies, Species, PartMPF, usevMPF, PartState, PartPosRef, Pt
+USE MOD_Particle_Sampling_Vars    ,ONLY: UseAdaptiveBC, AdaptBCPartNumOut
 USE MOD_Particle_Vars             ,ONLY: UseNeutralization, NeutralizationSource, NeutralizationBalance,nNeutralizationElems
 USE MOD_Particle_Boundary_Vars    ,ONLY: PartBound
 USE MOD_Particle_Analyze_Vars     ,ONLY: CalcPartBalance,nPartOut,PartEkinOut,CalcSurfFluxInfo
 USE MOD_SurfaceModel_Analyze_Vars ,ONLY: CalcBoundaryParticleOutput,BPO
+USE MOD_Particle_Tracking_Vars    ,ONLY: TrackingMethod
 #if defined(IMPA)
-USE MOD_Particle_Vars             ,ONLY: PartIsImplicit,DoPartInNewton
+USE MOD_Particle_Vars             ,ONLY: PartIsImplicit,DoPartInNewton, PEM, PartLambdaAccept
 #endif /*IMPA*/
+#if defined(LSERK)
+USE MOD_Particle_Vars             ,ONLY: Pt_temp
+#endif
 USE MOD_Particle_Analyze_Tools    ,ONLY: CalcEkinPart
 USE MOD_part_tools                ,ONLY: GetParticleWeight
-USE MOD_DSMC_Vars                 ,ONLY: CollInf
+USE MOD_DSMC_Vars                 ,ONLY: CollInf, AmbipolElecVelo, ElectronicDistriPart, VibQuantsPar
 USE MOD_Mesh_Vars                 ,ONLY: BoundaryName
 #if USE_HDG
 USE MOD_Globals                   ,ONLY: abort
@@ -184,11 +187,7 @@ INTEGER                       :: iBC,iUniqueFPCBC,iUniqueEPCBC,BCState
 #endif /*USE_HDG*/
 !===================================================================================================================================
 
-PDM%ParticleInside(PartID) = .FALSE.
-#ifdef IMPA
-PartIsImplicit(PartID) = .FALSE.
-DoPartInNewton(PartID) = .FALSE.
-#endif /*IMPA*/
+! Set default values of part arrays
 
 iSpec = PartSpecies(PartID)
 ! Count the number of particles per species and the kinetic energy per species
@@ -198,11 +197,42 @@ IF(CalcPartBalance) THEN
       nPartOut(iSpec)=nPartOut(iSpec) + 1
       PartEkinOut(iSpec)=PartEkinOut(iSpec)+CalcEkinPart(PartID)
     END IF
-  ELSE
-    nPartOut(iSpec)=nPartOut(iSpec) + 1
-    PartEkinOut(iSpec)=PartEkinOut(iSpec)+CalcEkinPart(PartID)
+  ! ELSE
+  !   nPartOut(iSpec)=nPartOut(iSpec) + 1
+  !   PartEkinOut(iSpec)=PartEkinOut(iSpec)+CalcEkinPart(PartID)
   END IF
 END IF ! CalcPartBalance
+
+PDM%ParticleInside(PartID) = .FALSE.
+PDM%IsNewPart(PartID)      = .FALSE.
+PDM%dtFracPush(PartID)     = .FALSE.
+PDM%InRotRefFrame(PartID)  = .FALSE.
+PartState(1:6,PartID)      = 0.
+IF(TrackingMethod.EQ.REFMAPPING) PartPosRef(1:3,PartID) = -888.
+PartSpecies(PartID)        = 0
+Pt(1:3,PartID)             = 0.
+
+IF(ALLOCATED(AmbipolElecVelo)) THEN
+  SDEALLOCATE(AmbipolElecVelo(PartID)%ElecVelo)
+END IF
+IF(ALLOCATED(ElectronicDistriPart)) THEN
+  SDEALLOCATE(ElectronicDistriPart(PartID)%DistriFunc)
+END IF
+IF(ALLOCATED(VibQuantsPar)) THEN
+  SDEALLOCATE(VibQuantsPar(PartID)%Quants)
+END IF
+
+#ifdef IMPA
+PartIsImplicit(PartID)   = .FALSE.
+DoPartInNewton(PartID)   = .FALSE.
+PartLambdaAccept(PartID) = .TRUE.
+PEM%PeriodicMoved(PartID)  = .FALSE.
+#endif /*IMPA*/
+
+#if defined(LSERK)
+Pt_temp(1:6,PartID)   = 0.
+#endif
+
 
 ! If a BCID is given (e.g. when a particle is removed at a boundary), check if it is
 !   - an adaptive surface flux BC or
@@ -211,7 +241,7 @@ END IF ! CalcPartBalance
 IF(PRESENT(BCID)) THEN
 
   ! Check if adaptive BC or surface flux info
-  IF(UseAdaptive.OR.CalcSurfFluxInfo) THEN
+  IF(UseAdaptiveBC.OR.CalcSurfFluxInfo) THEN
     DO iSF=1,Species(iSpec)%nSurfacefluxBCs
       IF(Species(iSpec)%Surfaceflux(iSF)%BC.EQ.BCID) THEN
         Species(iSpec)%Surfaceflux(iSF)%SampledMassflow = Species(iSpec)%Surfaceflux(iSF)%SampledMassflow &
@@ -219,7 +249,7 @@ IF(PRESENT(BCID)) THEN
         IF(Species(iSpec)%Surfaceflux(iSF)%AdaptiveType.EQ.4)  AdaptBCPartNumOut(iSpec,iSF) = AdaptBCPartNumOut(iSpec,iSF) + 1
       END IF
     END DO
-  END IF ! UseAdaptive.OR.CalcSurfFluxInfo
+  END IF ! UseAdaptiveBC.OR.CalcSurfFluxInfo
 
   ! Ion thruster simulations: Landmark and Liu2010 (SPT-100) if neutralization current is determined from the particle flux over the
   ! neutralization boundary condition instead of looking into the first row of elements along that BC

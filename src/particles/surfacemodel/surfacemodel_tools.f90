@@ -45,8 +45,6 @@ USE MOD_Particle_Boundary_Vars    ,ONLY: Partbound, GlobalSide2SurfSide
 USE MOD_Particle_Mesh_Vars        ,ONLY: SideInfo_Shared
 USE MOD_SurfaceModel_Vars         ,ONLY: SurfModEnergyDistribution
 USE MOD_DSMC_Vars                 ,ONLY: DSMC, SamplingActive
-USE MOD_Particle_Vars             ,ONLY: usevMPF,PartMPF
-USE MOD_part_tools                ,ONLY: CalcRadWeightMPF
 USE MOD_Particle_Mesh_Vars        ,ONLY: BoundsOfElem_Shared
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -68,7 +66,7 @@ REAL,INTENT(IN)    :: TempErgy         !< temperature, energy or velocity used f
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER            :: iNewPart, NewPartID, locBCID, SurfSideID
-REAL               :: tang1(1:3), tang2(1:3), WallVelo(1:3), WallTemp, NewVelo(3), OldMPF, BoundsOfElemCenter(1:3),NewPos(1:3)
+REAL               :: tang1(1:3), tang2(1:3), WallVelo(1:3), WallTemp, NewVelo(3), BoundsOfElemCenter(1:3),NewPos(1:3)
 REAL,PARAMETER     :: eps=1e-6
 REAL,PARAMETER     :: eps2=1.0-eps
 !===================================================================================================================================
@@ -97,15 +95,8 @@ DO iNewPart = 1, ProductSpecNbr
   NewVelo(1:3) = tang1(1:3)*NewVelo(1) + tang2(1:3)*NewVelo(2) - n_Loc(1:3)*NewVelo(3) + WallVelo(1:3)
   ! Create new position by using POI and moving the particle by eps in the direction of the element center
   NewPos(1:3) = eps*BoundsOfElemCenter(1:3) + eps2*POI_vec(1:3)
-  IF(usevMPF)THEN
-    ! Get MPF of old particle
-    OldMPF = PartMPF(PartID)
-    ! New particle acquires the MPF of the impacting particle (not necessarily the MPF of the newly created particle species)
-    CALL CreateParticle(ProductSpec(2),NewPos(1:3),GlobElemID,NewVelo(1:3),0.,0.,0.,NewPartID=NewPartID, NewMPF=OldMPF)
-  ELSE
-    ! New particle acquires the MPF of the new particle species
-    CALL CreateParticle(ProductSpec(2),NewPos(1:3),GlobElemID,NewVelo(1:3),0.,0.,0.,NewPartID=NewPartID)
-  END IF ! usevMPF
+  ! Create new particle: in case of vMPF oder VarTimeStep, new particle inherits the values of the old particle
+  CALL CreateParticle(ProductSpec(2),NewPos(1:3),GlobElemID,NewVelo(1:3),0.,0.,0.,OldPartID=PartID,NewPartID=NewPartID)
   ! Adding the energy that is transferred from the surface onto the internal energies of the particle
   CALL SurfaceModel_EnergyAccommodation(NewPartID,locBCID,WallTemp)
   ! Sampling of newly created particles

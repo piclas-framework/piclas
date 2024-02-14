@@ -37,7 +37,10 @@ SUBROUTINE WriteParticleTrackingData(time,iter)
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! MODULES                                                                                                                          !
 !----------------------------------------------------------------------------------------------------------------------------------!
-USE MOD_Globals               ,ONLY: FILEEXISTS,unit_stdout,DOTPRODUCT,abort,MPI_COMM_PICLAS,iError,MPIRoot
+USE MOD_Globals               ,ONLY: FILEEXISTS,unit_stdout,DOTPRODUCT,abort,MPI_COMM_PICLAS,MPIRoot
+#if USE_MPI
+USE MOD_Globals               ,ONLY: iError
+#endif /*USE_MPI*/
 USE MOD_Restart_Vars          ,ONLY: DoRestart
 USE MOD_Particle_Vars         ,ONLY: PartState, PDM, PEM
 USE MOD_Particle_Analyze_Vars ,ONLY: printDiff,printDiffVec,printDiffTime

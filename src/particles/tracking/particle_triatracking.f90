@@ -51,7 +51,7 @@ USE MOD_part_RHS                    ,ONLY: CalcPartPosInRotRef
 USE MOD_TimeDisc_Vars               ,ONLY: dt
 USE MOD_Particle_Vars               ,ONLY: UseVarTimeStep, PartTimeStep, VarTimeStep, Species, PartState, LastPartPos, PartSpecies
 USE MOD_Particle_Vars               ,ONLY: PartVeloRotRef, LastPartVeloRotRef
-!----- 
+!-----
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -256,6 +256,7 @@ USE MOD_Particle_Boundary_Vars      ,ONLY: PartBound
 USE MOD_Particle_Intersection       ,ONLY: ParticleThroughSideCheck3DFast, ParticleThroughSideLastPosCheck, IntersectionWithWall
 USE MOD_Particle_Boundary_Condition ,ONLY: GetBoundaryInteraction
 USE MOD_part_tools                  ,ONLY: ParticleOnProc, InRotRefFrameCheck
+USE MOD_part_operations             ,ONLY: RemoveParticle
 #if USE_LOADBALANCE
 USE MOD_Mesh_Vars                   ,ONLY: offsetElem
 USE MOD_LoadBalance_Timers          ,ONLY: LBStartTime, LBElemSplitTime, LBElemPauseTime
@@ -324,7 +325,7 @@ DO WHILE (.NOT.PartisDone)
       TempSideID = ElemInfo_Shared(ELEM_FIRSTSIDEIND,ElemID) + iLocSide
       ! Skip symmetry side
       IF(Symmetry%Order.EQ.2) THEN
-        IF(SideIsSymSide_Shared(TempSideID)) CYCLE
+        IF(SideIsSymSide(TempSideID)) CYCLE
       END IF
       localSideID = SideInfo_Shared(SIDE_LOCALID,TempSideID)
       ! Side is not one of the 6 local sides
@@ -390,11 +391,11 @@ DO WHILE (.NOT.PartisDone)
           IPWRITE(*,*) 'Velo:    ', PartState(4:6,i)
           IPWRITE(*,*) 'Particle deleted!'
         END IF ! DisplayLostParticles
-        PDM%ParticleInside(i) = .FALSE.
         IF(CountNbrOfLostParts) THEN
           CALL StoreLostParticleProperties(i, ElemID)
           NbrOfLostParticles=NbrOfLostParticles+1
         END IF
+        CALL RemoveParticle(i)
         PartisDone = .TRUE.
         EXIT
       ELSE IF (NrOfThroughSides.GT.1) THEN
@@ -485,11 +486,11 @@ DO WHILE (.NOT.PartisDone)
             IPWRITE(*,*) 'Velo:    ', PartState(4:6,i)
             IPWRITE(*,*) 'Particle deleted!'
           END IF ! DisplayLostParticles
-          PDM%ParticleInside(i) = .FALSE.
           IF(CountNbrOfLostParts) THEN
             CALL StoreLostParticleProperties(i, ElemID)
             NbrOfLostParticles=NbrOfLostParticles+1
           END IF
+          CALL RemoveParticle(i)
           PartisDone = .TRUE.
           EXIT
         END IF

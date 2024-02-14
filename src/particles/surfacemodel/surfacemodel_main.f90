@@ -33,8 +33,8 @@ CONTAINS
 !===================================================================================================================================
 !> Selection and execution of a gas-surface interaction model
 !> 0.) Initial surface pre-treatment: Porous BC and initialization of charge deposition on dielectrics
-!> 1.) species swap
-!> 2.) Count and sample the properties BEFORE the surface interaction
+!> 1.) Count and sample the properties BEFORE the surface interaction
+!> 2.) Perform the species swap
 !> 3.) Perform the selected gas-surface interaction, currently implemented models:
 !           0: Maxwell Scattering
 !       5/6/7/8/9/10/11: Secondary Electron Emission
@@ -84,8 +84,7 @@ INTEGER            :: ProductSpec(1:2) !< 1: product species of incident particl
 INTEGER            :: ProductSpecNbr   !< number of emitted particles for ProductSpec(2)
 REAL               :: TempErgy         !< temperature, energy or velocity used for VeloFromDistribution
 REAL               :: Xitild,Etatild
-INTEGER            :: PartSpecImpact, locBCID
-INTEGER            :: iBC, SurfSideID
+INTEGER            :: PartSpecImpact, locBCID, SurfSideID
 LOGICAL            :: SpecularReflectionOnly,DoSample
 REAL               :: ChargeImpact,PartPosImpact(1:3) !< Charge and position of impact of bombarding particle
 REAL               :: ChargeRefl                      !< Charge of reflected particle
@@ -93,8 +92,6 @@ REAL               :: MPF                             !< macro-particle factor
 REAL               :: ChargeHole                      !< Charge of SEE electrons holes
 INTEGER            :: i
 !===================================================================================================================================
-iBC = PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID))
-
 !===================================================================================================================================
 ! 0.) Initial surface pre-treatment
 !===================================================================================================================================
@@ -111,7 +108,7 @@ ProductSpecNbr = 0
 
 ! Store info of impacting particle for possible surface charging
 PartPosImpact(1:3) = LastPartPos(1:3,PartID)+TrackInfo%PartTrajectory(1:3)*TrackInfo%alpha
-IF(DoDielectricSurfaceCharge.AND.PartBound%Dielectric(iBC)) THEN ! Surface charging active + dielectric surface contact
+IF(DoDielectricSurfaceCharge.AND.PartBound%Dielectric(locBCID)) THEN ! Surface charging active + dielectric surface contact
   IF(usevMPF)THEN
     MPF = PartMPF(PartID)
   ELSE
@@ -120,12 +117,7 @@ IF(DoDielectricSurfaceCharge.AND.PartBound%Dielectric(iBC)) THEN ! Surface charg
   ChargeImpact = Species(PartSpecies(PartID))%ChargeIC*MPF
 END IF
 !===================================================================================================================================
-! 1.) Species Swap
-!===================================================================================================================================
-IF (PartBound%NbrOfSpeciesSwaps(iBC).GT.0) CALL SpeciesSwap(PartID,SideID)
-
-!===================================================================================================================================
-! 2.) Count and sample the properties BEFORE the surface interaction
+! 1.) Count and sample the properties BEFORE the surface interaction
 !===================================================================================================================================
 ! Counter for surface analyze
 IF(CalcSurfCollCounter) SurfAnalyzeCount(PartSpecImpact) = SurfAnalyzeCount(PartSpecImpact) + 1
@@ -145,12 +137,16 @@ IF(DoSample) THEN
   CALL CalcWallSample(PartID,SurfSideID,'old',SurfaceNormal_opt=n_loc)
 END IF
 !===================================================================================================================================
+! 2.) Species Swap
+!===================================================================================================================================
+IF (PartBound%NbrOfSpeciesSwaps(locBCID).GT.0) CALL SpeciesSwap(PartID,SideID)
+!===================================================================================================================================
 ! Particle was deleted during the species swap/circular flow, leave the routine
 !===================================================================================================================================
 IF(.NOT.PDM%ParticleInside(PartID)) THEN
   ! Increase the counter for deleted/absorbed/adsorbed particles
   IF(CalcSurfCollCounter) SurfAnalyzeNumOfAds(PartSpecImpact) = SurfAnalyzeNumOfAds(PartSpecImpact) + 1
-  IF(DoDeposition.AND.DoDielectricSurfaceCharge.AND.PartBound%Dielectric(iBC)) &
+  IF(DoDeposition.AND.DoDielectricSurfaceCharge.AND.PartBound%Dielectric(locBCID)) &
       CALL DepositParticleOnNodes(ChargeImpact, PartPosImpact, GlobalElemID)
   RETURN
 END IF
@@ -188,7 +184,7 @@ CASE (SEE_MODELS_ID)
   IF (ProductSpec(2).GT.0) THEN
     CALL SurfaceModel_ParticleEmission(n_loc, PartID, SideID, ProductSpec, ProductSpecNbr, TempErgy, GlobalElemID,PartPosImpact(1:3))
     ! Deposit opposite charge of SEE on node
-    IF(DoDeposition.AND.DoDielectricSurfaceCharge.AND.PartBound%Dielectric(iBC)) THEN
+    IF(DoDeposition.AND.DoDielectricSurfaceCharge.AND.PartBound%Dielectric(locBCID)) THEN
       ! Get MPF
       IF (usevMPF) THEN
         IF (RadialWeighting%DoRadialWeighting) THEN
@@ -214,7 +210,7 @@ END SELECT
 !===================================================================================================================================
 ! 4.) PIC ONLY: Deposit charges on dielectric surface (when activated), if these were removed/changed in SurfaceModel
 !===================================================================================================================================
-IF(DoDeposition.AND.DoDielectricSurfaceCharge.AND.PartBound%Dielectric(iBC)) THEN ! Surface charging active + dielectric surface contact
+IF(DoDeposition.AND.DoDielectricSurfaceCharge.AND.PartBound%Dielectric(locBCID)) THEN ! Surface charging active + dielectric surface contact
   IF(.NOT.PDM%ParticleInside(PartID))THEN
     ! Particle was deleted on surface contact: deposit impacting charge
     CALL DepositParticleOnNodes(ChargeImpact, PartPosImpact, GlobalElemID)
@@ -769,31 +765,35 @@ INTEGER,INTENT(IN),OPTIONAL       :: targetSpecies_IN
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                           :: targetSpecies, iSwaps
+INTEGER                           :: targetSpecies, iSwaps, locBCID
 REAL                              :: RanNum
-INTEGER                           :: locBCID
+LOGICAL                           :: PerformSwap
 !===================================================================================================================================
 
+PerformSwap = .TRUE.
 locBCID = PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID))
-CALL RANDOM_NUMBER(RanNum)
-IF(RanNum.LE.PartBound%ProbOfSpeciesSwaps(PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID)))) THEN
+IF(PartBound%ProbOfSpeciesSwaps(locBCID).LT.1.) THEN
+  CALL RANDOM_NUMBER(RanNum)
+  PerformSwap = RanNum.LE.PartBound%ProbOfSpeciesSwaps(locBCID)
+END IF
+
+IF(PerformSwap) THEN
   targetSpecies=-1 ! Dummy initialization value
   IF(PRESENT(targetSpecies_IN))THEN
     targetSpecies = targetSpecies_IN
   ELSE ! Normal swap routine
-    DO iSwaps=1,PartBound%NbrOfSpeciesSwaps(PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID)))
-      IF (PartSpecies(PartID).eq.PartBound%SpeciesSwaps(1,iSwaps,PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID)))) &
-          targetSpecies = PartBound%SpeciesSwaps(2,iSwaps,PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID)))
+    DO iSwaps=1,PartBound%NbrOfSpeciesSwaps(locBCID)
+      IF (PartSpecies(PartID).EQ.PartBound%SpeciesSwaps(1,iSwaps,locBCID)) targetSpecies = PartBound%SpeciesSwaps(2,iSwaps,locBCID)
     END DO
   END IF ! PRESENT(targetSpecies_IN)
-  !swap species
-  IF (targetSpecies.eq.0) THEN
+  ! Swap species
+  IF (targetSpecies.EQ.0) THEN
     ! Delete particle -> same as PartBound%OpenBC
-    CALL RemoveParticle(PartID,BCID=PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID)))
-  ELSE IF (targetSpecies.gt.0) THEN
+    CALL RemoveParticle(PartID,BCID=locBCID)
+  ELSE IF (targetSpecies.GT.0) THEN
     ! Swap species
     PartSpecies(PartID)=targetSpecies
-  END IF ! targetSpecies.eq.0
+  END IF ! targetSpecies.EQ.0
 END IF ! RanNum.LE.PartBound%ProbOfSpeciesSwaps
 
 END SUBROUTINE SpeciesSwap

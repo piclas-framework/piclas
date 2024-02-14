@@ -1,4 +1,5 @@
-# Photoionization: Surface Emission via SEE
+# Secondary electron emission from a surface (rectangle), PartBCIndex=1 (BoundaryParticleOutput), emission-specific MPF (vMPF)
+- **Comparing**: the total number of real electrons in the system with a numerical ref. solution
 * Particle emission due to secondary electron emission from a surface
 * no deposition, no interpolation 
 * comparison of the number of emitted electrons with the reference solution
