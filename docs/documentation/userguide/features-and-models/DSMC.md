@@ -471,7 +471,11 @@ the mean collision separation distance to the mean free path is written out (`DS
 $$\frac{l_{\mathrm{mcs}}}{\lambda} < 1$$
 
 The mean collision separation distance is determined during every collision and compared to the mean free path, where its ratio
-should be less than unity. Values above unity indicate an insufficient particle discretization. In order to estimate the required
+should be less than unity. Values above unity indicate an insufficient particle discretization.
+
+Additionaly, the above flag writes out the percentage of cells with a resolved timestep (`ResolvedTimestep`), the maximum collision probability of the entire computational domain (`Pmax`), the maximum of the `MCSoverMFP` of the entire domain (`MaxMCSoverMFP`), and the percentage of cells with a resolved time step and resolved weighting factor $w$ (`ResolvedCellPercentage`) to the file `PartAnalyze.csv`. In case of a reservoir simulation, the mean collision probability (`Pmean`) is the output instead of the `ResolvedTimestep`.
+
+In order to estimate the required
 weighting factor $w$, the following equation can be utilized for a 3D simulation
 
 $$w < \frac{1}{\left(\sqrt{2}\pi d_{\mathrm{ref}}^2 n^{2/3}\right)^3},$$
