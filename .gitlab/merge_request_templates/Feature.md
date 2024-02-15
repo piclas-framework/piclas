@@ -17,8 +17,9 @@
   * [ ] Add entry in REGGIE.md table to indicate where the new feature is used
   * [ ] Check correct allocation and deallocation for the test case
     * [ ] Either check automatic restart functionality of reggie example via Load Balance
-    * [ ] And/or compile PICLas with Sanitzer and MPI=OFF as well as MPI=ON and run with one process find possible memory
-          leaks. When using MPICH, the test should also be performed with multiple processes
+    * [ ] And/or compile PICLas with Sanitizer and MPI=OFF as well as MPI=ON and run with one process to find possible memory
+          leaks. When using MPICH, the test should also be performed with multiple processes. Leaks can be identified using
+          [this approach](https://piclas.readthedocs.io/en/latest/developerguide/troubleshooting.html#possible-memory-leak-detection-when-using-mpich).
   * [ ] Test the three shared memory modes
     * [ ] `PICLAS_SHARED_MEMORY = MPI_COMM_TYPE_SHARED` (default) for splitting shared memory domains on the physical node
     * [ ] `PICLAS_SHARED_MEMORY = OMPI_COMM_TYPE_CORE` for splitting at process level, .i.e, each process yields a logical node
