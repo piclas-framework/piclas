@@ -23,7 +23,7 @@ exchange (by default including the rotational and vibrational energy treatment).
 the parameters for the internal energy exchange (Section {ref}`sec:DSMC-relaxation`) and chemical reactions (Section
 {ref}`sec:DSMC-chemistry`).
 
-Additionally, species parameter can be read from a database instead of using the `DSMC.ini` file. The procedure is described in Section {ref}`sec:SpeciesDatabase`
+
 
 A fixed ("manual") simulation time step $\Delta t$ is defined by
 
@@ -33,14 +33,16 @@ A fixed ("manual") simulation time step $\Delta t$ is defined by
 ## Species Definition
 
 For the DSMC simulation, additional species-specific parameters (collision model parameters, characteristic vibrational
-temperature, etc.) are required. This file is also utilized for the definition of chemical reactions paths. To define a species,
-its name as well as an `InteractionID` have to be defined
+temperature, etc.) are required. This file is also utilized for the definition of chemical reactions paths. To avoid the manual input,
+species parameter can be read from a database instead. The procedure is described in Section {ref}`sec:unified-species-database`.
+
+To define a species, its name as well as an `InteractionID` have to be defined
 
     Part-Species1-SpeciesName = CH4
     Part-Species1-InteractionID = 2
 
-The name is at the moment only utilized to retrieve the electronic energy levels from an additional database. The interaction ID
-determines the type of a species as follows
+During the file-based parameter read-in, name is only utilized to retrieve the electronic energy levels from an additional database.
+The interaction ID determines the type of a species as follows
 
 |   ID | Type                               |
 | ---: | ---------------------------------- |

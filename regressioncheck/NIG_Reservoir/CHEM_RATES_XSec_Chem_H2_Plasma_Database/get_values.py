@@ -7,10 +7,10 @@ def get_numbers_from_filename(filename):
 
 directory = os.getcwd()
 
-varName_01 = '007-CollRate001+003     '
-varName_02 = '008-CollRate001+004     '
-varName_03 = '009-CollRate001+005     '
-varName_04 = '010-CollRate001+006     '
+varName_01 = '004-CollRate001+003'
+varName_02 = '005-CollRate001+004'
+varName_03 = '006-CollRate001+005'
+varName_04 = '007-CollRate001+006'
 
 for filename in sorted(os.listdir(directory)):
     if filename.startswith("PartAnalyze"):

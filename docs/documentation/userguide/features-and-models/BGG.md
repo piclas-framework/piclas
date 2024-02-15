@@ -77,6 +77,7 @@ The first flag enables the variables weighting factor feature in general (detail
 
 Using the values above, each collision with the first background species will result in 100 collision tests using the simulation particle (ie. not the background species) and randomly generated background particles. Consequently, the number of samples for the trace species will be increased and simulation particles with the weighting factor of the trace background species will be introduced into the simulation.
 
+(sec:background-gas-collision-xsec)=
 ## Cross-section based collision probability
 
 For modelling of particle collisions with the Particle-in-Cell method, often the Monte Carlo Collision (MCC) algorithm is utilized.

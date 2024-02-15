@@ -43,10 +43,12 @@ USE MOD_ReadInTools ,ONLY: prms
 IMPLICIT NONE
 !===================================================================================================================================
 CALL prms%SetSection("Chemistry")
-CALL prms%CreateStringOption(   'DSMC-ChemistryModel', 'Name of available chemistry reaction sets:\n'//&
-                                  'Air_5Spec_11Reac_Park', 'none')
+CALL prms%CreateStringOption(   'DSMC-ChemistryModel', 'Name of available chemistry reaction model, e.g.:\n'//&
+                                  'Air_5Spec_8Reac_Park1993\n'//&
+                                  'Mars_11Spec_27Reac_Johnston2014\n'//&
+                                  'Titan_14Spec_24Reac_Savajano2011\n'//&
+                                  'A complete list can be found in the documentation.', 'none')
 CALL prms%CreateIntOption(      'DSMC-NumOfReactions','Number of chemical reactions')
-CALL prms%CreateLogicalOption(  'DSMC-OverwriteReacDatabase','Flag to set reac parameters manually', '.FALSE.')
 CALL prms%CreateIntOption(      'DSMC-Reaction[$]-NumberOfNonReactives', &
                                           'Number of non-reactive collision partners (Length of the read-in vector)', &
                                           '0', numberedmulti=.TRUE.)
@@ -60,7 +62,6 @@ CALL prms%CreateStringOption(   'DSMC-Reaction[$]-ReactionModel'  &
                                             'phIonXSec: photon-ionization with cross-section-based data for the reaction\n'//&
                                             'QK: quantum kinetic\n'//&
                                             'XSec: cross-section-based data for the reaction', 'TCE', numberedmulti=.TRUE.)
-CALL prms%CreateStringOption(   'DSMC-Reaction[$]-ReactionName', 'name to identify reaction', numberedmulti=.TRUE.)
 CALL prms%CreateIntArrayOption( 'DSMC-Reaction[$]-Reactants'  &
                                            ,'Reactants of Reaction[$]\n'//&
                                             '(SpecNumOfReactant1,\n'//&
@@ -306,11 +307,6 @@ IF (BGGas%NumberOfSpecies.GT.0) THEN
     END IF
   END DO
 END IF
-
-! ChemReac%DoOverwriteReacParameters = GETLOGICAL('DSMC-OverwriteReacDatabase')
-! IF(SpeciesDatabase.EQ.'none') THEN
-!   ChemReac%DoOverwriteReacParameters = .TRUE.
-! END IF
 
 DoScat = .false.
 IF(SpeciesDatabase.EQ.'none') THEN

@@ -143,12 +143,7 @@ TYPE tSpecies                                                                ! P
                                                                              !     2   : Molecule
                                                                              !     4   : Electron
                                                                              !     10  : Atomic ion
-                                                                             !     15  : Atomic CEX/MEX ion
                                                                              !     20  : Molecular ion
-                                                                             !     40  : Excited atom
-                                                                             !     100 : Excited atomic ion
-                                                                             !     200 : Excited molecule
-                                                                             !     400 : Excited molecular ion
   REAL                                   :: MacroParticleFactor              ! Number of Microparticle per Macroparticle
   REAL                                   :: TimeStepFactor                   ! Species-specific time step factor
   INTEGER                                :: NumberOfInits                    ! Number of different initial particle placements

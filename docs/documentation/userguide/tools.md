@@ -116,8 +116,9 @@ Finally, the utilized cross-section data should be properly referenced by adding
 Users of cross-section data are encouraged to download the data directly from the [LXCat project website](https://fr.lxcat.net/home/)
 and to consider the guidelines regarding referencing and publication.
 
-Chemical reaction can be added to the database manually using [HDF View](https://www.hdfgroup.org/downloads/hdfview/).
-Make sure to re-open the file as `Read/Write` to be able to modify and create the dataset.
+Reactions can be defined in a separate group as shown above, named by the product species, and added manually using h5py or
+[HDF View](https://www.hdfgroup.org/downloads/hdfview/) (Make sure to re-open the file as `Read/Write` to be able to modify and create the dataset.). The ionization process from the LXCat database is not added as a reaction,
+however, the cross-section can be used. An additional source for cross-sectional data for reactions is the [NIFS database](https://dbshino.nifs.ac.jp/nifsdb/).
 
 ## Userblock
 

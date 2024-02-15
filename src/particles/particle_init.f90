@@ -89,11 +89,7 @@ CALL prms%CreateIntOption(      'Part-Species[$]-InteractionID' , 'ID for identi
                                                                  '  2: Molecule\n'//&
                                                                  '  4: Electron\n'//&
                                                                  ' 10: Atomic Ion\n'//&
-                                                                 ' 20: Molecular Ion\n'//&
-                                                                 ' 40: Excited Atom\n'//&
-                                                                 '100: Excited Atomic Ion\n'//&
-                                                                 '200: Excited Molecule\n'//&
-                                                                 '400: Excited Molecular Ion)', '0', numberedmulti=.TRUE.)
+                                                                 ' 20: Molecular Ion', '0', numberedmulti=.TRUE.)
 ! Ionization
 CALL prms%CreateLogicalOption(  'Part-DoInitialIonization'    , 'When restarting from a state, ionize the species to a '//&
                                                                 'specific degree', '.FALSE.')
