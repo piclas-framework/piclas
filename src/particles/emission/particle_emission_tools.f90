@@ -1172,6 +1172,7 @@ USE MOD_Globals
 USE MOD_Particle_Vars          ,ONLY: Species, Symmetry
 USE MOD_Part_Tools             ,ONLY: CalcPartSymmetryPos, CalcRadWeightMPF
 USE MOD_DSMC_Vars              ,ONLY: RadialWeighting
+!USE MOD_Particle_Mesh_Vars     ,ONLY: GEO
 !----------------------------------------------------------------------------------------------------------------------------------
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -1209,7 +1210,7 @@ INTEGER                 :: i, chunkSize2
 
         ! Debugging: Get linear distribution in y for 2D cases
         !CALL RANDOM_NUMBER(iRan)
-        !IF(Particle_pos(2)/1e-3.GT.iRan) THEN
+        !IF(Particle_pos(2)/GEO%ymaxglob.GT.iRan) THEN
         !  i=i+1
         !  CYCLE
         !END IF
