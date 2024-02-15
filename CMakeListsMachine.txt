@@ -199,6 +199,34 @@ IF(NOT Fortran2003Check)
 ENDIF()
 
 # =========================================================================
+# CHECK IF GCC CONTAINS THE PARSE_ASSOCIATE BUG (GC C13.1-13.2)
+# =========================================================================
+INCLUDE(CheckFortranSourceCompiles)
+CHECK_FORTRAN_SOURCE_COMPILES(
+"MODULE GCC13MOD
+IMPLICIT NONE
+PRIVATE
+CONTAINS
+! Check for MOVE_ALLOC feature
+SUBROUTINE GCC_PARSE_ASSOCAIATE()
+REAL::x1(3),x2(3)
+ASSOCIATE(v1 => x1, v2 => x2)
+v1 = 0
+v2 = 1
+v1 = 0 + v1
+END SUBROUTINE GCC_PARSE_ASSOCIATE
+END MODULE GCC13MOD
+
+PROGRAM GCC13PROG
+END"
+GCC13Check
+SRC_EXT F90)
+
+IF(NOT GCC13Check)
+  MESSAGE(WARNING "The requested compiler ${CMAKE_Fortran_COMPILER_ID} (v${CMAKE_Fortran_COMPILER_VERSION}) contains a bug in parse_associate. Ensure ASSOCIATE is only use with explicit array bounds or use a different compiler version. Please see the upstream issue, https://gcc.gnu.org/bugzilla/show_bug.cgi?id=109948")
+ENDIF()
+
+# =========================================================================
 # COMPILER FLAGS
 # =========================================================================
 

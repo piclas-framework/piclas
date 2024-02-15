@@ -218,6 +218,8 @@ END IF
 IF(DSMC%CalcQualityFactors) THEN
   CollProb = Coll_pData(iPair)%Prob
   DSMC%CollProbMax = MAX(CollProb, DSMC%CollProbMax)
+  ! Calculation of the maximum CollProbMax of all cells for this processor
+  IF(DSMC%CollProbMax .GE. DSMC%CollProbMaxProcMax) DSMC%CollProbMaxProcMax = DSMC%CollProbMax
   ! Remove the correction factor for the mean collision probability
   IF(SpecDSMC(iSpec_p1)%UseCollXSec) THEN
     IF(BGGas%BackgroundSpecies(iSpec_p2)) THEN
@@ -236,7 +238,7 @@ IF(DSMC%CalcQualityFactors) THEN
       END IF
     END IF
   END IF
-  DSMC%CollProbMean = DSMC%CollProbMean + CollProb
+  DSMC%CollProbSum = DSMC%CollProbSum + CollProb
   DSMC%CollProbMeanCount = DSMC%CollProbMeanCount + 1
 END IF
 

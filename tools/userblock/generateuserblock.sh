@@ -101,7 +101,13 @@ if [ $INSIDEGITREPO ]; then
     git diff -p $PARENTCOMMIT..HEAD | head -n 1000   >> userblock.txt
   fi
   # uncommited changes
-  git diff -p | head -n 1000                         >> userblock.txt
+  ## exclude any files not wanted such as HDF5, regressionchecks, and tutorials files
+  ## these can still normally committed as they are only excluded from the userblock
+  GITROOT=$(git rev-parse --show-toplevel)
+  ## this only works from the root of the git directory
+  cd $GITROOT
+  git diff -p HEAD ':!regressioncheck' ':!tutorials' ':!*.h5' ':!*.csv' ':!*.tmp' | head -n 1000 >> $1/userblock.txt
+  cd "$1"
 else
   echo "not a git repo"                              >> userblock.txt
 fi

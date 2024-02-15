@@ -442,8 +442,7 @@ USE MOD_DSMC_Collis             ,ONLY: DSMC_perform_collision
 USE MOD_DSMC_Vars               ,ONLY: Coll_pData,CollInf,CollisMode,PartStateIntEn,ChemReac,DSMC,RadialWeighting
 USE MOD_DSMC_Vars               ,ONLY: SelectionProc, useRelaxProbCorrFactor, iPartIndx_NodeNewElecRelax, newElecRelaxParts
 USE MOD_DSMC_Vars               ,ONLY: iPartIndx_NodeElecRelaxChem,nElecRelaxChemParts
-USE MOD_Particle_Vars           ,ONLY: PartSpecies, nSpecies, PartState, WriteMacroVolumeValues, UseVarTimeStep, Symmetry, usevMPF
-USE MOD_TimeDisc_Vars           ,ONLY: TEnd, time
+USE MOD_Particle_Vars           ,ONLY: PartSpecies, nSpecies, PartState, UseVarTimeStep, Symmetry, usevMPF
 USE MOD_DSMC_Analyze            ,ONLY: CalcGammaVib, CalcInstantTransTemp, CalcMeanFreePath, CalcInstantElecTempXi
 USE MOD_part_tools              ,ONLY: GetParticleWeight
 USE MOD_DSMC_Relaxation         ,ONLY: CalcMeanVibQuaDiatomic,SumVibRelaxProb
@@ -611,13 +610,24 @@ END DO
 
 ! 6.) Calculate the mean free path and the mean collision separation distance within a cell
 IF(DSMC%CalcQualityFactors) THEN
-  IF((Time.GE.(1-DSMC%TimeFracSamp)*TEnd).OR.WriteMacroVolumeValues) THEN
-    ! Calculation of the mean free path with VHS model and the current translational temperature in the cell
-    DSMC%MeanFreePath = CalcMeanFreePath(REAL(CollInf%Coll_SpecPartNum), REAL(SUM(CollInf%Coll_SpecPartNum)), NodeVolume, &
+  ! Calculation of Mean Collision Probability
+  IF(DSMC%CollProbMeanCount.GT.0) DSMC%CollProbMean = DSMC%CollProbSum / DSMC%CollProbMeanCount
+  ! Calculation of the mean free path with VHS model and the current translational temperature in the cell
+  DSMC%MeanFreePath = CalcMeanFreePath(REAL(CollInf%Coll_SpecPartNum), REAL(SUM(CollInf%Coll_SpecPartNum)), NodeVolume, &
                                           DSMC%InstantTransTemp(nSpecies+1))
-    ! Determination of the maximum MCS/MFP for the cell
-    IF((DSMC%CollSepCount.GT.0).AND.(DSMC%MeanFreePath.GT.0.0)) DSMC%MCSoverMFP = &
+  IF((DSMC%CollSepCount.GT.0).AND.(DSMC%MeanFreePath.GT.0.0)) DSMC%MCSoverMFP = &
                                                     MAX(DSMC%MCSoverMFP,(DSMC%CollSepDist/DSMC%CollSepCount)/DSMC%MeanFreePath)
+  ! Calculation of the maximum MCS/MFP of all cells for this processor and number of resolved Cells for this processor
+  IF(DSMC%MCSoverMFP .GE. DSMC%MaxMCSoverMFP) DSMC%MaxMCSoverMFP = DSMC%MCSoverMFP
+  ! Calculate number of resolved Cells for this processor
+  DSMC%ParticleCalcCollCounter = DSMC%ParticleCalcCollCounter + 1 ! Counts Particle Collision Calculation
+  IF( (DSMC%MCSoverMFP .LE. 1) .AND. (DSMC%CollProbMax .LE. 1) .AND. (DSMC%CollProbMean .LE. 1)) DSMC%ResolvedCellCounter = & 
+                                                    DSMC%ResolvedCellCounter + 1
+  ! Calculation of ResolvedTimestep. Number of Cells with ResolvedTimestep
+  IF ((.NOT.DSMC%ReservoirSimu) .AND. (DSMC%CollProbMean .LE. 1)) THEN
+    ! In case of a reservoir simulation, MeanCollProb is the ouput in PartAnalyze
+    ! Otherwise its the ResolvedTimestep
+    DSMC%ResolvedTimestepCounter = DSMC%ResolvedTimestepCounter + 1
   END IF
 END IF
 
