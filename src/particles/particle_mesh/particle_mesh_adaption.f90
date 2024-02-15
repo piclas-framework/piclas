@@ -192,7 +192,11 @@ IF ((MOD(iter,IterAdapt).EQ.0.).OR.(iter.EQ.1)) THEN
 
   ! Calculate the relative gradient of density, velocity, temperature and pressure to check for an adaption for BGK or FP
   ! Calculate the temperature gradient in all three directions to determine the order of refinement directions
-  CALL CalcGradients(iElem,MaxGradient)
+  IF (DSMC%SampNum.GT.0.) THEN
+    CALL CalcGradients(iElem,MaxGradient)
+  ELSE
+    MaxGradient = 0.0
+  END IF
 
   iPart = PEM%pStart(iElem)
   DO iLoop = 1, nPart
@@ -1075,7 +1079,7 @@ USE MOD_Particle_Mesh_Vars     ,ONLY: AdaptMesh
 USE MOD_Mesh_Vars              ,ONLY: offsetElem, nElems
 USE MOD_Mesh_Tools             ,ONLY: GetCNElemID, GetGlobalElemID
 USE MOD_part_tools             ,ONLY: GetParticleWeight
-USE MOD_DSMC_Vars              ,ONLY: RadialWeighting, VarWeighting
+USE MOD_DSMC_Vars              ,ONLY: RadialWeighting, DSMC_Solution, DSMC
 !-----------------------------------------------------------------------------------------------------------------------------------
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1089,31 +1093,27 @@ REAL,INTENT(OUT)              :: MaxGradient
 INTEGER                       :: CNElemID, CnNbElem, GlobalElemID, GlobNbElem, iVal, LocNbElem, nNbElems
 INTEGER                       :: adaptDir, iPart, iLoop, iSpec, iCoord
 REAL                          :: RefDens, RefVelo, RefTemp, RefPres, NbDens, NbVelo, NbTemp, NbPres, RefNonAvTemp(3), NbNonAvTemp(3)
-REAL                          :: Velo(nSpecies,3), Velo2(nSpecies,3), totalWeight, Temp(3), SpecPartNum(nSpecies)
+REAL                          :: Velo(nSpecies,3), Velo2(nSpecies,3), totalWeight, Temp(3), SpecPartNum(nSpecies), PartNumIter(nSpecies)
 REAL                          :: Gradient(4), TempGradient(3), MeanDistance, NbDistance
 !-----------------------------------------------------------------------------------------------------------------------------------
 SpecPartNum = 0.0; Velo = 0.0; Velo2 = 0.0; RefVelo = 0.0; Temp = 0.0; RefTemp = 0.0; MaxGradient  = 0.0; MeanDistance = 0.0
-Gradient = 0.0; TempGradient = 0.0; NbVelo = 0.0; NbTemp = 0.0; RefNonAvTemp = 0.0; NbNonAvTemp = 0.0
+Gradient = 0.0; TempGradient = 0.0; NbVelo = 0.0; NbTemp = 0.0; RefNonAvTemp = 0.0; NbNonAvTemp = 0.0; PartNumIter = 0.0
 
 GlobalElemID = ElemID+offSetElem
 CNElemID     = GetCNElemID(GlobalElemID)
 
-! Determine the number of different species and the total particle number in the element by a loop over all particles
-iPart = PEM%pStart(ElemID)
-DO iLoop = 1, PEM%pNumber(ElemID)
-  SpecPartNum(PartSpecies(iPart)) = SpecPartNum(PartSpecies(iPart)) + GetParticleWeight(iPart)
-
-  ! Particle velocities (squared) weighted by the particle number per element
-  Velo(PartSpecies(iPart),1:3) = Velo(PartSpecies(iPart),1:3) + PartState(4:6,iPart) * GetParticleWeight(iPart)
-  Velo2(PartSpecies(iPart),1:3) = Velo2(PartSpecies(iPart),1:3) + PartState(4:6,iPart)**2 * GetParticleWeight(iPart)
-  iPart = PEM%pNext(iPart)
+DO iSpec = 1, nSpecies
+  PartNumIter(iSpec) = DSMC_Solution(7,ElemID,iSpec)
+  SpecPartNum(iSpec) = PartNumIter(iSpec) / REAL(DSMC%SampNum)
+  Velo(iSpec,1:3)    = DSMC_Solution(1:3,ElemID,iSpec) / REAL(DSMC%SampNum)
+  Velo2(iSpec,1:3)   = DSMC_Solution(4:6,ElemID,iSpec) / REAL(DSMC%SampNum)
 END DO
 
 ! Total particle number in the element
 totalWeight = SUM(SpecPartNum)
 
 ! Number density in the element = Particle number/volume
-IF(usevMPF.OR.RadialWeighting%DoRadialWeighting.OR.VarWeighting%DoVariableWeighting) THEN
+IF(usevMPF.OR.RadialWeighting%DoRadialWeighting) THEN
   RefDens = totalWeight / ElemVolume_Shared(CNElemID)
 ELSE
   RefDens = totalWeight * Species(1)%MacroParticleFactor / ElemVolume_Shared(CNElemID)
@@ -1165,7 +1165,7 @@ DO iVal = 1, nNbElems
   GlobNbElem = GetGlobalElemID(CnNbElem)
   LocNbElem = GlobNbElem-offSetElem
 
-  SpecPartNum = 0.0; Velo = 0.0; Velo2 = 0.0; Temp = 0.0; NbVelo = 0.0; NbTemp = 0.0; NbNonAvTemp = 0.0
+  SpecPartNum = 0.0; Velo = 0.0; Velo2 = 0.0; Temp = 0.0; NbVelo = 0.0; NbTemp = 0.0; NbNonAvTemp = 0.0; PartNumIter = 0.0
 
   IF ((LocNBElem.LT.1).OR.(LocNBElem.GT.nElems)) CYCLE
 
@@ -1177,22 +1177,18 @@ DO iVal = 1, nNbElems
   NbDistance = SQRT(NbDistance)
   MeanDistance = MeanDistance + NbDistance
 
-  ! Determine the number of different species and the total particle number in the element by a loop over all particles
-  iPart = PEM%pStart(LocNbElem)
-  DO iLoop = 1, PEM%pNumber(LocNbElem)
-    SpecPartNum(PartSpecies(iPart)) = SpecPartNum(PartSpecies(iPart)) + GetParticleWeight(iPart)
-
-    ! Particle velocities (squared) weighted by the particle number per element
-    Velo(PartSpecies(iPart),1:3) = Velo(PartSpecies(iPart),1:3) + PartState(4:6,iPart) * GetParticleWeight(iPart)
-    Velo2(PartSpecies(iPart),1:3) = Velo2(PartSpecies(iPart),1:3) + PartState(4:6,iPart)**2 * GetParticleWeight(iPart)
-    iPart = PEM%pNext(iPart)
+  DO iSpec = 1, nSpecies
+    PartNumIter(iSpec) = DSMC_Solution(7,LocNbElem,iSpec)
+    SpecPartNum(iSpec) = PartNumIter(iSpec) / REAL(DSMC%SampNum)
+    Velo(iSpec,1:3)    = DSMC_Solution(1:3,LocNbElem,iSpec) / REAL(DSMC%SampNum)
+    Velo2(iSpec,1:3)   = DSMC_Solution(4:6,LocNbElem,iSpec) / REAL(DSMC%SampNum)
   END DO
 
   ! Total particle number in the element
   totalWeight = SUM(SpecPartNum)
 
   ! Number density in the element = Particle number/volume
-  IF(usevMPF.OR.RadialWeighting%DoRadialWeighting.OR.VarWeighting%DoVariableWeighting) THEN
+  IF(usevMPF.OR.RadialWeighting%DoRadialWeighting) THEN
     NbDens = totalWeight / ElemVolume_Shared(CnNbElem)
   ELSE
     NbDens = totalWeight * Species(1)%MacroParticleFactor / ElemVolume_Shared(CnNbElem)
@@ -1261,7 +1257,6 @@ IF (RefTemp.GT.0.) THEN
 ELSE
   Gradient(3) = 0.
 END IF
-Gradient(4) = Gradient(4)*MeanDistance/(nNbElems*RefPres)
 IF (RefPres.GT.0.) THEN
   Gradient(4) = Gradient(4)*MeanDistance/(nNbElems*RefPres)
 ELSE

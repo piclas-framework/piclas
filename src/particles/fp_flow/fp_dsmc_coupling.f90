@@ -40,12 +40,13 @@ USE MOD_Globals
 USE MOD_FPFlow_Vars
 USE MOD_Globals_Vars           ,ONLY: BoltzmannConst
 USE MOD_DSMC_Analyze           ,ONLY: CalcMeanFreePath
+USE MOD_DSMC_Vars              ,ONLY: DSMC
 USE MOD_Particle_Vars          ,ONLY: PEM, nSpecies, PartSpecies
 USE MOD_Particle_Mesh_Vars     ,ONLY: ElemVolume_Shared, ElemToElemMapping, ElemToElemInfo, ElemMidPoint_Shared
 USE MOD_Mesh_Vars              ,ONLY: offsetElem, nElems
 USE MOD_Mesh_Tools             ,ONLY: GetCNElemID, GetGlobalElemID
 USE MOD_part_tools             ,ONLY: GetParticleWeight
-USE MOD_BGK_DSMC_Coupling      ,ONLY: CalcCellProp, CalcDensVeloTemp
+USE MOD_BGK_DSMC_Coupling      ,ONLY: CalcCellProp, CalcDensVeloTemp, CalcCellProp_Samp, CalcDensVeloTemp_Samp
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -94,7 +95,11 @@ CASE('LocalKnudsen')
   DensGradient = 0.0; TempGradient = 0.0; VeloGradient = 0.0; NbVolume = 0.0
 
   ! Calculate the density, velocity and temperature of the reference element
-  CALL CalcDensVeloTemp(iElem, RefDens, RefVelo, RefTemp, SpecPartNum)
+  IF ((DSMC%SampNum.GT.0.).AND.FP_CBC%AverageSamp) THEN
+    CALL CalcDensVeloTemp_Samp(iElem, RefDens, RefVelo, RefTemp, SpecPartNum)
+  ELSE
+    CALL CalcDensVeloTemp(iElem, RefDens, RefVelo, RefTemp, SpecPartNum)
+  END IF
 
   MFP = CalcMeanFreePath(SpecPartNum,SUM(SpecPartNum),ElemVolume_Shared(CNElemID))
 
@@ -122,7 +127,11 @@ CASE('LocalKnudsen')
     NbVolume = NbVolume + ElemVolume_Shared(CnNbElem)
 
     ! Calculate the density, velocity and temperature of the neighbour element
-    CALL CalcDensVeloTemp(iElem, NbDens, NbVelo, NbTemp, NbSpecPartNum)
+    IF ((DSMC%SampNum.GT.0.).AND.FP_CBC%AverageSamp) THEN
+      CALL CalcDensVeloTemp_Samp(iElem, NbDens, NbVelo, NbTemp, NbSpecPartNum)
+    ELSE
+      CALL CalcDensVeloTemp(iElem, NbDens, NbVelo, NbTemp, NbSpecPartNum)
+    END IF
     NbtotalWeight = SUM(NbSpecPartNum)
 
     ! Sum of the density gradient of all neighbour elements, weighted by the volume of the neighbour element
@@ -161,7 +170,11 @@ CASE('LocalKnudsen')
 ! Thermal non-equilibrium: deviation of the individual temperatures from the equilibrium value in the cell
 CASE('ThermNonEq')
   ! Calculate the density, velocity and temperature of the reference element
-  CALL CalcCellProp(iElem, RefDens, RefVelo, RefTemp, SpecPartNum,Knudsen_NonEq,StressTensor,HeatVector)
+  IF ((DSMC%SampNum.GT.0.).AND.FP_CBC%AverageSamp) THEN
+    CALL CalcCellProp_Samp(iElem, RefDens, RefVelo, RefTemp, SpecPartNum,Knudsen_NonEq,StressTensor,HeatVector)
+  ELSE
+    CALL CalcCellProp(iElem, RefDens, RefVelo, RefTemp, SpecPartNum,Knudsen_NonEq,StressTensor,HeatVector)
+  END IF
 
   ! Total particle number in the element
   totalWeight = SUM(SpecPartNum)
@@ -179,7 +192,11 @@ CASE('Combination')
   DensGradient = 0.0; TempGradient = 0.0; VeloGradient = 0.0; NbVolume = 0.0
 
   ! Calculate the density, velocity and temperature of the reference element
-  CALL CalcCellProp(iElem, RefDens, RefVelo, RefTemp, SpecPartNum,Knudsen_NonEq,StressTensor,HeatVector)
+  IF ((DSMC%SampNum.GT.0.).AND.FP_CBC%AverageSamp) THEN
+    CALL CalcCellProp_Samp(iElem, RefDens, RefVelo, RefTemp, SpecPartNum,Knudsen_NonEq,StressTensor,HeatVector)
+  ELSE
+    CALL CalcCellProp(iElem, RefDens, RefVelo, RefTemp, SpecPartNum,Knudsen_NonEq,StressTensor,HeatVector)
+  END IF
   ! Total particle number in the element
   totalWeight = SUM(SpecPartNum)
 
@@ -206,7 +223,11 @@ CASE('Combination')
     NbVolume = NbVolume + ElemVolume_Shared(CnNbElem)
 
     ! Calculate the density, velocity and temperature of the neighbour element
-    CALL CalcDensVeloTemp(iElem, NbDens, NbVelo, NbTemp, NbSpecPartNum)
+    IF ((DSMC%SampNum.GT.0.).AND.FP_CBC%AverageSamp) THEN
+      CALL CalcDensVeloTemp_Samp(iElem, NbDens, NbVelo, NbTemp, NbSpecPartNum)
+    ELSE
+      CALL CalcDensVeloTemp(iElem, NbDens, NbVelo, NbTemp, NbSpecPartNum)
+    END IF
     NbtotalWeight = SUM(NbSpecPartNum)
 
     ! Sum of the density gradient of all neighbour elements, weighted by the volume of the neighbour element
@@ -243,7 +264,11 @@ CASE('Combination')
 
 ! Chapman-Enskog parameter: maximum value of the heat flux vector and the shear stress tensor
 CASE('ChapmanEnskog')
-  CALL CalcCellProp(iElem, RefDens, RefVelo, RefTemp, SpecPartNum,Knudsen_NonEq,StressTensor,HeatVector)
+  IF ((DSMC%SampNum.GT.0.).AND.FP_CBC%AverageSamp) THEN
+    CALL CalcCellProp_Samp(iElem, RefDens, RefVelo, RefTemp, SpecPartNum,Knudsen_NonEq,StressTensor,HeatVector)
+  ELSE
+    CALL CalcCellProp(iElem, RefDens, RefVelo, RefTemp, SpecPartNum,Knudsen_NonEq,StressTensor,HeatVector)
+  END IF
 
   ! Store the maximum heat flux values for the next iteration
   FP_CBC%Max_HeatVec(iElem) = MAXVAL(HeatVector)
@@ -265,7 +290,11 @@ CASE('Output')
   DensGradient = 0.0; TempGradient = 0.0; VeloGradient = 0.0; NbVolume = 0.0
 
   ! Calculate the density, velocity and temperature of the reference element
-  CALL CalcCellProp(iElem, RefDens, RefVelo, RefTemp, SpecPartNum,Knudsen_NonEq,StressTensor,HeatVector)
+  IF ((DSMC%SampNum.GT.0.).AND.FP_CBC%AverageSamp) THEN
+    CALL CalcCellProp_Samp(iElem, RefDens, RefVelo, RefTemp, SpecPartNum,Knudsen_NonEq,StressTensor,HeatVector)
+  ELSE
+    CALL CalcCellProp(iElem, RefDens, RefVelo, RefTemp, SpecPartNum,Knudsen_NonEq,StressTensor,HeatVector)
+  END IF
 
   MFP = CalcMeanFreePath(SpecPartNum,SUM(SpecPartNum),ElemVolume_Shared(CNElemID))
 
@@ -296,7 +325,11 @@ CASE('Output')
     NbVolume = NbVolume + ElemVolume_Shared(CnNbElem)
 
     ! Calculate the density, velocity and temperature of the reference element
-    CALL CalcDensVeloTemp(iElem, NbDens, NbVelo, NbTemp, NbSpecPartNum)
+    IF ((DSMC%SampNum.GT.0.).AND.FP_CBC%AverageSamp) THEN
+      CALL CalcDensVeloTemp_Samp(iElem, NbDens, NbVelo, NbTemp, NbSpecPartNum)
+    ELSE
+      CALL CalcDensVeloTemp(iElem, NbDens, NbVelo, NbTemp, NbSpecPartNum)
+    END IF
     NbtotalWeight = SUM(NbSpecPartNum)
 
     ! Sum of the density gradient of all neighbour elements, weighted by the volume of the neighbour element

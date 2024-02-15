@@ -80,6 +80,7 @@ CALL prms%CreateLogicalOption('Particles-CoupledBGKDSMC',           'Perform a c
 CALL prms%CreateStringOption('Particles-BGK-DSMC-SwitchCriterium',  'Continuum-breakdown criterium used for the coupling: Density'//&
                                                                      'GlobalKnudsen/LocalKnudsen/ThermNonEq/Combination', 'none')
 CALL prms%CreateIntOption(   'Particles-BGK-DSMC-SampleIter',       'Iteration number after which a DSMC-BGK switch can be performed','1')
+CALL prms%CreateLogicalOption('Particles-BGK-DSMC-SampAverage',     'Use average gradient for the decision between BGK/DSMC','.FALSE.')
 CALL prms%CreateRealOption(  'Particles-BGK-DSMC-SwitchDens',       'Number density [1/m3], above which the BGK method is used, '//&
                                                                     'below which DSMC is performed','0.0')
 CALL prms%CreateRealOption(  'Particles-BGK-DSMC-CharLength',       'Characteristic length of the simulation domain for the calculation '//&
@@ -187,6 +188,8 @@ IF(CoupledBGKDSMC) THEN
 
   ! Number of iterations between a possible BGK-DSMC switch
   CBC%SwitchIter = GETINT('Particles-BGK-DSMC-SampleIter')
+  ! Use of average values for the sampling routine of the gradient
+  CBC%AverageSamp = GETLOGICAL('Particles-BGK-DSMC-SampAverage')
   ALLOCATE(CBC%Iter_Count(nElems))
   CBC%Iter_Count = 0
 END IF

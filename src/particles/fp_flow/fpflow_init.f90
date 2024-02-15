@@ -58,6 +58,7 @@ CALL prms%CreateLogicalOption('Particles-CoupledFPDSMC',           'Perform a co
 CALL prms%CreateStringOption( 'Particles-FP-DSMC-SwitchCriterium', 'Continuum-breakdown criterium used for the coupling: Density'//&
                                                                    'GlobalKnudsen/LocalKnudsen/ThermNonEq/Combination', 'none')
 CALL prms%CreateIntOption(    'Particles-FP-DSMC-SampleIter',      'Iteration number after which a DSMC-FP switch can be performed','1')
+CALL prms%CreateLogicalOption('Particles-FP-DSMC-SampAverage',     'Use average gradient for the decision between FP/DSMC','.FALSE.')
 CALL prms%CreateRealOption(   'Particles-FP-DSMC-SwitchDens',      'Number density [1/m3] above which the FP method is used, below'//&
                                                                    'which DSMC is performed.','0.0')
 CALL prms%CreateRealOption(   'Particles-FP-DSMC-CharLength',      'Characteristic length of the simulation domain for the calculation '//&
@@ -174,6 +175,8 @@ IF(CoupledFPDSMC) THEN
 
   ! Number of iterations between a possible FP-DSMC switch
   FP_CBC%SwitchIter = GETINT('Particles-FP-DSMC-SampleIter')
+  ! Use of average values for the sampling routine of the gradient
+  FP_CBC%AverageSamp = GETLOGICAL('Particles-FP-DSMC-SampAverage')
   ALLOCATE(FP_CBC%Iter_Count(nElems))
   FP_CBC%Iter_Count = 0
 END IF

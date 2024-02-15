@@ -71,6 +71,7 @@ TYPE tCouplingCriteria
   REAL                                         :: MaxThermNonEq
   REAL                                         :: MaxChapmanEnskog
   INTEGER                                      :: SwitchIter
+  LOGICAL                                      :: AverageSamp
   INTEGER, ALLOCATABLE                         :: Iter_Count(:)
   LOGICAL,ALLOCATABLE                          :: DoElementDSMC(:)
   REAL, ALLOCATABLE                            :: OutputKnudsen(:,:)
