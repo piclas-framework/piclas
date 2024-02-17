@@ -262,8 +262,10 @@ USE MOD_InitializeBackgroundField  ,ONLY: FinalizeBackGroundField
 USE MOD_SuperB_Init                ,ONLY: FinalizeSuperB
 USE MOD_Particle_Mesh              ,ONLY: FinalizeParticleMesh
 USE MOD_Particle_Analyze           ,ONLY: FinalizeParticleAnalyze
+#if !((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))
 USE MOD_PICDepo                    ,ONLY: FinalizeDeposition
 USE MOD_PICInterpolation           ,ONLY: FinalizePICInterpolation
+#endif /*!((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))*/
 USE MOD_ParticleInit               ,ONLY: FinalizeParticles
 USE MOD_Particle_Sampling_Adapt    ,ONLY: FinalizeParticleSamplingAdaptive
 USE MOD_Particle_Boundary_Init     ,ONLY: FinalizeParticleBoundary
@@ -337,8 +339,10 @@ CALL FinalizePorousBoundaryCondition()
 CALL FinalizeParticleSurfaces()
 CALL FinalizeParticleMesh()
 CALL FinalizeParticleAnalyze()
+#if !((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))
 CALL FinalizeDeposition()
 CALL FinalizePICInterpolation()
+#endif /*!((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))*/
 #if USE_MPI
 CALL FinalizeParticleMPI()
 #endif /*USE_MPI*/

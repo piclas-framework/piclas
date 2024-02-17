@@ -64,7 +64,10 @@ USE MOD_Particle_Tracking_Vars ,ONLY: CountNbrOfLostParts,TotalNbrOfMissingParti
 USE MOD_Mesh_Tools             ,ONLY: GetCNElemID
 USE MOD_Particle_Analyze_Vars  ,ONLY: nSpecAnalyze
 USE MOD_Particle_Analyze_Tools ,ONLY: CalcNumPartsOfSpec
+#if !((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))
 USE MOD_HDF5_Output_Particles  ,ONLY: WriteNodeSourceExtToHDF5,WriteClonesToHDF5,WriteVibProbInfoToHDF5,WriteAdaptiveWallTempToHDF5
+#endif /*!((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))*/
+USE MOD_HDF5_Output_Particles  ,ONLY: WriteClonesToHDF5,WriteVibProbInfoToHDF5,WriteAdaptiveWallTempToHDF5
 USE MOD_HDF5_Output_Particles  ,ONLY: WriteAdaptiveInfoToHDF5,WriteParticleToHDF5,WriteBoundaryParticleToHDF5
 USE MOD_HDF5_Output_Particles  ,ONLY: WriteLostParticlesToHDF5,WriteEmissionVariablesToHDF5
 USE MOD_Particle_Vars          ,ONLY: CalcBulkElectronTemp,BulkElectronTemp
@@ -719,8 +722,10 @@ CALL WritePMLDataToHDF5(FileName)
 #endif
 
 #ifdef PARTICLES
+#if !((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))
 ! Write NodeSourceExt (external charge density) field to HDF5 file
 IF(DoDielectricSurfaceCharge) CALL WriteNodeSourceExtToHDF5(OutputTime_loc)
+#endif /*!((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))*/
 ! Output particle emission data to be read during subsequent restarts
 CALL WriteEmissionVariablesToHDF5(FileName)
 #endif /*PARTICLES*/

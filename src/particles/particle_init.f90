@@ -227,7 +227,9 @@ USE MOD_Particle_Vars          ,ONLY: Symmetry
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Vars       ,ONLY: PerformLoadBalance
 #endif /*USE_LOADBALANCE*/
+#if !((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))
 USE MOD_PICDepo_Method         ,ONLY: InitDepositionMethod
+#endif /*!((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))*/
 USE MOD_Particle_Vars          ,ONLY: UseVarTimeStep, VarTimeStep
 USE MOD_ReadInTools            ,ONLY: GETLOGICAL
 USE MOD_RayTracing_Vars        ,ONLY: UseRayTracing,PerformRayTracing
@@ -271,7 +273,9 @@ IF (Symmetry%Order.LE.2) THEN
 END IF
 
 !--- Particle-in-cell deposition method
+#if !((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))
 CALL InitDepositionMethod()
+#endif /*!((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))*/
 
 !--- Ray Tracing
 ! 1) Activate ray tracing based emission (also required for plasma simulation)
@@ -467,7 +471,9 @@ USE MOD_Particle_Emission_Init ,ONLY: InitializeVariablesSpeciesInits
 USE MOD_Particle_Boundary_Init ,ONLY: InitializeVariablesPartBoundary
 USE MOD_Particle_Tracking_Vars ,ONLY: TrackingMethod
 USE MOD_Particle_Surfaces_Vars ,ONLY: TriaSurfaceFlux
+#if !((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))
 USE MOD_PICInit                ,ONLY: InitPIC
+#endif /*!((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))*/
 USE MOD_PICDepo_Vars           ,ONLY: DoDeposition
 USE MOD_PICInterpolation_Vars  ,ONLY: DoInterpolation
 #if USE_MPI
@@ -539,7 +545,12 @@ DoDeposition    = GETLOGICAL('PIC-DoDeposition')
 
 !-- Get PIC interpolation (could be skipped above, but DSMC octree requires some interpolation variables, which are allocated before
 ! init DSMC determines whether DSMC%UseOctree is true or false)
+#if !((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))
 DoInterpolation = GETLOGICAL('PIC-DoInterpolation')
+#else
+DoInterpolation = .FALSE.
+CALL PrintOption('No PIC-related Time discretization, turning interpolation off. DoInterpolation','INFO',LogOpt=DoInterpolation)
+#endif /*!((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))*/
 #if defined(PARTICLES) && USE_HDG
 IF(UseCoupledPowerPotential.AND.(.NOT.DoInterpolation)) CALL abort(__STAMP__,'Coupled power potential requires DoInterpolation=T')
 #endif /*defined(PARTICLES) && USE_HDG*/
@@ -555,7 +566,9 @@ CALL InitParticleMesh()
 !-- Build MPI communication
 CALL IdentifyPartExchangeProcs()
 #endif
+#if !((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))
 CALL InitPIC()
+#endif /*!((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))*/
 
 ! === 2D/1D/Axisymmetric initialization
 ! Calculate the volumes for 2D simulation (requires the GEO%zminglob/GEO%zmaxglob from InitFIBGM)

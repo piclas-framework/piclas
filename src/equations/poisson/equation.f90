@@ -39,9 +39,6 @@ INTERFACE FinalizeEquation
 END INTERFACE
 
 PUBLIC :: InitEquation,ExactFunc,FinalizeEquation, CalcSourceHDG
-#if USE_MPI && defined(PARTICLES)
-PUBLIC :: SynchronizeCPP
-#endif /*USE_MPI && defined(PARTICLES)*/
 PUBLIC :: DefineParametersEquation
 !===================================================================================================================================
 CONTAINS

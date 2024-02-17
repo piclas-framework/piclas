@@ -27,10 +27,6 @@ PRIVATE
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
 
-INTERFACE WriteNodeSourceExtToHDF5
-  MODULE PROCEDURE WriteNodeSourceExtToHDF5
-END INTERFACE
-
 INTERFACE WriteParticleToHDF5
   MODULE PROCEDURE WriteParticleToHDF5
 END INTERFACE
@@ -62,7 +58,13 @@ END INTERFACE
 #if USE_HDG
 PUBLIC :: AddBRElectronFluidToPartSource
 #endif /*USE_HDG*/
+
+#if !((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))
+INTERFACE WriteNodeSourceExtToHDF5
+  MODULE PROCEDURE WriteNodeSourceExtToHDF5
+END INTERFACE
 PUBLIC :: WriteNodeSourceExtToHDF5
+#endif /*!((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))*/
 PUBLIC :: WriteParticleToHDF5
 PUBLIC :: WriteBoundaryParticleToHDF5
 PUBLIC :: WriteLostParticlesToHDF5
@@ -78,6 +80,7 @@ PUBLIC :: FillParticleData
 CONTAINS
 
 
+#if !((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))
 SUBROUTINE WriteNodeSourceExtToHDF5(OutputTime)
 !===================================================================================================================================
 ! Write NodeSourceExt (external charge density) field to HDF5 file
@@ -211,6 +214,7 @@ END DO ! i = 1, 2
 SDEALLOCATE(NodeSourceExtGlobal)
 SDEALLOCATE(StrVarNames)
 END SUBROUTINE WriteNodeSourceExtToHDF5
+#endif /*!((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))*/
 
 
 #if USE_HDG

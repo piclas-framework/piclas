@@ -13,6 +13,7 @@
 #include "piclas.h"
 
 MODULE MOD_PICDepo_Method
+#if !((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))
 !===================================================================================================================================
 ! Module containing the different deposition methods (NGP, linear (inter-cell) weighting, shape function
 !===================================================================================================================================
@@ -923,4 +924,5 @@ END SUBROUTINE NullifyNodeSourceDirichletSides
 #endif /*USE_HDG*/
 
 
+#endif /*!((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))*/
 END MODULE MOD_PICDepo_Method

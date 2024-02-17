@@ -13,6 +13,7 @@
 #include "piclas.h"
 
 MODULE MOD_PICDepo
+#if !((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))
 !===================================================================================================================================
 ! MOD PIC Depo
 !===================================================================================================================================
@@ -2084,4 +2085,5 @@ SDEALLOCATE(NodeMappingRecv)
 
 END SUBROUTINE FinalizeDeposition
 
+#endif /*!((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))*/
 END MODULE MOD_PICDepo

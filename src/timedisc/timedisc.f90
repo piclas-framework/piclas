@@ -43,8 +43,10 @@ USE MOD_TimeDisc_Vars          ,ONLY: dtWeight
 USE MOD_Particle_Vars          ,ONLY: WriteMacroVolumeValues, WriteMacroSurfaceValues, MacroValSampTime
 #endif /*defined(PARTICLES)*/
 #endif /*USE_LOADBALANCE*/
+#if !((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))
 USE MOD_TimeAverage_vars       ,ONLY: doCalcTimeAverage
 USE MOD_TimeAverage            ,ONLY: CalcTimeAverage
+#endif /*!((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))*/
 USE MOD_Analyze                ,ONLY: PerformAnalyze
 USE MOD_Analyze_Vars           ,ONLY: Analyze_dt,iAnalyze,nSkipAnalyze,SkipAnalyzeWindow,SkipAnalyzeSwitchTime,nSkipAnalyzeSwitch
 USE MOD_Restart_Vars           ,ONLY: RestartTime,RestartWallTime
@@ -269,7 +271,9 @@ DO !iter_t=0,MaxIter
 
   CALL UpdateTimeStep()
 
+#if !((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))
   IF(doCalcTimeAverage) CALL CalcTimeAverage(.FALSE.,dt,time,tPreviousAverageAnalyze) ! tPreviousAnalyze not used if finalize_flag=false
+#endif /*!((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))*/
 
 #if !(USE_HDG)
   IF(DoPML) CALL PMLTimeRamping(time,PMLTimeRamp)
@@ -437,7 +441,9 @@ DO !iter_t=0,MaxIter
 #endif /*defined(PARTICLES)*/
       ! Write state to file
       CALL WriteStateToHDF5(TRIM(MeshFile),time,tPreviousAnalyze)
+#if !((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))
       IF(doCalcTimeAverage) CALL CalcTimeAverage(.TRUE.,dt,time,tPreviousAverageAnalyze)
+#endif /*!((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))*/
       ! Write recordpoints data to hdf5
       IF(RP_onProc) CALL WriteRPtoHDF5(tAnalyze,.TRUE.)
       tPreviousAnalyze        = tAnalyze

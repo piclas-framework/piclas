@@ -13,6 +13,7 @@
 #include "piclas.h"
 
 MODULE MOD_PICInit
+#if !((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))
 !===================================================================================================================================
 ! Includes PIC Init
 !===================================================================================================================================
@@ -88,4 +89,5 @@ LBWRITE(UNIT_stdOut,'(A)')' INIT PIC DONE!'
 LBWRITE(UNIT_StdOut,'(132("-"))')
 END SUBROUTINE InitPIC
 
+#endif /*!((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))*/
 END MODULE MOD_PICInit

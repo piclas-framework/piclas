@@ -13,6 +13,7 @@
 #include "piclas.h"
 
 MODULE  MOD_PICInterpolation
+#if !((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))
 !===================================================================================================================================
 !
 !===================================================================================================================================
@@ -606,4 +607,5 @@ SDEALLOCATE(VariableExternalField)
 END SUBROUTINE FinalizePICInterpolation
 
 
+#endif /*!((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))*/
 END MODULE MOD_PICInterpolation

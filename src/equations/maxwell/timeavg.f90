@@ -21,6 +21,7 @@
 !>                 PP_nVar+  - additional variables
 !==================================================================================================================================
 MODULE MOD_TimeAverage
+#if !((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))
 ! MODULES
 IMPLICIT NONE
 PRIVATE
@@ -485,4 +486,5 @@ SDEALLOCATE(PowerDensity)
 #endif /*PARTICLES*/
 END SUBROUTINE FinalizeTimeAverage
 
+#endif /*!((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))*/
 END MODULE MOD_TimeAverage

@@ -157,7 +157,9 @@ USE MOD_IO_HDF5               ,ONLY: AddToElemData,ElementOut
 USE MOD_Mesh_Vars             ,ONLY: nElems
 USE MOD_ReadInTools           ,ONLY: GETINT,GETREAL,GETLOGICAL,PrintOption,GETINTARRAY
 USE MOD_TimeAverage_Vars      ,ONLY: doCalcTimeAverage
+#if !((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))
 USE MOD_TimeAverage           ,ONLY: InitTimeAverage
+#endif /*!((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))*/
 USE MOD_TimeDisc_Vars         ,ONLY: TEnd
 USE MOD_Equation_vars         ,ONLY: Wavelength
 USE MOD_Particle_Mesh_Vars    ,ONLY: ElemCharLength_Shared
@@ -228,7 +230,9 @@ OutputTimeFixed   = GETREAL('OutputTimeFixed')
   doCalcTimeAverage = .FALSE.
 #endif
 
+#if !((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))
 IF(doCalcTimeAverage)  CALL InitTimeAverage()
+#endif /*!((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))*/
 
 FieldAnalyzeStep  = GETINT('Field-AnalyzeStep')
 DoFieldAnalyze    = .FALSE.
@@ -605,8 +609,10 @@ USE MOD_Analyze_Vars       ,ONLY: CalcPoyntingInt
 USE MOD_AnalyzeField       ,ONLY: FinalizePoyntingInt
 #endif /*PP_nVar>=6*/
 USE MOD_Analyze_Vars       ,ONLY: PPWCell,AnalyzeInitIsDone
+#if !((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))
 USE MOD_TimeAverage_Vars   ,ONLY: doCalcTimeAverage
 USE MOD_TimeAverage        ,ONLY: FinalizeTimeAverage
+#endif /*!((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))*/
 #if USE_HDG
 USE MOD_Analyze_Vars       ,ONLY: CalcAverageElectricPotential,EDC
 USE MOD_AnalyzeField       ,ONLY: FinalizeAverageElectricPotential
@@ -641,7 +647,9 @@ IF(CalcElectricTimeDerivative)THEN
 #endif /*USE_MPI*/
 END IF ! CalcElectricTimeDerivative
 #endif /*USE_HDG*/
+#if !((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))
 IF(doCalcTimeAverage) CALL FinalizeTimeAverage
+#endif /*!((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))*/
 SDEALLOCATE(PPWCell)
 SDEALLOCATE(UEx)
 AnalyzeInitIsDone = .FALSE.

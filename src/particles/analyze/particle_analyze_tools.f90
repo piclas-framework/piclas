@@ -57,7 +57,9 @@ PUBLIC :: CalcVelocities
 #if (PP_TimeDiscMethod==4)
 PUBLIC :: CollRates,CalcRelaxRates,CalcRelaxRatesElec,ReacRates
 #endif /*(PP_TimeDiscMethod==4)*/
+#if !((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))
 PUBLIC :: CalcPowerDensity
+#endif /*!((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))*/
 PUBLIC :: CalculatePartElemData
 PUBLIC :: CalcCoupledPowerPart, CalcEelec
 PUBLIC :: CalcNumberDensityBGGasDistri
@@ -2443,6 +2445,7 @@ END SUBROUTINE ReacRates
 #endif
 
 
+#if !((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))
 SUBROUTINE CalcPowerDensity()
 !===================================================================================================================================
 ! Used to average the source terms per species
@@ -2540,6 +2543,7 @@ DO iSpec=1,nSpecies
 END DO
 
 END SUBROUTINE CalcPowerDensity
+#endif /*!((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))*/
 
 
 SUBROUTINE CalculatePlasmaFrequencyCell()
