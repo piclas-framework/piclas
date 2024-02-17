@@ -89,7 +89,7 @@ TYPE(HDG_Surf_N_Type),ALLOCATABLE :: HDG_Surf_N(:) !< Solution variable for each
 
 REAL,ALLOCATABLE    :: Tau(:)                 !< Stabilization parameter, per element
 REAL,ALLOCATABLE    :: lambdaLB(:,:,:)        !< lambda, ((PP_N+1)^2,nSides)
-REAL,ALLOCATABLE    :: iLocSides(:,:,:)       !< iLocSides, ((PP_N+1)^2,nSides) - used for I/O and ALLGATHERV of lambda
+REAL,ALLOCATABLE    :: iLocSides(:,:)         !< iLocSides, ((PP_N+1)^2,nSides) - used for I/O and ALLGATHERV of lambda
 REAL,ALLOCATABLE    :: qn_face_MagStat(:,:,:) !< for Neumann BC
 INTEGER             :: nDirichletBCsides
 INTEGER             :: nNeumannBCsides
@@ -290,47 +290,47 @@ TYPE(tBV)   :: BiasVoltage
 !  MODULE PROCEDURE Mask_MPIsides
 !END INTERFACE
 
-PUBLIC :: Mask_MPIsides
+!PUBLIC :: Mask_MPIsides
 #endif /*USE_MPI*/
 
 CONTAINS
 
-#if USE_MPI
-!===================================================================================================================================
-!> communicate contribution from MPI slave sides to MPI master sides  and set slaves them to zero afterwards.
-!===================================================================================================================================
-SUBROUTINE Mask_MPIsides(firstdim,v)
-! MODULES
-USE MOD_MPI_Vars
-USE MOD_Mesh_Vars      ,ONLY: nSides
-USE MOD_Mesh_Vars      ,ONLY: nMPIsides_YOUR,nMPIsides,nMPIsides_MINE
-USE MOD_MPI            ,ONLY: StartReceiveMPIData,StartSendMPIData,FinishExchangeMPIData
-
-! IMPLICIT VARIABLE HANDLING
-IMPLICIT NONE
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
-INTEGER,INTENT(IN   ) :: firstdim
-REAL   ,INTENT(INOUT) :: v(firstdim,nGP_face, nSides)
-!-----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-REAL    :: vbuf(firstdim,nGP_Face,nMPISides_MINE)
-INTEGER :: startbuf,endbuf
-!===================================================================================================================================
-
-startbuf=nSides-nMPISides+1
-endbuf=nSides-nMPISides+nMPISides_MINE
-IF(nMPIsides_MINE.GT.0)vbuf=v(:,:,startbuf:endbuf)
-CALL StartReceiveMPIData(firstdim,v,1,nSides,RecRequest_U ,SendID=2)  ! Receive MINE
-CALL StartSendMPIData(   firstdim,v,1,nSides,SendRequest_U,SendID=2)  ! Send YOUR
-CALL FinishExchangeMPIData(SendRequest_U,RecRequest_U,SendID=2) ! Send YOUR - receive MINE
-IF(nMPIsides_MINE.GT.0) v(:,:,startbuf:endbuf)=v(:,:,startbuf:endbuf)+vbuf
-IF(nMPIsides_YOUR.GT.0) v(:,:,nSides-nMPIsides_YOUR+1:nSides)=0. !set send buffer to zero!
-
-END SUBROUTINE Mask_MPIsides
-#endif /*USE_MPI*/
+!#if USE_MPI
+!!===================================================================================================================================
+!!> communicate contribution from MPI slave sides to MPI master sides  and set slaves them to zero afterwards.
+!!===================================================================================================================================
+!SUBROUTINE Mask_MPIsides(firstdim,v)
+!! MODULES
+!USE MOD_MPI_Vars
+!USE MOD_Mesh_Vars      ,ONLY: nSides
+!USE MOD_Mesh_Vars      ,ONLY: nMPIsides_YOUR,nMPIsides,nMPIsides_MINE
+!USE MOD_MPI            ,ONLY: StartReceiveMPIData,StartSendMPIData,FinishExchangeMPIData
+!
+!! IMPLICIT VARIABLE HANDLING
+!IMPLICIT NONE
+!!-----------------------------------------------------------------------------------------------------------------------------------
+!! INPUT VARIABLES
+!INTEGER,INTENT(IN   ) :: firstdim
+!REAL   ,INTENT(INOUT) :: v(firstdim,nGP_face, nSides)
+!!-----------------------------------------------------------------------------------------------------------------------------------
+!! OUTPUT VARIABLES
+!!-----------------------------------------------------------------------------------------------------------------------------------
+!! LOCAL VARIABLES
+!REAL    :: vbuf(firstdim,nGP_Face,nMPISides_MINE)
+!INTEGER :: startbuf,endbuf
+!!===================================================================================================================================
+!
+!startbuf = nSides-nMPISides+1
+!endbuf   = nSides-nMPISides+nMPISides_MINE
+!IF(nMPIsides_MINE.GT.0)vbuf=v(:,:,startbuf:endbuf)
+!CALL StartReceiveMPIData(firstdim,v,1,nSides,RecRequest_U ,SendID=2)  ! Receive MINE
+!CALL StartSendMPIData(   firstdim,v,1,nSides,SendRequest_U,SendID=2)  ! Send YOUR
+!CALL FinishExchangeMPIData(SendRequest_U,RecRequest_U,SendID=2) ! Send YOUR - receive MINE
+!IF(nMPIsides_MINE.GT.0) v(:,:,startbuf:endbuf)=v(:,:,startbuf:endbuf)+vbuf
+!IF(nMPIsides_YOUR.GT.0) v(:,:,nSides-nMPIsides_YOUR+1:nSides)=0. !set send buffer to zero!
+!
+!END SUBROUTINE Mask_MPIsides
+!#endif /*USE_MPI*/
 
 
 #endif /*USE_HDG*/

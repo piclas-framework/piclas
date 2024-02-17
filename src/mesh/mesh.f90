@@ -437,8 +437,8 @@ IF (ABS(meshMode).GT.1) THEN
 
 #if defined(PARTICLES) || USE_HDG
   ! Compute element bary and element radius for processor-local elements (without halo region)
-  !ALLOCATE(ElemBaryNGeo(1:3,1:nElems))
-  !CALL BuildElementOrigin()
+  ALLOCATE(ElemBaryNGeo(1:3,1:nElems))
+  CALL BuildElementOrigin()
 #endif /*defined(PARTICLES) || USE_HDG*/
 
 #ifndef PARTICLES

@@ -2069,7 +2069,8 @@ CALL LBPauseTime(LB_DG,tLBStart)
 #endif /*USE_LOADBALANCE*/
 
 #if USE_MPI
-CALL Mask_MPIsides(PP_nVar,RHS_face)
+  CALL abort(__STAMP__,'Mask_MPIsides not implemented')
+!CALL Mask_MPIsides(PP_nVar,RHS_face)
 #endif /*USE_MPI*/
 
 #if USE_LOADBALANCE
@@ -3188,7 +3189,8 @@ END DO ! SideID=1,nSides
 #if USE_LOADBALANCE
 CALL LBPauseTime(LB_DG,tLBStart) ! Pause/Stop time measurement
 #endif /*USE_LOADBALANCE*/
-CALL Mask_MPIsides(1,mv)
+  CALL abort(__STAMP__,'Mask_MPIsides not implemented')
+!CALL Mask_MPIsides(1,mv)
 #endif /*USE_MPI*/
 
 #if USE_LOADBALANCE

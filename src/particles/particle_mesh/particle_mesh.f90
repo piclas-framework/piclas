@@ -401,8 +401,9 @@ SELECT CASE(TrackingMethod)
         CALL CalcParticleMeshMetrics()   ! Required for Elem_xGP_Shared and dXCL_NGeo_Shared
         CALL CalcXCL_NGeo()              ! Required for XCL_NGeo_Shared
       END IF ! .NOT.UseBezierControlPoints
-      CALL BuildElemTypeAndBasisTria() ! Required for ElemCurved_Shared, XiEtaZetaBasis_Shared, slenXiEtaZetaBasis_Shared. Needs XCL_NGeo_Shared
     END IF ! DoInterpolation.OR.DSMC%UseOctree
+    ! Also required for DSMC%UseOctree
+    CALL BuildElemTypeAndBasisTria() ! Required for ElemCurved_Shared, XiEtaZetaBasis_Shared, slenXiEtaZetaBasis_Shared. Needs XCL_NGeo_Shared
 
     IF (DoDeposition) CALL BuildEpsOneCell()
 
@@ -725,13 +726,18 @@ SELECT CASE (TrackingMethod)
       END IF !PerformLoadBalance
 #endif /*USE_LOADBALANCE*/
 
-      IF (DoInterpolation.OR.DoDeposition.OR.UseRayTracing) THEN
-        ! BuildElemTypeAndBasisTria()
-        CALL UNLOCK_AND_FREE(ElemCurved_Shared_Win)
-        CALL UNLOCK_AND_FREE(XiEtaZetaBasis_Shared_Win)
-        CALL UNLOCK_AND_FREE(slenXiEtaZetaBasis_Shared_Win)
-      END IF ! DoInterpolation.OR.DoDeposition.OR.UseRayTracing
+      !IF (DoInterpolation.OR.DoDeposition.OR.UseRayTracing) THEN
+      !  ! BuildElemTypeAndBasisTria()
+      !  CALL UNLOCK_AND_FREE(ElemCurved_Shared_Win)
+      !  CALL UNLOCK_AND_FREE(XiEtaZetaBasis_Shared_Win)
+      !  CALL UNLOCK_AND_FREE(slenXiEtaZetaBasis_Shared_Win)
+      !END IF ! DoInterpolation.OR.DoDeposition.OR.UseRayTracing
     END IF ! DoInterpolation.OR.DoDeposition.OR.UseRayTracing.OR.nSurfSampleAndTriaTracking
+
+    ! Also required for DSMC%UseOctree: BuildElemTypeAndBasisTria()
+    CALL UNLOCK_AND_FREE(ElemCurved_Shared_Win)
+    CALL UNLOCK_AND_FREE(XiEtaZetaBasis_Shared_Win)
+    CALL UNLOCK_AND_FREE(slenXiEtaZetaBasis_Shared_Win)
 
     ! BuildEpsOneCell()
     IF (DoDeposition) CALL UNLOCK_AND_FREE(ElemsJ_Shared_Win)
@@ -810,7 +816,7 @@ SELECT CASE (TrackingMethod)
     ADEALLOCATE(ElemCurved_Shared)
 
     ! BuildEpsOneCell
-    SNULLIFY(ElemsJ)
+    ADEALLOCATE(ElemsJ)
     ADEALLOCATE(ElemsJ_Shared)
 END SELECT
 

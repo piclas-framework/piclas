@@ -152,6 +152,8 @@ USE MOD_ReadInTools        ,ONLY: GETLOGICAL
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Vars   ,ONLY: PerformLoadBalance
 #endif /*USE_LOADBALANCE*/
+USE MOD_Mesh_Vars          ,ONLY: NGeo,wBaryCL_NGeo,XiCL_NGeo
+USE MOD_Basis              ,ONLY: BarycentricWeights,ChebyGaussLobNodesAndWeights
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -178,7 +180,7 @@ REAL    :: DCL_NGeo(0:Ngeo,0:Ngeo)
 
 ! Vandermonde matrices (N_OUT,N_IN)
 REAL    :: Vdm_EQNGeo_CLNgeo( 0:Ngeo   ,0:Ngeo)
-REAL    :: Vdm_CLNGeo_NgeoRef(0:NgeoRef,0:Ngeo)
+REAL    :: Vdm_CLNGeo_NGeoRef(0:NgeoRef,0:Ngeo)
 
 ! 3D Vandermonde matrices and lengths,nodes,weights
 REAL    :: xiRef( 0:NgeoRef),wBaryRef( 0:NgeoRef)
@@ -209,16 +211,15 @@ IF(.NOT.GetMeshMinMaxBoundariesIsDone)THEN
   xyzMinMax(6) = -HUGE(1.)
 END IF
 
+! 1.a) NodeCoords: EQUI Ngeo to CLNgeo and CLN
+CALL GetVandermonde(    Ngeo   , NodeTypeVISU, Ngeo    , NodeTypeCL, Vdm_EQNGeo_CLNgeo , modal=.FALSE.)
 
-  ! 1.a) NodeCoords: EQUI Ngeo to CLNgeo and CLN
-  CALL GetVandermonde(    Ngeo   , NodeTypeVISU, Ngeo    , NodeTypeCL, Vdm_EQNGeo_CLNgeo , modal=.FALSE.)
+! 1.b) dXCL_Ngeo:
+CALL GetDerivativeMatrix(Ngeo  , NodeTypeCL  , DCL_NGeo)
 
-  ! 1.b) dXCL_Ngeo:
-  CALL GetDerivativeMatrix(Ngeo  , NodeTypeCL  , DCL_Ngeo)
-
-  ! 1.c) Jacobian: CLNgeo to NgeoRef, CLNgeoRef to N
-  CALL GetVandermonde(    Ngeo   , NodeTypeCL  , NgeoRef , NodeType  , Vdm_CLNgeo_NgeoRef, modal=.FALSE.)
-  CALL GetNodesAndWeights(NgeoRef, NodeType    , xiRef   , wIPBary=wBaryRef)
+! 1.c) Jacobian: CLNgeo to NgeoRef, CLNgeoRef to N
+CALL GetVandermonde(    Ngeo   , NodeTypeCL  , NgeoRef , NodeType  , Vdm_CLNgeo_NGeoRef, modal=.FALSE.)
+CALL GetNodesAndWeights(NgeoRef, NodeType    , xiRef   , wIPBary=wBaryRef)
 
 ! Initialize Vandermonde and D matrices
 ! Only use modal Vandermonde for terms that need to be conserved as Jacobian if N_out>PP_N
@@ -246,9 +247,11 @@ DO Nloc = Nmin, Nmax
 
 END DO ! Nloc = Nmin, Nmax
 
-
-
-
+! Chebyshev-Lobatto NGeo
+ALLOCATE(wBaryCL_NGeo(0:NGeo))
+ALLOCATE(XiCL_NGeo(0:NGeo))
+CALL ChebyGaussLobNodesAndWeights(NGeo,XiCL_NGeo)
+CALL BarycentricWeights(NGeo,XiCL_NGeo,wBaryCL_NGeo)
 
 ! Outer loop over all elements
 DetJac_Ref=0.
@@ -281,14 +284,14 @@ DO iElem=1,nElems
   ! 1.c)Jacobians! grad(X_1) (grad(X_2) x grad(X_3))
   ! Compute Jacobian on NGeo and then interpolate:
   ! required to guarantee conservation when restarting with N<NGeo
-  CALL ChangeBasis3D(3,Ngeo,NgeoRef,Vdm_CLNGeo_NgeoRef,dXCL_NGeo(:,1,:,:,:),dX_NgeoRef(:,1,:,:,:))
-  CALL ChangeBasis3D(3,Ngeo,NgeoRef,Vdm_CLNGeo_NgeoRef,dXCL_NGeo(:,2,:,:,:),dX_NgeoRef(:,2,:,:,:))
-  CALL ChangeBasis3D(3,Ngeo,NgeoRef,Vdm_CLNGeo_NgeoRef,dXCL_NGeo(:,3,:,:,:),dX_NgeoRef(:,3,:,:,:))
+  CALL ChangeBasis3D(3,NGeo,NGeoRef,Vdm_CLNGeo_NGeoRef,dXCL_NGeo(:,1,:,:,:),dX_NGeoRef(:,1,:,:,:))
+  CALL ChangeBasis3D(3,NGeo,NGeoRef,Vdm_CLNGeo_NGeoRef,dXCL_NGeo(:,2,:,:,:),dX_NGeoRef(:,2,:,:,:))
+  CALL ChangeBasis3D(3,NGeo,NGeoRef,Vdm_CLNGeo_NGeoRef,dXCL_NGeo(:,3,:,:,:),dX_NGeoRef(:,3,:,:,:))
   DO k=0,NgeoRef; DO j=0,NgeoRef; DO i=0,NgeoRef
     DetJac_Ref(1,i,j,k,iElem)=DetJac_Ref(1,i,j,k,iElem) &
-      + dX_NgeoRef(1,1,i,j,k)*(dX_NgeoRef(2,2,i,j,k)*dX_NgeoRef(3,3,i,j,k) - dX_NgeoRef(3,2,i,j,k)*dX_NgeoRef(2,3,i,j,k))  &
-      + dX_NgeoRef(2,1,i,j,k)*(dX_NgeoRef(3,2,i,j,k)*dX_NgeoRef(1,3,i,j,k) - dX_NgeoRef(1,2,i,j,k)*dX_NgeoRef(3,3,i,j,k))  &
-      + dX_NgeoRef(3,1,i,j,k)*(dX_NgeoRef(1,2,i,j,k)*dX_NgeoRef(2,3,i,j,k) - dX_NgeoRef(2,2,i,j,k)*dX_NgeoRef(1,3,i,j,k))
+      + dX_NGeoRef(1,1,i,j,k)*(dX_NGeoRef(2,2,i,j,k)*dX_NGeoRef(3,3,i,j,k) - dX_NGeoRef(3,2,i,j,k)*dX_NGeoRef(2,3,i,j,k))  &
+      + dX_NGeoRef(2,1,i,j,k)*(dX_NGeoRef(3,2,i,j,k)*dX_NGeoRef(1,3,i,j,k) - dX_NGeoRef(1,2,i,j,k)*dX_NGeoRef(3,3,i,j,k))  &
+      + dX_NGeoRef(3,1,i,j,k)*(dX_NGeoRef(1,2,i,j,k)*dX_NGeoRef(2,3,i,j,k) - dX_NGeoRef(2,2,i,j,k)*dX_NGeoRef(1,3,i,j,k))
   END DO; END DO; END DO !i,j,k=0,NgeoRef
 
   ! Check Jacobians in Ref already (no good if we only go on because N doesn't catch misbehaving points)
@@ -902,9 +905,9 @@ END SUBROUTINE CalcElemLocalSurfMetrics
 !    ! 1.c)Jacobians! grad(X_1) (grad(X_2) x grad(X_3))
 !    ! Compute Jacobian on NGeo and then interpolate:
 !    ! required to guarantee conservation when restarting with N<NGeo
-!    CALL ChangeBasis3D(3,Ngeo,NgeoRef,Vdm_CLNGeo_NgeoRef,dXCL_NGeo(:,1,:,:,:),dX_NgeoRef(:,1,:,:,:))
-!    CALL ChangeBasis3D(3,Ngeo,NgeoRef,Vdm_CLNGeo_NgeoRef,dXCL_NGeo(:,2,:,:,:),dX_NgeoRef(:,2,:,:,:))
-!    CALL ChangeBasis3D(3,Ngeo,NgeoRef,Vdm_CLNGeo_NgeoRef,dXCL_NGeo(:,3,:,:,:),dX_NgeoRef(:,3,:,:,:))
+!    CALL ChangeBasis3D(3,Ngeo,NgeoRef,Vdm_CLNGeo_NGeoRef,dXCL_NGeo(:,1,:,:,:),dX_NgeoRef(:,1,:,:,:))
+!    CALL ChangeBasis3D(3,Ngeo,NgeoRef,Vdm_CLNGeo_NGeoRef,dXCL_NGeo(:,2,:,:,:),dX_NgeoRef(:,2,:,:,:))
+!    CALL ChangeBasis3D(3,Ngeo,NgeoRef,Vdm_CLNGeo_NGeoRef,dXCL_NGeo(:,3,:,:,:),dX_NgeoRef(:,3,:,:,:))
 !    DO k=0,NgeoRef; DO j=0,NgeoRef; DO i=0,NgeoRef
 !      DetJac_Ref(1,i,j,k,iElem)=DetJac_Ref(1,i,j,k,iElem) &
 !        + dX_NgeoRef(1,1,i,j,k)*(dX_NgeoRef(2,2,i,j,k)*dX_NgeoRef(3,3,i,j,k) - dX_NgeoRef(3,2,i,j,k)*dX_NgeoRef(2,3,i,j,k))  &

@@ -400,6 +400,8 @@ USE MOD_Particle_Mesh_Vars     ,ONLY: nComputeNodeElems
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Vars       ,ONLY: PerformLoadBalance
 #endif /*USE_LOADBALANCE*/
+USE MOD_Interpolation_Vars     ,ONLY: Nmax,NInfo
+USE MOD_DG_Vars                ,ONLY: N_DG
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -408,21 +410,20 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                        :: iElem,firstElem,lastElem
+INTEGER                        :: iElem,firstElem,lastElem,Nloc
 REAL                           :: scaleJ,maxScaleJ
-#if USE_MPI
-INTEGER                        :: ElemID
 INTEGER                        :: i,j,k
+#if USE_MPI
+INTEGER                        :: GlobalElemID,iCNElem
 ! Vandermonde matrices
 REAL                           :: Vdm_CLNGeo_NGeoRef(0:NgeoRef,0:NGeo)
 REAL                           :: Vdm_NGeoRef_N(     0:PP_N   ,0:NGeoRef)
 ! Jacobian on CL N and NGeoRef
-REAL                           :: detJac_Ref(1  ,0:NGeoRef,0:NGeoRef,0:NGeoRef)
-REAL                           :: DetJac_N(  1  ,0:PP_N,   0:PP_N,   0:PP_N)
+REAL                           :: detJac_NGeoRef(1 , 0:NGeoRef , 0:NGeoRef , 0:NGeoRef)
+REAL                           :: detJac_NMax(   1 , 0:NMax    , 0:NMax    , 0:NMax)
 ! interpolation points and derivatives on CL N
 REAL                           :: dX_NGeoRef(3,3,0:NGeoRef,0:NGeoRef,0:NGeoRef)
 
-INTEGER                        :: ElemLocID
 #endif /*USE_MPI*/
 REAL                           :: StartT,EndT
 !===================================================================================================================================
@@ -435,14 +436,11 @@ END IF ! MPIRoot
 
 ! build sJ for all elements not on local proc
 #if USE_MPI
-CALL Allocate_Shared((/(PP_N+1)*(PP_N+1)*(PP_N+1)*nComputeNodeTotalElems/),ElemsJ_Shared_Win,ElemsJ_Shared)
+CALL Allocate_Shared((/(NMax+1)*(NMax+1)*(NMax+1)*nComputeNodeTotalElems/),ElemsJ_Shared_Win,ElemsJ_Shared)
 CALL MPI_WIN_LOCK_ALL(0,ElemsJ_Shared_Win,IERROR)
-ElemsJ(0:PP_N,0:PP_N,0:PP_N,1:nComputeNodeTotalElems) => ElemsJ_Shared
-
-IF (myComputeNodeRank.EQ.0) THEN
-  ElemsJ_Shared = 0.
-END IF
-
+ElemsJ(0:NMax,0:NMax,0:NMax,1:nComputeNodeTotalElems) => ElemsJ_Shared
+! Node-root nullifies
+IF (myComputeNodeRank.EQ.0) ElemsJ_Shared = 0.
 CALL BARRIER_AND_SYNC(ElemsJ_Shared_Win,MPI_COMM_SHARED)
 
 firstElem = INT(REAL( myComputeNodeRank   )*REAL(nComputeNodeTotalElems)/REAL(nComputeNodeProcessors))+1
@@ -455,46 +453,54 @@ lastElem  = nElems
 #if USE_MPI
 ! Calculate sJ for elements not inside current proc, otherwise copy local values
 CALL GetVandermonde(    Ngeo   , NodeTypeCL  , NgeoRef , NodeType  , Vdm_CLNGeo_NGeoRef, modal=.FALSE.)
-CALL GetVandermonde(    NgeoRef, NodeType    , PP_N    , NodeType  , Vdm_NGeoRef_N     , modal=.TRUE.)
 
-DO iElem = firstElem,lastElem
-  ElemID    = GetGlobalElemID(iElem)
-  ElemLocID = ElemID-offsetElem
+DO iCNElem = firstElem,lastElem
+  GlobalElemID = GetGlobalElemID(iCNElem)
+  iElem        = GlobalElemID-offsetElem
+  Nloc         = N_DG(iElem)
   ! element on local proc, sJ already calculated in metrics.f90
-  IF ((ElemLocID.GT.0) .AND. (ElemLocID.LE.nElems)) THEN
-    ElemsJ(:,:,:,iElem) = sJ(:,:,:,ElemLocID)
+  IF (ElementOnNode(GlobalElemID)) THEN
+    DO k=0,Nloc; DO j=0,Nloc; DO i=0,Nloc
+      ElemsJ(i,j,k,iCNElem) = N_VolMesh(iElem)%sJ(i,j,k)
+    END DO; END DO; END DO !i,j,k=0,Nloc
 
   ! element not on local proc, calculate sJ frm dXCL_NGeo_Shared
   ELSE
-    detJac_Ref = 0.
+    detJac_NGeoRef = 0.
     ! Compute Jacobian on NGeo and then interpolate:
     ! required to guarantee conservation when restarting with N<NGeo
-    CALL ChangeBasis3D(3,Ngeo,NGeoRef,Vdm_CLNGeo_NGeoRef,dXCL_NGeo_Shared(:,1,:,:,:,ElemID),dX_NGeoRef(:,1,:,:,:))
-    CALL ChangeBasis3D(3,Ngeo,NGeoRef,Vdm_CLNGeo_NGeoRef,dXCL_NGeo_Shared(:,2,:,:,:,ElemID),dX_NGeoRef(:,2,:,:,:))
-    CALL ChangeBasis3D(3,Ngeo,NGeoRef,Vdm_CLNGeo_NGeoRef,dXCL_NGeo_Shared(:,3,:,:,:,ElemID),dX_NGeoRef(:,3,:,:,:))
+    CALL ChangeBasis3D(3,Ngeo,NGeoRef,Vdm_CLNGeo_NGeoRef,dXCL_NGeo_Shared(:,1,:,:,:,GlobalElemID),dX_NGeoRef(:,1,:,:,:))
+    CALL ChangeBasis3D(3,Ngeo,NGeoRef,Vdm_CLNGeo_NGeoRef,dXCL_NGeo_Shared(:,2,:,:,:,GlobalElemID),dX_NGeoRef(:,2,:,:,:))
+    CALL ChangeBasis3D(3,Ngeo,NGeoRef,Vdm_CLNGeo_NGeoRef,dXCL_NGeo_Shared(:,3,:,:,:,GlobalElemID),dX_NGeoRef(:,3,:,:,:))
     DO k=0,NGeoRef; DO j=0,NGeoRef; DO i=0,NGeoRef
-      detJac_Ref(1,i,j,k)=detJac_Ref(1,i,j,k) &
+      detJac_NGeoRef(1,i,j,k)=detJac_NGeoRef(1,i,j,k) &
         + dX_NGeoRef(1,1,i,j,k)*(dX_NGeoRef(2,2,i,j,k)*dX_NGeoRef(3,3,i,j,k) - dX_NGeoRef(3,2,i,j,k)*dX_NGeoRef(2,3,i,j,k))  &
         + dX_NGeoRef(2,1,i,j,k)*(dX_NGeoRef(3,2,i,j,k)*dX_NGeoRef(1,3,i,j,k) - dX_NGeoRef(1,2,i,j,k)*dX_NGeoRef(3,3,i,j,k))  &
         + dX_NGeoRef(3,1,i,j,k)*(dX_NGeoRef(1,2,i,j,k)*dX_NGeoRef(2,3,i,j,k) - dX_NGeoRef(2,2,i,j,k)*dX_NGeoRef(1,3,i,j,k))
     END DO; END DO; END DO !i,j,k=0,NgeoRef
 
-    ! interpolate detJac_ref to the solution points
-    CALL ChangeBasis3D(1,NgeoRef,PP_N,Vdm_NgeoRef_N,DetJac_Ref(:,:,:,:),DetJac_N)
+    ! Interpolate detJac_ref to the solution points
+    ! Fill detJac_NMax(1,0:Nloc,0:Nloc,0:Nloc), which is allocated larger to detJac_NMax(1,0:Nmax,0:Nmax,0:Nmax)
+    CALL ChangeBasis3D(1,NgeoRef,Nloc,NInfo(Nloc)%Vdm_NgeoRef_N,detJac_NGeoRef(:,:,:,:),detJac_NMax)
 
     ! assign to global Variable sJ
-    DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
-      ElemsJ(i,j,k,iElem)=1./DetJac_N(1,i,j,k)
-    END DO; END DO; END DO !i,j,k=0,PP_N
-  END IF
-END DO
+    DO k=0,Nloc; DO j=0,Nloc; DO i=0,Nloc
+      ElemsJ(i,j,k,iCNElem)=1./detJac_NMax(1,i,j,k)
+    END DO; END DO; END DO !i,j,k=0,Nloc
+  END IF ! ElementOnNode(GlobalElemID)
+END DO ! iCNElem = firstElem,lastElem
 
 CALL BARRIER_AND_SYNC(ElemsJ_Shared_Win,MPI_COMM_SHARED)
 #else
-!ElemsJ => sJ
+ALLOCATE(ElemsJ(0:NMax,0:NMax,0:NMax,1:nElems))
+ElemsJ = 0.
+DO iElem = 1,nElems
+  Nloc = N_DG(iElem)
+  DO k=0,Nloc; DO j=0,Nloc; DO i=0,Nloc
+    ElemsJ(i,j,k,iElem) = N_VolMesh(iElem)%sJ(i,j,k)
+  END DO; END DO; END DO !i,j,k=0,Nloc
+END DO ! iElem = 1,nElems
 #endif /* USE_MPI*/
-IPWRITE(UNIT_StdOut,'(I0,A,I0)') ": v "//TRIM(__FILE__)//" +",__LINE__
-read*
 
 ! Exit routine here if TriaTracking is active
 IF (TrackingMethod.EQ.TRIATRACKING)THEN

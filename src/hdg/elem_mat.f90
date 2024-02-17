@@ -551,7 +551,8 @@ CASE(1)
     END IF !locSideID.NE.-1
   END DO ! SideID=1,nSides
 #if USE_MPI
-  CALL Mask_MPISides(nGP_face,HDG_Surf_N(SideID)%Precond)
+  CALL abort(__STAMP__,'Mask_MPIsides not implemented')
+  !CALL Mask_MPIsides(nGP_face,HDG_Surf_N(SideID)%Precond)
 #endif /*USE_MPI*/
   CALL SmallToBigMortarPrecond_HDG(PrecondType) !assemble big side
   DO SideID=1,nSides-nMPIsides_YOUR
@@ -589,7 +590,8 @@ CASE(2)
     END IF !locSideID.NE.-1
   END DO ! SideID=1,nSides
 #if USE_MPI
-  CALL Mask_MPISides(1,HDG_Surf_N(SideID)%InvPrecondDiag)
+  CALL abort(__STAMP__,'Mask_MPIsides not implemented')
+  !CALL Mask_MPIsides(1,HDG_Surf_N(SideID)%InvPrecondDiag)
 #endif /*USE_MPI*/
   CALL SmallToBigMortarPrecond_HDG(PrecondType) !assemble big side
   !inverse of the preconditioner matrix
