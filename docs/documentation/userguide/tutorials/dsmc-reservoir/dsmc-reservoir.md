@@ -150,7 +150,6 @@ For the treatment of particles, the maximum number of particles `Part-maxParticl
     ! =============================================================================== !
     Part-maxParticleNumber = 420000
     Part-nSpecies          = 1
-    Part-FIBGMdeltas       = (/4.64E-6,4.64E-6,4.64E-6/)
 
 The inserting (sometimes labelled emission or initialization) of particles at the beginning or during the course of the simulation is controlled via the following parameters. For each species, the mass (`Part-Species[$]-MassIC`), charge (`Part-Species[$]-ChargeIC`) and weighting factor $w$ (`Part-Species[$]-MacroParticleFactor`) have to be defined.
 
