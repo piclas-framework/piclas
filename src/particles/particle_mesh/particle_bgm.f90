@@ -68,13 +68,12 @@ CALL prms%SetSection('BGM')
 CALL prms%CreateRealArrayOption('Part-FIBGMdeltas'&
   , 'Define the deltas for the Cartesian Fast-Init-Background-Mesh.'//&
   ' They should be of the similar size as the smallest cells of the used mesh for simulation.'&
-  , '1. , 1. , 1.')
+  , '0. , 0. , 0.')
 CALL prms%CreateRealArrayOption('Part-FactorFIBGM'&
   , 'Factor with which the background mesh will be scaled.'&
   , '1. , 1. , 1.')
 CALL prms%CreateRealOption(     'Part-SafetyFactor'           , 'Factor to scale the halo region with MPI', '1.0')
 CALL prms%CreateRealOption(     'Particles-HaloEpsVelo'       , 'Halo region velocity [m/s]', '0.')
-CALL prms%CreateLogicalOption(  'Part-FIBGM-Automatic'        , 'True if the FIBGM should be build automatically','.TRUE.')
 
 
 END SUBROUTINE DefineParametersParticleBGM
@@ -289,12 +288,17 @@ END SELECT
 CALL BARRIER_AND_SYNC(BoundsOfElem_Shared_Win,MPI_COMM_SHARED)
 #endif  /*USE_MPI*/
 
+GEO%FIBGMdeltas(1:3) = GETREALARRAY('Part-FIBGMdeltas',3)
 
-GEO%AutomaticFIBGM = GETLOGICAL('Part-FIBGM-Automatic','.TRUE.')
+IF(SUM(ABS(GEO%FIBGMdeltas(1:3))).EQ.0) THEN
+  GEO%AutomaticFIBGM=.TRUE.
+ELSE
+  GEO%AutomaticFIBGM=.FALSE.
+END IF
+CALL PrintOption('Automatic calculation of FIBGM size','INFO',LogOpt=GEO%AutomaticFIBGM)
 
 IF(.NOT.GEO%AutomaticFIBGM) THEN
   ! Read parameter for FastInitBackgroundMesh (FIBGM)
-  GEO%FIBGMdeltas(1:3) = GETREALARRAY('Part-FIBGMdeltas',3)
   GEO%FactorFIBGM(1:3) = GETREALARRAY('Part-FactorFIBGM',3)
   GEO%FIBGMdeltas(1:3) = GEO%FIBGMdeltas(1:3)/GEO%FactorFIBGM(1:3)
 ELSE
