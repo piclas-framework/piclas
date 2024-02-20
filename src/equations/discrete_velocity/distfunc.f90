@@ -25,7 +25,8 @@ PRIVATE
 !----------------------------------------------------------------------------------------------------------------------------------
 
 PUBLIC:: MacroValuesFromDistribution, MaxwellDistribution, MaxwellDistributionCons
-PUBLIC:: ShakhovDistribution, ESBGKDistribution, GradDistribution, SkewNormalDistribution, SkewtDistribution
+PUBLIC:: ShakhovDistribution, ESBGKDistribution, GradDistribution, GradDistributionPrandtl
+PUBLIC:: SkewNormalDistribution, SkewtDistribution
 PUBLIC:: MaxwellScattering, RescaleU, RescaleInit, ForceStep
 !==================================================================================================================================
 
@@ -46,6 +47,7 @@ IMPLICIT NONE
 REAL,INTENT(IN)                 :: U(PP_nVar_FV), tDeriv
 INTEGER,INTENT(IN)              :: tilde
 REAL, INTENT(OUT)               :: MacroVal(14), tau
+! REAL, INTENT(OUT), OPTIONAL     :: skewness(1:3)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -59,6 +61,7 @@ rhoE = 0.
 PressTens = 0.
 Heatflux = 0.
 MacroVal = 0.
+! IF (PRESENT(skewness)) skewness = 0.
 DO kVel=1, DVMnVelos(3);   DO jVel=1, DVMnVelos(2);   DO iVel=1, DVMnVelos(1)
   upos= iVel+(jVel-1)*DVMnVelos(1)+(kVel-1)*DVMnVelos(1)*DVMnVelos(2)
   weight = DVMWeights(iVel,1)*DVMWeights(jVel,2)*DVMWeights(kVel,3)
@@ -105,6 +108,11 @@ DO kVel=1, DVMnVelos(3);   DO jVel=1, DVMnVelos(2);   DO iVel=1, DVMnVelos(1)
     Heatflux(1) = Heatflux(1) + weight*0.5*cVel(1)*(U(upos)*cMag)
     Heatflux(2) = Heatflux(2) + weight*0.5*cVel(2)*(U(upos)*cMag)
     Heatflux(3) = Heatflux(3) + weight*0.5*cVel(3)*(U(upos)*cMag)
+    ! IF (PRESENT(skewness)) THEN
+    !   skewness(1) = skewness(1) + weight*cVel(1)*(U(upos)*cVel(1)*cVel(1))
+    !   skewness(2) = skewness(2) + weight*cVel(2)*(U(upos)*cVel(2)*cVel(2))
+    !   skewness(3) = skewness(3) + weight*cVel(3)*(U(upos)*cVel(3)*cVel(3))
+    ! END IF
   END IF
 END DO; END DO; END DO
 
@@ -116,10 +124,10 @@ IF (MacroVal(5).LE.0) CALL abort(__STAMP__,'DVM negative temperature!')
 mu = DVMSpeciesData%mu_Ref*(MacroVal(5)/DVMSpeciesData%T_Ref)**(DVMSpeciesData%omegaVHS+0.5)
 tau = mu/(DVMSpeciesData%R_S*MacroVal(1)*MacroVal(5))
 IF (DVMBGKModel.EQ.1) tau = tau/DVMSpeciesData%Prandtl !ESBGK
+IF (DVMBGKModel.EQ.7) tau = tau*2./3.
 
 Macroval(6:11)  = PressTens(1:6)
 MacroVal(12:14) = Heatflux(1:3)
-! print*, 2.*(HeatFlux(1)/rho)*(DVMSpeciesData%R_S*MacroVal(5))**(-3./2.)
 IF (tDeriv.GT.0.) THEN
   SELECT CASE (tilde)
   CASE(1) ! higher moments from f~
@@ -137,6 +145,12 @@ IF (tDeriv.GT.0.) THEN
         MacroVal(6:8)   = Macroval(6:8)*prefac+(1.-prefac)*MacroVal(5)*DVMSpeciesData%R_S*rho
         MacroVal(9:11)  = MacroVal(9:11)*prefac
         MacroVal(12:14) = MacroVal(12:14)*prefac/(DVMSpeciesData%Prandtl+prefac*(1-DVMSpeciesData%Prandtl))
+
+      CASE(7) !Double moment distributions
+        Macroval(6:8)   = (Macroval(6:8)*prefac+(1.-prefac)*MacroVal(5)*DVMSpeciesData%R_S*rho*2./3.) &
+        /(2./3.+prefac/3.)
+        MacroVal(9:11)  = Macroval(9:11)*prefac/(2./3.+prefac/3.)
+        MacroVal(12:14) = MacroVal(12:14)*prefac/(2.*DVMSpeciesData%Prandtl/3.+prefac*(1.-2.*DVMSpeciesData%Prandtl/3.))
 
       CASE(3,4) !Maxwell
         MacroVal(6:8)   = Macroval(6:8)*prefac+(1.-prefac)*MacroVal(5)*DVMSpeciesData%R_S*rho
@@ -425,7 +439,8 @@ REAL, INTENT(IN)                 :: MacroVal(14)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 REAL                            :: rho,Temp,uVelo(3),cVel(3),cMag,gM,q(3),pressTens(3,3),ShakhFac1,ShakhFac2,pressFac,pressProduct
-INTEGER                         :: iVel,jVel,kVel, upos
+REAL                            :: pressProduct2
+INTEGER                         :: iVel,jVel,kVel,upos
 !===================================================================================================================================
 ! here the traceless pressure tensor is used (init with MacroVal(6:8)=0 for Tx=Ty=Tz)
 IF (ABS(SUM(MacroVal(6:8))).GT.0.) CALL abort(__STAMP__,'Diagonal entries of the pressure tensor should add up to zero')
@@ -448,12 +463,16 @@ DO kVel=1, DVMnVelos(3);   DO jVel=1, DVMnVelos(2);   DO iVel=1, DVMnVelos(1)
   cVel(1) = DVMVelos(iVel,1) - uVelo(1)
   cVel(2) = DVMVelos(jVel,2) - uVelo(2)
   cVel(3) = DVMVelos(kVel,3) - uVelo(3)
+  cMag = DOT_PRODUCT(cVel,cVel)
 
   pressProduct = cVel(1)*DOT_PRODUCT(pressTens(:,1),cVel) &
                + cVel(2)*DOT_PRODUCT(pressTens(:,2),cVel) &
                + cVel(3)*DOT_PRODUCT(pressTens(:,3),cVel)
 
-  cMag = cVel(1)*cVel(1) + cVel(2)*cVel(2)+ cVel(3)*cVel(3)
+  IF (DVMDim.LT.3) THEN
+    pressProduct2 = pressProduct + (5.-DVMDim)*DVMSpeciesData%R_S*Temp*pressTens(3,3)
+    pressProduct = pressProduct + (3.-DVMDim)*DVMSpeciesData%R_S*Temp*pressTens(3,3)
+  END IF
 
   pressFac = rho*DVMSpeciesData%R_S*DVMSpeciesData%R_S*Temp*Temp
   ShakhFac1 = DOT_PRODUCT(q,cVel)/(5.*pressFac)
@@ -462,9 +481,78 @@ DO kVel=1, DVMnVelos(3);   DO jVel=1, DVMnVelos(2);   DO iVel=1, DVMnVelos(1)
   gM = rho/((2.*Pi*DVMSpeciesData%R_S*Temp)**(DVMDim/2.))*exp(-cMag/(2.*DVMSpeciesData%R_S*Temp))
   fGrad(upos) = gM*(1.+0.5*pressProduct/pressFac+ShakhFac1*(ShakhFac2-2.-DVMDim))
   IF (DVMDim.LT.3) THEN
-    fGrad(PP_nVar_FV/2+upos) = gM*DVMSpeciesData%R_S*Temp*(DVMSpeciesData%Internal_DOF+3.-DVMDim &
-                  + 0.5*(pressProduct/pressFac)*(DVMSpeciesData%Internal_DOF+3.-DVMDim) &
-                  + ShakhFac1*((ShakhFac2-DVMDim)*(DVMSpeciesData%Internal_DOF+3.-DVMDim)-2.*DVMSpeciesData%Internal_DOF))
+    fGrad(PP_nVar_FV/2+upos) = gM*DVMSpeciesData%R_S*Temp*(DVMSpeciesData%Internal_DOF+3.-DVMDim) &
+                  *(1 + 0.5*pressProduct2/pressFac + ShakhFac1*(ShakhFac2-DVMDim))
+  END IF
+END DO; END DO; END DO
+
+END SUBROUTINE
+
+SUBROUTINE GradDistributionPrandtl(MacroVal,fGrad)
+!===================================================================================================================================
+! Grad 13 moments distribution from macro values
+!===================================================================================================================================
+! MODULES
+USE MOD_Equation_Vars_FV         ,ONLY: DVMnVelos, DVMVelos, DVMSpeciesData, DVMDim, Pi
+USE MOD_PreProc
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+REAL,INTENT(OUT)                 :: fGrad(PP_nVar_FV)
+REAL, INTENT(IN)                 :: MacroVal(14)
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+REAL                            :: rho,Temp,uVelo(3),cVel(3),cMag,gM,q(3),pressTens(3,3),ShakhFac1,ShakhFac2,pressFac,pressProduct
+REAL                            :: pressProduct2
+INTEGER                         :: iVel,jVel,kVel,upos
+!===================================================================================================================================
+rho              = MacroVal(1)
+uVelo(1:3)       = MacroVal(2:4)
+Temp             = MacroVal(5)
+pressTens(1,1)   = MacroVal(6)
+pressTens(2,2)   = MacroVal(7)
+pressTens(3,3)   = MacroVal(8)
+pressTens(1,2:3) = MacroVal(9:10)
+pressTens(2:3,1) = MacroVal(9:10)
+pressTens(2,3)   = MacroVal(11)
+pressTens(3,2)   = MacroVal(11)
+
+pressTens(1,1) = pressTens(1,1)-rho*DVMSpeciesData%R_S*Temp
+pressTens(2,2) = pressTens(2,2)-rho*DVMSpeciesData%R_S*Temp
+pressTens(3,3) = pressTens(3,3)-rho*DVMSpeciesData%R_S*Temp
+
+pressTens = pressTens/3.
+q(1:3)    = (1.-2.*DVMSpeciesData%Prandtl/3.)*MacroVal(12:14)
+
+DO kVel=1, DVMnVelos(3);   DO jVel=1, DVMnVelos(2);   DO iVel=1, DVMnVelos(1)
+  upos= iVel+(jVel-1)*DVMnVelos(1)+(kVel-1)*DVMnVelos(1)*DVMnVelos(2)
+
+  cVel(1) = DVMVelos(iVel,1) - uVelo(1)
+  cVel(2) = DVMVelos(jVel,2) - uVelo(2)
+  cVel(3) = DVMVelos(kVel,3) - uVelo(3)
+  cMag = DOT_PRODUCT(cVel,cVel)
+
+  pressProduct = cVel(1)*DOT_PRODUCT(pressTens(:,1),cVel) &
+               + cVel(2)*DOT_PRODUCT(pressTens(:,2),cVel) &
+               + cVel(3)*DOT_PRODUCT(pressTens(:,3),cVel)
+
+  IF (DVMDim.LT.3) THEN
+    pressProduct2 = pressProduct + (5.-DVMDim)*DVMSpeciesData%R_S*Temp*pressTens(3,3)
+    pressProduct = pressProduct + (3.-DVMDim)*DVMSpeciesData%R_S*Temp*pressTens(3,3)
+  END IF
+
+  pressFac = rho*DVMSpeciesData%R_S*DVMSpeciesData%R_S*Temp*Temp
+  ShakhFac1 = DOT_PRODUCT(q,cVel)/(5.*pressFac)
+  ShakhFac2 = cMag/(DVMSpeciesData%R_S*Temp)
+
+  gM = rho/((2.*Pi*DVMSpeciesData%R_S*Temp)**(DVMDim/2.))*exp(-cMag/(2.*DVMSpeciesData%R_S*Temp))
+  fGrad(upos) = gM*(1.+0.5*pressProduct/pressFac+ShakhFac1*(ShakhFac2-2.-DVMDim))
+  IF (DVMDim.LT.3) THEN
+    fGrad(PP_nVar_FV/2+upos) = gM*DVMSpeciesData%R_S*Temp*(DVMSpeciesData%Internal_DOF+3.-DVMDim) &
+                  *(1 + 0.5*pressProduct2/pressFac + ShakhFac1*(ShakhFac2-DVMDim))
   END IF
 END DO; END DO; END DO
 
@@ -483,6 +571,7 @@ IMPLICIT NONE
 ! INPUT VARIABLES
 REAL,INTENT(OUT)                 :: fSkew(PP_nVar_FV)
 REAL, INTENT(IN)                 :: MacroVal(14)
+! REAL, INTENT(IN),OPTIONAL        :: skewness(3)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -498,11 +587,8 @@ q(1:3) = MacroVal(12:14)
 
 max_skew = 0.5 * (4. - Pi) * (2. / (Pi - 2.)) ** 1.5
 skew = (1-DVMSpeciesData%Prandtl)*2.*(q/rho)*(DVMSpeciesData%R_S*Temp)**(-3./2.)
-! IF (ABS(skew(1)).GT.max_skew) THEN
-!   skew(1) = 0.9999*max_skew
-!   ! print*, skew(1), max_skew
-!   ! read*
-! END IF
+! skew = (1-DVMSpeciesData%Prandtl)*(skewness/rho)*(DVMSpeciesData%R_S*Temp)**(-3./2.)
+
 skew = SIGN(1.,skew)*MIN(ABS(skew),0.9*max_skew)
 
 delta = (SIGN(1.,skew)*(2*ABS(skew)/(4-Pi))**(1./3.))/SQRT(2./Pi*(1+(2*ABS(skew)/(4-Pi))**(2./3.)))
@@ -527,6 +613,175 @@ DO kVel=1, DVMnVelos(3);   DO jVel=1, DVMnVelos(2);   DO iVel=1, DVMnVelos(1)
 END DO; END DO; END DO
 
 END SUBROUTINE
+
+! function outer_product(A,B) result(AB)
+!   double precision, intent(in) :: A(:),B(:)
+!   double precision, allocatable :: AB(:,:)
+!   integer :: nA,nB
+!   nA=size(A)
+!   nB=size(B)
+!   allocate(AB(nA,nB))
+!   AB = spread(source = A, dim = 2, ncopies = nB) * &
+!        spread(source = B, dim = 1, ncopies = nA)
+! end function outer_product
+
+! subroutine cov2corr(covariance, correlation, n)
+!   implicit none
+!   integer, intent(in) :: n
+!   real, intent(in) :: covariance(n,n)
+!   real, intent(out) :: correlation(n,n)
+!   integer :: i, j
+
+!   ! Berechne die Diagonalelemente der Korrelationsmatrix
+!   do i = 1, n
+!      correlation(i,i) = 1.0
+!   end do
+
+!   ! Berechne die nicht-diagonalen Elemente der Korrelationsmatrix
+!   do i = 1, n
+!      do j = i+1, n
+!         correlation(i,j) = covariance(i,j) / sqrt(covariance(i,i) * covariance(j,j))
+!         correlation(j,i) = correlation(i,j) ! Symmetrisch setzen
+!      end do
+!   end do
+
+! end subroutine cov2corr
+
+! SUBROUTINE MultiSkewNormalDistribution(MacroVal,fSkew,skewness)
+! !===================================================================================================================================
+! ! Skew-normal distribution from macro values
+! !===================================================================================================================================
+! ! MODULES
+! USE MOD_Equation_Vars_FV         ,ONLY: DVMnVelos, DVMVelos, DVMSpeciesData, DVMDim, Pi
+! USE MOD_Basis                    ,ONLY: INV33
+! USE MOD_PreProc
+! USE MOD_Globals
+! ! IMPLICIT VARIABLE HANDLING
+! IMPLICIT NONE
+! !-----------------------------------------------------------------------------------------------------------------------------------
+! ! INPUT VARIABLES
+! REAL,INTENT(OUT)                 :: fSkew(PP_nVar_FV)
+! REAL, INTENT(IN)                 :: MacroVal(14)
+! REAL, INTENT(IN),OPTIONAL        :: skewness(3)
+! !-----------------------------------------------------------------------------------------------------------------------------------
+! ! OUTPUT VARIABLES
+! !-----------------------------------------------------------------------------------------------------------------------------------
+! ! LOCAL VARIABLES
+! REAL                            :: rho, Temp, uVelo(3), cVel(3), cMag, q(3)
+! INTEGER                         :: iVel,jVel,kVel, upos, iLoop
+! REAL                            :: skew(1:3), delta(1:3), alpha(1:3), ksi(1:3), omega(1:3), Phi, max_skew, omegaMat(3,3), omegaInv(3,3), omegaBar(3,3), omegaBarInv(3,3), detBar
+! REAL                            :: obar_inv_delta(3), delta2(3), deltasq, pressTens(3,3), hfac, ldet, pressProduct
+! !===================================================================================================================================
+! ! print*, 'aaaaaaaaaaaaaaaaaaaaaa'
+! rho = MacroVal(1)
+! uVelo(1:3) = MacroVal(2:4)
+! Temp = MacroVal(5)
+! q(1:3) = MacroVal(12:14)
+! pressTens(1,1)   = MacroVal(6)
+! pressTens(2,2)   = MacroVal(7)
+! pressTens(3,3)   = MacroVal(8)
+! pressTens(1,2:3) = MacroVal(9:10)
+! pressTens(2:3,1) = MacroVal(9:10)
+! pressTens(2,3)   = MacroVal(11)
+! pressTens(3,2)   = MacroVal(11)
+
+! ! pressTens = pressTens/rho/3.
+! pressTens = pressTens/rho
+
+! ! pressTens(1,1) = pressTens(1,1)+DVMSpeciesData%R_S*Temp*2./3.
+! ! pressTens(2,2) = pressTens(2,2)+DVMSpeciesData%R_S*Temp*2./3.
+! ! pressTens(3,3) = pressTens(3,3)+DVMSpeciesData%R_S*Temp*2./3.
+
+
+! max_skew = 0.5 * (4. - Pi) * (2. / (Pi - 2.)) ** 1.5
+! ! skew = (1.-2.*DVMSpeciesData%Prandtl/3.)*2.*(q/rho)*(DVMSpeciesData%R_S*Temp)**(-3./2.)
+! skew = (skewness/rho)*(DVMSpeciesData%R_S*Temp)**(-3./2.)
+
+
+! print*, 'skew', skew
+! print*, 'maxskew', 0.9*max_skew
+! print*, 'pressTens', pressTens
+! ! read*
+! IF (ABS(skew(1)).GT.max_skew) THEN
+!   print*, skew(1), max_skew
+!   read*
+! END IF
+
+
+! skew = SIGN(1.,skew)*MIN(ABS(skew),0.9*max_skew)
+
+! skew(3) = 0.
+
+! delta = SIGN(1.,skew)*((2.*ABS(skew)/(4.-Pi))**(1./3.))/SQRT(2./Pi*(1.+(2.*ABS(skew)/(4.-Pi))**(2./3.)))
+! delta2 = ((2.*ABS(skew)/(4.-Pi))**(2./3.))/(2./Pi*(1.+(2.*ABS(skew)/(4.-Pi))**(2./3.)))
+
+! DO iLoop = 1,3
+!   omega(iLoop) = SQRT(pressTens(iLoop,iLoop)/(1.-2.*delta2(iLoop)/Pi))
+! END DO
+! ksi = uVelo - SQRT(2./Pi)*omega*delta
+
+! omegaMat=pressTens + outer_product(delta*omega*sqrt(2./Pi),delta*omega*sqrt(2./Pi))
+
+! CALL INV33(omegaMat,omegaInv,ldet)
+
+! IF (ldet.LE.0.) THEN
+!   CALL abort(__STAMP__,'ESBGK matrix not positive-definite')
+! ELSE
+!   ! determinant from reduced pressure tensor (size D*D)
+!   IF (DVMDim.LE.2) ldet = ldet/pressTens(3,3)
+!   IF (DVMDim.LE.1) ldet = ldet/pressTens(2,2)
+! END IF
+
+! CALL cov2corr(omegaMat,omegaBar,3)
+! CALL INV33(omegaBar,omegaBarInv,detBar)
+! obar_inv_delta = MATMUL(omegaBarInv,delta)
+! deltasq= dot_product(delta,obar_inv_delta)
+! alpha = obar_inv_delta/SQRT(1.-deltasq)
+
+! print*, 'stuff', (2.*ABS(skew)/(4.-Pi))**(1./3.)
+! print*, 'delta', delta
+! print*, 'omega', omega
+! print*, 'omegaMat', omegaMat
+! print*, 'omegaBar', omegaBar
+! print*, 'omegaBarInv', omegaBarInv
+
+! print*, 'obar_inv_delta', obar_inv_delta
+! print*, 'alpha', alpha
+
+! DO kVel=1, DVMnVelos(3);   DO jVel=1, DVMnVelos(2);   DO iVel=1, DVMnVelos(1)
+!   upos= iVel+(jVel-1)*DVMnVelos(1)+(kVel-1)*DVMnVelos(1)*DVMnVelos(2)
+!   cVel(1) = (DVMVelos(iVel,1) - ksi(1))
+!   cVel(2) = (DVMVelos(jVel,2) - ksi(2))
+!   cVel(3) = (DVMVelos(kVel,3) - ksi(3))
+!   cMag = DOT_PRODUCT(cVel,cVel)
+
+!   ! Phi = 1.+ERF(SUM(cVel/omega*alpha)/sqrt(2.))
+!   Phi = PRODUCT(1.+ERF(cVel/omega*alpha/sqrt(2.)))
+
+
+
+!   pressProduct = cVel(1)*DOT_PRODUCT(omegaInv(:,1),cVel) &
+!                + cVel(2)*DOT_PRODUCT(omegaInv(:,2),cVel) &
+!                + cVel(3)*DOT_PRODUCT(omegaInv(:,3),cVel)
+
+!   fSkew(upos) = rho/sqrt(ldet*(2*Pi)**DVMDim)*EXP(-pressProduct/2.)*Phi
+!   IF ((DVMSpeciesData%Internal_DOF .GT.0.0).OR.(DVMDim.LT.3)) THEN
+!     hfac = DVMSpeciesData%R_S*Temp*DVMSpeciesData%Internal_DOF
+!     IF (DVMDim.LE.2) hfac = hfac + pressTens(3,3)
+!     IF (DVMDim.LE.1) hfac = hfac + pressTens(2,2)
+!     fSkew(PP_nVar_FV/2+upos) = fSkew(upos)*hfac
+!   END IF
+
+!   IF(iVel.EQ.27.AND.jVel.EQ.27.AND.kVel.EQ.27) THEN
+!     print*, 'velo', DVMVelos(iVel,1), DVMVelos(jVel,2), DVMVelos(kVel,3)
+!     print*, 'Phi', Phi
+!     print*, 'exp',  EXP(-pressProduct/2.)
+!     print*, 'f',fSkew(upos)
+!   END IF
+
+! END DO; END DO; END DO
+
+! END SUBROUTINE
 
 SUBROUTINE SkewtDistribution(MacroVal,fSkewt)
 !===================================================================================================================================
@@ -720,6 +975,8 @@ SELECT CASE (DVMBGKModel)
     CALL SkewNormalDistribution(MacroVal,fTarget)
   CASE(6)
     CALL SkewtDistribution(MacroVal,fTarget)
+  CASE(7)
+    CALL GradDistributionPrandtl(MacroVal,fTarget)
   CASE DEFAULT
     CALL abort(__STAMP__,'DVM BGK Model not implemented.')
 END SELECT
@@ -803,10 +1060,8 @@ DO iElem =1, nElems
         CALL SkewNormalDistribution(MacroVal,fTarget)
       CASE(6)
         CALL SkewtDistribution(MacroVal,fTarget)
-        ! print*, MacroVal
-        ! print*, 'skewness target'
-        ! CALL MacroValuesFromDistribution(MacroVal(:),fTarget,tDeriv,tau,tilde)
-        ! read*
+      CASE(7)
+        CALL GradDistributionPrandtl(MacroVal,fTarget)
       CASE DEFAULT
         CALL abort(__STAMP__,'DVM BGK Model not implemented.')
     END SELECT
@@ -854,6 +1109,8 @@ DO iElem =1, nElems
         CALL SkewNormalDistribution(MacroVal,fTarget)
       CASE(6)
         CALL SkewtDistribution(MacroVal,fTarget)
+      CASE(7)
+        CALL GradDistributionPrandtl(MacroVal,fTarget)
       CASE DEFAULT
         CALL abort(__STAMP__,'DVM BGK Model not implemented.')
     END SELECT
