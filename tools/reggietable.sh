@@ -22,7 +22,33 @@ nlink=0
 for DIRECTORY in $(ls -d */) ; do
   procs=$(grep -in MPI ${DIRECTORY}command_line.ini | cut -d "=" -f2)
   feature=$(head -n1 ${DIRECTORY}readme.md | cut -d "#" -f2)
-  comparing=$(grep "**Comparing**" ${DIRECTORY}readme.md | cut -d ":" -f2)
+  comparing=$(grep "\*\*Comparing\*\*" ${DIRECTORY}readme.md | cut -d ":" -f2)
+  if [[ -z "${comparing}" ]]; then
+    found=$(cat ${DIRECTORY}analyze.ini | grep "PartAnalyze.csv")
+    if [[ -n "${found}" ]]; then
+      if [[ -n ${comparing} ]]; then
+        comparing="${comparing}, PartAnalyze"
+      else
+        comparing="PartAnalyze"
+      fi
+    fi
+    found=$(cat ${DIRECTORY}analyze.ini | grep "FieldAnalyze.csv")
+    if [[ -n "${found}" ]]; then
+      if [[ -n ${comparing} ]]; then
+        comparing="${comparing}, FieldAnalyze"
+      else
+        comparing="FieldAnalyze"
+      fi
+    fi
+    found=$(cat ${DIRECTORY}analyze.ini | grep "SurfaceAnalyze.csv")
+    if [[ -n "${found}" ]]; then
+      if [[ -n ${comparing} ]]; then
+        comparing="${comparing}, SurfaceAnalyze"
+      else
+        comparing="SurfaceAnalyze"
+      fi
+    fi
+  fi
   string="$(pwd -P)${DIRECTORY}"
   link="[Link](regressioncheck${string#*regressioncheck}readme.md)"
 
@@ -39,11 +65,37 @@ for DIRECTORY in $(ls -d */) ; do
   count=$((count + 1)) # must be placed after echo on HLRS, ForHLR1 (but not on local PC with zsh)
   procs=$(grep -in MPI ${DIRECTORY}command_line.ini | cut -d "=" -f2)
   feature=$(head -n1 ${DIRECTORY}readme.md | cut -d "#" -f2)
-  comparing=$(grep "**Comparing**" ${DIRECTORY}readme.md | cut -d ":" -f2)
+  comparing=$(grep "\*\*Comparing\*\*" ${DIRECTORY}readme.md | cut -d ":" -f2)
+  if [[ -z "${comparing}" ]]; then
+    found=$(cat ${DIRECTORY}analyze.ini | grep "PartAnalyze.csv")
+    if [[ -n "${found}" ]]; then
+      if [[ -n ${comparing} ]]; then
+        comparing="${comparing}, PartAnalyze"
+      else
+        comparing="PartAnalyze"
+      fi
+    fi
+    found=$(cat ${DIRECTORY}analyze.ini | grep "FieldAnalyze.csv")
+    if [[ -n "${found}" ]]; then
+      if [[ -n ${comparing} ]]; then
+        comparing="${comparing}, FieldAnalyze"
+      else
+        comparing="FieldAnalyze"
+      fi
+    fi
+    found=$(cat ${DIRECTORY}analyze.ini | grep "SurfaceAnalyze.csv")
+    if [[ -n "${found}" ]]; then
+      if [[ -n ${comparing} ]]; then
+        comparing="${comparing}, SurfaceAnalyze"
+      else
+        comparing="SurfaceAnalyze"
+      fi
+    fi
+  fi
   string="$(pwd -P)${DIRECTORY}"
   link="[Link](regressioncheck${string#*regressioncheck}readme.md)"
 
-  output="| %-4s | %-${nDIRECTORY}s |     | %-${nfeature}s | nProcs=%-${nprocs}s  | %-${ncomparing}s | %-${nlink}s |\n"
+  output="| %-4s | %-${nDIRECTORY}s |     | %-${nfeature}s | %-${nprocs}s | %-${ncomparing}s | %-${nlink}s |\n"
   printf "${output}" "${count}" "${DIRECTORY}" "${feature}" "${procs}" "${comparing}" "${link}"
 done
 
