@@ -123,6 +123,7 @@ ELSE
 END IF
 LoadBalanceSample   = GETINT('LoadBalanceSample')
 LoadBalanceMaxSteps = GETINT('LoadBalanceMaxSteps')
+IF (LoadBalanceMaxSteps.LE.0) LoadBalanceMaxSteps = HUGE(1)
 PerformPartWeightLB = GETLOGICAL('PartWeightLoadBalance','F')
 IF (PerformPartWeightLB) THEN
   LoadBalanceSample = 0 ! deactivate loadbalance sampling of elemtimes if balancing with partweight is enabled
@@ -404,7 +405,11 @@ CALL extrae_eventandcounters(int(9000001), int8(2))
 SWRITE(UNIT_StdOut,'(132("="))')
 nLoadBalanceSteps=nLoadBalanceSteps+1
 CALL set_formatting("green")
-SWRITE(UNIT_stdOut,'(A,I0,A,I0,A)',ADVANCE='NO') ' PERFORMING LOAD BALANCE ',nLoadBalanceSteps,' of ',LoadBalanceMaxSteps,' ...'
+IF (LoadBalanceMaxSteps.LT.HUGE(1)) THEN
+  SWRITE(UNIT_stdOut,'(A,I0,A,I0,A)',ADVANCE='NO') ' PERFORMING LOAD BALANCE ',nLoadBalanceSteps,' of ',LoadBalanceMaxSteps,' ...'
+ELSE
+  SWRITE(UNIT_stdOut,'(A,I0,A     )',ADVANCE='NO') ' PERFORMING LOAD BALANCE ',nLoadBalanceSteps,' ...'
+END IF
 CALL clear_formatting()
 SWRITE(UNIT_StdOut,'(1X)')
 ! Measure init duration
