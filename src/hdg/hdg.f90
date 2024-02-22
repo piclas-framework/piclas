@@ -702,7 +702,7 @@ FPC%ChargeProc = 0.
 
 ! Set initial value depending on IniExactFunc
 SELECT CASE (IniExactFunc)
-CASE(800,900) ! Dielectric slab on electrode (left) with plasma between slab and other electrode opposite
+CASE(800,900,901,1000,1100) ! Dielectric slab on electrode (left) with plasma between slab and other electrode opposite
   ! Set initial value
   FPC%Charge(1)  = 1.0e-2*(GEO%ymaxglob-GEO%yminglob)*(GEO%zmaxglob-GEO%zminglob) ! C/m2
   FPC%Voltage(1) = 1.1293922903231239 ! V
@@ -1656,6 +1656,7 @@ INTEGER :: iUniqueEPCBC
 #if (USE_HDG && (PP_nVar==1))
 INTEGER           :: iDir,iElem
 #endif /*(USE_HDG && (PP_nVar==1))*/
+REAL              :: maxphi
 !===================================================================================================================================
 #ifdef EXTRAE
 CALL extrae_eventandcounters(int(9000001), int8(4))
@@ -1758,6 +1759,13 @@ ELSE
 #if defined(PARTICLES)
 END IF
 #endif /*defined(PARTICLES)*/
+
+! Debugging
+!maxphi = maxval(lambda)
+!CALL MPI_ALLREDUCE(MPI_IN_PLACE,maxphi,1,MPI_DOUBLE_PRECISION,MPI_MAX,MPI_COMM_PICLAS,iError)
+!IF(myrank.eq.0)THEN
+!  IPWRITE(UNIT_StdOut,*) "iter,t,maxval(lambda) =", iter,t,maxphi
+!END IF ! myrank.eq.0
 
 ! Calculate temporal derivate of D in last iteration before Analyze_dt is reached: Use E^n+1 here and calculate the derivative dD/dt
 #if (USE_HDG && (PP_nVar==1))

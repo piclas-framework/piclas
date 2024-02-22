@@ -145,9 +145,9 @@ IniExactFunc = GETINT('IniExactFunc')
 
 ! Sanity checks
 SELECT CASE (IniExactFunc)
-CASE(800,801,900) ! Dielectric slab on electrode (left) with plasma between slab and other electrode opposite
+CASE(800,801,900,901,1000,1100) ! Dielectric slab on electrode (left) with plasma between slab and other electrode opposite
 #if ! (defined(CODE_ANALYZE) && USE_PETSC && PARTICLES)
-  CALL abort(__STAMP__,'IniExactFunc=800,801,900 requires PICLAS_CODE_ANALYZE=ON, PICLAS_PETSC=ON and PICLAS_PARTICLES=ON')
+  CALL abort(__STAMP__,'IniExactFunc=800,801,900,901,1000,1100 requires PICLAS_CODE_ANALYZE=ON, PICLAS_PETSC=ON and PICLAS_PARTICLES=ON')
 #endif /*! (defined(CODE_ANALYZE) && USE_PETSC && PARTICLES)*/
 END SELECT
 
@@ -839,12 +839,11 @@ CASE(700) ! Analytical solution of a charged particle moving in cylindrical coor
 #else
   CALL abort(__STAMP__,'ExactFunc=700 requires PARTICLES=ON')
 #endif /*defined(PARTICLES)*/
-CASE(800,801,900) ! Dielectric slab on electrode (left) with plasma between slab and other electrode opposite
+CASE(800,801,900,901,1000,1100) ! Dielectric slab on electrode (left) with plasma between slab and other electrode opposite
   resu = 0.
-  ASSOCIATE( x     => x(1)   , &
-             y     => x(2)   , &
-             z     => x(3)   , &
-             L     =>  1e-3  , &
+  xi = x(1)
+  IF((ExactFunction.GE.1000).AND.(x(1).GT.0.5e-6)) xi = x(1) - 1e-6
+  ASSOCIATE( L     =>  1e-3  , &
              d     =>  1e-8  , &
              eps1  =>  1e1   , &
              sigma =>  1e-2  , &
@@ -853,11 +852,11 @@ CASE(800,801,900) ! Dielectric slab on electrode (left) with plasma between slab
     ASSOCIATE( PhiF => ((d/L)/((d/L)+eps1))*( L*(sigma + 0.5*rho0*L)/eps0 + Phi0 ) )
       ASSOCIATE( a => 0.5*rho0*L/eps0 + (Phi0 - PhiF)/L ,&
                  b => PhiF)
-        IF(x.GE.0.0)THEN
-          resu = -0.5*rho0*x**2/eps0 + a*x + b
+        IF(xi.GT.0.0)THEN
+          resu = -0.5*rho0*xi**2/eps0 + a*xi + b
         ELSE
-          resu = b * (x/d + 1.0)
-        END IF ! x.GE.0.0
+          resu = b * (xi/d + 1.0)
+        END IF ! xi.GE.0.0
       END ASSOCIATE
     END ASSOCIATE
   END ASSOCIATE
@@ -914,7 +913,7 @@ REAL,INTENT(IN),OPTIONAL        :: Phi
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 REAL                            :: xvec(3)
-REAL                            :: r1,r2
+REAL                            :: r1,r2,dx
 REAL,DIMENSION(3)               :: dx1,dx2,dr1dx,dr2dx,dr1dx2,dr2dx2
 INTEGER                         :: Nloc
 #ifdef PARTICLES
@@ -952,37 +951,42 @@ CASE(105) ! 3D periodic test case
   resu(1)=-3 * SIN(xvec(1) + 1) * SIN(xvec(2) + 2) * SIN(xvec(3) + 3)
 CASE DEFAULT
   resu=0.
-END SELECT ! ExactFunction
+END SELECT ! IniExactFunc
 
 #if defined(PARTICLES)
 #if defined(CODE_ANALYZE)
 ! Specific source terms after particle deposition
 SELECT CASE(IniExactFunc)
-CASE(800) ! plasma between electrodes + particles
+CASE(800,1000) ! plasma between electrodes + particles
   ! Check Dirichlet elements
-  IF(ElemHasDirichletBC(iElem))THEN
+  dx=1e-3
+  IF(IniExactFunc.EQ.1000) dx=dx+1e-6
+  !IF(ElemHasDirichletBC(iElem))THEN
+  IF(1.eq.2)THEN
     ! Get length on element in 1D
     ASSOCIATE( Bounds => BoundsOfElem_Shared(1:2,1:3,iElem + offsetElem) ) ! 1-2: Min, Max value; 1-3: x,y,z
       ElemCharLengthX = ABS(Bounds(2,1)-Bounds(1,1)) ! ABS(max - min)
       ! Add scaled value in BC elements
-      IF((x.GT.0.0).AND.(x.LT.1.0e-3))THEN
+      IF((x.GT.0.0).AND.(x.LT.dx))THEN
         IF(x.GT.0.5e-3)THEN
           ! Negative gradient
-          PartSource(4,i,j,k,iElem) = PartSource(4,i,j,k,iElem) - 1e-4*(1e-3-x)/ElemCharLengthX
+          PartSource(4,i,j,k,iElem) = PartSource(4,i,j,k,iElem) - 1e-4*(dx-x)/ElemCharLengthX
         ELSE
           ! Positive gradient
           PartSource(4,i,j,k,iElem) = PartSource(4,i,j,k,iElem) - 1e-4*x/ElemCharLengthX
         END IF ! x.GT.0.5e-3
-      END IF ! (x.GT.0.0).AND.(x.LT.1.0e-3)
+      END IF ! (x.GT.0.0).AND.(x.LT.dx)
       !WRITE (*,*) "x,source =", x,PartSource(4,i,j,k,iElem),NINT(x*1e9), " nm", " TRUE"
     END ASSOCIATE
   ELSE
     ! Add constant value
-    IF((x.GT.0.0).AND.(x.LT.1.0e-3)) PartSource(4,i,j,k,iElem) = PartSource(4,i,j,k,iElem) - 1e-4
+    IF((x.GT.0.0).AND.(x.LT.dx)) PartSource(4,i,j,k,iElem) = PartSource(4,i,j,k,iElem) - 1e-4
   !WRITE (*,*) "x,source =", x,PartSource(4,i,j,k,iElem),NINT(x*1e9), " nm"
   END IF ! ElemHasDirichletBC(iElem)
-CASE(801) ! plasma between electrodes + particles: Linear source
-  IF(x.GT.0.0)THEN
+CASE(801,901) ! plasma between electrodes + particles: Linear source
+  dx=1e-3
+  IF(IniExactFunc.EQ.901) dx=dx+1e-6
+  IF((x.GT.0.0).AND.(x.LT.dx))THEN
     PartSource(4,i,j,k,iElem) = PartSource(4,i,j,k,iElem) - 1e-4*(1.0 - Elem_xGP(2,i,j,k,iElem)/1e-3)
   END IF ! x.GT.0.0
 END SELECT
