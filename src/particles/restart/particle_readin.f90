@@ -70,7 +70,7 @@ USE MOD_Particle_Mesh_Vars     ,ONLY: ElemNodeID_Shared,NodeInfo_Shared,nUniqueG
 USE MOD_Mesh_Tools             ,ONLY: GetCNElemID
 USE MOD_Mesh_Vars              ,ONLY: offsetElem
 USE MOD_Particle_Vars          ,ONLY: DelayTime
-USE MOD_PICDepo_Vars           ,ONLY: PartSource
+USE MOD_PICDepo_Vars           ,ONLY: PS_N
 USE MOD_TimeDisc_Vars          ,ONLY: time
 #endif /*USE_LOADBALANCE*/
 USE MOD_Particle_Vars          ,ONLY: VibQuantData,ElecDistriData,AD_Data

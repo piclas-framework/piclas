@@ -212,7 +212,7 @@ IF(.NOT.GetMeshMinMaxBoundariesIsDone)THEN
 END IF
 
 ! 1.a) NodeCoords: EQUI Ngeo to CLNgeo and CLN
-CALL GetVandermonde(    Ngeo   , NodeTypeVISU, Ngeo    , NodeTypeCL, Vdm_EQNGeo_CLNgeo , modal=.FALSE.)
+CALL GetVandermonde(    Ngeo   , NodeTypeVISU, Ngeo    , NodeTypeCL, Vdm_EQNGeo_CLNGeo , modal=.FALSE.)
 
 ! 1.b) dXCL_Ngeo:
 CALL GetDerivativeMatrix(Ngeo  , NodeTypeCL  , DCL_NGeo)
@@ -247,7 +247,7 @@ DO Nloc = Nmin, Nmax
 
 END DO ! Nloc = Nmin, Nmax
 
-! Chebyshev-Lobatto NGeo
+! Chebyshev-Lobatto NGeo: XiCL_NGeo, wBaryCL_NGeo
 ALLOCATE(wBaryCL_NGeo(0:NGeo))
 ALLOCATE(XiCL_NGeo(0:NGeo))
 CALL ChebyGaussLobNodesAndWeights(NGeo,XiCL_NGeo)

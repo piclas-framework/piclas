@@ -1319,23 +1319,35 @@ IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! LOCAL VARIABLES
 #if USE_MPI
-INTEGER                        :: iElem
+INTEGER                :: iElem
 #endif /*USE_MPI*/
-REAL                           :: Vdm_NGeo_CLNGeo(0:NGeo,0:NGeo)
+REAL                   :: Vdm_NGeo_CLNGeo(0:NGeo,0:NGeo)
+INTEGER                :: i
+REAL,DIMENSION(0:NGeo) :: wBary_NGeo
 !===================================================================================================================================
 
-! small wBaryCL_NGEO
-ALLOCATE( wBaryCL_NGeo1(      0:1)    ,&
-    XiCL_NGeo1(               0:1)    ,&
-    Vdm_CLNGeo1_CLNGeo(0:NGeo,0:1)    ,&
-    ! new for curved particle sides
-    Vdm_Bezier(        0:NGeo,0:NGeo) ,&
-    sVdm_Bezier(       0:NGeo,0:NGeo) ,&
-    D_Bezier(          0:NGeo,0:NGeo))
+! Equidistant-Lobatto NGeo
+ALLOCATE(Xi_NGeo(0:NGeo))
+DO i=0,NGeo
+  Xi_NGeo(i) = 2./REAL(NGeo) * REAL(i) - 1.
+END DO
+CALL BarycentricWeights(NGeo,Xi_NGeo,wBary_NGeo)
 
+! small wBaryCL_NGEO
+ALLOCATE(Vdm_CLNGeo1_CLNGeo(0:NGeo,0:1))
+
+! new for curved particle sides
+ALLOCATE( Vdm_Bezier(0:NGeo,0:NGeo))
+ALLOCATE(sVdm_Bezier(0:NGeo,0:NGeo))
+ALLOCATE(   D_Bezier(0:NGeo,0:NGeo))
+
+! XiCL_NGeo1, wBaryCL_NGeo1
+ALLOCATE(wBaryCL_NGeo1(0:1))
+ALLOCATE(XiCL_NGeo1(0:1))
 CALL ChebyGaussLobNodesAndWeights(1,XiCL_NGeo1)
 CALL BarycentricWeights(1,XiCL_NGeo1,wBaryCL_NGeo1)
-CALL InitializeVandermonde(1, NGeo,wBaryCL_NGeo1,XiCL_NGeo1,XiCL_NGeo ,Vdm_CLNGeo1_CLNGeo)
+! Vandermonde: Vdm_CLNGeo1_CLNGeo
+CALL InitializeVandermonde(1,NGeo,wBaryCL_NGeo1,XiCL_NGeo1,XiCL_NGeo,Vdm_CLNGeo1_CLNGeo)
 ! initialize Vandermonde for Bezier basis surface representation (particle tracking with curved elements)
 CALL BuildBezierVdm(NGeo,XiCL_NGeo,Vdm_Bezier,sVdm_Bezier) !CHANGETAG
 CALL BuildBezierDMat(NGeo,Xi_NGeo,D_Bezier)
@@ -1388,7 +1400,7 @@ SUBROUTINE CalcParticleMeshMetrics()
 USE MOD_Globals
 USE MOD_PreProc
 USE MOD_Mesh_Vars              ,ONLY: N_VolMesh,N_VolMesh_Shared
-USE MOD_Mesh_Vars              ,ONLY: NGeo,dXCL_NGeo
+USE MOD_Mesh_Vars              ,ONLY: dXCL_NGeo
 USE MOD_Particle_Mesh_Vars
 #if USE_MPI
 USE MOD_Mesh_Vars              ,ONLY: NGeo,nGlobalElems,offsetElem,nElems
