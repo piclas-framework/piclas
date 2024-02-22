@@ -140,6 +140,7 @@ LastElemInd  = offsetElem+PP_nElems
 IF (PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance)) THEN
   SWRITE(UNIT_stdOut,'(A)',ADVANCE='NO') ' Restarting particles during loadbalance...'
 
+#if !((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))
   ! ------------------------------------------------
   ! PartSource
   ! ------------------------------------------------
@@ -235,6 +236,7 @@ IF (PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance)) THEN
     END DO!iElem
     DEALLOCATE(NodeSourceExtEquiLBTmp)
   END IF ! DoDeposition.AND.DoDielectricSurfaceCharge
+#endif /*!((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))*/
 
   ! ------------------------------------------------
   ! Check and set sizes
