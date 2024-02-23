@@ -126,7 +126,7 @@ if [ -n "$CHANGED" ]; then
 
     # Check if file is executable
     if [ -x "$file" ]; then
-      if [ "$file" != ".githooks/pre-commit" ] && [ "$file" != "docs/documentation/buildPDF.sh" ] && [ "$file" != "docs/documentation/buildHTML.sh" ] ; then
+      if [ "$file" != ".githooks/pre-commit" ] && [ "$file" != "docs/documentation/buildPDF.sh" ] && [ "$file" != "docs/documentation/buildHTML.sh" ] && [ "$file" != "tools/Setup_ModuleEnv/Install"* ] ; then
         # Error header
         ERROR=1
         EXEERR=1

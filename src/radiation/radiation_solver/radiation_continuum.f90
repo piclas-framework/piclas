@@ -174,8 +174,6 @@ SUBROUTINE Radiation_continuum_bf(iElem)
   USE MOD_Radiation_Vars,    ONLY   : RadiationInput, SpeciesRadiation, RadiationParameter, &
                                       Radiation_Emission_spec, Radiation_Absorption_spec, NumDensElectrons
   USE MOD_Globals_Vars,      ONLY   : c
-  USE MOD_DSMC_Vars,         ONLY   : SpecDSMC
-
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -203,13 +201,13 @@ SUBROUTINE Radiation_continuum_bf(iElem)
 
 ! --- loop over all atoms
   DO iAtom = 1, nSpecies
-    IF((SpecDSMC(iAtom)%InterID .NE. 1) .AND. (SpecDSMC(iAtom)%InterID .NE. 10)) CYCLE
+    IF((Species(iAtom)%InterID .NE. 1) .AND. (Species(iAtom)%InterID .NE. 10)) CYCLE
 
 !    IF (RadiationInput(iAtom)%NuclCharge .GT. 1) CYCLE  !approach only for neutral atoms
     iIon = iAtom
 ! --- determine ionized species
     DO jAtom = 1, nSpecies ! TODO nAtoms instead of nSpecies
-      IF((SpecDSMC(jAtom)%InterID .NE. 1) .AND. (SpecDSMC(jAtom)%InterID .NE. 10)) CYCLE
+      IF((Species(jAtom)%InterID .NE. 1) .AND. (Species(jAtom)%InterID .NE. 10)) CYCLE
       IF((Species(iAtom)%MassIC .EQ. Species(jAtom)%MassIC) &
         .AND. (RadiationInput(iAtom)%NuclCharge+1 .EQ. RadiationInput(jAtom)%NuclCharge) ) THEN
         iIon = jAtom

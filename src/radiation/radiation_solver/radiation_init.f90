@@ -99,9 +99,8 @@ USE MOD_Globals_Vars,          ONLY : PlanckConst, c
 USE MOD_Mesh_Vars,             ONLY : nGlobalElems
 USE MOD_Particle_Mesh_Vars,    ONLY : nComputeNodeElems
 USE MOD_ReadInTools
-USE MOD_PARTICLE_Vars,         ONLY : nSpecies
+USE MOD_PARTICLE_Vars,         ONLY : nSpecies, Species
 USE MOD_Radiation_Vars
-USE MOD_DSMC_Vars,             ONLY : SpecDSMC
 USE MOD_Radiation_ReadIn,      ONLY : Radiation_readin_atoms, Radiation_readin_molecules
 USE MOD_Mesh_Tools,            ONLY : GetGlobalElemID
 #if USE_MPI
@@ -132,12 +131,12 @@ SpeciesRadiation(:)%nLines = 0
 
 IF (RadiationSwitches%RadType.NE.2) THEN
   DO iSpec = 1, nSpecies
-    IF(SpecDSMC(iSpec)%InterID.EQ.4) CYCLE
+    IF(Species(iSpec)%InterID.EQ.4) CYCLE
     WRITE(UNIT=hilf,FMT='(I0)') iSpec
     RadiationInput(iSpec)%Ttrans(4) = GETREAL('Part-Species'//TRIM(hilf)//'-RadiationTtrans')
     RadiationInput(iSpec)%Telec = GETREAL('Part-Species'//TRIM(hilf)//'-RadiationTelec')
     RadiationInput(iSpec)%NumDens = GETREAL('Part-Species'//TRIM(hilf)//'-RadiationNumDens')
-    IF((SpecDSMC(iSpec)%InterID.EQ.2) .OR. (SpecDSMC(iSpec)%InterID.EQ.20)) THEN
+    IF((Species(iSpec)%InterID.EQ.2) .OR. (Species(iSpec)%InterID.EQ.20)) THEN
       RadiationInput(iSpec)%Tvib = GETREAL('Part-Species'//TRIM(hilf)//'-RadiationTvib')
       RadiationInput(iSpec)%Trot = GETREAL('Part-Species'//TRIM(hilf)//'-RadiationTrot')
     END IF
@@ -146,7 +145,7 @@ IF (RadiationSwitches%RadType.NE.2) THEN
 
     RadiationInput(iSpec)%DoRadiation = GETLOGICAL('Part-Species'//TRIM(hilf)//'-DoRadiation')
 
-    IF((SpecDSMC(iSpec)%InterID .EQ. 1) .OR. (SpecDSMC(iSpec)%InterID .EQ. 10)) THEN !Only for atoms (1) and atomic ions (10)
+    IF((Species(iSpec)%InterID .EQ. 1) .OR. (Species(iSpec)%InterID .EQ. 10)) THEN !Only for atoms (1) and atomic ions (10)
       CALL Radiation_readin_atoms(iSpec)
       RadiationInput(iSpec)%Radius = GETREAL('Part-Species'//TRIM(hilf)//'-RadiationRadius_A')
       RadiationInput(iSpec)%Radius = RadiationInput(iSpec)%Radius *1.0E-10
@@ -154,7 +153,7 @@ IF (RadiationSwitches%RadType.NE.2) THEN
       RadiationInput(iSpec)%NuclCharge = GETINT('Part-Species'//TRIM(hilf)//'-NuclCharge')
     END IF
 
-    IF((SpecDSMC(iSpec)%InterID .EQ. 2) .OR. (SpecDSMC(iSpec)%InterID .EQ. 20)) THEN !Only for molecules (2) and molecular ions (20)
+    IF((Species(iSpec)%InterID .EQ. 2) .OR. (Species(iSpec)%InterID .EQ. 20)) THEN !Only for molecules (2) and molecular ions (20)
       CALL Radiation_readin_molecules(iSpec)
     END IF
   END DO
@@ -312,8 +311,7 @@ USE MOD_PreProc
 USE MOD_io_hdf5
 USE MOD_HDF5_Input                ,ONLY: OpenDataFile,CloseDataFile,DatasetExists,ReadArray,GetDataProps
 USE MOD_Mesh_Vars                 ,ONLY: offsetElem, nElems
-USE MOD_Particle_Vars             ,ONLY: nSpecies
-USE MOD_DSMC_Vars                 ,ONLY: SpecDSMC
+USE MOD_Particle_Vars             ,ONLY: nSpecies, Species
 USE MOD_Radiation_Vars            ,ONLY: RadiationSwitches, MacroRadInputParameters
 USE MOD_Mesh_Tools                ,ONLY: GetCNElemID
 USE MOD_ReadInTools
@@ -409,7 +407,7 @@ ELSE
   IF(.NOT.RadiationSwitches%UseElectronicExcitation) THEN
     iSpecElectrons = 0
     DO iSpec = 1, nSpecies
-      IF (SpecDSMC(iSpec)%InterID .EQ. 4) iSpecElectrons = iSpec
+      IF (Species(iSpec)%InterID .EQ. 4) iSpecElectrons = iSpec
     END DO
     IF (iSpecElectrons .EQ. 0) THEN
       PRINT*,  "unknown species number for electrons while reading flow field data"
@@ -419,10 +417,10 @@ ELSE
     DO iElem = 1, nElems
       DO iSpec = 1, nSpecies
         CNElemID = GetCNElemID(iElem+offsetElem)
-        IF((SpecDSMC(iSpec)%InterID .EQ. 1) .OR. (SpecDSMC(iSpec)%InterID .EQ. 10) .OR. &
-        (SpecDSMC(iSpec)%InterID .EQ. 2) .OR. (SpecDSMC(iSpec)%InterID .EQ. 20)) THEN
+        IF((Species(iSpec)%InterID .EQ. 1) .OR. (Species(iSpec)%InterID .EQ. 10) .OR. &
+        (Species(iSpec)%InterID .EQ. 2) .OR. (Species(iSpec)%InterID .EQ. 20)) THEN
           MacroRadInputParameters(CNElemID,iSpec,4) = MAX(0.,ElemData_HDF5(IndexElectronTemp,iElem))
-        ELSE IF(SpecDSMC(iSpec)%InterID .EQ. 4) THEN
+        ELSE IF(Species(iSpec)%InterID .EQ. 4) THEN
           CYCLE
         ELSE
           PRINT*, "excitation temperature cannot be matched, unknown InterID for species", iSpec

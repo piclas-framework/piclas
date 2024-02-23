@@ -153,10 +153,6 @@ INTERFACE FinalizeParameters
   MODULE PROCEDURE FinalizeParameters
 END INTERFACE
 
-INTERFACE PrintOption
-  MODULE PROCEDURE PrintOption
-END INTERFACE
-
 PUBLIC :: IgnoredParameters
 PUBLIC :: PrintDefaultParameterFile
 PUBLIC :: CountOption
@@ -2251,7 +2247,7 @@ IF(.NOT.MPIRoot)RETURN
 #if USE_LOADBALANCE
 IF (PerformLoadBalance) THEN
   SELECT CASE(TRIM(InfoOpt))
-    CASE("INFO","PARAM","CALCUL.","OUTPUT","HDF5")
+    CASE("INFO","PARAM","CALCUL.","OUTPUT","HDF5","DB")
       RETURN
   END SELECT
 END IF

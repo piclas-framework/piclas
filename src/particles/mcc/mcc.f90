@@ -619,6 +619,7 @@ SUBROUTINE MCC_CalcReactionProb(iCase,bgSpec,CRela2,CollEnergy_in,PartIndex,bggP
 USE MOD_Particle_Vars         ,ONLY: Species, PartSpecies, VarTimeStep
 USE MOD_DSMC_Vars             ,ONLY: SpecDSMC, BGGas, ChemReac, DSMC, PartStateIntEn
 USE MOD_MCC_Vars              ,ONLY: SpecXSec
+USE MOD_Particle_Vars         ,ONLY: Species
 USE MOD_TimeDisc_Vars         ,ONLY: dt
 USE MOD_part_tools            ,ONLY: CalcERot_particle, CalcEVib_particle, CalcEElec_particle
 USE MOD_MCC_XSec              ,ONLY: InterpolateCrossSection
@@ -653,10 +654,10 @@ DO iPath = 1, ChemReac%CollCaseInfo(iCase)%NumOfReactionPaths
 
     ! Sum of the zero-point energies of the reactants
     EZeroPoint_Educt = 0.0; EZeroPoint_Prod = 0.0
-    IF((SpecDSMC(EductReac(1))%InterID.EQ.2).OR.(SpecDSMC(EductReac(1))%InterID.EQ.20)) THEN
+    IF((Species(EductReac(1))%InterID.EQ.2).OR.(Species(EductReac(1))%InterID.EQ.20)) THEN
       EZeroPoint_Educt = EZeroPoint_Educt + SpecDSMC(EductReac(1))%EZeroPoint
     END IF
-    IF((SpecDSMC(EductReac(2))%InterID.EQ.2).OR.(SpecDSMC(EductReac(2))%InterID.EQ.20)) THEN
+    IF((Species(EductReac(2))%InterID.EQ.2).OR.(Species(EductReac(2))%InterID.EQ.20)) THEN
       EZeroPoint_Educt = EZeroPoint_Educt + SpecDSMC(EductReac(2))%EZeroPoint
     END IF
     ! Sum of the zero-point energies of the products
@@ -668,14 +669,14 @@ DO iPath = 1, ChemReac%CollCaseInfo(iCase)%NumOfReactionPaths
       NumWeightProd = 3
     END IF
     DO iProd = 1, NumWeightProd
-      IF((SpecDSMC(ProductReac(iProd))%InterID.EQ.2).OR.(SpecDSMC(ProductReac(iProd))%InterID.EQ.20)) THEN
+      IF((Species(ProductReac(iProd))%InterID.EQ.2).OR.(Species(ProductReac(iProd))%InterID.EQ.20)) THEN
         EZeroPoint_Prod = EZeroPoint_Prod + SpecDSMC(ProductReac(iProd))%EZeroPoint
       END IF
     END DO
     ! Adding the internal energy of particle species
     CollEnergy = CollEnergy_in + PartStateIntEn(1,PartIndex) + PartStateIntEn(2,PartIndex)
     ! Internal energy of background species
-    IF((SpecDSMC(jSpec)%InterID.EQ.2).OR.(SpecDSMC(jSpec)%InterID.EQ.20)) THEN
+    IF((Species(jSpec)%InterID.EQ.2).OR.(Species(jSpec)%InterID.EQ.20)) THEN
       IF(BGGas%UseDistribution) THEN
         Temp_Vib   = BGGas%Distribution(bgSpec,8,iElem)
         Temp_Rot   = BGGas%Distribution(bgSpec,9,iElem)

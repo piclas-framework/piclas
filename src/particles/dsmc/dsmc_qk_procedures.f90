@@ -160,7 +160,7 @@ CASE('I')
 CASE('D')
   Ec = Ec + PartStateIntEn(1,React1Inx)*Weight1
   ! Correction for second collision partner
-  IF ((SpecDSMC(PartSpecies(React2Inx))%InterID.EQ.2).OR.(SpecDSMC(PartSpecies(React2Inx))%InterID.EQ.20)) THEN
+  IF ((Species(PartSpecies(React2Inx))%InterID.EQ.2).OR.(Species(PartSpecies(React2Inx))%InterID.EQ.20)) THEN
     Ec = Ec - SpecDSMC(PartSpecies(React2Inx))%EZeroPoint*Weight2
   END IF
   ! Determination of the quantum number corresponding to the collision energy
