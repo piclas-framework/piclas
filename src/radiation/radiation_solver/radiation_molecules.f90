@@ -47,8 +47,6 @@ SUBROUTINE radiation_molecules(iElem, em_mol)
                                       Radiation_Emission_spec, Radiation_Absorption_spec, NumDensElectrons, TElectrons, &
                                       Radiation_ElemEnergy_Species, Radiation_Absorption_SpeciesWave
   USE MOD_Particle_Vars,     ONLY   : nSpecies, Species
-  USE MOD_DSMC_Vars,         ONLY   : SpecDSMC
-
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -134,7 +132,7 @@ SUBROUTINE radiation_molecules(iElem, em_mol)
 
   DO iSpec = 1, nSpecies
     IF(.NOT.RadiationInput(iSpec)%DoRadiation) CYCLE
-    IF((SpecDSMC(iSpec)%InterID .NE. 2) .AND. (SpecDSMC(iSpec)%InterID .NE. 20)) CYCLE
+    IF((Species(iSpec)%InterID .NE. 2) .AND. (Species(iSpec)%InterID .NE. 20)) CYCLE
     Radiation_Profile   = 0.0
     IF ((RadiationInput(iSpec)%Telec.LT.10.0).OR.(RadiationInput(iSpec)%Tvib.LT.10.0).OR.(RadiationInput(iSpec)%NumDens.LT.10.0).OR.(RadiationInput(iSpec)%Ttrans(4).LT.10.0))CYCLE 
 

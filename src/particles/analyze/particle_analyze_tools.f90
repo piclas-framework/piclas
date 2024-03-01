@@ -1416,7 +1416,7 @@ SUBROUTINE CalcMixtureTemp(NumSpec,Temp,IntTemp,IntEn,TempTotal,Xi_Vib,Xi_Elec)
 ! MODULES                                                                                                                          !
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Globals
-USE MOD_PARTICLE_Vars             ,ONLY: nSpecies
+USE MOD_PARTICLE_Vars             ,ONLY: nSpecies, Species
 USE MOD_Particle_Analyze_Vars     ,ONLY: nSpecAnalyze
 USE MOD_DSMC_Vars                 ,ONLY: SpecDSMC, CollisMode, DSMC
 USE MOD_part_tools                ,ONLY: CalcXiElec
@@ -1449,7 +1449,7 @@ IF (CollisMode.GT.1) THEN
       TempTotalDOF = 3.*Temp(iSpec)
       XiTotal = 3.
       ! If the species is molecular, add the vibrational energy to the temperature calculation
-      IF(((SpecDSMC(iSpec)%InterID.EQ.2).OR.(SpecDSMC(iSpec)%InterID.EQ.20)).AND.(NumSpec(iSpec).GT.0)) THEN
+      IF(((Species(iSpec)%InterID.EQ.2).OR.(Species(iSpec)%InterID.EQ.20)).AND.(NumSpec(iSpec).GT.0)) THEN
         XiTotal = XiTotal + SpecDSMC(iSpec)%Xi_Rot
         TempTotalDOF = TempTotalDOF + SpecDSMC(iSpec)%Xi_Rot*IntTemp(iSpec,2)
         IF(IntTemp(iSpec,1).GT.0) THEN
@@ -1534,7 +1534,7 @@ DO iPart=1,PDM%ParticleVecLength
     EVib(iSpec) = EVib(iSpec) + PartStateIntEn(1,iPart) * GetParticleWeight(iPart)
     ERot(iSpec) = ERot(iSpec) + PartStateIntEn(2,iPart) * GetParticleWeight(iPart)
     IF (DSMC%ElectronicModel.GT.0) THEN
-      IF((SpecDSMC(iSpec)%InterID.NE.4).AND.(.NOT.SpecDSMC(iSpec)%FullyIonized)) THEN
+      IF((Species(iSpec)%InterID.NE.4).AND.(.NOT.SpecDSMC(iSpec)%FullyIonized)) THEN
         Eelec(iSpec) = Eelec(iSpec) + PartStateIntEn(3,iPart) * GetParticleWeight(iPart)
       END IF
     END IF
@@ -1558,7 +1558,7 @@ IF(MPIRoot)THEN
   ! Calc TVib, TRot
   DO iSpec = 1, nSpecies
     NumSpecTemp = NumSpec(iSpec)
-    IF(((SpecDSMC(iSpec)%InterID.EQ.2).OR.(SpecDSMC(iSpec)%InterID.EQ.20)).AND.(NumSpecTemp.GT.0.0)) THEN
+    IF(((Species(iSpec)%InterID.EQ.2).OR.(Species(iSpec)%InterID.EQ.20)).AND.(NumSpecTemp.GT.0.0)) THEN
       IF (SpecDSMC(iSpec)%PolyatomicMol.AND.(SpecDSMC(iSpec)%Xi_Rot.EQ.3)) THEN
         IntTemp(iSpec,2) = 2.0*ERot(iSpec)/(3.0*BoltzmannConst*NumSpecTemp)  !Calc TRot
       ELSE
@@ -1584,7 +1584,7 @@ IF(MPIRoot)THEN
     END IF
     IF(DSMC%ElectronicModel.GT.0) THEN
       IF(NumSpecTemp.GT.0) THEN
-        IF((SpecDSMC(iSpec)%InterID.NE.4).AND.(.NOT.SpecDSMC(iSpec)%FullyIonized)) THEN
+        IF((Species(iSpec)%InterID.NE.4).AND.(.NOT.SpecDSMC(iSpec)%FullyIonized)) THEN
           IntTemp(iSpec,3) = CalcTelec(Eelec(iSpec)/NumSpecTemp,iSpec)
         END IF
       ELSE

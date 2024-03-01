@@ -203,8 +203,6 @@ DO iSpec = 1, nSpecies
 #if USE_MPI
   END IF
 #endif /*USE_MPI*/
-  Species(iSpec)%ChargeIC              = GETREAL('Part-Species'//TRIM(hilf)//'-ChargeIC')
-  Species(iSpec)%MassIC                = GETREAL('Part-Species'//TRIM(hilf)//'-MassIC')
   Species(iSpec)%MacroParticleFactor   = GETREAL('Part-Species'//TRIM(hilf)//'-MacroParticleFactor')
   IF((iSpec.GT.1).AND.UseDSMC.AND.(.NOT.UsevMPF))THEN
     IF(.NOT.ALMOSTEQUALRELATIVE(Species(iSpec)%MacroParticleFactor,MPFOld,1e-5)) CALL CollectiveStop(__STAMP__,&
@@ -519,9 +517,7 @@ DO iSpec = 1,nSpecies
       ! Global particle emission
       CASE DEFAULT
         NbrOfParticle = INT(Species(iSpec)%Init(iInit)%ParticleNumber,4)
-        LBWRITE(UNIT_stdOut,'(A,I0,A)') ' Set particle position for species ',iSpec,' ... '
         CALL SetParticlePosition(iSpec,iInit,NbrOfParticle)
-        LBWRITE(UNIT_stdOut,'(A,I0,A)') ' Set particle velocities for species ',iSpec,' ... '
         CALL SetParticleVelocity(iSpec,iInit,NbrOfParticle)
         IF (usevMPF) CALL SetParticleMPF(iSpec,iInit,NbrOfParticle)
         CALL SetParticleChargeAndMass(iSpec,NbrOfParticle)

@@ -70,7 +70,7 @@ iPart_p1 = Coll_pData(iPair)%iPart_p1; iPart_p2 = Coll_pData(iPair)%iPart_p2
 iSpec_p1 = PartSpecies(iPart_p1);      iSpec_p2 = PartSpecies(iPart_p2)
 iCase = CollInf%Coll_Case(iSpec_p1,iSpec_p2)
 
-iPType = SpecDSMC(iSpec_p1)%InterID + SpecDSMC(iSpec_p2)%InterID !definition of collision case
+iPType = Species(iSpec_p1)%InterID + Species(iSpec_p2)%InterID !definition of collision case
 
 IF (PRESENT(NodeVolume)) THEN
   Volume = NodeVolume

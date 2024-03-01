@@ -80,7 +80,16 @@ CALL prms%SetSection("Particle")
 CALL prms%CreateRealOption(     'Particles-ManualTimeStep'  , 'Manual timestep [sec]. This variable is deprecated. '//&
                                                               'Use ManualTimestep instead.', '-1.0')
 CALL prms%CreateIntOption(      'Part-nSpecies' ,                 'Number of species used in calculation', '1')
+CALL prms%CreateStringOption(   'Part-Species[$]-SpeciesName' ,'Species name of Species[$]', 'none', numberedmulti=.TRUE.)
 CALL prms%CreateStringOption(   'Particles-Species-Database', 'File name for the species database', 'none')
+CALL prms%CreateLogicalOption(  'Part-Species[$]-DoOverwriteParameters', 'Flag to set parameters in ini-file manually', '.FALSE.'&
+                                                                        , numberedmulti=.TRUE.)
+CALL prms%CreateIntOption(      'Part-Species[$]-InteractionID' , 'ID for identification of particles \n'//&
+                                                                 '  1: Atom\n'//&
+                                                                 '  2: Molecule\n'//&
+                                                                 '  4: Electron\n'//&
+                                                                 ' 10: Atomic Ion\n'//&
+                                                                 ' 20: Molecular Ion', '0', numberedmulti=.TRUE.)
 ! Ionization
 CALL prms%CreateLogicalOption(  'Part-DoInitialIonization'    , 'When restarting from a state, ionize the species to a '//&
                                                                 'specific degree', '.FALSE.')
@@ -528,6 +537,7 @@ nSpecies = GETINT('Part-nSpecies','1')
 IF(nSpecies.LE.0) CALL abort(__STAMP__,'ERROR: nSpecies .LE. 0:', nSpecies)
 ALLOCATE(Species(1:nSpecies))
 
+CALL InitializeSpeciesParameter()
 CALL InitializeVariablesSpeciesInits()
 ! Which Lorentz boost method should be used?
 CALL InitPartRHS()
@@ -866,10 +876,8 @@ ELSE IF(nRandomSeeds.EQ.0) THEN
   CALL InitRandomSeed(nRandomSeeds,SeedSize,Seeds)
 ELSE IF(nRandomSeeds.GT.0) THEN
   ! read in numbers from ini
-  IF(nRandomSeeds.GT.SeedSize) THEN
-    LBWRITE (*,*) 'Expected ',SeedSize,'seeds. Provided ',nRandomSeeds,'. Computer uses default value for all unset values.'
-  ELSE IF(nRandomSeeds.LT.SeedSize) THEN
-    LBWRITE (*,*) 'Expected ',SeedSize,'seeds. Provided ',nRandomSeeds,'. Computer uses default value for all unset values.'
+  IF(nRandomSeeds.GT.SeedSize.OR.nRandomSeeds.LT.SeedSize) THEN
+    LBWRITE (*,*) '| Expected ',SeedSize,'seeds. Provided ',nRandomSeeds,'. Computer uses default value for all unset values.'
   END IF
   DO iSeed=1,MIN(SeedSize,nRandomSeeds)
     WRITE(UNIT=hilf,FMT='(I0)') iSeed
@@ -1601,6 +1609,112 @@ CALL RANDOM_SEED(PUT=Seeds)
 
 END SUBROUTINE InitRandomSeed
 
+SUBROUTINE InitializeSpeciesParameter()
+!===================================================================================================================================
+!> Initialize the species parameter: read-in the species name, and then either read-in from the database or the parameter file.
+!> Possbility to overwrite specific species with custom values or use species not defined in the database.
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals
+USE MOD_Globals_Vars
+USE MOD_ReadInTools
+USE MOD_Particle_Vars       ,ONLY: nSpecies, Species, SpeciesDatabase
+USE MOD_io_hdf5
+USE MOD_HDF5_input          ,ONLY:ReadAttribute, DatasetExists, AttributeExists
+#if USE_MPI
+USE MOD_LoadBalance_Vars    ,ONLY: PerformLoadBalance
+#endif /*USE_MPI*/
+! IMPLICIT VARIABLE HANDLING
+ IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER               :: iSpec,err
+CHARACTER(32)         :: hilf
+CHARACTER(LEN=64)     :: dsetname
+INTEGER(HID_T)        :: file_id_specdb                       ! File identifier
+LOGICAL               :: DataSetFound, AttrExists
+!===================================================================================================================================
+! Read-in of the species database
+SpeciesDatabase       = GETSTR('Particles-Species-Database')
+
+! Read-in of species name and whether to overwrite the database parameters
+DO iSpec = 1, nSpecies
+  WRITE(UNIT=hilf,FMT='(I0)') iSpec
+  Species(iSpec)%Name    = TRIM(GETSTR('Part-Species'//TRIM(hilf)//'-SpeciesName'))
+  Species(iSpec)%DoOverwriteParameters = GETLOGICAL('Part-Species'//TRIM(hilf)//'-DoOverwriteParameters')
+END DO ! iSpec
+
+! If no database is used, use the overwrite per default
+IF(SpeciesDatabase.EQ.'none') Species(:)%DoOverwriteParameters = .TRUE.
+
+! Check whether SpeciesName is provided and if not, whether DoOverwriteParameters is activated (regular parameter read-in from file)
+! Abort when SpeciesName is not provided and DoOverwriteParameters is not activated
+DO iSpec = 1, nSpecies
+  IF(Species(iSpec)%Name.EQ.'none'.AND..NOT.Species(iSpec)%DoOverwriteParameters) &
+    CALL abort(__STAMP__,'ERROR: Please define a species name for species:', iSpec)
+END DO ! iSpec
+
+! Read-in the values from the database
+IF(SpeciesDatabase.NE.'none') THEN
+  ! Initialize FORTRAN interface.
+  CALL H5OPEN_F(err)
+  ! Check if file exists
+  IF(.NOT.FILEEXISTS(SpeciesDatabase)) THEN
+    CALL abort(__STAMP__,'ERROR: Database ['//TRIM(SpeciesDatabase)//'] does not exist.')
+  END IF
+  ! Open file
+  CALL H5FOPEN_F (TRIM(SpeciesDatabase), H5F_ACC_RDONLY_F, file_id_specdb, err)
+  ! Loop over number of species and skip those with overwrite
+  DO iSpec = 1, nSpecies
+    IF (Species(iSpec)%DoOverwriteParameters) CYCLE
+    LBWRITE (UNIT_stdOut,'(68(". "))')
+    CALL PrintOption('Species Name','INFO',StrOpt=TRIM(Species(iSpec)%Name))
+    dsetname = TRIM('/Species/'//TRIM(Species(iSpec)%Name))
+    CALL DatasetExists(file_id_specdb,TRIM(dsetname),DataSetFound)
+    ! Read-in if dataset is there, otherwise set the overwrite parameter
+    IF(DataSetFound) THEN
+      CALL AttributeExists(file_id_specdb,'ChargeIC',TRIM(dsetname), AttrExists=AttrExists)
+      IF (AttrExists) THEN
+        CALL ReadAttribute(file_id_specdb,'ChargeIC',1,DatasetName = dsetname,RealScalar=Species(iSpec)%ChargeIC)
+      ELSE
+        Species(iSpec)%ChargeIC = 0.0
+      END IF
+      CALL PrintOption('ChargeIC','DB',RealOpt=Species(iSpec)%ChargeIC)
+      CALL ReadAttribute(file_id_specdb,'MassIC',1,DatasetName = dsetname,RealScalar=Species(iSpec)%MassIC)
+      CALL PrintOption('MassIC','DB',RealOpt=Species(iSpec)%MassIC)
+      CALL ReadAttribute(file_id_specdb,'InteractionID',1,DatasetName = dsetname,IntScalar=Species(iSpec)%InterID)
+      CALL PrintOption('InteractionID','DB',IntOpt=Species(iSpec)%InterID)
+    ELSE
+      Species(iSpec)%DoOverwriteParameters = .TRUE.
+      SWRITE(*,*) 'WARNING: DataSet not found: ['//TRIM(dsetname)//'] ['//TRIM(SpeciesDatabase)//']'
+    END IF
+  END DO
+  ! Close the file.
+  CALL H5FCLOSE_F(file_id_specdb, err)
+  ! Close FORTRAN interface.
+  CALL H5CLOSE_F(err)
+END IF
+
+! Old parameter file read-in of species values
+DO iSpec = 1, nSpecies
+  IF(Species(iSpec)%DoOverwriteParameters) THEN
+    LBWRITE (UNIT_stdOut,'(68(". "))')
+    WRITE(UNIT=hilf,FMT='(I0)') iSpec
+    Species(iSpec)%ChargeIC              = GETREAL('Part-Species'//TRIM(hilf)//'-ChargeIC')
+    Species(iSpec)%MassIC                = GETREAL('Part-Species'//TRIM(hilf)//'-MassIC')
+    Species(iSpec)%InterID               = GETINT('Part-Species'//TRIM(hilf)//'-InteractionID')
+  END IF
+END DO ! iSpec
+
+IF(nSpecies.GT.0)THEN
+  LBWRITE (UNIT_stdOut,'(68(". "))')
+END IF ! nSpecies.GT.0
+
+END SUBROUTINE InitializeSpeciesParameter
 
 SUBROUTINE InitializeVariablesRotationalRefFrame()
 !===================================================================================================================================
@@ -1612,14 +1726,6 @@ USE MOD_Globals
 USE MOD_ReadInTools
 USE MOD_Particle_Vars
 USE MOD_Globals_Vars            ,ONLY: ElementaryCharge, PI
-! IMPLICIT VARIABLE HANDLING
- IMPLICIT NONE
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
 REAL               :: omegaTemp
 INTEGER            :: iRegion
 CHARACTER(LEN=5)   :: hilf
