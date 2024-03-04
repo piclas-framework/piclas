@@ -1042,7 +1042,7 @@ DO iReac = 1, SurfNumOfReac
       IF(Theta.GE.0.0 .AND. TotalCoverage.LT.MaxTotalCov) THEN
         Theta = Theta**DissOrder
       ! Kisliuk model (for EqConstant=1 and MaxCoverage=1: Langmuir model)
-        StickCoeff = S_0 !* (1.0 + EqConstant * (1.0/Theta - 1.0))**(-1.0)
+        StickCoeff = S_0 * (1.0 + EqConstant * (1.0/Theta - 1.0))**(-1.0)
       ELSE
         StickCoeff = 0.0
       END IF
