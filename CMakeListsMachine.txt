@@ -10,7 +10,7 @@ SET(FORCE_VDM_ANALYTICAL OFF)
 # =========================================================================
 # CMake generator settings
 # =========================================================================
-set(USED_CMAKE_GENERATOR "${CMAKE_GENERATOR}" CACHE STRING "Expose CMAKE_GENERATOR (cannot be changed here)" FORCE)
+SET(USED_CMAKE_GENERATOR "${CMAKE_GENERATOR}" CACHE STRING "Expose CMAKE_GENERATOR (cannot be changed here)" FORCE)
 MESSAGE(STATUS "Using cmake generator: ${CMAKE_GENERATOR}")
 IF("${CMAKE_GENERATOR}" MATCHES "Ninja")
   # CMake introduced the CMAKE_COLOR_DIAGNOSTICS flag with 3.24.0, https://gitlab.kitware.com/cmake/cmake/-/merge_requests/6990
@@ -95,7 +95,7 @@ IF (CMAKE_FQDN_HOST MATCHES "hawk\.hww\.hlrs\.de$")
   MESSAGE(STATUS "Compiling on Hawk")
   # Overwrite compiler target architecture
   IF (CMAKE_Fortran_COMPILER_ID MATCHES "GNU" OR CMAKE_Fortran_COMPILER_ID MATCHES "Flang")
-    SET(PICLAS_INSTRUCTION "-march=znver2")
+    SET(PICLAS_INSTRUCTION "-march=znver2 -mtune=znver2")
   ELSEIF (CMAKE_Fortran_COMPILER_ID MATCHES "Intel")
     SET(PICLAS_INSTRUCTION "-xCORE-AVX2")
   ENDIF()
@@ -109,7 +109,7 @@ ELSEIF (CMAKE_FQDN_HOST MATCHES "sng\.lrz\.de$")
   MESSAGE(STATUS "Compiling on SuperMUC")
   # Overwrite compiler target architecture
   IF (CMAKE_Fortran_COMPILER_ID MATCHES "GNU" OR CMAKE_Fortran_COMPILER_ID MATCHES "Flang")
-    SET(PICLAS_INSTRUCTION "-march=skylake-avx512")
+    SET(PICLAS_INSTRUCTION "-march=skylake-avx512 -mtune=skylake-avx512")
   ELSEIF (CMAKE_Fortran_COMPILER_ID MATCHES "Intel")
     SET(PICLAS_INSTRUCTION "-xSKYLAKE-AVX512")
     # Explicitely enable usage of AVX512 registers
@@ -122,7 +122,7 @@ ELSEIF (CMAKE_FQDN_HOST MATCHES "sng\.lrz\.de$")
 ELSEIF(CMAKE_FQDN_HOST MATCHES "\.can$")
   MESSAGE(STATUS "Compiling on LUMI")
   IF (CMAKE_Fortran_COMPILER_ID MATCHES "GNU")
-    SET(FLEXI_INSTRUCTION "-march=znver3")
+    SET(FLEXI_INSTRUCTION "-march=znver3 -mtune=znver3")
   ELSE()
     MESSAGE(FATAL_ERROR "LUMI currently only supported using the GNU Compiler Collection (GCC). Please load/swap the following modules: LUMI PrgEnv-gnu cray-hdf5-parallel")
   ENDIF()
@@ -130,7 +130,7 @@ ELSEIF(CMAKE_FQDN_HOST MATCHES "\.can$")
 # IAG Prandtl
 ELSEIF(CMAKE_FQDN_HOST MATCHES "^(prandtl|grafik.*)\.iag\.uni\-stuttgart\.de")
   MESSAGE(STATUS "Compiling on ${CMAKE_HOSTNAME}")
-  SET(PICLAS_INSTRUCTION "-march=native")
+  SET(PICLAS_INSTRUCTION "-march=native -mtune=native")
   # Set LUSTRE definition to account for filesystem
   ADD_DEFINITIONS(-DLUSTRE)
 
@@ -138,29 +138,29 @@ ELSEIF (CMAKE_FQDN_HOST MATCHES "^ila(head.*|cfd.*)\.ila.uni\-stuttgart\.de")
   MESSAGE(STATUS "Compiling on ILA cluster")
   # Overwrite compiler target architecture
   IF (CMAKE_Fortran_COMPILER_ID MATCHES "GNU" OR CMAKE_Fortran_COMPILER_ID MATCHES "Flang")
-      SET(PICLAS_INSTRUCTION "-march=core-avx2")
+    SET(PICLAS_INSTRUCTION "-march=core-avx2 -mtune=core-avx2")
   ELSEIF (CMAKE_Fortran_COMPILER_ID MATCHES "Intel")
-      SET(PICLAS_INSTRUCTION "-xCORE-AVX2")
+    SET(PICLAS_INSTRUCTION "-xCORE-AVX2")
   ENDIF()
   # Work around MPI-IO issue 4446 on machines mounting storage via NFS
   ADD_DEFINITIONS(-DNFS)
 
 ELSEIF (CMAKE_FQDN_HOST MATCHES "^(xenon.*|argon.*)\.ila.uni\-stuttgart\.de")
   MESSAGE(STATUS "Compiling on ILA student cluster")
-  SET(FLEXI_INSTRUCTION "-march=native")
+  SET(FLEXI_INSTRUCTION "-march=native -mtune=native")
   # Work around MPI-IO issue 4446 on machines mountng storage via NFS
   ADD_DEFINITIONS(-DNFS)
 
 ELSEIF ("${CMAKE_FQDN_HOST}" MATCHES "gitlab\.ila\.uni\-stuttgart\.de")
   MESSAGE(STATUS "Compiling on ILA Gitlab")
   ADD_DEFINITIONS(-DVDM_ANALYTICAL)
-  SET(PICLAS_INSTRUCTION "-march=native")
+  SET(PICLAS_INSTRUCTION "-march=native -mtune=native")
 
 ELSE()
   MESSAGE(STATUS "Compiling on a generic machine [${CMAKE_HOSTNAME}]")
   # Set compiler target architecture
   IF (CMAKE_Fortran_COMPILER_ID MATCHES "GNU" OR CMAKE_Fortran_COMPILER_ID MATCHES "Flang" OR CMAKE_Fortran_COMPILER_ID MATCHES "Cray")
-    SET(PICLAS_INSTRUCTION "-march=native")
+    SET(PICLAS_INSTRUCTION "-march=native -mtune=native")
     # SET(PICLAS_INSTRUCTION "-mtune=generic")
   ELSEIF (CMAKE_Fortran_COMPILER_ID MATCHES "Intel")
     SET(PICLAS_INSTRUCTION "-xHost")
@@ -243,7 +243,9 @@ IF (CMAKE_Fortran_COMPILER_ID MATCHES "GNU")
       SET (CMAKE_Fortran_FLAGS       "${CMAKE_Fortran_FLAGS} -finstrument-functions")
     ENDIF(PICLAS_EXTRAE)
     # LUMI has an issue with argument types in MPI(CH) calls
-    SET (CMAKE_Fortran_FLAGS         "${CMAKE_Fortran_FLAGS} -fallow-argument-mismatch")
+    IF(CMAKE_FQDN_HOST MATCHES "\.can$")
+      SET (CMAKE_Fortran_FLAGS         "${CMAKE_Fortran_FLAGS} -fallow-argument-mismatch")
+    ENDIF()
   ENDIF()
   # initialize all variables as signalling NaNs to force the user to correctly initialize these data types
   SET (CMAKE_Fortran_FLAGS_NITRO     "${CMAKE_Fortran_FLAGS}  -Ofast ${PICLAS_INSTRUCTION}")
