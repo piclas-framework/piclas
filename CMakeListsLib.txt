@@ -369,16 +369,9 @@ IF(NOT LIBS_BUILD_MATH_LIB)
   ENDIF()
 
   # VDM inverse, replace lapack with analytical solution
-  # HLRS HAWK / SuperMUC + DEBUG
-  IF (CMAKE_BUILD_TYPE MATCHES "Debug" AND "${CMAKE_HOSTNAME}" MATCHES "login")
-    # HAWK and SuperMUC name their login nodes identically, so use the Fully Qualified Domain Name (FQDN) to identify
-    CMAKE_HOST_SYSTEM_INFORMATION(RESULT FQDN QUERY FQDN)
-    MARK_AS_ADVANCED(FORCE FQDN)
-    # HLRS HAWK
-    IF ("${FQDN}" MATCHES "hawk.hww.hlrs.de")
-      MESSAGE(STATUS "Compiling PICLas in debug mode on Hawk with system math lib. Setting VDM inverse to analytical solution")
-      ADD_DEFINITIONS(-DVDM_ANALYTICAL)
-    ENDIF()
+  IF (CMAKE_BUILD_TYPE MATCHES "Debug" AND "${CMAKE_HOSTNAME}" MATCHES "login" AND CMAKE_FQDN_HOST MATCHES "hawk.hww.hlrs.de")
+    MESSAGE(STATUS "Compiling PICLas in debug mode on Hawk with system math lib. Setting VDM inverse to analytical solution")
+    ADD_DEFINITIONS(-DVDM_ANALYTICAL)
   ENDIF()
 
 # Build LAPACK/OpenBLAS in FLEXI
