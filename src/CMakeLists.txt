@@ -540,24 +540,24 @@ ENDIF()
 # define libs
 ADD_LIBRARY(          libpiclasstaticF90 OBJECT ${piclasF90} )
 SET_TARGET_PROPERTIES(libpiclasstaticF90 PROPERTIES COMPILE_FLAGS ${PICLAS_COMPILE_FLAGS})
-ADD_LIBRARY(          libpiclasstatic STATIC $<TARGET_OBJECTS:libpiclasstaticF90>)
-SET_TARGET_PROPERTIES(libpiclasstatic PROPERTIES PREFIX ""
-                                      OUTPUT_NAME "libpiclasf90")
+ADD_LIBRARY(          libpiclasstatic    STATIC $<TARGET_OBJECTS:libpiclasstaticF90>)
+SET_TARGET_PROPERTIES(libpiclasstatic    PROPERTIES PREFIX ""
+                                         OUTPUT_NAME "libpiclasf90")
 IF(SELFBUILTEXTERNALS)
   ADD_DEPENDENCIES(libpiclasstaticF90 ${SELFBUILTEXTERNALS})
 ENDIF()
 
 ADD_LIBRARY(userblocklib STATIC ./src/output/read_userblock.c)
 SET_TARGET_PROPERTIES(userblocklib PROPERTIES LANGUAGE C LINKER_LANGUAGE C
-                                              COMPILE_FLAGS "-fPIC")
+                                              CMAKE_POSITION_INDEPENDENT_CODE ON)
 
 ADD_LIBRARY(stacksizelib STATIC ./src/globals/stacksize.c)
 SET_TARGET_PROPERTIES(stacksizelib PROPERTIES LANGUAGE C LINKER_LANGUAGE C
-                                              COMPILE_FLAGS "-fPIC")
+                                              CMAKE_POSITION_INDEPENDENT_CODE ON)
 
 ADD_LIBRARY(memusagelib STATIC ./src/globals/processmemusage.cxx)
 SET_TARGET_PROPERTIES(memusagelib PROPERTIES LANGUAGE CXX LINKER_LANGUAGE CXX
-                                             COMPILE_FLAGS "-fPIC")
+                                             CMAKE_POSITION_INDEPENDENT_CODE ON)
 
 # we link the statically built libs
 ADD_LIB_SHARED(libpiclasshared ./src/piclaslib.f90)
