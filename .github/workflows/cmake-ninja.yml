@@ -225,6 +225,8 @@ jobs:
           DESTDIR=AppDir ninja install
           mkdir -p AppDir/usr/share/icons
           cp ../docs/logo.png AppDir/usr/share/icons/${PROG}.png
+          mkdir -p AppDir/usr/share/icons/hicolor/64x64/apps/
+          ln -sf ../../../${PROG}.png AppDir/usr/share/icons/hicolor/64x64/apps/
           cp ../.github/workflows/piclas.desktop template.desktop
           mv template.desktop ${PROG}.desktop
           sed -i -e "s/Name=.*/Name=${PROG}/" ${PROG}.desktop
@@ -252,6 +254,8 @@ jobs:
           DESTDIR=AppDir ninja install
           mkdir -p AppDir/usr/share/icons
           cp ../docs/logo.png AppDir/usr/share/icons/${PROG}.png
+          mkdir -p AppDir/usr/share/icons/hicolor/64x64/apps/
+          ln -sf ../../../${PROG}.png AppDir/usr/share/icons/hicolor/64x64/apps/
           cp ../.github/workflows/piclas.desktop template.desktop
           mv template.desktop ${PROG}.desktop
           sed -i -e "s/Name=.*/Name=${PROG}/" ${PROG}.desktop
@@ -278,6 +282,8 @@ jobs:
           DESTDIR=AppDir ninja install
           mkdir -p AppDir/usr/share/icons
           cp ../docs/logo.png AppDir/usr/share/icons/${PROG}.png
+          mkdir -p AppDir/usr/share/icons/hicolor/64x64/apps/
+          ln -sf ../../../${PROG}.png AppDir/usr/share/icons/hicolor/64x64/apps/
           cp ../.github/workflows/piclas.desktop template.desktop
           mv template.desktop ${PROG}.desktop
           sed -i -e "s/Name=.*/Name=${PROG}/" ${PROG}.desktop
@@ -312,7 +318,7 @@ jobs:
     - name: Upload artifacts
       uses: actions/upload-artifact@v3
       with:
-        name: piclas-binaries-v3.0.0
+        name: piclas-binaries-v3.2.0
         path: artifacts
 
     - name: Upload release asset

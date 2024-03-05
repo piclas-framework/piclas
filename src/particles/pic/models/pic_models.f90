@@ -133,7 +133,7 @@ DO iPart = 1, PDM%ParticleVecLength
             CALL WriteFieldIonizationRate(E_GV*1e9,QuantumTunnelProb/dt)
           END DO ! jj = 1, KK
         END DO ! ii = 1, NN
-        WRITE (*,*) "\n\n Ionization output for \n ",TRIM(SpecDSMC(oldSpec)%Name)," ==> ",TRIM(SpecDSMC(newSpec)%Name)," + e-\n\n "
+        WRITE (*,*) "\n\n Ionization output for \n ",TRIM(Species(oldSpec)%Name)," ==> ",TRIM(Species(newSpec)%Name)," + e-\n\n "
         RETURN
 #endif /* CODE_ANALYZE */
       CALL RANDOM_NUMBER(iRan)
@@ -226,7 +226,7 @@ DO iPart = 1, PDM%ParticleVecLength
             CALL WriteFieldIonizationRate(E,QuantumTunnelProb/dt)
           END DO ! jj = 1, KK
         END DO ! ii = 1, NN
-        WRITE (*,*) "\n\n Ionization output for \n ",TRIM(SpecDSMC(oldSpec)%Name)," ==> ",TRIM(SpecDSMC(newSpec)%Name)," + e-\n\n "
+        WRITE (*,*) "\n\n Ionization output for \n ",TRIM(Species(oldSpec)%Name)," ==> ",TRIM(Species(newSpec)%Name)," + e-\n\n "
         RETURN
 #endif /* CODE_ANALYZE */
       END ASSOCIATE

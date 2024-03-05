@@ -77,6 +77,7 @@ The first flag enables the variables weighting factor feature in general (detail
 
 Using the values above, each collision with the first background species will result in 100 collision tests using the simulation particle (ie. not the background species) and randomly generated background particles. Consequently, the number of samples for the trace species will be increased and simulation particles with the weighting factor of the trace background species will be introduced into the simulation.
 
+(sec:background-gas-collision-xsec)=
 ## Cross-section based collision probability
 
 For modelling of particle collisions with the Particle-in-Cell method, often the Monte Carlo Collision (MCC) algorithm is utilized.
@@ -95,7 +96,7 @@ collision cross-sections have to be supplied via read-in from a database
 
 Cross-section data can be retrieved from the [LXCat database](https://fr.lxcat.net/home/) {cite}`Pitchford2017` and converted with
 a Python script provided in the tools folder: `piclas/tools/crosssection_database`. Details on how to create an own database with
-custom cross-section data is given in Section {ref}`sec:tools-xsec-collision`. Finally, the input which species should be treated with the MCC
+custom cross-section data is given in Section {ref}`ssec:tools-xsec-collision`. Finally, the input which species should be treated with the MCC
 model is required
 
     Part-Species2-SpeciesName = electron

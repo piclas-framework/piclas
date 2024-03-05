@@ -146,13 +146,21 @@ INTEGER , ALLOCATABLE :: seeds(:)                        !        =>NULL()   ! S
 TYPE tSpecies                                                                ! Particle Data for each Species
   !General Species Values
   TYPE(tInit), ALLOCATABLE               :: Init(:)  !     =>NULL()          ! Particle Data for each Initialisation
+  CHARACTER(LEN=64)                      :: Name                             ! Species Name, required for SpeciesDatabase
   REAL                                   :: ChargeIC                         ! Particle Charge (without MPF)
   REAL                                   :: MassIC                           ! Particle Mass (without MPF)
+  INTEGER                                :: InterID                          ! Identification number (e.g. for DSMC_prob_calc), ini_2
+                                                                             !     1   : Atom
+                                                                             !     2   : Molecule
+                                                                             !     4   : Electron
+                                                                             !     10  : Atomic ion
+                                                                             !     20  : Molecular ion
   REAL                                   :: MacroParticleFactor              ! Number of Microparticle per Macroparticle
   REAL                                   :: TimeStepFactor                   ! Species-specific time step factor
   INTEGER                                :: NumberOfInits                    ! Number of different initial particle placements
   TYPE(typeSurfaceflux),ALLOCATABLE      :: Surfaceflux(:)                   ! Particle Data for each SurfaceFlux emission
   INTEGER                                :: nSurfacefluxBCs                  ! Number of SF emissions
+  LOGICAL                                :: DoOverwriteParameters            ! Flag to read in parameters manually
 #if IMPA
   LOGICAL                                :: IsImplicit
 #endif

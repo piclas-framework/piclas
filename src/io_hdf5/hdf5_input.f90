@@ -74,6 +74,7 @@ PUBLIC :: DatasetExists
 PUBLIC :: GetDataSize
 PUBLIC :: GetVarnames
 PUBLIC :: GetArrayAndName
+PUBLIC :: AttributeExists
 !===================================================================================================================================
 
 CONTAINS
@@ -610,15 +611,16 @@ END SUBROUTINE ReadArray
 !==================================================================================================================================
 !> Subroutine to read attributes from HDF5 file.
 !==================================================================================================================================
-SUBROUTINE ReadAttribute(Loc_ID_in,AttribName,nVal,DatasetName,RealScalar,IntScalar,&
+SUBROUTINE ReadAttribute(File_ID_in,AttribName,nVal,DatasetName,RealScalar,IntScalar,&
                                  StrScalar,LogicalScalar,RealArray,IntArray,StrArray)
 ! MODULES
 USE MOD_Globals
+USE hdf5
 USE,INTRINSIC :: ISO_C_BINDING
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT/OUTPUT VARIABLES
-INTEGER(HID_T)    ,INTENT(IN)                  :: Loc_ID_in         !< HDF5 file id of opened file
+INTEGER(HID_T)    ,INTENT(IN)                  :: File_ID_in         !< HDF5 file id of opened file
 INTEGER           ,INTENT(IN)                  :: nVal              !< number of attributes in case an array is expected
 CHARACTER(LEN=*)  ,INTENT(IN)                  :: AttribName        !< name of attribute to be read
 CHARACTER(LEN=*)  ,INTENT(IN) ,OPTIONAL        :: DatasetName       !< dataset name in case attribute is located in a dataset
@@ -631,26 +633,30 @@ CHARACTER(LEN=255),INTENT(OUT),OPTIONAL,TARGET :: StrArray(nVal)    !< Array for
 LOGICAL           ,INTENT(OUT),OPTIONAL        :: LogicalScalar     !< Scalar logical attribute
 !----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER(HID_T)                 :: Attr_ID,Type_ID,Loc_ID
+INTEGER(HID_T)                 :: Attr_ID,Type_ID,Loc_ID,memtype
 INTEGER(HSIZE_T), DIMENSION(1) :: Dimsf
 INTEGER,TARGET                 :: IntToLog
 CHARACTER(LEN=255),TARGET      :: StrTmp(1)
 TYPE(C_PTR)                    :: buf
+INTEGER                        :: pad_type
+INTEGER(SIZE_T) , PARAMETER    :: sdim = 255
+LOGICAL                        :: vstatus
 !==================================================================================================================================
 
 LOGWRITE(*,*)' READ ATTRIBUTE "',TRIM(AttribName),'" FROM HDF5 FILE...'
 Dimsf(1)=nVal
-Loc_ID=Loc_ID_in
 IF(PRESENT(DatasetName))THEN
   ! Open dataset
-  IF(TRIM(DataSetName).NE.'') CALL H5DOPEN_F(File_ID, TRIM(DatasetName),Loc_ID, iError)
+  IF(TRIM(DataSetName).NE.'') CALL H5DOPEN_F(File_ID_in, TRIM(DatasetName),Loc_ID, iError)
+ELSE
+  Loc_ID = File_ID_in
 END IF
 
 ! Create the attribute for group Loc_ID.
 CALL H5AOPEN_F(Loc_ID, TRIM(AttribName), Attr_ID, iError)
 
 IF(iError.NE.0) CALL abort(__STAMP__,&
-    'Attribute ['//TRIM(AttribName)//'] does not exist or h5 file already opened by a differen program')
+    'Attribute ['//TRIM(AttribName)//'] does not exist or h5 file already opened by a different program')
 
 IF(PRESENT(RealArray))     RealArray=0.
 IF(PRESENT(RealScalar))    RealScalar=0.
@@ -668,7 +674,27 @@ IF(PRESENT(RealScalar))    Type_ID=H5T_NATIVE_DOUBLE
 IF(PRESENT(IntArray))      Type_ID=H5T_NATIVE_INTEGER
 IF(PRESENT(IntScalar))     Type_ID=H5T_NATIVE_INTEGER
 IF(PRESENT(LogicalScalar)) Type_ID=H5T_NATIVE_INTEGER
-IF(PRESENT(StrScalar).OR.PRESENT(StrArray)) CALL H5AGET_TYPE_F(Attr_ID, Type_ID, iError)
+IF(PRESENT(StrScalar).OR.PRESENT(StrArray)) THEN
+  CALL H5AGET_TYPE_F(Attr_ID, Type_ID, iError)
+  ! Check if string is variable length
+  call H5Tis_variable_str_f(Type_ID, vstatus, iError)
+  IF(vstatus) THEN
+    CALL abort(__STAMP__,'ERROR in ReadAttribute: Read-in of variable length strings is not implemented yet!')
+  END IF
+  ! Check the padding type of the string (H5T_STR_SPACEPAD: Pad with spaces Fortran-style, H5T_STR_NULLPAD: Pad with zeros,
+  ! H5T_STR_NULLTERM: Null terminate C-style)
+  CALL H5Tget_strpad_f(Type_ID, pad_type, iError)
+  IF(pad_type.EQ.H5T_STR_NULLTERM_F) THEN
+    CALL abort(__STAMP__,'ERROR in ReadAttribute: Read-in of null terminated strings is not implemented yet!')
+  END IF
+  ! Set the type in case of C type string output (e.g. by h5py) using NULLPAD (based on h5ex_t_stringCatt_F03.f90)
+  IF(pad_type.EQ.H5T_STR_NULLPAD_F) THEN
+    ! Create the memory datatype.
+    CALL H5Tcopy_f(H5T_FORTRAN_S1, memtype, iError)
+    CALL H5Tset_size_f(memtype, sdim, iError)
+    Type_ID = memtype
+  END IF
+END IF
 
 buf=C_NULL_PTR
 IF(PRESENT(RealArray))     buf=C_LOC(RealArray)
@@ -688,12 +714,51 @@ IF(PRESENT(StrScalar).OR.PRESENT(StrArray)) CALL H5TCLOSE_F(Type_ID, iError)
 
 ! Close the attribute.
 CALL H5ACLOSE_F(Attr_ID, iError)
-IF(Loc_ID.NE.Loc_ID_in)THEN
-  ! Close the dataset and property list.
-  CALL H5DCLOSE_F(Loc_ID, iError)
-END IF
+! Close the dataset and property list (in case it was opened).
+IF(Loc_ID.NE.File_ID_in) CALL H5DCLOSE_F(Loc_ID, iError)
 LOGWRITE(*,*)'...DONE!'
 END SUBROUTINE ReadAttribute
+
+!==================================================================================================================================
+!> Subroutine to check if attributes exist in sub layer datasets.
+!==================================================================================================================================
+SUBROUTINE AttributeExists(File_ID_in,AttribName,DatasetName,AttrExists)
+! MODULES
+USE MOD_Globals
+USE,INTRINSIC :: ISO_C_BINDING
+IMPLICIT NONE
+!----------------------------------------------------------------------------------------------------------------------------------
+! INPUT/OUTPUT VARIABLES
+INTEGER(HID_T)    ,INTENT(IN)                  :: File_ID_in         !< HDF5 file id of opened file
+CHARACTER(LEN=*)  ,INTENT(IN)                  :: AttribName        !< name of attribute to be read
+CHARACTER(LEN=*)  ,INTENT(IN) ,OPTIONAL        :: DatasetName       !< dataset name 
+LOGICAL           ,INTENT(OUT)                 :: AttrExists
+!----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER(HID_T)                 :: Attr_ID,Loc_ID
+!==================================================================================================================================
+IF(PRESENT(DatasetName))THEN
+  ! Open dataset
+  IF(TRIM(DataSetName).NE.'') CALL H5DOPEN_F(File_ID_in, TRIM(DatasetName),Loc_ID, iError)
+ELSE
+  Loc_ID = File_ID_in
+END IF
+
+! Create the attribute for group Loc_ID.
+CALL H5AOPEN_F(Loc_ID, TRIM(AttribName), Attr_ID, iError)
+
+IF(iError.NE.0) THEN
+  AttrExists = .FALSE.
+ELSE 
+  AttrExists = .TRUE.
+END IF
+
+! Close the attribute.
+CALL H5ACLOSE_F(Attr_ID, iError)
+! Close the dataset and property list.
+CALL H5DCLOSE_F(Loc_ID, iError)
+
+END SUBROUTINE AttributeExists
 
 
 !===================================================================================================================================
