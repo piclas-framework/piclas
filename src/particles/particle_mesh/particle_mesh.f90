@@ -399,10 +399,10 @@ SELECT CASE(TrackingMethod)
       ! Do not call these functions twice. This is already done above
       IF(.NOT.UseBezierControlPoints)THEN
         CALL CalcParticleMeshMetrics()   ! Required for Elem_xGP_Shared and dXCL_NGeo_Shared
-        CALL CalcXCL_NGeo()              ! Required for XCL_NGeo_Shared
       END IF ! .NOT.UseBezierControlPoints
     END IF ! DoInterpolation.OR.DSMC%UseOctree
     ! Also required for DSMC%UseOctree
+    CALL CalcXCL_NGeo()              ! Required for XCL_NGeo_Shared
     CALL BuildElemTypeAndBasisTria() ! Required for ElemCurved_Shared, XiEtaZetaBasis_Shared, slenXiEtaZetaBasis_Shared. Needs XCL_NGeo_Shared
 
     IF (DoDeposition) CALL BuildEpsOneCell()
@@ -713,13 +713,21 @@ SELECT CASE (TrackingMethod)
       CALL UNLOCK_AND_FREE(ElemRadiusNGeo_Shared_Win)
     END IF
 
+#if USE_LOADBALANCE
+      IF (.NOT.PerformLoadBalance) THEN
+#endif /*USE_LOADBALANCE*/
+        ! CalcParticleMeshMetrics()
+        CALL UNLOCK_AND_FREE(XCL_NGeo_Shared_Win)
+#if USE_LOADBALANCE
+      END IF !PerformLoadBalance
+#endif /*USE_LOADBALANCE*/
+
     !IF (DoInterpolation.OR.DSMC%UseOctree) THEN ! use this in future if possible
     IF (DoInterpolation.OR.DoDeposition.OR.UseRayTracing.OR.nSurfSampleAndTriaTracking) THEN
 #if USE_LOADBALANCE
       IF (.NOT.PerformLoadBalance) THEN
 #endif /*USE_LOADBALANCE*/
         ! CalcParticleMeshMetrics()
-        CALL UNLOCK_AND_FREE(XCL_NGeo_Shared_Win)
         CALL UNLOCK_AND_FREE(Elem_xGP_Shared_Win)
         CALL UNLOCK_AND_FREE(dXCL_NGeo_Shared_Win)
 #if USE_LOADBALANCE
