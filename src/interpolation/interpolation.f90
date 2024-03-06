@@ -104,7 +104,7 @@ SUBROUTINE InitInterpolation(NIn_opt,NAnalyzeIn_opt,Nmax_opt)
 USE MOD_Globals
 USE MOD_PreProc
 USE MOD_Interpolation_Vars
-USE MOD_ReadInTools        ,ONLY: GETINT,CountOption
+USE MOD_ReadInTools        ,ONLY: GETINT,CountOption,PrintOption
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------
@@ -146,6 +146,7 @@ IF(PP_N.NE.Ntmp) CALL CollectiveStop(__STAMP__,'N in ini-file is different from 
 
 ! polynomial degree range for p-Refinement
 Nmin = 1
+CALL PrintOption('p-adaption minimum polynomial degree: Nmin','INFO',IntOpt=Nmin)
 IF(PRESENT(Nmax_opt))THEN
   Nmax = Nmax_opt
 ELSE
