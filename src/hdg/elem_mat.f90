@@ -478,7 +478,7 @@ USE MOD_Preproc
 USE MOD_HDG_Vars
 #if USE_MPI
 USE MOD_MPI_Vars
-USE MOD_MPI            ,ONLY: StartReceiveMPIData,StartSendMPIData,FinishExchangeMPIData
+USE MOD_MPI            ,ONLY: StartReceiveMPIData,StartSendMPIData,FinishExchangeMPIData,Mask_MPIsides
 #endif /*USE_MPI*/
 #if USE_PETSC
 USE PETSc

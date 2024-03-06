@@ -108,6 +108,7 @@ USE MOD_PreProc
 USE MOD_HDG_Vars
 USE MOD_Basis                 ,ONLY: PolynomialDerivativeMatrix
 USE MOD_Interpolation_Vars    ,ONLY: N_Inter,NMax
+USE MOD_ChangeBasis        ,ONLY: ChangeBasis2D
 USE MOD_Elem_Mat              ,ONLY: Elem_Mat,BuildPrecond
 USE MOD_ReadInTools           ,ONLY: GETLOGICAL,GETREAL,GETINT
 USE MOD_Mesh_Vars             ,ONLY: nBCSides,N_SurfMesh
@@ -127,11 +128,14 @@ USE PETSc
 USE MOD_Mesh_Vars             ,ONLY: nMPISides_YOUR
 #if USE_MPI
 USE MOD_MPI                   ,ONLY: StartReceiveMPIDataInt,StartSendMPIDataInt,FinishExchangeMPIData
-USE MOD_MPI_Vars
 #endif /*USE_MPI*/
 USE MOD_Mesh_Vars             ,ONLY: MortarType,MortarInfo
 USE MOD_Mesh_Vars             ,ONLY: firstMortarInnerSide,lastMortarInnerSide
 #endif /*USE_PETSC*/
+#if USE_MPI
+USE MOD_MPI                   ,ONLY: StartReceiveMPISurfDataType, StartSendMPISurfDataType, FinishExchangeMPISurfDataType
+USE MOD_MPI_Vars
+#endif
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Vars      ,ONLY: PerformLoadBalance
 #endif /*USE_LOADBALANCE*/
@@ -142,7 +146,7 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER           :: i,j,k,r,iElem,SideID,Nloc,iNeumannBCsides,NSideMin,NSideMax
+INTEGER           :: i,j,k,r,iElem,SideID,Nloc,iNeumannBCsides,NSideMin,NSideMax, iSide
 INTEGER           :: BCType,BCState
 REAL              :: D(0:Nmax,0:Nmax)
 INTEGER           :: nDirichletBCsidesGlobal
@@ -156,6 +160,9 @@ INTEGER           :: MortarSideID,iMortar
 INTEGER           :: locSide,nMortarMasterSides,nMortars
 !INTEGER           :: nAffectedBlockSides
 INTEGER,ALLOCATABLE :: indx(:)
+#endif
+#if USE_MPI
+REAL               :: tmp(        3,0:Nmax,0:Nmax)
 #endif
 !===================================================================================================================================
 IF(HDGInitIsDone)THEN
@@ -182,6 +189,39 @@ ELSE
 END IF
 
 HDGNonLinSolver = -1 ! init
+
+#if USE_MPI
+ALLOCATE(SurfExchange(nNbProcs))
+DO iNbProc=1,nNbProcs
+  ALLOCATE(SurfExchange(iNbProc)%SurfDataRecv(MAXVAL(DataSizeSurfRecMax(iNbProc,:))))
+  ALLOCATE(SurfExchange(iNbProc)%SurfDataSend(MAXVAL(DataSizeSurfSendMax(iNbProc,:))))
+END DO !iProc=1,nNBProcs
+CALL StartReceiveMPISurfDataType(RecRequest_Geo, 1, 1)
+CALL StartSendMPISurfDataType(SendRequest_Geo,1,1)
+CALL FinishExchangeMPISurfDataType(SendRequest_Geo,RecRequest_Geo,1, 1)
+DO iNbProc=1,nNbProcs
+  DEALLOCATE(SurfExchange(iNbProc)%SurfDataRecv)
+  DEALLOCATE(SurfExchange(iNbProc)%SurfDataSend)
+  ALLOCATE(SurfExchange(iNbProc)%SurfDataRecv(MAXVAL(DataSizeSurfRecMin(iNbProc,:))))
+  ALLOCATE(SurfExchange(iNbProc)%SurfDataSend(MAXVAL(DataSizeSurfSendMin(iNbProc,:))))
+END DO !iProc=1,nNBProcs
+#endif /*USE_MPI*/
+
+! Build SurfElemMin for all sides (including Mortar sides)
+DO iSide = 1, nSides
+  ! Get SurfElemMin
+  NSideMax = MAX(DG_Elems_master(iSide),DG_Elems_slave(iSide))
+  NSideMin = N_SurfMesh(iSide)%NSideMin
+  IF(NSideMax.EQ.NSideMin)THEN
+    N_SurfMesh(iSide)%SurfElemMin(:,:) = N_SurfMesh(iSide)%SurfElem(:,:)
+  ELSE
+    ! From high to low
+    ! Transform the slave side to the same degree as the master: switch to Legendre basis
+    CALL ChangeBasis2D(1, NSideMax, NSideMax, N_Inter(NSideMax)%sVdm_Leg, N_SurfMesh(iSide)%SurfElem(0:NSideMax,0:NSideMax), tmp(1,0:NSideMax,0:NSideMax))
+     !Switch back to nodal basis
+    CALL ChangeBasis2D(1, NSideMin, NSideMin, N_Inter(NSideMin)%Vdm_Leg , tmp(1,0:NSideMax,0:NSideMax)                      , N_SurfMesh(iSide)%SurfElemMin(0:NSideMin,0:NSideMin))
+  END IF ! NSideMax.EQ.NSideMin
+END DO ! iSide = 1, nSides
 
 #if USE_PETSC
 ! initialize PETSc stuff!
@@ -1843,6 +1883,9 @@ USE MOD_MPI_Vars
 #endif
 USE MOD_FillMortar_HDG     ,ONLY: BigToSmallMortar_HDG
 #endif
+#if USE_MPI
+USE MOD_MPI                ,ONLY: Mask_MPIsides
+#endif
 USE MOD_Globals_Vars       ,ONLY: ElementaryCharge,eps0
 USE MOD_ChangeBasis        ,ONLY: ChangeBasis2D
 IMPLICIT NONE
@@ -2761,7 +2804,7 @@ END IF
 TimeStartCG=PICLASTIME()
 #if USE_MPI
 ! not use MPI_YOUR sides for vector_dot_product!!!
-CALL abort(__STAMP__,'not implemented')
+!CALL abort(__STAMP__,'not implemented')
 !VecSize=(nSides-nMPIsides_YOUR)*nGP_face(PP_N)
 #else
 !VecSize=nSides*nGP_face
@@ -3020,8 +3063,7 @@ USE MOD_Mesh_Vars          ,ONLY: nSides, SideToElem, ElemToSide, nMPIsides_YOUR
 USE MOD_FillMortar_HDG     ,ONLY: BigToSmallMortar_HDG,SmallToBigMortar_HDG
 #if USE_MPI
 USE MOD_MPI_Vars
-USE MOD_MPI                ,ONLY: StartReceiveMPISurfDataType,StartSendMPISurfDataType,FinishExchangeMPISurfDataType
-USE MOD_HDG_Vars           ,ONLY: Mask_MPIsides
+USE MOD_MPI                ,ONLY: StartReceiveMPISurfDataType,StartSendMPISurfDataType,FinishExchangeMPISurfDataType, Mask_MPIsides
 #endif /*USE_MPI*/
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Timers ,ONLY: LBStartTime,LBSplitTime,LBPauseTime
