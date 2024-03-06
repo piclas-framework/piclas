@@ -203,17 +203,17 @@ END SUBROUTINE InitDG
 SUBROUTINE InitDGBasis(N_in,xGP,wGP,L_Minus,L_Plus,D,D_T,D_Hat,D_Hat_T,L_HatMinus,L_HatPlus)
 ! MODULES
 USE MOD_Globals
-USE MOD_Basis     ,ONLY:LegendreGaussNodesAndWeights,LegGaussLobNodesAndWeights,BarycentricWeights
-USE MOD_Basis     ,ONLY:PolynomialDerivativeMatrix,LagrangeInterpolationPolys
+USE MOD_Basis              ,ONLY: LegendreGaussNodesAndWeights,LegGaussLobNodesAndWeights,BarycentricWeights
+USE MOD_Basis              ,ONLY: PolynomialDerivativeMatrix,LagrangeInterpolationPolys
 #if USE_HDG
 USE MOD_Interpolation_Vars ,ONLY: Nmax
 
 #if USE_MPI
 USE MOD_PreProc
-USE MOD_MPI_Vars,      ONLY: SurfExchange, nNbProcs, DataSizeSurfRecMax, DataSizeSurfSendMax, DataSizeSurfRecMin, DataSizeSurfSendMin
+USE MOD_MPI_Vars           ,ONLY: SurfExchange, nNbProcs, DataSizeSurfRecMax, DataSizeSurfSendMax, DataSizeSurfRecMin, DataSizeSurfSendMin
 USE MOD_DG_Vars            ,ONLY: N_DG,DG_Elems_master,DG_Elems_slave
-USE MOD_MPI,           ONLY:StartReceiveMPISurfDataType,StartSendMPISurfDataType,FinishExchangeMPISurfDataType
-USE MOD_Mesh_Vars,     ONLY:N_SurfMesh,nSides
+USE MOD_MPI                ,ONLY: StartReceiveMPISurfDataType,StartSendMPISurfDataType,FinishExchangeMPISurfDataType
+USE MOD_Mesh_Vars          ,ONLY: N_SurfMesh,nSides
 USE MOD_Interpolation_Vars ,ONLY: NInfo,PREF_VDM,N_Inter
 #endif /*USE_MPI*/
 #endif /*USE_HDG*/
