@@ -2077,8 +2077,7 @@ CALL LBPauseTime(LB_DG,tLBStart)
 #endif /*USE_LOADBALANCE*/
 
 #if USE_MPI
-  CALL abort(__STAMP__,'Mask_MPIsides not implemented')
-!CALL Mask_MPIsides(PP_nVar,RHS_face)
+CALL Mask_MPIsides('RHS_face')
 #endif /*USE_MPI*/
 
 #if USE_LOADBALANCE
@@ -2587,7 +2586,7 @@ CALL abort(__STAMP__,'HDGNewton not implemented!')
 !
 !
 !#if USE_MPI
-!  CALL Mask_MPIsides(PP_nVar,RHS_face)
+!  CALL Mask_MPIsides('RHS_face')
 !#endif /*USE_MPI*/
 !  CALL SmallToBigMortar_HDG(PP_nVar,HDG_Surf_N(1)%RHS_face(1:PP_nVar,1:nGP_Face)) ! 1 -> 1:nSIdes
 !
@@ -2758,7 +2757,8 @@ END IF
 TimeStartCG=PICLASTIME()
 #if USE_MPI
 ! not use MPI_YOUR sides for vector_dot_product!!!
-VecSize=(nSides-nMPIsides_YOUR)*nGP_face(PP_N)
+CALL abort(__STAMP__,'not implemented')
+!VecSize=(nSides-nMPIsides_YOUR)*nGP_face(PP_N)
 #else
 !VecSize=nSides*nGP_face
 #endif /*USE_MPI*/
@@ -3058,8 +3058,9 @@ CALL LBPauseTime(LB_DG,tLBStart) ! Pause/Stop time measurement
 #endif /*USE_LOADBALANCE*/
 
 #if USE_MPI
-CALL StartReceiveMPIData(1,lambda,1,nSides, RecRequest_U,SendID=1) ! Receive YOUR
-CALL StartSendMPIData(   1,lambda,1,nSides,SendRequest_U,SendID=1) ! Send MINE
+CALL abort(__STAMP__,'not implemented')
+!CALL StartReceiveMPIData(1,lambda,1,nSides, RecRequest_U,SendID=1) ! Receive YOUR
+!CALL StartSendMPIData(   1,lambda,1,nSides,SendRequest_U,SendID=1) ! Send MINE
 #endif /*USE_MPI*/
 
 
@@ -3174,10 +3175,11 @@ DO SideID=firstSideID,lastSideID
     ElemID    = SideToElem(S2E_ELEM_ID,SideID)
     jSideID(:) = ElemToSide(E2S_SIDE_ID,:,ElemID)
     DO jLocSide = 1,6
-      CALL DGEMV('N',nGP_face,nGP_face,1., &
-                        Smat(:,:,jLocSide,locSideID,ElemID), nGP_face, &
-                        lambda(:,SideID),1,1.,& !add to mv
-                        mv(:,jSideID(jLocSide)),1)
+      CALL abort(__STAMP__,'not imeplemnted')
+      !CALL DGEMV('N',nGP_face,nGP_face,1., &
+                        !Smat(:,:,jLocSide,locSideID,ElemID), nGP_face, &
+                        !lambda(:,SideID),1,1.,& !add to mv
+                        !mv(:,jSideID(jLocSide)),1)
     END DO !jLocSide
   END IF !locSideID.NE.-1
   ! neighbour element
@@ -3186,10 +3188,11 @@ DO SideID=firstSideID,lastSideID
     ElemID    = SideToElem(S2E_NB_ELEM_ID,SideID)
     jSideID(:)=ElemToSide(E2S_SIDE_ID,:,ElemID)
     DO jLocSide = 1,6
-      CALL DGEMV('N',nGP_face,nGP_face,1., &
-                        Smat(:,:,jLocSide,locSideID,ElemID), nGP_face, &
-                        lambda(:,SideID),1,1.,& !add to mv
-                        mv(:,jSideID(jLocSide)),1)
+      CALL abort(__STAMP__,'not imeplemnted')
+      !CALL DGEMV('N',nGP_face,nGP_face,1., &
+                        !Smat(:,:,jLocSide,locSideID,ElemID), nGP_face, &
+                        !lambda(:,SideID),1,1.,& !add to mv
+                        !mv(:,jSideID(jLocSide)),1)
     END DO !jLocSide
   END IF !locSideID.NE.-1
   !add mass matrix
@@ -3197,8 +3200,7 @@ END DO ! SideID=1,nSides
 #if USE_LOADBALANCE
 CALL LBPauseTime(LB_DG,tLBStart) ! Pause/Stop time measurement
 #endif /*USE_LOADBALANCE*/
-  CALL abort(__STAMP__,'Mask_MPIsides not implemented')
-!CALL Mask_MPIsides(1,mv)
+CALL Mask_MPIsides('mv')
 #endif /*USE_MPI*/
 
 #if USE_LOADBALANCE

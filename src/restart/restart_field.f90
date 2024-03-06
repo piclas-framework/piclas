@@ -432,9 +432,10 @@ ELSE ! normal restart
 
 #if USE_MPI
       ! Exchange lambda MINE -> YOUR direction (as only the master sides have read the solution until now)
-      CALL StartReceiveMPIData(1,lambda,1,nSides, RecRequest_U,SendID=1) ! Receive YOUR
-      CALL StartSendMPIData(   1,lambda,1,nSides,SendRequest_U,SendID=1) ! Send MINE
-      CALL FinishExchangeMPIData(SendRequest_U,RecRequest_U,SendID=1)
+      CALL abort(__STAMP__,'not implemented')
+      !CALL StartReceiveMPIData(1,lambda,1,nSides, RecRequest_U,SendID=1) ! Receive YOUR
+      !CALL StartSendMPIData(   1,lambda,1,nSides,SendRequest_U,SendID=1) ! Send MINE
+      !CALL FinishExchangeMPIData(SendRequest_U,RecRequest_U,SendID=1)
 #endif /*USE_MPI*/
 
 #if USE_PETSC

@@ -267,20 +267,21 @@ L_HatMinus(:) = MATMUL(Minv,L_Minus)
 #if USE_HDG
 #if USE_MPI
 ! exchange is in InitDGBasis as InitMesh() and InitMPI() is needed
-Geotemp=0.
-Geotemp(1,:,:,:)    = N_SurfMesh(?)%SurfElem(:,:)
-Geotemp(2:4,:,:,:)  = N_SurfMesh(?)%NormVec(:,:,:)
-Geotemp(5:7,:,:,:)  = N_SurfMesh(?)%TangVec1(:,:,:)
-Geotemp(8:10,:,:,:) = N_SurfMesh(?)%TangVec2(:,:,:)
-!Geotemp(11:13,:,:,:)=Face_xGP(:,:,:,SideID_minus_lower:SideID_minus_upper)
-CALL StartReceiveMPIData(10,Geotemp,1,nSides,RecRequest_Geo ,SendID=1) ! Receive MINE
-CALL StartSendMPIData(   10,Geotemp,1,nSides,SendRequest_Geo,SendID=1) ! Send YOUR
-CALL FinishExchangeMPIData(SendRequest_Geo,RecRequest_Geo,SendID=1)                                 ! Send YOUR - receive MINE
+CALL abort(__STAMP__,'not implemented: but is it actually required?')
+!Geotemp=0.
+!Geotemp(1,:,:,:)    = N_SurfMesh(?)%SurfElem(:,:)
+!Geotemp(2:4,:,:,:)  = N_SurfMesh(?)%NormVec(:,:,:)
+!Geotemp(5:7,:,:,:)  = N_SurfMesh(?)%TangVec1(:,:,:)
+!Geotemp(8:10,:,:,:) = N_SurfMesh(?)%TangVec2(:,:,:)
+!!Geotemp(11:13,:,:,:)=Face_xGP(:,:,:,SideID_minus_lower:SideID_minus_upper)
+!CALL StartReceiveMPIData(10,Geotemp,1,nSides,RecRequest_Geo ,SendID=1) ! Receive MINE
+!CALL StartSendMPIData(   10,Geotemp,1,nSides,SendRequest_Geo,SendID=1) ! Send YOUR
+!CALL FinishExchangeMPIData(SendRequest_Geo,RecRequest_Geo,SendID=1)                                 ! Send YOUR - receive MINE
 
-SurfElem(:,:,1:nSides)=Geotemp(1,:,:,:)
-NormVec(:,:,:,1:nSides)=Geotemp(2:4,:,:,:)
-TangVec1(:,:,:,1:nSides)=Geotemp(5:7,:,:,:)
-TangVec2(:,:,:,1:nSides)=Geotemp(8:10,:,:,:)
+!SurfElem(:,:,1:nSides)=Geotemp(1,:,:,:)
+!NormVec(:,:,:,1:nSides)=Geotemp(2:4,:,:,:)
+!TangVec1(:,:,:,1:nSides)=Geotemp(5:7,:,:,:)
+!TangVec2(:,:,:,1:nSides)=Geotemp(8:10,:,:,:)
 !Face_xGP(:,:,:,SideID_minus_lower:SideID_minus_upper)=Geotemp(11:13,:,:,:)
 
 #endif /*USE_MPI*/

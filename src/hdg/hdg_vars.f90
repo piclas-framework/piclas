@@ -286,51 +286,78 @@ TYPE(tBV)   :: BiasVoltage
 
 #if USE_MPI
 !no interface for reshape inout vector
-!INTERFACE Mask_MPIsides
-!  MODULE PROCEDURE Mask_MPIsides
-!END INTERFACE
+INTERFACE Mask_MPIsides
+  MODULE PROCEDURE Mask_MPIsides
+END INTERFACE
 
-!PUBLIC :: Mask_MPIsides
+PUBLIC :: Mask_MPIsides
 #endif /*USE_MPI*/
 
 CONTAINS
 
-!#if USE_MPI
-!!===================================================================================================================================
-!!> communicate contribution from MPI slave sides to MPI master sides  and set slaves them to zero afterwards.
-!!===================================================================================================================================
-!SUBROUTINE Mask_MPIsides(firstdim,v)
-!! MODULES
-!USE MOD_MPI_Vars
-!USE MOD_Mesh_Vars      ,ONLY: nSides
-!USE MOD_Mesh_Vars      ,ONLY: nMPIsides_YOUR,nMPIsides,nMPIsides_MINE
-!USE MOD_MPI            ,ONLY: StartReceiveMPIData,StartSendMPIData,FinishExchangeMPIData
-!
-!! IMPLICIT VARIABLE HANDLING
-!IMPLICIT NONE
-!!-----------------------------------------------------------------------------------------------------------------------------------
-!! INPUT VARIABLES
-!INTEGER,INTENT(IN   ) :: firstdim
+#if USE_MPI
+!===================================================================================================================================
+!> communicate contribution from MPI slave sides to MPI master sides  and set slaves them to zero afterwards.
+!> Select between different modes:
+!> 1: mv (MatVec in hdg.f90)
+!> 2: RHS_face  (HDGLinear and HDGNewton in hdg.f90)
+!> 3: InvPrecondDiag (BuildPrecond in elem_mat.f90)
+!> 4: Precond (BuildPrecond in elem_mat.f90)
+!===================================================================================================================================
+SUBROUTINE Mask_MPIsides(mode)
+! MODULES
+USE MOD_MPI_Vars
+USE MOD_Mesh_Vars ,ONLY: nSides
+USE MOD_Mesh_Vars ,ONLY: nMPIsides_YOUR,nMPIsides,nMPIsides_MINE
+USE MOD_MPI       ,ONLY: StartReceiveMPIData,StartSendMPIData,FinishExchangeMPIData
+
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+CHARACTER(LEN=*),INTENT(IN) :: mode     !< Select mv, RHS_face, InvPrecondDiag or Precond
+!INTEGER,INTENT(IN   )       :: firstdim !< size of first dimention in array to be sent 
 !REAL   ,INTENT(INOUT) :: v(firstdim,nGP_face, nSides)
-!!-----------------------------------------------------------------------------------------------------------------------------------
-!! OUTPUT VARIABLES
-!!-----------------------------------------------------------------------------------------------------------------------------------
-!! LOCAL VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
 !REAL    :: vbuf(firstdim,nGP_Face,nMPISides_MINE)
-!INTEGER :: startbuf,endbuf
-!!===================================================================================================================================
-!
-!startbuf = nSides-nMPISides+1
-!endbuf   = nSides-nMPISides+nMPISides_MINE
-!IF(nMPIsides_MINE.GT.0)vbuf=v(:,:,startbuf:endbuf)
-!CALL StartReceiveMPIData(firstdim,v,1,nSides,RecRequest_U ,SendID=2)  ! Receive MINE
-!CALL StartSendMPIData(   firstdim,v,1,nSides,SendRequest_U,SendID=2)  ! Send YOUR
+INTEGER :: startbuf,endbuf
+!===================================================================================================================================
+
+startbuf = nSides-nMPISides+1
+endbuf   = nSides-nMPISides+nMPISides_MINE
+
+SELECT CASE(TRIM(mode))
+CASE('mv') ! CALL Mask_MPIsides(1,mv)
+  ! HDG_Surf_N(SideID)%mv(iVar,:)
+
+CASE('RHS_face') ! CALL Mask_MPIsides(PP_nVar,RHS_face)
+  ! HDG_Surf_N(SideID)%RHS_face(iVar,:)
+
+CASE('Precond') ! CALL Mask_MPIsides(nGP_face,Precond)
+  ! HDG_Surf_N(SideID)%Precond
+  ! NSideMin = N_SurfMesh(SideID)%NSideMin
+  ! ALLOCATE(HDG_Surf_N(SideID)%Precond(nGP_face(NSideMin),nGP_face(NSideMin)))
+
+CASE('InvPrecondDiag') ! CALL Mask_MPIsides(1,InvPrecondDiag)
+  ! HDG_Surf_N(SideID)%InvPrecondDiag
+  ! NSideMin = N_SurfMesh(SideID)%NSideMin
+  ! ALLOCATE(HDG_Surf_N(SideID)%InvPrecondDiag(nGP_face(NSideMin)))
+
+END SELECT
+
+! make this type-based for p-adaption
+!IF(nMPIsides_MINE.GT.0) vbuf = v(:,:,startbuf:endbuf)
+!CALL StartReceiveMPIData(firstdim , v , 1 , nSides , RecRequest_U  , SendID=2)  ! Receive MINE
+!CALL StartSendMPIData(   firstdim , v , 1 , nSides , SendRequest_U , SendID=2)  ! Send YOUR
 !CALL FinishExchangeMPIData(SendRequest_U,RecRequest_U,SendID=2) ! Send YOUR - receive MINE
-!IF(nMPIsides_MINE.GT.0) v(:,:,startbuf:endbuf)=v(:,:,startbuf:endbuf)+vbuf
-!IF(nMPIsides_YOUR.GT.0) v(:,:,nSides-nMPIsides_YOUR+1:nSides)=0. !set send buffer to zero!
-!
-!END SUBROUTINE Mask_MPIsides
-!#endif /*USE_MPI*/
+!IF(nMPIsides_MINE.GT.0) v(:,:,startbuf:endbuf)                = v(:,:,startbuf:endbuf)+vbuf
+!IF(nMPIsides_YOUR.GT.0) v(:,:,nSides-nMPIsides_YOUR+1:nSides) = 0. !set send buffer to zero!
+
+END SUBROUTINE Mask_MPIsides
+#endif /*USE_MPI*/
 
 
 #endif /*USE_HDG*/

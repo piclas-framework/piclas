@@ -760,7 +760,7 @@ USE MOD_Particle_Vars               ,ONLY: PartState
 USE MOD_PICDepo_Shapefunction_Tools ,ONLY: calcSfSource
 USE MOD_Mesh_Tools                  ,ONLY: GetCNElemID, GetGlobalElemID
 #if USE_MPI
-USE MOD_PICDepo_Vars                ,ONLY: PartSource
+!USE MOD_PICDepo_Vars                ,ONLY: PartSource
 USE MOD_MPI_Shared                  ,ONLY: BARRIER_AND_SYNC
 USE MOD_PICDepo_Vars                ,ONLY: ShapeMapping, nShapeExchangeProcs
 USE MOD_PICDepo_Vars                ,ONLY: SendRequest,RecvRequest
@@ -867,7 +867,8 @@ IF ((stage.EQ.0).OR.(stage.EQ.2)) THEN
     IF(IERROR.NE.MPI_SUCCESS) CALL ABORT(__STAMP__,' MPI Communication error', IERROR)
     DO iElem = 1, ShapeMapping(iProc)%nRecvShapeElems
       locElem = ShapeMapping(iProc)%RecvShapeElemID(iElem)-offsetElem
-      PartSource(:,:,:,:,locElem) = PartSource(:,:,:,:,locElem) + ShapeMapping(iProc)%RecvBuffer(:,:,:,:,iElem)
+      CALL abort(__STAMP__,'not implemented yet')
+      !PartSource(:,:,:,:,locElem) = PartSource(:,:,:,:,locElem) + ShapeMapping(iProc)%RecvBuffer(:,:,:,:,iElem)
     END DO
   END DO
 
