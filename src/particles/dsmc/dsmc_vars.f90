@@ -231,6 +231,7 @@ TYPE tDSMC
                                                             !    0-1: constant probability  (0: no relaxation)
                                                             !    2: Boyd's model
                                                             !    3: Nonequilibrium Direction Dependent model (Zhang,Schwarzentruber)
+  LOGICAL                       :: DoRotRelaxQuantized      ! Flag to enable quantized rotational energy levels (Boyd)
   REAL                          :: VibRelaxProb             ! Model for calculation of vibrational relaxation probability, ini_1
                                                             !    0-1: constant probability (0: no relaxation)
                                                             !    2: Boyd's model, with correction from Abe

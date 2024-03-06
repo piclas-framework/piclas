@@ -65,6 +65,10 @@ CALL prms%CreateRealOption(     'Particles-DSMC-RotRelaxProb'&
                                           , 'Define the rotational relaxation probability upon collision of molecules\n'//&
                                           '0-1: constant\n'//&
                                           '2: variable, Boyd)', '0.2')
+CALL prms%CreateLogicalOption(  'Particles-DSMC-RotRelaxQuantized', &
+                                          'Enables the quantized treatment of rotational energy levels after Boyd, '//&
+                                          'Physics of Fluids A: Fluid Dynamics (1989-1993) 5, 2278 (1993); doi: 10.1063/1.858531',&
+                                          '.FALSE.')
 CALL prms%CreateRealOption(     'Particles-DSMC-VibRelaxProb'&
                                           , 'Define the vibrational relaxation probability upon collision of molecules', '0.004')
 CALL prms%CreateRealOption(     'Part-Species[$]-ElecRelaxProb'  &
@@ -332,9 +336,11 @@ SelectionProc = GETINT('Particles-DSMC-SelectionProcedure','1') ! 1: Laux, 2: Gi
 IF(CollisMode.GE.2) THEN
   DSMC%RotRelaxProb = GETREAL('Particles-DSMC-RotRelaxProb')
   DSMC%VibRelaxProb = GETREAL('Particles-DSMC-VibRelaxProb')
+  DSMC%DoRotRelaxQuantized = GETLOGICAL('Particles-DSMC-RotRelaxQuantized')
 ELSE
   DSMC%RotRelaxProb = 0.
   DSMC%VibRelaxProb = 0.
+  DSMC%DoRotRelaxQuantized = .FALSE.
 END IF
 DSMC%GammaQuant   = GETREAL('Particles-DSMC-GammaQuant')
 DSMC%ElectronicModel         = GETINT('Particles-DSMC-ElectronicModel')
@@ -734,7 +740,8 @@ ELSE !CollisMode.GT.0
               SpecDSMC(iSpec)%DissQuant = INT(SpecDSMC(iSpec)%Ediss_eV*ElementaryCharge/(BoltzmannConst*SpecDSMC(iSpec)%CharaTVib))
             END IF
             ! Read in species values for rotational relaxation models of Boyd/Zhang if necessary
-            IF(DSMC%RotRelaxProb.GT.1.0.AND.((Species(iSpec)%InterID.EQ.2).OR.(Species(iSpec)%InterID.EQ.20))) THEN
+            IF(DSMC%RotRelaxProb.GT.1.0.AND.DSMC%RotRelaxProb.LE.3.0.AND.((Species(iSpec)%InterID.EQ.2).OR. &
+              (Species(iSpec)%InterID.EQ.20))) THEN
               SpecDSMC(iSpec)%CollNumRotInf = GETREAL('Part-Species'//TRIM(hilf)//'-CollNumRotInf')
               SpecDSMC(iSpec)%TempRefRot    = GETREAL('Part-Species'//TRIM(hilf)//'-TempRefRot')
               IF(SpecDSMC(iSpec)%CollNumRotInf*SpecDSMC(iSpec)%TempRefRot.EQ.0) THEN

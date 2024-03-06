@@ -387,6 +387,10 @@ INTEGER                         :: iQuant
 REAL                            :: TVib                       ! vibrational temperature
 REAL                            :: TRot                       ! rotational temperature
 INTEGER                         :: ElemID
+! Quantized rotational energy
+INTEGER                         :: jMax
+LOGICAL                         :: ARM
+REAL                            :: fNorm, J
 !===================================================================================================================================
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Set internal energies (vibrational and rotational)
@@ -432,9 +436,30 @@ IF ((Species(iSpecies)%InterID.EQ.2).OR.(Species(iSpecies)%InterID.EQ.20)) THEN
     iQuant = INT(-LOG(iRan)*TVib/SpecDSMC(iSpecies)%CharaTVib)
   END DO
   PartStateIntEn( 1,iPart) = (iQuant + DSMC%GammaQuant)*SpecDSMC(iSpecies)%CharaTVib*BoltzmannConst
-  ! Set rotational energy
-  CALL RANDOM_NUMBER(iRan)
-  PartStateIntEn( 2,iPart) = -BoltzmannConst*TRot*LOG(iRan)
+  IF(DSMC%DoRotRelaxQuantized) THEN
+    ! Quantized treatment of rotational energy
+    jMax = 40
+    ARM = .TRUE.
+    CALL RANDOM_NUMBER(iRan)
+    iQuant = INT((1+jMax)*iRan)
+    J = NINT(0.5 * (SQRT(2.*TRot/SpecDSMC(iSpecies)%CharaTRot) - 1.))
+    DO WHILE (ARM)
+      fNorm = (2.*REAL(iQuant) + 1.)*EXP(-REAL(iQuant)*(REAL(iQuant) + 1.)*SpecDSMC(iSpecies)%CharaTRot/TRot) &
+      / ((2.*J + 1.)*EXP(-J*(J + 1.)*SpecDSMC(iSpecies)%CharaTRot/TRot))
+      CALL RANDOM_NUMBER(iRan)
+      IF(fNorm .LT. iRan) THEN
+        CALL RANDOM_NUMBER(iRan)
+        iQuant = INT((1+jMax)*iRan)
+      ELSE
+        ARM = .FALSE.
+      END IF
+    END DO
+    PartStateIntEn( 2,iPart) = REAL(iQuant) * (REAL(iQuant) + 1.) * BoltzmannConst * SpecDSMC(iSpecies)%CharaTRot
+  ELSE
+    ! Continuous treatment of rotational energy
+    CALL RANDOM_NUMBER(iRan)
+    PartStateIntEn( 2,iPart) = -BoltzmannConst*TRot*LOG(iRan)
+  END IF
 ELSE
   ! Nullify energy for atomic species
   PartStateIntEn( 1,iPart) = 0

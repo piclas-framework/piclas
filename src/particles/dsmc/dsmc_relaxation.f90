@@ -28,9 +28,65 @@ PRIVATE
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
 PUBLIC :: DSMC_VibRelaxDiatomic, CalcMeanVibQuaDiatomic, CalcXiVib, CalcXiTotalEqui, DSMC_calc_P_rot, DSMC_calc_var_P_vib
 PUBLIC :: InitCalcVibRelaxProb, DSMC_calc_P_vib, SumVibRelaxProb, FinalizeCalcVibRelaxProb, DSMC_calc_P_elec
+PUBLIC :: DSMC_RotRelaxDiaQuant
 !===================================================================================================================================
 
 CONTAINS
+
+SUBROUTINE DSMC_RotRelaxDiaQuant(iPair,iPart,FakXi)
+!===================================================================================================================================
+!> Rotational relaxation of diatomic molecules using quantized energy levels after Boyd
+!> Physics of Fluids A: Fluid Dynamics (1989-1993) 5, 2278 (1993); doi: 10.1063/1.858531
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals_Vars          ,ONLY: BoltzmannConst
+USE MOD_DSMC_Vars             ,ONLY: PartStateIntEn, Coll_pData, SpecDSMC
+USE MOD_Particle_Vars         ,ONLY: PartSpecies
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+INTEGER, INTENT(IN)           :: iPart, iPair
+REAL, INTENT(IN)              :: FakXi
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER                       :: iSpec
+INTEGER                       :: iQuant, J1, J2, JStar
+LOGICAL                       :: ARM
+REAL                          :: fNorm, iRan
+!===================================================================================================================================
+
+iSpec = PartSpecies(iPart)
+
+J2 = INT((-1.+SQRT(1.+(4.*Coll_pData(iPair)%Ec)/(BoltzmannConst * SpecDSMC(iSpec)%CharaTRot)))/2.)
+
+J1 = NINT(0.5 * (-1. + SQRT((2. + 3. * SpecDSMC(iSpec)%omega + (8. * Coll_pData(iPair)%Ec) / &
+     (BoltzmannConst * SpecDSMC(iSpec)%CharaTRot))/(6. - SpecDSMC(iSpec)%omega))))
+
+JStar = MIN(J1,J2)
+
+ARM = .TRUE.
+
+CALL RANDOM_NUMBER(iRan)
+iQuant = INT((1+J2)*iRan)
+DO WHILE (ARM)
+  fNorm = (2.*REAL(iQuant) + 1.)*(Coll_pData(iPair)%Ec - REAL(iQuant)*(REAL(iQuant) + 1.)*BoltzmannConst*SpecDSMC(iSpec)%CharaTRot)**FakXi &
+          / ((2.*REAL(JStar) + 1.)*(Coll_pData(iPair)%Ec - REAL(JStar)*(REAL(JStar) + 1.)*BoltzmannConst*SpecDSMC(iSpec)%CharaTRot)**FakXi)
+  CALL RANDOM_NUMBER(iRan)
+  IF(fNorm .LT. iRan) THEN
+    CALL RANDOM_NUMBER(iRan)
+    iQuant = INT((1+J2)*iRan)
+  ELSE
+    ARM = .FALSE.
+  END IF
+END DO
+
+PartStateIntEn( 2,iPart) = REAL(iQuant) * (REAL(iQuant) + 1.) * BoltzmannConst * SpecDSMC(iSpec)%CharaTRot
+
+END SUBROUTINE DSMC_RotRelaxDiaQuant
+
 
 SUBROUTINE DSMC_VibRelaxDiatomic(iPair, iPart, FakXi)
 !===================================================================================================================================
@@ -298,8 +354,9 @@ SUBROUTINE DSMC_calc_P_rot(iSpec1, iSpec2, iPair, iPart, Xi_rel, ProbRot, ProbRo
 ! Calculation of probability for rotational relaxation. Different Models implemented:
 ! 0 - Constant Probability
 ! 1 - No rotational relaxation. RotRelaxProb = 0
-! 2 - Boyd
+! 2 - Boyd for N2
 ! 3 - Zhang (Nonequilibrium Direction Dependent)
+! 4 - Boyd for H2, J . Fluid Mech. (1994), uol. 280, p p . 41-67
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals            ,ONLY : Abort
@@ -316,8 +373,9 @@ REAL, INTENT(IN)            :: Xi_rel
 REAL, INTENT(OUT)         :: ProbRot, ProbRotMax
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-REAL                      :: TransEn, RotEn, RotDOF, CorrFact           ! CorrFact: To correct sample Bias
-                                                                        ! (fewer DSMC particles than natural ones)
+REAL                      :: TransEn, RotEn, RotDOF
+REAL                      :: CorrFact           ! CorrFact: To correct sample bias fewer DSMC particles than natural ones)
+REAL                      :: LumpkinCorr, VHSCorr
 !===================================================================================================================================
 
 TransEn    = Coll_pData(iPair)%Ec ! notice that during probability calculation,Collision energy only contains translational part
@@ -338,7 +396,7 @@ END IF
 ! calculate corrected probability for rotational relaxation
 IF(DSMC%RotRelaxProb.GE.0.0.AND.DSMC%RotRelaxProb.LE.1.0) THEN
   ProbRot = DSMC%RotRelaxProb * CorrFact
-ELSEIF(DSMC%RotRelaxProb.EQ.2.0) THEN ! P_rot according to Boyd (based on Parker's model)
+ELSE IF(DSMC%RotRelaxProb.EQ.2.0) THEN ! P_rot according to Boyd (based on Parker's model)
 
   RotDOF = RotDOF*0.5 ! Only half of the rotational degree of freedom, because the other half is used in the relaxation
                       ! probability of the collision partner, see Boyd (doi:10.1063/1.858531)
@@ -358,6 +416,15 @@ ELSEIF(DSMC%RotRelaxProb.EQ.3.0) THEN ! P_rot according to Zhang (NDD)
           * CorrFact
   ProbRotMax = MAX(ProbRot, 0.5) ! BL energy redistribution correction factor
   ProbRot    = MIN(ProbRot, 0.5)
+ELSEIF(DSMC%RotRelaxProb.EQ.4.0) THEN ! P_rot according to Boyd for H2, J . Fluid Mech. (1994), uol. 280, p p . 41-67
+
+  LumpkinCorr = (5.-2.*(CollInf%omega(iSpec1,iSpec2)+0.5)+2.*RotDOF)/(5.-2.*(CollInf%omega(iSpec1,iSpec2)+0.5))
+
+  VHSCorr = 8.*GAMMA(9./2.-(CollInf%omega(iSpec1,iSpec2)+0.5))/(15.*PI*GAMMA(5./2.-(CollInf%omega(iSpec1,iSpec2)+0.5))) &
+          * (208.-12.*(CollInf%omega(iSpec1,iSpec2)+0.5))/(211.-12*(CollInf%omega(iSpec1,iSpec2)+0.5)*(5./2.-(CollInf%omega(iSpec1,iSpec2)+0.5)))
+
+  ProbRot = LumpkinCorr*VHSCorr*1./10480.*GAMMA(RotDOF+5./2.-(CollInf%omega(iSpec1,iSpec2)+0.5))/GAMMA(RotDOF+5./2.) &
+          * ((TransEn+RotEn)/BoltzmannConst)**(CollInf%omega(iSpec1,iSpec2)+0.5)
 ELSE
   CALL Abort(__STAMP__,'Error! Model for rotational relaxation undefined:',RealInfoOpt=DSMC%RotRelaxProb)
 END IF
