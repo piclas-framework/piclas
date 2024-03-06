@@ -51,7 +51,10 @@ END INTERFACE
 
 PUBLIC :: InitMPIvars,StartReceiveMPIData,StartSendMPIData,FinishExchangeMPIData,FinalizeMPI
 PUBLIC :: StartReceiveMPIDataType,StartSendMPIDataType,FinishExchangeMPIDataType
-PUBLIC :: StartReceiveMPISurfDataType,StartSendMPISurfDataType,FinishExchangeMPISurfDataType
+PUBLIC :: StartReceiveMPISurfDataType
+#if USE_HDG
+PUBLIC :: StartSendMPISurfDataType,FinishExchangeMPISurfDataType
+#endif /*USE_HDG*/
 PUBLIC :: StartExchange_DG_Elems
 PUBLIC :: StartReceiveMPIDataInt,StartSendMPIDataInt
 #endif
@@ -446,6 +449,7 @@ END DO !iProc=1,nNBProcs
 END SUBROUTINE StartSendMPIData
 
 
+#if USE_HDG
 !===================================================================================================================================
 !> See above, but for for send direction (type-based p-adaption).
 !===================================================================================================================================
@@ -454,10 +458,10 @@ SUBROUTINE StartSendMPISurfDataType(MPIRequest,SendID, mode, iVar)
 USE MOD_Globals
 USE MOD_PreProc
 USE MOD_MPI_Vars
-USE MOD_DG_Vars, ONLY: U_Surf_N,DG_Elems_slave
-USE MOD_Mesh_Vars,     ONLY:N_SurfMesh
-USE MOD_HDG_Vars,     ONLY: HDG_Surf_N
-USE MOD_DG_Vars            ,ONLY: DG_Elems_master,DG_Elems_slave
+USE MOD_DG_Vars   ,ONLY: U_Surf_N,DG_Elems_slave
+USE MOD_Mesh_Vars ,ONLY: N_SurfMesh
+USE MOD_HDG_Vars  ,ONLY: HDG_Surf_N
+USE MOD_DG_Vars   ,ONLY: DG_Elems_master,DG_Elems_slave
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -521,6 +525,8 @@ DO iNbProc=1,nNbProcs
   END IF
 END DO !iProc=1,nNBProcs
 END SUBROUTINE StartSendMPISurfDataType
+#endif /*USE_HDG*/
+
 
 !===================================================================================================================================
 !> See above, but for for send direction (type-based p-adaption).
@@ -759,6 +765,7 @@ END DO !iProc=1,nNBProcs
 END SUBROUTINE StartSendMPIDataInt
 
 
+#if USE_HDG
 !===================================================================================================================================
 !> We have to complete our non-blocking communication operations before we can (re)use the send / receive buffers
 !> SendRequest, RecRequest: communication handles
@@ -769,9 +776,9 @@ SUBROUTINE FinishExchangeMPISurfDataType(SendRequest,RecRequest,SendID, mode, iV
 USE MOD_Globals
 USE MOD_PreProc 
 USE MOD_MPI_Vars
-USE MOD_Mesh_Vars,     ONLY:N_SurfMesh
-USE MOD_HDG_Vars,     ONLY: HDG_Surf_N
-USE MOD_DG_Vars            ,ONLY: DG_Elems_master,DG_Elems_slave
+USE MOD_Mesh_Vars ,ONLY: N_SurfMesh
+USE MOD_HDG_Vars  ,ONLY: HDG_Surf_N
+USE MOD_DG_Vars   ,ONLY: DG_Elems_master,DG_Elems_slave
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -839,6 +846,8 @@ DO iNbProc=1,nNbProcs
 END DO !iProc=1,nNBProcs
 
 END SUBROUTINE FinishExchangeMPISurfDataType
+#endif /*USE_HDG*/
+
 
 !===================================================================================================================================
 !> We have to complete our non-blocking communication operations before we can (re)use the send / receive buffers

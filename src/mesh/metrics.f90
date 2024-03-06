@@ -490,6 +490,7 @@ DO iLocSide=1,6
   flipSide=.FALSE.
   !WRITE (*,*) "Nloc,N_max,ElemToSide(E2S_FLIP,iLocSide,iElem) =", Nloc,N_max,ElemToSide(E2S_FLIP,iLocSide,iElem)
 
+  ! TODO: maybe this has to be done differently between HDG and Maxwell
 !  IF(Nloc.LT.N_max)THEN
 !    CYCLE
 !  ELSE
@@ -664,11 +665,11 @@ DO iLocSide=1,6
       CALL SurfMetricsFromJa(Nloc,NormalDir,TangDir,NormalSign,Mortar_Ja(1:3,1:3,0:Nloc,0:Nloc,iMortar),&
                              N_SurfMesh(SideID2)%NormVec(:,:,:),N_SurfMesh(SideID2)%TangVec1(:,:,:),&
                              N_SurfMesh(SideID2)%TangVec2(:,:,:),N_SurfMesh(SideID2)%SurfElem(:,:))
-    END DO
+    END DO ! iMortar=1,4
 
-  END IF
+  END IF ! MortarType(1,SideID).GT.0
 
-END DO
+END DO ! iLocSide=1,6
 
 #if USE_HDG
 !! Build SurfElemMin for all sides (including Mortar sides)
