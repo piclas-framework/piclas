@@ -534,6 +534,7 @@ USE MOD_Mesh_Vars ,ONLY: SideToElem,nSides,nBCSides
 USE MOD_MPI       ,ONLY: StartExchange_DG_Elems,FinishExchangeMPIData
 USE MOD_MPI_Vars  ,ONLY: DataSizeSideSend,DataSizeSideRec,nNbProcs,nMPISides_rec,nMPISides_send,OffsetMPISides_rec
 USE MOD_MPI_Vars  ,ONLY: OffsetMPISides_send,DGExchange
+USE MOD_MPI_Vars  ,ONLY: DataSizeSurfSendMax,DataSizeSurfRecMax, DataSizeSurfSendMin,DataSizeSurfRecMin
 #endif /*USE_MPI*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -568,8 +569,11 @@ CALL FinishExchangeMPIData(SendRequest_U ,RecRequest_U ,SendID=2) ! Send YOUR - 
 CALL FinishExchangeMPIData(SendRequest_U2,RecRequest_U2,SendID=1) ! Send YOUR - receive MINE
 ! Initialize the send/rec face sizes for master/slave communication
 IF(.NOT.ALLOCATED(DataSizeSideSend)) ALLOCATE(DataSizeSideSend(nNbProcs,2), DataSizeSideRec(nNbProcs,2))
+IF(.NOT.ALLOCATED(DataSizeSurfSendMax)) ALLOCATE(DataSizeSurfSendMax(nNbProcs,2), DataSizeSurfRecMax(nNbProcs,2))
+IF(.NOT.ALLOCATED(DataSizeSurfSendMin)) ALLOCATE(DataSizeSurfSendMin(nNbProcs,2), DataSizeSurfRecMin(nNbProcs,2))
 DataSizeSideSend=0
 DataSizeSideRec=0
+DataSizeSurfSendMax =0; DataSizeSurfRecMax = 0; DataSizeSurfSendMin =0; DataSizeSurfRecMin = 0
 DO iNbProc = 1, nNbProcs
 
   ! 1: Set number of sides and offset for SEND MINE - RECEIVE YOUR case
@@ -577,6 +581,10 @@ DO iNbProc = 1, nNbProcs
     DO iSide = OffsetMPISides_rec(iNbProc-1,1)+1, OffsetMPISides_rec(iNbProc,1)
       Nloc = DG_Elems_slave(iSide) ! polynomial degree of the sending slave side
       DataSizeSideRec(iNbProc,1) = DataSizeSideRec(iNbProc,1)  + (Nloc+1)**2
+      Nloc = MAX(DG_Elems_master(iSide),DG_Elems_slave(iSide))
+      DataSizeSurfRecMax(iNbProc,1) = DataSizeSurfRecMax(iNbProc,1)  + (Nloc+1)**2
+      Nloc = MIN(DG_Elems_master(iSide),DG_Elems_slave(iSide))
+      DataSizeSurfRecMin(iNbProc,1) = DataSizeSurfRecMin(iNbProc,1)  + (Nloc+1)**2
     END DO ! iSide = 1, nMPISides_rec(iNbProc,1)
   END IF
 
@@ -584,12 +592,20 @@ DO iNbProc = 1, nNbProcs
     DO iSide = OffsetMPISides_send(iNbProc-1,1)+1, OffsetMPISides_send(iNbProc,1)
       Nloc = DG_Elems_slave(iSide) ! polynomial degree of the sending slave side
       DataSizeSideSend(iNbProc,1) = DataSizeSideSend(iNbProc,1)  + (Nloc+1)**2
+      Nloc = MAX(DG_Elems_master(iSide),DG_Elems_slave(iSide))
+      DataSizeSurfSendMax(iNbProc,1) = DataSizeSurfSendMax(iNbProc,1)  + (Nloc+1)**2
+      Nloc = MIN(DG_Elems_master(iSide),DG_Elems_slave(iSide))
+      DataSizeSurfSendMin(iNbProc,1) = DataSizeSurfSendMin(iNbProc,1)  + (Nloc+1)**2
     END DO ! iSide = 1, nMPISides_rec(iNbProc,1)
   END IF
 
   ! Important: Keep symmetry
   DataSizeSideSend(iNbProc,2) = DataSizeSideRec( iNbProc,1)
   DataSizeSideRec( iNbProc,2) = DataSizeSideSend(iNbProc,1)
+  DataSizeSurfSendMax(iNbProc,2) = DataSizeSurfRecMax( iNbProc,1)
+  DataSizeSurfRecMax( iNbProc,2) = DataSizeSurfSendMax(iNbProc,1)
+  DataSizeSurfSendMin(iNbProc,2) = DataSizeSurfRecMin( iNbProc,1)
+  DataSizeSurfRecMin( iNbProc,2) = DataSizeSurfSendMin(iNbProc,1)
 END DO ! iNbProc = 1, nNbProcs
 
 ! Create unrolled arrays

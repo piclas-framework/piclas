@@ -51,6 +51,7 @@ END INTERFACE
 
 PUBLIC :: InitMPIvars,StartReceiveMPIData,StartSendMPIData,FinishExchangeMPIData,FinalizeMPI
 PUBLIC :: StartReceiveMPIDataType,StartSendMPIDataType,FinishExchangeMPIDataType
+PUBLIC :: StartReceiveMPISurfDataType,StartSendMPISurfDataType,FinishExchangeMPISurfDataType
 PUBLIC :: StartExchange_DG_Elems
 PUBLIC :: StartReceiveMPIDataInt,StartSendMPIDataInt
 #endif
@@ -371,6 +372,46 @@ END SUBROUTINE StartReceiveMPIDataType
 
 
 !===================================================================================================================================
+!> Subroutine does the receive operations for the face data that has to be exchanged between processors (type-based p-adaption).
+!===================================================================================================================================
+SUBROUTINE StartReceiveMPISurfDataType(MPIRequest,SendID, mode)
+! MODULES
+USE MOD_Globals
+USE MOD_PreProc
+USE MOD_MPI_Vars
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+INTEGER,INTENT(IN)  :: SendID                                                 !< defines the send / receive direction -> 1=send MINE
+                                                                              !< / receive YOUR, 3=send YOUR / receive MINE
+INTEGER,INTENT(IN)  :: mode
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+INTEGER,INTENT(OUT) :: MPIRequest(nNbProcs)                                   !< communication handles
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+!===================================================================================================================================
+DO iNbProc=1,nNbProcs
+  IF(nMPISides_rec(iNbProc,SendID).GT.0)THEN
+    IF (mode.EQ.1) THEN
+      nRecVal = DataSizeSurfRecMax(iNbProc,SendID)
+      CALL MPI_IRECV(SurfExchange(iNbProc)%SurfDataRecv(1:DataSizeSurfRecMax(iNbProc,SendID)),nRecVal,MPI_DOUBLE_PRECISION,  &
+                      nbProc(iNbProc),0,MPI_COMM_WORLD,MPIRequest(iNbProc),iError)
+    ELSE
+      nRecVal = DataSizeSurfRecMin(iNbProc,SendID)
+      CALL MPI_IRECV(SurfExchange(iNbProc)%SurfDataRecv(1:DataSizeSurfRecMin(iNbProc,SendID)),nRecVal,MPI_DOUBLE_PRECISION,  &
+                      nbProc(iNbProc),0,MPI_COMM_WORLD,MPIRequest(iNbProc),iError)
+    END IF
+  ELSE
+    MPIRequest(iNbProc)=MPI_REQUEST_NULL
+  END IF
+END DO !iProc=1,nNBProcs
+END SUBROUTINE StartReceiveMPISurfDataType
+
+
+
+!===================================================================================================================================
 !> See above, but for for send direction
 !===================================================================================================================================
 SUBROUTINE StartSendMPIData(firstDim,FaceData,LowerBound,UpperBound,MPIRequest,SendID)
@@ -404,6 +445,82 @@ DO iNbProc=1,nNbProcs
 END DO !iProc=1,nNBProcs
 END SUBROUTINE StartSendMPIData
 
+
+!===================================================================================================================================
+!> See above, but for for send direction (type-based p-adaption).
+!===================================================================================================================================
+SUBROUTINE StartSendMPISurfDataType(MPIRequest,SendID, mode, iVar)
+! MODULES
+USE MOD_Globals
+USE MOD_PreProc
+USE MOD_MPI_Vars
+USE MOD_DG_Vars, ONLY: U_Surf_N,DG_Elems_slave
+USE MOD_Mesh_Vars,     ONLY:N_SurfMesh
+USE MOD_HDG_Vars,     ONLY: HDG_Surf_N
+USE MOD_DG_Vars            ,ONLY: DG_Elems_master,DG_Elems_slave
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+INTEGER, INTENT(IN)          :: SendID
+INTEGER, INTENT(IN)          :: mode
+INTEGER, INTENT(IN), OPTIONAL:: ivar 
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+INTEGER, INTENT(OUT)         :: MPIRequest(nNbProcs)
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER                      :: i,p,q,r,iSide,Nloc
+!==================================================================================================================================
+DO iNbProc=1,nNbProcs
+
+
+  IF(nMPISides_send(iNbProc,SendID).GT.0)THEN
+    IF (mode.EQ.1) THEN
+      nSendVal     = DataSizeSurfSendMax(iNbProc,SendID)
+      SideID_start = OffsetMPISides_send(iNbProc-1,SendID)+1
+      SideID_end   = OffsetMPISides_send(iNbProc,SendID)
+      i = 1
+      DO iSide = SideID_start, SideID_end
+        Nloc = MAX(DG_Elems_master(iSide),DG_Elems_slave(iSide))
+        DO p = 0, Nloc
+          DO q = 0, Nloc
+            SurfExchange(iNbProc)%SurfDataSend(i) = N_SurfMesh(iSide)%SurfElem(p,q)
+            i = i + 1
+          END DO ! q = 0, N_slave
+        END DO ! p = 0, N_slave
+      END DO ! iSide = SideID_start, SideID_end
+      CALL MPI_ISEND(SurfExchange(iNbProc)%SurfDataSend(1:DataSizeSurfSendMax(iNbProc,SendID)),nSendVal,MPI_DOUBLE_PRECISION,  &
+                      nbProc(iNbProc),0,MPI_COMM_WORLD,MPIRequest(iNbProc),iError)
+    ELSE 
+      nSendVal     = DataSizeSurfSendMin(iNbProc,SendID)
+      SideID_start = OffsetMPISides_send(iNbProc-1,SendID)+1
+      SideID_end   = OffsetMPISides_send(iNbProc,SendID)
+      i = 1
+      DO iSide = SideID_start, SideID_end
+        Nloc = MIN(DG_Elems_master(iSide),DG_Elems_slave(iSide))
+        DO p = 0, Nloc
+          DO q = 0, Nloc
+            r=p*(Nloc+1) + q+1
+            IF (mode.EQ.2) THEN
+              SurfExchange(iNbProc)%SurfDataSend(i) = HDG_Surf_N(iSide)%lambda(iVar,r)
+            ELSE IF (mode.EQ.3) THEN
+              SurfExchange(iNbProc)%SurfDataSend(i) = HDG_Surf_N(iSide)%mv(iVar,r)
+            ELSE IF (mode.EQ.4) THEN
+              SurfExchange(iNbProc)%SurfDataSend(i) = HDG_Surf_N(iSide)%RHS_face(iVar,r)
+            ENDIF
+            i = i + 1
+          END DO ! q = 0, N_slave
+        END DO ! p = 0, N_slave
+      END DO ! iSide = SideID_start, SideID_end
+      CALL MPI_ISEND(SurfExchange(iNbProc)%SurfDataSend(1:DataSizeSurfSendMin(iNbProc,SendID)),nSendVal,MPI_DOUBLE_PRECISION,  &
+                      nbProc(iNbProc),0,MPI_COMM_WORLD,MPIRequest(iNbProc),iError)
+    END IF
+  ELSE
+    MPIRequest(iNbProc)=MPI_REQUEST_NULL
+  END IF
+END DO !iProc=1,nNBProcs
+END SUBROUTINE StartSendMPISurfDataType
 
 !===================================================================================================================================
 !> See above, but for for send direction (type-based p-adaption).
@@ -641,6 +758,87 @@ DO iNbProc=1,nNbProcs
 END DO !iProc=1,nNBProcs
 END SUBROUTINE StartSendMPIDataInt
 
+
+!===================================================================================================================================
+!> We have to complete our non-blocking communication operations before we can (re)use the send / receive buffers
+!> SendRequest, RecRequest: communication handles
+!> SendID: defines the send / receive direction -> 1=send MINE / receive YOUR  2=send YOUR / receive MINE
+!===================================================================================================================================
+SUBROUTINE FinishExchangeMPISurfDataType(SendRequest,RecRequest,SendID, mode, iVar)
+! MODULES
+USE MOD_Globals
+USE MOD_PreProc 
+USE MOD_MPI_Vars
+USE MOD_Mesh_Vars,     ONLY:N_SurfMesh
+USE MOD_HDG_Vars,     ONLY: HDG_Surf_N
+USE MOD_DG_Vars            ,ONLY: DG_Elems_master,DG_Elems_slave
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+INTEGER, INTENT(IN)          :: SendID, mode
+INTEGER, INTENT(IN), OPTIONAL:: iVar
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+INTEGER, INTENT(INOUT)       :: SendRequest(nNbProcs),RecRequest(nNbProcs)
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+#if defined(MEASURE_MPI_WAIT)
+INTEGER(KIND=8)               :: CounterStart,CounterEnd
+REAL(KIND=8)                  :: Rate
+#endif /*defined(MEASURE_MPI_WAIT)*/
+INTEGER                       :: i,p,q,r,iSide,Nloc
+!===================================================================================================================================
+! Check receive operations first
+DO iNbProc=1,nNbProcs
+  IF(nMPISides_rec(iNbProc,SendID).GT.0) CALL MPI_WAIT(RecRequest(iNbProc) ,MPIStatus,iError)
+END DO !iProc=1,nNBProcs
+
+! Check send operations
+DO iNbProc=1,nNbProcs
+  IF(nMPISides_send(iNbProc,SendID).GT.0) CALL MPI_WAIT(SendRequest(iNbProc),MPIStatus,iError)
+END DO !iProc=1,nNBProcs
+
+! Unroll data
+DO iNbProc=1,nNbProcs
+  IF(nMPISides_rec(iNbProc,SendID).GT.0)THEN
+    SideID_start = OffsetMPISides_rec(iNbProc-1,SendID)+1
+    SideID_end   = OffsetMPISides_rec(iNbProc,SendID)
+
+    i = 1
+    IF(mode.EQ.1)THEN
+      DO iSide = SideID_start, SideID_end       
+        Nloc = MAX(DG_Elems_master(iSide),DG_Elems_slave(iSide))
+        DO p = 0, Nloc
+          DO q = 0, Nloc
+            N_SurfMesh(iSide)%SurfElem(p,q) = SurfExchange(iNbProc)%SurfDataRecv(i)
+            i = i + 1
+          END DO ! q = 0, N_slave
+        END DO ! p = 0, N_slave
+      END DO ! iSide = SideID_start, SideID_end
+    ELSE
+      DO iSide = SideID_start, SideID_end
+        Nloc = MIN(DG_Elems_master(iSide),DG_Elems_slave(iSide))
+        DO p = 0, Nloc
+          DO q = 0, Nloc
+            r=p*(Nloc+1) + q+1
+            IF (mode.EQ.2) THEN
+              HDG_Surf_N(iSide)%lambda(iVar,r) = SurfExchange(iNbProc)%SurfDataRecv(i)
+            ELSE IF (mode.EQ.3) THEN
+              HDG_Surf_N(iSide)%mv(iVar,r) = SurfExchange(iNbProc)%SurfDataRecv(i)
+            ELSE IF (mode.EQ.4) THEN
+              HDG_Surf_N(iSide)%RHS_face(iVar,r) = SurfExchange(iNbProc)%SurfDataRecv(i)
+            ENDIF
+            i = i + 1
+          END DO ! q = 0, N_slave
+        END DO ! p = 0, N_slave
+      END DO ! iSide = SideID_start, SideID_end
+    END IF ! SendID.EQ.2
+
+  END IF
+END DO !iProc=1,nNBProcs
+
+END SUBROUTINE FinishExchangeMPISurfDataType
 
 !===================================================================================================================================
 !> We have to complete our non-blocking communication operations before we can (re)use the send / receive buffers

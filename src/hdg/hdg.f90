@@ -542,6 +542,10 @@ DO SideID = 1, nSides
   HDG_Surf_N(SideID)%V=0.
   ALLOCATE(HDG_Surf_N(SideID)%Z(PP_nVar,nGP_face(NSideMin)))
   HDG_Surf_N(SideID)%Z=0.
+#if USE_MPI
+  ALLOCATE(HDG_Surf_N(SideID)%buf(PP_nVar,nGP_face(NSideMin)))
+  HDG_Surf_N(SideID)%buf=0.
+#endif
 END DO ! SideID = 1, nSides
 
 #if USE_PETSC
@@ -3016,7 +3020,7 @@ USE MOD_Mesh_Vars          ,ONLY: nSides, SideToElem, ElemToSide, nMPIsides_YOUR
 USE MOD_FillMortar_HDG     ,ONLY: BigToSmallMortar_HDG,SmallToBigMortar_HDG
 #if USE_MPI
 USE MOD_MPI_Vars
-USE MOD_MPI                ,ONLY: StartReceiveMPIData,StartSendMPIData,FinishExchangeMPIData
+USE MOD_MPI                ,ONLY: StartReceiveMPISurfDataType,StartSendMPISurfDataType,FinishExchangeMPISurfDataType
 USE MOD_HDG_Vars           ,ONLY: Mask_MPIsides
 #endif /*USE_MPI*/
 #if USE_LOADBALANCE
@@ -3058,9 +3062,11 @@ CALL LBPauseTime(LB_DG,tLBStart) ! Pause/Stop time measurement
 #endif /*USE_LOADBALANCE*/
 
 #if USE_MPI
-CALL abort(__STAMP__,'not implemented')
+!CALL abort(__STAMP__,'not implemented')
 !CALL StartReceiveMPIData(1,lambda,1,nSides, RecRequest_U,SendID=1) ! Receive YOUR
 !CALL StartSendMPIData(   1,lambda,1,nSides,SendRequest_U,SendID=1) ! Send MINE
+CALL StartReceiveMPISurfDataType(RecRequest_U, 1, 2)
+CALL StartSendMPISurfDataType(SendRequest_U,1,2)
 #endif /*USE_MPI*/
 
 
@@ -3161,7 +3167,7 @@ CALL LBPauseTime(LB_DG,tLBStart) ! Pause/Stop time measurement
 
 #if USE_MPI
 ! Finish lambda communication
-CALL FinishExchangeMPIData(SendRequest_U,RecRequest_U,SendID=1)
+CALL FinishExchangeMPISurfDataType(SendRequest_U,RecRequest_U,1, 2)
 
 #if USE_LOADBALANCE
 CALL LBStartTime(tLBStart) ! Start time measurement

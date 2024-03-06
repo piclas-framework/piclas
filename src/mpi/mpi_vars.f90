@@ -44,6 +44,8 @@ INTEGER,ALLOCATABLE   :: offsetElemMPI(:)      ! gives offset position of elemen
 INTEGER,ALLOCATABLE   :: nMPISides_send(:,:),nMPISides_rec(:,:)
 INTEGER,ALLOCATABLE   :: OffsetMPISides_send(:,:),OffsetMPISides_rec(:,:)
 INTEGER,ALLOCATABLE   :: DataSizeSideSend(:,:),DataSizeSideRec(:,:)
+INTEGER,ALLOCATABLE   :: DataSizeSurfSendMax(:,:),DataSizeSurfRecMax(:,:)
+INTEGER,ALLOCATABLE   :: DataSizeSurfSendMin(:,:),DataSizeSurfRecMin(:,:)
 
 TYPE tExchangeData
   REAL,ALLOCATABLE      :: FaceDataSend(:,:)
@@ -51,6 +53,13 @@ TYPE tExchangeData
 END TYPE tExchangeData
 
 TYPE(tExchangeData), ALLOCATABLE :: DGExchange(:)
+
+TYPE tSurfExchange
+  REAL,ALLOCATABLE      :: SurfDataSend(:)
+  REAL,ALLOCATABLE      :: SurfDataRecv(:)
+END TYPE tSurfExchange
+
+TYPE(tSurfExchange), ALLOCATABLE :: SurfExchange(:)
 #endif /*USE_MPI*/
 
 #if defined(MEASURE_MPI_WAIT)

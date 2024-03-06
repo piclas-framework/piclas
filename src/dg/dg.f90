@@ -206,11 +206,15 @@ USE MOD_Globals
 USE MOD_Basis     ,ONLY:LegendreGaussNodesAndWeights,LegGaussLobNodesAndWeights,BarycentricWeights
 USE MOD_Basis     ,ONLY:PolynomialDerivativeMatrix,LagrangeInterpolationPolys
 #if USE_HDG
+USE MOD_Interpolation_Vars ,ONLY: Nmax
+USE MOD_ChangeBasis        ,ONLY: ChangeBasis2D
 #if USE_MPI
 USE MOD_PreProc
-USE MOD_MPI_vars,      ONLY:SendRequest_Geo,RecRequest_Geo
-USE MOD_MPI,           ONLY:StartReceiveMPIData,StartSendMPIData,FinishExchangeMPIData
+USE MOD_MPI_Vars,      ONLY: SurfExchange, nNbProcs, DataSizeSurfRecMax, DataSizeSurfSendMax, DataSizeSurfRecMin, DataSizeSurfSendMin
+USE MOD_DG_Vars            ,ONLY: N_DG,DG_Elems_master,DG_Elems_slave
+USE MOD_MPI,           ONLY:StartReceiveMPISurfDataType,StartSendMPISurfDataType,FinishExchangeMPISurfDataType
 USE MOD_Mesh_Vars,     ONLY:N_SurfMesh,nSides
+USE MOD_Interpolation_Vars ,ONLY: NInfo,PREF_VDM,N_Inter
 #endif /*USE_MPI*/
 #endif /*USE_HDG*/
 ! IMPLICIT VARIABLE HANDLING
@@ -239,7 +243,10 @@ REAL,DIMENSION(0:N_in,0:N_in)              :: M,Minv
 INTEGER                                    :: iMass
 #if USE_HDG
 #if USE_MPI
-REAL                                       :: Geotemp(10,0:PP_N,0:PP_N,1:nSides)
+!REAL                                       :: Geotemp(10,0:PP_N,0:PP_N,1:nSides)
+INTEGER                 :: SendRequest(nNbProcs),RecRequest(nNbProcs)
+INTEGER                 :: iSide, i,nRecVal, nSendVal, Nloc, iNbProc, NSideMax, NSideMin, p, q, SideID_end, SideID_start
+REAL               :: tmp(        3,0:Nmax,0:Nmax)
 #endif /*USE_MPI*/
 #endif /*USE_HDG*/
 !===================================================================================================================================
@@ -267,7 +274,7 @@ L_HatMinus(:) = MATMUL(Minv,L_Minus)
 #if USE_HDG
 #if USE_MPI
 ! exchange is in InitDGBasis as InitMesh() and InitMPI() is needed
-CALL abort(__STAMP__,'not implemented: but is it actually required?')
+!CALL abort(__STAMP__,'not implemented: but is it actually required?')
 !Geotemp=0.
 !Geotemp(1,:,:,:)    = N_SurfMesh(?)%SurfElem(:,:)
 !Geotemp(2:4,:,:,:)  = N_SurfMesh(?)%NormVec(:,:,:)
@@ -284,7 +291,40 @@ CALL abort(__STAMP__,'not implemented: but is it actually required?')
 !TangVec2(:,:,:,1:nSides)=Geotemp(8:10,:,:,:)
 !Face_xGP(:,:,:,SideID_minus_lower:SideID_minus_upper)=Geotemp(11:13,:,:,:)
 
+ALLOCATE(SurfExchange(nNbProcs))
+DO iNbProc=1,nNbProcs
+  ALLOCATE(SurfExchange(iNbProc)%SurfDataRecv(MAXVAL(DataSizeSurfRecMax(iNbProc,:))))
+  ALLOCATE(SurfExchange(iNbProc)%SurfDataSend(MAXVAL(DataSizeSurfSendMax(iNbProc,:))))
+END DO !iProc=1,nNBProcs
+CALL StartReceiveMPISurfDataType(RecRequest, 1, 1)
+CALL StartSendMPISurfDataType(SendRequest,1,1)
+CALL FinishExchangeMPISurfDataType(SendRequest,RecRequest,1, 1)
+DO iNbProc=1,nNbProcs
+  DEALLOCATE(SurfExchange(iNbProc)%SurfDataRecv)
+  DEALLOCATE(SurfExchange(iNbProc)%SurfDataSend)
+  ALLOCATE(SurfExchange(iNbProc)%SurfDataRecv(MAXVAL(DataSizeSurfRecMin(iNbProc,:))))
+  ALLOCATE(SurfExchange(iNbProc)%SurfDataSend(MAXVAL(DataSizeSurfSendMin(iNbProc,:))))
+END DO !iProc=1,nNBProcs
+
 #endif /*USE_MPI*/
+
+! Build SurfElemMin for all sides (including Mortar sides)
+DO iSide = 1, nSides
+  ! Get SurfElemMin
+  NSideMax = MAX(DG_Elems_master(iSide),DG_Elems_slave(iSide))
+  NSideMin = N_SurfMesh(iSide)%NSideMin
+  IF(NSideMax.EQ.NSideMin)THEN
+    N_SurfMesh(iSide)%SurfElemMin(:,:) = N_SurfMesh(iSide)%SurfElem(:,:)
+  ELSE
+    ! From high to low
+    ! Transform the slave side to the same degree as the master: switch to Legendre basis
+    CALL ChangeBasis2D(1, NSideMax, NSideMax, N_Inter(NSideMax)%sVdm_Leg, N_SurfMesh(iSide)%SurfElem(0:NSideMax,0:NSideMax), tmp(1,0:NSideMax,0:NSideMax))
+     !Switch back to nodal basis
+    CALL ChangeBasis2D(1, NSideMin, NSideMin, N_Inter(NSideMin)%Vdm_Leg , tmp(1,0:NSideMax,0:NSideMax)                      , N_SurfMesh(iSide)%SurfElemMin(0:NSideMin,0:NSideMin))
+  END IF ! NSideMax.EQ.NSideMin
+END DO ! iSide = 1, nSides
+
+
 #endif /*USE_HDG*/
 END SUBROUTINE InitDGBasis
 
