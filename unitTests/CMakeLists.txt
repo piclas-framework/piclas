@@ -22,7 +22,9 @@ function(add_unit_test target)
     ADD_EXECUTABLE(${target} ${ARGN})
     TARGET_LINK_LIBRARIES(${target} libpiclasshared)
     # Set properties of target
-    SET_TARGET_PROPERTIES(${target} PROPERTIES COMPILE_FLAGS ${PICLAS_COMPILE_FLAGS})
+    SET_TARGET_PROPERTIES(${target} PROPERTIES COMPILE_FLAGS ${PICLAS_COMPILE_FLAGS}
+                                               COMPILE_OPTIONS "-fPIC"
+                                               CMAKE_POSITION_INDEPENDENT_CODE ON)
     SET_TARGET_PROPERTIES(${target} PROPERTIES LINKER_LANGUAGE Fortran)
     SET_TARGET_PROPERTIES(${target}
                           PROPERTIES
@@ -38,7 +40,7 @@ function(add_unit_test target)
 endfunction()
 
 # CMake can always request position independent code
-SET(CMAKE_POSITION_INDEPENDENT_CODE ON)
+# SET(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
 # Enable testing in general
 ENABLE_TESTING()
