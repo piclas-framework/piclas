@@ -71,6 +71,7 @@ INTEGER                     :: allowedRejections, PartsEmitted, Node1, Node2, gl
 INTEGER                     :: PartInsSideRadWeight(1:RadialWeighting%nSubSides)
 REAL                        :: Particle_pos(3), RandVal1,  xyzNod(3), RVec(2), minPos(2), xi(2), Vector1(3), Vector2(3)
 REAL                        :: ndist(3), midpoint(3)
+REAL                        :: MPF
 LOGICAL                     :: AcceptPos
 REAL,ALLOCATABLE            :: particle_positions(:), particle_xis(:)
 INTEGER,ALLOCATABLE         :: PartInsSubSides(:,:,:)
@@ -244,7 +245,12 @@ DO iSpec=1,nSpecies
             PartMPF(ParticleIndexNbr) = CalcRadWeightMPF(PartState(2,ParticleIndexNbr), iSpec,ParticleIndexNbr)
           END IF
           IF(CalcSurfFluxInfo) THEN
-            SF%SampledMassflow = SF%SampledMassflow + GetParticleWeight(ParticleIndexNbr)
+            IF(usevMPF.OR.RadialWeighting%DoRadialWeighting) THEN
+              MPF = GetParticleWeight(ParticleIndexNbr)
+            ELSE
+              MPF = GetParticleWeight(ParticleIndexNbr) * Species(iSpec)%MacroParticleFactor
+            END IF
+            SF%SampledMassflow = SF%SampledMassflow + MPF
           END IF
 #ifdef CODE_ANALYZE
           CALL AnalyzePartPos(ParticleIndexNbr)

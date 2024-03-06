@@ -1284,8 +1284,7 @@ SUBROUTINE CalcSurfaceFluxInfo()
 USE MOD_Globals
 USE MOD_TimeDisc_Vars           ,ONLY: dt, iter
 USE MOD_Particle_Analyze_Vars   ,ONLY: FlowRateSurfFlux,PressureAdaptiveBC,PartAnalyzeStep
-USE MOD_DSMC_Vars               ,ONLY: RadialWeighting
-USE MOD_Particle_Vars           ,ONLY: Species,nSpecies,usevMPF,VarTimeStep
+USE MOD_Particle_Vars           ,ONLY: Species,nSpecies,VarTimeStep
 USE MOD_Particle_Surfaces_Vars  ,ONLY: BCdata_auxSF, SurfFluxSideSize, SurfMeshSubSideData
 USE MOD_Particle_Sampling_Vars  ,ONLY: UseAdaptiveBC, AdaptBCMacroVal, AdaptBCMapElemToSample, AdaptBCAreaSurfaceFlux
 USE MOD_Particle_Sampling_Vars  ,ONLY: AdaptBCAverageValBC, AdaptBCAverageMacroVal
@@ -1302,7 +1301,7 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER             :: iSpec, iSF, ElemID, SampleElemID, SurfSideID, iSide, iSample, jSample, currentBC
-REAL                :: MacroParticleFactor, dtVar
+REAL                :: dtVar
 #if USE_MPI
 INTEGER             :: MaxSurfaceFluxBCs
 #endif /*USE_MPI*/
@@ -1313,12 +1312,7 @@ IF(iter.EQ.0) RETURN
 IF(UseAdaptiveBC) PressureAdaptiveBC = 0.
 ! 1) Calculate the processor-local mass flow rate and sum-up the area weighted pressure
 DO iSpec = 1, nSpecies
-  ! If usevMPF or DoRadialWeighting then the MacroParticleFactor is already included in the GetParticleWeight
-  IF(usevMPF.OR.RadialWeighting%DoRadialWeighting) THEN
-    MacroParticleFactor = 1.
-  ELSE
-    MacroParticleFactor = Species(iSpec)%MacroParticleFactor
-  END IF
+  ! Species-specific time step
   IF(VarTimeStep%UseSpeciesSpecific) THEN
     dtVar = dt * Species(iSpec)%TimeStepFactor
   ELSE
@@ -1326,7 +1320,7 @@ DO iSpec = 1, nSpecies
   END IF
   DO iSF = 1, Species(iSpec)%nSurfacefluxBCs
     ! SampledMassFlow contains the weighted particle number balance (in - out)
-    FlowRateSurfFlux(iSpec,iSF) = Species(iSpec)%Surfaceflux(iSF)%SampledMassflow * MacroParticleFactor / dtVar
+    FlowRateSurfFlux(iSpec,iSF) = Species(iSpec)%Surfaceflux(iSF)%SampledMassflow / dtVar
     IF(Species(iSpec)%Surfaceflux(iSF)%UseEmissionCurrent) THEN
       FlowRateSurfFlux(iSpec,iSF) = FlowRateSurfFlux(iSpec,iSF) * ABS(Species(iSpec)%ChargeIC)
     ELSE
