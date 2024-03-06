@@ -279,8 +279,14 @@ CASE(1)
   PartStateTemp = CollisionEnergy / BoltzmannConst
   DO iQua = 0, MaxElecQuant
     IF (PartStateTemp - SpecDSMC(iSpec)%ElectronicState(2,iQua).GT.0.) THEN
-      gtemp = SpecDSMC(iSpec)%ElectronicState(1,iQua) * &
-              ( CollisionEnergy - BoltzmannConst * SpecDSMC(iSpec)%ElectronicState(2,iQua))**FakXi
+      ! gtemp = SpecDSMC(iSpec)%ElectronicState(1,iQua) * (CollisionEnergy - BoltzmannConst*SpecDSMC(iSpec)%ElectronicState(2,iQua))**FakXi
+      ! Above equation is replaced be the following to safely check for floating-point exceptions
+      gtemp = FakXi * LOG(CollisionEnergy - BoltzmannConst * SpecDSMC(iSpec)%ElectronicState(2,iQua))
+      IF(CHECKEXP(gtemp)) THEN
+        gtemp = SpecDSMC(iSpec)%ElectronicState(1,iQua) * EXP(gtemp)
+      ELSE
+        gtemp = 0.
+      END IF
       ! maximal possible Quant before term goes negative
       iQuaMax = iQua
       IF ( gtemp .GT. gmax ) THEN
@@ -296,14 +302,14 @@ CASE(1)
     RETURN
   END IF
   CALL RANDOM_NUMBER(iRan)
-  iQua = int( ( iQuaMax +1 ) * iRan)
+  iQua = INT( ( iQuaMax +1 ) * iRan)
   gtemp = SpecDSMC(iSpec)%ElectronicState(1,iQua) * &
           ( CollisionEnergy - BoltzmannConst * SpecDSMC(iSpec)%ElectronicState(2,iQua))**FakXi
   CALL RANDOM_NUMBER(iRan2)
   ! acceptance-rejection for iQuaElec
   DO WHILE ( iRan2 .GE. gtemp / gmax )
     CALL RANDOM_NUMBER(iRan)
-    iQua = int( ( iQuaMax +1 ) * iRan)
+    iQua = INT( ( iQuaMax +1 ) * iRan)
     gtemp = SpecDSMC(iSpec)%ElectronicState(1,iQua) * &
             ( CollisionEnergy - BoltzmannConst * SpecDSMC(iSpec)%ElectronicState(2,iQua))**FakXi
     CALL RANDOM_NUMBER(iRan2)
