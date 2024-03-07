@@ -559,6 +559,8 @@ DO iNbProc=1,nNbProcs
               SurfExchange(iNbProc)%SurfDataSend(i) = HDG_Surf_N(iSide)%RHS_face(iVar,r)
             ELSEIF (mode.EQ.5) THEN
               SurfExchange(iNbProc)%SurfDataSend(i) = HDG_Surf_N(iSide)%V(iVar,r)
+            ELSEIF (mode.EQ.6) THEN
+              SurfExchange(iNbProc)%SurfDataSend(i) = HDG_Surf_N(iSide)%Z(iVar,r)
             ENDIF
             i = i + 1
           END DO ! q = 0, N_slave
@@ -884,6 +886,8 @@ DO iNbProc=1,nNbProcs
               HDG_Surf_N(iSide)%RHS_face(iVar,r) = SurfExchange(iNbProc)%SurfDataRecv(i)
             ELSEIF (mode.EQ.5) THEN
               HDG_Surf_N(iSide)%V(iVar,r) = SurfExchange(iNbProc)%SurfDataRecv(i)
+            ELSEIF (mode.EQ.6) THEN
+              HDG_Surf_N(iSide)%Z(iVar,r) = SurfExchange(iNbProc)%SurfDataRecv(i)
             ENDIF
             i = i + 1
           END DO ! q = 0, N_slave
@@ -1045,6 +1049,26 @@ CASE('mv') ! CALL Mask_MPIsides(1,mv)
       HDG_Surf_N(iSide)%mv(iVar,:) = 0.
     END DO
   END IF
+CASE('Z') 
+  IF(nMPIsides_MINE.GT.0) THEN
+    DO iSide = startbuf, endbuf
+      HDG_Surf_N(iSide)%buf(iVar,:) = HDG_Surf_N(iSide)%Z(iVar,:)
+    END DO
+  END IF
+  sendmode = 6
+  CALL StartReceiveMPISurfDataType(RecRequest_U, 2, sendmode)
+  CALL StartSendMPISurfDataType(SendRequest_U,2,sendmode, iVar=iVar)
+  CALL FinishExchangeMPISurfDataType(SendRequest_U,RecRequest_U,2, sendmode, iVar=iVar)  
+  IF(nMPIsides_MINE.GT.0) THEN
+    DO iSide = startbuf, endbuf
+      HDG_Surf_N(iSide)%Z(iVar,:) = HDG_Surf_N(iSide)%Z(iVar,:) + HDG_Surf_N(iSide)%buf(iVar,:)
+    END DO
+  END IF
+  IF(nMPIsides_YOUR.GT.0) THEN
+    DO iSide = nSides-nMPIsides_YOUR+1, nSides
+      HDG_Surf_N(iSide)%Z(iVar,:) = 0.
+    END DO
+  END IF
 CASE('RHS_face') ! CALL Mask_MPIsides(PP_nVar,RHS_face)
   ! HDG_Surf_N(SideID)%RHS_face(iVar,:)
   IF(nMPIsides_MINE.GT.0) THEN
@@ -1065,7 +1089,7 @@ CASE('RHS_face') ! CALL Mask_MPIsides(PP_nVar,RHS_face)
     DO iSide = nSides-nMPIsides_YOUR+1, nSides
       HDG_Surf_N(iSide)%RHS_face(iVar,:) = 0.
     END DO
-  END  IF
+  END IF
 CASE('Precond') ! CALL Mask_MPIsides(nGP_face,Precond)
   ! HDG_Surf_N(SideID)%Precond
   ! NSideMin = N_SurfMesh(SideID)%NSideMin

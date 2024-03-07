@@ -3119,11 +3119,11 @@ firstSideID = 1
 lastSideID = nSides-nMPIsides_YOUR
 
 IF(DoVZ)THEN
-  DO SideID=firstSideID,lastSideID
+  DO SideID=1,nSides
     HDG_Surf_N(SideID)%Z=0.
   END DO ! SideID=1,nSides
 ELSE
-  DO SideID=firstSideID,lastSideID
+  DO SideID=1,nSides
     HDG_Surf_N(SideID)%mv=0.
   END DO ! SideID=1,nSides
 END IF ! DoVZ
@@ -3157,8 +3157,8 @@ DO SideID=firstSideID,lastSideID
         ! From high to low
         CALL ChangeBasis2D(1, Nloc, NSideMin, TRANSPOSE(PREF_VDM(NSideMin,Nloc)%Vdm) , mvtmp(1:nGP_face(Nloc)), mvtmp(1:nGP_face(NSideMin)))
       END IF ! Nloc.GT.NSideMin
-      IF(DoVZ)THEN
-        HDG_Surf_N(SideID2)%Z(iVar,:)  = HDG_Surf_N(SideID2)%Z(iVar,:)  + mvtmp(1:nGP_face(NSideMin))
+      IF(DoVZ)THEN 
+        HDG_Surf_N(SideID2)%Z(iVar,:)  = HDG_Surf_N(SideID2)%Z(iVar,:)  + mvtmp(1:nGP_face(NSideMin))        
       ELSE
         HDG_Surf_N(SideID2)%mv(iVar,:) = HDG_Surf_N(SideID2)%mv(iVar,:) + mvtmp(1:nGP_face(NSideMin))
       END IF ! DoVZ
@@ -3291,7 +3291,11 @@ END DO ! SideID=1,nSides
 #if USE_LOADBALANCE
 CALL LBPauseTime(LB_DG,tLBStart) ! Pause/Stop time measurement
 #endif /*USE_LOADBALANCE*/
-CALL Mask_MPIsides('mv',iVar)
+IF (DoVZ) THEN
+  CALL Mask_MPIsides('Z',iVar)
+ELSE
+  CALL Mask_MPIsides('mv',iVar)
+END IF
 #endif /*USE_MPI*/
 
 #if USE_LOADBALANCE
@@ -3355,6 +3359,9 @@ USE MOD_MPI_Vars           ,ONLY: MPIW8TimeField,MPIW8CountField
 #endif /*defined(MEASURE_MPI_WAIT)*/
 USE MOD_HDG_Vars           ,ONLY: HDG_Surf_N
 USE MOD_Mesh_Vars          ,ONLY: nSides,N_SurfMesh
+#if USE_MPI
+USE MOD_Mesh_Vars          ,ONLY: nMPISides_YOUR
+#endif
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
@@ -3366,7 +3373,7 @@ IMPLICIT NONE
 REAL,INTENT(OUT)  :: Resu
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER           :: NSideMin,SideID
+INTEGER           :: SideID, endnSides
 #if USE_MPI
 REAL              :: ResuSend
 #endif
@@ -3378,13 +3385,17 @@ INTEGER(KIND=8)   :: CounterStart,CounterEnd
 REAL(KIND=8)      :: Rate
 #endif /*defined(MEASURE_MPI_WAIT)*/
 !===================================================================================================================================
-
+#if USE_MPI
+! not use MPI_YOUR sides for vector_dot_product!!!
+endnSides=nSides-nMPIsides_YOUR
+#else
+endnSides=nSides
+#endif /*USE_MPI*/
 #if USE_LOADBALANCE
 CALL LBStartTime(tLBStart) ! Start time measurement
 #endif /*USE_LOADBALANCE*/
 Resu=0.
-DO SideID = 1, nSides
-  NSideMin = N_SurfMesh(SideID)%NSideMin
+DO SideID = 1, endnSides
   Resu = Resu + DOT_PRODUCT(HDG_Surf_N(SideID)%R(1,:),HDG_Surf_N(SideID)%Z(1,:))
 END DO ! SideID = 1, nSides
 #if USE_LOADBALANCE
@@ -3424,6 +3435,9 @@ USE MOD_MPI_Vars           ,ONLY: MPIW8TimeField,MPIW8CountField
 #endif /*defined(MEASURE_MPI_WAIT)*/
 USE MOD_HDG_Vars           ,ONLY: HDG_Surf_N
 USE MOD_Mesh_Vars          ,ONLY: nSides,N_SurfMesh
+#if USE_MPI
+USE MOD_Mesh_Vars          ,ONLY: nMPISides_YOUR
+#endif
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
@@ -3435,7 +3449,7 @@ IMPLICIT NONE
 REAL,INTENT(OUT)  :: Resu
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER           :: SideID
+INTEGER           :: SideID, endnSides
 #if USE_MPI
 REAL              :: ResuSend
 #endif
@@ -3447,12 +3461,17 @@ INTEGER(KIND=8)   :: CounterStart,CounterEnd
 REAL(KIND=8)      :: Rate
 #endif /*defined(MEASURE_MPI_WAIT)*/
 !===================================================================================================================================
-
+#if USE_MPI
+! not use MPI_YOUR sides for vector_dot_product!!!
+endnSides=nSides-nMPIsides_YOUR
+#else
+endnSides=nSides
+#endif /*USE_MPI*/
 #if USE_LOADBALANCE
 CALL LBStartTime(tLBStart) ! Start time measurement
 #endif /*USE_LOADBALANCE*/
 Resu=0.
-DO SideID = 1, nSides
+DO SideID = 1, endnSides
   Resu = Resu + DOT_PRODUCT(HDG_Surf_N(SideID)%R(1,:),HDG_Surf_N(SideID)%V(1,:))
 END DO ! SideID = 1, nSides
 #if USE_LOADBALANCE
@@ -3492,6 +3511,9 @@ USE MOD_MPI_Vars           ,ONLY: MPIW8TimeField,MPIW8CountField
 #endif /*defined(MEASURE_MPI_WAIT)*/
 USE MOD_HDG_Vars           ,ONLY: HDG_Surf_N
 USE MOD_Mesh_Vars          ,ONLY: nSides,N_SurfMesh
+#if USE_MPI
+USE MOD_Mesh_Vars          ,ONLY: nMPISides_YOUR
+#endif
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
@@ -3503,7 +3525,7 @@ IMPLICIT NONE
 REAL,INTENT(OUT)  :: Resu
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER           :: SideID
+INTEGER           :: SideID,endnSides
 #if USE_MPI
 REAL              :: ResuSend
 #endif
@@ -3515,12 +3537,17 @@ INTEGER(KIND=8)   :: CounterStart,CounterEnd
 REAL(KIND=8)      :: Rate
 #endif /*defined(MEASURE_MPI_WAIT)*/
 !===================================================================================================================================
-
+#if USE_MPI
+! not use MPI_YOUR sides for vector_dot_product!!!
+endnSides=nSides-nMPIsides_YOUR
+#else
+endnSides=nSides
+#endif /*USE_MPI*/
 #if USE_LOADBALANCE
 CALL LBStartTime(tLBStart) ! Start time measurement
 #endif /*USE_LOADBALANCE*/
 Resu=0.
-DO SideID = 1, nSides
+DO SideID = 1, endnSides
   Resu = Resu + DOT_PRODUCT(HDG_Surf_N(SideID)%V(1,:),HDG_Surf_N(SideID)%Z(1,:))
 END DO ! SideID = 1, nSides
 #if USE_LOADBALANCE
@@ -3560,6 +3587,9 @@ USE MOD_MPI_Vars           ,ONLY: MPIW8TimeField,MPIW8CountField
 #endif /*defined(MEASURE_MPI_WAIT)*/
 USE MOD_HDG_Vars           ,ONLY: HDG_Surf_N
 USE MOD_Mesh_Vars          ,ONLY: nSides,N_SurfMesh
+#if USE_MPI
+USE MOD_Mesh_Vars          ,ONLY: nMPISides_YOUR
+#endif
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
@@ -3571,7 +3601,7 @@ IMPLICIT NONE
 REAL,INTENT(OUT)  :: Resu
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER           :: SideID
+INTEGER           :: SideID, endnSides
 #if USE_MPI
 REAL              :: ResuSend
 #endif
@@ -3583,12 +3613,17 @@ INTEGER(KIND=8)   :: CounterStart,CounterEnd
 REAL(KIND=8)      :: Rate
 #endif /*defined(MEASURE_MPI_WAIT)*/
 !===================================================================================================================================
-
+#if USE_MPI
+! not use MPI_YOUR sides for vector_dot_product!!!
+endnSides=nSides-nMPIsides_YOUR
+#else
+endnSides=nSides
+#endif /*USE_MPI*/
 #if USE_LOADBALANCE
 CALL LBStartTime(tLBStart) ! Start time measurement
 #endif /*USE_LOADBALANCE*/
 Resu=0.
-DO SideID = 1, nSides
+DO SideID = 1, endnSides
   Resu = Resu + DOT_PRODUCT(HDG_Surf_N(SideID)%R(1,:),HDG_Surf_N(SideID)%R(1,:))
 END DO ! SideID = 1, nSides
 #if USE_LOADBALANCE
