@@ -513,7 +513,7 @@ IMPLICIT NONE
 ! INPUT VARIABLES
 INTEGER, INTENT(IN)          :: SendID
 INTEGER, INTENT(IN)          :: mode
-INTEGER, INTENT(IN), OPTIONAL:: ivar 
+INTEGER, INTENT(IN), OPTIONAL:: ivar
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 INTEGER, INTENT(OUT)         :: MPIRequest(nNbProcs)
@@ -541,7 +541,7 @@ DO iNbProc=1,nNbProcs
       END DO ! iSide = SideID_start, SideID_end
       CALL MPI_ISEND(SurfExchange(iNbProc)%SurfDataSend(1:DataSizeSurfSendMax(iNbProc,SendID)),nSendVal,MPI_DOUBLE_PRECISION,  &
                       nbProc(iNbProc),0,MPI_COMM_WORLD,MPIRequest(iNbProc),iError)
-    ELSE 
+    ELSE
       nSendVal     = DataSizeSurfSendMin(iNbProc,SendID)
       SideID_start = OffsetMPISides_send(iNbProc-1,SendID)+1
       SideID_end   = OffsetMPISides_send(iNbProc,SendID)
@@ -642,7 +642,7 @@ END SUBROUTINE StartSendMPIDataType
 !==================================================================================================================================
 SUBROUTINE StartExchange_DG_Elems(DG_Elems,LowerBound,UpperBound,SendRequest,RecRequest,SendID)
 ! MODULES
-USE MOD_Globals 
+USE MOD_Globals
 USE MOD_PreProc
 USE MOD_MPI_Vars
 ! IMPLICIT VARIABLE HANDLING
@@ -823,7 +823,7 @@ END SUBROUTINE StartSendMPIDataInt
 SUBROUTINE FinishExchangeMPISurfDataType(SendRequest,RecRequest,SendID, mode, iVar)
 ! MODULES
 USE MOD_Globals
-USE MOD_PreProc 
+USE MOD_PreProc
 USE MOD_MPI_Vars
 USE MOD_Mesh_Vars ,ONLY: N_SurfMesh
 USE MOD_HDG_Vars  ,ONLY: HDG_Surf_N
@@ -863,7 +863,7 @@ DO iNbProc=1,nNbProcs
 
     i = 1
     IF(mode.EQ.1)THEN
-      DO iSide = SideID_start, SideID_end       
+      DO iSide = SideID_start, SideID_end
         Nloc = MAX(DG_Elems_master(iSide),DG_Elems_slave(iSide))
         DO p = 0, Nloc
           DO q = 0, Nloc
@@ -910,7 +910,7 @@ END SUBROUTINE FinishExchangeMPISurfDataType
 SUBROUTINE FinishExchangeMPIDataType(SendRequest,RecRequest,SendID)
 ! MODULES
 USE MOD_Globals
-USE MOD_PreProc 
+USE MOD_PreProc
 USE MOD_MPI_Vars
 USE MOD_DG_Vars  ,ONLY: U_Surf_N,DG_Elems_slave
 ! IMPLICIT VARIABLE HANDLING
@@ -964,7 +964,7 @@ DO iNbProc=1,nNbProcs
 
     i = 1
     IF(SendID.EQ.2)THEN
-      DO iSide = SideID_start, SideID_end       
+      DO iSide = SideID_start, SideID_end
         N_slave = DG_Elems_slave(iSide)
         DO p = 0, N_slave
           DO q = 0, N_slave
@@ -1014,7 +1014,7 @@ IMPLICIT NONE
 ! INPUT VARIABLES
 CHARACTER(LEN=*),INTENT(IN) :: mode     !< Select mv, RHS_face, InvPrecondDiag or Precond
 INTEGER, INTENT(IN), OPTIONAL :: iVar
-!INTEGER,INTENT(IN   )       :: firstdim !< size of first dimention in array to be sent 
+!INTEGER,INTENT(IN   )       :: firstdim !< size of first dimention in array to be sent
 !REAL   ,INTENT(INOUT) :: v(firstdim,nGP_face, nSides)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
@@ -1038,7 +1038,7 @@ CASE('mv') ! CALL Mask_MPIsides(1,mv)
   sendmode = 3
   CALL StartReceiveMPISurfDataType(RecRequest_U, 2, sendmode)
   CALL StartSendMPISurfDataType(SendRequest_U,2,sendmode, iVar=iVar)
-  CALL FinishExchangeMPISurfDataType(SendRequest_U,RecRequest_U,2, sendmode, iVar=iVar)  
+  CALL FinishExchangeMPISurfDataType(SendRequest_U,RecRequest_U,2, sendmode, iVar=iVar)
   IF(nMPIsides_MINE.GT.0) THEN
     DO iSide = startbuf, endbuf
       HDG_Surf_N(iSide)%mv(iVar,:) = HDG_Surf_N(iSide)%mv(iVar,:) + HDG_Surf_N(iSide)%buf(iVar,:)
@@ -1049,7 +1049,7 @@ CASE('mv') ! CALL Mask_MPIsides(1,mv)
       HDG_Surf_N(iSide)%mv(iVar,:) = 0.
     END DO
   END IF
-CASE('Z') 
+CASE('Z')
   IF(nMPIsides_MINE.GT.0) THEN
     DO iSide = startbuf, endbuf
       HDG_Surf_N(iSide)%buf(iVar,:) = HDG_Surf_N(iSide)%Z(iVar,:)
@@ -1058,7 +1058,7 @@ CASE('Z')
   sendmode = 6
   CALL StartReceiveMPISurfDataType(RecRequest_U, 2, sendmode)
   CALL StartSendMPISurfDataType(SendRequest_U,2,sendmode, iVar=iVar)
-  CALL FinishExchangeMPISurfDataType(SendRequest_U,RecRequest_U,2, sendmode, iVar=iVar)  
+  CALL FinishExchangeMPISurfDataType(SendRequest_U,RecRequest_U,2, sendmode, iVar=iVar)
   IF(nMPIsides_MINE.GT.0) THEN
     DO iSide = startbuf, endbuf
       HDG_Surf_N(iSide)%Z(iVar,:) = HDG_Surf_N(iSide)%Z(iVar,:) + HDG_Surf_N(iSide)%buf(iVar,:)
@@ -1079,7 +1079,7 @@ CASE('RHS_face') ! CALL Mask_MPIsides(PP_nVar,RHS_face)
   sendmode = 4
   CALL StartReceiveMPISurfDataType(RecRequest_U, 2, sendmode)
   CALL StartSendMPISurfDataType(SendRequest_U,2,sendmode, iVar=iVar)
-  CALL FinishExchangeMPISurfDataType(SendRequest_U,RecRequest_U,2, sendmode, iVar=iVar)  
+  CALL FinishExchangeMPISurfDataType(SendRequest_U,RecRequest_U,2, sendmode, iVar=iVar)
   IF(nMPIsides_MINE.GT.0) THEN
     DO iSide = startbuf, endbuf
       HDG_Surf_N(iSide)%RHS_face(iVar,:) = HDG_Surf_N(iSide)%RHS_face(iVar,:) + HDG_Surf_N(iSide)%buf(iVar,:)

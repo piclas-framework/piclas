@@ -3157,8 +3157,8 @@ DO SideID=firstSideID,lastSideID
         ! From high to low
         CALL ChangeBasis2D(1, Nloc, NSideMin, TRANSPOSE(PREF_VDM(NSideMin,Nloc)%Vdm) , mvtmp(1:nGP_face(Nloc)), mvtmp(1:nGP_face(NSideMin)))
       END IF ! Nloc.GT.NSideMin
-      IF(DoVZ)THEN 
-        HDG_Surf_N(SideID2)%Z(iVar,:)  = HDG_Surf_N(SideID2)%Z(iVar,:)  + mvtmp(1:nGP_face(NSideMin))        
+      IF(DoVZ)THEN
+        HDG_Surf_N(SideID2)%Z(iVar,:)  = HDG_Surf_N(SideID2)%Z(iVar,:)  + mvtmp(1:nGP_face(NSideMin))
       ELSE
         HDG_Surf_N(SideID2)%mv(iVar,:) = HDG_Surf_N(SideID2)%mv(iVar,:) + mvtmp(1:nGP_face(NSideMin))
       END IF ! DoVZ
