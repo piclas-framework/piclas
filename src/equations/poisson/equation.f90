@@ -970,24 +970,24 @@ CASE(800,1000) ! plasma between electrodes + particles
       IF((x.GT.0.0).AND.(x.LT.dx))THEN
         IF(x.GT.0.5e-3)THEN
           ! Negative gradient
-          PartSource(4,i,j,k,iElem) = PartSource(4,i,j,k,iElem) - 1e-4*(dx-x)/ElemCharLengthX
+          PS_N(iElem)%PartSource(4,i,j,k) = PS_N(iElem)%PartSource(4,i,j,k) - 1e-4*(dx-x)/ElemCharLengthX
         ELSE
           ! Positive gradient
-          PartSource(4,i,j,k,iElem) = PartSource(4,i,j,k,iElem) - 1e-4*x/ElemCharLengthX
+          PS_N(iElem)%PartSource(4,i,j,k) = PS_N(iElem)%PartSource(4,i,j,k) - 1e-4*x/ElemCharLengthX
         END IF ! x.GT.0.5e-3
       END IF ! (x.GT.0.0).AND.(x.LT.dx)
-      !WRITE (*,*) "x,source =", x,PartSource(4,i,j,k,iElem),NINT(x*1e9), " nm", " TRUE"
+      !WRITE (*,*) "x,source =", x,PS_N(iElem)%PartSource(4,i,j,k),NINT(x*1e9), " nm", " TRUE"
     END ASSOCIATE
   ELSE
     ! Add constant value
-    IF((x.GT.0.0).AND.(x.LT.dx)) PartSource(4,i,j,k,iElem) = PartSource(4,i,j,k,iElem) - 1e-4
-  !WRITE (*,*) "x,source =", x,PartSource(4,i,j,k,iElem),NINT(x*1e9), " nm"
+    IF((x.GT.0.0).AND.(x.LT.dx)) PS_N(iElem)%PartSource(4,i,j,k) = PS_N(iElem)%PartSource(4,i,j,k) - 1e-4
+  !WRITE (*,*) "x,source =", x,PS_N(iElem)%PartSource(4,i,j,k),NINT(x*1e9), " nm"
   END IF ! ElemHasDirichletBC(iElem)
 CASE(801,901) ! plasma between electrodes + particles: Linear source
   dx=1e-3
   IF(IniExactFunc.EQ.901) dx=dx+1e-6
   IF((x.GT.0.0).AND.(x.LT.dx))THEN
-    PartSource(4,i,j,k,iElem) = PartSource(4,i,j,k,iElem) - 1e-4*(1.0 - Elem_xGP(2,i,j,k,iElem)/1e-3)
+    PS_N(iElem)%PartSource(4,i,j,k) = PS_N(iElem)%PartSource(4,i,j,k) - 1e-4*(1.0 - N_VolMesh(iElem)%Elem_xGP(2,i,j,k)/1e-3)
   END IF ! x.GT.0.0
 END SELECT
 #endif /*defined(CODE_ANALYZE)*/

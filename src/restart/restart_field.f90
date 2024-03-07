@@ -83,7 +83,7 @@ USE MOD_MPI                ,ONLY: StartReceiveMPIData,StartSendMPIData,FinishExc
 USE MOD_HDG                ,ONLY: SynchronizeVoltageOnEPC
 USE MOD_HDG_Vars           ,ONLY: UseEPC
 #if defined(PARTICLES)
-USE MOD_Equation           ,ONLY: SynchronizeCPP
+USE MOD_Equation_Tools     ,ONLY: SynchronizeCPP
 USE MOD_HDG                ,ONLY: SynchronizeBV
 USE MOD_HDG_Vars           ,ONLY: UseBiasVoltage,UseCoupledPowerPotential
 ! TODO: make ElemInfo available with PARTICLES=OFF and remove this preprocessor if/else as soon as possible                                                                                                     ! TODO: make ElemInfo available with PARTICLES=OFF and remove this preprocessor if/else as soon as possible
@@ -195,7 +195,8 @@ IF(PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance))THEN
   ASSOCIATE( firstSide => ElemInfo_Shared(ELEM_FIRSTSIDEIND,offsetElem+1) + 1       ,&
              lastSide  => ElemInfo_Shared(ELEM_LASTSIDEIND ,offsetElem    + nElems) )
          !IPWRITE(UNIT_StdOut,*) "firstSide:lastSide,Nbr,nSides =", firstSide,lastSide,lastSide-firstSide+1,nSides
-    ALLOCATE(lambdaLBTmp(PP_nVar,nGP_face,firstSide:lastSide))
+    !ALLOCATE(lambdaLBTmp(PP_nVar,nGP_face,firstSide:lastSide))
+    CALL abort(__STAMP__,'not implemented')
   END ASSOCIATE
        !CALL MPI_BARRIER(MPI_COMM_PICLAS,iError)
        !IPWRITE(UNIT_StdOut,*) "MPInSideSend,MPIoffsetSideSend,MPInSideRecv,MPIoffsetSideRecv =", MPInSideSend,MPIoffsetSideSend,MPInSideRecv,MPIoffsetSideRecv
@@ -255,7 +256,8 @@ IF(PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance))THEN
           pq = CGNS_SideToVol2(PP_N,p,q,iLocSide_master)
           r  = q    *(PP_N+1)+p    +1
           rr = pq(2)*(PP_N+1)+pq(1)+1
-          lambda(:,r:r,iSide) = lambdaLBTmp(:,rr:rr,NonUniqueGlobalSideID)
+          !lambda(:,r:r,iSide) = lambdaLBTmp(:,rr:rr,NonUniqueGlobalSideID)
+          CALL abort(__STAMP__,'not implemented')
         END DO
       END DO !p,q
     END IF ! iSide.LE.lastMPISide_MINE
@@ -265,9 +267,10 @@ IF(PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance))THEN
 
 #if USE_MPI
   ! Exchange lambda MINE -> YOUR direction (as only the master sides have read the solution until now)
-  CALL StartReceiveMPIData(1,lambda,1,nSides, RecRequest_U,SendID=1) ! Receive YOUR
-  CALL StartSendMPIData(   1,lambda,1,nSides,SendRequest_U,SendID=1) ! Send MINE
-  CALL FinishExchangeMPIData(SendRequest_U,RecRequest_U,SendID=1)
+  !CALL StartReceiveMPIData(1,lambda,1,nSides, RecRequest_U,SendID=1) ! Receive YOUR
+  !CALL StartSendMPIData(   1,lambda,1,nSides,SendRequest_U,SendID=1) ! Send MINE
+  !CALL FinishExchangeMPIData(SendRequest_U,RecRequest_U,SendID=1)
+  CALL abort(__STAMP__,'not implemented')
 #endif /*USE_MPI*/
 
 #if USE_PETSC

@@ -4019,19 +4019,22 @@ IF(PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance))THEN
   ! Store lambda solution on global non-unique array for MPI communication
   ASSOCIATE( firstSide => ElemInfo_Shared(ELEM_FIRSTSIDEIND,offsetElem+1) + 1       ,&
              lastSide  => ElemInfo_Shared(ELEM_LASTSIDEIND ,offsetElem    + nElems) )
-    ALLOCATE(lambdaLB(PP_nVar,nGP_face(PP_N),firstSide:lastSide))
+    !ALLOCATE(lambdaLB(PP_nVar,nGP_face(PP_N),firstSide:lastSide))
+    CALL abort(__STAMP__,'not implemented')
     lambdaLB=0.
   END ASSOCIATE
   IF(nProcessors.GT.1) CALL GetMasteriLocSides()
   DO iSide = 1, nSides
     NonUniqueGlobalSideID = SideToNonUniqueGlobalSide(1,iSide)
 
-    CALL LambdaSideToMaster(iSide,lambdaLB(:,:,NonUniqueGlobalSideID))
+    !CALL LambdaSideToMaster(iSide,lambdaLB(:,:,NonUniqueGlobalSideID))
+    CALL abort(__STAMP__,'not implemented')
     ! Check if the same global unique side is encountered twice and store both global non-unique side IDs in the array
     ! SideToNonUniqueGlobalSide(1:2,iSide)
     IF(SideToNonUniqueGlobalSide(2,iSide).NE.-1)THEN
       NonUniqueGlobalSideID = SideToNonUniqueGlobalSide(2,iSide)
-      CALL LambdaSideToMaster(iSide,lambdaLB(:,:,NonUniqueGlobalSideID))
+      !CALL LambdaSideToMaster(iSide,lambdaLB(:,:,NonUniqueGlobalSideID))
+      CALL abort(__STAMP__,'not implemented')
     END IF ! SideToNonUniqueGlobalSide(1,iSide).NE.-1
 
   END DO ! iSide = 1, nSides

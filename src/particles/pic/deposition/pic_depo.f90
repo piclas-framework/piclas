@@ -2031,7 +2031,8 @@ IF ((PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance))) THEN
   IF(DoDeposition)THEN
     SDEALLOCATE(PartSourceLB)
     ALLOCATE(PartSourceLB(1:4,0:PP_N,0:PP_N,0:PP_N,nElems))
-    PartSourceLB = PartSource
+    CALL abort(__STAMP__,'not implemented')
+    !PartSourceLB = PartSource
   END IF ! DoDeposition
 
   IF(DoDielectricSurfaceCharge)THEN
