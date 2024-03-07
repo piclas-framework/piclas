@@ -44,10 +44,12 @@ INTERFACE FinalizeMPI
   MODULE PROCEDURE FinalizeMPI
 END INTERFACE
 
+#if USE_HDG
 !no interface for reshape inout vector
 INTERFACE Mask_MPIsides
   MODULE PROCEDURE Mask_MPIsides
 END INTERFACE
+#endif /*USE_HDG*/
 
 INTERFACE StartReceiveMPIData
   MODULE PROCEDURE StartReceiveMPIData0D
@@ -64,10 +66,10 @@ PUBLIC :: StartReceiveMPIDataType,StartSendMPIDataType,FinishExchangeMPIDataType
 PUBLIC :: StartReceiveMPISurfDataType
 #if USE_HDG
 PUBLIC :: StartSendMPISurfDataType,FinishExchangeMPISurfDataType
+PUBLIC :: Mask_MPIsides
 #endif /*USE_HDG*/
 PUBLIC :: StartExchange_DG_Elems
 PUBLIC :: StartReceiveMPIDataInt,StartSendMPIDataInt
-PUBLIC :: Mask_MPIsides
 #endif
 PUBLIC :: DefineParametersMPI
 #if defined(MEASURE_MPI_WAIT)
@@ -991,6 +993,7 @@ END DO !iProc=1,nNBProcs
 END SUBROUTINE FinishExchangeMPIDataType
 
 
+#if USE_HDG
 !===================================================================================================================================
 !> communicate contribution from MPI slave sides to MPI master sides  and set slaves them to zero afterwards.
 !> Select between different modes:
@@ -1113,6 +1116,7 @@ END SELECT
 !IF(nMPIsides_YOUR.GT.0) v(:,:,nSides-nMPIsides_YOUR+1:nSides) = 0. !set send buffer to zero!
 
 END SUBROUTINE Mask_MPIsides
+#endif /*USE_HDG*/
 
 !----------------------------------------------------------------------------------------------------------------------------------!
 !> Finalize DG MPI-Stuff, deallocate arrays with neighbor connections, etc.
