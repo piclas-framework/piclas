@@ -2119,25 +2119,25 @@ DO iVar = 1, PP_nVar
 END DO
 #endif
 
+DO iVar=1, PP_nVar
 #if USE_LOADBALANCE
 CALL LBPauseTime(LB_DG,tLBStart)
 #endif /*USE_LOADBALANCE*/
 
 #if USE_MPI
-CALL Mask_MPIsides('RHS_face')
+CALL Mask_MPIsides('RHS_face',iVar)
 #endif /*USE_MPI*/
 
 #if USE_LOADBALANCE
 CALL LBStartTime(tLBStart)
 #endif /*USE_LOADBALANCE*/
-CALL SmallToBigMortar_HDG(PP_nVar,0) ! RHS_face(1:PP_nVar,1:nGP_Face,1:nSides))
+CALL SmallToBigMortar_HDG(iVar,0) ! RHS_face(1:PP_nVar,1:nGP_Face,1:nSides))
 
 #if USE_LOADBALANCE
 CALL LBPauseTime(LB_DG,tLBStart) ! Pause/Stop time measurement
 #endif /*USE_LOADBALANCE*/
 
 ! SOLVE
-DO iVar=1, PP_nVar
 
 #if USE_PETSC
   ! Fill right hand side
@@ -2633,7 +2633,7 @@ CALL abort(__STAMP__,'HDGNewton not implemented!')
 !
 !
 !#if USE_MPI
-!  CALL Mask_MPIsides('RHS_face')
+!  CALL Mask_MPIsides('RHS_face',iVar)
 !#endif /*USE_MPI*/
 !  CALL SmallToBigMortar_HDG(PP_nVar,HDG_Surf_N(1)%RHS_face(1:PP_nVar,1:nGP_Face)) ! 1 -> 1:nSIdes
 !
@@ -3107,8 +3107,8 @@ CALL LBPauseTime(LB_DG,tLBStart) ! Pause/Stop time measurement
 !CALL abort(__STAMP__,'not implemented')
 !CALL StartReceiveMPIData(1,lambda,1,nSides, RecRequest_U,SendID=1) ! Receive YOUR
 !CALL StartSendMPIData(   1,lambda,1,nSides,SendRequest_U,SendID=1) ! Send MINE
-CALL StartReceiveMPISurfDataType(RecRequest_U, 1, 2)
-CALL StartSendMPISurfDataType(SendRequest_U,1,2)
+CALL StartReceiveMPISurfDataType(RecRequest_U , 1 , 2)
+CALL StartSendMPISurfDataType(  SendRequest_U , 1 , MERGE(5,2,DoVZ), iVar) ! lambda (DoVZ=F) or V (DoVZ=T)
 #endif /*USE_MPI*/
 
 
@@ -3209,7 +3209,7 @@ CALL LBPauseTime(LB_DG,tLBStart) ! Pause/Stop time measurement
 
 #if USE_MPI
 ! Finish lambda communication
-CALL FinishExchangeMPISurfDataType(SendRequest_U,RecRequest_U,1, 2)
+CALL FinishExchangeMPISurfDataType(SendRequest_U, RecRequest_U, 1, MERGE(5,2,DoVZ), iVar) ! lambda (DoVZ=F) or V (DoVZ=T)
 
 #if USE_LOADBALANCE
 CALL LBStartTime(tLBStart) ! Start time measurement
@@ -3217,30 +3217,73 @@ CALL LBStartTime(tLBStart) ! Start time measurement
 firstSideID=nSides-nMPIsides_YOUR+1
 lastSideID =nSides
 DO SideID=firstSideID,lastSideID
+  NSideMin = N_SurfMesh(SideID)%NSideMin
   !master element
   locSideID = SideToElem(S2E_LOC_SIDE_ID,SideID)
   IF(locSideID.NE.-1)THEN
-    ElemID    = SideToElem(S2E_ELEM_ID,SideID)
+    IF(DoVZ)THEN
+      lambdatmp(1:nGP_face(NSideMin)) = HDG_Surf_N(SideID)%V(iVar,:)
+    ELSE
+      lambdatmp(1:nGP_face(NSideMin)) = HDG_Surf_N(SideID)%lambda(iVar,:)
+    END IF ! DoVZ
+    ElemID     = SideToElem(S2E_ELEM_ID,SideID)
+    Nloc       = N_DG(ElemID)
+    IF(Nloc.GT.NSideMin)THEN
+      ! From low to high
+      CALL ChangeBasis2D(1, NSideMin, Nloc, PREF_VDM(NSideMin,Nloc)%Vdm , lambdatmp(1:nGP_face(NSideMin)), lambdatmp(1:nGP_face(Nloc)))
+    END IF ! Nloc.GT.NSideMin
     jSideID(:) = ElemToSide(E2S_SIDE_ID,:,ElemID)
     DO jLocSide = 1,6
-      CALL abort(__STAMP__,'not imeplemnted')
-      !CALL DGEMV('N',nGP_face,nGP_face,1., &
-                        !Smat(:,:,jLocSide,locSideID,ElemID), nGP_face, &
-                        !lambda(:,SideID),1,1.,& !add to mv
-                        !mv(:,jSideID(jLocSide)),1)
+      SideID2 = jSideID(jLocSide)
+      NSideMin = N_SurfMesh(SideID2)%NSideMin
+      CALL DGEMV('N',nGP_face(Nloc),nGP_face(Nloc),1., &
+                        HDG_Vol_N(ElemID)%Smat(:,:,jLocSide,locSideID), nGP_face(Nloc), &
+                        lambdatmp(1:nGP_face(Nloc)),1,0.,& ! !: add to mv, 0: set mv
+                        mvtmp(1:nGP_face(Nloc)),1)
+      IF(Nloc.GT.NSideMin)THEN
+        ! From high to low
+        CALL ChangeBasis2D(1, Nloc, NSideMin, TRANSPOSE(PREF_VDM(NSideMin,Nloc)%Vdm) , mvtmp(1:nGP_face(Nloc)), mvtmp(1:nGP_face(NSideMin)))
+      END IF ! Nloc.GT.NSideMin
+      IF(DoVZ)THEN
+        HDG_Surf_N(SideID2)%Z(iVar,:)  = HDG_Surf_N(SideID2)%Z(iVar,:)  + mvtmp(1:nGP_face(NSideMin))
+      ELSE
+        HDG_Surf_N(SideID2)%mv(iVar,:) = HDG_Surf_N(SideID2)%mv(iVar,:) + mvtmp(1:nGP_face(NSideMin))
+      END IF ! DoVZ
     END DO !jLocSide
   END IF !locSideID.NE.-1
+
+  NSideMin = N_SurfMesh(SideID)%NSideMin
   ! neighbour element
   locSideID = SideToElem(S2E_NB_LOC_SIDE_ID,SideID)
   IF(locSideID.NE.-1)THEN
-    ElemID    = SideToElem(S2E_NB_ELEM_ID,SideID)
-    jSideID(:)=ElemToSide(E2S_SIDE_ID,:,ElemID)
+    IF(DoVZ)THEN
+      lambdatmp(1:nGP_face(NSideMin)) = HDG_Surf_N(SideID)%V(iVar,:)
+    ELSE
+      lambdatmp(1:nGP_face(NSideMin)) = HDG_Surf_N(SideID)%lambda(iVar,:)
+    END IF ! DoVZ
+    ElemID     = SideToElem(S2E_NB_ELEM_ID,SideID)
+    Nloc       = N_DG(ElemID)
+    jSideID(:) = ElemToSide(E2S_SIDE_ID,:,ElemID)
+    IF(Nloc.GT.NSideMin)THEN
+      ! From low to high
+      CALL ChangeBasis2D(1, NSideMin, Nloc, PREF_VDM(NSideMin,Nloc)%Vdm , lambdatmp(1:nGP_face(NSideMin)), lambdatmp(1:nGP_face(Nloc)))
+    END IF ! Nloc.GT.NSideMin
     DO jLocSide = 1,6
-      CALL abort(__STAMP__,'not imeplemnted')
-      !CALL DGEMV('N',nGP_face,nGP_face,1., &
-                        !Smat(:,:,jLocSide,locSideID,ElemID), nGP_face, &
-                        !lambda(:,SideID),1,1.,& !add to mv
-                        !mv(:,jSideID(jLocSide)),1)
+      SideID2 = jSideID(jLocSide)
+      NSideMin = N_SurfMesh(SideID2)%NSideMin
+      CALL DGEMV('N',nGP_face(Nloc),nGP_face(Nloc),1., &
+                        HDG_Vol_N(ElemID)%Smat(:,:,jLocSide,locSideID), nGP_face(Nloc), &
+                        lambdatmp(1:nGP_face(Nloc)),1,0.,& ! !: add to mv, 0: set mv
+                        mvtmp(1:nGP_face(Nloc)),1)
+      IF(Nloc.GT.NSideMin)THEN
+        ! From high to low
+        CALL ChangeBasis2D(1, Nloc, NSideMin, TRANSPOSE(PREF_VDM(NSideMin,Nloc)%Vdm) , mvtmp(1:nGP_face(Nloc)), mvtmp(1:nGP_face(NSideMin)))
+      END IF ! Nloc.GT.NSideMin
+      IF(DoVZ)THEN
+        HDG_Surf_N(SideID2)%Z(iVar,:)  = HDG_Surf_N(SideID2)%Z(iVar,:)  + mvtmp(1:nGP_face(NSideMin))
+      ELSE
+        HDG_Surf_N(SideID2)%mv(iVar,:) = HDG_Surf_N(SideID2)%mv(iVar,:) + mvtmp(1:nGP_face(NSideMin))
+      END IF ! DoVZ
     END DO !jLocSide
   END IF !locSideID.NE.-1
   !add mass matrix
@@ -3248,13 +3291,13 @@ END DO ! SideID=1,nSides
 #if USE_LOADBALANCE
 CALL LBPauseTime(LB_DG,tLBStart) ! Pause/Stop time measurement
 #endif /*USE_LOADBALANCE*/
-CALL Mask_MPIsides('mv')
+CALL Mask_MPIsides('mv',iVar)
 #endif /*USE_MPI*/
 
 #if USE_LOADBALANCE
 CALL LBStartTime(tLBStart) ! Start time measurement
 #endif /*USE_LOADBALANCE*/
-CALL SmallToBigMortar_HDG(1,MERGE(1, 2, DoVZ)) ! CALL SmallToBigMortar_HDG(1,mv)
+CALL SmallToBigMortar_HDG(iVar,MERGE(1, 2, DoVZ)) ! CALL SmallToBigMortar_HDG(1,mv)
 
 #if (PP_nVar!=1)
 IF (iVar.EQ.4) THEN

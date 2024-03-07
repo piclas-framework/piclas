@@ -54,6 +54,11 @@ INTERFACE StartReceiveMPIData
   MODULE PROCEDURE StartReceiveMPIData2D
 END INTERFACE
 
+INTERFACE StartSendMPIData
+  MODULE PROCEDURE StartSendMPIData0D
+  MODULE PROCEDURE StartSendMPIData2D
+END INTERFACE
+
 PUBLIC :: InitMPIvars,StartReceiveMPIData,StartSendMPIData,FinishExchangeMPIData,FinalizeMPI
 PUBLIC :: StartReceiveMPIDataType,StartSendMPIDataType,FinishExchangeMPIDataType
 PUBLIC :: StartReceiveMPISurfDataType
@@ -419,11 +424,45 @@ END DO !iProc=1,nNBProcs
 END SUBROUTINE StartReceiveMPISurfDataType
 
 
+!===================================================================================================================================
+!> See above, but for for send direction
+!===================================================================================================================================
+SUBROUTINE StartSendMPIData0D(firstDim,FaceData,LowerBound,UpperBound,MPIRequest,SendID)
+! MODULES
+USE MOD_Globals
+USE MOD_PreProc
+USE MOD_MPI_Vars
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+INTEGER, INTENT(IN)          :: SendID
+INTEGER, INTENT(IN)          :: firstDim,LowerBound,UpperBound
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+INTEGER, INTENT(OUT)         :: MPIRequest(nNbProcs)
+REAL, INTENT(IN)             :: FaceData(firstDim,LowerBound:UpperBound)
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+!===================================================================================================================================
+DO iNbProc=1,nNbProcs
+  IF(nMPISides_send(iNbProc,SendID).GT.0)THEN
+    nSendVal    =firstDim*nMPISides_send(iNbProc,SendID)
+    SideID_start=OffsetMPISides_send(iNbProc-1,SendID)+1
+    SideID_end  =OffsetMPISides_send(iNbProc,SendID)
+    CALL MPI_ISEND(FaceData(:,SideID_start:SideID_end),nSendVal,MPI_DOUBLE_PRECISION,  &
+                    nbProc(iNbProc),0,MPI_COMM_PICLAS,MPIRequest(iNbProc),iError)
+  ELSE
+    MPIRequest(iNbProc)=MPI_REQUEST_NULL
+  END IF
+END DO !iProc=1,nNBProcs
+END SUBROUTINE StartSendMPIData0D
+
 
 !===================================================================================================================================
 !> See above, but for for send direction
 !===================================================================================================================================
-SUBROUTINE StartSendMPIData(firstDim,FaceData,LowerBound,UpperBound,MPIRequest,SendID)
+SUBROUTINE StartSendMPIData2D(firstDim,FaceData,LowerBound,UpperBound,MPIRequest,SendID)
 ! MODULES
 USE MOD_Globals
 USE MOD_PreProc
@@ -452,7 +491,7 @@ DO iNbProc=1,nNbProcs
     MPIRequest(iNbProc)=MPI_REQUEST_NULL
   END IF
 END DO !iProc=1,nNBProcs
-END SUBROUTINE StartSendMPIData
+END SUBROUTINE StartSendMPIData2D
 
 
 #if USE_HDG
@@ -518,6 +557,8 @@ DO iNbProc=1,nNbProcs
               SurfExchange(iNbProc)%SurfDataSend(i) = HDG_Surf_N(iSide)%mv(iVar,r)
             ELSE IF (mode.EQ.4) THEN
               SurfExchange(iNbProc)%SurfDataSend(i) = HDG_Surf_N(iSide)%RHS_face(iVar,r)
+            ELSEIF (mode.EQ.5) THEN
+              SurfExchange(iNbProc)%SurfDataSend(i) = HDG_Surf_N(iSide)%V(iVar,r)
             ENDIF
             i = i + 1
           END DO ! q = 0, N_slave
@@ -841,6 +882,8 @@ DO iNbProc=1,nNbProcs
               HDG_Surf_N(iSide)%mv(iVar,r) = SurfExchange(iNbProc)%SurfDataRecv(i)
             ELSE IF (mode.EQ.4) THEN
               HDG_Surf_N(iSide)%RHS_face(iVar,r) = SurfExchange(iNbProc)%SurfDataRecv(i)
+            ELSEIF (mode.EQ.5) THEN
+              HDG_Surf_N(iSide)%V(iVar,r) = SurfExchange(iNbProc)%SurfDataRecv(i)
             ENDIF
             i = i + 1
           END DO ! q = 0, N_slave
