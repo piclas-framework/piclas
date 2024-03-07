@@ -505,5 +505,4 @@ TimeDiscInitIsDone = .FALSE.
 
 END SUBROUTINE FinalizeTimeDisc
 
-
 END MODULE MOD_TimeDiscInit
