@@ -76,13 +76,13 @@ REAL    , ALLOCATABLE :: LastPartVeloRotRef(:,:)                             ! (
 ! Rot Ref Sub Cycling
 LOGICAL               :: UseRotSubCycling                                    ! Flag if sub cycling is active
 INTEGER               :: nSubCyclingSteps                                    ! Number of subcyling steps
-REAL                  :: LastPartPosSubCycling(3)                            ! Last position befor SubCycling
-REAL                  :: NewPosSubCycling(3)                                 ! New particle position befor SubCycling
-REAL                  :: PartVeloRotRefSubCycling(3)                         ! Velocity in the rotational reference frame befor SubCycling
-REAL                  :: LastVeloRotRefSubCycling(3)                         ! Last Velocity in the rotational reference frame befor SubCycling
-INTEGER               :: GlobalElemIDSubCycling                              ! Elemnt ID befor SubCycling
+REAL                  :: LastPartPosSubCycling(3)                            ! Last position before SubCycling
+REAL                  :: NewPosSubCycling(3)                                 ! New particle position before SubCycling
+REAL                  :: PartVeloRotRefSubCycling(3)                         ! Velocity in the rotational reference frame before SubCycling
+REAL                  :: LastVeloRotRefSubCycling(3)                         ! Last Velocity in the rotational reference frame before SubCycling
+INTEGER               :: GlobalElemIDSubCycling                              ! Elemnt ID before SubCycling
 LOGICAL               :: RotRefSubTimeStep                                   ! Flag for loop, that defines the cureent time step is a sub cycling step
-LOGICAL               :: InRotRefFrameSubCycling                             ! Check for RotRefFrame befor SubCycling
+LOGICAL               :: InRotRefFrameSubCycling                             ! Check for RotRefFrame before SubCycling
 REAL    , ALLOCATABLE :: Pt(:,:)                                             ! Derivative of PartState (vx,xy,vz) only
                                                                              ! since temporal derivative of position
                                                                              ! is the velocity. Thus we can take

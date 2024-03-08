@@ -626,7 +626,6 @@ END IF
 ! Species-specific time step
 IF(VarTimeStep%UseSpeciesSpecific) dtVar = dtVar * Species(PartSpecies(PartID))%TimeStepFactor
 
-!IF(RotRefSubTimeStep) dtVar = 0.1 * dtVar
 IF(RotRefSubTimeStep) dtVar = dtVar / REAL(nSubCyclingSteps)
 
 ! (2) Calculate the POI and a new random POI on corresponding inter plane using a random angle within the periodic segment
