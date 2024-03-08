@@ -174,8 +174,9 @@ IF (PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance)) THEN
           !PartSourceOld(1,2,i,j,k,iElem) = PartSource_HDF5(4,i,j,k,iElem)
           CALL abort(__STAMP__,'not implemented')
 #else
-          PartSourceOld(1:4,1,i,j,k,iElem) = PartSource_HDF5(1:4,i,j,k,iElem)
-          PartSourceOld(1:4,2,i,j,k,iElem) = PartSource_HDF5(1:4,i,j,k,iElem)
+          !PartSourceOld(1:4,1,i,j,k,iElem) = PartSource_HDF5(1:4,i,j,k,iElem)
+          !PartSourceOld(1:4,2,i,j,k,iElem) = PartSource_HDF5(1:4,i,j,k,iElem)
+          CALL abort(__STAMP__,'not implemented')
 #endif
         END DO; END DO; END DO
       END DO
@@ -189,7 +190,8 @@ IF (PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance)) THEN
           !PartSource(1,i,j,k,iElem) = PartSource_HDF5(4,i,j,k,iElem)
           CALL abort(__STAMP__,'not implemented')
 #else
-          PartSource(1:4,i,j,k,iElem) = PartSource_HDF5(1:4,i,j,k,iElem)
+          !PartSource(1:4,i,j,k,iElem) = PartSource_HDF5(1:4,i,j,k,iElem)
+          CALL abort(__STAMP__,'not implemented')
 #endif
         END DO; END DO; END DO
       END DO
