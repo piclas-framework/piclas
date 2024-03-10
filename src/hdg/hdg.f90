@@ -202,8 +202,10 @@ CALL FinishExchangeMPISurfDataType(SendRequest_Geo,RecRequest_Geo,1, 1)
 DO iNbProc=1,nNbProcs
   DEALLOCATE(SurfExchange(iNbProc)%SurfDataRecv)
   DEALLOCATE(SurfExchange(iNbProc)%SurfDataSend)
-  ALLOCATE(SurfExchange(iNbProc)%SurfDataRecv(MAXVAL(DataSizeSurfRecMin(iNbProc,:))))
+  ALLOCATE(SurfExchange(iNbProc)%SurfDataRecv(MAXVAL(DataSizeSurfRecMin( iNbProc,:))))
   ALLOCATE(SurfExchange(iNbProc)%SurfDataSend(MAXVAL(DataSizeSurfSendMin(iNbProc,:))))
+  ALLOCATE(SurfExchange(iNbProc)%SurfDataRecv2(MAXVAL(DataSizeSurfRecMin( iNbProc,:))**2))
+  ALLOCATE(SurfExchange(iNbProc)%SurfDataSend2(MAXVAL(DataSizeSurfSendMin(iNbProc,:))**2))
 END DO !iProc=1,nNBProcs
 #endif /*USE_MPI*/
 
@@ -557,8 +559,6 @@ ELSE
 END IF
 #endif
 
-CALL BuildPrecond()
-
 DO iElem = 1, PP_nElems
   Nloc = N_DG(iElem)
   ALLOCATE(HDG_Vol_N(iElem)%RHS_vol(PP_nVar, nGP_vol(Nloc)))
@@ -585,8 +585,18 @@ DO SideID = 1, nSides
 #if USE_MPI
   ALLOCATE(HDG_Surf_N(SideID)%buf(PP_nVar,nGP_face(NSideMin)))
   HDG_Surf_N(SideID)%buf=0.
+#if USE_PETSC
+#else
+  IF(PrecondType.EQ.1)THEN
+    ALLOCATE(HDG_Surf_N(SideID)%buf2(nGP_face(NSideMin),nGP_face(NSideMin)))
+    HDG_Surf_N(SideID)%buf2=0.
+  END IF ! PrecondType.EQ.1
+#endif /*USE_PETSC*/
 #endif
 END DO ! SideID = 1, nSides
+
+! Requires HDG_Surf_N(SideID)%buf
+CALL BuildPrecond()
 
 #if USE_PETSC
 ! allocate RHS & lambda vectors

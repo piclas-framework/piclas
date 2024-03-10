@@ -57,6 +57,8 @@ TYPE(tExchangeData), ALLOCATABLE :: DGExchange(:)
 TYPE tSurfExchange
   REAL,ALLOCATABLE      :: SurfDataSend(:)
   REAL,ALLOCATABLE      :: SurfDataRecv(:)
+  REAL,ALLOCATABLE      :: SurfDataSend2(:)
+  REAL,ALLOCATABLE      :: SurfDataRecv2(:)
 END TYPE tSurfExchange
 
 TYPE(tSurfExchange), ALLOCATABLE :: SurfExchange(:)

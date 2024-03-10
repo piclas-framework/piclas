@@ -358,7 +358,7 @@ END SUBROUTINE StartReceiveMPIData2D
 !===================================================================================================================================
 !> Subroutine does the receive operations for the face data that has to be exchanged between processors (type-based p-adaption).
 !===================================================================================================================================
-SUBROUTINE StartReceiveMPIDataType(MPIRequest,SendID)
+SUBROUTINE StartReceiveMPIDataType(MPIRequest, SendID)
 ! MODULES
 USE MOD_Globals
 USE MOD_PreProc
@@ -390,7 +390,7 @@ END SUBROUTINE StartReceiveMPIDataType
 !===================================================================================================================================
 !> Subroutine does the receive operations for the face data that has to be exchanged between processors (type-based p-adaption).
 !===================================================================================================================================
-SUBROUTINE StartReceiveMPISurfDataType(MPIRequest,SendID, mode)
+SUBROUTINE StartReceiveMPISurfDataType(MPIRequest, SendID, mode)
 ! MODULES
 USE MOD_Globals
 USE MOD_PreProc
@@ -412,11 +412,15 @@ DO iNbProc=1,nNbProcs
   IF(nMPISides_rec(iNbProc,SendID).GT.0)THEN
     IF (mode.EQ.1) THEN
       nRecVal = DataSizeSurfRecMax(iNbProc,SendID)
-      CALL MPI_IRECV(SurfExchange(iNbProc)%SurfDataRecv(1:DataSizeSurfRecMax(iNbProc,SendID)),nRecVal,MPI_DOUBLE_PRECISION,  &
+      CALL MPI_IRECV(SurfExchange(iNbProc)%SurfDataRecv(1:nRecVal),nRecVal,MPI_DOUBLE_PRECISION,  &
+                      nbProc(iNbProc),0,MPI_COMM_WORLD,MPIRequest(iNbProc),iError)
+    ELSEIF (mode.EQ.8) THEN
+      nRecVal = DataSizeSurfRecMin(iNbProc,SendID)**2
+      CALL MPI_IRECV(SurfExchange(iNbProc)%SurfDataRecv2(1:nRecVal),nRecVal,MPI_DOUBLE_PRECISION,  &
                       nbProc(iNbProc),0,MPI_COMM_WORLD,MPIRequest(iNbProc),iError)
     ELSE
       nRecVal = DataSizeSurfRecMin(iNbProc,SendID)
-      CALL MPI_IRECV(SurfExchange(iNbProc)%SurfDataRecv(1:DataSizeSurfRecMin(iNbProc,SendID)),nRecVal,MPI_DOUBLE_PRECISION,  &
+      CALL MPI_IRECV(SurfExchange(iNbProc)%SurfDataRecv(1:nRecVal),nRecVal,MPI_DOUBLE_PRECISION,  &
                       nbProc(iNbProc),0,MPI_COMM_WORLD,MPIRequest(iNbProc),iError)
     END IF
   ELSE
@@ -527,6 +531,7 @@ DO iNbProc=1,nNbProcs
 
 
   IF(nMPISides_send(iNbProc,SendID).GT.0)THEN
+    ! Exchange surface elments on Nmax
     IF (mode.EQ.1) THEN
       nSendVal     = DataSizeSurfSendMax(iNbProc,SendID)
       SideID_start = OffsetMPISides_send(iNbProc-1,SendID)+1
@@ -541,9 +546,27 @@ DO iNbProc=1,nNbProcs
           END DO ! q = 0, N_slave
         END DO ! p = 0, N_slave
       END DO ! iSide = SideID_start, SideID_end
-      CALL MPI_ISEND(SurfExchange(iNbProc)%SurfDataSend(1:DataSizeSurfSendMax(iNbProc,SendID)),nSendVal,MPI_DOUBLE_PRECISION,  &
+      CALL MPI_ISEND(SurfExchange(iNbProc)%SurfDataSend(1:nSendVal),nSendVal,MPI_DOUBLE_PRECISION,  &
+                      nbProc(iNbProc),0,MPI_COMM_WORLD,MPIRequest(iNbProc),iError)
+    ELSEIF(mode.EQ.8)THEN
+      ! Exchange HDG solver variables on Nmin
+      nSendVal     = DataSizeSurfSendMin(iNbProc,SendID)**2
+      SideID_start = OffsetMPISides_send(iNbProc-1,SendID)+1
+      SideID_end   = OffsetMPISides_send(iNbProc,SendID)
+      i = 1
+      DO iSide = SideID_start, SideID_end
+        Nloc = MIN(DG_Elems_master(iSide),DG_Elems_slave(iSide))
+        DO p = 1, (Nloc+1)**2
+          DO q = 1, (Nloc+1)**2
+            SurfExchange(iNbProc)%SurfDataSend2(i) = HDG_Surf_N(iSide)%Precond(p,q)
+            i = i + 1
+          END DO ! q = 0, N_slave
+        END DO ! p = 0, N_slave
+      END DO ! iSide = SideID_start, SideID_end
+      CALL MPI_ISEND(SurfExchange(iNbProc)%SurfDataSend2(1:nSendVal),nSendVal,MPI_DOUBLE_PRECISION,  &
                       nbProc(iNbProc),0,MPI_COMM_WORLD,MPIRequest(iNbProc),iError)
     ELSE
+      ! Exchange HDG solver variables on Nmin
       nSendVal     = DataSizeSurfSendMin(iNbProc,SendID)
       SideID_start = OffsetMPISides_send(iNbProc-1,SendID)+1
       SideID_end   = OffsetMPISides_send(iNbProc,SendID)
@@ -555,20 +578,22 @@ DO iNbProc=1,nNbProcs
             r=p*(Nloc+1) + q+1
             IF (mode.EQ.2) THEN
               SurfExchange(iNbProc)%SurfDataSend(i) = HDG_Surf_N(iSide)%lambda(iVar,r)
-            ELSE IF (mode.EQ.3) THEN
+            ELSEIF (mode.EQ.3) THEN
               SurfExchange(iNbProc)%SurfDataSend(i) = HDG_Surf_N(iSide)%mv(iVar,r)
-            ELSE IF (mode.EQ.4) THEN
+            ELSEIF (mode.EQ.4) THEN
               SurfExchange(iNbProc)%SurfDataSend(i) = HDG_Surf_N(iSide)%RHS_face(iVar,r)
             ELSEIF (mode.EQ.5) THEN
               SurfExchange(iNbProc)%SurfDataSend(i) = HDG_Surf_N(iSide)%V(iVar,r)
             ELSEIF (mode.EQ.6) THEN
               SurfExchange(iNbProc)%SurfDataSend(i) = HDG_Surf_N(iSide)%Z(iVar,r)
+            ELSEIF (mode.EQ.7) THEN
+              SurfExchange(iNbProc)%SurfDataSend(i) = HDG_Surf_N(iSide)%InvPrecondDiag(r)
             ENDIF
             i = i + 1
           END DO ! q = 0, N_slave
         END DO ! p = 0, N_slave
       END DO ! iSide = SideID_start, SideID_end
-      CALL MPI_ISEND(SurfExchange(iNbProc)%SurfDataSend(1:DataSizeSurfSendMin(iNbProc,SendID)),nSendVal,MPI_DOUBLE_PRECISION,  &
+      CALL MPI_ISEND(SurfExchange(iNbProc)%SurfDataSend(1:nSendVal),nSendVal,MPI_DOUBLE_PRECISION,  &
                       nbProc(iNbProc),0,MPI_COMM_WORLD,MPIRequest(iNbProc),iError)
     END IF
   ELSE
@@ -874,6 +899,16 @@ DO iNbProc=1,nNbProcs
           END DO ! q = 0, N_slave
         END DO ! p = 0, N_slave
       END DO ! iSide = SideID_start, SideID_end
+    ELSEIF(mode.EQ.8)THEN
+      DO iSide = SideID_start, SideID_end
+        Nloc = MIN(DG_Elems_master(iSide),DG_Elems_slave(iSide))
+        DO p = 1, (Nloc+1)**2
+          DO q = 1, (Nloc+1)**2
+            HDG_Surf_N(iSide)%Precond(p,q) = SurfExchange(iNbProc)%SurfDataRecv2(i)
+            i = i + 1
+          END DO ! q = 0, N_slave
+        END DO ! p = 0, N_slave
+      END DO ! iSide = SideID_start, SideID_end
     ELSE
       DO iSide = SideID_start, SideID_end
         Nloc = MIN(DG_Elems_master(iSide),DG_Elems_slave(iSide))
@@ -881,15 +916,17 @@ DO iNbProc=1,nNbProcs
           DO q = 0, Nloc
             r=p*(Nloc+1) + q+1
             IF (mode.EQ.2) THEN
-              HDG_Surf_N(iSide)%lambda(iVar,r) = SurfExchange(iNbProc)%SurfDataRecv(i)
-            ELSE IF (mode.EQ.3) THEN
-              HDG_Surf_N(iSide)%mv(iVar,r) = SurfExchange(iNbProc)%SurfDataRecv(i)
-            ELSE IF (mode.EQ.4) THEN
-              HDG_Surf_N(iSide)%RHS_face(iVar,r) = SurfExchange(iNbProc)%SurfDataRecv(i)
+              HDG_Surf_N(iSide)%lambda(iVar,r)    = SurfExchange(iNbProc)%SurfDataRecv(i)
+            ELSEIF (mode.EQ.3) THEN
+              HDG_Surf_N(iSide)%mv(iVar,r)        = SurfExchange(iNbProc)%SurfDataRecv(i)
+            ELSEIF (mode.EQ.4) THEN
+              HDG_Surf_N(iSide)%RHS_face(iVar,r)  = SurfExchange(iNbProc)%SurfDataRecv(i)
             ELSEIF (mode.EQ.5) THEN
-              HDG_Surf_N(iSide)%V(iVar,r) = SurfExchange(iNbProc)%SurfDataRecv(i)
+              HDG_Surf_N(iSide)%V(iVar,r)         = SurfExchange(iNbProc)%SurfDataRecv(i)
             ELSEIF (mode.EQ.6) THEN
-              HDG_Surf_N(iSide)%Z(iVar,r) = SurfExchange(iNbProc)%SurfDataRecv(i)
+              HDG_Surf_N(iSide)%Z(iVar,r)         = SurfExchange(iNbProc)%SurfDataRecv(i)
+            ELSEIF (mode.EQ.7) THEN
+              HDG_Surf_N(iSide)%InvPrecondDiag(r) = SurfExchange(iNbProc)%SurfDataRecv(i)
             ENDIF
             i = i + 1
           END DO ! q = 0, N_slave
@@ -1031,7 +1068,8 @@ startbuf = nSides-nMPISides+1
 endbuf   = nSides-nMPISides+nMPISides_MINE
 
 SELECT CASE(TRIM(mode))
-CASE('mv') ! CALL Mask_MPIsides(1,mv)
+CASE('mv') ! Originally: CALL Mask_MPIsides(1,mv)
+
   ! HDG_Surf_N(SideID)%mv(iVar,:)
   IF(nMPIsides_MINE.GT.0) THEN
     DO iSide = startbuf, endbuf
@@ -1039,9 +1077,9 @@ CASE('mv') ! CALL Mask_MPIsides(1,mv)
     END DO
   END IF
   sendmode = 3
-  CALL StartReceiveMPISurfDataType(RecRequest_U, 2, sendmode)
-  CALL StartSendMPISurfDataType(SendRequest_U,2,sendmode, iVar=iVar)
-  CALL FinishExchangeMPISurfDataType(SendRequest_U,RecRequest_U,2, sendmode, iVar=iVar)
+  CALL StartReceiveMPISurfDataType(RecRequest_U , 2 , sendmode)
+  CALL StartSendMPISurfDataType(  SendRequest_U , 2 , sendmode , iVar=iVar)
+  CALL FinishExchangeMPISurfDataType(SendRequest_U, RecRequest_U, 2, sendmode, iVar=iVar)
   IF(nMPIsides_MINE.GT.0) THEN
     DO iSide = startbuf, endbuf
       HDG_Surf_N(iSide)%mv(iVar,:) = HDG_Surf_N(iSide)%mv(iVar,:) + HDG_Surf_N(iSide)%buf(iVar,:)
@@ -1052,16 +1090,18 @@ CASE('mv') ! CALL Mask_MPIsides(1,mv)
       HDG_Surf_N(iSide)%mv(iVar,:) = 0.
     END DO
   END IF
+
 CASE('Z')
+
   IF(nMPIsides_MINE.GT.0) THEN
     DO iSide = startbuf, endbuf
       HDG_Surf_N(iSide)%buf(iVar,:) = HDG_Surf_N(iSide)%Z(iVar,:)
     END DO
   END IF
   sendmode = 6
-  CALL StartReceiveMPISurfDataType(RecRequest_U, 2, sendmode)
-  CALL StartSendMPISurfDataType(SendRequest_U,2,sendmode, iVar=iVar)
-  CALL FinishExchangeMPISurfDataType(SendRequest_U,RecRequest_U,2, sendmode, iVar=iVar)
+  CALL StartReceiveMPISurfDataType(RecRequest_U , 2 , sendmode)
+  CALL StartSendMPISurfDataType(  SendRequest_U , 2 , sendmode , iVar=iVar)
+  CALL FinishExchangeMPISurfDataType(SendRequest_U, RecRequest_U, 2, sendmode, iVar=iVar)
   IF(nMPIsides_MINE.GT.0) THEN
     DO iSide = startbuf, endbuf
       HDG_Surf_N(iSide)%Z(iVar,:) = HDG_Surf_N(iSide)%Z(iVar,:) + HDG_Surf_N(iSide)%buf(iVar,:)
@@ -1072,7 +1112,9 @@ CASE('Z')
       HDG_Surf_N(iSide)%Z(iVar,:) = 0.
     END DO
   END IF
-CASE('RHS_face') ! CALL Mask_MPIsides(PP_nVar,RHS_face)
+
+CASE('RHS_face') ! Originally: CALL Mask_MPIsides(PP_nVar,RHS_face)
+
   ! HDG_Surf_N(SideID)%RHS_face(iVar,:)
   IF(nMPIsides_MINE.GT.0) THEN
     DO iSide = startbuf, endbuf
@@ -1080,9 +1122,9 @@ CASE('RHS_face') ! CALL Mask_MPIsides(PP_nVar,RHS_face)
     END DO
   END IF
   sendmode = 4
-  CALL StartReceiveMPISurfDataType(RecRequest_U, 2, sendmode)
-  CALL StartSendMPISurfDataType(SendRequest_U,2,sendmode, iVar=iVar)
-  CALL FinishExchangeMPISurfDataType(SendRequest_U,RecRequest_U,2, sendmode, iVar=iVar)
+  CALL StartReceiveMPISurfDataType(RecRequest_U , 2 , sendmode)
+  CALL StartSendMPISurfDataType(  SendRequest_U , 2 , sendmode , iVar=iVar)
+  CALL FinishExchangeMPISurfDataType(SendRequest_U, RecRequest_U, 2, sendmode, iVar=iVar)
   IF(nMPIsides_MINE.GT.0) THEN
     DO iSide = startbuf, endbuf
       HDG_Surf_N(iSide)%RHS_face(iVar,:) = HDG_Surf_N(iSide)%RHS_face(iVar,:) + HDG_Surf_N(iSide)%buf(iVar,:)
@@ -1093,27 +1135,58 @@ CASE('RHS_face') ! CALL Mask_MPIsides(PP_nVar,RHS_face)
       HDG_Surf_N(iSide)%RHS_face(iVar,:) = 0.
     END DO
   END IF
-CASE('Precond') ! CALL Mask_MPIsides(nGP_face,Precond)
+
+CASE('Precond') ! CALL Mask_MPIsides(nGP_face,Precond) for PrecondType=1
+
   ! HDG_Surf_N(SideID)%Precond
   ! NSideMin = N_SurfMesh(SideID)%NSideMin
   ! ALLOCATE(HDG_Surf_N(SideID)%Precond(nGP_face(NSideMin),nGP_face(NSideMin)))
-  CALL abort(__STAMP__,'not implemented')
-CASE('InvPrecondDiag') ! CALL Mask_MPIsides(1,InvPrecondDiag)
+  IF(nMPIsides_MINE.GT.0) THEN
+    DO iSide = startbuf, endbuf
+      HDG_Surf_N(iSide)%buf2(:,:) = HDG_Surf_N(iSide)%Precond(:,:)
+    END DO
+  END IF
+  sendmode = 8
+  CALL StartReceiveMPISurfDataType(RecRequest_U , 2 , sendmode)
+  CALL StartSendMPISurfDataType(  SendRequest_U , 2 , sendmode , iVar=1)
+  CALL FinishExchangeMPISurfDataType(SendRequest_U, RecRequest_U, 2, sendmode, iVar=1)
+  IF(nMPIsides_MINE.GT.0) THEN
+    DO iSide = startbuf, endbuf
+      HDG_Surf_N(iSide)%Precond(:,:) = HDG_Surf_N(iSide)%Precond(:,:) + HDG_Surf_N(iSide)%buf2(:,:)
+    END DO
+  END IF
+  IF(nMPIsides_YOUR.GT.0) THEN
+    DO iSide = nSides-nMPIsides_YOUR+1, nSides
+      HDG_Surf_N(iSide)%Precond(:,:) = 0.
+    END DO
+  END IF
+
+CASE('InvPrecondDiag') ! Originally: CALL Mask_MPIsides(1,InvPrecondDiag) for PrecondType=2
+
   ! HDG_Surf_N(SideID)%InvPrecondDiag
   ! NSideMin = N_SurfMesh(SideID)%NSideMin
   ! ALLOCATE(HDG_Surf_N(SideID)%InvPrecondDiag(nGP_face(NSideMin)))
-  CALL abort(__STAMP__,'not implemented')
+  IF(nMPIsides_MINE.GT.0) THEN
+    DO iSide = startbuf, endbuf
+      HDG_Surf_N(iSide)%buf(1,:) = HDG_Surf_N(iSide)%InvPrecondDiag(:)
+    END DO
+  END IF
+  sendmode = 7
+  CALL StartReceiveMPISurfDataType(RecRequest_U , 2 , sendmode)
+  CALL StartSendMPISurfDataType(  SendRequest_U , 2 , sendmode , iVar=1)
+  CALL FinishExchangeMPISurfDataType(SendRequest_U, RecRequest_U, 2, sendmode, iVar=1)
+  IF(nMPIsides_MINE.GT.0) THEN
+    DO iSide = startbuf, endbuf
+      HDG_Surf_N(iSide)%InvPrecondDiag(:) = HDG_Surf_N(iSide)%InvPrecondDiag(:) + HDG_Surf_N(iSide)%buf(1,:)
+    END DO
+  END IF
+  IF(nMPIsides_YOUR.GT.0) THEN
+    DO iSide = nSides-nMPIsides_YOUR+1, nSides
+      HDG_Surf_N(iSide)%InvPrecondDiag(:) = 0.
+    END DO
+  END IF
+
 END SELECT
-
-
-
-! make this type-based for p-adaption
-!IF(nMPIsides_MINE.GT.0) vbuf = v(:,:,startbuf:endbuf)
-!CALL StartReceiveMPIData(firstdim , v , 1 , nSides , RecRequest_U  , SendID=2)  ! Receive MINE
-!CALL StartSendMPIData(   firstdim , v , 1 , nSides , SendRequest_U , SendID=2)  ! Send YOUR
-!CALL FinishExchangeMPIData(SendRequest_U,RecRequest_U,SendID=2) ! Send YOUR - receive MINE
-!IF(nMPIsides_MINE.GT.0) v(:,:,startbuf:endbuf)                = v(:,:,startbuf:endbuf)+vbuf
-!IF(nMPIsides_YOUR.GT.0) v(:,:,nSides-nMPIsides_YOUR+1:nSides) = 0. !set send buffer to zero!
 
 END SUBROUTINE Mask_MPIsides
 #endif /*USE_HDG*/

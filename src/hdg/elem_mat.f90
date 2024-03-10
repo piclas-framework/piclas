@@ -556,11 +556,10 @@ CASE(1)
   CALL SmallToBigMortarPrecond_HDG(PrecondType) !assemble big side
   DO SideID=1,nSides-nMPIsides_YOUR
     IF(MaskedSide(SideID).GT.0)CYCLE
+    NSideMin = N_SurfMesh(SideID)%NSideMin
     ! do choleski and store into Precond
-    CALL DPOTRF('U',nGP_face,HDG_Surf_N(SideID)%Precond(:,:),nGP_face,lapack_info)
-    IF (lapack_info .NE. 0) THEN
-      STOP 'MATRIX INVERSION FAILED!'
-    END IF
+    CALL DPOTRF('U',nGP_face(NSideMin),HDG_Surf_N(SideID)%Precond(:,:),nGP_face(NSideMin),lapack_info)
+    IF (lapack_info .NE. 0) CALL abort(__STAMP__,'MATRIX INVERSION FAILED for PrecondType=1!')
   END DO ! SideID=1,nSides
 
 CASE(2)
