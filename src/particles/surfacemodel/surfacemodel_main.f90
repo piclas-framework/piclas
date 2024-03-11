@@ -133,8 +133,9 @@ IF(DoSample) THEN
     TrackInfo%q = INT((Etatild+1.0)/dXiEQ_SurfSample)+1
   END IF
   SurfSideID = GlobalSide2SurfSide(SURF_SIDEID,SideID)
-  ! Sample momentum, heatflux and collision counter on surface
-  CALL CalcWallSample(PartID,SurfSideID,'old',SurfaceNormal_opt=n_loc)
+  ! Sample momentum, heatflux and collision counter on surface (Check if particle is still inside is required, since particles can
+  ! be removed in the case of UseCircularInflow and nPorousBC. These particles shall not be sampled.)
+  IF(PDM%ParticleInside(PartID)) CALL CalcWallSample(PartID,SurfSideID,'old',SurfaceNormal_opt=n_loc)
 END IF
 !===================================================================================================================================
 ! 2.) Species Swap
