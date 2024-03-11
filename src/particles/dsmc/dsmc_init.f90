@@ -860,7 +860,8 @@ ELSE !CollisMode.GT.0
             SpecDSMC(iSpec)%DissQuant = INT(SpecDSMC(iSpec)%Ediss_eV*ElementaryCharge/(BoltzmannConst*SpecDSMC(iSpec)%CharaTVib))
           END IF
           ! Read in species values for rotational relaxation models of Boyd/Zhang if necessary
-          IF(DSMC%RotRelaxProb.GT.1.0.AND.((Species(iSpec)%InterID.EQ.2).OR.(Species(iSpec)%InterID.EQ.20))) THEN
+          IF(DSMC%RotRelaxProb.GT.1.0.AND.DSMC%RotRelaxProb.LE.3.0 &
+            .AND.((Species(iSpec)%InterID.EQ.2).OR.(Species(iSpec)%InterID.EQ.20))) THEN
             SpecDSMC(iSpec)%CollNumRotInf = GETREAL('Part-Species'//TRIM(hilf)//'-CollNumRotInf')
             SpecDSMC(iSpec)%TempRefRot    = GETREAL('Part-Species'//TRIM(hilf)//'-TempRefRot')
             IF(SpecDSMC(iSpec)%CollNumRotInf*SpecDSMC(iSpec)%TempRefRot.EQ.0) THEN
