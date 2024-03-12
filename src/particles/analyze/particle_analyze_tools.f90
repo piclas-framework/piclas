@@ -1282,10 +1282,9 @@ SUBROUTINE CalcSurfaceFluxInfo()
 !===================================================================================================================================
 ! MODULES                                                                                                                          !
 USE MOD_Globals
-USE MOD_TimeDisc_Vars           ,ONLY: dt, iter
-USE MOD_Particle_Analyze_Vars   ,ONLY: FlowRateSurfFlux,PressureAdaptiveBC,PartAnalyzeStep
-USE MOD_DSMC_Vars               ,ONLY: RadialWeighting
-USE MOD_Particle_Vars           ,ONLY: Species,nSpecies,usevMPF,VarTimeStep
+USE MOD_TimeDisc_Vars           ,ONLY: iter
+USE MOD_Particle_Analyze_Vars   ,ONLY: FlowRateSurfFlux,PressureAdaptiveBC,ParticleAnalyzeSampleTime
+USE MOD_Particle_Vars           ,ONLY: Species,nSpecies,VarTimeStep
 USE MOD_Particle_Surfaces_Vars  ,ONLY: BCdata_auxSF, SurfFluxSideSize, SurfMeshSubSideData
 USE MOD_Particle_Sampling_Vars  ,ONLY: UseAdaptiveBC, AdaptBCMacroVal, AdaptBCMapElemToSample, AdaptBCAreaSurfaceFlux
 USE MOD_Particle_Sampling_Vars  ,ONLY: AdaptBCAverageValBC, AdaptBCAverageMacroVal
@@ -1302,7 +1301,7 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER             :: iSpec, iSF, ElemID, SampleElemID, SurfSideID, iSide, iSample, jSample, currentBC
-REAL                :: MacroParticleFactor, dtVar
+REAL                :: dtVar
 #if USE_MPI
 INTEGER             :: MaxSurfaceFluxBCs
 #endif /*USE_MPI*/
@@ -1313,20 +1312,15 @@ IF(iter.EQ.0) RETURN
 IF(UseAdaptiveBC) PressureAdaptiveBC = 0.
 ! 1) Calculate the processor-local mass flow rate and sum-up the area weighted pressure
 DO iSpec = 1, nSpecies
-  ! If usevMPF or DoRadialWeighting then the MacroParticleFactor is already included in the GetParticleWeight
-  IF(usevMPF.OR.RadialWeighting%DoRadialWeighting) THEN
-    MacroParticleFactor = 1.
-  ELSE
-    MacroParticleFactor = Species(iSpec)%MacroParticleFactor
-  END IF
+  ! Species-specific time step
   IF(VarTimeStep%UseSpeciesSpecific) THEN
-    dtVar = dt * Species(iSpec)%TimeStepFactor
+    dtVar = ParticleAnalyzeSampleTime * Species(iSpec)%TimeStepFactor
   ELSE
-    dtVar = dt
+    dtVar = ParticleAnalyzeSampleTime
   END IF
   DO iSF = 1, Species(iSpec)%nSurfacefluxBCs
     ! SampledMassFlow contains the weighted particle number balance (in - out)
-    FlowRateSurfFlux(iSpec,iSF) = Species(iSpec)%Surfaceflux(iSF)%SampledMassflow * MacroParticleFactor / dtVar
+    FlowRateSurfFlux(iSpec,iSF) = Species(iSpec)%Surfaceflux(iSF)%SampledMassflow / dtVar
     IF(Species(iSpec)%Surfaceflux(iSF)%UseEmissionCurrent) THEN
       FlowRateSurfFlux(iSpec,iSF) = FlowRateSurfFlux(iSpec,iSF) * ABS(Species(iSpec)%ChargeIC)
     ELSE
@@ -1377,15 +1371,8 @@ ELSE ! no Root
 END IF
 #endif /*USE_MPI*/
 
-! 3) Consider Part-AnalyzeStep for FlowRateSurfFlux and determine the average pressure (value does not depend on the Part-AnalyzeStep)
+! 3) Determine the average pressure
 IF (MPIRoot) THEN
-  IF(PartAnalyzeStep.GT.1)THEN
-    IF(PartAnalyzeStep.EQ.HUGE(PartAnalyzeStep))THEN
-      FlowRateSurfFlux = FlowRateSurfFlux / iter
-    ELSE
-      FlowRateSurfFlux = FlowRateSurfFlux / MIN(PartAnalyzeStep,iter)
-    END IF
-  END IF
   IF(UseAdaptiveBC) THEN
     IF(AdaptBCAverageValBC) THEN
       PressureAdaptiveBC(:,:) = AdaptBCAverageMacroVal(3,:,:)
@@ -2131,10 +2118,9 @@ SUBROUTINE CollRates(CRate)
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
+USE MOD_Particle_Analyze_Vars ,ONLY: ParticleAnalyzeSampleTime
 USE MOD_DSMC_Vars             ,ONLY: CollInf, DSMC
-USE MOD_TimeDisc_Vars         ,ONLY: dt, iter
 USE MOD_Particle_Vars         ,ONLY: VarTimeStep
-USE MOD_Particle_Analyze_Vars ,ONLY: PartAnalyzeStep
 USE MOD_Particle_TimeStep     ,ONLY: GetSpeciesTimeStep
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -2162,26 +2148,14 @@ IF(MPIRoot)THEN
   DO iCase=1, CollInf%NumCase
     ! Species-specific time step
     IF(VarTimeStep%UseSpeciesSpecific.AND..NOT.VarTimeStep%DisableForMCC) THEN
-      dtVar = dt * GetSpeciesTimeStep(iCase)
+      dtVar = ParticleAnalyzeSampleTime * GetSpeciesTimeStep(iCase)
     ELSE
-      dtVar = dt
+      dtVar = ParticleAnalyzeSampleTime
     END IF
     CRate(iCase) =  DSMC%NumColl(iCase) / dtVar
   END DO
   ! Total collision rate is the sum of the case-specific rates
   CRate(CollInf%NumCase + 1) = SUM(CRate(1:CollInf%NumCase))
-  ! Consider Part-AnalyzeStep
-  IF(PartAnalyzeStep.GT.1)THEN
-    IF(PartAnalyzeStep.EQ.HUGE(PartAnalyzeStep))THEN
-      DO iCase=1, CollInf%NumCase + 1
-        CRate(iCase) = CRate(iCase) / iter
-      END DO ! iCase=1, CollInf%NumCase + 1
-    ELSE
-      DO iCase=1, CollInf%NumCase + 1
-        CRate(iCase) = CRate(iCase) / MIN(PartAnalyzeStep,iter)
-      END DO ! iCase=1, CollInf%NumCase + 1
-    END IF
-  END IF
 END IF
 
 DSMC%NumColl = 0.
@@ -2200,8 +2174,7 @@ USE MOD_Particle_Vars         ,ONLY: nSpecies, Species, VarTimeStep
 USE MOD_DSMC_Vars             ,ONLY: CollisMode, CollInf
 USE MOD_MCC_Vars              ,ONLY: SpecXSec, XSec_Relaxation
 USE MOD_Particle_Mesh_Vars    ,ONLY: MeshVolume
-USE MOD_TimeDisc_Vars         ,ONLY: dt, iter
-USE MOD_Particle_Analyze_Vars ,ONLY: PartAnalyzeStep
+USE MOD_Particle_Analyze_Vars ,ONLY: ParticleAnalyzeSampleTime
 USE MOD_Particle_TimeStep     ,ONLY: GetSpeciesTimeStep
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -2237,26 +2210,14 @@ IF(MPIRoot)THEN
         iCase = CollInf%Coll_Case(iSpec,jSpec)
         ! Species-specific time step
         IF(VarTimeStep%UseSpeciesSpecific.AND..NOT.VarTimeStep%DisableForMCC) THEN
-          dtVar = dt * GetSpeciesTimeStep(iCase)
+          dtVar = ParticleAnalyzeSampleTime * GetSpeciesTimeStep(iCase)
         ELSE
-          dtVar = dt
+          dtVar = ParticleAnalyzeSampleTime
         END IF
         VibRelaxProbCase(iCase) = SpecXSec(iCase)%VibCount * MPF_1 * MeshVolume &
                                   / (dtVar * MPF_1*NumSpec(iSpec) * MPF_2*NumSpec(jSpec))
       END DO
     END DO
-  END IF
-  ! Consider Part-AnalyzeStep
-  IF(PartAnalyzeStep.GT.1) THEN
-    IF(PartAnalyzeStep.EQ.HUGE(PartAnalyzeStep))THEN
-      DO iCase = 1, CollInf%NumCase
-        VibRelaxProbCase(iCase) = VibRelaxProbCase(iCase) / iter
-      END DO
-    ELSE
-      DO iCase = 1, CollInf%NumCase
-        VibRelaxProbCase(iCase) = VibRelaxProbCase(iCase) / MIN(PartAnalyzeStep,iter)
-      END DO
-    END IF
   END IF
 END IF
 SpecXSec(:)%VibCount = 0.
@@ -2273,8 +2234,7 @@ USE MOD_Globals
 USE MOD_Particle_Vars         ,ONLY: VarTimeStep
 USE MOD_DSMC_Vars             ,ONLY: CollInf
 USE MOD_MCC_Vars              ,ONLY: SpecXSec
-USE MOD_TimeDisc_Vars         ,ONLY: dt, iter
-USE MOD_Particle_Analyze_Vars ,ONLY: PartAnalyzeStep
+USE MOD_Particle_Analyze_Vars ,ONLY: ParticleAnalyzeSampleTime
 USE MOD_Particle_TimeStep     ,ONLY: GetSpeciesTimeStep
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -2314,21 +2274,13 @@ IF(MPIRoot)THEN
     IF(SpecXSec(iCase)%UseElecXSec) THEN
       ! Species-specific time step
       IF(VarTimeStep%UseSpeciesSpecific.AND..NOT.VarTimeStep%DisableForMCC) THEN
-        dtVar = dt * GetSpeciesTimeStep(iCase)
+        dtVar = ParticleAnalyzeSampleTime * GetSpeciesTimeStep(iCase)
       ELSE
-        dtVar = dt
+        dtVar = ParticleAnalyzeSampleTime
       END IF
       ElecRelaxRate(iCase,:) =  ElecRelaxRate(iCase,:) / dtVar
     END IF
   END DO
-  ! Consider Part-AnalyzeStep
-  IF(PartAnalyzeStep.GT.1)THEN
-    IF(PartAnalyzeStep.EQ.HUGE(PartAnalyzeStep))THEN
-      ElecRelaxRate = ElecRelaxRate / iter
-    ELSE
-      ElecRelaxRate = ElecRelaxRate / MIN(PartAnalyzeStep,iter)
-    END IF
-  END IF
 END IF
 
 DO iCase=1, CollInf%NumCase
@@ -2348,11 +2300,10 @@ SUBROUTINE ReacRates(NumSpec, RRate)
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
+USE MOD_Particle_Analyze_Vars ,ONLY: ParticleAnalyzeSampleTime
 USE MOD_DSMC_Vars             ,ONLY: ChemReac, DSMC
-USE MOD_TimeDisc_Vars         ,ONLY: dt, iter
 USE MOD_Particle_Vars         ,ONLY: Species, nSpecies, VarTimeStep
 USE MOD_Particle_Mesh_Vars    ,ONLY: MeshVolume
-USE MOD_Particle_Analyze_Vars ,ONLY: PartAnalyzeStep
 USE MOD_Particle_TimeStep     ,ONLY: GetSpeciesTimeStep
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -2384,9 +2335,9 @@ IF(MPIRoot)THEN
     iCase = ChemReac%ReactCase(iReac)
     ! Species-specific time step
     IF(VarTimeStep%UseSpeciesSpecific.AND..NOT.VarTimeStep%DisableForMCC) THEN
-      dtVar = dt * GetSpeciesTimeStep(iCase)
+      dtVar = ParticleAnalyzeSampleTime * GetSpeciesTimeStep(iCase)
     ELSE
-      dtVar = dt
+      dtVar = ParticleAnalyzeSampleTime
     END IF
     IF ((NumSpec(ChemReac%Reactants(iReac,1)).GT.0).AND.(NumSpec(ChemReac%Reactants(iReac,2)).GT.0)) THEN
       IF(ChemReac%Reactants(iReac,3).NE.0) THEN
@@ -2426,18 +2377,6 @@ END IF
 ChemReac%NumReac = 0.
 ChemReac%ReacCount = 0
 ChemReac%ReacCollMean = 0.0
-! Consider Part-AnalyzeStep
-IF(PartAnalyzeStep.GT.1)THEN
-  IF(PartAnalyzeStep.EQ.HUGE(PartAnalyzeStep))THEN
-    DO iReac=1, ChemReac%NumOfReact
-      RRate(iReac) = RRate(iReac) / iter
-    END DO ! iReac=1, ChemReac%NumOfReact
-  ELSE
-    DO iReac=1, ChemReac%NumOfReact
-      RRate(iReac) = RRate(iReac) / REAL(MIN(PartAnalyzeStep,iter))
-    END DO ! iReac=1, ChemReac%NumOfReact
-  END IF
-END IF
 
 END SUBROUTINE ReacRates
 #endif
