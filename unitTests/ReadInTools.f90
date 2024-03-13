@@ -68,6 +68,11 @@ LOGICAL :: logArrayOpt_mult_A(2)
 !character(len=255) :: strArrayOpt_def(2)
 !character(len=255) :: strArrayOpt_mult(2)
 !character(len=255) :: strArrayOpt_mult_A(2)
+INTEGER,ALLOCATABLE  :: Dollar(:)
+INTEGER              :: nDollar,iDollar,nDollar2,iDollar2
+CHARACTER(32)        :: hilf,hilf2
+INTEGER, ALLOCATABLE :: IntOption(:)
+REAL, ALLOCATABLE    :: RealOption(:,:)
 !==================================================================================================================================
 CALL InitMPI()
 ! Check for command line arguments to generate the reference solution
@@ -75,38 +80,40 @@ nArgs=COMMAND_ARGUMENT_COUNT()
 IF (nArgs.GT.0) CALL abort(__STAMP__,'ERROR - Unknown command line argument.')
 
 CALL prms%SetSection("UnitTest")
-CALL prms%CreateIntOption('intOpt'        , "Description IntOpt")
-CALL prms%CreateIntOption('intOpt_def'    , "Description IntOpt with default value", '-1')
-CALL prms%CreateIntOption('intOpt_mult'   , "Description IntOpt multiple", multiple=.TRUE.)
-CALL prms%CreateRealOption('realOpt'        , "Description RealOpt")
-CALL prms%CreateRealOption('realOptsci'       , "Description RealOpt")
-CALL prms%CreateRealOption('realOpt_def'    , "Description RealOpt with default value", '-1.00')
-CALL prms%CreateRealOption('realOpt_defsci'    , "Description RealOpt with default value scientific", '0.3e-7')
-CALL prms%CreateRealOption('realOpt_mult'   , "Description RealOpt multiple", multiple=.TRUE.)
-CALL prms%CreateRealOption('realOpt_multsci'  , "Description RealOpt multiple", multiple=.TRUE.)
-CALL prms%CreateLogicalOption('logOpt'        , "Description LogOpt")
-CALL prms%CreateLogicalOption('logOpt_def'    , "Description LogOpt with default value", 'T')
-CALL prms%CreateLogicalOption('logOpt_mult'   , "Description LogOpt multiple", multiple=.TRUE.)
-CALL prms%CreateStringOption('strOpt'        , "Description StrOpt")
-CALL prms%CreateStringOption('strOpt_def'    , "Description StrOpt with default value", 'dummyValue')
-CALL prms%CreateStringOption('strOpt_mult'   , "Description StrOpt multiple", multiple=.TRUE.)
+CALL prms%CreateIntOption('intOpt'                     , "Description IntOpt")
+CALL prms%CreateIntOption('intOpt_def'                 , "Description IntOpt with default value"             , '4')
+CALL prms%CreateIntOption('intOpt_mult'                , "Description IntOpt multiple"                       , multiple=.TRUE.)
+CALL prms%CreateRealOption('realOpt'                   , "Description RealOpt")
+CALL prms%CreateRealOption('realOptsci'                , "Description RealOpt")
+CALL prms%CreateRealOption('realOpt_def'               , "Description RealOpt with default value"            , '-1.00')
+CALL prms%CreateRealOption('realOpt_defsci'            , "Description RealOpt with default value scientific" , '0.3e-7')
+CALL prms%CreateRealOption('realOpt_mult'              , "Description RealOpt multiple"                      , multiple=.TRUE.)
+CALL prms%CreateRealOption('realOpt_multsci'           , "Description RealOpt multiple"                      , multiple=.TRUE.)
+CALL prms%CreateLogicalOption('logOpt'                 , "Description LogOpt")
+CALL prms%CreateLogicalOption('logOpt_def'             , "Description LogOpt with default value"             , 'T')
+CALL prms%CreateLogicalOption('logOpt_mult'            , "Description LogOpt multiple"                       , multiple=.TRUE.)
+CALL prms%CreateStringOption('strOpt'                  , "Description StrOpt")
+CALL prms%CreateStringOption('strOpt_def'              , "Description StrOpt with default value"             , 'dummyValue')
+CALL prms%CreateStringOption('strOpt_mult'             , "Description StrOpt multiple"                       , multiple=.TRUE.)
 
-CALL prms%CreateIntArrayOption('intArrayOpt'        , "Description IntOpt", no=0)
-CALL prms%CreateIntArrayOption('intArrayOpt_def'    , "Description IntOpt with default value", '-1,0,-3', no=2)
-CALL prms%CreateIntArrayOption('intArrayOpt_mult'   , "Description IntOpt multiple", multiple=.TRUE., no=0)
-CALL prms%CreateRealArrayOption('realArrayOpt'         , "Description RealOpt", no=0)
-CALL prms%CreateRealArrayOption('realArrayOptsci'      , "Description RealOpt", no=0)
-CALL prms%CreateRealArrayOption('realArrayOpt_def'     , "Description RealOpt with default value"            , '-1.00,5.,22', no=3)
-CALL prms%CreateRealArrayOption('realArrayOpt_defsci'  , "Description RealOpt with default value scientific" , '0.3e-7,-5e2', no=2)
-CALL prms%CreateRealArrayOption('realArrayOpt_mult'    , "Description RealOpt multiple"                      , multiple=.TRUE., no=0)
-CALL prms%CreateRealArrayOption('realArrayOpt_multsci' , "Description RealOpt multiple"                      , multiple=.TRUE., no=0)
-CALL prms%CreateLogicalArrayOption('logArrayOpt'        , "Description LogOpt", no=0)
-CALL prms%CreateLogicalArrayOption('logArrayOpt_def'    , "Description LogOpt with default value", '(/T,F/)', no=2)
-CALL prms%CreateLogicalArrayOption('logArrayOpt_mult'   , "Description LogOpt multiple", multiple=.TRUE., no=0)
+CALL prms%CreateIntArrayOption('intArrayOpt'           , "Description IntOpt"                                                   , no=0)
+CALL prms%CreateIntArrayOption('intArrayOpt_def'       , "Description IntOpt with default value"             , '-1 , 0 , -3'    , no=2)
+CALL prms%CreateIntArrayOption('intArrayOpt_mult'      , "Description IntOpt multiple"                       , multiple=.TRUE.  , no=0)
+CALL prms%CreateRealArrayOption('realArrayOpt'         , "Description RealOpt"                                                  , no=0)
+CALL prms%CreateRealArrayOption('realArrayOptsci'      , "Description RealOpt"                                                  , no=0)
+CALL prms%CreateRealArrayOption('realArrayOpt_def'     , "Description RealOpt with default value"            , '-1.00 , 5. , 22', no=3)
+CALL prms%CreateRealArrayOption('realArrayOpt_defsci'  , "Description RealOpt with default value scientific" , '0.3e-7 , -5e2'  , no=2)
+CALL prms%CreateRealArrayOption('realArrayOpt_mult'    , "Description RealOpt multiple"                      , multiple=.TRUE.  , no=0)
+CALL prms%CreateRealArrayOption('realArrayOpt_multsci' , "Description RealOpt multiple"                      , multiple=.TRUE.  , no=0)
+CALL prms%CreateLogicalArrayOption('logArrayOpt'       , "Description LogOpt"                                                   , no=0)
+CALL prms%CreateLogicalArrayOption('logArrayOpt_def'   , "Description LogOpt with default value"             , '(/T , F/)'      , no=2)
+CALL prms%CreateLogicalArrayOption('logArrayOpt_mult'  , "Description LogOpt multiple"                       , multiple=.TRUE.  , no=0)
 !CALL prms%CreateStringArrayOption('strArrayOpt'        , "Description StrOpt")
 !CALL prms%CreateStringArrayOption('strArrayOpt_def'    , "Description StrOpt with default value", 'dum1,dum2')
 !CALL prms%CreateStringArrayOption('strArrayOpt_mult'   , "Description StrOpt multiple", multiple=.TRUE.)
 
+CALL prms%CreateIntOption('Dollar[$]-IntOption'             , 'Single dollar variable.', '-1'   , numberedmulti=.TRUE.)
+CALL prms%CreateRealOption('Dollar[$]-Dollar[$]-RealOption' , 'Double dollar variable.', '-1.0' , numberedmulti=.TRUE.)
 !CALL PrintDefaultParameterFile(.FALSE.)
 CALL prms%read_options(FileName)
 
@@ -191,6 +198,37 @@ END DO
 !DO i=1,2
   !IF (strArrayOpt_mult(i).NE.strArrayOpt_mult_A(i)) CALL Abort(__STAMP__,"strArrayOpt_mult failed")
 !END DO
+
+! Test single and double dollar variables
+nDollar  = ABS(intOpt)
+nDollar2 = ABS(intOpt)
+ALLOCATE(Dollar(1:nDollar))
+ALLOCATE(RealOption(nDollar,nDollar2))
+Dollar=0
+ALLOCATE(IntOption(nDollar))
+IntOption = 0
+! Loop twice. The default value <= zero is not allowed to appear
+DO i = 1, 2
+  write(UNIT_StdOut,'(A,I0,A)') "--------------",i,"--------------"
+  DO iDollar=1, nDollar
+    WRITE(UNIT=hilf,FMT='(I0)') iDollar
+    IntOption(iDollar) = GETINT('Dollar'//TRIM(hilf)//'-IntOption')
+    DO iDollar2 = 1, nDollar2
+      WRITE(UNIT=hilf2,FMT='(I0)') iDollar2
+      RealOption(iDollar,iDollar2) = GETREAL('Dollar'//TRIM(hilf)//'-Dollar'//TRIM(hilf2)//'-RealOption')
+    END DO ! iDollar2 = 1, nDollar2
+  END DO ! iDollar=1, nDollar
+  IF(ANY(IntOption.LE.0)) CALL abort(__STAMP__,'IntOption cannot must be grater than zero')
+  IF(ANY(RealOption.LE.0)) CALL abort(__STAMP__,'RealOption cannot must be grater than zero')
+
+  WRITE (*,*) "IntOption =", IntOption
+  DO iDollar=1, nDollar
+    WRITE (*,*) "RealOption(iDollar,:) =", RealOption(iDollar,:)
+  END DO
+  CALL prms%finalize(.TRUE.) ! is the same as CALL FinalizeParameters(), but considers load balancing
+END DO ! i = 1, 2
+
+CALL prms%finalize(.FALSE.) ! is the same as CALL FinalizeParameters(), but considers load balancing
 
 #if USE_MPI
 ! we also have to finalize MPI itself here
