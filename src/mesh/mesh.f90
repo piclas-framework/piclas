@@ -251,6 +251,7 @@ IF(GETLOGICAL('meshdeform','.FALSE.'))THEN
 END IF
 
 ! allocate arrays and initialize local polynomial degree
+! This happens here because nElems is determined here and N_DG is required below for the mesh initialisation
 ALLOCATE(N_DG(nElems))
 ! By default, the initial degree is set to PP_N
 !N_DG = 1
@@ -1160,8 +1161,12 @@ SUBROUTINE FinalizeMesh()
 USE MOD_Globals
 USE MOD_Mesh_Vars
 #if defined(PARTICLES) && USE_LOADBALANCE
-USE MOD_LoadBalance_Vars     ,ONLY: PerformLoadBalance
+USE MOD_LoadBalance_Vars ,ONLY: PerformLoadBalance
 #endif /*defined(PARTICLES) && USE_LOADBALANCE*/
+USE MOD_DG_Vars          ,ONLY: N_DG,DG_Elems_master,DG_Elems_slave
+#if USE_MPI
+USE MOD_MPI_Vars         ,ONLY: DGExchange
+#endif /*USE_MPI*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------
@@ -1204,7 +1209,7 @@ SDEALLOCATE(SurfLoc)
 !#endif
 SDEALLOCATE(ElemToElemGlob)
 SDEALLOCATE(XCL_NGeo)
-!SDEALLOCATE(dXCL_NGeo)
+SDEALLOCATE(dXCL_NGeo)
 SDEALLOCATE(wbaryCL_NGeo)
 SDEALLOCATE(XiCL_NGeo)
 ! mortars
@@ -1223,6 +1228,16 @@ SDEALLOCATE(ElemGlobalID)
 SDEALLOCATE(myInvisibleRank)
 SDEALLOCATE(LostRotPeriodicSides)
 SDEALLOCATE(SideToNonUniqueGlobalSide)
+
+! p-adaption
+SDEALLOCATE(N_DG)
+SDEALLOCATE(N_VolMesh)
+SDEALLOCATE(DG_Elems_master)
+SDEALLOCATE(DG_Elems_slave)
+SDEALLOCATE(n_surfmesh)
+#if USE_MPI
+SDEALLOCATE(DGExchange)
+#endif /*USE_MPI*/
 
 #if defined(PARTICLES) && USE_LOADBALANCE
 IF (PerformLoadBalance) RETURN

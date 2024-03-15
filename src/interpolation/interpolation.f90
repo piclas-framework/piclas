@@ -536,7 +536,7 @@ END DO ! Nloc = Nmin, Nmax
 END SUBROUTINE InitAnalyzeBasis
 
 
-SUBROUTINE FinalizeInterpolation()
+SUBROUTINE FinalizeInterpolation(IsLoadBalance)
 !============================================================================================================================
 ! Deallocate all global interpolation variables.
 !============================================================================================================================
@@ -547,12 +547,18 @@ USE MOD_Interpolation_Vars
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------
 !input parameters
+LOGICAL,INTENT(IN),OPTIONAL :: IsLoadBalance
 !----------------------------------------------------------------------------------------------------------------------------
 !output parameters
 !----------------------------------------------------------------------------------------------------------------------------
 !local variables
 !============================================================================================================================
-! Deallocate global variables, needs to go somewhere else later
+SDEALLOCATE(NInfo)
+
+IF(PRESENT(IsLoadBalance))THEN
+  IF(IsLoadBalance) RETURN
+END IF ! PRESENT(IsLoadBalance)
+
 SDEALLOCATE(N_Inter)
 SDEALLOCATE(N_InterAnalyze)
 SDEALLOCATE(wAnalyze)

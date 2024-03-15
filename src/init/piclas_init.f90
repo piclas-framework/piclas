@@ -330,7 +330,7 @@ CALL FinalizeHDG()
 #endif /*USE_HDG*/
 CALL FinalizeEquation()
 CALL FinalizeBC()
-IF(.NOT.IsLoadBalance) CALL FinalizeInterpolation()
+CALL FinalizeInterpolation(IsLoadBalance)
 CALL FinalizeRestart()
 CALL FinalizeMesh()
 CALL FinalizeMortar()

@@ -497,6 +497,7 @@ ASSOCIATE (&
       collective=.TRUE., RealArray=Utemp)
 #endif /*(PP_nVar==1)*/
 #else
+#if !((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))
   DO iElem = 1, INT(PP_nElems)
     Nloc = N_DG(iElem)
     IF(Nloc.Eq.Nmax)THEN
@@ -505,6 +506,9 @@ ASSOCIATE (&
       CALL ChangeBasis3D(PP_nVar,Nloc,NMax,PREF_VDM(Nloc,NMax)%Vdm, U_N(iElem)%U(:,:,:,:),U(:,:,:,:,iElem))
     END IF ! Nloc.Eq.Nmax
   END DO ! iElem = 1, nElems
+#else
+  U=0.
+#endif /*!((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))*/
   CALL GatheredWriteArray(FileName,create=.FALSE.,&
       DataSetName='DG_Solution', rank=5,&
       nValGlobal=(/PP_nVarTmp , N+1_IK , N+1_IK , N+1_IK , nGlobalElems/) , &

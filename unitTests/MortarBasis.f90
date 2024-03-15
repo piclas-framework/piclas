@@ -45,7 +45,7 @@ DO i = 1, MaxPolDeg
       Nmax_opt       = 0) ! Set zero to avoid building the costly constructs which let the execution time explode
   CALL InitMortar()
   CALL FinalizeMortar()
-  CALL FinalizeInterpolation()
+  CALL FinalizeInterpolation(.FALSE.)
 #if PP_N == N
 END DO ! i = 1, MaxPolDeg
 #endif

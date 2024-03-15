@@ -108,7 +108,10 @@ DO Nloc=Nmin,Nmax
                    DGB_N(Nloc)%D, DGB_N(Nloc)%D_T, DGB_N(Nloc)%D_Hat, DGB_N(Nloc)%D_Hat_T, DGB_N(Nloc)%L_HatMinus, DGB_N(Nloc)%L_HatPlus )
 END DO
 
+#if !((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))
 #if USE_LOADBALANCE && !(USE_HDG)
+! Not "LB not via h5 I/O"
+! Not "LB via MPI" means we keep U_N during LB
 IF (.NOT.(PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance))) THEN
 #endif /*USE_LOADBALANCE && !(USE_HDG)*/
   ! the local DG solution in physical and reference space
@@ -191,6 +194,7 @@ DO iSide = 1, nSides
 END DO ! iSide = 1, nSides
 #endif /*USE_HDG*/
 
+#endif /*!((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))*/
 DGInitIsDone=.TRUE.
 LBWRITE(UNIT_stdOut,'(A)')' INIT DG DONE!'
 LBWRITE(UNIT_StdOut,'(132("-"))')
