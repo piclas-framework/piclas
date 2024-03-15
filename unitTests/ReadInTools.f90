@@ -212,10 +212,10 @@ DO i = 1, 2
   write(UNIT_StdOut,'(A,I0,A)') "--------------",i,"--------------"
   DO iDollar=1, nDollar
     WRITE(UNIT=hilf,FMT='(I0)') iDollar
-    IntOption(iDollar) = GETINT('Dollar'//TRIM(hilf)//'-IntOption')
+    IntOption(iDollar) = GETINT('Dollar'//TRIM(hilf)//'-IntOption','-1')
     DO iDollar2 = 1, nDollar2
       WRITE(UNIT=hilf2,FMT='(I0)') iDollar2
-      RealOption(iDollar,iDollar2) = GETREAL('Dollar'//TRIM(hilf)//'-Dollar'//TRIM(hilf2)//'-RealOption')
+      RealOption(iDollar,iDollar2) = GETREAL('Dollar'//TRIM(hilf)//'-Dollar'//TRIM(hilf2)//'-RealOption','-1.')
     END DO ! iDollar2 = 1, nDollar2
   END DO ! iDollar=1, nDollar
   IF(ANY(IntOption.LE.0)) CALL abort(__STAMP__,'IntOption cannot must be grater than zero')
