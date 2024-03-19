@@ -293,6 +293,7 @@ USE MOD_Particle_Mesh_Vars ,ONLY: GEO,ElemBaryNgeo,FIBGM_offsetElem,FIBGM_nElems
 USE MOD_Particle_Mesh_Vars ,ONLY: ElemRadiusNGeo
 USE MOD_Preproc
 USE MOD_Mesh_Tools         ,ONLY: GetCNElemID
+USE MOD_DG_Vars            ,ONLY: N_DG_Mapping
 #if USE_LOADBALANCE
 USE MOD_Mesh_Vars          ,ONLY: nElems,offSetElem
 USE MOD_LoadBalance_Vars   ,ONLY: nDeposPerElem
@@ -316,12 +317,12 @@ REAL, INTENT(IN)                 :: r2_sf_inv  !< inverse of shape function radi
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                          :: k, l, m
+INTEGER                          :: k, l, m, r
 INTEGER                          :: kmin, kmax, lmin, lmax, mmin, mmax
 INTEGER                          :: kk, ll, mm, ppp
 INTEGER                          :: globElemID, CNElemID
 REAL                             :: radius2, S, S1
-INTEGER                          :: expo, nUsedElems,I
+INTEGER                          :: expo, nUsedElems,I, Nloc, offSetDof
 !----------------------------------------------------------------------------------------------------------------------------------
 I=5-SourceSize
 ChargeSFDone(:) = .FALSE.
@@ -353,9 +354,12 @@ DO kk = kmin,kmax
           nDeposPerElem(globElemID-offSetElem)=nDeposPerElem(globElemID-offSetElem)+1
 #endif /*USE_LOADBALANCE*/
           !--- go through all gauss points
-        DO m=0,PP_N; DO l=0,PP_N; DO k=0,PP_N
+        Nloc = N_DG_Mapping(2,globElemID)
+        offSetDof = N_DG_Mapping(1,globElemID)
+        DO m=0,Nloc; DO l=0,Nloc; DO k=0,Nloc
+          r=m*(Nloc+1)**2+l*(Nloc+1) + k+1
           !-- calculate distance between gauss and particle
-          radius2 = SFRadius2(Position(1:3) - Elem_xGP_Shared(1:3,k,l,m,globElemID))
+          radius2 = SFRadius2(Position(1:3) - Elem_xGP_Shared(1:3,offSetDof+r))
           !-- calculate charge and current density at ip point using a shape function
           !-- currently only one shapefunction available, more to follow (including structure change)
           IF (radius2 .LE. r2_sf) THEN
@@ -392,6 +396,7 @@ USE MOD_Particle_Mesh_Vars ,ONLY: ElemRadiusNGeo, ElemsJ
 USE MOD_Preproc
 USE MOD_Mesh_Tools         ,ONLY: GetCNElemID
 USE MOD_Interpolation_Vars ,ONLY: N_Inter
+USE MOD_DG_Vars            ,ONLY: N_DG_Mapping
 #if USE_LOADBALANCE
 USE MOD_Mesh_Vars          ,ONLY: nElems
 USE MOD_LoadBalance_Vars   ,ONLY: nDeposPerElem
@@ -411,10 +416,10 @@ REAL, INTENT(IN)                 :: r2_sf_inv  !< inverse of shape function radi
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                          :: k, l, m
+INTEGER                          :: k, l, m, r
 INTEGER                          :: kmin, kmax, lmin, lmax, mmin, mmax
 INTEGER                          :: kk, ll, mm, ppp
-INTEGER                          :: globElemID, CNElemID
+INTEGER                          :: globElemID, CNElemID, Nloc, offSetDof
 INTEGER                          :: expo, localElem
 REAL                             :: radius2, S, S1
 !----------------------------------------------------------------------------------------------------------------------------------
@@ -447,9 +452,12 @@ DO kk = kmin,kmax
         IF ((localElem.GE.1).AND.localElem.LE.nElems) nDeposPerElem(localElem)=nDeposPerElem(localElem)+1
 #endif /*USE_LOADBALANCE*/
           !--- go through all gauss points
-        DO m=0,PP_N; DO l=0,PP_N; DO k=0,PP_N
+        Nloc = N_DG_Mapping(2,globElemID)
+        offSetDof = N_DG_Mapping(1,globElemID)
+        DO m=0,Nloc; DO l=0,Nloc; DO k=0,Nloc
+          r=m*(Nloc+1)**2+l*(Nloc+1) + k+1
           !-- calculate distance between gauss and particle
-          radius2 = SFRadius2(Position(1:3) - Elem_xGP_Shared(1:3,k,l,m,globElemID))
+          radius2 = SFRadius2(Position(1:3) - Elem_xGP_Shared(1:3,offSetDof+r))
           !-- calculate charge and current density at ip point using a shape function
           !-- currently only one shapefunction available, more to follow (including structure change)
           IF (radius2 .LE. r2_sf) THEN
@@ -478,7 +486,7 @@ SUBROUTINE depoChargeOnDOFsSFChargeCon(Position,SourceSize,Fac,r_sf, r2_sf, r2_s
 ! use MODULES
 USE MOD_PreProc
 USE MOD_Globals
-USE MOD_PICDepo_Vars       ,ONLY: alpha_sf,ChargeSFDone,PS_N
+USE MOD_PICDepo_Vars       ,ONLY: alpha_sf,ChargeSFDone,PS_N, N_ShapeTmp
 USE MOD_Mesh_Vars          ,ONLY: offSetElem,N_VolMesh
 USE MOD_Particle_Mesh_Vars ,ONLY: GEO, ElemBaryNgeo, FIBGM_offsetElem, FIBGM_nElems, FIBGM_Element, Elem_xGP_Shared
 USE MOD_Particle_Mesh_Vars ,ONLY: ElemRadiusNGeo, ElemsJ
@@ -489,7 +497,7 @@ USE MOD_Interpolation_Vars ,ONLY: N_Inter
 USE MOD_Mesh_Vars          ,ONLY: nElems
 USE MOD_LoadBalance_Vars   ,ONLY: nDeposPerElem
 #endif  /*USE_LOADBALANCE*/
-USE MOD_DG_Vars            ,ONLY: N_DG
+USE MOD_DG_Vars            ,ONLY: N_DG_Mapping
 !-----------------------------------------------------------------------------------------------------------------------------------
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -510,11 +518,11 @@ REAL, INTENT(IN)                 :: r2_sf_inv  !< inverse of shape function radi
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 LOGICAL                          :: firstElem,elemDone
-INTEGER                          :: k, l, m
+INTEGER                          :: k, l, m, r
 INTEGER                          :: kmin, kmax, lmin, lmax, mmin, mmax
 INTEGER                          :: kk, ll, mm, ppp
 INTEGER                          :: globElemID, CNElemID
-INTEGER                          :: expo, nUsedElems, localElem
+INTEGER                          :: expo, nUsedElems, localElem, offSetDof
 REAL                             :: radius2, S, S1
 REAL                             :: totalCharge, alpha
 TYPE SPElem
@@ -561,21 +569,18 @@ DO kk = kmin,kmax
 #if USE_LOADBALANCE
         IF ((localElem.GE.1).AND.localElem.LE.nElems) nDeposPerElem(localElem)=nDeposPerElem(localElem)+1
 #endif /*USE_LOADBALANCE*/
-#if USE_MPI
-        CALL abort(__STAMP__,'PS_N(localElem)%PartSourceTmp and Nloc must be extended to halo elements')
-#else
-        Nloc = N_DG(CNElemID)
-#endif /*USE_MPI*/
-          !--- go through all gauss points
+        Nloc = N_DG_Mapping(2,globElemID)
+        offSetDof = N_DG_Mapping(1,globElemID)
         DO m=0,Nloc; DO l=0,Nloc; DO k=0,Nloc
+          r=m*(Nloc+1)**2+l*(Nloc+1) + k+1
           !-- calculate distance between gauss and particle
           !radius2 = SUM((Position(1:3) - Elem_xGP_Shared(1:3,k,l,m,globElemID))**2.)
-          radius2 = SFRadius2(Position(1:3) - Elem_xGP_Shared(1:3,k,l,m,globElemID))
+          radius2 = SFRadius2(Position(1:3) - Elem_xGP_Shared(1:3,offSetDof+r))
           !-- calculate charge and current density at interpolation point using a shape function
           !-- currently only one shape function available, more to follow (including structure change)
           IF (radius2 .LE. r2_sf) THEN
             IF (.NOT.elemDone) THEN
-              PS_N(CNElemID)%PartSourceTmp = 0.0
+              N_ShapeTmp(Nloc)%PartSource = 0.0
               nUsedElems = nUsedElems + 1
               elemDone = .TRUE.
             END IF
@@ -585,11 +590,11 @@ DO kk = kmin,kmax
               S1 = S*S1
             END DO
             IF (SourceSize.EQ.1) THEN
-              PS_N(CNElemID)%PartSourceTmp(  4,k,l,m) = Fac(  4) * S1
+              N_ShapeTmp(Nloc)%PartSource(  4,k,l,m) = Fac(  4) * S1
             ELSE
-              PS_N(CNElemID)%PartSourceTmp(1:4,k,l,m) = Fac(1:4) * S1
+              N_ShapeTmp(Nloc)%PartSource(1:4,k,l,m) = Fac(1:4) * S1
             END IF
-            totalCharge = totalCharge  + N_Inter(Nloc)%wGP(k)*N_Inter(Nloc)%wGP(l)*N_Inter(Nloc)%wGP(m)*PS_N(CNElemID)%PartSourceTmp(4,k,l,m)/N_VolMesh(CNElemID)%sJ(k,l,m)
+            totalCharge = totalCharge  + N_Inter(Nloc)%wGP(k)*N_Inter(Nloc)%wGP(l)*N_Inter(Nloc)%wGP(m)*N_ShapeTmp(Nloc)%PartSource(4,k,l,m)/N_VolMesh(CNElemID)%sJ(k,l,m)
 #if USE_MPI
             CALL abort(__STAMP__,'CNElemID is required here but N_VolMesh(1:nElems)!')
 #endif /*USE_MPI*/
@@ -599,7 +604,7 @@ DO kk = kmin,kmax
         IF (elemDone) THEN
           IF (firstElem) THEN
             ALLOCATE(first%PartSourceLoc(1:4,0:Nloc,0:Nloc,0:Nloc))
-            first%PartSourceLoc(:,:,:,:) = PS_N(CNElemID)%PartSourceTmp(:,:,:,:)
+            first%PartSourceLoc(:,:,:,:) = N_ShapeTmp(Nloc)%PartSource(:,:,:,:)
             first%globElemID = globElemID
             firstElem = .FALSE.
           ELSE
@@ -607,7 +612,7 @@ DO kk = kmin,kmax
             ALLOCATE(element%PartSourceLoc(1:4,0:Nloc,0:Nloc,0:Nloc))
             element%next => first%next
             first%next => element
-            element%PartSourceLoc(:,:,:,:) = PS_N(CNElemID)%PartSourceTmp(:,:,:,:)
+            element%PartSourceLoc(:,:,:,:) = N_ShapeTmp(Nloc)%PartSource(:,:,:,:)
             element%globElemID = globElemID
           END IF
         END IF
@@ -623,7 +628,8 @@ IF (nUsedElems.GT.0) THEN
   alpha = Fac(4) / totalCharge
   DO ppp=1, nUsedElems
     globElemID = element%globElemID
-    DO m=0,PP_N; DO l=0,PP_N; DO k=0,PP_N
+    Nloc = N_DG_Mapping(2,globElemID)
+    DO m=0,Nloc; DO l=0,Nloc; DO k=0,Nloc
       CALL UpdatePartSource(I,k,l,m,globElemID,alpha*element%PartSourceLoc(I:4,k,l,m))
     END DO;END DO;END DO;
     first => first%next
@@ -648,7 +654,7 @@ SUBROUTINE depoChargeOnDOFsSFAdaptive(Position,SourceSize,Fac,PartIdx)
 ! use MODULES
 USE MOD_PreProc
 USE MOD_Globals
-USE MOD_PICDepo_Vars       ,ONLY: alpha_sf,SFElemr2_Shared,ChargeSFDone,sfDepo3D,dimFactorSF
+USE MOD_PICDepo_Vars       ,ONLY: alpha_sf,SFElemr2_Shared,ChargeSFDone,sfDepo3D,dimFactorSF, N_ShapeTmp
 USE MOD_Mesh_Vars          ,ONLY: offSetElem
 USE MOD_Particle_Mesh_Vars ,ONLY: ElemBaryNgeo, Elem_xGP_Shared
 USE MOD_Particle_Mesh_Vars ,ONLY: ElemRadiusNGeo, ElemsJ, ElemToElemMapping,ElemToElemInfo
@@ -656,6 +662,7 @@ USE MOD_Preproc
 USE MOD_Mesh_Tools         ,ONLY: GetCNElemID, GetGlobalElemID
 USE MOD_Interpolation_Vars ,ONLY: N_Inter
 USE MOD_Particle_Vars      ,ONLY: PEM
+USE MOD_DG_Vars            ,ONLY: N_DG_Mapping
 #if USE_LOADBALANCE
 USE MOD_Mesh_Vars          ,ONLY: nElems
 USE MOD_LoadBalance_Vars   ,ONLY: nDeposPerElem
@@ -678,13 +685,12 @@ REAL, INTENT(IN)                 :: Fac(4-SourceSize+1:4)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 LOGICAL                          :: firstElem,elemDone
-INTEGER                          :: k, l, m
+INTEGER                          :: k, l, m, r
 INTEGER                          :: ppp
 INTEGER                          :: globElemID, CNElemID, OrigCNElemID, OrigElem
-INTEGER                          :: expo, nUsedElems, localElem
+INTEGER                          :: expo, nUsedElems, localElem, Nloc, offSetDof
 REAL                             :: radius2, S, S1
 REAL                             :: totalCharge, alpha
-REAL                             :: PartSourceTmp(1:4,0:PP_N,0:PP_N,0:PP_N)
 TYPE SPElem
   REAL, ALLOCATABLE     :: PartSourceLoc(:,:,:,:)
   INTEGER               :: globElemID
@@ -717,15 +723,18 @@ DO ppp = 0,ElemToElemMapping(2,OrigCNElemID)
 #if USE_LOADBALANCE
   IF ((localElem.GE.1).AND.localElem.LE.nElems) nDeposPerElem(localElem)=nDeposPerElem(localElem)+1
 #endif /*USE_LOADBALANCE*/
-    !--- go through all gauss points
-  DO m=0,PP_N; DO l=0,PP_N; DO k=0,PP_N
+  !--- go through all gauss points
+  Nloc = N_DG_Mapping(2,globElemID)
+  offSetDof = N_DG_Mapping(1,globElemID)
+  DO m=0,Nloc; DO l=0,Nloc; DO k=0,Nloc
+    r=m*(Nloc+1)**2+l*(Nloc+1) + k+1
     !-- calculate distance between gauss and particle
-    radius2 = SFRadius2(Position(1:3) - Elem_xGP_Shared(1:3,k,l,m,globElemID))
+    radius2 = SFRadius2(Position(1:3) - Elem_xGP_Shared(1:3,offSetDof+r))
     !-- calculate charge and current density at ip point using a shape function
     !-- currently only one shapefunction available, more to follow (including structure change)
     IF (radius2 .LE. SFElemr2_Shared(2,OrigCNElemID)) THEN
       IF (.NOT.elemDone) THEN
-        PartSourceTmp = 0.0
+        N_ShapeTmp(Nloc)%PartSource = 0.0
         nUsedElems = nUsedElems + 1
         elemDone = .TRUE.
       END IF
@@ -735,17 +744,18 @@ DO ppp = 0,ElemToElemMapping(2,OrigCNElemID)
         S1 = S*S1
       END DO
       IF (SourceSize.EQ.1) THEN
-        PartSourceTmp(4,k,l,m) = Fac(4) * S1
+        N_ShapeTmp(Nloc)%PartSource(4,k,l,m) = Fac(4) * S1
       ELSE
-        PartSourceTmp(1:4,k,l,m) = Fac(1:4) * S1
+        N_ShapeTmp(Nloc)%PartSource(1:4,k,l,m) = Fac(1:4) * S1
       END IF
-      totalCharge = totalCharge  + N_Inter(PP_N)%wGP(k)*N_Inter(PP_N)%wGP(l)*N_Inter(PP_N)%wGP(m)*PartSourceTmp(4,k,l,m)/ElemsJ(k,l,m,CNElemID)
+      totalCharge = totalCharge  + N_Inter(PP_N)%wGP(k)*N_Inter(PP_N)%wGP(l)*N_Inter(PP_N)%wGP(m)*N_ShapeTmp(Nloc)%PartSource(4,k,l,m)/ElemsJ(k,l,m,CNElemID)
     END IF
   END DO; END DO; END DO
 
   IF (elemDone) THEN
     IF (firstElem) THEN
-      first%PartSourceLoc(:,:,:,:) = PartSourceTmp(:,:,:,:)
+      ALLOCATE(first%PartSourceLoc(1:4,0:Nloc,0:Nloc,0:Nloc))
+      first%PartSourceLoc(:,:,:,:) = N_ShapeTmp(Nloc)%PartSource(:,:,:,:)
       first%globElemID = globElemID
       firstElem = .FALSE.
     ELSE
@@ -753,7 +763,7 @@ DO ppp = 0,ElemToElemMapping(2,OrigCNElemID)
       ALLOCATE(element%PartSourceLoc(1:4,0:PP_N,0:PP_N,0:PP_N))
       element%next => first%next
       first%next => element
-      element%PartSourceLoc(:,:,:,:) = PartSourceTmp(:,:,:,:)
+      element%PartSourceLoc(:,:,:,:) = N_ShapeTmp(Nloc)%PartSource(:,:,:,:)
       element%globElemID = globElemID
     END IF
   END IF
@@ -771,7 +781,8 @@ IF (nUsedElems.GT.0) THEN
   alpha = Fac(4) / totalCharge
   DO ppp=1, nUsedElems
     globElemID = element%globElemID
-    DO m=0,PP_N; DO l=0,PP_N; DO k=0,PP_N
+    Nloc = N_DG_Mapping(2,globElemID)
+    DO m=0,Nloc; DO l=0,Nloc; DO k=0,Nloc
       CALL UpdatePartSource(I,k,l,m,globElemID,alpha*element%PartSourceLoc(I:4,k,l,m))
     END DO;END DO;END DO;
     first => first%next

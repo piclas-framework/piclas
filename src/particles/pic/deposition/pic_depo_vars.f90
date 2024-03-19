@@ -36,11 +36,18 @@ TYPE N_PartSource_Vol
   REAL,ALLOCATABLE  :: PartSource(:,:,:,:)      !< PartSource(1:4,PP_N,PP_N,PP_N,nElems) containing
                                                 !< current and charge density source terms for Maxwell/Poisson systems
   REAL,ALLOCATABLE  :: PartSourceOld(:,:,:,:,:) !< PartSource(:,2,PP_N,PP_N,PP_N,nElems) prev. and sec. prev. Source
-  REAL,ALLOCATABLE  :: PartSourceTmp (:,:,:,:)  !< Shape function temporary container
 END TYPE N_PartSource_Vol
 
 ! Part Source
 TYPE(N_PartSource_Vol),ALLOCATABLE :: PS_N(:)       !< Solution variable for each equation, node and element,
+
+! DG solution particle volume source terms
+TYPE tN_ShapeTmp
+  REAL,ALLOCATABLE  :: PartSource(:,:,:,:)      !< PartSource(1:4,PP_N,PP_N,PP_N,nElems) containing
+END TYPE tN_ShapeTmp
+
+! Part Source
+TYPE(tN_ShapeTmp),ALLOCATABLE :: N_ShapeTmp(:)       !< Solution variable for each equation, node and element,
 
 INTEGER, ALLOCATABLE            :: nDepoDOFPerProc(:)
 INTEGER, ALLOCATABLE            :: nDepoOffsetProc(:)

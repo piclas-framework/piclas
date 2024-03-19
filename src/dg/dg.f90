@@ -66,7 +66,7 @@ USE MOD_PreProc
 USE MOD_DG_Vars
 USE MOD_Restart_Vars       ,ONLY: DoRestart,RestartInitIsDone
 USE MOD_Interpolation_Vars ,ONLY: N_Inter,InterpolationInitIsDone,Nmax,Nmin
-USE MOD_Mesh_Vars          ,ONLY: nSides,nElems
+USE MOD_Mesh_Vars          ,ONLY: nSides,nElems, offSetElem
 USE MOD_Mesh_Vars          ,ONLY: MeshInitIsDone
 #if ! (USE_HDG)
 USE MOD_PML_Vars           ,ONLY: PMLnVar ! Additional fluxes for the CFS-PML auxiliary variables
@@ -117,7 +117,7 @@ IF (.NOT.(PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance))) THEN
   ! the local DG solution in physical and reference space
   ALLOCATE(U_N(1:PP_nElems))
   DO iElem = 1, PP_nElems
-    Nloc = N_DG(iElem)
+    Nloc = N_DG_Mapping(2,iElem+offSetElem)
     ALLOCATE(U_N(iElem)%U(PP_nVar,0:Nloc,0:Nloc,0:Nloc))
     U_N(iElem)%U = 0.
   END DO ! iElem = 1, PP_nElems
@@ -128,7 +128,7 @@ END IF
 ! Allocate additional containers
 #if USE_HDG
 DO iElem = 1, PP_nElems
-  Nloc = N_DG(iElem)
+  Nloc = N_DG_Mapping(2,iElem+offSetElem)
   ALLOCATE(U_N(iElem)%E(1:3,0:Nloc,0:Nloc,0:Nloc))
   ALLOCATE(U_N(iElem)%Et(1:3,0:Nloc,0:Nloc,0:Nloc))
   U_N(iElem)%E = 0.
@@ -142,7 +142,7 @@ ALLOCATE(Ut_N(PP_nElems))
 
 ! the time derivative computed with the DG scheme
 DO iElem = 1, PP_nElems
-  Nloc = N_DG(iElem)
+  Nloc = N_DG_Mapping(2,iElem+offSetElem)
   ALLOCATE(U_N(iElem)%Ut(PP_nVar,0:Nloc,0:Nloc,0:Nloc))
   U_N(iElem)%Ut = 0.
 #if (PP_TimeDiscMethod==1)||(PP_TimeDiscMethod==2)|| (PP_TimeDiscMethod==6)
@@ -215,9 +215,9 @@ USE MOD_Interpolation_Vars ,ONLY: Nmax
 #if USE_MPI
 USE MOD_PreProc
 USE MOD_MPI_Vars           ,ONLY: SurfExchange, nNbProcs, DataSizeSurfRecMax, DataSizeSurfSendMax, DataSizeSurfRecMin, DataSizeSurfSendMin
-USE MOD_DG_Vars            ,ONLY: N_DG,DG_Elems_master,DG_Elems_slave
+USE MOD_DG_Vars            ,ONLY: N_DG_Mapping,DG_Elems_master,DG_Elems_slave
 USE MOD_MPI                ,ONLY: StartReceiveMPISurfDataType,StartSendMPISurfDataType,FinishExchangeMPISurfDataType
-USE MOD_Mesh_Vars          ,ONLY: N_SurfMesh,nSides
+USE MOD_Mesh_Vars          ,ONLY: N_SurfMesh,nSides, offSetElem
 USE MOD_Interpolation_Vars ,ONLY: NInfo,PREF_VDM,N_Inter
 #endif /*USE_MPI*/
 #endif /*USE_HDG*/
@@ -623,8 +623,8 @@ SUBROUTINE FillIni()
 !===================================================================================================================================
 ! MODULES
 USE MOD_PreProc
-USE MOD_DG_Vars       ,ONLY: U_N,N_DG
-USE MOD_Mesh_Vars     ,ONLY: N_VolMesh
+USE MOD_DG_Vars       ,ONLY: U_N,N_DG_Mapping
+USE MOD_Mesh_Vars     ,ONLY: N_VolMesh, offSetElem
 USE MOD_Equation_Vars ,ONLY: IniExactFunc
 USE MOD_Equation      ,ONLY: ExactFunc
 #ifdef maxwell
@@ -646,7 +646,7 @@ INTEGER                         :: i,j,k,iElem,Nloc
 IF(DoExactFlux.AND.(IniExactFunc.NE.16)) RETURN ! IniExactFunc=16 is pulsed laser mixed IC+BC
 #endif /*maxwell*/
 DO iElem=1,PP_nElems
-  Nloc = N_DG(iElem)
+  Nloc = N_DG_Mapping(2,iElem+offSetElem)
   DO k=0,Nloc
     DO j=0,Nloc
       DO i=0,Nloc

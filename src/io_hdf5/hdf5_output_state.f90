@@ -112,7 +112,7 @@ USE MOD_HDG_Vars               ,ONLY: CoupledPowerPotential,UseCoupledPowerPoten
 #endif /*PARTICLES*/
 #else
 #endif /*USE_HDG*/
-USE MOD_DG_vars                ,ONLY: N_DG
+USE MOD_DG_vars                ,ONLY: N_DG_Mapping
 USE MOD_Interpolation_Vars     ,ONLY: PREF_VDM,Nmax
 USE MOD_Analyze_Vars           ,ONLY: OutputTimeFixed
 USE MOD_Output_Vars            ,ONLY: DoWriteStateToHDF5
@@ -454,7 +454,7 @@ ASSOCIATE (&
   ELSE
 #endif /*PARTICLES*/
     DO iElem = 1, INT(PP_nElems)
-      Nloc = N_DG(iElem)
+      Nloc = N_DG_Mapping(2,iElem+offSetElem)
       IF(Nloc.EQ.Nmax)THEN
         Utemp(1,:,:,:,iElem)   = U_N(iElem)%U(1,:,:,:)
         Utemp(2:4,:,:,:,iElem) = U_N(iElem)%E(1:3,:,:,:)
@@ -499,7 +499,7 @@ ASSOCIATE (&
 #else
 #if !((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))
   DO iElem = 1, INT(PP_nElems)
-    Nloc = N_DG(iElem)
+    Nloc = N_DG_Mapping(2,iElem+offSetElem)
     IF(Nloc.Eq.Nmax)THEN
       U(:,:,:,:,iElem) = U_N(iElem)%U(:,:,:,:)
     ELSE
@@ -541,7 +541,7 @@ ASSOCIATE (&
       CALL WriteAttributeToHDF5(File_ID,'VarNamesSource',INT(nVar,4),StrArray=LocalStrVarnames)
       CALL CloseDataFile()
     END IF
-      Nloc = N_DG(iElem)
+      Nloc = N_DG_Mapping(2,iElem+offSetElem)
     DO iElem = 1, INT(PP_nElems)
       IF(Nloc.Eq.Nmax)THEN
         PartSource(:,:,:,:,iElem) = PS_N(iElem)%PartSource(:,:,:,:)

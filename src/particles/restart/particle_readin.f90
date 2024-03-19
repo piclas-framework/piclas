@@ -75,7 +75,7 @@ USE MOD_TimeDisc_Vars          ,ONLY: time
 #endif /*USE_LOADBALANCE*/
 USE MOD_Particle_Vars          ,ONLY: VibQuantData,ElecDistriData,AD_Data
 USE MOD_Particle_Vars          ,ONLY: PartDataSize,PartIntSize,PartDataVarNames
-USE MOD_DG_Vars                ,ONLY: N_DG
+USE MOD_DG_Vars                ,ONLY: N_DG_Mapping
 USE MOD_Interpolation_Vars     ,ONLY: PREF_VDM
 USE MOD_Interpolation_Vars     ,ONLY: N_Inter
 USE MOD_ChangeBasis            ,ONLY: ChangeBasis3D
@@ -456,7 +456,7 @@ ELSE
             CALL ReadArray('DG_Source' ,5,(/4_IK,Nres+1_IK,Nres+1_IK,Nres+1_IK,PP_nElemsTmp/),OffsetElemTmp,5,RealArray=PartSource_HDF5)
 
             DO iElem =1,PP_nElems
-              Nloc = N_DG(iElem)
+              Nloc = N_DG_Mapping(2,iElem+offSetElem)
               ALLOCATE(PartSourceloc(1:4,0:Nloc,0:Nloc,0:Nloc))
 
               IF(Nloc.EQ.N_Restart)THEN

@@ -38,11 +38,11 @@ FUNCTION CALCTIMESTEP()
 ! MODULES
 USE MOD_Globals
 USE MOD_PreProc
-USE MOD_Mesh_Vars     ,ONLY: N_VolMesh
+USE MOD_Mesh_Vars     ,ONLY: N_VolMesh, offSetElem
 USE MOD_Equation_Vars ,ONLY: c_corr
 USE MOD_Globals_Vars  ,ONLY: c
 USE MOD_TimeDisc_Vars ,ONLY: CFLScale
-USE MOD_DG_Vars       ,ONLY: N_DG
+USE MOD_DG_Vars       ,ONLY: N_DG_Mapping
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -58,7 +58,7 @@ REAL                         :: TimeStepConv,locTimeStepConv
 !===================================================================================================================================
 locTimeStepConv=HUGE(1.)
 DO iElem=1,PP_nElems
-  Nloc = N_DG(iElem)
+  Nloc = N_DG_Mapping(2,iElem+offSetElem)
   Max_Lambda1=0.
   Max_Lambda2=0.
   Max_Lambda3=0.

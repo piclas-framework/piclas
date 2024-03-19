@@ -59,7 +59,7 @@ USE MOD_Equation_Vars      ,ONLY: Phi
 USE MOD_Interpolation_Vars ,ONLY: NMax
 #else /*not PP_POIS and not USE_HDG*/
 USE MOD_DG_Vars            ,ONLY: U_N
-USE MOD_DG_Vars            ,ONLY: N_DG
+USE MOD_DG_Vars            ,ONLY: N_DG_Mapping
 USE MOD_ChangeBasis        ,ONLY: ChangeBasis3D
 USE MOD_Interpolation_Vars ,ONLY: N_Inter,PREF_VDM
 #endif /*PP_POIS*/
@@ -286,7 +286,7 @@ IF(PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance))THEN
 
 #else
   ! TODO: make ElemInfo available with PARTICLES=OFF and remove this preprocessor if/else as soon as possible
-  lambda=0.
+   CALL abort(__STAMP__,'not implemented')
 #endif /*defined(PARTICLES)*/
 
 #else /*USE_HDG*/
@@ -462,7 +462,7 @@ ELSE ! normal restart
     ALLOCATE(U(1:nVar,0:Nres,0:Nres,0:Nres,PP_nElemsTmp))
     CALL ReadArray('DG_Solution',5,(/nVar,Nres+1_IK,Nres+1_IK,Nres+1_IK,PP_nElemsTmp/),OffsetElemTmp,5,RealArray=U)
     DO iElem = 1, nElems
-      Nloc = N_DG(iElem)
+      Nloc = N_DG_Mapping(2,iElem+offSetElem)
       IF(Nloc.EQ.N_Restart)THEN
         U_N(iElem)%U(1:nVar,0:Nres,0:Nres,0:Nres) = U(1:nVar,0:Nres,0:Nres,0:Nres,iElem)
       ELSEIF(Nloc.GT.N_Restart)THEN

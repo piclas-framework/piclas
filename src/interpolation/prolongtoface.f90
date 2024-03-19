@@ -336,8 +336,8 @@ SUBROUTINE ProlongToFace_TypeBased(doMPISides)
 USE MOD_Globals
 USE MOD_PreProc
 USE MOD_Interpolation_Vars ,ONLY: N_Inter
-USE MOD_DG_Vars            ,ONLY: U_N,DG_Elems_slave,DG_Elems_master,U_Surf_N, N_DG
-USE MOD_Mesh_Vars          ,ONLY: SideToElem
+USE MOD_DG_Vars            ,ONLY: U_N,DG_Elems_slave,DG_Elems_master,U_Surf_N, N_DG_Mapping
+USE MOD_Mesh_Vars          ,ONLY: SideToElem, offSetElem
 USE MOD_Mesh_Vars          ,ONLY: firstBCSide,firstInnerSide
 USE MOD_Mesh_Vars          ,ONLY: firstMPISide_YOUR,lastMPISide_YOUR,lastMPISide_MINE,nSides,firstMortarMPISide,lastMortarMPISide
 ! IMPLICIT VARIABLE HANDLING
@@ -368,7 +368,7 @@ DO SideID=firstSideID,lastSideID
   IF(nbElemID.LE.0) CYCLE
   locSideID  = SideToElem(S2E_NB_LOC_SIDE_ID,SideID)
   flip       = SideToElem(S2E_FLIP,SideID)
-  Nloc = N_DG(nbElemID)
+  Nloc = N_DG_Mapping(2,nbElemID+offSetElem)
   CALL ProlongToFace_Side(PP_nVar, Nloc, locSideID, flip, nbElemID,  U_N(nbElemID)%U, U_Surf_N(SideID)%U_slave)
   
 END DO !SideID
@@ -388,7 +388,7 @@ DO SideID=firstSideID,lastSideID
   ElemID    = SideToElem(S2E_ELEM_ID,SideID)
   IF(ElemID.LE.0) CYCLE
   locSideID = SideToElem(S2E_LOC_SIDE_ID,SideID)
-  Nloc = N_DG(ElemID)
+  Nloc = N_DG_Mapping(2,ElemID+offSetElem)
 
   CALL ProlongToFace_Side(PP_nVar, Nloc, locSideID, 0, ElemID,  U_N(ElemID)%U, U_Surf_N(SideID)%U_master)
 END DO !SideID
@@ -405,8 +405,8 @@ SUBROUTINE ProlongToFace_Side(Nvar, Nloc, locSideID, flip, ElemID,  U, USide)
 USE MOD_Globals
 USE MOD_PreProc
 USE MOD_Interpolation_Vars ,ONLY: N_Inter
-USE MOD_DG_Vars            ,ONLY: N_DG
-USE MOD_Mesh_Vars          ,ONLY: SideToElem
+USE MOD_DG_Vars            ,ONLY: N_DG_Mapping
+USE MOD_Mesh_Vars          ,ONLY: SideToElem, offSetElem
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------

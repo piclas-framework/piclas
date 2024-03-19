@@ -689,6 +689,7 @@ USE MOD_Interpolation_Vars,      ONLY:N_Inter
 USE MOD_Particle_Mesh_Vars,      ONLY:RefMappingGuess,RefMappingEps
 USE MOD_Particle_Mesh_Vars,      ONLY:XiEtaZetaBasis,slenXiEtaZetaBasis
 USE MOD_Particle_Mesh_Vars,      ONLY:XCL_NGeo_Shared,Elem_xGP_Shared
+USE MOD_DG_Vars           ,      ONLY:N_DG_Mapping
 #if USE_MPI
 USE MOD_Particle_Mesh_Vars,      ONLY:ElemBaryNGeo_Shared
 #else
@@ -708,9 +709,9 @@ REAL,INTENT(INOUT)            :: Xi(1:3)
 REAL                          :: Ptild(1:3),XiLinear(1:6)
 REAL                          :: Winner_Dist,Dist
 REAL                          :: epsOne
-INTEGER                       :: CNElemID,iDir,i,j,k
+INTEGER                       :: CNElemID,iDir,i,j,k,r
 REAL                          :: dX,dY,dZ
-INTEGER                       :: RefMappingGuessLoc
+INTEGER                       :: RefMappingGuessLoc,Nloc,offSetDof
 !===================================================================================================================================
 #if USE_MPI
 ASSOCIATE(ElemBaryNGeo => ElemBaryNGeo_Shared)
@@ -738,19 +739,22 @@ CASE(1)
 
 CASE(2)
   ! compute distance on Gauss Points
-  Winner_Dist = SQRT(DOT_PRODUCT((x_in(:)-Elem_xGP_Shared(:,0,0,0,ElemID)),(x_in(:)-Elem_xGP_Shared(:,0,0,0,ElemID))))
-  Xi(:)=(/N_Inter(PP_N)%xGP(0),N_Inter(PP_N)%xGP(0),N_Inter(PP_N)%xGP(0)/) ! start value
-  DO i=0,PP_N; DO j=0,PP_N; DO k=0,PP_N
-      dX = ABS(X_in(1) - Elem_xGP_Shared(1,i,j,k,ElemID))
+  Nloc = N_DG_Mapping(2,ElemID)
+  offSetDof = N_DG_Mapping(1,ElemID)
+  Winner_Dist = SQRT(DOT_PRODUCT((x_in(:)-Elem_xGP_Shared(:,offSetDof+1)),(x_in(:)-Elem_xGP_Shared(:,offSetDof+1))))
+  Xi(:)=(/N_Inter(Nloc)%xGP(0),N_Inter(Nloc)%xGP(0),N_Inter(Nloc)%xGP(0)/) ! start value
+  DO i=0,Nloc; DO j=0,Nloc; DO k=0,Nloc
+    r=k*(Nloc+1)**2+j*(Nloc+1) + i+1
+    dX = ABS(X_in(1) - Elem_xGP_Shared(1,offSetDof+r))
     IF(dX.GT.Winner_Dist) CYCLE
-      dY = ABS(X_in(2) - Elem_xGP_Shared(2,i,j,k,ElemID))
+      dY = ABS(X_in(2) - Elem_xGP_Shared(2,offSetDof+r))
     IF(dY.GT.Winner_Dist) CYCLE
-      dZ = ABS(X_in(3) - Elem_xGP_Shared(3,i,j,k,ElemID))
+      dZ = ABS(X_in(3) - Elem_xGP_Shared(3,offSetDof+r))
     IF(dZ.GT.Winner_Dist) CYCLE
     Dist=SQRT(dX*dX+dY*dY+dZ*dZ)
     IF (Dist.LT.Winner_Dist) THEN
       Winner_Dist=Dist
-      Xi(:)=(/N_Inter(PP_N)%xGP(i),N_Inter(PP_N)%xGP(j),N_Inter(PP_N)%xGP(k)/) ! start value
+      Xi(:)=(/N_Inter(Nloc)%xGP(i),N_Inter(Nloc)%xGP(j),N_Inter(Nloc)%xGP(k)/) ! start value
     END IF
   END DO; END DO; END DO
 

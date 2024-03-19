@@ -225,6 +225,7 @@ USE MOD_Particle_Vars          ,ONLY: PartState
 USE MOD_PICDepo_Vars           ,ONLY: PS_N,CellVolWeight_Volumes,CellVolWeight
 USE MOD_Part_Tools             ,ONLY: isDepositParticle
 USE MOD_Mesh_Tools             ,ONLY: GetCNElemID
+USE MOD_Mesh_Vars              ,ONLY: offSetElem
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Timers     ,ONLY: LBStartTime,LBPauseTime,LBElemSplitTime,LBElemPauseTime_avg
 USE MOD_LoadBalance_Timers     ,ONLY: LBElemSplitTime_avg
@@ -238,7 +239,7 @@ USE MOD_TimeDisc_Vars          ,ONLY: dt,dt_Min
 #if USE_MPI
 USE MOD_MPI_Shared             ,ONLY: BARRIER_AND_SYNC
 #endif /*USE_MPI*/
-USE MOD_DG_Vars                ,ONLY: N_DG
+USE MOD_DG_Vars                ,ONLY: N_DG_Mapping
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -337,7 +338,7 @@ DO iElem=1, nElems
 END DO
 
 DO iElem = 1, nElems
-  Nloc = N_DG(iElem)
+  Nloc = N_DG_Mapping(2,iElem+offSetElem)
   DO kk = 0, Nloc
     DO ll = 0, Nloc
       DO mm = 0, Nloc
@@ -404,7 +405,7 @@ USE MOD_TimeDisc_Vars      ,ONLY: dt,dt_Min
 #if defined(MEASURE_MPI_WAIT)
 USE MOD_Particle_MPI_Vars  ,ONLY: MPIW8TimePart,MPIW8CountPart
 #endif /*defined(MEASURE_MPI_WAIT)*/
-USE MOD_DG_Vars            ,ONLY: N_DG
+USE MOD_DG_Vars            ,ONLY: N_DG_Mapping
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -714,7 +715,7 @@ CALL LBStartTime(tLBStart) ! Start time measurement
 DO iElem = 1, nElems
   ! Get UniqueNodeID from NonUniqueNodeID = ElemNodeID_Shared(:,GetCNElemID(iElem))
   NodeID = NodeInfo_Shared(ElemNodeID_Shared(:,GetCNElemID(iElem+offsetElem)))
-  Nloc = N_DG(iElem)
+  Nloc = N_DG_Mapping(2,iElem+offSetElem)
   DO kk = 0, Nloc
     DO ll = 0, Nloc
       DO mm = 0, Nloc

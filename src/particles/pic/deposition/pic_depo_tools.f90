@@ -209,8 +209,8 @@ USE MOD_Mesh_Vars          ,ONLY: nElems
 #endif
 USE MOD_Particle_Mesh_Vars ,ONLY: ElemsJ, ElemNodeID_Shared, nUniqueGlobalNodes, NodeInfo_Shared,GEO
 USE MOD_PICDepo_Vars       ,ONLY: NodeVolume,Periodic_nNodes,Periodic_offsetNode,Periodic_Nodes
-USE MOD_DG_Vars            ,ONLY: N_DG
-USE MOD_Mesh_Vars          ,ONLY: N_VolMesh
+USE MOD_DG_Vars            ,ONLY: N_DG_Mapping
+USE MOD_Mesh_Vars          ,ONLY: N_VolMesh, offSetElem
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -260,7 +260,7 @@ IF (PP_N.NE.1) THEN
 END IF
 ! ElemNodeID and ElemsJ use compute node elems
 DO iElem = firstElem, lastElem
-  Nloc = N_DG(iElem)
+  Nloc = N_DG_Mapping(2,iElem+offSetElem)
   IF (PP_N.EQ.1) THEN
     wGP_loc = N_Inter(PP_N)%wGP(0)
     DO j=0, PP_N; DO k=0, PP_N; DO l=0, PP_N

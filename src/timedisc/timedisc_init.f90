@@ -94,8 +94,8 @@ SUBROUTINE InitTimeDisc()
 ! MODULES
 USE MOD_PreProc
 USE MOD_Globals
-USE MOD_Mesh_Vars     ,ONLY: nElems
-USE MOD_DG_Vars       ,ONLY: N_DG
+USE MOD_Mesh_Vars     ,ONLY: nElems, offSetElem
+USE MOD_DG_Vars       ,ONLY: N_DG_Mapping
 USE MOD_ReadInTools   ,ONLY: GetReal,GetInt, GETLOGICAL
 USE MOD_TimeDisc_Vars ,ONLY: IterDisplayStepUser
 USE MOD_TimeDisc_Vars ,ONLY: CFLScale,dt,TimeDiscInitIsDone,RKdtFrac,RKdtFracTotal,dtWeight

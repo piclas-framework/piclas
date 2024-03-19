@@ -384,8 +384,8 @@ USE MOD_Particle_Mesh_Vars     ,ONLY: ElemsJ,ElemEpsOneCell
 USE MOD_Particle_Mesh_Vars     ,ONLY: RefMappingEps
 USE MOD_Mesh_Tools             ,ONLY: GetGlobalElemID
 USE MOD_Particle_Tracking_Vars ,ONLY: TrackingMethod
-#if USE_MPI
 USE MOD_Mesh_Vars              ,ONLY: offsetElem
+#if USE_MPI
 USE MOD_Mesh_Vars              ,ONLY: NGeo,NGeoRef
 USE MOD_MPI_Shared
 USE MOD_MPI_Shared_Vars        ,ONLY: nComputeNodeTotalElems
@@ -401,7 +401,7 @@ USE MOD_Particle_Mesh_Vars     ,ONLY: nComputeNodeElems
 USE MOD_LoadBalance_Vars       ,ONLY: PerformLoadBalance
 #endif /*USE_LOADBALANCE*/
 USE MOD_Interpolation_Vars     ,ONLY: Nmax,NInfo
-USE MOD_DG_Vars                ,ONLY: N_DG
+USE MOD_DG_Vars                ,ONLY: N_DG_Mapping
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -417,7 +417,6 @@ INTEGER                        :: i,j,k
 INTEGER                        :: GlobalElemID,iCNElem
 ! Vandermonde matrices
 REAL                           :: Vdm_CLNGeo_NGeoRef(0:NgeoRef,0:NGeo)
-REAL                           :: Vdm_NGeoRef_N(     0:PP_N   ,0:NGeoRef)
 ! Jacobian on CL N and NGeoRef
 REAL                           :: detJac_NGeoRef(1 , 0:NGeoRef , 0:NGeoRef , 0:NGeoRef)
 REAL                           :: detJac_NMax(   1 , 0:NMax    , 0:NMax    , 0:NMax)
@@ -457,7 +456,7 @@ CALL GetVandermonde(    Ngeo   , NodeTypeCL  , NgeoRef , NodeType  , Vdm_CLNGeo_
 DO iCNElem = firstElem,lastElem
   GlobalElemID = GetGlobalElemID(iCNElem)
   iElem        = GlobalElemID-offsetElem
-  Nloc         = N_DG(iElem)
+  Nloc         = N_DG_Mapping(2,GlobalElemID)
   ! element on local proc, sJ already calculated in metrics.f90
   IF (ElementOnNode(GlobalElemID)) THEN
     DO k=0,Nloc; DO j=0,Nloc; DO i=0,Nloc
@@ -495,7 +494,7 @@ CALL BARRIER_AND_SYNC(ElemsJ_Shared_Win,MPI_COMM_SHARED)
 ALLOCATE(ElemsJ(0:NMax,0:NMax,0:NMax,1:nElems))
 ElemsJ = 0.
 DO iElem = 1,nElems
-  Nloc = N_DG(iElem)
+  Nloc = N_DG_Mapping(2,iElem+offSetElem)
   DO k=0,Nloc; DO j=0,Nloc; DO i=0,Nloc
     ElemsJ(i,j,k,iElem) = N_VolMesh(iElem)%sJ(i,j,k)
   END DO; END DO; END DO !i,j,k=0,Nloc

@@ -114,11 +114,11 @@ USE MOD_ReadInTools           ,ONLY: GETLOGICAL,GETREAL,GETINT
 USE MOD_Mesh_Vars             ,ONLY: nBCSides,N_SurfMesh
 USE MOD_Mesh_Vars             ,ONLY: BoundaryType,nSides,BC
 USE MOD_Mesh_Vars             ,ONLY: nGlobalMortarSides,nMortarMPISides,N_VolMesh
-USE MOD_Mesh_Vars             ,ONLY: DoSwapMesh
+USE MOD_Mesh_Vars             ,ONLY: DoSwapMesh, offSetElem
 USE MOD_Basis                 ,ONLY: InitializeVandermonde,LegendreGaussNodesAndWeights,BarycentricWeights
 USE MOD_FillMortar_HDG        ,ONLY: InitMortar_HDG
 USE MOD_HDG_Vars              ,ONLY: BRNbrOfRegions,ElemToBRRegion,RegionElectronRef
-USE MOD_DG_Vars               ,ONLY: N_DG,DG_Elems_master,DG_Elems_slave
+USE MOD_DG_Vars               ,ONLY: N_DG_Mapping,DG_Elems_master,DG_Elems_slave
 #if defined(PARTICLES)
 USE MOD_Part_BR_Elecron_Fluid ,ONLY: UpdateNonlinVolumeFac
 USE MOD_Restart_Vars          ,ONLY: DoRestart
@@ -490,7 +490,7 @@ END DO ! Nloc = 1, NMax
 ALLOCATE(HDG_Vol_N(1:PP_nElems))
 
 DO iElem=1,PP_nElems
-  Nloc = N_DG(iElem)
+  Nloc = N_DG_Mapping(2,iElem+offSetElem)
   ALLOCATE(HDG_Vol_N(iElem)%InvDhat(nGP_vol(Nloc),nGP_vol(Nloc)))
   ALLOCATE(HDG_Vol_N(iElem)%JwGP_vol(nGP_vol(Nloc)))
   DO k=0,Nloc; DO j=0,Nloc; DO i=0,Nloc
@@ -560,7 +560,7 @@ END IF
 #endif
 
 DO iElem = 1, PP_nElems
-  Nloc = N_DG(iElem)
+  Nloc = N_DG_Mapping(2,iElem+offSetElem)
   ALLOCATE(HDG_Vol_N(iElem)%RHS_vol(PP_nVar, nGP_vol(Nloc)))
   HDG_Vol_N(iElem)%RHS_vol=0.
 END DO ! iElem = 1, PP_nElems
@@ -1866,11 +1866,11 @@ SUBROUTINE HDGLinear(time)
 USE MOD_Globals
 USE MOD_PreProc
 USE MOD_HDG_Vars
-USE MOD_DG_Vars            ,ONLY: DG_Elems_master,N_DG,U_N
+USE MOD_DG_Vars            ,ONLY: DG_Elems_master,N_DG_Mapping,U_N
 USE MOD_Equation           ,ONLY: CalcSourceHDG,ExactFunc
 USE MOD_Equation_Vars      ,ONLY: IniExactFunc
 USE MOD_Mesh_Vars          ,ONLY: BoundaryType,nSides,BC,N_SurfMesh
-USE MOD_Mesh_Vars          ,ONLY: ElemToSide
+USE MOD_Mesh_Vars          ,ONLY: ElemToSide, offSetElem
 USE MOD_Interpolation_Vars ,ONLY: NMax,PREF_VDM
 USE MOD_Elem_Mat           ,ONLY: PostProcessGradientHDG
 USE MOD_FillMortar_HDG     ,ONLY: SmallToBigMortar_HDG
@@ -2045,7 +2045,7 @@ END DO
 
 !volume source (volume RHS of u system)
 DO iElem=1,PP_nElems
-  Nloc = N_DG(iElem)
+  Nloc = N_DG_Mapping(2,iElem+offSetElem)
   DO k=0,Nloc; DO j=0,Nloc; DO i=0,Nloc
     r=k*(Nloc+1)**2+j*(Nloc+1) + i+1
     CALL CalcSourceHDG(i,j,k,iElem,HDG_Vol_N(iElem)%RHS_vol(1:PP_nVar,r))
@@ -2072,7 +2072,7 @@ DO iVar = 1, PP_nVar
     HDG_Surf_N(SideID)%RHS_face(iVar,:)=0.
   END DO ! SideID = 1, nSides
   DO iElem=1,PP_nElems
-    Nloc = N_DG(iElem)
+    Nloc = N_DG_Mapping(2,iElem+offSetElem)
     !rtmp=MATMUL(InvDhat(:,:,iElem),-RHS_loc(:,iElem))
     CALL DSYMV('U',nGP_vol(Nloc),1., HDG_Vol_N(iElem)%InvDhat(:,:),nGP_vol(Nloc), &
                                -HDG_Vol_N(iElem)%RHS_vol(iVar,:),1,0., &
@@ -2278,7 +2278,7 @@ CALL LBPauseTime(LB_DG,tLBStart) ! Pause/Stop time measurement
 #endif /*USE_LOADBALANCE*/
   !post processing:
   DO iElem=1,PP_nElems
-    Nloc = N_DG(iElem)
+    Nloc = N_DG_Mapping(2,iElem+offSetElem)
     ! for post-proc
     DO iLocSide=1,6
       SideID=ElemToSide(E2S_SIDE_ID,iLocSide,iElem)
@@ -3066,10 +3066,10 @@ END SUBROUTINE EvalResidual
 SUBROUTINE MatVec(iVar,DoVZ)
 ! MODULES
 USE MOD_Globals
-USE MOD_DG_Vars            ,ONLY: N_DG
+USE MOD_DG_Vars            ,ONLY: N_DG_Mapping
 USE MOD_HDG_Vars           ,ONLY: nGP_face,nDirichletBCSides,DirichletBC,SetZeroPotentialDOF
 USE MOD_HDG_Vars           ,ONLY: HDG_Surf_N,HDG_Vol_N
-USE MOD_Mesh_Vars          ,ONLY: nSides, SideToElem, ElemToSide, nMPIsides_YOUR,N_SurfMesh
+USE MOD_Mesh_Vars          ,ONLY: nSides, SideToElem, ElemToSide, nMPIsides_YOUR,N_SurfMesh, offSetElem
 USE MOD_FillMortar_HDG     ,ONLY: BigToSmallMortar_HDG,SmallToBigMortar_HDG
 #if USE_MPI
 USE MOD_MPI_Vars
@@ -3150,7 +3150,7 @@ DO SideID=firstSideID,lastSideID
       lambdatmp(1:nGP_face(NSideMin)) = HDG_Surf_N(SideID)%lambda(iVar,:)
     END IF ! DoVZ
     ElemID     = SideToElem(S2E_ELEM_ID,SideID)
-    Nloc       = N_DG(ElemID)
+    Nloc       = N_DG_Mapping(2,ElemID+offSetElem)
     IF(Nloc.GT.NSideMin)THEN
       ! From low to high
       CALL ChangeBasis2D(1, NSideMin, Nloc, PREF_VDM(NSideMin,Nloc)%Vdm , lambdatmp(1:nGP_face(NSideMin)), lambdatmp(1:nGP_face(Nloc)))
@@ -3185,7 +3185,7 @@ DO SideID=firstSideID,lastSideID
       lambdatmp(1:nGP_face(NSideMin)) = HDG_Surf_N(SideID)%lambda(iVar,:)
     END IF ! DoVZ
     ElemID     = SideToElem(S2E_NB_ELEM_ID,SideID)
-    Nloc       = N_DG(ElemID)
+    Nloc       = N_DG_Mapping(2,ElemID+offSetElem)
     jSideID(:) = ElemToSide(E2S_SIDE_ID,:,ElemID)
     IF(Nloc.GT.NSideMin)THEN
       ! From low to high
@@ -3237,7 +3237,7 @@ DO SideID=firstSideID,lastSideID
       lambdatmp(1:nGP_face(NSideMin)) = HDG_Surf_N(SideID)%lambda(iVar,:)
     END IF ! DoVZ
     ElemID     = SideToElem(S2E_ELEM_ID,SideID)
-    Nloc       = N_DG(ElemID)
+    Nloc       = N_DG_Mapping(2,ElemID+offSetElem)
     IF(Nloc.GT.NSideMin)THEN
       ! From low to high
       CALL ChangeBasis2D(1, NSideMin, Nloc, PREF_VDM(NSideMin,Nloc)%Vdm , lambdatmp(1:nGP_face(NSideMin)), lambdatmp(1:nGP_face(Nloc)))
@@ -3272,7 +3272,7 @@ DO SideID=firstSideID,lastSideID
       lambdatmp(1:nGP_face(NSideMin)) = HDG_Surf_N(SideID)%lambda(iVar,:)
     END IF ! DoVZ
     ElemID     = SideToElem(S2E_NB_ELEM_ID,SideID)
-    Nloc       = N_DG(ElemID)
+    Nloc       = N_DG_Mapping(2,ElemID+offSetElem)
     jSideID(:) = ElemToSide(E2S_SIDE_ID,:,ElemID)
     IF(Nloc.GT.NSideMin)THEN
       ! From low to high

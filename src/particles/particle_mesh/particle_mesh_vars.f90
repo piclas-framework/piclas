@@ -60,7 +60,7 @@ REAL,ALLOCPOINT,DIMENSION(:,:,:)         :: XiEtaZetaBasis     ! element local b
 
 ! XCL_NGeo and dXCL_NGeo always exist for DG mesh
 REAL,POINTER,DIMENSION(:,:,:,:,:)        :: XCL_NGeo_Shared
-REAL,POINTER,DIMENSION(:,:,:,:,:)        :: Elem_xGP_Shared
+REAL,POINTER,DIMENSION(:,:)              :: Elem_xGP_Shared
 REAL,POINTER,DIMENSION(:,:,:,:,:,:)      :: dXCL_NGeo_Shared   ! Jacobi matrix of the mapping P\in NGeo
 
 ! FIBGM

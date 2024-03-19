@@ -1406,6 +1406,7 @@ USE MOD_Particle_Mesh_Vars
 USE MOD_Mesh_Vars              ,ONLY: NGeo,nGlobalElems,offsetElem,nElems
 USE MOD_MPI_Shared
 USE MOD_MPI_Shared_Vars
+USE MOD_DG_Vars                ,ONLY: nDofsMapping, N_DG_Mapping, recvcountDofs, displsDofs
 #endif
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Vars       ,ONLY: PerformLoadBalance
@@ -1416,7 +1417,7 @@ IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! LOCAL VARIABLES
 #if USE_MPI
-INTEGER                        :: iElem
+INTEGER                        :: iElem, Nloc, i,j,k,r, offSetDof
 #endif /*USE_MPI*/
 !===================================================================================================================================
 
@@ -1427,15 +1428,24 @@ IF (PerformLoadBalance) RETURN
 
 #if USE_MPI
 ! This is a trick. Allocate as 1D array and then set a pointer with the proper array bounds
-CALL Allocate_Shared((/3*  (PP_N+1)*(PP_N+1)*(PP_N+1)*nGlobalElems/), Elem_xGP_Shared_Win,Elem_xGP_Array)
+CALL Allocate_Shared((/3*  nDofsMapping/), Elem_xGP_Shared_Win,Elem_xGP_Array)
 CALL Allocate_Shared((/3*3*(NGeo+1)*(NGeo+1)*(NGeo+1)*nGlobalElems/),dXCL_NGeo_Shared_Win,dXCL_NGeo_Array)
 CALL MPI_WIN_LOCK_ALL(0,Elem_xGP_Shared_Win,IERROR)
 CALL MPI_WIN_LOCK_ALL(0,dXCL_NGeo_Shared_Win,IERROR)
-Elem_xGP_Shared (1:3    ,0:PP_N,0:PP_N,0:PP_N,1:nGlobalElems) => Elem_xGP_Array
+Elem_xGP_Shared (1:3    ,1:nDofsMapping) => Elem_xGP_Array
 dXCL_NGeo_Shared(1:3,1:3,0:NGeo,0:NGeo,0:NGeo,1:nGlobalElems) => dXCL_NGeo_Array
 
 DO iElem = 1,nElems
-  Elem_xGP_Shared (:  ,:,:,:,offsetElem+iElem) = N_VolMesh(iElem)%Elem_xGP (:  ,:,:,:)
+  Nloc = N_DG_Mapping(2,iElem+offSetElem)
+  offSetDof = N_DG_Mapping(1,iElem+offSetElem)
+  DO k=0,Nloc
+    DO j=0,Nloc
+      DO i=0,Nloc
+        r=k*(Nloc+1)**2+j*(Nloc+1) + i+1
+        Elem_xGP_Shared (:  ,r+offSetDof) = N_VolMesh(iElem)%Elem_xGP (:  ,i,j,k)
+      END DO
+    END DO
+  END DO  
   dXCL_NGeo_Shared(:,:,:,:,:,offsetElem+iElem) =                  dXCL_NGeo(:,:,:,:,:,iElem)
 END DO ! iElem = 1, nElems
 
@@ -1449,8 +1459,8 @@ IF (nComputeNodeProcessors.NE.nProcessors_Global .AND. myComputeNodeRank.EQ.0) T
                      , 0                             &
                      , MPI_DATATYPE_NULL             &
                      , Elem_xGP_Shared               &
-                     , 3*(PP_N+1)**3*recvcountElem   &
-                     , 3*(PP_N+1)**3*displsElem      &
+                     , 3*recvcountDofs   &
+                     , 3*displsDofs      &
                      , MPI_DOUBLE_PRECISION          &
                      , MPI_COMM_LEADERS_SHARED       &
                      , IERROR)

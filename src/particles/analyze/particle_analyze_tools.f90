@@ -2470,7 +2470,8 @@ USE MOD_Equation_Vars    ,ONLY: E
 #else
 #endif
 #endif
-USE MOD_DG_Vars          ,ONLY: N_DG
+USE MOD_DG_Vars          ,ONLY: N_DG_Mapping
+USE MOD_Mesh_Vars        ,ONLY: offSetElem
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! insert modules here
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -2512,7 +2513,7 @@ DO iSpec=1,nSpecies
 
   ! compute power density
   DO iElem=1,PP_nElems
-    Nloc = N_DG(iElem)
+    Nloc = N_DG_Mapping(2,iElem+offSetElem)
     DO k=0,Nloc
       DO j=0,Nloc
         DO i=0,Nloc

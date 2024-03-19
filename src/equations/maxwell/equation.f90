@@ -1033,12 +1033,12 @@ USE MOD_Dielectric_Vars   ,ONLY: DoDielectric,isDielectricElem,ElemToDielectric,
 USE MOD_LinearSolver_Vars ,ONLY: ExplicitPartSource
 #endif
 #endif /*PARTICLES*/
-USE MOD_Mesh_Vars         ,ONLY: N_VolMesh
+USE MOD_Mesh_Vars         ,ONLY: N_VolMesh, offSetElem
 #if defined(LSERK) || defined(IMPA) || defined(ROS)
 USE MOD_Equation_Vars     ,ONLY: DoParabolicDamping,fDamping
 USE MOD_TimeDisc_Vars     ,ONLY: sdtCFLOne
 #endif /*LSERK*/
-USE MOD_DG_Vars           ,ONLY: N_DG,U_N
+USE MOD_DG_Vars           ,ONLY: N_DG_Mapping,U_N
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1064,7 +1064,7 @@ IF(DoDeposition)THEN
   IF(DoDielectric)THEN
     DO iElem=1,PP_nElems
       iDielectricElem = ElemToDielectric(iElem)
-      Nloc = N_DG(iElem)
+      Nloc = N_DG_Mapping(2,iElem+offSetElem)
       IF(isDielectricElem(iElem)) THEN ! 1.) PML version - PML element
         DO k=0,Nloc; DO j=0,Nloc; DO i=0,Nloc
 #if IMPA
@@ -1095,7 +1095,7 @@ IF(DoDeposition)THEN
     END DO
   ELSE
     DO iElem=1,PP_nElems
-      Nloc = N_DG(iElem)
+      Nloc = N_DG_Mapping(2,iElem+offSetElem)
       DO k=0,Nloc; DO j=0,Nloc; DO i=0,Nloc
 #if IMPA
         PartSourceLoc=PS_N(iElem)%PartSource(:,i,j,k)+ExplicitPartSource(:,i,j,k)
@@ -1118,7 +1118,7 @@ CASE(2,22) ! Coaxial Waveguide - no sources
 CASE(3) ! Resonator         - no sources
 CASE(4) ! Dipole
   DO iElem=1,PP_nElems
-    Nloc = N_DG(iElem)
+    Nloc = N_DG_Mapping(2,iElem+offSetElem)
     DO k=0,Nloc; DO j=0,Nloc; DO i=0,Nloc
       r = SQRT(DOT_PRODUCT(N_VolMesh(iElem)%Elem_xGP(:,i,j,k)-xDipole,N_VolMesh(iElem)%Elem_xGP(:,i,j,k)-xDipole))
       IF (shapefunc(r) .GT. 0 ) THEN
@@ -1131,7 +1131,7 @@ CASE(4) ! Dipole
 CASE(40) ! Dipole without initial condition
   coeff_loc = 1.0e-11 ! amplitude scaling
   DO iElem=1,PP_nElems
-    Nloc = N_DG(iElem)
+    Nloc = N_DG_Mapping(2,iElem+offSetElem)
     DO k=0,Nloc; DO j=0,Nloc; DO i=0,Nloc
       r = SQRT(DOT_PRODUCT(N_VolMesh(iElem)%Elem_xGP(:,i,j,k)-xDipole,N_VolMesh(iElem)%Elem_xGP(:,i,j,k)-xDipole))
       IF (shapefunc(r) .GT. 0 ) THEN
@@ -1144,7 +1144,7 @@ CASE(40) ! Dipole without initial condition
 CASE(5) ! TE_34,19 Mode     - no sources
 CASE(7) ! Manufactured Solution
   DO iElem=1,PP_nElems
-    Nloc = N_DG(iElem)
+    Nloc = N_DG_Mapping(2,iElem+offSetElem)
     DO k=0,Nloc; DO j=0,Nloc; DO i=0,Nloc
       U_N(iElem)%Ut(1,i,j,k)=U_N(iElem)%Ut(1,i,j,k) - coeff*2*pi*COS(2*pi*(N_VolMesh(iElem)%Elem_xGP(1,i,j,k)-t)) * eps0inv
       U_N(iElem)%Ut(8,i,j,k)=U_N(iElem)%Ut(8,i,j,k) + coeff*2*pi*COS(2*pi*(N_VolMesh(iElem)%Elem_xGP(1,i,j,k)-t)) * c_corr * eps0inv
@@ -1152,7 +1152,7 @@ CASE(7) ! Manufactured Solution
   END DO
 CASE(10) !issautier 3D test case with source (Stock et al., divcorr paper), domain [0;1]^3!!!
   DO iElem=1,PP_nElems
-    Nloc = N_DG(iElem)
+    Nloc = N_DG_Mapping(2,iElem+offSetElem)
     DO k=0,Nloc; DO j=0,Nloc; DO i=0,Nloc
       x(:)=N_VolMesh(iElem)%Elem_xGP(:,i,j,k)
       U_N(iElem)%Ut(1,i,j,k) =U_N(iElem)%Ut(1,i,j,k) + coeff*(COS(t)- (COS(t)-1.)*2*pi*pi)*x(1)*SIN(Pi*x(2))*SIN(Pi*x(3))
@@ -1177,7 +1177,7 @@ CASE(41) ! Dipole via temporal Gausspuls
 !TEnd=30.E-9 -> short pulse for 100ns runtime
 IF(1.EQ.2)THEN ! new formulation with divergence correction considered
   DO iElem=1,PP_nElems
-    Nloc = N_DG(iElem)
+    Nloc = N_DG_Mapping(2,iElem+offSetElem)
     DO k=0,Nloc; DO j=0,Nloc; DO i=0,Nloc
       U_N(iElem)%Ut(1,i,j,k) =U_N(iElem)%Ut(1,i,j,k) - coeff*2*pi*COS(2*pi*(N_VolMesh(iElem)%Elem_xGP(1,i,j,k)-t)) * eps0inv
       U_N(iElem)%Ut(8,i,j,k) =U_N(iElem)%Ut(8,i,j,k) + coeff*2*pi*COS(2*pi*(N_VolMesh(iElem)%Elem_xGP(1,i,j,k)-t)) * c_corr * eps0inv
@@ -1185,7 +1185,7 @@ IF(1.EQ.2)THEN ! new formulation with divergence correction considered
   END DO
 ELSE ! old/original formulation
   DO iElem=1,PP_nElems; 
-    Nloc = N_DG(iElem)
+    Nloc = N_DG_Mapping(2,iElem+offSetElem)
     DO k=0,Nloc; DO j=0,Nloc; DO i=0,Nloc
     IF (t.LE.2*tPulse) THEN
       r = SQRT(DOT_PRODUCT(N_VolMesh(iElem)%Elem_xGP(:,i,j,k)-xDipole,N_VolMesh(iElem)%Elem_xGP(:,i,j,k)-xDipole))
@@ -1219,7 +1219,8 @@ SUBROUTINE DivCleaningDamping()
 ! MODULES
 USE MOD_Globals
 USE MOD_PreProc
-USE MOD_DG_Vars,       ONLY : U_N,N_DG
+USE MOD_DG_Vars,       ONLY : U_N,N_DG_Mapping
+USE MOD_Mesh_Vars,     ONLY : offSetElem
 USE MOD_Equation_Vars, ONLY : fDamping,DoParabolicDamping
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -1233,7 +1234,7 @@ INTEGER                         :: i,j,k,iElem,Nloc
 !===================================================================================================================================
 IF(DoParabolicDamping) RETURN
 DO iElem=1,PP_nElems
-  Nloc = N_DG(iElem)
+  Nloc = N_DG_Mapping(2,iElem+offSetElem)
   DO k=0,Nloc; DO j=0,Nloc; DO i=0,Nloc
     !  Get source from Particles
     U_N(iElem)%U(7:8,i,j,k) = U_N(iElem)%U(7:8,i,j,k) * fDamping

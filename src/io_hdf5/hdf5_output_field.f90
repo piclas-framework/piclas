@@ -57,7 +57,7 @@ USE MOD_Mesh_Vars       ,ONLY: MeshFile,nGlobalElems,offsetElem
 USE MOD_Globals_Vars    ,ONLY: ProjectName
 USE MOD_io_HDF5
 USE MOD_ChangeBasis     ,ONLY: ChangeBasis3D
-USE MOD_DG_vars                ,ONLY: N_DG
+USE MOD_DG_vars                ,ONLY: N_DG_Mapping
 USE MOD_Interpolation_Vars     ,ONLY: PREF_VDM,Nmax
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Vars,ONLY: PerformLoadBalance
@@ -90,7 +90,7 @@ DielectricGlobal=0.
 
 DO iElem=1,PP_nElems
   IF(isDielectricElem(iElem))THEN
-    Nloc = N_DG(iElem)
+    Nloc = N_DG_Mapping(2,iElem+offSetElem)
     IF (Nloc.EQ.Nmax) THEN
       DielectricGlobal(1,:,:,:,iElem)=DielectricVol(ElemToDielectric(iElem))%DielectricEps(:,:,:)
       DielectricGlobal(2,:,:,:,iElem)=DielectricVol(ElemToDielectric(iElem))%DielectricMu( :,:,:)

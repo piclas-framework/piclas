@@ -43,8 +43,8 @@ SUBROUTINE SurfInt(doMPISides)
 ! MODULES
 USE MOD_Globals
 USE MOD_PreProc
-USE MOD_DG_Vars   ,ONLY: U_Surf_N,N_DG,DGB_N,U_N
-USE MOD_Mesh_Vars ,ONLY: SideToElem
+USE MOD_DG_Vars   ,ONLY: U_Surf_N,N_DG_Mapping,DGB_N,U_N
+USE MOD_Mesh_Vars ,ONLY: SideToElem, offSetElem
 USE MOD_PML_Vars  ,ONLY: DoPML,PMLnVar,isPMLElem
 USE MOD_Mesh_Vars ,ONLY: nSides
 USE MOD_Mesh_Vars ,ONLY: firstMPISide_YOUR,lastMPISide_MINE
@@ -78,7 +78,7 @@ DO SideID=firstSideID,lastSideID
   flip      = SideToElem(S2E_FLIP,SideID)
   ! ignore MPI-faces and boundary faces
   IF(ElemID.LT.0) CYCLE ! boundary side is BC or MPI side
-  Nloc      = N_DG(ElemID)
+  Nloc      = N_DG_Mapping(2,ElemID+offSetElem)
   ASSOCIATE( Ut         => U_N(ElemID)%Ut(:,:,:,:) ,&
              L_hatMinus => DGB_N(Nloc)%L_HatMinus  ,&
              L_hatPlus  => DGB_N(Nloc)%L_HatPlus   )
@@ -100,7 +100,7 @@ DO SideID=firstSideID,lastSideID
   locSideID = SideToElem(S2E_LOC_SIDE_ID,SideID)
   flip      = 0  
   IF(ElemID.LT.0) CYCLE ! if master is MPI side
-  Nloc      = N_DG(ElemID)
+  Nloc      = N_DG(2,ElemID+offSetElem)
   ASSOCIATE( Ut         => U_N(ElemID)%Ut(:,:,:,:) ,&
              L_hatMinus => DGB_N(Nloc)%L_HatMinus  ,&
              L_hatPlus  => DGB_N(Nloc)%L_HatPlus   )

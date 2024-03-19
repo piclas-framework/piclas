@@ -225,12 +225,12 @@ SUBROUTINE AddBRElectronFluidToPartSource()
 ! MODULES
 USE MOD_Globals
 USE MOD_Globals            ,ONLY: abort
-USE MOD_Mesh_Vars          ,ONLY: nElems
+USE MOD_Mesh_Vars          ,ONLY: nElems, offSetElem
 USE MOD_PreProc
 USE MOD_HDG_Vars           ,ONLY: ElemToBRRegion,RegionElectronRef
 USE MOD_DG_Vars            ,ONLY: U_N
 USE MOD_PICDepo_Vars       ,ONLY: PS_N
-USE MOD_DG_Vars            ,ONLY: N_DG
+USE MOD_DG_Vars            ,ONLY: N_DG_Mapping
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -245,7 +245,7 @@ REAL    :: source_e
 !===================================================================================================================================
 ! Loop over all elements and all DOF and add the contribution of the BR electron density to PartSource
 DO iElem=1,nElems
-  Nloc = N_DG(iElem)
+  Nloc = N_DG_Mapping(2,iElem+offSetElem)
   ! BR electron fluid region
   RegionID=ElemToBRRegion(iElem)
   IF (RegionID.GT.0) THEN

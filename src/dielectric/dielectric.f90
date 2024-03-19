@@ -255,7 +255,7 @@ USE MOD_Mesh_Vars,            ONLY: N_VolMesh,ElemInfo,offsetElem
 USE MOD_Dielectric_Vars,      ONLY: DielectricVol,DielectricNbrOfZones,DielectricZoneID,DielectricZoneEpsR,DielectricZoneMuR
 USE MOD_Dielectric_Vars,      ONLY: nDielectricElems,DielectricToElem
 USE MOD_Dielectric_Vars,      ONLY: DielectricRmax,DielectricEpsR,DielectricMuR,DielectricTestCase
-USE MOD_DG_Vars,              ONLY: N_DG
+USE MOD_DG_Vars,              ONLY: N_DG_Mapping
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -278,7 +278,7 @@ IF(nDielectricElems.LT.1) RETURN
 ALLOCATE(DielectricVol(1:nDielectricElems))
 DO iDielectricElem = 1, nDielectricElems
   iElem = DielectricToElem(iDielectricElem)
-  Nloc = N_DG(iElem)
+  Nloc = N_DG_Mapping(2,iElem+offSetElem)
   ALLOCATE(DielectricVol(iDielectricElem)%DielectricEps(0:Nloc,0:Nloc,0:Nloc))
   ALLOCATE(DielectricVol(iDielectricElem)%DielectricMu(0:Nloc,0:Nloc,0:Nloc))
   ALLOCATE(DielectricVol(iDielectricElem)%DielectricConstant_inv(0:Nloc,0:Nloc,0:Nloc))
@@ -306,7 +306,7 @@ ELSE
     ! use function with radial dependence: EpsR=n0^2 / (1 + (r/r_max)^2)^2
     DO iDielectricElem=1,nDielectricElems
       iElem = DielectricToElem(iDielectricElem)
-      Nloc  = N_DG(iElem)
+      Nloc  = N_DG_Mapping(2,iElem+offSetElem)
       DO k=0,Nloc; DO j=0,Nloc; DO i=0,Nloc
         r = SQRT(N_VolMesh(iElem)%Elem_xGP(1,i,j,k)**2+&
                  N_VolMesh(iElem)%Elem_xGP(2,i,j,k)**2+&
@@ -319,7 +319,7 @@ ELSE
   ELSE ! simply set values const.
     DO iDielectricElem=1,nDielectricElems
       iElem = DielectricToElem(iDielectricElem)
-      Nloc  = N_DG(iElem)
+      Nloc  = N_DG_Mapping(2,iElem+offSetElem)
       DO k=0,Nloc; DO j=0,Nloc; DO i=0,Nloc
         DielectricVol(iDielectricElem)%DielectricEps(i,j,k) = DielectricEpsR
         DielectricVol(iDielectricElem)%DielectricMu( i,j,k) = DielectricMuR
@@ -332,7 +332,7 @@ END IF ! DielectricNbrOfZones.GT.0
 ! invert the product of EpsR and MuR
 DO iDielectricElem=1,nDielectricElems
   iElem = DielectricToElem(iDielectricElem)
-  Nloc  = N_DG(iElem)
+  Nloc  = N_DG_Mapping(2,iElem+offSetElem)
   DielectricVol(iDielectricElem)%DielectricConstant_inv(0:Nloc,0:Nloc,0:Nloc) = 1./& ! 1./(EpsR*MuR)
           (DielectricVol(iDielectricElem)%DielectricEps(0:Nloc,0:Nloc,0:Nloc)*&
            DielectricVol(iDielectricElem)%DielectricMu( 0:Nloc,0:Nloc,0:Nloc))
@@ -534,9 +534,9 @@ USE MOD_Globals
 USE MOD_PreProc
 USE MOD_Dielectric_Vars ,ONLY: isDielectricElem,DielectricEpsR
 USE MOD_Equation_Vars   ,ONLY: chi
-USE MOD_Mesh_Vars       ,ONLY: nInnerSides
+USE MOD_Mesh_Vars       ,ONLY: nInnerSides, offSetElem
 USE MOD_Mesh_Vars       ,ONLY: ElemToSide
-USE MOD_DG_Vars         ,ONLY: N_DG
+USE MOD_DG_Vars         ,ONLY: N_DG_Mapping
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -553,7 +553,7 @@ DO iElem=1,PP_nElems
   IF(.NOT.isDielectricElem(iElem)) CYCLE
 
   !compute field on Gauss-Lobatto points (continuous!)
-  Nloc = N_DG(iElem)
+  Nloc = N_DG_Mapping(2,iElem+offSetElem)
   DO k=0,Nloc ; DO j=0,Nloc ; DO i=0,Nloc
     !CALL CalcChiTens(Elem_xGP(:,i,j,k,iElem),chitens(:,:,i,j,k,iElem),chitensInv(:,:,i,j,k,iElem),DielectricEpsR)
     CALL CalcChiTens(chi(iElem)%tens(   :,:,i,j,k),&

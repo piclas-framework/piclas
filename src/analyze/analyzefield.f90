@@ -383,11 +383,11 @@ SUBROUTINE CalcPoyntingIntegral(PoyntingIntegral)
 ! Calculation of Poynting Integral with its own Prolong to face // check if Gauss-Lobatto or Gauss Points is used is missing ... ups
 !===================================================================================================================================
 ! MODULES
-USE MOD_Mesh_Vars          ,ONLY: nElems, N_SurfMesh
+USE MOD_Mesh_Vars          ,ONLY: nElems, N_SurfMesh, offSetElem
 USE MOD_Mesh_Vars          ,ONLY: ElemToSide
 USE MOD_Analyze_Vars       ,ONLY: nPoyntingIntPlanes,S,isPoyntingIntSide,SideIDToPoyntingSide,PoyntingMainDir
 USE MOD_Interpolation_Vars ,ONLY: N_inter
-USE MOD_DG_Vars            ,ONLY: U_N,N_DG
+USE MOD_DG_Vars            ,ONLY: U_N,N_DG_Mapping
 USE MOD_Globals_Vars       ,ONLY: smu0
 USE MOD_Dielectric_Vars    ,ONLY: isDielectricFace,PoyntingUseMuR_Inv,Dielectric_MuR_Master_inv,DoDielectric
 USE MOD_Globals
@@ -414,7 +414,7 @@ PoyntingIntegral = 0.
 
 iPoyntingSide = 0 ! only if all Poynting vectors are desired
 DO iELEM = 1, nElems
-  Nloc = N_DG(iElem)
+  Nloc = N_DG_Mapping(2,iElem+offSetElem)
   ALLOCATE(Uface(PP_nVar,0:Nloc,0:Nloc))
   ALLOCATE(SIP(0:Nloc,0:Nloc))
   Do ilocSide = 1, 6
@@ -635,7 +635,7 @@ SUBROUTINE GetPoyntingIntPlane()
 !> with a defined Poynting vector integral plane.
 !===================================================================================================================================
 ! MODULES
-USE MOD_Mesh_Vars       ,ONLY: nSides,nElems
+USE MOD_Mesh_Vars       ,ONLY: nSides,nElems, offSetElem
 USE MOD_Mesh_Vars       ,ONLY: ElemToSide,N_SurfMesh
 USE MOD_Analyze_Vars    ,ONLY: PoyntingIntCoordErr,nPoyntingIntPlanes,PosPoyntingInt,S,STEM
 USE MOD_Analyze_Vars    ,ONLY: isPoyntingIntSide,SideIDToPoyntingSide,PoyntingMainDir
@@ -648,7 +648,7 @@ USE MOD_Globals
 #else
 USE MOD_Globals         ,ONLY: CollectiveStop
 #endif
-USE MOD_DG_Vars         ,ONLY: N_DG
+USE MOD_DG_Vars         ,ONLY: N_DG_Mapping
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Vars,ONLY: PerformLoadBalance
 #endif /*USE_LOADBALANCE*/
@@ -736,7 +736,7 @@ PoyntingUseMuR_Inv=.FALSE.
 DO iPlane = 1, nPoyntingIntPlanes
   ! Loop over all elements
   DO iElem=1,nElems
-    Nloc = N_DG(iElem)
+    Nloc = N_DG_Mapping(2,iElem+offSetElem)
     ! Loop over all local sides
     DO iSide=1,6
       IF(ElemToSide(E2S_FLIP,iSide,iElem)==0)THEN ! only master sides
@@ -872,13 +872,13 @@ SUBROUTINE CalcPotentialEnergy(WEl)
 ! MODULES
 USE MOD_Globals
 USE MOD_Preproc
-USE MOD_Mesh_Vars          ,ONLY: nElems, N_VolMesh
+USE MOD_Mesh_Vars          ,ONLY: nElems, N_VolMesh, offSetElem
 USE MOD_Interpolation_Vars ,ONLY: N_Inter
 #if (PP_nVar==8)
 USE MOD_Globals_Vars       ,ONLY: smu0
 #endif /*PP_nVar=8*/
 USE MOD_Globals_Vars       ,ONLY: eps0
-USE MOD_DG_Vars            ,ONLY: U_N,N_DG
+USE MOD_DG_Vars            ,ONLY: U_N,N_DG_Mapping
 #if ! (USE_HDG)
 #endif /*PP_nVar=8*/
 #if USE_HDG
@@ -937,7 +937,7 @@ DO iElem=1,nElems
   Wphi_tmp = 0.
   Wpsi_tmp = 0.
 #endif /*PP_nVar=8*/
-  Nloc = N_DG(iElem)
+  Nloc = N_DG_Mapping(2,iElem+offSetElem)
   ASSOCIATE( wGP => N_Inter(Nloc)%wGP)
   DO k=0,Nloc; DO j=0,Nloc; DO i=0,Nloc
 ! in electromagnetische felder by henke 2011 - springer
@@ -1029,7 +1029,7 @@ USE MOD_Preproc
 USE MOD_Dielectric_vars    ,ONLY: DielectricVol
 #endif /*PP_nVar==3 or 4*/
 #endif /*USE_HDG or PP_nVar==8*/
-USE MOD_Mesh_Vars          ,ONLY: nElems, N_VolMesh
+USE MOD_Mesh_Vars          ,ONLY: nElems, N_VolMesh, offSetElem
 USE MOD_Interpolation_Vars ,ONLY: N_Inter
 #if (PP_nVar==8)
 USE MOD_Dielectric_vars    ,ONLY: DielectricVol
@@ -1037,7 +1037,7 @@ USE MOD_Globals_Vars       ,ONLY: smu0
 #endif /*PP_nVar=8*/
 USE MOD_Globals_Vars       ,ONLY: eps0
 USE MOD_Dielectric_vars    ,ONLY: isDielectricElem,DielectricVol,ElemToDielectric
-USE MOD_DG_Vars            ,ONLY: U_N,N_DG
+USE MOD_DG_Vars            ,ONLY: U_N,N_DG_Mapping
 #if !(USE_HDG)
 #endif /*PP_nVar=8*/
 #if USE_HDG
@@ -1093,7 +1093,7 @@ DO iElem=1,nElems
   !--- Calculate and save volume of element iElem
   WEl_tmp=0.
   WMag_tmp=0.
-  Nloc = N_DG(iElem)
+  Nloc = N_DG_Mapping(2,iElem+offSetElem)
   ASSOCIATE( wGP => N_Inter(Nloc)%wGP)
 
   IF(isDielectricElem(iElem))THEN
@@ -1353,11 +1353,11 @@ SUBROUTINE CalculateAverageElectricPotential()
 ! missing ... ups
 !===================================================================================================================================
 ! MODULES
-USE MOD_Mesh_Vars          ,ONLY: nElems, N_SurfMesh
+USE MOD_Mesh_Vars          ,ONLY: nElems, N_SurfMesh, offSetElem
 USE MOD_Mesh_Vars          ,ONLY: ElemToSide
 USE MOD_Analyze_Vars       ,ONLY: isAverageElecPotSide,AverageElectricPotential,AverageElectricPotentialFaces
 USE MOD_Interpolation_Vars ,ONLY: N_Inter,NMax
-USE MOD_DG_Vars            ,ONLY: U_N,U_Surf_N,N_DG
+USE MOD_DG_Vars            ,ONLY: U_N,U_Surf_N,N_DG_Mapping
 #if USE_MPI
 USE MOD_Globals
 #endif
@@ -1381,7 +1381,7 @@ REAL             :: area_loc,integral_loc
 AverageElectricPotentialProc = 0.
 
 DO iElem = 1, nElems
-  Nloc = N_DG(iElem)
+  Nloc = N_DG_Mapping(2,iElem+offSetElem)
   Do ilocSide = 1, 6
     IF(ElemToSide(E2S_FLIP,ilocSide,iElem)==0)THEN ! only master sides
       SideID=ElemToSide(E2S_SIDE_ID,ilocSide,iElem)
@@ -1632,10 +1632,10 @@ SUBROUTINE CalculateElectricDisplacementCurrentSurface()
 !> 4.) Communicate the integrated current values on each boundary to the MPI root process (the root outputs the values to .csv)
 !===================================================================================================================================
 ! MODULES
-USE MOD_Mesh_Vars          ,ONLY: N_SurfMesh,SideToElem,nBCSides,N_SurfMesh,BC
+USE MOD_Mesh_Vars          ,ONLY: N_SurfMesh,SideToElem,nBCSides,N_SurfMesh,BC, offSetElem
 USE MOD_Analyze_Vars       ,ONLY: EDC
 USE MOD_Interpolation_Vars ,ONLY: N_Inter
-USE MOD_DG_Vars            ,ONLY: U_N,N_DG
+USE MOD_DG_Vars            ,ONLY: U_N,N_DG_Mapping
 #if USE_MPI
 USE MOD_Globals
 #endif
@@ -1662,7 +1662,7 @@ EDC%Current = 0.
 !     interpolate the vector field Et = (/Etx, Ety, Etz/) to the boundary face
 DO SideID=1,nBCSides
   ElemID   = SideToElem(S2E_ELEM_ID,SideID)
-  Nloc = N_DG(ElemID)
+  Nloc = N_DG_Mapping(2,ElemID+offSetElem)
   ilocSide = SideToElem(S2E_LOC_SIDE_ID,SideID)
 #if (PP_NodeType==1) /* for Gauss-points*/
   SELECT CASE(ilocSide)

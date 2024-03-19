@@ -88,7 +88,7 @@ USE MOD_Basis                  ,ONLY: LegendreGaussNodesAndWeights,LegGaussLobNo
 USE MOD_ChangeBasis            ,ONLY: ChangeBasis3D
 USE MOD_Dielectric_Vars        ,ONLY: DoDielectricSurfaceCharge
 USE MOD_Interpolation_Vars     ,ONLY: N_Inter
-USE MOD_Mesh_Vars              ,ONLY: nElems,N_VolMesh
+USE MOD_Mesh_Vars              ,ONLY: nElems,N_VolMesh, offSetElem
 USE MOD_Particle_Vars
 USE MOD_Particle_Mesh_Vars     ,ONLY: nUniqueGlobalNodes, GEO
 USE MOD_Particle_Mesh_Tools    ,ONLY: GetGlobalNonUniqueSideID
@@ -114,7 +114,7 @@ USE MOD_Particle_Mesh_Vars     ,ONLY: ElemInfo_Shared
 USE MOD_LoadBalance_Vars       ,ONLY: PerformLoadBalance
 #endif /*USE_LOADBALANCE*/
 USE MOD_Interpolation_Vars     ,ONLY: NMin,NMax
-USE MOD_DG_Vars                ,ONLY: N_DG
+USE MOD_DG_Vars                ,ONLY: N_DG_Mapping
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -154,7 +154,7 @@ END IF
 
 !--- Allocate arrays for charge density collection and initialize
 DO iElem = 1, nElems
-  Nloc = N_DG(iElem)
+  Nloc = N_DG_Mapping(2,iElem+offSetElem)
   ALLOCATE(PS_N(iElem)%PartSource(1:4,0:Nloc,0:Nloc,0:Nloc))
   PS_N(iElem)%PartSource = 0.0
 END DO ! iElem = 1, nElems
@@ -164,11 +164,11 @@ RelaxDeposition = GETLOGICAL('PIC-RelaxDeposition','F')
 IF (RelaxDeposition) THEN
   RelaxFac     = GETREAL('PIC-RelaxFac','0.001')
   DO iElem = 1, nElems
-    Nloc = N_DG(iElem)
+    Nloc = N_DG_Mapping(2,iElem+offSetElem)
 #if ((USE_HDG) && (PP_nVar==1))
-    ALLOCATE(PS_N(iElem)%PartSourceOld(1  ,1:2,0:PP_N,0:PP_N,0:PP_N),STAT=ALLOCSTAT)
+    ALLOCATE(PS_N(iElem)%PartSourceOld(1  ,1:2,0:Nloc,0:Nloc,0:Nloc),STAT=ALLOCSTAT)
 #else
-    ALLOCATE(PS_N(iElem)%PartSourceOld(1:4,1:2,0:PP_N,0:PP_N,0:PP_N),STAT=ALLOCSTAT)
+    ALLOCATE(PS_N(iElem)%PartSourceOld(1:4,1:2,0:Nloc,0:Nloc,0:Nloc),STAT=ALLOCSTAT)
 #endif
     IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__,'ERROR in pic_depo.f90: Cannot allocate PartSourceOld!')
     PS_N(iElem)%PartSourceOld = 0.
@@ -192,9 +192,10 @@ IF (TRIM(TimeAverageFile).NE.'none') THEN
   !-- use read PartSource as initialValue for relaxation
   !-- CAUTION: will be overwritten by DG_Source if present in restart-file!
     DO iElem = 1, nElems
-      DO kk = 0, PP_N
-        DO ll = 0, PP_N
-          DO mm = 0, PP_N
+      Nloc = N_DG_Mapping(2,iElem+offSetElem)
+      DO kk = 0, Nloc
+        DO ll = 0, Nloc
+          DO mm = 0, Nloc
 #if ((USE_HDG) && (PP_nVar==1))
             PS_N(iElem)%PartSourceOld(1  ,1,mm,ll,kk) = PS_N(iElem)%PartSource(4  ,mm,ll,kk)
             PS_N(iElem)%PartSourceOld(1  ,2,mm,ll,kk) = PS_N(iElem)%PartSource(4  ,mm,ll,kk)
@@ -231,7 +232,7 @@ CASE('cell_volweight')
   END DO
 
   DO iElem=1, nElems
-    Nloc = N_DG(iElem)
+    Nloc = N_DG_Mapping(2,iElem+offSetElem)
     DO k=0,Nloc
       DO j=0,Nloc
         DO i=0,Nloc
@@ -518,10 +519,10 @@ CASE('cell_volweight_mean')
 CASE('shape_function', 'shape_function_cc', 'shape_function_adaptive')
 ! ------------------------------------------------
   !--- Allocate arrays for shape function charge density collection and initialize
-  DO iElem = 1, nElems
-    Nloc = N_DG(iElem)
-    ALLOCATE(PS_N(iElem)%PartSourceTmp(1:4,0:Nloc,0:Nloc,0:Nloc))
-    PS_N(iElem)%PartSourceTmp = 0.0
+  ALLOCATE(N_ShapeTmp(NMax))
+  DO Nloc = 1, NMax
+    ALLOCATE(N_ShapeTmp(Nloc)%PartSource(1:4,0:Nloc,0:Nloc,0:Nloc))
+    N_ShapeTmp(Nloc)%PartSource = 0.0
   END DO ! iElem = 1, nElems
 
 #if USE_MPI

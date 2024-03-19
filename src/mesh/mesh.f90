@@ -107,6 +107,10 @@ USE MOD_ReadInTools            ,ONLY: PrintOption
 USE MOD_ReadInTools            ,ONLY: GETLOGICAL,GETSTR,GETREAL,GETINT,GETREALARRAY
 #if USE_MPI
 USE MOD_Prepare_Mesh           ,ONLY: exchangeFlip
+USE MOD_DG_Vars                ,ONLY: N_DG_Mapping_Shared_Win
+USE MOD_MPI_Shared_Vars        ,ONLY: MPI_COMM_LEADERS_SHARED, MPI_COMM_SHARED, myComputeNodeRank, myleadergrouprank, nComputeNodeProcessors
+USE MOD_MPI_Shared_Vars        ,ONLY: nLeaderGroupProcs
+USE MOD_MPI_Shared
 #endif
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Vars       ,ONLY: DoLoadBalance,PerformLoadBalance,UseH5IOLoadBalance
@@ -120,7 +124,7 @@ USE MOD_Particle_Vars          ,ONLY: usevMPF
 #if USE_HDG && USE_LOADBALANCE
 USE MOD_Mesh_Tools             ,ONLY: BuildSideToNonUniqueGlobalSide
 #endif /*USE_HDG && USE_LOADBALANCE*/
-USE MOD_DG_Vars                ,ONLY: N_DG,DG_Elems_master,DG_Elems_slave
+USE MOD_DG_Vars                ,ONLY: N_DG_Mapping,DG_Elems_master,DG_Elems_slave, displsDofs, recvcountDofs, N_DG_Mapping_Shared, nDofsMapping
 USE MOD_Particle_Mesh_Vars     ,ONLY: meshScale
 USE MOD_Mesh_Vars              ,ONLY: firstMortarInnerSide,lastMortarInnerSide
 ! IMPLICIT VARIABLE HANDLING
@@ -148,6 +152,11 @@ REAL                :: RandVal
 LOGICAL             :: validMesh,ExistFile,ReadNodes
 INTEGER             :: iMortar,nMortars
 INTEGER             :: SideID,locSide
+INTEGER             :: OffsetCounter,OffsetN_DG_Mapping,OffsetN_DG_Counter, locDofs, locN
+#if USE_MPI
+INTEGER             :: iProc
+INTEGER             :: sendbuf,recvbuf
+#endif
 !===================================================================================================================================
 IF ((.NOT.InterpolationInitIsDone).OR.MeshInitIsDone) THEN
   CALL abort(__STAMP__,'InitMesh not ready to be called or already called.')
@@ -252,11 +261,11 @@ END IF
 
 ! allocate arrays and initialize local polynomial degree
 ! This happens here because nElems is determined here and N_DG is required below for the mesh initialisation
-ALLOCATE(N_DG(nElems))
-! By default, the initial degree is set to PP_N
-!N_DG = 1
-!N_DG(1) = PP_N
-N_DG = PP_N
+!ALLOCATE(N_DG(nElems))
+!! By default, the initial degree is set to PP_N
+!!N_DG = 1
+!!N_DG(1) = PP_N
+!N_DG = PP_N
 !N_DG(1) = 1
 
              !DO iElem=1,nElems
@@ -280,6 +289,70 @@ N_DG = PP_N
 !                 !EXIT kLoop
 !               END IF ! r.le.1.0 .and. x.le.0
 !                 END DO ; END DO; END DO kLoop;
+
+#if USE_MPI
+! ElemToElemMapping
+CALL Allocate_Shared((/2,nGlobalElems/),N_DG_Mapping_Shared_Win,N_DG_Mapping_Shared)
+CALL MPI_WIN_LOCK_ALL(0,N_DG_Mapping_Shared_Win,IERROR)
+N_DG_Mapping => N_DG_Mapping_Shared
+IF (myComputeNodeRank.EQ.0) N_DG_Mapping = 0
+CALL BARRIER_AND_SYNC(N_DG_Mapping_Shared_Win,MPI_COMM_SHARED)
+#else
+ALLOCATE(N_DG_Mapping(2,nElems))
+N_DG_Mapping = 0
+#endif /*USE_MPI*/
+
+OffsetCounter = 0
+! Loop all CN elements (iElem is CNElemID)
+DO iElem = 1,nElems
+  locN = PP_N
+  locDofs = (locN+1)**3
+  N_DG_Mapping(2,iElem+offSetElem) = locN
+  N_DG_Mapping(1,iElem+offSetElem) = OffsetCounter
+  OffsetCounter = OffsetCounter + locDofs
+END DO ! iElem = firstElem, lastElem
+
+#if USE_MPI
+sendbuf = OffsetCounter
+recvbuf = 0
+CALL MPI_EXSCAN(sendbuf,recvbuf,1,MPI_INTEGER,MPI_SUM,MPI_COMM_PICLAS,iError)
+OffsetN_DG_Mapping   = recvbuf
+! last proc knows CN total number of connected CN elements
+sendbuf = OffsetN_DG_Mapping + OffsetCounter
+CALL MPI_BCAST(sendbuf,1,MPI_INTEGER,nProcessors-1,MPI_COMM_PICLAS,iError)
+nDofsMapping = sendbuf
+
+N_DG_Mapping(1,1+offSetElem:nElems+offSetElem) = N_DG_Mapping(1,1+offSetElem:nElems+offSetElem) + OffsetN_DG_Mapping
+CALL BARRIER_AND_SYNC(N_DG_Mapping_Shared_Win,MPI_COMM_SHARED)
+
+IF (nComputeNodeProcessors.NE.nProcessors.AND. myComputeNodeRank.EQ.0) THEN
+  ! Arrays for the compute node to hold the elem offsets
+  ALLOCATE(displsDofs(   0:nLeaderGroupProcs-1), recvcountDofs(0:nLeaderGroupProcs-1))  
+  displsDofs(myLeaderGroupRank) = N_DG_Mapping(1,1+offSetElem)
+  CALL MPI_ALLGATHER(MPI_IN_PLACE,0,MPI_DATATYPE_NULL,displsDofs,1,MPI_INTEGER,MPI_COMM_LEADERS_SHARED,IERROR)
+  DO iProc=1,nLeaderGroupProcs-1
+    recvcountDofs(iProc-1) = displsDofs(iProc)-displsDofs(iProc-1)
+  END DO
+  recvcountDofs(nLeaderGroupProcs-1) = nDofsMapping - displsDofs(nLeaderGroupProcs-1)
+
+  CALL MPI_ALLGATHERV( MPI_IN_PLACE                  &
+                     , 0                             &
+                     , MPI_DATATYPE_NULL             &
+                     , N_DG_Mapping               &
+                     , 2*recvcountDofs   &
+                     , 2*displsDofs      &
+                     , MPI_INTEGER          &
+                     , MPI_COMM_LEADERS_SHARED       &
+                     , IERROR)
+END IF
+
+CALL BARRIER_AND_SYNC(N_DG_Mapping_Shared_Win ,MPI_COMM_SHARED)
+
+#else
+OffsetN_DG_Mapping = 0
+nDofsMapping = OffsetCounter
+#endif /*USE_MPI*/
+
 
 ! Build Elem_xGP
 ALLOCATE(N_VolMesh(1:nElems))
@@ -356,7 +429,7 @@ IF (ABS(meshMode).GT.1) THEN
 
   ! volume data
   DO iElem = 1, nElems
-    Nloc = N_DG(iElem)
+    Nloc = N_DG_Mapping(2,iElem+offSetElem)
     ALLOCATE(N_VolMesh(iElem)%dXCL_N(      3,3,0:Nloc,0:Nloc,0:Nloc))
     ALLOCATE(N_VolMesh(iElem)%Metrics_fTilde(3,0:Nloc,0:Nloc,0:Nloc))
     ALLOCATE(N_VolMesh(iElem)%Metrics_gTilde(3,0:Nloc,0:Nloc,0:Nloc))
@@ -495,9 +568,9 @@ END SUBROUTINE InitMesh
 SUBROUTINE InitpAdaption()
 ! MODULES
 USE MOD_PreProc
-USE MOD_DG_Vars   ,ONLY: DG_Elems_master,DG_Elems_slave,N_DG
+USE MOD_DG_Vars   ,ONLY: DG_Elems_master,DG_Elems_slave,N_DG_Mapping
 USE MOD_IO_HDF5   ,ONLY: AddToElemData,ElementOut
-USE MOD_Mesh_Vars ,ONLY: nSides,nElems
+USE MOD_Mesh_Vars ,ONLY: nSides,nElems, offSetElem, nElems
 !USE MOD_DG        ,ONLY: DG_ProlongDGElemsToFace
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -510,7 +583,7 @@ IMPLICIT NONE
 !pAdaption    = GETLOGICAL('pAdaption','.FALSE.')
 
 ! add array containing the local polynomial degree to the hdf5 output
-CALL AddToElemData(ElementOut,'Nloc',IntArray=N_DG)
+CALL AddToElemData(ElementOut,'Nloc',IntArray=N_DG_Mapping(2,1+offSetElem:nElems+offSetElem))
 ALLOCATE(DG_Elems_master(1:nSides))
 ALLOCATE(DG_Elems_slave (1:nSides))
 
@@ -529,8 +602,8 @@ END SUBROUTINE InitpAdaption
 SUBROUTINE DG_ProlongDGElemsToFace()
 ! MODULES
 USE MOD_GLobals
-USE MOD_DG_Vars   ,ONLY: N_DG,DG_Elems_master,DG_Elems_slave
-USE MOD_Mesh_Vars ,ONLY: SideToElem,nSides,nBCSides
+USE MOD_DG_Vars   ,ONLY: N_DG_Mapping,DG_Elems_master,DG_Elems_slave
+USE MOD_Mesh_Vars ,ONLY: SideToElem,nSides,nBCSides, offSetElem
 #if USE_MPI
 USE MOD_MPI       ,ONLY: StartExchange_DG_Elems,FinishExchangeMPIData
 USE MOD_MPI_Vars  ,ONLY: DataSizeSideSend,DataSizeSideRec,nNbProcs,nMPISides_rec,nMPISides_send,OffsetMPISides_rec
@@ -554,9 +627,9 @@ DO iSide = 1,nSides
   ElemID    = SideToElem(S2E_ELEM_ID   ,iSide)
   nbElemID  = SideToElem(S2E_NB_ELEM_ID,iSide)
   ! Master sides
-  IF(ElemID  .GT.0) DG_Elems_master(iSide) = N_DG(ElemID)
+  IF(ElemID  .GT.0) DG_Elems_master(iSide) = N_DG_Mapping(2,ElemID+offSetElem)
   ! Slave side (ElemID,locSide and flip =-1 if not existing)
-  IF(nbElemID.GT.0) DG_Elems_slave( iSide) = N_DG(nbElemID)
+  IF(nbElemID.GT.0) DG_Elems_slave( iSide) = N_DG_Mapping(2,nbElemID+offSetElem)
   ! Boundaries
   IF(iSide.LE.nBCSides) DG_Elems_slave( iSide) = DG_Elems_master(iSide)
 END DO
@@ -950,8 +1023,8 @@ SUBROUTINE InitElemVolumes()
 USE MOD_PreProc
 USE MOD_Globals            ,ONLY: UNIT_StdOut
 USE MOD_Interpolation_Vars ,ONLY: N_Inter
-USE MOD_DG_Vars            ,ONLY: N_DG
-USE MOD_Mesh_Vars          ,ONLY: nElems,N_VolMesh
+USE MOD_DG_Vars            ,ONLY: N_DG_Mapping
+USE MOD_Mesh_Vars          ,ONLY: nElems,N_VolMesh, offSetElem
 USE MOD_Particle_Mesh_Vars ,ONLY: LocalVolume,MeshVolume
 USE MOD_Particle_Mesh_Vars ,ONLY: ElemVolume_Shared,ElemCharLength_Shared
 USE MOD_ReadInTools
@@ -1023,7 +1096,7 @@ ElemCharLength_Shared(:) = 0.
 DO iElem = 1,nElems
   CNElemID=iElem+offsetElemCNProc
   !--- Calculate and save volume of element iElem
-  Nloc = N_DG(iElem)
+  Nloc = N_DG_Mapping(2,iElem+offSetElem)
   DO k=0,Nloc; DO j=0,Nloc; DO i=0,Nloc
     ElemVolume_Shared(CNElemID) = ElemVolume_Shared(CNElemID) + &
                                   N_Inter(Nloc)%wGP(i)*N_Inter(Nloc)%wGP(j)*N_Inter(Nloc)%wGP(k)/N_VolMesh(iElem)%sJ(i,j,k)
@@ -1163,9 +1236,12 @@ USE MOD_Mesh_Vars
 #if defined(PARTICLES) && USE_LOADBALANCE
 USE MOD_LoadBalance_Vars ,ONLY: PerformLoadBalance
 #endif /*defined(PARTICLES) && USE_LOADBALANCE*/
-USE MOD_DG_Vars          ,ONLY: N_DG,DG_Elems_master,DG_Elems_slave
+USE MOD_DG_Vars          ,ONLY: N_DG_Mapping,DG_Elems_master,DG_Elems_slave, N_DG_Mapping_Shared
 #if USE_MPI
+USE MOD_DG_Vars          ,ONLY: N_DG_Mapping_Shared_Win
 USE MOD_MPI_Vars         ,ONLY: DGExchange
+USE MOD_MPI_Shared_Vars  ,ONLY: MPI_COMM_SHARED
+USE MOD_MPI_Shared
 #endif /*USE_MPI*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -1230,7 +1306,14 @@ SDEALLOCATE(LostRotPeriodicSides)
 SDEALLOCATE(SideToNonUniqueGlobalSide)
 
 ! p-adaption
-SDEALLOCATE(N_DG)
+! First, free every shared memory window. This requires MPI_BARRIER as per MPI3.1 specification
+#if USE_MPI
+CALL MPI_BARRIER(MPI_COMM_SHARED,iERROR)
+CALL UNLOCK_AND_FREE(N_DG_Mapping_Shared_Win)
+#endif /*USE_MPI && defined(PARTICLES)*/
+! Then, free the pointers or arrays
+
+ADEALLOCATE(N_DG_Mapping_Shared)
 SDEALLOCATE(N_VolMesh)
 SDEALLOCATE(DG_Elems_master)
 SDEALLOCATE(DG_Elems_slave)

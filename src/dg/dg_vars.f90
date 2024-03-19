@@ -10,6 +10,8 @@
 !
 ! You should have received a copy of the GNU General Public License along with PICLas. If not, see <http://www.gnu.org/licenses/>.
 !==================================================================================================================================
+#include "piclas.h"
+
 MODULE MOD_DG_Vars
 !===================================================================================================================================
 ! Contains global variables used by the DG modules.
@@ -31,7 +33,10 @@ REAL,ALLOCATABLE                      :: Un(:,:,:,:,:) ! computed from JU
 #endif
 
 ! Element local polynomial degrees
-INTEGER,ALLOCATABLE                   :: N_DG(:)                !< polynomial degree inside DG element,         size(nElems)
+!INTEGER,ALLOCATABLE                   :: N_DG(:)                !< polynomial degree inside DG element,         size(nElems)
+INTEGER,ALLOCPOINT,DIMENSION(:,:)     :: N_DG_Mapping, N_DG_Mapping_Shared
+INTEGER                               :: nDofsMapping
+INTEGER, ALLOCATABLE                  :: displsDofs(:), recvcountDofs(:)
 INTEGER,ALLOCATABLE                   :: DG_Elems_master(:)     !< prolongate local polynomial degree to faces, size(nSides)
 INTEGER,ALLOCATABLE                   :: DG_Elems_slave(:)      !< prolongate local polynomial degree to faces, size(nSides)
 
@@ -84,5 +89,10 @@ TYPE(N_U_Surf),ALLOCATABLE :: U_Surf_N(:) !< Solution variable for each equation
 !----------------------------------------------------------------------------------------------------------------------------------
 ! Auxilliary variables
 LOGICAL             :: DGInitIsDone=.FALSE.
+
+#if USE_MPI
+INTEGER         :: N_DG_Mapping_Shared_Win
+#endif
+
 !===================================================================================================================================
 END MODULE MOD_DG_Vars

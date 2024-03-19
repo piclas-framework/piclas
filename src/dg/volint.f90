@@ -48,8 +48,8 @@ SUBROUTINE VolInt_weakForm(dofirstElems)
 !===================================================================================================================================
 ! MODULES
 USE MOD_PreProc
-USE MOD_DG_Vars            ,ONLY: N_DG,DGB_N,U_N
-USE MOD_Mesh_Vars          ,ONLY: N_VolMesh
+USE MOD_DG_Vars            ,ONLY: N_DG_Mapping,DGB_N,U_N
+USE MOD_Mesh_Vars          ,ONLY: N_VolMesh, offSetElem
 USE MOD_Interpolation_Vars ,ONLY: Nmax
 USE MOD_PML_Vars           ,ONLY: DoPML,ElemToPML,isPMLElem,U2t
 USE MOD_Dielectric_Vars    ,ONLY: DoDielectric,isDielectricElem
@@ -81,7 +81,7 @@ ELSE ! second half of elements
 END IF
 
 DO iElem=firstElemID,lastElemID
-  Nloc = N_DG(iElem)
+  Nloc = N_DG_Mapping(2,iElem+offSetElem)
 !DO iElem=1,PP_nElems
   ! Cut out the local DG solution for a grid cell iElem and all Gauss points from the global field
   ! Compute for all Gauss point values the Cartesian flux components
