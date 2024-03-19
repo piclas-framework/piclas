@@ -458,7 +458,7 @@ DO iCNElem = firstElem,lastElem
   iElem        = GlobalElemID-offsetElem
   Nloc         = N_DG_Mapping(2,GlobalElemID)
   ! element on local proc, sJ already calculated in metrics.f90
-  IF (ElementOnNode(GlobalElemID)) THEN
+  IF ((iElem.GT.0) .AND. (iElem.LE.nElems)) THEN
     DO k=0,Nloc; DO j=0,Nloc; DO i=0,Nloc
       ElemsJ(i,j,k,iCNElem) = N_VolMesh(iElem)%sJ(i,j,k)
     END DO; END DO; END DO !i,j,k=0,Nloc
