@@ -171,7 +171,7 @@ REAL                                             :: eta_c_dielectric,c_dielectri
 CALL ProlongToFace_Elementlocal(nVar=1                                                      &
                                ,locSideID=locSideID                                         &
                                ,Uvol=DielectricConstant_inv(:,:,:,ElemToDielectric(ElemID)) &
-                               ,Uface=DielectricConstant_inv_Face                           )
+                               ,Uface=DielectricConstant_inv_Face, PP_N                      )
 
 ! Gauss point p,q
 DO q=0 ,PP_N

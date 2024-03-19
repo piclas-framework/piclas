@@ -1494,6 +1494,8 @@ USE MOD_TimeDisc_Vars           ,ONLY: dt,RKdtFrac
 USE MOD_Particle_Vars           ,ONLY: Species, VarTimeStep
 USE MOD_Equation_Vars           ,ONLY: E
 USE MOD_Particle_Boundary_Vars  ,ONLY: PartBound
+USE MOD_DG_Vars                 ,ONLY: N_DG_Mapping,U_N
+USE MOD_Mesh_Vars               ,ONLY: offSetElem
 ! ROUTINES
 USE MOD_ProlongToFace           ,ONLY: ProlongToFace_Elementlocal
 IMPLICIT NONE
@@ -1505,7 +1507,9 @@ INTEGER, INTENT(OUT)        :: PartInsSubSide
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-REAL                        :: EFieldFace(1:3,0:PP_N,0:PP_N), EFaceMag, CurrentDensity, WallTemp, WorkFunction, RandVal1, dtVar
+REAL                        :: EFaceMag, CurrentDensity, WallTemp, WorkFunction, RandVal1, dtVar
+REAL, ALLOCATABLE           :: EFieldFace(:,:,:)
+INTEGER                     :: NLoc
 !===================================================================================================================================
 ASSOCIATE(SF => Species(iSpec)%Surfaceflux(iSF))
 
@@ -1515,12 +1519,13 @@ IF(VarTimeStep%UseSpeciesSpecific) THEN
 ELSE
   dtVar = dt
 END IF
-
+Nloc = N_DG_Mapping(2,ElemID+offSetElem)
+ALLOCATE(EFieldFace(3,0:Nloc,0:Nloc))
 ! 1) Determine the electric field at the surface
-CALL ProlongToFace_Elementlocal(nVar=3,locSideID=iLocSide,Uvol=E(:,:,:,:,ElemID),Uface=EFieldFace)
+CALL ProlongToFace_Elementlocal(nVar=3,locSideID=iLocSide,Uvol=U_N(ElemID)%E(1:3,:,:,:) ,Uface=EFieldFace, Nloc=Nloc)
 
 ! 2) Average the e-field vector and calculate magnitude
-EFaceMag = (PP_N+1)**2
+EFaceMag = (Nloc+1)**2
 EFaceMag = VECNORM((/SUM(EFieldFace(1,:,:))/EFaceMag, SUM(EFieldFace(2,:,:))/EFaceMag, SUM(EFieldFace(3,:,:))/EFaceMag/))
 
 ! 3) Calculate the work function with the Schottky effect and the new current density [A/m2]

@@ -546,7 +546,7 @@ REAL               :: Uface(Nvar,0:Nloc,0:Nloc)
 END SUBROUTINE ProlongToFace_Side
 
 
-SUBROUTINE ProlongToFace_Elementlocal(nVar,locSideID,Uvol,Uface)
+SUBROUTINE ProlongToFace_Elementlocal(nVar,locSideID,Uvol,Uface, Nloc)
 !===================================================================================================================================
 ! Interpolates the interior volume data (stored at the Gauss or Gauss-Lobatto points) to the surface
 ! integration points, using fast 1D Interpolation and does NOT rotate into global coordinate system
@@ -564,10 +564,11 @@ IMPLICIT NONE
 ! INPUT VARIABLES
 INTEGER,INTENT(IN)              :: nVar
 INTEGER,INTENT(IN)              :: locSideID
-REAL,INTENT(IN)                 :: Uvol(1:nVar,0:PP_N,0:PP_N,0:PP_N)
+REAL,INTENT(IN)                 :: Uvol(1:nVar,0:Nloc,0:Nloc,0:Nloc)
+INTEGER,INTENT(IN)               :: Nloc
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
-REAL,INTENT(OUT)                :: Uface(1:nVar,0:PP_N,0:PP_N)
+REAL,INTENT(OUT)                :: Uface(1:nVar,0:Nloc,0:Nloc)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER                         :: i,j,k
@@ -576,11 +577,11 @@ INTEGER                         :: pq(1:3)
 
 #if (PP_NodeType==1) /* for Gauss-points*/
 Uface=0.
-DO k=0,PP_N
-  DO j=0,PP_N
-    DO i=0,PP_N
+DO k=0,Nloc
+  DO j=0,Nloc
+    DO i=0,Nloc
       pq=CGNS_VolToSide_IJK(i,j,k,locSideID)
-      Uface(:,pq(1),pq(2))=Uface(:,pq(1),pq(2))+Uvol(:,i,j,k)*N_Inter(PP_N)%L_PlusMinus(pq(3),locSideID)
+      Uface(:,pq(1),pq(2))=Uface(:,pq(1),pq(2))+Uvol(:,i,j,k)*N_Inter(Nloc)%L_PlusMinus(pq(3),locSideID)
     END DO ! i=0,PP_N
   END DO ! j=0,PP_N
 END DO ! k=0,PP_N
@@ -594,11 +595,11 @@ CASE(ETA_MINUS)
 CASE(ZETA_MINUS)
   Uface(:,:,:)=Uvol(:,:,:,0)
 CASE(XI_PLUS)
-  Uface(:,:,:)=Uvol(:,PP_N,:,:)
+  Uface(:,:,:)=Uvol(:,Nloc,:,:)
 CASE(ETA_PLUS)
-  Uface(:,:,:)=Uvol(:,:,PP_N,:)
+  Uface(:,:,:)=Uvol(:,:,Nloc,:)
 CASE(ZETA_PLUS)
-  Uface(:,:,:)=Uvol(:,:,:,PP_N)
+  Uface(:,:,:)=Uvol(:,:,:,Nloc)
 END SELECT
 #endif
 
