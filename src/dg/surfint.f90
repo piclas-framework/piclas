@@ -100,7 +100,7 @@ DO SideID=firstSideID,lastSideID
   locSideID = SideToElem(S2E_LOC_SIDE_ID,SideID)
   flip      = 0  
   IF(ElemID.LT.0) CYCLE ! if master is MPI side
-  Nloc      = N_DG(2,ElemID+offSetElem)
+  Nloc      = N_DG_Mapping(2,ElemID+offSetElem)
   ASSOCIATE( Ut         => U_N(ElemID)%Ut(:,:,:,:) ,&
              L_hatMinus => DGB_N(Nloc)%L_HatMinus  ,&
              L_hatPlus  => DGB_N(Nloc)%L_HatPlus   )
