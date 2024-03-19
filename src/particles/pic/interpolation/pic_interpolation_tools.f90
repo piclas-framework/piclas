@@ -252,20 +252,12 @@ PPURE FUNCTION GetEMField(ElemID,PartPosRef_loc)
 ! MODULES
 USE MOD_PreProc
 USE MOD_Eval_xyz      ,ONLY: EvaluateFieldAtRefPos
-#if ! (USE_HDG)
-USE MOD_DG_Vars       ,ONLY: U_N
-#endif
-#ifdef PP_POIS
-USE MOD_Equation_Vars ,ONLY: E
-#endif
+USE MOD_DG_Vars       ,ONLY: U_N, N_DG_Mapping
+USE MOD_Mesh_Vars     ,ONLY: offSetElem
 #if USE_HDG
-#if PP_nVar==1
-USE MOD_Equation_Vars ,ONLY: E
-#elif PP_nVar==3
+#if PP_nVar!=1
 USE MOD_Equation_Vars ,ONLY: B
-#else
-USE MOD_Equation_Vars ,ONLY: B,E
-#endif /*PP_nVar==1*/
+#endif
 #endif /*USE_HDG*/
 !----------------------------------------------------------------------------------------------------------------------------------
   IMPLICIT NONE
@@ -279,30 +271,33 @@ REAL :: GetEMField(1:6)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 #if defined PP_POIS || (USE_HDG && PP_nVar==4)
-REAL :: HelperU(1:6,0:PP_N,0:PP_N,0:PP_N)
+REAL, ALLOCATABLE :: HelperU(:,:,:,:)
 #endif /*(PP_POIS||USE_HDG)*/
+INTEGER         :: Nloc
 !===================================================================================================================================
 GetEMField(1:6)=0.
+Nloc = N_DG_Mapping(2,ElemID+offSetElem)
 !--- evaluate at Particle position
 #if (PP_nVar==8)
 #ifdef PP_POIS
-HelperU(1:3,:,:,:) = E(1:3,:,:,:,ElemID)
-HelperU(4:6,:,:,:) = U(4:6,:,:,:,ElemID)
-CALL EvaluateFieldAtRefPos(PartPosRef_loc(1:3),6,PP_N,HelperU,6,GetEMField(1:6),ElemID)
+ALLOCATE(HelperU(1:6,0:Nloc,0:Nloc,0:Nloc))
+HelperU(1:3,:,:,:) = U_N(ElemID)%E(1:3,:,:,:) 
+HelperU(4:6,:,:,:) = U_N(ElemID)%U(4:6,:,:,:)
+CALL EvaluateFieldAtRefPos(PartPosRef_loc(1:3),6,Nloc,HelperU,6,GetEMField(1:6),ElemID)
 #else
-CALL EvaluateFieldAtRefPos(PartPosRef_loc(1:3),6,PP_N,U_N(ElemID)%U(1:6,:,:,:),6,GetEMField(1:6),ElemID)
+CALL EvaluateFieldAtRefPos(PartPosRef_loc(1:3),6,Nloc,U_N(ElemID)%U(1:6,:,:,:),6,GetEMField(1:6),ElemID)
 #endif
 #else
 #ifdef PP_POIS
-CALL EvaluateFieldAtRefPos(PartPosRef_loc(1:3),3,PP_N,E(1:3,:,:,:,ElemID),3,GetEMField(1:3),ElemID)
+CALL EvaluateFieldAtRefPos(PartPosRef_loc(1:3),3,Nloc,U_N(ElemID)%E(1:3,:,:,:),3,GetEMField(1:3),ElemID)
 #elif USE_HDG
 #if PP_nVar==1
 #if (PP_TimeDiscMethod==507) || (PP_TimeDiscMethod==508)
 ! Boris or HC: consider B-Field, e.g., from SuperB
-CALL EvaluateFieldAtRefPos(PartPosRef_loc(1:3),3,PP_N,E(1:3,:,:,:,ElemID),6,GetEMField(1:6),ElemID)
+CALL EvaluateFieldAtRefPos(PartPosRef_loc(1:3),3,Nloc,U_N(ElemID)%E(1:3,:,:,:),6,GetEMField(1:6),ElemID)
 #else
 ! Consider only electric fields
-CALL EvaluateFieldAtRefPos(PartPosRef_loc(1:3),3,PP_N,E(1:3,:,:,:,ElemID),3,GetEMField(1:3),ElemID)
+CALL EvaluateFieldAtRefPos(PartPosRef_loc(1:3),3,Nloc,U_N(ElemID)%E(1:3,:,:,:),3,GetEMField(1:3),ElemID)
 #endif
 #elif PP_nVar==3
 CALL EvaluateFieldAtRefPos(PartPosRef_loc(1:3),3,PP_N,B(1:3,:,:,:,ElemID),3,GetEMField(4:6),ElemID)
@@ -312,7 +307,7 @@ HelperU(4:6,:,:,:) = B(1:3,:,:,:,ElemID)
 CALL EvaluateFieldAtRefPos(PartPosRef_loc(1:3),6,PP_N,HelperU,6,GetEMField(1:6),ElemID)
 #endif
 #else
-CALL EvaluateFieldAtRefPos(PartPosRef_loc(1:3),3,PP_N,U(1:3,:,:,:,ElemID),3,GetEMField(1:3),ElemID)
+CALL EvaluateFieldAtRefPos(PartPosRef_loc(1:3),3,Nloc,U_N(ElemID)%U(1:3,:,:,:),3,GetEMField(1:3),ElemID)
 #endif
 #endif
 END FUNCTION GetEMField

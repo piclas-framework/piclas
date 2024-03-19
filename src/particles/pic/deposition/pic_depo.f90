@@ -152,6 +152,7 @@ IF(.NOT.DoDeposition) THEN
   RETURN
 END IF
 
+ALLOCATE(PS_N(nElems))
 !--- Allocate arrays for charge density collection and initialize
 DO iElem = 1, nElems
   Nloc = N_DG_Mapping(2,iElem+offSetElem)
