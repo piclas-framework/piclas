@@ -265,12 +265,6 @@ DO iRefState=1,nTmp
       SWRITE(UNIT_stdOut,*) 'Wrong value for TEPolarization=', TEPolarization
       CALL abort(__STAMP__,'Wrong value for TEPolarization')
     END IF
-    IF ( (2*PI*TEFrequency*c_inv).LT.(TEModeRoot/TERadius)) THEN
-      SWRITE(UNIT_stdOut,'(A,E25.14E3)')'(k)**2 = ',((2*PI*TEFrequency*c_inv))**2
-      SWRITE(UNIT_stdOut,'(A,E25.14E3)')'kCut**2          = ',TEModeRoot/TERadius**2
-      SWRITE(UNIT_stdOut,'(A)')'  Maybe frequency too small?'
-      CALL abort(__STAMP__,'kz=SQRT(k**2-kCut**2), but the argument is negative!')
-    END IF
 
     !ExactFluxPosition    = GETREAL('ExactFluxPosition', '0.0') !
     ! compute required roots
@@ -301,6 +295,12 @@ DO iRefState=1,nTmp
     IF(TERadius.LT.0.0)THEN ! not set
       TERadius=GETREAL('TERadius','0.0')
       LBWRITE(UNIT_StdOut,*) ' TERadius not determined automatically. Set waveguide radius to ', TERadius
+    END IF
+    IF ( (2*PI*TEFrequency*c_inv).LT.(TEModeRoot/TERadius)) THEN
+      SWRITE(UNIT_stdOut,'(A,E25.14E3)')'(k)**2 = ',((2*PI*TEFrequency*c_inv))**2
+      SWRITE(UNIT_stdOut,'(A,E25.14E3)')'kCut**2          = ',TEModeRoot/TERadius**2
+      SWRITE(UNIT_stdOut,'(A)')'  Maybe frequency too small?'
+      CALL abort(__STAMP__,'kz=SQRT(k**2-kCut**2), but the argument is negative!')
     END IF
 
     ! display cut-off freequncy for this mode
@@ -1323,6 +1323,7 @@ DO iSide=1,nSides
   ALLOCATE(Vdm_PolN_GL(0:Nloc,0:Nloc))
   ! get Vandermonde, change from Gauss or Gauss-Lobatto Points to Gauss-Lobatto-Points
   ! radius requires GL-points
+  ALLOCATE(xGP_tmp(0:Nloc),wBary_tmp(0:Nloc),wGP_tmp(0:Nloc))
   CALL LegGaussLobNodesAndWeights(Nloc,xGP_tmp,wGP_tmp)
   CALL BarycentricWeights(Nloc,xGP_tmp,wBary_tmp)
   !CALL InitializeVandermonde(Nloc,Nloc,wBary_tmp,xGP,xGP_tmp,Vdm_PolN_GL)
