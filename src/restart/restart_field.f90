@@ -46,6 +46,7 @@ USE MOD_Globals
 USE MOD_PreProc
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Vars   ,ONLY: PerformLoadBalance,UseH5IOLoadBalance
+USE MOD_DG_Vars            ,ONLY: N_DG_Mapping
 #endif /*USE_LOADBALANCE*/
 USE MOD_IO_HDF5
 USE MOD_Restart_Vars       ,ONLY: N_Restart,RestartFile,RestartNullifySolution
@@ -103,6 +104,8 @@ USE MOD_HDG_Vars           ,ONLY: lambda_petsc,PETScGlobal,PETScLocalToSideID,nP
 #endif
 #else /*USE_HDG*/
 ! Non-HDG stuff
+USE MOD_Interpolation_Vars ,ONLY: Nmax
+USE MOD_LoadBalance_Vars   ,ONLY: nElemsOld,offsetElemOld
 USE MOD_PML_Vars           ,ONLY: DoPML,PMLToElem,U2,nPMLElems,PMLnVar
 USE MOD_Restart_Vars       ,ONLY: Vdm_GaussNRestart_GaussN
 #if USE_LOADBALANCE
@@ -149,6 +152,7 @@ INTEGER                            :: iPML
 INTEGER(KIND=IK)                   :: PMLnVarTmp
 #endif /*USE_HDG*/
 #if USE_LOADBALANCE
+!INTEGER,ALLOCATABLE                :: N_DG_Tmp(:)
 #if defined(PARTICLES) || !(USE_HDG)
 ! TODO: make ElemInfo available with PARTICLES=OFF and remove this preprocessor if/else as soon as possible
 ! Custom data type
@@ -157,6 +161,7 @@ INTEGER(KIND=MPI_ADDRESS_KIND)     :: MPI_DISPLACEMENT(1)
 #endif /*USE_LOADBALANCE*/
 #endif /*defined(PARTICLES) || !(USE_HDG)*/
 REAL,ALLOCATABLE                   :: U(:,:,:,:,:)
+INTEGER                            :: i,j,k
 #ifdef PP_POIS
 #elif USE_HDG
 #else /*not PP_POIS and not USE_HDG*/
@@ -171,6 +176,23 @@ INTEGER                            :: Nloc
 
 #if USE_LOADBALANCE
 IF(PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance))THEN
+
+    ! ! p-adaption: Re-distribute N_DG
+    ! ALLOCATE(N_DG_Tmp(1:nElems))
+    ! ASSOCIATE (&
+    !         counts_send  => INT(MPInElemSend     ) ,&
+    !         disp_send    => INT(MPIoffsetElemSend) ,&
+    !         counts_recv  => INT(MPInElemRecv     ) ,&
+    !         disp_recv    => INT(MPIoffsetElemRecv))
+    !   MPI_LENGTH       = 1
+    !   MPI_DISPLACEMENT = 0  ! 0*SIZEOF(MPI_SIZE)
+    !   MPI_TYPE         = MPI_INTEGER_INT_KIND
+    !   CALL MPI_TYPE_CREATE_STRUCT(1,MPI_LENGTH,MPI_DISPLACEMENT,MPI_TYPE,MPI_STRUCT,iError)
+    !   CALL MPI_TYPE_COMMIT(MPI_STRUCT,iError)
+    !   CALL MPI_ALLTOALLV(N_DG_Mapping(2,1+offSetElem:nElems+offSetElem),counts_send,disp_send,MPI_STRUCT,N_DG_Tmp,counts_recv,disp_recv,MPI_STRUCT,MPI_COMM_PICLAS,iError)
+    !   CALL MPI_TYPE_FREE(MPI_STRUCT,iError)
+    ! END ASSOCIATE
+
 #if USE_HDG
 #if USE_PETSC
   ! FPC: The MPI root process distributes the information among the sub-communicator processes for each FPC
@@ -279,8 +301,8 @@ IF(PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance))THEN
     PetscCallA(VecSetValuesBlocked(lambda_petsc,1,PETScGlobal(SideID),lambda(1,:,SideID),INSERT_VALUES,ierr))
   END DO
   PetscCallA(VecAssemblyBegin(lambda_petsc,ierr))
-  PetscCallA(VecAssemblyEnd(lambda_petsc,ierr))
 #endif
+  PetscCallA(VecAssemblyEnd(lambda_petsc,ierr))
 
   CALL RestartHDG() ! calls PostProcessGradient for calculate the derivative, e.g., the electric field E
 
@@ -291,25 +313,65 @@ IF(PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance))THEN
 
 #else /*USE_HDG*/
   ! Only required for time discs where U is allocated
-  IF(ALLOCATED(U))THEN
-    ALLOCATE(UTmp(PP_nVar,0:PP_N,0:PP_N,0:PP_N,nElems))
-    ASSOCIATE (&
-            counts_send  => (INT(MPInElemSend     )) ,&
-            disp_send    => (INT(MPIoffsetElemSend)) ,&
-            counts_recv  => (INT(MPInElemRecv     )) ,&
-            disp_recv    => (INT(MPIoffsetElemRecv)))
-      ! Communicate PartInt over MPI
-      MPI_LENGTH       = PP_nVar*(PP_N+1)*(PP_N+1)*(PP_N+1)
-      MPI_DISPLACEMENT = 0  ! 0*SIZEOF(MPI_SIZE)
-      MPI_TYPE         = MPI_DOUBLE_PRECISION
-      CALL MPI_TYPE_CREATE_STRUCT(1,MPI_LENGTH,MPI_DISPLACEMENT,MPI_TYPE,MPI_STRUCT,iError)
-      CALL MPI_TYPE_COMMIT(MPI_STRUCT,iError)
-      CALL MPI_ALLTOALLV(U,counts_send,disp_send,MPI_STRUCT,UTmp,counts_recv,disp_recv,MPI_STRUCT,MPI_COMM_PICLAS,iError)
-      CALL MPI_TYPE_FREE(MPI_STRUCT,iError)
-    END ASSOCIATE
-    CALL MOVE_ALLOC(UTmp,U)
-  END IF ! ALLOCATED(U)
+  ALLOCATE(U(PP_nVar,0:NMax,0:NMax,0:NMax,nElemsOld))
+  DO iElem = 1, nElemsOld
+    Nloc = N_DG_Mapping(2,iElem+offSetElemOld)
+    IF(Nloc.EQ.Nmax)THEN
+      U(:,:,:,:,iElem) = U_N(iElem)%U(:,:,:,:)
+    ELSE
+      U(:,:,:,:,iElem) = 0.
+      DO k=0,Nloc
+          DO i=0,Nloc
+        DO j=0,Nloc
+            U(:,i,j,k,iElem) = U_N(iElem)%U(:,i,j,k)
+          END DO
+        END DO
+      END DO
+    END IF ! Nloc.Eq.Nmax
+  END DO ! iElem = 1, nElems
+
+  ALLOCATE(UTmp(PP_nVar,0:NMax,0:NMax,0:NMax,nElems))
+  ASSOCIATE (&
+          counts_send  => (INT(MPInElemSend     )) ,&
+          disp_send    => (INT(MPIoffsetElemSend)) ,&
+          counts_recv  => (INT(MPInElemRecv     )) ,&
+          disp_recv    => (INT(MPIoffsetElemRecv)))
+    ! Communicate PartInt over MPI
+    MPI_LENGTH       = PP_nVar*(NMax+1)*(NMax+1)*(NMax+1)
+    MPI_DISPLACEMENT = 0  ! 0*SIZEOF(MPI_SIZE)
+    MPI_TYPE         = MPI_DOUBLE_PRECISION
+    CALL MPI_TYPE_CREATE_STRUCT(1,MPI_LENGTH,MPI_DISPLACEMENT,MPI_TYPE,MPI_STRUCT,iError)
+    CALL MPI_TYPE_COMMIT(MPI_STRUCT,iError)
+    CALL MPI_ALLTOALLV(U,counts_send,disp_send,MPI_STRUCT,UTmp,counts_recv,disp_recv,MPI_STRUCT,MPI_COMM_PICLAS,iError)
+    CALL MPI_TYPE_FREE(MPI_STRUCT,iError)
+  END ASSOCIATE
+  CALL MOVE_ALLOC(UTmp,U)
+
+  DEALLOCATE(U_N)
+  ! the local DG solution in physical and reference space
+  ALLOCATE(U_N(1:nElems))
+  DO iElem = 1, nElems
+    Nloc = N_DG_Mapping(2,iElem+offSetElem)
+    ALLOCATE(U_N(iElem)%U(PP_nVar,0:Nloc,0:Nloc,0:Nloc))
+    DO k=0,Nloc
+      DO j=0,Nloc
+        DO i=0,Nloc
+          U_N(iElem)%U(:,i,j,k) = U(:,i,j,k,iElem)
+        END DO
+      END DO
+    END DO
+    ALLOCATE(U_N(iElem)%Ut(PP_nVar,0:Nloc,0:Nloc,0:Nloc))
+    U_N(iElem)%Ut = 0.
+  END DO ! iElem = 1, PP_nElems
+  DEALLOCATE(U)
 #endif /*USE_HDG*/
+
+  ! Update N_DG and delete N_DG_Tmp
+  !CALL MOVE_ALLOC(N_DG_Tmp,N_DG)
+  !DO iElem = 1, nElemsOld
+  !  Nloc = N_DG_Mapping(2,iElem+offSetElem)
+  !END DO
+  !DEALLOCATE(N_DG_Tmp)
 
 ELSE ! normal restart
 #endif /*USE_LOADBALANCE*/

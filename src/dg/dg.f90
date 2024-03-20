@@ -110,8 +110,7 @@ END DO
 
 #if !((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))
 #if USE_LOADBALANCE && !(USE_HDG)
-! Not "LB not via h5 I/O"
-! Not "LB via MPI" means we keep U_N during LB
+! Not "LB via MPI" means during 1st initialisation
 IF (.NOT.(PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance))) THEN
 #endif /*USE_LOADBALANCE && !(USE_HDG)*/
   ! the local DG solution in physical and reference space
@@ -120,6 +119,8 @@ IF (.NOT.(PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance))) THEN
     Nloc = N_DG_Mapping(2,iElem+offSetElem)
     ALLOCATE(U_N(iElem)%U(PP_nVar,0:Nloc,0:Nloc,0:Nloc))
     U_N(iElem)%U = 0.
+    ALLOCATE(U_N(iElem)%Ut(PP_nVar,0:Nloc,0:Nloc,0:Nloc))
+    U_N(iElem)%Ut = 0.
   END DO ! iElem = 1, PP_nElems
 #if USE_LOADBALANCE && !(USE_HDG)
 END IF
@@ -143,8 +144,6 @@ ALLOCATE(Ut_N(PP_nElems))
 ! the time derivative computed with the DG scheme
 DO iElem = 1, PP_nElems
   Nloc = N_DG_Mapping(2,iElem+offSetElem)
-  ALLOCATE(U_N(iElem)%Ut(PP_nVar,0:Nloc,0:Nloc,0:Nloc))
-  U_N(iElem)%Ut = 0.
 #if (PP_TimeDiscMethod==1)||(PP_TimeDiscMethod==2)|| (PP_TimeDiscMethod==6)
   ALLOCATE(Ut_N(iElem)%Ut_temp(PP_nVar,0:Nloc,0:Nloc,0:Nloc))
   Ut_N(iElem)%Ut_temp = 0.
@@ -667,11 +666,12 @@ SUBROUTINE FinalizeDG()
 ! Deallocate global variable U (solution) and Ut (dg time derivative).
 !===================================================================================================================================
 ! MODULES
-USE MOD_globals, ONLY: abort
+USE MOD_globals          ,ONLY: abort
 USE MOD_DG_Vars
-#if USE_LOADBALANCE && !(USE_HDG)
-USE MOD_LoadBalance_Vars   ,ONLY: PerformLoadBalance,UseH5IOLoadBalance
-#endif /*USE_LOADBALANCE && !(USE_HDG)*/
+#if USE_LOADBALANCE && ! (USE_HDG)
+USE MOD_LoadBalance_Vars ,ONLY: PerformLoadBalance,UseH5IOLoadBalance
+#endif /*USE_LOADBALANCE && ! (USE_HDG)*/
+USE MOD_TimeDisc_Vars    ,ONLY: Ut_N
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -682,7 +682,6 @@ IMPLICIT NONE
 ! LOCAL VARIABLES
 !===================================================================================================================================
 SDEALLOCATE(DGB_N)
-SDEALLOCATE(U_N)
 #if IMPA || ROS
 SDEALLOCATE(Un)
 #endif
@@ -691,12 +690,13 @@ SDEALLOCATE(U_Surf_N)
 ! Do not deallocate the solution vector during load balance here as it needs to be communicated between the processors
 #if USE_LOADBALANCE && !(USE_HDG)
 IF(.NOT.(PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance)))THEN
-!CALL abort(__STAMP__,'not implemented, keep U ?!')
 #endif /*USE_LOADBALANCE && !(USE_HDG)*/
-  !SDEALLOCATE(U)
+  ! Keep for load balance and deallocate/reallocate after communication
+  SDEALLOCATE(U_N)
 #if USE_LOADBALANCE && !(USE_HDG)
 END IF
 #endif /*USE_LOADBALANCE && !(USE_HDG)*/
+SDEALLOCATE(Ut_N)
 
 DGInitIsDone = .FALSE.
 END SUBROUTINE FinalizeDG

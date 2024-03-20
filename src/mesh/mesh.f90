@@ -259,6 +259,18 @@ IF(GETLOGICAL('meshdeform','.FALSE.'))THEN
   END DO
 END IF
 
+
+! Do not re-allocate during load balance here as it is communicated between the processors
+#if USE_LOADBALANCE
+IF(PerformLoadBalance)THEN
+#endif /*USE_LOADBALANCE*/
+
+  ! N_DG_Mapping is already set
+  OffsetCounter = N_DG_Mapping(1,nElems+offSetElem) + (N_DG_Mapping(2,nElems+offSetElem)+1)**3
+
+#if USE_LOADBALANCE
+ELSE
+#endif /*USE_LOADBALANCE*/
 ! allocate arrays and initialize local polynomial degree
 ! This happens here because nElems is determined here and N_DG is required below for the mesh initialisation
 !ALLOCATE(N_DG(nElems))
@@ -291,26 +303,30 @@ END IF
 !                 END DO ; END DO; END DO kLoop;
 
 #if USE_MPI
-! ElemToElemMapping
-CALL Allocate_Shared((/2,nGlobalElems/),N_DG_Mapping_Shared_Win,N_DG_Mapping_Shared)
-CALL MPI_WIN_LOCK_ALL(0,N_DG_Mapping_Shared_Win,IERROR)
-N_DG_Mapping => N_DG_Mapping_Shared
-IF (myComputeNodeRank.EQ.0) N_DG_Mapping = 0
-CALL BARRIER_AND_SYNC(N_DG_Mapping_Shared_Win,MPI_COMM_SHARED)
+  ! ElemToElemMapping
+  CALL Allocate_Shared((/2,nGlobalElems/),N_DG_Mapping_Shared_Win,N_DG_Mapping_Shared)
+  CALL MPI_WIN_LOCK_ALL(0,N_DG_Mapping_Shared_Win,IERROR)
+  N_DG_Mapping => N_DG_Mapping_Shared
+  IF (myComputeNodeRank.EQ.0) N_DG_Mapping = 0
+  CALL BARRIER_AND_SYNC(N_DG_Mapping_Shared_Win,MPI_COMM_SHARED)
 #else
-ALLOCATE(N_DG_Mapping(2,nElems))
-N_DG_Mapping = 0
+  ALLOCATE(N_DG_Mapping(2,nElems))
+  N_DG_Mapping = 0
 #endif /*USE_MPI*/
 
-OffsetCounter = 0
-! Loop all CN elements (iElem is CNElemID)
-DO iElem = 1,nElems
-  locN = PP_N
-  locDofs = (locN+1)**3
-  N_DG_Mapping(2,iElem+offSetElem) = locN
-  N_DG_Mapping(1,iElem+offSetElem) = OffsetCounter
-  OffsetCounter = OffsetCounter + locDofs
-END DO ! iElem = firstElem, lastElem
+  OffsetCounter = 0
+  ! Loop all CN elements (iElem is CNElemID)
+  DO iElem = 1,nElems
+    locN = PP_N
+    locDofs = (locN+1)**3
+    N_DG_Mapping(2,iElem+offSetElem) = locN
+    N_DG_Mapping(1,iElem+offSetElem) = OffsetCounter
+    OffsetCounter = OffsetCounter + locDofs
+  END DO ! iElem = firstElem, lastElem
+
+#if USE_LOADBALANCE
+END IF
+#endif /*USE_LOADBALANCE*/
 
 #if USE_MPI
 sendbuf = OffsetCounter
@@ -1243,6 +1259,9 @@ USE MOD_MPI_Vars         ,ONLY: DGExchange
 USE MOD_MPI_Shared_Vars  ,ONLY: MPI_COMM_SHARED
 USE MOD_MPI_Shared
 #endif /*USE_MPI*/
+#if USE_LOADBALANCE
+USE MOD_LoadBalance_Vars ,ONLY: PerformLoadBalance,UseH5IOLoadBalance
+#endif /*USE_LOADBALANCE*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------
@@ -1306,14 +1325,6 @@ SDEALLOCATE(LostRotPeriodicSides)
 SDEALLOCATE(SideToNonUniqueGlobalSide)
 
 ! p-adaption
-! First, free every shared memory window. This requires MPI_BARRIER as per MPI3.1 specification
-#if USE_MPI
-CALL MPI_BARRIER(MPI_COMM_SHARED,iERROR)
-CALL UNLOCK_AND_FREE(N_DG_Mapping_Shared_Win)
-#endif /*USE_MPI && defined(PARTICLES)*/
-! Then, free the pointers or arrays
-
-ADEALLOCATE(N_DG_Mapping_Shared)
 SDEALLOCATE(N_VolMesh)
 SDEALLOCATE(DG_Elems_master)
 SDEALLOCATE(DG_Elems_slave)
@@ -1321,6 +1332,19 @@ SDEALLOCATE(n_surfmesh)
 #if USE_MPI
 SDEALLOCATE(DGExchange)
 #endif /*USE_MPI*/
+
+! Do not deallocate during load balance here as it needs to be communicated between the processors
+#if USE_LOADBALANCE
+IF(.NOT.(PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance)))THEN
+#endif /*USE_LOADBALANCE*/
+  ! First, free every shared memory window. This requires MPI_BARRIER as per MPI3.1 specification
+  CALL MPI_BARRIER(MPI_COMM_SHARED,iERROR)
+  CALL UNLOCK_AND_FREE(N_DG_Mapping_Shared_Win)
+  ! Then, free the pointers or arrays
+  ADEALLOCATE(N_DG_Mapping_Shared)
+#if USE_LOADBALANCE
+END IF
+#endif /*USE_LOADBALANCE*/
 
 #if defined(PARTICLES) && USE_LOADBALANCE
 IF (PerformLoadBalance) RETURN

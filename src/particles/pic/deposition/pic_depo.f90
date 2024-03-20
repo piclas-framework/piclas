@@ -111,7 +111,7 @@ USE MOD_MPI_Shared
 USE MOD_Particle_Mesh_Vars     ,ONLY: ElemInfo_Shared
 #endif /*USE_MPI*/
 #if USE_LOADBALANCE
-USE MOD_LoadBalance_Vars       ,ONLY: PerformLoadBalance
+USE MOD_LoadBalance_Vars       ,ONLY: PerformLoadBalance,UseH5IOLoadBalance
 #endif /*USE_LOADBALANCE*/
 USE MOD_Interpolation_Vars     ,ONLY: NMin,NMax
 USE MOD_DG_Vars                ,ONLY: N_DG_Mapping
@@ -152,13 +152,20 @@ IF(.NOT.DoDeposition) THEN
   RETURN
 END IF
 
-ALLOCATE(PS_N(nElems))
-!--- Allocate arrays for charge density collection and initialize
-DO iElem = 1, nElems
-  Nloc = N_DG_Mapping(2,iElem+offSetElem)
-  ALLOCATE(PS_N(iElem)%PartSource(1:4,0:Nloc,0:Nloc,0:Nloc))
-  PS_N(iElem)%PartSource = 0.0
-END DO ! iElem = 1, nElems
+#if USE_LOADBALANCE && !(USE_HDG)
+! Not "LB via MPI" means during 1st initialisation
+IF (.NOT.(PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance))) THEN
+#endif /*USE_LOADBALANCE && !(USE_HDG)*/
+  ALLOCATE(PS_N(nElems))
+  !--- Allocate arrays for charge density collection and initialize
+  DO iElem = 1, nElems
+    Nloc = N_DG_Mapping(2,iElem+offSetElem)
+    ALLOCATE(PS_N(iElem)%PartSource(1:4,0:Nloc,0:Nloc,0:Nloc))
+    PS_N(iElem)%PartSource = 0.0
+  END DO ! iElem = 1, nElems
+#if USE_LOADBALANCE && !(USE_HDG)
+END IF
+#endif /*USE_LOADBALANCE && !(USE_HDG)*/
 
 !--- check if relaxation of current PartSource with RelaxFac into PartSourceOld
 RelaxDeposition = GETLOGICAL('PIC-RelaxDeposition','F')
@@ -1942,7 +1949,7 @@ USE MOD_MPI_Shared
 #if USE_LOADBALANCE
 USE MOD_PreProc
 USE MOD_LoadBalance_Vars   ,ONLY: PerformLoadBalance,UseH5IOLoadBalance
-USE MOD_LoadBalance_Vars   ,ONLY: PartSourceLB,NodeSourceExtEquiLB
+USE MOD_LoadBalance_Vars   ,ONLY: NodeSourceExtEquiLB!,PartSourceLB
 USE MOD_Mesh_Vars          ,ONLY: nElems
 USE MOD_Dielectric_Vars    ,ONLY: DoDielectricSurfaceCharge
 USE MOD_Particle_Mesh_Vars ,ONLY: ElemNodeID_Shared,NodeInfo_Shared,ElemNodeID_Shared_Win
@@ -2030,12 +2037,12 @@ END SELECT
 #if USE_LOADBALANCE
 IF ((PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance))) THEN
 
-  IF(DoDeposition)THEN
-    SDEALLOCATE(PartSourceLB)
-    ALLOCATE(PartSourceLB(1:4,0:PP_N,0:PP_N,0:PP_N,nElems))
-    CALL abort(__STAMP__,'not implemented')
-    !PartSourceLB = PartSource
-  END IF ! DoDeposition
+  !IF(DoDeposition)THEN
+  !  SDEALLOCATE(PartSourceLB)
+  !  ALLOCATE(PartSourceLB(1:4,0:PP_N,0:PP_N,0:PP_N,nElems))
+  !  CALL abort(__STAMP__,'not implemented')
+  !  !PartSourceLB = PartSource
+  !END IF ! DoDeposition
 
   IF(DoDielectricSurfaceCharge)THEN
     IF(DoDeposition) CALL ExchangeNodeSourceExtTmp()
@@ -2069,9 +2076,10 @@ IF(PerformLoadBalance.AND.DoDielectricSurfaceCharge)THEN
   ! From InitElemNodeIDs
   CALL UNLOCK_AND_FREE(ElemNodeID_Shared_Win)
   ADEALLOCATE(ElemNodeID_Shared)
+  ! Keep for load balance and deallocate/reallocate after communication
+  SDEALLOCATE(PS_N) ! PartSource, PartSourceOld and PartSourceTmp
 END IF
 #endif /*USE_LOADBALANCE*/
-SDEALLOCATE(PS_N) ! PartSource, PartSourceOld and PartSourceTmp
 SDEALLOCATE(DepoNodetoGlobalNode)
 SDEALLOCATE(NodeSource)
 SDEALLOCATE(NodeSourceExt)
