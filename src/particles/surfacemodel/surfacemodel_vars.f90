@@ -57,7 +57,7 @@ TYPE tPureSurf
 END TYPE
 
 TYPE, EXTENDS(tCollCaseInfo) :: tEventProbInfo
-  REAL, ALLOCATABLE                      :: ProdAcc(:)             ! Reaction-specific thermal accommodation
+  REAL, ALLOCATABLE                      :: ProdTransACC(:)        ! Reaction-specific thermal accommodation
 END TYPE
 
 LOGICAL                                  :: DoChemSurface          ! Call the surface catalysis routines

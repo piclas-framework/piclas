@@ -333,7 +333,7 @@ IF ((Species(iSpec)%InterID.EQ.2).OR.(Species(iSpec)%InterID.EQ.20)) THEN
     END IF
   END IF
   IF(SpecDSMC(iSpec)%PolyatomicMol) THEN
-    CALL DSMC_SetInternalEnr_Poly(iSpec, iPart, iPart, init_or_sf)
+    CALL DSMC_SetInternalEnr_Poly(iSpec, iInit, iPart, init_or_sf)
   ELSE
     CALL DSMC_SetInternalEnr_Diatomic(iSpec, iPart, TRot, TVib)
   END IF

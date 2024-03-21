@@ -95,10 +95,10 @@ CALL prms%CreateIntOption(      'Surface-Reaction[$]-NumOfBoundaries', 'Num of b
 CALL prms%CreateIntArrayOption( 'Surface-Reaction[$]-Boundaries', 'Array of boundary indices of surface reaction.', &
                                     numberedmulti=.TRUE., no=0)
  CALL prms%CreateRealOption(     'Surface-Reaction[$]-EventProbability', &
-                                    'Simple probability-based surface chemistry (Type = P)',numberedmulti=.TRUE.)
+                                    'Event probability for the simple probability-based surface chemistry (Type = P)',numberedmulti=.TRUE.)
  CALL prms%CreateRealOption(     'Surface-Reaction[$]-ProductAccommodation', &
                                     'Reaction-specific translation thermal accommodation of the product species (Type = P), default is to ' //&
-                                    'utilizethe surface-specific accommodation coefficient (TransACC)', '-1.',numberedmulti=.TRUE.)
+                                    'utilize the surface-specific accommodation coefficient (TransACC)', '-1.',numberedmulti=.TRUE.)
 END SUBROUTINE DefineParametersSurfaceChemistry
 
 
@@ -217,8 +217,8 @@ DO iSpec = 1, nSpecies
     SurfChem%EventProbInfo(iSpec)%ReactionIndex = 0
     ALLOCATE(SurfChem%EventProbInfo(iSpec)%ReactionProb(SurfChem%EventProbInfo(iSpec)%NumOfReactionPaths))
     SurfChem%EventProbInfo(iSpec)%ReactionProb = 0.
-    ALLOCATE(SurfChem%EventProbInfo(iSpec)%ProdAcc(SurfChem%EventProbInfo(iSpec)%NumOfReactionPaths))
-    SurfChem%EventProbInfo(iSpec)%ProdAcc = -1.
+    ALLOCATE(SurfChem%EventProbInfo(iSpec)%ProdTransACC(SurfChem%EventProbInfo(iSpec)%NumOfReactionPaths))
+    SurfChem%EventProbInfo(iSpec)%ProdTransACC = -1.
   END IF
 END DO
 
@@ -463,16 +463,16 @@ IF (SurfChem%OverwriteCatParameters) THEN
       ReactionPathPerSpecies(SpecID) = ReactionPathPerSpecies(SpecID) + 1
       SurfChem%EventProbInfo(SpecID)%ReactionIndex(ReactionPathPerSpecies(SpecID)) = iReac
       SurfChem%EventProbInfo(SpecID)%ReactionProb(ReactionPathPerSpecies(SpecID)) = GETREAL('Surface-Reaction'//TRIM(hilf)//'-EventProbability')
-      SurfChem%EventProbInfo(SpecID)%ProdAcc(ReactionPathPerSpecies(SpecID)) = GETREAL('Surface-Reaction'//TRIM(hilf)//'-ProductAccommodation')
+      SurfChem%EventProbInfo(SpecID)%ProdTransACC(ReactionPathPerSpecies(SpecID)) = GETREAL('Surface-Reaction'//TRIM(hilf)//'-ProductAccommodation')
       ! Sanity checks
-      IF(SurfChem%EventProbInfo(SpecID)%ProdAcc(ReactionPathPerSpecies(SpecID)).NE.-1.) THEN
+      IF(SurfChem%EventProbInfo(SpecID)%ProdTransACC(ReactionPathPerSpecies(SpecID)).NE.-1.) THEN
         ! If a reaction-specific accommodation coefficient is used, check if it is between 0 and 1
-        IF ((SurfChem%EventProbInfo(SpecID)%ProdAcc(ReactionPathPerSpecies(SpecID)).LT.0.).OR. &
-            (SurfChem%EventProbInfo(SpecID)%ProdAcc(ReactionPathPerSpecies(SpecID)).GT.1.)) THEN
+        IF ((SurfChem%EventProbInfo(SpecID)%ProdTransACC(ReactionPathPerSpecies(SpecID)).LT.0.).OR. &
+            (SurfChem%EventProbInfo(SpecID)%ProdTransACC(ReactionPathPerSpecies(SpecID)).GT.1.)) THEN
           CALL abort(__STAMP__,'Reaction-specific thermal accommodation must be between 0 and 1 for reaction: ', IntInfoOpt=iReac)
         END IF
         ! If the reaction-specific accommodation coefficient is greater than 0, check if a wall temperature has been defined
-        IF(SurfChem%EventProbInfo(SpecID)%ProdAcc(ReactionPathPerSpecies(SpecID)).GT.0.) THEN
+        IF(SurfChem%EventProbInfo(SpecID)%ProdTransACC(ReactionPathPerSpecies(SpecID)).GT.0.) THEN
           DO iVal = 1, SurfChemReac(iReac)%NumOfBounds
             BCID = SurfChemReac(iReac)%Boundaries(iVal)
             IF(PartBound%WallTemp(BCID).EQ.0.) THEN
@@ -1019,10 +1019,10 @@ IF(PathTodo.GT.0) THEN
   IF(NumProd.GT.0) THEN
     CALL OrthoNormVec(n_loc,tang1,tang2)
     VeloSquare = DOTPRODUCT(PartState(4:6,PartID)) / NumProd
-    IF(SurfChem%EventProbInfo(SpecID)%ProdAcc(PathTodo).EQ.-1) THEN
+    IF(SurfChem%EventProbInfo(SpecID)%ProdTransACC(PathTodo).EQ.-1) THEN
       TransACC = PartBound%TransACC(locBCID)
     ELSE
-      TransACC = SurfChem%EventProbInfo(SpecID)%ProdAcc(PathTodo)
+      TransACC = SurfChem%EventProbInfo(SpecID)%ProdTransACC(PathTodo)
     END IF
     DO iProd = 1, NumProd
       ProdSpecID = SurfChemReac(ReacTodo)%Products(iProd)
