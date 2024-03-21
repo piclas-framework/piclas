@@ -356,12 +356,27 @@ REAL :: GetEMFieldDW(1:6)
 ! LOCAL VARIABLES
 REAL    :: HelperU(1:6,0:PP_N,0:PP_N,0:PP_N)
 REAL    :: PartDistDepo(0:PP_N,0:PP_N,0:PP_N), DistSum
-INTEGER :: k,l,m,ind1,ind2, HelperUIndex
+INTEGER :: k,l,m,ind1,ind2
 REAL    :: norm
+#if (PP_nVar==8)
+INTEGER,PARAMETER :: HelperUIndex = 6
+#else
+#ifdef PP_POIS
+INTEGER,PARAMETER :: HelperUIndex = 3
+#elif USE_HDG
+#if PP_nVar==1
+INTEGER,PARAMETER :: HelperUIndex = 3
+#else
+INTEGER,PARAMETER :: HelperUIndex = 6
+#endif
+#else
+INTEGER,PARAMETER :: HelperUIndex = 3
+#endif
+#endif
 !===================================================================================================================================
 GetEMFieldDW = 0.0
 PartDistDepo = 0.0
-HelperUIndex = 6
+HelperU = 0.0
 !--- evaluate at Particle position
 #if (PP_nVar==8)
 #ifdef PP_POIS
@@ -380,7 +395,6 @@ HelperU(1:3,:,:,:) = E(1:3,:,:,:,ElemID)
 HelperU(1:3,:,:,:) = E(1:3,:,:,:,ElemID)
 #else
 ! Consider only electric fields
-HelperUIndex = 3
 HelperU(1:3,:,:,:) = E(1:3,:,:,:,ElemID)
 #endif
 #elif PP_nVar==3
