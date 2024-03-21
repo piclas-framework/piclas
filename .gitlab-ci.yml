@@ -1,3 +1,43 @@
+
+#  # ----------------------------------------------------------------------------------------------------------------------------------------------------
+#  # Use pipeline name to indicate whether MPICH or OpenMPI is used in the complete pipeline execution
+#  # ----------------------------------------------------------------------------------------------------------------------------------------------------
+#  workflow:
+#    name: $PIPELINE_NAME
+#    rules:
+#      - if: '$CI_PIPELINE_CREATED_AT =~ /^\d\d\d\d-\d\d-\d[1,3,5,7,9]T.*/ || $CI_COMMIT_REF_NAME !~ /^gitlab.custom.*/'
+#        variables:
+#          PIPELINE_NAME: '🔵 MPICH: on ${CI_PIPELINE_CREATED_AT} 123 ${CI_COMMIT_REF_NAME} 123'
+#  
+#      - if: '$CI_PIPELINE_CREATED_AT =~ /^\d\d\d\d-\d\d-\d[0,2,4,6,8]T.*/|| $CI_COMMIT_REF_NAME =~ /^gitlab.custom.*/'
+#        variables:
+#          PIPELINE_NAME: '🟠 OpenMPI: $(date +%d) ${CI_COMMIT_REF_NAME}'
+#  
+#      - when: never
+
+# ----------------------------------------------------------------------------------------------------------------------------------------------------
+# Use pipeline name to indicate whether default shared memory, node split or core split is used
+# ----------------------------------------------------------------------------------------------------------------------------------------------------
+workflow:
+  name: $PIPELINE_NAME
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+      when: never
+    - if: '$DO_NODE_SPLIT'
+      variables:
+        PIPELINE_NAME: '🔵 Node Splitting ${CI_COMMIT_REF_NAME}'
+
+    - if: '$DO_CORE_SPLIT'
+      variables:
+        PIPELINE_NAME: '🟠 Core Splitting ${CI_COMMIT_REF_NAME}'
+
+    - if: '$DO_CORE_SPLIT == null && $DO_NODE_SPLIT == null'
+      variables:
+        PIPELINE_NAME: '🟢 ${CI_COMMIT_REF_NAME}'
+
+    - when: never
+
+# ----------------------------------------------------------------------------------------------------------------------------------------------------
 # Settings
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 # Load modules on new boltzplatz reggie
@@ -33,6 +73,7 @@ before_script:
       echo $day > reggie/.day;
       ls -la reggie;
       cat reggie/.day;
+      echo "CI_PIPELINE_CREATED_AT $(date -d $CI_PIPELINE_CREATED_AT +%d)";
     fi
   - if [ ! -f "reggie/.day" ]; then
         echo "reggie/.day does not exist! Setting even day number.";
@@ -40,26 +81,28 @@ before_script:
       else
         day=$(cat reggie/.day);
     fi
-  - if [ "$(($day % 2))" == "0" ]; then
-        echo "Even day number ($day). Loading OpenMPI";
-        module purge;
-        module load  cmake/3.26.4    gcc/13.2.0  openmpi/4.1.5/gcc/13.2.0      hdf5/1.14.0/gcc/13.2.0/openmpi/4.1.5      hopr/master/gcc/13.2.0/openmpi/4.1.5/hdf5/1.14.0      petsc/3.19.3/gcc/13.2.0/openmpi/4.1.5;
-      else
-        echo "Odd day number ($day). Loading MPICH";
-        module purge;
-        module load  cmake/3.26.4    gcc/13.2.0  mpich/4.1.2/gcc/13.2.0        hdf5/1.14.0/gcc/13.2.0/mpich/4.1.2        hopr/master/gcc/13.2.0/mpich/4.1.2/hdf5/1.14.0        petsc/3.19.3/gcc/13.2.0/mpich/4.1.2;
+  - echo "Perform arithmetic with 0-prefixed numbers by telling bash to use base-10 by specifying 10#"
+  - if [ "$((10#$day % 2))" == "0" ]; then
+      echo "Even day number ($day). Loading OpenMPI";
+      module purge;
+      module load  cmake/3.26.4  gcc/13.2.0  openmpi/4.1.5/gcc/13.2.0      hdf5/1.14.0/gcc/13.2.0/openmpi/4.1.5      hopr/master/gcc/13.2.0/openmpi/4.1.5/hdf5/1.14.0      petsc/3.19.3/gcc/13.2.0/openmpi/4.1.5;
+    else
+      echo "Odd day number ($day). Loading MPICH";
+      module purge;
+      module load  cmake/3.26.4  gcc/13.2.0  mpich/4.1.2/gcc/13.2.0        hdf5/1.14.0/gcc/13.2.0/mpich/4.1.2        hopr/master/gcc/13.2.0/mpich/4.1.2/hdf5/1.14.0        petsc/3.19.3/gcc/13.2.0/mpich/4.1.2;
     fi
   - if [ -n "${DO_MPICH}" ]; then
       echo "DO_MPICH activated. Loading MPICH.";
       module purge;
-      module load   cmake/3.26.4    gcc/13.2.0  mpich/4.1.2/gcc/13.2.0        hdf5/1.14.0/gcc/13.2.0/mpich/4.1.2        hopr/master/gcc/13.2.0/mpich/4.1.2/hdf5/1.14.0        petsc/3.19.3/gcc/13.2.0/mpich/4.1.2;
+      module load  cmake/3.26.4  gcc/13.2.0  mpich/4.1.2/gcc/13.2.0        hdf5/1.14.0/gcc/13.2.0/mpich/4.1.2        hopr/master/gcc/13.2.0/mpich/4.1.2/hdf5/1.14.0        petsc/3.19.3/gcc/13.2.0/mpich/4.1.2;
     fi
   - if [ -n "${DO_MPICH_DEBUG}" ]; then
       echo "DO_MPICH_DEBUG activated. Loading MPICH with --with-device=ch3:sock which allows over-subscription without performance loss but cannot be used for shared memory arrays safely!";
       module purge;
-      module load   cmake/3.26.4    gcc/13.2.0  mpich-debug/4.1.2/gcc/13.2.0  hdf5/1.14.0/gcc/13.2.0/mpich-debug/4.1.2  hopr/master/gcc/13.2.0/mpich-debug/4.1.2/hdf5/1.14.0  petsc/3.19.3/gcc/13.2.0/mpich-debug/4.1.2;
+      module load  cmake/3.26.4  gcc/13.2.0  mpich-debug/4.1.2/gcc/13.2.0  hdf5/1.14.0/gcc/13.2.0/mpich-debug/4.1.2  hopr/master/gcc/13.2.0/mpich-debug/4.1.2/hdf5/1.14.0  petsc/3.19.3/gcc/13.2.0/mpich-debug/4.1.2;
     fi
   - module list
+
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 # Stages
 # ----------------------------------------------------------------------------------------------------------------------------------------------------

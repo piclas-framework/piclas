@@ -44,9 +44,7 @@ SUBROUTINE radiation_excitation()
 USE MOD_Globals
 USE MOD_Globals_Vars,      ONLY   : ElementaryCharge, BoltzmannConst
 USE MOD_Radiation_Vars,    ONLY   : RadiationInput, SpeciesRadiation, NumDensElectrons
-USE MOD_PARTICLE_Vars,     ONLY   : nSpecies
-USE MOD_DSMC_Vars,         ONLY   : SpecDSMC
-
+USE MOD_PARTICLE_Vars,     ONLY   : nSpecies, Species
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -73,7 +71,7 @@ USE MOD_DSMC_Vars,         ONLY   : SpecDSMC
     IF(.NOT.RadiationInput(iSpec)%DoRadiation) CYCLE
 
 ! --- atoms (1) and atomic ions (10)
-    IF((SpecDSMC(iSpec)%InterID .EQ. 1) .OR. (SpecDSMC(iSpec)%InterID .EQ. 10)) THEN
+    IF((Species(iSpec)%InterID .EQ. 1) .OR. (Species(iSpec)%InterID .EQ. 10)) THEN
       IF (RadiationInput(iSpec)%Telec.LE.0.0) CYCLE
       IF (SpeciesRadiation(iSpec)%nLevels.EQ.0) CYCLE
       low_IonizationPot = 2.9E-8*SQRT(NumDensElectrons/1.E6/MAX(1.,RadiationInput(iSpec)%Telec))*ElementaryCharge
@@ -102,7 +100,7 @@ USE MOD_DSMC_Vars,         ONLY   : SpecDSMC
       END DO 
    
 ! --- diatomic molecules (2) and diatomic molecular ions (20)
-    ELSEIF((SpecDSMC(iSpec)%InterID .EQ. 2) .OR. (SpecDSMC(iSpec)%InterID .EQ. 20)) THEN 
+    ELSEIF((Species(iSpec)%InterID .EQ. 2) .OR. (Species(iSpec)%InterID .EQ. 20)) THEN 
 
 !! --- Initialization
       SpeciesRadiation(iSpec)%PartFunc = 0.0

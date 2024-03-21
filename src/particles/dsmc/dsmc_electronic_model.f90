@@ -279,8 +279,14 @@ CASE(1)
   PartStateTemp = CollisionEnergy / BoltzmannConst
   DO iQua = 0, MaxElecQuant
     IF (PartStateTemp - SpecDSMC(iSpec)%ElectronicState(2,iQua).GT.0.) THEN
-      gtemp = SpecDSMC(iSpec)%ElectronicState(1,iQua) * &
-              ( CollisionEnergy - BoltzmannConst * SpecDSMC(iSpec)%ElectronicState(2,iQua))**FakXi
+      ! gtemp = SpecDSMC(iSpec)%ElectronicState(1,iQua) * (CollisionEnergy - BoltzmannConst*SpecDSMC(iSpec)%ElectronicState(2,iQua))**FakXi
+      ! Above equation is replaced be the following to safely check for floating-point exceptions
+      gtemp = FakXi * LOG(CollisionEnergy - BoltzmannConst * SpecDSMC(iSpec)%ElectronicState(2,iQua))
+      IF(CHECKEXP(gtemp)) THEN
+        gtemp = SpecDSMC(iSpec)%ElectronicState(1,iQua) * EXP(gtemp)
+      ELSE
+        gtemp = 0.
+      END IF
       ! maximal possible Quant before term goes negative
       iQuaMax = iQua
       IF ( gtemp .GT. gmax ) THEN
@@ -296,14 +302,14 @@ CASE(1)
     RETURN
   END IF
   CALL RANDOM_NUMBER(iRan)
-  iQua = int( ( iQuaMax +1 ) * iRan)
+  iQua = INT( ( iQuaMax +1 ) * iRan)
   gtemp = SpecDSMC(iSpec)%ElectronicState(1,iQua) * &
           ( CollisionEnergy - BoltzmannConst * SpecDSMC(iSpec)%ElectronicState(2,iQua))**FakXi
   CALL RANDOM_NUMBER(iRan2)
   ! acceptance-rejection for iQuaElec
   DO WHILE ( iRan2 .GE. gtemp / gmax )
     CALL RANDOM_NUMBER(iRan)
-    iQua = int( ( iQuaMax +1 ) * iRan)
+    iQua = INT( ( iQuaMax +1 ) * iRan)
     gtemp = SpecDSMC(iSpec)%ElectronicState(1,iQua) * &
             ( CollisionEnergy - BoltzmannConst * SpecDSMC(iSpec)%ElectronicState(2,iQua))**FakXi
     CALL RANDOM_NUMBER(iRan2)
@@ -454,7 +460,7 @@ END IF
 Xi_ElecSpec=0.; Xi_Elec_oldSpec=0.; TElecSpec=0.
 DO iSpec = 1, nSpecies
   IF (nSpec(iSpec).EQ.0) CYCLE
-  IF((SpecDSMC(iSpec)%InterID.NE.4).AND.(.NOT.SpecDSMC(iSpec)%FullyIonized)) THEN
+  IF((Species(iSpec)%InterID.NE.4).AND.(.NOT.SpecDSMC(iSpec)%FullyIonized)) THEN
     TElecSpec(iSpec)=CalcTelec( EElecSpec(iSpec)/totalWeightSpec(iSpec), iSpec)
     Xi_ElecSpec(iSpec)=CalcXiElec(TElecSpec(iSpec),iSpec)
     Xi_Elec_oldSpec(iSpec) = Xi_ElecSpec(iSpec)
@@ -494,7 +500,7 @@ nElecRelaxSpec =0; nElecRelax=0
 DO iLoop = 1, nPart
   iPart = iPartIndx_Node(iLoop)
   iSpec = PartSpecies(iPart)
-  IF((SpecDSMC(iSpec)%InterID.NE.4).AND.(.NOT.SpecDSMC(iSpec)%FullyIonized)) THEN
+  IF((Species(iSpec)%InterID.NE.4).AND.(.NOT.SpecDSMC(iSpec)%FullyIonized)) THEN
     IF (.NOT.ElecRelaxPart(iPart)) CYCLE
     partWeight = GetParticleWeight(iPart)
     CALL RANDOM_NUMBER(iRan)
@@ -510,7 +516,7 @@ IF ((nElecRelax.EQ.0)) RETURN
 
 ElectronicPartition = 0.
 DO iSpec =1, nSpecies
-  IF((SpecDSMC(iSpec)%InterID.NE.4).AND.(.NOT.SpecDSMC(iSpec)%FullyIonized)) THEN
+  IF((Species(iSpec)%InterID.NE.4).AND.(.NOT.SpecDSMC(iSpec)%FullyIonized)) THEN
     ElectronicPartitionTemp = 0.
     ! calculate sum over all energy levels == partition function for temperature Telec
     DO iQua = 0, SpecDSMC(iSpec)%MaxElecQuant - 1
@@ -627,7 +633,7 @@ NewEn = OldEn
 DO iLoop = 1, nPart
   iPart = iPartIndx_Node(iLoop)
   iSpec = PartSpecies(iPart)
-  IF((SpecDSMC(iSpec)%InterID.NE.4).AND.(.NOT.SpecDSMC(iSpec)%FullyIonized)) THEN
+  IF((Species(iSpec)%InterID.NE.4).AND.(.NOT.SpecDSMC(iSpec)%FullyIonized)) THEN
     partWeight = GetParticleWeight(iPart)
     OldEn = OldEn + PartStateIntEn(3,iPart)* partWeight
   END IF
@@ -647,7 +653,7 @@ DO WHILE(.NOT.ALMOSTEQUAL(TempEn, OldEn))
         Xi_ElecSpec(iSpec)= 0.0
         CYCLE
       END IF
-      IF((SpecDSMC(iSpec)%InterID.NE.4).AND.(.NOT.SpecDSMC(iSpec)%FullyIonized)) THEN
+      IF((Species(iSpec)%InterID.NE.4).AND.(.NOT.SpecDSMC(iSpec)%FullyIonized)) THEN
         Xi_ElecSpec(iSpec)=CalcXiElec(DSMC%InstantTransTemp(nSpecies + 1),iSpec)
         TEqui = DSMC%InstantTransTemp(nSpecies + 1)
       END IF
@@ -660,7 +666,7 @@ DO WHILE(.NOT.ALMOSTEQUAL(TempEn, OldEn))
       Xi_ElecSpec(iSpec)= 0.0
       CYCLE
     END IF
-    IF((SpecDSMC(iSpec)%InterID.NE.4).AND.(.NOT.SpecDSMC(iSpec)%FullyIonized)) THEN
+    IF((Species(iSpec)%InterID.NE.4).AND.(.NOT.SpecDSMC(iSpec)%FullyIonized)) THEN
       Xi_ElecSpec(iSpec)=CalcXiElec(Tequi,iSpec)
     END IF
   END DO
@@ -679,7 +685,7 @@ END DO
 
 ElectronicPartition = 0.
 DO iSpec =1, nSpecies
-  IF((SpecDSMC(iSpec)%InterID.NE.4).AND.(.NOT.SpecDSMC(iSpec)%FullyIonized)) THEN
+  IF((Species(iSpec)%InterID.NE.4).AND.(.NOT.SpecDSMC(iSpec)%FullyIonized)) THEN
     ElectronicPartitionTemp = 0.
     ! calculate sum over all energy levels == partition function for temperature Telec
     DO iQua = 0, SpecDSMC(iSpec)%MaxElecQuant - 1
@@ -700,7 +706,7 @@ SkipEnergyCons = .FALSE.
 DO iLoop = 1, nPart
   iPart = iPartIndx_Node(iLoop)
   iSpec = PartSpecies(iPart)
-  IF((SpecDSMC(iSpec)%InterID.NE.4).AND.(.NOT.SpecDSMC(iSpec)%FullyIonized)) THEN
+  IF((Species(iSpec)%InterID.NE.4).AND.(.NOT.SpecDSMC(iSpec)%FullyIonized)) THEN
     nElecRelax  = nElecRelax + 1
     nElecRelaxSpec(iSpec) = nElecRelaxSpec(iSpec) + 1
     iPartIndx_NodeRelaxElec(nElecRelax) = iPart
@@ -869,7 +875,7 @@ DO iLoop = 1, nPart
   V_rel(1:3)=PartState(4:6,iPart)-vBulkAll(1:3)
   vmag2 = V_rel(1)**2 + V_rel(2)**2 + V_rel(3)**2
   OldEn = OldEn + 0.5*Species(iSpec)%MassIC * vmag2*partWeight
-  IF((SpecDSMC(iSpec)%InterID.NE.4).AND.(.NOT.SpecDSMC(iSpec)%FullyIonized)) THEN
+  IF((Species(iSpec)%InterID.NE.4).AND.(.NOT.SpecDSMC(iSpec)%FullyIonized)) THEN
     EElecSpec(iSpec) = EElecSpec(iSpec) + PartStateIntEn(3,iPart) * partWeight
   END IF
 END DO
@@ -912,7 +918,7 @@ SUBROUTINE CalcTEquiMultiElec(nPart, nSpec, CellTemp, TElecSpec, Xi_ElecSpec, Xi
 ! MODULES
 USE MOD_Globals_Vars,           ONLY: BoltzmannConst
 USE MOD_DSMC_Vars,              ONLY: SpecDSMC
-USE MOD_Particle_Vars,          ONLY: nSpecies
+USE MOD_Particle_Vars,          ONLY: nSpecies, Species
 USE MOD_part_tools,             ONLY: CalcXiElec
 USE MOD_Particle_Analyze_Tools, ONLY: CalcEelec
 ! IMPLICIT VARIABLE HANDLING
@@ -941,7 +947,7 @@ maxexp = LOG(HUGE(maxexp))
 correctFac = 1.
 ElecFracSpec = 0.0
 DO iSpec=1, nSpecies
-  IF ((SpecDSMC(iSpec)%InterID.NE.4).AND.(.NOT.SpecDSMC(iSpec)%FullyIonized)) THEN
+  IF ((Species(iSpec)%InterID.NE.4).AND.(.NOT.SpecDSMC(iSpec)%FullyIonized)) THEN
     ElecExpSpec(iSpec) = exp(-elecrelaxfreqSpec(iSpec)*dtCell/correctFac)
     ElecFracSpec(iSpec) = nSpec(iSpec)*(1.-ElecExpSpec(iSpec))
     EelecTtrans(iSpec) = CalcEelec(CellTemp, iSpec)
@@ -951,7 +957,7 @@ TEqui_Old = 0.0
 TEqui = 3.*(nPart-1.)*CellTemp
 TEquiNumDof = 3.*(nPart-1.)
 DO iSpec=1, nSpecies
-  IF ((SpecDSMC(iSpec)%InterID.NE.4).AND.(.NOT.SpecDSMC(iSpec)%FullyIonized)) THEN
+  IF ((Species(iSpec)%InterID.NE.4).AND.(.NOT.SpecDSMC(iSpec)%FullyIonized)) THEN
     TEqui = TEqui + Xi_Elec_oldSpec(iSpec)*ElecFracSpec(iSpec)*TElecSpec(iSpec)
     TEquiNumDof = TEquiNumDof + Xi_Elec_oldSpec(iSpec)*ElecFracSpec(iSpec)
   END IF
@@ -959,7 +965,7 @@ END DO
 TEqui = TEqui / TEquiNumDof
 DO WHILE ( ABS( TEqui - TEqui_Old ) .GT. eps_prec )
   DO iSpec = 1, nSpecies
-    IF((SpecDSMC(iSpec)%InterID.NE.4).AND.(.NOT.SpecDSMC(iSpec)%FullyIonized)) THEN
+    IF((Species(iSpec)%InterID.NE.4).AND.(.NOT.SpecDSMC(iSpec)%FullyIonized)) THEN
       Xi_ElecSpec(iSpec) = CalcXiElec(TEqui,iSpec)
       EElecTequi= CalcEelec(TEqui, iSpec)
       IF (ABS(meanEelecSpec(iSpec)-EElecTequi).LT.1E-3) THEN
@@ -983,7 +989,7 @@ DO WHILE ( ABS( TEqui - TEqui_Old ) .GT. eps_prec )
   TEqui = 3.*(nPart-1.)*CellTemp
   TEquiNumDof = 3.*(nPart-1.)
   DO iSpec=1, nSpecies
-    IF ((SpecDSMC(iSpec)%InterID.NE.4).AND.(.NOT.SpecDSMC(iSpec)%FullyIonized)) THEN
+    IF ((Species(iSpec)%InterID.NE.4).AND.(.NOT.SpecDSMC(iSpec)%FullyIonized)) THEN
       TEqui = TEqui + Xi_Elec_oldSpec(iSpec)*ElecFracSpec(iSpec)*TElecSpec(iSpec)
       TEquiNumDof = TEquiNumDof + Xi_ElecSpec(iSpec)*ElecFracSpec(iSpec)
     END IF
@@ -1163,6 +1169,7 @@ USE MOD_Globals
 USE MOD_DSMC_Vars        ,ONLY: DSMC, SpecDSMC
 USE MOD_HDF5_Input       ,ONLY: DatasetExists
 USE MOD_part_tools       ,ONLY: CalcXiElec
+USE MOD_Particle_Vars    ,ONLY: Species, SpeciesDatabase
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Vars ,ONLY: PerformLoadBalance
 #endif /*USE_LOADBALANCE*/
@@ -1179,6 +1186,8 @@ CHARACTER(LEN=64),INTENT(IN)                          :: dsetname
 ! LOCAL VARIABLES
 INTEGER                                               :: err
 ! HDF5 specifier taken from extractParticles
+CHARACTER(LEN=256)                                    :: ElLevelDatabase
+CHARACTER(LEN=64)                                     :: datasetname
 INTEGER(HSIZE_T), DIMENSION(2)                        :: dims,sizeMax
 INTEGER(HID_T)                                        :: file_id_dsmc                       ! File identifier
 INTEGER(HID_T)                                        :: dset_id_dsmc                       ! Dataset identifier
@@ -1190,19 +1199,24 @@ REAL                                                  :: tempEnergyDiff, tempEne
 REAL                                                  :: XiMean, XiMeanMax
 LOGICAL                                               :: DataSetFound
 !===================================================================================================================================
-LBWRITE(UNIT_StdOut,'(A)') 'Read electronic level entries '//TRIM(dsetname)//' from '//TRIM(DSMC%ElectronicModelDatabase)
+IF (Species(iSpec)%DoOverwriteParameters) THEN
+  datasetname = dsetname
+  ElLevelDatabase = TRIM(DSMC%ElectronicModelDatabase)
+ELSE
+  datasetname = TRIM('/Species/'//TRIM(Species(iSpec)%Name))
+  ElLevelDatabase = TRIM(SpeciesDatabase)
+END IF
+LBWRITE(UNIT_StdOut,'(A)') ' | Read electronic level entries '//TRIM(datasetname)//' from '//TRIM(ElLevelDatabase)
 ! Initialize FORTRAN interface.
 CALL H5OPEN_F(err)
 ! Open the file.
-CALL H5FOPEN_F (TRIM(DSMC%ElectronicModelDatabase), H5F_ACC_RDONLY_F, file_id_dsmc, err)
-CALL DatasetExists(File_ID_DSMC,TRIM(dsetname),DataSetFound)
+CALL H5FOPEN_F (TRIM(ElLevelDatabase), H5F_ACC_RDONLY_F, file_id_dsmc, err)
+CALL DatasetExists(File_ID_DSMC,TRIM(datasetname),DataSetFound)
 IF(.NOT.DataSetFound)THEN
-  CALL abort(&
-  __STAMP__&
-  ,'DataSet not found: ['//TRIM(dsetname)//'] ['//TRIM(DSMC%ElectronicModelDatabase)//']')
+  CALL abort(__STAMP__,'DataSet not found: ['//TRIM(datasetname)//'] ['//TRIM(ElLevelDatabase)//']')
 END IF
 ! Open the  dataset.
-CALL H5DOPEN_F(file_id_dsmc, dsetname, dset_id_dsmc, err)
+CALL H5DOPEN_F(file_id_dsmc, datasetname, dset_id_dsmc, err)
 ! Get the file space of the dataset.
 CALL H5DGET_SPACE_F(dset_id_dsmc, FileSpace, err)
 ! get size
@@ -1251,7 +1265,7 @@ ELSE
   SpecDSMC(iSpec)%ElectronicState( 1:2, 0) = ElectronicState(1:2,0)
   SpecDSMC(iSpec)%ElectronicState( 1:2, nQuants) = ElectronicState(1:2,dims(2)-1)
   SpecDSMC(iSpec)%MaxElecQuant  = SIZE( SpecDSMC(iSpec)%ElectronicState,2)
-  LBWRITE(UNIT_StdOut,'(A,I5,A,I5,A,A,A)') 'Merged ',dims(2),' Electronic States to ',nQuants, ' for ',TRIM(dsetname),&
+  LBWRITE(UNIT_StdOut,'(A,I5,A,I5,A,A,A)') ' | Merged ',dims(2),' Electronic States to ',nQuants, ' for ',TRIM(datasetname),&
       ' (+1 for the ground state)'
 END IF
 ! Close the file.
@@ -1261,14 +1275,12 @@ CALL H5CLOSE_F(err)
 
 ! Check if the ground state is defined at 0K
 IF(SpecDSMC(iSpec)%ElectronicState(2,0).NE.0.0) THEN
-  CALL Abort(&
-  __STAMP__,&
-'ERROR in electronic energy levels: given ground state is not zero! Species: ', IntInfoOpt=iSpec)
+  CALL Abort(__STAMP__,'ERROR in electronic energy levels: given ground state is not zero! Species: ', IntInfoOpt=iSpec)
 END IF
 
 IF (DSMC%ElectronicModel.EQ.4) THEN
   SpecDSMC(iSpec)%MaxMeanXiElec = 0.
-  IF((SpecDSMC(iSpec)%InterID.NE.4).AND.(.NOT.SpecDSMC(iSpec)%FullyIonized)) THEN
+  IF((Species(iSpec)%InterID.NE.4).AND.(.NOT.SpecDSMC(iSpec)%FullyIonized)) THEN
     MaxTemp = SpecDSMC(iSpec)%ElectronicState(2,SpecDSMC(iSpec)%MaxElecQuant - 1)
     MinTemp = 0.
     MeanTemp = 0.5*(MaxTemp+MinTemp)
@@ -1296,38 +1308,40 @@ SUBROUTINE SortEnergies(ElectronicState, nQuants)
 !===================================================================================================================================
 !>
 !===================================================================================================================================
-! use module
-  USE MOD_Globals
+! MODULES
+USE MOD_Globals
 ! IMPLICIT VARIABLE HANDLING
-  IMPLICIT NONE
+IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-  INTEGER, INTENT(IN)                                   :: nQuants
-  REAL,INTENT(INOUT)                                    :: ElectronicState(1:2,0:nQuants-1)
+INTEGER, INTENT(IN)                                   :: nQuants
+REAL,INTENT(INOUT)                                    :: ElectronicState(1:2,0:nQuants-1)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-  INTEGER                                               :: iStep, iLoop
-  REAL                                                  :: TempState(2)
-  LOGICAL                                               :: changed
+INTEGER                                               :: iStep, iLoop
+REAL                                                  :: TempState(2)
+LOGICAL                                               :: changed
 !===================================================================================================================================
-  iStep = nQuants
-  changed = .true.
-  DO WHILE (changed.OR.iStep.GT.1)
-    changed = .false.
-    IF (iStep.GT.1) THEN
-      iStep = INT(iStep/1.3)
+
+iStep = nQuants
+changed = .true.
+DO WHILE (changed.OR.iStep.GT.1)
+  changed = .false.
+  IF (iStep.GT.1) THEN
+    iStep = INT(iStep/1.3)
+  END IF
+  DO iLoop = 0, nQuants - 1 - iStep
+    IF (ElectronicState(2,iLoop).GT.ElectronicState(2,iLoop+iStep)) THEN
+      TempState(1:2) = ElectronicState(1:2,iLoop+iStep)
+      ElectronicState(1:2,iLoop+iStep) = ElectronicState(1:2,iLoop)
+      ElectronicState(1:2,iLoop) = TempState(1:2)
+      changed = .true.
     END IF
-    DO iLoop = 0, nQuants - 1 - iStep
-      IF (ElectronicState(2,iLoop).GT.ElectronicState(2,iLoop+iStep)) THEN
-        TempState(1:2) = ElectronicState(1:2,iLoop+iStep)
-        ElectronicState(1:2,iLoop+iStep) = ElectronicState(1:2,iLoop)
-        ElectronicState(1:2,iLoop) = TempState(1:2)
-        changed = .true.
-      END IF
-    END DO
   END DO
+END DO
+
 END SUBROUTINE SortEnergies
 
 
@@ -1338,7 +1352,7 @@ SUBROUTINE CalcProbCorrFactorElec()
 ! use module
   USE MOD_Globals_Vars,       ONLY: BoltzmannConst
   USE MOD_DSMC_Vars,          ONLY: DSMC, SpecDSMC, CollInf
-  USE MOD_Particle_Vars,      ONLY: nSpecies
+  USE MOD_Particle_Vars,      ONLY: nSpecies, Species
   USE MOD_Particle_Analyze_Tools, ONLY: CalcEelec
   USE MOD_part_tools              ,ONLY: CalcXiElec
 ! IMPLICIT VARIABLE HANDLING
@@ -1355,7 +1369,7 @@ SUBROUTINE CalcProbCorrFactorElec()
 !===================================================================================================================================
 DO iSpec = 1, nSpecies
   SpecDSMC(iSpec)%ElecRelaxCorrectFac = 0.
-  IF((SpecDSMC(iSpec)%InterID.EQ.4).OR.(SpecDSMC(iSpec)%FullyIonized)) CYCLE
+  IF((Species(iSpec)%InterID.EQ.4).OR.(SpecDSMC(iSpec)%FullyIonized)) CYCLE
   DO jSpec = 1, nSpecies
     doConverge = .TRUE.
     Xi_rel = 2.*(2. - CollInf%omega(iSpec,jSpec))

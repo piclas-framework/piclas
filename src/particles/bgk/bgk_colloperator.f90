@@ -52,7 +52,7 @@ SUBROUTINE BGK_CollisionOperator(iPartIndx_Node, nPart, NodeVolume, AveragingVal
 USE MOD_Globals               ,ONLY: DOTPRODUCT, CROSS
 USE MOD_Particle_Vars         ,ONLY: PartState, Species, PartSpecies, nSpecies, usevMPF, UseVarTimeStep
 USE MOD_Particle_Vars         ,ONLY: UseRotRefFrame, RotRefFrameOmega, PartVeloRotRef, PDM
-USE MOD_DSMC_Vars             ,ONLY: SpecDSMC, DSMC, PartStateIntEn, PolyatomMolDSMC, RadialWeighting, CollInf
+USE MOD_DSMC_Vars             ,ONLY: DSMC, PartStateIntEn, PolyatomMolDSMC, RadialWeighting, CollInf
 USE MOD_TimeDisc_Vars         ,ONLY: dt
 USE MOD_BGK_Vars              ,ONLY: SpecBGK, BGKDoVibRelaxation, BGKMovingAverage
 USE MOD_BGK_Vars              ,ONLY: BGK_MeanRelaxFactor, BGK_MeanRelaxFactorCounter, BGK_MaxRelaxFactor, BGK_MaxRotRelaxFactor
@@ -106,7 +106,7 @@ DO iLoop = 1, nPart
   partWeight = GetParticleWeight(iPart)
   Momentum_old(1:3) = Momentum_old(1:3) + PartState(4:6,iPart)*Species(iSpec)%MassIC*partWeight
   Energy_old = Energy_old + DOTPRODUCT(PartState(4:6,iPart))*0.5*Species(iSpec)%MassIC*partWeight
-  IF((SpecDSMC(iSpec)%InterID.EQ.2).OR.(SpecDSMC(iSpec)%InterID.EQ.20)) THEN
+  IF((Species(iSpec)%InterID.EQ.2).OR.(Species(iSpec)%InterID.EQ.20)) THEN
     ! Add internal energies (vibration, rotation) for molecules and molecular ions
     Energy_old = Energy_old + (PartStateIntEn(1,iPart) + PartStateIntEn(2,iPart))*partWeight
   END IF
@@ -156,7 +156,7 @@ END IF
 
 ! 3.) Treatment of molecules: determination of the rotational and vibrational relaxation frequency using the collision frequency,
 !     which is not the same as the relaxation frequency of distribution function, calculated above
-IF(ANY(SpecDSMC(:)%InterID.EQ.2).OR.ANY(SpecDSMC(:)%InterID.EQ.20)) THEN
+IF(ANY(Species(:)%InterID.EQ.2).OR.ANY(Species(:)%InterID.EQ.20)) THEN
   collisionfreqSpec = 0.0
   DO iSpec = 1, nSpecies
     DO jSpec = 1, nSpecies
@@ -221,7 +221,7 @@ END IF
 IF ((nRelax.EQ.0).AND.(nRotRelax.EQ.0).AND.(nVibRelax.EQ.0)) RETURN
 
 ! 5.) Determine the new rotational and vibrational states of molecules undergoing a relaxation
-IF(ANY(SpecDSMC(:)%InterID.EQ.2).OR.ANY(SpecDSMC(:)%InterID.EQ.20)) THEN
+IF(ANY(Species(:)%InterID.EQ.2).OR.ANY(Species(:)%InterID.EQ.20)) THEN
   CALL RelaxInnerEnergy(nVibRelax, nRotRelax, iPartIndx_NodeRelaxVib, iPartIndx_NodeRelaxRot, nXiVibDOF, Xi_vib_DOF, &
     Xi_VibSpecNew, Xi_RotSpec, VibEnergyDOF, TEqui, NewEnVib, NewEnRot)
 END IF
@@ -257,7 +257,7 @@ DO iLoop = 1, nPart-nRelax
 END DO
 
 ! 7.) Vibrational energy of the molecules: Ensure energy conservation by scaling the new vibrational states with the factor alpha
-IF(ANY(SpecDSMC(:)%InterID.EQ.2).OR.ANY(SpecDSMC(:)%InterID.EQ.20)) THEN
+IF(ANY(Species(:)%InterID.EQ.2).OR.ANY(Species(:)%InterID.EQ.20)) THEN
   CALL EnergyConsVib(nPart, totalWeight, nVibRelax, VibRelaxWeightSpec, iPartIndx_NodeRelaxVib, NewEnVib, OldEn, nXiVibDOF, &
     VibEnergyDOF, Xi_VibSpecNew, TEqui)
 END IF
@@ -320,7 +320,7 @@ DO iLoop = 1, nPart
   partWeight = GetParticleWeight(iPart)
   Momentum_new(1:3) = Momentum_new(1:3) + (PartState(4:6,iPart)) * Species(iSpec)%MassIC*partWeight
   Energy_new = Energy_new + DOTPRODUCT((PartState(4:6,iPart)))*0.5*Species(iSpec)%MassIC*partWeight
-  IF((SpecDSMC(iSpec)%InterID.EQ.2).OR.(SpecDSMC(iSpec)%InterID.EQ.20)) THEN
+  IF((Species(iSpec)%InterID.EQ.2).OR.(Species(iSpec)%InterID.EQ.20)) THEN
     Energy_new = Energy_new + (PartStateIntEn(1,iPart) + PartStateIntEn(2,iPart))*partWeight
   END IF
 END DO
@@ -453,7 +453,7 @@ DO iLoop = 1, nPart
 
   ! Sum up old energy of thermal velocities and sum up internal energies --> E_T
   OldEn = OldEn + 0.5*Species(iSpec)%MassIC * vmag2*partWeight
-  IF((SpecDSMC(iSpec)%InterID.EQ.2).OR.(SpecDSMC(iSpec)%InterID.EQ.20)) THEN
+  IF((Species(iSpec)%InterID.EQ.2).OR.(Species(iSpec)%InterID.EQ.20)) THEN
     IF(BGKDoVibRelaxation) THEN
       ! EVib without zero-point energy
       EVibSpec(iSpec) = EVibSpec(iSpec) + (PartStateIntEn(1,iPart) - SpecDSMC(iSpec)%EZeroPoint) * partWeight
@@ -590,7 +590,7 @@ SUBROUTINE CalcInnerDOFs(nSpec, EVibSpec, ERotSpec, totalWeightSpec, TVibSpec, T
 !> Determine the internal degrees of freedom and the respective temperature (rotation/vibration) for diatomic/polyatomic species
 !===================================================================================================================================
 ! MODULES
-USE MOD_Particle_Vars          ,ONLY: nSpecies
+USE MOD_Particle_Vars          ,ONLY: nSpecies, Species
 USE MOD_DSMC_Vars              ,ONLY: SpecDSMC
 USE MOD_BGK_Vars               ,ONLY: BGKDoVibRelaxation
 USE MOD_Globals_Vars           ,ONLY: BoltzmannConst
@@ -613,7 +613,7 @@ Xi_VibSpec=0.; InnerDOF=0.; Xi_RotSpec=0.; TVibSpec=0.; TRotSpec=0.
 DO iSpec = 1, nSpecies
   IF (nSpec(iSpec).EQ.0) CYCLE
   ! Only for molecules
-  IF((SpecDSMC(iSpec)%InterID.EQ.2).OR.(SpecDSMC(iSpec)%InterID.EQ.20)) THEN
+  IF((Species(iSpec)%InterID.EQ.2).OR.(Species(iSpec)%InterID.EQ.20)) THEN
     IF(BGKDoVibRelaxation) THEN
       IF(SpecDSMC(iSpec)%PolyatomicMol) THEN ! polyatomic
         ! Calculation of the vibrational temperature (zero-point search) for polyatomic molecules
@@ -646,7 +646,7 @@ SUBROUTINE CalcGasProperties(nSpec, dens, InnerDOF, totalWeightSpec, totalWeight
 !===================================================================================================================================
 ! MODULES
 USE MOD_Particle_Vars         ,ONLY: Species, nSpecies
-USE MOD_DSMC_Vars             ,ONLY: SpecDSMC, CollInf, DSMC
+USE MOD_DSMC_Vars             ,ONLY: CollInf, DSMC
 USE MOD_BGK_Vars              ,ONLY: BGK_ExpectedPrandtlNumber, BGKMixtureModel, BGKCollModel
 USE MOD_Globals_Vars          ,ONLY: BoltzmannConst, Pi
 ! IMPLICIT VARIABLE HANDLING
@@ -679,7 +679,7 @@ IF (nSpecies.GT.1) THEN ! gas mixture
   DO iSpec = 1, nSpecies
     IF (nSpec(iSpec).EQ.0) CYCLE
     ! Correction of Pr for calculation of relaxation frequency, see alpha - F. Hild, M. Pfeiffer, "Multi-species modeling in the
-    ! particle-based ellipsoidal statistical Bhatnagar-Gross-Krook method including internal degrees of freedom", subitted to Phys.
+    ! particle-based ellipsoidal statistical Bhatnagar-Gross-Krook method including internal degrees of freedom", submitted to Phys.
     ! Fluids, August 2023
     PrandtlCorrection = PrandtlCorrection + DOFFraction(iSpec)*MassIC_Mixture/Species(iSpec)%MassIC/TotalDOFWeight
     C_P = C_P + ((5. + (Xi_VibSpec(iSpec)+Xi_RotSpec(iSpec)))/2.) * BoltzmannConst / Species(iSpec)%MassIC * MassFraction(iSpec) 
@@ -688,8 +688,8 @@ IF (nSpecies.GT.1) THEN ! gas mixture
   SELECT CASE(BGKMixtureModel)
   ! Both cases are described in Pfeiffer et. al., Physics of Fluids 33, 036106 (2021),
   ! "Multi-species modeling in the particle-based ellipsoidal statistical Bhatnagar-Gross-Krook method for monatomic gas species"
-  ! Extension to poyatomic mixtures according to F. Hild, M. Pfeiffer, "Multi-species modeling in the particle-based ellipsoidal
-  ! statistical Bhatnagar-Gross-Krook method including internal degrees of freedom", subitted to Phys. Fluids, August 2023
+  ! Extension to polyatomic mixtures according to F. Hild, M. Pfeiffer, "Multi-species modeling in the particle-based ellipsoidal
+  ! statistical Bhatnagar-Gross-Krook method including internal degrees of freedom", submitted to Phys. Fluids, August 2023
 
   CASE (1)  ! Wilke's mixing rules
     DO iSpec = 1, nSpecies
@@ -707,7 +707,7 @@ IF (nSpecies.GT.1) THEN ! gas mixture
               *CollInf%Tref(iSpec,iSpec)**(CollInf%omega(iSpec,iSpec) + 0.5)*CellTemp**(-CollInf%omega(iSpec,iSpec) - 0.5))
       END IF
       ! Thermal conductivity per species (Eucken's formula with a correction by Hirschfelder for the internal degrees of freedom)
-      IF((SpecDSMC(iSpec)%InterID.EQ.2).OR.(SpecDSMC(iSpec)%InterID.EQ.20)) THEN ! inner DOF
+      IF((Species(iSpec)%InterID.EQ.2).OR.(Species(iSpec)%InterID.EQ.20)) THEN ! inner DOF
         ! Istomin et. al., "Eucken correction in high-temperature gases with electronic excitation", J. Chem. Phys. 140,
         ! 184311 (2014)
         thermalcondspec(iSpec) = 0.25 * (15. + 2. * (Xi_VibSpec(iSpec)+Xi_RotSpec(iSpec))  * 1.328) &
@@ -783,7 +783,7 @@ SUBROUTINE CalcTRelax(ERotSpec, Xi_RotSpec, Xi_VibSpec, EVibSpec, totalWeightSpe
 !> Calculate the relaxation energies and temperatures
 !===================================================================================================================================
 ! MODULES
-USE MOD_Particle_Vars         ,ONLY: nSpecies
+USE MOD_Particle_Vars         ,ONLY: nSpecies, Species
 USE MOD_DSMC_Vars             ,ONLY: PolyatomMolDSMC, SpecDSMC, DSMC
 USE MOD_BGK_Vars              ,ONLY: BGKDoVibRelaxation
 USE MOD_Globals_Vars          ,ONLY: BoltzmannConst
@@ -820,7 +820,7 @@ ERotSpecMean=0.0; ERotTtransSpecMean=0.0; EVibSpecMean=0.0; EVibTtransSpecMean=0
 
 DO iSpec = 1, nSpecies
   IF(totalWeightSpec(iSpec).GT.0.) THEN
-    IF((SpecDSMC(iSpec)%InterID.EQ.2).OR.(SpecDSMC(iSpec)%InterID.EQ.20)) THEN ! molecules
+    IF((Species(iSpec)%InterID.EQ.2).OR.(Species(iSpec)%InterID.EQ.20)) THEN ! molecules
       ! Mean rotational energy per particle of a species
       ERotSpecMean(iSpec) = ERotSpec(iSpec)/totalWeightSpec(iSpec)
       ! Mean rotational energy per particle of a species for the mixture translational temperature, ERot(Ttrans)
@@ -874,7 +874,7 @@ TEquiNum = 3.*(totalWeight - totalWeight2/totalWeight)*CellTemp
 TEquiDenom = 3.*(totalWeight - totalWeight2/totalWeight)
 ! Sum up over all species
 DO iSpec = 1, nSpecies
-  IF((SpecDSMC(iSpec)%InterID.EQ.2).OR.(SpecDSMC(iSpec)%InterID.EQ.20)) THEN
+  IF((Species(iSpec)%InterID.EQ.2).OR.(Species(iSpec)%InterID.EQ.20)) THEN
     TEquiNum = TEquiNum + Xi_RotSpec(iSpec)*RotFracSpec(iSpec)*TRotSpec(iSpec)
     TEquiDenom = TEquiDenom + Xi_RotSpec(iSpec)*RotFracSpec(iSpec)
     IF(BGKDoVibRelaxation) THEN
@@ -890,7 +890,7 @@ i=0
 outerLoop: DO WHILE ( ABS( TEqui - TEqui_Old ) .GT. eps_prec )
   i = i + 1
   DO iSpec = 1, nSpecies
-    IF((SpecDSMC(iSpec)%InterID.EQ.2).OR.(SpecDSMC(iSpec)%InterID.EQ.20)) THEN
+    IF((Species(iSpec)%InterID.EQ.2).OR.(Species(iSpec)%InterID.EQ.20)) THEN
       ! if difference small: equilibrium, no beta
       IF (ABS(TRotSpec(iSpec)-TEqui).GT.1E-3) THEN
         betaR(iSpec) = (TRotSpec(iSpec)-CellTemp)/(TRotSpec(iSpec)-TEqui)
@@ -948,7 +948,7 @@ outerLoop: DO WHILE ( ABS( TEqui - TEqui_Old ) .GT. eps_prec )
   TEquiDenom = 3.*(totalWeight - totalWeight2/totalWeight)
   ! Sum up over all species
   DO iSpec = 1, nSpecies
-    IF((SpecDSMC(iSpec)%InterID.EQ.2).OR.(SpecDSMC(iSpec)%InterID.EQ.20)) THEN
+    IF((Species(iSpec)%InterID.EQ.2).OR.(Species(iSpec)%InterID.EQ.20)) THEN
       TEquiNum = TEquiNum + Xi_RotSpec(iSpec)*RotFracSpec(iSpec)*TRotSpec(iSpec)
       TEquiDenom = TEquiDenom + Xi_RotSpec(iSpec)*RotFracSpec(iSpec)
       IF(BGKDoVibRelaxation) THEN
@@ -966,7 +966,7 @@ outerLoop: DO WHILE ( ABS( TEqui - TEqui_Old ) .GT. eps_prec )
       ! mean value of old and new equilibrium temperature
       TEqui = (TEqui + TEqui_Old2) * 0.5
       DO iSpec = 1, nSpecies
-        IF((SpecDSMC(iSpec)%InterID.EQ.2).OR.(SpecDSMC(iSpec)%InterID.EQ.20)) THEN
+        IF((Species(iSpec)%InterID.EQ.2).OR.(Species(iSpec)%InterID.EQ.20)) THEN
           ! new calculation of the vibrational degrees of freedom per species
           IF(SpecDSMC(iSpec)%PolyatomicMol) THEN
             iPolyatMole = SpecDSMC(iSpec)%SpecToPolyArray
@@ -1002,7 +1002,7 @@ outerLoop: DO WHILE ( ABS( TEqui - TEqui_Old ) .GT. eps_prec )
       TEquiDenom = 3.*(totalWeight - totalWeight2/totalWeight)
       ! Sum up over all species
       DO iSpec = 1, nSpecies
-        IF((SpecDSMC(iSpec)%InterID.EQ.2).OR.(SpecDSMC(iSpec)%InterID.EQ.20)) THEN
+        IF((Species(iSpec)%InterID.EQ.2).OR.(Species(iSpec)%InterID.EQ.20)) THEN
           TEquiNum = TEquiNum + Xi_RotSpec(iSpec)*RotFracSpec(iSpec)*TRotSpec(iSpec) + &
             Xi_VibSpec(iSpec)*VibFracSpec(iSpec)*TVibSpec(iSpec)
           TEquiDenom = TEquiDenom + Xi_RotSpec(iSpec)*RotFracSpec(iSpec) + Xi_VibSpecNew(iSpec)*VibFracSpec(iSpec)
@@ -1079,7 +1079,7 @@ DO iLoop = 1, nPart
   END IF
 
   ! For molecules: relaxation of inner DOF
-  IF((SpecDSMC(iSpec)%InterID.EQ.2).OR.(SpecDSMC(iSpec)%InterID.EQ.20)) THEN
+  IF((Species(iSpec)%InterID.EQ.2).OR.(Species(iSpec)%InterID.EQ.20)) THEN
     ! Rotation
     CALL RANDOM_NUMBER(iRan)
     ! Count particles that are undergoing a relaxation, in total and per species
@@ -1640,7 +1640,7 @@ SUBROUTINE CalcViscosityThermalCondColIntVHS(CellTemp, Xi, dens, Xi_RotSpec, Xi_
 !> Sphere model). Solving an equation system depending on the number of species.
 !===================================================================================================================================
 ! MODULES
-USE MOD_DSMC_Vars,              ONLY : CollInf, SpecDSMC
+USE MOD_DSMC_Vars,              ONLY : CollInf
 USE MOD_Globals_Vars,           ONLY : BoltzmannConst
 USE MOD_Particle_Vars,          ONLY : Species, nSpecies
 IMPLICIT NONE
@@ -1666,7 +1666,7 @@ Xj_Dij = 0.; cv_rot = 0.; cv_vib = 0.; E_12 = 0.
 DO iSpec = 1, nSpecies
   IF (Xi(iSpec).LE.0.0) CYCLE
   ! Calculate cv with rotational and vibrational degrees of freedom
-  IF ((SpecDSMC(iSpec)%InterID.EQ.2).OR.(SpecDSMC(iSpec)%InterID.EQ.20)) THEN
+  IF ((Species(iSpec)%InterID.EQ.2).OR.(Species(iSpec)%InterID.EQ.20)) THEN
     cv_rot = (Xi_RotSpec(iSpec)*BoltzmannConst)/(2.*Species(iSpec)%MassIC)
     cv_vib = (Xi_VibSpec(iSpec)*BoltzmannConst)/(2.*Species(iSpec)%MassIC)
   END IF
@@ -1692,7 +1692,7 @@ DO iSpec = 1, nSpecies
       ThermalCondSpec(iSpec) = (25./16.)*(cv*BoltzmannConst*CellTemp(iSpec))/Sigma_22
       ! Results in the same as ThermalCondSpec(iSpec) = (15./4.)*BoltzmannConst/(2.*Mass)*ViscSpec(iSpec)
       ! Additional calculation of Sigma_11VHS and the diffusion coefficient for molecular species
-      IF ((SpecDSMC(iSpec)%InterID.EQ.2).OR.(SpecDSMC(iSpec)%InterID.EQ.20)) THEN
+      IF ((Species(iSpec)%InterID.EQ.2).OR.(Species(iSpec)%InterID.EQ.20)) THEN
         CALL CalcSigma_11VHS(CellTemp(nSpecies+1), InteractDiam, Mass, TVHS, omegaVHS, Sigma_11)
         E_12 = BoltzmannConst*CellTemp(nSpecies+1)/(8.*Species(iSpec)%MassIC*Species(jSpec)%MassIC &
           /(Species(iSpec)%MassIC+Species(jSpec)%MassIC)**2.*Sigma_11)
@@ -1716,7 +1716,7 @@ DO iSpec = 1, nSpecies
     Xj_Dij(iSpec,jSpec) = Xi(jSpec)/DiffCoef(iSpec,jSpec)
     Xj_Dij(jSpec,iSpec) = Xj_Dij(iSpec,jSpec)
   END DO
-  IF ((SpecDSMC(iSpec)%InterID.EQ.2).OR.(SpecDSMC(iSpec)%InterID.EQ.20)) THEN
+  IF ((Species(iSpec)%InterID.EQ.2).OR.(Species(iSpec)%InterID.EQ.20)) THEN
     ! Calculation of thermal conductivity of rotation and vibration for each molecular species
     ! S. Chapman and T.G. Cowling, "The mathematical Theory of Non-Uniform Gases", Cambridge University Press, 1970, S. 254f
     ! F. Hild, M. Pfeiffer, "Multi-species modeling in the particle-based ellipsoidal statistical Bhatnagar-Gross-Krook method

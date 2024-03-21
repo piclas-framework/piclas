@@ -42,38 +42,79 @@ CONTAINS
 
 SUBROUTINE InitPolyAtomicMolecs(iSpec)
 !===================================================================================================================================
-! Initialization of variables for polyatomic molecules
+!> Initialization of variables for polyatomic molecules
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_Globals_Vars,           ONLY : BoltzmannConst
-USE MOD_DSMC_Vars,              ONLY : DSMC, SpecDSMC, PolyatomMolDSMC
+USE MOD_Globals_Vars      ,ONLY: BoltzmannConst
+USE MOD_DSMC_Vars         ,ONLY: DSMC, SpecDSMC, PolyatomMolDSMC
 USE MOD_ReadInTools
+USE MOD_PARTICLE_Vars     ,ONLY: Species, SpeciesDatabase
+USE MOD_io_hdf5
+USE MOD_HDF5_input        ,ONLY: ReadAttribute, DatasetExists, AttributeExists
+#if USE_MPI
+USE MOD_LoadBalance_Vars  ,ONLY: PerformLoadBalance
+#endif /*USE_MPI*/
 ! IMPLICIT VARIABLE HANDLING
-  IMPLICIT NONE
+IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-  INTEGER, INTENT(IN)           ::  iSpec
+INTEGER, INTENT(IN)       :: iSpec
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-  CHARACTER(32)                  :: hilf, hilf2
-  INTEGER                        :: iPolyatMole, iVibDOF
+CHARACTER(32)             :: hilf, hilf2
+CHARACTER(LEN=64)         :: dsetname
+INTEGER                   :: iPolyatMole, iVibDOF, IntToLog, err
+INTEGER(HID_T)            :: file_id_specdb                       ! File identifier
+LOGICAL                   :: AttrExists
 !===================================================================================================================================
+
+LBWRITE (UNIT_stdOut,'(68(". "))')
 WRITE(UNIT=hilf,FMT='(I0)') iSpec
 iPolyatMole = SpecDSMC(iSpec)%SpecToPolyArray
-PolyatomMolDSMC(iPolyatMole)%LinearMolec = GETLOGICAL('Part-Species'//TRIM(hilf)//'-LinearMolec')
+
+IF(SpeciesDatabase.NE.'none') THEN
+  ! Initialize FORTRAN interface.
+  CALL H5OPEN_F(err)
+  CALL H5FOPEN_F (TRIM(SpeciesDatabase), H5F_ACC_RDONLY_F, file_id_specdb, err)
+  dsetname = TRIM('/Species/'//TRIM(Species(iSpec)%Name))
+  ! Linear molecule
+  CALL ReadAttribute(file_id_specdb,'LinearMolec',1,DatasetName = dsetname,IntScalar=IntToLog)
+  IF(IntToLog.EQ.1) THEN
+    PolyatomMolDSMC(iPolyatMole)%LinearMolec = .TRUE.
+  ELSE
+    PolyatomMolDSMC(iPolyatMole)%LinearMolec = .FALSE.
+  END IF
+  CALL PrintOption('LinearMolec, '//TRIM(Species(iSpec)%Name),'DB',LogOpt=PolyatomMolDSMC(iPolyatMole)%LinearMolec)
+  ! Number of atoms
+  CALL ReadAttribute(file_id_specdb,'NumOfAtoms',1,DatasetName = dsetname,IntScalar=PolyatomMolDSMC(iPolyatMole)%NumOfAtoms)
+  CALL PrintOption('NumOfAtoms, '//TRIM(Species(iSpec)%Name),'DB',IntOpt=PolyatomMolDSMC(iPolyatMole)%NumOfAtoms)
+  ! Dissociation energy
+  ! TSHO not implemented with polyatomic molecules, but Ediss_eV required for the calculation of polyatomic temp. (upper bound)
+  CALL ReadAttribute(file_id_specdb,'Ediss_eV',1,DatasetName = dsetname,RealScalar=SpecDSMC(iSpec)%Ediss_eV)
+  CALL PrintOption('Ediss_eV, '//TRIM(Species(iSpec)%Name),'DB',RealOpt=SpecDSMC(iSpec)%Ediss_eV)
+  ! Close the file.
+  CALL H5FCLOSE_F(file_id_specdb, err)
+  ! Close FORTRAN interface.
+  CALL H5CLOSE_F(err)
+END IF
+
+IF(Species(iSpec)%DoOverwriteParameters) THEN
+  PolyatomMolDSMC(iPolyatMole)%LinearMolec = GETLOGICAL('Part-Species'//TRIM(hilf)//'-LinearMolec')
+  PolyatomMolDSMC(iPolyatMole)%NumOfAtoms = GETINT('Part-Species'//TRIM(hilf)//'-NumOfAtoms')
+  SpecDSMC(iSpec)%Ediss_eV   = GETREAL('Part-Species'//TRIM(hilf)//'-Ediss_eV')
+END IF
+
+IF(SpecDSMC(iSpec)%Ediss_eV.EQ.0.) THEN
+  CALL abort(__STAMP__,'ERROR in Polyatomic Species-Ini: Missing dissociation energy, Species: ',iSpec)
+END IF
+
 IF (PolyatomMolDSMC(iPolyatMole)%LinearMolec) THEN
   SpecDSMC(iSpec)%Xi_Rot = 2
 ELSE
   SpecDSMC(iSpec)%Xi_Rot = 3
-END IF
-PolyatomMolDSMC(iPolyatMole)%NumOfAtoms = GETINT('Part-Species'//TRIM(hilf)//'-NumOfAtoms')
-! TSHO not implemented with polyatomic molecules, but Ediss_eV required for the calculation of polyatomic temp. (upper bound)
-SpecDSMC(iSpec)%Ediss_eV   = GETREAL('Part-Species'//TRIM(hilf)//'-Ediss_eV','0.')
-IF(SpecDSMC(iSpec)%Ediss_eV.EQ.0.) THEN
-  CALL abort(__STAMP__,'ERROR in Polyatomic Species-Ini: Missing dissociation energy, Species: ',iSpec)
 END IF
 PolyatomMolDSMC(iPolyatMole)%VibDOF = 3*PolyatomMolDSMC(iPolyatMole)%NumOfAtoms - 3 - SpecDSMC(iSpec)%Xi_Rot
 ALLOCATE(PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(PolyatomMolDSMC(iPolyatMole)%VibDOF))
@@ -85,23 +126,67 @@ IF(DSMC%PolySingleMode) THEN
 END IF
 ! Read-in of characteristic rotational temperature
 ALLOCATE(PolyatomMolDSMC(iPolyatMole)%CharaTRotDOF(3))
-IF(PolyatomMolDSMC(iPolyatMole)%LinearMolec) THEN
-  PolyatomMolDSMC(iPolyatMole)%CharaTRotDOF(1) = GETREAL('Part-Species'//TRIM(hilf)//'-CharaTempRot','0')
-  PolyatomMolDSMC(iPolyatMole)%CharaTRotDOF(2:3) = 1
-ELSE
-  DO iVibDOF = 1,3
+
+IF(SpeciesDatabase.NE.'none') THEN
+  ! Initialize FORTRAN interface.
+  CALL H5OPEN_F(err)
+  CALL H5FOPEN_F (TRIM(SpeciesDatabase), H5F_ACC_RDONLY_F, file_id_specdb, err)
+  dsetname = TRIM('/Species/'//TRIM(Species(iSpec)%Name))
+  IF(PolyatomMolDSMC(iPolyatMole)%LinearMolec) THEN
+    CALL AttributeExists(file_id_specdb,'CharaTempRot',TRIM(dsetname), AttrExists=AttrExists)
+    IF (AttrExists) THEN
+      CALL ReadAttribute(file_id_specdb,'CharaTempRot',1,DatasetName = dsetname,RealScalar=PolyatomMolDSMC(iPolyatMole)%CharaTRotDOF(1))
+    ELSE
+      PolyatomMolDSMC(iPolyatMole)%CharaTRotDOF(1) = 0
+    END IF
+    CALL PrintOption('CharaTempRot, '//TRIM(Species(iSpec)%Name),'DB',RealOpt=PolyatomMolDSMC(iPolyatMole)%CharaTRotDOF(1))
+    PolyatomMolDSMC(iPolyatMole)%CharaTRotDOF(2:3) = 1
+  ELSE
+    DO iVibDOF = 1,3
+      WRITE(UNIT=hilf2,FMT='(I0)') iVibDOF
+      CALL AttributeExists(file_id_specdb,TRIM('CharaTempRot'//TRIM(hilf2)),TRIM(dsetname), AttrExists=AttrExists)
+      IF (AttrExists) THEN
+        CALL ReadAttribute(file_id_specdb,TRIM('CharaTempRot'//TRIM(hilf2)),1,DatasetName = dsetname,RealScalar=PolyatomMolDSMC(iPolyatMole)%CharaTRotDOF(iVibDOF))
+      ELSE
+        PolyatomMolDSMC(iPolyatMole)%CharaTRotDOF(iVibDOF) = 0
+      END IF
+      CALL PrintOption('CharaTempRot'//TRIM(hilf2)//' '//TRIM(Species(iSpec)%Name),'DB',RealOpt=PolyatomMolDSMC(iPolyatMole)%CharaTRotDOF(iVibDOF))
+    END DO
+  END IF
+  ! Read-in of characteristic vibrational temperature
+  DO iVibDOF = 1, PolyatomMolDSMC(iPolyatMole)%VibDOF
     WRITE(UNIT=hilf2,FMT='(I0)') iVibDOF
-    PolyatomMolDSMC(iPolyatMole)%CharaTRotDOF(iVibDOF) = &
-      GETREAL('Part-Species'//TRIM(hilf)//'-CharaTempRot'//TRIM(hilf2),'0')
+    CALL ReadAttribute(file_id_specdb,TRIM('CharaTempVib'//TRIM(hilf2)),1,DatasetName = dsetname,RealScalar=PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iVibDOF))
+    CALL PrintOption('CharaTempVib'//TRIM(hilf2)//' '//TRIM(Species(iSpec)%Name),'DB',RealOpt=PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iVibDOF))
+  END DO
+  ! Close the file.
+  CALL H5FCLOSE_F(file_id_specdb, err)
+  ! Close FORTRAN interface.
+  CALL H5CLOSE_F(err)
+END IF
+
+IF(Species(iSpec)%DoOverwriteParameters) THEN
+  IF(PolyatomMolDSMC(iPolyatMole)%LinearMolec) THEN
+    PolyatomMolDSMC(iPolyatMole)%CharaTRotDOF(1) = GETREAL('Part-Species'//TRIM(hilf)//'-CharaTempRot','0')
+    PolyatomMolDSMC(iPolyatMole)%CharaTRotDOF(2:3) = 1
+  ELSE
+    DO iVibDOF = 1,3
+      WRITE(UNIT=hilf2,FMT='(I0)') iVibDOF
+      PolyatomMolDSMC(iPolyatMole)%CharaTRotDOF(iVibDOF) = GETREAL('Part-Species'//TRIM(hilf)//'-CharaTempRot'//TRIM(hilf2),'0')
+    END DO
+  END IF
+  ! Read-in of characteristic vibrational temperature
+  DO iVibDOF = 1, PolyatomMolDSMC(iPolyatMole)%VibDOF
+    WRITE(UNIT=hilf2,FMT='(I0)') iVibDOF
+    PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iVibDOF) = GETREAL('Part-Species'//TRIM(hilf)//'-CharaTempVib'//TRIM(hilf2))
   END DO
 END IF
-! Read-in of characteristic vibrational temperature and calculation of zero-point energy
+
+! Calculation of zero-point energy
 DO iVibDOF = 1, PolyatomMolDSMC(iPolyatMole)%VibDOF
-  WRITE(UNIT=hilf2,FMT='(I0)') iVibDOF
-  PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iVibDOF) = GETREAL('Part-Species'//TRIM(hilf)//'-CharaTempVib'//TRIM(hilf2))
-  SpecDSMC(iSpec)%EZeroPoint = SpecDSMC(iSpec)%EZeroPoint &
-    + DSMC%GammaQuant*PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iVibDOF)*BoltzmannConst
+  SpecDSMC(iSpec)%EZeroPoint = SpecDSMC(iSpec)%EZeroPoint + DSMC%GammaQuant*PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iVibDOF)*BoltzmannConst
 END DO
+
 ALLOCATE(PolyatomMolDSMC(iPolyatMole)%MaxVibQuantDOF(PolyatomMolDSMC(iPolyatMole)%VibDOF))
 ! Maximum number of quantum number per DOF cut at 80 to reduce computational effort
 PolyatomMolDSMC(iPolyatMole)%MaxVibQuantDOF(1:PolyatomMolDSMC(iPolyatMole)%VibDOF) = 80
@@ -208,7 +293,7 @@ PartStateIntEn( 2,iPart) = 0
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Set vibrational and rotational energies for molecules
 !-----------------------------------------------------------------------------------------------------------------------------------
-IF ((SpecDSMC(iSpec)%InterID.EQ.2).OR.(SpecDSMC(iSpec)%InterID.EQ.20)) THEN
+IF ((Species(iSpec)%InterID.EQ.2).OR.(Species(iSpec)%InterID.EQ.20)) THEN
   ElemID = PEM%LocalElemID(iPart)
   SELECT CASE (init_or_sf)
   CASE(1) !iInit
@@ -257,12 +342,12 @@ END IF
 ! Set electronic energy
 !-----------------------------------------------------------------------------------------------------------------------------------
 IF (DSMC%ElectronicModel.GT.0) THEN
-  IF((SpecDSMC(iSpec)%InterID.NE.4).AND.(.NOT.SpecDSMC(iSpec)%FullyIonized)) THEN
+  IF((Species(iSpec)%InterID.NE.4).AND.(.NOT.SpecDSMC(iSpec)%FullyIonized)) THEN
     CALL InitElectronShell(iSpec,iPart,iInit,init_or_sf)
   ELSE
     PartStateIntEn( 3,iPart) = 0.
   END IF
-ENDIF
+END IF
 
 END SUBROUTINE DSMC_SetInternalEnr
 

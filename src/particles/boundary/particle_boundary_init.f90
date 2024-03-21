@@ -366,8 +366,6 @@ PartMeshHasPeriodicBCs= .FALSE.
 PartBound%UseRotPeriodicBC     = .FALSE.
 nRotPeriodicBCs       = 0
 PartBound%UseInterPlaneBC      = .FALSE.
-! TODO: REMOVE THIS CALL WHEN MERGED WITH UNIFIED SPECIES DATABASE BRANCH
-SpeciesDatabase = GETSTR('Particles-Species-Database', 'none')
 
 ! Read-in flag for output of boundary-related data in a csv for regression testing
 PartBound%OutputBCDataForTesting         = GETLOGICAL('PartBound-OutputBCDataForTesting')
@@ -607,7 +605,7 @@ DO iPBC=1,nPartBound
     IF (TRIM(BoundaryName(iBC)).EQ.TRIM(PartBound%SourceBoundName(iPBC))) THEN
       PartBound%MapToPartBC(iBC) = iPBC !PartBound%TargetBoundCond(iPBC)
       PartBound%MapToFieldBC(iPBC) = iBC ! part BC to field BC
-      LBWRITE(*,*) " | Mapped PartBound",iPBC,"on FieldBound", iBC,", i.e.: ",TRIM(BoundaryName(iBC))
+      LBWRITE(*,*) "| Mapped PartBound",iPBC,"on FieldBound", iBC,", i.e.: ",TRIM(BoundaryName(iBC))
     END IF
   END DO
 END DO

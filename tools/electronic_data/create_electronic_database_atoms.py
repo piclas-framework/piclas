@@ -52,33 +52,37 @@ for current_species in species_list:
   data = data.replace(' ','')
   data = data.replace('"','')
   # Read-in data as a pandas dataframe
-  data = pd.read_csv(io.StringIO(data),skipinitialspace=True,delimiter=",",usecols=['J','Levelcm-1'], na_values=['---'])
+  data = pd.read_csv(io.StringIO(data),skipinitialspace=True,delimiter=",",usecols=['J','Prefix'], na_values=['---'])
   # Drop rows with an empty cell and '---' entries (which were converted to N/A during read-in)
   # and also drop all rows following the first '---' entry
   J     = data.columns.get_loc("J")
-  Level = data.columns.get_loc("Levelcm-1")
+  Level = data.columns.get_loc("Prefix")
   rows_with_nan = [index for index, row in data.iterrows() if row.isnull().any()]
-  max_level = rows_with_nan[0]
-  drop_to_end = 1 - (len(data)-max_level)
-  if drop_to_end < 0:
-    data = data.iloc[:drop_to_end]
-  elif drop_to_end == 0:
-    pass
+  if len(rows_with_nan) == 1:
+    max_level = rows_with_nan[0]
+    drop_to_end = 1 - (len(data)-max_level)
+    if drop_to_end < 0:
+      data = data.iloc[:drop_to_end]
+    elif drop_to_end == 0:
+      pass
+    else:
+      print("ERROR: drop_to_end must be negative!")
+      exit(1)
   else:
-    print("ERROR: drop_to_end must be negative!")
-    exit(1)
+    for val in rows_with_nan:
+      data = data.drop(val)
+    max_level = len(data)-1
   if data['J'].dtype == 'float64':
       data.iloc[max_level,J] = 0.0
   else:
       data.iloc[max_level,J] = "0.0"
 
   # Check the datatype: if its a float, then all non-numerical characters have already been removed
-  if data['Levelcm-1'].dtype != 'float64':
+  if data['Prefix'].dtype != 'float64':
     # Drop rows with a question mark ("This level/line may not be real.")
-    data.drop(data[data['Levelcm-1'].str.contains(r'[?]')].index,inplace=True)
+    data.drop(data[data['Prefix'].str.contains(r'[?]')].index,inplace=True)
     # Drop rows with a +x ("The relative positions of the levels within such a system are accurate within experimental uncertainties, but no experimental connection between this system and the other levels of the spectrum has been made.")
-    data.drop(data[data['Levelcm-1'].str.contains(r'[+x]')].index,inplace=True)
-
+    data.drop(data[data['Prefix'].str.contains(r'[+x]')].index,inplace=True)
   # Execute fractions and convert J to g
   if data['J'].dtype != 'float64':
       for i in range(len(data['J'])):
@@ -98,11 +102,11 @@ for current_species in species_list:
   data['J'] = data['J'].astype(float)
 
   # Convert 1/cm to K
-  data['Levelcm-1'] = data['Levelcm-1'].astype(float)
-  data['Levelcm-1'] = 100 * data['Levelcm-1'] * 1.986E-025 / 1.38065E-023           # 1/cm * 100cm/m * (J m) / (J/K) = K
+  data['Prefix'] = data['Prefix'].astype(float)
+  data['Prefix'] = 100 * data['Prefix'] * 1.986E-025 / 1.38065E-023           # 1/cm * 100cm/m * (J m) / (J/K) = K
 
   x_old=0.
-  for i in range(len(data['Levelcm-1'])):
+  for i in range(len(data['Prefix'])):
     x = data.iloc[i,Level]
     if x < x_old:
       print('Error in level %s: the energy is not increasing with the levels E2=%s < E1=%s' % (i,x,x_old))

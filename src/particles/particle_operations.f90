@@ -137,7 +137,7 @@ SUBROUTINE RemoveParticle(PartID,BCID,alpha,crossedBC)
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals_Vars              ,ONLY: ElementaryCharge
-USE MOD_Particle_Vars             ,ONLY: PDM, PartSpecies, Species, PartMPF, usevMPF, PartState, PartPosRef, Pt
+USE MOD_Particle_Vars             ,ONLY: PDM, PartSpecies, Species, usevMPF, PartState, PartPosRef, Pt
 USE MOD_Particle_Sampling_Vars    ,ONLY: UseAdaptiveBC, AdaptBCPartNumOut
 USE MOD_Particle_Vars             ,ONLY: UseNeutralization, NeutralizationSource, NeutralizationBalance,nNeutralizationElems
 USE MOD_Particle_Boundary_Vars    ,ONLY: PartBound
@@ -152,13 +152,15 @@ USE MOD_Particle_Vars             ,ONLY: Pt_temp
 #endif
 USE MOD_Particle_Analyze_Tools    ,ONLY: CalcEkinPart
 USE MOD_part_tools                ,ONLY: GetParticleWeight
-USE MOD_DSMC_Vars                 ,ONLY: CollInf, AmbipolElecVelo, ElectronicDistriPart, VibQuantsPar
+USE MOD_DSMC_Vars                 ,ONLY: CollInf, AmbipolElecVelo, ElectronicDistriPart, VibQuantsPar, RadialWeighting
 USE MOD_Mesh_Vars                 ,ONLY: BoundaryName
 #if USE_HDG
 USE MOD_Globals                   ,ONLY: abort
 USE MOD_HDG_Vars                  ,ONLY: UseFPC,FPC,UseEPC,EPC
 USE MOD_Mesh_Vars                 ,ONLY: BoundaryType
 #endif /*USE_HDG*/
+USE MOD_Particle_Vars             ,ONLY: PartState!, LastPartPos
+!USE MOD_Particle_Mesh_Vars        ,ONLY: GEO
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
 ! INPUT / OUTPUT VARIABLES
@@ -169,7 +171,7 @@ LOGICAL, INTENT(OUT),OPTIONAL :: crossedBC               !< optional flag is nee
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! LOCAL VARIABLES
 INTEGER                       :: iSpec, iSF
-REAL                          :: MPF
+REAL                          :: MPF!,RandVal(2)
 #if USE_HDG
 INTEGER                       :: iBC,iUniqueFPCBC,iUniqueEPCBC,BCState
 #endif /*USE_HDG*/
@@ -227,13 +229,17 @@ Pt_temp(1:6,PartID)   = 0.
 !   - the mass flow through the boundary shall be calculated or
 !   - the charges impinging on the boundary are to be summed (thruster neutralization)
 IF(PRESENT(BCID)) THEN
-
+  ! Determine the particle weight
+  IF(usevMPF.OR.RadialWeighting%DoRadialWeighting) THEN
+    MPF = GetParticleWeight(PartID)
+  ELSE
+    MPF = GetParticleWeight(PartID) * Species(iSpec)%MacroParticleFactor
+  END IF
   ! Check if adaptive BC or surface flux info
   IF(UseAdaptiveBC.OR.CalcSurfFluxInfo) THEN
     DO iSF=1,Species(iSpec)%nSurfacefluxBCs
       IF(Species(iSpec)%Surfaceflux(iSF)%BC.EQ.BCID) THEN
-        Species(iSpec)%Surfaceflux(iSF)%SampledMassflow = Species(iSpec)%Surfaceflux(iSF)%SampledMassflow &
-                                                          - GetParticleWeight(PartID)
+        Species(iSpec)%Surfaceflux(iSF)%SampledMassflow = Species(iSpec)%Surfaceflux(iSF)%SampledMassflow - MPF
         IF(Species(iSpec)%Surfaceflux(iSF)%AdaptiveType.EQ.4)  AdaptBCPartNumOut(iSpec,iSF) = AdaptBCPartNumOut(iSpec,iSF) + 1
       END IF
     END DO
@@ -252,11 +258,6 @@ IF(PRESENT(BCID)) THEN
 
   ! Check if BPO boundary is encountered
   IF(CalcBoundaryParticleOutput)THEN
-    IF(usevMPF)THEN
-      MPF = PartMPF(PartID)
-    ELSE
-      MPF = Species(iSpec)%MacroParticleFactor
-    END IF
     ASSOCIATE( iBPOBC   => BPO%BCIDToBPOBCID(BCID),&
                iBPOSpec => BPO%SpecIDToBPOSpecID(iSpec))
       IF(iBPOBC.GT.0.AND.iBPOSpec.GT.0)THEN! count this species on this BC
@@ -271,11 +272,6 @@ IF(PRESENT(BCID)) THEN
     iBC = PartBound%MapToFieldBC(BCID)
     IF(iBC.LE.0) CALL abort(__STAMP__,'iBC = PartBound%MapToFieldBC(BCID) must be >0',IntInfoOpt=iBC)
     IF(BoundaryType(iBC,BC_TYPE).EQ.20)THEN ! BCType = BoundaryType(iBC,BC_TYPE)
-      IF(usevMPF)THEN
-        MPF = PartMPF(PartID)
-      ELSE
-        MPF = Species(iSpec)%MacroParticleFactor
-      END IF
       BCState = BoundaryType(iBC,BC_STATE) ! State is iFPC
       iUniqueFPCBC = FPC%Group(BCState,2)
       FPC%ChargeProc(iUniqueFPCBC) = FPC%ChargeProc(iUniqueFPCBC) + Species(iSpec)%ChargeIC * MPF
@@ -287,17 +283,25 @@ IF(PRESENT(BCID)) THEN
     iBC = PartBound%MapToFieldBC(BCID)
     IF(iBC.LE.0) CALL abort(__STAMP__,'iBC = PartBound%MapToFieldBC(BCID) must be >0',IntInfoOpt=iBC)
     IF(BoundaryType(iBC,BC_TYPE).EQ.8)THEN ! BCType = BoundaryType(iBC,BC_TYPE)
-      IF(usevMPF)THEN
-        MPF = PartMPF(PartID)
-      ELSE
-        MPF = Species(iSpec)%MacroParticleFactor
-      END IF
       BCState = BoundaryType(iBC,BC_STATE) ! State is iEPC
       iUniqueEPCBC = EPC%Group(BCState,2)
       EPC%ChargeProc(iUniqueEPCBC) = EPC%ChargeProc(iUniqueEPCBC) + Species(iSpec)%ChargeIC * MPF
     END IF ! BCType.EQ.8
   END IF ! UseEPC
 #endif /*USE_HDG*/
+
+   ! ! Debugging: Move particles that impact the left BC to a specific location
+   ! IF(TRIM(BoundaryName(PartBound%MapToFieldBC(BCID))).EQ.'BC_LEFT')THEN
+   !   PartSpecies(PartID)        = 3
+   !   PDM%ParticleInside(PartID) = .TRUE.
+   !   PartState(1,PartID)        = -9e-9
+   !   LastPartPos(1,PartID)      = PartState(1,PartID)
+   !   CALL RANDOM_NUMBER(RandVal)
+   !   PartState(2,PartID)        = RandVal(1)*(GEO%zmaxglob-GEO%zminglob) + GEO%zminglob
+   !   PartState(3,PartID)        = RandVal(2)*(GEO%ymaxglob-GEO%yminglob) + GEO%yminglob
+   !   LastPartPos(2:3,PartID)    = PartState(2:3,PartID)
+   !   PartState(4:6,PartID)      = (/0., 0., 0./)
+   ! END IF ! TRIM(BoundaryName(PartBound%MapToFieldBC(BCID))).EQ.'BC_LEFT'
 END IF ! PRESENT(BCID)
 
 ! Tracking-relevant variables (not required if a particle is removed within the domain, e.g. removal due to radial weighting)

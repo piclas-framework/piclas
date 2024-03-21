@@ -171,7 +171,7 @@ SUBROUTINE CalcGammaVib()
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_Particle_Vars ,ONLY: nSpecies
+USE MOD_Particle_Vars ,ONLY: nSpecies, Species
 USE MOD_DSMC_Vars     ,ONLY: SpecDSMC, PolyatomMolDSMC, DSMC
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -187,7 +187,7 @@ REAL                  :: CharaTVib, TempTrans, GammaVib
 
 ! Calculate GammaVib Factor  = Xi_Vib² * exp(CharaTVib/T_trans) / 2
 DO iSpec = 1, nSpecies
-  IF((SpecDSMC(iSpec)%InterID.EQ.2).OR.(SpecDSMC(iSpec)%InterID.EQ.20)) THEN
+  IF((Species(iSpec)%InterID.EQ.2).OR.(Species(iSpec)%InterID.EQ.20)) THEN
     ! First, reset the GammaVib array/value
     IF(SpecDSMC(iSpec)%PolyatomicMol) THEN
       iPolyatMole = SpecDSMC(iSpec)%SpecToPolyArray
@@ -225,7 +225,7 @@ DO iSpec = 1, nSpecies
         END IF
       END IF  ! CharaTVib/TempTrans.LT.80
     END IF    ! TempTrans.GT.0.0
-  END IF      ! (SpecDSMC(iSpec)%InterID.EQ.2).OR.(SpecDSMC(iSpec)%InterID.EQ.20)
+  END IF      ! (Species(iSpec)%InterID.EQ.2).OR.(Species(iSpec)%InterID.EQ.20)
 END DO        ! iSpec = 1, nSpecies
 
 END SUBROUTINE CalcGammaVib
@@ -427,13 +427,13 @@ DO iPart=1,PDM%ParticleVecLength
     DSMC_Solution(7,iElem,iSpec) = DSMC_Solution(7,iElem, iSpec) + partWeight  !density number
     IF(useDSMC)THEN
       IF ((CollisMode.EQ.2).OR.(CollisMode.EQ.3)) THEN
-        IF ((SpecDSMC(PartSpecies(iPart))%InterID.EQ.2).OR.(SpecDSMC(PartSpecies(iPart))%InterID.EQ.20)) THEN
+        IF ((Species(PartSpecies(iPart))%InterID.EQ.2).OR.(Species(PartSpecies(iPart))%InterID.EQ.20)) THEN
           DSMC_Solution(8,iElem, iSpec) = DSMC_Solution(8,iElem, iSpec) &
             + (PartStateIntEn(1,iPart) - SpecDSMC(iSpec)%EZeroPoint)*partWeight
           DSMC_Solution(9,iElem, iSpec) = DSMC_Solution(9,iElem, iSpec)+PartStateIntEn(2,iPart)*partWeight
         END IF
         IF (DSMC%ElectronicModel.GT.0) THEN
-          IF ((SpecDSMC(iSpec)%InterID.NE.4).AND.(.NOT.SpecDSMC(iSpec)%FullyIonized)) THEN
+          IF ((Species(iSpec)%InterID.NE.4).AND.(.NOT.SpecDSMC(iSpec)%FullyIonized)) THEN
             DSMC_Solution(10,iElem,iSpec)=DSMC_Solution(10,iElem,iSpec)+PartStateIntEn(3,iPart)*partWeight
           END IF
         END IF
@@ -581,7 +581,7 @@ DO iElem = 1, nElems ! element/cell main loop
           ! compute internal energies / has to be changed for vfd
           IF(useDSMC)THEN
             IF ((CollisMode.EQ.2).OR.(CollisMode.EQ.3))THEN
-              IF ((SpecDSMC(iSpec)%InterID.EQ.2).OR.(SpecDSMC(iSpec)%InterID.EQ.20)) THEN
+              IF ((Species(iSpec)%InterID.EQ.2).OR.(Species(iSpec)%InterID.EQ.20)) THEN
                 IF(SpecDSMC(iSpec)%PolyatomicMol) THEN
                   IF( (PartEvib/PartNum) .GT. 0.0 ) THEN
                     Macro_TempVib = CalcTVibPoly(PartEvib/PartNum + SpecDSMC(iSpec)%EZeroPoint, iSpec)
@@ -604,7 +604,7 @@ DO iElem = 1, nElems ! element/cell main loop
                 END IF
               END IF
               IF (DSMC%ElectronicModel.GT.0) THEN
-                IF ((SpecDSMC(iSpec)%InterID.NE.4).AND.(.NOT.SpecDSMC(iSpec)%FullyIonized)) THEN
+                IF ((Species(iSpec)%InterID.NE.4).AND.(.NOT.SpecDSMC(iSpec)%FullyIonized)) THEN
                   Macro_TempElec = CalcTelec(PartEelec/PartNum, iSpec)
                   HeavyPartNum = HeavyPartNum + Macro_PartNum
                 END IF
@@ -836,7 +836,7 @@ SUBROUTINE WriteDSMCToHDF5(MeshFileName,OutputTime)
 !> Subroutine to write the sampled macroscopic solution to the HDF5 format
 !===================================================================================================================================
 ! MODULES
-USE MOD_DSMC_Vars     ,ONLY: DSMC, RadialWeighting, CollisMode, CollInf, SpecDSMC
+USE MOD_DSMC_Vars     ,ONLY: DSMC, RadialWeighting, CollisMode, CollInf
 USE MOD_MCC_Vars      ,ONLY: SpecXSec
 USE MOD_PreProc
 USE MOD_Globals
@@ -844,7 +844,7 @@ USE MOD_Globals_Vars  ,ONLY: ProjectName, ElementaryCharge
 USE MOD_Mesh_Vars     ,ONLY: offsetElem,nGlobalElems, nElems
 USE MOD_io_HDF5
 USE MOD_HDF5_Output   ,ONLY: WriteAttributeToHDF5, WriteHDF5Header, WriteArrayToHDF5
-USE MOD_Particle_Vars ,ONLY: nSpecies, UseVarTimeStep, SampleElecExcitation, ExcitationLevelCounter, DoVirtualCellMerge
+USE MOD_Particle_Vars ,ONLY: nSpecies, Species, UseVarTimeStep, SampleElecExcitation, ExcitationLevelCounter, DoVirtualCellMerge
 USE MOD_BGK_Vars      ,ONLY: BGKInitDone
 USE MOD_FPFlow_Vars   ,ONLY: FPInitDone
 ! IMPLICIT VARIABLE HANDLING
@@ -1003,8 +1003,8 @@ IF(SampleElecExcitation) THEN
     DO jSpec = iSpec, nSpecies
       iCase = CollInf%Coll_Case(iSpec,jSpec)
       IF(.NOT.SpecXSec(iCase)%UseElecXSec) CYCLE
-      ! Output of the non-electron species as first and electron species as the second index, in case multiple electron species are defined
-      IF(SpecDSMC(iSpec)%InterID.EQ.4) THEN
+      ! Output of the non-election species as first and electron species as the second index, in case multiple electron species are defined
+      IF(Species(iSpec)%InterID.EQ.4) THEN
         WRITE(SpecID,'(I3.3)') jSpec
         WRITE(SpecID2,'(I3.3)') iSpec
       ELSE
@@ -1184,7 +1184,7 @@ IF((Time.GE.(1-DSMC%TimeFracSamp)*TEnd).OR.WriteMacroVolumeValues) THEN
   ! mean collision probability of all collision pairs
   IF(DSMC%CollProbMeanCount.GT.0) THEN
     DSMC%QualityFacSamp(iElem,1) = DSMC%QualityFacSamp(iElem,1) + DSMC%CollProbMax
-    DSMC%QualityFacSamp(iElem,2) = DSMC%QualityFacSamp(iElem,2) + DSMC%CollProbMean / REAL(DSMC%CollProbMeanCount)
+    DSMC%QualityFacSamp(iElem,2) = DSMC%QualityFacSamp(iElem,2) + DSMC%CollProbMean
   END IF
   ! mean collision separation distance of actual collisions
   IF(DSMC%CollSepCount.GT.0) DSMC%QualityFacSamp(iElem,3) = DSMC%QualityFacSamp(iElem,3) + DSMC%MCSoverMFP
