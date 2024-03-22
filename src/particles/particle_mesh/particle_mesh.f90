@@ -168,7 +168,7 @@ USE MOD_Particle_Tracking_Vars ,ONLY: MeasureTrackTime,FastPeriodic,CountNbrOfLo
 USE MOD_Particle_Tracking_Vars ,ONLY: NbrOfLostParticles,NbrOfLostParticlesTotal,NbrOfLostParticlesTotal_old
 USE MOD_Particle_Tracking_Vars ,ONLY: PartStateLostVecLength,PartStateLost,PartLostDataSize
 USE MOD_Particle_Tracking_Vars ,ONLY: TrackingMethod, DisplayLostParticles
-USE MOD_PICInterpolation_Vars  ,ONLY: DoInterpolation
+!USE MOD_PICInterpolation_Vars  ,ONLY: DoInterpolation
 USE MOD_PICDepo_Vars           ,ONLY: DoDeposition,DepositionType
 USE MOD_ReadInTools            ,ONLY: GETREAL,GETINT,GETLOGICAL,GetRealArray, GETINTFROMSTR
 USE MOD_Particle_Vars          ,ONLY: Symmetry, DoVirtualCellMerge
@@ -488,11 +488,11 @@ SUBROUTINE FinalizeParticleMesh()
 ! MODULES
 USE MOD_Globals
 USE MOD_Particle_Mesh_Vars
-USE MOD_RayTracing_Vars        ,ONLY: UseRayTracing
+!USE MOD_RayTracing_Vars        ,ONLY: UseRayTracing
 #if USE_MPI
 USE MOD_Particle_Surfaces_Vars ,ONLY: BezierElevation
 USE MOD_PICDepo_Vars           ,ONLY: DepositionType
-USE MOD_PICInterpolation_Vars  ,ONLY: DoInterpolation
+!USE MOD_PICInterpolation_Vars  ,ONLY: DoInterpolation
 #endif /*USE_MPI*/
 USE MOD_Particle_BGM           ,ONLY: FinalizeBGM
 USE MOD_Mesh_ReadIn            ,ONLY: FinalizeMeshReadin

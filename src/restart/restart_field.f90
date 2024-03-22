@@ -147,7 +147,7 @@ INTEGER                            :: iElem
 REAL,ALLOCATABLE                   :: UTmp(:,:,:,:,:)
 #endif /*USE_LOADBALANCE*/
 REAL,ALLOCATABLE                   :: U_local(:,:,:,:,:)
-REAL,ALLOCATABLE                   :: U_local2(:,:,:,:,:)
+!REAL,ALLOCATABLE                   :: U_local2(:,:,:,:,:)
 INTEGER                            :: iPML
 INTEGER(KIND=IK)                   :: PMLnVarTmp
 #endif /*USE_HDG*/
