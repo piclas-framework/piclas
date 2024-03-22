@@ -176,15 +176,15 @@ stages:
 
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 # Defaults for other maxwell tests with PICLAS_DEBUG_MEMORY=ON
-.defaults_maxwell: &defaults_maxwell
+.defaults_maxwell_only: &defaults_maxwell_only
   extends: .default_param
-  needs: [build_maxwell]
+  needs: [build_maxwell_only]
   artifacts:
-    paths: [build_maxwell]
+    paths: [build_maxwell_only]
   cache:
     - *reggie_cache
     - key: "${CI_COMMIT_REF_SLUG}-MAX"
-      paths: [build_maxwell]
+      paths: [build_maxwell_only]
       policy: pull
   rules:
     - if: '$DO_CHECKIN'
@@ -349,19 +349,19 @@ build:
     - mkdir -p build ; cd build
     - cmake -GNinja .. -DLIBS_BUILD_HDF5=OFF -DPICLAS_BUILD_POSTI=ON -DPOSTI_BUILD_SUPERB=OFF -DPICLAS_READIN_CONSTANTS=ON ; ninja -j0 all
 
-build_maxwell:
+build_maxwell_only:
   extends: .default_build_param
   needs: [reggie_download]
   artifacts:
-    paths: [build_maxwell]
+    paths: [build_maxwell_only]
   cache:
     - *reggie_cache
     - key: "${CI_COMMIT_REF_SLUG}-MAX"
-      paths: [build_maxwell]
+      paths: [build_maxwell_only]
       policy: push
   stage: build
   script:
-    - mkdir -p build_maxwell ; cd build_maxwell
+    - mkdir -p build_maxwell_only ; cd build_maxwell_only
     - cmake .. -DPICLAS_DEBUG_MEMORY=ON -DPICLAS_PARTICLES=OFF -DLIBS_BUILD_HDF5=OFF -DPICLAS_READIN_CONSTANTS=ON ; $GENERATOR -j $NCORES all
 
 build_poisson:
@@ -546,11 +546,17 @@ run_basic:
   script:
     - cd build ; python ../reggie/reggie.py ../regressioncheck/run_basic/maxwell -e ./bin/piclas
 
-maxwell:
-  <<: *defaults_maxwell
+maxwell_only:
+  <<: *defaults_maxwell_only
   stage: reggie_checkin
   script:
-    - cd build_maxwell ; python ../reggie/reggie.py ../regressioncheck/CHE_maxwell/maxwell -e ./bin/piclas
+    - cd build_maxwell_only ; python ../reggie/reggie.py ../regressioncheck/CHE_maxwell/maxwell -e ./bin/piclas
+
+maxwell_p_adaption:
+  <<: *defaults_checkin
+  stage: reggie_checkin
+  script:
+    - cd build ; python ../reggie/reggie.py ../regressioncheck/CHE_PIC_maxwell_RK4_p_adaption/h_non_orthogonal -e ./bin/piclas
 
 poisson_release:
   <<: *defaults_poisson_checkin
