@@ -1347,7 +1347,7 @@ SDEALLOCATE(DataSizeSurfRecMin)
 
 ! Do not deallocate during load balance here as it needs to be communicated between the processors
 #if USE_LOADBALANCE
-IF(.NOT.(PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance)))THEN
+IF(.NOT.PerformLoadBalance)THEN
 #endif /*USE_LOADBALANCE*/
   ! First, free every shared memory window. This requires MPI_BARRIER as per MPI3.1 specification
   CALL MPI_BARRIER(MPI_COMM_SHARED,iERROR)

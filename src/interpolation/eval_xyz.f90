@@ -101,6 +101,7 @@ END IF
 
 CNElemID = GetCNElemID(ElemID)
 
+! Check if curved=T or NGeo=1
 IF (ElemCurved(CNElemID).OR.(NGeo.EQ.1)) THEN
   IF(PRESENT(isSuccessful))THEN
     CALL RefElemNewton(Xi,X_In,wBaryCL_NGeo,XiCL_NGeo,XCL_NGeo(:,:,:,:,ElemID),dXCL_NGeo(:,:,:,:,:,ElemID),NGeo,ElemID,Mode=iMode, isSuccessful=isSuccessful)
@@ -451,7 +452,7 @@ END IF ! useBGField
 END SUBROUTINE EvaluateFieldAtRefPos
 
 
-SUBROUTINE RefElemNewton(Xi,X_In,wBaryCL_N_In,XiCL_N_In,XCL_N_In,dXCL_N_In,N_In,ElemID,Mode,PartID,isSuccessful)
+SUBROUTINE RefElemNewton(Xi,X_In,wBaryCL_N_In,XiCL_N_In,XCL_N_In,dXCL_N_in,N_In,ElemID,Mode,PartID,isSuccessful)
 !=================================================================================================================================
 !> Newton for finding the position inside the reference element [-1,1] for an arbitrary physical point
 !=================================================================================================================================

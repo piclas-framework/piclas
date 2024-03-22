@@ -1446,7 +1446,7 @@ DO iElem = 1,nElems
       END DO
     END DO
   END DO  
-  dXCL_NGeo_Shared(:,:,:,:,:,offsetElem+iElem) =                  dXCL_NGeo(:,:,:,:,:,iElem)
+  dXCL_NGeo_Shared(:,:,:,:,:,offsetElem+iElem) = dXCL_NGeo(:,:,:,:,:,iElem)
 END DO ! iElem = 1, nElems
 
 ! Communicate XCL and dXCL between compute node roots instead of calculating globally

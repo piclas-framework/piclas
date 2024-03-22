@@ -196,7 +196,12 @@ LBWRITE(UNIT_StdOut,'(132("-"))')
 LBWRITE(UNIT_stdOut,'(A)') ' INIT ANALYZE...'
 
 ! Get logical for calculating the error norms L2 and LInf
+#if (PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400)
+DoCalcErrorNorms = .FALSE.
+CALL PrintOption('DSMC, BGK or FP detected, Setting DoCalcErrorNorms','INFO',LogOpt=DoCalcErrorNorms)
+#else
 DoCalcErrorNorms = GETLOGICAL('DoCalcErrorNorms')
+#endif /*(PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400)*/
 
 IF(DoCalcErrorNorms)THEN
   ! Get logical for writing the analytical solution, the error norms L2 and LInf to .h5

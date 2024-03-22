@@ -170,6 +170,11 @@ INTEGER                            :: Nloc
 #endif /*PP_POIS*/
 !===================================================================================================================================
 
+#if (PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400)
+! Return here for DSMC, BGK or FP time discretization methods
+RETURN
+#endif /*(PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400)*/
+
 ! ===========================================================================
 ! Distribute or read the field solution
 ! ===========================================================================

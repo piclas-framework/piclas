@@ -395,12 +395,12 @@ SELECT CASE(TrackingMethod)
 
     ! Interpolation needs coordinates in reference system
     !IF (DoInterpolation.OR.DSMC%UseOctree) THEN ! use this in future if possible
-    IF (DoInterpolation.OR.DoDeposition.OR.UseRayTracing) THEN
+    !IF (DoInterpolation.OR.DoDeposition.OR.UseRayTracing) THEN
       ! Do not call these functions twice. This is already done above
       IF(.NOT.UseBezierControlPoints)THEN
         CALL CalcParticleMeshMetrics()   ! Required for Elem_xGP_Shared and dXCL_NGeo_Shared
       END IF ! .NOT.UseBezierControlPoints
-    END IF ! DoInterpolation.OR.DSMC%UseOctree
+    !END IF ! DoInterpolation.OR.DSMC%UseOctree
     ! Also required for DSMC%UseOctree
     CALL CalcXCL_NGeo()              ! Required for XCL_NGeo_Shared
     CALL BuildElemTypeAndBasisTria() ! Required for ElemCurved_Shared, XiEtaZetaBasis_Shared, slenXiEtaZetaBasis_Shared. Needs XCL_NGeo_Shared
@@ -723,7 +723,7 @@ SELECT CASE (TrackingMethod)
 #endif /*USE_LOADBALANCE*/
 
     !IF (DoInterpolation.OR.DSMC%UseOctree) THEN ! use this in future if possible
-    IF (DoInterpolation.OR.DoDeposition.OR.UseRayTracing.OR.nSurfSampleAndTriaTracking) THEN
+    !IF (DoInterpolation.OR.DoDeposition.OR.UseRayTracing.OR.nSurfSampleAndTriaTracking) THEN
 #if USE_LOADBALANCE
       IF (.NOT.PerformLoadBalance) THEN
 #endif /*USE_LOADBALANCE*/
@@ -740,7 +740,7 @@ SELECT CASE (TrackingMethod)
       !  CALL UNLOCK_AND_FREE(XiEtaZetaBasis_Shared_Win)
       !  CALL UNLOCK_AND_FREE(slenXiEtaZetaBasis_Shared_Win)
       !END IF ! DoInterpolation.OR.DoDeposition.OR.UseRayTracing
-    END IF ! DoInterpolation.OR.DoDeposition.OR.UseRayTracing.OR.nSurfSampleAndTriaTracking
+    !END IF ! DoInterpolation.OR.DoDeposition.OR.UseRayTracing.OR.nSurfSampleAndTriaTracking
 
     ! Also required for DSMC%UseOctree: BuildElemTypeAndBasisTria()
     CALL UNLOCK_AND_FREE(ElemCurved_Shared_Win)
