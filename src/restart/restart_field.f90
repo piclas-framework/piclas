@@ -306,8 +306,8 @@ IF(PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance))THEN
     PetscCallA(VecSetValuesBlocked(lambda_petsc,1,PETScGlobal(SideID),lambda(1,:,SideID),INSERT_VALUES,ierr))
   END DO
   PetscCallA(VecAssemblyBegin(lambda_petsc,ierr))
-#endif
   PetscCallA(VecAssemblyEnd(lambda_petsc,ierr))
+#endif
 
   CALL RestartHDG() ! calls PostProcessGradient for calculate the derivative, e.g., the electric field E
 
