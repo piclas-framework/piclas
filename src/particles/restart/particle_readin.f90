@@ -148,7 +148,7 @@ IF (PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance)) THEN
   ! PartSource
   ! ------------------------------------------------
   ! 1.) relax deposition
-  ! 2.) particle delay time active
+  ! 2.) particle delay time active (t<tDelay)
   IF (DoDeposition .AND. (RelaxDeposition.OR.(time.LT.DelayTime))) THEN
     ! Store in Nmax^3 array
     ALLOCATE(PartSource(1:4,0:NMax,0:NMax,0:NMax,nElemsOld))
@@ -207,11 +207,11 @@ IF (PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance)) THEN
     END IF ! RelaxDeposition
 
 
-    ! 2.) particle delay time active
+    ! 2.) particle delay time active. Deposition is not performed, therefore the values must be communicated
     IF(time.LT.DelayTime)THEN
       DO iElem = 1, nElems
         Nloc = N_DG_Mapping(2,iElem+offSetElem)
-        ALLOCATE(PS_N(iElem)%PartSource(PP_nVar,0:Nloc,0:Nloc,0:Nloc))
+        ALLOCATE(PS_N(iElem)%PartSource(1:4,0:Nloc,0:Nloc,0:Nloc))
         DO k=0,Nloc
           DO j=0,Nloc
             DO i=0,Nloc
@@ -228,6 +228,15 @@ IF (PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance)) THEN
       END DO ! iElem = 1, PP_nElems
     END IF ! time.LE.DelayTime
     DEALLOCATE(PartSource)
+  ELSE
+    ! Re-allocate the source terms
+    DEALLOCATE(PS_N)
+    ALLOCATE(PS_N(1:nElems))
+    DO iElem = 1, nElems
+      Nloc = N_DG_Mapping(2,iElem+offSetElem)
+      ALLOCATE(PS_N(iElem)%PartSource(1:4,0:Nloc,0:Nloc,0:Nloc))
+      PS_N(iElem)%PartSource = 0.
+    END DO
   END IF ! (DoDeposition .AND. RelaxDeposition)
 
   ! ------------------------------------------------

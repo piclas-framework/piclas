@@ -671,7 +671,9 @@ USE MOD_DG_Vars
 #if USE_LOADBALANCE && ! (USE_HDG)
 USE MOD_LoadBalance_Vars ,ONLY: PerformLoadBalance,UseH5IOLoadBalance
 #endif /*USE_LOADBALANCE && ! (USE_HDG)*/
+#if !(USE_HDG)
 USE MOD_TimeDisc_Vars    ,ONLY: Ut_N
+#endif /*!(USE_HDG)*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -696,7 +698,10 @@ IF(.NOT.(PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance)))THEN
 #if USE_LOADBALANCE && !(USE_HDG)
 END IF
 #endif /*USE_LOADBALANCE && !(USE_HDG)*/
+
+#if !(USE_HDG)
 SDEALLOCATE(Ut_N)
+#endif /*!(USE_HDG)*/
 
 DGInitIsDone = .FALSE.
 END SUBROUTINE FinalizeDG
