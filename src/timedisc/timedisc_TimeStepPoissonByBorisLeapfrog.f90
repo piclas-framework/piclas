@@ -35,7 +35,6 @@ SUBROUTINE TimeStepPoissonByBorisLeapfrog()
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals                ,ONLY: Abort, LocalTime, CROSS, DOTPRODUCT, UNITVECTOR, VECNORM, PARTISELECTRON
-USE MOD_DG_Vars                ,ONLY: U
 USE MOD_PreProc
 USE MOD_TimeDisc_Vars          ,ONLY: dt,iter,time
 USE MOD_Globals_Vars           ,ONLY: c2_inv
@@ -95,7 +94,7 @@ CALL extrae_eventandcounters(int(9000001), int8(0))
 #endif /*EXTRAE*/
 #endif /*PARTICLES*/
 
-CALL HDG(time,U,iter)
+CALL HDG(time,iter)
 
 #ifdef PARTICLES
 #ifdef EXTRAE
@@ -221,7 +220,7 @@ CALL extrae_eventandcounters(int(9000001), int8(0))
 #ifdef EXTRAE
     CALL extrae_eventandcounters(int(9000001), int8(0))
 #endif /*EXTRAE*/
-    CALL HDG(time,U,iter)
+    CALL HDG(time,iter)
 #ifdef EXTRAE
     CALL extrae_eventandcounters(int(9000001), int8(5))
 #endif /*EXTRAE*/

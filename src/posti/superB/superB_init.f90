@@ -330,9 +330,11 @@ IMPLICIT NONE
 INTEGER         :: iElem
 !===================================================================================================================================
 SDEALLOCATE(TimeDepCoil)
-DO iElem = 1, nElems
-  SDEALLOCATE(N_BG(iElem)%BGFieldTDep)
-END DO
+IF(ALLOCATED(N_BG))THEN
+  DO iElem = 1, nElems
+    SDEALLOCATE(N_BG(iElem)%BGFieldTDep)
+  END DO
+END IF ! ALLOCATED(N_BG)
 END SUBROUTINE FinalizeSuperB
 
 END MODULE MOD_SuperB_Init
