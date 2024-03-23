@@ -143,16 +143,18 @@ CHARACTER(LEN=255),INTENT(IN),OPTIONAL :: MeshFile_IN !< file name of mesh to be
 ! LOCAL VARIABLES
 REAL                :: x(3)
 REAL,POINTER        :: Coords(:,:,:,:,:)
-INTEGER             :: iElem,i,j,k,nElemsLoc,MortarSideID
+INTEGER             :: iElem,i,j,k,nElemsLoc
 !CHARACTER(32)       :: hilf2
 CHARACTER(LEN=255)  :: FileName
 INTEGER             :: Nloc,iSide,NSideMin
-REAL                :: RandVal
+!REAL                :: RandVal
 !REAL                :: x1,r
 LOGICAL             :: validMesh,ExistFile,ReadNodes
-INTEGER             :: iMortar,nMortars
+#if USE_HDG
+INTEGER             :: iMortar,nMortars,MortarSideID
 INTEGER             :: SideID,locSide
-INTEGER             :: OffsetCounter,OffsetN_DG_Mapping,OffsetN_DG_Counter, locDofs, locN
+#endif /*USE_HDG*/
+INTEGER             :: OffsetCounter,OffsetN_DG_Mapping,locDofs, locN
 #if USE_MPI
 INTEGER             :: iProc
 INTEGER             :: sendbuf,recvbuf
@@ -1254,7 +1256,7 @@ USE MOD_Mesh_Vars
 #if defined(PARTICLES) && USE_LOADBALANCE
 USE MOD_LoadBalance_Vars ,ONLY: PerformLoadBalance
 #endif /*defined(PARTICLES) && USE_LOADBALANCE*/
-USE MOD_DG_Vars          ,ONLY: N_DG_Mapping,DG_Elems_master,DG_Elems_slave, N_DG_Mapping_Shared
+USE MOD_DG_Vars          ,ONLY: DG_Elems_master,DG_Elems_slave, N_DG_Mapping_Shared
 #if USE_MPI
 USE MOD_DG_Vars          ,ONLY: N_DG_Mapping_Shared_Win
 USE MOD_MPI_Vars         ,ONLY: DGExchange
@@ -1262,7 +1264,7 @@ USE MOD_MPI_Shared_Vars  ,ONLY: MPI_COMM_SHARED
 USE MOD_MPI_Shared
 #endif /*USE_MPI*/
 #if USE_LOADBALANCE
-USE MOD_LoadBalance_Vars ,ONLY: PerformLoadBalance,UseH5IOLoadBalance
+USE MOD_LoadBalance_Vars ,ONLY: PerformLoadBalance!,UseH5IOLoadBalance
 #endif /*USE_LOADBALANCE*/
 USE MOD_MPI_Vars         ,ONLY: DataSizeSideSend,DataSizeSurfSendMax,DataSizeSurfSendMin
 USE MOD_MPI_Vars         ,ONLY: DataSizeSideRec,DataSizeSurfRecMax,DataSizeSurfRecMin

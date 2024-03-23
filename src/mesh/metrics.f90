@@ -142,7 +142,7 @@ USE MOD_Mesh_Vars          ,ONLY: nElems
 USE MOD_Mesh_Vars          ,ONLY: DetJac_Ref
 USE MOD_Mesh_Vars          ,ONLY: crossProductMetrics
 USE MOD_Mesh_Vars          ,ONLY: NodeCoords,N_VolMesh
-USE MOD_Mesh_Vars          ,ONLY: nElems,offSetElem,nSides,N_SurfMesh
+USE MOD_Mesh_Vars          ,ONLY: nElems,offSetElem
 USE MOD_Interpolation      ,ONLY: GetVandermonde,GetNodesAndWeights,GetDerivativeMatrix
 USE MOD_ChangeBasis        ,ONLY: changeBasis3D,ChangeBasis3D_XYZ
 USE MOD_Basis              ,ONLY: LagrangeInterpolationPolys
@@ -191,7 +191,7 @@ REAL,ALLOCATABLE   :: scaledJacRef(:,:,:)
 REAL               :: SmallestscaledJacRef
 REAL,PARAMETER     :: scaledJacRefTol=0.01
 
-INTEGER           :: Nloc,iSide
+INTEGER           :: Nloc
 
 !===================================================================================================================================
 StartT=PICLASTIME()
@@ -447,13 +447,13 @@ SUBROUTINE CalcSurfMetrics(iElem)
 ! MODULES
 USE MOD_PreProc
 USE MOD_Globals            ,ONLY: CROSS
-USE MOD_Mesh_Vars          ,ONLY: ElemToSide,nSides,MortarType,xyzMinMax,GetMeshMinMaxBoundariesIsDone
+USE MOD_Mesh_Vars          ,ONLY: ElemToSide,MortarType,xyzMinMax,GetMeshMinMaxBoundariesIsDone!,nSides
 USE MOD_Mesh_Vars          ,ONLY: NormalDirs,TangDirs,NormalSigns, N_SurfMesh
 USE MOD_Mappings           ,ONLY: CGNS_SideToVol2
 USE MOD_ChangeBasis        ,ONLY: ChangeBasis2D
 USE MOD_Mortar_Metrics     ,ONLY: Mortar_CalcSurfMetrics
 USE MOD_DG_Vars            ,ONLY: N_DG_Mapping,DG_Elems_master,DG_Elems_slave
-USE MOD_Interpolation_Vars ,ONLY: Nmax,NInfo,PREF_VDM,N_Inter
+USE MOD_Interpolation_Vars ,ONLY: Nmax,NInfo!,PREF_VDM,N_Inter
 USE MOD_Mesh_Vars,          ONLY: SideToElem, offSetElem
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! IMPLICIT VARIABLE HANDLING
@@ -475,7 +475,7 @@ REAL               :: Mortar_xGP( 3,0:Nmax,0:Nmax,4)
 REAL               :: tmp(        3,0:Nmax,0:Nmax)
 REAL               :: tmp2(       3,0:Nmax,0:Nmax)
 REAL               :: tmpflip(    3,0:Nmax,0:Nmax)
-INTEGER            :: Nloc,flip,NSideMin,NSideMax
+INTEGER            :: Nloc,flip!,NSideMin,NSideMax
 LOGICAL            :: flipSide
 #if USE_HDG
 INTEGER            :: iSide

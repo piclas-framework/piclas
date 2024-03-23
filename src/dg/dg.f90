@@ -79,7 +79,7 @@ USE MOD_LoadBalance_Vars   ,ONLY: UseH5IOLoadBalance
 #endif /*USE_LOADBALANCE*/
 #if USE_MPI
 USE MOD_MPI                ,ONLY: StartExchange_DG_Elems,FinishExchangeMPIData
-USE MOD_MPI_Vars           ,ONLY: SendRequest_U,RecRequest_U,SendRequest_U2,RecRequest_U2
+!USE MOD_MPI_Vars           ,ONLY: SendRequest_U,RecRequest_U,SendRequest_U2,RecRequest_U2
 #endif /*USE_MPI*/
 #if (PP_TimeDiscMethod==1)||(PP_TimeDiscMethod==2)|| (PP_TimeDiscMethod==6)
 USE MOD_TimeDisc_Vars          ,ONLY: Ut_N
@@ -114,50 +114,50 @@ END DO
 IF (.NOT.(PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance))) THEN
 #endif /*USE_LOADBALANCE && !(USE_HDG)*/
   ! the local DG solution in physical and reference space
-  ALLOCATE(U_N(1:PP_nElems))
-  DO iElem = 1, PP_nElems
+  ALLOCATE(U_N(1:nElems))
+  DO iElem = 1, nElems
     Nloc = N_DG_Mapping(2,iElem+offSetElem)
     ALLOCATE(U_N(iElem)%U(PP_nVar,0:Nloc,0:Nloc,0:Nloc))
     U_N(iElem)%U = 0.
     ALLOCATE(U_N(iElem)%Ut(PP_nVar,0:Nloc,0:Nloc,0:Nloc))
     U_N(iElem)%Ut = 0.
-  END DO ! iElem = 1, PP_nElems
+  END DO ! iElem = 1, nElems
 #if USE_LOADBALANCE && !(USE_HDG)
 END IF
 #endif /*USE_LOADBALANCE && !(USE_HDG)*/
 
 ! Allocate additional containers
 #if USE_HDG
-DO iElem = 1, PP_nElems
+DO iElem = 1, nElems
   Nloc = N_DG_Mapping(2,iElem+offSetElem)
   ALLOCATE(U_N(iElem)%E(1:3,0:Nloc,0:Nloc,0:Nloc))
   ALLOCATE(U_N(iElem)%Et(1:3,0:Nloc,0:Nloc,0:Nloc))
   U_N(iElem)%E = 0.
   U_N(iElem)%Et = 0.
-END DO ! iElem = 1, PP_nElems
+END DO ! iElem = 1, nElems
 #else
 #if (PP_TimeDiscMethod==1)||(PP_TimeDiscMethod==2)|| (PP_TimeDiscMethod==6)
 ! the time derivative computed with the DG scheme
-ALLOCATE(Ut_N(PP_nElems))
+ALLOCATE(Ut_N(nElems))
 #endif /*(PP_TimeDiscMethod==1)||(PP_TimeDiscMethod==2)|| (PP_TimeDiscMethod==6)*/
 
 ! the time derivative computed with the DG scheme
-DO iElem = 1, PP_nElems
+DO iElem = 1, nElems
   Nloc = N_DG_Mapping(2,iElem+offSetElem)
 #if (PP_TimeDiscMethod==1)||(PP_TimeDiscMethod==2)|| (PP_TimeDiscMethod==6)
   ALLOCATE(Ut_N(iElem)%Ut_temp(PP_nVar,0:Nloc,0:Nloc,0:Nloc))
   Ut_N(iElem)%Ut_temp = 0.
 #endif
-END DO ! iElem = 1, PP_nElems
+END DO ! iElem = 1, nElems
 #endif /*USE_HDG*/
 
 #if IMPA || ROS
-ALLOCATE( Un(PP_nVar,0:PP_N,0:PP_N,0:PP_N,PP_nElems))
+ALLOCATE( Un(PP_nVar,0:PP_N,0:PP_N,0:PP_N,nElems))
 Un=0.
 #endif
 !nTotal_face = (PP_N+1)*(PP_N+1)
 !nTotal_vol  = nTotal_face*(PP_N+1)
-!nTotalU     = PP_nVar*nTotal_vol*PP_nElems
+!nTotalU     = PP_nVar*nTotal_vol*nElems
 
 ! U is filled with the ini solution
 IF(.NOT.DoRestart) CALL FillIni()
@@ -310,8 +310,8 @@ USE MOD_PML_Vars          ,ONLY: DoPML,U2t
 USE MOD_Mesh_Vars         ,ONLY: nElems
 !USE MOD_FillMortar        ,ONLY: U_Mortar,Flux_Mortar
 #if USE_MPI
-USE MOD_PML_Vars          ,ONLY: PMLnVar
-USE MOD_Mesh_Vars         ,ONLY: nSides
+!USE MOD_PML_Vars          ,ONLY: PMLnVar
+!USE MOD_Mesh_Vars         ,ONLY: nSides
 USE MOD_MPI_Vars
 USE MOD_MPI               ,ONLY: StartExchange_DG_Elems,StartReceiveMPIDataType,StartSendMPIDataType,FinishExchangeMPIDataType
 #if defined(PARTICLES) && defined(LSERK)
