@@ -541,8 +541,8 @@ ASSOCIATE (&
       CALL WriteAttributeToHDF5(File_ID,'VarNamesSource',INT(nVar,4),StrArray=LocalStrVarnames)
       CALL CloseDataFile()
     END IF
-      Nloc = N_DG_Mapping(2,iElem+offSetElem)
     DO iElem = 1, INT(PP_nElems)
+      Nloc = N_DG_Mapping(2,iElem+offSetElem)
       IF(Nloc.Eq.Nmax)THEN
         PartSource(:,:,:,:,iElem) = PS_N(iElem)%PartSource(:,:,:,:)
       ELSE
