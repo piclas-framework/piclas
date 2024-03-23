@@ -230,7 +230,7 @@ IF (PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance)) THEN
     DEALLOCATE(PartSource)
   ELSE
     ! Re-allocate the source terms
-    DEALLOCATE(PS_N)
+    SDEALLOCATE(PS_N)
     ALLOCATE(PS_N(1:nElems))
     DO iElem = 1, nElems
       Nloc = N_DG_Mapping(2,iElem+offSetElem)
