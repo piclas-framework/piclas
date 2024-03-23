@@ -1492,7 +1492,7 @@ USE MOD_PreProc
 USE MOD_Globals_Vars            ,ONLY: BoltzmannConst, Pi, ElementaryCharge, eps0
 USE MOD_TimeDisc_Vars           ,ONLY: dt,RKdtFrac
 USE MOD_Particle_Vars           ,ONLY: Species, VarTimeStep
-USE MOD_Equation_Vars           ,ONLY: E
+!USE MOD_Equation_Vars           ,ONLY: E
 USE MOD_Particle_Boundary_Vars  ,ONLY: PartBound
 USE MOD_DG_Vars                 ,ONLY: N_DG_Mapping,U_N
 USE MOD_Mesh_Vars               ,ONLY: offSetElem

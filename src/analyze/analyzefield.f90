@@ -883,7 +883,7 @@ USE MOD_DG_Vars            ,ONLY: U_N,N_DG_Mapping
 #endif /*PP_nVar=8*/
 #if USE_HDG
 #if PP_nVar==1
-USE MOD_Equation_Vars      ,ONLY: E
+!USE MOD_Equation_Vars      ,ONLY: E
 #elif PP_nVar==3
 USE MOD_Equation_Vars      ,ONLY: B
 #else
@@ -938,7 +938,10 @@ DO iElem=1,nElems
   Wpsi_tmp = 0.
 #endif /*PP_nVar=8*/
   Nloc = N_DG_Mapping(2,iElem+offSetElem)
-  ASSOCIATE( wGP => N_Inter(Nloc)%wGP)
+  ASSOCIATE( wGP => N_Inter(Nloc)%wGP     ,&
+             Ex  => U_N(iElem)%E(1,i,j,k) ,&
+             Ey  => U_N(iElem)%E(2,i,j,k) ,&
+             Ez  => U_N(iElem)%E(3,i,j,k) )
   DO k=0,Nloc; DO j=0,Nloc; DO i=0,Nloc
 ! in electromagnetische felder by henke 2011 - springer
 ! WMag = 1/(2mu) * int_V B^2 dV
@@ -948,7 +951,7 @@ DO iElem=1,nElems
 #elif PP_nVar==3
     B_abs = B(1,i,j,k,iElem)*B(1,i,j,k,iElem) + B(2,i,j,k,iElem)*B(2,i,j,k,iElem) + B(3,i,j,k,iElem)*B(3,i,j,k,iElem)
 #else /*PP_nVar==4*/
-    E_abs = E(1,i,j,k,iElem)*E(1,i,j,k,iElem) + E(2,i,j,k,iElem)*E(2,i,j,k,iElem) + E(3,i,j,k,iElem)*E(3,i,j,k,iElem)
+    E_abs = Ex*Ex + Ey*Ey + Ez*Ez
     B_abs = B(1,i,j,k,iElem)*B(1,i,j,k,iElem) + B(2,i,j,k,iElem)*B(2,i,j,k,iElem) + B(3,i,j,k,iElem)*B(3,i,j,k,iElem)
 #endif /*PP_nVar==1*/
 #else
@@ -1042,7 +1045,7 @@ USE MOD_DG_Vars            ,ONLY: U_N,N_DG_Mapping
 #endif /*PP_nVar=8*/
 #if USE_HDG
 #if PP_nVar==1
-USE MOD_Equation_Vars      ,ONLY: E
+!USE MOD_Equation_Vars      ,ONLY: E
 #elif PP_nVar==3
 USE MOD_Equation_Vars      ,ONLY: B
 #else
@@ -1094,7 +1097,10 @@ DO iElem=1,nElems
   WEl_tmp=0.
   WMag_tmp=0.
   Nloc = N_DG_Mapping(2,iElem+offSetElem)
-  ASSOCIATE( wGP => N_Inter(Nloc)%wGP)
+  ASSOCIATE( wGP => N_Inter(Nloc)%wGP     ,&
+             Ex  => U_N(iElem)%E(1,i,j,k) ,&
+             Ey  => U_N(iElem)%E(2,i,j,k) ,&
+             Ez  => U_N(iElem)%E(3,i,j,k) )
 
   IF(isDielectricElem(iElem))THEN
     DO k=0,Nloc; DO j=0,Nloc; DO i=0,Nloc
@@ -1102,7 +1108,7 @@ DO iElem=1,nElems
       ! WMag = 1/(2mu) * int_V B^2 dV
 #if USE_HDG
 #if PP_nVar==1
-      E_abs = E(1,i,j,k,iElem)*E(1,i,j,k,iElem) + E(2,i,j,k,iElem)*E(2,i,j,k,iElem) + E(3,i,j,k,iElem)*E(3,i,j,k,iElem)
+      E_abs = Ex*Ex + Ey*Ey + Ez*Ez
 #elif PP_nVar==3
       B_abs = B(1,i,j,k,iElem)*B(1,i,j,k,iElem) + B(2,i,j,k,iElem)*B(2,i,j,k,iElem) + B(3,i,j,k,iElem)*B(3,i,j,k,iElem)
 #else /*PP_nVar==4*/
@@ -1138,7 +1144,7 @@ DO iElem=1,nElems
       ! WMag = 1/(2mu) * int_V B^2 dV
 #if USE_HDG
 #if PP_nVar==1
-      E_abs = E(1,i,j,k,iElem)*E(1,i,j,k,iElem) + E(2,i,j,k,iElem)*E(2,i,j,k,iElem) + E(3,i,j,k,iElem)*E(3,i,j,k,iElem)
+      E_abs = Ex*Ex + Ey*Ey + Ez*Ez
 #elif PP_nVar==3
       B_abs = B(1,i,j,k,iElem)*B(1,i,j,k,iElem) + B(2,i,j,k,iElem)*B(2,i,j,k,iElem) + B(3,i,j,k,iElem)*B(3,i,j,k,iElem)
 #else /*PP_nVar==4*/

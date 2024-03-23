@@ -1681,7 +1681,7 @@ USE MOD_TimeDisc_Vars   ,ONLY: iStage
 USE MOD_TimeDisc_Vars   ,ONLY: iStage,nRKStages
 #endif
 USE MOD_TimeDisc_Vars   ,ONLY: dt,dt_Min
-USE MOD_Equation_Vars   ,ONLY: E,Et
+!USE MOD_Equation_Vars   ,ONLY: E,Et
 USE MOD_Globals_Vars    ,ONLY: eps0
 USE MOD_Analyze_Vars    ,ONLY: CalcElectricTimeDerivative
 USE MOD_Analyze_Vars    ,ONLY: FieldAnalyzeStep
@@ -1725,7 +1725,8 @@ CALL extrae_eventandcounters(int(9000001), int8(4))
     ! iter is incremented after this function and then checked in analyze routine with iter+1
     IF(ALMOSTEQUAL(dt,dt_Min(DT_ANALYZE)).OR.ALMOSTEQUAL(dt,dt_Min(DT_END)).OR.(MOD(iter+1,FieldAnalyzeStep).EQ.0))THEN
       ! Store old E-field
-      Et(:,:,:,:,:) = E(:,:,:,:,:)
+      !Et(:,:,:,:,:) = E(:,:,:,:,:)
+      CALL abort(__STAMP__,'not implemented')
     END IF
   END IF ! CalcElectricTimeDerivative
 #if (PP_TimeDiscMethod==501) || (PP_TimeDiscMethod==502) || (PP_TimeDiscMethod==506)
@@ -2361,7 +2362,7 @@ USE MOD_Interpolation_Vars     ,ONLY: N_Inter
 USE MOD_Elem_Mat               ,ONLY: PostProcessGradientHDG, Elem_Mat,BuildPrecond
 USE MOD_Restart_Vars           ,ONLY: DoRestart,RestartTime
 #if (PP_nVar==1)
-USE MOD_Equation_Vars          ,ONLY: E
+!USE MOD_Equation_Vars          ,ONLY: E
 #endif
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Timers     ,ONLY: LBStartTime,LBSplitTime,LBPauseTime

@@ -2466,7 +2466,8 @@ USE MOD_Mesh_Tools       ,ONLY: GetCNElemID
 USE MOD_DG_Vars          ,ONLY: U_N
 #else
 #if PP_nVar==1
-USE MOD_Equation_Vars    ,ONLY: E
+!USE MOD_Equation_Vars    ,ONLY: E
+USE MOD_DG_Vars          ,ONLY: U_N
 #else
 #endif
 #endif
@@ -2525,9 +2526,9 @@ DO iSpec=1,nSpecies
           PowerDensity(4,i,j,k,iElem,iSpec2)=PS_N(iElem)%PartSource(4,i,j,k)
 #else
 #if PP_nVar==1
-          PowerDensity(1,i,j,k,iElem,iSpec2)=PS_N(iElem)%PartSource(1,i,j,k)*E(1,i,j,k,iElem)
-          PowerDensity(2,i,j,k,iElem,iSpec2)=PS_N(iElem)%PartSource(2,i,j,k)*E(2,i,j,k,iElem)
-          PowerDensity(3,i,j,k,iElem,iSpec2)=PS_N(iElem)%PartSource(3,i,j,k)*E(3,i,j,k,iElem)
+          PowerDensity(1,i,j,k,iElem,iSpec2)=PS_N(iElem)%PartSource(1,i,j,k)*U_N(iElem)%E(1,i,j,k)
+          PowerDensity(2,i,j,k,iElem,iSpec2)=PS_N(iElem)%PartSource(2,i,j,k)*U_N(iElem)%E(2,i,j,k)
+          PowerDensity(3,i,j,k,iElem,iSpec2)=PS_N(iElem)%PartSource(3,i,j,k)*U_N(iElem)%E(3,i,j,k)
 #else
           PowerDensity(1:3,i,j,k,iElem,iSpec2)=0.
 #endif
