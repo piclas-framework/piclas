@@ -1267,7 +1267,7 @@ USE MOD_Globals
 USE MOD_Preproc
 USE MOD_Mesh_Vars        ,ONLY: nBCs,BoundaryType
 USE MOD_Analyze_Vars     ,ONLY: DoFieldAnalyze,CalcElectricTimeDerivative,EDC
-USE MOD_Equation_Vars    ,ONLY: Et
+!USE MOD_Equation_Vars    ,ONLY: Et
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Vars ,ONLY: PerformLoadBalance
 #endif /*USE_LOADBALANCE*/
@@ -1288,8 +1288,9 @@ INTEGER             :: SideID,color
 IF(.NOT.CalcElectricTimeDerivative) RETURN ! Read-in parameter that is set in  InitAnalyze() in analyze.f90
 
 ! Allocate temporal derivative for E: No need to nullify as is it overwritten with E the first time it is used
-ALLOCATE(Et(1:3,0:PP_N,0:PP_N,0:PP_N,PP_nElems))
-Et = 0.
+!ALLOCATE(Et(1:3,0:PP_N,0:PP_N,0:PP_N,PP_nElems))
+!Et = 0.
+CALL abort(__STAMP__,'not implemented')
 
 ! 1.) Loop over all field BCs and check if the current processor is either the MPI root or has at least one of the BCs that
 ! contribute to the total electric displacement current. If yes, then this processor is part of the communicator

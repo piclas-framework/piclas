@@ -317,7 +317,7 @@ USE MOD_PreProc
 USE MOD_DG_Vars                ,ONLY: U_N
 USE MOD_Mesh_Vars              ,ONLY: MeshFile,nElems
 USE MOD_HDF5_Output            ,ONLY: WriteTimeAverage
-USE MOD_Equation_Vars          ,ONLY: E
+!USE MOD_Equation_Vars          ,ONLY: E
 USE MOD_Timeaverage_Vars       ,ONLY: UAvg,UFluc,CalcAvg,iAvg,FlucAvgMap,dtAvg,dtold,nVarAvg,nVarFluc,nVarFlucHasAvg &
                                ,VarnamesAvgOut,VarNamesFlucOut,iterAvg,nSkipAvg
 #ifdef PARTICLES
@@ -376,7 +376,7 @@ DO iElem=1,nElems
   ! ElectricFieldMagnitude
   IF(CalcAvg(5))THEN
     DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
-      tmpVars(iAvg(5),i,j,k)=SQRT(SUM(E(1:3,i,j,k,iElem)**2))
+      tmpVars(iAvg(5),i,j,k)=VECNORM(U_N(iElem)%E(1:3,i,j,k)) ! SQRT(SUM(U_N(iElem)%E(1:3,i,j,k)**2))
     END DO; END DO; END DO
   END IF
 

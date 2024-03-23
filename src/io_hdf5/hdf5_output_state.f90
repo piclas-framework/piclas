@@ -79,7 +79,7 @@ USE MOD_Equation_Vars          ,ONLY: E,Phi
 USE MOD_Mesh_Vars              ,ONLY: N_SurfMesh
 USE MOD_HDG_Vars               ,ONLY: nGP_face,iLocSides,UseFPC,FPC,UseEPC,EPC,HDG_Surf_N
 #if PP_nVar==1
-USE MOD_Equation_Vars          ,ONLY: E,Et
+!USE MOD_Equation_Vars          ,ONLY: E,Et
 USE MOD_DG_Vars                ,ONLY: DG_Elems_master,DG_Elems_slave
 #elif PP_nVar==3
 USE MOD_Equation_Vars          ,ONLY: B
@@ -450,7 +450,8 @@ ASSOCIATE (&
         END ASSOCIATE
       END DO; END DO; END DO !i,j,k
     END DO !iElem
-    Utemp(3:4,:,:,:,:) = E(2:3,:,:,:,:)
+    !Utemp(3:4,:,:,:,:) = E(2:3,:,:,:,:)
+    CALL abort(__STAMP__,'not implemented')
   ELSE
 #endif /*PARTICLES*/
     DO iElem = 1, INT(PP_nElems)
@@ -574,12 +575,13 @@ ASSOCIATE (&
       CALL WriteAttributeToHDF5(File_ID,'VarNamesTimeDerivative',INT(nVar,4),StrArray=LocalStrVarnames)
       CALL CloseDataFile()
     END IF
-    CALL GatheredWriteArray(FileName,create=.FALSE.,&
-        DataSetName='DG_TimeDerivative', rank=5,  &
-        nValGlobal=(/nVar , N+1_IK , N+1_IK , N+1_IK , nGlobalElems/) , &
-        nVal=      (/nVar , N+1_IK , N+1_IK , N+1_IK , PP_nElems/)    , &
-        offset=    (/0_IK , 0_IK   , 0_IK   , 0_IK   , offsetElem/)   , &
-        collective=.TRUE.,RealArray=Et(1:3,:,:,:,:))
+    !CALL GatheredWriteArray(FileName,create=.FALSE.,&
+        !DataSetName='DG_TimeDerivative', rank=5,  &
+        !nValGlobal=(/nVar , N+1_IK , N+1_IK , N+1_IK , nGlobalElems/) , &
+        !nVal=      (/nVar , N+1_IK , N+1_IK , N+1_IK , PP_nElems/)    , &
+        !offset=    (/0_IK , 0_IK   , 0_IK   , 0_IK   , offsetElem/)   , &
+        !collective=.TRUE.,RealArray=Et(1:3,:,:,:,:))
+    CALL abort(__STAMP__,'not implemented')
 
     DEALLOCATE(LocalStrVarNames)
   END IF
