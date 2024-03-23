@@ -487,9 +487,9 @@ SUBROUTINE depoChargeOnDOFsSFChargeCon(Position,SourceSize,Fac,r_sf, r2_sf, r2_s
 USE MOD_PreProc
 USE MOD_Globals
 USE MOD_PICDepo_Vars       ,ONLY: alpha_sf,ChargeSFDone, N_ShapeTmp
-USE MOD_Mesh_Vars          ,ONLY: offSetElem,N_VolMesh
+USE MOD_Mesh_Vars          ,ONLY: offSetElem
 USE MOD_Particle_Mesh_Vars ,ONLY: GEO, ElemBaryNgeo, FIBGM_offsetElem, FIBGM_nElems, FIBGM_Element, Elem_xGP_Shared
-USE MOD_Particle_Mesh_Vars ,ONLY: ElemRadiusNGeo
+USE MOD_Particle_Mesh_Vars ,ONLY: ElemRadiusNGeo, ElemsJ
 USE MOD_Preproc
 USE MOD_Mesh_Tools         ,ONLY: GetCNElemID
 USE MOD_Interpolation_Vars ,ONLY: N_Inter
@@ -594,10 +594,7 @@ DO kk = kmin,kmax
             ELSE
               N_ShapeTmp(Nloc)%PartSource(1:4,k,l,m) = Fac(1:4) * S1
             END IF
-            totalCharge = totalCharge  + N_Inter(Nloc)%wGP(k)*N_Inter(Nloc)%wGP(l)*N_Inter(Nloc)%wGP(m)*N_ShapeTmp(Nloc)%PartSource(4,k,l,m)/N_VolMesh(CNElemID)%sJ(k,l,m)
-#if USE_MPI
-            CALL abort(__STAMP__,'CNElemID is required here but N_VolMesh(1:nElems)!')
-#endif /*USE_MPI*/
+            totalCharge = totalCharge  + N_Inter(Nloc)%wGP(k)*N_Inter(Nloc)%wGP(l)*N_Inter(Nloc)%wGP(m)*N_ShapeTmp(Nloc)%PartSource(4,k,l,m)/ElemsJ(k,l,m,CNElemID)
           END IF
         END DO; END DO; END DO
 
@@ -655,8 +652,8 @@ SUBROUTINE depoChargeOnDOFsSFAdaptive(Position,SourceSize,Fac,PartIdx)
 USE MOD_PreProc
 USE MOD_Globals
 USE MOD_PICDepo_Vars       ,ONLY: alpha_sf,SFElemr2_Shared,ChargeSFDone,sfDepo3D,dimFactorSF, N_ShapeTmp
-USE MOD_Mesh_Vars          ,ONLY: offSetElem,N_VolMesh
-USE MOD_Particle_Mesh_Vars ,ONLY: ElemBaryNgeo, Elem_xGP_Shared
+USE MOD_Mesh_Vars          ,ONLY: offSetElem
+USE MOD_Particle_Mesh_Vars ,ONLY: ElemBaryNgeo, Elem_xGP_Shared,ElemsJ
 USE MOD_Particle_Mesh_Vars ,ONLY: ElemRadiusNGeo, ElemToElemMapping,ElemToElemInfo
 USE MOD_Preproc
 USE MOD_Mesh_Tools         ,ONLY: GetCNElemID, GetGlobalElemID
@@ -747,7 +744,7 @@ DO ppp = 0,ElemToElemMapping(2,OrigCNElemID)
       ELSE
         N_ShapeTmp(Nloc)%PartSource(1:4,k,l,m) = Fac(1:4) * S1
       END IF
-      totalCharge = totalCharge  + N_Inter(PP_N)%wGP(k)*N_Inter(PP_N)%wGP(l)*N_Inter(PP_N)%wGP(m)*N_ShapeTmp(Nloc)%PartSource(4,k,l,m)/N_VolMesh(CNElemID)%sJ(k,l,m)
+      totalCharge = totalCharge  + N_Inter(PP_N)%wGP(k)*N_Inter(PP_N)%wGP(l)*N_Inter(PP_N)%wGP(m)*N_ShapeTmp(Nloc)%PartSource(4,k,l,m)/ElemsJ(k,l,m,CNElemID)
     END IF
   END DO; END DO; END DO
 
