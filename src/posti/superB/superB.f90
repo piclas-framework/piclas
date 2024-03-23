@@ -23,7 +23,6 @@ USE MOD_Globals!               ,ONLY: CollectiveStop
 USE MOD_Globals_Init          ,ONLY: InitGlobals
 USE MOD_SuperB_Init           ,ONLY: DefineParametersSuperB, FinalizeSuperB
 USE MOD_SuperB                ,ONLY: SuperB
-USE MOD_SuperB_Vars           ,ONLY: BGFieldTDep
 USE MOD_Globals_Vars          ,ONLY: ParameterFile
 USE MOD_ReadInTools           ,ONLY: prms,PrintDefaultparameterFile,ExtractparameterFile
 USE MOD_Interpolation         ,ONLY: InitInterpolation
@@ -36,7 +35,7 @@ USE MOD_IO_HDF5               ,ONLY: DefineParametersIO
 USE MOD_Output                ,ONLY: DefineParametersOutput
 USE MOD_Mesh                  ,ONLY: DefineParametersMesh,FinalizeMesh
 USE MOD_Equation              ,ONLY: DefineParametersEquation
-USE MOD_Interpolation_Vars    ,ONLY: BGField,BGFieldAnalytic
+USE MOD_Interpolation_Vars    ,ONLY: N_BG
 USE MOD_Mesh                  ,ONLY: InitMesh
 #if USE_MPI
 USE MOD_MPI_Shared
@@ -140,9 +139,7 @@ CALL InitMesh(3) ! 0: only read and build Elem_xGP,
 CALL SuperB()
 
 ! Deallocation of BGField
-SDEALLOCATE(BGFieldTDep)
-SDEALLOCATE(BGField)
-SDEALLOCATE(BGFieldAnalytic)
+SDEALLOCATE(N_BG)
 ! Finalize SuperB
 CALL FinalizeSuperB()
 CALL FinalizeMesh()

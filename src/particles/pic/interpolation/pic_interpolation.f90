@@ -495,37 +495,40 @@ SUBROUTINE GetTimeDependentBGField()
 !===================================================================================================================================
 ! MODULES                                                                                                                          !
 !----------------------------------------------------------------------------------------------------------------------------------!
-USE MOD_Interpolation_Vars ,ONLY: BGField
-USE MOD_SuperB_Vars        ,ONLY: nTimePoints, BGFieldTDep, BGFieldFrequency
+USE MOD_Interpolation_Vars ,ONLY: N_BG
+USE MOD_SuperB_Vars        ,ONLY: nTimePoints, BGFieldFrequency
 USE MOD_TimeDisc_Vars      ,ONLY: Time
+USE MOD_Mesh_Vars          ,ONLY: nElems
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
 ! INPUT / OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER :: iTime
+INTEGER :: iTime, iElem
 REAL    :: timestep,t,Period
 !===================================================================================================================================
 
 ! Check frequency and calculate time within the period
 ASSOCIATE( f => BGFieldFrequency )
-  IF(f.GT.0.)THEN
-    Period   = 1./f
-    timestep = 1./(f*REAL(nTimePoints-1))
-    t        = MOD(Time,Period)
-    iTime    = FLOOR(t/timestep)+1
-    IF(iTime.EQ.nTimePoints) iTime = iTime - 1 ! sanity check
-    ! Interpolate the Background field linear between two timesteps
-    ASSOCIATE( y1 => BGFieldTDep(:,:,:,:,:,iTime)   ,&
-               y2 => BGFieldTDep(:,:,:,:,:,iTime+1) )
-      BGField(:,:,:,:,:) = y2 + ((y2-y1)/timestep) * (t - iTime * timestep)
-    END ASSOCIATE
-  ELSE
-    Period   = 0.
-    timestep = 0.
-    t        = 0.
-    BGField(:,:,:,:,:) = BGFieldTDep(:,:,:,:,:,1)
-  END IF ! f.GT.0.
+  DO iElem =1, nElems
+    IF(f.GT.0.)THEN
+      Period   = 1./f
+      timestep = 1./(f*REAL(nTimePoints-1))
+      t        = MOD(Time,Period)
+      iTime    = FLOOR(t/timestep)+1
+      IF(iTime.EQ.nTimePoints) iTime = iTime - 1 ! sanity check
+      ! Interpolate the Background field linear between two timesteps
+      ASSOCIATE( y1 => N_BG(iElem)%BGFieldTDep(:,:,:,:,iTime)   ,&
+                 y2 => N_BG(iElem)%BGFieldTDep(:,:,:,:,iTime+1) )
+        N_BG(iElem)%BGField(:,:,:,:) = y2 + ((y2-y1)/timestep) * (t - iTime * timestep)
+      END ASSOCIATE
+    ELSE
+      Period   = 0.
+      timestep = 0.
+      t        = 0.
+      N_BG(iElem)%BGField(:,:,:,:) = N_BG(iElem)%BGFieldTDep(:,:,:,:,1)
+    END IF ! f.GT.0.
+  END DO
 END ASSOCIATE
 
 ! CALL WriteBGFieldToHDF5(Time)

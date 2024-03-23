@@ -302,7 +302,7 @@ CALL EvaluateFieldAtRefPos(PartPosRef_loc(1:3),3,Nloc,U_N(ElemID)%E(1:3,:,:,:),3
 #elif PP_nVar==3
 CALL EvaluateFieldAtRefPos(PartPosRef_loc(1:3),3,PP_N,B(1:3,:,:,:,ElemID),3,GetEMField(4:6),ElemID)
 #else
-HelperU(1:3,:,:,:) = E(1:3,:,:,:,ElemID)
+HelperU(1:3,:,:,:) = U_N(ElemID)%E(1:3,:,:,:) 
 HelperU(4:6,:,:,:) = B(1:3,:,:,:,ElemID)
 CALL EvaluateFieldAtRefPos(PartPosRef_loc(1:3),6,PP_N,HelperU,6,GetEMField(1:6),ElemID)
 #endif
@@ -318,25 +318,16 @@ PPURE FUNCTION GetEMFieldDW(ElemID, PartPos_loc)
 ! Evaluate the electro-(magnetic) field using the reference position and return the field
 !===================================================================================================================================
 ! MODULES
-USE MOD_Mesh_Vars             ,ONLY: N_VolMesh
+USE MOD_Mesh_Vars             ,ONLY: N_VolMesh, offSetElem
 USE MOD_PICInterpolation_Vars ,ONLY: useBGField
-USE MOD_Interpolation_Vars    ,ONLY: BGField,BGType,BGDataSize
+USE MOD_Interpolation_Vars    ,ONLY: N_BG,BGType,BGDataSize
 USE MOD_Globals
 USE MOD_PreProc
-#if ! (USE_HDG)
-USE MOD_DG_Vars       ,ONLY: U_N
-#endif
-#ifdef PP_POIS
-USE MOD_Equation_Vars ,ONLY: E
-#endif
+USE MOD_DG_Vars               ,ONLY: N_DG_Mapping, U_N
 #if USE_HDG
-#if PP_nVar==1
-USE MOD_Equation_Vars ,ONLY: E
-#elif PP_nVar==3
+#if PP_nVar!=1
 USE MOD_Equation_Vars ,ONLY: B
-#else
-USE MOD_Equation_Vars ,ONLY: B,E
-#endif /*PP_nVar==1*/
+#endif
 #endif /*USE_HDG*/
 !----------------------------------------------------------------------------------------------------------------------------------
   IMPLICIT NONE
@@ -349,45 +340,48 @@ REAL,INTENT(IN)    :: PartPos_loc(1:3)
 REAL :: GetEMFieldDW(1:6)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-REAL    :: HelperU(1:6,0:PP_N,0:PP_N,0:PP_N)
-REAL    :: PartDistDepo(0:PP_N,0:PP_N,0:PP_N), DistSum
-INTEGER :: k,l,m,ind1,ind2
-REAL    :: norm
+REAL,ALLOCATABLE    :: HelperU(:,:,:,:)
+REAL,ALLOCATABLE    :: PartDistDepo(:,:,:)
+INTEGER :: k,l,m,ind1,ind2, Nloc
+REAL    :: norm, DistSum
 !===================================================================================================================================
 GetEMFieldDW(1:6)=0.
+Nloc = N_DG_Mapping(2,ElemID+offSetElem)
+ALLOCATE(HelperU(1:6,0:Nloc,0:Nloc,0:Nloc))
+ALLOCATE(PartDistDepo(0:Nloc,0:Nloc,0:Nloc))
 !--- evaluate at Particle position
 #if (PP_nVar==8)
 #ifdef PP_POIS
-HelperU(1:3,:,:,:) = E(1:3,:,:,:,ElemID)
-HelperU(4:6,:,:,:) = U(4:6,:,:,:,ElemID)
+HelperU(1:3,:,:,:) = U_N(ElemID)%E(1:3,:,:,:) 
+HelperU(4:6,:,:,:) = U_N(ElemID)%U(4:6,:,:,:)
 #else
 HelperU(1:6,:,:,:) = U_N(ElemID)%U(1:6,:,:,:)
 #endif
 #else
 #ifdef PP_POIS
-HelperU(1:3,:,:,:) = E(1:3,:,:,:,ElemID)
+HelperU(1:3,:,:,:) = U_N(ElemID)%E(1:3,:,:,:) 
 #elif USE_HDG
 #if PP_nVar==1
 #if (PP_TimeDiscMethod==507) || (PP_TimeDiscMethod==508)
 ! Boris or HC: consider B-Field, e.g., from SuperB
-HelperU(1:3,:,:,:) = E(1:3,:,:,:,ElemID)
+HelperU(1:3,:,:,:) = U_N(ElemID)%E(1:3,:,:,:) 
 #else
 ! Consider only electric fields
-HelperU(1:3,:,:,:) = E(1:3,:,:,:,ElemID)
+HelperU(1:3,:,:,:) = U_N(ElemID)%E(1:3,:,:,:) 
 #endif
 #elif PP_nVar==3
 HelperU(4:6,:,:,:) = B(1:3,:,:,:,ElemID)
 #else
-HelperU(1:3,:,:,:) = E(1:3,:,:,:,ElemID)
+HelperU(1:3,:,:,:) = U_N(ElemID)%E(1:3,:,:,:) 
 HelperU(4:6,:,:,:) = B(1:3,:,:,:,ElemID)
 #endif
 #else
-HelperU(1:3,:,:,:) = U(1:3,:,:,:,ElemID)
+HelperU(1:3,:,:,:) = U_N(ElemID)%U(1:3,:,:,:)
 #endif
 #endif
 
 DistSum = 0.0
-DO k = 0, PP_N; DO l=0, PP_N; DO m=0, PP_N
+DO k = 0, Nloc; DO l=0, Nloc; DO m=0, Nloc
   norm = VECNORM(N_VolMesh(ELemID)%Elem_xGP(1:3,k,l,m)-PartPos_loc(1:3))
   IF(norm.GT.0.)THEN
     PartDistDepo(k,l,m) = 1./norm
@@ -401,7 +395,7 @@ DO k = 0, PP_N; DO l=0, PP_N; DO m=0, PP_N
 END DO; END DO; END DO
 
 GetEMFieldDW = 0.0
-DO k = 0, PP_N; DO l=0, PP_N; DO m=0, PP_N
+DO k = 0, Nloc; DO l=0, Nloc; DO m=0, Nloc
   GetEMFieldDW(1:6) = GetEMFieldDW(1:6) + PartDistDepo(k,l,m)/DistSum*HelperU(1:6,k,l,m)
 END DO; END DO; END DO
 
@@ -420,8 +414,8 @@ IF(useBGField)THEN
     ind2 = 6
   END SELECT
   ! Add contribution of the magnetic field
-  DO k = 0, PP_N; DO l=0, PP_N; DO m=0, PP_N
-    GetEMFieldDW(ind1:ind2) = GetEMFieldDW(ind1:ind2) + PartDistDepo(k,l,m)/DistSum*BGField(1:BGDataSize,k,l,m,ElemID)
+  DO k = 0, Nloc; DO l=0, Nloc; DO m=0, Nloc
+    GetEMFieldDW(ind1:ind2) = GetEMFieldDW(ind1:ind2) + PartDistDepo(k,l,m)/DistSum*N_BG(ElemID)%BGField(1:BGDataSize,k,l,m)
   END DO; END DO; END DO
 END IF ! useBGField
 

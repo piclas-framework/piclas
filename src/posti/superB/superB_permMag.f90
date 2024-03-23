@@ -60,10 +60,11 @@ SUBROUTINE CalculateCuboidMagneticPotential(iMagnet)
 ! MODULES
 USE MOD_Globals_Vars       ,ONLY: PI
 USE MOD_Preproc
-USE MOD_Mesh_Vars          ,ONLY: nElems, Elem_xGP
+USE MOD_Mesh_Vars          ,ONLY: nElems, N_VolMesh, offSetElem
 USE MOD_Basis              ,ONLY: LegendreGaussNodesAndWeights
-USE MOD_Interpolation_Vars ,ONLY: BGFieldVTKOutput, PsiMag
-USE MOD_SuperB_Vars        ,ONLY: PermanentMagnetInfo, MagnetFlag
+USE MOD_Interpolation_Vars ,ONLY: BGFieldVTKOutput, N_BG
+USE MOD_SuperB_Vars        ,ONLY: PermanentMagnetInfo, PermanentMagnets
+USE MOD_DG_Vars            ,ONLY: N_DG_Mapping
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -78,7 +79,7 @@ REAL              :: vector1(3), vector2(3), vector3(3), basePoint(3), BPToNode(
 REAL              :: vector1L, vector2L, vector3L, normL
 REAL              :: normalVector12(3), normalVector13(3), normalVector23(3)
 REAL              :: normalUnitVector12(3), normalUnitVector13(3), normalUnitVector23(3)
-INTEGER           :: numNodes
+INTEGER           :: numNodes, Nloc
 INTEGER           :: iElem, i, j, k, ii, jj, kk
 REAL              :: psiMagTemp, dist, volume, magnetVolume
 REAL              :: magnetNode(3)
@@ -114,17 +115,18 @@ magnetVolume = ABS(DOT_PRODUCT(normalVector12, vector3))
 numNodes = PermanentMagnetInfo(iMagnet)%NumNodes
 
 DO iElem=1,nElems
-  DO i=0,PP_N; DO j=0,PP_N; DO k=0,PP_N
+  Nloc = N_DG_Mapping(2,iElem+offSetElem)
+  DO i=0,Nloc; DO j=0,Nloc; DO k=0,Nloc
     ! Check if the mesh point is inside the magnet
-    BPToNode(:) = Elem_xGP(:,i,j,k,iElem) - PermanentMagnetInfo(iMagnet)%BasePoint(:)
-    CPToNode(:) = Elem_xGP(:,i,j,k,iElem) - (PermanentMagnetInfo(iMagnet)%BasePoint(:) +&
+    BPToNode(:) = N_VolMesh(iElem)%Elem_xGP(:,i,j,k) - PermanentMagnetInfo(iMagnet)%BasePoint(:)
+    CPToNode(:) = N_VolMesh(iElem)%Elem_xGP(:,i,j,k) - (PermanentMagnetInfo(iMagnet)%BasePoint(:) +&
                   vector1 + vector2 + vector3)
     volume = (ABS(DOT_PRODUCT(normalVector12,BPToNode)) + ABS(DOT_PRODUCT(normalVector12,CPToNode)) +&
               ABS(DOT_PRODUCT(normalVector13,BPToNode)) + ABS(DOT_PRODUCT(normalVector13,CPToNode)) +&
               ABS(DOT_PRODUCT(normalVector23,BPToNode)) + ABS(DOT_PRODUCT(normalVector23,CPToNode)))/3
 
     IF(volume.EQ.magnetVolume) THEN
-      MagnetFlag(i,j,k,iElem) = iMagnet
+      PermanentMagnets(iElem)%Flag(i,j,k) = iMagnet
     END IF
 
 
@@ -138,9 +140,9 @@ DO iElem=1,nElems
                       vector2(:) / 2. * (1 + xGP(jj))
 
       ! Calculate the distance between the mesh point and the magnet point
-      dist = SQRT((magnetNode(1) - Elem_xGP(1,i,j,k,iElem))**2 +&
-                  (magnetNode(2) - Elem_xGP(2,i,j,k,iElem))**2 +&
-                  (magnetNode(3) - Elem_xGP(3,i,j,k,iElem))**2)
+      dist = SQRT((magnetNode(1) - N_VolMesh(iElem)%Elem_xGP(1,i,j,k))**2 +&
+                  (magnetNode(2) - N_VolMesh(iElem)%Elem_xGP(2,i,j,k))**2 +&
+                  (magnetNode(3) - N_VolMesh(iElem)%Elem_xGP(3,i,j,k))**2)
 
       psiMagTemp = psiMagTemp + wGP(ii) * wGP(jj) / (4 * PI) / dist *&
                    DOT_PRODUCT(normalUnitVector12, PermanentMagnetInfo(iMagnet)%Magnetisation)
@@ -153,15 +155,15 @@ DO iElem=1,nElems
                       vector3(:)
 
       ! Calculate the distance between the mesh point and the magnet point
-      dist = SQRT((magnetNode(1) - Elem_xGP(1,i,j,k,iElem))**2 +&
-                  (magnetNode(2) - Elem_xGP(2,i,j,k,iElem))**2 +&
-                  (magnetNode(3) - Elem_xGP(3,i,j,k,iElem))**2)
+      dist = SQRT((magnetNode(1) - N_VolMesh(iElem)%Elem_xGP(1,i,j,k))**2 +&
+                  (magnetNode(2) - N_VolMesh(iElem)%Elem_xGP(2,i,j,k))**2 +&
+                  (magnetNode(3) - N_VolMesh(iElem)%Elem_xGP(3,i,j,k))**2)
 
       psiMagTemp = psiMagTemp + wGP(ii) * wGP(jj) / (4 * PI) / dist *&
                    DOT_PRODUCT(-normalUnitVector12, PermanentMagnetInfo(iMagnet)%Magnetisation)
     END DO; END DO
     normL = sqrt(normalVector12(1)**2 + normalVector12(2)**2 + normalVector12(3)**2)
-    PsiMag(i,j,k,iElem) = PsiMag(i,j,k,iElem) + psiMagTemp * normL / 4
+    N_BG(iElem)%PsiMag(i,j,k) = N_BG(iElem)%PsiMag(i,j,k) + psiMagTemp * normL / 4
 
     ! Sides spanned by vector 1 and 3
     psiMagTemp = 0
@@ -173,9 +175,9 @@ DO iElem=1,nElems
                       vector3(:) / 2. * (1 + xGP(kk))
 
       ! Calculate the distance between the mesh point and the magnet point
-      dist = SQRT((magnetNode(1) - Elem_xGP(1,i,j,k,iElem))**2 +&
-                  (magnetNode(2) - Elem_xGP(2,i,j,k,iElem))**2 +&
-                  (magnetNode(3) - Elem_xGP(3,i,j,k,iElem))**2)
+      dist = SQRT((magnetNode(1) - N_VolMesh(iElem)%Elem_xGP(1,i,j,k))**2 +&
+                  (magnetNode(2) - N_VolMesh(iElem)%Elem_xGP(2,i,j,k))**2 +&
+                  (magnetNode(3) - N_VolMesh(iElem)%Elem_xGP(3,i,j,k))**2)
 
       psiMagTemp = psiMagTemp + wGP(ii) * wGP(kk) / (4 * PI) / dist *&
                    DOT_PRODUCT(normalUnitVector13, PermanentMagnetInfo(iMagnet)%Magnetisation)
@@ -188,15 +190,15 @@ DO iElem=1,nElems
                       vector2(:)
 
       ! Calculate the distance between the mesh point and the magnet point
-      dist = SQRT((magnetNode(1) - Elem_xGP(1,i,j,k,iElem))**2 +&
-                  (magnetNode(2) - Elem_xGP(2,i,j,k,iElem))**2 +&
-                  (magnetNode(3) - Elem_xGP(3,i,j,k,iElem))**2)
+      dist = SQRT((magnetNode(1) - N_VolMesh(iElem)%Elem_xGP(1,i,j,k))**2 +&
+                  (magnetNode(2) - N_VolMesh(iElem)%Elem_xGP(2,i,j,k))**2 +&
+                  (magnetNode(3) - N_VolMesh(iElem)%Elem_xGP(3,i,j,k))**2)
 
       psiMagTemp = psiMagTemp + wGP(ii) * wGP(kk) / (4 * PI) / dist *&
                    DOT_PRODUCT(-normalUnitVector13, PermanentMagnetInfo(iMagnet)%Magnetisation)
     END DO; END DO
     normL = sqrt(normalVector13(1)**2 + normalVector13(2)**2 + normalVector13(3)**2)
-    PsiMag(i,j,k,iElem) = PsiMag(i,j,k,iElem) + psiMagTemp * normL / 4
+    N_BG(iElem)%PsiMag(i,j,k) = N_BG(iElem)%PsiMag(i,j,k) + psiMagTemp * normL / 4
 
     ! Sides spanned by vector 2 and 3
     psiMagTemp = 0
@@ -208,9 +210,9 @@ DO iElem=1,nElems
                       vector3(:) / 2. * (1 + xGP(kk))
 
       ! Calculate the distance between the mesh point and the magnet point
-      dist = SQRT((magnetNode(1) - Elem_xGP(1,i,j,k,iElem))**2 +&
-                  (magnetNode(2) - Elem_xGP(2,i,j,k,iElem))**2 +&
-                  (magnetNode(3) - Elem_xGP(3,i,j,k,iElem))**2)
+      dist = SQRT((magnetNode(1) - N_VolMesh(iElem)%Elem_xGP(1,i,j,k))**2 +&
+                  (magnetNode(2) - N_VolMesh(iElem)%Elem_xGP(2,i,j,k))**2 +&
+                  (magnetNode(3) - N_VolMesh(iElem)%Elem_xGP(3,i,j,k))**2)
 
       psiMagTemp = psiMagTemp + wGP(jj) * wGP(kk) / (4 * PI) / dist *&
                    DOT_PRODUCT(normalUnitVector23, PermanentMagnetInfo(iMagnet)%Magnetisation)
@@ -223,15 +225,15 @@ DO iElem=1,nElems
                       vector1(:)
 
       ! Calculate the distance between the mesh point and the magnet point
-      dist = SQRT((magnetNode(1) - Elem_xGP(1,i,j,k,iElem))**2 +&
-                  (magnetNode(2) - Elem_xGP(2,i,j,k,iElem))**2 +&
-                  (magnetNode(3) - Elem_xGP(3,i,j,k,iElem))**2)
+      dist = SQRT((magnetNode(1) - N_VolMesh(iElem)%Elem_xGP(1,i,j,k))**2 +&
+                  (magnetNode(2) - N_VolMesh(iElem)%Elem_xGP(2,i,j,k))**2 +&
+                  (magnetNode(3) - N_VolMesh(iElem)%Elem_xGP(3,i,j,k))**2)
 
       psiMagTemp = psiMagTemp + wGP(jj) * wGP(kk) / (4 * PI) / dist *&
                    DOT_PRODUCT(-normalUnitVector23, PermanentMagnetInfo(iMagnet)%Magnetisation)
     END DO; END DO
     normL = sqrt(normalVector23(1)**2 + normalVector23(2)**2 + normalVector23(3)**2)
-    PsiMag(i,j,k,iElem) = PsiMag(i,j,k,iElem) + psiMagTemp * normL / 4
+    N_BG(iElem)%PsiMag(i,j,k) = N_BG(iElem)%PsiMag(i,j,k) + psiMagTemp * normL / 4
   END DO; END DO; END DO
 END DO
 
@@ -277,10 +279,11 @@ SUBROUTINE CalculateSphericMagneticPotential(iMagnet)
 ! MODULES
 USE MOD_Globals_Vars       ,ONLY: PI
 USE MOD_Preproc
-USE MOD_Mesh_Vars          ,ONLY: nElems, Elem_xGP
+USE MOD_Mesh_Vars          ,ONLY: nElems, N_VolMesh, offSetElem
 USE MOD_Basis              ,ONLY: LegendreGaussNodesAndWeights
-USE MOD_Interpolation_Vars ,ONLY: BGFieldVTKOutput, PsiMag
-USE MOD_SuperB_Vars        ,ONLY: PermanentMagnetInfo, MagnetFlag
+USE MOD_Interpolation_Vars ,ONLY: BGFieldVTKOutput, N_BG
+USE MOD_SuperB_Vars        ,ONLY: PermanentMagnetInfo, PermanentMagnets
+USE MOD_DG_Vars            ,ONLY: N_DG_Mapping
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -293,7 +296,7 @@ INTEGER, INTENT(IN) :: iMagnet
 REAL, ALLOCATABLE :: xGP(:), wGP(:)
 REAL              :: radius, psiMagTemp, theta, phi, dist, BPToNodeLength
 REAL              :: magnetNode(3), normalVector(3), normalUnitVector(3), BPToNode(3)
-INTEGER           :: iElem, i, j, k, jj, kk, iCell, iPoint
+INTEGER           :: iElem, i, j, k, jj, kk, iCell, iPoint, Nloc
 CHARACTER(LEN=26) :: myFileName
 !===================================================================================================================================
 
@@ -320,12 +323,13 @@ IF(BGFieldVTKOutput) THEN
 END IF
 
 DO iElem=1,nElems
-  DO i=0,PP_N; DO j=0,PP_N; DO k=0,PP_N
+  Nloc = N_DG_Mapping(2,iElem+offSetElem)
+  DO i=0,Nloc; DO j=0,Nloc; DO k=0,Nloc
     ! Mark element if it is inside the Magnet
-    BPToNode = Elem_xGP(:,i,j,k,iElem) - PermanentMagnetInfo(iMagnet)%BasePoint(:)
+    BPToNode = N_VolMesh(iElem)%Elem_xGP(:,i,j,k) - PermanentMagnetInfo(iMagnet)%BasePoint(:)
     BPToNodeLength = SQRT(BPToNode(1)**2 + BPToNode(2)**2 + BPToNode(3)**2)
     IF (BPToNodeLength.LE.radius) THEN
-      MagnetFlag(i,j,k,iElem) = iMagnet
+      PermanentMagnets(iElem)%Flag(i,j,k) = iMagnet
     END IF
 
     psiMagTemp = 0
@@ -351,9 +355,9 @@ DO iElem=1,nElems
         normalUnitVector = normalVector / radius
 
         ! Calculate the distance between the mesh point and the magnet point
-        dist = SQRT((magnetNode(1) - Elem_xGP(1,i,j,k,iElem))**2 +&
-                    (magnetNode(2) - Elem_xGP(2,i,j,k,iElem))**2 +&
-                    (magnetNode(3) - Elem_xGP(3,i,j,k,iElem))**2)
+        dist = SQRT((magnetNode(1) - N_VolMesh(iElem)%Elem_xGP(1,i,j,k))**2 +&
+                    (magnetNode(2) - N_VolMesh(iElem)%Elem_xGP(2,i,j,k))**2 +&
+                    (magnetNode(3) - N_VolMesh(iElem)%Elem_xGP(3,i,j,k))**2)
 
         ! Calculate the magnetic potential of the node with the Gaussian quadrature
         psiMagTemp = psiMagTemp + wGP(jj) / (4 * PI) / dist *&
@@ -361,7 +365,7 @@ DO iElem=1,nElems
                      DOT_PRODUCT(normalUnitVector, PermanentMagnetInfo(iMagnet)%Magnetisation)
       END DO !kk
     END DO !jj
-    PsiMag(i,j,k,iElem) = PI / PermanentMagnetInfo(iMagnet)%NumNodes * psiMagTemp
+    N_BG(iElem)%PsiMag(i,j,k) = PI / PermanentMagnetInfo(iMagnet)%NumNodes * psiMagTemp
   END DO; END DO; END DO
 END DO
 
@@ -422,11 +426,12 @@ SUBROUTINE CalculateCylindricMagneticPotential(iMagnet)
 USE MOD_Preproc
 USE MOD_Globals            ,ONLY: VECNORM,UNITVECTOR
 USE MOD_Globals_Vars       ,ONLY: PI
-USE MOD_Mesh_Vars          ,ONLY: nElems, Elem_xGP
+USE MOD_Mesh_Vars          ,ONLY: nElems, N_VolMesh, offSetElem
 USE MOD_Basis              ,ONLY: LegendreGaussNodesAndWeights
 USE MOD_SuperB_Tools       ,ONLY: FindLinIndependentVectors, GramSchmidtAlgo
-USE MOD_Interpolation_Vars ,ONLY: BGFieldVTKOutput, PsiMag
-USE MOD_SuperB_Vars        ,ONLY: PermanentMagnetInfo, MagnetFlag
+USE MOD_Interpolation_Vars ,ONLY: BGFieldVTKOutput, N_BG
+USE MOD_SuperB_Vars        ,ONLY: PermanentMagnetInfo, PermanentMagnets
+USE MOD_DG_Vars            ,ONLY: N_DG_Mapping
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -438,7 +443,7 @@ INTEGER, INTENT(IN) :: iMagnet
 ! LOCAL VARIABLES
 REAL                :: AxisVec1(3), AxisVec2(3), magnetNode(3), normalUnitVector(3), normalVector(3), l(3), d(3)
 REAL                :: TrafoMatrix(3,3), x(3)
-INTEGER             :: iElem, i, j, k, ii, jj, kk, iPoint
+INTEGER             :: iElem, i, j, k, ii, jj, kk, iPoint, Nloc
 REAL, ALLOCATABLE   :: xGP(:), wGP(:)
 REAL                :: psiMagTemp, z, radius, phi, dist, height, tmin, radii(2)
 CHARACTER(LEN=26)   :: myFileName
@@ -466,8 +471,9 @@ ASSOCIATE( r      => PermanentMagnetInfo(iMagnet)%Radius       ,& ! outer radius
   TrafoMatrix(:,3) = h
 
   DO iElem=1,nElems
-    DO i=0,PP_N; DO j=0,PP_N; DO k=0,PP_N
-      x = Elem_xGP(1:3,i,j,k,iElem)
+    Nloc = N_DG_Mapping(2,iElem+offSetElem)
+    DO i=0,Nloc; DO j=0,Nloc; DO k=0,Nloc
+      x = N_VolMesh(iElem)%Elem_xGP(1:3,i,j,k)
 
       ! ------
       ! Top
@@ -495,7 +501,7 @@ ASSOCIATE( r      => PermanentMagnetInfo(iMagnet)%Radius       ,& ! outer radius
           psiMagTemp = psiMagTemp + radius / dist * wGP(ii) / (4. * PI) * DOT_PRODUCT(normalUnitVector, M)
         END DO
       END DO
-      psiMag(i,j,k,iElem) = psiMag(i,j,k,iElem) + PI / nNodes * (r-r2) / 2. * psiMagTemp
+      N_BG(iElem)%PsiMag(i,j,k) = N_BG(iElem)%PsiMag(i,j,k) + PI / nNodes * (r-r2) / 2. * psiMagTemp
 
       ! ------
       ! Bottom
@@ -523,7 +529,7 @@ ASSOCIATE( r      => PermanentMagnetInfo(iMagnet)%Radius       ,& ! outer radius
           psiMagTemp = psiMagTemp + radius / dist * wGP(ii) / (4. * PI) * DOT_PRODUCT(normalUnitVector, M)
         END DO
       END DO
-      psiMag(i,j,k,iElem) = psiMag(i,j,k,iElem) + PI / nNodes * (r-r2) / 2. * psiMagTemp
+      N_BG(iElem)%PsiMag(i,j,k) = N_BG(iElem)%PsiMag(i,j,k) + PI / nNodes * (r-r2) / 2. * psiMagTemp
 
       ! ------
       ! Side (cylinder) or Outer mantle (hollow cylinder)
@@ -550,7 +556,7 @@ ASSOCIATE( r      => PermanentMagnetInfo(iMagnet)%Radius       ,& ! outer radius
           psiMagTemp = psiMagTemp + wGP(kk) / dist / (4 * PI) * DOT_PRODUCT(normalUnitVector, M)
         END DO
       END DO
-      psiMag(i,j,k,iElem) = psiMag(i,j,k,iElem) + PI / nNodes * height / 2. * psiMagTemp
+      N_BG(iElem)%PsiMag(i,j,k) = N_BG(iElem)%PsiMag(i,j,k) + PI / nNodes * height / 2. * psiMagTemp
 
       ! ------
       ! Check if the mesh point is in the cylinder
@@ -568,7 +574,7 @@ ASSOCIATE( r      => PermanentMagnetInfo(iMagnet)%Radius       ,& ! outer radius
 
       IF ((tMin.GE.0).AND.(tMin.LE.1).AND.(dist.LE.r))THEN
         IF(dist.GE.r2)THEN
-          MagnetFlag(i,j,k,iElem) = iMagnet
+          PermanentMagnets(iElem)%Flag(i,j,k) = iMagnet
         END IF ! dist.GE.r2
       END IF
 
@@ -580,8 +586,9 @@ ASSOCIATE( r      => PermanentMagnetInfo(iMagnet)%Radius       ,& ! outer radius
   ! ------
   IF(r2.GT.0.0)THEN
     DO iElem=1,nElems
-      DO i=0,PP_N; DO j=0,PP_N; DO k=0,PP_N
-        x = Elem_xGP(1:3,i,j,k,iElem)
+      Nloc = N_DG_Mapping(2,iElem+offSetElem)
+      DO i=0,Nloc; DO j=0,Nloc; DO k=0,Nloc
+        x = N_VolMesh(iElem)%Elem_xGP(1:3,i,j,k)
 
         psiMagTemp = 0
         DO kk=1,nNodes
@@ -605,7 +612,7 @@ ASSOCIATE( r      => PermanentMagnetInfo(iMagnet)%Radius       ,& ! outer radius
             psiMagTemp = psiMagTemp + wGP(kk) / dist / (4 * PI) * DOT_PRODUCT(normalUnitVector, M)
           END DO
         END DO
-        psiMag(i,j,k,iElem) = psiMag(i,j,k,iElem) + PI / nNodes * height / 2. * psiMagTemp
+        N_BG(iElem)%PsiMag(i,j,k) = N_BG(iElem)%PsiMag(i,j,k) + PI / nNodes * height / 2. * psiMagTemp
 
       END DO; END DO; END DO
     END DO
@@ -733,11 +740,12 @@ SUBROUTINE CalculateConicMagneticPotential(iMagnet)
 ! MODULES
 USE MOD_Globals_Vars       ,ONLY: PI
 USE MOD_Preproc
-USE MOD_Mesh_Vars          ,ONLY: nElems, Elem_xGP
+USE MOD_Mesh_Vars          ,ONLY: nElems, N_VolMesh, offsetElem
 USE MOD_Basis              ,ONLY: LegendreGaussNodesAndWeights
-USE MOD_Interpolation_Vars ,ONLY: BGFieldVTKOutput, PsiMag
-USE MOD_SuperB_Vars        ,ONLY: PermanentMagnetInfo, MagnetFlag
+USE MOD_Interpolation_Vars ,ONLY: BGFieldVTKOutput, N_BG
+USE MOD_SuperB_Vars        ,ONLY: PermanentMagnetInfo, PermanentMagnets
 USE MOD_SuperB_Tools       ,ONLY: FindLinIndependentVectors, GramSchmidtAlgo
+USE MOD_DG_Vars            ,ONLY: N_DG_Mapping
 ! IMPLICIT NONE
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -751,7 +759,7 @@ REAL,ALLOCATABLE   :: xGP(:), wGP(:)
 REAL               :: height, psiMagTemp, z, radius, phi, normalLength, dist, tMin
 REAL               :: TrafoMatrix(3,3)
 REAl               :: AxisVec1(3), AxisVec2(3), magnetNode(3), normalVector(3), normalUnitVector(3), l(3), d(3), HeightV(3)
-INTEGER            :: iElem, i, j, k, ii, jj, kk, iPoint
+INTEGER            :: iElem, i, j, k, ii, jj, kk, iPoint, Nloc
 CHARACTER(LEN=26)  :: myFileName
 !===================================================================================================================================
 
@@ -774,7 +782,8 @@ TrafoMatrix(:,2) = AxisVec2
 TrafoMatrix(:,3) = PermanentMagnetInfo(iMagnet)%HeightVector
 
 DO iElem=1,nElems
-  DO i=0,PP_N; DO j=0,PP_N; DO k=0,PP_N
+  Nloc = N_DG_Mapping(2,iElem+offSetElem)
+  DO i=0,Nloc; DO j=0,Nloc; DO k=0,Nloc
     ! Top
     psiMagTemp = 0
     z = height
@@ -789,9 +798,9 @@ DO iElem=1,nElems
         normalUnitVector = PermanentMagnetInfo(iMagnet)%HeightVector / height
 
         ! Calculate the distance between the mesh point and the magnet point
-        dist = SQRT((magnetNode(1) - Elem_xGP(1,i,j,k,iElem))**2 +&
-                    (magnetNode(2) - Elem_xGP(2,i,j,k,iElem))**2 +&
-                    (magnetNode(3) - Elem_xGP(3,i,j,k,iElem))**2)
+        dist = SQRT((magnetNode(1) - N_VolMesh(iElem)%Elem_xGP(1,i,j,k))**2 +&
+                    (magnetNode(2) - N_VolMesh(iElem)%Elem_xGP(2,i,j,k))**2 +&
+                    (magnetNode(3) - N_VolMesh(iElem)%Elem_xGP(3,i,j,k))**2)
 
         ! Calculate the magnetic potential of the node with the Gaussian quadrature
         psiMagTemp = psiMagTemp + wGP(ii) / (4 * PI) / dist * radius *&
@@ -799,7 +808,7 @@ DO iElem=1,nElems
       END DO
     END DO
 
-    psiMag(i,j,k,iElem) = psiMag(i,j,k,iElem) + PI / PermanentMagnetInfo(iMagnet)%NumNodes *&
+    N_BG(iElem)%PsiMag(i,j,k) = N_BG(iElem)%PsiMag(i,j,k) + PI / PermanentMagnetInfo(iMagnet)%NumNodes *&
                           PermanentMagnetInfo(iMagnet)%Radius2 / 2. * psiMagTemp
 
     ! Bottom
@@ -816,9 +825,9 @@ DO iElem=1,nElems
         normalUnitVector = -PermanentMagnetInfo(iMagnet)%HeightVector / height
 
         ! Calculate the distance between the mesh point and the magnet point
-        dist = SQRT((magnetNode(1) - Elem_xGP(1,i,j,k,iElem))**2 +&
-                    (magnetNode(2) - Elem_xGP(2,i,j,k,iElem))**2 +&
-                    (magnetNode(3) - Elem_xGP(3,i,j,k,iElem))**2)
+        dist = SQRT((magnetNode(1) - N_VolMesh(iElem)%Elem_xGP(1,i,j,k))**2 +&
+                    (magnetNode(2) - N_VolMesh(iElem)%Elem_xGP(2,i,j,k))**2 +&
+                    (magnetNode(3) - N_VolMesh(iElem)%Elem_xGP(3,i,j,k))**2)
 
         ! Calculate the magnetic potential of the node with the Gaussian quadrature
         psiMagTemp = psiMagTemp + wGP(ii) / (4 * PI) / dist * radius *&
@@ -826,7 +835,7 @@ DO iElem=1,nElems
       END DO
     END DO
 
-    psiMag(i,j,k,iElem) = psiMag(i,j,k,iElem) + PI / PermanentMagnetInfo(iMagnet)%NumNodes *&
+    N_BG(iElem)%PsiMag(i,j,k) = N_BG(iElem)%PsiMag(i,j,k) + PI / PermanentMagnetInfo(iMagnet)%NumNodes *&
                           PermanentMagnetInfo(iMagnet)%Radius / 2. * psiMagTemp
 
     ! Side
@@ -847,9 +856,9 @@ DO iElem=1,nElems
         normalUnitVector = normalVector / normalLength
 
         ! Calculate the distance between the mesh point and the magnet point
-        dist = SQRT((magnetNode(1) - Elem_xGP(1,i,j,k,iElem))**2 +&
-                    (magnetNode(2) - Elem_xGP(2,i,j,k,iElem))**2 +&
-                    (magnetNode(3) - Elem_xGP(3,i,j,k,iElem))**2)
+        dist = SQRT((magnetNode(1) - N_VolMesh(iElem)%Elem_xGP(1,i,j,k))**2 +&
+                    (magnetNode(2) - N_VolMesh(iElem)%Elem_xGP(2,i,j,k))**2 +&
+                    (magnetNode(3) - N_VolMesh(iElem)%Elem_xGP(3,i,j,k))**2)
 
         ! Calculate the magnetic potential of the node with the Gaussian quadrature
         psiMagTemp = psiMagTemp + wGP(kk) / (4 * PI) / dist *&
@@ -857,20 +866,20 @@ DO iElem=1,nElems
                      DOT_PRODUCT(normalUnitVector, PermanentMagnetInfo(iMagnet)%Magnetisation)
         END DO
       END DO
-      psiMag(i,j,k,iElem) = psiMag(i,j,k,iElem) + PI / PermanentMagnetInfo(iMagnet)%NumNodes * height / 2. * psiMagTemp
+      N_BG(iElem)%PsiMag(i,j,k) = N_BG(iElem)%PsiMag(i,j,k) + PI / PermanentMagnetInfo(iMagnet)%NumNodes * height / 2. * psiMagTemp
 
       ! Check if the mesh point is in the cylinder
-      tMin = (DOT_PRODUCT(Elem_xGP(:,i,j,k,iElem), HeightV) -&
+      tMin = (DOT_PRODUCT(N_VolMesh(iElem)%Elem_xGP(:,i,j,k), HeightV) -&
             DOT_PRODUCT(PermanentMagnetInfo(iMagnet)%BasePoint, HeightV)) /&
             DOT_PRODUCT(HeightV, HeightV)
       l = PermanentMagnetInfo(iMagnet)%BasePoint(:) + tMin * HeightV(:)
-      d = l - Elem_xGP(:,i,j,k,iElem)
+      d = l - N_VolMesh(iElem)%Elem_xGP(:,i,j,k)
       dist = SQRT(DOT_PRODUCT(d, d))
 
       radius = PermanentMagnetInfo(iMagnet)%Radius * (1 - tMin) + PermanentMagnetInfo(iMagnet)%Radius2 * tMin
 
       IF ((tMin.GE.0).AND.(tMin.LE.1).AND.(dist.LE.radius)) THEN
-        MagnetFlag(i,j,k,iElem) = iMagnet
+        PermanentMagnets(iElem)%Flag(i,j,k) = iMagnet
       END IF
   END DO; END DO; END DO
 END DO
@@ -986,12 +995,13 @@ USE MOD_Globals
 USE MOD_Globals_Vars
 USE MOD_Preproc
 USE MOD_Basis
-USE MOD_SuperB_Vars         ,ONLY: PermanentMagnetInfo, MagnetFlag, DoCalcErrorNormsSuperB, L_2_ErrorSuperB, L_Inf_ErrorSuperB
+USE MOD_SuperB_Vars         ,ONLY: PermanentMagnetInfo, PermanentMagnets, DoCalcErrorNormsSuperB, L_2_ErrorSuperB, L_Inf_ErrorSuperB
 USE MOD_SuperB_Vars         ,ONLY: NumOfPermanentMagnets
-USE MOD_Mesh_Vars           ,ONLY: Metrics_fTilde, Metrics_gTilde, Metrics_hTilde, sJ
-USE MOD_Interpolation_Vars  ,ONLY: BGField, xGP, PsiMag
+USE MOD_Mesh_Vars           ,ONLY: N_VolMesh,offSetElem
+USE MOD_Interpolation_Vars  ,ONLY: N_BG, N_Inter, N_BG, Nmin, Nmax
 USE MOD_Globals_Vars        ,ONLY: mu0
 USE MOD_SuperB_Tools        ,ONLY: CalcErrorSuperB
+USE MOD_DG_Vars             ,ONLY: N_DG_Mapping      
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1000,55 +1010,68 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-REAL, DIMENSION(0:PP_N,0:PP_N,0:PP_N)                 :: gradPsi_xi, gradPsi_eta, gradPsi_zeta
-REAL, DIMENSION(0:PP_N,0:PP_N)                        :: D
-REAL, DIMENSION(1:3,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems) :: HField
-INTEGER                                               :: i, j, k, l, iElem, iMagnet
+INTEGER                                               :: i, j, k, l, iElem, iMagnet, Nloc
 CHARACTER(LEN=40)                                     :: formatStr
+TYPE tN_Gradient
+  REAL,ALLOCATABLE :: gradPsi_xi(:,:,:) !< XYZ positions (first index 1:3) of the volume Gauss Point
+  REAL,ALLOCATABLE :: gradPsi_eta(:,:,:)    !< Jacobi matrix of the mapping P\in NGeo
+  REAL,ALLOCATABLE :: gradPsi_zeta(:,:,:) !< Metric Terms (first indices 3) on each GaussPoint
+  REAL,ALLOCATABLE :: HField(:,:,:,:)
+  REAL,ALLOCATABLE :: D(:,:)
+END TYPE tN_Gradient
+TYPE(tN_Gradient),ALLOCATABLE,TARGET  :: N_Gradient(:) 
 INTEGER              :: ExactFunctionNumber    ! Number of exact function to be used for the calculation of the analytical solution
 !===================================================================================================================================
+ALLOCATE(N_Gradient(Nmin:Nmax))
+DO Nloc = Nmin, Nmax
+  ALLOCATE(N_Gradient(Nloc)%gradPsi_xi(0:Nloc,0:Nloc,0:Nloc))
+  ALLOCATE(N_Gradient(Nloc)%gradPsi_eta(0:Nloc,0:Nloc,0:Nloc))
+  ALLOCATE(N_Gradient(Nloc)%gradPsi_zeta(0:Nloc,0:Nloc,0:Nloc))
+  ALLOCATE(N_Gradient(Nloc)%HField(1:3,0:Nloc,0:Nloc,0:Nloc))
+  ALLOCATE(N_Gradient(Nloc)%D(0:Nloc,0:Nloc))
+  CALL PolynomialDerivativeMatrix(Nloc,N_Inter(Nloc)%xGP,N_Gradient(Nloc)%D)
+END DO ! Nloc = Nmin, Nmax
 
-! Compute the polynomial derivative Matrix
-CALL PolynomialDerivativeMatrix(PP_N,xGP,D)
 
 DO iElem=1,PP_nElems
+  Nloc = N_DG_Mapping(2,iElem+offSetElem)
+  N_Gradient(Nloc)%gradPsi_xi=0.
+  N_Gradient(Nloc)%gradPsi_eta=0.
+  N_Gradient(Nloc)%gradPsi_zeta=0.
   ! Compute the gradient in the reference system
-  gradPsi_xi   = 0.
-  gradPsi_eta  = 0.
-  gradPsi_zeta = 0.
-  DO l=0,PP_N
-    DO k=0,PP_N
-      DO j=0,PP_N
-        DO i=0,PP_N
-          gradPsi_xi(i,j,k)   = gradPsi_xi(i,j,k)   + D(i,l) * PsiMag(l,j,k,iElem)
-          gradPsi_eta(i,j,k)  = gradPsi_eta(i,j,k)  + D(j,l) * PsiMag(i,l,k,iElem)
-          gradPsi_zeta(i,j,k) = gradPsi_zeta(i,j,k) + D(k,l) * PsiMag(i,j,l,iElem)
+  DO l=0,Nloc
+    DO k=0,Nloc
+      DO j=0,Nloc
+        DO i=0,Nloc
+          N_Gradient(Nloc)%gradPsi_xi(i,j,k) = N_Gradient(Nloc)%gradPsi_xi(i,j,k) + N_Gradient(Nloc)%D(i,l) * N_BG(iElem)%PsiMag(l,j,k)
+          N_Gradient(Nloc)%gradPsi_eta(i,j,k) = N_Gradient(Nloc)%gradPsi_eta(i,j,k) + N_Gradient(Nloc)%D(j,l) * N_BG(iElem)%PsiMag(i,l,k)
+          N_Gradient(Nloc)%gradPsi_zeta(i,j,k) = N_Gradient(Nloc)%gradPsi_zeta(i,j,k) + N_Gradient(Nloc)%D(k,l) * N_BG(iElem)%PsiMag(i,j,l)
         END DO !i
       END DO !j
     END DO !k
   END DO !l
   ! Transform the gradients from the reference system to the xyz-System. Only exact for cartesian mesh!
-  DO k=0,PP_N
-    DO j=0,PP_N
-      DO i=0,PP_N
-        HField(1,i,j,k,iElem) = -1 * sJ(i,j,k,iElem) * (&
-                                 Metrics_fTilde(1,i,j,k,iElem) * gradPsi_xi(i,j,k)   +&
-                                 Metrics_gTilde(1,i,j,k,iElem) * gradPsi_eta(i,j,k)  +&
-                                 Metrics_hTilde(1,i,j,k,iElem) * gradPsi_zeta(i,j,k))
-        HField(2,i,j,k,iElem) = -1 * sJ(i,j,k,iElem) * (&
-                                 Metrics_fTilde(2,i,j,k,iElem) * gradPsi_xi(i,j,k)   +&
-                                 Metrics_gTilde(2,i,j,k,iElem) * gradPsi_eta(i,j,k)  +&
-                                 Metrics_hTilde(2,i,j,k,iElem) * gradPsi_zeta(i,j,k) )
-        HField(3,i,j,k,iElem) = -1 * sJ(i,j,k,iElem) * (&
-                                 Metrics_fTilde(3,i,j,k,iElem) * gradPsi_xi(i,j,k)   +&
-                                 Metrics_gTilde(3,i,j,k,iElem) * gradPsi_eta(i,j,k)  +&
-                                 Metrics_hTilde(3,i,j,k,iElem) * gradPsi_zeta(i,j,k) )
+  DO k=0,Nloc
+    DO j=0,Nloc
+      DO i=0,Nloc
+        N_Gradient(Nloc)%HField(1,i,j,k) = -1 * N_VolMesh(iElem)%sJ(i,j,k) * (&
+                                 N_VolMesh(iElem)%Metrics_fTilde(1,i,j,k) * N_Gradient(Nloc)%gradPsi_xi(i,j,k)   +&
+                                 N_VolMesh(iElem)%Metrics_gTilde(1,i,j,k) * N_Gradient(Nloc)%gradPsi_eta(i,j,k)  +&
+                                 N_VolMesh(iElem)%Metrics_hTilde(1,i,j,k) * N_Gradient(Nloc)%gradPsi_zeta(i,j,k))
+        N_Gradient(Nloc)%HField(2,i,j,k) = -1 * N_VolMesh(iElem)%sJ(i,j,k) * (&
+                                 N_VolMesh(iElem)%Metrics_fTilde(2,i,j,k) * N_Gradient(Nloc)%gradPsi_xi(i,j,k)   +&
+                                 N_VolMesh(iElem)%Metrics_gTilde(2,i,j,k) * N_Gradient(Nloc)%gradPsi_eta(i,j,k)  +&
+                                 N_VolMesh(iElem)%Metrics_hTilde(2,i,j,k) * N_Gradient(Nloc)%gradPsi_zeta(i,j,k) )
+        N_Gradient(Nloc)%HField(3,i,j,k) = -1 * N_VolMesh(iElem)%sJ(i,j,k) * (&
+                                 N_VolMesh(iElem)%Metrics_fTilde(3,i,j,k) * N_Gradient(Nloc)%gradPsi_xi(i,j,k)   +&
+                                 N_VolMesh(iElem)%Metrics_gTilde(3,i,j,k) * N_Gradient(Nloc)%gradPsi_eta(i,j,k)  +&
+                                 N_VolMesh(iElem)%Metrics_hTilde(3,i,j,k) * N_Gradient(Nloc)%gradPsi_zeta(i,j,k) )
         ! HField(:,i,j,k,iElem) = - HField(:,i,j,k,iElem)
-        iMagnet = MagnetFlag(i,j,k,iElem)
+        iMagnet = PermanentMagnets(iElem)%Flag(i,j,k)
         IF(iMagnet.EQ.0) THEN
-          BGField(:,i,j,k,iElem) = mu0 * HField(:,i,j,k,iElem)
+          N_BG(iElem)%BGField(:,i,j,k) = mu0 * N_Gradient(Nloc)%HField(:,i,j,k)
         ELSE
-          BGField(:,i,j,k,iElem) = mu0 * (HField(:,i,j,k,iElem) + PermanentMagnetInfo(iMagnet)%Magnetisation(:))
+          N_BG(iElem)%BGField(:,i,j,k) = mu0 * (N_Gradient(Nloc)%HField(:,i,j,k) + PermanentMagnetInfo(iMagnet)%Magnetisation(:))
         END IF
       END DO !i
     END DO !j

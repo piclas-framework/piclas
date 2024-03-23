@@ -1286,7 +1286,6 @@ SDEALLOCATE(Vdm_CLNGeo_CLN)
 SDEALLOCATE(Vdm_NGeo_CLNgeo)
 SDEALLOCATE(Vdm_EQ_N)
 SDEALLOCATE(Vdm_N_EQ)
-SDEALLOCATE(Vdm_GL_N)
 SDEALLOCATE(Vdm_N_GL)
 ! mapping from elems to sides and vice-versa
 SDEALLOCATE(ElemToSide)
