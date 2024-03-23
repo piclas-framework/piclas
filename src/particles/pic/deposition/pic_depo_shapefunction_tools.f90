@@ -705,7 +705,6 @@ ChargeSFDone(:) = .FALSE.
 firstElem = .TRUE.
 
 ALLOCATE(first)
-ALLOCATE(first%PartSourceLoc(1:4,0:PP_N,0:PP_N,0:PP_N))
 nUsedElems = 0
 totalCharge = 0.0
 !-- determine which background mesh cells (and interpolation points within) need to be considered
