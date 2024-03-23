@@ -207,7 +207,7 @@ USE MOD_PICDepo_Vars       ,ONLY: NodeVolume_Shared, NodeVolume_Shared_Win
 #else
 USE MOD_Mesh_Vars          ,ONLY: nElems
 #endif
-USE MOD_Particle_Mesh_Vars ,ONLY: ElemsJ, ElemNodeID_Shared, nUniqueGlobalNodes, NodeInfo_Shared,GEO
+USE MOD_Particle_Mesh_Vars ,ONLY: ElemNodeID_Shared, nUniqueGlobalNodes, NodeInfo_Shared,GEO
 USE MOD_PICDepo_Vars       ,ONLY: NodeVolume,Periodic_nNodes,Periodic_offsetNode,Periodic_Nodes
 USE MOD_DG_Vars            ,ONLY: N_DG_Mapping
 USE MOD_Mesh_Vars          ,ONLY: N_VolMesh, offSetElem

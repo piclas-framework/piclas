@@ -486,10 +486,10 @@ SUBROUTINE depoChargeOnDOFsSFChargeCon(Position,SourceSize,Fac,r_sf, r2_sf, r2_s
 ! use MODULES
 USE MOD_PreProc
 USE MOD_Globals
-USE MOD_PICDepo_Vars       ,ONLY: alpha_sf,ChargeSFDone,PS_N, N_ShapeTmp
+USE MOD_PICDepo_Vars       ,ONLY: alpha_sf,ChargeSFDone, N_ShapeTmp
 USE MOD_Mesh_Vars          ,ONLY: offSetElem,N_VolMesh
 USE MOD_Particle_Mesh_Vars ,ONLY: GEO, ElemBaryNgeo, FIBGM_offsetElem, FIBGM_nElems, FIBGM_Element, Elem_xGP_Shared
-USE MOD_Particle_Mesh_Vars ,ONLY: ElemRadiusNGeo, ElemsJ
+USE MOD_Particle_Mesh_Vars ,ONLY: ElemRadiusNGeo
 USE MOD_Preproc
 USE MOD_Mesh_Tools         ,ONLY: GetCNElemID
 USE MOD_Interpolation_Vars ,ONLY: N_Inter
@@ -655,9 +655,9 @@ SUBROUTINE depoChargeOnDOFsSFAdaptive(Position,SourceSize,Fac,PartIdx)
 USE MOD_PreProc
 USE MOD_Globals
 USE MOD_PICDepo_Vars       ,ONLY: alpha_sf,SFElemr2_Shared,ChargeSFDone,sfDepo3D,dimFactorSF, N_ShapeTmp
-USE MOD_Mesh_Vars          ,ONLY: offSetElem
+USE MOD_Mesh_Vars          ,ONLY: offSetElem,N_VolMesh
 USE MOD_Particle_Mesh_Vars ,ONLY: ElemBaryNgeo, Elem_xGP_Shared
-USE MOD_Particle_Mesh_Vars ,ONLY: ElemRadiusNGeo, ElemsJ, ElemToElemMapping,ElemToElemInfo
+USE MOD_Particle_Mesh_Vars ,ONLY: ElemRadiusNGeo, ElemToElemMapping,ElemToElemInfo
 USE MOD_Preproc
 USE MOD_Mesh_Tools         ,ONLY: GetCNElemID, GetGlobalElemID
 USE MOD_Interpolation_Vars ,ONLY: N_Inter
@@ -748,7 +748,7 @@ DO ppp = 0,ElemToElemMapping(2,OrigCNElemID)
       ELSE
         N_ShapeTmp(Nloc)%PartSource(1:4,k,l,m) = Fac(1:4) * S1
       END IF
-      totalCharge = totalCharge  + N_Inter(PP_N)%wGP(k)*N_Inter(PP_N)%wGP(l)*N_Inter(PP_N)%wGP(m)*N_ShapeTmp(Nloc)%PartSource(4,k,l,m)/ElemsJ(k,l,m,CNElemID)
+      totalCharge = totalCharge  + N_Inter(PP_N)%wGP(k)*N_Inter(PP_N)%wGP(l)*N_Inter(PP_N)%wGP(m)*N_ShapeTmp(Nloc)%PartSource(4,k,l,m)/N_VolMesh(CNElemID)%sJ(k,l,m)
     END IF
   END DO; END DO; END DO
 
@@ -811,8 +811,9 @@ USE MOD_Globals
 USE MOD_PICDepo_Vars       ,ONLY: PS_N
 USE MOD_Mesh_Vars          ,ONLY: offsetElem
 USE MOD_Mesh_Tools         ,ONLY: GetCNElemID
+USE MOD_DG_Vars            ,ONLY: N_DG_Mapping
 #if USE_MPI
-USE MOD_PICDepo_Vars       ,ONLY: SendElemShapeID, CNRankToSendRank, ShapeMapping
+USE MOD_PICDepo_Vars       ,ONLY: SendDofShapeID, CNRankToSendRank, ShapeMapping
 USE MOD_Particle_Mesh_Vars ,ONLY: ElemInfo_Shared
 #endif
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -829,7 +830,7 @@ REAL, INTENT(IN)    :: Source(dim1:4)
 ! LOCAL VARIABLES
 INTEGER           :: localElem, CNElemID
 #if USE_MPI
-INTEGER           :: ExRankID
+INTEGER           :: ExRankID, Nloc, r
 #endif /*USE_MPI*/
 !===================================================================================================================================
 localElem = globElemID-offSetElem
@@ -840,14 +841,16 @@ IF (ElemOnMyProc(globElemID)) THEN
   PS_N(localElem)%PartSource(dim1:4,k,l,m) = PS_N(localElem)%PartSource(dim1:4,k,l,m) + Source(dim1:4)
 #if USE_MPI
 ELSE
-  ASSOCIATE( ShapeID => SendElemShapeID(CNElemID))
+  ASSOCIATE( ShapeID => SendDofShapeID(CNElemID))
     IF(ShapeID.EQ.-1)THEN
       IPWRITE(UNIT_StdOut,*) "CNElemID   =", CNElemID
       IPWRITE(UNIT_StdOut,*) "globElemID =", globElemID
       CALL abort(__STAMP__,'SendElemShapeID(CNElemID)=-1 and therefore not correctly mapped. Increase Particles-HaloEpsVelo!')
     END IF
     ExRankID = CNRankToSendRank(ElemInfo_Shared(ELEM_RANK,globElemID))
-    ShapeMapping(ExRankID)%SendBuffer(dim1:4,k,l,m,ShapeID) = ShapeMapping(ExRankID)%SendBuffer(dim1:4,k,l,m,ShapeID) + Source(dim1:4)
+    Nloc = N_DG_Mapping(2,globElemID)
+    r=m*(Nloc+1)**2+l*(Nloc+1) + k+1
+    ShapeMapping(ExRankID)%SendBuffer(dim1:4,r+ShapeID) = ShapeMapping(ExRankID)%SendBuffer(dim1:4,r+ShapeID) + Source(dim1:4)
   END ASSOCIATE
 END IF
 #endif /*USE_MPI*/

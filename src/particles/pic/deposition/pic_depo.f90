@@ -105,7 +105,7 @@ USE MOD_Particle_Mesh_Vars     ,ONLY: NodeToElemInfo,NodeToElemMapping,ElemNodeI
 USE MOD_MPI_vars               ,ONLY: offsetElemMPI
 USE MOD_MPI_Shared_Vars        ,ONLY: ComputeNodeRootRank
 USE MOD_MPI_Shared             ,ONLY: BARRIER_AND_SYNC
-USE MOD_MPI_Shared_Vars        ,ONLY: nComputeNodeTotalElems,nComputeNodeProcessors,myComputeNodeRank
+USE MOD_MPI_Shared_Vars        ,ONLY: nComputeNodeTotalElems,nComputeNodeProcessors
 USE MOD_MPI_Shared_Vars        ,ONLY: nProcessors_Global
 USE MOD_MPI_Shared
 USE MOD_Particle_Mesh_Vars     ,ONLY: ElemInfo_Shared
@@ -551,14 +551,6 @@ CASE('shape_function', 'shape_function_cc', 'shape_function_adaptive')
   ! --- Set element flag for cycling already completed elements
 #if USE_MPI
   ALLOCATE(ChargeSFDone(1:nComputeNodeTotalElems))
-  ALLOCATE(nDepoDOFPerProc(0:nComputeNodeProcessors-1),nDepoOffsetProc(0:nComputeNodeProcessors-1))
-  nDepoDOFPerProc =0; nDepoOffsetProc = 0
-  DO iProc = 0, nComputeNodeProcessors-1
-    nDepoDOFPerProc(iProc) = (offsetElemMPI(iProc + 1 + ComputeNodeRootRank) - offsetElemMPI(iProc + ComputeNodeRootRank))*(PP_N+1)**3*4
-  END DO
-  DO iProc = 0, nComputeNodeProcessors-1
-    nDepoOffsetProc(iProc) = (offsetElemMPI(iProc + ComputeNodeRootRank) - offsetElemMPI(ComputeNodeRootRank))*(PP_N+1)**3*4
-  END DO
 #else
   ALLOCATE(ChargeSFDone(1:nElems))
 #endif /*USE_MPI*/
@@ -1991,12 +1983,11 @@ SDEALLOCATE(CellVolWeight)
 SDEALLOCATE(CellVolWeight_Volumes)
 SDEALLOCATE(ChargeSFDone)
 SDEALLOCATE(PeriodicSFCaseMatrix)
+SDEALLOCATE(N_ShapeTmp)
 
 #if USE_MPI
 SDEALLOCATE(FlagShapeElem)
-SDEALLOCATE(nDepoDOFPerProc)
-SDEALLOCATE(nDepoOffsetProc)
-SDEALLOCATE(SendElemShapeID)
+SDEALLOCATE(SendDofShapeID)
 SDEALLOCATE(CNRankToSendRank)
 
 ! First, free every shared memory window. This requires MPI_BARRIER as per MPI3.1 specification
