@@ -108,12 +108,12 @@ DO SideID=firstSideID_wo_BC, lastSideID
   N_max    = MAX(N_master,N_slave)
 
   CALL GetSurfaceFlux(SideID, N_master, N_slave, N_max    ,&
-                      U_Surf_N(SideID)%Flux_Master(1:PP_nVar,0:N_master,0:N_master) ,&
-                      U_Surf_N(SideID)%Flux_Slave( 1:PP_nVar,0:N_slave ,0:N_slave)  ,&
-                      U_Surf_N(SideID)%U_Master(   1:PP_nVar,0:N_master,0:N_master) ,&
-                      U_Surf_N(SideID)%U_Slave(    1:PP_nVar,0:N_slave ,0:N_slave)  ,&
-                      N_SurfMesh(SideID)%NormVec(  1:3      ,0:N_max   ,0:N_max)    ,&
-                      N_SurfMesh(SideID)%SurfElem(           0:N_max   ,0:N_max)    )
+                      U_Surf_N(SideID)%Flux_Master(1:PP_nVar+PMLnVar,0:N_master,0:N_master) ,&
+                      U_Surf_N(SideID)%Flux_Slave( 1:PP_nVar        ,0:N_slave ,0:N_slave)  ,&
+                      U_Surf_N(SideID)%U_Master(   1:PP_nVar        ,0:N_master,0:N_master) ,&
+                      U_Surf_N(SideID)%U_Slave(    1:PP_nVar        ,0:N_slave ,0:N_slave)  ,&
+                      N_SurfMesh(SideID)%NormVec(  1:3              ,0:N_max   ,0:N_max)    ,&
+                      N_SurfMesh(SideID)%SurfElem(                   0:N_max   ,0:N_max)    )
 END DO ! SideID
 
 ! 2. Compute the fluxes at the boundary conditions: 1..nBCSides
@@ -166,7 +166,8 @@ USE MOD_DG_Vars            ,ONLY: DG_Elems_slave,DG_Elems_master
 USE MOD_ChangeBasis        ,ONLY: ChangeBasis2D
 USE MOD_Interpolation_Vars ,ONLY: PREF_VDM,N_Inter
 USE MOD_Interfaces_Vars    ,ONLY: InterfaceRiemann
-USE MOD_mesh_vars, ONLY: N_SurfMesh
+USE MOD_mesh_vars          ,ONLY: N_SurfMesh
+USE MOD_PML_vars           ,ONLY: PMLnVar
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! INPUT / OUTPUT VARIABLES
@@ -174,12 +175,12 @@ INTEGER,INTENT(IN) :: SideID
 INTEGER,INTENT(IN) :: N_master
 INTEGER,INTENT(IN) :: N_slave
 INTEGER,INTENT(IN) :: N_max
-REAL,INTENT(INOUT) :: Flux_Master(1:PP_nVar,0:N_master,0:N_master)
-REAL,INTENT(INOUT) :: Flux_Slave( 1:PP_nVar,0:N_slave ,0:N_slave)
-REAL,INTENT(INOUT) :: U_Master(   1:PP_nVar,0:N_master,0:N_master)
-REAL,INTENT(INOUT) :: U_Slave(    1:PP_nVar,0:N_slave ,0:N_slave)
-REAL,INTENT(INOUT) :: NormVec(    1:3      ,0:N_max   ,0:N_max)
-REAL,INTENT(INOUT) :: SurfElem(             0:N_max   ,0:N_max)
+REAL,INTENT(INOUT) :: Flux_Master(1:PP_nVar+PMLnVar,0:N_master,0:N_master)
+REAL,INTENT(INOUT) :: Flux_Slave( 1:PP_nVar+PMLnVar,0:N_slave ,0:N_slave)
+REAL,INTENT(INOUT) :: U_Master(   1:PP_nVar        ,0:N_master,0:N_master)
+REAL,INTENT(INOUT) :: U_Slave(    1:PP_nVar        ,0:N_slave ,0:N_slave)
+REAL,INTENT(INOUT) :: NormVec(    1:3              ,0:N_max   ,0:N_max)
+REAL,INTENT(INOUT) :: SurfElem(                     0:N_max   ,0:N_max)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 REAL,ALLOCATABLE   :: Uloc(:,:,:),Fluxloc(:,:,:),Fluxdie(:,:,:)

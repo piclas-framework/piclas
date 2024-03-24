@@ -84,7 +84,7 @@ CALL prms%CreateRealOption(     'eps'              , 'TODO-DEFINE-PARAMETER\n'//
 CALL prms%CreateRealOption(     'mu'               , 'TODO-DEFINE-PARAMETER\n'//&
                                                      'Magnetic constant (vacuum permeability = 4πE−7H/m)' &
                                                    , '1.')
-CALL prms%CreateRealOption(     'fDamping'         , 'TODO-DEFINE-PARAMETER\n'//&
+CALL prms%CreateRealOption(     'fDamping'         , 'Damping factor for the Maxwell PHM system\n'//&
                                                      'Apply the damping factor also to PML source terms\n'//&
                                                      'but only to PML variables for Phi_E and Phi_B to prevent charge-related\n'//&
                                                      'instabilities (accumulation of divergence compensation over \n'//&

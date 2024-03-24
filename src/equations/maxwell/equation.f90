@@ -1065,7 +1065,7 @@ IF(DoDeposition)THEN
     DO iElem=1,PP_nElems
       iDielectricElem = ElemToDielectric(iElem)
       Nloc = N_DG_Mapping(2,iElem+offSetElem)
-      IF(isDielectricElem(iElem)) THEN ! 1.) PML version - PML element
+      IF(isDielectricElem(iElem)) THEN ! Element is in an dielectric region
         DO k=0,Nloc; DO j=0,Nloc; DO i=0,Nloc
 #if IMPA
           PartSourceLoc=PS_N(iElem)%PartSource(:,i,j,k)+ExplicitPartSource(:,i,j,k)
@@ -1080,7 +1080,7 @@ IF(DoDeposition)THEN
           U_N(iElem)%Ut(  8,i,j,k) = U_N(iElem)%Ut(  8,i,j,k) + eps0inv *coeff* PartSourceloc( 4 ) * c_corr &
                                                       / DielectricVol(iDielectricElem)%DielectricEps(i,j,k) ! only use x
         END DO; END DO; END DO
-      ELSE
+      ELSE ! Normal element in vacuum
         DO k=0,Nloc; DO j=0,Nloc; DO i=0,Nloc
 #if IMPA
           PartSourceLoc=PS_N(iElem)%PartSource(:,i,j,k)+ExplicitPartSource(:,i,j,k)
@@ -1093,7 +1093,7 @@ IF(DoDeposition)THEN
         END DO; END DO; END DO
       END IF
     END DO
-  ELSE
+  ELSE ! Normal element in vacuum
     DO iElem=1,PP_nElems
       Nloc = N_DG_Mapping(2,iElem+offSetElem)
       DO k=0,Nloc; DO j=0,Nloc; DO i=0,Nloc

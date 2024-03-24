@@ -109,7 +109,7 @@ USE MOD_TimeDisc_Vars ,ONLY: RK_c, RK_inflow,nRKStages
 #endif
 USE MOD_TimeDisc_Vars ,ONLY: TEnd
 #if (PP_TimeDiscMethod==1)||(PP_TimeDiscMethod==2)|| (PP_TimeDiscMethod==6)
-USE MOD_TimeDisc_Vars          ,ONLY: U2t_temp
+!USE MOD_TimeDisc_Vars          ,ONLY: U2t_temp
 USE MOD_PML_Vars               ,ONLY: nPMLElems
 USE MOD_PML_Vars               ,ONLY: PMLnVar
 #endif
@@ -250,7 +250,7 @@ dtWeight      = 1.
 
 #if (PP_TimeDiscMethod==1)||(PP_TimeDiscMethod==2)|| (PP_TimeDiscMethod==6)
 ! Attention: nPMLElems is always zero (here!)
-ALLOCATE(U2t_temp(  1:PMLnVar,0:PP_N,0:PP_N,0:PP_N,1:nPMLElems)) ! temporal variable for U2t
+!ALLOCATE(U2t_temp(  1:PMLnVar,0:PP_N,0:PP_N,0:PP_N,1:nPMLElems)) ! temporal variable for U2t
 #ifdef PP_POIS
 ALLOCATE(Phit_temp( 1:4      ,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems))
 #endif /*PP_POIS*/
@@ -484,7 +484,7 @@ SUBROUTINE FinalizeTimeDisc()
 USE MOD_Globals
 USE MOD_TimeDisc_Vars, ONLY:TimeDiscInitIsDone
 #if (PP_TimeDiscMethod==1)||(PP_TimeDiscMethod==2)|| (PP_TimeDiscMethod==6)
-USE MOD_TimeDisc_Vars          ,ONLY: Ut_N,U2t_temp
+USE MOD_TimeDisc_Vars          ,ONLY: Ut_N!,U2t_temp
 #endif
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -498,7 +498,7 @@ IMPLICIT NONE
 
 #if (PP_TimeDiscMethod==1)||(PP_TimeDiscMethod==2)|| (PP_TimeDiscMethod==6)
 SDEALLOCATE(Ut_N)
-SDEALLOCATE(U2t_temp)
+!SDEALLOCATE(U2t_temp)
 #ifdef PP_POIS
 SDEALLOCATE(Phit_temp)
 #endif /*PP_POIS*/

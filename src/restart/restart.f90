@@ -280,7 +280,9 @@ USE MOD_RayTracing             ,ONLY: RayTracing
 USE MOD_Restart_Tools          ,ONLY: RecomputeLambda
 USE MOD_HDG                    ,ONLY: RestartHDG
 #endif /*USE_HDG*/
+#if !((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))
 USE MOD_Restart_Field          ,ONLY: FieldRestart
+#endif /*!((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -298,7 +300,9 @@ IF(DoRestart)THEN
   GETTIME(StartT)
 
   ! Restart field arrays
+#if !((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))
   CALL FieldRestart()
+#endif /*!((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))*/
 
 #ifdef PARTICLES
   ! Restart particle arrays

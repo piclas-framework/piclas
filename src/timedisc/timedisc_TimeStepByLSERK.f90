@@ -40,9 +40,9 @@ USE MOD_Vector
 USE MOD_Mesh_Vars              ,ONLY: nElems
 USE MOD_TimeDisc_Vars          ,ONLY: dt,iStage,time
 USE MOD_TimeDisc_Vars          ,ONLY: RK_a,RK_b,RK_c,nRKStages
-USE MOD_TimeDisc_Vars          ,ONLY: Ut_N,U2t_temp
+USE MOD_TimeDisc_Vars          ,ONLY: Ut_N
 USE MOD_DG_Vars                ,ONLY: U_N
-USE MOD_PML_Vars               ,ONLY: U2,U2t,DoPML
+USE MOD_PML_Vars               ,ONLY: DoPML
 USE MOD_PML                    ,ONLY: PMLTimeDerivative,CalcPMLSource
 USE MOD_Equation               ,ONLY: DivCleaningDamping
 USE MOD_Equation               ,ONLY: CalcSource
@@ -79,6 +79,7 @@ USE MOD_Particle_Vars          ,ONLY: UseSplitAndMerge
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Timers     ,ONLY: LBStartTime,LBSplitTime,LBPauseTime
 #endif /*USE_LOADBALANCE*/
+USE MOD_PML_Vars               ,ONLY: nPMLElems,PMLToElem
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -93,7 +94,7 @@ INTEGER                       :: iPart
 #if USE_LOADBALANCE
 REAL                          :: tLBStart ! load balance
 #endif /*USE_LOADBALANCE*/
-INTEGER                       :: iElem
+INTEGER                       :: iElem,iPMLElem
 !===================================================================================================================================
 
 ! RK coefficients
@@ -281,13 +282,19 @@ DO iStage = 1,nRKStages
   CALL LBSplitTime(LB_DG,tLBStart)
 #endif /*USE_LOADBALANCE*/
   ! PML auxiliary variables
-  IF(DoPML) THEN
-    IF (iStage.EQ.1) THEN
-      U2t_temp = U2t
-    ELSE
-      U2t_temp = U2t - U2t_temp*RK_a(iStage)
-    END IF
-    U2 = U2 + U2t_temp*b_dt(iStage)
+  IF(DoPML)THEN
+    DO iPMLElem=1,nPMLElems
+      iElem = PMLToElem(iPMLElem)
+      IF (iStage.EQ.1) THEN
+        !U2t_temp = U2t
+        Ut_N(iElem)%U2t_temp = U_N(iElem)%U2t
+      ELSE
+        !U2t_temp = U2t - U2t_temp*RK_a(iStage)
+        Ut_N(iElem)%U2t_temp = U_N(iElem)%U2t - Ut_N(iElem)%U2t_temp*RK_a(iStage)
+      END IF
+      !U2 = U2 + U2t_temp*b_dt(iStage)
+      U_N(iElem)%U2 = U_N(iElem)%U2 + Ut_N(iElem)%U2t_temp*b_dt(iStage)
+    END DO
   END IF
 #if USE_LOADBALANCE
   CALL LBSplitTime(LB_PML,tLBStart)

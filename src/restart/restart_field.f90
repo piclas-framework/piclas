@@ -26,16 +26,20 @@ PRIVATE
 !-----------------------------------------------------------------------------------------------------------------------------------
 
 !#if USE_LOADBALANCE
+#if !((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))
 INTERFACE FieldRestart
   MODULE PROCEDURE FieldRestart
 END INTERFACE
 
 PUBLIC :: FieldRestart
+#endif /*!((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))*/
 !#endif /*USE_LOADBALANCE*/
 !===================================================================================================================================
 
 CONTAINS
 
+
+#if !((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))
 !#if USE_LOADBALANCE
 SUBROUTINE FieldRestart()
 !===================================================================================================================================
@@ -106,7 +110,7 @@ USE MOD_HDG_Vars           ,ONLY: lambda_petsc,PETScGlobal,PETScLocalToSideID,nP
 ! Non-HDG stuff
 USE MOD_Interpolation_Vars ,ONLY: Nmax
 USE MOD_LoadBalance_Vars   ,ONLY: nElemsOld,offsetElemOld
-USE MOD_PML_Vars           ,ONLY: DoPML,PMLToElem,U2,nPMLElems,PMLnVar
+USE MOD_PML_Vars           ,ONLY: DoPML,PMLToElem,nPMLElems,PMLnVar
 USE MOD_Restart_Vars       ,ONLY: Vdm_GaussNRestart_GaussN
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Vars   ,ONLY: MPInElemSend,MPInElemRecv,MPIoffsetElemSend,MPIoffsetElemRecv
@@ -169,11 +173,6 @@ REAL,ALLOCATABLE                   :: Uloc(:,:,:,:)
 INTEGER                            :: Nloc
 #endif /*PP_POIS*/
 !===================================================================================================================================
-
-#if (PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400)
-! Return here for DSMC, BGK or FP time discretization methods
-RETURN
-#endif /*(PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400)*/
 
 ! ===========================================================================
 ! Distribute or read the field solution
@@ -530,11 +529,11 @@ ELSE ! normal restart
     CALL ReadArray('DG_Solution',5,(/nVar,Nres+1_IK,Nres+1_IK,Nres+1_IK,PP_nElemsTmp/),OffsetElemTmp,5,RealArray=U)
     DO iElem = 1, nElems
       Nloc = N_DG_Mapping(2,iElem+offSetElem)
-      IF(Nloc.EQ.N_Restart)THEN
+      IF(Nloc.EQ.N_Restart)THEN ! N is equal
         U_N(iElem)%U(1:nVar,0:Nres,0:Nres,0:Nres) = U(1:nVar,0:Nres,0:Nres,0:Nres,iElem)
-      ELSEIF(Nloc.GT.N_Restart)THEN
+      ELSEIF(Nloc.GT.N_Restart)THEN ! N increases
         CALL ChangeBasis3D(PP_nVar, N_Restart, Nloc, PREF_VDM(N_Restart, Nloc)%Vdm, U(1:nVar,0:Nres,0:Nres,0:Nres,iElem), U_N(iElem)%U(1:nVar,0:Nloc,0:Nloc,0:Nloc))
-      ELSE
+      ELSE ! N reduces
         ALLOCATE(Uloc(1:nVar,0:Nres,0:Nres,0:Nres))
         !transform the slave side to the same degree as the master: switch to Legendre basis
         CALL ChangeBasis3D(PP_nVar, N_Restart, N_Restart, N_Inter(N_Restart)%sVdm_Leg, U(1:nVar,0:Nres,0:Nres,0:Nres,iElem), Uloc)
@@ -544,11 +543,24 @@ ELSE ! normal restart
       END IF ! Nloc.EQ.N_Restart
     END DO ! iElem = 1, nElems
     IF(DoPML)THEN
-      ALLOCATE(U_local(PMLnVar,0:PP_N,0:PP_N,0:PP_N,PP_nElems))
+      ALLOCATE(U_local(PMLnVar,0:Nres,0:Nres,0:Nres,nElems))
       CALL ReadArray('PML_Solution',5,(/INT(PMLnVar,IK),Nres+1_IK,Nres+1_IK,Nres+1_IK,PP_nElemsTmp/),&
           OffsetElemTmp,5,RealArray=U_local)
       DO iPML=1,nPMLElems
-        U2(:,:,:,:,iPML) = U_local(:,:,:,:,PMLToElem(iPML))
+        iElem = PMLToElem(iPML)
+        Nloc  = N_DG_Mapping(2,iElem+offSetElem)
+        IF(Nloc.EQ.N_Restart)THEN ! N is equal
+          U_N(iElem)%U2(1:PMLnVar,0:Nres,0:Nres,0:Nres) = U_local(1:PMLnVar,0:Nres,0:Nres,0:Nres,iElem)
+        ELSEIF(Nloc.GT.N_Restart)THEN ! N increases
+          CALL ChangeBasis3D(PP_nVar, N_Restart, Nloc, PREF_VDM(N_Restart, Nloc)%Vdm, U_local(1:PMLnVar,0:Nres,0:Nres,0:Nres,iElem), U_N(iElem)%U2(1:PMLnVar,0:Nloc,0:Nloc,0:Nloc))
+        ELSE ! N reduces
+          ALLOCATE(Uloc(1:PMLnVar,0:Nres,0:Nres,0:Nres))
+          !transform the slave side to the same degree as the master: switch to Legendre basis
+          CALL ChangeBasis3D(PP_nVar, N_Restart, N_Restart, N_Inter(N_Restart)%sVdm_Leg, U_local(1:PMLnVar,0:Nres,0:Nres,0:Nres,iElem), Uloc)
+          ! switch back to nodal basis
+          CALL ChangeBasis3D(PP_nVar, Nloc, Nloc, N_Inter(Nloc)%Vdm_Leg, Uloc(1:PMLnVar,0:Nloc,0:Nloc,0:Nloc), U_N(iElem)%U2(1:PMLnVar,0:Nloc,0:Nloc,0:Nloc))
+          DEALLOCATE(Uloc)
+        END IF ! Nloc.EQ.N_Restart
       END DO ! iPML
       DEALLOCATE(U_local)
     END IF ! DoPML
@@ -572,5 +584,6 @@ END IF ! PerformLoadBalance
 
 END SUBROUTINE FieldRestart
 !#endif /*USE_LOADBALANCE*/
+#endif /*!((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))*/
 
 END MODULE MOD_Restart_Field
