@@ -938,10 +938,12 @@ DO iElem=1,nElems
   Wpsi_tmp = 0.
 #endif /*PP_nVar=8*/
   Nloc = N_DG_Mapping(2,iElem+offSetElem)
-  ASSOCIATE( wGP => N_Inter(Nloc)%wGP     ,&
-             Ex  => U_N(iElem)%E(1,i,j,k) ,&
+  ASSOCIATE( wGP => N_Inter(Nloc)%wGP )
+#if USE_HDG
+  ASSOCIATE( Ex  => U_N(iElem)%E(1,i,j,k) ,&
              Ey  => U_N(iElem)%E(2,i,j,k) ,&
              Ez  => U_N(iElem)%E(3,i,j,k) )
+#endif /*USE_HDG*/
   DO k=0,Nloc; DO j=0,Nloc; DO i=0,Nloc
 ! in electromagnetische felder by henke 2011 - springer
 ! WMag = 1/(2mu) * int_V B^2 dV
@@ -977,6 +979,9 @@ DO iElem=1,nElems
     Wpsi_tmp = Wpsi_tmp + wGP(i)*wGP(j)*wGP(k)   / N_VolMesh(iElem)%sJ(i,j,k) * Psi_abs
 #endif /*PP_nVar=8*/
   END DO; END DO; END DO
+#if USE_HDG
+  END ASSOCIATE
+#endif /*USE_HDG*/
   END ASSOCIATE
   WEl = WEl + WEl_tmp
 #if (PP_nVar==8)
@@ -1097,10 +1102,12 @@ DO iElem=1,nElems
   WEl_tmp=0.
   WMag_tmp=0.
   Nloc = N_DG_Mapping(2,iElem+offSetElem)
-  ASSOCIATE( wGP => N_Inter(Nloc)%wGP     ,&
-             Ex  => U_N(iElem)%E(1,i,j,k) ,&
+  ASSOCIATE( wGP => N_Inter(Nloc)%wGP )
+#if USE_HDG
+  ASSOCIATE( Ex  => U_N(iElem)%E(1,i,j,k) ,&
              Ey  => U_N(iElem)%E(2,i,j,k) ,&
              Ez  => U_N(iElem)%E(3,i,j,k) )
+#endif /*USE_HDG*/
 
   IF(isDielectricElem(iElem))THEN
     DO k=0,Nloc; DO j=0,Nloc; DO i=0,Nloc
@@ -1175,6 +1182,9 @@ DO iElem=1,nElems
 #endif /*PP_nVar=8*/
     END DO; END DO; END DO
   END IF
+#if USE_HDG
+  END ASSOCIATE
+#endif /*USE_HDG*/
   END ASSOCIATE
 
 
