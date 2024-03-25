@@ -347,7 +347,7 @@ build:
   stage: build
   script:
     - mkdir -p build ; cd build
-    - cmake -GNinja .. -DLIBS_BUILD_HDF5=OFF -DPICLAS_BUILD_POSTI=ON -DPOSTI_BUILD_SUPERB=OFF -DPICLAS_READIN_CONSTANTS=ON ; ninja -j0 all
+    - cmake -GNinja .. -DLIBS_BUILD_HDF5=OFF -DPICLAS_BUILD_POSTI=ON -DPOSTI_BUILD_SUPERB=ON -DPICLAS_READIN_CONSTANTS=ON ; ninja -j0 all
 
 build_maxwell_only:
   extends: .default_build_param
