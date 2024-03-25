@@ -476,20 +476,19 @@ USE MOD_Particle_Vars              ,ONLY: Species
 USE MOD_Restart_Vars               ,ONLY: RestartTime
 USE MOD_TimeDisc_Vars              ,ONLY: TEnd
 USE MOD_Timedisc_Vars              ,ONLY: time,dt
+USE MOD_Particle_Boundary_vars     ,ONLY: SurfSideArea
 #if USE_MPI
 USE MOD_MPI_Shared                 ,ONLY: BARRIER_AND_SYNC
 USE MOD_MPI_Shared_Vars            ,ONLY: MPI_COMM_LEADERS_SURF, MPI_COMM_SHARED
 USE MOD_Particle_Boundary_Vars     ,ONLY: SampWallPumpCapacity_Shared
 USE MOD_Particle_Boundary_vars     ,ONLY: SampWallState_Shared,SampWallImpactNumber_Shared,SampWallImpactEnergy_Shared
 USE MOD_Particle_Boundary_vars     ,ONLY: SampWallImpactVector_Shared,SampWallImpactAngle_Shared
-USE MOD_Particle_Boundary_vars     ,ONLY: SurfSideArea_Shared
 USE MOD_Particle_MPI_Boundary_Sampling,ONLY: ExchangeSurfData
 USE MOD_Particle_Boundary_Vars    ,ONLY: BoundaryWallTemp_Shared_Win
 #else
 USE MOD_Particle_Boundary_Vars     ,ONLY: SampWallPumpCapacity
 USE MOD_Particle_Boundary_vars     ,ONLY: SampWallState,SampWallImpactNumber,SampWallImpactEnergy
 USE MOD_Particle_Boundary_vars     ,ONLY: SampWallImpactVector,SampWallImpactAngle
-USE MOD_Particle_Boundary_vars     ,ONLY: SurfSideArea
 #endif
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -553,8 +552,7 @@ ASSOCIATE(SampWallState        => SampWallState_Shared           ,&
           SampWallImpactEnergy => SampWallImpactEnergy_Shared    ,&
           SampWallImpactVector => SampWallImpactVector_Shared    ,&
           SampWallImpactAngle  => SampWallImpactAngle_Shared     ,&
-          SampWallPumpCapacity => SampWallPumpCapacity_Shared    ,&
-          SurfSideArea         => SurfSideArea_Shared)
+          SampWallPumpCapacity => SampWallPumpCapacity_Shared)
 #endif
 
 OutputCounter = 0

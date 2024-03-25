@@ -53,13 +53,14 @@ USE MOD_Particle_Analyze_Tools  ,ONLY: CalcEkinPart
 USE MOD_Particle_Mesh_Tools     ,ONLY: GetGlobalNonUniqueSideID
 USE MOD_Timedisc_Vars           ,ONLY: dt
 USE MOD_Particle_Surfaces_Vars  ,ONLY: BCdata_auxSF, SurfFluxSideSize
-USE MOD_Particle_Boundary_Vars  ,ONLY: PartBound, GlobalSide2SurfSide, SurfSideArea_Shared
-USE MOD_SurfaceModel_Vars       ,ONLY: ChemWallProp_Shared_Win, SurfChem, SurfChemReac, ChemWallProp, ChemDesorpWall
+USE MOD_Particle_Boundary_Vars  ,ONLY: PartBound, GlobalSide2SurfSide, SurfSideArea
+USE MOD_SurfaceModel_Vars       ,ONLY: SurfChem, SurfChemReac, ChemWallProp, ChemDesorpWall
 USE MOD_Particle_SurfFlux       ,ONLY: SetSurfacefluxVelocities, CalcPartPosTriaSurface, DefineSideDirectVec2D
 USE MOD_DSMC_PolyAtomicModel    ,ONLY: DSMC_SetInternalEnr
 #if USE_MPI
 USE MOD_MPI_Shared_vars         ,ONLY: MPI_COMM_SHARED
 USE MOD_MPI_Shared              ,ONLY: BARRIER_AND_SYNC
+USE MOD_SurfaceModel_Vars       ,ONLY: ChemWallProp_Shared_Win
 #endif
 !#if defined(IMPA) || defined(ROS)
 USE MOD_Particle_Tracking_Vars  ,ONLY: TrackInfo
@@ -117,7 +118,7 @@ DO iSF = 1, nSF
 
       WallTemp = PartBound%WallTemp(BoundID) ! Boundary temperature
 
-      Area = SurfSideArea_Shared(SubP, SubQ,SurfSideID)
+      Area = SurfSideArea(SubP, SubQ,SurfSideID)
       IF(PartBound%LatticeVec(BoundID).GT.0.) THEN
       ! Absolute number of surface molecules in dependence of the occupancy of the unit cell
         SurfMol = PartBound%MolPerUnitCell(BoundID) * Area &
@@ -477,7 +478,7 @@ DO iSF = 1, nSF
 END DO !iSF
 
 #if USE_MPI
-  CALL BARRIER_AND_SYNC(ChemWallProp_Shared_Win,MPI_COMM_SHARED)
+CALL BARRIER_AND_SYNC(ChemWallProp_Shared_Win,MPI_COMM_SHARED)
 #endif
 
 END SUBROUTINE ParticleSurfChemFlux
