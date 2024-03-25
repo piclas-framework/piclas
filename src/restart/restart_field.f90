@@ -111,7 +111,6 @@ USE MOD_HDG_Vars           ,ONLY: lambda_petsc,PETScGlobal,PETScLocalToSideID,nP
 USE MOD_Interpolation_Vars ,ONLY: Nmax
 USE MOD_LoadBalance_Vars   ,ONLY: nElemsOld,offsetElemOld
 USE MOD_PML_Vars           ,ONLY: DoPML,PMLToElem,nPMLElems,PMLnVar
-USE MOD_Restart_Vars       ,ONLY: Vdm_GaussNRestart_GaussN
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Vars   ,ONLY: MPInElemSend,MPInElemRecv,MPIoffsetElemSend,MPIoffsetElemRecv
 #endif /*USE_LOADBALANCE*/
@@ -154,6 +153,7 @@ REAL,ALLOCATABLE                   :: U_local(:,:,:,:,:)
 !REAL,ALLOCATABLE                   :: U_local2(:,:,:,:,:)
 INTEGER                            :: iPML
 INTEGER(KIND=IK)                   :: PMLnVarTmp
+INTEGER                            :: iPMLElem
 #endif /*USE_HDG*/
 #if USE_LOADBALANCE
 !INTEGER,ALLOCATABLE                :: N_DG_Tmp(:)
@@ -367,6 +367,18 @@ IF(PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance))THEN
     ALLOCATE(U_N(iElem)%Ut(PP_nVar,0:Nloc,0:Nloc,0:Nloc))
     U_N(iElem)%Ut = 0.
   END DO ! iElem = 1, PP_nElems
+
+  ! Re-allocate the PML solution arrays
+  IF(DoPML)THEN
+    DO iPMLElem=1,nPMLElems
+      iElem = PMLToElem(iPMLElem)
+      Nloc = N_DG_Mapping(2,iElem+offSetElem)
+      ALLOCATE(U_N(iElem)%U2(PMLnVar,0:Nloc,0:Nloc,0:Nloc))
+      U_N(iElem)%U2 = 0.
+      ALLOCATE(U_N(iElem)%U2t(PMLnVar,0:Nloc,0:Nloc,0:Nloc))
+      U_N(iElem)%U2t = 0.
+    END DO
+  END IF ! DoPML
   DEALLOCATE(U)
 #endif /*USE_HDG*/
 

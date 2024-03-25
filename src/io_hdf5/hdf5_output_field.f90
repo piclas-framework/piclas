@@ -227,14 +227,17 @@ SUBROUTINE WritePMLzetaGlobalToHDF5()
 ! MODULES
 USE MOD_Globals
 USE MOD_PreProc
-USE MOD_PML_Vars         ,ONLY: PMLzetaGlobal,PMLzeta0,isPMLElem,ElemToPML,PML
-USE MOD_Mesh_Vars        ,ONLY: MeshFile,nGlobalElems,offsetElem
-USE MOD_Globals_Vars     ,ONLY: ProjectName
+USE MOD_PML_Vars           ,ONLY: PMLzetaGlobal,PMLzeta0,isPMLElem,ElemToPML,PML
+USE MOD_Mesh_Vars          ,ONLY: MeshFile,nGlobalElems,offsetElem
+USE MOD_Globals_Vars       ,ONLY: ProjectName
 USE MOD_io_HDF5
 #if USE_LOADBALANCE
-USE MOD_LoadBalance_Vars ,ONLY: PerformLoadBalance
+USE MOD_LoadBalance_Vars   ,ONLY: PerformLoadBalance
 #endif /*USE_LOADBALANCE*/
-USE MOD_PML_Vars ,ONLY: nPMLElems,PMLToElem
+USE MOD_PML_Vars           ,ONLY: nPMLElems,PMLToElem
+USE MOD_Interpolation_Vars ,ONLY: PREF_VDM,Nmax
+USE MOD_ChangeBasis        ,ONLY: ChangeBasis3D
+USE MOD_DG_Vars            ,ONLY: N_DG_Mapping
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -248,13 +251,13 @@ CHARACTER(LEN=255),ALLOCATABLE  :: StrVarNames(:)
 CHARACTER(LEN=255)  :: FileName
 REAL                :: StartT,EndT
 REAL                :: OutputTime
-INTEGER             :: iElem,iPMLElem
+INTEGER             :: iElem,iPMLElem,Nloc
 !===================================================================================================================================
 #if USE_LOADBALANCE
 IF(PerformLoadBalance) RETURN
 #endif /*USE_LOADBALANCE*/
 ! create global zeta field for parallel output of zeta distribution
-ALLOCATE(PMLzetaGlobal(1:N_variables,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems))
+ALLOCATE(PMLzetaGlobal(1:N_variables,0:NMax,0:NMax,0:NMax,1:PP_nElems))
 ALLOCATE(StrVarNames(1:N_variables))
 StrVarNames(1)='PMLzetaGlobalX'
 StrVarNames(2)='PMLzetaGlobalY'
@@ -263,9 +266,12 @@ PMLzetaGlobal=0.
 IF(.NOT.ALMOSTZERO(PMLzeta0))THEN
   DO iPMLElem=1,nPMLElems
     iElem = PMLToElem(iPMLElem)
-    IF(isPMLElem(iElem))THEN
+    Nloc  = N_DG_Mapping(2,iElem+offSetElem)
+    IF(Nloc.EQ.Nmax)THEN
       PMLzetaGlobal(:,:,:,:,iElem) = PML(iPMLElem)%zeta(:,:,:,:)/PMLzeta0
-    END IF
+    ELSE
+      CALL ChangeBasis3D(3,Nloc,NMax,PREF_VDM(Nloc,NMax)%Vdm, PML(iPMLElem)%zeta(:,:,:,:)/PMLzeta0,PMLzetaGlobal(:,:,:,:,iElem))
+    END IF ! Nloc.Eq.Nmax
   END DO
 END IF
 
@@ -287,7 +293,7 @@ ASSOCIATE (&
         nGlobalElems    => INT(nGlobalElems,IK)    ,&
         PP_nElems       => INT(PP_nElems,IK)       ,&
         N_variables     => INT(N_variables,IK)     ,&
-        N               => INT(PP_N,IK)            ,&
+        N               => INT(NMax,IK)            ,&
         offsetElem      => INT(offsetElem,IK)      )
   CALL GatheredWriteArray(FileName,create=.FALSE.,&
                           DataSetName='DG_Solution' , rank=5 , &
