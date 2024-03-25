@@ -242,6 +242,7 @@ nSurfSampleAndTriaTracking = .FALSE. ! default
 IF((TrackingMethod.EQ.TRIATRACKING).AND.(Symmetry%Order.EQ.3).AND.(nSurfSample.GT.1)) nSurfSampleAndTriaTracking = .TRUE.
 
 ! Potentially curved elements. FIBGM needs to be built on BezierControlPoints rather than NodeCoords to avoid missing elements
+CALL CalcXCL_NGeo()            ! Required for XCL_NGeo_Shared
 IF (TrackingMethod.EQ.TRACING .OR. TrackingMethod.EQ.REFMAPPING .OR. nSurfSampleAndTriaTracking .OR. UseRayTracing) THEN
   UseBezierControlPoints = .TRUE.
   ! Bezier elevation now more important than ever, also determines size of FIBGM extent
@@ -249,7 +250,6 @@ IF (TrackingMethod.EQ.TRACING .OR. TrackingMethod.EQ.REFMAPPING .OR. nSurfSample
   NGeoElevated    = NGeo + BezierElevation
 
   CALL CalcParticleMeshMetrics() ! Required for Elem_xGP_Shared and dXCL_NGeo_Shared
-  CALL CalcXCL_NGeo()            ! Required for XCL_NGeo_Shared
   CALL CalcBezierControlPoints() ! Required for BezierControlPoints3D and BezierControlPoints3DElevated (requires XCL_NGeo_Shared)
 ELSE
   UseBezierControlPoints = .FALSE.
@@ -404,7 +404,6 @@ SELECT CASE(TrackingMethod)
       END IF ! .NOT.UseBezierControlPoints
     !END IF ! DoInterpolation.OR.DSMC%UseOctree
     ! Also required for DSMC%UseOctree
-    CALL CalcXCL_NGeo()              ! Required for XCL_NGeo_Shared
     CALL BuildElemTypeAndBasisTria() ! Required for ElemCurved_Shared, XiEtaZetaBasis_Shared, slenXiEtaZetaBasis_Shared. Needs XCL_NGeo_Shared
 
     IF (DoDeposition) CALL BuildEpsOneCell()
