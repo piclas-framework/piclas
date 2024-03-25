@@ -152,10 +152,10 @@ IF(.NOT.DoDeposition) THEN
   RETURN
 END IF
 
-#if USE_LOADBALANCE && !(USE_HDG)
+#if USE_LOADBALANCE
 ! Not "LB via MPI" means during 1st initialisation
 IF (.NOT.(PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance))) THEN
-#endif /*USE_LOADBALANCE && !(USE_HDG)*/
+#endif /*USE_LOADBALANCE*/
   ALLOCATE(PS_N(nElems))
   !--- Allocate arrays for charge density collection and initialize
   DO iElem = 1, nElems
@@ -163,9 +163,9 @@ IF (.NOT.(PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance))) THEN
     ALLOCATE(PS_N(iElem)%PartSource(1:4,0:Nloc,0:Nloc,0:Nloc))
     PS_N(iElem)%PartSource = 0.0
   END DO ! iElem = 1, nElems
-#if USE_LOADBALANCE && !(USE_HDG)
+#if USE_LOADBALANCE
 END IF
-#endif /*USE_LOADBALANCE && !(USE_HDG)*/
+#endif /*USE_LOADBALANCE*/
 
 !--- check if relaxation of current PartSource with RelaxFac into PartSourceOld
 RelaxDeposition = GETLOGICAL('PIC-RelaxDeposition','F')

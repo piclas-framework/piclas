@@ -112,19 +112,19 @@ DO Nloc=Nmin,Nmax
 END DO
 
 #if !((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))
-#if USE_LOADBALANCE
+#if USE_LOADBALANCE && !(USE_HDG)
 ! Not "LB via MPI" means during 1st initialisation
 IF (.NOT.(PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance))) THEN
-#endif /*USE_LOADBALANCE*/
+#endif /*USE_LOADBALANCE && !(USE_HDG)*/
   ! the local DG solution in physical and reference space
   ALLOCATE(U_N(1:nElems))
   DO iElem = 1, nElems
     Nloc = N_DG_Mapping(2,iElem+offSetElem)
     ALLOCATE(U_N(iElem)%U(PP_nVar,0:Nloc,0:Nloc,0:Nloc))
     U_N(iElem)%U = 0.
+#if !(USE_HDG)
     ALLOCATE(U_N(iElem)%Ut(PP_nVar,0:Nloc,0:Nloc,0:Nloc))
     U_N(iElem)%Ut = 0.
-#if !(USE_HDG)
     IF(DoPML)THEN
       IF(isPMLElem(iElem))THEN
         ALLOCATE(U_N(iElem)%U2(PMLnVar,0:Nloc,0:Nloc,0:Nloc))
@@ -135,9 +135,9 @@ IF (.NOT.(PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance))) THEN
     END IF ! DoPML
 #endif /*!(USE_HDG)*/
   END DO ! iElem = 1, nElems
-#if USE_LOADBALANCE
+#if USE_LOADBALANCE && !(USE_HDG)
 END IF
-#endif /*USE_LOADBALANCE*/
+#endif /*USE_LOADBALANCE && !(USE_HDG)*/
 
 ! Allocate additional containers
 #if USE_HDG
@@ -302,7 +302,7 @@ L_HatMinus(:) = MATMUL(Minv,L_Minus)
 !!Geotemp(11:13,:,:,:)=Face_xGP(:,:,:,SideID_minus_lower:SideID_minus_upper)
 !CALL StartReceiveMPIData(10,Geotemp,1,nSides,RecRequest_Geo ,SendID=1) ! Receive MINE
 !CALL StartSendMPIData(   10,Geotemp,1,nSides,SendRequest_Geo,SendID=1) ! Send YOUR
-!CALL FinishExchangeMPIData(SendRequest_Geo,RecRequest_Geo,SendID=1)    
+!CALL FinishExchangeMPIData(SendRequest_Geo,RecRequest_Geo,SendID=1)
 
 #endif /*USE_HDG*/
 END SUBROUTINE InitDGBasis

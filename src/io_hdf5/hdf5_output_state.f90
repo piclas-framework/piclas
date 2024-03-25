@@ -158,7 +158,7 @@ REAL                           :: Utemp(PP_nVar,0:PP_N,0:PP_N,0:PP_N,PP_nElems)
 #elif USE_HDG
 #if PP_nVar==1
 REAL                           :: Utemp(1:4,0:PP_N,0:PP_N,0:PP_N,PP_nElems)
-INTEGER                        :: iElem,Nloc
+INTEGER                        :: iElem,Nloc,NSideMin
 #elif PP_nVar==3
 REAL                           :: Utemp(1:3,0:PP_N,0:PP_N,0:PP_N,PP_nElems)
 #else /*PP_nVar=4*/
@@ -393,8 +393,8 @@ ASSOCIATE (&
     END IF ! nProcessors.GT.1
 #endif /*USE_MPI*/
 
-    Nloc = N_SurfMesh(iSide)%NSideMin
-    CALL LambdaSideToMaster(iSide,SortedLambda(:,:,iGlobSide),Nloc)
+    NSideMin = N_SurfMesh(iSide)%NSideMin
+    CALL LambdaSideToMaster(iSide,SortedLambda(:,:,iGlobSide),NSideMin)
 
   END DO ! iGlobSide = 1, nSides
 

@@ -174,7 +174,8 @@ LBWRITE(UNIT_stdOut,'(A)') ' INIT HDG...'
 
 HDGDisplayConvergence = GETLOGICAL('HDGDisplayConvergence')
 
-ALLOCATE(nGP_vol(1:NMax),nGP_face(1:NMax))
+ALLOCATE(nGP_vol(1:NMax))
+ALLOCATE(nGP_face(1:NMax))
 DO Nloc = 1, NMax
   nGP_vol(Nloc)  = (Nloc+1)**3
   nGP_face(Nloc) = (Nloc+1)**2
@@ -3912,9 +3913,14 @@ USE petsc
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Vars   ,ONLY: PerformLoadBalance,UseH5IOLoadBalance
 USE MOD_Particle_Mesh_Vars ,ONLY: ElemInfo_Shared
-USE MOD_Mesh_Vars          ,ONLY: nElems,offsetElem,nSides,SideToNonUniqueGlobalSide
+USE MOD_Mesh_Vars          ,ONLY: nElems,offsetElem,nSides,SideToNonUniqueGlobalSide,N_SurfMesh
 USE MOD_Mesh_Tools         ,ONLY: LambdaSideToMaster,GetMasteriLocSides
+USE MOD_Interpolation_Vars ,ONLY: NMax
 #endif /*USE_LOADBALANCE*/
+#if USE_MPI
+USE MOD_MPI_Vars           ,ONLY: SurfExchange
+#endif /*USE_MPI*/
+USE MOD_Interpolation_Vars ,ONLY: N_Inter
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
@@ -3930,6 +3936,7 @@ INTEGER             :: iSide
 #if USE_MPI
 INTEGER             :: iBC
 #endif /*USE_MPI*/
+INTEGER           :: Nloc
 !===================================================================================================================================
 HDGInitIsDone = .FALSE.
 #if USE_PETSC
@@ -3947,7 +3954,6 @@ SDEALLOCATE(NonlinVolumeFac)
 SDEALLOCATE(DirichletBC)
 SDEALLOCATE(NeumannBC)
 SDEALLOCATE(HDG_Vol_N)
-SDEALLOCATE(HDG_Surf_N)
 SDEALLOCATE(qn_face_MagStat)
 !SDEALLOCATE(delta)
 !SDEALLOCATE(LL_minus)
@@ -4030,22 +4036,19 @@ IF(PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance))THEN
   ! Store lambda solution on global non-unique array for MPI communication
   ASSOCIATE( firstSide => ElemInfo_Shared(ELEM_FIRSTSIDEIND,offsetElem+1) + 1       ,&
              lastSide  => ElemInfo_Shared(ELEM_LASTSIDEIND ,offsetElem    + nElems) )
-    !ALLOCATE(lambdaLB(PP_nVar,nGP_face(PP_N),firstSide:lastSide))
-    CALL abort(__STAMP__,'not implemented')
+    ALLOCATE(lambdaLB(PP_nVar,nGP_face(NMax)+1,firstSide:lastSide)) ! +1 comes from the NSideMin info that is sent additionally
     lambdaLB=0.
   END ASSOCIATE
   IF(nProcessors.GT.1) CALL GetMasteriLocSides()
   DO iSide = 1, nSides
     NonUniqueGlobalSideID = SideToNonUniqueGlobalSide(1,iSide)
 
-    !CALL LambdaSideToMaster(iSide,lambdaLB(:,:,NonUniqueGlobalSideID))
-    CALL abort(__STAMP__,'not implemented')
+    CALL LambdaSideToMaster(iSide,lambdaLB(:,:,NonUniqueGlobalSideID),N_SurfMesh(iSide)%NSideMin)
     ! Check if the same global unique side is encountered twice and store both global non-unique side IDs in the array
     ! SideToNonUniqueGlobalSide(1:2,iSide)
     IF(SideToNonUniqueGlobalSide(2,iSide).NE.-1)THEN
       NonUniqueGlobalSideID = SideToNonUniqueGlobalSide(2,iSide)
-      !CALL LambdaSideToMaster(iSide,lambdaLB(:,:,NonUniqueGlobalSideID))
-      CALL abort(__STAMP__,'not implemented')
+      CALL LambdaSideToMaster(iSide,lambdaLB(:,:,NonUniqueGlobalSideID),N_SurfMesh(iSide)%NSideMin)
     END IF ! SideToNonUniqueGlobalSide(1,iSide).NE.-1
 
   END DO ! iSide = 1, nSides
@@ -4055,6 +4058,21 @@ END IF ! PerformLoadBalance
 #endif /*USE_LOADBALANCE*/
 
 !SDEALLOCATE(lambda)
+SDEALLOCATE(HDG_Surf_N)
+SDEALLOCATE(nGP_vol)
+SDEALLOCATE(nGP_face)
+#if USE_MPI
+SDEALLOCATE(SurfExchange)
+#endif /*USE_MPI*/
+DO Nloc = 1, NMax
+  DEALLOCATE(N_Inter(Nloc)%LL_minus)
+  DEALLOCATE(N_Inter(Nloc)%LL_plus)
+  DEALLOCATE(N_Inter(Nloc)%Lomega_m)
+  DEALLOCATE(N_Inter(Nloc)%Lomega_p)
+  DEALLOCATE(N_Inter(Nloc)%Domega)
+  DEALLOCATE(N_Inter(Nloc)%wGP_vol)
+END DO
+
 END SUBROUTINE FinalizeHDG
 
 

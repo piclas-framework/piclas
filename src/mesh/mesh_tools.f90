@@ -465,23 +465,23 @@ END SUBROUTINE GetMasteriLocSides
 !===================================================================================================================================
 !> Transform lambda solution from local coordinate system into master orientation for iSide and return as array "MasterSide"
 !===================================================================================================================================
-SUBROUTINE LambdaSideToMaster(iSide,MasterSide,Nloc)
+SUBROUTINE LambdaSideToMaster(iSide,MasterSide,NSideMin)
 ! MODULES
 USE MOD_PreProc
-USE MOD_globals   ,ONLY: abort
-USE MOD_HDG_Vars  ,ONLY: nGP_face, iLocSides, HDG_Surf_N
-USE MOD_Mesh_Vars ,ONLY: MortarType,SideToElem,MortarInfo
-USE MOD_Mesh_Vars ,ONLY: firstMortarInnerSide,lastMortarInnerSide
-USE MOD_Mappings  ,ONLY: CGNS_SideToVol2
-USE MOD_Mesh_Vars ,ONLY: lastMPISide_MINE
-USE MOD_DG_Vars   ,ONLY: DG_Elems_master,DG_Elems_slave
+USE MOD_globals            ,ONLY: abort
+USE MOD_HDG_Vars           ,ONLY: nGP_face, iLocSides, HDG_Surf_N
+USE MOD_Mesh_Vars          ,ONLY: MortarType,SideToElem,MortarInfo
+USE MOD_Mesh_Vars          ,ONLY: firstMortarInnerSide,lastMortarInnerSide
+USE MOD_Mappings           ,ONLY: CGNS_SideToVol2
+USE MOD_Mesh_Vars          ,ONLY: lastMPISide_MINE
+USE MOD_DG_Vars            ,ONLY: DG_Elems_master,DG_Elems_slave
 USE MOD_Interpolation_Vars ,ONLY: PREF_VDM,NMax
 USE MOD_ChangeBasis        ,ONLY: ChangeBasis2D
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! INPUT / OUTPUT VARIABLES
-INTEGER,INTENT(IN)                                 :: iSide,Nloc
-REAL,DIMENSION(PP_nVar,nGP_face(NMax)),INTENT(OUT) :: MasterSide
+INTEGER,INTENT(IN)                                   :: iSide,NSideMin
+REAL,DIMENSION(PP_nVar,nGP_face(NMax)+1),INTENT(OUT) :: MasterSide ! +1 comes from the NSideMin info that is sent additionally
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER          :: p,q,r,rr,pq(1:2),iVar
@@ -499,19 +499,26 @@ END IF ! iSide.GT.lastMPISide_MINE
 
 !1 of 2: Master element with iLocSide = SideToElem(S2E_LOC_SIDE_ID,iSide)
 IF(iLocSide.NE.-1)THEN ! MINE side
-  DO q=0,Nloc
-    DO p=0,Nloc
-      pq=CGNS_SideToVol2(Nloc,p,q,iLocSide)
-      r  = q    *(Nloc+1)+p    +1
-      rr = pq(2)*(Nloc+1)+pq(1)+1
+
+  ! Store NSideMin
+  MasterSide = 0.
+  MasterSide(:,nGP_face(NMax)+1) = NSideMin
+
+  ! Store lambda
+  DO q=0,NSideMin
+    DO p=0,NSideMin
+      pq=CGNS_SideToVol2(NSideMin,p,q,iLocSide)
+      r  = q    *(NSideMin+1)+p    +1
+      rr = pq(2)*(NSideMin+1)+pq(1)+1
       MasterSide(:,r:r) = HDG_Surf_N(iSide)%lambda(:,rr:rr)
     END DO
   END DO !p,q
 
-  IF(Nloc.NE.NMax)THEN
-    ! From low to high
-    CALL ChangeBasis2D(PP_nVar, Nloc, NMax, PREF_VDM(Nloc,NMax)%Vdm, MasterSide(:,1:nGP_face(Nloc)), MasterSide(:,1:nGP_face(NMax)))
-  END IF ! Nloc.NE.NMax
+  ! Do we need to map to NMax?
+  !IF(NSideMin.NE.NMax)THEN
+  !  ! From low to high
+  !  CALL ChangeBasis2D(PP_nVar, NSideMin, NMax, PREF_VDM(NSideMin,NMax)%Vdm, MasterSide(:,1:nGP_face(NSideMin)), MasterSide(:,1:nGP_face(NMax)))
+  !END IF ! NSideMin.NE.NMax
   RETURN
 END IF !iLocSide.NE.-1
 
@@ -527,11 +534,14 @@ IF(MortarType(1,iSide).EQ.0)THEN
       IF(iSide.EQ.SideID)THEN
         iLocSide = SideToElem(S2E_LOC_SIDE_ID,MortarSideID)
         IF(iLocSide.NE.-1)THEN ! MINE side (big mortar)
-          DO q=0,Nloc
-            DO p=0,Nloc
-              pq=CGNS_SideToVol2(Nloc,p,q,iLocSide)
-              r  = q    *(Nloc+1)+p    +1
-              rr = pq(2)*(Nloc+1)+pq(1)+1
+          ! Store NSideMin
+          MasterSide(:,nGP_face(NMax)+1) = NSideMin
+          ! Store lambda
+          DO q=0,NSideMin
+            DO p=0,NSideMin
+              pq=CGNS_SideToVol2(NSideMin,p,q,iLocSide)
+              r  = q    *(NSideMin+1)+p    +1
+              rr = pq(2)*(NSideMin+1)+pq(1)+1
               MasterSide(:,r:r) = HDG_Surf_N(iSide)%lambda(:,rr:rr)
             END DO
           END DO !p,q

@@ -82,7 +82,8 @@ USE MOD_Mesh_Vars          ,ONLY: firstMortarInnerSide,lastMortarInnerSide,Morta
 USE MOD_Mesh_Vars          ,ONLY: lastMPISide_MINE
 #if USE_MPI
 USE MOD_MPI_Vars           ,ONLY: RecRequest_U,SendRequest_U
-USE MOD_MPI                ,ONLY: StartReceiveMPIData,StartSendMPIData,FinishExchangeMPIData
+!USE MOD_MPI                ,ONLY: StartReceiveMPIData,StartSendMPIData,FinishExchangeMPIData
+USE MOD_MPI                ,ONLY: StartReceiveMPISurfDataType,StartSendMPISurfDataType,FinishExchangeMPISurfDataType, Mask_MPIsides
 #endif /*USE_MPI*/
 #if USE_LOADBALANCE
 USE MOD_HDG                ,ONLY: SynchronizeVoltageOnEPC
@@ -136,7 +137,7 @@ INTEGER                            :: iMortar,MortarSideID,nMortars
 #if defined(PARTICLES)
 ! TODO: make ElemInfo available with PARTICLES=OFF and remove this preprocessor if/else as soon as possible
 REAL,ALLOCATABLE                   :: lambdaLBTmp(:,:,:)        !< lambda, ((PP_N+1)^2,nSides)
-INTEGER                            :: NonUniqueGlobalSideID
+INTEGER                            :: NonUniqueGlobalSideID,NSideMin,iVar
 #endif /*defined(PARTICLES)*/
 !INTEGER           :: checkRank
 #endif /*USE_LOADBALANCE*/
@@ -221,8 +222,7 @@ IF(PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance))THEN
   ASSOCIATE( firstSide => ElemInfo_Shared(ELEM_FIRSTSIDEIND,offsetElem+1) + 1       ,&
              lastSide  => ElemInfo_Shared(ELEM_LASTSIDEIND ,offsetElem    + nElems) )
          !IPWRITE(UNIT_StdOut,*) "firstSide:lastSide,Nbr,nSides =", firstSide,lastSide,lastSide-firstSide+1,nSides
-    !ALLOCATE(lambdaLBTmp(PP_nVar,nGP_face,firstSide:lastSide))
-    CALL abort(__STAMP__,'not implemented')
+    ALLOCATE(lambdaLBTmp(PP_nVar,nGP_face(NMax)+1,firstSide:lastSide)) ! +1 comes from the NSideMin info that is sent additionally
   END ASSOCIATE
        !CALL MPI_BARRIER(MPI_COMM_PICLAS,iError)
        !IPWRITE(UNIT_StdOut,*) "MPInSideSend,MPIoffsetSideSend,MPInSideRecv,MPIoffsetSideRecv =", MPInSideSend,MPIoffsetSideSend,MPInSideRecv,MPIoffsetSideRecv
@@ -234,7 +234,7 @@ IF(PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance))THEN
           counts_recv  => (INT(MPInSideRecv     )) ,&
           disp_recv    => (INT(MPIoffsetSideRecv)))
     ! Communicate PartInt over MPI
-    MPI_LENGTH       = PP_nVar*nGP_face
+    MPI_LENGTH       = PP_nVar*(nGP_face(NMax)+1) ! +1 comes from the NSideMin info that is sent additionally
     MPI_DISPLACEMENT = 0  ! 0*SIZEOF(MPI_SIZE)
     MPI_TYPE         = MPI_DOUBLE_PRECISION
     CALL MPI_TYPE_CREATE_STRUCT(1,MPI_LENGTH,MPI_DISPLACEMENT,MPI_TYPE,MPI_STRUCT,iError)
@@ -276,14 +276,17 @@ IF(PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance))THEN
         END DO Check1 !MortarSideID
       END IF ! MortarType(1,iSide).EQ.0
 
+      ! Get NSideMin from last entry
+      NSideMin = lambdaLBTmp(1,nGP_face(NMax)+1,NonUniqueGlobalSideID)
+
       ! Rotate data into correct orientation
-      DO q=0,PP_N
-        DO p=0,PP_N
-          pq = CGNS_SideToVol2(PP_N,p,q,iLocSide_master)
-          r  = q    *(PP_N+1)+p    +1
-          rr = pq(2)*(PP_N+1)+pq(1)+1
+      DO q=0,NSideMin
+        DO p=0,NSideMin
+          pq = CGNS_SideToVol2(NSideMin,p,q,iLocSide_master)
+          r  = q    *(NSideMin+1)+p    +1
+          rr = pq(2)*(NSideMin+1)+pq(1)+1
           !lambda(:,r:r,iSide) = lambdaLBTmp(:,rr:rr,NonUniqueGlobalSideID)
-          CALL abort(__STAMP__,'not implemented')
+          HDG_Surf_N(iSide)%lambda(:,r:r) = lambdaLBTmp(:,rr:rr,NonUniqueGlobalSideID)
         END DO
       END DO !p,q
     END IF ! iSide.LE.lastMPISide_MINE
@@ -296,7 +299,11 @@ IF(PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance))THEN
   !CALL StartReceiveMPIData(1,lambda,1,nSides, RecRequest_U,SendID=1) ! Receive YOUR
   !CALL StartSendMPIData(   1,lambda,1,nSides,SendRequest_U,SendID=1) ! Send MINE
   !CALL FinishExchangeMPIData(SendRequest_U,RecRequest_U,SendID=1)
-  CALL abort(__STAMP__,'not implemented')
+  DO iVar=1,PP_nVar
+    CALL StartReceiveMPISurfDataType(RecRequest_U , 1 , 2)
+    CALL StartSendMPISurfDataType(  SendRequest_U , 1 , 2, iVar) ! 2 = lambda
+    CALL FinishExchangeMPISurfDataType(SendRequest_U, RecRequest_U, 1, 2, iVar) ! 2 = lambda
+  END DO ! iVar=1,PP_nVar
 #endif /*USE_MPI*/
 
 #if USE_PETSC
@@ -312,7 +319,7 @@ IF(PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance))THEN
 
 #else
   ! TODO: make ElemInfo available with PARTICLES=OFF and remove this preprocessor if/else as soon as possible
-   CALL abort(__STAMP__,'not implemented')
+   CALL abort(__STAMP__,'TODO: make ElemInfo available with PARTICLES=OFF and remove this preprocessor if/else')
 #endif /*defined(PARTICLES)*/
 
 #else /*USE_HDG*/
