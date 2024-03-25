@@ -188,7 +188,7 @@ USE MOD_MPI_Shared_Vars
 USE MOD_Particle_MPI_Vars      ,ONLY: DoParticleLatencyHiding
 #endif /* USE_MPI */
 USE MOD_Particle_Mesh_Build    ,ONLY: BuildElementRadiusTria,BuildElemTypeAndBasisTria,BuildEpsOneCell,BuildBCElemDistance
-USE MOD_Particle_Mesh_Build    ,ONLY: BuildNodeNeighbourhood,BuildElementOriginShared,BuildElementBasisAndRadius
+USE MOD_Particle_Mesh_Build    ,ONLY: BuildNodeNeighbourhood,BuildElementOriginShared,BuildElementBasisAndRadius,BuildElemDofNodeMapping
 USE MOD_Particle_Mesh_Build    ,ONLY: BuildSideOriginAndRadius,BuildLinearSideBaseVectors,BuildSideSlabAndBoundingBox
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Vars       ,ONLY: PerformLoadBalance
@@ -386,6 +386,8 @@ IF(DoVirtualCellMerge) FindNeighbourElems = .TRUE.
 
 ! Build ConcaveElemSide_Shared, ElemSideNodeID_Shared, ElemMidPoint_Shared
 CALL InitParticleGeometry()
+
+CALL BuildElemDofNodeMapping()
 
 SELECT CASE(TrackingMethod)
   CASE(TRIATRACKING)

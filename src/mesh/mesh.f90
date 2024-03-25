@@ -306,13 +306,13 @@ ELSE
 
 #if USE_MPI
   ! ElemToElemMapping
-  CALL Allocate_Shared((/2,nGlobalElems/),N_DG_Mapping_Shared_Win,N_DG_Mapping_Shared)
+  CALL Allocate_Shared((/3,nGlobalElems/),N_DG_Mapping_Shared_Win,N_DG_Mapping_Shared)
   CALL MPI_WIN_LOCK_ALL(0,N_DG_Mapping_Shared_Win,IERROR)
   N_DG_Mapping => N_DG_Mapping_Shared
   IF (myComputeNodeRank.EQ.0) N_DG_Mapping = 0
   CALL BARRIER_AND_SYNC(N_DG_Mapping_Shared_Win,MPI_COMM_SHARED)
 #else
-  ALLOCATE(N_DG_Mapping(2,nElems))
+  ALLOCATE(N_DG_Mapping(3,nElems))
   N_DG_Mapping = 0
 #endif /*USE_MPI*/
 

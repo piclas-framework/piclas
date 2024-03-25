@@ -419,7 +419,7 @@ REAL, INTENT(IN)                 :: r2_sf_inv  !< inverse of shape function radi
 INTEGER                          :: k, l, m, r
 INTEGER                          :: kmin, kmax, lmin, lmax, mmin, mmax
 INTEGER                          :: kk, ll, mm, ppp
-INTEGER                          :: globElemID, CNElemID, Nloc, offSetDof
+INTEGER                          :: globElemID, CNElemID, Nloc, offSetDof, offSetDofNode
 INTEGER                          :: expo, localElem
 REAL                             :: radius2, S, S1
 !----------------------------------------------------------------------------------------------------------------------------------
@@ -454,6 +454,7 @@ DO kk = kmin,kmax
           !--- go through all gauss points
         Nloc = N_DG_Mapping(2,globElemID)
         offSetDof = N_DG_Mapping(1,globElemID)
+        offSetDofNode = N_DG_Mapping(3,globElemID)
         DO m=0,Nloc; DO l=0,Nloc; DO k=0,Nloc
           r=m*(Nloc+1)**2+l*(Nloc+1) + k+1
           !-- calculate distance between gauss and particle
@@ -466,7 +467,7 @@ DO kk = kmin,kmax
             DO expo = 3, alpha_sf
               S1 = S*S1
             END DO
-            totalCharge = totalCharge  + N_Inter(PP_N)%wGP(k)*N_Inter(PP_N)%wGP(l)*N_Inter(PP_N)%wGP(m)*Fac*S1/ElemsJ(k,l,m,CNElemID)
+            totalCharge = totalCharge  + N_Inter(Nloc)%wGP(k)*N_Inter(Nloc)%wGP(l)*N_Inter(Nloc)%wGP(m)*Fac*S1/ElemsJ(offSetDofNode+r)
           END IF
         END DO; END DO; END DO
 
@@ -522,7 +523,7 @@ INTEGER                          :: k, l, m, r
 INTEGER                          :: kmin, kmax, lmin, lmax, mmin, mmax
 INTEGER                          :: kk, ll, mm, ppp
 INTEGER                          :: globElemID, CNElemID
-INTEGER                          :: expo, nUsedElems, localElem, offSetDof
+INTEGER                          :: expo, nUsedElems, localElem, offSetDof, offSetDofNode
 REAL                             :: radius2, S, S1
 REAL                             :: totalCharge, alpha
 TYPE SPElem
@@ -571,6 +572,7 @@ DO kk = kmin,kmax
 #endif /*USE_LOADBALANCE*/
         Nloc = N_DG_Mapping(2,globElemID)
         offSetDof = N_DG_Mapping(1,globElemID)
+        offSetDofNode = N_DG_Mapping(3,globElemID)
         DO m=0,Nloc; DO l=0,Nloc; DO k=0,Nloc
           r=m*(Nloc+1)**2+l*(Nloc+1) + k+1
           !-- calculate distance between gauss and particle
@@ -594,7 +596,7 @@ DO kk = kmin,kmax
             ELSE
               N_ShapeTmp(Nloc)%PartSource(1:4,k,l,m) = Fac(1:4) * S1
             END IF
-            totalCharge = totalCharge  + N_Inter(Nloc)%wGP(k)*N_Inter(Nloc)%wGP(l)*N_Inter(Nloc)%wGP(m)*N_ShapeTmp(Nloc)%PartSource(4,k,l,m)/ElemsJ(k,l,m,CNElemID)
+            totalCharge = totalCharge  + N_Inter(Nloc)%wGP(k)*N_Inter(Nloc)%wGP(l)*N_Inter(Nloc)%wGP(m)*N_ShapeTmp(Nloc)%PartSource(4,k,l,m)/ElemsJ(offSetDofNode+r)
           END IF
         END DO; END DO; END DO
 
@@ -685,7 +687,7 @@ LOGICAL                          :: firstElem,elemDone
 INTEGER                          :: k, l, m, r
 INTEGER                          :: ppp
 INTEGER                          :: globElemID, CNElemID, OrigCNElemID, OrigElem
-INTEGER                          :: expo, nUsedElems, localElem, Nloc, offSetDof
+INTEGER                          :: expo, nUsedElems, localElem, Nloc, offSetDof, offSetDofNode
 REAL                             :: radius2, S, S1
 REAL                             :: totalCharge, alpha
 TYPE SPElem
@@ -722,6 +724,7 @@ DO ppp = 0,ElemToElemMapping(2,OrigCNElemID)
   !--- go through all gauss points
   Nloc = N_DG_Mapping(2,globElemID)
   offSetDof = N_DG_Mapping(1,globElemID)
+  offSetDofNode = N_DG_Mapping(3,globElemID)
   DO m=0,Nloc; DO l=0,Nloc; DO k=0,Nloc
     r=m*(Nloc+1)**2+l*(Nloc+1) + k+1
     !-- calculate distance between gauss and particle
@@ -744,7 +747,7 @@ DO ppp = 0,ElemToElemMapping(2,OrigCNElemID)
       ELSE
         N_ShapeTmp(Nloc)%PartSource(1:4,k,l,m) = Fac(1:4) * S1
       END IF
-      totalCharge = totalCharge  + N_Inter(PP_N)%wGP(k)*N_Inter(PP_N)%wGP(l)*N_Inter(PP_N)%wGP(m)*N_ShapeTmp(Nloc)%PartSource(4,k,l,m)/ElemsJ(k,l,m,CNElemID)
+      totalCharge = totalCharge  + N_Inter(Nloc)%wGP(k)*N_Inter(Nloc)%wGP(l)*N_Inter(Nloc)%wGP(m)*N_ShapeTmp(Nloc)%PartSource(4,k,l,m)/ElemsJ(offSetDofNode+r)
     END IF
   END DO; END DO; END DO
 
@@ -756,7 +759,7 @@ DO ppp = 0,ElemToElemMapping(2,OrigCNElemID)
       firstElem = .FALSE.
     ELSE
       ALLOCATE(element)
-      ALLOCATE(element%PartSourceLoc(1:4,0:PP_N,0:PP_N,0:PP_N))
+      ALLOCATE(element%PartSourceLoc(1:4,0:Nloc,0:Nloc,0:Nloc))
       element%next => first%next
       first%next => element
       element%PartSourceLoc(:,:,:,:) = N_ShapeTmp(Nloc)%PartSource(:,:,:,:)
