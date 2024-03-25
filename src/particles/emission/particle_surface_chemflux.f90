@@ -42,22 +42,19 @@ SUBROUTINE ParticleSurfChemFlux()
 USE MOD_Globals
 USE MOD_Particle_Vars
 USE MOD_Globals_Vars            ,ONLY: PI, BoltzmannConst
-USE MOD_part_tools              ,ONLY: CalcRadWeightMPF
-USE MOD_DSMC_Vars               ,ONLY: useDSMC, CollisMode, RadialWeighting
-USE MOD_Eval_xyz                ,ONLY: GetPositionInRefElem
+USE MOD_Part_Tools              ,ONLY: CalcRadWeightMPF, GetNextFreePosition
+USE MOD_DSMC_Vars               ,ONLY: CollisMode, RadialWeighting
 USE MOD_Mesh_Vars               ,ONLY: SideToElem, offsetElem
 USE MOD_Particle_Mesh_Vars      ,ONLY: ElemMidPoint_Shared
 USE MOD_Mesh_Tools              ,ONLY: GetCNElemID
-USE MOD_Part_Tools              ,ONLY: GetParticleWeight
-USE MOD_Part_Emission_Tools     ,ONLY: SetParticleChargeAndMass, SetParticleMPF
+USE MOD_Part_Emission_Tools     ,ONLY: SetParticleMPF
 USE MOD_Particle_Analyze_Vars   ,ONLY: CalcPartBalance, nPartIn, PartEkinIn
 USE MOD_Particle_Analyze_Tools  ,ONLY: CalcEkinPart
 USE MOD_Particle_Mesh_Tools     ,ONLY: GetGlobalNonUniqueSideID
 USE MOD_Timedisc_Vars           ,ONLY: dt
 USE MOD_Particle_Surfaces_Vars  ,ONLY: BCdata_auxSF, SurfFluxSideSize
 USE MOD_Particle_Boundary_Vars  ,ONLY: PartBound, GlobalSide2SurfSide, SurfSideArea_Shared
-USE MOD_SurfaceModel_Vars      ,ONLY: ChemWallProp_Shared_Win, SurfChem, SurfChemReac, ChemWallProp, ChemDesorpWall
-USE MOD_Particle_Surfaces      ,ONLY: CalcNormAndTangTriangle
+USE MOD_SurfaceModel_Vars       ,ONLY: ChemWallProp_Shared_Win, SurfChem, SurfChemReac, ChemWallProp, ChemDesorpWall
 USE MOD_Particle_SurfFlux       ,ONLY: SetSurfacefluxVelocities, CalcPartPosTriaSurface, DefineSideDirectVec2D
 USE MOD_DSMC_PolyAtomicModel    ,ONLY: DSMC_SetInternalEnr
 #if USE_MPI
@@ -80,7 +77,7 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 ! Local variable declaration
-INTEGER                     :: iSpec , PositionNbr, iSF, iSide, SideID, NbrOfParticle, ParticleIndexNbr
+INTEGER                     :: iSpec , iSF, iSide, SideID, NbrOfParticle, PartID
 INTEGER                     :: BCSideID, ElemID, iLocSide, iSample, jSample, PartInsSubSide, iPart, iPartTotal
 INTEGER                     :: PartsEmitted, Node1, Node2, globElemId, CNElemID
 REAL                        :: xyzNod(3), Vector1(3), Vector2(3), ndist(3), midpoint(3), RVec(2), minPos(2)
@@ -115,12 +112,6 @@ DO iSF = 1, nSF
       CNElemID = GetCNElemID(globElemId)
       SideID=GetGlobalNonUniqueSideID(globElemId,iLocSide)
       SurfSideID = GlobalSide2SurfSide(SURF_SIDEID,SideID)
-
-      IF (RadialWeighting%DoRadialWeighting) THEN
-        SurfElemMPF = CalcRadWeightMPF(ElemMidPoint_Shared(2,CNElemID), iSpec, ElemID)
-      ELSE
-        SurfElemMPF = Species(1)%MacroParticleFactor
-      END IF
 
       IF (SurfSideID.LT.1) CALL abort(__STAMP__,'Chemical Surface Flux is not allowed on non-sampling sides!')
 
@@ -397,11 +388,14 @@ DO iSF = 1, nSF
 
       ! 3.) Insert the product species into the gas phase by a surface flux from the boundary
       DO iSpec = 1, nSpecies
-
 #if USE_LOADBALANCE
         CALL LBStartTime(tLBStart)
 #endif /*USE_LOADBALANCE*/
-
+        IF (RadialWeighting%DoRadialWeighting) THEN
+          SurfElemMPF = CalcRadWeightMPF(ElemMidPoint_Shared(2,CNElemID), iSpec, ElemID)
+        ELSE
+          SurfElemMPF = Species(iSpec)%MacroParticleFactor
+        END IF
         IF (INT(ChemDesorpWall(iSpec,1, SubP, SubQ, SurfSideID)/SurfElemMPF).GE.1) THEN
 
           ! Define the necessary variables
@@ -425,32 +419,31 @@ DO iSF = 1, nSF
             NbrOfParticle = NbrOfParticle + PartInsSubSide
 
             !-- Fill Particle Informations (PartState, Partelem, etc.)
-            ParticleIndexNbr = 1
             DO iPart=1,PartInsSubSide
-              IF ((iPart.EQ.1).OR.PDM%ParticleInside(ParticleIndexNbr)) THEN
-                ParticleIndexNbr = PDM%nextFreePosition(iPartTotal + 1 + PDM%CurrentNextFreePosition)
-              END IF
-              IF (ParticleIndexNbr .ne. 0) THEN
-                IF(Symmetry%Axisymmetric) THEN
-                  PartState(1:3,ParticleIndexNbr) = CalcPartPosAxisym(minPos, RVec)
-                ELSE
-                  PartState(1:3,ParticleIndexNbr) = CalcPartPosTriaSurface(xyzNod, Vector1, Vector2, ndist, midpoint)
-                END IF
-                LastPartPos(1:3,ParticleIndexNbr)=PartState(1:3,ParticleIndexNbr)
-                PDM%ParticleInside(ParticleIndexNbr) = .TRUE.
-                PDM%dtFracPush(ParticleIndexNbr) = .TRUE.
-                PDM%IsNewPart(ParticleIndexNbr) = .TRUE.
-                PEM%GlobalElemID(ParticleIndexNbr) = globElemId
-                PEM%LastGlobalElemID(ParticleIndexNbr) = globElemId
-                iPartTotal = iPartTotal + 1
-                IF(usevMPF)THEN
-                  PartMPF(ParticleIndexNbr) = SurfElemMPF
-                END IF ! usevMPF
+              PartID = GetNextFreePosition()
+              IF(Symmetry%Axisymmetric) THEN
+                PartState(1:3,PartID) = CalcPartPosAxisym(minPos, RVec)
               ELSE
-                CALL abort(__STAMP__,'ERROR in ParticleSurfChemFlux: ParticleIndexNbr.EQ.0 - maximum nbr of particles reached?')
+                PartState(1:3,PartID) = CalcPartPosTriaSurface(xyzNod, Vector1, Vector2, ndist, midpoint)
               END IF
+              PartSpecies(PartID) = iSpec
+              LastPartPos(1:3,PartID)=PartState(1:3,PartID)
+              IF(CollisMode.GT.1) CALL DSMC_SetInternalEnr(iSpec, BoundID, PartID, 3)
+              PDM%ParticleInside(PartID) = .TRUE.
+              PDM%dtFracPush(PartID) = .TRUE.
+              PDM%IsNewPart(PartID) = .TRUE.
+              PEM%GlobalElemID(PartID) = globElemId
+              PEM%LastGlobalElemID(PartID) = globElemId
+              iPartTotal = iPartTotal + 1
+              IF(usevMPF)THEN
+                PartMPF(PartID) = SurfElemMPF
+              END IF ! usevMPF
+              IF(CalcPartBalance) THEN
+                ! Compute number of input particles and energy
+                  nPartIn(iSpec) = nPartIn(iSpec) + 1
+                  PartEkinIn(iSpec) = PartEkinIn(iSpec)+CalcEkinPart(PartID)
+              END IF ! CalcPartBalance
             END DO
-
             CALL SetSurfacefluxVelocities(2,iSpec,iSF,iSample,jSample,iSide,BCSideID,SideID,NbrOfParticle,PartInsSubSide)
             PartsEmitted = PartsEmitted + PartInsSubSide
 #if USE_LOADBALANCE
@@ -463,30 +456,6 @@ DO iSF = 1, nSF
 #endif /*USE_LOADBALANCE*/
         END IF ! iSide
         IF (NbrOfParticle.NE.iPartTotal) CALL abort(__STAMP__, 'ERROR in ParticleSurfChemFlux: NbrOfParticle.NE.iPartTotal')
-
-        ! Set the particle properties
-        CALL SetParticleChargeAndMass(iSpec,NbrOfParticle)
-
-        IF (usevMPF.AND.(.NOT.RadialWeighting%DoRadialWeighting)) CALL SetParticleMPF(iSpec,-1,NbrOfParticle)
-
-        IF (useDSMC.AND.(CollisMode.GT.1)) THEN
-          DO iPart = 1,NbrOfParticle
-            PositionNbr = PDM%nextFreePosition(iPart+PDM%CurrentNextFreePosition)
-            IF (PositionNbr .NE. 0) CALL DSMC_SetInternalEnr(iSpec, BoundID, PositionNbr, 3)
-          END DO
-        END IF
-
-        IF(CalcPartBalance) THEN
-        ! Compute number of input particles and energy
-          nPartIn(iSpec)=nPartIn(iSpec) + NBrofParticle
-
-          DO iPart=1,NbrOfparticle
-            PositionNbr = PDM%nextFreePosition(iPart+PDM%CurrentNextFreePosition)
-            IF (PositionNbr .ne. 0) PartEkinIn(PartSpecies(PositionNbr))= &
-                                    PartEkinIn(PartSpecies(PositionNbr))+CalcEkinPart(PositionNbr)
-          END DO ! iPart
-        END IF ! CalcPartBalance
-
         PDM%CurrentNextFreePosition = PDM%CurrentNextFreePosition + NbrOfParticle
         PDM%ParticleVecLength = PDM%ParticleVecLength + NbrOfParticle
 #if USE_LOADBALANCE
