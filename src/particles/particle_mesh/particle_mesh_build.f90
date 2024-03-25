@@ -28,7 +28,7 @@ PRIVATE
 PUBLIC:: BuildElementRadiusTria,BuildElemTypeAndBasisTria,BuildEpsOneCell,BuildBCElemDistance
 PUBLIC:: BuildNodeNeighbourhood,BuildElementOriginShared,BuildElementBasisAndRadius
 PUBLIC:: BuildSideOriginAndRadius,BuildLinearSideBaseVectors, BuildMesh2DInfo
-PUBLIC:: BuildSideSlabAndBoundingBox
+PUBLIC:: BuildSideSlabAndBoundingBox, BuildElemDofNodeMapping
 !===================================================================================================================================
 
 CONTAINS
@@ -401,7 +401,7 @@ USE MOD_Particle_Mesh_Vars     ,ONLY: nComputeNodeElems
 USE MOD_LoadBalance_Vars       ,ONLY: PerformLoadBalance
 #endif /*USE_LOADBALANCE*/
 USE MOD_Interpolation_Vars     ,ONLY: Nmax,NInfo
-USE MOD_DG_Vars                ,ONLY: N_DG_Mapping
+USE MOD_DG_Vars                ,ONLY: N_DG_Mapping, nDofsMappingNode
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -412,7 +412,7 @@ IMPLICIT NONE
 ! LOCAL VARIABLES
 INTEGER                        :: iElem,firstElem,lastElem,Nloc
 REAL                           :: scaleJ,maxScaleJ
-INTEGER                        :: i,j,k
+INTEGER                        :: i,j,k,r,offSetDofNode
 #if USE_MPI
 INTEGER                        :: GlobalElemID,iCNElem
 ! Vandermonde matrices
@@ -435,9 +435,9 @@ END IF ! MPIRoot
 
 ! build sJ for all elements not on local proc
 #if USE_MPI
-CALL Allocate_Shared((/(NMax+1)*(NMax+1)*(NMax+1)*nComputeNodeTotalElems/),ElemsJ_Shared_Win,ElemsJ_Shared)
+CALL Allocate_Shared((/nDofsMappingNode/),ElemsJ_Shared_Win,ElemsJ_Shared)
 CALL MPI_WIN_LOCK_ALL(0,ElemsJ_Shared_Win,IERROR)
-ElemsJ(0:NMax,0:NMax,0:NMax,1:nComputeNodeTotalElems) => ElemsJ_Shared
+ElemsJ(1:nDofsMappingNode) => ElemsJ_Shared
 ! Node-root nullifies
 IF (myComputeNodeRank.EQ.0) ElemsJ_Shared = 0.
 CALL BARRIER_AND_SYNC(ElemsJ_Shared_Win,MPI_COMM_SHARED)
@@ -457,10 +457,12 @@ DO iCNElem = firstElem,lastElem
   GlobalElemID = GetGlobalElemID(iCNElem)
   iElem        = GlobalElemID-offsetElem
   Nloc         = N_DG_Mapping(2,GlobalElemID)
+  offSetDofNode= N_DG_Mapping(3,GlobalElemID)
   ! element on local proc, sJ already calculated in metrics.f90
   IF ((iElem.GT.0) .AND. (iElem.LE.nElems)) THEN
     DO k=0,Nloc; DO j=0,Nloc; DO i=0,Nloc
-      ElemsJ(i,j,k,iCNElem) = N_VolMesh(iElem)%sJ(i,j,k)
+      r=k*(Nloc+1)**2+j*(Nloc+1) + i+1
+      ElemsJ(r+offSetDofNode) = N_VolMesh(iElem)%sJ(i,j,k)
     END DO; END DO; END DO !i,j,k=0,Nloc
 
   ! element not on local proc, calculate sJ frm dXCL_NGeo_Shared
@@ -484,19 +486,22 @@ DO iCNElem = firstElem,lastElem
 
     ! assign to global Variable sJ
     DO k=0,Nloc; DO j=0,Nloc; DO i=0,Nloc
-      ElemsJ(i,j,k,iCNElem)=1./detJac_NMax(1,i,j,k)
+      r=k*(Nloc+1)**2+j*(Nloc+1) + i+1
+      ElemsJ(r+offSetDofNode)=1./detJac_NMax(1,i,j,k)
     END DO; END DO; END DO !i,j,k=0,Nloc
   END IF ! ElementOnNode(GlobalElemID)
 END DO ! iCNElem = firstElem,lastElem
 
 CALL BARRIER_AND_SYNC(ElemsJ_Shared_Win,MPI_COMM_SHARED)
 #else
-ALLOCATE(ElemsJ(0:NMax,0:NMax,0:NMax,1:nElems))
+ALLOCATE(ElemsJ(nDofsMappingNode))
 ElemsJ = 0.
 DO iElem = 1,nElems
   Nloc = N_DG_Mapping(2,iElem+offSetElem)
+  offSetDofNode= N_DG_Mapping(3,GlobalElemID)
   DO k=0,Nloc; DO j=0,Nloc; DO i=0,Nloc
-    ElemsJ(i,j,k,iElem) = N_VolMesh(iElem)%sJ(i,j,k)
+    r=k*(Nloc+1)**2+j*(Nloc+1) + i+1
+    ElemsJ(r+offSetDofNode) = N_VolMesh(iElem)%sJ(i,j,k)
   END DO; END DO; END DO !i,j,k=0,Nloc
 END DO ! iElem = 1,nElems
 #endif /* USE_MPI*/
@@ -532,7 +537,10 @@ CALL BARRIER_AND_SYNC(ElemEpsOneCell_Shared_Win,MPI_COMM_SHARED)
 
 maxScaleJ = 0.
 DO iElem = firstElem,lastElem
-  scaleJ = MAXVAL(ElemsJ(:,:,:,iElem))/MINVAL(ElemsJ(:,:,:,iElem))
+  GlobalElemID = GetGlobalElemID(iElem)
+  Nloc         = N_DG_Mapping(2,GlobalElemID)
+  offSetDofNode= N_DG_Mapping(3,GlobalElemID)
+  scaleJ = MAXVAL(ElemsJ(offSetDofNode+1:offSetDofNode+(Nloc+1)**3))/MINVAL(ElemsJ(offSetDofNode+1:offSetDofNode+(Nloc+1)**3))
   ElemEpsOneCell(iElem) = 1.0 + SQRT(3.0*scaleJ*RefMappingEps)
   maxScaleJ  =MAX(scaleJ,maxScaleJ)
 END DO ! iElem = firstElem,lastElem
@@ -1383,6 +1391,76 @@ CALL BARRIER_AND_SYNC(ElemBaryNGeo_Shared_Win,MPI_COMM_SHARED)
 
 END SUBROUTINE BuildElementOriginShared
 
+
+SUBROUTINE BuildElemDofNodeMapping()
+!================================================================================================================================
+! compute the element origin at xi=(0,0,0)^T and set it as ElemBaryNGeo
+!================================================================================================================================
+USE MOD_Globals
+USE MOD_Preproc
+USE MOD_Mesh_Tools         ,ONLY: GetGlobalElemID
+USE MOD_DG_Vars            ,ONLY: nDofsMappingNode, N_DG_Mapping, N_DG_Mapping_Shared_Win
+#if USE_MPI
+USE MOD_MPI_Shared
+USE MOD_MPI_Shared_Vars    ,ONLY: nComputeNodeTotalElems
+USE MOD_MPI_Shared_Vars    ,ONLY: nComputeNodeProcessors,myComputeNodeRank
+USE MOD_MPI_Shared_Vars    ,ONLY: MPI_COMM_SHARED
+#else
+USE MOD_Mesh_Vars          ,ONLY: nElems
+USE MOD_Particle_Mesh_Vars ,ONLY: nComputeNodeElems
+#endif /*USE_MPI*/
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!--------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+!--------------------------------------------------------------------------------------------------------------------------------
+!OUTPUT VARIABLES
+!--------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER                        :: iElem,globElemID, OffsetCounter, locN, locDofs
+INTEGER                        :: firstElem,lastElem
+#if USE_MPI
+INTEGER                        :: sendbuf,recvbuf,OffsetN_DG_Mapping, firstElemGlob, lastElemGlob
+#endif
+!================================================================================================================================
+#if USE_MPI
+firstElem = INT(REAL( myComputeNodeRank   )*REAL(nComputeNodeTotalElems)/REAL(nComputeNodeProcessors))+1
+lastElem  = INT(REAL((myComputeNodeRank+1))*REAL(nComputeNodeTotalElems)/REAL(nComputeNodeProcessors))
+firstElemGlob = GetGlobalElemID(firstElem)
+lastElemGlob = GetGlobalElemID(lastElem)
+#else
+firstElem = 1
+lastElem  = nElems
+#endif /*USE_MPI*/
+
+OffsetCounter = 0
+! Loop all CN elements (iElem is CNElemID)
+DO iElem = firstElem,lastElem
+  globElemID = GetGlobalElemID(iELem)
+  locN = N_DG_Mapping(2,globElemID)
+  locDofs = (locN+1)**3
+  N_DG_Mapping(3,globElemID) = OffsetCounter
+  OffsetCounter = OffsetCounter + locDofs
+END DO ! iElem = firstElem, lastElem
+
+#if USE_MPI
+  sendbuf = OffsetCounter
+  recvbuf = 0
+  CALL MPI_EXSCAN(sendbuf,recvbuf,1,MPI_INTEGER,MPI_SUM,MPI_COMM_SHARED,iError)
+  OffsetN_DG_Mapping   = recvbuf
+  ! last proc knows CN total number of connected CN elements
+  sendbuf = OffsetN_DG_Mapping + OffsetCounter
+  CALL MPI_BCAST(sendbuf,1,MPI_INTEGER,nComputeNodeProcessors-1,MPI_COMM_SHARED,iError)
+  nDofsMappingNode = sendbuf
+
+  N_DG_Mapping(3,firstElemGlob:lastElemGlob) = N_DG_Mapping(3,firstElemGlob:lastElemGlob) + OffsetN_DG_Mapping
+  CALL BARRIER_AND_SYNC(N_DG_Mapping_Shared_Win,MPI_COMM_SHARED)
+#else
+  nDofsMappingNode = OffsetCounter
+#endif /*USE_MPI*/
+
+
+END SUBROUTINE BuildElemDofNodeMapping
 
 SUBROUTINE BuildElementBasisAndRadius()
 !================================================================================================================================
