@@ -27,6 +27,7 @@ PRIVATE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
+#if !((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))
 INTERFACE InitDielectric
   MODULE PROCEDURE InitDielectric
 END INTERFACE
@@ -35,10 +36,12 @@ INTERFACE FinalizeDielectric
 END INTERFACE
 
 PUBLIC::InitDielectric,FinalizeDielectric
-!===================================================================================================================================
 PUBLIC::DefineParametersDielectric
+#endif /*!((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))*/
+
 CONTAINS
 
+#if !((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))
 !==================================================================================================================================
 !> Define parameters for surfaces (particle-sides)
 !==================================================================================================================================
@@ -644,9 +647,6 @@ SDEALLOCATE(DielectricZoneID)
 SDEALLOCATE(DielectricZoneEpsR)
 SDEALLOCATE(DielectricZoneMuR)
 END SUBROUTINE FinalizeDielectric
-
-
-
-
+#endif /*!((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))*/
 
 END MODULE MOD_Dielectric

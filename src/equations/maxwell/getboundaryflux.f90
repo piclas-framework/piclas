@@ -179,7 +179,7 @@ REAL,INTENT(IN),OPTIONAL             :: TangVec2(          3,0:Nloc,0:Nloc)
 REAL,INTENT(IN)                      :: BCFace_xGP(        3,0:Nloc,0:Nloc)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
-REAL,INTENT(OUT)                     :: Flux( PP_nVar+PMLnVar,0:Nloc,0:Nloc)
+REAL,INTENT(OUT)                     :: Flux(PP_nVar+PMLnVar,0:Nloc,0:Nloc)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER                              :: iSide,p,q

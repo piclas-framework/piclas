@@ -68,7 +68,9 @@ TYPE(DG_Basis),ALLOCATABLE              :: DGB_N(:)             !< Array of prec
 ! DG solution vol
 TYPE N_U_Vol
   REAL,ALLOCATABLE  :: U(:,:,:,:)
+  REAL,ALLOCATABLE  :: U2(:,:,:,:)
   REAL,ALLOCATABLE  :: Ut(:,:,:,:)
+  REAL,ALLOCATABLE  :: U2t(:,:,:,:)
   REAL,ALLOCATABLE  :: E(:,:,:,:)
   REAL,ALLOCATABLE  :: Et(:,:,:,:) ! Temporal derivative dD/dt of the electric displacement field D = epsR*eps0*E(x,y,z)
 END TYPE N_U_Vol

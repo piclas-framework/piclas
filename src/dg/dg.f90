@@ -36,9 +36,11 @@ INTERFACE InitDG
 END INTERFACE
 
 #if !(USE_HDG)
+#if !((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))
 INTERFACE DGTimeDerivative_weakForm
   MODULE PROCEDURE DGTimeDerivative_weakForm
 END INTERFACE
+#endif /*!((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))*/
 #endif /*USE_HDG*/
 
 INTERFACE FinalizeDG
@@ -47,7 +49,9 @@ END INTERFACE
 
 PUBLIC::InitDG,FinalizeDG
 #if !(USE_HDG)
+#if !((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))
 PUBLIC::DGTimeDerivative_weakForm
+#endif /*!((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))*/
 #endif /*USE_HDG*/
 #ifdef PP_POIS
 PUBLIC::DGTimeDerivative_weakForm_Pois
@@ -82,7 +86,8 @@ USE MOD_MPI                ,ONLY: StartExchange_DG_Elems,FinishExchangeMPIData
 !USE MOD_MPI_Vars           ,ONLY: SendRequest_U,RecRequest_U,SendRequest_U2,RecRequest_U2
 #endif /*USE_MPI*/
 #if (PP_TimeDiscMethod==1)||(PP_TimeDiscMethod==2)|| (PP_TimeDiscMethod==6)
-USE MOD_TimeDisc_Vars          ,ONLY: Ut_N
+USE MOD_TimeDisc_Vars      ,ONLY: Ut_N
+USE MOD_PML_Vars           ,ONLY: DoPML,isPMLElem
 #endif
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -109,10 +114,10 @@ DO Nloc=Nmin,Nmax
 END DO
 
 #if !((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))
-#if USE_LOADBALANCE && !(USE_HDG)
+#if USE_LOADBALANCE
 ! Not "LB via MPI" means during 1st initialisation
 IF (.NOT.(PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance))) THEN
-#endif /*USE_LOADBALANCE && !(USE_HDG)*/
+#endif /*USE_LOADBALANCE*/
   ! the local DG solution in physical and reference space
   ALLOCATE(U_N(1:nElems))
   DO iElem = 1, nElems
@@ -121,10 +126,20 @@ IF (.NOT.(PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance))) THEN
     U_N(iElem)%U = 0.
     ALLOCATE(U_N(iElem)%Ut(PP_nVar,0:Nloc,0:Nloc,0:Nloc))
     U_N(iElem)%Ut = 0.
+#if !(USE_HDG)
+    IF(DoPML)THEN
+      IF(isPMLElem(iElem))THEN
+        ALLOCATE(U_N(iElem)%U2(PMLnVar,0:Nloc,0:Nloc,0:Nloc))
+        U_N(iElem)%U2 = 0.
+        ALLOCATE(U_N(iElem)%U2t(PMLnVar,0:Nloc,0:Nloc,0:Nloc))
+        U_N(iElem)%U2t = 0.
+      END IF ! isPMLElem(iElem)
+    END IF ! DoPML
+#endif /*!(USE_HDG)*/
   END DO ! iElem = 1, nElems
-#if USE_LOADBALANCE && !(USE_HDG)
+#if USE_LOADBALANCE
 END IF
-#endif /*USE_LOADBALANCE && !(USE_HDG)*/
+#endif /*USE_LOADBALANCE*/
 
 ! Allocate additional containers
 #if USE_HDG
@@ -147,6 +162,12 @@ DO iElem = 1, nElems
 #if (PP_TimeDiscMethod==1)||(PP_TimeDiscMethod==2)|| (PP_TimeDiscMethod==6)
   ALLOCATE(Ut_N(iElem)%Ut_temp(PP_nVar,0:Nloc,0:Nloc,0:Nloc))
   Ut_N(iElem)%Ut_temp = 0.
+  IF(DoPML)THEN
+    IF(isPMLElem(iElem))THEN
+      ALLOCATE(Ut_N(iElem)%U2t_temp(PMLnVar,0:Nloc,0:Nloc,0:Nloc))
+      Ut_N(iElem)%Ut_temp = 0.
+    END IF ! isPMLElem(iElem)
+  END IF ! DoPML
 #endif
 END DO ! iElem = 1, nElems
 #endif /*USE_HDG*/
@@ -290,6 +311,7 @@ END SUBROUTINE InitDGBasis
 
 
 #if !(USE_HDG)
+#if !((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))
 SUBROUTINE DGTimeDerivative_weakForm(t,tStage,tDeriv,doSource)
 !===================================================================================================================================
 ! Computes the DG time derivative consisting of Volume Integral and Surface integral for the whole field
@@ -306,25 +328,26 @@ USE MOD_ProlongToFace     ,ONLY: ProlongToFace_TypeBased
 USE MOD_FillFlux          ,ONLY: FillFlux
 USE MOD_Equation          ,ONLY: CalcSource
 USE MOD_Interpolation     ,ONLY: ApplyJacobian
-USE MOD_PML_Vars          ,ONLY: DoPML,U2t
+USE MOD_PML_Vars          ,ONLY: DoPML
 USE MOD_Mesh_Vars         ,ONLY: nElems
 !USE MOD_FillMortar        ,ONLY: U_Mortar,Flux_Mortar
 #if USE_MPI
 !USE MOD_PML_Vars          ,ONLY: PMLnVar
 !USE MOD_Mesh_Vars         ,ONLY: nSides
 USE MOD_MPI_Vars
-USE MOD_MPI               ,ONLY: StartExchange_DG_Elems,StartReceiveMPIDataType,StartSendMPIDataType,FinishExchangeMPIDataType
+USE MOD_MPI                ,ONLY: StartExchange_DG_Elems,StartReceiveMPIDataType,StartSendMPIDataType,FinishExchangeMPIDataType
 #if defined(PARTICLES) && defined(LSERK)
-USE MOD_Particle_Vars     ,ONLY: DelayTime
-USE MOD_TimeDisc_Vars     ,ONLY: time
+USE MOD_Particle_Vars      ,ONLY: DelayTime
+USE MOD_TimeDisc_Vars      ,ONLY: time
 #endif /*defined(PARTICLES) && defined(LSERK)*/
 #ifdef PARTICLES
-USE MOD_Particle_MPI      ,ONLY: MPIParticleSend,MPIParticleRecv
+USE MOD_Particle_MPI       ,ONLY: MPIParticleSend,MPIParticleRecv
 #endif /*PARTICLES*/
 #if USE_LOADBALANCE
-USE MOD_LoadBalance_Timers,ONLY: LBStartTime,LBPauseTime,LBSplitTime
+USE MOD_LoadBalance_Timers ,ONLY: LBStartTime,LBPauseTime,LBSplitTime
 #endif /*USE_LOADBALANCE*/
 #endif /*USE_MPI*/
+USE MOD_PML_Vars           ,ONLY: nPMLElems,PMLToElem
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -339,7 +362,7 @@ LOGICAL,INTENT(IN)              :: doSource
 #if USE_LOADBALANCE
 REAL                            :: tLBStart
 #endif /*USE_LOADBALANCE*/
-INTEGER                         :: iElem
+INTEGER                         :: iElem,iPML
 !===================================================================================================================================
 
 ! prolong the solution to the face integration points for flux computation
@@ -390,7 +413,13 @@ END IF
 DO iElem = 1, nElems
   U_N(iElem)%Ut = 0.
 END DO ! iElem = 1, nElems
-IF(DoPML) U2t=0. ! set U2t for auxiliary variables to zero
+
+IF(DoPML)THEN ! Set U2t for auxiliary variables to zero
+  DO iPML=1,nPMLElems
+    iElem = PMLToElem(iPML)
+    U_N(iElem)%U2t = 0.
+  END DO ! iPML=1,nPMLElems
+END IF ! DoPML
 ! compute volume integral contribution and add to ut, first half of all elements
 CALL VolInt(dofirstElems=.TRUE.)
 
@@ -470,6 +499,7 @@ CALL LBSplitTime(LB_PARTCOMM,tLBStart)
 #endif /*defined(PARTICLES) && defined(LSERK)*/
 
 END SUBROUTINE DGTimeDerivative_weakForm
+#endif /*!((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))*/
 #endif /*!(USE_HDG)*/
 
 
