@@ -77,9 +77,7 @@ USE MOD_PML_Vars           ,ONLY: PMLnVar ! Additional fluxes for the CFS-PML au
 #endif /*USE_HDG*/
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Vars   ,ONLY: PerformLoadBalance
-#if !(USE_HDG)
 USE MOD_LoadBalance_Vars   ,ONLY: UseH5IOLoadBalance
-#endif /*!(USE_HDG)*/
 #endif /*USE_LOADBALANCE*/
 #if USE_MPI
 USE MOD_MPI                ,ONLY: StartExchange_DG_Elems,FinishExchangeMPIData

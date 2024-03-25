@@ -371,16 +371,11 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER             :: i,j,k,iPMLElem,iElem,Nloc
-REAL                :: XiN(3)
+REAL                :: XiN
 REAL                :: fFuncType
 INTEGER             :: iDir,PMLDir
 REAL                :: xMin,xMax
-LOGICAL             :: SetValue
 !===================================================================================================================================
-!ALLOCATE(PMLRamp          (0:PP_N,0:PP_N,0:PP_N,1:nPMLElems))
-!ALLOCATE(PMLzeta      (1:3,0:PP_N,0:PP_N,0:PP_N,1:nPMLElems))
-!ALLOCATE(PMLzetaEff   (1:3,0:PP_N,0:PP_N,0:PP_N,1:nPMLElems))
-!ALLOCATE(PMLalpha     (1:3,0:PP_N,0:PP_N,0:PP_N,1:nPMLElems))
 ALLOCATE(PML(1:nPMLElems))
 DO iPMLElem=1,nPMLElems
   iElem = PMLToElem(iPMLElem)
@@ -388,14 +383,10 @@ DO iPMLElem=1,nPMLElems
   ALLOCATE(PML(iPMLElem)%zeta(1:3,0:Nloc,0:Nloc,0:Nloc))
   ALLOCATE(PML(iPMLElem)%zetaEff(1:3,0:Nloc,0:Nloc,0:Nloc))
   ALLOCATE(PML(iPMLElem)%alpha(1:3,0:Nloc,0:Nloc,0:Nloc))
-  PML(iPMLElem)%zeta = 0.
+  PML(iPMLElem)%zeta    = 0.
   PML(iPMLElem)%zetaEff = 0.
-  PML(iPMLElem)%alpha = PMLalpha0 ! currently only constant a alpha distribution in the PML region is used
+  PML(iPMLElem)%alpha   = PMLalpha0 ! currently only constant a alpha distribution in the PML region is used
 END DO
-!PMLzeta=0.
-!PMLRamp=1. ! goes from 1 to 0
-!PMLzetaEff=0.
-!PMLalpha=PMLalpha0 ! currently only constant a alpha distribution in the PML region is used
 
 ! get xyzMinMax
 CALL GetMeshMinMaxBoundaries()
@@ -439,54 +430,49 @@ IF(usePMLMinMax)THEN ! use xyPMLMinMax -> define the PML region
   xyzPMLMinMax(2*PMLDir-1) = MAX(xyzPMLMinMax(2*PMLDir-1),xyzMinMax(2*PMLDir-1)) ! minimum
   xyzPMLMinMax(2*PMLDir  ) = MIN(xyzPMLMinMax(2*PMLDir  ),xyzMinMax(2*PMLDir  )) ! maximum
   SWRITE(UNIT_stdOut,'(A,I2)') 'Setting xyzPMLMinMax to <=xyzMinMax for iDir=',PMLDir
-  DO iPMLElem=1,nPMLElems; DO k=1,PP_N+1; DO j=1,PP_N+1; DO i=1,PP_N+1
+  DO iPMLElem=1,nPMLElems;
     iElem = PMLToElem(iPMLElem)
-    SetValue=.FALSE.
-    ASSOCIATE( Elem_xGP => N_VolMesh(iElem)%Elem_xGP(:,:,:,:) )
-      IF((Elem_xGP(PMLDir,i,j,k).GE.xyzPMLMinMax(2*PMLDir-1)).AND.&
-         (Elem_xGP(PMLDir,i,j,k).LE.xyzPMLMinMax(2*PMLDir)))THEN ! Point is in [PMLDir]-direction region
+    Nloc  = N_DG_Mapping(2,iElem+offSetElem)
+    DO k=0,Nloc; DO j=0,Nloc; DO i=0,Nloc
+      IF((N_VolMesh(iElem)%Elem_xGP(PMLDir,i,j,k).GE.xyzPMLMinMax(2*PMLDir-1)).AND.&
+         (N_VolMesh(iElem)%Elem_xGP(PMLDir,i,j,k).LE.xyzPMLMinMax(2*PMLDir)))THEN ! Point is in [PMLDir]-direction region
         xMin = xyzPMLMinMax(2*PMLDir-1)-xyzPMLzetaShapeOrigin(PMLDir) ! Min of region defined for PML region
         xMax = xyzPMLMinMax(2*PMLDir  )-xyzPMLzetaShapeOrigin(PMLDir) ! Max of region defined for PML region
-        XiN(PMLDir) = ( Elem_xGP(PMLDir,i,j,k) - xyzPMLzetaShapeOrigin(PMLDir)-MIN(xMin,xMax) )/&
-                      ( MAX(xMin,xMax)                                        -MIN(xMin,xMax) )
-        !PMLzeta(PMLDir,i,j,k,iPMLElem) = PMLzeta0*fFuncType(&
-                                       !( Elem_xGP(PMLDir,i,j,k) - xyzPMLzetaShapeOrigin(PMLDir)-MIN(xMin,xMax) )/&
-                                       !( MAX(xMin,xMax)                                        -MIN(xMin,xMax) ),&
-                                       !PMLzetashape)
-        SetValue=.TRUE.
+        XiN = ( N_VolMesh(iElem)%Elem_xGP(PMLDir,i,j,k) - xyzPMLzetaShapeOrigin(PMLDir)-MIN(xMin,xMax) )/&
+              ( MAX(xMin,xMax)                                                         -MIN(xMin,xMax) )
+        PML(iPMLElem)%zeta(iDir,i,j,k) = PMLzeta0*fFuncType(XiN,PMLzetaShape)
       END IF
-    END ASSOCIATE
-    IF(SetValue) PML(iPMLElem)%zeta(iDir,i-1,j-1,k-1) = PMLzeta0*fFuncType(XiN(iDir),PMLzetaShape)
   END DO; END DO; END DO; END DO !iPMLElem,k,j,i
 ! ----------------------------------------------------------------------------------------------------------------------------------
 ELSE ! use xyzPhysicalMinMax -> define the physical region
-  DO iPMLElem=1,nPMLElems; DO k=1,PP_N+1; DO j=1,PP_N+1; DO i=1,PP_N+1
+  DO iPMLElem=1,nPMLElems;
     iElem = PMLToElem(iPMLElem)
-    ASSOCIATE( Elem_xGP => N_VolMesh(iElem)%Elem_xGP(:,:,:,:) )
+    Nloc  = N_DG_Mapping(2,iElem+offSetElem)
+    DO k=0,Nloc; DO j=0,Nloc; DO i=0,Nloc
       DO iDir=1,3 !1=x, 2=y, 3=z
-        IF          (Elem_xGP(iDir,i,j,k) .LT.   xyzPhysicalMinMax(2*iDir-1)) THEN ! region is in lower part
-          XiN(iDir) = (ABS(Elem_xGP(iDir,i,j,k)) - ABS(xyzPhysicalMinMax(2*iDir-1)))/&   ! of the domain
-                      (ABS(xyzMinMax(2*iDir-1))  - ABS(xyzPhysicalMinMax(2*iDir-1)))
-          !PMLzeta(iDir,i,j,k,iPMLElem)   = PMLzeta0*fFuncType(XiN,PMLzetaShape)
-        ELSEIF      (Elem_xGP(iDir,i,j,k) .GT.   xyzPhysicalMinMax(2*iDir)) THEN ! region is in upper part
-          XiN(iDir) = (ABS(Elem_xGP(iDir,i,j,k)) - ABS(xyzPhysicalMinMax(2*iDir)))/&   ! of the domain
-                      (ABS(xyzMinMax(2*iDir))    - ABS(xyzPhysicalMinMax(2*iDir)))
-          !PMLzeta(iDir,i,j,k,iPMLElem)   = PMLzeta0*fFuncType(XiN,PMLzetaShape)
+        IF          (N_VolMesh(iElem)%Elem_xGP(iDir,i,j,k) .LT.   xyzPhysicalMinMax(2*iDir-1)) THEN ! region is in lower part
+          XiN = (ABS(N_VolMesh(iElem)%Elem_xGP(iDir,i,j,k)) - ABS(xyzPhysicalMinMax(2*iDir-1)))/&   ! of the domain
+                (ABS(xyzMinMax(2*iDir-1))                   - ABS(xyzPhysicalMinMax(2*iDir-1)))
+          PML(iPMLElem)%zeta(iDir,i,j,k) = PMLzeta0*fFuncType(XiN,PMLzetaShape)
+        ELSEIF      (N_VolMesh(iElem)%Elem_xGP(iDir,i,j,k) .GT.   xyzPhysicalMinMax(2*iDir)) THEN ! region is in upper part
+          XiN = (ABS(N_VolMesh(iElem)%Elem_xGP(iDir,i,j,k)) - ABS(xyzPhysicalMinMax(2*iDir)))/&   ! of the domain
+                (ABS(xyzMinMax(2*iDir))                     - ABS(xyzPhysicalMinMax(2*iDir)))
+          PML(iPMLElem)%zeta(iDir,i,j,k) = PMLzeta0*fFuncType(XiN,PMLzetaShape)
         END IF
       END DO
-    END ASSOCIATE
-    DO iDir=1,3 !1=x, 2=y, 3=z
-      PML(iPMLElem)%zeta(iDir,i-1,j-1,k-1)   = PMLzeta0*fFuncType(XiN(iDir),PMLzetaShape)
-    END DO
   END DO; END DO; END DO; END DO !iElem,k,j,i
 
 END IF ! usePMLMinMax
 ! ----------------------------------------------------------------------------------------------------------------------------------
 ! CFS-PML formulation: calculate zeta eff using the complex frequency shift PMLalpha
-DO iPMLElem=1,nPMLElems; DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
+DO iPMLElem=1,nPMLElems;
+  iElem = PMLToElem(iPMLElem)
+  Nloc  = N_DG_Mapping(2,iElem+offSetElem)
+  DO k=0,Nloc; DO j=0,Nloc; DO i=0,Nloc
   PML(iPMLElem)%zetaEff(:,i,j,k) = ( PML(iPMLElem)%alpha(:,i,j,k)+PML(iPMLElem)%zeta(:,i,j,k) )
 END DO; END DO; END DO; END DO !iPMLElem,k,j,i
-!DEALLOCATE(PMLalpha)
+
+! Alpha is no longer needed
 DO iPMLElem = 1, nPMLElems
   DEALLOCATE(PML(iPMLElem)%alpha)
 END DO ! iPMLElem = 1, nPMLElems

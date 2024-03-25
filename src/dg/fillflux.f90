@@ -109,7 +109,7 @@ DO SideID=firstSideID_wo_BC, lastSideID
 
   CALL GetSurfaceFlux(SideID, N_master, N_slave, N_max    ,&
                       U_Surf_N(SideID)%Flux_Master(1:PP_nVar+PMLnVar,0:N_master,0:N_master) ,&
-                      U_Surf_N(SideID)%Flux_Slave( 1:PP_nVar        ,0:N_slave ,0:N_slave)  ,&
+                      U_Surf_N(SideID)%Flux_Slave( 1:PP_nVar+PMLnVar,0:N_slave ,0:N_slave)  ,&
                       U_Surf_N(SideID)%U_Master(   1:PP_nVar        ,0:N_master,0:N_master) ,&
                       U_Surf_N(SideID)%U_Slave(    1:PP_nVar        ,0:N_slave ,0:N_slave)  ,&
                       N_SurfMesh(SideID)%NormVec(  1:3              ,0:N_max   ,0:N_max)    ,&
