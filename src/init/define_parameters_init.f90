@@ -48,6 +48,12 @@ USE MOD_RecordPoints               ,ONLY: DefineParametersRecordPoints
 USE MOD_TimeDiscInit               ,ONLY: DefineParametersTimeDisc
 USE MOD_Mesh                       ,ONLY: DefineParametersMesh
 USE MOD_Equation                   ,ONLY: DefineParametersEquation
+#if !((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))
+USE MOD_Dielectric                 ,ONLY: DefineParametersDielectric
+#if !(USE_HDG)
+USE MOD_PML                        ,ONLY: DefineParametersPML
+#endif /*!(USE_HDG)*/
+#endif /*!((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))*/
 #if USE_HDG
 USE MOD_HDG                        ,ONLY: DefineParametersHDG
 #endif /*USE_HDG*/
@@ -64,10 +70,6 @@ USE MOD_Particle_Mesh              ,ONLY: DefineparametersParticleMesh
 USE MOD_Particle_Analyze           ,ONLY: DefineParametersParticleAnalyze
 USE MOD_TTMInit                    ,ONLY: DefineParametersTTM
 #if !((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))
-USE MOD_Dielectric                 ,ONLY: DefineParametersDielectric
-#if !(USE_HDG)
-USE MOD_PML                        ,ONLY: DefineParametersPML
-#endif /*!(USE_HDG)*/
 USE MOD_PICInit                    ,ONLY: DefineParametersPIC
 #endif /*!((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))*/
 USE MOD_DSMC_Init                  ,ONLY: DefineParametersDSMC
@@ -121,6 +123,12 @@ CALL DefineParametersPiclas()
 CALL DefineParametersTimeDisc()
 CALL DefineParametersMesh()
 CALL DefineParametersEquation()
+#if !((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))
+#if !(USE_HDG)
+CALL DefineParametersPML()
+#endif /*USE_HDG*/
+CALL DefineParametersDielectric()
+#endif /*!((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))*/
 #if USE_HDG
 CALL DefineParametersHDG()
 #endif /*USE_HDG*/
@@ -143,10 +151,6 @@ CALL DefineParametersParticleBGM()
 CALL DefineParametersParticleAnalyze()
 CALL DefineParametersTTM()
 #if !((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))
-CALL DefineParametersDielectric()
-#if !(USE_HDG)
-CALL DefineParametersPML()
-#endif /*USE_HDG*/
 CALL DefineParametersPIC()
 #endif /*!((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))*/
 CALL DefineParametersDSMC()
