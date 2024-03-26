@@ -2027,6 +2027,7 @@ END SELECT
 
 #if USE_LOADBALANCE
 IF ((PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance))) THEN
+#endif /*USE_LOADBALANCE*/
 
   !IF(DoDeposition)THEN
   !  SDEALLOCATE(PartSourceLB)
@@ -2061,16 +2062,26 @@ IF ((PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance))) THEN
     ADEALLOCATE(GlobalElem2CNTotalElem)
     ADEALLOCATE(GlobalElem2CNTotalElem_Shared)
   END IF ! nComputeNodeProcessors.NE.nProcessors_Global
+
+#if USE_LOADBALANCE
 END IF
+#endif /*USE_LOADBALANCE*/
+
+#if USE_LOADBALANCE
+IF (.NOT.(PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance))) THEN
+#endif /*USE_LOADBALANCE*/
+  ! Keep for load balance and deallocate/reallocate after communication
+  SDEALLOCATE(PS_N) ! PartSource, PartSourceOld and PartSourceTmp
+#if USE_LOADBALANCE
+END IF
+#endif /*USE_LOADBALANCE*/
+
 ! This step was skipped in particle_mesh.f90: FinalizeParticleMesh()
 IF(PerformLoadBalance.AND.DoDielectricSurfaceCharge)THEN
   ! From InitElemNodeIDs
   CALL UNLOCK_AND_FREE(ElemNodeID_Shared_Win)
   ADEALLOCATE(ElemNodeID_Shared)
-  ! Keep for load balance and deallocate/reallocate after communication
-  SDEALLOCATE(PS_N) ! PartSource, PartSourceOld and PartSourceTmp
 END IF
-#endif /*USE_LOADBALANCE*/
 SDEALLOCATE(DepoNodetoGlobalNode)
 SDEALLOCATE(NodeSource)
 SDEALLOCATE(NodeSourceExt)

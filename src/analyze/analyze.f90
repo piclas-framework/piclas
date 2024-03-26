@@ -1290,7 +1290,6 @@ IF(.NOT.CalcElectricTimeDerivative) RETURN ! Read-in parameter that is set in  I
 ! Allocate temporal derivative for E: No need to nullify as is it overwritten with E the first time it is used
 !ALLOCATE(Et(1:3,0:PP_N,0:PP_N,0:PP_N,PP_nElems))
 !Et = 0.
-CALL abort(__STAMP__,'not implemented')
 
 ! 1.) Loop over all field BCs and check if the current processor is either the MPI root or has at least one of the BCs that
 ! contribute to the total electric displacement current. If yes, then this processor is part of the communicator

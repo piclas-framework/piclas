@@ -81,6 +81,7 @@ USE MOD_HDG_Vars               ,ONLY: nGP_face,iLocSides,UseFPC,FPC,UseEPC,EPC,H
 #if PP_nVar==1
 !USE MOD_Equation_Vars          ,ONLY: E,Et
 USE MOD_DG_Vars                ,ONLY: DG_Elems_master,DG_Elems_slave
+USE MOD_Mesh_Vars              ,ONLY: nElems
 #elif PP_nVar==3
 USE MOD_Equation_Vars          ,ONLY: B
 #else
@@ -159,6 +160,7 @@ REAL                           :: Utemp(PP_nVar,0:PP_N,0:PP_N,0:PP_N,PP_nElems)
 #if PP_nVar==1
 REAL                           :: Utemp(1:4,0:PP_N,0:PP_N,0:PP_N,PP_nElems)
 INTEGER                        :: iElem,Nloc,NSideMin
+REAL,ALLOCATABLE               :: Et(:,:,:,:,:)
 #elif PP_nVar==3
 REAL                           :: Utemp(1:3,0:PP_N,0:PP_N,0:PP_N,PP_nElems)
 #else /*PP_nVar=4*/
@@ -569,6 +571,16 @@ ASSOCIATE (&
 #if USE_HDG
   ! Output temporal derivate of the electric field
   IF(CalcElectricTimeDerivative) THEN
+    ALLOCATE(Et(1:3,0:Nmax,0:Nmax,0:Nmax,nElems))
+    Et=0.0
+    DO iElem=1,nElems
+      Nloc  = N_DG_Mapping(2,iElem+offSetElem)
+      IF(Nloc.EQ.Nmax)THEN
+        Et(:,:,:,:,iElem) = U_N(iElem)%Et(:,:,:,:)
+      ELSE
+        CALL ChangeBasis3D(PP_nVar,Nloc,NMax,PREF_VDM(Nloc,NMax)%Vdm, U_N(iElem)%Et(:,:,:,:),Et(:,:,:,:,iElem))
+      END IF ! Nloc.Eq.Nmax
+    END DO ! iElem = 1, nElems
     nVar=3_IK
     ALLOCATE(LocalStrVarNames(1:nVar))
     LocalStrVarNames(1)='TimeDerivativeElecDisplacementX'
@@ -579,13 +591,12 @@ ASSOCIATE (&
       CALL WriteAttributeToHDF5(File_ID,'VarNamesTimeDerivative',INT(nVar,4),StrArray=LocalStrVarnames)
       CALL CloseDataFile()
     END IF
-    !CALL GatheredWriteArray(FileName,create=.FALSE.,&
-        !DataSetName='DG_TimeDerivative', rank=5,  &
-        !nValGlobal=(/nVar , N+1_IK , N+1_IK , N+1_IK , nGlobalElems/) , &
-        !nVal=      (/nVar , N+1_IK , N+1_IK , N+1_IK , PP_nElems/)    , &
-        !offset=    (/0_IK , 0_IK   , 0_IK   , 0_IK   , offsetElem/)   , &
-        !collective=.TRUE.,RealArray=Et(1:3,:,:,:,:))
-    CALL abort(__STAMP__,'not implemented')
+    CALL GatheredWriteArray(FileName,create=.FALSE.,&
+        DataSetName='DG_TimeDerivative', rank=5,  &
+        nValGlobal=(/nVar , N+1_IK , N+1_IK , N+1_IK , nGlobalElems/) , &
+        nVal=      (/nVar , N+1_IK , N+1_IK , N+1_IK , PP_nElems/)    , &
+        offset=    (/0_IK , 0_IK   , 0_IK   , 0_IK   , offsetElem/)   , &
+        collective=.TRUE.,RealArray=Et(1:3,:,:,:,:))
 
     DEALLOCATE(LocalStrVarNames)
   END IF

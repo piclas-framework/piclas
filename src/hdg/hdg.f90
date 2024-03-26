@@ -1683,6 +1683,7 @@ USE MOD_TimeDisc_Vars   ,ONLY: iStage,nRKStages
 #endif
 USE MOD_TimeDisc_Vars   ,ONLY: dt,dt_Min
 !USE MOD_Equation_Vars   ,ONLY: E,Et
+USE MOD_Mesh_Vars       ,ONLY: nElems
 USE MOD_Globals_Vars    ,ONLY: eps0
 USE MOD_Analyze_Vars    ,ONLY: CalcElectricTimeDerivative
 USE MOD_Analyze_Vars    ,ONLY: FieldAnalyzeStep
@@ -1727,7 +1728,9 @@ CALL extrae_eventandcounters(int(9000001), int8(4))
     IF(ALMOSTEQUAL(dt,dt_Min(DT_ANALYZE)).OR.ALMOSTEQUAL(dt,dt_Min(DT_END)).OR.(MOD(iter+1,FieldAnalyzeStep).EQ.0))THEN
       ! Store old E-field
       !Et(:,:,:,:,:) = E(:,:,:,:,:)
-      CALL abort(__STAMP__,'not implemented')
+      DO iElem = 1, nElems
+        U_N(iElem)%Et(:,:,:,:) = U_N(iElem)%E(:,:,:,:)
+      END DO ! iElem = 1, nElems
     END IF
   END IF ! CalcElectricTimeDerivative
 #if (PP_TimeDiscMethod==501) || (PP_TimeDiscMethod==502) || (PP_TimeDiscMethod==506)

@@ -939,12 +939,12 @@ DO iElem=1,nElems
 #endif /*PP_nVar=8*/
   Nloc = N_DG_Mapping(2,iElem+offSetElem)
   ASSOCIATE( wGP => N_Inter(Nloc)%wGP )
+  DO k=0,Nloc; DO j=0,Nloc; DO i=0,Nloc
 #if USE_HDG
   ASSOCIATE( Ex  => U_N(iElem)%E(1,i,j,k) ,&
              Ey  => U_N(iElem)%E(2,i,j,k) ,&
              Ez  => U_N(iElem)%E(3,i,j,k) )
 #endif /*USE_HDG*/
-  DO k=0,Nloc; DO j=0,Nloc; DO i=0,Nloc
 ! in electromagnetische felder by henke 2011 - springer
 ! WMag = 1/(2mu) * int_V B^2 dV
 #if USE_HDG
@@ -978,10 +978,10 @@ DO iElem=1,nElems
     Wphi_tmp = Wphi_tmp + wGP(i)*wGP(j)*wGP(k)   / N_VolMesh(iElem)%sJ(i,j,k) * Phi_abs
     Wpsi_tmp = Wpsi_tmp + wGP(i)*wGP(j)*wGP(k)   / N_VolMesh(iElem)%sJ(i,j,k) * Psi_abs
 #endif /*PP_nVar=8*/
-  END DO; END DO; END DO
 #if USE_HDG
   END ASSOCIATE
 #endif /*USE_HDG*/
+  END DO; END DO; END DO
   END ASSOCIATE
   WEl = WEl + WEl_tmp
 #if (PP_nVar==8)
@@ -1103,14 +1103,14 @@ DO iElem=1,nElems
   WMag_tmp=0.
   Nloc = N_DG_Mapping(2,iElem+offSetElem)
   ASSOCIATE( wGP => N_Inter(Nloc)%wGP )
+
+  IF(isDielectricElem(iElem))THEN
+    DO k=0,Nloc; DO j=0,Nloc; DO i=0,Nloc
 #if USE_HDG
   ASSOCIATE( Ex  => U_N(iElem)%E(1,i,j,k) ,&
              Ey  => U_N(iElem)%E(2,i,j,k) ,&
              Ez  => U_N(iElem)%E(3,i,j,k) )
 #endif /*USE_HDG*/
-
-  IF(isDielectricElem(iElem))THEN
-    DO k=0,Nloc; DO j=0,Nloc; DO i=0,Nloc
       ! in electromagnetische felder by henke 2011 - springer
       ! WMag = 1/(2mu) * int_V B^2 dV
 #if USE_HDG
@@ -1144,9 +1144,17 @@ DO iElem=1,nElems
       Wphi_tmp = Wphi_tmp + wGP(i)*wGP(j)*wGP(k) / N_VolMesh(iElem)%sJ(i,j,k) * Phi_abs * DielectricVol(ElemToDielectric(iElem))%DielectricEps(i,j,k)
       Wpsi_tmp = Wpsi_tmp + wGP(i)*wGP(j)*wGP(k) / N_VolMesh(iElem)%sJ(i,j,k) * Psi_abs / DielectricVol(ElemToDielectric(iElem))%DielectricMu(i,j,k)
 #endif /*PP_nVar=8*/
+#if USE_HDG
+  END ASSOCIATE
+#endif /*USE_HDG*/
     END DO; END DO; END DO
   ELSE
     DO k=0,Nloc; DO j=0,Nloc; DO i=0,Nloc
+#if USE_HDG
+  ASSOCIATE( Ex  => U_N(iElem)%E(1,i,j,k) ,&
+             Ey  => U_N(iElem)%E(2,i,j,k) ,&
+             Ez  => U_N(iElem)%E(3,i,j,k) )
+#endif /*USE_HDG*/
       ! in electromagnetische felder by henke 2011 - springer
       ! WMag = 1/(2mu) * int_V B^2 dV
 #if USE_HDG
@@ -1180,11 +1188,11 @@ DO iElem=1,nElems
       Wphi_tmp = Wphi_tmp + wGP(i)*wGP(j)*wGP(k) / N_VolMesh(iElem)%sJ(i,j,k) * Phi_abs
       Wpsi_tmp = Wpsi_tmp + wGP(i)*wGP(j)*wGP(k) / N_VolMesh(iElem)%sJ(i,j,k) * Psi_abs
 #endif /*PP_nVar=8*/
-    END DO; END DO; END DO
-  END IF
 #if USE_HDG
   END ASSOCIATE
 #endif /*USE_HDG*/
+    END DO; END DO; END DO
+  END IF
   END ASSOCIATE
 
 
