@@ -1712,7 +1712,7 @@ INTEGER :: iUniqueEPCBC
 #if (USE_HDG && (PP_nVar==1))
 INTEGER           :: iDir,iElem
 #endif /*(USE_HDG && (PP_nVar==1))*/
-REAL              :: maxphi
+!REAL              :: maxphi
 !===================================================================================================================================
 #ifdef EXTRAE
 CALL extrae_eventandcounters(int(9000001), int8(4))
@@ -3525,7 +3525,7 @@ USE MOD_LoadBalance_Timers ,ONLY: LBStartTime,LBPauseTime
 USE MOD_MPI_Vars           ,ONLY: MPIW8TimeField,MPIW8CountField
 #endif /*defined(MEASURE_MPI_WAIT)*/
 USE MOD_HDG_Vars           ,ONLY: HDG_Surf_N
-USE MOD_Mesh_Vars          ,ONLY: nSides,N_SurfMesh
+USE MOD_Mesh_Vars          ,ONLY: nSides
 #if USE_MPI
 USE MOD_Mesh_Vars          ,ONLY: nMPISides_YOUR
 #endif
@@ -3601,7 +3601,7 @@ USE MOD_LoadBalance_Timers ,ONLY: LBStartTime,LBPauseTime
 USE MOD_MPI_Vars           ,ONLY: MPIW8TimeField,MPIW8CountField
 #endif /*defined(MEASURE_MPI_WAIT)*/
 USE MOD_HDG_Vars           ,ONLY: HDG_Surf_N
-USE MOD_Mesh_Vars          ,ONLY: nSides,N_SurfMesh
+USE MOD_Mesh_Vars          ,ONLY: nSides
 #if USE_MPI
 USE MOD_Mesh_Vars          ,ONLY: nMPISides_YOUR
 #endif

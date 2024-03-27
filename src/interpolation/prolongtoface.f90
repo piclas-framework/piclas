@@ -369,7 +369,8 @@ DO SideID=firstSideID,lastSideID
   locSideID  = SideToElem(S2E_NB_LOC_SIDE_ID,SideID)
   flip       = SideToElem(S2E_FLIP,SideID)
   Nloc = N_DG_Mapping(2,nbElemID+offSetElem)
-  CALL ProlongToFace_Side(PP_nVar, Nloc, locSideID, flip, nbElemID,  U_N(nbElemID)%U, U_Surf_N(SideID)%U_slave)
+  !CALL ProlongToFace_Side(PP_nVar, Nloc, locSideID, flip, nbElemID,  U_N(nbElemID)%U, U_Surf_N(SideID)%U_slave)
+  CALL ProlongToFace_Side(PP_nVar, Nloc, locSideID, flip, U_N(nbElemID)%U, U_Surf_N(SideID)%U_slave)
   
 END DO !SideID
 
@@ -390,13 +391,15 @@ DO SideID=firstSideID,lastSideID
   locSideID = SideToElem(S2E_LOC_SIDE_ID,SideID)
   Nloc = N_DG_Mapping(2,ElemID+offSetElem)
 
-  CALL ProlongToFace_Side(PP_nVar, Nloc, locSideID, 0, ElemID,  U_N(ElemID)%U, U_Surf_N(SideID)%U_master)
+  !CALL ProlongToFace_Side(PP_nVar, Nloc, locSideID, 0, ElemID,  U_N(ElemID)%U, U_Surf_N(SideID)%U_master)
+  CALL ProlongToFace_Side(PP_nVar, Nloc, locSideID, 0, U_N(ElemID)%U, U_Surf_N(SideID)%U_master)
 END DO !SideID
 
 END SUBROUTINE ProlongToFace_TypeBased
 
 
-SUBROUTINE ProlongToFace_Side(Nvar, Nloc, locSideID, flip, ElemID,  U, USide)
+!SUBROUTINE ProlongToFace_Side(Nvar, Nloc, locSideID, flip, ElemID,  U, USide)
+SUBROUTINE ProlongToFace_Side(Nvar, Nloc, locSideID, flip, U, USide)
 !===================================================================================================================================
 ! Interpolates the interior volume data (stored at the Gauss or Gauss-Lobatto points) to the surface
 ! integration points, using fast 1D Interpolation and store in global side structure
@@ -405,13 +408,11 @@ SUBROUTINE ProlongToFace_Side(Nvar, Nloc, locSideID, flip, ElemID,  U, USide)
 USE MOD_Globals
 USE MOD_PreProc
 USE MOD_Interpolation_Vars ,ONLY: N_Inter
-USE MOD_DG_Vars            ,ONLY: N_DG_Mapping
-USE MOD_Mesh_Vars          ,ONLY: SideToElem, offSetElem
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-INTEGER, INTENT(IN):: locSideID, flip, ElemID, Nloc, nVar
+INTEGER, INTENT(IN):: locSideID, flip, Nloc, nVar !,ElemID
 REAL, INTENT(INOUT):: U(1:nVar,0:Nloc,0:Nloc,0:Nloc)
 REAL, INTENT(INOUT):: USide(1:nvar,0:Nloc,0:Nloc)
 !-----------------------------------------------------------------------------------------------------------------------------------

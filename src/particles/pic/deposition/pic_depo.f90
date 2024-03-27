@@ -102,10 +102,8 @@ USE MOD_Mesh_Tools             ,ONLY: GetGlobalElemID, GetCNElemID
 USE MOD_Mesh_Vars              ,ONLY: offsetElem
 USE MOD_Particle_Mesh_Vars     ,ONLY: NodeInfo_Shared
 USE MOD_Particle_Mesh_Vars     ,ONLY: NodeToElemInfo,NodeToElemMapping,ElemNodeID_Shared
-USE MOD_MPI_vars               ,ONLY: offsetElemMPI
-USE MOD_MPI_Shared_Vars        ,ONLY: ComputeNodeRootRank
 USE MOD_MPI_Shared             ,ONLY: BARRIER_AND_SYNC
-USE MOD_MPI_Shared_Vars        ,ONLY: nComputeNodeTotalElems,nComputeNodeProcessors
+USE MOD_MPI_Shared_Vars        ,ONLY: nComputeNodeTotalElems
 USE MOD_MPI_Shared_Vars        ,ONLY: nProcessors_Global
 USE MOD_MPI_Shared
 USE MOD_Particle_Mesh_Vars     ,ONLY: ElemInfo_Shared
@@ -113,7 +111,7 @@ USE MOD_Particle_Mesh_Vars     ,ONLY: ElemInfo_Shared
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Vars       ,ONLY: PerformLoadBalance,UseH5IOLoadBalance
 #endif /*USE_LOADBALANCE*/
-USE MOD_Interpolation_Vars     ,ONLY: NMin,NMax
+USE MOD_Interpolation_Vars     ,ONLY: Nmin,Nmax
 USE MOD_DG_Vars                ,ONLY: N_DG_Mapping
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE

@@ -112,7 +112,7 @@ INTEGER,ALLOCATABLE,INTENT(OUT) :: V2SIJK(:,:,:,:,:,:)
 INTEGER,ALLOCATABLE,INTENT(OUT) :: FS2M(:,:,:,:)     !< FlipSlaveToMaster mapping
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                    :: i,j,k,f,s, ijk(3),pq(3),p,q
+INTEGER                    :: i,j,k,f,s
 !===================================================================================================================================
 ALLOCATE(V2S(   3,0:N_in,0:N_in,0:N_in,0:4,1:6))
 ALLOCATE(V2SIJK(3,0:N_in,0:N_in,0:N_in,0:4,1:6))

@@ -50,7 +50,7 @@ USE MOD_Globals
 USE MOD_PreProc
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Vars   ,ONLY: PerformLoadBalance,UseH5IOLoadBalance
-USE MOD_DG_Vars            ,ONLY: N_DG_Mapping
+!USE MOD_DG_Vars            ,ONLY: N_DG_Mapping
 #endif /*USE_LOADBALANCE*/
 USE MOD_IO_HDF5
 USE MOD_Restart_Vars       ,ONLY: N_Restart,RestartFile,RestartNullifySolution
@@ -128,7 +128,7 @@ INTEGER(KIND=IK)                   :: Nres,nVar
 INTEGER(KIND=IK)                   :: OffsetElemTmp,PP_nElemsTmp
 #if USE_HDG
 LOGICAL                            :: DG_SolutionLambdaExists
-LOGICAL                            :: DG_SolutionExists
+!LOGICAL                            :: DG_SolutionExists
 INTEGER                            :: SideID,iSide,MinGlobalSideID,MaxGlobalSideID
 REAL,ALLOCATABLE                   :: ExtendedLambda(:,:,:)
 INTEGER                            :: p,q,r,rr,pq(1:2)
@@ -157,6 +157,8 @@ REAL,ALLOCATABLE                   :: U_local(:,:,:,:,:)
 INTEGER                            :: iPML
 INTEGER(KIND=IK)                   :: PMLnVarTmp
 INTEGER                            :: iPMLElem
+REAL,ALLOCATABLE                   :: U(:,:,:,:,:)
+INTEGER                            :: i,j,k
 #endif /*USE_HDG*/
 #if USE_LOADBALANCE
 !INTEGER,ALLOCATABLE                :: N_DG_Tmp(:)
@@ -167,8 +169,6 @@ INTEGER                            :: MPI_LENGTH(1),MPI_TYPE(1),MPI_STRUCT
 INTEGER(KIND=MPI_ADDRESS_KIND)     :: MPI_DISPLACEMENT(1)
 #endif /*USE_LOADBALANCE*/
 #endif /*defined(PARTICLES) || !(USE_HDG)*/
-REAL,ALLOCATABLE                   :: U(:,:,:,:,:)
-INTEGER                            :: i,j,k
 #ifdef PP_POIS
 #elif USE_HDG
 #else /*not PP_POIS and not USE_HDG*/
@@ -298,9 +298,6 @@ IF(PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance))THEN
 
 #if USE_MPI
   ! Exchange lambda MINE -> YOUR direction (as only the master sides have read the solution until now)
-  !CALL StartReceiveMPIData(1,lambda,1,nSides, RecRequest_U,SendID=1) ! Receive YOUR
-  !CALL StartSendMPIData(   1,lambda,1,nSides,SendRequest_U,SendID=1) ! Send MINE
-  !CALL FinishExchangeMPIData(SendRequest_U,RecRequest_U,SendID=1)
   DO iVar=1,PP_nVar
     CALL StartReceiveMPISurfDataType(RecRequest_U , 1 , 2)
     CALL StartSendMPISurfDataType(  SendRequest_U , 1 , 2, iVar) ! 2 = lambda
@@ -535,9 +532,9 @@ ELSE ! normal restart
               ELSEIF(NSideMin.GT.N_Restart)THEN ! N increases: Simply interpolate the lower polynomial degree solution
                 CALL ChangeBasis2D(PP_nVar, N_Restart, NSideMin, PREF_VDM(N_Restart, NSideMin)%Vdm, tmp2(1:PP_nVar,0:Nres,0:Nres), tmp3(1:PP_nVar,0:NSideMin,0:NSideMin))
               ELSE ! N reduces: This requires an intermediate modal basis
-                ! Transform the slave side to the same degree as the master: switch to Legendre basis
+                ! Switch to Legendre basis
                 CALL ChangeBasis2D(PP_nVar, N_Restart, N_Restart, N_Inter(N_Restart)%sVdm_Leg, tmp2(1:PP_nVar,0:Nres,0:Nres), tmp2(1:PP_nVar,0:Nres,0:Nres))
-                ! Switch back to nodal basis
+                ! Switch back to nodal basis but cut-off the higher-order DOFs
                 CALL ChangeBasis2D(PP_nVar, NSideMin, NSideMin, N_Inter(NSideMin)%Vdm_Leg, tmp2(1:PP_nVar,0:Nres,0:Nres), tmp3(1:PP_nVar,0:NSideMin,0:NSideMin))
               END IF ! NSideMin.EQ.N_Restart
 
@@ -556,9 +553,6 @@ ELSE ! normal restart
 
 #if USE_MPI
       ! Exchange lambda MINE -> YOUR direction (as only the master sides have read the solution until now)
-      !CALL StartReceiveMPIData(1,lambda,1,nSides, RecRequest_U,SendID=1) ! Receive YOUR
-      !CALL StartSendMPIData(   1,lambda,1,nSides,SendRequest_U,SendID=1) ! Send MINE
-      !CALL FinishExchangeMPIData(SendRequest_U,RecRequest_U,SendID=1)
       DO iVar=1,PP_nVar
         CALL StartReceiveMPISurfDataType(RecRequest_U , 1 , 2)
         CALL StartSendMPISurfDataType(  SendRequest_U , 1 , 2, iVar) ! 2 = lambda

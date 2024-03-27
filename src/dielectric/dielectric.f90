@@ -451,7 +451,8 @@ DO iSide =1, nSides
   END IF
   !3.   Map dummy element values to face arrays (prolong to face needs data of dimension PP_nVar)
 
-  CALL ProlongToFace_Side(1, nMaster, locSideID, 0, ElemID,  Dielectric_dummy_elem,Dielectric_dummy_side)
+  !CALL ProlongToFace_Side(1, nMaster, locSideID, 0, ElemID,  Dielectric_dummy_elem,Dielectric_dummy_side)
+  CALL ProlongToFace_Side(1, nMaster, locSideID, 0, Dielectric_dummy_elem,Dielectric_dummy_side)
   DielectricSurf(iSide)%Dielectric_Master = Dielectric_dummy_side(1,0:nMaster,0:nMaster)
   DEALLOCATE(Dielectric_dummy_elem, Dielectric_dummy_side)
   

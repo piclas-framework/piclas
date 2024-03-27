@@ -159,7 +159,7 @@ USE MOD_Globals                   ,ONLY: abort
 USE MOD_HDG_Vars                  ,ONLY: UseFPC,FPC,UseEPC,EPC
 USE MOD_Mesh_Vars                 ,ONLY: BoundaryType
 #endif /*USE_HDG*/
-USE MOD_Particle_Vars             ,ONLY: PartState, LastPartPos
+USE MOD_Particle_Vars             ,ONLY: PartState!, LastPartPos
 !USE MOD_Particle_Mesh_Vars        ,ONLY: GEO
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
