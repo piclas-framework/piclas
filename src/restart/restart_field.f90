@@ -54,10 +54,11 @@ USE MOD_DG_Vars            ,ONLY: N_DG_Mapping
 #endif /*USE_LOADBALANCE*/
 USE MOD_IO_HDF5
 USE MOD_Restart_Vars       ,ONLY: N_Restart,RestartFile,RestartNullifySolution
-USE MOD_ChangeBasis        ,ONLY: ChangeBasis3D
+USE MOD_ChangeBasis        ,ONLY: ChangeBasis3D,ChangeBasis2D
 USE MOD_HDF5_Input         ,ONLY: OpenDataFile,CloseDataFile,ReadArray,ReadAttribute,GetDataSize
 USE MOD_HDF5_Input         ,ONLY: DatasetExists
 USE MOD_HDF5_Output        ,ONLY: FlushHDF5
+USE MOD_Interpolation_Vars ,ONLY: N_Inter,PREF_VDM
 #ifdef PP_POIS
 USE MOD_Equation_Vars      ,ONLY: Phi
 #elif USE_HDG
@@ -66,7 +67,6 @@ USE MOD_Interpolation_Vars ,ONLY: NMax
 USE MOD_DG_Vars            ,ONLY: U_N
 USE MOD_DG_Vars            ,ONLY: N_DG_Mapping
 USE MOD_ChangeBasis        ,ONLY: ChangeBasis3D
-USE MOD_Interpolation_Vars ,ONLY: N_Inter,PREF_VDM
 #endif /*PP_POIS*/
 #if defined(PARTICLES)
 USE MOD_Particle_Restart   ,ONLY: ParticleRestart
@@ -107,6 +107,7 @@ USE MOD_HDG_Vars           ,ONLY: UseFPC
 USE PETSc
 USE MOD_HDG_Vars           ,ONLY: lambda_petsc,PETScGlobal,PETScLocalToSideID,nPETScUniqueSides
 #endif
+USE MOD_Mesh_Vars          ,ONLY: N_SurfMesh
 #else /*USE_HDG*/
 ! Non-HDG stuff
 USE MOD_Interpolation_Vars ,ONLY: Nmax
@@ -138,6 +139,7 @@ INTEGER                            :: iMortar,MortarSideID,nMortars
 ! TODO: make ElemInfo available with PARTICLES=OFF and remove this preprocessor if/else as soon as possible
 REAL,ALLOCATABLE                   :: lambdaLBTmp(:,:,:)        !< lambda, ((PP_N+1)^2,nSides)
 INTEGER                            :: NonUniqueGlobalSideID,NSideMin,iVar
+REAL,ALLOCATABLE                   :: tmp2(:,:,:),tmp3(:,:,:),lambdaloc(:,:)
 #endif /*defined(PARTICLES)*/
 !INTEGER           :: checkRank
 #endif /*USE_LOADBALANCE*/
@@ -276,8 +278,8 @@ IF(PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance))THEN
         END DO Check1 !MortarSideID
       END IF ! MortarType(1,iSide).EQ.0
 
-      ! Get NSideMin from last entry
-      NSideMin = lambdaLBTmp(1,nGP_face(NMax)+1,NonUniqueGlobalSideID)
+      ! Get NSideMin from last entry. Here no change basis is required as the NMax array is only filled up to the degree NSideMin
+      NSideMin = INT(lambdaLBTmp(1,nGP_face(NMax)+1,NonUniqueGlobalSideID))
 
       ! Rotate data into correct orientation
       DO q=0,NSideMin
@@ -438,12 +440,14 @@ ELSE ! normal restart
     CALL ReadArray('DG_SolutionPhi',5,(/PP_nVar,Nres+1_IK,Nres+1_IK,Nres+1_IK,PP_nElemsTmp/),OffsetElemTmp,5,RealArray=Phi)
 #endif /*PP_nVar==8*/
 #elif USE_HDG
-    CALL DatasetExists(File_ID,'DG_Solution',DG_SolutionExists)
-    IF(DG_SolutionExists)THEN
-      CALL ReadArray('DG_Solution' ,5,(/PP_nVar,Nres+1_IK,Nres+1_IK,Nres+1_IK,PP_nElemsTmp/),OffsetElemTmp,5,RealArray=U)
-    ELSE
-      CALL abort(__STAMP__,'DG_Solution does not exist')
-    END IF
+    ! TODO: Do we need this for the HDG solver?
+    !CALL DatasetExists(File_ID,'DG_Solution',DG_SolutionExists)
+    !IF(DG_SolutionExists)THEN
+    !  ALLOCATE(U(PP_nVar,0:Nres,0:Nres,0:Nres,PP_nElemsTmp))
+    !  CALL ReadArray('DG_Solution' ,5,(/PP_nVar,Nres+1_IK,Nres+1_IK,Nres+1_IK,PP_nElemsTmp/),OffsetElemTmp,5,RealArray=U)
+    !ELSE
+    !  CALL abort(__STAMP__,'DG_Solution does not exist')
+    !END IF
 
     ! Read HDG lambda solution (sorted in ascending global unique side ID ordering)
     CALL DatasetExists(File_ID,'DG_SolutionLambda',DG_SolutionLambdaExists)
@@ -459,20 +463,24 @@ ELSE ! normal restart
         ASSOCIATE( &
               ExtendedOffsetSide => INT(MinGlobalSideID-1,IK)                 ,&
               ExtendednSides     => INT(MaxGlobalSideID-MinGlobalSideID+1,IK) ,&
-              nGP_face           => INT(nGP_face,IK)                          ,&
+              nGP_faceNMax       => INT(nGP_face(NMax),IK)                    ,&
               PP_nVarTmp         => INT(PP_nVar,IK))
           !ALLOCATE(ExtendedLambda(PP_nVar,nGP_face,MinGlobalSideID:MaxGlobalSideID))
-          ALLOCATE(ExtendedLambda(PP_nVar,nGP_face(NMax),1:ExtendednSides))
+          ALLOCATE(ExtendedLambda(PP_nVar,nGP_faceNMax,1:ExtendednSides))
           ExtendedLambda = HUGE(1.)
           !lambda = HUGE(1.)
           ! WARGNING: Data read in overlapping mode, therefore ReadNonOverlap_opt=F
-          CALL ReadArray('DG_SolutionLambda',3,(/PP_nVarTmp,nGP_face,ExtendednSides/),ExtendedOffsetSide,3,RealArray=ExtendedLambda&
+          CALL ReadArray('DG_SolutionLambda',3,(/PP_nVarTmp,nGP_faceNMax,ExtendednSides/),ExtendedOffsetSide,3,RealArray=ExtendedLambda&
 #if USE_MPI
               ,ReadNonOverlap_opt=.FALSE.&
 #endif /*USE_MPI*/
               )
 
-          ! Loop over all sides and map the solution via the non-unique global side ID to the SideID (1 to nSides)
+          ! Allocate temporary arrays
+          ALLOCATE(tmp2(1:PP_nVar,0:Nres,0:Nres))
+          ALLOCATE(tmp3(1:PP_nVar,0:Nres,0:Nres))
+          ALLOCATE(lambdaloc(1:PP_nVar,1:nGP_face(Nres)))
+
           DO iSide = 1, nSides
             IF(iSide.LE.lastMPISide_MINE)THEN
               iLocSide        = SideToElem(S2E_LOC_SIDE_ID    , iSide)
@@ -503,27 +511,59 @@ ELSE ! normal restart
                 END DO Check1 !MortarSideID
               END IF ! MortarType(1,iSide).EQ.0
 
-              DO q=0,PP_N
-                DO p=0,PP_N
-                  pq = CGNS_SideToVol2(PP_N,p,q,iLocSide_master)
-                  r  = q    *(PP_N+1)+p    +1
-                  rr = pq(2)*(PP_N+1)+pq(1)+1
-                  CALL abort(__STAMP__,'not implemented')
-                  !lambda(:,r:r,iSide) = ExtendedLambda(:,rr:rr,GlobalUniqueSideID(iSide)-ExtendedOffsetSide)
+              ! Read lambda from h5 on Nres
+              DO q=0,Nres
+                DO p=0,Nres
+                  pq = CGNS_SideToVol2(Nres,p,q,iLocSide_master)
+                  r  = q    *(Nres+1)+p    +1
+                  rr = pq(2)*(Nres+1)+pq(1)+1
+                  lambdaloc(:,r:r) = ExtendedLambda(:,rr:rr,GlobalUniqueSideID(iSide)-ExtendedOffsetSide)
                 END DO
               END DO !p,q
-              !IPWRITE(UNIT_StdOut,*) "iSide,SUM(lambda(:,r:r,iSide)) =", iSide,SUM(lambda(:,r:r,iSide))
+
+              ! Map from 1D to 2D array
+              DO iVar=1,PP_nVar
+                tmp2(iVar:iVar,0:NSideMin,0:NSideMin) = RESHAPE(lambdaloc(iVar,:),(/1,NSideMin+1,NSideMin+1/))
+              END DO ! iVar=1,PP_nVar
+
+              ! Get NSideMin
+              NSideMin = N_SurfMesh(iSide)%NSideMin
+
+              ! Map lambda from Nres to NSideMin
+              IF(NSideMin.EQ.N_Restart)THEN ! N is equal
+                tmp3(1:PP_nVar,0:NSideMin,0:NSideMin) = tmp2(1:PP_nVar,0:Nres,0:Nres)
+              ELSEIF(NSideMin.GT.N_Restart)THEN ! N increases: Simply interpolate the lower polynomial degree solution
+                CALL ChangeBasis2D(PP_nVar, N_Restart, NSideMin, PREF_VDM(N_Restart, NSideMin)%Vdm, tmp2(1:PP_nVar,0:Nres,0:Nres), tmp3(1:PP_nVar,0:NSideMin,0:NSideMin))
+              ELSE ! N reduces: This requires an intermediate modal basis
+                ! Transform the slave side to the same degree as the master: switch to Legendre basis
+                CALL ChangeBasis2D(PP_nVar, N_Restart, N_Restart, N_Inter(N_Restart)%sVdm_Leg, tmp2(1:PP_nVar,0:Nres,0:Nres), tmp2(1:PP_nVar,0:Nres,0:Nres))
+                ! Switch back to nodal basis
+                CALL ChangeBasis2D(PP_nVar, NSideMin, NSideMin, N_Inter(NSideMin)%Vdm_Leg, tmp2(1:PP_nVar,0:Nres,0:Nres), tmp3(1:PP_nVar,0:NSideMin,0:NSideMin))
+              END IF ! NSideMin.EQ.N_Restart
+
+              ! Map back from 2D to 1D array
+              DO iVar=1,PP_nVar
+                HDG_Surf_N(iSide)%lambda(iVar,:) = RESHAPE(tmp3(1,0:NSideMin,0:NSideMin),(/nGP_face(NSideMin)/))
+              END DO ! iVar=1,PP_nVar
+
             END IF ! iSide.LE.lastMPISide_MINE
           END DO
           DEALLOCATE(ExtendedLambda)
+          DEALLOCATE(tmp2)
+          DEALLOCATE(tmp3)
+          DEALLOCATE(lambdaloc)
         END ASSOCIATE
 
 #if USE_MPI
       ! Exchange lambda MINE -> YOUR direction (as only the master sides have read the solution until now)
-      CALL abort(__STAMP__,'not implemented')
       !CALL StartReceiveMPIData(1,lambda,1,nSides, RecRequest_U,SendID=1) ! Receive YOUR
       !CALL StartSendMPIData(   1,lambda,1,nSides,SendRequest_U,SendID=1) ! Send MINE
       !CALL FinishExchangeMPIData(SendRequest_U,RecRequest_U,SendID=1)
+      DO iVar=1,PP_nVar
+        CALL StartReceiveMPISurfDataType(RecRequest_U , 1 , 2)
+        CALL StartSendMPISurfDataType(  SendRequest_U , 1 , 2, iVar) ! 2 = lambda
+        CALL FinishExchangeMPISurfDataType(SendRequest_U, RecRequest_U, 1, 2, iVar) ! 2 = lambda
+      END DO ! iVar=1,PP_nVar
 #endif /*USE_MPI*/
 
 #if USE_PETSC
@@ -545,6 +585,7 @@ ELSE ! normal restart
 
 #else /*not PP_POIS and not USE_HDG*/
     ALLOCATE(U(1:nVar,0:Nres,0:Nres,0:Nres,PP_nElemsTmp))
+    ALLOCATE(Uloc(1:nVar,0:Nres,0:Nres,0:Nres))
     CALL ReadArray('DG_Solution',5,(/nVar,Nres+1_IK,Nres+1_IK,Nres+1_IK,PP_nElemsTmp/),OffsetElemTmp,5,RealArray=U)
     DO iElem = 1, nElems
       Nloc = N_DG_Mapping(2,iElem+offSetElem)
@@ -553,16 +594,16 @@ ELSE ! normal restart
       ELSEIF(Nloc.GT.N_Restart)THEN ! N increases
         CALL ChangeBasis3D(PP_nVar, N_Restart, Nloc, PREF_VDM(N_Restart, Nloc)%Vdm, U(1:nVar,0:Nres,0:Nres,0:Nres,iElem), U_N(iElem)%U(1:nVar,0:Nloc,0:Nloc,0:Nloc))
       ELSE ! N reduces
-        ALLOCATE(Uloc(1:nVar,0:Nres,0:Nres,0:Nres))
         !transform the slave side to the same degree as the master: switch to Legendre basis
         CALL ChangeBasis3D(PP_nVar, N_Restart, N_Restart, N_Inter(N_Restart)%sVdm_Leg, U(1:nVar,0:Nres,0:Nres,0:Nres,iElem), Uloc)
         ! switch back to nodal basis
         CALL ChangeBasis3D(PP_nVar, Nloc, Nloc, N_Inter(Nloc)%Vdm_Leg, Uloc(1:nVar,0:Nloc,0:Nloc,0:Nloc), U_N(iElem)%U(1:nVar,0:Nloc,0:Nloc,0:Nloc))
-        DEALLOCATE(Uloc)
       END IF ! Nloc.EQ.N_Restart
     END DO ! iElem = 1, nElems
+    DEALLOCATE(Uloc)
     IF(DoPML)THEN
       ALLOCATE(U_local(PMLnVar,0:Nres,0:Nres,0:Nres,nElems))
+      ALLOCATE(Uloc(1:PMLnVar,0:Nres,0:Nres,0:Nres))
       CALL ReadArray('PML_Solution',5,(/INT(PMLnVar,IK),Nres+1_IK,Nres+1_IK,Nres+1_IK,PP_nElemsTmp/),&
           OffsetElemTmp,5,RealArray=U_local)
       DO iPML=1,nPMLElems
@@ -573,15 +614,14 @@ ELSE ! normal restart
         ELSEIF(Nloc.GT.N_Restart)THEN ! N increases
           CALL ChangeBasis3D(PP_nVar, N_Restart, Nloc, PREF_VDM(N_Restart, Nloc)%Vdm, U_local(1:PMLnVar,0:Nres,0:Nres,0:Nres,iElem), U_N(iElem)%U2(1:PMLnVar,0:Nloc,0:Nloc,0:Nloc))
         ELSE ! N reduces
-          ALLOCATE(Uloc(1:PMLnVar,0:Nres,0:Nres,0:Nres))
           !transform the slave side to the same degree as the master: switch to Legendre basis
           CALL ChangeBasis3D(PP_nVar, N_Restart, N_Restart, N_Inter(N_Restart)%sVdm_Leg, U_local(1:PMLnVar,0:Nres,0:Nres,0:Nres,iElem), Uloc)
           ! switch back to nodal basis
           CALL ChangeBasis3D(PP_nVar, Nloc, Nloc, N_Inter(Nloc)%Vdm_Leg, Uloc(1:PMLnVar,0:Nloc,0:Nloc,0:Nloc), U_N(iElem)%U2(1:PMLnVar,0:Nloc,0:Nloc,0:Nloc))
-          DEALLOCATE(Uloc)
         END IF ! Nloc.EQ.N_Restart
       END DO ! iPML
       DEALLOCATE(U_local)
+      DEALLOCATE(Uloc)
     END IF ! DoPML
 #endif /*PP_POIS*/
     !CALL ReadState(RestartFile,nVar,PP_N,PP_nElems,U)
