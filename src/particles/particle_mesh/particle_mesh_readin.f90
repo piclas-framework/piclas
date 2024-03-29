@@ -255,6 +255,7 @@ IF (myComputeNodeRank.EQ.0) THEN
   CALL MPI_ALLGATHER(MPI_IN_PLACE,0,MPI_DATATYPE_NULL,displsNode,1,MPI_INTEGER,MPI_COMM_LEADERS_SHARED,IERROR)
   DO iProc=1,nLeaderGroupProcs-1
     recvcountNode(iProc-1) = displsNode(iProc)-displsNode(iProc-1)
+    CHECKSAFEINT(3_8*INT(displsNode(iProc),8),4)
   END DO
   recvcountNode(nLeaderGroupProcs-1) = nNonUniqueGlobalNodes - displsNode(nLeaderGroupProcs-1)
 
