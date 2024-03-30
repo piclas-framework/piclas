@@ -1528,21 +1528,9 @@ CALL MPI_BARRIER(MPI_COMM_SHARED,iERROR)
 #if USE_LOADBALANCE
 IF (.NOT.PerformLoadBalance) THEN
 #endif /*USE_LOADBALANCE*/
-  ! Mapping arrays are only allocated if not running on one node
-  ! IF (nComputeNodeProcessors.NE.nProcessors_Global) THEN
-  !   CALL UNLOCK_AND_FREE(GlobalElem2CNTotalElem_Shared_Win)
-  ! END IF ! nComputeNodeProcessors.NE.nProcessors_Global
   CALL UNLOCK_AND_FREE(GlobalSide2CNTotalSide_Shared_Win)
 #if USE_LOADBALANCE
 END IF
-IF(.NOT. ((PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance))) )THEN
-#endif /*USE_LOADBALANCE*/
-  ! Mapping arrays are only allocated if not running on one node
-  IF (nComputeNodeProcessors.NE.nProcessors_Global) THEN
-    CALL UNLOCK_AND_FREE(GlobalElem2CNTotalElem_Shared_Win)
-  END IF ! nComputeNodeProcessors.NE.nProcessors_Global
-#if USE_LOADBALANCE
-END IF ! .NOT. ((PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance)) .AND. DoDeposition)
 #endif /*USE_LOADBALANCE*/
 
 CALL UNLOCK_AND_FREE(ElemToBGM_Shared_Win)
@@ -1555,6 +1543,7 @@ CALL UNLOCK_AND_FREE(FIBGMToProc_Shared_Win)
 CALL UNLOCK_AND_FREE(FIBGMProcs_Shared_Win)
 ! Mapping arrays are only allocated if not running on one node
 IF (nComputeNodeProcessors.NE.nProcessors_Global) THEN
+  CALL UNLOCK_AND_FREE(GlobalElem2CNTotalElem_Shared_Win)
   CALL UNLOCK_AND_FREE(CNTotalElem2GlobalElem_Shared_Win)
 END IF ! nComputeNodeProcessors.NE.nProcessors_Global
 CALL UNLOCK_AND_FREE(CNTotalSide2GlobalSide_Shared_Win)
@@ -1565,11 +1554,6 @@ CALL MPI_BARRIER(MPI_COMM_SHARED,iERROR)
 #if USE_LOADBALANCE
 IF (.NOT.PerformLoadBalance) THEN
 #endif /*USE_LOADBALANCE*/
-  ! Mapping arrays are only allocated if not running on one node
-  ! IF (nComputeNodeProcessors.NE.nProcessors_Global) THEN
-  !   ADEALLOCATE(GlobalElem2CNTotalElem)
-  !   ADEALLOCATE(GlobalElem2CNTotalElem_Shared)
-  ! END IF ! nComputeNodeProcessors.NE.nProcessors_Global
   ADEALLOCATE(GlobalSide2CNTotalSide)
   ADEALLOCATE(GlobalSide2CNTotalSide_Shared)
 #if USE_LOADBALANCE
@@ -1596,26 +1580,13 @@ ADEALLOCATE(FIBGMProcs_Shared)
 IF (nComputeNodeProcessors.NE.nProcessors_Global) THEN
   ADEALLOCATE(CNTotalElem2GlobalElem)
   ADEALLOCATE(CNTotalElem2GlobalElem_Shared)
+  ADEALLOCATE(GlobalElem2CNTotalElem)
+  ADEALLOCATE(GlobalElem2CNTotalElem_Shared)
 END IF ! nComputeNodeProcessors.NE.nProcessors_Global
 ADEALLOCATE(CNTotalSide2GlobalSide)
 ADEALLOCATE(CNTotalSide2GlobalSide_Shared)
 
 CALL FinalizeHaloInfo()
-
-#if USE_LOADBALANCE
-! This will be deallocated in FinalizeDeposition() when using load balance
-!IF(.NOT. ((PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance)).AND.DoDeposition) )THEN
-! Note that no inquiry for DoDeposition is made here because the surface charging container is to be preserved
-IF(.NOT. ((PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance))) )THEN
-#endif /*USE_LOADBALANCE*/
-  ! Mapping arrays are only allocated if not running on one node
-  IF (nComputeNodeProcessors.NE.nProcessors_Global) THEN
-    ADEALLOCATE(GlobalElem2CNTotalElem)
-    ADEALLOCATE(GlobalElem2CNTotalElem_Shared)
-  END IF ! nComputeNodeProcessors.NE.nProcessors_Global
-#if USE_LOADBALANCE
-END IF ! .NOT. ((PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance)) .AND. DoDeposition)
-#endif /*USE_LOADBALANCE*/
 #endif /*USE_MPI*/
 
 END SUBROUTINE FinalizeBGM

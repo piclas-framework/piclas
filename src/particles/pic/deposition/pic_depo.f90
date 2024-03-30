@@ -2054,12 +2054,12 @@ IF ((PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance))) THEN
     END DO!iElem
   END IF ! DoDielectricSurfaceCharge
 
-  ! Finalize here because GetCNElemID() is required in this routine for load balancing of NodeSourceExtEquiLB = NodeSourceExt
-  IF (nComputeNodeProcessors.NE.nProcessors_Global) THEN
-    CALL UNLOCK_AND_FREE(GlobalElem2CNTotalElem_Shared_Win)
-    ADEALLOCATE(GlobalElem2CNTotalElem)
-    ADEALLOCATE(GlobalElem2CNTotalElem_Shared)
-  END IF ! nComputeNodeProcessors.NE.nProcessors_Global
+  !! Finalize here because GetCNElemID() is required in this routine for load balancing of NodeSourceExtEquiLB = NodeSourceExt
+  !IF (nComputeNodeProcessors.NE.nProcessors_Global) THEN
+  !  CALL UNLOCK_AND_FREE(GlobalElem2CNTotalElem_Shared_Win)
+  !  ADEALLOCATE(GlobalElem2CNTotalElem)
+  !  ADEALLOCATE(GlobalElem2CNTotalElem_Shared)
+  !END IF ! nComputeNodeProcessors.NE.nProcessors_Global
 
 #if USE_LOADBALANCE
 END IF
