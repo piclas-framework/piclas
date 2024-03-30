@@ -186,7 +186,7 @@ DO iElem=1,PP_nElems
         !  D  volume contribution for nonlinear stuff
         IF (UseBRElectronFluid.AND.(HDGNonLinSolver.EQ.1)) THEN
           j = index_3to1(g1,g2,g3,Nloc)
-          Dhat(j,j) = Dhat(j,j) - HDG_Vol_N(iElem)%JwGP_vol( j)*NonlinVolumeFac(j,iElem)
+          Dhat(j,j) = Dhat(j,j) - HDG_Vol_N(iElem)%JwGP_vol(j)*HDG_Vol_N(iElem)%NonlinVolumeFac(j)
         END IF
 #endif /*defined(PARTICLES)*/
         !  D  surface contribution

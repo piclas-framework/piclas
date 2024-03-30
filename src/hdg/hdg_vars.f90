@@ -66,6 +66,7 @@ TYPE, PUBLIC :: HDG_Vol_N_Type
   REAL,ALLOCATABLE    :: JwGP_vol(:)          !< 3D quadrature weights*Jacobian for all elements
   REAL,ALLOCATABLE    :: RHS_vol(:,:)         !< Source RHS
   REAL,ALLOCATABLE    :: Smat(:,:,:,:)        !< side to side matrix, (ngpface, ngpface, 6sides, 6sides, nElems)
+  REAL,ALLOCATABLE    :: NonlinVolumeFac(:)   !< Factor for Volumeintegration necessary for nonlinear sources
 END TYPE HDG_Vol_N_Type
 
 TYPE(HDG_Vol_N_Type),ALLOCATABLE :: HDG_Vol_N(:)      !<
@@ -109,7 +110,6 @@ INTEGER             :: AdaptIterNewton
 INTEGER             :: AdaptIterNewtonToLinear
 INTEGER             :: AdaptIterNewtonOld
 INTEGER             :: HDGNonLinSolver        !< 1 Newton, 2 Fixpoint
-REAL,ALLOCATABLE    :: NonlinVolumeFac(:,:)   !< Factor for Volumeintegration necessary for nonlinear sources
 !mappings
 INTEGER             :: sideDir(6),pm(6),dirPm2iSide(2,3)
 !REAL,ALLOCATABLE    :: delta(:,:)

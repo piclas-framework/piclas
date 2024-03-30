@@ -349,12 +349,12 @@ CALL FinalizeSurfaceModelAnalyze()
 CALL FinalizeParticleBoundarySampling()
 CALL FinalizePorousBoundaryCondition()
 CALL FinalizeParticleSurfaces()
-CALL FinalizeParticleMesh()
 CALL FinalizeParticleAnalyze()
 #if !((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))
 CALL FinalizeDeposition()
 CALL FinalizePICInterpolation()
 #endif /*!((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))*/
+CALL FinalizeParticleMesh()
 #if USE_MPI
 CALL FinalizeParticleMPI()
 #endif /*USE_MPI*/
