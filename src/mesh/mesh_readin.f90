@@ -221,8 +221,9 @@ USE MOD_Mesh_Vars            ,ONLY: ElemInfo,SideInfo
 USE MOD_Particle_Mesh_Vars   ,ONLY: nComputeNodeElems,nNonUniqueGlobalSides,nNonUniqueGlobalNodes
 #if USE_MPI
 USE MOD_MPI_Vars             ,ONLY: nMPISides_Proc,nNbProcs,NbProc,offsetElemMPI
+USE MOD_Particle_Mesh_Vars   ,ONLY: offsetComputeNodeElem
 USE MOD_LoadBalance_Tools    ,ONLY: DomainDecomposition
-USE MOD_MPI_Shared_Vars      ,ONLY: ComputeNodeRootRank,nComputeNodeProcessors
+USE MOD_MPI_Shared_Vars      ,ONLY: ComputeNodeRootRank,nComputeNodeProcessors,MPI_COMM_SHARED
 #endif /*USE_MPI*/
 #ifdef PARTICLES
 USE MOD_Particle_Mesh_Readin, ONLY: ReadMeshBasics
@@ -446,7 +447,15 @@ nComputeNodeElems = nElems
 
 !#ifdef PARTICLES
 ! Get ElemInfo_Shared(1:ELEMINFOSIZE,1:nGlobalElems)
-IF(ReadNodes) CALL ReadMeshElems()
+IF(ReadNodes) THEN
+  CALL ReadMeshElems()
+ELSE
+#if USE_MPI
+! broadcast elem offset of compute-node root
+  offsetComputeNodeElem=offsetElem
+  CALL MPI_BCAST(offsetComputeNodeElem,1, MPI_INTEGER,0,MPI_COMM_SHARED,iERROR)
+#endif
+END IF
 !#endif
 
 !----------------------------------------------------------------------------------------------------------------------------
