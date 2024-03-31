@@ -413,8 +413,8 @@ IMPLICIT NONE
 INTEGER                        :: iElem,firstElem,lastElem,Nloc
 REAL                           :: scaleJ,maxScaleJ
 INTEGER                        :: i,j,k,r,offSetDofNode
-#if USE_MPI
 INTEGER                        :: GlobalElemID,iCNElem
+#if USE_MPI
 ! Vandermonde matrices
 REAL                           :: Vdm_CLNGeo_NGeoRef(0:NgeoRef,0:NGeo)
 ! Jacobian on CL N and NGeoRef
@@ -536,13 +536,14 @@ CALL BARRIER_AND_SYNC(ElemEpsOneCell_Shared_Win,MPI_COMM_SHARED)
 #endif /* USE_MPI*/
 
 maxScaleJ = 0.
-DO iElem = firstElem,lastElem
-  Nloc         = N_DG_Mapping(2,iElem+offsetElem)
-  offSetDofNode= N_DG_Mapping(3,iElem+offSetElem)
+DO iCNElem = firstElem,lastElem
+  GlobalElemID = GetGlobalElemID(iCNElem)
+  Nloc         = N_DG_Mapping(2,GlobalElemID)
+  offSetDofNode= N_DG_Mapping(3,GlobalElemID)
   scaleJ = MAXVAL(ElemsJ(offSetDofNode+1:offSetDofNode+(Nloc+1)**3))/MINVAL(ElemsJ(offSetDofNode+1:offSetDofNode+(Nloc+1)**3))
-  ElemEpsOneCell(iElem) = 1.0 + SQRT(3.0*scaleJ*RefMappingEps)
+  ElemEpsOneCell(iCNElem) = 1.0 + SQRT(3.0*scaleJ*RefMappingEps)
   maxScaleJ  =MAX(scaleJ,maxScaleJ)
-END DO ! iElem = firstElem,lastElem
+END DO ! iCNElem = firstElem,lastElem
 
 #if USE_MPI
 CALL BARRIER_AND_SYNC(ElemEpsOneCell_Shared_Win,MPI_COMM_SHARED)
