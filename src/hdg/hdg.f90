@@ -1694,10 +1694,10 @@ USE MOD_Dielectric_vars ,ONLY: DoDielectric,isDielectricElem,ElemToDielectric,Di
 #endif /*(USE_HDG && (PP_nVar==1))*/
 #if defined(PARTICLES)
 USE MOD_HDG_Vars        ,ONLY: UseEPC,EPC
+USE MOD_HDG_NonLinear   ,ONLY: HDGNewton
 #endif /*defined(PARTICLES)*/
 USE MOD_DG_Vars         ,ONLY: U_N
 USE MOD_HDG_Linear      ,ONLY: HDGLinear
-USE MOD_HDG_NonLinear   ,ONLY: HDGNewton
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
