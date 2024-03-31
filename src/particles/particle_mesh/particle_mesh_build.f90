@@ -498,7 +498,7 @@ ALLOCATE(ElemsJ(nDofsMappingNode))
 ElemsJ = 0.
 DO iElem = 1,nElems
   Nloc = N_DG_Mapping(2,iElem+offSetElem)
-  offSetDofNode= N_DG_Mapping(3,GlobalElemID)
+  offSetDofNode= N_DG_Mapping(3,iElem+offSetElem)
   DO k=0,Nloc; DO j=0,Nloc; DO i=0,Nloc
     r=k*(Nloc+1)**2+j*(Nloc+1) + i+1
     ElemsJ(r+offSetDofNode) = N_VolMesh(iElem)%sJ(i,j,k)
@@ -537,9 +537,8 @@ CALL BARRIER_AND_SYNC(ElemEpsOneCell_Shared_Win,MPI_COMM_SHARED)
 
 maxScaleJ = 0.
 DO iElem = firstElem,lastElem
-  GlobalElemID = GetGlobalElemID(iElem)
-  Nloc         = N_DG_Mapping(2,GlobalElemID)
-  offSetDofNode= N_DG_Mapping(3,GlobalElemID)
+  Nloc         = N_DG_Mapping(2,iElem+offsetElem)
+  offSetDofNode= N_DG_Mapping(3,iElem+offSetElem)
   scaleJ = MAXVAL(ElemsJ(offSetDofNode+1:offSetDofNode+(Nloc+1)**3))/MINVAL(ElemsJ(offSetDofNode+1:offSetDofNode+(Nloc+1)**3))
   ElemEpsOneCell(iElem) = 1.0 + SQRT(3.0*scaleJ*RefMappingEps)
   maxScaleJ  =MAX(scaleJ,maxScaleJ)
@@ -1399,8 +1398,9 @@ SUBROUTINE BuildElemDofNodeMapping()
 USE MOD_Globals
 USE MOD_Preproc
 USE MOD_Mesh_Tools         ,ONLY: GetGlobalElemID
-USE MOD_DG_Vars            ,ONLY: nDofsMappingNode, N_DG_Mapping, N_DG_Mapping_Shared_Win
+USE MOD_DG_Vars            ,ONLY: nDofsMappingNode, N_DG_Mapping
 #if USE_MPI
+USE MOD_DG_Vars            ,ONLY: N_DG_Mapping_Shared_Win
 USE MOD_MPI_Shared
 USE MOD_MPI_Shared_Vars    ,ONLY: nComputeNodeTotalElems
 USE MOD_MPI_Shared_Vars    ,ONLY: nComputeNodeProcessors,myComputeNodeRank

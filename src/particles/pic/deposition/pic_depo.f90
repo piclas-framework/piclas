@@ -1929,24 +1929,25 @@ SUBROUTINE FinalizeDeposition()
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! MODULES                                                                                                                          !
 !----------------------------------------------------------------------------------------------------------------------------------!
+USE MOD_PreProc
 USE MOD_Globals
 USE MOD_Particle_Mesh_Vars ,ONLY: GEO,PeriodicSFCaseMatrix
 USE MOD_PICDepo_Vars
 #if USE_MPI
+USE MOD_Particle_Mesh_Vars ,ONLY: ElemNodeID_Shared_Win
 USE MOD_MPI_Shared_vars    ,ONLY: MPI_COMM_SHARED
 USE MOD_MPI_Shared
 #endif
 #if USE_LOADBALANCE
-USE MOD_PreProc
 USE MOD_LoadBalance_Vars   ,ONLY: PerformLoadBalance,UseH5IOLoadBalance
+!USE MOD_Particle_Mesh_Vars ,ONLY: GlobalElem2CNTotalElem,GlobalElem2CNTotalElem_Shared!,GlobalElem2CNTotalElem_Shared_Win
+!USE MOD_MPI_Shared_Vars    ,ONLY: nComputeNodeProcessors,nProcessors_Global
 USE MOD_LoadBalance_Vars   ,ONLY: NodeSourceExtEquiLB!,PartSourceLB
 USE MOD_Mesh_Vars          ,ONLY: nElems
-USE MOD_Dielectric_Vars    ,ONLY: DoDielectricSurfaceCharge
-USE MOD_Particle_Mesh_Vars ,ONLY: ElemNodeID_Shared,NodeInfo_Shared,ElemNodeID_Shared_Win
-USE MOD_Mesh_Tools         ,ONLY: GetCNElemID
+USE MOD_Particle_Mesh_Vars ,ONLY: ElemNodeID_Shared,NodeInfo_Shared
 USE MOD_Mesh_Vars          ,ONLY: offsetElem
-USE MOD_Particle_Mesh_Vars ,ONLY: GlobalElem2CNTotalElem,GlobalElem2CNTotalElem_Shared,GlobalElem2CNTotalElem_Shared_Win
-USE MOD_MPI_Shared_Vars    ,ONLY: nComputeNodeProcessors,nProcessors_Global
+USE MOD_Mesh_Tools         ,ONLY: GetCNElemID
+USE MOD_Dielectric_Vars    ,ONLY: DoDielectricSurfaceCharge
 #endif /*USE_LOADBALANCE*/
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
@@ -2025,7 +2026,6 @@ END SELECT
 
 #if USE_LOADBALANCE
 IF ((PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance))) THEN
-#endif /*USE_LOADBALANCE*/
 
   !IF(DoDeposition)THEN
   !  SDEALLOCATE(PartSourceLB)
@@ -2061,7 +2061,6 @@ IF ((PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance))) THEN
   !  ADEALLOCATE(GlobalElem2CNTotalElem_Shared)
   !END IF ! nComputeNodeProcessors.NE.nProcessors_Global
 
-#if USE_LOADBALANCE
 END IF
 #endif /*USE_LOADBALANCE*/
 
@@ -2074,12 +2073,19 @@ IF (.NOT.(PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance))) THEN
 END IF
 #endif /*USE_LOADBALANCE*/
 
+#if USE_MPI
+#if USE_LOADBALANCE
 ! This step was skipped in particle_mesh.f90: FinalizeParticleMesh()
 IF(PerformLoadBalance.AND.DoDielectricSurfaceCharge)THEN
+#endif /*USE_LOADBALANCE*/
   ! From InitElemNodeIDs
   CALL UNLOCK_AND_FREE(ElemNodeID_Shared_Win)
   ADEALLOCATE(ElemNodeID_Shared)
+#if USE_LOADBALANCE
 END IF
+#endif /*USE_LOADBALANCE*/
+#endif /*USE_MPI*/
+
 SDEALLOCATE(DepoNodetoGlobalNode)
 SDEALLOCATE(NodeSource)
 SDEALLOCATE(NodeSourceExt)

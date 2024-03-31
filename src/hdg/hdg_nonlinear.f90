@@ -51,7 +51,7 @@ USE MOD_TimeDisc_Vars          ,ONLY: IterDisplayStep,DoDisplayIter
 USE MOD_Globals_Vars           ,ONLY: eps0
 USE MOD_Mesh_Vars              ,ONLY: N_SurfMesh,BoundaryType,nSides,BC,offSetElem
 USE MOD_Mesh_Vars              ,ONLY: ElemToSide
-USE MOD_Interpolation_Vars     ,ONLY: N_Inter,NMax,PREF_VDM
+USE MOD_Interpolation_Vars     ,ONLY: NMax,PREF_VDM
 USE MOD_Elem_Mat               ,ONLY: PostProcessGradientHDG, Elem_Mat,BuildPrecond
 USE MOD_Restart_Vars           ,ONLY: DoRestart,RestartTime
 #if (PP_nVar==1)
@@ -501,7 +501,7 @@ LOGICAL, INTENT(INOUT) :: converged
 REAL, INTENT(OUT)      :: Norm_r2
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-REAL,DIMENSION(nGP_face(PP_N)*nSides) :: R
+!REAL,DIMENSION(nGP_face(PP_N)*nSides) :: R
 INTEGER                         :: VecSize
 #if defined(MEASURE_MPI_WAIT)
 INTEGER(KIND=8)   :: CounterStart,CounterEnd

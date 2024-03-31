@@ -129,17 +129,17 @@ INTEGER(KIND=IK)                   :: OffsetElemTmp,PP_nElemsTmp
 #if USE_HDG
 LOGICAL                            :: DG_SolutionLambdaExists
 !LOGICAL                            :: DG_SolutionExists
-INTEGER                            :: SideID,iSide,MinGlobalSideID,MaxGlobalSideID
+INTEGER                            :: SideID,iSide,MinGlobalSideID,MaxGlobalSideID,NSideMin,iVar
 REAL,ALLOCATABLE                   :: ExtendedLambda(:,:,:)
 INTEGER                            :: p,q,r,rr,pq(1:2)
 INTEGER                            :: iLocSide,iLocSide_NB,iLocSide_master
 INTEGER                            :: iMortar,MortarSideID,nMortars
+REAL,ALLOCATABLE                   :: lambdaLBTmp(:,:,:)        !< lambda, ((PP_N+1)^2,nSides)
+REAL,ALLOCATABLE                   :: tmp2(:,:,:),tmp3(:,:,:),lambdaloc(:,:)
 #if USE_LOADBALANCE
 #if defined(PARTICLES)
 ! TODO: make ElemInfo available with PARTICLES=OFF and remove this preprocessor if/else as soon as possible
-REAL,ALLOCATABLE                   :: lambdaLBTmp(:,:,:)        !< lambda, ((PP_N+1)^2,nSides)
-INTEGER                            :: NonUniqueGlobalSideID,NSideMin,iVar
-REAL,ALLOCATABLE                   :: tmp2(:,:,:),tmp3(:,:,:),lambdaloc(:,:)
+INTEGER                            :: NonUniqueGlobalSideID
 #endif /*defined(PARTICLES)*/
 !INTEGER           :: checkRank
 #endif /*USE_LOADBALANCE*/

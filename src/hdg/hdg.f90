@@ -161,9 +161,9 @@ INTEGER           :: locSide,nMortarMasterSides,nMortars
 !INTEGER           :: nAffectedBlockSides
 INTEGER,ALLOCATABLE :: indx(:)
 #endif
-#if USE_MPI
-REAL               :: tmp(        3,0:Nmax,0:Nmax)
-#endif
+!#if USE_MPI
+REAL              :: tmp(3,0:Nmax,0:Nmax)
+!#endif
 !===================================================================================================================================
 IF(HDGInitIsDone)THEN
    LBWRITE(*,*) "InitHDG already called."
@@ -1932,6 +1932,7 @@ SUBROUTINE FinalizeHDG()
 ! MODULES
 USE MOD_Globals
 USE MOD_HDG_Vars
+USE MOD_Interpolation_Vars ,ONLY: NMax
 #if USE_PETSC
 USE petsc
 #endif
@@ -1940,7 +1941,6 @@ USE MOD_LoadBalance_Vars   ,ONLY: PerformLoadBalance,UseH5IOLoadBalance
 USE MOD_Particle_Mesh_Vars ,ONLY: ElemInfo_Shared
 USE MOD_Mesh_Vars          ,ONLY: nElems,offsetElem,nSides,SideToNonUniqueGlobalSide,N_SurfMesh
 USE MOD_Mesh_Tools         ,ONLY: LambdaSideToMaster,GetMasteriLocSides
-USE MOD_Interpolation_Vars ,ONLY: NMax
 #endif /*USE_LOADBALANCE*/
 #if USE_MPI
 USE MOD_MPI_Vars           ,ONLY: SurfExchange

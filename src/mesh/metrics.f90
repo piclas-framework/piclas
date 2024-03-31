@@ -477,9 +477,9 @@ REAL               :: tmp2(       3,0:Nmax,0:Nmax)
 REAL               :: tmpflip(    3,0:Nmax,0:Nmax)
 INTEGER            :: Nloc,flip!,NSideMin,NSideMax
 LOGICAL            :: flipSide
-#if USE_HDG
-INTEGER            :: iSide
-#endif /*USE_HDG*/
+!#if USE_HDG
+!INTEGER            :: iSide
+!#endif /*USE_HDG*/
 !==================================================================================================================================
 
 DO iLocSide=1,6

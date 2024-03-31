@@ -1263,12 +1263,12 @@ USE MOD_DG_Vars          ,ONLY: N_DG_Mapping_Shared_Win
 USE MOD_MPI_Vars         ,ONLY: DGExchange
 USE MOD_MPI_Shared_Vars  ,ONLY: MPI_COMM_SHARED
 USE MOD_MPI_Shared
-#endif /*USE_MPI*/
+USE MOD_MPI_Vars         ,ONLY: DataSizeSideSend,DataSizeSurfSendMax,DataSizeSurfSendMin
+USE MOD_MPI_Vars         ,ONLY: DataSizeSideRec,DataSizeSurfRecMax,DataSizeSurfRecMin
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Vars ,ONLY: PerformLoadBalance!,UseH5IOLoadBalance
 #endif /*USE_LOADBALANCE*/
-USE MOD_MPI_Vars         ,ONLY: DataSizeSideSend,DataSizeSurfSendMax,DataSizeSurfSendMin
-USE MOD_MPI_Vars         ,ONLY: DataSizeSideRec,DataSizeSurfRecMax,DataSizeSurfRecMin
+#endif /*USE_MPI*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------
@@ -1335,12 +1335,13 @@ SDEALLOCATE(N_VolMesh)
 SDEALLOCATE(DG_Elems_master)
 SDEALLOCATE(DG_Elems_slave)
 SDEALLOCATE(n_surfmesh)
+
 #if USE_MPI
 SDEALLOCATE(DGExchange)
-#endif /*USE_MPI*/
 
 SDEALLOCATE(DataSizeSideSend)
 SDEALLOCATE(DataSizeSideRec)
+
 ! Min/Max is only required for HDG
 SDEALLOCATE(DataSizeSurfSendMax)
 SDEALLOCATE(DataSizeSurfSendMin)
@@ -1359,6 +1360,7 @@ IF(.NOT.PerformLoadBalance)THEN
 #if USE_LOADBALANCE
 END IF
 #endif /*USE_LOADBALANCE*/
+#endif /*USE_MPI*/
 
 #if defined(PARTICLES) && USE_LOADBALANCE
 IF (PerformLoadBalance) RETURN
