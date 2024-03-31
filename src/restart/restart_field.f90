@@ -398,6 +398,8 @@ IF(PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance))THEN
 ELSE ! normal restart
 #endif /*USE_LOADBALANCE*/
 
+  IF(N_Restart.LT.1) CALL abort(__STAMP__,'N_Restart<1 is not allowed. Check correct initailisation of N_Restart!')
+
   ! Temp. vars for integer KIND=8 possibility
   Nres          = INT(N_Restart,IK)
   OffsetElemTmp = INT(OffsetElem,IK)

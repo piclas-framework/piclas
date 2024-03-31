@@ -81,6 +81,8 @@ IF(.NOT.DoDeposition) THEN
   NodeSourceExt = 0.
 END IF
 
+IF(N_Restart.LT.1) CALL abort(__STAMP__,'N_Restart<1 is not allowed. Check correct initailisation of N_Restart!')
+
 ! Temp. vars for integer KIND=8 possibility
 OffsetElemTmp = INT(OffsetElem,IK)
 PP_nElemsTmp  = INT(PP_nElems,IK)

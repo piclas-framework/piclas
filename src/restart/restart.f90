@@ -118,7 +118,7 @@ IMPLICIT NONE
 #if USE_LOADBALANCE
 CHARACTER(20)               :: hilf
 #endif /*USE_LOADBALANCE*/
-LOGICAL                     :: FileVersionExists
+LOGICAL                     :: FileVersionExists,DG_SolutionExists
 INTEGER                     :: FileVersionHDF5Int
 !===================================================================================================================================
 IF((.NOT.InterpolationInitIsDone).OR.RestartInitIsDone)THEN
@@ -147,6 +147,7 @@ IF (LEN_TRIM(RestartFile).GT.0) THEN
   ! Read in the state file we want to restart from
   DoRestart = .TRUE.
   CALL OpenDataFile(RestartFile,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_PICLAS)
+  N_Restart=-1
 #ifdef PP_POIS
 #if (PP_nVar==8)
   !The following arrays are read from the file
@@ -159,10 +160,12 @@ IF (LEN_TRIM(RestartFile).GT.0) THEN
   !CALL ReadArray('DG_SolutionPhi',5,(/PP_nVar,PP_N+1,PP_N+1,PP_N+1,PP_nElems/),OffsetElem,5,RealArray=Phi)
   CALL abort(__STAMP__,'InitRestart: This case is not implemented here. Fix this!')
 #endif
-#elif USE_HDG
 #else
+  CALL DatasetExists(File_ID,'DG_Solution',DG_SolutionExists)
+  IF(.NOT.DG_SolutionExists) CALL abort(__STAMP__,'Restart files does not contain DG_Solution')
   CALL GetDataProps('DG_Solution',nVar_Restart,N_Restart,nElems_Restart,NodeType_Restart)
 #endif
+  IF(N_Restart.LT.1) CALL abort(__STAMP__,'N_Restart<1 is not allowed. Check correct initailisation of N_Restart!')
   IF(RestartNullifySolution)THEN ! Open the restart file and neglect the DG solution (only read particles if present)
     SWRITE(UNIT_stdOut,*)' | Restarting from File: "',TRIM(RestartFile),'" (but without reading the DG solution)'
   ELSE ! Use the solution in the restart file
