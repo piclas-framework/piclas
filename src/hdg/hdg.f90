@@ -2068,12 +2068,12 @@ IF(PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance))THEN
   DO iSide = 1, nSides
     NonUniqueGlobalSideID = SideToNonUniqueGlobalSide(1,iSide)
 
-    CALL LambdaSideToMaster(iSide,lambdaLB(:,:,NonUniqueGlobalSideID),N_SurfMesh(iSide)%NSideMin)
+    CALL LambdaSideToMaster(1,iSide,lambdaLB(:,:,NonUniqueGlobalSideID),N_SurfMesh(iSide)%NSideMin)
     ! Check if the same global unique side is encountered twice and store both global non-unique side IDs in the array
     ! SideToNonUniqueGlobalSide(1:2,iSide)
     IF(SideToNonUniqueGlobalSide(2,iSide).NE.-1)THEN
       NonUniqueGlobalSideID = SideToNonUniqueGlobalSide(2,iSide)
-      CALL LambdaSideToMaster(iSide,lambdaLB(:,:,NonUniqueGlobalSideID),N_SurfMesh(iSide)%NSideMin)
+      CALL LambdaSideToMaster(1,iSide,lambdaLB(:,:,NonUniqueGlobalSideID),N_SurfMesh(iSide)%NSideMin)
     END IF ! SideToNonUniqueGlobalSide(1,iSide).NE.-1
 
   END DO ! iSide = 1, nSides

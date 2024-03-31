@@ -465,7 +465,7 @@ END SUBROUTINE GetMasteriLocSides
 !===================================================================================================================================
 !> Transform lambda solution from local coordinate system into master orientation for iSide and return as array "MasterSide"
 !===================================================================================================================================
-SUBROUTINE LambdaSideToMaster(iSide,MasterSide,NSideMin)
+SUBROUTINE LambdaSideToMaster(ExtraDim,iSide,MasterSide,NSideMin)
 ! MODULES
 USE MOD_PreProc
 USE MOD_globals            ,ONLY: abort
@@ -480,8 +480,8 @@ USE MOD_ChangeBasis        ,ONLY: ChangeBasis2D
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! INPUT / OUTPUT VARIABLES
-INTEGER,INTENT(IN)                                   :: iSide,NSideMin
-REAL,DIMENSION(PP_nVar,nGP_face(NMax)+1),INTENT(OUT) :: MasterSide ! +1 comes from the NSideMin info that is sent additionally
+INTEGER,INTENT(IN)                                          :: ExtraDim,iSide,NSideMin
+REAL,DIMENSION(PP_nVar,nGP_face(NMax)+ExtraDim),INTENT(OUT) :: MasterSide ! +1 comes from the NSideMin info that is sent additionally
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER          :: p,q,r,rr,pq(1:2),iVar
@@ -502,7 +502,7 @@ IF(iLocSide.NE.-1)THEN ! MINE side
 
   ! Store NSideMin
   MasterSide = 0.
-  MasterSide(:,nGP_face(NMax)+1) = NSideMin
+  IF(ExtraDim.GT.0) MasterSide(:,nGP_face(NMax)+1) = NSideMin
 
   ! Store lambda
   DO q=0,NSideMin
@@ -535,7 +535,7 @@ IF(MortarType(1,iSide).EQ.0)THEN
         iLocSide = SideToElem(S2E_LOC_SIDE_ID,MortarSideID)
         IF(iLocSide.NE.-1)THEN ! MINE side (big mortar)
           ! Store NSideMin
-          MasterSide(:,nGP_face(NMax)+1) = NSideMin
+          IF(ExtraDim.GT.0) MasterSide(:,nGP_face(NMax)+1) = NSideMin
           ! Store lambda
           DO q=0,NSideMin
             DO p=0,NSideMin

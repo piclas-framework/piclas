@@ -397,7 +397,7 @@ ASSOCIATE (&
 #endif /*USE_MPI*/
 
     NSideMin = N_SurfMesh(iSide)%NSideMin
-    CALL LambdaSideToMaster(iSide,SortedLambda(:,:,iGlobSide),NSideMin)
+    CALL LambdaSideToMaster(0,iSide,SortedLambda(:,:,iGlobSide),NSideMin)
 
   END DO ! iGlobSide = 1, nSides
 
