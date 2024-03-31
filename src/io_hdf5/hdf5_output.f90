@@ -773,10 +773,12 @@ REAL,              ALLOCATABLE          :: UReal(:)
 CHARACTER(LEN=255),ALLOCATABLE          :: UStr(:)
 INTEGER(KIND=IK),ALLOCATABLE            :: UInt(:)
 INTEGER(KIND=IK)                        :: nValGather(rank),nDOFLocal
-INTEGER(KIND=IK),DIMENSION(nLocalProcs) :: nDOFPerNode,offsetNode
+INTEGER(KIND=IK),ALLOCATABLE            :: nDOFPerNode(:),offsetNode(:)
 INTEGER(KIND=IK)                        :: i
 !===================================================================================================================================
 IF(gatheredWrite)THEN
+  ALLOCATE(nDOFPerNode(nLocalProcs))
+  ALLOCATE(offsetNode(nLocalProcs))
   IF(ANY(offset(1:rank-1).NE.0)) &
     CALL abort(&
     __STAMP__&
