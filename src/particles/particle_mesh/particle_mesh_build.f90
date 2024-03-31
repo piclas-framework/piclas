@@ -1817,6 +1817,8 @@ lastSide  = nNonUniqueGlobalSides
 #endif /*USE_MPI*/
 
 IF (BezierElevation.GT.0) THEN
+  ! Sanity check
+  IF(NGeoElevated.LT.0) CALL abort(__STAMP__,'NGeoElevated<0 is not allowed. Check correct initialisation of NGeoElevated.')
   DO iSide=firstSide,lastSide
     BaseVectors0(:,iSide) = (+BezierControlPoints3DElevated(:,0,0           ,iSide)+BezierControlPoints3DElevated(:,NGeoElevated,0           ,iSide)   &
                              +BezierControlPoints3DElevated(:,0,NGeoElevated,iSide)+BezierControlPoints3DElevated(:,NGeoElevated,NGeoElevated,iSide) )
@@ -1917,6 +1919,8 @@ lastSide  = nNonUniqueGlobalSides
 !#endif /*CODE_ANALYZE*/
 
 IF (BezierElevation.GT.0) THEN
+  ! Sanity check
+  IF(NGeoElevated.LT.0) CALL abort(__STAMP__,'NGeoElevated<0 is not allowed. Check correct initialisation of NGeoElevated.')
   DO iSide = firstSide,LastSide
     ! ignore sides that are not on the compute node
     ! IF (GetCNElemID(SideInfo_Shared(SIDE_ELEMID,iSide)).EQ.-1) CYCLE
@@ -1930,7 +1934,7 @@ IF (BezierElevation.GT.0) THEN
     CALL GetSideSlabNormalsAndIntervals(BezierControlPoints3DElevated(1:3,0:NGeoElevated,0:NGeoElevated,SideID) &
                                        ,SideSlabNormals(   1:3,1:3,iSide)                                       &
                                        ,SideSlabInterVals( 1:6    ,iSide)                                       &
-                                       ,BoundingBoxIsEmpty(iSide))
+                                       ,BoundingBoxIsEmpty(iSide)) ! (requires NGeoElevated)
   END DO
 ELSE
   DO iSide=firstSide,LastSide
@@ -1946,7 +1950,7 @@ ELSE
     CALL GetSideSlabNormalsAndIntervals(BezierControlPoints3D(1:3,0:NGeo,0:NGeo,SideID)                         &
                                        ,SideSlabNormals(   1:3,1:3,iSide)                                       &
                                        ,SideSlabInterVals( 1:6    ,iSide)                                       &
-                                       ,BoundingBoxIsEmpty(iSide))
+                                       ,BoundingBoxIsEmpty(iSide)) ! (requires NGeoElevated)
   END DO
 END IF
 #if USE_MPI

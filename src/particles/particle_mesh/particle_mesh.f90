@@ -108,13 +108,9 @@ CALL prms%CreateIntOption(     'RefMappingGuess'&
     '2 - Xi of closest Gauss point\n'//&
     '3 - Xi of closest XCL_ngeo point\n'//&
     '4 -trival guess (0,0,0)^t')
-CALL prms%CreateRealOption(    'RefMappingEps'&
-  , ' Tolerance for mapping particle into reference element measured as L2-norm of deltaXi' , '1e-4')
-CALL prms%CreateIntOption(     'BezierElevation'&
-  , ' Use BezierElevation>0 to tighten the bounding box. Typical values>10','0')
-CALL prms%CreateIntOption(     'BezierSampleN'&
-  , 'TODO-DEFINE-PARAMETER\n'//&
-    'Default value: NGeo equidistant sampling of bezier surface for emission','0')
+CALL prms%CreateRealOption(    'RefMappingEps'  , ' Tolerance for mapping particle into reference element measured as L2-norm of deltaXi' , '1e-4')
+CALL prms%CreateIntOption(     'BezierElevation'  , ' Use BezierElevation>0 to tighten the bounding box. Typical values>10','0')
+CALL prms%CreateIntOption(     'BezierSampleN'  , 'TODO-DEFINE-PARAMETER\nDefault value: NGeo equidistant sampling of bezier surface for emission','0')
 
 CALL prms%CreateLogicalOption( 'CalcHaloInfo',         'Output halo element information to ElemData for each processor'//&
                                                        ' "MyRank_ElemHaloInfo"\n'//&
@@ -241,17 +237,24 @@ END IF ! DoParticleLatencyHiding
 nSurfSampleAndTriaTracking = .FALSE. ! default
 IF((TrackingMethod.EQ.TRIATRACKING).AND.(Symmetry%Order.EQ.3).AND.(nSurfSample.GT.1)) nSurfSampleAndTriaTracking = .TRUE.
 
-! Potentially curved elements. FIBGM needs to be built on BezierControlPoints rather than NodeCoords to avoid missing elements
-CALL CalcXCL_NGeo()            ! Required for XCL_NGeo_Shared
+! Set initial values
+BezierElevation = -1
+NGeoElevated = -1
 IF (TrackingMethod.EQ.TRACING .OR. TrackingMethod.EQ.REFMAPPING .OR. nSurfSampleAndTriaTracking .OR. UseRayTracing) THEN
   UseBezierControlPoints = .TRUE.
   ! Bezier elevation now more important than ever, also determines size of FIBGM extent
   BezierElevation = GETINT('BezierElevation')
   NGeoElevated    = NGeo + BezierElevation
 
+  ! Potentially curved elements. FIBGM needs to be built on BezierControlPoints rather than NodeCoords to avoid missing elements
+  CALL CalcXCL_NGeo()            ! Required for XCL_NGeo_Shared (requires BezierElevation)
   CALL CalcParticleMeshMetrics() ! Required for Elem_xGP_Shared and dXCL_NGeo_Shared
-  CALL CalcBezierControlPoints() ! Required for BezierControlPoints3D and BezierControlPoints3DElevated (requires XCL_NGeo_Shared)
+  CALL CalcBezierControlPoints() ! Required for BezierControlPoints3D and BezierControlPoints3DElevated (requires XCL_NGeo_Shared, requires NGeoElevated)
 ELSE
+  BezierElevation = 0
+  NGeoElevated    = NGeo + BezierElevation
+  ! Potentially curved elements. FIBGM needs to be built on BezierControlPoints rather than NodeCoords to avoid missing elements
+  CALL CalcXCL_NGeo()            ! Required for XCL_NGeo_Shared (requires BezierElevation)
   UseBezierControlPoints = .FALSE.
 END IF
 
@@ -410,18 +413,18 @@ SELECT CASE(TrackingMethod)
 
     IF(.NOT.UsePhotonTriaTracking)THEN
       ! Build stuff required for bilinear tracing algorithms
-      CALL BuildSideSlabAndBoundingBox() ! Required for SideSlabNormals_Shared, SideSlabIntervals_Shared, BoundingBoxIsEmpty_Shared
+      CALL BuildSideSlabAndBoundingBox() ! Required for SideSlabNormals_Shared, SideSlabIntervals_Shared, BoundingBoxIsEmpty_Shared (requires NGeoElevated)
 
       ! Check the side type (planar, bilinear, curved)
       CALL IdentifyElemAndSideType() ! Builds ElemCurved_Shared, SideType_Shared, SideDistance_Shared, SideNormVec_Shared
 
       ! Get basevectors for (bi-)linear sides
-      CALL BuildLinearSideBaseVectors() ! Required for BaseVectors0_Shared, BaseVectors1_Shared, BaseVectors2_Shared, BaseVectors3_Shared, BaseVectorsScale_Shared
+      CALL BuildLinearSideBaseVectors() ! Required for BaseVectors0_Shared, BaseVectors1_Shared, BaseVectors2_Shared, BaseVectors3_Shared, BaseVectorsScale_Shared ! (requires NGeoElevated)
     END IF ! UsePhotonTriaTracking
 
   CASE(TRACING,REFMAPPING)
     ! Build stuff required for tracing algorithms
-    CALL BuildSideSlabAndBoundingBox() ! Required for SideSlabNormals_Shared, SideSlabIntervals_Shared, BoundingBoxIsEmpty_Shared
+    CALL BuildSideSlabAndBoundingBox() ! Required for SideSlabNormals_Shared, SideSlabIntervals_Shared, BoundingBoxIsEmpty_Shared (requires NGeoElevated)
 
     ! ElemNodeID_Shared required
     IF(FindNeighbourElems) CALL InitElemNodeIDs()
@@ -436,7 +439,7 @@ SELECT CASE(TrackingMethod)
     CALL BuildElementBasisAndRadius() ! Required for ElemRadiusNGeo_Shared, ElemRadius2NGeo_Shared, XiEtaZetaBasis_Shared, slenXiEtaZetaBasis_Shared
 
     ! Get basevectors for (bi-)linear sides
-    CALL BuildLinearSideBaseVectors() ! Required for BaseVectors0_Shared, BaseVectors1_Shared, BaseVectors2_Shared, BaseVectors3_Shared, BaseVectorsScale_Shared
+    CALL BuildLinearSideBaseVectors() ! Required for BaseVectors0_Shared, BaseVectors1_Shared, BaseVectors2_Shared, BaseVectors3_Shared, BaseVectorsScale_Shared ! (requires NGeoElevated)
 
     IF (TrackingMethod.EQ.REFMAPPING) THEN
       ! Identify BCSides and build side origin and radius

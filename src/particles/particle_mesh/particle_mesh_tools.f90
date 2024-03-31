@@ -574,7 +574,6 @@ USE MOD_Particle_Surfaces_Vars  ,ONLY: BezierControlPoints3D
 USE MOD_Particle_Tracking_Vars  ,ONLY: TrackingMethod
 #if USE_MPI
 USE MOD_MPI_Shared_Vars         ,ONLY: MPI_COMM_SHARED,MPI_COMM_LEADERS_SHARED,myComputeNodeRank
-USE MOD_Particle_Mesh_Vars      ,ONLY: offsetComputeNodeNode,nComputeNodeNodes
 #endif /*USE_MPI*/
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Vars        ,ONLY: PerformLoadBalance
@@ -1349,8 +1348,8 @@ CALL BarycentricWeights(1,XiCL_NGeo1,wBaryCL_NGeo1)
 ! Vandermonde: Vdm_CLNGeo1_CLNGeo
 CALL InitializeVandermonde(1,NGeo,wBaryCL_NGeo1,XiCL_NGeo1,XiCL_NGeo,Vdm_CLNGeo1_CLNGeo)
 ! initialize Vandermonde for Bezier basis surface representation (particle tracking with curved elements)
-CALL BuildBezierVdm(NGeo,XiCL_NGeo,Vdm_Bezier,sVdm_Bezier) !CHANGETAG
-CALL BuildBezierDMat(NGeo,Xi_NGeo,D_Bezier)
+CALL BuildBezierVdm(NGeo,XiCL_NGeo,Vdm_Bezier,sVdm_Bezier) ! Required for FacNchooseK (requires BezierElevation)
+CALL BuildBezierDMat(NGeo,Xi_NGeo,D_Bezier) ! Required for DMat=D_Bezier (requires FacNchooseK)
 CALL InitializeVandermonde(NGeo,NGeo,wBaryCL_NGeo,Xi_NGeo,XiCL_NGeo,Vdm_NGeo_CLNGeo)
 
 #if USE_LOADBALANCE
@@ -1399,7 +1398,7 @@ SUBROUTINE CalcParticleMeshMetrics()
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Globals
 USE MOD_PreProc
-USE MOD_Mesh_Vars              ,ONLY: N_VolMesh,N_VolMesh_Shared
+USE MOD_Mesh_Vars              ,ONLY: N_VolMesh
 USE MOD_Mesh_Vars              ,ONLY: dXCL_NGeo
 USE MOD_Particle_Mesh_Vars
 #if USE_MPI
@@ -1407,6 +1406,8 @@ USE MOD_Mesh_Vars              ,ONLY: NGeo,nGlobalElems,offsetElem,nElems
 USE MOD_MPI_Shared
 USE MOD_MPI_Shared_Vars
 USE MOD_DG_Vars                ,ONLY: nDofsMapping, N_DG_Mapping, recvcountDofs, displsDofs
+#else
+USE MOD_Mesh_Vars              ,ONLY: N_VolMesh_Shared
 #endif
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Vars       ,ONLY: PerformLoadBalance
@@ -1547,6 +1548,8 @@ IF (myComputeNodeRank.EQ.0) THEN
   BezierControlPoints3D         = 0.
 END IF
 IF (BezierElevation.GT.0) THEN
+  ! Sanity check
+  IF(NGeoElevated.LT.0) CALL abort(__STAMP__,'NGeoElevated<0 is not allowed. Check correct initialisation of NGeoElevated.')
   CALL Allocate_Shared((/3*(NGeoElevated+1)*(NGeoElevated+1)*nNonUniqueGlobalSides/),BezierControlPoints3DElevated_Shared_Win,BezierControlPoints3DElevated_Shared)
   CALL MPI_WIN_LOCK_ALL(0,BezierControlPoints3DElevated_Shared_Win,IERROR)
   BezierControlPoints3DElevated(1:3,0:NGeoElevated,0:NGeoElevated,1:nNonUniqueGlobalSides) => BezierControlPoints3DElevated_Shared
