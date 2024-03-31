@@ -196,7 +196,12 @@ LBWRITE(UNIT_StdOut,'(132("-"))')
 LBWRITE(UNIT_stdOut,'(A)') ' INIT ANALYZE...'
 
 ! Get logical for calculating the error norms L2 and LInf
+#if (PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400)
+DoCalcErrorNorms = .FALSE.
+CALL PrintOption('DSMC, BGK or FP detected, Setting DoCalcErrorNorms','INFO',LogOpt=DoCalcErrorNorms)
+#else
 DoCalcErrorNorms = GETLOGICAL('DoCalcErrorNorms')
+#endif /*(PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400)*/
 
 IF(DoCalcErrorNorms)THEN
   ! Get logical for writing the analytical solution, the error norms L2 and LInf to .h5
@@ -355,11 +360,11 @@ SUBROUTINE CalcError(time,L_2_Error,L_Inf_Error)
 USE MOD_Globals
 USE MOD_PreProc
 USE MOD_ChangeBasis        ,ONLY: ChangeBasis3D
-USE MOD_DG_Vars            ,ONLY: U_N,N_DG
+USE MOD_DG_Vars            ,ONLY: U_N,N_DG_Mapping
 USE MOD_Equation           ,ONLY: ExactFunc
 USE MOD_Equation_Vars      ,ONLY: IniExactFunc
 USE MOD_Interpolation_Vars ,ONLY: NAnalyze,N_InterAnalyze,wAnalyze,Uex
-USE MOD_Mesh_Vars          ,ONLY: N_VolMesh
+USE MOD_Mesh_Vars          ,ONLY: N_VolMesh, offSetElem
 USE MOD_Particle_Mesh_Vars ,ONLY: MeshVolume
 USE MOD_Analyze_Vars       ,ONLY: OutputErrorNormsToH5
 ! IMPLICIT VARIABLE HANDLING
@@ -386,7 +391,7 @@ L_Inf_Error(:)=-1.E10
 L_2_Error(:)=0.
 ! Interpolate values of Error-Grid from GP's
 DO iElem=1,PP_nElems
-  Nloc = N_DG(iElem)
+  Nloc = N_DG_Mapping(2,iElem+offSetElem)
   ! Interpolate the physical position Elem_xGP to the analyze position, needed for exact function
   CALL ChangeBasis3D(3,Nloc,NAnalyze,N_InterAnalyze(Nloc)%Vdm_GaussN_NAnalyze,N_VolMesh(iElem)%Elem_xGP(1:3,:,:,:),Coords_NAnalyze(1:3,:,:,:))
   ! Interpolate the Jacobian to the analyze grid: be careful we interpolate the inverse of the inverse of the jacobian ;-)
@@ -440,11 +445,11 @@ SUBROUTINE CalcErrorPartSource(PartSource_nVar,L_2_PartSource,L_Inf_PartSource)
 ! MODULES
 USE MOD_Globals
 USE MOD_PreProc
-USE MOD_DG_Vars            ,ONLY: N_DG
+USE MOD_DG_Vars            ,ONLY: N_DG_Mapping
 USE MOD_ChangeBasis        ,ONLY: ChangeBasis3D
 USE MOD_Equation           ,ONLY: ExactFunc
 USE MOD_Interpolation_Vars ,ONLY: NAnalyze,N_InterAnalyze,wAnalyze
-USE MOD_Mesh_Vars          ,ONLY: N_VolMesh
+USE MOD_Mesh_Vars          ,ONLY: N_VolMesh, offSetElem
 USE MOD_PICDepo_Vars       ,ONLY: PS_N
 USE MOD_Particle_Mesh_Vars ,ONLY: MeshVolume
 ! IMPLICIT VARIABLE HANDLING
@@ -471,7 +476,7 @@ L_Inf_PartSource(:)=-1.E10
 L_2_PartSource(:)=0.
 ! Interpolate values of Error-Grid from GP's
 DO iElem=1,PP_nElems
-  Nloc = N_DG(iElem)
+  Nloc = N_DG_Mapping(2,iElem+offSetElem)
   ! Interpolate the Jacobian to the analyze grid: be carefull we interpolate the inverse of the inverse of the jacobian ;-)
   CALL ChangeBasis3D(1,Nloc,NAnalyze,N_InterAnalyze(Nloc)%Vdm_GaussN_NAnalyze,1./N_VolMesh(iElem)%sJ(:,:,:),J_NAnalyze(1:1,:,:,:))
   CALL ChangeBasis3D(PartSource_nVar,Nloc,NAnalyze,N_InterAnalyze(Nloc)%Vdm_GaussN_NAnalyze &
@@ -1262,7 +1267,7 @@ USE MOD_Globals
 USE MOD_Preproc
 USE MOD_Mesh_Vars        ,ONLY: nBCs,BoundaryType
 USE MOD_Analyze_Vars     ,ONLY: DoFieldAnalyze,CalcElectricTimeDerivative,EDC
-USE MOD_Equation_Vars    ,ONLY: Et
+!USE MOD_Equation_Vars    ,ONLY: Et
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Vars ,ONLY: PerformLoadBalance
 #endif /*USE_LOADBALANCE*/
@@ -1283,8 +1288,8 @@ INTEGER             :: SideID,color
 IF(.NOT.CalcElectricTimeDerivative) RETURN ! Read-in parameter that is set in  InitAnalyze() in analyze.f90
 
 ! Allocate temporal derivative for E: No need to nullify as is it overwritten with E the first time it is used
-ALLOCATE(Et(1:3,0:PP_N,0:PP_N,0:PP_N,PP_nElems))
-Et = 0.
+!ALLOCATE(Et(1:3,0:PP_N,0:PP_N,0:PP_N,PP_nElems))
+!Et = 0.
 
 ! 1.) Loop over all field BCs and check if the current processor is either the MPI root or has at least one of the BCs that
 ! contribute to the total electric displacement current. If yes, then this processor is part of the communicator

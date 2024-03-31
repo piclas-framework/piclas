@@ -109,11 +109,11 @@ USE MOD_HDG_vars
 USE MOD_Globals_Vars       ,ONLY: PI
 USE MOD_ReadInTools        ,ONLY: GETREALARRAY,GETREAL,GETINT,CountOption
 USE MOD_Interpolation_Vars ,ONLY: InterpolationInitIsDone
-USE MOD_Mesh_Vars          ,ONLY: BoundaryName,BoundaryType,nBCs
+USE MOD_Mesh_Vars          ,ONLY: BoundaryName,BoundaryType,nBCs, offSetElem
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Vars   ,ONLY: PerformLoadBalance
 #endif /*USE_LOADBALANCE*/
-USE MOD_DG_Vars            ,ONLY: N_DG
+USE MOD_DG_Vars            ,ONLY: N_DG_Mapping
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -243,7 +243,7 @@ END IF
 ALLOCATE(chi(1:PP_nElems))
 
 DO iElem = 1, PP_nElems
-  Nloc = N_DG(iElem)
+  Nloc = N_DG_Mapping(2,iElem+offSetElem)
   ALLOCATE(chi(iElem)%tens(1:3,1:3,0:Nloc,0:Nloc,0:Nloc))
 
   chi(iElem)%tens(:,:,:,:,:) = 0.
@@ -883,8 +883,8 @@ PPURE SUBROUTINE CalcSourceHDG(i,j,k,iElem,resu, Phi, warning_linear, warning_li
 ! MODULES
 USE MOD_Globals
 USE MOD_PreProc
-USE MOD_Mesh_Vars          ,ONLY: N_VolMesh
-USE MOD_DG_vars            ,ONLY: N_DG
+USE MOD_Mesh_Vars          ,ONLY: N_VolMesh, offSetElem
+USE MOD_DG_vars            ,ONLY: N_DG_Mapping
 USE MOD_Globals_Vars       ,ONLY: eps0
 #ifdef PARTICLES
 USE MOD_PICDepo_Vars       ,ONLY: PS_N,DoDeposition
@@ -913,14 +913,14 @@ REAL,INTENT(IN),OPTIONAL        :: Phi
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 REAL                            :: xvec(3)
-REAL                            :: r1,r2,dx
+REAL                            :: r1,r2
 REAL,DIMENSION(3)               :: dx1,dx2,dr1dx,dr2dx,dr1dx2,dr2dx2
 INTEGER                         :: Nloc
 #ifdef PARTICLES
 REAL                            :: source_e ! Electron charge density for Boltzmann relation (electrons as isothermal fluid!)
 INTEGER                         :: RegionID
 #if defined(CODE_ANALYZE)
-REAL                            :: ElemCharLengthX
+REAL                            :: ElemCharLengthX,dx
 #endif /*defined(CODE_ANALYZE)*/
 #endif /*PARTICLES*/
 !===================================================================================================================================
@@ -936,7 +936,7 @@ SELECT CASE (IniExactFunc)
 CASE(0) ! Particles
   resu=0. ! empty
 CASE(103)
-  Nloc = N_DG(iElem)
+  Nloc = N_DG_Mapping(2,iElem+offSetElem)
   dx1=(xx-(IniCenter(:)-(/IniHalfwidth,0.,0./)))
   dx2=(xx-(IniCenter(:)+(/IniHalfwidth,0.,0./)))
   r1=SQRT(SUM(dx1**2))

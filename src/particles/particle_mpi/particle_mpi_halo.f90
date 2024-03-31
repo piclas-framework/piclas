@@ -64,10 +64,11 @@ USE MOD_Particle_MPI_Vars       ,ONLY: AbortExchangeProcs,DoParticleLatencyHidin
 USE MOD_Particle_Surfaces_Vars  ,ONLY: BezierControlPoints3D
 USE MOD_Particle_Tracking_Vars  ,ONLY: TrackingMethod
 USE MOD_PICDepo_Vars            ,ONLY: DepositionType, ShapeElemProcSend_Shared, ShapeElemProcSend_Shared_Win
-USE MOD_PICDepo_Vars            ,ONLY: SendElemShapeID, CNRankToSendRank, nShapeExchangeProcs
+USE MOD_PICDepo_Vars            ,ONLY: SendDofShapeID, CNRankToSendRank, nShapeExchangeProcs
 USE MOD_PICDepo_Vars            ,ONLY: ShapeMapping,CNShapeMapping,r_sf, FlagShapeElem, DoHaloDepo
 USE MOD_ReadInTools             ,ONLY: PrintOption
 USE MOD_TimeDisc_Vars           ,ONLY: ManualTimeStep
+USE MOD_DG_Vars                 ,ONLY: N_DG_Mapping
 #if ! (USE_HDG)
 USE MOD_CalcTimeStep            ,ONLY: CalcTimeStep
 #endif
@@ -120,7 +121,7 @@ LOGICAL                        :: SideIsRotPeriodic
 INTEGER                        :: BCindex,iPartBound
 REAL                           :: StartT,EndT
 CHARACTER(LEN=255)             :: hilf
-INTEGER                        :: k,iLocElem
+INTEGER                        :: k,iLocElem, Nloc, nRecvDofs, nSendDofs, globElem
 LOGICAL                        :: InInterPlaneRegion
 REAL                           :: InterPlaneDistance
 !=================================================================================================================================
@@ -1123,10 +1124,10 @@ IF(StringBeginsWith(DepositionType,'shape_function'))THEN
     IF (FlagShapeElem(iElem)) nSendShapeElems = nSendShapeElems + 1
   END DO
 
-  ALLOCATE(SendShapeElemID(1:nSendShapeElems), SendElemShapeID(1:nComputeNodeTotalElems), CNRankToSendRank(0:nProcessors-1))
+  ALLOCATE(SendShapeElemID(1:nSendShapeElems), SendDofShapeID(1:nComputeNodeTotalElems), CNRankToSendRank(0:nProcessors-1))
   ! Initialize
   SendShapeElemID = -1
-  SendElemShapeID = -1
+  SendDofShapeID = -1
   CNRankToSendRank = -1
 
   ! 2nd loop to fill the array of size nSendShapeElems
@@ -1135,7 +1136,6 @@ IF(StringBeginsWith(DepositionType,'shape_function'))THEN
     IF (FlagShapeElem(iElem)) THEN
       nSendShapeElems                  = nSendShapeElems + 1
       SendShapeElemID(nSendShapeElems) = iElem
-!      SendElemShapeID(iElem)           = nSendShapeElems
     END IF
   END DO
 
@@ -1438,7 +1438,7 @@ IF(StringBeginsWith(DepositionType,'shape_function'))THEN
       ShapeMapping(exProc)%nRecvShapeElems = RecvProcsElems(iProc)
       ShapeMapping(exProc)%nSendShapeElems = 0
       ALLOCATE(ShapeMapping(exProc)%RecvShapeElemID(1:RecvProcsElems(iProc)), &
-            ShapeMapping(exProc)%RecvBuffer(4,0:PP_N,0:PP_N,0:PP_N,1:RecvProcsElems(iProc)))
+            ShapeMapping(exProc)%RecvShapeElemDofOffset(1:RecvProcsElems(iProc)))            
       exElem = 0
       DO iElem = 1, nElems
         CNElemID = GetCNElemID(iELem+offSetElem)
@@ -1477,8 +1477,7 @@ IF(StringBeginsWith(DepositionType,'shape_function'))THEN
     IF(IERROR.NE.MPI_SUCCESS) CALL ABORT(__STAMP__,' MPI Communication error', IERROR)
     CALL MPI_WAIT(SendRequest(iProc),MPIStatus,IERROR)
     IF(IERROR.NE.MPI_SUCCESS) CALL ABORT(__STAMP__,' MPI Communication error', IERROR)
-    ALLOCATE(ShapeMapping(iProc)%SendShapeElemID(1:ShapeMapping(iProc)%nSendShapeElems), &
-        ShapeMapping(iProc)%SendBuffer(4,0:PP_N,0:PP_N,0:PP_N,1:ShapeMapping(iProc)%nSendShapeElems))
+    ALLOCATE(ShapeMapping(iProc)%SendShapeElemID(1:ShapeMapping(iProc)%nSendShapeElems))
   END DO
 
   DO iProc = 1, nShapeExchangeProcs
@@ -1503,14 +1502,31 @@ IF(StringBeginsWith(DepositionType,'shape_function'))THEN
   END DO
 
   DO iProc = 1,nShapeExchangeProcs
+    nSendDofs = 0
     CALL MPI_WAIT(RecvRequest(iProc),MPIStatus,IERROR)
     IF(IERROR.NE.MPI_SUCCESS) CALL ABORT(__STAMP__,' MPI Communication error', IERROR)
     CALL MPI_WAIT(SendRequest(iProc),MPIStatus,IERROR)
     IF(IERROR.NE.MPI_SUCCESS) CALL ABORT(__STAMP__,' MPI Communication error', IERROR)
     DO iELem = 1, ShapeMapping(iProc)%nSendShapeElems
-      SendElemShapeID(GetCNElemID(ShapeMapping(iProc)%SendShapeElemID(iElem))) = iElem
+      SendDofShapeID(GetCNElemID(ShapeMapping(iProc)%SendShapeElemID(iElem))) = nSendDofs
+      globElem = ShapeMapping(iProc)%SendShapeElemID(iElem)
+      Nloc = N_DG_Mapping(2, globElem)
+      nSendDofs = nSendDofs + (Nloc+1)**3
     END DO
+    ShapeMapping(iProc)%nSendShapeDofs = nSendDofs
+    ALLOCATE(ShapeMapping(iProc)%SendBuffer(4,nSendDofs))
+    nRecvDofs = 0
+    DO iElem = 1, ShapeMapping(iProc)%nRecvShapeElems
+      globElem = ShapeMapping(iProc)%RecvShapeElemID(iElem)
+      ShapeMapping(iProc)%RecvShapeElemDofOffset(iElem) = nRecvDofs
+      Nloc = N_DG_Mapping(2, globElem)
+      nRecvDofs = nRecvDofs + (Nloc+1)**3
+    END DO
+    ShapeMapping(iProc)%nRecvShapeDofs = nRecvDofs
+    ALLOCATE(ShapeMapping(iProc)%RecvBuffer(4,nRecvDofs))
   END DO
+
+
 
   CALL MPI_BARRIER(MPI_COMM_SHARED,iERROR)
   CALL UNLOCK_AND_FREE(ShapeElemProcSend_Shared_Win)

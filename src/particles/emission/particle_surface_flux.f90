@@ -71,6 +71,7 @@ INTEGER                     :: allowedRejections, PartsEmitted, Node1, Node2, gl
 INTEGER                     :: PartInsSideRadWeight(1:RadialWeighting%nSubSides)
 REAL                        :: Particle_pos(3), RandVal1,  xyzNod(3), RVec(2), minPos(2), xi(2), Vector1(3), Vector2(3)
 REAL                        :: ndist(3), midpoint(3)
+REAL                        :: MPF
 LOGICAL                     :: AcceptPos
 REAL,ALLOCATABLE            :: particle_positions(:), particle_xis(:)
 INTEGER,ALLOCATABLE         :: PartInsSubSides(:,:,:)
@@ -244,7 +245,12 @@ DO iSpec=1,nSpecies
             PartMPF(ParticleIndexNbr) = CalcRadWeightMPF(PartState(2,ParticleIndexNbr), iSpec,ParticleIndexNbr)
           END IF
           IF(CalcSurfFluxInfo) THEN
-            SF%SampledMassflow = SF%SampledMassflow + GetParticleWeight(ParticleIndexNbr)
+            IF(usevMPF.OR.RadialWeighting%DoRadialWeighting) THEN
+              MPF = GetParticleWeight(ParticleIndexNbr)
+            ELSE
+              MPF = GetParticleWeight(ParticleIndexNbr) * Species(iSpec)%MacroParticleFactor
+            END IF
+            SF%SampledMassflow = SF%SampledMassflow + MPF
           END IF
 #ifdef CODE_ANALYZE
           CALL AnalyzePartPos(ParticleIndexNbr)
@@ -1492,8 +1498,10 @@ USE MOD_PreProc
 USE MOD_Globals_Vars            ,ONLY: BoltzmannConst, Pi, ElementaryCharge, eps0
 USE MOD_TimeDisc_Vars           ,ONLY: dt,RKdtFrac
 USE MOD_Particle_Vars           ,ONLY: Species, VarTimeStep
-USE MOD_Equation_Vars           ,ONLY: E
+!USE MOD_Equation_Vars           ,ONLY: E
 USE MOD_Particle_Boundary_Vars  ,ONLY: PartBound
+USE MOD_DG_Vars                 ,ONLY: N_DG_Mapping,U_N
+USE MOD_Mesh_Vars               ,ONLY: offSetElem
 ! ROUTINES
 USE MOD_ProlongToFace           ,ONLY: ProlongToFace_Elementlocal
 IMPLICIT NONE
@@ -1505,7 +1513,9 @@ INTEGER, INTENT(OUT)        :: PartInsSubSide
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-REAL                        :: EFieldFace(1:3,0:PP_N,0:PP_N), EFaceMag, CurrentDensity, WallTemp, WorkFunction, RandVal1, dtVar
+REAL                        :: EFaceMag, CurrentDensity, WallTemp, WorkFunction, RandVal1, dtVar
+REAL, ALLOCATABLE           :: EFieldFace(:,:,:)
+INTEGER                     :: NLoc
 !===================================================================================================================================
 ASSOCIATE(SF => Species(iSpec)%Surfaceflux(iSF))
 
@@ -1515,12 +1525,13 @@ IF(VarTimeStep%UseSpeciesSpecific) THEN
 ELSE
   dtVar = dt
 END IF
-
+Nloc = N_DG_Mapping(2,ElemID+offSetElem)
+ALLOCATE(EFieldFace(3,0:Nloc,0:Nloc))
 ! 1) Determine the electric field at the surface
-CALL ProlongToFace_Elementlocal(nVar=3,locSideID=iLocSide,Uvol=E(:,:,:,:,ElemID),Uface=EFieldFace)
+CALL ProlongToFace_Elementlocal(nVar=3,locSideID=iLocSide,Uvol=U_N(ElemID)%E(1:3,:,:,:) ,Uface=EFieldFace, Nloc=Nloc)
 
 ! 2) Average the e-field vector and calculate magnitude
-EFaceMag = (PP_N+1)**2
+EFaceMag = (Nloc+1)**2
 EFaceMag = VECNORM((/SUM(EFieldFace(1,:,:))/EFaceMag, SUM(EFieldFace(2,:,:))/EFaceMag, SUM(EFieldFace(3,:,:))/EFaceMag/))
 
 ! 3) Calculate the work function with the Schottky effect and the new current density [A/m2]

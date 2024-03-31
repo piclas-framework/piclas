@@ -168,7 +168,7 @@ USE MOD_Particle_Tracking_Vars ,ONLY: MeasureTrackTime,FastPeriodic,CountNbrOfLo
 USE MOD_Particle_Tracking_Vars ,ONLY: NbrOfLostParticles,NbrOfLostParticlesTotal,NbrOfLostParticlesTotal_old
 USE MOD_Particle_Tracking_Vars ,ONLY: PartStateLostVecLength,PartStateLost,PartLostDataSize
 USE MOD_Particle_Tracking_Vars ,ONLY: TrackingMethod, DisplayLostParticles
-USE MOD_PICInterpolation_Vars  ,ONLY: DoInterpolation
+!USE MOD_PICInterpolation_Vars  ,ONLY: DoInterpolation
 USE MOD_PICDepo_Vars           ,ONLY: DoDeposition,DepositionType
 USE MOD_ReadInTools            ,ONLY: GETREAL,GETINT,GETLOGICAL,GetRealArray, GETINTFROMSTR
 USE MOD_Particle_Vars          ,ONLY: Symmetry, DoVirtualCellMerge
@@ -188,7 +188,7 @@ USE MOD_MPI_Shared_Vars
 USE MOD_Particle_MPI_Vars      ,ONLY: DoParticleLatencyHiding
 #endif /* USE_MPI */
 USE MOD_Particle_Mesh_Build    ,ONLY: BuildElementRadiusTria,BuildElemTypeAndBasisTria,BuildEpsOneCell,BuildBCElemDistance
-USE MOD_Particle_Mesh_Build    ,ONLY: BuildNodeNeighbourhood,BuildElementOriginShared,BuildElementBasisAndRadius
+USE MOD_Particle_Mesh_Build    ,ONLY: BuildNodeNeighbourhood,BuildElementOriginShared,BuildElementBasisAndRadius,BuildElemDofNodeMapping
 USE MOD_Particle_Mesh_Build    ,ONLY: BuildSideOriginAndRadius,BuildLinearSideBaseVectors,BuildSideSlabAndBoundingBox
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Vars       ,ONLY: PerformLoadBalance
@@ -242,6 +242,7 @@ nSurfSampleAndTriaTracking = .FALSE. ! default
 IF((TrackingMethod.EQ.TRIATRACKING).AND.(Symmetry%Order.EQ.3).AND.(nSurfSample.GT.1)) nSurfSampleAndTriaTracking = .TRUE.
 
 ! Potentially curved elements. FIBGM needs to be built on BezierControlPoints rather than NodeCoords to avoid missing elements
+CALL CalcXCL_NGeo()            ! Required for XCL_NGeo_Shared
 IF (TrackingMethod.EQ.TRACING .OR. TrackingMethod.EQ.REFMAPPING .OR. nSurfSampleAndTriaTracking .OR. UseRayTracing) THEN
   UseBezierControlPoints = .TRUE.
   ! Bezier elevation now more important than ever, also determines size of FIBGM extent
@@ -249,7 +250,6 @@ IF (TrackingMethod.EQ.TRACING .OR. TrackingMethod.EQ.REFMAPPING .OR. nSurfSample
   NGeoElevated    = NGeo + BezierElevation
 
   CALL CalcParticleMeshMetrics() ! Required for Elem_xGP_Shared and dXCL_NGeo_Shared
-  CALL CalcXCL_NGeo()            ! Required for XCL_NGeo_Shared
   CALL CalcBezierControlPoints() ! Required for BezierControlPoints3D and BezierControlPoints3DElevated (requires XCL_NGeo_Shared)
 ELSE
   UseBezierControlPoints = .FALSE.
@@ -387,6 +387,8 @@ IF(DoVirtualCellMerge) FindNeighbourElems = .TRUE.
 ! Build ConcaveElemSide_Shared, ElemSideNodeID_Shared, ElemMidPoint_Shared
 CALL InitParticleGeometry()
 
+CALL BuildElemDofNodeMapping()
+
 SELECT CASE(TrackingMethod)
   CASE(TRIATRACKING)
     CALL InitElemNodeIDs()
@@ -395,14 +397,13 @@ SELECT CASE(TrackingMethod)
 
     ! Interpolation needs coordinates in reference system
     !IF (DoInterpolation.OR.DSMC%UseOctree) THEN ! use this in future if possible
-    IF (DoInterpolation.OR.DoDeposition.OR.UseRayTracing) THEN
+    !IF (DoInterpolation.OR.DoDeposition.OR.UseRayTracing) THEN
       ! Do not call these functions twice. This is already done above
       IF(.NOT.UseBezierControlPoints)THEN
         CALL CalcParticleMeshMetrics()   ! Required for Elem_xGP_Shared and dXCL_NGeo_Shared
       END IF ! .NOT.UseBezierControlPoints
-    END IF ! DoInterpolation.OR.DSMC%UseOctree
+    !END IF ! DoInterpolation.OR.DSMC%UseOctree
     ! Also required for DSMC%UseOctree
-    CALL CalcXCL_NGeo()              ! Required for XCL_NGeo_Shared
     CALL BuildElemTypeAndBasisTria() ! Required for ElemCurved_Shared, XiEtaZetaBasis_Shared, slenXiEtaZetaBasis_Shared. Needs XCL_NGeo_Shared
 
     IF (DoDeposition) CALL BuildEpsOneCell()
@@ -488,11 +489,11 @@ SUBROUTINE FinalizeParticleMesh()
 ! MODULES
 USE MOD_Globals
 USE MOD_Particle_Mesh_Vars
-USE MOD_RayTracing_Vars        ,ONLY: UseRayTracing
+!USE MOD_RayTracing_Vars        ,ONLY: UseRayTracing
 #if USE_MPI
 USE MOD_Particle_Surfaces_Vars ,ONLY: BezierElevation
 USE MOD_PICDepo_Vars           ,ONLY: DepositionType
-USE MOD_PICInterpolation_Vars  ,ONLY: DoInterpolation
+!USE MOD_PICInterpolation_Vars  ,ONLY: DoInterpolation
 #endif /*USE_MPI*/
 USE MOD_Particle_BGM           ,ONLY: FinalizeBGM
 USE MOD_Mesh_ReadIn            ,ONLY: FinalizeMeshReadin
@@ -723,7 +724,7 @@ SELECT CASE (TrackingMethod)
 #endif /*USE_LOADBALANCE*/
 
     !IF (DoInterpolation.OR.DSMC%UseOctree) THEN ! use this in future if possible
-    IF (DoInterpolation.OR.DoDeposition.OR.UseRayTracing.OR.nSurfSampleAndTriaTracking) THEN
+    !IF (DoInterpolation.OR.DoDeposition.OR.UseRayTracing.OR.nSurfSampleAndTriaTracking) THEN
 #if USE_LOADBALANCE
       IF (.NOT.PerformLoadBalance) THEN
 #endif /*USE_LOADBALANCE*/
@@ -740,7 +741,7 @@ SELECT CASE (TrackingMethod)
       !  CALL UNLOCK_AND_FREE(XiEtaZetaBasis_Shared_Win)
       !  CALL UNLOCK_AND_FREE(slenXiEtaZetaBasis_Shared_Win)
       !END IF ! DoInterpolation.OR.DoDeposition.OR.UseRayTracing
-    END IF ! DoInterpolation.OR.DoDeposition.OR.UseRayTracing.OR.nSurfSampleAndTriaTracking
+    !END IF ! DoInterpolation.OR.DoDeposition.OR.UseRayTracing.OR.nSurfSampleAndTriaTracking
 
     ! Also required for DSMC%UseOctree: BuildElemTypeAndBasisTria()
     CALL UNLOCK_AND_FREE(ElemCurved_Shared_Win)

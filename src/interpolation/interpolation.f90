@@ -455,8 +455,8 @@ SUBROUTINE ApplyJacobian(toPhysical,toSwap)
 !===================================================================================================================================
 ! MODULES
 USE MOD_PreProc
-USE MOD_Mesh_Vars ,ONLY: N_VolMesh
-USE MOD_DG_Vars   ,ONLY: U_N,N_DG
+USE MOD_Mesh_Vars ,ONLY: N_VolMesh, offSetElem
+USE MOD_DG_Vars   ,ONLY: U_N,N_DG_Mapping
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -470,14 +470,14 @@ INTEGER             :: i,j,k,iElem,iVar,Nloc
 IF(toPhysical)THEN
   IF(toSwap)THEN
     DO iElem=1,PP_nElems
-      Nloc = N_DG(iElem)
+      Nloc = N_DG_Mapping(2,iElem+offSetElem)
       DO k=0,Nloc; DO j=0,Nloc; DO i=0,Nloc; DO iVar=1,PP_nVar
           U_N(iElem)%Ut(iVar,i,j,k)=-U_N(iElem)%Ut(iVar,i,j,k)*N_VolMesh(iElem)%sJ(i,j,k)
       END DO; END DO; END DO; END DO
     END DO
   ELSE
     DO iElem=1,PP_nElems
-      Nloc = N_DG(iElem)
+      Nloc = N_DG_Mapping(2,iElem+offSetElem)
       DO k=0,Nloc; DO j=0,Nloc; DO i=0,Nloc; DO iVar=1,PP_nVar
         U_N(iElem)%Ut(iVar,i,j,k)=-U_N(iElem)%Ut(iVar,i,j,k)*N_VolMesh(iElem)%sJ(i,j,k)
       END DO; END DO; END DO; END DO
@@ -486,14 +486,14 @@ IF(toPhysical)THEN
 ELSE
   IF(toSwap)THEN
     DO iElem=1,PP_nElems
-      Nloc = N_DG(iElem)
+      Nloc = N_DG_Mapping(2,iElem+offSetElem)
       DO k=0,Nloc; DO j=0,Nloc; DO i=0,Nloc; DO iVar=1,PP_nVar
         U_N(iElem)%Ut(iVar,i,j,k)=-U_N(iElem)%Ut(iVar,i,j,k)/N_VolMesh(iElem)%sJ(i,j,k)
       END DO; END DO; END DO; END DO
     END DO
   ELSE
     DO iElem=1,PP_nElems
-      Nloc = N_DG(iElem)
+      Nloc = N_DG_Mapping(2,iElem+offSetElem)
       DO k=0,Nloc; DO j=0,Nloc; DO i=0,Nloc; DO iVar=1,PP_nVar
         U_N(iElem)%Ut(iVar,i,j,k)=-U_N(iElem)%Ut(iVar,i,j,k)/N_VolMesh(iElem)%sJ(i,j,k)
       END DO; END DO; END DO; END DO

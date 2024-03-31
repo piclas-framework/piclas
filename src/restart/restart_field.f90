@@ -26,16 +26,20 @@ PRIVATE
 !-----------------------------------------------------------------------------------------------------------------------------------
 
 !#if USE_LOADBALANCE
+#if !((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))
 INTERFACE FieldRestart
   MODULE PROCEDURE FieldRestart
 END INTERFACE
 
 PUBLIC :: FieldRestart
+#endif /*!((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))*/
 !#endif /*USE_LOADBALANCE*/
 !===================================================================================================================================
 
 CONTAINS
 
+
+#if !((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))
 !#if USE_LOADBALANCE
 SUBROUTINE FieldRestart()
 !===================================================================================================================================
@@ -46,22 +50,23 @@ USE MOD_Globals
 USE MOD_PreProc
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Vars   ,ONLY: PerformLoadBalance,UseH5IOLoadBalance
+!USE MOD_DG_Vars            ,ONLY: N_DG_Mapping
 #endif /*USE_LOADBALANCE*/
 USE MOD_IO_HDF5
 USE MOD_Restart_Vars       ,ONLY: N_Restart,RestartFile,RestartNullifySolution
-USE MOD_ChangeBasis        ,ONLY: ChangeBasis3D
+USE MOD_ChangeBasis        ,ONLY: ChangeBasis3D,ChangeBasis2D
 USE MOD_HDF5_Input         ,ONLY: OpenDataFile,CloseDataFile,ReadArray,ReadAttribute,GetDataSize
 USE MOD_HDF5_Input         ,ONLY: DatasetExists
 USE MOD_HDF5_Output        ,ONLY: FlushHDF5
+USE MOD_Interpolation_Vars ,ONLY: N_Inter,PREF_VDM
 #ifdef PP_POIS
 USE MOD_Equation_Vars      ,ONLY: Phi
 #elif USE_HDG
 USE MOD_Interpolation_Vars ,ONLY: NMax
 #else /*not PP_POIS and not USE_HDG*/
 USE MOD_DG_Vars            ,ONLY: U_N
-USE MOD_DG_Vars            ,ONLY: N_DG
+USE MOD_DG_Vars            ,ONLY: N_DG_Mapping
 USE MOD_ChangeBasis        ,ONLY: ChangeBasis3D
-USE MOD_Interpolation_Vars ,ONLY: N_Inter,PREF_VDM
 #endif /*PP_POIS*/
 #if defined(PARTICLES)
 USE MOD_Particle_Restart   ,ONLY: ParticleRestart
@@ -77,7 +82,8 @@ USE MOD_Mesh_Vars          ,ONLY: firstMortarInnerSide,lastMortarInnerSide,Morta
 USE MOD_Mesh_Vars          ,ONLY: lastMPISide_MINE
 #if USE_MPI
 USE MOD_MPI_Vars           ,ONLY: RecRequest_U,SendRequest_U
-USE MOD_MPI                ,ONLY: StartReceiveMPIData,StartSendMPIData,FinishExchangeMPIData
+!USE MOD_MPI                ,ONLY: StartReceiveMPIData,StartSendMPIData,FinishExchangeMPIData
+USE MOD_MPI                ,ONLY: StartReceiveMPISurfDataType,StartSendMPISurfDataType,FinishExchangeMPISurfDataType, Mask_MPIsides
 #endif /*USE_MPI*/
 #if USE_LOADBALANCE
 USE MOD_HDG                ,ONLY: SynchronizeVoltageOnEPC
@@ -101,10 +107,12 @@ USE MOD_HDG_Vars           ,ONLY: UseFPC
 USE PETSc
 USE MOD_HDG_Vars           ,ONLY: lambda_petsc,PETScGlobal,PETScLocalToSideID,nPETScUniqueSides
 #endif
+USE MOD_Mesh_Vars          ,ONLY: N_SurfMesh
 #else /*USE_HDG*/
 ! Non-HDG stuff
-USE MOD_PML_Vars           ,ONLY: DoPML,PMLToElem,U2,nPMLElems,PMLnVar
-USE MOD_Restart_Vars       ,ONLY: Vdm_GaussNRestart_GaussN
+USE MOD_Interpolation_Vars ,ONLY: Nmax
+USE MOD_LoadBalance_Vars   ,ONLY: nElemsOld,offsetElemOld
+USE MOD_PML_Vars           ,ONLY: DoPML,PMLToElem,nPMLElems,PMLnVar
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Vars   ,ONLY: MPInElemSend,MPInElemRecv,MPIoffsetElemSend,MPIoffsetElemRecv
 #endif /*USE_LOADBALANCE*/
@@ -120,7 +128,7 @@ INTEGER(KIND=IK)                   :: Nres,nVar
 INTEGER(KIND=IK)                   :: OffsetElemTmp,PP_nElemsTmp
 #if USE_HDG
 LOGICAL                            :: DG_SolutionLambdaExists
-LOGICAL                            :: DG_SolutionExists
+!LOGICAL                            :: DG_SolutionExists
 INTEGER                            :: SideID,iSide,MinGlobalSideID,MaxGlobalSideID
 REAL,ALLOCATABLE                   :: ExtendedLambda(:,:,:)
 INTEGER                            :: p,q,r,rr,pq(1:2)
@@ -130,7 +138,8 @@ INTEGER                            :: iMortar,MortarSideID,nMortars
 #if defined(PARTICLES)
 ! TODO: make ElemInfo available with PARTICLES=OFF and remove this preprocessor if/else as soon as possible
 REAL,ALLOCATABLE                   :: lambdaLBTmp(:,:,:)        !< lambda, ((PP_N+1)^2,nSides)
-INTEGER                            :: NonUniqueGlobalSideID
+INTEGER                            :: NonUniqueGlobalSideID,NSideMin,iVar
+REAL,ALLOCATABLE                   :: tmp2(:,:,:),tmp3(:,:,:),lambdaloc(:,:)
 #endif /*defined(PARTICLES)*/
 !INTEGER           :: checkRank
 #endif /*USE_LOADBALANCE*/
@@ -144,11 +153,15 @@ INTEGER                            :: iElem
 REAL,ALLOCATABLE                   :: UTmp(:,:,:,:,:)
 #endif /*USE_LOADBALANCE*/
 REAL,ALLOCATABLE                   :: U_local(:,:,:,:,:)
-REAL,ALLOCATABLE                   :: U_local2(:,:,:,:,:)
+!REAL,ALLOCATABLE                   :: U_local2(:,:,:,:,:)
 INTEGER                            :: iPML
 INTEGER(KIND=IK)                   :: PMLnVarTmp
+INTEGER                            :: iPMLElem
+REAL,ALLOCATABLE                   :: U(:,:,:,:,:)
+INTEGER                            :: i,j,k
 #endif /*USE_HDG*/
 #if USE_LOADBALANCE
+!INTEGER,ALLOCATABLE                :: N_DG_Tmp(:)
 #if defined(PARTICLES) || !(USE_HDG)
 ! TODO: make ElemInfo available with PARTICLES=OFF and remove this preprocessor if/else as soon as possible
 ! Custom data type
@@ -156,7 +169,6 @@ INTEGER                            :: MPI_LENGTH(1),MPI_TYPE(1),MPI_STRUCT
 INTEGER(KIND=MPI_ADDRESS_KIND)     :: MPI_DISPLACEMENT(1)
 #endif /*USE_LOADBALANCE*/
 #endif /*defined(PARTICLES) || !(USE_HDG)*/
-REAL,ALLOCATABLE                   :: U(:,:,:,:,:)
 #ifdef PP_POIS
 #elif USE_HDG
 #else /*not PP_POIS and not USE_HDG*/
@@ -171,6 +183,23 @@ INTEGER                            :: Nloc
 
 #if USE_LOADBALANCE
 IF(PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance))THEN
+
+    ! ! p-adaption: Re-distribute N_DG
+    ! ALLOCATE(N_DG_Tmp(1:nElems))
+    ! ASSOCIATE (&
+    !         counts_send  => INT(MPInElemSend     ) ,&
+    !         disp_send    => INT(MPIoffsetElemSend) ,&
+    !         counts_recv  => INT(MPInElemRecv     ) ,&
+    !         disp_recv    => INT(MPIoffsetElemRecv))
+    !   MPI_LENGTH       = 1
+    !   MPI_DISPLACEMENT = 0  ! 0*SIZEOF(MPI_SIZE)
+    !   MPI_TYPE         = MPI_INTEGER_INT_KIND
+    !   CALL MPI_TYPE_CREATE_STRUCT(1,MPI_LENGTH,MPI_DISPLACEMENT,MPI_TYPE,MPI_STRUCT,iError)
+    !   CALL MPI_TYPE_COMMIT(MPI_STRUCT,iError)
+    !   CALL MPI_ALLTOALLV(N_DG_Mapping(2,1+offSetElem:nElems+offSetElem),counts_send,disp_send,MPI_STRUCT,N_DG_Tmp,counts_recv,disp_recv,MPI_STRUCT,MPI_COMM_PICLAS,iError)
+    !   CALL MPI_TYPE_FREE(MPI_STRUCT,iError)
+    ! END ASSOCIATE
+
 #if USE_HDG
 #if USE_PETSC
   ! FPC: The MPI root process distributes the information among the sub-communicator processes for each FPC
@@ -195,8 +224,7 @@ IF(PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance))THEN
   ASSOCIATE( firstSide => ElemInfo_Shared(ELEM_FIRSTSIDEIND,offsetElem+1) + 1       ,&
              lastSide  => ElemInfo_Shared(ELEM_LASTSIDEIND ,offsetElem    + nElems) )
          !IPWRITE(UNIT_StdOut,*) "firstSide:lastSide,Nbr,nSides =", firstSide,lastSide,lastSide-firstSide+1,nSides
-    !ALLOCATE(lambdaLBTmp(PP_nVar,nGP_face,firstSide:lastSide))
-    CALL abort(__STAMP__,'not implemented')
+    ALLOCATE(lambdaLBTmp(PP_nVar,nGP_face(NMax)+1,firstSide:lastSide)) ! +1 comes from the NSideMin info that is sent additionally
   END ASSOCIATE
        !CALL MPI_BARRIER(MPI_COMM_PICLAS,iError)
        !IPWRITE(UNIT_StdOut,*) "MPInSideSend,MPIoffsetSideSend,MPInSideRecv,MPIoffsetSideRecv =", MPInSideSend,MPIoffsetSideSend,MPInSideRecv,MPIoffsetSideRecv
@@ -208,7 +236,7 @@ IF(PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance))THEN
           counts_recv  => (INT(MPInSideRecv     )) ,&
           disp_recv    => (INT(MPIoffsetSideRecv)))
     ! Communicate PartInt over MPI
-    MPI_LENGTH       = PP_nVar*nGP_face
+    MPI_LENGTH       = PP_nVar*(nGP_face(NMax)+1) ! +1 comes from the NSideMin info that is sent additionally
     MPI_DISPLACEMENT = 0  ! 0*SIZEOF(MPI_SIZE)
     MPI_TYPE         = MPI_DOUBLE_PRECISION
     CALL MPI_TYPE_CREATE_STRUCT(1,MPI_LENGTH,MPI_DISPLACEMENT,MPI_TYPE,MPI_STRUCT,iError)
@@ -250,14 +278,17 @@ IF(PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance))THEN
         END DO Check1 !MortarSideID
       END IF ! MortarType(1,iSide).EQ.0
 
+      ! Get NSideMin from last entry. Here no change basis is required as the NMax array is only filled up to the degree NSideMin
+      NSideMin = INT(lambdaLBTmp(1,nGP_face(NMax)+1,NonUniqueGlobalSideID))
+
       ! Rotate data into correct orientation
-      DO q=0,PP_N
-        DO p=0,PP_N
-          pq = CGNS_SideToVol2(PP_N,p,q,iLocSide_master)
-          r  = q    *(PP_N+1)+p    +1
-          rr = pq(2)*(PP_N+1)+pq(1)+1
+      DO q=0,NSideMin
+        DO p=0,NSideMin
+          pq = CGNS_SideToVol2(NSideMin,p,q,iLocSide_master)
+          r  = q    *(NSideMin+1)+p    +1
+          rr = pq(2)*(NSideMin+1)+pq(1)+1
           !lambda(:,r:r,iSide) = lambdaLBTmp(:,rr:rr,NonUniqueGlobalSideID)
-          CALL abort(__STAMP__,'not implemented')
+          HDG_Surf_N(iSide)%lambda(:,r:r) = lambdaLBTmp(:,rr:rr,NonUniqueGlobalSideID)
         END DO
       END DO !p,q
     END IF ! iSide.LE.lastMPISide_MINE
@@ -267,10 +298,11 @@ IF(PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance))THEN
 
 #if USE_MPI
   ! Exchange lambda MINE -> YOUR direction (as only the master sides have read the solution until now)
-  !CALL StartReceiveMPIData(1,lambda,1,nSides, RecRequest_U,SendID=1) ! Receive YOUR
-  !CALL StartSendMPIData(   1,lambda,1,nSides,SendRequest_U,SendID=1) ! Send MINE
-  !CALL FinishExchangeMPIData(SendRequest_U,RecRequest_U,SendID=1)
-  CALL abort(__STAMP__,'not implemented')
+  DO iVar=1,PP_nVar
+    CALL StartReceiveMPISurfDataType(RecRequest_U , 1 , 2)
+    CALL StartSendMPISurfDataType(  SendRequest_U , 1 , 2, iVar) ! 2 = lambda
+    CALL FinishExchangeMPISurfDataType(SendRequest_U, RecRequest_U, 1, 2, iVar) ! 2 = lambda
+  END DO ! iVar=1,PP_nVar
 #endif /*USE_MPI*/
 
 #if USE_PETSC
@@ -286,30 +318,82 @@ IF(PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance))THEN
 
 #else
   ! TODO: make ElemInfo available with PARTICLES=OFF and remove this preprocessor if/else as soon as possible
-  lambda=0.
+   CALL abort(__STAMP__,'TODO: make ElemInfo available with PARTICLES=OFF and remove this preprocessor if/else')
 #endif /*defined(PARTICLES)*/
 
 #else /*USE_HDG*/
   ! Only required for time discs where U is allocated
-  IF(ALLOCATED(U))THEN
-    ALLOCATE(UTmp(PP_nVar,0:PP_N,0:PP_N,0:PP_N,nElems))
-    ASSOCIATE (&
-            counts_send  => (INT(MPInElemSend     )) ,&
-            disp_send    => (INT(MPIoffsetElemSend)) ,&
-            counts_recv  => (INT(MPInElemRecv     )) ,&
-            disp_recv    => (INT(MPIoffsetElemRecv)))
-      ! Communicate PartInt over MPI
-      MPI_LENGTH       = PP_nVar*(PP_N+1)*(PP_N+1)*(PP_N+1)
-      MPI_DISPLACEMENT = 0  ! 0*SIZEOF(MPI_SIZE)
-      MPI_TYPE         = MPI_DOUBLE_PRECISION
-      CALL MPI_TYPE_CREATE_STRUCT(1,MPI_LENGTH,MPI_DISPLACEMENT,MPI_TYPE,MPI_STRUCT,iError)
-      CALL MPI_TYPE_COMMIT(MPI_STRUCT,iError)
-      CALL MPI_ALLTOALLV(U,counts_send,disp_send,MPI_STRUCT,UTmp,counts_recv,disp_recv,MPI_STRUCT,MPI_COMM_PICLAS,iError)
-      CALL MPI_TYPE_FREE(MPI_STRUCT,iError)
-    END ASSOCIATE
-    CALL MOVE_ALLOC(UTmp,U)
-  END IF ! ALLOCATED(U)
+  ALLOCATE(U(PP_nVar,0:NMax,0:NMax,0:NMax,nElemsOld))
+  DO iElem = 1, nElemsOld
+    Nloc = N_DG_Mapping(2,iElem+offSetElemOld)
+    IF(Nloc.EQ.Nmax)THEN
+      U(:,:,:,:,iElem) = U_N(iElem)%U(:,:,:,:)
+    ELSE
+      U(:,:,:,:,iElem) = 0.
+      DO k=0,Nloc
+          DO i=0,Nloc
+        DO j=0,Nloc
+            U(:,i,j,k,iElem) = U_N(iElem)%U(:,i,j,k)
+          END DO
+        END DO
+      END DO
+    END IF ! Nloc.Eq.Nmax
+  END DO ! iElem = 1, nElems
+
+  ALLOCATE(UTmp(PP_nVar,0:NMax,0:NMax,0:NMax,nElems))
+  ASSOCIATE (&
+          counts_send  => (INT(MPInElemSend     )) ,&
+          disp_send    => (INT(MPIoffsetElemSend)) ,&
+          counts_recv  => (INT(MPInElemRecv     )) ,&
+          disp_recv    => (INT(MPIoffsetElemRecv)))
+    ! Communicate PartInt over MPI
+    MPI_LENGTH       = PP_nVar*(NMax+1)*(NMax+1)*(NMax+1)
+    MPI_DISPLACEMENT = 0  ! 0*SIZEOF(MPI_SIZE)
+    MPI_TYPE         = MPI_DOUBLE_PRECISION
+    CALL MPI_TYPE_CREATE_STRUCT(1,MPI_LENGTH,MPI_DISPLACEMENT,MPI_TYPE,MPI_STRUCT,iError)
+    CALL MPI_TYPE_COMMIT(MPI_STRUCT,iError)
+    CALL MPI_ALLTOALLV(U,counts_send,disp_send,MPI_STRUCT,UTmp,counts_recv,disp_recv,MPI_STRUCT,MPI_COMM_PICLAS,iError)
+    CALL MPI_TYPE_FREE(MPI_STRUCT,iError)
+  END ASSOCIATE
+  CALL MOVE_ALLOC(UTmp,U)
+
+  DEALLOCATE(U_N)
+  ! the local DG solution in physical and reference space
+  ALLOCATE(U_N(1:nElems))
+  DO iElem = 1, nElems
+    Nloc = N_DG_Mapping(2,iElem+offSetElem)
+    ALLOCATE(U_N(iElem)%U(PP_nVar,0:Nloc,0:Nloc,0:Nloc))
+    DO k=0,Nloc
+      DO j=0,Nloc
+        DO i=0,Nloc
+          U_N(iElem)%U(:,i,j,k) = U(:,i,j,k,iElem)
+        END DO
+      END DO
+    END DO
+    ALLOCATE(U_N(iElem)%Ut(PP_nVar,0:Nloc,0:Nloc,0:Nloc))
+    U_N(iElem)%Ut = 0.
+  END DO ! iElem = 1, PP_nElems
+
+  ! Re-allocate the PML solution arrays
+  IF(DoPML)THEN
+    DO iPMLElem=1,nPMLElems
+      iElem = PMLToElem(iPMLElem)
+      Nloc = N_DG_Mapping(2,iElem+offSetElem)
+      ALLOCATE(U_N(iElem)%U2(PMLnVar,0:Nloc,0:Nloc,0:Nloc))
+      U_N(iElem)%U2 = 0.
+      ALLOCATE(U_N(iElem)%U2t(PMLnVar,0:Nloc,0:Nloc,0:Nloc))
+      U_N(iElem)%U2t = 0.
+    END DO
+  END IF ! DoPML
+  DEALLOCATE(U)
 #endif /*USE_HDG*/
+
+  ! Update N_DG and delete N_DG_Tmp
+  !CALL MOVE_ALLOC(N_DG_Tmp,N_DG)
+  !DO iElem = 1, nElemsOld
+  !  Nloc = N_DG_Mapping(2,iElem+offSetElem)
+  !END DO
+  !DEALLOCATE(N_DG_Tmp)
 
 ELSE ! normal restart
 #endif /*USE_LOADBALANCE*/
@@ -353,12 +437,14 @@ ELSE ! normal restart
     CALL ReadArray('DG_SolutionPhi',5,(/PP_nVar,Nres+1_IK,Nres+1_IK,Nres+1_IK,PP_nElemsTmp/),OffsetElemTmp,5,RealArray=Phi)
 #endif /*PP_nVar==8*/
 #elif USE_HDG
-    CALL DatasetExists(File_ID,'DG_Solution',DG_SolutionExists)
-    IF(DG_SolutionExists)THEN
-      CALL ReadArray('DG_Solution' ,5,(/PP_nVar,Nres+1_IK,Nres+1_IK,Nres+1_IK,PP_nElemsTmp/),OffsetElemTmp,5,RealArray=U)
-    ELSE
-      CALL abort(__STAMP__,'DG_Solution does not exist')
-    END IF
+    ! TODO: Do we need this for the HDG solver?
+    !CALL DatasetExists(File_ID,'DG_Solution',DG_SolutionExists)
+    !IF(DG_SolutionExists)THEN
+    !  ALLOCATE(U(PP_nVar,0:Nres,0:Nres,0:Nres,PP_nElemsTmp))
+    !  CALL ReadArray('DG_Solution' ,5,(/PP_nVar,Nres+1_IK,Nres+1_IK,Nres+1_IK,PP_nElemsTmp/),OffsetElemTmp,5,RealArray=U)
+    !ELSE
+    !  CALL abort(__STAMP__,'DG_Solution does not exist')
+    !END IF
 
     ! Read HDG lambda solution (sorted in ascending global unique side ID ordering)
     CALL DatasetExists(File_ID,'DG_SolutionLambda',DG_SolutionLambdaExists)
@@ -374,20 +460,24 @@ ELSE ! normal restart
         ASSOCIATE( &
               ExtendedOffsetSide => INT(MinGlobalSideID-1,IK)                 ,&
               ExtendednSides     => INT(MaxGlobalSideID-MinGlobalSideID+1,IK) ,&
-              nGP_face           => INT(nGP_face,IK)                          ,&
+              nGP_faceNMax       => INT(nGP_face(NMax),IK)                    ,&
               PP_nVarTmp         => INT(PP_nVar,IK))
           !ALLOCATE(ExtendedLambda(PP_nVar,nGP_face,MinGlobalSideID:MaxGlobalSideID))
-          ALLOCATE(ExtendedLambda(PP_nVar,nGP_face(NMax),1:ExtendednSides))
+          ALLOCATE(ExtendedLambda(PP_nVar,nGP_faceNMax,1:ExtendednSides))
           ExtendedLambda = HUGE(1.)
           !lambda = HUGE(1.)
           ! WARGNING: Data read in overlapping mode, therefore ReadNonOverlap_opt=F
-          CALL ReadArray('DG_SolutionLambda',3,(/PP_nVarTmp,nGP_face,ExtendednSides/),ExtendedOffsetSide,3,RealArray=ExtendedLambda&
+          CALL ReadArray('DG_SolutionLambda',3,(/PP_nVarTmp,nGP_faceNMax,ExtendednSides/),ExtendedOffsetSide,3,RealArray=ExtendedLambda&
 #if USE_MPI
               ,ReadNonOverlap_opt=.FALSE.&
 #endif /*USE_MPI*/
               )
 
-          ! Loop over all sides and map the solution via the non-unique global side ID to the SideID (1 to nSides)
+          ! Allocate temporary arrays
+          ALLOCATE(tmp2(1:PP_nVar,0:Nres,0:Nres))
+          ALLOCATE(tmp3(1:PP_nVar,0:Nres,0:Nres))
+          ALLOCATE(lambdaloc(1:PP_nVar,1:nGP_face(Nres)))
+
           DO iSide = 1, nSides
             IF(iSide.LE.lastMPISide_MINE)THEN
               iLocSide        = SideToElem(S2E_LOC_SIDE_ID    , iSide)
@@ -418,27 +508,56 @@ ELSE ! normal restart
                 END DO Check1 !MortarSideID
               END IF ! MortarType(1,iSide).EQ.0
 
-              DO q=0,PP_N
-                DO p=0,PP_N
-                  pq = CGNS_SideToVol2(PP_N,p,q,iLocSide_master)
-                  r  = q    *(PP_N+1)+p    +1
-                  rr = pq(2)*(PP_N+1)+pq(1)+1
-                  CALL abort(__STAMP__,'not implemented')
-                  !lambda(:,r:r,iSide) = ExtendedLambda(:,rr:rr,GlobalUniqueSideID(iSide)-ExtendedOffsetSide)
+              ! Read lambda from h5 on Nres
+              DO q=0,Nres
+                DO p=0,Nres
+                  pq = CGNS_SideToVol2(Nres,p,q,iLocSide_master)
+                  r  = q    *(Nres+1)+p    +1
+                  rr = pq(2)*(Nres+1)+pq(1)+1
+                  lambdaloc(:,r:r) = ExtendedLambda(:,rr:rr,GlobalUniqueSideID(iSide)-ExtendedOffsetSide)
                 END DO
               END DO !p,q
-              !IPWRITE(UNIT_StdOut,*) "iSide,SUM(lambda(:,r:r,iSide)) =", iSide,SUM(lambda(:,r:r,iSide))
+
+              ! Map from 1D to 2D array
+              DO iVar=1,PP_nVar
+                tmp2(iVar:iVar,0:NSideMin,0:NSideMin) = RESHAPE(lambdaloc(iVar,:),(/1,NSideMin+1,NSideMin+1/))
+              END DO ! iVar=1,PP_nVar
+
+              ! Get NSideMin
+              NSideMin = N_SurfMesh(iSide)%NSideMin
+
+              ! Map lambda from Nres to NSideMin
+              IF(NSideMin.EQ.N_Restart)THEN ! N is equal
+                tmp3(1:PP_nVar,0:NSideMin,0:NSideMin) = tmp2(1:PP_nVar,0:Nres,0:Nres)
+              ELSEIF(NSideMin.GT.N_Restart)THEN ! N increases: Simply interpolate the lower polynomial degree solution
+                CALL ChangeBasis2D(PP_nVar, N_Restart, NSideMin, PREF_VDM(N_Restart, NSideMin)%Vdm, tmp2(1:PP_nVar,0:Nres,0:Nres), tmp3(1:PP_nVar,0:NSideMin,0:NSideMin))
+              ELSE ! N reduces: This requires an intermediate modal basis
+                ! Switch to Legendre basis
+                CALL ChangeBasis2D(PP_nVar, N_Restart, N_Restart, N_Inter(N_Restart)%sVdm_Leg, tmp2(1:PP_nVar,0:Nres,0:Nres), tmp2(1:PP_nVar,0:Nres,0:Nres))
+                ! Switch back to nodal basis but cut-off the higher-order DOFs
+                CALL ChangeBasis2D(PP_nVar, NSideMin, NSideMin, N_Inter(NSideMin)%Vdm_Leg, tmp2(1:PP_nVar,0:Nres,0:Nres), tmp3(1:PP_nVar,0:NSideMin,0:NSideMin))
+              END IF ! NSideMin.EQ.N_Restart
+
+              ! Map back from 2D to 1D array
+              DO iVar=1,PP_nVar
+                HDG_Surf_N(iSide)%lambda(iVar,:) = RESHAPE(tmp3(1,0:NSideMin,0:NSideMin),(/nGP_face(NSideMin)/))
+              END DO ! iVar=1,PP_nVar
+
             END IF ! iSide.LE.lastMPISide_MINE
           END DO
           DEALLOCATE(ExtendedLambda)
+          DEALLOCATE(tmp2)
+          DEALLOCATE(tmp3)
+          DEALLOCATE(lambdaloc)
         END ASSOCIATE
 
 #if USE_MPI
       ! Exchange lambda MINE -> YOUR direction (as only the master sides have read the solution until now)
-      CALL abort(__STAMP__,'not implemented')
-      !CALL StartReceiveMPIData(1,lambda,1,nSides, RecRequest_U,SendID=1) ! Receive YOUR
-      !CALL StartSendMPIData(   1,lambda,1,nSides,SendRequest_U,SendID=1) ! Send MINE
-      !CALL FinishExchangeMPIData(SendRequest_U,RecRequest_U,SendID=1)
+      DO iVar=1,PP_nVar
+        CALL StartReceiveMPISurfDataType(RecRequest_U , 1 , 2)
+        CALL StartSendMPISurfDataType(  SendRequest_U , 1 , 2, iVar) ! 2 = lambda
+        CALL FinishExchangeMPISurfDataType(SendRequest_U, RecRequest_U, 1, 2, iVar) ! 2 = lambda
+      END DO ! iVar=1,PP_nVar
 #endif /*USE_MPI*/
 
 #if USE_PETSC
@@ -460,30 +579,43 @@ ELSE ! normal restart
 
 #else /*not PP_POIS and not USE_HDG*/
     ALLOCATE(U(1:nVar,0:Nres,0:Nres,0:Nres,PP_nElemsTmp))
+    ALLOCATE(Uloc(1:nVar,0:Nres,0:Nres,0:Nres))
     CALL ReadArray('DG_Solution',5,(/nVar,Nres+1_IK,Nres+1_IK,Nres+1_IK,PP_nElemsTmp/),OffsetElemTmp,5,RealArray=U)
     DO iElem = 1, nElems
-      Nloc = N_DG(iElem)
-      IF(Nloc.EQ.N_Restart)THEN
+      Nloc = N_DG_Mapping(2,iElem+offSetElem)
+      IF(Nloc.EQ.N_Restart)THEN ! N is equal
         U_N(iElem)%U(1:nVar,0:Nres,0:Nres,0:Nres) = U(1:nVar,0:Nres,0:Nres,0:Nres,iElem)
-      ELSEIF(Nloc.GT.N_Restart)THEN
+      ELSEIF(Nloc.GT.N_Restart)THEN ! N increases
         CALL ChangeBasis3D(PP_nVar, N_Restart, Nloc, PREF_VDM(N_Restart, Nloc)%Vdm, U(1:nVar,0:Nres,0:Nres,0:Nres,iElem), U_N(iElem)%U(1:nVar,0:Nloc,0:Nloc,0:Nloc))
-      ELSE
-        ALLOCATE(Uloc(1:nVar,0:Nres,0:Nres,0:Nres))
+      ELSE ! N reduces
         !transform the slave side to the same degree as the master: switch to Legendre basis
         CALL ChangeBasis3D(PP_nVar, N_Restart, N_Restart, N_Inter(N_Restart)%sVdm_Leg, U(1:nVar,0:Nres,0:Nres,0:Nres,iElem), Uloc)
         ! switch back to nodal basis
         CALL ChangeBasis3D(PP_nVar, Nloc, Nloc, N_Inter(Nloc)%Vdm_Leg, Uloc(1:nVar,0:Nloc,0:Nloc,0:Nloc), U_N(iElem)%U(1:nVar,0:Nloc,0:Nloc,0:Nloc))
-        DEALLOCATE(Uloc)
       END IF ! Nloc.EQ.N_Restart
     END DO ! iElem = 1, nElems
+    DEALLOCATE(Uloc)
     IF(DoPML)THEN
-      ALLOCATE(U_local(PMLnVar,0:PP_N,0:PP_N,0:PP_N,PP_nElems))
+      ALLOCATE(U_local(PMLnVar,0:Nres,0:Nres,0:Nres,nElems))
+      ALLOCATE(Uloc(1:PMLnVar,0:Nres,0:Nres,0:Nres))
       CALL ReadArray('PML_Solution',5,(/INT(PMLnVar,IK),Nres+1_IK,Nres+1_IK,Nres+1_IK,PP_nElemsTmp/),&
           OffsetElemTmp,5,RealArray=U_local)
       DO iPML=1,nPMLElems
-        U2(:,:,:,:,iPML) = U_local(:,:,:,:,PMLToElem(iPML))
+        iElem = PMLToElem(iPML)
+        Nloc  = N_DG_Mapping(2,iElem+offSetElem)
+        IF(Nloc.EQ.N_Restart)THEN ! N is equal
+          U_N(iElem)%U2(1:PMLnVar,0:Nres,0:Nres,0:Nres) = U_local(1:PMLnVar,0:Nres,0:Nres,0:Nres,iElem)
+        ELSEIF(Nloc.GT.N_Restart)THEN ! N increases
+          CALL ChangeBasis3D(PP_nVar, N_Restart, Nloc, PREF_VDM(N_Restart, Nloc)%Vdm, U_local(1:PMLnVar,0:Nres,0:Nres,0:Nres,iElem), U_N(iElem)%U2(1:PMLnVar,0:Nloc,0:Nloc,0:Nloc))
+        ELSE ! N reduces
+          !transform the slave side to the same degree as the master: switch to Legendre basis
+          CALL ChangeBasis3D(PP_nVar, N_Restart, N_Restart, N_Inter(N_Restart)%sVdm_Leg, U_local(1:PMLnVar,0:Nres,0:Nres,0:Nres,iElem), Uloc)
+          ! switch back to nodal basis
+          CALL ChangeBasis3D(PP_nVar, Nloc, Nloc, N_Inter(Nloc)%Vdm_Leg, Uloc(1:PMLnVar,0:Nloc,0:Nloc,0:Nloc), U_N(iElem)%U2(1:PMLnVar,0:Nloc,0:Nloc,0:Nloc))
+        END IF ! Nloc.EQ.N_Restart
       END DO ! iPML
       DEALLOCATE(U_local)
+      DEALLOCATE(Uloc)
     END IF ! DoPML
 #endif /*PP_POIS*/
     !CALL ReadState(RestartFile,nVar,PP_N,PP_nElems,U)
@@ -505,5 +637,6 @@ END IF ! PerformLoadBalance
 
 END SUBROUTINE FieldRestart
 !#endif /*USE_LOADBALANCE*/
+#endif /*!((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))*/
 
 END MODULE MOD_Restart_Field

@@ -1124,7 +1124,7 @@ END SUBROUTINE MapBRRegionToElem
 SUBROUTINE UpdateNonlinVolumeFac(NullifyField)
 ! MODULES
 USE MOD_PreProc
-USE MOD_HDG_Vars     ,ONLY: NonlinVolumeFac,RegionElectronRef,ElemToBRRegion
+USE MOD_HDG_Vars     ,ONLY: HDG_Vol_N,RegionElectronRef,ElemToBRRegion
 USE MOD_Globals_Vars ,ONLY: eps0
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -1136,13 +1136,15 @@ LOGICAL,INTENT(IN)      :: NullifyField !< Set NonlinVolumeFac = 0 if this varia
 INTEGER           :: i,j,k,r,iElem,RegionID
 !===================================================================================================================================
 IF(NullifyField) THEN
-  NonlinVolumeFac = 0.
+  DO iElem=1,PP_nElems
+    HDG_Vol_N(iElem)%NonlinVolumeFac = 0.
+  END DO !iElem
 ELSE
   DO iElem=1,PP_nElems
     RegionID=ElemToBRRegion(iElem)
     DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
       r=k*(PP_N+1)**2+j*(PP_N+1) + i+1
-      NonlinVolumeFac(r,iElem)=RegionElectronRef(1,RegionID) / (RegionElectronRef(3,RegionID)*eps0)
+      HDG_Vol_N(iElem)%NonlinVolumeFac(r) = RegionElectronRef(1,RegionID) / (RegionElectronRef(3,RegionID)*eps0)
     END DO; END DO; END DO !i,j,k
   END DO !iElem
 END IF ! NewtonAdaptStartValue

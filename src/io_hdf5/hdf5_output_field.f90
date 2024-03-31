@@ -26,6 +26,7 @@ PRIVATE
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
 
+#if !((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))
 #if USE_HDG
 #if defined(PARTICLES)
 PUBLIC :: WriteBRAverageElemToHDF5
@@ -34,16 +35,19 @@ PUBLIC :: WriteBRAverageElemToHDF5
 PUBLIC :: WritePMLzetaGlobalToHDF5
 #endif /*USE_HDG*/
 
-PUBLIC :: WriteDielectricGlobalToHDF5,WriteBGFieldToHDF5,WriteBGFieldAnalyticToHDF5
+PUBLIC :: WriteDielectricGlobalToHDF5
 #if (PP_nVar==8)
 PUBLIC :: WritePMLDataToHDF5
 #endif
 PUBLIC :: WriteErrorNormsToHDF5
+#endif /*!((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))*/
+PUBLIC :: WriteBGFieldToHDF5,WriteBGFieldAnalyticToHDF5
 !===================================================================================================================================
 
 CONTAINS
 
 
+#if !((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))
 SUBROUTINE WriteDielectricGlobalToHDF5()
 !===================================================================================================================================
 ! write DielectricGlobal field to HDF5 file
@@ -57,7 +61,7 @@ USE MOD_Mesh_Vars       ,ONLY: MeshFile,nGlobalElems,offsetElem
 USE MOD_Globals_Vars    ,ONLY: ProjectName
 USE MOD_io_HDF5
 USE MOD_ChangeBasis     ,ONLY: ChangeBasis3D
-USE MOD_DG_vars                ,ONLY: N_DG
+USE MOD_DG_vars                ,ONLY: N_DG_Mapping
 USE MOD_Interpolation_Vars     ,ONLY: PREF_VDM,Nmax
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Vars,ONLY: PerformLoadBalance
@@ -90,7 +94,7 @@ DielectricGlobal=0.
 
 DO iElem=1,PP_nElems
   IF(isDielectricElem(iElem))THEN
-    Nloc = N_DG(iElem)
+    Nloc = N_DG_Mapping(2,iElem+offSetElem)
     IF (Nloc.EQ.Nmax) THEN
       DielectricGlobal(1,:,:,:,iElem)=DielectricVol(ElemToDielectric(iElem))%DielectricEps(:,:,:)
       DielectricGlobal(2,:,:,:,iElem)=DielectricVol(ElemToDielectric(iElem))%DielectricMu( :,:,:)
@@ -223,13 +227,17 @@ SUBROUTINE WritePMLzetaGlobalToHDF5()
 ! MODULES
 USE MOD_Globals
 USE MOD_PreProc
-USE MOD_PML_Vars         ,ONLY: PMLzetaGlobal,PMLzeta0,PMLzeta,isPMLElem,ElemToPML
-USE MOD_Mesh_Vars        ,ONLY: MeshFile,nGlobalElems,offsetElem
-USE MOD_Globals_Vars     ,ONLY: ProjectName
+USE MOD_PML_Vars           ,ONLY: PMLzetaGlobal,PMLzeta0,isPMLElem,ElemToPML,PML
+USE MOD_Mesh_Vars          ,ONLY: MeshFile,nGlobalElems,offsetElem
+USE MOD_Globals_Vars       ,ONLY: ProjectName
 USE MOD_io_HDF5
 #if USE_LOADBALANCE
-USE MOD_LoadBalance_Vars ,ONLY: PerformLoadBalance
+USE MOD_LoadBalance_Vars   ,ONLY: PerformLoadBalance
 #endif /*USE_LOADBALANCE*/
+USE MOD_PML_Vars           ,ONLY: nPMLElems,PMLToElem
+USE MOD_Interpolation_Vars ,ONLY: PREF_VDM,Nmax
+USE MOD_ChangeBasis        ,ONLY: ChangeBasis3D
+USE MOD_DG_Vars            ,ONLY: N_DG_Mapping
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -243,27 +251,29 @@ CHARACTER(LEN=255),ALLOCATABLE  :: StrVarNames(:)
 CHARACTER(LEN=255)  :: FileName
 REAL                :: StartT,EndT
 REAL                :: OutputTime
-INTEGER             :: iElem
+INTEGER             :: iElem,iPMLElem,Nloc
 !===================================================================================================================================
 #if USE_LOADBALANCE
 IF(PerformLoadBalance) RETURN
 #endif /*USE_LOADBALANCE*/
 ! create global zeta field for parallel output of zeta distribution
-ALLOCATE(PMLzetaGlobal(1:N_variables,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems))
+ALLOCATE(PMLzetaGlobal(1:N_variables,0:NMax,0:NMax,0:NMax,1:PP_nElems))
 ALLOCATE(StrVarNames(1:N_variables))
 StrVarNames(1)='PMLzetaGlobalX'
 StrVarNames(2)='PMLzetaGlobalY'
 StrVarNames(3)='PMLzetaGlobalZ'
 PMLzetaGlobal=0.
-DO iElem=1,PP_nElems
-  IF(isPMLElem(iElem))THEN
-    IF(ALMOSTZERO(PMLzeta0))THEN
-      PMLzetaGlobal(:,:,:,:,iElem)=0.0
+IF(.NOT.ALMOSTZERO(PMLzeta0))THEN
+  DO iPMLElem=1,nPMLElems
+    iElem = PMLToElem(iPMLElem)
+    Nloc  = N_DG_Mapping(2,iElem+offSetElem)
+    IF(Nloc.EQ.Nmax)THEN
+      PMLzetaGlobal(:,:,:,:,iElem) = PML(iPMLElem)%zeta(:,:,:,:)/PMLzeta0
     ELSE
-      PMLzetaGlobal(:,:,:,:,iElem)=PMLzeta(:,:,:,:,ElemToPML(iElem))/PMLzeta0
-    END IF
-  END IF
-END DO!iElem
+      CALL ChangeBasis3D(3,Nloc,NMax,PREF_VDM(Nloc,NMax)%Vdm, PML(iPMLElem)%zeta(:,:,:,:)/PMLzeta0,PMLzetaGlobal(:,:,:,:,iElem))
+    END IF ! Nloc.Eq.Nmax
+  END DO
+END IF
 
 SWRITE(UNIT_stdOut,'(a)',ADVANCE='NO')' WRITE PMLZetaGlobal TO HDF5 FILE...'
 GETTIME(StartT)
@@ -283,7 +293,7 @@ ASSOCIATE (&
         nGlobalElems    => INT(nGlobalElems,IK)    ,&
         PP_nElems       => INT(PP_nElems,IK)       ,&
         N_variables     => INT(N_variables,IK)     ,&
-        N               => INT(PP_N,IK)            ,&
+        N               => INT(NMax,IK)            ,&
         offsetElem      => INT(offsetElem,IK)      )
   CALL GatheredWriteArray(FileName,create=.FALSE.,&
                           DataSetName='DG_Solution' , rank=5 , &
@@ -300,227 +310,6 @@ END SUBROUTINE WritePMLzetaGlobalToHDF5
 #endif /*USE_HDG*/
 
 
-SUBROUTINE WriteBGFieldToHDF5(OutputTime)
-!===================================================================================================================================
-! Subroutine to write the BField numerical solution to HDF5 format
-!===================================================================================================================================
-! MODULES
-USE MOD_PreProc
-USE MOD_Globals
-USE MOD_Globals_Vars       ,ONLY: ProjectName
-USE MOD_Mesh_Vars          ,ONLY: offsetElem,nGlobalElems, nElems,MeshFile
-USE MOD_io_HDF5
-USE MOD_HDF5_output        ,ONLY: copy_userblock
-USE MOD_HDF5_Output        ,ONLY: WriteArrayToHDF5
-USE MOD_Output_Vars        ,ONLY: UserBlockTmpFile,userblock_total_len
-USE MOD_Interpolation_Vars ,ONLY: BGField, NodeType, NBG, BGDataSize, BGType
-USE MOD_SuperB_Vars        ,ONLY: UseTimeDepCoil,nTimePoints,BGFieldTDep,BGFieldFrequency,BGFieldCurrent
-#if USE_LOADBALANCE
-USE MOD_LoadBalance_Vars   ,ONLY: PerformLoadBalance
-#endif /*USE_LOADBALANCE*/
-! IMPLICIT VARIABLE HANDLING
-IMPLICIT NONE
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
-REAL,INTENT(IN),OPTIONAL         :: OutputTime
-!-----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-CHARACTER(LEN=255)             :: FileName
-CHARACTER(LEN=255),ALLOCATABLE :: StrVarNames(:)
-INTEGER                        :: nVal
-REAL                           :: StartT,EndT
-!===================================================================================================================================
-#if USE_LOADBALANCE
-IF(PerformLoadBalance) RETURN
-#endif /*USE_LOADBALANCE*/
-! Generate skeleton for the file with all relevant data on a single proc (MPIRoot)
-IF(PRESENT(OutputTime))THEN
-  FileName=TRIM(TIMESTAMP(TRIM(ProjectName)//'_BGField',OutputTime))//'.h5'
-ELSE
-  FileName=TRIM(ProjectName)//'_BGField.h5'
-END IF ! PRESENT(OutputTime)
-
-SWRITE(UNIT_stdOut,'(A)',ADVANCE='NO')' WRITE BG-FIELD ['//TRIM(FileName)//'] TO HDF5 FILE...'
-GETTIME(StartT)
-
-! Create dataset attribute "VarNames"
-ALLOCATE(StrVarNames(1:BGDataSize))
-IF(BGType.EQ.1) THEN
-  StrVarNames(1)='BG-ElectricFieldX'
-  StrVarNames(2)='BG-ElectricFieldY'
-  StrVarNames(3)='BG-ElectricFieldZ'
-ELSE IF(BGType.EQ.2) THEN
-  StrVarNames(1)='BG-MagneticFieldX'
-  StrVarNames(2)='BG-MagneticFieldY'
-  StrVarNames(3)='BG-MagneticFieldZ'
-ELSE IF(BGType.EQ.3) THEN
-  StrVarNames(1)='BG-ElectricFieldX'
-  StrVarNames(2)='BG-ElectricFieldY'
-  StrVarNames(3)='BG-ElectricFieldZ'
-  StrVarNames(4)='BG-MagneticFieldX'
-  StrVarNames(5)='BG-MagneticFieldY'
-  StrVarNames(6)='BG-MagneticFieldZ'
-END IF
-
-IF(MPIRoot) THEN
-  CALL OpenDataFile(TRIM(FileName),create=.TRUE.,single=.TRUE.,readOnly=.FALSE.,userblockSize=userblock_total_len)
-  ! Write file header
-  CALL WriteHDF5Header('BGField',File_ID) ! File_Type='BGField'
-  ! Write dataset properties "Time","MeshFile","NextFile","NodeType","VarNames"
-  CALL WriteAttributeToHDF5(File_ID   , 'N'                    , 1          , IntegerScalar=NBG)
-  CALL WriteAttributeToHDF5(File_ID   , 'MeshFile'             , 1          , StrScalar=(/TRIM(MeshFile)/))
-  CALL WriteAttributeToHDF5(File_ID   , 'NodeType'             , 1          , StrScalar=(/NodeType/))
-  CALL WriteAttributeToHDF5(File_ID   , 'VarNames'             , BGDataSize , StrArray=StrVarNames)
-  CALL WriteAttributeToHDF5(File_ID   , 'Time'                 , 1          , RealScalar=0.)
-  IF(UseTimeDepCoil)THEN
-    CALL WriteAttributeToHDF5(File_ID , 'BGFieldFrequency'     , 1          , RealScalar=BGFieldFrequency)
-    CALL WriteAttributeToHDF5(File_ID , 'BGFieldCurrent'       , 1          , RealScalar=BGFieldCurrent)
-    CALL WriteAttributeToHDF5(File_ID , 'BGFieldTimeDependent' , 1          , LogicalScalar=.TRUE.)
-  ELSE
-    CALL WriteAttributeToHDF5(File_ID , 'BGFieldTimeDependent' , 1          , LogicalScalar=.FALSE.)
-  END IF
-  CALL CloseDataFile()
-  ! Add userblock to hdf5-file
-  CALL copy_userblock(TRIM(FileName)//C_NULL_CHAR,TRIM(UserblockTmpFile)//C_NULL_CHAR)
-END IF
-#if USE_MPI
-CALL MPI_BARRIER(MPI_COMM_PICLAS,iError)
-#endif /*USE_MPI*/
-CALL OpenDataFile(FileName,create=.FALSE.,single=.FALSE.,readOnly=.FALSE.,communicatorOpt=MPI_COMM_PICLAS)
-
-nVal=nGlobalElems  ! For the MPI case this must be replaced by the global number of elements (sum over all procs)
-
-! Associate construct for integer KIND=8 possibility
-ASSOCIATE (&
-  BGDataSize   => INT(BGDataSize,IK)    ,&
-  N            => INT(PP_N,IK)          ,&
-  PP_nElems    => INT(PP_nElems,IK)     ,&
-  offsetElem   => INT(offsetElem,IK)    ,&
-  nGlobalElems => INT(nGlobalElems,IK)  ,&
-  nTimePoints  => INT(nTimePoints,IK)    )
-
-  IF(UseTimeDepCoil)THEN
-    CALL WriteArrayToHDF5(DataSetName='DG_Solution'   , rank=6 , &
-                          nValGlobal=(/BGDataSize , N+1_IK , N+1_IK , N+1_IK , nGlobalElems, nTimePoints/) , &
-                          nVal      =(/BGDataSize , N+1_IK , N+1_IK , N+1_IK , PP_nElems   , nTimePoints/) , &
-                          offset    =(/0_IK       , 0_IK   , 0_IK   , 0_IK   , offsetElem  , 0_IK       /) , &
-                          collective=.false., RealArray=BGFieldTDep(1:BGDataSize,0:N,0:N,0:N,1:nElems,1:nTimePoints))
-  ELSE
-    CALL WriteArrayToHDF5(DataSetName='DG_Solution'   , rank=5 , &
-                          nValGlobal=(/BGDataSize , N+1_IK , N+1_IK , N+1_IK , nGlobalElems/) , &
-                          nVal      =(/BGDataSize , N+1_IK , N+1_IK , N+1_IK , PP_nElems/)    , &
-                          offset    =(/0_IK       , 0_IK   , 0_IK   , 0_IK   , offsetElem/)   , &
-                          collective=.false., RealArray=BGField(1:BGDataSize,0:N,0:N,0:N,1:nElems))
-  END IF ! UseTimeDepCoil
-
-END ASSOCIATE
-
-CALL CloseDataFile()
-
-DEALLOCATE(StrVarNames)
-
-GETTIME(EndT)
-CALL DisplayMessageAndTime(EndT-StartT, 'DONE', DisplayDespiteLB=.TRUE., DisplayLine=.FALSE.)
-END SUBROUTINE WriteBGFieldToHDF5
-
-
-SUBROUTINE WriteBGFieldAnalyticToHDF5()
-!===================================================================================================================================
-! Subroutine to write the BField analytical solution to HDF5 format
-!===================================================================================================================================
-! MODULES
-USE MOD_PreProc
-USE MOD_Globals
-USE MOD_Globals_Vars       ,ONLY: ProjectName
-USE MOD_Mesh_Vars          ,ONLY: offsetElem,nGlobalElems, nElems,MeshFile
-USE MOD_io_HDF5
-USE MOD_HDF5_output        ,ONLY: WriteArrayToHDF5, copy_userblock
-USE MOD_Output_Vars        ,ONLY: UserBlockTmpFile,userblock_total_len
-USE MOD_Interpolation_Vars ,ONLY: BGFieldAnalytic, NodeType, BGDataSize
-USE MOD_Restart_Vars       ,ONLY: RestartTime
-#if USE_LOADBALANCE
-USE MOD_LoadBalance_Vars   ,ONLY: PerformLoadBalance
-#endif /*USE_LOADBALANCE*/
-! IMPLICIT VARIABLE HANDLING
-IMPLICIT NONE
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-CHARACTER(LEN=255)             :: FileName
-CHARACTER(LEN=255),ALLOCATABLE :: StrVarNames(:)
-INTEGER                        :: nVal
-REAL,ALLOCATABLE               :: outputArray(:,:,:,:,:)
-REAL                           :: StartT,EndT
-!===================================================================================================================================
-#if USE_LOADBALANCE
-IF(PerformLoadBalance) RETURN
-#endif /*USE_LOADBALANCE*/
-SWRITE(UNIT_stdOut,'(A)',ADVANCE='NO')' WRITE BG-FIELD Analytic solution TO HDF5 FILE...'
-GETTIME(StartT)
-
-ALLOCATE(outputArray(1:BGDataSize,0:PP_N,0:PP_N,0:PP_N,1:nElems))
-outputArray(1,:,:,:,:) = BGFieldAnalytic(1,:,:,:,:)
-outputArray(2,:,:,:,:) = BGFieldAnalytic(2,:,:,:,:)
-outputArray(3,:,:,:,:) = BGFieldAnalytic(3,:,:,:,:)
-
-! Create dataset attribute "VarNames"
-ALLOCATE(StrVarNames(1:BGDataSize))
-StrVarNames(1)='BG-MagneticFieldX'
-StrVarNames(2)='BG-MagneticFieldY'
-StrVarNames(3)='BG-MagneticFieldZ'
-
-! Generate skeleton for the file with all relevant data on a single proc (MPIRoot)
-FileName=TRIM(ProjectName)//'_BFieldAnalytic.h5'
-IF(MPIRoot) THEN
-  CALL OpenDataFile(TRIM(FileName),create=.TRUE.,single=.TRUE.,readOnly=.FALSE.,userblockSize=userblock_total_len)
-  ! Write file header
-  CALL WriteHDF5Header('BField',File_ID) ! File_Type='BField'
-  ! Write dataset properties "Time","MeshFile","NextFile","NodeType","VarNames"
-  CALL WriteAttributeToHDF5(File_ID,'N',1,IntegerScalar=PP_N)
-  CALL WriteAttributeToHDF5(File_ID,'MeshFile',1,StrScalar=(/TRIM(MeshFile)/))
-  CALL WriteAttributeToHDF5(File_ID,'NodeType',1,StrScalar=(/NodeType/))
-  CALL WriteAttributeToHDF5(File_ID,'VarNames',BGDataSize,StrArray=StrVarNames)
-  CALL WriteAttributeToHDF5(File_ID,'Time'    ,1,RealScalar=RestartTime)
-  CALL CloseDataFile()
-  ! Add userblock to hdf5-file
-  CALL copy_userblock(TRIM(FileName)//C_NULL_CHAR,TRIM(UserblockTmpFile)//C_NULL_CHAR)
-END IF
-#if USE_MPI
-CALL MPI_BARRIER(MPI_COMM_PICLAS,iError)
-#endif /*USE_MPI*/
-CALL OpenDataFile(FileName,create=.FALSE.,single=.FALSE.,readOnly=.FALSE.,communicatorOpt=MPI_COMM_PICLAS)
-
-nVal=nGlobalElems  ! For the MPI case this must be replaced by the global number of elements (sum over all procs)
-
-! Associate construct for integer KIND=8 possibility
-ASSOCIATE (&
-  BGDataSize   => INT(BGDataSize,IK)   ,&
-  N            => INT(PP_N,IK)         ,&
-  PP_nElems    => INT(PP_nElems,IK)    ,&
-  offsetElem   => INT(offsetElem,IK)   ,&
-  nGlobalElems => INT(nGlobalElems,IK) )
-CALL WriteArrayToHDF5(DataSetName='DG_Solution'    , rank=5 , &
-                      nValGlobal=(/BGDataSize , N+1_IK , N+1_IK , N+1_IK , nGlobalElems/) , &
-                      nVal      =(/BGDataSize , N+1_IK , N+1_IK , N+1_IK , PP_nElems/)    , &
-                      offset    =(/0_IK       , 0_IK   , 0_IK   , 0_IK   , offsetElem/)   , &
-                      collective=.false., RealArray=outputArray)
-END ASSOCIATE
-
-CALL CloseDataFile()
-
-DEALLOCATE(StrVarNames)
-DEALLOCATE(outputArray)
-
-GETTIME(EndT)
-CALL DisplayMessageAndTime(EndT-StartT, 'DONE', DisplayDespiteLB=.TRUE., DisplayLine=.FALSE.)
-END SUBROUTINE WriteBGFieldAnalyticToHDF5
-
-
 #if (PP_nVar==8)
 SUBROUTINE WritePMLDataToHDF5(FileName)
 !===================================================================================================================================
@@ -529,8 +318,11 @@ SUBROUTINE WritePMLDataToHDF5(FileName)
 ! MODULES
 USE MOD_PreProc
 USE MOD_Globals
-USE MOD_Mesh_Vars     ,ONLY:offsetElem,nGlobalElems
-USE MOD_PML_Vars      ,ONLY:DoPML,PMLToElem,U2,nPMLElems,PMLnVar
+USE MOD_Mesh_Vars          ,ONLY: offsetElem,nGlobalElems,nElems
+USE MOD_PML_Vars           ,ONLY: DoPML,PMLToElem,nPMLElems,PMLnVar
+USE MOD_DG_Vars            ,ONLY: U_N,N_DG_Mapping
+USE MOD_Interpolation_Vars ,ONLY: PREF_VDM,Nmax
+USE MOD_ChangeBasis        ,ONLY: ChangeBasis3D
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -542,7 +334,7 @@ CHARACTER(LEN=255),INTENT(IN)  :: FileName
 ! LOCAL VARIABLES
 CHARACTER(LEN=255),ALLOCATABLE :: StrVarNames(:)
 REAL,ALLOCATABLE               :: UPML(:,:,:,:,:)
-INTEGER                        :: iPML
+INTEGER                        :: iPML,iElem,Nloc
 !===================================================================================================================================
 
 IF(DoPML)THEN
@@ -572,11 +364,17 @@ IF(DoPML)THEN
   StrVarNames(23)='PML-PsiE-P23'
   StrVarNames(24)='PML-PsiE-P24'
 
-  ALLOCATE(UPML(PMLnVar,0:PP_N,0:PP_N,0:PP_N,PP_nElems))
+  ALLOCATE(UPML(PMLnVar,0:Nmax,0:Nmax,0:Nmax,nElems))
   UPML=0.0
   DO iPML=1,nPMLElems
-    UPML(:,:,:,:,PMLToElem(iPML)) = U2(:,:,:,:,iPML)
-  END DO ! iPML
+    iElem = PMLToElem(iPML)
+    Nloc  = N_DG_Mapping(2,iElem+offSetElem)
+    IF(Nloc.EQ.Nmax)THEN
+      UPML(:,:,:,:,iElem) = U_N(iElem)%U2(:,:,:,:)
+    ELSE
+      CALL ChangeBasis3D(PP_nVar,Nloc,NMax,PREF_VDM(Nloc,NMax)%Vdm, U_N(iElem)%U2(:,:,:,:),UPML(:,:,:,:,iElem))
+    END IF ! Nloc.Eq.Nmax
+  END DO ! iElem = 1, nElems
 
   IF(MPIRoot)THEN
     CALL OpenDataFile(FileName,create=.FALSE.,single=.TRUE.,readOnly=.FALSE.)
@@ -704,6 +502,258 @@ DEALLOCATE(StrVarNames)
 GETTIME(EndT)
 CALL DisplayMessageAndTime(EndT-StartT, 'DONE', DisplayDespiteLB=.TRUE., DisplayLine=.FALSE.)
 END SUBROUTINE WriteErrorNormsToHDF5
+#endif /*!((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))*/
+
+
+SUBROUTINE WriteBGFieldToHDF5(OutputTime)
+!===================================================================================================================================
+! Subroutine to write the BField numerical solution to HDF5 format
+!===================================================================================================================================
+! MODULES
+USE MOD_PreProc
+USE MOD_Globals
+USE MOD_Globals_Vars       ,ONLY: ProjectName
+USE MOD_Mesh_Vars          ,ONLY: offsetElem,nGlobalElems, nElems,MeshFile
+USE MOD_io_HDF5
+USE MOD_HDF5_output        ,ONLY: copy_userblock
+USE MOD_HDF5_Output        ,ONLY: WriteArrayToHDF5
+USE MOD_Output_Vars        ,ONLY: UserBlockTmpFile,userblock_total_len
+USE MOD_Interpolation_Vars ,ONLY: NodeType, N_BG, BGDataSize, BGType, NMax,PREF_VDM
+USE MOD_SuperB_Vars        ,ONLY: UseTimeDepCoil,nTimePoints,BGFieldFrequency,BGFieldCurrent
+USE MOD_ChangeBasis        ,ONLY: ChangeBasis3D
+USE MOD_DG_Vars            ,ONLY: N_DG_Mapping
+#if USE_LOADBALANCE
+USE MOD_LoadBalance_Vars   ,ONLY: PerformLoadBalance
+#endif /*USE_LOADBALANCE*/
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+REAL,INTENT(IN),OPTIONAL         :: OutputTime
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+CHARACTER(LEN=255)             :: FileName
+CHARACTER(LEN=255),ALLOCATABLE :: StrVarNames(:)
+INTEGER                        :: nVal, iTimepoint, iElem, Nloc
+REAL                           :: StartT,EndT
+REAL                           :: BGTemp(BGDataSize,0:NMax,0:NMax,0:NMax, PP_nElems)
+REAL, ALLOCATABLE              :: BGTDepTemp(:,:,:,:,:,:)
+!===================================================================================================================================
+#if USE_LOADBALANCE
+IF(PerformLoadBalance) RETURN
+#endif /*USE_LOADBALANCE*/
+! Generate skeleton for the file with all relevant data on a single proc (MPIRoot)
+IF(PRESENT(OutputTime))THEN
+  FileName=TRIM(TIMESTAMP(TRIM(ProjectName)//'_BGField',OutputTime))//'.h5'
+ELSE
+  FileName=TRIM(ProjectName)//'_BGField.h5'
+END IF ! PRESENT(OutputTime)
+
+SWRITE(UNIT_stdOut,'(A)',ADVANCE='NO')' WRITE BG-FIELD ['//TRIM(FileName)//'] TO HDF5 FILE...'
+GETTIME(StartT)
+
+IF(UseTimeDepCoil) ALLOCATE(BGTDepTemp(BGDataSize,0:NMax,0:NMax,0:NMax, PP_nElems,nTimePoints))
+
+! Create dataset attribute "VarNames"
+ALLOCATE(StrVarNames(1:BGDataSize))
+IF(BGType.EQ.1) THEN
+  StrVarNames(1)='BG-ElectricFieldX'
+  StrVarNames(2)='BG-ElectricFieldY'
+  StrVarNames(3)='BG-ElectricFieldZ'
+ELSE IF(BGType.EQ.2) THEN
+  StrVarNames(1)='BG-MagneticFieldX'
+  StrVarNames(2)='BG-MagneticFieldY'
+  StrVarNames(3)='BG-MagneticFieldZ'
+ELSE IF(BGType.EQ.3) THEN
+  StrVarNames(1)='BG-ElectricFieldX'
+  StrVarNames(2)='BG-ElectricFieldY'
+  StrVarNames(3)='BG-ElectricFieldZ'
+  StrVarNames(4)='BG-MagneticFieldX'
+  StrVarNames(5)='BG-MagneticFieldY'
+  StrVarNames(6)='BG-MagneticFieldZ'
+END IF
+
+IF(MPIRoot) THEN
+  CALL OpenDataFile(TRIM(FileName),create=.TRUE.,single=.TRUE.,readOnly=.FALSE.,userblockSize=userblock_total_len)
+  ! Write file header
+  CALL WriteHDF5Header('BGField',File_ID) ! File_Type='BGField'
+  ! Write dataset properties "Time","MeshFile","NextFile","NodeType","VarNames"
+  CALL WriteAttributeToHDF5(File_ID   , 'N'                    , 1          , IntegerScalar=NMax)
+  CALL WriteAttributeToHDF5(File_ID   , 'MeshFile'             , 1          , StrScalar=(/TRIM(MeshFile)/))
+  CALL WriteAttributeToHDF5(File_ID   , 'NodeType'             , 1          , StrScalar=(/NodeType/))
+  CALL WriteAttributeToHDF5(File_ID   , 'VarNames'             , BGDataSize , StrArray=StrVarNames)
+  CALL WriteAttributeToHDF5(File_ID   , 'Time'                 , 1          , RealScalar=0.)
+  IF(UseTimeDepCoil)THEN
+    CALL WriteAttributeToHDF5(File_ID , 'BGFieldFrequency'     , 1          , RealScalar=BGFieldFrequency)
+    CALL WriteAttributeToHDF5(File_ID , 'BGFieldCurrent'       , 1          , RealScalar=BGFieldCurrent)
+    CALL WriteAttributeToHDF5(File_ID , 'BGFieldTimeDependent' , 1          , LogicalScalar=.TRUE.)
+  ELSE
+    CALL WriteAttributeToHDF5(File_ID , 'BGFieldTimeDependent' , 1          , LogicalScalar=.FALSE.)
+  END IF
+  CALL CloseDataFile()
+  ! Add userblock to hdf5-file
+  CALL copy_userblock(TRIM(FileName)//C_NULL_CHAR,TRIM(UserblockTmpFile)//C_NULL_CHAR)
+END IF
+#if USE_MPI
+CALL MPI_BARRIER(MPI_COMM_PICLAS,iError)
+#endif /*USE_MPI*/
+CALL OpenDataFile(FileName,create=.FALSE.,single=.FALSE.,readOnly=.FALSE.,communicatorOpt=MPI_COMM_PICLAS)
+
+nVal=nGlobalElems  ! For the MPI case this must be replaced by the global number of elements (sum over all procs)
+
+! Associate construct for integer KIND=8 possibility
+ASSOCIATE (&
+  BGDataSize   => INT(BGDataSize,IK)    ,&
+  N            => INT(NMax,IK)          ,&
+  PP_nElems    => INT(PP_nElems,IK)     ,&
+  offsetElem   => INT(offsetElem,IK)    ,&
+  nGlobalElems => INT(nGlobalElems,IK)  ,&
+  nTimePoints  => INT(nTimePoints,IK)    )
+
+  DO iElem = 1, INT(PP_nElems)
+    Nloc = N_DG_Mapping(2,iElem+offSetElem)
+    IF(Nloc.EQ.Nmax)THEN
+      BGTemp(:,:,:,:,iElem)   = N_BG(iElem)%BGField(:,:,:,:)      
+      IF(UseTimeDepCoil) THEN
+        DO iTimePoint = 1, nTimePoints
+          BGTDepTemp(:,:,:,:,iElem, iTimePoint)   = N_BG(iElem)%BGFieldTDep(:,:,:,:,iTimePoint)
+        END DO
+      END IF
+    ELSE
+      CALL ChangeBasis3D(BGDataSize,Nloc,NMax,PREF_VDM(Nloc,NMax)%Vdm, N_BG(iElem)%BGField,BGTemp(: ,:,:,:,iElem))
+      IF(UseTimeDepCoil) THEN
+        DO iTimePoint = 1, nTimePoints
+          CALL ChangeBasis3D(BGDataSize,Nloc,NMax,PREF_VDM(Nloc,NMax)%Vdm, N_BG(iElem)%BGFieldTDep(:,:,:,:,iTimePoint),BGTDepTemp(:,:,:,:,iElem, iTimePoint))
+        END DO
+      END IF
+    END IF ! Nloc.Eq.Nmax
+  END DO ! iElem = 1, nElems
+
+  IF(UseTimeDepCoil)THEN
+    CALL WriteArrayToHDF5(DataSetName='DG_Solution'   , rank=6 , &
+                          nValGlobal=(/BGDataSize , N+1_IK , N+1_IK , N+1_IK , nGlobalElems, nTimePoints/) , &
+                          nVal      =(/BGDataSize , N+1_IK , N+1_IK , N+1_IK , PP_nElems   , nTimePoints/) , &
+                          offset    =(/0_IK       , 0_IK   , 0_IK   , 0_IK   , offsetElem  , 0_IK       /) , &
+                          collective=.false., RealArray=BGTDepTemp(1:BGDataSize,0:N,0:N,0:N,1:nElems,1:nTimePoints))
+  ELSE
+    CALL WriteArrayToHDF5(DataSetName='DG_Solution'   , rank=5 , &
+                          nValGlobal=(/BGDataSize , N+1_IK , N+1_IK , N+1_IK , nGlobalElems/) , &
+                          nVal      =(/BGDataSize , N+1_IK , N+1_IK , N+1_IK , PP_nElems/)    , &
+                          offset    =(/0_IK       , 0_IK   , 0_IK   , 0_IK   , offsetElem/)   , &
+                          collective=.false., RealArray=BGTemp(1:BGDataSize,0:N,0:N,0:N,1:nElems))
+  END IF ! UseTimeDepCoil
+
+END ASSOCIATE
+
+CALL CloseDataFile()
+
+DEALLOCATE(StrVarNames)
+
+GETTIME(EndT)
+CALL DisplayMessageAndTime(EndT-StartT, 'DONE', DisplayDespiteLB=.TRUE., DisplayLine=.FALSE.)
+END SUBROUTINE WriteBGFieldToHDF5
+
+
+SUBROUTINE WriteBGFieldAnalyticToHDF5()
+!===================================================================================================================================
+! Subroutine to write the BField analytical solution to HDF5 format
+!===================================================================================================================================
+! MODULES
+USE MOD_PreProc
+USE MOD_Globals
+USE MOD_Globals_Vars       ,ONLY: ProjectName
+USE MOD_Mesh_Vars          ,ONLY: offsetElem,nGlobalElems, nElems,MeshFile
+USE MOD_io_HDF5
+USE MOD_HDF5_output        ,ONLY: WriteArrayToHDF5, copy_userblock
+USE MOD_Output_Vars        ,ONLY: UserBlockTmpFile,userblock_total_len
+USE MOD_Interpolation_Vars ,ONLY: N_BG, NodeType, BGDataSize, NMax, PREF_VDM
+USE MOD_Restart_Vars       ,ONLY: RestartTime
+USE MOD_DG_Vars            ,ONLY: N_DG_Mapping
+USE MOD_ChangeBasis        ,ONLY: ChangeBasis3D
+#if USE_LOADBALANCE
+USE MOD_LoadBalance_Vars   ,ONLY: PerformLoadBalance
+#endif /*USE_LOADBALANCE*/
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+CHARACTER(LEN=255)             :: FileName
+CHARACTER(LEN=255),ALLOCATABLE :: StrVarNames(:)
+INTEGER                        :: nVal, iElem, Nloc
+REAL                           :: outputArray(1:BGDataSize,0:NMax,0:NMax,0:NMax,1:nElems)
+REAL                           :: StartT,EndT
+!===================================================================================================================================
+#if USE_LOADBALANCE
+IF(PerformLoadBalance) RETURN
+#endif /*USE_LOADBALANCE*/
+SWRITE(UNIT_stdOut,'(A)',ADVANCE='NO')' WRITE BG-FIELD Analytic solution TO HDF5 FILE...'
+GETTIME(StartT)
+
+DO iElem = 1, INT(PP_nElems)
+  Nloc = N_DG_Mapping(2,iElem+offSetElem)
+  IF(Nloc.EQ.Nmax)THEN
+    outputArray(:,:,:,:,iElem) = N_BG(iElem)%BGFieldAnalytic(:,:,:,:)
+  ELSE
+    CALL ChangeBasis3D(BGDataSize,Nloc,NMax,PREF_VDM(Nloc,NMax)%Vdm, N_BG(iElem)%BGFieldAnalytic,outputArray(: ,:,:,:,iElem))
+  END IF ! Nloc.Eq.Nmax
+END DO ! iElem = 1, nElems
+
+! Create dataset attribute "VarNames"
+ALLOCATE(StrVarNames(1:BGDataSize))
+StrVarNames(1)='BG-MagneticFieldX'
+StrVarNames(2)='BG-MagneticFieldY'
+StrVarNames(3)='BG-MagneticFieldZ'
+
+! Generate skeleton for the file with all relevant data on a single proc (MPIRoot)
+FileName=TRIM(ProjectName)//'_BFieldAnalytic.h5'
+IF(MPIRoot) THEN
+  CALL OpenDataFile(TRIM(FileName),create=.TRUE.,single=.TRUE.,readOnly=.FALSE.,userblockSize=userblock_total_len)
+  ! Write file header
+  CALL WriteHDF5Header('BField',File_ID) ! File_Type='BField'
+  ! Write dataset properties "Time","MeshFile","NextFile","NodeType","VarNames"
+  CALL WriteAttributeToHDF5(File_ID,'N',1,IntegerScalar=Nmax)
+  CALL WriteAttributeToHDF5(File_ID,'MeshFile',1,StrScalar=(/TRIM(MeshFile)/))
+  CALL WriteAttributeToHDF5(File_ID,'NodeType',1,StrScalar=(/NodeType/))
+  CALL WriteAttributeToHDF5(File_ID,'VarNames',BGDataSize,StrArray=StrVarNames)
+  CALL WriteAttributeToHDF5(File_ID,'Time'    ,1,RealScalar=RestartTime)
+  CALL CloseDataFile()
+  ! Add userblock to hdf5-file
+  CALL copy_userblock(TRIM(FileName)//C_NULL_CHAR,TRIM(UserblockTmpFile)//C_NULL_CHAR)
+END IF
+#if USE_MPI
+CALL MPI_BARRIER(MPI_COMM_PICLAS,iError)
+#endif /*USE_MPI*/
+CALL OpenDataFile(FileName,create=.FALSE.,single=.FALSE.,readOnly=.FALSE.,communicatorOpt=MPI_COMM_PICLAS)
+
+nVal=nGlobalElems  ! For the MPI case this must be replaced by the global number of elements (sum over all procs)
+
+! Associate construct for integer KIND=8 possibility
+ASSOCIATE (&
+  BGDataSize   => INT(BGDataSize,IK)   ,&
+  N            => INT(NMax,IK)         ,&
+  PP_nElems    => INT(PP_nElems,IK)    ,&
+  offsetElem   => INT(offsetElem,IK)   ,&
+  nGlobalElems => INT(nGlobalElems,IK) )
+CALL WriteArrayToHDF5(DataSetName='DG_Solution'    , rank=5 , &
+                      nValGlobal=(/BGDataSize , N+1_IK , N+1_IK , N+1_IK , nGlobalElems/) , &
+                      nVal      =(/BGDataSize , N+1_IK , N+1_IK , N+1_IK , PP_nElems/)    , &
+                      offset    =(/0_IK       , 0_IK   , 0_IK   , 0_IK   , offsetElem/)   , &
+                      collective=.false., RealArray=outputArray)
+END ASSOCIATE
+
+CALL CloseDataFile()
+
+DEALLOCATE(StrVarNames)
+
+GETTIME(EndT)
+CALL DisplayMessageAndTime(EndT-StartT, 'DONE', DisplayDespiteLB=.TRUE., DisplayLine=.FALSE.)
+END SUBROUTINE WriteBGFieldAnalyticToHDF5
 
 
 END MODULE MOD_HDF5_Output_Fields

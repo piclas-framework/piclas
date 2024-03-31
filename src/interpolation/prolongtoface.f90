@@ -336,8 +336,8 @@ SUBROUTINE ProlongToFace_TypeBased(doMPISides)
 USE MOD_Globals
 USE MOD_PreProc
 USE MOD_Interpolation_Vars ,ONLY: N_Inter
-USE MOD_DG_Vars            ,ONLY: U_N,DG_Elems_slave,DG_Elems_master,U_Surf_N, N_DG
-USE MOD_Mesh_Vars          ,ONLY: SideToElem
+USE MOD_DG_Vars            ,ONLY: U_N,DG_Elems_slave,DG_Elems_master,U_Surf_N, N_DG_Mapping
+USE MOD_Mesh_Vars          ,ONLY: SideToElem, offSetElem
 USE MOD_Mesh_Vars          ,ONLY: firstBCSide,firstInnerSide
 USE MOD_Mesh_Vars          ,ONLY: firstMPISide_YOUR,lastMPISide_YOUR,lastMPISide_MINE,nSides,firstMortarMPISide,lastMortarMPISide
 ! IMPLICIT VARIABLE HANDLING
@@ -368,8 +368,9 @@ DO SideID=firstSideID,lastSideID
   IF(nbElemID.LE.0) CYCLE
   locSideID  = SideToElem(S2E_NB_LOC_SIDE_ID,SideID)
   flip       = SideToElem(S2E_FLIP,SideID)
-  Nloc = N_DG(nbElemID)
-  CALL ProlongToFace_Side(PP_nVar, Nloc, locSideID, flip, nbElemID,  U_N(nbElemID)%U, U_Surf_N(SideID)%U_slave)
+  Nloc = N_DG_Mapping(2,nbElemID+offSetElem)
+  !CALL ProlongToFace_Side(PP_nVar, Nloc, locSideID, flip, nbElemID,  U_N(nbElemID)%U, U_Surf_N(SideID)%U_slave)
+  CALL ProlongToFace_Side(PP_nVar, Nloc, locSideID, flip, U_N(nbElemID)%U, U_Surf_N(SideID)%U_slave)
   
 END DO !SideID
 
@@ -388,15 +389,17 @@ DO SideID=firstSideID,lastSideID
   ElemID    = SideToElem(S2E_ELEM_ID,SideID)
   IF(ElemID.LE.0) CYCLE
   locSideID = SideToElem(S2E_LOC_SIDE_ID,SideID)
-  Nloc = N_DG(ElemID)
+  Nloc = N_DG_Mapping(2,ElemID+offSetElem)
 
-  CALL ProlongToFace_Side(PP_nVar, Nloc, locSideID, 0, ElemID,  U_N(ElemID)%U, U_Surf_N(SideID)%U_master)
+  !CALL ProlongToFace_Side(PP_nVar, Nloc, locSideID, 0, ElemID,  U_N(ElemID)%U, U_Surf_N(SideID)%U_master)
+  CALL ProlongToFace_Side(PP_nVar, Nloc, locSideID, 0, U_N(ElemID)%U, U_Surf_N(SideID)%U_master)
 END DO !SideID
 
 END SUBROUTINE ProlongToFace_TypeBased
 
 
-SUBROUTINE ProlongToFace_Side(Nvar, Nloc, locSideID, flip, ElemID,  U, USide)
+!SUBROUTINE ProlongToFace_Side(Nvar, Nloc, locSideID, flip, ElemID,  U, USide)
+SUBROUTINE ProlongToFace_Side(Nvar, Nloc, locSideID, flip, U, USide)
 !===================================================================================================================================
 ! Interpolates the interior volume data (stored at the Gauss or Gauss-Lobatto points) to the surface
 ! integration points, using fast 1D Interpolation and store in global side structure
@@ -405,13 +408,11 @@ SUBROUTINE ProlongToFace_Side(Nvar, Nloc, locSideID, flip, ElemID,  U, USide)
 USE MOD_Globals
 USE MOD_PreProc
 USE MOD_Interpolation_Vars ,ONLY: N_Inter
-USE MOD_DG_Vars            ,ONLY: N_DG
-USE MOD_Mesh_Vars          ,ONLY: SideToElem
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-INTEGER, INTENT(IN):: locSideID, flip, ElemID, Nloc, nVar
+INTEGER, INTENT(IN):: locSideID, flip, Nloc, nVar !,ElemID
 REAL, INTENT(INOUT):: U(1:nVar,0:Nloc,0:Nloc,0:Nloc)
 REAL, INTENT(INOUT):: USide(1:nvar,0:Nloc,0:Nloc)
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -546,7 +547,7 @@ REAL               :: Uface(Nvar,0:Nloc,0:Nloc)
 END SUBROUTINE ProlongToFace_Side
 
 
-SUBROUTINE ProlongToFace_Elementlocal(nVar,locSideID,Uvol,Uface)
+SUBROUTINE ProlongToFace_Elementlocal(nVar,locSideID,Uvol,Uface, Nloc)
 !===================================================================================================================================
 ! Interpolates the interior volume data (stored at the Gauss or Gauss-Lobatto points) to the surface
 ! integration points, using fast 1D Interpolation and does NOT rotate into global coordinate system
@@ -564,10 +565,11 @@ IMPLICIT NONE
 ! INPUT VARIABLES
 INTEGER,INTENT(IN)              :: nVar
 INTEGER,INTENT(IN)              :: locSideID
-REAL,INTENT(IN)                 :: Uvol(1:nVar,0:PP_N,0:PP_N,0:PP_N)
+REAL,INTENT(IN)                 :: Uvol(1:nVar,0:Nloc,0:Nloc,0:Nloc)
+INTEGER,INTENT(IN)               :: Nloc
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
-REAL,INTENT(OUT)                :: Uface(1:nVar,0:PP_N,0:PP_N)
+REAL,INTENT(OUT)                :: Uface(1:nVar,0:Nloc,0:Nloc)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER                         :: i,j,k
@@ -576,11 +578,11 @@ INTEGER                         :: pq(1:3)
 
 #if (PP_NodeType==1) /* for Gauss-points*/
 Uface=0.
-DO k=0,PP_N
-  DO j=0,PP_N
-    DO i=0,PP_N
+DO k=0,Nloc
+  DO j=0,Nloc
+    DO i=0,Nloc
       pq=CGNS_VolToSide_IJK(i,j,k,locSideID)
-      Uface(:,pq(1),pq(2))=Uface(:,pq(1),pq(2))+Uvol(:,i,j,k)*N_Inter(PP_N)%L_PlusMinus(pq(3),locSideID)
+      Uface(:,pq(1),pq(2))=Uface(:,pq(1),pq(2))+Uvol(:,i,j,k)*N_Inter(Nloc)%L_PlusMinus(pq(3),locSideID)
     END DO ! i=0,PP_N
   END DO ! j=0,PP_N
 END DO ! k=0,PP_N
@@ -594,11 +596,11 @@ CASE(ETA_MINUS)
 CASE(ZETA_MINUS)
   Uface(:,:,:)=Uvol(:,:,:,0)
 CASE(XI_PLUS)
-  Uface(:,:,:)=Uvol(:,PP_N,:,:)
+  Uface(:,:,:)=Uvol(:,Nloc,:,:)
 CASE(ETA_PLUS)
-  Uface(:,:,:)=Uvol(:,:,PP_N,:)
+  Uface(:,:,:)=Uvol(:,:,Nloc,:)
 CASE(ZETA_PLUS)
-  Uface(:,:,:)=Uvol(:,:,:,PP_N)
+  Uface(:,:,:)=Uvol(:,:,:,Nloc)
 END SELECT
 #endif
 

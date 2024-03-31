@@ -48,7 +48,9 @@ SUBROUTINE WriteStateToHDF5(MeshFileName,OutputTime,PreviousTime)
 ! MODULES
 USE MOD_PreProc
 USE MOD_Globals
+#if !((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))
 USE MOD_DG_Vars                ,ONLY: U_N
+#endif /*!((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))*/
 USE MOD_Globals_Vars           ,ONLY: ProjectName
 USE MOD_Mesh_Vars              ,ONLY: offsetElem,nGlobalElems,nGlobalUniqueSides,nUniqueSides,offsetSide
 USE MOD_Equation_Vars          ,ONLY: StrVarNames
@@ -59,12 +61,12 @@ USE MOD_PICDepo_Vars           ,ONLY: OutputSource,PS_N
 USE MOD_Particle_Sampling_Vars ,ONLY: UseAdaptiveBC
 USE MOD_SurfaceModel_Vars      ,ONLY: nPorousBC
 USE MOD_Particle_Boundary_Vars ,ONLY: DoBoundaryParticleOutputHDF5, PartBound
-USE MOD_Dielectric_Vars        ,ONLY: DoDielectricSurfaceCharge
 USE MOD_Particle_Tracking_Vars ,ONLY: CountNbrOfLostParts,TotalNbrOfMissingParticlesSum,NbrOfNewLostParticlesTotal
 USE MOD_Mesh_Tools             ,ONLY: GetCNElemID
 USE MOD_Particle_Analyze_Vars  ,ONLY: nSpecAnalyze
 USE MOD_Particle_Analyze_Tools ,ONLY: CalcNumPartsOfSpec
 #if !((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))
+USE MOD_Dielectric_Vars        ,ONLY: DoDielectricSurfaceCharge
 USE MOD_HDF5_Output_Particles  ,ONLY: WriteNodeSourceExtToHDF5,WriteClonesToHDF5,WriteVibProbInfoToHDF5,WriteAdaptiveWallTempToHDF5
 #endif /*!((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))*/
 USE MOD_HDF5_Output_Particles  ,ONLY: WriteClonesToHDF5,WriteVibProbInfoToHDF5,WriteAdaptiveWallTempToHDF5
@@ -77,10 +79,10 @@ USE MOD_Equation_Vars          ,ONLY: E,Phi
 #endif /*PP_POIS*/
 #if USE_HDG
 USE MOD_Mesh_Vars              ,ONLY: N_SurfMesh
-USE MOD_HDG_Vars               ,ONLY: nGP_face,iLocSides,UseFPC,FPC,UseEPC,EPC,HDG_Surf_N
+USE MOD_HDG_Vars               ,ONLY: nGP_face,iLocSides,UseFPC,FPC,UseEPC,EPC
 #if PP_nVar==1
-USE MOD_Equation_Vars          ,ONLY: E,Et
-USE MOD_DG_Vars                ,ONLY: DG_Elems_master,DG_Elems_slave
+!USE MOD_Equation_Vars          ,ONLY: E,Et
+USE MOD_Mesh_Vars              ,ONLY: nElems
 #elif PP_nVar==3
 USE MOD_Equation_Vars          ,ONLY: B
 #else
@@ -112,19 +114,23 @@ USE MOD_HDG_Vars               ,ONLY: CoupledPowerPotential,UseCoupledPowerPoten
 #endif /*PARTICLES*/
 #else
 #endif /*USE_HDG*/
-USE MOD_DG_vars                ,ONLY: N_DG
+USE MOD_DG_vars                ,ONLY: N_DG_Mapping
 USE MOD_Interpolation_Vars     ,ONLY: PREF_VDM,Nmax
 USE MOD_Analyze_Vars           ,ONLY: OutputTimeFixed
 USE MOD_Output_Vars            ,ONLY: DoWriteStateToHDF5
 USE MOD_StringTools            ,ONLY: set_formatting,clear_formatting
 #if (PP_nVar==8)
+#if !((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))
 USE MOD_HDF5_Output_Fields     ,ONLY: WritePMLDataToHDF5
+#endif /*!((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))*/
 #endif
 USE MOD_HDF5_Output_ElemData   ,ONLY: WriteAdditionalElemData
 USE MOD_ChangeBasis            ,ONLY : ChangeBasis3D
 ! IMPLICIT VARIABLE HANDLING
+#if !((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))
 USE MOD_Analyze_Vars           ,ONLY: OutputErrorNormsToH5
 USE MOD_HDF5_Output_Fields     ,ONLY: WriteErrorNormsToHDF5
+#endif /*!((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))*/
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
@@ -154,7 +160,8 @@ REAL                           :: Utemp(PP_nVar,0:PP_N,0:PP_N,0:PP_N,PP_nElems)
 #elif USE_HDG
 #if PP_nVar==1
 REAL                           :: Utemp(1:4,0:PP_N,0:PP_N,0:PP_N,PP_nElems)
-INTEGER                        :: iElem,Nloc
+INTEGER                        :: iElem,Nloc,NSideMin
+REAL,ALLOCATABLE               :: Et(:,:,:,:,:)
 #elif PP_nVar==3
 REAL                           :: Utemp(1:3,0:PP_N,0:PP_N,0:PP_N,PP_nElems)
 #else /*PP_nVar=4*/
@@ -389,8 +396,8 @@ ASSOCIATE (&
     END IF ! nProcessors.GT.1
 #endif /*USE_MPI*/
 
-    Nloc = N_SurfMesh(iSide)%NSideMin
-    CALL LambdaSideToMaster(iSide,SortedLambda(:,:,iGlobSide),Nloc)
+    NSideMin = N_SurfMesh(iSide)%NSideMin
+    CALL LambdaSideToMaster(iSide,SortedLambda(:,:,iGlobSide),NSideMin)
 
   END DO ! iGlobSide = 1, nSides
 
@@ -450,11 +457,12 @@ ASSOCIATE (&
         END ASSOCIATE
       END DO; END DO; END DO !i,j,k
     END DO !iElem
-    Utemp(3:4,:,:,:,:) = E(2:3,:,:,:,:)
+    !Utemp(3:4,:,:,:,:) = E(2:3,:,:,:,:)
+    CALL abort(__STAMP__,'not implemented')
   ELSE
 #endif /*PARTICLES*/
     DO iElem = 1, INT(PP_nElems)
-      Nloc = N_DG(iElem)
+      Nloc = N_DG_Mapping(2,iElem+offSetElem)
       IF(Nloc.EQ.Nmax)THEN
         Utemp(1,:,:,:,iElem)   = U_N(iElem)%U(1,:,:,:)
         Utemp(2:4,:,:,:,iElem) = U_N(iElem)%E(1:3,:,:,:)
@@ -499,7 +507,7 @@ ASSOCIATE (&
 #else
 #if !((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))
   DO iElem = 1, INT(PP_nElems)
-    Nloc = N_DG(iElem)
+    Nloc = N_DG_Mapping(2,iElem+offSetElem)
     IF(Nloc.Eq.Nmax)THEN
       U(:,:,:,:,iElem) = U_N(iElem)%U(:,:,:,:)
     ELSE
@@ -541,8 +549,8 @@ ASSOCIATE (&
       CALL WriteAttributeToHDF5(File_ID,'VarNamesSource',INT(nVar,4),StrArray=LocalStrVarnames)
       CALL CloseDataFile()
     END IF
-      Nloc = N_DG(iElem)
     DO iElem = 1, INT(PP_nElems)
+      Nloc = N_DG_Mapping(2,iElem+offSetElem)
       IF(Nloc.Eq.Nmax)THEN
         PartSource(:,:,:,:,iElem) = PS_N(iElem)%PartSource(:,:,:,:)
       ELSE
@@ -564,6 +572,16 @@ ASSOCIATE (&
 #if USE_HDG
   ! Output temporal derivate of the electric field
   IF(CalcElectricTimeDerivative) THEN
+    ALLOCATE(Et(1:3,0:Nmax,0:Nmax,0:Nmax,nElems))
+    Et=0.0
+    DO iElem=1,nElems
+      Nloc  = N_DG_Mapping(2,iElem+offSetElem)
+      IF(Nloc.EQ.Nmax)THEN
+        Et(:,:,:,:,iElem) = U_N(iElem)%Et(:,:,:,:)
+      ELSE
+        CALL ChangeBasis3D(PP_nVar,Nloc,NMax,PREF_VDM(Nloc,NMax)%Vdm, U_N(iElem)%Et(:,:,:,:),Et(:,:,:,:,iElem))
+      END IF ! Nloc.Eq.Nmax
+    END DO ! iElem = 1, nElems
     nVar=3_IK
     ALLOCATE(LocalStrVarNames(1:nVar))
     LocalStrVarNames(1)='TimeDerivativeElecDisplacementX'
@@ -722,7 +740,9 @@ CALL WriteAdditionalElemData(FileName,ElementOut)
 CALL ModifyElemData(mode=2)
 
 #if (PP_nVar==8)
+#if !((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))
 CALL WritePMLDataToHDF5(FileName)
+#endif /*!((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))*/
 #endif
 
 #ifdef PARTICLES
@@ -737,7 +757,9 @@ CALL WriteEmissionVariablesToHDF5(FileName)
 GETTIME(EndT)
 CALL DisplayMessageAndTime(EndT-StartT, 'DONE', DisplayDespiteLB=.TRUE., DisplayLine=.FALSE.)
 
+#if !((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))
 IF(OutputErrorNormsToH5) CALL WriteErrorNormsToHDF5(OutputTime_loc)
+#endif /*!((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))*/
 
 #if defined(PARTICLES)
 CALL DisplayNumberOfParticles(1)

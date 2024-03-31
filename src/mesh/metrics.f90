@@ -1,4 +1,4 @@
-!==================================================================================================================================
+  !==================================================================================================================================
 ! Copyright (c) 2010 - 2018 Prof. Claus-Dieter Munz and Prof. Stefanos Fasoulas
 !
 ! This file is part of PICLas (piclas.boltzplatz.eu/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
@@ -80,12 +80,12 @@ SUBROUTINE BuildElem_xGP(NodeCoords)
 ! MODULES
 USE MOD_Globals
 USE MOD_PreProc
-USE MOD_Mesh_Vars          ,ONLY: NGeo,nElems,N_VolMesh
+USE MOD_Mesh_Vars          ,ONLY: NGeo,nElems,N_VolMesh, offSetElem
 USE MOD_Interpolation_Vars ,ONLY: NodeTypeCL,NodeTypeVISU,NodeType,Nmin,Nmax
 USE MOD_Interpolation      ,ONLY: GetVandermonde,GetNodesAndWeights
 USE MOD_ChangeBasis        ,ONLY: ChangeBasis3D_XYZ, ChangeBasis3D
 USE MOD_Basis              ,ONLY: LagrangeInterpolationPolys
-USE MOD_DG_Vars            ,ONLY: N_DG
+USE MOD_DG_Vars            ,ONLY: N_DG_Mapping
 !----------------------------------------------------------------------------------------------------------------------------------
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
@@ -120,7 +120,7 @@ END DO ! Nloc = Nmin, Nmax
 
 ! Set Elem_xGP for each element
 DO iElem=1,nElems
-  Nloc = N_DG(iElem)
+  Nloc = N_DG_Mapping(2,iElem+offSetElem)
   ALLOCATE(N_VolMesh(iElem)%Elem_xGP(3,0:Nloc,0:Nloc,0:Nloc))
   !WRITE (*,*) "NodeCoords(:,:,:,:,iElem) =", NodeCoords(:,:,:,:,iElem)
   CALL ChangeBasis3D(3,NGeo,Nloc,Vdm(Nloc)%Vdm_EQNGeo_CLNloc,NodeCoords(:,:,:,:,iElem),N_VolMesh(iElem)%Elem_xGP(:,:,:,:))
@@ -137,16 +137,16 @@ SUBROUTINE CalcMetrics(XCL_NGeo_Out,dXCL_NGeo_out)
 USE MOD_Globals
 USE MOD_PreProc
 USE MOD_Mesh_Vars          ,ONLY: NGeo,NGeoRef,nGlobalElems,xyzMinMax,GetMeshMinMaxBoundariesIsDone
-USE MOD_Mesh_Vars          ,ONLY: crossProductMetrics
+USE MOD_Mesh_Vars          ,ONLY: crossProductMetrics, offSetElem
 USE MOD_Mesh_Vars          ,ONLY: nElems
 USE MOD_Mesh_Vars          ,ONLY: DetJac_Ref
 USE MOD_Mesh_Vars          ,ONLY: crossProductMetrics
 USE MOD_Mesh_Vars          ,ONLY: NodeCoords,N_VolMesh
-USE MOD_Mesh_Vars          ,ONLY: nElems,offSetElem,nSides,N_SurfMesh
+USE MOD_Mesh_Vars          ,ONLY: nElems,offSetElem
 USE MOD_Interpolation      ,ONLY: GetVandermonde,GetNodesAndWeights,GetDerivativeMatrix
 USE MOD_ChangeBasis        ,ONLY: changeBasis3D,ChangeBasis3D_XYZ
 USE MOD_Basis              ,ONLY: LagrangeInterpolationPolys
-USE MOD_DG_Vars            ,ONLY: N_DG
+USE MOD_DG_Vars            ,ONLY: N_DG_Mapping
 USE MOD_Interpolation_Vars ,ONLY: NodeTypeCL,NodeTypeVISU,NodeType,Nmin,Nmax,NInfo
 USE MOD_ReadInTools        ,ONLY: GETLOGICAL
 #if USE_LOADBALANCE
@@ -191,7 +191,7 @@ REAL,ALLOCATABLE   :: scaledJacRef(:,:,:)
 REAL               :: SmallestscaledJacRef
 REAL,PARAMETER     :: scaledJacRefTol=0.01
 
-INTEGER           :: Nloc,iSide
+INTEGER           :: Nloc
 
 !===================================================================================================================================
 StartT=PICLASTIME()
@@ -259,7 +259,7 @@ SmallestscaledJacRef=HUGE(1.)
 DO iElem=1,nElems
   N_VolMesh(iElem)%dXCL_N=0.
   ! Get N
-  Nloc = N_DG(iElem)
+  Nloc = N_DG_Mapping(2,iElem+offSetElem)
 
   ! Init
   N_VolMesh(iElem)%Metrics_fTilde=0.
@@ -447,14 +447,14 @@ SUBROUTINE CalcSurfMetrics(iElem)
 ! MODULES
 USE MOD_PreProc
 USE MOD_Globals            ,ONLY: CROSS
-USE MOD_Mesh_Vars          ,ONLY: ElemToSide,nSides,MortarType,xyzMinMax,GetMeshMinMaxBoundariesIsDone
+USE MOD_Mesh_Vars          ,ONLY: ElemToSide,MortarType,xyzMinMax,GetMeshMinMaxBoundariesIsDone!,nSides
 USE MOD_Mesh_Vars          ,ONLY: NormalDirs,TangDirs,NormalSigns, N_SurfMesh
 USE MOD_Mappings           ,ONLY: CGNS_SideToVol2
 USE MOD_ChangeBasis        ,ONLY: ChangeBasis2D
 USE MOD_Mortar_Metrics     ,ONLY: Mortar_CalcSurfMetrics
-USE MOD_DG_Vars            ,ONLY: N_DG,DG_Elems_master,DG_Elems_slave
-USE MOD_Interpolation_Vars ,ONLY: Nmax,NInfo,PREF_VDM,N_Inter
-USE MOD_Mesh_Vars,          ONLY: SideToElem
+USE MOD_DG_Vars            ,ONLY: N_DG_Mapping,DG_Elems_master,DG_Elems_slave
+USE MOD_Interpolation_Vars ,ONLY: Nmax,NInfo!,PREF_VDM,N_Inter
+USE MOD_Mesh_Vars,          ONLY: SideToElem, offSetElem
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -475,7 +475,7 @@ REAL               :: Mortar_xGP( 3,0:Nmax,0:Nmax,4)
 REAL               :: tmp(        3,0:Nmax,0:Nmax)
 REAL               :: tmp2(       3,0:Nmax,0:Nmax)
 REAL               :: tmpflip(    3,0:Nmax,0:Nmax)
-INTEGER            :: Nloc,flip,NSideMin,NSideMax
+INTEGER            :: Nloc,flip!,NSideMin,NSideMax
 LOGICAL            :: flipSide
 #if USE_HDG
 INTEGER            :: iSide
@@ -485,7 +485,7 @@ INTEGER            :: iSide
 DO iLocSide=1,6
   SideID=ElemToSide(E2S_SIDE_ID,iLocSide,iElem)
   ! Use maximum polynomial degree of master/slave sides
-  Nloc = N_DG(iElem)
+  Nloc = N_DG_Mapping(2,iElem+offSetElem)
   N_max = MAX(DG_Elems_master(SideID),DG_Elems_slave(SideID))
   flipSide=.FALSE.
   !WRITE (*,*) "Nloc,N_max,ElemToSide(E2S_FLIP,iLocSide,iElem) =", Nloc,N_max,ElemToSide(E2S_FLIP,iLocSide,iElem)

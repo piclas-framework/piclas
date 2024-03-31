@@ -383,11 +383,11 @@ SUBROUTINE CalcPoyntingIntegral(PoyntingIntegral)
 ! Calculation of Poynting Integral with its own Prolong to face // check if Gauss-Lobatto or Gauss Points is used is missing ... ups
 !===================================================================================================================================
 ! MODULES
-USE MOD_Mesh_Vars          ,ONLY: nElems, N_SurfMesh
+USE MOD_Mesh_Vars          ,ONLY: nElems, N_SurfMesh, offSetElem
 USE MOD_Mesh_Vars          ,ONLY: ElemToSide
 USE MOD_Analyze_Vars       ,ONLY: nPoyntingIntPlanes,S,isPoyntingIntSide,SideIDToPoyntingSide,PoyntingMainDir
 USE MOD_Interpolation_Vars ,ONLY: N_inter
-USE MOD_DG_Vars            ,ONLY: U_N,N_DG
+USE MOD_DG_Vars            ,ONLY: U_N,N_DG_Mapping
 USE MOD_Globals_Vars       ,ONLY: smu0
 USE MOD_Dielectric_Vars    ,ONLY: isDielectricFace,PoyntingUseMuR_Inv,Dielectric_MuR_Master_inv,DoDielectric
 USE MOD_Globals
@@ -414,7 +414,7 @@ PoyntingIntegral = 0.
 
 iPoyntingSide = 0 ! only if all Poynting vectors are desired
 DO iELEM = 1, nElems
-  Nloc = N_DG(iElem)
+  Nloc = N_DG_Mapping(2,iElem+offSetElem)
   ALLOCATE(Uface(PP_nVar,0:Nloc,0:Nloc))
   ALLOCATE(SIP(0:Nloc,0:Nloc))
   Do ilocSide = 1, 6
@@ -635,7 +635,7 @@ SUBROUTINE GetPoyntingIntPlane()
 !> with a defined Poynting vector integral plane.
 !===================================================================================================================================
 ! MODULES
-USE MOD_Mesh_Vars       ,ONLY: nSides,nElems
+USE MOD_Mesh_Vars       ,ONLY: nSides,nElems, offSetElem
 USE MOD_Mesh_Vars       ,ONLY: ElemToSide,N_SurfMesh
 USE MOD_Analyze_Vars    ,ONLY: PoyntingIntCoordErr,nPoyntingIntPlanes,PosPoyntingInt,S,STEM
 USE MOD_Analyze_Vars    ,ONLY: isPoyntingIntSide,SideIDToPoyntingSide,PoyntingMainDir
@@ -648,7 +648,7 @@ USE MOD_Globals
 #else
 USE MOD_Globals         ,ONLY: CollectiveStop
 #endif
-USE MOD_DG_Vars         ,ONLY: N_DG
+USE MOD_DG_Vars         ,ONLY: N_DG_Mapping
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Vars,ONLY: PerformLoadBalance
 #endif /*USE_LOADBALANCE*/
@@ -736,7 +736,7 @@ PoyntingUseMuR_Inv=.FALSE.
 DO iPlane = 1, nPoyntingIntPlanes
   ! Loop over all elements
   DO iElem=1,nElems
-    Nloc = N_DG(iElem)
+    Nloc = N_DG_Mapping(2,iElem+offSetElem)
     ! Loop over all local sides
     DO iSide=1,6
       IF(ElemToSide(E2S_FLIP,iSide,iElem)==0)THEN ! only master sides
@@ -872,18 +872,18 @@ SUBROUTINE CalcPotentialEnergy(WEl)
 ! MODULES
 USE MOD_Globals
 USE MOD_Preproc
-USE MOD_Mesh_Vars          ,ONLY: nElems, N_VolMesh
+USE MOD_Mesh_Vars          ,ONLY: nElems, N_VolMesh, offSetElem
 USE MOD_Interpolation_Vars ,ONLY: N_Inter
 #if (PP_nVar==8)
 USE MOD_Globals_Vars       ,ONLY: smu0
 #endif /*PP_nVar=8*/
 USE MOD_Globals_Vars       ,ONLY: eps0
-USE MOD_DG_Vars            ,ONLY: U_N,N_DG
+USE MOD_DG_Vars            ,ONLY: U_N,N_DG_Mapping
 #if ! (USE_HDG)
 #endif /*PP_nVar=8*/
 #if USE_HDG
 #if PP_nVar==1
-USE MOD_Equation_Vars      ,ONLY: E
+!USE MOD_Equation_Vars      ,ONLY: E
 #elif PP_nVar==3
 USE MOD_Equation_Vars      ,ONLY: B
 #else
@@ -937,9 +937,14 @@ DO iElem=1,nElems
   Wphi_tmp = 0.
   Wpsi_tmp = 0.
 #endif /*PP_nVar=8*/
-  Nloc = N_DG(iElem)
-  ASSOCIATE( wGP => N_Inter(Nloc)%wGP)
+  Nloc = N_DG_Mapping(2,iElem+offSetElem)
+  ASSOCIATE( wGP => N_Inter(Nloc)%wGP )
   DO k=0,Nloc; DO j=0,Nloc; DO i=0,Nloc
+#if USE_HDG
+  ASSOCIATE( Ex  => U_N(iElem)%E(1,i,j,k) ,&
+             Ey  => U_N(iElem)%E(2,i,j,k) ,&
+             Ez  => U_N(iElem)%E(3,i,j,k) )
+#endif /*USE_HDG*/
 ! in electromagnetische felder by henke 2011 - springer
 ! WMag = 1/(2mu) * int_V B^2 dV
 #if USE_HDG
@@ -948,7 +953,7 @@ DO iElem=1,nElems
 #elif PP_nVar==3
     B_abs = B(1,i,j,k,iElem)*B(1,i,j,k,iElem) + B(2,i,j,k,iElem)*B(2,i,j,k,iElem) + B(3,i,j,k,iElem)*B(3,i,j,k,iElem)
 #else /*PP_nVar==4*/
-    E_abs = E(1,i,j,k,iElem)*E(1,i,j,k,iElem) + E(2,i,j,k,iElem)*E(2,i,j,k,iElem) + E(3,i,j,k,iElem)*E(3,i,j,k,iElem)
+    E_abs = Ex*Ex + Ey*Ey + Ez*Ez
     B_abs = B(1,i,j,k,iElem)*B(1,i,j,k,iElem) + B(2,i,j,k,iElem)*B(2,i,j,k,iElem) + B(3,i,j,k,iElem)*B(3,i,j,k,iElem)
 #endif /*PP_nVar==1*/
 #else
@@ -973,6 +978,9 @@ DO iElem=1,nElems
     Wphi_tmp = Wphi_tmp + wGP(i)*wGP(j)*wGP(k)   / N_VolMesh(iElem)%sJ(i,j,k) * Phi_abs
     Wpsi_tmp = Wpsi_tmp + wGP(i)*wGP(j)*wGP(k)   / N_VolMesh(iElem)%sJ(i,j,k) * Psi_abs
 #endif /*PP_nVar=8*/
+#if USE_HDG
+  END ASSOCIATE
+#endif /*USE_HDG*/
   END DO; END DO; END DO
   END ASSOCIATE
   WEl = WEl + WEl_tmp
@@ -1029,7 +1037,7 @@ USE MOD_Preproc
 USE MOD_Dielectric_vars    ,ONLY: DielectricVol
 #endif /*PP_nVar==3 or 4*/
 #endif /*USE_HDG or PP_nVar==8*/
-USE MOD_Mesh_Vars          ,ONLY: nElems, N_VolMesh
+USE MOD_Mesh_Vars          ,ONLY: nElems, N_VolMesh, offSetElem
 USE MOD_Interpolation_Vars ,ONLY: N_Inter
 #if (PP_nVar==8)
 USE MOD_Dielectric_vars    ,ONLY: DielectricVol
@@ -1037,12 +1045,12 @@ USE MOD_Globals_Vars       ,ONLY: smu0
 #endif /*PP_nVar=8*/
 USE MOD_Globals_Vars       ,ONLY: eps0
 USE MOD_Dielectric_vars    ,ONLY: isDielectricElem,DielectricVol,ElemToDielectric
-USE MOD_DG_Vars            ,ONLY: U_N,N_DG
+USE MOD_DG_Vars            ,ONLY: U_N,N_DG_Mapping
 #if !(USE_HDG)
 #endif /*PP_nVar=8*/
 #if USE_HDG
 #if PP_nVar==1
-USE MOD_Equation_Vars      ,ONLY: E
+!USE MOD_Equation_Vars      ,ONLY: E
 #elif PP_nVar==3
 USE MOD_Equation_Vars      ,ONLY: B
 #else
@@ -1093,16 +1101,21 @@ DO iElem=1,nElems
   !--- Calculate and save volume of element iElem
   WEl_tmp=0.
   WMag_tmp=0.
-  Nloc = N_DG(iElem)
-  ASSOCIATE( wGP => N_Inter(Nloc)%wGP)
+  Nloc = N_DG_Mapping(2,iElem+offSetElem)
+  ASSOCIATE( wGP => N_Inter(Nloc)%wGP )
 
   IF(isDielectricElem(iElem))THEN
     DO k=0,Nloc; DO j=0,Nloc; DO i=0,Nloc
+#if USE_HDG
+  ASSOCIATE( Ex  => U_N(iElem)%E(1,i,j,k) ,&
+             Ey  => U_N(iElem)%E(2,i,j,k) ,&
+             Ez  => U_N(iElem)%E(3,i,j,k) )
+#endif /*USE_HDG*/
       ! in electromagnetische felder by henke 2011 - springer
       ! WMag = 1/(2mu) * int_V B^2 dV
 #if USE_HDG
 #if PP_nVar==1
-      E_abs = E(1,i,j,k,iElem)*E(1,i,j,k,iElem) + E(2,i,j,k,iElem)*E(2,i,j,k,iElem) + E(3,i,j,k,iElem)*E(3,i,j,k,iElem)
+      E_abs = Ex*Ex + Ey*Ey + Ez*Ez
 #elif PP_nVar==3
       B_abs = B(1,i,j,k,iElem)*B(1,i,j,k,iElem) + B(2,i,j,k,iElem)*B(2,i,j,k,iElem) + B(3,i,j,k,iElem)*B(3,i,j,k,iElem)
 #else /*PP_nVar==4*/
@@ -1131,14 +1144,22 @@ DO iElem=1,nElems
       Wphi_tmp = Wphi_tmp + wGP(i)*wGP(j)*wGP(k) / N_VolMesh(iElem)%sJ(i,j,k) * Phi_abs * DielectricVol(ElemToDielectric(iElem))%DielectricEps(i,j,k)
       Wpsi_tmp = Wpsi_tmp + wGP(i)*wGP(j)*wGP(k) / N_VolMesh(iElem)%sJ(i,j,k) * Psi_abs / DielectricVol(ElemToDielectric(iElem))%DielectricMu(i,j,k)
 #endif /*PP_nVar=8*/
+#if USE_HDG
+  END ASSOCIATE
+#endif /*USE_HDG*/
     END DO; END DO; END DO
   ELSE
     DO k=0,Nloc; DO j=0,Nloc; DO i=0,Nloc
+#if USE_HDG
+  ASSOCIATE( Ex  => U_N(iElem)%E(1,i,j,k) ,&
+             Ey  => U_N(iElem)%E(2,i,j,k) ,&
+             Ez  => U_N(iElem)%E(3,i,j,k) )
+#endif /*USE_HDG*/
       ! in electromagnetische felder by henke 2011 - springer
       ! WMag = 1/(2mu) * int_V B^2 dV
 #if USE_HDG
 #if PP_nVar==1
-      E_abs = E(1,i,j,k,iElem)*E(1,i,j,k,iElem) + E(2,i,j,k,iElem)*E(2,i,j,k,iElem) + E(3,i,j,k,iElem)*E(3,i,j,k,iElem)
+      E_abs = Ex*Ex + Ey*Ey + Ez*Ez
 #elif PP_nVar==3
       B_abs = B(1,i,j,k,iElem)*B(1,i,j,k,iElem) + B(2,i,j,k,iElem)*B(2,i,j,k,iElem) + B(3,i,j,k,iElem)*B(3,i,j,k,iElem)
 #else /*PP_nVar==4*/
@@ -1167,6 +1188,9 @@ DO iElem=1,nElems
       Wphi_tmp = Wphi_tmp + wGP(i)*wGP(j)*wGP(k) / N_VolMesh(iElem)%sJ(i,j,k) * Phi_abs
       Wpsi_tmp = Wpsi_tmp + wGP(i)*wGP(j)*wGP(k) / N_VolMesh(iElem)%sJ(i,j,k) * Psi_abs
 #endif /*PP_nVar=8*/
+#if USE_HDG
+  END ASSOCIATE
+#endif /*USE_HDG*/
     END DO; END DO; END DO
   END IF
   END ASSOCIATE
@@ -1353,11 +1377,11 @@ SUBROUTINE CalculateAverageElectricPotential()
 ! missing ... ups
 !===================================================================================================================================
 ! MODULES
-USE MOD_Mesh_Vars          ,ONLY: nElems, N_SurfMesh
+USE MOD_Mesh_Vars          ,ONLY: nElems, N_SurfMesh, offSetElem
 USE MOD_Mesh_Vars          ,ONLY: ElemToSide
 USE MOD_Analyze_Vars       ,ONLY: isAverageElecPotSide,AverageElectricPotential,AverageElectricPotentialFaces
 USE MOD_Interpolation_Vars ,ONLY: N_Inter,NMax
-USE MOD_DG_Vars            ,ONLY: U_N,U_Surf_N,N_DG
+USE MOD_DG_Vars            ,ONLY: U_N,U_Surf_N,N_DG_Mapping
 #if USE_MPI
 USE MOD_Globals
 #endif
@@ -1381,7 +1405,7 @@ REAL             :: area_loc,integral_loc
 AverageElectricPotentialProc = 0.
 
 DO iElem = 1, nElems
-  Nloc = N_DG(iElem)
+  Nloc = N_DG_Mapping(2,iElem+offSetElem)
   Do ilocSide = 1, 6
     IF(ElemToSide(E2S_FLIP,ilocSide,iElem)==0)THEN ! only master sides
       SideID=ElemToSide(E2S_SIDE_ID,ilocSide,iElem)
@@ -1632,10 +1656,10 @@ SUBROUTINE CalculateElectricDisplacementCurrentSurface()
 !> 4.) Communicate the integrated current values on each boundary to the MPI root process (the root outputs the values to .csv)
 !===================================================================================================================================
 ! MODULES
-USE MOD_Mesh_Vars          ,ONLY: N_SurfMesh,SideToElem,nBCSides,N_SurfMesh,BC
+USE MOD_Mesh_Vars          ,ONLY: N_SurfMesh,SideToElem,nBCSides,N_SurfMesh,BC, offSetElem
 USE MOD_Analyze_Vars       ,ONLY: EDC
 USE MOD_Interpolation_Vars ,ONLY: N_Inter
-USE MOD_DG_Vars            ,ONLY: U_N,N_DG
+USE MOD_DG_Vars            ,ONLY: U_N,N_DG_Mapping
 #if USE_MPI
 USE MOD_Globals
 #endif
@@ -1662,7 +1686,7 @@ EDC%Current = 0.
 !     interpolate the vector field Et = (/Etx, Ety, Etz/) to the boundary face
 DO SideID=1,nBCSides
   ElemID   = SideToElem(S2E_ELEM_ID,SideID)
-  Nloc = N_DG(ElemID)
+  Nloc = N_DG_Mapping(2,ElemID+offSetElem)
   ilocSide = SideToElem(S2E_LOC_SIDE_ID,SideID)
 #if (PP_NodeType==1) /* for Gauss-points*/
   SELECT CASE(ilocSide)

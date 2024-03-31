@@ -45,7 +45,7 @@ SUBROUTINE VerifyDepositedCharge()
 ! MODULES
 USE MOD_Globals
 USE MOD_Preproc
-USE MOD_Mesh_Vars             ,ONLY: nElems, N_VolMesh
+USE MOD_Mesh_Vars             ,ONLY: nElems, N_VolMesh, offSetElem
 USE MOD_Interpolation_Vars    ,ONLY: NAnalyze,N_InterAnalyze,wAnalyze
 USE MOD_Particle_Vars         ,ONLY: PDM, Species, PartSpecies ,PartMPF,usevMPF
 USE MOD_Particle_Analyze_Vars ,ONLY: ChargeCalcDone
@@ -56,7 +56,7 @@ USE MOD_LinearSolver_Vars     ,ONLY: ImplicitSource
 USE MOD_PICDepo_Vars          ,ONLY: PS_N
 #endif
 USE MOD_ChangeBasis           ,ONLY: ChangeBasis3D
-USE MOD_DG_Vars               ,ONLY: N_DG
+USE MOD_DG_Vars               ,ONLY: N_DG_Mapping
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -75,7 +75,7 @@ SWRITE(UNIT_stdOut,'(A)') ' PERFORMING CHARGE DEPOSITION PLAUSIBILITY CHECK...'
 
 ChargeNumerical=0. ! Nullify
 DO iElem=1,nElems
-  Nloc = N_DG(iElem)
+  Nloc = N_DG_Mapping(2,iElem+offSetElem)
   ! Interpolate the physical position Elem_xGP to the analyze position, needed for exact function
   CALL ChangeBasis3D(3,Nloc,NAnalyze,N_InterAnalyze(Nloc)%Vdm_GaussN_NAnalyze,N_VolMesh(iElem)%Elem_xGP(1:3,:,:,:),Coords_NAnalyze(1:3,:,:,:))
   ! Interpolate the Jacobian to the analyze grid: be careful we interpolate the inverse of the inverse of the Jacobian ;-)
@@ -148,7 +148,7 @@ SUBROUTINE CalcDepositedCharge()
 ! MODULES
 USE MOD_Globals
 USE MOD_Preproc
-USE MOD_Mesh_Vars             ,ONLY: N_VolMesh
+USE MOD_Mesh_Vars             ,ONLY: N_VolMesh, offSetElem
 USE MOD_Particle_Vars         ,ONLY: PDM, Species, PartSpecies, usevmpf, PartMPF
 USE MOD_Interpolation_Vars    ,ONLY: N_Inter
 USE MOD_Particle_Analyze_Vars ,ONLY: PartCharge
@@ -158,7 +158,7 @@ USE MOD_LinearSolver_Vars     ,ONLY: ImplicitSource
 #else
 USE MOD_PICDepo_Vars          ,ONLY: PS_N
 #endif
-USE MOD_DG_Vars               ,ONLY: N_DG
+USE MOD_DG_Vars               ,ONLY: N_DG_Mapping
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -178,7 +178,7 @@ Charge=0.
 PartCharge=0.
 IF(iter.EQ.0) RETURN
 DO iElem=1,PP_nElems
-  Nloc = N_DG(iElem)
+  Nloc = N_DG_Mapping(2,iElem+offSetElem)
   ! compute the deposited charge
   DO k=0,Nloc; DO j=0,Nloc; DO i=0,Nloc
     ASSOCIATE( wGPijk => N_Inter(Nloc)%wGP(i)*N_Inter(Nloc)%wGP(j)*N_Inter(Nloc)%wGP(k) ,&
@@ -239,13 +239,13 @@ SUBROUTINE CalculateBRElectronsPerCell(iElem,RegionID,ElectronNumberCell)
 USE MOD_Globals
 USE MOD_Globals_Vars       ,ONLY: ElementaryCharge
 USE MOD_Preproc
-USE MOD_Mesh_Vars          ,ONLY: N_VolMesh
+USE MOD_Mesh_Vars          ,ONLY: N_VolMesh, offSetElem
 USE MOD_Interpolation_Vars ,ONLY: N_Inter
 #if PP_nVar==1
 USE MOD_DG_Vars            ,ONLY: U_N
 #endif
 USE MOD_HDG_Vars           ,ONLY: RegionElectronRef
-USE MOD_DG_Vars            ,ONLY: N_DG
+USE MOD_DG_Vars            ,ONLY: N_DG_Mapping
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -260,7 +260,7 @@ INTEGER           :: i,j,k,Nloc
 REAL              :: source_e
 !===================================================================================================================================
 ElectronNumberCell=0.
-Nloc = N_DG(iElem)
+Nloc = N_DG_Mapping(2,iElem+offSetElem)
 DO k=0,Nloc; DO j=0,Nloc; DO i=0,Nloc
 #if PP_nVar==1
   source_e = U_N(iElem)%U(1,i,j,k)-RegionElectronRef(2,RegionID)

@@ -1428,7 +1428,7 @@ USE MOD_Particle_Sampling_Vars
 USE MOD_Particle_Mesh_Vars
 #if USE_MPI
 USE MOD_Particle_MPI_Halo  ,ONLY: FinalizePartExchangeProcs
-USE MOD_PICDepo_Vars       ,ONLY: SendElemShapeID,ShapeMapping,CNShapeMapping
+USE MOD_PICDepo_Vars       ,ONLY: SendDofShapeID,ShapeMapping,CNShapeMapping
 #endif /*USE_MPI*/
 #if USE_HDG
 USE MOD_HDG_Vars           ,ONLY: BRRegionBounds,RegionElectronRef,RegionElectronRefBackup,BRAverageElemToElem
@@ -1509,7 +1509,7 @@ SDEALLOCATE(RotRefFramRegion)
 SDEALLOCATE(VirtMergedCells)
 SDEALLOCATE(PartDataVarNames)
 #if USE_MPI
-SDEALLOCATE(SendElemShapeID)
+SDEALLOCATE(SendDofShapeID)
 SDEALLOCATE(ShapeMapping)
 SDEALLOCATE(CNShapeMapping)
 ! particle MPI halo exchange

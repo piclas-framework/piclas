@@ -231,12 +231,12 @@ USE MOD_Globals         ,ONLY: abort,UNIT_stdOut
 #if USE_MPI
 USE MOD_Globals         ,ONLY: mpiroot
 #endif /*USE_MPI*/
-USE MOD_Mesh_Vars       ,ONLY: N_VolMesh
+USE MOD_Mesh_Vars       ,ONLY: N_VolMesh, offSetElem
 USE MOD_Dielectric_Vars ,ONLY: DielectricRadiusValueB
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Vars,ONLY: PerformLoadBalance
 #endif /*USE_LOADBALANCE*/
-USE MOD_DG_vars         ,ONLY: N_DG
+USE MOD_DG_vars         ,ONLY: N_DG_Mapping
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -287,7 +287,7 @@ END IF
 ! ----------------------------------------------------------------------------------------------------------------------------------
 ! all DOF in an element must be inside the region, if one DOF is outside, the element is excluded
 DO iElem=1,PP_nElems 
-  Nloc = N_DG(iElem)
+  Nloc = N_DG_Mapping(2,iElem+offSetElem)
   DO k=0,Nloc; DO j=0,Nloc; DO i=0,Nloc
     DO m=1,3 ! m=x,y,z
       IF ( (N_VolMesh(iElem)%Elem_xGP(m,i,j,k) .LT. region(2*m-1)) .OR. & ! 1,3,5
@@ -304,7 +304,7 @@ END DO !iElem,k,j,i
 ! if option 'DoRadius' is applied, elements are double-checked if they are within a certain radius
 IF(DoRadius.AND.Radius.GT.0.0)THEN
   DO iElem=1,PP_nElems
-    Nloc = N_DG(iElem)
+    Nloc = N_DG_Mapping(2,iElem+offSetElem)
     DO k=0,Nloc; DO j=0,Nloc; DO i=0,Nloc
       r = SQRT(N_VolMesh(iElem)%Elem_xGP(1,i,j,k)**2+&
                N_VolMesh(iElem)%Elem_xGP(2,i,j,k)**2+&
@@ -332,7 +332,7 @@ IF(PRESENT(GeometryName))THEN
   CASE('FH_lens')
     ! Loop every element and compare the DOF position
     DO iElem=1,PP_nElems
-      Nloc = N_DG(iElem)
+      Nloc = N_DG_Mapping(2,iElem+offSetElem)
       DO k=0,Nloc; DO j=0,Nloc; DO i=0,Nloc
         ! x-axis symmetric geometry: get interpolated radius of lens geometry -> r_interpolated(x)
         CALL InterpolateGeometry(N_VolMesh(iElem)%Elem_xGP(1,i,j,k),dim_x=1,dim_y=2,x_OUT=rInterpolated) ! Scale radius
@@ -385,7 +385,7 @@ IF(PRESENT(GeometryName))THEN
         CALL abort(__STAMP__,'Error in CALL FindElementInRegion(GeometryName): GeometryAxis is wrong!')
     END SELECT
     DO iElem=1,PP_nElems
-      Nloc = N_DG(iElem)
+      Nloc = N_DG_Mapping(2,iElem+offSetElem)
       DO k=0,Nloc; DO j=0,Nloc; DO i=0,Nloc
         IF(isElem(iElem).EQV.ElementIsInside)THEN ! only check elements that were not EXCLUDED in 1.)
 
@@ -424,7 +424,7 @@ IF(PRESENT(GeometryName))THEN
     END SELECT
 
     DO iElem=1,PP_nElems
-      Nloc = N_DG(iElem)
+      Nloc = N_DG_Mapping(2,iElem+offSetElem)
       DO k=0,Nloc; DO j=0,Nloc; DO i=0,Nloc
         IF(isElem(iElem).EQV.ElementIsInside)THEN ! only check elements that were not EXCLUDED in 1.)
 

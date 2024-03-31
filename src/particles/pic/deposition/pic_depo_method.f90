@@ -225,6 +225,7 @@ USE MOD_Particle_Vars          ,ONLY: PartState
 USE MOD_PICDepo_Vars           ,ONLY: PS_N,CellVolWeight_Volumes,CellVolWeight
 USE MOD_Part_Tools             ,ONLY: isDepositParticle
 USE MOD_Mesh_Tools             ,ONLY: GetCNElemID
+USE MOD_Mesh_Vars              ,ONLY: offSetElem
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Timers     ,ONLY: LBStartTime,LBPauseTime,LBElemSplitTime,LBElemPauseTime_avg
 USE MOD_LoadBalance_Timers     ,ONLY: LBElemSplitTime_avg
@@ -238,7 +239,7 @@ USE MOD_TimeDisc_Vars          ,ONLY: dt,dt_Min
 #if USE_MPI
 USE MOD_MPI_Shared             ,ONLY: BARRIER_AND_SYNC
 #endif /*USE_MPI*/
-USE MOD_DG_Vars                ,ONLY: N_DG
+USE MOD_DG_Vars                ,ONLY: N_DG_Mapping
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -337,7 +338,7 @@ DO iElem=1, nElems
 END DO
 
 DO iElem = 1, nElems
-  Nloc = N_DG(iElem)
+  Nloc = N_DG_Mapping(2,iElem+offSetElem)
   DO kk = 0, Nloc
     DO ll = 0, Nloc
       DO mm = 0, Nloc
@@ -404,7 +405,7 @@ USE MOD_TimeDisc_Vars      ,ONLY: dt,dt_Min
 #if defined(MEASURE_MPI_WAIT)
 USE MOD_Particle_MPI_Vars  ,ONLY: MPIW8TimePart,MPIW8CountPart
 #endif /*defined(MEASURE_MPI_WAIT)*/
-USE MOD_DG_Vars            ,ONLY: N_DG
+USE MOD_DG_Vars            ,ONLY: N_DG_Mapping
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -714,7 +715,7 @@ CALL LBStartTime(tLBStart) ! Start time measurement
 DO iElem = 1, nElems
   ! Get UniqueNodeID from NonUniqueNodeID = ElemNodeID_Shared(:,GetCNElemID(iElem))
   NodeID = NodeInfo_Shared(ElemNodeID_Shared(:,GetCNElemID(iElem+offsetElem)))
-  Nloc = N_DG(iElem)
+  Nloc = N_DG_Mapping(2,iElem+offSetElem)
   DO kk = 0, Nloc
     DO ll = 0, Nloc
       DO mm = 0, Nloc
@@ -762,9 +763,10 @@ USE MOD_Mesh_Tools                  ,ONLY: GetCNElemID, GetGlobalElemID
 #if USE_MPI
 !USE MOD_PICDepo_Vars                ,ONLY: PartSource
 USE MOD_MPI_Shared                  ,ONLY: BARRIER_AND_SYNC
-USE MOD_PICDepo_Vars                ,ONLY: ShapeMapping, nShapeExchangeProcs
+USE MOD_PICDepo_Vars                ,ONLY: ShapeMapping, nShapeExchangeProcs, PS_N
 USE MOD_PICDepo_Vars                ,ONLY: SendRequest,RecvRequest
 USE MOD_Mesh_Vars                   ,ONLY: offsetElem
+USE MOD_DG_Vars                     ,ONLY: N_DG_Mapping
 #endif /*USE_MPI*/
 USE MOD_Part_Tools                  ,ONLY: isDepositParticle
 #if defined(MEASURE_MPI_WAIT)
@@ -784,7 +786,7 @@ REAL               :: Charge
 INTEGER            :: stage
 INTEGER            :: iPart
 #if USE_MPI
-INTEGER            :: iElem,iProc,locElem
+INTEGER            :: iElem,iProc,locElem, globElem, offSetDof, i,j,k,r, Nloc
 #endif
 #if defined(MEASURE_MPI_WAIT)
 INTEGER(KIND=8)    :: CounterStart,CounterEnd
@@ -823,8 +825,8 @@ IF ((stage.EQ.0).OR.(stage.EQ.1)) THEN
   ! Communication
   ! 1 of 2: Inner-Node Communication
   DO iProc = 1,nShapeExchangeProcs
-      CALL MPI_IRECV( ShapeMapping(iProc)%RecvBuffer(1:4,0:PP_N,0:PP_N,0:PP_N,1:ShapeMapping(iProc)%nRecvShapeElems)&
-                    , ShapeMapping(iProc)%nRecvShapeElems*4*(PP_N+1)**3                                   &
+      CALL MPI_IRECV( ShapeMapping(iProc)%RecvBuffer(1:4,1:ShapeMapping(iProc)%nRecvShapeDofs)&
+                    , ShapeMapping(iProc)%nRecvShapeDofs*4 &
                     , MPI_DOUBLE_PRECISION                &
                     , ShapeMapping(iProc)%Rank            &
                     , 2001                                &
@@ -832,8 +834,8 @@ IF ((stage.EQ.0).OR.(stage.EQ.1)) THEN
                     , RecvRequest(iProc)                  &
                     , IERROR)
 !    IF (myComputeNodeRank.NE.0) THEN
-    CALL MPI_ISEND( ShapeMapping(iProc)%SendBuffer(1:4,0:PP_N,0:PP_N,0:PP_N,1:ShapeMapping(iProc)%nSendShapeElems)                        &
-                  , ShapeMapping(iProc)%nSendShapeElems*4*(PP_N+1)**3          &
+    CALL MPI_ISEND( ShapeMapping(iProc)%SendBuffer(1:4,1:ShapeMapping(iProc)%nSendShapeDofs)                        &
+                  , ShapeMapping(iProc)%nSendShapeDofs*4   &
                   , MPI_DOUBLE_PRECISION                   &
                   , ShapeMapping(iProc)%Rank                                      &
                   , 2001                                   &
@@ -866,9 +868,18 @@ IF ((stage.EQ.0).OR.(stage.EQ.2)) THEN
 #endif /*defined(MEASURE_MPI_WAIT)*/
     IF(IERROR.NE.MPI_SUCCESS) CALL ABORT(__STAMP__,' MPI Communication error', IERROR)
     DO iElem = 1, ShapeMapping(iProc)%nRecvShapeElems
-      locElem = ShapeMapping(iProc)%RecvShapeElemID(iElem)-offsetElem
-      CALL abort(__STAMP__,'not implemented yet')
-      !PartSource(:,:,:,:,locElem) = PartSource(:,:,:,:,locElem) + ShapeMapping(iProc)%RecvBuffer(:,:,:,:,iElem)
+      globElem = ShapeMapping(iProc)%RecvShapeElemID(iElem)
+      offSetDof = ShapeMapping(iProc)%RecvShapeElemDofOffset(iElem)
+      locElem = globElem-offsetElem
+      Nloc = N_DG_Mapping(2,globElem)
+      DO k=0,Nloc
+        DO j=0,Nloc
+          DO i=0,Nloc
+            r=k*(Nloc+1)**2+j*(Nloc+1) + i+1
+            PS_N(locElem)%PartSource(:,i,j,k) = PS_N(locElem)%PartSource(:,i,j,k) +  ShapeMapping(iProc)%RecvBuffer(:,r+offSetDof)
+          END DO
+        END DO
+      END DO
     END DO
   END DO
 

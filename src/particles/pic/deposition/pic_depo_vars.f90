@@ -36,14 +36,19 @@ TYPE N_PartSource_Vol
   REAL,ALLOCATABLE  :: PartSource(:,:,:,:)      !< PartSource(1:4,PP_N,PP_N,PP_N,nElems) containing
                                                 !< current and charge density source terms for Maxwell/Poisson systems
   REAL,ALLOCATABLE  :: PartSourceOld(:,:,:,:,:) !< PartSource(:,2,PP_N,PP_N,PP_N,nElems) prev. and sec. prev. Source
-  REAL,ALLOCATABLE  :: PartSourceTmp (:,:,:,:)  !< Shape function temporary container
 END TYPE N_PartSource_Vol
 
 ! Part Source
 TYPE(N_PartSource_Vol),ALLOCATABLE :: PS_N(:)       !< Solution variable for each equation, node and element,
 
-INTEGER, ALLOCATABLE            :: nDepoDOFPerProc(:)
-INTEGER, ALLOCATABLE            :: nDepoOffsetProc(:)
+! DG solution particle volume source terms
+TYPE tN_ShapeTmp
+  REAL,ALLOCATABLE  :: PartSource(:,:,:,:)      !< PartSource(1:4,PP_N,PP_N,PP_N,nElems) containing
+END TYPE tN_ShapeTmp
+
+! Part Source
+TYPE(tN_ShapeTmp),ALLOCATABLE :: N_ShapeTmp(:)       !< Solution variable for each equation, node and element,
+
 
 REAL,ALLOCATABLE                :: GaussBorder(:)            ! 1D coords of gauss points in -1|1 space
 INTEGER,ALLOCATABLE             :: GaussBGMIndex(:,:,:,:,:)  ! Background mesh index of gausspoints (1:3,PP_N,PP_N,PP_N,nElems)
@@ -182,11 +187,14 @@ TYPE (tNodeMappingRecv),ALLOCATABLE      :: NodeMappingRecv(:)
 
 TYPE tShapeMapping
   INTEGER,ALLOCATABLE           :: RecvShapeElemID(:)
+  INTEGER,ALLOCATABLE           :: RecvShapeElemDofOffset(:)
+  INTEGER                       :: nRecvShapeDofs
   INTEGER                       :: nRecvShapeElems
   INTEGER,ALLOCATABLE           :: SendShapeElemID(:)
   INTEGER                       :: nSendShapeElems
-  REAL,ALLOCATABLE              :: RecvBuffer(:,:,:,:,:)
-  REAL,ALLOCATABLE              :: SendBuffer(:,:,:,:,:)
+  INTEGER                       :: nSendShapeDofs
+  REAL,ALLOCATABLE              :: RecvBuffer(:,:)
+  REAL,ALLOCATABLE              :: SendBuffer(:,:)
   LOGICAL,ALLOCATABLE           :: DoSendElem(:)
   INTEGER                       :: nNonZeroSendElems
   INTEGER                       :: Rank
@@ -200,15 +208,13 @@ TYPE tCNShapeMapping
   INTEGER,ALLOCATABLE           :: SendShapeProcElemID(:,:)
   INTEGER                       :: nRecvShapeElems(2)
   INTEGER                       :: nSendShapeElems(2)
-  REAL,ALLOCATABLE              :: RecvBuffer(:,:,:,:,:)
-  REAL,ALLOCATABLE              :: SendBuffer(:,:,:,:,:)
 END TYPE
 TYPE(tCNShapeMapping),ALLOCATABLE ::CNShapeMapping(:)
 
 INTEGER                         :: ShapeElemProcSend_Shared_Win
 LOGICAL,ALLOCPOINT              :: ShapeElemProcSend_Shared(:,:)
 LOGICAL,ALLOCATABLE             :: FlagShapeElem(:)
-INTEGER,ALLOCATABLE             :: SendElemShapeID(:)         ! mapping from ShapeElemID to CNElemID
+INTEGER,ALLOCATABLE             :: SendDofShapeID(:)         ! mapping from ShapeElemID to CNElemID
 INTEGER                         :: nShapeExchangeProcs
 
 !INTEGER             :: SendRequest

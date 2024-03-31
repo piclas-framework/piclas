@@ -58,6 +58,7 @@ USE MOD_Part_BR_Elecron_Fluid  ,ONLY: CreateElectronsFromBRFluid
 #endif /*USE_HDG*/
 ! LoadBalance
 #if USE_LOADBALANCE
+USE MOD_Interpolation_Vars     ,ONLY: NMax
 USE MOD_LoadBalance_Vars       ,ONLY: PerformLoadBalance,UseH5IOLoadBalance
 USE MOD_LoadBalance_Vars       ,ONLY: nElemsOld,offsetElemOld,ElemInfoRank_Shared
 USE MOD_LoadBalance_Vars       ,ONLY: MPInElemSend,MPInElemRecv,MPIoffsetElemSend,MPIoffsetElemRecv
@@ -75,7 +76,7 @@ USE MOD_TimeDisc_Vars          ,ONLY: time
 #endif /*USE_LOADBALANCE*/
 USE MOD_Particle_Vars          ,ONLY: VibQuantData,ElecDistriData,AD_Data
 USE MOD_Particle_Vars          ,ONLY: PartDataSize,PartIntSize,PartDataVarNames
-USE MOD_DG_Vars                ,ONLY: N_DG
+USE MOD_DG_Vars                ,ONLY: N_DG_Mapping
 USE MOD_Interpolation_Vars     ,ONLY: PREF_VDM
 USE MOD_Interpolation_Vars     ,ONLY: N_Inter
 USE MOD_ChangeBasis            ,ONLY: ChangeBasis3D
@@ -106,6 +107,8 @@ REAL                               :: FileVersionHDF5Real
 INTEGER                            :: FileVersionHDF5Int
 INTEGER                            :: PartDataSize_HDF5              ! number of entries in each line of PartData
 REAL,ALLOCATABLE                   :: PartSource_HDF5(:,:,:,:,:)
+REAL,ALLOCATABLE                   :: PartSource(:,:,:,:,:)
+REAL,ALLOCATABLE                   :: PartSourceTmp(:,:,:,:,:)
 ! Temporary arrays
 INTEGER(KIND=IK),ALLOCATABLE       :: PartIntTmp(:,:)
 #if USE_LOADBALANCE
@@ -145,29 +148,50 @@ IF (PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance)) THEN
   ! PartSource
   ! ------------------------------------------------
   ! 1.) relax deposition
-  ! 2.) particle delay time active
+  ! 2.) particle delay time active (t<tDelay)
   IF (DoDeposition .AND. (RelaxDeposition.OR.(time.LT.DelayTime))) THEN
-    ALLOCATE(PartSource_HDF5(1:4,0:PP_N,0:PP_N,0:PP_N,nElems))
+    ! Store in Nmax^3 array
+    ALLOCATE(PartSource(1:4,0:NMax,0:NMax,0:NMax,nElemsOld))
+    DO iElem = 1, nElemsOld
+      Nloc = N_DG_Mapping(2,iElem+offSetElem)
+      IF(Nloc.EQ.Nmax)THEN
+        PartSource(:,:,:,:,iElem) = PS_N(iElem)%PartSource(:,:,:,:)
+      ELSE
+        PartSource(:,:,:,:,iElem) = 0.
+        DO k=0,Nloc
+          DO j=0,Nloc
+            DO i=0,Nloc
+              PartSource(:,i,j,k,iElem) = PS_N(iElem)%PartSource(:,i,j,k)
+            END DO
+          END DO
+        END DO
+      END IF ! Nloc.Eq.Nmax
+    END DO ! iElem = 1, nElems
+
+    ALLOCATE(PartSourceTmp(1:4,0:NMax,0:NMax,0:NMax,nElems))
     ASSOCIATE (&
             counts_send  => INT(MPInElemSend     ) ,&
             disp_send    => INT(MPIoffsetElemSend) ,&
             counts_recv  => INT(MPInElemRecv     ) ,&
             disp_recv    => INT(MPIoffsetElemRecv))
       ! Communicate PartSource over MPI
-      MPI_LENGTH       = 4*(PP_N+1)**3
+      MPI_LENGTH       = 4*(NMax+1)**3
       MPI_DISPLACEMENT = 0  ! 0*SIZEOF(MPI_SIZE)
       MPI_TYPE         = MPI_DOUBLE_PRECISION
       CALL MPI_TYPE_CREATE_STRUCT(1,MPI_LENGTH,MPI_DISPLACEMENT,MPI_TYPE,MPI_STRUCT,iError)
       CALL MPI_TYPE_COMMIT(MPI_STRUCT,iError)
 
-      CALL MPI_ALLTOALLV(PartSourceLB,counts_send,disp_send,MPI_STRUCT,PartSource_HDF5,counts_recv,disp_recv,MPI_STRUCT,MPI_COMM_PICLAS,iError)
+      CALL MPI_ALLTOALLV(PartSource,counts_send,disp_send,MPI_STRUCT,PartSourceTmp,counts_recv,disp_recv,MPI_STRUCT,MPI_COMM_PICLAS,iError)
       CALL MPI_TYPE_FREE(MPI_STRUCT,iError)
     END ASSOCIATE
-    DEALLOCATE(PartSourceLB)
+    CALL MOVE_ALLOC(PartSourceTmp,PartSource)
 
+    DEALLOCATE(PS_N)
+    ! the local DG solution in physical and reference space
+    ALLOCATE(PS_N(1:nElems))
     ! 1.) relax deposition
     IF(RelaxDeposition)THEN
-      DO iElem =1,PP_nElems
+      DO iElem =1,nElems
         DO k=0, PP_N; DO j=0, PP_N; DO i=0, PP_N
 #if ((USE_HDG) && (PP_nVar==1))
           !PartSourceOld(1,1,i,j,k,iElem) = PartSource_HDF5(4,i,j,k,iElem)
@@ -182,20 +206,37 @@ IF (PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance)) THEN
       END DO
     END IF ! RelaxDeposition
 
-    ! 2.) particle delay time active
+
+    ! 2.) particle delay time active. Deposition is not performed, therefore the values must be communicated
     IF(time.LT.DelayTime)THEN
-      DO iElem =1,PP_nElems
-        DO k=0, PP_N; DO j=0, PP_N; DO i=0, PP_N
+      DO iElem = 1, nElems
+        Nloc = N_DG_Mapping(2,iElem+offSetElem)
+        ALLOCATE(PS_N(iElem)%PartSource(1:4,0:Nloc,0:Nloc,0:Nloc))
+        DO k=0,Nloc
+          DO j=0,Nloc
+            DO i=0,Nloc
 #if ((USE_HDG) && (PP_nVar==1))
           !PartSource(1,i,j,k,iElem) = PartSource_HDF5(4,i,j,k,iElem)
           CALL abort(__STAMP__,'not implemented')
 #else
-          !PartSource(1:4,i,j,k,iElem) = PartSource_HDF5(1:4,i,j,k,iElem)
-          CALL abort(__STAMP__,'not implemented')
+              !PartSource(1:4,i,j,k,iElem) = PartSource_HDF5(1:4,i,j,k,iElem)
+              PS_N(iElem)%PartSource(:,i,j,k) = PartSource(:,i,j,k,iElem)
 #endif
-        END DO; END DO; END DO
-      END DO
+            END DO
+          END DO
+        END DO
+      END DO ! iElem = 1, PP_nElems
     END IF ! time.LE.DelayTime
+    DEALLOCATE(PartSource)
+  ELSE
+    ! Re-allocate the source terms
+    SDEALLOCATE(PS_N)
+    ALLOCATE(PS_N(1:nElems))
+    DO iElem = 1, nElems
+      Nloc = N_DG_Mapping(2,iElem+offSetElem)
+      ALLOCATE(PS_N(iElem)%PartSource(1:4,0:Nloc,0:Nloc,0:Nloc))
+      PS_N(iElem)%PartSource = 0.
+    END DO
   END IF ! (DoDeposition .AND. RelaxDeposition)
 
   ! ------------------------------------------------
@@ -456,7 +497,7 @@ ELSE
             CALL ReadArray('DG_Source' ,5,(/4_IK,Nres+1_IK,Nres+1_IK,Nres+1_IK,PP_nElemsTmp/),OffsetElemTmp,5,RealArray=PartSource_HDF5)
 
             DO iElem =1,PP_nElems
-              Nloc = N_DG(iElem)
+              Nloc = N_DG_Mapping(2,iElem+offSetElem)
               ALLOCATE(PartSourceloc(1:4,0:Nloc,0:Nloc,0:Nloc))
 
               IF(Nloc.EQ.N_Restart)THEN

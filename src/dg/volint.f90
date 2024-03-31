@@ -24,14 +24,14 @@ PRIVATE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
+#if !((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))
 #if !(USE_HDG)
 INTERFACE VolInt
   MODULE PROCEDURE VolInt_weakForm
 END INTERFACE
-
-
 PUBLIC::VolInt
 #endif
+#endif /*!((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))*/
 !===================================================================================================================================
 
 
@@ -39,6 +39,7 @@ CONTAINS
 
 
 
+#if !((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))
 #if !(USE_HDG)
 SUBROUTINE VolInt_weakForm(dofirstElems)
 !===================================================================================================================================
@@ -48,10 +49,10 @@ SUBROUTINE VolInt_weakForm(dofirstElems)
 !===================================================================================================================================
 ! MODULES
 USE MOD_PreProc
-USE MOD_DG_Vars            ,ONLY: N_DG,DGB_N,U_N
-USE MOD_Mesh_Vars          ,ONLY: N_VolMesh
+USE MOD_DG_Vars            ,ONLY: N_DG_Mapping,DGB_N,U_N
+USE MOD_Mesh_Vars          ,ONLY: N_VolMesh, offSetElem
 USE MOD_Interpolation_Vars ,ONLY: Nmax
-USE MOD_PML_Vars           ,ONLY: DoPML,ElemToPML,isPMLElem,U2t
+USE MOD_PML_Vars           ,ONLY: DoPML,ElemToPML,isPMLElem
 USE MOD_Dielectric_Vars    ,ONLY: DoDielectric,isDielectricElem
 USE MOD_Flux               ,ONLY: EvalFlux3D,EvalFlux3DDielectric              ! computes volume fluxes in local coordinates
 ! IMPLICIT VARIABLE HANDLING
@@ -69,7 +70,7 @@ REAL,DIMENSION(PP_nVar)                           :: fTilde,gTilde,hTilde ! auxi
 INTEGER                                           :: i,j,k,iElem
 INTEGER                                           :: l                    ! row index for matrix vector product
 INTEGER                                           :: firstElemID, lastElemID
-INTEGER                                           :: Nloc
+INTEGER                                           :: Nloc,iPMLElem
 !===================================================================================================================================
 
 IF(dofirstElems)THEN
@@ -81,7 +82,7 @@ ELSE ! second half of elements
 END IF
 
 DO iElem=firstElemID,lastElemID
-  Nloc = N_DG(iElem)
+  Nloc = N_DG_Mapping(2,iElem+offSetElem)
 !DO iElem=1,PP_nElems
   ! Cut out the local DG solution for a grid cell iElem and all Gauss points from the global field
   ! Compute for all Gauss point values the Cartesian flux components
@@ -125,6 +126,7 @@ DO iElem=firstElemID,lastElemID
 
   IF(DoPML)THEN
     IF(isPMLElem(iElem)) THEN ! 1.) PML version - PML element
+      !ASSOCIATE( U2t => U_N(ElemToPML(iElem))%U2t(:,:,:,:) ) ! does not work because 0:PP_N is not preserved and shifted to 1:PP_N+1
       DO l=0,Nloc
         DO k=0,Nloc
           DO j=0,Nloc
@@ -134,29 +136,21 @@ DO iElem=firstElemID,lastElemID
                                                                 DGB_N(Nloc)%D_hat(j,l)*g(:,i,l,k) + &
                                                                 DGB_N(Nloc)%D_hat(k,l)*h(:,i,j,l)
               ! Update the time derivatives of the auxiliary variables of the CFS-PML region
-              U2t(1 : 3,i,j,k,ElemToPML(iElem)) = U2t(1 : 3,i,j,k,ElemToPML(iElem)) + &
-                                              (/ DGB_N(Nloc)%D_hat(i,l)*f(1,l,j,k) , DGB_N(Nloc)%D_hat(j,l)*g(1,i,l,k) , DGB_N(Nloc)%D_hat(k,l)*h(1,i,j,l) /)
-              U2t(4 : 6,i,j,k,ElemToPML(iElem)) = U2t(4 : 6,i,j,k,ElemToPML(iElem)) + &
-                                              (/ DGB_N(Nloc)%D_hat(i,l)*f(2,l,j,k) , DGB_N(Nloc)%D_hat(j,l)*g(2,i,l,k) , DGB_N(Nloc)%D_hat(k,l)*h(2,i,j,l) /)
-              U2t(7 : 9,i,j,k,ElemToPML(iElem)) = U2t(7 : 9,i,j,k,ElemToPML(iElem)) + &
-                                              (/ DGB_N(Nloc)%D_hat(i,l)*f(3,l,j,k) , DGB_N(Nloc)%D_hat(j,l)*g(3,i,l,k) , DGB_N(Nloc)%D_hat(k,l)*h(3,i,j,l) /)
-              U2t(10:12,i,j,k,ElemToPML(iElem)) = U2t(10:12,i,j,k,ElemToPML(iElem)) + &
-                                              (/ DGB_N(Nloc)%D_hat(i,l)*f(4,l,j,k) , DGB_N(Nloc)%D_hat(j,l)*g(4,i,l,k) , DGB_N(Nloc)%D_hat(k,l)*h(4,i,j,l) /)
-              U2t(13:15,i,j,k,ElemToPML(iElem)) = U2t(13:15,i,j,k,ElemToPML(iElem)) + &
-                                              (/ DGB_N(Nloc)%D_hat(i,l)*f(5,l,j,k) , DGB_N(Nloc)%D_hat(j,l)*g(5,i,l,k) , DGB_N(Nloc)%D_hat(k,l)*h(5,i,j,l) /)
-              U2t(16:18,i,j,k,ElemToPML(iElem)) = U2t(16:18,i,j,k,ElemToPML(iElem)) + &
-                                              (/ DGB_N(Nloc)%D_hat(i,l)*f(6,l,j,k) , DGB_N(Nloc)%D_hat(j,l)*g(6,i,l,k) , DGB_N(Nloc)%D_hat(k,l)*h(6,i,j,l) /)
+              U_N(iElem)%U2t(1 : 3,i,j,k) = U_N(iElem)%U2t(1 : 3,i,j,k) + (/ DGB_N(Nloc)%D_hat(i,l)*f(1,l,j,k) , DGB_N(Nloc)%D_hat(j,l)*g(1,i,l,k) , DGB_N(Nloc)%D_hat(k,l)*h(1,i,j,l) /)
+              U_N(iElem)%U2t(4 : 6,i,j,k) = U_N(iElem)%U2t(4 : 6,i,j,k) + (/ DGB_N(Nloc)%D_hat(i,l)*f(2,l,j,k) , DGB_N(Nloc)%D_hat(j,l)*g(2,i,l,k) , DGB_N(Nloc)%D_hat(k,l)*h(2,i,j,l) /)
+              U_N(iElem)%U2t(7 : 9,i,j,k) = U_N(iElem)%U2t(7 : 9,i,j,k) + (/ DGB_N(Nloc)%D_hat(i,l)*f(3,l,j,k) , DGB_N(Nloc)%D_hat(j,l)*g(3,i,l,k) , DGB_N(Nloc)%D_hat(k,l)*h(3,i,j,l) /)
+              U_N(iElem)%U2t(10:12,i,j,k) = U_N(iElem)%U2t(10:12,i,j,k) + (/ DGB_N(Nloc)%D_hat(i,l)*f(4,l,j,k) , DGB_N(Nloc)%D_hat(j,l)*g(4,i,l,k) , DGB_N(Nloc)%D_hat(k,l)*h(4,i,j,l) /)
+              U_N(iElem)%U2t(13:15,i,j,k) = U_N(iElem)%U2t(13:15,i,j,k) + (/ DGB_N(Nloc)%D_hat(i,l)*f(5,l,j,k) , DGB_N(Nloc)%D_hat(j,l)*g(5,i,l,k) , DGB_N(Nloc)%D_hat(k,l)*h(5,i,j,l) /)
+              U_N(iElem)%U2t(16:18,i,j,k) = U_N(iElem)%U2t(16:18,i,j,k) + (/ DGB_N(Nloc)%D_hat(i,l)*f(6,l,j,k) , DGB_N(Nloc)%D_hat(j,l)*g(6,i,l,k) , DGB_N(Nloc)%D_hat(k,l)*h(6,i,j,l) /)
               !Phi_B
-              U2t(19:21,i,j,k,ElemToPML(iElem)) = U2t(19:21,i,j,k,ElemToPML(iElem)) + &
-                                              (/ DGB_N(Nloc)%D_hat(i,l)*f(7,l,j,k) , DGB_N(Nloc)%D_hat(j,l)*g(7,i,l,k) , DGB_N(Nloc)%D_hat(k,l)*h(7,i,j,l) /)
+              U_N(iElem)%U2t(19:21,i,j,k) = U_N(iElem)%U2t(19:21,i,j,k) + (/ DGB_N(Nloc)%D_hat(i,l)*f(7,l,j,k) , DGB_N(Nloc)%D_hat(j,l)*g(7,i,l,k) , DGB_N(Nloc)%D_hat(k,l)*h(7,i,j,l) /)
               !Phi_E
-              U2t(22:24,i,j,k,ElemToPML(iElem)) = U2t(22:24,i,j,k,ElemToPML(iElem)) + &
-                                              (/ DGB_N(Nloc)%D_hat(i,l)*f(8,l,j,k) , DGB_N(Nloc)%D_hat(j,l)*g(8,i,l,k) , DGB_N(Nloc)%D_hat(k,l)*h(8,i,j,l) /)
-              !print *,"FPt(:,i,j,k,ElemToPML(iElem))",FPt(:,i,j,k,ElemToPML(iElem))
+              U_N(iElem)%U2t(22:24,i,j,k) = U_N(iElem)%U2t(22:24,i,j,k) + (/ DGB_N(Nloc)%D_hat(i,l)*f(8,l,j,k) , DGB_N(Nloc)%D_hat(j,l)*g(8,i,l,k) , DGB_N(Nloc)%D_hat(k,l)*h(8,i,j,l) /)
             END DO !i
           END DO ! j
         END DO ! k
       END DO ! l
+    !END ASSOCIATE
     ELSE ! 2.) PML version - physical element
       DO l=0,Nloc
         DO k=0,Nloc
@@ -188,7 +182,8 @@ DO iElem=firstElemID,lastElemID
 
 END DO ! iElem
 END SUBROUTINE VolInt_weakForm
-#endif
+#endif /*!(USE_HDG)*/
+#endif /*!((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))*/
 
 #ifdef donotcompilethis
 SUBROUTINE VolInt_Metrics(f,g,h,Mf,Mg,Mh)

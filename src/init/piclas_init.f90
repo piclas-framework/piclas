@@ -72,10 +72,12 @@ USE MOD_Equation             ,ONLY: InitEquation
 USE MOD_GetBoundaryFlux      ,ONLY: InitBC
 USE MOD_DG                   ,ONLY: InitDG
 USE MOD_Mortar               ,ONLY: InitMortar
+#if !((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))
 #if ! (USE_HDG)
 USE MOD_PML                  ,ONLY: InitPML
 #endif /*USE_HDG*/
 USE MOD_Dielectric           ,ONLY: InitDielectric
+#endif /*!((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))*/
 USE MOD_Analyze              ,ONLY: InitAnalyze
 USE MOD_RecordPoints         ,ONLY: InitRecordPoints
 #if defined(ROS) || defined(IMPA)
@@ -168,10 +170,12 @@ CALL InitMPIvars()
 CALL InitEquation()
 #endif
 CALL InitBC()
+#if !((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))
 #if !(USE_HDG)
 CALL InitPML() ! Perfectly Matched Layer (PML): electromagnetic-wave-absorbing layer
 #endif /*USE_HDG*/
 CALL InitDielectric() ! Dielectric media
+#endif /*!((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))*/
 CALL InitDG()
 #if defined(ROS) || defined(IMPA)
 CALL InitLinearSolver()
@@ -243,12 +247,14 @@ USE MOD_Interfaces                 ,ONLY: FinalizeInterfaces
 USE MOD_GetBoundaryFlux            ,ONLY: FinalizeBC
 USE MOD_DG                         ,ONLY: FinalizeDG
 USE MOD_Mortar                     ,ONLY: FinalizeMortar
+#if !((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))
 USE MOD_Dielectric                 ,ONLY: FinalizeDielectric
 #if ! (USE_HDG)
 USE MOD_PML                        ,ONLY: FinalizePML
 #else
 USE MOD_HDG                        ,ONLY: FinalizeHDG
 #endif /*USE_HDG*/
+#endif /*!((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))*/
 USE MOD_Analyze                    ,ONLY: FinalizeAnalyze
 USE MOD_RecordPoints               ,ONLY: FinalizeRecordPoints
 USE MOD_RecordPoints_Vars          ,ONLY: RP_Data
@@ -322,12 +328,14 @@ CALL FinalizeDG()
 !CALL FinalizeCSR()
 CALL FinalizeLinearSolver()
 #endif /*IMEX*/
+#if !((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))
 CALL FinalizeDielectric()
 #if !(USE_HDG)
 CALL FinalizePML()
 #else
 CALL FinalizeHDG()
 #endif /*USE_HDG*/
+#endif /*!((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))*/
 CALL FinalizeEquation()
 CALL FinalizeBC()
 CALL FinalizeInterpolation(IsLoadBalance)
@@ -341,12 +349,12 @@ CALL FinalizeSurfaceModelAnalyze()
 CALL FinalizeParticleBoundarySampling()
 CALL FinalizePorousBoundaryCondition()
 CALL FinalizeParticleSurfaces()
-CALL FinalizeParticleMesh()
 CALL FinalizeParticleAnalyze()
 #if !((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))
 CALL FinalizeDeposition()
 CALL FinalizePICInterpolation()
 #endif /*!((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))*/
+CALL FinalizeParticleMesh()
 #if USE_MPI
 CALL FinalizeParticleMPI()
 #endif /*USE_MPI*/

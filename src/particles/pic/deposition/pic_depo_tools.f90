@@ -199,7 +199,7 @@ USE MOD_Globals
 USE MOD_PreProc
 USE MOD_Basis              ,ONLY: InitializeVandermonde
 USE MOD_ChangeBasis        ,ONLY: ChangeBasis3D
-USE MOD_Interpolation_Vars ,ONLY: N_Inter !wGP, xGP, wBary
+USE MOD_Interpolation_Vars ,ONLY: N_Inter, NMin, NMax
 #if USE_MPI
 USE MOD_MPI_Shared
 USE MOD_MPI_Shared_Vars    ,ONLY: nComputeNodeTotalElems, nComputeNodeProcessors, myComputeNodeRank, MPI_COMM_SHARED
@@ -207,10 +207,10 @@ USE MOD_PICDepo_Vars       ,ONLY: NodeVolume_Shared, NodeVolume_Shared_Win
 #else
 USE MOD_Mesh_Vars          ,ONLY: nElems
 #endif
-USE MOD_Particle_Mesh_Vars ,ONLY: ElemsJ, ElemNodeID_Shared, nUniqueGlobalNodes, NodeInfo_Shared,GEO
+USE MOD_Particle_Mesh_Vars ,ONLY: ElemNodeID_Shared, nUniqueGlobalNodes, NodeInfo_Shared,GEO
 USE MOD_PICDepo_Vars       ,ONLY: NodeVolume,Periodic_nNodes,Periodic_offsetNode,Periodic_Nodes
-USE MOD_DG_Vars            ,ONLY: N_DG
-USE MOD_Mesh_Vars          ,ONLY: N_VolMesh
+USE MOD_DG_Vars            ,ONLY: N_DG_Mapping
+USE MOD_Mesh_Vars          ,ONLY: N_VolMesh, offSetElem
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -219,8 +219,8 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-REAL                             :: Vdm_loc(0:1,0:PP_N),wGP_loc,xGP_loc(0:1),DetJac(1,0:1,0:1,0:1)
-REAL                             :: DetLocal(1,0:PP_N,0:PP_N,0:PP_N)
+REAL                             :: xGP_loc(0:1),DetJac(1,0:1,0:1,0:1)
+REAL                             :: DetLocal(1,0:NMax,0:NMax,0:NMax)
 INTEGER                          :: j,k,l,iElem, firstElem, lastElem, iNode, jNode
 REAL                             :: NodeVolumeLoc(1:nUniqueGlobalNodes)
 #if USE_MPI
@@ -231,6 +231,10 @@ INTEGER                          :: I
 #endif
 INTEGER                          :: NodeID(1:8)
 INTEGER                          :: Nloc
+TYPE tVdm_BGFieldIn_BGField
+  REAL, ALLOCATABLE                     :: Vdm(:,:)
+END TYPE tVdm_BGFieldIn_BGField
+TYPE(tVdm_BGFieldIn_BGField),ALLOCATABLE    :: Vdm_loc(:) 
 !===================================================================================================================================
 NodeVolumeLoc = 0.
 #if USE_MPI
@@ -251,26 +255,27 @@ firstElem = 1
 lastElem  = nElems
 #endif /*USE_MPI*/
 
-CALL abort(__STAMP__,'not implemented:  change point set? not +-0.5?')
-IF (PP_N.NE.1) THEN
-  xGP_loc(0) = -0.5!77350
+IF ((Nmin.NE.1).OR.(Nmin.NE.NMax)) THEN
+  xGP_loc(0) = -0.5
   xGP_loc(1) = 0.5
-  wGP_loc = 1.
-  CALL InitializeVandermonde(PP_N,1,N_Inter(PP_N)%wBary,N_Inter(PP_N)%xGP,xGP_loc, Vdm_loc)
+  ALLOCATE(Vdm_loc(Nmin:Nmax))
+  DO Nloc = Nmin, Nmax    
+    CALL InitializeVandermonde(Nloc,1,N_Inter(Nloc)%wBary,N_Inter(Nloc)%xGP,xGP_loc, Vdm_loc(Nloc)%Vdm)
+  END DO
 END IF
+
 ! ElemNodeID and ElemsJ use compute node elems
 DO iElem = firstElem, lastElem
-  Nloc = N_DG(iElem)
-  IF (PP_N.EQ.1) THEN
-    wGP_loc = N_Inter(PP_N)%wGP(0)
-    DO j=0, PP_N; DO k=0, PP_N; DO l=0, PP_N
-      DetJac(1,j,k,l)=1./ElemsJ(j,k,l,iElem)
+  Nloc = N_DG_Mapping(2,iElem+offSetElem)
+  IF (Nloc.EQ.1) THEN
+    DO j=0, Nloc; DO k=0, Nloc; DO l=0, Nloc
+      DetJac(1,j,k,l)=1./N_VolMesh(iElem)%sJ(j,k,l)
     END DO; END DO; END DO
   ELSE
     DO j=0, Nloc; DO k=0, Nloc; DO l=0, Nloc
       DetLocal(1,j,k,l)=1./N_VolMesh(iElem)%sJ(j,k,l)
     END DO; END DO; END DO
-    CALL ChangeBasis3D(1,Nloc, 1, Vdm_loc, DetLocal(:,:,:,:),DetJac(:,:,:,:))
+    CALL ChangeBasis3D(1,Nloc, 1, Vdm_loc(Nloc)%Vdm, DetLocal(:,0:Nloc,0:Nloc,0:Nloc),DetJac(:,:,:,:))
   END IF
 #if USE_MPI
   ASSOCIATE( NodeVolume => NodeVolumeLoc )

@@ -315,7 +315,7 @@ USE MOD_RecordPoints_Vars ,ONLY: RP_Buffersize,RP_MaxBuffersize,iSample
 USE MOD_RecordPoints_Vars ,ONLY: l_xi_RP,l_eta_RP,l_zeta_RP,nRP
 #if USE_HDG
 #if PP_nVar==1
-USE MOD_Equation_Vars      ,ONLY: E
+!USE MOD_Equation_Vars      ,ONLY: E
 #endif /*PP_nVar==1*/
 #endif /*USE_HDG*/
 ! IMPLICIT VARIABLE HANDLING
@@ -366,7 +366,7 @@ DO iRP=1,nRP
       DO i=0,PP_N
 #if USE_HDG
 #if PP_nVar==1
-        U_RP(:,iRP)=U_RP(:,iRP) + (/ U_N(RP_ElemID(iRP))%U(:,i,j,k), E(1:3,i,j,k,RP_ElemID(iRP)) /)*l_xi_RP(i,iRP)*l_eta_zeta_RP
+        U_RP(:,iRP)=U_RP(:,iRP) + (/ U_N(RP_ElemID(iRP))%U(:,i,j,k), U_N(RP_ElemID(iRP))%E(1:3,i,j,k) /)*l_xi_RP(i,iRP)*l_eta_zeta_RP
 #endif /*PP_nVar==1*/
 #else
         U_RP(:,iRP)=U_RP(:,iRP) +    U_N(RP_ElemID(iRP))%U(:,i,j,k)                                *l_xi_RP(i,iRP)*l_eta_zeta_RP

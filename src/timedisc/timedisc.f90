@@ -56,8 +56,10 @@ USE MOD_RecordPoints_Vars      ,ONLY: RP_onProc
 USE MOD_RecordPoints           ,ONLY: WriteRPToHDF5!,RecordPoints
 USE MOD_Restart_Vars           ,ONLY: DoRestart,FlushInitialState
 #if !(USE_HDG)
+#if !((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))
 USE MOD_PML_Vars               ,ONLY: DoPML,PMLTimeRamp
 USE MOD_PML                    ,ONLY: PMLTimeRamping
+#endif /*!((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))*/
 #if USE_LOADBALANCE
 #ifdef maxwell
 #if defined(ROS) || defined(IMPA)
@@ -273,7 +275,6 @@ DO !iter_t=0,MaxIter
 
 #if !((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))
   IF(doCalcTimeAverage) CALL CalcTimeAverage(.FALSE.,dt,time,tPreviousAverageAnalyze) ! tPreviousAnalyze not used if finalize_flag=false
-#endif /*!((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))*/
 
 #if !(USE_HDG)
   IF(DoPML) CALL PMLTimeRamping(time,PMLTimeRamp)
@@ -283,6 +284,7 @@ DO !iter_t=0,MaxIter
     RunTimeTotal   = 0.
   END IF ! MPIroot
 #endif /*NOT USE_HDG*/
+#endif /*!((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))*/
 
   CALL PrintStatusLine(time,dt,tStart,tEnd,1)
 

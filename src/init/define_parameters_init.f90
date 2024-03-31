@@ -48,13 +48,15 @@ USE MOD_RecordPoints               ,ONLY: DefineParametersRecordPoints
 USE MOD_TimeDiscInit               ,ONLY: DefineParametersTimeDisc
 USE MOD_Mesh                       ,ONLY: DefineParametersMesh
 USE MOD_Equation                   ,ONLY: DefineParametersEquation
+#if !((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))
+USE MOD_Dielectric                 ,ONLY: DefineParametersDielectric
 #if !(USE_HDG)
 USE MOD_PML                        ,ONLY: DefineParametersPML
-#endif /*USE_HDG*/
+#endif /*!(USE_HDG)*/
+#endif /*!((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))*/
 #if USE_HDG
 USE MOD_HDG                        ,ONLY: DefineParametersHDG
 #endif /*USE_HDG*/
-USE MOD_Dielectric                 ,ONLY: DefineParametersDielectric
 USE MOD_Piclas_Init                ,ONLY: DefineParametersPiclas
 #ifdef PARTICLES
 USE MOD_ParticleInit               ,ONLY: DefineParametersParticles
@@ -121,13 +123,15 @@ CALL DefineParametersPiclas()
 CALL DefineParametersTimeDisc()
 CALL DefineParametersMesh()
 CALL DefineParametersEquation()
+#if !((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))
 #if !(USE_HDG)
 CALL DefineParametersPML()
 #endif /*USE_HDG*/
+CALL DefineParametersDielectric()
+#endif /*!((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))*/
 #if USE_HDG
 CALL DefineParametersHDG()
 #endif /*USE_HDG*/
-CALL DefineParametersDielectric()
 CALL DefineParametersAnalyze()
 CALL DefineParametersRecordPoints()
 #ifdef PARTICLES

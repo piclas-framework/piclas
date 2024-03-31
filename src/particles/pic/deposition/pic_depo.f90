@@ -88,7 +88,7 @@ USE MOD_Basis                  ,ONLY: LegendreGaussNodesAndWeights,LegGaussLobNo
 USE MOD_ChangeBasis            ,ONLY: ChangeBasis3D
 USE MOD_Dielectric_Vars        ,ONLY: DoDielectricSurfaceCharge
 USE MOD_Interpolation_Vars     ,ONLY: N_Inter
-USE MOD_Mesh_Vars              ,ONLY: nElems,N_VolMesh
+USE MOD_Mesh_Vars              ,ONLY: nElems,N_VolMesh, offSetElem
 USE MOD_Particle_Vars
 USE MOD_Particle_Mesh_Vars     ,ONLY: nUniqueGlobalNodes, GEO
 USE MOD_Particle_Mesh_Tools    ,ONLY: GetGlobalNonUniqueSideID
@@ -102,19 +102,17 @@ USE MOD_Mesh_Tools             ,ONLY: GetGlobalElemID, GetCNElemID
 USE MOD_Mesh_Vars              ,ONLY: offsetElem
 USE MOD_Particle_Mesh_Vars     ,ONLY: NodeInfo_Shared
 USE MOD_Particle_Mesh_Vars     ,ONLY: NodeToElemInfo,NodeToElemMapping,ElemNodeID_Shared
-USE MOD_MPI_vars               ,ONLY: offsetElemMPI
-USE MOD_MPI_Shared_Vars        ,ONLY: ComputeNodeRootRank
 USE MOD_MPI_Shared             ,ONLY: BARRIER_AND_SYNC
-USE MOD_MPI_Shared_Vars        ,ONLY: nComputeNodeTotalElems,nComputeNodeProcessors,myComputeNodeRank
+USE MOD_MPI_Shared_Vars        ,ONLY: nComputeNodeTotalElems
 USE MOD_MPI_Shared_Vars        ,ONLY: nProcessors_Global
 USE MOD_MPI_Shared
 USE MOD_Particle_Mesh_Vars     ,ONLY: ElemInfo_Shared
 #endif /*USE_MPI*/
 #if USE_LOADBALANCE
-USE MOD_LoadBalance_Vars       ,ONLY: PerformLoadBalance
+USE MOD_LoadBalance_Vars       ,ONLY: PerformLoadBalance,UseH5IOLoadBalance
 #endif /*USE_LOADBALANCE*/
-USE MOD_Interpolation_Vars     ,ONLY: NMin,NMax
-USE MOD_DG_Vars                ,ONLY: N_DG
+USE MOD_Interpolation_Vars     ,ONLY: Nmin,Nmax
+USE MOD_DG_Vars                ,ONLY: N_DG_Mapping
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -152,23 +150,31 @@ IF(.NOT.DoDeposition) THEN
   RETURN
 END IF
 
-!--- Allocate arrays for charge density collection and initialize
-DO iElem = 1, nElems
-  Nloc = N_DG(iElem)
-  ALLOCATE(PS_N(iElem)%PartSource(1:4,0:Nloc,0:Nloc,0:Nloc))
-  PS_N(iElem)%PartSource = 0.0
-END DO ! iElem = 1, nElems
+#if USE_LOADBALANCE
+! Not "LB via MPI" means during 1st initialisation
+IF (.NOT.(PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance))) THEN
+#endif /*USE_LOADBALANCE*/
+  ALLOCATE(PS_N(nElems))
+  !--- Allocate arrays for charge density collection and initialize
+  DO iElem = 1, nElems
+    Nloc = N_DG_Mapping(2,iElem+offSetElem)
+    ALLOCATE(PS_N(iElem)%PartSource(1:4,0:Nloc,0:Nloc,0:Nloc))
+    PS_N(iElem)%PartSource = 0.0
+  END DO ! iElem = 1, nElems
+#if USE_LOADBALANCE
+END IF
+#endif /*USE_LOADBALANCE*/
 
 !--- check if relaxation of current PartSource with RelaxFac into PartSourceOld
 RelaxDeposition = GETLOGICAL('PIC-RelaxDeposition','F')
 IF (RelaxDeposition) THEN
   RelaxFac     = GETREAL('PIC-RelaxFac','0.001')
   DO iElem = 1, nElems
-    Nloc = N_DG(iElem)
+    Nloc = N_DG_Mapping(2,iElem+offSetElem)
 #if ((USE_HDG) && (PP_nVar==1))
-    ALLOCATE(PS_N(iElem)%PartSourceOld(1  ,1:2,0:PP_N,0:PP_N,0:PP_N),STAT=ALLOCSTAT)
+    ALLOCATE(PS_N(iElem)%PartSourceOld(1  ,1:2,0:Nloc,0:Nloc,0:Nloc),STAT=ALLOCSTAT)
 #else
-    ALLOCATE(PS_N(iElem)%PartSourceOld(1:4,1:2,0:PP_N,0:PP_N,0:PP_N),STAT=ALLOCSTAT)
+    ALLOCATE(PS_N(iElem)%PartSourceOld(1:4,1:2,0:Nloc,0:Nloc,0:Nloc),STAT=ALLOCSTAT)
 #endif
     IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__,'ERROR in pic_depo.f90: Cannot allocate PartSourceOld!')
     PS_N(iElem)%PartSourceOld = 0.
@@ -192,9 +198,10 @@ IF (TRIM(TimeAverageFile).NE.'none') THEN
   !-- use read PartSource as initialValue for relaxation
   !-- CAUTION: will be overwritten by DG_Source if present in restart-file!
     DO iElem = 1, nElems
-      DO kk = 0, PP_N
-        DO ll = 0, PP_N
-          DO mm = 0, PP_N
+      Nloc = N_DG_Mapping(2,iElem+offSetElem)
+      DO kk = 0, Nloc
+        DO ll = 0, Nloc
+          DO mm = 0, Nloc
 #if ((USE_HDG) && (PP_nVar==1))
             PS_N(iElem)%PartSourceOld(1  ,1,mm,ll,kk) = PS_N(iElem)%PartSource(4  ,mm,ll,kk)
             PS_N(iElem)%PartSourceOld(1  ,2,mm,ll,kk) = PS_N(iElem)%PartSource(4  ,mm,ll,kk)
@@ -231,7 +238,7 @@ CASE('cell_volweight')
   END DO
 
   DO iElem=1, nElems
-    Nloc = N_DG(iElem)
+    Nloc = N_DG_Mapping(2,iElem+offSetElem)
     DO k=0,Nloc
       DO j=0,Nloc
         DO i=0,Nloc
@@ -518,10 +525,10 @@ CASE('cell_volweight_mean')
 CASE('shape_function', 'shape_function_cc', 'shape_function_adaptive')
 ! ------------------------------------------------
   !--- Allocate arrays for shape function charge density collection and initialize
-  DO iElem = 1, nElems
-    Nloc = N_DG(iElem)
-    ALLOCATE(PS_N(iElem)%PartSourceTmp(1:4,0:Nloc,0:Nloc,0:Nloc))
-    PS_N(iElem)%PartSourceTmp = 0.0
+  ALLOCATE(N_ShapeTmp(NMax))
+  DO Nloc = 1, NMax
+    ALLOCATE(N_ShapeTmp(Nloc)%PartSource(1:4,0:Nloc,0:Nloc,0:Nloc))
+    N_ShapeTmp(Nloc)%PartSource = 0.0
   END DO ! iElem = 1, nElems
 
 #if USE_MPI
@@ -542,14 +549,6 @@ CASE('shape_function', 'shape_function_cc', 'shape_function_adaptive')
   ! --- Set element flag for cycling already completed elements
 #if USE_MPI
   ALLOCATE(ChargeSFDone(1:nComputeNodeTotalElems))
-  ALLOCATE(nDepoDOFPerProc(0:nComputeNodeProcessors-1),nDepoOffsetProc(0:nComputeNodeProcessors-1))
-  nDepoDOFPerProc =0; nDepoOffsetProc = 0
-  DO iProc = 0, nComputeNodeProcessors-1
-    nDepoDOFPerProc(iProc) = (offsetElemMPI(iProc + 1 + ComputeNodeRootRank) - offsetElemMPI(iProc + ComputeNodeRootRank))*(PP_N+1)**3*4
-  END DO
-  DO iProc = 0, nComputeNodeProcessors-1
-    nDepoOffsetProc(iProc) = (offsetElemMPI(iProc + ComputeNodeRootRank) - offsetElemMPI(ComputeNodeRootRank))*(PP_N+1)**3*4
-  END DO
 #else
   ALLOCATE(ChargeSFDone(1:nElems))
 #endif /*USE_MPI*/
@@ -1940,7 +1939,7 @@ USE MOD_MPI_Shared
 #if USE_LOADBALANCE
 USE MOD_PreProc
 USE MOD_LoadBalance_Vars   ,ONLY: PerformLoadBalance,UseH5IOLoadBalance
-USE MOD_LoadBalance_Vars   ,ONLY: PartSourceLB,NodeSourceExtEquiLB
+USE MOD_LoadBalance_Vars   ,ONLY: NodeSourceExtEquiLB!,PartSourceLB
 USE MOD_Mesh_Vars          ,ONLY: nElems
 USE MOD_Dielectric_Vars    ,ONLY: DoDielectricSurfaceCharge
 USE MOD_Particle_Mesh_Vars ,ONLY: ElemNodeID_Shared,NodeInfo_Shared,ElemNodeID_Shared_Win
@@ -1982,12 +1981,11 @@ SDEALLOCATE(CellVolWeight)
 SDEALLOCATE(CellVolWeight_Volumes)
 SDEALLOCATE(ChargeSFDone)
 SDEALLOCATE(PeriodicSFCaseMatrix)
+SDEALLOCATE(N_ShapeTmp)
 
 #if USE_MPI
 SDEALLOCATE(FlagShapeElem)
-SDEALLOCATE(nDepoDOFPerProc)
-SDEALLOCATE(nDepoOffsetProc)
-SDEALLOCATE(SendElemShapeID)
+SDEALLOCATE(SendDofShapeID)
 SDEALLOCATE(CNRankToSendRank)
 
 ! First, free every shared memory window. This requires MPI_BARRIER as per MPI3.1 specification
@@ -2027,13 +2025,14 @@ END SELECT
 
 #if USE_LOADBALANCE
 IF ((PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance))) THEN
+#endif /*USE_LOADBALANCE*/
 
-  IF(DoDeposition)THEN
-    SDEALLOCATE(PartSourceLB)
-    ALLOCATE(PartSourceLB(1:4,0:PP_N,0:PP_N,0:PP_N,nElems))
-    CALL abort(__STAMP__,'not implemented')
-    !PartSourceLB = PartSource
-  END IF ! DoDeposition
+  !IF(DoDeposition)THEN
+  !  SDEALLOCATE(PartSourceLB)
+  !  ALLOCATE(PartSourceLB(1:4,0:PP_N,0:PP_N,0:PP_N,nElems))
+  !  CALL abort(__STAMP__,'not implemented')
+  !  !PartSourceLB = PartSource
+  !END IF ! DoDeposition
 
   IF(DoDielectricSurfaceCharge)THEN
     IF(DoDeposition) CALL ExchangeNodeSourceExtTmp()
@@ -2055,21 +2054,32 @@ IF ((PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance))) THEN
     END DO!iElem
   END IF ! DoDielectricSurfaceCharge
 
-  ! Finalize here because GetCNElemID() is required in this routine for load balancing of NodeSourceExtEquiLB = NodeSourceExt
-  IF (nComputeNodeProcessors.NE.nProcessors_Global) THEN
-    CALL UNLOCK_AND_FREE(GlobalElem2CNTotalElem_Shared_Win)
-    ADEALLOCATE(GlobalElem2CNTotalElem)
-    ADEALLOCATE(GlobalElem2CNTotalElem_Shared)
-  END IF ! nComputeNodeProcessors.NE.nProcessors_Global
+  !! Finalize here because GetCNElemID() is required in this routine for load balancing of NodeSourceExtEquiLB = NodeSourceExt
+  !IF (nComputeNodeProcessors.NE.nProcessors_Global) THEN
+  !  CALL UNLOCK_AND_FREE(GlobalElem2CNTotalElem_Shared_Win)
+  !  ADEALLOCATE(GlobalElem2CNTotalElem)
+  !  ADEALLOCATE(GlobalElem2CNTotalElem_Shared)
+  !END IF ! nComputeNodeProcessors.NE.nProcessors_Global
+
+#if USE_LOADBALANCE
 END IF
+#endif /*USE_LOADBALANCE*/
+
+#if USE_LOADBALANCE
+IF (.NOT.(PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance))) THEN
+#endif /*USE_LOADBALANCE*/
+  ! Keep for load balance and deallocate/reallocate after communication
+  SDEALLOCATE(PS_N) ! PartSource, PartSourceOld and PartSourceTmp
+#if USE_LOADBALANCE
+END IF
+#endif /*USE_LOADBALANCE*/
+
 ! This step was skipped in particle_mesh.f90: FinalizeParticleMesh()
 IF(PerformLoadBalance.AND.DoDielectricSurfaceCharge)THEN
   ! From InitElemNodeIDs
   CALL UNLOCK_AND_FREE(ElemNodeID_Shared_Win)
   ADEALLOCATE(ElemNodeID_Shared)
 END IF
-#endif /*USE_LOADBALANCE*/
-SDEALLOCATE(PS_N) ! PartSource, PartSourceOld and PartSourceTmp
 SDEALLOCATE(DepoNodetoGlobalNode)
 SDEALLOCATE(NodeSource)
 SDEALLOCATE(NodeSourceExt)

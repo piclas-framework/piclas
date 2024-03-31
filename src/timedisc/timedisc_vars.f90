@@ -66,12 +66,13 @@ INTEGER,PARAMETER:: nRKStages=1
 #if (PP_TimeDiscMethod==1)||(PP_TimeDiscMethod==2)|| (PP_TimeDiscMethod==6)
 ! DG solution vol
 TYPE N_Ut_Vol
-  REAL,ALLOCATABLE  :: Ut_temp(:,:,:,:)
+  REAL,ALLOCATABLE :: Ut_temp( :,:,:,:) !> Temporal variable for Ut
+  REAL,ALLOCATABLE :: U2t_temp(:,:,:,:) !> Temporal variable for U2t (PML)
 END TYPE N_Ut_Vol
 
 ! DG solution (JU or U) vectors)
 TYPE(N_Ut_Vol),ALLOCATABLE :: Ut_N(:)       !< Solution variable for each equation, node and element,
-REAL,ALLOCATABLE :: U2t_temp(  :,:,:,:,:)             !> temporal variable for U2t
+
 #ifdef PP_POIS
 REAL,ALLOCATABLE :: Phit_temp( :,:,:,:,:)
 #endif /*PP_POIS*/

@@ -36,9 +36,11 @@ INTERFACE InitDG
 END INTERFACE
 
 #if !(USE_HDG)
+#if !((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))
 INTERFACE DGTimeDerivative_weakForm
   MODULE PROCEDURE DGTimeDerivative_weakForm
 END INTERFACE
+#endif /*!((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))*/
 #endif /*USE_HDG*/
 
 INTERFACE FinalizeDG
@@ -47,7 +49,9 @@ END INTERFACE
 
 PUBLIC::InitDG,FinalizeDG
 #if !(USE_HDG)
+#if !((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))
 PUBLIC::DGTimeDerivative_weakForm
+#endif /*!((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))*/
 #endif /*USE_HDG*/
 #ifdef PP_POIS
 PUBLIC::DGTimeDerivative_weakForm_Pois
@@ -66,23 +70,22 @@ USE MOD_PreProc
 USE MOD_DG_Vars
 USE MOD_Restart_Vars       ,ONLY: DoRestart,RestartInitIsDone
 USE MOD_Interpolation_Vars ,ONLY: N_Inter,InterpolationInitIsDone,Nmax,Nmin
-USE MOD_Mesh_Vars          ,ONLY: nSides,nElems
+USE MOD_Mesh_Vars          ,ONLY: nSides,nElems, offSetElem
 USE MOD_Mesh_Vars          ,ONLY: MeshInitIsDone
 #if ! (USE_HDG)
 USE MOD_PML_Vars           ,ONLY: PMLnVar ! Additional fluxes for the CFS-PML auxiliary variables
 #endif /*USE_HDG*/
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Vars   ,ONLY: PerformLoadBalance
-#if !(USE_HDG)
 USE MOD_LoadBalance_Vars   ,ONLY: UseH5IOLoadBalance
-#endif /*!(USE_HDG)*/
 #endif /*USE_LOADBALANCE*/
 #if USE_MPI
 USE MOD_MPI                ,ONLY: StartExchange_DG_Elems,FinishExchangeMPIData
-USE MOD_MPI_Vars           ,ONLY: SendRequest_U,RecRequest_U,SendRequest_U2,RecRequest_U2
+!USE MOD_MPI_Vars           ,ONLY: SendRequest_U,RecRequest_U,SendRequest_U2,RecRequest_U2
 #endif /*USE_MPI*/
 #if (PP_TimeDiscMethod==1)||(PP_TimeDiscMethod==2)|| (PP_TimeDiscMethod==6)
-USE MOD_TimeDisc_Vars          ,ONLY: Ut_N
+USE MOD_TimeDisc_Vars      ,ONLY: Ut_N
+USE MOD_PML_Vars           ,ONLY: DoPML,isPMLElem
 #endif
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -110,55 +113,70 @@ END DO
 
 #if !((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))
 #if USE_LOADBALANCE && !(USE_HDG)
-! Not "LB not via h5 I/O"
-! Not "LB via MPI" means we keep U_N during LB
+! Not "LB via MPI" means during 1st initialisation
 IF (.NOT.(PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance))) THEN
 #endif /*USE_LOADBALANCE && !(USE_HDG)*/
   ! the local DG solution in physical and reference space
-  ALLOCATE(U_N(1:PP_nElems))
-  DO iElem = 1, PP_nElems
-    Nloc = N_DG(iElem)
+  ALLOCATE(U_N(1:nElems))
+  DO iElem = 1, nElems
+    Nloc = N_DG_Mapping(2,iElem+offSetElem)
     ALLOCATE(U_N(iElem)%U(PP_nVar,0:Nloc,0:Nloc,0:Nloc))
     U_N(iElem)%U = 0.
-  END DO ! iElem = 1, PP_nElems
+#if !(USE_HDG)
+    ALLOCATE(U_N(iElem)%Ut(PP_nVar,0:Nloc,0:Nloc,0:Nloc))
+    U_N(iElem)%Ut = 0.
+    IF(DoPML)THEN
+      IF(isPMLElem(iElem))THEN
+        ALLOCATE(U_N(iElem)%U2(PMLnVar,0:Nloc,0:Nloc,0:Nloc))
+        U_N(iElem)%U2 = 0.
+        ALLOCATE(U_N(iElem)%U2t(PMLnVar,0:Nloc,0:Nloc,0:Nloc))
+        U_N(iElem)%U2t = 0.
+      END IF ! isPMLElem(iElem)
+    END IF ! DoPML
+#endif /*!(USE_HDG)*/
+  END DO ! iElem = 1, nElems
 #if USE_LOADBALANCE && !(USE_HDG)
 END IF
 #endif /*USE_LOADBALANCE && !(USE_HDG)*/
 
 ! Allocate additional containers
 #if USE_HDG
-DO iElem = 1, PP_nElems
-  Nloc = N_DG(iElem)
+DO iElem = 1, nElems
+  Nloc = N_DG_Mapping(2,iElem+offSetElem)
   ALLOCATE(U_N(iElem)%E(1:3,0:Nloc,0:Nloc,0:Nloc))
   ALLOCATE(U_N(iElem)%Et(1:3,0:Nloc,0:Nloc,0:Nloc))
   U_N(iElem)%E = 0.
   U_N(iElem)%Et = 0.
-END DO ! iElem = 1, PP_nElems
+END DO ! iElem = 1, nElems
 #else
 #if (PP_TimeDiscMethod==1)||(PP_TimeDiscMethod==2)|| (PP_TimeDiscMethod==6)
 ! the time derivative computed with the DG scheme
-ALLOCATE(Ut_N(PP_nElems))
+ALLOCATE(Ut_N(nElems))
 #endif /*(PP_TimeDiscMethod==1)||(PP_TimeDiscMethod==2)|| (PP_TimeDiscMethod==6)*/
 
 ! the time derivative computed with the DG scheme
-DO iElem = 1, PP_nElems
-  Nloc = N_DG(iElem)
-  ALLOCATE(U_N(iElem)%Ut(PP_nVar,0:Nloc,0:Nloc,0:Nloc))
-  U_N(iElem)%Ut = 0.
+DO iElem = 1, nElems
+  Nloc = N_DG_Mapping(2,iElem+offSetElem)
 #if (PP_TimeDiscMethod==1)||(PP_TimeDiscMethod==2)|| (PP_TimeDiscMethod==6)
   ALLOCATE(Ut_N(iElem)%Ut_temp(PP_nVar,0:Nloc,0:Nloc,0:Nloc))
   Ut_N(iElem)%Ut_temp = 0.
+  IF(DoPML)THEN
+    IF(isPMLElem(iElem))THEN
+      ALLOCATE(Ut_N(iElem)%U2t_temp(PMLnVar,0:Nloc,0:Nloc,0:Nloc))
+      Ut_N(iElem)%Ut_temp = 0.
+    END IF ! isPMLElem(iElem)
+  END IF ! DoPML
 #endif
-END DO ! iElem = 1, PP_nElems
+END DO ! iElem = 1, nElems
 #endif /*USE_HDG*/
 
 #if IMPA || ROS
-ALLOCATE( Un(PP_nVar,0:PP_N,0:PP_N,0:PP_N,PP_nElems))
+ALLOCATE( Un(PP_nVar,0:PP_N,0:PP_N,0:PP_N,nElems))
 Un=0.
 #endif
 !nTotal_face = (PP_N+1)*(PP_N+1)
 !nTotal_vol  = nTotal_face*(PP_N+1)
-!nTotalU     = PP_nVar*nTotal_vol*PP_nElems
+!nTotalU     = PP_nVar*nTotal_vol*nElems
 
 ! U is filled with the ini solution
 IF(.NOT.DoRestart) CALL FillIni()
@@ -215,9 +233,9 @@ USE MOD_Interpolation_Vars ,ONLY: Nmax
 #if USE_MPI
 USE MOD_PreProc
 USE MOD_MPI_Vars           ,ONLY: SurfExchange, nNbProcs, DataSizeSurfRecMax, DataSizeSurfSendMax, DataSizeSurfRecMin, DataSizeSurfSendMin
-USE MOD_DG_Vars            ,ONLY: N_DG,DG_Elems_master,DG_Elems_slave
+USE MOD_DG_Vars            ,ONLY: N_DG_Mapping,DG_Elems_master,DG_Elems_slave
 USE MOD_MPI                ,ONLY: StartReceiveMPISurfDataType,StartSendMPISurfDataType,FinishExchangeMPISurfDataType
-USE MOD_Mesh_Vars          ,ONLY: N_SurfMesh,nSides
+USE MOD_Mesh_Vars          ,ONLY: N_SurfMesh,nSides, offSetElem
 USE MOD_Interpolation_Vars ,ONLY: NInfo,PREF_VDM,N_Inter
 #endif /*USE_MPI*/
 #endif /*USE_HDG*/
@@ -284,13 +302,14 @@ L_HatMinus(:) = MATMUL(Minv,L_Minus)
 !!Geotemp(11:13,:,:,:)=Face_xGP(:,:,:,SideID_minus_lower:SideID_minus_upper)
 !CALL StartReceiveMPIData(10,Geotemp,1,nSides,RecRequest_Geo ,SendID=1) ! Receive MINE
 !CALL StartSendMPIData(   10,Geotemp,1,nSides,SendRequest_Geo,SendID=1) ! Send YOUR
-!CALL FinishExchangeMPIData(SendRequest_Geo,RecRequest_Geo,SendID=1)    
+!CALL FinishExchangeMPIData(SendRequest_Geo,RecRequest_Geo,SendID=1)
 
 #endif /*USE_HDG*/
 END SUBROUTINE InitDGBasis
 
 
 #if !(USE_HDG)
+#if !((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))
 SUBROUTINE DGTimeDerivative_weakForm(t,tStage,tDeriv,doSource)
 !===================================================================================================================================
 ! Computes the DG time derivative consisting of Volume Integral and Surface integral for the whole field
@@ -307,25 +326,26 @@ USE MOD_ProlongToFace     ,ONLY: ProlongToFace_TypeBased
 USE MOD_FillFlux          ,ONLY: FillFlux
 USE MOD_Equation          ,ONLY: CalcSource
 USE MOD_Interpolation     ,ONLY: ApplyJacobian
-USE MOD_PML_Vars          ,ONLY: DoPML,U2t
+USE MOD_PML_Vars          ,ONLY: DoPML
 USE MOD_Mesh_Vars         ,ONLY: nElems
 !USE MOD_FillMortar        ,ONLY: U_Mortar,Flux_Mortar
 #if USE_MPI
-USE MOD_PML_Vars          ,ONLY: PMLnVar
-USE MOD_Mesh_Vars         ,ONLY: nSides
+!USE MOD_PML_Vars          ,ONLY: PMLnVar
+!USE MOD_Mesh_Vars         ,ONLY: nSides
 USE MOD_MPI_Vars
-USE MOD_MPI               ,ONLY: StartExchange_DG_Elems,StartReceiveMPIDataType,StartSendMPIDataType,FinishExchangeMPIDataType
+USE MOD_MPI                ,ONLY: StartExchange_DG_Elems,StartReceiveMPIDataType,StartSendMPIDataType,FinishExchangeMPIDataType
 #if defined(PARTICLES) && defined(LSERK)
-USE MOD_Particle_Vars     ,ONLY: DelayTime
-USE MOD_TimeDisc_Vars     ,ONLY: time
+USE MOD_Particle_Vars      ,ONLY: DelayTime
+USE MOD_TimeDisc_Vars      ,ONLY: time
 #endif /*defined(PARTICLES) && defined(LSERK)*/
 #ifdef PARTICLES
-USE MOD_Particle_MPI      ,ONLY: MPIParticleSend,MPIParticleRecv
+USE MOD_Particle_MPI       ,ONLY: MPIParticleSend,MPIParticleRecv
 #endif /*PARTICLES*/
 #if USE_LOADBALANCE
-USE MOD_LoadBalance_Timers,ONLY: LBStartTime,LBPauseTime,LBSplitTime
+USE MOD_LoadBalance_Timers ,ONLY: LBStartTime,LBPauseTime,LBSplitTime
 #endif /*USE_LOADBALANCE*/
 #endif /*USE_MPI*/
+USE MOD_PML_Vars           ,ONLY: nPMLElems,PMLToElem
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -340,7 +360,7 @@ LOGICAL,INTENT(IN)              :: doSource
 #if USE_LOADBALANCE
 REAL                            :: tLBStart
 #endif /*USE_LOADBALANCE*/
-INTEGER                         :: iElem
+INTEGER                         :: iElem,iPML
 !===================================================================================================================================
 
 ! prolong the solution to the face integration points for flux computation
@@ -391,7 +411,13 @@ END IF
 DO iElem = 1, nElems
   U_N(iElem)%Ut = 0.
 END DO ! iElem = 1, nElems
-IF(DoPML) U2t=0. ! set U2t for auxiliary variables to zero
+
+IF(DoPML)THEN ! Set U2t for auxiliary variables to zero
+  DO iPML=1,nPMLElems
+    iElem = PMLToElem(iPML)
+    U_N(iElem)%U2t = 0.
+  END DO ! iPML=1,nPMLElems
+END IF ! DoPML
 ! compute volume integral contribution and add to ut, first half of all elements
 CALL VolInt(dofirstElems=.TRUE.)
 
@@ -471,6 +497,7 @@ CALL LBSplitTime(LB_PARTCOMM,tLBStart)
 #endif /*defined(PARTICLES) && defined(LSERK)*/
 
 END SUBROUTINE DGTimeDerivative_weakForm
+#endif /*!((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))*/
 #endif /*!(USE_HDG)*/
 
 
@@ -623,8 +650,8 @@ SUBROUTINE FillIni()
 !===================================================================================================================================
 ! MODULES
 USE MOD_PreProc
-USE MOD_DG_Vars       ,ONLY: U_N,N_DG
-USE MOD_Mesh_Vars     ,ONLY: N_VolMesh
+USE MOD_DG_Vars       ,ONLY: U_N,N_DG_Mapping
+USE MOD_Mesh_Vars     ,ONLY: N_VolMesh, offSetElem
 USE MOD_Equation_Vars ,ONLY: IniExactFunc
 USE MOD_Equation      ,ONLY: ExactFunc
 #ifdef maxwell
@@ -646,7 +673,7 @@ INTEGER                         :: i,j,k,iElem,Nloc
 IF(DoExactFlux.AND.(IniExactFunc.NE.16)) RETURN ! IniExactFunc=16 is pulsed laser mixed IC+BC
 #endif /*maxwell*/
 DO iElem=1,PP_nElems
-  Nloc = N_DG(iElem)
+  Nloc = N_DG_Mapping(2,iElem+offSetElem)
   DO k=0,Nloc
     DO j=0,Nloc
       DO i=0,Nloc
@@ -667,11 +694,16 @@ SUBROUTINE FinalizeDG()
 ! Deallocate global variable U (solution) and Ut (dg time derivative).
 !===================================================================================================================================
 ! MODULES
-USE MOD_globals, ONLY: abort
+USE MOD_globals          ,ONLY: abort
 USE MOD_DG_Vars
-#if USE_LOADBALANCE && !(USE_HDG)
-USE MOD_LoadBalance_Vars   ,ONLY: PerformLoadBalance,UseH5IOLoadBalance
-#endif /*USE_LOADBALANCE && !(USE_HDG)*/
+#if USE_LOADBALANCE && ! (USE_HDG)
+USE MOD_LoadBalance_Vars ,ONLY: PerformLoadBalance,UseH5IOLoadBalance
+#endif /*USE_LOADBALANCE && ! (USE_HDG)*/
+#if !((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))
+#if !(USE_HDG)
+USE MOD_TimeDisc_Vars    ,ONLY: Ut_N
+#endif /*!(USE_HDG)*/
+#endif /*!((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -682,7 +714,6 @@ IMPLICIT NONE
 ! LOCAL VARIABLES
 !===================================================================================================================================
 SDEALLOCATE(DGB_N)
-SDEALLOCATE(U_N)
 #if IMPA || ROS
 SDEALLOCATE(Un)
 #endif
@@ -691,12 +722,18 @@ SDEALLOCATE(U_Surf_N)
 ! Do not deallocate the solution vector during load balance here as it needs to be communicated between the processors
 #if USE_LOADBALANCE && !(USE_HDG)
 IF(.NOT.(PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance)))THEN
-!CALL abort(__STAMP__,'not implemented, keep U ?!')
 #endif /*USE_LOADBALANCE && !(USE_HDG)*/
-  !SDEALLOCATE(U)
+  ! Keep for load balance and deallocate/reallocate after communication
+  SDEALLOCATE(U_N)
 #if USE_LOADBALANCE && !(USE_HDG)
 END IF
 #endif /*USE_LOADBALANCE && !(USE_HDG)*/
+
+#if !((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))
+#if !(USE_HDG)
+SDEALLOCATE(Ut_N)
+#endif /*!(USE_HDG)*/
+#endif /*!((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))*/
 
 DGInitIsDone = .FALSE.
 END SUBROUTINE FinalizeDG

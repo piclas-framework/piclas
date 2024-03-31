@@ -56,7 +56,7 @@ SUBROUTINE Elem_Mat(td_iter)
 USE MOD_Globals
 USE MOD_PreProc
 USE MOD_HDG_Vars
-USE MOD_DG_Vars            ,ONLY: N_DG
+USE MOD_DG_Vars            ,ONLY: N_DG_Mapping
 USE MOD_Equation_Vars      ,ONLY: chi
 #if defined(IMPA) || defined(ROS)
 USE MOD_LinearSolver_Vars  ,ONLY: DoPrintConvInfo
@@ -64,7 +64,7 @@ USE MOD_LinearSolver_Vars  ,ONLY: DoPrintConvInfo
 USE MOD_TimeDisc_Vars      ,ONLY: IterDisplayStep,DoDisplayIter
 #endif
 USE MOD_Interpolation_Vars ,ONLY: N_Inter,NMax
-USE MOD_Mesh_Vars          ,ONLY: N_VolMesh
+USE MOD_Mesh_Vars          ,ONLY: N_VolMesh,offSetElem
 USE MOD_Mesh_Vars          ,ONLY: N_SurfMesh
 USE MOD_Mesh_Vars          ,ONLY: N_Mesh
 #ifdef VDM_ANALYTICAL
@@ -134,7 +134,7 @@ END IF
 DO iElem=1,PP_nElems
   HDG_Vol_N(iElem)%Ehat = 0.0
   HDG_Vol_N(iElem)%Smat = 0.0
-  Nloc = N_DG(iElem)
+  Nloc = N_DG_Mapping(2,iElem+offSetElem)
   SideID(:)=ElemToSide(E2S_SIDE_ID,:,iElem)
   Flip(:)  =ElemToSide(E2S_FLIP,:,iElem)
 
@@ -186,7 +186,7 @@ DO iElem=1,PP_nElems
         !  D  volume contribution for nonlinear stuff
         IF (UseBRElectronFluid.AND.(HDGNonLinSolver.EQ.1)) THEN
           j = index_3to1(g1,g2,g3,Nloc)
-          Dhat(j,j) = Dhat(j,j) - HDG_Vol_N(iElem)%JwGP_vol( j)*NonlinVolumeFac(j,iElem)
+          Dhat(j,j) = Dhat(j,j) - HDG_Vol_N(iElem)%JwGP_vol(j)*HDG_Vol_N(iElem)%NonlinVolumeFac(j)
         END IF
 #endif /*defined(PARTICLES)*/
         !  D  surface contribution
@@ -483,9 +483,9 @@ USE MOD_MPI            ,ONLY: StartReceiveMPIData,StartSendMPIData,FinishExchang
 #if USE_PETSC
 USE PETSc
 #else
-USE MOD_Mesh_Vars      ,ONLY: nSides,SideToElem,nMPIsides_YOUR,N_SurfMesh
+USE MOD_Mesh_Vars      ,ONLY: nSides,SideToElem,nMPIsides_YOUR,N_SurfMesh, offSetElem
 USE MOD_FillMortar_HDG ,ONLY: SmallToBigMortarPrecond_HDG
-USE MOD_DG_Vars        ,ONLY: DG_Elems_master, DG_Elems_slave,N_DG
+USE MOD_DG_Vars        ,ONLY: DG_Elems_master, DG_Elems_slave,N_DG_Mapping
 #endif
 USE MOD_Interpolation_Vars ,ONLY: Nmax
 ! IMPLICIT VARIABLE HANDLING
@@ -612,8 +612,8 @@ SUBROUTINE PostProcessGradientHDG()
 ! MODULES
 USE MOD_Preproc
 USE MOD_HDG_Vars
-USE MOD_Mesh_Vars          ,ONLY: ElemToSide,N_VolMesh,N_Mesh,nSides,N_SurfMesh
-USE MOD_DG_Vars            ,ONLY: DG_Elems_master,DG_Elems_slave,N_DG,U_N
+USE MOD_Mesh_Vars          ,ONLY: ElemToSide,N_VolMesh,N_Mesh,nSides,N_SurfMesh, offSetElem
+USE MOD_DG_Vars            ,ONLY: DG_Elems_master,DG_Elems_slave,N_DG_Mapping,U_N
 USE MOD_Interpolation_Vars ,ONLY: N_Inter,PREF_VDM,NMax
 USE MOD_ChangeBasis        ,ONLY: ChangeBasis2D
 ! IMPLICIT VARIABLE HANDLING
@@ -645,7 +645,7 @@ END DO ! iSide = 1, nSides
 
 DO iElem=1,PP_nElems
   U_N(iElem)%E = 0.
-  Nloc = N_DG(iElem)
+  Nloc = N_DG_Mapping(2,iElem+offSetElem)
   SideID(:)=ElemToSide(E2S_SIDE_ID,:,iElem)
   Flip(:)  =ElemToSide(E2S_FLIP,:,iElem)
 

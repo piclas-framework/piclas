@@ -54,6 +54,7 @@ USE MOD_MPI_Shared_Vars       ,ONLY: nComputeNodeTotalElems
 #endif /*USE_MPI*/
 USE MOD_Preproc
 USE MOD_Mesh_ReadIn           ,ONLY: FinalizeMeshReadin
+USE MOD_Mesh                  ,ONLY: FinalizeMesh
 #if USE_MPI
 #if defined(PARTICLES)
 USE MOD_Particle_Mesh_Vars    ,ONLY: ConcaveElemSide_Shared_Win,ElemSideNodeID_Shared_Win,ElemMidPoint_Shared_Win
@@ -368,6 +369,7 @@ END DO ! iArgs = 2, nArgs
 ! Finalize
 IF(ReadMeshFinished)THEN
   CALL FinalizeMeshReadin(-2)
+  CALL FinalizeMesh() ! Unlock and free N_DG_Mapping_Shared
   ! First, free every shared memory window. This requires MPI_BARRIER as per MPI3.1 specification
 #if USE_MPI
   CALL MPI_BARRIER(MPI_COMM_SHARED,iERROR)
