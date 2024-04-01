@@ -196,7 +196,9 @@ REAL,ALLOCATABLE               :: BVDataHDF5(:,:)
 REAL,ALLOCATABLE               :: FPCDataHDF5(:,:),EPCDataHDF5(:,:)
 INTEGER                        :: nVarFPC,nVarEPC
 #endif /*USE_HDG*/
+#if defined(PARTICLES)
 REAL                           :: PartSource(1:4,0:Nmax,0:Nmax,0:Nmax,PP_nElems)
+#endif /*defined(PARTICLES)*/
 !===================================================================================================================================
 #ifdef EXTRAE
 CALL extrae_eventandcounters(int(9000001), int8(3))
