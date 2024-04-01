@@ -537,7 +537,7 @@ ELSE ! normal restart
                 ! Switch to Legendre basis
                 CALL ChangeBasis2D(PP_nVar, N_Restart, N_Restart, N_Inter(N_Restart)%sVdm_Leg, tmp2(1:PP_nVar,0:Nres,0:Nres), tmp2(1:PP_nVar,0:Nres,0:Nres))
                 ! Switch back to nodal basis but cut-off the higher-order DOFs
-                CALL ChangeBasis2D(PP_nVar, NSideMin, NSideMin, N_Inter(NSideMin)%Vdm_Leg, tmp2(1:PP_nVar,0:Nres,0:Nres), tmp3(1:PP_nVar,0:NSideMin,0:NSideMin))
+                CALL ChangeBasis2D(PP_nVar, NSideMin, NSideMin, N_Inter(NSideMin)%Vdm_Leg, tmp2(1:PP_nVar,0:NSideMin,0:NSideMin), tmp3(1:PP_nVar,0:NSideMin,0:NSideMin))
               END IF ! NSideMin.EQ.N_Restart
 
               ! Map back from 2D to 1D array
