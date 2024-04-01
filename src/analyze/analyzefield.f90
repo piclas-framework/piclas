@@ -385,7 +385,7 @@ SUBROUTINE CalcPoyntingIntegral(PoyntingIntegral)
 ! MODULES
 USE MOD_Mesh_Vars          ,ONLY: nElems, N_SurfMesh, offSetElem
 USE MOD_Mesh_Vars          ,ONLY: ElemToSide
-USE MOD_Analyze_Vars       ,ONLY: nPoyntingIntPlanes,S,isPoyntingIntSide,SideIDToPoyntingSide,PoyntingMainDir
+USE MOD_Analyze_Vars       ,ONLY: nPoyntingIntPlanes,isPoyntingIntSide,SideIDToPoyntingSide,PoyntingMainDir,Poynting
 USE MOD_Interpolation_Vars ,ONLY: N_inter
 USE MOD_DG_Vars            ,ONLY: U_N,N_DG_Mapping
 USE MOD_Globals_Vars       ,ONLY: smu0
@@ -397,156 +397,153 @@ IMPLICIT NONE
 ! INPUT VARIABLES
 !----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
-REAL,INTENT(INOUT)          :: PoyntingIntegral(1:nPoyntingIntPlanes)
+REAL,INTENT(INOUT) :: PoyntingIntegral(1:nPoyntingIntPlanes)
 !----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER          :: iElem, SideID,ilocSide,iPoyntingSide,Nloc
-INTEGER          :: p,q,l
-REAL,ALLOCATABLE :: Uface(:,:,:)
-REAL,ALLOCATABLE :: SIP(:,:)
+INTEGER            :: iElem,SideID,ilocSide,iPoyntingSide,Nloc
+INTEGER            :: p,q,l
 #if USE_MPI
-REAL             :: SumSabs(nPoyntingIntPlanes)
+REAL               :: SumSabs(nPoyntingIntPlanes)
 #endif
 !===================================================================================================================================
-
-S    = 0.
 PoyntingIntegral = 0.
 
-iPoyntingSide = 0 ! only if all Poynting vectors are desired
-DO iELEM = 1, nElems
+iPoyntingSide = 0
+DO iElem = 1, nElems
   Nloc = N_DG_Mapping(2,iElem+offSetElem)
-  ALLOCATE(Uface(PP_nVar,0:Nloc,0:Nloc))
-  ALLOCATE(SIP(0:Nloc,0:Nloc))
   Do ilocSide = 1, 6
     IF(ElemToSide(E2S_FLIP,ilocSide,iElem)==0)THEN ! only master sides
       SideID=ElemToSide(E2S_SIDE_ID,ilocSide,iElem)
-      IF(.NOT.isPoyntingIntSide(SideID)) CYCLE
+      IF(.NOT.isPoyntingIntSide(SideID)) CYCLE ! Skip other sides
+      ! calculate Poynting vector
+      iPoyntingSide = iPoyntingSide + 1
+      Poynting(iPoyntingSide)%S = 0.
 #if (PP_NodeType==1) /* for Gauss-points*/
-        SELECT CASE(ilocSide)
-        CASE(XI_MINUS)
-          DO q=0,Nloc
-            DO p=0,Nloc
-              Uface(:,q,p)=U_N(iElem)%U(:,0,p,q)*N_Inter(Nloc)%L_Minus(0)
-              DO l=1,Nloc
-                ! switch to right hand system
-                Uface(:,q,p)=Uface(:,q,p)+U_N(iElem)%U(:,l,p,q)*N_Inter(Nloc)%L_Minus(l)
-              END DO ! l
-            END DO ! p
-          END DO ! q
-        CASE(ETA_MINUS)
-          DO q=0,Nloc
-            DO p=0,Nloc
-              Uface(:,p,q)=U_N(iElem)%U(:,p,0,q)*N_Inter(Nloc)%L_Minus(0)
-              DO l=1,Nloc
-                Uface(:,p,q)=Uface(:,p,q)+U_N(iElem)%U(:,p,l,q)*N_Inter(Nloc)%L_Minus(l)
-              END DO ! l
-            END DO ! p
-          END DO ! q
-        CASE(ZETA_MINUS)
-          DO q=0,Nloc
-            DO p=0,Nloc
-              Uface(:,q,p)=U_N(iElem)%U(:,p,q,0)*N_Inter(Nloc)%L_Minus(0)
-              DO l=1,Nloc
-                ! switch to right hand system
-                Uface(:,q,p)=Uface(:,q,p)+U_N(iElem)%U(:,p,q,l)*N_Inter(Nloc)%L_Minus(l)
-              END DO ! l
-            END DO ! p
-          END DO ! qfirst stuff
-        CASE(XI_PLUS)
-          DO q=0,Nloc
-            DO p=0,Nloc
-              Uface(:,p,q)=U_N(iElem)%U(:,0,p,q)*N_Inter(Nloc)%L_Plus(0)
-              DO l=1,Nloc
-                Uface(:,p,q)=Uface(:,p,q)+U_N(iElem)%U(:,l,p,q)*N_Inter(Nloc)%L_Plus(l)
-              END DO ! l
-            END DO ! p
-          END DO ! q
-        CASE(ETA_PLUS)
-          DO q=0,Nloc
-            DO p=0,Nloc
-              Uface(:,Nloc-p,q)=U_N(iElem)%U(:,p,0,q)*N_Inter(Nloc)%L_Plus(0)
-              DO l=1,Nloc
-                ! switch to right hand system
-                Uface(:,Nloc-p,q)=Uface(:,Nloc-p,q)+U_N(iElem)%U(:,p,l,q)*N_Inter(Nloc)%L_Plus(l)
-              END DO ! l
-            END DO ! p
-          END DO ! q
-        CASE(ZETA_PLUS)
-          DO q=0,Nloc
-            DO p=0,Nloc
-              Uface(:,p,q)=U_N(iElem)%U(:,p,q,0)*N_Inter(Nloc)%L_Plus(0)
-              DO l=1,Nloc
-                Uface(:,p,q)=Uface(:,p,q)+U_N(iElem)%U(:,p,q,l)*N_Inter(Nloc)%L_Plus(l)
-              END DO ! l
-            END DO ! p
-          END DO ! q
-        END SELECT
+      SELECT CASE(ilocSide)
+      CASE(XI_MINUS)
+        DO q=0,Nloc
+          DO p=0,Nloc
+            Poynting(iPoyntingSide)%Uface(:,q,p)=U_N(iElem)%U(:,0,p,q)*N_Inter(Nloc)%L_Minus(0)
+            DO l=1,Nloc
+              ! switch to right hand system
+              Poynting(iPoyntingSide)%Uface(:,q,p)=Poynting(iPoyntingSide)%Uface(:,q,p)+U_N(iElem)%U(:,l,p,q)*N_Inter(Nloc)%L_Minus(l)
+            END DO ! l
+          END DO ! p
+        END DO ! q
+      CASE(ETA_MINUS)
+        DO q=0,Nloc
+          DO p=0,Nloc
+            Poynting(iPoyntingSide)%Uface(:,p,q)=U_N(iElem)%U(:,p,0,q)*N_Inter(Nloc)%L_Minus(0)
+            DO l=1,Nloc
+              Poynting(iPoyntingSide)%Uface(:,p,q)=Poynting(iPoyntingSide)%Uface(:,p,q)+U_N(iElem)%U(:,p,l,q)*N_Inter(Nloc)%L_Minus(l)
+            END DO ! l
+          END DO ! p
+        END DO ! q
+      CASE(ZETA_MINUS)
+        DO q=0,Nloc
+          DO p=0,Nloc
+            Poynting(iPoyntingSide)%Uface(:,q,p)=U_N(iElem)%U(:,p,q,0)*N_Inter(Nloc)%L_Minus(0)
+            DO l=1,Nloc
+              ! switch to right hand system
+              Poynting(iPoyntingSide)%Uface(:,q,p)=Poynting(iPoyntingSide)%Uface(:,q,p)+U_N(iElem)%U(:,p,q,l)*N_Inter(Nloc)%L_Minus(l)
+            END DO ! l
+          END DO ! p
+        END DO ! qfirst stuff
+      CASE(XI_PLUS)
+        DO q=0,Nloc
+          DO p=0,Nloc
+            Poynting(iPoyntingSide)%Uface(:,p,q)=U_N(iElem)%U(:,0,p,q)*N_Inter(Nloc)%L_Plus(0)
+            DO l=1,Nloc
+              Poynting(iPoyntingSide)%Uface(:,p,q)=Poynting(iPoyntingSide)%Uface(:,p,q)+U_N(iElem)%U(:,l,p,q)*N_Inter(Nloc)%L_Plus(l)
+            END DO ! l
+          END DO ! p
+        END DO ! q
+      CASE(ETA_PLUS)
+        DO q=0,Nloc
+          DO p=0,Nloc
+            Poynting(iPoyntingSide)%Uface(:,Nloc-p,q)=U_N(iElem)%U(:,p,0,q)*N_Inter(Nloc)%L_Plus(0)
+            DO l=1,Nloc
+              ! switch to right hand system
+              Poynting(iPoyntingSide)%Uface(:,Nloc-p,q)=Poynting(iPoyntingSide)%Uface(:,Nloc-p,q)+U_N(iElem)%U(:,p,l,q)*N_Inter(Nloc)%L_Plus(l)
+            END DO ! l
+          END DO ! p
+        END DO ! q
+      CASE(ZETA_PLUS)
+        DO q=0,Nloc
+          DO p=0,Nloc
+            Poynting(iPoyntingSide)%Uface(:,p,q)=U_N(iElem)%U(:,p,q,0)*N_Inter(Nloc)%L_Plus(0)
+            DO l=1,Nloc
+              Poynting(iPoyntingSide)%Uface(:,p,q)=Poynting(iPoyntingSide)%Uface(:,p,q)+U_N(iElem)%U(:,p,q,l)*N_Inter(Nloc)%L_Plus(l)
+            END DO ! l
+          END DO ! p
+        END DO ! q
+      END SELECT
 #else /* for Gauss-Lobatto-points*/
-        SELECT CASE(ilocSide)
-        CASE(XI_MINUS)
-          DO q=0,Nloc
-            DO p=0,Nloc
-              Uface(:,q,p)=U_N(iElem)%U(:,0,p,q)
-            END DO ! p
-          END DO ! q
-        CASE(ETA_MINUS)
-          Uface(:,:,:)=U_N(iElem)%U(:,:,0,:)
-        CASE(ZETA_MINUS)
-          DO q=0,Nloc
-            DO p=0,Nloc
-              Uface(:,q,p)=U_N(iElem)%U(:,p,q,0)
-            END DO ! p
-          END DO ! q
-        CASE(XI_PLUS)
-          Uface(:,:,:)=U_N(iElem)%U(:,Nloc,:,:)
-        CASE(ETA_PLUS)
-          DO q=0,Nloc
-            DO p=0,Nloc
-              Uface(:,Nloc-p,q)=U_N(iElem)%U(:,p,Nloc,q)
-            END DO ! p
-          END DO ! q
-        CASE(ZETA_PLUS)
-          DO q=0,Nloc
-            DO p=0,Nloc
-              Uface(:,p,q)=U_N(iElem)%U(:,p,q,Nloc)
-            END DO ! p
-          END DO ! q
-        END SELECT
+      SELECT CASE(ilocSide)
+      CASE(XI_MINUS)
+        DO q=0,Nloc
+          DO p=0,Nloc
+            Poynting(iPoyntingSide)%Uface(:,q,p)=U_N(iElem)%U(:,0,p,q)
+          END DO ! p
+        END DO ! q
+      CASE(ETA_MINUS)
+        Poynting(iPoyntingSide)%Uface(:,:,:)=U_N(iElem)%U(:,:,0,:)
+      CASE(ZETA_MINUS)
+        DO q=0,Nloc
+          DO p=0,Nloc
+            Poynting(iPoyntingSide)%Uface(:,q,p)=U_N(iElem)%U(:,p,q,0)
+          END DO ! p
+        END DO ! q
+      CASE(XI_PLUS)
+        Poynting(iPoyntingSide)%Uface(:,:,:)=U_N(iElem)%U(:,Nloc,:,:)
+      CASE(ETA_PLUS)
+        DO q=0,Nloc
+          DO p=0,Nloc
+            Poynting(iPoyntingSide)%Uface(:,Nloc-p,q)=U_N(iElem)%U(:,p,Nloc,q)
+          END DO ! p
+        END DO ! q
+      CASE(ZETA_PLUS)
+        DO q=0,Nloc
+          DO p=0,Nloc
+            Poynting(iPoyntingSide)%Uface(:,p,q)=U_N(iElem)%U(:,p,q,Nloc)
+          END DO ! p
+        END DO ! q
+      END SELECT
 #endif
-        ! calculate Poynting vector
-        iPoyntingSide = iPoyntingSide + 1
-
-        ! check if dielectric regions are involved
-        IF(DoDielectric)THEN
-          IF(PoyntingUseMuR_Inv.AND.isDielectricFace(SideID))THEN
-            CALL abort(__STAMP__,'not implemented')
-            CALL PoyntingVectorDielectric(Uface(:,:,:),S(:,:,:,iPoyntingSide),Dielectric_MuR_Master_inv(0:Nloc,0:Nloc,SideID))
-          ELSE
-            CALL PoyntingVector(Uface(:,:,:),S(:,:,:,iPoyntingSide))
-          END IF
+      ! check if dielectric regions are involved
+      IF(DoDielectric)THEN
+        IF(PoyntingUseMuR_Inv.AND.isDielectricFace(SideID))THEN
+          CALL abort(__STAMP__,'CALL PoyntingVectorDielectric() not implemented')
+          !CALL PoyntingVectorDielectric(Uface(:,:,:),S(:,:,:,iPoyntingSide),Dielectric_MuR_Master_inv(0:Nloc,0:Nloc,SideID))
         ELSE
-          CALL PoyntingVector(Uface(:,:,:),S(:,:,:,iPoyntingSide))
+          CALL PoyntingVector(Nloc,Poynting(iPoyntingSide)%Uface(:,:,:),Poynting(iPoyntingSide)%S(:,:,:))
         END IF
+      ELSE
+        CALL PoyntingVector(Nloc,Poynting(iPoyntingSide)%Uface(:,:,:),Poynting(iPoyntingSide)%S(:,:,:))
+      END IF
 
-        IF ( N_SurfMesh(SideID)%NormVec(PoyntingMainDir,0,0) .GT. 0.0 ) THEN
-          SIP(:,:) =   S(1,:,:,iPoyntingSide) * N_SurfMesh(SideID)%NormVec(1,0,0) &
-                     + S(2,:,:,iPoyntingSide) * N_SurfMesh(SideID)%NormVec(2,0,0) &
-                     + S(3,:,:,iPoyntingSide) * N_SurfMesh(SideID)%NormVec(3,0,0)
-        ELSE ! NormVec(PoyntingMainDir,:,:,iPoyningSide) < 0
-          SIP(:,:) = - S(1,:,:,iPoyntingSide) * N_SurfMesh(SideID)%NormVec(1,0,0) &
-                     - S(2,:,:,iPoyntingSide) * N_SurfMesh(SideID)%NormVec(2,0,0) &
-                     - S(3,:,:,iPoyntingSide) * N_SurfMesh(SideID)%NormVec(3,0,0)
+      ASSOCIATE( NormVec     => N_SurfMesh(SideID)%NormVec(:,0,0)       ,& ! Use first vector entry and assume planar face
+                 SIP         => Poynting(iPoyntingSide)%SIP(:,:)    )
+                 !S           => Poynting(iPoyntingSide)%S(:,:,:)        )! ,&
+                 !SurfElemwGP => Poynting(iPoyntingSide)%SurfElemwGP(:,:) )
+        IF(NormVec(PoyntingMainDir).GT.0.0)THEN
+          SIP(:,:) =   Poynting(iPoyntingSide)%S(1,:,:) * NormVec(1) &
+                     + Poynting(iPoyntingSide)%S(2,:,:) * NormVec(2) &
+                     + Poynting(iPoyntingSide)%S(3,:,:) * NormVec(3)
+        ELSE ! NormVec(PoyntingMainDir).LT.0
+          SIP(:,:) = - Poynting(iPoyntingSide)%S(1,:,:) * NormVec(1) &
+                     - Poynting(iPoyntingSide)%S(2,:,:) * NormVec(2) &
+                     - Poynting(iPoyntingSide)%S(3,:,:) * NormVec(3)
         END IF ! NormVec(PoyntingMainDir,:,:,iPoyntingSide)
-        ! multiplied by surface element and  Gauss Points
-        CALL abort(__STAMP__,'not implemented: SurfElem is built on N = MAX(DG_Elems_master(iSide),DG_Elems_slave(iSide))')
-        !SIP(:,:) = SIP(:,:) * N_SurfMesh(SideID)%SurfElem(:,:,SideID) * N_Inter(Nloc)%wGPSurf(:,:)
+      END ASSOCIATE
 
-        ! total flux through each plane
-        PoyntingIntegral(SideIDToPoyntingSide(SideID)) = PoyntingIntegral(SideIDToPoyntingSide(SideID)) + smu0* SUM(SIP(:,:))
+      ! multiplied by surface element and  Gauss Points
+      Poynting(iPoyntingSide)%SIP(:,:) = Poynting(iPoyntingSide)%SIP(:,:) * Poynting(iPoyntingSide)%SurfElemwGP(:,:)
+
+      ! total flux through each plane
+      PoyntingIntegral(SideIDToPoyntingSide(SideID)) = PoyntingIntegral(SideIDToPoyntingSide(SideID)) + smu0*SUM(Poynting(iPoyntingSide)%SIP(:,:))
     END IF ! flip =0
   END DO ! iSides
-  DEALLOCATE(Uface)
-  DEALLOCATE(SIP)
 END DO ! iElems
 
 #if USE_MPI
@@ -559,7 +556,7 @@ END SUBROUTINE CalcPoyntingIntegral
 
 
 #if (PP_nVar>=6)
-PPURE SUBROUTINE PoyntingVector(Uface_in,Sloc)
+PPURE SUBROUTINE PoyntingVector(Nloc,U,S)
 !===================================================================================================================================
 !> Calculate the Poynting Vector on a certain face for vacuum properties
 !>
@@ -572,23 +569,24 @@ PPURE SUBROUTINE PoyntingVector(Uface_in,Sloc)
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-REAL,INTENT(IN)       :: Uface_in(PP_nVar,0:PP_N,0:PP_N)
+INTEGER,INTENT(IN)    :: Nloc
+REAL,INTENT(IN)       :: U(PP_nVar,0:Nloc,0:Nloc)
 !----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
-REAL,INTENT(OUT)      :: Sloc(1:3,0:PP_N,0:PP_N)
+REAL,INTENT(OUT)      :: S(1:3,0:Nloc,0:Nloc)
 !----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER               :: p,q
 !===================================================================================================================================
 
 ! calculate the Poynting vector at each node, additionally the abs of the Poynting vector only based on E
-DO p = 0,PP_N
-  DO q = 0,PP_N
-    Sloc(1,p,q)  =  Uface_in(2,p,q)*Uface_in(6,p,q) - Uface_in(3,p,q)*Uface_in(5,p,q)
-    Sloc(2,p,q)  = -Uface_in(1,p,q)*Uface_in(6,p,q) + Uface_in(3,p,q)*Uface_in(4,p,q)
-    Sloc(3,p,q)  =  Uface_in(1,p,q)*Uface_in(5,p,q) - Uface_in(2,p,q)*Uface_in(4,p,q)
-  END DO ! q - PP_N
-END DO  ! p - PP_N
+DO p = 0,Nloc
+  DO q = 0,Nloc
+    S(1,p,q)  =  U(2,p,q)*U(6,p,q) - U(3,p,q)*U(5,p,q)
+    S(2,p,q)  = -U(1,p,q)*U(6,p,q) + U(3,p,q)*U(4,p,q)
+    S(3,p,q)  =  U(1,p,q)*U(5,p,q) - U(2,p,q)*U(4,p,q)
+  END DO ! q - Nloc
+END DO  ! p - Nloc
 
 END SUBROUTINE PoyntingVector
 
@@ -637,7 +635,7 @@ SUBROUTINE GetPoyntingIntPlane()
 ! MODULES
 USE MOD_Mesh_Vars       ,ONLY: nSides,nElems, offSetElem
 USE MOD_Mesh_Vars       ,ONLY: ElemToSide,N_SurfMesh
-USE MOD_Analyze_Vars    ,ONLY: PoyntingIntCoordErr,nPoyntingIntPlanes,PosPoyntingInt,S,STEM
+USE MOD_Analyze_Vars    ,ONLY: PoyntingIntCoordErr,nPoyntingIntPlanes,PosPoyntingInt!,S,STEM
 USE MOD_Analyze_Vars    ,ONLY: isPoyntingIntSide,SideIDToPoyntingSide,PoyntingMainDir
 USE MOD_ReadInTools     ,ONLY: GETINT,GETREAL
 USE MOD_Dielectric_Vars ,ONLY: DoDielectric,nDielectricElems,DielectricVol,ElemToDielectric,isDielectricInterFace
@@ -827,12 +825,96 @@ END DO
 LBWRITE(UNIT_stdOut,'(A,I10,A)') 'A total of',sumAllFaces, &
                         ' surfaces for the poynting vector integral calculation are found.'
 
-ALLOCATE(S    (1:3,0:PP_N,0:PP_N,1:nPoyntingIntSides) , &
-         STEM     (0:PP_N,0:PP_N,1:nPoyntingIntSides)  )
+!ALLOCATE(S    (1:3,0:PP_N,0:PP_N,1:nPoyntingIntSides) , &
+         !STEM     (0:PP_N,0:PP_N,1:nPoyntingIntSides)  )
+! Allocate the Poynting vector containers S, SIP and Uface
+CALL AllocatePoyntingVector()
 
 LBWRITE(UNIT_stdOut,'(A)') ' ... POYNTING VECTOR INTEGRAL INITIALIZATION DONE.'
 
 END SUBROUTINE GetPoyntingIntPlane
+
+
+!===================================================================================================================================
+!> Allocate the Poynting vector containers S, SIP and Uface on the element-local polynomial degree Nloc
+!===================================================================================================================================
+SUBROUTINE AllocatePoyntingVector()
+! MODULES
+USE MOD_Mesh_Vars          ,ONLY: nElems, N_SurfMesh, offSetElem
+USE MOD_Mesh_Vars          ,ONLY: ElemToSide
+USE MOD_Analyze_Vars       ,ONLY: Poynting,SideIDToPoyntingSide,isPoyntingIntSide
+USE MOD_Interpolation_Vars ,ONLY: NMax
+USE MOD_DG_Vars            ,ONLY: DG_Elems_master,DG_Elems_slave,N_DG_Mapping
+USE MOD_Interpolation_Vars ,ONLY: N_Inter,PREF_VDM
+USE MOD_ChangeBasis        ,ONLY: ChangeBasis2D
+IMPLICIT NONE
+!----------------------------------------------------------------------------------------------------------------------------------!
+! INPUT / OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER                       :: iElem,SideID,ilocSide,iPoyntingSide,Nloc,NSideMax,NbrOfPoyntingFace
+REAL,DIMENSION(0:NMax,0:NMax) :: SurfElem,tmp
+!===================================================================================================================================
+
+! Loop over all elements
+NbrOfPoyntingFace = 0
+DO iElem = 1, nElems
+  ! Loop over the 6 local sides
+  DO ilocSide = 1, 6
+    IF(ElemToSide(E2S_FLIP,ilocSide,iElem).EQ.0)THEN ! only master sides
+      SideID=ElemToSide(E2S_SIDE_ID,ilocSide,iElem)
+      IF(.NOT.isPoyntingIntSide(SideID)) CYCLE ! Skip other sides
+      NbrOfPoyntingFace = NbrOfPoyntingFace + 1
+    END IF ! ElemToSide(E2S_FLIP,ilocSide,iElem).EQ.0
+  END DO ! ilocSide = 1, 6
+END DO ! iElem = 1, nElems
+ALLOCATE(Poynting(1:NbrOfPoyntingFace))
+
+! Exit is not faces are found: Can this happen?
+IF(NbrOfPoyntingFace.EQ.0) RETURN
+
+iPoyntingSide = 0
+! Loop over all elements
+DO iElem = 1, nElems
+  ! Get element-local polynomial degree
+  Nloc = N_DG_Mapping(2,iElem+offSetElem)
+  ! Loop over the 6 local sides
+  DO ilocSide = 1, 6
+    IF(ElemToSide(E2S_FLIP,ilocSide,iElem).EQ.0)THEN ! only master sides
+      SideID=ElemToSide(E2S_SIDE_ID,ilocSide,iElem)
+      IF(.NOT.isPoyntingIntSide(SideID)) CYCLE ! Skip other sides
+
+      ! Get index of Poynting side
+      iPoyntingSide = iPoyntingSide + 1
+
+      ! Allocate Poynting vector
+      ALLOCATE(Poynting(iPoyntingSide)%Uface(PP_nVar,0:Nloc,0:Nloc))
+      ALLOCATE(Poynting(iPoyntingSide)%S(1:3,0:Nloc,0:Nloc))
+      ALLOCATE(Poynting(iPoyntingSide)%SIP(0:Nloc,0:Nloc))
+      ALLOCATE(Poynting(iPoyntingSide)%SurfElemwGP(0:Nloc,0:Nloc))
+
+      ! Map surface elem to Nloc, multiply with wGPSurf and store in SurfElemwGP
+      ! SurfElem is built on N = MAX(DG_Elems_master(iSide),DG_Elems_slave(iSide))
+      NSideMax = MAX(DG_Elems_master(SideID),DG_Elems_slave(SideID))
+      ! Map SurfElem from NSideMax to NSideMin
+      IF(Nloc.EQ.NSideMax)THEN ! N is equal
+        SurfElem(0:Nloc,0:Nloc) = N_SurfMesh(SideID)%SurfElem(0:NSideMax,0:NSideMax)
+      ELSEIF(Nloc.GT.NSideMax)THEN ! N increases: Simply interpolate the lower polynomial degree solution
+        CALL ChangeBasis2D(1, NSideMax, Nloc, PREF_VDM(NSideMax, Nloc)%Vdm, N_SurfMesh(SideID)%SurfElem(0:NSideMax,0:NSideMax), SurfElem(0:Nloc,0:Nloc))
+      ELSE ! N reduces: This requires an intermediate modal basis
+        ! Switch to Legendre basis
+        CALL ChangeBasis2D(1, NSideMax, NSideMax, N_Inter(NSideMax)%sVdm_Leg, N_SurfMesh(SideID)%SurfElem(0:NSideMax,0:NSideMax), tmp(0:NSideMax,0:NSideMax))
+        ! Switch back to nodal basis but cut-off the higher-order DOFs
+        CALL ChangeBasis2D(1, Nloc, Nloc, N_Inter(Nloc)%Vdm_Leg, tmp(0:Nloc,0:Nloc), SurfElem(0:Nloc,0:Nloc))
+      END IF ! Nloc.EQ.NSideMax
+      ! Calculate SurfElem * N_Inter
+      Poynting(iPoyntingSide)%SurfElemwGP(:,:) = SurfElem(0:Nloc,0:Nloc) * N_Inter(Nloc)%wGPSurf(:,:)
+
+    END IF ! ElemToSide(E2S_FLIP,ilocSide,iElem).EQ.0
+  END DO ! ilocSide = 1, 6
+END DO ! iElem = 1, nElems
+
+END SUBROUTINE AllocatePoyntingVector
 
 
 SUBROUTINE FinalizePoyntingInt()
@@ -840,7 +922,8 @@ SUBROUTINE FinalizePoyntingInt()
 ! Finalize Poynting Integral
 !===================================================================================================================================
 ! MODULES
-USE MOD_Analyze_Vars ,ONLY:PosPoyntingInt,S,STEM,isPoyntingIntSide,SideIDToPoyntingSide
+USE MOD_Analyze_Vars ,ONLY:PosPoyntingInt,isPoyntingIntSide,SideIDToPoyntingSide,Poynting
+!USE MOD_Analyze_Vars ,ONLY:PosPoyntingInt,S,STEM,isPoyntingIntSide,SideIDToPoyntingSide
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
@@ -854,8 +937,7 @@ IMPLICIT NONE
 SDEALLOCATE(isPoyntingIntSide)
 SDEALLOCATE(PosPoyntingInt)
 SDEALLOCATE(SideIDToPoyntingSide)
-SDEALLOCATE(S)
-SDEALLOCATE(STEM)
+SDEALLOCATE(Poynting)
 
 END SUBROUTINE FinalizePoyntingInt
 #endif /*PP_nVar>=6*/
