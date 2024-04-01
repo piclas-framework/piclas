@@ -210,7 +210,8 @@ USE MOD_Mesh_Vars          ,ONLY: nElems
 USE MOD_Particle_Mesh_Vars ,ONLY: ElemNodeID_Shared, nUniqueGlobalNodes, NodeInfo_Shared,GEO
 USE MOD_PICDepo_Vars       ,ONLY: NodeVolume,Periodic_nNodes,Periodic_offsetNode,Periodic_Nodes
 USE MOD_DG_Vars            ,ONLY: N_DG_Mapping
-USE MOD_Mesh_Vars          ,ONLY: N_VolMesh, offSetElem
+USE MOD_Mesh_Vars          ,ONLY: N_VolMesh, offSetElem,nElems
+USE MOD_Mesh_Tools         ,ONLY: GetCNElemID
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -221,7 +222,7 @@ IMPLICIT NONE
 ! LOCAL VARIABLES
 REAL                             :: xGP_loc(0:1),DetJac(1,0:1,0:1,0:1)
 REAL                             :: DetLocal(1,0:NMax,0:NMax,0:NMax)
-INTEGER                          :: j,k,l,iElem, firstElem, lastElem, iNode, jNode
+INTEGER                          :: j,k,l,iElem, firstElem, lastElem, iNode, jNode, iCNElem, iGlobalElem
 REAL                             :: NodeVolumeLoc(1:nUniqueGlobalNodes)
 #if USE_MPI
 INTEGER                          :: MessageSize
@@ -260,13 +261,16 @@ IF ((Nmin.NE.1).OR.(Nmin.NE.NMax)) THEN
   xGP_loc(1) = 0.5
   ALLOCATE(Vdm_loc(Nmin:Nmax))
   DO Nloc = Nmin, Nmax    
-    CALL InitializeVandermonde(Nloc,1,N_Inter(Nloc)%wBary,N_Inter(Nloc)%xGP,xGP_loc, Vdm_loc(Nloc)%Vdm)
+    ALLOCATE(Vdm_loc(Nloc)%Vdm(0:Nloc,0:Nloc))
+    CALL InitializeVandermonde(Nloc,1,N_Inter(Nloc)%wBary,N_Inter(Nloc)%xGP,xGP_loc,Vdm_loc(Nloc)%Vdm)
   END DO
 END IF
 
 ! ElemNodeID and ElemsJ use compute node elems
-DO iElem = firstElem, lastElem
-  Nloc = N_DG_Mapping(2,iElem+offSetElem)
+DO iElem = 1, nElems
+  iGlobalElem = iElem+offSetElem
+  iCNElem = GetCNElemID(iGlobalElem)
+  Nloc = N_DG_Mapping(2,iGlobalElem)
   IF (Nloc.EQ.1) THEN
     DO j=0, Nloc; DO k=0, Nloc; DO l=0, Nloc
       DetJac(1,j,k,l)=1./N_VolMesh(iElem)%sJ(j,k,l)
@@ -275,13 +279,13 @@ DO iElem = firstElem, lastElem
     DO j=0, Nloc; DO k=0, Nloc; DO l=0, Nloc
       DetLocal(1,j,k,l)=1./N_VolMesh(iElem)%sJ(j,k,l)
     END DO; END DO; END DO
-    CALL ChangeBasis3D(1,Nloc, 1, Vdm_loc(Nloc)%Vdm, DetLocal(:,0:Nloc,0:Nloc,0:Nloc),DetJac(:,:,:,:))
+    CALL ChangeBasis3D(1,Nloc, 1, Vdm_loc(Nloc)%Vdm, DetLocal(:,0:Nloc,0:Nloc,0:Nloc), DetJac(:,:,:,:))
   END IF
 #if USE_MPI
   ASSOCIATE( NodeVolume => NodeVolumeLoc )
 #endif /*USE_MPI*/
     ! Get UniqueNodeIDs
-    NodeID = NodeInfo_Shared(ElemNodeID_Shared(1:8,iElem))
+    NodeID = NodeInfo_Shared(ElemNodeID_Shared(1:8,iCNElem))
     NodeVolume(NodeID(1)) = NodeVolume(NodeID(1)) + DetJac(1,0,0,0)
     NodeVolume(NodeID(2)) = NodeVolume(NodeID(2)) + DetJac(1,1,0,0)
     NodeVolume(NodeID(3)) = NodeVolume(NodeID(3)) + DetJac(1,1,1,0)
@@ -329,8 +333,8 @@ END IF
 #if USE_MPI
 #if USE_DEBUG
 ! Sanity Check: Only check UniqueGlobalNodes that are on the compute node (total)
-DO iElem = firstElem, lastElem
-  NodeID = NodeInfo_Shared(ElemNodeID_Shared(1:8,iElem))
+DO iCNElem = firstElem, lastElem
+  NodeID = NodeInfo_Shared(ElemNodeID_Shared(1:8,iCNElem))
   DO I = 1, 8
     IF(NodeVolume(NodeID(I)).LE.0.0)THEN
       IPWRITE(UNIT_StdOut,'(I0,A,I0,A,ES25.17E3)') " NodeVolume(NodeID(",I,")) =", NodeVolume(NodeID(I))
