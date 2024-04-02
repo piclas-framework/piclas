@@ -631,6 +631,9 @@ SUBROUTINE DG_ProlongDGElemsToFace()
 USE MOD_GLobals
 USE MOD_DG_Vars   ,ONLY: N_DG_Mapping,DG_Elems_master,DG_Elems_slave
 USE MOD_Mesh_Vars ,ONLY: SideToElem,nSides,nBCSides, offSetElem
+
+USE MOD_Mesh_Vars,   ONLY: firstMortarInnerSide,lastMortarInnerSide,MortarType,MortarInfo
+USE MOD_Mesh_Vars,   ONLY: firstMortarMPISide,lastMortarMPISide
 #if USE_MPI
 USE MOD_MPI       ,ONLY: StartExchange_DG_Elems,FinishExchangeMPIData
 USE MOD_MPI_Vars  ,ONLY: DataSizeSideSend,DataSizeSideRec,nNbProcs,nMPISides_rec,nMPISides_send,OffsetMPISides_rec
@@ -643,7 +646,7 @@ IMPLICIT NONE
 ! INPUT / OUTPUT VARIABLES
 !----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                      :: iSide,ElemID,nbElemID
+INTEGER                      :: iSide,ElemID,nbElemID,nMortars, locSide,SideID, iMortar,flip
 #if USE_MPI
 INTEGER                      :: iNbProc,Nloc
 INTEGER, DIMENSION(nNbProcs) :: RecRequest_U,SendRequest_U,RecRequest_U2,SendRequest_U2
@@ -661,7 +664,38 @@ DO iSide = 1,nSides
   IF(iSide.LE.nBCSides) DG_Elems_slave( iSide) = DG_Elems_master(iSide)
 END DO
 
+DO iSide = firstMortarInnerSide,lastMortarInnerSide
+  ElemID    = SideToElem(S2E_ELEM_ID   ,iSide)
+  nMortars=MERGE(4,2,MortarType(1,iSide).EQ.1)
+  locSide=MortarType(2,iSide)
+  DO iMortar=1,nMortars
+    SideID= MortarInfo(MI_SIDEID,iMortar,locSide)
+    flip  = MortarInfo(MI_FLIP,iMortar,locSide)
+    SELECT CASE(flip)
+     CASE(0) ! master side
+       DG_Elems_master(SideID) = N_DG_Mapping(2,ElemID+offSetElem)
+     CASE(1:4) ! slave side      
+       DG_Elems_slave(SideID) = N_DG_Mapping(2,ElemID+offSetElem)
+    END SELECT !f    
+  END DO
+END DO
+
 #if USE_MPI
+DO iSide = firstMortarMPISide,lastMortarMPISide
+  ElemID    = SideToElem(S2E_ELEM_ID   ,iSide)
+  nMortars=MERGE(4,2,MortarType(1,iSide).EQ.1)
+  locSide=MortarType(2,iSide)
+  DO iMortar=1,nMortars
+    SideID= MortarInfo(MI_SIDEID,iMortar,locSide)
+    flip  = MortarInfo(MI_FLIP,iMortar,locSide)
+    SELECT CASE(flip)
+     CASE(0) ! master side
+       DG_Elems_master(SideID) = N_DG_Mapping(2,ElemID+offSetElem)
+     CASE(1:4) ! slave side      
+       DG_Elems_slave(SideID) = N_DG_Mapping(2,ElemID+offSetElem)
+    END SELECT !f    
+  END DO
+END DO
 ! Exchange element local polynomial degree (N_LOC)
 CALL StartExchange_DG_Elems(DG_Elems_slave ,1,nSides,SendRequest_U ,RecRequest_U ,SendID=2)  ! RECEIVE MINE, SEND YOUR / DG_Elems_slave:  slave  -> master                                                                                       ! Send MINE, receive YOUR / DG_Elems_slave : slave  -> master
 CALL StartExchange_DG_Elems(DG_Elems_master,1,nSides,SendRequest_U2,RecRequest_U2,SendID=1)  ! RECEIVE YOUR, SEND MINE / DG_Elems_master: master -> slave    

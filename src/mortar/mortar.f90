@@ -65,7 +65,7 @@ IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
 #if (PP_NodeType==1)
 REAL                          :: error
-REAL,DIMENSION(0:PP_N)        :: test1,test2,xi_Gauss,w_Gauss  ! Gauss Nodes
+REAL,ALLOCATABLE              :: test1(:),test2(:),xi_Gauss(:),w_Gauss(:)  ! Gauss Nodes
 #endif
 INTEGER           :: Nloc
 !==================================================================================================================================
@@ -78,25 +78,28 @@ ALLOCATE(N_Mortar(NMin:NMax))
 DO Nloc = NMin, NMax
   ALLOCATE(N_Mortar(Nloc)%M_0_1(0:Nloc,0:Nloc))
   ALLOCATE(N_Mortar(Nloc)%M_0_2(0:Nloc,0:Nloc))
+  ALLOCATE(N_Mortar(Nloc)%M_1_0(0:Nloc,0:Nloc))
+  ALLOCATE(N_Mortar(Nloc)%M_2_0(0:Nloc,0:Nloc))
+  ALLOCATE(N_Mortar(Nloc)%U_tmp(PP_nVar,0:Nloc,0:Nloc,1:4))
+  ALLOCATE(N_Mortar(Nloc)%U_tmp2(PP_nVar,0:Nloc,0:Nloc,1:2))
   CALL MortarBasis_BigToSmall(0, Nloc, NodeType, N_Mortar(Nloc)%M_0_1, N_Mortar(Nloc)%M_0_2)
+  CALL MortarBasis_SmallToBig(0,Nloc,NodeType,   N_Mortar(Nloc)%M_1_0, N_Mortar(Nloc)%M_2_0)
 END DO ! Nloc = NMin, NMax
 
-ALLOCATE(M_0_1(0:PP_N,0:PP_N))
-ALLOCATE(M_0_2(0:PP_N,0:PP_N))
-ALLOCATE(M_1_0(0:PP_N,0:PP_N))
-ALLOCATE(M_2_0(0:PP_N,0:PP_N))
-CALL MortarBasis_BigToSmall(0,PP_N,NodeType,   M_0_1,   M_0_2)
-CALL MortarBasis_SmallToBig(0,PP_N,NodeType,   M_1_0,   M_2_0)
 
 !> TODO: Make a unit test out of this one
 #if (PP_NodeType==1)
 !Test mean value property 0.5*(0.5+1.5)=1.  !ONLY GAUSS
-test1=0.5
-test2=1.5
-CALL GetNodesAndWeights(PP_N,'GAUSS',xi_Gauss,w_Gauss) !Gauss nodes and integration weights
-error=ABS(0.25*SUM((MATMUL(TRANSPOSE(M_1_0),test1)+MATMUL(TRANSPOSE(M_2_0),test2))*w_Gauss)-1.)
+DO Nloc = NMin, NMax
+  ALLOCATE(test1(0:Nloc), test2(0:Nloc), xi_Gauss(0:Nloc), w_Gauss(0:Nloc))
+  test1=0.5
+  test2=1.5
+  CALL GetNodesAndWeights(Nloc,'GAUSS',xi_Gauss,w_Gauss) !Gauss nodes and integration weights
+  error=ABS(0.25*SUM((MATMUL(TRANSPOSE(N_Mortar(Nloc)%M_1_0),test1)+MATMUL(TRANSPOSE(N_Mortar(Nloc)%M_2_0),test2))*w_Gauss)-1.)
 
-IF(error.GT. 100.*PP_RealTolerance) CALL abort(__STAMP__,'problems in building Mortar',999,error)
+  IF(error.GT. 100.*PP_RealTolerance) CALL abort(__STAMP__,'problems in building Mortar',999,error)
+  DEALLOCATE(test1, test2, xi_Gauss, w_Gauss)
+END DO
 LBWRITE(UNIT_StdOut,'(A)')' Mortar operators built successfully.'
 #endif
 
@@ -222,10 +225,6 @@ USE MOD_Mortar_Vars
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !==================================================================================================================================
-SDEALLOCATE(M_0_1)
-SDEALLOCATE(M_0_2)
-SDEALLOCATE(M_1_0)
-SDEALLOCATE(M_2_0)
 SDEALLOCATE(N_Mortar)
 MortarInitIsDone=.FALSE.
 END SUBROUTINE FinalizeMortar

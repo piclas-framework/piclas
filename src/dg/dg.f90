@@ -328,7 +328,7 @@ USE MOD_Equation          ,ONLY: CalcSource
 USE MOD_Interpolation     ,ONLY: ApplyJacobian
 USE MOD_PML_Vars          ,ONLY: DoPML
 USE MOD_Mesh_Vars         ,ONLY: nElems
-!USE MOD_FillMortar        ,ONLY: U_Mortar,Flux_Mortar
+USE MOD_FillMortar        ,ONLY: U_Mortar,Flux_Mortar
 #if USE_MPI
 !USE MOD_PML_Vars          ,ONLY: PMLnVar
 !USE MOD_Mesh_Vars         ,ONLY: nSides
@@ -374,7 +374,7 @@ CALL StartReceiveMPIDataType(RecRequest_U,SendID=2) ! Receive MINE
 CALL LBSplitTime(LB_DGCOMM,tLBStart)
 #endif /*USE_LOADBALANCE*/
 CALL ProlongToFace_TypeBased(doMPISides=.TRUE.)
-!CALL U_Mortar(U_master,U_slave,doMPISides=.TRUE.)
+CALL U_Mortar(doMPISides=.TRUE.)
 #if USE_LOADBALANCE
 CALL LBSplitTime(LB_DG,tLBStart)
 #endif /*USE_LOADBALANCE*/
@@ -386,7 +386,7 @@ CALL LBSplitTime(LB_DGCOMM,tLBStart)
 
 ! Prolong to face for BCSides, InnerSides and MPI sides - receive direction
 CALL ProlongToFace_TypeBased(doMPISides=.FALSE.)
-!CALL U_Mortar(U_master,U_slave,doMPISides=.FALSE.)
+CALL U_Mortar(doMPISides=.FALSE.)
 
 #if USE_MPI
 #if defined(PARTICLES) && defined(LSERK)
@@ -450,7 +450,7 @@ CALL LBSplitTime(LB_DGCOMM,tLBStart)
 
 ! fill the all surface fluxes on this proc
 CALL FillFlux(t,tDeriv,doMPISides=.FALSE.)
-!CALL Flux_Mortar(Flux_Master,Flux_Slave,doMPISides=.FALSE.)
+CALL Flux_Mortar(doMPISides=.FALSE.)
 ! compute surface integral contribution and add to ut
 CALL SurfInt(doMPISides=.FALSE.)
 
@@ -468,7 +468,7 @@ CALL LBSplitTime(LB_DGCOMM,tLBStart)
 #endif /*USE_LOADBALANCE*/
 
 !FINALIZE Fluxes for MPI Sides
-!CALL Flux_Mortar(Flux_Master,Flux_Slave,doMPISides=.TRUE.)
+CALL Flux_Mortar(doMPISides=.TRUE.)
 CALL SurfInt(doMPISides=.TRUE.)
 #if USE_LOADBALANCE
 CALL LBSplitTime(LB_DG,tLBStart)
