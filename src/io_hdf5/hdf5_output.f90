@@ -779,10 +779,7 @@ INTEGER(KIND=IK)                        :: i
 IF(gatheredWrite)THEN
   ALLOCATE(nDOFPerNode(nLocalProcs))
   ALLOCATE(offsetNode(nLocalProcs))
-  IF(ANY(offset(1:rank-1).NE.0)) &
-    CALL abort(&
-    __STAMP__&
-    ,'Offset only allowed in last dimension for gathered IO.')
+  IF(ANY(offset(1:rank-1).NE.0)) CALL abort(__STAMP__,'Offset only allowed in last dimension for gathered IO.')
 
   ! Get last dim of each array on IO nodes
   nDOFLocal=PRODUCT(nVal)

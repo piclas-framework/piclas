@@ -467,7 +467,7 @@ INTEGER,INTENT(IN) :: iElem                               !< (IN) element index
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER            :: p,q,pq(2),dd,iLocSide,SideID,SideID2,iMortar,nbSideIDs(4)
-INTEGER            :: NormalDir,TangDir,N_max
+INTEGER            :: NormalDir,TangDir,NSideMax
 REAL               :: NormalSign
 REAL               :: Ja_Face_l(3,3,0:Nmax,0:Nmax)
 REAL               :: Mortar_Ja(3,3,0:Nmax,0:Nmax,4)
@@ -486,19 +486,19 @@ DO iLocSide=1,6
   SideID=ElemToSide(E2S_SIDE_ID,iLocSide,iElem)
   ! Use maximum polynomial degree of master/slave sides
   Nloc = N_DG_Mapping(2,iElem+offSetElem)
-  N_max = MAX(DG_Elems_master(SideID),DG_Elems_slave(SideID))
+  NSideMax = MAX(DG_Elems_master(SideID),DG_Elems_slave(SideID))
   flipSide=.FALSE.
-  !WRITE (*,*) "Nloc,N_max,ElemToSide(E2S_FLIP,iLocSide,iElem) =", Nloc,N_max,ElemToSide(E2S_FLIP,iLocSide,iElem)
+  !WRITE (*,*) "Nloc,NSideMax,ElemToSide(E2S_FLIP,iLocSide,iElem) =", Nloc,NSideMax,ElemToSide(E2S_FLIP,iLocSide,iElem)
 
   ! TODO: maybe this has to be done differently between HDG and Maxwell
-!  IF(Nloc.LT.N_max)THEN
-!    CYCLE
-!  ELSE
-!    IF(DG_Elems_master(SideID).EQ.DG_Elems_slave(SideID).AND.(ElemToSide(E2S_FLIP,iLocSide,iElem).NE.0) ) CYCLE ! only master sides with flip=0
-!    IF(ElemToSide(E2S_FLIP,iLocSide,iElem).NE.0) flipSide=.TRUE.
-!  END IF
+  !IF(Nloc.LT.NSideMax)THEN
+  !  CYCLE
+  !ELSE
+  !  IF(DG_Elems_master(SideID).EQ.DG_Elems_slave(SideID).AND.(ElemToSide(E2S_FLIP,iLocSide,iElem).NE.0) ) CYCLE ! only master sides with flip=0
+  !  IF(ElemToSide(E2S_FLIP,iLocSide,iElem).NE.0) flipSide=.TRUE.
+  !END IF
   IF (ElemToSide(E2S_FLIP,iLocSide,iElem).NE.0) CYCLE
-  Nloc = N_max
+  Nloc = NSideMax
 
   SELECT CASE(iLocSide)
   CASE(XI_MINUS)
@@ -697,7 +697,7 @@ END SUBROUTINE CalcSurfMetrics
 !==================================================================================================================================
 SUBROUTINE SurfMetricsFromJa(Nloc,NormalDir,TangDir,NormalSign,Ja_Face,NormVec,TangVec1,TangVec2,SurfElem)
 ! MODULES
-USE MOD_Globals,     ONLY: CROSS
+USE MOD_Globals ,ONLY: CROSS,abort
 !----------------------------------------------------------------------------------------------------------------------------------
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
@@ -716,11 +716,14 @@ REAL,INTENT(OUT)   ::  SurfElem(  0:Nloc,0:Nloc) !< element face surface area
 INTEGER            :: p,q
 !==================================================================================================================================
 DO q=0,Nloc; DO p=0,Nloc
-  SurfElem(  p,q) = SQRT(SUM(Ja_Face(NormalDir,:,p,q)**2))
+  SurfElem(  p,q) = SUM(Ja_Face(NormalDir,:,p,q)**2)
+  IF(ABS(SurfElem(p,q)).LE.0.0) CALL abort(__STAMP__,'SUM(Ja_Face(NormalDir,:,p,q)**2) <= 0',RealInfoOpt=SurfElem(p,q))
+  SurfElem(  p,q) = SQRT(SurfElem(p,q))
   NormVec( :,p,q) = NormalSign*Ja_Face(NormalDir,:,p,q)/SurfElem(p,q)
-  TangVec1(:,p,q) = Ja_Face(TangDir,:,p,q) - SUM(Ja_Face(TangDir,:,p,q)*NormVec(:,p,q)) &
-                    *NormVec(:,p,q)
-  TangVec1(:,p,q) = TangVec1(:,p,q)/SQRT(SUM(TangVec1(:,p,q)**2))
+  TangVec1(:,p,q) = Ja_Face(TangDir,:,p,q) - SUM(Ja_Face(TangDir,:,p,q)*NormVec(:,p,q)) * NormVec(:,p,q)
+  TangVec1(:,p,q) = SUM(TangVec1(:,p,q)**2)
+  IF(ANY(ABS(TangVec1(:,p,q)).LE.0.0)) CALL abort(__STAMP__,'SUM(TangVec1(:,p,q)**2) <= 0')
+  TangVec1(:,p,q) = TangVec1(:,p,q)/SQRT(TangVec1(:,p,q))
   TangVec2(:,p,q) = CROSS(NormVec(:,p,q),TangVec1(:,p,q))
 END DO; END DO ! p,q
 END SUBROUTINE SurfMetricsFromJa

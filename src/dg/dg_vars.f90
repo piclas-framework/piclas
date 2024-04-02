@@ -33,11 +33,12 @@ REAL,ALLOCATABLE                      :: Un(:,:,:,:,:) ! computed from JU
 #endif
 
 ! Element local polynomial degrees
-!INTEGER,ALLOCATABLE                   :: N_DG(:)                !< polynomial degree inside DG element,         size(nElems)
+INTEGER                               :: pAdaptionType          !< Set initial polynomial degree distribution
+INTEGER,ALLOCATABLE                   :: N_DG(:)                !< polynomial degree inside DG element,         size(nElems)
 INTEGER,ALLOCPOINT,DIMENSION(:,:)     :: N_DG_Mapping, N_DG_Mapping_Shared
 INTEGER                               :: nDofsMapping
 INTEGER                               :: nDofsMappingNode
-INTEGER, ALLOCATABLE                  :: displsDofs(:), recvcountDofs(:)
+INTEGER,ALLOCATABLE                   :: displsDofs(:), recvcountDofs(:)
 INTEGER,ALLOCATABLE                   :: DG_Elems_master(:)     !< prolongate local polynomial degree to faces, size(nSides)
 INTEGER,ALLOCATABLE                   :: DG_Elems_slave(:)      !< prolongate local polynomial degree to faces, size(nSides)
 
