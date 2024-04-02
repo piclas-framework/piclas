@@ -344,7 +344,7 @@ ELSE
   IF (nComputeNodeProcessors.NE.nProcessors.AND.myComputeNodeRank.EQ.0) THEN
     ! Arrays for the compute node to hold the elem offsets
     ALLOCATE(displsDofs(   0:nLeaderGroupProcs-1), recvcountDofs(0:nLeaderGroupProcs-1))  
-    displsDofs(myLeaderGroupRank) = offsetComputeNodeElem !N_DG_Mapping(1,1+offSetElem)
+    displsDofs(myLeaderGroupRank) = offsetComputeNodeElem 
     CALL MPI_ALLGATHER(MPI_IN_PLACE,0,MPI_DATATYPE_NULL,displsDofs,1,MPI_INTEGER,MPI_COMM_LEADERS_SHARED,IERROR)
     DO iProc=1,nLeaderGroupProcs-1
       recvcountDofs(iProc-1) = displsDofs(iProc)-displsDofs(iProc-1)
@@ -360,6 +360,13 @@ ELSE
         , MPI_INTEGER          &
         , MPI_COMM_LEADERS_SHARED       &
         , IERROR)
+
+    displsDofs(myLeaderGroupRank) = N_DG_Mapping(1,1+offSetElem)
+    CALL MPI_ALLGATHER(MPI_IN_PLACE,0,MPI_DATATYPE_NULL,displsDofs,1,MPI_INTEGER,MPI_COMM_LEADERS_SHARED,IERROR)
+    DO iProc=1,nLeaderGroupProcs-1
+      recvcountDofs(iProc-1) = displsDofs(iProc)-displsDofs(iProc-1)
+    END DO
+    recvcountDofs(nLeaderGroupProcs-1) = nDofsMapping - displsDofs(nLeaderGroupProcs-1)
   END IF
 
   CALL BARRIER_AND_SYNC(N_DG_Mapping_Shared_Win ,MPI_COMM_SHARED)
