@@ -599,7 +599,7 @@ USE MOD_Particle_Boundary_Tools   ,ONLY: CalcWallSample
 USE MOD_Globals_Vars              ,ONLY: PI, BoltzmannConst
 USE MOD_Particle_Vars             ,ONLY: PartSpecies,Species,usevMPF, WriteMacroSurfaceValues
 USE MOD_Particle_Tracking_Vars    ,ONLY: TrackInfo
-USE MOD_Particle_Boundary_Vars    ,ONLY: PartBound, GlobalSide2SurfSide, SurfSideArea_Shared
+USE MOD_Particle_Boundary_Vars    ,ONLY: PartBound, GlobalSide2SurfSide, SurfSideArea
 USE MOD_SurfaceModel_Vars         ,ONLY: SurfChem, SurfChemReac , ChemWallProp, ChemSampWall
 USE MOD_Particle_Mesh_Vars        ,ONLY: SideInfo_Shared, BoundsOfElem_Shared
 USE MOD_DSMC_Vars                 ,ONLY: DSMC, RadialWeighting, SamplingActive
@@ -658,11 +658,11 @@ END IF
 
 IF(PartBound%LatticeVec(locBCID).GT.0.) THEN
   ! Number of surface molecules in dependence of the occupancy of the unit cell
-  SurfMol = PartBound%MolPerUnitCell(locBCID) * SurfSideArea_Shared(SubP, SubQ,SurfSideID) &
+  SurfMol = PartBound%MolPerUnitCell(locBCID) * SurfSideArea(SubP, SubQ,SurfSideID) &
                               /(PartBound%LatticeVec(locBCID)*PartBound%LatticeVec(locBCID))
 ELSE
   ! Alternative calculation by the average number of surface molecules per area for a monolayer
-  SurfMol = 10.**19 * SurfSideArea_Shared(SubP, SubQ,SurfSideID)
+  SurfMol = 10.**19 * SurfSideArea(SubP, SubQ,SurfSideID)
 END IF ! LatticeVec.GT.0
 
 DO iReac = 1, SurfChem%NumOfReact
@@ -762,7 +762,7 @@ DO iReac = 1, SurfChem%NumOfReact
         AdCountIter = ChemSampWall(speciesID, 1,SubP,SubQ, SurfSideID)
       END IF
       ! Absolute particle density of the element
-      AdsDens = Coverage * SurfMol / SurfSideArea_Shared(SubP, SubQ,SurfSideID)
+      AdsDens = Coverage * SurfMol / SurfSideArea(SubP, SubQ,SurfSideID)
 
       ! Determine the reaction heat in dependence of the coverage [J]
       ReacHeat = (SurfChemReac(iReac)%EReact - Coverage * SurfChemReac(iReac)%EScale) * BoltzmannConst

@@ -697,9 +697,10 @@ INTEGER                                :: GlobalElemID,GlobalElemRank
 INTEGER                                :: sendbuf,recvbuf
 INTEGER                                :: NbGlobalElemID, NbElemRank, NbLeaderID, nSurfSidesTmp
 INTEGER                                :: color
+LOGICAL                                :: BCOnNode
 #endif /*USE_MPI*/
 INTEGER                                :: NbGlobalSideID,PartBoundCondition
-LOGICAL                                :: BCOnNode,ReflectiveOrOpenBCFound
+LOGICAL                                :: ReflectiveOrOpenBCFound
 !===================================================================================================================================
 
 LBWRITE(UNIT_stdOut,'(A)') ' INIT SURFACE SIDES ...'

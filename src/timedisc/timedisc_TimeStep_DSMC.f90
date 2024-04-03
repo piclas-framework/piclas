@@ -106,7 +106,9 @@ IF (DoSurfaceFlux) THEN
 END IF
 
 IF (DoChemSurface) THEN
+#if USE_MPI
   CALL ExchangeChemSurfData()
+#endif /*USE_MPI*/
 
   IF (time.GT.0.0) THEN
     CALL ParticleSurfChemFlux()

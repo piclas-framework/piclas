@@ -945,7 +945,7 @@ USE MOD_HDF5_Input              ,ONLY: OpenDataFile,ReadArray,GetDataSize,ReadAt
 USE MOD_HDF5_Input              ,ONLY: HSize,File_ID,GetDataProps
 USE MOD_Restart_Vars            ,ONLY: CatalyticFileName
 USE MOD_SurfaceModel_Vars       ,ONLY: ChemWallProp
-USE MOD_Particle_Boundary_Vars  ,ONLY: SurfSideArea_Shared
+USE MOD_Particle_Boundary_Vars  ,ONLY: SurfSideArea
 USE MOD_Particle_Boundary_Vars  ,ONLY: nComputeNodeSurfSides, offsetComputeNodeSurfSide
 USE MOD_Particle_Vars           ,ONLY: nSpecies
 ! IMPLICIT VARIABLE HANDLING
@@ -1010,7 +1010,7 @@ DO iSide = 1, nComputeNodeSurfSides
     ChemWallProp(iSpec,1,1,1,iSide) = SurfData(iSpec,ReadInSide)
   END DO
   ! Heat flux on the surface element
-  ChemWallProp(1,2,1,1,iSide) = SurfData(nSpecies+1,ReadInSide)*OutputTime*SurfSideArea_Shared(1,1,iSide)
+  ChemWallProp(1,2,1,1,iSide) = SurfData(nSpecies+1,ReadInSide)*OutputTime*SurfSideArea(1,1,iSide)
 END DO
 
 SDEALLOCATE(VarNamesSurf_HDF5)

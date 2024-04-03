@@ -412,7 +412,7 @@ USE MOD_Particle_MPI_Vars       ,ONLY: SurfSendBuf,SurfRecvBuf
 USE MOD_Particle_Vars           ,ONLY: nSpecies
 USE MOD_SurfaceModel_Vars       ,ONLY: ChemSampWall, ChemSampWall_Shared, ChemSampWall_Shared_Win
 USE MOD_SurfaceModel_Vars       ,ONLY: ChemWallProp, ChemWallProp_Shared, ChemWallProp_Shared_Win
-USE MOD_Particle_Boundary_vars  ,ONLY: SurfSideArea_Shared, SurfSide2GlobalSide
+USE MOD_Particle_Boundary_vars  ,ONLY: SurfSideArea, SurfSide2GlobalSide
 USE MOD_Particle_Mesh_Vars      ,ONLY: SideInfo_Shared
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -579,11 +579,11 @@ DO iSide = firstSide, lastSide
     IF (PartBound%LatticeVec(locBCID).GT.0.) THEN
     ! update the surface coverage (direct calculation of the number of surface atoms)
       ChemWallProp(iSpec,1,:,:,iSide) = ChemWallProp(iSpec,1,:,:,iSide) + ChemSampWall(iSpec,1,:,:,iSide) * PartBound%LatticeVec(locBCID)* &
-                                        PartBound%LatticeVec(locBCID)/(PartBound%MolPerUnitCell(locBCID)*SurfSideArea_Shared(:,:,iSide))
+                                        PartBound%LatticeVec(locBCID)/(PartBound%MolPerUnitCell(locBCID)*SurfSideArea(:,:,iSide))
     ELSE
     ! update the surface coverage (calculation with a surface monolayer)
       ChemWallProp(iSpec,1,:,:,iSide) = ChemWallProp(iSpec,1,:,:,iSide) + ChemSampWall(iSpec,1,:,:,iSide) / &
-                                        (10.**(19)*SurfSideArea_Shared(:,:,iSide))
+                                        (10.**(19)*SurfSideArea(:,:,iSide))
     END IF
     ! calculate the heat flux on the surface subside
     ChemWallProp(iSpec,2,:,:,iSide) = ChemWallProp(iSpec,2,:,:,iSide) + ChemSampWall(iSpec,2,:,:,iSide)

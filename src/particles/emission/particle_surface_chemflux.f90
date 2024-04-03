@@ -525,14 +525,20 @@ SUBROUTINE ParticleSurfDiffusion()
 ! Modules
 USE MOD_Globals
 USE MOD_Particle_Vars
-USE MOD_MPI_Shared_Vars         ,ONLY: myComputeNodeRank, nComputeNodeProcessors
 USE MOD_Mesh_Vars               ,ONLY: SideToElem, offsetElem
 USE MOD_Particle_Mesh_Tools     ,ONLY: GetGlobalNonUniqueSideID
 USE MOD_Particle_Surfaces_Vars  ,ONLY: BCdata_auxSF
-USE MOD_Particle_Boundary_Vars  ,ONLY: GlobalSide2SurfSide, nComputeNodeSurfTotalSides
-USE MOD_SurfaceModel_Vars      ,ONLY: ChemWallProp_Shared_Win, SurfChem, ChemWallProp
-USE MOD_MPI_Shared_vars        ,ONLY: MPI_COMM_SHARED
-USE MOD_MPI_Shared             ,ONLY: BARRIER_AND_SYNC
+USE MOD_Particle_Boundary_Vars  ,ONLY: GlobalSide2SurfSide
+USE MOD_SurfaceModel_Vars       ,ONLY: SurfChem, ChemWallProp
+#if USE_MPI
+USE MOD_SurfaceModel_Vars       ,ONLY: ChemWallProp_Shared_Win
+USE MOD_Particle_Boundary_Vars  ,ONLY: nComputeNodeSurfTotalSides
+USE MOD_MPI_Shared_Vars         ,ONLY: myComputeNodeRank, nComputeNodeProcessors
+USE MOD_MPI_Shared_vars         ,ONLY: MPI_COMM_SHARED
+USE MOD_MPI_Shared              ,ONLY: BARRIER_AND_SYNC
+#else
+USE MOD_Particle_Boundary_Vars  ,ONLY: nGlobalSurfSides
+#endif /*USE_MPI*/
 !#if defined(IMPA) || defined(ROS)
 USE MOD_Particle_Tracking_Vars  ,ONLY: TrackInfo
 !#endif /*IMPA*/
