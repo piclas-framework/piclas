@@ -222,13 +222,10 @@ IMPLICIT NONE
 ! LOCAL VARIABLES
 REAL                             :: xGP_loc(0:1),DetJac(1,0:1,0:1,0:1)
 REAL                             :: DetLocal(1,0:NMax,0:NMax,0:NMax)
-INTEGER                          :: j,k,iElem, firstElem, lastElem, iNode, jNode, iCNElem, iGlobalElem, offSetDofNode, r
+INTEGER                          :: i,j,k,iElem, firstElem, lastElem, iNode, jNode, iCNElem, iGlobalElem, offSetDofNode, r
 REAL                             :: NodeVolumeLoc(1:nUniqueGlobalNodes)
 #if USE_MPI
 INTEGER                          :: MessageSize
-#if USE_DEBUG
-INTEGER                          :: I
-#endif /*USE_DEBUG*/
 #endif
 INTEGER                          :: NodeID(1:8)
 INTEGER                          :: Nloc
@@ -339,13 +336,13 @@ END IF
 ! Sanity Check: Only check UniqueGlobalNodes that are on the compute node (total)
 DO iCNElem = firstElem, lastElem
   NodeID = NodeInfo_Shared(ElemNodeID_Shared(1:8,iCNElem))
-  DO I = 1, 8
-    IF(NodeVolume(NodeID(I)).LE.0.0)THEN
-      IPWRITE(UNIT_StdOut,'(I0,A,I0,A,ES25.17E3)') " NodeVolume(NodeID(",I,")) =", NodeVolume(NodeID(I))
-      CALL abort(__STAMP__,'NodeVolume(NodeID(I)) <= 0.0 for NodeID(I) = ',IntInfoOpt=NodeID(I))
+  DO i = 1, 8
+    IF(NodeVolume(NodeID(i)).LE.0.0)THEN
+      IPWRITE(UNIT_StdOut,'(I0,A,I0,A,ES25.17E3)') " NodeVolume(NodeID(",i,")) =", NodeVolume(NodeID(i))
+      CALL abort(__STAMP__,'NodeVolume(NodeID(i)) <= 0.0 for NodeID(i) = ',IntInfoOpt=NodeID(i))
     END IF ! NodeVolume(NodeID(1)).LE.0.0
   END DO
-END DO ! I = 1, nUniqueGlobalNodes
+END DO ! i = 1, nUniqueGlobalNodes
 #endif /*USE_DEBUG*/
 #endif /*USE_MPI*/
 
