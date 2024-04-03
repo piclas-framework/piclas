@@ -491,14 +491,14 @@ DO iLocSide=1,6
   !WRITE (*,*) "Nloc,NSideMax,ElemToSide(E2S_FLIP,iLocSide,iElem) =", Nloc,NSideMax,ElemToSide(E2S_FLIP,iLocSide,iElem)
 
   ! TODO: maybe this has to be done differently between HDG and Maxwell
-  !IF(Nloc.LT.NSideMax)THEN
-  !  CYCLE
-  !ELSE
-  !  IF(DG_Elems_master(SideID).EQ.DG_Elems_slave(SideID).AND.(ElemToSide(E2S_FLIP,iLocSide,iElem).NE.0) ) CYCLE ! only master sides with flip=0
-  !  IF(ElemToSide(E2S_FLIP,iLocSide,iElem).NE.0) flipSide=.TRUE.
-  !END IF
-  IF (ElemToSide(E2S_FLIP,iLocSide,iElem).NE.0) CYCLE
-  Nloc = NSideMax
+  IF(Nloc.LT.NSideMax)THEN
+    CYCLE
+  ELSE
+    IF(DG_Elems_master(SideID).EQ.DG_Elems_slave(SideID).AND.(ElemToSide(E2S_FLIP,iLocSide,iElem).NE.0) ) CYCLE ! only master sides with flip=0
+    IF(ElemToSide(E2S_FLIP,iLocSide,iElem).NE.0) flipSide=.TRUE.
+  END IF
+  !IF (ElemToSide(E2S_FLIP,iLocSide,iElem).NE.0) CYCLE
+  !Nloc = NSideMax
 
   SELECT CASE(iLocSide)
   CASE(XI_MINUS)

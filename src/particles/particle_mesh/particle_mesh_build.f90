@@ -460,6 +460,7 @@ DO iCNElem = firstElem,lastElem
   offSetDofNode= N_DG_Mapping(3,GlobalElemID)
   ! element on local proc, sJ already calculated in metrics.f90
   IF ((iElem.GT.0) .AND. (iElem.LE.nElems)) THEN
+
     DO k=0,Nloc; DO j=0,Nloc; DO i=0,Nloc
       r=k*(Nloc+1)**2+j*(Nloc+1) + i+1
       ElemsJ(r+offSetDofNode) = N_VolMesh(iElem)%sJ(i,j,k)
@@ -467,6 +468,7 @@ DO iCNElem = firstElem,lastElem
 
   ! element not on local proc, calculate sJ frm dXCL_NGeo_Shared
   ELSE
+
     detJac_NGeoRef = 0.
     ! Compute Jacobian on NGeo and then interpolate:
     ! required to guarantee conservation when restarting with N<NGeo
@@ -482,7 +484,7 @@ DO iCNElem = firstElem,lastElem
 
     ! Interpolate detJac_ref to the solution points
     ! Fill detJac_NMax(1,0:Nloc,0:Nloc,0:Nloc), which is allocated larger to detJac_NMax(1,0:Nmax,0:Nmax,0:Nmax)
-    CALL ChangeBasis3D(1,NgeoRef,Nloc,NInfo(Nloc)%Vdm_NgeoRef_N,detJac_NGeoRef(:,:,:,:),detJac_NMax)
+    CALL ChangeBasis3D(1,NgeoRef,Nloc,NInfo(Nloc)%Vdm_NgeoRef_N,detJac_NGeoRef(:,:,:,:),detJac_NMax(1,0:Nloc,0:Nloc,0:Nloc))
 
     ! assign to global Variable sJ
     DO k=0,Nloc; DO j=0,Nloc; DO i=0,Nloc

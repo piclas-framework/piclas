@@ -223,7 +223,7 @@ CASE('cell_volweight')
 ! ------------------------------------------------
   ALLOCATE(CellVolWeight(Nmin:Nmax))
   ALLOCATE(CellVolWeight_Volumes(0:1,0:1,0:1,nElems))
-  ALLOCATE(wGP_tmp(0:PP_N), xGP_tmp(0:PP_N))
+  ALLOCATE(wGP_tmp(0:1), xGP_tmp(0:1))
   CALL LegendreGaussNodesAndWeights(1,xGP_tmp,wGP_tmp)
 
   DO Nloc=Nmin,Nmax
@@ -231,8 +231,8 @@ CASE('cell_volweight')
     CellVolWeight(Nloc)%Fac(0:Nloc) = N_Inter(Nloc)%xGP(0:Nloc)
     CellVolWeight(Nloc)%Fac(0:Nloc) = (CellVolWeight(Nloc)%Fac(0:Nloc)+1.0)/2.0
 
-    ALLOCATE(CellVolWeight(Nloc)%Vdm_tmp(0:1,0:PP_N))
-    CALL InitializeVandermonde(PP_N,1,N_Inter(PP_N)%wBary,N_Inter(PP_N)%xGP,xGP_tmp,CellVolWeight(Nloc)%Vdm_tmp)
+    ALLOCATE(CellVolWeight(Nloc)%Vdm_tmp(0:1,0:Nloc))
+    CALL InitializeVandermonde(Nloc , 1 , N_Inter(Nloc)%wBary , N_Inter(Nloc)%xGP , xGP_tmp , CellVolWeight(Nloc)%Vdm_tmp)
 
     ALLOCATE(CellVolWeight(Nloc)%DetLocal(1,0:Nloc,0:Nloc,0:Nloc))
   END DO

@@ -207,11 +207,11 @@ USE MOD_PICDepo_Vars       ,ONLY: NodeVolume_Shared, NodeVolume_Shared_Win
 #else
 USE MOD_Mesh_Vars          ,ONLY: nElems
 #endif
-USE MOD_Particle_Mesh_Vars ,ONLY: ElemNodeID_Shared, nUniqueGlobalNodes, NodeInfo_Shared,GEO
+USE MOD_Particle_Mesh_Vars ,ONLY: ElemNodeID_Shared, nUniqueGlobalNodes, NodeInfo_Shared,GEO,ElemsJ
 USE MOD_PICDepo_Vars       ,ONLY: NodeVolume,Periodic_nNodes,Periodic_offsetNode,Periodic_Nodes
 USE MOD_DG_Vars            ,ONLY: N_DG_Mapping
 USE MOD_Mesh_Vars          ,ONLY: N_VolMesh, offSetElem,nElems
-USE MOD_Mesh_Tools         ,ONLY: GetCNElemID
+USE MOD_Mesh_Tools         ,ONLY: GetCNElemID,GetGlobalElemID
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -222,7 +222,7 @@ IMPLICIT NONE
 ! LOCAL VARIABLES
 REAL                             :: xGP_loc(0:1),DetJac(1,0:1,0:1,0:1)
 REAL                             :: DetLocal(1,0:NMax,0:NMax,0:NMax)
-INTEGER                          :: j,k,l,iElem, firstElem, lastElem, iNode, jNode, iCNElem, iGlobalElem
+INTEGER                          :: j,k,iElem, firstElem, lastElem, iNode, jNode, iCNElem, iGlobalElem, offSetDofNode, r
 REAL                             :: NodeVolumeLoc(1:nUniqueGlobalNodes)
 #if USE_MPI
 INTEGER                          :: MessageSize
@@ -267,17 +267,21 @@ IF ((Nmin.NE.1).OR.(Nmin.NE.NMax)) THEN
 END IF
 
 ! ElemNodeID and ElemsJ use compute node elems
-DO iElem = 1, nElems
-  iGlobalElem = iElem+offSetElem
-  iCNElem = GetCNElemID(iGlobalElem)
-  Nloc = N_DG_Mapping(2,iGlobalElem)
+!DO iElem = 1, nElems
+DO iCNElem = firstElem, lastElem
+  iGlobalElem   = GetGlobalElemID(iCNElem)
+  !iCNElem       = GetCNElemID(iGlobalElem)
+  Nloc          = N_DG_Mapping(2,iGlobalElem)
+  offSetDofNode = N_DG_Mapping(3,iGlobalElem)
   IF (Nloc.EQ.1) THEN
-    DO j=0, Nloc; DO k=0, Nloc; DO l=0, Nloc
-      DetJac(1,j,k,l)=1./N_VolMesh(iElem)%sJ(j,k,l)
+    DO k=0, Nloc; DO j=0, Nloc; DO i=0, Nloc
+      r=k*(Nloc+1)**2+j*(Nloc+1) + i+1
+      DetJac(1,i,j,k) = 1./ElemsJ(r+offSetDofNode)
     END DO; END DO; END DO
   ELSE
-    DO j=0, Nloc; DO k=0, Nloc; DO l=0, Nloc
-      DetLocal(1,j,k,l)=1./N_VolMesh(iElem)%sJ(j,k,l)
+    DO k=0, Nloc; DO j=0, Nloc; DO i=0, Nloc
+      r=k*(Nloc+1)**2+j*(Nloc+1) + i+1
+      DetJac(1,i,j,k) = 1./ElemsJ(r+offSetDofNode)
     END DO; END DO; END DO
     CALL ChangeBasis3D(1,Nloc, 1, Vdm_loc(Nloc)%Vdm, DetLocal(:,0:Nloc,0:Nloc,0:Nloc), DetJac(:,:,:,:))
   END IF
