@@ -102,7 +102,9 @@ DO iElem=1,PP_nElems
       ALLOCATE(DielectricVolTmp(2,0:Nloc,0:Nloc,0:Nloc))
       DielectricVolTmp(1,0:Nloc,0:Nloc,0:Nloc)= DielectricVol(ElemToDielectric(iElem))%DielectricEps(:,:,:)
       DielectricVolTmp(2,0:Nloc,0:Nloc,0:Nloc)= DielectricVol(ElemToDielectric(iElem))%DielectricMu(:,:,:)
-      CALL ChangeBasis3D(2,Nloc,NMax,PREF_VDM(Nloc,NMax)%Vdm, DielectricVolTmp(:,:,:,:),DielectricGlobal(1:2,:,:,:,iElem))
+      CALL ChangeBasis3D(2,Nloc,NMax,PREF_VDM(Nloc,NMax)%Vdm, &
+          DielectricVolTmp(1:2 , 0:Nloc , 0:Nloc , 0:Nloc) , &
+          DielectricGlobal(1:2 , 0:NMax , 0:NMax , 0:NMax  , iElem))
       DEALLOCATE(DielectricVolTmp)
     END IF  
   END IF
@@ -270,7 +272,9 @@ IF(.NOT.ALMOSTZERO(PMLzeta0))THEN
     IF(Nloc.EQ.Nmax)THEN
       PMLzetaGlobal(:,:,:,:,iElem) = PML(iPMLElem)%zeta(:,:,:,:)/PMLzeta0
     ELSE
-      CALL ChangeBasis3D(3,Nloc,NMax,PREF_VDM(Nloc,NMax)%Vdm, PML(iPMLElem)%zeta(:,:,:,:)/PMLzeta0,PMLzetaGlobal(:,:,:,:,iElem))
+      CALL ChangeBasis3D(3,Nloc,NMax,PREF_VDM(Nloc,NMax)%Vdm, &
+          PML(iPMLElem)%zeta(1:3 , 0:Nloc , 0:Nloc , 0:Nloc)/PMLzeta0 , &
+               PMLzetaGlobal(1:3 , 0:NMax , 0:NMax , 0:NMax           , iElem))
     END IF ! Nloc.Eq.Nmax
   END DO
 END IF
@@ -372,7 +376,9 @@ IF(DoPML)THEN
     IF(Nloc.EQ.Nmax)THEN
       UPML(:,:,:,:,iElem) = U_N(iElem)%U2(:,:,:,:)
     ELSE
-      CALL ChangeBasis3D(PP_nVar,Nloc,NMax,PREF_VDM(Nloc,NMax)%Vdm, U_N(iElem)%U2(:,:,:,:),UPML(:,:,:,:,iElem))
+      CALL ChangeBasis3D(PMLnVar,Nloc,NMax,PREF_VDM(Nloc,NMax)%Vdm, &
+          U_N(iElem)%U2(1:PMLnVar , 0:Nloc , 0:Nloc , 0:Nloc) , &
+                   UPML(1:PMLnVar , 0:NMax , 0:NMax , 0:NMax  , iElem))
     END IF ! Nloc.Eq.Nmax
   END DO ! iElem = 1, nElems
 
@@ -622,10 +628,14 @@ ASSOCIATE (&
         END DO
       END IF
     ELSE
-      CALL ChangeBasis3D(BGDataSize,Nloc,NMax,PREF_VDM(Nloc,NMax)%Vdm, N_BG(iElem)%BGField,BGTemp(: ,:,:,:,iElem))
+      CALL ChangeBasis3D(BGDataSize,Nloc,NMax,PREF_VDM(Nloc,NMax)%Vdm, &
+          N_BG(iElem)%BGField(1:BGDataSize , 0:Nloc , 0:Nloc , 0:Nloc) , &
+                       BGTemp(1:BGDataSize , 0:NMax , 0:NMax , 0:NMax  , iElem))
       IF(UseTimeDepCoil) THEN
         DO iTimePoint = 1, nTimePoints
-          CALL ChangeBasis3D(BGDataSize,Nloc,NMax,PREF_VDM(Nloc,NMax)%Vdm, N_BG(iElem)%BGFieldTDep(:,:,:,:,iTimePoint),BGTDepTemp(:,:,:,:,iElem, iTimePoint))
+          CALL ChangeBasis3D(BGDataSize,Nloc,NMax,PREF_VDM(Nloc,NMax)%Vdm, &
+              N_BG(iElem)%BGFieldTDep(1:BGDataSize , 0:Nloc , 0:Nloc , 0:Nloc ,         iTimePoint) , &
+                           BGTDepTemp(1:BGDataSize , 0:NMax , 0:NMax , 0:NMax , iElem , iTimePoint))
         END DO
       END IF
     END IF ! Nloc.Eq.Nmax
@@ -700,7 +710,9 @@ DO iElem = 1, INT(PP_nElems)
   IF(Nloc.EQ.Nmax)THEN
     outputArray(:,:,:,:,iElem) = N_BG(iElem)%BGFieldAnalytic(:,:,:,:)
   ELSE
-    CALL ChangeBasis3D(BGDataSize,Nloc,NMax,PREF_VDM(Nloc,NMax)%Vdm, N_BG(iElem)%BGFieldAnalytic,outputArray(: ,:,:,:,iElem))
+    CALL ChangeBasis3D(BGDataSize,Nloc,NMax,PREF_VDM(Nloc,NMax)%Vdm, &
+        N_BG(iElem)%BGFieldAnalytic(1:BGDataSize , 0:Nloc , 0:Nloc , 0:Nloc ) , &
+                        outputArray(1:BGDataSize , 0:NMax , 0:NMax , 0:NMax   , iElem))
   END IF ! Nloc.Eq.Nmax
 END DO ! iElem = 1, nElems
 

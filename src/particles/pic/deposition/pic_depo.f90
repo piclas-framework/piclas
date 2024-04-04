@@ -246,7 +246,7 @@ CASE('cell_volweight')
         END DO ! i=0,Nloc
       END DO ! j=0,Nloc
     END DO ! k=0,Nloc
-    CALL ChangeBasis3D(1, Nloc, 1, CellVolWeight(Nloc)%Vdm_tmp, CellVolWeight(Nloc)%DetLocal(:,:,:,:), DetJac(:,:,:,:))
+    CALL ChangeBasis3D(1, Nloc, 1, CellVolWeight(Nloc)%Vdm_tmp, CellVolWeight(Nloc)%DetLocal(1:1,0:Nloc,0:Nloc,0:Nloc), DetJac(1:1,0:1,0:1,0:1))
     DO k=0,1
       DO j=0,1
         DO i=0,1
@@ -1073,7 +1073,6 @@ SUBROUTINE InitializePeriodicNodes(&
 USE MOD_Globals
 USE MOD_Basis                  ,ONLY: BarycentricWeights,InitializeVandermonde
 USE MOD_Basis                  ,ONLY: LegendreGaussNodesAndWeights,LegGaussLobNodesAndWeights
-USE MOD_ChangeBasis            ,ONLY: ChangeBasis3D
 USE MOD_Mesh_Vars              ,ONLY: nElems,BoundaryType
 USE MOD_Particle_Vars
 USE MOD_Particle_Mesh_Vars     ,ONLY: nUniqueGlobalNodes, GEO, NodeCoords_Shared, SideInfo_Shared,ElemSideNodeID_Shared

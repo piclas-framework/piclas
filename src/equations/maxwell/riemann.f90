@@ -116,7 +116,7 @@ CASE(RIEMANN_DIELECTRIC)
   ALLOCATE(DieLoc(1,0:Nloc,0:Nloc), DieTmp(1,0:NDie,0:NDie))  
   IF (NDie.LT.Nloc) THEN
     DieTmp(1,0:NDie,0:NDie) = DielectricSurf(SideID)%Dielectric_Master(0:NDie,0:NDie)
-    CALL ChangeBasis2D(1, NDie, Nloc, PREF_VDM(NDie,Nloc)%Vdm, DieTmp, DieLoc(:,:,:))
+    CALL ChangeBasis2D(1, NDie, Nloc, PREF_VDM(NDie,Nloc)%Vdm, DieTmp(1:1,0:NDie,0:NDie), DieLoc(1:1,0:Nloc,0:Nloc))
   ELSE
     DieLoc(1,0:Nloc,0:Nloc) = DielectricSurf(SideID)%Dielectric_Master(0:Nloc,0:Nloc)
   END IF 
@@ -127,7 +127,7 @@ CASE(RIEMANN_DIELECTRIC2VAC)
   ALLOCATE(DieLoc(1,0:Nloc,0:Nloc), DieTmp(1,0:NDie,0:NDie))
   IF (NDie.LT.Nloc) THEN
     DieTmp(1,0:NDie,0:NDie) = DielectricSurf(SideID)%Dielectric_Master(0:NDie,0:NDie)
-    CALL ChangeBasis2D(1, NDie, Nloc, PREF_VDM(NDie,Nloc)%Vdm, DieTmp, DieLoc(:,:,:))
+    CALL ChangeBasis2D(1, NDie, Nloc, PREF_VDM(NDie,Nloc)%Vdm, DieTmp(1:1,0:NDie,0:NDie), DieLoc(1:1,0:Nloc,0:Nloc))
   ELSE
     DieLoc(1,0:Nloc,0:Nloc) = DielectricSurf(SideID)%Dielectric_Master(0:Nloc,0:Nloc)
   END IF 
@@ -139,7 +139,7 @@ CASE(RIEMANN_VAC2DIELECTRIC)
   ALLOCATE(DieLoc(1,0:Nloc,0:Nloc), DieTmp(1,0:NDie,0:NDie))
   IF (NDie.LT.Nloc) THEN    
     DieTmp(1,0:NDie,0:NDie) = DielectricSurf(SideID)%Dielectric_Master(0:NDie,0:NDie)
-    CALL ChangeBasis2D(1, NDie, Nloc, PREF_VDM(NDie,Nloc)%Vdm, DieTmp, DieLoc(:,:,:))
+    CALL ChangeBasis2D(1, NDie, Nloc, PREF_VDM(NDie,Nloc)%Vdm, DieTmp(1:1,0:NDie,0:NDie), DieLoc(1:1,0:Nloc,0:Nloc))
   ELSE
     DieLoc(1,0:Nloc,0:Nloc) = DielectricSurf(SideID)%Dielectric_Master(0:Nloc,0:Nloc)
   END IF 
@@ -151,7 +151,7 @@ CASE(RIEMANN_DIELECTRIC2VAC_NC)  ! use non-conserving fluxes (two different flux
   ALLOCATE(DieLoc(1,0:Nloc,0:Nloc), DieTmp(1,0:NDie,0:NDie))
   IF (NDie.LT.Nloc) THEN
     DieTmp(1,0:NDie,0:NDie) = DielectricSurf(SideID)%Dielectric_Master(0:NDie,0:NDie)
-    CALL ChangeBasis2D(1, NDie, Nloc, PREF_VDM(NDie,Nloc)%Vdm, DieTmp, DieLoc(:,:,:))
+    CALL ChangeBasis2D(1, NDie, Nloc, PREF_VDM(NDie,Nloc)%Vdm, DieTmp(1:1,0:NDie,0:NDie), DieLoc(1:1,0:Nloc,0:Nloc))
   ELSE
     DieLoc(1,0:Nloc,0:Nloc) = DielectricSurf(SideID)%Dielectric_Master(0:Nloc,0:Nloc)
   END IF 
@@ -165,7 +165,7 @@ CASE(RIEMANN_VAC2DIELECTRIC_NC) ! use non-conserving fluxes (two different fluxe
   ALLOCATE(DieLoc(1,0:Nloc,0:Nloc), DieTmp(1,0:NDie,0:NDie))
   IF (NDie.LT.Nloc) THEN
     DieTmp(1,0:NDie,0:NDie) = DielectricSurf(SideID)%Dielectric_Master(0:NDie,0:NDie)
-    CALL ChangeBasis2D(1, NDie, Nloc, PREF_VDM(NDie,Nloc)%Vdm, DieTmp, DieLoc(:,:,:))
+    CALL ChangeBasis2D(1, NDie, Nloc, PREF_VDM(NDie,Nloc)%Vdm, DieTmp(1:1,0:NDie,0:NDie), DieLoc(1:1,0:Nloc,0:Nloc))
   ELSE
     DieLoc(1,0:Nloc,0:Nloc) = DielectricSurf(SideID)%Dielectric_Master(0:Nloc,0:Nloc)
   END IF 

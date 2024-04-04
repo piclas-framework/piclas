@@ -222,7 +222,7 @@ DO iSide = 1, nSides
     ! Transform the slave side to the same degree as the master: switch to Legendre basis
     CALL ChangeBasis2D(1, NSideMax, NSideMax, N_Inter(NSideMax)%sVdm_Leg, N_SurfMesh(iSide)%SurfElem(0:NSideMax,0:NSideMax), tmp(1,0:NSideMax,0:NSideMax))
      !Switch back to nodal basis
-    CALL ChangeBasis2D(1, NSideMin, NSideMin, N_Inter(NSideMin)%Vdm_Leg , tmp(1,0:NSideMax,0:NSideMax)                      , N_SurfMesh(iSide)%SurfElemMin(0:NSideMin,0:NSideMin))
+    CALL ChangeBasis2D(1, NSideMin, NSideMin, N_Inter(NSideMin)%Vdm_Leg , tmp(1,0:NSideMin,0:NSideMin)                     , N_SurfMesh(iSide)%SurfElemMin(0:NSideMin,0:NSideMin))
   END IF ! NSideMax.EQ.NSideMin
 END DO ! iSide = 1, nSides
 

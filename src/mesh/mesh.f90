@@ -106,7 +106,6 @@ USE MOD_Globals
 USE MOD_Globals_Vars           ,ONLY: PI
 USE MOD_PreProc
 USE MOD_Analyze_Vars           ,ONLY: CalcMeshInfo
-USE MOD_ChangeBasis            ,ONLY: ChangeBasis3D
 USE MOD_HDF5_Input
 USE MOD_Interpolation_Vars     ,ONLY: InterpolationInitIsDone,Nmin,Nmax
 USE MOD_IO_HDF5                ,ONLY: AddToElemData,ElementOut

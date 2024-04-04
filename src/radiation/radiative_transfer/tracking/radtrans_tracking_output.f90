@@ -241,7 +241,9 @@ ASSOCIATE( RayElemPassedEnergy => RayElemPassedEnergy_Shared )
     IF(Nloc.EQ.Ray%Nmax)THEN
       UNMax(:,:,:,:,iElem) = U_N_Ray(iGlobalElem)%U(:,:,:,:)
     ELSE
-      CALL ChangeBasis3D(nVarRay, Nloc, Ray%NMax, PREF_VDM_Ray(Nloc,Ray%NMax)%Vdm, U_N_Ray(iGlobalElem)%U(:,:,:,:), UNMax(:,:,:,:,iElem))
+      CALL ChangeBasis3D(nVarRay, Nloc, Ray%NMax, PREF_VDM_Ray(Nloc,Ray%NMax)%Vdm, &
+          U_N_Ray(iGlobalElem)%U(1:nVarRay,0:Ray%NMax,0:Ray%NMax,0:Ray%NMax),      &
+                           UNMax(1:nVarRay,0:Ray%NMax,0:Ray%NMax,0:Ray%NMax,iElem))
     END IF ! Nloc.Eq.Nmax
 
     ! Copy data from global array (later used for emission)
@@ -250,7 +252,7 @@ ASSOCIATE( RayElemPassedEnergy => RayElemPassedEnergy_Shared )
     ! Apply integration weights and the Jacobian
     ! Interpolate the Jacobian to the analyze grid: be careful we interpolate the inverse of the inverse of the Jacobian ;-)
     J_N(1,0:PP_N,0:PP_N,0:PP_N)=1./N_VolMesh(iElem)%sJ(:,:,:)
-    CALL ChangeBasis3D(1,PP_N,Ray%NMax,Vdm_GaussN_NMax,J_N(1:1,0:PP_N,0:PP_N,0:PP_N),J_Nmax(1:1,:,:,:))
+    CALL ChangeBasis3D(1,PP_N,Ray%NMax,Vdm_GaussN_NMax,J_N(1:1,0:PP_N,0:PP_N,0:PP_N),J_Nmax(1:1,0:Ray%NMax,0:Ray%NMax,0:Ray%NMax))
     DO m=0,Ray%NMax
       DO l=0,Ray%NMax
         DO k=0,Ray%NMax

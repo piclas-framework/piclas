@@ -110,7 +110,7 @@ IF(DG_SourceExtExists)THEN
   NodeVol = 1. ! default
   DO iElem =1, PP_nElems
     ! Map G/GL (current node type) to equidistant distribution
-    CALL ChangeBasis3D(1, N_Restart, 1, Vdm_N_EQ, U_local(:,:,:,:,iElem), NodeSourceExtEqui(:,:,:,:))
+    CALL ChangeBasis3D(1, N_Restart, 1, Vdm_N_EQ, U_local(1:1,0:N_Restart,0:N_Restart,0:N_Restart,iElem), NodeSourceExtEqui(1:1,0:1,0:1,0:1))
 
     ! Map the solution to the global nodes 'NodeSourceExt' and apply the volumes (charge density -> charge)
     ! Map non-unique to unique node ID

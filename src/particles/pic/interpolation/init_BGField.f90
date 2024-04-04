@@ -254,7 +254,8 @@ ELSE
       DO iElem=1,PP_nElems
         Nloc = N_DG_Mapping(2,iElem+offSetElem)
         CALL ChangeBasis3D(BGDataSize,N_In,Nloc,Vdm_BGFieldIn_BGField(Nloc)%Vdm,&
-                           BGFieldTDep_tmp(:,:,:,:,iElem,iField),N_BG(iElem)%BGFieldTDep(:,:,:,:,iField))
+                           BGFieldTDep_tmp(1:BGDataSize , 0:N_in , 0:N_in , 0:N_in , iElem    , iField) , &
+                   N_BG(iElem)%BGFieldTDep(1:BGDataSize , 0:Nloc , 0:Nloc , 0:Nloc , iField))
         N_BG(iElem)%BGFieldTDep(:,:,:,:,iField)=BGFieldScaling*N_BG(iElem)%BGFieldTDep(:,:,:,:,iField)
       END DO ! iElem
     END DO ! iField = 1, nFields
@@ -262,7 +263,8 @@ ELSE
     DO iElem=1,PP_nElems
       Nloc = N_DG_Mapping(2,iElem+offSetElem)
       CALL ChangeBasis3D(BGDataSize,N_In,Nloc,Vdm_BGFieldIn_BGField(Nloc)%Vdm,&
-                         BGField_tmp(:,:,:,:,iElem),N_BG(iElem)%BGField(:,:,:,:))
+                         BGField_tmp(1:BGDataSize , 0:N_in , 0:N_in , 0:N_in   , iElem) , &
+                 N_BG(iElem)%BGField(1:BGDataSize , 0:Nloc , 0:Nloc , 0:Nloc))
       N_BG(iElem)%BGField(:,:,:,:) = BGFieldScaling*N_BG(iElem)%BGField(:,:,:,:)
     END DO ! iElem
   END IF ! UseTimeDepCoil

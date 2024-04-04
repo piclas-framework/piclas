@@ -426,7 +426,7 @@ ASSOCIATE (&
         CALL ChangeBasis3D(nVarRay, NMax, Nloc, PREF_VDM_Ray(NMax, Nloc)%Vdm, UNMax(1:nVarRay,0:NMax,0:NMax,0:NMax,iElem), U_N_Ray_loc(iElem)%U(1:nVarRay,0:Nloc,0:Nloc,0:Nloc))
       ELSE
         !transform the slave side to the same degree as the master: switch to Legendre basis
-        CALL ChangeBasis3D(nVarRay, NMax, NMax, N_Inter_Ray(NMax)%sVdm_Leg, UNMax(1:nVarRay,0:NMax,0:NMax,0:NMax,iElem), UNMax_loc)
+        CALL ChangeBasis3D(nVarRay, NMax, NMax, N_Inter_Ray(NMax)%sVdm_Leg, UNMax(1:nVarRay,0:NMax,0:NMax,0:NMax,iElem), UNMax_loc(1:nVarRay,0:NMax,0:NMax,0:NMax))
         ! switch back to nodal basis
         CALL ChangeBasis3D(nVarRay, Nloc, Nloc, N_Inter_Ray(Nloc)%Vdm_Leg, UNMax_loc(1:nVarRay,0:Nloc,0:Nloc,0:Nloc), U_N_Ray_loc(iElem)%U(1:nVarRay,0:Nloc,0:Nloc,0:Nloc))
       END IF ! Nloc.EQ.NMax

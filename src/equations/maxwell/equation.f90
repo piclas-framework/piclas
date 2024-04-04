@@ -1328,7 +1328,7 @@ DO iSide=1,nSides
   CALL BarycentricWeights(Nloc,xGP_tmp,wBary_tmp)
   !CALL InitializeVandermonde(Nloc,Nloc,wBary_tmp,xGP,xGP_tmp,Vdm_PolN_GL)
   CALL InitializeVandermonde(Nloc,Nloc,N_Inter(Nloc)%wBary,N_Inter(Nloc)%xGP,xGP_tmp,Vdm_PolN_GL)
-  CALL ChangeBasis2D(2,Nloc,Nloc,Vdm_PolN_GL,N_SurfMesh(iSide)%Face_xGP(1:2,:,:),Face_xGL)
+  CALL ChangeBasis2D(2,Nloc,Nloc,Vdm_PolN_GL,N_SurfMesh(iSide)%Face_xGP(1:2,0:Nloc,0:Nloc),Face_xGL(1:2,0:Nloc,0:Nloc))
 #else
   Face_xGL(1:2,:,:)=N_SurfMesh(iSide)%Face_xGP(1:2,:,:)
 #endif

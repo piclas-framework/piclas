@@ -481,7 +481,9 @@ ELSE
   END ASSOCIATE
   SWRITE(UNIT_stdOut,*)'Interpolating base flow from restart grid with N=',N_HDF5,' to computational grid with N=',PP_N
   DO iElem=1,PP_nElems
-    CALL ChangeBasis3D(PP_nVar,N_HDF5,PP_N,Vdm_NHDF5_N,U_local(:,:,:,:,iElem),U_N(:,:,:,:,iElem))
+    CALL ChangeBasis3D(PP_nVar, N_HDF5, PP_N, Vdm_NHDF5_N,             &
+        U_local(1:PP_nVar , 0:N_HDF5 , 0:N_HDF5 , 0:N_HDF5 , iElem)  , &
+            U_N(1:PP_nVar , 0:PP_N   , 0:PP_N   , 0:PP_N   , iElem))
   END DO
   DEALLOCATE(U_local,Vdm_NHDF5_N)
   DEALLOCATE(wGP_tmp,xGP_tmp,wBary_tmp)

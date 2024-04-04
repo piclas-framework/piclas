@@ -270,7 +270,6 @@ USE MOD_Globals
 USE MOD_PreProc
 USE MOD_IO_HDF5
 USE MOD_Restart_Vars           ,ONLY: DoRestart,RestartTime
-USE MOD_ChangeBasis            ,ONLY: ChangeBasis3D
 USE MOD_HDF5_Output            ,ONLY: FlushHDF5
 #ifdef PP_POIS
 USE MOD_Equation_Vars          ,ONLY: Phi

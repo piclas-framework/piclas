@@ -484,7 +484,9 @@ DO iCNElem = firstElem,lastElem
 
     ! Interpolate detJac_ref to the solution points
     ! Fill detJac_NMax(1,0:Nloc,0:Nloc,0:Nloc), which is allocated larger to detJac_NMax(1,0:Nmax,0:Nmax,0:Nmax)
-    CALL ChangeBasis3D(1,NgeoRef,Nloc,NInfo(Nloc)%Vdm_NgeoRef_N,detJac_NGeoRef(:,:,:,:),detJac_NMax(1,0:Nloc,0:Nloc,0:Nloc))
+    CALL ChangeBasis3D(1,NgeoRef,Nloc,NInfo(Nloc)%Vdm_NgeoRef_N,&
+        detJac_NGeoRef(1:1 , 0:NGeoRef , 0:NGeoRef , 0:NGeoRef) , &
+           detJac_NMax(1:1 , 0:Nloc    , 0:Nloc    , 0:Nloc))
 
     ! assign to global Variable sJ
     DO k=0,Nloc; DO j=0,Nloc; DO i=0,Nloc

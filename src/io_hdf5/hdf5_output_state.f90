@@ -159,7 +159,7 @@ REAL                           :: StartT,EndT
 REAL                           :: Utemp(PP_nVar,0:PP_N,0:PP_N,0:PP_N,PP_nElems)
 #elif USE_HDG
 #if PP_nVar==1
-REAL                           :: Utemp(1:4,0:PP_N,0:PP_N,0:PP_N,PP_nElems)
+REAL                           :: Utemp(1:4,0:NMax,0:NMax,0:NMax,PP_nElems)
 INTEGER                        :: iElem,Nloc,NSideMin
 REAL,ALLOCATABLE               :: Et(:,:,:,:,:)
 #elif PP_nVar==3
@@ -469,8 +469,8 @@ ASSOCIATE (&
         Utemp(1,:,:,:,iElem)   = U_N(iElem)%U(1,:,:,:)
         Utemp(2:4,:,:,:,iElem) = U_N(iElem)%E(1:3,:,:,:)
       ELSE
-        CALL ChangeBasis3D(1,Nloc,NMax,PREF_VDM(Nloc,NMax)%Vdm, U_N(iElem)%U(1  ,:,:,:),Utemp(1  ,:,:,:,iElem))
-        CALL ChangeBasis3D(3,Nloc,NMax,PREF_VDM(Nloc,NMax)%Vdm, U_N(iElem)%E(1:3,:,:,:),Utemp(2:4,:,:,:,iElem))
+        CALL ChangeBasis3D(1,Nloc,NMax,PREF_VDM(Nloc,NMax)%Vdm, U_N(iElem)%U(1  ,0:Nloc,0:Nloc,0:Nloc),Utemp(1  ,0:NMax,0:NMax,0:NMax,iElem))
+        CALL ChangeBasis3D(3,Nloc,NMax,PREF_VDM(Nloc,NMax)%Vdm, U_N(iElem)%E(1:3,0:Nloc,0:Nloc,0:Nloc),Utemp(2:4,0:NMax,0:NMax,0:NMax,iElem))
       END IF ! Nloc.Eq.Nmax
     END DO ! iElem = 1, nElems
 #ifdef PARTICLES
@@ -510,10 +510,12 @@ ASSOCIATE (&
 #if !((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))
   DO iElem = 1, INT(PP_nElems)
     Nloc = N_DG_Mapping(2,iElem+offSetElem)
-    IF(Nloc.Eq.Nmax)THEN
+    IF(Nloc.EQ.Nmax)THEN
       U(:,:,:,:,iElem) = U_N(iElem)%U(:,:,:,:)
     ELSE
-      CALL ChangeBasis3D(PP_nVar,Nloc,NMax,PREF_VDM(Nloc,NMax)%Vdm, U_N(iElem)%U(:,:,:,:),U(:,:,:,:,iElem))
+      CALL ChangeBasis3D(PP_nVar,Nloc,NMax,PREF_VDM(Nloc,NMax)%Vdm, &
+          U_N(iElem)%U(1:PP_nVar , 0:Nloc , 0:Nloc , 0:Nloc) , &
+                     U(1:PP_nVar , 0:NMax , 0:NMax , 0:NMax  , iElem))
     END IF ! Nloc.Eq.Nmax
   END DO ! iElem = 1, nElems
 #else
@@ -556,7 +558,9 @@ ASSOCIATE (&
       IF(Nloc.Eq.Nmax)THEN
         PartSource(:,:,:,:,iElem) = PS_N(iElem)%PartSource(:,:,:,:)
       ELSE
-        CALL ChangeBasis3D(4,Nloc,NMax,PREF_VDM(Nloc,NMax)%Vdm,PS_N(iElem)%PartSource(:,:,:,:),PartSource(:,:,:,:,iElem))
+        CALL ChangeBasis3D(4,Nloc,NMax,PREF_VDM(Nloc,NMax)%Vdm,&
+            PS_N(iElem)%PartSource(1:4 , 0:Nloc , 0:Nloc , 0:Nloc) , &
+                        PartSource(1:4 , 0:Nmax , 0:Nmax , 0:Nmax  , iElem))
       END IF ! Nloc.Eq.Nmax
     END DO ! iElem = 1, nElems
     CALL GatheredWriteArray(FileName,create=.FALSE.,&
@@ -581,7 +585,9 @@ ASSOCIATE (&
       IF(Nloc.EQ.Nmax)THEN
         Et(:,:,:,:,iElem) = U_N(iElem)%Et(:,:,:,:)
       ELSE
-        CALL ChangeBasis3D(PP_nVar,Nloc,NMax,PREF_VDM(Nloc,NMax)%Vdm, U_N(iElem)%Et(:,:,:,:),Et(:,:,:,:,iElem))
+        CALL ChangeBasis3D(PP_nVar,Nloc,NMax,PREF_VDM(Nloc,NMax)%Vdm, &
+            U_N(iElem)%Et(1:3 , 0:Nloc , 0:Nloc , 0:Nloc) , &
+                       Et(1:3 , 0:Nmax , 0:Nmax , 0:Nmax  , iElem))
       END IF ! Nloc.Eq.Nmax
     END DO ! iElem = 1, nElems
     nVar=3_IK

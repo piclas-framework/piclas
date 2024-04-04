@@ -462,7 +462,7 @@ CALL LBPauseTime(LB_DG,tLBStart) ! Pause/Stop time measurement
         lambdatmp(1:nGP_face(Nloc)) = HDG_Surf_N(SideID)%lambda(iVar,:)
       ELSE
         ! From low to high
-        CALL ChangeBasis2D(1, NSideMin, Nloc, PREF_VDM(NSideMin,Nloc)%Vdm , HDG_Surf_N(SideID)%lambda(iVar,:), lambdatmp(1:nGP_face(Nloc)))
+        CALL ChangeBasis2D(1, NSideMin, Nloc, PREF_VDM(NSideMin,Nloc)%Vdm , HDG_Surf_N(SideID)%lambda(iVar,1:nGP_face(NSideMin)), lambdatmp(1:nGP_face(Nloc)))
       END IF ! Nloc.EQ.NSideMin
       CALL DGEMV('T',nGP_face(Nloc),nGP_vol(Nloc),1., &
                           HDG_Vol_N(iElem)%Ehat(:,:,iLocSide), nGP_face(Nloc), &

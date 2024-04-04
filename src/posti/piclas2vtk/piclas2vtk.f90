@@ -780,7 +780,7 @@ ALLOCATE(Coords_DG(3,0:NVisu,0:NVisu,0:NVisu,nElems))
 
 ! Convert coordinates to visu grid
 DO iElem = 1,nElems
-  CALL ChangeBasis3D(3,NGeo,NVisu,Vdm_EQNgeo_NVisu,NodeCoords(:,:,:,:,iElem),Coords_NVisu(:,:,:,:,iElem))
+  CALL ChangeBasis3D(3, NGeo, NVisu, Vdm_EQNgeo_NVisu, NodeCoords(1:3,0:NGeo,0:NGeo,0:NGeo,iElem), Coords_NVisu(1:3,0:NVisu,0:NVisu,0:NVisu,iElem))
 END DO
 
 ! Read in solution
@@ -902,9 +902,10 @@ DO iField = 1, nFields
   DO iElem = 1,nElems
     iDG = iDG + 1
     IF(nFields.EQ.1)THEN
-      CALL ChangeBasis3D(nVar_State,N_State,NVisu,Vdm_N_NVisu,U(:,:,:,:,iElem),U_Visu(:,:,:,:,iDG))
+      CALL ChangeBasis3D(nVar_State, N_State, NVisu, Vdm_N_NVisu, U( 1:nVar_State,0:N_State,0:N_State,0:N_State,iElem)       , U_Visu(1:nVar_State,0:NVisu,0:NVisu,0:NVisu,iDG))
     ELSE ! more than one field
-      CALL ChangeBasis3D(nVar_State,N_State,NVisu,Vdm_N_NVisu,U2(:,:,:,:,iElem,iField),U_Visu(:,:,:,:,iDG))
+      ! TODO: is nVar_State correct here?
+      CALL ChangeBasis3D(nVar_State, N_State, NVisu, Vdm_N_NVisu, U2(1:nVar_State,0:N_State,0:N_State,0:N_State,iElem,iField), U_Visu(1:nVar_State,0:NVisu,0:NVisu,0:NVisu,iDG))
     END IF ! nFields.GT.1
   END DO
 
@@ -1119,6 +1120,7 @@ END SUBROUTINE ConvertElemData
 !===================================================================================================================================
 SUBROUTINE ConvertSurfaceData(InputStateFile)
 ! MODULES
+USE MOD_Preproc
 USE MOD_Globals
 USE MOD_Globals_Vars            ,ONLY: ProjectName
 USE MOD_IO_HDF5                 ,ONLY: HSize
@@ -1128,7 +1130,7 @@ USE MOD_piclas2vtk_Vars         ,ONLY: SurfConnect
 USE MOD_Interpolation           ,ONLY: GetVandermonde
 USE MOD_ChangeBasis             ,ONLY: ChangeBasis2D
 USE MOD_Interpolation_Vars      ,ONLY: NodeTypeVISU
-USE MOD_Mesh_Vars               ,ONLY: N_SurfMesh,Ngeo
+USE MOD_Mesh_Vars               ,ONLY: N_SurfMesh
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1144,7 +1146,7 @@ INTEGER                         :: nDims, nVarSurf, nSurfaceSidesReadin, iSurfCi
 REAL                            :: OutputTime
 REAL, ALLOCATABLE               :: tempSurfData(:,:,:,:,:)
 INTEGER                         :: iSide
-REAL,ALLOCATABLE                :: Vdm_EQNgeo_NVisu(:,:)               !< Vandermonde from equidistant mesh to visualization nodes
+REAL,ALLOCATABLE                :: Vdm_N_NVisu(:,:)               !< Vandermonde from equidistant mesh to visualization nodes
 REAL,ALLOCATABLE                :: NodeCoords_visu(:,:,:,:,:)          !< Coordinates of visualization nodes
 !===================================================================================================================================
 
@@ -1191,15 +1193,17 @@ IF((nVarSurf.GT.0).AND.(SurfConnect%nSurfaceBCSides.GT.0))THEN
 END IF
 
 IF(nSurfSample.GT.1) THEN
-  ALLOCATE(Vdm_EQNgeo_NVisu(0:nSurfSample,0:NGeo))
+  ALLOCATE(Vdm_N_NVisu(0:nSurfSample,0:PP_N))
   ! Use NodeTypeVISU, which is hard-coded to NodeTypeVISU='VISU'
-  CALL GetVandermonde(NGeo,'GAUSS',nSurfSample,NodeTypeVISU,Vdm_EQNgeo_NVisu,modal=.FALSE.)
+  CALL GetVandermonde(PP_N,'GAUSS',nSurfSample,NodeTypeVISU,Vdm_N_NVisu,modal=.FALSE.)
   ALLOCATE(NodeCoords_visu(1:3,0:nSurfSample,0:nSurfSample,0:0,SurfConnect%nSurfaceBCSides))
   NodeCoords_visu = 0.
   ! Interpolate mesh onto visu grid
   DO iSide=1,SurfConnect%nSurfaceBCSides
     iSurfCinnectSide = SurfConnect%SurfSideToSide(iSide)
-    CALL ChangeBasis2D(3,NGeo,nSurfSample,Vdm_EQNgeo_NVisu,N_SurfMesh(iSurfCinnectSide)%Face_xGP(1:3,:,:),NodeCoords_visu(1:3,:,:,0,iSide))
+    CALL ChangeBasis2D(3, PP_N, nSurfSample, Vdm_N_NVisu, &
+        N_SurfMesh(iSurfCinnectSide)%Face_xGP(1:3 , 0:PP_N        , 0:PP_N)       , &
+                              NodeCoords_visu(1:3 , 0:nSurfSample , 0:nSurfSample , 0 , iSide))
   END DO
 ELSE
   ALLOCATE(NodeCoords_visu(1:3,0:0,0:0,0:0,1:SurfConnect%nSurfaceNode))

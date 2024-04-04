@@ -1339,8 +1339,8 @@ ALLOCATE( DetJac(1,0:NumOfPoints - 1,0:NumOfPoints - 1))
 ALLOCATE(LocalVdm(0:NumOfPoints - 1,0:Nloc))
 ALLOCATE(FacexGP(2,0:NumOfPoints - 1,0:NumOfPoints - 1))
 CALL InitVanderOct(LocalVdm, NodeDepth, LocalDepth, OctreeVdm, Nloc)
-CALL ChangeBasis2D(1, Nloc, NumOfPoints - 1, LocalVdm ,DetLocal(:,:,:),DetJac(:,:,:))
-CALL ChangeBasis2D(2, Nloc, NumOfPoints - 1, LocalVdm ,FaceLocal(:,:,:),FacexGP(:,:,:))
+CALL ChangeBasis2D(1, Nloc, NumOfPoints - 1, LocalVdm ,DetLocal( 1:1,0:Nloc,0:Nloc),DetJac( 1:1,0:NumOfPoints - 1,0:NumOfPoints - 1))
+CALL ChangeBasis2D(2, Nloc, NumOfPoints - 1, LocalVdm ,FaceLocal(1:2,0:Nloc,0:Nloc),FacexGP(1:2,0:NumOfPoints - 1,0:NumOfPoints - 1))
 CALL AddNodeVolumes2D(NodeDepth, Node, DetJac, OctreeVdm, iElem, FacexGP)
 
 END SUBROUTINE DSMC_CalcSubNodeVolumes2D
@@ -1384,7 +1384,7 @@ END DO; END DO; END DO
 ALLOCATE( DetJac(1,0:NumOfPoints - 1,0:NumOfPoints - 1,0:NumOfPoints - 1))
 ALLOCATE(LocalVdm(0:NumOfPoints - 1,0:Nloc))
 CALL InitVanderOct(LocalVdm, NodeDepth, LocalDepth, OctreeVdm, Nloc)
-CALL ChangeBasis3D(1,Nloc, NumOfPoints - 1, LocalVdm, DetLocal(:,:,:,:),DetJac(:,:,:,:))
+CALL ChangeBasis3D(1,Nloc, NumOfPoints - 1, LocalVdm, DetLocal(1:1,0:Nloc,0:Nloc,0:Nloc),DetJac(1:1,0:NumOfPoints-1,0:NumOfPoints-1,0:NumOfPoints-1))
 CALL AddNodeVolumes(NodeDepth, Node, DetJac, OctreeVdm)
 
 END SUBROUTINE DSMC_CalcSubNodeVolumes3D

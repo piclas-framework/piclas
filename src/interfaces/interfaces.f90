@@ -89,6 +89,7 @@ USE MOD_Mesh_Vars        ,ONLY: SideToElem
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Vars ,ONLY: PerformLoadBalance
 #endif /*USE_LOADBALANCE*/
+USE MOD_DG_Vars          ,ONLY: DG_Elems_master,DG_Elems_slave
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -97,7 +98,7 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER            :: SideID,ElemID
+INTEGER            :: SideID,ElemID,Nloc
 !===================================================================================================================================
 LBWRITE(UNIT_StdOut,'(132("-"))')
 LBWRITE(UNIT_stdOut,'(A)') ' INIT INTERFACES...'
@@ -198,15 +199,16 @@ DO SideID=1,nSides
 #if !(USE_HDG) /*pure Maxwell simulations*/
     IPWRITE(UNIT_StdOut,*) "DoPML                          = ", DoPML
 #endif /*NOT HDG*/
+    Nloc = MAX(DG_Elems_master(SideID),DG_Elems_slave(SideID))
     IPWRITE(UNIT_StdOut,*) "DoDielectric                   = ", DoDielectric
     IPWRITE(UNIT_StdOut,*) "SideID                         = ", SideID
     IPWRITE(UNIT_StdOut,*) "MortarType(1,SideID)           = ", MortarType(1,SideID)
     IPWRITE(UNIT_StdOut,*) "InterfaceRiemann(SideID)       = ", InterfaceRiemann(SideID)
     IPWRITE(UNIT_StdOut,*) "SideToElem(S2E_ELEM_ID,SideID) = ", SideToElem(S2E_ELEM_ID,SideID)
     IPWRITE(UNIT_StdOut,*) "N_SurfMesh(SideID)%Face_xGP(1:3 , 0    , 0) = "   , N_SurfMesh(SideID)%Face_xGP(1:3 , 0    , 0   )
-    IPWRITE(UNIT_StdOut,*) "N_SurfMesh(SideID)%Face_xGP(1:3 , 0    , NGeo) =" , N_SurfMesh(SideID)%Face_xGP(1:3 , 0    , NGeo)
-    IPWRITE(UNIT_StdOut,*) "N_SurfMesh(SideID)%Face_xGP(1:3 , NGeo , 0   ) =" , N_SurfMesh(SideID)%Face_xGP(1:3 , NGeo , 0   )
-    IPWRITE(UNIT_StdOut,*) "N_SurfMesh(SideID)%Face_xGP(1:3 , NGeo , NGeo) =" , N_SurfMesh(SideID)%Face_xGP(1:3 , NGeo , NGeo)
+    IPWRITE(UNIT_StdOut,*) "N_SurfMesh(SideID)%Face_xGP(1:3 , 0    , Nloc) =" , N_SurfMesh(SideID)%Face_xGP(1:3 , 0    , Nloc)
+    IPWRITE(UNIT_StdOut,*) "N_SurfMesh(SideID)%Face_xGP(1:3 , Nloc , 0   ) =" , N_SurfMesh(SideID)%Face_xGP(1:3 , Nloc , 0   )
+    IPWRITE(UNIT_StdOut,*) "N_SurfMesh(SideID)%Face_xGP(1:3 , Nloc , Nloc) =" , N_SurfMesh(SideID)%Face_xGP(1:3 , Nloc , Nloc)
     CALL abort(__STAMP__,'Interface for Riemann solver not correctly determined (vacuum, dielectric, PML)')
   END IF
 END DO ! SideID

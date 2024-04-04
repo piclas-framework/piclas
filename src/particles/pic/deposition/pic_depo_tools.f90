@@ -280,7 +280,7 @@ DO iCNElem = firstElem, lastElem
       r=k*(Nloc+1)**2+j*(Nloc+1) + i+1
       DetJac(1,i,j,k) = 1./ElemsJ(r+offSetDofNode)
     END DO; END DO; END DO
-    CALL ChangeBasis3D(1,Nloc, 1, Vdm_loc(Nloc)%Vdm, DetLocal(:,0:Nloc,0:Nloc,0:Nloc), DetJac(:,:,:,:))
+    CALL ChangeBasis3D(1,Nloc, 1, Vdm_loc(Nloc)%Vdm, DetLocal(:,0:Nloc,0:Nloc,0:Nloc), DetJac(1:1,0:1,0:1,0:1))
   END IF
 #if USE_MPI
   ASSOCIATE( NodeVolume => NodeVolumeLoc )
