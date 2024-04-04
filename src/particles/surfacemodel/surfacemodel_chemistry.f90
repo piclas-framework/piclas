@@ -67,7 +67,7 @@ CALL prms%CreateIntOption(      'Surface-Reaction[$]-Inhibition','Inhibition/Coa
 CALL prms%CreateIntOption(      'Surface-Reaction[$]-Promotion','Promotion/Coadsorption behaviour due to other reactions', &
                                 '0', numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'Surface-Reaction[$]-StickingCoefficient','Ratio of adsorbed to impinging particles on a\n' //&
-                                'reactive surface, Langmuir or Kisluik model', '0.' , numberedmulti=.TRUE.)
+                                'reactive surface, Langmuir or Kisluik model', '1.' , numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'Surface-Reaction[$]-DissOrder',  &
                                     'Associative = 1, dissociative = 2', '0.' , numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'Surface-Reaction[$]-EqConstant',  &
