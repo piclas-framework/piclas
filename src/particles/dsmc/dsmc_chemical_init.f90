@@ -43,6 +43,11 @@ USE MOD_ReadInTools ,ONLY: prms
 IMPLICIT NONE
 !===================================================================================================================================
 CALL prms%SetSection("Chemistry")
+CALL prms%CreateStringOption(   'DSMC-ChemistryModel', 'Name of available chemistry reaction model, e.g.:\n'//&
+                                  'Air_5Spec_8Reac_Park1993\n'//&
+                                  'Mars_11Spec_27Reac_Johnston2014\n'//&
+                                  'Titan_14Spec_24Reac_Savajano2011\n'//&
+                                  'A complete list can be found in the documentation.', 'none')
 CALL prms%CreateIntOption(      'DSMC-NumOfReactions','Number of chemical reactions')
 CALL prms%CreateIntOption(      'DSMC-Reaction[$]-NumberOfNonReactives', &
                                           'Number of non-reactive collision partners (Length of the read-in vector)', &
@@ -134,14 +139,13 @@ USE MOD_Globals
 USE MOD_ReadInTools
 USE MOD_Globals_Vars            ,ONLY: BoltzmannConst, Pi
 USE MOD_DSMC_Vars               ,ONLY: ChemReac, DSMC, SpecDSMC, BGGas, CollInf
-USE MOD_PARTICLE_Vars           ,ONLY: nSpecies, Species
+USE MOD_PARTICLE_Vars           ,ONLY: nSpecies, Species, SpeciesDatabase
 USE MOD_Particle_Analyze_Vars   ,ONLY: ChemEnergySum
 USE MOD_DSMC_ChemReact          ,ONLY: CalcPartitionFunction
 USE MOD_DSMC_QK_Chemistry       ,ONLY: QK_Init
 USE MOD_MCC_Vars                ,ONLY: NbrOfPhotonXsecReactions
-#if USE_LOADBALANCE
-USE MOD_LoadBalance_Vars        ,ONLY: PerformLoadBalance
-#endif /*USE_LOADBALANCE*/
+USE MOD_io_hdf5
+USE MOD_HDF5_input              ,ONLY: ReadAttribute, DatasetExists, AttributeExists
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -155,34 +159,53 @@ INTEGER               :: iReac, iReac2, iSpec, iPart, iReacDiss, iSpec2
 INTEGER, ALLOCATABLE  :: DummyRecomb(:,:)
 LOGICAL               :: DoScat
 REAL                  :: BGGasEVib, omega, ChargeProducts, ChargeReactants
-INTEGER               :: Reactant1, Reactant2, Reactant3, MaxSpecies, ReadInNumOfReact
+INTEGER               :: Reactant1, Reactant2, Reactant3, MaxSpecies, ReadInNumOfReact, CustomNumReact
 !===================================================================================================================================
 
 NbrOfPhotonXsecReactions = 0
-ChemReac%NumOfReact = GETINT('DSMC-NumOfReactions')
-ReadInNumOfReact = ChemReac%NumOfReact
-ChemReac%NumOfReactWOBackward = ChemReac%NumOfReact
+ChemReac%AnyQKReaction = .FALSE.
+ChemReac%AnyXSecReaction = .FALSE.
+
+! Read-in of the name of the chemistry model (number of reactions is then given by the available reactions)
+ChemReac%ChemistryModel  = TRIM(GETSTR('DSMC-ChemistryModel'))
+
+IF(ChemReac%ChemistryModel.EQ.'none') THEN
+  ChemReac%NumOfReact = GETINT('DSMC-NumOfReactions')
+  ReadInNumOfReact = ChemReac%NumOfReact
+  ChemReac%NumOfReactWOBackward = ChemReac%NumOfReact
+  ALLOCATE(ChemReac%ArbDiss(ChemReac%NumOfReact))
+  ! Allowing unspecified non-reactive collision partner (CH4 + M -> CH3 + H + M, e.g. (/1,0,0/) -> (/2,0,3/)
+  DO iReac = 1, ReadInNumOfReact
+    WRITE(UNIT=hilf,FMT='(I0)') iReac
+    ChemReac%ArbDiss(iReac)%NumOfNonReactives = GETINT('DSMC-Reaction'//TRIM(hilf)//'-NumberOfNonReactives')
+    IF(ChemReac%ArbDiss(iReac)%NumOfNonReactives.GT.0) THEN
+      ALLOCATE(ChemReac%ArbDiss(iReac)%NonReactiveSpecies(ChemReac%ArbDiss(iReac)%NumOfNonReactives))
+      ChemReac%ArbDiss(iReac)%NonReactiveSpecies = GETINTARRAY('DSMC-Reaction'//TRIM(hilf)//'-NonReactiveSpecies', &
+                                                ChemReac%ArbDiss(iReac)%NumOfNonReactives)
+      ! First reaction is saved within the dummy input reaction, thus "- 1"
+      ChemReac%NumOfReact = ChemReac%NumOfReact + ChemReac%ArbDiss(iReac)%NumOfNonReactives - 1
+      ChemReac%NumOfReactWOBackward = ChemReac%NumOfReactWOBackward + ChemReac%ArbDiss(iReac)%NumOfNonReactives - 1
+    END IF
+  END DO
+ELSE
+  ! Number of reactions is set based on the chemistry model
+  CALL GetNumReacFromDatabase(ReadInNumOfReact)
+  CustomNumReact = GETINT('DSMC-NumOfReactions','0')
+  IF(CustomNumReact.GT.0) THEN
+    CALL Abort(__STAMP__,' Custom reactions in addition to a chemistry model are not supported yet!')
+  END IF
+  IF(ChemReac%NumOfReact.LE.0) THEN
+    CALL Abort(__STAMP__,' No reactions found for the selected chemistry model: '//TRIM(ChemReac%ChemistryModel))
+  END IF
+END IF
+
 IF(ChemReac%NumOfReact.LE.0) THEN
   CALL Abort(__STAMP__,' CollisMode = 3 requires a chemical reaction database. DSMC-NumOfReactions cannot be zero!')
 END IF
-ChemReac%AnyQKReaction    = .FALSE.
-ChemReac%AnyXSecReaction  = .FALSE.
-ChemReac%AnyPhIonReaction = .FALSE.
-ALLOCATE(ChemReac%ArbDiss(ChemReac%NumOfReact))
-! Allowing unspecified non-reactive collision partner (CH4 + M -> CH3 + H + M, e.g. (/1,0,0/) -> (/2,0,3/)
-iReacDiss = ChemReac%NumOfReact
-DO iReac = 1, ReadInNumOfReact
-  WRITE(UNIT=hilf,FMT='(I0)') iReac
-  ChemReac%ArbDiss(iReac)%NumOfNonReactives = GETINT('DSMC-Reaction'//TRIM(hilf)//'-NumberOfNonReactives')
-  IF(ChemReac%ArbDiss(iReac)%NumOfNonReactives.GT.0) THEN
-    ALLOCATE(ChemReac%ArbDiss(iReac)%NonReactiveSpecies(ChemReac%ArbDiss(iReac)%NumOfNonReactives))
-    ChemReac%ArbDiss(iReac)%NonReactiveSpecies = GETINTARRAY('DSMC-Reaction'//TRIM(hilf)//'-NonReactiveSpecies', &
-                                              ChemReac%ArbDiss(iReac)%NumOfNonReactives)
-    ! First reaction is saved within the dummy input reaction, thus "- 1"
-    ChemReac%NumOfReact = ChemReac%NumOfReact + ChemReac%ArbDiss(iReac)%NumOfNonReactives - 1
-    ChemReac%NumOfReactWOBackward = ChemReac%NumOfReactWOBackward + ChemReac%ArbDiss(iReac)%NumOfNonReactives - 1
-  END IF
-END DO
+
+! Set counter for filling-up the reaction array with the non-reactives at the end of the read-in reaction list.
+iReacDiss = ReadInNumOfReact
+
 !-----------------------------------------------------------------------------------
 ! Flag for the automatic calculation of the backward reaction rate with the partition functions and equilibrium constant.
 DSMC%BackwardReacRate  = GETLOGICAL('Particles-DSMC-BackwardReacRate')
@@ -216,7 +239,7 @@ IF(ChemReac%NumDeleteProducts.GT.0) THEN
 END IF
 
 ChemEnergySum = 0.
-LBWRITE(*,*) '| Number of considered reaction paths (including dissociation and recombination): ', ChemReac%NumOfReact
+CALL PrintOption('Number of considered reaction paths (including dissociation and recombination)','INFO',IntOpt=ChemReac%NumOfReact)
 !----------------------------------------------------------------------------------------------------------------------------------
 ALLOCATE(ChemReac%NumReac(ChemReac%NumOfReact))
 ChemReac%NumReac = 0
@@ -230,6 +253,7 @@ ALLOCATE(ChemReac%ReactType(ChemReac%NumOfReact))
 ChemReac%ReactType = '0'
 ALLOCATE(ChemReac%ReactModel(ChemReac%NumOfReact))
 ChemReac%ReactModel = '0'
+ALLOCATE(ChemReac%ReactionName(ChemReac%NumOfReact))
 ALLOCATE(ChemReac%Reactants(ChemReac%NumOfReact,3))
 ChemReac%Reactants = 0
 ALLOCATE(ChemReac%Products(ChemReac%NumOfReact,4))
@@ -267,7 +291,7 @@ IF (BGGas%NumberOfSpecies.GT.0) THEN
   DO iSpec = 1, nSpecies
     IF(BGGas%BackgroundSpecies(iSpec)) THEN
       ! Background gas: Calculation of the mean vibrational quantum number of diatomic molecules
-      IF((SpecDSMC(iSpec)%InterID.EQ.2).OR.(SpecDSMC(iSpec)%InterID.EQ.20)) THEN
+      IF((Species(iSpec)%InterID.EQ.2).OR.(Species(iSpec)%InterID.EQ.20)) THEN
         IF(.NOT.SpecDSMC(iSpec)%PolyatomicMol) THEN
           BGGasEVib = DSMC%GammaQuant * BoltzmannConst * SpecDSMC(iSpec)%CharaTVib &
             + BoltzmannConst * SpecDSMC(iSpec)%CharaTVib / (EXP(SpecDSMC(iSpec)%CharaTVib / SpecDSMC(iSpec)%Init(1)%TVib) - 1)
@@ -285,49 +309,56 @@ IF (BGGas%NumberOfSpecies.GT.0) THEN
 END IF
 
 DoScat = .false.
+IF(SpeciesDatabase.EQ.'none') THEN
+  DO iReac = 1, ReadInNumOfReact
+    WRITE(UNIT=hilf,FMT='(I0)') iReac
+    ChemReac%ReactModel(iReac)  = TRIM(GETSTR('DSMC-Reaction'//TRIM(hilf)//'-ReactionModel'))
+    ChemReac%Reactants(iReac,:) = GETINTARRAY('DSMC-Reaction'//TRIM(hilf)//'-Reactants',3)
+    ChemReac%Products(iReac,:)  = GETINTARRAY('DSMC-Reaction'//TRIM(hilf)//'-Products',4)
+    SELECT CASE (TRIM(ChemReac%ReactModel(iReac)))
+      CASE('TCE')
+        ! Total Collision Energy: Arrhenius-based chemistry model
+        ChemReac%Arrhenius_Prefactor(iReac)   = GETREAL('DSMC-Reaction'//TRIM(hilf)//'-Arrhenius-Prefactor')
+        ChemReac%Arrhenius_Powerfactor(iReac) = GETREAL('DSMC-Reaction'//TRIM(hilf)//'-Arrhenius-Powerfactor')
+        ChemReac%EActiv(iReac)                = GETREAL('DSMC-Reaction'//TRIM(hilf)//'-Activation-Energy_K')*BoltzmannConst
+      CASE('QK')
+        ! Quantum Kinetic: Threshold energy based chemistry model
+        ChemReac%AnyQKReaction = .TRUE.
+      CASE('XSec')
+        ! Chemistry model based on cross-section data
+        ChemReac%AnyXSecReaction = .TRUE.
+      CASE('CEX')
+        ! Simple charge exchange reactions
+        ChemReac%CEXa(iReac)                 = GETREAL('DSMC-Reaction'//TRIM(hilf)//'-CEXa','-27.2')
+        ChemReac%CEXb(iReac)                 = GETREAL('DSMC-Reaction'//TRIM(hilf)//'-CEXb','175.269')
+        ChemReac%DoScat(iReac)               = GETLOGICAL('DSMC-Reaction'//TRIM(hilf)//'-DoScat','.FALSE.')
+        IF (ChemReac%DoScat(iReac)) THEN
+          DoScat = .true.
+          ChemReac%ELa(iReac)                 = GETREAL('DSMC-Reaction'//TRIM(hilf)//'-ELa','-26.8')
+          ChemReac%ELb(iReac)                 = GETREAL('DSMC-Reaction'//TRIM(hilf)//'-ELb','148.975')
+          ChemReac%TLU_FileName(iReac)        = TRIM(GETSTR('DSMC-Reaction'//TRIM(hilf)//'-TLU_FileName'))
+        ELSE
+          ChemReac%MEXa(iReac)                 = GETREAL('DSMC-Reaction'//TRIM(hilf)//'-MEXa','-27.2')
+          ChemReac%MEXb(iReac)                 = GETREAL('DSMC-Reaction'//TRIM(hilf)//'-MEXb','175.269')
+        END IF
+      CASE('phIon')
+        ! Photo-ionization reactions
+        ChemReac%CrossSection(iReac)                 = GETREAL('DSMC-Reaction'//TRIM(hilf)//'-CrossSection')
+        ChemReac%AnyPhIonReaction = .TRUE.
+      CASE('phIonXSec')
+        ! Photo-ionization reactions (data read-in from database)
+        NbrOfPhotonXsecReactions = NbrOfPhotonXsecReactions + 1
+        ChemReac%AnyPhIonReaction = .TRUE.
+      CASE DEFAULT
+        CALL abort(__STAMP__,'Selected reaction model is not supported in reaction number: ', IntInfoOpt=iReac)
+    END SELECT
+  END DO
+ELSE
+  CALL ReadReacFromDatabase(ReadInNumOfReact)
+END IF
+
+! Filling up ChemReac-Array for the given non-reactive dissociation/electron-impact ionization partners
 DO iReac = 1, ReadInNumOfReact
-  WRITE(UNIT=hilf,FMT='(I0)') iReac
-  ChemReac%ReactModel(iReac)  = TRIM(GETSTR('DSMC-Reaction'//TRIM(hilf)//'-ReactionModel'))
-  ChemReac%Reactants(iReac,:) = GETINTARRAY('DSMC-Reaction'//TRIM(hilf)//'-Reactants',3)
-  ChemReac%Products(iReac,:)  = GETINTARRAY('DSMC-Reaction'//TRIM(hilf)//'-Products',4)
-  SELECT CASE (TRIM(ChemReac%ReactModel(iReac)))
-    CASE('TCE')
-      ! Total Collision Energy: Arrhenius-based chemistry model
-      ChemReac%Arrhenius_Prefactor(iReac)   = GETREAL('DSMC-Reaction'//TRIM(hilf)//'-Arrhenius-Prefactor')
-      ChemReac%Arrhenius_Powerfactor(iReac) = GETREAL('DSMC-Reaction'//TRIM(hilf)//'-Arrhenius-Powerfactor')
-      ChemReac%EActiv(iReac)                = GETREAL('DSMC-Reaction'//TRIM(hilf)//'-Activation-Energy_K')*BoltzmannConst
-    CASE('QK')
-      ! Quantum Kinetic: Threshold energy based chemistry model
-      ChemReac%AnyQKReaction = .TRUE.
-    CASE('XSec')
-      ! Chemistry model based on cross-section data
-      ChemReac%AnyXSecReaction = .TRUE.
-    CASE('CEX')
-      ! Simple charge exchange reactions
-      ChemReac%CEXa(iReac)                 = GETREAL('DSMC-Reaction'//TRIM(hilf)//'-CEXa','-27.2')
-      ChemReac%CEXb(iReac)                 = GETREAL('DSMC-Reaction'//TRIM(hilf)//'-CEXb','175.269')
-      ChemReac%DoScat(iReac)               = GETLOGICAL('DSMC-Reaction'//TRIM(hilf)//'-DoScat','.FALSE.')
-      IF (ChemReac%DoScat(iReac)) THEN
-        DoScat = .true.
-        ChemReac%ELa(iReac)                 = GETREAL('DSMC-Reaction'//TRIM(hilf)//'-ELa','-26.8')
-        ChemReac%ELb(iReac)                 = GETREAL('DSMC-Reaction'//TRIM(hilf)//'-ELb','148.975')
-        ChemReac%TLU_FileName(iReac)        = TRIM(GETSTR('DSMC-Reaction'//TRIM(hilf)//'-TLU_FileName'))
-      ELSE
-        ChemReac%MEXa(iReac)                 = GETREAL('DSMC-Reaction'//TRIM(hilf)//'-MEXa','-27.2')
-        ChemReac%MEXb(iReac)                 = GETREAL('DSMC-Reaction'//TRIM(hilf)//'-MEXb','175.269')
-      END IF
-    CASE('phIon')
-      ! Photo-ionization reactions
-      ChemReac%CrossSection(iReac)                 = GETREAL('DSMC-Reaction'//TRIM(hilf)//'-CrossSection')
-      ChemReac%AnyPhIonReaction = .TRUE.
-    CASE('phIonXSec')
-      ! Photo-ionization reactions (data read-in from database)
-      NbrOfPhotonXsecReactions = NbrOfPhotonXsecReactions + 1
-      ChemReac%AnyPhIonReaction = .TRUE.
-    CASE DEFAULT
-      CALL abort(__STAMP__,'Selected reaction model is not supported in reaction number: ', IntInfoOpt=iReac)
-  END SELECT
-  ! Filling up ChemReac-Array for the given non-reactive dissociation/electron-impact ionization partners
   IF((ChemReac%Reactants(iReac,2).EQ.0).AND.(ChemReac%Products(iReac,2).EQ.0)) THEN
     IF(ChemReac%ArbDiss(iReac)%NumOfNonReactives.EQ.0) THEN
       CALL abort(__STAMP__,'Error in Definition: Non-reacting partner(s) has to be defined!',IntInfoOpt=iReac)
@@ -449,8 +480,8 @@ DO iReac = 1, ChemReac%NumOfReact
       END IF
     END IF
     ! At least a molecule is given as a reactant
-    IF((SpecDSMC(ChemReac%Reactants(iReac,1))%InterID.NE.2).AND.(SpecDSMC(ChemReac%Reactants(iReac,1))%InterID.NE.20) &
-      .AND.(SpecDSMC(ChemReac%Reactants(iReac,2))%InterID.NE.2).AND.(SpecDSMC(ChemReac%Reactants(iReac,2))%InterID.NE.20)) THEN
+    IF((Species(ChemReac%Reactants(iReac,1))%InterID.NE.2).AND.(Species(ChemReac%Reactants(iReac,1))%InterID.NE.20) &
+      .AND.(Species(ChemReac%Reactants(iReac,2))%InterID.NE.2).AND.(Species(ChemReac%Reactants(iReac,2))%InterID.NE.20)) THEN
       CALL abort(__STAMP__,&
         'Dissociation - Error in Definition: None of the reactants is a molecule, check species indices and charge definition. ReacNbr: ',iReac)
     END IF
@@ -529,7 +560,7 @@ SUBROUTINE InitReactionPaths()
 USE MOD_Globals
 USE MOD_DSMC_Vars ,ONLY: ChemReac,CollInf
 #if USE_HDG
-USE MOD_DSMC_Vars ,ONLY: SpecDSMC
+USE MOD_Particle_Vars ,ONLY: Species
 USE MOD_HDG_Vars  ,ONLY: UseBRElectronFluid ! Used for skipping reactions involving electrons as products
 #endif /*USE_HDG*/
 ! IMPLICIT VARIABLE HANDLING
@@ -552,7 +583,7 @@ DO iCase = 1, CollInf%NumCase
     IF(UseBRElectronFluid) THEN
       DO iProd = 1,4
         IF(ChemReac%Products(iReac,iProd).NE.0)THEN
-          IF(SpecDSMC(ChemReac%Products(iReac,iProd))%InterID.EQ.4) CYCLE REACLOOP
+          IF(Species(ChemReac%Products(iReac,iProd))%InterID.EQ.4) CYCLE REACLOOP
         END IF ! ChemReac%Products(iReac,iProd).NE.0
       END DO
     END IF
@@ -589,7 +620,7 @@ DO iCase = 1, CollInf%NumCase
     IF(UseBRElectronFluid) THEN
       DO iProd = 1,4
         IF(ChemReac%Products(iReac,iProd).NE.0)THEN
-          IF(SpecDSMC(ChemReac%Products(iReac,iProd))%InterID.EQ.4) CYCLE REACLOOP2
+          IF(Species(ChemReac%Products(iReac,iProd))%InterID.EQ.4) CYCLE REACLOOP2
         END IF ! ChemReac%Products(iReac,iProd).NE.0
       END DO
     END IF
@@ -634,8 +665,10 @@ SUBROUTINE DSMC_BackwardRate_init()
 USE MOD_Globals
 USE MOD_ReadInTools
 USE MOD_DSMC_Vars               ,ONLY: ChemReac, DSMC, SpecDSMC, PolyatomMolDSMC
-USE MOD_PARTICLE_Vars           ,ONLY: nSpecies
+USE MOD_PARTICLE_Vars           ,ONLY: nSpecies, Species, SpeciesDatabase
 USE MOD_DSMC_ChemReact          ,ONLY: CalcPartitionFunction
+USE MOD_io_hdf5
+USE MOD_HDF5_input              ,ONLY: ReadAttribute
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -645,8 +678,10 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 CHARACTER(LEN=3)      :: hilf
-INTEGER               :: iSpec, iReac, iReacForward, iPolyatMole, PartitionArraySize, iInter
+INTEGER               :: iSpec, iReac, iReacForward, iPolyatMole, PartitionArraySize, iInter,err
 REAL                  :: Temp, Qtra, Qrot, Qvib, Qelec
+CHARACTER(LEN=64)     :: dsetname
+INTEGER(HID_T)        :: file_id_specdb                       ! File identifier
 !===================================================================================================================================
 
 IF(ChemReac%AnyXSecReaction) CALL abort(__STAMP__,&
@@ -654,38 +689,47 @@ IF(ChemReac%AnyXSecReaction) CALL abort(__STAMP__,&
 
 ! 1.) Read-in of species parameters for the partition function calculation
 DO iSpec = 1, nSpecies
-  IF((SpecDSMC(iSpec)%InterID.EQ.2).OR.(SpecDSMC(iSpec)%InterID.EQ.20)) THEN
+  IF((Species(iSpec)%InterID.EQ.2).OR.(Species(iSpec)%InterID.EQ.20)) THEN
     WRITE(UNIT=hilf,FMT='(I0)') iSpec
-    SpecDSMC(iSpec)%SymmetryFactor              = GETINT('Part-Species'//TRIM(hilf)//'-SymmetryFactor')
+    IF(SpeciesDatabase.NE.'none') THEN
+      ! Initialize FORTRAN interface.
+      CALL H5OPEN_F(err)
+      CALL H5FOPEN_F (TRIM(SpeciesDatabase), H5F_ACC_RDONLY_F, file_id_specdb, err)
+      dsetname = TRIM('/Species/'//TRIM(Species(iSpec)%Name))
+      CALL ReadAttribute(file_id_specdb,'SymmetryFactor',1,DatasetName = dsetname,IntScalar=SpecDSMC(iSpec)%SymmetryFactor)
+      CALL PrintOption('SymmetryFactor '//TRIM(Species(iSpec)%Name),'DB',IntOpt=SpecDSMC(iSpec)%SymmetryFactor)
+      ! Close the file.
+      CALL H5FCLOSE_F(file_id_specdb, err)
+      ! Close FORTRAN interface.
+      CALL H5CLOSE_F(err)
+    END IF
+
+    IF(Species(iSpec)%DoOverwriteParameters) THEN
+      WRITE(UNIT=hilf,FMT='(I0)') iSpec
+      SpecDSMC(iSpec)%SymmetryFactor = GETINT('Part-Species'//TRIM(hilf)//'-SymmetryFactor')
+    END IF
+
     IF(SpecDSMC(iSpec)%PolyatomicMol) THEN
       iPolyatMole = SpecDSMC(iSpec)%SpecToPolyArray
       IF(PolyatomMolDSMC(iPolyatMole)%LinearMolec) THEN
         IF(PolyatomMolDSMC(iPolyatMole)%CharaTRotDOF(1)*SpecDSMC(iSpec)%SymmetryFactor.EQ.0) THEN
-          CALL abort(&
-              __STAMP__&
-              ,'ERROR: Char. rotational temperature or symmetry factor not defined properly for backward rate!', iSpec)
+          CALL abort(__STAMP__,'ERROR: Char. rotational temperature or symmetry factor not defined properly for backward rate!', iSpec)
         END IF
       ELSE
         IF(PolyatomMolDSMC(iPolyatMole)%CharaTRotDOF(1)*PolyatomMolDSMC(iPolyatMole)%CharaTRotDOF(2)  &
             * PolyatomMolDSMC(iPolyatMole)%CharaTRotDOF(3)*SpecDSMC(iSpec)%SymmetryFactor.EQ.0) THEN
-          CALL abort(&
-              __STAMP__&
-              ,'ERROR: Char. rotational temperature or symmetry factor not defined properly for backward rate!', iSpec)
+          CALL abort(__STAMP__,'ERROR: Char. rotational temperature or symmetry factor not defined properly for backward rate!', iSpec)
         END IF
       END IF
     ELSE
       IF(SpecDSMC(iSpec)%CharaTRot*SpecDSMC(iSpec)%SymmetryFactor.EQ.0) THEN
-        CALL abort(&
-            __STAMP__&
-            ,'ERROR: Char. rotational temperature or symmetry factor not defined properly for backward rate!', iSpec)
+        CALL abort(__STAMP__,'ERROR: Char. rotational temperature or symmetry factor not defined properly for backward rate!', iSpec)
       END IF
     END IF
   END IF
-  IF((SpecDSMC(iSpec)%InterID.NE.4).AND.(.NOT.SpecDSMC(iSpec)%FullyIonized)) THEN
+  IF((Species(iSpec)%InterID.NE.4).AND.(.NOT.SpecDSMC(iSpec)%FullyIonized)) THEN
     IF(.NOT.ALLOCATED(SpecDSMC(iSpec)%ElectronicState)) THEN
-      CALL abort(&
-          __STAMP__&
-          ,'ERROR: Electronic energy levels required for the calculation of backward reaction rate!',iSpec)
+      CALL abort(__STAMP__,'ERROR: Electronic energy levels required for the calculation of backward reaction rate!',iSpec)
     END IF
   END IF
 END DO
@@ -695,9 +739,7 @@ END DO
 IF(MOD(DSMC%PartitionMaxTemp,DSMC%PartitionInterval).EQ.0.0) THEN
   PartitionArraySize = NINT(DSMC%PartitionMaxTemp / DSMC%PartitionInterval)
 ELSE
-  CALL abort(&
-    __STAMP__&
-    ,'ERROR in Chemistry Init: Partition temperature limit must be multiple of partition interval!')
+  CALL abort(__STAMP__,'ERROR in Chemistry Init: Partition temperature limit must be multiple of partition interval!')
 END IF
 DO iSpec = 1, nSpecies
   ALLOCATE(SpecDSMC(iSpec)%PartitionFunction(1:PartitionArraySize))
@@ -764,6 +806,398 @@ DO iReacForward = 1, ChemReac%NumOfReactWOBackward
 END DO
 
 END SUBROUTINE DSMC_BackwardRate_init
+
+
+SUBROUTINE GetNumReacFromDatabase(ReadInNumOfReact)
+!===================================================================================================================================
+!> Determine the number of reactions depending on the selected chemistry model
+!===================================================================================================================================
+! use module
+USE MOD_io_hdf5
+USE MOD_Globals
+USE MOD_Particle_Vars     ,ONLY: SpeciesDatabase, Species, nSpecies
+USE MOD_DSMC_Vars         ,ONLY: ChemReac
+USE MOD_HDF5_Input        ,ONLY: DatasetExists,nDims,HSize,ReadAttribute,GetDataSize,AttributeExists
+USE MOD_StringTools       ,ONLY: STRICMP
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+INTEGER,INTENT(OUT)               :: ReadInNumOfReact
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+CHARACTER(LEN=256)                :: dsetname, groupname, dsetname2
+CHARACTER(LEN=255),ALLOCATABLE    :: ModelNames(:), NonReactiveSpeciesName(:)
+INTEGER                           :: storage, max_corder, err
+INTEGER                           :: totalNumReac, ModelNamesSize, iModel, numReac, iSpec, jSpec
+INTEGER(HID_T)                    :: file_id_specdb, group_id, dset_id             ! File/group/dataset identifiers
+INTEGER(SIZE_T)                   :: size                               ! Size of name
+INTEGER(HSIZE_T)                  :: iReac, ReacID
+LOGICAL                           :: GroupFound, AttrExists, SpeciesFound
+!===================================================================================================================================
+
+! 1) Open the species database
+! Initialize FORTRAN interface
+CALL H5OPEN_F(err)
+! Open the file
+CALL H5FOPEN_F(TRIM(SpeciesDatabase), H5F_ACC_RDONLY_F, file_id_specdb, err)
+! Check if the REACTIONS group exists
+groupname = 'Reactions'
+CALL H5LEXISTS_F(file_id_specdb, TRIM(groupname), GroupFound, err)
+! Abort if the group does not exist
+IF(.NOT.GroupFound) CALL abort(__STAMP__,'ERROR in SpeciesDatabase: No reactions group found!')
+! Open the group and get number of available reactions in the database
+CALL H5GOPEN_F(file_id_specdb,TRIM(groupname), group_id, err)
+CALL H5Gget_info_f(group_id, storage, totalNumReac, max_corder, err)
+IF(totalNumReac.EQ.0) CALL abort(__STAMP__,'ERROR in SpeciesDatabase: No reactions found!')
+
+! Loop over all the reactions and filter out the selected chemistry model
+numReac = 0
+ALLOCATE(ChemReac%totalReacToModel(totalNumReac))
+DO iReac = 0, totalNumReac-1
+  ! Get name and size of name
+  CALL H5Lget_name_by_idx_f(group_id, ".", H5_INDEX_NAME_F, H5_ITER_INC_F, iReac, dsetname, err, size)
+  dsetname2 = TRIM(groupname)//'/'//TRIM(dsetname)
+  ! Open the reaction dataset
+  CALL H5DOPEN_F(file_id_specdb, dsetname2, dset_id, err)
+  ! Get the size of the attribute array
+  CALL GetDataSize(dset_id,'ChemistryModel',nDims,HSize,attrib=.TRUE.)
+  ModelNamesSize = INT(HSize(1),4)
+  IF(ALLOCATED(ModelNames)) THEN
+    DEALLOCATE(ModelNames)
+    ALLOCATE(ModelNames(ModelNamesSize))
+  ELSE
+    ALLOCATE(ModelNames(ModelNamesSize))
+  END IF
+  ModelNames = ''
+  CALL ReadAttribute(file_id_specdb,'ChemistryModel',ModelNamesSize,TRIM(dsetname2),StrArray=ModelNames)
+  DO iModel = 1,ModelNamesSize
+    IF(STRICMP(ChemReac%ChemistryModel,ModelNames(iModel))) THEN
+      numReac = numReac + 1
+      ChemReac%totalReacToModel(numReac) = INT(iReac,4)
+    END IF
+  END DO
+  CALL H5DCLOSE_F(dset_id, err)
+END DO
+
+! Set the number of reactions as found in the database
+ChemReac%NumOfReact = numReac
+ChemReac%NumOfReactWOBackward = numReac
+ReadInNumOfReact = numReac
+ALLOCATE(ChemReac%ArbDiss(numReac))
+
+! Look for the definition of the non-reactive species
+DO iReac = 1, numReac
+  ReacID = ChemReac%totalReacToModel(iReac)
+  ! Get name and size of name
+  CALL H5Lget_name_by_idx_f(group_id, ".", H5_INDEX_NAME_F, H5_ITER_INC_F, ReacID, dsetname, err, size)
+  dsetname2 = TRIM(groupname)//'/'//TRIM(dsetname)
+  ! Open the reaction dataset
+  CALL H5DOPEN_F(file_id_specdb, dsetname2, dset_id, err)
+  ! Check if the non-reactive species list exists
+  CALL AttributeExists(file_id_specdb,'NonReactiveSpecies',TRIM(dsetname2), AttrExists=AttrExists)
+  IF(AttrExists) THEN
+    ! Get the size of the attribute array
+    CALL GetDataSize(dset_id,'NonReactiveSpecies',nDims,HSize,attrib=.TRUE.)
+    ChemReac%ArbDiss(iReac)%NumOfNonReactives = INT(HSize(1),4)
+    IF(ChemReac%ArbDiss(iReac)%NumOfNonReactives.GT.0) THEN
+      ALLOCATE(ChemReac%ArbDiss(iReac)%NonReactiveSpecies(ChemReac%ArbDiss(iReac)%NumOfNonReactives))
+      ALLOCATE(NonReactiveSpeciesName(ChemReac%ArbDiss(iReac)%NumOfNonReactives))
+      ! Read-in the non-reactive species names array
+      CALL ReadAttribute(file_id_specdb,'NonReactiveSpecies',ChemReac%ArbDiss(iReac)%NumOfNonReactives,TRIM(dsetname2),StrArray=NonReactiveSpeciesName)
+      ! Find the index of the respective species
+      DO iSpec = 1, ChemReac%ArbDiss(iReac)%NumOfNonReactives
+        SpeciesFound = .FALSE.
+        DO jSpec = 1, nSpecies
+          IF(STRICMP(NonReactiveSpeciesName(iSpec),Species(jSpec)%Name)) THEN
+            ChemReac%ArbDiss(iReac)%NonReactiveSpecies(iSpec) = jSpec
+            SpeciesFound = .TRUE.
+            EXIT
+          END IF
+        END DO
+        IF(.NOT.SpeciesFound) CALL abort(__STAMP__,'ERROR in SpeciesDatabase: Species defined as non-reactive has not beend found!')
+      END DO
+      DEALLOCATE(NonReactiveSpeciesName)
+      ! First reaction is saved within the dummy input reaction, thus "- 1"
+      ChemReac%NumOfReact = ChemReac%NumOfReact + ChemReac%ArbDiss(iReac)%NumOfNonReactives - 1
+      ChemReac%NumOfReactWOBackward = ChemReac%NumOfReactWOBackward + ChemReac%ArbDiss(iReac)%NumOfNonReactives - 1
+    END IF
+  ELSE
+    ChemReac%ArbDiss(iReac)%NumOfNonReactives = 0
+  END IF
+END DO
+
+! Close the group and the file
+CALL H5GCLOSE_F(group_id, err)
+CALL H5FCLOSE_F(file_id_specdb, err)
+! Close FORTRAN interface
+CALL H5CLOSE_F(err)
+
+END SUBROUTINE GetNumReacFromDatabase
+
+
+SUBROUTINE ReadReacFromDatabase(ReadInNumOfReact)
+!===================================================================================================================================
+!> Read-in of the reactions from the species database, depending on whether the reactions are defined in the ini or by the chemistry
+!> model
+!===================================================================================================================================
+! use module
+USE MOD_io_hdf5
+USE MOD_Globals
+USE MOD_ReadInTools
+USE MOD_Globals_Vars      ,ONLY: BoltzmannConst
+USE MOD_Particle_Vars     ,ONLY: SpeciesDatabase, Species, nSpecies
+USE MOD_DSMC_Vars         ,ONLY: ChemReac
+USE MOD_HDF5_Input        ,ONLY: DatasetExists,nDims,HSize,ReadAttribute,GetDataSize,AttributeExists
+USE MOD_StringTools       ,ONLY: STRICMP
+USE MOD_MCC_Vars          ,ONLY: NbrOfPhotonXsecReactions
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+INTEGER,INTENT(IN)                :: ReadInNumOfReact
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+CHARACTER(LEN=256)                :: dsetname, groupname, dsetname2
+INTEGER                           :: err
+INTEGER(HID_T)                    :: file_id_specdb, group_id, dset_id             ! File/group/dataset identifiers
+INTEGER(SIZE_T)                   :: size                               ! Size of name
+INTEGER(HSIZE_T)                  :: ReacID
+INTEGER                           :: nSets, start
+LOGICAL                           :: AttrExists, GroupFound, SpeciesFound
+INTEGER                           :: iReac, iVar, indexSubset, iSpec, iProd
+CHARACTER(LEN=32)                 :: hilf
+CHARACTER(LEN=255)                :: reacNameReactants, reacNameProducts
+CHARACTER(LEN=255)                :: ReactantNames(3), ProductNames(4)
+!===================================================================================================================================
+
+! Initialize FORTRAN interface.
+CALL H5OPEN_F(err)
+CALL H5FOPEN_F (TRIM(SpeciesDatabase), H5F_ACC_RDONLY_F, file_id_specdb, err)
+! Check if the REACTIONS group exists
+groupname = 'Reactions'
+CALL H5LEXISTS_F(file_id_specdb, TRIM(groupname), GroupFound, err)
+IF(.NOT.GroupFound) CALL abort(__STAMP__,'ERROR in SpeciesDatabase: No reactions group found!')
+! Open the group and get number of available reactions in the database
+CALL H5GOPEN_F(file_id_specdb,TRIM(groupname), group_id, err)
+
+IF(ChemReac%ChemistryModel.EQ.'none') THEN
+  DO iReac = 1, ReadInNumOfReact
+    ! Read-in the reaction name from the parameter file by combining the reactant and product definition
+    WRITE(UNIT=hilf,FMT='(I0)') iReac
+    ChemReac%ReactModel(iReac)  = TRIM(GETSTR('DSMC-Reaction'//TRIM(hilf)//'-ReactionModel'))
+    ChemReac%Reactants(iReac,:) = GETINTARRAY('DSMC-Reaction'//TRIM(hilf)//'-Reactants',3)
+    ChemReac%Products(iReac,:)  = GETINTARRAY('DSMC-Reaction'//TRIM(hilf)//'-Products',4)
+    ! Get the first reactant and write its species name to the string
+    IF(ChemReac%Reactants(iReac,1).NE.0) THEN
+      reacNameReactants = TRIM(Species(ChemReac%Reactants(iReac,1))%Name)
+    ELSE
+      CALL abort(__STAMP__,'ERROR in parameter.ini: First reactant cannot be zero!')
+    END IF
+    ! Add additional reactants to the string
+    DO iVar = 2, 3
+      IF(ChemReac%Reactants(iReac,iVar).GT.0) THEN
+        reacNameReactants = TRIM(reacNameReactants)//'+'//TRIM(Species(ChemReac%Reactants(iReac,iVar))%Name)
+      ELSE IF(ChemReac%Reactants(iReac,iVar).LT.0) THEN
+        ! Treatment of non-reactive species (e.g. CH4 + M/A -> CH3 + H + M/A)
+        IF(ABS(ChemReac%Reactants(iReac,iVar)).EQ.2) THEN
+          reacNameReactants = TRIM(reacNameReactants)//'+M'
+        ELSE IF (ABS(ChemReac%Reactants(iReac,iVar)).EQ.1) THEN
+          reacNameReactants = TRIM(reacNameReactants)//'+A'
+        ELSE
+          CALL abort(__STAMP__,'ERROR in parameter.ini: Only -1 (=A) and -2 (=M) is supported as generic non-reactive species!')
+        END IF
+      END IF
+    END DO
+    ! Get the first product and write its species name to the string
+    IF(ChemReac%Products(iReac,1).NE.0) THEN
+      reacNameProducts = TRIM(Species(ChemReac%Products(iReac,1))%Name)
+    ELSE
+      CALL abort(__STAMP__,'ERROR in parameter.ini: First product cannot be zero!')
+    END IF
+    ! Add additional products to the string
+    DO iVar = 2, 4
+      IF(ChemReac%Products(iReac,iVar).GT.0) THEN
+        reacNameProducts = TRIM(reacNameProducts)//'+'//TRIM(Species(ChemReac%Products(iReac,iVar))%Name)
+      ELSE IF(ChemReac%Products(iReac,iVar).LT.0) THEN
+        ! Treatment of non-reactive species (e.g. CH4 + M/A -> CH3 + H + M/A)
+        IF(ABS(ChemReac%Products(iReac,iVar)).EQ.2) THEN
+          reacNameProducts = TRIM(reacNameProducts)//'+M'
+        ELSE IF (ABS(ChemReac%Products(iReac,iVar)).EQ.1) THEN
+          reacNameProducts = TRIM(reacNameProducts)//'+A'
+        ELSE
+          CALL abort(__STAMP__,'ERROR in parameter.ini: Only -1 (=A) and -2 (=M) is supported as generic non-reactive species!')
+        END IF
+      END IF
+    END DO
+    ! Combine both strings to the reaction name to read-in from the database
+    ChemReac%ReactionName(iReac) = TRIM(reacNameReactants)//'_'//TRIM(reacNameProducts)
+    ! TODO: Reactions might have multiple variants #1, #2, etc.
+    dsetname2 = TRIM(groupname)//'/'//TRIM(ChemReac%ReactionName(iReac))
+    SELECT CASE (TRIM(ChemReac%ReactModel(iReac)))
+      CASE('TCE')
+        ! Total Collision Energy: Arrhenius-based chemistry model
+        CALL ReadArrheniusFromDatabase(file_id_specdb,dsetname2,iReac)
+      CASE('QK')
+        ! Quantum Kinetic: Threshold energy based chemistry model
+        ChemReac%AnyQKReaction = .TRUE.
+      CASE('XSec')
+        ! Chemistry model based on cross-section data
+        ChemReac%AnyXSecReaction = .TRUE.
+        ! CURRENTLY READ-IN DURING MCC_Chemistry_Init()
+      CASE('phIon')
+        ! Photo-ionization reactions
+        ChemReac%CrossSection(iReac)                 = GETREAL('DSMC-Reaction'//TRIM(hilf)//'-CrossSection')
+        ChemReac%AnyPhIonReaction = .TRUE.
+      CASE('phIonXSec')
+        ! Photo-ionization reactions (data read-in from database)
+        NbrOfPhotonXsecReactions = NbrOfPhotonXsecReactions + 1
+        ChemReac%AnyPhIonReaction = .TRUE.
+      CASE DEFAULT
+        CALL abort(__STAMP__,'Selected reaction model is not supported in reaction number: ', IntInfoOpt=iReac)
+    END SELECT
+  END DO
+ELSE
+  ! Read-in of reactions part of the chemistry model
+  DO iReac = 1, ReadInNumOfReact
+    ReacID = ChemReac%totalReacToModel(iReac)
+    ! Get name and size of name
+    CALL H5Lget_name_by_idx_f(group_id, ".", H5_INDEX_NAME_F, H5_ITER_INC_F, ReacID, dsetname, err, size)
+    indexSubset = INDEX(TRIM(dsetname),'#')
+    dsetname2 = TRIM(groupname)//'/'//TRIM(dsetname)
+    ! Remove a potential #1,#2, etc. if reaction has multiple variants
+    IF(indexSubset.GT.0) THEN
+      ChemReac%ReactionName(iReac) = TRIM(dsetname(1:indexSubset-1))
+    ELSE
+      ChemReac%ReactionName(iReac) = TRIM(dsetname)
+    END IF
+    CALL PrintOption('Read-in from database for reaction','INFO',StrOpt=TRIM(ChemReac%ReactionName(iReac)))
+    ! Open the reaction dataset
+    CALL H5DOPEN_F(file_id_specdb, dsetname2, dset_id, err)
+    ! Read-in the reaction model
+    CALL ReadAttribute(file_id_specdb,'ReactionModel',1,TRIM(dsetname2), StrScalar=ChemReac%ReactModel(iReac))
+    ! Read-in of reactants
+    CALL AttributeExists(file_id_specdb,'Reactants',TRIM(dsetname2), AttrExists=AttrExists)
+    IF(AttrExists) THEN
+      ! Open the reaction dataset
+      CALL H5DOPEN_F(file_id_specdb, dsetname2, dset_id, err)
+      ! Get the size of the attribute array
+      CALL GetDataSize(dset_id,'Reactants',nDims,HSize,attrib=.TRUE.)
+      nSets = INT(HSize(1),4)
+      CALL ReadAttribute(dset_id,'Reactants',nSets,StrArray=ReactantNames(1:nSets))
+      DO iProd = 1,nSets
+        DO iSpec = 1, nSpecies
+          IF(STRICMP(ReactantNames(iProd),Species(iSpec)%Name)) THEN
+            ChemReac%Reactants(iReac,iProd) = iSpec
+            SpeciesFound = .TRUE.
+          END IF
+        END DO
+        IF(.NOT.SpeciesFound) CALL abort(__STAMP__,'ERROR in SpeciesDatabase: Species defined in the reaction has not been found!')
+      END DO
+    ELSE
+      CALL abort(__STAMP__,'ERROR in reaction definition: No reactants found in the selected reaction in the database')
+    END IF
+    ! Read-in of products
+    CALL AttributeExists(file_id_specdb,'Products',TRIM(dsetname2), AttrExists=AttrExists)
+    IF(AttrExists) THEN
+      ! Open the reaction dataset
+      CALL H5DOPEN_F(file_id_specdb, dsetname2, dset_id, err)
+      ! Get the size of the attribute array
+      CALL GetDataSize(dset_id,'Products',nDims,HSize,attrib=.TRUE.)
+      nSets = INT(HSize(1),4)
+      CALL ReadAttribute(dset_id,'Products',nSets,StrArray=ProductNames(1:nSets))
+      start = 0
+      DO iProd = 1,nSets
+        ! If non-reactives are present, keep the second entry empty
+        IF(ChemReac%ArbDiss(iReac)%NumOfNonReactives.GT.0.AND.iProd.GT.1) start = 1
+        DO iSpec = 1, nSpecies
+          IF(STRICMP(ProductNames(iProd),Species(iSpec)%Name)) THEN
+            ChemReac%Products(iReac,start+iProd) = iSpec
+            SpeciesFound = .TRUE.
+          END IF
+        END DO
+        IF(.NOT.SpeciesFound) CALL abort(__STAMP__,'ERROR in SpeciesDatabase: Species defined in the reaction has not been found!')
+      END DO
+    ELSE
+      CALL abort(__STAMP__,'ERROR in reaction definition: No products found in the selected reaction in the database')
+    END IF
+    ! Read-in of the reaction parameters, depending on the model
+    SELECT CASE (TRIM(ChemReac%ReactModel(iReac)))
+      CASE('TCE')
+        ! Total Collision Energy: Arrhenius-based chemistry model
+        CALL ReadArrheniusFromDatabase(file_id_specdb,dsetname2,iReac)
+      CASE('QK')
+        ! Quantum Kinetic: Threshold energy based chemistry model
+        ! Only requires the species-specific dissociation energy
+        ChemReac%AnyQKReaction = .TRUE.
+      CASE('XSec')
+        ! CURRENTLY READ-IN DURING MCC_Chemistry_Init()
+        ! Chemistry model based on cross-section data
+        ChemReac%AnyXSecReaction = .TRUE.
+      CASE('phIon')
+        ! Photo-ionization reactions
+        ChemReac%CrossSection(iReac)                 = GETREAL('DSMC-Reaction'//TRIM(hilf)//'-CrossSection')
+        ChemReac%AnyPhIonReaction = .TRUE.
+      CASE('phIonXSec')
+        ! Photo-ionization reactions (data read-in from database)
+        NbrOfPhotonXsecReactions = NbrOfPhotonXsecReactions + 1
+        ChemReac%AnyPhIonReaction = .TRUE.
+      CASE DEFAULT
+        CALL abort(__STAMP__,'Selected reaction model as part of a chemistry model is not supported in reaction number: ', IntInfoOpt=iReac)
+    END SELECT
+  END DO
+END IF
+
+! Close the group and the file
+CALL H5GCLOSE_F(group_id, err)
+CALL H5FCLOSE_F(file_id_specdb, err)
+! Close FORTRAN interface
+CALL H5CLOSE_F(err)
+
+END SUBROUTINE ReadReacFromDatabase
+
+
+SUBROUTINE ReadArrheniusFromDatabase(file_id_specdb,dsetname2,iReac)
+!===================================================================================================================================
+!> Read-in of the Arrhenius parameters from the database
+!===================================================================================================================================
+! use module
+USE MOD_io_hdf5
+USE MOD_Globals
+USE MOD_Globals_Vars      ,ONLY: BoltzmannConst
+USE MOD_DSMC_Vars         ,ONLY: ChemReac
+USE MOD_HDF5_Input        ,ONLY: DatasetExists,ReadAttribute
+USE MOD_ReadInTools       ,ONLY: PrintOption
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+INTEGER(HID_T),INTENT(IN)         :: file_id_specdb
+CHARACTER(LEN=256),INTENT(IN)     :: dsetname2
+INTEGER,INTENT(IN)                :: iReac
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+LOGICAL                           :: ReactionFound
+!===================================================================================================================================
+
+CALL DatasetExists(file_id_specdb,TRIM(dsetname2),ReactionFound)
+IF(.NOT.ReactionFound) CALL abort(__STAMP__,'ERROR in parameter.ini: Defined reaction has not been found in the database!')
+
+CALL ReadAttribute(file_id_specdb,'Arrhenius-Prefactor',1,DatasetName = dsetname2,RealScalar=ChemReac%Arrhenius_Prefactor(iReac))
+CALL PrintOption('Arrhenius-Prefactor','DB',RealOpt=ChemReac%Arrhenius_Prefactor(iReac))
+CALL ReadAttribute(file_id_specdb,'Arrhenius-Powerfactor',1,DatasetName = dsetname2,RealScalar=ChemReac%Arrhenius_Powerfactor(iReac))
+CALL PrintOption('Arrhenius-Powerfactor','DB',RealOpt=ChemReac%Arrhenius_Powerfactor(iReac))
+CALL ReadAttribute(file_id_specdb,'Activation-Energy_K',1,DatasetName = dsetname2,RealScalar=ChemReac%EActiv(iReac))
+ChemReac%EActiv(iReac) = ChemReac%EActiv(iReac)*BoltzmannConst
+CALL PrintOption('Activation-Energy_K','DB',RealOpt=ChemReac%EActiv(iReac))
+
+END SUBROUTINE ReadArrheniusFromDatabase
 
 
 !===================================================================================================================================

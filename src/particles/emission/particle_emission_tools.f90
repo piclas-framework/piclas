@@ -392,7 +392,7 @@ INTEGER                         :: ElemID
 ! Set internal energies (vibrational and rotational)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ElemID = PEM%LocalElemID(iPart)
-IF ((SpecDSMC(iSpecies)%InterID.EQ.2).OR.(SpecDSMC(iSpecies)%InterID.EQ.20)) THEN
+IF ((Species(iSpecies)%InterID.EQ.2).OR.(Species(iSpecies)%InterID.EQ.20)) THEN
   SELECT CASE (init_or_sf)
   CASE(1) !iInit
     TVib=SpecDSMC(iSpecies)%Init(iInit)%TVib
@@ -444,7 +444,7 @@ END IF
 ! Set electronic energy
 !-----------------------------------------------------------------------------------------------------------------------------------
 IF (DSMC%ElectronicModel.GT.0) THEN
-  IF((SpecDSMC(iSpecies)%InterID.NE.4).AND.(.NOT.SpecDSMC(iSpecies)%FullyIonized)) THEN
+  IF((Species(iSpecies)%InterID.NE.4).AND.(.NOT.SpecDSMC(iSpecies)%FullyIonized)) THEN
     CALL InitElectronShell(iSpecies,iPart,iInit,init_or_sf)
   ELSE
     PartStateIntEn( 3,iPart) = 0.
