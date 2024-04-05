@@ -489,7 +489,7 @@ DO iSpec=1,nSpecies
         SF%rmax     = GETREAL('Part-Species'//TRIM(hilf2)//'-rmax',TRIM(hilf3))
         SF%rmin     = GETREAL('Part-Species'//TRIM(hilf2)//'-rmin')
         ! Total area of surface flux
-        IF(SF%rmax.NE.HUGE(SF%rmax)) THEN
+        IF(.NOT.ALMOSTEQUALRELATIVE(SF%rmax,HUGE(SF%rmax),1E-1)) THEN
           ! rmax has been defined and a regular circular/ring-shaped inflow is performed
           SF%totalAreaSF = Pi*(SF%rmax*SF%rmax - SF%rmin*SF%rmin)
         ELSE IF (SF%rmin.GT.0.) THEN
