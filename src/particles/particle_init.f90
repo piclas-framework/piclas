@@ -537,12 +537,6 @@ nSpecies = GETINT('Part-nSpecies','1')
 IF(nSpecies.LE.0) CALL abort(__STAMP__,'ERROR: nSpecies .LE. 0:', nSpecies)
 ALLOCATE(Species(1:nSpecies))
 
-CALL InitializeSpeciesParameter()
-CALL InitializeVariablesSpeciesInits()
-! Which Lorentz boost method should be used?
-CALL InitPartRHS()
-CALL InitializeVariablesPartBoundary()
-
 !-- Get PIC deposition (skip DSMC, FP-Flow and BGS-Flow related timediscs)
 #if (PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400)
 DoDeposition    = .FALSE.
@@ -552,6 +546,12 @@ CALL PrintOption('No PIC-related Time discretization, turning deposition off. Do
 #else
 DoDeposition    = GETLOGICAL('PIC-DoDeposition')
 #endif /*(PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400)*/
+
+CALL InitializeSpeciesParameter()
+CALL InitializeVariablesSpeciesInits()
+! Which Lorentz boost method should be used?
+CALL InitPartRHS()
+CALL InitializeVariablesPartBoundary()
 
 !-- Get PIC interpolation (could be skipped above, but DSMC octree requires some interpolation variables, which are allocated before
 ! init DSMC determines whether DSMC%UseOctree is true or false)

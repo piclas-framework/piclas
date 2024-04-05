@@ -911,6 +911,10 @@ IF((stage.EQ.0).OR.(stage.EQ.1))THEN
   END DO ! iElem = 1, nElems
 END IF
 
+! Virtual Dielectric Layer (VDL) particles are deposited and deleted here because they might have changed the process after
+! boundary interaction, hence, do all of this after MPI communication
+CALL DepositVirtualDielectricLayerParticles()
+
 IF(PRESENT(doParticle_In)) THEN
   CALL DepositionMethod(doParticle_In, stage_opt=stage)
 ELSE
@@ -924,6 +928,50 @@ IF((stage.EQ.0).OR.(stage.EQ.4)) THEN
 END IF
 
 END SUBROUTINE Deposition
+
+
+!===================================================================================================================================
+!> Loop over all particles and find that ones that have been flagged during particle-boundary interaction and have hit a VDL
+!> boundary. They are flagged there as they might move to another process during that interaction.
+!> Here, after MPI communication, they can be deleted and deposited at the target position to form a surface charge on a (virtual)
+!> dielectric layer.
+!===================================================================================================================================
+SUBROUTINE DepositVirtualDielectricLayerParticles()
+! MODULES
+USE MOD_Particle_Vars   ,ONLY: PEM, PDM, Species, PartSpecies, usevmpf, PartMPF, PartState
+USE MOD_Particle_Vars   ,ONLY: SpeciesOffsetVDL
+USE MOD_PICDepo_Tools   ,ONLY: DepositParticleOnNodes
+USE MOD_part_operations ,ONLY: RemoveParticle
+!USE MOD_Part_Tools      ,ONLY: UpdateNextFreePosition
+IMPLICIT NONE
+!----------------------------------------------------------------------------------------------------------------------------------!
+! INPUT / OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER :: iPart
+REAL    :: charge
+!===================================================================================================================================
+! Loop over all particles
+DO iPart=1,PDM%ParticleVecLength
+  ! Only consider un-deleted particles
+  IF (PDM%ParticleInside(iPart)) THEN
+    ! Check particle index for VDL particles
+    IF(PartSpecies(iPart).GT.SpeciesOffsetVDL)THEN
+      ! Reset to original species index
+      PartSpecies(iPart) = PartSpecies(iPart) - SpeciesOffsetVDL
+      IF(usevMPF)THEN
+        charge = Species(PartSpecies(iPart))%ChargeIC * PartMPF(iPart)
+      ELSE
+        charge = Species(PartSpecies(iPart))%ChargeIC * Species(PartSpecies(iPart))%MacroParticleFactor
+      END IF
+      CALL DepositParticleOnNodes(charge, PartState(1:3,iPart), PEM%GlobalElemID(iPart))
+      CALL RemoveParticle(iPart)
+    END IF ! PartSpecies(iPart).GT.SpeciesOffsetVDL
+  END IF !PDM%ParticleInside(iPart)
+END DO ! iPart=1,PDM%ParticleVecLength
+!CALL UpdateNextFreePosition()
+
+END SUBROUTINE DepositVirtualDielectricLayerParticles
 
 
 PPURE LOGICAL FUNCTION SFMeasureDistance(v1,v2)

@@ -211,6 +211,7 @@ TYPE tPartBoundary
   INTEGER                                :: RotPeriodicInterPlaneBC = 7      ! = 7 (s.u.) Boundary Condition Integer Definition
   INTEGER                                :: SymmetryBC              = 10     ! = 10 (s.u.) Boundary Condition Integer Definition
   INTEGER                                :: SymmetryAxis            = 11     ! = 10 (s.u.) Boundary Condition Integer Definition
+  INTEGER                                :: VDL                     = 20     ! = 20 (s.u.) Boundary Condition Integer Definition
   CHARACTER(LEN=200)   , ALLOCATABLE     :: SourceBoundName(:)           ! Link part 1 for mapping PICLas BCs to Particle BC
   INTEGER              , ALLOCATABLE     :: TargetBoundCond(:)           ! Link part 2 for mapping PICLas BCs to Particle BC
   INTEGER              , ALLOCATABLE     :: MapToPartBC(:)               ! Map from PICLas BCindex to Particle BC (NOT TO TYPE!)
@@ -260,6 +261,8 @@ TYPE tPartBoundary
                                                                           ! a non-dielectric or a between to different dielectrics
                                                                           ! [.TRUE.] or not [.FALSE.] (requires reflective BC)
                                                                           ! (Default=FALSE.)
+  ! Virtual dielectric layer (VDL)
+  REAL    , ALLOCATABLE                  :: PermittivityVDL(:)            ! Permittivity of the virtual dielectric layer model
   ! Multi rotational periodic and interplane BCs
   LOGICAL                                :: UseRotPeriodicBC            ! Flag for rotational periodicity
   LOGICAL                                :: OutputBCDataForTesting      ! Flag to output boundary parameter which were determined
@@ -294,6 +297,8 @@ REAL, ALLOCATABLE    :: PartStateBoundary(:,:)     ! (1:11,1:NParts) 1st index: 
 !                                                  !                 2nd index: 1 to number of boundary-crossed particles
 INTEGER, PARAMETER   :: nVarPartStateBoundary=11
 INTEGER              :: PartStateBoundaryVecLength ! Number of boundary-crossed particles
+! Virtual dielectric layer (VDL)
+LOGICAL              :: DoVirtualDielectricLayer ! Flag set automatically if a VDL permittivity is set >= 0.0
 !===================================================================================================================================
 
 END MODULE MOD_Particle_Boundary_Vars

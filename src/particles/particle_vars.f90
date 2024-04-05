@@ -302,5 +302,7 @@ REAL                  :: RotRefFrameOmega(3)      ! angular velocity of rotation
 INTEGER               :: nRefFrameRegions         ! number of rotational frame of reference regions
 REAL, ALLOCATABLE     :: RotRefFramRegion(:,:)    ! MIN/MAX defintion for multiple rotational frame of reference region
                                                   ! (i,RegionNumber), MIN:i=1, MAX:i=2
+! Virtual Dielectric Layer (VDL)
+INTEGER,PARAMETER     :: SpeciesOffsetVDL=10000    ! Set specific VDL species ID for identification of particles after MPI communication
 !===================================================================================================================================
 END MODULE MOD_Particle_Vars

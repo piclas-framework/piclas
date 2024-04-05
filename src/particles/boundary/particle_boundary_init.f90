@@ -67,6 +67,7 @@ CALL prms%CreateLogicalOption('Part-Boundary[$]-Dielectric' , 'Define if particl
                               'dielectric interface, i.e. an interface between a dielectric and a non-dielectric or a between two'//&
                               ' different dielectrics [.TRUE.] or not [.FALSE.] (requires reflective BC and species swap for nSpecies)'&
                               , '.FALSE.', numberedmulti=.TRUE.)
+CALL prms%CreateRealOption(   'Part-Boundary[$]-PermittivityVDL', 'Permittivity of the virtual dielectric layer model. Impacting particles will be removed and deposited in the volume via CVWM.', '0.0', numberedmulti=.TRUE.)
 CALL prms%CreateLogicalOption('Part-Boundary[$]-BoundaryParticleOutput' , 'Define if the properties of particles impacting on '//&
                               'boundary [$] are to be stored in an additional .h5 file for post-processing analysis [.TRUE.] '//&
                               'or not [.FALSE.].'&
@@ -192,12 +193,15 @@ USE MOD_DSMC_Vars              ,ONLY: useDSMC, BGGas
 USE MOD_Mesh_Vars              ,ONLY: BoundaryName,BoundaryType, nBCs
 USE MOD_Particle_Vars          ,ONLY: nSpecies, PartMeshHasPeriodicBCs, RotRefFrameAxis, SpeciesDatabase, Species, usevMPF
 USE MOD_SurfaceModel_Vars      ,ONLY: nPorousBC
-USE MOD_Particle_Boundary_Vars ,ONLY: PartBound,nPartBound,DoBoundaryParticleOutputHDF5
+USE MOD_Particle_Boundary_Vars ,ONLY: PartBound,nPartBound,DoBoundaryParticleOutputHDF5,DoVirtualDielectricLayer
 USE MOD_Particle_Boundary_Vars ,ONLY: nVarPartStateBoundary
 USE MOD_Particle_Tracking_Vars ,ONLY: TrackingMethod
 USE MOD_Particle_Surfaces_Vars ,ONLY: BCdata_auxSF
 USE MOD_Particle_Emission_Init ,ONLY: InitializeVariablesSpeciesBoundary
-USE MOD_PICDepo_Vars           ,ONLY: DepositionType,DoHaloDepo
+USE MOD_PICDepo_Vars           ,ONLY: DepositionType,DoHaloDepo,DoDeposition
+#if USE_HDG
+USE MOD_PICDepo_Vars           ,ONLY: DoDirichletDeposition
+#endif /*USE_HDG*/
 USE MOD_HDF5_input             ,ONLY: OpenDataFile, ReadArray, DatasetExists, GetDataSize, nDims, HSize, CloseDataFile
 USE MOD_SurfaceModel_Vars      ,ONLY: StickingCoefficientData
 #if defined(IMPA) || defined(ROS)
@@ -330,6 +334,10 @@ ALLOCATE(PartBound%Dielectric(1:nPartBound))
 PartBound%Dielectric      = .FALSE.
 DoDielectricSurfaceCharge = .FALSE.
 DoHaloDepo                = .FALSE. ! dielectric surfaces or implicit particle deposition
+! Dielectric Surfaces
+ALLOCATE(PartBound%PermittivityVDL(1:nPartBound))
+PartBound%PermittivityVDL = 0.0
+DoVirtualDielectricLayer  = .FALSE.
 ! Surface particle output to .h5
 ALLOCATE(PartBound%BoundaryParticleOutputHDF5(1:nPartBound))
 PartBound%BoundaryParticleOutputHDF5=.FALSE.
@@ -371,10 +379,11 @@ DO iPartBound=1,nPartBound
     PartBound%ElecACC(iPartBound)         = GETREAL('Part-Boundary'//TRIM(hilf)//'-ElecACC')
     PartBound%Resample(iPartBound)        = GETLOGICAL('Part-Boundary'//TRIM(hilf)//'-Resample')
     PartBound%WallVelo(1:3,iPartBound)    = GETREALARRAY('Part-Boundary'//TRIM(hilf)//'-WallVelo',3)
-    PartBound%RotVelo(iPartBound)         = GETLOGICAL('Part-Boundary'//TRIM(hilf)//'-RotVelo')
-    PartBound%PhotonSpecularReflection(iPartBound)     = GETLOGICAL('Part-Boundary'//TRIM(hilf)//'-PhotonSpecularReflection')
-    PartBound%PhotonEnACC(iPartBound)     = GETREAL('Part-Boundary'//TRIM(hilf)//'-PhotonEnACC')
-    PartBound%PhotonSEEYield(iPartBound)     = GETREAL('Part-Boundary'//TRIM(hilf)//'-PhotonSEE-Yield')
+
+    ! Photon-induced secondary electron emission
+    PartBound%PhotonSpecularReflection(iPartBound) = GETLOGICAL('Part-Boundary'//TRIM(hilf)//'-PhotonSpecularReflection')
+    PartBound%PhotonEnACC(iPartBound)              = GETREAL('Part-Boundary'//TRIM(hilf)//'-PhotonEnACC')
+    PartBound%PhotonSEEYield(iPartBound)           = GETREAL('Part-Boundary'//TRIM(hilf)//'-PhotonSEE-Yield')
     IF(PartBound%PhotonSEEYield(iPartBound).GT.0.) THEN
       PartBound%PhotonSEEWorkFunction(iPartBound)     = GETREAL('Part-Boundary'//TRIM(hilf)//'-PhotonSEE-WorkFunction')
       PartBound%PhotonSEEElectronSpecies(iPartBound)  = GETINT('Part-Boundary'//TRIM(hilf)//'-PhotonSEE-ElectronSpecies')
@@ -384,6 +393,9 @@ DO iPartBound=1,nPartBound
                                                                       TRIM(hilf2))
       END IF
     END IF
+
+    ! Rotationally periodic boundary conditions
+    PartBound%RotVelo(iPartBound)         = GETLOGICAL('Part-Boundary'//TRIM(hilf)//'-RotVelo')
     IF(PartBound%RotVelo(iPartBound)) THEN
       RotFreq                             = GETREAL('Part-Boundary'//TRIM(hilf)//'-RotFreq')
       RotAxis                             = GETINT('Part-Boundary'//TRIM(hilf)//'-RotAxis')
@@ -399,14 +411,14 @@ DO iPartBound=1,nPartBound
           CALL abort(__STAMP__,'ERROR Rotational Wall Velocity: Axis must be between 1 and 3. Selected axis: ',IntInfoOpt=RotRefFrameAxis)
       END SELECT
     END IF
-    ! Utilize an adaptive wall temparature
+
+    ! Adaptive wall temperature model
     PartBound%UseAdaptedWallTemp(iPartBound) = GETLOGICAL('Part-Boundary'//TRIM(hilf)//'-UseAdaptedWallTemp')
     ! Activate wall temperature output in the DSMCSurfState, required for the initialization of the array as well
     IF(PartBound%UseAdaptedWallTemp(iPartBound)) PartBound%OutputWallTemp = .TRUE.
     PartBound%RadiativeEmissivity(iPartBound) = GETREAL('Part-Boundary'//TRIM(hilf)//'-RadiativeEmissivity')
-    ! Selection of the surface model (e.q. SEE, sticking, etc.)
-    PartBound%SurfaceModel(iPartBound)    = GETINT('Part-Boundary'//TRIM(hilf)//'-SurfaceModel')
-    ! Impose a wall temperature gradient
+
+    ! Wall temperature gradient model
     PartBound%WallTemp2(iPartBound)         = GETREAL('Part-Boundary'//TRIM(hilf)//'-WallTemp2')
     IF(PartBound%WallTemp2(iPartBound).GT.0.) THEN
       ! Activate wall temperature output in the DSMCSurfState
@@ -435,24 +447,29 @@ DO iPartBound=1,nPartBound
         CALL abort(__STAMP__,'ERROR Wall Temperature Gradient: gradient vector appears to be zero!')
       END IF
     END IF
-    ! check for correct surfacemodel input
+
+    ! Surface Model (e.q. SEE, sticking, etc.)
+    PartBound%SurfaceModel(iPartBound)    = GETINT('Part-Boundary'//TRIM(hilf)//'-SurfaceModel')
     IF (PartBound%SurfaceModel(iPartBound).GT.0)THEN
       IF (.NOT.useDSMC) CALL abort(__STAMP__,'Cannot use surfacemodel>0 with useDSMC=F for particle boundary: ',iPartBound)
       SELECT CASE (PartBound%SurfaceModel(iPartBound))
-      CASE (0)
+      CASE (0) ! Default: no surface model
         PartBound%Reactive(iPartBound)        = .FALSE.
-      CASE (1)
+      CASE (1) ! Sticking coefficient model using tabulated, empirical values
         PartBound%Reactive(iPartBound)        = .FALSE.
         IF(TRIM(SpeciesDatabase).EQ.'none') &
           CALL abort(__STAMP__,'ERROR in InitializeVariablesPartBoundary: SpeciesDatabase is required for the boundary #', iPartBound)
-      CASE (SEE_MODELS_ID)
-        ! SEE models require reactive BC
-        PartBound%Reactive(iPartBound)        = .TRUE.
+      CASE (2) ! VDL - cannot be actively selected!
+        CALL abort(__STAMP__,'Part-Boundary'//TRIM(hilf)//'-SurfaceModel = 2 cannot be selected!')
+      CASE (SEE_MODELS_ID) ! see ./src/piclas.h for numbers
+        PartBound%Reactive(iPartBound)        = .TRUE. ! SEE models require reactive BC
       CASE DEFAULT
-        CALL abort(__STAMP__,'Error in particle init: only allowed SurfaceModels: 0,SEE_MODELS_ID! SurfaceModel=',&
+        CALL abort(__STAMP__,'Error in particle init: only allowed SurfaceModels: 0,1,SEE_MODELS_ID! SurfaceModel=',&
         IntInfoOpt=PartBound%SurfaceModel(iPartBound))
       END SELECT
     END IF
+
+    ! Species Swap
     IF (PartBound%NbrOfSpeciesSwaps(iPartBound).GT.0) THEN
       !read Species to be changed at wall (in, out), out=0: delete
       PartBound%ProbOfSpeciesSwaps(iPartBound)= GETREAL('Part-Boundary'//TRIM(hilf)//'-ProbOfSpeciesSwaps','1.')
@@ -464,8 +481,9 @@ DO iPartBound=1,nPartBound
       IF(PartBound%Reactive(iPartBound)) CALL abort(__STAMP__&
           ,'ERROR: Species swap is only supported in combination with Maxwell scattering (SurfModel = 0). PartBound: ',iPartBound)
     END IF
+
     ! Dielectric Surfaces
-    PartBound%Dielectric(iPartBound)      = GETLOGICAL('Part-Boundary'//TRIM(hilf)//'-Dielectric')
+    PartBound%Dielectric(iPartBound) = GETLOGICAL('Part-Boundary'//TRIM(hilf)//'-Dielectric')
     ! Sanity check: PartBound%Dielectric=T requires supplying species swap for every species
     IF(PartBound%Dielectric(iPartBound))THEN
       IF((PartBound%NbrOfSpeciesSwaps(iPartBound).LT.(nSpecies-BGGas%NumberOfSpecies)).AND.&
@@ -480,6 +498,32 @@ DO iPartBound=1,nPartBound
             'PartBound%Dielectric=T requires cell_volweight_mean (12) as deposition method')
       END IF ! PartBound%NbrOfSpeciesSwaps(iPartBound).NE.nSpecies
     END IF ! PartBound%Dielectric(iPartBound)
+
+    ! Virtual dielectric layer (VDL)
+    PartBound%PermittivityVDL(iPartBound) = GETREAL('Part-Boundary'//TRIM(hilf)//'-PermittivityVDL')
+    IF(PartBound%PermittivityVDL(iPartBound).GT.0.0)THEN
+      IF(.NOT.DoDeposition) CALL abort(__STAMP__,&
+        'Part-Boundary'//TRIM(hilf)//'-PermittivityVDL requires PIC-DoDeposition=T')
+      IF(TRIM(DepositionType).NE.'cell_volweight_mean') CALL CollectiveStop(__STAMP__,&
+        'Part-Boundary'//TRIM(hilf)//'-PermittivityVDL requires cell_volweight_mean (12) as deposition method')
+      IF(PartBound%NbrOfSpeciesSwaps(iPartBound).GT.0) CALL CollectiveStop(__STAMP__,&
+        'Part-BoundaryX-PermittivityVDL cannot be combined with art-Boundary'//TRIM(hilf)//'-NbrOfSpeciesSwaps')
+#if USE_HDG
+      IF(DoDirichletDeposition) CALL abort(__STAMP__,'Part-Boundary'//TRIM(hilf)//'-PermittivityVDL requires DoDirichletDeposition=F')
+#else
+      CALL abort(__STAMP__,'Part-Boundary'//TRIM(hilf)//'-PermittivityVDL requires HDG!')
+#endif /*USE_HDG*/
+      ! VDL settings
+      DoVirtualDielectricLayer           = .TRUE.
+      PartBound%Reactive(iPartBound)     = .TRUE. ! VDL requires reactive BC for analysis
+      PartBound%SurfaceModel(iPartBound) = 2 ! VDL
+      DoDielectricSurfaceCharge          = .TRUE.
+      DoHaloDepo                         = .TRUE.
+    ELSEIF(PartBound%PermittivityVDL(iPartBound).LT.0.0)THEN
+      CALL abort(__STAMP__,'Part-Boundary'//TRIM(hilf)//'-PermittivityVDL cannot be negative')
+    END IF ! PartBound%PermittivityVDL(iPartBound)
+
+
   CASE('periodic')
     PartBound%TargetBoundCond(iPartBound) = PartBound%PeriodicBC
     PartMeshHasPeriodicBCs = .TRUE.
@@ -579,6 +623,7 @@ DO iPartBound=1,nPartBound
   BCdata_auxSF(iPartBound)%LocalArea=0.
 END DO
 
+! Sticking coefficient model using tabulated, empirical values
 IF(ANY(PartBound%SurfaceModel.EQ.1)) THEN
   ! Open the species database
   CALL OpenDataFile(TRIM(SpeciesDatabase),create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_PICLAS)

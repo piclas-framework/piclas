@@ -164,6 +164,11 @@ CASE (1)  ! Sticking coefficient model using tabulated, empirical values
 !-----------------------------------------------------------------------------------------------------------------------------------
   CALL StickingCoefficientModel(PartID,SideID,n_Loc)
 !-----------------------------------------------------------------------------------------------------------------------------------
+CASE (2)  ! Virtual dielectric layer
+!-----------------------------------------------------------------------------------------------------------------------------------
+  CALL VirtualDielectricLayerDisplacement(PartID,SideID,n_Loc,GlobalElemID)
+  CALL MaxwellScattering(PartID,SideID,n_Loc,SpecularReflectionOnly)
+!-----------------------------------------------------------------------------------------------------------------------------------
 CASE (SEE_MODELS_ID)
   ! 5: SEE by Levko2015
   ! 6: SEE by Pagonakis2016 (originally from Harrower1956)
@@ -824,6 +829,31 @@ DO iSF=1,Species(iSpec)%nSurfacefluxBCs
 END DO
 
 END SUBROUTINE SurfaceFluxBasedBoundaryTreatment
+
+!===================================================================================================================================
+!> Shift impacting particles by a specific displacement away from the boundary in the normal direction. Change the species ID to
+!> flag such particles so that later, after MPI communication, they can be deleted and deposited at the target position to form a
+!> surface charge on a (virtual) dielectric layer.
+!===================================================================================================================================
+SUBROUTINE VirtualDielectricLayerDisplacement(PartID,SideID,n_Loc,GlobalElemID)
+! MODULES
+USE MOD_Particle_Vars ,ONLY: SpeciesOffsetVDL
+USE MOD_Particle_Vars ,ONLY: LastPartPos, PartSpecies
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!----------------------------------------------------------------------------------------------------------------------------------!
+! INPUT / OUTPUT VARIABLES
+REAL,INTENT(IN)    :: n_loc(1:3)
+INTEGER,INTENT(IN) :: PartID, SideID, GlobalElemID
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+!===================================================================================================================================
+
+! Encode species index: Set a temporarily invalid number, which holds the information that the particle has interacted with a VDL.
+! The Particle is removed after MPI communication because the new position might be on a different process due to the displacement
+PartSpecies(PartID) = PartSpecies(PartID) + SpeciesOffsetVDL
+
+END SUBROUTINE VirtualDielectricLayerDisplacement
 
 
 SUBROUTINE StickingCoefficientModel(PartID,SideID,n_Loc)

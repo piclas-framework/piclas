@@ -147,7 +147,7 @@ IniExactFunc = GETINT('IniExactFunc')
 SELECT CASE (IniExactFunc)
 CASE(800,801,900,901,1000,1100) ! Dielectric slab on electrode (left) with plasma between slab and other electrode opposite
 #if ! (defined(CODE_ANALYZE) && USE_PETSC && PARTICLES)
-  CALL abort(__STAMP__,'IniExactFunc=800,801,900,901,1000,1100 requires PICLAS_CODE_ANALYZE=ON, PICLAS_PETSC=ON and PICLAS_PARTICLES=ON')
+  !CALL abort(__STAMP__,'IniExactFunc=800,801,900,901,1000,1100 requires PICLAS_CODE_ANALYZE=ON, PICLAS_PETSC=ON and PICLAS_PARTICLES=ON')
 #endif /*! (defined(CODE_ANALYZE) && USE_PETSC && PARTICLES)*/
 END SELECT
 
