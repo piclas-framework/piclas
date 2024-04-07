@@ -340,7 +340,7 @@ SUBROUTINE StoreLostParticleProperties(iPart,ElemID,UsePartState_opt,PartMissing
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! MODULES                                                                                                                          !
 USE MOD_Globals                ,ONLY: abort,myrank
-USE MOD_Particle_Vars          ,ONLY: usevMPF,PartMPF,PartSpecies,Species,PartState,LastPartPos
+USE MOD_Particle_Vars          ,ONLY: usevMPF,PartMPF,PartSpecies,Species,PartState,LastPartPos,SpeciesOffsetVDL
 USE MOD_Particle_Tracking_Vars ,ONLY: PartStateLost,PartLostDataSize,PartStateLostVecLength
 USE MOD_TimeDisc_Vars          ,ONLY: time
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -355,7 +355,7 @@ INTEGER,INTENT(IN),OPTIONAL :: PartMissingType_opt ! 0: lost, 1: missing & found
 INTEGER                     :: dims(2)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-REAL                 :: MPF
+REAL                 :: MPF,PartSpec
 ! Temporary arrays
 REAL, ALLOCATABLE    :: PartStateLost_tmp(:,:)   ! (1:11,1:NParts) 1st index: x,y,z,vx,vy,vz,SpecID,MPF,time,ElemID,iPart
 !                                                !                 2nd index: 1 to number of lost particles
@@ -365,11 +365,18 @@ LOGICAL              :: UsePartState_loc
 UsePartState_loc = .FALSE.
 IF (PRESENT(UsePartState_opt)) UsePartState_loc = UsePartState_opt
 
+! Check if the particle has an encoded species index
+IF(PartSpecies(iPart).GE.SpeciesOffsetVDL)THEN
+  PartSpec = PartSpecies(iPart) - SpeciesOffsetVDL
+ELSE
+  PartSpec = PartSpecies(iPart)
+END IF ! PartSpecies(iPart).GE.SpeciesOffsetVDL
+
 ! Set macro particle factor
 IF (usevMPF) THEN
   MPF = PartMPF(iPart)
 ELSE
-  MPF = Species(PartSpecies(iPart))%MacroParticleFactor
+  MPF = Species(PartSpec)%MacroParticleFactor
 END IF
 
 dims = SHAPE(PartStateLost)

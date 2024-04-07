@@ -263,6 +263,7 @@ TYPE tPartBoundary
                                                                           ! (Default=FALSE.)
   ! Virtual dielectric layer (VDL)
   REAL    , ALLOCATABLE                  :: PermittivityVDL(:)            ! Permittivity of the virtual dielectric layer model
+  REAL    , ALLOCATABLE                  :: ThicknessVDL(:)               ! Thickness of the real dielectric layer in the virtual dielectric layer model
   ! Multi rotational periodic and interplane BCs
   LOGICAL                                :: UseRotPeriodicBC            ! Flag for rotational periodicity
   LOGICAL                                :: OutputBCDataForTesting      ! Flag to output boundary parameter which were determined

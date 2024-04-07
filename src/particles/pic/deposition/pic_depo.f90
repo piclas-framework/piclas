@@ -949,9 +949,10 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER :: iPart
-REAL    :: charge
+REAL    :: charge,sumcharge
 !===================================================================================================================================
 ! Loop over all particles
+sumcharge=0.
 DO iPart=1,PDM%ParticleVecLength
   ! Only consider un-deleted particles
   IF (PDM%ParticleInside(iPart)) THEN
@@ -964,6 +965,7 @@ DO iPart=1,PDM%ParticleVecLength
       ELSE
         charge = Species(PartSpecies(iPart))%ChargeIC * Species(PartSpecies(iPart))%MacroParticleFactor
       END IF
+      sumcharge = sumcharge + charge
       CALL DepositParticleOnNodes(charge, PartState(1:3,iPart), PEM%GlobalElemID(iPart))
       CALL RemoveParticle(iPart)
     END IF ! PartSpecies(iPart).GT.SpeciesOffsetVDL

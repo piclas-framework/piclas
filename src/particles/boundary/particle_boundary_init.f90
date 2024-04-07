@@ -68,6 +68,7 @@ CALL prms%CreateLogicalOption('Part-Boundary[$]-Dielectric' , 'Define if particl
                               ' different dielectrics [.TRUE.] or not [.FALSE.] (requires reflective BC and species swap for nSpecies)'&
                               , '.FALSE.', numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(   'Part-Boundary[$]-PermittivityVDL', 'Permittivity of the virtual dielectric layer model. Impacting particles will be removed and deposited in the volume via CVWM.', '0.0', numberedmulti=.TRUE.)
+CALL prms%CreateRealOption(   'Part-Boundary[$]-ThicknessVDL'   , 'Thickness of the real dielectric layer in the virtual dielectric layer model. Impacting particles will be removed and deposited in the volume via CVWM.', numberedmulti=.TRUE.)
 CALL prms%CreateLogicalOption('Part-Boundary[$]-BoundaryParticleOutput' , 'Define if the properties of particles impacting on '//&
                               'boundary [$] are to be stored in an additional .h5 file for post-processing analysis [.TRUE.] '//&
                               'or not [.FALSE.].'&
@@ -337,6 +338,8 @@ DoHaloDepo                = .FALSE. ! dielectric surfaces or implicit particle d
 ! Dielectric Surfaces
 ALLOCATE(PartBound%PermittivityVDL(1:nPartBound))
 PartBound%PermittivityVDL = 0.0
+ALLOCATE(PartBound%ThicknessVDL(1:nPartBound))
+PartBound%ThicknessVDL = 0.0
 DoVirtualDielectricLayer  = .FALSE.
 ! Surface particle output to .h5
 ALLOCATE(PartBound%BoundaryParticleOutputHDF5(1:nPartBound))
@@ -514,6 +517,7 @@ DO iPartBound=1,nPartBound
       CALL abort(__STAMP__,'Part-Boundary'//TRIM(hilf)//'-PermittivityVDL requires HDG!')
 #endif /*USE_HDG*/
       ! VDL settings
+      PartBound%ThicknessVDL(iPartBound) = GETREAL('Part-Boundary'//TRIM(hilf)//'-ThicknessVDL')
       DoVirtualDielectricLayer           = .TRUE.
       PartBound%Reactive(iPartBound)     = .TRUE. ! VDL requires reactive BC for analysis
       PartBound%SurfaceModel(iPartBound) = 2 ! VDL
@@ -643,7 +647,25 @@ IF(ANY(PartBound%SurfaceModel.EQ.1)) THEN
   CALL CloseDataFile()
 END IF
 
+!--- Build VDL containers
+IF(DoVirtualDielectricLayer) CALL InitVirtualDielectricLayer()
+
 END SUBROUTINE InitializeVariablesPartBoundary
+
+
+!===================================================================================================================================
+!> Initialize the required side and element containers for the virtual dielectric layer model
+!===================================================================================================================================
+SUBROUTINE InitVirtualDielectricLayer()
+! MODULES
+IMPLICIT NONE
+!----------------------------------------------------------------------------------------------------------------------------------!
+! INPUT / OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+!===================================================================================================================================
+
+END SUBROUTINE InitVirtualDielectricLayer
 
 
 SUBROUTINE InitParticleBoundarySurfSides()

@@ -167,7 +167,6 @@ CASE (1)  ! Sticking coefficient model using tabulated, empirical values
 CASE (2)  ! Virtual dielectric layer
 !-----------------------------------------------------------------------------------------------------------------------------------
   CALL VirtualDielectricLayerDisplacement(PartID,SideID,n_Loc,GlobalElemID)
-  CALL MaxwellScattering(PartID,SideID,n_Loc,SpecularReflectionOnly)
 !-----------------------------------------------------------------------------------------------------------------------------------
 CASE (SEE_MODELS_ID)
   ! 5: SEE by Levko2015
@@ -837,8 +836,12 @@ END SUBROUTINE SurfaceFluxBasedBoundaryTreatment
 !===================================================================================================================================
 SUBROUTINE VirtualDielectricLayerDisplacement(PartID,SideID,n_Loc,GlobalElemID)
 ! MODULES
-USE MOD_Particle_Vars ,ONLY: SpeciesOffsetVDL
-USE MOD_Particle_Vars ,ONLY: LastPartPos, PartSpecies
+USE MOD_Globals                ,ONLY: VECNORM
+USE MOD_Particle_Vars          ,ONLY: SpeciesOffsetVDL
+USE MOD_Particle_Vars          ,ONLY: LastPartPos, PartSpecies, PartState
+USE MOD_Particle_Boundary_Vars ,ONLY: PartBound
+USE MOD_Particle_Mesh_Vars     ,ONLY: SideInfo_Shared
+USE MOD_Particle_Tracking_Vars ,ONLY: TrackInfo
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -847,11 +850,40 @@ REAL,INTENT(IN)    :: n_loc(1:3)
 INTEGER,INTENT(IN) :: PartID, SideID, GlobalElemID
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
+INTEGER :: iPartBound
+REAL    :: POI_vec(1:3)
 !===================================================================================================================================
+! Get particle boundary index
+iPartBound = PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID))
+
+! Get Point Of Intersection
+POI_vec(1:3) = LastPartPos(1:3,PartID) + TrackInfo%PartTrajectory(1:3)*TrackInfo%alpha
+
+! Set particle position on face
+LastPartPos(1:3,PartID) = POI_vec(1:3)
+
+! Set new particle position: Shift away from face by ratio of real VDL thickness and permittivity.
+! Note the negative sign that is required as the normal vector points outwards
+PartState(1:3,PartID) = LastPartPos(1:3,PartID) - (PartBound%ThicknessVDL(iPartBound)/PartBound%PermittivityVDL(iPartBound))*n_loc
+
+! Compute moved particle || rest of movement
+TrackInfo%PartTrajectory=PartState(1:3,PartID) - LastPartPos(1:3,PartID)
+
+TrackInfo%lengthPartTrajectory = VECNORM(TrackInfo%PartTrajectory)
+IF(ALMOSTZERO(TrackInfo%lengthPartTrajectory)) THEN
+  TrackInfo%lengthPartTrajectory= 0.0
+ELSE
+  TrackInfo%PartTrajectory=TrackInfo%PartTrajectory/TrackInfo%lengthPartTrajectory
+END IF
 
 ! Encode species index: Set a temporarily invalid number, which holds the information that the particle has interacted with a VDL.
 ! The Particle is removed after MPI communication because the new position might be on a different process due to the displacement
-PartSpecies(PartID) = PartSpecies(PartID) + SpeciesOffsetVDL
+! Check if the particle has an encoded species index
+IF(PartSpecies(PartID).GT.SpeciesOffsetVDL)THEN ! Check if already encoded
+  ! Do not encode twice (re-bouncing lost particles)
+ELSE
+  PartSpecies(PartID) = PartSpecies(PartID) + SpeciesOffsetVDL
+END IF ! PartSpecies(iPart).GE.SpeciesOffsetVDL
 
 END SUBROUTINE VirtualDielectricLayerDisplacement
 
