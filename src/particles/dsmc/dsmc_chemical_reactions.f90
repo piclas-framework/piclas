@@ -366,7 +366,7 @@ USE MOD_Globals                ,ONLY: unit_stdout,myrank
 USE MOD_Particle_Vars          ,ONLY: Symmetry
 #endif /* CODE_ANALYZE */
 USE MOD_Particle_Analyze_Vars   ,ONLY: CalcPartBalance,nPartIn,nPartOut,PartEkinIn,PartEkinOut
-USE MOD_Particle_Analyze_Tools  ,ONLY: CalcEkinPart
+USE MOD_Particle_Analyze_Pure   ,ONLY: CalcEkinPart
 #if USE_MPI
 USE MOD_Globals                ,ONLY: myrank
 #endif /*USE_MPI*/
@@ -1578,7 +1578,7 @@ USE MOD_part_tools              ,ONLY: GetParticleWeight, DiceUnitVector, CalcER
 USE MOD_Part_Tools              ,ONLY: GetNextFreePosition
 USE MOD_part_emission_tools     ,ONLY: CalcVelocity_maxwell_lpn
 USE MOD_Particle_Analyze_Vars   ,ONLY: CalcPartBalance,nPartIn,PartEkinIn
-USE MOD_Particle_Analyze_Tools  ,ONLY: CalcEkinPart
+USE MOD_Particle_Analyze_Pure   ,ONLY: CalcEkinPart
 USE MOD_Particle_Boundary_Vars  ,ONLY: DoBoundaryParticleOutputHDF5
 USE MOD_Particle_Boundary_Tools ,ONLY: StoreBoundaryParticleProperties
 USE MOD_DSMC_CollisVec          ,ONLY: PostCollVec

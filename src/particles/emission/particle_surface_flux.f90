@@ -42,7 +42,7 @@ USE MOD_Mesh_Vars               ,ONLY: SideToElem, offsetElem
 USE MOD_Part_Tools              ,ONLY: GetParticleWeight, GetNextFreePosition
 USE MOD_Part_Emission_Tools     ,ONLY: SetParticleChargeAndMass, SetParticleMPF
 USE MOD_Particle_Analyze_Vars   ,ONLY: CalcPartBalance, CalcSurfFluxInfo, nPartIn, PartEkinIn
-USE MOD_Particle_Analyze_Tools  ,ONLY: CalcEkinPart
+USE MOD_Particle_Analyze_Pure   ,ONLY: CalcEkinPart
 USE MOD_Particle_Mesh_Tools     ,ONLY: GetGlobalNonUniqueSideID
 USE MOD_Particle_Sampling_Vars  ,ONLY: AdaptBCPartNumOut
 USE MOD_Particle_Surfaces_Vars  ,ONLY: SurfFluxSideSize, TriaSurfaceFlux, BCdata_auxSF

@@ -553,7 +553,7 @@ USE MOD_PreProc
 USE MOD_Equation_Vars          ,ONLY: StrVarNames
 USE MOD_Mesh_Vars              ,ONLY: nGlobalElems, offsetElem
 USE MOD_Particle_Boundary_Vars ,ONLY: PartStateBoundary,PartStateBoundaryVecLength,nVarPartStateBoundary
-USE MOD_Particle_Analyze_Tools ,ONLY: CalcEkinPart2
+USE MOD_Particle_Analyze_Pure  ,ONLY: CalcEkinPart2
 USE MOD_TimeDisc_Vars          ,ONLY: iter
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -767,7 +767,6 @@ USE MOD_Globals_Vars           ,ONLY: ProjectName
 USE MOD_Particle_Tracking_Vars ,ONLY: PartStateLost,PartLostDataSize,PartStateLostVecLength,NbrOfLostParticles
 USE MOD_Particle_Tracking_Vars ,ONLY: TotalNbrOfMissingParticlesSum
 USE MOD_Equation_Vars          ,ONLY: StrVarNames
-USE MOD_Particle_Analyze_Tools ,ONLY: CalcEkinPart2
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------

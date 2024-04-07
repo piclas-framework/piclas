@@ -45,7 +45,7 @@ USE MOD_SurfaceModel_Vars         ,ONLY: SurfModResultSpec,SurfModEmissionYield,
 USE MOD_SurfaceModel_Vars         ,ONLY: SurfModSEEPowerFit
 USE MOD_Particle_Boundary_Vars    ,ONLY: PartBound
 USE MOD_SurfaceModel_Analyze_Vars ,ONLY: CalcElectronSEE,SEE
-USE MOD_Particle_Analyze_Tools    ,ONLY: CalcEkinPart2
+USE MOD_Particle_Analyze_Pure     ,ONLY: CalcEkinPart2
 USE MOD_PARTICLE_Vars             ,ONLY: usevMPF
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE

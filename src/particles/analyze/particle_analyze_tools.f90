@@ -22,14 +22,6 @@ PRIVATE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
-INTERFACE CalcEkinPart
-  MODULE PROCEDURE CalcEkinPart
-END INTERFACE
-
-INTERFACE CalcEkinPart2
-  MODULE PROCEDURE CalcEkinPart2
-END INTERFACE
-
 INTERFACE CalcNumPartsOfSpec
   MODULE PROCEDURE CalcNumPartsOfSpec
 END INTERFACE
@@ -38,7 +30,6 @@ INTERFACE CalcMixtureTemp
   MODULE PROCEDURE CalcMixtureTemp
 END INTERFACE
 
-PUBLIC :: CalcEkinPart,CalcEkinPart2
 PUBLIC :: CalcNumPartsOfSpec
 PUBLIC :: AllocateElectronIonDensityCell,AllocateElectronTemperatureCell,AllocateCalcElectronEnergy
 PUBLIC :: CalculateElectronIonDensityCell,CalculateElectronTemperatureCell
@@ -69,107 +60,6 @@ PUBLIC :: CalculatePCouplElectricPotential
 !===================================================================================================================================
 
 CONTAINS
-
-
-PPURE REAL FUNCTION CalcEkinPart(iPart)
-!===================================================================================================================================
-! computes the kinetic energy of one particle
-!===================================================================================================================================
-! MODULES
-USE MOD_Globals
-USE MOD_Preproc
-USE MOD_Globals_Vars  ,ONLY: c2, c2_inv, RelativisticLimit
-USE MOD_Particle_Vars ,ONLY: PartState, PartSpecies, Species
-USE MOD_PARTICLE_Vars ,ONLY: usevMPF
-USE MOD_Particle_Vars ,ONLY: PartLorentzType
-USE MOD_DSMC_Vars     ,ONLY: RadialWeighting
-USE MOD_part_tools    ,ONLY: GetParticleWeight
-! IMPLICIT VARIABLE HANDLING
-IMPLICIT NONE
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
-INTEGER,INTENT(IN)                 :: iPart
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-REAL                               :: partV2, gamma1, WeightingFactor
-!===================================================================================================================================
-
-IF(usevMPF.OR.RadialWeighting%DoRadialWeighting) THEN
-  WeightingFactor = GetParticleWeight(iPart)
-ELSE
-  WeightingFactor = GetParticleWeight(iPart) * Species(PartSpecies(iPart))%MacroParticleFactor
-END IF
-
-IF (PartLorentzType.EQ.5)THEN
-  ! gamma v is pushed instead of gamma, therefore, only the relativistic kinetic energy is computed
-  ! compute gamma
-  gamma1=SQRT(1.0+DOTPRODUCT(PartState(4:6,iPart))*c2_inv)
-  CalcEkinPart=(gamma1-1.0)*Species(PartSpecies(iPart))%MassIC*c2 * WeightingFactor
-ELSE
-  partV2 = DOTPRODUCT(PartState(4:6,iPart))
-  IF (partV2.LT.RelativisticLimit)THEN ! |v| < 1000000 when speed of light is 299792458
-    CalcEkinPart= 0.5 * Species(PartSpecies(iPart))%MassIC * partV2 * WeightingFactor
-  ELSE
-    gamma1=partV2*c2_inv
-    ! Sanity check: Lorentz factor must be below 1.0
-    IF(gamma1.GE.1.0)THEN
-      CalcEkinPart=-1.0
-    ELSE
-      gamma1=1.0/SQRT(1.-gamma1)
-      CalcEkinPart=(gamma1-1.0)*Species(PartSpecies(iPart))%MassIC*c2 * WeightingFactor
-    END IF ! gamma1.GE.1.0
-  END IF ! ipartV2
-END IF
-END FUNCTION CalcEkinPart
-
-
-PPURE REAL FUNCTION CalcEkinPart2(velocity,Species_IN,WeightingFactor)
-!===================================================================================================================================
-! computes the kinetic energy of one particle given its velocity, species and weighting factor
-!===================================================================================================================================
-! MODULES
-USE MOD_Globals
-USE MOD_Preproc
-USE MOD_Globals_Vars  ,ONLY: c2,c2_inv,RelativisticLimit
-USE MOD_Particle_Vars ,ONLY: Species
-USE MOD_Particle_Vars ,ONLY: PartLorentzType
-! IMPLICIT VARIABLE HANDLING
-IMPLICIT NONE
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
-REAL,INTENT(IN)                 :: velocity(1:3)
-INTEGER,INTENT(IN)              :: Species_IN
-REAL,INTENT(IN)                 :: WeightingFactor
-!-----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-REAL                            :: partV2, gamma1
-!===================================================================================================================================
-partV2 = DOT_PRODUCT(velocity,velocity)
-
-IF (PartLorentzType.EQ.5)THEN
-  ! gamma v is pushed instead of gamma, therefore, only the relativistic kinetic energy is computed
-  ! compute gamma
-  gamma1=SQRT(1.0+partV2*c2_inv)
-  CalcEkinPart2=(gamma1-1.0)*Species(Species_IN)%MassIC*c2 * WeightingFactor
-ELSE
-  IF (partV2.LT.RelativisticLimit)THEN ! |v| < 1000000 when speed of light is 299792458
-    CalcEkinPart2= 0.5 * Species(Species_IN)%MassIC * partV2 * WeightingFactor
-  ELSE
-    gamma1=partV2*c2_inv
-    ! Sanity check: Lorentz factor must be below 1.0
-    IF(gamma1.GE.1.0)THEN
-      CalcEkinPart2=-1.0
-    ELSE
-      gamma1=1.0/SQRT(1.-gamma1)
-      CalcEkinPart2=(gamma1-1.0)*Species(Species_IN)%MassIC*c2 * WeightingFactor
-    END IF ! gamma1.GE.1.0
-  END IF ! ipartV2
-END IF
-END FUNCTION CalcEkinPart2
 
 
 SUBROUTINE CalcNumPartsOfSpec(NumSpec,SimNumSpec,CalcNumSpec_IN,CalcSimNumSpec_IN)
@@ -588,6 +478,7 @@ USE MOD_HDG_Vars              ,ONLY: ElemToBRRegion,UseBRElectronFluid,RegionEle
 USE MOD_Globals_Vars          ,ONLY: ElementaryCharge
 #endif /*USE_HDG*/
 USE MOD_part_tools            ,ONLY: GetParticleWeight
+USE MOD_Particle_Analyze_Pure ,ONLY: CalcEkinPart
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -697,6 +588,7 @@ USE MOD_HDG_Vars              ,ONLY: ElemToBRRegion,UseBRElectronFluid,RegionEle
 USE MOD_Globals_Vars          ,ONLY: ElementaryCharge
 #endif /*USE_HDG*/
 USE MOD_part_tools            ,ONLY: GetParticleWeight
+USE MOD_Particle_Analyze_Pure ,ONLY: CalcEkinPart
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -3051,12 +2943,13 @@ END SUBROUTINE CalculatePlasmaParameter
 !===================================================================================================================================
 SUBROUTINE CalcCoupledPowerPart(iPart,mode)
 ! MODULES
-USE MOD_Particle_Vars           ,ONLY: PartSpecies, PEM
-USE MOD_Particle_Analyze_Vars   ,ONLY: PCoupl, PCouplAverage, PCouplSpec, EDiff
-USE MOD_Part_Tools              ,ONLY: isChargedParticle
-USE MOD_Particle_Mesh_Vars      ,ONLY: ElemVolume_Shared
-USE MOD_Mesh_Tools              ,ONLY: GetCNElemID
-USE MOD_Mesh_Vars               ,ONLY: offSetElem
+USE MOD_Particle_Vars         ,ONLY: PartSpecies, PEM
+USE MOD_Particle_Analyze_Vars ,ONLY: PCoupl, PCouplAverage, PCouplSpec, EDiff
+USE MOD_Part_Tools            ,ONLY: isChargedParticle
+USE MOD_Particle_Mesh_Vars    ,ONLY: ElemVolume_Shared
+USE MOD_Mesh_Tools            ,ONLY: GetCNElemID
+USE MOD_Mesh_Vars             ,ONLY: offSetElem
+USE MOD_Particle_Analyze_Pure ,ONLY: CalcEkinPart
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------

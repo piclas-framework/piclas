@@ -47,7 +47,7 @@ USE MOD_DSMC_Vars              ,ONLY: useDSMC, CollisMode, SpecDSMC
 USE MOD_part_emission_tools    ,ONLY: DSMC_SetInternalEnr_LauxVFD
 USE MOD_DSMC_PolyAtomicModel   ,ONLY: DSMC_SetInternalEnr_Poly
 USE MOD_Particle_Analyze_Vars  ,ONLY: CalcPartBalance,nPartIn,PartEkinIn
-USE MOD_Particle_Analyze_Tools ,ONLY: CalcEkinPart
+USE MOD_Particle_Analyze_Pure  ,ONLY: CalcEkinPart
 USE MOD_part_emission_tools    ,ONLY: SetParticleChargeAndMass,SetParticleMPF,SamplePoissonDistri,SetParticleTimeStep,CalcNbrOfPhotons
 USE MOD_part_emission_tools    ,ONLY: CountNeutralizationParticles
 USE MOD_PICDepo_Tools          ,ONLY: DepositPhotonSEEHoles

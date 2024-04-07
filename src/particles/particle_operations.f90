@@ -133,7 +133,6 @@ SUBROUTINE RemoveParticle(PartID,BCID,alpha,crossedBC)
 !===================================================================================================================================
 !> Removes a single particle "PartID" by setting the required variables.
 !> If CalcPartBalance/UseAdaptiveBC/CalcSurfFluxInfo = T: adds/substracts the particle to/from the respective counter
-!>  !!!NOTE!!! This routine is inside particle analyze because of circular definition of modules (CalcEkinPart)
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals_Vars              ,ONLY: ElementaryCharge
@@ -150,7 +149,7 @@ USE MOD_Particle_Vars             ,ONLY: PartIsImplicit,DoPartInNewton, PEM, Par
 #if defined(LSERK)
 USE MOD_Particle_Vars             ,ONLY: Pt_temp
 #endif
-USE MOD_Particle_Analyze_Tools    ,ONLY: CalcEkinPart
+USE MOD_Particle_Analyze_Pure     ,ONLY: CalcEkinPart
 USE MOD_part_tools                ,ONLY: GetParticleWeight
 USE MOD_DSMC_Vars                 ,ONLY: CollInf, AmbipolElecVelo, ElectronicDistriPart, VibQuantsPar, RadialWeighting
 USE MOD_Mesh_Vars                 ,ONLY: BoundaryName
