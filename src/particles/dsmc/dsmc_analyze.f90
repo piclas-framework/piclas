@@ -390,8 +390,10 @@ SUBROUTINE DSMC_data_sampling()
 ! MODULES
 USE MOD_Globals
 USE MOD_DSMC_Vars              ,ONLY: useDSMC, PartStateIntEn, DSMC, CollisMode, SpecDSMC, DSMC_Solution, AmbipolElecVelo
+USE MOD_DSMC_Vars              ,ONLY: DSMC_SolutionPressTens
 USE MOD_Part_tools             ,ONLY: GetParticleWeight
 USE MOD_Particle_Vars          ,ONLY: PartState, PDM, PartSpecies, PEM, Species, DoVirtualCellMerge, VirtMergedCells
+USE MOD_Particle_Vars          ,ONLY: SamplePressTensHeatflux
 USE MOD_Mesh_Vars              ,ONLY: offSetElem
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Timers     ,ONLY: LBStartTime, LBPauseTime
@@ -450,6 +452,20 @@ DO iPart=1,PDM%ParticleVecLength
       END IF
     END IF
     DSMC_Solution(11,iElem, iSpec) = DSMC_Solution(11,iElem, iSpec) + 1.0 !simpartnum
+    IF (SamplePressTensHeatflux) THEN
+      DSMC_SolutionPressTens(1,iElem,iSpec) = DSMC_SolutionPressTens(1,iElem,iSpec) + PartState(4,iPart)*PartState(5,iPart)*partWeight
+      DSMC_SolutionPressTens(2,iElem,iSpec) = DSMC_SolutionPressTens(2,iElem,iSpec) + PartState(4,iPart)*PartState(6,iPart)*partWeight
+      DSMC_SolutionPressTens(3,iElem,iSpec) = DSMC_SolutionPressTens(3,iElem,iSpec) + PartState(5,iPart)*PartState(6,iPart)*partWeight
+      DSMC_SolutionPressTens(4,iElem,iSpec) = DSMC_SolutionPressTens(4,iElem,iSpec) + PartState(4,iPart)**3.*partWeight
+      DSMC_SolutionPressTens(5,iElem,iSpec) = DSMC_SolutionPressTens(5,iElem,iSpec) + PartState(5,iPart)**3.*partWeight
+      DSMC_SolutionPressTens(6,iElem,iSpec) = DSMC_SolutionPressTens(6,iElem,iSpec) + PartState(6,iPart)**3.*partWeight
+      DSMC_SolutionPressTens(7,iElem,iSpec) = DSMC_SolutionPressTens(7,iElem,iSpec) + PartState(4,iPart)*PartState(5,iPart)**2.*partWeight
+      DSMC_SolutionPressTens(8,iElem,iSpec) = DSMC_SolutionPressTens(8,iElem,iSpec) + PartState(4,iPart)*PartState(6,iPart)**2.*partWeight
+      DSMC_SolutionPressTens(9,iElem,iSpec) = DSMC_SolutionPressTens(9,iElem,iSpec) + PartState(5,iPart)*PartState(4,iPart)**2.*partWeight
+      DSMC_SolutionPressTens(10,iElem,iSpec) = DSMC_SolutionPressTens(10,iElem,iSpec) + PartState(5,iPart)*PartState(6,iPart)**2.*partWeight
+      DSMC_SolutionPressTens(11,iElem,iSpec) = DSMC_SolutionPressTens(11,iElem,iSpec) + PartState(6,iPart)*PartState(4,iPart)**2.*partWeight
+      DSMC_SolutionPressTens(12,iElem,iSpec) = DSMC_SolutionPressTens(12,iElem,iSpec) + PartState(6,iPart)*PartState(5,iPart)**2.*partWeight
+    END IF
   END IF
 END DO
 #if USE_LOADBALANCE
@@ -458,7 +474,7 @@ CALL LBPauseTime(LB_DSMC,tLBStart)
 END SUBROUTINE DSMC_data_sampling
 
 
-SUBROUTINE DSMC_output_calc(nVar,nVar_quality,nVarloc,DSMC_MacroVal)
+SUBROUTINE DSMC_output_calc(nVar,nVar_quality,nVarloc,nVar_HeatPress,DSMC_MacroVal)
 !===================================================================================================================================
 !> Calculation of the macroscopic output from sampled particles properties including the mixture values (Total_).
 !===================================================================================================================================
@@ -467,12 +483,13 @@ USE MOD_PreProc
 USE MOD_Globals
 USE MOD_Globals_Vars           ,ONLY: BoltzmannConst
 USE MOD_BGK_Vars               ,ONLY: BGKInitDone, BGK_QualityFacSamp
-USE MOD_DSMC_Vars              ,ONLY: DSMC_Solution, CollisMode, SpecDSMC, DSMC, useDSMC, RadialWeighting, BGGas
+USE MOD_DSMC_Vars              ,ONLY: DSMC_Solution, DSMC_SolutionPressTens
+USE MOD_DSMC_Vars              ,ONLY: CollisMode, SpecDSMC, DSMC, useDSMC, RadialWeighting, BGGas
 USE MOD_FPFlow_Vars            ,ONLY: FPInitDone, FP_QualityFacSamp
 USE MOD_Mesh_Vars              ,ONLY: nElems
 USE MOD_Particle_Vars          ,ONLY: Species, nSpecies, WriteMacroVolumeValues, usevMPF, Symmetry
 USE MOD_Particle_Vars          ,ONLY: UseVarTimeStep, VarTimeStep
-USE MOD_Particle_Vars          ,ONLY: DoVirtualCellMerge, VirtMergedCells
+USE MOD_Particle_Vars          ,ONLY: DoVirtualCellMerge, VirtMergedCells, SamplePressTensHeatflux
 USE MOD_Particle_TimeStep      ,ONLY: GetParticleTimeStep
 USE MOD_Restart_Vars           ,ONLY: RestartTime
 USE MOD_TimeDisc_Vars          ,ONLY: time,TEnd,iter,dt
@@ -484,15 +501,15 @@ USE MOD_Particle_Analyze_Tools ,ONLY: CalcTelec,CalcTVibPoly
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-INTEGER,INTENT(IN)      :: nVar,nVar_quality,nVarloc
-REAL,INTENT(INOUT)      :: DSMC_MacroVal(1:nVar+nVar_quality,nElems)
+INTEGER,INTENT(IN)      :: nVar,nVar_quality,nVarloc,nVar_HeatPress
+REAL,INTENT(INOUT)      :: DSMC_MacroVal(1:nVar+nVar_quality+nVar_HeatPress,nElems)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER                 :: iElem, iSpec, nVarCount, nSpecTemp, nVarCountRelax, bgSpec
 REAL                    :: TVib_TempFac, iter_loc
-REAL                    :: MolecPartNum, HeavyPartNum
+REAL                    :: MolecPartNum, HeavyPartNum, q(3)
 !===================================================================================================================================
 ! nullify
 DSMC_MacroVal = 0.0
@@ -780,6 +797,100 @@ IF (DoVirtualCellMerge) THEN
   END DO
 END IF
 
+IF (SamplePressTensHeatflux) THEN
+  DO iElem = 1, nElems ! element/cell main loop
+    ! Avoid the output and calculation of total values for a single species, associate construct for Total_ points to the same
+    ! array as the Macro_ link for a single species and total values are only calculated for nSpecies > 1. Workaround required
+    ! since associate construct is around the DO iSpec=1,nSpecies loop.
+    IF(nSpecies.EQ.1) THEN
+      nSpecTemp = 0
+    ELSE
+      nSpecTemp = nSpecies
+    END IF
+    ASSOCIATE ( Total_PressTensXY => DSMC_MacroVal(nVarCount+nSpecTemp*6+1,iElem) ,&
+                Total_PressTensXZ => DSMC_MacroVal(nVarCount+nSpecTemp*6+2,iElem) ,&
+                Total_PressTensYZ => DSMC_MacroVal(nVarCount+nSpecTemp*6+3,iElem) ,&
+                Total_HeatFluxX  => DSMC_MacroVal(nVarCount+nSpecTemp*6+4,iElem)  ,&
+                Total_HeatFluxY  => DSMC_MacroVal(nVarCount+nSpecTemp*6+5,iElem)  ,&
+                Total_HeatFluxZ  => DSMC_MacroVal(nVarCount+nSpecTemp*6+6,iElem)  ,&
+                Total_PartNum  => DSMC_MacroVal(nVarLoc*nSpecTemp+11,iElem)        &
+                )
+      ! compute simulation cell volume
+      DO iSpec = 1, nSpecies
+        ASSOCIATE ( PartVelo   => DSMC_Solution(1:3,iElem,iSpec)                               ,&
+                    PartVelo2  => DSMC_Solution(4:6,iElem,iSpec)                               ,&
+                    PartNum    => DSMC_Solution(7,iElem,iSpec)                                 ,&
+                    Macro_Velo => DSMC_MacroVal(nVarLoc*(iSpec-1)+1:nVarLoc*(iSpec-1)+3,iElem) ,&
+                    Macro_PressTensXY => DSMC_MacroVal(nVarCount + 6*(iSpec-1)+1,iElem)        ,&
+                    Macro_PressTensXZ => DSMC_MacroVal(nVarCount + 6*(iSpec-1)+2,iElem)        ,&
+                    Macro_PressTensYZ => DSMC_MacroVal(nVarCount + 6*(iSpec-1)+3,iElem)        ,&
+                    Macro_HeatFluxX => DSMC_MacroVal(nVarCount + 6*(iSpec-1)+4,iElem)          ,&
+                    Macro_HeatFluxY => DSMC_MacroVal(nVarCount + 6*(iSpec-1)+5,iElem)          ,&
+                    Macro_HeatFluxZ => DSMC_MacroVal(nVarCount + 6*(iSpec-1)+6,iElem)          ,&
+                    Macro_Density  => DSMC_MacroVal(nVarLoc*(iSpec-1)+7,iElem)                 ,&
+                    Macro_PartNum  => DSMC_MacroVal(nVarLoc*(iSpec-1)+11,iElem)                 &
+                    )
+          IF (PartNum.GT.0.0) THEN
+            ASSOCIATE ( Vij   => DSMC_SolutionPressTens(1:3,iElem,iSpec) ,&
+                        Viii  => DSMC_SolutionPressTens(4:6,iElem,iSpec) ,&
+                        Vijj  => DSMC_SolutionPressTens(7:12,iElem,iSpec) &
+                        )
+              q(1) = Viii(1)/PartNum - 3.*Macro_Velo(1)*PartVelo2(1)/PartNum + 2. *Macro_Velo(1)**3.0
+              q(2) = Vijj(1)/PartNum - 2.*Vij(1)/PartNum*Macro_Velo(2) - Macro_Velo(1)*PartVelo2(2)/PartNum &
+                    + 2. *Macro_Velo(1)*Macro_Velo(2)**2.0
+              q(3) = Vijj(2)/PartNum - 2.*Vij(2)/PartNum*Macro_Velo(3) - Macro_Velo(1)*PartVelo2(3)/PartNum &
+                    + 2. *Macro_Velo(1)*Macro_Velo(3)**2.0
+              Macro_HeatFluxX = 0.5*(q(1)+q(2)+q(3))*Species(iSpec)%MassIC*Macro_Density
+
+              q(1) = Viii(2)/PartNum - 3.*Macro_Velo(2)*PartVelo2(2)/PartNum + 2.*Macro_Velo(2)**3.0
+              q(2) = Vijj(3)/PartNum - 2.*Vij(1)/PartNum*Macro_Velo(1) - Macro_Velo(2)*PartVelo2(1)/PartNum &
+                    + 2.*Macro_Velo(2)*Macro_Velo(1)**2.0
+              q(3) = Vijj(4)/PartNum - 2.*Vij(3)/PartNum*Macro_Velo(3) - Macro_Velo(2)*PartVelo2(3)/PartNum  &
+                    + 2.*Macro_Velo(2)*Macro_Velo(3)**2.0
+              Macro_HeatFluxY = 0.5*(q(1)+q(2)+q(3))*Species(iSpec)%MassIC*Macro_Density
+
+              q(1) = Viii(3)/PartNum - 3.*Macro_Velo(3)*PartVelo2(3)/PartNum + 2. *Macro_Velo(3)**3.0
+              q(2) = Vijj(5)/PartNum - 2.*Vij(2)/PartNum*Macro_Velo(1) - Macro_Velo(3)*PartVelo2(1)/PartNum &
+                    + 2.*Macro_Velo(3)*Macro_Velo(1)**2.0
+              q(3) = Vijj(6)/PartNum - 2.*Vij(3)/PartNum*Macro_Velo(2) - Macro_Velo(3)*PartVelo2(2)/PartNum &
+                    + 2.*Macro_Velo(3)*Macro_Velo(2)**2.0
+              Macro_HeatFluxZ = 0.5*(q(1)+q(2)+q(3))*Species(iSpec)%MassIC*Macro_Density
+
+              Macro_PressTensXY = ((Vij(1)/PartNum) - Macro_Velo(1)*Macro_Velo(2))*Species(iSpec)%MassIC*Macro_Density
+              Macro_PressTensXZ = ((Vij(2)/PartNum) - Macro_Velo(1)*Macro_Velo(3))*Species(iSpec)%MassIC*Macro_Density
+              Macro_PressTensYZ = ((Vij(3)/PartNum) - Macro_Velo(2)*Macro_Velo(3))*Species(iSpec)%MassIC*Macro_Density
+
+            END ASSOCIATE
+
+            IF(nSpecies.GT.1) THEN
+              Total_PressTensXY = Total_PressTensXY + Macro_PressTensXY*Macro_PartNum
+              Total_PressTensXZ = Total_PressTensXZ + Macro_PressTensXZ*Macro_PartNum
+              Total_PressTensYZ = Total_PressTensYZ + Macro_PressTensYZ*Macro_PartNum
+              Total_HeatFluxX = Total_HeatFluxX + Macro_HeatFluxX*Macro_PartNum
+              Total_HeatFluxY = Total_HeatFluxY + Macro_HeatFluxY*Macro_PartNum
+              Total_HeatFluxZ = Total_HeatFluxZ + Macro_HeatFluxZ*Macro_PartNum
+            END IF
+          END IF
+
+        END ASSOCIATE
+      END DO
+
+      ! Compute total values for a gas mixture (nSpecies > 1)
+      IF(nSpecies.GT.1) THEN
+        IF (Total_PartNum.GT.0.0) THEN
+          Total_PressTensXY = Total_PressTensXY / Total_PartNum
+          Total_PressTensXZ = Total_PressTensXZ / Total_PartNum
+          Total_PressTensYZ = Total_PressTensYZ / Total_PartNum
+          Total_HeatFluxX = Total_HeatFluxX / Total_PartNum
+          Total_HeatFluxY = Total_HeatFluxY / Total_PartNum
+          Total_HeatFluxZ = Total_HeatFluxZ / Total_PartNum
+        END IF
+      END IF
+
+    END ASSOCIATE
+  END DO
+END IF
+
 END SUBROUTINE DSMC_output_calc
 
 
@@ -845,6 +956,7 @@ USE MOD_Mesh_Vars     ,ONLY: offsetElem,nGlobalElems, nElems
 USE MOD_io_HDF5
 USE MOD_HDF5_Output   ,ONLY: WriteAttributeToHDF5, WriteHDF5Header, WriteArrayToHDF5
 USE MOD_Particle_Vars ,ONLY: nSpecies, Species, UseVarTimeStep, SampleElecExcitation, ExcitationLevelCounter, DoVirtualCellMerge
+USE MOD_Particle_Vars ,ONLY: SamplePressTensHeatflux
 USE MOD_BGK_Vars      ,ONLY: BGKInitDone
 USE MOD_FPFlow_Vars   ,ONLY: FPInitDone
 ! IMPLICIT VARIABLE HANDLING
@@ -862,7 +974,7 @@ CHARACTER(LEN=255)             :: SpecID, LevelID, SpecID2
 CHARACTER(LEN=255),ALLOCATABLE :: StrVarNames(:)
 CHARACTER(LEN=255),ALLOCATABLE :: StrVarNamesElecExci(:)
 INTEGER                        :: nVar,nVar_quality,nVarloc,nVarCount,ALLOCSTAT, iSpec, nVarRelax, nSpecOut, iCase, iLevel
-INTEGER                        :: jSpec
+INTEGER                        :: jSpec,nVar_HeatPress
 REAL,ALLOCATABLE               :: DSMC_MacroVal(:,:), MacroElecExcitation(:,:)
 REAL                           :: StartT,EndT
 !===================================================================================================================================
@@ -896,7 +1008,14 @@ IF (DSMC%CalcQualityFactors) THEN
 ELSE
   nVar_quality=0
 END IF
-ALLOCATE(StrVarNames(1:nVar+nVar_quality))
+
+IF (SamplePressTensHeatflux) THEN
+  nVar_HeatPress=6*nSpecOut
+ELSE
+  nVar_HeatPress=0
+END IF
+
+ALLOCATE(StrVarNames(1:nVar+nVar_quality+nVar_HeatPress))
 nVarCount=0
 IF(nSpecies.GT.1) THEN
   DO iSpec=1,nSpecies
@@ -994,6 +1113,29 @@ IF (DSMC%CalcQualityFactors) THEN
   END IF
 END IF
 
+IF (SamplePressTensHeatflux) THEN
+  IF(nSpecies.GT.1) THEN
+    DO iSpec=1,nSpecies
+      WRITE(SpecID,'(I3.3)') iSpec
+      StrVarNames(nVarCount+1)='Spec'//TRIM(SpecID)//'_PressTensXY'
+      StrVarNames(nVarCount+2)='Spec'//TRIM(SpecID)//'_PressTensXZ'
+      StrVarNames(nVarCount+3)='Spec'//TRIM(SpecID)//'_PressTensYZ'
+      StrVarNames(nVarCount+4)='Spec'//TRIM(SpecID)//'_HeatFluxX'
+      StrVarNames(nVarCount+5)='Spec'//TRIM(SpecID)//'_HeatFluxY'
+      StrVarNames(nVarCount+6)='Spec'//TRIM(SpecID)//'_HeatFluxZ'
+      nVarCount=nVarCount+6
+    END DO ! iSpec=1,nSpecies
+  END IF
+  ! fill varnames for total values
+  StrVarNames(nVarCount+1)='Total_PressTensXY'
+  StrVarNames(nVarCount+2)='Total_PressTensXZ'
+  StrVarNames(nVarCount+3)='Total_PressTensYZ'
+  StrVarNames(nVarCount+4)='Total_HeatFluxX'
+  StrVarNames(nVarCount+5)='Total_HeatFluxY'
+  StrVarNames(nVarCount+6)='Total_HeatFluxZ'
+  nVarCount=nVarCount+6
+END IF
+
 ! Sampling of electronic excitation: Construct the variables name based on first and second species as well as the level threshold
 IF(SampleElecExcitation) THEN
   ! Number of excitation outputs (currently only electronic)
@@ -1029,7 +1171,7 @@ IF(MPIRoot) THEN
   CALL WriteAttributeToHDF5(File_ID,'MeshFile',1,StrScalar=(/TRIM(MeshFileName)/))
   CALL WriteAttributeToHDF5(File_ID,'NSpecies',1,IntegerScalar=nSpecies)
   ! Standard variable names
-  CALL WriteAttributeToHDF5(File_ID,'VarNamesAdd',nVar+nVar_quality,StrArray=StrVarNames)
+  CALL WriteAttributeToHDF5(File_ID,'VarNamesAdd',nVar+nVar_quality+nVar_HeatPress,StrArray=StrVarNames)
   ! Additional variable names: electronic excitation rate output
   IF(SampleElecExcitation) CALL WriteAttributeToHDF5(File_ID,'VarNamesExci',ExcitationLevelCounter,StrArray=StrVarNamesElecExci)
   CALL CloseDataFile()
@@ -1042,11 +1184,11 @@ CALL MPI_BARRIER(MPI_COMM_PICLAS,iError)
 ! Open data file for parallel output
 CALL OpenDataFile(FileName,create=.false.,single=.FALSE.,readOnly=.FALSE.,communicatorOpt=MPI_COMM_PICLAS)
 
-ALLOCATE(DSMC_MacroVal(1:nVar+nVar_quality,nElems), STAT=ALLOCSTAT)
+ALLOCATE(DSMC_MacroVal(1:nVar+nVar_quality+nVar_HeatPress,nElems), STAT=ALLOCSTAT)
 IF (ALLOCSTAT.NE.0) THEN
   CALL abort(__STAMP__,' Cannot allocate output array: DSMC_MacroVal!')
 END IF
-CALL DSMC_output_calc(nVar,nVar_quality,nVarloc+nVarRelax,DSMC_MacroVal)
+CALL DSMC_output_calc(nVar,nVar_quality,nVarloc+nVarRelax,nVar_HeatPress,DSMC_MacroVal)
 
 ! Calculation of electronic excitation rates
 IF(SampleElecExcitation) THEN
@@ -1059,7 +1201,7 @@ END IF
 
 ! Associate construct for integer KIND=8 possibility
 ASSOCIATE (&
-  nVarX        => INT(nVar+nVar_quality,IK)       ,&
+  nVarX        => INT(nVar+nVar_quality+nVar_HeatPress,IK)       ,&
   nVarExci     => INT(ExcitationLevelCounter,IK)  ,&
   PP_nElems    => INT(PP_nElems,IK)               ,&
   offsetElem   => INT(offsetElem,IK)              ,&

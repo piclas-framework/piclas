@@ -490,10 +490,12 @@ DO iVar=2,nVar
   ! Save the strings in temporary variables
   tmp = VarNameVisu(iVar)
   tmp2 = VarNameVisu(iVar-1)
-  ! Compare the strings, while omitting the last character to find identify VeloX/Y/Z as a vector
-  IF (TRIM(tmp(:iLen-1)) .EQ. TRIM(tmp2(:iLen-1))) THEN
-    ! Although the translational temperature is given in X/Y/Z its not a vector (VisIt/Paraview would produce a magnitude variable)
-    IF(INDEX(tmp(:iLen-1),'TempTrans').EQ.0) THEN
+  ! Compare the strings, while omitting the last two characters to find identify VeloX/Y/Z and so on as vectors
+  IF (TRIM(tmp(:iLen-2)) .EQ. TRIM(tmp2(:iLen-2))) THEN
+    ! Although the translational temperature and the pressure tensor are given in X/Y/Z or XY/XZ/YZ they are not vectors
+    ! (VisIt/Paraview would produce a magnitude variable)
+    IF(INDEX(tmp(:iLen-1),'TempTrans').EQ.0.AND.INDEX(tmp(:iLen-2),'PressTens').EQ.0) THEN
+      print*, tmp
       ! If it is the first occurrence, start counting
       IF (VarNameCombine(iVar-1) .EQ. 0) VarNameCombine(iVar-1) = 1
       VarNameCombine(iVar) = VarNameCombine(iVar-1) + 1
@@ -1150,7 +1152,7 @@ REAL,ALLOCATABLE                :: NodeCoords_visu(:,:,:,:,:)          !< Coordi
 CALL OpenDataFile(InputStateFile,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_PICLAS)
 CALL ReadAttribute(File_ID,'Project_Name',1,StrScalar=ProjectName)
 CALL ReadAttribute(File_ID,'File_Type',1,StrScalar=File_Type)
-IF(TRIM(File_Type).NE.'RadiationSurfState') THEN  
+IF(TRIM(File_Type).NE.'RadiationSurfState') THEN
   CALL ReadAttribute(File_ID,'Time',1,RealScalar=OutputTime)
 ELSE
   nSurfSample = 1
@@ -1204,7 +1206,7 @@ ELSE
   NodeCoords_visu(1:3,0,0,0,1:SurfConnect%nSurfaceNode) = SurfConnect%NodeCoords(1:3,1:SurfConnect%nSurfaceNode)
 END IF
 
-IF(TRIM(File_Type).NE.'RadiationSurfState') THEN 
+IF(TRIM(File_Type).NE.'RadiationSurfState') THEN
   FileString=TRIM(TIMESTAMP(TRIM(ProjectName)//'_visuSurf',OutputTime))//'.vtu'
 ELSE
   FileString=TRIM(TRIM(ProjectName)//'_RadSurfVisu')//'.vtu'

@@ -211,6 +211,8 @@ CALL prms%CreateLogicalOption(  'Particles-DSMC-CalcSurfaceVal'&
 CALL prms%CreateLogicalOption(  'Part-SampleElectronicExcitation'&
   , 'Set [T] to activate sampling of electronic energy excitation (currently only available for ElectronicModel = 3)', '.FALSE.')
 
+CALL prms%CreateLogicalOption(  'Particles-SamplePressTensHeatflux' ,'Flag to sample pressure tensor and heatflux.', '.FALSE.')
+
 ! === Rotational frame of reference
 CALL prms%CreateLogicalOption(  'Part-UseRotationalReferenceFrame', 'Activate rotational frame of reference', '.FALSE.')
 CALL prms%CreateIntOption(      'Part-RotRefFrame-Axis','Axis of rotational frame of reference (x=1, y=2, z=3)')
@@ -317,7 +319,7 @@ USE MOD_Globals
 USE MOD_ReadInTools
 USE MOD_DSMC_Init                  ,ONLY: InitDSMC
 USE MOD_MCC_Init                   ,ONLY: InitMCC
-USE MOD_DSMC_Vars                  ,ONLY: useDSMC,DSMC,DSMC_Solution,BGGas
+USE MOD_DSMC_Vars                  ,ONLY: useDSMC,DSMC,DSMC_Solution,DSMC_SolutionPressTens,BGGas
 USE MOD_IO_HDF5                    ,ONLY: AddToElemData,ElementOut
 USE MOD_LoadBalance_Vars           ,ONLY: nPartsPerElem
 USE MOD_Mesh_Vars                  ,ONLY: nElems
@@ -327,6 +329,7 @@ USE MOD_SurfaceModel_Vars          ,ONLY: nPorousBC,BulkElectronTempSEE
 USE MOD_Particle_Boundary_Vars     ,ONLY: PartBound
 USE MOD_Particle_Tracking_Vars     ,ONLY: TrackingMethod
 USE MOD_Particle_Vars              ,ONLY: ParticlesInitIsDone,WriteMacroVolumeValues,WriteMacroSurfaceValues,nSpecies
+USE MOD_Particle_Vars              ,ONLY: SamplePressTensHeatflux
 USE MOD_Particle_Sampling_Vars     ,ONLY: UseAdaptiveBC
 USE MOD_Particle_Emission_Init     ,ONLY: InitialParticleInserting
 USE MOD_Particle_SurfFlux_Init     ,ONLY: InitializeParticleSurfaceflux
@@ -338,7 +341,8 @@ USE MOD_Particle_Boundary_Init     ,ONLY: InitRotPeriodicMapping, InitAdaptiveWa
 USE MOD_DSMC_BGGas                 ,ONLY: BGGas_InitRegions
 #if USE_MPI
 USE MOD_Particle_MPI               ,ONLY: InitParticleCommSize
-!USE MOD_Particle_MPI_Emission      ,ONLY: InitEmissionParticlesToProcs                                                                                                                      ! USE MOD_Particle_MPI_Emission      ,ONLY: InitEmissionParticlesToProcs
+!USE MOD_Particle_MPI_Emission      ,ONLY: InitEmissionParticlesToProcs
+!USE MOD_Particle_MPI_Emission      ,ONLY: InitEmissionParticlesToProcs
 #endif
 #if (PP_TimeDiscMethod==300)
 USE MOD_FPFlow_Init                ,ONLY: InitFPFlow
@@ -395,6 +399,11 @@ IF(useDSMC .OR. WriteMacroVolumeValues) THEN
   DSMC%SampNum = 0
   ALLOCATE(DSMC_Solution(1:11,1:nElems,1:nSpecies))
   DSMC_Solution = 0.0
+  SamplePressTensHeatflux = GETLOGICAL('Particles-SamplePressTensHeatflux')
+  IF (SamplePressTensHeatflux) THEN
+    ALLOCATE(DSMC_SolutionPressTens(1:12,1:nElems,1:nSpecies))
+    DSMC_SolutionPressTens = 0.0
+  END IF
 END IF
 
 ! Initialize the counters (nComputeNodeSurfSides,nComputeNodeSurfTotalSides,nComputeNodeSurfOutputSides) and

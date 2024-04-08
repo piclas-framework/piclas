@@ -302,5 +302,8 @@ REAL                  :: RotRefFrameOmega(3)      ! angular velocity of rotation
 INTEGER               :: nRefFrameRegions         ! number of rotational frame of reference regions
 REAL, ALLOCATABLE     :: RotRefFramRegion(:,:)    ! MIN/MAX defintion for multiple rotational frame of reference region
                                                   ! (i,RegionNumber), MIN:i=1, MAX:i=2
+
+! Sampling of pressure tensor and heatflux
+LOGICAL           :: SamplePressTensHeatflux
 !===================================================================================================================================
 END MODULE MOD_Particle_Vars
