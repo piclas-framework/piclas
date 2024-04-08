@@ -346,6 +346,7 @@ REAL                                 :: LorentzFac, LorentzFacInv, POI_fak
 INTEGER                              :: locBCID, SpecID
 LOGICAL                              :: Symmetry
 REAL                                 :: POI_vec(1:3)
+REAL                                 :: NormNewVeloPush(1:3)
 REAL                                 :: dtVar
 !===================================================================================================================================
 ! Initialize
@@ -423,6 +424,15 @@ IF(PDM%InRotRefFrame(PartID)) THEN
   NewVeloPush(1:3) = PartState(4:6,PartID)
   NewVeloPush(1:3) = NewVeloPush(1:3) - CROSS(RotRefFrameOmega(1:3),LastPartPos(1:3,PartID))
   NewVeloPush(1:3) = NewVeloPush(1:3) + CalcPartRHSRotRefFrame(LastPartPos(1:3,PartID),NewVeloPush(1:3)) * (1.0 - POI_fak) * dtVar
+    ! Make sure the NewVeloPush is pointing away from the wall
+  IF(DOT_PRODUCT(n_loc,NewVeloPush(1:3)).GT.0.) THEN
+    ! Normal component of new velo push v = (v dot n / |n|^2) * n, |n| = 1
+    NormNewVeloPush(1:3) = DOT_PRODUCT(n_loc,NewVeloPush(1:3)) * n_loc
+    ! Nullyfy normal component and keeping rest of NewVeloPush
+    NewVeloPush(1:3) = NewVeloPush(1:3) - NormNewVeloPush(1:3)
+    ! Move particle a little bit into the domain to avoid losing particles
+    NewVeloPush(1:3) = NewVeloPush(1:3) - 1E-6 * n_loc
+  END IF
   ! Store the new rotational reference frame velocity
   PartVeloRotRef(1:3,PartID) = NewVeloPush(1:3)
   ! Calc new particle position with NewVeloPush
