@@ -420,8 +420,9 @@ DO iSF = 1, nSF
             NbrOfParticle = NbrOfParticle + PartInsSubSide
 
             !-- Fill Particle Informations (PartState, Partelem, etc.)
+            PartID = 1
             DO iPart=1,PartInsSubSide
-              PartID = GetNextFreePosition()
+              IF ((iPart.EQ.1).OR.PDM%ParticleInside(PartID)) PartID = GetNextFreePosition(iPartTotal+1)
               IF(Symmetry%Axisymmetric) THEN
                 PartState(1:3,PartID) = CalcPartPosAxisym(minPos, RVec)
               ELSE
@@ -457,8 +458,10 @@ DO iSF = 1, nSF
 #endif /*USE_LOADBALANCE*/
         END IF ! iSide
         IF (NbrOfParticle.NE.iPartTotal) CALL abort(__STAMP__, 'ERROR in ParticleSurfChemFlux: NbrOfParticle.NE.iPartTotal')
-        PDM%CurrentNextFreePosition = PDM%CurrentNextFreePosition + NbrOfParticle
-        PDM%ParticleVecLength = PDM%ParticleVecLength + NbrOfParticle
+        IF (iPartTotal.GT.0) THEN
+          PDM%CurrentNextFreePosition = PDM%CurrentNextFreePosition + NbrOfParticle
+          PDM%ParticleVecLength = MAX(PDM%ParticleVecLength,GetNextFreePosition(0))
+        END IF
 #if USE_LOADBALANCE
         CALL LBPauseTime(LB_SURFFLUX,tLBStart)
 #endif /*USE_LOADBALANCE*/
