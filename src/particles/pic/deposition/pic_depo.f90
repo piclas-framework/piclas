@@ -867,6 +867,7 @@ USE MOD_HDG_Vars              ,ONLY: HDGSkip, HDGSkipInit, HDGSkip_t0
 USE MOD_TimeDisc_Vars         ,ONLY: time
 #endif  /*USE_HDG*/
 USE MOD_Mesh_Vars             ,ONLY: nElems
+USE MOD_Dielectric_Vars       ,ONLY: DoDielectricSurfaceCharge
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -913,7 +914,7 @@ END IF
 
 ! Virtual Dielectric Layer (VDL) particles are deposited and deleted here because they might have changed the process after
 ! boundary interaction, hence, do all of this after MPI communication
-CALL DepositVirtualDielectricLayerParticles()
+IF(DoDielectricSurfaceCharge) CALL DepositVirtualDielectricLayerParticles()
 
 IF(PRESENT(doParticle_In)) THEN
   CALL DepositionMethod(doParticle_In, stage_opt=stage)
@@ -949,10 +950,9 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER :: iPart
-REAL    :: charge,sumcharge
+REAL    :: charge
 !===================================================================================================================================
 ! Loop over all particles
-sumcharge=0.
 DO iPart=1,PDM%ParticleVecLength
   ! Only consider un-deleted particles
   IF (PDM%ParticleInside(iPart)) THEN
@@ -965,13 +965,11 @@ DO iPart=1,PDM%ParticleVecLength
       ELSE
         charge = Species(PartSpecies(iPart))%ChargeIC * Species(PartSpecies(iPart))%MacroParticleFactor
       END IF
-      sumcharge = sumcharge + charge
       CALL DepositParticleOnNodes(charge, PartState(1:3,iPart), PEM%GlobalElemID(iPart))
       CALL RemoveParticle(iPart)
     END IF ! PartSpecies(iPart).GT.SpeciesOffsetVDL
   END IF !PDM%ParticleInside(iPart)
 END DO ! iPart=1,PDM%ParticleVecLength
-!CALL UpdateNextFreePosition()
 
 END SUBROUTINE DepositVirtualDielectricLayerParticles
 

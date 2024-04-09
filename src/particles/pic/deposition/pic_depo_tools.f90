@@ -101,7 +101,7 @@ USE MOD_Globals
 USE MOD_Globals            ,ONLY: VECNORM,ElementOnProc
 USE MOD_Globals_Vars       ,ONLY: ElementaryCharge
 USE MOD_Eval_xyz           ,ONLY: GetPositionInRefElem
-USE MOD_Particle_Mesh_Vars ,ONLY: ElemNodeID_Shared,NodeCoords_Shared
+USE MOD_Particle_Mesh_Vars ,ONLY: ElemNodeID_Shared,NodeCoords_Shared,GEO
 USE MOD_Mesh_Tools         ,ONLY: GetCNElemID
 #if USE_LOADBALANCE
 USE MOD_Mesh_Vars          ,ONLY: offsetElem
@@ -113,6 +113,7 @@ USE MOD_PICDepo_Vars       ,ONLY: NodeSourceExtTmp
 #else
 USE MOD_PICDepo_Vars       ,ONLY: NodeSourceExt
 #endif /*USE_MPI*/
+USE MOD_PICDepo_Vars       ,ONLY: Periodic_nNodes,Periodic_offsetNode,Periodic_Nodes
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
 ! INPUT / OUTPUT VARIABLES
@@ -125,7 +126,7 @@ REAL                             :: alpha1, alpha2, alpha3, TempPartPos(1:3)
 #if USE_LOADBALANCE
 REAL                             :: tLBStart
 #endif /*USE_LOADBALANCE*/
-INTEGER                          :: NodeID(1:8),iNode
+INTEGER                          :: NodeID(1:8),iNode,jNode,jGlobNode
 LOGICAL                          :: SucRefPos
 REAL                             :: norm,PartDistDepo(8),DistSum
 !===================================================================================================================================
@@ -150,33 +151,61 @@ ASSOCIATE( NodeSourceExt => NodeSourceExtTmp )
     alpha2=0.5*(TempPartPos(2)+1.0)
     alpha3=0.5*(TempPartPos(3)+1.0)
 
+    PartDistDepo(1) = (1-alpha1)*(1-alpha2)*(1-alpha3)
+    PartDistDepo(2) =   (alpha1)*(1-alpha2)*(1-alpha3)
+    PartDistDepo(3) =   (alpha1)*  (alpha2)*(1-alpha3)
+    PartDistDepo(4) = (1-alpha1)*  (alpha2)*(1-alpha3)
+    PartDistDepo(5) = (1-alpha1)*(1-alpha2)*  (alpha3)
+    PartDistDepo(6) =   (alpha1)*(1-alpha2)*  (alpha3)
+    PartDistDepo(7) =   (alpha1)*  (alpha2)*  (alpha3)
+    PartDistDepo(8) = (1-alpha1)*  (alpha2)*  (alpha3)
+
     ! Apply charge to nodes (note that the volumes are not accounted for yet here!)
     NodeID = NodeInfo_Shared(ElemNodeID_Shared(:,GetCNElemID(GlobalElemID)))
-    NodeSourceExt(NodeID(1)) = NodeSourceExt(NodeID(1)) + (Charge*(1-alpha1)*(1-alpha2)*(1-alpha3))
-    NodeSourceExt(NodeID(2)) = NodeSourceExt(NodeID(2)) + (Charge*  (alpha1)*(1-alpha2)*(1-alpha3))
-    NodeSourceExt(NodeID(3)) = NodeSourceExt(NodeID(3)) + (Charge*  (alpha1)*  (alpha2)*(1-alpha3))
-    NodeSourceExt(NodeID(4)) = NodeSourceExt(NodeID(4)) + (Charge*(1-alpha1)*  (alpha2)*(1-alpha3))
-    NodeSourceExt(NodeID(5)) = NodeSourceExt(NodeID(5)) + (Charge*(1-alpha1)*(1-alpha2)*  (alpha3))
-    NodeSourceExt(NodeID(6)) = NodeSourceExt(NodeID(6)) + (Charge*  (alpha1)*(1-alpha2)*  (alpha3))
-    NodeSourceExt(NodeID(7)) = NodeSourceExt(NodeID(7)) + (Charge*  (alpha1)*  (alpha2)*  (alpha3))
-    NodeSourceExt(NodeID(8)) = NodeSourceExt(NodeID(8)) + (Charge*(1-alpha1)*  (alpha2)*  (alpha3))
+    DO iNode=1, 8
+      NodeSourceExt(NodeID(iNode)) = NodeSourceExt(NodeID(iNode)) + Charge*PartDistDepo(iNode)
+    END DO ! iNode=1, 8
+
+    ! Periodic contribution
+    IF (GEO%nPeriodicVectors.GT.0) THEN
+      DO iNode=1, 8
+        IF (Periodic_nNodes(NodeID(iNode)).GT.0) THEN
+          DO jNode = Periodic_offsetNode(NodeID(iNode))+1,Periodic_offsetNode(NodeID(iNode))+Periodic_nNodes(NodeID(iNode))
+            jGlobNode = Periodic_Nodes(jNode)
+            NodeSourceExt(jGlobNode) = NodeSourceExt(jGlobNode) + Charge*PartDistDepo(iNode)
+          END DO ! jNode
+        END IF ! Periodic_nNodes(NodeID(iNode)).GT.0
+      END DO ! iNode=1, 8
+    END IF
   ELSE
-     NodeID = ElemNodeID_Shared(:,GetCNElemID(GlobalElemID))
-     DO iNode = 1, 8
-       norm = VECNORM(NodeCoords_Shared(1:3, NodeID(iNode)) - PartPos(1:3))
-       IF(norm.GT.0.)THEN
-         PartDistDepo(iNode) = 1./norm
-       ELSE
-         PartDistDepo(:) = 0.
-         PartDistDepo(iNode) = 1.0
-         EXIT
-       END IF ! norm.GT.0.
-     END DO
-     DistSum = SUM(PartDistDepo(1:8))
-     DO iNode = 1, 8
-       NodeSourceExt(NodeInfo_Shared(NodeID(iNode))) = NodeSourceExt(NodeInfo_Shared(NodeID(iNode)))  &
-         +  PartDistDepo(iNode)/DistSum*Charge
-     END DO
+    NodeID = ElemNodeID_Shared(:,GetCNElemID(GlobalElemID))
+    DO iNode = 1, 8
+      norm = VECNORM(NodeCoords_Shared(1:3, NodeID(iNode)) - PartPos(1:3))
+      IF(norm.GT.0.)THEN
+        PartDistDepo(iNode) = 1./norm
+      ELSE
+        PartDistDepo(:) = 0.
+        PartDistDepo(iNode) = 1.0
+        EXIT
+      END IF ! norm.GT.0.
+    END DO
+    DistSum = SUM(PartDistDepo(1:8))
+    DO iNode = 1, 8
+      NodeSourceExt(NodeInfo_Shared(NodeID(iNode))) = NodeSourceExt(NodeInfo_Shared(NodeID(iNode)))  &
+          +  PartDistDepo(iNode)/DistSum*Charge
+    END DO
+
+    ! Periodic contribution
+    IF (GEO%nPeriodicVectors.GT.0) THEN
+      ASSOCIATE(NodeInfoID => NodeInfo_Shared(NodeID(iNode)))
+        IF (Periodic_nNodes(NodeInfoID).GT.0) THEN
+          DO jNode = Periodic_offsetNode(NodeInfoID)+1,Periodic_offsetNode(NodeInfoID)+Periodic_nNodes(NodeInfoID)
+            jGlobNode                         = Periodic_Nodes(jNode)
+            NodeSourceExt(jGlobNode) = NodeSourceExt(jGlobNode) +  PartDistDepo(iNode)/DistSum*Charge
+          END DO ! jNode
+        END IF ! Periodic_nNodes(NodeID(iNode)).GT.0
+      END ASSOCIATE
+    END IF
   END IF ! SucRefPos
 #if USE_MPI
 END ASSOCIATE
@@ -210,7 +239,6 @@ USE MOD_Mesh_Vars          ,ONLY: nElems
 USE MOD_Particle_Mesh_Vars ,ONLY: ElemNodeID_Shared, nUniqueGlobalNodes, NodeInfo_Shared,GEO,ElemsJ
 USE MOD_PICDepo_Vars       ,ONLY: NodeVolume,Periodic_nNodes,Periodic_offsetNode,Periodic_Nodes
 USE MOD_DG_Vars            ,ONLY: N_DG_Mapping
-USE MOD_Mesh_Vars          ,ONLY: N_VolMesh, offSetElem,nElems
 USE MOD_Mesh_Tools         ,ONLY: GetCNElemID,GetGlobalElemID
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -222,7 +250,7 @@ IMPLICIT NONE
 ! LOCAL VARIABLES
 REAL                             :: xGP_loc(0:1),DetJac(1,0:1,0:1,0:1)
 REAL                             :: DetLocal(1,0:NMax,0:NMax,0:NMax)
-INTEGER                          :: i,j,k,iElem, firstElem, lastElem, iNode, jNode, iCNElem, iGlobalElem, offSetDofNode, r
+INTEGER                          :: i,j,k,firstElem, lastElem, iNode, jNode, iCNElem, iGlobalElem, offSetDofNode, r
 REAL                             :: NodeVolumeLoc(1:nUniqueGlobalNodes)
 #if USE_MPI
 INTEGER                          :: MessageSize
@@ -232,7 +260,7 @@ INTEGER                          :: Nloc
 TYPE tVdm_BGFieldIn_BGField
   REAL, ALLOCATABLE                     :: Vdm(:,:)
 END TYPE tVdm_BGFieldIn_BGField
-TYPE(tVdm_BGFieldIn_BGField),ALLOCATABLE    :: Vdm_loc(:) 
+TYPE(tVdm_BGFieldIn_BGField),ALLOCATABLE    :: Vdm_loc(:)
 !===================================================================================================================================
 NodeVolumeLoc = 0.
 #if USE_MPI
@@ -257,14 +285,13 @@ IF ((Nmin.NE.1).OR.(Nmin.NE.NMax)) THEN
   xGP_loc(0) = -0.5
   xGP_loc(1) = 0.5
   ALLOCATE(Vdm_loc(Nmin:Nmax))
-  DO Nloc = Nmin, Nmax    
+  DO Nloc = Nmin, Nmax
     ALLOCATE(Vdm_loc(Nloc)%Vdm(0:Nloc,0:Nloc))
     CALL InitializeVandermonde(Nloc,1,N_Inter(Nloc)%wBary,N_Inter(Nloc)%xGP,xGP_loc,Vdm_loc(Nloc)%Vdm)
   END DO
 END IF
 
 ! ElemNodeID and ElemsJ use compute node elems
-!DO iElem = 1, nElems
 DO iCNElem = firstElem, lastElem
   iGlobalElem   = GetGlobalElemID(iCNElem)
   !iCNElem       = GetCNElemID(iGlobalElem)
