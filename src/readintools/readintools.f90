@@ -359,6 +359,10 @@ CHARACTER(LEN=*),INTENT(IN),OPTIONAL  :: value            !< option value
 LOGICAL,INTENT(IN),OPTIONAL           :: multiple         !< marker if multiple option
 LOGICAL,INTENT(IN),OPTIONAL           :: numberedmulti    !< marker if numbered multiple option
 LOGICAL,INTENT(IN),OPTIONAL           :: removed          !< marker if removed option
+
+
+CHARACTER(LEN=255)                    :: name_loc             !< option name
+CLASS(link),POINTER          :: current
 ! LOCAL VARIABLES
 CLASS(link), POINTER :: newLink
 TYPE(Varying_String) :: aStr
@@ -368,6 +372,19 @@ TYPE(Varying_String) :: aStr
 !      'Option "'//TRIM(name)//'" is already defined, can not be defined with the same name twice!')
 !END IF
 
+! current => prms%firstLink
+! DO WHILE (associated(current))
+!   SWRITE(*,*) TRIM(current%opt%name)!,"       ", valuestr
+!   current => current%next
+! END DO
+! ! END IF
+! SWRITE(*,*) "@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@q"
+
+SWRITE(*,*) "CreateOption Name: ", name
+! IF(SCAN(name,"[]").NE.0) THEN
+!   DO WHILE(SCAN(name,"[]").NE.0)
+!   END DO
+! END IF
 opt%hasDefault = PRESENT(value)
 IF (opt%hasDefault) THEN
   CALL opt%parse(value)
@@ -389,15 +406,18 @@ IF(opt%numberedmulti)THEN
   aStr = Replace(aStr,"[]"  ,"$",Every = .true.)
   aStr = Replace(aStr,"[$]" ,"$",Every = .true.)
   aStr = Replace(aStr,"[$$]","$",Every = .true.)
+  name_loc=aStr
   CALL LowCase(TRIM(CHAR(aStr)),opt%namelowercase)
   opt%ind = INDEX(TRIM(opt%namelowercase),"$")
   IF(opt%ind.LE.0)THEN
     CALL abort(__STAMP__&
     ,'[numberedmulti] parameter does not contain "$" symbol, which is required for these kinds of variables for ['//TRIM(name)//']')
   END IF ! opt%ind.LE.0
+ELSE
+  name_loc=name
 END IF ! opt%numberedmulti
 
-opt%name        = name
+opt%name        = TRIM(name_loc)
 opt%isSet       = .FALSE.
 opt%description = description
 opt%section     = this%actualSection
@@ -1205,6 +1225,9 @@ END FUNCTION CountOption
 !==================================================================================================================================
 SUBROUTINE GetGeneralOption(value, name, proposal)
 USE MOD_Options
+#if USE_LOADBALANCE
+USE MOD_LoadBalance_Vars ,ONLY: PerformLoadBalance
+#endif /*USE_LOADBALANCE*/
 !----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT / OUTPUT VARIABLES
 CHARACTER(LEN=*),INTENT(IN)          :: name     !< parameter name
@@ -1230,7 +1253,61 @@ CLASS(RealOption)   ,ALLOCATABLE,TARGET :: realopt
 CLASS(StringOption) ,ALLOCATABLE,TARGET :: stringopt
 !==================================================================================================================================
 !==================================================================================================================================
-
+IF (PerformLoadBalance) THEN
+  current => prms%firstLink
+  DO WHILE (associated(current))
+    opt => current%opt
+    SELECT TYPE (opt)
+    CLASS IS (IntOption)
+      SELECT TYPE(value)
+      TYPE IS (INTEGER)
+        value = opt%value
+        WRITE(tmpValue, *) opt%value
+      END SELECT
+    CLASS IS (RealOption)
+      SELECT TYPE(value)
+      TYPE IS (REAL)
+        value = opt%value
+        WRITE(tmpValue, *) opt%value
+      END SELECT
+    CLASS IS (LogicalOption)
+      SELECT TYPE(value)
+      TYPE IS (LOGICAL)
+        value = opt%value
+        WRITE(tmpValue, *) opt%value
+      END SELECT
+    CLASS IS (StringOption)
+      SELECT TYPE(value)
+      TYPE IS (STR255)
+        ! If the string contains a comma, strip it and provide the first part of this string. This might occur when directly running a regressioncheck file
+        ind = INDEX(opt%value,",")
+        IF (ind.GT.0) THEN
+          opt%value = opt%value(1:ind-1)
+          ! Print option and value to stdout. Custom print, so do it here
+          WRITE(fmtName,*) prms%maxNameLen
+          SWRITE(UNIT_stdOut,'(A3)', ADVANCE='NO')  " | "
+          CALL set_formatting("blue")
+          SWRITE(UNIT_stdOut,"(A"//fmtName//")", ADVANCE='NO') TRIM(name)
+          CALL clear_formatting()
+          SWRITE(UNIT_stdOut,'(A3)', ADVANCE='NO')  " | "
+          CALL opt%printValue(prms%maxValueLen)
+          SWRITE(UNIT_stdOut,"(A3)", ADVANCE='NO') ' | '
+          CALL set_formatting("cyan")
+          SWRITE(UNIT_stdOut,'(A7)', ADVANCE='NO')  "*SPLIT"
+          CALL clear_formatting()
+          SWRITE(UNIT_stdOut,"(A3)") ' | '
+          ! Set mode to indicate print already occured
+          mode = 1
+        END IF
+        value%chars = opt%value
+      END SELECT
+    END SELECT
+    SWRITE(*,*) TRIM(current%opt%name), "    " ,tmpValue
+    current => current%next
+  END DO
+  SWRITE(*,*) "@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@q"
+  ! READ(*,*)
+END IF
 ! iterate over all options
 current => prms%firstLink
 DO WHILE (associated(current))
@@ -2444,14 +2521,14 @@ INTEGER              :: i,Counter,length
 IF(.NOT.MPIRoot)RETURN
 
 ! Return if running loadbalance and printing static information
-#if USE_LOADBALANCE
-IF (PerformLoadBalance) THEN
-  SELECT CASE(TRIM(InfoOpt))
-    CASE("INFO","PARAM","CALCUL.","OUTPUT","HDF5")
-      RETURN
-  END SELECT
-END IF
-#endif /*USE_LOADBALANCE*/
+! #if USE_LOADBALANCE
+! IF (PerformLoadBalance) THEN
+!   SELECT CASE(TRIM(InfoOpt))
+!     CASE("INFO","PARAM","CALCUL.","OUTPUT","HDF5")
+!       RETURN
+!   END SELECT
+! END IF
+! #endif /*USE_LOADBALANCE*/
 
 ! set length of name
 WRITE(fmtName,*) prms%maxNameLen
