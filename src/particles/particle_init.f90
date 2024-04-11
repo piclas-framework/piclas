@@ -327,7 +327,7 @@ USE MOD_LoadBalance_Vars           ,ONLY: nPartsPerElem
 USE MOD_Mesh_Vars                  ,ONLY: nElems
 USE MOD_SurfaceModel_Porous        ,ONLY: InitPorousBoundaryCondition
 USE MOD_Particle_Boundary_Sampling ,ONLY: InitParticleBoundarySampling
-USE MOD_SurfaceModel_Vars          ,ONLY: nPorousBC,BulkElectronTempSEE
+USE MOD_SurfaceModel_Vars          ,ONLY: nPorousBC,BulkElectronTempSEE,DoChemSurface
 USE MOD_Particle_Boundary_Vars     ,ONLY: PartBound
 USE MOD_Particle_Tracking_Vars     ,ONLY: TrackingMethod
 USE MOD_Particle_Vars              ,ONLY: ParticlesInitIsDone,WriteMacroVolumeValues,WriteMacroSurfaceValues,nSpecies
@@ -335,6 +335,7 @@ USE MOD_Particle_Sampling_Vars     ,ONLY: UseAdaptiveBC
 USE MOD_Particle_Emission_Init     ,ONLY: InitialParticleInserting
 USE MOD_Particle_SurfFlux_Init     ,ONLY: InitializeParticleSurfaceflux
 USE MOD_SurfaceModel_Init          ,ONLY: InitSurfaceModel
+USE MOD_SurfaceModel_Chemistry     ,ONLY: InitSurfaceModelChemistry
 USE MOD_Particle_Surfaces          ,ONLY: InitParticleSurfaces
 USE MOD_Particle_Sampling_Adapt    ,ONLY: InitAdaptiveBCSampling
 USE MOD_Particle_Boundary_Init     ,ONLY: InitParticleBoundarySurfSides
@@ -411,12 +412,15 @@ IF(PartBound%UseInterPlaneBC)  CALL InitRotPeriodicInterPlaneMapping()
 #if (PP_TimeDiscMethod==600)
 CALL InitParticleBoundarySampling()
 #endif
-IF (WriteMacroSurfaceValues.OR.DSMC%CalcSurfaceVal.OR.(ANY(PartBound%Reactive))) THEN
+IF (WriteMacroSurfaceValues.OR.DSMC%CalcSurfaceVal.OR.ANY(PartBound%Reactive)) THEN
 #if !(PP_TimeDiscMethod==600)
   CALL InitParticleBoundarySampling()
 #endif
   CALL InitAdaptiveWallTemp()
 END IF
+
+! Initialize arrays for surface chemistry
+IF(DoChemSurface) CALL InitSurfaceModelChemistry()
 
 ! Initialize porous boundary condition (requires BCdata_auxSF and InitParticleBoundarySurfSides)
 IF(nPorousBC.GT.0) CALL InitPorousBoundaryCondition()
@@ -478,6 +482,7 @@ USE MOD_Part_RHS               ,ONLY: InitPartRHS
 USE MOD_Particle_Mesh          ,ONLY: InitParticleMesh
 USE MOD_Particle_Emission_Init ,ONLY: InitializeVariablesSpeciesInits
 USE MOD_Particle_Boundary_Init ,ONLY: InitializeVariablesPartBoundary
+USE MOD_SurfaceModel_Chemistry ,ONLY: InitializeVariablesSurfaceChemistry
 USE MOD_Particle_Tracking_Vars ,ONLY: TrackingMethod
 USE MOD_Particle_Surfaces_Vars ,ONLY: TriaSurfaceFlux
 #if !((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))
@@ -485,6 +490,7 @@ USE MOD_PICInit                ,ONLY: InitPIC
 #endif /*!((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))*/
 USE MOD_PICDepo_Vars           ,ONLY: DoDeposition
 USE MOD_PICInterpolation_Vars  ,ONLY: DoInterpolation
+USE MOD_SurfaceModel_Vars      ,ONLY: SurfChem
 #if USE_MPI
 USE MOD_Particle_MPI_Emission  ,ONLY: InitEmissionComm
 USE MOD_Particle_MPI_Halo      ,ONLY: IdentifyPartExchangeProcs
@@ -525,6 +531,7 @@ CALL InitializeVariablesRandomNumbers()
 ! initialization of surface model flags
 DoPoissonRounding = GETLOGICAL('Particles-DoPoissonRounding','.FALSE.')
 DoTimeDepInflow   = GETLOGICAL('Particles-DoTimeDepInflow','.FALSE.')
+SurfChem%NumOfReact = GETINT('Surface-NumOfReactions', '0')
 DelayTime = GETREAL('Part-DelayTime','0.')
 !--- Read Manual Time Step: Old variable name still supported
 ManualTimeStepParticle = GETREAL('Particles-ManualTimeStep')
@@ -613,6 +620,7 @@ CALL InitializeVariablesIonization()
 CALL InitializeVariablesVarTimeStep()
 CALL InitializeVariablesAmbipolarDiff()
 CALL InitializeVariablesRotationalRefFrame()
+CALL InitializeVariablesSurfaceChemistry()
 
 END SUBROUTINE InitializeVariables
 
@@ -1843,3 +1851,4 @@ END IF
 END SUBROUTINE InitPartDataSize
 
 END MODULE MOD_ParticleInit
+

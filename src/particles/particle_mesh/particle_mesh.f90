@@ -207,9 +207,6 @@ IMPLICIT NONE
 INTEGER          :: RefMappingGuessProposal
 INTEGER          :: iSample
 CHARACTER(LEN=2) :: tmpStr
-#if !USE_MPI
-INTEGER          :: ALLOCSTAT
-#endif
 #ifdef CODE_ANALYZE
 ! TODO
 ! REAL             :: dx,dy,dz

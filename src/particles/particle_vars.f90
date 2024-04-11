@@ -147,7 +147,7 @@ TYPE tSpecies                                                                ! P
   REAL                                   :: MacroParticleFactor              ! Number of Microparticle per Macroparticle
   REAL                                   :: TimeStepFactor                   ! Species-specific time step factor
   INTEGER                                :: NumberOfInits                    ! Number of different initial particle placements
-  TYPE(typeSurfaceflux),ALLOCATABLE      :: Surfaceflux(:)                   ! Particle Data for each SurfaceFlux emission
+  TYPE(tSurfaceFlux),POINTER             :: Surfaceflux(:)                   ! Particle Data for each SurfaceFlux emission
   INTEGER                                :: nSurfacefluxBCs                  ! Number of SF emissions
   LOGICAL                                :: DoOverwriteParameters            ! Flag to read in parameters manually
 #if IMPA
@@ -250,7 +250,6 @@ REAL, ALLOCATABLE                        :: CellEvib_vMPF(:,:)
 LOGICAL                                  :: DoSurfaceFlux                     ! Flag for emitting by SurfaceFluxBCs
 LOGICAL                                  :: DoPoissonRounding                 ! Perform Poisson sampling instead of random rounding
 LOGICAL                                  :: DoTimeDepInflow                   ! Insertion and SurfaceFlux w simple random rounding
-LOGICAL                                  :: DoZigguratSampling                ! Sample normal randoms with Ziggurat method
 
 ! Variable time step
 LOGICAL                                :: UseVarTimeStep

@@ -162,8 +162,23 @@ CALL prms%CreateIntOption(      'Part-Boundary[$]-SurfaceModel'  &
                                 'by A.I. Morozov, "Structure of Steady-State Debye Layers in a Low-Density Plasma near a Dielectric Surface", 2004\n'//&
                                 '9: SEE-I when Ar+ ion bombards surface with 0.01 probability and fixed SEE electron energy of 6.8 eV\n'//&
                                 '10: SEE-I when Ar+ bombards copper by J.G. Theis "Computing the Paschen curve for argon with speed-limited particle-in-cell simulation", 2021 (originates from Phelps1999)\n'// &
-                                '11: SEE-E when e- bombard quartz (SiO2) by A. Dunaevsky, "Secondary electron emission from dielectric materials of a Hall thruster with segmented electrodes", 2003'&
-                                , '0', numberedmulti=.TRUE.)
+                                '11: SEE-E when e- bombard quartz (SiO2) by A. Dunaevsky, "Secondary electron emission from dielectric materials of a Hall thruster with segmented electrodes", 2003\n'//&
+                                '20: Catalytic reaction model', '0', numberedmulti=.TRUE.)
+CALL prms%CreateRealOption(     'Part-Boundary[$]-LatticeVector'  &
+                                , 'Lattice vector for the respective crystal structure [m]'&
+                                , numberedmulti=.TRUE.)
+CALL prms%CreateRealOption(     'Part-Boundary[$]-NbrOfMol-UnitCell'  &
+                                , 'Number of molecules in the unit area (defined by the lattice vector)'&
+                                , numberedmulti=.TRUE.)
+CALL prms%CreateRealOption(     'Part-Boundary[$]-Species[$]-Coverage'  &
+                                , 'Initial coverage of the surface by an adsorbed species'&
+                                , numberedmulti=.TRUE.)
+CALL prms%CreateRealOption(     'Part-Boundary[$]-Species[$]-MaxCoverage'  &
+                                , 'Initial coverage of the surface by an adsorbed species'&
+                                , numberedmulti=.TRUE.)
+CALL prms%CreateRealOption(     'Part-Boundary[$]-MaxTotalCoverage'  &
+                                , 'Maximal coverage valure for the surface (default = 1.)'&
+                                , numberedmulti=.TRUE.)
 CALL prms%SetSection('Particle Boundaries: Species Swap')
 CALL prms%CreateIntOption(      'Part-Boundary[$]-NbrOfSpeciesSwaps'  &
                                 , 'TODO-DEFINE-PARAMETER\n'//&
@@ -305,6 +320,18 @@ ALLOCATE(PartBound%TempGradDir(1:nPartBound))
 PartBound%TempGradDir = 0
 ALLOCATE(PartBound%SurfaceModel(     1:nPartBound))
 PartBound%SurfaceModel = 0
+ALLOCATE(PartBound%CoverageIni(nPartBound, nSpecies))
+PartBound%CoverageIni = 0.
+ALLOCATE(PartBound%MaxCoverage(nPartBound, nSpecies))
+PartBound%MaxCoverage = 0.
+ALLOCATE(PartBound%TotalCoverage(nPartBound))
+PartBound%TotalCoverage = 0.
+ALLOCATE(PartBound%MaxTotalCoverage(nPartBound))
+PartBound%MaxTotalCoverage = 0.
+ALLOCATE(PartBound%LatticeVec(nPartBound))
+PartBound%LatticeVec = 0.
+ALLOCATE(PartBound%MolPerUnitCell(nPartBound))
+PartBound%MolPerUnitCell = 0.
 ALLOCATE(PartBound%Reactive(         1:nPartBound))
 PartBound%Reactive = .FALSE.
 ALLOCATE(PartBound%NbrOfSpeciesSwaps(1:nPartBound))
@@ -462,14 +489,35 @@ DO iPartBound=1,nPartBound
         PartBound%Reactive(iPartBound)        = .FALSE.
         IF(TRIM(SpeciesDatabase).EQ.'none') &
           CALL abort(__STAMP__,'ERROR in InitializeVariablesPartBoundary: SpeciesDatabase is required for the boundary #', iPartBound)
-      CASE (2) ! VDL - cannot be actively selected!
-        CALL abort(__STAMP__,'Part-Boundary'//TRIM(hilf)//'-SurfaceModel = 2 cannot be selected!')
+      CASE (20)
+        PartBound%Reactive(iPartBound)        = .TRUE.
       CASE (SEE_MODELS_ID) ! see ./src/piclas.h for numbers
-        PartBound%Reactive(iPartBound)        = .TRUE. ! SEE models require reactive BC
+        ! SEE models require reactive BC
+        PartBound%Reactive(iPartBound)        = .TRUE.
+      CASE (99) ! VDL - cannot be actively selected!
+        CALL abort(__STAMP__,'Part-Boundary'//TRIM(hilf)//'-SurfaceModel = 2 cannot be selected!')
       CASE DEFAULT
-        CALL abort(__STAMP__,'Error in particle init: only allowed SurfaceModels: 0,1,SEE_MODELS_ID! SurfaceModel=',&
-        IntInfoOpt=PartBound%SurfaceModel(iPartBound))
+        CALL abort(__STAMP__,'Error in particle init: only allowed SurfaceModels: 0,1,20,SEE_MODELS_ID! SurfaceModel=',&
+                  IntInfoOpt=PartBound%SurfaceModel(iPartBound))
       END SELECT
+    END IF
+    PartBound%LatticeVec(iPartBound) = GETREAL('Part-Boundary'//TRIM(hilf)//'-LatticeVector', '0.')
+    PartBound%MolPerUnitCell(iPartBound) = GETREAL('Part-Boundary'//TRIM(hilf)//'-NbrOfMol-UnitCell', '1.')
+    DO iSpec=1, nSpecies
+      WRITE(UNIT=hilf2,FMT='(I0)') iSpec
+      PartBound%CoverageIni(iPartBound, iSpec) = GETREAL('Part-Boundary'//TRIM(hilf)//'-Species'//TRIM(hilf2)//'-Coverage', '0.')
+      PartBound%MaxCoverage(iPartBound, iSpec) = GETREAL('Part-Boundary'//TRIM(hilf)//'-Species'//TRIM(hilf2)//'-MaxCoverage', '1.')
+      IF (PartBound%CoverageIni(iPartBound, iSpec).GT.PartBound%MaxCoverage(iPartBound, iSpec)) THEN
+        CALL abort(__STAMP__,'ERROR: Surface coverage can not be larger than the maximum value', iPartBound)
+      END IF
+    END DO
+    PartBound%TotalCoverage(iPartBound) = SUM(PartBound%CoverageIni(iPartBound,:))
+    PartBound%MaxTotalCoverage(iPartBound) = GETREAL('Part-Boundary'//TRIM(hilf)//'-MaxTotalCoverage', '1.')
+    ! Check if the maximum of the coverage is reached
+    IF (PartBound%TotalCoverage(iPartBound).GT.PartBound%MaxTotalCoverage(iPartBound)) THEN
+      CALL abort(&
+    __STAMP__&
+    ,'ERROR: Maximum surface coverage reached.', iPartBound)
     END IF
 
     ! Species Swap
@@ -520,7 +568,7 @@ DO iPartBound=1,nPartBound
       PartBound%ThicknessVDL(iPartBound) = GETREAL('Part-Boundary'//TRIM(hilf)//'-ThicknessVDL')
       DoVirtualDielectricLayer           = .TRUE.
       PartBound%Reactive(iPartBound)     = .TRUE. ! VDL requires reactive BC for analysis
-      PartBound%SurfaceModel(iPartBound) = 2 ! VDL
+      PartBound%SurfaceModel(iPartBound) = 99 ! VDL
       DoDielectricSurfaceCharge          = .TRUE.
       DoHaloDepo                         = .TRUE.
     ELSEIF(PartBound%PermittivityVDL(iPartBound).LT.0.0)THEN
@@ -2231,6 +2279,12 @@ SDEALLOCATE(PartBound%SpeciesSwaps)
 SDEALLOCATE(PartBound%MapToPartBC)
 SDEALLOCATE(PartBound%MapToFieldBC)
 SDEALLOCATE(PartBound%SurfaceModel)
+SDEALLOCATE(PartBound%CoverageIni)
+SDEALLOCATE(PartBound%MaxCoverage)
+SDEALLOCATE(PartBound%TotalCoverage)
+SDEALLOCATE(PartBound%MaxTotalCoverage)
+SDEALLOCATE(PartBound%LatticeVec)
+SDEALLOCATE(PartBound%MolPerUnitCell)
 SDEALLOCATE(PartBound%Reactive)
 SDEALLOCATE(PartBound%Dielectric)
 SDEALLOCATE(PartBound%BoundaryParticleOutputHDF5)
