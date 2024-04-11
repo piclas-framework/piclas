@@ -501,10 +501,10 @@ IF (SamplePressTensHeatflux) THEN
     END IF
   END DO
   DO iElem = 1, nElems
-    DSMC_SolutionPressTens(1:3,iElem) = presstens(1:3,iElem) &
+    DSMC_SolutionPressTens(1:3,iElem) = DSMC_SolutionPressTens(1:3,iElem) + presstens(1:3,iElem) &
       * totalWeight(iElem) / (TotalMass(iElem)*(totalWeight(iElem) - totalWeight2(iElem)/totalWeight(iElem)))
-    DSMC_SolutionPressTens(4:6,iElem) = heatflux(1:3,iElem) * totalWeight(iElem)**3 / (TotalMass(iElem) &
-      * (totalWeight(iElem)**3 - 3.*totalWeight(iElem) * totalWeight2(iElem) + 2.*totalWeight3(iElem)))
+    DSMC_SolutionPressTens(4:6,iElem) = DSMC_SolutionPressTens(4:6,iElem) + heatflux(1:3,iElem) * totalWeight(iElem)**3 &
+      / (TotalMass(iElem) * (totalWeight(iElem)**3 - 3.*totalWeight(iElem) * totalWeight2(iElem) + 2.*totalWeight3(iElem)))
   END DO
 END IF
 
