@@ -217,9 +217,7 @@ DO i = PDM%ParticleVecLengthOld+1,PDM%maxParticleNumber
   counter = counter + 1
   PDM%nextFreePosition(counter) = i
 #ifdef CODE_ANALYZE
-  IF(PDM%ParticleInside(i)) CALL ABORT(&
-  __STAMP__&
-  ,'Particle Inside is true but outside of PDM%ParticleVecLength',IntInfoOpt=i)
+  IF(PDM%ParticleInside(i)) CALL ABORT(__STAMP__,'Particle Inside is true but outside of PDM%ParticleVecLength',IntInfoOpt=i)
 #endif
 END DO
 
@@ -232,6 +230,10 @@ PDM%nextFreePosition(counter+1:PDM%maxParticleNumber) = 0
 CALL LBPauseTime(LB_UNFP,tLBStart)
 #endif /*USE_LOADBALANCE*/
 
+#if !(USE_MPI)
+! Suppress compiler warning
+IF(PRESENT(WithOutMPIParts)) RETURN
+#endif /*!(USE_MPI)*/
 END SUBROUTINE UpdateNextFreePosition
 
 
