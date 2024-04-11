@@ -52,8 +52,9 @@ USE MOD_Dielectric_vars          ,ONLY: DoDielectric,isDielectricElem
 USE MOD_Particle_Mesh_Vars
 USE MOD_Particle_Boundary_Vars   ,ONLY: PartBound,DoBoundaryParticleOutputHDF5
 USE MOD_Particle_Surfaces_vars   ,ONLY: SideNormVec,SideType
-USE MOD_SurfaceModel             ,ONLY: SurfaceModel,PerfectReflection
 USE MOD_Particle_Vars            ,ONLY: LastPartPos
+USE MOD_SurfaceModel             ,ONLY: SurfaceModelling
+USE MOD_SurfaceModel_Tools       ,ONLY: PerfectReflection
 USE MOD_Particle_Boundary_Tools  ,ONLY: StoreBoundaryParticleProperties
 #ifdef CODE_ANALYZE
 USE MOD_Globals                  ,ONLY: myRank,UNIT_stdout
@@ -147,7 +148,7 @@ ASSOCIATE( iPartBound => PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID)
   CASE(2) ! PartBound%ReflectiveBC
   !-----------------------------------------------------------------------------------------------------------------------------------
   ! Decide which interaction (specular/diffuse reflection, species swap, SEE)
-    CALL SurfaceModel(iPart,SideID,ElemID,n_loc)
+    CALL SurfaceModelling(iPart,SideID,ElemID,n_loc)
   !-----------------------------------------------------------------------------------------------------------------------------------
   CASE(3) ! PartBound%PeriodicBC
   !-----------------------------------------------------------------------------------------------------------------------------------
@@ -541,7 +542,7 @@ IF(DoCreateParticles) THEN
   ELSE IF(DeleteOrCloneProb.GT.1.0) THEN
     NewPartNumber = INT(DeleteOrCloneProb) - 1
     DeleteOrCloneProb = DeleteOrCloneProb - INT(DeleteOrCloneProb)
-    CALL RANDOM_NUMBER(RanNum) 
+    CALL RANDOM_NUMBER(RanNum)
     IF(RanNum.LE.DeleteOrCloneProb) THEN
       NewPartNumber = NewPartNumber + 1
     END IF
@@ -564,9 +565,9 @@ IF(DoCreateParticles) THEN
       ! For creating inter particles:
       ! - LastPartPos(1:3,NewPartID) must be redefined as long as LastPartPos is set to PartState in CreateParticle routine
       ! - ParticleInside for InterParticles must be .FALSE. in order to avoid error looping over the original PDM%ParticleVecLength
-      !   in ParticleTriaTracking() routine. The inside flag is set to .TRUE. 
+      !   in ParticleTriaTracking() routine. The inside flag is set to .TRUE.
       !   when we loop over all inter particle in SingleParticleTriaTracking routine
-      IF (usevMPF) THEN   
+      IF (usevMPF) THEN
         CALL CreateParticle( PartSpecies(PartID), PartState(1:3,PartID), ElemID, PartState(4:6,PartID) &
                            , RotEnergy=RotEnergy,VibEnergy=VibEnergy,ElecEnergy=ElecEnergy &
                            , NewPartID=NewPartID, NewMPF=PartMPF(PartID) )

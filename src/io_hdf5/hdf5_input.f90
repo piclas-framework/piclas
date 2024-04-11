@@ -62,6 +62,10 @@ INTERFACE ReadAttribute
   MODULE PROCEDURE ReadAttribute
 END INTERFACE
 
+INTERFACE AttributeExists
+  MODULE PROCEDURE AttributeExists
+END INTERFACE
+
 INTERFACE GetVarnames
   MODULE PROCEDURE GetVarnames
 END INTERFACE
@@ -749,7 +753,7 @@ CALL H5AOPEN_F(Loc_ID, TRIM(AttribName), Attr_ID, iError)
 
 IF(iError.NE.0) THEN
   AttrExists = .FALSE.
-ELSE 
+ELSE
   AttrExists = .TRUE.
 END IF
 
