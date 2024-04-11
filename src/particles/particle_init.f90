@@ -401,7 +401,7 @@ IF(useDSMC .OR. WriteMacroVolumeValues) THEN
   DSMC_Solution = 0.0
   SamplePressTensHeatflux = GETLOGICAL('Particles-SamplePressTensHeatflux')
   IF (SamplePressTensHeatflux) THEN
-    ALLOCATE(DSMC_SolutionPressTens(1:12,1:nElems,1:nSpecies))
+    ALLOCATE(DSMC_SolutionPressTens(1:6,1:nElems))
     DSMC_SolutionPressTens = 0.0
   END IF
 END IF
