@@ -358,8 +358,25 @@ REAL    :: HelperU(1:6,0:PP_N,0:PP_N,0:PP_N)
 REAL    :: PartDistDepo(0:PP_N,0:PP_N,0:PP_N), DistSum
 INTEGER :: k,l,m,ind1,ind2
 REAL    :: norm
+#if (PP_nVar==8)
+INTEGER,PARAMETER :: HelperUIndex = 6
+#else
+#ifdef PP_POIS
+INTEGER,PARAMETER :: HelperUIndex = 3
+#elif USE_HDG
+#if PP_nVar==1
+INTEGER,PARAMETER :: HelperUIndex = 3
+#else
+INTEGER,PARAMETER :: HelperUIndex = 6
+#endif
+#else
+INTEGER,PARAMETER :: HelperUIndex = 3
+#endif
+#endif
 !===================================================================================================================================
-GetEMFieldDW(1:6)=0.
+GetEMFieldDW = 0.0
+PartDistDepo = 0.0
+HelperU = 0.0
 !--- evaluate at Particle position
 #if (PP_nVar==8)
 #ifdef PP_POIS
@@ -405,9 +422,8 @@ DO k = 0, PP_N; DO l=0, PP_N; DO m=0, PP_N
   DistSum = DistSum + PartDistDepo(k,l,m) 
 END DO; END DO; END DO
 
-GetEMFieldDW = 0.0
 DO k = 0, PP_N; DO l=0, PP_N; DO m=0, PP_N
-  GetEMFieldDW(1:6) = GetEMFieldDW(1:6) + PartDistDepo(k,l,m)/DistSum*HelperU(1:6,k,l,m)
+  GetEMFieldDW(1:HelperUIndex) = GetEMFieldDW(1:HelperUIndex) + PartDistDepo(k,l,m)/DistSum*HelperU(1:HelperUIndex,k,l,m)
 END DO; END DO; END DO
 
 ! Check whether magnetic background field is activated (superB)
