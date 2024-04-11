@@ -355,11 +355,11 @@ INTEGER,INTENT(IN),OPTIONAL :: PartMissingType_opt ! 0: lost, 1: missing & found
 INTEGER                     :: dims(2)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-REAL                 :: MPF,PartSpec
+REAL                 :: MPF
 ! Temporary arrays
 REAL, ALLOCATABLE    :: PartStateLost_tmp(:,:)   ! (1:11,1:NParts) 1st index: x,y,z,vx,vy,vz,SpecID,MPF,time,ElemID,iPart
 !                                                !                 2nd index: 1 to number of lost particles
-INTEGER              :: ALLOCSTAT
+INTEGER              :: ALLOCSTAT,PartSpec
 LOGICAL              :: UsePartState_loc
 !===================================================================================================================================
 UsePartState_loc = .FALSE.
