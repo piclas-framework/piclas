@@ -1079,7 +1079,7 @@ SUBROUTINE FinalizeMesh()
 USE MOD_Globals
 USE MOD_Mesh_Vars
 #if defined(PARTICLES) && USE_LOADBALANCE
-USE MOD_LoadBalance_Vars     ,ONLY: PerformLoadBalance
+USE MOD_LoadBalance_Vars     ,ONLY: PerformLoadBalance,UseH5IOLoadBalance
 #endif /*defined(PARTICLES) && USE_LOADBALANCE*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -1135,7 +1135,7 @@ SDEALLOCATE(SideToNonUniqueGlobalSide)
 
 ! Arrays are being shifted along load balancing, so they need to be kept allocated
 #if defined(PARTICLES) && USE_LOADBALANCE
-IF (PerformLoadBalance) RETURN
+IF (PerformLoadBalance .AND. .NOT.UseH5IOLoadBalance) RETURN
 #endif /*defined(PARTICLES) && USE_LOADBALANCE*/
 
 ! geometry information and VDMS
