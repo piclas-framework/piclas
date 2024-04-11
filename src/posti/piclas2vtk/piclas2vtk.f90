@@ -494,7 +494,7 @@ DO iVar=2,nVar
   IF (TRIM(tmp(:iLen-2)) .EQ. TRIM(tmp2(:iLen-2))) THEN
     ! Although the translational temperature and the pressure tensor are given in X/Y/Z or XY/XZ/YZ they are not vectors
     ! (VisIt/Paraview would produce a magnitude variable)
-    IF(INDEX(tmp(:iLen-1),'TempTrans').EQ.0.AND.INDEX(tmp(:iLen-2),'PressTens').EQ.0) THEN
+    IF(INDEX(tmp(:iLen-1),'TempTrans').EQ.0 .AND. INDEX(tmp(:iLen-2),'PressTens').EQ.0) THEN
       ! If it is the first occurrence, start counting
       IF (VarNameCombine(iVar-1) .EQ. 0) VarNameCombine(iVar-1) = 1
       VarNameCombine(iVar) = VarNameCombine(iVar-1) + 1
