@@ -375,6 +375,7 @@ IF(PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance))THEN
   END DO ! iElem = 1, PP_nElems
 
   ! Re-allocate the PML solution arrays
+  ! TODO: why is U2 read from .h5 below  but not exchanged here during load balance?
   IF(DoPML)THEN
     DO iPMLElem=1,nPMLElems
       iElem = PMLToElem(iPMLElem)
