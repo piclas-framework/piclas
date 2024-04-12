@@ -547,6 +547,7 @@ CASE(1)
     locSideID = SideToElem(S2E_NB_LOC_SIDE_ID,SideID)
     IF(locSideID.NE.-1)THEN
       ElemID    = SideToElem(S2E_NB_ELEM_ID,SideID)
+      IF(NSideMin.NE.NMax) CALL abort(__STAMP__,'not implemented for different polynomial degrees')
       HDG_Surf_N(SideID)%Precond(:,:) = HDG_Surf_N(SideID)%Precond(:,:)+HDG_Vol_N(ElemID)%Smat(:,:,locSideID,locSideID)
     END IF !locSideID.NE.-1
   END DO ! SideID=1,nSides

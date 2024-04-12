@@ -49,6 +49,7 @@ PUBLIC::DefineParametersMesh
 
 INTEGER,PARAMETER :: PRM_P_ADAPTION_ZERO = 0  ! deactivate
 INTEGER,PARAMETER :: PRM_P_ADAPTION_RDN  = 1  ! random
+INTEGER,PARAMETER :: PRM_P_ADAPTION_NPB  = 2  ! Elements with non-periodic boundary sides get NMax
 !===================================================================================================================================
 
 CONTAINS
@@ -82,10 +83,12 @@ CALL prms%CreateLogicalOption(      'writePartitionInfo'  , "Write information a
 CALL prms%CreateIntFromStringOption('pAdaptionType', "Type/Method for initial polynomial degree distribution among the elements: \n"//&
                                     '  none ('//TRIM(int2strf(PRM_P_ADAPTION_ZERO))//'): default for setting all elements to N\n'//&
                                     'random ('//TRIM(int2strf(PRM_P_ADAPTION_RDN))//'): each element receives a random polynomial degree between NMin and NMax\n'&
+                                    'non-periodic-BC ('//TRIM(int2strf(PRM_P_ADAPTION_NPB))//'): elements with non-periodic boundary conditions receive NMax\n'&
                                    ,'none')
 
-CALL addStrListEntry('pAdaptionType', 'none'  , PRM_P_ADAPTION_ZERO)
-CALL addStrListEntry('pAdaptionType', 'random', PRM_P_ADAPTION_RDN)
+CALL addStrListEntry('pAdaptionType' , 'none'            , PRM_P_ADAPTION_ZERO)
+CALL addStrListEntry('pAdaptionType' , 'random'          , PRM_P_ADAPTION_RDN)
+CALL addStrListEntry('pAdaptionType' , 'non-periodic-BC' , PRM_P_ADAPTION_NPB)
 
 END SUBROUTINE DefineParametersMesh
 
@@ -118,10 +121,10 @@ USE MOD_ReadInTools            ,ONLY: PrintOption
 USE MOD_ReadInTools            ,ONLY: GETLOGICAL,GETSTR,GETREAL,GETINT,GETREALARRAY
 #if USE_MPI
 USE MOD_Prepare_Mesh           ,ONLY: exchangeFlip
-USE MOD_DG_Vars                ,ONLY: N_DG_Mapping_Shared_Win
-USE MOD_MPI_Shared_Vars        ,ONLY: MPI_COMM_LEADERS_SHARED, MPI_COMM_SHARED, myComputeNodeRank, myleadergrouprank, nComputeNodeProcessors
-USE MOD_MPI_Shared_Vars        ,ONLY: nLeaderGroupProcs
-USE MOD_Particle_Mesh_Vars     ,ONLY: offsetComputeNodeElem
+!USE MOD_DG_Vars                ,ONLY: N_DG_Mapping_Shared_Win
+!USE MOD_MPI_Shared_Vars        ,ONLY: MPI_COMM_LEADERS_SHARED, MPI_COMM_SHARED, myComputeNodeRank, myleadergrouprank, nComputeNodeProcessors
+!USE MOD_MPI_Shared_Vars        ,ONLY: nLeaderGroupProcs
+!USE MOD_Particle_Mesh_Vars     ,ONLY: offsetComputeNodeElem
 USE MOD_MPI_Shared
 #endif
 #if USE_LOADBALANCE
@@ -267,12 +270,6 @@ IF(GETLOGICAL('meshdeform','.FALSE.'))THEN
   END DO
 END IF
 
-CALL InitpAdaption()
-
-! Build Elem_xGP
-ALLOCATE(N_VolMesh(1:nElems))
-CALL BuildElem_xGP(NodeCoords) ! Requires N_DG_Mapping()
-
 ! Return if no connectivity and metrics are required (e.g. for visualization mode)
 IF (ABS(meshMode).GT.0) THEN
   LBWRITE(UNIT_stdOut,'(A)') "NOW CALLING setLocalSideIDs..."
@@ -320,9 +317,9 @@ IF (ABS(meshMode).GT.0) THEN
   LBWRITE(UNIT_stdOut,'(A)') "NOW CALLING fillMeshInfo..."
 #if USE_HDG && USE_LOADBALANCE
   ! Call with meshMode to check whether, e.g., HDG load balance info need to be determined or not
-  CALL fillMeshInfo(meshMode)
+  CALL fillMeshInfo(meshMode) ! Fills SideToElem and ElemToSide
 #else
-  CALL fillMeshInfo()
+  CALL fillMeshInfo() ! Fills SideToElem and ElemToSide
 #endif /*USE_HDG && USE_LOADBALANCE*/
 
   ! build necessary mappings
@@ -333,7 +330,13 @@ IF (ABS(meshMode).GT.0) THEN
 
 END IF ! meshMode.GT.0
 
-CALL DG_ProlongDGElemsToFace() ! requires SideToElem()
+CALL InitpAdaption() ! Calls Build_N_DG_Mapping() which builds N_DG_Mapping()
+
+! Build Elem_xGP
+ALLOCATE(N_VolMesh(1:nElems))
+CALL BuildElem_xGP(NodeCoords) ! Builds N_VolMesh(iElem)%Elem_xGP, requires N_DG_Mapping() for Nloc
+
+CALL DG_ProlongDGElemsToFace() ! Builds DG_Elems_master and ,DG_Elems_slave, requires SideToElem()
 
 IF (ABS(meshMode).GT.1) THEN
 
@@ -483,9 +486,10 @@ SUBROUTINE InitpAdaption()
 ! MODULES
 USE MOD_Globals
 USE MOD_PreProc
-USE MOD_DG_Vars            ,ONLY: DG_Elems_master,DG_Elems_slave,N_DG,pAdaptionType
+!USE MOD_DG_Vars            ,ONLY: DG_Elems_master,DG_Elems_slave
+USE MOD_DG_Vars            ,ONLY: N_DG,pAdaptionType
 USE MOD_IO_HDF5            ,ONLY: AddToElemData,ElementOut
-USE MOD_Mesh_Vars          ,ONLY: nSides,nElems,SideToElem
+USE MOD_Mesh_Vars          ,ONLY: nSides,nElems,SideToElem,nBCSides,Boundarytype,BC
 USE MOD_ReadInTools        ,ONLY: GETINTFROMSTR
 USE MOD_Interpolation_Vars ,ONLY: NMax,NMin
 !USE MOD_DG        ,ONLY: DG_ProlongDGElemsToFace
@@ -494,7 +498,7 @@ IMPLICIT NONE
 ! INPUT / OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER :: iElem,iSide
+INTEGER :: iElem,BCSideID,BCType
 REAL    :: RandVal
 !===================================================================================================================================
 ! Read p-adaption specific input data
@@ -504,19 +508,29 @@ pAdaptionType = GETINTFROMSTR('pAdaptionType')
 ! Allocate arrays and initialize local polynomial degree
 ! This happens here because nElems is determined here and N_DG is required below for the mesh initialisation
 ALLOCATE(N_DG(1:nElems))
-N_DG = PP_N
+N_DG = -1
 !CALL AddToElemData(ElementOut,'Nloc',IntArray=N_DG_Mapping(2,1+offSetElem:nElems+offSetElem)) ! Why does this not work?
 ! Add array containing the local polynomial degree to the hdf5 output
 CALL AddToElemData(ElementOut,'Nloc',IntArray=N_DG)
 
 SELECT CASE(pAdaptionType)
 CASE(PRM_P_ADAPTION_ZERO)
-  ! By default, the initial degree is set to PP_N
-CASE(PRM_P_ADAPTION_RDN)
+  N_DG = PP_N ! By default, the initial degree is set to PP_N
+CASE(PRM_P_ADAPTION_RDN) ! Random between NMin and NMax
   DO iElem=1,nElems
     CALL RANDOM_NUMBER(RandVal)
     N_DG(iElem) = NMin + INT(RandVal*(NMax-NMin+1))
   END DO
+CASE(PRM_P_ADAPTION_NPB) ! Non-periodic BCs are set to NMax
+  N_DG = Nmin ! By default, the initial degree is set to Nmin
+  !N_DG(2) = Nmin+1
+  DO BCSideID=1,nBCSides
+    BCType=Boundarytype(BC(BCSideID),BC_TYPE)
+    IF(BCType.NE.1)THEN ! not periodic
+      iElem = SideToElem(S2E_ELEM_ID,BCSideID)
+      N_DG(iElem) = NMax
+    END IF ! BCType.NE.1
+  END DO ! BCSideID=1,nBCSides
 CASE DEFAULT
   CALL CollectiveStop(__STAMP__,'Unknown pAdaptionType!' ,IntInfo=pAdaptionType)
 END SELECT
@@ -551,10 +565,10 @@ END DO
 CALL Build_N_DG_Mapping()
 
 ! Side containers
-ALLOCATE(DG_Elems_master(1:nSides))
-ALLOCATE(DG_Elems_slave (1:nSides))
+!ALLOCATE(DG_Elems_master(1:nSides))
+!ALLOCATE(DG_Elems_slave (1:nSides))
 
-! Cannot set this here, because SideToElem() is still not set
+! Cannot set this here, because SideToElem() is still not set if "CALL fillMeshInfo()" has not yet been called
 !! Set polynomial degree at the element sides
 !IF(pAdaptionType.EQ.0)THEN
 !  DG_Elems_master = PP_N
@@ -699,7 +713,7 @@ SUBROUTINE DG_ProlongDGElemsToFace()
 ! MODULES
 USE MOD_PreProc
 USE MOD_GLobals
-USE MOD_DG_Vars   ,ONLY: N_DG_Mapping,DG_Elems_master,DG_Elems_slave,pAdaptionType,N_DG_Mapping
+USE MOD_DG_Vars   ,ONLY: N_DG_Mapping,DG_Elems_master,DG_Elems_slave,N_DG_Mapping!,pAdaptionType
 USE MOD_Mesh_Vars ,ONLY: SideToElem,nSides,nBCSides, offSetElem
 
 USE MOD_Mesh_Vars,   ONLY: firstMortarInnerSide,lastMortarInnerSide,MortarType,MortarInfo
@@ -716,12 +730,15 @@ IMPLICIT NONE
 ! INPUT / OUTPUT VARIABLES
 !----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                      :: iSide,ElemID,nbElemID,nMortars, locSide,SideID, iMortar,flip, iElem
+INTEGER                      :: iSide,ElemID,nbElemID,nMortars, locSide,SideID, iMortar,flip!, iElem
 #if USE_MPI
 INTEGER                      :: iNbProc,Nloc
 INTEGER, DIMENSION(nNbProcs) :: RecRequest_U,SendRequest_U,RecRequest_U2,SendRequest_U2
 #endif /*USE_MPI*/
 !==================================================================================================================================
+! Side containers
+ALLOCATE(DG_Elems_master(1:nSides))
+ALLOCATE(DG_Elems_slave (1:nSides))
 ! Initialize with element-local N
 !IF(pAdaptionType.EQ.0)THEN
   DG_Elems_master = PP_N
