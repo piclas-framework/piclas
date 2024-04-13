@@ -69,9 +69,7 @@ USE MOD_Particle_BGM               ,ONLY: DefineparametersParticleBGM
 USE MOD_Particle_Mesh              ,ONLY: DefineparametersParticleMesh
 USE MOD_Particle_Analyze           ,ONLY: DefineParametersParticleAnalyze
 USE MOD_TTMInit                    ,ONLY: DefineParametersTTM
-#if !((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))
 USE MOD_PICInit                    ,ONLY: DefineParametersPIC
-#endif /*!((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))*/
 USE MOD_DSMC_Init                  ,ONLY: DefineParametersDSMC
 USE MOD_DSMC_BGGas                 ,ONLY: DefineParametersBGG
 USE MOD_MCC_Init                   ,ONLY: DefineParametersMCC
@@ -151,9 +149,7 @@ CALL DefineParametersParticleMesh()
 CALL DefineParametersParticleBGM()
 CALL DefineParametersParticleAnalyze()
 CALL DefineParametersTTM()
-#if !((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))
 CALL DefineParametersPIC()
-#endif /*!((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))*/
 CALL DefineParametersDSMC()
 CALL DefineParametersBGG()
 CALL DefineParametersMCC()

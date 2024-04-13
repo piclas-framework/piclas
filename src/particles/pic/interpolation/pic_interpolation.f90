@@ -13,7 +13,6 @@
 #include "piclas.h"
 
 MODULE  MOD_PICInterpolation
-#if !((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))
 !===================================================================================================================================
 !
 !===================================================================================================================================
@@ -43,7 +42,6 @@ SUBROUTINE DefineParametersPICInterpolation()
 ! MODULES
 USE MOD_Globals
 USE MOD_ReadInTools    ,ONLY: prms
-USE MOD_PICDepo_Method ,ONLY: DefineParametersDepositionMethod
 IMPLICIT NONE
 !==================================================================================================================================
 CALL prms%SetSection("PIC Interpolation")
@@ -140,6 +138,7 @@ IF(.NOT.DoInterpolation) THEN
   RETURN
 END IF
 
+#if !((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))
 InterpolationType = GETSTR('PIC-Interpolation-Type','particle_position')
 
 InterpolationElemLoop = GETLOGICAL('PIC-InterpolationElemLoop')
@@ -189,6 +188,7 @@ CASE('particle_position')
 CASE DEFAULT
   CALL abort(__STAMP__ ,'Unknown InterpolationType ['//TRIM(ADJUSTL(InterpolationType))//'] in pic_interpolation.f90')
 END SELECT
+#endif /*!((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))*/
 
 #ifdef CODE_ANALYZE
 ! Initialize analytic solutions for particle time integration (checking the order of convergence for time discretizations)
@@ -610,5 +610,4 @@ SDEALLOCATE(VariableExternalField)
 END SUBROUTINE FinalizePICInterpolation
 
 
-#endif /*!((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))*/
 END MODULE MOD_PICInterpolation

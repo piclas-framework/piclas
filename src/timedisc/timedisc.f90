@@ -46,6 +46,9 @@ USE MOD_Particle_Vars          ,ONLY: WriteMacroVolumeValues, WriteMacroSurfaceV
 #if !((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))
 USE MOD_TimeAverage_vars       ,ONLY: doCalcTimeAverage
 USE MOD_TimeAverage            ,ONLY: CalcTimeAverage
+#if defined(PARTICLES) && defined(CODE_ANALYZE)
+USE MOD_PICInterpolation       ,ONLY: InitAnalyticalParticleState
+#endif /*defined(PARTICLES) && defined(CODE_ANALYZE)*/
 #endif /*!((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))*/
 USE MOD_Analyze                ,ONLY: PerformAnalyze
 USE MOD_Analyze_Vars           ,ONLY: Analyze_dt,iAnalyze,nSkipAnalyze,SkipAnalyzeWindow,SkipAnalyzeSwitchTime,nSkipAnalyzeSwitch
@@ -111,9 +114,6 @@ USE MOD_SurfaceModel_Vars      ,ONLY: nPorousBC
 #if USE_MPI
 USE MOD_Particle_MPI           ,ONLY: IRecvNbOfParticles, MPIParticleSend,MPIParticleRecv,SendNbOfparticles
 #endif /*USE_MPI*/
-#ifdef CODE_ANALYZE
-USE MOD_PICInterpolation       ,ONLY: InitAnalyticalParticleState
-#endif /*CODE_ANALYZ*/
 #endif /*PARTICLES*/
 USE MOD_Output                 ,ONLY: PrintStatusLine
 USE MOD_TimeStep
@@ -215,10 +215,12 @@ IF(.NOT.DoRestart) CALL RayTracing()
 
 CALL PrintStatusLine(time,dt,tStart,tEnd,1)
 
+#if !((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))
 #if defined(PARTICLES) && defined(CODE_ANALYZE)
 ! Set specific particle position and velocity (calculated from an analytical expression)
 CALL InitAnalyticalParticleState() ! Requires dt
 #endif /*defined(PARTICLES) && defined(CODE_ANALYZE)*/
+#endif /*!((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))*/
 
 #if defined(PARTICLES)
 IF(CalcPointsPerDebyeLength.OR.CalcPICTimeStep)THEN

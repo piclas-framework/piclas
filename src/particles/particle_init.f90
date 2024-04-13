@@ -485,9 +485,7 @@ USE MOD_Particle_Boundary_Init ,ONLY: InitializeVariablesPartBoundary
 USE MOD_SurfaceModel_Chemistry ,ONLY: InitializeVariablesSurfaceChemistry
 USE MOD_Particle_Tracking_Vars ,ONLY: TrackingMethod
 USE MOD_Particle_Surfaces_Vars ,ONLY: TriaSurfaceFlux
-#if !((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))
 USE MOD_PICInit                ,ONLY: InitPIC
-#endif /*!((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))*/
 USE MOD_PICDepo_Vars           ,ONLY: DoDeposition
 USE MOD_PICInterpolation_Vars  ,ONLY: DoInterpolation
 USE MOD_SurfaceModel_Vars      ,ONLY: SurfChem
@@ -583,9 +581,7 @@ CALL InitParticleMesh()
 !-- Build MPI communication
 CALL IdentifyPartExchangeProcs()
 #endif
-#if !((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))
 CALL InitPIC()
-#endif /*!((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))*/
 
 ! === 2D/1D/Axisymmetric initialization
 ! Calculate the volumes for 2D simulation (requires the GEO%zminglob/GEO%zmaxglob from InitFIBGM)

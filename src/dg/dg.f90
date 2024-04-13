@@ -122,7 +122,7 @@ IF (.NOT.(PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance))) THEN
     Nloc = N_DG_Mapping(2,iElem+offSetElem)
     ALLOCATE(U_N(iElem)%U(PP_nVar,0:Nloc,0:Nloc,0:Nloc))
     U_N(iElem)%U = 0.
-#if !(USE_HDG)
+#if (PP_TimeDiscMethod==1)||(PP_TimeDiscMethod==2)|| (PP_TimeDiscMethod==6)
     ALLOCATE(U_N(iElem)%Ut(PP_nVar,0:Nloc,0:Nloc,0:Nloc))
     U_N(iElem)%Ut = 0.
     IF(DoPML)THEN
@@ -133,7 +133,7 @@ IF (.NOT.(PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance))) THEN
         U_N(iElem)%U2t = 0.
       END IF ! isPMLElem(iElem)
     END IF ! DoPML
-#endif /*!(USE_HDG)*/
+#endif /*#if (PP_TimeDiscMethod==1)||(PP_TimeDiscMethod==2)|| (PP_TimeDiscMethod==6)*/
   END DO ! iElem = 1, nElems
 #if USE_LOADBALANCE && !(USE_HDG)
 END IF
@@ -699,11 +699,9 @@ USE MOD_DG_Vars
 #if USE_LOADBALANCE && ! (USE_HDG)
 USE MOD_LoadBalance_Vars ,ONLY: PerformLoadBalance,UseH5IOLoadBalance
 #endif /*USE_LOADBALANCE && ! (USE_HDG)*/
-#if !((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))
-#if !(USE_HDG)
+#if (PP_TimeDiscMethod==1)||(PP_TimeDiscMethod==2)|| (PP_TimeDiscMethod==6)
 USE MOD_TimeDisc_Vars    ,ONLY: Ut_N
-#endif /*!(USE_HDG)*/
-#endif /*!((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))*/
+#endif
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -729,11 +727,9 @@ IF(.NOT.(PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance)))THEN
 END IF
 #endif /*USE_LOADBALANCE && !(USE_HDG)*/
 
-#if !((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))
-#if !(USE_HDG)
+#if (PP_TimeDiscMethod==1)||(PP_TimeDiscMethod==2)|| (PP_TimeDiscMethod==6)
 SDEALLOCATE(Ut_N)
-#endif /*!(USE_HDG)*/
-#endif /*!((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))*/
+#endif
 
 DGInitIsDone = .FALSE.
 END SUBROUTINE FinalizeDG
