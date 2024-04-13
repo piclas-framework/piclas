@@ -447,20 +447,28 @@ ASSOCIATE (&
 
 #if (PP_nVar==1)
 #ifdef PARTICLES
-  ! Adjust electric field for Landmark testcase
+  ! Adjust electric field for Landmark test case
   IF(useAlgebraicExternalField.AND.AlgebraicExternalField.EQ.1)THEN
     DO iElem=1,INT(PP_nElems)
       DO k=0,INT(PP_N); DO j=0,INT(PP_N); DO i=0,INT(PP_N)
         ASSOCIATE( Ue => AverageElectricPotential ,&
               xe => 2.4e-2                        ,&
               x  => N_VolMesh(iElem)%Elem_xGP(1,i,j,k))
+          ! Correction for Phi
           Utemp(1,i,j,k,iElem) = U_N(iElem)%U(1,i,j,k) - x * Ue / xe
+          ! Correction for Ex
           Utemp(2,i,j,k,iElem) = U_N(iElem)%E(1,i,j,k) + Ue / xe
         END ASSOCIATE
       END DO; END DO; END DO !i,j,k
     END DO !iElem
-    !Utemp(3:4,:,:,:,:) = E(2:3,:,:,:,:)
-    CALL abort(__STAMP__,'not implemented')
+    ! Ey and Ez are simply copied
+    DO iElem=1,INT(PP_nElems)
+      DO k=0,INT(PP_N); DO j=0,INT(PP_N); DO i=0,INT(PP_N)
+        !Utemp(3:4,:,:,:,:) = E(2:3,:,:,:,:)
+        Utemp(3,i,j,k,iElem) = U_N(iElem)%E(2,i,j,k)
+        Utemp(4,i,j,k,iElem) = U_N(iElem)%E(3,i,j,k)
+      END DO; END DO; END DO !i,j,k
+    END DO !iElem
   ELSE
 #endif /*PARTICLES*/
     DO iElem = 1, INT(PP_nElems)
