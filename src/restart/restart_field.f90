@@ -124,7 +124,8 @@ USE MOD_Mesh_Vars          ,ONLY: nElems,OffsetElem
 ! INPUT/OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER(KIND=IK)                   :: Nres,nVar
+INTEGER                            :: Nres
+INTEGER(KIND=IK)                   :: Nres8,nVar
 INTEGER(KIND=IK)                   :: OffsetElemTmp,PP_nElemsTmp
 #if USE_HDG
 LOGICAL                            :: DG_SolutionLambdaExists
@@ -402,7 +403,8 @@ ELSE ! normal restart
   IF(N_Restart.LT.1) CALL abort(__STAMP__,'N_Restart<1 is not allowed. Check correct initailisation of N_Restart!')
 
   ! Temp. vars for integer KIND=8 possibility
-  Nres          = INT(N_Restart,IK)
+  Nres8         = INT(N_Restart,IK)
+  Nres          = N_Restart
   OffsetElemTmp = INT(OffsetElem,IK)
   nVar          = INT(PP_nVar,IK)
   PP_nElemsTmp  = INT(PP_nElems,IK)
@@ -433,11 +435,11 @@ ELSE ! normal restart
 
 #ifdef PP_POIS
 #if (PP_nVar==8)
-    CALL ReadArray('DG_SolutionE',5,(/PP_nVar,Nres+1_IK,Nres+1_IK,Nres+1_IK,PP_nElemsTmp/),OffsetElemTmp,5,RealArray=U)
-    CALL ReadArray('DG_SolutionPhi',5,(/4_IK,Nres+1_IK,Nres+1_IK,Nres+1_IK,PP_nElemsTmp/),OffsetElemTmp,5,RealArray=Phi)
+    CALL ReadArray('DG_SolutionE',5,(/PP_nVar,Nres8+1_IK,Nres8+1_IK,Nres8+1_IK,PP_nElemsTmp/),OffsetElemTmp,5,RealArray=U)
+    CALL ReadArray('DG_SolutionPhi',5,(/4_IK,Nres8+1_IK,Nres8+1_IK,Nres8+1_IK,PP_nElemsTmp/),OffsetElemTmp,5,RealArray=Phi)
 #else
-    CALL ReadArray('DG_SolutionE',5,(/PP_nVar,Nres+1_IK,Nres+1_IK,Nres+1_IK,PP_nElemsTmp/),OffsetElemTmp,5,RealArray=U)
-    CALL ReadArray('DG_SolutionPhi',5,(/PP_nVar,Nres+1_IK,Nres+1_IK,Nres+1_IK,PP_nElemsTmp/),OffsetElemTmp,5,RealArray=Phi)
+    CALL ReadArray('DG_SolutionE',5,(/PP_nVar,Nres8+1_IK,Nres8+1_IK,Nres8+1_IK,PP_nElemsTmp/),OffsetElemTmp,5,RealArray=U)
+    CALL ReadArray('DG_SolutionPhi',5,(/PP_nVar,Nres8+1_IK,Nres8+1_IK,Nres8+1_IK,PP_nElemsTmp/),OffsetElemTmp,5,RealArray=Phi)
 #endif /*PP_nVar==8*/
 #elif USE_HDG
     ! TODO: Do we need this for the HDG solver?
@@ -583,7 +585,7 @@ ELSE ! normal restart
 #else /*not PP_POIS and not USE_HDG*/
     ALLOCATE(U(1:nVar,0:Nres,0:Nres,0:Nres,PP_nElemsTmp))
     ALLOCATE(Uloc(1:nVar,0:Nres,0:Nres,0:Nres))
-    CALL ReadArray('DG_Solution',5,(/nVar,Nres+1_IK,Nres+1_IK,Nres+1_IK,PP_nElemsTmp/),OffsetElemTmp,5,RealArray=U)
+    CALL ReadArray('DG_Solution',5,(/nVar,Nres8+1_IK,Nres8+1_IK,Nres8+1_IK,PP_nElemsTmp/),OffsetElemTmp,5,RealArray=U)
     DO iElem = 1, nElems
       Nloc = N_DG_Mapping(2,iElem+offSetElem)
       IF(Nloc.EQ.N_Restart)THEN ! N is equal
@@ -601,7 +603,7 @@ ELSE ! normal restart
     IF(DoPML)THEN
       ALLOCATE(U_local(PMLnVar,0:Nres,0:Nres,0:Nres,nElems))
       ALLOCATE(Uloc(1:PMLnVar,0:Nres,0:Nres,0:Nres))
-      CALL ReadArray('PML_Solution',5,(/INT(PMLnVar,IK),Nres+1_IK,Nres+1_IK,Nres+1_IK,PP_nElemsTmp/),&
+      CALL ReadArray('PML_Solution',5,(/INT(PMLnVar,IK),Nres8+1_IK,Nres8+1_IK,Nres8+1_IK,PP_nElemsTmp/),&
           OffsetElemTmp,5,RealArray=U_local)
       DO iPML=1,nPMLElems
         iElem = PMLToElem(iPML)

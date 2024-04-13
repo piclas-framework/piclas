@@ -542,7 +542,7 @@ REAL,INTENT(IN),OPTIONAL         :: OutputTime
 ! LOCAL VARIABLES
 CHARACTER(LEN=255)             :: FileName
 CHARACTER(LEN=255),ALLOCATABLE :: StrVarNames(:)
-INTEGER                        :: nVal, iTimepoint, iElem, Nloc
+INTEGER                        :: nVal, iTimePoint, iElem, Nloc
 REAL                           :: StartT,EndT
 REAL                           :: BGTemp(BGDataSize,0:NMax,0:NMax,0:NMax, PP_nElems)
 REAL, ALLOCATABLE              :: BGTDepTemp(:,:,:,:,:,:)
@@ -611,12 +611,12 @@ nVal=nGlobalElems  ! For the MPI case this must be replaced by the global number
 
 ! Associate construct for integer KIND=8 possibility
 ASSOCIATE (&
-  BGDataSize   => INT(BGDataSize,IK)    ,&
+  BGDataSize8  => INT(BGDataSize,IK)    ,&
   N            => INT(NMax,IK)          ,&
   PP_nElems    => INT(PP_nElems,IK)     ,&
   offsetElem   => INT(offsetElem,IK)    ,&
   nGlobalElems => INT(nGlobalElems,IK)  ,&
-  nTimePoints  => INT(nTimePoints,IK)    )
+  nTimePoints8 => INT(nTimePoints,IK)    )
 
   DO iElem = 1, INT(PP_nElems)
     Nloc = N_DG_Mapping(2,iElem+offSetElem)
@@ -643,14 +643,14 @@ ASSOCIATE (&
 
   IF(UseTimeDepCoil)THEN
     CALL WriteArrayToHDF5(DataSetName='DG_Solution'   , rank=6 , &
-                          nValGlobal=(/BGDataSize , N+1_IK , N+1_IK , N+1_IK , nGlobalElems, nTimePoints/) , &
-                          nVal      =(/BGDataSize , N+1_IK , N+1_IK , N+1_IK , PP_nElems   , nTimePoints/) , &
+                          nValGlobal=(/BGDataSize8, N+1_IK , N+1_IK , N+1_IK , nGlobalElems, nTimePoints8/) , &
+                          nVal      =(/BGDataSize8, N+1_IK , N+1_IK , N+1_IK , PP_nElems   , nTimePoints8/) , &
                           offset    =(/0_IK       , 0_IK   , 0_IK   , 0_IK   , offsetElem  , 0_IK       /) , &
                           collective=.false., RealArray=BGTDepTemp(1:BGDataSize,0:N,0:N,0:N,1:nElems,1:nTimePoints))
   ELSE
     CALL WriteArrayToHDF5(DataSetName='DG_Solution'   , rank=5 , &
-                          nValGlobal=(/BGDataSize , N+1_IK , N+1_IK , N+1_IK , nGlobalElems/) , &
-                          nVal      =(/BGDataSize , N+1_IK , N+1_IK , N+1_IK , PP_nElems/)    , &
+                          nValGlobal=(/BGDataSize8, N+1_IK , N+1_IK , N+1_IK , nGlobalElems/) , &
+                          nVal      =(/BGDataSize8, N+1_IK , N+1_IK , N+1_IK , PP_nElems/)    , &
                           offset    =(/0_IK       , 0_IK   , 0_IK   , 0_IK   , offsetElem/)   , &
                           collective=.false., RealArray=BGTemp(1:BGDataSize,0:N,0:N,0:N,1:nElems))
   END IF ! UseTimeDepCoil
