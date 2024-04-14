@@ -1471,7 +1471,6 @@ SDEALLOCATE(LostRotPeriodicSides)
 SDEALLOCATE(SideToNonUniqueGlobalSide)
 
 ! p-adaption
-SDEALLOCATE(N_DG)
 SDEALLOCATE(N_VolMesh)
 SDEALLOCATE(DG_Elems_master)
 SDEALLOCATE(DG_Elems_slave)
@@ -1491,7 +1490,7 @@ SDEALLOCATE(DataSizeSurfRecMin)
 
 ! Do not deallocate during load balance here as it needs to be communicated between the processors
 #if USE_LOADBALANCE
-IF(.NOT.PerformLoadBalance)THEN
+IF(.NOT.PerformLoadBalance.AND.ALLOCATED(N_DG))THEN
 #endif /*USE_LOADBALANCE*/
   ! First, free every shared memory window. This requires MPI_BARRIER as per MPI3.1 specification
   CALL MPI_BARRIER(MPI_COMM_SHARED,iERROR)
@@ -1502,6 +1501,8 @@ IF(.NOT.PerformLoadBalance)THEN
 END IF
 #endif /*USE_LOADBALANCE*/
 #endif /*USE_MPI*/
+
+SDEALLOCATE(N_DG)
 
 #if defined(PARTICLES) && USE_LOADBALANCE
 IF (PerformLoadBalance) RETURN
