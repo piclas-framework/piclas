@@ -770,7 +770,7 @@ INTEGER                                  :: nLinearElemsTot,nCurvedElemsTot
 !===================================================================================================================================
 
 LBWRITE(UNIT_StdOut,'(132("-"))')
-LBWRITE(UNIT_StdOut,'(A)') ' Identifying side types and whether elements are curved ...'
+LBWRITE(UNIT_StdOut,'(A)') ' Identifying side types (planar, bilinear) and whether elements are curved ...'
 
 ! elements
 #if USE_MPI

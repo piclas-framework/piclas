@@ -328,7 +328,7 @@ USE MOD_Mesh_Vars                  ,ONLY: nElems
 USE MOD_SurfaceModel_Porous        ,ONLY: InitPorousBoundaryCondition
 USE MOD_Particle_Boundary_Sampling ,ONLY: InitParticleBoundarySampling
 USE MOD_SurfaceModel_Vars          ,ONLY: nPorousBC,BulkElectronTempSEE,DoChemSurface
-USE MOD_Particle_Boundary_Vars     ,ONLY: PartBound
+USE MOD_Particle_Boundary_Vars     ,ONLY: PartBound,DoVirtualDielectricLayer
 USE MOD_Particle_Tracking_Vars     ,ONLY: TrackingMethod
 USE MOD_Particle_Vars              ,ONLY: ParticlesInitIsDone,WriteMacroVolumeValues,WriteMacroSurfaceValues,nSpecies
 USE MOD_Particle_Sampling_Vars     ,ONLY: UseAdaptiveBC
@@ -338,7 +338,7 @@ USE MOD_SurfaceModel_Init          ,ONLY: InitSurfaceModel
 USE MOD_SurfaceModel_Chemistry     ,ONLY: InitSurfaceModelChemistry
 USE MOD_Particle_Surfaces          ,ONLY: InitParticleSurfaces
 USE MOD_Particle_Sampling_Adapt    ,ONLY: InitAdaptiveBCSampling
-USE MOD_Particle_Boundary_Init     ,ONLY: InitParticleBoundarySurfSides
+USE MOD_Particle_Boundary_Init     ,ONLY: InitParticleBoundarySurfSides,InitVirtualDielectricLayer
 USE MOD_Particle_Boundary_Init     ,ONLY: InitRotPeriodicMapping, InitAdaptiveWallTemp, InitRotPeriodicInterPlaneMapping
 USE MOD_DSMC_BGGas                 ,ONLY: BGGas_InitRegions
 #if USE_MPI
@@ -461,6 +461,8 @@ CALL InitPartDataSize()
 #if USE_MPI
 CALL InitParticleCommSize()
 #endif
+!--- Build VDL containers
+IF(DoVirtualDielectricLayer) CALL InitVirtualDielectricLayer()
 
 ParticlesInitIsDone=.TRUE.
 LBWRITE(UNIT_stdOut,'(A)')' INIT PARTICLES DONE!'

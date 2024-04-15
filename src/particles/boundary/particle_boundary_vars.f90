@@ -306,6 +306,13 @@ INTEGER, PARAMETER   :: nVarPartStateBoundary=11
 INTEGER              :: PartStateBoundaryVecLength ! Number of boundary-crossed particles
 ! Virtual dielectric layer (VDL)
 LOGICAL              :: DoVirtualDielectricLayer ! Flag set automatically if a VDL permittivity is set >= 0.0
+REAL, ALLOCATABLE    :: ElementThicknessVDL(:)   ! Thickness of first element layer at a VDL boundary
+
+TYPE, PUBLIC :: VDLSurfMesh
+  REAL,ALLOCATABLE        :: E(:,:,:)   !< E-XYZ positions (first index 1:3) of the Boundary Face Gauss Point
+END TYPE VDLSurfMesh
+
+TYPE(VDLSurfMesh),ALLOCATABLE  :: N_SurfVDL(:) !< Corrected electric field on VDL surfaces
 !===================================================================================================================================
 
 END MODULE MOD_Particle_Boundary_Vars

@@ -130,6 +130,12 @@ USE MOD_ChangeBasis            ,ONLY : ChangeBasis3D
 #if !((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))
 USE MOD_Analyze_Vars           ,ONLY: OutputErrorNormsToH5
 USE MOD_HDF5_Output_Fields     ,ONLY: WriteErrorNormsToHDF5
+#if USE_HDG
+#if defined(PARTICLES)
+USE MOD_HDF5_Output_Fields     ,ONLY: WriteSurfVDLToHDF5
+USE MOD_Particle_Boundary_Vars ,ONLY: DoVirtualDielectricLayer
+#endif /*defined(PARTICLES)*/
+#endif /*USE_HDG*/
 #endif /*!((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))*/
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -775,6 +781,12 @@ CALL DisplayMessageAndTime(EndT-StartT, 'DONE', DisplayDespiteLB=.TRUE., Display
 
 #if !((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))
 IF(OutputErrorNormsToH5) CALL WriteErrorNormsToHDF5(OutputTime_loc)
+
+#if USE_HDG
+#if defined(PARTICLES)
+IF(DoVirtualDielectricLayer) CALL WriteSurfVDLToHDF5(OutputTime_loc)
+#endif /*defined(PARTICLES)*/
+#endif /*USE_HDG*/
 #endif /*!((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))*/
 
 #if defined(PARTICLES)
