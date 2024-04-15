@@ -526,10 +526,9 @@ CASE(PRM_P_ADAPTION_NPB) ! Non-periodic BCs are set to NMax
   !N_DG(2) = Nmin+1
   DO BCSideID=1,nBCSides
     BCType=Boundarytype(BC(BCSideID),BC_TYPE)
-    IF(BCType.NE.1)THEN ! not periodic
-      iElem = SideToElem(S2E_ELEM_ID,BCSideID)
-      N_DG(iElem) = NMax
-    END IF ! BCType.NE.1
+    IF(BCType.EQ.1) CYCLE ! Skip periodic sides
+    iElem       = SideToElem(S2E_ELEM_ID,BCSideID)
+    N_DG(iElem) = NMax
   END DO ! BCSideID=1,nBCSides
 CASE DEFAULT
   CALL CollectiveStop(__STAMP__,'Unknown pAdaptionType!' ,IntInfo=pAdaptionType)

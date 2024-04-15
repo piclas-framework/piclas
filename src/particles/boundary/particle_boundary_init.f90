@@ -28,7 +28,7 @@ PRIVATE
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
 PUBLIC :: DefineParametersParticleBoundary, InitializeVariablesPartBoundary, InitParticleBoundarySurfSides, FinalizeParticleBoundary
 PUBLIC :: InitAdaptiveWallTemp, InitRotPeriodicMapping, InitRotPeriodicInterPlaneMapping
-PUBLIC :: InitPartStateBoundary
+PUBLIC :: InitPartStateBoundary,InitVirtualDielectricLayer
 !===================================================================================================================================
 
 CONTAINS
@@ -695,9 +695,6 @@ IF(ANY(PartBound%SurfaceModel.EQ.1)) THEN
   CALL CloseDataFile()
 END IF
 
-!--- Build VDL containers
-IF(DoVirtualDielectricLayer) CALL InitVirtualDielectricLayer()
-
 END SUBROUTINE InitializeVariablesPartBoundary
 
 
@@ -706,12 +703,111 @@ END SUBROUTINE InitializeVariablesPartBoundary
 !===================================================================================================================================
 SUBROUTINE InitVirtualDielectricLayer()
 ! MODULES
+use mod_globals                       
+USE MOD_Globals                ,ONLY: VECNORM
+USE MOD_Mesh_Vars              ,ONLY: nElems,SideToElem,nBCSides,Boundarytype,BC
+USE MOD_IO_HDF5                ,ONLY: AddToElemData,ElementOut
+USE MOD_Particle_Boundary_Vars ,ONLY: ElementThicknessVDL,PartBound,N_SurfVDL
+USE MOD_Mesh_Tools             ,ONLY: GetGlobalElemID,GetCNElemID
+USE MOD_Particle_Mesh_Tools    ,ONLY: GetGlobalNonUniqueSideID
+USE MOD_Mesh_Vars              ,ONLY: ElemToSide,nSides,offSetElem,SideToNonUniqueGlobalSide
+USE MOD_Mesh_Tools             ,ONLY: GetCNSideID
+USE MOD_Particle_Surfaces      ,ONLY: CalcNormAndTangTriangle
+USE MOD_Particle_Mesh_Vars     ,ONLY: NodeCoords_Shared,ElemSideNodeID_Shared, SideInfo_Shared
+USE MOD_DG_Vars                ,ONLY: N_DG_Mapping
+USE MOD_Particle_Boundary_Vars ,ONLY: GlobalSide2SurfSide
+USE MOD_Particle_Boundary_Vars ,ONLY: nComputeNodeSurfSides
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! INPUT / OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
+INTEGER           :: iElem,BCSideID,BCType,iPartBound,GlobalElemID,GlobalNonUniqueSideID,iLocSide,SideID,CNElemID
+INTEGER           :: iSide,Nloc,NonUniqueGlobalSideID,iSurfSide
+REAL,DIMENSION(3) :: NormVec,x
+REAL,DIMENSION(6) :: distances
 !===================================================================================================================================
+
+! 1) Determine volume container ElementThicknessVDL that holds the approximate thickness of the element with respect to the boundary
+ALLOCATE(ElementThicknessVDL(1:nElems))
+CALL AddToElemData(ElementOut,'ElementThicknessVDL',RealArray=ElementThicknessVDL(1:nElems))
+
+! Loop over all local boundary sides
+DO BCSideID=1,nBCSides
+
+  ! Exclude periodic sides
+  BCType = Boundarytype(BC(BCSideID),BC_TYPE)
+  IF(BCType.EQ.1) CYCLE ! Skip periodic side
+
+  ! Exclude non-VDL boundaries
+  iPartBound = PartBound%MapToPartBC(BC(BCSideID))
+  IF(PartBound%SurfaceModel(iPartBound).NE.99)CYCLE ! Skip non-VDL boundary
+
+  ! Get local and global element index
+  iElem        = SideToElem(S2E_ELEM_ID,BCSideID)
+  GlobalElemID = GetGlobalElemID(iElem)
+
+  ! Get normal vector
+  DO iLocSide=1,6
+    GlobalNonUniqueSideID = GetGlobalNonUniqueSideID(GlobalElemID,iLocSide)
+    SideID                = ElemToSide(E2S_SIDE_ID,iLocSide,iElem)
+    ! Approximate normal vector by assuming planar boundary side
+    CALL CalcNormAndTangTriangle(TriNum=1, nVec=NormVec, SideID=GlobalNonUniqueSideID)
+    IF(SideID.EQ.BCSideID) EXIT ! Exit loop when correct side is found
+  END DO
+
+  ! Calculate the projected distance for each of the 6 sides
+  CNElemID = GetCNElemID(SideInfo_Shared(SIDE_ELEMID,SideID))
+  DO iLocSide=1,6
+    x(1:3) = NodeCoords_Shared(1:3,ElemSideNodeID_Shared(1,iLocSide,CNElemID)+1)
+    distances(iLocSide) = DOT_PRODUCT(x,NormVec)
+  END DO
+
+  ElementThicknessVDL(iElem) = MAXVAL(distances) - MINVAL(distances)
+  ! Sanity check
+  IF(ElementThicknessVDL(iElem).LT.0.) CALL abort(__STAMP__,'ElementThicknessVDL(iElem) is negative for iElem=',IntInfoOpt=iElem)
+
+END DO ! BCSideID=1,nBCSides
+
+! 2) Initialize surface container for the corrected electric field
+ALLOCATE(N_SurfVDL(1:nBCSides))
+DO iSide = 1, nBCSides
+  iElem = SideToElem(S2E_ELEM_ID,iSide)
+  ! Allocate with polynomial degree of the element
+  Nloc = N_DG_Mapping(2,iElem+offSetElem)
+  ALLOCATE(N_SurfVDL(iSide)%E(3,0:Nloc,0:Nloc))
+  N_SurfVDL(iSide)%E = 0.
+
+  !ALLOCATE(PhotonSampWall(2,1:Ray%nSurfSample,1:Ray%nSurfSample,1:nComputeNodeSurfTotalSides))
+  !PhotonSampWall=0.0
+
+END DO ! iSide = 1, nBCSides
+
+
+
+
+
+! Loop over all local boundary sides
+DO BCSideID=1,nBCSides
+
+  ! Exclude periodic sides
+  BCType = Boundarytype(BC(BCSideID),BC_TYPE)
+  IF(BCType.EQ.1) CYCLE ! Skip periodic side
+
+  ! Exclude non-VDL boundaries
+  iPartBound = PartBound%MapToPartBC(BC(BCSideID))
+  IF(PartBound%SurfaceModel(iPartBound).NE.99)CYCLE ! Skip non-VDL boundary
+
+  iElem    = SideToElem(S2E_ELEM_ID,BCSideID)
+  Nloc     = N_DG_Mapping(2,iElem+offSetElem)
+  iLocSide = SideToElem(S2E_LOC_SIDE_ID,BCSideID)
+
+
+  GlobalNonUniqueSideID = GetGlobalNonUniqueSideID(GlobalElemID,iLocSide)
+  iSurfSide = GlobalSide2SurfSide(SURF_SIDEID,GlobalNonUniqueSideID)
+  !WRITE (*,*) "iSurfSide =", iSurfSide
+
+END DO ! BCSideID=1,nBCSides
 
 END SUBROUTINE InitVirtualDielectricLayer
 
@@ -2347,6 +2443,8 @@ IF(.NOT.(PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance)))THEN
 #if USE_LOADBALANCE
 END IF ! PerformLoadBalance
 #endif /*USE_LOADBALANCE*/
+
+SDEALLOCATE(ElementThicknessVDL)
 
 END SUBROUTINE FinalizeParticleBoundary
 

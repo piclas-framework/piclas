@@ -30,6 +30,7 @@ PRIVATE
 #if USE_HDG
 #if defined(PARTICLES)
 PUBLIC :: WriteBRAverageElemToHDF5
+PUBLIC :: WriteSurfVDLToHDF5
 #endif /*defined(PARTICLES)*/
 #else
 PUBLIC :: WritePMLzetaGlobalToHDF5
@@ -218,6 +219,180 @@ END ASSOCIATE
 GETTIME(EndT)
 CALL DisplayMessageAndTime(EndT-StartT, 'DONE', DisplayDespiteLB=.TRUE., DisplayLine=.FALSE.)
 END SUBROUTINE WriteBRAverageElemToHDF5
+
+
+SUBROUTINE WriteSurfVDLToHDF5(OutputTime)
+!===================================================================================================================================
+!> write the final values of the surface sampling to a HDF5 state file
+!> additional performs all the final required computations
+!===================================================================================================================================
+! MODULES                                                                                                                          !
+!----------------------------------------------------------------------------------------------------------------------------------!
+USE MOD_Globals
+USE MOD_IO_HDF5
+USE MOD_Particle_Boundary_Vars ,ONLY: nComputeNodeSurfOutputSides,nGlobalOutputSides, nSurfBC,N_SurfVDL
+USE MOD_Particle_Boundary_Vars ,ONLY: offsetComputeNodeSurfOutputSide, SurfBCName, nComputeNodeSurfSides
+USE MOD_Particle_Boundary_Vars ,ONLY: SurfSide2GlobalSide, GlobalSide2SurfSide
+USE MOD_HDF5_Output            ,ONLY: WriteAttributeToHDF5,WriteArrayToHDF5,WriteHDF5Header
+USE MOD_Mesh_Vars              ,ONLY: MeshFile,nBCSides,offSetElem,SideToElem,BC,Boundarytype
+USE MOD_Particle_Mesh_Vars     ,ONLY: SideInfo_Shared
+USE MOD_MPI_Shared_Vars        ,ONLY: mySurfRank
+#if USE_MPI
+USE MOD_MPI_Shared_Vars        ,ONLY: MPI_COMM_LEADERS_SURF
+USE MOD_Particle_Boundary_Vars ,ONLY: nGlobalSurfSides
+USE MOD_Photon_TrackingVars    ,ONLY: PhotonSurfSideArea_Shared
+#else
+USE MOD_Photon_TrackingVars    ,ONLY: PhotonSurfSideArea
+#endif /*USE_MPI*/
+USE MOD_Photon_TrackingVars    ,ONLY: PhotonSampWall
+USE MOD_Particle_Boundary_Vars ,ONLY: PartBound
+USE MOD_RayTracing_Vars        ,ONLY: Ray
+USE MOD_ChangeBasis            ,ONLY: ChangeBasis2D
+USE MOD_Interpolation_Vars     ,ONLY: NMax,PREF_VDM,NodeType
+USE MOD_Mesh_Tools             ,ONLY: GetGlobalElemID
+USE MOD_DG_Vars                ,ONLY: N_DG_Mapping
+USE MOD_Particle_Mesh_Tools    ,ONLY: GetGlobalNonUniqueSideID
+USE MOD_Globals_Vars           ,ONLY: ProjectName
+USE MOD_Particle_Boundary_Vars ,ONLY: ElementThicknessVDL
+!----------------------------------------------------------------------------------------------------------------------------------!
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+! INPUT VARIABLES
+REAL,INTENT(IN)                :: OutputTime
+!----------------------------------------------------------------------------------------------------------------------------------!
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+CHARACTER(LEN=255)             :: FileName
+CHARACTER(LEN=255)                  :: Statedummy
+CHARACTER(LEN=255)                  :: H5_Name
+CHARACTER(LEN=255),ALLOCATABLE      :: Str2DVarNames(:)
+INTEGER                             :: GlobalSideID, iSurfSide, OutputCounter, SurfSideNb, p, q,Nloc,BCSideID,iLocSide,iElem,BCType
+INTEGER                             :: GlobalElemID,iPartBound,GlobalNonUniqueSideID
+INTEGER,PARAMETER                   :: nVar2D=3
+REAL                                :: tstart,tend
+REAL, ALLOCATABLE                   :: helpArray(:,:,:,:)
+!===================================================================================================================================
+#if USE_MPI
+!CALL ExchangeRadiationSurfData()
+! Return if not a sampling leader
+IF (MPI_COMM_LEADERS_SURF.EQ.MPI_COMM_NULL) RETURN
+CALL MPI_BARRIER(MPI_COMM_LEADERS_SURF,iERROR)
+
+! Return if no sampling sides
+IF (nGlobalSurfSides.EQ.0) RETURN
+#endif /*USE_MPI*/
+IF (mySurfRank.EQ.0) THEN
+  WRITE(UNIT_stdOut,'(a)',ADVANCE='NO')' WRITE VDL SurfState TO HDF5 FILE...'
+  tstart=LOCALTIME()
+END IF
+
+FileName=TRIM(TIMESTAMP(TRIM(ProjectName)//'_VDLSurfState',OutputTime))//'.h5'
+SWRITE(UNIT_stdOut,'(a)',ADVANCE='NO') '['//TRIM(FileName)//'] ...'
+
+! Generate skeleton for the file with all relevant data on a single proc (MPIRoot)
+#if USE_MPI
+IF (mySurfRank.EQ.0) THEN
+#endif /*USE_MPI*/
+  CALL OpenDataFile(FileName,create=.TRUE.,single=.TRUE.,readOnly=.FALSE.)
+  Statedummy = 'VDLSurfState'
+  ! Write file header
+  CALL WriteHDF5Header(Statedummy,File_ID)
+  CALL WriteAttributeToHDF5(File_ID , 'DSMC_nSurfSample' , 1       , IntegerScalar = NMax        )
+  CALL WriteAttributeToHDF5(File_ID , 'MeshFile'         , 1       , StrScalar     = (/TRIM(MeshFile)/) )
+  CALL WriteAttributeToHDF5(File_ID , 'BC_Surf'          , nSurfBC , StrArray      = SurfBCName         )
+  CALL WriteAttributeToHDF5(File_ID , 'N'                , 1       , IntegerScalar = NMax        )
+  CALL WriteAttributeToHDF5(File_ID , 'NodeType'         , 1       , StrScalar     = (/NodeType/)   )
+  CALL WriteAttributeToHDF5(File_ID , 'Time'             , 1       , RealScalar    = 0.                 )
+
+  ALLOCATE(Str2DVarNames(1:nVar2D))
+  ! fill varnames for total values
+  Str2DVarNames(1) ='Ex'
+  Str2DVarNames(2) ='Ey'
+  Str2DVarNames(3) ='Ez'
+
+  CALL WriteAttributeToHDF5(File_ID,'VarNamesSurface',nVar2D,StrArray=Str2DVarNames)
+
+   CALL CloseDataFile()
+  DEALLOCATE(Str2DVarNames)
+#if USE_MPI
+END IF
+CALL MPI_BARRIER(MPI_COMM_LEADERS_SURF,iERROR)
+CALL OpenDataFile(FileName,create=.FALSE.,single=.FALSE.,readOnly=.FALSE.,communicatorOpt=MPI_COMM_LEADERS_SURF)
+#else
+CALL OpenDataFile(FileName,create=.FALSE.,single=.FALSE.,readOnly=.FALSE.)
+#endif /*USE_MPI*/
+
+
+WRITE(H5_Name,'(A)') 'SurfaceData'
+#if USE_MPI
+ASSOCIATE(PhotonSurfSideArea => PhotonSurfSideArea_Shared)
+#endif
+
+ASSOCIATE (&
+      nSurfSample    => INT(NMax+1                          , IK)  , &
+      nGlobalSides   => INT(nGlobalOutputSides              , IK)  , &
+      LocalnBCSides  => INT(nComputeNodeSurfOutputSides     , IK)  , &
+      offsetSurfSide => INT(offsetComputeNodeSurfOutputSide , IK)  , &
+      nVar2D         => INT(nVar2D                          , IK))
+
+  ALLOCATE(helpArray(nVar2D,1:nSurfSample,1:nSurfSample,LocalnBCSides))
+
+  ! Loop over all local boundary sides
+  DO BCSideID=1,nBCSides
+
+    ! Exclude periodic sides
+    BCType = Boundarytype(BC(BCSideID),BC_TYPE)
+    IF(BCType.EQ.1) CYCLE ! Skip periodic side
+
+    ! Exclude non-VDL boundaries
+    iPartBound = PartBound%MapToPartBC(BC(BCSideID))
+    IF(PartBound%SurfaceModel(iPartBound).NE.99)CYCLE ! Skip non-VDL boundary
+
+    iElem    = SideToElem(S2E_ELEM_ID,BCSideID)
+    GlobalElemID = GetGlobalElemID(iElem)
+    Nloc     = N_DG_Mapping(2,iElem+offSetElem)
+    iLocSide = SideToElem(S2E_LOC_SIDE_ID,BCSideID)
+
+    GlobalNonUniqueSideID = GetGlobalNonUniqueSideID(GlobalElemID,iLocSide)
+    iSurfSide = GlobalSide2SurfSide(SURF_SIDEID,GlobalNonUniqueSideID)
+
+    IF(Nloc.EQ.NMax)THEN
+      helpArray(1:3,1:nSurfSample,1:nSurfSample,iSurfSide) = N_SurfVDL(BCSideID)%E(1:3,0:Nloc,0:Nloc)
+    ELSE
+      ! From low to high
+      CALL ChangeBasis2D(3, Nloc, NMax, PREF_VDM(Nloc,NMax)%Vdm , N_SurfVDL(BCSideID)%E(1:3,0:Nloc,0:Nloc), helpArray(1:3,1:nSurfSample,1:nSurfSample,iSurfSide))
+    END IF ! Nloc.EQ.NMax
+
+    ! Apply correction factor
+    helpArray(1:3,1:nSurfSample,1:nSurfSample,iSurfSide) = (ElementThicknessVDL(iElem) / 1.000E-08) * helpArray(1:3,1:nSurfSample,1:nSurfSample,iSurfSide)
+    !WRITE (*,*) "ElementThicknessVDL(iElem) / 1.000E-08 =", ElementThicknessVDL(iElem) / 1.000E-08
+    !read*
+
+  END DO ! BCSideID=1,nBCSides
+
+  ! WARNING: Only the sampling leaders write the data to .h5
+  CALL WriteArrayToHDF5(DataSetName=H5_Name  , rank=4      ,                                  &
+                        nValGlobal =(/nVar2D , nSurfSample , nSurfSample , nGlobalSides/)   , &
+                        nVal       =(/nVar2D , nSurfSample , nSurfSample , LocalnBCSides/)  , &
+                        offset     =(/0_IK   , 0_IK        , 0_IK        , offsetSurfSide/) , &
+                        collective =.FALSE.  ,                                                &
+                        RealArray=helpArray(1:nVar2D,1:nSurfSample,1:nSurfSample,1:LocalnBCSides))
+  DEALLOCATE(helpArray)
+END ASSOCIATE
+
+#if USE_MPI
+END ASSOCIATE
+#endif /*USE_MPI*/
+
+CALL CloseDataFile()
+
+IF (mySurfRank.EQ.0) THEN
+  tend=LOCALTIME()
+  WRITE(UNIT_stdOut,'(A,F0.3,A)',ADVANCE='YES')'DONE  [',tend-tstart,'s]'
+END IF
+
+END SUBROUTINE WriteSurfVDLToHDF5
 #endif /*defined(PARTICLES)*/
 
 

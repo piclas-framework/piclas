@@ -1745,6 +1745,7 @@ USE MOD_DG_Vars            ,ONLY: U_N,N_DG_Mapping
 #if USE_MPI
 USE MOD_Globals
 #endif
+USE MOD_Particle_Boundary_Vars ,ONLY: N_SurfVDL
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
@@ -1756,6 +1757,7 @@ IMPLICIT NONE
 INTEGER          :: ElemID,SideID,ilocSide,Nloc
 INTEGER          :: p,q,l
 REAL             :: Uface(1:3,0:PP_N,0:PP_N)
+REAL             :: Uface2(1:3,0:PP_N,0:PP_N)
 INTEGER          :: iBC,iEDCBC
 !REAL             :: SIP(0:PP_N,0:PP_N)
 !REAL             :: AverageElectricPotentialProc
@@ -1776,9 +1778,11 @@ DO SideID=1,nBCSides
     DO q=0,Nloc
       DO p=0,Nloc
         Uface(:,q,p)=U_N(ElemID)%Et(:,0,p,q)*N_Inter(Nloc)%L_Minus(0)
+        Uface2(:,q,p)=U_N(ElemID)%E(:,0,p,q)*N_Inter(Nloc)%L_Minus(0)
         DO l=1,Nloc
           ! switch to right hand system
           Uface(:,q,p)=Uface(:,q,p)+U_N(ElemID)%Et(:,l,p,q)*N_Inter(Nloc)%L_Minus(l)
+          Uface2(:,q,p)=Uface2(:,q,p)+U_N(ElemID)%E(:,l,p,q)*N_Inter(Nloc)%L_Minus(l)
         END DO ! l
       END DO ! p
     END DO ! q
@@ -1786,8 +1790,10 @@ DO SideID=1,nBCSides
     DO q=0,Nloc
       DO p=0,Nloc
         Uface(:,p,q)=U_N(ElemID)%Et(:,p,0,q)*N_Inter(Nloc)%L_Minus(0)
+        Uface2(:,p,q)=U_N(ElemID)%E(:,p,0,q)*N_Inter(Nloc)%L_Minus(0)
         DO l=1,Nloc
           Uface(:,p,q)=Uface(:,p,q)+U_N(ElemID)%Et(:,p,l,q)*N_Inter(Nloc)%L_Minus(l)
+          Uface2(:,p,q)=Uface2(:,p,q)+U_N(ElemID)%E(:,p,l,q)*N_Inter(Nloc)%L_Minus(l)
         END DO ! l
       END DO ! p
     END DO ! q
@@ -1795,9 +1801,11 @@ DO SideID=1,nBCSides
     DO q=0,Nloc
       DO p=0,Nloc
         Uface(:,q,p)=U_N(ElemID)%Et(:,p,q,0)*N_Inter(Nloc)%L_Minus(0)
+        Uface2(:,q,p)=U_N(ElemID)%E(:,p,q,0)*N_Inter(Nloc)%L_Minus(0)
         DO l=1,Nloc
           ! switch to right hand system
           Uface(:,q,p)=Uface(:,q,p)+U_N(ElemID)%Et(:,p,q,l)*N_Inter(Nloc)%L_Minus(l)
+          Uface2(:,q,p)=Uface2(:,q,p)+U_N(ElemID)%E(:,p,q,l)*N_Inter(Nloc)%L_Minus(l)
         END DO ! l
       END DO ! p
     END DO ! qfirst stuff
@@ -1805,8 +1813,10 @@ DO SideID=1,nBCSides
     DO q=0,Nloc
       DO p=0,Nloc
         Uface(:,p,q)=U_N(ElemID)%Et(:,0,p,q)*N_Inter(Nloc)%L_Plus(0)
+        Uface2(:,p,q)=U_N(ElemID)%E(:,0,p,q)*N_Inter(Nloc)%L_Plus(0)
         DO l=1,Nloc
           Uface(:,p,q)=Uface(:,p,q)+U_N(ElemID)%Et(:,l,p,q)*N_Inter(Nloc)%L_Plus(l)
+          Uface2(:,p,q)=Uface2(:,p,q)+U_N(ElemID)%E(:,l,p,q)*N_Inter(Nloc)%L_Plus(l)
         END DO ! l
       END DO ! p
     END DO ! q
@@ -1814,9 +1824,11 @@ DO SideID=1,nBCSides
     DO q=0,Nloc
       DO p=0,Nloc
         Uface(:,Nloc-p,q)=U_N(ElemID)%Et(:,p,0,q)*N_Inter(Nloc)%L_Plus(0)
+        Uface2(:,Nloc-p,q)=U_N(ElemID)%E(:,p,0,q)*N_Inter(Nloc)%L_Plus(0)
         DO l=1,Nloc
           ! switch to right hand system
           Uface(:,Nloc-p,q)=Uface(:,Nloc-p,q)+U_N(ElemID)%Et(:,p,l,q)*N_Inter(Nloc)%L_Plus(l)
+          Uface2(:,Nloc-p,q)=Uface2(:,Nloc-p,q)+U_N(ElemID)%E(:,p,l,q)*N_Inter(Nloc)%L_Plus(l)
         END DO ! l
       END DO ! p
     END DO ! q
@@ -1824,8 +1836,10 @@ DO SideID=1,nBCSides
     DO q=0,Nloc
       DO p=0,Nloc
         Uface(:,p,q)=U_N(ElemID)%Et(:,p,q,0)*N_Inter(Nloc)%L_Plus(0)
+        Uface2(:,p,q)=U_N(ElemID)%E(:,p,q,0)*N_Inter(Nloc)%L_Plus(0)
         DO l=1,Nloc
           Uface(:,p,q)=Uface(:,p,q)+U_N(ElemID)%Et(:,p,q,l)*N_Inter(Nloc)%L_Plus(l)
+          Uface2(:,p,q)=Uface2(:,p,q)+U_N(ElemID)%E(:,p,q,l)*N_Inter(Nloc)%L_Plus(l)
         END DO ! l
       END DO ! p
     END DO ! q
@@ -1836,33 +1850,40 @@ DO SideID=1,nBCSides
     DO q=0,Nloc
       DO p=0,Nloc
         Uface(:,q,p)=U_N(ElemID)%Et(:,0,p,q)
+        Uface2(:,q,p)=U_N(ElemID)%E(:,0,p,q)
       END DO ! p
     END DO ! q
   CASE(ETA_MINUS)
     Uface(:,:,:)=U_N(ElemID)%Et(:,:,0,:)
+    Uface2(:,:,:)=U_N(ElemID)%E(:,:,0,:)
   CASE(ZETA_MINUS)
     DO q=0,Nloc
       DO p=0,Nloc
         Uface(:,q,p)=U_N(ElemID)%Et(:,p,q,0)
+        Uface2(:,q,p)=U_N(ElemID)%E(:,p,q,0)
       END DO ! p
     END DO ! q
   CASE(XI_PLUS)
     Uface(:,:,:)=U_N(ElemID)%Et(:,Nloc,:,:)
+    Uface2(:,:,:)=U_N(ElemID)%E(:,Nloc,:,:)
   CASE(ETA_PLUS)
     DO q=0,Nloc
       DO p=0,Nloc
         Uface(:,Nloc-p,q)=U_N(ElemID)%Et(:,p,Nloc,q)
+        Uface2(:,Nloc-p,q)=U_N(ElemID)%E(:,p,Nloc,q)
       END DO ! p
     END DO ! q
   CASE(ZETA_PLUS)
     DO q=0,Nloc
       DO p=0,Nloc
         Uface(:,p,q)=U_N(ElemID)%Et(:,p,q,Nloc)
+        Uface2(:,p,q)=U_N(ElemID)%E(:,p,q,Nloc)
       END DO ! p
     END DO ! q
   END SELECT
 #endif
-
+  ! For testing
+  IF(ALLOCATED(N_SurfVDL)) N_SurfVDL(SideID)%E = Uface2(:,:,:)
 
   ! 2.) Apply the normal vector: Uface(1,:,:)=DOT_PRODUCT(Uface(1:3,:,:),NormVec(1:3,:,:,SideID))
   !     Store result of dot product in first array index
