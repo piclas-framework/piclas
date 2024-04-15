@@ -385,6 +385,7 @@ END IF
 ! Create PETSc Mappings
 OffsetPETScSide=0
 #if USE_MPI
+! TODO PETSC P-Adaption
 ! Count all Mortar slave sides and remove them from PETSc vector
 ! TODO How to compute those
 nMortarMasterSides = 0
@@ -510,13 +511,16 @@ END DO !iElem
 
 
 #if USE_PETSC
+! TODO PETSC P-Adaption
+! TODO PETSC P-Adaption Calculate nPETScDOFs
 ALLOCATE(Smat_BC(nGP_face,nGP_face,6,nDirichletBCSides))
 Smat_BC = 0.
 
 PetscCallA(MatCreate(PETSC_COMM_WORLD,Smat_petsc,ierr))
-PetscCallA(MatSetBlockSize(Smat_petsc,nGP_face,ierr))
-PetscCallA(MatSetSizes(Smat_petsc,PETSC_DECIDE,PETSC_DECIDE,nPETScUniqueSidesGlobal*nGP_Face,nPETScUniqueSidesGlobal*nGP_Face,ierr))
-PetscCallA(MatSetType(Smat_petsc,MATSBAIJ,ierr)) ! Symmetric sparse (mpi) matrix
+PetscCallA(MatSetSizes(Smat_petsc,PETSC_DECIDE,PETSC_DECIDE,nPETScDOFs,nPETScDOFs,ierr))
+PetscCallA(MatSetType(Smat_petsc,MATAIJ,ierr)) ! Sparse (mpi) matrix, TODO P-Adaption Symmetricity is set later!
+PetscCallA(MatSetOption(Smat_petsc, MAT_SYMMETRIC, PETSC_TRUE))
+
 !! TODO Set preallocation row wise
 !! 1 Big mortar side is affected by 6 + 4*4 = 22 other sides...
 !! TODO Does this require communication over all procs? Global number of sides associated with the i-th FPC
@@ -532,8 +536,13 @@ PetscCallA(MatSetType(Smat_petsc,MATSBAIJ,ierr)) ! Symmetric sparse (mpi) matrix
 !  nAffectedBlockSides = 22
 !END IF ! FPC%nFPCBounds
 !!IPWRITE(UNIT_StdOut,*) "nAffectedBlockSides =", nAffectedBlockSides
-PetscCallA(MatSEQSBAIJSetPreallocation(Smat_petsc,nGP_face,22,PETSC_NULL_INTEGER,ierr))
-PetscCallA(MatMPISBAIJSetPreallocation(Smat_petsc,nGP_face,22,PETSC_NULL_INTEGER,22-1,PETSC_NULL_INTEGER,ierr))
+! TODO PETSC P-Adaption We need the preallocation vector exactly
+! TODO PETSC P-Adaption PETScNumNonZeros(nPETScDOfs)
+!   Loop over all elements, loop over iSide=1,6 and jSide=iSide,6
+!   get iNloc of the iSide and jNloc of the jSide
+!   add iNloc to all jDOFs (and jNloc to all iDOFs if i!=j)
+PetscCallA(MatSEQAIJSetPreallocation(Smat_petsc,nGP_face,0,PETScNumNonZeros,ierr))
+! TODO PETSC P-Adaption: PetscCallA(MatMPIAIJSetPreallocation(Smat_petsc,nGP_face,22,PETSC_NULL_INTEGER,22-1,PETSC_NULL_INTEGER,ierr))
 PetscCallA(MatZeroEntries(Smat_petsc,ierr))
 #endif
 
@@ -590,6 +599,7 @@ DO SideID = 1, nSides
   ALLOCATE(HDG_Surf_N(SideID)%buf(PP_nVar,nGP_face(NSideMin)))
   HDG_Surf_N(SideID)%buf=0.
 #if USE_PETSC
+! TODO PETSC P-Adaption - MPI
 #else
   IF(PrecondType.EQ.1)THEN
     ALLOCATE(HDG_Surf_N(SideID)%buf2(nGP_face(NSideMin),nGP_face(NSideMin)))
@@ -603,19 +613,23 @@ END DO ! SideID = 1, nSides
 CALL BuildPrecond()
 
 #if USE_PETSC
+! TODO PETSC P-Adaption
 ! allocate RHS & lambda vectors
 PetscCallA(VecCreate(PETSC_COMM_WORLD,lambda_petsc,ierr))
-PetscCallA(VecSetBlockSize(lambda_petsc,nGP_face,ierr))
-PetscCallA(VecSetSizes(lambda_petsc,PETSC_DECIDE,nPETScUniqueSidesGlobal*nGP_Face,ierr))
+PetscCallA(VecSetSizes(lambda_petsc,PETSC_DECIDE,nPETScDOFs,ierr))
 PetscCallA(VecSetType(lambda_petsc,VECSTANDARD,ierr))
 PetscCallA(VecSetUp(lambda_petsc,ierr))
 PetscCallA(VecDuplicate(lambda_petsc,RHS_petsc,ierr))
 
-! Create scatter context to access local values from global petsc vector
-PetscCallA(VecCreateSeq(PETSC_COMM_SELF,nPETScUniqueSides*nGP_face,lambda_local_petsc,ierr))
-PetscCallA(ISCreateStride(PETSC_COMM_SELF,nPETScUniqueSides*nGP_face,0,1,idx_local_petsc,ierr))
-PetscCallA(ISCreateBlock(PETSC_COMM_WORLD,nGP_face,nPETScUniqueSides,PETScGlobal(PETScLocalToSideID(1:nPETScUniqueSides)),PETSC_COPY_VALUES,idx_global_petsc,ierr))
-PetscCallA(VecScatterCreate(lambda_petsc,idx_global_petsc,lambda_local_petsc,idx_local_petsc,scatter_petsc,ierr))
+
+!! Create scatter context to access local values from global petsc vector
+!! TODO PETSC P-Adaption - MPI only
+!PetscCallA(VecCreateSeq(PETSC_COMM_SELF,nPETScDOFs,lambda_local_petsc,ierr))
+!PetscCallA(ISCreateStride(PETSC_COMM_SELF,nPETScDOFs,0,1,idx_local_petsc,ierr))
+!! TODO PETSC P-Adaption
+!! What is this?
+!PetscCallA(ISCreateBlock(PETSC_COMM_WORLD,nGP_face,nPETScUniqueSides,PETScGlobal(PETScLocalToSideID(1:nPETScUniqueSides)),PETSC_COPY_VALUES,idx_global_petsc,ierr))
+!PetscCallA(VecScatterCreate(lambda_petsc,idx_global_petsc,lambda_local_petsc,idx_local_petsc,scatter_petsc,ierr))
 
 IF(UseFPC)THEN
   PetscCallA(VecCreateSeq(PETSC_COMM_SELF,nGP_face*FPC%nUniqueFPCBounds,lambda_local_conductors_petsc,ierr))

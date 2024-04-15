@@ -171,7 +171,7 @@ DO iElem=1,PP_nElems
              NSideMin = N_SurfMesh(iSide)%NSideMin
              IF(Nloc.EQ.NSideMin)THEN
                Taus(pm(iLocSide),SideDir(iLocSide))=N_Inter(Nloc)%wGP(l1)*N_Inter(Nloc)%wGP(l2)*N_SurfMesh(iSide)%SurfElemMin(p,q)
-             ELSE  
+             ELSE
                Taus(pm(iLocSide),SideDir(iLocSide))=N_Inter(Nloc)%wGP(l1)*N_Inter(Nloc)%wGP(l2)*N_SurfMesh(iSide)%SurfElem(p,q)
              END IF ! Nloc.EQ.NSideMin
            END ASSOCIATE
@@ -349,8 +349,12 @@ DO iElem=1,PP_nElems
 END DO !iElem
 
 #if USE_PETSC
+! TODO PETSC P-Adaption - Fill directly when SmatK is filled... (or sth like that)
+! Since there is a loop over all elements anyway, an element local smat could be filled that is
+! then used to fill SMat
 ! Fill Smat Petsc, TODO do this without filling Smat
 
+! TODO PETSC P-Adaption - MORTARS
 ! Change Smat for all small mortar sides to account for the interpolation from big to small side
 DO iSide=1,nSides
   IF (SmallMortarInfo(iSide).NE.0) THEN
@@ -367,19 +371,21 @@ DO iSide=1,nSides
   END DO
 END DO
 
+! TODO PETSC P-Adaption - There is no reason to do that?
 ! Fill Dirichlet BC Smat
-DO iBCSide=1,nDirichletBCSides
-  BCSideID=DirichletBC(iBCSide)
-  locBCSideID = SideToElem(S2E_LOC_SIDE_ID,BCSideID)
-  ElemID    = SideToElem(S2E_ELEM_ID,BCSideID)
-  DO iLocSide=1,6
-    Smat_BC(:,:,iLocSide,iBCSide) = Smat(:,:,iLocSide,locBCSideID,ElemID)
-  END DO
-END DO
+! DO iBCSide=1,nDirichletBCSides
+!   BCSideID=DirichletBC(iBCSide)
+!   locBCSideID = SideToElem(S2E_LOC_SIDE_ID,BCSideID)
+!   ElemID    = SideToElem(S2E_ELEM_ID,BCSideID)
+!   DO iLocSide=1,6
+!     Smat_BC(:,:,iLocSide,iBCSide) = Smat(:,:,iLocSide,locBCSideID,ElemID)
+!   END DO
+! END DO
 ! Fill Smat for PETSc with remaining DOFs
 DO iElem=1,PP_nElems
   DO iLocSide=1,6
     iSideID=ElemToSide(E2S_SIDE_ID,iLocSide,iElem)
+    ! TODO PETSC P-Adaption - iPETScGlobal
     iPETScGlobal=PETScGlobal(iSideID)
     IF (iPETScGlobal.EQ.-1) CYCLE
     DO jLocSide=1,6
@@ -388,13 +394,20 @@ DO iElem=1,PP_nElems
       IF (iPETScGlobal.GT.jPETScGlobal) CYCLE
       IF(SetZeroPotentialDOF.AND.(iPETScGlobal.EQ.0)) THEN
         ! The first DOF is set to constant 0 -> lambda_{1,1} = 0
-        Smat(:,1,jLocSide,iLocSide,iElem) = 0
-        IF(jPETScGlobal.EQ.iPETScGlobal) Smat(1,1,jLocSide,iLocSide,iElem) = 1
+        HDG_Vol_N(iElem)%Smat(:,1,jLocSide,iLocSide,) = 0
+        IF(jPETScGlobal.EQ.iPETScGlobal) HDG_Vol_N(iElem)%Smat(1,1,jLocSide,iLocSide,) = 1
       END IF
+      ! TODO PETSC P-Adaption - Temporary fix: Multiply Smat with Vandermonde (and Transpose)
+      V = PREF_VDM(NElem,jNloc)%Vdm
+      VT = TRANSPOSE(PREF_VDM(NElem,iNloc)%Vdm)
+      Smatloc = MATMUL(VT, MATMUL(HDG_Vol_N(iElem)%Smat(:,:,jLocSide,iLocSide), V))
+
+      PetscCallA(MatSetValues(Smat_petsc, iNLoc, HDG_Surf_N(iLocSide)%DOFindices+iPETScGlobal, jNLoc, HDG_Surf_N(jLocSide)%DOFindices+jPETScGlobal,HDG_Vol_N(iElem)%Smat(0:iNloc,0:jNloc),ADD_VALUES,ierr))
       PetscCallA(MatSetValuesBlocked(Smat_petsc,1,iPETScGlobal,1,jPETScGlobal,Smat(:,:,jLocSide,iLocSide,iElem),ADD_VALUES,ierr))
     END DO
   END DO
 END DO
+! TODO PETSC P-Adaption - FPC Stuff
 ! Set Conductor matrix
 DO BCsideID=1,nConductorBCsides
   jSideID=ConductorBC(BCsideID)

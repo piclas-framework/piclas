@@ -193,6 +193,7 @@ DO iVar = 1, PP_nVar
 
   ! Floating boundary BCs
 #if USE_PETSC
+! TODO PETSC P-Adaption
   IF(UseFPC)THEN
 #if USE_MPI
     ! Communicate the accumulated charged on each BC to all processors on the communicator
@@ -277,6 +278,10 @@ DO BCsideID=1,nNeumannBCSides
   HDG_Surf_N(SideID)%RHS_face(:,:) = HDG_Surf_N(SideID)%RHS_face(:,:) + HDG_Surf_N(SideID)%qn_face(:,:)
 END DO
 
+! TODO PETSC P-Adaption
+! Dirichlet contribution to the rhs!
+! rhs = SmatBC * lambda
+! Attention: SmatBC may not be a square matrix anymore!
 #if USE_PETSC
 ! add Dirichlet contribution
 DO iBCSide=1,nDirichletBCSides
@@ -285,6 +290,9 @@ DO iBCSide=1,nDirichletBCSides
   DO iLocSide=1,6
     SideID = ElemToSide(E2S_SIDE_ID,iLocSide,ElemID)
     IF(PETScGlobal(SideID).EQ.-1) CYCLE
+    ! TODO right now, Smat is always square...
+    ! For now, just multiply the Smat with V^T and V every time :D
+    ! HDG_Vol_N(ElemID)%Smat(:,:,iLocSide,BCLocSide)
     CALL DGEMV('N',nGP_face,nGP_face,-1., &
                           Smat_BC(:,:,iLocSide,iBCSide), nGP_face, &
                           lambda(1,:,BCSideID),1,1.,& !add to RHS_face
@@ -325,15 +333,18 @@ CALL LBPauseTime(LB_DG,tLBStart) ! Pause/Stop time measurement
 ! SOLVE
 
 #if USE_PETSC
+! TODO PETSC P-Adaption -> Needed: HDG_Surf_N(SideID)%DOFindices
+! Here, we need to get the starting iDOF and the N for each side
+
   ! Fill right hand side
   PetscCallA(VecZeroEntries(RHS_petsc,ierr))
   TimeStartPiclas=PICLASTIME()
   DO PETScLocalID=1,nPETScUniqueSides
     SideID=PETScLocalToSideID(PETScLocalID)
-    !VecSetValuesBlockedLocal somehow not working...
-    PetscCallA(VecSetValuesBlocked(RHS_petsc,1,PETScGlobal(SideID),RHS_face(1,:,SideID),INSERT_VALUES,ierr))
+    PetscCallA(VecSetValues(RHS_petsc, N_SurfMesh(SideID)%NSideMin, HDG_Surf_N(SideID)%DOFindices, HDG_Surf_N(SideID)%RHS_face, INSERT_VALUES,ierr))
   END DO
   ! The MPIRoot process has charge and voltage of all FPCs, there, this process sets all conductor RHS information
+  ! TODO PETSC P-Adaption - FPC Bounds
   IF(MPIRoot)THEN
     DO iUniqueFPCBC = 1, FPC%nUniqueFPCBounds
       RHS_conductor(:)=0.
@@ -374,6 +385,7 @@ CALL LBPauseTime(LB_DG,tLBStart) ! Pause/Stop time measurement
   IF(MPIroot) CALL DisplayConvergence(TimeEndPiclas-TimeStartPiclas, iterations, petscnorm)
 
   ! Fill element local lambda for post processing
+  ! TODO PETSC P-Adaption - Scatter stuff...
   PetscCallA(VecScatterBegin(scatter_petsc, lambda_petsc, lambda_local_petsc, INSERT_VALUES, SCATTER_FORWARD,ierr))
   PetscCallA(VecScatterEnd(scatter_petsc, lambda_petsc, lambda_local_petsc, INSERT_VALUES, SCATTER_FORWARD,ierr))
   PetscCallA(VecGetArrayReadF90(lambda_local_petsc,lambda_pointer,ierr))
@@ -381,10 +393,14 @@ CALL LBPauseTime(LB_DG,tLBStart) ! Pause/Stop time measurement
     SideID=PETScLocalToSideID(PETScLocalID)
     PETScID_start=1+(PETScLocalID-1)*nGP_face
     PETScID_stop=PETScLocalID*nGP_face
-    lambda(1,:,SideID) = lambda_pointer(PETScID_start:PETScID_stop)
+
+    HDG_Surf_N(SideID)%lambda(1,:) = lambda_pointer()
+    ! TODO PETSC P-Adaption - MPI MPI MPII
+    lambda(1,:,SideID) = lambda_pointer(HDG_Surf_N(SideID)%DOFindices)!PETScID_start:PETScID_stop)
   END DO
   PetscCallA(VecRestoreArrayReadF90(lambda_local_petsc,lambda_pointer,ierr))
 
+  ! TODO PETSC P-Adaption - FPC
   ! Fill Conductor lambda
   IF(UseFPC)THEN
     PetscCallA(VecScatterBegin(scatter_conductors_petsc, lambda_petsc, lambda_local_conductors_petsc, INSERT_VALUES, SCATTER_FORWARD,ierr))
@@ -432,9 +448,11 @@ CALL LBPauseTime(LB_DG,tLBStart) ! Pause/Stop time measurement
 #else
     FPC%Voltage = FPC%VoltageProc
 #endif /*USE_MPI*/
+    ! TODO PETSC P-Adaption - Restore stuff
     PetscCallA(VecRestoreArrayReadF90(lambda_local_conductors_petsc,lambda_pointer,ierr))
   END IF ! UseFPC
 
+  ! TODO PETSC P-Adaption - Mortars!
   ! PETSc Calculate lambda at small mortars from big mortars
   CALL BigToSmallMortar_HDG(1,.FALSE.) ! lambda (DoVZ=F) or V (DoVZ=T)
 #if USE_MPI
