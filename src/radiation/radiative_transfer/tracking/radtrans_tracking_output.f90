@@ -437,7 +437,7 @@ CALL OpenDataFile(RadiationSurfState,create=.FALSE.,single=.FALSE.,readOnly=.FAL
 WRITE(H5_Name,'(A)') 'SurfaceData'
 WRITE(H5_Name2,'(A)') 'SurfaceDataGlobalSideIndex'
 #if USE_MPI
-ASSOCIATE(PhotonSurfSideArea   => PhotonSurfSideArea_Shared)
+ASSOCIATE(PhotonSurfSideArea => PhotonSurfSideArea_Shared)
 #endif
 
 ASSOCIATE (&

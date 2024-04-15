@@ -51,6 +51,7 @@ REAL              :: Wphi
 REAL              :: Wpsi
 ! magnetic field
 LOGICAL           :: OutputErrorNorms            !< print L2 norms (DG state and particles if present)
+LOGICAL           :: OutputErrorNormsPart        !< print L2 norms for particles
 #ifdef CODE_ANALYZE
 LOGICAL           :: DoCodeAnalyzeOutput         !< print code analyze info to CodeAnalyze.csv (default is TRUE)
 #endif /* CODE_ANALYZE */

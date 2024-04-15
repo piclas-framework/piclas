@@ -25,10 +25,6 @@ INTERFACE UpdateNextFreePosition
   MODULE PROCEDURE UpdateNextFreePosition
 END INTERFACE
 
-INTERFACE VeloFromDistribution
-  MODULE PROCEDURE VeloFromDistribution
-END INTERFACE
-
 INTERFACE DiceUnitVector
   MODULE PROCEDURE DiceUnitVector
 END INTERFACE
@@ -217,9 +213,7 @@ DO i = PDM%ParticleVecLengthOld+1,PDM%maxParticleNumber
   counter = counter + 1
   PDM%nextFreePosition(counter) = i
 #ifdef CODE_ANALYZE
-  IF(PDM%ParticleInside(i)) CALL ABORT(&
-  __STAMP__&
-  ,'Particle Inside is true but outside of PDM%ParticleVecLength',IntInfoOpt=i)
+  IF(PDM%ParticleInside(i)) CALL ABORT(__STAMP__,'Particle Inside is true but outside of PDM%ParticleVecLength',IntInfoOpt=i)
 #endif
 END DO
 
@@ -232,6 +226,10 @@ PDM%nextFreePosition(counter+1:PDM%maxParticleNumber) = 0
 CALL LBPauseTime(LB_UNFP,tLBStart)
 #endif /*USE_LOADBALANCE*/
 
+#if !(USE_MPI)
+! Suppress compiler warning
+IF(PRESENT(WithOutMPIParts)) RETURN
+#endif /*!(USE_MPI)*/
 END SUBROUTINE UpdateNextFreePosition
 
 
@@ -355,11 +353,11 @@ INTEGER,INTENT(IN),OPTIONAL :: PartMissingType_opt ! 0: lost, 1: missing & found
 INTEGER                     :: dims(2)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-REAL                 :: MPF,PartSpec
+REAL                 :: MPF
 ! Temporary arrays
 REAL, ALLOCATABLE    :: PartStateLost_tmp(:,:)   ! (1:11,1:NParts) 1st index: x,y,z,vx,vy,vz,SpecID,MPF,time,ElemID,iPart
 !                                                !                 2nd index: 1 to number of lost particles
-INTEGER              :: ALLOCSTAT
+INTEGER              :: ALLOCSTAT,PartSpec
 LOGICAL              :: UsePartState_loc
 !===================================================================================================================================
 UsePartState_loc = .FALSE.
@@ -470,7 +468,7 @@ END FUNCTION DiceUnitVector
 
 
 !===================================================================================================================================
-!> Calculation of velocity vector (Vx,Vy,Vz) sampled from given distribution function
+!> Calculation of velocity vector (Vx,Vy,Vz) sampled from given distribution function at the surface
 !===================================================================================================================================
 FUNCTION VeloFromDistribution(distribution,Tempergy,iNewPart,ProductSpecNbr)
 ! MODULES

@@ -280,7 +280,7 @@ INTEGER                        :: firstElem, lastElem
 !===================================================================================================================================
 
 LBWRITE(UNIT_StdOut,'(132("-"))')
-LBWRITE(UNIT_StdOut,'(A)') ' Identifying side types and whether elements are curved ...'
+LBWRITE(UNIT_StdOut,'(A)') ' TriaTracking: Identifying side types and whether elements are curved ...'
 
 ! elements
 #if USE_MPI

@@ -34,7 +34,7 @@ REAL,ALLOCPOINT,DIMENSION(:,:,:)        :: BoundaryWallTemp              !> Wall
 ! ====================================================================
 ! Mesh info
 INTEGER                                 :: nGlobalSurfSides
-INTEGER                                 :: nGlobalOutputSides
+INTEGER                                 :: nGlobalOutputSides            ! Simulation-wide number of surface output sides
 
 INTEGER                                 :: nComputeNodeSurfSides         !> Number of surface sampling sides on compute node
 INTEGER                                 :: nComputeNodeSurfOutputSides   !> Number of output surface sampling sides on compute node (inner BCs only counted once and rotationally periodic BCs excluded)
@@ -245,6 +245,12 @@ TYPE tPartBoundary
   INTEGER , ALLOCATABLE                  :: SpeciesSwaps(:,:,:)           ! Species to be changed at wall (in, out), out=0: delete
   ! Surface models
   INTEGER , ALLOCATABLE                  :: SurfaceModel(:)               ! Model used for surface interaction (e.g. SEE models)
+  REAL    , ALLOCATABLE                  :: TotalCoverage(:)              ! Total surface coverage
+  REAL    , ALLOCATABLE                  :: MaxTotalCoverage(:)           ! Maximum total surface coverage
+  REAL    , ALLOCATABLE                  :: LatticeVec(:)                 ! Lattice constant for a fcc crystal
+  REAL    , ALLOCATABLE                  :: MolPerUnitCell(:)             ! Molecules per unit cell
+  REAL    , ALLOCATABLE                  :: CoverageIni(:,:)               ! Initial boundary coverage
+  REAL    , ALLOCATABLE                  :: MaxCoverage(:,:)
   LOGICAL , ALLOCATABLE                  :: Reactive(:)                   ! flag defining if surface is treated reactively
   LOGICAL , ALLOCATABLE                  :: Resample(:)                   ! Resample Equilibrium Distribution with reflection
   ! Radiative-equilibrium BC
@@ -300,6 +306,13 @@ INTEGER, PARAMETER   :: nVarPartStateBoundary=11
 INTEGER              :: PartStateBoundaryVecLength ! Number of boundary-crossed particles
 ! Virtual dielectric layer (VDL)
 LOGICAL              :: DoVirtualDielectricLayer ! Flag set automatically if a VDL permittivity is set >= 0.0
+REAL, ALLOCATABLE    :: ElementThicknessVDL(:)   ! Thickness of first element layer at a VDL boundary
+
+TYPE, PUBLIC :: VDLSurfMesh
+  REAL,ALLOCATABLE        :: E(:,:,:)   !< E-XYZ positions (first index 1:3) of the Boundary Face Gauss Point
+END TYPE VDLSurfMesh
+
+TYPE(VDLSurfMesh),ALLOCATABLE  :: N_SurfVDL(:) !< Corrected electric field on VDL surfaces
 !===================================================================================================================================
 
 END MODULE MOD_Particle_Boundary_Vars

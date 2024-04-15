@@ -689,7 +689,7 @@ SUBROUTINE PerformAnalyze(OutputTime,FirstOrLastIter,OutPutHDF5)
 ! MODULES
 USE MOD_Globals
 USE MOD_Preproc
-USE MOD_Analyze_Vars              ,ONLY: DoCalcErrorNorms,OutputErrorNorms,FieldAnalyzeStep
+USE MOD_Analyze_Vars              ,ONLY: DoCalcErrorNorms,OutputErrorNorms,OutputErrorNormsPart,FieldAnalyzeStep
 USE MOD_Analyze_Vars              ,ONLY: AnalyzeCount,AnalyzeTime,DoMeasureAnalyzeTime
 USE MOD_Restart_Vars              ,ONLY: DoRestart
 USE MOD_TimeDisc_Vars             ,ONLY: iter,tEnd
@@ -913,6 +913,9 @@ IF(DoCalcErrorNorms) THEN
 #endif /*PARTICLES*/
   END IF
 END IF
+#if defined(PARTICLES)
+IF(DoPerformErrorCalc) OutputErrorNormsPart = .TRUE.
+#endif /*defined(PARTICLES)*/
 
 ! the following analysis are restricted to Runge-Kutta based time-discs and temporal varying electrodynamic fields
 #if defined(LSERK) || defined(IMPA) || defined(ROS) || USE_HDG

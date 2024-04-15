@@ -278,7 +278,7 @@ ELSE
 END IF ! CalcBField
 #else
   CALL abort(__STAMP__,'Activate SuperB.')
-#endif
+#endif /*USE_SUPER_B*/
 
 LBWRITE(UNIT_stdOut,'(A)')' INIT BACKGROUND FIELD DONE!'
 LBWRITE(UNIT_StdOut,'(132("-"))')

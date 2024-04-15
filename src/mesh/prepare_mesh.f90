@@ -1038,7 +1038,7 @@ IF(meshMode.GT.1)THEN
         IF(SideID.LE.nBCSides)THEN
           ! Add weighting depending on BC or inner sides
           SELECT CASE(BCType)
-          CASE(1) !periodic
+          CASE(1) ! periodic
             CALL abort(__STAMP__,'SideID.LE.nBCSides and SideID is periodic should not happen')
           CASE(HDGDIRICHLETBCSIDEIDS) ! Dirichlet
             ! do not consider this side

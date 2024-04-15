@@ -277,9 +277,9 @@ L_PlusMinus(:, ETA_PLUS)  = L_Plus
 L_PlusMinus(:,ZETA_PLUS)  = L_Plus
 
 IF(PRESENT(Vdm_Leg).AND.PRESENT(sVdm_Leg))THEN
-! Vandermonde from NODAL <--> MODAL
-ALLOCATE(Vdm_Leg(0:N_in,0:N_in),sVdm_Leg(0:N_in,0:N_in))
-CALL buildLegendreVdm(N_in,xGP,Vdm_Leg,sVdm_Leg)
+  ! Vandermonde from NODAL <--> MODAL
+  ALLOCATE(Vdm_Leg(0:N_in,0:N_in),sVdm_Leg(0:N_in,0:N_in))
+  CALL buildLegendreVdm(N_in,xGP,Vdm_Leg,sVdm_Leg)
 END IF
 
 END SUBROUTINE InitInterpolationBasis

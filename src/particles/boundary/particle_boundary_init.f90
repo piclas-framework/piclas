@@ -28,7 +28,7 @@ PRIVATE
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
 PUBLIC :: DefineParametersParticleBoundary, InitializeVariablesPartBoundary, InitParticleBoundarySurfSides, FinalizeParticleBoundary
 PUBLIC :: InitAdaptiveWallTemp, InitRotPeriodicMapping, InitRotPeriodicInterPlaneMapping
-PUBLIC :: InitPartStateBoundary
+PUBLIC :: InitPartStateBoundary,InitVirtualDielectricLayer
 !===================================================================================================================================
 
 CONTAINS
@@ -162,8 +162,23 @@ CALL prms%CreateIntOption(      'Part-Boundary[$]-SurfaceModel'  &
                                 'by A.I. Morozov, "Structure of Steady-State Debye Layers in a Low-Density Plasma near a Dielectric Surface", 2004\n'//&
                                 '9: SEE-I when Ar+ ion bombards surface with 0.01 probability and fixed SEE electron energy of 6.8 eV\n'//&
                                 '10: SEE-I when Ar+ bombards copper by J.G. Theis "Computing the Paschen curve for argon with speed-limited particle-in-cell simulation", 2021 (originates from Phelps1999)\n'// &
-                                '11: SEE-E when e- bombard quartz (SiO2) by A. Dunaevsky, "Secondary electron emission from dielectric materials of a Hall thruster with segmented electrodes", 2003'&
-                                , '0', numberedmulti=.TRUE.)
+                                '11: SEE-E when e- bombard quartz (SiO2) by A. Dunaevsky, "Secondary electron emission from dielectric materials of a Hall thruster with segmented electrodes", 2003\n'//&
+                                '20: Catalytic reaction model', '0', numberedmulti=.TRUE.)
+CALL prms%CreateRealOption(     'Part-Boundary[$]-LatticeVector'  &
+                                , 'Lattice vector for the respective crystal structure [m]'&
+                                , numberedmulti=.TRUE.)
+CALL prms%CreateRealOption(     'Part-Boundary[$]-NbrOfMol-UnitCell'  &
+                                , 'Number of molecules in the unit area (defined by the lattice vector)'&
+                                , numberedmulti=.TRUE.)
+CALL prms%CreateRealOption(     'Part-Boundary[$]-Species[$]-Coverage'  &
+                                , 'Initial coverage of the surface by an adsorbed species'&
+                                , numberedmulti=.TRUE.)
+CALL prms%CreateRealOption(     'Part-Boundary[$]-Species[$]-MaxCoverage'  &
+                                , 'Initial coverage of the surface by an adsorbed species'&
+                                , numberedmulti=.TRUE.)
+CALL prms%CreateRealOption(     'Part-Boundary[$]-MaxTotalCoverage'  &
+                                , 'Maximal coverage valure for the surface (default = 1.)'&
+                                , numberedmulti=.TRUE.)
 CALL prms%SetSection('Particle Boundaries: Species Swap')
 CALL prms%CreateIntOption(      'Part-Boundary[$]-NbrOfSpeciesSwaps'  &
                                 , 'TODO-DEFINE-PARAMETER\n'//&
@@ -305,6 +320,18 @@ ALLOCATE(PartBound%TempGradDir(1:nPartBound))
 PartBound%TempGradDir = 0
 ALLOCATE(PartBound%SurfaceModel(     1:nPartBound))
 PartBound%SurfaceModel = 0
+ALLOCATE(PartBound%CoverageIni(nPartBound, nSpecies))
+PartBound%CoverageIni = 0.
+ALLOCATE(PartBound%MaxCoverage(nPartBound, nSpecies))
+PartBound%MaxCoverage = 0.
+ALLOCATE(PartBound%TotalCoverage(nPartBound))
+PartBound%TotalCoverage = 0.
+ALLOCATE(PartBound%MaxTotalCoverage(nPartBound))
+PartBound%MaxTotalCoverage = 0.
+ALLOCATE(PartBound%LatticeVec(nPartBound))
+PartBound%LatticeVec = 0.
+ALLOCATE(PartBound%MolPerUnitCell(nPartBound))
+PartBound%MolPerUnitCell = 0.
 ALLOCATE(PartBound%Reactive(         1:nPartBound))
 PartBound%Reactive = .FALSE.
 ALLOCATE(PartBound%NbrOfSpeciesSwaps(1:nPartBound))
@@ -462,14 +489,35 @@ DO iPartBound=1,nPartBound
         PartBound%Reactive(iPartBound)        = .FALSE.
         IF(TRIM(SpeciesDatabase).EQ.'none') &
           CALL abort(__STAMP__,'ERROR in InitializeVariablesPartBoundary: SpeciesDatabase is required for the boundary #', iPartBound)
-      CASE (2) ! VDL - cannot be actively selected!
-        CALL abort(__STAMP__,'Part-Boundary'//TRIM(hilf)//'-SurfaceModel = 2 cannot be selected!')
+      CASE (20)
+        PartBound%Reactive(iPartBound)        = .TRUE.
       CASE (SEE_MODELS_ID) ! see ./src/piclas.h for numbers
-        PartBound%Reactive(iPartBound)        = .TRUE. ! SEE models require reactive BC
+        ! SEE models require reactive BC
+        PartBound%Reactive(iPartBound)        = .TRUE.
+      CASE (99) ! VDL - cannot be actively selected!
+        CALL abort(__STAMP__,'Part-Boundary'//TRIM(hilf)//'-SurfaceModel = 2 cannot be selected!')
       CASE DEFAULT
-        CALL abort(__STAMP__,'Error in particle init: only allowed SurfaceModels: 0,1,SEE_MODELS_ID! SurfaceModel=',&
-        IntInfoOpt=PartBound%SurfaceModel(iPartBound))
+        CALL abort(__STAMP__,'Error in particle init: only allowed SurfaceModels: 0,1,20,SEE_MODELS_ID! SurfaceModel=',&
+                  IntInfoOpt=PartBound%SurfaceModel(iPartBound))
       END SELECT
+    END IF
+    PartBound%LatticeVec(iPartBound) = GETREAL('Part-Boundary'//TRIM(hilf)//'-LatticeVector', '0.')
+    PartBound%MolPerUnitCell(iPartBound) = GETREAL('Part-Boundary'//TRIM(hilf)//'-NbrOfMol-UnitCell', '1.')
+    DO iSpec=1, nSpecies
+      WRITE(UNIT=hilf2,FMT='(I0)') iSpec
+      PartBound%CoverageIni(iPartBound, iSpec) = GETREAL('Part-Boundary'//TRIM(hilf)//'-Species'//TRIM(hilf2)//'-Coverage', '0.')
+      PartBound%MaxCoverage(iPartBound, iSpec) = GETREAL('Part-Boundary'//TRIM(hilf)//'-Species'//TRIM(hilf2)//'-MaxCoverage', '1.')
+      IF (PartBound%CoverageIni(iPartBound, iSpec).GT.PartBound%MaxCoverage(iPartBound, iSpec)) THEN
+        CALL abort(__STAMP__,'ERROR: Surface coverage can not be larger than the maximum value', iPartBound)
+      END IF
+    END DO
+    PartBound%TotalCoverage(iPartBound) = SUM(PartBound%CoverageIni(iPartBound,:))
+    PartBound%MaxTotalCoverage(iPartBound) = GETREAL('Part-Boundary'//TRIM(hilf)//'-MaxTotalCoverage', '1.')
+    ! Check if the maximum of the coverage is reached
+    IF (PartBound%TotalCoverage(iPartBound).GT.PartBound%MaxTotalCoverage(iPartBound)) THEN
+      CALL abort(&
+    __STAMP__&
+    ,'ERROR: Maximum surface coverage reached.', iPartBound)
     END IF
 
     ! Species Swap
@@ -520,7 +568,7 @@ DO iPartBound=1,nPartBound
       PartBound%ThicknessVDL(iPartBound) = GETREAL('Part-Boundary'//TRIM(hilf)//'-ThicknessVDL')
       DoVirtualDielectricLayer           = .TRUE.
       PartBound%Reactive(iPartBound)     = .TRUE. ! VDL requires reactive BC for analysis
-      PartBound%SurfaceModel(iPartBound) = 2 ! VDL
+      PartBound%SurfaceModel(iPartBound) = 99 ! VDL
       DoDielectricSurfaceCharge          = .TRUE.
       DoHaloDepo                         = .TRUE.
     ELSEIF(PartBound%PermittivityVDL(iPartBound).LT.0.0)THEN
@@ -647,9 +695,6 @@ IF(ANY(PartBound%SurfaceModel.EQ.1)) THEN
   CALL CloseDataFile()
 END IF
 
-!--- Build VDL containers
-IF(DoVirtualDielectricLayer) CALL InitVirtualDielectricLayer()
-
 END SUBROUTINE InitializeVariablesPartBoundary
 
 
@@ -658,12 +703,111 @@ END SUBROUTINE InitializeVariablesPartBoundary
 !===================================================================================================================================
 SUBROUTINE InitVirtualDielectricLayer()
 ! MODULES
+use mod_globals                       
+USE MOD_Globals                ,ONLY: VECNORM
+USE MOD_Mesh_Vars              ,ONLY: nElems,SideToElem,nBCSides,Boundarytype,BC
+USE MOD_IO_HDF5                ,ONLY: AddToElemData,ElementOut
+USE MOD_Particle_Boundary_Vars ,ONLY: ElementThicknessVDL,PartBound,N_SurfVDL
+USE MOD_Mesh_Tools             ,ONLY: GetGlobalElemID,GetCNElemID
+USE MOD_Particle_Mesh_Tools    ,ONLY: GetGlobalNonUniqueSideID
+USE MOD_Mesh_Vars              ,ONLY: ElemToSide,nSides,offSetElem,SideToNonUniqueGlobalSide
+USE MOD_Mesh_Tools             ,ONLY: GetCNSideID
+USE MOD_Particle_Surfaces      ,ONLY: CalcNormAndTangTriangle
+USE MOD_Particle_Mesh_Vars     ,ONLY: NodeCoords_Shared,ElemSideNodeID_Shared, SideInfo_Shared
+USE MOD_DG_Vars                ,ONLY: N_DG_Mapping
+USE MOD_Particle_Boundary_Vars ,ONLY: GlobalSide2SurfSide
+USE MOD_Particle_Boundary_Vars ,ONLY: nComputeNodeSurfSides
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! INPUT / OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
+INTEGER           :: iElem,BCSideID,BCType,iPartBound,GlobalElemID,GlobalNonUniqueSideID,iLocSide,SideID,CNElemID
+INTEGER           :: iSide,Nloc,NonUniqueGlobalSideID,iSurfSide
+REAL,DIMENSION(3) :: NormVec,x
+REAL,DIMENSION(6) :: distances
 !===================================================================================================================================
+
+! 1) Determine volume container ElementThicknessVDL that holds the approximate thickness of the element with respect to the boundary
+ALLOCATE(ElementThicknessVDL(1:nElems))
+CALL AddToElemData(ElementOut,'ElementThicknessVDL',RealArray=ElementThicknessVDL(1:nElems))
+
+! Loop over all local boundary sides
+DO BCSideID=1,nBCSides
+
+  ! Exclude periodic sides
+  BCType = Boundarytype(BC(BCSideID),BC_TYPE)
+  IF(BCType.EQ.1) CYCLE ! Skip periodic side
+
+  ! Exclude non-VDL boundaries
+  iPartBound = PartBound%MapToPartBC(BC(BCSideID))
+  IF(PartBound%SurfaceModel(iPartBound).NE.99)CYCLE ! Skip non-VDL boundary
+
+  ! Get local and global element index
+  iElem        = SideToElem(S2E_ELEM_ID,BCSideID)
+  GlobalElemID = GetGlobalElemID(iElem)
+
+  ! Get normal vector
+  DO iLocSide=1,6
+    GlobalNonUniqueSideID = GetGlobalNonUniqueSideID(GlobalElemID,iLocSide)
+    SideID                = ElemToSide(E2S_SIDE_ID,iLocSide,iElem)
+    ! Approximate normal vector by assuming planar boundary side
+    CALL CalcNormAndTangTriangle(TriNum=1, nVec=NormVec, SideID=GlobalNonUniqueSideID)
+    IF(SideID.EQ.BCSideID) EXIT ! Exit loop when correct side is found
+  END DO
+
+  ! Calculate the projected distance for each of the 6 sides
+  CNElemID = GetCNElemID(SideInfo_Shared(SIDE_ELEMID,SideID))
+  DO iLocSide=1,6
+    x(1:3) = NodeCoords_Shared(1:3,ElemSideNodeID_Shared(1,iLocSide,CNElemID)+1)
+    distances(iLocSide) = DOT_PRODUCT(x,NormVec)
+  END DO
+
+  ElementThicknessVDL(iElem) = MAXVAL(distances) - MINVAL(distances)
+  ! Sanity check
+  IF(ElementThicknessVDL(iElem).LT.0.) CALL abort(__STAMP__,'ElementThicknessVDL(iElem) is negative for iElem=',IntInfoOpt=iElem)
+
+END DO ! BCSideID=1,nBCSides
+
+! 2) Initialize surface container for the corrected electric field
+ALLOCATE(N_SurfVDL(1:nBCSides))
+DO iSide = 1, nBCSides
+  iElem = SideToElem(S2E_ELEM_ID,iSide)
+  ! Allocate with polynomial degree of the element
+  Nloc = N_DG_Mapping(2,iElem+offSetElem)
+  ALLOCATE(N_SurfVDL(iSide)%E(3,0:Nloc,0:Nloc))
+  N_SurfVDL(iSide)%E = 0.
+
+  !ALLOCATE(PhotonSampWall(2,1:Ray%nSurfSample,1:Ray%nSurfSample,1:nComputeNodeSurfTotalSides))
+  !PhotonSampWall=0.0
+
+END DO ! iSide = 1, nBCSides
+
+
+
+
+
+! Loop over all local boundary sides
+DO BCSideID=1,nBCSides
+
+  ! Exclude periodic sides
+  BCType = Boundarytype(BC(BCSideID),BC_TYPE)
+  IF(BCType.EQ.1) CYCLE ! Skip periodic side
+
+  ! Exclude non-VDL boundaries
+  iPartBound = PartBound%MapToPartBC(BC(BCSideID))
+  IF(PartBound%SurfaceModel(iPartBound).NE.99)CYCLE ! Skip non-VDL boundary
+
+  iElem    = SideToElem(S2E_ELEM_ID,BCSideID)
+  Nloc     = N_DG_Mapping(2,iElem+offSetElem)
+  iLocSide = SideToElem(S2E_LOC_SIDE_ID,BCSideID)
+
+
+  GlobalNonUniqueSideID = GetGlobalNonUniqueSideID(GlobalElemID,iLocSide)
+  iSurfSide = GlobalSide2SurfSide(SURF_SIDEID,GlobalNonUniqueSideID)
+  !WRITE (*,*) "iSurfSide =", iSurfSide
+
+END DO ! BCSideID=1,nBCSides
 
 END SUBROUTINE InitVirtualDielectricLayer
 
@@ -717,9 +861,10 @@ INTEGER                                :: GlobalElemID,GlobalElemRank
 INTEGER                                :: sendbuf,recvbuf
 INTEGER                                :: NbGlobalElemID, NbElemRank, NbLeaderID, nSurfSidesTmp
 INTEGER                                :: color
+LOGICAL                                :: BCOnNode
 #endif /*USE_MPI*/
 INTEGER                                :: NbGlobalSideID,PartBoundCondition
-LOGICAL                                :: BCOnNode,ReflectiveOrOpenBCFound
+LOGICAL                                :: ReflectiveOrOpenBCFound
 !===================================================================================================================================
 
 LBWRITE(UNIT_stdOut,'(A)') ' INIT SURFACE SIDES ...'
@@ -2230,10 +2375,18 @@ SDEALLOCATE(PartBound%SpeciesSwaps)
 SDEALLOCATE(PartBound%MapToPartBC)
 SDEALLOCATE(PartBound%MapToFieldBC)
 SDEALLOCATE(PartBound%SurfaceModel)
+SDEALLOCATE(PartBound%CoverageIni)
+SDEALLOCATE(PartBound%MaxCoverage)
+SDEALLOCATE(PartBound%TotalCoverage)
+SDEALLOCATE(PartBound%MaxTotalCoverage)
+SDEALLOCATE(PartBound%LatticeVec)
+SDEALLOCATE(PartBound%MolPerUnitCell)
 SDEALLOCATE(PartBound%Reactive)
 SDEALLOCATE(PartBound%Dielectric)
 SDEALLOCATE(PartBound%BoundaryParticleOutputHDF5)
 SDEALLOCATE(PartBound%RadiativeEmissivity)
+SDEALLOCATE(PartBound%PermittivityVDL)
+SDEALLOCATE(PartBound%ThicknessVDL)
 
 ! Mapping arrays are allocated even if the node does not have sampling surfaces
 #if USE_MPI
@@ -2290,6 +2443,8 @@ IF(.NOT.(PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance)))THEN
 #if USE_LOADBALANCE
 END IF ! PerformLoadBalance
 #endif /*USE_LOADBALANCE*/
+
+SDEALLOCATE(ElementThicknessVDL)
 
 END SUBROUTINE FinalizeParticleBoundary
 

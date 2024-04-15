@@ -124,7 +124,8 @@ USE MOD_Mesh_Vars          ,ONLY: nElems,OffsetElem
 ! INPUT/OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER(KIND=IK)                   :: Nres,nVar
+INTEGER                            :: Nres
+INTEGER(KIND=IK)                   :: Nres8,nVar
 INTEGER(KIND=IK)                   :: OffsetElemTmp,PP_nElemsTmp
 #if USE_HDG
 LOGICAL                            :: DG_SolutionLambdaExists
@@ -375,6 +376,7 @@ IF(PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance))THEN
   END DO ! iElem = 1, PP_nElems
 
   ! Re-allocate the PML solution arrays
+  ! TODO: why is U2 read from .h5 below  but not exchanged here during load balance?
   IF(DoPML)THEN
     DO iPMLElem=1,nPMLElems
       iElem = PMLToElem(iPMLElem)
@@ -401,7 +403,8 @@ ELSE ! normal restart
   IF(N_Restart.LT.1) CALL abort(__STAMP__,'N_Restart<1 is not allowed. Check correct initailisation of N_Restart!')
 
   ! Temp. vars for integer KIND=8 possibility
-  Nres          = INT(N_Restart,IK)
+  Nres8         = INT(N_Restart,IK)
+  Nres          = N_Restart
   OffsetElemTmp = INT(OffsetElem,IK)
   nVar          = INT(PP_nVar,IK)
   PP_nElemsTmp  = INT(PP_nElems,IK)
@@ -426,17 +429,17 @@ ELSE ! normal restart
     ! Read in state
 
 
-    SWRITE(UNIT_stdOut,*)'Interpolating solution from restart grid with N=',N_restart,' to computational grid with N=',PP_N
+    SWRITE(UNIT_stdOut,'(A,I0,A,I0)')'Interpolating solution from restart grid with N=',N_restart,' to computational grid with N=',PP_N
 
 
 
 #ifdef PP_POIS
 #if (PP_nVar==8)
-    CALL ReadArray('DG_SolutionE',5,(/PP_nVar,Nres+1_IK,Nres+1_IK,Nres+1_IK,PP_nElemsTmp/),OffsetElemTmp,5,RealArray=U)
-    CALL ReadArray('DG_SolutionPhi',5,(/4_IK,Nres+1_IK,Nres+1_IK,Nres+1_IK,PP_nElemsTmp/),OffsetElemTmp,5,RealArray=Phi)
+    CALL ReadArray('DG_SolutionE',5,(/PP_nVar,Nres8+1_IK,Nres8+1_IK,Nres8+1_IK,PP_nElemsTmp/),OffsetElemTmp,5,RealArray=U)
+    CALL ReadArray('DG_SolutionPhi',5,(/4_IK,Nres8+1_IK,Nres8+1_IK,Nres8+1_IK,PP_nElemsTmp/),OffsetElemTmp,5,RealArray=Phi)
 #else
-    CALL ReadArray('DG_SolutionE',5,(/PP_nVar,Nres+1_IK,Nres+1_IK,Nres+1_IK,PP_nElemsTmp/),OffsetElemTmp,5,RealArray=U)
-    CALL ReadArray('DG_SolutionPhi',5,(/PP_nVar,Nres+1_IK,Nres+1_IK,Nres+1_IK,PP_nElemsTmp/),OffsetElemTmp,5,RealArray=Phi)
+    CALL ReadArray('DG_SolutionE',5,(/PP_nVar,Nres8+1_IK,Nres8+1_IK,Nres8+1_IK,PP_nElemsTmp/),OffsetElemTmp,5,RealArray=U)
+    CALL ReadArray('DG_SolutionPhi',5,(/PP_nVar,Nres8+1_IK,Nres8+1_IK,Nres8+1_IK,PP_nElemsTmp/),OffsetElemTmp,5,RealArray=Phi)
 #endif /*PP_nVar==8*/
 #elif USE_HDG
     ! TODO: Do we need this for the HDG solver?
@@ -582,7 +585,7 @@ ELSE ! normal restart
 #else /*not PP_POIS and not USE_HDG*/
     ALLOCATE(U(1:nVar,0:Nres,0:Nres,0:Nres,PP_nElemsTmp))
     ALLOCATE(Uloc(1:nVar,0:Nres,0:Nres,0:Nres))
-    CALL ReadArray('DG_Solution',5,(/nVar,Nres+1_IK,Nres+1_IK,Nres+1_IK,PP_nElemsTmp/),OffsetElemTmp,5,RealArray=U)
+    CALL ReadArray('DG_Solution',5,(/nVar,Nres8+1_IK,Nres8+1_IK,Nres8+1_IK,PP_nElemsTmp/),OffsetElemTmp,5,RealArray=U)
     DO iElem = 1, nElems
       Nloc = N_DG_Mapping(2,iElem+offSetElem)
       IF(Nloc.EQ.N_Restart)THEN ! N is equal
@@ -591,7 +594,7 @@ ELSE ! normal restart
         CALL ChangeBasis3D(PP_nVar, N_Restart, Nloc, PREF_VDM(N_Restart, Nloc)%Vdm, U(1:nVar,0:Nres,0:Nres,0:Nres,iElem), U_N(iElem)%U(1:nVar,0:Nloc,0:Nloc,0:Nloc))
       ELSE ! N reduces
         !transform the slave side to the same degree as the master: switch to Legendre basis
-        CALL ChangeBasis3D(PP_nVar, N_Restart, N_Restart, N_Inter(N_Restart)%sVdm_Leg, U(1:nVar,0:Nres,0:Nres,0:Nres,iElem), Uloc(1:PMLnVar,0:Nres,0:Nres,0:Nres))
+        CALL ChangeBasis3D(PP_nVar, N_Restart, N_Restart, N_Inter(N_Restart)%sVdm_Leg, U(1:nVar,0:Nres,0:Nres,0:Nres,iElem), Uloc(1:nVar,0:Nres,0:Nres,0:Nres))
         ! switch back to nodal basis
         CALL ChangeBasis3D(PP_nVar, Nloc, Nloc, N_Inter(Nloc)%Vdm_Leg, Uloc(1:nVar,0:Nloc,0:Nloc,0:Nloc), U_N(iElem)%U(1:nVar,0:Nloc,0:Nloc,0:Nloc))
       END IF ! Nloc.EQ.N_Restart
@@ -600,7 +603,7 @@ ELSE ! normal restart
     IF(DoPML)THEN
       ALLOCATE(U_local(PMLnVar,0:Nres,0:Nres,0:Nres,nElems))
       ALLOCATE(Uloc(1:PMLnVar,0:Nres,0:Nres,0:Nres))
-      CALL ReadArray('PML_Solution',5,(/INT(PMLnVar,IK),Nres+1_IK,Nres+1_IK,Nres+1_IK,PP_nElemsTmp/),&
+      CALL ReadArray('PML_Solution',5,(/INT(PMLnVar,IK),Nres8+1_IK,Nres8+1_IK,Nres8+1_IK,PP_nElemsTmp/),&
           OffsetElemTmp,5,RealArray=U_local)
       DO iPML=1,nPMLElems
         iElem = PMLToElem(iPML)
@@ -608,12 +611,12 @@ ELSE ! normal restart
         IF(Nloc.EQ.N_Restart)THEN ! N is equal
           U_N(iElem)%U2(1:PMLnVar,0:Nres,0:Nres,0:Nres) = U_local(1:PMLnVar,0:Nres,0:Nres,0:Nres,iElem)
         ELSEIF(Nloc.GT.N_Restart)THEN ! N increases
-          CALL ChangeBasis3D(PP_nVar, N_Restart, Nloc, PREF_VDM(N_Restart, Nloc)%Vdm, U_local(1:PMLnVar,0:Nres,0:Nres,0:Nres,iElem), U_N(iElem)%U2(1:PMLnVar,0:Nloc,0:Nloc,0:Nloc))
+          CALL ChangeBasis3D(PMLnVar, N_Restart, Nloc, PREF_VDM(N_Restart, Nloc)%Vdm, U_local(1:PMLnVar,0:Nres,0:Nres,0:Nres,iElem), U_N(iElem)%U2(1:PMLnVar,0:Nloc,0:Nloc,0:Nloc))
         ELSE ! N reduces
           !transform the slave side to the same degree as the master: switch to Legendre basis
-          CALL ChangeBasis3D(PP_nVar, N_Restart, N_Restart, N_Inter(N_Restart)%sVdm_Leg, U_local(1:PMLnVar,0:Nres,0:Nres,0:Nres,iElem), Uloc(1:PMLnVar,0:Nres,0:Nres,0:Nres))
+          CALL ChangeBasis3D(PMLnVar, N_Restart, N_Restart, N_Inter(N_Restart)%sVdm_Leg, U_local(1:PMLnVar,0:Nres,0:Nres,0:Nres,iElem), Uloc(1:PMLnVar,0:Nres,0:Nres,0:Nres))
           ! switch back to nodal basis
-          CALL ChangeBasis3D(PP_nVar, Nloc, Nloc, N_Inter(Nloc)%Vdm_Leg, Uloc(1:PMLnVar,0:Nloc,0:Nloc,0:Nloc), U_N(iElem)%U2(1:PMLnVar,0:Nloc,0:Nloc,0:Nloc))
+          CALL ChangeBasis3D(PMLnVar, Nloc, Nloc, N_Inter(Nloc)%Vdm_Leg, Uloc(1:PMLnVar,0:Nloc,0:Nloc,0:Nloc), U_N(iElem)%U2(1:PMLnVar,0:Nloc,0:Nloc,0:Nloc))
         END IF ! Nloc.EQ.N_Restart
       END DO ! iPML
       DEALLOCATE(U_local)

@@ -153,7 +153,7 @@ IF (PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance)) THEN
     ! Store in Nmax^3 array
     ALLOCATE(PartSource(1:4,0:NMax,0:NMax,0:NMax,nElemsOld))
     DO iElem = 1, nElemsOld
-      Nloc = N_DG_Mapping(2,iElem+offSetElem)
+      Nloc = N_DG_Mapping(2,iElem+offsetElemOld)
       IF(Nloc.EQ.Nmax)THEN
         PartSource(:,:,:,:,iElem) = PS_N(iElem)%PartSource(:,:,:,:)
       ELSE
