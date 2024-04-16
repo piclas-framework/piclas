@@ -41,7 +41,7 @@ USE MOD_PICInterpolation_Vars ,ONLY: AnalyticInterpolationType,AnalyticInterpola
 USE MOD_PICInterpolation_Vars ,ONLY: AnalyticInterpolationPhase,AnalyticInterpolationGamma,AnalyticInterpolationE,AnalyticPartDim
 USE MOD_PICInterpolation_Vars ,ONLY: TimeReset,r_WallVec,v_WallVec
 USE MOD_TimeDisc_Vars         ,ONLY: TEnd
-USE MOD_PARTICLE_Vars         ,ONLY: PartSpecies,Species,RotRefFrameOmega,RotRefFrameFreq, PartState
+USE MOD_PARTICLE_Vars         ,ONLY: PartSpecies,Species,RotRefFrameOmega,RotRefFrameFreq
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
@@ -408,14 +408,10 @@ CASE(51)
                         - ( omega * (COS(omega * New_t) - omega * New_t * SIN(omega * New_t) ) ) &
                                                         * ( TempArrayCross3(3) - 1/omega * TempArrayCross6(3) )
 
-!  IF(ABS(PartStateAnalytic(1)).LT.1E-8) THEN
   IF(PartStateAnalytic(1).GT.0.0) THEN
     TimeReset    = t
     PartStateAnalytic(1) = 0.0 ! set particle on wall
     r_WallVec    = PartStateAnalytic(1:3)
-!    v_WallVec(1) = -PartStateAnalytic(4)
-!    v_WallVec(2) = PartStateAnalytic(5)
-!    v_WallVec(3) = PartStateAnalytic(6)
     v_0Vec = Species(iSpec)%Init(1)%VeloVecIC(1:3) * Species(iSpec)%Init(1)%VeloIC
     v_WallVec = v_0Vec
     v_WallVec(1) = - v_WallVec(1) ! mirror velocity (not equal push velocity or PartStateAnalytic(4:6))

@@ -718,7 +718,7 @@ PPURE FUNCTION InRotRefFrameCheck(iPart)
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! MODULES                                                                                                                          !
 !----------------------------------------------------------------------------------------------------------------------------------!
-USE MOD_Particle_Vars ,ONLY: PartState,RotRefFramRegion,RotRefFrameAxis,nRefFrameRegions
+USE MOD_Particle_Vars ,ONLY: PartState,RotRefFrameRegion,RotRefFrameAxis,nRefFrameRegions
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
 ! INPUT / OUTPUT VARIABLES
@@ -732,8 +732,8 @@ INTEGER             :: iRegion
 IF(nRefFrameRegions.GT.0) THEN
   InRotRefFrameCheck = .FALSE.
   DO iRegion = 1, nRefFrameRegions
-    IF((PartState(RotRefFrameAxis,iPart).GT.RotRefFramRegion(1,iRegion)).AND. &
-       (PartState(RotRefFrameAxis,iPart).LT.RotRefFramRegion(2,iRegion))) THEN
+    IF((PartState(RotRefFrameAxis,iPart).GT.RotRefFrameRegion(1,iRegion)).AND. &
+       (PartState(RotRefFrameAxis,iPart).LT.RotRefFrameRegion(2,iRegion))) THEN
       InRotRefFrameCheck = .TRUE.
       EXIT
     END IF
