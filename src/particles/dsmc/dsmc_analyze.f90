@@ -832,7 +832,8 @@ IF (SamplePressTensHeatflux) THEN
                 Total_PressTensYZ => DSMC_MacroVal(nVarCount+3,iElem) ,&
                 Total_HeatFluxX   => DSMC_MacroVal(nVarCount+4,iElem) ,&
                 Total_HeatFluxY   => DSMC_MacroVal(nVarCount+5,iElem) ,&
-                Total_HeatFluxZ   => DSMC_MacroVal(nVarCount+6,iElem)  &
+                Total_HeatFluxZ   => DSMC_MacroVal(nVarCount+6,iElem) ,&
+                SimVolume         => ElemVolume_Shared(GetCNElemID(iElem+offSetElem)) &
                 )
       nPartElem = 0.
       DO iSpec = 1, nSpecies
