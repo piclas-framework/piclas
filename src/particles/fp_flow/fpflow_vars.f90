@@ -43,23 +43,5 @@ REAL                  :: FP_MaxRelaxFactor
 REAL                  :: FP_MaxRotRelaxFactor
 REAL                  :: FP_PrandtlNumber
 
-TYPE tCouplingCriteria
-  CHARACTER(LEN=50)                            :: SwitchCriterium
-  REAL                                         :: SwitchDens
-  REAL                                         :: CharLength
-  REAL                                         :: MaxGlobalKnudsen
-  REAL                                         :: MaxLocalKnudsen
-  REAL                                         :: MaxThermNonEq
-  REAL                                         :: MaxChapmanEnskog
-  INTEGER                                      :: SwitchIter
-  LOGICAL                                      :: AverageSamp
-  INTEGER, ALLOCATABLE                         :: Iter_Count(:)
-  LOGICAL,ALLOCATABLE                          :: DoElementDSMC(:)
-  REAL, ALLOCATABLE                            :: OutputKnudsen(:,:)
-  REAL, ALLOCATABLE                            :: Max_HeatVec(:)
-  REAL, ALLOCATABLE                            :: Max_StressTens(:)
-END TYPE
-
-TYPE (tCouplingCriteria)                       :: FP_CBC
 !===================================================================================================================================
 END MODULE MOD_FPFlow_Vars

@@ -233,13 +233,17 @@ IF ((MOD(iter,IterAdapt).EQ.0.).OR.(iter.EQ.1)) THEN
   IF ((nPart.GE.(2.*MinPartCell)).AND.DoAdaptCell.AND.(.NOT.DoMergedCell)) THEN
     ! Calculate the splitting order (1-8, 2-27, 3-64...)
     AdaptMesh(iElem)%SplitOrder = INT(nPart/MinPartCell)
-    IF (Symmetry%Order.EQ.2 ) THEN
+    IF (Symmetry%Order.EQ.1) THEN
+      AdaptMesh(iElem)%SplitOrder = INT(AdaptMesh(iElem)%SplitOrder)
+    ELSE IF (Symmetry%Order.EQ.2 ) THEN
       AdaptMesh(iElem)%SplitOrder = INT(AdaptMesh(iElem)%SplitOrder)**(1./2.)
     ELSE
       AdaptMesh(iElem)%SplitOrder = INT(AdaptMesh(iElem)%SplitOrder)**(1./3.)
     END IF
 
-    IF (Symmetry%Order.EQ.2) THEN
+    IF (Symmetry%Order.EQ.1) THEN
+      CALL SubcellAdaption1D(iElem) ! Split the element into the defined number of subcells for the 1D case
+    ELSE IF (Symmetry%Order.EQ.2) THEN
       CALL SubcellAdaption2D(iElem) ! Split the element into the defined number of subcells for the 2D case
     ELSE
       CALL SubcellAdaption(iElem) ! Split the element into the defined number of subcells
@@ -256,12 +260,16 @@ IF ((MOD(iter,IterAdapt).EQ.0.).OR.(iter.EQ.1)) THEN
 
     ! No mesh adaption, direct call to the collision operators
 #if (PP_TimeDiscMethod==300)
-    CALL FP_CollisionOperator(PartIndx, nPart, ElemVolume_Shared(CNElemID))
+    IF (.NOT.CBC%DoElementDSMC(iElem)) THEN
+      CALL FP_CollisionOperator(PartIndx, nPart, ElemVolume_Shared(CNElemID))
+    END IF
 #elif (PP_TimeDiscMethod==400)
-    IF (BGKMovingAverage) THEN
-      CALL BGK_CollisionOperator(PartIndx, nPart,ElemVolume_Shared(CNElemID), ElemNodeAveraging(iElem)%Root%AverageValues(:))
-    ELSE
-      CALL BGK_CollisionOperator(PartIndx, nPart, ElemVolume_Shared(CNElemID))
+    IF (.NOT.CBC%DoElementDSMC(iElem)) THEN
+      IF (BGKMovingAverage) THEN
+        CALL BGK_CollisionOperator(PartIndx, nPart,ElemVolume_Shared(CNElemID), ElemNodeAveraging(iElem)%Root%AverageValues(:))
+      ELSE
+        CALL BGK_CollisionOperator(PartIndx, nPart, ElemVolume_Shared(CNElemID))
+      END IF
     END IF
 #else
     CALL PerformPairingAndCollision(PartIndx, nPart, iElem , ElemVolume_Shared(CNElemID))
@@ -270,7 +278,9 @@ IF ((MOD(iter,IterAdapt).EQ.0.).OR.(iter.EQ.1)) THEN
   END IF
 ELSE
   IF (AdaptMesh(iElem)%SplitOrder.GT.0) THEN
-    IF (Symmetry%Order.EQ.2) THEN
+    IF (Symmetry%Order.EQ.1) THEN
+      CALL MergedCellAssingement1D(iElem) ! Use the predefined subcell assingement
+    ELSE IF (Symmetry%Order.EQ.2) THEN
       CALL MergedCellAssingement2D(iElem) ! Use the predefined subcell assingement
     ELSE
       CALL MergedCellAssingement(iElem) ! Use the predefined subcell assingement
@@ -285,12 +295,16 @@ ELSE
 
     ! No mesh adaption, direct call to the collision operators
 #if (PP_TimeDiscMethod==300)
-    CALL FP_CollisionOperator(PartIndx, nPart, ElemVolume_Shared(CNElemID))
+    IF (.NOT.CBC%DoElementDSMC(iElem)) THEN
+      CALL FP_CollisionOperator(PartIndx, nPart, ElemVolume_Shared(CNElemID))
+    END IF
 #elif (PP_TimeDiscMethod==400)
-    IF (BGKMovingAverage) THEN
-      CALL BGK_CollisionOperator(PartIndx, nPart,ElemVolume_Shared(CNElemID), ElemNodeAveraging(iElem)%Root%AverageValues(:))
-    ELSE
-      CALL BGK_CollisionOperator(PartIndx, nPart, ElemVolume_Shared(CNElemID))
+    IF (.NOT.CBC%DoElementDSMC(iElem)) THEN
+      IF (BGKMovingAverage) THEN
+        CALL BGK_CollisionOperator(PartIndx, nPart,ElemVolume_Shared(CNElemID), ElemNodeAveraging(iElem)%Root%AverageValues(:))
+      ELSE
+        CALL BGK_CollisionOperator(PartIndx, nPart, ElemVolume_Shared(CNElemID))
+      END IF
     END IF
 #else
     CALL PerformPairingAndCollision(PartIndx, nPart, iElem , ElemVolume_Shared(CNElemID))
@@ -300,26 +314,28 @@ ELSE
 END IF
 
 ! Sampling of the quality factors
-IF(DSMC%CalcQualityFactors) THEN
-  IF((Time.GE.(1-DSMC%TimeFracSamp)*TEnd).OR.WriteMacroVolumeValues) THEN
-    IF(BGKInitDone) THEN
-      BGK_QualityFacSamp(1,iElem) = BGK_QualityFacSamp(1,iElem) + BGK_MeanRelaxFactor
-      BGK_QualityFacSamp(2,iElem) = BGK_QualityFacSamp(2,iElem) + REAL(BGK_MeanRelaxFactorCounter)
-      BGK_QualityFacSamp(3,iElem) = BGK_QualityFacSamp(3,iElem) + BGK_MaxRelaxFactor
-      BGK_QualityFacSamp(4,iElem) = BGK_QualityFacSamp(4,iElem) + 1.
-      BGK_QualityFacSamp(5,iElem) = BGK_QualityFacSamp(5,iElem) + BGK_MaxRotRelaxFactor
-      BGK_QualityFacSamp(6,iElem) = BGK_QualityFacSamp(6,iElem) + BGK_PrandtlNumber
-      BGK_QualityFacSamp(7,iElem) = BGK_QualityFacSamp(7,iElem) + BGK_ExpectedPrandtlNumber
-      BGK_QualityFacSamp(8,iElem) = BGK_QualityFacSamp(8,iElem) + BGK_Viscosity
-      BGK_QualityFacSamp(9,iElem) = BGK_QualityFacSamp(9,iElem) + BGK_ThermalConductivity
-    END IF
-    IF(FPInitDone) THEN
-      FP_QualityFacSamp(1,iElem) = FP_QualityFacSamp(1,iElem) + FP_MeanRelaxFactor
-      FP_QualityFacSamp(2,iElem) = FP_QualityFacSamp(2,iElem) + REAL(FP_MeanRelaxFactorCounter)
-      FP_QualityFacSamp(3,iElem) = FP_QualityFacSamp(3,iElem) + FP_MaxRelaxFactor
-      FP_QualityFacSamp(4,iElem) = FP_QualityFacSamp(4,iElem) + 1.
-      FP_QualityFacSamp(5,iElem) = FP_QualityFacSamp(5,iElem) + FP_MaxRotRelaxFactor
-      FP_QualityFacSamp(6,iElem) = FP_QualityFacSamp(6,iElem) + FP_PrandtlNumber
+IF (.NOT.CBC%DoElementDSMC(iElem)) THEN
+  IF(DSMC%CalcQualityFactors) THEN
+    IF((Time.GE.(1-DSMC%TimeFracSamp)*TEnd).OR.WriteMacroVolumeValues) THEN
+      IF(BGKInitDone) THEN
+        BGK_QualityFacSamp(1,iElem) = BGK_QualityFacSamp(1,iElem) + BGK_MeanRelaxFactor
+        BGK_QualityFacSamp(2,iElem) = BGK_QualityFacSamp(2,iElem) + REAL(BGK_MeanRelaxFactorCounter)
+        BGK_QualityFacSamp(3,iElem) = BGK_QualityFacSamp(3,iElem) + BGK_MaxRelaxFactor
+        BGK_QualityFacSamp(4,iElem) = BGK_QualityFacSamp(4,iElem) + 1.
+        BGK_QualityFacSamp(5,iElem) = BGK_QualityFacSamp(5,iElem) + BGK_MaxRotRelaxFactor
+        BGK_QualityFacSamp(6,iElem) = BGK_QualityFacSamp(6,iElem) + BGK_PrandtlNumber
+        BGK_QualityFacSamp(7,iElem) = BGK_QualityFacSamp(7,iElem) + BGK_ExpectedPrandtlNumber
+        BGK_QualityFacSamp(8,iElem) = BGK_QualityFacSamp(8,iElem) + BGK_Viscosity
+        BGK_QualityFacSamp(9,iElem) = BGK_QualityFacSamp(9,iElem) + BGK_ThermalConductivity
+      END IF
+      IF(FPInitDone) THEN
+        FP_QualityFacSamp(1,iElem) = FP_QualityFacSamp(1,iElem) + FP_MeanRelaxFactor
+        FP_QualityFacSamp(2,iElem) = FP_QualityFacSamp(2,iElem) + REAL(FP_MeanRelaxFactorCounter)
+        FP_QualityFacSamp(3,iElem) = FP_QualityFacSamp(3,iElem) + FP_MaxRelaxFactor
+        FP_QualityFacSamp(4,iElem) = FP_QualityFacSamp(4,iElem) + 1.
+        FP_QualityFacSamp(5,iElem) = FP_QualityFacSamp(5,iElem) + FP_MaxRotRelaxFactor
+        FP_QualityFacSamp(6,iElem) = FP_QualityFacSamp(6,iElem) + FP_PrandtlNumber
+      END IF
     END IF
   END IF
 END IF
@@ -461,6 +477,10 @@ DO iLoop = 1, nPart
     CellCoord(iDir) = INT((PartPosMapped(iDir)+1.)/2. * REAL(nOrder+1))
   END DO
 
+  ! Couette
+  CellCoord(1) = 0
+  CellCoord(2) = 0
+
   ! Get the subcell ID for the Peano-curve connection
   CALL SubcellID_PeanoCurve(nOrder,AdaptMesh(iElem)%RefineDir, CellCoord, iCell)
 
@@ -477,13 +497,17 @@ ELSE
   DO iCell = 1, nCells
     AdaptMesh(iElem)%SubcellMap(iCell) = iCell
 #if (PP_TimeDiscMethod==300)
-    CALL FP_CollisionOperator(SubPartIndx(iCell,1:SubPartNum(iCell)), SubPartNum(iCell), AdaptMesh(iElem)%SubVolume(iCell))
+    IF (.NOT.CBC%DoElementDSMC(iElem)) THEN
+      CALL FP_CollisionOperator(SubPartIndx(iCell,1:SubPartNum(iCell)), SubPartNum(iCell), AdaptMesh(iElem)%SubVolume(iCell))
+    END IF
 #elif (PP_TimeDiscMethod==400)
-    IF (BGKMovingAverage) THEN
-      CALL BGK_CollisionOperator(SubPartIndx(iCell,1:SubPartNum(iCell)), SubPartNum(iCell), AdaptMesh(iElem)%SubVolume(iCell), &
-      ElemNodeAveraging(iElem)%Root%AverageValues(:))
-    ELSE
-      CALL BGK_CollisionOperator(SubPartIndx(iCell,1:SubPartNum(iCell)), SubPartNum(iCell), AdaptMesh(iElem)%SubVolume(iCell))
+    IF (.NOT.CBC%DoElementDSMC(iElem)) THEN
+      IF (BGKMovingAverage) THEN
+        CALL BGK_CollisionOperator(SubPartIndx(iCell,1:SubPartNum(iCell)), SubPartNum(iCell), AdaptMesh(iElem)%SubVolume(iCell), &
+        ElemNodeAveraging(iElem)%Root%AverageValues(:))
+      ELSE
+        CALL BGK_CollisionOperator(SubPartIndx(iCell,1:SubPartNum(iCell)), SubPartNum(iCell), AdaptMesh(iElem)%SubVolume(iCell))
+      END IF
     END IF
 #else
     CALL PerformPairingAndCollision(SubPartIndx(iCell,1:SubPartNum(iCell)), SubPartNum(iCell), iElem, &
@@ -671,13 +695,17 @@ ELSE
   DO iCell = 1, nCells2D
     AdaptMesh(iElem)%SubcellMap(iCell) = iCell
 #if (PP_TimeDiscMethod==300)
-    CALL FP_CollisionOperator(SubPartIndx(iCell,1:SubPartNum(iCell)), SubPartNum(iCell), AdaptMesh(iElem)%SubVolume(iCell))
+    IF (.NOT.CBC%DoElementDSMC(iElem)) THEN
+      CALL FP_CollisionOperator(SubPartIndx(iCell,1:SubPartNum(iCell)), SubPartNum(iCell), AdaptMesh(iElem)%SubVolume(iCell))
+    END IF
 #elif (PP_TimeDiscMethod==400)
-    IF (BGKMovingAverage) THEN
-      CALL BGK_CollisionOperator(SubPartIndx(iCell,1:SubPartNum(iCell)), SubPartNum(iCell), AdaptMesh(iElem)%SubVolume(iCell), &
-      ElemNodeAveraging(iElem)%Root%AverageValues(:))
-    ELSE
-      CALL BGK_CollisionOperator(SubPartIndx(iCell,1:SubPartNum(iCell)), SubPartNum(iCell), AdaptMesh(iElem)%SubVolume(iCell))
+    IF (.NOT.CBC%DoElementDSMC(iElem)) THEN
+      IF (BGKMovingAverage) THEN
+        CALL BGK_CollisionOperator(SubPartIndx(iCell,1:SubPartNum(iCell)), SubPartNum(iCell), AdaptMesh(iElem)%SubVolume(iCell), &
+        ElemNodeAveraging(iElem)%Root%AverageValues(:))
+      ELSE
+        CALL BGK_CollisionOperator(SubPartIndx(iCell,1:SubPartNum(iCell)), SubPartNum(iCell), AdaptMesh(iElem)%SubVolume(iCell))
+      END IF
     END IF
 #else
     CALL PerformPairingAndCollision(SubPartIndx(iCell,1:SubPartNum(iCell)), SubPartNum(iCell), iElem, &
@@ -694,6 +722,165 @@ CALL CalcSubcellNum_Y(iElem,nOrder,AdaptMesh(iElem)%RefineDir)
 
 RETURN
 END SUBROUTINE SubcellAdaption2D
+
+SUBROUTINE SubcellAdaption1D(iElem)
+!============================================================================================================================
+! Split the cell into a certain number of subcells for the 1D case
+! Calculate the subcell volume based on the Vandermonde and the Jacobian
+!============================================================================================================================
+! use MODULES
+USE MOD_Globals_Vars
+USE MOD_BGK_Vars
+USE MOD_FPFlow_Vars
+USE MOD_Preproc
+USE MOD_Mesh_Tools             ,ONLY: GetCNElemID, GetGlobalElemID
+USE MOD_Particle_Mesh_Vars
+USE MOD_Mesh_Vars              ,ONLY: offSetElem
+USE MOD_DSMC_Vars              ,ONLY: DSMC, SymmetrySide
+USE MOD_Particle_Vars          ,ONLY: PEM, PartState, LastPartPos, PartPosRef, Symmetry
+USE MOD_Eval_xyz               ,ONLY: GetPositionInRefElem
+USE MOD_BGK_CollOperator       ,ONLY: BGK_CollisionOperator
+USE MOD_FP_CollOperator        ,ONLY: FP_CollisionOperator
+USE MOD_DSMC_ParticlePairing   ,ONLY: PerformPairingAndCollision, GeoCoordToMap1D
+USE MOD_Particle_Tracking_Vars ,ONLY: TrackingMethod
+!-----------------------------------------------------------------------------------------------------------------------------------
+  IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+INTEGER, INTENT(IN)           :: iElem
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+INTEGER                       :: iCell, nCells, iPart, nPart, iLoop, iDir, iVal, CellCoord(3), GlobalElemID
+INTEGER                       :: nOrder, nCells1D
+REAL                          :: PartPosMapped(3), Pos, Xmax, Xmin, Xmax_Cell, Xmin_Cell
+!-----------------------------------------------------------------------------------------------------------------------------------
+! Number of subcells from the split order
+nCells1D = AdaptMesh(iElem)%SplitOrder+1
+nCells = (AdaptMesh(iElem)%SplitOrder+1)**3
+MeshAdapt(1,iElem) = REAL(nCells1D)
+MeshAdapt(3,iElem) = 1.
+MeshAdapt(4,iElem) = 1.
+! Particle number in the element
+nPart = PEM%pNumber(iElem)
+iPart = PEM%pStart(iElem)
+
+GlobalElemID = iElem+offSetElem
+
+! Allocate the particle number per subcell
+ALLOCATE(SubPartNum(nCells1D))
+SubPartNum = 0
+
+! Allocate the particle indices for the subcell
+ALLOCATE(SubPartIndx(nCells1D,nPart))
+SubPartIndx = 0
+
+! Allocate the subvolumes for each cell
+IF (.NOT.ALLOCATED(AdaptMesh(iElem)%Subvolume)) THEN
+  ALLOCATE(AdaptMesh(iElem)%SubVolume(nCells1D))
+ELSE
+  DEALLOCATE(AdaptMesh(iElem)%Subvolume)
+  ALLOCATE(AdaptMesh(iElem)%Subvolume(nCells1D))
+END IF
+
+! Allocate the merged subcell mapping for each cell
+IF (.NOT.ALLOCATED(AdaptMesh(iElem)%SubcellMap)) THEN
+  ALLOCATE(AdaptMesh(iElem)%SubcellMap(nCells1D))
+  AdaptMesh(iElem)%SubcellMap = 0
+ELSE
+  DEALLOCATE(AdaptMesh(iElem)%SubcellMap)
+  ALLOCATE(AdaptMesh(iElem)%SubcellMap(nCells1D))
+  AdaptMesh(iElem)%SubcellMap = 0
+END IF
+
+nOrder = AdaptMesh(iElem)%SplitOrder
+
+IF(Symmetry%Axisymmetric) THEN
+  Xmin=GEO%XMinMax(1,iElem)
+  Xmax=GEO%XMinMax(2,iElem)
+  DO iCell=1,nCells1D
+    Xmax_Cell = iCell*(Xmax-Xmin)/nCells1D + Xmin
+    XMin_Cell = (iCell-1)*(Xmax-Xmin)/nCells1D + Xmin
+  END DO
+  IF(Symmetry%Axisymmetric) THEN
+    AdaptMesh(iElem)%Subvolume(iCell) = (Xmax_Cell-Xmin_Cell) * Pi * (Xmax_Cell+Xmin_Cell)
+  ELSE
+    AdaptMesh(iElem)%Subvolume(iCell) = 4./3. * Pi * ( Xmax_Cell**3 - Xmin_Cell**3 )
+  END IF
+ELSE
+  ! equal partitioning of the subcell volume
+  DO iCell = 1, nCells1D
+    AdaptMesh(iElem)%Subvolume(iCell) = (GEO%XMinMax(2,iElem) - GEO%XMinMax(1,iElem)) / nCells1D
+  END DO
+END IF
+
+! Build the connection of the subcells in the form of the Peano curve
+CALL BuildPeanoCurve(nOrder,AdaptMesh(iElem)%RefineDir)
+
+DO iLoop = 1, nPart
+  ! Map Particle to -1|1 space
+  IF (TrackingMethod.EQ.REFMAPPING) THEN ! Refmapping
+    PartPosMapped(1:3) = PartPosRef(1:3,iPart)
+  ELSE
+    CALL GeoCoordToMap1D(PartState(1,iPart), PartPosMapped(1), iElem)
+    PartPosMapped(2) = 0.
+    PartPosMapped(3) = 0.
+  END IF
+
+  ! Determine the subcell coordinates from the position in the reference element
+  DO iDir = 1, 3
+    IF (PartPosMapped(iDir).GE.1.) THEN
+      PartPosMapped(iDir) = 0.99999
+    ELSE IF (PartPosMapped(iDir).LE.-1.) THEN
+      PartPosMapped(iDir) = -0.99999
+    END IF
+    CellCoord(iDir) = INT((PartPosMapped(iDir)+1.)/2. * REAL(nOrder+1))
+  END DO
+
+  ! Get the subcell ID for the Peano-curve connection
+  CellCoord(AdaptMesh(iElem)%RefineDir(1)) = 0
+  CellCoord(AdaptMesh(iElem)%RefineDir(2)) = 0
+  CALL SubcellID_PeanoCurve(nOrder,AdaptMesh(iElem)%RefineDir, CellCoord, iCell)
+
+  SubPartNum(iCell) = SubPartNum(iCell) + 1
+  SubPartIndx(iCell,SubPartNum(iCell)) = iPart
+  iPart = PEM%pNext(iPart)
+END DO
+
+  ! If the minimum particle number is not given in all subcells, merge subcells together
+IF (MINVAL(SubPartNum).LT.MinPartCell) THEN
+  CALL CombineSubcells(iElem)
+ELSE
+  ! Collision routines for the subcells, considered are only the particles in the respective subcell
+  DO iCell = 1, nCells1D
+    AdaptMesh(iElem)%SubcellMap(iCell) = iCell
+#if (PP_TimeDiscMethod==300)
+    IF (.NOT.CBC%DoElementDSMC(iElem)) THEN
+      CALL FP_CollisionOperator(SubPartIndx(iCell,1:SubPartNum(iCell)), SubPartNum(iCell), AdaptMesh(iElem)%SubVolume(iCell))
+    END IF
+#elif (PP_TimeDiscMethod==400)
+    IF (.NOT.CBC%DoElementDSMC(iElem)) THEN
+      IF (BGKMovingAverage) THEN
+        CALL BGK_CollisionOperator(SubPartIndx(iCell,1:SubPartNum(iCell)), SubPartNum(iCell), AdaptMesh(iElem)%SubVolume(iCell), &
+        ElemNodeAveraging(iElem)%Root%AverageValues(:))
+      ELSE
+        CALL BGK_CollisionOperator(SubPartIndx(iCell,1:SubPartNum(iCell)), SubPartNum(iCell), AdaptMesh(iElem)%SubVolume(iCell))
+      END IF
+    END IF
+#else
+    CALL PerformPairingAndCollision(SubPartIndx(iCell,1:SubPartNum(iCell)), SubPartNum(iCell), iElem, &
+    AdaptMesh(iElem)%Subvolume(iCell))
+#endif
+  END DO
+END IF
+
+DEALLOCATE(SubPartNum)
+DEALLOCATE(SubPartIndx)
+
+CALL CalcSubcellNum_X(iElem,nOrder,AdaptMesh(iElem)%RefineDir)
+
+RETURN
+END SUBROUTINE SubcellAdaption1D
 
 SUBROUTINE MergedCellAssingement(iElem)
 !============================================================================================================================
@@ -790,14 +977,18 @@ DO iCell = 1, nCells
   IF (AdaptMesh(iElem)%SubVolume(iCell).GT.0.) THEN
     IF (SubPartNum(iCell).GT.2) THEN
 #if (PP_TimeDiscMethod==300)
-      CALL FP_CollisionOperator(SubPartIndx(iCell,1:SubPartNum(iCell)), SubPartNum(iCell), AdaptMesh(iElem)%SubVolume(iCell))
-#elif (PP_TimeDiscMethod==400)
-      IF (BGKMovingAverage) THEN
-        CALL BGK_CollisionOperator(SubPartIndx(iCell,1:SubPartNum(iCell)), SubPartNum(iCell), AdaptMesh(iElem)%SubVolume(iCell), &
-        ElemNodeAveraging(iElem)%Root%AverageValues(:))
-      ELSE
-        CALL BGK_CollisionOperator(SubPartIndx(iCell,1:SubPartNum(iCell)), SubPartNum(iCell), AdaptMesh(iElem)%SubVolume(iCell))
+      IF (.NOT.CBC%DoElementDSMC(iElem)) THEN
+        CALL FP_CollisionOperator(SubPartIndx(iCell,1:SubPartNum(iCell)), SubPartNum(iCell), AdaptMesh(iElem)%SubVolume(iCell))
       END IF
+#elif (PP_TimeDiscMethod==400)
+      IF (.NOT.CBC%DoElementDSMC(iElem)) THEN
+        IF (BGKMovingAverage) THEN
+          CALL BGK_CollisionOperator(SubPartIndx(iCell,1:SubPartNum(iCell)), SubPartNum(iCell), AdaptMesh(iElem)%SubVolume(iCell), &
+          ElemNodeAveraging(iElem)%Root%AverageValues(:))
+        ELSE
+          CALL BGK_CollisionOperator(SubPartIndx(iCell,1:SubPartNum(iCell)), SubPartNum(iCell), AdaptMesh(iElem)%SubVolume(iCell))
+        END IF
+    END IF
 #else
       CALL PerformPairingAndCollision(SubPartIndx(iCell,1:SubPartNum(iCell)), SubPartNum(iCell), iElem, AdaptMesh(iElem)%SubVolume(iCell))
 #endif
@@ -917,13 +1108,17 @@ DO iCell = 1, nCells2D
   IF (AdaptMesh(iElem)%SubVolume(iCell).GT.0.) THEN
     IF (SubPartNum(iCell).GT.2) THEN
 #if (PP_TimeDiscMethod==300)
-      CALL FP_CollisionOperator(SubPartIndx(iCell,1:SubPartNum(iCell)), SubPartNum(iCell), AdaptMesh(iElem)%SubVolume(iCell))
+      IF (.NOT.CBC%DoElementDSMC(iElem)) THEN
+        CALL FP_CollisionOperator(SubPartIndx(iCell,1:SubPartNum(iCell)), SubPartNum(iCell), AdaptMesh(iElem)%SubVolume(iCell))
+      END IF
 #elif (PP_TimeDiscMethod==400)
-      IF (BGKMovingAverage) THEN
-        CALL BGK_CollisionOperator(SubPartIndx(iCell,1:SubPartNum(iCell)), SubPartNum(iCell), AdaptMesh(iElem)%SubVolume(iCell), &
-        ElemNodeAveraging(iElem)%Root%AverageValues(:))
-      ELSE
-        CALL BGK_CollisionOperator(SubPartIndx(iCell,1:SubPartNum(iCell)), SubPartNum(iCell), AdaptMesh(iElem)%SubVolume(iCell))
+      IF (.NOT.CBC%DoElementDSMC(iElem)) THEN
+        IF (BGKMovingAverage) THEN
+          CALL BGK_CollisionOperator(SubPartIndx(iCell,1:SubPartNum(iCell)), SubPartNum(iCell), AdaptMesh(iElem)%SubVolume(iCell), &
+          ElemNodeAveraging(iElem)%Root%AverageValues(:))
+        ELSE
+          CALL BGK_CollisionOperator(SubPartIndx(iCell,1:SubPartNum(iCell)), SubPartNum(iCell), AdaptMesh(iElem)%SubVolume(iCell))
+        END IF
       END IF
 #else
       CALL PerformPairingAndCollision(SubPartIndx(iCell,1:SubPartNum(iCell)), SubPartNum(iCell), iElem, AdaptMesh(iElem)%Subvolume(iCell))
@@ -942,6 +1137,132 @@ RETURN
 END SUBROUTINE MergedCellAssingement2D
 
 
+SUBROUTINE MergedCellAssingement1D(iElem)
+!============================================================================================================================
+! Assign the subcells to a previously split-and-merged subcell for the 1D case
+!============================================================================================================================
+! use MODULES
+USE MOD_Globals
+USE MOD_Globals_Vars
+USE MOD_BGK_Vars
+USE MOD_FPFlow_Vars
+USE MOD_Preproc
+USE MOD_Mesh_Tools             ,ONLY: GetCNElemID, GetGlobalElemID
+USE MOD_Particle_Mesh_Vars
+USE MOD_Particle_Vars          ,ONLY: PEM, PartState, LastPartPos, PartPosRef
+USE MOD_Mesh_Vars              ,ONLY: offSetElem, SurfElem
+USE MOD_Eval_xyz               ,ONLY: GetPositionInRefElem
+USE MOD_BGK_CollOperator       ,ONLY: BGK_CollisionOperator
+USE MOD_FP_CollOperator        ,ONLY: FP_CollisionOperator
+USE MOD_DSMC_ParticlePairing   ,ONLY: PerformPairingAndCollision, GeoCoordToMap1D
+USE MOD_Particle_Tracking_Vars ,ONLY: TrackingMethod
+!-----------------------------------------------------------------------------------------------------------------------------------
+  IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+INTEGER, INTENT(IN)           :: iElem
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+INTEGER                       :: iCell, nCells, iPart, nPart, iLoop, iDir, CellCoord(3), GlobalElemID, iCellMerge
+INTEGER                       :: nOrder, nCells1D
+REAL                          :: PartPosMapped(3)
+!-----------------------------------------------------------------------------------------------------------------------------------
+! Number of subcells from the split order
+nCells1D = AdaptMesh(iElem)%SplitOrder+1
+nCells = (AdaptMesh(iElem)%SplitOrder+1)**3
+MeshAdapt(1,iElem) = REAL(nCells1D)
+MeshAdapt(3,iElem) = 1.
+MeshAdapt(4,iElem) = 1.
+
+! Particle number in the element
+nPart = PEM%pNumber(iElem)
+iPart = PEM%pStart(iElem)
+
+GlobalElemID = iElem+offSetElem
+
+! Allocate the particle number per subcell
+ALLOCATE(SubPartNum(nCells1D))
+SubPartNum = 0
+
+! Allocate the particle indices for the subcell
+ALLOCATE(SubPartIndx(nCells1D,nPart))
+SubPartIndx = 0
+
+nOrder = AdaptMesh(iElem)%SplitOrder
+
+! Build the connection of the subcells in the form of the Peano curve
+CALL BuildPeanoCurve(nOrder,AdaptMesh(iElem)%RefineDir)
+
+GlobalElemID = iElem + offsetElem
+DO iLoop = 1, nPart
+  ! Map Particle to -1|1 space
+  IF (TrackingMethod.EQ.REFMAPPING) THEN ! Refmapping
+    PartPosMapped(1:3) = PartPosRef(1:3,iPart)
+  ELSE
+  CALL GeoCoordToMap1D(PartState(1,iPart), PartPosMapped(1), iElem)
+  PartPosMapped(2) = 0.
+  PartPosMapped(3) = 0.
+  END IF
+
+  ! Determine the subcell coordinates from the position in the reference element
+  DO iDir = 1, 3
+    IF (PartPosMapped(iDir).GE.1.) THEN
+      PartPosMapped(iDir) = 0.99999
+    ELSE IF (PartPosMapped(iDir).LE.-1.) THEN
+      PartPosMapped(iDir) = -0.99999
+    END IF
+    CellCoord(iDir) = INT((PartPosMapped(iDir)+1.)/2. * REAL(nOrder+1))
+  END DO
+
+  ! Get the subcell ID for the Peano-curve connection
+  CellCoord(AdaptMesh(iElem)%RefineDir(1)) = 0
+  CellCoord(AdaptMesh(iElem)%RefineDir(2)) = 0
+  CALL SubcellID_PeanoCurve(nOrder,AdaptMesh(iElem)%RefineDir, CellCoord, iCell)
+
+  ! Map the subcell to the merged cell
+  iCellMerge = AdaptMesh(iElem)%SubcellMap(iCell)
+  IF (iCellMerge.EQ.0) THEN
+    CALL abort(__STAMP__,'Wrong assingement in the mapping for the merged subcells.')
+  END IF
+
+  SubPartNum(iCellMerge) = SubPartNum(iCellMerge) + 1
+  SubPartIndx(iCellMerge,SubPartNum(iCellMerge)) = iPart
+  iPart = PEM%pNext(iPart)
+END DO
+
+! Call to the collision routines
+DO iCell = 1, nCells1D
+  IF (AdaptMesh(iElem)%SubVolume(iCell).GT.0.) THEN
+    IF (SubPartNum(iCell).GT.2) THEN
+#if (PP_TimeDiscMethod==300)
+      IF (.NOT.CBC%DoElementDSMC(iElem)) THEN
+        CALL FP_CollisionOperator(SubPartIndx(iCell,1:SubPartNum(iCell)), SubPartNum(iCell), AdaptMesh(iElem)%SubVolume(iCell))
+      END IF
+#elif (PP_TimeDiscMethod==400)
+      IF (.NOT.CBC%DoElementDSMC(iElem)) THEN
+        IF (BGKMovingAverage) THEN
+          CALL BGK_CollisionOperator(SubPartIndx(iCell,1:SubPartNum(iCell)), SubPartNum(iCell), AdaptMesh(iElem)%SubVolume(iCell), &
+          ElemNodeAveraging(iElem)%Root%AverageValues(:))
+        ELSE
+          CALL BGK_CollisionOperator(SubPartIndx(iCell,1:SubPartNum(iCell)), SubPartNum(iCell), AdaptMesh(iElem)%SubVolume(iCell))
+        END IF
+      END IF
+#else
+      CALL PerformPairingAndCollision(SubPartIndx(iCell,1:SubPartNum(iCell)), SubPartNum(iCell), iElem, AdaptMesh(iElem)%Subvolume(iCell))
+#endif
+    END IF
+  END IF
+END DO
+
+DEALLOCATE(SubPartNum)
+DEALLOCATE(SubPartIndx)
+
+CALL CalcSubcellNum_X(iElem,nOrder,AdaptMesh(iElem)%RefineDir)
+
+RETURN
+END SUBROUTINE MergedCellAssingement1D
+
 SUBROUTINE CombineSubcells(iElem)
 !============================================================================================================================
 ! Merge the subcells along a Peano curve to reach the minimum particle number per cell
@@ -953,7 +1274,7 @@ USE MOD_Particle_Mesh_Vars
 USE MOD_BGK_CollOperator       ,ONLY: BGK_CollisionOperator
 USE MOD_FP_CollOperator        ,ONLY: FP_CollisionOperator
 USE MOD_DSMC_ParticlePairing   ,ONLY: PerformPairingAndCollision
-USE MOD_BGK_Vars               ,ONLY: BGKMovingAverage,ElemNodeAveraging
+USE MOD_BGK_Vars               ,ONLY: BGKMovingAverage,ElemNodeAveraging, CBC
 !--------------------------------------------------------------------------------------------------!
   IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -967,7 +1288,9 @@ INTEGER                       :: iLoop, nCells, tempCell, iCell, tempCellLast, n
 nPart = PEM%pNumber(iElem)
 nSplit = AdaptMesh(iElem)%SplitOrder     ! 1 -> 8, 2 -> 27, 3 -> 64, ...
 ! Calculate the number of subcells for the 2D or the 3D case
-IF (Symmetry%Order.EQ.2) THEN
+IF (Symmetry%Order.EQ.1) THEN
+  nCells = (nSplit+1)
+ELSE IF (Symmetry%Order.EQ.2) THEN
   nCells = (nSplit+1)**2
 ELSE
   nCells = (nSplit+1)**3
@@ -1034,6 +1357,9 @@ IF ((SubPartNum(tempCell).LT.MinPartCell).AND.(tempCell.NE.tempCellLast)) THEN
   ! Store the merged values
   AdaptMesh(iElem)%SubcellMap(tempCell) = tempCellLast
   AdaptMesh(iElem)%SubcellMap(tempCellLast) = tempCellLast
+  DO iCell = tempCell, nCells
+    AdaptMesh(iElem)%SubcellMap(iCell) = tempCellLast
+  END DO
 END IF
 
 MeshAdapt(1,iElem) = 0.
@@ -1042,13 +1368,17 @@ DO iCell = 1, nCells
     MeshAdapt(1,iElem) = MeshAdapt(1,iElem) + 1.
     ! Collision routines for the subcells, considered are only the particles in the respective subcell
 #if (PP_TimeDiscMethod==300)
-      CALL FP_CollisionOperator(SubPartIndx(iCell,1:SubPartNum(iCell)), SubPartNum(iCell), AdaptMesh(iElem)%Subvolume(iCell))
+      IF (.NOT.CBC%DoElementDSMC(iElem)) THEN
+        CALL FP_CollisionOperator(SubPartIndx(iCell,1:SubPartNum(iCell)), SubPartNum(iCell), AdaptMesh(iElem)%Subvolume(iCell))
+      END IF
 #elif (PP_TimeDiscMethod==400)
-    IF (BGKMovingAverage) THEN
-      CALL BGK_CollisionOperator(SubPartIndx(iCell,1:SubPartNum(iCell)), SubPartNum(iCell), AdaptMesh(iElem)%Subvolume(iCell), &
-      ElemNodeAveraging(iElem)%Root%AverageValues(:))
-    ELSE
-      CALL BGK_CollisionOperator(SubPartIndx(iCell,1:SubPartNum(iCell)), SubPartNum(iCell), AdaptMesh(iElem)%Subvolume(iCell))
+    IF (.NOT.CBC%DoElementDSMC(iElem)) THEN
+      IF (BGKMovingAverage) THEN
+        CALL BGK_CollisionOperator(SubPartIndx(iCell,1:SubPartNum(iCell)), SubPartNum(iCell), AdaptMesh(iElem)%Subvolume(iCell), &
+        ElemNodeAveraging(iElem)%Root%AverageValues(:))
+      ELSE
+        CALL BGK_CollisionOperator(SubPartIndx(iCell,1:SubPartNum(iCell)), SubPartNum(iCell), AdaptMesh(iElem)%Subvolume(iCell))
+      END IF
     END IF
 #else
     CALL PerformPairingAndCollision(SubPartIndx(iCell,1:SubPartNum(iCell)), SubPartNum(iCell), iElem, AdaptMesh(iElem)%Subvolume(iCell))
@@ -1057,7 +1387,9 @@ DO iCell = 1, nCells
 END DO
 
 CALL CalcSubcellNum_X(iElem,nSplit,AdaptMesh(iElem)%RefineDir)
+IF (Symmetry%Order.NE.1) THEN
 CALL CalcSubcellNum_Y(iElem,nSplit,AdaptMesh(iElem)%RefineDir)
+END IF
 IF (Symmetry%Order.NE.2) THEN
   CALL CalcSubcellNum_Z(iElem,nSplit,AdaptMesh(iElem)%RefineDir)
 END IF
@@ -1280,7 +1612,21 @@ END DO
 MaxGradient = MAXVAL(Gradient)
 
 ! Determine the order of the Peano curve merge from the size of the directional temperature gradient
-IF (Symmetry%Order.EQ.2) THEN
+IF (Symmetry%Order.EQ.1) THEN
+  ! Merge-order is always the same for the 1D case: x > y > z
+  IF (ANY(TempGradient(:).EQ.0.)) THEN
+    AdaptMesh(ElemID)%RefineDir(1:3) = (/3,2,1/) ! z- and y-direction always last !! TODO
+  ELSE
+    adaptdir = 3
+    AdaptMesh(ElemID)%RefineDir(1) = AdaptMesh(ElemID)%CellOrientation(adaptDir)
+    TempGradient(adaptDir) = -1.
+    adaptDir = MAXLOC(TempGradient,1)
+    AdaptMesh(ElemID)%RefineDir(2) = AdaptMesh(ElemID)%CellOrientation(adaptDir)
+    TempGradient(adaptDir) = -1.
+    adaptDir = MAXLOC(TempGradient,1)
+    AdaptMesh(ElemID)%RefineDir(3) = AdaptMesh(ElemID)%CellOrientation(adaptDir)
+  END IF
+ELSE IF (Symmetry%Order.EQ.2) THEN
   IF (ANY(TempGradient(:).EQ.0.)) THEN
     AdaptMesh(ElemID)%RefineDir(1:3) = (/3,2,1/) ! z-direction always last
   ELSE
@@ -1443,7 +1789,7 @@ SUBROUTINE CalcSubcellNum_X(iElem,Order, dir)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
   INTEGER              :: nCells, TestCellID, TestCoord(3), xVal, yVal, zVal
-  INTEGER              :: SubcellID, LastID, z_Order
+  INTEGER              :: SubcellID, LastID, z_Order, y_Order
   INTEGER, ALLOCATABLE :: CellCount(:,:)
 !===================================================================================================================================
 ! TODO : first determine the element orientation
@@ -1453,15 +1799,20 @@ nCells = (Order+1)**3
 ALLOCATE(CellCount(0:Order,0:Order))
 CellCount = 0
 
-! Set the cell number in z-direction to 1
-IF (Symmetry%Order.EQ.2) THEN
+! Set the cell number according to the symmetry order
+IF (Symmetry%Order.EQ.1) THEN
+  y_Order = 0
   z_Order = 0
+ELSE IF (Symmetry%Order.EQ.2) THEN
+  z_Order = 0
+  y_Order = Order
 ELSE
+  y_Order = Order
   z_Order = Order
 END IF
 
 ! Loop over the cells in y- and z-direction
-DO yVal = 0, Order; DO zVal = 0, z_Order
+DO yVal = 0, y_Order; DO zVal = 0, z_Order
   TestCoord(AdaptMesh(iElem)%CellOrientation(2)) = yVal
   TestCoord(AdaptMesh(iElem)%CellOrientation(3)) = zVal
   LastID = 0
@@ -1506,8 +1857,7 @@ SUBROUTINE CalcSubcellNum_Y(iElem,Order, dir)
   INTEGER              :: SubcellID, LastID, z_Order
   INTEGER, ALLOCATABLE :: CellCount(:,:)
 !===================================================================================================================================
-! TODO : first determine the element orientation
-  ! Total and directional subcell number
+! Total and directional subcell number
 nCells = (Order+1)**3
 
 ALLOCATE(CellCount(0:Order,0:Order))
@@ -1566,8 +1916,7 @@ SUBROUTINE CalcSubcellNum_Z(iElem,Order, dir)
   INTEGER              :: SubcellID, LastID
   INTEGER, ALLOCATABLE :: CellCount(:,:)
 !===================================================================================================================================
-! TODO : first determine the element orientation
-  ! Total and directional subcell number
+! Total and directional subcell number
 nCells = (Order+1)**3
 
 ALLOCATE(CellCount(0:Order,0:Order))

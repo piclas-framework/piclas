@@ -471,7 +471,7 @@ USE MOD_part_tools             ,ONLY: CalcVarWeightMPF, CalcRadWeightMPF
 USE MOD_BGK_Vars               ,ONLY: BGKInitDone, BGK_QualityFacSamp, CBC, CoupledBGKDSMC
 USE MOD_DSMC_Vars              ,ONLY: DSMC_Solution, CollisMode, SpecDSMC, DSMC, useDSMC, BGGas
 USE MOD_DSMC_Vars              ,ONLY: RadialWeighting, VarWeighting, AdaptMPF
-USE MOD_FPFlow_Vars            ,ONLY: FPInitDone, FP_QualityFacSamp, CoupledFPDSMC, FP_CBC
+USE MOD_FPFlow_Vars            ,ONLY: FPInitDone, FP_QualityFacSamp, CoupledFPDSMC
 USE MOD_Mesh_Vars              ,ONLY: nElems
 USE MOD_Particle_Vars          ,ONLY: Species, nSpecies, WriteMacroVolumeValues, usevMPF, Symmetry
 USE MOD_Particle_Vars          ,ONLY: UseVarTimeStep, VarTimeStep
@@ -721,7 +721,7 @@ IF (DSMC%CalcQualityFactors) THEN
       ! Ratio between FP and DSMC usage per cell
       IF (CoupledFPDSMC) THEN
         DSMC_MacroVal(nVarCount+5,iElem) = FP_QualityFacSamp(4,iElem) / iter_loc
-        DSMC_MacroVal(nVarCount+6:nVarCount+13,iElem) = FP_CBC%OutputKnudsen(1:8,iElem)
+        DSMC_MacroVal(nVarCount+6:nVarCount+13,iElem) = CBC%OutputKnudsen(1:8,iElem)
         nVarCount = nVarCount + 13
       ELSE
         DSMC_MacroVal(nVarCount+5,iElem) = 1.

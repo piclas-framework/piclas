@@ -12,7 +12,7 @@
 !==================================================================================================================================
 #include "piclas.h"
 
-MODULE MOD_BGK_DSMC_Coupling
+MODULE MOD_FP_BGK_DSMC_Coupling
 !===================================================================================================================================
 !> Distinction between DSMC and BGK based on a predefined continuum-breakdown-criterion
 !===================================================================================================================================
@@ -37,7 +37,7 @@ LOGICAL FUNCTION CBC_DoDSMC(iElem)
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_BGK_Vars
+USE MOD_BGK_Vars               ,ONLY: CBC
 USE MOD_Globals_Vars           ,ONLY: BoltzmannConst
 USE MOD_DSMC_Analyze           ,ONLY: CalcMeanFreePath
 USE MOD_DSMC_Vars              ,ONLY: DSMC
@@ -59,9 +59,9 @@ INTEGER                      :: iPart, CNElemID, nNbElems, LocNbElem, GlobNbElem
 REAL                         :: SpecPartNum(nSpecies), MFP, totalWeight, NbVolume, NbDistance
 REAL                         :: RefVelo, NbVelo, RefDens, NbDens, RefTemp, NbTemp, NbtotalWeight, NbSpecPartNum(nSpecies)
 REAL                         :: DensGradient, TempGradient, VeloGradient, Knudsen_Dens, Knudsen_Temp, Knudsen_Velo, Knudsen_NonEq
-REAL                         :: HeatVector(3), StressTensor(3,3) ! , ChapmanEnskog
+REAL                         :: HeatVector(3), StressTensor(3,3)
 !===================================================================================================================================
-! Default case: use of BGK
+! Default case: use of BGK and FP
 CBC_DoDSMC = .FALSE.
 
 ! Reference element
@@ -385,7 +385,6 @@ SUBROUTINE CalcCellProp(ElemID,Density,Velocity,Temperature,SpecPartNum,ThermNon
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_BGK_Vars
 USE MOD_BGK_CollOperator       ,ONLY: CalcViscosityThermalCondColIntVHS
 USE MOD_Globals_Vars           ,ONLY: BoltzmannConst
 USE MOD_DSMC_Analyze           ,ONLY: CalcMeanFreePath
@@ -563,7 +562,6 @@ SUBROUTINE CalcDensVeloTemp(ElemID,Density,Velocity,Temperature,SpecPartNum)
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_BGK_Vars
 USE MOD_Globals_Vars           ,ONLY: BoltzmannConst
 USE MOD_DSMC_Analyze           ,ONLY: CalcMeanFreePath
 USE MOD_Particle_Vars          ,ONLY: PEM, nSpecies, PartSpecies, Species, usevMPF, PartState
@@ -637,16 +635,15 @@ SUBROUTINE CalcCellProp_Samp(ElemID,Density,Velocity,Temperature,SpecPartNum,The
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_BGK_Vars
 USE MOD_BGK_CollOperator       ,ONLY: CalcViscosityThermalCondColIntVHS
 USE MOD_Globals_Vars           ,ONLY: BoltzmannConst
 USE MOD_DSMC_Analyze           ,ONLY: CalcMeanFreePath
-USE MOD_Particle_Vars          ,ONLY: PEM, nSpecies, PartSpecies, Species, usevMPF, PartState
+USE MOD_Particle_Vars          ,ONLY: PEM, nSpecies, Species, usevMPF
 USE MOD_Particle_Mesh_Vars     ,ONLY: ElemVolume_Shared
 USE MOD_Mesh_Vars              ,ONLY: offsetElem
 USE MOD_Mesh_Tools             ,ONLY: GetCNElemID, GetGlobalElemID
-USE MOD_part_tools             ,ONLY: GetParticleWeight
-USE MOD_DSMC_Vars              ,ONLY: SpecDSMC, CollisMode, PartStateIntEn, RadialWeighting, VarWeighting, PolyatomMolDSMC
+USE MOD_Part_Tools             ,ONLY: GetParticleWeight
+USE MOD_DSMC_Vars              ,ONLY: SpecDSMC, CollisMode, RadialWeighting, VarWeighting, PolyatomMolDSMC
 USE MOD_DSMC_Vars              ,ONLY: DSMC, DSMC_Solution
 USE MOD_Particle_Analyze_Tools ,ONLY: CalcTelec,CalcTVibPoly
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -822,10 +819,9 @@ SUBROUTINE CalcDensVeloTemp_Samp(ElemID,Density,Velocity,Temperature,SpecPartNum
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_BGK_Vars
 USE MOD_Globals_Vars           ,ONLY: BoltzmannConst
 USE MOD_DSMC_Analyze           ,ONLY: CalcMeanFreePath
-USE MOD_Particle_Vars          ,ONLY: PEM, nSpecies, PartSpecies, Species, usevMPF, PartState
+USE MOD_Particle_Vars          ,ONLY: nSpecies, Species, usevMPF
 USE MOD_Particle_Mesh_Vars     ,ONLY: ElemVolume_Shared
 USE MOD_Mesh_Vars              ,ONLY: offsetElem
 USE MOD_Mesh_Tools             ,ONLY: GetCNElemID, GetGlobalElemID
@@ -841,7 +837,7 @@ INTEGER,INTENT(IN)            :: ElemID
 REAL,INTENT(OUT)              :: Density, Velocity, Temperature, SpecPartNum(nSpecies)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                       :: iPart, iLoop, iSpec, CNElemID
+INTEGER                       :: iLoop, iSpec, CNElemID
 REAL                          :: Velo(nSpecies,3), Velo2(nSpecies,3), totalWeight, Temp(3), PartNumIter(nSpecies)
 !-----------------------------------------------------------------------------------------------------------------------------------
 SpecPartNum = 0.0; Velo = 0.0; Velo2 = 0.0; Velocity = 0.0; Temp = 0.0; Temperature = 0.0
@@ -889,4 +885,4 @@ END IF
 
 END SUBROUTINE CalcDensVeloTemp_Samp
 
-END MODULE MOD_BGK_DSMC_Coupling
+END MODULE MOD_FP_BGK_DSMC_Coupling

@@ -42,8 +42,8 @@ SUBROUTINE BGK_DSMC_main(stage_opt)
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_BGK_DSMC_Coupling
 USE MOD_Cell_Adaption
+USE MOD_FP_BGK_DSMC_Coupling,ONLY: CBC_DoDSMC
 USE MOD_BGK_Adaptation      ,ONLY: BGK_octree_adapt, BGK_quadtree_adapt
 USE MOD_Particle_Vars       ,ONLY: PEM, Species, WriteMacroVolumeValues, Symmetry, usevMPF
 USE MOD_BGK_Vars

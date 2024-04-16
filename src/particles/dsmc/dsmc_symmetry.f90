@@ -808,6 +808,7 @@ IF (RadialWeighting%DoRadialWeighting) THEN
     MidPoint = (PmaxTemp+PminTemp) / 2.
     DSMC_2D_CalcSymmetryAreaSubSides(iNode) = Length/RadialWeighting%nSubSides * MidPoint * Pi * 2.
   END DO
+
 ELSE IF (VarWeighting%DoVariableWeighting) THEN
   DO iNode = 1, VarWeighting%nSubSides
     PminTemp = Pmin(2) + (Pmax(2) - Pmin(2))/VarWeighting%nSubSides*(iNode-1.)

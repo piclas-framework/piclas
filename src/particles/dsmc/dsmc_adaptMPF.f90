@@ -259,8 +259,8 @@ IF(AdaptMPF%DoAdaptMPF.AND.(.NOT.PerformLoadBalance)) THEN
 
   CALL DSMC_AdaptiveWeights()
 
-  ! Check if the variable MPF is already initialized
-  IF (.NOT.((VarWeighting%DoVariableWeighting).OR.(RadialWeighting%DoRadialWeighting))) THEN
+  ! Check if the variable MPF is already initialized, no compatibility between adaptive and radial weighting
+  IF (.NOT.VarWeighting%DoVariableWeighting) THEN
     CALL DSMC_InitVarWeighting
   END IF
 END IF ! AdaptMPF
@@ -320,7 +320,7 @@ REAL, ALLOCATABLE                 :: MPFData_HDF5(:)
 IF (.NOT.(AdaptMPF%SkipAdaption)) THEN
   ! Further refinement of elements close to a catalytic surface
   IF (DoCatalyticRestart) THEN
-    ALLOCATE(RefineCatElem(1:nGlobalElems))
+    ALLOCATE(RefineCatElem(1:nComputeNodeElems))
     RefineCatElem = .FALSE.
     DO iSide=1,nBCSides
       iBound = PartBound%MapToPartBC(BC(iSide))
@@ -339,8 +339,6 @@ IF (.NOT.(AdaptMPF%SkipAdaption)) THEN
       AdaptMPFInfo_Shared(6,iCNElem) = AdaptMPFInfo_Shared(7,iCNElem)
     ELSE IF (VarWeighting%DoVariableWeighting) THEN
       AdaptMPFInfo_Shared(6,iCNElem) = CalcVarWeightMPF(ElemMidPoint_Shared(:,iCNElem))
-    ELSE IF (RadialWeighting%DoRadialWeighting) THEN
-      AdaptMPFInfo_Shared(6,iCNElem) = CalcRadWeightMPF(ElemMidPoint_Shared(2,iCNElem), 1)
     ELSE
       AdaptMPFInfo_Shared(6,iCNElem) = Species(1)%MacroParticleFactor
     END IF
@@ -355,6 +353,8 @@ IF (.NOT.(AdaptMPF%SkipAdaption)) THEN
         IF (DoCatalyticRestart) THEN
           IF (RefineCatElem(iCNElem)) THEN
             MinPartNum = AdaptMPF%Cat_MinPartNum
+          ELSE IF ((Symmetry%Axisymmetric).AND.(ElemMidPoint_Shared(2,iCNElem).LE.(GEO%ymaxglob*0.05))) THEN
+            MinPartNum = AdaptMPF%SymAxis_MinPartNum
           ELSE
             MinPartNum = AdaptMPF%MinPartNum
           END IF
@@ -391,6 +391,8 @@ IF (.NOT.(AdaptMPF%SkipAdaption)) THEN
         IF (DoCatalyticRestart) THEN
           IF (RefineCatElem(iCNElem)) THEN
             MinPartNum = AdaptMPF%Cat_MinPartNum
+          ELSE IF ((Symmetry%Axisymmetric).AND.(ElemMidPoint_Shared(2,iCNElem).LE.(GEO%ymaxglob*0.05))) THEN
+            MinPartNum = AdaptMPF%SymAxis_MinPartNum
           ELSE
             MinPartNum = AdaptMPF%MinPartNum
           END IF
@@ -432,6 +434,8 @@ IF (.NOT.(AdaptMPF%SkipAdaption)) THEN
         IF (DoCatalyticRestart) THEN
           IF (RefineCatElem(iCNElem)) THEN
             MinPartNum = AdaptMPF%Cat_MinPartNum
+          ELSE IF ((Symmetry%Axisymmetric).AND.(ElemMidPoint_Shared(2,iCNElem).LE.(GEO%ymaxglob*0.05))) THEN
+            MinPartNum = AdaptMPF%SymAxis_MinPartNum
           ELSE
             MinPartNum = AdaptMPF%MinPartNum
           END IF

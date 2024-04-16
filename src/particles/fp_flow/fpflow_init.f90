@@ -86,7 +86,7 @@ USE MOD_DSMC_Vars             ,ONLY: DSMC, CollInf
 USE MOD_DSMC_ParticlePairing  ,ONLY: DSMC_init_octree
 USE MOD_PARTICLE_Vars         ,ONLY: nSpecies, Species, DoVirtualCellMerge
 USE MOD_FPFlow_Vars
-USE MOD_BGK_Vars              ,ONLY: DoBGKCellAdaptation, BGKMinPartPerCell
+USE MOD_BGK_Vars              ,ONLY: DoBGKCellAdaptation, BGKMinPartPerCell, CBC
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Vars      ,ONLY: PerformLoadBalance
 #endif /*USE_LOADBALANCE*/
@@ -113,8 +113,8 @@ DO iSpec = 1, nSpecies
   END DO
 END DO
 
-ALLOCATE(FP_CBC%OutputKnudsen(8,nElems))
-FP_CBC%OutputKnudsen = 0.0
+ALLOCATE(CBC%OutputKnudsen(8,nElems))
+CBC%OutputKnudsen = 0.0
 
 FPCollModel = GETINT('Particles-FP-CollModel')
 ESFPModel = GETINT('Particles-ESFP-Model')
@@ -138,47 +138,47 @@ END IF
 FPDoVibRelaxation = GETLOGICAL('Particles-FP-DoVibRelaxation')
 FPUseQuantVibEn = GETLOGICAL('Particles-FP-UseQuantVibEn')
 CoupledFPDSMC = GETLOGICAL('Particles-CoupledFPDSMC')
-ALLOCATE(FP_CBC%DoElementDSMC(nElems))
-FP_CBC%DoElementDSMC = .FALSE.
+ALLOCATE(CBC%DoElementDSMC(nElems))
+CBC%DoElementDSMC = .FALSE.
 IF(CoupledFPDSMC) THEN
   IF (DoVirtualCellMerge) THEN
     CALL abort(__STAMP__,' Virtual cell merge not implemented for coupled DSMC-FP simulations!')
   END IF
   ! Coupling criteria DSMC
-  FP_CBC%SwitchCriterium   = TRIM(GETSTR('Particles-FP-DSMC-SwitchCriterium'))
-  FP_CBC%CharLength        = GETREAL('Particles-FP-DSMC-CharLength')
-  SELECT CASE (TRIM(FP_CBC%SwitchCriterium))
+  CBC%SwitchCriterium   = TRIM(GETSTR('Particles-FP-DSMC-SwitchCriterium'))
+  CBC%CharLength        = GETREAL('Particles-FP-DSMC-CharLength')
+  SELECT CASE (TRIM(CBC%SwitchCriterium))
   CASE('Density')
-    FP_CBC%SwitchDens       = GETREAL('Particles-FP-DSMC-SwitchDens')
+    CBC%SwitchDens       = GETREAL('Particles-FP-DSMC-SwitchDens')
   CASE('GlobalKnudsen')
-    FP_CBC%MaxGlobalKnudsen = GETREAL('Particles-FP-DSMC-MaxGlobalKnudsen')
+    CBC%MaxGlobalKnudsen = GETREAL('Particles-FP-DSMC-MaxGlobalKnudsen')
   CASE('LocalKnudsen')
-    FP_CBC%MaxLocalKnudsen  = GETREAL('Particles-FP-DSMC-MaxLocalKnudsen')
+    CBC%MaxLocalKnudsen  = GETREAL('Particles-FP-DSMC-MaxLocalKnudsen')
   CASE('ThermNonEq')
-    FP_CBC%MaxThermNonEq    = GETREAL('Particles-FP-DSMC-MaxThermNonEq')
+    CBC%MaxThermNonEq    = GETREAL('Particles-FP-DSMC-MaxThermNonEq')
   CASE('Combination')
-    FP_CBC%MaxLocalKnudsen  = GETREAL('Particles-FP-DSMC-MaxLocalKnudsen')
-    FP_CBC%MaxThermNonEq    = GETREAL('Particles-FP-DSMC-MaxThermNonEq')
+    CBC%MaxLocalKnudsen  = GETREAL('Particles-FP-DSMC-MaxLocalKnudsen')
+    CBC%MaxThermNonEq    = GETREAL('Particles-FP-DSMC-MaxThermNonEq')
   CASE('ChapmanEnskog')
-    FP_CBC%MaxChapmanEnskog = GETREAL('Particles-FP-DSMC-MaxChapmanEnskog')
+    CBC%MaxChapmanEnskog = GETREAL('Particles-FP-DSMC-MaxChapmanEnskog')
   CASE('Output')
     SWRITE(*,*) 'Switch-Criterium = Output, FP is used for the simulation'
   CASE DEFAULT
-    SWRITE(*,*) ' Coupling criterium is not defined or does not exist: ', TRIM(FP_CBC%SwitchCriterium)
+    SWRITE(*,*) ' Coupling criterium is not defined or does not exist: ', TRIM(CBC%SwitchCriterium)
     CALL abort(__STAMP__,'Wrong coupling criterium given')
   END SELECT
 
-  ALLOCATE(FP_CBC%Max_HeatVec(nElems))
-  FP_CBC%Max_HeatVec = 0.0
-  ALLOCATE(FP_CBC%Max_StressTens(nElems))
-  FP_CBC%Max_StressTens = 0.0
+  ALLOCATE(CBC%Max_HeatVec(nElems))
+  CBC%Max_HeatVec = 0.0
+  ALLOCATE(CBC%Max_StressTens(nElems))
+  CBC%Max_StressTens = 0.0
 
   ! Number of iterations between a possible FP-DSMC switch
-  FP_CBC%SwitchIter = GETINT('Particles-FP-DSMC-SampleIter')
+  CBC%SwitchIter = GETINT('Particles-FP-DSMC-SampleIter')
   ! Use of average values for the sampling routine of the gradient
-  FP_CBC%AverageSamp = GETLOGICAL('Particles-FP-DSMC-SampAverage')
-  ALLOCATE(FP_CBC%Iter_Count(nElems))
-  FP_CBC%Iter_Count = 0
+  CBC%AverageSamp = GETLOGICAL('Particles-FP-DSMC-SampAverage')
+  ALLOCATE(CBC%Iter_Count(nElems))
+  CBC%Iter_Count = 0
 END IF
 
 FPInitDone = .TRUE.
@@ -193,6 +193,7 @@ SUBROUTINE FinalizeFPFlow()
 ! MODULES
 USE MOD_Globals
 USE MOD_FPFlow_Vars
+USE MOD_BGK_Vars,   ONLY: CBC
 !-----------------------------------------------------------------------------------------------------------------------------------
 IMPLICIT NONE
 ! INPUT VARIABLES
@@ -205,9 +206,9 @@ IMPLICIT NONE
 SDEALLOCATE(SpecFP)
 SDEALLOCATE(FP_QualityFacSamp)
 IF (CoupledFPDSMC) THEN
-  SDEALLOCATE(FP_CBC%Iter_Count)
-  SDEALLOCATE(FP_CBC%Max_HeatVec)
-  SDEALLOCATE(FP_CBC%Max_StressTens)
+  SDEALLOCATE(CBC%Iter_Count)
+  SDEALLOCATE(CBC%Max_HeatVec)
+  SDEALLOCATE(CBC%Max_StressTens)
 END IF
 
 END SUBROUTINE FinalizeFPFlow

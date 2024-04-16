@@ -45,7 +45,7 @@ SUBROUTINE FP_DSMC_main()
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_FP_DSMC_Coupling
+USE MOD_FP_BGK_DSMC_Coupling,ONLY: CBC_DoDSMC
 USE MOD_Cell_Adaption       ,ONLY: MeshAdaption
 USE MOD_Particle_Mesh_Vars  ,ONLY: DoSubcellAdaption
 USE MOD_TimeDisc_Vars       ,ONLY: TEnd, Time
@@ -54,7 +54,7 @@ USE MOD_Particle_Vars       ,ONLY: PEM, Species, WriteMacroVolumeValues, Symmetr
 USE MOD_FP_CollOperator     ,ONLY: FP_CollisionOperator
 USE MOD_FPFlow_Vars
 USE MOD_DSMC_Vars           ,ONLY: DSMC, RadialWeighting, VarWeighting
-USE MOD_BGK_Vars            ,ONLY: DoBGKCellAdaptation
+USE MOD_BGK_Vars            ,ONLY: DoBGKCellAdaptation, CBC
 USE MOD_BGK_Adaptation      ,ONLY: BGK_octree_adapt, BGK_quadtree_adapt
 USE MOD_DSMC                ,ONLY: DSMC_main
 USE MOD_Part_Tools          ,ONLY: GetParticleWeight
@@ -90,34 +90,34 @@ DO iElem = 1, nElems
     dens = totalWeight * Species(1)%MacroParticleFactor / ElemVolume_Shared(CNElemID)
   END IF
 
-  SELECT CASE (TRIM(FP_CBC%SwitchCriterium))
+  SELECT CASE (TRIM(CBC%SwitchCriterium))
   CASE('Density')
-    FP_CBC%Iter_Count(iElem) = FP_CBC%Iter_Count(iElem) + 1
-    IF (FP_CBC%Iter_Count(iElem).GE.FP_CBC%SwitchIter) THEN
+    CBC%Iter_Count(iElem) = CBC%Iter_Count(iElem) + 1
+    IF (CBC%Iter_Count(iElem).GE.CBC%SwitchIter) THEN
       ! Check if the particle number density is smaller than the BGK-DSMC switch criterium
-      IF (dens.LT.FP_CBC%SwitchDens) THEN
-        FP_CBC%DoElementDSMC(iElem) = .TRUE.
+      IF (dens.LT.CBC%SwitchDens) THEN
+        CBC%DoElementDSMC(iElem) = .TRUE.
       ELSE
-        FP_CBC%DoElementDSMC(iElem) = .FALSE.
+        CBC%DoElementDSMC(iElem) = .FALSE.
       END IF
       ! reset the counter values
-      FP_CBC%Iter_Count(iElem) = 0
+      CBC%Iter_Count(iElem) = 0
     END IF
 
   CASE('LocalKnudsen', 'GlobalKnudsen', 'ThermNonEq', 'Combination', 'ChapmanEnskog', 'Output')
-    FP_CBC%Iter_Count(iElem) = FP_CBC%Iter_Count(iElem) + 1
-    IF (FP_CBC%Iter_Count(iElem).GE.FP_CBC%SwitchIter) THEN
+    CBC%Iter_Count(iElem) = CBC%Iter_Count(iElem) + 1
+    IF (CBC%Iter_Count(iElem).GE.CBC%SwitchIter) THEN
       ! Call the subroutine to decide between FP and DSMC for the element
-      FP_CBC%DoElementDSMC(iElem) = FP_CBC_DoDSMC(iElem)
+      CBC%DoElementDSMC(iElem) = CBC_DoDSMC(iElem)
       ! reset the counter values
-      FP_CBC%Iter_Count(iElem) = 0
+      CBC%Iter_Count(iElem) = 0
     END IF
 
   CASE DEFAULT
-    FP_CBC%DoElementDSMC(iELem) = .FALSE.
+    CBC%DoElementDSMC(iELem) = .FALSE.
   END SELECT
 
-  IF (FP_CBC%DoElementDSMC(iElem)) CYCLE
+  IF (CBC%DoElementDSMC(iElem)) CYCLE
 
   IF (nPart.LT.3) CYCLE
 

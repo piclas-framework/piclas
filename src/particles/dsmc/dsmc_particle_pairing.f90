@@ -40,7 +40,7 @@ END INTERFACE
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
 PUBLIC :: DSMC_pairing_standard, DSMC_pairing_octree, DSMC_init_octree, DSMC_pairing_quadtree, DSMC_CalcSubNodeVolumes3D
 PUBLIC :: DSMC_CalcSubNodeVolumes2D, GeoCoordToMap2D, DSMC_pairing_dotree, OCTANTCUBEID, QUADCUBEMIDPOINT, OCTANTCUBEMIDPOINT
-PUBLIC :: PerformPairingAndCollision, MapToGeo2D
+PUBLIC :: PerformPairingAndCollision, MapToGeo2D, GeoCoordToMap1D
 !===================================================================================================================================
 
 CONTAINS
