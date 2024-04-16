@@ -436,7 +436,6 @@ CALL StartReceiveMPIDataInt(1,PETScGlobal,1,nSides, RecRequest_U,SendID=1) ! Rec
 CALL StartSendMPIDataInt(   1,PETScGlobal,1,nSides,SendRequest_U,SendID=1) ! Send MINE
 CALL FinishExchangeMPIData(SendRequest_U,RecRequest_U,SendID=1)
 #endif
-#endif
 
 ! Fill nPETScDOFs and OffsetDOF for each Side
 ! TODO PETSC P-Adaption - Improvement: Many arrays can be deleted (eg. PETScGlobal, nPETScUniqueSidesGlobal)
@@ -447,6 +446,7 @@ DO SideID=1,nSides
   HDG_Surf_N(SideID)%OffsetDOF=nPETScDOFs
   nPETScDOFs=nPETScDOFs+nGP_face(N_SurfMesh(SideID)%NSideMin)
 END DO
+#endif
 
 !mappings
 sideDir(  XI_MINUS)=1
