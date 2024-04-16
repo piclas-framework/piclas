@@ -197,14 +197,16 @@ ASSOCIATE( NodeSourceExt => NodeSourceExtTmp )
 
     ! Periodic contribution
     IF (GEO%nPeriodicVectors.GT.0) THEN
-      ASSOCIATE(NodeInfoID => NodeInfo_Shared(NodeID(iNode)))
-        IF (Periodic_nNodes(NodeInfoID).GT.0) THEN
-          DO jNode = Periodic_offsetNode(NodeInfoID)+1,Periodic_offsetNode(NodeInfoID)+Periodic_nNodes(NodeInfoID)
-            jGlobNode                         = Periodic_Nodes(jNode)
-            NodeSourceExt(jGlobNode) = NodeSourceExt(jGlobNode) +  PartDistDepo(iNode)/DistSum*Charge
-          END DO ! jNode
-        END IF ! Periodic_nNodes(NodeID(iNode)).GT.0
-      END ASSOCIATE
+      DO iNode=1, 8
+        ASSOCIATE(NodeInfoID => NodeInfo_Shared(NodeID(iNode)))
+          IF (Periodic_nNodes(NodeInfoID).GT.0) THEN
+            DO jNode = Periodic_offsetNode(NodeInfoID)+1,Periodic_offsetNode(NodeInfoID)+Periodic_nNodes(NodeInfoID)
+              jGlobNode                         = Periodic_Nodes(jNode)
+              NodeSourceExt(jGlobNode) = NodeSourceExt(jGlobNode) +  PartDistDepo(iNode)/DistSum*Charge
+            END DO ! jNode
+          END IF ! Periodic_nNodes(NodeID(iNode)).GT.0
+        END ASSOCIATE
+      END DO ! iNode=1, 8
     END IF
   END IF ! SucRefPos
 #if USE_MPI

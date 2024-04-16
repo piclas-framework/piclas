@@ -472,7 +472,7 @@ DO iSide =1, nSides
 !  DEALLOCATE(Dielectric_dummy_elem, Dielectric_dummy_side)  
 END DO
 
-CALL abort(__STAMP__,'implement mortar and mpi dielectric')
+CALL abort(__STAMP__,'SetDielectricFaceProfile(): implement mortar and mpi dielectric part of this function, too')
 !    !CALL U_Mortar(Dielectric_dummy_Master,Dielectric_dummy_Slave,doMPISides=.FALSE.)
 !    #if USE_MPI
 !      CALL ProlongToFace(Dielectric_dummy_elem,Dielectric_dummy_Master,Dielectric_dummy_Slave,doMPISides=.TRUE.)

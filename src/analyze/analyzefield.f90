@@ -1883,7 +1883,7 @@ DO SideID=1,nBCSides
   END SELECT
 #endif
   ! For testing
-  N_SurfVDL(SideID)%E = Uface2(:,:,:)
+  IF(ALLOCATED(N_SurfVDL)) N_SurfVDL(SideID)%E = Uface2(:,:,:)
 
   ! 2.) Apply the normal vector: Uface(1,:,:)=DOT_PRODUCT(Uface(1:3,:,:),NormVec(1:3,:,:,SideID))
   !     Store result of dot product in first array index

@@ -107,7 +107,7 @@ DO iElem=1,PP_nElems
           DielectricVolTmp(1:2 , 0:Nloc , 0:Nloc , 0:Nloc) , &
           DielectricGlobal(1:2 , 0:NMax , 0:NMax , 0:NMax  , iElem))
       DEALLOCATE(DielectricVolTmp)
-    END IF  
+    END IF
   END IF
 END DO!iElem
 SWRITE(UNIT_stdOut,'(A)',ADVANCE='NO')' WRITE DielectricGlobal TO HDF5 FILE...'
@@ -253,6 +253,7 @@ USE MOD_Mesh_Tools             ,ONLY: GetGlobalElemID
 USE MOD_DG_Vars                ,ONLY: N_DG_Mapping
 USE MOD_Particle_Mesh_Tools    ,ONLY: GetGlobalNonUniqueSideID
 USE MOD_Globals_Vars           ,ONLY: ProjectName
+USE MOD_Particle_Boundary_Vars ,ONLY: ElementThicknessVDL
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -330,8 +331,8 @@ ASSOCIATE(PhotonSurfSideArea => PhotonSurfSideArea_Shared)
 
 ASSOCIATE (&
       nSurfSample    => INT(NMax+1                          , IK)  , &
-      nGlobalSides   => INT(nBCSides      , IK)  , & !INT(nGlobalOutputSides              , IK)  , &
-      LocalnBCSides  => INT(nBCSides      , IK)  , & ! INT(nComputeNodeSurfOutputSides     , IK)  , &
+      nGlobalSides   => INT(nGlobalOutputSides              , IK)  , &
+      LocalnBCSides  => INT(nComputeNodeSurfOutputSides     , IK)  , &
       offsetSurfSide => INT(offsetComputeNodeSurfOutputSide , IK)  , &
       nVar2D         => INT(nVar2D                          , IK))
 
@@ -362,6 +363,11 @@ ASSOCIATE (&
       ! From low to high
       CALL ChangeBasis2D(3, Nloc, NMax, PREF_VDM(Nloc,NMax)%Vdm , N_SurfVDL(BCSideID)%E(1:3,0:Nloc,0:Nloc), helpArray(1:3,1:nSurfSample,1:nSurfSample,iSurfSide))
     END IF ! Nloc.EQ.NMax
+
+    ! Apply correction factor
+    helpArray(1:3,1:nSurfSample,1:nSurfSample,iSurfSide) = (ElementThicknessVDL(iElem) / 1.000E-08) * helpArray(1:3,1:nSurfSample,1:nSurfSample,iSurfSide)
+    !WRITE (*,*) "ElementThicknessVDL(iElem) / 1.000E-08 =", ElementThicknessVDL(iElem) / 1.000E-08
+    !read*
 
   END DO ! BCSideID=1,nBCSides
 
@@ -790,7 +796,7 @@ ASSOCIATE (&
   DO iElem = 1, INT(PP_nElems)
     Nloc = N_DG_Mapping(2,iElem+offSetElem)
     IF(Nloc.EQ.Nmax)THEN
-      BGTemp(:,:,:,:,iElem)   = N_BG(iElem)%BGField(:,:,:,:)      
+      BGTemp(:,:,:,:,iElem)   = N_BG(iElem)%BGField(:,:,:,:)
       IF(UseTimeDepCoil) THEN
         DO iTimePoint = 1, nTimePoints
           BGTDepTemp(:,:,:,:,iElem, iTimePoint)   = N_BG(iElem)%BGFieldTDep(:,:,:,:,iTimePoint)
