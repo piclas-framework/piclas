@@ -466,7 +466,7 @@ END FUNCTION GetParticleTimeStep
 
 PURE REAL FUNCTION GetSpeciesTimeStep(iCase)
 !===================================================================================================================================
-!> Determines the species-specific time step from the collision case
+!> Determines the species-specific time step from the collision case (works only in combination with a background gas)
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals

@@ -52,8 +52,9 @@ USE MOD_Dielectric_vars          ,ONLY: DoDielectric,isDielectricElem
 USE MOD_Particle_Mesh_Vars
 USE MOD_Particle_Boundary_Vars   ,ONLY: PartBound,DoBoundaryParticleOutputHDF5
 USE MOD_Particle_Surfaces_vars   ,ONLY: SideNormVec,SideType
-USE MOD_SurfaceModel             ,ONLY: SurfaceModel,PerfectReflection
 USE MOD_Particle_Vars            ,ONLY: LastPartPos
+USE MOD_SurfaceModel             ,ONLY: SurfaceModelling
+USE MOD_SurfaceModel_Tools       ,ONLY: PerfectReflection
 USE MOD_Particle_Boundary_Tools  ,ONLY: StoreBoundaryParticleProperties
 #ifdef CODE_ANALYZE
 USE MOD_Globals                  ,ONLY: myRank,UNIT_stdout
@@ -147,7 +148,7 @@ ASSOCIATE( iPartBound => PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID)
   CASE(2) ! PartBound%ReflectiveBC
   !-----------------------------------------------------------------------------------------------------------------------------------
   ! Decide which interaction (specular/diffuse reflection, species swap, SEE)
-    CALL SurfaceModel(iPart,SideID,ElemID,n_loc)
+    CALL SurfaceModelling(iPart,SideID,ElemID,n_loc)
   !-----------------------------------------------------------------------------------------------------------------------------------
   CASE(3) ! PartBound%PeriodicBC
   !-----------------------------------------------------------------------------------------------------------------------------------

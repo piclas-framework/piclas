@@ -46,10 +46,11 @@ USE MOD_DSMC                     ,ONLY: DSMC_main
 USE MOD_part_tools               ,ONLY: UpdateNextFreePosition
 USE MOD_part_emission            ,ONLY: ParticleInserting
 USE MOD_Particle_SurfFlux        ,ONLY: ParticleSurfaceflux
+USE MOD_Particle_SurfChemFlux
 USE MOD_Particle_Tracking_vars   ,ONLY: tTracking,MeasureTrackTime
 USE MOD_Particle_Tracking        ,ONLY: PerformTracking
 USE MOD_SurfaceModel_Porous      ,ONLY: PorousBoundaryRemovalProb_Pressure
-USE MOD_SurfaceModel_Vars        ,ONLY: nPorousBC
+USE MOD_SurfaceModel_Vars        ,ONLY: nPorousBC, DoChemSurface
 USE MOD_vMPF                     ,ONLY: SplitAndMerge
 USE MOD_part_RHS                 ,ONLY: CalcPartRHSRotRefFrame, CalcPartPosInRotRef
 USE MOD_part_pos_and_velo        ,ONLY: SetParticleVelocity
@@ -57,6 +58,7 @@ USE MOD_Part_Tools               ,ONLY: InRotRefFrameCheck
 USE MOD_Part_Tools               ,ONLY: CalcPartSymmetryPos
 #if USE_MPI
 USE MOD_Particle_MPI             ,ONLY: IRecvNbOfParticles, MPIParticleSend,MPIParticleRecv,SendNbOfparticles
+USE MOD_Particle_MPI_Boundary_Sampling, ONLY: ExchangeChemSurfData
 #endif /*USE_MPI*/
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Timers       ,ONLY: LBStartTime,LBSplitTime,LBPauseTime
@@ -99,6 +101,18 @@ IF (DoSurfaceFlux) THEN
 #endif /*USE_LOADBALANCE*/
 
   CALL ParticleSurfaceflux()
+END IF
+
+IF (DoChemSurface) THEN
+#if USE_MPI
+  CALL ExchangeChemSurfData()
+#endif /*USE_MPI*/
+
+  IF (time.GT.0.0) THEN
+    CALL ParticleSurfChemFlux()
+    CALL ParticleSurfDiffusion()
+  END IF
+
 END IF
 
 #if USE_LOADBALANCE

@@ -178,6 +178,8 @@ IF(SurfModelElectronTemp)THEN
   END IF
 END IF ! SurfModelElectronTemp
 
+!==================================================================================================================================
+
 END SUBROUTINE InitSurfaceModel
 
 
@@ -186,7 +188,12 @@ SUBROUTINE FinalizeSurfaceModel()
 !> Deallocate surface model vars
 !===================================================================================================================================
 ! MODULES
+USE MOD_Globals
 USE MOD_SurfaceModel_Vars
+#if USE_MPI
+USE MOD_MPI_Shared_vars        ,ONLY: MPI_COMM_SHARED
+USE MOD_MPI_Shared
+#endif
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -198,6 +205,27 @@ IMPLICIT NONE
 !===================================================================================================================================
 SDEALLOCATE(SurfModResultSpec)
 SDEALLOCATE(SurfModEnergyDistribution)
+SDEALLOCATE(SurfChemReac)
+SDEALLOCATE(SurfChem%BoundisChemSurf)
+SDEALLOCATE(SurfChem%PSMap)
+SDEALLOCATE(SurfChem%EventProbInfo)
+#if USE_MPI
+  CALL MPI_BARRIER(MPI_COMM_SHARED,iERROR)
+  IF(DoChemSurface) THEN
+    CALL UNLOCK_AND_FREE(ChemWallProp_Shared_Win)
+    CALL UNLOCK_AND_FREE(ChemSampWall_Shared_Win)
+  END IF
+  ADEALLOCATE(ChemSampWall_Shared)
+  ADEALLOCATE(ChemWallProp_Shared)
+#else
+#endif
+SDEALLOCATE(ChemDesorpWall)
+ADEALLOCATE(ChemSampWall)
+ADEALLOCATE(ChemWallProp)
+
+SNULLIFY(SurfChem%Surfaceflux)
+SDEALLOCATE(SurfChem%SFAux)
+
 SDEALLOCATE(SurfModEmissionEnergy)
 SDEALLOCATE(SurfModEmissionYield)
 SDEALLOCATE(StickingCoefficientData)
