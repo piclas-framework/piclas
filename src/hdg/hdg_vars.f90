@@ -55,6 +55,7 @@ REAL,ALLOCATABLE    :: Smat_BC(:,:,:,:)       !< side to side matrix for dirichl
 INTEGER             :: nPETScSides            !< nSides - nDirichletSides
 INTEGER             :: nPETScUniqueSides      !< nPETScSides - nMPISides_YOUR
 INTEGER             :: nPETScUniqueSidesGlobal
+INTEGER             :: nPETScDOFs             !< Number of global PETSc DOFs (size of PETSc Vectors & Matrices)
 #endif
 LOGICAL             :: useHDG=.FALSE.
 LOGICAL             :: ExactLambda =.FALSE.   !< Flag to initialize exact function for lambda
@@ -83,6 +84,9 @@ TYPE HDG_Surf_N_Type
   REAL,ALLOCATABLE    :: R(:,:)               !<
   REAL,ALLOCATABLE    :: V(:,:)               !<
   REAL,ALLOCATABLE    :: Z(:,:)               !<
+#if USE_PETSC
+  REAL                :: OffsetDOF
+#endif
 #if USE_MPI
   REAL,ALLOCATABLE    :: buf(:,:)
   REAL,ALLOCATABLE    :: buf2(:,:)

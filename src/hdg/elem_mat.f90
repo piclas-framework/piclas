@@ -111,6 +111,10 @@ INTEGER              :: iPETScGlobal, jPETScGlobal
 INTEGER              :: locSideID
 REAL                 :: intMat(nGP_face, nGP_face)
 INTEGER              :: BCState
+INTEGER              :: iIndices(nGP_face(Nmax)),jIndices(nGP_face(Nmax))
+INTEGER              :: NElem,iNloc,jNloc
+REAL                 :: Smatloc(nGP_face(Nmax),nGP_face(Nmax))
+INTEGER              :: iNdof, jNdof
 #endif
 !===================================================================================================================================
 
@@ -371,7 +375,7 @@ DO iSide=1,nSides
   END DO
 END DO
 
-! TODO PETSC P-Adaption - There is no reason to do that?
+! TODO PETSC P-Adaption - Smat_BC not needed!
 ! Fill Dirichlet BC Smat
 ! DO iBCSide=1,nDirichletBCSides
 !   BCSideID=DirichletBC(iBCSide)
@@ -383,13 +387,18 @@ END DO
 ! END DO
 ! Fill Smat for PETSc with remaining DOFs
 DO iElem=1,PP_nElems
+  NElem=N_DG_Mapping(2,iElem)!+offsetElem)
   DO iLocSide=1,6
     iSideID=ElemToSide(E2S_SIDE_ID,iLocSide,iElem)
-    ! TODO PETSC P-Adaption - iPETScGlobal
+    iNloc=N_SurfMesh(iSideID)%NSideMin
+    ! TODO PETSC P-Adaption - Improvement: Delete PETScGlobal
+    ! iPETScGlobal should be OffsetSide or STH?
+    ! Or with the current, just stay as it is?
     iPETScGlobal=PETScGlobal(iSideID)
     IF (iPETScGlobal.EQ.-1) CYCLE
     DO jLocSide=1,6
       jSideID=ElemToSide(E2S_SIDE_ID,jLocSide,iElem)
+      jNloc=N_SurfMesh(jSideID)%NSideMin
       jPETScGlobal=PETScGlobal(jSideID)
       IF (iPETScGlobal.GT.jPETScGlobal) CYCLE
       IF(SetZeroPotentialDOF.AND.(iPETScGlobal.EQ.0)) THEN
@@ -397,13 +406,36 @@ DO iElem=1,PP_nElems
         HDG_Vol_N(iElem)%Smat(:,1,jLocSide,iLocSide,) = 0
         IF(jPETScGlobal.EQ.iPETScGlobal) HDG_Vol_N(iElem)%Smat(1,1,jLocSide,iLocSide,) = 1
       END IF
-      ! TODO PETSC P-Adaption - Temporary fix: Multiply Smat with Vandermonde (and Transpose)
-      V = PREF_VDM(NElem,jNloc)%Vdm
-      VT = TRANSPOSE(PREF_VDM(NElem,iNloc)%Vdm)
-      Smatloc = MATMUL(VT, MATMUL(HDG_Vol_N(iElem)%Smat(:,:,jLocSide,iLocSide), V))
 
-      PetscCallA(MatSetValues(Smat_petsc, iNLoc, HDG_Surf_N(iLocSide)%DOFindices+iPETScGlobal, jNLoc, HDG_Surf_N(jLocSide)%DOFindices+jPETScGlobal,HDG_Vol_N(iElem)%Smat(0:iNloc,0:jNloc),ADD_VALUES,ierr))
-      PetscCallA(MatSetValuesBlocked(Smat_petsc,1,iPETScGlobal,1,jPETScGlobal,Smat(:,:,jLocSide,iLocSide,iElem),ADD_VALUES,ierr))
+
+      iNdof=nGP_face(iNloc)
+      jNdof=nGP_face(jNloc)
+
+      ! Get Index list
+      DO i=1,iNdof
+        iIndices(i) = HDG_Surf_N(iSide)%OffsetDOF + i
+      END DO
+      DO i=1,jNdof
+        jIndices(i) = HDG_Surf_N(jSide)%OffsetDOF + i
+      END DO
+
+      ! TODO PETSC P-Adaption - Improvement: Store V^T * S * V in Smat
+      ! ... S_{(i1,i2),(j1,i2)} = V^T_{i1,I1} * V^T_{i2,I2} * S_{(I1,I2),(J1,J2)} * V_{J1,j1} * V_{J2,j2}
+      Smatloc = 0.
+      DO i_m=0,iNloc; DO i_p=0,iNloc
+        DO j_m=0,jNloc; DO j_p=0,jNloc
+          DO i=0,NElem; DO j=0,NElem
+            DO p=0,NElem; DO q=0,NElem
+              Smatloc(i_m*(iNloc+1)+i_p,j_m*(jNloc+1)+j_p) = Smatloc(i_m*(iNloc+1)+i_p,j_m*(jNloc+1)+j_p) + &
+                PREF_VDM(NElem,iNloc)%Vdm(i,i_m) * PREF_VDM(NElem,iNloc)%Vdm(j,i_p) * &
+                HDG_Vol_N(iElem)%Smat(i*(Nelem+1)+j,p*(Nelem+1)+q,jLocSide,iLocSide) * &
+                PREF_VDM(NElem,iNloc)%Vdm(p,j_m) * PREF_VDM(NElem,iNloc)%Vdm(q,j_p)
+            END DO; END DO
+          END DO; END DO
+        END DO; END DO
+      END DO; END DO
+
+      PetscCallA(MatSetValues(Smat_petsc,iNdof,iIndices(1:iNdof),jNdof,jIndices(1:jNdof),Smatloc(1:iNdof,1:jNdof),ADD_VALUES,ier))
     END DO
   END DO
 END DO
