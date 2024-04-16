@@ -69,6 +69,8 @@ USE MOD_Particle_Vars          ,ONLY: UseSplitAndMerge
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Timers     ,ONLY: LBStartTime,LBSplitTime,LBPauseTime
 #endif /*USE_LOADBALANCE*/
+USE MOD_Particle_Boundary_Vars ,ONLY: DoVirtualDielectricLayer
+USE MOD_PICDepo                ,ONLY: DepositVirtualDielectricLayerParticles
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -216,6 +218,11 @@ CALL extrae_eventandcounters(int(9000001), int8(0))
   CALL MPIParticleSend()  ! finish communication of number of particles and send particles
   CALL MPIParticleRecv()  ! finish communication
 #endif
+
+  ! Virtual Dielectric Layer (VDL) particles are deposited and deleted here because they might have changed the process after
+  ! boundary interaction, hence, do all of this after MPI communication
+  ! This must be called directly after "CALL MPIParticleRecv()" to delete the virtual particles that are created in PerformTracking()
+  IF(DoVirtualDielectricLayer) CALL DepositVirtualDielectricLayerParticles()
 #if (PP_TimeDiscMethod==509)
   IF (velocityOutputAtTime) THEN
 #ifdef EXTRAE

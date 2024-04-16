@@ -560,7 +560,7 @@ DO iPartBound=1,nPartBound
       IF(PartBound%NbrOfSpeciesSwaps(iPartBound).GT.0) CALL CollectiveStop(__STAMP__,&
         'Part-BoundaryX-PermittivityVDL cannot be combined with art-Boundary'//TRIM(hilf)//'-NbrOfSpeciesSwaps')
 #if USE_HDG
-      IF(DoDirichletDeposition) CALL abort(__STAMP__,'Part-Boundary'//TRIM(hilf)//'-PermittivityVDL requires DoDirichletDeposition=F')
+      IF(DoDirichletDeposition) CALL abort(__STAMP__,'Part-Boundary'//TRIM(hilf)//'-PermittivityVDL requires PIC-DoDirichletDeposition=F')
 #else
       CALL abort(__STAMP__,'Part-Boundary'//TRIM(hilf)//'-PermittivityVDL requires HDG!')
 #endif /*USE_HDG*/
@@ -571,6 +571,9 @@ DO iPartBound=1,nPartBound
       PartBound%SurfaceModel(iPartBound) = 99 ! VDL
       DoDielectricSurfaceCharge          = .TRUE.
       DoHaloDepo                         = .TRUE.
+#if !((PP_TimeDiscMethod==500) || (PP_TimeDiscMethod==501) || (PP_TimeDiscMethod==502) || (PP_TimeDiscMethod==506) || (PP_TimeDiscMethod==508) || (PP_TimeDiscMethod==509))
+      CALL abort(__STAMP__,'VDL model not implemented for the given time discretisation!')
+#endif /*!((PP_TimeDiscMethod==500) || (PP_TimeDiscMethod==501) || (PP_TimeDiscMethod==502) || (PP_TimeDiscMethod==506) || (PP_TimeDiscMethod==508) || (PP_TimeDiscMethod==509))*/
     ELSEIF(PartBound%PermittivityVDL(iPartBound).LT.0.0)THEN
       CALL abort(__STAMP__,'Part-Boundary'//TRIM(hilf)//'-PermittivityVDL cannot be negative')
     END IF ! PartBound%PermittivityVDL(iPartBound)
@@ -785,29 +788,27 @@ END DO ! iSide = 1, nBCSides
 
 
 
-
-
-! Loop over all local boundary sides
-DO BCSideID=1,nBCSides
-
-  ! Exclude periodic sides
-  BCType = Boundarytype(BC(BCSideID),BC_TYPE)
-  IF(BCType.EQ.1) CYCLE ! Skip periodic side
-
-  ! Exclude non-VDL boundaries
-  iPartBound = PartBound%MapToPartBC(BC(BCSideID))
-  IF(PartBound%SurfaceModel(iPartBound).NE.99)CYCLE ! Skip non-VDL boundary
-
-  iElem    = SideToElem(S2E_ELEM_ID,BCSideID)
-  Nloc     = N_DG_Mapping(2,iElem+offSetElem)
-  iLocSide = SideToElem(S2E_LOC_SIDE_ID,BCSideID)
-
-
-  GlobalNonUniqueSideID = GetGlobalNonUniqueSideID(GlobalElemID,iLocSide)
-  iSurfSide = GlobalSide2SurfSide(SURF_SIDEID,GlobalNonUniqueSideID)
-  !WRITE (*,*) "iSurfSide =", iSurfSide
-
-END DO ! BCSideID=1,nBCSides
+!  ! Loop over all local boundary sides
+!  DO BCSideID=1,nBCSides
+!
+!    ! Exclude periodic sides
+!    BCType = Boundarytype(BC(BCSideID),BC_TYPE)
+!    IF(BCType.EQ.1) CYCLE ! Skip periodic side
+!
+!    ! Exclude non-VDL boundaries
+!    iPartBound = PartBound%MapToPartBC(BC(BCSideID))
+!    IF(PartBound%SurfaceModel(iPartBound).NE.99)CYCLE ! Skip non-VDL boundary
+!
+!    iElem    = SideToElem(S2E_ELEM_ID,BCSideID)
+!    Nloc     = N_DG_Mapping(2,iElem+offSetElem)
+!    iLocSide = SideToElem(S2E_LOC_SIDE_ID,BCSideID)
+!
+!
+!    GlobalNonUniqueSideID = GetGlobalNonUniqueSideID(GlobalElemID,iLocSide)
+!    iSurfSide = GlobalSide2SurfSide(SURF_SIDEID,GlobalNonUniqueSideID)
+!    !WRITE (*,*) "iSurfSide =", iSurfSide
+!
+!  END DO ! BCSideID=1,nBCSides
 
 END SUBROUTINE InitVirtualDielectricLayer
 

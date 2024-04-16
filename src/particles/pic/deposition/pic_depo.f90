@@ -32,6 +32,7 @@ PUBLIC:: Deposition, InitializeDeposition, FinalizeDeposition, DefineParametersP
 #if USE_MPI
 PUBLIC :: ExchangeNodeSourceExtTmp
 #endif /*USE_MPI*/
+PUBLIC :: DepositVirtualDielectricLayerParticles
 !===================================================================================================================================
 
 CONTAINS
@@ -867,7 +868,6 @@ USE MOD_HDG_Vars              ,ONLY: HDGSkip, HDGSkipInit, HDGSkip_t0
 USE MOD_TimeDisc_Vars         ,ONLY: time
 #endif  /*USE_HDG*/
 USE MOD_Mesh_Vars             ,ONLY: nElems
-USE MOD_Dielectric_Vars       ,ONLY: DoDielectricSurfaceCharge
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -911,10 +911,6 @@ IF((stage.EQ.0).OR.(stage.EQ.1))THEN
     PS_N(iElem)%PartSource = 0.0
   END DO ! iElem = 1, nElems
 END IF
-
-! Virtual Dielectric Layer (VDL) particles are deposited and deleted here because they might have changed the process after
-! boundary interaction, hence, do all of this after MPI communication
-IF(DoDielectricSurfaceCharge) CALL DepositVirtualDielectricLayerParticles()
 
 IF(PRESENT(doParticle_In)) THEN
   CALL DepositionMethod(doParticle_In, stage_opt=stage)

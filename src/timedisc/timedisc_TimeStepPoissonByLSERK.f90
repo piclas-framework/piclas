@@ -71,6 +71,8 @@ USE MOD_HDG                    ,ONLY: HDG
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Timers     ,ONLY: LBStartTime,LBSplitTime,LBPauseTime
 #endif /*USE_LOADBALANCE*/
+USE MOD_Dielectric_Vars        ,ONLY: DoDielectricSurfaceCharge
+USE MOD_Particle_Boundary_Vars ,ONLY: DoVirtualDielectricLayer
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -230,6 +232,11 @@ IF (time.GE.DelayTime) THEN
   CALL MPIParticleSend()   ! finish communication of number of particles and send particles
   CALL MPIParticleRecv()   ! finish communication
 #endif
+
+  ! Virtual Dielectric Layer (VDL) particles are deposited and deleted here because they might have changed the process after
+  ! boundary interaction, hence, do all of this after MPI communication
+  ! This must be called directly after "CALL MPIParticleRecv()" to delete the virtual particles that are created in PerformTracking()
+  IF(DoDielectricSurfaceCharge) CALL DepositVirtualDielectricLayerParticles()
 END IF
 
 #endif /*PARTICLES*/
@@ -361,9 +368,14 @@ DO iStage=2,nRKStages
     CALL MPIParticleSend()   ! finish communication of number of particles and send particles
     CALL MPIParticleRecv()   ! finish communication
 #endif
-  END IF
+
+    ! Virtual Dielectric Layer (VDL) particles are deposited and deleted here because they might have changed the process after
+    ! boundary interaction, hence, do all of this after MPI communication
+    ! This must be called directly after "CALL MPIParticleRecv()" to delete the virtual particles that are created in PerformTracking()
+    IF(DoVirtualDielectricLayer) CALL DepositVirtualDielectricLayerParticles()
+  END IF ! time.GE.DelayTime
 #endif /*PARTICLES*/
-END DO
+END DO ! iStage=2,nRKStages
 
 #ifdef PARTICLES
 IF ((time.GE.DelayTime).OR.(iter.EQ.0)) CALL UpdateNextFreePosition()
