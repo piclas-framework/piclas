@@ -125,4 +125,14 @@ boundary surfaces of these regions can only be defined perpendicular to the rota
     Part-RefFrameRegion2-MAX = 110
 
 This allows to model systems of rotating and stationary geometries (e.g. pumps with stator and rotor blades) within a single simulation. For rotationally symmetric cases, the simulation domain can be reduced using the rotationally perodic boundary condition (as shown in Section {ref}`sec:particle-boundary-conditions-rotBC`). Examples are provided in the regression test directory, e.g.
-`regressioncheck/CHE_DSMC/Rotational_Reference_Frame` and `regressioncheck/CHE_DSMC/Rotational_Reference_Frame_Regions`. 
+`regressioncheck/CHE_DSMC/Rotational_Reference_Frame` and `regressioncheck/CHE_DSMC/Rotational_Reference_Frame_Regions`.
+
+### Time step subcycling for Rotating Frame of Reference
+
+In PICLas, an explicit time step scheme is used, with both collision and motion operators altering particle distribution function within each iteration. This leads to changes in particle positions, momentum, and energy due to motion and collisions. Operators can be sequentially executed through operator splitting, adjusting particle positions based on velocities first, followed by collisions within a time step. It's crucial for the time step to resolve collision frequency adequately. External forces (i.e. the centripetal force and the Coriolis in the case of a rotating reference frame) may require additional consideration for time step determination, especially when particle acceleration needs to be modeled. To ensure that the existing time step requirement in DSMC, dictated by collisions, remains unaffected, a subcycling algorithm only for the particle motion can be used. This algorithm divides the motion and thus the modeling of external forces into smaller subtimesteps. Consequently, the time step can be chosen based on collision frequency as usual, while the motion can be more finely resolved through subcycling. The usage of the subcycling algorithm is enabled by
+
+    Part-UseRotationalReferenceSubCycling = T
+
+Additionally, the number of the subcycling steps can be defined by
+
+    Part-NumberSubCyclingSteps = 10 ! Default = 10 steps
