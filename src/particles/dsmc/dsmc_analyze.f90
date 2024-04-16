@@ -430,7 +430,7 @@ DO iPart=1,PDM%ParticleVecLength
     DSMC_Solution(1:3,iElem,iSpec) = DSMC_Solution(1:3,iElem,iSpec) + PartState(4:6,iPart)*partWeight
     DSMC_Solution(4:6,iElem,iSpec) = DSMC_Solution(4:6,iElem,iSpec) + PartState(4:6,iPart)**2*partWeight
     DSMC_Solution(7,iElem,iSpec) = DSMC_Solution(7,iElem, iSpec) + partWeight  !density number
-    ! Calculate bulk velocity, toal mass and total weights
+    ! Calculate bulk velocity, total mass and total weights
     vBulk(1:3,iElem) = PartState(4:6,iPart)*Species(iSpec)%MassIC*partWeight
     TotalMass(iElem) = TotalMass(iElem) + Species(iSpec)%MassIC*partWeight
     totalWeight(iElem) = totalWeight(iElem) + partWeight
@@ -488,9 +488,9 @@ IF (SamplePressTensHeatflux) THEN
   END DO
   DO iElem = 1, nElems
     DSMC_SolutionPressTens(1:3,iElem) = DSMC_SolutionPressTens(1:3,iElem) + presstens(1:3,iElem) &
-      * totalWeight(iElem) / (TotalMass(iElem)*(totalWeight(iElem) - totalWeight2(iElem)/totalWeight(iElem)))
-    DSMC_SolutionPressTens(4:6,iElem) = DSMC_SolutionPressTens(4:6,iElem) + heatflux(1:3,iElem) * totalWeight(iElem)**3 &
-      / (TotalMass(iElem) * (totalWeight(iElem)**3 - 3.*totalWeight(iElem) * totalWeight2(iElem) + 2.*totalWeight3(iElem)))
+      / (totalWeight(iElem) - totalWeight2(iElem)/totalWeight(iElem))
+    DSMC_SolutionPressTens(4:6,iElem) = DSMC_SolutionPressTens(4:6,iElem) + heatflux(1:3,iElem) * totalWeight(iElem)**2 &
+      / (totalWeight(iElem)**3 - 3.*totalWeight(iElem) * totalWeight2(iElem) + 2.*totalWeight3(iElem))
   END DO
 END IF
 
@@ -839,12 +839,22 @@ IF (SamplePressTensHeatflux) THEN
         nPartElem = nPartElem + DSMC_Solution(7,iElem,iSpec)
       END DO
       IF (nPartElem.GT.0.0) THEN
-        Total_PressTensXY = DSMC_SolutionPressTens(1,iElem) / REAL(DSMC%SampNum)
-        Total_PressTensXZ = DSMC_SolutionPressTens(2,iElem) / REAL(DSMC%SampNum)
-        Total_PressTensYZ = DSMC_SolutionPressTens(3,iElem) / REAL(DSMC%SampNum)
-        Total_HeatFluxX = DSMC_SolutionPressTens(4,iElem) / REAL(DSMC%SampNum)
-        Total_HeatFluxY = DSMC_SolutionPressTens(5,iElem) / REAL(DSMC%SampNum)
-        Total_HeatFluxZ = DSMC_SolutionPressTens(6,iElem) / REAL(DSMC%SampNum)
+        Total_PressTensXY = DSMC_SolutionPressTens(1,iElem) / (REAL(DSMC%SampNum) * SimVolume)
+        Total_PressTensXZ = DSMC_SolutionPressTens(2,iElem) / (REAL(DSMC%SampNum) * SimVolume)
+        Total_PressTensYZ = DSMC_SolutionPressTens(3,iElem) / (REAL(DSMC%SampNum) * SimVolume)
+        Total_HeatFluxX = DSMC_SolutionPressTens(4,iElem) / (REAL(DSMC%SampNum) * SimVolume)
+        Total_HeatFluxY = DSMC_SolutionPressTens(5,iElem) / (REAL(DSMC%SampNum) * SimVolume)
+        Total_HeatFluxZ = DSMC_SolutionPressTens(6,iElem) / (REAL(DSMC%SampNum) * SimVolume)
+        IF (DoVirtualCellMerge) THEN
+            IF (VirtMergedCells(iElem)%NumOfMergedCells.GT.0) THEN
+              Total_PressTensXY = DSMC_SolutionPressTens(1,iElem) / (REAL(DSMC%SampNum) * VirtMergedCells(iElem)%MergedVolume)
+              Total_PressTensXZ = DSMC_SolutionPressTens(2,iElem) / (REAL(DSMC%SampNum) * VirtMergedCells(iElem)%MergedVolume)
+              Total_PressTensYZ = DSMC_SolutionPressTens(3,iElem) / (REAL(DSMC%SampNum) * VirtMergedCells(iElem)%MergedVolume)
+              Total_HeatFluxX = DSMC_SolutionPressTens(4,iElem) / (REAL(DSMC%SampNum) * VirtMergedCells(iElem)%MergedVolume)
+              Total_HeatFluxY = DSMC_SolutionPressTens(5,iElem) / (REAL(DSMC%SampNum) * VirtMergedCells(iElem)%MergedVolume)
+              Total_HeatFluxZ = DSMC_SolutionPressTens(6,iElem) / (REAL(DSMC%SampNum) * VirtMergedCells(iElem)%MergedVolume)
+            END IF
+          END IF
       END IF
     END ASSOCIATE
   END DO
