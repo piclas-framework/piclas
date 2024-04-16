@@ -816,16 +816,11 @@ IF (DSMC%CalcQualityFactors) THEN
   IF (ALLOCATED(DSMC%QualityFacSampVibSamp)) DSMC%QualityFacSampVibSamp = 0
 END IF
 
-IF (DoVirtualCellMerge) THEN
-  DO iElem = 1, nElems
-    IF (VirtMergedCells(iElem)%isMerged) THEN
-      DSMC_MacroVal(:,iElem) = DSMC_MacroVal(:,VirtMergedCells(iElem)%MasterCell-offSetElem)
-    END IF
-  END DO
-END IF
-
 IF (SamplePressTensHeatflux) THEN
   DO iElem = 1, nElems ! element/cell main loop
+    IF (DoVirtualCellMerge) THEN
+      IF (VirtMergedCells(iElem)%isMerged) CYCLE
+    END IF
     ! Calculation and output of pressure tensor and heatflux only for total values of a mixture
     ASSOCIATE ( Total_PressTensXY => DSMC_MacroVal(nVarCount+1,iElem) ,&
                 Total_PressTensXZ => DSMC_MacroVal(nVarCount+2,iElem) ,&
@@ -833,31 +828,34 @@ IF (SamplePressTensHeatflux) THEN
                 Total_HeatFluxX   => DSMC_MacroVal(nVarCount+4,iElem) ,&
                 Total_HeatFluxY   => DSMC_MacroVal(nVarCount+5,iElem) ,&
                 Total_HeatFluxZ   => DSMC_MacroVal(nVarCount+6,iElem) ,&
-                SimVolume         => ElemVolume_Shared(GetCNElemID(iElem+offSetElem)) &
-                )
-      nPartElem = 0.
-      DO iSpec = 1, nSpecies
-        nPartElem = nPartElem + DSMC_Solution(7,iElem,iSpec)
-      END DO
-      IF (nPartElem.GT.0.0) THEN
+                SimVolume      => ElemVolume_Shared(GetCNElemID(iElem+offSetElem)))
+      IF (SimVolume.GT.0.0) THEN
         Total_PressTensXY = DSMC_SolutionPressTens(1,iElem) / (REAL(DSMC%SampNum) * SimVolume)
         Total_PressTensXZ = DSMC_SolutionPressTens(2,iElem) / (REAL(DSMC%SampNum) * SimVolume)
         Total_PressTensYZ = DSMC_SolutionPressTens(3,iElem) / (REAL(DSMC%SampNum) * SimVolume)
         Total_HeatFluxX = DSMC_SolutionPressTens(4,iElem) / (REAL(DSMC%SampNum) * SimVolume)
         Total_HeatFluxY = DSMC_SolutionPressTens(5,iElem) / (REAL(DSMC%SampNum) * SimVolume)
         Total_HeatFluxZ = DSMC_SolutionPressTens(6,iElem) / (REAL(DSMC%SampNum) * SimVolume)
-        IF (DoVirtualCellMerge) THEN
-            IF (VirtMergedCells(iElem)%NumOfMergedCells.GT.0) THEN
-              Total_PressTensXY = DSMC_SolutionPressTens(1,iElem) / (REAL(DSMC%SampNum) * VirtMergedCells(iElem)%MergedVolume)
-              Total_PressTensXZ = DSMC_SolutionPressTens(2,iElem) / (REAL(DSMC%SampNum) * VirtMergedCells(iElem)%MergedVolume)
-              Total_PressTensYZ = DSMC_SolutionPressTens(3,iElem) / (REAL(DSMC%SampNum) * VirtMergedCells(iElem)%MergedVolume)
-              Total_HeatFluxX = DSMC_SolutionPressTens(4,iElem) / (REAL(DSMC%SampNum) * VirtMergedCells(iElem)%MergedVolume)
-              Total_HeatFluxY = DSMC_SolutionPressTens(5,iElem) / (REAL(DSMC%SampNum) * VirtMergedCells(iElem)%MergedVolume)
-              Total_HeatFluxZ = DSMC_SolutionPressTens(6,iElem) / (REAL(DSMC%SampNum) * VirtMergedCells(iElem)%MergedVolume)
-            END IF
-          END IF
+      END IF
+      IF (DoVirtualCellMerge) THEN
+        IF (VirtMergedCells(iElem)%NumOfMergedCells.GT.0) THEN
+          Total_PressTensXY = DSMC_SolutionPressTens(1,iElem) / (REAL(DSMC%SampNum) * VirtMergedCells(iElem)%MergedVolume)
+          Total_PressTensXZ = DSMC_SolutionPressTens(2,iElem) / (REAL(DSMC%SampNum) * VirtMergedCells(iElem)%MergedVolume)
+          Total_PressTensYZ = DSMC_SolutionPressTens(3,iElem) / (REAL(DSMC%SampNum) * VirtMergedCells(iElem)%MergedVolume)
+          Total_HeatFluxX = DSMC_SolutionPressTens(4,iElem) / (REAL(DSMC%SampNum) * VirtMergedCells(iElem)%MergedVolume)
+          Total_HeatFluxY = DSMC_SolutionPressTens(5,iElem) / (REAL(DSMC%SampNum) * VirtMergedCells(iElem)%MergedVolume)
+          Total_HeatFluxZ = DSMC_SolutionPressTens(6,iElem) / (REAL(DSMC%SampNum) * VirtMergedCells(iElem)%MergedVolume)
+        END IF
       END IF
     END ASSOCIATE
+  END DO
+END IF
+
+IF (DoVirtualCellMerge) THEN
+  DO iElem = 1, nElems
+    IF (VirtMergedCells(iElem)%isMerged) THEN
+      DSMC_MacroVal(:,iElem) = DSMC_MacroVal(:,VirtMergedCells(iElem)%MasterCell-offSetElem)
+    END IF
   END DO
 END IF
 
