@@ -213,7 +213,7 @@ CALL prms%CreateLogicalOption(  'Part-SampleElectronicExcitation'&
 
 ! === Rotational frame of reference
 CALL prms%CreateLogicalOption(  'Part-UseRotationalReferenceFrame', 'Activate rotational frame of reference', '.FALSE.')
-CALL prms%CreateLogicalOption(  'Part-UseRotationalReferenceSubCycling', 'Activate sub cycling in rot ref frame', '.FALSE.')
+CALL prms%CreateLogicalOption(  'Part-RotRefFrame-UseSubCycling', 'Activate sub cycling in rot ref frame', '.FALSE.')
 CALL prms%CreateIntOption(      'Part-NumberSubCyclingSteps','Number of subcyling steps)','10')
 CALL prms%CreateIntOption(      'Part-RotRefFrame-Axis','Axis of rotational frame of reference (x=1, y=2, z=3)')
 CALL prms%CreateRealOption(     'Part-RotRefFrame-Frequency','Frequency of rotational frame of reference [1/s], sign according '//&
@@ -1730,7 +1730,7 @@ CHARACTER(LEN=5)   :: hilf
 !===================================================================================================================================
 
 UseRotRefFrame = GETLOGICAL('Part-UseRotationalReferenceFrame')
-UseRotSubCycling = GETLOGICAL('Part-UseRotationalReferenceSubCycling')
+UseRotSubCycling = GETLOGICAL('Part-Part-RotRefFrame-UseSubCycling')
 nSubCyclingSteps = GETINT('Part-NumberSubCyclingSteps')
 
 IF(UseRotRefFrame) THEN

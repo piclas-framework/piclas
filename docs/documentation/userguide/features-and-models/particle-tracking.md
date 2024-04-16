@@ -131,7 +131,7 @@ This allows to model systems of rotating and stationary geometries (e.g. pumps w
 
 In PICLas, an explicit time step scheme is used, with both collision and motion operators altering particle distribution function within each iteration. This leads to changes in particle positions, momentum, and energy due to motion and collisions. Operators can be sequentially executed through operator splitting, adjusting particle positions based on velocities first, followed by collisions within a time step. It's crucial for the time step to resolve collision frequency adequately. External forces (i.e. the centripetal force and the Coriolis in the case of a rotating reference frame) may require additional consideration for time step determination, especially when particle acceleration needs to be modeled. To ensure that the existing time step requirement in DSMC, dictated by collisions, remains unaffected, a subcycling algorithm only for the particle motion can be used. This algorithm divides the motion and thus the modeling of external forces into smaller subtimesteps. Consequently, the time step can be chosen based on collision frequency as usual, while the motion can be more finely resolved through subcycling. The usage of the subcycling algorithm is enabled by
 
-    Part-UseRotationalReferenceSubCycling = T
+    Part-RotRefFrame-UseSubCycling = T
 
 Additionally, the number of the subcycling steps can be defined by
 
