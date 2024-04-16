@@ -85,7 +85,7 @@ TYPE HDG_Surf_N_Type
   REAL,ALLOCATABLE    :: V(:,:)               !<
   REAL,ALLOCATABLE    :: Z(:,:)               !<
 #if USE_PETSC
-  REAL                :: OffsetDOF
+  INTEGER             :: OffsetDOF
 #endif
 #if USE_MPI
   REAL,ALLOCATABLE    :: buf(:,:)

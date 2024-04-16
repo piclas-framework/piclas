@@ -86,7 +86,6 @@ INTEGER :: BCsideID,BCType,BCState,SideID,iLocSide
 REAL    :: RHS_facetmp(nGP_face(NMax))
 REAL    :: rtmp(nGP_vol(NMax))
 REAL    :: VT(nGP_face(NMax))
-REAL    :: Smatloc(nGP_face(NMax))
 INTEGER :: DOFindices(nGP_face(NMax))
 
 !LOGICAL :: converged
@@ -105,7 +104,9 @@ PetscReal            :: petscnorm
 INTEGER              :: ElemID,iBCSide,PETScLocalID
 INTEGER              :: DOF_start, DOF_stop
 REAL                 :: timeStartPiclas,timeEndPiclas
-REAL                 :: RHS_conductor(nGP_face)
+REAL                 :: RHS_conductor(nGP_face(NMax))
+INTEGER              :: jLocSide
+REAL                 :: Smatloc(nGP_face(NMax),nGP_face(NMax))
 #endif
 #if USE_PETSC
 INTEGER              :: iUniqueFPCBC
@@ -298,12 +299,12 @@ DO iBCSide=1,nDirichletBCSides
     ! TODO PETSC P-Adaption - Improvement: Store V^T * S * V in Smat
     ! ... S_{(i1,i2),(j1,i2)} = V^T_{i1,I1} * V^T_{i2,I2} * S_{(I1,I2),(J1,J2)} * V_{J1,j1} * V_{J2,j2}
     Smatloc = 0.
-    DO i_m=0,iNloc; DO i_p=0,iNloc
+    DO p=0,iNloc; DO q=0,iNloc
       DO i=0,jNloc; DO j=0,jNloc
-        DO p=1,nGP_face(jNloc)
-          Smatloc(i_m*(iNloc+1)+i_p,p) = Smatloc(i_m*(iNloc+1)+i_p,p) + &
-          PREF_VDM(jNloc,iNloc)%Vdm(i,i_m) * PREF_VDM(jNloc,iNloc)%Vdm(j,i_p) * &
-          HDG_Vol_N(iElem)%Smat(i*(jNloc+1)+j,p,jLocSide,iLocSide)
+        DO r=1,nGP_face(jNloc)
+          Smatloc(p*(iNloc+1)+q,r) = Smatloc(p*(iNloc+1)+q,r) + &
+          PREF_VDM(jNloc,iNloc)%Vdm(i,p) * PREF_VDM(jNloc,iNloc)%Vdm(j,q) * &
+          HDG_Vol_N(iElem)%Smat(i*(jNloc+1)+j,r,jLocSide,iLocSide)
         END DO
       END DO; END DO
     END DO; END DO
@@ -359,7 +360,7 @@ CALL LBPauseTime(LB_DG,tLBStart) ! Pause/Stop time measurement
       DOFindices(i) = i + HDG_Surf_N(SideID)%OffsetDOF
     END DO
 
-    PetscCallA(VecSetValues(RHS_petsc,Nloc,DOFindices(1:Nloc),HDG_Surf_N(SideID)%RHS_face,INSERT_VALUES,ierr))
+    PetscCallA(VecSetValues(RHS_petsc,Nloc,DOFindices(1:nGP_face(Nloc)),HDG_Surf_N(SideID)%RHS_face(1,:),INSERT_VALUES,ierr))
   END DO
   ! The MPIRoot process has charge and voltage of all FPCs, there, this process sets all conductor RHS information
   ! TODO PETSC P-Adaption - FPC
@@ -422,55 +423,55 @@ CALL LBPauseTime(LB_DG,tLBStart) ! Pause/Stop time measurement
 
   ! TODO PETSC P-Adaption - FPC
   ! Fill Conductor lambda
-  IF(UseFPC)THEN
-    PetscCallA(VecScatterBegin(scatter_conductors_petsc, lambda_petsc, lambda_local_conductors_petsc, INSERT_VALUES, SCATTER_FORWARD,ierr))
-    PetscCallA(VecScatterEnd(scatter_conductors_petsc, lambda_petsc, lambda_local_conductors_petsc, INSERT_VALUES, SCATTER_FORWARD,ierr))
-    PetscCallA(VecGetArrayReadF90(lambda_local_conductors_petsc,lambda_pointer,ierr))
-    FPC%VoltageProc = 0. ! nullify just to be safe
-    ! TODO multiple conductors
-    DO BCsideID=1,nConductorBCsides
-      SideID=ConductorBC(BCSideID)
-      BCState=BoundaryType(BC(SideID),BC_STATE)
-      DO i=1,nGP_face
-        lambda(1,:,SideID) = lambda_pointer(1 + (FPC%Group(BCState,2) - 1) * nGP_face)
-      END DO
-      ! Copy the value to the FPC container for output to .csv (only mpi root does this)
-      FPC%VoltageProc(FPC%Group(BCState,2)) = lambda(1,1,SideID)
-    END DO
-#if USE_MPI
-    ! Sum the voltages across each sub-group and divide by the size of the group to get the voltage. This is required if the MPI
-    ! root is not connected to every FPC (which is usually the case)
-    !
-    ! 1. Communicate the accumulated voltage (should be the same on each proc that has such a BC) on each BC to all processors on the
-    ! communicator
-    FPC%Voltage = 0.
-    DO iUniqueFPCBC = 1, FPC%nUniqueFPCBounds
-      ASSOCIATE( COMM => FPC%COMM(iUniqueFPCBC)%UNICATOR )
-        IF(FPC%COMM(iUniqueFPCBC)%UNICATOR.NE.MPI_COMM_NULL)THEN
-          ASSOCIATE( VoltageProc => FPC%VoltageProc(iUniqueFPCBC), Voltage => FPC%Voltage(iUniqueFPCBC) )
-            IF(MPIroot)THEN
-              CALL MPI_REDUCE(VoltageProc, Voltage, 1 ,MPI_DOUBLE_PRECISION, MPI_SUM, 0, COMM, iError)
-            ELSE
-              CALL MPI_REDUCE(VoltageProc, 0      , 1 ,MPI_DOUBLE_PRECISION, MPI_SUM, 0, COMM, IError)
-            END IF ! MPIroot
-          END ASSOCIATE
-        END IF ! FPC%COMM(iUniqueFPCBC)%UNICATOR.NE.MPI_COMM_NULL
-      END ASSOCIATE
-    END DO ! iUniqueFPCBC = 1, FPC%nUniqueFPCBounds
-
-    ! 2. Divide by group size (procs that have an actual FPC BC side -> FPC%COMM(iUniqueFPCBC)%nProcsWithSides).
-    !    The MPI root process definitely has the size of each group, which is at least 1.
-    IF(MPIRoot)THEN
-      DO iUniqueFPCBC = 1, FPC%nUniqueFPCBounds
-        FPC%Voltage(iUniqueFPCBC) = FPC%Voltage(iUniqueFPCBC) / REAL(FPC%COMM(iUniqueFPCBC)%nProcsWithSides)
-      END DO ! iUniqueFPCBC = 1, FPC%nUniqueFPCBounds
-    END IF ! MPIRoot
-#else
-    FPC%Voltage = FPC%VoltageProc
-#endif /*USE_MPI*/
-    ! TODO PETSC P-Adaption - FPC
-    PetscCallA(VecRestoreArrayReadF90(lambda_local_conductors_petsc,lambda_pointer,ierr))
-  END IF ! UseFPC
+!  IF(UseFPC)THEN
+!    PetscCallA(VecScatterBegin(scatter_conductors_petsc, lambda_petsc, lambda_local_conductors_petsc, INSERT_VALUES, SCATTER_FORWARD,ierr))
+!    PetscCallA(VecScatterEnd(scatter_conductors_petsc, lambda_petsc, lambda_local_conductors_petsc, INSERT_VALUES, SCATTER_FORWARD,ierr))
+!    PetscCallA(VecGetArrayReadF90(lambda_local_conductors_petsc,lambda_pointer,ierr))
+!    FPC%VoltageProc = 0. ! nullify just to be safe
+!    ! TODO multiple conductors
+!    DO BCsideID=1,nConductorBCsides
+!      SideID=ConductorBC(BCSideID)
+!      BCState=BoundaryType(BC(SideID),BC_STATE)
+!      DO i=1,nGP_face
+!        lambda(1,:,SideID) = lambda_pointer(1 + (FPC%Group(BCState,2) - 1) * nGP_face)
+!      END DO
+!      ! Copy the value to the FPC container for output to .csv (only mpi root does this)
+!      FPC%VoltageProc(FPC%Group(BCState,2)) = lambda(1,1,SideID)
+!    END DO
+!#if USE_MPI
+!    ! Sum the voltages across each sub-group and divide by the size of the group to get the voltage. This is required if the MPI
+!    ! root is not connected to every FPC (which is usually the case)
+!    !
+!    ! 1. Communicate the accumulated voltage (should be the same on each proc that has such a BC) on each BC to all processors on the
+!    ! communicator
+!    FPC%Voltage = 0.
+!    DO iUniqueFPCBC = 1, FPC%nUniqueFPCBounds
+!      ASSOCIATE( COMM => FPC%COMM(iUniqueFPCBC)%UNICATOR )
+!        IF(FPC%COMM(iUniqueFPCBC)%UNICATOR.NE.MPI_COMM_NULL)THEN
+!          ASSOCIATE( VoltageProc => FPC%VoltageProc(iUniqueFPCBC), Voltage => FPC%Voltage(iUniqueFPCBC) )
+!            IF(MPIroot)THEN
+!              CALL MPI_REDUCE(VoltageProc, Voltage, 1 ,MPI_DOUBLE_PRECISION, MPI_SUM, 0, COMM, iError)
+!            ELSE
+!              CALL MPI_REDUCE(VoltageProc, 0      , 1 ,MPI_DOUBLE_PRECISION, MPI_SUM, 0, COMM, IError)
+!            END IF ! MPIroot
+!          END ASSOCIATE
+!        END IF ! FPC%COMM(iUniqueFPCBC)%UNICATOR.NE.MPI_COMM_NULL
+!      END ASSOCIATE
+!    END DO ! iUniqueFPCBC = 1, FPC%nUniqueFPCBounds
+!
+!    ! 2. Divide by group size (procs that have an actual FPC BC side -> FPC%COMM(iUniqueFPCBC)%nProcsWithSides).
+!    !    The MPI root process definitely has the size of each group, which is at least 1.
+!    IF(MPIRoot)THEN
+!      DO iUniqueFPCBC = 1, FPC%nUniqueFPCBounds
+!        FPC%Voltage(iUniqueFPCBC) = FPC%Voltage(iUniqueFPCBC) / REAL(FPC%COMM(iUniqueFPCBC)%nProcsWithSides)
+!      END DO ! iUniqueFPCBC = 1, FPC%nUniqueFPCBounds
+!    END IF ! MPIRoot
+!#else
+!    FPC%Voltage = FPC%VoltageProc
+!#endif /*USE_MPI*/
+!    ! TODO PETSC P-Adaption - FPC
+!    PetscCallA(VecRestoreArrayReadF90(lambda_local_conductors_petsc,lambda_pointer,ierr))
+!  END IF ! UseFPC
 
   ! TODO PETSC P-Adaption - MORTARS
   ! PETSc Calculate lambda at small mortars from big mortars

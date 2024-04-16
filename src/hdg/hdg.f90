@@ -131,6 +131,7 @@ USE MOD_MPI                   ,ONLY: StartReceiveMPIDataInt,StartSendMPIDataInt,
 #endif /*USE_MPI*/
 USE MOD_Mesh_Vars             ,ONLY: MortarType,MortarInfo
 USE MOD_Mesh_Vars             ,ONLY: firstMortarInnerSide,lastMortarInnerSide
+USE MOD_Mesh_Vars             ,ONLY: ElemToSide
 #endif /*USE_PETSC*/
 #if USE_MPI
 USE MOD_MPI                   ,ONLY: StartReceiveMPISurfDataType, StartSendMPISurfDataType, FinishExchangeMPISurfDataType
@@ -162,6 +163,8 @@ INTEGER           :: locSide,nMortarMasterSides,nMortars
 INTEGER,ALLOCATABLE :: indx(:)
 INTEGER           :: nLocalDOFs
 INTEGER,ALLOCATABLE :: localToGlobalDOF(:)
+INTEGER,ALLOCATABLE :: PETScNumNonZeros(:)
+INTEGER             :: iLocSide,iNloc,jDOF,jLocSide,jNloc,jSide
 #endif
 !#if USE_MPI
 REAL              :: tmp(3,0:Nmax,0:Nmax)
@@ -530,7 +533,7 @@ END DO !iElem
 PetscCallA(MatCreate(PETSC_COMM_WORLD,Smat_petsc,ierr))
 PetscCallA(MatSetSizes(Smat_petsc,PETSC_DECIDE,PETSC_DECIDE,nPETScDOFs,nPETScDOFs,ierr))
 PetscCallA(MatSetType(Smat_petsc,MATAIJ,ierr)) ! Sparse (mpi) matrix, TODO P-Adaption Symmetricity is set later!
-PetscCallA(MatSetOption(Smat_petsc, MAT_SYMMETRIC, PETSC_TRUE))
+PetscCallA(MatSetOption(Smat_petsc, MAT_SYMMETRIC, PETSC_TRUE,ierr))
 
 ! TODO PETSC P-Adaption - FPC Preallocation
 !! TODO Set preallocation row wise
@@ -565,11 +568,14 @@ DO iElem=1,PP_nElems
   END DO
 END DO
 
-! TODO PETSC P-Adaption - DEALLOCATE PETScNumNonZeros
-PetscCallA(MatSEQAIJSetPreallocation(Smat_petsc,nGP_face,0,PETScNumNonZeros,ierr))
+
+PetscCallA(MatSEQAIJSetPreallocation(Smat_petsc,0,PETScNumNonZeros,ierr))
 ! TODO PETSC P-Adaption - MPI
 !PetscCallA(MatMPIAIJSetPreallocation(Smat_petsc,nGP_face,22,PETSC_NULL_INTEGER,22-1,PETSC_NULL_INTEGER,ierr))
 PetscCallA(MatZeroEntries(Smat_petsc,ierr))
+
+! TODO PETSC P-Adaption - DEALLOCATE PETScNumNonZeros
+DEALLOCATE(PETScNumNonZeros)
 #endif
 
 !stabilization parameter
@@ -667,23 +673,23 @@ PetscCallA(ISCreateStride(PETSC_COMM_SELF,nPETScDOFs,0,1,idx_local_petsc,ierr))
 !! Create a PETSc Vector of the Global DOF IDs
 !PetscCallA(ISCreateBlock(PETSC_COMM_WORLD,nGP_face,nPETScUniqueSides,PETScGlobal(PETScLocalToSideID(1:nPETScUniqueSides)),PETSC_COPY_VALUES,idx_global_petsc,ierr))
 ! P-Adaption, here, we cannot use a block vector :D
-PetscCallA(ISCreateGeneral(PETSC_COMM_WOLRD,nLocalDOFs,localToGlobalDOF,PETSC_COPY_VALUES,idx_global_petsc,ierr))
+PetscCallA(ISCreateGeneral(PETSC_COMM_WORLD,nLocalDOFs,localToGlobalDOF,PETSC_COPY_VALUES,idx_global_petsc,ierr))
 
 ! Create a scatter context to extract the local dofs
 PetscCallA(VecScatterCreate(lambda_petsc,idx_global_petsc,lambda_local_petsc,idx_local_petsc,scatter_petsc,ierr))
 
 ! TODO PETSC P-Adaption - FPC
-IF(UseFPC)THEN
-  PetscCallA(VecCreateSeq(PETSC_COMM_SELF,nGP_face*FPC%nUniqueFPCBounds,lambda_local_conductors_petsc,ierr))
-  PetscCallA(ISCreateStride(PETSC_COMM_SELF,nGP_face*FPC%nUniqueFPCBounds,0,1,idx_local_conductors_petsc,ierr))
-  ALLOCATE(indx(FPC%nUniqueFPCBounds))
-  DO i=1,FPC%nUniqueFPCBounds
-    indx(i) = nPETScUniqueSidesGlobal-FPC%nUniqueFPCBounds+i-1
-  END DO
-  PetscCallA(ISCreateBlock(PETSC_COMM_WORLD,nGP_face,FPC%nUniqueFPCBounds,indx,PETSC_COPY_VALUES,idx_global_conductors_petsc,ierr))
-  DEALLOCATE(indx)
-  PetscCallA(VecScatterCreate(lambda_petsc,idx_global_conductors_petsc,lambda_local_conductors_petsc,idx_local_conductors_petsc,scatter_conductors_petsc,ierr))
-END IF
+!IF(UseFPC)THEN
+!  PetscCallA(VecCreateSeq(PETSC_COMM_SELF,nGP_face*FPC%nUniqueFPCBounds,lambda_local_conductors_petsc,ierr))
+!  PetscCallA(ISCreateStride(PETSC_COMM_SELF,nGP_face*FPC%nUniqueFPCBounds,0,1,idx_local_conductors_petsc,ierr))
+!  ALLOCATE(indx(FPC%nUniqueFPCBounds))
+!  DO i=1,FPC%nUniqueFPCBounds
+!    indx(i) = nPETScUniqueSidesGlobal-FPC%nUniqueFPCBounds+i-1
+!  END DO
+!  PetscCallA(ISCreateBlock(PETSC_COMM_WORLD,nGP_face,FPC%nUniqueFPCBounds,indx,PETSC_COPY_VALUES,idx_global_conductors_petsc,ierr))
+!  DEALLOCATE(indx)
+!  PetscCallA(VecScatterCreate(lambda_petsc,idx_global_conductors_petsc,lambda_local_conductors_petsc,idx_local_conductors_petsc,scatter_conductors_petsc,ierr))
+!END IF
 
 DEALLOCATE(localToGlobalDOF)
 #endif

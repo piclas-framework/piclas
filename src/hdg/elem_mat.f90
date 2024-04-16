@@ -79,6 +79,7 @@ USE MOD_HDG_Vars           ,ONLY: UseBRElectronFluid
 USE PETSc
 USE MOD_Mesh_Vars          ,ONLY: SideToElem, nSides
 USE MOD_Mesh_Vars          ,ONLY: BoundaryType,nSides,BC
+USE MOD_Interpolation_Vars ,ONLY: PREF_VDM
 #endif
 USE MOD_Mesh_Vars          ,ONLY: ElemToSide
 USE MOD_DG_Vars            ,ONLY: DG_Elems_slave,DG_Elems_master
@@ -109,7 +110,7 @@ INTEGER              :: ElemID, BCsideID
 INTEGER              :: iBCSide,locBCSideID
 INTEGER              :: iPETScGlobal, jPETScGlobal
 INTEGER              :: locSideID
-REAL                 :: intMat(nGP_face, nGP_face)
+REAL                 :: intMat(nGP_face(Nmax), nGP_face(Nmax))
 INTEGER              :: BCState
 INTEGER              :: iIndices(nGP_face(Nmax)),jIndices(nGP_face(Nmax))
 INTEGER              :: NElem,iNloc,jNloc
@@ -360,20 +361,20 @@ END DO !iElem
 
 ! TODO PETSC P-Adaption - MORTARS
 ! Change Smat for all small mortar sides to account for the interpolation from big to small side
-DO iSide=1,nSides
-  IF (SmallMortarInfo(iSide).NE.0) THEN
-    locSideID = SideToElem(S2E_NB_LOC_SIDE_ID,iSide)
-    iElem    = SideToElem(S2E_NB_ELEM_ID,iSide)
-    IF (iElem.LT.0) CYCLE
-  ELSE
-    CYCLE
-  END IF
-  intMat = IntMatMortar(:,:,SmallMortarType(2,iSide),SmallMortarType(1,iSide))
-  DO iLocSide=1,6
-    Smat(:,:,iLocSide,locSideID,iElem) = MATMUL(Smat(:,:,iLocSide,locSideID,iElem),intMat)
-    Smat(:,:,locSideID,iLocSide,iElem) = MATMUL(TRANSPOSE(intMat),Smat(:,:,locSideID,iLocSide,iElem))
-  END DO
-END DO
+!DO iSide=1,nSides
+!  IF (SmallMortarInfo(iSide).NE.0) THEN
+!    locSideID = SideToElem(S2E_NB_LOC_SIDE_ID,iSide)
+!    iElem    = SideToElem(S2E_NB_ELEM_ID,iSide)
+!    IF (iElem.LT.0) CYCLE
+!  ELSE
+!    CYCLE
+!  END IF
+!  intMat = IntMatMortar(:,:,SmallMortarType(2,iSide),SmallMortarType(1,iSide))
+!  DO iLocSide=1,6
+!    Smat(:,:,iLocSide,locSideID,iElem) = MATMUL(Smat(:,:,iLocSide,locSideID,iElem),intMat)
+!    Smat(:,:,locSideID,iLocSide,iElem) = MATMUL(TRANSPOSE(intMat),Smat(:,:,locSideID,iLocSide,iElem))
+!  END DO
+!END DO
 
 ! TODO PETSC P-Adaption - Smat_BC not needed!
 ! Fill Dirichlet BC Smat
@@ -403,8 +404,8 @@ DO iElem=1,PP_nElems
       IF (iPETScGlobal.GT.jPETScGlobal) CYCLE
       IF(SetZeroPotentialDOF.AND.(iPETScGlobal.EQ.0)) THEN
         ! The first DOF is set to constant 0 -> lambda_{1,1} = 0
-        HDG_Vol_N(iElem)%Smat(:,1,jLocSide,iLocSide,) = 0
-        IF(jPETScGlobal.EQ.iPETScGlobal) HDG_Vol_N(iElem)%Smat(1,1,jLocSide,iLocSide,) = 1
+        HDG_Vol_N(iElem)%Smat(:,1,jLocSide,iLocSide) = 0
+        IF(jPETScGlobal.EQ.iPETScGlobal) HDG_Vol_N(iElem)%Smat(1,1,jLocSide,iLocSide) = 1
       END IF
 
 
@@ -413,10 +414,10 @@ DO iElem=1,PP_nElems
 
       ! Get Index list
       DO i=1,iNdof
-        iIndices(i) = HDG_Surf_N(iSide)%OffsetDOF + i
+        iIndices(i) = HDG_Surf_N(iSideID)%OffsetDOF + i
       END DO
       DO i=1,jNdof
-        jIndices(i) = HDG_Surf_N(jSide)%OffsetDOF + i
+        jIndices(i) = HDG_Surf_N(jSideID)%OffsetDOF + i
       END DO
 
       ! TODO PETSC P-Adaption - Improvement: Store V^T * S * V in Smat
@@ -435,39 +436,39 @@ DO iElem=1,PP_nElems
         END DO; END DO
       END DO; END DO
 
-      PetscCallA(MatSetValues(Smat_petsc,iNdof,iIndices(1:iNdof),jNdof,jIndices(1:jNdof),Smatloc(1:iNdof,1:jNdof),ADD_VALUES,ier))
+      PetscCallA(MatSetValues(Smat_petsc,iNdof,iIndices(1:iNdof),jNdof,jIndices(1:jNdof),Smatloc(1:iNdof,1:jNdof),ADD_VALUES,ierr))
     END DO
   END DO
 END DO
 ! TODO PETSC P-Adaption - FPC Stuff
 ! Set Conductor matrix
-DO BCsideID=1,nConductorBCsides
-  jSideID=ConductorBC(BCsideID)
-  iElem=SideToElem(S2E_ELEM_ID,jSideID)
-  jLocSide=SideToElem(S2E_LOC_SIDE_ID,jSideID)
-
-  BCState = BoundaryType(BC(jSideID),BC_STATE)
-  jPETScGlobal=nPETScUniqueSidesGlobal-FPC%nUniqueFPCBounds+FPC%Group(BCState,2)-1
-  DO iLocSide=1,6
-    iSideID=ElemToSide(E2S_SIDE_ID,iLocSide,iElem)
-    iPETScGlobal=PETScGlobal(iSideID)
-    DO j=2,nGP_face; DO i=1,nGP_face ! Sum up all columns
-      Smat(1,i,jLocSide,iLocSide,iElem) = Smat(1,i,jLocSide,iLocSide,iElem) + Smat(j,i,jLocSide,iLocSide,iElem)
-      Smat(j,i,jLocSide,iLocSide,iElem) = 0.
-    END DO; END DO
-    IF(MaskedSide(iSideID).EQ.2) THEN
-      DO i=2,nGP_face ! Sum up all rows
-        Smat(1,1,jLocSide,iLocSide,iElem) = Smat(1,1,jLocSide,iLocSide,iElem) + Smat(1,i,jLocSide,iLocSide,iElem)
-        Smat(1,i,jLocSide,iLocSide,iElem) = 0.
-        Smat(i,i,jLocSide,iLocSide,iElem) = 1. ! Add diagonal entries for unused DOFs
-      END DO
-      iPETScGlobal=nPETScUniqueSidesGlobal-FPC%nUniqueFPCBounds+FPC%Group(BCState,2)-1
-    ELSEIF(iPETScGlobal.EQ.-1) THEN
-      CYCLE
-    END IF
-    PetscCallA(MatSetValuesBlocked(Smat_petsc,1,iPETScGlobal,1,jPETScGlobal,Smat(:,:,jLocSide,iLocSide,iElem),ADD_VALUES,ierr))
-  END DO
-END DO
+!DO BCsideID=1,nConductorBCsides
+!  jSideID=ConductorBC(BCsideID)
+!  iElem=SideToElem(S2E_ELEM_ID,jSideID)
+!  jLocSide=SideToElem(S2E_LOC_SIDE_ID,jSideID)
+!
+!  BCState = BoundaryType(BC(jSideID),BC_STATE)
+!  jPETScGlobal=nPETScUniqueSidesGlobal-FPC%nUniqueFPCBounds+FPC%Group(BCState,2)-1
+!  DO iLocSide=1,6
+!    iSideID=ElemToSide(E2S_SIDE_ID,iLocSide,iElem)
+!    iPETScGlobal=PETScGlobal(iSideID)
+!    DO j=2,nGP_face; DO i=1,nGP_face ! Sum up all columns
+!      Smat(1,i,jLocSide,iLocSide,iElem) = Smat(1,i,jLocSide,iLocSide,iElem) + Smat(j,i,jLocSide,iLocSide,iElem)
+!      Smat(j,i,jLocSide,iLocSide,iElem) = 0.
+!    END DO; END DO
+!    IF(MaskedSide(iSideID).EQ.2) THEN
+!      DO i=2,nGP_face ! Sum up all rows
+!        Smat(1,1,jLocSide,iLocSide,iElem) = Smat(1,1,jLocSide,iLocSide,iElem) + Smat(1,i,jLocSide,iLocSide,iElem)
+!        Smat(1,i,jLocSide,iLocSide,iElem) = 0.
+!        Smat(i,i,jLocSide,iLocSide,iElem) = 1. ! Add diagonal entries for unused DOFs
+!      END DO
+!      iPETScGlobal=nPETScUniqueSidesGlobal-FPC%nUniqueFPCBounds+FPC%Group(BCState,2)-1
+!    ELSEIF(iPETScGlobal.EQ.-1) THEN
+!      CYCLE
+!    END IF
+!    PetscCallA(MatSetValuesBlocked(Smat_petsc,1,iPETScGlobal,1,jPETScGlobal,Smat(:,:,jLocSide,iLocSide,iElem),ADD_VALUES,ierr))
+!  END DO
+!END DO
 PetscCallA(MatAssemblyBegin(Smat_petsc,MAT_FINAL_ASSEMBLY,ierr))
 PetscCallA(MatAssemblyEnd(Smat_petsc,MAT_FINAL_ASSEMBLY,ierr))
 #endif
