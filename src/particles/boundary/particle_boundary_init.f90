@@ -706,7 +706,7 @@ END SUBROUTINE InitializeVariablesPartBoundary
 !===================================================================================================================================
 SUBROUTINE InitVirtualDielectricLayer()
 ! MODULES
-use mod_globals                       
+use mod_globals
 USE MOD_Globals                ,ONLY: VECNORM
 USE MOD_Mesh_Vars              ,ONLY: nElems,SideToElem,nBCSides,Boundarytype,BC
 USE MOD_IO_HDF5                ,ONLY: AddToElemData,ElementOut

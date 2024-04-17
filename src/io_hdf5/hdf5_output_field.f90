@@ -107,7 +107,7 @@ DO iElem=1,PP_nElems
           DielectricVolTmp(1:2 , 0:Nloc , 0:Nloc , 0:Nloc) , &
           DielectricGlobal(1:2 , 0:NMax , 0:NMax , 0:NMax  , iElem))
       DEALLOCATE(DielectricVolTmp)
-    END IF  
+    END IF
   END IF
 END DO!iElem
 SWRITE(UNIT_stdOut,'(A)',ADVANCE='NO')' WRITE DielectricGlobal TO HDF5 FILE...'
@@ -800,7 +800,7 @@ ASSOCIATE (&
   DO iElem = 1, INT(PP_nElems)
     Nloc = N_DG_Mapping(2,iElem+offSetElem)
     IF(Nloc.EQ.Nmax)THEN
-      BGTemp(:,:,:,:,iElem)   = N_BG(iElem)%BGField(:,:,:,:)      
+      BGTemp(:,:,:,:,iElem)   = N_BG(iElem)%BGField(:,:,:,:)
       IF(UseTimeDepCoil) THEN
         DO iTimePoint = 1, nTimePoints
           BGTDepTemp(:,:,:,:,iElem, iTimePoint)   = N_BG(iElem)%BGFieldTDep(:,:,:,:,iTimePoint)

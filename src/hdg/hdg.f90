@@ -131,6 +131,7 @@ USE MOD_MPI                   ,ONLY: StartReceiveMPIDataInt,StartSendMPIDataInt,
 #endif /*USE_MPI*/
 USE MOD_Mesh_Vars             ,ONLY: MortarType,MortarInfo
 USE MOD_Mesh_Vars             ,ONLY: firstMortarInnerSide,lastMortarInnerSide
+USE MOD_Mesh_Vars             ,ONLY: ElemToSide
 #endif /*USE_PETSC*/
 #if USE_MPI
 USE MOD_MPI                   ,ONLY: StartReceiveMPISurfDataType, StartSendMPISurfDataType, FinishExchangeMPISurfDataType
@@ -160,6 +161,10 @@ INTEGER           :: MortarSideID,iMortar
 INTEGER           :: locSide,nMortarMasterSides,nMortars
 !INTEGER           :: nAffectedBlockSides
 INTEGER,ALLOCATABLE :: indx(:)
+INTEGER           :: nLocalDOFs
+INTEGER,ALLOCATABLE :: localToGlobalDOF(:)
+INTEGER,ALLOCATABLE :: PETScNumNonZeros(:)
+INTEGER             :: iLocSide,iNloc,jDOF,jLocSide,jNloc,jSide
 #endif
 !#if USE_MPI
 REAL              :: tmp(3,0:Nmax,0:Nmax)
@@ -384,7 +389,9 @@ END IF
 #if USE_PETSC
 ! Create PETSc Mappings
 OffsetPETScSide=0
+! TODO PETSC P-Adaption - MPI
 #if USE_MPI
+! TODO PETSC P-Adaption - MORTARS
 ! Count all Mortar slave sides and remove them from PETSc vector
 ! TODO How to compute those
 nMortarMasterSides = 0
@@ -401,6 +408,8 @@ END DO
 nPETScUniqueSidesGlobal = SUM(OffsetPETScSideMPI) + FPC%nUniqueFPCBounds
 #endif
 
+! TODO PETSC P-Adaption - Improvement: Delete PETScGlobal
+! PETScGlobal stuff
 ALLOCATE(PETScGlobal(nSides))
 ALLOCATE(PETScLocalToSideID(nPETScUniqueSides+nMPISides_YOUR))
 PETScGlobal=-1
@@ -412,6 +421,7 @@ DO SideID=1,nSides!-nMPISides_YOUR
   PETScLocalToSideID(PETScLocalID)=SideID
   PETScGlobal(SideID)=PETScLocalID+OffsetPETScSide-1 ! PETSc arrays start at 0!
 END DO
+! TODO PETSC P-Adaption - MORTARS
 ! Set the Global PETSc Sides of small mortar sides equal to the big mortar side
 DO MortarSideID=firstMortarInnerSide,lastMortarInnerSide
   nMortars=MERGE(4,2,MortarType(1,MortarSideID).EQ.1)
@@ -426,6 +436,16 @@ CALL StartReceiveMPIDataInt(1,PETScGlobal,1,nSides, RecRequest_U,SendID=1) ! Rec
 CALL StartSendMPIDataInt(   1,PETScGlobal,1,nSides,SendRequest_U,SendID=1) ! Send MINE
 CALL FinishExchangeMPIData(SendRequest_U,RecRequest_U,SendID=1)
 #endif
+
+! Fill nPETScDOFs and OffsetDOF for each Side
+! TODO PETSC P-Adaption - Improvement: Many arrays can be deleted (eg. PETScGlobal, nPETScUniqueSidesGlobal)
+! TODO PETSC P-Adaption - MPI
+nPETScDOFs=0
+DO SideID=1,nSides
+  IF(PETScGlobal(SideID).LT.0) CYCLE
+  HDG_Surf_N(SideID)%OffsetDOF=nPETScDOFs
+  nPETScDOFs=nPETScDOFs+nGP_face(N_SurfMesh(SideID)%NSideMin)
+END DO
 #endif
 
 !mappings
@@ -510,13 +530,12 @@ END DO !iElem
 
 
 #if USE_PETSC
-ALLOCATE(Smat_BC(nGP_face,nGP_face,6,nDirichletBCSides))
-Smat_BC = 0.
-
 PetscCallA(MatCreate(PETSC_COMM_WORLD,Smat_petsc,ierr))
-PetscCallA(MatSetBlockSize(Smat_petsc,nGP_face,ierr))
-PetscCallA(MatSetSizes(Smat_petsc,PETSC_DECIDE,PETSC_DECIDE,nPETScUniqueSidesGlobal*nGP_Face,nPETScUniqueSidesGlobal*nGP_Face,ierr))
-PetscCallA(MatSetType(Smat_petsc,MATSBAIJ,ierr)) ! Symmetric sparse (mpi) matrix
+PetscCallA(MatSetSizes(Smat_petsc,PETSC_DECIDE,PETSC_DECIDE,nPETScDOFs,nPETScDOFs,ierr))
+PetscCallA(MatSetType(Smat_petsc,MATAIJ,ierr)) ! Sparse (mpi) matrix, TODO P-Adaption Symmetricity is set later!
+PetscCallA(MatSetOption(Smat_petsc, MAT_SYMMETRIC, PETSC_TRUE,ierr))
+
+! TODO PETSC P-Adaption - FPC Preallocation
 !! TODO Set preallocation row wise
 !! 1 Big mortar side is affected by 6 + 4*4 = 22 other sides...
 !! TODO Does this require communication over all procs? Global number of sides associated with the i-th FPC
@@ -531,10 +550,32 @@ PetscCallA(MatSetType(Smat_petsc,MATSBAIJ,ierr)) ! Symmetric sparse (mpi) matrix
 !ELSE
 !  nAffectedBlockSides = 22
 !END IF ! FPC%nFPCBounds
-!!IPWRITE(UNIT_StdOut,*) "nAffectedBlockSides =", nAffectedBlockSides
-PetscCallA(MatSEQSBAIJSetPreallocation(Smat_petsc,nGP_face,22,PETSC_NULL_INTEGER,ierr))
-PetscCallA(MatMPISBAIJSetPreallocation(Smat_petsc,nGP_face,22,PETSC_NULL_INTEGER,22-1,PETSC_NULL_INTEGER,ierr))
+
+! Fill PETScNumNonZeros(nPETScDOfs)
+ALLOCATE(PETScNumNonZeros(nPETScDOFs))
+DO iElem=1,PP_nElems
+  DO iLocSide=1,6
+    iSide=ElemToSide(E2S_SIDE_ID,iLocSide,iElem)
+    iNloc=N_SurfMesh(iSide)%NSideMin
+    DO jLocSide=1,6
+      jSide=ElemToSide(E2S_SIDE_ID,jLocSide,iElem)
+      jNloc = N_SurfMesh(jSide)%NSideMin
+      DO i=1,nGP_face(jNloc)
+        jDOF = HDG_Surf_N(jSide)%OffsetDof + i
+        PETScNumNonZeros(jDOF) = PETScNumNonZeros(jDOF) + nGP_face(iNloc)
+      END DO
+    END DO
+  END DO
+END DO
+
+
+PetscCallA(MatSEQAIJSetPreallocation(Smat_petsc,0,PETScNumNonZeros,ierr))
+! TODO PETSC P-Adaption - MPI
+!PetscCallA(MatMPIAIJSetPreallocation(Smat_petsc,nGP_face,22,PETSC_NULL_INTEGER,22-1,PETSC_NULL_INTEGER,ierr))
 PetscCallA(MatZeroEntries(Smat_petsc,ierr))
+
+! TODO PETSC P-Adaption - DEALLOCATE PETScNumNonZeros
+DEALLOCATE(PETScNumNonZeros)
 #endif
 
 !stabilization parameter
@@ -590,6 +631,7 @@ DO SideID = 1, nSides
   ALLOCATE(HDG_Surf_N(SideID)%buf(PP_nVar,nGP_face(NSideMin)))
   HDG_Surf_N(SideID)%buf=0.
 #if USE_PETSC
+! TODO PETSC P-Adaption - ?
 #else
   IF(PrecondType.EQ.1)THEN
     ALLOCATE(HDG_Surf_N(SideID)%buf2(nGP_face(NSideMin),nGP_face(NSideMin)))
@@ -605,29 +647,51 @@ CALL BuildPrecond()
 #if USE_PETSC
 ! allocate RHS & lambda vectors
 PetscCallA(VecCreate(PETSC_COMM_WORLD,lambda_petsc,ierr))
-PetscCallA(VecSetBlockSize(lambda_petsc,nGP_face,ierr))
-PetscCallA(VecSetSizes(lambda_petsc,PETSC_DECIDE,nPETScUniqueSidesGlobal*nGP_Face,ierr))
+PetscCallA(VecSetSizes(lambda_petsc,PETSC_DECIDE,nPETScDOFs,ierr))
 PetscCallA(VecSetType(lambda_petsc,VECSTANDARD,ierr))
 PetscCallA(VecSetUp(lambda_petsc,ierr))
 PetscCallA(VecDuplicate(lambda_petsc,RHS_petsc,ierr))
 
+
+! TODO PETSC P-Adaption - MPI
+! Without MPI:
+nLocalDOFs = nPETScDOFs
+ALLOCATE(localToGlobalDOF(nLocalDOFs))
+DO i=1,nLocalDOFs
+  localToGlobalDOF(i) = i
+END DO
+
+! Scatter Context
 ! Create scatter context to access local values from global petsc vector
-PetscCallA(VecCreateSeq(PETSC_COMM_SELF,nPETScUniqueSides*nGP_face,lambda_local_petsc,ierr))
-PetscCallA(ISCreateStride(PETSC_COMM_SELF,nPETScUniqueSides*nGP_face,0,1,idx_local_petsc,ierr))
-PetscCallA(ISCreateBlock(PETSC_COMM_WORLD,nGP_face,nPETScUniqueSides,PETScGlobal(PETScLocalToSideID(1:nPETScUniqueSides)),PETSC_COPY_VALUES,idx_global_petsc,ierr))
+
+! Create a local vector for all local DOFs
+PetscCallA(VecCreateSeq(PETSC_COMM_SELF,nPETScDOFs,lambda_local_petsc,ierr))
+
+! Create a PETSc Vector 0:(nPETScDOFs-1)
+PetscCallA(ISCreateStride(PETSC_COMM_SELF,nPETScDOFs,0,1,idx_local_petsc,ierr))
+
+!! Create a PETSc Vector of the Global DOF IDs
+!PetscCallA(ISCreateBlock(PETSC_COMM_WORLD,nGP_face,nPETScUniqueSides,PETScGlobal(PETScLocalToSideID(1:nPETScUniqueSides)),PETSC_COPY_VALUES,idx_global_petsc,ierr))
+! P-Adaption, here, we cannot use a block vector :D
+PetscCallA(ISCreateGeneral(PETSC_COMM_WORLD,nLocalDOFs,localToGlobalDOF,PETSC_COPY_VALUES,idx_global_petsc,ierr))
+
+! Create a scatter context to extract the local dofs
 PetscCallA(VecScatterCreate(lambda_petsc,idx_global_petsc,lambda_local_petsc,idx_local_petsc,scatter_petsc,ierr))
 
-IF(UseFPC)THEN
-  PetscCallA(VecCreateSeq(PETSC_COMM_SELF,nGP_face*FPC%nUniqueFPCBounds,lambda_local_conductors_petsc,ierr))
-  PetscCallA(ISCreateStride(PETSC_COMM_SELF,nGP_face*FPC%nUniqueFPCBounds,0,1,idx_local_conductors_petsc,ierr))
-  ALLOCATE(indx(FPC%nUniqueFPCBounds))
-  DO i=1,FPC%nUniqueFPCBounds
-    indx(i) = nPETScUniqueSidesGlobal-FPC%nUniqueFPCBounds+i-1
-  END DO
-  PetscCallA(ISCreateBlock(PETSC_COMM_WORLD,nGP_face,FPC%nUniqueFPCBounds,indx,PETSC_COPY_VALUES,idx_global_conductors_petsc,ierr))
-  DEALLOCATE(indx)
-  PetscCallA(VecScatterCreate(lambda_petsc,idx_global_conductors_petsc,lambda_local_conductors_petsc,idx_local_conductors_petsc,scatter_conductors_petsc,ierr))
-END IF
+! TODO PETSC P-Adaption - FPC
+!IF(UseFPC)THEN
+!  PetscCallA(VecCreateSeq(PETSC_COMM_SELF,nGP_face*FPC%nUniqueFPCBounds,lambda_local_conductors_petsc,ierr))
+!  PetscCallA(ISCreateStride(PETSC_COMM_SELF,nGP_face*FPC%nUniqueFPCBounds,0,1,idx_local_conductors_petsc,ierr))
+!  ALLOCATE(indx(FPC%nUniqueFPCBounds))
+!  DO i=1,FPC%nUniqueFPCBounds
+!    indx(i) = nPETScUniqueSidesGlobal-FPC%nUniqueFPCBounds+i-1
+!  END DO
+!  PetscCallA(ISCreateBlock(PETSC_COMM_WORLD,nGP_face,FPC%nUniqueFPCBounds,indx,PETSC_COPY_VALUES,idx_global_conductors_petsc,ierr))
+!  DEALLOCATE(indx)
+!  PetscCallA(VecScatterCreate(lambda_petsc,idx_global_conductors_petsc,lambda_local_conductors_petsc,idx_local_conductors_petsc,scatter_conductors_petsc,ierr))
+!END IF
+
+DEALLOCATE(localToGlobalDOF)
 #endif
 
 HDGInitIsDone = .TRUE.
