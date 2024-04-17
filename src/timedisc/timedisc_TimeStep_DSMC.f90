@@ -37,7 +37,7 @@ USE MOD_TimeDisc_Vars            ,ONLY: dt, IterDisplayStep, iter, TEnd, Time
 #ifdef PARTICLES
 USE MOD_Globals                  ,ONLY: abort, CROSS
 USE MOD_Particle_Vars            ,ONLY: PartState, LastPartPos, PDM, PEM, DoSurfaceFlux, WriteMacroVolumeValues
-USE MOD_Particle_Vars            ,ONLY: UseRotRefFrame, RotRefFrameOmega, PartVeloRotRef
+USE MOD_Particle_Vars            ,ONLY: UseRotRefFrame, RotRefFrameOmega, PartVeloRotRef, LastPartVeloRotRef
 USE MOD_Particle_Vars            ,ONLY: WriteMacroSurfaceValues, Symmetry, Species, PartSpecies
 USE MOD_Particle_Vars            ,ONLY: UseVarTimeStep, PartTimeStep, VarTimeStep
 USE MOD_Particle_Vars            ,ONLY: UseSplitAndMerge
@@ -52,7 +52,7 @@ USE MOD_Particle_Tracking        ,ONLY: PerformTracking
 USE MOD_SurfaceModel_Porous      ,ONLY: PorousBoundaryRemovalProb_Pressure
 USE MOD_SurfaceModel_Vars        ,ONLY: nPorousBC, DoChemSurface
 USE MOD_vMPF                     ,ONLY: SplitAndMerge
-USE MOD_part_RHS                 ,ONLY: CalcPartRHSRotRefFrame
+USE MOD_part_RHS                 ,ONLY: CalcPartRHSRotRefFrame, CalcPartPosInRotRef
 USE MOD_part_pos_and_velo        ,ONLY: SetParticleVelocity
 USE MOD_Part_Tools               ,ONLY: InRotRefFrameCheck
 USE MOD_Part_Tools               ,ONLY: CalcPartSymmetryPos
@@ -74,8 +74,6 @@ IMPLICIT NONE
 ! LOCAL VARIABLES
 INTEGER                    :: iPart
 REAL                       :: timeEnd, timeStart, dtVar, RandVal
-! Rotational frame of reference
-REAL                       :: Pt_local(1:3), Pt_local_old(1:3), VeloRotRef_half(1:3), PartState_half(1:3)
 #if USE_LOADBALANCE
 REAL                  :: tLBStart
 #endif /*USE_LOADBALANCE*/
@@ -141,23 +139,8 @@ DO iPart=1,PDM%ParticleVecLength
       PEM%LastGlobalElemID(iPart)=PEM%GlobalElemID(iPart)
     END IF
     IF(UseRotRefFrame) THEN
-      IF(PDM%InRotRefFrame(iPart)) THEN
-        ! Midpoint method
-        ! calculate the acceleration (force / mass) at the current time step
-        Pt_local_old(1:3) = CalcPartRHSRotRefFrame(PartState(1:3,iPart), PartVeloRotRef(1:3,iPart))
-        ! estimate the mid-point velocity in the rotational frame
-        VeloRotRef_half(1:3) = PartVeloRotRef(1:3,iPart) + 0.5*Pt_local_old(1:3)*dtVar
-        ! estimate the mid-point position
-        PartState_half(1:3) = PartState(1:3,iPart) + 0.5*PartVeloRotRef(1:3,iPart)*dtVar
-        ! calculate the acceleration (force / mass) at the mid-point
-        Pt_local(1:3) = CalcPartRHSRotRefFrame(PartState_half(1:3), VeloRotRef_half(1:3))
-        ! update the position using the mid-point velocity in the rotational frame
-        PartState(1:3,iPart) = PartState(1:3,iPart) + VeloRotRef_half(1:3)*dtVar
-        ! update the velocity in the rotational frame using the mid-point acceleration
-        PartVeloRotRef(1:3,iPart) = PartVeloRotRef(1:3,iPart) + Pt_local(1:3)*dtVar
-      ELSE
-        PartState(1:3,iPart) = PartState(1:3,iPart) + PartState(4:6,iPart) * dtVar
-      END IF
+      LastPartVeloRotRef(1:3,iPart)=PartVeloRotRef(1:3,iPart)
+      CALL CalcPartPosInRotRef(iPart, dtVar)
     ELSE
       PartState(1:3,iPart) = PartState(1:3,iPart) + PartState(4:6,iPart) * dtVar
     END IF
@@ -265,7 +248,6 @@ CALL DSMC_main()
 IF(UseSplitAndMerge) CALL SplitAndMerge()
 
 END SUBROUTINE TimeStep_DSMC
-
 
 END MODULE MOD_TimeStep
 #endif

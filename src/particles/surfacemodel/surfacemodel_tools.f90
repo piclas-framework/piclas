@@ -86,7 +86,7 @@ SUBROUTINE PerfectReflection(PartID,SideID,n_Loc,opt_Symmetry)
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Globals
 USE MOD_Particle_Boundary_Vars  ,ONLY: PartBound
-USE MOD_Particle_Vars           ,ONLY: PartState,LastPartPos,PartSpecies,Species,PartLorentzType
+USE MOD_Particle_Vars           ,ONLY: PartState,LastPartPos,PartSpecies,Species,PartLorentzType,RotRefSubTimeStep,nSubCyclingSteps
 USE MOD_DSMC_Vars               ,ONLY: DSMC, AmbipolElecVelo
 USE MOD_Globals_Vars            ,ONLY: c2_inv
 #if defined(LSERK)
@@ -101,7 +101,7 @@ USE MOD_Particle_Mesh_Vars      ,ONLY: SideInfo_Shared
 USE MOD_Particle_Tracking_Vars  ,ONLY: TrackInfo
 USE MOD_Particle_Vars           ,ONLY: UseVarTimeStep, PartTimeStep, VarTimeStep
 USE MOD_TimeDisc_Vars           ,ONLY: dt,RKdtFrac
-USE MOD_Particle_Vars           ,ONLY: PDM, PartVeloRotRef
+USE MOD_Particle_Vars           ,ONLY: PDM, PartVeloRotRef, RotRefFrameOmega
 USE MOD_part_RHS                ,ONLY: CalcPartRHSRotRefFrame
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -119,6 +119,7 @@ REAL                                 :: LorentzFac, LorentzFacInv, POI_fak
 INTEGER                              :: locBCID, SpecID
 LOGICAL                              :: Symmetry
 REAL                                 :: POI_vec(1:3)
+REAL                                 :: NormNewVeloPush(1:3)
 REAL                                 :: dtVar
 !===================================================================================================================================
 ! Initialize
@@ -144,6 +145,7 @@ ELSE
 END IF
 ! Species-specific time step
 IF(VarTimeStep%UseSpeciesSpecific) dtVar = dtVar * Species(SpecID)%TimeStepFactor
+IF(RotRefSubTimeStep) dtVar = dtVar / REAL(nSubCyclingSteps)
 
 IF(PDM%InRotRefFrame(PartID)) THEN
   ! In case of RotRefFrame utilize the respective velocity
@@ -185,31 +187,31 @@ ELSE
   END IF
 END IF
 
-! set particle position on face
+! Set particle position on face
 LastPartPos(1:3,PartID) = POI_vec(1:3)
-
-! Determine the correct velocity in case of a rotational frame of reference
-NewVeloPush(1:3) = PartState(4:6,PartID)
-! In case of RotRefFrame, the velocity in the rotational reference frame is mirrored as well
-IF(PDM%InRotRefFrame(PartID)) THEN
-  ! Mirror the velocity in the rotational frame
-  PartVeloRotRef(1:3,PartID) = PartVeloRotRef(1:3,PartID) - 2.*DOT_PRODUCT(PartVeloRotRef(1:3,PartID),n_loc)*n_loc
-  ! ALTERNATIVE: Transform the inertial velocity (which was mirrored)
-  ! PartVeloRotRef(1:3,PartID) = PartState(4:6,PartID) - CROSS(RotRefFrameOmega(1:3),LastPartPos(1:3,PartID))
-END IF
-
 TrackInfo%PartTrajectory(1:3)     = TrackInfo%PartTrajectory(1:3)-2.*DOT_PRODUCT(TrackInfo%PartTrajectory(1:3),n_loc)*n_loc
-
-! Check if rotational frame of reference is used, otherwise mirror the LastPartPos
+! Check if rotational frame of reference is used, otherwise mirror the LastPartPos for new particle position
 IF(PDM%InRotRefFrame(PartID)) THEN
   POI_fak = 1.- (TrackInfo%lengthPartTrajectory-TrackInfo%alpha) / VECNORM(OldVelo*dtVar)
-  ! Add the acceleration due to new velocity vector at the POI
-  PartVeloRotRef(1:3,PartID) = PartVeloRotRef(1:3,PartID) + CalcPartRHSRotRefFrame(LastPartPos(1:3,PartID),PartVeloRotRef(1:3,PartID)) * dtVar * (1.0 - POI_fak)
-  ! IF(DOT_PRODUCT(PartVeloRotRef(1:3,PartID),n_loc).GT.0.) THEN
-  !   PartVeloRotRef(1:3,PartID) = PartVeloRotRef(1:3,PartID) - 2.*DOT_PRODUCT(PartVeloRotRef(1:3,PartID),n_loc)*n_loc
-  ! END IF
-  PartState(1:3,PartID) = LastPartPos(1:3,PartID) + (1.0 - POI_fak) * dtVar * PartVeloRotRef(1:3,PartID)
+  ! Determine the correct velocity for the subsequent push in case of a rotational frame of reference at POI
+  NewVeloPush(1:3) = PartState(4:6,PartID)
+  NewVeloPush(1:3) = NewVeloPush(1:3) - CROSS(RotRefFrameOmega(1:3),LastPartPos(1:3,PartID))
+  NewVeloPush(1:3) = NewVeloPush(1:3) + CalcPartRHSRotRefFrame(LastPartPos(1:3,PartID),NewVeloPush(1:3)) * (1.0 - POI_fak) * dtVar
+    ! Make sure the NewVeloPush is pointing away from the wall
+  IF(DOT_PRODUCT(n_loc,NewVeloPush(1:3)).GT.0.) THEN
+    ! Normal component of new velo push v = (v dot n / |n|^2) * n, |n| = 1
+    NormNewVeloPush(1:3) = DOT_PRODUCT(n_loc,NewVeloPush(1:3)) * n_loc
+    ! Nullyfy normal component and keeping rest of NewVeloPush
+    NewVeloPush(1:3) = NewVeloPush(1:3) - NormNewVeloPush(1:3)
+    ! Move particle a little bit into the domain to avoid losing particles
+    NewVeloPush(1:3) = NewVeloPush(1:3) - 1E-6 * n_loc
+  END IF
+  ! Store the new rotational reference frame velocity
+  PartVeloRotRef(1:3,PartID) = NewVeloPush(1:3)
+  ! Calc new particle position with NewVeloPush
+  PartState(1:3,PartID)   = LastPartPos(1:3,PartID) + (1.0 - POI_fak) * dtVar * NewVeloPush(1:3)
 ELSE
+  ! Mirror the LastPartPos for new particle position  
   PartState(1:3,PartID) = LastPartPos(1:3,PartID) + TrackInfo%PartTrajectory(1:3)*(TrackInfo%lengthPartTrajectory - TrackInfo%alpha)
 END IF
 
@@ -291,7 +293,7 @@ USE MOD_Particle_Vars           ,ONLY: PartState,LastPartPos,Species,PartSpecies
 USE MOD_Particle_Vars           ,ONLY: UseVarTimeStep, PartTimeStep, VarTimeStep
 USE MOD_TimeDisc_Vars           ,ONLY: dt,RKdtFrac
 USE MOD_Mesh_Tools              ,ONLY: GetCNElemID
-USE MOD_Particle_Vars           ,ONLY: PDM, RotRefFrameOmega
+USE MOD_Particle_Vars           ,ONLY: PDM, RotRefFrameOmega,RotRefSubTimeStep,nSubCyclingSteps
 USE MOD_Particle_Tracking_Vars  ,ONLY: TrackInfo
 USE MOD_part_RHS                ,ONLY: CalcPartRHSRotRefFrame
 ! IMPLICIT VARIABLE HANDLING
@@ -340,6 +342,7 @@ END IF
 
 ! Species-specific time step
 IF(VarTimeStep%UseSpeciesSpecific) dtVar = dtVar * Species(SpecID)%TimeStepFactor
+IF(RotRefSubTimeStep) dtVar = dtVar / REAL(nSubCyclingSteps)
 
 IF(PDM%InRotRefFrame(PartID)) THEN
   ! In case of RotRefFrame utilize the respective velocity
@@ -511,8 +514,6 @@ USE MOD_Particle_Boundary_Tools   ,ONLY: CalcWallSample
 USE MOD_Particle_Boundary_Vars    ,ONLY: Partbound, GlobalSide2SurfSide
 USE MOD_Particle_Mesh_Vars        ,ONLY: SideInfo_Shared
 USE MOD_DSMC_Vars                 ,ONLY: DSMC, SamplingActive
-USE MOD_Particle_Vars             ,ONLY: usevMPF,PartMPF
-USE MOD_part_tools                ,ONLY: CalcRadWeightMPF
 USE MOD_Particle_Mesh_Vars        ,ONLY: BoundsOfElem_Shared
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -531,7 +532,7 @@ CHARACTER(LEN=*),INTENT(IN)  :: EnergyDistribution !< energy distribution model 
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER            :: iNewPart, NewPartID, locBCID, SurfSideID
-REAL               :: tang1(1:3), tang2(1:3), WallVelo(1:3), WallTemp, NewVelo(3), OldMPF, BoundsOfElemCenter(1:3),NewPos(1:3)
+REAL               :: tang1(1:3), tang2(1:3), WallVelo(1:3), WallTemp, NewVelo(3), BoundsOfElemCenter(1:3),NewPos(1:3)
 REAL,PARAMETER     :: eps=1e-6
 REAL,PARAMETER     :: eps2=1.0-eps
 !===================================================================================================================================
@@ -560,15 +561,8 @@ DO iNewPart = 1, ProductSpecNbr
   NewVelo(1:3) = tang1(1:3)*NewVelo(1) + tang2(1:3)*NewVelo(2) - n_Loc(1:3)*NewVelo(3) + WallVelo(1:3)
   ! Create new position by using POI and moving the particle by eps in the direction of the element center
   NewPos(1:3) = eps*BoundsOfElemCenter(1:3) + eps2*POI_vec(1:3)
-  IF(usevMPF)THEN
-    ! Get MPF of old particle
-    OldMPF = PartMPF(PartID)
-    ! New particle acquires the MPF of the impacting particle (not necessarily the MPF of the newly created particle species)
-    CALL CreateParticle(ProductSpec,NewPos(1:3),GlobElemID,NewVelo(1:3),0.,0.,0.,NewPartID=NewPartID, NewMPF=OldMPF)
-  ELSE
-    ! New particle acquires the MPF of the new particle species
-    CALL CreateParticle(ProductSpec,NewPos(1:3),GlobElemID,NewVelo(1:3),0.,0.,0.,NewPartID=NewPartID)
-  END IF ! usevMPF
+  ! Create new particle: in case of vMPF oder VarTimeStep, new particle inherits the values of the old particle
+  CALL CreateParticle(ProductSpec,NewPos(1:3),GlobElemID,NewVelo(1:3),0.,0.,0.,OldPartID=PartID,NewPartID=NewPartID)
   ! Adding the energy that is transferred from the surface onto the internal energies of the particle
   CALL SurfaceModelEnergyAccommodation(NewPartID,locBCID,WallTemp)
   ! Sampling of newly created particles
