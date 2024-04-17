@@ -302,9 +302,9 @@ DO iBCSide=1,nDirichletBCSides
     DO p=0,iNloc; DO q=0,iNloc
       DO i=0,jNloc; DO j=0,jNloc
         DO r=1,nGP_face(jNloc)
-          Smatloc(p*(iNloc+1)+q,r) = Smatloc(p*(iNloc+1)+q,r) + &
+          Smatloc(p*(iNloc+1)+q+1,r) = Smatloc(p*(iNloc+1)+q+1,r) + &
           PREF_VDM(jNloc,iNloc)%Vdm(i,p) * PREF_VDM(jNloc,iNloc)%Vdm(j,q) * &
-          HDG_Vol_N(iElem)%Smat(i*(jNloc+1)+j,r,jLocSide,iLocSide)
+          HDG_Vol_N(ElemID)%Smat(i*(jNloc+1)+j+1,r,jLocSide,iLocSide)
         END DO
       END DO; END DO
     END DO; END DO
@@ -415,7 +415,7 @@ CALL LBPauseTime(LB_DG,tLBStart) ! Pause/Stop time measurement
     Nloc = N_SurfMesh(SideID)%NSideMin
 
     DOF_start = 1 + DOF_stop
-    DOF_stop = DOF_start + nGP_face(Nloc)
+    DOF_stop = DOF_stop + nGP_face(Nloc)
 
     HDG_Surf_N(SideID)%lambda(1,:) = lambda_pointer(DOF_start:DOF_stop)
   END DO

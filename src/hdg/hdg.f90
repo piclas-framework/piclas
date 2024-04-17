@@ -389,18 +389,21 @@ END IF
 #if USE_PETSC
 ! Create PETSc Mappings
 OffsetPETScSide=0
-! TODO PETSC P-Adaption - MPI
-#if USE_MPI
+
 ! TODO PETSC P-Adaption - MORTARS
 ! Count all Mortar slave sides and remove them from PETSc vector
 ! TODO How to compute those
 nMortarMasterSides = 0
-DO SideID=1,nSides
-  IF(SmallMortarInfo(SideID).EQ.1) THEN
-    nMortarMasterSides = nMortarMasterSides + 1
-  END IF
-END DO
+!DO SideID=1,nSides
+!  IF(SmallMortarInfo(SideID).EQ.1) THEN
+!    nMortarMasterSides = nMortarMasterSides + 1
+!  END IF
+!END DO
 nPETScUniqueSides = nSides-nDirichletBCSides-nMPISides_YOUR-nMortarMasterSides-nConductorBCsides
+
+! TODO PETSC P-Adaption - MPI
+#if USE_MPI
+
 CALL MPI_ALLGATHER(nPETScUniqueSides,1,MPI_INTEGER,OffsetPETScSideMPI,1,MPI_INTEGER,MPI_COMM_PICLAS,IERROR)
 DO iProc=1, myrank
   OffsetPETScSide = OffsetPETScSide + OffsetPETScSideMPI(iProc)
@@ -442,8 +445,8 @@ CALL FinishExchangeMPIData(SendRequest_U,RecRequest_U,SendID=1)
 ! TODO PETSC P-Adaption - MPI
 nPETScDOFs=0
 DO SideID=1,nSides
-  IF(PETScGlobal(SideID).LT.0) CYCLE
   HDG_Surf_N(SideID)%OffsetDOF=nPETScDOFs
+  IF(PETScGlobal(SideID).LT.0) CYCLE
   nPETScDOFs=nPETScDOFs+nGP_face(N_SurfMesh(SideID)%NSideMin)
 END DO
 #endif
@@ -553,21 +556,26 @@ PetscCallA(MatSetOption(Smat_petsc, MAT_SYMMETRIC, PETSC_TRUE,ierr))
 
 ! Fill PETScNumNonZeros(nPETScDOfs)
 ALLOCATE(PETScNumNonZeros(nPETScDOFs))
+PETScNumNonZeros = 0.
 DO iElem=1,PP_nElems
   DO iLocSide=1,6
     iSide=ElemToSide(E2S_SIDE_ID,iLocSide,iElem)
+    IF(PETScGlobal(iSide).LT.0) CYCLE
     iNloc=N_SurfMesh(iSide)%NSideMin
     DO jLocSide=1,6
       jSide=ElemToSide(E2S_SIDE_ID,jLocSide,iElem)
+      IF(PETScGlobal(jSide).LT.0) CYCLE
       jNloc = N_SurfMesh(jSide)%NSideMin
       DO i=1,nGP_face(jNloc)
         jDOF = HDG_Surf_N(jSide)%OffsetDof + i
-        PETScNumNonZeros(jDOF) = PETScNumNonZeros(jDOF) + nGP_face(iNloc)
+
+        ! If an element has two periodic sides, some DOFs are counted double
+        ! In order to avoid this being a problem, we limit the max num of non-zeros
+        PETScNumNonZeros(jDOF) = MIN(nPETScDOFs, PETScNumNonZeros(jDOF) + nGP_face(iNloc))
       END DO
     END DO
   END DO
 END DO
-
 
 PetscCallA(MatSEQAIJSetPreallocation(Smat_petsc,0,PETScNumNonZeros,ierr))
 ! TODO PETSC P-Adaption - MPI
@@ -658,7 +666,7 @@ PetscCallA(VecDuplicate(lambda_petsc,RHS_petsc,ierr))
 nLocalDOFs = nPETScDOFs
 ALLOCATE(localToGlobalDOF(nLocalDOFs))
 DO i=1,nLocalDOFs
-  localToGlobalDOF(i) = i
+  localToGlobalDOF(i) = i - 1
 END DO
 
 ! Scatter Context

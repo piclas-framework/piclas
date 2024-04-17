@@ -414,10 +414,10 @@ DO iElem=1,PP_nElems
 
       ! Get Index list
       DO i=1,iNdof
-        iIndices(i) = HDG_Surf_N(iSideID)%OffsetDOF + i
+        iIndices(i) = HDG_Surf_N(iSideID)%OffsetDOF + i - 1
       END DO
       DO i=1,jNdof
-        jIndices(i) = HDG_Surf_N(jSideID)%OffsetDOF + i
+        jIndices(i) = HDG_Surf_N(jSideID)%OffsetDOF + i - 1
       END DO
 
       ! TODO PETSC P-Adaption - Improvement: Store V^T * S * V in Smat
@@ -427,9 +427,9 @@ DO iElem=1,PP_nElems
         DO j_m=0,jNloc; DO j_p=0,jNloc
           DO i=0,NElem; DO j=0,NElem
             DO p=0,NElem; DO q=0,NElem
-              Smatloc(i_m*(iNloc+1)+i_p,j_m*(jNloc+1)+j_p) = Smatloc(i_m*(iNloc+1)+i_p,j_m*(jNloc+1)+j_p) + &
+              Smatloc(i_m*(iNloc+1)+i_p+1,j_m*(jNloc+1)+j_p+1) = Smatloc(i_m*(iNloc+1)+i_p+1,j_m*(jNloc+1)+j_p+1) + &
                 PREF_VDM(NElem,iNloc)%Vdm(i,i_m) * PREF_VDM(NElem,iNloc)%Vdm(j,i_p) * &
-                HDG_Vol_N(iElem)%Smat(i*(Nelem+1)+j,p*(Nelem+1)+q,jLocSide,iLocSide) * &
+                HDG_Vol_N(iElem)%Smat(i*(Nelem+1)+j+1,p*(Nelem+1)+q+1,jLocSide,iLocSide) * &
                 PREF_VDM(NElem,iNloc)%Vdm(p,j_m) * PREF_VDM(NElem,iNloc)%Vdm(q,j_p)
             END DO; END DO
           END DO; END DO
