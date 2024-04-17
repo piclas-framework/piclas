@@ -606,12 +606,11 @@ DO iSurfSide = 1,nComputeNodeSurfSides
                                           - SampWallState(SAMPWALL_EVIBNEW  ,p,q,iSurfSide)  &
                                           - SampWallState(SAMPWALL_EELECNEW ,p,q,iSurfSide)) &
                                             / (SurfSideArea(p,q,iSurfSide) * TimeSampleTemp)
-      END IF
-
-      ! Add the heat flux due to catalytic reactions on the surface
-      IF(DoChemSurface) THEN
-        MacroSurfaceVal(4,p,q,OutputCounter) = MacroSurfaceVal(4,p,q,OutputCounter) + SUM(ChemWallProp(:,2,p, q, iSurfSide)) &
-                                              / (SurfSideArea(p,q,iSurfSide)*TimeSampleTemp)
+        ! Add the heat flux due to catalytic reactions on the surface
+        IF(DoChemSurface) THEN
+          MacroSurfaceVal(4,p,q,OutputCounter) = MacroSurfaceVal(4,p,q,OutputCounter) + SUM(ChemWallProp(:,2,p, q, iSurfSide)) &
+          / (SurfSideArea(p,q,iSurfSide)*TimeSampleTemp)
+        END IF
       END IF
 
       ! Number of simulation particle impacts per iteration

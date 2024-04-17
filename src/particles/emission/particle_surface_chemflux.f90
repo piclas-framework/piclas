@@ -53,7 +53,7 @@ USE MOD_Particle_Analyze_Tools  ,ONLY: CalcEkinPart
 USE MOD_Particle_Mesh_Tools     ,ONLY: GetGlobalNonUniqueSideID
 USE MOD_Timedisc_Vars           ,ONLY: dt
 USE MOD_Particle_Surfaces_Vars  ,ONLY: BCdata_auxSF, SurfFluxSideSize
-USE MOD_Particle_Boundary_Vars  ,ONLY: PartBound, GlobalSide2SurfSide, SurfSideArea
+USE MOD_Particle_Boundary_Vars  ,ONLY: PartBound, GlobalSide2SurfSide, SurfSideArea, SurfTotalSideOnNode
 USE MOD_SurfaceModel_Vars       ,ONLY: SurfChem, SurfChemReac, ChemWallProp, ChemDesorpWall
 USE MOD_Particle_SurfFlux       ,ONLY: SetSurfacefluxVelocities, CalcPartPosTriaSurface, DefineSideDirectVec2D
 USE MOD_DSMC_PolyAtomicModel    ,ONLY: DSMC_SetInternalEnr
@@ -62,9 +62,6 @@ USE MOD_MPI_Shared_vars         ,ONLY: MPI_COMM_SHARED
 USE MOD_MPI_Shared              ,ONLY: BARRIER_AND_SYNC
 USE MOD_SurfaceModel_Vars       ,ONLY: ChemWallProp_Shared_Win
 #endif
-!#if defined(IMPA) || defined(ROS)
-USE MOD_Particle_Tracking_Vars  ,ONLY: TrackInfo
-!#endif /*IMPA*/
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Vars        ,ONLY: nSurfacefluxPerElem
 USE MOD_LoadBalance_Timers      ,ONLY: LBStartTime, LBElemSplitTime, LBPauseTime
@@ -96,10 +93,16 @@ INTEGER                     :: SurfReacBias(SurfChem%NumOfReact)
 REAL                        :: tLBStart
 #endif /*USE_LOADBALANCE*/
 !===================================================================================================================================
+
+IF(.NOT.SurfTotalSideOnNode) RETURN
+
 ! 1.) Determine the surface parameters
 nSF = SurfChem%CatBoundNum
-SubP = TrackInfo%p
-SubQ = TrackInfo%q
+! TODO: TrackInfo is only available during tracking
+! SubP = TrackInfo%p
+! SubQ = TrackInfo%q
+SubP = 1
+SubQ = 1
 
 DO iSF = 1, nSF
   BoundID = SurfChem%Surfaceflux(iSF)%BC
@@ -238,7 +241,7 @@ DO iSF = 1, nSF
             END DO
 
             ! Determine the reaction energy in dependence of the surface coverage [J]
-            ! Complete accomodation due to the intermediate desorption step
+            ! Complete accommodation due to the intermediate desorption step
             ReacHeat = (SurfChemReac(iReac)%EReact - Coverage*SurfChemReac(iReac)%EScale) * BoltzmannConst
 
             nu = SurfChemReac(iReac)%Prefactor
@@ -531,7 +534,7 @@ USE MOD_Particle_Vars
 USE MOD_Mesh_Vars               ,ONLY: SideToElem, offsetElem
 USE MOD_Particle_Mesh_Tools     ,ONLY: GetGlobalNonUniqueSideID
 USE MOD_Particle_Surfaces_Vars  ,ONLY: BCdata_auxSF
-USE MOD_Particle_Boundary_Vars  ,ONLY: GlobalSide2SurfSide
+USE MOD_Particle_Boundary_Vars  ,ONLY: SurfTotalSideOnNode, GlobalSide2SurfSide
 USE MOD_SurfaceModel_Vars       ,ONLY: SurfChem, ChemWallProp
 #if USE_MPI
 USE MOD_SurfaceModel_Vars       ,ONLY: ChemWallProp_Shared_Win
@@ -542,9 +545,6 @@ USE MOD_MPI_Shared              ,ONLY: BARRIER_AND_SYNC
 #else
 USE MOD_Particle_Boundary_Vars  ,ONLY: nGlobalSurfSides
 #endif /*USE_MPI*/
-!#if defined(IMPA) || defined(ROS)
-USE MOD_Particle_Tracking_Vars  ,ONLY: TrackInfo
-!#endif /*IMPA*/
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Timers      ,ONLY: LBStartTime, LBElemSplitTime, LBPauseTime
 #endif /*USE_LOADBALANCE*/
@@ -566,10 +566,15 @@ INTEGER                     :: SurfSideID
 INTEGER                     :: SubP, SubQ
 REAL                        :: Coverage_Sum
 !===================================================================================================================================
+IF(.NOT.SurfTotalSideOnNode) RETURN
+
 CatBoundNum = SurfChem%CatBoundNum
 
-SubP = TrackInfo%p
-SubQ = TrackInfo%q
+! TODO: TrackInfo is only available during tracking
+! SubP = TrackInfo%p
+! SubQ = TrackInfo%q
+SubP = 1
+SubQ = 1
 
 #if USE_MPI
 firstSide = INT(REAL( myComputeNodeRank   *nComputeNodeSurfTotalSides)/REAL(nComputeNodeProcessors))+1
@@ -593,7 +598,7 @@ ELSE IF(SurfChem%Diffusion) THEN
     BoundID = SurfChem%Surfaceflux(iSF)%BC
     SideNumber = BCdata_auxSF(BoundID)%SideNumber
 
-    ! Determine the sum of the coverage on all indivual subsides
+    ! Determine the sum of the coverage on all individual subsides
     DO iSpec = 1, nSpecies
       Coverage_Sum = 0.0
       DO iSide = 1, SideNumber
