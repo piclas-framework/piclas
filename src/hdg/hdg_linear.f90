@@ -309,8 +309,8 @@ DO iBCSide=1,nDirichletBCSides
       END DO; END DO
     END DO; END DO
 
-    CALL DGEMV('N',nGP_face,nGP_face,-1., &
-                          Smatloc(1:nGP_face(iNloc),1:nGP_face(jNloc)), nGP_face, &
+    CALL DGEMV('N',nGP_face(iNloc),nGP_face(jNloc),-1., &
+                          Smatloc(1:nGP_face(iNloc),1:nGP_face(jNloc)), nGP_face(iNloc), &
                           HDG_Surf_N(BCSideID)%lambda(1,:),1,1.,& !add to RHS_face
                           HDG_Surf_N(SideID)%RHS_face(1,:),1)
   END DO
