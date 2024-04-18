@@ -536,7 +536,6 @@ END DO !iElem
 PetscCallA(MatCreate(PETSC_COMM_WORLD,Smat_petsc,ierr))
 PetscCallA(MatSetSizes(Smat_petsc,PETSC_DECIDE,PETSC_DECIDE,nPETScDOFs,nPETScDOFs,ierr))
 PetscCallA(MatSetType(Smat_petsc,MATAIJ,ierr)) ! Sparse (mpi) matrix, TODO P-Adaption Symmetricity is set later!
-PetscCallA(MatSetOption(Smat_petsc, MAT_SYMMETRIC, PETSC_TRUE,ierr))
 
 ! TODO PETSC P-Adaption - FPC Preallocation
 !! TODO Set preallocation row wise
