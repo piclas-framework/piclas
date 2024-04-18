@@ -401,10 +401,11 @@ DO iElem=1,PP_nElems
       jSideID=ElemToSide(E2S_SIDE_ID,jLocSide,iElem)
       jNloc=N_SurfMesh(jSideID)%NSideMin
       jPETScGlobal=PETScGlobal(jSideID)
-      IF (iPETScGlobal.GT.jPETScGlobal) CYCLE
+      IF (jPETScGlobal.EQ.-1) CYCLE ! TODO PETSC P-Adaption - Find out why we cant fill halve the matrix and then use MAT_SYMMETRIC
+      !IF (iPETScGlobal.GT.jPETScGlobal) CYCLE
       IF(SetZeroPotentialDOF.AND.(iPETScGlobal.EQ.0)) THEN
         ! The first DOF is set to constant 0 -> lambda_{1,1} = 0
-        HDG_Vol_N(iElem)%Smat(:,1,jLocSide,iLocSide) = 0
+        HDG_Vol_N(iElem)%Smat(:,1,jLocSide,iLocSide) = 0 ! TODO PETSC P-Adaption: why ji and not ij?
         IF(jPETScGlobal.EQ.iPETScGlobal) HDG_Vol_N(iElem)%Smat(1,1,jLocSide,iLocSide) = 1
       END IF
 
@@ -414,10 +415,10 @@ DO iElem=1,PP_nElems
 
       ! Get Index list
       DO i=1,iNdof
-        iIndices(i) = HDG_Surf_N(iSideID)%OffsetDOF + i
+        iIndices(i) = HDG_Surf_N(iSideID)%OffsetDOF + i - 1
       END DO
       DO i=1,jNdof
-        jIndices(i) = HDG_Surf_N(jSideID)%OffsetDOF + i
+        jIndices(i) = HDG_Surf_N(jSideID)%OffsetDOF + i - 1
       END DO
 
       ! TODO PETSC P-Adaption - Improvement: Store V^T * S * V in Smat
@@ -427,9 +428,9 @@ DO iElem=1,PP_nElems
         DO j_m=0,jNloc; DO j_p=0,jNloc
           DO i=0,NElem; DO j=0,NElem
             DO p=0,NElem; DO q=0,NElem
-              Smatloc(i_m*(iNloc+1)+i_p,j_m*(jNloc+1)+j_p) = Smatloc(i_m*(iNloc+1)+i_p,j_m*(jNloc+1)+j_p) + &
+              Smatloc(i_m*(iNloc+1)+i_p+1,j_m*(jNloc+1)+j_p+1) = Smatloc(i_m*(iNloc+1)+i_p+1,j_m*(jNloc+1)+j_p+1) + &
                 PREF_VDM(NElem,iNloc)%Vdm(i,i_m) * PREF_VDM(NElem,iNloc)%Vdm(j,i_p) * &
-                HDG_Vol_N(iElem)%Smat(i*(Nelem+1)+j,p*(Nelem+1)+q,jLocSide,iLocSide) * &
+                HDG_Vol_N(iElem)%Smat(i*(Nelem+1)+j+1,p*(Nelem+1)+q+1,jLocSide,iLocSide) * & ! TODO ij vs ji
                 PREF_VDM(NElem,iNloc)%Vdm(p,j_m) * PREF_VDM(NElem,iNloc)%Vdm(q,j_p)
             END DO; END DO
           END DO; END DO
@@ -469,6 +470,10 @@ END DO
 !    PetscCallA(MatSetValuesBlocked(Smat_petsc,1,iPETScGlobal,1,jPETScGlobal,Smat(:,:,jLocSide,iLocSide,iElem),ADD_VALUES,ierr))
 !  END DO
 !END DO
+
+! TODO PETSC P-Adaption (Where to) set that smat is symmetric?
+!PetscCallA(MatSetOption(Smat_petsc, MAT_SYMMETRIC, PETSC_TRUE,ierr))
+
 PetscCallA(MatAssemblyBegin(Smat_petsc,MAT_FINAL_ASSEMBLY,ierr))
 PetscCallA(MatAssemblyEnd(Smat_petsc,MAT_FINAL_ASSEMBLY,ierr))
 #endif

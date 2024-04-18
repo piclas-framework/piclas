@@ -302,17 +302,17 @@ DO iBCSide=1,nDirichletBCSides
     DO p=0,iNloc; DO q=0,iNloc
       DO i=0,jNloc; DO j=0,jNloc
         DO r=1,nGP_face(jNloc)
-          Smatloc(p*(iNloc+1)+q,r) = Smatloc(p*(iNloc+1)+q,r) + &
+          Smatloc(p*(iNloc+1)+q+1,r) = Smatloc(p*(iNloc+1)+q+1,r) + &
           PREF_VDM(jNloc,iNloc)%Vdm(i,p) * PREF_VDM(jNloc,iNloc)%Vdm(j,q) * &
-          HDG_Vol_N(iElem)%Smat(i*(jNloc+1)+j,r,jLocSide,iLocSide)
+          HDG_Vol_N(ElemID)%Smat(i*(jNloc+1)+j+1,r,iLocSide,jLocSide) ! TODO ij vs ji
         END DO
       END DO; END DO
     END DO; END DO
 
-    CALL DGEMV('N',nGP_face,nGP_face,-1., &
-                          Smatloc(1:iNloc,1:jNloc), nGP_face, &
-                          HDG_Surf_N(ElemID)%lambda(1,:),1,1.,& !add to RHS_face
-                          HDG_Surf_N(ElemID)%RHS_face(1,:),1)
+    CALL DGEMV('N',nGP_face(iNloc),nGP_face(jNloc),-1., &
+                          Smatloc(1:nGP_face(iNloc),1:nGP_face(jNloc)), nGP_face(iNloc), &
+                          HDG_Surf_N(BCSideID)%lambda(1,:),1,1.,& !add to RHS_face
+                          HDG_Surf_N(SideID)%RHS_face(1,:),1)
   END DO
 END DO
 #endif /*USE_PETSC*/
@@ -357,10 +357,10 @@ CALL LBPauseTime(LB_DG,tLBStart) ! Pause/Stop time measurement
 
     Nloc = N_SurfMesh(SideID)%NSideMin
     DO i=1,nGP_face(Nloc)
-      DOFindices(i) = i + HDG_Surf_N(SideID)%OffsetDOF
+      DOFindices(i) = i + HDG_Surf_N(SideID)%OffsetDOF - 1
     END DO
 
-    PetscCallA(VecSetValues(RHS_petsc,Nloc,DOFindices(1:nGP_face(Nloc)),HDG_Surf_N(SideID)%RHS_face(1,:),INSERT_VALUES,ierr))
+    PetscCallA(VecSetValues(RHS_petsc,nGP_face(Nloc),DOFindices(1:nGP_face(Nloc)),HDG_Surf_N(SideID)%RHS_face(1,:),INSERT_VALUES,ierr))
   END DO
   ! The MPIRoot process has charge and voltage of all FPCs, there, this process sets all conductor RHS information
   ! TODO PETSC P-Adaption - FPC
@@ -415,7 +415,7 @@ CALL LBPauseTime(LB_DG,tLBStart) ! Pause/Stop time measurement
     Nloc = N_SurfMesh(SideID)%NSideMin
 
     DOF_start = 1 + DOF_stop
-    DOF_stop = DOF_start + nGP_face(Nloc)
+    DOF_stop = DOF_stop + nGP_face(Nloc)
 
     HDG_Surf_N(SideID)%lambda(1,:) = lambda_pointer(DOF_start:DOF_stop)
   END DO
