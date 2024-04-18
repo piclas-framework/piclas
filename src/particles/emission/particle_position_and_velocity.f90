@@ -718,10 +718,11 @@ DO Nloc = PP_N, EmissionDistributionN
   ALLOCATE(NED(Nloc)%Coords_NAnalyze(3,0:Nloc,0:Nloc,0:Nloc))
   ALLOCATE(NED(Nloc)%xIP_VISU(0:Nloc))
   ALLOCATE(NED(Nloc)%wIP_VISU(0:Nloc))
-  ALLOCATE(NED(Nloc)%Vdm_N_EQ_emission(0:Nloc,0:Nloc))
+  ALLOCATE(NED(Nloc)%Vdm_N_EQ_emission(0:Nloc,0:PP_N))
 
   ! Allocate and determine Vandermonde mapping from NodeType to equidistant (visu) node set
   CALL GetVandermonde(PP_N, NodeType, Nloc, NodeTypeVISU, NED(Nloc)%Vdm_N_EQ_emission, modal=.FALSE.)
+  ! Required only for integration
   CALL GetNodesAndWeights(Nloc, NodeTypeVISU, NED(Nloc)%xIP_VISU, wIP=NED(Nloc)%wIP_VISU)
 END DO ! Nloc = 1, EmissionDistributionN
 

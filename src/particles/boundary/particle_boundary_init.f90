@@ -778,8 +778,8 @@ DO iSide = 1, nBCSides
   iElem = SideToElem(S2E_ELEM_ID,iSide)
   ! Allocate with polynomial degree of the element
   Nloc = N_DG_Mapping(2,iElem+offSetElem)
-  ALLOCATE(N_SurfVDL(iSide)%E(3,0:Nloc,0:Nloc))
-  N_SurfVDL(iSide)%E = 0.
+  ALLOCATE(N_SurfVDL(iSide)%U(5,0:Nloc,0:Nloc))
+  N_SurfVDL(iSide)%U = 0.
 
   !ALLOCATE(PhotonSampWall(2,1:Ray%nSurfSample,1:Ray%nSurfSample,1:nComputeNodeSurfTotalSides))
   !PhotonSampWall=0.0

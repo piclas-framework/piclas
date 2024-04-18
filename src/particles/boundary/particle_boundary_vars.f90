@@ -309,7 +309,7 @@ LOGICAL              :: DoVirtualDielectricLayer ! Flag set automatically if a V
 REAL, ALLOCATABLE    :: ElementThicknessVDL(:)   ! Thickness of first element layer at a VDL boundary
 
 TYPE, PUBLIC :: VDLSurfMesh
-  REAL,ALLOCATABLE        :: E(:,:,:)   !< E-XYZ positions (first index 1:3) of the Boundary Face Gauss Point
+  REAL,ALLOCATABLE        :: U(:,:,:)   !< Ex,Ey,Ez,PhiF1,PhiF2 positions (first index 1:3) of the Boundary Face Gauss Point
 END TYPE VDLSurfMesh
 
 TYPE(VDLSurfMesh),ALLOCATABLE  :: N_SurfVDL(:) !< Corrected electric field on VDL surfaces
