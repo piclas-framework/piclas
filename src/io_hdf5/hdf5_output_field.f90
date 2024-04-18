@@ -254,6 +254,7 @@ USE MOD_DG_Vars                ,ONLY: N_DG_Mapping
 USE MOD_Particle_Mesh_Tools    ,ONLY: GetGlobalNonUniqueSideID
 USE MOD_Globals_Vars           ,ONLY: ProjectName
 USE MOD_Particle_Boundary_Vars ,ONLY: ElementThicknessVDL
+USE MOD_AnalyzeField           ,ONLY: CalculateElectricPotentialAndFieldBoundaryVDL
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -273,6 +274,9 @@ INTEGER,PARAMETER                   :: nVar2D=3
 REAL                                :: tstart,tend
 REAL, ALLOCATABLE                   :: helpArray(:,:,:,:)
 !===================================================================================================================================
+! Prolong-to-face electric potential and electric field
+CALL CalculateElectricPotentialAndFieldBoundaryVDL()
+
 #if USE_MPI
 !CALL ExchangeRadiationSurfData()
 ! Return if not a sampling leader
@@ -298,12 +302,12 @@ IF (mySurfRank.EQ.0) THEN
   Statedummy = 'VDLSurfState'
   ! Write file header
   CALL WriteHDF5Header(Statedummy,File_ID)
-  CALL WriteAttributeToHDF5(File_ID , 'DSMC_nSurfSample' , 1       , IntegerScalar = NMax        )
+  CALL WriteAttributeToHDF5(File_ID , 'DSMC_nSurfSample' , 1       , IntegerScalar = NMax+1       )
   CALL WriteAttributeToHDF5(File_ID , 'MeshFile'         , 1       , StrScalar     = (/TRIM(MeshFile)/) )
   CALL WriteAttributeToHDF5(File_ID , 'BC_Surf'          , nSurfBC , StrArray      = SurfBCName         )
   CALL WriteAttributeToHDF5(File_ID , 'N'                , 1       , IntegerScalar = NMax        )
   CALL WriteAttributeToHDF5(File_ID , 'NodeType'         , 1       , StrScalar     = (/NodeType/)   )
-  CALL WriteAttributeToHDF5(File_ID , 'Time'             , 1       , RealScalar    = 0.                 )
+  CALL WriteAttributeToHDF5(File_ID , 'Time'             , 1       , RealScalar    = OutputTime                 )
 
   ALLOCATE(Str2DVarNames(1:nVar2D))
   ! fill varnames for total values

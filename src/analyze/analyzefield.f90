@@ -45,10 +45,13 @@ INTERFACE CalcPotentialEnergy_Dielectric
   MODULE PROCEDURE CalcPotentialEnergy_Dielectric
 END INTERFACE
 
-PUBLIC:: CalcPotentialEnergy,CalcPotentialEnergy_Dielectric
-PUBLIC:: AnalyzeField
+PUBLIC :: CalcPotentialEnergy,CalcPotentialEnergy_Dielectric
+PUBLIC :: AnalyzeField
 #if USE_HDG
-PUBLIC:: GetAverageElectricPotentialPlane,CalculateAverageElectricPotential,FinalizeAverageElectricPotential
+PUBLIC :: GetAverageElectricPotentialPlane,CalculateAverageElectricPotential,FinalizeAverageElectricPotential
+#if defined(PARTICLES)
+PUBLIC :: CalculateElectricPotentialAndFieldBoundaryVDL
+#endif /*defined(PARTICLES)*/
 #endif /*USE_HDG*/
 !===================================================================================================================================
 
@@ -280,15 +283,15 @@ IF(CalcEpot)THEN
     CALL CalcPotentialEnergy_Dielectric(WEl,WMag,Wphi,Wpsi)
   ELSE
     CALL CalcPotentialEnergy(WEl,WMag,Wphi,Wpsi)
-  END IF
+  END IF ! DoDielectric
 #else
   IF(DoDielectric)THEN
     CALL CalcPotentialEnergy_Dielectric(WEl)
   ELSE
     CALL CalcPotentialEnergy(WEl)
-  END IF
+  END IF ! DoDielectric
 #endif /*PP_nVar=8*/
-END IF
+END IF ! CalcEpot
 #if (PP_nVar>=6)
 IF(CalcPoyntingInt) CALL CalcPoyntingIntegral(PoyntingIntegral)
 #endif /*PP_nVar>=6*/
@@ -1725,6 +1728,155 @@ SDEALLOCATE(isAverageElecPotSide)
 END SUBROUTINE FinalizeAverageElectricPotential
 
 
+#if defined(PARTICLES)
+SUBROUTINE CalculateElectricPotentialAndFieldBoundaryVDL()
+!===================================================================================================================================
+!> Calculation of the average electric potential with its own Prolong to face // check if Gauss-Lobatto or Gauss Points is used is
+!> missing ... ups
+!>
+!> 1.) Loop over all processor-local BC sides and therein find the local side ID which corresponds to the reference element and
+!      interpolate the vector field Et = (/Etx, Ety, Etz/) to the boundary face
+!> 2.) Apply the normal vector: Uface(1,:,:)=DOT_PRODUCT(Uface(1:3,:,:),NormVec(1:3,:,:,SideID))
+!      Store result of dot product in first array index
+!> 3.) Get BC index and EDC index and the mapping of the SideID boundary to the EDC boundary ID and store the integrated current
+!> 4.) Communicate the integrated current values on each boundary to the MPI root process (the root outputs the values to .csv)
+!===================================================================================================================================
+! MODULES
+USE MOD_Mesh_Vars          ,ONLY: N_SurfMesh,SideToElem,nBCSides,N_SurfMesh,offSetElem
+USE MOD_Interpolation_Vars ,ONLY: N_Inter
+USE MOD_DG_Vars            ,ONLY: U_N,N_DG_Mapping
+#if USE_MPI
+USE MOD_Globals
+#endif
+USE MOD_Particle_Boundary_Vars ,ONLY: N_SurfVDL
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+!----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER          :: ElemID,SideID,ilocSide,Nloc
+INTEGER          :: p,q,l
+REAL,ALLOCATABLE :: Uface(:,:,:)
+!===================================================================================================================================
+! 1.) Loop over all processor-local BC sides and therein find the local side ID which corresponds to the reference element and
+!     interpolate the vector field E = (/Ex, Ey, Ez/) to the boundary face
+DO SideID=1,nBCSides
+  ElemID = SideToElem(S2E_ELEM_ID,SideID)
+  Nloc   = N_DG_Mapping(2,ElemID+offSetElem)
+  ALLOCATE(Uface(1:3,0:Nloc,0:Nloc))
+  ilocSide = SideToElem(S2E_LOC_SIDE_ID,SideID)
+#if (PP_NodeType==1) /* for Gauss-points*/
+  SELECT CASE(ilocSide)
+  CASE(XI_MINUS)
+    DO q=0,Nloc
+      DO p=0,Nloc
+        Uface(:,q,p)=U_N(ElemID)%E(:,0,p,q)*N_Inter(Nloc)%L_Minus(0)
+        DO l=1,Nloc
+          ! switch to right hand system
+          Uface(:,q,p)=Uface(:,q,p)+U_N(ElemID)%E(:,l,p,q)*N_Inter(Nloc)%L_Minus(l)
+        END DO ! l
+      END DO ! p
+    END DO ! q
+  CASE(ETA_MINUS)
+    DO q=0,Nloc
+      DO p=0,Nloc
+        Uface(:,p,q)=U_N(ElemID)%E(:,p,0,q)*N_Inter(Nloc)%L_Minus(0)
+        DO l=1,Nloc
+          Uface(:,p,q)=Uface(:,p,q)+U_N(ElemID)%E(:,p,l,q)*N_Inter(Nloc)%L_Minus(l)
+        END DO ! l
+      END DO ! p
+    END DO ! q
+  CASE(ZETA_MINUS)
+    DO q=0,Nloc
+      DO p=0,Nloc
+        Uface(:,q,p)=U_N(ElemID)%E(:,p,q,0)*N_Inter(Nloc)%L_Minus(0)
+        DO l=1,Nloc
+          ! switch to right hand system
+          Uface(:,q,p)=Uface(:,q,p)+U_N(ElemID)%E(:,p,q,l)*N_Inter(Nloc)%L_Minus(l)
+        END DO ! l
+      END DO ! p
+    END DO ! qfirst stuff
+  CASE(XI_PLUS)
+    DO q=0,Nloc
+      DO p=0,Nloc
+        Uface(:,p,q)=U_N(ElemID)%E(:,0,p,q)*N_Inter(Nloc)%L_Plus(0)
+        DO l=1,Nloc
+          Uface(:,p,q)=Uface(:,p,q)+U_N(ElemID)%E(:,l,p,q)*N_Inter(Nloc)%L_Plus(l)
+        END DO ! l
+      END DO ! p
+    END DO ! q
+  CASE(ETA_PLUS)
+    DO q=0,Nloc
+      DO p=0,Nloc
+        Uface(:,Nloc-p,q)=U_N(ElemID)%E(:,p,0,q)*N_Inter(Nloc)%L_Plus(0)
+        DO l=1,Nloc
+          ! switch to right hand system
+          Uface(:,Nloc-p,q)=Uface(:,Nloc-p,q)+U_N(ElemID)%E(:,p,l,q)*N_Inter(Nloc)%L_Plus(l)
+        END DO ! l
+      END DO ! p
+    END DO ! q
+  CASE(ZETA_PLUS)
+    DO q=0,Nloc
+      DO p=0,Nloc
+        Uface(:,p,q)=U_N(ElemID)%E(:,p,q,0)*N_Inter(Nloc)%L_Plus(0)
+        DO l=1,Nloc
+          Uface(:,p,q)=Uface(:,p,q)+U_N(ElemID)%E(:,p,q,l)*N_Inter(Nloc)%L_Plus(l)
+        END DO ! l
+      END DO ! p
+    END DO ! q
+  END SELECT
+#else /* for Gauss-Lobatto-points*/
+  SELECT CASE(ilocSide)
+  CASE(XI_MINUS)
+    DO q=0,Nloc
+      DO p=0,Nloc
+        Uface(:,q,p)=U_N(ElemID)%E(:,0,p,q)
+      END DO ! p
+    END DO ! q
+  CASE(ETA_MINUS)
+    Uface(:,:,:)=U_N(ElemID)%E(:,:,0,:)
+  CASE(ZETA_MINUS)
+    DO q=0,Nloc
+      DO p=0,Nloc
+        Uface(:,q,p)=U_N(ElemID)%E(:,p,q,0)
+      END DO ! p
+    END DO ! q
+  CASE(XI_PLUS)
+    Uface(:,:,:)=U_N(ElemID)%E(:,Nloc,:,:)
+  CASE(ETA_PLUS)
+    DO q=0,Nloc
+      DO p=0,Nloc
+        Uface(:,Nloc-p,q)=U_N(ElemID)%E(:,p,Nloc,q)
+      END DO ! p
+    END DO ! q
+  CASE(ZETA_PLUS)
+    DO q=0,Nloc
+      DO p=0,Nloc
+        Uface(:,p,q)=U_N(ElemID)%E(:,p,q,Nloc)
+      END DO ! p
+    END DO ! q
+  END SELECT
+#endif
+  ! 2.) Apply the normal vector: Uface(1,:,:)=DOT_PRODUCT(Uface(1:3,:,:),NormVec(1:3,:,:,SideID))
+  !     Store result of dot product in first array index
+  DO q=0,Nloc
+    DO p=0,Nloc
+      ASSOCIATE( E => N_SurfVDL(SideID)%E(1:3,p,q), normal => N_SurfMesh(SideID)%NormVec(1:3,p,q), U => Uface(1:3,p,q))
+        E = DOT_PRODUCT(U,normal)*normal
+      END ASSOCIATE
+    END DO ! p
+  END DO ! q
+
+  DEALLOCATE(Uface)
+END DO ! SideID=1,nBCSides
+
+END SUBROUTINE CalculateElectricPotentialAndFieldBoundaryVDL
+#endif /*defined(PARTICLES)*/
+
+
 SUBROUTINE CalculateElectricDisplacementCurrentSurface()
 !===================================================================================================================================
 !> Calculation of the average electric potential with its own Prolong to face // check if Gauss-Lobatto or Gauss Points is used is
@@ -1745,7 +1897,6 @@ USE MOD_DG_Vars            ,ONLY: U_N,N_DG_Mapping
 #if USE_MPI
 USE MOD_Globals
 #endif
-USE MOD_Particle_Boundary_Vars ,ONLY: N_SurfVDL
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
@@ -1756,8 +1907,7 @@ IMPLICIT NONE
 ! LOCAL VARIABLES
 INTEGER          :: ElemID,SideID,ilocSide,Nloc
 INTEGER          :: p,q,l
-REAL             :: Uface(1:3,0:PP_N,0:PP_N)
-REAL             :: Uface2(1:3,0:PP_N,0:PP_N)
+REAL,ALLOCATABLE :: Uface(:,:,:)
 INTEGER          :: iBC,iEDCBC
 !REAL             :: SIP(0:PP_N,0:PP_N)
 !REAL             :: AverageElectricPotentialProc
@@ -1771,6 +1921,7 @@ EDC%Current = 0.
 DO SideID=1,nBCSides
   ElemID   = SideToElem(S2E_ELEM_ID,SideID)
   Nloc = N_DG_Mapping(2,ElemID+offSetElem)
+  ALLOCATE(Uface(1:3,0:Nloc,0:Nloc))
   ilocSide = SideToElem(S2E_LOC_SIDE_ID,SideID)
 #if (PP_NodeType==1) /* for Gauss-points*/
   SELECT CASE(ilocSide)
@@ -1778,11 +1929,9 @@ DO SideID=1,nBCSides
     DO q=0,Nloc
       DO p=0,Nloc
         Uface(:,q,p)=U_N(ElemID)%Et(:,0,p,q)*N_Inter(Nloc)%L_Minus(0)
-        Uface2(:,q,p)=U_N(ElemID)%E(:,0,p,q)*N_Inter(Nloc)%L_Minus(0)
         DO l=1,Nloc
           ! switch to right hand system
           Uface(:,q,p)=Uface(:,q,p)+U_N(ElemID)%Et(:,l,p,q)*N_Inter(Nloc)%L_Minus(l)
-          Uface2(:,q,p)=Uface2(:,q,p)+U_N(ElemID)%E(:,l,p,q)*N_Inter(Nloc)%L_Minus(l)
         END DO ! l
       END DO ! p
     END DO ! q
@@ -1790,10 +1939,8 @@ DO SideID=1,nBCSides
     DO q=0,Nloc
       DO p=0,Nloc
         Uface(:,p,q)=U_N(ElemID)%Et(:,p,0,q)*N_Inter(Nloc)%L_Minus(0)
-        Uface2(:,p,q)=U_N(ElemID)%E(:,p,0,q)*N_Inter(Nloc)%L_Minus(0)
         DO l=1,Nloc
           Uface(:,p,q)=Uface(:,p,q)+U_N(ElemID)%Et(:,p,l,q)*N_Inter(Nloc)%L_Minus(l)
-          Uface2(:,p,q)=Uface2(:,p,q)+U_N(ElemID)%E(:,p,l,q)*N_Inter(Nloc)%L_Minus(l)
         END DO ! l
       END DO ! p
     END DO ! q
@@ -1801,11 +1948,9 @@ DO SideID=1,nBCSides
     DO q=0,Nloc
       DO p=0,Nloc
         Uface(:,q,p)=U_N(ElemID)%Et(:,p,q,0)*N_Inter(Nloc)%L_Minus(0)
-        Uface2(:,q,p)=U_N(ElemID)%E(:,p,q,0)*N_Inter(Nloc)%L_Minus(0)
         DO l=1,Nloc
           ! switch to right hand system
           Uface(:,q,p)=Uface(:,q,p)+U_N(ElemID)%Et(:,p,q,l)*N_Inter(Nloc)%L_Minus(l)
-          Uface2(:,q,p)=Uface2(:,q,p)+U_N(ElemID)%E(:,p,q,l)*N_Inter(Nloc)%L_Minus(l)
         END DO ! l
       END DO ! p
     END DO ! qfirst stuff
@@ -1813,10 +1958,8 @@ DO SideID=1,nBCSides
     DO q=0,Nloc
       DO p=0,Nloc
         Uface(:,p,q)=U_N(ElemID)%Et(:,0,p,q)*N_Inter(Nloc)%L_Plus(0)
-        Uface2(:,p,q)=U_N(ElemID)%E(:,0,p,q)*N_Inter(Nloc)%L_Plus(0)
         DO l=1,Nloc
           Uface(:,p,q)=Uface(:,p,q)+U_N(ElemID)%Et(:,l,p,q)*N_Inter(Nloc)%L_Plus(l)
-          Uface2(:,p,q)=Uface2(:,p,q)+U_N(ElemID)%E(:,l,p,q)*N_Inter(Nloc)%L_Plus(l)
         END DO ! l
       END DO ! p
     END DO ! q
@@ -1824,11 +1967,9 @@ DO SideID=1,nBCSides
     DO q=0,Nloc
       DO p=0,Nloc
         Uface(:,Nloc-p,q)=U_N(ElemID)%Et(:,p,0,q)*N_Inter(Nloc)%L_Plus(0)
-        Uface2(:,Nloc-p,q)=U_N(ElemID)%E(:,p,0,q)*N_Inter(Nloc)%L_Plus(0)
         DO l=1,Nloc
           ! switch to right hand system
           Uface(:,Nloc-p,q)=Uface(:,Nloc-p,q)+U_N(ElemID)%Et(:,p,l,q)*N_Inter(Nloc)%L_Plus(l)
-          Uface2(:,Nloc-p,q)=Uface2(:,Nloc-p,q)+U_N(ElemID)%E(:,p,l,q)*N_Inter(Nloc)%L_Plus(l)
         END DO ! l
       END DO ! p
     END DO ! q
@@ -1836,10 +1977,8 @@ DO SideID=1,nBCSides
     DO q=0,Nloc
       DO p=0,Nloc
         Uface(:,p,q)=U_N(ElemID)%Et(:,p,q,0)*N_Inter(Nloc)%L_Plus(0)
-        Uface2(:,p,q)=U_N(ElemID)%E(:,p,q,0)*N_Inter(Nloc)%L_Plus(0)
         DO l=1,Nloc
           Uface(:,p,q)=Uface(:,p,q)+U_N(ElemID)%Et(:,p,q,l)*N_Inter(Nloc)%L_Plus(l)
-          Uface2(:,p,q)=Uface2(:,p,q)+U_N(ElemID)%E(:,p,q,l)*N_Inter(Nloc)%L_Plus(l)
         END DO ! l
       END DO ! p
     END DO ! q
@@ -1850,40 +1989,32 @@ DO SideID=1,nBCSides
     DO q=0,Nloc
       DO p=0,Nloc
         Uface(:,q,p)=U_N(ElemID)%Et(:,0,p,q)
-        Uface2(:,q,p)=U_N(ElemID)%E(:,0,p,q)
       END DO ! p
     END DO ! q
   CASE(ETA_MINUS)
     Uface(:,:,:)=U_N(ElemID)%Et(:,:,0,:)
-    Uface2(:,:,:)=U_N(ElemID)%E(:,:,0,:)
   CASE(ZETA_MINUS)
     DO q=0,Nloc
       DO p=0,Nloc
         Uface(:,q,p)=U_N(ElemID)%Et(:,p,q,0)
-        Uface2(:,q,p)=U_N(ElemID)%E(:,p,q,0)
       END DO ! p
     END DO ! q
   CASE(XI_PLUS)
     Uface(:,:,:)=U_N(ElemID)%Et(:,Nloc,:,:)
-    Uface2(:,:,:)=U_N(ElemID)%E(:,Nloc,:,:)
   CASE(ETA_PLUS)
     DO q=0,Nloc
       DO p=0,Nloc
         Uface(:,Nloc-p,q)=U_N(ElemID)%Et(:,p,Nloc,q)
-        Uface2(:,Nloc-p,q)=U_N(ElemID)%E(:,p,Nloc,q)
       END DO ! p
     END DO ! q
   CASE(ZETA_PLUS)
     DO q=0,Nloc
       DO p=0,Nloc
         Uface(:,p,q)=U_N(ElemID)%Et(:,p,q,Nloc)
-        Uface2(:,p,q)=U_N(ElemID)%E(:,p,q,Nloc)
       END DO ! p
     END DO ! q
   END SELECT
 #endif
-  ! For testing
-  IF(ALLOCATED(N_SurfVDL)) N_SurfVDL(SideID)%E = Uface2(:,:,:)
 
   ! 2.) Apply the normal vector: Uface(1,:,:)=DOT_PRODUCT(Uface(1:3,:,:),NormVec(1:3,:,:,SideID))
   !     Store result of dot product in first array index
@@ -1896,7 +2027,8 @@ DO SideID=1,nBCSides
   iEDCBC = EDC%BCIDToEDCBCID(iBC)
   EDC%Current(iEDCBC) = EDC%Current(iEDCBC) + SUM(Uface(1,:,:) * N_SurfMesh(SideID)%SurfElem(:,:) * N_Inter(Nloc)%wGPSurf(:,:))
 
-END DO
+  DEALLOCATE(Uface)
+END DO ! SideID=1,nBCSides
 
 #if USE_MPI
 ! 4.) Communicate the integrated current values on each boundary to the MPI root process (the root outputs the values to .csv)
