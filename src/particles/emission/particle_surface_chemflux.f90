@@ -55,7 +55,7 @@ USE MOD_Timedisc_Vars           ,ONLY: dt
 USE MOD_Particle_Surfaces_Vars  ,ONLY: BCdata_auxSF, SurfFluxSideSize
 USE MOD_Particle_Boundary_Vars  ,ONLY: PartBound, GlobalSide2SurfSide, SurfSideArea, SurfTotalSideOnNode
 USE MOD_SurfaceModel_Vars       ,ONLY: SurfChem, SurfChemReac, ChemWallProp, ChemDesorpWall
-USE MOD_Particle_SurfFlux       ,ONLY: SetSurfacefluxVelocities, CalcPartPosTriaSurface, DefineSideDirectVec2D
+USE MOD_Particle_SurfFlux       ,ONLY: CalcPartPosTriaSurface, DefineSideDirectVec2D
 USE MOD_DSMC_PolyAtomicModel    ,ONLY: DSMC_SetInternalEnr
 #if USE_MPI
 USE MOD_MPI_Shared_vars         ,ONLY: MPI_COMM_SHARED
@@ -85,7 +85,7 @@ REAL                        :: nu, E_act, Coverage, Rate, DissOrder, AdCount
 REAL                        :: BetaCoeff
 REAL                        :: WallTemp
 REAL                        :: SurfMol, SurfMolDens
-INTEGER                     :: iReac, ReactantCount, BoundID, nSF
+INTEGER                     :: iReac, ReactantCount, BoundID
 INTEGER                     :: iVal, iReactant, iValReac, SurfSideID, iBias
 INTEGER                     :: SubP, SubQ
 INTEGER                     :: SurfReacBias(SurfChem%NumOfReact)
@@ -97,15 +97,14 @@ REAL                        :: tLBStart
 IF(.NOT.SurfTotalSideOnNode) RETURN
 
 ! 1.) Determine the surface parameters
-nSF = SurfChem%CatBoundNum
 ! TODO: TrackInfo is only available during tracking
 ! SubP = TrackInfo%p
 ! SubQ = TrackInfo%q
 SubP = 1
 SubQ = 1
 
-DO iSF = 1, nSF
-  BoundID = SurfChem%Surfaceflux(iSF)%BC
+DO iSF = 1, SurfChem%CatBoundNum
+  BoundID = SurfChem%SurfacefluxBC(iSF)
   IF(ANY(SurfChem%PSMap(BoundID)%PureSurfReac)) THEN
 
     DO iSide = 1, BCdata_auxSF(BoundID)%SideNumber
@@ -448,8 +447,8 @@ DO iSF = 1, nSF
                   nPartIn(iSpec) = nPartIn(iSpec) + 1
                   PartEkinIn(iSpec) = PartEkinIn(iSpec)+CalcEkinPart(PartID)
               END IF ! CalcPartBalance
+              CALL SetChemFluxVelocities(PartID,iSpec,iSF,iSample,jSample,BCSideID)
             END DO
-            CALL SetSurfacefluxVelocities(2,iSpec,iSF,iSample,jSample,iSide,BCSideID,SideID,NbrOfParticle,PartInsSubSide)
             PartsEmitted = PartsEmitted + PartInsSubSide
 #if USE_LOADBALANCE
             !used for calculating LoadBalance of tCurrent(LB_SURFFLUX)
@@ -561,14 +560,11 @@ INTEGER                     :: firstSide, lastSide, SideNumber
 INTEGER                     :: iSpec , iSF, iSide, BoundID, SideID
 INTEGER                     :: BCSideID, ElemID, iLocSide
 INTEGER                     :: globElemId
-INTEGER                     :: CatBoundNum
 INTEGER                     :: SurfSideID
 INTEGER                     :: SubP, SubQ
 REAL                        :: Coverage_Sum
 !===================================================================================================================================
 IF(.NOT.SurfTotalSideOnNode) RETURN
-
-CatBoundNum = SurfChem%CatBoundNum
 
 ! TODO: TrackInfo is only available during tracking
 ! SubP = TrackInfo%p
@@ -594,8 +590,8 @@ IF(SurfChem%TotDiffusion) THEN
 
 ! Diffusion over a single reactive boundary
 ELSE IF(SurfChem%Diffusion) THEN
-  DO iSF = 1, CatBoundNum
-    BoundID = SurfChem%Surfaceflux(iSF)%BC
+  DO iSF = 1, SurfChem%CatBoundNum
+    BoundID = SurfChem%SurfacefluxBC(iSF)
     SideNumber = BCdata_auxSF(BoundID)%SideNumber
 
     ! Determine the sum of the coverage on all individual subsides
@@ -676,5 +672,65 @@ END IF
 CalcPartPosAxisym = Particle_pos
 
 END FUNCTION CalcPartPosAxisym
+
+
+!===================================================================================================================================
+!> Chemistry SurfaceFlux: Simplified version of SetSurfacefluxVelocities under the assumption of velocity magnitude = 0
+!===================================================================================================================================
+SUBROUTINE SetChemFluxVelocities(PartID,iSpec,iSF,iSample,jSample,BCSideID)
+! MODULES
+USE MOD_Globals
+USE MOD_Globals_Vars              ,ONLY: PI, BoltzmannConst
+USE MOD_Particle_Vars
+USE MOD_Particle_Boundary_Vars    ,ONLY: PartBound
+USE MOD_Particle_Surfaces_Vars    ,ONLY: SurfMeshSubSideData
+USE MOD_Part_Tools                ,ONLY: InRotRefFrameCheck
+USE MOD_SurfaceModel_Vars         ,ONLY: SurfChem
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+INTEGER,INTENT(IN)               :: PartID
+INTEGER,INTENT(IN)               :: iSpec,iSF,iSample,jSample,BCSideID
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+REAL                             :: Vec3D(3), vec_nIn(1:3), vec_t1(1:3), vec_t2(1:3)
+REAL                             :: RandVal1,RandVal2(2),Velo1,Velo2,Velosq,Temp
+!===================================================================================================================================
+
+Temp = PartBound%WallTemp(SurfChem%SurfacefluxBC(iSF))
+
+vec_nIn(1:3) = SurfMeshSubSideData(iSample,jSample,BCSideID)%vec_nIn(1:3)
+vec_t1(1:3) = SurfMeshSubSideData(iSample,jSample,BCSideID)%vec_t1(1:3)
+vec_t2(1:3) = SurfMeshSubSideData(iSample,jSample,BCSideID)%vec_t2(1:3)
+CALL RANDOM_NUMBER(RandVal1)
+!-- 1.: sample normal directions and build complete velo-vector
+Vec3D(1:3) = vec_nIn(1:3) * SQRT(2.*BoltzmannConst*Temp/Species(iSpec)%MassIC)*SQRT(-LOG(RandVal1))
+Velosq = 2
+DO WHILE ((Velosq .GE. 1.) .OR. (Velosq .EQ. 0.))
+  CALL RANDOM_NUMBER(RandVal2)
+  Velo1 = 2.*RandVal2(1) - 1.
+  Velo2 = 2.*RandVal2(2) - 1.
+  Velosq = Velo1**2 + Velo2**2
+END DO
+Velo1 = Velo1*SQRT(-2*LOG(Velosq)/Velosq)
+Velo2 = Velo2*SQRT(-2*LOG(Velosq)/Velosq)
+Vec3D(1:3) = Vec3D(1:3) + vec_t1(1:3) * (Velo1*SQRT(BoltzmannConst*Temp/Species(iSpec)%MassIC))
+Vec3D(1:3) = Vec3D(1:3) + vec_t2(1:3) * (Velo2*SQRT(BoltzmannConst*Temp/Species(iSpec)%MassIC))
+PartState(4:6,PartID) = Vec3D(1:3)
+
+IF(UseRotRefFrame) THEN
+  ! Detect if particle is within a RotRefDomain
+  PDM%InRotRefFrame(PartID) = InRotRefFrameCheck(PartID)
+  ! Initialize velocity in the rotational frame of reference
+  IF(PDM%InRotRefFrame(PartID)) THEN
+    PartVeloRotRef(1:3,PartID) = PartState(4:6,PartID) - CROSS(RotRefFrameOmega(1:3),PartState(1:3,PartID))
+  END IF
+END IF
+
+END SUBROUTINE SetChemFluxVelocities
+
 
 END MODULE MOD_Particle_SurfChemFlux
