@@ -1791,6 +1791,7 @@ DO SideID=1,nBCSides
   CASE(ZETA_PLUS)
     ilocSide2 = ZETA_MINUS
   END SELECT
+  ! Defaulting to master sides with flip=0 in the following call. However, this only changes the sorting for Gauss-Lobatto
   CALL ProlongToFace_Side(1, Nloc, ilocSide2, 0, U_N(ElemID)%U(1,:,:,:), Uface)
 
   ! 2.) Apply the normal vector to get the normal electric field
