@@ -210,6 +210,7 @@ SDEALLOCATE(SurfChemReac)
 SDEALLOCATE(SurfChem%BoundIsChemSurf)
 SDEALLOCATE(SurfChem%PSMap)
 SDEALLOCATE(SurfChem%EventProbInfo)
+SDEALLOCATE(SurfChem%SurfaceFluxBC)
 #if USE_MPI
 IF(SurfTotalSideOnNode) THEN
   CALL MPI_BARRIER(MPI_COMM_SHARED,iERROR)
