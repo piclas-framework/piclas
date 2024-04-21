@@ -583,7 +583,7 @@ END SUBROUTINE InitSurfaceModelChemistry
 !> 0.) Determine the surface parameters: Coverage and number of surface molecules
 !> 1.) Calculate the sticking coefficient by the Kisliuk model (adsorption)
 !> 2.) Calculate the reaction probability by the Arrhenius equation (bias-free for multiple channels)
-!> 3.) Choose the occuring pathway by comparison with a random number
+!> 3.) Choose the occurring pathway by comparison with a random number
 !> 4.) Perform the chosen process
 !>   a.) Adsorption: delete the incoming particle and update the surface values, for the special case of dissociative adsorption,
 !>       the dissociated half is inserted in the gas phase
@@ -592,7 +592,7 @@ END SUBROUTINE InitSurfaceModelChemistry
 SUBROUTINE SurfaceModelChemistry(PartID,SideID,GlobalElemID,n_Loc,PartPosImpact)
 ! MODULES
 ! ROUTINES / FUNCTIONS
-USE MOD_Globals                   ,ONLY: abort,UNITVECTOR,OrthoNormVec,myRank
+USE MOD_Globals                   ,ONLY: abort,UNITVECTOR,OrthoNormVec
 USE MOD_DSMC_PolyAtomicModel      ,ONLY: DSMC_SetInternalEnr
 USE MOD_part_operations           ,ONLY: RemoveParticle, CreateParticle
 USE MOD_part_tools                ,ONLY: VeloFromDistribution, GetParticleWeight
@@ -948,7 +948,9 @@ END SUBROUTINE SurfaceModelChemistry
 
 
 !===================================================================================================================================
-!>
+!> Perform a simple surface reaction based on a fixed probability
+!> 1.) Check whether species has any reactions to perform at the boundary and select reaction path
+!> 2.) Perform the selected reaction path
 !===================================================================================================================================
 SUBROUTINE SurfaceModelEventProbability(PartID,SideID,GlobalElemID,n_loc,PartPosImpact)
 ! MODULES
@@ -1004,7 +1006,7 @@ END IF
 IF(SurfChem%EventProbInfo(SpecID)%NumOfReactionPaths.EQ.0) THEN
   PathTodo = 0
 ELSE
-! 2a.) Determine which reaction path to follow
+! 1a.) Determine which reaction path to follow
   CALL RANDOM_NUMBER(RanNum)
   DO iPath = 1, SurfChem%EventProbInfo(SpecID)%NumOfReactionPaths
     TotalProb = TotalProb + SurfChem%EventProbInfo(SpecID)%ReactionProb(iPath)
@@ -1015,6 +1017,7 @@ ELSE
   END DO
 END IF
 
+! 2.) Perform the selected reaction path
 IF(PathTodo.GT.0) THEN
   ReacTodo = SurfChem%EventProbInfo(SpecID)%ReactionIndex(PathTodo)
   NumProd = COUNT(SurfChemReac(ReacTodo)%Products(:).GT.0)
