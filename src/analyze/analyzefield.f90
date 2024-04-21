@@ -1857,13 +1857,14 @@ SUBROUTINE CalculateElectricDisplacementCurrentSurface()
 !> 4.) Communicate the integrated current values on each boundary to the MPI root process (the root outputs the values to .csv)
 !===================================================================================================================================
 ! MODULES
+#if USE_MPI
+USE MOD_Globals
+#endif
 USE MOD_Mesh_Vars          ,ONLY: N_SurfMesh,SideToElem,nBCSides,N_SurfMesh,BC, offSetElem
 USE MOD_Analyze_Vars       ,ONLY: EDC
 USE MOD_Interpolation_Vars ,ONLY: N_Inter
 USE MOD_DG_Vars            ,ONLY: U_N,N_DG_Mapping
-#if USE_MPI
-USE MOD_Globals
-#endif
+USE MOD_ProlongToFace      ,ONLY: ProlongToFace_Side
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
@@ -1873,7 +1874,6 @@ IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER          :: ElemID,SideID,ilocSide,Nloc
-INTEGER          :: p,q,l
 REAL,ALLOCATABLE :: Uface(:,:,:)
 INTEGER          :: iBC,iEDCBC
 !REAL             :: SIP(0:PP_N,0:PP_N)
@@ -1890,98 +1890,7 @@ DO SideID=1,nBCSides
   Nloc = N_DG_Mapping(2,ElemID+offSetElem)
   ALLOCATE(Uface(1:3,0:Nloc,0:Nloc))
   ilocSide = SideToElem(S2E_LOC_SIDE_ID,SideID)
-#if (PP_NodeType==1) /* for Gauss-points*/
-  SELECT CASE(ilocSide)
-  CASE(XI_MINUS)
-    DO q=0,Nloc
-      DO p=0,Nloc
-        Uface(:,q,p)=U_N(ElemID)%Et(:,0,p,q)*N_Inter(Nloc)%L_Minus(0)
-        DO l=1,Nloc
-          ! switch to right hand system
-          Uface(:,q,p)=Uface(:,q,p)+U_N(ElemID)%Et(:,l,p,q)*N_Inter(Nloc)%L_Minus(l)
-        END DO ! l
-      END DO ! p
-    END DO ! q
-  CASE(ETA_MINUS)
-    DO q=0,Nloc
-      DO p=0,Nloc
-        Uface(:,p,q)=U_N(ElemID)%Et(:,p,0,q)*N_Inter(Nloc)%L_Minus(0)
-        DO l=1,Nloc
-          Uface(:,p,q)=Uface(:,p,q)+U_N(ElemID)%Et(:,p,l,q)*N_Inter(Nloc)%L_Minus(l)
-        END DO ! l
-      END DO ! p
-    END DO ! q
-  CASE(ZETA_MINUS)
-    DO q=0,Nloc
-      DO p=0,Nloc
-        Uface(:,q,p)=U_N(ElemID)%Et(:,p,q,0)*N_Inter(Nloc)%L_Minus(0)
-        DO l=1,Nloc
-          ! switch to right hand system
-          Uface(:,q,p)=Uface(:,q,p)+U_N(ElemID)%Et(:,p,q,l)*N_Inter(Nloc)%L_Minus(l)
-        END DO ! l
-      END DO ! p
-    END DO ! qfirst stuff
-  CASE(XI_PLUS)
-    DO q=0,Nloc
-      DO p=0,Nloc
-        Uface(:,p,q)=U_N(ElemID)%Et(:,0,p,q)*N_Inter(Nloc)%L_Plus(0)
-        DO l=1,Nloc
-          Uface(:,p,q)=Uface(:,p,q)+U_N(ElemID)%Et(:,l,p,q)*N_Inter(Nloc)%L_Plus(l)
-        END DO ! l
-      END DO ! p
-    END DO ! q
-  CASE(ETA_PLUS)
-    DO q=0,Nloc
-      DO p=0,Nloc
-        Uface(:,Nloc-p,q)=U_N(ElemID)%Et(:,p,0,q)*N_Inter(Nloc)%L_Plus(0)
-        DO l=1,Nloc
-          ! switch to right hand system
-          Uface(:,Nloc-p,q)=Uface(:,Nloc-p,q)+U_N(ElemID)%Et(:,p,l,q)*N_Inter(Nloc)%L_Plus(l)
-        END DO ! l
-      END DO ! p
-    END DO ! q
-  CASE(ZETA_PLUS)
-    DO q=0,Nloc
-      DO p=0,Nloc
-        Uface(:,p,q)=U_N(ElemID)%Et(:,p,q,0)*N_Inter(Nloc)%L_Plus(0)
-        DO l=1,Nloc
-          Uface(:,p,q)=Uface(:,p,q)+U_N(ElemID)%Et(:,p,q,l)*N_Inter(Nloc)%L_Plus(l)
-        END DO ! l
-      END DO ! p
-    END DO ! q
-  END SELECT
-#else /* for Gauss-Lobatto-points*/
-  SELECT CASE(ilocSide)
-  CASE(XI_MINUS)
-    DO q=0,Nloc
-      DO p=0,Nloc
-        Uface(:,q,p)=U_N(ElemID)%Et(:,0,p,q)
-      END DO ! p
-    END DO ! q
-  CASE(ETA_MINUS)
-    Uface(:,:,:)=U_N(ElemID)%Et(:,:,0,:)
-  CASE(ZETA_MINUS)
-    DO q=0,Nloc
-      DO p=0,Nloc
-        Uface(:,q,p)=U_N(ElemID)%Et(:,p,q,0)
-      END DO ! p
-    END DO ! q
-  CASE(XI_PLUS)
-    Uface(:,:,:)=U_N(ElemID)%Et(:,Nloc,:,:)
-  CASE(ETA_PLUS)
-    DO q=0,Nloc
-      DO p=0,Nloc
-        Uface(:,Nloc-p,q)=U_N(ElemID)%Et(:,p,Nloc,q)
-      END DO ! p
-    END DO ! q
-  CASE(ZETA_PLUS)
-    DO q=0,Nloc
-      DO p=0,Nloc
-        Uface(:,p,q)=U_N(ElemID)%Et(:,p,q,Nloc)
-      END DO ! p
-    END DO ! q
-  END SELECT
-#endif
+  CALL ProlongToFace_Side(3, Nloc, ilocSide, 0, U_N(ElemID)%Et, Uface)
 
   ! 2.) Apply the normal vector: Uface(1,:,:)=DOT_PRODUCT(Uface(1:3,:,:),NormVec(1:3,:,:,SideID))
   !     Store result of dot product in first array index
