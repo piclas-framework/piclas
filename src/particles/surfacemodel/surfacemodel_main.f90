@@ -59,6 +59,7 @@ USE MOD_Particle_Vars             ,ONLY: UseCircularInflow
 USE MOD_Dielectric_Vars           ,ONLY: DoDielectricSurfaceCharge
 USE MOD_DSMC_Vars                 ,ONLY: DSMC, SamplingActive, RadialWeighting
 USE MOD_SurfaceModel_Analyze_Vars ,ONLY: CalcSurfCollCounter, SurfAnalyzeCount, SurfAnalyzeNumOfAds, SurfAnalyzeNumOfDes
+USE MOD_SurfaceModel_Analyze_Vars ,ONLY: CalcBoundaryParticleOutput
 USE MOD_SurfaceModel_Tools        ,ONLY: MaxwellScattering, SurfaceModelParticleEmission
 USE MOD_SurfaceModel_Chemistry    ,ONLY: SurfaceModelChemistry, SurfaceModelEventProbability
 USE MOD_SEE                       ,ONLY: SecondaryElectronEmission
@@ -68,6 +69,7 @@ USE MOD_PICDepo_Tools             ,ONLY: DepositParticleOnNodes
 USE MOD_part_operations           ,ONLY: RemoveParticle, CreateParticle
 USE MOD_part_tools                ,ONLY: CalcRadWeightMPF, VeloFromDistribution, GetParticleWeight
 USE MOD_PICDepo_Vars              ,ONLY: DoDeposition
+USE MOD_Part_Operations           ,ONLY: UpdateBPO
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -219,7 +221,11 @@ CASE (SEE_MODELS_ID)
 !-----------------------------------------------------------------------------------------------------------------------------------
 CASE (99)  ! Virtual dielectric layer
 !-----------------------------------------------------------------------------------------------------------------------------------
-  CALL VirtualDielectricLayerDisplacement(PartID,SideID,n_Loc,GlobalElemID)
+  ! Check if BPO boundary is encountered: Do this here because the BC info is lost during MPI communication of these particles
+  IF(CalcBoundaryParticleOutput) CALL UpdateBPO(PartID,SideID)
+  ! This routines changes the species index and before the particle is deposited and removed, the species index cannot be used
+  ! anymore
+  CALL VirtualDielectricLayerDisplacement(PartID,SideID,n_Loc)
 CASE DEFAULT
   CALL abort(__STAMP__,'Unknown surface model. PartBound%SurfaceModel(locBCID) = ',IntInfoOpt=PartBound%SurfaceModel(locBCID))
 END SELECT
@@ -273,7 +279,6 @@ IF(DoSample) THEN
 END IF
 
 END SUBROUTINE SurfaceModelling
-
 
 SUBROUTINE SpeciesSwap(PartID,SideID,targetSpecies_IN)
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -377,7 +382,7 @@ END SUBROUTINE SurfaceFluxBasedBoundaryTreatment
 !> flag such particles so that later, after MPI communication, they can be deleted and deposited at the target position to form a
 !> surface charge on a (virtual) dielectric layer.
 !===================================================================================================================================
-SUBROUTINE VirtualDielectricLayerDisplacement(PartID,SideID,n_Loc,GlobalElemID)
+SUBROUTINE VirtualDielectricLayerDisplacement(PartID,SideID,n_Loc)
 ! MODULES
 USE MOD_Globals                ,ONLY: VECNORM
 USE MOD_Particle_Vars          ,ONLY: SpeciesOffsetVDL
@@ -390,7 +395,7 @@ IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! INPUT / OUTPUT VARIABLES
 REAL,INTENT(IN)    :: n_loc(1:3)
-INTEGER,INTENT(IN) :: PartID, SideID, GlobalElemID
+INTEGER,INTENT(IN) :: PartID, SideID
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER :: iPartBound

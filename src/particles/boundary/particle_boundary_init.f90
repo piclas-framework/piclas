@@ -495,7 +495,7 @@ DO iPartBound=1,nPartBound
         ! SEE models require reactive BC
         PartBound%Reactive(iPartBound)        = .TRUE.
       CASE (99) ! VDL - cannot be actively selected!
-        CALL abort(__STAMP__,'Part-Boundary'//TRIM(hilf)//'-SurfaceModel = 2 cannot be selected!')
+        CALL abort(__STAMP__,'Part-Boundary'//TRIM(hilf)//'-SurfaceModel = 99 cannot be selected!')
       CASE DEFAULT
         CALL abort(__STAMP__,'Error in particle init: only allowed SurfaceModels: 0,1,20,SEE_MODELS_ID! SurfaceModel=',&
                   IntInfoOpt=PartBound%SurfaceModel(iPartBound))

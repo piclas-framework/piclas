@@ -874,6 +874,8 @@ DO iBPO = 1, BPO%NPartBoundaries
         ! Event probability model
       CASE(SEE_MODELS_ID)
         ! all secondary electron models
+      CASE (99)
+        ! VDL - virtual dielectric layer
       CASE DEFAULT
         WRITE(UNIT=hilf,FMT='(I0)') iPartBound
         CALL CollectiveStop(__STAMP__,'CalcBoundaryParticleOutput not implemented for '//&

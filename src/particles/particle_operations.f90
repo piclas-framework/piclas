@@ -27,6 +27,7 @@ PRIVATE
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
 PUBLIC :: CreateParticle, RemoveParticle
 PUBLIC :: RemoveAllElectrons
+PUBLIC :: UpdateBPO
 !===================================================================================================================================
 
 CONTAINS
@@ -256,14 +257,14 @@ IF(PRESENT(BCID)) THEN
   END IF ! UseNeutralization
 
   ! Check if BPO boundary is encountered
-  IF(CalcBoundaryParticleOutput)THEN
-    ASSOCIATE( iBPOBC   => BPO%BCIDToBPOBCID(BCID),&
-               iBPOSpec => BPO%SpecIDToBPOSpecID(iSpec))
-      IF(iBPOBC.GT.0.AND.iBPOSpec.GT.0)THEN! count this species on this BC
-        BPO%RealPartOut(iBPOBC,iBPOSpec) = BPO%RealPartOut(iBPOBC,iBPOSpec) + MPF
-      END IF ! iBPOBC.GT.0.AND.iBPOSpec.GT.0
-    END ASSOCIATE
-  END IF ! CalcBoundaryParticleOutput
+  IF(CalcBoundaryParticleOutput) CALL UpdateBPO(-1,-1,MPF,iSpec,BCID)
+  !  ASSOCIATE( iBPOBC   => BPO%BCIDToBPOBCID(BCID),&
+  !             iBPOSpec => BPO%SpecIDToBPOSpecID(iSpec))
+  !    IF(iBPOBC.GT.0.AND.iBPOSpec.GT.0)THEN! count this species on this BC
+  !      BPO%RealPartOut(iBPOBC,iBPOSpec) = BPO%RealPartOut(iBPOBC,iBPOSpec) + MPF
+  !    END IF ! iBPOBC.GT.0.AND.iBPOSpec.GT.0
+  !  END ASSOCIATE
+  !END IF ! CalcBoundaryParticleOutput
 
 #if USE_HDG
   ! Check if floating boundary conditions (FPC) are used
@@ -361,5 +362,66 @@ END IF ! BRNbrOfElectronsRemove.GT.0
 #endif /*USE_HDG*/
 
 END SUBROUTINE RemoveAllElectrons
+
+
+!===================================================================================================================================
+!> Update the BPO containers, e.g., when particles interact with a boundary
+!===================================================================================================================================
+SUBROUTINE UpdateBPO(PartID,SideID,MPF,iSpec,iPartBound)
+! MODULES
+USE MOD_Particle_Vars             ,ONLY: PartSpecies,Species,usevMPF
+USE MOD_SurfaceModel_Analyze_Vars ,ONLY: BPO
+USE MOD_DSMC_Vars                 ,ONLY: RadialWeighting
+USE MOD_Particle_Boundary_Vars    ,ONLY: PartBound
+USE MOD_Particle_Mesh_Vars        ,ONLY: SideInfo_Shared
+USE MOD_part_tools                ,ONLY: GetParticleWeight
+IMPLICIT NONE
+!----------------------------------------------------------------------------------------------------------------------------------!
+! INPUT / OUTPUT VARIABLES
+INTEGER,INTENT(IN)          :: PartID, SideID
+REAL,INTENT(IN),OPTIONAL    :: MPF
+INTEGER,INTENT(IN),OPTIONAL :: iSpec,iPartBound
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+REAL    :: MPFloc   !< macro-particle factor
+INTEGER :: iSpecloc !< species ID
+INTEGER :: iPartBoundloc !< particle boundary index
+!===================================================================================================================================
+! Check vMPF
+IF(PRESENT(MPF))THEN
+  MPFloc = MPF
+ELSE
+  IF(usevMPF.OR.RadialWeighting%DoRadialWeighting) THEN
+    MPFloc = GetParticleWeight(PartID)
+  ELSE
+    MPFloc = GetParticleWeight(PartID) * Species(PartSpecies(PartID))%MacroParticleFactor
+  END IF
+END IF ! PRESENT(MPF)
+
+! Check species index
+IF(PRESENT(iSpec))THEN
+  iSpecloc = iSpec
+ELSE
+  iSpecloc = PartSpecies(PartID)
+END IF ! PRESENT(MPF)
+
+! Check particle boundary index
+IF(PRESENT(iPartBound))THEN
+  iPartBoundloc = iPartBound
+ELSE
+  iPartBoundloc = PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID))
+END IF ! PRESENT(MPF)
+
+! Update RealPartOut
+ASSOCIATE( iBPOBC   => BPO%BCIDToBPOBCID(iPartBoundloc),&
+           iBPOSpec => BPO%SpecIDToBPOSpecID(iSpecloc))
+  IF(iBPOBC.GT.0.AND.iBPOSpec.GT.0)THEN! count this species on this BC
+    BPO%RealPartOut(iBPOBC,iBPOSpec) = BPO%RealPartOut(iBPOBC,iBPOSpec) + MPFloc
+  END IF ! iBPOBC.GT.0.AND.iBPOSpec.GT.0
+END ASSOCIATE
+
+END SUBROUTINE UpdateBPO
+
+
 
 END MODULE MOD_part_operations
