@@ -621,7 +621,7 @@ IF(PartBound%UseInterPlaneBC) CALL InitParticleBoundaryInterPlane()
 !-- Floating Potential
 ALLOCATE(BCdata_auxSF(1:nPartBound))
 DO iPartBound=1,nPartBound
-  BCdata_auxSF(iPartBound)%SideNumber=-1 !init value when not used
+  BCdata_auxSF(iPartBound)%SideNumber=-1 ! initial value deactivates the mapping of sides (when required for surface flux is set to 0)
   BCdata_auxSF(iPartBound)%GlobalArea=0.
   BCdata_auxSF(iPartBound)%LocalArea=0.
 END DO

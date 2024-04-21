@@ -32,6 +32,7 @@ SUBROUTINE TimeStep_DSMC()
 !> Direct Simulation Monte Carlo
 !===================================================================================================================================
 ! MODULES
+USE MOD_Globals
 USE MOD_PreProc
 USE MOD_TimeDisc_Vars            ,ONLY: dt, IterDisplayStep, iter, TEnd, Time
 #ifdef PARTICLES
@@ -49,6 +50,7 @@ USE MOD_Particle_SurfFlux        ,ONLY: ParticleSurfaceflux
 USE MOD_Particle_SurfChemFlux
 USE MOD_Particle_Tracking_vars   ,ONLY: tTracking,MeasureTrackTime
 USE MOD_Particle_Tracking        ,ONLY: PerformTracking
+USE MOD_SurfaceModel_Chemistry   ,ONLY: SurfChemCoverage
 USE MOD_SurfaceModel_Porous      ,ONLY: PorousBoundaryRemovalProb_Pressure
 USE MOD_SurfaceModel_Vars        ,ONLY: nPorousBC, DoChemSurface
 USE MOD_vMPF                     ,ONLY: SplitAndMerge
@@ -57,8 +59,9 @@ USE MOD_part_pos_and_velo        ,ONLY: SetParticleVelocity
 USE MOD_Part_Tools               ,ONLY: InRotRefFrameCheck
 USE MOD_Part_Tools               ,ONLY: CalcPartSymmetryPos
 #if USE_MPI
-USE MOD_Particle_MPI             ,ONLY: IRecvNbOfParticles, MPIParticleSend,MPIParticleRecv,SendNbOfparticles
 USE MOD_Particle_MPI_Boundary_Sampling, ONLY: ExchangeChemSurfData
+USE MOD_SurfaceModel_Chemistry   ,ONLY: ExchangeSurfChemCoverage
+USE MOD_Particle_MPI             ,ONLY: IRecvNbOfParticles, MPIParticleSend,MPIParticleRecv,SendNbOfparticles
 #endif /*USE_MPI*/
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Timers       ,ONLY: LBStartTime,LBSplitTime,LBPauseTime
@@ -107,12 +110,14 @@ IF (DoChemSurface) THEN
 #if USE_MPI
   CALL ExchangeChemSurfData()
 #endif /*USE_MPI*/
-
+  CALL SurfChemCoverage()
   IF (time.GT.0.0) THEN
     CALL ParticleSurfChemFlux()
     CALL ParticleSurfDiffusion()
   END IF
-
+#if USE_MPI
+  CALL ExchangeSurfChemCoverage()
+#endif /*USE_MPI*/
 END IF
 
 #if USE_LOADBALANCE

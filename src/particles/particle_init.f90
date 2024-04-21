@@ -586,12 +586,8 @@ IF(Symmetry%Axisymmetric) THEN
     RadialWeighting%PerformCloning = .TRUE.
     CALL DSMC_2D_InitRadialWeighting()
   END IF
-  IF(TrackingMethod.NE.TRIATRACKING) CALL abort(&
-    __STAMP__&
-    ,'ERROR: Axisymmetric simulation only supported with TrackingMethod = triatracking')
-  IF(.NOT.TriaSurfaceFlux) CALL abort(&
-    __STAMP__&
-    ,'ERROR: Axisymmetric simulation only supported with TriaSurfaceFlux = T')
+  IF(TrackingMethod.NE.TRIATRACKING) CALL abort(__STAMP__,'ERROR: Axisymmetric simulation only supported with TrackingMethod = triatracking')
+  IF(.NOT.TriaSurfaceFlux) CALL abort(__STAMP__,'ERROR: Axisymmetric simulation only supported with TriaSurfaceFlux = T')
 END IF
 
 #if USE_MPI
@@ -1437,6 +1433,7 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
+INTEGER                   :: iSpec, iSF
 !===================================================================================================================================
 !#if USE_MPI
 !CALL FinalizeEmissionParticlesToProcs()
@@ -1488,6 +1485,20 @@ SDEALLOCATE(CellEelec_vMPF)
 SDEALLOCATE(CellEvib_vMPF)
 SDEALLOCATE(PartMPF)
 SDEALLOCATE(InterPlanePartIndx)
+DO iSpec = 1, nSpecies
+  DO iSF=1, Species(iSpec)%nSurfacefluxBCs
+    SDEALLOCATE(Species(iSpec)%Surfaceflux(iSF)%SurfFluxSubSideData)
+    SDEALLOCATE(Species(iSpec)%Surfaceflux(iSF)%SurfFluxSideRejectType)
+    SDEALLOCATE(Species(iSpec)%Surfaceflux(iSF)%nVFRSub)
+    SDEALLOCATE(Species(iSpec)%Surfaceflux(iSF)%VFR_total_allProcs)
+    SDEALLOCATE(Species(iSpec)%Surfaceflux(iSF)%ConstMassflowWeight)
+    SDEALLOCATE(Species(iSpec)%Surfaceflux(iSF)%CircleAreaPerTriaSide)
+  END DO
+  IF(ASSOCIATED(Species(iSpec)%Surfaceflux)) THEN
+    DEALLOCATE(Species(iSpec)%Surfaceflux)
+    NULLIFY(Species(iSpec)%Surfaceflux)
+  END IF
+END DO
 SDEALLOCATE(Species)
 SDEALLOCATE(SpecReset)
 SDEALLOCATE(IMDSpeciesID)
