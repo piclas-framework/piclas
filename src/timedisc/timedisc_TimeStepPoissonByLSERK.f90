@@ -73,6 +73,7 @@ USE MOD_LoadBalance_Timers     ,ONLY: LBStartTime,LBSplitTime,LBPauseTime
 #endif /*USE_LOADBALANCE*/
 USE MOD_Dielectric_Vars        ,ONLY: DoDielectricSurfaceCharge
 USE MOD_Particle_Boundary_Vars ,ONLY: DoVirtualDielectricLayer
+USE MOD_PICDepo                ,ONLY: DepositVirtualDielectricLayerParticles
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
