@@ -527,10 +527,16 @@ CALL LBStartTime(tLBStart)
 #endif /*USE_LOADBALANCE*/
 IF (MeasureTrackTime) nTracks=nTracks+1
 PartisDone = .FALSE.
-ElemID = PEM%LastGlobalElemID(i)
+IF (PEM%LastGlobalElemID(i).LE.0) THEN
+  LastSide = -PEM%LastGlobalElemID(i)
+  ElemID = PEM%GlobalElemID(i)
+ELSE
+  ElemID = PEM%LastGlobalElemID(i)
+  LastSide = 0
+END IF
 TrackInfo%CurrElem=ElemID
 SideID = 0
-LastSide = 0
+
 ! 2) Loop tracking until particle is considered "done" (either localized or deleted)
 DO WHILE (.NOT.PartisDone)
   ! 2a) Perform a check based on the determinant of (3x3) matrix of the vectors from the particle position to the nodes of each
