@@ -277,7 +277,7 @@ SUBROUTINE RotPeriodicBoundary(PartID,SideID,ElemID)
 USE MOD_Globals
 USE MOD_Mesh_Tools              ,ONLY: GetCNElemID
 USE MOD_Particle_Intersection   ,ONLY: IntersectionWithWall, ParticleThroughSideCheck3DFast
-USE MOD_Particle_Mesh_Tools     ,ONLY: ParticleInsideQuad3D
+USE MOD_Particle_Mesh_Tools     ,ONLY: ParticleInsideQuad
 USE MOD_Particle_Mesh_Vars      ,ONLY: ElemInfo_Shared, SideInfo_Shared, ElemSideNodeID_Shared, NodeCoords_Shared
 USE MOD_Particle_Vars           ,ONLY: PartState,LastPartPos,Species,PartSpecies,PartVeloRotRef,PDM
 USE MOD_Particle_Boundary_Vars  ,ONLY: PartBound
@@ -424,7 +424,7 @@ IF(.NOT.ParticleFound) THEN
   ! Fallback tracking: Check whether the rotated particle position with a tolerance can be found with the domain
   DO iNeigh=1,NumRotPeriodicNeigh(RotSideID)
     newElemID = RotPeriodicSideMapping(RotSideID,iNeigh)
-    CALL ParticleInsideQuad3D(PartState_rot_tol(1:3),newElemID,ParticleFound)
+    CALL ParticleInsideQuad(PartState_rot_tol(1:3),newElemID,ParticleFound)
     IF(ParticleFound) THEN
       PartState(1:3,PartID) = PartState_rot_tol(1:3)
       ElemID = newElemID

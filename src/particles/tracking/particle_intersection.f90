@@ -49,7 +49,7 @@ PUBLIC :: ComputePlanarRectInterSection
 PUBLIC :: ComputePlanarCurvedIntersection
 PUBLIC :: ComputeBilinearIntersection
 PUBLIC :: ComputeCurvedIntersection
-PUBLIC :: ParticleThroughSideCheck3DFast
+PUBLIC :: ParticleThroughSideCheck3DFast, ParticleThroughSideCheck2D
 PUBLIC :: ParticleThroughSideLastPosCheck
 #ifdef CODE_ANALYZE
 PUBLIC :: OutputTrajectory
@@ -252,6 +252,90 @@ END IF
 RETURN
 
 END SUBROUTINE ParticleThroughSideCheck3DFast
+
+
+SUBROUTINE ParticleThroughSideCheck2D(PartID,iLocSide,Element,ThroughSide)
+!===================================================================================================================================
+!> Routine to check whether a particle crossed the given triangle of a side. The determinant between the normalized trajectory
+!> vector and the vectors from two of the three nodes to the old particle position is calculated. If the determinants for the three
+!> possible combinations are greater than zero, then the particle went through this triangle of the side.
+!> Note that if this is a mortar side, the side of the small neighbouring mortar element has to be checked. Thus, the orientation
+!> is reversed.
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals                   ,ONLY: VECNORM2D
+USE MOD_Globals_Vars              ,ONLY: EpsMach
+USE MOD_Particle_Vars             ,ONLY: lastPartPos,PartState
+USE MOD_Particle_Mesh_Vars        ,ONLY: NodeCoords_Shared, ElemSideNodeID2D_Shared
+USE MOD_Mesh_Tools                ,ONLY: GetCNElemID
+USE MOD_Particle_Tracking_Vars    ,ONLY: TrackInfo
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+INTEGER,INTENT(IN)               :: PartID
+INTEGER,INTENT(IN)               :: iLocSide
+INTEGER,INTENT(IN)               :: Element
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+LOGICAL,INTENT(OUT)              :: ThroughSide
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER                          :: CNElemID
+REAL                             :: xNode(2), yNode(2), POI(2) , locAlpha, VecPart(2), VecEdge(2)
+REAL                             :: t(2),tmpPoint, PartP1(2), PartP2(2),denominator
+!===================================================================================================================================
+
+CNElemID = GetCNElemID(Element)
+
+ThroughSide = .FALSE.
+
+! Get the coordinates of the first node and the vector from the particle position to the node
+xNode(1) = NodeCoords_Shared(1,ElemSideNodeID2D_Shared(1,iLocSide, CNElemID))
+xNode(2) = NodeCoords_Shared(1,ElemSideNodeID2D_Shared(2,iLocSide, CNElemID))
+IF (xNode(1).GT.xNode(2)) THEN
+  tmpPoint = xNode(1)
+  xNode(1) = xNode(2)
+  xNode(2) = tmpPoint
+  yNode(2) = NodeCoords_Shared(2,ElemSideNodeID2D_Shared(1,iLocSide, CNElemID))
+  yNode(1) = NodeCoords_Shared(2,ElemSideNodeID2D_Shared(2,iLocSide, CNElemID))
+ELSE
+  yNode(1) = NodeCoords_Shared(2,ElemSideNodeID2D_Shared(1,iLocSide, CNElemID))
+  yNode(2) = NodeCoords_Shared(2,ElemSideNodeID2D_Shared(2,iLocSide, CNElemID))
+END IF
+
+IF (LastPartPos(1,PartID).LT.PartState(1,PartID)) THEN
+  PartP1(1:2)=LastPartPos(1:2,PartID)
+  PartP2(1:2)=PartState(1:2,PartID)
+ELSE
+  PartP2(1:2)=LastPartPos(1:2,PartID)
+  PartP1(1:2)=PartState(1:2,PartID)
+END IF
+VecPart = PartP2-PartP1
+VecEdge(1) = xNode(2)-xNode(1)
+VecEdge(2) = yNode(2)-yNode(1) 
+denominator = VecPart(1)*VecEdge(2) - VecPart(2)*VecEdge(1)
+
+! Check if the lines are parallel
+IF (ABS(denominator).LT.EpsMach) RETURN
+
+t(1) = ((xNode(1)-PartP1(1))*VecEdge(2)-(yNode(1)-PartP1(2))*VecEdge(1))/denominator
+t(2) = ((xNode(1)-PartP1(1))*VecPart(2)-(yNode(1)-PartP1(2))*VecPart(1))/denominator
+
+! Check if intersection point is within line segments
+IF (t(1) >= 0.0 .AND. t(1) <= 1.0 .AND. t(2) >= 0.0 .AND. t(2) <= 1.0) THEN
+  ! Calculate intersection point
+  POI(1:2) =  PartP1 + t(1)*VecPart
+  POI = POI - LastPartPos(1:2,PartID)
+
+  locAlpha = VECNORM2D(POI)
+  IF (locAlpha.LE.TrackInfo%lengthPartTrajectory) THEN
+    ThroughSide = .TRUE.
+    TrackInfo%alpha = locAlpha 
+  END IF
+END IF
+
+END SUBROUTINE ParticleThroughSideCheck2D
 
 
 SUBROUTINE ParticleThroughSideLastPosCheck(i,iLocSide,Element,InElementCheck,TriNum,det,isMortarSide,detPartPos)

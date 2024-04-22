@@ -665,7 +665,7 @@ DO iPart = 1, RadialWeighting%ClonePartNum(DelayCounter)
   PEM%GlobalElemID(PositionNbr) = ClonedParticles(iPart,DelayCounter)%Element
   PEM%LastGlobalElemID(PositionNbr) = PEM%GlobalElemID(PositionNbr)
   locElemID = PEM%LocalElemID(PositionNbr)
-  LastPartPos(1:3,PositionNbr) = ClonedParticles(iPart,DelayCounter)%LastPartPos(1:3)
+  LastPartPos(1:3,PositionNbr) = PartState(1:3,PositionNbr)
   PartMPF(PositionNbr) =  ClonedParticles(iPart,DelayCounter)%WeightingFactor
   IF (UseVarTimeStep) THEN
     PartTimeStep(PositionNbr) = GetParticleTimeStep(PartState(1,PositionNbr),PartState(2,PositionNbr),locElemID)

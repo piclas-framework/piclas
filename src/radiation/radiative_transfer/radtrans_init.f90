@@ -83,7 +83,6 @@ USE MOD_Mesh_Tools                 ,ONLY: GetGlobalElemID
 USE MOD_Particle_Vars              ,ONLY: Symmetry, nSpecies
 USE MOD_MPI_Shared_Vars
 USE MOD_MPI_Shared
-USE MOD_Particle_Mesh_Build        ,ONLY: BuildMesh2DInfo
 USE MOD_SuperB_Tools               ,ONLY: FindLinIndependentVectors, GramSchmidtAlgo
 #if USE_MPI
 USE MOD_RadiationTrans_Vars        ,ONLY: RadTransObsVolumeFrac_Shared_Win, RadTransObsVolumeFrac_Shared
@@ -166,7 +165,6 @@ IF (RadObservationPointMethod.GT.0) THEN
   END IF
 END IF
 
-IF(Symmetry%Order.EQ.2) CALL BuildMesh2DInfo()
 IF (RadObservationPointMethod.GT.0) THEN
   ALLOCATE(RadObservation_Emission(RadiationParameter%WaveLenDiscrCoarse),RadObservation_Emission_Conv(RadiationParameter%WaveLenDiscrCoarse), &
     RadObservation_EmissionPart(RadiationParameter%WaveLenDiscrCoarse))
@@ -536,7 +534,7 @@ USE MOD_Mesh_Tools                ,ONLY: GetGlobalElemID
 USE MOD_Particle_Mesh_Vars        ,ONLY: NodeCoords_Shared,ElemInfo_Shared, BoundsOfElem_Shared, SideIsSymSide, SideInfo_Shared
 USE MOD_RadiationTrans_Vars       ,ONLY: RadObservationPoint, RadTransObsVolumeFrac
 USE MOD_Particle_Vars             ,ONLY: Symmetry
-USE MOD_Particle_Mesh_Tools       ,ONLY: ParticleInsideQuad3D
+USE MOD_Particle_Mesh_Tools       ,ONLY: ParticleInsideQuad
 USE MOD_Photon_TrackingTools      ,ONLY: PhotonIntersectionWithSide2DDir, PhotonThroughSideCheck3DDir
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -579,7 +577,7 @@ ELSE IF (ANY(NodeInCone)) THEN
         RandomPos = Bounds(1,:) + RandomPos*(Bounds(2,:)-Bounds(1,:))
         IF(Symmetry%Order.LE.2) RandomPos(3) = 0.
         IF(Symmetry%Order.LE.1) RandomPos(2) = 0.
-        CALL ParticleInsideQuad3D(RandomPos,iGlobalElem,InsideFlag)
+        CALL ParticleInsideQuad(RandomPos,iGlobalElem,InsideFlag)
       END DO
       ConeDist = DOT_PRODUCT(RandomPos(1:3) - RadObservationPoint%StartPoint(1:3), RadObservationPoint%ViewDirection(1:3))
       ConeRadius = TAN(RadObservationPoint%AngularAperture/2.) * ConeDist
@@ -608,7 +606,7 @@ ELSE
               RandomPos = Bounds(1,:) + RandomPos*(Bounds(2,:)-Bounds(1,:))
               IF(Symmetry%Order.LE.2) RandomPos(3) = 0.
               IF(Symmetry%Order.LE.1) RandomPos(2) = 0.
-              CALL ParticleInsideQuad3D(RandomPos,iGlobalElem,InsideFlag)
+              CALL ParticleInsideQuad(RandomPos,iGlobalElem,InsideFlag)
             END DO
             ConeDist = DOT_PRODUCT(RandomPos(1:3) - RadObservationPoint%StartPoint(1:3), RadObservationPoint%ViewDirection(1:3))
             ConeRadius = TAN(RadObservationPoint%AngularAperture/2.) * ConeDist
@@ -632,7 +630,7 @@ ELSE
                 RandomPos = Bounds(1,:) + RandomPos*(Bounds(2,:)-Bounds(1,:))
                 IF(Symmetry%Order.LE.2) RandomPos(3) = 0.
                 IF(Symmetry%Order.LE.1) RandomPos(2) = 0.
-                CALL ParticleInsideQuad3D(RandomPos,iGlobalElem,InsideFlag)
+                CALL ParticleInsideQuad(RandomPos,iGlobalElem,InsideFlag)
               END DO
               ConeDist = DOT_PRODUCT(RandomPos(1:3) - RadObservationPoint%StartPoint(1:3), RadObservationPoint%ViewDirection(1:3))
               ConeRadius = TAN(RadObservationPoint%AngularAperture/2.) * ConeDist
@@ -660,7 +658,6 @@ USE MOD_Mesh_Tools                ,ONLY: GetGlobalElemID
 USE MOD_Particle_Mesh_Vars        ,ONLY: ElemInfo_Shared, SideInfo_Shared, SideIsSymSide
 USE MOD_RadiationTrans_Vars       ,ONLY: RadObservationPoint, RadObservationPOI
 USE MOD_Particle_Vars             ,ONLY: Symmetry
-USE MOD_Particle_Mesh_Tools       ,ONLY: ParticleInsideQuad3D
 USE MOD_Photon_TrackingTools      ,ONLY: PhotonIntersectionWithSide2DDir, PhotonThroughSideCheck3DDir
 USE MOD_Particle_Boundary_Vars    ,ONLY: PartBound
 ! IMPLICIT VARIABLE HANDLING
