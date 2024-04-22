@@ -244,7 +244,7 @@ REAL                          :: Weight1, Weight2
 !--------------------------------------------------------------------------------------------------!
   IF ((DSMC%ElectronicModel.EQ.1).OR.(DSMC%ElectronicModel.EQ.2).OR.(DSMC%ElectronicModel.EQ.3)) THEN
     ! Model 1/2
-    IF((SpecDSMC(iSpec1)%InterID.NE.4).AND.(.NOT.SpecDSMC(iSpec1)%FullyIonized)) THEN
+    IF((Species(iSpec1)%InterID.NE.4).AND.(.NOT.SpecDSMC(iSpec1)%FullyIonized)) THEN
       SELECT CASE(DSMC%ElectronicModel)
       CASE(1)
         CALL RANDOM_NUMBER(iRan)
@@ -254,7 +254,7 @@ REAL                          :: Weight1, Weight2
         DoElec1 = .TRUE.
       END SELECT
     END IF
-    IF((SpecDSMC(iSpec2)%InterID.NE.4).AND.(.NOT.SpecDSMC(iSpec2)%FullyIonized)) THEN
+    IF((Species(iSpec2)%InterID.NE.4).AND.(.NOT.SpecDSMC(iSpec2)%FullyIonized)) THEN
       SELECT CASE(DSMC%ElectronicModel)
       CASE(1)
         CALL RANDOM_NUMBER(iRan)
@@ -274,7 +274,7 @@ REAL                          :: Weight1, Weight2
 !--------------------------------------------------------------------------------------------------!
 ! ROTATIONAL + VIBRATIONAL
 !--------------------------------------------------------------------------------------------------!
-  IF((SpecDSMC(iSpec1)%InterID.EQ.2).OR.(SpecDSMC(iSpec1)%InterID.EQ.20)) THEN
+  IF((Species(iSpec1)%InterID.EQ.2).OR.(Species(iSpec1)%InterID.EQ.20)) THEN
     CALL RANDOM_NUMBER(iRan)
     CALL DSMC_calc_P_rot(iSpec1, iSpec2, iPair, Coll_pData(iPair)%iPart_p1, Xi_rel, ProbRot1, ProbRotMax1)
     IF(ProbRot1.GT.iRan) THEN
@@ -305,7 +305,7 @@ REAL                          :: Weight1, Weight2
     END IF
   END IF
 
-  IF((SpecDSMC(iSpec2)%InterID.EQ.2).OR.(SpecDSMC(iSpec2)%InterID.EQ.20)) THEN
+  IF((Species(iSpec2)%InterID.EQ.2).OR.(Species(iSpec2)%InterID.EQ.20)) THEN
     CALL RANDOM_NUMBER(iRan)
     CALL DSMC_calc_P_rot(iSpec2, iSpec1, iPair, Coll_pData(iPair)%iPart_p2, Xi_rel, ProbRot2, ProbRotMax2)
     IF(ProbRot2.GT.iRan) THEN
@@ -620,14 +620,14 @@ IF (DSMC%ReservoirSimu.AND.DSMC%ReservoirSimuRate) RETURN
 !--------------------------------------------------------------------------------------------------!
 
   ! calculate probability for rotational/vibrational relaxation for both particles
-  IF ((SpecDSMC(iSpec1)%InterID.EQ.2).OR.(SpecDSMC(iSpec1)%InterID.EQ.20)) THEN
+  IF ((Species(iSpec1)%InterID.EQ.2).OR.(Species(iSpec1)%InterID.EQ.20)) THEN
     CALL DSMC_calc_P_vib(iPair, iSpec1, iSpec2, Xi_rel, iElem, ProbVib1)
     CALL DSMC_calc_P_rot(iSpec1, iSpec2, iPair, iPart1, Xi_rel, ProbRot1, ProbRotMax1)
   ELSE
     ProbVib1 = 0.
     ProbRot1 = 0.
   END IF
-  IF ((SpecDSMC(iSpec2)%InterID.EQ.2).OR.(SpecDSMC(iSpec2)%InterID.EQ.20)) THEN
+  IF ((Species(iSpec2)%InterID.EQ.2).OR.(Species(iSpec2)%InterID.EQ.20)) THEN
     CALL DSMC_calc_P_vib(iPair, iSpec2, iSpec1, Xi_rel, iElem, ProbVib2)
     CALL DSMC_calc_P_rot(iSpec2, iSpec1, iPair, iPart2, Xi_rel, ProbRot2, ProbRotMax2)
   ELSE
@@ -636,10 +636,10 @@ IF (DSMC%ReservoirSimu.AND.DSMC%ReservoirSimuRate) RETURN
   END IF
   IF (DSMC%ElectronicModel.EQ.1) THEN
     ! Model 1/2
-    IF((SpecDSMC(iSpec1)%InterID.NE.4).AND.(.NOT.SpecDSMC(iSpec1)%FullyIonized)) THEN
+    IF((Species(iSpec1)%InterID.NE.4).AND.(.NOT.SpecDSMC(iSpec1)%FullyIonized)) THEN
       CALL DSMC_calc_P_elec(iSpec1, iSpec2, ProbElec1)
     END IF
-    IF((SpecDSMC(iSpec2)%InterID.NE.4).AND.(.NOT.SpecDSMC(iSpec2)%FullyIonized)) THEN
+    IF((Species(iSpec2)%InterID.NE.4).AND.(.NOT.SpecDSMC(iSpec2)%FullyIonized)) THEN
       CALL DSMC_calc_P_elec(iSpec2, iSpec1, ProbElec2)
     END IF
   END IF
@@ -728,8 +728,8 @@ IF (DSMC%ReservoirSimu.AND.DSMC%ReservoirSimuRate) RETURN
   END IF
 
   IF (DSMC%ElectronicModel.EQ.2) THEN
-    IF((SpecDSMC(iSpec1)%InterID.NE.4).AND.(.NOT.SpecDSMC(iSpec1)%FullyIonized)) DoElec1 = .TRUE.
-    IF((SpecDSMC(iSpec2)%InterID.NE.4).AND.(.NOT.SpecDSMC(iSpec2)%FullyIonized)) DoElec2 = .TRUE.
+    IF((Species(iSpec1)%InterID.NE.4).AND.(.NOT.SpecDSMC(iSpec1)%FullyIonized)) DoElec1 = .TRUE.
+    IF((Species(iSpec2)%InterID.NE.4).AND.(.NOT.SpecDSMC(iSpec2)%FullyIonized)) DoElec2 = .TRUE.
   END IF
 
 !--------------------------------------------------------------------------------------------------!
@@ -922,9 +922,8 @@ SUBROUTINE DSMC_perform_collision(iPair, iElem, NodeVolume, NodePartNum)
 USE MOD_Globals               ,ONLY: Abort, CROSS
 USE MOD_DSMC_Vars             ,ONLY: CollisMode, Coll_pData, SelectionProc
 USE MOD_DSMC_Vars             ,ONLY: DSMC
-USE MOD_Particle_Vars         ,ONLY: PartState, WriteMacroVolumeValues, Symmetry
+USE MOD_Particle_Vars         ,ONLY: PartState, Symmetry
 USE MOD_Particle_Vars         ,ONLY: UseRotRefFrame, PDM, PartVeloRotRef, RotRefFrameOmega
-USE MOD_TimeDisc_Vars         ,ONLY: TEnd, Time
 USE MOD_DSMC_Vars             ,ONLY: RadialWeighting
 USE MOD_Particle_Vars         ,ONLY: usevMPF, Species, PartSpecies
 USE MOD_Particle_Analyze_Vars ,ONLY: CalcCollRates
@@ -964,18 +963,16 @@ iPart1 = Coll_pData(iPair)%iPart_p1
 iPart2 = Coll_pData(iPair)%iPart_p2
 
 IF(DSMC%CalcQualityFactors) THEN
-  IF((Time.GE.(1-DSMC%TimeFracSamp)*TEnd).OR.WriteMacroVolumeValues) THEN
-    IF(Symmetry%Order.EQ.3) THEN
-      Distance = SQRT((PartState(1,iPart1) - PartState(1,iPart2))**2 + (PartState(2,iPart1) - PartState(2,iPart2))**2 &
+  IF(Symmetry%Order.EQ.3) THEN
+    Distance = SQRT((PartState(1,iPart1) - PartState(1,iPart2))**2 + (PartState(2,iPart1) - PartState(2,iPart2))**2 &
                     + (PartState(3,iPart1) - PartState(3,iPart2))**2)
-    ELSE IF(Symmetry%Order.EQ.2) THEN
-      Distance = SQRT((PartState(1,iPart1) - PartState(1,iPart2))**2 + (PartState(2,iPart1) - PartState(2,iPart2))**2)
-    ELSE
-      Distance = ABS(PartState(1,iPart1) - PartState(1,iPart2))
-    END IF
-    DSMC%CollSepDist = DSMC%CollSepDist + Distance
-    DSMC%CollSepCount = DSMC%CollSepCount + 1
+  ELSE IF(Symmetry%Order.EQ.2) THEN
+    Distance = SQRT((PartState(1,iPart1) - PartState(1,iPart2))**2 + (PartState(2,iPart1) - PartState(2,iPart2))**2)
+  ELSE
+    Distance = ABS(PartState(1,iPart1) - PartState(1,iPart2))
   END IF
+  DSMC%CollSepDist = DSMC%CollSepDist + Distance
+  DSMC%CollSepCount = DSMC%CollSepCount + 1
 END IF
 
 SELECT CASE(CollisMode)

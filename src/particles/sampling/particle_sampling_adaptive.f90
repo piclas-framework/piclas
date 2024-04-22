@@ -136,7 +136,8 @@ DO iSpec=1,nSpecies
       ! Skip elements outside of the circular inflow
       IF(Species(iSpec)%Surfaceflux(iSF)%CircularInflow) THEN
         IF(Species(iSpec)%Surfaceflux(iSF)%SurfFluxSideRejectType(iSide).EQ.1) CYCLE
-        ! Determine the area of the surface flux
+        ! Determine the area of the surface flux for the calculation of the pressure in the adjacent cells, using the full area of each
+        ! surface that is cut by the circle since the pressure is sampled in those volume elements without a cut-out
         DO jSample=1,SurfFluxSideSize(2); DO iSample=1,SurfFluxSideSize(1)
           AdaptBCAreaSurfaceFlux(iSpec,iSF)=AdaptBCAreaSurfaceFlux(iSpec,iSF)+SurfMeshSubSideData(iSample,jSample,BCSideID)%area
         END DO; END DO

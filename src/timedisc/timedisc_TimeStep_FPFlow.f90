@@ -48,11 +48,13 @@ USE MOD_Restart_Vars           ,ONLY: DoRestart
 USE MOD_Part_Tools             ,ONLY: CalcPartSymmetryPos
 #if USE_MPI
 USE MOD_Particle_MPI           ,ONLY: IRecvNbOfParticles, MPIParticleSend,MPIParticleRecv,SendNbOfparticles
+USE MOD_Particle_MPI_Boundary_Sampling, ONLY: ExchangeChemSurfData
 #endif /*USE_MPI*/
 USE MOD_FPFlow                 ,ONLY: FPFlow_main, FP_DSMC_main
 USE MOD_FPFlow_Vars            ,ONLY: CoupledFPDSMC
 USE MOD_SurfaceModel_Porous    ,ONLY: PorousBoundaryRemovalProb_Pressure
-USE MOD_SurfaceModel_Vars      ,ONLY: nPorousBC
+USE MOD_SurfaceModel_Vars      ,ONLY: nPorousBC, DoChemSurface
+USE MOD_Particle_SurfChemFlux
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -65,6 +67,16 @@ REAL                  :: RandVal, dtVar
 !===================================================================================================================================
 IF (DoSurfaceFlux) THEN
   CALL ParticleSurfaceflux()
+END IF
+
+IF (DoChemSurface) THEN
+#if USE_MPI
+  CALL ExchangeChemSurfData()
+#endif /*USE_MPI*/
+  IF (time.GT.0.0) THEN
+    CALL ParticleSurfChemFlux()
+    CALL ParticleSurfDiffusion()
+  END IF
 END IF
 
 DO iPart=1,PDM%ParticleVecLength

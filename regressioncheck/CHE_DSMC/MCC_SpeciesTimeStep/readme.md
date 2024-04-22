@@ -6,3 +6,4 @@
 * Comparing the number density with different reference files as
   1. Option is expected to ionize at a slower rate
   2. Reference file for the 2. option has been generated with a regular simulation at the lower electron time step (dt = 1e-11s)
+* Species parameters from the Unified Species Database are used, and the manual input of ArIon1 parameters is tested

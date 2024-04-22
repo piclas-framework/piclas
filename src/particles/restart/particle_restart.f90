@@ -69,7 +69,7 @@ USE MOD_Particle_Vars          ,ONLY: DoVirtualCellMerge
 USE MOD_SurfaceModel_Vars      ,ONLY: nPorousBC
 USE MOD_Particle_Sampling_Vars ,ONLY: UseAdaptiveBC
 ! Restart
-USE MOD_Restart_Vars           ,ONLY: DoMacroscopicRestart, MacroRestartValues
+USE MOD_Restart_Vars           ,ONLY: DoMacroscopicRestart, MacroRestartValues, DoCatalyticRestart
 ! HDG
 #if USE_HDG
 USE MOD_HDG_Vars               ,ONLY: UseBRElectronFluid,BRConvertElectronsToFluid,BRConvertFluidToElectrons
@@ -130,6 +130,8 @@ INTEGER                            :: iProc
 ! ===========================================================================
 CALL ParticleReadin()
 
+IF(DoCatalyticRestart) CALL CatalyticRestart()
+
 IF(.NOT.DoMacroscopicRestart) THEN
   IF(PartIntExists)THEN
     IF(PartDataExists)THEN
@@ -179,11 +181,11 @@ IF(.NOT.DoMacroscopicRestart) THEN
             IF(readVarFromState(1+iPos).AND.readVarFromState(2+iPos)) THEN
               PartStateIntEn(1:2,iPart)=PartData(MapPartDataToReadin(1+iPos):MapPartDataToReadin(2+iPos),offsetnPart+iLoop)
               iPos=iPos+2
-            ELSE IF((SpecDSMC(SpecID)%InterID.EQ.1).OR.(SpecDSMC(SpecID)%InterID.EQ.10).OR.(SpecDSMC(SpecID)%InterID.EQ.15)) THEN
+            ELSE IF((Species(SpecID)%InterID.EQ.1).OR.(Species(SpecID)%InterID.EQ.10).OR.(Species(SpecID)%InterID.EQ.15)) THEN
               !- setting inner DOF to 0 for atoms
               PartStateIntEn(1:2,iPart) = 0.
             ELSE
-              IPWRITE(UNIT_StdOut,*) "SpecDSMC(PartSpecies(iPart))%InterID =", SpecDSMC(PartSpecies(iPart))%InterID
+              IPWRITE(UNIT_StdOut,*) "Species(PartSpecies(iPart))%InterID =", Species(PartSpecies(iPart))%InterID
               IPWRITE(UNIT_StdOut,*) "SpecID =", SpecID
               IPWRITE(UNIT_StdOut,*) "iPart =", iPart
               CALL Abort(__STAMP__,"resetting inner DOF for molecules is not implemented yet!")
@@ -217,7 +219,7 @@ IF(.NOT.DoMacroscopicRestart) THEN
 
           ! Electronic
           IF (DSMC%ElectronicModel.EQ.2) THEN
-            IF (.NOT.((SpecDSMC(PartSpecies(iPart))%InterID.EQ.4).OR.SpecDSMC(PartSpecies(iPart))%FullyIonized)) THEN
+            IF (.NOT.((Species(PartSpecies(iPart))%InterID.EQ.4).OR.SpecDSMC(PartSpecies(iPart))%FullyIonized)) THEN
               SDEALLOCATE(ElectronicDistriPart(iPart)%DistriFunc)
               ALLOCATE(   ElectronicDistriPart(iPart)%DistriFunc(1:SpecDSMC(PartSpecies(iPart))%MaxElecQuant))
               ElectronicDistriPart(iPart)%DistriFunc(1:SpecDSMC(PartSpecies(iPart))%MaxElecQuant)= &
@@ -335,7 +337,7 @@ IF(.NOT.DoMacroscopicRestart) THEN
                 END IF
                 ! Electronic
                 IF (DSMC%ElectronicModel.EQ.2) THEN
-                  IF (.NOT.((SpecDSMC(PartSpecies(iPart))%InterID.EQ.4).OR.SpecDSMC(PartSpecies(iPart))%FullyIonized)) &
+                  IF (.NOT.((Species(PartSpecies(iPart))%InterID.EQ.4).OR.SpecDSMC(PartSpecies(iPart))%FullyIonized)) &
                     CounterElec = CounterElec + SpecDSMC(PartSpecies(iPart))%MaxElecQuant
                 END IF
                 ! Ambipolar Diffusion
@@ -386,7 +388,7 @@ IF(.NOT.DoMacroscopicRestart) THEN
                 END IF
                 ! Electronic
                 IF (DSMC%ElectronicModel.EQ.2) THEN
-                  IF (.NOT.((SpecDSMC(PartSpecies(iPart))%InterID.EQ.4).OR.SpecDSMC(PartSpecies(iPart))%FullyIonized)) &
+                  IF (.NOT.((Species(PartSpecies(iPart))%InterID.EQ.4).OR.SpecDSMC(PartSpecies(iPart))%FullyIonized)) &
                     CounterElec = CounterElec + SpecDSMC(PartSpecies(iPart))%MaxElecQuant
                 END IF
                 ! Ambipolar Diffusion
@@ -437,7 +439,7 @@ IF(.NOT.DoMacroscopicRestart) THEN
                 END IF
                 ! Electronic
                 IF (DSMC%ElectronicModel.EQ.2) THEN
-                  IF (.NOT.((SpecDSMC(PartSpecies(iPart))%InterID.EQ.4).OR.SpecDSMC(PartSpecies(iPart))%FullyIonized)) &
+                  IF (.NOT.((Species(PartSpecies(iPart))%InterID.EQ.4).OR.SpecDSMC(PartSpecies(iPart))%FullyIonized)) &
                     CounterElec = CounterElec + SpecDSMC(PartSpecies(iPart))%MaxElecQuant
                 END IF
                 ! Ambipolar Diffusion
@@ -539,7 +541,7 @@ IF(.NOT.DoMacroscopicRestart) THEN
           !--- receive the polyatomic vibquants per particle at the end of the message
           ! Electronic
           IF(useDSMC.AND.(DSMC%ElectronicModel.EQ.2))  THEN
-            IF (.NOT.((SpecDSMC(PartSpecies(iPart))%InterID.EQ.4).OR.SpecDSMC(PartSpecies(iPart))%FullyIonized)) THEN
+            IF (.NOT.((Species(PartSpecies(iPart))%InterID.EQ.4).OR.SpecDSMC(PartSpecies(iPart))%FullyIonized)) THEN
               SendBuffElec(CounterElec+1:CounterElec+SpecDSMC(PartSpecies(iPart))%MaxElecQuant) &
                   = ElectronicDistriPart(iPart)%DistriFunc(1:SpecDSMC(PartSpecies(iPart))%MaxElecQuant)
               CounterElec = CounterElec + SpecDSMC(PartSpecies(iPart))%MaxElecQuant
@@ -699,7 +701,7 @@ IF(.NOT.DoMacroscopicRestart) THEN
             END IF
             ! Electronic
             IF (DSMC%ElectronicModel.EQ.2) THEN
-              IF (.NOT.((SpecDSMC(PartSpecies(CurrentPartNum))%InterID.EQ.4) &
+              IF (.NOT.((Species(PartSpecies(CurrentPartNum))%InterID.EQ.4) &
                   .OR.SpecDSMC(PartSpecies(CurrentPartNum))%FullyIonized)) THEN
                 SDEALLOCATE(ElectronicDistriPart(CurrentPartNum)%DistriFunc)
                 ALLOCATE(ElectronicDistriPart(CurrentPartNum)%DistriFunc(1:SpecDSMC(PartSpecies(CurrentPartNum))%MaxElecQuant))
@@ -931,6 +933,91 @@ CALL CloseDataFile()
 
 END SUBROUTINE RestartAdaptiveWallTemp
 
+SUBROUTINE CatalyticRestart()
+!===================================================================================================================================
+!> Restart of the catalytic surface values
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals
+USE MOD_PreProc
+USE MOD_io_hdf5
+USE MOD_HDF5_Input              ,ONLY: OpenDataFile,ReadArray,GetDataSize,ReadAttribute
+USE MOD_HDF5_Input              ,ONLY: HSize,File_ID,GetDataProps
+USE MOD_Restart_Vars            ,ONLY: CatalyticFileName
+USE MOD_SurfaceModel_Vars       ,ONLY: ChemWallProp
+USE MOD_Particle_Boundary_Vars  ,ONLY: SurfSideArea
+USE MOD_Particle_Boundary_Vars  ,ONLY: nComputeNodeSurfSides, offsetComputeNodeSurfSide
+USE MOD_Particle_Vars           ,ONLY: nSpecies
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+CHARACTER(LEN=255)              :: File_Type
+CHARACTER(LEN=255),ALLOCATABLE  :: VarNamesSurf_HDF5(:)
+INTEGER                         :: iSpec, nVarSurf, nSurfSample, nSurfaceSidesReadin
+REAL, ALLOCATABLE               :: tempSurfData(:,:,:,:), SurfData(:,:)
+REAL                            :: OutputTime
+INTEGER                         :: iSide, ReadInSide
+!===================================================================================================================================
+
+SWRITE(UNIT_stdOut,*) 'Using catalytic values from file: ',TRIM(CatalyticFileName)
+
+CALL OpenDataFile(CatalyticFileName,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_PICLAS)
+
+! Check if the provided file is a DSMC surface chemistry state file.
+CALL ReadAttribute(File_ID,'File_Type',1,StrScalar=File_Type)
+
+IF(TRIM(File_Type).NE.'DSMCSurfChemState') THEN
+  SWRITE(*,*) 'ERROR: The given file type is: ', TRIM(File_Type)
+  CALL abort(__STAMP__,'ERROR: Given file for the catalytic restart is not of the type "DSMCSurfChemState", please check the input file!')
+END IF
+
+CALL ReadAttribute(File_ID,'DSMC_nSurfSample',1,IntScalar=nSurfSample)
+CALL ReadAttribute(File_ID,'Time',1,RealScalar=OutputTime)
+
+CALL GetDataSize(File_ID,'SurfaceData',nDims,HSize)
+nVarSurf = INT(HSize(1),4)
+nSurfaceSidesReadin = INT(HSize(4),4)
+ALLOCATE(VarNamesSurf_HDF5(nVarSurf))
+CALL ReadAttribute(File_ID,'VarNamesSurface',nVarSurf,StrArray=VarNamesSurf_HDF5(1:nVarSurf))
+
+ALLOCATE(SurfData(1:nVarSurf,1:nSurfaceSidesReadin))
+ALLOCATE(tempSurfData(1:nVarSurf,nSurfSample,nSurfSample,1:nSurfaceSidesReadin))
+SurfData=0.
+tempSurfData = 0.
+ASSOCIATE(nVarSurf        => INT(nVarSurf,IK),  &
+          nSurfaceSidesReadin => INT(nSurfaceSidesReadin,IK))
+  CALL ReadArray('SurfaceData',4,(/nVarSurf, 1_IK, 1_IK, nSurfaceSidesReadin/), &
+                  0_IK,4,RealArray=tempSurfData(:,:,:,:))
+END ASSOCIATE
+
+! Copy data from tmp array
+DO iSide = 1, nSurfaceSidesReadin
+  SurfData(1:nVarSurf,iSide) = tempSurfData(1:nVarSurf,1,1,iSide)
+END DO
+
+CALL CloseDataFile()
+
+! Read-In of the coverage values per species
+DO iSide = 1, nComputeNodeSurfSides
+  ReadInSide = iSide + offsetComputeNodeSurfSide
+  DO iSpec = 1, nSpecies
+  ! Initial surface coverage
+    ChemWallProp(iSpec,1,1,1,iSide) = SurfData(iSpec,ReadInSide)
+  END DO
+  ! Heat flux on the surface element
+  ChemWallProp(1,2,1,1,iSide) = SurfData(nSpecies+1,ReadInSide)*OutputTime*SurfSideArea(1,1,iSide)
+END DO
+
+SDEALLOCATE(VarNamesSurf_HDF5)
+SDEALLOCATE(SurfData)
+SDEALLOCATE(tempSurfData)
+
+END SUBROUTINE CatalyticRestart
 
 SUBROUTINE MacroscopicRestart()
 !===================================================================================================================================

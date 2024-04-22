@@ -70,10 +70,6 @@ INTERFACE CalcIntensity_Gaussian
   MODULE PROCEDURE CalcIntensity_Gaussian
 END INTERFACE
 
-INTERFACE DSMC_SetInternalEnr_LauxVFD
-  MODULE PROCEDURE DSMC_SetInternalEnr_LauxVFD
-END INTERFACE
-
 #ifdef CODE_ANALYZE
 INTERFACE CalcVectorAdditionCoeffs
   MODULE PROCEDURE CalcVectorAdditionCoeffs
@@ -93,7 +89,7 @@ PUBLIC :: SetParticlePositionCircle, SetParticlePositionGyrotronCircle, SetParti
 PUBLIC :: SetParticlePositionSphere, SetParticlePositionSinDeviation, SetParticleTimeStep
 PUBLIC :: CalcNbrOfPhotons, CalcPhotonEnergy
 PUBLIC :: CalcIntensity_Gaussian
-PUBLIC :: CalcVelocity_FromWorkFuncSEE, DSMC_SetInternalEnr_LauxVFD
+PUBLIC :: CalcVelocity_FromWorkFuncSEE
 PUBLIC :: SetParticlePositionPhotonSEEDisc, SetParticlePositionPhotonCylinder
 PUBLIC :: SetParticlePositionPhotonSEERectangle, SetParticlePositionPhotonRectangle
 PUBLIC :: SetParticlePositionPhotonHoneycomb, SetParticlePositionPhotonSEEHoneycomb
@@ -361,97 +357,6 @@ Vec3D(1:3) = Vec3D(1:3) + v_drift
 
 END SUBROUTINE CalcVelocity_maxwell_lpn
 
-
-SUBROUTINE DSMC_SetInternalEnr_LauxVFD(iSpecies, iInit, iPart, init_or_sf)
-!===================================================================================================================================
-!> Energy distribution according to dissertation of Laux (diatomic)
-!===================================================================================================================================
-! MODULES
-USE MOD_Globals                 ,ONLY: abort
-USE MOD_Globals_Vars            ,ONLY: BoltzmannConst
-USE MOD_DSMC_Vars               ,ONLY: PartStateIntEn, SpecDSMC, DSMC, BGGas
-USE MOD_Particle_Vars           ,ONLY: Species, PEM
-USE MOD_Particle_Sampling_Vars  ,ONLY: AdaptBCMacroVal, AdaptBCMapElemToSample
-USE MOD_DSMC_ElectronicModel    ,ONLY: InitElectronShell
-! IMPLICIT VARIABLE HANDLING
-IMPLICIT NONE
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
-INTEGER, INTENT(IN)             :: iSpecies, iInit, iPart, init_or_sf
-!-----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-REAL                            :: iRan
-INTEGER                         :: iQuant
-REAL                            :: TVib                       ! vibrational temperature
-REAL                            :: TRot                       ! rotational temperature
-INTEGER                         :: ElemID
-!===================================================================================================================================
-!-----------------------------------------------------------------------------------------------------------------------------------
-! Set internal energies (vibrational and rotational)
-!-----------------------------------------------------------------------------------------------------------------------------------
-ElemID = PEM%LocalElemID(iPart)
-IF ((SpecDSMC(iSpecies)%InterID.EQ.2).OR.(SpecDSMC(iSpecies)%InterID.EQ.20)) THEN
-  SELECT CASE (init_or_sf)
-  CASE(1) !iInit
-    TVib=SpecDSMC(iSpecies)%Init(iInit)%TVib
-    TRot=SpecDSMC(iSpecies)%Init(iInit)%TRot
-  CASE(2) !SurfaceFlux
-    IF(Species(iSpecies)%Surfaceflux(iInit)%Adaptive) THEN
-      SELECT CASE(Species(iSpecies)%Surfaceflux(iInit)%AdaptiveType)
-        CASE(1,3,4) ! Pressure and massflow inlet (pressure/massflow, temperature const)
-          TVib=SpecDSMC(iSpecies)%Surfaceflux(iInit)%TVib
-          TRot=SpecDSMC(iSpecies)%Surfaceflux(iInit)%TRot
-        CASE(2) ! adaptive Outlet/freestream
-          TVib = Species(iSpecies)%Surfaceflux(iInit)%AdaptivePressure &
-                  / (BoltzmannConst * AdaptBCMacroVal(4,AdaptBCMapElemToSample(ElemID),iSpecies))
-          TRot = TVib
-        CASE DEFAULT
-          CALL abort(__STAMP__,'Wrong adaptive type for Surfaceflux in int_energy -> lauxVDF!')
-      END SELECT
-    ELSE
-      TVib=SpecDSMC(iSpecies)%Surfaceflux(iInit)%TVib
-      TRot=SpecDSMC(iSpecies)%Surfaceflux(iInit)%TRot
-    END IF
-  CASE DEFAULT
-    CALL abort(__STAMP__,'neither iInit nor Surfaceflux defined as reference!')
-  END SELECT
-  ! Background gas distribution
-  IF(BGGas%NumberOfSpecies.GT.0) THEN
-    IF(BGGas%BackgroundSpecies(iSpecies).AND.BGGas%UseDistribution) THEN
-      TVib = BGGas%Distribution(BGGas%MapSpecToBGSpec(iSpecies),DSMC_TVIB,ElemID)
-      TRot = BGGas%Distribution(BGGas%MapSpecToBGSpec(iSpecies),DSMC_TROT,ElemID)
-    END IF
-  END IF
-  ! Set vibrational energy
-  CALL RANDOM_NUMBER(iRan)
-  iQuant = INT(-LOG(iRan)*TVib/SpecDSMC(iSpecies)%CharaTVib)
-  DO WHILE (iQuant.GE.SpecDSMC(iSpecies)%MaxVibQuant)
-    CALL RANDOM_NUMBER(iRan)
-    iQuant = INT(-LOG(iRan)*TVib/SpecDSMC(iSpecies)%CharaTVib)
-  END DO
-  PartStateIntEn( 1,iPart) = (iQuant + DSMC%GammaQuant)*SpecDSMC(iSpecies)%CharaTVib*BoltzmannConst
-  ! Set rotational energy
-  CALL RANDOM_NUMBER(iRan)
-  PartStateIntEn( 2,iPart) = -BoltzmannConst*TRot*LOG(iRan)
-ELSE
-  ! Nullify energy for atomic species
-  PartStateIntEn( 1,iPart) = 0
-  PartStateIntEn( 2,iPart) = 0
-END IF
-!-----------------------------------------------------------------------------------------------------------------------------------
-! Set electronic energy
-!-----------------------------------------------------------------------------------------------------------------------------------
-IF (DSMC%ElectronicModel.GT.0) THEN
-  IF((SpecDSMC(iSpecies)%InterID.NE.4).AND.(.NOT.SpecDSMC(iSpecies)%FullyIonized)) THEN
-    CALL InitElectronShell(iSpecies,iPart,iInit,init_or_sf)
-  ELSE
-    PartStateIntEn( 3,iPart) = 0.
-  END IF
-ENDIF
-
-END SUBROUTINE DSMC_SetInternalEnr_LauxVFD
 
 SUBROUTINE CalcVelocity_taylorgreenvortex(FractNbr, Vec3D, iInit, Element)
 !===================================================================================================================================
@@ -1172,6 +1077,7 @@ USE MOD_Globals
 USE MOD_Particle_Vars          ,ONLY: Species, Symmetry
 USE MOD_Part_Tools             ,ONLY: CalcPartSymmetryPos, CalcRadWeightMPF
 USE MOD_DSMC_Vars              ,ONLY: RadialWeighting
+!USE MOD_Particle_Mesh_Vars     ,ONLY: GEO
 !----------------------------------------------------------------------------------------------------------------------------------
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -1206,6 +1112,13 @@ INTEGER                 :: i, chunkSize2
       Particle_pos = Particle_pos + Species(FractNbr)%Init(iInit)%BaseVector2IC * RandVal(2)
       Particle_pos = Particle_pos + lineVector * Species(FractNbr)%Init(iInit)%CuboidHeightIC * RandVal(3)
       IF(Symmetry%Order.EQ.1) Particle_pos(2:3) = 0.
+
+        ! Debugging: Get linear distribution in y for 2D cases
+        !CALL RANDOM_NUMBER(iRan)
+        !IF(Particle_pos(2)/GEO%ymaxglob.GT.iRan) THEN
+        !  i=i+1
+        !  CYCLE
+        !END IF
     CASE ('cylinder')
       radius = Species(FractNbr)%Init(iInit)%RadiusIC + 1.
       DO WHILE((radius.GT.Species(FractNbr)%Init(iInit)%RadiusIC) .OR.(radius.LT.Species(FractNbr)%Init(iInit)%Radius2IC))
@@ -2050,7 +1963,7 @@ END DO
 ! P(1:2,2) = (/1,0/)
 ! P(1:2,3) = (/1,1/)
 ! P(1:2,4) = (/0,1/)
-! 
+!
 ! ! not sorted
 ! P(1:2,1) = (/0,0/)
 ! P(1:2,2) = (/1,1/)
