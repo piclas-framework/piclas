@@ -385,7 +385,7 @@ END SUBROUTINE CalcInstantTransTemp
 
 SUBROUTINE DSMC_data_sampling()
 !===================================================================================================================================
-!> Sampling of variables velocity and energy for DSMC
+!> Sampling of variables velocity, energy, pressure tensor and heatflux for DSMC (and BGK/FP)
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
@@ -479,7 +479,7 @@ IF (SamplePressTensHeatflux) THEN
       partWeight = GetParticleWeight(iPart)
       V_rel(1:3)=PartState(4:6,iPart)-vBulk(1:3,iElem)
       vmag2 = V_rel(1)**2 + V_rel(2)**2 + V_rel(3)**2
-      ! Sample pressure tensor and heatflux
+      ! Sample pressure tensor (shear stress) and heatflux
       presstens(1,iElem) = presstens(1,iElem) + V_rel(1)*V_rel(2)*Species(iSpec)%MassIC*partWeight
       presstens(2,iElem) = presstens(2,iElem) + V_rel(1)*V_rel(3)*Species(iSpec)%MassIC*partWeight
       presstens(3,iElem) = presstens(3,iElem) + V_rel(2)*V_rel(3)*Species(iSpec)%MassIC*partWeight
@@ -487,8 +487,10 @@ IF (SamplePressTensHeatflux) THEN
     END IF
   END DO
   DO iElem = 1, nElems
+    ! Pressure tensor
     DSMC_SolutionPressTens(1:3,iElem) = DSMC_SolutionPressTens(1:3,iElem) + presstens(1:3,iElem) &
       / (totalWeight(iElem) - totalWeight2(iElem)/totalWeight(iElem))
+    ! Heatflux
     DSMC_SolutionPressTens(4:6,iElem) = DSMC_SolutionPressTens(4:6,iElem) + heatflux(1:3,iElem) * totalWeight(iElem)**2 &
       / (totalWeight(iElem)**3 - 3.*totalWeight(iElem) * totalWeight2(iElem) + 2.*totalWeight3(iElem))
   END DO
@@ -535,7 +537,7 @@ REAL,INTENT(INOUT)      :: DSMC_MacroVal(1:nVar+nVar_quality+nVar_HeatPress,nEle
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER                 :: iElem, iSpec, nVarCount, nSpecTemp, nVarCountRelax, bgSpec
-REAL                    :: TVib_TempFac, iter_loc, nPartElem
+REAL                    :: TVib_TempFac, iter_loc
 REAL                    :: MolecPartNum, HeavyPartNum!, q(3)
 !===================================================================================================================================
 ! nullify

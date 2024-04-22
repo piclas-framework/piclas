@@ -399,6 +399,7 @@ IF(useDSMC .OR. WriteMacroVolumeValues) THEN
   DSMC%SampNum = 0
   ALLOCATE(DSMC_Solution(1:11,1:nElems,1:nSpecies))
   DSMC_Solution = 0.0
+  ! Additional sampling of pressure tensor and heatflux
   SamplePressTensHeatflux = GETLOGICAL('Particles-SamplePressTensHeatflux')
   IF (SamplePressTensHeatflux) THEN
     ALLOCATE(DSMC_SolutionPressTens(1:6,1:nElems))
