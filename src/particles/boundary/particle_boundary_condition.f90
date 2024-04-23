@@ -175,7 +175,7 @@ ASSOCIATE( iPartBound => PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID)
       CALL RotPeriodicInterPlaneBoundary(iPart,SideID,ElemID)
     END IF
   !-----------------------------------------------------------------------------------------------------------------------------------
-  CASE(10,11) ! PartBound%SymmetryBC
+  CASE(10,11,12) ! PartBound%SymmetryBC
   !-----------------------------------------------------------------------------------------------------------------------------------
     CALL PerfectReflection(iPart,SideID,n_loc,opt_Symmetry=.TRUE.)
   !-----------------------------------------------------------------------------------------------------------------------------------

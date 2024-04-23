@@ -189,7 +189,7 @@ USE MOD_Particle_MPI_Vars      ,ONLY: DoParticleLatencyHiding
 #endif /* USE_MPI */
 USE MOD_Particle_Mesh_Build    ,ONLY: BuildElementRadiusTria,BuildElemTypeAndBasisTria,BuildEpsOneCell,BuildBCElemDistance
 USE MOD_Particle_Mesh_Build    ,ONLY: BuildNodeNeighbourhood,BuildElementOriginShared,BuildElementBasisAndRadius,BuildMesh2DInfo
-USE MOD_Particle_Mesh_Build    ,ONLY: BuildSideOriginAndRadius,BuildLinearSideBaseVectors,BuildSideSlabAndBoundingBox
+USE MOD_Particle_Mesh_Build    ,ONLY: BuildSideOriginAndRadius,BuildLinearSideBaseVectors,BuildSideSlabAndBoundingBox,BuildMesh1DInfo
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Vars       ,ONLY: PerformLoadBalance
 #endif /*USE_LOADBALANCE*/
@@ -417,7 +417,11 @@ SELECT CASE(TrackingMethod)
       CALL BuildLinearSideBaseVectors() ! Required for BaseVectors0_Shared, BaseVectors1_Shared, BaseVectors2_Shared, BaseVectors3_Shared, BaseVectorsScale_Shared
     END IF ! UsePhotonTriaTracking
 
-    IF(Symmetry%Order.EQ.2) CALL BuildMesh2DInfo()
+    IF(Symmetry%Order.EQ.2) THEN
+      CALL BuildMesh2DInfo()
+    ELSEIF (Symmetry%Order.EQ.1) THEN
+      CALL BuildMesh1DInfo()
+    END IF
   CASE(TRACING,REFMAPPING)
     ! Build stuff required for tracing algorithms
     CALL BuildSideSlabAndBoundingBox() ! Required for SideSlabNormals_Shared, SideSlabIntervals_Shared, BoundingBoxIsEmpty_Shared

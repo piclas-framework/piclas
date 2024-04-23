@@ -492,6 +492,9 @@ DO iPartBound=1,nPartBound
   CASE('symmetric_axis')
     PartBound%TargetBoundCond(iPartBound) = PartBound%SymmetryAxis
     PartBound%WallVelo(1:3,iPartBound)    = (/0.,0.,0./)
+  CASE('symmetric_dim')
+    PartBound%TargetBoundCond(iPartBound) = PartBound%SymmetryDim
+    PartBound%WallVelo(1:3,iPartBound)    = (/0.,0.,0./)
   CASE('rot_periodic')
     PartBound%UseRotPeriodicBC = .TRUE.
     nRotPeriodicBCs  = nRotPeriodicBCs + 1
