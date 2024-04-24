@@ -38,7 +38,7 @@ SUBROUTINE InitPeriodicBC()
 USE MOD_Globals
 USE MOD_ReadInTools            ,ONLY: GETINT,GETREALARRAY
 USE MOD_Particle_Boundary_Vars ,ONLY: PartBound
-USE MOD_Particle_Mesh_Vars     ,ONLY: GEO
+USE MOD_Particle_Mesh_Vars     ,ONLY: GEO, MeshHasPeriodic
 USE MOD_Particle_Vars          ,ONLY: PartMeshHasPeriodicBCs
 #if USE_MPI
 USE MOD_Particle_Vars          ,ONLY: PDM
@@ -57,6 +57,11 @@ INTEGER                :: iBC
 !===================================================================================================================================
 
 GEO%nPeriodicVectors       = GETINT('Part-nPeriodicVectors','0')
+
+#if USE_MPI
+! Periodic Sides
+MeshHasPeriodic    = MERGE(.TRUE.,.FALSE.,GEO%nPeriodicVectors.GT.0)
+#endif  /*USE_MPI*/
 
 ! sanity check with DG. Both must be either periodic or non-periodic.
 
