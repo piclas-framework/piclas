@@ -256,11 +256,8 @@ END SUBROUTINE ParticleThroughSideCheck3DFast
 
 SUBROUTINE ParticleThroughSideCheck2D(PartID,iLocSide,Element,ThroughSide)
 !===================================================================================================================================
-!> Routine to check whether a particle crossed the given triangle of a side. The determinant between the normalized trajectory
-!> vector and the vectors from two of the three nodes to the old particle position is calculated. If the determinants for the three
-!> possible combinations are greater than zero, then the particle went through this triangle of the side.
-!> Note that if this is a mortar side, the side of the small neighbouring mortar element has to be checked. Thus, the orientation
-!> is reversed.
+!> Routine to check whether a particle crossed the given 2D side. The intersection of the edge and the particle trajectory is 
+!> calculated and checked to see if it is within the side.
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals                   ,ONLY: VECNORM2D
@@ -290,7 +287,7 @@ CNElemID = GetCNElemID(Element)
 
 ThroughSide = .FALSE.
 
-! Get the coordinates of the first node and the vector from the particle position to the node
+! Get the coordinates of the edge and trajectory
 xNode(1) = NodeCoords_Shared(1,ElemSideNodeID2D_Shared(1,iLocSide, CNElemID))
 xNode(2) = NodeCoords_Shared(1,ElemSideNodeID2D_Shared(2,iLocSide, CNElemID))
 IF (xNode(1).GT.xNode(2)) THEN
@@ -339,11 +336,8 @@ END SUBROUTINE ParticleThroughSideCheck2D
 
 SUBROUTINE ParticleThroughSideCheck1D(PartID,iLocSide,Element,ThroughSide)
 !===================================================================================================================================
-!> Routine to check whether a particle crossed the given triangle of a side. The determinant between the normalized trajectory
-!> vector and the vectors from two of the three nodes to the old particle position is calculated. If the determinants for the three
-!> possible combinations are greater than zero, then the particle went through this triangle of the side.
-!> Note that if this is a mortar side, the side of the small neighbouring mortar element has to be checked. Thus, the orientation
-!> is reversed.
+!> Routine to check whether a particle crossed the given 1D  side. It simply checks whether lastpartpos - xnode and partpos-xnode 
+!> have different signs. Then the side was crossed.
 !===================================================================================================================================
 ! MODULES
 USE MOD_Particle_Vars             ,ONLY: lastPartPos,PartState
@@ -369,7 +363,7 @@ REAL                             :: xNode
 CNElemID = GetCNElemID(Element)
 
 ThroughSide = .FALSE.
-! Get the coordinates of the first node and the vector from the particle position to the node
+! Get the coordinates of the first node 
 xNode = NodeCoords_Shared(1,ElemSideNodeID1D_Shared(iLocSide, CNElemID))
 
 DiffSign(1) = NINT(SIGN(1.,LastPartPos(1,PartID) - xNode))

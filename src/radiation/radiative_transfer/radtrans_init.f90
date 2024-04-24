@@ -819,10 +819,6 @@ CALL UNLOCK_AND_FREE(RadTransPhotPerCell_Shared_Win)
 CALL UNLOCK_AND_FREE(Radiation_Emission_Spec_Total_Shared_Win)
 CALL UNLOCK_AND_FREE(RadTransObsVolumeFrac_Shared_Win)
 IF(RadiationPhotonWaveLengthModel.EQ.1) CALL UNLOCK_AND_FREE(Radiation_Emission_Spec_Max_Shared_Win)
-IF(Symmetry%Order.EQ.2)THEN
-  CALL UNLOCK_AND_FREE(ElemSideNodeID2D_Shared_Win)
-  CALL UNLOCK_AND_FREE(SideNormalEdge2D_Shared_Win)
-END IF
 CALL MPI_BARRIER(MPI_COMM_SHARED,iERROR)
 #endif /*USE_MPI*/
 ADEALLOCATE(RadiationElemAbsEnergy_Shared)

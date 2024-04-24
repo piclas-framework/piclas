@@ -891,9 +891,6 @@ USE MOD_Globals
 USE MOD_Particle_Vars    ,ONLY: Symmetry
 USE MOD_DSMC_Vars        ,ONLY: RadialWeighting
 USE MOD_ReadInTools      ,ONLY: GETLOGICAL,GETINT
-#if USE_LOADBALANCE
-USE MOD_LoadBalance_Vars ,ONLY: PerformLoadBalance
-#endif /*USE_LOADBALANCE*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------

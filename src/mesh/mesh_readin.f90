@@ -1368,7 +1368,7 @@ CALL MPI_BARRIER(MPI_COMM_SHARED,iERROR)
 
 ! symmetry sides and elem volumes/characteristic lengths
 IF(ABS(meshMode).GT.1)THEN
-  IF(Symmetry%Order.EQ.2) CALL UNLOCK_AND_FREE(SideIsSymSide_Shared_Win)
+  IF(Symmetry%Order.LE.2) CALL UNLOCK_AND_FREE(SideIsSymSide_Shared_Win)
   CALL UNLOCK_AND_FREE(ElemVolume_Shared_Win)
   CALL UNLOCK_AND_FREE(ElemCharLength_Shared_Win)
 END IF ! ABS(meshMode).GT.1

@@ -139,16 +139,15 @@ END SUBROUTINE BuildMesh2DInfo
 
 SUBROUTINE BuildMesh1DInfo()
 !===================================================================================================================================
-!> Routine determines a symmetry side and calculates the 2D (area faces in symmetry plane) and axisymmetric volumes (cells are
-!> revolved around the symmetry axis). The symmetry side will be used later on to determine in which two directions the quadtree
-!> shall refine the mesh, skipping the z-dimension to avoid an unnecessary refinement.
+!> Routine determines a symmetry side and calculates the 1D (area faces in symmetry plane)
+!> The symmetry sides will be used later on to determine in which direction the quadtree
+!> shall refine the mesh, skipping the z- and y-dimension to avoid an unnecessary refinement.
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
 USE MOD_PreProc
 USE MOD_Particle_Boundary_Vars  ,ONLY: PartBound
 USE MOD_Particle_Mesh_Vars      ,ONLY: GEO
-USE MOD_Particle_Mesh_Vars      ,ONLY: ElemBaryNGeo
 USE MOD_Particle_Mesh_Vars      ,ONLY: NodeCoords_Shared,ElemSideNodeID_Shared, SideInfo_Shared
 USE MOD_Mesh_Tools              ,ONLY: GetGlobalElemID
 USE MOD_Particle_Mesh_Tools     ,ONLY: GetGlobalNonUniqueSideID
@@ -170,8 +169,7 @@ USE MOD_Particle_Mesh_Vars      ,ONLY: ElemSideNodeID1D_Shared
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER                         :: SideID, iLocSide, iNode, iELem
-REAL                            :: VecCell(2), FaceMidPoint(2), NormVec(2), EdgeVec(2), nVal
-INTEGER                         :: firstElem,lastElem, GlobalElemID, tmpNode
+INTEGER                         :: firstElem,lastElem, GlobalElemID
 LOGICAL                         :: DefineSide
 !===================================================================================================================================
 #if USE_MPI

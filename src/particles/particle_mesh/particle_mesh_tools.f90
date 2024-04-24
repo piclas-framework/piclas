@@ -213,7 +213,7 @@ END SUBROUTINE ParticleInsideQuad3D
 
 SUBROUTINE ParticleInsideQuad2D(PartStateLoc,ElemID,InElementCheck)
 !===================================================================================================================================
-!> Checks if particle is inside of a linear 2D element with4  faces, compatible with mortars
+!> Checks if particle is inside of a linear 2D element with 4  faces, compatible with mortars. The "Ray Casting Algorithm" is used.
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
@@ -264,7 +264,7 @@ END SUBROUTINE ParticleInsideQuad2D
 
 SUBROUTINE ParticleInsideQuad1D(PartStateLoc,ElemID,InElementCheck)
 !===================================================================================================================================
-!> Checks if particle is inside of a linear 2D element with4  faces, compatible with mortars
+!> Checks if particle is inside of a 1D element. 
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals

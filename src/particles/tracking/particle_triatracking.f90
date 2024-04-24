@@ -590,23 +590,18 @@ SUBROUTINE SingleParticleTriaTracking1D2D(i)
 USE MOD_Preproc
 USE MOD_Globals
 USE MOD_Mesh_Tools                  ,ONLY: GetCNElemID
-USE MOD_Particle_Vars               ,ONLY: PEM,PDM,PartSpecies
+USE MOD_Particle_Vars               ,ONLY: PEM,PDM
 USE MOD_Particle_Vars               ,ONLY: PartState,LastPartPos
 USE MOD_Particle_Vars               ,ONLY: Symmetry
-USE MOD_Particle_Vars               ,ONLY: UseRotRefFrame, RotRefFrameOmega, PartVeloRotRef
 USE MOD_Particle_Mesh_Vars
-USE MOD_Particle_Tracking_vars      ,ONLY: ntracks,MeasureTrackTime,CountNbrOfLostParts, NbrOfLostParticles, TrackInfo
-USE MOD_Particle_Tracking_vars      ,ONLY: DisplayLostParticles
-USE MOD_Part_Tools                  ,ONLY: StoreLostParticleProperties
+USE MOD_Particle_Tracking_vars      ,ONLY: ntracks,MeasureTrackTime, TrackInfo
 USE MOD_Particle_Boundary_Vars      ,ONLY: PartBound
-USE MOD_Particle_Intersection       ,ONLY: ParticleThroughSideCheck2D, ParticleThroughSideLastPosCheck, IntersectionWithWall
-USE MOD_Particle_Intersection       ,ONLY: ParticleThroughSideCheck1D
+USE MOD_Particle_Intersection       ,ONLY: ParticleThroughSideCheck2D, ParticleThroughSideCheck1D
 USE MOD_Particle_Boundary_Condition ,ONLY: GetBoundaryInteraction
-USE MOD_part_tools                  ,ONLY: ParticleOnProc, InRotRefFrameCheck
-USE MOD_part_operations             ,ONLY: RemoveParticle
 #if USE_LOADBALANCE
 USE MOD_Mesh_Vars                   ,ONLY: offsetElem
 USE MOD_LoadBalance_Timers          ,ONLY: LBStartTime, LBElemSplitTime, LBElemPauseTime
+USE MOD_part_tools                  ,ONLY: ParticleOnProc
 #endif /*USE_LOADBALANCE*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -619,15 +614,10 @@ INTEGER,INTENT(IN)                :: i
 ! LOCAL VARIABLES
 INTEGER                          :: NblocSideID, NbElemID, CNElemID, ind, nbSideID, nMortarElems,BCType
 INTEGER                          :: ElemID,flip,OldElemID,nlocSides
-INTEGER                          :: LocalSide
-INTEGER                          :: NrOfThroughSides, ind2
-INTEGER                          :: SideID,TempSideID,iLocSide, localSideID
-INTEGER                          :: LastSide
-INTEGER                          :: SecondNrOfThroughSides, indSide
-LOGICAL                          :: ThroughSide, InElementCheck,PartisDone
-LOGICAL                          :: crossedBC, oldElemIsMortar,doCheckSide
-REAL                             :: det(6,2),detM,ratio,minRatio, detPartPos
-REAL, PARAMETER                  :: eps = 0
+INTEGER                          :: LocalSide, NrOfThroughSides
+INTEGER                          :: SideID,TempSideID,iLocSide, localSideID, LastSide
+LOGICAL                          :: ThroughSide, PartisDone
+LOGICAL                          :: crossedBC, oldElemIsMortar
 !-----------------------------------------------------------------------------------------------------------------------------------
 #if USE_LOADBALANCE
 REAL                             :: tLBStart
