@@ -212,7 +212,9 @@ CALL prms%CreateLogicalOption(  'Part-SampleElectronicExcitation'&
   , 'Set [T] to activate sampling of electronic energy excitation (currently only available for ElectronicModel = 3)', '.FALSE.')
 
 ! === Rotational frame of reference
-CALL prms%CreateLogicalOption(  'Part-UseRotationalReferenceFrame', 'Activate rotational frame of reference', '.FALSE.')
+CALL prms%CreateLogicalOption(  'Part-UseRotationalReferenceFrame', 'Activate the rotational frame of reference', '.FALSE.')
+CALL prms%CreateLogicalOption(  'Part-RotRefFrame-UseSubCycling', 'Activate subcycling in the rotational frame of reference', '.FALSE.')
+CALL prms%CreateIntOption(      'Part-RotRefFrame-SubCyclingSteps','Number of subcyling steps)','10')
 CALL prms%CreateIntOption(      'Part-RotRefFrame-Axis','Axis of rotational frame of reference (x=1, y=2, z=3)')
 CALL prms%CreateRealOption(     'Part-RotRefFrame-Frequency','Frequency of rotational frame of reference [1/s], sign according '//&
                                 'to right-hand rule, e.g. positive: counter-clockwise, negative: clockwise')
@@ -595,12 +597,8 @@ IF(Symmetry%Axisymmetric) THEN
     RadialWeighting%PerformCloning = .TRUE.
     CALL DSMC_2D_InitRadialWeighting()
   END IF
-  IF(TrackingMethod.NE.TRIATRACKING) CALL abort(&
-    __STAMP__&
-    ,'ERROR: Axisymmetric simulation only supported with TrackingMethod = triatracking')
-  IF(.NOT.TriaSurfaceFlux) CALL abort(&
-    __STAMP__&
-    ,'ERROR: Axisymmetric simulation only supported with TriaSurfaceFlux = T')
+  IF(TrackingMethod.NE.TRIATRACKING) CALL abort(__STAMP__,'ERROR: Axisymmetric simulation only supported with TrackingMethod = triatracking')
+  IF(.NOT.TriaSurfaceFlux) CALL abort(__STAMP__,'ERROR: Axisymmetric simulation only supported with TriaSurfaceFlux = T')
 END IF
 
 #if USE_MPI
@@ -1446,6 +1444,7 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
+INTEGER                   :: iSpec, iSF
 !===================================================================================================================================
 !#if USE_MPI
 !CALL FinalizeEmissionParticlesToProcs()
@@ -1483,6 +1482,7 @@ SDEALLOCATE(PartPosRef)
 SDEALLOCATE(PartState)
 SDEALLOCATE(LastPartPos)
 SDEALLOCATE(PartVeloRotRef)
+SDEALLOCATE(LastPartVeloRotRef)
 SDEALLOCATE(PartSpecies)
 SDEALLOCATE(Pt)
 SDEALLOCATE(PDM%ParticleInside)
@@ -1496,6 +1496,20 @@ SDEALLOCATE(CellEelec_vMPF)
 SDEALLOCATE(CellEvib_vMPF)
 SDEALLOCATE(PartMPF)
 SDEALLOCATE(InterPlanePartIndx)
+DO iSpec = 1, nSpecies
+  DO iSF=1, Species(iSpec)%nSurfacefluxBCs
+    SDEALLOCATE(Species(iSpec)%Surfaceflux(iSF)%SurfFluxSubSideData)
+    SDEALLOCATE(Species(iSpec)%Surfaceflux(iSF)%SurfFluxSideRejectType)
+    SDEALLOCATE(Species(iSpec)%Surfaceflux(iSF)%nVFRSub)
+    SDEALLOCATE(Species(iSpec)%Surfaceflux(iSF)%VFR_total_allProcs)
+    SDEALLOCATE(Species(iSpec)%Surfaceflux(iSF)%ConstMassflowWeight)
+    SDEALLOCATE(Species(iSpec)%Surfaceflux(iSF)%CircleAreaPerTriaSide)
+  END DO
+  IF(ASSOCIATED(Species(iSpec)%Surfaceflux)) THEN
+    DEALLOCATE(Species(iSpec)%Surfaceflux)
+    NULLIFY(Species(iSpec)%Surfaceflux)
+  END IF
+END DO
 SDEALLOCATE(Species)
 SDEALLOCATE(SpecReset)
 SDEALLOCATE(IMDSpeciesID)
@@ -1511,7 +1525,7 @@ SDEALLOCATE(PEM%pEnd)
 SDEALLOCATE(PEM%pNext)
 SDEALLOCATE(seeds)
 SDEALLOCATE(PartPosLandmark)
-SDEALLOCATE(RotRefFramRegion)
+SDEALLOCATE(RotRefFrameRegion)
 SDEALLOCATE(VirtMergedCells)
 SDEALLOCATE(PartDataVarNames)
 #if USE_MPI
@@ -1738,6 +1752,8 @@ CHARACTER(LEN=5)   :: hilf
 !===================================================================================================================================
 
 UseRotRefFrame = GETLOGICAL('Part-UseRotationalReferenceFrame')
+UseRotSubCycling = GETLOGICAL('Part-RotRefFrame-UseSubCycling')
+nSubCyclingSteps = GETINT('Part-RotRefFrame-SubCyclingSteps')
 
 IF(UseRotRefFrame) THEN
   ! Abort for other timedisc except DSMC/BGK
@@ -1746,6 +1762,8 @@ IF(UseRotRefFrame) THEN
 #endif
   ALLOCATE(PartVeloRotRef(1:3,1:PDM%maxParticleNumber))
   PartVeloRotRef = 0.0
+  ALLOCATE(LastPartVeloRotRef(1:3,1:PDM%maxParticleNumber))
+  LastPartVeloRotRef = 0.0
   RotRefFrameAxis = GETINT('Part-RotRefFrame-Axis')
   RotRefFrameFreq = GETREAL('Part-RotRefFrame-Frequency')
   omegaTemp = 2.*PI*RotRefFrameFreq
@@ -1760,13 +1778,13 @@ IF(UseRotRefFrame) THEN
       CALL abort(__STAMP__,'ERROR Rotational Reference Frame: Axis must be between 1 and 3. Selected axis: ',IntInfoOpt=RotRefFrameAxis)
   END SELECT
   nRefFrameRegions = GETINT('Part-nRefFrameRegions')
-  ALLOCATE(RotRefFramRegion(1:2,1:nRefFrameRegions))
+  ALLOCATE(RotRefFrameRegion(1:2,1:nRefFrameRegions))
   IF(nRefFrameRegions.GT.0)THEN
     DO iRegion=1, nRefFrameRegions
       WRITE(UNIT=hilf,FMT='(I0)') iRegion
-      RotRefFramRegion(1,iRegion)= GETREAL('Part-RefFrameRegion'//TRIM(hilf)//'-MIN')
-      RotRefFramRegion(2,iRegion)= GETREAL('Part-RefFrameRegion'//TRIM(hilf)//'-MAX')
-      IF(RotRefFramRegion(1,iRegion).GE.RotRefFramRegion(2,iRegion)) THEN
+      RotRefFrameRegion(1,iRegion)= GETREAL('Part-RefFrameRegion'//TRIM(hilf)//'-MIN')
+      RotRefFrameRegion(2,iRegion)= GETREAL('Part-RefFrameRegion'//TRIM(hilf)//'-MAX')
+      IF(RotRefFrameRegion(1,iRegion).GE.RotRefFrameRegion(2,iRegion)) THEN
         CALL abort(__STAMP__,'ERROR Rotational Reference Frame: MIN > MAX in definition of region ',IntInfoOpt=iRegion)
       END IF
     END DO

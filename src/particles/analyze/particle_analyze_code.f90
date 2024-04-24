@@ -347,12 +347,13 @@ CASE(51)
   IF(TimeReset.GT.0.0) THEN
     r_0Vec          = r_WallVec
     v_0Vec          = v_WallVec
+    v_0Vec = v_0Vec - CROSS(RotRefFrameOmega(1:3),r_0Vec) ! Transform velocity into RotRefFrame
     New_t           = t - TimeReset
   ELSE
     r_0Vec          = Species(iSpec)%Init(1)%BasePointIC(1:3)
     v_0Vec          = Species(iSpec)%Init(1)%VeloVecIC(1:3) * Species(iSpec)%Init(1)%VeloIC
     New_t           = t
-    v_0Vec = v_0Vec - CROSS(RotRefFrameOmega(1:3),r_0Vec)
+    v_0Vec = v_0Vec - CROSS(RotRefFrameOmega(1:3),r_0Vec) ! Transform velocity into RotRefFrame
   END IF
   r_tVec          = r_0Vec + v_0Vec * New_t
   omega = 2.*PI*RotRefFrameFreq
@@ -407,13 +408,14 @@ CASE(51)
                         - ( omega * (COS(omega * New_t) - omega * New_t * SIN(omega * New_t) ) ) &
                                                         * ( TempArrayCross3(3) - 1/omega * TempArrayCross6(3) )
 
-!              IF((PartStateAnalytic(1).GE.0.0).AND.(TimeReset.LE.0.0)) THEN
-  IF(ABS(PartStateAnalytic(1)).LT.1E-8) THEN
+  IF(PartStateAnalytic(1).GT.0.0) THEN
     TimeReset    = t
+    PartStateAnalytic(1) = 0.0 ! set particle on wall
     r_WallVec    = PartStateAnalytic(1:3)
-    v_WallVec(1) = -PartStateAnalytic(4)
-    v_WallVec(2) = PartStateAnalytic(5)
-    v_WallVec(3) = PartStateAnalytic(6)
+    v_0Vec = Species(iSpec)%Init(1)%VeloVecIC(1:3) * Species(iSpec)%Init(1)%VeloIC
+    v_WallVec = v_0Vec
+    v_WallVec(1) = - v_WallVec(1) ! mirror velocity (not equal push velocity or PartStateAnalytic(4:6))
+    v_WallVec =  v_WallVec + CROSS(RotRefFrameOmega(1:3),r_WallVec) ! add wall velocity
   END IF
 !              PartStateAnalytic(4:6) = 0.0
 END SELECT

@@ -32,9 +32,10 @@ PUBLIC :: UpdateBPO
 
 CONTAINS
 
-SUBROUTINE CreateParticle(SpecID,Pos,GlobElemID,Velocity,RotEnergy,VibEnergy,ElecEnergy,NewPartID,NewMPF)
+SUBROUTINE CreateParticle(SpecID,Pos,GlobElemID,Velocity,RotEnergy,VibEnergy,ElecEnergy,OldPartID,NewPartID,NewMPF,NewTimestep)
 !===================================================================================================================================
 !> creates a single particle at correct array position and assign properties
+!> OldPartID can be supplied to get the MPF and Timestep, however, NewMPF and NewTimestep have priority
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
@@ -58,8 +59,10 @@ REAL, INTENT(IN)              :: Velocity(1:3)    !< Velocity (vx,vy,vz)
 REAL, INTENT(IN)              :: RotEnergy        !< Rotational energy
 REAL, INTENT(IN)              :: VibEnergy        !< Vibrational energy
 REAL, INTENT(IN)              :: ElecEnergy       !< Electronic energy
+INTEGER, INTENT(IN),OPTIONAL  :: OldPartID        !< ID of old particle (if available)
 INTEGER, INTENT(OUT),OPTIONAL :: NewPartID        !< ID of newly created particle
 REAL, INTENT(IN),OPTIONAL     :: NewMPF           !< MPF of newly created particle
+REAL, INTENT(IN),OPTIONAL     :: NewTimestep      !< Timestep of the newly created particle
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! LOCAL VARIABLES
 INTEGER :: newParticleID
@@ -97,7 +100,13 @@ PEM%LastGlobalElemID(newParticleID) = GlobElemID
 
 ! Set particle time step and weight (if required)
 IF (UseVarTimeStep) THEN
-  PartTimeStep(newParticleID) = GetParticleTimeStep(PartState(1,newParticleID),PartState(2,newParticleID),PEM%LocalElemID(newParticleID))
+  IF(PRESENT(NewTimestep)) THEN
+    PartTimeStep(newParticleID) = NewTimestep
+  ELSE IF(PRESENT(OldPartID)) THEN
+    PartTimeStep(newParticleID) = PartTimeStep(OldPartID)
+  ELSE
+    PartTimeStep(newParticleID) = GetParticleTimeStep(PartState(1,newParticleID),PartState(2,newParticleID),PEM%LocalElemID(newParticleID))
+  END IF
 END IF
 
 ! Set new particle MPF
@@ -105,6 +114,9 @@ IF (usevMPF) THEN
   IF(PRESENT(NewMPF))THEN
     ! MPF is already defined via input
     PartMPF(newParticleID) = NewMPF
+  ELSE IF(PRESENT(OldPartID)) THEN
+    ! MPF is available from the "original" particle
+    PartMPF(newParticleID) = PartMPF(OldPartID)
   ELSE
     ! Check if vMPF (and radial weighting is used) to determine the MPF of the new particle
     IF (RadialWeighting%DoRadialWeighting) THEN
