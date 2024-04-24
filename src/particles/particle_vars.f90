@@ -72,6 +72,7 @@ REAL    , ALLOCATABLE :: PartState(:,:)                                      ! 1
 !                                                                            ! 2nd index: 1:NParts
 REAL    , ALLOCATABLE :: PartPosRef(:,:)                                     ! (1:3,1:NParts) particles pos mapped to -1|1 space
 REAL    , ALLOCATABLE :: PartVeloRotRef(:,:)                                 ! (1:3,1:NParts) Velocity in the rotational reference frame
+REAL    , ALLOCATABLE :: LastPartVeloRotRef(:,:)                             ! (1:3,1:NParts) Last Velocity in the rotational reference frame
 REAL    , ALLOCATABLE :: Pt(:,:)                                             ! Derivative of PartState (vx,xy,vz) only
                                                                              ! since temporal derivative of position
                                                                              ! is the velocity. Thus we can take
@@ -135,13 +136,21 @@ INTEGER , ALLOCATABLE :: seeds(:)                        !        =>NULL()   ! S
 TYPE tSpecies                                                                ! Particle Data for each Species
   !General Species Values
   TYPE(tInit), ALLOCATABLE               :: Init(:)  !     =>NULL()          ! Particle Data for each Initialisation
+  CHARACTER(LEN=64)                      :: Name                             ! Species Name, required for SpeciesDatabase
   REAL                                   :: ChargeIC                         ! Particle Charge (without MPF)
   REAL                                   :: MassIC                           ! Particle Mass (without MPF)
+  INTEGER                                :: InterID                          ! Identification number (e.g. for DSMC_prob_calc), ini_2
+                                                                             !     1   : Atom
+                                                                             !     2   : Molecule
+                                                                             !     4   : Electron
+                                                                             !     10  : Atomic ion
+                                                                             !     20  : Molecular ion
   REAL                                   :: MacroParticleFactor              ! Number of Microparticle per Macroparticle
   REAL                                   :: TimeStepFactor                   ! Species-specific time step factor
   INTEGER                                :: NumberOfInits                    ! Number of different initial particle placements
-  TYPE(typeSurfaceflux),ALLOCATABLE      :: Surfaceflux(:)                   ! Particle Data for each SurfaceFlux emission
+  TYPE(tSurfaceFlux),POINTER             :: Surfaceflux(:) => NULL()         ! Particle Data for each SurfaceFlux emission
   INTEGER                                :: nSurfacefluxBCs                  ! Number of SF emissions
+  LOGICAL                                :: DoOverwriteParameters            ! Flag to read in parameters manually
 #if IMPA
   LOGICAL                                :: IsImplicit
 #endif
@@ -204,7 +213,7 @@ TYPE tParticleDataManagement
   INTEGER                                :: ParticleVecLengthOld              ! Vector Length for Particle Push Calculation
   REAL                                   :: MaxPartNumIncrease                ! How much shall the PDM%MaxParticleNumber be increased if it is full
   INTEGER ,ALLOCATABLE                   :: nextFreePosition(:)  !  =>NULL()  ! next_free_Position(1:maxParticleNumber)
-                                                                              ! List of free Positon
+                                                                              ! List of free Position
   LOGICAL ,ALLOCATABLE                   :: ParticleInside(:)                 ! Particle_inside (1:maxParticleNumber)
   LOGICAL ,ALLOCATABLE                   :: InRotRefFrame(:)                  ! Check for RotRefFrame (1:maxParticleNumber)
   LOGICAL ,ALLOCATABLE                   :: dtFracPush(:)                     ! Push random fraction only
@@ -242,7 +251,6 @@ REAL, ALLOCATABLE                        :: CellEvib_vMPF(:,:)
 LOGICAL                                  :: DoSurfaceFlux                     ! Flag for emitting by SurfaceFluxBCs
 LOGICAL                                  :: DoPoissonRounding                 ! Perform Poisson sampling instead of random rounding
 LOGICAL                                  :: DoTimeDepInflow                   ! Insertion and SurfaceFlux w simple random rounding
-LOGICAL                                  :: DoZigguratSampling                ! Sample normal randoms with Ziggurat method
 
 ! Variable time step
 LOGICAL                                :: UseVarTimeStep
@@ -292,7 +300,17 @@ INTEGER               :: RotRefFrameAxis          ! axis of rotational frame of 
 REAL                  :: RotRefFrameFreq          ! frequency of rotational frame of reference
 REAL                  :: RotRefFrameOmega(3)      ! angular velocity of rotational frame of reference
 INTEGER               :: nRefFrameRegions         ! number of rotational frame of reference regions
-REAL, ALLOCATABLE     :: RotRefFramRegion(:,:)    ! MIN/MAX defintion for multiple rotational frame of reference region
+REAL, ALLOCATABLE     :: RotRefFrameRegion(:,:)   ! MIN/MAX defintion for multiple rotational frame of reference region
                                                   ! (i,RegionNumber), MIN:i=1, MAX:i=2
+! Rotational frame of reference: Subcycling
+LOGICAL               :: UseRotSubCycling             ! Flag if subcycling is active
+INTEGER               :: nSubCyclingSteps             ! Number of subcycling steps
+REAL                  :: LastPartPosSubCycling(3)     ! Last position before subcycling
+REAL                  :: NewPosSubCycling(3)          ! New particle position before subcycling
+REAL                  :: PartVeloRotRefSubCycling(3)  ! Velocity in the rotational reference frame before subcycling
+REAL                  :: LastVeloRotRefSubCycling(3)  ! Last Velocity in the rotational reference frame before subcycling
+INTEGER               :: GlobalElemIDSubCycling       ! Element ID before subcycling
+LOGICAL               :: RotRefSubTimeStep            ! Flag for loop that defines that the current time step is a subcycling step
+LOGICAL               :: InRotRefFrameSubCycling      ! Check for RotRefFrame before subcycling
 !===================================================================================================================================
 END MODULE MOD_Particle_Vars

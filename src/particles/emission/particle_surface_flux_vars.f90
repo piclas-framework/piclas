@@ -37,7 +37,7 @@ TYPE tSurfFluxSubSideData
                                                                              ! (1:2,0:NGeo,0:NGeo)
 END TYPE tSurfFluxSubSideData
 
-TYPE typeSurfaceflux
+TYPE tSurfaceFlux
   INTEGER                                :: BC                               ! PartBound to be emitted from
   INTEGER                                :: Type                             ! Type set based on the read-in parameters
                                                                              ! 0: Standard surface flux

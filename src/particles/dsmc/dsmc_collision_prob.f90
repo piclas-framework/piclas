@@ -70,7 +70,7 @@ iPart_p1 = Coll_pData(iPair)%iPart_p1; iPart_p2 = Coll_pData(iPair)%iPart_p2
 iSpec_p1 = PartSpecies(iPart_p1);      iSpec_p2 = PartSpecies(iPart_p2)
 iCase = CollInf%Coll_Case(iSpec_p1,iSpec_p2)
 
-iPType = SpecDSMC(iSpec_p1)%InterID + SpecDSMC(iSpec_p2)%InterID !definition of collision case
+iPType = Species(iSpec_p1)%InterID + Species(iSpec_p2)%InterID !definition of collision case
 
 IF (PRESENT(NodeVolume)) THEN
   Volume = NodeVolume
@@ -218,6 +218,8 @@ END IF
 IF(DSMC%CalcQualityFactors) THEN
   CollProb = Coll_pData(iPair)%Prob
   DSMC%CollProbMax = MAX(CollProb, DSMC%CollProbMax)
+  ! Calculation of the maximum CollProbMax of all cells for this processor
+  IF(DSMC%CollProbMax .GE. DSMC%CollProbMaxProcMax) DSMC%CollProbMaxProcMax = DSMC%CollProbMax
   ! Remove the correction factor for the mean collision probability
   IF(SpecDSMC(iSpec_p1)%UseCollXSec) THEN
     IF(BGGas%BackgroundSpecies(iSpec_p2)) THEN
@@ -236,7 +238,7 @@ IF(DSMC%CalcQualityFactors) THEN
       END IF
     END IF
   END IF
-  DSMC%CollProbMean = DSMC%CollProbMean + CollProb
+  DSMC%CollProbSum = DSMC%CollProbSum + CollProb
   DSMC%CollProbMeanCount = DSMC%CollProbMeanCount + 1
 END IF
 

@@ -153,10 +153,6 @@ INTERFACE FinalizeParameters
   MODULE PROCEDURE FinalizeParameters
 END INTERFACE
 
-INTERFACE PrintOption
-  MODULE PROCEDURE PrintOption
-END INTERFACE
-
 PUBLIC :: IgnoredParameters
 PUBLIC :: PrintDefaultParameterFile
 PUBLIC :: CountOption
@@ -1215,12 +1211,13 @@ CLASS(*)                             :: value    !< parameter value
 CLASS(link),POINTER          :: current
 CLASS(Option),POINTER        :: opt
 CHARACTER(LEN=255)           :: proposal_loc
+CHARACTER(LEN=20)            :: fmtName
+INTEGER                      :: ind,mode
 CLASS(link),POINTER          :: check
 CLASS(Option),POINTER        :: multi
 CLASS(OPTION),ALLOCATABLE    :: newopt
 CHARACTER(LEN=:),ALLOCATABLE :: testname
 INTEGER                      :: i,k
-CHARACTER(LEN=20)            :: fmtName
 ! Temporary arrays to create new options
 CHARACTER(LEN=255)           :: tmpValue
 CLASS(LogicalOption),ALLOCATABLE,TARGET :: logicalopt
@@ -1269,11 +1266,31 @@ DO WHILE (associated(current))
       CLASS IS (StringOption)
         SELECT TYPE(value)
         TYPE IS (STR255)
+          ! If the string contains a comma, strip it and provide the first part of this string. This might occur when directly running a regressioncheck file
+          ind = INDEX(opt%value,",")
+          IF (ind.GT.0) THEN
+            opt%value = opt%value(1:ind-1)
+            ! Print option and value to stdout. Custom print, so do it here
+            WRITE(fmtName,*) prms%maxNameLen
+            SWRITE(UNIT_stdOut,'(A3)', ADVANCE='NO')  " | "
+            CALL set_formatting("blue")
+            SWRITE(UNIT_stdOut,"(A"//fmtName//")", ADVANCE='NO') TRIM(name)
+            CALL clear_formatting()
+            SWRITE(UNIT_stdOut,'(A3)', ADVANCE='NO')  " | "
+            CALL opt%printValue(prms%maxValueLen)
+            SWRITE(UNIT_stdOut,"(A3)", ADVANCE='NO') ' | '
+            CALL set_formatting("cyan")
+            SWRITE(UNIT_stdOut,'(A7)', ADVANCE='NO')  "*SPLIT"
+            CALL clear_formatting()
+            SWRITE(UNIT_stdOut,"(A3)") ' | '
+            ! Set mode to indicate print already occured
+            mode = 1
+          END IF
           value%chars = opt%value
         END SELECT
       END SELECT
       ! print option and value to stdout
-      CALL opt%print(prms%maxNameLen, prms%maxValueLen, mode=0)
+      IF (mode.EQ.0) CALL opt%print(prms%maxNameLen, prms%maxValueLen, mode=0)
       ! remove the option from the linked list of all parameters
       IF(prms%removeAfterRead) current%opt%isRemoved = .TRUE.
       RETURN
@@ -1818,6 +1835,7 @@ CLASS(OPTION),ALLOCATABLE     :: newopt
 CHARACTER(LEN=:),ALLOCATABLE  :: testname
 INTEGER                       :: iChar,kChar
 CHARACTER(LEN=20)             :: fmtName
+INTEGER                       :: ind
 !==================================================================================================================================
 ! iterate over all options and compare names
 current => prms%firstLink
@@ -1864,8 +1882,33 @@ DO WHILE (associated(current))
           RETURN
         END IF
       END DO
-      CALL Abort(__STAMP__,&
-          "Unknown value for option: "//TRIM(name))
+      ! If a string contains a comma, check if the first part of this string exists in the list and set its integer representation
+      ! according to the mapping. This might occur when directly running a regressioncheck file
+      DO i=1,listSize
+        ind = INDEX(opt%value,",")
+        IF (STRICMP(opt%strList(i), opt%value(1:ind-1))) THEN
+          value = opt%intList(i)
+          opt%listIndex = i ! Store index of the mapping
+          ! print option and value to stdout. Custom print, so do it here
+          WRITE(fmtName,*) prms%maxNameLen
+          SWRITE(UNIT_stdOut,'(A3)', ADVANCE='NO')  " | "
+          CALL set_formatting("blue")
+          SWRITE(UNIT_stdOut,"(A"//fmtName//")", ADVANCE='NO') TRIM(name)
+          CALL clear_formatting()
+          SWRITE(UNIT_stdOut,'(A3)', ADVANCE='NO')  " | "
+          CALL opt%printValue(prms%maxValueLen)
+          SWRITE(UNIT_stdOut,"(A3)", ADVANCE='NO') ' | '
+          CALL set_formatting("cyan")
+          SWRITE(UNIT_stdOut,'(A7)', ADVANCE='NO')  "*SPLIT"
+          CALL clear_formatting()
+          SWRITE(UNIT_stdOut,"(A3)") ' | '
+          ! CALL opt%print(prms%maxNameLen, prms%maxValueLen, mode=0)
+          ! remove the option from the linked list of all parameters
+          IF(prms%removeAfterRead) current%opt%isRemoved = .TRUE.
+          RETURN
+        END IF
+      END DO
+      CALL Abort(__STAMP__,"Unknown value for option: "//TRIM(name))
     END SELECT
   END IF
   current => current%next
@@ -2204,7 +2247,7 @@ IF(.NOT.MPIRoot)RETURN
 #if USE_LOADBALANCE
 IF (PerformLoadBalance) THEN
   SELECT CASE(TRIM(InfoOpt))
-    CASE("INFO","PARAM","CALCUL.","OUTPUT","HDF5")
+    CASE("INFO","PARAM","CALCUL.","OUTPUT","HDF5","DB")
       RETURN
   END SELECT
 END IF

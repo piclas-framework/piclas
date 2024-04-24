@@ -57,8 +57,7 @@ USE MOD_Particle_Vars           ,ONLY: UseVarTimeStep, PartTimeStep, VarTimeStep
 USE MOD_Particle_Tracking_Vars  ,ONLY: TrackingMethod
 USE MOD_Mesh_Vars               ,ONLY: offSetElem
 USE MOD_Particle_Mesh_Vars      ,ONLY: ElemVolume_Shared
-USE MOD_Particle_Vars           ,ONLY: WriteMacroVolumeValues
-USE MOD_TimeDisc_Vars           ,ONLY: dt, TEnd, time
+USE MOD_TimeDisc_Vars           ,ONLY: dt
 USE MOD_DSMC_Vars               ,ONLY: newAmbiParts, iPartIndx_NodeNewAmbi
 ! ROUTINES
 USE MOD_DSMC_Analyze            ,ONLY: CalcMeanFreePath
@@ -536,6 +535,8 @@ DO iSpec = 1, nSpecies
       ! Determine collision probabilities
       IF(DSMC%CalcQualityFactors) THEN
         DSMC%CollProbMax = MAX(CollProb, DSMC%CollProbMax)
+        ! Calculation of the maximum CollProbMax of all cells for this processor
+        IF(DSMC%CollProbMax .GE. DSMC%CollProbMaxProcMax) DSMC%CollProbMaxProcMax = DSMC%CollProbMax
         ! Remove the correction factor for the mean collision probability
         IF(SpecXSec(iSpec)%UseCollXSec) THEN
           IF(XSec_NullCollision) THEN
@@ -544,7 +545,7 @@ DO iSpec = 1, nSpecies
             CollProb = CollProb * BGGasFraction
           END IF
         END IF
-        DSMC%CollProbMean = DSMC%CollProbMean + CollProb
+        DSMC%CollProbSum = DSMC%CollProbSum + CollProb
         DSMC%CollProbMeanCount = DSMC%CollProbMeanCount + 1
       END IF ! DSMC%CalcQualityFactors
       ! Reservoir simulation: determination of the reaction probabilities
@@ -573,13 +574,25 @@ IF(bggPartIndex.NE.0) THEN
   PDM%ParticleInside(bggPartIndex) = .FALSE.
 END IF
 IF(DSMC%CalcQualityFactors) THEN
-  IF((Time.GE.(1-DSMC%TimeFracSamp)*TEnd).OR.WriteMacroVolumeValues) THEN
-    ! Calculation of the mean free path
-    DSMC%MeanFreePath = CalcMeanFreePath(REAL(CollInf%Coll_SpecPartNum),SUM(CollInf%Coll_SpecPartNum), &
+  ! Calculation of Mean Collision Probability
+  IF(DSMC%CollProbMeanCount.GT.0) DSMC%CollProbMean = DSMC%CollProbSum / DSMC%CollProbMeanCount
+  ! Calculation of the mean free path
+  DSMC%MeanFreePath = CalcMeanFreePath(REAL(CollInf%Coll_SpecPartNum),SUM(CollInf%Coll_SpecPartNum), &
                           ElemVolume_Shared(CNElemID), DSMC%InstantTransTemp(nSpecies+1))
-    ! Determination of the MCS/MFP for the case without octree
-    IF((DSMC%CollSepCount.GT.0.0).AND.(DSMC%MeanFreePath.GT.0.0)) DSMC%MCSoverMFP = (DSMC%CollSepDist/DSMC%CollSepCount) &
+  ! Determination of the MCS/MFP for the case without octree
+  IF((DSMC%CollSepCount.GT.0.0).AND.(DSMC%MeanFreePath.GT.0.0)) DSMC%MCSoverMFP = (DSMC%CollSepDist/DSMC%CollSepCount) &
                                                                                     / DSMC%MeanFreePath
+  ! Calculation of the maximum MCS/MFP of all cells for this processor
+  IF(DSMC%MCSoverMFP .GE. DSMC%MaxMCSoverMFP) DSMC%MaxMCSoverMFP = DSMC%MCSoverMFP
+  ! Calculate number of resolved Cells for this processor
+  DSMC%ParticleCalcCollCounter = DSMC%ParticleCalcCollCounter + 1 ! Counts Particle Collision Calculation
+  IF( (DSMC%MCSoverMFP .LE. 1) .AND. (DSMC%CollProbMax .LE. 1) .AND. (DSMC%CollProbMean .LE. 1)) DSMC%ResolvedCellCounter = & 
+                                                    DSMC%ResolvedCellCounter + 1
+  ! Calculation of ResolvedTimestep. Number of Cells with ResolvedTimestep
+  IF ((.NOT.DSMC%ReservoirSimu) .AND. (DSMC%CollProbMean .LE. 1)) THEN
+    ! In case of a reservoir simulation, MeanCollProb is the ouput in PartAnalyze
+    ! Otherwise its the ResolvedTimestep
+    DSMC%ResolvedTimestepCounter = DSMC%ResolvedTimestepCounter + 1
   END IF
 END IF
 
@@ -606,6 +619,7 @@ SUBROUTINE MCC_CalcReactionProb(iCase,bgSpec,CRela2,CollEnergy_in,PartIndex,bggP
 USE MOD_Particle_Vars         ,ONLY: Species, PartSpecies, VarTimeStep
 USE MOD_DSMC_Vars             ,ONLY: SpecDSMC, BGGas, ChemReac, DSMC, PartStateIntEn
 USE MOD_MCC_Vars              ,ONLY: SpecXSec
+USE MOD_Particle_Vars         ,ONLY: Species
 USE MOD_TimeDisc_Vars         ,ONLY: dt
 USE MOD_part_tools            ,ONLY: CalcERot_particle, CalcEVib_particle, CalcEElec_particle
 USE MOD_MCC_XSec              ,ONLY: InterpolateCrossSection
@@ -640,10 +654,10 @@ DO iPath = 1, ChemReac%CollCaseInfo(iCase)%NumOfReactionPaths
 
     ! Sum of the zero-point energies of the reactants
     EZeroPoint_Educt = 0.0; EZeroPoint_Prod = 0.0
-    IF((SpecDSMC(EductReac(1))%InterID.EQ.2).OR.(SpecDSMC(EductReac(1))%InterID.EQ.20)) THEN
+    IF((Species(EductReac(1))%InterID.EQ.2).OR.(Species(EductReac(1))%InterID.EQ.20)) THEN
       EZeroPoint_Educt = EZeroPoint_Educt + SpecDSMC(EductReac(1))%EZeroPoint
     END IF
-    IF((SpecDSMC(EductReac(2))%InterID.EQ.2).OR.(SpecDSMC(EductReac(2))%InterID.EQ.20)) THEN
+    IF((Species(EductReac(2))%InterID.EQ.2).OR.(Species(EductReac(2))%InterID.EQ.20)) THEN
       EZeroPoint_Educt = EZeroPoint_Educt + SpecDSMC(EductReac(2))%EZeroPoint
     END IF
     ! Sum of the zero-point energies of the products
@@ -655,14 +669,14 @@ DO iPath = 1, ChemReac%CollCaseInfo(iCase)%NumOfReactionPaths
       NumWeightProd = 3
     END IF
     DO iProd = 1, NumWeightProd
-      IF((SpecDSMC(ProductReac(iProd))%InterID.EQ.2).OR.(SpecDSMC(ProductReac(iProd))%InterID.EQ.20)) THEN
+      IF((Species(ProductReac(iProd))%InterID.EQ.2).OR.(Species(ProductReac(iProd))%InterID.EQ.20)) THEN
         EZeroPoint_Prod = EZeroPoint_Prod + SpecDSMC(ProductReac(iProd))%EZeroPoint
       END IF
     END DO
     ! Adding the internal energy of particle species
     CollEnergy = CollEnergy_in + PartStateIntEn(1,PartIndex) + PartStateIntEn(2,PartIndex)
     ! Internal energy of background species
-    IF((SpecDSMC(jSpec)%InterID.EQ.2).OR.(SpecDSMC(jSpec)%InterID.EQ.20)) THEN
+    IF((Species(jSpec)%InterID.EQ.2).OR.(Species(jSpec)%InterID.EQ.20)) THEN
       IF(BGGas%UseDistribution) THEN
         Temp_Vib   = BGGas%Distribution(bgSpec,8,iElem)
         Temp_Rot   = BGGas%Distribution(bgSpec,9,iElem)

@@ -541,7 +541,7 @@ IF(DoDeposition) THEN
   CalcCharge = GETLOGICAL('CalcCharge')
   IF(CalcCharge) DoPartAnalyze = .TRUE.
 ELSE
-  LBWRITE(UNIT_stdOut,'(A)') ' Deposition is switched of. VerifyCharge and CalcCharge are deactivated!'
+  LBWRITE(UNIT_stdOut,'(A)') ' | Deposition is switched off. VerifyCharge and CalcCharge are deactivated!'
 END IF
 
 CalcEkin = GETLOGICAL('CalcKineticEnergy')
@@ -889,7 +889,7 @@ REAL                :: EkinMax(nSpecies)
 #if (PP_TimeDiscMethod==2 || PP_TimeDiscMethod==4 || PP_TimeDiscMethod==300 || PP_TimeDiscMethod==400 || (PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=509) || PP_TimeDiscMethod==120)
 REAL                :: ETotal
 REAL                :: IntEn(nSpecAnalyze,3),IntTemp(nSpecies,3),TempTotal(nSpecAnalyze), Xi_Vib(nSpecies), Xi_Elec(nSpecies)
-REAL                :: MaxCollProb, MeanCollProb, MeanFreePath
+REAL                :: MaxCollProb, MeanCollProb, MeanFreePath, MaxMCSoverMFP, ResolvedCellPercentage, ResolvedTimestep
 REAL                :: NumSpecTmp(nSpecAnalyze), RotRelaxProb(2), VibRelaxProb(2)
 INTEGER             :: bgSpec
 #endif
@@ -1163,14 +1163,28 @@ ParticleAnalyzeSampleTime = Time - ParticleAnalyzeSampleTime ! Set ParticleAnaly
           END IF
         END IF
         IF(DSMC%CalcQualityFactors) THEN ! calculates maximum collision probability, mean collision probability & mean free path
-          WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-          WRITE(unit_index,'(I3.3,A)',ADVANCE='NO') OutputCounter,'-Pmean'
-          OutputCounter = OutputCounter + 1
+          IF (DSMC%ReservoirSimu) THEN
+            ! In case of a reservoir simulation, MeanCollProb is the ouput in PartAnalyze
+            ! Otherwise its the ResolvedTimestep
+            WRITE(unit_index,'(A1)',ADVANCE='NO') ','
+            WRITE(unit_index,'(I3.3,A)',ADVANCE='NO') OutputCounter,'-Pmean'
+            OutputCounter = OutputCounter + 1
+          ELSE
+            WRITE(unit_index,'(A1)',ADVANCE='NO') ','
+            WRITE(unit_index,'(I3.3,A)',ADVANCE='NO') OutputCounter,'-ResolvedTimestep'
+            OutputCounter = OutputCounter + 1
+          END IF
           WRITE(unit_index,'(A1)',ADVANCE='NO') ','
           WRITE(unit_index,'(I3.3,A)',ADVANCE='NO') OutputCounter,'-Pmax'
           OutputCounter = OutputCounter + 1
           WRITE(unit_index,'(A1)',ADVANCE='NO') ','
           WRITE(unit_index,'(I3.3,A)',ADVANCE='NO') OutputCounter,'-MeanFreePath'
+          OutputCounter = OutputCounter + 1
+          WRITE(unit_index,'(A1)',ADVANCE='NO') ','
+          WRITE(unit_index,'(I3.3,A)',ADVANCE='NO') OutputCounter,'-MaxMCSoverMFP'
+          OutputCounter = OutputCounter + 1
+          WRITE(unit_index,'(A1)',ADVANCE='NO') ','
+          WRITE(unit_index,'(I3.3,A)',ADVANCE='NO') OutputCounter,'-ResolvedCellPercentage'
           OutputCounter = OutputCounter + 1
           IF(CalcRelaxProb) THEN
             WRITE(unit_index,'(A1)',ADVANCE='NO') ','
@@ -1237,8 +1251,8 @@ ParticleAnalyzeSampleTime = Time - ParticleAnalyzeSampleTime ! Set ParticleAnaly
                 DO jSpec = iSpec, nSpecies
                   IF(SpecXSec(CollInf%Coll_Case(iSpec,jSpec))%UseVibXSec) THEN
                     ! Skip entry if both species are NOT molecules
-                    IF(((SpecDSMC(iSpec)%InterID.NE.2).AND.(SpecDSMC(iSpec)%InterID.NE.20)).AND. &
-                      ((SpecDSMC(jSpec)%InterID.NE.2).AND.(SpecDSMC(jSpec)%InterID.NE.20))) CYCLE
+                    IF(((Species(iSpec)%InterID.NE.2).AND.(Species(iSpec)%InterID.NE.20)).AND. &
+                      ((Species(jSpec)%InterID.NE.2).AND.(Species(jSpec)%InterID.NE.20))) CYCLE
                     WRITE(unit_index,'(A1)',ADVANCE='NO') ','
                     WRITE(unit_index,'(I3.3,A,I3.3,A,I3.3)',ADVANCE='NO') OutputCounter,'-VibRelaxRate', iSpec, '+', jSpec
                     OutputCounter = OutputCounter + 1
@@ -1355,6 +1369,9 @@ ParticleAnalyzeSampleTime = Time - ParticleAnalyzeSampleTime ! Set ParticleAnaly
   MaxCollProb = 0.0
   MeanCollProb = 0.0
   MeanFreePath = 0.0
+  MaxMCSoverMFP = 0.0
+  ResolvedCellPercentage = 0.0
+  ResolvedTimestep = 0.0
   IF(DSMC%CalcQualityFactors.OR.CalcReacRates) THEN
     NumSpecTmp = NumSpec
     IF(BGGas%NumberOfSpecies.GT.0) THEN
@@ -1377,13 +1394,56 @@ ParticleAnalyzeSampleTime = Time - ParticleAnalyzeSampleTime ! Set ParticleAnaly
   END IF
   IF(DSMC%CalcQualityFactors) THEN
     IF(iter.GT.0) THEN
-      MaxCollProb = DSMC%CollProbMax
-      IF(DSMC%CollProbMeanCount.GT.0) MeanCollProb = DSMC%CollProbMean / DSMC%CollProbMeanCount
+      ! MaxMCSoverMFP  for all processes:
+#if USE_MPI
+      IF(MPIRoot)THEN
+        CALL MPI_REDUCE(MPI_IN_PLACE,DSMC%MaxMCSoverMFP,1,MPI_DOUBLE_PRECISION,MPI_MAX,0,MPI_COMM_PICLAS, IERROR)
+      ELSE
+        CALL MPI_REDUCE(DSMC%MaxMCSoverMFP,DSMC%MaxMCSoverMFP,1,MPI_DOUBLE_PRECISION,MPI_MAX,0,MPI_COMM_PICLAS, IERROR)
+      END IF
+#endif /*USE_MPI*/
+      MaxMCSoverMFP = DSMC%MaxMCSoverMFP
+      ! Maximum MaxCollProb for all processes:
+#if USE_MPI
+      IF(MPIRoot)THEN
+        CALL MPI_REDUCE(MPI_IN_PLACE,DSMC%CollProbMaxProcMax,1,MPI_DOUBLE_PRECISION,MPI_MAX,0,MPI_COMM_PICLAS, IERROR)
+      ELSE
+        CALL MPI_REDUCE(DSMC%CollProbMaxProcMax,DSMC%CollProbMaxProcMax,1,MPI_DOUBLE_PRECISION,MPI_MAX,0,MPI_COMM_PICLAS, IERROR)
+      END IF
+#endif /*USE_MPI*/
+      MaxCollProb = DSMC%CollProbMaxProcMax
+      ! ResolvedCellPercentage:
+#if USE_MPI
+        IF(MPIRoot)THEN
+          CALL MPI_REDUCE(MPI_IN_PLACE,DSMC%ResolvedCellCounter,1,MPI_REAL,MPI_SUM,0,MPI_COMM_PICLAS, IERROR)
+          CALL MPI_REDUCE(MPI_IN_PLACE,DSMC%ParticleCalcCollCounter,1,MPI_REAL,MPI_SUM,0,MPI_COMM_PICLAS, IERROR)
+        ELSE
+          CALL MPI_REDUCE(DSMC%ResolvedCellCounter,DSMC%ResolvedCellCounter,1,MPI_REAL,MPI_SUM,0,MPI_COMM_PICLAS, IERROR)
+          CALL MPI_REDUCE(DSMC%ParticleCalcCollCounter,DSMC%ParticleCalcCollCounter,1,MPI_REAL,MPI_SUM,0,MPI_COMM_PICLAS, IERROR)
+        END IF
+#endif /*USE_MPI*/
+        IF(DSMC%ParticleCalcCollCounter.GT.0) ResolvedCellPercentage = REAL(DSMC%ResolvedCellCounter) / REAL(DSMC%ParticleCalcCollCounter) * 100
+        IF (DSMC%ReservoirSimu) THEN
+          ! In case of a reservoir simulation, MeanCollProb is the ouput in PartAnalyze
+          ! Otherwise its the ResolvedTimestep
+          MeanCollProb = DSMC%CollProbMean
+        ELSE
+#if USE_MPI
+          IF(MPIRoot)THEN
+            CALL MPI_REDUCE(MPI_IN_PLACE,DSMC%ResolvedTimestepCounter,1,MPI_REAL,MPI_SUM,0,MPI_COMM_PICLAS, IERROR)
+          ELSE
+            CALL MPI_REDUCE(DSMC%ResolvedTimestepCounter,DSMC%ResolvedTimestepCounter,1,MPI_REAL,MPI_SUM,0,MPI_COMM_PICLAS, IERROR)
+          END IF
+#endif /*USE_MPI*/
+          IF(DSMC%ParticleCalcCollCounter.GT.0) ResolvedTimestep = REAL(DSMC%ResolvedTimestepCounter) / REAL(DSMC%ParticleCalcCollCounter) * 100
+        END IF
+      ! MeanFreePath:
       IF (MPIRoot) THEN
         IF(TempTotal(nSpecAnalyze).GT.0.0) MeanFreePath = CalcMeanFreePath(NumSpecTmp(1:nSpecies), NumSpecTmp(nSpecAnalyze), &
                                                               MeshVolume, TempTotal(nSpecAnalyze))
       END IF
     END IF
+    ! CalcRelaxProb:
     IF(CalcRelaxProb) CALL CalcRelaxProbRotVib(RotRelaxProb,VibRelaxProb)
   END IF
 #endif
@@ -1645,9 +1705,17 @@ IF (MPIRoot) THEN
     END IF
   END IF
   IF(DSMC%CalcQualityFactors) THEN
-    WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',', MeanCollProb
+    IF (DSMC%ReservoirSimu) THEN
+      ! In case of a reservoir simulation, MeanCollProb is the ouput in PartAnalyze
+      ! Otherwise its the ResolvedTimestep
+      WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',', MeanCollProb
+    ELSE
+      WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',', ResolvedTimestep
+    END IF
     WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',', MaxCollProb
     WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',', MeanFreePath
+    WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',', MaxMCSoverMFP
+    WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',', ResolvedCellPercentage
     IF(CalcRelaxProb) THEN
       WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',', RotRelaxProb(2)
       WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',', RotRelaxProb(1)
@@ -1685,8 +1753,8 @@ IF (MPIRoot) THEN
             iCase = CollInf%Coll_Case(iSpec,jSpec)
             IF(SpecXSec(iCase)%UseVibXSec) THEN
               ! Skip entry if both species are NOT molecules
-              IF(((SpecDSMC(iSpec)%InterID.NE.2).AND.(SpecDSMC(iSpec)%InterID.NE.20)).AND. &
-                  ((SpecDSMC(jSpec)%InterID.NE.2).AND.(SpecDSMC(jSpec)%InterID.NE.20))) CYCLE
+              IF(((Species(iSpec)%InterID.NE.2).AND.(Species(iSpec)%InterID.NE.20)).AND. &
+                  ((Species(jSpec)%InterID.NE.2).AND.(Species(jSpec)%InterID.NE.20))) CYCLE
               WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',', VibRelaxRate(iCase)
             END IF
           END DO

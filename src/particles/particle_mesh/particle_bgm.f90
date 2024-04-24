@@ -148,6 +148,7 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
+LOGICAL,PARAMETER              :: trueFlag=.TRUE.
 INTEGER                        :: iElem,iLocSide,SideID
 INTEGER                        :: FirstElem,LastElem
 INTEGER                        :: firstNodeID,lastNodeID
@@ -846,7 +847,7 @@ ElemLoop: DO iElem = offsetElemMPI(iProc-1)+1,offsetElemMPI(iProc)
   ! Mortar sides: Only multi-node
   DO iElem = firstElem, lastElem
     ASSOCIATE(posElem => (iElem-1)*ELEMINFOSIZE + (ELEM_HALOFLAG-1))
-    CALL MPI_FETCH_AND_OP(ElemDone,ElemDone,MPI_INTEGER,0,INT(posElem*SIZE_INT,MPI_ADDRESS_KIND),MPI_NO_OP,ElemInfo_Shared_Win,iError)
+    CALL MPI_FETCH_AND_OP(dummyInt,ElemDone,MPI_INTEGER,0,INT(posElem*SIZE_INT,MPI_ADDRESS_KIND),MPI_NO_OP,ElemInfo_Shared_Win,iError)
     CALL MPI_WIN_FLUSH(0,ElemInfo_Shared_Win,iError)
     END ASSOCIATE
     IF (ElemDone.LT.1) CYCLE
@@ -1315,7 +1316,7 @@ DO iElem = offsetElem+1,offsetElem+nElems
           ! Increment number of elements on FIBGM cell
           CALL MPI_FETCH_AND_OP(increment,dummyInt,MPI_INTEGER,0,INT(posElem*SIZE_INT,MPI_ADDRESS_KIND),MPI_SUM,FIBGM_nTotalElems_Shared_Win,IERROR)
           ! Perform logical OR and place data on CN root
-          CALL MPI_FETCH_AND_OP(.TRUE.   ,dummyLog,MPI_LOGICAL,0,INT(posRank*SIZE_INT,MPI_ADDRESS_KIND),MPI_LOR,FIBGMToProcFlag_Shared_Win  ,IERROR)
+          CALL MPI_FETCH_AND_OP(trueFlag ,dummyLog,MPI_LOGICAL,0,INT(posRank*SIZE_INT,MPI_ADDRESS_KIND),MPI_LOR,FIBGMToProcFlag_Shared_Win  ,IERROR)
           ! MPI_FETCH_AND_OP does guarantee completion before MPI_WIN_FLUSH, so ensure it before leaving the scope
           CALL MPI_WIN_FLUSH(0,FIBGM_nTotalElems_Shared_Win,iError)
           CALL MPI_WIN_FLUSH(0,FIBGMToProcFlag_Shared_Win  ,iError)

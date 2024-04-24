@@ -94,7 +94,7 @@ fi
 #GCCVERSION='12.2.0'
 
 # Check requirements and update the pre-requisites inquiry below if necessary
-#GCCVERSION='13.1.0'
+# sudo apt-get install libgmp-dev libmpfr-dev libmpc-dev
 GCCVERSION='13.2.0'
 
 # --------------------------------------------------------------------------------------------------

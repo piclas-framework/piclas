@@ -64,22 +64,12 @@ fi
 CONFIGSUFFIX=''
 if [ "${WHICHMPI}" == "openmpi" ]; then
   # DOWNLOAD and INSTALL OPENMPI (example OpenMPI-2.1.6)
-  #MPIVERSION=2.1.6
-  #MPIVERSION=3.1.3
-  #MPIVERSION=3.1.4
-  #MPIVERSION=3.1.6
-  #MPIVERSION=4.0.1
-  #MPIVERSION=4.0.5
-  #MPIVERSION=4.1.1
-  #MPIVERSION=4.1.4
-  MPIVERSION=4.1.5
+  MPIVERSION=4.1.6
 elif [ "${WHICHMPI}" == "mpich" ]; then
   # DOWNLOAD and INSTALL MPICH (example mpich-3.2.0)
-  #MPIVERSION=3.2
   MPIVERSION=4.1.2
 elif [ "${WHICHMPI}" == "mpich-debug" ]; then
   # DOWNLOAD and INSTALL MPICH (example mpich-3.2.0)
-  #MPIVERSION=3.2
   MPIVERSION=4.1.2
   CONFIGSUFFIX='--with-device=ch3:sock'
 else

@@ -151,7 +151,7 @@ USE MOD_SurfaceModel_Analyze_Vars
 USE MOD_Restart_Vars              ,ONLY: DoRestart
 USE MOD_Particle_Boundary_Vars    ,ONLY: PartBound
 USE MOD_SurfaceModel_Vars         ,ONLY: nPorousBC, PorousBC
-USE MOD_Particle_Vars             ,ONLY: nSpecies,UseNeutralization,NeutralizationBalanceGlobal,Species
+USE MOD_Particle_Vars             ,ONLY: nSpecies,UseNeutralization,NeutralizationBalanceGlobal,Species,VarTimeStep
 #if USE_MPI
 USE MOD_Particle_Boundary_Vars    ,ONLY: SurfCOMM
 #endif /*USE_MPI*/
@@ -312,6 +312,9 @@ IF(MPIRoot)THEN
         IF(ABS(SurfModelAnalyzeSampleTime).LE.0.0)THEN
           CALL WriteDataInfo(unit_index,RealScalar=0.0)
         ELSE
+          ! Scaling the number of particles depending on the species-specific timestep factor
+          IF(VarTimeStep%UseSpeciesSpecific) BPO%RealPartOut(iBPO,iSpec) = BPO%RealPartOut(iBPO,iSpec) &
+                                                                            / Species(BPO%Species(iSpec))%TimeStepFactor
           CALL WriteDataInfo(unit_index,RealScalar=BPO%RealPartOut(iBPO,iSpec)/SurfModelAnalyzeSampleTime)
         END IF ! ABS(SurfModelAnalyzeSampleTime).LE.0.0
       END DO
@@ -866,6 +869,8 @@ DO iBPO = 1, BPO%NPartBoundaries
     ELSE
       ! Check the surface model
       SELECT CASE(PartBound%SurfaceModel(iPartBound))
+      CASE(2)
+        ! Event probability model
       CASE(SEE_MODELS_ID)
         ! all secondary electron models
       CASE DEFAULT

@@ -287,10 +287,10 @@ SUBROUTINE BGGas_AssignParticleProperties(SpecID,PartIndex,bggPartIndex,GetVeloc
 USE MOD_Globals
 USE MOD_Particle_Vars           ,ONLY: PDM, PEM, PartState,PartSpecies,PartPosRef, usevMPF, PartMPF
 USE MOD_Particle_Vars           ,ONLY: UseVarTimeStep, PartTimeStep
-USE MOD_DSMC_Vars               ,ONLY: CollisMode, SpecDSMC, BGGas
+USE MOD_DSMC_Vars               ,ONLY: CollisMode, BGGas
 USE MOD_Particle_Tracking_Vars  ,ONLY: TrackingMethod
-USE MOD_part_emission_tools     ,ONLY: CalcVelocity_maxwell_lpn, DSMC_SetInternalEnr_LauxVFD
-USE MOD_DSMC_PolyAtomicModel    ,ONLY: DSMC_SetInternalEnr_Poly
+USE MOD_part_emission_tools     ,ONLY: CalcVelocity_maxwell_lpn
+USE MOD_DSMC_PolyAtomicModel    ,ONLY: DSMC_SetInternalEnr
 USE MOD_part_tools              ,ONLY: CalcVelocity_maxwell_particle
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
@@ -339,13 +339,7 @@ IF(GetVelocity) THEN
 END IF
 ! Internal energy
 IF(CollisMode.GT.1) THEN
-  IF(GetInternalEnergy) THEN
-    IF(SpecDSMC(SpecID)%PolyatomicMol) THEN
-      CALL DSMC_SetInternalEnr_Poly(SpecID,1,bggPartIndex,1)
-    ELSE
-      CALL DSMC_SetInternalEnr_LauxVFD(SpecID,1,bggPartIndex,1)
-    END IF
-  END IF
+  IF(GetInternalEnergy) CALL DSMC_SetInternalEnr(SpecID,1,bggPartIndex,1)
 END IF
 ! Simulation flags
 PDM%ParticleInside(bggPartIndex) = .TRUE.
@@ -367,12 +361,11 @@ USE MOD_Globals
 USE MOD_DSMC_Analyze          ,ONLY: CalcGammaVib, CalcMeanFreePath
 USE MOD_part_tools            ,ONLY: GetParticleWeight
 USE MOD_DSMC_Vars             ,ONLY: Coll_pData, CollInf, BGGas, CollisMode, ChemReac, PartStateIntEn, DSMC, SelectionProc
-USE MOD_Particle_Vars         ,ONLY: PEM,PartSpecies,nSpecies,PartState,Species,usevMPF,Species, WriteMacroVolumeValues
+USE MOD_Particle_Vars         ,ONLY: PEM,PartSpecies,nSpecies,PartState,Species,usevMPF,Species
 USE MOD_Particle_Mesh_Vars    ,ONLY: ElemVolume_Shared
 USE MOD_Mesh_Vars             ,ONLY: offsetElem
 USE MOD_DSMC_Collis           ,ONLY: DSMC_perform_collision
 USE MOD_DSMC_Relaxation       ,ONLY: FinalizeCalcVibRelaxProb, SumVibRelaxProb, InitCalcVibRelaxProb
-USE MOD_TimeDisc_Vars         ,ONLY: TEnd, time
 USE MOD_DSMC_CollisionProb    ,ONLY: DSMC_prob_calc
 USE MOD_DSMC_Relaxation       ,ONLY: CalcMeanVibQuaDiatomic
 USE MOD_Mesh_Tools            ,ONLY: GetCNElemID
@@ -500,13 +493,25 @@ DO iPair = 1, nPair
   END IF
 END DO
 IF(DSMC%CalcQualityFactors) THEN
-  IF((Time.GE.(1-DSMC%TimeFracSamp)*TEnd).OR.WriteMacroVolumeValues) THEN
-    ! Calculation of the mean free path
-    DSMC%MeanFreePath = CalcMeanFreePath(REAL(CollInf%Coll_SpecPartNum),SUM(CollInf%Coll_SpecPartNum), &
+  ! Calculation of Mean Collision Probability
+  IF(DSMC%CollProbMeanCount.GT.0) DSMC%CollProbMean = DSMC%CollProbSum / DSMC%CollProbMeanCount
+  ! Calculation of the mean free path
+  DSMC%MeanFreePath = CalcMeanFreePath(REAL(CollInf%Coll_SpecPartNum),SUM(CollInf%Coll_SpecPartNum), &
                           ElemVolume_Shared(GetCNElemID(iElem+offSetElem)), DSMC%InstantTransTemp(nSpecies+1))
-    ! Determination of the MCS/MFP for the case without octree
-    IF((DSMC%CollSepCount.GT.0.0).AND.(DSMC%MeanFreePath.GT.0.0)) DSMC%MCSoverMFP = (DSMC%CollSepDist/DSMC%CollSepCount) &
+  ! Determination of the MCS/MFP for the case without octree
+  IF((DSMC%CollSepCount.GT.0.0).AND.(DSMC%MeanFreePath.GT.0.0)) DSMC%MCSoverMFP = (DSMC%CollSepDist/DSMC%CollSepCount) &
                                                                                     / DSMC%MeanFreePath
+  ! Calculation of the maximum MCS/MFP of all cells for this processor and number of resolved Cells for this processor
+  IF(DSMC%MCSoverMFP .GE. DSMC%MaxMCSoverMFP) DSMC%MaxMCSoverMFP = DSMC%MCSoverMFP
+  ! Calculate number of resolved Cells for this processor
+  DSMC%ParticleCalcCollCounter = DSMC%ParticleCalcCollCounter + 1 ! Counts Particle Collision Calculation
+  IF( (DSMC%MCSoverMFP .LE. 1) .AND. (DSMC%CollProbMax .LE. 1) .AND. (DSMC%CollProbMean .LE. 1)) DSMC%ResolvedCellCounter = & 
+                                                    DSMC%ResolvedCellCounter + 1
+  ! Calculation of ResolvedTimestep. Number of Cells with ResolvedTimestep
+  IF ((.NOT.DSMC%ReservoirSimu) .AND. (DSMC%CollProbMean .LE. 1)) THEN
+    ! In case of a reservoir simulation, MeanCollProb is the ouput in PartAnalyze
+    ! Otherwise it is the ResolvedTimestep
+    DSMC%ResolvedTimestepCounter = DSMC%ResolvedTimestepCounter + 1
   END IF
 END IF
 DEALLOCATE(Coll_pData)
@@ -575,11 +580,10 @@ SUBROUTINE BGGas_PhotoIonization(iSpec,iInit,TotalNbrOfReactions)
 USE MOD_Globals
 USE MOD_DSMC_Analyze           ,ONLY: CalcGammaVib, CalcMeanFreePath
 USE MOD_DSMC_Vars              ,ONLY: Coll_pData, CollisMode, ChemReac, PartStateIntEn, DSMC
-USE MOD_DSMC_Vars              ,ONLY: SpecDSMC, DSMCSumOfFormedParticles
+USE MOD_DSMC_Vars              ,ONLY: DSMCSumOfFormedParticles
 USE MOD_DSMC_Vars              ,ONLY: newAmbiParts, iPartIndx_NodeNewAmbi, BGGas
 USE MOD_Particle_Vars          ,ONLY: PEM, PDM, PartSpecies, PartState, Species, usevMPF, PartMPF, Species, PartPosRef
-USE MOD_part_emission_tools    ,ONLY: DSMC_SetInternalEnr_LauxVFD
-USE MOD_DSMC_PolyAtomicModel   ,ONLY: DSMC_SetInternalEnr_Poly
+USE MOD_DSMC_PolyAtomicModel   ,ONLY: DSMC_SetInternalEnr
 USE MOD_part_pos_and_velo      ,ONLY: SetParticleVelocity
 USE MOD_Particle_Tracking_Vars ,ONLY: TrackingMethod
 USE MOD_part_emission_tools    ,ONLY: CalcVelocity_maxwell_lpn
@@ -750,11 +754,7 @@ DO iPart = 1, NbrOfParticle
   ! Particle element
   PEM%GlobalElemID(NewParticleIndex) = PEM%GlobalElemID(ParticleIndex)
   IF(CollisMode.GT.1) THEN
-    IF(SpecDSMC(bgSpec)%PolyatomicMol) THEN
-      CALL DSMC_SetInternalEnr_Poly(bgSpec,1,NewParticleIndex,1)
-    ELSE
-      CALL DSMC_SetInternalEnr_LauxVFD(bgSpec,1,NewParticleIndex,1)
-    END IF
+    CALL DSMC_SetInternalEnr(bgSpec,1,NewParticleIndex,1)
   END IF
   IF(BGGas%UseDistribution) THEN
     iBGGSpec = BGGas%MapSpecToBGSpec(bgSpec)
@@ -1187,7 +1187,7 @@ DO iElem = 1, nElems
       ! Loop over all the inits for the species (different inits for different regions)
       DO iInit = 1, Species(iSpec)%NumberOfInits
         IF(BGGas%RegionElemType(iElem).EQ.Species(iSpec)%Init(iInit)%BGGRegion) THEN
-          IF((SpecDSMC(iSpec)%InterID.EQ.2).OR.(SpecDSMC(iSpec)%InterID.EQ.20)) THEN
+          IF((Species(iSpec)%InterID.EQ.2).OR.(Species(iSpec)%InterID.EQ.20)) THEN
             ! Vibrational temperature
             BGGas%Distribution(BGGas%MapSpecToBGSpec(iSpec),8,iElem) = SpecDSMC(iSpec)%Init(iInit)%TVib
             ! Rotational temperature
