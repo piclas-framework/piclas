@@ -3,6 +3,39 @@
 
 A unified database of species data, electronic states, cross-sections, and chemistry models can be used as a more convenient alternative input for the simulations. The use of the database allows to reduce the length of the input files and ensures a consistent storage of the parameters, together with the respective reference. The database (`SpeciesDatabase.h5`) is provided at the top level of the PICLas directory. It contains over 40 of the most common species in PICLas simulations and the most common complex chemical reaction models with 300 single reactions. In addition, several cross-section models are included. This feature is still under development and the provided species & reaction data should be treated carefully as we are in process of verifying the data.
 
+The data in the Unified Species Database is grouped, as shown in the following example:
+
+    Cross-Sections (group)
+        H2-H2Ion1 (dataset)
+    Reaction (group)
+        CH3_CH2+H (dataset)
+            Chemistry model (attribute)
+            Reaction model (attribute)
+            Arrhenius parameters (attribute)
+            Products    (attribute)
+            Reactants   (attribute)
+        O2+M_O+O+M (dataset)
+            Chemistry model (attribute)
+            Reaction model (attribute)
+            Arrhenius parameters (attribute)
+            Products    (attribute)
+            Reactants   (attribute)
+        Fe_FeIon1+electron (dataset)
+            Chemistry model (attribute)
+            Reaction model (attribute)
+            Products    (attribute)
+            Reactants   (attribute)
+    Species (group)
+        H2 (group)
+            Electronic levels (dataset)
+            Species parameters (attribute)
+        H2Ion1 (group)
+            Electronic levels (dataset)
+            Species parameters (attribute)
+        electron (group)
+            Electronic levels (dataset)
+            Species parameters (attribute)
+
 To read in data from a given species database, the database name must be specified in the `parameter.ini` file of the simulation
 
     Particles-Species-Database = SpeciesDatabase.h5
@@ -28,7 +61,7 @@ where the number after 'Ion' refers to the degree of ionization. The database co
 | -------------------------------------------: | :--------: | :----------------------------------------------------------------------------------------------- |
 |               Heat of formation (at 298.15K) |   Kelvin   | [Active Thermochemical Tables (ATcT)](https://atct.anl.gov/)                                     |
 
-<!-- | Electronic energy levels (Degeneracy,Energy) | - , Kelvin | [Atoms: NIST Atomic Spectra Database](https://physics.nist.gov/PhysRefData/ASD/levels_form.html) | -->
+<!-- | Electronic energy levels for atoms (Degeneracy,Energy) | - , Kelvin | [Atoms: NIST Atomic Spectra Database](https://physics.nist.gov/PhysRefData/ASD/levels_form.html) | -->
 
 
 It possible to revert to the regular parameter read-in from parameter files per species
@@ -43,8 +76,11 @@ If this flag is set, all parameters for this species need to be set manually and
 (ssec:usd-reaction)=
 ## Reaction data
 
-The database contains different chemistry models including various reactions, utilizing the {ref}`ssec:TCE` model or {ref}`ssec:QK` model. For the TCE model, the Arrhenius prefactor, powerfactor and the activation energy are stored. For the QK model only dissociation energy of the molecule is required, which has been provided as a species parameter. 
-To utilize the read-in of reaction from the database, a chemistry model has to be defined. All reactions with this model are then read-in from te database and no additional parameter input is required:
+The database contains different chemistry models including various reactions, utilizing the {ref}`ssec:TCE` model or {ref}`ssec:QK` model. Each reaction is assigned to a single or more chemistry models (N). This information is stored in the chemistry model attribute along with the non reactive species of this reaction. This attribute contains an array which either has the dimension (N,1) or (N,2), where the second column contains the non reactive species, if existent.
+For the TCE model, the Arrhenius prefactor, powerfactor and the activation energy are stored. For the QK model only dissociation energy of the molecule is required, which has been provided as a species parameter. 
+
+
+To utilize the read-in of reaction from the database, a chemistry model has to be defined. All reactions with this model are then read-in from the database and no additional parameter input is required:
 
     DSMC-ChemistryModel = Titan_14Spec_24Reac_Gokcen2007
 
@@ -80,4 +116,4 @@ A reaction name is generated automatically based on the given species names and 
 (ssec:usd-xsec-data)=
 ## Cross-section data
 
-The use of the unififed species database for the cross-section data follows the description given in Section {ref}`sec:background-gas-collision-xsec` for collision and {ref}`sec:xsec-chemistry` for chemistry modelling, respectively. An example for is located in `regressioncheck/NIG_Reservoir/CHEM_RATES_XSec_Chem_H2_Plasma_Database`.
+The use of the unified species database for the cross-section data follows the description given in Section {ref}`sec:background-gas-collision-xsec` for collision and {ref}`sec:xsec-chemistry` for chemistry modelling, respectively. An example for is located in `regressioncheck/NIG_Reservoir/CHEM_RATES_XSec_Chem_H2_Plasma_Database`.

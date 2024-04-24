@@ -25,10 +25,6 @@ INTERFACE UpdateNextFreePosition
   MODULE PROCEDURE UpdateNextFreePosition
 END INTERFACE
 
-INTERFACE VeloFromDistribution
-  MODULE PROCEDURE VeloFromDistribution
-END INTERFACE
-
 INTERFACE DiceUnitVector
   MODULE PROCEDURE DiceUnitVector
 END INTERFACE
@@ -463,7 +459,7 @@ END FUNCTION DiceUnitVector
 
 
 !===================================================================================================================================
-!> Calculation of velocity vector (Vx,Vy,Vz) sampled from given distribution function
+!> Calculation of velocity vector (Vx,Vy,Vz) sampled from given distribution function at the surface
 !===================================================================================================================================
 FUNCTION VeloFromDistribution(distribution,Tempergy,iNewPart,ProductSpecNbr)
 ! MODULES
@@ -722,7 +718,7 @@ PPURE FUNCTION InRotRefFrameCheck(iPart)
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! MODULES                                                                                                                          !
 !----------------------------------------------------------------------------------------------------------------------------------!
-USE MOD_Particle_Vars ,ONLY: PartState,RotRefFramRegion,RotRefFrameAxis,nRefFrameRegions
+USE MOD_Particle_Vars ,ONLY: PartState,RotRefFrameRegion,RotRefFrameAxis,nRefFrameRegions
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
 ! INPUT / OUTPUT VARIABLES
@@ -736,8 +732,8 @@ INTEGER             :: iRegion
 IF(nRefFrameRegions.GT.0) THEN
   InRotRefFrameCheck = .FALSE.
   DO iRegion = 1, nRefFrameRegions
-    IF((PartState(RotRefFrameAxis,iPart).GT.RotRefFramRegion(1,iRegion)).AND. &
-       (PartState(RotRefFrameAxis,iPart).LT.RotRefFramRegion(2,iRegion))) THEN
+    IF((PartState(RotRefFrameAxis,iPart).GT.RotRefFrameRegion(1,iRegion)).AND. &
+       (PartState(RotRefFrameAxis,iPart).LT.RotRefFrameRegion(2,iRegion))) THEN
       InRotRefFrameCheck = .TRUE.
       EXIT
     END IF
@@ -1872,6 +1868,7 @@ IF(ALLOCATED(PartSpecies)) CALL ChangeSizeArray(PartSpecies,PDM%maxParticleNumbe
 IF(ALLOCATED(PartTimeStep)) CALL ChangeSizeArray(PartTimeStep,PDM%maxParticleNumber,NewSize)
 IF(ALLOCATED(PartMPF)) CALL ChangeSizeArray(PartMPF,PDM%maxParticleNumber,NewSize)
 IF(ALLOCATED(PartVeloRotRef)) CALL ChangeSizeArray(PartVeloRotRef,PDM%maxParticleNumber,NewSize,0.)
+IF(ALLOCATED(LastPartVeloRotRef)) CALL ChangeSizeArray(LastPartVeloRotRef,PDM%maxParticleNumber,NewSize,0.)
 IF(ALLOCATED(PartStateIntEn)) CALL ChangeSizeArray(PartStateIntEn,PDM%maxParticleNumber,NewSize)
 
 IF(ALLOCATED(Pt_temp)) CALL ChangeSizeArray(Pt_temp,PDM%maxParticleNumber,NewSize,0.)
@@ -2077,6 +2074,7 @@ IF(ALLOCATED(PartSpecies)) CALL ChangeSizeArray(PartSpecies,PDM%maxParticleNumbe
 IF(ALLOCATED(PartTimeStep)) CALL ChangeSizeArray(PartTimeStep,PDM%maxParticleNumber,NewSize)
 IF(ALLOCATED(PartMPF)) CALL ChangeSizeArray(PartMPF,PDM%maxParticleNumber,NewSize)
 IF(ALLOCATED(PartVeloRotRef)) CALL ChangeSizeArray(PartVeloRotRef,PDM%maxParticleNumber,NewSize,0.)
+IF(ALLOCATED(LastPartVeloRotRef)) CALL ChangeSizeArray(LastPartVeloRotRef,PDM%maxParticleNumber,NewSize,0.)
 IF(ALLOCATED(PartStateIntEn)) CALL ChangeSizeArray(PartStateIntEn,PDM%maxParticleNumber,NewSize)
 
 IF(ALLOCATED(Pt_temp)) CALL ChangeSizeArray(Pt_temp,PDM%maxParticleNumber,NewSize,0.)
@@ -2269,6 +2267,10 @@ IF(ALLOCATED(PartMPF)) PartMPF(NewID)=PartMPF(OldID)
 IF(ALLOCATED(PartVeloRotRef)) THEN
   PartVeloRotRef(:,NewID)=PartVeloRotRef(:,OldID)
   PartVeloRotRef(:,OldID) = 0.0
+END IF
+IF(ALLOCATED(LastPartVeloRotRef)) THEN
+  LastPartVeloRotRef(:,NewID)=LastPartVeloRotRef(:,OldID)
+  LastPartVeloRotRef(:,OldID) = 0.0
 END IF
 IF(ALLOCATED(PartStateIntEn)) PartStateIntEn(:,NewID)=PartStateIntEn(:,OldID)
 

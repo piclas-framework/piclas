@@ -109,6 +109,7 @@ For species with a time step factor lower than 1, it is compared with a random n
 For one-dimensional (e.g. shock-tubes), two-dimensional (e.g. cylinder) and axisymmetric (e.g. re-entry capsules) cases, the
 computational effort can be greatly reduced.
 
+(sec:1D-sym)=
 ### 1D Simulations
 
 To enable one-dimensional simulations, the symmetry order has to be set
@@ -117,10 +118,10 @@ To enable one-dimensional simulations, the symmetry order has to be set
 
 The calculation is performed along the $x$-axis. The $y$ and $z$ dimension should be centered to the $xz$-plane (i.e.
 $|y_{\mathrm{min}}|=|y_{\mathrm{max}}|$). All sides of the hexahedrons must be parallel to the $xy$-, $xz$-, and $yz$-plane.
-Boundaries in $y$ and $z$ direction shall be defined as 'symmetric'.
+Boundaries in $y$ and $z$ direction shall be defined as `symmetric_dim`.
 
     Part-Boundary5-SourceName=SYM
-    Part-Boundary5-Condition=symmetric
+    Part-Boundary5-Condition=symmetric_dim
 
 (sec:2D-axisymmetric)=
 ### 2D/Axisymmetric Simulations
@@ -138,10 +139,10 @@ with the `symmetric_axis` boundary condition
     Part-Boundary4-Condition=symmetric_axis
 
 The boundaries (or a single boundary definition for both boundary sides) in the $z$-direction should be defined as symmetry sides
-with the `symmetric` condition
+with the `symmetric_dim` condition
 
     Part-Boundary5-SourceName=SYM
-    Part-Boundary5-Condition=symmetric
+    Part-Boundary5-Condition=symmetric_dim
 
 It should be noted that the two-dimensional mesh assumes a length of $\Delta z = 1$, regardless of the actual dimension in $z$.
 Therefore, the weighting factor should be adapted accordingly.

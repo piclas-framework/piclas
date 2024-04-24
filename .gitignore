@@ -84,3 +84,6 @@ unitTests/bin/
 # gitlab-ci-local temp files and folders
 .gitlab-ci-local/
 reggie/
+
+# pyenv project settings
+.python-version

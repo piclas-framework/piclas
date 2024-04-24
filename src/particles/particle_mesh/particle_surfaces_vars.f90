@@ -114,7 +114,7 @@ TYPE tTriaSideGeo
   REAL                                   :: Vectors(3,3)                ! vectors from xyzNod to the 3 other corners of side
 END TYPE tTriaSideGeo
 TYPE tBCdata_auxSF
-  INTEGER                                :: SideNumber                  ! Number of Particles in Sides in SurfacefluxBC
+  INTEGER                                :: SideNumber                  ! Number of Sides in SurfacefluxBC
   REAL                                   :: GlobalArea, LocalArea       ! Sum of global and local tria-areas
   INTEGER                , ALLOCATABLE   :: SideList(:)                 ! List of Sides in BC (1:SideNumber)
   TYPE(tTriaSwapGeo)     , ALLOCATABLE   :: TriaSwapGeo(:,:,:)             ! data for tria-swapping in surfflux (:,:,1:SideNumber)

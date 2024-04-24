@@ -34,7 +34,7 @@ REAL,ALLOCPOINT,DIMENSION(:,:,:)        :: BoundaryWallTemp              !> Wall
 ! ====================================================================
 ! Mesh info
 INTEGER                                 :: nGlobalSurfSides
-INTEGER                                 :: nGlobalOutputSides
+INTEGER                                 :: nGlobalOutputSides            ! Simulation-wide number of surface output sides
 
 INTEGER                                 :: nComputeNodeSurfSides         !> Number of surface sampling sides on compute node
 INTEGER                                 :: nComputeNodeSurfOutputSides   !> Number of output surface sampling sides on compute node (inner BCs only counted once and rotationally periodic BCs excluded)
@@ -132,7 +132,7 @@ INTEGER,ALLOCPOINT,DIMENSION(:,:) :: RotPeriodicSideMapping    ! Mapping between
 INTEGER,ALLOCPOINT,DIMENSION(:)   :: SurfSide2RotPeriodicSide  ! Mapping between surf side and periodic sides.
 ! ====================================================================
 ! Intermediate plane for multi rotational periodic sides
-INTEGER,ALLOCPOINT,DIMENSION(:,:) :: InterPlaneSideMapping    ! Mapping between inter plane BC_ID and SideID.
+INTEGER,ALLOCATABLE               :: InterPlaneSideMapping(:,:)! Mapping between inter plane BC_ID and SideID.
 ! ====================================================================
 #if USE_MPI
 INTEGER,POINTER,DIMENSION(:)    :: SurfSide2RotPeriodicSide_Shared
@@ -245,6 +245,12 @@ TYPE tPartBoundary
   INTEGER , ALLOCATABLE                  :: SpeciesSwaps(:,:,:)           ! Species to be changed at wall (in, out), out=0: delete
   ! Surface models
   INTEGER , ALLOCATABLE                  :: SurfaceModel(:)               ! Model used for surface interaction (e.g. SEE models)
+  REAL    , ALLOCATABLE                  :: TotalCoverage(:)              ! Total surface coverage
+  REAL    , ALLOCATABLE                  :: MaxTotalCoverage(:)           ! Maximum total surface coverage
+  REAL    , ALLOCATABLE                  :: LatticeVec(:)                 ! Lattice constant for a fcc crystal
+  REAL    , ALLOCATABLE                  :: MolPerUnitCell(:)             ! Molecules per unit cell
+  REAL    , ALLOCATABLE                  :: CoverageIni(:,:)               ! Initial boundary coverage
+  REAL    , ALLOCATABLE                  :: MaxCoverage(:,:)
   LOGICAL , ALLOCATABLE                  :: Reactive(:)                   ! flag defining if surface is treated reactively
   LOGICAL , ALLOCATABLE                  :: Resample(:)                   ! Resample Equilibrium Distribution with reflection
   ! Radiative-equilibrium BC

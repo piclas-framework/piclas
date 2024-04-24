@@ -212,7 +212,9 @@ CALL prms%CreateLogicalOption(  'Part-SampleElectronicExcitation'&
   , 'Set [T] to activate sampling of electronic energy excitation (currently only available for ElectronicModel = 3)', '.FALSE.')
 
 ! === Rotational frame of reference
-CALL prms%CreateLogicalOption(  'Part-UseRotationalReferenceFrame', 'Activate rotational frame of reference', '.FALSE.')
+CALL prms%CreateLogicalOption(  'Part-UseRotationalReferenceFrame', 'Activate the rotational frame of reference', '.FALSE.')
+CALL prms%CreateLogicalOption(  'Part-RotRefFrame-UseSubCycling', 'Activate subcycling in the rotational frame of reference', '.FALSE.')
+CALL prms%CreateIntOption(      'Part-RotRefFrame-SubCyclingSteps','Number of subcyling steps)','10')
 CALL prms%CreateIntOption(      'Part-RotRefFrame-Axis','Axis of rotational frame of reference (x=1, y=2, z=3)')
 CALL prms%CreateRealOption(     'Part-RotRefFrame-Frequency','Frequency of rotational frame of reference [1/s], sign according '//&
                                 'to right-hand rule, e.g. positive: counter-clockwise, negative: clockwise')
@@ -323,7 +325,7 @@ USE MOD_LoadBalance_Vars           ,ONLY: nPartsPerElem
 USE MOD_Mesh_Vars                  ,ONLY: nElems
 USE MOD_SurfaceModel_Porous        ,ONLY: InitPorousBoundaryCondition
 USE MOD_Particle_Boundary_Sampling ,ONLY: InitParticleBoundarySampling
-USE MOD_SurfaceModel_Vars          ,ONLY: nPorousBC,BulkElectronTempSEE
+USE MOD_SurfaceModel_Vars          ,ONLY: nPorousBC,BulkElectronTempSEE,DoChemSurface
 USE MOD_Particle_Boundary_Vars     ,ONLY: PartBound
 USE MOD_Particle_Tracking_Vars     ,ONLY: TrackingMethod
 USE MOD_Particle_Vars              ,ONLY: ParticlesInitIsDone,WriteMacroVolumeValues,WriteMacroSurfaceValues,nSpecies
@@ -331,6 +333,7 @@ USE MOD_Particle_Sampling_Vars     ,ONLY: UseAdaptiveBC
 USE MOD_Particle_Emission_Init     ,ONLY: InitialParticleInserting
 USE MOD_Particle_SurfFlux_Init     ,ONLY: InitializeParticleSurfaceflux
 USE MOD_SurfaceModel_Init          ,ONLY: InitSurfaceModel
+USE MOD_SurfaceModel_Chemistry     ,ONLY: InitSurfaceModelChemistry
 USE MOD_Particle_Surfaces          ,ONLY: InitParticleSurfaces
 USE MOD_Particle_Sampling_Adapt    ,ONLY: InitAdaptiveBCSampling
 USE MOD_Particle_Boundary_Init     ,ONLY: InitParticleBoundarySurfSides
@@ -407,12 +410,15 @@ IF(PartBound%UseInterPlaneBC)  CALL InitRotPeriodicInterPlaneMapping()
 #if (PP_TimeDiscMethod==600)
 CALL InitParticleBoundarySampling()
 #endif
-IF (WriteMacroSurfaceValues.OR.DSMC%CalcSurfaceVal.OR.(ANY(PartBound%Reactive))) THEN
+IF (WriteMacroSurfaceValues.OR.DSMC%CalcSurfaceVal.OR.ANY(PartBound%Reactive)) THEN
 #if !(PP_TimeDiscMethod==600)
   CALL InitParticleBoundarySampling()
 #endif
   CALL InitAdaptiveWallTemp()
 END IF
+
+! Initialize arrays for surface chemistry
+IF(DoChemSurface) CALL InitSurfaceModelChemistry()
 
 ! Initialize porous boundary condition (requires BCdata_auxSF and InitParticleBoundarySurfSides)
 IF(nPorousBC.GT.0) CALL InitPorousBoundaryCondition()
@@ -472,11 +478,13 @@ USE MOD_Part_RHS               ,ONLY: InitPartRHS
 USE MOD_Particle_Mesh          ,ONLY: InitParticleMesh
 USE MOD_Particle_Emission_Init ,ONLY: InitializeVariablesSpeciesInits
 USE MOD_Particle_Boundary_Init ,ONLY: InitializeVariablesPartBoundary
+USE MOD_SurfaceModel_Chemistry ,ONLY: InitializeVariablesSurfaceChemistry
 USE MOD_Particle_Tracking_Vars ,ONLY: TrackingMethod
 USE MOD_Particle_Surfaces_Vars ,ONLY: TriaSurfaceFlux
 USE MOD_PICInit                ,ONLY: InitPIC
 USE MOD_PICDepo_Vars           ,ONLY: DoDeposition
 USE MOD_PICInterpolation_Vars  ,ONLY: DoInterpolation
+USE MOD_SurfaceModel_Vars      ,ONLY: SurfChem
 #if USE_MPI
 USE MOD_Particle_MPI_Emission  ,ONLY: InitEmissionComm
 USE MOD_Particle_MPI_Halo      ,ONLY: IdentifyPartExchangeProcs
@@ -517,6 +525,7 @@ CALL InitializeVariablesRandomNumbers()
 ! initialization of surface model flags
 DoPoissonRounding = GETLOGICAL('Particles-DoPoissonRounding','.FALSE.')
 DoTimeDepInflow   = GETLOGICAL('Particles-DoTimeDepInflow','.FALSE.')
+SurfChem%NumOfReact = GETINT('Surface-NumOfReactions', '0')
 DelayTime = GETREAL('Part-DelayTime','0.')
 !--- Read Manual Time Step: Old variable name still supported
 ManualTimeStepParticle = GETREAL('Particles-ManualTimeStep')
@@ -575,12 +584,8 @@ IF(Symmetry%Axisymmetric) THEN
     RadialWeighting%PerformCloning = .TRUE.
     CALL DSMC_2D_InitRadialWeighting()
   END IF
-  IF(TrackingMethod.NE.TRIATRACKING) CALL abort(&
-    __STAMP__&
-    ,'ERROR: Axisymmetric simulation only supported with TrackingMethod = triatracking')
-  IF(.NOT.TriaSurfaceFlux) CALL abort(&
-    __STAMP__&
-    ,'ERROR: Axisymmetric simulation only supported with TriaSurfaceFlux = T')
+  IF(TrackingMethod.NE.TRIATRACKING) CALL abort(__STAMP__,'ERROR: Axisymmetric simulation only supported with TrackingMethod = triatracking')
+  IF(.NOT.TriaSurfaceFlux) CALL abort(__STAMP__,'ERROR: Axisymmetric simulation only supported with TriaSurfaceFlux = T')
 END IF
 
 #if USE_MPI
@@ -598,6 +603,7 @@ CALL InitializeVariablesIonization()
 CALL InitializeVariablesVarTimeStep()
 CALL InitializeVariablesAmbipolarDiff()
 CALL InitializeVariablesRotationalRefFrame()
+CALL InitializeVariablesSurfaceChemistry()
 
 END SUBROUTINE InitializeVariables
 
@@ -1425,6 +1431,7 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
+INTEGER                   :: iSpec, iSF
 !===================================================================================================================================
 !#if USE_MPI
 !CALL FinalizeEmissionParticlesToProcs()
@@ -1462,6 +1469,7 @@ SDEALLOCATE(PartPosRef)
 SDEALLOCATE(PartState)
 SDEALLOCATE(LastPartPos)
 SDEALLOCATE(PartVeloRotRef)
+SDEALLOCATE(LastPartVeloRotRef)
 SDEALLOCATE(PartSpecies)
 SDEALLOCATE(Pt)
 SDEALLOCATE(PDM%ParticleInside)
@@ -1475,6 +1483,20 @@ SDEALLOCATE(CellEelec_vMPF)
 SDEALLOCATE(CellEvib_vMPF)
 SDEALLOCATE(PartMPF)
 SDEALLOCATE(InterPlanePartIndx)
+DO iSpec = 1, nSpecies
+  DO iSF=1, Species(iSpec)%nSurfacefluxBCs
+    SDEALLOCATE(Species(iSpec)%Surfaceflux(iSF)%SurfFluxSubSideData)
+    SDEALLOCATE(Species(iSpec)%Surfaceflux(iSF)%SurfFluxSideRejectType)
+    SDEALLOCATE(Species(iSpec)%Surfaceflux(iSF)%nVFRSub)
+    SDEALLOCATE(Species(iSpec)%Surfaceflux(iSF)%VFR_total_allProcs)
+    SDEALLOCATE(Species(iSpec)%Surfaceflux(iSF)%ConstMassflowWeight)
+    SDEALLOCATE(Species(iSpec)%Surfaceflux(iSF)%CircleAreaPerTriaSide)
+  END DO
+  IF(ASSOCIATED(Species(iSpec)%Surfaceflux)) THEN
+    DEALLOCATE(Species(iSpec)%Surfaceflux)
+    NULLIFY(Species(iSpec)%Surfaceflux)
+  END IF
+END DO
 SDEALLOCATE(Species)
 SDEALLOCATE(SpecReset)
 SDEALLOCATE(IMDSpeciesID)
@@ -1490,7 +1512,7 @@ SDEALLOCATE(PEM%pEnd)
 SDEALLOCATE(PEM%pNext)
 SDEALLOCATE(seeds)
 SDEALLOCATE(PartPosLandmark)
-SDEALLOCATE(RotRefFramRegion)
+SDEALLOCATE(RotRefFrameRegion)
 SDEALLOCATE(VirtMergedCells)
 SDEALLOCATE(PartDataVarNames)
 #if USE_MPI
@@ -1717,6 +1739,8 @@ CHARACTER(LEN=5)   :: hilf
 !===================================================================================================================================
 
 UseRotRefFrame = GETLOGICAL('Part-UseRotationalReferenceFrame')
+UseRotSubCycling = GETLOGICAL('Part-RotRefFrame-UseSubCycling')
+nSubCyclingSteps = GETINT('Part-RotRefFrame-SubCyclingSteps')
 
 IF(UseRotRefFrame) THEN
   ! Abort for other timedisc except DSMC/BGK
@@ -1725,6 +1749,8 @@ IF(UseRotRefFrame) THEN
 #endif
   ALLOCATE(PartVeloRotRef(1:3,1:PDM%maxParticleNumber))
   PartVeloRotRef = 0.0
+  ALLOCATE(LastPartVeloRotRef(1:3,1:PDM%maxParticleNumber))
+  LastPartVeloRotRef = 0.0
   RotRefFrameAxis = GETINT('Part-RotRefFrame-Axis')
   RotRefFrameFreq = GETREAL('Part-RotRefFrame-Frequency')
   omegaTemp = 2.*PI*RotRefFrameFreq
@@ -1739,13 +1765,13 @@ IF(UseRotRefFrame) THEN
       CALL abort(__STAMP__,'ERROR Rotational Reference Frame: Axis must be between 1 and 3. Selected axis: ',IntInfoOpt=RotRefFrameAxis)
   END SELECT
   nRefFrameRegions = GETINT('Part-nRefFrameRegions')
-  ALLOCATE(RotRefFramRegion(1:2,1:nRefFrameRegions))
+  ALLOCATE(RotRefFrameRegion(1:2,1:nRefFrameRegions))
   IF(nRefFrameRegions.GT.0)THEN
     DO iRegion=1, nRefFrameRegions
       WRITE(UNIT=hilf,FMT='(I0)') iRegion
-      RotRefFramRegion(1,iRegion)= GETREAL('Part-RefFrameRegion'//TRIM(hilf)//'-MIN')
-      RotRefFramRegion(2,iRegion)= GETREAL('Part-RefFrameRegion'//TRIM(hilf)//'-MAX')
-      IF(RotRefFramRegion(1,iRegion).GE.RotRefFramRegion(2,iRegion)) THEN
+      RotRefFrameRegion(1,iRegion)= GETREAL('Part-RefFrameRegion'//TRIM(hilf)//'-MIN')
+      RotRefFrameRegion(2,iRegion)= GETREAL('Part-RefFrameRegion'//TRIM(hilf)//'-MAX')
+      IF(RotRefFrameRegion(1,iRegion).GE.RotRefFrameRegion(2,iRegion)) THEN
         CALL abort(__STAMP__,'ERROR Rotational Reference Frame: MIN > MAX in definition of region ',IntInfoOpt=iRegion)
       END IF
     END DO
@@ -1828,3 +1854,4 @@ END IF
 END SUBROUTINE InitPartDataSize
 
 END MODULE MOD_ParticleInit
+
