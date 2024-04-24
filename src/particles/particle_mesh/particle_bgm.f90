@@ -292,10 +292,10 @@ GEO%FIBGMdeltas(1:3) = GETREALARRAY('Part-FIBGMdeltas',3)
 
 IF(SUM(ABS(GEO%FIBGMdeltas(1:3))).EQ.0) THEN
   GEO%AutomaticFIBGM=.TRUE.
+  CALL PrintOption('Automatic calculation of FIBGM size','INFO',LogOpt=GEO%AutomaticFIBGM)
 ELSE
   GEO%AutomaticFIBGM=.FALSE.
 END IF
-CALL PrintOption('Automatic calculation of FIBGM size','INFO',LogOpt=GEO%AutomaticFIBGM)
 
 IF(.NOT.GEO%AutomaticFIBGM) THEN
   ! Read parameter for FastInitBackgroundMesh (FIBGM)
@@ -343,9 +343,6 @@ ELSE
   GEO%FIBGMdeltas(3) = MIN(FIBGMdeltas1(3),FIBGMdeltas2(3))
 END IF
 
-! Read periodic vectors from parameter file, if AutoFIBGM: GEO%FIBGMdeltas may be adjusted here
-CALL InitPeriodicBC()
-
 ! Ensure BGM does not protrude beyond mesh when divisible by FIBGMdeltas
 BGMiminglob = 0 + moveBGMindex
 BGMimaxglob = FLOOR((GEO%xmaxglob-GEO%xminglob)/GEO%FIBGMdeltas(1)) + moveBGMindex
@@ -368,6 +365,9 @@ LBWRITE(UNIT_stdOut,'(A,I18,A,I18,A,I18)') ' | Total FIBGM Cells(x,y,z): '      
                                           , BGMimaxglob - BGMiminglob + 1                                 ,', '&
                                           , BGMjmaxglob - BGMjminglob + 1                                 ,', '&
                                           , BGMkmaxglob - BGMkminglob + 1
+
+! Read periodic vectors from parameter file, if AutoFIBGM: GEO%FIBGMdeltas may be adjusted here
+CALL InitPeriodicBC()
 
 #if USE_MPI
 CALL Allocate_Shared((/6  ,nGlobalElems/),ElemToBGM_Shared_Win,ElemToBGM_Shared)
