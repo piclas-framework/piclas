@@ -55,10 +55,12 @@ LOGICAL,INTENT(OUT)           :: InElementCheck
 REAL   ,INTENT(OUT),OPTIONAL  :: Det_Out(6,2)
 !-----------------------------------------------------------------------------------------------------------------------------------
 !===================================================================================================================================
-IF (Symmetry%Order.EQ.2) THEN
+IF (Symmetry%Order.EQ.3) THEN
+  CALL ParticleInsideQuad3D(PartStateLoc,ElemID,InElementCheck,Det_Out)
+ELSE IF (Symmetry%Order.EQ.2) THEN
   CALL ParticleInsideQuad2D(PartStateLoc(1:2),ElemID,InElementCheck)
 ELSE
-  CALL ParticleInsideQuad3D(PartStateLoc,ElemID,InElementCheck,Det_Out)
+  CALL ParticleInsideQuad1D(PartStateLoc(1),ElemID,InElementCheck)
 END IF
 END SUBROUTINE ParticleInsideQuad
 
@@ -230,9 +232,8 @@ REAL   ,INTENT(IN)            :: PartStateLoc(2)
 LOGICAL,INTENT(OUT)           :: InElementCheck
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                       :: ilocSide, TempSideID, ind, NbElemID, nNbMortars, nlocSides, localSideID
+INTEGER                       :: ilocSide, TempSideID, nlocSides, localSideID
 INTEGER                       :: CNElemID
-LOGICAL                       :: PosCheck, NegCheck, InElementCheckMortar, InElementCheckMortarNb
 REAL                          :: x_int, xNode1, xNode2, yNode1, yNode2
 !===================================================================================================================================
 CNElemID = GetCNElemID(ElemID)
@@ -261,6 +262,48 @@ DO iLocSide=1,nlocSides
 END DO
 END SUBROUTINE ParticleInsideQuad2D
 
+SUBROUTINE ParticleInsideQuad1D(PartStateLoc,ElemID,InElementCheck)
+!===================================================================================================================================
+!> Checks if particle is inside of a linear 2D element with4  faces, compatible with mortars
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals
+USE MOD_Mesh_Tools            ,ONLY: GetCNElemID
+USE MOD_Particle_Mesh_Vars    ,ONLY: ElemInfo_Shared,SideInfo_Shared,NodeCoords_Shared, SideIsSymSide
+USE MOD_Particle_Mesh_Vars    ,ONLY :ElemSideNodeID1D_Shared
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+! INPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT/OUTPUT VARIABLES
+INTEGER,INTENT(IN)            :: ElemID
+REAL   ,INTENT(IN)            :: PartStateLoc
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+LOGICAL,INTENT(OUT)           :: InElementCheck
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER                       :: ilocSide, TempSideID, nlocSides, localSideID, DiffSign(2), iSide
+INTEGER                       :: CNElemID
+REAL                          :: xNode
+!===================================================================================================================================
+CNElemID = GetCNElemID(ElemID)
+InElementCheck = .FALSE.
+nlocSides = ElemInfo_Shared(ELEM_LASTSIDEIND,ElemID) -  ElemInfo_Shared(ELEM_FIRSTSIDEIND,ElemID)
+iSide = 0
+DO iLocSide=1,nlocSides
+  TempSideID = ElemInfo_Shared(ELEM_FIRSTSIDEIND,ElemID) + iLocSide
+  localSideID = SideInfo_Shared(SIDE_LOCALID,TempSideID)
+  ! Side is not one of the 6 local sides
+  IF (localSideID.LE.0) CYCLE
+  IF (SideIsSymSide(TempSideID)) CYCLE
+  xNode = NodeCoords_Shared(1,ElemSideNodeID1D_Shared(localSideID, CNElemID))
+  iSide = iSide + 1
+  DiffSign(iSide) = NINT(SIGN(1.,PartStateLoc - xNode))
+  IF (iSide.EQ.2) EXIT
+END DO
+IF (DiffSign(1).NE.DiffSign(2)) InElementCheck = .TRUE.
+END SUBROUTINE ParticleInsideQuad1D
 
 PPURE SUBROUTINE ParticleInsideNbMortar(PartStateLoc,ElemID,InElementCheck)
 !===================================================================================================================================

@@ -49,7 +49,7 @@ PUBLIC :: ComputePlanarRectInterSection
 PUBLIC :: ComputePlanarCurvedIntersection
 PUBLIC :: ComputeBilinearIntersection
 PUBLIC :: ComputeCurvedIntersection
-PUBLIC :: ParticleThroughSideCheck3DFast, ParticleThroughSideCheck2D
+PUBLIC :: ParticleThroughSideCheck3DFast, ParticleThroughSideCheck2D, ParticleThroughSideCheck1D
 PUBLIC :: ParticleThroughSideLastPosCheck
 #ifdef CODE_ANALYZE
 PUBLIC :: OutputTrajectory
@@ -336,6 +336,53 @@ IF (t(1) >= 0.0 .AND. t(1) <= 1.0 .AND. t(2) >= 0.0 .AND. t(2) <= 1.0) THEN
 END IF
 
 END SUBROUTINE ParticleThroughSideCheck2D
+
+SUBROUTINE ParticleThroughSideCheck1D(PartID,iLocSide,Element,ThroughSide)
+!===================================================================================================================================
+!> Routine to check whether a particle crossed the given triangle of a side. The determinant between the normalized trajectory
+!> vector and the vectors from two of the three nodes to the old particle position is calculated. If the determinants for the three
+!> possible combinations are greater than zero, then the particle went through this triangle of the side.
+!> Note that if this is a mortar side, the side of the small neighbouring mortar element has to be checked. Thus, the orientation
+!> is reversed.
+!===================================================================================================================================
+! MODULES
+USE MOD_Particle_Vars             ,ONLY: lastPartPos,PartState
+USE MOD_Particle_Mesh_Vars        ,ONLY: NodeCoords_Shared, ElemSideNodeID1D_Shared
+USE MOD_Mesh_Tools                ,ONLY: GetCNElemID
+USE MOD_Particle_Tracking_Vars    ,ONLY: TrackInfo
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+INTEGER,INTENT(IN)               :: PartID
+INTEGER,INTENT(IN)               :: iLocSide
+INTEGER,INTENT(IN)               :: Element
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+LOGICAL,INTENT(OUT)              :: ThroughSide
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER                          :: CNElemID, DiffSign(2)
+REAL                             :: xNode
+!===================================================================================================================================
+
+CNElemID = GetCNElemID(Element)
+
+ThroughSide = .FALSE.
+! Get the coordinates of the first node and the vector from the particle position to the node
+xNode = NodeCoords_Shared(1,ElemSideNodeID1D_Shared(iLocSide, CNElemID))
+
+DiffSign(1) = NINT(SIGN(1.,LastPartPos(1,PartID) - xNode))
+DiffSign(2) = NINT(SIGN(1.,PartState(1,PartID) - xNode))
+
+! Check if intersection point is within line segments
+IF (DiffSign(1).NE.DiffSign(2)) THEN
+  ! Calculate intersection point
+  TrackInfo%alpha = ABS(xNode - LastPartPos(1,PartID))
+  ThroughSide = .TRUE.
+END IF
+
+END SUBROUTINE ParticleThroughSideCheck1D
 
 
 SUBROUTINE ParticleThroughSideLastPosCheck(i,iLocSide,Element,InElementCheck,TriNum,det,isMortarSide,detPartPos)

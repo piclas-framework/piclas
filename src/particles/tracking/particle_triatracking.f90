@@ -81,8 +81,8 @@ DO i = 1,PDM%ParticleVecLength
 #else
   IF (PDM%ParticleInside(i)) THEN
 #endif /*IMPA*/
-    IF(Symmetry%Order.EQ.2) THEN
-      CALL SingleParticleTriaTracking2D(i)
+    IF(Symmetry%Order.LE.2) THEN
+      CALL SingleParticleTriaTracking1D2D(i)
     ELSE
       CALL SingleParticleTriaTracking(i=i)
     END IF
@@ -463,7 +463,7 @@ IF(ParticleOnProc(i)) CALL LBElemPauseTime(PEM%LocalElemID(i),tLBStart)
 
 END SUBROUTINE SingleParticleTriaTracking
 
-SUBROUTINE SingleParticleTriaTracking2D(i)
+SUBROUTINE SingleParticleTriaTracking1D2D(i)
 !===================================================================================================================================
 ! Routine for tracking of moving particles and boundary interaction using triangulated sides.
 !    2) Perform tracking until the particle is considered "done" (either localized or deleted)
@@ -490,6 +490,7 @@ USE MOD_Particle_Tracking_vars      ,ONLY: DisplayLostParticles
 USE MOD_Part_Tools                  ,ONLY: StoreLostParticleProperties
 USE MOD_Particle_Boundary_Vars      ,ONLY: PartBound
 USE MOD_Particle_Intersection       ,ONLY: ParticleThroughSideCheck2D, ParticleThroughSideLastPosCheck, IntersectionWithWall
+USE MOD_Particle_Intersection       ,ONLY: ParticleThroughSideCheck1D
 USE MOD_Particle_Boundary_Condition ,ONLY: GetBoundaryInteraction
 USE MOD_part_tools                  ,ONLY: ParticleOnProc, InRotRefFrameCheck
 USE MOD_part_operations             ,ONLY: RemoveParticle
@@ -570,7 +571,11 @@ DO WHILE (.NOT.PartisDone)
         nbSideID = SideInfo_Shared(SIDE_NBSIDEID,nbSideID)
         NblocSideID =  SideInfo_Shared(SIDE_LOCALID,nbSideID)
         ThroughSide = .FALSE.
-        CALL ParticleThroughSideCheck2D(i,NblocSideID,NbElemID,ThroughSide)
+        IF(Symmetry%Order.EQ.2) THEN 
+          CALL ParticleThroughSideCheck2D(i,NblocSideID,NbElemID,ThroughSide)
+        ELSE
+          CALL ParticleThroughSideCheck1D(i,NblocSideID,NbElemID,ThroughSide)
+        END IF
         IF (ThroughSide) THEN
           ! Store the information for this side for future checks, if this side was already treated
           oldElemIsMortar = .TRUE.
@@ -584,7 +589,11 @@ DO WHILE (.NOT.PartisDone)
     ELSE  ! Regular side
       IF (TempSideID.EQ.LastSide) CYCLE
       ThroughSide = .FALSE.
-      CALL ParticleThroughSideCheck2D(i,localSideID,ElemID,ThroughSide)
+      IF(Symmetry%Order.EQ.2) THEN 
+        CALL ParticleThroughSideCheck2D(i,localSideID,ElemID,ThroughSide)
+      ELSE
+        CALL ParticleThroughSideCheck1D(i,localSideID,ElemID,ThroughSide)
+      END IF
       IF (ThroughSide) THEN
         NrOfThroughSides = NrOfThroughSides + 1
         SideID = TempSideID
@@ -643,6 +652,6 @@ END DO  ! .NOT.PartisDone
 IF(ParticleOnProc(i)) CALL LBElemPauseTime(PEM%LocalElemID(i),tLBStart)
 #endif /*USE_LOADBALANCE*/
 
-END SUBROUTINE SingleParticleTriaTracking2D
+END SUBROUTINE SingleParticleTriaTracking1D2D
 
 END MODULE MOD_Particle_TriaTracking
