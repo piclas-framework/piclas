@@ -465,22 +465,26 @@ ELSE ! normal restart
         ASSOCIATE( &
               ExtendedOffsetSide => INT(MinGlobalSideID-1,IK)                 ,&
               ExtendednSides     => INT(MaxGlobalSideID-MinGlobalSideID+1,IK) ,&
-              nGP_faceNMax       => INT(nGP_face(NMax),IK)                    ,&
+              nGP_faceNres       => INT(nGP_face(N_Restart),IK)                    ,&
               PP_nVarTmp         => INT(PP_nVar,IK))
           !ALLOCATE(ExtendedLambda(PP_nVar,nGP_face,MinGlobalSideID:MaxGlobalSideID))
-          ALLOCATE(ExtendedLambda(PP_nVar,nGP_faceNMax,1:ExtendednSides))
+          ALLOCATE(ExtendedLambda(PP_nVar,nGP_faceNres,1:ExtendednSides))
           ExtendedLambda = HUGE(1.)
           !lambda = HUGE(1.)
           ! WARGNING: Data read in overlapping mode, therefore ReadNonOverlap_opt=F
-          CALL ReadArray('DG_SolutionLambda',3,(/PP_nVarTmp,nGP_faceNMax,ExtendednSides/),ExtendedOffsetSide,3,RealArray=ExtendedLambda&
+          CALL ReadArray('DG_SolutionLambda',3,(/PP_nVarTmp,nGP_faceNres,ExtendednSides/),ExtendedOffsetSide,3,RealArray=ExtendedLambda&
 #if USE_MPI
               ,ReadNonOverlap_opt=.FALSE.&
 #endif /*USE_MPI*/
               )
 
           ! Allocate temporary arrays
-          ALLOCATE(tmp2(1:PP_nVar,0:Nres,0:Nres))
-          ALLOCATE(tmp3(1:PP_nVar,0:Nres,0:Nres))
+          ASSOCIATE( NMaximum => MAX(Nres,NMax))
+            ALLOCATE(tmp2(1:PP_nVar,0:NMaximum,0:NMaximum))
+            tmp2 = 0.
+            ALLOCATE(tmp3(1:PP_nVar,0:NMaximum,0:NMaximum))
+            tmp3 = 0.
+          END ASSOCIATE
           ALLOCATE(lambdaloc(1:PP_nVar,1:nGP_face(Nres)))
 
           DO iSide = 1, nSides
@@ -525,7 +529,7 @@ ELSE ! normal restart
 
               ! Map from 1D to 2D array
               DO iVar=1,PP_nVar
-                tmp2(iVar:iVar,0:NSideMin,0:NSideMin) = RESHAPE(lambdaloc(iVar,:),(/1,NSideMin+1,NSideMin+1/))
+                tmp2(iVar:iVar,0:Nres,0:Nres) = RESHAPE(lambdaloc(iVar,:),(/1,Nres+1,Nres+1/))
               END DO ! iVar=1,PP_nVar
 
               ! Get NSideMin
