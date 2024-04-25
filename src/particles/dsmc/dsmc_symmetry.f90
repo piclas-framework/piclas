@@ -266,6 +266,8 @@ USE MOD_MPI_Shared_Vars         ,ONLY: MPI_COMM_SHARED
 USE MOD_Particle_Mesh_Vars      ,ONLY: offsetComputeNodeElem,SideIsSymSide_Shared_Win, nNonUniqueGlobalSides
 USE MOD_Particle_Mesh_Vars      ,ONLY: ElemVolume_Shared_Win,ElemCharLength_Shared_Win, ElemInfo_Shared
 USE MOD_MPI_Shared_Vars         ,ONLY: myComputeNodeRank,nComputeNodeProcessors,MPI_COMM_LEADERS_SHARED
+#else
+USE MOD_Particle_Mesh_Vars      ,ONLY: nComputeNodeSides
 #endif /*USE_MPI*/
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE
