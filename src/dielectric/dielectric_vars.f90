@@ -90,10 +90,23 @@ END TYPE N_Dielectric_Vol
 
 TYPE(N_Dielectric_Vol),ALLOCATABLE :: DielectricVol(:)       !< Dielectric variable for each node and element
 
+! Dielectric polynomial in volume: Dummy container for Riemann solver initialization of surface master sides
+TYPE N_Dielectric_Vol_Dummy
+  REAL,ALLOCATABLE  :: U(:,:,:,:)
+END TYPE N_Dielectric_Vol_Dummy
+
+TYPE(N_Dielectric_Vol_Dummy),ALLOCATABLE :: DielectricVolDummy(:)  !< Dielectric variable for each node and element
+
 ! Dielectric polynomial on surface
 TYPE N_Dielectric_Surf
   REAL,ALLOCATABLE  :: Dielectric_Master(:,:)
   REAL,ALLOCATABLE  :: Dielectric_Slave(:,:)
+  REAL,ALLOCATABLE  :: Dielectric_dummy_Master(:,:,:)
+  REAL,ALLOCATABLE  :: Dielectric_dummy_Slave(:,:,:)
+#if USE_MPI
+  REAL,ALLOCATABLE  :: Dielectric_dummy_Master2(:,:,:)
+  REAL,ALLOCATABLE  :: Dielectric_dummy_Slave2(:,:,:)
+#endif /*USE_MPI*/
 END TYPE N_Dielectric_Surf
 
 TYPE(N_Dielectric_Surf),ALLOCATABLE :: DielectricSurf(:)       !< Dielectric variable for each node and surface
