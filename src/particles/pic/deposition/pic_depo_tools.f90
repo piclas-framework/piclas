@@ -87,8 +87,8 @@ IF(DoDeposition.AND.DoDielectricSurfaceCharge.AND.PartBound%Dielectric(iBC))THEN
     CALL DepositParticleOnNodes(ChargeHole, PartState(1:3,ParticleIndex), PEM%GlobalElemID(ParticleIndex))
   END DO
 END IF
-
 END SUBROUTINE DepositPhotonSEEHoles
+
 
 !===================================================================================================================================
 !> Deposit the charge of a single particle on the nodes corresponding to the deposition method 'cell_volweight_mean', where the
