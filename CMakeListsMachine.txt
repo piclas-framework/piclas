@@ -147,7 +147,7 @@ ELSEIF (CMAKE_FQDN_HOST MATCHES "^ila(head.*|cfd.*)\.ila.uni\-stuttgart\.de")
 
 ELSEIF (CMAKE_FQDN_HOST MATCHES "^(xenon.*|argon.*)\.ila.uni\-stuttgart\.de")
   MESSAGE(STATUS "Compiling on ILA student cluster")
-  SET(FLEXI_INSTRUCTION "-march=native -mtune=native")
+  SET(PICLAS_INSTRUCTION "-march=native -mtune=native")
   # Work around MPI-IO issue 4446 on machines mountng storage via NFS
   ADD_DEFINITIONS(-DNFS)
 
@@ -205,12 +205,13 @@ IMPLICIT NONE
 PRIVATE
 CONTAINS
 ! Check for MOVE_ALLOC feature
-SUBROUTINE GCC_PARSE_ASSOCAIATE()
+SUBROUTINE GCC_PARSE_ASSOCIATE()
 REAL::x1(3),x2(3)
 ASSOCIATE(v1 => x1, v2 => x2)
 v1 = 0
 v2 = 1
 v1 = 0 + v1
+END ASSOCIATE
 END SUBROUTINE GCC_PARSE_ASSOCIATE
 END MODULE GCC13MOD
 

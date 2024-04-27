@@ -386,7 +386,7 @@ END IF
 #endif
 
 #if defined(PARTICLES) && USE_LOADBALANCE
-IF (.NOT.PerformLoadBalance) THEN
+IF (.NOT.PerformLoadBalance .OR. UseH5IOLoadBalance) THEN
 #endif /*defined(PARTICLES) && USE_LOADBALANCE*/
   CALL OpenDataFile(FileString,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_PICLAS)
   CALL ReadBCs()

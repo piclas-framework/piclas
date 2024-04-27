@@ -278,14 +278,14 @@ USE MOD_RayTracing_Vars         ,ONLY: UseRayTracing, Ray,RayElemEmission
 USE MOD_RayTracing_Vars         ,ONLY: U_N_Ray_loc,N_DG_Ray_loc,N_Inter_Ray
 USE MOD_RayTracing_Vars         ,ONLY: RaySecondaryVectorX,RaySecondaryVectorY,RaySecondaryVectorZ
 USE MOD_Particle_Vars           ,ONLY: Species, PartState, usevMPF, PartMPF, PDM, PEM, PartSpecies
-USE MOD_DSMC_Vars               ,ONLY: ChemReac, DSMC, SpecDSMC, BGGas, Coll_pData, CollisMode, PartStateIntEn
+USE MOD_DSMC_Vars               ,ONLY: ChemReac, DSMC, BGGas, Coll_pData, CollisMode, PartStateIntEn
 USE MOD_DSMC_Vars               ,ONLY: newAmbiParts, iPartIndx_NodeNewAmbi
 ! Functions/Subroutines
 USE MOD_Eval_xyz                ,ONLY: TensorProductInterpolation
 USE MOD_part_emission_tools     ,ONLY: CalcPhotonEnergy
 USE MOD_DSMC_ChemReact          ,ONLY: PhotoIonization_InsertProducts
-USE MOD_part_emission_tools     ,ONLY: CalcVelocity_maxwell_lpn, DSMC_SetInternalEnr_LauxVFD
-USE MOD_DSMC_PolyAtomicModel    ,ONLY: DSMC_SetInternalEnr_Poly
+USE MOD_part_emission_tools     ,ONLY: CalcVelocity_maxwell_lpn
+USE MOD_DSMC_PolyAtomicModel    ,ONLY: DSMC_SetInternalEnr
 USE MOD_part_tools              ,ONLY: CalcVelocity_maxwell_particle
 #if defined(LSERK)
 USE MOD_TimeDisc_Vars           ,ONLY: iStage,nRKStages,RK_c
@@ -440,11 +440,7 @@ DO iVar = 1, 2
               END IF
               ! Set the internal energies
               IF(CollisMode.GT.1) THEN
-                IF(SpecDSMC(SpecID)%PolyatomicMol) THEN
-                  CALL DSMC_SetInternalEnr_Poly(SpecID,1,PartID,1)
-                ELSE
-                  CALL DSMC_SetInternalEnr_LauxVFD(SpecID,1,PartID,1)
-                END IF
+                CALL DSMC_SetInternalEnr(SpecID,1,PartID,1)
               END IF
               ! Particle flags
               PDM%ParticleInside(PartID)  = .TRUE.
