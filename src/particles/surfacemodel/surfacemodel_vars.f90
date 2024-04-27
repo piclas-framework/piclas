@@ -19,7 +19,6 @@ MODULE MOD_SurfaceModel_Vars
 ! IMPLICIT VARIABLE HANDLING
 
 USE MOD_DSMC_Vars                   ,ONLY: tCollCaseInfo
-USE MOD_Particle_SurfaceFlux_Vars   ,ONLY: tSurfaceFlux
 
 IMPLICIT NONE
 PUBLIC
@@ -66,14 +65,13 @@ TYPE tSurfChemistry ! General surface chemistry parameter
   INTEGER                                :: NumOfReact             ! Number of catalytic reactions
   LOGICAL                                :: OverwriteCatParameters ! Flag to read the cat parameters manually
   INTEGER                                :: SurfSpecies            ! Bulk species of the surface, involved in the reactions
-  LOGICAL                                :: Diffusion              ! Activates instantaneous diffussion over the whole boundary
-  LOGICAL                                :: TotDiffusion           ! Activates instantaneous diffussion over all boundaries
-  INTEGER                                :: CatBoundNum            ! Number of catalytic boundaries
-  LOGICAL, ALLOCATABLE                   :: BoundisChemSurf(:)     ! Boundary with catalytic activity
+  LOGICAL                                :: Diffusion              ! Activates instantaneous diffusion over the whole boundary
+  LOGICAL                                :: TotDiffusion           ! Activates instantaneous diffusion over all boundaries
+  INTEGER                                :: CatBoundNum            ! Number of catalytic boundaries (modelled as a surface flux)
+  INTEGER, ALLOCATABLE                   :: SurfaceFluxBC(:)       ! Mapping from catalytic surface flux to corresponding boundary
+  LOGICAL, ALLOCATABLE                   :: BoundIsChemSurf(:)     ! Boundary with catalytic activity
   TYPE(tPureSurf), ALLOCATABLE           :: PSMap(:)               ! Map for reactions occurring only on the surface
   TYPE(tCollCaseInfo), ALLOCATABLE       :: CollCaseInfo(:)        ! Information of collision cases (nCase)
-  TYPE(tSurfaceFlux), POINTER            :: SurfaceFlux(:)         ! Surface flux data (using the regular surface flux type)
-  TYPE(tSFAux), ALLOCATABLE              :: SFAux(:)               ! Additional surface flux data, where variables differ from the regular surface flux type
   ! Event probability
   TYPE(tEventProbInfo), ALLOCATABLE      :: EventProbInfo(:)       ! Number of reaction paths and their probability per species
 END TYPE
@@ -121,19 +119,15 @@ TYPE tSurfReactions
 END TYPE
 TYPE(tSurfReactions), ALLOCATABLE        :: SurfChemReac(:)
 
-TYPE tSFAux
-  REAL, ALLOCATABLE                      :: a_nIn(:,:,:,:)       ! Speed ratio projected to inwards normal (additionally to regular surface flux variable due to missing species dependency)
-END TYPE
-
 REAL,ALLOCATABLE                         :: ChemDesorpWall(:,:,:,:,:)     ! Desorption numbers
+REAL,ALLOCATABLE                         :: ChemSampWall(:,:,:,:,:)       ! Sampling direct impact mechanism
 REAL,ALLOCPOINT                          :: ChemWallProp(:,:,:,:,:)       ! Adsorption count / heat flux
-REAL,ALLOCPOINT                          :: ChemSampWall(:,:,:,:,:)       ! Sampling direct impact mechanism
 
 #if USE_MPI
-REAL,ALLOCPOINT                          :: ChemWallProp_Shared(:,:,:,:,:)  ! Adsorption count / heat flux
-INTEGER                                  :: ChemWallProp_Shared_Win
-REAL,ALLOCPOINT                          :: ChemSampWall_Shared(:,:,:,:,:)  ! Sampling direct impact mechanism
+REAL,POINTER                             :: ChemSampWall_Shared(:,:,:,:,:)! Sampling direct impact mechanism
 INTEGER                                  :: ChemSampWall_Shared_Win
+REAL,POINTER                             :: ChemWallProp_Shared(:,:,:,:,:)! Adsorption count / heat flux
+INTEGER                                  :: ChemWallProp_Shared_Win
 #endif
 
 ! === SEE BC ====================================================================================================================
