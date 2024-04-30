@@ -105,8 +105,9 @@ where, the path to the mesh file `MeshFile`, project name and particle tracking 
     Analyze_dt            = 5E-6
     IterDisplayStep       = 100
     Particles-HaloEpsVelo = 5000
+    doPrintStatusLine     = T
 
-where the final simulation time `tend` [s], the time step for the field and particle solver is set via `ManualTimeStep` [s]. The time between restart/checkpoint file output is defined via `Analyze_dt` (which is also the output time for specific analysis functions in the field solver context). The number of time step iterations `IterDisplayStep` defines the interval between information output regarding the current status of the simulation, which is written to std.out. The `Particles-HaloEpsVelo` [m/s] determines the size of the halo region for MPI communication and should not be smaller than the fastest particles in the simulation.
+where the final simulation time `tend` [s], the time step for the field and particle solver is set via `ManualTimeStep` [s]. The time between restart/checkpoint file output is defined via `Analyze_dt` (which is also the output time for specific analysis functions in the field solver context). The number of time step iterations `IterDisplayStep` defines the interval between information output regarding the current status of the simulation, which is written to std.out. The `Particles-HaloEpsVelo` [m/s] determines the size of the halo region for MPI communication and should not be smaller than the fastest particles in the simulation.The `doPrintStatusLine` gives an estimated time for the simulation to be completed.
 
 (sec:tutorial-dsmc-analysis-setup)=
 ### Analysis setup

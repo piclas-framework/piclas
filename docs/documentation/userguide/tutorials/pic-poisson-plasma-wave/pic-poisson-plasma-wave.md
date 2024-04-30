@@ -144,7 +144,7 @@ name: tab:pic_poisson_plasma_wave_phys
 
 ### General numerical setup
 
-The general numerical parameters are selected by the following
+The general numerical parameters (defined in the parameter.ini) are selected by the following
 
     ! =============================================================================== !
     ! DISCRETIZATION
@@ -413,7 +413,7 @@ The parameters for **piclas2vtk** are stored in the **parameter.ini** file under
 
 where `NVisu` is the polynomial visualization degree on which the field solution is interpolated.
 Depending on the used polynomial degree `N` and subsequently the degree of visualization `NVisu`, which should always be higher than
-`N`, the resulting electric potential $\Phi$ and its derivative the electric field strength **E** might show signs of oscillations.
+`N`, the resulting electric potential $\Phi$ and its derivative, the electric field strength **E** might show signs of oscillations.
 This is because the PIC simulation is always subject to noise that is influenced by the discretization (number of elements and
 polynomial degree as well as number of particles) and is visible in the solution as this is a snapshot of the current simulation.
 
@@ -425,8 +425,7 @@ Run the command
 
 to generate the corresponding *vtk*-files, which can then be loaded into the visualisation tool.
 
-The electric potential field can be viewed, e.g., by opening `plasma_wave_Solution_000.000000040.vtu` and plotting the field
-`Phi` along the x-axis, which should look like the following
+The electric potential field and electric field strength  can be viewed, for e.g. in **ParaView**, by opening `plasma_wave_Solution_000.000000040.vtu` and plotting the field `Phi` and `E` along the x-axis.This can be done by selecting **Filter &rarr; Data Analysis &rarr; Plot Over Line**  . The graphs should look like the following
 
 
 ```{figure} results/tut-pic-pw-results.jpg

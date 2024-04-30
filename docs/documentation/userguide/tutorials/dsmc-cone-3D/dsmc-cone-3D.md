@@ -13,7 +13,7 @@ The general information needed to setup a DSMC simulation is given in the previo
 
 First, create a new file in gmsh: `70DegCone_3D.geo`. In general, the mesh can be generated using the GUI or by using the `.geo` script environment. In the GUI, the script can be edited via `Edit script` and loaded with `Reload script`. This tutorial focuses on the scripting approach.
 
-After opening the `.geo` script file, select the OpenCASCADE CAD kernel and open the provided `70DegCone_3D_model.step` file with the following commands:
+After opening the `.geo` script file, select **Geometry &rarr; Elementary entities &rarr; Set geometry kernel &rarr; OpenCASCADE** and open the provided `70DegCone_3D_model.step` file with the following commands:
 
     SetFactory("OpenCASCADE");
     v() = ShapeFromFile("70degCone_3D_model.step");
