@@ -1,7 +1,7 @@
 !==================================================================================================================================
 ! Copyright (c) 2010 - 2018 Prof. Claus-Dieter Munz and Prof. Stefanos Fasoulas
 !
-! This file is part of PICLas (gitlab.com/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
+! This file is part of PICLas (piclas.boltzplatz.eu/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
 ! it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3
 ! of the License, or (at your option) any later version.
 !
@@ -79,15 +79,8 @@ CHARACTER(LEN=2)               :: strhelp
 
 nVarAvg  = CountOption('VarNameAvg')
 nVarFluc = CountOption('VarNameFluc')
-IF((nVarAvg.EQ.0).AND.(nVarFluc.EQ.0))THEN
-  CALL CollectiveStop(__STAMP__, &
+IF((nVarAvg.EQ.0).AND.(nVarFluc.EQ.0)) CALL CollectiveStop(__STAMP__,&
     'No quantities for time averaging have been specified. Please specify quantities or disable time averaging!')
-#if FV_ENABLED
-ELSE
-  CALL CollectiveStop(__STAMP__, &
-    'Timeaveraging has not been implemented for FV yet!')
-#endif
-END IF
 
 ! --- Mean values
 ! Define variables to be averaged
@@ -100,13 +93,13 @@ ALLOCATE(VarNamesAvgList(nMaxVarAvg))
 DO iVar=1,PP_nVar
   VarNamesAvgList(iVar)=StrVarNames(iVar)
 END DO ! iVar=1,PP_nVar
-VarNamesAvgList( 9)='ElectricFieldMagnitude'
-VarNamesAvgList(10)='MagneticFieldMagnitude'
+VarNamesAvgList(PP_nVar+1)='ElectricFieldMagnitude'
+VarNamesAvgList(PP_nVar+2)='MagneticFieldMagnitude'
 ! derived quantity
-VarNamesAvgList(11)='PoyntingVectorX'
-VarNamesAvgList(12)='PoyntingVectorY'
-VarNamesAvgList(13)='PoyntingVectorZ'
-VarNamesAvgList(14)='PoyntingVectorMagnitude'
+VarNamesAvgList(PP_nVar+3)='PoyntingVectorX'
+VarNamesAvgList(PP_nVar+4)='PoyntingVectorY'
+VarNamesAvgList(PP_nVar+5)='PoyntingVectorZ'
+VarNamesAvgList(PP_nVar+6)='PoyntingVectorMagnitude'
 
 #ifdef PARTICLES
 iCounter=PP_nVar+6
@@ -136,16 +129,16 @@ hasAvgVars=.TRUE.
 DO iVar=1,PP_nVar
   VarNamesFlucList(iVar)=StrVarNames(iVar)
 END DO ! iVar=1,PP_nVar
-VarNamesFlucList( 9)='ElectricFieldMagnitude'
-VarNamesFlucList(10)='MagneticFieldMagnitude'
+VarNamesFlucList(PP_nVar+1)='ElectricFieldMagnitude'
+VarNamesFlucList(PP_nVar+2)='MagneticFieldMagnitude'
 ! derived quantity
-VarNamesFlucList(11)='PoyntingVectorX'
-VarNamesFlucList(12)='PoyntingVectorY'
-VarNamesFlucList(13)='PoyntingVectorZ'
-VarNamesFlucList(14)='PoyntingVectorMagnitude'
+VarNamesFlucList(PP_nVar+3)='PoyntingVectorX'
+VarNamesFlucList(PP_nVar+4)='PoyntingVectorY'
+VarNamesFlucList(PP_nVar+5)='PoyntingVectorZ'
+VarNamesFlucList(PP_nVar+6)='PoyntingVectorMagnitude'
 
 #ifdef PARTICLES
-iCounter=PP_nVar+2
+iCounter=PP_nVar+6
 DO iSpec=1,nSpecies
   WRITE(strhelp,'(I2.2)') iSpec
   VarnamesFlucList(iCounter+1)=TRIM('PowerDensityX-Spec')//TRIM(strhelp)
@@ -194,8 +187,7 @@ DO iVar=1,nVarAvg
     SWRITE (*,*) "   ChargeDensity-Spec0x"
     SWRITE (*,*) "   ChargeDensityX-Spec0x\n    ChargeDensityY-Spec0x\n    ChargeDensityZ-Spec0x\n    ChargeDensity-Spec0x"
 #endif /*PARTICLES*/
-    CALL CollectiveStop(__STAMP__, &
-    'Specified varname does not exist: ' // VarNamesAvgIni(iVar))
+    CALL CollectiveStop(__STAMP__, 'Specified varname does not exist: ' // VarNamesAvgIni(iVar))
   END IF
 END DO
 
@@ -222,7 +214,7 @@ IF(ANY(CalcFluc(11:14))) DoPoyntingVectorAvg = .TRUE.
 
 ! particles, additional marking for sampling
 #ifdef PARTICLES
-iCounter=PP_nVar+2
+iCounter=PP_nVar+6
 ALLOCATE(DoPowerDensity(1:nSpecies))
 DoPowerDensity=.FALSE.
 nSpecPowerDensity=0

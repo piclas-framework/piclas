@@ -1,6 +1,8 @@
 # Merge Request To-Do
 
-* [ ] Update of version numbers in ./src/globals/globals_vars.f90
+* [ ] Update of version numbers in
+  * [ ] `./src/globals/globals_vars.f90` (`MajorVersion`, `MinorVersion` and `PatchVersion`)
+  * [ ] `.github/workflows/cmake-ninja.yml` (`piclas-binaries-vX.X.X`)
 * [ ] Release notes
 
 ## Regression Testing
@@ -11,13 +13,13 @@
 
 # Release Notes
 
-## Release 1.X.X
+## Release 3.X.X
 
-### Documentation
+### Breaking/Parameter changes
 
 * 
 
-### Reggie
+### Documentation/Tools/Regression testing
 
 * 
 

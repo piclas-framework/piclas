@@ -1,7 +1,7 @@
 !==================================================================================================================================
 ! Copyright (c) 2010 - 2018 Prof. Claus-Dieter Munz and Prof. Stefanos Fasoulas
 !
-! This file is part of PICLas (gitlab.com/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
+! This file is part of PICLas (piclas.boltzplatz.eu/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
 ! it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3
 ! of the License, or (at your option) any later version.
 !
@@ -42,6 +42,11 @@ INTERFACE INVMAP
   MODULE PROCEDURE INVMAP
 END INTERFACE
 
+INTERFACE FinalizeMeshReadin
+  MODULE PROCEDURE FinalizeMeshReadin
+END INTERFACE
+
+PUBLIC :: FinalizeMeshReadin
 PUBLIC::ReadMesh,Qsort1Int,INVMAP
 !===================================================================================================================================
 
@@ -55,11 +60,14 @@ SUBROUTINE ReadBCs()
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_Mesh_Vars   ,ONLY: BoundaryName,BoundaryType,nBCs,nUserBCs
+USE MOD_Mesh_Vars        ,ONLY: BoundaryName,BoundaryType,nBCs,nUserBCs
 #if USE_HDG
-USE MOD_Mesh_Vars   ,ONLY: ChangedPeriodicBC
+USE MOD_Mesh_Vars        ,ONLY: ChangedPeriodicBC
 #endif /*USE_HDG*/
-USE MOD_ReadInTools ,ONLY: GETINTARRAY,CountOption,GETSTR
+USE MOD_ReadInTools      ,ONLY: GETINTARRAY,CountOption,GETSTR
+#if USE_LOADBALANCE
+USE MOD_LoadBalance_Vars ,ONLY: PerformLoadBalance
+#endif /*USE_LOADBALANCE*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -142,7 +150,7 @@ END ASSOCIATE
 ChangedPeriodicBC=.FALSE. ! set true if BCs are changed from periodic to non-periodic
 #endif /*USE_HDG*/
 IF(nUserBCs .GT. 0)THEN
-  SWRITE(Unit_StdOut,'(A)')' REMAPPING BOUNDARY CONDITIONS...'
+  LBWRITE(Unit_StdOut,'(A)')' REMAPPING BOUNDARY CONDITIONS...'
   DO iBC=1,nBCs
     IF(BCMapping(iBC).NE.0)THEN
       ! Compare new and original BC type (from mesh file)
@@ -159,7 +167,7 @@ IF(nUserBCs .GT. 0)THEN
       END IF
 #endif /*USE_HDG*/
       ! Output
-      SWRITE(Unit_StdOut,'(A,A50,A,I4,I4,A,I4,I4)') ' |     Boundary in HDF file found |  ',TRIM(BCNames(iBC)), &
+      LBWRITE(Unit_StdOut,'(A,A50,A,I4,I4,A,I4,I4)') ' |     Boundary in HDF file found |  ',TRIM(BCNames(iBC)), &
                                       ' was ', NewBC,BCType(3,iBC), ' is set to ',BoundaryType(BCMapping(iBC),1:2)
       BCType(1,iBC) = BoundaryType(BCMapping(iBC),BC_TYPE)
       BCType(3,iBC) = BoundaryType(BCMapping(iBC),BC_STATE)
@@ -174,17 +182,17 @@ BoundaryName = BCNames
 BoundaryType(:,BC_TYPE)  = BCType(1,:)
 BoundaryType(:,BC_STATE) = BCType(3,:)
 BoundaryType(:,BC_ALPHA) = BCType(4,:)
-SWRITE(UNIT_StdOut,'(132("."))')
-SWRITE(Unit_StdOut,'(A,A15,A20,A10,A10,A10)')' BOUNDARY CONDITIONS','|','Name','Type','State','Alpha'
+LBWRITE(UNIT_StdOut,'(132("."))')
+LBWRITE(Unit_StdOut,'(A,A15,A20,A10,A10,A10)')' BOUNDARY CONDITIONS','|','Name','Type','State','Alpha'
 DO iBC=1,nBCs
-  SWRITE(*,'(A,A33,A20,I10,I10,I10)')' |','|',TRIM(BoundaryName(iBC)),BoundaryType(iBC,:)
+  LBWRITE(*,'(A,A33,A20,I10,I10,I10)')' |','|',TRIM(BoundaryName(iBC)),BoundaryType(iBC,:)
 END DO
-SWRITE(UNIT_StdOut,'(132("."))')
+LBWRITE(UNIT_StdOut,'(132("."))')
 DEALLOCATE(BCNames,BCType,BCMapping)
 END SUBROUTINE ReadBCs
 
 
-SUBROUTINE ReadMesh(FileString)
+SUBROUTINE ReadMesh(FileString,ReadNodes)
 !===================================================================================================================================
 !> This subroutine reads the mesh from the HDF5 mesh file. The connectivity and further relevant information as flips
 !> (i.e. the orientation of sides towards each other) is already contained in the mesh file.
@@ -208,7 +216,7 @@ USE MOD_Mesh_Vars            ,ONLY: useCurveds
 USE MOD_Mesh_Vars            ,ONLY: BoundaryType
 USE MOD_Mesh_Vars            ,ONLY: MeshInitIsDone
 USE MOD_Mesh_Vars            ,ONLY: Elems!,Nodes
-USE MOD_Mesh_Vars            ,ONLY: GETNEWELEM,GETNEWSIDE!,createSides
+USE MOD_Mesh_Vars            ,ONLY: GETNEWELEM,GETNEWSIDE
 USE MOD_Mesh_Vars            ,ONLY: ElemInfo,SideInfo
 USE MOD_Particle_Mesh_Vars   ,ONLY: nComputeNodeElems,nNonUniqueGlobalSides,nNonUniqueGlobalNodes
 #if USE_MPI
@@ -218,19 +226,25 @@ USE MOD_MPI_Shared_Vars      ,ONLY: ComputeNodeRootRank,nComputeNodeProcessors
 #endif /*USE_MPI*/
 #ifdef PARTICLES
 USE MOD_Particle_Mesh_Readin, ONLY: ReadMeshBasics
-USE MOD_Particle_Mesh_Readin, ONLY: ReadMeshElems,ReadMeshSides,ReadMeshSideNeighbors
-USE MOD_Particle_Mesh_Readin, ONLY: ReadMeshNodes,StartCommunicateMeshReadin,FinishCommunicateMeshReadin
+USE MOD_Particle_Mesh_Readin, ONLY: ReadMeshSideNeighbors
+USE MOD_Particle_Mesh_Readin, ONLY: StartCommunicateMeshReadin,FinishCommunicateMeshReadin
 USE MOD_Particle_Vars        ,ONLY: VarTimeStep
 USE MOD_LoadBalance_Vars     ,ONLY: nPartsPerElem
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Vars     ,ONLY: nDeposPerElem,nSurfacePartsPerElem,nTracksPerElem,nPartsPerBCElem,nSurfacefluxPerElem
+! Restart without HDF5
+USE MOD_Particle_Mesh_Vars   ,ONLY: ElemInfo_Shared,SideInfo_Shared,NodeCoords_Shared
 #endif /*USE_LOADBALANCE*/
 #endif /*PARTICLES*/
+#if USE_LOADBALANCE
+USE MOD_LoadBalance_Vars     ,ONLY: PerformLoadBalance,UseH5IOLoadBalance,offsetElemMPIOld
+#endif /*USE_LOADBALANCE*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
 CHARACTER(LEN=*),INTENT(IN)  :: FileString
+LOGICAL,INTENT(IN)           :: ReadNodes  !< calls ReadMeshElems() and ReadMeshNodes() if true (always true for PARTICLES=ON)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -259,40 +273,55 @@ LOGICAL                        :: oriented
 REAL, ALLOCATABLE              :: GlobVarTimeStep(:)
 #endif
 REAL                           :: StartT,EndT
+INTEGER                        :: NGeoOld
 !===================================================================================================================================
 IF(MESHInitIsDone) RETURN
-IF(MPIRoot)THEN
-  IF(.NOT.FILEEXISTS(FileString))  CALL abort(&
-__STAMP__ &
-,'readMesh from data file "'//TRIM(FileString)//'" does not exist')
+
+#if defined(PARTICLES) && USE_LOADBALANCE
+IF (.NOT.PerformLoadBalance) THEN
+#endif /*defined(PARTICLES) && USE_LOADBALANCE*/
+  IF(MPIRoot) THEN
+    IF(.NOT.FILEEXISTS(FileString))  CALL Abort(__STAMP__,'readMesh from data file "'//TRIM(FileString)//'" does not exist')
+  END IF
+  SWRITE(UNIT_stdOut,'(132("-"))')
+  SWRITE(UNIT_stdOut,'(A)',ADVANCE="NO")' READ MESH FROM DATA FILE "'//TRIM(FileString)//'" ...'
+  GETTIME(StartT)
+
+  ! Get ElemInfo from Mesh file
+  CALL OpenDataFile(FileString,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_PICLAS)
+  CALL GetDataSize(File_ID,'ElemInfo',nDims,HSize)
+  CALL ReadAttribute(File_ID,'nUniqueSides',1,IntScalar=nGlobalUniqueSidesFromMesh)
+  CALL ReadAttribute(File_ID,'nSides',1,IntScalar=nNonUniqueGlobalSides)
+  CALL ReadAttribute(File_ID,'nNodes',1,IntScalar=nNonUniqueGlobalNodes)
+  CALL CloseDataFile()
+  ! INTEGER KIND=4 check for number of elements
+  CHECKSAFEINT(HSize(2),4)
+  nGlobalElems=INT(HSize(2),4) !global number of elements
+  ! INTEGER KIND=4 check for number of nodes
+  CHECKSAFEINT(8_8*INT(nGlobalElems,8),4)
+  DEALLOCATE(HSize)
+  IF(MPIRoot.AND.(nGlobalElems.LT.nProcessors))CALL abort(__STAMP__&
+      ,' Number of elements < number of processors',nGlobalElems,REAL(nProcessors))
+  GETTIME(EndT)
+  ReadMeshWallTime=EndT-StartT
+  CALL DisplayMessageAndTime(ReadMeshWallTime, 'DONE', DisplayDespiteLB=.TRUE., DisplayLine=.FALSE.)
+#if defined(PARTICLES) && USE_LOADBALANCE
 END IF
+#endif /*defined(PARTICLES) && USE_LOADBALANCE*/
 
-SWRITE(UNIT_stdOut,'(132("-"))')
-SWRITE(UNIT_stdOut,'(A)',ADVANCE="NO")' READ MESH FROM DATA FILE "'//TRIM(FileString)//'" ...'
+#if USE_LOADBALANCE
+IF (PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance)) THEN
+  SDEALLOCATE(offsetElemMPIOld)
+  ALLOCATE(   offsetElemMPIOld(0:nProcessors))
+  offsetElemMPIOld = offsetElemMPI
+END IF
+#endif /*USE_LOADBALANCE*/
+
 #if USE_MPI
-StartT=MPI_WTIME()
-#else
-CALL CPU_TIME(StartT)
-#endif
-
-! Get ElemInfo from Mesh file
-CALL OpenDataFile(FileString,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_WORLD)
-CALL GetDataSize(File_ID,'ElemInfo',nDims,HSize)
-CALL ReadAttribute(File_ID,'nUniqueSides',1,IntScalar=nGlobalUniqueSidesFromMesh)
-CALL ReadAttribute(File_ID,'nSides',1,IntScalar=nNonUniqueGlobalSides)
-CALL ReadAttribute(File_ID,'nNodes',1,IntScalar=nNonUniqueGlobalNodes)
-CALL CloseDataFile()
-! INTEGER KIND=4 check for number of elements
-CHECKSAFEINT(HSize(2),4)
-nGlobalElems=INT(HSize(2),4) !global number of elements
-! INTEGER KIND=4 check for number of nodes
-CHECKSAFEINT(8_8*INT(nGlobalElems,8),4)
-DEALLOCATE(HSize)
-IF(MPIRoot.AND.(nGlobalElems.LT.nProcessors))CALL abort(__STAMP__&
-    ,' Number of elements < number of processors',nGlobalElems,REAL(nProcessors))
-EndT=PICLASTIME()
-ReadMeshWallTime=EndT-StartT
-SWRITE(UNIT_stdOut,'(A,F0.3,A)')' DONE  [',ReadMeshWallTime,'s]'
+SDEALLOCATE(offsetElemMPI)
+ALLOCATE(   offsetElemMPI(0:nProcessors))
+offsetElemMPI = 0
+#endif /*USE_MPI*/
 
 !----------------------------------------------------------------------------------------------------------------------------
 !                              DOMAIN DECOMPOSITION
@@ -356,8 +385,14 @@ IF(VarTimeStep%UseDistribution) THEN
 END IF
 #endif
 
-CALL OpenDataFile(FileString,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_WORLD)
-CALL ReadBCs()
+#if defined(PARTICLES) && USE_LOADBALANCE
+IF (.NOT.PerformLoadBalance) THEN
+#endif /*defined(PARTICLES) && USE_LOADBALANCE*/
+  CALL OpenDataFile(FileString,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_PICLAS)
+  CALL ReadBCs()
+#if defined(PARTICLES) && USE_LOADBALANCE
+END IF
+#endif /*defined(PARTICLES) && USE_LOADBALANCE*/
 !----------------------------------------------------------------------------------------------------------------------------
 !                              ELEMENTS
 !----------------------------------------------------------------------------------------------------------------------------
@@ -373,7 +408,15 @@ ASSOCIATE (&
       ElemInfoSize => INT(ELEMINFOSIZE_H5,IK) ,&
       nElems       => INT(nElems,IK)       ,&
       offsetElem   => INT(offsetElem,IK)  )
-  CALL ReadArray('ElemInfo',2,(/ElemInfoSize,nElems/),offsetElem,2,IntegerArray_i4=ElemInfo(1:ElemInfoSize,:))
+#if defined(PARTICLES) && USE_LOADBALANCE
+  IF (PerformLoadBalance) THEN
+    ElemInfo(1:ElemInfoSize,:) = ElemInfo_Shared(1:ElemInfoSize,offsetElem+1:offsetElem+nElems)
+  ELSE
+#endif /*defined(PARTICLES) && USE_LOADBALANCE*/
+    CALL ReadArray('ElemInfo',2,(/ElemInfoSize,nElems/),offsetElem,2,IntegerArray_i4=ElemInfo(1:ElemInfoSize,:))
+#if defined(PARTICLES) && USE_LOADBALANCE
+  END IF
+#endif /*defined(PARTICLES) && USE_LOADBALANCE*/
 END ASSOCIATE
 
 DO iElem=FirstElemInd,LastElemInd
@@ -401,9 +444,10 @@ nComputeNodeElems = offsetElemMPI(ComputeNodeRootRank+nComputeNodeProcessors) - 
 nComputeNodeElems = nElems
 #endif /*USE_MPI*/
 
-#ifdef PARTICLES
-CALL ReadMeshElems()
-#endif
+!#ifdef PARTICLES
+! Get ElemInfo_Shared(1:ELEMINFOSIZE,1:nGlobalElems)
+IF(ReadNodes) CALL ReadMeshElems()
+!#endif
 
 !----------------------------------------------------------------------------------------------------------------------------
 !                              SIDES
@@ -422,10 +466,20 @@ ASSOCIATE (&
       SideInfoSize   => INT(SIDEINFOSIZE_H5,IK)   ,&
       nSideIDs       => INT(nSideIDs,IK)       ,&
       offsetSideID   => INT(offsetSideID,IK)  )
-  CALL ReadArray('SideInfo',2,(/SideInfoSize,nSideIDs/),offsetSideID,2,IntegerArray_i4=SideInfo(1:SideInfoSize,:))
+#if defined(PARTICLES) && USE_LOADBALANCE
+  IF (PerformLoadBalance) THEN
+    SideInfo(1:SideInfoSize,:) = SideInfo_Shared(1:SideInfoSize,offsetSideID+1:offsetSideID+nSideIDs)
+  ELSE
+#endif /*defined(PARTICLES) && USE_LOADBALANCE*/
+    CALL ReadArray('SideInfo',2,(/SideInfoSize,nSideIDs/),offsetSideID,2,IntegerArray_i4=SideInfo(1:SideInfoSize,:))
+    CALL CloseDataFile()
+#if defined(PARTICLES) && USE_LOADBALANCE
+  END IF
+#endif /*defined(PARTICLES) && USE_LOADBALANCE*/
 END ASSOCIATE
 
 #ifdef PARTICLES
+! Get SideInfo_Shared(1:SIDEINFOSIZE+1,1:nNonUniqueGlobalSides)
 CALL ReadMeshSides()
 #endif
 
@@ -558,8 +612,7 @@ DO iElem=FirstElemInd,LastElemInd
           aSide%connection%Elem=>GETNEWELEM()
           aSide%NbProc = ELEMIPROC(elemID)
 #else
-          CALL abort(__STAMP__, &
-            ' ElemID of neighbor not in global Elem list ')
+          CALL abort(__STAMP__, ' ElemID of neighbor not in global Elem list ')
 #endif
         END IF
       END IF
@@ -574,42 +627,61 @@ END DO !iElem
 !----------------------------------------------------------------------------------------------------------------------------
 !                              NODES
 !----------------------------------------------------------------------------------------------------------------------------
-#ifdef PARTICLES
+!#ifdef PARTICLES
 ! Particles want to node coordinates in the old 2D format, hence this read-in happens twice
-CALL ReadMeshNodes()
-#endif
+! Get NodeInfo_Shared(1:8*nGlobalElems)
+! Get NodeCoords_Shared(1:3,1:8*nGlobalElems)
+IF(ReadNodes) CALL ReadMeshNodes()
+!#endif
 
 ! get physical coordinates
-CALL OpenDataFile(FileString,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_WORLD)
-IF(useCurveds)THEN
-  ALLOCATE(NodeCoords(3,0:NGeo,0:NGeo,0:NGeo,nElems))
-  CALL ReadArray('NodeCoords',2,(/3_IK,INT(nElems*(NGeo+1)**3,IK)/),INT(offsetElem*(NGeo+1)**3,IK),2,RealArray=NodeCoords)
-ELSE
-  ALLOCATE(NodeCoords(   3,0:1,   0:1,   0:1,   nElems))
-  ALLOCATE(NodeCoordsTmp(3,0:NGeo,0:NGeo,0:NGeo,nElems))
-  ! read all nodes
-  CALL ReadArray('NodeCoords',2,(/3_IK,INT(nElems*(NGeo+1)**3,IK)/),INT(offsetElem*(NGeo+1)**3,IK),2,RealArray=NodeCoordsTmp)
-  ! throw away all nodes except the 8 corner nodes of each hexa
-  NodeCoords(:,0,0,0,:)=NodeCoordsTmp(:,0,   0,   0,   :)
-  NodeCoords(:,1,0,0,:)=NodeCoordsTmp(:,NGeo,0,   0,   :)
-  NodeCoords(:,0,1,0,:)=NodeCoordsTmp(:,0,   NGeo,0,   :)
-  NodeCoords(:,1,1,0,:)=NodeCoordsTmp(:,NGeo,NGeo,0,   :)
-  NodeCoords(:,0,0,1,:)=NodeCoordsTmp(:,0,   0,   NGeo,:)
-  NodeCoords(:,1,0,1,:)=NodeCoordsTmp(:,NGeo,0,   NGeo,:)
-  NodeCoords(:,0,1,1,:)=NodeCoordsTmp(:,0,   NGeo,NGeo,:)
-  NodeCoords(:,1,1,1,:)=NodeCoordsTmp(:,NGeo,NGeo,NGeo,:)
-  DEALLOCATE(NodeCoordsTmp)
-  NGeo=1 ! linear mesh; set polynomial degree of geometry to 1
-ENDIF
+#if defined(PARTICLES) && USE_LOADBALANCE
+IF (.NOT.PerformLoadBalance) &
+#endif /*defined(PARTICLES) && USE_LOADBALANCE*/
+  CALL OpenDataFile(FileString,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_PICLAS)
 
-CALL CloseDataFile()
+! Backup required if useCurveds=F
+NGeoOld = NGeo
+! Linear mesh: set polynomial degree of geometry to 1 and rebuild NodeMap
+IF(.NOT.useCurveds) NGeo = 1
+
+ALLOCATE(NodeCoords(3,0:NGeo,0:NGeo,0:NGeo,nElems))
+
+#if defined(PARTICLES) && USE_LOADBALANCE
+IF (PerformLoadBalance) THEN
+  NodeCoords = RESHAPE(NodeCoords_Shared(1:3,(NGeo+1)**3*offsetElem+1:(NGeo+1)**3*(offsetElem+nElems)),(/3,NGeo+1,NGeo+1,NGeo+1,nElems/))
+ELSE
+#endif /*defined(PARTICLES) && USE_LOADBALANCE*/
+  IF(useCurveds)THEN
+    CALL ReadArray('NodeCoords',2,(/3_IK,INT(nElems*(NGeo+1)**3,IK)/),INT(offsetElem*(NGeo+1)**3,IK),2,RealArray=NodeCoords)
+  ELSE
+    ALLOCATE(NodeCoordsTmp(3,0:NGeoOld,0:NGeoOld,0:NGeoOld,nElems))
+    CALL ReadArray('NodeCoords',2,(/3_IK,INT(nElems*(NGeoOld+1)**3,IK)/),INT(offsetElem*(NGeoOld+1)**3,IK),2,RealArray=NodeCoordsTmp)
+    ! throw away all nodes except the 8 corner nodes of each hexa
+    NodeCoords(:,0,0,0,:) = NodeCoordsTmp(: , 0       , 0       , 0       , :)
+    NodeCoords(:,1,0,0,:) = NodeCoordsTmp(: , NGeoOld , 0       , 0       , :)
+    NodeCoords(:,0,1,0,:) = NodeCoordsTmp(: , 0       , NGeoOld , 0       , :)
+    NodeCoords(:,1,1,0,:) = NodeCoordsTmp(: , NGeoOld , NGeoOld , 0       , :)
+    NodeCoords(:,0,0,1,:) = NodeCoordsTmp(: , 0       , 0       , NGeoOld , :)
+    NodeCoords(:,1,0,1,:) = NodeCoordsTmp(: , NGeoOld , 0       , NGeoOld , :)
+    NodeCoords(:,0,1,1,:) = NodeCoordsTmp(: , 0       , NGeoOld , NGeoOld , :)
+    NodeCoords(:,1,1,1,:) = NodeCoordsTmp(: , NGeoOld , NGeoOld , NGeoOld , :)
+    DEALLOCATE(NodeCoordsTmp)
+  END IF ! useCurveds
+#if defined(PARTICLES) && USE_LOADBALANCE
+END IF
+#endif /*defined(PARTICLES) && USE_LOADBALANCE*/
+
+#if defined(PARTICLES) && USE_LOADBALANCE
+IF (.NOT.PerformLoadBalance) &
+#endif /*defined(PARTICLES) && USE_LOADBALANCE*/
+  CALL CloseDataFile()
 
 #ifdef PARTICLES
 ! Start non-blocking communication of mesh information
 CALL StartCommunicateMeshReadin()
 #endif
 
-DEALLOCATE(ElemInfo,SideInfo)
 ! Readin of mesh is now finished
 
 !----------------------------------------------------------------------------------------------------------------------------
@@ -732,33 +804,359 @@ CALL FinishCommunicateMeshReadin()
 #endif
 
 #if USE_MPI
-CALL MPI_ALLREDUCE(MPI_IN_PLACE,ReduceData,11,MPI_INTEGER,MPI_SUM,MPI_COMM_WORLD,iError)
+CALL MPI_ALLREDUCE(MPI_IN_PLACE,ReduceData,11,MPI_INTEGER,MPI_SUM,MPI_COMM_PICLAS,iError)
 #endif /*USE_MPI*/
 
 nGlobalMortarSides=ReduceData(9)
 
 IF(MPIRoot)THEN
-  WRITE(UNIT_stdOut,'(A,A34,I0)')' |','nElems | ',ReduceData(1) !nElems
-  WRITE(UNIT_stdOut,'(A,A34,I0)')' |','nNodes, unique | ',ReduceData(3) !nNodes
-  WRITE(UNIT_stdOut,'(A,A34,I0)')' |','nNodes, total  | ',ReduceData(11) !nNodes
-  WRITE(UNIT_stdOut,'(A,A34,I0)')' |','nSides         | ',ReduceData(2)-ReduceData(7)/2
-  WRITE(UNIT_stdOut,'(A,A34,I0)')' |','nSides,    BC  | ',ReduceData(6) !nBCSides
-  WRITE(UNIT_stdOut,'(A,A34,I0)')' |','nSides,   MPI  | ',ReduceData(7)/2 !nMPISides
-  WRITE(UNIT_stdOut,'(A,A34,I0)')' |','nSides, Inner  | ',ReduceData(4) !nInnerSides
-  WRITE(UNIT_stdOut,'(A,A34,I0)')' |','nSides,Mortar  | ',nGlobalMortarSides
-  WRITE(UNIT_stdOut,'(A,A34,I0)')' |','nPeriodicSides,Total | ',ReduceData(5)-ReduceData(10)/2
-  WRITE(UNIT_stdOut,'(A,A34,I0)')' |','nPeriodicSides,Inner | ',ReduceData(5)-ReduceData(10)
-  WRITE(UNIT_stdOut,'(A,A34,I0)')' |','nPeriodicSides,  MPI | ',ReduceData(10)/2 !nPeriodicSides
-  WRITE(UNIT_stdOut,'(A,A34,I0)')' |','nAnalyzeSides | ',ReduceData(8) !nAnalyzeSides
-  WRITE(UNIT_stdOut,'(A,A34,L1)')' |','useCurveds | ',useCurveds
-  WRITE(UNIT_stdOut,'(A,A34,I0)')' |','Ngeo | ',Ngeo
-  WRITE(UNIT_stdOut,'(132("."))')
+#if USE_LOADBALANCE
+  IF(.NOT.PerformLoadBalance)THEN
+#endif /*USE_LOADBALANCE*/
+    WRITE(UNIT_stdOut,'(A,A34,I0)')' |','nElems | ',ReduceData(1) !nElems
+    WRITE(UNIT_stdOut,'(A,A34,I0)')' |','nNodes, unique | ',ReduceData(3) !nNodes
+    WRITE(UNIT_stdOut,'(A,A34,I0)')' |','nNodes, total  | ',ReduceData(11) !nNodes
+    WRITE(UNIT_stdOut,'(A,A34,I0)')' |','nSides         | ',ReduceData(2)-ReduceData(7)/2
+    WRITE(UNIT_stdOut,'(A,A34,I0)')' |','nSides,    BC  | ',ReduceData(6) !nBCSides
+    WRITE(UNIT_stdOut,'(A,A34,I0)')' |','nSides,   MPI  | ',ReduceData(7)/2 !nMPISides
+    WRITE(UNIT_stdOut,'(A,A34,I0)')' |','nSides, Inner  | ',ReduceData(4) !nInnerSides
+    WRITE(UNIT_stdOut,'(A,A34,I0)')' |','nSides,Mortar  | ',nGlobalMortarSides
+    WRITE(UNIT_stdOut,'(A,A34,I0)')' |','nPeriodicSides,Total | ',ReduceData(5)-ReduceData(10)/2
+    WRITE(UNIT_stdOut,'(A,A34,I0)')' |','nPeriodicSides,Inner | ',ReduceData(5)-ReduceData(10)
+    WRITE(UNIT_stdOut,'(A,A34,I0)')' |','nPeriodicSides,  MPI | ',ReduceData(10)/2 !nPeriodicSides
+    WRITE(UNIT_stdOut,'(A,A34,I0)')' |','nAnalyzeSides | ',ReduceData(8) !nAnalyzeSides
+    WRITE(UNIT_stdOut,'(A,A34,L1)')' |','useCurveds | ',useCurveds
+    WRITE(UNIT_stdOut,'(A,A34,I0)')' |','Ngeo | ',Ngeo
+    WRITE(UNIT_stdOut,'(132("."))')
+#if USE_LOADBALANCE
+  END IF ! .NOT.PerformLoadBalance
+#endif /*USE_LOADBALANCE*/
 END IF
 
 LOGWRITE_BARRIER
 
-SWRITE(UNIT_StdOut,'(132("-"))')
+LBWRITE(UNIT_StdOut,'(132("-"))')
 END SUBROUTINE ReadMesh
+
+
+SUBROUTINE ReadMeshElems()
+!===================================================================================================================================
+!> Create particle mesh arrays for elems:
+!> - ElemInfo_Shared(1:ELEMINFOSIZE,1:nGlobalElems)
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals
+USE MOD_Mesh_Vars
+USE MOD_Particle_Mesh_Vars
+#if USE_MPI
+USE MOD_MPI_Shared
+USE MOD_MPI_Shared_Vars
+#endif
+#if USE_LOADBALANCE
+USE MOD_LoadBalance_Vars          ,ONLY: PerformLoadBalance,UseH5IOLoadBalance
+#endif /*USE_LOADBALANCE*/
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT/OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+!===================================================================================================================================
+
+#if USE_MPI
+#if USE_LOADBALANCE
+IF (.NOT.PerformLoadBalance) THEN
+#endif /*USE_LOADBALANCE*/
+  ! allocate shared array for ElemInfo
+  CALL Allocate_Shared((/ELEMINFOSIZE,nGlobalElems/),ElemInfo_Shared_Win,ElemInfo_Shared)
+  CALL MPI_WIN_LOCK_ALL(0,ElemInfo_Shared_Win,IERROR)
+
+  ElemInfo_Shared(1:ELEMINFOSIZE_H5,offsetElem+1:offsetElem+nElems) = ElemInfo(:,:)
+  ElemInfo_Shared(ELEM_RANK        ,offsetElem+1:offsetElem+nElems) = myRank
+  CALL BARRIER_AND_SYNC(ElemInfo_Shared_Win,MPI_COMM_SHARED)
+#if USE_LOADBALANCE
+ELSEIF(UseH5IOLoadBalance)THEN
+  ElemInfo_Shared(ELEM_RANK        ,offsetElem+1:offsetElem+nElems) = myRank
+  CALL BARRIER_AND_SYNC(ElemInfo_Shared_Win,MPI_COMM_SHARED)
+END IF
+#endif /*USE_LOADBALANCE*/
+#endif  /*USE_MPI*/
+
+#if USE_MPI
+! broadcast elem offset of compute-node root
+offsetComputeNodeElem=offsetElem
+CALL MPI_BCAST(offsetComputeNodeElem,1, MPI_INTEGER,0,MPI_COMM_SHARED,iERROR)
+#else
+! allocate local array for ElemInfo
+ALLOCATE(ElemInfo_Shared(1:ELEMINFOSIZE,1:nElems))
+ElemInfo_Shared(1:ELEMINFOSIZE_H5,1:nElems) = ElemInfo(:,:)
+#endif  /*USE_MPI*/
+
+END SUBROUTINE ReadMeshElems
+
+
+#if defined(PARTICLES)
+SUBROUTINE ReadMeshSides()
+!===================================================================================================================================
+!> Create particle mesh arrays for sides:
+!> - SideInfo_Shared(1:SIDEINFOSIZE+1,1:nNonUniqueGlobalSides)
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals
+USE MOD_Mesh_Vars
+USE MOD_Particle_Mesh_Vars
+#if USE_MPI
+USE MOD_MPI_Shared
+USE MOD_MPI_Shared_Vars
+#endif /*USE_MPI*/
+#if USE_LOADBALANCE
+USE MOD_LoadBalance_Vars     ,ONLY: PerformLoadBalance
+#endif /*USE_LOADBALANCE*/
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT/OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER                        :: FirstElemInd,LastElemInd
+INTEGER                        :: nSideIDs,offsetSideID
+!===================================================================================================================================
+
+FirstElemInd = offsetElem+1
+LastElemInd  = offsetElem+nElems
+offsetSideID = ElemInfo(ELEM_FIRSTSIDEIND,FirstElemInd) ! hdf5 array starts at 0-> -1
+nSideIDs     = ElemInfo(ELEM_LASTSIDEIND ,LastElemInd)-ElemInfo(ELEM_FIRSTSIDEIND,FirstElemInd)
+
+ALLOCATE(SideInfo_Shared_tmp(offsetSideID+1:offsetSideID+nSideIDs))
+SideInfo_Shared_tmp = 0
+
+#if USE_MPI
+! all procs on my compute-node communicate the number of non-unique sides
+CALL MPI_ALLREDUCE(nSideIDs,nComputeNodeSides,1,MPI_INTEGER,MPI_SUM,MPI_COMM_SHARED,IERROR)
+
+#if USE_LOADBALANCE
+IF (PerformLoadBalance) RETURN
+#endif /*USE_LOADBALANCE*/
+
+CALL Allocate_Shared((/SIDEINFOSIZE+1,nNonUniqueGlobalSides/),SideInfo_Shared_Win,SideInfo_Shared)
+CALL MPI_WIN_LOCK_ALL(0,SideInfo_Shared_Win,IERROR)
+SideInfo_Shared(1                :SIDEINFOSIZE  ,offsetSideID+1:offsetSideID+nSideIDs) = SideInfo(:,:)
+SideInfo_Shared(SIDEINFOSIZE_H5+1:SIDEINFOSIZE+1,offsetSideID+1:offsetSideID+nSideIDs) = 0
+CALL BARRIER_AND_SYNC(SideInfo_Shared_Win,MPI_COMM_SHARED)
+#else
+nComputeNodeSides = nSideIDs
+ALLOCATE(SideInfo_Shared(1:SIDEINFOSIZE+1         , 1:nSideIDs))
+SideInfo_Shared(1                :SIDEINFOSIZE    , 1:nSideIDs) = SideInfo(:,:)
+SideInfo_Shared(SIDEINFOSIZE_H5+1:SIDEINFOSIZE+1  , 1:nSideIDs) = 0
+#endif /*USE_MPI*/
+
+END SUBROUTINE ReadMeshSides
+#endif /*defined(PARTICLES)*/
+
+
+SUBROUTINE ReadMeshNodes()
+!===================================================================================================================================
+!> Create particle mesh arrays for nodes:
+!> - NodeInfo_Shared(1:8*nGlobalElems)
+!> - NodeCoords_Shared(1:3,1:8*nGlobalElems)
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals
+USE MOD_HDF5_Input         ,ONLY: ReadArray,OpenDataFile
+USE MOD_IO_HDF5            ,ONLY: CloseDataFile
+USE MOD_Mesh_Vars
+USE MOD_Particle_Mesh_Vars
+USE MOD_Mesh_Tools         ,ONLY: GetCornerNodes
+#if USE_MPI
+USE MOD_MPI_Shared
+USE MOD_MPI_Shared_Vars
+#endif
+#if USE_LOADBALANCE
+USE MOD_LoadBalance_Vars          ,ONLY: PerformLoadBalance
+#endif /*USE_LOADBALANCE*/
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT/OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER                        :: iElem,iNode
+INTEGER                        :: FirstElemInd,LastElemInd
+INTEGER                        :: FirstNodeInd,LastNodeInd
+INTEGER                        :: nNodeIDs,offsetNodeID
+INTEGER,ALLOCATABLE            :: NodeInfo(:),NodeInfoTmp(:,:)
+REAL,ALLOCATABLE               :: NodeCoords_indx(:,:)
+INTEGER                        :: nNodeInfoIDs,NodeID,NodeCounter
+INTEGER                        :: CNS(8)
+!===================================================================================================================================
+
+! calculate all offsets
+FirstElemInd = offsetElem+1
+LastElemInd  = offsetElem+nElems
+offsetNodeID = ElemInfo_Shared(ELEM_FIRSTNODEIND,FirstElemInd) ! hdf5 array starts at 0-> -1
+nNodeIDs     = ElemInfo_Shared(ELEM_LASTNODEIND ,LastElemInd)-ElemInfo_Shared(ELEM_FIRSTNODEIND,FirstElemind)
+
+#if USE_LOADBALANCE
+IF (PerformLoadBalance) THEN
+  CALL MPI_ALLREDUCE(nNodeIDs,nComputeNodeNodes,1,MPI_INTEGER,MPI_SUM,MPI_COMM_SHARED,IERROR)
+  RETURN
+END IF
+#endif /*USE_LOADBALANCE*/
+
+FirstNodeInd = offsetNodeID+1
+LastNodeInd  = offsetNodeID+nNodeIDs
+
+! Associate construct for integer KIND=8 possibility
+ASSOCIATE (&
+      nNodeIDs     => INT(nNodeIDs,IK)     ,&
+      offsetNodeID => INT(offsetNodeID,IK) )
+  ALLOCATE(NodeCoords_indx(3,nNodeIDs))
+  ! read all nodes
+  CALL OpenDataFile(MeshFile,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_PICLAS)
+  CALL ReadArray('NodeCoords',2,(/3_IK,nNodeIDs/),offsetNodeID,2,RealArray=NodeCoords_indx)
+  CALL CloseDataFile()
+END ASSOCIATE
+
+! Keep all nodes if elements are curved
+IF (useCurveds.OR.NGeo.EQ.1) THEN
+  MeshWasCurved = .TRUE.
+  ! Associate construct for integer KIND=8 possibility
+  ASSOCIATE (&
+        nNodeIDs     => INT(nNodeIDs,IK)     ,&
+        offsetNodeID => INT(offsetNodeID,IK) )
+    ALLOCATE(NodeInfo(FirstNodeInd:LastNodeInd))
+    CALL OpenDataFile(MeshFile,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_PICLAS)
+    CALL ReadArray('GlobalNodeIDs',1,(/nNodeIDs/),offsetNodeID,1,IntegerArray_i4=NodeInfo)
+    CALL CloseDataFile()
+  END ASSOCIATE
+
+#if USE_MPI
+  ! allocate shared array for NodeInfo
+  CALL MPI_ALLREDUCE(nNodeIDs,nComputeNodeNodes,1,MPI_INTEGER,MPI_SUM,MPI_COMM_SHARED,IERROR)
+  CALL Allocate_Shared((/nNonUniqueGlobalNodes/),NodeInfo_Shared_Win,NodeInfo_Shared)
+  CALL MPI_WIN_LOCK_ALL(0,NodeInfo_Shared_Win,IERROR)
+  NodeInfo_Shared(offsetNodeID+1:offsetNodeID+nNodeIDs) = NodeInfo(:)
+  CALL BARRIER_AND_SYNC(NodeInfo_Shared_Win,MPI_COMM_SHARED)
+
+  CALL Allocate_Shared((/3,nNonUniqueGlobalNodes/),NodeCoords_Shared_Win,NodeCoords_Shared)
+  CALL MPI_WIN_LOCK_ALL(0,NodeCoords_Shared_Win,IERROR)
+  NodeCoords_Shared(:,offsetNodeID+1:offsetNodeID+nNodeIDs) = NodeCoords_indx(:,:)
+#else
+  nComputeNodeNodes = nNodeIDs
+  ALLOCATE(NodeInfo_Shared(1:nNodeIDs))
+  NodeInfo_Shared(1:nNodeIDs) = NodeInfo(:)
+  ALLOCATE(NodeCoords_Shared(3,nNodeIDs))
+  NodeCoords_Shared(:,:) = NodeCoords_indx(:,:)
+#endif  /*USE_MPI*/
+
+! Reduce NodeCoords if no curved elements are to be used
+ELSE ! .NOT. (useCurveds.OR.NGeo.EQ.1)
+  ! every proc needs to allocate the array
+  ALLOCATE(NodeInfo(1:nNonUniqueGlobalNodes))
+
+#if USE_MPI
+  ! root reads NodeInfo for new mapping
+  IF (myComputeNodeRank.EQ.0) THEN
+#endif /*USE_MPI*/
+    ! Associate construct for integer KIND=8 possibility
+    ASSOCIATE (nNonUniqueGlobalNodes     => INT(nNonUniqueGlobalNodes,IK))
+      CALL OpenDataFile(MeshFile,create=.FALSE.,single=.TRUE.,readOnly=.TRUE.)
+      CALL ReadArray('GlobalNodeIDs',1,(/nNonUniqueGlobalNodes/),0_IK,1,IntegerArray_i4=NodeInfo)
+      CALL CloseDataFile()
+    END ASSOCIATE
+#if USE_MPI
+  END IF
+
+  ! root broadcasts NodeInfo to all procs on compute node
+  CALL MPI_BCAST(NodeInfo,nNonUniqueGlobalNodes,MPI_INTEGER,0,MPI_COMM_SHARED,IERROR)
+#endif /*USE_MPI*/
+
+  ! Every proc builds new mapping. This step is required for consistency reasons since ElemInfo is not yet communicated
+  nNodeInfoIDs = MAXVAL(NodeInfo)
+  ALLOCATE(NodeInfoTmp(2,nNodeInfoIDs))
+  NodeInfoTmp = 0
+
+  ! Flag unique node IDs we will keep
+  DO iNode = 1,nNonUniqueGlobalNodes
+    NodeID = NodeInfo(iNode)
+    NodeInfoTmp(1,NodeID) = 1
+  END DO
+
+  ! Build new NodeInfo IDs
+  NodeCounter = 0
+  DO iNode = 1,nNodeInfoIDs
+    IF (NodeInfoTmp(1,iNode).EQ.0) CYCLE
+
+    NodeCounter = NodeCounter + 1
+    NodeInfoTmp(2,iNode) = NodeCounter
+  END DO
+
+#if USE_MPI
+  CALL Allocate_Shared((/8*nGlobalElems/),NodeInfo_Shared_Win,NodeInfo_Shared)
+  CALL MPI_WIN_LOCK_ALL(0,NodeInfo_Shared_Win,IERROR)
+#else
+  ALLOCATE(NodeInfo_Shared(8*nGlobalElems))
+#endif /*USE_MPI*/
+
+  ! Only the 8 corner nodes count for nodes. (NGeo+1)**2 = 8
+  nComputeNodeNodes = 8*nComputeNodeElems
+
+#if USE_MPI
+  CALL Allocate_Shared((/3,8*nGlobalElems/),NodeCoords_Shared_Win,NodeCoords_Shared)
+  CALL MPI_WIN_LOCK_ALL(0,NodeCoords_Shared_Win,IERROR)
+#else
+  ALLOCATE(NodeCoords_Shared(3,8*nGlobalElems))
+#endif  /*USE_MPI*/
+
+  ! the cornernodes are not the first 8 entries (for Ngeo>1) of nodeinfo array so mapping is built
+  CNS(1:8) = GetCornerNodes(NGeo)
+
+  ! throw away all nodes except the 8 corner nodes of each hexa
+  nNonUniqueGlobalNodes = 8*nGlobalElems
+
+  DO iElem = FirstElemInd,LastElemInd
+    FirstNodeInd = ElemInfo_Shared(ELEM_FIRSTNODEIND,iElem) - offsetNodeID
+    ElemInfo_Shared(ELEM_FIRSTNODEIND,iElem) = 8*(iElem-1)
+    ElemInfo_Shared(ELEM_LASTNODEIND ,iElem) = 8* iElem
+    DO iNode = 1,8
+      NodeCoords_Shared(:,8*(iElem-1) + iNode) = NodeCoords_indx(:,FirstNodeInd+CNS(iNode))
+      NodeInfo_Shared  (  8*(iElem-1) + iNode) = NodeInfoTmp(2,NodeInfo(FirstNodeInd+offsetNodeID+CNS(iNode)))
+    END DO
+  END DO
+
+  DEALLOCATE(NodeInfoTmp)
+
+END IF ! useCurveds.OR.NGeo.EQ.1
+
+! Update node counters
+offsetNodeID = ElemInfo_Shared(ELEM_FIRSTNODEIND,FirstElemInd) ! hdf5 array starts at 0-> -1
+nNodeIDs     = ElemInfo_Shared(ELEM_LASTNODEIND ,LastElemInd)-ElemInfo_Shared(ELEM_FIRSTNODEIND,FirstElemind)
+FirstNodeInd = offsetNodeID+1
+LastNodeInd  = offsetNodeID+nNodeIDs
+
+! Sanity check
+IF(ABS(meshScale).LE.0.) CALL abort(__STAMP__,'meshScale is zero')
+! scale mesh if desired. Mesh deformation currently not supported!
+IF (ABS(meshScale-1.).GT.1e-14) THEN
+  NodeCoords_Shared(:,FirstNodeInd:LastNodeInd) = NodeCoords_Shared(:,FirstNodeInd:LastNodeInd) * meshScale
+END IF
+
+#if USE_MPI
+CALL BARRIER_AND_SYNC(ElemInfo_Shared_Win  ,MPI_COMM_SHARED) ! Only changed here, created in ReadMeshElems()
+CALL BARRIER_AND_SYNC(NodeCoords_Shared_Win,MPI_COMM_SHARED) ! Created here
+CALL BARRIER_AND_SYNC(NodeInfo_Shared_Win  ,MPI_COMM_SHARED) ! Created here
+#endif  /*USE_MPI*/
+
+#if USE_MPI
+IF (myComputeNodeRank.EQ.0) THEN
+#endif /*USE_MPI*/
+  DEALLOCATE(NodeInfo)
+#if USE_MPI
+END IF
+#endif /*USE_MPI*/
+DEALLOCATE(NodeCoords_indx)
+
+END SUBROUTINE ReadMeshNodes
 
 
 FUNCTION INVMAP(ID,nIDs,ArrID)
@@ -934,5 +1332,95 @@ DO
 END DO
 RETURN
 END SUBROUTINE Partition1Int
+
+
+SUBROUTINE FinalizeMeshReadin(meshMode)
+!===================================================================================================================================
+! Finalizes the shared mesh readin
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals
+USE MOD_Mesh_Vars
+USE MOD_Particle_Mesh_Vars
+#if USE_MPI
+USE MOD_MPI_Shared
+USE MOD_MPI_Shared_Vars
+USE MOD_Particle_Vars             ,ONLY: Symmetry
+#endif
+#if USE_LOADBALANCE
+USE MOD_LoadBalance_Vars          ,ONLY: PerformLoadBalance
+#endif /*USE_LOADBALANCE*/
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT/OUTPUT VARIABLES
+INTEGER,INTENT(IN) :: meshMode !<  0: only read and build Elem_xGP,
+                               !< -1: as 0 + build connectivity and read node info (automatically read for PARTICLES=ON)
+                               !<  1: as 0 + build connectivity
+                               !<  2: as 1 + calc metrics
+                               !<  3: as 2 but skip InitParticleMesh
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+!===================================================================================================================================
+! First, free every shared memory window. This requires MPI_BARRIER as per MPI3.1 specification
+#if USE_MPI && defined(PARTICLES)
+CALL MPI_BARRIER(MPI_COMM_SHARED,iERROR)
+
+! symmetry sides and elem volumes/characteristic lengths
+IF(ABS(meshMode).GT.1)THEN
+  IF(Symmetry%Order.EQ.2) CALL UNLOCK_AND_FREE(SideIsSymSide_Shared_Win)
+  CALL UNLOCK_AND_FREE(ElemVolume_Shared_Win)
+  CALL UNLOCK_AND_FREE(ElemCharLength_Shared_Win)
+END IF ! ABS(meshMode).GT.1
+#endif /*USE_MPI && defined(PARTICLES)*/
+
+! Then, free the pointers or arrays
+ADEALLOCATE(SideIsSymSide_Shared)
+ADEALLOCATE(ElemVolume_Shared)
+ADEALLOCATE(ElemCharLength_Shared)
+
+#if USE_MPI
+! Free communication arrays
+SDEALLOCATE(displsElem)
+SDEALLOCATE(recvcountElem)
+SDEALLOCATE(displsSide)
+SDEALLOCATE(recvcountSide)
+
+#if USE_LOADBALANCE
+IF (PerformLoadBalance) THEN
+  CALL MPI_BARRIER(MPI_COMM_SHARED,iERROR)
+  RETURN
+END IF
+#endif /*USE_LOADBALANCE*/
+
+! elems
+CALL UNLOCK_AND_FREE(ElemInfo_Shared_Win)
+
+! sides
+#if defined(PARTICLES)
+CALL UNLOCK_AND_FREE(SideInfo_Shared_Win)
+#endif /*defined(PARTICLES)*/
+
+! nodes
+CALL UNLOCK_AND_FREE(NodeInfo_Shared_Win)
+CALL UNLOCK_AND_FREE(NodeCoords_Shared_Win)
+
+CALL MPI_BARRIER(MPI_COMM_SHARED,iERROR)
+#endif /*USE_MPI*/
+
+ADEALLOCATE(ElemInfo_Shared)
+ADEALLOCATE(SideInfo_Shared)
+ADEALLOCATE(NodeInfo_Shared)
+ADEALLOCATE(NodeCoords_Shared)
+
+! Free communication arrays
+#if USE_MPI
+SDEALLOCATE(displsNode)
+SDEALLOCATE(recvcountNode)
+#endif /*USE_MPI*/
+
+END SUBROUTINE FinalizeMeshReadin
+
+
 
 END MODULE MOD_Mesh_ReadIn

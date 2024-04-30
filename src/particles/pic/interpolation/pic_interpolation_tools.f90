@@ -1,7 +1,7 @@
 !==================================================================================================================================
 ! Copyright (c) 2010 - 2018 Prof. Claus-Dieter Munz and Prof. Stefanos Fasoulas
 !
-! This file is part of PICLas (gitlab.com/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
+! This file is part of PICLas (piclas.boltzplatz.eu/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
 ! it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3
 ! of the License, or (at your option) any later version.
 !
@@ -358,8 +358,25 @@ REAL    :: HelperU(1:6,0:PP_N,0:PP_N,0:PP_N)
 REAL    :: PartDistDepo(0:PP_N,0:PP_N,0:PP_N), DistSum
 INTEGER :: k,l,m,ind1,ind2
 REAL    :: norm
+#if (PP_nVar==8)
+INTEGER,PARAMETER :: HelperUIndex = 6
+#else
+#ifdef PP_POIS
+INTEGER,PARAMETER :: HelperUIndex = 3
+#elif USE_HDG
+#if PP_nVar==1
+INTEGER,PARAMETER :: HelperUIndex = 3
+#else
+INTEGER,PARAMETER :: HelperUIndex = 6
+#endif
+#else
+INTEGER,PARAMETER :: HelperUIndex = 3
+#endif
+#endif
 !===================================================================================================================================
-GetEMFieldDW(1:6)=0.
+GetEMFieldDW = 0.0
+PartDistDepo = 0.0
+HelperU = 0.0
 !--- evaluate at Particle position
 #if (PP_nVar==8)
 #ifdef PP_POIS
@@ -405,9 +422,8 @@ DO k = 0, PP_N; DO l=0, PP_N; DO m=0, PP_N
   DistSum = DistSum + PartDistDepo(k,l,m) 
 END DO; END DO; END DO
 
-GetEMFieldDW = 0.0
 DO k = 0, PP_N; DO l=0, PP_N; DO m=0, PP_N
-  GetEMFieldDW(1:6) = GetEMFieldDW(1:6) + PartDistDepo(k,l,m)/DistSum*HelperU(1:6,k,l,m)
+  GetEMFieldDW(1:HelperUIndex) = GetEMFieldDW(1:HelperUIndex) + PartDistDepo(k,l,m)/DistSum*HelperU(1:HelperUIndex,k,l,m)
 END DO; END DO; END DO
 
 ! Check whether magnetic background field is activated (superB)
@@ -501,10 +517,7 @@ ASSOCIATE(&
       y => Pos(2) ,&
       z => Pos(3)  &
       )
-  r = SQRT(x**2+y**2)
-  iPos = INT((r-VariableExternalField(1,1))/DeltaExternalField(1)) + 1
-  jPos = INT((z-VariableExternalField(2,1))/DeltaExternalField(2)) + 1
-
+  r = SQRT(x*x + y*y)
 
   IF(r.GT.VariableExternalFieldMax(1))THEN
     InterpolateVariableExternalField2D = 0.
@@ -515,14 +528,28 @@ ASSOCIATE(&
   ELSEIF(z.LT.VariableExternalFieldMin(2))THEN
     InterpolateVariableExternalField2D = 0.
   ELSE
-    ! 1.1
-    idx1 = (iPos-1)*VariableExternalFieldN(1) + jPos
-    ! 2.1
-    idx2 = (iPos-1)*VariableExternalFieldN(1) + jPos + 1
-    ! 1.2
-    idx3 = iPos*VariableExternalFieldN(1) + jPos
-    ! 2.2
-    idx4 = iPos*VariableExternalFieldN(1) + jPos + 1
+
+    ! Get index in r and z
+    iPos = INT((r-VariableExternalField(1,1))/DeltaExternalField(1)) + 1 ! dr = DeltaExternalField(1)
+    jPos = INT((z-VariableExternalField(2,1))/DeltaExternalField(2)) + 1 ! dz = DeltaExternalField(2)
+
+    ! Catch problem when r or z are exactly at the upper boundary and INT() does not round to the lower integer (do not add +1 in
+    ! this case)
+    iPos = MIN(iPos, VariableExternalFieldN(2) - 1 )
+    jPos = MIN(jPos, VariableExternalFieldN(1) - 1 )
+
+
+    ! Shift all points by Nz = EmissionDistributionNum(1)
+    ASSOCIATE( Nz => VariableExternalFieldN(1) )
+      ! 1.1
+      idx1 = (iPos-1)*Nz + jPos
+      ! 2.1
+      idx2 = (iPos-1)*Nz + jPos + 1
+      ! 1.2
+      idx3 = iPos*Nz + jPos
+      ! 2.2
+      idx4 = iPos*Nz + jPos + 1
+    END ASSOCIATE
 
     ! Interpolate
     delta = DeltaExternalField(1)*DeltaExternalField(2)
@@ -604,10 +631,6 @@ ASSOCIATE(&
       Ny => VariableExternalFieldN(2)  ,&
       Nz => VariableExternalFieldN(3)   &
       )
-  iPos = INT((x-VariableExternalField(1,1))/DeltaExternalField(1)) ! 0 to Nx-1
-  jPos = INT((y-VariableExternalField(2,1))/DeltaExternalField(2)) ! 0 to Ny-1
-  kPos = INT((z-VariableExternalField(3,1))/DeltaExternalField(3)) ! 0 to Nz-1
-  Nxy  = Nx*Ny
 
   ! Magnetic field outside of interpolation domain results in B=0
   IF(x.GT.VariableExternalFieldMax(1))THEN
@@ -623,6 +646,18 @@ ASSOCIATE(&
   ELSEIF(z.LT.VariableExternalFieldMin(3))THEN
     InterpolateVariableExternalField3D = 0.
   ELSE
+
+    ! Get index in x, y and z
+    iPos = INT((x-VariableExternalField(1,1))/DeltaExternalField(1)) ! 0 to Nx-1
+    jPos = INT((y-VariableExternalField(2,1))/DeltaExternalField(2)) ! 0 to Ny-1
+    kPos = INT((z-VariableExternalField(3,1))/DeltaExternalField(3)) ! 0 to Nz-1
+    ! Catch problem when coordinates are exactly at the upper boundary and INT() does not round to the lower integer
+    ! e.g. when x.EQ.VariableExternalFieldMax(1) or y.EQ.VariableExternalFieldMax(2) or z.EQ.VariableExternalFieldMax(3)
+    IF(iPos.EQ.Nx) iPos = Nx-1
+    IF(jPos.EQ.Ny) jPos = Ny-1
+    IF(kPos.EQ.Nz) kPos = Nz-1
+    Nxy  = Nx*Ny
+
     ! Get corner node indices
     ! 1.1.1
     idx1 = iPos + jPos*Ny + kPos*Nxy + 1

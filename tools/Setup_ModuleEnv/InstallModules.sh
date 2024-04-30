@@ -51,7 +51,8 @@ calcTrue() { awk 'BEGIN{printf "%d\n" , ('"$*"'?1:0)}';}
 # For current releases, see: https://sourceforge.net/projects/modules/files/Modules/
 #MODULEVERSION='4.6.1'
 #MODULEVERSION='5.0.0'
-MODULEVERSION='5.0.1'
+#MODULEVERSION='5.0.1'
+MODULEVERSION='5.3.1'
 
 NBROFCORES=$(grep ^cpu\\scores /proc/cpuinfo | uniq |  awk '{print $4}')
 INSTALLDIR=/opt
@@ -62,24 +63,16 @@ MODULESPATH=${INSTALLDIR}/modules/${MODULEVERSION}/init/.modulespath
 BUILDDIR=${SOURCESDIR}/modules-${MODULEVERSION}
 TARFILE=${SOURCESDIR}/modules-${MODULEVERSION}.tar.gz
 
+if wget -q --method=HEAD https://github.com/cea-hpc/modules/releases/download/v${MODULEVERSION}/modules-${MODULEVERSION}.tar.gz; then
+  MODULEDLINK="https://github.com/cea-hpc/modules/releases/download/v${MODULEVERSION}/modules-${MODULEVERSION}.tar.gz"
+else
+  echo "ERROR: Download URL not found. Check the requested version of modules. Exit."
+  exit
+fi
+
 echo ""
 echo -e "This will install Environment Modules version ${GREEN}${MODULEVERSION}${NC}.\nCompilation in parallel will be executed with ${GREEN}${NBROFCORES} threads${NC}."
 read -p "Press [Enter] to continue or [Crtl+c] to abort!"
-
-#if [ "$MODULEVERSION" == "3.2.10" ]; then
-  #MODULEDLINK='https://downloads.sourceforge.net/project/modules/Modules/modules-3.2.10/modules-3.2.10.tar.gz?r=https%3A%2F%2Fsourceforge.net%2Fprojects%2Fmodules%2Ffiles%2FModules%2Fmodules-3.2.10%2Fmodules-3.2.10.tar.gz%2Fdownload%3Fuse_mirror%3Dkent&ts=1548854959'
-if [ "$MODULEVERSION" == "4.6.1" ]; then
-  MODULEDLINK='https://downloads.sourceforge.net/project/modules/Modules/modules-4.6.1/modules-4.6.1.tar.gz?r=https%3A%2F%2Fsourceforge.net%2Fprojects%2Fmodules%2Ffiles%2FModules%2Fmodules-4.6.1%2Fmodules-4.6.1.tar.gz%2Fdownload%3Fuse_mirror%3Dkent&ts=1548854959'
-elif [ "$MODULEVERSION" == "5.0.0" ]; then
-  MODULEDLINK='https://downloads.sourceforge.net/project/modules/Modules/modules-5.0.0/modules-5.0.0.tar.gz?ts=gAAAAABhXF_Jxr8Tp_QSaLtNFIwqXte_JnuzMdO606UAbI0okB5uzbQFQ0B5NmlIQ-bgM2uJr_EAVFEtCm9GR0NuyWLthCNrrQ%3D%3D&r=https%3A%2F%2Fsourceforge.net%2Fprojects%2Fmodules%2Ffiles%2FModules%2Fmodules-5.0.0%2Fmodules-5.0.0.tar.gz%2Fdownload'
-elif [ "$MODULEVERSION" == "5.0.1" ]; then
-  MODULEDLINK='https://downloads.sourceforge.net/project/modules/Modules/modules-5.0.1/modules-5.0.1.tar.gz?ts=gAAAAABhcU8vH1TG6SQext57ioXX7Ja-U8fAP4QzR_dzW9vk8_M4sH1kCEgrNjgUH1OYjtNI2bWUJLtIw3O0V3ClRMUhmqAoqw%3D%3D&r=https%3A%2F%2Fsourceforge.net%2Fprojects%2Fmodules%2Ffiles%2FModules%2Fmodules-5.0.1%2Fmodules-5.0.1.tar.gz%2Fdownload'
-fi
-
-if [[ -z ${MODULEDLINK} ]]; then
-  echo "ERROR: MODULEDLINK not set correctly. Exit."
-  exit
-fi
 
 
 if [[ -n ${1} ]]; then

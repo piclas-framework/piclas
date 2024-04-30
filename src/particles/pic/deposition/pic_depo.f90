@@ -1,7 +1,7 @@
 !==================================================================================================================================
 ! Copyright (c) 2010 - 2018 Prof. Claus-Dieter Munz and Prof. Stefanos Fasoulas
 !
-! This file is part of PICLas (gitlab.com/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
+! This file is part of PICLas (piclas.boltzplatz.eu/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
 ! it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3
 ! of the License, or (at your option) any later version.
 !
@@ -28,6 +28,9 @@ INTERFACE FinalizeDeposition
 END INTERFACE
 
 PUBLIC:: Deposition, InitializeDeposition, FinalizeDeposition, DefineParametersPICDeposition
+#if USE_MPI
+PUBLIC :: ExchangeNodeSourceExtTmp
+#endif /*USE_MPI*/
 !===================================================================================================================================
 
 CONTAINS
@@ -83,28 +86,32 @@ USE MOD_Basis                  ,ONLY: BarycentricWeights,InitializeVandermonde
 USE MOD_Basis                  ,ONLY: LegendreGaussNodesAndWeights,LegGaussLobNodesAndWeights
 USE MOD_ChangeBasis            ,ONLY: ChangeBasis3D
 USE MOD_Dielectric_Vars        ,ONLY: DoDielectricSurfaceCharge
-USE MOD_Interpolation          ,ONLY: GetVandermonde
-USE MOD_Interpolation_Vars     ,ONLY: xGP,wBary,NodeType,NodeTypeVISU
-USE MOD_Mesh_Vars              ,ONLY: nElems,sJ,Vdm_EQ_N
+USE MOD_Interpolation_Vars     ,ONLY: xGP,wBary
+USE MOD_Mesh_Vars              ,ONLY: nElems,sJ
 USE MOD_Particle_Vars
-USE MOD_Particle_Mesh_Vars     ,ONLY: nUniqueGlobalNodes
+USE MOD_Particle_Mesh_Vars     ,ONLY: nUniqueGlobalNodes, GEO
+USE MOD_Particle_Mesh_Tools    ,ONLY: GetGlobalNonUniqueSideID
 USE MOD_PICDepo_Vars
 USE MOD_PICDepo_Tools          ,ONLY: CalcCellLocNodeVolumes,ReadTimeAverage
 USE MOD_PICInterpolation_Vars  ,ONLY: InterpolationType
 USE MOD_Preproc
 USE MOD_ReadInTools            ,ONLY: GETREAL,GETINT,GETLOGICAL,GETSTR,GETREALARRAY,GETINTARRAY
+USE MOD_Mesh_Vars              ,ONLY: offsetElem
+USE MOD_Mesh_Tools             ,ONLY: GetGlobalElemID, GetCNElemID
+USE MOD_Particle_Mesh_Vars     ,ONLY: NodeInfo_Shared
 #if USE_MPI
+USE MOD_Particle_Mesh_Vars     ,ONLY: NodeToElemInfo,NodeToElemMapping,ElemNodeID_Shared
 USE MOD_MPI_vars               ,ONLY: offsetElemMPI
 USE MOD_MPI_Shared_Vars        ,ONLY: ComputeNodeRootRank
-USE MOD_Particle_Mesh_Vars     ,ONLY: ElemNodeID_Shared,NodeInfo_Shared,NodeToElemInfo,NodeToElemMapping
 USE MOD_MPI_Shared             ,ONLY: BARRIER_AND_SYNC
-USE MOD_Mesh_Tools             ,ONLY: GetGlobalElemID
-USE MOD_MPI_Shared_Vars        ,ONLY: nComputeNodeTotalElems,nComputeNodeProcessors,myComputeNodeRank,MPI_COMM_LEADERS_SHARED
-USE MOD_MPI_Shared_Vars        ,ONLY: MPI_COMM_SHARED,myLeaderGroupRank,nLeaderGroupProcs
+USE MOD_MPI_Shared_Vars        ,ONLY: nComputeNodeTotalElems,nComputeNodeProcessors,myComputeNodeRank
+USE MOD_MPI_Shared_Vars        ,ONLY: nProcessors_Global
 USE MOD_MPI_Shared
 USE MOD_Particle_Mesh_Vars     ,ONLY: ElemInfo_Shared
-USE MOD_Restart_Vars           ,ONLY: DoRestart
 #endif /*USE_MPI*/
+#if USE_LOADBALANCE
+USE MOD_LoadBalance_Vars       ,ONLY: PerformLoadBalance
+#endif /*USE_LOADBALANCE*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -114,21 +121,26 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 REAL,ALLOCATABLE          :: xGP_tmp(:),wGP_tmp(:)
-INTEGER                   :: ALLOCSTAT, iElem, i, j, k, kk, ll, mm
+INTEGER                   :: ALLOCSTAT, iElem, i, j, k, kk, ll, mm, iNode
 REAL                      :: DetLocal(1,0:PP_N,0:PP_N,0:PP_N), DetJac(1,0:1,0:1,0:1)
 REAL, ALLOCATABLE         :: Vdm_tmp(:,:)
 CHARACTER(255)            :: TimeAverageFile
-#if USE_MPI
 INTEGER                   :: UniqueNodeID
-INTEGER                   :: jElem, NonUniqueNodeID,iNode
-INTEGER                   :: SendNodeCount, GlobalElemNode, GlobalElemRank, iProc
-INTEGER                   :: TestElemID
-LOGICAL,ALLOCATABLE       :: NodeDepoMapping(:,:)
-INTEGER                   :: firstNode,lastNode
+#if USE_MPI
+INTEGER                   :: GlobalRankToNodeSendDepoRank(0:nProcessors_Global-1)
+INTEGER                   :: jElem,TestElemID
+INTEGER                   :: NonUniqueNodeID
+INTEGER                   :: SendNodeCount, GlobalElemRank, iProc
+INTEGER                   :: GlobalElemRankOrig, iRank
+LOGICAL,ALLOCATABLE       :: NodeDepoMapping(:,:), DoNodeMapping(:), SendNode(:), IsDepoNode(:)
+LOGICAL                   :: bordersMyrank
+! Non-symmetric particle exchange
+INTEGER                   :: SendRequestNonSymDepo(0:nProcessors_Global-1)      , RecvRequestNonSymDepo(0:nProcessors_Global-1)
+INTEGER                   :: nSendUniqueNodesNonSymDepo(0:nProcessors_Global-1) , nRecvUniqueNodesNonSymDepo(0:nProcessors_Global-1)
 #endif
 !===================================================================================================================================
 
-SWRITE(UNIT_stdOut,'(A)') ' INIT PARTICLE DEPOSITION...'
+LBWRITE(UNIT_stdOut,'(A)') ' INIT PARTICLE DEPOSITION...'
 
 IF(.NOT.DoDeposition) THEN
   ! fill deposition type with empty string
@@ -223,7 +235,9 @@ CASE('cell_volweight')
   DEALLOCATE(wGP_tmp, xGP_tmp)
 CASE('cell_volweight_mean')
 #if USE_MPI
-  ALLOCATE(RecvRequestCN(0:nLeaderGroupProcs-1), SendRequestCN(0:nLeaderGroupProcs-1))
+  ALLOCATE(DoNodeMapping(0:nProcessors_Global-1),SendNode(1:nUniqueGlobalNodes))
+  DoNodeMapping = .FALSE.
+  SendNode = .FALSE.
 #endif
   IF ((TRIM(InterpolationType).NE.'cell_volweight')) THEN
     ALLOCATE(CellVolWeightFac(0:PP_N))
@@ -231,172 +245,253 @@ CASE('cell_volweight_mean')
     CellVolWeightFac(0:PP_N) = (CellVolWeightFac(0:PP_N)+1.0)/2.0
   END IF
 
-  ! Initialize sub-cell volumes around nodes
-  CALL CalcCellLocNodeVolumes()
-#if USE_MPI
-  CALL Allocate_Shared((/4,nUniqueGlobalNodes/),NodeSource_Shared_Win,NodeSource_Shared)
-  CALL MPI_WIN_LOCK_ALL(0,NodeSource_Shared_Win,IERROR)
-  NodeSource => NodeSource_Shared
-  ALLOCATE(NodeSourceLoc(1:4,1:nUniqueGlobalNodes))
-
+  ALLOCATE(NodeSource(1:4,1:nUniqueGlobalNodes))
+  NodeSource=0.0
   IF(DoDielectricSurfaceCharge)THEN
-    firstNode = INT(REAL( myComputeNodeRank   *nUniqueGlobalNodes)/REAL(nComputeNodeProcessors))+1
-    lastNode  = INT(REAL((myComputeNodeRank+1)*nUniqueGlobalNodes)/REAL(nComputeNodeProcessors))
-
-   ! Global, synchronized surface charge contribution (is added to NodeSource AFTER MPI synchronization)
-    CALL Allocate_Shared((/nUniqueGlobalNodes/),NodeSourceExt_Shared_Win,NodeSourceExt_Shared)
-    CALL MPI_WIN_LOCK_ALL(0,NodeSourceExt_Shared_Win,IERROR)
-    NodeSourceExt => NodeSourceExt_Shared
-    !ALLOCATE(NodeSourceExtLoc(1:1,1:nUniqueGlobalNodes))
-    IF(.NOT.DoRestart)THEN
-      DO iNode=firstNode, lastNode
-        NodeSourceExt(iNode) = 0.
-      END DO
-      CALL BARRIER_AND_SYNC(NodeSourceExt_Shared_Win,MPI_COMM_SHARED)
-    END IF ! .NOT.DoRestart
-
-   ! Local, non-synchronized surface charge contribution (is added to NodeSource BEFORE MPI synchronization)
-    CALL Allocate_Shared((/nUniqueGlobalNodes/),NodeSourceExtTmp_Shared_Win,NodeSourceExtTmp_Shared)
-    CALL MPI_WIN_LOCK_ALL(0,NodeSourceExtTmp_Shared_Win,IERROR)
-    NodeSourceExtTmp => NodeSourceExtTmp_Shared
-    ALLOCATE(NodeSourceExtTmpLoc(1:nUniqueGlobalNodes))
-    NodeSourceExtTmpLoc = 0.
-
-    ! this array does not have to be initialized with zero
-    ! DO iNode=firstNode, lastNode
-    !   NodeSourceExtTmp(iNode) = 0.
-    ! END DO
-    !CALL BARRIER_AND_SYNC(NodeSourceExtTmp_Shared_Win,MPI_COMM_SHARED)
+    ALLOCATE(NodeSourceExt(1:nUniqueGlobalNodes))
+    NodeSourceExt    = 0.
   END IF ! DoDielectricSurfaceCharge
 
+  IF (GEO%nPeriodicVectors.GT.0) Call InitializePeriodicNodes(&
+#if USE_MPI
+                                        DoNodeMapping,SendNode&
+#endif /*USE_MPI*/
+      )
 
+#if USE_MPI
+  IF(DoDielectricSurfaceCharge)THEN
+    ALLOCATE(NodeSourceExtTmp(1:nUniqueGlobalNodes))
+    NodeSourceExtTmp = 0.
+  END IF ! DoDielectricSurfaceCharge
 
-  IF ((myComputeNodeRank.EQ.0).AND.(nLeaderGroupProcs.GT.1)) THEN
-    ALLOCATE(NodeMapping(0:nLeaderGroupProcs-1))
-    ALLOCATE(NodeDepoMapping(0:nLeaderGroupProcs-1, 1:nUniqueGlobalNodes))
-    NodeDepoMapping = .FALSE.
-
-    DO iElem = 1, nComputeNodeTotalElems
+  DO iElem = 1,nComputeNodeTotalElems
+    IF (FlagShapeElem(iElem)) THEN
+      bordersMyrank = .FALSE.
       ! Loop all local nodes
+      TestElemID = GetGlobalElemID(iElem)
+      GlobalElemRankOrig = ElemInfo_Shared(ELEM_RANK,TestElemID)
+      IF (DoHaloDepo.AND.(GlobalElemRankOrig.NE.myRank)) DoNodeMapping(GlobalElemRankOrig) = .TRUE.
+
       DO iNode = 1, 8
         NonUniqueNodeID = ElemNodeID_Shared(iNode,iElem)
         UniqueNodeID = NodeInfo_Shared(NonUniqueNodeID)
-
         ! Loop 1D array [offset + 1 : offset + NbrOfElems]
         ! (all CN elements that are connected to the local nodes)
         DO jElem = NodeToElemMapping(1,UniqueNodeID) + 1, NodeToElemMapping(1,UniqueNodeID) + NodeToElemMapping(2,UniqueNodeID)
           TestElemID = GetGlobalElemID(NodeToElemInfo(jElem))
           GlobalElemRank = ElemInfo_Shared(ELEM_RANK,TestElemID)
-          ! find the compute node
-          GlobalElemNode = INT(GlobalElemRank/nComputeNodeProcessors)
-          ! check if element for this side is on the current compute-node. Alternative version to the check above
-          IF (GlobalElemNode.NE.myLeaderGroupRank) NodeDepoMapping(GlobalElemNode, UniqueNodeID)  = .TRUE.
-        END DO
-      END DO
-    END DO
-
-    DO iProc = 0, nLeaderGroupProcs - 1
-      IF (iProc.EQ.myLeaderGroupRank) CYCLE
-      NodeMapping(iProc)%nRecvUniqueNodes = 0
-      NodeMapping(iProc)%nSendUniqueNodes = 0
-      CALL MPI_IRECV( NodeMapping(iProc)%nRecvUniqueNodes                       &
-                  , 1                                                           &
-                  , MPI_INTEGER                                                 &
-                  , iProc                                                       &
-                  , 666                                                         &
-                  , MPI_COMM_LEADERS_SHARED                                     &
-                  , RecvRequestCN(iProc)                                          &
-                  , IERROR)
-      DO iNode = 1, nUniqueGlobalNodes
-        IF (NodeDepoMapping(iProc,iNode)) NodeMapping(iProc)%nSendUniqueNodes = NodeMapping(iProc)%nSendUniqueNodes + 1
-      END DO
-      CALL MPI_ISEND( NodeMapping(iProc)%nSendUniqueNodes                         &
-                    , 1                                                           &
-                    , MPI_INTEGER                                                 &
-                    , iProc                                                       &
-                    , 666                                                         &
-                    , MPI_COMM_LEADERS_SHARED                                     &
-                    , SendRequestCN(iProc)                                          &
-                    , IERROR)
-    END DO
-
-    DO iProc = 0,nLeaderGroupProcs-1
-      IF (iProc.EQ.myLeaderGroupRank) CYCLE
-      CALL MPI_WAIT(SendRequestCN(iProc),MPISTATUS,IERROR)
-      IF (IERROR.NE.MPI_SUCCESS) CALL ABORT(__STAMP__,' MPI Communication error', IERROR)
-      CALL MPI_WAIT(RecvRequestCN(iProc),MPISTATUS,IERROR)
-      IF (IERROR.NE.MPI_SUCCESS) CALL ABORT(__STAMP__,' MPI Communication error', IERROR)
-    END DO
-
-    DO iProc = 0,nLeaderGroupProcs-1
-      IF (iProc.EQ.myLeaderGroupRank) CYCLE
-      IF (NodeMapping(iProc)%nRecvUniqueNodes.GT.0) THEN
-        ALLOCATE(NodeMapping(iProc)%RecvNodeUniqueGlobalID(1:NodeMapping(iProc)%nRecvUniqueNodes))
-        ALLOCATE(NodeMapping(iProc)%RecvNodeSourceCharge(1:NodeMapping(iProc)%nRecvUniqueNodes))
-        ALLOCATE(NodeMapping(iProc)%RecvNodeSourceCurrent(1:3,1:NodeMapping(iProc)%nRecvUniqueNodes))
-        IF(DoDielectricSurfaceCharge) ALLOCATE(NodeMapping(iProc)%RecvNodeSourceExt(1:NodeMapping(iProc)%nRecvUniqueNodes))
-        CALL MPI_IRECV( NodeMapping(iProc)%RecvNodeUniqueGlobalID                   &
-                      , NodeMapping(iProc)%nRecvUniqueNodes                         &
-                      , MPI_INTEGER                                                 &
-                      , iProc                                                       &
-                      , 666                                                         &
-                      , MPI_COMM_LEADERS_SHARED                                     &
-                      , RecvRequestCN(iProc)                                          &
-                      , IERROR)
-      END IF
-      IF (NodeMapping(iProc)%nSendUniqueNodes.GT.0) THEN
-        ALLOCATE(NodeMapping(iProc)%SendNodeUniqueGlobalID(1:NodeMapping(iProc)%nSendUniqueNodes))
-        NodeMapping(iProc)%SendNodeUniqueGlobalID=-1
-        ALLOCATE(NodeMapping(iProc)%SendNodeSourceCharge(1:NodeMapping(iProc)%nSendUniqueNodes))
-        NodeMapping(iProc)%SendNodeSourceCharge=0.
-        ALLOCATE(NodeMapping(iProc)%SendNodeSourceCurrent(1:3,1:NodeMapping(iProc)%nSendUniqueNodes))
-        NodeMapping(iProc)%SendNodeSourceCurrent=0.
-        IF(DoDielectricSurfaceCharge) ALLOCATE(NodeMapping(iProc)%SendNodeSourceExt(1:NodeMapping(iProc)%nSendUniqueNodes))
-        SendNodeCount = 0
-        DO iNode = 1, nUniqueGlobalNodes
-          IF (NodeDepoMapping(iProc,iNode)) THEN
-            SendNodeCount = SendNodeCount + 1
-            NodeMapping(iProc)%SendNodeUniqueGlobalID(SendNodeCount) = iNode
+          IF (DoHaloDepo) THEN
+            SendNode(UniqueNodeID) = .TRUE.
+            IF (GlobalElemRank.NE.myRank) DoNodeMapping(GlobalElemRank) = .TRUE.
+          ELSE
+            IF (GlobalElemRank.EQ.myRank) THEN
+              bordersMyrank = .TRUE.
+              SendNode(UniqueNodeID) = .TRUE.
+            END IF
           END IF
         END DO
-        CALL MPI_ISEND( NodeMapping(iProc)%SendNodeUniqueGlobalID                   &
-                      , NodeMapping(iProc)%nSendUniqueNodes                         &
-                      , MPI_INTEGER                                                 &
-                      , iProc                                                       &
-                      , 666                                                         &
-                      , MPI_COMM_LEADERS_SHARED                                     &
-                      , SendRequestCN(iProc)                                          &
-                      , IERROR)
-      END IF
-    END DO
+        IF (.NOT.DoHaloDepo.AND.bordersMyrank) THEN
+          DoNodeMapping(GlobalElemRankOrig) = .TRUE.
+        END IF
+      END DO
+    END IF
+  END DO
 
-    DO iProc = 0,nLeaderGroupProcs-1
-      IF (iProc.EQ.myLeaderGroupRank) CYCLE
-      IF (NodeMapping(iProc)%nSendUniqueNodes.GT.0) THEN
-        CALL MPI_WAIT(SendRequestCN(iProc),MPISTATUS,IERROR)
-        IF (IERROR.NE.MPI_SUCCESS) CALL ABORT(__STAMP__,' MPI Communication error', IERROR)
-      END IF
-      IF (NodeMapping(iProc)%nRecvUniqueNodes.GT.0) THEN
-        CALL MPI_WAIT(RecvRequestCN(iProc),MPISTATUS,IERROR)
-        IF (IERROR.NE.MPI_SUCCESS) CALL ABORT(__STAMP__,' MPI Communication error', IERROR)
+  nDepoNodes = 0
+  ALLOCATE(IsDepoNode(1:nUniqueGlobalNodes))
+  IsDepoNode = .FALSE.
+  DO iElem =1, nElems
+    TestElemID = GetCNElemID(iElem + offsetElem)
+    DO iNode = 1, 8
+      NonUniqueNodeID = ElemNodeID_Shared(iNode,TestElemID)
+      UniqueNodeID = NodeInfo_Shared(NonUniqueNodeID)
+      IsDepoNode(UniqueNodeID) = .TRUE.
+    END DO
+  END DO
+  nDepoNodes = COUNT(IsDepoNode)
+  nDepoNodesTotal = nDepoNodes
+  DO iNode=1, nUniqueGlobalNodes
+    IF (.NOT.IsDepoNode(iNode).AND.SendNode(iNode)) THEN
+      nDepoNodesTotal = nDepoNodesTotal + 1
+    END IF
+  END DO
+
+  ALLOCATE(DepoNodetoGlobalNode(1:nDepoNodesTotal))
+  nDepoNodesTotal = 0
+  DO iNode=1, nUniqueGlobalNodes
+    IF (IsDepoNode(iNode)) THEN
+      nDepoNodesTotal = nDepoNodesTotal + 1
+      DepoNodetoGlobalNode(nDepoNodesTotal) = iNode
+    END IF
+  END DO
+  DO iNode=1, nUniqueGlobalNodes
+    IF (.NOT.IsDepoNode(iNode).AND.SendNode(iNode)) THEN
+      nDepoNodesTotal = nDepoNodesTotal + 1
+      DepoNodetoGlobalNode(nDepoNodesTotal) = iNode
+    END IF
+  END DO
+
+  GlobalRankToNodeSendDepoRank = -1
+  nNodeSendExchangeProcs = COUNT(DoNodeMapping)
+  ALLOCATE(NodeSendDepoRankToGlobalRank(1:nNodeSendExchangeProcs))
+  NodeSendDepoRankToGlobalRank = 0
+  nNodeSendExchangeProcs = 0
+  DO iRank= 0, nProcessors_Global-1
+    IF (iRank.EQ.myRank) CYCLE
+    IF (DoNodeMapping(iRank)) THEN
+      nNodeSendExchangeProcs = nNodeSendExchangeProcs + 1
+      GlobalRankToNodeSendDepoRank(iRank) = nNodeSendExchangeProcs
+      NodeSendDepoRankToGlobalRank(nNodeSendExchangeProcs) = iRank
+    END IF
+  END DO
+  ALLOCATE(NodeDepoMapping(1:nNodeSendExchangeProcs, 1:nUniqueGlobalNodes))
+  NodeDepoMapping = .FALSE.
+
+  DO iNode = 1, nUniqueGlobalNodes
+    IF (SendNode(iNode)) THEN
+      DO jElem = NodeToElemMapping(1,iNode) + 1, NodeToElemMapping(1,iNode) + NodeToElemMapping(2,iNode)
+          TestElemID = GetGlobalElemID(NodeToElemInfo(jElem))
+          GlobalElemRank = ElemInfo_Shared(ELEM_RANK,TestElemID)
+          IF (GlobalElemRank.NE.myRank) THEN
+            iRank = GlobalRankToNodeSendDepoRank(GlobalElemRank)
+            IF (iRank.LT.1) CALL ABORT(__STAMP__,'Found not connected Rank!', myRank)
+            NodeDepoMapping(iRank, iNode) = .TRUE.
+          END IF
+        END DO
+    END IF
+  END DO
+
+  ! Get number of send nodes for each proc: Size of each message for each proc for deposition
+  nSendUniqueNodesNonSymDepo         = 0
+  nRecvUniqueNodesNonSymDepo(myrank) = 0
+  ALLOCATE(NodeMappingSend(1:nNodeSendExchangeProcs))
+  DO iProc = 1, nNodeSendExchangeProcs
+    NodeMappingSend(iProc)%nSendUniqueNodes = 0
+    DO iNode = 1, nUniqueGlobalNodes
+      IF (NodeDepoMapping(iProc,iNode)) NodeMappingSend(iProc)%nSendUniqueNodes = NodeMappingSend(iProc)%nSendUniqueNodes + 1
+    END DO
+    ! local to global array
+    nSendUniqueNodesNonSymDepo(NodeSendDepoRankToGlobalRank(iProc)) = NodeMappingSend(iProc)%nSendUniqueNodes
+  END DO
+
+  ! Open receive buffer for non-symmetric exchange identification
+  DO iProc = 0,nProcessors_Global-1
+    IF (iProc.EQ.myRank) CYCLE
+    CALL MPI_IRECV( nRecvUniqueNodesNonSymDepo(iProc)  &
+                  , 1                            &
+                  , MPI_INTEGER                  &
+                  , iProc                        &
+                  , 1999                         &
+                  , MPI_COMM_PICLAS               &
+                  , RecvRequestNonSymDepo(iProc)           &
+                  , IERROR)
+  END DO
+
+  ! Send each proc the number of nodes that can be reached by deposition
+  DO iProc = 0,nProcessors_Global-1
+    IF (iProc.EQ.myRank) CYCLE
+    CALL MPI_ISEND( nSendUniqueNodesNonSymDepo(iProc) &
+                  , 1                                 &
+                  , MPI_INTEGER                       &
+                  , iProc                             &
+                  , 1999                              &
+                  , MPI_COMM_PICLAS                    &
+                  , SendRequestNonSymDepo(iProc)      &
+                  , IERROR)
+  END DO
+
+  ! Finish communication
+  DO iProc = 0,nProcessors_Global-1
+    IF (iProc.EQ.myRank) CYCLE
+    CALL MPI_WAIT(RecvRequestNonSymDepo(iProc),MPIStatus,IERROR)
+    IF(IERROR.NE.MPI_SUCCESS) CALL ABORT(__STAMP__,' MPI Communication error', IERROR)
+    CALL MPI_WAIT(SendRequestNonSymDepo(iProc),MPIStatus,IERROR)
+    IF(IERROR.NE.MPI_SUCCESS) CALL ABORT(__STAMP__,' MPI Communication error', IERROR)
+  END DO
+
+  nNodeRecvExchangeProcs = COUNT(nRecvUniqueNodesNonSymDepo.GT.0)
+  ALLOCATE(NodeMappingRecv(1:nNodeRecvExchangeProcs))
+  ALLOCATE(NodeRecvDepoRankToGlobalRank(1:nNodeRecvExchangeProcs))
+  NodeRecvDepoRankToGlobalRank = 0
+  nNodeRecvExchangeProcs = 0
+  DO iRank= 0, nProcessors_Global-1
+    IF (iRank.EQ.myRank) CYCLE
+    IF (nRecvUniqueNodesNonSymDepo(iRank).GT.0) THEN
+      nNodeRecvExchangeProcs = nNodeRecvExchangeProcs + 1
+      ! Store global rank of iRecvRank
+      NodeRecvDepoRankToGlobalRank(nNodeRecvExchangeProcs) = iRank
+      ! Store number of nodes of iRecvRank
+      NodeMappingRecv(nNodeRecvExchangeProcs)%nRecvUniqueNodes = nRecvUniqueNodesNonSymDepo(iRank)
+    END IF
+  END DO
+
+  ! Open receive buffer
+  ALLOCATE(RecvRequest(1:nNodeRecvExchangeProcs))
+  DO iProc = 1, nNodeRecvExchangeProcs
+    ALLOCATE(NodeMappingRecv(iProc)%RecvNodeUniqueGlobalID(1:NodeMappingRecv(iProc)%nRecvUniqueNodes))
+    ALLOCATE(NodeMappingRecv(iProc)%RecvNodeSourceCharge(1:NodeMappingRecv(iProc)%nRecvUniqueNodes))
+    ALLOCATE(NodeMappingRecv(iProc)%RecvNodeSourceCurrent(1:3,1:NodeMappingRecv(iProc)%nRecvUniqueNodes))
+    IF(DoDielectricSurfaceCharge) ALLOCATE(NodeMappingRecv(iProc)%RecvNodeSourceExt(1:NodeMappingRecv(iProc)%nRecvUniqueNodes))
+    CALL MPI_IRECV( NodeMappingRecv(iProc)%RecvNodeUniqueGlobalID                   &
+                  , NodeMappingRecv(iProc)%nRecvUniqueNodes                         &
+                  , MPI_INTEGER                                                 &
+                  , NodeRecvDepoRankToGlobalRank(iProc)                         &
+                  , 666                                                         &
+                  , MPI_COMM_PICLAS                                              &
+                  , RecvRequest(iProc)                                          &
+                  , IERROR)
+  END DO
+
+  ! Open send buffer
+  ALLOCATE(SendRequest(1:nNodeSendExchangeProcs))
+  DO iProc = 1, nNodeSendExchangeProcs
+    ALLOCATE(NodeMappingSend(iProc)%SendNodeUniqueGlobalID(1:NodeMappingSend(iProc)%nSendUniqueNodes))
+    NodeMappingSend(iProc)%SendNodeUniqueGlobalID=-1
+    ALLOCATE(NodeMappingSend(iProc)%SendNodeSourceCharge(1:NodeMappingSend(iProc)%nSendUniqueNodes))
+    NodeMappingSend(iProc)%SendNodeSourceCharge=0.
+    ALLOCATE(NodeMappingSend(iProc)%SendNodeSourceCurrent(1:3,1:NodeMappingSend(iProc)%nSendUniqueNodes))
+    NodeMappingSend(iProc)%SendNodeSourceCurrent=0.
+    IF(DoDielectricSurfaceCharge) ALLOCATE(NodeMappingSend(iProc)%SendNodeSourceExt(1:NodeMappingSend(iProc)%nSendUniqueNodes))
+    SendNodeCount = 0
+    DO iNode = 1, nUniqueGlobalNodes
+      IF (NodeDepoMapping(iProc,iNode)) THEN
+        SendNodeCount = SendNodeCount + 1
+        NodeMappingSend(iProc)%SendNodeUniqueGlobalID(SendNodeCount) = iNode
       END IF
     END DO
-  END IF
+    CALL MPI_ISEND( NodeMappingSend(iProc)%SendNodeUniqueGlobalID                   &
+                  , NodeMappingSend(iProc)%nSendUniqueNodes                         &
+                  , MPI_INTEGER                                                 &
+                  , NodeSendDepoRankToGlobalRank(iProc)                         &
+                  , 666                                                         &
+                  , MPI_COMM_PICLAS                                              &
+                  , SendRequest(iProc)                                          &
+                  , IERROR)
+  END DO
+
+  ! Finish send
+  DO iProc = 1, nNodeSendExchangeProcs
+    CALL MPI_WAIT(SendRequest(iProc),MPISTATUS,IERROR)
+    IF (IERROR.NE.MPI_SUCCESS) CALL ABORT(__STAMP__,' MPI Communication error', IERROR)
+  END DO
+
+  ! Finish receive
+  DO iProc = 1, nNodeRecvExchangeProcs
+    CALL MPI_WAIT(RecvRequest(iProc),MPISTATUS,IERROR)
+    IF (IERROR.NE.MPI_SUCCESS) CALL ABORT(__STAMP__,' MPI Communication error', IERROR)
+  END DO
 #else
-  ALLOCATE(NodeSource(1:4,1:nUniqueGlobalNodes))
-  IF(DoDielectricSurfaceCharge)THEN
-    ALLOCATE(NodeSourceExt(1:nUniqueGlobalNodes))
-    ALLOCATE(NodeSourceExtTmp(1:nUniqueGlobalNodes))
-    NodeSourceExt    = 0.
-    NodeSourceExtTmp = 0.
-  END IF ! DoDielectricSurfaceCharge
+  nDepoNodes      = nUniqueGlobalNodes
+  nDepoNodesTotal = nDepoNodes
+  ALLOCATE(DepoNodetoGlobalNode(1:nDepoNodesTotal))
+  DO iNode=1, nUniqueGlobalNodes
+    DepoNodetoGlobalNode(iNode) = iNode
+  END DO
 #endif /*USE_MPI*/
 
-  IF(DoDielectricSurfaceCharge)THEN
-    ! Allocate and determine Vandermonde mapping from equidistant (visu) to NodeType node set
-    ALLOCATE(Vdm_EQ_N(0:PP_N,0:1))
-    CALL GetVandermonde(1, NodeTypeVISU, PP_N, NodeType, Vdm_EQ_N, modal=.FALSE.)
-  END IF ! DoDielectricSurfaceCharge
+
+! Initialize sub-cell volumes around nodes
+  CALL CalcCellLocNodeVolumes()
 
 CASE('shape_function', 'shape_function_cc', 'shape_function_adaptive')
 #if USE_MPI
@@ -445,7 +540,7 @@ END IF
 
 ALLOCATE(PartSourceTmp(    1:4,0:PP_N,0:PP_N,0:PP_N))
 
-SWRITE(UNIT_stdOut,'(A)')' INIT PARTICLE DEPOSITION DONE!'
+LBWRITE(UNIT_stdOut,'(A)')' INIT PARTICLE DEPOSITION DONE!'
 
 END SUBROUTINE InitializeDeposition
 
@@ -475,6 +570,9 @@ USE MOD_MPI_Shared
 #else
 USE MOD_Mesh_Vars                   ,ONLY: nElems
 #endif /*USE_MPI*/
+#if USE_LOADBALANCE
+USE MOD_LoadBalance_Vars            ,ONLY: PerformLoadBalance
+#endif /*USE_LOADBALANCE*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -511,17 +609,18 @@ END SELECT
 WRITE(UNIT=hilf3,FMT='(G0)') SFAdaptiveDOFDefault
 SFAdaptiveDOF = GETREAL('PIC-shapefunction-adaptive-DOF',TRIM(hilf3))
 
+LBWRITE(UNIT_StdOut,'(A,F10.2)') "         PIC-shapefunction-adaptive-DOF =", SFAdaptiveDOF
+LBWRITE(UNIT_StdOut,'(A,A19,A,F10.2)') " Maximum allowed is ",TRIM(hilf2)," =", DOFMax
+LBWRITE(UNIT_StdOut,*) "Set a value lower or equal to than the maximum for a given polynomial degree N\n"
+LBWRITE(UNIT_StdOut,*) "              N:     1      2      3      4      5       6       7"
+LBWRITE(UNIT_StdOut,*) "  ----------------------------------------------------------------"
+LBWRITE(UNIT_StdOut,*) "           | 1D:     4      6      8     10     12      14      16"
+LBWRITE(UNIT_StdOut,*) "  Max. DOF | 2D:    12     28     50     78    113     153     201"
+LBWRITE(UNIT_StdOut,*) "           | 3D:    33    113    268    523    904    1436    2144"
+LBWRITE(UNIT_StdOut,*) "  ----------------------------------------------------------------"
+
 IF(SFAdaptiveDOF.GT.DOFMax)THEN
-  SWRITE(UNIT_StdOut,'(A,F10.2)') "         PIC-shapefunction-adaptive-DOF =", SFAdaptiveDOF
-  SWRITE(UNIT_StdOut,'(A,A19,A,F10.2)') " Maximum allowed is ",TRIM(hilf2)," =", DOFMax
   SWRITE(UNIT_StdOut,*) "Reduce the number of DOF/SF in order to have no DOF outside of the deposition range (neighbour elems)"
-  SWRITE(UNIT_StdOut,*) "Set a value lower or equal to than the maximum for a given polynomial degree N\n"
-  SWRITE(UNIT_StdOut,*) "              N:     1      2      3      4      5       6       7"
-  SWRITE(UNIT_StdOut,*) "  ----------------------------------------------------------------"
-  SWRITE(UNIT_StdOut,*) "           | 1D:     4      6      8     10     12      14      16"
-  SWRITE(UNIT_StdOut,*) "  Max. DOF | 2D:    12     28     50     78    113     153     201"
-  SWRITE(UNIT_StdOut,*) "           | 3D:    33    113    268    523    904    1436    2144"
-  SWRITE(UNIT_StdOut,*) "  ----------------------------------------------------------------"
   CALL abort(__STAMP__,'PIC-shapefunction-adaptive-DOF > '//TRIM(hilf2)//' is not allowed')
 ELSE
   ! Check which shape function dimension is used
@@ -536,8 +635,8 @@ ELSE
 END IF
 
 #if USE_MPI
-firstElem = INT(REAL( myComputeNodeRank   *nComputeNodeTotalElems)/REAL(nComputeNodeProcessors))+1
-lastElem  = INT(REAL((myComputeNodeRank+1)*nComputeNodeTotalElems)/REAL(nComputeNodeProcessors))
+firstElem = INT(REAL( myComputeNodeRank   )*REAL(nComputeNodeTotalElems)/REAL(nComputeNodeProcessors))+1
+lastElem  = INT(REAL((myComputeNodeRank+1))*REAL(nComputeNodeTotalElems)/REAL(nComputeNodeProcessors))
 
 CALL Allocate_Shared((/2,nComputeNodeTotalElems/),SFElemr2_Shared_Win,SFElemr2_Shared)
 CALL MPI_WIN_LOCK_ALL(0,SFElemr2_Shared_Win,IERROR)
@@ -652,6 +751,9 @@ USE MOD_Particle_Mesh_Vars ,ONLY: PeriodicSFCaseMatrix,NbrOfPeriodicSFCases
 USE MOD_PICDepo_Vars       ,ONLY: dim_sf,dim_periodic_vec1,dim_periodic_vec2,dim_sf_dir1,dim_sf_dir2
 USE MOD_Particle_Mesh_Vars ,ONLY: GEO
 USE MOD_ReadInTools        ,ONLY: PrintOption
+#if USE_LOADBALANCE
+USE MOD_LoadBalance_Vars   ,ONLY: PerformLoadBalance
+#endif /*USE_LOADBALANCE*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -714,9 +816,9 @@ ELSE
       dim_periodic_vec2 = dim_sf_dir2
     END IF ! GEO%nPeriodicVectors.EQ.1
     CALL PrintOption('Dimension of 1st periodic vector for 2D shape function','INFO',IntOpt=dim_periodic_vec1)
-    SWRITE(UNIT_StdOut,*) "1st PeriodicVector =", GEO%PeriodicVectors(1:3,dim_periodic_vec1)
+    LBWRITE(UNIT_StdOut,*) "1st PeriodicVector =", GEO%PeriodicVectors(1:3,dim_periodic_vec1)
     CALL PrintOption('Dimension of 2nd periodic vector for 2D shape function','INFO',IntOpt=dim_periodic_vec2)
-    SWRITE(UNIT_StdOut,*) "2nd PeriodicVector =", GEO%PeriodicVectors(1:3,dim_periodic_vec2)
+    LBWRITE(UNIT_StdOut,*) "2nd PeriodicVector =", GEO%PeriodicVectors(1:3,dim_periodic_vec2)
   END IF ! dim_sf.EQ.2
 
 END IF
@@ -743,6 +845,10 @@ USE MOD_TimeDisc_Vars         ,ONLY: iter
 #if USE_MPI
 USE MOD_MPI_Shared            ,ONLY: BARRIER_AND_SYNC
 #endif  /*USE_MPI*/
+#if USE_HDG
+USE MOD_HDG_Vars              ,ONLY: HDGSkip, HDGSkipInit, HDGSkip_t0
+USE MOD_TimeDisc_Vars         ,ONLY: time
+#endif  /*USE_HDG*/
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -764,6 +870,22 @@ IF (PRESENT(stage_opt)) THEN
 ELSE
   stage = 0
 END IF
+
+#if USE_HDG
+! HDGSkip Check whether the deposition should be skipped in this iteration
+IF (iter.GT.0 .AND. HDGSkip.NE.0) THEN
+  IF (time.LT.HDGSkip_t0) THEN
+    IF (MOD(iter,INT(HDGSkipInit,8)).NE.0) RETURN
+  ELSE
+    IF (MOD(iter,INT(HDGSkip,8)).NE.0) RETURN
+  END IF
+#if (PP_TimeDiscMethod==501) || (PP_TimeDiscMethod==502) || (PP_TimeDiscMethod==506)
+  IF (stage.GT.1) THEN
+    RETURN
+  END IF
+#endif
+END IF
+#endif /*USE_HDG*/
 
 IF((stage.EQ.0).OR.(stage.EQ.1)) PartSource = 0.0
 
@@ -814,6 +936,971 @@ END SELECT
 END FUNCTION SFMeasureDistance
 
 
+#if USE_MPI
+!===================================================================================================================================
+!> Exchange the node source container between MPI processes (either during load balance or hdf5 output) and nullify the local charge
+!> container NodeSourceExtTmp. Updates the node charge container NodeSourceExt at MPI interfaces.
+!===================================================================================================================================
+SUBROUTINE ExchangeNodeSourceExtTmp()
+! MODULES
+USE MOD_Globals
+USE MOD_PreProc
+USE MOD_PICDepo_Vars       ,ONLY: NodeSourceExt
+#if USE_MPI
+USE MOD_PICDepo_Vars       ,ONLY: NodeMappingRecv,NodeMappingSend,NodeSourceExtTmp
+USE MOD_PICDepo_Vars       ,ONLY: nDepoNodesTotal,nNodeSendExchangeProcs,NodeSendDepoRankToGlobalRank,DepoNodetoGlobalNode
+USE MOD_PICDepo_Vars       ,ONLY: nNodeRecvExchangeProcs
+USE MOD_PICDepo_Vars       ,ONLY: NodeRecvDepoRankToGlobalRank
+#endif  /*USE_MPI*/
+#if defined(MEASURE_MPI_WAIT)
+USE MOD_Particle_MPI_Vars  ,ONLY: MPIW8TimePart,MPIW8CountPart
+#endif /*defined(MEASURE_MPI_WAIT)*/
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT/OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+#if USE_MPI
+INTEGER                        :: iProc
+!INTEGER                        :: RecvRequest(0:nLeaderGroupProcs-1),SendRequest(0:nLeaderGroupProcs-1)
+INTEGER                        :: RecvRequest(1:nNodeRecvExchangeProcs),SendRequest(1:nNodeSendExchangeProcs)
+!INTEGER                        :: MessageSize
+#endif /*USE_MPI*/
+INTEGER                        :: globalNode, iNode
+#if defined(MEASURE_MPI_WAIT)
+INTEGER(KIND=8)                :: CounterStart,CounterEnd
+REAL(KIND=8)                   :: Rate
+#endif /*defined(MEASURE_MPI_WAIT)*/
+!===================================================================================================================================
+! 1) Receive charge density
+DO iProc = 1, nNodeRecvExchangeProcs
+  ! Open receive buffer
+  CALL MPI_IRECV( NodeMappingRecv(iProc)%RecvNodeSourceExt(:) &
+      , NodeMappingRecv(iProc)%nRecvUniqueNodes            &
+      , MPI_DOUBLE_PRECISION                           &
+      , NodeRecvDepoRankToGlobalRank(iProc)                &
+      , 666                                            &
+      , MPI_COMM_PICLAS                                 &
+      , RecvRequest(iProc)                             &
+      , IERROR)
+END DO
+
+
+DO iProc = 1, nNodeSendExchangeProcs
+  ! Send message (non-blocking)
+  DO iNode = 1, NodeMappingSend(iProc)%nSendUniqueNodes
+    NodeMappingSend(iProc)%SendNodeSourceExt(iNode) = NodeSourceExtTmp(NodeMappingSend(iProc)%SendNodeUniqueGlobalID(iNode))
+  END DO
+  CALL MPI_ISEND( NodeMappingSend(iProc)%SendNodeSourceExt(:) &
+      , NodeMappingSend(iProc)%nSendUniqueNodes        &
+      , MPI_DOUBLE_PRECISION                       &
+      , NodeSendDepoRankToGlobalRank(iProc)            &
+      , 666                                        &
+      , MPI_COMM_PICLAS                             &
+      , SendRequest(iProc)                         &
+      , IERROR)
+END DO
+! Finish communication
+#if defined(MEASURE_MPI_WAIT)
+CALL SYSTEM_CLOCK(count=CounterStart)
+#endif /*defined(MEASURE_MPI_WAIT)*/
+DO iProc = 1, nNodeSendExchangeProcs
+  CALL MPI_WAIT(SendRequest(iProc),MPISTATUS,IERROR)
+  IF (IERROR.NE.MPI_SUCCESS) CALL ABORT(__STAMP__,' MPI Communication error', IERROR)
+END DO
+DO iProc = 1, nNodeRecvExchangeProcs
+  CALL MPI_WAIT(RecvRequest(iProc),MPISTATUS,IERROR)
+  IF (IERROR.NE.MPI_SUCCESS) CALL ABORT(__STAMP__,' MPI Communication error', IERROR)
+END DO
+#if defined(MEASURE_MPI_WAIT)
+CALL SYSTEM_CLOCK(count=CounterEnd, count_rate=Rate)
+MPIW8TimePart(6)  = MPIW8TimePart(6) + REAL(CounterEnd-CounterStart,8)/Rate
+MPIW8CountPart(6) = MPIW8CountPart(6) + 1_8
+#endif /*defined(MEASURE_MPI_WAIT)*/
+
+! 3) Extract messages
+DO iProc = 1, nNodeRecvExchangeProcs
+  DO iNode = 1, NodeMappingRecv(iProc)%nRecvUniqueNodes
+    ASSOCIATE( NS => NodeSourceExtTmp(NodeMappingRecv(iProc)%RecvNodeUniqueGlobalID(iNode)))
+      NS = NS + NodeMappingRecv(iProc)%RecvNodeSourceExt(iNode)
+    END ASSOCIATE
+  END DO
+END DO
+
+! Add NodeSourceExtTmp values of the last boundary interaction
+DO iNode = 1, nDepoNodesTotal
+  globalNode = DepoNodetoGlobalNode(iNode)
+  NodeSourceExt(globalNode) = NodeSourceExt(globalNode) + NodeSourceExtTmp(globalNode)
+END DO
+! Reset local surface charge
+NodeSourceExtTmp = 0.
+END SUBROUTINE ExchangeNodeSourceExtTmp
+#endif /*USE_MPI*/
+
+
+!===================================================================================================================================
+!> Find the corresponding node neighbours across one or more periodic boundaries
+!===================================================================================================================================
+SUBROUTINE InitializePeriodicNodes(&
+#if USE_MPI
+  DoNodeMapping,SendNode&
+#endif /*USE_MPI*/
+)
+! MODULES
+USE MOD_Globals
+USE MOD_Basis                  ,ONLY: BarycentricWeights,InitializeVandermonde
+USE MOD_Basis                  ,ONLY: LegendreGaussNodesAndWeights,LegGaussLobNodesAndWeights
+USE MOD_ChangeBasis            ,ONLY: ChangeBasis3D
+USE MOD_Mesh_Vars              ,ONLY: nElems,BoundaryType
+USE MOD_Particle_Vars
+USE MOD_Particle_Mesh_Vars     ,ONLY: nUniqueGlobalNodes, GEO, NodeCoords_Shared, SideInfo_Shared,ElemSideNodeID_Shared
+USE MOD_Particle_Mesh_Tools    ,ONLY: GetGlobalNonUniqueSideID
+USE MOD_PICDepo_Vars
+USE MOD_PICDepo_Tools          ,ONLY: CalcCellLocNodeVolumes,ReadTimeAverage
+USE MOD_Preproc
+USE MOD_ReadInTools            ,ONLY: GETREAL,GETINT,GETLOGICAL,GETSTR,GETREALARRAY,GETINTARRAY
+USE MOD_Particle_Boundary_Vars ,ONLY: PartBound
+USE MOD_Mesh_Vars              ,ONLY: offsetElem
+USE MOD_Mesh_Tools             ,ONLY: GetGlobalElemID, GetCNElemID
+USE MOD_Particle_Mesh_Vars     ,ONLY: NodeInfo_Shared
+#if USE_MPI
+USE MOD_Particle_Mesh_Vars     ,ONLY: NodeToElemInfo,NodeToElemMapping
+USE MOD_MPI_Shared             ,ONLY: BARRIER_AND_SYNC
+USE MOD_MPI_Shared_Vars        ,ONLY: myComputeNodeRank
+USE MOD_MPI_Shared_Vars        ,ONLY: nProcessors_Global,MPI_COMM_SHARED
+USE MOD_MPI_Shared
+USE MOD_Particle_Mesh_Vars     ,ONLY: ElemInfo_Shared
+#endif /*USE_MPI*/
+IMPLICIT NONE
+!----------------------------------------------------------------------------------------------------------------------------------!
+! INPUT / OUTPUT VARIABLES
+#if USE_MPI
+LOGICAL,INTENT(INOUT) :: DoNodeMapping(0:nProcessors_Global-1)
+LOGICAL,INTENT(INOUT) :: SendNode(1:nUniqueGlobalNodes)
+#endif /*USE_MPI*/
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER                   :: iNode, CNElemID, CNNbElemID, iLocSide, jNode, locElemID, kNode
+INTEGER                   :: NbElemID, NbLocSide, PeriodicNode, PVID, SideID, NbSideID, NumPerioNodes, iPeriodNode, zNode,zGlobalNode
+REAL                      :: tmpDist, Dist
+LOGICAL                   :: NodeDone(4)
+INTEGER, ALLOCATABLE      :: PeriodicNodeSourceMap(:,:)
+TYPE tPeriodicNodeMap
+  INTEGER                       :: nPeriodicNodes
+  INTEGER,ALLOCATABLE           :: Mapping(:)
+  INTEGER,ALLOCATABLE           :: Rank(:)
+END TYPE
+TYPE(tPeriodicNodeMap), ALLOCATABLE :: PeriodicNodeMap(:)
+INTEGER,ALLOCATABLE       :: PeriodicNodesPerNode(:)
+INTEGER                   :: UniqueNodeID
+#if USE_MPI
+LOGICAL                   :: NoBCSideOnNode,FoundOwnNode
+INTEGER                   :: TestNode, minRank, elemCount,jElem,TestElemID
+INTEGER, ALLOCATABLE      :: SendPeriodicNodes(:), iSendNode(:), RecvPeriodicNodes(:)
+INTEGER                   :: GlobalElemRank, iProc
+INTEGER                   :: iRank
+! Non-symmetric particle exchange
+INTEGER                   :: SendRequestNonSymDepo(0:nProcessors_Global-1)      , RecvRequestNonSymDepo(0:nProcessors_Global-1)
+
+TYPE tPeriodicSendRecv
+  INTEGER, ALLOCATABLE    :: Send(:,:)
+  INTEGER, ALLOCATABLE    :: Recv(:,:)
+  INTEGER, ALLOCATABLE    :: SendNodes(:)
+  INTEGER, ALLOCATABLE    :: RecvNodes(:)
+END TYPE
+TYPE(tPeriodicSendRecv), ALLOCATABLE :: PeriodicSendRecv(:)
+
+TYPE tNodewoBCSide
+  INTEGER, ALLOCATABLE    :: RankID(:)
+END TYPE
+TYPE(tNodewoBCSide), ALLOCATABLE :: NodewoBCSide(:)
+#endif
+!===================================================================================================================================
+
+ALLOCATE(PeriodicNodeSourceMap(1:2*GEO%nPeriodicVectors,1:nUniqueGlobalNodes))
+ALLOCATE(PeriodicNodeMap(1:nUniqueGlobalNodes))
+PeriodicNodeMap(:)%nPeriodicNodes = 0
+PeriodicNodeSourceMap(1:GEO%nPeriodicVectors,:) = 0
+PeriodicNodeSourceMap(GEO%nPeriodicVectors+1:2*GEO%nPeriodicVectors,:) = -1
+DO locElemID=1, nElems
+  DO iLocSide = 1, 6
+    SideID=GetGlobalNonUniqueSideID(offsetElem+locElemID,iLocSide)
+    CNElemID = GetCNElemID(locElemID+offsetElem)
+    IF (SideInfo_Shared(SIDE_BCID,SideID).EQ.0) CYCLE
+    IF (PartBound%TargetBoundCond(PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID))).EQ.PartBound%PeriodicBC) THEN
+      PVID = BoundaryType(SideInfo_Shared(SIDE_BCID,SideID),BC_ALPHA)
+      NodeDone = .FALSE.
+      NbElemID = SideInfo_Shared(SIDE_NBELEMID,SideID)
+      CNNbElemID = GetCNElemID(NbElemID)
+      DO NbLocSide = 1, 6
+        NbSideID = GetGlobalNonUniqueSideID(NbElemID,NbLocSide)
+        IF (SideInfo_Shared(SIDE_BCID,NbSideID).GT.0) THEN
+          IF (PartBound%TargetBoundCond(PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,NbSideID))).EQ.PartBound%PeriodicBC) THEN
+            IF (PVID.EQ.-BoundaryType(SideInfo_Shared(SIDE_BCID,NbSideID),BC_ALPHA)) EXIT
+          END IF
+        END IF
+      END DO
+      DO iNode=1,4
+        IF (PeriodicNodeSourceMap(ABS(PVID),NodeInfo_Shared(ElemSideNodeID_Shared(iNode,iLocSide,CNElemID)+1)).GT.0) CYCLE
+        PeriodicNode= 0
+        Dist = HUGE(Dist)
+
+        DO jNode = 1,4
+          IF (NodeDone(jNode)) CYCLE
+          tmpDist = VECNORM(NodeCoords_Shared(1:3,ElemSideNodeID_Shared(iNode,iLocSide,CNElemID)+1) + SIGN( GEO%PeriodicVectors(1:3,ABS(PVID)),REAL(PVID)) &
+                -NodeCoords_Shared(1:3,ElemSideNodeID_Shared(jNode,NbLocSide,CNNbElemID)+1))
+          IF (tmpDist.LT.Dist) THEN
+            PeriodicNode = jNode
+            Dist = tmpDist
+          END IF
+        END DO ! jNode = 1,4
+        IF (PeriodicNode.EQ.0) CALL abort(__STAMP__,'Cannot find all periodic nodes for CVWM!')
+        NodeDone(PeriodicNode) = .TRUE.
+        UniqueNodeID = NodeInfo_Shared(ElemSideNodeID_Shared(PeriodicNode,NbLocSide,CNNbElemID)+1)
+        PeriodicNodeSourceMap(ABS(PVID),NodeInfo_Shared(ElemSideNodeID_Shared(iNode,iLocSide,CNElemID)+1)) = UniqueNodeID
+#if USE_MPI
+        GlobalElemRank = ElemInfo_Shared(ELEM_RANK,NbElemID)
+        IF (GlobalElemRank.NE.myRank) THEN
+          PeriodicNodeSourceMap(GEO%nPeriodicVectors+ABS(PVID),NodeInfo_Shared(ElemSideNodeID_Shared(iNode,iLocSide,CNElemID)+1)) = GlobalElemRank
+        END IF ! GlobalElemRank.NE.myRank
+#endif
+      END DO ! iNode=1,4
+    END IF ! PartBound%PeriodicBC
+  END DO ! iLocSide = 1, 6
+END DO ! locElemID=1, nElems
+
+#if USE_MPI
+! Find periodic nodes which do not have a corresponding BC side to which they are connected
+IF (ANY(PeriodicNodeSourceMap(1:GEO%nPeriodicVectors,:).GT.0)) THEN
+  ALLOCATE(NodewoBCSide(nUniqueGlobalNodes))
+END IF
+DO kNode = 1, nUniqueGlobalNodes
+  NumPerioNodes = COUNT(PeriodicNodeSourceMap(1:GEO%nPeriodicVectors,kNode).GT.0)
+  IF (NumPerioNodes.GT.0) THEN
+    minRank = myRank
+    ALLOCATE(NodewoBCSide(kNode)%RankID(NodeToElemMapping(2,kNode)))
+    NodewoBCSide(kNode)%RankID(:) = -1
+    elemCount = 0
+    DO jElem = NodeToElemMapping(1,kNode) + 1, NodeToElemMapping(1,kNode) + NodeToElemMapping(2,kNode)
+      elemCount = elemCount  + 1
+      TestElemID = GetGlobalElemID(NodeToElemInfo(jElem))
+      IF (ElemInfo_Shared(ELEM_RANK,TestElemID).EQ.myRank) CYCLE
+      NoBCSideOnNode = .TRUE.
+      LocSideLoop: DO iLocSide = 1, 6
+        SideID=GetGlobalNonUniqueSideID(TestElemID,iLocSide)
+        CNElemID = GetCNElemID(TestElemID)
+        FoundOwnNode = .FALSE.
+        IF (SideInfo_Shared(SIDE_BCID,SideID).EQ.0) CYCLE LocSideLoop
+        IF (PartBound%TargetBoundCond(PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID))).EQ.PartBound%PeriodicBC) THEN
+          NoBCSideOnNode = .FALSE.
+          PVID = BoundaryType(SideInfo_Shared(SIDE_BCID,SideID),BC_ALPHA)
+          IF (PeriodicNodeSourceMap(ABS(PVID),kNode).GT.0) CYCLE LocSideLoop
+          NodeCycle: DO iNode=1,4
+            IF (NodeInfo_Shared(ElemSideNodeID_Shared(iNode,iLocSide,CNElemID)+1).EQ.kNode) THEN
+              FoundOwnNode=.TRUE.
+              EXIT NodeCycle
+            END IF
+          END DO NodeCycle
+          IF (.NOT.FoundOwnNode) CYCLE LocSideLoop
+          NodeDone = .FALSE.
+          NbElemID = SideInfo_Shared(SIDE_NBELEMID,SideID)
+          CNNbElemID = GetCNElemID(NbElemID)
+          DO NbLocSide = 1, 6
+            NbSideID = GetGlobalNonUniqueSideID(NbElemID,NbLocSide)
+            IF (SideInfo_Shared(SIDE_BCID,NbSideID).GT.0) THEN
+              IF (PartBound%TargetBoundCond(PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,NbSideID))).EQ.PartBound%PeriodicBC) THEN
+                IF (PVID.EQ.-BoundaryType(SideInfo_Shared(SIDE_BCID,NbSideID),BC_ALPHA)) EXIT
+              END IF
+            END IF
+          END DO
+          PeriodicNode= 0
+          Dist = HUGE(Dist)
+
+          DO jNode = 1,4
+            IF (NodeDone(jNode)) CYCLE
+            tmpDist = VECNORM(NodeCoords_Shared(1:3,ElemSideNodeID_Shared(iNode,iLocSide,CNElemID)+1) + SIGN( GEO%PeriodicVectors(1:3,ABS(PVID)),REAL(PVID)) &
+                  -NodeCoords_Shared(1:3,ElemSideNodeID_Shared(jNode,NbLocSide,CNNbElemID)+1))
+            IF (tmpDist.LT.Dist) THEN
+              PeriodicNode = jNode
+              Dist = tmpDist
+            END IF
+          END DO ! jNode = 1,4
+          IF (PeriodicNode.EQ.0) CALL abort(__STAMP__,'Cannot find all periodic nodes for CVWM!')
+          NodeDone(PeriodicNode) = .TRUE.
+          UniqueNodeID = NodeInfo_Shared(ElemSideNodeID_Shared(PeriodicNode,NbLocSide,CNNbElemID)+1)
+          PeriodicNodeSourceMap(ABS(PVID),NodeInfo_Shared(ElemSideNodeID_Shared(iNode,iLocSide,CNElemID)+1)) = UniqueNodeID
+          GlobalElemRank = ElemInfo_Shared(ELEM_RANK,NbElemID)
+          IF (GlobalElemRank.NE.myRank) THEN
+            PeriodicNodeSourceMap(GEO%nPeriodicVectors+ABS(PVID),NodeInfo_Shared(ElemSideNodeID_Shared(iNode,iLocSide,CNElemID)+1)) = GlobalElemRank
+          END IF ! GlobalElemRank.NE.myRank
+        END IF ! PartBound%PeriodicBC
+      END DO LocSideLoop ! iLocSide = 1, 6
+      IF (NoBCSideOnNode) THEN
+        NodewoBCSide(kNode)%RankID(elemCount) = ElemInfo_Shared(ELEM_RANK,TestElemID)
+      ELSE
+        minRank = MIN(minRank,ElemInfo_Shared(ELEM_RANK,TestElemID))
+      END IF
+    END DO
+    IF (minRank.NE.myRank) NodewoBCSide(kNode)%RankID(:) = -1
+  END IF
+END DO
+
+
+
+ALLOCATE(SendPeriodicNodes(0:nProcessors_Global-1), PeriodicSendRecv(0:nProcessors_Global-1))
+ALLOCATE(iSendNode(0:nProcessors_Global-1),RecvPeriodicNodes(0:nProcessors_Global-1))
+
+iSendNode = 0
+SendPeriodicNodes = 0; RecvPeriodicNodes =0
+IF (ANY(PeriodicNodeSourceMap(1:GEO%nPeriodicVectors,:).GT.0)) THEN
+  DO iNode = 1, nUniqueGlobalNodes
+    IF (ALLOCATED(NodewoBCSide(iNode)%RankID)) THEN
+      NumPerioNodes = COUNT(NodewoBCSide(iNode)%RankID(:) .NE.-1)
+      IF (NumPerioNodes.GT.0) THEN
+        DO jElem = 1,  NodeToElemMapping(2,iNode)
+          IF (NodewoBCSide(iNode)%RankID(jElem).NE.-1) THEN
+            SendPeriodicNodes(NodewoBCSide(iNode)%RankID(jElem)) = SendPeriodicNodes(NodewoBCSide(iNode)%RankID(jElem)) + 1
+          END IF
+        END DO
+      END IF
+    END IF
+  END DO
+
+  DO iRank= 0, nProcessors_Global-1
+    IF (iRank.EQ.myRank) CYCLE
+    IF (SendPeriodicNodes(iRank).GT.0) THEN
+      ALLOCATE(PeriodicSendRecv(iRank)%Send(2*GEO%nPeriodicVectors+1,SendPeriodicNodes(iRank)))
+      PeriodicSendRecv(iRank)%Send = 0
+    END IF
+  END DO
+  DO iNode = 1, nUniqueGlobalNodes
+   IF (ALLOCATED(NodewoBCSide(iNode)%RankID)) THEN
+      NumPerioNodes = COUNT(NodewoBCSide(iNode)%RankID(:) .NE.-1)
+      IF (NumPerioNodes.GT.0) THEN
+        DO jElem = 1,  NodeToElemMapping(2,iNode)
+          iRank = NodewoBCSide(iNode)%RankID(jElem)
+          IF (iRank.NE.-1) THEN
+            iSendNode(iRank) = iSendNode(iRank) + 1
+            PeriodicSendRecv(iRank)%Send(1:2*GEO%nPeriodicVectors,iSendNode(iRank)) = PeriodicNodeSourceMap(1:2*GEO%nPeriodicVectors, iNode)
+            PeriodicSendRecv(iRank)%Send(2*GEO%nPeriodicVectors+1,iSendNode(iRank)) = iNode
+          END IF
+        END DO
+      END IF
+    END IF
+  END DO
+END IF
+
+DO iProc = 0,nProcessors_Global-1
+  IF (iProc.EQ.myRank) CYCLE
+  CALL MPI_IRECV( RecvPeriodicNodes(iProc)                 &
+                , 1          &
+                , MPI_INTEGER                                                 &
+                , iProc                        &
+                , 1667                                                         &
+                , MPI_COMM_PICLAS                                              &
+                , RecvRequestNonSymDepo(iProc)                                          &
+                , IERROR)
+  CALL MPI_ISEND( SendPeriodicNodes(iProc) &
+                , 1         &
+                , MPI_INTEGER                       &
+                , iProc                             &
+                , 1667                              &
+                , MPI_COMM_PICLAS                    &
+                , SendRequestNonSymDepo(iProc)      &
+                , IERROR)
+END DO
+
+! Finish communication
+DO iProc = 0,nProcessors_Global-1
+  IF (iProc.EQ.myRank) CYCLE
+  CALL MPI_WAIT(RecvRequestNonSymDepo(iProc),MPIStatus,IERROR)
+  IF(IERROR.NE.MPI_SUCCESS) CALL ABORT(__STAMP__,' MPI Communication error', IERROR)
+  CALL MPI_WAIT(SendRequestNonSymDepo(iProc),MPIStatus,IERROR)
+  IF(IERROR.NE.MPI_SUCCESS) CALL ABORT(__STAMP__,' MPI Communication error', IERROR)
+END DO
+
+DO iProc = 0,nProcessors_Global-1
+  IF (iProc.EQ.myRank) CYCLE
+  IF (RecvPeriodicNodes(iProc).NE.0) THEN
+    ALLOCATE(PeriodicSendRecv(iProc)%Recv(2*GEO%nPeriodicVectors+1,RecvPeriodicNodes(iProc)))
+    CALL MPI_IRECV( PeriodicSendRecv(iProc)%Recv(:,:)                  &
+                  , RecvPeriodicNodes(iProc)*(2*GEO%nPeriodicVectors+1)           &
+                  , MPI_INTEGER                                                 &
+                  , iProc                        &
+                  , 667                                                         &
+                  , MPI_COMM_PICLAS                                              &
+                  , RecvRequestNonSymDepo(iProc)                                          &
+                  , IERROR)
+  END IF
+  IF (SendPeriodicNodes(iProc).NE.0) THEN
+    CALL MPI_ISEND( PeriodicSendRecv(iProc)%Send &
+                  , SendPeriodicNodes(iProc)*(2*GEO%nPeriodicVectors+1)           &
+                  , MPI_INTEGER                       &
+                  , iProc                             &
+                  , 667                              &
+                  , MPI_COMM_PICLAS                    &
+                  , SendRequestNonSymDepo(iProc)      &
+                  , IERROR)
+  END IF
+END DO
+! Finish communication
+DO iProc = 0,nProcessors_Global-1
+  IF (iProc.EQ.myRank) CYCLE
+  IF (RecvPeriodicNodes(iProc).NE.0) THEN
+    CALL MPI_WAIT(RecvRequestNonSymDepo(iProc),MPIStatus,IERROR)
+    IF(IERROR.NE.MPI_SUCCESS) CALL ABORT(__STAMP__,' MPI Communication error', IERROR)
+  END IF
+  IF (SendPeriodicNodes(iProc).NE.0) THEN
+    CALL MPI_WAIT(SendRequestNonSymDepo(iProc),MPIStatus,IERROR)
+    IF(IERROR.NE.MPI_SUCCESS) CALL ABORT(__STAMP__,' MPI Communication error', IERROR)
+  END IF
+END DO
+
+DO iRank= 0, nProcessors_Global-1
+  IF (iRank.EQ.myRank) CYCLE
+  IF (RecvPeriodicNodes(iRank).GT.0) THEN
+    DO iNode = 1, RecvPeriodicNodes(iRank)
+      zGlobalNode = PeriodicSendRecv(iRank)%Recv(2*GEO%nPeriodicVectors+1,iNode)
+      DO jNode = 1, GEO%nPeriodicVectors
+        IF((PeriodicNodeSourceMap(jNode,zGlobalNode).EQ.0).AND.(PeriodicSendRecv(iRank)%Recv(jNode,iNode).NE.0))THEN
+          PeriodicNodeSourceMap(jNode,zGlobalNode) = PeriodicSendRecv(iRank)%Recv(jNode,iNode)
+          PeriodicNodeSourceMap(jNode+GEO%nPeriodicVectors,zGlobalNode) = PeriodicSendRecv(iRank)%Recv(jNode+GEO%nPeriodicVectors,iNode)
+        ELSEIF((PeriodicNodeSourceMap(jNode+GEO%nPeriodicVectors,zGlobalNode).LT.0).AND.(PeriodicSendRecv(iRank)%Recv(jNode+GEO%nPeriodicVectors,iNode).GE.0))THEN
+          PeriodicNodeSourceMap(jNode+GEO%nPeriodicVectors,zGlobalNode) = PeriodicSendRecv(iRank)%Recv(jNode+GEO%nPeriodicVectors,iNode)
+        END IF ! (PeriodicNodeSourceMap(jNode,zGlobalNode).EQ.0)
+      END DO ! jNode = 1, GEO%nPeriodicVectors
+    END DO
+    DEALLOCATE(PeriodicSendRecv(iRank)%Recv)
+  END IF
+  IF (SendPeriodicNodes(iRank).GT.0) THEN
+    DEALLOCATE(PeriodicSendRecv(iRank)%Send)
+  END IF
+END DO
+
+IF (ALLOCATED(NodewoBCSide)) THEN
+  DO iNode = 1, nUniqueGlobalNodes
+    SDEALLOCATE(NodewoBCSide(iNode)%RankID)
+  END DO
+  DEALLOCATE(NodewoBCSide)
+END IF
+
+
+
+
+iSendNode = 0
+SendPeriodicNodes = 0; RecvPeriodicNodes =0
+DO iNode = 1, nUniqueGlobalNodes
+  NumPerioNodes = COUNT(PeriodicNodeSourceMap(1:GEO%nPeriodicVectors,iNode).GT.0)
+  IF (NumPerioNodes.GT.0) THEN
+    DO jNode= 1, GEO%nPeriodicVectors
+      IF (PeriodicNodeSourceMap(jNode,iNode).NE.0) THEN
+        IF(PeriodicNodeSourceMap(jNode+GEO%nPeriodicVectors,iNode).NE.myrank)THEN
+          IF (PeriodicNodeSourceMap(jNode+GEO%nPeriodicVectors,iNode).NE.-1) THEN
+            SendPeriodicNodes(PeriodicNodeSourceMap(jNode+GEO%nPeriodicVectors,iNode)) = &
+              SendPeriodicNodes(PeriodicNodeSourceMap(jNode+GEO%nPeriodicVectors,iNode)) + 1
+          END IF
+        END IF ! PeriodicNodeSourceMap(jNode+GEO%nPeriodicVectors,iNode).NE.myrank
+      END IF
+    END DO
+  END IF
+END DO
+
+DO iRank= 0, nProcessors_Global-1
+  IF (iRank.EQ.myRank) CYCLE
+  IF (SendPeriodicNodes(iRank).GT.0) THEN
+    ALLOCATE(PeriodicSendRecv(iRank)%RecvNodes(SendPeriodicNodes(iRank)))
+
+    PeriodicSendRecv(iRank)%RecvNodes = 0
+  END IF
+END DO
+DO iNode = 1, nUniqueGlobalNodes
+  NumPerioNodes = COUNT(PeriodicNodeSourceMap(1:GEO%nPeriodicVectors,iNode).GT.0)
+  IF (NumPerioNodes.GT.0) THEN
+    DO jNode= 1, GEO%nPeriodicVectors
+      IF (PeriodicNodeSourceMap(jNode,iNode).NE.0) THEN
+        iRank = PeriodicNodeSourceMap(jNode+GEO%nPeriodicVectors,iNode)
+        IF (iRank.EQ.myRank) CYCLE
+        IF (iRank.NE.-1) THEN
+          iSendNode(iRank) = iSendNode(iRank) + 1
+          PeriodicSendRecv(iRank)%RecvNodes(iSendNode(iRank)) = PeriodicNodeSourceMap(jNode,iNode)
+        END IF
+      END IF
+    END DO
+  END IF
+END DO
+
+DO iProc = 0,nProcessors_Global-1
+  IF (iProc.EQ.myRank) CYCLE
+  CALL MPI_IRECV( RecvPeriodicNodes(iProc)                 &
+                , 1          &
+                , MPI_INTEGER                                                 &
+                , iProc                        &
+                , 1667                                                         &
+                , MPI_COMM_PICLAS                                              &
+                , RecvRequestNonSymDepo(iProc)                                          &
+                , IERROR)
+  CALL MPI_ISEND( SendPeriodicNodes(iProc) &
+                , 1         &
+                , MPI_INTEGER                       &
+                , iProc                             &
+                , 1667                              &
+                , MPI_COMM_PICLAS                    &
+                , SendRequestNonSymDepo(iProc)      &
+                , IERROR)
+END DO
+
+! Finish communication
+DO iProc = 0,nProcessors_Global-1
+  IF (iProc.EQ.myRank) CYCLE
+  CALL MPI_WAIT(RecvRequestNonSymDepo(iProc),MPIStatus,IERROR)
+  IF(IERROR.NE.MPI_SUCCESS) CALL ABORT(__STAMP__,' MPI Communication error', IERROR)
+  CALL MPI_WAIT(SendRequestNonSymDepo(iProc),MPIStatus,IERROR)
+  IF(IERROR.NE.MPI_SUCCESS) CALL ABORT(__STAMP__,' MPI Communication error', IERROR)
+END DO
+
+DO iProc = 0,nProcessors_Global-1
+  IF (iProc.EQ.myRank) CYCLE
+  IF (RecvPeriodicNodes(iProc).NE.0) THEN
+    ALLOCATE(PeriodicSendRecv(iProc)%SendNodes(RecvPeriodicNodes(iProc)))
+    CALL MPI_IRECV( PeriodicSendRecv(iProc)%SendNodes(:)                  &
+                  , RecvPeriodicNodes(iProc)           &
+                  , MPI_INTEGER                                                 &
+                  , iProc                        &
+                  , 667                                                         &
+                  , MPI_COMM_PICLAS                                              &
+                  , RecvRequestNonSymDepo(iProc)                                          &
+                  , IERROR)
+  END IF
+  IF (SendPeriodicNodes(iProc).NE.0) THEN
+    CALL MPI_ISEND( PeriodicSendRecv(iProc)%RecvNodes(:) &
+                  , SendPeriodicNodes(iProc)           &
+                  , MPI_INTEGER                       &
+                  , iProc                             &
+                  , 667                              &
+                  , MPI_COMM_PICLAS                    &
+                  , SendRequestNonSymDepo(iProc)      &
+                  , IERROR)
+  END IF
+END DO
+
+! Finish communication
+DO iProc = 0,nProcessors_Global-1
+  IF (iProc.EQ.myRank) CYCLE
+  IF (RecvPeriodicNodes(iProc).NE.0) THEN
+    CALL MPI_WAIT(RecvRequestNonSymDepo(iProc),MPIStatus,IERROR)
+    IF(IERROR.NE.MPI_SUCCESS) CALL ABORT(__STAMP__,' MPI Communication error', IERROR)
+  END IF
+  IF (SendPeriodicNodes(iProc).NE.0) THEN
+    CALL MPI_WAIT(SendRequestNonSymDepo(iProc),MPIStatus,IERROR)
+    IF(IERROR.NE.MPI_SUCCESS) CALL ABORT(__STAMP__,' MPI Communication error', IERROR)
+  END IF
+END DO
+
+iSendNode = 0
+DO iRank= 0, nProcessors_Global-1
+  IF (iRank.EQ.myRank) CYCLE
+  IF (RecvPeriodicNodes(iRank).GT.0) THEN
+    ALLOCATE(PeriodicSendRecv(iRank)%Send(GEO%nPeriodicVectors+1,RecvPeriodicNodes(iRank)))
+    DO iNode = 1, RecvPeriodicNodes(iRank)
+      zGlobalNode = PeriodicSendRecv(iRank)%SendNodes(iNode)
+      iSendNode(iRank) = iSendNode(iRank) + 1
+      PeriodicSendRecv(iRank)%Send(1:GEO%nPeriodicVectors,iSendNode(iRank)) = PeriodicNodeSourceMap(1:GEO%nPeriodicVectors, zGlobalNode)
+      PeriodicSendRecv(iRank)%Send(GEO%nPeriodicVectors+1,iSendNode(iRank)) = zGlobalNode
+    END DO
+  END IF
+END DO
+
+DO iProc = 0,nProcessors_Global-1
+  IF (iProc.EQ.myRank) CYCLE
+  IF (SendPeriodicNodes(iProc).NE.0) THEN
+    ALLOCATE(PeriodicSendRecv(iProc)%Recv(GEO%nPeriodicVectors+1,SendPeriodicNodes(iProc)))
+    CALL MPI_IRECV( PeriodicSendRecv(iProc)%Recv(:,:)                  &
+                  , SendPeriodicNodes(iProc)*(GEO%nPeriodicVectors+1)           &
+                  , MPI_INTEGER                                                 &
+                  , iProc                        &
+                  , 667                                                         &
+                  , MPI_COMM_PICLAS                                              &
+                  , RecvRequestNonSymDepo(iProc)                                          &
+                  , IERROR)
+  END IF
+  IF (RecvPeriodicNodes(iProc).NE.0) THEN
+    CALL MPI_ISEND( PeriodicSendRecv(iProc)%Send &
+                  , RecvPeriodicNodes(iProc)*(GEO%nPeriodicVectors+1)           &
+                  , MPI_INTEGER                       &
+                  , iProc                             &
+                  , 667                              &
+                  , MPI_COMM_PICLAS                    &
+                  , SendRequestNonSymDepo(iProc)      &
+                  , IERROR)
+  END IF
+END DO
+! Finish communication
+DO iProc = 0,nProcessors_Global-1
+  IF (iProc.EQ.myRank) CYCLE
+  IF (SendPeriodicNodes(iProc).NE.0) THEN
+    CALL MPI_WAIT(RecvRequestNonSymDepo(iProc),MPIStatus,IERROR)
+    IF(IERROR.NE.MPI_SUCCESS) CALL ABORT(__STAMP__,' MPI Communication error', IERROR)
+  END IF
+  IF (RecvPeriodicNodes(iProc).NE.0) THEN
+    CALL MPI_WAIT(SendRequestNonSymDepo(iProc),MPIStatus,IERROR)
+    IF(IERROR.NE.MPI_SUCCESS) CALL ABORT(__STAMP__,' MPI Communication error', IERROR)
+  END IF
+END DO
+
+DO iRank= 0, nProcessors_Global-1
+  IF (iRank.EQ.myRank) CYCLE
+  IF (SendPeriodicNodes(iRank).GT.0) THEN
+    DO iNode = 1, SendPeriodicNodes(iRank)
+      zGlobalNode = PeriodicSendRecv(iRank)%Recv(GEO%nPeriodicVectors+1,iNode)
+      DO jNode = 1, GEO%nPeriodicVectors
+        IF((PeriodicNodeSourceMap(jNode,zGlobalNode).EQ.0).AND.(PeriodicSendRecv(iRank)%Recv(jNode,iNode).NE.0))THEN
+          PeriodicNodeSourceMap(jNode,zGlobalNode) = PeriodicSendRecv(iRank)%Recv(jNode,iNode)
+        END IF ! (PeriodicNodeSourceMap(jNode,zGlobalNode).EQ.0)
+      END DO ! jNode = 1, GEO%nPeriodicVectors
+    END DO
+    DEALLOCATE(PeriodicSendRecv(iRank)%Recv)
+    DEALLOCATE(PeriodicSendRecv(iRank)%RecvNodes)
+  END IF
+  IF (RecvPeriodicNodes(iRank).GT.0) THEN
+    DEALLOCATE(PeriodicSendRecv(iRank)%Send)
+    DEALLOCATE(PeriodicSendRecv(iRank)%SendNodes)
+  END IF
+END DO
+#endif
+DO iNode = 1, nUniqueGlobalNodes
+  NumPerioNodes = COUNT(PeriodicNodeSourceMap(1:GEO%nPeriodicVectors,iNode).GT.0)
+  IF (NumPerioNodes.GT.1) NumPerioNodes = 2**NumPerioNodes - 1
+  IF (NumPerioNodes.NE.0) THEN
+    PeriodicNodeMap(iNode)%nPeriodicNodes = NumPerioNodes
+    ALLOCATE(PeriodicNodeMap(iNode)%Mapping(NumPerioNodes), PeriodicNodeMap(iNode)%Rank(NumPerioNodes))
+    PeriodicNodeMap(iNode)%Mapping = 0
+    PeriodicNodeMap(iNode)%Rank = -1
+    iPeriodNode = 0
+    DO jNode = 1, GEO%nPeriodicVectors
+      IF (PeriodicNodeSourceMap(jNode,iNode).NE.0) THEN
+        iPeriodNode = iPeriodNode + 1
+        PeriodicNodeMap(iNode)%Mapping(iPeriodNode) = PeriodicNodeSourceMap(jNode,iNode)
+        PeriodicNodeMap(iNode)%Rank(iPeriodNode) = PeriodicNodeSourceMap(jNode+GEO%nPeriodicVectors,iNode)
+      END IF
+    END DO
+    IF (NumPerioNodes.GT.0) THEN
+      DO jNode = 1, GEO%nPeriodicVectors
+        IF (PeriodicNodeSourceMap(jNode,iNode).NE.0) THEN
+          DO zNode = 1, GEO%nPeriodicVectors
+            zGlobalNode = PeriodicNodeSourceMap(zNode,PeriodicNodeSourceMap(jNode,iNode))
+            IF ((zGlobalNode.NE.0).AND.(zGlobalNode.NE.iNode)) THEN
+              IF (.NOT.ANY(PeriodicNodeMap(iNode)%Mapping(:).EQ.zGlobalNode)) THEN
+                iPeriodNode = iPeriodNode + 1
+                PeriodicNodeMap(iNode)%Mapping(iPeriodNode) = zGlobalNode
+                PeriodicNodeMap(iNode)%Rank(iPeriodNode) = PeriodicNodeSourceMap(zNode+GEO%nPeriodicVectors,PeriodicNodeSourceMap(jNode,iNode))
+              END IF
+            END IF
+          END DO
+        END IF
+      END DO
+    END IF
+  END IF
+END DO
+#if USE_MPI
+IF (GEO%nPeriodicVectors.GT.1) THEN
+  iSendNode = 0
+  SendPeriodicNodes = 0; RecvPeriodicNodes =0
+  DO iNode = 1, nUniqueGlobalNodes
+    IF (PeriodicNodeMap(iNode)%nPeriodicNodes.GT.0) THEN
+      IF (ANY(PeriodicNodeMap(iNode)%Mapping.EQ.0)) THEN
+        DO jNode = 1, PeriodicNodeMap(iNode)%nPeriodicNodes
+          iRank = PeriodicNodeMap(iNode)%Rank(jNode)
+          IF (iRank.EQ.myRank) CYCLE
+          IF (iRank.NE.-1) THEN
+            SendPeriodicNodes(iRank) = SendPeriodicNodes(iRank) + 1
+          END IF
+        END DO
+      END IF
+    END IF
+  END DO
+  DO iRank= 0, nProcessors_Global-1
+    IF (iRank.EQ.myRank) CYCLE
+    IF (SendPeriodicNodes(iRank).GT.0) THEN
+      ALLOCATE(PeriodicSendRecv(iRank)%RecvNodes(SendPeriodicNodes(iRank)))
+      PeriodicSendRecv(iRank)%RecvNodes = 0
+    END IF
+  END DO
+  DO iNode = 1, nUniqueGlobalNodes
+    IF (PeriodicNodeMap(iNode)%nPeriodicNodes.GT.0) THEN
+      IF (ANY(PeriodicNodeMap(iNode)%Mapping.EQ.0)) THEN
+        DO jNode = 1, PeriodicNodeMap(iNode)%nPeriodicNodes
+          iRank = PeriodicNodeMap(iNode)%Rank(jNode)
+          IF (iRank.EQ.myRank) CYCLE
+          IF (iRank.NE.-1) THEN
+            iSendNode(iRank) = iSendNode(iRank) + 1
+            PeriodicSendRecv(iRank)%RecvNodes(iSendNode(iRank)) = PeriodicNodeMap(iNode)%Mapping(jNode)
+          END IF
+        END DO
+      END IF
+    END IF
+  END DO
+
+  DO iProc = 0,nProcessors_Global-1
+    IF (iProc.EQ.myRank) CYCLE
+    CALL MPI_IRECV( RecvPeriodicNodes(iProc)                 &
+                  , 1          &
+                  , MPI_INTEGER                                                 &
+                  , iProc                        &
+                  , 1667                                                         &
+                  , MPI_COMM_PICLAS                                              &
+                  , RecvRequestNonSymDepo(iProc)                                          &
+                  , IERROR)
+    CALL MPI_ISEND( SendPeriodicNodes(iProc) &
+                  , 1         &
+                  , MPI_INTEGER                       &
+                  , iProc                             &
+                  , 1667                              &
+                  , MPI_COMM_PICLAS                    &
+                  , SendRequestNonSymDepo(iProc)      &
+                  , IERROR)
+  END DO
+
+ ! Finish communication
+  DO iProc = 0,nProcessors_Global-1
+    IF (iProc.EQ.myRank) CYCLE
+    CALL MPI_WAIT(RecvRequestNonSymDepo(iProc),MPIStatus,IERROR)
+    IF(IERROR.NE.MPI_SUCCESS) CALL ABORT(__STAMP__,' MPI Communication error', IERROR)
+    CALL MPI_WAIT(SendRequestNonSymDepo(iProc),MPIStatus,IERROR)
+    IF(IERROR.NE.MPI_SUCCESS) CALL ABORT(__STAMP__,' MPI Communication error', IERROR)
+  END DO
+
+  DO iProc = 0,nProcessors_Global-1
+    IF (iProc.EQ.myRank) CYCLE
+    IF (RecvPeriodicNodes(iProc).NE.0) THEN
+      ALLOCATE(PeriodicSendRecv(iProc)%SendNodes(RecvPeriodicNodes(iProc)))
+      CALL MPI_IRECV( PeriodicSendRecv(iProc)%SendNodes(:)                  &
+                    , RecvPeriodicNodes(iProc)           &
+                    , MPI_INTEGER                                                 &
+                    , iProc                        &
+                    , 667                                                         &
+                    , MPI_COMM_PICLAS                                              &
+                    , RecvRequestNonSymDepo(iProc)                                          &
+                    , IERROR)
+    END IF
+    IF (SendPeriodicNodes(iProc).NE.0) THEN
+      CALL MPI_ISEND( PeriodicSendRecv(iProc)%RecvNodes(:) &
+                    , SendPeriodicNodes(iProc)           &
+                    , MPI_INTEGER                       &
+                    , iProc                             &
+                    , 667                              &
+                    , MPI_COMM_PICLAS                    &
+                    , SendRequestNonSymDepo(iProc)      &
+                    , IERROR)
+    END IF
+  END DO
+
+  ! Finish communication
+  DO iProc = 0,nProcessors_Global-1
+    IF (iProc.EQ.myRank) CYCLE
+    IF (RecvPeriodicNodes(iProc).NE.0) THEN
+      CALL MPI_WAIT(RecvRequestNonSymDepo(iProc),MPIStatus,IERROR)
+      IF(IERROR.NE.MPI_SUCCESS) CALL ABORT(__STAMP__,' MPI Communication error', IERROR)
+    END IF
+    IF (SendPeriodicNodes(iProc).NE.0) THEN
+      CALL MPI_WAIT(SendRequestNonSymDepo(iProc),MPIStatus,IERROR)
+      IF(IERROR.NE.MPI_SUCCESS) CALL ABORT(__STAMP__,' MPI Communication error', IERROR)
+    END IF
+  END DO
+
+  iSendNode = 0
+  DO iRank= 0, nProcessors_Global-1
+    IF (iRank.EQ.myRank) CYCLE
+    IF (RecvPeriodicNodes(iRank).GT.0) THEN
+      ALLOCATE(PeriodicSendRecv(iRank)%Send(2**GEO%nPeriodicVectors,RecvPeriodicNodes(iRank)))
+      PeriodicSendRecv(iRank)%Send = 0
+      DO iNode = 1, RecvPeriodicNodes(iRank)
+        zGlobalNode = PeriodicSendRecv(iRank)%SendNodes(iNode)
+        iSendNode(iRank) = iSendNode(iRank) + 1
+        PeriodicSendRecv(iRank)%Send(1:PeriodicNodeMap(zGlobalNode)%nPeriodicNodes,iSendNode(iRank)) &
+          = PeriodicNodeMap(zGlobalNode)%Mapping(1:PeriodicNodeMap(zGlobalNode)%nPeriodicNodes)
+        PeriodicSendRecv(iRank)%Send(2**GEO%nPeriodicVectors,iSendNode(iRank)) = zGlobalNode
+      END DO
+    END IF
+  END DO
+
+  DO iProc = 0,nProcessors_Global-1
+    IF (iProc.EQ.myRank) CYCLE
+    IF (SendPeriodicNodes(iProc).NE.0) THEN
+      ALLOCATE(PeriodicSendRecv(iProc)%Recv(2**GEO%nPeriodicVectors,SendPeriodicNodes(iProc)))
+      CALL MPI_IRECV( PeriodicSendRecv(iProc)%Recv(:,:)                  &
+                    , SendPeriodicNodes(iProc)*(2**GEO%nPeriodicVectors)           &
+                    , MPI_INTEGER                                                 &
+                    , iProc                        &
+                    , 667                                                         &
+                    , MPI_COMM_PICLAS                                              &
+                    , RecvRequestNonSymDepo(iProc)                                          &
+                    , IERROR)
+    END IF
+    IF (RecvPeriodicNodes(iProc).NE.0) THEN
+      CALL MPI_ISEND( PeriodicSendRecv(iProc)%Send &
+                    , RecvPeriodicNodes(iProc)*(2**GEO%nPeriodicVectors)           &
+                    , MPI_INTEGER                       &
+                    , iProc                             &
+                    , 667                              &
+                    , MPI_COMM_PICLAS                    &
+                    , SendRequestNonSymDepo(iProc)      &
+                    , IERROR)
+    END IF
+  END DO
+  ! Finish communication
+  DO iProc = 0,nProcessors_Global-1
+    IF (iProc.EQ.myRank) CYCLE
+    IF (SendPeriodicNodes(iProc).NE.0) THEN
+      CALL MPI_WAIT(RecvRequestNonSymDepo(iProc),MPIStatus,IERROR)
+      IF(IERROR.NE.MPI_SUCCESS) CALL ABORT(__STAMP__,' MPI Communication error', IERROR)
+    END IF
+    IF (RecvPeriodicNodes(iProc).NE.0) THEN
+      CALL MPI_WAIT(SendRequestNonSymDepo(iProc),MPIStatus,IERROR)
+      IF(IERROR.NE.MPI_SUCCESS) CALL ABORT(__STAMP__,' MPI Communication error', IERROR)
+    END IF
+  END DO
+
+  DO iRank= 0, nProcessors_Global-1
+    IF (iRank.EQ.myRank) CYCLE
+    IF (SendPeriodicNodes(iRank).GT.0) THEN
+      DO iNode = 1, SendPeriodicNodes(iRank)
+        zGlobalNode = PeriodicSendRecv(iRank)%Recv(2**GEO%nPeriodicVectors,iNode)
+        PeriodicNodeMap(zGlobalNode)%Mapping(1:PeriodicNodeMap(zGlobalNode)%nPeriodicNodes) &
+        = PeriodicSendRecv(iRank)%Recv(1:PeriodicNodeMap(zGlobalNode)%nPeriodicNodes,iNode)
+      END DO
+      DEALLOCATE(PeriodicSendRecv(iRank)%Recv)
+      DEALLOCATE(PeriodicSendRecv(iRank)%RecvNodes)
+    END IF
+    IF (RecvPeriodicNodes(iRank).GT.0) THEN
+      DEALLOCATE(PeriodicSendRecv(iRank)%Send)
+      DEALLOCATE(PeriodicSendRecv(iRank)%SendNodes)
+    END IF
+  END DO
+
+  DEALLOCATE(PeriodicSendRecv, iSendNode, SendPeriodicNodes, RecvPeriodicNodes)
+END IF
+#endif
+DO iNode = 1, nUniqueGlobalNodes
+  IF (PeriodicNodeMap(iNode)%nPeriodicNodes.GT.0) THEN
+    IF (ANY(PeriodicNodeMap(iNode)%Mapping.EQ.0)) THEN
+      DO jNode = 1, PeriodicNodeMap(iNode)%nPeriodicNodes
+        IF (PeriodicNodeMap(iNode)%Mapping(jNode).EQ.0) THEN
+          DO kNode =1, jNode - 1
+            zGlobalNode = PeriodicNodeMap(iNode)%Mapping(kNode)
+            DO zNode = 1, PeriodicNodeMap(zGlobalNode)%nPeriodicNodes
+              IF ((PeriodicNodeMap(zGlobalNode)%Mapping(zNode).NE.0).AND.(PeriodicNodeMap(zGlobalNode)%Mapping(zNode).NE.iNode)) THEN
+                IF (.NOT.ANY(PeriodicNodeMap(iNode)%Mapping(:).EQ.PeriodicNodeMap(zGlobalNode)%Mapping(zNode))) THEN
+                  PeriodicNodeMap(iNode)%Mapping(jNode) = PeriodicNodeMap(zGlobalNode)%Mapping(zNode)
+                END IF
+              END IF
+            END DO
+          END DO
+        END IF
+      END DO
+    END IF
+  END IF
+END DO
+#if USE_MPI
+DO iNode = 1, nUniqueGlobalNodes
+  IF (PeriodicNodeMap(iNode)%nPeriodicNodes.GT.0) THEN
+    DO jNode = 1, PeriodicNodeMap(iNode)%nPeriodicNodes
+      TestNode = PeriodicNodeMap(iNode)%Mapping(jNode)
+      DO jElem = NodeToElemMapping(1,TestNode) + 1, NodeToElemMapping(1,TestNode) + NodeToElemMapping(2,TestNode)
+        TestElemID = GetGlobalElemID(NodeToElemInfo(jElem))
+        GlobalElemRank = ElemInfo_Shared(ELEM_RANK,TestElemID)
+        IF (GlobalElemRank.NE.myRank) THEN
+          SendNode(TestNode) = .TRUE.
+          DoNodeMapping(GlobalElemRank) = .TRUE.
+        END IF
+      END DO
+    END DO
+  END IF
+END DO
+#endif /*USE_MPI*/
+DEALLOCATE(PeriodicNodeSourceMap)
+
+! FERTIG
+#if USE_MPI
+CALL Allocate_Shared((/nUniqueGlobalNodes/),Periodic_nNodes_Shared_Win    ,Periodic_nNodes_Shared)
+CALL Allocate_Shared((/nUniqueGlobalNodes/),Periodic_offsetNode_Shared_Win,Periodic_offsetNode_Shared)
+CALL MPI_WIN_LOCK_ALL(0,Periodic_nNodes_Shared_Win    ,IERROR)
+CALL MPI_WIN_LOCK_ALL(0,Periodic_offsetNode_Shared_Win,IERROR)
+Periodic_nNodes => Periodic_nNodes_Shared
+Periodic_offsetNode => Periodic_offsetNode_Shared
+IF (myComputeNodeRank.EQ.0) THEN
+  Periodic_nNodes = 0
+  Periodic_offsetNode = 0
+END IF ! myComputeNodeRank.EQ.0
+CALL BARRIER_AND_SYNC(Periodic_nNodes_Shared_Win    ,MPI_COMM_SHARED)
+CALL BARRIER_AND_SYNC(Periodic_offsetNode_Shared_Win,MPI_COMM_SHARED)
+#else
+ALLOCATE(Periodic_nNodes(1:nUniqueGlobalNodes))
+Periodic_nNodes = 0
+ALLOCATE(Periodic_offsetNode(1:nUniqueGlobalNodes))
+Periodic_offsetNode = 0
+#endif /*USE_MPI*/
+
+ALLOCATE(PeriodicNodesPerNode(nUniqueGlobalNodes))
+DO iNode = 1,nUniqueGlobalNodes
+  PeriodicNodesPerNode(iNode) = PeriodicNodeMap(iNode)%nPeriodicNodes
+END DO ! iNode = nUniqueGlobalNodes
+
+#if USE_MPI
+IF(myComputeNodeRank.EQ.0)THEN
+  CALL MPI_REDUCE(MPI_IN_PLACE        ,PeriodicNodesPerNode,nUniqueGlobalNodes,MPI_INTEGER,MPI_MAX,0,MPI_COMM_SHARED,IERROR)
+#endif /*USE_MPI*/
+  nTotalPeriodicNodes = 0
+  DO iNode = 1,nUniqueGlobalNodes
+    Periodic_offsetNode(iNode) = nTotalPeriodicNodes
+    Periodic_nNodes(    iNode) = PeriodicNodesPerNode(iNode)
+    nTotalPeriodicNodes        = nTotalPeriodicNodes + PeriodicNodesPerNode(iNode)
+  END DO ! iNode = nUniqueGlobalNodes
+#if USE_MPI
+ELSE
+  CALL MPI_REDUCE(PeriodicNodesPerNode,0                   ,nUniqueGlobalNodes,MPI_INTEGER,MPI_MAX,0,MPI_COMM_SHARED,IERROR)
+END IF
+! Root knows the global number, now broadcast to other procs
+CALL MPI_BCAST(nTotalPeriodicNodes,1,MPI_INTEGER,0,MPI_COMM_SHARED,iERROR)
+
+CALL BARRIER_AND_SYNC(Periodic_nNodes_Shared_Win    ,MPI_COMM_SHARED)
+CALL BARRIER_AND_SYNC(Periodic_offsetNode_Shared_Win,MPI_COMM_SHARED)
+
+CALL Allocate_Shared((/nTotalPeriodicNodes/),Periodic_Nodes_Shared_Win,Periodic_Nodes_Shared)
+CALL MPI_WIN_LOCK_ALL(0,Periodic_Nodes_Shared_Win     ,IERROR)
+Periodic_Nodes => Periodic_Nodes_Shared
+IF (myComputeNodeRank.EQ.0) Periodic_Nodes = 0
+CALL BARRIER_AND_SYNC(Periodic_Nodes_Shared_Win,MPI_COMM_SHARED)
+#else
+ALLOCATE(Periodic_Nodes(1:nTotalPeriodicNodes))
+Periodic_Nodes = 0
+#endif /*USE_MPI*/
+
+! Every processor loops over its own periodic map and fills the Periodic_Nodes_Shared_Win array. MPI_ACCUMULATE ensures that data
+! is consistent
+DO iNode = 1,nUniqueGlobalNodes
+  ASSOCIATE(offset => Periodic_offsetNode(iNode))
+
+    IF (PeriodicNodeMap(iNode)%nPeriodicNodes.GT.0) THEN
+#if USE_MPI
+      CALL MPI_ACCUMULATE(PeriodicNodeMap(iNode)%Mapping             ,PeriodicNodeMap(iNode)%nPeriodicNodes, MPI_INTEGER, &
+                          0    ,INT(offset*SIZE_INT,MPI_ADDRESS_KIND),PeriodicNodeMap(iNode)%nPeriodicNodes, MPI_INTEGER, &
+                          MPI_REPLACE                                ,Periodic_Nodes_Shared_Win            , iError)
+#else
+      Periodic_Nodes(1+offset:offset+PeriodicNodeMap(iNode)%nPeriodicNodes) = PeriodicNodeMap(iNode)%Mapping
+#endif /*USE_MPI*/
+  END IF ! PeriodicNodeMap(iNode)%nPeriodicNodes.GT.0
+
+  END ASSOCIATE
+END DO ! iNode = nUniqueGlobalNodes
+#if USE_MPI
+CALL MPI_WIN_FLUSH(0 ,Periodic_Nodes_Shared_Win,iError)
+CALL BARRIER_AND_SYNC(Periodic_Nodes_Shared_Win,MPI_COMM_SHARED)
+#endif /*USE_MPI*/
+
+END SUBROUTINE InitializePeriodicNodes
+
+
 SUBROUTINE FinalizeDeposition()
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! finalize pic deposition
@@ -821,13 +1908,24 @@ SUBROUTINE FinalizeDeposition()
 ! MODULES                                                                                                                          !
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Globals
-USE MOD_Dielectric_Vars    ,ONLY: DoDielectricSurfaceCharge
 USE MOD_Particle_Mesh_Vars ,ONLY: GEO,PeriodicSFCaseMatrix
 USE MOD_PICDepo_Vars
 #if USE_MPI
 USE MOD_MPI_Shared_vars    ,ONLY: MPI_COMM_SHARED
 USE MOD_MPI_Shared
 #endif
+#if USE_LOADBALANCE
+USE MOD_PreProc
+USE MOD_LoadBalance_Vars   ,ONLY: PerformLoadBalance,UseH5IOLoadBalance
+USE MOD_LoadBalance_Vars   ,ONLY: PartSourceLB,NodeSourceExtEquiLB
+USE MOD_Mesh_Vars          ,ONLY: nElems
+USE MOD_Dielectric_Vars    ,ONLY: DoDielectricSurfaceCharge
+USE MOD_Particle_Mesh_Vars ,ONLY: ElemNodeID_Shared,NodeInfo_Shared,ElemNodeID_Shared_Win
+USE MOD_Mesh_Tools         ,ONLY: GetCNElemID
+USE MOD_Mesh_Vars          ,ONLY: offsetElem
+USE MOD_Particle_Mesh_Vars ,ONLY: GlobalElem2CNTotalElem,GlobalElem2CNTotalElem_Shared,GlobalElem2CNTotalElem_Shared_Win
+USE MOD_MPI_Shared_Vars    ,ONLY: nComputeNodeProcessors,nProcessors_Global
+#endif /*USE_LOADBALANCE*/
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
 ! INPUT VARIABLES
@@ -835,6 +1933,11 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
+#if USE_LOADBALANCE
+INTEGER,PARAMETER :: N_variables=1
+INTEGER           :: iElem
+INTEGER           :: NodeID(1:8)
+#endif /*USE_LOADBALANCE*/
 !===================================================================================================================================
 SDEALLOCATE(PartSourceConst)
 SDEALLOCATE(PartSourceOld)
@@ -861,18 +1964,11 @@ SDEALLOCATE(ChargeSFDone)
 !SDEALLOCATE(PartSourceLoc)
 SDEALLOCATE(PartSourceGlob)
 SDEALLOCATE(PeriodicSFCaseMatrix)
-SDEALLOCATE(PartSource)
 
 #if USE_MPI
-SDEALLOCATE(NodeSourceLoc)
-SDEALLOCATE(NodeMapping)
+SDEALLOCATE(FlagShapeElem)
 SDEALLOCATE(nDepoDOFPerProc)
 SDEALLOCATE(nDepoOffsetProc)
-SDEALLOCATE(RecvRequest)
-SDEALLOCATE(RecvRequest)
-SDEALLOCATE(SendRequest)
-SDEALLOCATE(RecvRequestCN)
-SDEALLOCATE(SendRequestCN)
 SDEALLOCATE(SendElemShapeID)
 SDEALLOCATE(CNRankToSendRank)
 
@@ -883,25 +1979,22 @@ IF(DoDeposition)THEN
   ! Deposition-dependent arrays
   SELECT CASE(TRIM(DepositionType))
   CASE('cell_volweight_mean')
-    CALL UNLOCK_AND_FREE(NodeSource_Shared_Win)
     CALL UNLOCK_AND_FREE(NodeVolume_Shared_Win)
-
-    ! Surface charging arrays
-    IF(DoDielectricSurfaceCharge)THEN
-      CALL UNLOCK_AND_FREE(NodeSourceExt_Shared_Win)
-      CALL UNLOCK_AND_FREE(NodeSourceExtTmp_Shared_Win)
-    END IF
+    IF(GEO%nPeriodicVectors.GT.0)THEN
+      CALL UNLOCK_AND_FREE(Periodic_Nodes_Shared_Win)
+      CALL UNLOCK_AND_FREE(Periodic_nNodes_Shared_Win)
+      CALL UNLOCK_AND_FREE(Periodic_offsetNode_Shared_Win)
+    END IF ! GEO%nPeriodicVectors.GT.0
   CASE('shape_function_adaptive')
     CALL UNLOCK_AND_FREE(SFElemr2_Shared_Win)
   END SELECT
 
   CALL MPI_BARRIER(MPI_COMM_SHARED,iERROR)
 
-  ADEALLOCATE(NodeSource_Shared)
   ADEALLOCATE(NodeVolume_Shared)
-  ADEALLOCATE(NodeSourceExt_Shared)
-  ADEALLOCATE(NodeSourceExtTmp_Shared)
-  SDEALLOCATE(NodeSourceExtTmpLoc)
+  ADEALLOCATE(Periodic_Nodes_Shared)
+  ADEALLOCATE(Periodic_nNodes_Shared)
+  ADEALLOCATE(Periodic_offsetNode_Shared)
 END IF ! DoDeposition
 
 ! Then, free the pointers or arrays
@@ -910,17 +2003,68 @@ END IF ! DoDeposition
 ! Deposition-dependent pointers/arrays
 SELECT CASE(TRIM(DepositionType))
   CASE('cell_volweight_mean')
-    ADEALLOCATE(NodeSource)
-    ! Surface charging pointers/arrays
-    IF(DoDielectricSurfaceCharge)THEN
-      ADEALLOCATE(NodeSourceExt)
-    END IF ! DoDielectricSurfaceCharge
-#if USE_MPI
-    ADEALLOCATE(NodeSource_Shared)
-#endif /*USE_MPI*/
   CASE('shape_function_adaptive')
     ADEALLOCATE(SFElemr2_Shared)
 END SELECT
+
+#if USE_LOADBALANCE
+IF ((PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance))) THEN
+
+  IF(DoDeposition)THEN
+    SDEALLOCATE(PartSourceLB)
+    ALLOCATE(PartSourceLB(1:4,0:PP_N,0:PP_N,0:PP_N,nElems))
+    PartSourceLB = PartSource
+  END IF ! DoDeposition
+
+  IF(DoDielectricSurfaceCharge)THEN
+    IF(DoDeposition) CALL ExchangeNodeSourceExtTmp()
+    !SDEALLOCATE(NodeSourceExtEquiLB)
+    !ALLOCATE(NodeSourceExtEquiLB(1:4,0:PP_N,0:PP_N,0:PP_N,nElems))
+    ALLOCATE(NodeSourceExtEquiLB(1:N_variables,0:1,0:1,0:1,nElems))
+    ! Loop over all elements and store absolute charge values in equidistantly distributed nodes of PP_N=1
+    DO iElem=1,PP_nElems
+      ! Copy values to equidistant distribution
+      NodeID = NodeInfo_Shared(ElemNodeID_Shared(:,GetCNElemID(iElem+offsetElem)))
+      NodeSourceExtEquiLB(1,0,0,0,iElem) = NodeSourceExt(NodeID(1))
+      NodeSourceExtEquiLB(1,1,0,0,iElem) = NodeSourceExt(NodeID(2))
+      NodeSourceExtEquiLB(1,1,1,0,iElem) = NodeSourceExt(NodeID(3))
+      NodeSourceExtEquiLB(1,0,1,0,iElem) = NodeSourceExt(NodeID(4))
+      NodeSourceExtEquiLB(1,0,0,1,iElem) = NodeSourceExt(NodeID(5))
+      NodeSourceExtEquiLB(1,1,0,1,iElem) = NodeSourceExt(NodeID(6))
+      NodeSourceExtEquiLB(1,1,1,1,iElem) = NodeSourceExt(NodeID(7))
+      NodeSourceExtEquiLB(1,0,1,1,iElem) = NodeSourceExt(NodeID(8))
+    END DO!iElem
+  END IF ! DoDielectricSurfaceCharge
+
+  ! Finalize here because GetCNElemID() is required in this routine for load balancing of NodeSourceExtEquiLB = NodeSourceExt
+  IF (nComputeNodeProcessors.NE.nProcessors_Global) THEN
+    CALL UNLOCK_AND_FREE(GlobalElem2CNTotalElem_Shared_Win)
+    ADEALLOCATE(GlobalElem2CNTotalElem)
+    ADEALLOCATE(GlobalElem2CNTotalElem_Shared)
+  END IF ! nComputeNodeProcessors.NE.nProcessors_Global
+END IF
+! This step was skipped in particle_mesh.f90: FinalizeParticleMesh()
+IF(PerformLoadBalance.AND.DoDielectricSurfaceCharge)THEN
+  ! From InitElemNodeIDs
+  CALL UNLOCK_AND_FREE(ElemNodeID_Shared_Win)
+  ADEALLOCATE(ElemNodeID_Shared)
+END IF
+#endif /*USE_LOADBALANCE*/
+
+SDEALLOCATE(PartSource)
+SDEALLOCATE(DepoNodetoGlobalNode)
+SDEALLOCATE(NodeSource)
+SDEALLOCATE(NodeSourceExt)
+
+#if USE_MPI
+SDEALLOCATE(NodeSendDepoRankToGlobalRank)
+SDEALLOCATE(NodeRecvDepoRankToGlobalRank)
+SDEALLOCATE(RecvRequest)
+SDEALLOCATE(SendRequest)
+SDEALLOCATE(NodeSourceExtTmp)
+SDEALLOCATE(NodeMappingSend)
+SDEALLOCATE(NodeMappingRecv)
+#endif /*USE_MPI*/
 
 END SUBROUTINE FinalizeDeposition
 

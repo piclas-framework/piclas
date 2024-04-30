@@ -1,7 +1,7 @@
 !==================================================================================================================================
 ! Copyright (c) 2010 - 2018 Prof. Claus-Dieter Munz and Prof. Stefanos Fasoulas
 !
-! This file is part of PICLas (gitlab.com/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
+! This file is part of PICLas (piclas.boltzplatz.eu/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
 ! it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3
 ! of the License, or (at your option) any later version.
 !
@@ -41,6 +41,8 @@ PUBLIC :: CalcPartRHS
 PUBLIC :: PartVeloToImp
 PUBLIC :: PartRHS
 PUBLIC :: CalcPartRHSSingleParticle
+PUBLIC :: CalcPartRHSRotRefFrame
+PUBLIC :: CalcPartPosInRotRef
 !----------------------------------------------------------------------------------------------------------------------------------
 
 ABSTRACT INTERFACE
@@ -175,12 +177,12 @@ INTEGER                          :: iPart
 DO iPart = 1,PDM%ParticleVecLength
   ! Particle is inside and not a neutral particle
   IF(PDM%ParticleInside(iPart))THEN
-    IF(isPushParticle(iPart))THEN
-      CALL PartRHS(iPart,FieldAtParticle(1:6,iPart),Pt(1:3,iPart))
-      CYCLE
-    END IF ! isPushParticle(iPart)
+     IF(isPushParticle(iPart))THEN
+       CALL PartRHS(iPart,FieldAtParticle(1:6,iPart),Pt(1:3,iPart))
+       CYCLE
+     END IF ! isPushParticle(iPart)
   END IF ! PDM%ParticleInside(iPart)
-  Pt(:,iPart)=0.
+  ! Pt(:,iPart)=0.
 END DO
 END SUBROUTINE CalcPartRHS
 
@@ -709,6 +711,35 @@ velosq=FieldAtParticle(1) ! dummy statement
 END SUBROUTINE PartRHS_CEM
 
 
+PPURE FUNCTION CalcPartRHSRotRefFrame(PosRotRef,VeloRotRef)
+!===================================================================================================================================
+!> 
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals       ,ONLY: CROSS
+USE MOD_Particle_Vars ,ONLY: RotRefFrameOmega
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+REAL,INTENT(IN)          :: PosRotRef(1:3), VeloRotRef(1:3)
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+REAL                     :: CalcPartRHSRotRefFrame(1:3)
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+!===================================================================================================================================
+
+IF(ALL(ALMOSTZERO(VeloRotRef(1:3)))) THEN
+  CalcPartRHSRotRefFrame(1:3) = - CROSS(RotRefFrameOmega(1:3),CROSS(RotRefFrameOmega(1:3),PosRotRef(1:3)))
+ELSE
+  CalcPartRHSRotRefFrame(1:3) = - CROSS(RotRefFrameOmega(1:3),CROSS(RotRefFrameOmega(1:3),PosRotRef(1:3))) &
+                                - 2.*CROSS(RotRefFrameOmega(1:3),VeloRotRef(1:3))
+END IF
+
+END FUNCTION CalcPartRHSRotRefFrame
+
+
 SUBROUTINE PartVeloToImp(VeloToImp,doParticle_In)
 !===================================================================================================================================
 ! map the particle velocity to gamma*velocity
@@ -763,5 +794,45 @@ ELSE
 END IF
 
 END SUBROUTINE PartVeloToImp
+
+
+SUBROUTINE CalcPartPosInRotRef(iPart, RotTimestep)
+!===================================================================================================================================
+!> Particle push in rotational frame of reference using the midpoint method
+!===================================================================================================================================
+! MODULES
+USE MOD_Particle_Vars         ,ONLY: PartState, PDM, PartVeloRotRef
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+INTEGER, INTENT(IN)           :: iPart
+REAL, INTENT(IN)              :: RotTimestep
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+REAL                          :: Pt_local(1:3), Pt_local_old(1:3), VeloRotRef_half(1:3), PartState_half(1:3)
+!===================================================================================================================================
+IF(PDM%InRotRefFrame(iPart)) THEN
+  ! Midpoint method
+  ! calculate the acceleration (force / mass) at the current time step
+  Pt_local_old(1:3) = CalcPartRHSRotRefFrame(PartState(1:3,iPart), PartVeloRotRef(1:3,iPart))
+  ! estimate the midpoint velocity in the rotational frame
+  VeloRotRef_half(1:3) = PartVeloRotRef(1:3,iPart) + 0.5*Pt_local_old(1:3)*RotTimestep
+  ! estimate the midpoint position
+  PartState_half(1:3) = PartState(1:3,iPart) + 0.5*PartVeloRotRef(1:3,iPart)*RotTimestep
+  ! calculate the acceleration (force / mass) at the midpoint
+  Pt_local(1:3) = CalcPartRHSRotRefFrame(PartState_half(1:3), VeloRotRef_half(1:3))
+  ! update the position using the midpoint velocity in the rotational frame
+  PartState(1:3,iPart) = PartState(1:3,iPart) + VeloRotRef_half(1:3)*RotTimestep
+  ! update the velocity in the rotational frame using the midpoint acceleration
+  PartVeloRotRef(1:3,iPart) = PartVeloRotRef(1:3,iPart) + Pt_local(1:3)*RotTimestep
+ELSE
+  PartState(1:3,iPart) = PartState(1:3,iPart) + PartState(4:6,iPart) * RotTimestep
+END IF
+
+END SUBROUTINE CalcPartPosInRotRef
+
 
 END MODULE MOD_part_RHS

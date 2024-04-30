@@ -1,7 +1,7 @@
 !==================================================================================================================================
 ! Copyright (c) 2010 - 2018 Prof. Claus-Dieter Munz and Prof. Stefanos Fasoulas
 !
-! This file is part of PICLas (gitlab.com/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
+! This file is part of PICLas (piclas.boltzplatz.eu/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
 ! it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3
 ! of the License, or (at your option) any later version.
 !
@@ -21,9 +21,9 @@ USE MOD_io_HDF5
 USE MOD_HDF5_output
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
+! Private Part ---------------------------------------------------------------------------------------------------------------------
 PRIVATE
 !-----------------------------------------------------------------------------------------------------------------------------------
-! Private Part ---------------------------------------------------------------------------------------------------------------------
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
 
 INTERFACE WriteStateToHDF5
@@ -33,6 +33,7 @@ END INTERFACE
 PUBLIC :: WriteStateToHDF5
 #if defined(PARTICLES)
 PUBLIC :: WriteIMDStateToHDF5
+PUBLIC :: WriteElemDataToSeparateContainer
 #endif /*PARTICLES*/
 !===================================================================================================================================
 
@@ -55,7 +56,7 @@ USE MOD_Restart_Vars           ,ONLY: RestartFile,DoInitialAutoRestart
 #ifdef PARTICLES
 USE MOD_DSMC_Vars              ,ONLY: RadialWeighting
 USE MOD_PICDepo_Vars           ,ONLY: OutputSource,PartSource
-USE MOD_Particle_Sampling_Vars ,ONLY: UseAdaptive
+USE MOD_Particle_Sampling_Vars ,ONLY: UseAdaptiveBC
 USE MOD_SurfaceModel_Vars      ,ONLY: nPorousBC
 USE MOD_Particle_Boundary_Vars ,ONLY: DoBoundaryParticleOutputHDF5, PartBound
 USE MOD_Dielectric_Vars        ,ONLY: DoDielectricSurfaceCharge
@@ -72,7 +73,7 @@ USE MOD_Particle_Vars          ,ONLY: CalcBulkElectronTemp,BulkElectronTemp
 USE MOD_Equation_Vars          ,ONLY: E,Phi
 #endif /*PP_POIS*/
 #if USE_HDG
-USE MOD_HDG_Vars               ,ONLY: lambda, nGP_face
+USE MOD_HDG_Vars               ,ONLY: nGP_face,iLocSides,UseFPC,FPC,UseEPC,EPC
 #if PP_nVar==1
 USE MOD_Equation_Vars          ,ONLY: E,Et
 #elif PP_nVar==3
@@ -82,18 +83,18 @@ USE MOD_Equation_Vars          ,ONLY: E,B
 #endif /*PP_nVar*/
 USE MOD_Mesh_Vars              ,ONLY: nSides
 USE MOD_Utils                  ,ONLY: QuickSortTwoArrays
-USE MOD_Mesh_Vars              ,ONLY: MortarType,SideToElem,MortarInfo
-USE MOD_Mesh_Vars              ,ONLY: firstMortarInnerSide,lastMortarInnerSide
-USE MOD_Mesh_Vars              ,ONLY: lastMPISide_MINE,lastInnerSide
 USE MOD_Mappings               ,ONLY: CGNS_SideToVol2
 USE MOD_Utils                  ,ONLY: Qsort1DoubleInt1PInt
+USE MOD_Mesh_Tools             ,ONLY: LambdaSideToMaster
 #if USE_MPI
-USE MOD_MPI_Vars               ,ONLY: OffsetMPISides_rec,nNbProcs,nMPISides_rec,nbProc,RecRequest_U,SendRequest_U
-USE MOD_MPI                    ,ONLY: StartReceiveMPIData,StartSendMPIData,FinishExchangeMPIData
+USE MOD_Mesh_Vars              ,ONLY: lastInnerSide
+USE MOD_MPI_Vars               ,ONLY: OffsetMPISides_rec,nNbProcs,nMPISides_rec,nbProc
+USE MOD_Mesh_Tools             ,ONLY: GetMasteriLocSides
 #endif /*USE_MPI*/
 USE MOD_Mesh_Vars              ,ONLY: GlobalUniqueSideID
 USE MOD_Analyze_Vars           ,ONLY: CalcElectricTimeDerivative
 #ifdef PARTICLES
+USE MOD_HDG_Vars               ,ONLY: UseBiasVoltage,BiasVoltage,BVDataLength
 USE MOD_PICInterpolation_Vars  ,ONLY: useAlgebraicExternalField,AlgebraicExternalField
 USE MOD_Analyze_Vars           ,ONLY: AverageElectricPotential
 USE MOD_Mesh_Vars              ,ONLY: Elem_xGP
@@ -102,17 +103,19 @@ USE MOD_Particle_Analyze_Vars  ,ONLY: CalcElectronIonDensity,CalcElectronTempera
 USE MOD_Particle_Analyze_Tools ,ONLY: AllocateElectronIonDensityCell,AllocateElectronTemperatureCell
 USE MOD_Particle_Analyze_Tools ,ONLY: CalculateElectronIonDensityCell,CalculateElectronTemperatureCell
 USE MOD_HDF5_Output_Particles  ,ONLY: AddBRElectronFluidToPartSource
+USE MOD_HDG_Vars               ,ONLY: CoupledPowerPotential,UseCoupledPowerPotential,CPPDataLength
 #endif /*PARTICLES*/
 #endif /*USE_HDG*/
 USE MOD_Analyze_Vars           ,ONLY: OutputTimeFixed
 USE MOD_Output_Vars            ,ONLY: DoWriteStateToHDF5
 USE MOD_StringTools            ,ONLY: set_formatting,clear_formatting
-USE MOD_HDF5_Input             ,ONLY: ReadArray
 #if (PP_nVar==8)
 USE MOD_HDF5_Output_Fields     ,ONLY: WritePMLDataToHDF5
 #endif
 USE MOD_HDF5_Output_ElemData   ,ONLY: WriteAdditionalElemData
 ! IMPLICIT VARIABLE HANDLING
+USE MOD_Analyze_Vars           ,ONLY: OutputErrorNormsToH5
+USE MOD_HDF5_Output_Fields     ,ONLY: WriteErrorNormsToHDF5
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
@@ -131,6 +134,9 @@ INTEGER(KIND=IK)               :: nVar
 #ifdef PARTICLES
 REAL                           :: NumSpec(nSpecAnalyze),TmpArray(1,1)
 INTEGER(KIND=IK)               :: SimNumSpec(nSpecAnalyze)
+#if USE_HDG
+REAL,ALLOCATABLE               :: CPPDataHDF5(:,:)
+#endif /*USE_HDG*/
 #endif /*PARTICLES*/
 REAL                           :: StartT,EndT
 
@@ -155,16 +161,20 @@ INTEGER(KIND=IK)               :: PP_nVarTmp
 LOGICAL                        :: usePreviousTime_loc
 #if USE_HDG
 INTEGER                        :: iSide
-INTEGER                        :: SideID,iGlobSide,iLocSide,iLocSide_NB,iMortar,nMortars,MortarSideID
+INTEGER                        :: iGlobSide
 INTEGER,ALLOCATABLE            :: SortedUniqueSides(:),GlobalUniqueSideID_tmp(:)
+#if USE_MPI
 LOGICAL,ALLOCATABLE            :: OutputSide(:)
-REAL,ALLOCATABLE               :: SortedLambda(:,:,:)          ! lambda, ((PP_N+1)^2,nSides)
-INTEGER                        :: SortedOffset,SortedStart,SortedEnd,p,q,r,rr,pq(1:2)
 INTEGER                        :: SideID_start, SideID_end,iNbProc,SendID
-REAL,ALLOCATABLE               :: iLocSides(:,:,:)          ! iLocSides, ((PP_N+1)^2,nSides)
+#endif /*USE_MPI*/
+REAL,ALLOCATABLE               :: SortedLambda(:,:,:)          ! lambda, ((PP_N+1)^2,nSides)
+INTEGER                        :: SortedOffset,SortedStart,SortedEnd
 #ifdef PARTICLES
 INTEGER                        :: i,j,k,iElem
+REAL,ALLOCATABLE               :: BVDataHDF5(:,:)
 #endif /*PARTICLES*/
+REAL,ALLOCATABLE               :: FPCDataHDF5(:,:),EPCDataHDF5(:,:)
+INTEGER                        :: nVarFPC,nVarEPC
 #endif /*USE_HDG*/
 !===================================================================================================================================
 #ifdef EXTRAE
@@ -192,20 +202,16 @@ END IF
 IF(.NOT.DoWriteStateToHDF5)THEN
   ! Check if the total number of particles has already been determined
   IF(.NOT.GlobalNbrOfParticlesUpdated) CALL CalcNumPartsOfSpec(NumSpec,SimNumSpec,.FALSE.,.TRUE.)
-  ! Output total number of particles here as the end of this routine will not be reached
-  SWRITE(UNIT_StdOut,'(A,ES16.7)') "#Particles : ", REAL(nGlobalNbrOfParticles)
+  ! Output total number of particles here as the end of this routine will not be reached when DoWriteStateToHDF5 is false
+  CALL DisplayNumberOfParticles(1)
 END IF ! .NOT.DoWriteStateToHDF5
 #endif /*PARTICLES*/
 
 ! Check if state file creation should be skipped
 IF(.NOT.DoWriteStateToHDF5) RETURN
 
-SWRITE(UNIT_stdOut,'(a)',ADVANCE='NO')' WRITE STATE TO HDF5 FILE '
-#if USE_MPI
-StartT=MPI_WTIME()
-#else
-CALL CPU_TIME(StartT)
-#endif
+SWRITE(UNIT_stdOut,'(A)',ADVANCE='NO')' WRITE STATE TO HDF5 FILE '
+GETTIME(StartT)
 
 
 ! Generate skeleton for the file with all relevant data on a single proc (MPIRoot)
@@ -233,7 +239,7 @@ END IF
 
 ! Reopen file and write DG solution
 #if USE_MPI
-CALL MPI_BARRIER(MPI_COMM_WORLD,iError)
+CALL MPI_BARRIER(MPI_COMM_PICLAS,iError)
 #endif
 
 ! Associate construct for integer KIND=8 possibility
@@ -333,40 +339,8 @@ ASSOCIATE (&
       END DO !iProc=1,nNBProcs
     END DO ! SendID = 1, 2
 
-  ! Exchange iLocSides from master to slaves: Send MINE, receive YOUR direction
-    ALLOCATE(iLocSides(PP_nVar,nGP_face,nSides))
-    iLocSides = -100.
-    DO iSide = 1, nSides
-      iLocSides(:,:,iSide) = REAL(SideToElem(S2E_LOC_SIDE_ID,iSide))
+    CALL GetMasteriLocSides()
 
-      iLocSide_NB = SideToElem(S2E_NB_LOC_SIDE_ID,iSide)
-
-      ! Check real small mortar side (when the same proc has both the big an one or more small side connected elements)
-      IF(MortarType(1,iSide).EQ.0.AND.iLocSide_NB.NE.-1) iLocSides(:,:,iSide) = REAL(iLocSide_NB)
-
-      ! is small virtual mortar side is encountered and no NB iLocSide is given
-      IF(MortarType(1,iSide).EQ.0.AND.iLocSide_NB.EQ.-1)THEN
-        ! check all my big mortar sides and find the one to which the small virtual is connected
-        Check1: DO MortarSideID=firstMortarInnerSide,lastMortarInnerSide
-          nMortars=MERGE(4,2,MortarType(1,MortarSideID).EQ.1)
-          DO iMortar=1,nMortars
-            SideID= MortarInfo(MI_SIDEID,iMortar,MortarType(2,MortarSideID)) !small SideID
-            IF(iSide.EQ.SideID)THEN
-              iLocSide = SideToElem(S2E_LOC_SIDE_ID,MortarSideID)
-              IF(iLocSide.NE.-1)THEN ! MINE side (big mortar)
-                iLocSides(:,:,iSide) = REAL(iLocSide)
-              ELSE
-                CALL abort(__STAMP__,'This big mortar side must be master')
-              END IF !iLocSide.NE.-1
-              EXIT Check1
-            END IF ! iSide.EQ.SideID
-          END DO !iMortar
-        END DO Check1 !MortarSideID
-      END IF ! MortarType(1,iSide).EQ.0
-    END DO
-    CALL StartReceiveMPIData(1,iLocSides,1,nSides, RecRequest_U,SendID=1) ! Receive YOUR
-    CALL StartSendMPIData(   1,iLocSides,1,nSides,SendRequest_U,SendID=1) ! Send MINE
-    CALL FinishExchangeMPIData(SendRequest_U,RecRequest_U,SendID=1)
   END IF ! nProcessors.GT.1
 #endif /*USE_MPI*/
 
@@ -386,76 +360,23 @@ ASSOCIATE (&
   ! Fill array with lambda values in global unique side sorted order
   ALLOCATE(SortedLambda(PP_nVar,nGP_face,nSides))
   SortedLambda = HUGE(1.)
+  ! This loop goes over all nSides and is labelled iGlobSide because all unique global sides that each processors outputs must be
+  ! transformed into master side orientation for read-in during restart later on
   DO iGlobSide = 1, nSides
     ! Set side ID in processor local list
     iSide = SortedUniqueSides(iGlobSide)
 
+#if USE_MPI
     ! Skip sides that are not processed by the current proc
     IF(nProcessors.GT.1)THEN
+      ! Check if a side belongs to me (all BC and inner sides automatically included); at MPI interfaces the smaller rank wins and
+      ! must output the data, because for these sides it is ambiguous
       IF(.NOT.OutputSide(iSide)) CYCLE
     END IF ! nProcessors.GT.1
+#endif /*USE_MPI*/
 
-    IF(iSide.GT.lastMPISide_MINE)THEN
-      iLocSide = NINT(iLocSides(1,1,iSide))
-    ELSE
-      iLocSide = SideToElem(S2E_LOC_SIDE_ID,iSide)
-    END IF ! iSide.GT.lastMPISide_MINE
+    CALL LambdaSideToMaster(iSide,SortedLambda(:,:,iGlobSide))
 
-    !master element
-    !iLocSide = SideToElem(S2E_LOC_SIDE_ID,iSide)
-    IF(iLocSide.NE.-1)THEN ! MINE side
-      DO q=0,PP_N
-        DO p=0,PP_N
-          pq=CGNS_SideToVol2(PP_N,p,q,iLocSide)
-          r  = q    *(PP_N+1)+p    +1
-          rr = pq(2)*(PP_N+1)+pq(1)+1
-          SortedLambda(:,r:r,iGlobSide) = lambda(:,rr:rr,iSide)
-        END DO
-      END DO !p,q
-      CYCLE
-    END IF !iLocSide.NE.-1
-
-    ! neighbour element (e.g. small mortar sides when one proc has both the large and one or more small side connected elements)
-    iLocSide_NB = SideToElem(S2E_NB_LOC_SIDE_ID,iSide)
-    IF(iLocSide_NB.NE.-1)THEN ! YOUR side
-      DO q=0,PP_N
-        DO p=0,PP_N
-          pq = CGNS_SideToVol2(PP_N,p,q,iLocSide_NB)
-          r  = q    *(PP_N+1)+p    +1
-          rr = pq(2)*(PP_N+1)+pq(1)+1
-          SortedLambda(:,r:r,iGlobSide) = lambda(:,rr:rr,iSide)
-        END DO
-      END DO !p,q
-      CYCLE
-    END IF !iLocSide_NB.NE.-1
-
-    ! is small virtual mortar side is encountered and no NB iLocSide is given
-    IF(MortarType(1,iSide).EQ.0.AND.iLocSide_NB.EQ.-1)THEN
-      ! check all my big mortar sides and find the one to which the small virtual is connected
-      Check2: DO MortarSideID=firstMortarInnerSide,lastMortarInnerSide
-        nMortars=MERGE(4,2,MortarType(1,MortarSideID).EQ.1)
-        !locSide=MortarType(2,MortarSideID)
-        DO iMortar=1,nMortars
-          SideID= MortarInfo(MI_SIDEID,iMortar,MortarType(2,MortarSideID)) !small SideID
-          IF(iSide.EQ.SideID)THEN
-            iLocSide = SideToElem(S2E_LOC_SIDE_ID,MortarSideID)
-            IF(iLocSide.NE.-1)THEN ! MINE side (big mortar)
-              DO q=0,PP_N
-                DO p=0,PP_N
-                  pq=CGNS_SideToVol2(PP_N,p,q,iLocSide)
-                  r  = q    *(PP_N+1)+p    +1
-                  rr = pq(2)*(PP_N+1)+pq(1)+1
-                  SortedLambda(:,r:r,iGlobSide) = lambda(:,rr:rr,iSide)
-                END DO
-              END DO !p,q
-            ELSE
-              CALL abort(__STAMP__,'This big mortar side must be master')
-            END IF !iLocSide.NE.-1
-            EXIT Check2
-          END IF ! iSide.EQ.SideID
-        END DO !iMortar
-      END DO Check2 !MortarSideID
-    END IF ! MortarType(1,iSide).EQ.0
   END DO ! iGlobSide = 1, nSides
 
   ! Deallocate temporary arrays
@@ -466,7 +387,9 @@ ASSOCIATE (&
   ! Get offset and min/max index in sorted list
   SortedStart = 1
   SortedEnd   = nSides
+  SortedOffset = 0 ! initialize
 
+#if USE_MPI
   IF(nProcessors.GT.1)THEN
     SortedOffset=HUGE(1)
     DO iSide = 1, nSides
@@ -480,18 +403,18 @@ ASSOCIATE (&
     END DO
     SortedOffset = SortedOffset-1
     DEALLOCATE(OutputSide)
-  ELSE
-    SortedOffset = 0
   END IF ! nProcessors.GT.1
+#endif /*USE_MPI*/
 
-  ASSOCIATE( nOutputSides => INT(SortedEnd-SortedStart+1,IK) ,&
+  ASSOCIATE( nGlobalOutputSides => INT(SortedEnd-SortedStart+1,IK) ,&
         SortedOffset => INT(SortedOffset,IK)            ,&
         SortedStart  => INT(SortedStart,IK)             ,&
-        SortedEnd    => INT(SortedEnd,IK)                )
+        SortedEnd    => INT(SortedEnd,IK)               ,&
+        nGP_face     => INT(nGP_face,IK)                )
     CALL GatheredWriteArray(FileName,create=.FALSE.,&
         DataSetName = 'DG_SolutionLambda', rank=3,&
         nValGlobal  = (/PP_nVarTmp , nGP_face , nGlobalUniqueSides/) , &
-        nVal        = (/PP_nVarTmp , nGP_face , nOutputSides/)       , &
+        nVal        = (/PP_nVarTmp , nGP_face , nGlobalOutputSides/)       , &
         offset      = (/0_IK       , 0_IK     , SortedOffset/)       , &
         collective  = .TRUE.                                         , &
         RealArray   = SortedLambda(:,:,SortedStart:SortedEnd))
@@ -509,8 +432,8 @@ ASSOCIATE (&
 #ifdef PARTICLES
   ! Adjust electric field for Landmark testcase
   IF(useAlgebraicExternalField.AND.AlgebraicExternalField.EQ.1)THEN
-    DO iElem=1,PP_nElems
-      DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
+    DO iElem=1,INT(PP_nElems)
+      DO k=0,INT(PP_N); DO j=0,INT(PP_N); DO i=0,INT(PP_N)
         ASSOCIATE( Ue => AverageElectricPotential ,&
               xe => 2.4e-2                        ,&
               x  => Elem_xGP(1,i,j,k,iElem))
@@ -570,9 +493,9 @@ ASSOCIATE (&
 #ifdef PARTICLES
   ! output of last source term
 #if USE_MPI
-  CALL MPI_BARRIER(MPI_COMM_WORLD,iError)
+  CALL MPI_BARRIER(MPI_COMM_PICLAS,iError)
 #endif /*USE_MPI*/
-  IF(OutPutSource) THEN
+  IF(OutputSource) THEN
 #if USE_HDG
     ! Add BR electron fluid density to PartSource for output to state.h5
     IF(UseBRElectronFluid) CALL AddBRElectronFluidToPartSource()
@@ -607,9 +530,9 @@ ASSOCIATE (&
   IF(CalcElectricTimeDerivative) THEN
     nVar=3_IK
     ALLOCATE(LocalStrVarNames(1:nVar))
-    LocalStrVarNames(1)='TimeDerivativeElectricFieldX'
-    LocalStrVarNames(2)='TimeDerivativeElectricFieldY'
-    LocalStrVarNames(3)='TimeDerivativeElectricFieldZ'
+    LocalStrVarNames(1)='TimeDerivativeElecDisplacementX'
+    LocalStrVarNames(2)='TimeDerivativeElecDisplacementY'
+    LocalStrVarNames(3)='TimeDerivativeElecDisplacementZ'
     IF(MPIRoot)THEN
       CALL OpenDataFile(FileName,create=.FALSE.,single=.TRUE.,readOnly=.FALSE.)
       CALL WriteAttributeToHDF5(File_ID,'VarNamesTimeDerivative',INT(nVar,4),StrArray=LocalStrVarnames)
@@ -637,27 +560,84 @@ IF(DoBoundaryParticleOutputHDF5) THEN
     CALL WriteBoundaryParticleToHDF5(MeshFileName,OutputTime_loc)
   END IF
 END IF
-IF(UseAdaptive.OR.(nPorousBC.GT.0)) CALL WriteAdaptiveInfoToHDF5(FileName)
+IF(UseAdaptiveBC.OR.(nPorousBC.GT.0)) CALL WriteAdaptiveInfoToHDF5(FileName)
 CALL WriteVibProbInfoToHDF5(FileName)
 IF(RadialWeighting%PerformCloning) CALL WriteClonesToHDF5(FileName)
-IF (ANY(PartBound%UseAdaptedWallTemp)) CALL WriteAdaptiveWallTempToHDF5(FileName)
+IF (PartBound%OutputWallTemp) CALL WriteAdaptiveWallTempToHDF5(FileName)
 #if USE_MPI
-CALL MPI_BARRIER(MPI_COMM_WORLD,iError)
+CALL MPI_BARRIER(MPI_COMM_PICLAS,iError)
 #endif /*USE_MPI*/
 ! For restart purposes, store the electron bulk temperature in .h5 state
-IF(CalcBulkElectronTemp)THEN
-  IF(MPIRoot)THEN ! only root writes the container
-    CALL OpenDataFile(FileName,create=.FALSE.,single=.TRUE.,readOnly=.FALSE.)
-    TmpArray(1,1) = BulkElectronTemp
-    CALL WriteArrayToHDF5( DataSetName = 'BulkElectronTemp' , rank = 2 , &
-                           nValGlobal  = (/1_IK , 1_IK/)     , &
-                           nVal        = (/1_IK , 1_IK/)     , &
-                           offset      = (/0_IK , 0_IK/)     , &
-                           collective  = .FALSE., RealArray = TmpArray(1,1))
-    CALL CloseDataFile()
-  END IF ! MPIRoot
-END IF ! CalcBulkElectronTemp
+! Only root writes the container
+IF(CalcBulkElectronTemp.AND.MPIRoot)THEN
+  CALL OpenDataFile(FileName,create=.FALSE.,single=.TRUE.,readOnly=.FALSE.)
+  TmpArray(1,1) = BulkElectronTemp
+  CALL WriteArrayToHDF5( DataSetName = 'BulkElectronTemp' , rank = 2 , &
+                         nValGlobal  = (/1_IK , 1_IK/)               , &
+                         nVal        = (/1_IK , 1_IK/)               , &
+                         offset      = (/0_IK , 0_IK/)               , &
+                         collective  = .FALSE., RealArray = TmpArray(1,1))
+  CALL CloseDataFile()
+END IF ! CalcBulkElectronTempi.AND.MPIRoot
+#if USE_HDG
+IF(UseCoupledPowerPotential.AND.MPIRoot)THEN
+  ALLOCATE(CPPDataHDF5(1:CPPDataLength,1))
+  CALL OpenDataFile(FileName,create=.FALSE.,single=.TRUE.,readOnly=.FALSE.)
+  CPPDataHDF5(1:CPPDataLength,1) = CoupledPowerPotential(1:CPPDataLength)
+  CALL WriteArrayToHDF5( DataSetName = 'CoupledPowerPotential' , rank = 2 , &
+                         nValGlobal  = (/1_IK , INT(CPPDataLength,IK)/)   , &
+                         nVal        = (/1_IK , INT(CPPDataLength,IK)/)   , &
+                         offset      = (/0_IK , 0_IK/)                    , &
+                         collective  = .FALSE., RealArray = CPPDataHDF5(1:CPPDataLength,1))
+  CALL CloseDataFile()
+  DEALLOCATE(CPPDataHDF5)
+END IF ! CalcBulkElectronTempi.AND.MPIRoot
+! Bias voltage
+IF(UseBiasVoltage.AND.MPIRoot)THEN
+  ALLOCATE(BVDataHDF5(1:BVDataLength,1))
+  CALL OpenDataFile(FileName,create=.FALSE.,single=.TRUE.,readOnly=.FALSE.)
+  BVDataHDF5(1:BVDataLength,1) = BiasVoltage%BVData(1:BVDataLength)
+  CALL WriteArrayToHDF5( DataSetName = 'BiasVoltage' , rank = 2   , &
+                         nValGlobal  = (/1_IK , INT(BVDataLength,IK)/), &
+                         nVal        = (/1_IK , INT(BVDataLength,IK)/), &
+                         offset      = (/0_IK , 0_IK/)                        , &
+                         collective  = .FALSE., RealArray = BVDataHDF5(1:BVDataLength,1))
+  CALL CloseDataFile()
+  DEALLOCATE(BVDataHDF5)
+END IF ! CalcBulkElectronTempi.AND.MPIRoot
+#endif /*USE_HDG*/
 #endif /*PARTICLES*/
+
+#if USE_HDG
+! Floating boundary condition: Store charge on each FPC
+IF(UseFPC.AND.MPIRoot)THEN
+  nVarFPC = FPC%nUniqueFPCBounds
+  ALLOCATE(FPCDataHDF5(1:nVarFPC,1))
+  CALL OpenDataFile(FileName,create=.FALSE.,single=.TRUE.,readOnly=.FALSE.)
+  FPCDataHDF5(1:nVarFPC,1) = FPC%Charge(1:nVarFPC)
+  CALL WriteArrayToHDF5( DataSetName = 'FloatingPotentialCharge' , rank = 2   , &
+                         nValGlobal  = (/1_IK , INT(nVarFPC,IK)/), &
+                         nVal        = (/1_IK , INT(nVarFPC,IK)/), &
+                         offset      = (/0_IK , 0_IK/)                        , &
+                         collective  = .FALSE., RealArray = FPCDataHDF5(1:nVarFPC,1))
+  CALL CloseDataFile()
+  DEALLOCATE(FPCDataHDF5)
+END IF ! CalcBulkElectronTempi.AND.MPIRoot
+! Electric potential condition: Store Voltage on each EPC
+IF(UseEPC.AND.MPIRoot)THEN
+  nVarEPC = EPC%nUniqueEPCBounds
+  ALLOCATE(EPCDataHDF5(1:nVarEPC,1))
+  CALL OpenDataFile(FileName,create=.FALSE.,single=.TRUE.,readOnly=.FALSE.)
+  EPCDataHDF5(1:nVarEPC,1) = EPC%Voltage(1:nVarEPC)
+  CALL WriteArrayToHDF5( DataSetName = 'ElectricPotenitalCondition' , rank = 2   , &
+                         nValGlobal  = (/1_IK , INT(nVarEPC,IK)/), &
+                         nVal        = (/1_IK , INT(nVarEPC,IK)/), &
+                         offset      = (/0_IK , 0_IK/)                        , &
+                         collective  = .FALSE., RealArray = EPCDataHDF5(1:nVarEPC,1))
+  CALL CloseDataFile()
+  DEALLOCATE(EPCDataHDF5)
+END IF ! CalcBulkElectronTempi.AND.MPIRoot
+#endif /*USE_HDG*/
 
 #if USE_LOADBALANCE
 ! Write 'ElemTime' to a separate container in the state.h5 file
@@ -681,10 +661,10 @@ IF(UseBRElectronFluid) THEN
     CALL CalculateElectronTemperatureCell()
   END IF
   CALL WriteElemDataToSeparateContainer(FileName,ElementOut,'ElectronTemperatureCell')
-END IF
-! Automatically obtain the reference parameters (from a fully kinetic simulation), store them in .h5 state
-IF(BRAutomaticElectronRef)THEN
-  IF(MPIRoot)THEN ! only root writes the container
+
+  ! Automatically obtain the reference parameters (from a fully kinetic simulation), store them in .h5 state
+  ! Only root writes the container
+  IF(BRAutomaticElectronRef.AND.MPIRoot)THEN
     CALL OpenDataFile(FileName,create=.FALSE.,single=.TRUE.,readOnly=.FALSE.)
     CALL WriteArrayToHDF5( DataSetName = 'RegionElectronRef' , rank = 2 , &
                            nValGlobal  = (/1_IK , 3_IK/)     , &
@@ -716,9 +696,14 @@ IF(DoDielectricSurfaceCharge) CALL WriteNodeSourceExtToHDF5(OutputTime_loc)
 CALL WriteEmissionVariablesToHDF5(FileName)
 #endif /*PARTICLES*/
 
-EndT=PICLASTIME()
-SWRITE(UNIT_stdOut,'(A,F0.3,A)',ADVANCE='YES')'DONE  [',EndT-StartT,'s]'
-SWRITE(UNIT_StdOut,'(A,ES16.7)') "#Particles : ", REAL(nGlobalNbrOfParticles)
+GETTIME(EndT)
+CALL DisplayMessageAndTime(EndT-StartT, 'DONE', DisplayDespiteLB=.TRUE., DisplayLine=.FALSE.)
+
+IF(OutputErrorNormsToH5) CALL WriteErrorNormsToHDF5(OutputTime_loc)
+
+#if defined(PARTICLES)
+CALL DisplayNumberOfParticles(1)
+#endif /*defined(PARTICLES)*/
 
 #ifdef EXTRAE
 CALL extrae_eventandcounters(int(9000001), int8(0))
@@ -803,6 +788,7 @@ USE MOD_Restart_Vars  ,ONLY: DoRestart
 USE MOD_MPI           ,ONLY: FinalizeMPI
 #endif /*USE_MPI*/
 USE MOD_ReadInTools   ,ONLY: PrintOption
+USE MOD_HDF5_Output_Particles,ONLY: FillParticleData
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -847,22 +833,11 @@ IF(.NOT.DoRestart)THEN
     SWRITE(UNIT_StdOut,'(A,ES25.14E3,A,F15.3,A)')     '   Calculated time t :',t,' (',t*1e12,' ps)'
 
     tFuture=t
+    CALL FillParticleData()
     CALL WriteStateToHDF5(TRIM(MeshFile),t,tFuture)
     SWRITE(UNIT_StdOut,'(A)')'   Particles: StateFile (IMD MD data) created. Terminating successfully!'
-#if USE_MPI
-    CALL FinalizeMPI()
-    CALL MPI_FINALIZE(iERROR)
-    IF(iERROR.NE.0)THEN
-      CALL abort(&
-      __STAMP__&
-      , ' MPI_FINALIZE(iERROR) returned non-zero integer value',iERROR)
-    END IF
-#endif /*USE_MPI*/
-    STOP 0 ! terminate successfully
   ELSE
-    CALL abort(&
-    __STAMP__&
-    , ' IMDLengthScale.LE.0.0 which is not allowed')
+    CALL abort(__STAMP__, ' IMDLengthScale.LE.0.0 which is not allowed')
   END IF
 END IF
 END SUBROUTINE WriteIMDStateToHDF5
@@ -888,7 +863,6 @@ SUBROUTINE WriteElemDataToSeparateContainer(FileName,ElemList,ElemDataName)
 USE MOD_PreProc
 USE MOD_Globals
 USE MOD_Mesh_Vars        ,ONLY: nElems
-USE MOD_HDF5_Input       ,ONLY: ReadArray
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Vars ,ONLY: ElemTime,ElemTime_tmp,NullifyElemTime
 USE MOD_Restart_Vars     ,ONLY: DoRestart

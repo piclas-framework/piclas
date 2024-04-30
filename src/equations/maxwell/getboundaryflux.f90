@@ -1,7 +1,7 @@
 !==================================================================================================================================
 ! Copyright (c) 2010 - 2018 Prof. Claus-Dieter Munz and Prof. Stefanos Fasoulas
 !
-! This file is part of PICLas (gitlab.com/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
+! This file is part of PICLas (piclas.boltzplatz.eu/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
 ! it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3
 ! of the License, or (at your option) any later version.
 !
@@ -70,9 +70,7 @@ INTEGER :: locType,locState
 INTEGER :: MaxBCState,MaxBCStateGlobal
 !===================================================================================================================================
 IF((.NOT.InterpolationInitIsDone).AND.(.NOT.MeshInitIsDone).AND.(.NOT.EquationInitIsDone))THEN
-   CALL abort(&
-   __STAMP__&
-   ,"InitBC not ready to be called or already called.")
+   CALL abort(__STAMP__,"InitBC not ready to be called or already called.")
 END IF
 ! determine globally max MaxBCState
 MaxBCState = 0
@@ -99,7 +97,7 @@ DO iSide=1,nBCSides
 END DO
 MaxBCStateGLobal=MaxBCState
 #if USE_MPI
-CALL MPI_ALLREDUCE(MPI_IN_PLACE,MaxBCStateGlobal,1,MPI_INTEGER,MPI_MAX,MPI_COMM_WORLD,iError)
+CALL MPI_ALLREDUCE(MPI_IN_PLACE,MaxBCStateGlobal,1,MPI_INTEGER,MPI_MAX,MPI_COMM_PICLAS,iError)
 #endif /*USE_MPI*/
 
 ! Sanity check for BCs
@@ -162,7 +160,7 @@ USE MOD_Riemann         ,ONLY: RiemannDielectric
 USE MOD_Equation        ,ONLY: ExactFunc
 USE MOD_Globals_Vars    ,ONLY: c,c_inv
 USE MOD_Mesh_Vars       ,ONLY: nBCSides,nBCs,BoundaryType
-USE MOD_Equation_Vars   ,ONLY: nBCByType,BCSideID,BCData,nBCByType
+USE MOD_Equation_Vars   ,ONLY: nBCByType,BCSideID,BCData
 USE MOD_PML_Vars        ,ONLY: PMLnVar, DoPML
 USE MOD_Interfaces_Vars ,ONLY: InterfaceRiemann
 USE MOD_Dielectric_vars ,ONLY: Dielectric_Master
@@ -453,7 +451,7 @@ LOGICAL            :: InterpolateSolution
 REAL,ALLOCATABLE   :: xGP_tmp(:),wBary_tmp(:),wGP_tmp(:)
 !===================================================================================================================================
 SWRITE(UNIT_StdOut,'(A,A)')'  Read BC state from file "',FileName
-CALL OpenDataFile(FileName,create=.FALSE.,readOnly=.TRUE.,single=.FALSE.,communicatorOpt=MPI_COMM_WORLD)
+CALL OpenDataFile(FileName,create=.FALSE.,readOnly=.TRUE.,single=.FALSE.,communicatorOpt=MPI_COMM_PICLAS)
 CALL GetDataProps('DG_Solution',nVar_HDF5,N_HDF5,nElems_HDF5,NodeType_HDF5)
 IF(((N_HDF5.NE.PP_N) .OR. (TRIM(NodeType_HDF5).NE.TRIM(NodeType))))THEN
   InterpolateSolution=.TRUE.

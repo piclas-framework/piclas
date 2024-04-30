@@ -1,7 +1,7 @@
 !==================================================================================================================================
 ! Copyright (c) 2021 boltzplatz - numerical plasma dynamics GmbH
 !
-! This file is part of PICLas (gitlab.com/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
+! This file is part of PICLas (piclas.boltzplatz.eu/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
 ! it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3
 ! of the License, or (at your option) any later version.
 !
@@ -45,12 +45,6 @@ TYPE tSpeciesXSec
                                                             ! "elastic", including only the elastic collision cross-section.
   REAL                              :: CrossSection         ! Current collision cross-section
   REAL,ALLOCATABLE                  :: CollXSecData(:,:)    ! Collision cross-section as read-in from the database
-                                                            ! 1: Energy (at read-in in [eV], during simulation in [J])
-                                                            ! 2: Cross-section at the respective energy level [m^2]
-  REAL,ALLOCATABLE                  :: VibXSecData(:,:)     ! Vibrational cross-section at the same intervals as the effective collision cross-section
-                                                            ! 1: Energy (at read-in in [eV], during simulation in [J])
-                                                            ! 2: Cross-section at the respective energy level [m^2]
-  REAL,ALLOCATABLE                  :: ElecXSecData(:,:)    ! Electronic cross-section at the same intervals as the effective collision cross-section
                                                             ! 1: Energy (at read-in in [eV], during simulation in [J])
                                                             ! 2: Cross-section at the respective energy level [m^2]
   REAL                              :: ProbNull             ! Collision probability at the maximal collision frequency for the

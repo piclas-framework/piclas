@@ -83,16 +83,25 @@ fi
 #GCCVERSION='10.1.0'
 #GCCVERSION='10.3.0'
 
-# 10.1.0: Building GCC requires GMP 4.2+, MPFR 3.1.0+ and MPC 0.8.0+.
+# 11.2.0: Building GCC requires GMP 4.2+, MPFR 3.1.0+ and MPC 0.8.0+.
 # sudo apt-get install libmpfr-dev
 # sudo apt-get install libmpc-dev
-GCCVERSION='11.2.0'
+#GCCVERSION='11.2.0'
+
+# 12.2.0: Building GCC requires GMP 4.2+, MPFR 3.1.0+ and MPC 0.8.0+.
+# sudo apt-get install libmpfr-dev
+# sudo apt-get install libmpc-dev
+#GCCVERSION='12.2.0'
+
+# Check requirements and update the pre-requisites inquiry below if necessary
+# sudo apt-get install libgmp-dev libmpfr-dev libmpc-dev
+GCCVERSION='13.2.0'
 
 # --------------------------------------------------------------------------------------------------
 # Check pre-requisites
 # --------------------------------------------------------------------------------------------------
 
-if [[ ${GCCVERSION} == '9.3.0' ]] || [[ ${GCCVERSION} == '10.1.0' ]] || [[ ${GCCVERSION} == '10.3.0' ]] || [[ ${GCCVERSION} == '11.2.0' ]]; then
+if [[ ${GCCVERSION} == '9.3.0' ]] || [[ ${GCCVERSION} == '10.1.0' ]] || [[ ${GCCVERSION} == '10.3.0' ]] || [[ ${GCCVERSION} == '11.2.0' ]] || [[ ${GCCVERSION} == '12.2.0' ]]; then
   echo -e "${GREEN}Installing libmpfr-dev and libmpc-dev for this version of GCC${NC}"
   sudo apt-get install libmpfr-dev -y
   sudo apt-get install libmpc-dev -y
@@ -144,6 +153,7 @@ if [ ! -e "${MODULEFILE}" ]; then
   # Download tar.gz file from FTP server
   if [ ! -f ${TARFILE} ]; then
     wget -O gcc-${GCCVERSION}.tar.gz "ftp://ftp.fu-berlin.de/unix/languages/gcc/releases/gcc-${GCCVERSION}/gcc-${GCCVERSION}.tar.gz"
+    #wget -O gcc-${GCCVERSION}.tar.gz ".de/mirrors/gnu/mirror/gcc.gnu.org/pub/gcc/releases/gcc-${GCCVERSION}/gcc-${GCCVERSION}.tar.gz"
   fi
 
   # Check if tar.gz file was correctly downloaded, abort script if non-existent

@@ -163,6 +163,7 @@ INTEGER                     :: NVisu_elem,nVTKPoints,nVTKCells
 INTEGER                     :: nTotalElems
 INTEGER                     :: nBytes,Offset
 INTEGER                     :: INTdummy
+INTEGER,PARAMETER           :: SizeINTdummy=STORAGE_SIZE(INTdummy)/8
 REAL(KIND=4)                :: FLOATdummy
 CHARACTER(LEN=35)           :: StrOffset,TempStr1,TempStr2
 CHARACTER(LEN=200)          :: Buffer
@@ -176,9 +177,15 @@ REAL,ALLOCATABLE            :: buf(:,:,:,:), buf2(:,:,:,:,:)
 #endif /*USE_MPI*/
 INTEGER                     :: DGFV_loc
 LOGICAL                     :: nValAtLastDimension_loc
+REAL                        :: StartT,EndT ! Timer
 !===================================================================================================================================
-DGFV_loc = MERGE(DGFV, 0, PRESENT(DGFV))
-nValAtLastDimension_loc = MERGE(nValAtLastDimension, .FALSE., PRESENT(nValAtLastDimension))
+GETTIME(StartT)
+IF (PRESENT(DGFV))                THEN; DGFV_loc = DGFV
+ELSE;                                   DGFV_loc = 0
+END IF
+IF (PRESENT(nValAtLastDimension)) THEN; nValAtLastDimension_loc = nValAtLastDimension
+ELSE;                                   nValAtLastDimension_loc = .FALSE.
+END IF
 IF (dim.EQ.3) THEN
   NVisu_k = NVisu
   NVisu_j = NVisu
@@ -192,8 +199,7 @@ ELSE IF (dim.EQ.1) THEN
   NVisu_j = 0
   PointsPerVTKCell = 2
 ELSE
-  CALL Abort(__STAMP__, &
-      "Only 2D and 3D connectivity can be created. dim must be 1, 2 or 3.")
+  CALL Abort(__STAMP__,"Only 2D and 3D connectivity can be created. dim must be 1, 2 or 3.")
 END IF
 
 SWRITE(UNIT_stdOut,'(A,I1,A)',ADVANCE='NO')"   WRITE ",dim,"D DATA TO VTX XML BINARY (VTU) FILE "
@@ -201,7 +207,7 @@ SWRITE(UNIT_stdOut,'(A)',ADVANCE='NO') '['//TRIM(FileString)//'] ...'
 
 ! get total number of elements on all processors
 #if USE_MPI
-CALL MPI_GATHER(nElems,1,MPI_INTEGER,nElems_glob,1,MPI_INTEGER,0,MPI_COMM_WORLD,iError)
+CALL MPI_GATHER(nElems,1,MPI_INTEGER,nElems_glob,1,MPI_INTEGER,0,MPI_COMM_PICLAS,iError)
 #else
 nElems_glob(0) = nElems
 #endif
@@ -234,7 +240,9 @@ IF(MPIROOT)THEN
   DO iVal=1,nVal
     Buffer='        <DataArray type="Float32" Name="'//TRIM(VarNames(iVal))//'" '// &
                      'format="appended" offset="'//TRIM(ADJUSTL(StrOffset))//'"/>'//lf;WRITE(ivtk) TRIM(Buffer)
-    Offset=Offset+SIZEOF_F(INTdummy)+nVTKPoints*SIZEOF_F(FLOATdummy)
+    ! INTEGER KIND=4 check
+    CHECKSAFEINT(INT(Offset,8)+INT(SizeINTdummy,8)+INT(nVTKPoints,8)*INT(SIZEOF_F(FLOATdummy),8),4)
+    Offset=          Offset   +    SizeINTdummy   +    nVTKPoints   *    SIZEOF_F(FLOATdummy)
     WRITE(StrOffset,'(I16)')Offset
   END DO
   Buffer='      </PointData>'//lf;WRITE(ivtk) TRIM(Buffer)
@@ -244,7 +252,9 @@ IF(MPIROOT)THEN
   Buffer='      <Points>'//lf;WRITE(ivtk) TRIM(Buffer)
   Buffer='        <DataArray type="Float32" Name="Coordinates" NumberOfComponents="3" format="appended" '// &
                    'offset="'//TRIM(ADJUSTL(StrOffset))//'"/>'//lf;WRITE(ivtk) TRIM(Buffer)
-  Offset=Offset+SIZEOF_F(INTdummy)+3*nVTKPoints*SIZEOF_F(FLOATdummy)
+  ! INTEGER KIND=4 check
+  CHECKSAFEINT(INT(Offset,8)+INT(SizeINTdummy,8)+3_8*INT(nVTKPoints,8)*INT(SIZEOF_F(FLOATdummy),8),4)
+  Offset=          Offset   +    SizeINTdummy   +3  *    nVTKPoints   *    SIZEOF_F(FLOATdummy)
   WRITE(StrOffset,'(I16)')Offset
   Buffer='      </Points>'//lf;WRITE(ivtk) TRIM(Buffer)
   ! Specify necessary cell data
@@ -252,12 +262,16 @@ IF(MPIROOT)THEN
   ! Connectivity
   Buffer='        <DataArray type="Int32" Name="connectivity" format="appended" '// &
                    'offset="'//TRIM(ADJUSTL(StrOffset))//'"/>'//lf;WRITE(ivtk) TRIM(Buffer)
-  Offset=Offset+SIZEOF_F(INTdummy)+PointsPerVTKCell*nVTKCells*SIZEOF_F(INTdummy)
+  ! INTEGER KIND=4 check
+  CHECKSAFEINT(INT(Offset,8)+INT(SizeINTdummy,8)+INT(PointsPerVTKCell,8)*INT(nVTKCells,8)*INT(SIZEOF_F(FLOATdummy),8),4)
+  Offset=          Offset   +    SizeINTdummy   +    PointsPerVTKCell   *    nVTKCells   *    SIZEOF_F(FLOATdummy)
   WRITE(StrOffset,'(I16)')Offset
   ! Offsets
   Buffer='        <DataArray type="Int32" Name="offsets" format="appended" ' // &
                    'offset="'//TRIM(ADJUSTL(StrOffset))//'"/>'//lf;WRITE(ivtk) TRIM(Buffer)
-  Offset=Offset+SIZEOF_F(INTdummy)+nVTKCells*SIZEOF_F(INTdummy)
+  ! INTEGER KIND=4 check
+  CHECKSAFEINT(INT(Offset,8)+INT(SizeINTdummy,8)+INT(nVTKCells,8)*INT(SIZEOF_F(FLOATdummy),8),4)
+  Offset=          Offset   +    SizeINTdummy   +    nVTKCells   *    SIZEOF_F(FLOATdummy)
   WRITE(StrOffset,'(I16)')Offset
   ! Elem types
   Buffer='        <DataArray type="Int32" Name="types" format="appended" '// &
@@ -295,16 +309,16 @@ DO iVal=1,nVal
     DO iProc=1,nProcessors-1
       nElems_proc=nElems_glob(iProc)
       IF (nElems_proc.GT.0) THEN
-        CALL MPI_RECV(buf(:,:,:,1:nElems_proc),nElems_proc*NVisu_elem,MPI_DOUBLE_PRECISION,iProc,0,MPI_COMM_WORLD,MPIstatus,iError)
+        CALL MPI_RECV(buf(:,:,:,1:nElems_proc),nElems_proc*NVisu_elem,MPI_DOUBLE_PRECISION,iProc,0,MPI_COMM_PICLAS,MPIstatus,iError)
         WRITE(ivtk) REAL(buf(:,:,:,1:nElems_proc),4)
       END IF
     END DO !iProc
   ELSE
     IF (nElems.GT.0) THEN
       IF (nValAtLastDimension_loc) THEN
-        CALL MPI_SEND(Value(:,:,:,:,iVal),nElems*NVisu_elem,MPI_DOUBLE_PRECISION, 0,0,MPI_COMM_WORLD,iError)
+        CALL MPI_SEND(Value(:,:,:,:,iVal),nElems*NVisu_elem,MPI_DOUBLE_PRECISION, 0,0,MPI_COMM_PICLAS,iError)
       ELSE
-        CALL MPI_SEND(Value(iVal,:,:,:,:),nElems*NVisu_elem,MPI_DOUBLE_PRECISION, 0,0,MPI_COMM_WORLD,iError)
+        CALL MPI_SEND(Value(iVal,:,:,:,:),nElems*NVisu_elem,MPI_DOUBLE_PRECISION, 0,0,MPI_COMM_PICLAS,iError)
       END IF
     END IF
 #endif /*USE_MPI*/
@@ -327,13 +341,13 @@ IF(MPIRoot)THEN
   DO iProc=1,nProcessors-1
     nElems_proc=nElems_glob(iProc)
     IF (nElems_proc.GT.0) THEN
-      CALL MPI_RECV(buf2(:,:,:,:,1:nElems_proc),nElems_proc*NVisu_elem*3,MPI_DOUBLE_PRECISION,iProc,0,MPI_COMM_WORLD,MPIstatus,iError)
+      CALL MPI_RECV(buf2(:,:,:,:,1:nElems_proc),nElems_proc*NVisu_elem*3,MPI_DOUBLE_PRECISION,iProc,0,MPI_COMM_PICLAS,MPIstatus,iError)
       WRITE(ivtk) REAL(buf2(:,:,:,:,1:nElems_proc),4)
     END IF
   END DO !iProc
 ELSE
   IF (nElems.GT.0) THEN
-    CALL MPI_SEND(Coord(:,:,:,:,:),nElems*NVisu_elem*3,MPI_DOUBLE_PRECISION, 0,0,MPI_COMM_WORLD,iError)
+    CALL MPI_SEND(Coord(:,:,:,:,:),nElems*NVisu_elem*3,MPI_DOUBLE_PRECISION, 0,0,MPI_COMM_PICLAS,iError)
   END IF
 #endif /*USE_MPI*/
 END IF !MPIroot
@@ -348,11 +362,11 @@ END IF
 IF(MPIROOT)THEN
   CALL CreateConnectivity(NVisu,nTotalElems,nodeids,dim,DGFV_loc)
 
-  nBytes = PointsPerVTKCell*nVTKCells*SIZEOF_F(INTdummy)
+  nBytes = PointsPerVTKCell*nVTKCells*SizeINTdummy
   WRITE(ivtk) nBytes
   WRITE(ivtk) nodeids
   ! Offset
-  nBytes = nVTKCells*SIZEOF_F(INTdummy)
+  nBytes = nVTKCells*SizeINTdummy
   WRITE(ivtk) nBytes
   WRITE(ivtk) (Offset,Offset=PointsPerVTKCell,PointsPerVTKCell*nVTKCells,PointsPerVTKCell)
   ! Elem type
@@ -374,7 +388,8 @@ IF(MPIROOT)THEN
   Buffer='</VTKFile>'//lf;WRITE(ivtk) TRIM(Buffer)
   CLOSE(ivtk)
 ENDIF
-SWRITE(UNIT_stdOut,'(A)',ADVANCE='YES')"DONE"
+GETTIME(EndT)
+CALL DisplayMessageAndTime(EndT-StartT, ' DONE!', DisplayDespiteLB=.TRUE., DisplayLine=.FALSE.)
 END SUBROUTINE WriteDataToVTK
 
 !===================================================================================================================================

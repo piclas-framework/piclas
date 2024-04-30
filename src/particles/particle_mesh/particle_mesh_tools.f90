@@ -1,7 +1,7 @@
 !==================================================================================================================================
 ! Copyright (c) 2010 - 2018 Prof. Claus-Dieter Munz and Prof. Stefanos Fasoulas
 !
-! This file is part of PICLas (gitlab.com/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
+! This file is part of PICLas (piclas.boltzplatz.eu/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
 ! it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3
 ! of the License, or (at your option) any later version.
 !
@@ -31,7 +31,7 @@ INTERFACE GetSideBoundingBoxTria
 END INTERFACE
 
 PUBLIC :: ParticleInsideQuad3D, InitPEM_LocalElemID, InitPEM_CNElemID, GetGlobalNonUniqueSideID, GetSideBoundingBoxTria
-PUBLIC :: GetMeshMinMax, IdentifyElemAndSideType, WeirdElementCheck, CalcParticleMeshMetrics, InitElemNodeIDs, CalcXCL_NGeo
+PUBLIC :: GetMeshMinMax, IdentifyElemAndSideType, WeirdElementCheck, CalcParticleMeshMetrics, CalcXCL_NGeo
 PUBLIC :: CalcBezierControlPoints, InitParticleGeometry, ComputePeriodicVec
 !===================================================================================================================================
 CONTAINS
@@ -463,8 +463,8 @@ END SUBROUTINE InitPEM_CNElemID
 !==================================================================================================================================!
 PPURE FUNCTION GetGlobalElem2CNTotalElem_iPart(iPart)
 ! MODULES
-USE MOD_MPI_Shared_Vars ,ONLY: GlobalElem2CNTotalElem
-USE MOD_Particle_Vars   ,ONLY: PEM
+USE MOD_Particle_Mesh_Vars ,ONLY: GlobalElem2CNTotalElem
+USE MOD_Particle_Vars      ,ONLY: PEM
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
@@ -573,9 +573,11 @@ USE MOD_Particle_Mesh_Vars      ,ONLY: ElemInfo_Shared,NodeCoords_Shared
 USE MOD_Particle_Surfaces_Vars  ,ONLY: BezierControlPoints3D
 USE MOD_Particle_Tracking_Vars  ,ONLY: TrackingMethod
 #if USE_MPI
-USE MOD_Particle_Mesh_Vars      ,ONLY: offsetComputeNodeSide,nComputeNodeSides
-USE MOD_Particle_Mesh_Vars      ,ONLY: offsetComputeNodeNode,nComputeNodeNodes
+USE MOD_MPI_Shared_Vars         ,ONLY: MPI_COMM_SHARED,MPI_COMM_LEADERS_SHARED,myComputeNodeRank
 #endif /*USE_MPI*/
+#if USE_LOADBALANCE
+USE MOD_LoadBalance_Vars        ,ONLY: PerformLoadBalance
+#endif /*USE_LOADBALANCE*/
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -605,20 +607,28 @@ SELECT CASE(TrackingMethod)
 
 #if USE_MPI
     ! compute-node local
-    GEO%CNxmin   = MINVAL(BezierControlPoints3D(1,:,:,offsetComputeNodeSide+1:offsetComputeNodeSide+nComputeNodeSides))
-    GEO%CNxmax   = MAXVAL(BezierControlPoints3D(1,:,:,offsetComputeNodeSide+1:offsetComputeNodeSide+nComputeNodeSides))
-    GEO%CNymin   = MINVAL(BezierControlPoints3D(2,:,:,offsetComputeNodeSide+1:offsetComputeNodeSide+nComputeNodeSides))
-    GEO%CNymax   = MAXVAL(BezierControlPoints3D(2,:,:,offsetComputeNodeSide+1:offsetComputeNodeSide+nComputeNodeSides))
-    GEO%CNzmin   = MINVAL(BezierControlPoints3D(3,:,:,offsetComputeNodeSide+1:offsetComputeNodeSide+nComputeNodeSides))
-    GEO%CNzmax   = MAXVAL(BezierControlPoints3D(3,:,:,offsetComputeNodeSide+1:offsetComputeNodeSide+nComputeNodeSides))
+    CALL MPI_ALLREDUCE(GEO%xmin,GEO%CNxmin,1,MPI_DOUBLE_PRECISION,MPI_MIN,MPI_COMM_SHARED,iError)
+    CALL MPI_ALLREDUCE(GEO%xmax,GEO%CNxmax,1,MPI_DOUBLE_PRECISION,MPI_MAX,MPI_COMM_SHARED,iError)
+    CALL MPI_ALLREDUCE(GEO%ymin,GEO%CNymin,1,MPI_DOUBLE_PRECISION,MPI_MIN,MPI_COMM_SHARED,iError)
+    CALL MPI_ALLREDUCE(GEO%ymax,GEO%CNymax,1,MPI_DOUBLE_PRECISION,MPI_MAX,MPI_COMM_SHARED,iError)
+    CALL MPI_ALLREDUCE(GEO%zmin,GEO%CNzmin,1,MPI_DOUBLE_PRECISION,MPI_MIN,MPI_COMM_SHARED,iError)
+    CALL MPI_ALLREDUCE(GEO%zmax,GEO%CNzmax,1,MPI_DOUBLE_PRECISION,MPI_MAX,MPI_COMM_SHARED,iError)
 
     ! global
-    GEO%xminglob = MINVAL(BezierControlPoints3D(1,:,:,:))
-    GEO%xmaxglob = MAXVAL(BezierControlPoints3D(1,:,:,:))
-    GEO%yminglob = MINVAL(BezierControlPoints3D(2,:,:,:))
-    GEO%ymaxglob = MAXVAL(BezierControlPoints3D(2,:,:,:))
-    GEO%zminglob = MINVAL(BezierControlPoints3D(3,:,:,:))
-    GEO%zmaxglob = MAXVAL(BezierControlPoints3D(3,:,:,:))
+    IF (myComputeNodeRank.EQ.0) THEN
+      CALL MPI_ALLREDUCE(GEO%CNxmin,GEO%xminglob,1,MPI_DOUBLE_PRECISION,MPI_MIN,MPI_COMM_LEADERS_SHARED,iError)
+      CALL MPI_ALLREDUCE(GEO%CNxmax,GEO%xmaxglob,1,MPI_DOUBLE_PRECISION,MPI_MAX,MPI_COMM_LEADERS_SHARED,iError)
+      CALL MPI_ALLREDUCE(GEO%CNymin,GEO%yminglob,1,MPI_DOUBLE_PRECISION,MPI_MIN,MPI_COMM_LEADERS_SHARED,iError)
+      CALL MPI_ALLREDUCE(GEO%CNymax,GEO%ymaxglob,1,MPI_DOUBLE_PRECISION,MPI_MAX,MPI_COMM_LEADERS_SHARED,iError)
+      CALL MPI_ALLREDUCE(GEO%CNzmin,GEO%zminglob,1,MPI_DOUBLE_PRECISION,MPI_MIN,MPI_COMM_LEADERS_SHARED,iError)
+      CALL MPI_ALLREDUCE(GEO%CNzmax,GEO%zmaxglob,1,MPI_DOUBLE_PRECISION,MPI_MAX,MPI_COMM_LEADERS_SHARED,iError)
+    END IF
+    CALL MPI_BCAST(GEO%xminglob,1,MPI_DOUBLE_PRECISION,0,MPI_COMM_SHARED,iError)
+    CALL MPI_BCAST(GEO%xmaxglob,1,MPI_DOUBLE_PRECISION,0,MPI_COMM_SHARED,iError)
+    CALL MPI_BCAST(GEO%yminglob,1,MPI_DOUBLE_PRECISION,0,MPI_COMM_SHARED,iError)
+    CALL MPI_BCAST(GEO%ymaxglob,1,MPI_DOUBLE_PRECISION,0,MPI_COMM_SHARED,iError)
+    CALL MPI_BCAST(GEO%zminglob,1,MPI_DOUBLE_PRECISION,0,MPI_COMM_SHARED,iError)
+    CALL MPI_BCAST(GEO%zmaxglob,1,MPI_DOUBLE_PRECISION,0,MPI_COMM_SHARED,iError)
 #endif /*USE_MPI*/
   ! TriaTracking does not have curved elements, nodeCoords are sufficient
   CASE(TRIATRACKING)
@@ -636,20 +646,28 @@ SELECT CASE(TrackingMethod)
 
 #if USE_MPI
     ! compute-node local
-    GEO%CNxmin   = MINVAL(NodeCoords_Shared(1,offsetComputeNodeNode+1:offsetComputeNodeNode+nComputeNodeNodes))
-    GEO%CNxmax   = MAXVAL(NodeCoords_Shared(1,offsetComputeNodeNode+1:offsetComputeNodeNode+nComputeNodeNodes))
-    GEO%CNymin   = MINVAL(NodeCoords_Shared(2,offsetComputeNodeNode+1:offsetComputeNodeNode+nComputeNodeNodes))
-    GEO%CNymax   = MAXVAL(NodeCoords_Shared(2,offsetComputeNodeNode+1:offsetComputeNodeNode+nComputeNodeNodes))
-    GEO%CNzmin   = MINVAL(NodeCoords_Shared(3,offsetComputeNodeNode+1:offsetComputeNodeNode+nComputeNodeNodes))
-    GEO%CNzmax   = MAXVAL(NodeCoords_Shared(3,offsetComputeNodeNode+1:offsetComputeNodeNode+nComputeNodeNodes))
+    CALL MPI_ALLREDUCE(GEO%xmin,GEO%CNxmin,1,MPI_DOUBLE_PRECISION,MPI_MIN,MPI_COMM_SHARED,iError)
+    CALL MPI_ALLREDUCE(GEO%xmax,GEO%CNxmax,1,MPI_DOUBLE_PRECISION,MPI_MAX,MPI_COMM_SHARED,iError)
+    CALL MPI_ALLREDUCE(GEO%ymin,GEO%CNymin,1,MPI_DOUBLE_PRECISION,MPI_MIN,MPI_COMM_SHARED,iError)
+    CALL MPI_ALLREDUCE(GEO%ymax,GEO%CNymax,1,MPI_DOUBLE_PRECISION,MPI_MAX,MPI_COMM_SHARED,iError)
+    CALL MPI_ALLREDUCE(GEO%zmin,GEO%CNzmin,1,MPI_DOUBLE_PRECISION,MPI_MIN,MPI_COMM_SHARED,iError)
+    CALL MPI_ALLREDUCE(GEO%zmax,GEO%CNzmax,1,MPI_DOUBLE_PRECISION,MPI_MAX,MPI_COMM_SHARED,iError)
 
     ! global
-    GEO%xminglob = MINVAL(NodeCoords_Shared(1,:))
-    GEO%xmaxglob = MAXVAL(NodeCoords_Shared(1,:))
-    GEO%yminglob = MINVAL(NodeCoords_Shared(2,:))
-    GEO%ymaxglob = MAXVAL(NodeCoords_Shared(2,:))
-    GEO%zminglob = MINVAL(NodeCoords_Shared(3,:))
-    GEO%zmaxglob = MAXVAL(NodeCoords_Shared(3,:))
+    IF (myComputeNodeRank.EQ.0) THEN
+      CALL MPI_ALLREDUCE(GEO%CNxmin,GEO%xminglob,1,MPI_DOUBLE_PRECISION,MPI_MIN,MPI_COMM_LEADERS_SHARED,iError)
+      CALL MPI_ALLREDUCE(GEO%CNxmax,GEO%xmaxglob,1,MPI_DOUBLE_PRECISION,MPI_MAX,MPI_COMM_LEADERS_SHARED,iError)
+      CALL MPI_ALLREDUCE(GEO%CNymin,GEO%yminglob,1,MPI_DOUBLE_PRECISION,MPI_MIN,MPI_COMM_LEADERS_SHARED,iError)
+      CALL MPI_ALLREDUCE(GEO%CNymax,GEO%ymaxglob,1,MPI_DOUBLE_PRECISION,MPI_MAX,MPI_COMM_LEADERS_SHARED,iError)
+      CALL MPI_ALLREDUCE(GEO%CNzmin,GEO%zminglob,1,MPI_DOUBLE_PRECISION,MPI_MIN,MPI_COMM_LEADERS_SHARED,iError)
+      CALL MPI_ALLREDUCE(GEO%CNzmax,GEO%zmaxglob,1,MPI_DOUBLE_PRECISION,MPI_MAX,MPI_COMM_LEADERS_SHARED,iError)
+    END IF
+    CALL MPI_BCAST(GEO%xminglob,1,MPI_DOUBLE_PRECISION,0,MPI_COMM_SHARED,iError)
+    CALL MPI_BCAST(GEO%xmaxglob,1,MPI_DOUBLE_PRECISION,0,MPI_COMM_SHARED,iError)
+    CALL MPI_BCAST(GEO%yminglob,1,MPI_DOUBLE_PRECISION,0,MPI_COMM_SHARED,iError)
+    CALL MPI_BCAST(GEO%ymaxglob,1,MPI_DOUBLE_PRECISION,0,MPI_COMM_SHARED,iError)
+    CALL MPI_BCAST(GEO%zminglob,1,MPI_DOUBLE_PRECISION,0,MPI_COMM_SHARED,iError)
+    CALL MPI_BCAST(GEO%zmaxglob,1,MPI_DOUBLE_PRECISION,0,MPI_COMM_SHARED,iError)
 #endif /*USE_MPI*/
 END SELECT
 
@@ -671,12 +689,12 @@ GEO%zminglob = GEO%zmin
 GEO%zmaxglob = GEO%zmax
 #endif /*USE_MPI*/
 
-SWRITE(UNIT_stdOut,'(A,E18.8,A,E18.8,A,E18.8)') ' | Total MESH   Dim (x,y,z): '                                     &
+LBWRITE(UNIT_stdOut,'(A,E18.8,A,E18.8,A,E18.8)') ' | Total MESH   Dim (x,y,z): '                                     &
                                                 , MAXVAL(NodeCoords_Shared(1,:))-MINVAL(NodeCoords_Shared(1,:)),', '&
                                                 , MAXVAL(NodeCoords_Shared(2,:))-MINVAL(NodeCoords_Shared(2,:)),', '&
                                                 , MAXVAL(NodeCoords_Shared(3,:))-MINVAL(NodeCoords_Shared(3,:))
 IF (TrackingMethod.EQ.REFMAPPING .OR. TrackingMethod.EQ. TRACING) THEN
-  SWRITE(UNIT_stdOut,'(A,E18.8,A,E18.8,A,E18.8)') ' | Total BEZIER Dim (x,y,z): '                                   &
+  LBWRITE(UNIT_stdOut,'(A,E18.8,A,E18.8,A,E18.8)') ' | Total BEZIER Dim (x,y,z): '                                   &
                                                   , GEO%xmaxglob-GEO%xminglob,', '                                  &
                                                   , GEO%ymaxglob-GEO%yminglob,', '                                  &
                                                   , GEO%zmaxglob-GEO%zminglob
@@ -718,6 +736,9 @@ USE MOD_Particle_Mesh_Vars     ,ONLY: SideNormVec_Shared,SideNormVec_Shared_Win
 #else
 USE MOD_Particle_Mesh_Vars     ,ONLY: nComputeNodeElems
 #endif /* USE_MPI */
+#if USE_LOADBALANCE
+USE MOD_LoadBalance_Vars       ,ONLY: PerformLoadBalance
+#endif /*USE_LOADBALANCE*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -748,8 +769,8 @@ INTEGER                                  :: nLinearElemsTot,nCurvedElemsTot
 !#endif /* USE_MPI */
 !===================================================================================================================================
 
-SWRITE(UNIT_StdOut,'(132("-"))')
-SWRITE(UNIT_StdOut,'(A)') ' Identifying side types and whether elements are curved ...'
+LBWRITE(UNIT_StdOut,'(132("-"))')
+LBWRITE(UNIT_StdOut,'(A)') ' Identifying side types and whether elements are curved ...'
 
 ! elements
 #if USE_MPI
@@ -803,8 +824,8 @@ NGeo3 = NGeo2   *(NGeo+1)
 ! decide if element is (bi-)linear or curved
 ! decide if sides are planar-rect, planar-nonrect, planar-curved, bilinear or curved
 #if USE_MPI
-firstElem = INT(REAL( myComputeNodeRank   *nComputeNodeTotalElems)/REAL(nComputeNodeProcessors))+1
-lastElem  = INT(REAL((myComputeNodeRank+1)*nComputeNodeTotalElems)/REAL(nComputeNodeProcessors))
+firstElem = INT(REAL( myComputeNodeRank   )*REAL(nComputeNodeTotalElems)/REAL(nComputeNodeProcessors))+1
+lastElem  = INT(REAL((myComputeNodeRank+1))*REAL(nComputeNodeTotalElems)/REAL(nComputeNodeProcessors))
 #else
 firstElem = 1
 lastElem  = nElems
@@ -1044,13 +1065,13 @@ DO iElem = firstElem,lastElem
 END DO
 
 #if USE_MPI
-CALL MPI_REDUCE(nPlanarRectangular   ,nPlanarRectangularTot   ,1,MPI_INTEGER,MPI_SUM,0,MPI_COMM_WORLD,IERROR)
-CALL MPI_REDUCE(nPlanarNonRectangular,nPlanarNonRectangularTot,1,MPI_INTEGER,MPI_SUM,0,MPI_COMM_WORLD,IERROR)
-CALL MPI_REDUCE(nBilinear            ,nBilinearTot            ,1,MPI_INTEGER,MPI_SUM,0,MPI_COMM_WORLD,IERROR)
-CALL MPI_REDUCE(nPlanarCurved        ,nPlanarCurvedTot        ,1,MPI_INTEGER,MPI_SUM,0,MPI_COMM_WORLD,IERROR)
-CALL MPI_REDUCE(nCurved              ,nCurvedTot              ,1,MPI_INTEGER,MPI_SUM,0,MPI_COMM_WORLD,IERROR)
-CALL MPI_REDUCE(nLinearElems         ,nLinearElemsTot         ,1,MPI_INTEGER,MPI_SUM,0,MPI_COMM_WORLD,IERROR)
-CALL MPI_REDUCE(nCurvedElems         ,nCurvedElemsTot         ,1,MPI_INTEGER,MPI_SUM,0,MPI_COMM_WORLD,IERROR)
+CALL MPI_REDUCE(nPlanarRectangular   ,nPlanarRectangularTot   ,1,MPI_INTEGER,MPI_SUM,0,MPI_COMM_PICLAS,IERROR)
+CALL MPI_REDUCE(nPlanarNonRectangular,nPlanarNonRectangularTot,1,MPI_INTEGER,MPI_SUM,0,MPI_COMM_PICLAS,IERROR)
+CALL MPI_REDUCE(nBilinear            ,nBilinearTot            ,1,MPI_INTEGER,MPI_SUM,0,MPI_COMM_PICLAS,IERROR)
+CALL MPI_REDUCE(nPlanarCurved        ,nPlanarCurvedTot        ,1,MPI_INTEGER,MPI_SUM,0,MPI_COMM_PICLAS,IERROR)
+CALL MPI_REDUCE(nCurved              ,nCurvedTot              ,1,MPI_INTEGER,MPI_SUM,0,MPI_COMM_PICLAS,IERROR)
+CALL MPI_REDUCE(nLinearElems         ,nLinearElemsTot         ,1,MPI_INTEGER,MPI_SUM,0,MPI_COMM_PICLAS,IERROR)
+CALL MPI_REDUCE(nCurvedElems         ,nCurvedElemsTot         ,1,MPI_INTEGER,MPI_SUM,0,MPI_COMM_PICLAS,IERROR)
 #else
 nPlanarRectangularTot    = nPlanarRectangular
 nPlanarNonRectangularTot = nPlanarNonRectangular
@@ -1061,13 +1082,13 @@ nLinearElemsTot          = nLinearElems
 nCurvedElemsTot          = nCurvedElems
 #endif /* USE_MPI */
 
-SWRITE(UNIT_StdOut,'(A,I8)') ' | Number of planar-rectangular     faces: ', nPlanarRectangulartot
-SWRITE(UNIT_StdOut,'(A,I8)') ' | Number of planar-non-rectangular faces: ', nPlanarNonRectangulartot
-SWRITE(UNIT_StdOut,'(A,I8)') ' | Number of bi-linear              faces: ', nBilineartot
-SWRITE(UNIT_StdOut,'(A,I8)') ' | Number of planar-curved          faces: ', nPlanarCurvedtot
-SWRITE(UNIT_StdOut,'(A,I8)') ' | Number of curved                 faces: ', nCurvedtot
-SWRITE(UNIT_StdOut,'(A,I8)') ' | Number of (bi-)linear            elems: ', nLinearElemsTot
-SWRITE(UNIT_StdOut,'(A,I8)') ' | Number of curved                 elems: ', nCurvedElemsTot
+LBWRITE(UNIT_StdOut,'(A,I8)') ' | Number of planar-rectangular     faces: ', nPlanarRectangulartot
+LBWRITE(UNIT_StdOut,'(A,I8)') ' | Number of planar-non-rectangular faces: ', nPlanarNonRectangulartot
+LBWRITE(UNIT_StdOut,'(A,I8)') ' | Number of bi-linear              faces: ', nBilineartot
+LBWRITE(UNIT_StdOut,'(A,I8)') ' | Number of planar-curved          faces: ', nPlanarCurvedtot
+LBWRITE(UNIT_StdOut,'(A,I8)') ' | Number of curved                 faces: ', nCurvedtot
+LBWRITE(UNIT_StdOut,'(A,I8)') ' | Number of (bi-)linear            elems: ', nLinearElemsTot
+LBWRITE(UNIT_StdOut,'(A,I8)') ' | Number of curved                 elems: ', nCurvedElemsTot
 
 END SUBROUTINE IdentifyElemAndSideType
 
@@ -1121,14 +1142,16 @@ SUBROUTINE WeirdElementCheck()
 ! MODULES
 USE MOD_PreProc
 USE MOD_Globals
-USE MOD_Particle_Mesh_Vars        ,ONLY: NodeCoords_Shared,ConcaveElemSide_Shared,ElemSideNodeID_Shared
-USE MOD_Particle_Mesh_Vars        ,ONLY: WeirdElems
-USE MOD_Mesh_Tools                ,ONLY: GetGlobalElemID
+USE MOD_Particle_Mesh_Vars ,ONLY: NodeCoords_Shared,ConcaveElemSide_Shared,ElemSideNodeID_Shared,WeirdElems
+USE MOD_Mesh_Tools         ,ONLY: GetGlobalElemID
 #if USE_MPI
-USE MOD_MPI_Shared_Vars           ,ONLY: nComputeNodeTotalElems,nComputeNodeProcessors,myComputeNodeRank
+USE MOD_MPI_Shared_Vars    ,ONLY: nComputeNodeTotalElems,nComputeNodeProcessors,myComputeNodeRank
 #else
-USE MOD_Mesh_Vars                 ,ONLY: nElems
+USE MOD_Mesh_Vars          ,ONLY: nElems
 #endif /*USE_MPI*/
+#if USE_LOADBALANCE
+USE MOD_LoadBalance_Vars   ,ONLY: PerformLoadBalance
+#endif /*USE_LOADBALANCE*/
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1143,12 +1166,12 @@ REAL              :: vec(1:3), Node(1:3,1:4),det(1:3)
 LOGICAL           :: WEIRD, TRICHECK, TRIABSCHECK
 INTEGER           :: firstElem,lastElem
 !===================================================================================================================================
-SWRITE(UNIT_StdOut,'(132("-"))')
-SWRITE(UNIT_stdOut,'(A)') ' CHECKING FOR WEIRD ELEMENTS...'
+LBWRITE(UNIT_StdOut,'(132("-"))')
+LBWRITE(UNIT_stdOut,'(A)') ' CHECKING FOR WEIRD ELEMENTS...'
 
 #if USE_MPI
-firstElem = INT(REAL( myComputeNodeRank   *nComputeNodeTotalElems)/REAL(nComputeNodeProcessors))+1
-lastElem  = INT(REAL((myComputeNodeRank+1)*nComputeNodeTotalElems)/REAL(nComputeNodeProcessors))
+firstElem = INT(REAL( myComputeNodeRank   )*REAL(nComputeNodeTotalElems)/REAL(nComputeNodeProcessors))+1
+lastElem  = INT(REAL((myComputeNodeRank+1))*REAL(nComputeNodeTotalElems)/REAL(nComputeNodeProcessors))
 #else
 firstElem = 1
 lastElem  = nElems
@@ -1259,11 +1282,11 @@ IF(WeirdElems.GT.0) THEN
   CALL abort(__STAMP__,'Weird elements found: it means that part of the element is turned inside-out')
 END IF
 
-SWRITE(UNIT_stdOut,'(A)')' CHECKING FOR WEIRD ELEMENTS DONE!'
+LBWRITE(UNIT_stdOut,'(A)')' CHECKING FOR WEIRD ELEMENTS DONE!'
 
 DEALLOCATE(WeirdElemNbrs)
 
-SWRITE(UNIT_StdOut,'(132("-"))')
+LBWRITE(UNIT_StdOut,'(132("-"))')
 END SUBROUTINE WeirdElementCheck
 
 
@@ -1364,10 +1387,10 @@ SUBROUTINE CalcParticleMeshMetrics()
 USE MOD_Globals
 USE MOD_PreProc
 USE MOD_Mesh_Vars              ,ONLY: Elem_xGP
-USE MOD_Mesh_Vars              ,ONLY: NGeo,dXCL_NGeo
+USE MOD_Mesh_Vars              ,ONLY: dXCL_NGeo
 USE MOD_Particle_Mesh_Vars
 #if USE_MPI
-USE MOD_Mesh_Vars              ,ONLY: nGlobalElems,offsetElem,nElems
+USE MOD_Mesh_Vars              ,ONLY: NGeo,nGlobalElems,offsetElem,nElems
 USE MOD_MPI_Shared
 USE MOD_MPI_Shared_Vars
 #endif
@@ -1489,7 +1512,7 @@ INTEGER                        :: ALLOCSTAT
 IF (PerformLoadBalance) RETURN
 #endif
 
-SWRITE(UNIT_stdOut,'(A)') ' CALCULATING BezierControlPoints ...'
+LBWRITE(UNIT_stdOut,'(A)') ' CALCULATING BezierControlPoints ...'
 
 ! Build BezierControlPoints3D (compute-node local+halo)
 #if USE_MPI
@@ -1527,10 +1550,10 @@ IF (BezierElevation.GT.0) THEN
   CALL BARRIER_AND_SYNC(BezierControlPoints3DElevated_Shared_Win,MPI_COMM_SHARED)
 END IF
 
-firstElem = INT(REAL( myComputeNodeRank*   nGlobalElems)/REAL(nComputeNodeProcessors))+1
-lastElem  = INT(REAL((myComputeNodeRank+1)*nGlobalElems)/REAL(nComputeNodeProcessors))
-firstSide = INT(REAL (myComputeNodeRank   *nNonUniqueGlobalSides)/REAL(nComputeNodeProcessors))+1
-lastSide  = INT(REAL((myComputeNodeRank+1)*nNonUniqueGlobalSides)/REAL(nComputeNodeProcessors))
+firstElem = INT(REAL( myComputeNodeRank   )*REAL(nGlobalElems)/REAL(nComputeNodeProcessors))+1
+lastElem  = INT(REAL((myComputeNodeRank+1))*REAL(nGlobalElems)/REAL(nComputeNodeProcessors))
+firstSide = INT(REAL (myComputeNodeRank   )*REAL(nNonUniqueGlobalSides)/REAL(nComputeNodeProcessors))+1
+lastSide  = INT(REAL((myComputeNodeRank+1))*REAL(nNonUniqueGlobalSides)/REAL(nComputeNodeProcessors))
 #else
 firstElem = 1
 lastElem  = nElems
@@ -1593,7 +1616,10 @@ END SUBROUTINE CalcBezierControlPoints
 
 SUBROUTINE InitParticleGeometry()
 !===================================================================================================================================
-! Subroutine for particle geometry initialization (GEO container)
+!> Subroutine for particle geometry initialization (GEO container):
+!> - ConcaveElemSide_Shared(   1:6,1:nComputeNodeTotalElems)
+!> - ElemSideNodeID_Shared(1:4,1:6,1:nComputeNodeTotalElems)
+!> - ElemMidPoint_Shared(      1:3,1:nComputeNodeTotalElems)
 !===================================================================================================================================
 ! MODULES
 USE MOD_Preproc
@@ -1601,7 +1627,7 @@ USE MOD_ReadInTools
 USE MOD_Globals
 USE MOD_Mesh_Vars          ,ONLY: NGeo
 USE MOD_Particle_Mesh_Vars
-USE MOD_Mesh_Tools         ,ONLY: GetGlobalElemID
+USE MOD_Mesh_Tools         ,ONLY: GetGlobalElemID, GetCornerNodeMapCGNS
 #if USE_MPI
 USE MOD_MPI_Shared
 USE MOD_MPI_Shared_Vars
@@ -1609,6 +1635,9 @@ USE MOD_MPI_Shared_Vars
 USE MOD_Mesh_Vars          ,ONLY: nElems
 #endif
 USE MOD_ReadInTools        ,ONLY: GETLOGICAL
+#if USE_LOADBALANCE
+USE MOD_LoadBalance_Vars   ,ONLY: PerformLoadBalance
+#endif /*USE_LOADBALANCE*/
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1619,93 +1648,72 @@ USE MOD_ReadInTools        ,ONLY: GETLOGICAL
 ! LOCAL VARIABLES
 INTEGER            :: iElem,FirstElem,LastElem,GlobalElemID
 INTEGER            :: GlobalSideID,nlocSides,localSideID,iLocSide
-INTEGER            :: iNode
-INTEGER            :: nStart, NodeNum
-INTEGER            :: NodeMap(4,6)
+INTEGER            :: iNode, NodeMap(1:4,1:6), nStart, NodeNum
 REAL               :: A(3,3),detcon
-INTEGER            :: CornerNodeIDswitch(8)
 !===================================================================================================================================
 
-SWRITE(UNIT_StdOut,'(132("-"))')
-SWRITE(UNIT_stdOut,'(A)') ' INIT PARTICLE GEOMETRY INFORMATION...'
+LBWRITE(UNIT_StdOut,'(132("-"))')
+LBWRITE(UNIT_stdOut,'(A)') ' INIT PARTICLE GEOMETRY INFORMATION...'
 
-! the cornernodes are not the first 8 entries (for Ngeo>1) of nodeinfo array so mapping is built
-CornerNodeIDswitch(1)=1
-CornerNodeIDswitch(2)=(Ngeo+1)
-CornerNodeIDswitch(3)=(Ngeo+1)**2
-CornerNodeIDswitch(4)=(Ngeo+1)*Ngeo+1
-CornerNodeIDswitch(5)=(Ngeo+1)**2*Ngeo+1
-CornerNodeIDswitch(6)=(Ngeo+1)**2*Ngeo+(Ngeo+1)
-CornerNodeIDswitch(7)=(Ngeo+1)**2*Ngeo+(Ngeo+1)**2
-CornerNodeIDswitch(8)=(Ngeo+1)**2*Ngeo+(Ngeo+1)*Ngeo+1
-
-! New crazy corner node switch (philipesque)
-ASSOCIATE(CNS => CornerNodeIDswitch )
-  ! CGNS Mapping
-  NodeMap(:,1)=(/CNS(1),CNS(4),CNS(3),CNS(2)/)
-  NodeMap(:,2)=(/CNS(1),CNS(2),CNS(6),CNS(5)/)
-  NodeMap(:,3)=(/CNS(2),CNS(3),CNS(7),CNS(6)/)
-  NodeMap(:,4)=(/CNS(3),CNS(4),CNS(8),CNS(7)/)
-  NodeMap(:,5)=(/CNS(1),CNS(5),CNS(8),CNS(4)/)
-  NodeMap(:,6)=(/CNS(5),CNS(6),CNS(7),CNS(8)/)
+! Get the node map to convert from the CGNS format (as given by HOPR)
+CALL GetCornerNodeMapCGNS(NGeo,NodeMapCGNS=NodeMap(1:4,1:6))
 
 #if USE_MPI
-  CALL Allocate_Shared((/6,nComputeNodeTotalElems/),ConcaveElemSide_Shared_Win,ConcaveElemSide_Shared)
-  CALL MPI_WIN_LOCK_ALL(0,ConcaveElemSide_Shared_Win,IERROR)
-  firstElem = INT(REAL( myComputeNodeRank   *nComputeNodeTotalElems)/REAL(nComputeNodeProcessors))+1
-  lastElem  = INT(REAL((myComputeNodeRank+1)*nComputeNodeTotalElems)/REAL(nComputeNodeProcessors))
+CALL Allocate_Shared((/6,nComputeNodeTotalElems/),ConcaveElemSide_Shared_Win,ConcaveElemSide_Shared)
+CALL MPI_WIN_LOCK_ALL(0,ConcaveElemSide_Shared_Win,IERROR)
+firstElem = INT(REAL( myComputeNodeRank   )*REAL(nComputeNodeTotalElems)/REAL(nComputeNodeProcessors))+1
+lastElem  = INT(REAL((myComputeNodeRank+1))*REAL(nComputeNodeTotalElems)/REAL(nComputeNodeProcessors))
 
-  CALL Allocate_Shared((/4,6,nComputeNodeTotalElems/),ElemSideNodeID_Shared_Win,ElemSideNodeID_Shared)
-  CALL MPI_WIN_LOCK_ALL(0,ElemSideNodeID_Shared_Win,IERROR)
+CALL Allocate_Shared((/4,6,nComputeNodeTotalElems/),ElemSideNodeID_Shared_Win,ElemSideNodeID_Shared)
+CALL MPI_WIN_LOCK_ALL(0,ElemSideNodeID_Shared_Win,IERROR)
 
-  CALL Allocate_Shared((/3,nComputeNodeTotalElems/),ElemMidPoint_Shared_Win,ElemMidPoint_Shared)
-  CALL MPI_WIN_LOCK_ALL(0,ElemMidPoint_Shared_Win,IERROR)
+CALL Allocate_Shared((/3,nComputeNodeTotalElems/),ElemMidPoint_Shared_Win,ElemMidPoint_Shared)
+CALL MPI_WIN_LOCK_ALL(0,ElemMidPoint_Shared_Win,IERROR)
 #else
-  ALLOCATE(ConcaveElemSide_Shared(   1:6,1:nElems))
-  ALLOCATE(ElemSideNodeID_Shared(1:4,1:6,1:nElems))
-  ALLOCATE(ElemMidPoint_Shared(      1:3,1:nElems))
-  firstElem = 1
-  lastElem  = nElems
+ALLOCATE(ConcaveElemSide_Shared(   1:6,1:nElems))
+ALLOCATE(ElemSideNodeID_Shared(1:4,1:6,1:nElems))
+ALLOCATE(ElemMidPoint_Shared(      1:3,1:nElems))
+firstElem = 1
+lastElem  = nElems
 #endif  /*USE_MPI*/
 
 #if USE_MPI
-  IF (myComputeNodeRank.EQ.0) THEN
+IF (myComputeNodeRank.EQ.0) THEN
 #endif
-    ElemSideNodeID_Shared  = 0
-    ConcaveElemSide_Shared = .FALSE.
+  ElemSideNodeID_Shared  = 0
+  ConcaveElemSide_Shared = .FALSE.
 #if USE_MPI
-  END IF
-  CALL BARRIER_AND_SYNC(ElemSideNodeID_Shared_Win ,MPI_COMM_SHARED)
-  CALL BARRIER_AND_SYNC(ConcaveElemSide_Shared_Win,MPI_COMM_SHARED)
+END IF
+CALL BARRIER_AND_SYNC(ElemSideNodeID_Shared_Win ,MPI_COMM_SHARED)
+CALL BARRIER_AND_SYNC(ConcaveElemSide_Shared_Win,MPI_COMM_SHARED)
 #endif
 
-  ! iElem is CNElemID
-  DO iElem = firstElem,lastElem
-    GlobalElemID = GetGlobalElemID(iElem)
+! iElem is CNElemID
+DO iElem = firstElem,lastElem
+  GlobalElemID = GetGlobalElemID(iElem)
 
-    nlocSides = ElemInfo_Shared(ELEM_LASTSIDEIND,GlobalElemID) -  ElemInfo_Shared(ELEM_FIRSTSIDEIND,GlobalElemID)
-    DO iLocSide = 1,nlocSides
-      ! Get global SideID
-      GlobalSideID = ElemInfo_Shared(ELEM_FIRSTSIDEIND,GlobalElemID) + iLocSide
+  nlocSides = ElemInfo_Shared(ELEM_LASTSIDEIND,GlobalElemID) -  ElemInfo_Shared(ELEM_FIRSTSIDEIND,GlobalElemID)
+  DO iLocSide = 1,nlocSides
+    ! Get global SideID
+    GlobalSideID = ElemInfo_Shared(ELEM_FIRSTSIDEIND,GlobalElemID) + iLocSide
 
-      localSideID = SideInfo_Shared(SIDE_LOCALID,GlobalSideID)
-      IF (localSideID.LE.0) CYCLE
-      ! Find start of CGNS mapping from flip
-      IF (SideInfo_Shared(SIDE_ID,GlobalSideID).GT.0) THEN
-        nStart = 0
-      ELSE
-        nStart = MAX(0,MOD(SideInfo_Shared(SIDE_FLIP,GlobalSideID),10)-1)
-      END IF
-      ! Shared memory array starts at 1, but NodeID at 0
-      ElemSideNodeID_Shared(1:4,localSideID,iElem) = (/ElemInfo_Shared(ELEM_FIRSTNODEIND,GlobalElemID)+NodeMap(MOD(nStart  ,4)+1,localSideID)-1, &
-                                                       ElemInfo_Shared(ELEM_FIRSTNODEIND,GlobalElemID)+NodeMap(MOD(nStart+1,4)+1,localSideID)-1, &
-                                                       ElemInfo_Shared(ELEM_FIRSTNODEIND,GlobalElemID)+NodeMap(MOD(nStart+2,4)+1,localSideID)-1, &
-                                                       ElemInfo_Shared(ELEM_FIRSTNODEIND,GlobalElemID)+NodeMap(MOD(nStart+3,4)+1,localSideID)-1/)
+    localSideID = SideInfo_Shared(SIDE_LOCALID,GlobalSideID)
+    IF (localSideID.LE.0) CYCLE
+    ! Find start of CGNS mapping from flip
+    IF (SideInfo_Shared(SIDE_ID,GlobalSideID).GT.0) THEN
+      nStart = 0
+    ELSE
+      nStart = MAX(0,MOD(SideInfo_Shared(SIDE_FLIP,GlobalSideID),10)-1)
+    END IF
+    ! Shared memory array starts at 1, but NodeID at 0
+    ElemSideNodeID_Shared(1:4,localSideID,iElem) = (/ElemInfo_Shared(ELEM_FIRSTNODEIND,GlobalElemID)+NodeMap(MOD(nStart  ,4)+1,localSideID)-1, &
+                                                     ElemInfo_Shared(ELEM_FIRSTNODEIND,GlobalElemID)+NodeMap(MOD(nStart+1,4)+1,localSideID)-1, &
+                                                     ElemInfo_Shared(ELEM_FIRSTNODEIND,GlobalElemID)+NodeMap(MOD(nStart+2,4)+1,localSideID)-1, &
+                                                     ElemInfo_Shared(ELEM_FIRSTNODEIND,GlobalElemID)+NodeMap(MOD(nStart+3,4)+1,localSideID)-1/)
 
-    END DO ! iLocSide = 1,nlocSides
-  END DO ! iElem = firstElem,lastElem
+  END DO ! iLocSide = 1,nlocSides
+END DO ! iElem = firstElem,lastElem
 
-END ASSOCIATE
 #if USE_MPI
 CALL BARRIER_AND_SYNC(ElemSideNodeID_Shared_Win,MPI_COMM_SHARED)
 #endif
@@ -1758,85 +1766,9 @@ CALL BARRIER_AND_SYNC(ElemMidPoint_Shared_Win   ,MPI_COMM_SHARED)
 meshCheckWeirdElements = GETLOGICAL('meshCheckWeirdElements','.TRUE.')
 IF(meshCheckWeirdElements) CALL WeirdElementCheck()
 
-SWRITE(UNIT_stdOut,'(A)')' INIT PARTICLE GEOMETRY INFORMATION DONE!'
-SWRITE(UNIT_StdOut,'(132("-"))')
+LBWRITE(UNIT_stdOut,'(A)')' INIT PARTICLE GEOMETRY INFORMATION DONE!'
+LBWRITE(UNIT_StdOut,'(132("-"))')
 END SUBROUTINE InitParticleGeometry
-
-
-SUBROUTINE InitElemNodeIDs()
-!===================================================================================================================================
-! Subroutine for particle geometry initialization (GEO container)
-!===================================================================================================================================
-! MODULES
-USE MOD_Preproc
-USE MOD_ReadInTools
-USE MOD_Globals
-USE MOD_Mesh_Vars              ,ONLY: NGeo
-USE MOD_Particle_Mesh_Vars
-USE MOD_Mesh_Tools             ,ONLY: GetGlobalElemID
-#if USE_MPI
-USE MOD_MPI_Shared
-USE MOD_MPI_Shared_Vars
-#else
-USE MOD_Mesh_Vars              ,ONLY: nElems
-#endif
-! IMPLICIT VARIABLE HANDLING
- IMPLICIT NONE
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-INTEGER            :: iElem,firstElem,lastElem,GlobalElemID
-INTEGER            :: iNode
-INTEGER            :: CornerNodeIDswitch(8)
-!===================================================================================================================================
-
-! the cornernodes are not the first 8 entries (for Ngeo>1) of nodeinfo array so mapping is built
-CornerNodeIDswitch(1)=1
-CornerNodeIDswitch(2)=(Ngeo+1)
-CornerNodeIDswitch(3)=(Ngeo+1)**2
-CornerNodeIDswitch(4)=(Ngeo+1)*Ngeo+1
-CornerNodeIDswitch(5)=(Ngeo+1)**2*Ngeo+1
-CornerNodeIDswitch(6)=(Ngeo+1)**2*Ngeo+(Ngeo+1)
-CornerNodeIDswitch(7)=(Ngeo+1)**2*Ngeo+(Ngeo+1)**2
-CornerNodeIDswitch(8)=(Ngeo+1)**2*Ngeo+(Ngeo+1)*Ngeo+1
-
-! New crazy corner node switch (philipesque)
-ASSOCIATE(CNS => CornerNodeIDswitch )
-#if USE_MPI
-  firstElem = INT(REAL( myComputeNodeRank   *nComputeNodeTotalElems)/REAL(nComputeNodeProcessors))+1
-  lastElem  = INT(REAL((myComputeNodeRank+1)*nComputeNodeTotalElems)/REAL(nComputeNodeProcessors))
-  CALL Allocate_Shared((/8,nComputeNodeTotalElems/),ElemNodeID_Shared_Win,ElemNodeID_Shared)
-  CALL MPI_WIN_LOCK_ALL(0,ElemNodeID_Shared_Win,IERROR)
-#else
-  ALLOCATE(ElemNodeID_Shared(1:8,1:nElems))
-  firstElem = 1
-  lastElem  = nElems
-#endif  /*USE_MPI*/
-
-#if USE_MPI
-  IF (myComputeNodeRank.EQ.0) THEN
-#endif
-    ElemNodeID_Shared = 0
-#if USE_MPI
-  END IF
-  CALL BARRIER_AND_SYNC(ElemNodeID_Shared_Win,MPI_COMM_SHARED)
-#endif
-
-  ! iElem is CNElemID
-  DO iElem = firstElem,lastElem
-    GlobalElemID = GetGlobalElemID(iElem)
-    DO iNode = 1,8
-      ElemNodeID_Shared(iNode,iElem) = ElemInfo_Shared(ELEM_FIRSTNODEIND,GlobalElemID) + CNS(iNode)
-    END DO
-  END DO
-END ASSOCIATE
-#if USE_MPI
-CALL BARRIER_AND_SYNC(ElemNodeID_Shared_Win,MPI_COMM_SHARED)
-#endif
-END SUBROUTINE InitElemNodeIDs
 
 
 SUBROUTINE ComputePeriodicVec()
@@ -1851,6 +1783,10 @@ USE MOD_Particle_Boundary_Vars ,ONLY: PartBound
 USE MOD_Particle_Mesh_Vars     ,ONLY: GEO,ElemInfo_Shared,SideInfo_Shared,NodeCoords_Shared
 USE MOD_Particle_Vars          ,ONLY: PartMeshHasPeriodicBCs
 USE MOD_Mesh_Vars              ,ONLY: nElems
+USE MOD_Mesh_Tools             ,ONLY: GetCornerNodeMapCGNS
+#if USE_LOADBALANCE
+USE MOD_LoadBalance_Vars       ,ONLY: PerformLoadBalance
+#endif /*USE_LOADBALANCE*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -1860,38 +1796,24 @@ IMPLICIT NONE
 INTEGER,PARAMETER              :: iNode=1
 INTEGER                        :: iVec,iBC,iPartBC
 INTEGER                        :: firstElem,lastElem,NbSideID,BCALPHA,flip
-INTEGER                        :: SideID,ElemID,NbElemID,localSideID,localSideNbID,nStart
-INTEGER                        :: CornerNodeIDswitch(8),NodeMap(4,6)
+INTEGER                        :: SideID,ElemID,NbElemID,localSideID,localSideNbID,nStart,NodeMap(4,6)
 REAL,DIMENSION(3)              :: MasterCoords,SlaveCoords,Vec
 LOGICAL,ALLOCATABLE            :: PeriodicFound(:)
 #if USE_MPI
 REAL                           :: sendbuf
 REAL,ALLOCATABLE               :: recvbuf(:)
 #endif
+INTEGER                        :: nPeriodicVectorsParameterIni
 !-----------------------------------------------------------------------------------------------------------------------------------
 
-! the cornernodes are not the first 8 entries (for Ngeo>1) of nodeinfo array so mapping is built
-CornerNodeIDswitch(1)=1
-CornerNodeIDswitch(2)=(NGeo+1)
-CornerNodeIDswitch(3)=(NGeo+1)**2
-CornerNodeIDswitch(4)=(NGeo+1)*NGeo+1
-CornerNodeIDswitch(5)=(NGeo+1)**2*NGeo+1
-CornerNodeIDswitch(6)=(NGeo+1)**2*NGeo+(NGeo+1)
-CornerNodeIDswitch(7)=(NGeo+1)**2*NGeo+(NGeo+1)**2
-CornerNodeIDswitch(8)=(NGeo+1)**2*NGeo+(NGeo+1)*NGeo+1
-
-! Corner node switch to order HOPR coordinates in CGNS format
-ASSOCIATE(CNS => CornerNodeIDswitch )
-! CGNS Mapping
-NodeMap(:,1)=(/CNS(1),CNS(4),CNS(3),CNS(2)/)
-NodeMap(:,2)=(/CNS(1),CNS(2),CNS(6),CNS(5)/)
-NodeMap(:,3)=(/CNS(2),CNS(3),CNS(7),CNS(6)/)
-NodeMap(:,4)=(/CNS(3),CNS(4),CNS(8),CNS(7)/)
-NodeMap(:,5)=(/CNS(1),CNS(5),CNS(8),CNS(4)/)
-NodeMap(:,6)=(/CNS(5),CNS(6),CNS(7),CNS(8)/)
-
 ! Find number of periodic vectors
+nPeriodicVectorsParameterIni = GEO%nPeriodicVectors
 GEO%nPeriodicVectors = MERGE(MAXVAL(BoundaryType(:,BC_ALPHA)),0,PartMeshHasPeriodicBCs)
+IF(nPeriodicVectorsParameterIni.GT.GEO%nPeriodicVectors)THEN
+  SWRITE (*,*) "Number of periodic vectors in parameter file: ", nPeriodicVectorsParameterIni
+  SWRITE (*,*) "Number of periodic vectors in mesh      file: ", GEO%nPeriodicVectors
+  CALL CollectiveStop(__STAMP__,'Wrong number of periodic vectors!')
+END IF
 IF (GEO%nPeriodicVectors.EQ.0) RETURN
 
 firstElem = offsetElem+1
@@ -1902,6 +1824,8 @@ PeriodicFound(:) = .FALSE.
 
 ALLOCATE(GEO%PeriodicVectors(1:3,GEO%nPeriodicVectors))
 GEO%PeriodicVectors = 0.
+
+CALL GetCornerNodeMapCGNS(NGeo,NodeMapCGNS=NodeMap)
 
 DO ElemID = firstElem,lastElem
   ! Every periodic vector already found
@@ -1954,8 +1878,6 @@ SideLoop: DO SideID = ElemInfo_Shared(ELEM_FIRSTSIDEIND,ElemID)+1,ElemInfo_Share
   END DO SideLoop
 END DO
 
-END ASSOCIATE
-
 #if USE_MPI
 ALLOCATE(recvbuf(0:nProcessors-1))
 sendbuf = 0.
@@ -1968,11 +1890,11 @@ DO iVec = 1,GEO%nPeriodicVectors
 ! https://stackoverflow.com/questions/56307320/mpi-allreduce-not-synchronizing-properly
 !CALL MPI_ALLREDUCE(MPI_IN_PLACE,sendbuf,GEO%nPeriodicVectors,MPI_2DOUBLE_PRECISION,MPI_MINLOC,MPI_COMM_SHARED,iERROR)
 
-  CALL MPI_ALLGATHER(sendbuf,1,MPI_DOUBLE_PRECISION,recvbuf(:),1,MPI_DOUBLE_PRECISION,MPI_COMM_WORLD,iERROR)
+  CALL MPI_ALLGATHER(sendbuf,1,MPI_DOUBLE_PRECISION,recvbuf(:),1,MPI_DOUBLE_PRECISION,MPI_COMM_PICLAS,iERROR)
   IF (ALL(recvbuf(:).EQ.HUGE(1.))) CALL CollectiveStop(__STAMP__,'No periodic vector for BC_ALPHA found!',IntInfo=iVec)
 
   ! MINLOC does not follow array bounds, so root rank = 1
-  CALL MPI_BCAST(GEO%PeriodicVectors(:,iVec),3,MPI_DOUBLE_PRECISION,MINLOC(recvbuf(:),1)-1,MPI_COMM_WORLD,iError)
+  CALL MPI_BCAST(GEO%PeriodicVectors(:,iVec),3,MPI_DOUBLE_PRECISION,MINLOC(recvbuf(:),1)-1,MPI_COMM_PICLAS,iError)
 END DO
 #endif /*USE_MPI*/
 
@@ -1981,9 +1903,9 @@ SDEALLOCATE(PeriodicFound)
 #if USE_MPI
 IF (myRank.EQ.0) THEN
 #endif /*USE_MPI*/
-  WRITE(UNIT_stdOut,'(A,I0,A)') ' Found ',GEO%nPeriodicVectors,' periodic vectors for particle tracking'
+  LBWRITE(UNIT_stdOut,'(A,I0,A)') ' Found ',GEO%nPeriodicVectors,' periodic vectors for particle tracking'
   DO iVec = 1,GEO%nPeriodicVectors
-    WRITE(UNIT_stdOut,'(A,I1,A,F12.8,2(", ",F12.8))') ' | Periodic vector ',iVec,': ', GEO%PeriodicVectors(:,iVec)
+    LBWRITE(UNIT_stdOut,'(A,I1,A,F12.8,2(", ",F12.8))') ' | Periodic vector ',iVec,': ', GEO%PeriodicVectors(:,iVec)
   END DO
 
   ! Sanity check

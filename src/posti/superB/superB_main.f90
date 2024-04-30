@@ -1,7 +1,7 @@
 !==================================================================================================================================
 ! Copyright (c) 2019 Prof. Claus-Dieter Munz and Prof. Stefanos Fasoulas
 !
-! This file is part of PICLas (gitlab.com/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
+! This file is part of PICLas (piclas.boltzplatz.eu/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
 ! it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3
 ! of the License, or (at your option) any later version.
 !
@@ -158,7 +158,8 @@ IF(UseTimeDepCoil) THEN
     ASSOCIATE( f => CurrentInfo(iCoil)%CurrentFreq )
       BGFieldFrequency = f ! Set frequency for output to h5 file as attribute
       BGFieldCurrent   = CoilInfo(iCoil)%Current ! Set current maximum for output to h5 file as attribute
-      timestep         = MERGE(1./(f*REAL(nTimePoints-1)), 0., f.GT.0.)
+      IF (f.GT.0.) THEN; timestep = 1./(f*REAL(nTimePoints-1))
+      ELSE             ; timestep = 0.; END IF
     END ASSOCIATE
     SWRITE(UNIT_stdOut,'(A)') '...Calculation of the B-Field'
     DO iTimePoint = 1, nTimePoints
@@ -177,7 +178,7 @@ END IF
 ! ------------------------------------------------------------
 ! Write BGField (time-constant) or WriteBGFieldToHDF5 (time-dependent) fields to h5
 CALL WriteBGFieldToHDF5()
-! Output analytic field solution if required 
+! Output analytic field solution if required
 IF(DoCalcErrorNormsSuperB) CALL WriteBGFieldAnalyticToHDF5()
 
 ! Deallocate stuff

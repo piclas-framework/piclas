@@ -80,6 +80,7 @@ boundary for the same periodic vector.
 ```{figure} mesh/tut-pic-pw-mesh.jpg
 ---
 name: fig:plasma-wave-mesh
+width: 700px
 ---
 
 Mesh with $60\times1\times1$ elements and a size of [$2\pi\times0.2\times0.2$] m$^{3}$.
@@ -99,7 +100,10 @@ or simply run the following command from inside the *build* directory
 
 to configure the build process and run `make` afterwards to build the executable. For this setup, we have chosen the Poisson solver
 and selected the three-stage, third-order low-storage Runge-Kutta time discretization method. An overview over the available solver
-and discretization options is given in Section {ref}`sec:solver-settings`.
+and discretization options is given in Section {ref}`sec:solver-settings`. To run the simulation and analyse the results, the *piclas* and *piclas2vtk* executables have to be run. To avoid having to use the entire file path, you can either set aliases for both, copy them to your local tutorial directory or create a link to the files via.
+
+    ln -s $PICLAS_PATH/build/bin/piclas
+    ln -s $PICLAS_PATH/build/bin/piclas2vtk
 
 The simulation setup is defined in *parameter.ini*. For a specific electron number density, the plasma frequency of the system is
 given by
@@ -145,34 +149,33 @@ The general numerical parameters are selected by the following
     ! =============================================================================== !
     ! DISCRETIZATION
     ! =============================================================================== !
-    N             = 5  ! Polynomial degree
+    N             = 5  ! Polynomial degree of the DG method (field solver)
 
     ! =============================================================================== !
     ! MESH
     ! =============================================================================== !
-    MeshFile      = plasma_wave_mesh.h5
-    useCurveds    = F
+    MeshFile      = plasma_wave_mesh.h5 ! Relative path to the mesh .h5 file
 
     ! =============================================================================== !
     ! General
     ! =============================================================================== !
-    ProjectName      = plasma_wave
-    Logging          = F
-    WriteErrorFiles  = F
+    ProjectName       = plasma_wave ! Project name that is used for naming state files
+    ColoredOutput     = F           ! Turn ANSI terminal colors ON/OFF
+    doPrintStatusLine = T           ! Output live of ETA
     TrackingMethod   = refmapping
 
-where, among others, the polynomial degree $N$, the path to the mesh file `MeshFile`, project name and particle tracking method
-`TrackingMethod` are chosen.
+where, among others, the polynomial degree $N$, the path to the mesh file `MeshFile`, project name and the option to print the ETA
+to the terminal output in each time step.
 
 The temporal parameters of the simulation are controlled via
 
     ! =============================================================================== !
     ! CALCULATION
     ! =============================================================================== !
-    ManualTimeStep  = 5e-10
-    tend            = 40e-9
-    Analyze_dt      = 4e-9
-    IterDisplayStep = 50
+    ManualTimeStep  = 5e-10 ! Fixed pre-defined time step only when using the Poisson solver. Maxwell solver calculates dt that considers the CFL criterion
+    tend            = 40e-9 ! Final simulation time
+    Analyze_dt      = 4e-9  ! Simulation time between analysis
+    IterDisplayStep = 50    ! Number of iterations between terminal output showing the current time step iteration
 
 where the time step for the field and particle solver is set via `ManualTimeStep`, the final simulation time `tend`, the time
 between restart/checkpoint file output `Analyze_dt` (also the output time for specific analysis functions) and the number of time
@@ -185,29 +188,26 @@ As there are no walls present in the setup, all boundaries are set as periodic b
 particle solver. The particle boundary conditions are set by the following lines
 
     ! =============================================================================== !
-    ! PARTICLES Boundary Conditions
+    ! PARTICLE Boundary Conditions
     ! =============================================================================== !
-    Part-nBounds              = 6
-    Part-Boundary1-SourceName = BC_periodicx+
-    Part-Boundary1-Condition  = periodic
-    Part-Boundary2-SourceName = BC_periodicx-
-    Part-Boundary2-Condition  = periodic
-    Part-Boundary3-SourceName = BC_periodicy+
-    Part-Boundary3-Condition  = periodic
-    Part-Boundary4-SourceName = BC_periodicy-
-    Part-Boundary4-Condition  = periodic
-    Part-Boundary5-SourceName = BC_periodicz+
-    Part-Boundary5-Condition  = periodic
-    Part-Boundary6-SourceName = BC_periodicz-
-    Part-Boundary6-Condition  = periodic
+    Part-nBounds              = 6             ! Number of particle boundaries
+    Part-Boundary1-SourceName = BC_periodicx+ ! Name of 1st particle BC
+    Part-Boundary1-Condition  = periodic      ! Type of 1st particle BC
+    Part-Boundary2-SourceName = BC_periodicx- ! ...
+    Part-Boundary2-Condition  = periodic      ! ...
+    Part-Boundary3-SourceName = BC_periodicy+ ! ...
+    Part-Boundary3-Condition  = periodic      ! ...
+    Part-Boundary4-SourceName = BC_periodicy- ! ...
+    Part-Boundary4-Condition  = periodic      ! ...
+    Part-Boundary5-SourceName = BC_periodicz+ ! ...
+    Part-Boundary5-Condition  = periodic      ! ...
+    Part-Boundary6-SourceName = BC_periodicz- ! ...
+    Part-Boundary6-Condition  = periodic      ! ...
 
-    Part-nPeriodicVectors = 3
-    Part-PeriodicVector1  = (/6.2831,0.,0./)
-    Part-PeriodicVector2  = (/0.,0.2,0./)
-    Part-PeriodicVector3  = (/0.,0.,0.2/)
+    Part-nPeriodicVectors = 3 ! Number of periodic boundary (particle and field) vectors
 
-    Part-FIBGMdeltas = (/6.2831 , 0.2 , 0.2/)
-    Part-FactorFIBGM = (/60     , 1   , 1/)
+    Part-FIBGMdeltas = (/6.2831 , 0.2 , 0.2/) ! Cartesian background mesh (bounding box around the complete simulation domain)
+    Part-FactorFIBGM = (/60     , 1   , 1/)   ! Division factor that is applied t the "Part-FIBGMdeltas" values to define the dx, dy and dz distances of the Cartesian background mesh
 
 where, the number of boundaries `Part-nBounds` (6 in 3D cuboid) is followed by the names of
 the boundaries (given by the hopr.ini file) and the type `periodic`. Furthermore, the periodic vectors must be supplied and the size
@@ -219,14 +219,21 @@ in each direction given by `Part-FactorFIBGM`. Here, the size and number of cell
 The settings for the field solver (HDGSEM) are given by
 
     ! =============================================================================== !
-    ! HDGSEM
+    ! Field Solver: HDGSEM
     ! =============================================================================== !
-    epsCG                 = 1e-6
-    maxIterCG             = 1000
-    IniExactFunc          = 0
+    epsCG                 = 1e-6 ! Stopping criterion (residual) of iterative CG solver (default that is used for the HDGSEM solver)
+    maxIterCG             = 1000 ! Maximum number of iterations
+    IniExactFunc          = 0    ! Initial field condition. 0: zero solution vector
 
 where `epsCG` sets the abort residual of the CG solver, `maxIterCG` sets the maximum number of iterations within the CG solver and
 `IniExactFunc` set the initial solution of the field solver (here 0 says that nothing is selected).
+
+The numerical scheme for tracking the movement of all particles throughout the simulation domain can be switched by
+
+    ! =============================================================================== !
+    ! Particle Solver
+    ! =============================================================================== !
+    TrackingMethod    = refmapping  ! Particle tracking method
 
 The PIC parameters for interpolation (of electric fields to the particle positions) and deposition (mapping of charge properties
 from particle locations to the grid) are selected via
@@ -234,19 +241,24 @@ from particle locations to the grid) are selected via
     ! =============================================================================== !
     ! PIC: Interpolation/Deposition
     ! =============================================================================== !
-    PIC-DoInterpolation       = T
-    PIC-Interpolation-Type    = particle_position
+    PIC-DoInterpolation       = T                 ! Activate Lorentz forces acting on charged particles
+    PIC-Interpolation-Type    = particle_position ! Field interpolation method for Lorentz force calculation
 
-    PIC-Deposition-Type         = shape_function_adaptive
-    PIC-shapefunction-dimension = 1
-    PIC-shapefunction-direction = 1
-    PIC-shapefunction-alpha     = 4
+    PIC-Deposition-Type            = shape_function_adaptive ! Particle-field coupling method. shape_function_adaptive determines the cut-off radius of the shape function automatically
+    PIC-shapefunction-dimension    = 1                       ! Shape function specific dimensional setting
+    PIC-shapefunction-direction    = 1                       ! Shape function specific coordinate direction setting
+    PIC-shapefunction-alpha        = 4                       ! Shape function specific parameter that scales the waist diameter of the shape function
+    PIC-shapefunction-adaptive-DOF = 10                      ! Scaling factor for the adaptive shape function radius (average number of DOF that are within the shape function sphere in case of a Cartesian mesh)
 
-where the interpolation type `PIC-Interpolation-Type = particle_position` is required and currently the only option. For deposition,
-a polynomial shape function with the exponent `PIC-shapefunction-alpha` of the type `PIC-Deposition-Type = shape_function_adaptive` is
-selected. The dimension `PIC-shapefunction-dimension`, here 1D and direction `PIC-shapefunction-direction`, are selected specifically
-for the one-dimensional setup that is simulated here. The different available deposition types are described in more detail in
-Section {ref}`sec:PIC-deposition`.
+where the interpolation type `PIC-Interpolation-Type = particle_position` is currently the only option for specifying how
+electro(-magnetic) fields are interpolated to the position of the charged particles.
+For charge and current deposition, a polynomial shape function with the exponent `PIC-shapefunction-alpha` of the type
+`PIC-Deposition-Type = shape_function_adaptive` is selected. The size of the shape function radius relative to the element size can
+be scaled via `PIC-shapefunction-adaptive-DOF`. The higher this value is, the more field DOF are within the shape function sphere.
+This increases the accuracy of the deposition method at the cost of computational resources.
+The dimension `PIC-shapefunction-dimension`, here 1D and direction `PIC-shapefunction-direction`, are selected specifically
+for the one-dimensional setup that is simulated here.
+The different available deposition types are described in more detail in Section {ref}`sec:PIC-deposition`.
 
 ### Particle solver
 
@@ -257,8 +269,8 @@ through chemical reactions).
     ! =============================================================================== !
     ! PARTICLE Emission
     ! =============================================================================== !
-    Part-maxParticleNumber    = 4000
-    Part-nSpecies             = 2
+    Part-maxParticleNumber    = 4000 ! Maximum number of particles (per processor/thread)
+    Part-nSpecies             = 2    ! Number of particle species
 
 The inserting (sometimes labelled emission or initialization) of particles at the beginning or during the course of the simulation
 is controlled via the following parameters. Here, only
@@ -267,11 +279,12 @@ For each species, the mass (`Part-SpeciesX-MassIC`), charge (`Part-SpeciesX-Char
 have to be defined.
 
     ! -------------------------------------
-    ! Electrons - Species 1
+    ! Electrons 1
     ! -------------------------------------
-    Part-Species1-MacroParticleFactor = 5e8
-    Part-Species1-ChargeIC            = -1.60217653E-19
-    Part-Species1-MassIC              = 9.1093826E-31
+    Part-Species1-ChargeIC            = -1.60217653E-19 ! Electric charge of species #1
+    Part-Species1-MassIC              = 9.1093826E-31   ! Rest mass of species #1
+    Part-Species1-MacroParticleFactor = 5e8             ! Weighting factor for species #1
+    Part-Species1-nInits              = 1               ! Number of initialization/emission regions for species #1
 
 The number of initialization sets is defined by `Part-Species1-nInits`, where each initialization set is accompanied
 by a block of parameters that starts from `Part-Species1-Init1-SpaceIC` up to `Part-Species1-Init1-VeloVecIC` and are preceded by the
@@ -281,21 +294,20 @@ equidistantly on a line and sinusoidally dislocates them (representing an initia
 Each type of the initialization set might have a different set of parameters and an overview is given in Section
 {ref}`sec:particle-initialization-and-emission`.
 
-    Part-Species1-nInits=1
+    Part-Species1-Init1-ParticleNumber        = 400           ! Number of simulation particles for species #1 and initialization #1
+    Part-Species1-Init1-maxParticleNumber-x   = 400           ! Number of simulation particles in x-direction for species #1 and initialization #1
+    Part-Species1-Init1-SpaceIC               = sin_deviation ! Sinusoidal distribution is space
+    Part-Species1-Init1-velocityDistribution  = constant      ! Constant velocity distribution
+    Part-Species1-Init1-maxParticleNumber-y   = 1             ! Number of particles in y
+    Part-Species1-Init1-maxParticleNumber-z   = 1             ! Number of particles in z
+    Part-Species1-Init1-Amplitude             = 0.01          ! Specific factor for the sinusoidal distribution is space
+    Part-Species1-Init1-WaveNumber            = 2.            ! Specific factor for the sinusoidal distribution is space
+    Part-Species1-Init1-VeloIC                = 0.            ! Velocity magnitude [m/s]
+    Part-Species1-Init1-VeloVecIC             = (/1.,0.,0./)  ! Normalized velocity vector
 
-    Part-Species1-Init1-SpaceIC               = sin_deviation
-    Part-Species1-Init1-velocityDistribution  = constant
-    Part-Species1-Init1-ParticleNumber        = 400
-    Part-Species1-Init1-maxParticleNumber-x   = 400
-    Part-Species1-Init1-maxParticleNumber-y   = 1
-    Part-Species1-Init1-maxParticleNumber-z   = 1
-    Part-Species1-Init1-Amplitude             = 0.01
-    Part-Species1-Init1-WaveNumber            = 2.
-    Part-Species1-Init1-VeloIC                = 0.
-    Part-Species1-Init1-VeloVecIC             = (/1.,0.,0./)
 
 To calculate the number of simulation particles of, e.g. electrons, defined by `Part-Species1-Init1-ParticleNumber`, the given
-number density $n_{e}$ in {numref}`tab:pic_poisson_plasma_wave_phys`, the selected weighting factor $w_{e}$ and the volume of the 
+number density $n_{e}$ in {numref}`tab:pic_poisson_plasma_wave_phys`, the selected weighting factor $w_{e}$ and the volume of the
 complete domain ($V=2\pi\cdot0.2\cdot0.2\pu{m^{3}}$) are utilized.
 
 $$ N_{e,sim} = \frac{n_{e} V}{w_{e}} $$
@@ -310,11 +322,12 @@ three Cartesian coordinates, which is not required for this 1D example.
 
 ### Analysis setup
 
-Finally, some parameters for run-time analysis are chosen by setting them `T` (true).
+Finally, some parameters for run-time analysis are chosen by setting them `T` (true). Further, with `TimeStampLength = 13`, the names of the output files are shortened for better postprocessing. If this is not done, e.g. Paraview does not sort the files correctly and will display faulty behaviour over time.
 
     ! =============================================================================== !
     ! Analysis
     ! =============================================================================== !
+    TimeStampLength         = 13 ! Reduces the length of the timestamps in filenames for better postprocessing
     CalcCharge               = T ! writes rel/abs charge error to PartAnalyze.csv
     CalcPotentialEnergy      = T ! writes the potential field energy to FieldAnalyze.csv
     CalcKineticEnergy        = T ! writes the kinetic energy of all particle species to PartAnalyze.csv
@@ -335,9 +348,13 @@ parameters via `piclas --help` or a subset of them by supplying a section, e.g.,
 
 The command
 
-    piclas parameter.ini > std.out
+    ./piclas parameter.ini | tee std.out
 
 executes the code and dumps all output into the file *std.out*.
+To reduce the computation time, the simulation can be run using the Message Passing Interface (MPI) on multiple cores, in this case 4
+
+    mpirun -np 4 piclas parameter.ini | tee std.out
+
 If the run has completed successfully, which should take only a brief moment, the contents of the working folder should look like
 
     4.0K drwxrwxr-x  4.0K Jun 28 13:07 ./
@@ -348,17 +365,17 @@ If the run has completed successfully, which should take only a brief moment, th
     8.0K -rw-rw-r--  5.0K Jun 28 13:07 parameter.ini
     156K -rw-rw-r--  151K Jun 28 12:51 PartAnalyze.csv
      32K -rw-rw-r--   32K Jun 26 16:43 plasma_wave_mesh.h5
-    1.6M -rw-rw-r--  1.6M Jun 28 12:44 plasma_wave_State_000.00000000000000000.h5
-    1.6M -rw-rw-r--  1.6M Jun 28 12:45 plasma_wave_State_000.00000000400000000.h5
-    1.6M -rw-rw-r--  1.6M Jun 28 12:45 plasma_wave_State_000.00000000800000000.h5
-    1.6M -rw-rw-r--  1.6M Jun 28 12:46 plasma_wave_State_000.00000001200000000.h5
-    1.6M -rw-rw-r--  1.6M Jun 28 12:47 plasma_wave_State_000.00000001600000000.h5
-    1.6M -rw-rw-r--  1.6M Jun 28 12:48 plasma_wave_State_000.00000002000000000.h5
-    1.6M -rw-rw-r--  1.6M Jun 28 12:49 plasma_wave_State_000.00000002400000000.h5
-    1.6M -rw-rw-r--  1.6M Jun 28 12:50 plasma_wave_State_000.00000002800000000.h5
-    1.6M -rw-rw-r--  1.6M Jun 28 12:50 plasma_wave_State_000.00000003200000000.h5
-    1.6M -rw-rw-r--  1.6M Jun 28 12:51 plasma_wave_State_000.00000003600000000.h5
-    1.6M -rw-rw-r--  1.6M Jun 28 12:51 plasma_wave_State_000.00000004000000000.h5
+    1.6M -rw-rw-r--  1.6M Jun 28 12:44 plasma_wave_State_000.000000000.h5
+    1.6M -rw-rw-r--  1.6M Jun 28 12:45 plasma_wave_State_000.000000004.h5
+    1.6M -rw-rw-r--  1.6M Jun 28 12:45 plasma_wave_State_000.000000008.h5
+    1.6M -rw-rw-r--  1.6M Jun 28 12:46 plasma_wave_State_000.000000012.h5
+    1.6M -rw-rw-r--  1.6M Jun 28 12:47 plasma_wave_State_000.000000016.h5
+    1.6M -rw-rw-r--  1.6M Jun 28 12:48 plasma_wave_State_000.000000020.h5
+    1.6M -rw-rw-r--  1.6M Jun 28 12:49 plasma_wave_State_000.000000024.h5
+    1.6M -rw-rw-r--  1.6M Jun 28 12:50 plasma_wave_State_000.000000028.h5
+    1.6M -rw-rw-r--  1.6M Jun 28 12:50 plasma_wave_State_000.000000032.h5
+    1.6M -rw-rw-r--  1.6M Jun 28 12:51 plasma_wave_State_000.000000036.h5
+    1.6M -rw-rw-r--  1.6M Jun 28 12:51 plasma_wave_State_000.000000040.h5
      72K -rw-rw-r--   71K Jun 28 12:51 std.out
 
 Multiple additional files have been created, which are are named  **Projectname_State_Timestamp.h5**.
@@ -374,7 +391,7 @@ After a successful completion, the last lines in this file should look as shown 
     EFFICIENCY: SIMULATION TIME PER CALCULATION in [s]/[Core-h]: [ 2.38587E-06 sec/h ]
     Timestep  :    5.0000000E-10
     #Timesteps :    8.0000000E+01
-    WRITE STATE TO HDF5 FILE [plasma_wave_State_000.00000004000000000.h5] ...DONE  [.008s]
+    WRITE STATE TO HDF5 FILE [plasma_wave_State_000.000000040.h5] ...DONE  [.008s]
     #Particles :    8.0000000E+02
     --------------------------------------------------------------------------------------------
     ============================================================================================
@@ -391,30 +408,31 @@ The parameters for **piclas2vtk** are stored in the **parameter.ini** file under
     ! =============================================================================== !
     ! piclas2vtk
     ! =============================================================================== !
-    NVisu         = 10
-    VisuParticles = T
+    NVisu         = 10 ! Polynomial degree used for the visualization when the .h5 file is converted to .vtu/.vtk format. Should be at least N+1
+    VisuParticles = T  ! Activate the conversion of particles from .h5 to .vtu/.vtk format. Particles will be displayed as a point cloud with properties, such as velocity, species ID, etc.
 
 where `NVisu` is the polynomial visualization degree on which the field solution is interpolated.
 Depending on the used polynomial degree `N` and subsequently the degree of visualization `NVisu`, which should always be higher than
 `N`, the resulting electric potential $\Phi$ and its derivative the electric field strength **E** might show signs of oscillations.
-This is because the PIC simulation is always subject to noise that is influenced by the discretization (number of elements and 
+This is because the PIC simulation is always subject to noise that is influenced by the discretization (number of elements and
 polynomial degree as well as number of particles) and is visible in the solution as this is a snapshot of the current simulation.
 
 Additionally, the flag `VisuParticles` activates the output of particle position, velocity and species to the *vtk*-files.
 
 Run the command
 
-    piclas2vtk parameter.ini plasma_wave_State_000.000000*
+    ./piclas2vtk parameter.ini plasma_wave_State_000.000000*
 
 to generate the corresponding *vtk*-files, which can then be loaded into the visualisation tool.
 
-The electric potential field can be viewed, e.g., by opening `plasma_wave_Solution_000.00000040000000000.vtu` and plotting the field
-`Phi`, which should look like the following
+The electric potential field can be viewed, e.g., by opening `plasma_wave_Solution_000.000000040.vtu` and plotting the field
+`Phi` along the x-axis, which should look like the following
 
 
 ```{figure} results/tut-pic-pw-results.jpg
 ---
 name: fig:plasma-wave-results
+width: 700px
 ---
 
 Resulting electric potential and field.

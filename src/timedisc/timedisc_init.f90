@@ -1,7 +1,7 @@
 !==================================================================================================================================
 ! Copyright (c) 2010 - 2018 Prof. Claus-Dieter Munz and Prof. Stefanos Fasoulas
 !
-! This file is part of PICLas (gitlab.com/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
+! This file is part of PICLas (piclas.boltzplatz.eu/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
 ! it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3
 ! of the License, or (at your option) any later version.
 !
@@ -75,7 +75,7 @@ IF (WriteMacroVolumeValues.OR.WriteMacroSurfaceValues) MacroValSampTime = Time
 #endif /*PARTICLES*/
 iAnalyze=1
 ! Determine the first analyze time
-tAnalyze=MIN(RestartTime+REAL(iAnalyze)*Analyze_dt,tEnd)
+tAnalyze=MIN(RestartTime+Analyze_dt,tEnd)
 
 ! fill initial analyze stuff
 dt_Min(DT_ANALYZE) = tAnalyze-Time ! Time to next analysis, put in extra variable so number does not change due to numerical errors
@@ -200,8 +200,6 @@ dt=HUGE(1.)
   SWRITE(UNIT_stdOut,'(A)') ' Method of time integration: Direct Simulation Monte Carlo (DSMC)'
 #elif (PP_TimeDiscMethod==6)
   SWRITE(UNIT_stdOut,'(A)') ' Method of time integration: LSERK4-14 '
-#elif (PP_TimeDiscMethod==42)
-  SWRITE(UNIT_stdOut,'(A)') ' Method of time integration: DSMC Reservoir and Debug'
 #elif (PP_TimeDiscMethod==120)
   SWRITE(UNIT_stdOut,'(A)') ' Method of time integration: Heun/Crank-Nicolson1-2-2'
 #elif (PP_TimeDiscMethod==121)
@@ -239,7 +237,9 @@ dt=HUGE(1.)
   SWRITE(UNIT_stdOut,'(A)') ' Method of time integration: Boris-Leapfrog, Poisson'
 #elif (PP_TimeDiscMethod==509)
   SWRITE(UNIT_stdOut,'(A)') ' Method of time integration: Leapfrog, Poisson'
-# endif
+#elif (PP_TimeDiscMethod==600)
+  SWRITE(UNIT_stdOut,'(A)') ' Method of time integration: Radiation'
+#endif
 
 RKdtFrac      = 1.
 RKdtFracTotal = 1.
@@ -278,7 +278,6 @@ USE MOD_HDG_Vars              ,ONLY: BRTimeStepMultiplier,UseBRElectronFluid,BRT
 USE MOD_Part_BR_Elecron_Fluid ,ONLY: GetNextBRSwitchTime
 #endif /*defined(PARTICLES) && USE_HDG*/
 #if USE_LOADBALANCE
-USE MOD_TimeDisc_Vars         ,ONLY: dt,dt_Min
 USE MOD_LoadBalance_Vars      ,ONLY: DoLoadBalanceBackup,LoadBalanceSampleBackup,DoLoadBalance
 USE MOD_LoadBalance_Vars      ,ONLY: LoadBalanceSample,PerformLBSample
 USE MOD_Restart_Vars          ,ONLY: DoInitialAutoRestart,InitialAutoRestartSample
@@ -366,7 +365,9 @@ USE MOD_LoadBalance_Vars ,ONLY: DoLoadBalance,LoadBalanceSample,PerformLBSample
 #endif /*USE_LOADBALANCE*/
 #if (PP_TimeDiscMethod==509)
 USE MOD_TimeDisc_Vars    ,ONLY: iter,dt_old
+#if USE_MPI
 USE MOD_Globals          ,ONLY: MPIRoot
+#endif /*USE_MPI*/
 #endif /*(PP_TimeDiscMethod==509)*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE

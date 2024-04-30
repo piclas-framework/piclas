@@ -79,6 +79,8 @@ load_module () {
 # Check command line arguments
 RERUNMODE=0
 LOADMODULES=1
+# default to openmpi
+WHICHMPI='openmpi'
 for ARG in "$@"
 do
 
@@ -96,23 +98,49 @@ do
     #CMAKEVERSION=3.15.3-d
     #CMAKEVERSION=3.17.0-d
     #CMAKEVERSION=3.20.3
-    CMAKEVERSION=3.21.3
+    #CMAKEVERSION=3.21.3
+    #CMAKEVERSION=3.24.2
+    CMAKEVERSION=3.26.4
 
     #GCCVERSION=9.2.0
     #GCCVERSION=9.3.0
     #GCCVERSION=10.1.0
     #GCCVERSION=10.2.0
-    GCCVERSION=11.2.0
+    #GCCVERSION=11.2.0
+    #GCCVERSION=13.1.0
+    GCCVERSION=13.2.0
 
     #OPENMPIVERSION=3.1.4
     #OPENMPIVERSION=4.0.1
     #OPENMPIVERSION=4.0.2
     #OPENMPIVERSION=3.1.6
-    OPENMPIVERSION=4.1.1
+    #OPENMPIVERSION=4.1.1
+    #OPENMPIVERSION=4.1.5
+
+    MPICHVERSION=4.1.2
+
+    # chose which mpi you want to have installed (openmpi or mpich), default is openmpi
+    if [[ -n ${MPICHVERSION} ]]; then
+      # Set mpich or mpich-debug
+      # MPICH "debug", which uses MPICH installation with --with-device=ch3:sock.
+      # This will use the older ch3:sock channel that does not busy poll.
+      # This channel will be slower for intra-node communication, but it will perform much better in the oversubscription scenario.
+      WHICHMPI='mpich'
+      #WHICHMPI='mpich-debug'
+      MPIVERSION=${MPICHVERSION}
+    else
+      if [[ -z ${OPENMPIVERSION} ]]; then
+        echo "${RED}ERROR: Set either OPENMPIVERSION or MPICHVERSION in InstallPETSc.sh when running with '-m'${NC}. Exit."
+        exit
+      else
+        MPIVERSION=${OPENMPIVERSION}
+      fi
+    fi
 
     #HDF5VERSION=1.10.5
     #HDF5VERSION=1.10.6
-    HDF5VERSION=1.12.1
+    #HDF5VERSION=1.12.1
+    HDF5VERSION=1.14.0
   fi
 
   # Check if re-run mode is selected by the user
@@ -154,14 +182,14 @@ if [[ -n $(module purge 2>&1) ]]; then
   exit
 fi
 
-# take the first gcc compiler installed with first compatible openmpi and hdf5
+# take the first gcc compiler installed with first compatible openmpi/mpich and hdf5
 echo " "
 if [[ $LOADMODULES -eq 1 ]]; then
   CMAKEVERSION=$(ls ${MODULESDIR}/utilities/cmake/ | sed 's/ /\n/g' | grep -i "[0-9]\." | head -n 1 | tail -n 1)
   GCCVERSION=$(ls ${MODULESDIR}/compilers/gcc/ | sed 's/ /\n/g' | grep -i "[0-9]\." | head -n 1 | tail -n 1)
-  OPENMPIVERSION=$(ls ${MODULESDIR}/MPI/openmpi/ | sed 's/ /\n/g' | grep -i "[0-9]\." | head -n 1 | tail -n 1)
+  MPIVERSION=$(ls ${MODULESDIR}/MPI/${WHICHMPI}/ | sed 's/ /\n/g' | grep -i "[0-9]\." | head -n 1 | tail -n 1)
   HDF5VERSION=$(ls ${MODULESDIR}/libraries/hdf5/ | sed 's/ /\n/g' | grep -i "[0-9]\." | head -n 1 | tail -n 1)
-  echo -e "Modules found automatically.\n\nCMAKEVERSION=${CMAKEVERSION}\nGCCVERSION=${GCCVERSION}\nOPENMPIVERSION=${OPENMPIVERSION}\nHDF5VERSION=${HDF5VERSION}\n\nWARNING: The combination might not be possible!"
+  echo -e "Modules found automatically.\n\nCMAKEVERSION=${CMAKEVERSION}\nGCCVERSION=${GCCVERSION}\n${WHICHMPI}-MPIVERSION=${MPIVERSION}\nHDF5VERSION=${HDF5VERSION}\n\nWARNING: The combination might not be possible!"
   if [[ ${RERUNMODE} -eq 0 ]]; then
     read -p "Press [Enter] to continue or [Crtl+c] to abort!"
   fi
@@ -170,11 +198,11 @@ else
 fi
 
 check_module "cmake" "${CMAKEVERSION}"
-check_module "gcc  " "${GCCVERSION}"
-check_module "mpi  " "${OPENMPIVERSION}"
-check_module "hdf5 " "${HDF5VERSION}"
+check_module "gcc" "${GCCVERSION}"
+check_module "${WHICHMPI}" "${MPIVERSION}"
+check_module "hdf5" "${HDF5VERSION}"
 
-HOPRMODULEFILEDIR=${MODULESDIR}/utilities/hopr/${HOPRVERSION}/gcc/${GCCVERSION}/openmpi/${OPENMPIVERSION}/hdf5
+HOPRMODULEFILEDIR=${MODULESDIR}/utilities/hopr/${HOPRVERSION}/gcc/${GCCVERSION}/${WHICHMPI}/${MPIVERSION}/hdf5
 MODULEFILE=${HOPRMODULEFILEDIR}/${HDF5VERSION}
 
 # if no HOPR module for this compiler found, install HOPR and create module
@@ -185,19 +213,19 @@ if [ ! -e "${MODULEFILE}" ]; then
   module purge
   load_module "cmake/${CMAKEVERSION}"
   load_module "gcc/${GCCVERSION}"
-  load_module "openmpi/${OPENMPIVERSION}/gcc/${GCCVERSION}"
-  load_module "hdf5/${HDF5VERSION}/gcc/${GCCVERSION}/openmpi/${OPENMPIVERSION}"
+  load_module "${WHICHMPI}/${MPIVERSION}/gcc/${GCCVERSION}"
+  load_module "hdf5/${HDF5VERSION}/gcc/${GCCVERSION}/${WHICHMPI}/${MPIVERSION}"
   module list
   echo " "
   echo -e "$GREEN""Important: If the compilation step fails, run the script again and if it still fails \n1) try compiling single, .i.e., remove -j from make -j or \n2) try make -j 2 (not all available threads)$NC"
   echo " "
   echo -e "This will install HOPR version ${GREEN}${HOPRVERSION}${NC} from ${HOPRDOWNLOAD} \nCompilation in parallel will be executed with ${GREEN}${NBROFCORES} threads${NC}."
   if [[ ${RERUNMODE} -eq 0 ]]; then
-    read -p "Have the correct modules been loaded? If yes, press [Enter] to continue or [Crtl+c] to abort!"
+    read -p "Have the correct modules been loaded? If yes, press [Enter] to continue or [Crtl+c] to abort! Note that hopr will be installed via cmake with -DLIBS_USE_MPI=OFF"
   fi
 
   # Install destination
-  HOPRINSTALLDIR=/opt/hopr/${HOPRVERSION}/gcc-${GCCVERSION}/openmpi-${OPENMPIVERSION}/hdf5-${HDF5VERSION}
+  HOPRINSTALLDIR=/opt/hopr/${HOPRVERSION}/gcc-${GCCVERSION}/${WHICHMPI}-${MPIVERSION}/hdf5-${HDF5VERSION}
 
   # Create and change to install directory
   mkdir -p ${HOPRINSTALLDIR}
@@ -261,7 +289,7 @@ if [ ! -e "${MODULEFILE}" ]; then
 
   # CMAKE COMPILE FLAGS
   cmake -DCMAKE_BUILD_TYPE=Release \
-        -DLIBS_USE_MPI=ON \
+        -DLIBS_USE_MPI=OFF \
         -DLIBS_BUILD_HDF5=OFF \
         ${CLONEDIR}
 
@@ -303,9 +331,10 @@ if [ ! -e "${MODULEFILE}" ]; then
     sed -i 's/hoprversion/'${HOPRVERSION}'/gI' ${MODULEFILE}
     sed -i 's/CMAKEVERSIONFLAG/'${CMAKEVERSION}'/gI' ${MODULEFILE}
     sed -i 's/GCCVERSIONFLAG/'${GCCVERSION}'/gI' ${MODULEFILE}
-    sed -i 's/MPIVERSIONFLAG/'${OPENMPIVERSION}'/gI' ${MODULEFILE}
+    sed -i 's/MPIVERSIONFLAG/'${MPIVERSION}'/gI' ${MODULEFILE}
     sed -i 's/HDF5VERSIONFLAG/'${HDF5VERSION}'/gI' ${MODULEFILE}
     sed -i 's\HOPRTOPDIR\'${HOPRBUILDDIR}'\gI' ${MODULEFILE}
+    sed -i 's\HOPRWHICHMPI\'${WHICHMPI}'\gI' ${MODULEFILE}
   else
     echo -e "$RED""No module file created for HOPR-${HOPRVERSION} for GCC-${GCCVERSION}$NC"
     echo -e "$RED""no installation found in ${HOPRBUILDDIR}/bin$NC"

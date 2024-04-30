@@ -2,7 +2,7 @@
 !==================================================================================================================================
 ! Copyright (c) 2010 - 2018 Prof. Claus-Dieter Munz and Prof. Stefanos Fasoulas
 !
-! This file is part of PICLas (gitlab.com/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
+! This file is part of PICLas (piclas.boltzplatz.eu/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
 ! it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3
 ! of the License, or (at your option) any later version.
 !
@@ -24,7 +24,11 @@ SAVE
 ! GLOBAL VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 LOGICAL                         :: DoDeposition              ! flag to switch deposition on/off
+#if USE_HDG
+LOGICAL                         :: DoDirichletDeposition     ! flag to switch deposition on Dirichlet sides on/off
+#endif /*USE_HDG*/
 LOGICAL                         :: RelaxDeposition           ! relaxation of current PartSource with RelaxFac into PartSourceOld
+LOGICAL                         :: DoHaloDepo                ! Flag for enlarging the deposition region (implicit and dielectric)
 REAL                            :: RelaxFac
 
 REAL,ALLOCATABLE                 :: PartSource(:,:,:,:,:)    ! PartSource(1:4,PP_N,PP_N,PP_N,nElems) containing
@@ -113,48 +117,59 @@ REAL,ALLOCPOINT                 :: NodeVolume_Shared(:)
 
 REAL,ALLOCPOINT                 :: SFElemr2_Shared(:,:) ! index 1: radius, index 2: radius squared
 
-REAL,ALLOCPOINT                 :: NodeSource(:,:)
-REAL,ALLOCPOINT                 :: NodeSourceExt(:) ! Additional source for cell_volweight_mean (external or surface charge)
-!                                                   ! that accumulates over time in elements adjacent to dielectric interfaces.
-!                                                   ! It contains the global, synchronized surface charge contribution that is
+REAL,ALLOCATABLE                :: NodeSource(:,:)
+INTEGER,ALLOCATABLE             :: NodeSendDepoRankToGlobalRank(:)
+INTEGER,ALLOCATABLE             :: NodeRecvDepoRankToGlobalRank(:)
+INTEGER,ALLOCATABLE             :: DepoNodetoGlobalNode(:)
+INTEGER                         :: nDepoNodes
+INTEGER                         :: nDepoNodesTotal
+INTEGER                         :: nNodeSendExchangeProcs
+INTEGER                         :: nNodeRecvExchangeProcs
+! Additional source for cell_volweight_mean (external or surface charge) that accumulates over time in elements adjacent to
+! dielectric interfaces.
+REAL,ALLOCATABLE                :: NodeSourceExt(:) ! It contains the global, synchronized surface charge contribution that is
 !                                                   ! read and written to .h5
-REAL,ALLOCPOINT                 :: NodeSourceExtTmp(:) ! Additional source for cell_volweight_mean (external or surface charge)
-!                                                      ! that accumulates over time in elements adjacent to dielectric interfaces.
-!                                                      ! It contains the local non-synchronized surface charge contribution (does
-!                                                      ! not consider the charge contribution from restart files). This
-!                                                      ! contribution accumulates over time, but remains locally to each processor
-!                                                      ! as it is communicated via the normal NodeSource container NodeSourceExt.
+
+INTEGER            :: nTotalPeriodicNodes
+INTEGER,ALLOCPOINT :: Periodic_nNodes(:)
+INTEGER,ALLOCPOINT :: Periodic_Nodes(:)
+INTEGER,ALLOCPOINT :: Periodic_offsetNode(:)
 
 #if USE_MPI
+INTEGER            :: Periodic_nNodes_Shared_Win
+INTEGER,ALLOCPOINT :: Periodic_nNodes_Shared(:)
+INTEGER            :: Periodic_Nodes_Shared_Win
+INTEGER,ALLOCPOINT :: Periodic_Nodes_Shared(:)
+INTEGER            :: Periodic_offsetNode_Shared_Win
+INTEGER,ALLOCPOINT :: Periodic_offsetNode_Shared(:)
+
+REAL,ALLOCATABLE                :: NodeSourceExtTmp(:) ! It contains the local non-synchronized surface charge contribution (does
+!                                                      ! not consider the charge contribution from restart files). This
+!                                                      ! contribution accumulates over time, but remains local to each processor
+!                                                      ! as it is communicated via the container NodeSourceExt.
+
 INTEGER                         :: SFElemr2_Shared_Win
-REAL, ALLOCATABLE               :: NodeSourceLoc(:,:)           ! global, synchronized charge/current density on corner nodes
-INTEGER                         :: NodeSource_Shared_Win
-REAL,ALLOCPOINT                 :: NodeSource_Shared(:,:)
 
-!REAL, ALLOCATABLE               :: NodeSourceExtLoc(:)       ! global, synchronized surface charge contribution
-INTEGER                         :: NodeSourceExt_Shared_Win
-REAL,ALLOCPOINT                 :: NodeSourceExt_Shared(:)
-
-REAL, ALLOCATABLE               :: NodeSourceExtTmpLoc(:)     ! local, non-synchronized surface charge contribution
-INTEGER                         :: NodeSourceExtTmp_Shared_Win
-REAL,ALLOCPOINT                 :: NodeSourceExtTmp_Shared(:)
-
-TYPE tNodeMapping
-  INTEGER,ALLOCATABLE           :: RecvNodeUniqueGlobalID(:)
+! Send direction of nodes (can be different from number of receive nodes for each processor)
+TYPE tNodeMappingSend
   INTEGER,ALLOCATABLE           :: SendNodeUniqueGlobalID(:)
-  REAL,ALLOCATABLE              :: RecvNodeSourceCharge(:)
   REAL,ALLOCATABLE              :: SendNodeSourceCharge(:)
-  REAL,ALLOCATABLE              :: RecvNodeSourceCurrent(:,:)
   REAL,ALLOCATABLE              :: SendNodeSourceCurrent(:,:)
-  REAL,ALLOCATABLE              :: RecvNodeSourceExt(:)
   REAL,ALLOCATABLE              :: SendNodeSourceExt(:)
   INTEGER                       :: nSendUniqueNodes
+END TYPE
+TYPE (tNodeMappingSend),ALLOCATABLE      :: NodeMappingSend(:)
+
+! Receive direction of nodes (can be different from number of send nodes for each processor)
+TYPE tNodeMappingRecv
+  INTEGER,ALLOCATABLE           :: RecvNodeUniqueGlobalID(:)
+  REAL,ALLOCATABLE              :: RecvNodeSourceCharge(:)
+  REAL,ALLOCATABLE              :: RecvNodeSourceCurrent(:,:)
+  REAL,ALLOCATABLE              :: RecvNodeSourceExt(:)
   INTEGER                       :: nRecvUniqueNodes
 END TYPE
-TYPE (tNodeMapping),ALLOCATABLE      :: NodeMapping(:)
-#endif
+TYPE (tNodeMappingRecv),ALLOCATABLE      :: NodeMappingRecv(:)
 
-#if USE_MPI
 TYPE tShapeMapping
   INTEGER,ALLOCATABLE           :: RecvShapeElemID(:)
   INTEGER                       :: nRecvShapeElems
@@ -182,21 +197,12 @@ TYPE(tCNShapeMapping),ALLOCATABLE ::CNShapeMapping(:)
 
 INTEGER                         :: ShapeElemProcSend_Shared_Win
 LOGICAL,ALLOCPOINT              :: ShapeElemProcSend_Shared(:,:)
-
-!INTEGER                         :: nSendShapeElems            ! number of halo elements on proc to communicate with shape function
-!INTEGER,ALLOCATABLE             :: SendShapeElemID(:)         ! mapping from CNElemID to ShapeElemID
+LOGICAL,ALLOCATABLE             :: FlagShapeElem(:)
 INTEGER,ALLOCATABLE             :: SendElemShapeID(:)         ! mapping from ShapeElemID to CNElemID
-!INTEGER                         :: nRecvShapeElems            ! number of halo elements on proc to communicate with shape function
-!INTEGER,ALLOCATABLE             :: RecvShapeElemID(:)         ! mapping from CNElemID to ShapeElemID
-!INTEGER,ALLOCATABLE             :: RecvElemShapeID(:)         ! mapping from ShapeElemID to CNElemID
-!REAL, ALLOCATABLE               :: ShapeRecvBuffer(:,:,:,:,:)
-LOGICAL, ALLOCATABLE            :: DoRecvElem(:)
-
 INTEGER                         :: nShapeExchangeProcs
 
 !INTEGER             :: SendRequest
 INTEGER,ALLOCATABLE :: RecvRequest(:), SendRequest(:), CNRankToSendRank(:)
-INTEGER,ALLOCATABLE :: RecvRequestCN(:), SendRequestCN(:)
 #endif
 
 !===================================================================================================================================

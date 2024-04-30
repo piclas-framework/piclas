@@ -1,7 +1,7 @@
 !==================================================================================================================================
 ! Copyright (c) 2010 - 2018 Prof. Claus-Dieter Munz and Prof. Stefanos Fasoulas
 !
-! This file is part of PICLas (gitlab.com/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
+! This file is part of PICLas (piclas.boltzplatz.eu/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
 ! it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3
 ! of the License, or (at your option) any later version.
 !
@@ -172,7 +172,7 @@ END DO ! iElem=1,PP_nElems
 NormArray(1)=Norm_R
 NormArray(2)=Delta_Norm_R
 NormArray(3)=Delta_Norm_Rel
-CALL MPI_ALLREDUCE(NormArray,GlobalNormArray,3,MPI_DOUBLE_PRECISION,MPI_SUM,MPI_COMM_WORLD,iError)
+CALL MPI_ALLREDUCE(NormArray,GlobalNormArray,3,MPI_DOUBLE_PRECISION,MPI_SUM,MPI_COMM_PICLAS,iError)
 Norm_R         = SQRT(GlobalNormArray(1))
 Delta_Norm_R   = SQRT(GlobalNormArray(2))
 Delta_Norm_Rel = SQRT(GlobalNormArray(3))
@@ -228,7 +228,6 @@ USE MOD_Particle_Vars          ,ONLY: PartStateN,PartStage
 USE MOD_Particle_Vars          ,ONLY: PartState, LastPartPos, DelayTime, PEM, PDM
 USE MOD_Part_RHS               ,ONLY: PartVeloToImp
 USE MOD_PICInterpolation       ,ONLY: InterpolateFieldToSingleParticle
-USE MOD_Part_MPFtools          ,ONLY: StartParticleMerge
 USE MOD_PICDepo                ,ONLY: Deposition
 USE MOD_ParticleSolver         ,ONLY: ParticleNewton
 USE MOD_part_tools             ,ONLY: UpdateNextFreePosition

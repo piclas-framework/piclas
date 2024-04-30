@@ -77,6 +77,7 @@ The first flag enables the variables weighting factor feature in general (detail
 
 Using the values above, each collision with the first background species will result in 100 collision tests using the simulation particle (ie. not the background species) and randomly generated background particles. Consequently, the number of samples for the trace species will be increased and simulation particles with the weighting factor of the trace background species will be introduced into the simulation.
 
+(sec:background-gas-collision-xsec)=
 ## Cross-section based collision probability
 
 For modelling of particle collisions with the Particle-in-Cell method, often the Monte Carlo Collision (MCC) algorithm is utilized.
@@ -95,7 +96,7 @@ collision cross-sections have to be supplied via read-in from a database
 
 Cross-section data can be retrieved from the [LXCat database](https://fr.lxcat.net/home/) {cite}`Pitchford2017` and converted with
 a Python script provided in the tools folder: `piclas/tools/crosssection_database`. Details on how to create an own database with
-custom cross-section data is given in Section {ref}`sec:tools-xsec-collision`. Finally, the input which species should be treated with the MCC
+custom cross-section data is given in Section {ref}`sssec:tools-maintain-database-xsec-collision`. Finally, the input which species should be treated with the MCC
 model is required
 
     Part-Species2-SpeciesName = electron
@@ -118,6 +119,7 @@ performed. To enable the utilization of these levels, the following flag shall b
 It should be noted that even if Species2 corresponds to an electron, the vibrational cross-section data will be read-in for any
 molecule-electron pair. If both species are molecular, priority will be given to the species utilizing this flag.
 
+(sec:background-gas-electronic-xsec)=
 ## Cross-section based electronic relaxation probability
 
 In the following, the utilization of cross-section data is extended to the electronic excitation for neutral-electron collisions. When data is available, it will be read-in by the Python script described above. Each level will be handled separately, allowing the atom/molecule to be excited in each level. The cross-section data will be used to determine whether and which excitation will occur. During the excitation procedure the energy of the atom/molecule will be set to respective level. To enable this model, the following flags are required
@@ -129,4 +131,4 @@ The species-specific flag `UseElecXSec` should be set to `TRUE` for the heavy-sp
 
     CalcRelaxProb = T
 
-However, the electronic temperature is currently not added to the total temperature for the PartAnalyze.csv output.
+However, the electronic temperature is currently not added to the total temperature for the PartAnalyze.csv output. Additionally, the cell-local excitation rate [1/s] per electronic level of the respective species can be sampled and output as described in Section {ref}`sec:sampling-elec-excitation`.

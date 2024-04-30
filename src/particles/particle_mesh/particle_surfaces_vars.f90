@@ -1,7 +1,7 @@
 !==================================================================================================================================
 ! Copyright (c) 2010 - 2018 Prof. Claus-Dieter Munz and Prof. Stefanos Fasoulas
 !
-! This file is part of PICLas (gitlab.com/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
+! This file is part of PICLas (piclas.boltzplatz.eu/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
 ! it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3
 ! of the License, or (at your option) any later version.
 !
@@ -114,7 +114,7 @@ TYPE tTriaSideGeo
   REAL                                   :: Vectors(3,3)                ! vectors from xyzNod to the 3 other corners of side
 END TYPE tTriaSideGeo
 TYPE tBCdata_auxSF
-  INTEGER                                :: SideNumber                  ! Number of Particles in Sides in SurfacefluxBC
+  INTEGER                                :: SideNumber                  ! Number of Sides in SurfacefluxBC
   REAL                                   :: GlobalArea, LocalArea       ! Sum of global and local tria-areas
   INTEGER                , ALLOCATABLE   :: SideList(:)                 ! List of Sides in BC (1:SideNumber)
   TYPE(tTriaSwapGeo)     , ALLOCATABLE   :: TriaSwapGeo(:,:,:)             ! data for tria-swapping in surfflux (:,:,1:SideNumber)

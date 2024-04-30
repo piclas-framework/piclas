@@ -1,6 +1,6 @@
 # GitLab Workflow
 
-Code development is performed on the [GitLab platform](https://gitlab.com/piclas/piclas), with the protected `master` and
+Code development is performed on the [GitLab platform](https://piclas.boltzplatz.eu/piclas/piclas), with the protected `master` and
 `master.dev` branches. The actual development is performed on feature branches, which can be merged to `master.dev` following a
 merge request and the completion of a merge request checklist. After a successful pass of the nightly and weekly regression test,
 the `master.dev` can be merged into the `master`. A merge of the `master.dev` to the `master` should be associated with a release
@@ -46,19 +46,26 @@ checklist has to be completed before a merge request should be approved. For bug
 while for features and improvements the complete list has to be completed. The **Feature** merge request template considers the
 following bullet points
 
-* [ ] Style Guide
-* [ ] Maximum of 10 compile warnings via *./tools/test_max_warnings.sh*. How many warning were found?
-* [ ] Descriptions for new/changed routines
-  * [ ] Short header description (do not just spell out the name of the subroutine, units for important variables if applicable)
-  * [ ] Workflow
-    * [ ] Short summary in the header
-    * [ ] Inside the routine at the appropriate positions
-* [ ] Reggie
-  * [ ] Add small test setup
-  * [ ] Add entry in REGGIE.md table
-  * [ ] Check automatic restart functionality of reggie example via Load Balance (checks correct allocation and deallocation for the test case)
-* [ ] New feature description in appropriate documentation (user/developer guide)
-* [ ] Check that no large files were added to the repository
+    ## Related Issue
+
+    Closes #number
+
+    ## Merge Request Checklist
+
+    * [ ] Style Guide
+    * [ ] Maximum of 10 compile warnings via *./tools/test_max_warnings.sh*. How many warning were found?
+    * [ ] No large files via *./tools/test_max_file_size.sh*. What is the largest file?
+    * [ ] Descriptions for new/changed routines
+      * [ ] Short header description (do not just spell out the name of the subroutine, units for important variables if applicable)
+      * [ ] Workflow
+        * [ ] Short summary in the header
+        * [ ] Inside the routine at the appropriate positions
+    * [ ] Reggie
+      * [ ] Add small test setup
+      * [ ] Add entry in REGGIE.md table
+      * [ ] Check automatic restart functionality of reggie example via Load Balance (checks correct allocation and deallocation for the test case)
+    * [ ] New feature description in appropriate documentation (user/developer guide)
+    * [ ] Check that no large files were added to the repository
 
 For this purpose, the developer can select the respective template for his merge request (**Bug**: only first two to-do's or **Feature**:
 all to-do's, Improvements can utilize either depending on the nature of the improvement). The appropriate checklist will then
@@ -77,7 +84,7 @@ merged into the **master** branch.
 
 ### Release Tag
 
-A new release tag can be created through the web interface ([Repository -> Tags](https://gitlab.com/piclas/piclas/tags) -> New tag)
+A new release tag can be created through the web interface ([Repository -> Tags](https://piclas.boltzplatz.eu/piclas/piclas/tags) -> New tag)
 and as the `Tag name`, the new version number is used, e.g., 
 
     v1.X.X
@@ -173,7 +180,7 @@ CRG!).
 ### GitHub
 
 Finally, the release tag can be deployed to GitHub. This can be achieved by running the `Deploy` script in the
-[CI/CD -> Schedules](https://gitlab.com/piclas/piclas/pipeline_schedules) web interface. At the moment, the respective tag and the
+[CI/CD -> Schedules](https://piclas.boltzplatz.eu/piclas/piclas/pipeline_schedules) web interface. At the moment, the respective tag and the
 release have to be created manually on GitHub through the web interface with **piclas-framework** account. The releases are
 accessed through [Releases](https://github.com/piclas-framework/piclas/releases) and a new release (including the tag) can be
 created with `Draft a new release`. The tag version should be set as before (`v1.X.X`) and the release title accordingly

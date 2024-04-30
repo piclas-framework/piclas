@@ -6,6 +6,7 @@ maxdepth: 1
 caption: Table of Contents
 ---
 particle-tracking.md
+poisson-field-solver.md
 BC-field-solver.md
 BC-particle-solver.md
 particle-initialization-and-emission.md
@@ -13,9 +14,11 @@ PIC.md
 magnetic-background-field.md
 DSMC.md
 BGG.md
+SpeciesDatabase.md
 Fokker-Planck.md
 Bhatnagar-Gross-Krook.md
 features-particle-solver.md
+radiation.md
 ```
 
 The goal of PICLas is to enable to approximation of the complete Boltzmann equation:

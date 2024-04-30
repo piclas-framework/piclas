@@ -1,7 +1,7 @@
 !==================================================================================================================================
 ! Copyright (c) 2010 - 2018 Prof. Claus-Dieter Munz and Prof. Stefanos Fasoulas
 !
-! This file is part of PICLas (gitlab.com/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
+! This file is part of PICLas (piclas.boltzplatz.eu/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
 ! it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3
 ! of the License, or (at your option) any later version.
 !
@@ -23,9 +23,10 @@ SAVE
 ! GLOBAL VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 LOGICAL                       :: ParticleAnalyzeInitIsDone = .FALSE.
+REAL                          :: ParticleAnalyzeSampleTime           !< Accumulated simulation time between two outputs to ParticleAnalyze.csv
 LOGICAL                       :: CalcSimNumSpec                      !< Calculate the number of simulated particles per species
 LOGICAL                       :: CalcNumDens                         !< Calculate the number density per species within the domain
-LOGICAL                       :: CalcAdaptiveBCInfo                    !< Calculate the mass flow through the adaptive inlet boundary
+LOGICAL                       :: CalcSurfFluxInfo                    !< Calculate the current/mass flow through or pressure (adaptive/subsonic BC) at the surface flux boundaries
 LOGICAL                       :: CalcCollRates                       !< Calculate the collision rates per collision pair
 LOGICAL                       :: CalcReacRates                       !< Calculate the reaction rate per reaction
 LOGICAL                       :: CalcRelaxProb                       !< Calculate relaxation probabilities
@@ -39,6 +40,8 @@ REAL                          :: EDiff                               !< Differen
                                                                      !< push (only charged particles)
 REAL                          :: PCoupl                              !< Power that is coupled into plasma in [W]
 REAL                          :: PCouplAverage                       !< Power that is coupled into plasma (moving average) in [W]
+REAL                          :: PCouplIntAverage                    !< Power that is coupled into plasma (moving integrated average) in [W]
+REAL                          :: PCouplAverageOld                    !< Power that is coupled into plasma (moving integrated average) in [W] - old value from last call to PartAnalyze()
 TYPE tPCoupl
   REAL,ALLOCATABLE            :: DensityAvgElem(:)                   !< Power per volume that is coupled into plasma (moving average
                                                                      !< for each element) in [W/m^3]
@@ -99,6 +102,8 @@ REAL                          :: LaserInteractionEkinMaxZPosMin      !< minimum 
 !                                                                    !<particle energy per species. Default=.FALSE.
 REAL,ALLOCATABLE              :: IonizationCell(:)                   !< Ionization degree cell value
 REAL,ALLOCATABLE              :: QuasiNeutralityCell(:)              !< QuasiNeutrality degree cell value
+INTEGER                       :: PPDCellResolved(4)                  !> Number of elements with PPD>=1
+INTEGER                       :: PICTimeCellResolved                 !> Number of cells where the time step is resolved
 REAL,ALLOCATABLE              :: PPDCell(:)                          !< Points per Debye length (cell mean value)
 REAL,ALLOCATABLE              :: PPDCellX(:)                         !< Points per Debye length in X (cell mean value)
 REAL,ALLOCATABLE              :: PPDCellY(:)                         !< Points per Debye length in Y (cell mean value)
@@ -127,6 +132,8 @@ REAL,ALLOCATABLE              :: ElectronDensityCell(:)              !< Electron
 REAL,ALLOCATABLE              :: IonDensityCell(:)                   !< Ion density (cell mean value)
 REAL,ALLOCATABLE              :: NeutralDensityCell(:)               !< Neutral density (cell mean value)
 REAL,ALLOCATABLE              :: ChargeNumberCell(:)                 !< Charge number (cell mean value)
+INTEGER,ALLOCATABLE           :: PICValidPlasmaCell(:)               !< Check that quasi-neutrality is above 0.5 and at least 20 particles are inside the element
+INTEGER                       :: PICValidPlasmaCellSum               !< Global number of elements that have quasi-neutrality above 0.5 and at least 20 particles are inside the element
 REAL,ALLOCATABLE              :: ElectronTemperatureCell(:)          !< Electron temperature (cell mean value)
 REAL,ALLOCATABLE              :: ElectronMinEnergyCell(:)            !< Electron minimum cell energy [eV]
 REAL,ALLOCATABLE              :: ElectronMaxEnergyCell(:)            !< Electron maximum cell energy [eV]
@@ -147,7 +154,7 @@ LOGICAL                       :: printDiff                           !< TODO
 REAL                          :: printDiffTime                       !< TODO
 REAL                          :: printDiffVec(6)                     !< TODO
 REAL                          :: ChemEnergySum                       !< TODO
-REAL,ALLOCATABLE              :: MassflowRate(:,:)
+REAL,ALLOCATABLE              :: FlowRateSurfFlux(:,:)               !< Particle balance per surface flux BC, utilized to calculate mass flog or current
 REAL,ALLOCATABLE              :: PressureAdaptiveBC(:,:)
 LOGICAL                       :: CalcEMFieldOutput                   !< Output the electro-magnetic fields on each DOF to .h5 calculated by PIC interpolation external fields and from field solver
 !===================================================================================================================================

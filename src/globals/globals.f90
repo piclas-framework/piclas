@@ -1,7 +1,7 @@
 !==================================================================================================================================
 ! Copyright (c) 2010 - 2018 Prof. Claus-Dieter Munz and Prof. Stefanos Fasoulas
 !
-! This file is part of PICLas (gitlab.com/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
+! This file is part of PICLas (piclas.boltzplatz.eu/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
 ! it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3
 ! of the License, or (at your option) any later version.
 !
@@ -36,30 +36,63 @@ REAL               :: StartTime
 INTEGER            :: myRank,myLocalRank,myLeaderRank,myWorkerRank
 INTEGER            :: nProcessors,nLocalProcs,nLeaderProcs,nWorkerProcs
 LOGICAL            :: GlobalNbrOfParticlesUpdated ! When FALSE, then global number of particles needs to be determined
-INTEGER            :: MPI_COMM_NODE    ! local node subgroup
-INTEGER            :: MPI_COMM_LEADERS ! all node masters
-INTEGER            :: MPI_COMM_WORKERS ! all non-master nodes
 LOGICAL            :: MPIRoot,MPILocalRoot
 #if USE_MPI
 !#include "mpif.h"
 INTEGER            :: MPIStatus(MPI_STATUS_SIZE)
+INTEGER            :: MPI_COMM_NODE    ! local node subgroup
+INTEGER            :: MPI_COMM_LEADERS ! all node masters
+INTEGER            :: MPI_COMM_WORKERS ! all non-master nodes
+INTEGER            :: MPI_COMM_PICLAS  ! all nodes
 #else
-INTEGER,PARAMETER  :: MPI_COMM_WORLD=-1 ! DUMMY when compiling single (MPI=OFF)
+INTEGER,PARAMETER  :: MPI_COMM_PICLAS=-1 ! DUMMY when compiling single (MPI=OFF)
+INTEGER,PARAMETER  :: MPI_COMM_LEADERS=-1 ! DUMMY when compiling single (MPI=OFF)
 #endif
+LOGICAL            :: MemoryMonitor      !> Flag for turning RAM monitoring ON/OFF. Used for the detection of RAM overflows (e.g. due to memory leaks)
 
 INTEGER            :: doPrintHelp ! 0: no help, 1: help, 2: markdown-help
 
+! SELECTED_INT_KIND(R) return the kind value of the smallest integer type that can represent all values ranging from -10^R (exclusive)
+! to 10^R (exclusive). If there is no integer kind that accommodates this range, SELECTED_INT_KIND returns -1.
 #ifdef INTKIND8
-INTEGER, PARAMETER :: IK = SELECTED_INT_KIND(18)
+INTEGER, PARAMETER :: IK = SELECTED_INT_KIND(18) ! Value of selected_int_kind(18) is 8
 #else
-INTEGER, PARAMETER :: IK = SELECTED_INT_KIND(8)
+INTEGER, PARAMETER :: IK = SELECTED_INT_KIND(8)  ! Value of selected_int_kind(8)  is 4
 #endif
 
-INTEGER(KIND=IK)   :: nGlobalNbrOfParticles
+#if defined(PARTICLES)
+INTEGER(KIND=IK)   :: nGlobalNbrOfParticles(6) !< 1-3: min,max,total number of simulation particles over all processors
+!                                              !< 4-6: peak values over the complete simulation
+#endif /*defined(PARTICLES)*/
 
 INTERFACE ReOpenLogFile
   MODULE PROCEDURE ReOpenLogFile
 END INTERFACE
+
+! Overload the MPI interface because MPICH fails to provide it
+! > https://github.com/pmodels/mpich/issues/2659
+! > https://www.mpi-forum.org/docs/mpi-3.1/mpi31-report/node263.htm
+#if LIBS_MPICH_FIX_SHM_INTERFACE
+INTERFACE MPI_WIN_ALLOCATE_SHARED
+  SUBROUTINE PMPI_WIN_ALLOCATE_SHARED(SIZE, DISP_UNIT, INFO, COMM, BASEPTR, WIN, IERROR)
+      USE, INTRINSIC ::  ISO_C_BINDING, ONLY : C_PTR
+      IMPORT         ::  MPI_ADDRESS_KIND
+      INTEGER        ::  DISP_UNIT, INFO, COMM, WIN, IERROR
+      INTEGER(KIND=MPI_ADDRESS_KIND) ::  SIZE
+      TYPE(C_PTR)    ::  BASEPTR
+  END SUBROUTINE
+END INTERFACE
+
+INTERFACE MPI_WIN_SHARED_QUERY
+  SUBROUTINE PMPI_WIN_SHARED_QUERY(WIN, RANK, SIZE, DISP_UNIT, BASEPTR, IERROR)
+      USE, INTRINSIC :: ISO_C_BINDING, ONLY : C_PTR
+      IMPORT         :: MPI_ADDRESS_KIND
+      INTEGER        :: WIN, RANK, DISP_UNIT, IERROR
+      INTEGER(KIND=MPI_ADDRESS_KIND) :: SIZE
+      TYPE(C_PTR)    :: BASEPTR
+  END SUBROUTINE
+END INTERFACE
+#endif /*LIBS_MPICH_FIX_SHM_INTERFACE*/
 
 INTERFACE Abort
   MODULE PROCEDURE AbortProg
@@ -163,6 +196,10 @@ END INTERFACE
 INTERFACE SPECIESISELECTRON
   MODULE PROCEDURE SPECIESISELECTRON
 END INTERFACE
+
+INTERFACE DisplayNumberOfParticles
+  MODULE PROCEDURE DisplayNumberOfParticles
+END INTERFACE
 #endif /*defined(PARTICLES)*/
 
 INTERFACE LOG_RAN
@@ -179,6 +216,7 @@ END INTERFACE
 
 PUBLIC :: setstacksizeunlimited
 PUBLIC :: processmemusage
+PUBLIC :: WarningMemusage
 
 !===================================================================================================================================
 CONTAINS
@@ -363,7 +401,7 @@ WRITE(UNIT_stdOut,*)'___________________________________________________________
 WRITE(UNIT_stdOut,*)'Program abort caused on Proc ',myRank,' in File : ',TRIM(SourceFile),' Line ',SourceLine
 WRITE(UNIT_stdOut,*)'This file was compiled at ',TRIM(CompDate),'  ',TRIM(CompTime)
 WRITE(UNIT_stdOut,'(A10,A)',ADVANCE='NO')'Message: ',TRIM(ErrorMessage)
-IF(PRESENT(IntInfoOpt)) WRITE(UNIT_stdOut,'(I8)',ADVANCE='NO')IntInfo
+IF(PRESENT(IntInfoOpt)) WRITE(UNIT_stdOut,'(I0)',ADVANCE='NO')IntInfo
 IF(PRESENT(RealInfoOpt)) WRITE(UNIT_stdOut,'(ES25.14E3)')RealInfo
 WRITE(UNIT_stdOut,*)
 WRITE(UNIT_stdOut,'(A,A,A)')'See ',TRIM(ErrorFileName),' for more details'
@@ -379,7 +417,7 @@ CALL DisplaySimulationTime(Time, StartTime, 'ABORTED')
 #if USE_MPI
 signalout=2 ! MPI_ABORT requires an output error-code /=0
 errOut = 1
-CALL MPI_ABORT(MPI_COMM_WORLD,signalout,errOut)
+CALL MPI_ABORT(MPI_COMM_PICLAS,signalout,errOut)
 #endif
 STOP 2
 END SUBROUTINE AbortProg
@@ -452,7 +490,7 @@ SWRITE(UNIT_stdOut,*) '_________________________________________________________
 
 CALL FLUSH(UNIT_stdOut)
 #if USE_MPI
-CALL MPI_BARRIER(MPI_COMM_WORLD,iError)
+CALL MPI_BARRIER(MPI_COMM_PICLAS,iError)
 CALL MPI_FINALIZE(iError)
 #endif
 ERROR STOP 1
@@ -796,7 +834,7 @@ REAL                            :: PiclasTime
 IF(PRESENT(Comm))THEN
   CALL MPI_BARRIER(Comm,iError)
 ELSE
-  CALL MPI_BARRIER(MPI_COMM_WORLD,iError)
+  CALL MPI_BARRIER(MPI_COMM_PICLAS,iError)
 END IF
 PiclasTime=MPI_WTIME()
 #else
@@ -1106,11 +1144,18 @@ REAL,INTENT(IN)             :: Time, StartTime !< Current simulation time and be
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-REAL :: SimulationTime,mins,secs,hours,days
+REAL              :: SimulationTime,mins,secs,hours,days
+CHARACTER(LEN=60) :: hilf
 !===================================================================================================================================
 ! Return with all procs except root if not called during abort
 IF(.NOT.MPIRoot.AND.(Message.NE.'ABORTED')) RETURN
 
+! Output particle info
+#if defined(PARTICLES)
+IF(Message.NE.'RUNNING') CALL DisplayNumberOfParticles(2)
+#endif /*defined(PARTICLES)*/
+
+! Calculate simulation time
 SimulationTime = Time-StartTime
 
 ! Get secs, mins, hours and days
@@ -1123,10 +1168,93 @@ SimulationTime = SimulationTime / 24.
 !days = MOD(SimulationTime,365.) ! Use this if years are also to be displayed
 days = SimulationTime
 
-! Output
-WRITE(UNIT_stdOut,'(A,F16.2,A)',ADVANCE='NO')  ' PICLAS '//TRIM(Message)//'! [',Time-StartTime,' sec ]'
-WRITE(UNIT_stdOut,'(A2,I6,A1,I0.2,A1,I0.2,A1,I0.2,A1)') ' [',INT(days),':',INT(hours),':',INT(mins),':',INT(secs),']'
+! Output message with all procs, as root might not be the calling process during abort
+IF(MPIRoot.AND.(Message.NE.'ABORTED')) WRITE(UNIT_stdOut,'(132("="))')
+WRITE(hilf,'(F16.2)') Time-StartTime
+WRITE(UNIT_stdOut,'(A)',ADVANCE='NO')  ' PICLAS '//TRIM(Message)//'! [ '//TRIM(ADJUSTL(hilf))//' sec ]'
+WRITE(UNIT_stdOut,'(A3,I0,A1,I0.2,A1,I0.2,A1,I0.2,A2)') ' [ ',INT(days),':',INT(hours),':',INT(mins),':',INT(secs),' ]'
 END SUBROUTINE DisplaySimulationTime
+
+
+!===================================================================================================================================
+! Output message to UNIT_stdOut and an elapsed time is seconds as well as min/hour/day format
+!===================================================================================================================================
+SUBROUTINE DisplayMessageAndTime(ElapsedTimeIn, Message, DisplayDespiteLB, DisplayLine, rank)
+! MODULES
+#if USE_LOADBALANCE
+USE MOD_LoadBalance_Vars       ,ONLY: PerformLoadBalance
+#endif /*USE_LOADBALANCE*/
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+CHARACTER(LEN=*),INTENT(IN) :: Message          !< Output message
+REAL,INTENT(IN)             :: ElapsedTimeIn !< Time difference
+LOGICAL,INTENT(IN),OPTIONAL :: DisplayDespiteLB !< Display output even though LB is performed (default is FALSE)
+LOGICAL,INTENT(IN),OPTIONAL :: DisplayLine      !< Display 132*"-" (default is TRUE)
+INTEGER,INTENT(IN),OPTIONAL :: rank             !< if 0, some kind of root is assumed, every other processor return this routine
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+REAL              :: ElapsedTime,mins,secs,hours,days
+LOGICAL           :: DisplayDespiteLBLoc, DisplayLineLoc, LocalRoot
+CHARACTER(LEN=60) :: hilf
+#if !USE_LOADBALANCE
+LOGICAL           :: PerformLoadBalance
+#endif /*!USE_LOADBALANCE*/
+!===================================================================================================================================
+#if !USE_LOADBALANCE
+PerformLoadBalance = .FALSE.
+#endif /*!USE_LOADBALANCE*/
+
+! Define who returns and who does the output (default is MPIRoot)
+LocalRoot = .FALSE. ! default
+IF(PRESENT(rank))THEN
+  IF(rank.EQ.0) LocalRoot = .TRUE.
+ELSE
+  IF(MPIRoot) LocalRoot = .TRUE.
+END IF ! PRESENT(rank)
+
+! Return with all procs except LocalRoot
+IF(.NOT.LocalRoot) RETURN
+
+! Check if output should be performed during LB restarts
+IF(PRESENT(DisplayDespiteLB))THEN
+  DisplayDespiteLBLoc = DisplayDespiteLB
+ELSE
+  DisplayDespiteLBLoc = .FALSE.
+END IF ! PRESENT(DisplayDespiteLB)
+
+! Check if 132*"-" is required
+IF(PRESENT(DisplayLine))THEN
+  DisplayLineLoc = DisplayLine
+ELSE
+  DisplayLineLoc = .TRUE.
+END IF ! PRESENT(DisplayLine)
+
+! Aux variable
+ElapsedTime=ElapsedTimeIn
+
+! Get secs, mins, hours and days
+secs = MOD(ElapsedTime,60.)
+ElapsedTime = ElapsedTime / 60.
+mins = MOD(ElapsedTime,60.)
+ElapsedTime = ElapsedTime / 60.
+hours = MOD(ElapsedTime,24.)
+ElapsedTime = ElapsedTime / 24.
+!days = MOD(ElapsedTime,365.) ! Use this if years are also to be displayed
+days = ElapsedTime
+
+! Output message
+IF(LocalRoot.AND.((.NOT.PerformLoadBalance).OR.DisplayDespiteLBLoc))THEN
+  WRITE(hilf,'(F16.2)')  ElapsedTimeIn
+  WRITE(UNIT_stdOut,'(A)',ADVANCE='NO')  ' '//TRIM(Message)//' [ '//TRIM(ADJUSTL(hilf))//' sec ]'
+  WRITE(UNIT_stdOut,'(A3,I0,A1,I0.2,A1,I0.2,A1,I0.2,A2)') ' [ ',INT(days),':',INT(hours),':',INT(mins),':',INT(secs),' ]'
+  IF(DisplayLineLoc) WRITE(UNIT_StdOut,'(132("-"))')
+END IF ! LocalRoot.AND.((.NOT.PerformLoadBalance).OR.DisplayDespiteLBLoc)
+
+END SUBROUTINE DisplayMessageAndTime
 
 
 PPURE LOGICAL FUNCTION StringBeginsWith(MainString,SubString)
@@ -1329,6 +1457,7 @@ END FUNCTION ElementOnProc
 !===================================================================================================================================
 !> Check whether element ID is on the current node
 !===================================================================================================================================
+#if USE_MPI
 PPURE LOGICAL FUNCTION ElementOnNode(GlobalElemID) RESULT(L)
 ! MODULES
 USE MOD_Preproc
@@ -1347,13 +1476,134 @@ INTEGER, INTENT(IN) :: GlobalElemID ! Global element index
 ! LOCAL VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 !===================================================================================================================================
-#if USE_MPI
 L = (GlobalElemID.GE.offsetElemMPI(ComputeNodeRootRank)+1).AND.&
     (GlobalElemID.LE.offsetElemMPI(ComputeNodeRootRank+nComputeNodeProcessors))
-#else
-L = .TRUE.
-#endif /*USE_MPI*/
 END FUNCTION ElementOnNode
+#endif /*USE_MPI*/
 
+
+#if defined(PARTICLES)
+!===================================================================================================================================
+!> Write min, max, average and total number of simulations particles to stdout stream
+!===================================================================================================================================
+SUBROUTINE DisplayNumberOfParticles(Mode)
+! MODULES
+IMPLICIT NONE
+!----------------------------------------------------------------------------------------------------------------------------------!
+! INPUT / OUTPUT VARIABLES
+INTEGER,INTENT(IN) :: Mode ! 1: during the simulation
+!                          ! 2: at the end of the simulation
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+
+!===================================================================================================================================
+SELECT CASE(Mode)
+CASE(1)
+  SWRITE(UNIT_StdOut,'(4(A,ES16.7))') "#Particles : ", REAL(nGlobalNbrOfParticles(3)),&
+      "    Average particles per proc : ",REAL(nGlobalNbrOfParticles(3))/REAL(nProcessors),&
+      "    Min : ",REAL(nGlobalNbrOfParticles(1)),&
+      "    Max : ",REAL(nGlobalNbrOfParticles(2))
+CASE(2)
+  SWRITE(UNIT_StdOut,'(4(A,ES16.7))') "#Particles : ", REAL(nGlobalNbrOfParticles(6)),&
+      " (peak)         Average (peak) : ",REAL(nGlobalNbrOfParticles(6))/REAL(nProcessors),&
+      "    Min : ",REAL(nGlobalNbrOfParticles(4)),&
+      "    Max : ",REAL(nGlobalNbrOfParticles(5))
+CASE DEFAULT
+  CALL abort(__STAMP__,'DisplayNumberOfParticles() called with unknown Mode=',IntInfoOpt=Mode)
+END SELECT
+END SUBROUTINE DisplayNumberOfParticles
+#endif /*defined(PARTICLES)*/
+
+
+!===================================================================================================================================
+!> Check the current memory usage and display a message if a certain threshold is reached
+!===================================================================================================================================
+SUBROUTINE WarningMemusage(Threshold)
+! MODULES
+USE MOD_Globals_Vars    ,ONLY: memory
+#if USE_MPI
+USE MOD_MPI_Shared_Vars ,ONLY: myComputeNodeRank,myLeaderGroupRank
+USE MOD_MPI_Shared_Vars ,ONLY: MPI_COMM_LEADERS_SHARED,MPI_COMM_SHARED
+#if defined(MEASURE_MPI_WAIT)
+USE MOD_MPI_Vars        ,ONLY: MPIW8TimeMM,MPIW8CountMM
+#endif /*defined(MEASURE_MPI_WAIT)*/
+#endif /*USE_MPI*/
+!USE MOD_StringTools     ,ONLY: set_formatting,clear_formatting
+IMPLICIT NONE
+!----------------------------------------------------------------------------------------------------------------------------------!
+! INPUT / OUTPUT VARIABLES
+REAL,INTENT(IN) :: Threshold
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+CHARACTER(32) :: hilf,hilf2,hilf3
+#if USE_MPI
+REAL                       :: ProcMemoryUsed    ! Used memory on a single proc
+REAL                       :: NodeMemoryUsed    ! Sum of used memory across one compute node
+#endif /*USE_MPI*/
+REAL                       :: MemUsagePercent
+#if defined(MEASURE_MPI_WAIT)
+INTEGER(KIND=8)               :: CounterStart,CounterEnd
+REAL(KIND=8)                  :: Rate
+#endif /*defined(MEASURE_MPI_WAIT)*/
+!===================================================================================================================================
+CALL ProcessMemUsage(memory(1),memory(2),memory(3)) ! memUsed,memAvail,memTotal
+
+! Only CN roots communicate available and total memory info (count once per node)
+#if USE_MPI
+#if defined(MEASURE_MPI_WAIT)
+CALL SYSTEM_CLOCK(count=CounterStart)
+#endif /*defined(MEASURE_MPI_WAIT)*/
+IF(nProcessors.GT.1)THEN
+  ! Collect data on node roots
+  ProcMemoryUsed = memory(1)
+  IF (myComputeNodeRank.EQ.0) THEN
+    CALL MPI_REDUCE(ProcMemoryUsed , NodeMemoryUsed , 1 , MPI_DOUBLE_PRECISION , MPI_SUM , 0 , MPI_COMM_SHARED , IERROR)
+    memory(1) = NodeMemoryUsed
+  ELSE
+    CALL MPI_REDUCE(ProcMemoryUsed , 0              , 1 , MPI_DOUBLE_PRECISION , MPI_SUM , 0 , MPI_COMM_SHARED , IERROR)
+  END IF
+
+  ! collect data from node roots on first root node
+  IF (myComputeNodeRank.EQ.0) THEN ! only leaders
+    IF (myLeaderGroupRank.EQ.0) THEN ! first node leader MUST be MPIRoot
+      CALL MPI_REDUCE(MPI_IN_PLACE , memory(1:3) , 3 , MPI_DOUBLE_PRECISION , MPI_SUM , 0 , MPI_COMM_LEADERS_SHARED , IERROR)
+    ELSE
+      CALL MPI_REDUCE(memory(1:3)       , 0      , 3 , MPI_DOUBLE_PRECISION , MPI_SUM , 0 , MPI_COMM_LEADERS_SHARED , IERROR)
+    END IF ! myLeaderGroupRank.EQ.0
+  END IF ! myComputeNodeRank.EQ.0
+END IF ! nProcessors.EQ.1
+#if defined(MEASURE_MPI_WAIT)
+CALL SYSTEM_CLOCK(count=CounterEnd, count_rate=Rate)
+MPIW8TimeMM  = MPIW8TimeMM + REAL(CounterEnd-CounterStart,8)/Rate
+MPIW8CountMM = MPIW8CountMM + 1_8
+#endif /*defined(MEASURE_MPI_WAIT)*/
+#endif /*USE_MPI*/
+
+! --------------------------------------------------
+! Only MPI root outputs the data to file
+! --------------------------------------------------
+IF(.NOT.MPIRoot)RETURN
+
+! Sanity checks
+IF(ABS(memory(3)).LE.0.) CALL abort(__STAMP__,'Could not retrieve total available memory')
+IF((Threshold.GT.1.0).OR.(Threshold.LE.0.0)) CALL abort(__STAMP__,'Threshold in WarningMemusage must be in the range 0 < X <= 1')
+! Convert kB to GB
+memory(1:3)=memory(1:3)/1048576.
+! Check if X% of the total memory available is reached
+MemUsagePercent = (memory(1)/memory(3))*100.0
+!MemUsagePercent = 99.32
+IF(MemUsagePercent.GT.Threshold)THEN
+  WRITE(UNIT=hilf ,FMT='(F16.1)') memory(1)
+  WRITE(UNIT=hilf2,FMT='(F16.1)') memory(3)
+  WRITE(UNIT=hilf3,FMT='(F5.1)') MemUsagePercent
+  !CALL set_formatting("red")
+  !SWRITE(UNIT_stdOut,'(A,F5.2,A)') ' WARNING: Memory reaching maximum, RAM is at ',MemUsagePercent,'%'
+  WRITE(UNIT_stdOut,'(A)') "WARNING: Allocated memory ["//TRIM(ADJUSTL(hilf))//&
+      "] GB on at least one node is close to the global limit of ["&
+      //TRIM(ADJUSTL(hilf2))//"] GB, which is "//TRIM(ADJUSTL(hilf3))//"%. Watch out for the OOM killer!"
+  !CALL clear_formatting()
+END IF
+
+END SUBROUTINE WarningMemusage
 
 END MODULE MOD_Globals

@@ -2,6 +2,11 @@
 ! Here, preprocessor variables for different equation systems and abbreviations for specific expressions are defined
 !===================================================================================================================================
 
+! From include/petsc/finclude/petscsys.h: #define PetscCallA(func) call func; CHKERRA(ierr)
+#if USE_PETSC_FIX317
+#define PetscCallA(a) CALL a; PetscCall(ierr)
+#endif
+
 ! Abbrevations
 #ifndef __FILENAME__
 #define __FILENAME__ __FILE__
@@ -21,7 +26,7 @@
 #define SIZE_CHAR KIND('a')
 
 #ifdef DEBUG_MEMORY
-#define Allocate_Shared(a,b,c)   Allocate_Shared_DEBUG(a,b,c,'b')
+#define Allocate_Shared(a,b,c)   Allocate_Shared_DEBUG(a,b,c,'b',TRIM(__FILE__),__LINE__)
 #endif
 
 #ifdef MEASURE_MPI_WAIT
@@ -33,12 +38,12 @@
 #endif
 ! Particle solver
 #ifdef PARTICLES
-#define MPIW8SIZEPART 7
+#define MPIW8SIZEPART 6
 #else
 #define MPIW8SIZEPART 0
 #endif
 ! Combination
-#define MPIW8SIZE (1+MPIW8SIZEFIELD+MPIW8SIZEPART)
+#define MPIW8SIZE (2+MPIW8SIZEFIELD+MPIW8SIZEPART)
 #endif
 
 ! Deactivate PURE subroutines/functions when using DEBUG
@@ -52,8 +57,8 @@
 #define UNLOCK_AND_FREE(a)   UNLOCK_AND_FREE_DUMMY(a,'a')
 
 #ifdef GNU
-#define CHECKSAFEINT(x,k)  IF(x>HUGE(1_  k).OR.x<-HUGE(1_  k))       CALL ABORT(__STAMP__,'Integer conversion failed: out of range!')
-#define CHECKSAFEREAL(x,k) IF(x>HUGE(1._ k).OR.x<-HUGE(1._ k))       CALL ABORT(__STAMP__,'Real conversion failed: out of range!')
+#define CHECKSAFEINT(x,k)  IF(x>HUGE(INT( 1,KIND=k)).OR.x<-HUGE(INT( 1,KIND=k))) CALL Abort(__STAMP__,'Integer conversion failed: out of range!')
+#define CHECKSAFEREAL(x,k) IF(x>HUGE(REAL(1,KIND=k)).OR.x<-HUGE(REAL(1,KIND=k))) CALL Abort(__STAMP__,'Real conversion failed: out of range!')
 #elif CRAY
 #define CHECKSAFEINT(x,k)
 #define CHECKSAFEREAL(x,k)
@@ -75,12 +80,20 @@
 
 #if USE_MPI
 #  define SWRITE IF(MPIRoot) WRITE
+#if USE_LOADBALANCE
+#  define LBWRITE IF(MPIRoot.AND.(.NOT.PerformLoadBalance)) WRITE
+#else /*USE_LOADBALANCE*/
+#  define LBWRITE IF(MPIRoot) WRITE
+#endif /*USE_LOADBALANCE*/
 #  define IPWRITE(a,b) WRITE(a,b)myRank,
 #  define LWRITE IF(myComputeNodeRank.EQ.0) WRITE
+#  define GETTIME(a) a=MPI_WTIME()
 #else
 #  define SWRITE WRITE
+#  define LBWRITE WRITE
 #  define IPWRITE(a,b) WRITE(a,b)0,
 #  define LWRITE WRITE
+#  define GETTIME(a) CALL CPU_TIME(a)
 #endif
 #define ERRWRITE(a,b) WRITE(UNIT_errOut,b)
 #define LOGWRITE(a,b)  IF(Logging) WRITE(UNIT_logOut,b)
@@ -293,6 +306,8 @@
 
 #define SAMPWALL_NVARS            11
 
+#define MACROSURF_NVARS           6
+
 ! Tracking method
 #define REFMAPPING    1
 #define TRACING       2
@@ -305,4 +320,9 @@
 #define DT_BR_SWITCH  4
 
 ! Secondary electron emission
-#define SEE_MODELS_ID 5,6,7,8,9,10,11
+#define SEE_MODELS_ID 4,5,6,7,8,9,10,11
+
+#if USE_HDG
+! HDG Dirichlet BC Side IDs
+#define HDGDIRICHLETBCSIDEIDS 2,4,5,6,7,8,50,51,52,60
+#endif

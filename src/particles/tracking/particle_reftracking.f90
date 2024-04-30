@@ -1,7 +1,7 @@
 !==================================================================================================================================
 ! Copyright (c) 2010 - 2018 Prof. Claus-Dieter Munz and Prof. Stefanos Fasoulas
 !
-! This file is part of PICLas (gitlab.com/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
+! This file is part of PICLas (piclas.boltzplatz.eu/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
 ! it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3
 ! of the License, or (at your option) any later version.
 !
@@ -482,27 +482,23 @@ DO iPart=1,PDM%ParticleVecLength
 #endif
 #if USE_MPI
               inelem=PEM%GlobalElemID(ipart)
-              IPWRITE(UNIT_stdout,'(I0,A,L1)') ' inelem.LE.PP_nElems = ',inelem.LE.PP_nElems
               IF(inelem.LE.PP_nElems)THEN
-                IPWRITE(UNIT_stdout,'(I0,A)') ' halo-elem = F'
+                IPWRITE(UNIT_stdout,'(I0,A)') ' PEM%GlobalElemID(ipart) <= PP_nElems: halo-elem = F'
               ELSE
-                IPWRITE(UNIT_stdout,'(I0,A)') ' halo-elem = T'
+                IPWRITE(UNIT_stdout,'(I0,A)') ' PEM%GlobalElemID(ipart)  > PP_nElems: halo-elem = T'
               END IF
-              IPWRITE(UNIT_stdout,'(I0,A,L1)') ' testelem.LE.PP_nElems = ',testelem.LE.PP_nElems
               IF(testelem.LE.PP_nElems)THEN
-                IPWRITE(UNIT_stdout,'(I0,A)') ' halo-elem = F'
-                IPWRITE(UNIT_stdout,'(I0,A,I0)') ' testelem             ', testelem
+                IPWRITE(UNIT_stdout,'(I0,A)')    '                testelem <= PP_nElems: halo-elem = F'
+                IPWRITE(UNIT_stdout,'(I0,A,I0)') '                testelem             ', testelem
               ELSE
-                IPWRITE(UNIT_stdout,'(I0,A)') ' halo-elem = T'
+                IPWRITE(UNIT_stdout,'(I0,A)')    '                testelem  > PP_nElems: halo-elem = T'
 !                IPWRITE(UNIT_stdOut,'(I0,A,I0)') ' testelem         ', offsetelemmpi(PartHaloElemToProc(NATIVE_PROC_ID,testelem)) &
 !                                                               + PartHaloElemToProc(NATIVE_ELEM_ID,testelem)
               END IF
 
 #endif
               IPWRITE(UNIT_stdOut,'(I0,A,I0)') ' PartSpecies  ', PartSpecies(iPart)
-              CALL abort(&
-                  __STAMP__ &
-                  ,'Particle not inside of Element, ipart',ipart)
+              CALL abort(__STAMP__ ,'Particle not inside of Element, ipart',ipart)
             END IF ! inside
           ELSE
             PEM%GlobalElemID(iPart)=TestElem

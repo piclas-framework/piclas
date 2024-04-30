@@ -1,7 +1,7 @@
 !==================================================================================================================================
 ! Copyright (c) 2010 - 2018 Prof. Claus-Dieter Munz and Prof. Stefanos Fasoulas
 !
-! This file is part of PICLas (gitlab.com/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
+! This file is part of PICLas (piclas.boltzplatz.eu/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
 ! it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3
 ! of the License, or (at your option) any later version.
 !
@@ -76,7 +76,7 @@ CALL prms%CreateIntOption(      'Surf-PorousBC[$]-normalDir' &
                                 , numberedmulti=.TRUE.)
 CALL prms%CreateRealArrayOption('Surf-PorousBC[$]-origin' &
                                 , 'Coordinates of the middle point of the region, Example: normalDir=1: (/y,z/), ' //&
-                                  'normalDir=2: (/z,x/), normalDir=3: (/x,y/)', numberedmulti=.TRUE.)
+                                  'normalDir=2: (/z,x/), normalDir=3: (/x,y/)', numberedmulti=.TRUE., no=2)
 CALL prms%CreateRealOption(     'Surf-PorousBC[$]-rmax' &
                                 , 'Maximum radius [m] of the circular region', '1e21', numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'Surf-PorousBC[$]-rmin' &
@@ -98,7 +98,7 @@ USE MOD_Globals
 USE MOD_ReadInTools
 USE MOD_Particle_Boundary_Tools     ,ONLY: GetRadialDistance2D
 USE MOD_Particle_Mesh_Vars          ,ONLY: SideInfo_Shared
-USE MOD_Particle_Vars               ,ONLY: Symmetry
+USE MOD_Particle_Vars               ,ONLY: Symmetry, VarTimeStep
 USE MOD_SurfaceModel_Vars           ,ONLY: nPorousBC, PorousBC
 USE MOD_Particle_Boundary_Vars      ,ONLY: PartBound, nPorousSides, MapSurfSideToPorousSide_Shared, PorousBCSampWall
 USE MOD_Particle_Boundary_Vars      ,ONLY: PorousBCInfo_Shared,PorousBCProperties_Shared,PorousBCSampWall_Shared
@@ -110,6 +110,9 @@ USE MOD_MPI_Shared_Vars             ,ONLY: MPI_COMM_SHARED, myComputeNodeRank
 USE MOD_Particle_Boundary_Vars      ,ONLY: MapSurfSideToPorousSide_Shared_Win
 USE MOD_Particle_Boundary_Vars      ,ONLY: PorousBCInfo_Shared_Win,PorousBCProperties_Shared_Win,PorousBCSampWall_Shared_Win
 #endif /*USE_MPI*/
+#if USE_LOADBALANCE
+USE MOD_LoadBalance_Vars            ,ONLY: PerformLoadBalance
+#endif /*USE_LOADBALANCE*/
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -124,9 +127,11 @@ CHARACTER(32)         :: hilf, hilf2
 REAL                  :: rmin, rmax
 !===================================================================================================================================
 
-SWRITE(UNIT_stdOut,'(A)') ' INIT POROUS BOUNDARY CONDITION ...'
+LBWRITE(UNIT_stdOut,'(A)') ' INIT POROUS BOUNDARY CONDITION ...'
 
 IF(TrackingMethod.EQ.REFMAPPING) CALL abort(__STAMP__,'ERROR: Porous boundary conditions are not implemented with RefMapping!')
+
+IF(VarTimeStep%UseSpeciesSpecific) CALL abort(__STAMP__,'ERROR: Porous boundary conditions are not implemented with a species-specific time step!')
 
 IF((Symmetry%Order.LE.2).AND.(.NOT.Symmetry%Axisymmetric)) CALL abort(__STAMP__,'ERROR: Porous boundary conditions are not implemented for 1D/2D simulations!')
 
@@ -324,7 +329,7 @@ IF (myComputeNodeRank.EQ.0) CALL InitPorousCommunication()
 
 SDEALLOCATE(MapSurfSideToPorousBC_Temp)
 
-SWRITE(UNIT_stdOut,'(A)') ' INIT POROUS BOUNDARY CONDITION DONE!'
+LBWRITE(UNIT_stdOut,'(A)') ' INIT POROUS BOUNDARY CONDITION DONE!'
 
 END SUBROUTINE InitPorousBoundaryCondition
 
@@ -422,14 +427,14 @@ SUBROUTINE PorousBoundaryRemovalProb_Pressure()
 USE MOD_Globals
 USE MOD_DSMC_Vars                   ,ONLY: DSMC, RadialWeighting
 USE MOD_Mesh_Vars                   ,ONLY: nElems,offsetElem
-USE MOD_Particle_Boundary_Vars      ,ONLY: SurfOnNode, SurfSide2GlobalSide
+USE MOD_Particle_Boundary_Vars      ,ONLY: SurfTotalSideOnNode, SurfSide2GlobalSide
 USE MOD_SurfaceModel_Vars           ,ONLY: nPorousBC, PorousBC
 USE MOD_SurfaceModel_Analyze_Vars   ,ONLY: CalcPorousBCInfo, PorousBCOutput
 USE MOD_Particle_Boundary_Vars      ,ONLY: nPorousSides, PorousBCProperties_Shared, PorousBCInfo_Shared, SampWallPumpCapacity
 USE MOD_Particle_Boundary_Vars      ,ONLY: PorousBCSampWall, PorousBCSampWall_Shared
-USE MOD_Particle_Vars               ,ONLY: Species, nSpecies, usevMPF, VarTimeStep
+USE MOD_Particle_Vars               ,ONLY: Species, nSpecies, usevMPF, UseVarTimeStep
 USE MOD_Particle_Sampling_Vars      ,ONLY: AdaptBCMacroVal, AdaptBCMapElemToSample
-USE MOD_Particle_VarTimeStep        ,ONLY: CalcVarTimeStep
+USE MOD_Particle_TimeStep           ,ONLY: GetParticleTimeStep
 USE MOD_Timedisc_Vars               ,ONLY: dt
 USE MOD_Particle_Mesh_Vars
 USE MOD_Mesh_Tools                  ,ONLY: GetCNElemID
@@ -449,7 +454,7 @@ REAL                          :: PumpingSpeedTemp,DeltaPressure,partWeight,SumPa
 REAL                          :: SumPartImpinged(nPorousBC)
 !===================================================================================================================================
 
-IF (.NOT.SurfOnNode) RETURN
+IF (.NOT.SurfTotalSideOnNode) RETURN
 
 IF(usevMPF.OR.RadialWeighting%DoRadialWeighting) THEN
   partWeight = 1.
@@ -504,8 +509,8 @@ DO iPorousSide = 1, nPorousSides
   ! Skip element if number density is zero
   IF(SUM(AdaptBCMacroVal(4,SampleElemID,1:nSpecies)).EQ.0.0) CYCLE
   ! Get the correct time step of the cell
-  IF(VarTimeStep%UseVariableTimeStep) THEN
-    dtVar = dt * CalcVarTimeStep(ElemMidPoint_Shared(1,CNElemID), ElemMidPoint_Shared(2,CNElemID), LocalElemID)
+  IF(UseVarTimeStep) THEN
+    dtVar = dt * GetParticleTimeStep(ElemMidPoint_Shared(1,CNElemID), ElemMidPoint_Shared(2,CNElemID), LocalElemID)
   ELSE
     dtVar = dt
   END IF
@@ -604,7 +609,7 @@ USE MOD_Globals
 USE MOD_MPI_Shared              ,ONLY: BARRIER_AND_SYNC
 USE MOD_MPI_Shared_Vars         ,ONLY: MPI_COMM_SHARED,MPI_COMM_LEADERS_SURF
 USE MOD_MPI_Shared_Vars         ,ONLY: nSurfLeaders,myComputeNodeRank,mySurfRank
-USE MOD_Particle_Boundary_Vars  ,ONLY: SurfOnNode
+USE MOD_Particle_Boundary_Vars  ,ONLY: SurfTotalSideOnNode
 USE MOD_Particle_Boundary_Vars  ,ONLY: MapSurfSideToPorousSide_Shared
 USE MOD_Particle_Boundary_Vars  ,ONLY: GlobalSide2SurfSide
 USE MOD_Particle_Boundary_Vars  ,ONLY: SurfMapping
@@ -624,7 +629,7 @@ INTEGER                         :: nValues
 INTEGER                         :: RecvRequest(0:nSurfLeaders-1),SendRequest(0:nSurfLeaders-1)
 !===================================================================================================================================
 ! nodes without sampling surfaces do not take part in this routine
-IF (.NOT.SurfOnNode) RETURN
+IF (.NOT.SurfTotalSideOnNode) RETURN
 
 nValues = 2
 ! 1.) Collect the information from the proc-local shadow arrays in the compute-node shared array
@@ -761,7 +766,7 @@ USE MOD_Globals
 USE MOD_MPI_Shared              ,ONLY: BARRIER_AND_SYNC
 USE MOD_MPI_Shared_Vars         ,ONLY: MPI_COMM_SHARED,MPI_COMM_LEADERS_SURF
 USE MOD_MPI_Shared_Vars         ,ONLY: nSurfLeaders,myComputeNodeRank,mySurfRank
-USE MOD_Particle_Boundary_Vars  ,ONLY: SurfOnNode
+USE MOD_Particle_Boundary_Vars  ,ONLY: SurfTotalSideOnNode
 USE MOD_Particle_Boundary_Vars  ,ONLY: GlobalSide2SurfSide
 USE MOD_Particle_Boundary_Vars  ,ONLY: SurfMapping, MapSurfSideToPorousSide_Shared
 USE MOD_Particle_Boundary_Vars  ,ONLY: PorousBCProperties_Shared,PorousBCProperties_Shared_Win
@@ -780,7 +785,7 @@ INTEGER                             :: nValues
 INTEGER                             :: RecvRequest(0:nSurfLeaders-1),SendRequest(0:nSurfLeaders-1)
 !===================================================================================================================================
 ! nodes without sampling surfaces do not take part in this routine
-IF (.NOT.SurfOnNode) RETURN
+IF (.NOT.SurfTotalSideOnNode) RETURN
 
 ! 1) Synchronize the removal probability
 CALL BARRIER_AND_SYNC(PorousBCProperties_Shared_Win,MPI_COMM_SHARED)
@@ -904,7 +909,7 @@ USE MOD_Globals
 USE MOD_MPI_Shared_Vars         ,ONLY: MPI_COMM_LEADERS_SHARED,MPI_COMM_LEADERS_SURF
 USE MOD_MPI_Shared_Vars         ,ONLY: MPIRankSurfLeader
 USE MOD_MPI_Shared_Vars         ,ONLY: myLeaderGroupRank,nSurfLeaders,nLeaderGroupProcs
-USE MOD_Particle_Boundary_Vars  ,ONLY: SurfOnNode,nComputeNodeSurfTotalSides
+USE MOD_Particle_Boundary_Vars  ,ONLY: SurfTotalSideOnNode,nComputeNodeSurfTotalSides
 USE MOD_Particle_Boundary_Vars  ,ONLY: SurfMapping
 USE MOD_Particle_Boundary_Vars  ,ONLY: SurfSide2GlobalSide
 USE MOD_Particle_Boundary_Vars  ,ONLY: nPorousSides, PorousBCInfo_Shared
@@ -977,7 +982,7 @@ DO iProc = 0,nLeaderGroupProcs-1
   IF (IERROR.NE.MPI_SUCCESS) CALL ABORT(__STAMP__,' MPI Communication error', IERROR)
 END DO
 
-IF (.NOT.SurfOnNode) RETURN
+IF (.NOT.SurfTotalSideOnNode) RETURN
 SurfMapping(:)%nRecvPorousSides = 0
 SurfMapping(:)%nSendPorousSides = 0
 

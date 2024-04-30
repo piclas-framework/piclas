@@ -91,3 +91,48 @@ Following parameters can be used for both schemes.
 |                       |          |              predict several intersections.              |
 | BezierClipMaxIntersec |  2*NGeo  |      Maximum number of roots for curvilinear faces.      |
 |      epsilontol       | 100*epsM |       Tolerance for linear and bilinear algorithm.       |
+
+
+## Rotating Frame of Reference
+
+Beside the described methods of particle tracking, it is important to define the frame of reference for the correct simulation of particle trajectories.
+Per default the resting frame of reference is used and no further settings are required.
+The rotating reference frame can be used to represent rotating geometries like e.g. turbine blades, since rotating/changing meshes are currently not supported.
+The corresponding rotational wall velocity has to be defined for the boundary as well, as shown in Section {ref}`sec:particle-boundary-conditions-reflective-wallvelo`.
+The distinction between a resting and rotating frame of reference is only important for the particle movement step. Here particles
+are not moving on a straight line due to the pseudo forces, i.e. the centrifugal and the Coriolis force.
+This means that particles follow a circular path towards a stationary boundary that represents a rotating geometry. The usage of the rotating reference frame is enabled by
+
+    Part-UseRotationalReferenceFrame = T
+
+Additionally, the rotational axis (x-, y- or z-axis) and frequency have to be defiend by
+
+    Part-RotRefFrame-Axis = 1          ! x=1, y=2, z=3
+    Part-RotRefFrame-Frequency = -100  ! [Hz, 1/s]
+
+The sign of the frequency (+/-) defines the direction of rotation according to the right-hand rule.
+It is also possible to use both reference frames within a single simulation. For this purpose, regions can be defined in which the rotating frame of reference is to be used.
+First, the number of rotating regions is defined by
+
+    Part-nRefFrameRegions = 2
+
+Afterwards the minimum and maximum coordinates must be defined for each region. Both values refer to the coordinates on the rotational axis, since the 
+boundary surfaces of these regions can only be defined perpendicular to the rotation axis:
+
+    Part-RefFrameRegion1-MIN = 10
+    Part-RefFrameRegion1-MAX = 20
+    Part-RefFrameRegion2-MIN = 100
+    Part-RefFrameRegion2-MAX = 110
+
+This allows to model systems of rotating and stationary geometries (e.g. pumps with stator and rotor blades) within a single simulation. For rotationally symmetric cases, the simulation domain can be reduced using the rotationally perodic boundary condition (as shown in Section {ref}`sec:particle-boundary-conditions-rotBC`). Examples are provided in the regression test directory, e.g.
+`regressioncheck/CHE_DSMC/Rotational_Reference_Frame` and `regressioncheck/CHE_DSMC/Rotational_Reference_Frame_Regions`.
+
+### Time step subcycling for rotating frame of reference
+
+In PICLas, an explicit time stepping scheme is used for the DSMC method, with both collision and motion operators altering the particle distribution function within each iteration. This leads to changes in the particle positions, momentum, and energy due to motion and collisions. Operators can be sequentially executed through operator splitting, adjusting the particle positions based on velocities first, followed by collisions within a time step. It is crucial for the time step to resolve collision frequency adequately. External forces (i.e. the centrifugal and the Coriolis force in the case of a rotating reference frame) may require additional consideration for the time step determination, especially when particle acceleration needs to be modeled. To ensure that the existing time step requirement in DSMC, dictated by collisions, remains unaffected, a subcycling algorithm only for the particle motion can be used. This algorithm divides the motion and thus the modeling of external forces into smaller subtimesteps. Consequently, the time step can be chosen based on collision frequency, while the motion can be more finely resolved through subcycling. The usage of the subcycling algorithm is enabled by
+
+    Part-RotRefFrame-UseSubCycling = T
+
+Additionally, the number of the subcycling steps can be defined by
+
+    Part-RotRefFrame-SubCyclingSteps = 10 ! Default = 10 steps

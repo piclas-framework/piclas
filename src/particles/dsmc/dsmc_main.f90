@@ -1,7 +1,7 @@
 !==================================================================================================================================
 ! Copyright (c) 2010 - 2018 Prof. Claus-Dieter Munz and Prof. Stefanos Fasoulas
 !
-! This file is part of PICLas (gitlab.com/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
+! This file is part of PICLas (piclas.boltzplatz.eu/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
 ! it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3
 ! of the License, or (at your option) any later version.
 !
@@ -41,12 +41,10 @@ SUBROUTINE DSMC_main(DoElement)
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_DSMC_Analyze          ,ONLY: CalcMeanFreePath
-USE MOD_DSMC_Analyze          ,ONLY: DSMC_data_sampling,CalcSurfaceValues, CalcGammaVib,SamplingRotVibRelaxProb
 USE MOD_DSMC_BGGas            ,ONLY: BGGas_InsertParticles, DSMC_pairing_bggas, BGGas_DeleteParticles
 USE MOD_Mesh_Vars             ,ONLY: nElems
 USE MOD_DSMC_Vars             ,ONLY: DSMC, CollInf, DSMCSumOfFormedParticles, BGGas, CollisMode, ElecRelaxPart
-USE MOD_DSMC_Analyze          ,ONLY: CalcMeanFreePath, SummarizeQualityFactors, DSMCMacroSampling
+USE MOD_DSMC_Analyze          ,ONLY: SummarizeQualityFactors, DSMCMacroSampling
 USE MOD_DSMC_Relaxation       ,ONLY: FinalizeCalcVibRelaxProb, InitCalcVibRelaxProb
 USE MOD_Particle_Vars         ,ONLY: PEM, PDM, WriteMacroVolumeValues, Symmetry
 USE MOD_DSMC_ParticlePairing  ,ONLY: DSMC_pairing_standard, DSMC_pairing_octree, DSMC_pairing_quadtree, DSMC_pairing_dotree
@@ -54,8 +52,8 @@ USE MOD_Particle_Vars         ,ONLY: WriteMacroSurfaceValues
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Timers    ,ONLY: LBStartTime, LBElemSplitTime
 #endif /*USE_LOADBALANCE*/
-USE MOD_MCC                   ,ONLY: MCC
 USE MOD_MCC_Vars              ,ONLY: UseMCC
+USE MOD_MCC                   ,ONLY: MonteCarloCollision
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -73,33 +71,40 @@ REAL              :: tLBStart
 
 ! Reset the number of particles created during the DSMC loop
 DSMCSumOfFormedParticles = 0
-! Insert background gas particles for every simulation particle
-IF((BGGas%NumberOfSpecies.GT.0).AND.(.NOT.UseMCC)) CALL BGGas_InsertParticles()
+
+DSMC%MaxMCSoverMFP = 0.0
+DSMC%ParticleCalcCollCounter = 0 ! Counts Particle Collison Calculations
+DSMC%ResolvedCellCounter = 0 ! Counts resolved cells
+DSMC%ResolvedTimestepCounter = 0 ! Counts cells with MeanCollProb below 1
+DSMC%CollProbMaxProcMax = 0.0 ! Maximum CollProbMax of every Cell in Process
+! Insert background gas particles for every simulation particle (except when using MCC and free-molecular flow)
+IF((BGGas%NumberOfSpecies.GT.0).AND.(.NOT.UseMCC).AND.(CollisMode.NE.0)) CALL BGGas_InsertParticles()
 
 IF ((DSMC%ElectronicModel.EQ.4).AND.(CollisMode.EQ.3)) THEN
   ElecRelaxPart(1:PDM%ParticleVecLength) = .TRUE.
 END IF
+
 #if USE_LOADBALANCE
 CALL LBStartTime(tLBStart)
 #endif /*USE_LOADBALANCE*/
-DO iElem = 1, nElems ! element/cell main loop
-  IF(PRESENT(DoElement)) THEN
-    IF (.NOT.DoElement(iElem)) CYCLE
-  END IF
-  nPart = PEM%pNumber(iElem)
-  IF (nPart.LT.1) CYCLE
-  IF(DSMC%CalcQualityFactors) THEN
-    DSMC%CollProbMax = 0.0; DSMC%CollProbMean = 0.0; DSMC%CollProbMeanCount = 0; DSMC%CollSepDist = 0.0; DSMC%CollSepCount = 0
-    DSMC%MeanFreePath = 0.0; DSMC%MCSoverMFP = 0.0
-    IF(DSMC%RotRelaxProb.GT.2) DSMC%CalcRotProb = 0.
-    DSMC%CalcVibProb = 0.
-  END IF
-  IF (CollisMode.NE.0) THEN
-    CALL InitCalcVibRelaxProb
+IF (CollisMode.NE.0) THEN
+  DO iElem = 1, nElems ! element/cell main loop
+    IF(PRESENT(DoElement)) THEN
+      IF (.NOT.DoElement(iElem)) CYCLE
+    END IF
+    nPart = PEM%pNumber(iElem)
+    IF (nPart.LT.1) CYCLE
+    IF(DSMC%CalcQualityFactors) THEN
+      DSMC%CollProbMax = 0.0; DSMC%CollProbSum = 0.0;DSMC%CollProbMean = 0.0; DSMC%CollProbMeanCount = 0; DSMC%CollSepDist = 0.0; DSMC%CollSepCount = 0
+      DSMC%MeanFreePath = 0.0; DSMC%MCSoverMFP = 0.0
+      IF(DSMC%RotRelaxProb.GT.2) DSMC%CalcRotProb = 0.
+      DSMC%CalcVibProb = 0.
+    END IF
+    CALL InitCalcVibRelaxProb()
     IF(BGGas%NumberOfSpecies.GT.0) THEN
       ! Decide between MCC and DSMC-based background gas
       IF(UseMCC) THEN
-        CALL MCC(iElem)
+        CALL MonteCarloCollision(iElem)
       ELSE
         CALL DSMC_pairing_bggas(iElem)
       END IF
@@ -123,24 +128,20 @@ DO iElem = 1, nElems ! element/cell main loop
     END IF
     CALL FinalizeCalcVibRelaxProb(iElem)
     IF(DSMC%CalcQualityFactors) CALL SummarizeQualityFactors(iElem)
-  END IF  ! --- CollisMode.NE.0
 #if USE_LOADBALANCE
-  CALL LBElemSplitTime(iElem,tLBStart)
+    CALL LBElemSplitTime(iElem,tLBStart)
 #endif /*USE_LOADBALANCE*/
-END DO ! iElem Loop
-
-! Advance particle vector length and the current next free position with newly created particles
-PDM%ParticleVecLength = PDM%ParticleVecLength + DSMCSumOfFormedParticles
-PDM%CurrentNextFreePosition = PDM%CurrentNextFreePosition + DSMCSumOfFormedParticles
+  END DO ! iElem Loop
+END IF ! CollisMode.NE.0
 
 IF(PDM%ParticleVecLength.GT.PDM%MaxParticleNumber) THEN
-  CALL Abort(&
-    __STAMP__&
+  CALL Abort(__STAMP__&
     ,'ERROR in DSMC: ParticleVecLength greater than MaxParticleNumber! Increase the MaxParticleNumber to at least: ' &
     , IntInfoOpt=PDM%ParticleVecLength)
 END IF
+
 ! Delete background gas particles
-IF((BGGas%NumberOfSpecies.GT.0).AND.(.NOT.UseMCC)) CALL BGGas_DeleteParticles
+IF((BGGas%NumberOfSpecies.GT.0).AND.(.NOT.UseMCC)) CALL BGGas_DeleteParticles()
 
 ! Sampling of macroscopic values
 ! (here for a continuous average; average over N iterations is performed in src/analyze/analyze.f90)

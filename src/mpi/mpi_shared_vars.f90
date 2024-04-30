@@ -37,6 +37,10 @@ INTEGER            :: myComputeNodeRank                     !> Rank of current p
 INTEGER            :: myLeaderGroupRank                     !> Rank of compute-node root in compute-node-root comm
 INTEGER            :: nComputeNodeProcessors                !> Number of procs on current compute-node
 INTEGER            :: nLeaderGroupProcs                     !> Number of nodes
+#if ! (CORE_SPLIT==0)
+! When core-level splitting is used, it is not clear how many cores are on the same physical compute node.
+INTEGER            :: NbrOfPhysicalNodes                    !> Number of physical nodes (as opposed to virtual nodes) on which the simulation is executed
+#endif /*! (CORE_SPLIT==0)*/
 INTEGER            :: nProcessors_Global                    !> Number of total procs
 INTEGER            :: MPI_COMM_SHARED                       !> Communicator on current compute-node
 INTEGER            :: MPI_COMM_LEADERS_SHARED               !> Communicator compute-node roots (my_rank_shared=0)
@@ -52,6 +56,7 @@ INTEGER            :: nComputeNodeTotalNodes                !> Number of nodes o
 INTEGER,ALLOCATABLE:: displsElem(:),recvcountElem(:)
 INTEGER,ALLOCATABLE:: displsSide(:),recvcountSide(:)
 INTEGER,ALLOCATABLE:: displsNode(:),recvcountNode(:)
+INTEGER            :: MPI_STRUCT_ELEM,MPI_STRUCT_SIDE,MPI_STRUCT_NODE
 #endif /*USE_MPI*/
 
 ! Surface sampling
@@ -66,10 +71,6 @@ INTEGER,ALLOCATABLE,DIMENSION(:,:):: nSurfSidesLeader       !> number of surf si
                                                             !> 1 - sides from local leader to other leader
                                                             !> 2 - sides from other leader to local leader
 
-INTEGER, ALLOCATABLE :: CNTotalElem2GlobalElem(:)           !> Compute Nodes mapping 1:nTotal -> 1:nGlobal
-INTEGER, ALLOCATABLE :: GlobalElem2CNTotalElem(:)           !> Reverse Mapping
-INTEGER, ALLOCATABLE :: CNTotalSide2GlobalSide(:)           !> Compute Nodes mapping 1:nTotal -> 1:nGlobal
-INTEGER, ALLOCATABLE :: GlobalSide2CNTotalSide(:)           !> Reverse Mapping
 
 INTEGER            :: MPI_INFO_SHARED_LOOSE                 !> MPI_INFO object allowing for re-ordering of same origin atomic RMA operations
 

@@ -8,11 +8,11 @@ piclas2vtk [posti.ini] output.h5
 
 Multiple HDF5 files can be passed to the piclas2vtk tool at once. The (optional) runtime parameters to be set in `posti.ini` are given below:
 
-|   **Option**  | **Default** |                                     **Description**                                    |
-|   :--------:  | :---------: |                                       :---------:                                      |
-|     NVisu     |      1      |             Number of points at which solution is sampled for visualization            |
-| VisuParticles |     OFF     |      Converts the particle data (positions, velocity, species, internal energies)      |
-|  NodeTypeVisu |     VISU    | Node type of the visualization basis: VISU,GAUSS,GAUSS-LOBATTO,CHEBYSHEV-GAUSS-LOBATTO |
+|    **Option**   | **Default** |                                     **Description**                                    |
+|    :--------:   | :---------: |                                       :---------:                                      |
+|     `NVisu`     |      1      |             Number of points at which solution is sampled for visualization            |
+| `VisuParticles` |     OFF     |      Converts the particle data (positions, velocity, species, internal energies)      |
+|  `NodeTypeVisu` |     VISU    | Node type of the visualization basis: VISU,GAUSS,GAUSS-LOBATTO,CHEBYSHEV-GAUSS-LOBATTO |
 
 In the following, the parameters enabling the different output variables are described. It should be noted that these parameters are part of the `parameter.ini` required by **PICLas**.
 
@@ -39,30 +39,47 @@ The following table summarizes the available fields in connection with Poisson's
 solver to be active) that can be stored to the state file (`*_State_*.h5`) file at every `Analyze_dt` as well as at the start and
 end of the simulation
 
-|         **Option**         | **Default** |                                        **Description**                                       |
-|         :--------:         | :---------: |                                          :---------:                                         |
-|      PIC-OutputSource      |      F      |                             charge $\rho$ and current density $j$                            |
-| CalcElectricTimeDerivative |      F      | time derivative $\frac{\partial D}{\partial t}=\varepsilon_{0}\frac{\partial E}{\partial t}$ |
+|          **Option**          | **Default** |                                                 **Description**                                                 |   Poisson  |   Maxwell  |
+|          :--------:          | :---------: | :-------------------------------------------------------------------------------------------------------------: | :--------: | :--------: |
+|      `PIC-OutputSource`      |      F      |                                      charge $\rho$ and current density $j$                                      |     yes    |     yes    |
+| `CalcElectricTimeDerivative` |      F      |   time derivative $\frac{\partial D}{\partial t}=\varepsilon_{r}\varepsilon_{0}\frac{\partial E}{\partial t}$   |     yes    |     no     |
+|     `CalcPotentialEnergy`    |      F      |                                      potential field energy of the EM field                                     |     yes    |     yes    |
 
-When running a PIC simulation, the particle-grid deposited properties, such as charge and current densities (in each direction `x,
+**Charge and current density**: When running a PIC simulation, the particle-grid deposited properties, such as charge and current densities (in each direction `x,
 y,`and `z`) can be output by enabling
 
     PIC-OutputSource = T
 
 that stores the data in the same format as the solution polynomial of degree $N$, i.e., $(N+1)^{3}$ data points for each cell.
 
-The temporal change of the electric displacement field $\frac{\partial D}{\partial t}=\varepsilon_{0}\frac{\partial E}{\partial t}$
+**Displacement current:** The temporal change of the electric displacement field $\frac{\partial D}{\partial t}=\varepsilon_{r}\varepsilon_{0}\frac{\partial E}{\partial t}$
 can be stored for Poisson's equation (`PICLAS_EQNSYSNAME=poisson`) by setting
 
     CalcElectricTimeDerivative = T
 
 Again, the data in the same format as the solution polynomial of degree $N$, i.e., $(N+1)^{3}$ data points for each cell in the
 container `DG_TimeDerivative` in the `*_State_*.h5` file and can be converted to `.vtk` format with `piclas2vtk`.
+Furthermore, the integrated displacement current that traverses each field boundary (except periodic BCs) can be analyzed over time
+and is written to `FieldAnalyze.csv`, for details see Section {ref}`sec:integral-field-variables`.
+
+**Potential field energy:** The global energy that is stored within the electric and the magnetic field can be analyzed over time by
+setting
+
+    CalcPotentialEnergy = T
+
+and is written to `FieldAnalyze.csv`, for details see Section {ref}`sec:integral-field-variables`.
+
 
 ### Element-polynomial field properties
 In general, the data is the same format as the solution polynomial of degree $N$, i.e., $(N+1)^{3}$ data points for each cell in the
 respective container in the `.h5` files and can be converted to `.vtk` format with `piclas2vtk`. The resolution of the converted
 data can be adjusted by setting `NVisu` to any integer value, which is the used for the interpolation of the original data.
+
+The following table summarizes the available fields in connection with Poisson's or Maxwell's equations
+
+|      **Option**     | **Default** |                                  **Description**                                  |   Poisson  |   Maxwell  |
+|   :-------------:   | :---------: | :-------------------------------------------------------------------------------: | :--------: | :--------: |
+| `CalcEMFieldOutput` |      F      |           external electric $\textbf{E}$ and magnetic $\textbf{B}$ field          |     yes    |     yes    |
 
 
 **External electromagnetic field vector**
@@ -81,12 +98,29 @@ visualized via
 
 and the resulting data (vector fields for *E* and *B*) is stored in `PROJECT_PIC-EMField.h5`.
 
+(sec:const-field-part-props)=
 ### Element-constant field/particle properties
+
 The determined properties are given by a single value within each cell and are NOT sampled over time as opposed to the output
 described in Section {ref}`sec:sampled-flow-field-and-surface-variables`.
 These parameters are only available for PIC simulations, are part of the regular state file (as a separate container within the
 HDF5 file) and automatically included in the conversion to the VTK format. They are written to `PROJECT_Solution_000.000*.h5` and
 after conversion are found in `PROJECT_ElemData_000.000*.vtu`.
+
+The following table summarizes the available fields in connection with Poisson's or Maxwell's equations
+
+|         **Option**         | **Default** |                                  **Description**                                  |   Poisson  |   Maxwell  |
+|       :-------------:      | :---------: | :-------------------------------------------------------------------------------: | :--------: | :--------: |
+|     `CalcCoupledPower`     |      F      |        absorbed power by charged particles due to electro(-magnetic) fields       |     yes    |     yes    |
+|    `CalcPlasmaFreqeuncy`   |      F      |     (cold) plasma frequency depending on the electron particle number density     |     yes    |     yes    |
+|      `CalcPICTimeStep`     |      F      |         PIC time step resolution depending on the (cold) plasma frequency         |     yes    |     yes    |
+|      `CalcDebyeLength`     |      F      |   Debye length depending on the electron temperature and particle number density  |     yes    |     yes    |
+| `CalcPointsPerDebyeLength` |      F      |     PIC spatial resolution depending on the element size and the Debye length     |     yes    |     yes    |
+|    `CalcPICCFLCondition`   |      F      |       single parameter combining plasma frequency and Debye length criterion      |     yes    |     yes    |
+|  `CalcMaxPartDisplacement` |      F      |  largest displacement of a particle within one time step related to the cell size |     yes    |     yes    |
+| `CalcPICTimeStepCyclotron` |      F      |   PIC time step resolution depending on the cyclotron frequency (magnetic field)  |     yes    |     yes    |
+|  `CalcCyclotronFrequency`  |      F      |            cyclotron frequency of charged particles in magnetic fields            |     yes    |     yes    |
+
 
 **Power Coupled to Particles**
 The energy transferred to particles during the push (acceleration due to electromagnetic fields) is
@@ -111,15 +145,27 @@ The calculation is activated by
 
     CalcPlasmaFreqeuncy = T
 
+and the output container for the data is labelled `PlasmaFrequencyCell`.
+Note that this output is only performed for elements that are considered valid, which is also stored as a separate container
+`PICValidPlasmaCell` (1: True, 0: False).
+The criterion that an element is valid is that a quasi-neutral plasma should be present in the element for plasma and parameters
+to be meaningful.
+Therefore, the quasi-neutrality parameter must be above 0.5 and at least 20 particles present in the considered element,
+independent of their charge value.
+
 **PIC Particle Time Step**
 The maximum allowed time step within the PIC schemes can be estimated by
 
 $$\Delta_{t,\mathrm{PIC}}<\frac{0.2}{\omega_{p}}$$
 
-where $\omega_{p}$ is the (cold) plasma frequency.
+where $\omega_{p}$ is the (cold) plasma frequency (only calculated for valid elements, see above).
 The calculation is activated by
 
     CalcPICTimeStep = T
+
+and the output container for the data is labelled `PICTimeStepCell`.
+An additional output to `PartAnalyze.csv` is the percentage of elements that do not meet the PIC time step criterion via the column
+`-PercentResolvedPICTimeStep`.
 
 **Debye length**
 The Debye length can be calculated via
@@ -133,6 +179,9 @@ potential of a single charge drops by $1/\text{e}$.
 The calculation is activated by
 
     CalcDebyeLength = T
+
+and the output container for the data is labelled `DebyeLengthCell`.
+Again, this output is only created for valid elements, see above for details.
 
 **Points per Debye Length**
 The spatial resolution in terms of grid points per Debye length can be estimated via
@@ -148,6 +197,14 @@ each cell. These values are especially useful when dealing with Cartesian grids.
 The calculation is activated by
 
     CalcPointsPerDebyeLength = T
+
+and the output container for the 3D data is labelled `PPDCell3D`.
+Furthermore, a container for each spatial coordinate is created, which are labelled `PPDCellDirX`, `PPDCellDirY` and `PPDCellDirZ`,
+respectively.
+As for the PIC time step, an  additional output to `PartAnalyze.csv` is the percentage of elements that do not meet the PPD criterion
+in 3D and for each spatial direction.
+There are four columns in the `PartAnalyze.csv` file for the Debye criterion, `-PercentResolvedPPD3`, `-PercentResolvedPPDX`,
+`-PercentResolvedPPDY` and `-PercentResolvedPPDZ`, respectively.
 
 **PIC CFL Condition**
 The plasma frequency time step restriction and the spatial Debye length restriction can be merged
@@ -165,6 +222,10 @@ The calculation is activated by
 
     CalcPICCFLCondition = T
 
+and the output container for the 3D data is labelled `PICCFL3D`.
+Furthermore, a container for each spatial coordinate is created, which are labelled `PICCFLDirX`, `PICCFLDirY` and `PICCFLDirZ`,
+respectively.
+
 **Maximum Particle Displacement**
 The largest displacement of a particle within one time step $\Delta t$ is estimated for each cell
 via
@@ -180,6 +241,10 @@ These values are especially useful when dealing with Cartesian grids.
 The calculation is activated by
 
     CalcMaxPartDisplacement = T
+
+and the output container for the 3D data is labelled `MaxPartDisplacement3D`.
+Furthermore, a container for each spatial coordinate is created, which are labelled `MaxPartDisplacementDirX`,
+`MaxPartDisplacementDirY` and `MaxPartDisplacementDirZ`, respectively.
 
 **Electron Cyclotron Motion**
 The gyrokinetic or cyclotron motion of electrons can be analyzed by calculating the cyclotron frequency
@@ -337,7 +402,189 @@ which calculates the species-dependent averaged impact energy (trans, rot, vib, 
 impact angle of $0^{\circ}$), number of real particle impacts over the sampling duration and number of real particle impacts
 per area per second.
 
-## Integral Variables
+(sec:sampling-elec-excitation)=
+### Electronic excitation
 
-WIP, PartAnalyze/FieldAnalyze
+To sample the cell-local excitation of electronic energy levels, an additional flag has to be set
+
+    Part-SampleElectronicExcitation = T
+
+This option adds an additional container to the DSMCState output, which after a successful conversion with `piclas2vtk` will produce an additional file `*_visuExcitationData_*.vtu`. Here the excitation rate is given per second [1/s] for each electronic level. This option is currently only supported with the cross-section based electronic excitation (see Section {ref}`sec:background-gas-electronic-xsec`).
+
+## Integral Variables
+This analysis measures integral values from the field- and/or particle-solver data over time and writes different .csv files.
+Mainly field-related data is stored in `FieldAnalyze.csv`, whereas particle-related analysis is divided into mostly global data in
+`PartAnalyze.csv` and surface data in `SurfaceAnalyze.csv`. Some information might be scattered across different files if multiple
+things such as fields and particles/surfaces are involved.
+
+(sec:integral-field-variables)=
+### Field Variables
+The output of properties regarding Maxwell's or Poisson's field solver are written to `FieldAnalyze.csv`.
+If this analysis is not required in each time step, the parameter `Field-AnalyzeStep` (default is 1) can be set to an integer
+greater or equal 1.
+
+|          **Option**          | **Default** |                                                 **Description**                                                 |   Poisson  |   Maxwell  |
+|          :--------:          | :---------: | :-------------------------------------------------------------------------------------------------------------: | :--------: | :--------: |
+| `CalcElectricTimeDerivative` |      F      |   time derivative $\frac{\partial D}{\partial t}=\varepsilon_{r}\varepsilon_{0}\frac{\partial E}{\partial t}$   |     yes    |     no     |
+|     `CalcPotentialEnergy`    |      F      |                                      potential field energy of the EM field                                     |     yes    |     yes    |
+|   `CalcBoundaryFieldOutput`  |      F      |                                 electric potential at user-specified boundaries                                 |     yes    |     no     |
+
+
+**Displacement current:** The temporal change of the electric displacement field $\frac{\partial D}{\partial t}=\varepsilon_{r}\varepsilon_{0}\frac{\partial E}{\partial t}$
+can be stored for Poisson's equation (`PICLAS_EQNSYSNAME=poisson`) by setting
+
+    CalcElectricTimeDerivative = T
+
+The integrated displacement current that traverses each field boundary (except periodic BCs) can be analyzed over time
+and is written to `FieldAnalyze.csv` for each boundary separately, e.g. *"007-ElecDisplCurrent-001-BC_left"*.
+The electric displacement current is also considered when the total electric current on specific surfaces is calculated, for details
+see BoundaryParticleOutput (BPO) in Section {ref}`sec:integral-surface-variables`.
+
+**Potential field energy:** The global energy that is stored within the electric and the magnetic field can be analyzed over time
+by setting
+
+    CalcPotentialEnergy = T
+
+and is written to `FieldAnalyze.csv`, e.g. *"002-E-El" and "003-E-Mag"* (magnetic energy is only calculated for Maxwell's equations').
+Additionally, but only when solving Maxwell's equations, the energy stored in the divergence correction fields *"004-E-phi"* and
+*"005-E-psi"* as well as the total potential energy *"006-E-pot"*, respectively, can be analyzed.
+
+**Boundary Field Output** The electric potential for specific boundaries can be analyzed over time by setting
+
+    CalcBoundaryFieldOutput = T
+    BFO-NFieldBoundaries    = 3         ! Nbr of boundaries
+    BFO-FieldBoundaries     = (/1,3,5/) ! Field-Boundary1, 3 and 5
+
+where `BFO-NFieldBoundaries` defines the number of boundaries that are of interest and `BFO-FieldBoundaries` the boundary IDs of the
+field boundaries where the electric potential is to be recorded. Note that this output is only meaningful when a scalar potential is
+used on the corresponding boundary. Therefore, this output is only available for certain BCTypes, e.g., 2, 4, 5 and 6. The output is
+written to `FieldAnalyze.csv` for each boundary separately, e.g. *"006-BFO-boundary001"*.
+
+### Particle Variables
+
+**PIC resolution parameters:** Information regrading the  global percentage of elements that fulfill the PIC resolution criteria in
+time (max. PIC time step) and space (Debye length) can be written to `PartAnalyze.csv`.
+For further details and how this analysis are activated, see Section {ref}`sec:const-field-part-props`.
+
+(sec:integral-surface-variables)=
+### Surface Variables
+
+The output for different measurements involving particles and surfaces is written to `SurfaceAnalyze.csv`.
+If this analysis is not required in each time step, the parameter `Surface-AnalyzeStep` (default is 1) can be set to an integer
+greater or equal 1. Some values are sampled only during one time step and others are accumulated over the number of time steps
+defined by `Surface-AnalyzeStep`.
+
+|           Parameter          |                                   Parameter                                  |
+| ---------------------------- | ---------------------------------------------------------------------------- |
+|       `CalcElectronSEE`      |  Secondary electron emission current for each `Part-Boundary` with SEE model |
+| `CalcBoundaryParticleOutput` |    Particle flux for each user-defined `Part-Boundary` and `Part-Species`    |
+
+**Secondary Electron Emission**
+When `CalcElectronSEE=T` is activated, the secondary electron emission current (on all surfaces where such a model is used) is
+calculated and written to `SurfaceAnalyze.csv`. Note that all secondary electrons between two outputs are accumulated and divided by
+the time difference between these outputs. Hence, the averaging time can be adjusted using `Surface-AnalyzeStep`.
+The output in the .csv file will be similar to this example: `012-ElectricCurrentSEE-BC_WALL`
+
+**BoundaryParticleOutput (BPO):** The flux of particles crossing boundaries where they are removed can be calculated by setting
+`CalcBoundaryParticleOutput = T`. Additionally, the boundaries and species IDs must be supplied for which the output is to be
+created. This is done by setting
+
+    CalcBoundaryParticleOutput = T        ! Activate the analysis
+    BPO-NPartBoundaries        = 2        ! Nbr of particle boundaries where the flux and current are measured
+    BPO-PartBoundaries         = (/4,8/)  ! Only measure the flux and current on Part-Boundary4 and Part-Boundary8
+    BPO-NSpecies               = 2        ! Nbr of species that are considered for Part-Boundary4 and Part-Boundary8
+    BPO-Species                = (/2,3/)  ! Species IDs which should be included
+
+where the number of boundaries and species as well as the corresponding IDs are defined. The other boundaries and species IDs will
+be ignored. Note that this feature is currently only implemented for boundaries of type `Part-BoundaryX-Condition = open` and
+`Part-BoundaryX-Condition = reflective`. The reflective BC must also use either species swap via `Part-BoundaryX-NbrOfSpeciesSwaps`
+or a secondary electron emission surface model via `Part-BoundaryX-SurfaceModel`.
+The output in the .csv file will be similar to this example: `004-Flux-Spec-002-BC_CATHODE`
+Additionally, the total electric current will be calculated if any species that is selected via `BPO-Species` carries a charge
+unequal to zero.
+Note that only species defined via `BPO-Species` will be considered in the calculation of the total electric current.
+Furthermore, the secondary electron emission current is automatically added to the total electric current if
+`CalcBoundaryParticleOutput = T`.
+If the electric displacement current is calculated, it also will be added to the total current, if `CalcElectricTimeDerivative = T`.
+The output of the total electric current in the .csv file will be similar to this example: `008-TotalElectricCurrent-BC_ANODE`
+
+## Dynamic Mode Decomposition
+The dynamic mode decomposition is an algorithm that divides a temporal series into a set of modes which are associated with a
+frequency and grow/decay rate.
+The dynamic mode decomposition (DMD) is implemented according to Schmid et al. {cite}`Schmid2009`.
+To use the DMD tool, it needs to be compiled first. In cmake, set the flag
+
+    POSTI_BUILD_DMD = ON (default is OFF)
+
+which creates the executable `./bin/dmd`.
+The input for the DMD tool is provided by a series of state files with a high temporal resolution between each output file in order
+to capture the relevant frequencies that are to be visualized.
+To analyze a specific frequency, multiple state files should be created within one period of the oscillation.
+
+Run the DMD executable with the help command to see the available options
+
+    ./dmd --help
+
+To execute the DMD after a simulation, with e.g. the Maxwell solver, run the command
+
+    dmd dmd.ini coaxial_State_000.00*
+
+with an exemplary `dmd.ini` file
+
+    N            = 4
+    SvdThreshold = 1e-8 ! Define relative lower bound of singular values
+
+where `N=4` is the polynomial degree of the solution and `SvdThreshold = 1e-8` is used to filter singular values of the DMD.
+
+Depending on the available memory one might have to decrease the number of input state files.
+After the execution two additional files **coaxial_DMD.h5** and **coaxial_DMD_Spec.dat** will be created.
+The first file contains the field representation of the different modes and the second file contains the Ritz spectrum of the modes.
+
+### Ritz spectrum (coaxial_DMD_Spec.dat)
+
+With the python script *plot_RitzSpectrum.py* the Ritz spectrum of the DMD can be plotted.
+The script is placed in the tools folder of **piclas**.
+To plot the spectrum execute:
+
+    python [PICLAS_DIRECTORY]/tools/plot_RitzSpectrum.py -d coaxial_DMD_Spec.dat
+
+The result is a Ritz spectrum depicting all the calculated modes and their growth rate.
+On the *x-axis* the frequency of the modes and on the *y-axis* the growth/decay factor is plotted, whereat modes with $\omega_r<0$
+are damped.
+The modes placed directly on the x-axis are the global, the first, the second harmonic mode and so on.
+The color and size of the plotted modes represent the Euclidian norm of the mode which can be interpreted as an energy norm of the mode.
+
+### Mode visualization (coaxial_DMD.h5)
+To visualize the field run the following command:
+
+    piclas2vtk [posti.ini] coaxial_DMD.h5
+
+The new file **coaxial_DMD_000.00000000000000000.vtu** now contains multiple modes to visualize.
+Two additional input parameters are used to control the output of `piclas2vtk` by placing them in the `posti.ini` file
+
+    dmdSingleModeOutput  = 2  ! only extract mode 002
+    dmdMaximumModeOutput = 10 ! only extract modes 001-010
+
+The parameter `dmdSingleModeOutput` is used to convert only a single specific mode to `.vtu` ignoring all other modes and
+`dmdMaximumModeOutput` can be used to dump all output modes up to this number.
+Note that each mode is written to a separate output file because a single might can become quite large very quickly and is then too
+large to visualize.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 

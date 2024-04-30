@@ -1,7 +1,7 @@
 !==================================================================================================================================
 ! Copyright (c) 2010 - 2018 Prof. Claus-Dieter Munz and Prof. Stefanos Fasoulas
 !
-! This file is part of PICLas (gitlab.com/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
+! This file is part of PICLas (piclas.boltzplatz.eu/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
 ! it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3
 ! of the License, or (at your option) any later version.
 !
@@ -86,7 +86,7 @@ CALL prms%CreateRealArrayOption('PIC-externalField'           , 'Method 2 of 5: 
 CALL prms%CreateRealOption(     'PIC-scaleexternalField'      , 'Scaling factor for PIC-externalField', '1.0')
 
 ! -- external field 3
-CALL prms%CreateStringOption(   'PIC-variableExternalField'   , 'Method 3 of 5: CSV file containing the external magnetic field Bz in z-direction '//&
+CALL prms%CreateStringOption(   'PIC-variableExternalField'   , 'Method 3 of 5: H5 or CSV file containing the external magnetic field Bz in z-direction '//&
                                                                 'for interpolating the variable field at each particle z-position.', 'none')
 
 ! -- external field 4
@@ -114,6 +114,9 @@ USE MOD_ReadInTools
 USE MOD_Particle_Vars         ,ONLY: PDM
 USE MOD_PICInterpolation_Vars
 USE MOD_ReadInTools           ,ONLY: PrintOption
+#if USE_LOADBALANCE
+USE MOD_LoadBalance_Vars      ,ONLY: PerformLoadBalance
+#endif /*USE_LOADBALANCE*/
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
@@ -128,7 +131,7 @@ REAL                      :: scaleExternalField
 CHARACTER(LEN=20)         :: tempStr
 #endif /*CODE_ANALYZE*/
 !===================================================================================================================================
-SWRITE(UNIT_stdOut,'(A)') ' INIT PARTICLE INTERPOLATION...'
+LBWRITE(UNIT_stdOut,'(A)') ' INIT PARTICLE INTERPOLATION...'
 
 IF(.NOT.DoInterpolation) THEN
   ! Fill interpolation type with empty string
@@ -158,7 +161,10 @@ IF (FileNameVariableExternalField.NE.'none') THEN ! if supplied, read the data f
   ! Activate variable external field
   useVariableExternalField = .TRUE.
   ! Read data from .csv or .h5 file
-  CALL ReadVariableExternalField()
+#if defined(PARTICLES) && USE_LOADBALANCE
+  IF(.NOT.PerformLoadBalance) & ! Only allocate and read data once (skip during load balance)
+#endif /*defined(PARTICLES) && USE_LOADBALANCE*/
+    CALL ReadVariableExternalField()
 END IF
 
 ! Algebraic external field
@@ -166,8 +172,7 @@ useAlgebraicExternalField    = .FALSE.
 AlgebraicExternalField = GETINT('PIC-AlgebraicExternalField')
 IF(AlgebraicExternalField.GT.0) useAlgebraicExternalField=.TRUE.
 ! Sanity Check: Add all integer values that are possible to the vector for checking
-IF(.NOT.ANY(AlgebraicExternalField.EQ.(/0,1,2,3/))) CALL abort(&
-  __STAMP__&
+IF(.NOT.ANY(AlgebraicExternalField.EQ.(/0,1,2,3/))) CALL abort(__STAMP__&
   ,'Value for PIC-AlgebraicExternalField not defined',IntInfoOpt=AlgebraicExternalField)
 
 AlgebraicExternalFieldDelta = GETINT('PIC-AlgebraicExternalFieldDelta')
@@ -175,19 +180,13 @@ IF(AlgebraicExternalFieldDelta.LT.0) CALL abort(__STAMP__,'AlgebraicExternalFiel
 
 !--- Allocate arrays for interpolation of fields to particles
 ALLOCATE(FieldAtParticle(1:6,1:PDM%maxParticleNumber), STAT=ALLOCSTAT)
-IF (ALLOCSTAT.NE.0) THEN
-  CALL abort(&
-  __STAMP__ &
-  ,'ERROR in pic_interpolation.f90: Cannot allocate FieldAtParticle array!',ALLOCSTAT)
-END IF
+IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__ ,'ERROR in pic_interpolation.f90: Cannot allocate FieldAtParticle array!',ALLOCSTAT)
 
 SELECT CASE(TRIM(InterpolationType))
 CASE('particle_position')
   ! PASS
 CASE DEFAULT
-  CALL abort(&
-  __STAMP__ &
-  ,'Unknown InterpolationType ['//TRIM(ADJUSTL(InterpolationType))//'] in pic_interpolation.f90')
+  CALL abort(__STAMP__ ,'Unknown InterpolationType ['//TRIM(ADJUSTL(InterpolationType))//'] in pic_interpolation.f90')
 END SELECT
 
 #ifdef CODE_ANALYZE
@@ -217,6 +216,9 @@ IF(DoInterpolationAnalytic)THEN
     !                              1: relativistic
     AnalyticInterpolationSubType = GETINT('PIC-AnalyticInterpolation-SubType')
     AnalyticInterpolationE       = GETREAL('PIC-AnalyticInterpolationE')
+  CASE(5,51)
+    ! RotRefFrameFreq and RotRefFrameOmega is already defined in particle_init.f90
+    TimeReset = 0.0
   CASE DEFAULT
     WRITE(TempStr,'(I5)') AnalyticInterpolationType
     CALL abort(__STAMP__,'Unknown PIC-AnalyticInterpolation-Type "'//TRIM(ADJUSTL(TempStr))//'" in pic_interpolation.f90')
@@ -233,7 +235,7 @@ IF(DoInterpolationAnalytic)THEN
 END IF
 #endif /*CODE_ANALYZE*/
 
-SWRITE(UNIT_stdOut,'(A)')' INIT PARTICLE INTERPOLATION DONE!'
+LBWRITE(UNIT_stdOut,'(A)')' INIT PARTICLE INTERPOLATION DONE!'
 END SUBROUTINE InitializeParticleInterpolation
 
 
@@ -367,9 +369,14 @@ SUBROUTINE ReadVariableExternalField()
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_PICInterpolation_Vars ,ONLY: VariableExternalField,FileNameVariableExternalField
-USE MOD_PICInterpolation_Vars ,ONLY: VariableExternalFieldDim,VariableExternalFieldAxisSym
-USE MOD_HDF5_Input_Field      ,ONLY: ReadVariableExternalFieldFromHDF5
+USE MOD_PICInterpolation_Vars ,ONLY: VariableExternalField,FileNameVariableExternalField,DeltaExternalField,VariableExternalFieldDim
+USE MOD_PICInterpolation_Vars ,ONLY: VariableExternalFieldDim,VariableExternalFieldAxisSym,VariableExternalFieldMin
+USE MOD_PICInterpolation_Vars ,ONLY: VariableExternalFieldMax,VariableExternalFieldN,VariableExternalFieldAxisDir
+USE MOD_PICInterpolation_Vars ,ONLY: VariableExternalFieldRadInd
+USE MOD_HDF5_Input_Field      ,ONLY: ReadExternalFieldFromHDF5
+#if USE_LOADBALANCE
+USE MOD_LoadBalance_Vars      ,ONLY: PerformLoadBalance
+#endif /*USE_LOADBALANCE*/
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
@@ -378,14 +385,12 @@ USE MOD_HDF5_Input_Field      ,ONLY: ReadVariableExternalFieldFromHDF5
 ! OUTPUT VARIABLES
 !----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER,PARAMETER     :: lenmin=4
-INTEGER               :: lenstr
+INTEGER,PARAMETER :: lenmin=4
+INTEGER           :: lenstr
+REAL              :: StartT,EndT
 !===================================================================================================================================
-SWRITE(UNIT_stdOut,'(A,3X,A,65X,A)') ' INITIALIZATION OF VARIABLE EXTERNAL FIELD FOR PARTICLES '
-
-! Defaults
-VariableExternalFieldDim     = 1 ! default is 1D
-VariableExternalFieldAxisSym = .FALSE.
+LBWRITE(UNIT_stdOut,'(A,3X,A,65X,A)') ' INITIALIZATION OF VARIABLE EXTERNAL FIELD FOR PARTICLES '
+GETTIME(StartT)
 
 ! Check if file exists
 IF(.NOT.FILEEXISTS(FileNameVariableExternalField)) CALL abort(__STAMP__,"File not found: "//TRIM(FileNameVariableExternalField))
@@ -396,7 +401,10 @@ IF(lenstr.LT.lenmin) CALL abort(__STAMP__,"File name too short: "//TRIM(FileName
 
 ! Check file ending, either .csv or .h5
 IF(TRIM(FileNameVariableExternalField(lenstr-lenmin+2:lenstr)).EQ.'.h5')THEN
-  CALL ReadVariableExternalFieldFromHDF5()
+  CALL ReadExternalFieldFromHDF5('data',&
+      VariableExternalField        , DeltaExternalField          , FileNameVariableExternalField , VariableExternalFieldDim , &
+      VariableExternalFieldAxisSym , VariableExternalFieldRadInd , VariableExternalFieldAxisDir  , VariableExternalFieldMin , &
+      VariableExternalFieldMax     , VariableExternalFieldN)
 ELSEIF(TRIM(FileNameVariableExternalField(lenstr-lenmin+1:lenstr)).EQ.'.csv')THEN
   CALL ReadVariableExternalFieldFromCSV()
 ELSE
@@ -405,7 +413,8 @@ END IF
 
 IF(.NOT.ALLOCATED(VariableExternalField)) CALL abort(__STAMP__,"Failed to load data from: "//TRIM(FileNameVariableExternalField))
 
-SWRITE(UNIT_stdOut,'(A)')' ...VARIABLE EXTERNAL FIELD INITIALIZATION DONE'
+GETTIME(EndT)
+CALL DisplayMessageAndTime(EndT-StartT, ' INITIALIZATION OF VARIABLE EXTERNAL FIELD FOR PARTICLES ... DONE')
 END SUBROUTINE ReadVariableExternalField
 
 
@@ -419,7 +428,10 @@ SUBROUTINE ReadVariableExternalFieldFromCSV()
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_PICInterpolation_Vars, ONLY:VariableExternalField,DeltaExternalField,nIntPoints,FileNameVariableExternalField
+USE MOD_PICInterpolation_Vars ,ONLY: VariableExternalField,DeltaExternalField,nIntPoints,FileNameVariableExternalField
+#if USE_LOADBALANCE
+USE MOD_LoadBalance_Vars      ,ONLY: PerformLoadBalance
+#endif /*USE_LOADBALANCE*/
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
@@ -464,15 +476,15 @@ CLOSE (ioUnit)
 
 IF(ncounts.GT.1) THEN
   DeltaExternalField(1) = VariableExternalField(1,2)  - VariableExternalField(1,1)
-  SWRITE(UNIT_stdOut,'(A,1X,ES25.14E3)') ' Delta external field: ',DeltaExternalField(1)
+  LBWRITE(UNIT_stdOut,'(A,1X,ES25.14E3)') ' Delta external field: ',DeltaExternalField(1)
   IF(DeltaExternalField(1).LE.0) THEN
-    SWRITE(*,'(A)') ' ERROR: wrong sign in external field delta-x'
+    LBWRITE(*,'(A)') ' ERROR: wrong sign in external field delta-x'
   END IF
 ELSE
   CALL abort(__STAMP__," ERROR: not enough data points in variable external field file!")
 END IF
 
-SWRITE(UNIT_stdOut,'(A,I4.0,A)')' Found ', ncounts,' data points.'
+LBWRITE(UNIT_stdOut,'(A,I4.0,A)')' Found ', ncounts,' data points.'
 END SUBROUTINE ReadVariableExternalFieldFromCSV
 
 
@@ -570,6 +582,9 @@ SUBROUTINE FinalizePICInterpolation()
 ! finalize pic interpolation
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! MODULES                                                                                                                          !
+#if defined(PARTICLES) && USE_LOADBALANCE
+USE MOD_LoadBalance_Vars      ,ONLY: PerformLoadBalance
+#endif /*defined(PARTICLES) && USE_LOADBALANCE*/
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_PICInterpolation_Vars ,ONLY: FieldAtParticle,VariableExternalField
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -581,7 +596,13 @@ IMPLICIT NONE
 ! LOCAL VARIABLES
 !===================================================================================================================================
 SDEALLOCATE(FieldAtParticle)
+
+! Keep the following arrays during load balance as they do not change
+#if defined(PARTICLES) && USE_LOADBALANCE
+IF (PerformLoadBalance) RETURN
+#endif /*defined(PARTICLES) && USE_LOADBALANCE*/
 SDEALLOCATE(VariableExternalField)
+
 END SUBROUTINE FinalizePICInterpolation
 
 

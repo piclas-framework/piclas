@@ -1,7 +1,7 @@
 !==================================================================================================================================
 ! Copyright (c) 2010 - 2018 Prof. Claus-Dieter Munz and Prof. Stefanos Fasoulas
 !
-! This file is part of PICLas (gitlab.com/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
+! This file is part of PICLas (piclas.boltzplatz.eu/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
 ! it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3
 ! of the License, or (at your option) any later version.
 !
@@ -86,21 +86,27 @@ CALL prms%CreateRealOption(     'omega'            , 'TODO-DEFINE-PARAMETER\n'//
 CALL prms%CreateRealOption(     'tPulse'           , 'TODO-DEFINE-PARAMETER\n'//&
                                                      'Half length of pulse' , '30e-9')
 
-CALL prms%CreateRealOption(     'TEFrequency'      , 'TODO-DEFINE-PARAMETER\n'//&
-                                                     'Frequency of TE wave' , '35e9')
-CALL prms%CreateRealOption(     'TEScale'          , 'TODO-DEFINE-PARAMETER\n'//&
-                                                     'Scaling of input TE-wave strength' , '1.')
-CALL prms%CreateLogicalOption(  'TEPolarization'   , 'TODO-DEFINE-PARAMETER\n'//&
-                                                     'Linear or circular polarized' , '.TRUE.')
-CALL prms%CreateIntOption(      'TERotation'       , 'TODO-DEFINE-PARAMETER\n'//&
-                                                     'Left or right rotating TE wave', '1')
+CALL prms%CreateRealOption(     'TEFrequency'      , 'Frequency of TE wave')
+CALL prms%CreateRealOption(     'TEScale'          , 'Scaling of input TE-wave strength' , '1.')
+CALL prms%CreateStringOption(  'TEPolarization'   ,  'Polarization of the TE-mode: x = linear in x-direction\n'//&
+                                                     '                             y = linear in y direction\n'//&
+                                                     '                             l = left-handed circular\n'//&
+                                                     '                             r = right-handed circular', 'x')
 CALL prms%CreateLogicalOption(  'TEPulse'          , 'TODO-DEFINE-PARAMETER\n'//&
                                                      'Flag for pulsed or continuous wave' , '.FALSE.')
 CALL prms%CreateIntArrayOption( 'TEMode'           , 'TODO-DEFINE-PARAMETER\n'//&
                                                      'Input of TE_n,m mode', '1 , 1')
-CALL prms%CreateRealOption(     'TERadius'         , 'TODO-DEFINE-PARAMETER\n'//&
-                                                     'Radius of Input TE wave, if wave is '//&
-                                                     ' inserted over a plane' , '0.0')
+CALL prms%CreateRealOption(     'TERadius'         , 'Radius of Input TE wave, if wave is inserted over a plane into a waveguide')
+CALL prms%CreateRealOption(     'TEDelay'          , 'TODO-DEFINE-PARAMETER' , '0.5e-9')
+CALL prms%CreateRealOption(     'TEPulseSigma'     , 'standard deviation of the Gaussian pulse' , '0.1e-9')
+CALL prms%CreateRealOption(     'TEPulseSeriesFrequence', 'if TEPulseSeriesFrequence>0 and TEPulse=T\n'//&
+                                                          ' -> a series of gaussian pulses with frequence TEPulseSeriesFrequence' , '0.')
+CALL prms%CreateIntOption(      'TEPulseNumber'    , 'number of generated pulses in a pulse-series' , '1')
+CALL prms%CreateRealOption(     'TEDirection'      , '+1 for propagation in +z direction, -1 for propagation in -z direction' , '1.0')
+CALL prms%CreateStringOption(   'TEPulseShape'     , 'shape of the pulse:\n'//&
+                                                     '  gaussian\n'//&
+                                                     '  recangular\n'//&
+                                                     '  rectangularGaussianEdges', 'gaussian')
 
 CALL prms%CreateRealOption(     'WaveLength'       , 'Wavelength of the electromagnetic wave.' , '1.')
 CALL prms%CreateRealArrayOption('WaveVector'       , 'Direction of traveling wave.', '0. , 0. , 1.')
@@ -157,6 +163,9 @@ USE MOD_Mesh_Vars          ,ONLY: xyzMinMax,nSides,nBCSides
 USE MOD_Mesh               ,ONLY: GetMeshMinMaxBoundaries
 USE MOD_Utils              ,ONLY: RootsOfBesselFunctions
 USE MOD_ReadInTools        ,ONLY: PrintOption
+#if USE_LOADBALANCE
+USE MOD_LoadBalance_Vars   ,ONLY: PerformLoadBalance
+#endif /*USE_LOADBALANCE*/
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -177,17 +186,17 @@ REAL                             :: BeamEnergy_loc,BeamFluency_loc,BeamArea_loc
 IF(EquationInitIsDone)THEN
 #ifdef PARTICLES
   IF(InterpolationInitIsDone)THEN
-    SWRITE(*,*) "InitMaxwell not ready to be called or already called."
+    LBWRITE(*,*) "InitMaxwell not ready to be called or already called."
     RETURN
   END IF
 #else
-  SWRITE(*,*) "InitMaxwell not ready to be called or already called."
+  LBWRITE(*,*) "InitMaxwell not ready to be called or already called."
   RETURN
 #endif /*PARTICLES*/
 END IF
 
-SWRITE(UNIT_StdOut,'(132("-"))')
-SWRITE(UNIT_stdOut,'(A)') ' INIT MAXWELL ...'
+LBWRITE(UNIT_StdOut,'(132("-"))')
+LBWRITE(UNIT_stdOut,'(A)') ' INIT MAXWELL ...'
 
 ! Read correction velocity
 c_corr             = GETREAL('c_corr','1.')
@@ -199,6 +208,9 @@ Beam_t0            = GETREAL('Beam_t0','0.0')
 c_corr_c  = c_corr*c
 c_corr_c2 = c_corr*c2
 eta_c     = (c_corr-1.)*c
+
+! default
+WaveLength = -1.
 
 ! Read in boundary parameters
 IniExactFunc = GETINT('IniExactFunc')
@@ -227,17 +239,40 @@ IF(nTmp.GT.0) DoExactFlux = GETLOGICAL('DoExactFlux','.FALSE.')
 IF(DoExactFlux) CALL InitExactFlux()
 DO iRefState=1,nTmp
   SELECT CASE(RefStates(iRefState))
+  CASE(2,22)
+    TEFrequency        = GETREAL('TEFrequency')
+    TERadius           = GETREAL('TERadius')
+    TEScale            = GETREAL('TEScale')
   CASE(4,40,41)
     xDipole(1:3)       = GETREALARRAY('xDipole',3,'0.,0.,0.') ! dipole base point
     DipoleOmega        = GETREAL('omega','6.28318E08')        ! f=100 MHz default
     tPulse             = GETREAL('tPulse','30e-9')            ! half length of pulse
-  CASE(5)
+  CASE(5,6)
     TEFrequency        = GETREAL('TEFrequency','35e9')
-    TEScale            = GETREAL('TEScale','1.')
-    TEPolarization     = GETLOGICAL('TEPolarization','.TRUE.')
-    TERotation         = GETINT('TERotation','1')
+    TEScale            = GETREAL('TEScale')
+    TEPolarization     = TRIM(GETSTR('TEPolarization','x'))
+    TEDelay            = GETREAL('TEDelay','0.5e-9')
     TEPulse            = GETLOGICAL('TEPulse','.FALSE.')
+    TEPulseSigma       = GETREAL('TEPulseSigma','0.1e-9')
+    TEPulseSeriesFrequence = GETREAL('TEPulseSeriesFrequence','0.')
+    TEPulseNumber      = GETINT('TEPulseNumber', '1')
     TEMode             = GETINTARRAY('TEMode',2,'1,1')
+    TEDirection        = GETREAL('TEDirection','1.0')
+    TEPulseShape       = TRIM(GETSTR('TEPulseShape','gaussian'))
+
+    !check the TE-Input-Parameters
+    IF (TRIM(TEPolarization).NE.'x'.AND.TRIM(TEPolarization).NE.'y'.AND.TRIM(TEPolarization).NE.'r'.AND.TRIM(TEPolarization).NE.'l') THEN
+      SWRITE(UNIT_stdOut,*) 'Wrong value for TEPolarization=', TEPolarization
+      CALL abort(__STAMP__,'Wrong value for TEPolarization')
+    END IF
+    IF ( (2*PI*TEFrequency*c_inv).LT.(TEModeRoot/TERadius)) THEN
+      SWRITE(UNIT_stdOut,'(A,E25.14E3)')'(k)**2 = ',((2*PI*TEFrequency*c_inv))**2
+      SWRITE(UNIT_stdOut,'(A,E25.14E3)')'kCut**2          = ',TEModeRoot/TERadius**2
+      SWRITE(UNIT_stdOut,'(A)')'  Maybe frequency too small?'
+      CALL abort(__STAMP__,'kz=SQRT(k**2-kCut**2), but the argument is negative!')
+    END IF
+
+    !ExactFluxPosition    = GETREAL('ExactFluxPosition', '0.0') !
     ! compute required roots
     ALLOCATE(nRoots(1:TEMode(2)))
     CALL RootsOfBesselFunctions(TEMode(1),TEMode(2),0,nRoots)
@@ -258,20 +293,20 @@ DO iRefState=1,nTmp
         CALL GetWaveGuideRadius(DoSide)
       END IF
     END DO
-    IF((TERotation.NE.-1).AND.(TERotation.NE.1))THEN
+    IF((TEPolarization.NE.'x').AND.(TEPolarization.NE.'y').AND.(TEPolarization.NE.'r').AND.(TEPolarization.NE.'l'))THEN
       CALL abort(&
     __STAMP__&
-    ,' TERotation has to be +-1 for right and left rotating TE modes.')
+    ,' TEPolarization has to be x,y,l or r.')
     END IF
     IF(TERadius.LT.0.0)THEN ! not set
       TERadius=GETREAL('TERadius','0.0')
-      SWRITE(UNIT_StdOut,*) ' TERadius not determined automatically. Set waveguide radius to ', TERadius
+      LBWRITE(UNIT_StdOut,*) ' TERadius not determined automatically. Set waveguide radius to ', TERadius
     END IF
 
     ! display cut-off freequncy for this mode
-    SWRITE(UNIT_stdOut,'(A,I5,A1,I5,A,ES25.14E3,A)')&
-           '  Cut-off frequency in circular waveguide for TE_[',1,',',0,'] is ',1.8412*c/(2*PI*TERadius),' Hz (lowest mode)'
-    SWRITE(UNIT_stdOut,'(A,I5,A1,I5,A,ES25.14E3,A)')&
+    LBWRITE(UNIT_stdOut,'(A,I5,A1,I5,A,E25.14E3,A)')&
+           '  Cut-off frequency in circular waveguide for TE_[',1,',',1,'] is ',1.8412*c/(2*PI*TERadius),' Hz (lowest mode)'
+    LBWRITE(UNIT_stdOut,'(A,I5,A1,I5,A,E25.14E3,A)')&
            '  Cut-off frequency in circular waveguide for TE_[',TEMode(1),',',TEMode(2),'] is ',(TEModeRoot/TERadius)*c/(2*PI),&
            ' Hz (chosen mode)'
   CASE(12,121,14,15,16)
@@ -347,7 +382,7 @@ DO iRefState=1,nTmp
         Beam_w0 = GETREAL ('Beam_w0','1.')
       ELSE
         Beam_w0 = omega_0
-        SWRITE(UNIT_StdOut,'(A)')'Setting Beam_w0=omega_0 (value read from old variable definition)'
+        LBWRITE(UNIT_StdOut,'(A)')'Setting Beam_w0=omega_0 (value read from old variable definition)'
       END IF
       Beam_w0_2inv = 2.0/(Beam_w0**2)
       sBeam_w0_2   = 1.0/(Beam_w0**2)
@@ -466,8 +501,8 @@ ShapeFuncPrefix = 1./(2. * beta(1.5, REAL(alpha_shape) + 1.) * REAL(alpha_shape)
                 * (REAL(alpha_shape) + 1.)/(PI*(rCutoff**3))
 
 EquationInitIsDone=.TRUE.
-SWRITE(UNIT_stdOut,'(A)')' INIT MAXWELL DONE!'
-SWRITE(UNIT_StdOut,'(132("-"))')
+LBWRITE(UNIT_stdOut,'(A)')' INIT MAXWELL DONE!'
+LBWRITE(UNIT_StdOut,'(132("-"))')
 END SUBROUTINE InitEquation
 
 
@@ -480,7 +515,7 @@ SUBROUTINE ExactFunc(ExactFunction,t_IN,tDeriv,x,resu)
 USE MOD_Globals
 USE MOD_Globals_Vars  ,ONLY: PI,c,c2,eps0,c_inv,c_inv
 USE MOD_Equation_Vars ,ONLY: WaveVector,WaveBasePoint,sigma_t,E_0_vec,BeamIdir1,BeamIdir2,BeamMainDir,BeamWaveNumber
-USE MOD_Equation_Vars ,ONLY: BeamOmega,E_0,TEScale,TERotation,TEPulse,TEFrequency,TEPolarization,Beam_w0,TERadius,sBeam_w0_2
+USE MOD_Equation_Vars ,ONLY: BeamOmega,E_0,TEScale,TEPulse,TEFrequency,TEPolarization,Beam_w0,TERadius,sBeam_w0_2
 USE MOD_Equation_Vars ,ONLY: xDipole,tActive,TEModeRoot,Beam_t0,DoExactFlux,ExactFluxDir,ExactFluxPosition
 USE MOD_Equation_Vars ,ONLY: TEMode
 USE MOD_TimeDisc_Vars ,ONLY: dt
@@ -499,9 +534,9 @@ REAL,INTENT(OUT)                :: Resu(PP_nVar)    ! state in conservative vari
 ! LOCAL VARIABLES
 REAL                            :: Resu_t(PP_nVar),Resu_tt(PP_nVar) ! state in conservative variables
 REAL                            :: Frequency,Amplitude,Omega
-REAL                            :: Cent(3),r,r2,zlen
+REAL                            :: Cent(3),r,r2!,zlen
 REAL                            :: a, b, d, l, m, nn, B0            ! aux. Variables for Resonator-Example
-REAL                            :: gamma,Psi,GradPsiX,GradPsiY     !     -"-
+REAL                            :: gammaW,Psi,GradPsiX,GradPsiY     !     -"-
 REAL                            :: xrel(3), theta, Etheta          ! aux. Variables for Dipole
 REAL,PARAMETER                  :: Q=1, dD=1, omegaD=6.28318E8     ! aux. Constants for Dipole
 REAL                            :: cos1,sin1,b1,b2                     ! aux. Variables for Gyrotron
@@ -513,7 +548,6 @@ REAL                            :: omegaG,g,h,B0G
 REAL                            :: Bess_mG_R_R_inv,r_inv
 REAL                            :: Bess_mG_R,Bess_mGM_R,Bess_mGP_R,costz,sintz,sin2,cos2,costz2,sintz2,dBess_mG_R
 INTEGER                         :: MG,nG
-!INTEGER, PARAMETER              :: mG=34,nG=19                     ! aux. Constants for Gyrotron
 REAL                            :: kz
 REAL                            :: t ! local time
 !===================================================================================================================================
@@ -531,65 +565,70 @@ CASE(1) ! Constant
   Resu_t=0.
   Resu_tt=0.
 CASE(2) ! Coaxial Waveguide
-  Frequency=1.
-  Amplitude=1.
-  zlen=2.5
-  r=0.5
-  r2=(x(1)*x(1)+x(2)*x(2))/r
-  omega=Frequency*2.*Pi/zlen ! shift beruecksichtigen
-  resu   =0.
-  resu(1)=( x(1))*sin(omega*(x(3)-c*t))/r2
-  resu(2)=( x(2))*sin(omega*(x(3)-c*t))/r2
-  resu(4)=(-x(2))*sin(omega*(x(3)-c*t))/(r2*c)
-  resu(5)=( x(1))*sin(omega*(x(3)-c*t))/(r2*c)
+  z = x(3)
+  resu      = 0.
+  Frequency = TEFrequency
+  Amplitude = TEScale
+  !zlen     = 2.5
+  r         = TERadius
+  r2        = (x(1)*x(1)+x(2)*x(2))/r
+  omega     = 2.*Pi*Frequency!/zlen ! shift beruecksichtigen
+  kz        = (c_inv)
+  resu(1)=( x(1))*sin(omega*(kz*z-c*t))/r2
+  resu(2)=( x(2))*sin(omega*(kz*z-c*t))/r2
+  resu(4)=(-x(2))*sin(omega*(kz*z-c*t))/(r2*c)
+  resu(5)=( x(1))*sin(omega*(kz*z-c*t))/(r2*c)
+  resu = Amplitude * resu
 
+#if PP_TimeDiscMethod==1
   Resu_t=0.
-  resu_t(1)=-omega*c*( x(1))*cos(omega*(x(3)-c*t))/r2
-  resu_t(2)=-omega*c*( x(2))*cos(omega*(x(3)-c*t))/r2
-  resu_t(4)=-omega*c*(-x(2))*cos(omega*(x(3)-c*t))/(r2*c)
-  resu_t(5)=-omega*c*( x(1))*cos(omega*(x(3)-c*t))/(r2*c)
+  resu_t(1)=-omega*c*( x(1))*cos(omega*(z-c*t))/r2
+  resu_t(2)=-omega*c*( x(2))*cos(omega*(z-c*t))/r2
+  resu_t(4)=-omega*c*(-x(2))*cos(omega*(z-c*t))/(r2*c)
+  resu_t(5)=-omega*c*( x(1))*cos(omega*(z-c*t))/(r2*c)
   Resu_tt=0.
-  resu_tt(1)=-(omega*c)**2*( x(1))*sin(omega*(x(3)-c*t))/r2
-  resu_tt(2)=-(omega*c)**2*( x(2))*sin(omega*(x(3)-c*t))/r2
-  resu_tt(4)=-(omega*c)**2*(-x(2))*sin(omega*(x(3)-c*t))/(r2*c)
-  resu_tt(5)=-(omega*c)**2*( x(1))*sin(omega*(x(3)-c*t))/(r2*c)
+  resu_tt(1)=-(omega*c)**2*( x(1))*sin(omega*(z-c*t))/r2
+  resu_tt(2)=-(omega*c)**2*( x(2))*sin(omega*(z-c*t))/r2
+  resu_tt(4)=-(omega*c)**2*(-x(2))*sin(omega*(z-c*t))/(r2*c)
+  resu_tt(5)=-(omega*c)**2*( x(1))*sin(omega*(z-c*t))/(r2*c)
+  resu_t = Amplitude * resu_t
+  resu_tt = Amplitude * resu_tt
+#endif /*PP_TimeDiscMethod==1*/
+
+CASE(22) ! Coaxial Waveguide
+  resu      = 0.
+  Frequency = TEFrequency
+  Amplitude = TEScale
+  r         = TERadius
+  r2        = (x(1)*x(1)+x(2)*x(2))/r
+  omega     = 2.*Pi*Frequency
+  resu(1)=( x(1))*sin(-omega*t)/r2
+  resu(2)=( x(2))*sin(-omega*t)/r2
+  resu(4)=(-x(2))*sin(-omega*t)/(r2*c)
+  resu(5)=( x(1))*sin(-omega*t)/(r2*c)
+  resu = Amplitude * resu
+
 CASE(3) ! Resonator
   !special initial values
-  !geometric perameters
+  !geometric parameters
   a=1.5; b=1.0; d=3.0
   !time parameters
   l=5.; m=4.; nn=3.; B0=1.
-  IF(a.eq.0)THEN
-    CALL abort(&
-      __STAMP__&
-      ,' Parameter a of resonator is zero!')
-  END IF
-  IF(b.eq.0)THEN
-    CALL abort(&
-      __STAMP__&
-      ,' Parameter b of resonator is zero!')
-  END IF
-  IF(d.eq.0)THEN
-    CALL abort(&
-      __STAMP__&
-      ,' Parameter d of resonator is zero!')
-  END IF
+  IF(a.eq.0) CALL abort(__STAMP__,' Parameter a of resonator is zero!')
+  IF(b.eq.0) CALL abort(__STAMP__,' Parameter b of resonator is zero!')
+  IF(d.eq.0) CALL abort(__STAMP__,' Parameter d of resonator is zero!')
   omega = Pi*c*sqrt((m/a)**2+(nn/b)**2+(l/d)**2)
-  gamma = sqrt((omega/c)**2-(l*pi/d)**2)
-  IF(gamma.eq.0)THEN
-    CALL abort(&
-    __STAMP__&
-    ,' gamma is computed to zero!')
-  END IF
+  gammaW = sqrt((omega/c)**2-(l*pi/d)**2)
+  IF(gammaW.eq.0) CALL abort(__STAMP__,' gammaW is computed to zero!')
   Psi      =   B0          * cos((m*pi/a)*x(1)) * cos((nn*pi/b)*x(2))
   GradPsiX = -(B0*(m*pi/a) * sin((m*pi/a)*x(1)) * cos((nn*pi/b)*x(2)))
   GradPsiY = -(B0*(nn*pi/b) * cos((m*pi/a)*x(1)) * sin((nn*pi/b)*x(2)))
 
-  resu(1)= (-omega/gamma**2) * sin((l*pi/d)*x(3)) *(-GradPsiY)* sin(omega*t)
-  resu(2)= (-omega/gamma**2) * sin((l*pi/d)*x(3)) *  GradPsiX * sin(omega*t)
+  resu(1)= (-omega/gammaW**2) * sin((l*pi/d)*x(3)) *(-GradPsiY)* sin(omega*t)
+  resu(2)= (-omega/gammaW**2) * sin((l*pi/d)*x(3)) *  GradPsiX * sin(omega*t)
   resu(3)= 0.0
-  resu(4)=(1/gamma**2)*(l*pi/d) * cos((l*pi/d)*x(3)) * GradPsiX * cos(omega*t)
-  resu(5)=(1/gamma**2)*(l*pi/d) * cos((l*pi/d)*x(3)) * GradPsiY * cos(omega*t)
+  resu(4)=(1/gammaW**2)*(l*pi/d) * cos((l*pi/d)*x(3)) * GradPsiX * cos(omega*t)
+  resu(5)=(1/gammaW**2)*(l*pi/d) * cos((l*pi/d)*x(3)) * GradPsiY * cos(omega*t)
   resu(6)= Psi                  * sin((l*pi/d)*x(3))            * cos(omega*t)
   resu(7)=0.
   resu(8)=0.
@@ -639,13 +678,14 @@ CASE(4) ! Dipole
 
 CASE(40) ! Dipole without initial condition
   resu(1:8) = 0.
-CASE(5) ! Initialization of TE waves in a circular waveguide
+
+CASE(5) ! Initialization of TE waves in a circular waveguide: Original formulation, for new definition, see CASE(6)
   ! Book: Springer
   ! Elektromagnetische Feldtheorie fuer Ingenieure und Physicker
   ! p. 500ff
   ! polarization:
   ! false - linear polarization
-  ! true  - cirular polarization
+  ! true  - circular polarization
   r=SQRT(x(1)**2+x(2)**2)
   ! if a DOF is located in the origin, prevent division by zero ..
   phi = ATAN2(X(2),X(1))
@@ -664,9 +704,7 @@ CASE(5) ! Initialization of TE waves in a circular waveguide
     SWRITE(UNIT_stdOut,'(A,ES25.14E3)')'(omegaG*c_inv)**2 = ',(omegaG*c_inv)**2
     SWRITE(UNIT_stdOut,'(A,ES25.14E3)')'SqrtN**2          = ',SqrtN**2
     SWRITE(UNIT_stdOut,'(A)')'  Maybe frequency too small?'
-    CALL abort(&
-        __STAMP__&
-        ,'kz=SQRT((omegaG*c_inv)**2-SqrtN**2), but the argument in negative!')
+    CALL abort(__STAMP__,'kz=SQRT((omegaG*c_inv)**2-SqrtN**2), but the argument in negative!')
   END IF
   kz=SQRT(kz)
   ! precompute coefficients
@@ -692,7 +730,8 @@ CASE(5) ! Initialization of TE waves in a circular waveguide
     r_inv=1./r
     Bess_mG_R_R_inv=Bess_mG_R*r_inv
   END IF
-  IF(.NOT.TEPolarization)THEN ! no polarization, e.g. linear polarization along the a-axis
+  ! Check polarization
+  IF((TRIM(TEPolarization).EQ.'x').OR.(TRIM(TEPolarization).EQ.'y'))THEN ! linear polarization along the x/y-axis
     ! electric field
     Er   =  omegaG*REAL(mG)* Bess_mG_R_R_inv*sin1*SINTZ
     Ephi =  omegaG*SqrtN*dBess_mG_R*cos1*SINTZ
@@ -701,13 +740,13 @@ CASE(5) ! Initialization of TE waves in a circular waveguide
     Br   = -kz*SqrtN*dBess_mG_R*cos1*SINTZ
     Bphi =  kz*REAL(mG)*Bess_mG_R_R_inv*sin1*SINTZ
     Bz   =  (SqrtN**2)*Bess_mG_R*cos1*COSTZ
-  ELSE ! cirular polarization
+  ELSE ! Circular polarization
     ! polarisation if superposition of two fields
     ! circular polarisation requires an additional temporal shift
     ! a) perpendicular shift of TE mode, rotation of 90 degree
     sin2       = SIN(REAL(mG)*phi+0.5*PI)
     cos2       = COS(REAL(mG)*phi+0.5*PI)
-    IF(TERotation.EQ.1)THEN ! shift for left or right rotating fields
+    IF(TRIM(TEPolarization).EQ.'l')THEN ! shift for left or right rotating fields
       COSTZ2     = COS(kz*z-omegaG*t-0.5*PI)
       SINTZ2     = SIN(kz*z-omegaG*t-0.5*PI)
     ELSE
@@ -748,6 +787,9 @@ CASE(5) ! Initialization of TE waves in a circular waveguide
       resu(1:8)=0.
     END IF
   END IF
+
+CASE(6) ! Circular waveguide TEM[n,m]
+  CALL ExactFunc_TE_Circular_Waveguide(t,x,resu)
 
 CASE(7) ! Manufactured Solution
   resu(:)=0
@@ -865,10 +907,8 @@ CASE(16) ! 3 of 3: Gauss-shape with perfect focus (w(z)=w_0): initial & boundary
                 END IF
               END ASSOCIATE
             ELSE
-              CALL abort(&
-                  __STAMP__&
-                  ,'ExactFunction=16 (laser pulse IC+BC) together with ExactFlux can only '//&
-                  'be used with ExactFluxDir=BeamMainDir (in BeamMainDir-direction).')
+              CALL abort(__STAMP__,'ExactFunction=16 (laser pulse IC+BC) together with ExactFlux can only '//&
+                                   'be used with ExactFluxDir=BeamMainDir (in BeamMainDir-direction).')
             END IF
           ELSE ! Default: no ExactFlux is used
             resu(1:3)=E_0*spatialWindow*E_0_vec*timeFac
@@ -950,7 +990,7 @@ CASE(50,51)            ! Initialization and BC Gyrotron - including derivatives
 CASE(41) ! pulsed Dipole
   resu = 0.0
   RETURN
-CASE(100) ! 
+CASE(100) ! QDS
   resu = 0.0
   RETURN
 CASE DEFAULT
@@ -971,9 +1011,7 @@ CASE(2)
   Resu=Resu + 0.75*dt*Resu_t+5./16.*dt*dt*Resu_tt
 CASE DEFAULT
   ! Stop, works only for 3 Stage O3 LS RK
-  CALL abort(&
-      __STAMP__&
-      ,'Exactfuntion works only for 3 Stage O3 LS RK!',999,999.)
+  CALL abort(__STAMP__,'Exactfuntion works only for 3 Stage O3 LS RK!',999,999.)
 END SELECT
 #endif
 END SUBROUTINE ExactFunc
@@ -1073,7 +1111,7 @@ SELECT CASE (IniExactFunc)
 CASE(0) ! Particles
   ! empty, nothing to do
 CASE(1) ! Constant          - no sources
-CASE(2) ! Coaxial Waveguide - no sources
+CASE(2,22) ! Coaxial Waveguide - no sources
 CASE(3) ! Resonator         - no sources
 CASE(4) ! Dipole
   DO iElem=1,PP_nElems
@@ -1150,9 +1188,7 @@ ELSE ! old/original formulation
 END IF
 CASE(50,51) ! TE_34,19 Mode - no sources
 CASE DEFAULT
-  CALL abort(&
-      __STAMP__&
-      ,'Exactfunction not specified! IniExactFunc = ',IntInfoOpt=IniExactFunc)
+  CALL abort(__STAMP__,'Exactfunction not specified! IniExactFunc = ',IntInfoOpt=IniExactFunc)
 END SELECT ! ExactFunction
 
 #if defined(LSERK) ||  defined(ROS) || defined(IMPA)
@@ -1242,6 +1278,9 @@ USE MOD_Basis,          ONLY:LegGaussLobNodesAndWeights
 USE MOD_Basis,          ONLY:BarycentricWeights,InitializeVandermonde
 USE MOD_Interpolation_Vars, ONLY:xGP,wBary
 #endif
+#if USE_LOADBALANCE
+USE MOD_LoadBalance_Vars   ,ONLY: PerformLoadBalance
+#endif /*USE_LOADBALANCE*/
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -1287,10 +1326,10 @@ DO iSide=1,nSides
 END DO
 
 #if USE_MPI
-CALL MPI_ALLREDUCE(MPI_IN_PLACE,TERadius,1,MPI_DOUBLE_PRECISION,MPI_MAX,MPI_COMM_WORLD,iError)
+CALL MPI_ALLREDUCE(MPI_IN_PLACE,TERadius,1,MPI_DOUBLE_PRECISION,MPI_MAX,MPI_COMM_PICLAS,iError)
 #endif /*USE_MPI*/
 
-SWRITE(UNIT_StdOut,*) ' Found waveguide radius of ', TERadius
+LBWRITE(UNIT_StdOut,*) ' Found waveguide radius of ', TERadius
 
 END SUBROUTINE GetWaveGuideRadius
 
@@ -1301,14 +1340,17 @@ SUBROUTINE InitExactFlux()
 !===================================================================================================================================
 ! MODULES
 USE MOD_PreProc
-USE MOD_Globals,         ONLY:abort,UNIT_stdOut,mpiroot
+USE MOD_Globals          ,ONLY: abort,UNIT_stdOut,mpiroot,CollectiveStop
 #if USE_MPI
-USE MOD_Globals,         ONLY:MPI_COMM_WORLD,MPI_SUM,MPI_INTEGER,IERROR
+USE MOD_Globals          ,ONLY: MPI_COMM_PICLAS,MPI_SUM,MPI_INTEGER,IERROR
 #endif
-USE MOD_Mesh_Vars,       ONLY:nElems,ElemToSide,SideToElem,lastMPISide_MINE
-USE MOD_Interfaces,      ONLY:FindElementInRegion,FindInterfacesInRegion,CountAndCreateMappings
-USE MOD_Equation_Vars,   ONLY:ExactFluxDir,ExactFluxPosition,isExactFluxInterFace
-USE MOD_ReadInTools,     ONLY:GETREAL,GETINT
+USE MOD_Mesh_Vars        ,ONLY: nElems,ElemToSide,SideToElem,lastMPISide_MINE
+USE MOD_Interfaces       ,ONLY: FindElementInRegion,FindInterfacesInRegion,CountAndCreateMappings
+USE MOD_Equation_Vars    ,ONLY: ExactFluxDir,ExactFluxPosition,isExactFluxInterFace
+USE MOD_ReadInTools      ,ONLY: GETREAL,GETINT
+#if USE_LOADBALANCE
+USE MOD_LoadBalance_Vars ,ONLY: PerformLoadBalance
+#endif /*USE_LOADBALANCE*/
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1341,9 +1383,7 @@ CASE(2) ! y
 CASE(3) ! z
   InterFaceRegion(1:6)=(/-HUGE(1.),HUGE(1.),-HUGE(1.),HUGE(1.),-HUGE(1.),ExactFluxPosition/)
 CASE DEFAULT
-  CALL abort(&
-      __STAMP__&
-      ,' Unknown exact flux direction: ExactFluxDir=',ExactFluxDir)
+  CALL CollectiveStop(__STAMP__,' Unknown exact flux direction: ExactFluxDir=',IntInfo=ExactFluxDir)
 END SELECT
 
 ! set all elements lower/higher than the ExactFluxPosition to True/False for interface determination
@@ -1366,16 +1406,15 @@ END DO
 
 #if USE_MPI
   sumExactFluxMasterInterFaces=0
-  CALL MPI_REDUCE(nExactFluxMasterInterFaces , sumExactFluxMasterInterFaces , 1 , MPI_INTEGER, MPI_SUM,0, MPI_COMM_WORLD, IERROR)
+  CALL MPI_REDUCE(nExactFluxMasterInterFaces , sumExactFluxMasterInterFaces , 1 , MPI_INTEGER, MPI_SUM,0, MPI_COMM_PICLAS, IERROR)
 #else
   sumExactFluxMasterInterFaces=nExactFluxMasterInterFaces
 #endif /*USE_MPI*/
-SWRITE(UNIT_StdOut,'(A8,I10,A)') '  Found ',sumExactFluxMasterInterFaces,' interfaces for ExactFlux.'
+LBWRITE(UNIT_StdOut,'(A8,I10,A)') '  Found ',sumExactFluxMasterInterFaces,' interfaces for ExactFlux.'
 
 IF(mpiroot)THEN
   IF(sumExactFluxMasterInterFaces.LE.0)THEN
-    CALL abort(&
-        __STAMP__&
+    CALL abort(__STAMP__&
         ,' [sumExactFluxMasterInterFaces.LE.0]: using ExactFlux but no interfaces found: sumExactFlux=',sumExactFluxMasterInterFaces)
   END IF
 END IF
@@ -1391,11 +1430,11 @@ END DO
 
 #if USE_MPI
   sumExactFluxMasterInterFaces=0
-  CALL MPI_REDUCE(nExactFluxMasterInterFaces , sumExactFluxMasterInterFaces , 1 , MPI_INTEGER, MPI_SUM,0, MPI_COMM_WORLD, IERROR)
+  CALL MPI_REDUCE(nExactFluxMasterInterFaces , sumExactFluxMasterInterFaces , 1 , MPI_INTEGER, MPI_SUM,0, MPI_COMM_PICLAS, IERROR)
 #else
   sumExactFluxMasterInterFaces=nExactFluxMasterInterFaces
 #endif /*USE_MPI*/
-SWRITE(UNIT_StdOut,'(A8,I10,A)') '  Found ',sumExactFluxMasterInterFaces,' interfaces for ExactFlux. <<<<<< DEBUG this'
+LBWRITE(UNIT_StdOut,'(A8,I10,A)') '  Found ',sumExactFluxMasterInterFaces,' interfaces for ExactFlux. <<<<<< DEBUG this'
 
 
 
@@ -1423,7 +1462,7 @@ SDEALLOCATE(ExactFluxInterToFace)
 SDEALLOCATE(ElemToExactFlux)
 SDEALLOCATE(FaceToExactFlux)
 SDEALLOCATE(FaceToExactFluxInter)
-!CALL MPI_BARRIER(MPI_COMM_WORLD, iError)
+!CALL MPI_BARRIER(MPI_COMM_PICLAS, iError)
 !stop
 END SUBROUTINE InitExactFlux
 
@@ -1446,6 +1485,335 @@ IMPLICIT NONE
 EquationInitIsDone = .FALSE.
 SDEALLOCATE(isExactFluxInterFace)
 END SUBROUTINE FinalizeEquation
+
+
+PURE FUNCTION GAUSSIAN_PULSE(t, sigma)
+!===================================================================================================================================
+! create a gaussian pulse with mean=0, sigma=sigma and amplitude=1
+!===================================================================================================================================
+! MODULES
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+! INPUT VARIABLES
+REAL, INTENT(IN) :: t, sigma
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+REAL :: GAUSSIAN_PULSE
+!===================================================================================================================================
+
+IF (ABS(t).GT.3.*sigma) THEN
+  gaussian_pulse = 0
+ELSE
+  gaussian_pulse = EXP(-0.5*(t/sigma)**2)
+END IF
+RETURN
+END FUNCTION GAUSSIAN_PULSE
+
+
+PURE FUNCTION RECTANGULAR_PULSE(t, sigma)
+!===================================================================================================================================
+! create a rectangular pulse with mean=0, sigma=sigma and amplitude=1
+!===================================================================================================================================
+! MODULES
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+! INPUT VARIABLES
+REAL, INTENT(IN) :: t, sigma
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+REAL :: RECTANGULAR_PULSE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+REAL :: sigma_2
+!===================================================================================================================================
+
+sigma_2 = sigma * 0.5
+
+IF ( (t.LT.-sigma_2) .OR. (t.GT.sigma_2) ) THEN
+  rectangular_pulse = 0.
+ELSE IF ( (t.EQ.-sigma_2) .OR. (t.EQ.sigma_2)) THEN
+  rectangular_pulse = 0.5
+ELSE
+  rectangular_pulse = 1.0
+END IF
+RETURN
+
+END FUNCTION RECTANGULAR_PULSE
+
+
+PURE FUNCTION RECTANGULAR_PULSE_WITH_GAUSSIAN_EDGE(t, sigma, riseTime)
+!===================================================================================================================================
+! create a rectangular pulse with mean=0, sigma=sigma and amplitude=1
+! the rising and falling edges of the pulse are gaussian shaped with a gaussian-distribution-sigma = riseTime/3
+!===================================================================================================================================
+! MODULES
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+! INPUT VARIABLES
+REAL, INTENT(in) :: t, sigma, riseTime
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+REAL :: RECTANGULAR_PULSE_WITH_GAUSSIAN_EDGE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+REAL :: sigma_2
+!===================================================================================================================================
+
+sigma_2 = sigma * 0.5
+
+IF ((t.LT.-sigma_2-riseTime) .OR. (t.GT.sigma_2+riseTime)) THEN
+  rectangular_pulse_with_gaussian_edge = 0.0
+ELSE
+  IF (t.LT.-sigma_2) THEN
+    !rising edge
+    rectangular_pulse_with_gaussian_edge = gaussian_pulse(t+sigma_2, riseTime/3.)
+  ELSE IF (t.GT.sigma_2) THEN
+    !falling edge
+    rectangular_pulse_with_gaussian_edge = gaussian_pulse(t-sigma_2, riseTime/3.)
+  ELSE
+    !rectangular pulse
+    rectangular_pulse_with_gaussian_edge = 1.0
+  END IF
+END IF
+RETURN
+
+END FUNCTION RECTANGULAR_PULSE_WITH_GAUSSIAN_EDGE
+
+
+PPURE SUBROUTINE ExactFunc_TE_Circular_Waveguide(t,x,resu)
+!===================================================================================================================================
+! TE waves in a circular waveguide
+! Book: Waveguide Handbook - Marcuvitz p. 69 ff.
+! TEPolarization: r: circular polarization right handed
+!                 l: circular polarization left handed
+!                 x: linear polarization x-direction
+!                 y: linear polarization y-direction
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals
+USE MOD_Globals_Vars  ,ONLY: c,PI,c_inv,mu0
+USE MOD_Equation_Vars ,ONLY: TEScale,TEPulse,TEFrequency,TEPolarization
+USE MOD_Equation_Vars ,ONLY: TERadius,TEModeRoot,TEDelay,TEPulseSigma,TEPulseSeriesFrequence
+USE MOD_Equation_Vars ,ONLY: TEPulseNumber,TEDirection,TEMode,TEPulseShape
+USE MOD_Equation_Vars ,ONLY: ExactFluxPosition
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+REAL,INTENT(IN)                 :: t
+REAL,INTENT(IN)                 :: x(3)
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+REAL,INTENT(OUT)                :: Resu(PP_nVar)    ! state in conservative variables
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER                         :: loopVar
+INTEGER                         :: pG,mG
+REAL                            :: omegaG
+REAL                            :: k0, kz, kCut
+REAL                            :: Z0, Zte
+REAL                            :: Er,Br,Ephi,Bphi,Bz,Ez
+REAL                            :: Bess_pG, dBess_pG
+REAL                            :: cos_m_phi, sin_m_phi, cos_wt_kz, sin_wt_kz
+REAL                            :: r,phi,z
+REAL                            :: normFactor, V, I
+REAL                            :: sigma_t,temporalWindow,tshift
+!===================================================================================================================================
+
+!free-space impedance
+Z0 = mu0*c
+
+!calculate polar-coordinates
+r = SQRT(x(1)**2+x(2)**2)
+! if a DOF is located in the origin, prevent division by zero ..
+phi = ATAN2(x(2),x(1))
+z = x(3) - ExactFluxPosition
+omegaG = 2*PI*TEFrequency ! angular frequency
+
+! TE_pG,mG
+pG = TEMode(1) ! azimuthal wave number
+mG = TEMode(2) ! radial wave number
+
+!free-space wavenumber
+k0 = omegaG*c_inv
+
+!cutoff wavenumber
+kCut = TEModeRoot/TERadius
+
+!waveguide impedance
+Zte = Z0 / SQRT(1.0 - (kCut/k0)**2)
+
+!normalized phase-constant
+kz = k0**2 - kCut**2
+
+kz = SQRT(kz)
+!kz = TEDirection * SQRT(kz)
+
+! precompute bessel functions
+Bess_pG  = BESSEL_JN(pG,r*kCut)
+dBess_pG = 0.5*(BESSEL_JN(pG-1,r*kCut)-BESSEL_JN(pG+1,r*kCut))
+
+! precompute the phase-terms
+cos_m_phi = COS(REAL(pG)*phi)
+sin_m_phi = SIN(REAL(pG)*phi)
+cos_wt_kz = COS(kz*z - omegaG*t)
+sin_wt_kz = SIN(kz*z - omegaG*t)
+!cos_wt_kz = COS(-TEDirection*omegaG*t)
+!sin_wt_kz = SIN(-TEDirection*omegaG*t)
+
+! normalization factor
+IF (ABS(pG).EQ.0)  THEN
+  !special factor for TE_0_X modes
+  normFactor = SQRT(1.0 / (PI * (TEModeRoot**2-pG**2))) / (BESSEL_JN(pG,TEModeRoot))
+ELSE
+  normFactor = SQRT(2.0 / (PI * (TEModeRoot**2-pG**2))) / (BESSEL_JN(pG,TEModeRoot))
+END IF
+
+! calculate the normalized amplitudes
+V = normFactor * TEScale * SQRT(Zte)
+I = normFactor * TEScale / SQRT(Zte)
+
+! calculate the E and B field
+IF (r.LT.1e-5) THEN !treat the singularity at r==0
+  resu(1) = 0.0
+  resu(3) = 0.0
+  resu(5) = 0.0
+
+  resu(2) = 0.5 * V * kCut
+  resu(4) = mu0 * 0.5 * I * kCut
+  resu(6) =  mu0 / k0 / Z0 * V * kCut**2 *  Bess_pG
+
+  SELECT CASE(TEPolarization)
+  CASE('x') ! linear polarized in x-direction
+  resu(2) = resu(2)          * cos_wt_kz
+  resu(4) = resu(4) * (-1.0) * cos_wt_kz
+  resu(6) = resu(6) * (-1.0) * sin_wt_kz
+  CASE('y') ! linear polarized in y-direction
+  resu(2) = resu(2)          * cos_wt_kz
+  resu(4) = resu(4) * (-1.0) * cos_wt_kz
+  resu(6) = resu(6) * (-1.0) * sin_wt_kz
+  CASE('r') ! left-handed circular polarized
+  resu(2) = resu(2)          * (cos_wt_kz - sin_wt_kz)
+  resu(4) = resu(4) * (-1.0) * (cos_wt_kz + sin_wt_kz)
+  resu(6) = resu(6) * (-1.0) * (sin_wt_kz - cos_wt_kz)
+  CASE('l') ! right-handed circular polarized
+  resu(2) = resu(2)          * (cos_wt_kz + sin_wt_kz)
+  resu(4) = resu(4) * (-1.0) * (cos_wt_kz - sin_wt_kz)
+  resu(6) = resu(6) * (-1.0) * (sin_wt_kz + cos_wt_kz)
+  END SELECT
+
+  IF (ABS(pG).NE.1) THEN
+    resu(1) = 0.0
+    resu(2) = 0.0
+    resu(4) = 0.0
+    resu(5) = 0.0
+  END IF
+ELSE
+  Er   = V * REAL(pG) / r *  Bess_pG
+  Ephi = V * kCut         * dBess_pG
+  Ez   =  0.
+
+  Br   = mu0 * I * kCut              * dBess_pG
+  Bphi = mu0 * I * REAL(pG) / r      *  Bess_pG
+  Bz   = TEDirection * mu0 / k0 / Z0 * V * kCut**2 *  Bess_pG
+
+  ! create the polarization
+  SELECT CASE(TEPolarization)
+  CASE('x') ! linear polarized in x-direction
+    Er   = Er   * (-1.0) * cos_m_phi*cos_wt_kz
+    Ephi = Ephi          * sin_m_phi*cos_wt_kz
+    Ez   =  0.
+
+    Br   = Br   * (-1.0) * sin_m_phi*cos_wt_kz
+    Bphi = Bphi * (-1.0) * cos_m_phi*cos_wt_kz
+    Bz   = Bz   * (-1.0) * sin_m_phi*sin_wt_kz
+  CASE('y') ! linear polarized in y-direction
+    Er   = Er   * sin_m_phi*cos_wt_kz
+    Ephi = Ephi * cos_m_phi*cos_wt_kz
+    Ez   =   0.
+
+    Br   = Br   * (-1.0) * cos_m_phi*cos_wt_kz
+    Bphi = Bphi          * sin_m_phi*cos_wt_kz
+    Bz   = Bz   * (-1.0) * cos_m_phi*sin_wt_kz
+  CASE('r') ! left-handed circular polarized
+    Er   =   Er   * (sin_m_phi*cos_wt_kz - cos_m_phi*sin_wt_kz)
+    Ephi =   Ephi * (cos_m_phi*cos_wt_kz + sin_m_phi*sin_wt_kz)
+    Ez   =   0.
+
+    Br   = Br   * (-1.0) * (cos_m_phi*cos_wt_kz + sin_m_phi*sin_wt_kz)
+    Bphi = Bphi          * (sin_m_phi*cos_wt_kz - cos_m_phi*sin_wt_kz)
+    Bz   = Bz   * (-1.0) * (cos_m_phi*sin_wt_kz - sin_m_phi*cos_wt_kz)
+  CASE('l') ! right-handed circular polarized
+    Er   = Er   * (sin_m_phi*cos_wt_kz + cos_m_phi*sin_wt_kz)
+    Ephi = Ephi * (cos_m_phi*cos_wt_kz - sin_m_phi*sin_wt_kz)
+    Ez   =   0.
+
+    Br   = Br   * (-1.0) * (cos_m_phi*cos_wt_kz - sin_m_phi*sin_wt_kz)
+    Bphi = Bphi          * (sin_m_phi*cos_wt_kz + cos_m_phi*sin_wt_kz)
+    Bz   = Bz   * (-1.0) * (cos_m_phi*sin_wt_kz + sin_m_phi*cos_wt_kz)
+  END SELECT
+
+  !map to cartesian vectors
+  resu(1) = (COS(phi)*Er - SIN(phi)*Ephi)
+  resu(2) = (SIN(phi)*Er + COS(phi)*Ephi)
+  resu(3) = Ez
+  resu(4) = (COS(phi)*Br - SIN(phi)*Bphi)
+  resu(5) = (SIN(phi)*Br + COS(phi)*Bphi)
+  resu(6) = Bz
+END IF
+
+resu(7) = 0.0
+resu(8) = 0.0
+
+!input field as pulse
+IF(TEPulse)THEN
+  !sigma (standard deviation) of the gaussian pulse
+  sigma_t = TEPulseSigma
+
+  !generate series of pulses
+  IF (TEPulseSeriesFrequence.GT.0) THEN
+    !series of pulses with frequency TEPulseSeriesFrequence
+    !add the amplitudes of all pulses
+    temporalWindow = 0.
+    loopVar = 0
+    DO WHILE( loopVar.LT.TEPulseNumber )
+      !time shift of the pulse: delay + pos of peak
+      tShift = t - TEDelay - loopVar/TEPulseSeriesFrequence
+      !temporalWindow = temporalWindow + EXP(-0.5*(tshift/sigma_t)**2)
+
+      SELECT CASE(TRIM(TEPulseShape))
+      CASE('gaussian')
+        temporalWindow = temporalWindow + gaussian_pulse(tshift, sigma_t)
+      CASE('rectangular')
+        temporalWindow = temporalWindow + rectangular_pulse(tshift, sigma_t)
+      CASE('rectangularGaussianEdges')
+        temporalWindow = temporalWindow + rectangular_pulse_with_gaussian_edge(tshift, sigma_t,0.025e-9)
+      CASE DEFAULT
+      END SELECT
+
+      loopVar = loopVar + 1
+    END DO
+  ELSE
+    !single pulse
+    !time shift of the pulse: delay
+    tShift = t - TEDelay
+    SELECT CASE(TRIM(TEPulseShape))
+      CASE('gaussian')
+        temporalWindow = gaussian_pulse(tshift, sigma_t)
+      CASE('recangular')
+        temporalWindow = rectangular_pulse(tshift, sigma_t)
+      CASE('rectangularGaussianEdges')
+        temporalWindow = rectangular_pulse_with_gaussian_edge(tshift, sigma_t,0.025e-9)
+      CASE DEFAULT
+      END SELECT
+  END IF
+
+  ! multiplicate the electric-field-distribution with the pulse
+  ! because the Intensity should have the pulse-shape, the amplitudes have to be multiplicated with the sqrt of the pulse-shape
+  resu(1:8) = resu(1:8) * SQRT(temporalWindow)
+END IF
+
+END SUBROUTINE ExactFunc_TE_Circular_Waveguide
 
 END MODULE MOD_Equation
 

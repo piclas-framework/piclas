@@ -63,15 +63,36 @@ do
   then
     LOADMODULES=0
     # Set desired versions
-    USECOMPILERVERSION=11.2.0
-    USEMPIVERSION=4.1.1
+
+    # GCC
+    #USECOMPILERVERSION=13.1.0
+    USECOMPILERVERSION=13.2.0
+
+    # OpenMPI
+    #MPINAMES='openmpi'
+    #USEMPIVERSION=4.1.5
+
+    # MPICH
+    MPINAMES='mpich'
+    USEMPIVERSION=4.1.2
+
+    # MPICH "debug", which uses MPICH installation with --with-device=ch3:sock.
+    # This will use the older ch3:sock channel that does not busy poll.
+    # This channel will be slower for intra-node communication, but it will perform much better in the oversubscription scenario.
+    #MPINAMES='mpich-debug'
+    #USEMPIVERSION=4.1.2
+
     # Force --rerun via 'set'
     echo ""
-    echo "Running '-m' with GCC $USECOMPILERVERSION and  OpenMPI $USEMPIVERSION"
+    echo "Running '-m' with GCC $USECOMPILERVERSION and $MPINAMES $USEMPIVERSION"
     set -- -rerun
     break
   fi
 done
+
+if [[ $LOADMODULES -eq 1 ]]; then
+  MPINAMES='openmpi mpich mpich-debug'
+fi
 
 NBROFCORES=$(grep ^cpu\\scores /proc/cpuinfo | uniq |  awk '{print $4}')
 INSTALLDIR=/opt
@@ -91,7 +112,10 @@ fi
 #HDF5VERSION=1.10.4
 #HDF5VERSION=1.10.6
 #HDF5VERSION=1.12.0 # CAUTION NIG_PIC_maxwell_RK4/TWT_recordpoints fails for: 1) gcc/11.2.0   2) cmake/3.21.3   3) openmpi/4.1.1/gcc/11.2.0   4) hdf5/1.12.0/gcc/11.2.0/openmpi/4.1.1
-HDF5VERSION=1.12.1
+#HDF5VERSION=1.12.1
+#HDF5VERSION=1.12.2
+HDF5VERSION=1.14.0
+#HDF5VERSION=1.14.3    # Error during mesh read-in in piclas/src/io_hdf5/hdf5_input.f90
 
 COMPILERPREFIX=compilers/ # required for modules 5.0.0
 MPIPREFIX=MPI/ # required for modules 5.0.0
@@ -120,7 +144,7 @@ if [ ! -f ${TARFILE} ]; then
 fi
 
 # Extract tar.gz file
-tar -xzf ${TARFILE} hdf5-${HDF5VERSION}
+tar -xzf ${TARFILE}
 
 # Check if extraction failed
 if [ ${PIPESTATUS[0]} -ne 0 ]; then
@@ -236,7 +260,6 @@ for WHICHCOMPILER in ${COMPILERNAMES}; do
     # ============================================================================================================================================================================
     #--- build hdf5 with mpi
     # ============================================================================================================================================================================
-    MPINAMES='openmpi mpich'
     for WHICHMPI in ${MPINAMES}; do
       echo "${GREEN}    $WHICHMPI ------------------------------------------------------------------------------${NC}"
       if [ ! -d "${INSTALLDIR}/modules/modulefiles/libraries/hdf5/${HDF5VERSION}/${WHICHCOMPILER}/${COMPILERVERSION}/${WHICHMPI}" ]; then

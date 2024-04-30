@@ -1,7 +1,7 @@
 !==================================================================================================================================
 ! Copyright (c) 2010 - 2018 Prof. Claus-Dieter Munz and Prof. Stefanos Fasoulas
 !
-! This file is part of PICLas (gitlab.com/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
+! This file is part of PICLas (piclas.boltzplatz.eu/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
 ! it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3
 ! of the License, or (at your option) any later version.
 !
@@ -28,10 +28,10 @@ PRIVATE
 
 #if USE_MPI
 PUBLIC :: WriteMyInvisibleRankToHDF5
+#endif /*USE_MPI*/
 #if defined(PARTICLES)
 PUBLIC :: WriteLostRotPeriodicSidesToHDF5
 #endif /*defined(PARTICLES)*/
-#endif /*USE_MPI*/
 
 PUBLIC :: WriteAdditionalElemData
 !===================================================================================================================================
@@ -157,40 +157,28 @@ IMPLICIT NONE
 INTEGER,PARAMETER   :: N_variables=1
 CHARACTER(LEN=255),ALLOCATABLE  :: StrVarNames(:)
 CHARACTER(LEN=255)  :: FileName
-#if USE_MPI
 REAL                :: StartT,EndT
-#endif
-REAL                :: OutputTime!,FutureTime
+REAL                :: OutputTime
 !===================================================================================================================================
-IF(MPIROOT)THEN
-  WRITE(UNIT_stdOut,'(a)',ADVANCE='NO')' WRITE MyInvisibleRank TO HDF5 FILE...'
-#if USE_MPI
-  StartT=MPI_WTIME()
-#endif
-END IF
+SWRITE(UNIT_stdOut,'(a)',ADVANCE='NO')' WRITE MyInvisibleRank TO HDF5 FILE...'
+GETTIME(StartT)
 OutputTime=0.0
-!FutureTime=0.0
 ALLOCATE(StrVarNames(1:N_variables))
 StrVarNames(1)='dummy'
 ! Generate skeleton for the file with all relevant data on a single proc (MPIRoot)
 FileName=TRIM(ProjectName)//'_MyInvisibleRank.h5'
 IF(MPIRoot) CALL GenerateFileSkeleton('MyInvisibleRank',N_variables,StrVarNames,TRIM(MeshFile),OutputTime,FileNameIn=FileName)
 #if USE_MPI
-  CALL MPI_BARRIER(MPI_COMM_WORLD,iError)
+  CALL MPI_BARRIER(MPI_COMM_PICLAS,iError)
 #endif
 
 ! Write all 'ElemData' arrays to a single container in the state.h5 file
 CALL WriteAdditionalElemData(FileName,ElementOut)
 
-#if USE_MPI
-IF(MPIROOT)THEN
-  EndT=MPI_WTIME()
-  WRITE(UNIT_stdOut,'(A,F0.3,A)',ADVANCE='YES')'DONE  [',EndT-StartT,'s]'
-END IF
-#else
-WRITE(UNIT_stdOut,'(a)',ADVANCE='YES')'DONE'
-#endif
+GETTIME(EndT)
+CALL DisplayMessageAndTime(EndT-StartT, 'DONE', DisplayDespiteLB=.TRUE., DisplayLine=.FALSE.)
 END SUBROUTINE WriteMyInvisibleRankToHDF5
+#endif /*USE_MPI*/
 
 
 #if defined(PARTICLES)
@@ -212,42 +200,28 @@ IMPLICIT NONE
 INTEGER,PARAMETER   :: N_variables=1
 CHARACTER(LEN=255),ALLOCATABLE  :: StrVarNames(:)
 CHARACTER(LEN=255)  :: FileName
-#if USE_MPI
 REAL                :: StartT,EndT
-#endif
-REAL                :: OutputTime!,FutureTime
+REAL                :: OutputTime
 !===================================================================================================================================
-IF(MPIROOT)THEN
-  WRITE(UNIT_stdOut,'(a)',ADVANCE='NO')' WRITE LostRotPeriodicSides TO HDF5 FILE...'
-#if USE_MPI
-  StartT=MPI_WTIME()
-#endif
-END IF
+SWRITE(UNIT_stdOut,'(a)',ADVANCE='NO')' WRITE LostRotPeriodicSides TO HDF5 FILE...'
+GETTIME(StartT)
 OutputTime=0.0
-!FutureTime=0.0
 ALLOCATE(StrVarNames(1:N_variables))
 StrVarNames(1)='dummy'
 ! Generate skeleton for the file with all relevant data on a single proc (MPIRoot)
 FileName=TRIM(ProjectName)//'_LostRotPeriodicSides.h5'
 IF(MPIRoot) CALL GenerateFileSkeleton('LostRotPeriodicSides',N_variables,StrVarNames,TRIM(MeshFile),OutputTime,FileNameIn=FileName)
 #if USE_MPI
-  CALL MPI_BARRIER(MPI_COMM_WORLD,iError)
+  CALL MPI_BARRIER(MPI_COMM_PICLAS,iError)
 #endif
 
 ! Write all 'ElemData' arrays to a single container in the state.h5 file
 CALL WriteAdditionalElemData(FileName,ElementOut)
 
-#if USE_MPI
-IF(MPIROOT)THEN
-  EndT=MPI_WTIME()
-  WRITE(UNIT_stdOut,'(A,F0.3,A)',ADVANCE='YES')'DONE  [',EndT-StartT,'s]'
-END IF
-#else
-WRITE(UNIT_stdOut,'(a)',ADVANCE='YES')'DONE'
-#endif
+GETTIME(EndT)
+CALL DisplayMessageAndTime(EndT-StartT, 'DONE', DisplayDespiteLB=.TRUE., DisplayLine=.FALSE.)
 END SUBROUTINE WriteLostRotPeriodicSidesToHDF5
 #endif /*defined(PARTICLES)*/
-#endif /*USE_MPI*/
 
 
 END MODULE MOD_HDF5_Output_ElemData

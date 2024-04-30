@@ -1,7 +1,7 @@
 !==================================================================================================================================
 ! Copyright (c) 2010 - 2018 Prof. Claus-Dieter Munz and Prof. Stefanos Fasoulas
 !
-! This file is part of PICLas (gitlab.com/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
+! This file is part of PICLas (piclas.boltzplatz.eu/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
 ! it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3
 ! of the License, or (at your option) any later version.
 !
@@ -424,7 +424,8 @@ DO iNbProc=1,nNbProcs
   END DO ! iElem
   DEALLOCATE(SideIDMap)
 END DO !nbProc(i)
-! Iterate over all processors and for each processor over all elements and within each element
+#endif /*USE_MPI*/
+! Iterate (over all processors and for each processor) over all elements and within each element
 ! over all sides (6 for hexas in 3D, 4 for quads in 2D) and for each big Mortar side over all small virtual sides
 ! and revert the negative SideIDs.
 DO iElem=FirstElemInd,LastElemInd
@@ -441,6 +442,7 @@ DO iElem=FirstElemInd,LastElemInd
     END DO ! iMortar
   END DO ! iLocSide
 END DO ! iElem
+#if USE_MPI
 ! Optimize Mortars: Search for big Mortars which only have small virtual MPI_MINE sides. Since the MPI_MINE-sides evaluate
 ! the flux, the flux of the big Mortar side (computed from the 2/4 fluxes of the small virtual sides) can be computed BEFORE
 ! the communication of the fluxes. Therefore those big Mortars can be moved from MPIMortars to the InnerMortars.
@@ -621,16 +623,15 @@ LOGWRITE(*,*)'-------------------------------------------------------'
 ! CAUTION: MY-MORTAR-MPI-Sides are missing
 IF(ALLOCATED(offsetSideMPI))DEALLOCATE(offsetSideMPI)
 ALLOCATE(offsetSideMPI(nProcessors))
-CALL MPI_ALLGATHER(nSides-nMPISides_YOUR,1,MPI_INTEGER,offsetSideMPI,1,MPI_INTEGER,MPI_COMM_WORLD,IERROR)
+CALL MPI_ALLGATHER(nSides-nMPISides_YOUR,1,MPI_INTEGER,offsetSideMPI,1,MPI_INTEGER,MPI_COMM_PICLAS,IERROR)
 offsetSide=0 ! set default for restart!!!
 DO iProc=1, myrank
   offsetSide = offsetSide + offsetSideMPI(iProc)
 END DO
 #endif /*USE_HDG*/
 
-writePartitionInfo = GETLOGICAL('writePartitionInfo','.FALSE.')
+writePartitionInfo = GETLOGICAL('writePartitionInfo')
 IF(DoLoadBalance)THEN
-  writePartitionInfo=.TRUE.
   WRITE( hilf,'(I4.4)') nLoadBalanceSteps
   filename='partitionInfo-'//TRIM(hilf)//'.out'
 ELSE
@@ -657,8 +658,8 @@ ELSE
   ALLOCATE(nNBProcs_glob(1)) ! dummy for debug
   ALLOCATE(ProcInfo_glob(1,1)) ! dummy for debug
 END IF !MPIroot
-CALL MPI_GATHER(nNBProcs,1,MPI_INTEGER,nNBProcs_glob,1,MPI_INTEGER,0,MPI_COMM_WORLD,iError)
-CALL MPI_GATHER(ProcInfo,9,MPI_INTEGER,ProcInfo_glob,9,MPI_INTEGER,0,MPI_COMM_WORLD,iError)
+CALL MPI_GATHER(nNBProcs,1,MPI_INTEGER,nNBProcs_glob,1,MPI_INTEGER,0,MPI_COMM_PICLAS,iError)
+CALL MPI_GATHER(ProcInfo,9,MPI_INTEGER,ProcInfo_glob,9,MPI_INTEGER,0,MPI_COMM_PICLAS,iError)
 IF(MPIroot)THEN
   nNBmax=MAXVAL(nNBProcs_glob) ! count, total number of columns in table
   ALLOCATE(NBinfo_glob(6,nNBmax,0:nProcessors))
@@ -666,7 +667,7 @@ IF(MPIroot)THEN
 ELSE
   ALLOCATE(NBinfo_glob(1,1,1)) ! dummy for debug
 END IF
-CALL MPI_BCAST(nNBmax,1,MPI_INTEGER,0,MPI_COMM_WORLD,iError)
+CALL MPI_BCAST(nNBmax,1,MPI_INTEGER,0,MPI_COMM_PICLAS,iError)
 ALLOCATE(NBinfo(6,nNbmax))
 NBinfo=0
 NBinfo(1,1:nNBProcs)=NBProc
@@ -675,7 +676,7 @@ NBinfo(3,1:nNBProcs)=nMPISides_MINE_Proc
 NBinfo(4,1:nNBProcs)=nMPISides_YOUR_Proc
 NBinfo(5,1:nNBProcs)=offsetMPISides_MINE(0:nNBProcs-1)
 NBinfo(6,1:nNBProcs)=offsetMPISides_YOUR(0:nNBProcs-1)
-CALL MPI_GATHER(NBinfo,6*nNBmax,MPI_INTEGER,NBinfo_glob,6*nNBmax,MPI_INTEGER,0,MPI_COMM_WORLD,iError)
+CALL MPI_GATHER(NBinfo,6*nNBmax,MPI_INTEGER,NBinfo_glob,6*nNBmax,MPI_INTEGER,0,MPI_COMM_PICLAS,iError)
 DEALLOCATE(NBinfo)
 IF(MPIroot)THEN
   OPEN(NEWUNIT=ioUnit,FILE=filename,STATUS='REPLACE')
@@ -818,8 +819,11 @@ USE MOD_MPI_vars
 #endif
 #if USE_HDG && USE_LOADBALANCE
 USE MOD_LoadBalance_Vars ,ONLY: ElemHDGSides,TotalHDGSides
-USE MOD_Mesh_Vars        ,ONLY: BoundaryType,lastMPISide_MINE,lastInnerSide
+USE MOD_Mesh_Vars        ,ONLY: BoundaryType,lastMPISide_MINE,lastInnerSide,BoundaryName
 #endif /*USE_HDG && USE_LOADBALANCE*/
+#if USE_LOADBALANCE
+USE MOD_LoadBalance_Vars ,ONLY: PerformLoadBalance
+#endif /*USE_LOADBALANCE*/
 IMPLICIT NONE
 ! INPUT VARIABLES
 #if USE_HDG && USE_LOADBALANCE
@@ -845,6 +849,7 @@ INTEGER             :: dummy(0:4)
 #if USE_HDG && USE_LOADBALANCE
 INTEGER           :: BCType,nMortars
 INTEGER           :: HDGSides
+CHARACTER(3)      :: hilf
 #endif /*USE_HDG && USE_LOADBALANCE*/
 !===================================================================================================================================
 ! Element to Side mapping
@@ -926,24 +931,24 @@ END DO
 
 #if USE_MPI
 IF(MPIroot)THEN
-  CALL MPI_REDUCE(MPI_IN_PLACE,nSides_flip,5,MPI_INTEGER,MPI_SUM,0,MPI_COMM_WORLD,iError)
-  CALL MPI_REDUCE(MPI_IN_PLACE     ,nSides_MortarType,3,MPI_INTEGER,MPI_SUM,0,MPI_COMM_WORLD,iError)
+  CALL MPI_REDUCE(MPI_IN_PLACE,nSides_flip,5,MPI_INTEGER,MPI_SUM,0,MPI_COMM_PICLAS,iError)
+  CALL MPI_REDUCE(MPI_IN_PLACE     ,nSides_MortarType,3,MPI_INTEGER,MPI_SUM,0,MPI_COMM_PICLAS,iError)
 ELSE
-  CALL MPI_REDUCE(nSides_flip,dummy,5,MPI_INTEGER,MPI_SUM,0,MPI_COMM_WORLD,iError)
-  CALL MPI_REDUCE(nSides_MortarType,nSides_MortarType,3,MPI_INTEGER,MPI_SUM,0,MPI_COMM_WORLD,iError)
+  CALL MPI_REDUCE(nSides_flip,dummy,5,MPI_INTEGER,MPI_SUM,0,MPI_COMM_PICLAS,iError)
+  CALL MPI_REDUCE(nSides_MortarType,nSides_MortarType,3,MPI_INTEGER,MPI_SUM,0,MPI_COMM_PICLAS,iError)
 END IF
 #endif /*USE_MPI*/
-SWRITE(UNIT_StdOut,'(132("."))')
-SWRITE(*,'(A,A34,I0)')' |','nSides with Flip=0     | ',nSides_flip(0)
-SWRITE(*,'(A,A34,I0)')' |','nSides with Flip=1     | ',nSides_flip(1)
-SWRITE(*,'(A,A34,I0)')' |','nSides with Flip=2     | ',nSides_flip(2)
-SWRITE(*,'(A,A34,I0)')' |','nSides with Flip=3     | ',nSides_flip(3)
-SWRITE(*,'(A,A34,I0)')' |','nSides with Flip=4     | ',nSides_flip(4)
-SWRITE(UNIT_StdOut,'(132("."))')
-SWRITE(*,'(A,A34,I0)')' |','nSides of MortarType=1 | ',nSides_MortarType(1)
-SWRITE(*,'(A,A34,I0)')' |','nSides of MortarType=2 | ',nSides_MortarType(2)
-SWRITE(*,'(A,A34,I0)')' |','nSides of MortarType=3 | ',nSides_MortarType(3)
-SWRITE(UNIT_StdOut,'(132("."))')
+LBWRITE(UNIT_StdOut,'(132("."))')
+LBWRITE(*,'(A,A34,I0)')' |','nSides with Flip=0     | ',nSides_flip(0)
+LBWRITE(*,'(A,A34,I0)')' |','nSides with Flip=1     | ',nSides_flip(1)
+LBWRITE(*,'(A,A34,I0)')' |','nSides with Flip=2     | ',nSides_flip(2)
+LBWRITE(*,'(A,A34,I0)')' |','nSides with Flip=3     | ',nSides_flip(3)
+LBWRITE(*,'(A,A34,I0)')' |','nSides with Flip=4     | ',nSides_flip(4)
+LBWRITE(UNIT_StdOut,'(132("."))')
+LBWRITE(*,'(A,A34,I0)')' |','nSides of MortarType=1 | ',nSides_MortarType(1)
+LBWRITE(*,'(A,A34,I0)')' |','nSides of MortarType=2 | ',nSides_MortarType(2)
+LBWRITE(*,'(A,A34,I0)')' |','nSides of MortarType=3 | ',nSides_MortarType(3)
+LBWRITE(UNIT_StdOut,'(132("."))')
 
 LOGWRITE(*,*)'============================= START SIDE CHECKER ==================='
 DO iElem=1,nElems
@@ -1035,12 +1040,15 @@ IF(meshMode.GT.1)THEN
           SELECT CASE(BCType)
           CASE(1) !periodic
             CALL abort(__STAMP__,'SideID.LE.nBCSides and SideID is periodic should not happen')
-          CASE(2,4,5,6) !Dirichlet
+          CASE(HDGDIRICHLETBCSIDEIDS) ! Dirichlet
             ! do not consider this side
-          CASE(10,11) !Neumann
+          CASE(10,11) ! Neumann
+            HDGSides = HDGSides + 1
+          CASE(20) ! FPC
             HDGSides = HDGSides + 1
           CASE DEFAULT ! unknown BCType
-            CALL abort(__STAMP__,'Unknown BCType for HDG Load Balancing. BCType=',IntInfoOpt=BCType)
+            WRITE(UNIT=hilf,FMT='(I0)') BCType
+            CALL abort(__STAMP__,'Unknown BCType='//TRIM(hilf)//' for '//TRIM(BoundaryName(BC(SideID)))//' (HDG Load Balancing)')
           END SELECT ! BCType
         ELSE
           ! Check for Mortars
@@ -1093,7 +1101,7 @@ IF(meshMode.GT.1)THEN
               ELSE ! innerSide: split the weight onto two elements (either periodic or normal inner side)
 
                 ! ===================================================
-                ! method 1: Mortar sides are alyways master and therefore get everything!
+                ! method 1: Mortar sides are always master and therefore get everything!
                 HDGSides = HDGSides + 1
 
                 ! method 2: add half
@@ -1118,6 +1126,9 @@ IF(meshMode.GT.1)THEN
     END IF ! ElemHDGSides(iElem).LE.0
 
   END DO ! iElem=1,PP_nElems
+  ! Sanity check:
+  ! Elements with zero weight are not allowed as they still require some work for 2D to 3D mapping. Add small value.
+  IF(TotalHDGSides.EQ.0) TotalHDGSides = 1
 END IF ! meshMode.GT.1
 #endif /*USE_HDG && USE_LOADBALANCE*/
 
@@ -1180,7 +1191,7 @@ DO iNbProc=1,nNbProcs
     SideID_start=OffsetMPISides_MINE(iNbProc-1)+1
     SideID_end  =OffsetMPISides_MINE(iNbProc)
     CALL MPI_ISEND(Flip_MINE(SideID_start:SideID_end),nSendVal,MPI_INTEGER,  &
-                    nbProc(iNbProc),0,MPI_COMM_WORLD,SendRequest(iNbProc),iError)
+                    nbProc(iNbProc),0,MPI_COMM_PICLAS,SendRequest(iNbProc),iError)
   END IF
   ! Start receive flip to YOUR
   IF(nMPISides_YOUR_Proc(iNbProc).GT.0)THEN
@@ -1188,7 +1199,7 @@ DO iNbProc=1,nNbProcs
     SideID_start=OffsetMPISides_YOUR(iNbProc-1)+1
     SideID_end  =OffsetMPISides_YOUR(iNbProc)
     CALL MPI_IRECV(Flip_YOUR(SideID_start:SideID_end),nRecVal,MPI_INTEGER,  &
-                    nbProc(iNbProc),0,MPI_COMM_WORLD,RecRequest(iNbProc),iError)
+                    nbProc(iNbProc),0,MPI_COMM_PICLAS,RecRequest(iNbProc),iError)
   END IF
 END DO !iProc=1,nNBProcs
 DO iNbProc=1,nNbProcs
@@ -1275,7 +1286,7 @@ DO iNbProc=1,nNbProcs
   SideID_end  =OffsetMPISides_send(iNbProc,2)
   IF(nSendVal.GT.0)THEN
     CALL MPI_ISEND(ElemID_MINE(SideID_start:SideID_end),nSendVal,MPI_INTEGER,  &
-                    nbProc(iNbProc),0,MPI_COMM_WORLD,SendRequest(iNbProc),iError)
+                    nbProc(iNbProc),0,MPI_COMM_PICLAS,SendRequest(iNbProc),iError)
   END IF
   ! Start receive flip to YOUR
   nRecVal     =nMPISides_rec(iNbProc,2)
@@ -1283,7 +1294,7 @@ DO iNbProc=1,nNbProcs
   SideID_end  =OffsetMPISides_rec(iNbProc,2)
   IF(nRecVal.GT.0)THEN
     CALL MPI_IRECV(ElemID_YOUR(SideID_start:SideID_end),nRecVal,MPI_INTEGER,  &
-                    nbProc(iNbProc),0,MPI_COMM_WORLD,RecRequest(iNbProc),iError)
+                    nbProc(iNbProc),0,MPI_COMM_PICLAS,RecRequest(iNbProc),iError)
   END IF
 END DO !iProc=1,nNBProcs
 DO iNbProc=1,nNbProcs
@@ -1303,7 +1314,7 @@ DO iNbProc=1,nNbProcs
   SideID_end  =OffsetMPISides_send(iNbProc,1)
   IF(nSendVal.GT.0)THEN
     CALL MPI_ISEND(ElemID_MINE(SideID_start:SideID_end),nSendVal,MPI_INTEGER,  &
-                    nbProc(iNbProc),0,MPI_COMM_WORLD,SendRequest(iNbProc),iError)
+                    nbProc(iNbProc),0,MPI_COMM_PICLAS,SendRequest(iNbProc),iError)
   END IF
   ! Start receive flip to YOUR
   nRecVal     =nMPISides_rec(iNbProc,1)
@@ -1311,7 +1322,7 @@ DO iNbProc=1,nNbProcs
   SideID_end  =OffsetMPISides_rec(iNbProc,1)
   IF(nRecVal.GT.0)THEN
     CALL MPI_IRECV(ElemID_YOUR(SideID_start:SideID_end),nRecVal,MPI_INTEGER,  &
-                    nbProc(iNbProc),0,MPI_COMM_WORLD,RecRequest(iNbProc),iError)
+                    nbProc(iNbProc),0,MPI_COMM_PICLAS,RecRequest(iNbProc),iError)
   END IF
 END DO !iProc=1,nNBProcs
 DO iNbProc=1,nNbProcs

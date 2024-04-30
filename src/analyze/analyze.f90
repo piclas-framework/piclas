@@ -1,7 +1,7 @@
 !==================================================================================================================================
 ! Copyright (c) 2010 - 2018 Prof. Claus-Dieter Munz and Prof. Stefanos Fasoulas
 !
-! This file is part of PICLas (gitlab.com/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
+! This file is part of PICLas (piclas.boltzplatz.eu/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
 ! it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3
 ! of the License, or (at your option) any later version.
 !
@@ -68,6 +68,7 @@ IMPLICIT NONE
 CALL prms%SetSection("Analyze")
 ! -------------------------
 CALL prms%CreateLogicalOption('DoCalcErrorNorms'     , 'Set true to compute L2 and LInf error norms at analyze step.','.FALSE.')
+CALL prms%CreateLogicalOption('OutputErrorNormsToH5' , 'Set true to write the analytical solution, the L2 and LInf error norms at analyze step to .h5 state file.','.FALSE.')
 CALL prms%CreateRealOption(   'Analyze_dt'           , 'Specifies time interval at which analysis routines are called.','0.')
 CALL prms%CreateIntOption(    'nSkipAnalyze'         , '(Skip Analyze_dt)','1')
 
@@ -105,7 +106,7 @@ CALL prms%CreateLogicalOption( 'CalcPoyntingVecIntegral',"Calculate Poynting vec
 !-- BoundaryFieldOutput
 CALL prms%CreateLogicalOption(  'CalcBoundaryFieldOutput', 'Output the field boundary over time' , '.FALSE.')
 CALL prms%CreateIntOption(      'BFO-NFieldBoundaries'   , 'Number of boundaries used for CalcBoundaryFieldOutput')
-CALL prms%CreateIntArrayOption( 'BFO-FieldBoundaries'    , 'Vector (length BFO-NFieldBoundaries) with the numbers of each Field-Boundary')
+CALL prms%CreateIntArrayOption( 'BFO-FieldBoundaries'    , 'Vector (length BFO-NFieldBoundaries) with the numbers of each Field-Boundary', no=0)
 
 !-- Poynting Vector
 CALL prms%CreateIntOption( 'PoyntingVecInt-Planes', 'Total number of Poynting vector integral planes for measuring the '//&
@@ -128,17 +129,17 @@ CALL prms%CreateLogicalOption( 'CalcAverageElectricPotential',"Calculate the ave
 CALL prms%CreateRealOption('AvgPotential-Plane-x-coord', 'x-coordinate of the averaged electric potential')
 CALL prms%CreateRealOption('AvgPotential-Plane-Tolerance', 'Absolute tolerance for checking the averaged electric potential plane '&
                                                          , '1E-5')
-CALL prms%CreateLogicalOption( 'CalcElectricTimeDerivative',"Calculate the time derivative of E and output to h5",".FALSE.")
+CALL prms%CreateLogicalOption( 'CalcElectricTimeDerivative' ,"Calculate the time derivative of the electric displacement field D=eps*E and output to .h5 and .csv files.",".FALSE.")
 #endif /*USE_HDG*/
 !-- TimeAverage
-CALL prms%CreateLogicalOption('CalcTimeAverage'     , 'Flag if time averaging should be performed','.FALSE.')
-CALL prms%CreateIntOption(    'nSkipAvg'            , 'Iter every which CalcTimeAverage is performed')
-CALL prms%CreateStringOption( 'VarNameAvg'          , 'Count of time average variables',multiple=.TRUE.)
-CALL prms%CreateStringOption( 'VarNameFluc'         , 'Count of fluctuation variables',multiple=.TRUE.)
+CALL prms%CreateLogicalOption( 'CalcTimeAverage'            , 'Flag if time averaging should be performed','.FALSE.')
+CALL prms%CreateIntOption(     'nSkipAvg'                   , 'Iter every which CalcTimeAverage is performed')
+CALL prms%CreateStringOption(  'VarNameAvg'                 , 'Count of time average variables',multiple=.TRUE.)
+CALL prms%CreateStringOption(  'VarNameFluc'                , 'Count of fluctuation variables',multiple=.TRUE.)
 
 !-- Code Analyze
 #ifdef CODE_ANALYZE
-CALL prms%CreateLogicalOption( 'DoCodeAnalyzeOutput' , 'print code analyze info to CodeAnalyze.csv','.TRUE.')
+CALL prms%CreateLogicalOption( 'DoCodeAnalyzeOutput'        , 'print code analyze info to CodeAnalyze.csv','.TRUE.')
 #endif /* CODE_ANALYZE */
 END SUBROUTINE DefineParametersAnalyze
 
@@ -153,22 +154,20 @@ USE MOD_Preproc
 USE MOD_AnalyzeField          ,ONLY: GetPoyntingIntPlane
 USE MOD_Analyze_Vars          ,ONLY: CalcPoyntingInt
 #endif /*PP_nVar>=6*/
-USE MOD_Analyze_Vars          ,ONLY: AnalyzeInitIsDone,Analyze_dt,DoCalcErrorNorms
+USE MOD_Analyze_Vars          ,ONLY: AnalyzeInitIsDone,Analyze_dt,DoCalcErrorNorms,OutputErrorNormsToH5
 USE MOD_Analyze_Vars          ,ONLY: CalcPointsPerWavelength,PPWCell,OutputTimeFixed,FieldAnalyzeStep
 USE MOD_Analyze_Vars          ,ONLY: AnalyzeCount,AnalyzeTime,DoMeasureAnalyzeTime
 USE MOD_Analyze_Vars          ,ONLY: doFieldAnalyze,CalcEpot
 USE MOD_Analyze_Vars          ,ONLY: CalcBoundaryFieldOutput,BFO
 USE MOD_Analyze_Vars          ,ONLY: nSkipAnalyze,SkipAnalyzeWindow,SkipAnalyzeSwitchTime,nSkipAnalyzeSwitch
-USE MOD_Interpolation_Vars    ,ONLY: InterpolationInitIsDone
+USE MOD_Interpolation_Vars    ,ONLY: InterpolationInitIsDone,Uex,NAnalyze
 USE MOD_IO_HDF5               ,ONLY: AddToElemData,ElementOut
 USE MOD_Mesh_Vars             ,ONLY: nElems
 USE MOD_ReadInTools           ,ONLY: GETINT,GETREAL,GETLOGICAL,PrintOption,GETINTARRAY
 USE MOD_TimeAverage_Vars      ,ONLY: doCalcTimeAverage
 USE MOD_TimeAverage           ,ONLY: InitTimeAverage
 USE MOD_TimeDisc_Vars         ,ONLY: TEnd
-#ifdef maxwell
 USE MOD_Equation_vars         ,ONLY: Wavelength
-#endif /* maxwell */
 USE MOD_Particle_Mesh_Vars    ,ONLY: ElemCharLength_Shared
 #if USE_MPI && defined(PARTICLES)
 USE MOD_Mesh_Vars             ,ONLY: offSetElem
@@ -177,11 +176,14 @@ USE MOD_Mesh_Tools            ,ONLY: GetCNElemID
 #if USE_HDG
 USE MOD_Analyze_Vars          ,ONLY: CalcAverageElectricPotential,PosAverageElectricPotential,CalcElectricTimeDerivative
 USE MOD_AnalyzeField          ,ONLY: GetAverageElectricPotentialPlane
-USE MOD_Equation_Vars         ,ONLY: Et
 #ifdef PARTICLES
 USE MOD_PICInterpolation_Vars ,ONLY: useAlgebraicExternalField,AlgebraicExternalField
 #endif /*PARTICLES*/
 #endif /*USE_HDG*/
+#if USE_LOADBALANCE
+USE MOD_LoadBalance_Vars ,ONLY: PerformLoadBalance
+#endif /*USE_LOADBALANCE*/
+USE MOD_Mesh_Vars             ,ONLY: BoundaryType,BoundaryName
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
@@ -189,20 +191,26 @@ IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 CHARACTER(LEN=40)   :: DefStr
-INTEGER             :: iElem,CNElemID
+INTEGER             :: iElem,CNElemID,iBoundary,BCType,BCState,iBC
 REAL                :: PPWCellMax,PPWCellMin
 !===================================================================================================================================
 IF ((.NOT.InterpolationInitIsDone).OR.AnalyzeInitIsDone) THEN
-  CALL abort(&
-      __STAMP__&
-      ,'InitAnalyse not ready to be called or already called.')
+  CALL abort(__STAMP__,'InitAnalyse not ready to be called or already called.')
   RETURN
 END IF
-SWRITE(UNIT_StdOut,'(132("-"))')
-SWRITE(UNIT_stdOut,'(A)') ' INIT ANALYZE...'
+LBWRITE(UNIT_StdOut,'(132("-"))')
+LBWRITE(UNIT_stdOut,'(A)') ' INIT ANALYZE...'
 
 ! Get logical for calculating the error norms L2 and LInf
 DoCalcErrorNorms = GETLOGICAL('DoCalcErrorNorms')
+
+IF(DoCalcErrorNorms)THEN
+  ! Get logical for writing the analytical solution, the error norms L2 and LInf to .h5
+  OutputErrorNormsToH5 = GETLOGICAL('OutputErrorNormsToH5')
+  ! Allocate container for exact solution (Gauss-Lobatto nodes)
+  ALLOCATE(Uex(1:PP_nVar,0:NAnalyze,0:NAnalyze,0:NAnalyze,1:nElems))
+  Uex = 0.
+END IF ! DoCalcErrorNorms
 
 ! Get the time step for performing analyzes and integer for skipping certain steps
 WRITE(DefStr,WRITEFORMAT) TEnd
@@ -266,10 +274,12 @@ IF(CalcAverageElectricPotential)THEN
   DoFieldAnalyze = .TRUE.
   CALL GetAverageElectricPotentialPlane()
 END IF
-!Calculate the time derivative of E and output to h5
+
+!-- Electric displacement current
+! Calculate the time derivative of D=eps0*E and output to h5
 CalcElectricTimeDerivative = GETLOGICAL('CalcElectricTimeDerivative')
-! Allocate temporal derivative for E: No need to nullify as is it overwritten with E the first time it is used
-IF(CalcElectricTimeDerivative) ALLOCATE(Et(1:3,0:PP_N,0:PP_N,0:PP_N,PP_nElems))
+CALL InitCalcElectricTimeDerivativeSurface()
+
 #endif /*USE_HDG*/
 
 !-- BoundaryParticleOutput (after mapping of PartBound on FieldBound and determination of PartBound types = open, reflective etc.)
@@ -278,6 +288,14 @@ IF(CalcBoundaryFieldOutput)THEN
   DoFieldAnalyze = .TRUE.
   BFO%NFieldBoundaries = GETINT('BFO-NFieldBoundaries')
   BFO%FieldBoundaries  = GETINTARRAY('BFO-FieldBoundaries',BFO%NFieldBoundaries)
+  DO iBoundary=1,BFO%NFieldBoundaries
+    iBC = BFO%FieldBoundaries(iBoundary)
+    IF(iBC.GT.SIZE(BoundaryName)) CALL abort(__STAMP__,'BFO-FieldBoundaries BC index is too large: ',IntInfoOpt=iBC)
+    BCType  = BoundaryType(iBC,BC_TYPE)
+    BCState = BoundaryType(iBC,BC_STATE)
+    LBWRITE(UNIT_stdOut,'(A,I0,A,I0,A)')&
+       ' Activated BFO of electric potential for ['//TRIM(BoundaryName(iBC))//'] with BCType [',BCType,'] and BCState [',BCState,']'
+  END DO
 END IF ! CalcBoundaryFieldOutput
 
 ! Get logical for measurement of time spent in analyze routines
@@ -287,8 +305,8 @@ AnalyzeCount = 0
 AnalyzeTime  = 0.0
 
 AnalyzeInitIsDone = .TRUE.
-SWRITE(UNIT_stdOut,'(A)')' INIT ANALYZE DONE!'
-SWRITE(UNIT_StdOut,'(132("-"))')
+LBWRITE(UNIT_stdOut,'(A)')' INIT ANALYZE DONE!'
+LBWRITE(UNIT_StdOut,'(132("-"))')
 
 ! Points Per Wavelength
 CalcPointsPerWavelength = GETLOGICAL('CalcPointsPerWavelength')
@@ -298,11 +316,8 @@ IF(CalcPointsPerWavelength)THEN
   PPWCell=0.0
   CALL AddToElemData(ElementOut,'PPWCell',RealArray=PPWCell(1:PP_nElems))
   ! Calculate PPW for each cell
-#ifdef maxwell
+  IF(WaveLength.LT.0.) WaveLength = GETREAL('WaveLength','1.')
   CALL PrintOption('Wavelength for PPWCell','OUTPUT',RealOpt=Wavelength)
-#else
-  CALL PrintOption('Wavelength for PPWCell (fixed to 1.0)','OUTPUT',RealOpt=1.0)
-#endif /* maxwell */
   PPWCellMin=HUGE(1.)
   PPWCellMax=-HUGE(1.)
   DO iElem = 1, nElems
@@ -312,21 +327,17 @@ IF(CalcPointsPerWavelength)THEN
 #else
     CNElemID = iElem
 #endif /*USE_MPI && defined(PARTICLES)*/
-#ifdef maxwell
-    PPWCell(iElem)     = (REAL(PP_N)+1.)*Wavelength/ElemCharLength_Shared(CNElemID)
-#else
-    PPWCell(iElem)     = (REAL(PP_N)+1.)/ElemCharLength_Shared(CNElemID)
-#endif /* maxwell */
-    PPWCellMin=MIN(PPWCellMin,PPWCell(iElem))
-    PPWCellMax=MAX(PPWCellMax,PPWCell(iElem))
+    PPWCell(iElem) = (REAL(PP_N)+1.)*Wavelength/ElemCharLength_Shared(CNElemID)
+    PPWCellMin     = MIN(PPWCellMin,PPWCell(iElem))
+    PPWCellMax     = MAX(PPWCellMax,PPWCell(iElem))
   END DO ! iElem = 1, nElems
 #if USE_MPI
   IF(MPIroot)THEN
-    CALL MPI_REDUCE(MPI_IN_PLACE , PPWCellMin , 1 , MPI_DOUBLE_PRECISION , MPI_MIN , 0 , MPI_COMM_WORLD , iError)
-    CALL MPI_REDUCE(MPI_IN_PLACE , PPWCellMax , 1 , MPI_DOUBLE_PRECISION , MPI_MAX , 0 , MPI_COMM_WORLD , iError)
+    CALL MPI_REDUCE(MPI_IN_PLACE , PPWCellMin , 1 , MPI_DOUBLE_PRECISION , MPI_MIN , 0 , MPI_COMM_PICLAS , iError)
+    CALL MPI_REDUCE(MPI_IN_PLACE , PPWCellMax , 1 , MPI_DOUBLE_PRECISION , MPI_MAX , 0 , MPI_COMM_PICLAS , iError)
   ELSE
-    CALL MPI_REDUCE(PPWCellMin   , 0          , 1 , MPI_DOUBLE_PRECISION , MPI_MIN , 0 , MPI_COMM_WORLD , iError)
-    CALL MPI_REDUCE(PPWCellMax   , 0          , 1 , MPI_DOUBLE_PRECISION , MPI_MAX , 0 , MPI_COMM_WORLD , iError)
+    CALL MPI_REDUCE(PPWCellMin   , 0          , 1 , MPI_DOUBLE_PRECISION , MPI_MIN , 0 , MPI_COMM_PICLAS , iError)
+    CALL MPI_REDUCE(PPWCellMax   , 0          , 1 , MPI_DOUBLE_PRECISION , MPI_MAX , 0 , MPI_COMM_PICLAS , iError)
     ! in this case the receive value is not relevant.
   END IF
 #endif /*USE_MPI*/
@@ -351,9 +362,10 @@ USE MOD_ChangeBasis        ,ONLY: ChangeBasis3D
 USE MOD_DG_Vars            ,ONLY: U
 USE MOD_Equation           ,ONLY: ExactFunc
 USE MOD_Equation_Vars      ,ONLY: IniExactFunc
-USE MOD_Interpolation_Vars ,ONLY: NAnalyze,Vdm_GaussN_NAnalyze,wAnalyze
+USE MOD_Interpolation_Vars ,ONLY: NAnalyze,Vdm_GaussN_NAnalyze,wAnalyze,Uex
 USE MOD_Mesh_Vars          ,ONLY: Elem_xGP,sJ
 USE MOD_Particle_Mesh_Vars ,ONLY: MeshVolume
+USE MOD_Analyze_Vars       ,ONLY: OutputErrorNormsToH5
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
@@ -368,7 +380,7 @@ REAL,INTENT(OUT)              :: L_Inf_Error(PP_nVar) !< LInf error of the solut
 !----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER                       :: iElem,k,l,m
-REAL                          :: U_exact(PP_nVar)
+REAL                          :: U_exact(1:PP_nVar,0:NAnalyze,0:NAnalyze,0:NAnalyze)
 REAL                          :: U_NAnalyze(1:PP_nVar,0:NAnalyze,0:NAnalyze,0:NAnalyze)
 REAL                          :: Coords_NAnalyze(3,0:NAnalyze,0:NAnalyze,0:NAnalyze)
 REAL                          :: J_NAnalyze(1,0:NAnalyze,0:NAnalyze,0:NAnalyze)
@@ -390,25 +402,30 @@ DO iElem=1,PP_nElems
     DO l=0,NAnalyze
       DO k=0,NAnalyze
 #if USE_HDG
-        CALL ExactFunc(IniExactFunc,Coords_NAnalyze(1:3,k,l,m),U_exact,ElemID=iElem)
+        CALL ExactFunc(IniExactFunc,Coords_NAnalyze(1:3,k,l,m),U_exact(1:PP_nVar,k,l,m),ElemID=iElem)
 #else
-        CALL ExactFunc(IniExactFunc,time,0,Coords_NAnalyze(1:3,k,l,m),U_exact)
+        CALL ExactFunc(IniExactFunc,time,0,Coords_NAnalyze(1:3,k,l,m),U_exact(1:PP_nVar,k,l,m))
 #endif
-        L_Inf_Error = MAX(L_Inf_Error,abs(U_NAnalyze(:,k,l,m) - U_exact))
+        L_Inf_Error = MAX(L_Inf_Error,abs(U_NAnalyze(:,k,l,m) - U_exact(1:PP_nVar,k,l,m)))
         IntegrationWeight = wAnalyze(k)*wAnalyze(l)*wAnalyze(m)*J_NAnalyze(1,k,l,m)
         ! To sum over the elements, We compute here the square of the L_2 error
-        L_2_Error = L_2_Error+(U_NAnalyze(:,k,l,m) - U_exact)*(U_NAnalyze(:,k,l,m) - U_exact)*IntegrationWeight
+        L_2_Error = L_2_Error+(U_NAnalyze(:,k,l,m) - U_exact(1:PP_nVar,k,l,m))*&
+                              (U_NAnalyze(:,k,l,m) - U_exact(1:PP_nVar,k,l,m))*IntegrationWeight
       END DO ! k
     END DO ! l
   END DO ! m
+  ! Output the exact solution, the L2 error and LInf error to .h5 (in NodeTypeGL = 'GAUSS-LOBATTO')
+  IF(OutputErrorNormsToH5)THEN
+    Uex(1:PP_nVar,:,:,:,iElem) = U_exact(1:PP_nVar,0:NAnalyze,0:NAnalyze,0:NAnalyze)
+  END IF ! OutputErrorNormsToH5
 END DO ! iElem=1,PP_nElems
 #if USE_MPI
   IF(MPIroot)THEN
-    CALL MPI_REDUCE(MPI_IN_PLACE , L_2_Error   , PP_nVar , MPI_DOUBLE_PRECISION , MPI_SUM , 0 , MPI_COMM_WORLD , iError)
-    CALL MPI_REDUCE(MPI_IN_PLACE , L_Inf_Error , PP_nVar , MPI_DOUBLE_PRECISION , MPI_MAX , 0 , MPI_COMM_WORLD , iError)
+    CALL MPI_REDUCE(MPI_IN_PLACE , L_2_Error   , PP_nVar , MPI_DOUBLE_PRECISION , MPI_SUM , 0 , MPI_COMM_PICLAS , iError)
+    CALL MPI_REDUCE(MPI_IN_PLACE , L_Inf_Error , PP_nVar , MPI_DOUBLE_PRECISION , MPI_MAX , 0 , MPI_COMM_PICLAS , iError)
   ELSE
-    CALL MPI_REDUCE(L_2_Error   , 0            , PP_nVar , MPI_DOUBLE_PRECISION , MPI_SUM , 0 , MPI_COMM_WORLD , iError)
-    CALL MPI_REDUCE(L_Inf_Error , 0            , PP_nVar , MPI_DOUBLE_PRECISION , MPI_MAX , 0 , MPI_COMM_WORLD , iError)
+    CALL MPI_REDUCE(L_2_Error   , 0            , PP_nVar , MPI_DOUBLE_PRECISION , MPI_SUM , 0 , MPI_COMM_PICLAS , iError)
+    CALL MPI_REDUCE(L_Inf_Error , 0            , PP_nVar , MPI_DOUBLE_PRECISION , MPI_MAX , 0 , MPI_COMM_PICLAS , iError)
     ! in this case the receive value is not relevant.
   END IF
 #endif /*USE_MPI*/
@@ -480,11 +497,11 @@ DO iElem=1,PP_nElems
 END DO ! iElem=1,PP_nElems
 #if USE_MPI
 IF(MPIroot)THEN
-  CALL MPI_REDUCE(MPI_IN_PLACE  , L_2_PartSource   , PartSource_nVar , MPI_DOUBLE_PRECISION , MPI_SUM , 0 , MPI_COMM_WORLD , iError)
-  CALL MPI_REDUCE(MPI_IN_PLACE  , L_Inf_PartSource , PartSource_nVar , MPI_DOUBLE_PRECISION , MPI_MAX , 0 , MPI_COMM_WORLD , iError)
+  CALL MPI_REDUCE(MPI_IN_PLACE  , L_2_PartSource   , PartSource_nVar , MPI_DOUBLE_PRECISION , MPI_SUM , 0 , MPI_COMM_PICLAS , iError)
+  CALL MPI_REDUCE(MPI_IN_PLACE  , L_Inf_PartSource , PartSource_nVar , MPI_DOUBLE_PRECISION , MPI_MAX , 0 , MPI_COMM_PICLAS , iError)
 ELSE
-  CALL MPI_REDUCE(L_2_PartSource   , 0             , PartSource_nVar , MPI_DOUBLE_PRECISION , MPI_SUM , 0 , MPI_COMM_WORLD , iError)
-  CALL MPI_REDUCE(L_Inf_PartSource , 0             , PartSource_nVar , MPI_DOUBLE_PRECISION , MPI_MAX , 0 , MPI_COMM_WORLD , iError)
+  CALL MPI_REDUCE(L_2_PartSource   , 0             , PartSource_nVar , MPI_DOUBLE_PRECISION , MPI_SUM , 0 , MPI_COMM_PICLAS , iError)
+  CALL MPI_REDUCE(L_Inf_PartSource , 0             , PartSource_nVar , MPI_DOUBLE_PRECISION , MPI_MAX , 0 , MPI_COMM_PICLAS , iError)
   ! in this case the receive value is not relevant.
 END IF
 #endif /*USE_MPI*/
@@ -560,7 +577,7 @@ CALL InitializeVandermonde(N2,NAnalyze,wBary2,xGP2,XiAnalyze,Vdm_GaussN_NAnalyze
 
 ! Interpolate values of Error-Grid from GP's
 DO iElem=1,nElems
-   ! Interpolate the Jacobian to the analyze grid: be carefull we interpolate the inverse of the inverse of the jacobian ;-)
+   ! Interpolate the Jacobian to the analyze grid: be careful we interpolate the inverse of the inverse of the Jacobian ;-)
    J_N(1,0:N1,0:N1,0:N1)=1./sJ(:,:,:,iElem)
    CALL ChangeBasis3D(1,N1,NAnalyze,Vdm_GaussN_NAnalyze1,J_N(1:1,0:N1,0:N1,0:N1),J_NAnalyze(1:1,:,:,:))
 
@@ -585,13 +602,13 @@ DO iElem=1,nElems
 END DO ! iElem=1,nElems
 #if USE_MPI
   IF(MPIroot)THEN
-    CALL MPI_REDUCE(MPI_IN_PLACE , L_2_Error   , nVar , MPI_DOUBLE_PRECISION , MPI_SUM , 0 , MPI_COMM_WORLD , iError)
-    CALL MPI_REDUCE(MPI_IN_PLACE , volume      , 1    , MPI_DOUBLE_PRECISION , MPI_SUM , 0 , MPI_COMM_WORLD , iError)
-    CALL MPI_REDUCE(MPI_IN_PLACE , L_Inf_Error , nVar , MPI_DOUBLE_PRECISION , MPI_MAX , 0 , MPI_COMM_WORLD , iError)
+    CALL MPI_REDUCE(MPI_IN_PLACE , L_2_Error   , nVar , MPI_DOUBLE_PRECISION , MPI_SUM , 0 , MPI_COMM_PICLAS , iError)
+    CALL MPI_REDUCE(MPI_IN_PLACE , volume      , 1    , MPI_DOUBLE_PRECISION , MPI_SUM , 0 , MPI_COMM_PICLAS , iError)
+    CALL MPI_REDUCE(MPI_IN_PLACE , L_Inf_Error , nVar , MPI_DOUBLE_PRECISION , MPI_MAX , 0 , MPI_COMM_PICLAS , iError)
   ELSE
-    CALL MPI_REDUCE(L_2_Error   , L_2_Error2   , nVar , MPI_DOUBLE_PRECISION , MPI_SUM , 0 , MPI_COMM_WORLD , iError)
-    CALL MPI_REDUCE(volume      , volume2      , 1    , MPI_DOUBLE_PRECISION , MPI_SUM , 0 , MPI_COMM_WORLD , iError)
-    CALL MPI_REDUCE(L_Inf_Error , L_Inf_Error2 , nVar , MPI_DOUBLE_PRECISION , MPI_MAX , 0 , MPI_COMM_WORLD , iError)
+    CALL MPI_REDUCE(L_2_Error   , L_2_Error2   , nVar , MPI_DOUBLE_PRECISION , MPI_SUM , 0 , MPI_COMM_PICLAS , iError)
+    CALL MPI_REDUCE(volume      , volume2      , 1    , MPI_DOUBLE_PRECISION , MPI_SUM , 0 , MPI_COMM_PICLAS , iError)
+    CALL MPI_REDUCE(L_Inf_Error , L_Inf_Error2 , nVar , MPI_DOUBLE_PRECISION , MPI_MAX , 0 , MPI_COMM_PICLAS , iError)
     ! in this case the receive value is not relevant.
   END IF
 #endif /*USE_MPI*/
@@ -690,13 +707,13 @@ DO iElem=1,nElems
 END DO ! iElem=1,nElems
 #if USE_MPI
   IF(MPIroot)THEN
-    CALL MPI_REDUCE(MPI_IN_PLACE , L_2_Error    , nVar , MPI_DOUBLE_PRECISION , MPI_SUM , 0 , MPI_COMM_WORLD , iError)
-    CALL MPI_REDUCE(MPI_IN_PLACE , volume       , 1    , MPI_DOUBLE_PRECISION , MPI_SUM , 0 , MPI_COMM_WORLD , iError)
-    CALL MPI_REDUCE(MPI_IN_PLACE , L_Inf_Error  , nVar , MPI_DOUBLE_PRECISION , MPI_MAX , 0 , MPI_COMM_WORLD , iError)
+    CALL MPI_REDUCE(MPI_IN_PLACE , L_2_Error    , nVar , MPI_DOUBLE_PRECISION , MPI_SUM , 0 , MPI_COMM_PICLAS , iError)
+    CALL MPI_REDUCE(MPI_IN_PLACE , volume       , 1    , MPI_DOUBLE_PRECISION , MPI_SUM , 0 , MPI_COMM_PICLAS , iError)
+    CALL MPI_REDUCE(MPI_IN_PLACE , L_Inf_Error  , nVar , MPI_DOUBLE_PRECISION , MPI_MAX , 0 , MPI_COMM_PICLAS , iError)
   ELSE
-    CALL MPI_REDUCE(L_2_Error    , L_2_Error2   , nVar , MPI_DOUBLE_PRECISION , MPI_SUM , 0 , MPI_COMM_WORLD , iError)
-    CALL MPI_REDUCE(volume       , volume2      , 1    , MPI_DOUBLE_PRECISION , MPI_SUM , 0 , MPI_COMM_WORLD , iError)
-    CALL MPI_REDUCE(L_Inf_Error  , L_Inf_Error2 , nVar , MPI_DOUBLE_PRECISION , MPI_MAX , 0 , MPI_COMM_WORLD , iError)
+    CALL MPI_REDUCE(L_2_Error    , L_2_Error2   , nVar , MPI_DOUBLE_PRECISION , MPI_SUM , 0 , MPI_COMM_PICLAS , iError)
+    CALL MPI_REDUCE(volume       , volume2      , 1    , MPI_DOUBLE_PRECISION , MPI_SUM , 0 , MPI_COMM_PICLAS , iError)
+    CALL MPI_REDUCE(L_Inf_Error  , L_Inf_Error2 , nVar , MPI_DOUBLE_PRECISION , MPI_MAX , 0 , MPI_COMM_PICLAS , iError)
     ! in this case the receive value is not relevant.
   END IF
 #endif /*USE_MPI*/
@@ -808,32 +825,51 @@ SUBROUTINE FinalizeAnalyze()
 ! Finalizes variables necessary for analyse subroutines
 !===================================================================================================================================
 ! MODULES
+USE MOD_Globals
 #if PP_nVar>=6
-USE MOD_Analyze_Vars,     ONLY: CalcPoyntingInt
-USE MOD_AnalyzeField,     ONLY: FinalizePoyntingInt
+USE MOD_Analyze_Vars       ,ONLY: CalcPoyntingInt
+USE MOD_AnalyzeField       ,ONLY: FinalizePoyntingInt
 #endif /*PP_nVar>=6*/
-USE MOD_Analyze_Vars,     ONLY: PPWCell,AnalyzeInitIsDone
-USE MOD_TimeAverage_Vars, ONLY: doCalcTimeAverage
-USE MOD_TimeAverage,      ONLY: FinalizeTimeAverage
+USE MOD_Analyze_Vars       ,ONLY: PPWCell,AnalyzeInitIsDone
+USE MOD_TimeAverage_Vars   ,ONLY: doCalcTimeAverage
+USE MOD_TimeAverage        ,ONLY: FinalizeTimeAverage
 #if USE_HDG
-USE MOD_Analyze_Vars,     ONLY: CalcAverageElectricPotential
-USE MOD_AnalyzeField,     ONLY: FinalizeAverageElectricPotential
+USE MOD_Analyze_Vars       ,ONLY: CalcAverageElectricPotential,EDC
+USE MOD_AnalyzeField       ,ONLY: FinalizeAverageElectricPotential
+USE MOD_Analyze_Vars       ,ONLY: CalcElectricTimeDerivative
 #endif /*USE_HDG*/
-! IMPLICIT VARIABLE HANDLINGDGInitIsDone
+USE MOD_Interpolation_Vars ,ONLY: UEx
+! IMPLICIT VARIABLE HANDLINGDG
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
+#if USE_HDG && USE_MPI
+INTEGER :: iEDCBC
+#endif /*USE_HDG && USE_MPI*/
 !===================================================================================================================================
 #if PP_nVar>=6
 IF(CalcPoyntingInt) CALL FinalizePoyntingInt()
 #endif /*PP_nVar>=6*/
 #if USE_HDG
 IF(CalcAverageElectricPotential) CALL FinalizeAverageElectricPotential()
+! Electric displacement current
+IF(CalcElectricTimeDerivative)THEN
+  SDEALLOCATE(EDC%Current)
+  SDEALLOCATE(EDC%FieldBoundaries)
+  SDEALLOCATE(EDC%BCIDToEDCBCID)
+#if USE_MPI
+  DO iEDCBC = 1, EDC%NBoundaries
+    IF(EDC%COMM(iEDCBC)%UNICATOR.NE.MPI_COMM_NULL) CALL MPI_COMM_FREE(EDC%COMM(iEDCBC)%UNICATOR,iERROR)
+  END DO
+  SDEALLOCATE(EDC%COMM)
+#endif /*USE_MPI*/
+END IF ! CalcElectricTimeDerivative
 #endif /*USE_HDG*/
 IF(doCalcTimeAverage) CALL FinalizeTimeAverage
 SDEALLOCATE(PPWCell)
+SDEALLOCATE(UEx)
 AnalyzeInitIsDone = .FALSE.
 END SUBROUTINE FinalizeAnalyze
 
@@ -876,7 +912,8 @@ USE MOD_Globals_Vars              ,ONLY: ProjectName
 USE MOD_AnalyzeField              ,ONLY: AnalyzeField
 #ifdef PARTICLES
 USE MOD_Mesh_Vars                 ,ONLY: MeshFile
-USE MOD_Particle_Vars             ,ONLY: WriteMacroVolumeValues,WriteMacroSurfaceValues,MacroValSamplIterNum
+USE MOD_Particle_Vars             ,ONLY: WriteMacroVolumeValues,WriteMacroSurfaceValues,MacroValSamplIterNum,ExcitationSampleData
+USE MOD_Particle_Vars             ,ONLY: SampleElecExcitation
 USE MOD_Particle_Analyze          ,ONLY: AnalyzeParticles
 USE MOD_Particle_Analyze_Tools    ,ONLY: CalculatePartElemData
 USE MOD_Particle_Analyze_Output   ,ONLY: WriteParticleTrackingData
@@ -894,7 +931,7 @@ USE MOD_Particle_Boundary_Vars    ,ONLY: nComputeNodeSurfTotalSides, CalcSurface
 USE MOD_Particle_Boundary_Vars    ,ONLY: SampWallState,SampWallImpactEnergy,SampWallImpactVector
 USE MOD_Particle_Boundary_Vars    ,ONLY: SampWallPumpCapacity,SampWallImpactAngle,SampWallImpactNumber
 USE MOD_DSMC_Analyze              ,ONLY: DSMC_data_sampling, WriteDSMCToHDF5
-USE MOD_DSMC_Analyze              ,ONLY: CalcSurfaceValues
+USE MOD_Particle_Boundary_Sampling,ONLY: CalcSurfaceValues
 USE MOD_Particle_Vars             ,ONLY: DelayTime
 #ifdef CODE_ANALYZE
 USE MOD_Particle_Surfaces_Vars    ,ONLY: rTotalBBChecks,rTotalBezierClips,rTotalBezierNewton
@@ -917,6 +954,7 @@ USE MOD_LoadBalance_Timers        ,ONLY: LBStartTime,LBPauseTime
 #ifdef PARTICLES
 USE MOD_PICDepo_Vars              ,ONLY: DoDeposition, RelaxDeposition
 #endif /*PARTICLES*/
+USE MOD_TimeDisc_Vars             ,ONLY: time
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
@@ -971,9 +1009,10 @@ REAL                          :: CurrentTime
 #ifdef EXTRAE
 CALL extrae_eventandcounters(int(9000001), int8(6))
 #endif /*EXTRAE*/
+EndAnalyzeTime = -1.0 ! initialize
 
 ! Create .csv file for performance analysis and load balance: write header line
-CALL WriteElemTimeStatistics(WriteHeader=.TRUE.,iter_opt=iter)
+CALL WriteElemTimeStatistics(WriteHeader=.TRUE.,iter_opt=iter,time_opt=time)
 
 ! check if final/last iteration iteration
 LastIter=.FALSE.
@@ -1041,7 +1080,7 @@ IF(MOD(iter,PartAnalyzeStep).NE.0 .AND. OutPutHDF5)       DoPerformPartAnalyze=.
 IF(DoRestart .AND. iter.EQ.0) DoPerformPartAnalyze=.FALSE.
 ! Finally, remove duplicates for last iteration
 ! This step is needed, because PerformAnalyze is called twice within the iterations
-IF(FirstOrLastIter .AND. .NOT.OutPutHDF5 .AND.iter.NE.0) DoPerformPartAnalyze=.FALSE.
+IF(FirstOrLastIter.AND.(.NOT.OutPutHDF5).AND.(iter.NE.0)) DoPerformPartAnalyze=.FALSE.
 
 ! SurfaceAnalyzeStep
 ! 2) normal analyze at analyze step
@@ -1129,7 +1168,12 @@ END IF
 ! PIC, DSMC and other Particle-based Solvers
 !----------------------------------------------------------------------------------------------------------------------------------
 #ifdef PARTICLES
-IF (DoPartAnalyze.AND.DoPerformPartAnalyze)          CALL AnalyzeParticles(OutputTime)
+! The following if clause might be simplified
+IF((OutPutHDF5.OR.FirstOrLastIter) .AND. .NOT.(FirstOrLastIter.AND.(.NOT.OutPutHDF5).AND.(iter.NE.0))) CALL CalculatePartElemData()
+#endif /*PARTICLES*/
+
+#ifdef PARTICLES
+IF(DoPartAnalyze.AND.DoPerformPartAnalyze)           CALL AnalyzeParticles(OutputTime)
 IF(DoPerformSurfaceAnalyze)                          CALL AnalyzeSurface(OutputTime)
 IF(TrackParticlePosition.AND.DoPerformPartAnalyze)   CALL WriteParticleTrackingData(OutputTime,iter) ! new function
 #ifdef CODE_ANALYZE
@@ -1137,10 +1181,6 @@ IF(DoInterpolationAnalytic.AND.DoPerformPartAnalyze) CALL AnalyticParticleMoveme
 #endif /*CODE_ANALYZE*/
 #endif /*PARTICLES*/
 
-#ifdef PARTICLES
-! OutPutHDF5 should be sufficient here
-IF(OutPutHDF5 .OR. FirstOrLastIter) CALL CalculatePartElemData()
-#endif /*PARTICLES*/
 
 !----------------------------------------------------------------------------------------------------------------------------------
 ! DSMC
@@ -1157,6 +1197,7 @@ IF ((WriteMacroVolumeValues).AND.(.NOT.OutputHDF5))THEN
     iter_macvalout = 0
     DSMC%SampNum = 0
     DSMC_Solution = 0.0
+    IF(SampleElecExcitation) ExcitationSampleData = 0.0
     IF(DSMC%CalcQualityFactors) THEN
       DSMC%QualityFacSamp(:,:) = 0.
       IF(BGKInitDone) BGK_QualityFacSamp(:,:) = 0.
@@ -1204,13 +1245,13 @@ END IF
 IF(OutPutHDF5 .AND. MeasureTrackTime)THEN
 #if USE_MPI
   IF(MPIRoot) THEN
-    CALL MPI_REDUCE(MPI_IN_PLACE  , nTracks       , 1 , MPI_INTEGER          , MPI_SUM , 0 , MPI_COMM_WORLD , IERROR)
-    CALL MPI_REDUCE(MPI_IN_PLACE  , tTracking     , 1 , MPI_DOUBLE_PRECISION , MPI_SUM , 0 , MPI_COMM_WORLD , IERROR)
-    CALL MPI_REDUCE(MPI_IN_PLACE  , tLocalization , 1 , MPI_DOUBLE_PRECISION , MPI_SUM , 0 , MPI_COMM_WORLD , IERROR)
+    CALL MPI_REDUCE(MPI_IN_PLACE  , nTracks       , 1 , MPI_INTEGER          , MPI_SUM , 0 , MPI_COMM_PICLAS , IERROR)
+    CALL MPI_REDUCE(MPI_IN_PLACE  , tTracking     , 1 , MPI_DOUBLE_PRECISION , MPI_SUM , 0 , MPI_COMM_PICLAS , IERROR)
+    CALL MPI_REDUCE(MPI_IN_PLACE  , tLocalization , 1 , MPI_DOUBLE_PRECISION , MPI_SUM , 0 , MPI_COMM_PICLAS , IERROR)
   ELSE ! no Root
-    CALL MPI_REDUCE(nTracks       , RECI          , 1 , MPI_INTEGER          , MPI_SUM , 0 , MPI_COMM_WORLD , IERROR)
-    CALL MPI_REDUCE(tTracking     , RECR          , 1 , MPI_DOUBLE_PRECISION , MPI_SUM , 0 , MPI_COMM_WORLD , IERROR)
-    CALL MPI_REDUCE(tLocalization , RECR          , 1 , MPI_DOUBLE_PRECISION , MPI_SUM , 0 , MPI_COMM_WORLD , IERROR)
+    CALL MPI_REDUCE(nTracks       , RECI          , 1 , MPI_INTEGER          , MPI_SUM , 0 , MPI_COMM_PICLAS , IERROR)
+    CALL MPI_REDUCE(tTracking     , RECR          , 1 , MPI_DOUBLE_PRECISION , MPI_SUM , 0 , MPI_COMM_PICLAS , IERROR)
+    CALL MPI_REDUCE(tLocalization , RECR          , 1 , MPI_DOUBLE_PRECISION , MPI_SUM , 0 , MPI_COMM_PICLAS , IERROR)
   END IF
 #endif /*USE_MPI*/
   SWRITE(UNIT_StdOut,'(132("-"))')
@@ -1242,9 +1283,9 @@ IF(TrackingMethod.NE.TRIATRACKING)THEN
 !      TotalSideBoundingBoxVolume=SUM(SideBoundingBoxVolume)
 !#if USE_MPI
 !      IF(MPIRoot) THEN
-!        CALL MPI_REDUCE(MPI_IN_PLACE, TotalSideBoundingBoxVolume , 1 , MPI_DOUBLE_PRECISION , MPI_SUM , 0 , MPI_COMM_WORLD , IERROR)
+!        CALL MPI_REDUCE(MPI_IN_PLACE, TotalSideBoundingBoxVolume , 1 , MPI_DOUBLE_PRECISION , MPI_SUM , 0 , MPI_COMM_PICLAS , IERROR)
 !      ELSE ! no Root
-!        CALL MPI_REDUCE(TotalSideBoundingBoxVolume ,           0 , 1 , MPI_DOUBLE_PRECISION , MPI_SUM , 0 , MPI_COMM_WORLD , IERROR)
+!        CALL MPI_REDUCE(TotalSideBoundingBoxVolume ,           0 , 1 , MPI_DOUBLE_PRECISION , MPI_SUM , 0 , MPI_COMM_PICLAS , IERROR)
 !      END IF
 !#endif /*USE_MPI*/
 !      SWRITE(UNIT_stdOut,'(A35,E15.7)') ' Total Volume of SideBoundingBox: ' , TotalSideBoundingBoxVolume
@@ -1282,7 +1323,7 @@ IF(DoPerformErrorCalc)THEN
     END IF
   END IF
 #endif /* PARTICLES */
-  IF(.NOT.DoMeasureAnalyzeTime) StartAnalyzeTime=PICLASTIME()
+  IF(EndAnalyzeTime.LT.0.0) EndAnalyzeTime=PICLASTIME()
   IF(MPIroot) THEN
     ! write out has to be "Sim time" due to analyzes in reggie. Reggie searches for exactly this tag
     WRITE(UNIT_StdOut,'(A13,ES16.7)')' Sim time  : ',OutputTime
@@ -1293,8 +1334,7 @@ IF(DoPerformErrorCalc)THEN
     END IF ! DoMeasureAnalyzeTime
     IF (OutputTime.GT.0.) THEN
       WRITE(UNIT_StdOut,'(132("."))')
-      WRITE(UNIT_stdOut,'(A,A,A,F14.2,A)') ' PICLAS RUNNING ',TRIM(ProjectName),'... [',StartAnalyzeTime-StartTime,' sec ]'
-      WRITE(UNIT_StdOut,'(132("-"))')
+      CALL DisplayMessageAndTime(EndAnalyzeTime-StartTime, 'PICLAS RUNNING '//TRIM(ProjectName)//'... ', DisplayDespiteLB=.TRUE.)
     ELSE
       WRITE(UNIT_StdOut,'(132("="))')
     END IF
@@ -1375,13 +1415,13 @@ IF (DoPartAnalyze) THEN
  ! MPI Communication
 #if USE_MPI
   IF(MPIRoot) THEN
-    CALL MPI_REDUCE(MPI_IN_PLACE         , rBoundingBoxChecks   , 1 , MPI_DOUBLE_PRECISION , MPI_SUM , 0 , MPI_COMM_WORLD , IERROR)
-    CALL MPI_REDUCE(MPI_IN_PLACE         , rPerformBezierClip   , 1 , MPI_DOUBLE_PRECISION , MPI_SUM , 0 , MPI_COMM_WORLD , IERROR)
-    CALL MPI_REDUCE(MPI_IN_PLACE         , rPerformBezierNewton , 1 , MPI_DOUBLE_PRECISION , MPI_SUM , 0 , MPI_COMM_WORLD , IERROR)
+    CALL MPI_REDUCE(MPI_IN_PLACE         , rBoundingBoxChecks   , 1 , MPI_DOUBLE_PRECISION , MPI_SUM , 0 , MPI_COMM_PICLAS , IERROR)
+    CALL MPI_REDUCE(MPI_IN_PLACE         , rPerformBezierClip   , 1 , MPI_DOUBLE_PRECISION , MPI_SUM , 0 , MPI_COMM_PICLAS , IERROR)
+    CALL MPI_REDUCE(MPI_IN_PLACE         , rPerformBezierNewton , 1 , MPI_DOUBLE_PRECISION , MPI_SUM , 0 , MPI_COMM_PICLAS , IERROR)
   ELSE ! no Root
-    CALL MPI_REDUCE(rBoundingBoxChecks   , rDummy               , 1 , MPI_DOUBLE_PRECISION , MPI_SUM , 0 , MPI_COMM_WORLD , IERROR)
-    CALL MPI_REDUCE(rPerformBezierClip   , rDummy               , 1 , MPI_DOUBLE_PRECISION , MPI_SUM , 0 , MPI_COMM_WORLD , IERROR)
-    CALL MPI_REDUCE(rPerformBezierNewton , rDummy               , 1 , MPI_DOUBLE_PRECISION , MPI_SUM , 0 , MPI_COMM_WORLD , IERROR)
+    CALL MPI_REDUCE(rBoundingBoxChecks   , rDummy               , 1 , MPI_DOUBLE_PRECISION , MPI_SUM , 0 , MPI_COMM_PICLAS , IERROR)
+    CALL MPI_REDUCE(rPerformBezierClip   , rDummy               , 1 , MPI_DOUBLE_PRECISION , MPI_SUM , 0 , MPI_COMM_PICLAS , IERROR)
+    CALL MPI_REDUCE(rPerformBezierNewton , rDummy               , 1 , MPI_DOUBLE_PRECISION , MPI_SUM , 0 , MPI_COMM_PICLAS , IERROR)
   END IF
 #endif /*USE_MPI*/
 
@@ -1420,5 +1460,132 @@ rPerformBezierNewton=0.
 END SUBROUTINE CodeAnalyzeOutput
 #endif /*CODE_ANALYZE*/
 #endif /*PARTICLES*/
+
+#if USE_HDG
+!===================================================================================================================================
+!> Create containers and communicators for each boundary on which the electric displacement current is calculated and agglomerated
+!> This is done for all normal BCs except periodic BCs.
+!>
+!
+!> 1.) Loop over all field BCs and check if the current processor is either the MPI root or has at least one of the BCs that
+!>     contribute to the total electric displacement current. If yes, then this processor is part of the communicator
+!> 2.) Create Mapping from electric displacement current BC index to field BC index
+!> 3.) Create Mapping from field BC index to electric displacement current BC index
+!> 4.) Check if field BC is on current proc (or MPI root)
+!> 5.) Create MPI sub-communicators
+!===================================================================================================================================
+SUBROUTINE InitCalcElectricTimeDerivativeSurface()
+! MODULES
+USE MOD_Globals
+USE MOD_Preproc
+USE MOD_Mesh_Vars        ,ONLY: nBCs,BoundaryType
+USE MOD_Analyze_Vars     ,ONLY: DoFieldAnalyze,CalcElectricTimeDerivative,EDC
+USE MOD_Equation_Vars    ,ONLY: Et
+#if USE_LOADBALANCE
+USE MOD_LoadBalance_Vars ,ONLY: PerformLoadBalance
+#endif /*USE_LOADBALANCE*/
+#if USE_MPI
+USE MOD_Mesh_Vars        ,ONLY: BoundaryName,nBCSides,BC
+#endif /*USE_MPI*/
+IMPLICIT NONE
+!----------------------------------------------------------------------------------------------------------------------------------!
+! INPUT / OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER             :: iBC,iEDCBC
+#if USE_MPI
+LOGICAL,ALLOCATABLE :: BConProc(:)
+INTEGER             :: SideID,color
+#endif /*USE_MPI*/
+!===================================================================================================================================
+IF(.NOT.CalcElectricTimeDerivative) RETURN ! Read-in parameter that is set in  InitAnalyze() in analyze.f90
+
+! Allocate temporal derivative for E: No need to nullify as is it overwritten with E the first time it is used
+ALLOCATE(Et(1:3,0:PP_N,0:PP_N,0:PP_N,PP_nElems))
+Et = 0.
+
+! 1.) Loop over all field BCs and check if the current processor is either the MPI root or has at least one of the BCs that
+! contribute to the total electric displacement current. If yes, then this processor is part of the communicator
+EDC%NBoundaries = 0
+DO iBC=1,nBCs
+  IF(BoundaryType(iBC,BC_ALPHA).NE.0) CYCLE
+  EDC%NBoundaries = EDC%NBoundaries + 1
+END DO
+
+! If not electric displacement current boundaries exist, no measurement of the current can be performed
+IF(EDC%NBoundaries.EQ.0) RETURN
+
+! Automatically activate surface model analyze flag
+DoFieldAnalyze = .TRUE.
+
+! 2.) Create Mapping from electric displacement current BC index to field BC index
+ALLOCATE(EDC%FieldBoundaries(EDC%NBoundaries))
+EDC%NBoundaries = 0
+DO iBC=1,nBCs
+  IF(BoundaryType(iBC,BC_ALPHA).NE.0) CYCLE
+  EDC%NBoundaries = EDC%NBoundaries + 1
+  EDC%FieldBoundaries(EDC%NBoundaries) = iBC
+END DO
+
+! Allocate the container
+ALLOCATE(EDC%Current(1:EDC%NBoundaries))
+EDC%Current = 0.
+
+! 3.) Create Mapping from field BC index to electric displacement current BC index
+ALLOCATE(EDC%BCIDToEDCBCID(nBCs))
+EDC%BCIDToEDCBCID = -1
+DO iEDCBC = 1, EDC%NBoundaries
+  iBC = EDC%FieldBoundaries(iEDCBC)
+  EDC%BCIDToEDCBCID(iBC) = iEDCBC
+END DO ! iEDCBC = 1, EDC%NBoundaries
+
+#if USE_MPI
+! 4.) Check if field BC is on current proc (or MPI root)
+ALLOCATE(BConProc(EDC%NBoundaries))
+BConProc = .FALSE.
+IF(MPIRoot)THEN
+  BConProc = .TRUE.
+ELSE
+  DO SideID=1,nBCSides
+    IF(BoundaryType(BC(SideID),BC_ALPHA).NE.0) CYCLE
+    iBC     = BC(SideID)
+    iEDCBC  = EDC%BCIDToEDCBCID(iBC)
+    BConProc(iEDCBC) = .TRUE.
+  END DO ! SideID=1,nBCSides
+END IF ! MPIRoot
+
+! 5.) Create MPI sub-communicators
+ALLOCATE(EDC%COMM(EDC%NBoundaries))
+DO iEDCBC = 1, EDC%NBoundaries
+  ! create new communicator
+  color = MERGE(iEDCBC, MPI_UNDEFINED, BConProc(iEDCBC))
+
+  ! set communicator id
+  EDC%COMM(iEDCBC)%ID=iEDCBC
+
+  ! create new emission communicator for electric displacement current communication. Pass MPI_INFO_NULL as rank to follow the original ordering
+  CALL MPI_COMM_SPLIT(MPI_COMM_PICLAS, color, MPI_INFO_NULL, EDC%COMM(iEDCBC)%UNICATOR, iError)
+
+  ! Find my rank on the shared communicator, comm size and proc name
+  IF(BConProc(iEDCBC))THEN
+    CALL MPI_COMM_RANK(EDC%COMM(iEDCBC)%UNICATOR, EDC%COMM(iEDCBC)%MyRank, iError)
+    CALL MPI_COMM_SIZE(EDC%COMM(iEDCBC)%UNICATOR, EDC%COMM(iEDCBC)%nProcs, iError)
+
+    ! inform about size of emission communicator
+    IF (EDC%COMM(iEDCBC)%MyRank.EQ.0) THEN
+#if USE_LOADBALANCE
+      IF(.NOT.PerformLoadBalance)&
+#endif /*USE_LOADBALANCE*/
+          WRITE(UNIT_StdOut,'(A,I0,A,I0,A)') ' Electric displacement current: Emission-Communicator ',iEDCBC,' on ',&
+              EDC%COMM(iEDCBC)%nProcs,' procs for '//TRIM(BoundaryName(EDC%FieldBoundaries(iEDCBC)))
+    END IF
+  END IF ! BConProc(iEDCBC)
+END DO ! iEDCBC = 1, EDC%NBoundaries
+DEALLOCATE(BConProc)
+#endif /*USE_MPI*/
+
+
+END SUBROUTINE InitCalcElectricTimeDerivativeSurface
+#endif /*USE_HDG*/
 
 END MODULE MOD_Analyze

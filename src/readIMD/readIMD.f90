@@ -50,6 +50,7 @@ subroutine read_IMD_results()
   use mod_part_tools,only:UpdateNextFreePosition
   use mod_mesh,only:getmeshminmaxboundaries
   use mod_mesh_vars,only:xyzMinMax
+  use mod_HDF5_Output_Particles,only:FillParticleData
 
   implicit none
   ! --------------------------------------------------------
@@ -107,7 +108,7 @@ subroutine read_IMD_results()
       write(UNIT_errOut,'(A34,I8,6A)')'Error during MPI_File_open! Rank: ', myRank, '\n',&
                                       'Error-Message: ', trim(errorString), ' "',trim(filenameIMDresults), '"',&
                                       'The program will be terminated!!!'
-      call MPI_Abort(MPI_COMM_WORLD, mpiFileError, iError)
+      call MPI_Abort(MPI_COMM_PICLAS, mpiFileError, iError)
     end if
 
     call MPI_FILE_READ_AT(filehandle,3_8,disp_tmp,2,MPI_BYTE,ioStatus,iError)
@@ -126,12 +127,12 @@ subroutine read_IMD_results()
 
   end if
 
-  call MPI_BCAST(Box_X, 3, MPI_DOUBLE_PRECISION, 0, MPI_COMM_WORLD, iError)
-  call MPI_BCAST(Box_Y, 3, MPI_DOUBLE_PRECISION, 0, MPI_COMM_WORLD, iError)
-  call MPI_BCAST(Box_Z, 3, MPI_DOUBLE_PRECISION, 0, MPI_COMM_WORLD, iError)
-  call MPI_BCAST(nGlobalAtoms, 8, MPI_BYTE, 0, MPI_COMM_WORLD, iError)
-  call MPI_BCAST(observables, 1, MPI_INTEGER, 0, MPI_COMM_WORLD, iError)
-  call MPI_BCAST(disp, 8, MPI_BYTE, 0, MPI_COMM_WORLD, iError)
+  call MPI_BCAST(Box_X, 3, MPI_DOUBLE_PRECISION, 0, MPI_COMM_PICLAS, iError)
+  call MPI_BCAST(Box_Y, 3, MPI_DOUBLE_PRECISION, 0, MPI_COMM_PICLAS, iError)
+  call MPI_BCAST(Box_Z, 3, MPI_DOUBLE_PRECISION, 0, MPI_COMM_PICLAS, iError)
+  call MPI_BCAST(nGlobalAtoms, 8, MPI_BYTE, 0, MPI_COMM_PICLAS, iError)
+  call MPI_BCAST(observables, 1, MPI_INTEGER, 0, MPI_COMM_PICLAS, iError)
+  call MPI_BCAST(disp, 8, MPI_BYTE, 0, MPI_COMM_PICLAS, iError)
 
   nAtoms = nGlobalAtoms/nProcessors
   SWRITE(UNIT_stdOut,*)'Number of atoms per proc: ',nAtoms
@@ -169,7 +170,7 @@ subroutine read_IMD_results()
     StartT=MPI_WTIME()
   end if
 
-  call MPI_FILE_OPEN(MPI_COMM_WORLD, trim(filenameIMDresults), MPI_MODE_RDONLY,&
+  call MPI_FILE_OPEN(MPI_COMM_PICLAS, trim(filenameIMDresults), MPI_MODE_RDONLY,&
                       mpiInfo, filehandle, mpiFileError)
 
   if( mpiFileError /= 0)then
@@ -177,7 +178,7 @@ subroutine read_IMD_results()
     write(UNIT_errOut,'(A34,I8,6A)')'Error during MPI_File_open! Rank: ', myRank, '\n',&
                                     'Error-Message: ', trim(errorString), ' "',trim(filenameIMDresults), '"',&
                                     'The program will be terminated!!!'
-    call MPI_Abort(MPI_COMM_WORLD, mpiFileError, iError)
+    call MPI_Abort(MPI_COMM_PICLAS, mpiFileError, iError)
   end if
 
   call MPI_FILE_SET_VIEW(filehandle, myFileOffset, MPI_PACKED, MPI_PACKED, 'native', mpiInfo, iError)
@@ -216,12 +217,12 @@ subroutine read_IMD_results()
 
   do iPart=1,PDM%ParticleVecLength
     call MPI_UNPACK(AtomsBuffer, atomBufferSize, atomsBufferPos, PartState(1:6,iPart),&
-                    6_4, MPI_DOUBLE_PRECISION, MPI_COMM_WORLD, iError)
+                    6_4, MPI_DOUBLE_PRECISION, MPI_COMM_PICLAS, iError)
     if ( iError .NE. 0 ) &
         IPWRITE(UNIT_stdOut,'(I0,A,I0)')'Error unpacking particle position to PartState(1:6,iPart) with iPart=',iPart
 
     call MPI_UNPACK(AtomsBuffer, atomBufferSize, atomsBufferPos, PartStateIntEn(1:2,iPart),&
-                    int( observables-6_8, 4 ), MPI_DOUBLE_PRECISION, MPI_COMM_WORLD, iError)
+                    int( observables-6_8, 4 ), MPI_DOUBLE_PRECISION, MPI_COMM_PICLAS, iError)
     if ( iError .NE. 0 ) &
         IPWRITE(UNIT_stdOut,'(I0,A,I0)')'Error unpacking particle charge and electron temperature to PartState(1:2,iPart) with iPart=',iPart
   end do
@@ -237,7 +238,7 @@ subroutine read_IMD_results()
   PartState = PartState * 1e-10_8
   PartState(4:6,:) = PartState(4:6,:) * 10.18e15_8
 
-  ! Free an info object 
+  ! Free an info object
   call MPI_Info_free(mpiInfo, iError)
 
   ! Get minimum and maximum extend of the complete particle distribution in the domain
@@ -249,14 +250,14 @@ subroutine read_IMD_results()
   MaxY = MAXVAL(PartState(2,:))
   MaxZ = MAXVAL(PartState(3,:))
 
-  CALL MPI_REDUCE(MaxX , MaxX_glob , 1 , MPI_DOUBLE_PRECISION , MPI_MAX , 0 , MPI_COMM_WORLD , iError)
-  CALL MPI_REDUCE(MinX , MinX_glob , 1 , MPI_DOUBLE_PRECISION , MPI_MIN , 0 , MPI_COMM_WORLD , iError)
+  CALL MPI_REDUCE(MaxX , MaxX_glob , 1 , MPI_DOUBLE_PRECISION , MPI_MAX , 0 , MPI_COMM_PICLAS , iError)
+  CALL MPI_REDUCE(MinX , MinX_glob , 1 , MPI_DOUBLE_PRECISION , MPI_MIN , 0 , MPI_COMM_PICLAS , iError)
 
-  CALL MPI_REDUCE(MaxY , MaxY_glob , 1 , MPI_DOUBLE_PRECISION , MPI_MAX , 0 , MPI_COMM_WORLD , iError)
-  CALL MPI_REDUCE(MinY , MinY_glob , 1 , MPI_DOUBLE_PRECISION , MPI_MIN , 0 , MPI_COMM_WORLD , iError)
+  CALL MPI_REDUCE(MaxY , MaxY_glob , 1 , MPI_DOUBLE_PRECISION , MPI_MAX , 0 , MPI_COMM_PICLAS , iError)
+  CALL MPI_REDUCE(MinY , MinY_glob , 1 , MPI_DOUBLE_PRECISION , MPI_MIN , 0 , MPI_COMM_PICLAS , iError)
 
-  CALL MPI_REDUCE(MaxZ , MaxZ_glob , 1 , MPI_DOUBLE_PRECISION , MPI_MAX , 0 , MPI_COMM_WORLD , iError)
-  CALL MPI_REDUCE(MinZ , MinZ_glob , 1 , MPI_DOUBLE_PRECISION , MPI_MIN , 0 , MPI_COMM_WORLD , iError)
+  CALL MPI_REDUCE(MaxZ , MaxZ_glob , 1 , MPI_DOUBLE_PRECISION , MPI_MAX , 0 , MPI_COMM_PICLAS , iError)
+  CALL MPI_REDUCE(MinZ , MinZ_glob , 1 , MPI_DOUBLE_PRECISION , MPI_MIN , 0 , MPI_COMM_PICLAS , iError)
 
   if( mpiroot )then
     EndT=MPI_WTIME()
@@ -280,7 +281,7 @@ subroutine read_IMD_results()
       NbrOfLostParticles=NbrOfLostParticles+1
     end if
   end do
-  CALL MPI_REDUCE(NbrOfLostParticles , NbrOfLostParticlesGlobal , 1 , MPI_DOUBLE_PRECISION , MPI_MAX , 0 , MPI_COMM_WORLD , iError)
+  CALL MPI_REDUCE(NbrOfLostParticles , NbrOfLostParticlesGlobal , 1 , MPI_DOUBLE_PRECISION , MPI_MAX , 0 , MPI_COMM_PICLAS , iError)
   if( mpiroot )then
     EndT=MPI_WTIME()
     WRITE(UNIT_stdOut,'(A,F0.3,A)',ADVANCE='YES')'DONE  [',EndT-StartT,'s]'
@@ -305,6 +306,7 @@ subroutine read_IMD_results()
     WRITE(UNIT_stdOut,'(A)',ADVANCE='NO')'Writing HDF5 data file ...'
   end if
 
+  call FillParticleData()
   !call WriteStateToHDF5( trim(meshfile), t, tFuture )
   call WriteStateToHDF5( trim(meshfile), 0.0_8, 0.0_8 )
 

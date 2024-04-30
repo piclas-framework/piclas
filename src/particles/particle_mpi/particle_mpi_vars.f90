@@ -1,7 +1,7 @@
 !==================================================================================================================================
 ! Copyright (c) 2010 - 2018 Prof. Claus-Dieter Munz and Prof. Stefanos Fasoulas
 !
-! This file is part of PICLas (gitlab.com/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
+! This file is part of PICLas (piclas.boltzplatz.eu/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
 ! it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3
 ! of the License, or (at your option) any later version.
 !
@@ -17,7 +17,7 @@ MODULE MOD_Particle_MPI_Vars
 ! Contains global variables provided by the particle surfaces routines
 !===================================================================================================================================
 ! MODULES
-!USE mpi
+USE MOD_Globals
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 PUBLIC
@@ -28,13 +28,16 @@ SAVE
 ! GLOBAL VARIABLES
 INTEGER                                   :: nExchangeProcessors            ! number of MPI processes for particles exchange
 INTEGER,ALLOCATABLE                       :: ExchangeProcToGlobalProc(:,:)  ! mapping from exchange proc ID to global proc ID
+LOGICAL                                   :: DoParticleLatencyHiding        ! Activate particle exchange proc latency hiding
 INTEGER,ALLOCATABLE                       :: GlobalProcToExchangeProc(:,:)  ! mapping from global proc ID to exchange proc ID
 LOGICAL                                   :: ParticleMPIInitIsDone=.FALSE.
 LOGICAL                                   :: CheckExchangeProcs             ! On default, check if proc communication is symmetric
 LOGICAL                                   :: AbortExchangeProcs             ! Terminate run if proc communication is non-symmetric
 
 TYPE tPartMPIGROUP
-  INTEGER                                 :: COMM                           ! MPI communicator for PIC GTS region
+#if USE_MPI
+  INTEGER                                 :: COMM=MPI_COMM_NULL             ! MPI communicator for PIC GTS region
+#endif /*USE_MPI*/
   INTEGER                                 :: Request                        ! MPI request for asynchronous communication
   INTEGER                                 :: nProcs                         ! number of MPI processes for particles
   INTEGER                                 :: MyRank                         ! MyRank of PartMPIVAR%COMM
@@ -43,32 +46,7 @@ TYPE tPartMPIGROUP
   INTEGER,ALLOCATABLE                     :: CommToGroup(:)                 ! list containing the rank in PartMPI%COMM
 END TYPE
 
-TYPE tPeriodicPtr
-  INTEGER                  , ALLOCATABLE  :: BGMPeriodicBorder(:,:)         ! indices of periodic border nodes
-END TYPE
-
-#if USE_MPI
-TYPE tPartMPIConnect
-  TYPE(tPeriodicPtr)       , ALLOCATABLE  :: Periodic(:)                    ! data for different periodic borders for process
-  LOGICAL                                 :: isBGMNeighbor                  ! Flag: which process is neighber wrt. bckgrnd mesh
-  LOGICAL                                 :: isBGMPeriodicNeighbor          ! Flag: which process is neighber wrt. bckgrnd mesh
-  INTEGER                  , ALLOCATABLE  :: BGMBorder(:,:)                 ! indices of border nodes (1=min 2=max,xyz)
-  INTEGER                                 :: BGMPeriodicBorderCount         ! Number(#) of overlapping areas due to periodic bc
-END TYPE
-#endif /*USE_MPI*/
-
-TYPE tPartMPIVAR
-#if USE_MPI
-  TYPE(tPartMPIConnect)    , ALLOCATABLE  :: DepoBGMConnect(:)              ! MPI connect for each process
-#endif /*USE_MPI*/
-  TYPE(tPartMPIGROUP),ALLOCATABLE         :: InitGroup(:)                   ! small communicator for initialization
-  INTEGER                                 :: COMM                           ! MPI communicator for PIC GTS region
-  INTEGER                                 :: nProcs                         ! number of MPI processes for particles
-  INTEGER                                 :: MyRank                         ! MyRank of PartMPIVAR%COMM
-  LOGICAL                                 :: MPIRoot                        ! Root, MPIRank=0
-END TYPE
-
-TYPE (tPartMPIVAR)                        :: PartMPI
+TYPE(tPartMPIGROUP),ALLOCATABLE           :: PartMPIInitGroup(:)                   ! small communicator for initialization
 
 REAL                                      :: SafetyFactor                   ! Factor to scale the halo region with MPI
 REAL                                      :: halo_eps_velo                  ! halo_eps_velo
@@ -120,8 +98,8 @@ REAL, ALLOCATABLE                         :: PartShiftVector(:,:)           ! st
 #endif /*USE_MPI*/
 
 #if defined(MEASURE_MPI_WAIT)
-REAL(KIND=8)                              :: MPIW8TimePart(MPIW8SIZEPART)    ! measure the time on each proc it is in MPI_WAIT()
-                                                                            ! during particle communication
+REAL(KIND=8)                              :: MPIW8TimePart(MPIW8SIZEPART)  ! measure the time on each proc it is in MPI_WAIT() during particle communication
+INTEGER(KIND=8)                           :: MPIW8CountPart(MPIW8SIZEPART) ! counter for measurements on each proc it is in MPI_WAIT() during particle communication
 #endif /*defined(MEASURE_MPI_WAIT)*/
 !===================================================================================================================================
 

@@ -1,7 +1,7 @@
 !==================================================================================================================================
 ! Copyright (c) 2019 Prof. Claus-Dieter Munz and Prof. Stefanos Fasoulas
 !
-! This file is part of PICLas (gitlab.com/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
+! This file is part of PICLas (piclas.boltzplatz.eu/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
 ! it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3
 ! of the License, or (at your option) any later version.
 !
@@ -42,10 +42,12 @@ USE MOD_Mesh                  ,ONLY: InitMesh
 USE MOD_MPI_Shared
 #endif /*USE_MPI*/
 USE MOD_Globals_Init          ,ONLY: DefineParametersGlobals
+USE MOD_Mesh_ReadIn           ,ONLY: FinalizeMeshReadin
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 REAL                    :: SystemTime
+CHARACTER(32)           :: hilf
 !===================================================================================================================================
 ! Initialize
 !CALL InitializePiclas()
@@ -75,6 +77,8 @@ SWRITE(UNIT_stdOut,'(132("="))')
 SWRITE(UNIT_stdOut,'(A)')"superB version 1.0.0"
 SWRITE(UNIT_stdOut,'(132("="))')
 
+GETTIME(StartTime)
+
 CALL ParseCommandlineArguments()
 
 
@@ -94,6 +98,9 @@ CALL DefineParametersOutput()
 CALL DefineParametersMesh()
 CALL DefineParametersEquation()
 CALL DefineParametersSuperB()
+#if USE_MPI
+CALL DefineParametersMPIShared()
+#endif /*USE_MPI*/
 ! check for command line argument --help or --markdown
 IF (doPrintHelp.GT.0) THEN
   CALL PrintDefaultParameterFile(doPrintHelp.EQ.2, Args(1))
@@ -102,13 +109,13 @@ END IF
 
 ParameterFile = Args(1)
 
-StartTime=PICLASTIME()
 CALL prms%read_options(ParameterFile)
 ! Measure init duration
-SystemTime=PICLASTIME()
+GETTIME(SystemTime)
 SWRITE(UNIT_stdOut,'(132("="))')
-SWRITE(UNIT_stdOut,'(A,F14.2,A,I0,A)') ' READING INI DONE! [',SystemTime-StartTime,' sec ] NOW '&
-,prms%count_setentries(),' PARAMETERS ARE SET'
+WRITE(UNIT=hilf,FMT='(I0)') prms%count_setentries()
+CALL DisplayMessageAndTime(SystemTime-StartTime, ' READING INI DONE! NOW '//TRIM(hilf)//' PARAMETERS ARE SET',&
+DisplayDespiteLB=.TRUE., DisplayLine=.FALSE.)
 SWRITE(UNIT_stdOut,'(132("="))')
 
 CALL InitOutput()
@@ -139,10 +146,11 @@ SDEALLOCATE(BGFieldAnalytic)
 ! Finalize SuperB
 CALL FinalizeSuperB()
 CALL FinalizeMesh()
+CALL FinalizeMeshReadin(2)
 
-SystemTime=PICLASTIME()
+GETTIME(SystemTime)
 SWRITE(UNIT_stdOut,'(132("="))')
-SWRITE(UNIT_stdOut,'(A,F14.2,A,I0,A)') ' SuperB finished! [',SystemTime-StartTime,' sec ] '
+CALL DisplayMessageAndTime(SystemTime-StartTime, ' SuperB finished!', DisplayDespiteLB=.TRUE., DisplayLine=.FALSE.)
 SWRITE(UNIT_stdOut,'(132("="))')
 ! MPI
 #if USE_MPI

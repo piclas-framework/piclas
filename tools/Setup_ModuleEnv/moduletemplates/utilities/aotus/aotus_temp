@@ -1,0 +1,26 @@
+#%Module1.0#####################################################################
+##
+## modules aotus/aotusversion
+##
+## modulefiles/utilities/aotus/aotusversion
+##
+proc ModulesHelp { } {
+        global version modroot
+
+        puts stderr "aotus-aotusversion - sets the Environment for AOTUS-aotusversion"
+}
+
+module-whatis   "Sets the environment for using aotus-aotusversion"
+
+conflict aotus
+
+# for Tcl script use only
+set     topdir          AOTUSTOPDIR
+set     version         aotusversion
+set     sys             linux64
+
+prepend-path    AOTUS_DIR       $topdir
+prepend-path    AOTUS_ROOT      $topdir
+prepend-path    PATH            $topdir/include
+prepend-path    PATH            $topdir/bin
+prepend-path    LD_LIBRARY_PATH $topdir/lib

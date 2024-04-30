@@ -1,7 +1,7 @@
 !==================================================================================================================================
 ! Copyright (c) 2010 - 2018 Prof. Claus-Dieter Munz and Prof. Stefanos Fasoulas
 !
-! This file is part of PICLas (gitlab.com/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
+! This file is part of PICLas (piclas.boltzplatz.eu/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
 ! it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3
 ! of the License, or (at your option) any later version.
 !
@@ -55,9 +55,15 @@ INTERFACE PrintStatusLine
   MODULE PROCEDURE PrintStatusLine
 END INTERFACE
 
+INTERFACE PrintStatusLineRadiation
+  MODULE PROCEDURE PrintStatusLineRadiation
+END INTERFACE
+
+
 PUBLIC:: InitOutput
 PUBLIC:: PrintStatusLine
 PUBLIC:: DefineParametersOutput
+PUBLIC:: PrintStatusLineRadiation
 !===================================================================================================================================
 
 CONTAINS
@@ -164,7 +170,7 @@ END SUBROUTINE InitOutput
 !==================================================================================================================================
 !> Displays the actual status of the simulation
 !==================================================================================================================================
-SUBROUTINE PrintStatusLine(t,dt,tStart,tEnd)
+SUBROUTINE PrintStatusLine(t,dt,tStart,tEnd,mode)
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! description
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -172,23 +178,99 @@ SUBROUTINE PrintStatusLine(t,dt,tStart,tEnd)
 USE MOD_Globals
 USE MOD_PreProc
 USE MOD_Output_Vars , ONLY: doPrintStatusLine
+USE MOD_TimeDisc_Vars,ONLY: time_start
+!----------------------------------------------------------------------------------------------------------------------------------!
+! insert modules here
+!----------------------------------------------------------------------------------------------------------------------------------!
+IMPLICIT NONE
+! INPUT / OUTPUT VARIABLES
+REAL,INTENT(IN)    :: t      ! < current simulation time
+REAL,INTENT(IN)    :: dt     ! < current time step
+REAL,INTENT(IN)    :: tStart ! < start time of simulation
+REAL,INTENT(IN)    :: tEnd   ! < end time of simulation
+INTEGER,INTENT(IN) :: mode   ! < mode: 1: only print when doPrintStatusLine=T, 2: print during dt_analyze
+!----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+REAL               :: percent,time_remaining,mins,secs,hours,days
+CHARACTER(LEN=60)  :: hilf
+!==================================================================================================================================
+
+IF(mode.EQ.1)THEN
+  IF(.NOT.doPrintStatusLine) RETURN
+  hilf = ACHAR(13) ! ACHAR(13) is carriage return
+ELSEIF(mode.EQ.2)THEn
+  IF(doPrintStatusLine) RETURN
+  IF(ALMOSTEQUALRELATIVE(t,tEnd,1e-5)) RETURN
+  hilf = ACHAR(10) ! ACHAR(10) is Line feed (newline)
+ELSE
+  CALL abort(__STAMP__,'wrong mode = ',IntInfoOpt=mode)
+END IF ! mode.EQ.1
+
+IF(MPIroot)THEN
+#ifdef INTEL
+  OPEN(UNIT_stdOut,CARRIAGECONTROL='fortran')
+#endif
+  percent = (t-tStart) / (tEnd-tStart)
+  CALL CPU_TIME(time_remaining)
+  time_remaining = time_remaining - time_start
+  IF (percent.GT.0.0) time_remaining = time_remaining/percent - time_remaining
+  percent = percent*100.
+  secs = MOD(time_remaining,60.)
+  time_remaining = time_remaining / 60
+  mins = MOD(time_remaining,60.)
+  time_remaining = time_remaining / 60
+  hours = MOD(time_remaining,24.)
+  time_remaining = time_remaining / 24
+  !days = MOD(time_remaining,365.) ! Use this if years are also to be displayed
+  days = time_remaining
+#if USE_COFFEE
+  WRITE(UNIT_stdOut,'(A,E10.4,A,E10.4,A,A,I6,A1,I0.2,A1,I0.2,A1,I0.2,A,A,A,A3,F6.2,A3,A1)',ADVANCE='NO') &
+      '  Time = ', t,'  dt = ', dt, ' ', ' eta = ',INT(days),':',INT(hours),':',INT(mins),':',INT(secs),'     |',&
+      REPEAT('☕',CEILING(percent/2)),REPEAT(' ',INT((100-percent)/2)),'| [',percent,'%] ', TRIM(hilf)
+#else
+  WRITE(UNIT_stdOut,'(A,E10.4,A,E10.4,A,A,I6,A1,I0.2,A1,I0.2,A1,I0.2,A,A,A1,A,A3,F6.2,A3,A1)',ADVANCE='NO') &
+      '  Time = ', t,'  dt = ', dt, ' ', ' eta = ',INT(days),':',INT(hours),':',INT(mins),':',INT(secs),'     |',&
+      REPEAT('=',MAX(CEILING(percent/2)-1,0)),'>',REPEAT(' ',INT((100-percent)/2)),'| [',percent,'%] ', TRIM(hilf)
+#endif /*USE_COFFEE*/
+#ifdef INTEL
+  CLOSE(UNIT_stdOut)
+#endif
+END IF
+END SUBROUTINE PrintStatusLine
+
+
+!==================================================================================================================================
+!> Displays the actual status of the simulation
+!==================================================================================================================================
+SUBROUTINE PrintStatusLineRadiation(t,tStart,tEnd,Phot,outputrank)
+!----------------------------------------------------------------------------------------------------------------------------------!
+! description
+!----------------------------------------------------------------------------------------------------------------------------------!
+! MODULES                                                                                                                          !
+USE MOD_Globals
+USE MOD_PreProc
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! insert modules here
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
 ! INPUT / OUTPUT VARIABLES
 REAL,INTENT(IN) :: t      !< current simulation time
-REAL,INTENT(IN) :: dt     !< current time step
 REAL,INTENT(IN) :: tStart !< start time of simulation
 REAL,INTENT(IN) :: tEnd   !< end time of simulation
+LOGICAL, INTENT(IN) :: Phot
+INTEGER, INTENT(IN),OPTIONAL :: outputrank
 !----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 REAL    :: percent,time_remaining,mins,secs,hours,days
+INTEGER :: visRank
 !==================================================================================================================================
+IF (PRESENT(outputrank)) THEN
+  visRank = outputrank
+ELSE
+  visRank = 0
+END IF
 
-IF(.NOT.doPrintStatusLine) RETURN
-
-IF(MPIroot)THEN
+IF(myRank.EQ.visRank)THEN
 #ifdef INTEL
   OPEN(UNIT_stdOut,CARRIAGECONTROL='fortran')
 #endif
@@ -204,21 +286,21 @@ IF(MPIroot)THEN
   time_remaining = time_remaining / 24
   !days = MOD(time_remaining,365.) ! Use this if years are also to be displayed
   days = time_remaining
-#if USE_COFFEE
-  WRITE(UNIT_stdOut,'(A,E10.4,A,E10.4,A,A,I6,A1,I0.2,A1,I0.2,A1,I0.2,A,A,A,A3,F6.2,A3,A1)',ADVANCE='NO') &
-      '  Time = ', t,'  dt = ', dt, ' ', ' eta = ',INT(days),':',INT(hours),':',INT(mins),':',INT(secs),'     |',&
-      REPEAT('☕',CEILING(percent/2)),REPEAT(' ',INT((100-percent)/2)),'| [',percent,'%] ',&
-      ACHAR(13) ! ACHAR(13) is carriage return
-#else
-  WRITE(UNIT_stdOut,'(A,E10.4,A,E10.4,A,A,I6,A1,I0.2,A1,I0.2,A1,I0.2,A,A,A1,A,A3,F6.2,A3,A1)',ADVANCE='NO') &
-      '  Time = ', t,'  dt = ', dt, ' ', ' eta = ',INT(days),':',INT(hours),':',INT(mins),':',INT(secs),'     |',&
-      REPEAT('=',MAX(CEILING(percent/2)-1,0)),'>',REPEAT(' ',INT((100-percent)/2)),'| [',percent,'%] ',&
-      ACHAR(13) ! ACHAR(13) is carriage return
-#endif /*USE_COFFEE*/
+  IF (Phot) THEN
+    WRITE(UNIT_stdOut,'(A,E10.4,A,E10.4,A,A,I6,A1,I0.2,A1,I0.2,A1,I0.2,A,A,A,A4,I3,A4,A1)',ADVANCE='NO') &
+        '  Photon = ', t,'  TotalPhotons = ', tEnd, ' ', ' eta = ',INT(days),':',INT(hours),':',INT(mins),':',INT(secs),'     |',&
+        REPEAT('☄️ ',CEILING(percent/4)),REPEAT('  ',INT((100-percent)/4)),'| [ ',NINT(percent),'% ] ',&
+        ACHAR(13) ! ACHAR(13) is carriage return
+  ELSE
+    WRITE(UNIT_stdOut,'(A,E10.4,A,E10.4,A,A,I6,A1,I0.2,A1,I0.2,A1,I0.2,A,A,A,A4,I3,A4,A1)',ADVANCE='NO') &
+        '  Elem = ', t,'  TotalElems = ', tEnd, ' ', ' eta = ',INT(days),':',INT(hours),':',INT(mins),':',INT(secs),'     |',&
+        REPEAT('☢ ',CEILING(percent/4)),REPEAT('  ',INT((100-percent)/4)),'| [ ',NINT(percent),'% ] ',&
+        ACHAR(13) ! ACHAR(13) is carriage return
+  END IF
 #ifdef INTEL
   CLOSE(UNIT_stdOut)
 #endif
 END IF
-END SUBROUTINE PrintStatusLine
+END SUBROUTINE PrintStatusLineRadiation
 
 END MODULE MOD_Output

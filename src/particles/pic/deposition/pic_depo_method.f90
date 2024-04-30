@@ -1,7 +1,7 @@
 !==================================================================================================================================
 ! Copyright (c) 2010 - 2018 Prof. Claus-Dieter Munz and Prof. Stefanos Fasoulas
 !
-! This file is part of PICLas (gitlab.com/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
+! This file is part of PICLas (piclas.boltzplatz.eu/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
 ! it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3
 ! of the License, or (at your option) any later version.
 !
@@ -69,7 +69,10 @@ IMPLICIT NONE
 ! LOCAL VARIABLES
 !==================================================================================================================================
 CALL prms%SetSection("PIC Deposition")
-CALL prms%CreateLogicalOption('PIC-DoDeposition', 'Switch deposition of charge (and current density) on/off', '.TRUE.')
+CALL prms%CreateLogicalOption('PIC-DoDeposition'         , 'Switch deposition of charge (and current density) on/off', '.TRUE.')
+#if USE_HDG
+CALL prms%CreateLogicalOption('PIC-DoDirichletDeposition', 'Switch deposition of charge (and current density) on Dirichlet sides on/off. Implemented for HDG only.', '.TRUE.')
+#endif /*USE_HDG*/
 
 CALL prms%CreateIntFromStringOption('PIC-Deposition-Type', "Type/Method used in the deposition step: \n"           //&
                                     '1.1)  shape_function ('//TRIM(int2strf(PRM_DEPO_SF))//')\n'                   //&
@@ -95,6 +98,9 @@ SUBROUTINE InitDepositionMethod()
 USE MOD_Globals
 USE MOD_ReadInTools            ,ONLY: GETINTFROMSTR
 USE MOD_PICDepo_Vars           ,ONLY: DepositionType,r_sf,dim_sf,dim_sf_dir,SFAdaptiveSmoothing,alpha_sf,sfDepo3D,VerifyChargeStr
+#if USE_HDG
+USE MOD_PICDepo_Vars           ,ONLY: DoDirichletDeposition
+#endif /*USE_HDG*/
 USE MOD_Particle_Tracking_Vars ,ONLY: TrackingMethod
 USE MOD_ReadInTools            ,ONLY: GETREAL,PrintOption,GETINT,GETLOGICAL
 !----------------------------------------------------------------------------------------------------------------------------------
@@ -102,13 +108,16 @@ IMPLICIT NONE
 ! INPUT / OUTPUT VARIABLES
 !----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                 :: DepositionType_loc
+INTEGER           :: DepositionType_loc
 CHARACTER(32)     :: hilf_geo
 CHARACTER(1)      :: hilf_dim
 !==================================================================================================================================
 r_sf=-1.0 ! default
 VerifyChargeStr='' ! Initialize
-DepositionType_loc = GETINTFROMSTR('PIC-Deposition-Type')
+DepositionType_loc    = GETINTFROMSTR('PIC-Deposition-Type')
+#if USE_HDG
+DoDirichletDeposition = GETLOGICAL('PIC-DoDirichletDeposition')
+#endif /*USE_HDG*/
 
 ! check for interpolation type incompatibilities (cannot be done at interpolation_init
 ! because DepositionType_loc is not known yet)
@@ -121,26 +130,37 @@ SELECT CASE(DepositionType_loc)
 Case(PRM_DEPO_SF) ! shape_function
   DepositionMethod => DepositionMethod_SF
   DepositionType   = 'shape_function'
+#if USE_HDG
+  IF(.NOT.DoDirichletDeposition) CALL CollectiveStop(__STAMP__,'PIC-DoDirichletDeposition=F not implemented for shape_function')
+#endif /*USE_HDG*/
 Case(PRM_DEPO_SF_CC) ! shape_function
   DepositionMethod => DepositionMethod_SF
   DepositionType   = 'shape_function_cc'
+#if USE_HDG
+  IF(.NOT.DoDirichletDeposition) CALL CollectiveStop(__STAMP__,'PIC-DoDirichletDeposition=F not implemented for shape_function_cc')
+#endif /*USE_HDG*/
 Case(PRM_DEPO_SF_ADAPTIVE) ! shape_function
   DepositionMethod => DepositionMethod_SF
   DepositionType   = 'shape_function_adaptive'
+#if USE_HDG
+  IF(.NOT.DoDirichletDeposition) CALL CollectiveStop(__STAMP__,'PIC-DoDirichletDeposition=F not implemented for shape_function_adaptive')
+#endif /*USE_HDG*/
 Case(PRM_DEPO_CVW) ! cell_volweight
   DepositionType   = 'cell_volweight'
   DepositionMethod => DepositionMethod_CVW
+#if USE_HDG
+  IF(.NOT.DoDirichletDeposition) CALL CollectiveStop(__STAMP__,'PIC-DoDirichletDeposition=F not implemented for cell_volweight')
+#endif /*USE_HDG*/
 Case(PRM_DEPO_CVWM) ! cell_volweight_mean
   DepositionType   = 'cell_volweight_mean'
   DepositionMethod => DepositionMethod_CVWM
 CASE DEFAULT
-  CALL CollectiveStop(__STAMP__,&
-      'Unknown DepositionMethod!' ,IntInfo=DepositionType_loc)
+  CALL CollectiveStop(__STAMP__,'Unknown DepositionMethod!' ,IntInfo=DepositionType_loc)
 END SELECT
 
 ! If shape function is used, the radius must be read here as it is used for the BGM setup
 IF(StringBeginsWith(DepositionType,'shape_function'))THEN
-  
+
   ! Check if adaptive SF is used
   IF(TRIM(DepositionType).EQ.'shape_function_adaptive')THEN
     ! When using shape function adaptive, the radius is scaled as such that only the direct element neighbours are considered for
@@ -222,7 +242,7 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
 LOGICAL,INTENT(IN),OPTIONAL :: doParticle_In(1:PDM%ParticleVecLength) ! TODO: definition of this variable
-INTEGER,INTENT(IN),OPTIONAL :: stage_opt 
+INTEGER,INTENT(IN),OPTIONAL :: stage_opt
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -262,7 +282,7 @@ END IF
 ALLOCATE(BGMSourceCellVol(SourceDim:4,0:1,0:1,0:1,1:nElems))
 BGMSourceCellVol(:,:,:,:,:) = 0.0
 DO iPart = 1,PDM%ParticleVecLength
-  ! TODO: Info why and under which conditions the following 'CYCLE' is called
+  ! TODO: The cycle with .AND.doParticle_In is used for analysis or IMPA
   IF(PRESENT(doParticle_In))THEN
     IF (.NOT.(PDM%ParticleInside(iPart).AND.doParticle_In(iPart))) CYCLE
   ELSE
@@ -359,18 +379,18 @@ USE MOD_Eval_xyz           ,ONLY: GetPositionInRefElem
 USE MOD_Mesh_Vars          ,ONLY: nElems,offsetElem
 USE MOD_Particle_Vars      ,ONLY: Species,PartSpecies,PDM,PEM,usevMPF,PartMPF
 USE MOD_Particle_Vars      ,ONLY: PartState
-USE MOD_Particle_Mesh_Vars ,ONLY: ElemNodeID_Shared, nUniqueGlobalNodes, NodeInfo_Shared, NodeCoords_Shared
-USE MOD_PICDepo_Vars       ,ONLY: PartSource,CellVolWeightFac,NodeSourceExt,NodeVolume,NodeSource
+USE MOD_Particle_Mesh_Vars ,ONLY: ElemNodeID_Shared, NodeInfo_Shared, NodeCoords_Shared, GEO
+USE MOD_PICDepo_Vars       ,ONLY: PartSource,CellVolWeightFac,NodeSourceExt,NodeVolume,NodeSource, nDepoNodes, DepoNodetoGlobalNode
+USE MOD_PICDepo_Vars       ,ONLY: nDepoNodesTotal,Periodic_Nodes,Periodic_nNodes,Periodic_offsetNode
+#if USE_HDG
+USE MOD_PICDepo_Vars       ,ONLY: DoDirichletDeposition
+#endif /*USE_HDG*/
 USE MOD_Mesh_Tools         ,ONLY: GetCNElemID
 USE MOD_Part_Tools         ,ONLY: isDepositParticle
 #if USE_MPI
 USE MOD_MPI_Shared         ,ONLY: BARRIER_AND_SYNC
-USE MOD_MPI_Shared_Vars    ,ONLY: MPI_COMM_LEADERS_SHARED, MPI_COMM_SHARED, myComputeNodeRank, myLeaderGroupRank
-USE MOD_MPI_Shared_Vars    ,ONLY: nComputeNodeProcessors, nLeaderGroupProcs
-USE MOD_PICDepo_Vars       ,ONLY: NodeSourceExtTmpLoc
-USE MOD_PICDepo_Vars       ,ONLY: NodeSourceLoc, NodeMapping, NodeSource_Shared_Win
-#else
-USE MOD_PICDepo_Vars       ,ONLY: NodeSourceExtTmp
+USE MOD_PICDepo_Vars       ,ONLY: NodeMappingSend,NodeMappingRecv, nNodeSendExchangeProcs, NodeSendDepoRankToGlobalRank
+USE MOD_PICDepo_Vars       ,ONLY: NodeSourceExtTmp,nNodeRecvExchangeProcs,NodeRecvDepoRankToGlobalRank
 #endif  /*USE_MPI*/
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Timers ,ONLY: LBStartTime,LBSplitTime,LBPauseTime,LBElemSplitTime,LBElemPauseTime_avg
@@ -379,22 +399,22 @@ USE MOD_LoadBalance_Timers ,ONLY: LBStartTime,LBSplitTime,LBPauseTime,LBElemSpli
 USE MOD_TimeDisc_Vars      ,ONLY: dt,dt_Min
 #endif
 #if defined(MEASURE_MPI_WAIT)
-USE MOD_Particle_MPI_Vars  ,ONLY: MPIW8TimePart
+USE MOD_Particle_MPI_Vars  ,ONLY: MPIW8TimePart,MPIW8CountPart
 #endif /*defined(MEASURE_MPI_WAIT)*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
 LOGICAL,INTENT(IN),OPTIONAL :: doParticle_In(1:PDM%ParticleVecLength) ! TODO: definition of this variable
-INTEGER,INTENT(IN),OPTIONAL :: stage_opt 
+INTEGER,INTENT(IN),OPTIONAL :: stage_opt
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 REAL               :: Charge, TSource(1:4), PartDistDepo(8), DistSum
 REAL               :: alpha1, alpha2, alpha3, TempPartPos(1:3)
-INTEGER            :: kk, ll, mm, iPart, iElem
-INTEGER            :: NodeID(1:8), firstNode, lastNode, iNode
+INTEGER            :: kk, ll, mm, iPart, iElem, jNode, jGlobNode
+INTEGER            :: NodeID(1:8), iNode, globalNode
 LOGICAL            :: SucRefPos
 #if !((USE_HDG) && (PP_nVar==1))
 INTEGER, PARAMETER :: SourceDim=1
@@ -408,8 +428,8 @@ REAL               :: tLBStart
 #endif /*USE_LOADBALANCE*/
 #if USE_MPI
 INTEGER            :: iProc
-INTEGER            :: RecvRequest(0:nLeaderGroupProcs-1),SendRequest(0:nLeaderGroupProcs-1)
-INTEGER            :: MessageSize
+INTEGER            :: RecvRequest(1:nNodeRecvExchangeProcs),SendRequest(1:nNodeSendExchangeProcs)
+!INTEGER            :: MessageSize
 #endif
 REAL               :: norm
 #if defined(MEASURE_MPI_WAIT)
@@ -437,241 +457,222 @@ doCalculateCurrentDensity=.TRUE.
 SourceDim=1
 #endif
 
-#if USE_MPI
-ASSOCIATE(NodeSource       => NodeSourceLoc       ,&
-          NodeSourceExtTmp => NodeSourceExtTmpLoc )
-  firstNode = INT(REAL( myComputeNodeRank   *nUniqueGlobalNodes)/REAL(nComputeNodeProcessors))+1
-  lastNode  = INT(REAL((myComputeNodeRank+1)*nUniqueGlobalNodes)/REAL(nComputeNodeProcessors))
-#else
-  firstNode = 1
-  lastNode = nUniqueGlobalNodes
-#endif
+! Nullify NodeSource
+DO iNode = 1, nDepoNodesTotal
+  globalNode = DepoNodetoGlobalNode(iNode)
+  NodeSource(SourceDim:4,globalNode) = 0.0
+END DO
 
-  NodeSource=0.0
-  DO iPart=1,PDM%ParticleVecLength
-    IF(PRESENT(doParticle_In))THEN
-      IF (.NOT.(PDM%ParticleInside(iPart).AND.doParticle_In(iPart))) CYCLE
+! Loop all particles and deposit their charge contribution
+DO iPart=1,PDM%ParticleVecLength
+  IF(PRESENT(doParticle_In))THEN
+    IF (.NOT.(PDM%ParticleInside(iPart).AND.doParticle_In(iPart))) CYCLE
+  ELSE
+    IF (.NOT.PDM%ParticleInside(iPart)) CYCLE
+  END IF
+  IF (isDepositParticle(iPart)) THEN
+    IF (usevMPF) THEN
+      Charge = Species(PartSpecies(iPart))%ChargeIC*PartMPF(iPart)
     ELSE
-      IF (.NOT.PDM%ParticleInside(iPart)) CYCLE
+      Charge = Species(PartSpecies(iPart))%ChargeIC*Species(PartSpecies(iPart))%MacroParticleFactor
     END IF
-    IF (isDepositParticle(iPart)) THEN
-      IF (usevMPF) THEN
-        Charge = Species(PartSpecies(iPart))%ChargeIC*PartMPF(iPart)
-      ELSE
-        Charge = Species(PartSpecies(iPart))%ChargeIC*Species(PartSpecies(iPart))%MacroParticleFactor
-      END IF
-      CALL GetPositionInRefElem(PartState(1:3,iPart),TempPartPos(1:3),PEM%GlobalElemID(iPart),ForceMode=.TRUE., isSuccessful = SucRefPos)
-      TSource(:) = 0.0
-      IF(doCalculateCurrentDensity)THEN
-        TSource(1:3) = PartState(4:6,iPart)*Charge
-      END IF
-      TSource(4) = Charge
-
-      IF (SucRefPos) THEN
-        alpha1=0.5*(TempPartPos(1)+1.0)
-        alpha2=0.5*(TempPartPos(2)+1.0)
-        alpha3=0.5*(TempPartPos(3)+1.0)
-
-        NodeID = NodeInfo_Shared(ElemNodeID_Shared(:,PEM%CNElemID(iPart)))
-        NodeSource(SourceDim:4,NodeID(1)) = NodeSource(SourceDim:4,NodeID(1)) + (TSource(SourceDim:4)*(1-alpha1)*(1-alpha2)*(1-alpha3))
-        NodeSource(SourceDim:4,NodeID(2)) = NodeSource(SourceDim:4,NodeID(2)) + (TSource(SourceDim:4)*  (alpha1)*(1-alpha2)*(1-alpha3))
-        NodeSource(SourceDim:4,NodeID(3)) = NodeSource(SourceDim:4,NodeID(3)) + (TSource(SourceDim:4)*  (alpha1)*  (alpha2)*(1-alpha3))
-        NodeSource(SourceDim:4,NodeID(4)) = NodeSource(SourceDim:4,NodeID(4)) + (TSource(SourceDim:4)*(1-alpha1)*  (alpha2)*(1-alpha3))
-        NodeSource(SourceDim:4,NodeID(5)) = NodeSource(SourceDim:4,NodeID(5)) + (TSource(SourceDim:4)*(1-alpha1)*(1-alpha2)*  (alpha3))
-        NodeSource(SourceDim:4,NodeID(6)) = NodeSource(SourceDim:4,NodeID(6)) + (TSource(SourceDim:4)*  (alpha1)*(1-alpha2)*  (alpha3))
-        NodeSource(SourceDim:4,NodeID(7)) = NodeSource(SourceDim:4,NodeID(7)) + (TSource(SourceDim:4)*  (alpha1)*  (alpha2)*  (alpha3))
-        NodeSource(SourceDim:4,NodeID(8)) = NodeSource(SourceDim:4,NodeID(8)) + (TSource(SourceDim:4)*(1-alpha1)*  (alpha2)*  (alpha3))
-      ELSE
-        NodeID = ElemNodeID_Shared(:,PEM%CNElemID(iPart))
-        DO iNode = 1, 8
-          norm = VECNORM(NodeCoords_Shared(1:3, NodeID(iNode)) -PartState(1:3,iPart))
-          IF(norm.GT.0.)THEN
-            PartDistDepo(iNode) = 1./norm
-          ELSE
-            PartDistDepo(:) = 0.
-            PartDistDepo(iNode) = 1.0
-            EXIT
-          END IF ! norm.GT.0.
-        END DO  
-        DistSum = SUM(PartDistDepo(1:8)) 
-        DO iNode = 1, 8
-          NodeSource(SourceDim:4,NodeInfo_Shared(NodeID(iNode))) = NodeSource(SourceDim:4,NodeInfo_Shared(NodeID(iNode)))  &
-            +  PartDistDepo(iNode)/DistSum*TSource(SourceDim:4)
-        END DO
-      END IF
-#if USE_LOADBALANCE
-    CALL LBElemSplitTime(PEM%LocalElemID(iPart),tLBStart) ! Split time measurement (Pause/Stop and Start again) and add time to iElem
-#endif /*USE_LOADBALANCE*/
+    CALL GetPositionInRefElem(PartState(1:3,iPart),TempPartPos(1:3),PEM%GlobalElemID(iPart),ForceMode=.TRUE., isSuccessful = SucRefPos)
+    TSource(:) = 0.0
+    IF(doCalculateCurrentDensity)THEN
+      TSource(1:3) = PartState(4:6,iPart)*Charge
     END IF
-  END DO
+    TSource(4) = Charge
 
+    IF (SucRefPos) THEN
+      alpha1=0.5*(TempPartPos(1)+1.0)
+      alpha2=0.5*(TempPartPos(2)+1.0)
+      alpha3=0.5*(TempPartPos(3)+1.0)
+      PartDistDepo(1) = (1-alpha1)*(1-alpha2)*(1-alpha3)
+      PartDistDepo(2) = (alpha1)*(1-alpha2)*(1-alpha3)
+      PartDistDepo(3) = (alpha1)*  (alpha2)*(1-alpha3)
+      PartDistDepo(4) = (1-alpha1)*  (alpha2)*(1-alpha3)
+      PartDistDepo(5) = (1-alpha1)*(1-alpha2)*  (alpha3)
+      PartDistDepo(6) = (alpha1)*(1-alpha2)*  (alpha3)
+      PartDistDepo(7) = (alpha1)*  (alpha2)*  (alpha3)
+      PartDistDepo(8) = (1-alpha1)*  (alpha2)*  (alpha3)
+
+      NodeID = NodeInfo_Shared(ElemNodeID_Shared(:,PEM%CNElemID(iPart)))
+      DO iNode=1, 8
+        NodeSource(SourceDim:4,NodeID(iNode)) = NodeSource(SourceDim:4,NodeID(iNode)) + (TSource(SourceDim:4)*PartDistDepo(iNode))
+        IF (GEO%nPeriodicVectors.GT.0) THEN
+          IF (Periodic_nNodes(NodeID(iNode)).GT.0) THEN
+            DO jNode = Periodic_offsetNode(NodeID(iNode))+1,Periodic_offsetNode(NodeID(iNode))+Periodic_nNodes(NodeID(iNode))
+              jGlobNode                         = Periodic_Nodes(jNode)
+              NodeSource(SourceDim:4,jGlobNode) = NodeSource(SourceDim:4,jGlobNode) + (TSource(SourceDim:4)*PartDistDepo(iNode))
+            END DO ! jNode
+          END IF ! Periodic_nNodes(NodeID(iNode)).GT.0
+        END IF
+      END DO
+
+    ELSE ! not SucRefPos
+      NodeID = ElemNodeID_Shared(:,PEM%CNElemID(iPart))
+      DO iNode = 1, 8
+        norm = VECNORM(NodeCoords_Shared(1:3, NodeID(iNode)) -PartState(1:3,iPart))
+        IF(norm.GT.0.)THEN
+          PartDistDepo(iNode) = 1./norm
+        ELSE
+          PartDistDepo(:) = 0.
+          PartDistDepo(iNode) = 1.0
+          EXIT
+        END IF ! norm.GT.0.
+      END DO
+      DistSum = SUM(PartDistDepo(1:8))
+      DO iNode = 1, 8
+        NodeSource(SourceDim:4,NodeInfo_Shared(NodeID(iNode))) = NodeSource(SourceDim:4,NodeInfo_Shared(NodeID(iNode)))  &
+          +  PartDistDepo(iNode)/DistSum*TSource(SourceDim:4)
+        IF (GEO%nPeriodicVectors.GT.0) THEN
+          ASSOCIATE(NodeInfoID => NodeInfo_Shared(NodeID(iNode)))
+          IF (Periodic_nNodes(NodeInfoID).GT.0) THEN
+            DO jNode = Periodic_offsetNode(NodeInfoID)+1,Periodic_offsetNode(NodeInfoID)+Periodic_nNodes(NodeInfoID)
+              jGlobNode                         = Periodic_Nodes(jNode)
+              NodeSource(SourceDim:4,jGlobNode) = NodeSource(SourceDim:4,jGlobNode) +  PartDistDepo(iNode)/DistSum*TSource(SourceDim:4)
+            END DO ! jNode
+          END IF ! Periodic_nNodes(NodeID(iNode)).GT.0
+          END ASSOCIATE
+        END IF
+      END DO
+    END IF ! SucRefPos
 #if USE_LOADBALANCE
-  CALL LBStartTime(tLBStart) ! Start time measurement
+  CALL LBElemSplitTime(PEM%LocalElemID(iPart),tLBStart) ! Split time measurement (Pause/Stop and Start again) and add time to iElem
 #endif /*USE_LOADBALANCE*/
-  ! 1/2 Add the local non-synchronized surface charge contribution (does not consider the charge contribution from restart files) from
-  ! NodeSourceExtTmp. This contribution accumulates over time, but remains locally to each processor as it is communicated via the
-  ! normal NodeSource container. The synchronized part is added after communication.
-  IF(DoDielectricSurfaceCharge)THEN
-      NodeSource(4,:) = NodeSource(4,:) + NodeSourceExtTmp(:)
-  END IF ! DoDielectricSurfaceCharge
-#if USE_LOADBALANCE
-  CALL LBElemPauseTime_avg(tLBStart) ! Average over the number of elems
-#endif /*USE_LOADBALANCE*/
+  END IF ! isDepositParticle(iPart)
+END DO ! iPart=1,PDM%ParticleVecLength
 
 #if USE_MPI
-END ASSOCIATE
-MessageSize = (5-SourceDim)*nUniqueGlobalNodes
+#if USE_LOADBALANCE
+CALL LBStartTime(tLBStart) ! Start time measurement
+#endif /*USE_LOADBALANCE*/
+! 1/2 Add the local non-synchronized surface charge contribution (does not consider the charge contribution from restart files) from
+! NodeSourceExtTmp. This contribution accumulates over time, but remains locally to each processor as it is communicated via the
+! normal NodeSource container. The synchronized part is added after communication.
+IF(DoDielectricSurfaceCharge)THEN
+  DO iNode = 1, nDepoNodesTotal
+    globalNode = DepoNodetoGlobalNode(iNode)
+    NodeSource(4,globalNode) = NodeSource(4,globalNode) + NodeSourceExtTmp(globalNode)
+  END DO
+END IF ! DoDielectricSurfaceCharge
+#if USE_LOADBALANCE
+CALL LBElemPauseTime_avg(tLBStart) ! Average over the number of elems
+#endif /*USE_LOADBALANCE*/
+
+
+! 1.1) Receive charge density
+DO iProc = 1, nNodeRecvExchangeProcs
+  ! Open receive buffer
+  CALL MPI_IRECV( NodeMappingRecv(iProc)%RecvNodeSourceCharge(:) &
+            , NodeMappingRecv(iProc)%nRecvUniqueNodes            &
+            , MPI_DOUBLE_PRECISION                           &
+            , NodeRecvDepoRankToGlobalRank(iProc)                &
+            , 666                                            &
+            , MPI_COMM_PICLAS                                 &
+            , RecvRequest(iProc)                             &
+            , IERROR)
+END DO
+
+! 1.2) Send charge density
+DO iProc = 1, nNodeSendExchangeProcs
+  ! Send message (non-blocking)
+  DO iNode = 1, NodeMappingSend(iProc)%nSendUniqueNodes
+    NodeMappingSend(iProc)%SendNodeSourceCharge(iNode) = NodeSource(4,NodeMappingSend(iProc)%SendNodeUniqueGlobalID(iNode))
+  END DO
+  CALL MPI_ISEND( NodeMappingSend(iProc)%SendNodeSourceCharge(:) &
+                , NodeMappingSend(iProc)%nSendUniqueNodes        &
+                , MPI_DOUBLE_PRECISION                       &
+                , NodeSendDepoRankToGlobalRank(iProc)            &
+                , 666                                        &
+                , MPI_COMM_PICLAS                             &
+                , SendRequest(iProc)                         &
+                , IERROR)
+END DO
+
+! Finish communication
 #if defined(MEASURE_MPI_WAIT)
 CALL SYSTEM_CLOCK(count=CounterStart)
 #endif /*defined(MEASURE_MPI_WAIT)*/
-IF(myComputeNodeRank.EQ.0)THEN
-  CALL MPI_REDUCE(NodeSourceLoc(SourceDim:4,:),NodeSource(SourceDim:4,:),MessageSize,MPI_DOUBLE_PRECISION,MPI_SUM,0,MPI_COMM_SHARED,IERROR)
-ELSE
-  CALL MPI_REDUCE(NodeSourceLoc(SourceDim:4,:),0                        ,MessageSize,MPI_DOUBLE_PRECISION,MPI_SUM,0,MPI_COMM_SHARED,IERROR)
-END IF ! myrank.eq.0
+DO iProc = 1, nNodeSendExchangeProcs
+  CALL MPI_WAIT(SendRequest(iProc),MPISTATUS,IERROR)
+  IF (IERROR.NE.MPI_SUCCESS) CALL ABORT(__STAMP__,' MPI Communication error', IERROR)
+END DO
+DO iProc = 1, nNodeRecvExchangeProcs
+  CALL MPI_WAIT(RecvRequest(iProc),MPISTATUS,IERROR)
+  IF (IERROR.NE.MPI_SUCCESS) CALL ABORT(__STAMP__,' MPI Communication error', IERROR)
+END DO
 #if defined(MEASURE_MPI_WAIT)
 CALL SYSTEM_CLOCK(count=CounterEnd, count_rate=Rate)
-MPIW8TimePart(6) = MPIW8TimePart(6) + REAL(CounterEnd-CounterStart,8)/Rate
+MPIW8TimePart(6)  = MPIW8TimePart(6) + REAL(CounterEnd-CounterStart,8)/Rate
+MPIW8CountPart(6) = MPIW8CountPart(6) + 1_8
 #endif /*defined(MEASURE_MPI_WAIT)*/
-CALL BARRIER_AND_SYNC(NodeSource_Shared_Win,MPI_COMM_SHARED)
 
-! Multi-node communication
-IF(nLeaderGroupProcs.GT.1)THEN
-  IF(myComputeNodeRank.EQ.0)THEN
+! 2) Send/Receive current density
+IF(doCalculateCurrentDensity)THEN
+  DO iProc = 1, nNodeRecvExchangeProcs
+    ! Open receive buffer
+    CALL MPI_IRECV( NodeMappingRecv(iProc)%RecvNodeSourceCurrent(1:3,:) &
+        , 3*NodeMappingRecv(iProc)%nRecvUniqueNodes                     &
+        , MPI_DOUBLE_PRECISION                                      &
+        , NodeRecvDepoRankToGlobalRank(iProc)                           &
+        , 666                                                       &
+        , MPI_COMM_PICLAS                                            &
+        , RecvRequest(iProc)                                        &
+        , IERROR)
+  END DO
 
-    ! 1) Send/Receive charge density
-    DO iProc = 0, nLeaderGroupProcs - 1
-      IF (iProc.EQ.myLeaderGroupRank) CYCLE
-
-      ! Open receive buffer
-      IF (NodeMapping(iProc)%nRecvUniqueNodes.GT.0) THEN
-        CALL MPI_IRECV( NodeMapping(iProc)%RecvNodeSourceCharge(:) &
-                  , NodeMapping(iProc)%nRecvUniqueNodes            &
-                  , MPI_DOUBLE_PRECISION                           &
-                  , iProc                                          &
-                  , 666                                            &
-                  , MPI_COMM_LEADERS_SHARED                        &
-                  , RecvRequest(iProc)                             &
-                  , IERROR)
-      END IF
-      ! Send message (non-blocking)
-      IF (NodeMapping(iProc)%nSendUniqueNodes.GT.0) THEN
-        DO iNode = 1, NodeMapping(iProc)%nSendUniqueNodes
-          NodeMapping(iProc)%SendNodeSourceCharge(iNode) = NodeSource(4,NodeMapping(iProc)%SendNodeUniqueGlobalID(iNode))
-        END DO
-        CALL MPI_ISEND( NodeMapping(iProc)%SendNodeSourceCharge(:) &
-                      , NodeMapping(iProc)%nSendUniqueNodes        &
-                      , MPI_DOUBLE_PRECISION                       &
-                      , iProc                                      &
-                      , 666                                        &
-                      , MPI_COMM_LEADERS_SHARED                    &
-                      , SendRequest(iProc)                         &
-                      , IERROR)
-      END IF
+  DO iProc = 1, nNodeSendExchangeProcs
+    ! Send message (non-blocking)
+    DO iNode = 1, NodeMappingSend(iProc)%nSendUniqueNodes
+      NodeMappingSend(iProc)%SendNodeSourceCurrent(1:3,iNode) = NodeSource(1:3,NodeMappingSend(iProc)%SendNodeUniqueGlobalID(iNode))
     END DO
+    CALL MPI_ISEND( NodeMappingSend(iProc)%SendNodeSourceCurrent(1:3,:) &
+        , 3*NodeMappingSend(iProc)%nSendUniqueNodes                     &
+        , MPI_DOUBLE_PRECISION                                      &
+        , NodeSendDepoRankToGlobalRank(iProc)                           &
+        , 666                                                       &
+        , MPI_COMM_PICLAS                                            &
+        , SendRequest(iProc)                                        &
+        , IERROR)
+  END DO
 
-    ! Finish communication
+  ! Finish communication
 #if defined(MEASURE_MPI_WAIT)
-    CALL SYSTEM_CLOCK(count=CounterStart)
+  CALL SYSTEM_CLOCK(count=CounterStart)
 #endif /*defined(MEASURE_MPI_WAIT)*/
-    DO iProc = 0,nLeaderGroupProcs-1
-      IF (iProc.EQ.myLeaderGroupRank) CYCLE
-      IF (NodeMapping(iProc)%nSendUniqueNodes.GT.0) THEN
-        CALL MPI_WAIT(SendRequest(iProc),MPISTATUS,IERROR)
-        IF (IERROR.NE.MPI_SUCCESS) CALL ABORT(__STAMP__,' MPI Communication error', IERROR)
-      END IF
-      IF (NodeMapping(iProc)%nRecvUniqueNodes.GT.0) THEN
-        CALL MPI_WAIT(RecvRequest(iProc),MPISTATUS,IERROR)
-        IF (IERROR.NE.MPI_SUCCESS) CALL ABORT(__STAMP__,' MPI Communication error', IERROR)
-      END IF
+  DO iProc = 1, nNodeSendExchangeProcs
+    CALL MPI_WAIT(SendRequest(iProc),MPISTATUS,IERROR)
+    IF (IERROR.NE.MPI_SUCCESS) CALL ABORT(__STAMP__,' MPI Communication error', IERROR)
+  END DO
+  DO iProc = 1, nNodeRecvExchangeProcs
+    CALL MPI_WAIT(RecvRequest(iProc),MPISTATUS,IERROR)
+    IF (IERROR.NE.MPI_SUCCESS) CALL ABORT(__STAMP__,' MPI Communication error', IERROR)
+  END DO
+#if defined(MEASURE_MPI_WAIT)
+  CALL SYSTEM_CLOCK(count=CounterEnd, count_rate=Rate)
+  MPIW8TimePart(6)  = MPIW8TimePart(6) + REAL(CounterEnd-CounterStart,8)/Rate
+  MPIW8CountPart(6) = MPIW8CountPart(6) + 1_8
+#endif /*defined(MEASURE_MPI_WAIT)*/
+
+  ! 3) Extract messages
+  DO iProc = 1, nNodeRecvExchangeProcs
+    DO iNode = 1, NodeMappingRecv(iProc)%nRecvUniqueNodes
+      ASSOCIATE( NS => NodeSource(SourceDim:4,NodeMappingRecv(iProc)%RecvNodeUniqueGlobalID(iNode)))
+        NS = NS + (/NodeMappingRecv(iProc)%RecvNodeSourceCurrent(1:3,iNode), NodeMappingRecv(iProc)%RecvNodeSourceCharge(iNode)/)
+      END ASSOCIATE
     END DO
-#if defined(MEASURE_MPI_WAIT)
-    CALL SYSTEM_CLOCK(count=CounterEnd, count_rate=Rate)
-    MPIW8TimePart(7) = MPIW8TimePart(7) + REAL(CounterEnd-CounterStart,8)/Rate
-#endif /*defined(MEASURE_MPI_WAIT)*/
-
-    ! 2) Send/Receive current density
-    IF(doCalculateCurrentDensity)THEN
-
-      DO iProc = 0, nLeaderGroupProcs - 1
-        IF (iProc.EQ.myLeaderGroupRank) CYCLE
-
-        ! Open receive buffer
-        IF (NodeMapping(iProc)%nRecvUniqueNodes.GT.0) THEN
-          CALL MPI_IRECV( NodeMapping(iProc)%RecvNodeSourceCurrent(1:3,:) &
-              , 3*NodeMapping(iProc)%nRecvUniqueNodes                     &
-              , MPI_DOUBLE_PRECISION                                      &
-              , iProc                                                     &
-              , 666                                                       &
-              , MPI_COMM_LEADERS_SHARED                                   &
-              , RecvRequest(iProc)                                        &
-              , IERROR)
-        END IF
-        ! Send message (non-blocking)
-        IF (NodeMapping(iProc)%nSendUniqueNodes.GT.0) THEN
-          DO iNode = 1, NodeMapping(iProc)%nSendUniqueNodes
-            NodeMapping(iProc)%SendNodeSourceCurrent(1:3,iNode) = NodeSource(1:3,NodeMapping(iProc)%SendNodeUniqueGlobalID(iNode))
-          END DO
-          CALL MPI_ISEND( NodeMapping(iProc)%SendNodeSourceCurrent(1:3,:) &
-              , 3*NodeMapping(iProc)%nSendUniqueNodes                     &
-              , MPI_DOUBLE_PRECISION                                      &
-              , iProc                                                     &
-              , 666                                                       &
-              , MPI_COMM_LEADERS_SHARED                                   &
-              , SendRequest(iProc)                                        &
-              , IERROR)
-        END IF
-      END DO
-
-      ! Finish communication
-#if defined(MEASURE_MPI_WAIT)
-      CALL SYSTEM_CLOCK(count=CounterStart)
-#endif /*defined(MEASURE_MPI_WAIT)*/
-      DO iProc = 0,nLeaderGroupProcs-1
-        IF (iProc.EQ.myLeaderGroupRank) CYCLE
-        IF (NodeMapping(iProc)%nSendUniqueNodes.GT.0) THEN
-          CALL MPI_WAIT(SendRequest(iProc),MPISTATUS,IERROR)
-          IF (IERROR.NE.MPI_SUCCESS) CALL ABORT(__STAMP__,' MPI Communication error', IERROR)
-        END IF
-        IF (NodeMapping(iProc)%nRecvUniqueNodes.GT.0) THEN
-          CALL MPI_WAIT(RecvRequest(iProc),MPISTATUS,IERROR)
-          IF (IERROR.NE.MPI_SUCCESS) CALL ABORT(__STAMP__,' MPI Communication error', IERROR)
-        END IF
-      END DO
-#if defined(MEASURE_MPI_WAIT)
-      CALL SYSTEM_CLOCK(count=CounterEnd, count_rate=Rate)
-      MPIW8TimePart(7) = MPIW8TimePart(7) + REAL(CounterEnd-CounterStart,8)/Rate
-#endif /*defined(MEASURE_MPI_WAIT)*/
-    END IF ! doCalculateCurrentDensity
-
-    ! 3) Extract messages
-    IF(doCalculateCurrentDensity)THEN! SourceDim=1
-      DO iProc = 0, nLeaderGroupProcs - 1
-        IF (iProc.EQ.myLeaderGroupRank) CYCLE
-        IF (NodeMapping(iProc)%nRecvUniqueNodes.GT.0) THEN
-          DO iNode = 1, NodeMapping(iProc)%nRecvUniqueNodes
-            ASSOCIATE( NS => NodeSource(SourceDim:4,NodeMapping(iProc)%RecvNodeUniqueGlobalID(iNode)))
-              NS = NS + (/NodeMapping(iProc)%RecvNodeSourceCurrent(1:3,iNode), NodeMapping(iProc)%RecvNodeSourceCharge(iNode)/)
-            END ASSOCIATE
-          END DO
-        END IF
-      END DO
-    ELSE
-      DO iProc = 0, nLeaderGroupProcs - 1
-        IF (iProc.EQ.myLeaderGroupRank) CYCLE
-        IF (NodeMapping(iProc)%nRecvUniqueNodes.GT.0) THEN
-          DO iNode = 1, NodeMapping(iProc)%nRecvUniqueNodes
-            ASSOCIATE( NS => NodeSource(4,NodeMapping(iProc)%RecvNodeUniqueGlobalID(iNode)))
-              NS = NS + NodeMapping(iProc)%RecvNodeSourceCharge(iNode)
-            END ASSOCIATE
-          END DO
-        END IF
-      END DO
-    END IF ! doCalculateCurrentDensity
-  END IF ! myComputeNodeRank.EQ.0
-  CALL BARRIER_AND_SYNC(NodeSource_Shared_Win,MPI_COMM_SHARED)
-END IF ! nLeaderGroupProcs.GT.1
-#endif
+  END DO
+ELSE
+  DO iProc = 1, nNodeRecvExchangeProcs
+    DO iNode = 1, NodeMappingRecv(iProc)%nRecvUniqueNodes
+      ASSOCIATE( NS => NodeSource(4,NodeMappingRecv(iProc)%RecvNodeUniqueGlobalID(iNode)))
+        NS = NS + NodeMappingRecv(iProc)%RecvNodeSourceCharge(iNode)
+      END ASSOCIATE
+    END DO
+  END DO
+END IF ! doCalculateCurrentDensity
+#endif /*USE_MPI*/
 
 #if USE_LOADBALANCE
 CALL LBStartTime(tLBStart) ! Start time measurement
@@ -681,24 +682,26 @@ CALL LBStartTime(tLBStart) ! Start time measurement
 ! NodeSourceExt. The container NodeSourceExt is updated when it is written to .h5, where, additionally, the container
 ! NodeSourceExtTmp is nullified
 IF(DoDielectricSurfaceCharge)THEN
-  DO iNode=firstNode, lastNode
-    NodeSource(4,iNode) = NodeSource(4,iNode) + NodeSourceExt(iNode)
+  DO iNode = 1, nDepoNodesTotal
+    globalNode = DepoNodetoGlobalNode(iNode)
+    NodeSource(4,globalNode) = NodeSource(4,globalNode) + NodeSourceExt(globalNode)
   END DO
 END IF ! DoDielectricSurfaceCharge
 
 ! Currently also "Nodes" are included in time measurement that is averaged across all elements. Can this be improved?
-DO iNode=firstNode, lastNode
-  IF(NodeVolume(iNode).GT.0.)THEN
-    NodeSource(SourceDim:4,iNode) = NodeSource(SourceDim:4,iNode)/NodeVolume(iNode)
-  END IF ! NodeVolume(iNode).GT.0.
+DO iNode = 1, nDepoNodes
+  globalNode = DepoNodetoGlobalNode(iNode)
+  IF(NodeVolume(globalNode).GT.0.) NodeSource(SourceDim:4,globalNode) = NodeSource(SourceDim:4,globalNode)/NodeVolume(globalNode)
 END DO
+
+#if USE_HDG
+! Nullify Dirichlet Nodes
+IF(.NOT.DoDirichletDeposition) CALL NullifyNodeSourceDirichletSides(SourceDim)
+#endif /*USE_HDG*/
+
 #if USE_LOADBALANCE
 CALL LBElemPauseTime_avg(tLBStart) ! Average over the number of elems
 #endif /*USE_LOADBALANCE*/
-
-#if USE_MPI
-CALL BARRIER_AND_SYNC(NodeSource_Shared_Win,MPI_COMM_SHARED)
-#endif
 
 #if USE_LOADBALANCE
 CALL LBStartTime(tLBStart) ! Start time measurement
@@ -760,7 +763,7 @@ USE MOD_Mesh_Vars                   ,ONLY: offsetElem
 #endif /*USE_MPI*/
 USE MOD_Part_Tools                  ,ONLY: isDepositParticle
 #if defined(MEASURE_MPI_WAIT)
-USE MOD_Particle_MPI_Vars           ,ONLY: MPIW8TimePart
+USE MOD_Particle_MPI_Vars           ,ONLY: MPIW8TimePart,MPIW8CountPart
 #endif /*defined(MEASURE_MPI_WAIT)*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -773,10 +776,10 @@ INTEGER,INTENT(IN),OPTIONAL :: stage_opt
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 REAL               :: Charge
-INTEGER            :: stage, locElem
+INTEGER            :: stage
 INTEGER            :: iPart
 #if USE_MPI
-INTEGER            :: iElem,iProc
+INTEGER            :: iElem,iProc,locElem
 #endif
 #if defined(MEASURE_MPI_WAIT)
 INTEGER(KIND=8)    :: CounterStart,CounterEnd
@@ -813,14 +816,14 @@ IF ((stage.EQ.0).OR.(stage.EQ.1)) THEN
   END DO
 #if USE_MPI
   ! Communication
-  ! 1 of 2: Inner-Node Communication  
+  ! 1 of 2: Inner-Node Communication
   DO iProc = 1,nShapeExchangeProcs
       CALL MPI_IRECV( ShapeMapping(iProc)%RecvBuffer(1:4,0:PP_N,0:PP_N,0:PP_N,1:ShapeMapping(iProc)%nRecvShapeElems)&
                     , ShapeMapping(iProc)%nRecvShapeElems*4*(PP_N+1)**3                                   &
                     , MPI_DOUBLE_PRECISION                &
                     , ShapeMapping(iProc)%Rank            &
                     , 2001                                &
-                    , MPI_COMM_WORLD                     &
+                    , MPI_COMM_PICLAS                     &
                     , RecvRequest(iProc)                  &
                     , IERROR)
 !    IF (myComputeNodeRank.NE.0) THEN
@@ -829,7 +832,7 @@ IF ((stage.EQ.0).OR.(stage.EQ.1)) THEN
                   , MPI_DOUBLE_PRECISION                   &
                   , ShapeMapping(iProc)%Rank                                      &
                   , 2001                                   &
-                  , MPI_COMM_WORLD                        &
+                  , MPI_COMM_PICLAS                        &
                   , SendRequest(iProc)                            &
                   , IERROR)
 !    END IF
@@ -846,13 +849,15 @@ IF ((stage.EQ.0).OR.(stage.EQ.2)) THEN
     CALL MPI_WAIT(SendRequest(iProc),MPI_STATUS_IGNORE,IERROR)
 #if defined(MEASURE_MPI_WAIT)
     CALL SYSTEM_CLOCK(count=CounterEnd, count_rate=Rate)
-    MPIW8TimePart(7) = MPIW8TimePart(7) + REAL(CounterEnd-CounterStart,8)/Rate
+    MPIW8TimePart(6)  = MPIW8TimePart(6) + REAL(CounterEnd-CounterStart,8)/Rate
+    MPIW8CountPart(6) = MPIW8CountPart(6) + 1_8
     CALL SYSTEM_CLOCK(count=CounterStart)
 #endif /*defined(MEASURE_MPI_WAIT)*/
     CALL MPI_WAIT(RecvRequest(iProc),MPI_STATUS_IGNORE,IERROR)
 #if defined(MEASURE_MPI_WAIT)
     CALL SYSTEM_CLOCK(count=CounterEnd, count_rate=Rate)
-    MPIW8TimePart(7) = MPIW8TimePart(7) + REAL(CounterEnd-CounterStart,8)/Rate
+    MPIW8TimePart(6)  = MPIW8TimePart(6) + REAL(CounterEnd-CounterStart,8)/Rate
+    MPIW8CountPart(6) = MPIW8CountPart(6) + 1_8
 #endif /*defined(MEASURE_MPI_WAIT)*/
     IF(IERROR.NE.MPI_SUCCESS) CALL ABORT(__STAMP__,' MPI Communication error', IERROR)
     DO iElem = 1, ShapeMapping(iProc)%nRecvShapeElems
@@ -865,8 +870,53 @@ IF ((stage.EQ.0).OR.(stage.EQ.2)) THEN
 
 END IF
 
-
-
 END SUBROUTINE DepositionMethod_SF
+
+
+#if USE_HDG
+!===================================================================================================================================
+!> Set NodeSource to zero on Dirichlet sides to account for mirror charges
+!===================================================================================================================================
+SUBROUTINE NullifyNodeSourceDirichletSides(SourceDim )
+! MODULES
+USE MOD_HDG_Vars           ,ONLY: nDirichletBCSides,DirichletBC
+USE MOD_Particle_Mesh_Vars ,ONLY: ElemSideNodeID_Shared,NodeInfo_Shared
+USE MOD_Mesh_Vars          ,ONLY: SideToElem,ElemToSide
+USE MOD_Mesh_Tools         ,ONLY: GetCNElemID
+USE MOD_Mesh_Vars          ,ONLY: offsetElem
+USE MOD_PICDepo_Vars       ,ONLY: NodeSource
+IMPLICIT NONE
+!----------------------------------------------------------------------------------------------------------------------------------!
+! INPUT / OUTPUT VARIABLES
+INTEGER,INTENT(IN) :: SourceDim
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER :: iDirichletBCID,SideID,CNElemID,iLocSide,UniqueNodeID,NonUniqueNodeID,ElemID,iLocSideTest,iNode
+!===================================================================================================================================
+! Loop over all Dirichlet sides (process-local)
+DO iDirichletBCID = 1,nDirichletBCSides
+  ! Get local Side and element index
+  SideID   = DirichletBC(iDirichletBCID)
+  ElemID   = SideToElem(S2E_ELEM_ID,SideID)
+  ! Get compute-node element index
+  CNElemID = GetCNElemID(ElemID+offsetElem)
+  ! Loop over all six sides and find the local side index that matches the Dirichlet side
+  DO iLocSideTest=1,6
+    iLocSide = iLocSideTest
+    IF(SideID.EQ.ElemToSide(E2S_SIDE_ID,iLocSideTest,ElemID)) EXIT
+  END DO
+  ! Loop over the four side nodes
+  DO iNode = 1, 4
+    ! Get the non-unique node index
+    NonUniqueNodeID = ElemSideNodeID_Shared(iNode,iLocSide,CNElemID) + 1
+    ! Get the unique node index
+    UniqueNodeID = NodeInfo_Shared(NonUniqueNodeID)
+    ! Set the node source on the Dirichlet side to zero (do not compensate the loss)
+    NodeSource(SourceDim:4,UniqueNodeID) = 0.
+  END DO ! iNode = 1, 4
+END DO ! iDirichletBCID = 1,nDirichletBCSides
+END SUBROUTINE NullifyNodeSourceDirichletSides
+#endif /*USE_HDG*/
+
 
 END MODULE MOD_PICDepo_Method

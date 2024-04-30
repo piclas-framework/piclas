@@ -1,7 +1,7 @@
 !==================================================================================================================================
 ! Copyright (c) 2010 - 2018 Prof. Claus-Dieter Munz and Prof. Stefanos Fasoulas
 !
-! This file is part of PICLas (gitlab.com/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
+! This file is part of PICLas (piclas.boltzplatz.eu/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
 ! it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3
 ! of the License, or (at your option) any later version.
 !
@@ -79,15 +79,8 @@ CHARACTER(LEN=2)               :: strhelp
 
 nVarAvg  = CountOption('VarNameAvg')
 nVarFluc = CountOption('VarNameFluc')
-IF((nVarAvg.EQ.0).AND.(nVarFluc.EQ.0))THEN
-  CALL CollectiveStop(__STAMP__, &
-    'No quantities for time averaging have been specified. Please specify quantities or disable time averaging!')
-#if FV_ENABLED
-ELSE
-  CALL CollectiveStop(__STAMP__, &
-    'Timeaveraging has not been implemented for FV yet!')
-#endif
-END IF
+IF((nVarAvg.EQ.0).AND.(nVarFluc.EQ.0)) CALL CollectiveStop(__STAMP__,&
+    'No quantities for time averaging specified. Please specify quantities or disable time averaging!')
 nSkipAvg=GETINT('nSkipAvg','1')
 
 ! Define variables to be averaged

@@ -1,7 +1,7 @@
 !==================================================================================================================================
 ! Copyright (c) 2010 - 2018 Prof. Claus-Dieter Munz and Prof. Stefanos Fasoulas
 !
-! This file is part of PICLas (gitlab.com/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
+! This file is part of PICLas (piclas.boltzplatz.eu/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
 ! it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3
 ! of the License, or (at your option) any later version.
 !
@@ -14,7 +14,7 @@
 
 MODULE MOD_DSMC_Relaxation
 !===================================================================================================================================
-! Module including collisions, relaxation and reaction decision
+! Module with routines for relaxation
 !===================================================================================================================================
 ! MODULES
 ! IMPLICIT VARIABLE HANDLING
@@ -26,11 +26,49 @@ PRIVATE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
-PUBLIC :: DSMC_VibRelaxDiatomic, CalcMeanVibQuaDiatomic, CalcXiVib, CalcXiTotalEqui, DSMC_calc_P_rot, DSMC_calc_var_P_vib
-PUBLIC :: InitCalcVibRelaxProb, DSMC_calc_P_vib, SumVibRelaxProb, FinalizeCalcVibRelaxProb, DSMC_calc_P_elec
+PUBLIC :: InitCalcVibRelaxProb, SumVibRelaxProb, FinalizeCalcVibRelaxProb
+PUBLIC :: DSMC_SetInternalEnr_Diatomic, DSMC_VibRelaxDiatomic, CalcMeanVibQuaDiatomic, CalcXiVib, CalcXiTotalEqui
+PUBLIC :: DSMC_calc_P_rot, DSMC_calc_var_P_vib, DSMC_calc_P_vib, DSMC_calc_P_elec
 !===================================================================================================================================
 
 CONTAINS
+
+SUBROUTINE DSMC_SetInternalEnr_Diatomic(iSpec, iPart, TRot, TVib)
+!===================================================================================================================================
+!> Energy distribution according to dissertation of Laux (diatomic)
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals_Vars            ,ONLY: BoltzmannConst
+USE MOD_DSMC_Vars               ,ONLY: PartStateIntEn, SpecDSMC, DSMC
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+INTEGER, INTENT(IN)             :: iSpec, iPart
+REAL, INTENT(IN)                :: TRot, TVib
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+REAL                            :: iRan
+INTEGER                         :: iQuant
+!===================================================================================================================================
+! Nullify energy for atomic species
+PartStateIntEn(1:2,iPart) = 0
+! Set vibrational energy
+CALL RANDOM_NUMBER(iRan)
+iQuant = INT(-LOG(iRan)*TVib/SpecDSMC(iSpec)%CharaTVib)
+DO WHILE (iQuant.GE.SpecDSMC(iSpec)%MaxVibQuant)
+  CALL RANDOM_NUMBER(iRan)
+  iQuant = INT(-LOG(iRan)*TVib/SpecDSMC(iSpec)%CharaTVib)
+END DO
+PartStateIntEn( 1,iPart) = (iQuant + DSMC%GammaQuant)*SpecDSMC(iSpec)%CharaTVib*BoltzmannConst
+! Set rotational energy
+CALL RANDOM_NUMBER(iRan)
+PartStateIntEn( 2,iPart) = -BoltzmannConst*TRot*LOG(iRan)
+
+END SUBROUTINE DSMC_SetInternalEnr_Diatomic
+
 
 SUBROUTINE DSMC_VibRelaxDiatomic(iPair, iPart, FakXi)
 !===================================================================================================================================
@@ -39,7 +77,7 @@ SUBROUTINE DSMC_VibRelaxDiatomic(iPair, iPart, FakXi)
 ! MODULES
 USE MOD_DSMC_Vars             ,ONLY: DSMC, SpecDSMC, PartStateIntEn, Coll_pData, RadialWeighting
 USE MOD_Globals_Vars          ,ONLY: BoltzmannConst
-USE MOD_Particle_Vars         ,ONLY: PartSpecies, VarTimeStep, usevMPF
+USE MOD_Particle_Vars         ,ONLY: PartSpecies, UseVarTimeStep, usevMPF
 USE MOD_part_tools            ,ONLY: GetParticleWeight
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -54,7 +92,7 @@ REAL, INTENT(IN)              :: FakXi
 REAL                          :: MaxColQua, iRan, Ec
 INTEGER                       :: iQuaMax, iQua
 !===================================================================================================================================
-IF (usevMPF.OR.RadialWeighting%DoRadialWeighting.OR.VarTimeStep%UseVariableTimeStep) THEN
+IF (usevMPF.OR.RadialWeighting%DoRadialWeighting.OR.UseVarTimeStep) THEN
   Ec = Coll_pData(iPair)%Ec / GetParticleWeight(iPart)
 ELSE
   Ec = Coll_pData(iPair)%Ec
@@ -89,7 +127,7 @@ SUBROUTINE CalcMeanVibQuaDiatomic()
 USE MOD_Globals
 USE MOD_Globals_Vars,          ONLY : BoltzmannConst
 USE MOD_DSMC_Vars,             ONLY : DSMC, CollInf, SpecDSMC, ChemReac, BGGas
-USE MOD_Particle_Vars,         ONLY : nSpecies
+USE MOD_Particle_Vars,         ONLY : nSpecies, Species
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -103,12 +141,12 @@ REAL            :: iRan, VibQuaTemp
 !===================================================================================================================================
 
 DO iSpec = 1, nSpecies
-  IF((SpecDSMC(iSpec)%InterID.EQ.2).OR.(SpecDSMC(iSpec)%InterID.EQ.20)) THEN
+  IF((Species(iSpec)%InterID.EQ.2).OR.(Species(iSpec)%InterID.EQ.20)) THEN
     IF(.NOT.SpecDSMC(iSpec)%PolyatomicMol) THEN
       ! Skip the background gas species (value initialized in dsmc_chemical_init.f90)
       IF(BGGas%BackgroundSpecies(iSpec)) CYCLE
       ! Only treat species present in the cell
-      IF(CollInf%Coll_SpecPartNum(iSpec).GT.0) THEN
+      IF(CollInf%Coll_SpecPartNum(iSpec).GT.0.) THEN
         ChemReac%MeanEVib_PerIter(iSpec) = ChemReac%MeanEVib_PerIter(iSpec) / CollInf%Coll_SpecPartNum(iSpec)
         VibQuaTemp = ChemReac%MeanEVib_PerIter(iSpec) / (BoltzmannConst*SpecDSMC(iSpec)%CharaTVib) - DSMC%GammaQuant
         CALL RANDOM_NUMBER(iRan)
@@ -128,7 +166,7 @@ DO iSpec = 1, nSpecies
         ChemReac%MeanXiVib_PerIter(iSpec) = 0.
       END IF  ! CollInf%Coll_SpecPartNum(iSpec).GT.0
     END IF    ! .NOT.SpecDSMC(iSpec)%PolyatomicMol
-  END IF      ! (SpecDSMC(iSpec)%InterID.EQ.2).OR.(SpecDSMC(iSpec)%InterID.EQ.20)
+  END IF      ! (Species(iSpec)%InterID.EQ.2).OR.(Species(iSpec)%InterID.EQ.20)
 END DO        ! iSpec = 1, nSpecies
 
 END SUBROUTINE CalcMeanVibQuaDiatomic
@@ -203,6 +241,7 @@ SUBROUTINE CalcXiTotalEqui(iReac, iPair, nProd, Xi_Total, Weight, XiVibPart, XiE
 USE MOD_Globals_Vars              ,ONLY: BoltzmannConst
 USE MOD_DSMC_Vars                 ,ONLY: SpecDSMC, ChemReac, Coll_pData, DSMC
 USE MOD_part_tools                ,ONLY: CalcXiElec
+USE MOD_Particle_Vars             ,ONLY: Species
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -238,14 +277,14 @@ ASSOCIATE( ProductReac => ChemReac%Products(iReac,1:4) )
     Xi_TotalTemp = Xi_Total
     DO iProd = 1, nProd
       iSpec = ProductReac(iProd)
-      IF((SpecDSMC(iSpec)%InterID.EQ.2).OR.(SpecDSMC(iSpec)%InterID.EQ.20)) THEN
+      IF((Species(iSpec)%InterID.EQ.2).OR.(Species(iSpec)%InterID.EQ.20)) THEN
         CALL CalcXiVib(MiddleTemp, iSpec, XiVibDOF=XiVibPart(iProd,:), XiVibTotal=XiVibTotal)
         Xi_TotalTemp = Xi_TotalTemp + XiVibTotal
       ELSE
         IF(PRESENT(XiVibPart)) XiVibPart(iProd,:) = 0.0
       END IF
       IF((DSMC%ElectronicModel.EQ.1).OR.(DSMC%ElectronicModel.EQ.2).OR.(DSMC%ElectronicModel.EQ.4)) THEN
-        IF((SpecDSMC(iSpec)%InterID.NE.4).AND.(.NOT.SpecDSMC(iSpec)%FullyIonized)) THEN
+        IF((Species(iSpec)%InterID.NE.4).AND.(.NOT.SpecDSMC(iSpec)%FullyIonized)) THEN
           XiElecPart(iProd) = CalcXiElec(MiddleTemp, iSpec)
           Xi_TotalTemp = Xi_TotalTemp + XiElecPart(iProd)
         ELSE
@@ -527,8 +566,8 @@ SUBROUTINE SumVibRelaxProb(iPair)
 ! summes up the variable vibrational realaxation probabilities
 !===================================================================================================================================
 ! MODULES
-USE MOD_DSMC_Vars          ,ONLY: DSMC, VarVibRelaxProb, Coll_pData, SpecDSMC
-USE MOD_Particle_Vars      ,ONLY: PartSpecies
+USE MOD_DSMC_Vars          ,ONLY: DSMC, VarVibRelaxProb, Coll_pData
+USE MOD_Particle_Vars      ,ONLY: PartSpecies, Species
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -545,7 +584,7 @@ IF(Coll_pData(iPair)%cRela2.EQ.0) RETURN
 IF(DSMC%VibRelaxProb.EQ.2.0) THEN
   cSpec1 = PartSpecies(Coll_pData(iPair)%iPart_p1)
   cSpec2 = PartSpecies(Coll_pData(iPair)%iPart_p2)
-  IF((SpecDSMC(cSpec1)%InterID.EQ.2).OR.(SpecDSMC(cSpec1)%InterID.EQ.20)) THEN
+  IF((Species(cSpec1)%InterID.EQ.2).OR.(Species(cSpec1)%InterID.EQ.20)) THEN
     CALL DSMC_calc_var_P_vib(cSpec1,cSpec2,iPair,VibProb)
     VarVibRelaxProb%ProbVibAvNew(cSpec1) = VarVibRelaxProb%ProbVibAvNew(cSpec1) + VibProb
     VarVibRelaxProb%nCollis(cSpec1) = VarVibRelaxProb%nCollis(cSpec1) + 1
@@ -553,7 +592,7 @@ IF(DSMC%VibRelaxProb.EQ.2.0) THEN
       DSMC%CalcVibProb(cSpec1,2) = MAX(DSMC%CalcVibProb(cSpec1,2),VibProb)
     END IF
   END IF
-  IF((SpecDSMC(cSpec2)%InterID.EQ.2).OR.(SpecDSMC(cSpec2)%InterID.EQ.20)) THEN
+  IF((Species(cSpec2)%InterID.EQ.2).OR.(Species(cSpec2)%InterID.EQ.20)) THEN
     CALL DSMC_calc_var_P_vib(cSpec2,cSpec1,iPair,VibProb)
     VarVibRelaxProb%ProbVibAvNew(cSpec2) = VarVibRelaxProb%ProbVibAvNew(cSpec2) + VibProb
     VarVibRelaxProb%nCollis(cSpec2) = VarVibRelaxProb%nCollis(cSpec2) + 1
