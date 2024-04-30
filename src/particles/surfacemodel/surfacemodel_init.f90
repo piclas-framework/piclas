@@ -190,6 +190,9 @@ SUBROUTINE FinalizeSurfaceModel()
 ! MODULES
 USE MOD_Globals
 USE MOD_SurfaceModel_Vars
+#if USE_LOADBALANCE
+USE MOD_LoadBalance_Vars       ,ONLY: PerformLoadBalance
+#endif /*USE_LOADBALANCE*/
 #if USE_MPI
 USE MOD_Particle_Boundary_Vars  ,ONLY: SurfTotalSideOnNode
 USE MOD_MPI_Shared_vars         ,ONLY: MPI_COMM_SHARED
@@ -215,17 +218,28 @@ SDEALLOCATE(SurfChem%SurfaceFluxBC)
 IF(SurfTotalSideOnNode) THEN
   CALL MPI_BARRIER(MPI_COMM_SHARED,iERROR)
   IF(DoChemSurface) THEN
-    CALL UNLOCK_AND_FREE(ChemWallProp_Shared_Win)
-    CALL UNLOCK_AND_FREE(ChemSampWall_Shared_Win)
+#if USE_LOADBALANCE
+    IF (.NOT.PerformLoadBalance) THEN
+#endif
+      CALL UNLOCK_AND_FREE(ChemWallProp_Shared_Win)
+      CALL UNLOCK_AND_FREE(ChemSampWall_Shared_Win)
+      ADEALLOCATE(ChemSampWall_Shared)
+      ADEALLOCATE(ChemWallProp_Shared)
+#if USE_LOADBALANCE
+    END IF
+#endif
   END IF
-  ADEALLOCATE(ChemSampWall_Shared)
-  ADEALLOCATE(ChemWallProp_Shared)
 END IF
 #endif
-SDEALLOCATE(ChemDesorpWall)
-SDEALLOCATE(ChemSampWall)
-ADEALLOCATE(ChemWallProp)
-
+#if USE_LOADBALANCE
+  IF (.NOT.PerformLoadBalance) THEN
+#endif
+  SDEALLOCATE(ChemDesorpWall)
+  SDEALLOCATE(ChemSampWall)
+  ADEALLOCATE(ChemWallProp)
+#if USE_LOADBALANCE
+  END IF
+#endif
 SDEALLOCATE(SurfModEmissionEnergy)
 SDEALLOCATE(SurfModEmissionYield)
 SDEALLOCATE(StickingCoefficientData)

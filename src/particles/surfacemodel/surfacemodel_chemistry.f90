@@ -511,6 +511,9 @@ USE MOD_PARTICLE_Vars           ,ONLY: nSpecies
 USE MOD_Particle_Mesh_Vars      ,ONLY: SideInfo_Shared
 USE MOD_Particle_Boundary_Vars  ,ONLY: SurfTotalSideOnNode, PartBound, nSurfSample, nComputeNodeSurfTotalSides, SurfSide2GlobalSide
 USE MOD_SurfaceModel_Vars       ,ONLY: ChemSampWall, ChemDesorpWall, ChemWallProp
+#if USE_LOADBALANCE
+USE MOD_LoadBalance_Vars        ,ONLY: PerformLoadBalance
+#endif /*USE_LOADBALANCE*/
 ! USE MOD_Particle_Surfaces_Vars
 #if USE_MPI
 USE MOD_MPI_Shared
@@ -530,6 +533,10 @@ INTEGER               :: iSide, iSpec, iBC, SideID
 !===================================================================================================================================
 
 IF(.NOT.SurfTotalSideOnNode) RETURN
+! ChemWallProp and ChemSampWall are already allocated
+#if USE_LOADBALANCE
+IF (PerformLoadBalance) RETURN
+#endif
 
 ALLOCATE(ChemSampWall(1:nSpecies,2,1:nSurfSample,1:nSurfSample,1:nComputeNodeSurfTotalSides))
 ChemSampWall = 0.0
