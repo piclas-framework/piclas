@@ -565,11 +565,11 @@ CASE('maxwell')
 CASE('maxwell_distribution_1D')
   CALL BuildTransGaussNums2(NbrOfParticle, iRanPart(1,:))
   maxwellfac = SQRT(BoltzmannConst*Species(FractNbr)%Init(iInit)%MWTemperatureIC/Species(FractNbr)%MassIC)
-  DO i = 1,NbrOfParticle
-    PositionNbr = PDM%nextFreePosition(i+PDM%CurrentNextFreePosition)
+  DO iPart = 1,NbrOfParticle
+    PositionNbr = PDM%nextFreePosition(iPart+PDM%CurrentNextFreePosition)
     IF (PositionNbr.GT.0) THEN
        PartState(4:6,PositionNbr) = VeloIC *VeloVecIC(1:3)
-       PartState(4,PositionNbr) = PartState(4,PositionNbr) + iRanPart(1,i)*maxwellfac
+       PartState(4,PositionNbr) = PartState(4,PositionNbr) + iRanPart(1,iPart)*maxwellfac
     END IF
   END DO
 CASE('IMD') ! read IMD particle velocity from *.chkpt file -> velocity space has already been read when particles position was done
