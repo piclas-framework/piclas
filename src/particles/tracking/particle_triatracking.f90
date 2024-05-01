@@ -615,7 +615,7 @@ INTEGER,INTENT(IN)                :: i
 INTEGER                          :: NblocSideID, NbElemID, CNElemID, ind, nbSideID, nMortarElems,BCType
 INTEGER                          :: ElemID,flip,OldElemID,nlocSides
 INTEGER                          :: LocalSide, NrOfThroughSides
-INTEGER                          :: SideID,TempSideID,iLocSide, localSideID, LastSide
+INTEGER                          :: SideID,TempSideID,iLocSide, localSideID
 LOGICAL                          :: ThroughSide, PartisDone
 LOGICAL                          :: crossedBC, oldElemIsMortar
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -629,11 +629,11 @@ CALL LBStartTime(tLBStart)
 IF (MeasureTrackTime) nTracks=nTracks+1
 PartisDone = .FALSE.
 IF (PEM%LastGlobalElemID(i).LE.0) THEN
-  LastSide = -PEM%LastGlobalElemID(i)
+  TrackInfo%LastSide = -PEM%LastGlobalElemID(i)
   ElemID = PEM%GlobalElemID(i)
 ELSE
   ElemID = PEM%LastGlobalElemID(i)
-  LastSide = 0
+  TrackInfo%LastSide = 0
 END IF
 TrackInfo%CurrElem=ElemID
 SideID = 0
@@ -662,7 +662,7 @@ DO WHILE (.NOT.PartisDone)
       nMortarElems = MERGE(4,2,SideInfo_Shared(SIDE_NBELEMID,TempSideID).EQ.-1)
       DO ind = 1, nMortarElems
         nbSideID = ElemInfo_Shared(ELEM_FIRSTSIDEIND,ElemID) + iLocSide + ind
-        IF (nbSideID.EQ.LastSide) CYCLE
+        IF (nbSideID.EQ.TrackInfo%LastSide) CYCLE
         NbElemID = SideInfo_Shared(SIDE_NBELEMID,nbSideID)
         ! If small mortar element not defined, abort. Every available information on the compute-node is kept in shared memory, so
         ! no way to recover it during runtime
@@ -681,13 +681,13 @@ DO WHILE (.NOT.PartisDone)
           oldElemIsMortar = .TRUE.
           NrOfThroughSides = NrOfThroughSides + 1
           SideID = nbSideID
-          LastSide = nbSideID
+          TrackInfo%LastSide = nbSideID
           LocalSide = NblocSideID
           EXIT SideLoop
         END IF
       END DO
     ELSE  ! Regular side
-      IF (TempSideID.EQ.LastSide) CYCLE
+      IF (TempSideID.EQ.TrackInfo%LastSide) CYCLE
       ThroughSide = .FALSE.
       IF(Symmetry%Order.EQ.2) THEN 
         CALL ParticleThroughSideCheck2D(i,localSideID,ElemID,ThroughSide)
@@ -698,7 +698,7 @@ DO WHILE (.NOT.PartisDone)
         NrOfThroughSides = NrOfThroughSides + 1
         SideID = TempSideID
         LocalSide = localSideID
-        LastSide = SideInfo_Shared(SIDE_NBSIDEID,TempSideID)
+        TrackInfo%LastSide = SideInfo_Shared(SIDE_NBSIDEID,TempSideID)
         EXIT SideLoop
       END IF
     END IF  ! Mortar or regular side
@@ -715,7 +715,7 @@ DO WHILE (.NOT.PartisDone)
     crossedBC=.FALSE.
     flip = MERGE(0, MOD(SideInfo_Shared(SIDE_FLIP,SideID),10),SideInfo_Shared(SIDE_ID,SideID).GT.0)
     IF (SideInfo_Shared(SIDE_BCID,SideID).GT.0) THEN
-      LastSide=SideID
+      TrackInfo%LastSide=SideID
       OldElemID=ElemID
       BCType = PartBound%TargetBoundCond(PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID)))
       ! Calculate the intersection with the wall and determine alpha (= fraction of trajectory to the intersection)

@@ -296,6 +296,7 @@ USE MOD_Mesh_Tools              ,ONLY: GetCNElemID
 USE MOD_Particle_Vars           ,ONLY: PDM, RotRefFrameOmega,RotRefSubTimeStep,nSubCyclingSteps
 USE MOD_Particle_Tracking_Vars  ,ONLY: TrackInfo
 USE MOD_part_RHS                ,ONLY: CalcPartRHSRotRefFrame
+USE MOD_Globals_Vars            ,ONLY: TwoepsMach
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -312,7 +313,7 @@ REAL                              :: tang1(1:3), tang2(1:3), NewVelo(3), POI_vec
 REAL                              :: POI_fak, TildTrajectory(3), dtVar
 ! Symmetry
 REAL                              :: rotVelY, rotVelZ, rotPosY
-REAL                              :: nx, ny, nVal, VelX, VelY, VecX, VecY, Vector1(1:3), Vector2(1:3), OldVelo(1:3)
+REAL                              :: nx, ny, nVal, VelX, VelY, VecX, VecY, Vector1(1:2), OldVelo(1:3)
 REAL                              :: NewVeloPush(1:3)
 !===================================================================================================================================
 ! 1.) Get the wall velocity, temperature and accommodation coefficients
@@ -360,14 +361,9 @@ IF(Symmetry%Axisymmetric) THEN
   CNElemID = GetCNElemID(SideInfo_Shared(SIDE_ELEMID,SideID))
   LocSideID = SideInfo_Shared(SIDE_LOCALID,SideID)
 
-  ! Getting the vectors, which span the cell (1-2 and 1-4)
-  Vector1(1:3)=NodeCoords_Shared(1:3,ElemSideNodeID_Shared(2,LocSideID,CNElemID)+1)-NodeCoords_Shared(1:3,ElemSideNodeID_Shared(1,LocSideID,CNElemID)+1)
-  Vector2(1:3)=NodeCoords_Shared(1:3,ElemSideNodeID_Shared(4,LocSideID,CNElemID)+1)-NodeCoords_Shared(1:3,ElemSideNodeID_Shared(1,LocSideID,CNElemID)+1)
+  ! Getting the vectors, which span the cell
+   Vector1(1:2) = NodeCoords_Shared(1:2,ElemSideNodeID2D_Shared(1,LocSideID, CNElemID))-NodeCoords_Shared(1:2,ElemSideNodeID2D_Shared(2,LocSideID, CNElemID))
 
-  ! Get the vector, which does NOT have the z-component
-  IF (ABS(Vector1(3)).GT.ABS(Vector2(3))) THEN
-    Vector1 = Vector2
-  END IF
   ! Cross product of the two vectors is simplified as Vector1(3) is zero
   nx = Vector1(2)
   ny = -Vector1(1)
@@ -468,6 +464,11 @@ IF(Symmetry%Axisymmetric) THEN
   PartState(3,PartID) = 0.0
   NewVelo(2) = rotVelY
   NewVelo(3) = rotVelZ
+  
+  IF (NINT(SIGN(1.,rotPosY-POI_vec(2))).NE.NINT(SIGN(1.,ny))) THEN
+    LastPartPos(2, PartID) = LastPartPos(2, PartID) + SIGN(1.,ny)*TwoepsMach
+    TrackInfo%LastSide = 0
+  END IF
 END IF ! Symmetry%Axisymmetric
 
 IF(Symmetry%Order.LT.3) THEN
