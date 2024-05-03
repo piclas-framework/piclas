@@ -63,7 +63,7 @@ END INTERFACE
 
 PUBLIC :: InitMPIvars,StartReceiveMPIData,StartSendMPIData,FinishExchangeMPIData,FinalizeMPI
 PUBLIC :: StartReceiveMPIDataType,StartSendMPIDataType,FinishExchangeMPIDataType
-PUBLIC :: StartReceiveMPIDataTypeDielectric,StartSendMPIDataTypeDielectric,FinishExchangeMPIDataTypeDielectric
+PUBLIC :: StartSendMPIDataTypeDielectric,FinishExchangeMPIDataTypeDielectric
 PUBLIC :: StartReceiveMPISurfDataType
 #if USE_HDG
 PUBLIC :: StartSendMPISurfDataType,FinishExchangeMPISurfDataType
@@ -391,38 +391,6 @@ END SUBROUTINE StartReceiveMPIDataType
 !===================================================================================================================================
 !> Subroutine does the receive operations for the face data that has to be exchanged between processors (type-based p-adaption).
 !===================================================================================================================================
-SUBROUTINE StartReceiveMPIDataTypeDielectric(MPIRequest, SendID)
-! MODULES
-USE MOD_Globals
-USE MOD_PreProc
-USE MOD_MPI_Vars
-! IMPLICIT VARIABLE HANDLING
-IMPLICIT NONE
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
-INTEGER,INTENT(IN)  :: SendID                                                 !< defines the send / receive direction -> 1=send MINE
-                                                                              !< / receive YOUR, 3=send YOUR / receive MINE
-!-----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
-INTEGER,INTENT(OUT) :: MPIRequest(nNbProcs)                                   !< communication handles
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-!===================================================================================================================================
-DO iNbProc=1,nNbProcs
-  IF(nMPISides_rec(iNbProc,SendID).GT.0)THEN
-    nRecVal = 1*DataSizeSideRec(iNbProc,SendID)
-    CALL MPI_IRECV(DGExchange(iNbProc)%FaceDataRecv(1,1:DataSizeSideRec(iNbProc,SendID)),nRecVal,MPI_DOUBLE_PRECISION,  &
-                    nbProc(iNbProc),0,MPI_COMM_WORLD,MPIRequest(iNbProc),iError)
-  ELSE
-    MPIRequest(iNbProc)=MPI_REQUEST_NULL
-  END IF
-END DO !iProc=1,nNBProcs
-END SUBROUTINE StartReceiveMPIDataTypeDielectric
-
-
-!===================================================================================================================================
-!> Subroutine does the receive operations for the face data that has to be exchanged between processors (type-based p-adaption).
-!===================================================================================================================================
 SUBROUTINE StartReceiveMPISurfDataType(MPIRequest, SendID, mode)
 ! MODULES
 USE MOD_Globals
@@ -723,6 +691,9 @@ DO iNbProc=1,nNbProcs
     nSendVal     = 1*DataSizeSideSend(iNbProc,SendID)
     SideID_start = OffsetMPISides_send(iNbProc-1,SendID)+1
     SideID_end   = OffsetMPISides_send(iNbProc,SendID)
+
+    ! Dummy zeros
+    DGExchange(iNbProc)%FaceDataSend(2:PP_nVar,:) = 0.
 
     i = 1
     IF(SendID.EQ.2)THEN

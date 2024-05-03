@@ -398,7 +398,7 @@ USE MOD_ProlongToFace   ,ONLY: ProlongToFace_TypeBased
 USE MOD_FillMortar      ,ONLY: U_Mortar
 #if USE_MPI
 USE MOD_MPI_Vars
-USE MOD_MPI             ,ONLY: StartReceiveMPIDataTypeDielectric,StartSendMPIDataTypeDielectric,FinishExchangeMPIDataTypeDielectric
+USE MOD_MPI             ,ONLY: StartReceiveMPIDataType,StartSendMPIDataTypeDielectric,FinishExchangeMPIDataTypeDielectric
 #endif
 !USE MOD_FillMortar      ,ONLY: U_Mortar
 ! IMPLICIT VARIABLE HANDLING
@@ -494,13 +494,13 @@ END DO
 
 ! 5.  Send Slave Dielectric info (real array with dimension (N+1)*(N+1)) to Master procs
 !     Dielectric_dummy_Slave2
-CALL StartReceiveMPIDataTypeDielectric( RecRequest_U2,SendID=2) ! Receive MINE
-CALL StartSendMPIDataTypeDielectric(   SendRequest_U2,SendID=2) ! Send YOUR
+CALL StartReceiveMPIDataType(       RecRequest_U2,SendID=2) ! Receive MINE
+CALL StartSendMPIDataTypeDielectric(SendRequest_U2,SendID=2) ! Send YOUR
 
 ! Send Master Dielectric info (real array with dimension (N+1)*(N+1)) to Slave procs
 ! Dielectric_dummy_Master2
-CALL StartReceiveMPIDataTypeDielectric( RecRequest_U ,SendID=1) ! Receive YOUR
-CALL StartSendMPIDataTypeDielectric(   SendRequest_U ,SendID=1) ! Send MINE
+CALL StartReceiveMPIDataType(       RecRequest_U ,SendID=1) ! Receive YOUR
+CALL StartSendMPIDataTypeDielectric(SendRequest_U ,SendID=1) ! Send MINE
 
 CALL FinishExchangeMPIDataTypeDielectric(SendRequest_U2,RecRequest_U2,SendID=2) !Send MINE - receive YOUR
 CALL FinishExchangeMPIDataTypeDielectric(SendRequest_U, RecRequest_U ,SendID=1) !Send YOUR - receive MINE
