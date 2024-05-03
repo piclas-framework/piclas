@@ -465,7 +465,7 @@ DO iElem = 1, nElems
   END IF
 END DO ! iElem = 1, nElems
 
-! 3. Map dummy element values to face arrays (prolong to face needs data of dimension PP_nVar) to 
+! 3. Map dummy element values to face arrays (prolong to face needs data of dimension PP_nVar) to
 !    DielectricSurf(:)%Dielectric_dummy_Master, DielectricSurf(:)%Dielectric_dummy_Slave
 CALL ProlongToFace_TypeBased(doDielectricSides=.TRUE., doMPISides=.FALSE.)
 CALL U_Mortar(doDielectricSides=.TRUE., doMPISides=.FALSE.)

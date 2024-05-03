@@ -1195,6 +1195,13 @@ DO iElem=1,nElems
   ASSOCIATE( Ex  => U_N(iElem)%E(1,i,j,k) ,&
              Ey  => U_N(iElem)%E(2,i,j,k) ,&
              Ez  => U_N(iElem)%E(3,i,j,k) )
+#else
+  ASSOCIATE( Ex  => U_N(iElem)%U(1,i,j,k) ,&
+             Ey  => U_N(iElem)%U(2,i,j,k) ,&
+             Ez  => U_N(iElem)%U(3,i,j,k) ,&
+             Bx  => U_N(iElem)%U(4,i,j,k) ,&
+             By  => U_N(iElem)%U(5,i,j,k) ,&
+             Bz  => U_N(iElem)%U(6,i,j,k) )
 #endif /*USE_HDG*/
       ! in electromagnetische felder by henke 2011 - springer
       ! WMag = 1/(2mu) * int_V B^2 dV
@@ -1208,11 +1215,11 @@ DO iElem=1,nElems
       B_abs = B(1,i,j,k,iElem)*B(1,i,j,k,iElem) + B(2,i,j,k,iElem)*B(2,i,j,k,iElem) + B(3,i,j,k,iElem)*B(3,i,j,k,iElem)
 #endif /*PP_nVar==1*/
 #else
-      E_abs = U_N(iElem)%U(1,i,j,k)**2 + U_N(iElem)%U(2,i,j,k)**2 * U_N(iElem)%U(3,i,j,k)**2
+      E_abs = Ex*Ex + Ey*Ey + Ez*Ez
 #endif /*USE_HDG*/
 
 #if (PP_nVar==8)
-      B_abs = U_N(iElem)%U(4,i,j,k)**2 + U_N(iElem)%U(5,i,j,k)**2 * U_N(iElem)%U(6,i,j,k)**2
+      B_abs = Bx*Bx + By*By + Bz*Bz
       Phi_abs = U_N(iElem)%U(7,i,j,k)*U_N(iElem)%U(7,i,j,k)
       Psi_abs = U_N(iElem)%U(8,i,j,k)*U_N(iElem)%U(8,i,j,k)
 #endif /*PP_nVar=8*/
@@ -1229,9 +1236,7 @@ DO iElem=1,nElems
       Wphi_tmp = Wphi_tmp + wGP(i)*wGP(j)*wGP(k) / N_VolMesh(iElem)%sJ(i,j,k) * Phi_abs * DielectricVol(ElemToDielectric(iElem))%DielectricEps(i,j,k)
       Wpsi_tmp = Wpsi_tmp + wGP(i)*wGP(j)*wGP(k) / N_VolMesh(iElem)%sJ(i,j,k) * Psi_abs / DielectricVol(ElemToDielectric(iElem))%DielectricMu(i,j,k)
 #endif /*PP_nVar=8*/
-#if USE_HDG
   END ASSOCIATE
-#endif /*USE_HDG*/
     END DO; END DO; END DO
   ELSE
     DO k=0,Nloc; DO j=0,Nloc; DO i=0,Nloc
@@ -1239,6 +1244,13 @@ DO iElem=1,nElems
   ASSOCIATE( Ex  => U_N(iElem)%E(1,i,j,k) ,&
              Ey  => U_N(iElem)%E(2,i,j,k) ,&
              Ez  => U_N(iElem)%E(3,i,j,k) )
+#else
+  ASSOCIATE( Ex  => U_N(iElem)%U(1,i,j,k) ,&
+             Ey  => U_N(iElem)%U(2,i,j,k) ,&
+             Ez  => U_N(iElem)%U(3,i,j,k) ,&
+             Bx  => U_N(iElem)%U(4,i,j,k) ,&
+             By  => U_N(iElem)%U(5,i,j,k) ,&
+             Bz  => U_N(iElem)%U(6,i,j,k) )
 #endif /*USE_HDG*/
       ! in electromagnetische felder by henke 2011 - springer
       ! WMag = 1/(2mu) * int_V B^2 dV
@@ -1252,11 +1264,11 @@ DO iElem=1,nElems
       B_abs = B(1,i,j,k,iElem)*B(1,i,j,k,iElem) + B(2,i,j,k,iElem)*B(2,i,j,k,iElem) + B(3,i,j,k,iElem)*B(3,i,j,k,iElem)
 #endif /*PP_nVar==1*/
 #else
-      E_abs = U_N(iElem)%U(1,i,j,k)**2 + U_N(iElem)%U(2,i,j,k)**2 * U_N(iElem)%U(3,i,j,k)**2
+      E_abs = Ex*Ex + Ey*Ey + Ez*Ez
 #endif /*USE_HDG*/
 
 #if (PP_nVar==8)
-      B_abs = U_N(iElem)%U(4,i,j,k)**2 + U_N(iElem)%U(5,i,j,k)**2 * U_N(iElem)%U(6,i,j,k)**2
+      B_abs = Bx*Bx + By*By + Bz*Bz
       Phi_abs = U_N(iElem)%U(7,i,j,k)*U_N(iElem)%U(7,i,j,k)
       Psi_abs = U_N(iElem)%U(8,i,j,k)*U_N(iElem)%U(8,i,j,k)
 #endif /*PP_nVar=8*/
@@ -1273,9 +1285,7 @@ DO iElem=1,nElems
       Wphi_tmp = Wphi_tmp + wGP(i)*wGP(j)*wGP(k) / N_VolMesh(iElem)%sJ(i,j,k) * Phi_abs
       Wpsi_tmp = Wpsi_tmp + wGP(i)*wGP(j)*wGP(k) / N_VolMesh(iElem)%sJ(i,j,k) * Psi_abs
 #endif /*PP_nVar=8*/
-#if USE_HDG
   END ASSOCIATE
-#endif /*USE_HDG*/
     END DO; END DO; END DO
   END IF
   END ASSOCIATE
