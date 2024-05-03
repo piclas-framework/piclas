@@ -413,7 +413,7 @@ IMPLICIT NONE
 INTEGER           :: p,q
 #endif /*USE_MPI*/
 INTEGER           :: nMaster, nSlave, locSideID, iElem, flip, iSide, Nloc
-REAL              :: dummy
+REAL              :: dummy,MinSlave,MinMaster
 !===================================================================================================================================
 ! General workflow:
 ! 1.  Initialize dummy arrays for Elem/Face
@@ -461,7 +461,7 @@ DO iElem = 1, nElems
     DielectricVolDummy(iElem)%U(1,0:Nloc,0:Nloc,0:Nloc) = &
         SQRT(DielectricVol(ElemToDielectric(iElem))%DielectricConstant_inv(0:Nloc,0:Nloc,0:Nloc))
   ELSE
-    DielectricVolDummy(iElem)%U(1,0:Nloc,0:Nloc,0:Nloc) = 1.
+    DielectricVolDummy(iElem)%U(1,0:Nloc,0:Nloc,0:Nloc) = -2.0
   END IF
 END DO ! iElem = 1, nElems
 
@@ -524,7 +524,19 @@ DO iSide =1, nSides
 END DO ! iSide =1, nSides
 !IF(myrank.eq.0) read*; CALL MPI_BARRIER(MPI_COMM_WORLD,iError)
 
-!8.  Check if the default value remains unchanged (negative material constants are not allowed until now)
+  ! 7. Copy slave side to master side if the dielectric region is on the slave side as the master will calculate the flux for the
+  !    master and the slave side and it requires the factor 1./SQRT(EpsR*MuR) for the wave travelling into the dielectric region
+DO iSide = 1, nSides
+  MinSlave  = MINVAL(DielectricSurf(iSide)%Dielectric_Slave(:,:))
+  MinMaster = MINVAL(DielectricSurf(iSide)%Dielectric_Master(:,:))
+  IF((MinMaster.LT.0.0).AND.(MinSlave.LT.0.0))THEN
+    DielectricSurf(iSide)%Dielectric_Master(:,:) = 1.0
+  ELSEIF(MinMaster.LT.0.0)THEN
+    DielectricSurf(iSide)%Dielectric_Master(:,:) = DielectricSurf(iSide)%Dielectric_Slave(:,:)
+  END IF ! (MinMaster.LT.0.0).AND.(MinSlave.LT.0.0)
+END DO ! iSide = 1, nSides
+
+! 8.  Check if the default value remains unchanged (negative material constants are not allowed until now)
 DO iSide =1, nSides
   dummy = MINVAL(DielectricSurf(iSide)%Dielectric_Master)
   IF(dummy.LT.0.0)THEN
