@@ -2117,6 +2117,7 @@ LOGICAL                           :: HasInterPlaneOnProc(nPartBound)
 
 ALLOCATE(InterPlanePartIndx(1:PDM%maxParticleNumber), STAT=ALLOCSTAT)
 IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__,'ERROR in particle_boundary_init.f90: Cannot allocate InterPlanePartIndx array!')
+InterPlanePartIndx = 0
 
 HasInterPlaneOnProc = .FALSE.
 

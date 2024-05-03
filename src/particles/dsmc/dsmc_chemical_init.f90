@@ -1205,10 +1205,10 @@ ELSE
     DO iSpec = 1, 3
       IF(ChemReac%Reactants(iReac,iSpec).NE.0) SumReactMass = SumReactMass + Species(ChemReac%Reactants(iReac,iSpec))%MassIC
     END DO
-    ! Santiy mass check for reactions of selected chemistry model, real compare with RelMassTol
+    ! Sanity mass check for reactions of selected chemistry model, real compare with RelMassTol
     IF(.NOT.ALMOSTEQUALRELATIVE(SumProdMass,SumReactMass,RelMassTol)) THEN
-      CALL PrintOption('DSMC_Chemistry might not mass conserving for chemical reaction:','WARNING',StrOpt=TRIM(ChemReac%ReactionName(iReac)))
-      CALL abort(__STAMP__,'DSMC_Chemistry might not mass conserving for current chemical reaction')
+      CALL PrintOption('DSMC_Chemistry might not be mass conserving for chemical reaction:','WARNING',StrOpt=TRIM(ChemReac%ReactionName(iReac)))
+      CALL abort(__STAMP__,'DSMC_Chemistry might not be mass conserving for current chemical reaction!')
     END IF
       ! Read-in of the reaction parameters, depending on the model
     SELECT CASE (TRIM(ChemReac%ReactModel(iReac)))
