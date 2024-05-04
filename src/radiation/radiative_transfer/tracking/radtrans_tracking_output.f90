@@ -59,6 +59,7 @@ USE MOD_Mesh_Tools           ,ONLY: GetCNElemID
 USE MOD_Particle_Mesh_Vars   ,ONLY: ElemVolume_Shared
 USE MOD_Photon_TrackingVars  ,ONLY: RadiationVolState
 USE MOD_HDF5_Output_State    ,ONLY: WriteElemDataToSeparateContainer
+USE MOD_LoadBalance_Vars     ,ONLY: nPartsPerElem,ElemTime
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -90,13 +91,17 @@ ALLOCATE(ElemVolume(1:nElems))
 RayElemPassedEnergyLoc1st=-1.0
 RayElemPassedEnergyLoc2nd=-1.0
 ElemVolume=-1.0
-CALL AddToElemData(ElementOut,'RayElemPassedEnergy1st',RealArray=RayElemPassedEnergyLoc1st)
-CALL AddToElemData(ElementOut,'RayElemPassedEnergy2nd',RealArray=RayElemPassedEnergyLoc2nd)
-CALL AddToElemData(ElementOut,'RaySecondaryVectorX'   ,RealArray=RaySecondaryVectorX)
-CALL AddToElemData(ElementOut,'RaySecondaryVectorY'   ,RealArray=RaySecondaryVectorY)
-CALL AddToElemData(ElementOut,'RaySecondaryVectorZ'   ,RealArray=RaySecondaryVectorZ)
-CALL AddToElemData(ElementOut,'ElemVolume'            ,RealArray=ElemVolume)
-CALL AddToElemData(ElementOut,'Nloc',IntArray=N_DG_Ray_loc)
+! Add two dummy arrays for comparison with reggie reference file: Remove this in the future and adjust the reference files
+CALL AddToElemData(ElementOutRay,'ElemTime'     ,RealArray=ElemTime)
+CALL AddToElemData(ElementOutRay,'nPartsPerElem',LongIntArray=nPartsPerElem)
+
+CALL AddToElemData(ElementOutRay,'RayElemPassedEnergy1st',RealArray=RayElemPassedEnergyLoc1st)
+CALL AddToElemData(ElementOutRay,'RayElemPassedEnergy2nd',RealArray=RayElemPassedEnergyLoc2nd)
+CALL AddToElemData(ElementOutRay,'RaySecondaryVectorX'   ,RealArray=RaySecondaryVectorX)
+CALL AddToElemData(ElementOutRay,'RaySecondaryVectorY'   ,RealArray=RaySecondaryVectorY)
+CALL AddToElemData(ElementOutRay,'RaySecondaryVectorZ'   ,RealArray=RaySecondaryVectorZ)
+CALL AddToElemData(ElementOutRay,'ElemVolume'            ,RealArray=ElemVolume)
+CALL AddToElemData(ElementOutRay,'NlocRay'               ,IntArray=N_DG_Ray_loc)
 
 ! Copy data from shared array
 DO iElem = 1, nElems
@@ -330,13 +335,13 @@ END ASSOCIATE
 #endif /*USE_MPI*/
 
 ! Write all 'ElemData' arrays to a single container in the state.h5 file
-CALL WriteAdditionalElemData(RadiationVolState,ElementOut)
+CALL WriteAdditionalElemData(RadiationVolState,ElementOutRay)
 
 ! Write Nloc and the reflected vector to separate containers for element- and process-wise read-in during restart or loadbalance
-CALL WriteElemDataToSeparateContainer(RadiationVolState,ElementOut,'Nloc')
-CALL WriteElemDataToSeparateContainer(RadiationVolState,ElementOut,'RaySecondaryVectorX')
-CALL WriteElemDataToSeparateContainer(RadiationVolState,ElementOut,'RaySecondaryVectorY')
-CALL WriteElemDataToSeparateContainer(RadiationVolState,ElementOut,'RaySecondaryVectorZ')
+CALL WriteElemDataToSeparateContainer(RadiationVolState,ElementOutRay,'NlocRay')
+CALL WriteElemDataToSeparateContainer(RadiationVolState,ElementOutRay,'RaySecondaryVectorX')
+CALL WriteElemDataToSeparateContainer(RadiationVolState,ElementOutRay,'RaySecondaryVectorY')
+CALL WriteElemDataToSeparateContainer(RadiationVolState,ElementOutRay,'RaySecondaryVectorZ')
 
 SWRITE(*,*) 'DONE'
 END SUBROUTINE WritePhotonVolSampleToHDF5

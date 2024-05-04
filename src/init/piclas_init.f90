@@ -302,7 +302,7 @@ USE MOD_MPI                        ,ONLY: OutputMPIW8Time
 #endif /*defined(MEASURE_MPI_WAIT)*/
 #endif /*USE_MPI*/
 #endif /*PARTICLES*/
-USE MOD_IO_HDF5                    ,ONLY: FinalizeElemData,ElementOut
+USE MOD_IO_HDF5                    ,ONLY: FinalizeElemData,ElementOut,ElementOutRay
 USE MOD_TimeDiscInit               ,ONLY: FinalizeTimeDisc
 #if (PP_TimeDiscMethod==600)
 USE MOD_Radiation_Init             ,ONLY: FinalizeRadiation
@@ -320,6 +320,7 @@ LOGICAL,INTENT(IN)      :: IsLoadBalance
 REAL                    :: Time
 !===================================================================================================================================
 CALL FinalizeElemData(ElementOut)
+CALL FinalizeElemData(ElementOutRay)
 !Finalize
 CALL FinalizeRecordPoints()
 CALL FinalizeAnalyze()

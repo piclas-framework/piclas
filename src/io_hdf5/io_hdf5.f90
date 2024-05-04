@@ -55,7 +55,8 @@ TYPE tElementOut
   TYPE(tElementOut),POINTER             :: next         => NULL()     !< next list item
 END TYPE
 
-TYPE(tElementOut),POINTER    :: ElementOut   => NULL() !< linked list of output pointers
+TYPE(tElementOut),POINTER    :: ElementOut      => NULL() !< linked list of output pointers
+TYPE(tElementOut),POINTER    :: ElementOutRay   => NULL() !< linked list of output pointers
 
 INTERFACE InitIOHDF5
   MODULE PROCEDURE InitIOHDF5
