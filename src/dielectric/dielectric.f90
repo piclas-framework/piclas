@@ -506,6 +506,8 @@ CALL FinishExchangeMPIDataTypeDielectric(SendRequest_U2,RecRequest_U2,SendID=2) 
 CALL FinishExchangeMPIDataTypeDielectric(SendRequest_U, RecRequest_U ,SendID=1) !Send YOUR - receive MINE
 #endif /*USE_MPI*/
 
+DEALLOCATE(DielectricVolDummy)
+
 ! 6.  With MPI, use dummy array which was used for sending the MPI data
 !     or with single execution, directly use prolonged data on face
 DO iSide =1, nSides
