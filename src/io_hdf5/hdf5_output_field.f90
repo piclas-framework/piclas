@@ -376,7 +376,7 @@ ASSOCIATE (&
       nGlobalSides   => INT(nGlobalOutputSides              , IK)  , &
       LocalnBCSides  => INT(nComputeNodeSurfOutputSides     , IK)  , &
       offsetSurfSide => INT(offsetComputeNodeSurfOutputSide , IK)  , &
-      nVarSurfData   => INT(nVarSurfData                    , IK))
+      nVarSurfData8  => INT(nVarSurfData                    , IK))
 
   ALLOCATE(helpArray(nVarSurfData,1:nSurfSample,1:nSurfSample,LocalnBCSides))
 
@@ -418,8 +418,8 @@ ASSOCIATE (&
 
   ! WARNING: Only the sampling leaders write the data to .h5
   CALL WriteArrayToHDF5(DataSetName=H5_Name        , rank=4      , &
-                        nValGlobal =(/nVarSurfData , nSurfSample , nSurfSample , nGlobalSides/)   , &
-                        nVal       =(/nVarSurfData , nSurfSample , nSurfSample , LocalnBCSides/)  , &
+                        nValGlobal =(/nVarSurfData8, nSurfSample , nSurfSample , nGlobalSides/)   , &
+                        nVal       =(/nVarSurfData8, nSurfSample , nSurfSample , LocalnBCSides/)  , &
                         offset     =(/0_IK         , 0_IK        , 0_IK        , offsetSurfSide/) , &
                         collective =.FALSE.        , &
                         RealArray=helpArray(1:nVarSurfData,1:nSurfSample,1:nSurfSample,1:LocalnBCSides))
