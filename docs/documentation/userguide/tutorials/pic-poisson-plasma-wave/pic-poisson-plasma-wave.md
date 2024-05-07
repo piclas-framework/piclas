@@ -88,23 +88,82 @@ Mesh with $60\times1\times1$ elements and a size of [$2\pi\times0.2\times0.2$] m
 
 ## PIC Simulation with PICLas
 
-Install **piclas** by compiling the source code as described in Chapter {ref}`userguide/installation:Installation` and make sure to set
-the correct compile flags
+Install **piclas** by compiling the source code as described in Chapter {ref}`userguide/installation:Installation`, specifically
+described under Section {ref}`userguide/installation:Compiling the code`.
+Always build the code in a separate directory located in the piclas top level directory.
+For this PIC tutorial, e.g., create a directory *build_poisson_RK3* by running
+
+    cd $PICLAS_PATH
+
+where the variable `PICLAS_PATH` contains the path to the location of the piclas repository.
+If the piclas repository is located in the home directory, run
+
+    cd /home/$(whoami)/piclas
+
+and the create the build directory, in which the compilation process will take place
+
+    mkdir build_poisson_RK3
+
+and the directory structure, which can be viewed via
+
+    ls -l
+
+should look like this
+
+     build_poisson_RK3
+     cmake
+     CMakeListsLib.txt
+     CMakeListsMachine.txt
+     CMakeLists.txt
+     CONTRIBUTORS.md
+     docs
+     LICENCE.md
+     README.md
+     REFERENCE.md
+     REGGIE.md
+     regressioncheck
+     share
+     SpeciesDatabase.h5
+     src
+     tools
+     tutorials
+     unitTests
+
+Always compile the code within the *build* directory, hence, navigate to the *build_poisson_RK3* directory before running cmake
+
+    cd build_poisson_RK3
+
+For this specific tutorial, make sure to set the correct compile flags
 
     PICLAS_EQNSYSNAME     = poisson
     PICLAS_TIMEDISCMETHOD = RK3
 
-or simply run the following command from inside the *build* directory
+using the ccmake (gui for cmake) or simply run the following command from inside the *build* directory
 
     cmake ../ -DPICLAS_EQNSYSNAME=poisson -DPICLAS_TIMEDISCMETHOD=RK3
 
-to configure the build process and run `make` afterwards to build the executable. For this setup, we have chosen the Poisson solver
+to configure the build process and run
+
+    make
+
+afterwards to compile the executable. For this setup, we have chosen the Poisson solver
 and selected the three-stage, third-order low-storage Runge-Kutta time discretization method. An overview over the available solver
-and discretization options is given in Section {ref}`sec:solver-settings`. To run the simulation and analyse the results, the *piclas* and *piclas2vtk* executables have to be run. To avoid having to use the entire file path, you can either set aliases for both, copy them to your local tutorial directory or create a link to the files via.
+and discretization options is given in Section {ref}`sec:solver-settings`.
+To run the simulation and analyse the results, the *piclas* and *piclas2vtk* executables have to be run.
+To avoid having to use the entire file path, you can either set aliases for both, copy them to your local tutorial directory or
+create a link to the files via
 
-    ln -s $PICLAS_PATH/build/bin/piclas
-    ln -s $PICLAS_PATH/build/bin/piclas2vtk
+    ln -s $PICLAS_PATH/build_poisson_RK3/bin/piclas
+    ln -s $PICLAS_PATH/build_poisson_RK3/bin/piclas2vtk
 
+where the variable `PICLAS_PATH` contains the path to the location of the piclas repository.
+If the piclas repository is located in the home directory, the two commands
+
+    ln -s /home/$(whoami)/piclas/build_poisson_RK3/bin/piclas
+    ln -s /home/$(whoami)/piclas/build_poisson_RK3/bin/piclas2vtk
+
+can be executed.
+Please check where piclas is located before running the commands.
 The simulation setup is defined in *parameter.ini*. For a specific electron number density, the plasma frequency of the system is
 given by
 
