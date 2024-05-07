@@ -1027,6 +1027,7 @@ IF (usevMPF) THEN
 
   ALLOCATE(PartMPF(1:PDM%maxParticleNumber), STAT=ALLOCSTAT)
   IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__,'ERROR in particle_init.f90: Cannot allocate Particle arrays!')
+  PartMPF = 1.
 END IF
 END SUBROUTINE InitializeVariablesvMPF
 
