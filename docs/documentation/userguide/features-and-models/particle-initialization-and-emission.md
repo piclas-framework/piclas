@@ -555,12 +555,12 @@ AcceptReject, ARM_DmaxSampleN: {cite}`Garcia2006`
 
 ## Fast Initalization BackGround Mesh (FIBGM)
 
-The program constructs a cartesian background mesh to efficiently find locations in the computational grid, which is mostly needed during initialization. The size of the mesh is usually calculated automatically, but can be specified by the user if necessary.
+The program constructs a cartesian background mesh if needed to efficiently find locations in the computational grid. This is mostly needed during initialization and restart. The size of the mesh is usually calculated automatically, but can be specified by the user if necessary.
 
     Part-FIBGMdeltas = (/6.2831 , 0.2 , 0.2/) ! Cartesian background mesh (bounding box around the complete simulation domain)
     Part-FactorFIBGM = (/60     , 1   , 1/)   ! Division factor that is applied t the "Part-FIBGMdeltas" values to define the dx, dy and dz distances of the Cartesian background mesh
 
-    
 
-The size of the cartesian background mesh `Part-FIBGMdeltas', which can be accompanied by a division factor (i.e. number of background cells) in each direction given by `Part-factorFIBGM`. Here, the size and number of cells of the background mesh correspond to the actual mesh.
- 
+
+The size of the cartesian background mesh `Part-FIBGMdeltas`, which can be accompanied by a division factor (i.e. number of background cells) in each direction given by `Part-factorFIBGM`. Here, the size and number of cells of the background mesh correspond to the actual mesh.
+
