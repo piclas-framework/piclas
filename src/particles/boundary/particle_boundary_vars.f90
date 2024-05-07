@@ -307,6 +307,7 @@ INTEGER              :: PartStateBoundaryVecLength ! Number of boundary-crossed 
 ! Virtual dielectric layer (VDL)
 LOGICAL              :: DoVirtualDielectricLayer ! Flag set automatically if a VDL permittivity is set >= 0.0
 REAL, ALLOCATABLE    :: ElementThicknessVDL(:)   ! Thickness of first element layer at a VDL boundary
+REAL, ALLOCATABLE    :: StretchingFactorVDL(:)   ! Thickness of first element layer at a VDL boundary versus actual VDL layer thickness
 
 TYPE, PUBLIC :: VDLSurfMesh
   REAL,ALLOCATABLE        :: U(:,:,:)   !< Ex,Ey,Ez,PhiF1,PhiF2 positions (first index 1:3) of the Boundary Face Gauss Point

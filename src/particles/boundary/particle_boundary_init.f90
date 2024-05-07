@@ -710,7 +710,7 @@ use mod_globals
 USE MOD_Globals                ,ONLY: VECNORM
 USE MOD_Mesh_Vars              ,ONLY: nElems,SideToElem,nBCSides,Boundarytype,BC
 USE MOD_IO_HDF5                ,ONLY: AddToElemData,ElementOut
-USE MOD_Particle_Boundary_Vars ,ONLY: ElementThicknessVDL,PartBound,N_SurfVDL
+USE MOD_Particle_Boundary_Vars ,ONLY: ElementThicknessVDL,PartBound,N_SurfVDL,StretchingFactorVDL
 USE MOD_Mesh_Tools             ,ONLY: GetGlobalElemID,GetCNElemID
 USE MOD_Particle_Mesh_Tools    ,ONLY: GetGlobalNonUniqueSideID
 USE MOD_Mesh_Vars              ,ONLY: ElemToSide,nSides,offSetElem,SideToNonUniqueGlobalSide
@@ -725,14 +725,15 @@ IMPLICIT NONE
 ! INPUT / OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER           :: iElem,BCSideID,BCType,iPartBound,GlobalElemID,GlobalNonUniqueSideID,iLocSide,SideID,CNElemID
-INTEGER           :: iSide,Nloc,NonUniqueGlobalSideID,iSurfSide
-REAL,DIMENSION(3) :: NormVec,x
-REAL,DIMENSION(6) :: distances
+INTEGER             :: iElem,BCSideID,BCType,iPartBound,GlobalElemID,GlobalNonUniqueSideID,iLocSide,SideID,CNElemID
+INTEGER             :: iSide,Nloc,NonUniqueGlobalSideID,iSurfSide,iNode
+REAL,DIMENSION(3)   :: NormVec,x
+REAL,DIMENSION(4,6) :: distances
 !===================================================================================================================================
 
 ! 1) Determine volume container ElementThicknessVDL that holds the approximate thickness of the element with respect to the boundary
 ALLOCATE(ElementThicknessVDL(1:nElems))
+ElementThicknessVDL = 0.
 CALL AddToElemData(ElementOut,'ElementThicknessVDL',RealArray=ElementThicknessVDL(1:nElems))
 
 ! Loop over all local boundary sides
@@ -760,10 +761,12 @@ DO BCSideID=1,nBCSides
   END DO
 
   ! Calculate the projected distance for each of the 6 sides
-  CNElemID = GetCNElemID(SideInfo_Shared(SIDE_ELEMID,SideID))
-  DO iLocSide=1,6
-    x(1:3) = NodeCoords_Shared(1:3,ElemSideNodeID_Shared(1,iLocSide,CNElemID)+1)
-    distances(iLocSide) = DOT_PRODUCT(x,NormVec)
+  CNElemID = GetCNElemID(SideInfo_Shared(SIDE_ELEMID,GlobalNonUniqueSideID))
+  DO iLocSide = 1 , 6
+    DO iNode = 1 , 4
+      x(1:3) = NodeCoords_Shared(1:3,ElemSideNodeID_Shared(iNode,iLocSide,CNElemID)+1)
+      distances(iNode,iLocSide) = DOT_PRODUCT(x,NormVec)
+    END DO ! iNode = 1, 4
   END DO
 
   ElementThicknessVDL(iElem) = MAXVAL(distances) - MINVAL(distances)
@@ -772,7 +775,23 @@ DO BCSideID=1,nBCSides
 
 END DO ! BCSideID=1,nBCSides
 
-! 2) Initialize surface container for the corrected electric field
+! 2) Calculate the stretching factor for each cell StretchingFactorVDL
+ALLOCATE(StretchingFactorVDL(1:nElems))
+StretchingFactorVDL = 0.
+CALL AddToElemData(ElementOut,'StretchingFactorVDL',RealArray=StretchingFactorVDL(1:nElems))
+DO SideID=1,nBCSides
+  ! Get the local element index
+  iElem = SideToElem(S2E_ELEM_ID,SideID)
+  ! Get particle boundary index
+  iPartBound = PartBound%MapToPartBC(BC(SideID))
+  ! Skip sides that are not a VDL boundary (these sides are still in the list of sides)
+  IF(PartBound%ThicknessVDL(iPartBound).GT.0.0)THEN
+    ! Calculate the ratio
+    StretchingFactorVDL(iElem) = ElementThicknessVDL(iElem) / PartBound%ThicknessVDL(iPartBound)
+  END IF
+END DO ! SideID=1,nBCSides
+
+! 3) Initialize surface container for the corrected electric field
 ALLOCATE(N_SurfVDL(1:nBCSides))
 DO iSide = 1, nBCSides
   iElem = SideToElem(S2E_ELEM_ID,iSide)
@@ -780,35 +799,7 @@ DO iSide = 1, nBCSides
   Nloc = N_DG_Mapping(2,iElem+offSetElem)
   ALLOCATE(N_SurfVDL(iSide)%U(5,0:Nloc,0:Nloc))
   N_SurfVDL(iSide)%U = 0.
-
-  !ALLOCATE(PhotonSampWall(2,1:Ray%nSurfSample,1:Ray%nSurfSample,1:nComputeNodeSurfTotalSides))
-  !PhotonSampWall=0.0
-
 END DO ! iSide = 1, nBCSides
-
-
-
-!  ! Loop over all local boundary sides
-!  DO BCSideID=1,nBCSides
-!
-!    ! Exclude periodic sides
-!    BCType = Boundarytype(BC(BCSideID),BC_TYPE)
-!    IF(BCType.EQ.1) CYCLE ! Skip periodic side
-!
-!    ! Exclude non-VDL boundaries
-!    iPartBound = PartBound%MapToPartBC(BC(BCSideID))
-!    IF(PartBound%SurfaceModel(iPartBound).NE.99)CYCLE ! Skip non-VDL boundary
-!
-!    iElem    = SideToElem(S2E_ELEM_ID,BCSideID)
-!    Nloc     = N_DG_Mapping(2,iElem+offSetElem)
-!    iLocSide = SideToElem(S2E_LOC_SIDE_ID,BCSideID)
-!
-!
-!    GlobalNonUniqueSideID = GetGlobalNonUniqueSideID(GlobalElemID,iLocSide)
-!    iSurfSide = GlobalSide2SurfSide(SURF_SIDEID,GlobalNonUniqueSideID)
-!    !WRITE (*,*) "iSurfSide =", iSurfSide
-!
-!  END DO ! BCSideID=1,nBCSides
 
 END SUBROUTINE InitVirtualDielectricLayer
 
@@ -2443,6 +2434,7 @@ END IF ! PerformLoadBalance
 #endif /*USE_LOADBALANCE*/
 
 SDEALLOCATE(ElementThicknessVDL)
+SDEALLOCATE(StretchingFactorVDL)
 
 END SUBROUTINE FinalizeParticleBoundary
 

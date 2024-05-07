@@ -253,7 +253,6 @@ USE MOD_Mesh_Tools             ,ONLY: GetGlobalElemID
 USE MOD_DG_Vars                ,ONLY: N_DG_Mapping
 USE MOD_Particle_Mesh_Tools    ,ONLY: GetGlobalNonUniqueSideID
 USE MOD_Globals_Vars           ,ONLY: ProjectName
-USE MOD_Particle_Boundary_Vars ,ONLY: ElementThicknessVDL
 USE MOD_AnalyzeField           ,ONLY: CalculateElectricPotentialAndFieldBoundaryVDL
 USE MOD_Interpolation          ,ONLY: GetVandermonde,GetNodesAndWeights
 !----------------------------------------------------------------------------------------------------------------------------------!
