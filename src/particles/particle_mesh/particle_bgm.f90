@@ -293,8 +293,12 @@ CALL BARRIER_AND_SYNC(BoundsOfElem_Shared_Win,MPI_COMM_SHARED)
 
 GEO%ForceFIBGM = GETLOGICAL("Part-ForceFIBGM")
 
-IF(StringBeginsWith(DepositionType,'shape_function') .OR. TrackingMethod.EQ.REFMAPPING .OR. DoRestart .OR. GEO%ForceFIBGM) THEN
-  GEO%InitFIBGM = .TRUE.
+IF(StringBeginsWith(DepositionType,'shape_function') & !FIBGM needed for depo of shape function
+  .OR. TrackingMethod.EQ.REFMAPPING & ! FIBGM need in rafmapping
+  .OR. nComputeNodeProcessors.NE.nProcessors_Global & !FIBGM needed to build the haol region
+  .OR. DoRestart & ! FIBGM needed to find lost particles
+  .OR. GEO%ForceFIBGM ) THEN
+    GEO%InitFIBGM = .TRUE.
 ELSE
   ! Check if emmision only cell-local
   GEO%InitFIBGM = .FALSE.
