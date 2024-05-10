@@ -72,6 +72,7 @@ USE MOD_LoadBalance_Vars     ,ONLY: nPartsPerElem,ElemTime
 INTEGER                             :: iElem,iGlobalElem,iCNElem,Nloc,k,l,m
 CHARACTER(LEN=255), ALLOCATABLE     :: StrVarNames(:)
 REAL                                :: UNMax(nVarRay,0:Ray%NMax,0:Ray%NMax,0:Ray%NMax,PP_nElems)
+REAL                                :: ElemTimeDummy(PP_nElems)
 #if USE_MPI
 INTEGER                             :: NlocOffset
 #endif /*USE_MPI*/
@@ -92,7 +93,8 @@ RayElemPassedEnergyLoc1st=-1.0
 RayElemPassedEnergyLoc2nd=-1.0
 ElemVolume=-1.0
 ! Add two dummy arrays for comparison with reggie reference file: Remove this in the future and adjust the reference files
-CALL AddToElemData(ElementOutRay,'ElemTime'     ,RealArray=ElemTime)
+ElemTimeDummy=-1.0
+CALL AddToElemData(ElementOutRay,'ElemTime'     ,RealArray=ElemTimeDummy)
 CALL AddToElemData(ElementOutRay,'nPartsPerElem',LongIntArray=nPartsPerElem)
 
 CALL AddToElemData(ElementOutRay,'RayElemPassedEnergy1st',RealArray=RayElemPassedEnergyLoc1st)

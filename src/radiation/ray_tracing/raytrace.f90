@@ -388,7 +388,7 @@ IF(onlySurfData) RETURN
 ! 2. Get local element polynomial
 CALL OpenDataFile(RadiationVolState,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_PICLAS)
 CALL DatasetExists(File_ID,'NlocRay',ContainerExists)
-IF(.NOT.ContainerExists) CALL CollectiveStop(__STAMP__,'Nloc container does not exist in '//TRIM(RadiationVolState))
+IF(.NOT.ContainerExists) CALL CollectiveStop(__STAMP__,'NlocRay container does not exist in '//TRIM(RadiationVolState))
 ! Array is stored as REAL value, hence, convert back to integer
 CALL ReadArray('NlocRay',2,(/1_IK,INT(nElems,IK)/),INT(offsetElem,IK),2,RealArray=N_DG_Ray_locREAL)
 N_DG_Ray_loc = INT(N_DG_Ray_locREAL)

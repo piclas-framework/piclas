@@ -351,7 +351,7 @@ IF(PRESENT(eval))THEN
   eout%eval       => Eval
   nOpts=nOpts+1
 ENDIF
-IF(nOpts.NE.1) CALL Abort(__STAMP__,'More then one optional argument passed to AddToElemData.')
+IF(nOpts.NE.1) CALL Abort(__STAMP__,'More than one optional argument passed to AddToElemData for: '//TRIM(VarName))
 END SUBROUTINE AddToElemData
 
 

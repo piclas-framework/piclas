@@ -93,7 +93,7 @@ IF(.NOT.UseRayTracing) RETURN
 ! 2) SEE yield for any BC greater than zero
 IF(.NOT.ANY(PartBound%PhotonSEEYield(:).GT.0.)) RETURN
 
-! TODO: Copied here from InitParticleMesh, which is only build if not TriaSurfaceFlux
+! TODO: Copied here from InitParticleMesh, which is only built if not TriaSurfaceFlux
 IF(UseBezierControlPoints)THEN
   IF(.NOT.ALLOCATED(BezierSampleXi)) ALLOCATE(BezierSampleXi(0:Ray%nSurfSample))
   DO iSample=0,Ray%nSurfSample
@@ -182,8 +182,10 @@ DO BCSideID=1,nBCSides
       !E_Intensity = PhotonSampWall(2,p,q,iSurfSide) * TimeScalingFactor
       E_Intensity = PhotonSampWall_loc(p,q,BCSideID) * PhotonSurfSideArea(p,q,iSurfSide) * TimeScalingFactor
       RealNbrOfSEE = E_Intensity / CalcPhotonEnergy(lambda) * PartBound%PhotonSEEYield(BCID) / MPF
+      ! Add random number to calculated real/float value of SEE particles and user INT()for lower-bound cut-off
       CALL RANDOM_NUMBER(RandVal)
       NbrOfSEE = INT(RealNbrOfSEE+RandVal)
+      ! NbrOfSEE: Number of particles to be inserted
       IF(NbrOfSEE.GT.0)THEN
         ! Check if photon SEE electric current is to be measured
         IF(CalcElectronSEE)THEN

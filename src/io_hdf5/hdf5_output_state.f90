@@ -954,8 +954,8 @@ USE MOD_Mesh_Vars        ,ONLY: nElems
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Vars ,ONLY: ElemTime,ElemTime_tmp,NullifyElemTime
 USE MOD_Restart_Vars     ,ONLY: DoRestart
-USE MOD_Mesh_Vars        ,ONLY: nGlobalElems,offsetelem
 #endif /*USE_LOADBALANCE*/
+USE MOD_Mesh_Vars        ,ONLY: nGlobalElems,offsetelem
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1033,6 +1033,7 @@ IF((MAXVAL(ElemData).LE.0.0)          .AND.& ! Restart
   END ASSOCIATE
 
 ELSE
+#endif /*USE_LOADBALANCE*/
   ASSOCIATE (&
         nVar         => INT(nVar,IK)         ,&
         nGlobalElems => INT(nGlobalElems,IK) ,&
@@ -1045,6 +1046,7 @@ ELSE
                             offset          = (/0_IK,offsetElem  /),&
                             collective      = .TRUE.,RealArray        = ElemData)
   END ASSOCIATE
+#if USE_LOADBALANCE
 END IF ! (MAXVAL(ElemData).LE.0.0).AND.DoRestart.AND.(TRIM(ElemDataName).EQ.'ElemTime')
 #endif /*USE_LOADBALANCE*/
 
