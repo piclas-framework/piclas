@@ -293,9 +293,11 @@ CALL BARRIER_AND_SYNC(BoundsOfElem_Shared_Win,MPI_COMM_SHARED)
 
 GEO%ForceFIBGM = GETLOGICAL("Part-ForceFIBGM")
 
-IF(StringBeginsWith(DepositionType,'shape_function') & !FIBGM needed for depo of shape function
+IF(StringBeginsWith(DepositionType,'shape_function') & ! FIBGM needed for depo of shape function
   .OR. TrackingMethod.EQ.REFMAPPING & ! FIBGM need in rafmapping
-  .OR. nComputeNodeProcessors.NE.nProcessors_Global & !FIBGM needed to build the haol region
+#if USE_MPI
+  .OR. nComputeNodeProcessors.NE.nProcessors_Global & ! FIBGM needed to build the halo region
+#endif  /*USE_MPI*/
   .OR. DoRestart & ! FIBGM needed to find lost particles
   .OR. GEO%ForceFIBGM ) THEN
     GEO%InitFIBGM = .TRUE.
@@ -366,6 +368,10 @@ IF(GEO%InitFIBGM) THEN
     GEO%FIBGMdeltas(1) = MIN(FIBGMdeltas1(1),FIBGMdeltas2(1))
     GEO%FIBGMdeltas(2) = MIN(FIBGMdeltas1(2),FIBGMdeltas2(2))
     GEO%FIBGMdeltas(3) = MIN(FIBGMdeltas1(3),FIBGMdeltas2(3))
+  END IF
+  IF(GEO%AutomaticFIBGM) THEN
+    LBWRITE(UNIT_stdOut,'(A,E18.8,A,E18.8,A,E18.8)') " | Automatically determined Part-FIBGMdeltas: "&
+                                                          , GEO%FIBGMdeltas(1), ", ", GEO%FIBGMdeltas(2), ", ", GEO%FIBGMdeltas(3)
   END IF
 
   ! Ensure BGM does not protrude beyond mesh when divisible by FIBGMdeltas
