@@ -28,7 +28,7 @@ PRIVATE
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
 PUBLIC :: DSMC_1D_InitVolumes, DSMC_2D_InitVolumes, DSMC_2D_InitRadialWeighting, DSMC_2D_RadialWeighting, DSMC_2D_SetInClones
 PUBLIC :: DSMC_2D_CalcSymmetryArea, DSMC_1D_CalcSymmetryArea, DSMC_2D_CalcSymmetryAreaSubSides
-PUBLIC :: DefineParametersParticleSymmetry, Init_Symmetry, DSMC_2D_TreatIdenticalParticles
+PUBLIC :: DefineParametersParticleSymmetry, DSMC_2D_TreatIdenticalParticles
 !===================================================================================================================================
 
 CONTAINS
@@ -882,45 +882,6 @@ END DO
 RETURN
 
 END FUNCTION DSMC_2D_CalcSymmetryAreaSubSides
-
-
-SUBROUTINE Init_Symmetry()
-!===================================================================================================================================
-!> Initialize if a 2D/1D Simulation is performed and which type
-!===================================================================================================================================
-! MODULES
-USE MOD_Globals
-USE MOD_Particle_Vars    ,ONLY: Symmetry
-USE MOD_DSMC_Vars        ,ONLY: RadialWeighting
-USE MOD_ReadInTools      ,ONLY: GETLOGICAL,GETINT
-! IMPLICIT VARIABLE HANDLING
-IMPLICIT NONE
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-!===================================================================================================================================
-Symmetry%Order = GETINT('Particles-Symmetry-Order')
-
-IF((Symmetry%Order.LE.0).OR.(Symmetry%Order.GE.4)) CALL ABORT(__STAMP__&
-,'Particles-Symmetry-Order (space dimension) has to be in the range of 1 to 3')
-
-Symmetry%Axisymmetric = GETLOGICAL('Particles-Symmetry2DAxisymmetric')
-IF(Symmetry%Axisymmetric.AND.(Symmetry%Order.EQ.3)) CALL ABORT(__STAMP__&
-  ,'ERROR: Axisymmetric simulations only for 1D or 2D')
-IF(Symmetry%Axisymmetric.AND.(Symmetry%Order.EQ.1))CALL ABORT(__STAMP__&
-  ,'ERROR: Axisymmetric simulations are only implemented for Particles-Symmetry-Order=2 !')
-IF(Symmetry%Axisymmetric) THEN
-  RadialWeighting%DoRadialWeighting = GETLOGICAL('Particles-RadialWeighting')
-ELSE
-  RadialWeighting%DoRadialWeighting = .FALSE.
-  RadialWeighting%PerformCloning = .FALSE.
-END IF
-
-END SUBROUTINE Init_Symmetry
 
 
 SUBROUTINE DSMC_2D_TreatIdenticalParticles(iPair, nPair, nPart, iElem, iPartIndx_Node)

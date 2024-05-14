@@ -60,6 +60,7 @@ PUBLIC::InitParticles
 PUBLIC::FinalizeParticles
 PUBLIC::DefineParametersParticles
 PUBLIC::InitialIonization
+PUBLIC::InitSymmetry
 !===================================================================================================================================
 
 CONTAINS
@@ -1424,6 +1425,8 @@ USE MOD_PICDepo_Vars       ,ONLY: SendElemShapeID,ShapeMapping,CNShapeMapping
 #if USE_HDG
 USE MOD_HDG_Vars           ,ONLY: BRRegionBounds,RegionElectronRef,RegionElectronRefBackup,BRAverageElemToElem
 #endif /*USE_HDG*/
+USE MOD_Particle_Mesh_Tools ,ONLY: ParticleInsideQuad
+USE MOD_Particle_TriaTracking ,ONLY: SingleParticleTriaTracking
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
 ! INPUT VARIABLES
@@ -1532,6 +1535,10 @@ SDEALLOCATE(isNeutralizationElem)
 SDEALLOCATE(NeutralizationBalanceElem)
 SDEALLOCATE(ExcitationLevelMapping)
 SDEALLOCATE(ExcitationSampleData)
+
+SNULLIFY(SingleParticleTriaTracking)
+SNULLIFY(ParticleInsideQuad)
+
 END SUBROUTINE FinalizeParticles
 
 
@@ -1852,6 +1859,50 @@ IF (usevMPF) THEN
 END IF
 
 END SUBROUTINE InitPartDataSize
+
+SUBROUTINE InitSymmetry()
+!===================================================================================================================================
+!> Initialize if a 2D/1D Simulation is performed and which type
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals
+USE MOD_Particle_Vars         ,ONLY: Symmetry
+USE MOD_DSMC_Vars             ,ONLY: RadialWeighting
+USE MOD_ReadInTools           ,ONLY: GETLOGICAL,GETINT
+USE MOD_Particle_Mesh_Tools   ,ONLY: InitParticleInsideQuad
+USE MOD_Particle_TriaTracking ,ONLY: InitSingleParticleTriaTracking
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+!===================================================================================================================================
+Symmetry%Order = GETINT('Particles-Symmetry-Order')
+
+IF((Symmetry%Order.LE.0).OR.(Symmetry%Order.GE.4)) CALL ABORT(__STAMP__&
+  ,'Particles-Symmetry-Order (space dimension) has to be in the range of 1 to 3')
+
+! Initialize the function pointer for triatracking
+CALL InitParticleInsideQuad()
+CALL InitSingleParticleTriaTracking()
+
+Symmetry%Axisymmetric = GETLOGICAL('Particles-Symmetry2DAxisymmetric')
+IF(Symmetry%Axisymmetric.AND.(Symmetry%Order.EQ.3)) CALL ABORT(__STAMP__&
+  ,'ERROR: Axisymmetric simulations only for 1D or 2D')
+IF(Symmetry%Axisymmetric.AND.(Symmetry%Order.EQ.1))CALL ABORT(__STAMP__&
+  ,'ERROR: Axisymmetric simulations are only implemented for Particles-Symmetry-Order=2 !')
+IF(Symmetry%Axisymmetric) THEN
+  RadialWeighting%DoRadialWeighting = GETLOGICAL('Particles-RadialWeighting')
+ELSE
+  RadialWeighting%DoRadialWeighting = .FALSE.
+  RadialWeighting%PerformCloning = .FALSE.
+END IF
+
+END SUBROUTINE InitSymmetry
 
 END MODULE MOD_ParticleInit
 

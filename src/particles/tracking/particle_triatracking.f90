@@ -20,12 +20,41 @@ MODULE MOD_Particle_TriaTracking
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 PRIVATE
+
+! Define an interface for the function pointer
+ABSTRACT INTERFACE
+  SUBROUTINE SingleParticleTriaTrackingInterface(i,IsInterPlanePart)
+    INTEGER,INTENT(IN)                :: i
+    LOGICAL,INTENT(IN),OPTIONAL       :: IsInterPlanePart
+  END SUBROUTINE
+END INTERFACE
+
+!> Pointer defining the particle tracking routine based on the symmetry order
+PROCEDURE(SingleParticleTriaTrackingInterface),POINTER :: SingleParticleTriaTracking => NULL()
 !----------------------------------------------------------------------------------------------------------------------------------
-PUBLIC::ParticleTriaTracking
+PUBLIC::InitSingleParticleTriaTracking,ParticleTriaTracking,SingleParticleTriaTracking
 !-----------------------------------------------------------------------------------------------------------------------------------
 !===================================================================================================================================
 
 CONTAINS
+
+!==================================================================================================================================!
+!> Initialize SingleParticleTriaTracking depending on symmetry dimension using a function pointer
+!==================================================================================================================================!
+SUBROUTINE InitSingleParticleTriaTracking()
+! MODULES
+USE MOD_Particle_Vars            ,ONLY: Symmetry
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!==================================================================================================================================
+
+IF (Symmetry%Order.EQ.3) THEN
+  SingleParticleTriaTracking => SingleParticleTriaTracking3D
+ELSE
+  SingleParticleTriaTracking => SingleParticleTriaTracking1D2D
+END IF
+  
+END SUBROUTINE InitSingleParticleTriaTracking
 
 #ifdef IMPA
 SUBROUTINE ParticleTriaTracking(doParticle_In)
@@ -41,7 +70,7 @@ SUBROUTINE ParticleTriaTracking()
 USE MOD_Preproc
 USE MOD_Globals
 USE MOD_Particle_Vars               ,ONLY: PEM,PDM,InterPlanePartNumber, InterPlanePartIndx, UseRotSubCycling,nSubCyclingSteps
-USE MOD_Particle_Vars               ,ONLY: RotRefSubTimeStep, NewPosSubCycling, GlobalElemIDSubCycling, LastPartPosSubCycling,Symmetry
+USE MOD_Particle_Vars               ,ONLY: RotRefSubTimeStep, NewPosSubCycling, GlobalElemIDSubCycling, LastPartPosSubCycling
 USE MOD_Particle_Vars               ,ONLY: InRotRefFrameSubCycling, PartVeloRotRefSubCycling, LastVeloRotRefSubCycling
 USE MOD_DSMC_Vars                   ,ONLY: RadialWeighting
 USE MOD_DSMC_Symmetry               ,ONLY: DSMC_2D_RadialWeighting, DSMC_2D_SetInClones
@@ -91,9 +120,9 @@ DO i = 1,PDM%ParticleVecLength
   IF (PDM%ParticleInside(i)) THEN
 #endif /*IMPA*/
     IF(UseRotSubCycling) THEN
-!--- Store Particle informations befor tracking for sub-cycling.
+!--- Store Particle information before tracking for sub-cycling.
 !--- it must be stored before first call of "SingleParticleTriaTracking"
-!--- because particle informations like LastPartPos & PartState can be changed within "SingleParticleTriaTracking"
+!--- because particle information like LastPartPos & PartState can be changed within "SingleParticleTriaTracking"
 !--- e.g. in RotPeriodicInterPlaneBoundary
       RotRefSubTimeStep=.TRUE.
       LastPartPosSubCycling(1:3)    = LastPartPos(1:3,i)
@@ -129,15 +158,11 @@ DO i = 1,PDM%ParticleVecLength
               LastPartVeloRotRef(1:3,i)=PartVeloRotRef(1:3,i)
             END IF
             CALL CalcPartPosInRotRef(i, dtVar)
-            IF(Symmetry%Order.LE.2) THEN
-              CALL SingleParticleTriaTracking1D2D(i)
-            ELSE
-              CALL SingleParticleTriaTracking(i=i)
-            END IF
+            CALL SingleParticleTriaTracking(i=i)
           END IF
         END DO
       END IF
-!--- Reset stored particle informations
+!--- Reset stored particle information
       RotRefSubTimeStep = .FALSE.
       LastPartPosSubCycling    = 0.0
       NewPosSubCycling         = 0.0
@@ -146,11 +171,7 @@ DO i = 1,PDM%ParticleVecLength
       GlobalElemIDSubCycling   = 0
       InRotRefFrameSubCycling  = .FALSE.
     ELSE
-      IF(Symmetry%Order.LE.2) THEN
-        CALL SingleParticleTriaTracking1D2D(i)
-      ELSE
-        CALL SingleParticleTriaTracking(i=i)
-      END IF
+      CALL SingleParticleTriaTracking(i=i)
     END IF
   END IF
   ! Particle treatment for an axisymmetric simulation (cloning/deleting particles)
@@ -201,7 +222,7 @@ IF(InterPlanePartNumber.GT.0) THEN
           CALL SingleParticleTriaTracking(i=InterPartID,IsInterPlanePart=.TRUE.)
         END IF
       END DO
-!--- Reset stored particle informations
+!--- Reset stored particle information
       RotRefSubTimeStep = .FALSE.
       LastPartPosSubCycling    = 0.0
       NewPosSubCycling         = 0.0
@@ -224,7 +245,7 @@ END IF
 END SUBROUTINE ParticleTriaTracking
 
 
-SUBROUTINE SingleParticleTriaTracking(i,IsInterPlanePart)
+SUBROUTINE SingleParticleTriaTracking3D(i,IsInterPlanePart)
 !===================================================================================================================================
 ! Routine for tracking of moving particles and boundary interaction using triangulated sides.
 !    2) Perform tracking until the particle is considered "done" (either localized or deleted)
@@ -264,9 +285,9 @@ IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! INPUT VARIABLES
 INTEGER,INTENT(IN)                :: i
+LOGICAL,INTENT(IN),OPTIONAL       :: IsInterPlanePart
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! OUTPUT VARIABLES
-LOGICAL,INTENT(IN),OPTIONAL       :: IsInterPlanePart
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER                          :: NblocSideID, NbElemID, CNElemID, ind, nbSideID, nMortarElems,BCType
@@ -571,9 +592,10 @@ END DO  ! .NOT.PartisDone
 IF(ParticleOnProc(i)) CALL LBElemPauseTime(PEM%LocalElemID(i),tLBStart)
 #endif /*USE_LOADBALANCE*/
 
-END SUBROUTINE SingleParticleTriaTracking
+END SUBROUTINE SingleParticleTriaTracking3D
 
-SUBROUTINE SingleParticleTriaTracking1D2D(i)
+
+SUBROUTINE SingleParticleTriaTracking1D2D(i,IsInterPlanePart)
 !===================================================================================================================================
 ! Routine for tracking of moving particles and boundary interaction using triangulated sides.
 !    2) Perform tracking until the particle is considered "done" (either localized or deleted)
@@ -608,6 +630,7 @@ IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! INPUT VARIABLES
 INTEGER,INTENT(IN)                :: i
+LOGICAL,INTENT(IN),OPTIONAL       :: IsInterPlanePart
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
