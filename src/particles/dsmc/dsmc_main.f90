@@ -72,6 +72,12 @@ REAL              :: tLBStart
 
 ! Reset the number of particles created during the DSMC loop
 DSMCSumOfFormedParticles = 0
+
+DSMC%MaxMCSoverMFP = 0.0
+DSMC%ParticleCalcCollCounter = 0 ! Counts Particle Collison Calculations
+DSMC%ResolvedCellCounter = 0 ! Counts resolved cells
+DSMC%ResolvedTimestepCounter = 0 ! Counts cells with MeanCollProb below 1
+DSMC%CollProbMaxProcMax = 0.0 ! Maximum CollProbMax of every Cell in Process
 ! Insert background gas particles for every simulation particle (except when using MCC and free-molecular flow)
 IF((BGGas%NumberOfSpecies.GT.0).AND.(.NOT.UseMCC).AND.(CollisMode.NE.0)) CALL BGGas_InsertParticles()
 
@@ -82,7 +88,6 @@ END IF
 #if USE_LOADBALANCE
 CALL LBStartTime(tLBStart)
 #endif /*USE_LOADBALANCE*/
-
 IF (CollisMode.NE.0) THEN
   DO iElem = 1, nElems ! element/cell main loop
     IF(PRESENT(DoElement)) THEN
@@ -91,7 +96,7 @@ IF (CollisMode.NE.0) THEN
     nPart = PEM%pNumber(iElem)
     IF (nPart.LT.1) CYCLE
     IF(DSMC%CalcQualityFactors) THEN
-      DSMC%CollProbMax = 0.0; DSMC%CollProbMean = 0.0; DSMC%CollProbMeanCount = 0; DSMC%CollSepDist = 0.0; DSMC%CollSepCount = 0
+      DSMC%CollProbMax = 0.0; DSMC%CollProbSum = 0.0;DSMC%CollProbMean = 0.0; DSMC%CollProbMeanCount = 0; DSMC%CollSepDist = 0.0; DSMC%CollSepCount = 0
       DSMC%MeanFreePath = 0.0; DSMC%MCSoverMFP = 0.0
       IF(DSMC%RotRelaxProb.GT.2) DSMC%CalcRotProb = 0.
       DSMC%CalcVibProb = 0.

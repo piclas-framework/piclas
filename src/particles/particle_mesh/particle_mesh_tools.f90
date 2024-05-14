@@ -574,8 +574,7 @@ USE MOD_Particle_Mesh_Vars      ,ONLY: ElemInfo_Shared,NodeCoords_Shared
 USE MOD_Particle_Surfaces_Vars  ,ONLY: BezierControlPoints3D
 USE MOD_Particle_Tracking_Vars  ,ONLY: TrackingMethod
 #if USE_MPI
-USE MOD_Particle_Mesh_Vars      ,ONLY: offsetComputeNodeSide,nComputeNodeSides
-USE MOD_Particle_Mesh_Vars      ,ONLY: offsetComputeNodeNode,nComputeNodeNodes
+USE MOD_MPI_Shared_Vars         ,ONLY: MPI_COMM_SHARED,MPI_COMM_LEADERS_SHARED,myComputeNodeRank
 #endif /*USE_MPI*/
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Vars        ,ONLY: PerformLoadBalance
@@ -609,20 +608,28 @@ SELECT CASE(TrackingMethod)
 
 #if USE_MPI
     ! compute-node local
-    GEO%CNxmin   = MINVAL(BezierControlPoints3D(1,:,:,offsetComputeNodeSide+1:offsetComputeNodeSide+nComputeNodeSides))
-    GEO%CNxmax   = MAXVAL(BezierControlPoints3D(1,:,:,offsetComputeNodeSide+1:offsetComputeNodeSide+nComputeNodeSides))
-    GEO%CNymin   = MINVAL(BezierControlPoints3D(2,:,:,offsetComputeNodeSide+1:offsetComputeNodeSide+nComputeNodeSides))
-    GEO%CNymax   = MAXVAL(BezierControlPoints3D(2,:,:,offsetComputeNodeSide+1:offsetComputeNodeSide+nComputeNodeSides))
-    GEO%CNzmin   = MINVAL(BezierControlPoints3D(3,:,:,offsetComputeNodeSide+1:offsetComputeNodeSide+nComputeNodeSides))
-    GEO%CNzmax   = MAXVAL(BezierControlPoints3D(3,:,:,offsetComputeNodeSide+1:offsetComputeNodeSide+nComputeNodeSides))
+    CALL MPI_ALLREDUCE(GEO%xmin,GEO%CNxmin,1,MPI_DOUBLE_PRECISION,MPI_MIN,MPI_COMM_SHARED,iError)
+    CALL MPI_ALLREDUCE(GEO%xmax,GEO%CNxmax,1,MPI_DOUBLE_PRECISION,MPI_MAX,MPI_COMM_SHARED,iError)
+    CALL MPI_ALLREDUCE(GEO%ymin,GEO%CNymin,1,MPI_DOUBLE_PRECISION,MPI_MIN,MPI_COMM_SHARED,iError)
+    CALL MPI_ALLREDUCE(GEO%ymax,GEO%CNymax,1,MPI_DOUBLE_PRECISION,MPI_MAX,MPI_COMM_SHARED,iError)
+    CALL MPI_ALLREDUCE(GEO%zmin,GEO%CNzmin,1,MPI_DOUBLE_PRECISION,MPI_MIN,MPI_COMM_SHARED,iError)
+    CALL MPI_ALLREDUCE(GEO%zmax,GEO%CNzmax,1,MPI_DOUBLE_PRECISION,MPI_MAX,MPI_COMM_SHARED,iError)
 
     ! global
-    GEO%xminglob = MINVAL(BezierControlPoints3D(1,:,:,:))
-    GEO%xmaxglob = MAXVAL(BezierControlPoints3D(1,:,:,:))
-    GEO%yminglob = MINVAL(BezierControlPoints3D(2,:,:,:))
-    GEO%ymaxglob = MAXVAL(BezierControlPoints3D(2,:,:,:))
-    GEO%zminglob = MINVAL(BezierControlPoints3D(3,:,:,:))
-    GEO%zmaxglob = MAXVAL(BezierControlPoints3D(3,:,:,:))
+    IF (myComputeNodeRank.EQ.0) THEN
+      CALL MPI_ALLREDUCE(GEO%CNxmin,GEO%xminglob,1,MPI_DOUBLE_PRECISION,MPI_MIN,MPI_COMM_LEADERS_SHARED,iError)
+      CALL MPI_ALLREDUCE(GEO%CNxmax,GEO%xmaxglob,1,MPI_DOUBLE_PRECISION,MPI_MAX,MPI_COMM_LEADERS_SHARED,iError)
+      CALL MPI_ALLREDUCE(GEO%CNymin,GEO%yminglob,1,MPI_DOUBLE_PRECISION,MPI_MIN,MPI_COMM_LEADERS_SHARED,iError)
+      CALL MPI_ALLREDUCE(GEO%CNymax,GEO%ymaxglob,1,MPI_DOUBLE_PRECISION,MPI_MAX,MPI_COMM_LEADERS_SHARED,iError)
+      CALL MPI_ALLREDUCE(GEO%CNzmin,GEO%zminglob,1,MPI_DOUBLE_PRECISION,MPI_MIN,MPI_COMM_LEADERS_SHARED,iError)
+      CALL MPI_ALLREDUCE(GEO%CNzmax,GEO%zmaxglob,1,MPI_DOUBLE_PRECISION,MPI_MAX,MPI_COMM_LEADERS_SHARED,iError)
+    END IF
+    CALL MPI_BCAST(GEO%xminglob,1,MPI_DOUBLE_PRECISION,0,MPI_COMM_SHARED,iError)
+    CALL MPI_BCAST(GEO%xmaxglob,1,MPI_DOUBLE_PRECISION,0,MPI_COMM_SHARED,iError)
+    CALL MPI_BCAST(GEO%yminglob,1,MPI_DOUBLE_PRECISION,0,MPI_COMM_SHARED,iError)
+    CALL MPI_BCAST(GEO%ymaxglob,1,MPI_DOUBLE_PRECISION,0,MPI_COMM_SHARED,iError)
+    CALL MPI_BCAST(GEO%zminglob,1,MPI_DOUBLE_PRECISION,0,MPI_COMM_SHARED,iError)
+    CALL MPI_BCAST(GEO%zmaxglob,1,MPI_DOUBLE_PRECISION,0,MPI_COMM_SHARED,iError)
 #endif /*USE_MPI*/
   ! TriaTracking does not have curved elements, nodeCoords are sufficient
   CASE(TRIATRACKING)
@@ -640,20 +647,28 @@ SELECT CASE(TrackingMethod)
 
 #if USE_MPI
     ! compute-node local
-    GEO%CNxmin   = MINVAL(NodeCoords_Shared(1,offsetComputeNodeNode+1:offsetComputeNodeNode+nComputeNodeNodes))
-    GEO%CNxmax   = MAXVAL(NodeCoords_Shared(1,offsetComputeNodeNode+1:offsetComputeNodeNode+nComputeNodeNodes))
-    GEO%CNymin   = MINVAL(NodeCoords_Shared(2,offsetComputeNodeNode+1:offsetComputeNodeNode+nComputeNodeNodes))
-    GEO%CNymax   = MAXVAL(NodeCoords_Shared(2,offsetComputeNodeNode+1:offsetComputeNodeNode+nComputeNodeNodes))
-    GEO%CNzmin   = MINVAL(NodeCoords_Shared(3,offsetComputeNodeNode+1:offsetComputeNodeNode+nComputeNodeNodes))
-    GEO%CNzmax   = MAXVAL(NodeCoords_Shared(3,offsetComputeNodeNode+1:offsetComputeNodeNode+nComputeNodeNodes))
+    CALL MPI_ALLREDUCE(GEO%xmin,GEO%CNxmin,1,MPI_DOUBLE_PRECISION,MPI_MIN,MPI_COMM_SHARED,iError)
+    CALL MPI_ALLREDUCE(GEO%xmax,GEO%CNxmax,1,MPI_DOUBLE_PRECISION,MPI_MAX,MPI_COMM_SHARED,iError)
+    CALL MPI_ALLREDUCE(GEO%ymin,GEO%CNymin,1,MPI_DOUBLE_PRECISION,MPI_MIN,MPI_COMM_SHARED,iError)
+    CALL MPI_ALLREDUCE(GEO%ymax,GEO%CNymax,1,MPI_DOUBLE_PRECISION,MPI_MAX,MPI_COMM_SHARED,iError)
+    CALL MPI_ALLREDUCE(GEO%zmin,GEO%CNzmin,1,MPI_DOUBLE_PRECISION,MPI_MIN,MPI_COMM_SHARED,iError)
+    CALL MPI_ALLREDUCE(GEO%zmax,GEO%CNzmax,1,MPI_DOUBLE_PRECISION,MPI_MAX,MPI_COMM_SHARED,iError)
 
     ! global
-    GEO%xminglob = MINVAL(NodeCoords_Shared(1,:))
-    GEO%xmaxglob = MAXVAL(NodeCoords_Shared(1,:))
-    GEO%yminglob = MINVAL(NodeCoords_Shared(2,:))
-    GEO%ymaxglob = MAXVAL(NodeCoords_Shared(2,:))
-    GEO%zminglob = MINVAL(NodeCoords_Shared(3,:))
-    GEO%zmaxglob = MAXVAL(NodeCoords_Shared(3,:))
+    IF (myComputeNodeRank.EQ.0) THEN
+      CALL MPI_ALLREDUCE(GEO%CNxmin,GEO%xminglob,1,MPI_DOUBLE_PRECISION,MPI_MIN,MPI_COMM_LEADERS_SHARED,iError)
+      CALL MPI_ALLREDUCE(GEO%CNxmax,GEO%xmaxglob,1,MPI_DOUBLE_PRECISION,MPI_MAX,MPI_COMM_LEADERS_SHARED,iError)
+      CALL MPI_ALLREDUCE(GEO%CNymin,GEO%yminglob,1,MPI_DOUBLE_PRECISION,MPI_MIN,MPI_COMM_LEADERS_SHARED,iError)
+      CALL MPI_ALLREDUCE(GEO%CNymax,GEO%ymaxglob,1,MPI_DOUBLE_PRECISION,MPI_MAX,MPI_COMM_LEADERS_SHARED,iError)
+      CALL MPI_ALLREDUCE(GEO%CNzmin,GEO%zminglob,1,MPI_DOUBLE_PRECISION,MPI_MIN,MPI_COMM_LEADERS_SHARED,iError)
+      CALL MPI_ALLREDUCE(GEO%CNzmax,GEO%zmaxglob,1,MPI_DOUBLE_PRECISION,MPI_MAX,MPI_COMM_LEADERS_SHARED,iError)
+    END IF
+    CALL MPI_BCAST(GEO%xminglob,1,MPI_DOUBLE_PRECISION,0,MPI_COMM_SHARED,iError)
+    CALL MPI_BCAST(GEO%xmaxglob,1,MPI_DOUBLE_PRECISION,0,MPI_COMM_SHARED,iError)
+    CALL MPI_BCAST(GEO%yminglob,1,MPI_DOUBLE_PRECISION,0,MPI_COMM_SHARED,iError)
+    CALL MPI_BCAST(GEO%ymaxglob,1,MPI_DOUBLE_PRECISION,0,MPI_COMM_SHARED,iError)
+    CALL MPI_BCAST(GEO%zminglob,1,MPI_DOUBLE_PRECISION,0,MPI_COMM_SHARED,iError)
+    CALL MPI_BCAST(GEO%zmaxglob,1,MPI_DOUBLE_PRECISION,0,MPI_COMM_SHARED,iError)
 #endif /*USE_MPI*/
 END SELECT
 

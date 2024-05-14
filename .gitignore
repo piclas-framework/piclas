@@ -33,7 +33,7 @@ _build/
 doxygen/
 
 # regression test
-regressioncheck/reggie/*
+regressioncheck/*
 output_dir_gitlab_tool/
 output_dir/
 reggie_run/
@@ -84,3 +84,6 @@ unitTests/bin/
 # gitlab-ci-local temp files and folders
 .gitlab-ci-local/
 reggie/
+
+# pyenv project settings
+.python-version

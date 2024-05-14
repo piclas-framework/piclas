@@ -93,7 +93,7 @@ USE MOD_BGK_Vars
 USE MOD_Preproc
 USE MOD_Mesh_Vars             ,ONLY: nElems, NGeo
 USE MOD_Particle_Vars         ,ONLY: nSpecies, Species, DoVirtualCellMerge
-USE MOD_DSMC_Vars             ,ONLY: SpecDSMC, DSMC, RadialWeighting, CollInf
+USE MOD_DSMC_Vars             ,ONLY: DSMC, RadialWeighting, CollInf
 USE MOD_DSMC_ParticlePairing  ,ONLY: DSMC_init_octree
 USE MOD_Globals_Vars          ,ONLY: Pi, BoltzmannConst
 USE MOD_Basis                 ,ONLY: PolynomialDerivativeMatrix
@@ -118,7 +118,7 @@ LBWRITE(UNIT_stdOut,'(A)') ' INIT BGK Solver...'
 MoleculePresent = .FALSE.
 ALLOCATE(SpecBGK(nSpecies))
 DO iSpec=1, nSpecies
-  IF ((SpecDSMC(iSpec)%InterID.EQ.2).OR.(SpecDSMC(iSpec)%InterID.EQ.20)) MoleculePresent = .TRUE.
+  IF ((Species(iSpec)%InterID.EQ.2).OR.(Species(iSpec)%InterID.EQ.20)) MoleculePresent = .TRUE.
   ALLOCATE(SpecBGK(iSpec)%CollFreqPreFactor(nSpecies))
   ! Calculation of the prefacor of the collision frequency per species
   ! S. Chapman and T.G. Cowling, "The mathematical Theory of Non-Uniform Gases", Cambridge University Press, 1970, S. 87f

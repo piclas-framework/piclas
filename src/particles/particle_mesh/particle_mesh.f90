@@ -213,9 +213,6 @@ IMPLICIT NONE
 INTEGER          :: RefMappingGuessProposal
 INTEGER          :: iSample
 CHARACTER(LEN=2) :: tmpStr
-#if !USE_MPI
-INTEGER          :: ALLOCSTAT
-#endif
 #ifdef CODE_ANALYZE
 ! TODO
 ! REAL             :: dx,dy,dz
@@ -493,8 +490,8 @@ SUBROUTINE FinalizeParticleMesh()
 ! MODULES
 USE MOD_Globals
 USE MOD_Particle_Mesh_Vars
-USE MOD_RayTracing_Vars        ,ONLY: UseRayTracing
 #if USE_MPI
+USE MOD_RayTracing_Vars        ,ONLY: UseRayTracing
 USE MOD_Particle_Surfaces_Vars ,ONLY: BezierElevation
 USE MOD_PICDepo_Vars           ,ONLY: DepositionType
 USE MOD_PICInterpolation_Vars  ,ONLY: DoInterpolation

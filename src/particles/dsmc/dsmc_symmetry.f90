@@ -222,7 +222,7 @@ IF(DoCloning) THEN
     ClonedParticles(cloneIndex,DelayCounter)%PartStateIntEn(1:2) = PartStateIntEn(1:2,iPart)
     IF(DSMC%ElectronicModel.GT.0) THEN
       ClonedParticles(cloneIndex,DelayCounter)%PartStateIntEn(3) =   PartStateIntEn(3,iPart)
-      IF ((DSMC%ElectronicModel.EQ.2).AND.(.NOT.((SpecDSMC(SpecID)%InterID.EQ.4).OR.SpecDSMC(SpecID)%FullyIonized))) THEN
+      IF ((DSMC%ElectronicModel.EQ.2).AND.(.NOT.((Species(SpecID)%InterID.EQ.4).OR.SpecDSMC(SpecID)%FullyIonized))) THEN
         IF(ALLOCATED(ClonedParticles(cloneIndex,DelayCounter)%DistriFunc)) &
           DEALLOCATE(ClonedParticles(cloneIndex,DelayCounter)%DistriFunc)
         ALLOCATE(ClonedParticles(cloneIndex,DelayCounter)%DistriFunc(1:SpecDSMC(SpecID)%MaxElecQuant))
@@ -341,7 +341,7 @@ DO iPart = 1, RadialWeighting%ClonePartNum(DelayCounter)
     PartStateIntEn(1:2,PositionNbr) = ClonedParticles(iPart,DelayCounter)%PartStateIntEn(1:2)
     IF(DSMC%ElectronicModel.GT.0) THEN
       PartStateIntEn(3,PositionNbr) = ClonedParticles(iPart,DelayCounter)%PartStateIntEn(3)
-      IF ((DSMC%ElectronicModel.EQ.2).AND.(.NOT.((SpecDSMC(ClonedParticles(iPart,DelayCounter)%Species)%InterID.EQ.4) &
+      IF ((DSMC%ElectronicModel.EQ.2).AND.(.NOT.((Species(ClonedParticles(iPart,DelayCounter)%Species)%InterID.EQ.4) &
           .OR.SpecDSMC(ClonedParticles(iPart,DelayCounter)%Species)%FullyIonized))) THEN
         IF(ALLOCATED(ElectronicDistriPart(PositionNbr)%DistriFunc)) DEALLOCATE(ElectronicDistriPart(PositionNbr)%DistriFunc)
         ALLOCATE(ElectronicDistriPart(PositionNbr)%DistriFunc(1:SpecDSMC(ClonedParticles(iPart,DelayCounter)%Species)%MaxElecQuant))

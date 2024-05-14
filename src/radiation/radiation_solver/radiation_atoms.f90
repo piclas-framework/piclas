@@ -48,9 +48,7 @@ SUBROUTINE radiation_atoms(iElem, em_atom)
                                       NumDensElectrons, Radiation_ElemEnergy_Species, Radiation_Absorption_SpeciesWave
   USE MOD_Particle_Vars,     ONLY   : nSpecies, Species
   USE MOD_Globals_Vars,      ONLY   : c, Pi
-  USE MOD_DSMC_Vars,         ONLY   : SpecDSMC
 !USE MOD_Radiation_Excitation, ONLY   : low_IonizationPot
-
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -112,7 +110,7 @@ SUBROUTINE radiation_atoms(iElem, em_atom)
 
   DO iSpec = 1, nSpecies
     IF(.NOT.RadiationInput(iSpec)%DoRadiation) CYCLE
-    IF((SpecDSMC(iSpec)%InterID .NE. 1) .AND. (SpecDSMC(iSpec)%InterID .NE. 10)) CYCLE
+    IF((Species(iSpec)%InterID .NE. 1) .AND. (Species(iSpec)%InterID .NE. 10)) CYCLE
     IF((RadiationInput(iSpec)%Telec.LT.10.0).OR.(RadiationInput(iSpec)%NumDens.LT.10.0).OR.(RadiationInput(iSpec)%Ttrans(4).LT.10.0)) CYCLE    
 
     ALLOCATE(lamnu(SpeciesRadiation(iSpec)%nLines))

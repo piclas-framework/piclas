@@ -25,10 +25,6 @@ INTERFACE UpdateNextFreePosition
   MODULE PROCEDURE UpdateNextFreePosition
 END INTERFACE
 
-INTERFACE VeloFromDistribution
-  MODULE PROCEDURE VeloFromDistribution
-END INTERFACE
-
 INTERFACE DiceUnitVector
   MODULE PROCEDURE DiceUnitVector
 END INTERFACE
@@ -463,7 +459,7 @@ END FUNCTION DiceUnitVector
 
 
 !===================================================================================================================================
-!> Calculation of velocity vector (Vx,Vy,Vz) sampled from given distribution function
+!> Calculation of velocity vector (Vx,Vy,Vz) sampled from given distribution function at the surface
 !===================================================================================================================================
 FUNCTION VeloFromDistribution(distribution,Tempergy,iNewPart,ProductSpecNbr)
 ! MODULES
@@ -722,7 +718,7 @@ PPURE FUNCTION InRotRefFrameCheck(iPart)
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! MODULES                                                                                                                          !
 !----------------------------------------------------------------------------------------------------------------------------------!
-USE MOD_Particle_Vars ,ONLY: PartState,RotRefFramRegion,RotRefFrameAxis,nRefFrameRegions
+USE MOD_Particle_Vars ,ONLY: PartState,RotRefFrameRegion,RotRefFrameAxis,nRefFrameRegions
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
 ! INPUT / OUTPUT VARIABLES
@@ -736,8 +732,8 @@ INTEGER             :: iRegion
 IF(nRefFrameRegions.GT.0) THEN
   InRotRefFrameCheck = .FALSE.
   DO iRegion = 1, nRefFrameRegions
-    IF((PartState(RotRefFrameAxis,iPart).GT.RotRefFramRegion(1,iRegion)).AND. &
-       (PartState(RotRefFrameAxis,iPart).LT.RotRefFramRegion(2,iRegion))) THEN
+    IF((PartState(RotRefFrameAxis,iPart).GT.RotRefFrameRegion(1,iRegion)).AND. &
+       (PartState(RotRefFrameAxis,iPart).LT.RotRefFrameRegion(2,iRegion))) THEN
       InRotRefFrameCheck = .TRUE.
       EXIT
     END IF
@@ -1402,14 +1398,14 @@ IF (DSMC%DoAmbipolarDiff) THEN
 END IF
 ! 2) Set internal energies (rotational, vibrational, electronic)
 IF(CollisMode.GT.1) THEN
-  IF((SpecDSMC(iSpec)%InterID.EQ.2).OR.(SpecDSMC(iSpec)%InterID.EQ.20)) THEN
+  IF((Species(iSpec)%InterID.EQ.2).OR.(Species(iSpec)%InterID.EQ.20)) THEN
     PartStateIntEn(1,iPart) = CalcEVib_particle(iSpec,Tvib,iPart)
     PartStateIntEn(2,iPart) = CalcERot_particle(iSpec,Trot)
   ELSE
     PartStateIntEn(1:2,iPart) = 0.0
   END IF
   IF(DSMC%ElectronicModel.GT.0) THEN
-    IF((SpecDSMC(iSpec)%InterID.NE.4).AND.(.NOT.SpecDSMC(iSpec)%FullyIonized)) THEN
+    IF((Species(iSpec)%InterID.NE.4).AND.(.NOT.SpecDSMC(iSpec)%FullyIonized)) THEN
       PartStateIntEn(3,iPart) = CalcEElec_particle(iSpec,Telec,iPart)
     ELSE
       PartStateIntEn(3,iPart) = 0.0
@@ -1839,13 +1835,11 @@ IF(PRESENT(Amount)) THEN
   IF(Amount.EQ.0) RETURN
   NewSize=PDM%MaxParticleNumber+Amount
   ! IPWRITE(*,*) "Increase by amount",PDM%MaxParticleNumber,NewSize
-  IF(NewSize.GT.PDM%maxAllowedParticleNumber)CALL ABORT(&
-  __STAMP__&
+  IF(NewSize.GT.PDM%maxAllowedParticleNumber)CALL ABORT(__STAMP__&
   ,'More Particles needed than allowed in PDM%maxAllowedParticleNumber',IntInfoOpt=NewSize)
 ELSE
   NewSize=MAX(CEILING(PDM%MaxParticleNumber*(1+PDM%MaxPartNumIncrease)),PDM%MaxParticleNumber+1)
-  IF(PDM%MaxParticleNumber.GE.PDM%maxAllowedParticleNumber) CALL ABORT(&
-  __STAMP__&
+  IF(PDM%MaxParticleNumber.GE.PDM%maxAllowedParticleNumber) CALL ABORT(__STAMP__&
   ,'More Particles needed than allowed in PDM%maxAllowedParticleNumber',IntInfoOpt=NewSize)
   NewSize=MIN(NewSize,PDM%maxAllowedParticleNumber)
   ! IPWRITE(*,*) "Increase by percent",PDM%MaxParticleNumber,NewSize
@@ -1861,25 +1855,26 @@ IF(ALLOCATED(PDM%dtFracPush)) CALL ChangeSizeArray(PDM%dtFracPush,PDM%maxParticl
 IF(ALLOCATED(PDM%InRotRefFrame)) CALL ChangeSizeArray(PDM%InRotRefFrame,PDM%maxParticleNumber,NewSize,.FALSE.)
 
 IF(ALLOCATED(PartState)) CALL ChangeSizeArray(PartState,PDM%maxParticleNumber,NewSize,0.)
-IF(ALLOCATED(LastPartPos)) CALL ChangeSizeArray(LastPartPos,PDM%maxParticleNumber,NewSize)
+IF(ALLOCATED(LastPartPos)) CALL ChangeSizeArray(LastPartPos,PDM%maxParticleNumber,NewSize,0.)
 IF(ALLOCATED(PartPosRef)) CALL ChangeSizeArray(PartPosRef,PDM%maxParticleNumber,NewSize,-888.)
 IF(ALLOCATED(PartSpecies)) CALL ChangeSizeArray(PartSpecies,PDM%maxParticleNumber,NewSize,0)
-IF(ALLOCATED(PartTimeStep)) CALL ChangeSizeArray(PartTimeStep,PDM%maxParticleNumber,NewSize)
-IF(ALLOCATED(PartMPF)) CALL ChangeSizeArray(PartMPF,PDM%maxParticleNumber,NewSize)
+IF(ALLOCATED(PartTimeStep)) CALL ChangeSizeArray(PartTimeStep,PDM%maxParticleNumber,NewSize,1.)
+IF(ALLOCATED(PartMPF)) CALL ChangeSizeArray(PartMPF,PDM%maxParticleNumber,NewSize,1.)
 IF(ALLOCATED(PartVeloRotRef)) CALL ChangeSizeArray(PartVeloRotRef,PDM%maxParticleNumber,NewSize,0.)
-IF(ALLOCATED(PartStateIntEn)) CALL ChangeSizeArray(PartStateIntEn,PDM%maxParticleNumber,NewSize)
+IF(ALLOCATED(LastPartVeloRotRef)) CALL ChangeSizeArray(LastPartVeloRotRef,PDM%maxParticleNumber,NewSize,0.)
+IF(ALLOCATED(PartStateIntEn)) CALL ChangeSizeArray(PartStateIntEn,PDM%maxParticleNumber,NewSize,0.)
 
 IF(ALLOCATED(Pt_temp)) CALL ChangeSizeArray(Pt_temp,PDM%maxParticleNumber,NewSize,0.)
 IF(ALLOCATED(Pt)) CALL ChangeSizeArray(Pt,PDM%maxParticleNumber,NewSize,0.)
-IF(ALLOCATED(FieldAtParticle)) CALL ChangeSizeArray(FieldAtParticle,PDM%maxParticleNumber,NewSize)
+IF(ALLOCATED(FieldAtParticle)) CALL ChangeSizeArray(FieldAtParticle,PDM%maxParticleNumber,NewSize,0.)
 
-IF(ALLOCATED(InterPlanePartIndx)) CALL ChangeSizeArray(InterPlanePartIndx,PDM%maxParticleNumber,NewSize)
-IF(ALLOCATED(BGGas%PairingPartner)) CALL ChangeSizeArray(BGGas%PairingPartner,PDM%maxParticleNumber,NewSize)
-IF(ALLOCATED(CollInf%OldCollPartner)) CALL ChangeSizeArray(CollInf%OldCollPartner,PDM%maxParticleNumber,NewSize)
+IF(ALLOCATED(InterPlanePartIndx)) CALL ChangeSizeArray(InterPlanePartIndx,PDM%maxParticleNumber,NewSize,0)
+IF(ALLOCATED(BGGas%PairingPartner)) CALL ChangeSizeArray(BGGas%PairingPartner,PDM%maxParticleNumber,NewSize,0)
+IF(ALLOCATED(CollInf%OldCollPartner)) CALL ChangeSizeArray(CollInf%OldCollPartner,PDM%maxParticleNumber,NewSize,0)
 IF(ALLOCATED(ElecRelaxPart)) CALL ChangeSizeArray(ElecRelaxPart,PDM%maxParticleNumber,NewSize,.TRUE.)
 
 #if (PP_TimeDiscMethod==508) || (PP_TimeDiscMethod==509)
-IF(ALLOCATED(velocityAtTime)) CALL ChangeSizeArray(velocityAtTime,PDM%maxParticleNumber,NewSize)
+IF(ALLOCATED(velocityAtTime)) CALL ChangeSizeArray(velocityAtTime,PDM%maxParticleNumber,NewSize,0.)
 #endif
 
 #if USE_MPI
@@ -1919,9 +1914,7 @@ IF(ALLOCATED(PartIsImplicit)) CALL ChangeSizeArray(PartIsImplicit,PDM%maxParticl
 
 IF(ALLOCATED(AmbipolElecVelo)) THEN
   ALLOCATE(AmbipolElecVelo_New(NewSize),STAT=ALLOCSTAT)
-  IF (ALLOCSTAT.NE.0) CALL ABORT(&
-__STAMP__&
-,'Cannot allocate increased Array in IncreaseMaxParticleNumber')
+  IF (ALLOCSTAT.NE.0) CALL ABORT(__STAMP__,'Cannot allocate increased Array in IncreaseMaxParticleNumber')
   DO i=1,PDM%maxParticleNumber
     CALL MOVE_ALLOC(AmbipolElecVelo(i)%ElecVelo,AmbipolElecVelo_New(i)%ElecVelo)
   END DO
@@ -1931,9 +1924,7 @@ END IF
 
 IF(ALLOCATED(ElectronicDistriPart)) THEN
   ALLOCATE(ElectronicDistriPart_New(NewSize),STAT=ALLOCSTAT)
-  IF (ALLOCSTAT.NE.0) CALL ABORT(&
-__STAMP__&
-,'Cannot allocate increased Array in IncreaseMaxParticleNumber')
+  IF (ALLOCSTAT.NE.0) CALL ABORT(__STAMP__,'Cannot allocate increased Array in IncreaseMaxParticleNumber')
   DO i=1,PDM%maxParticleNumber
     CALL MOVE_ALLOC(ElectronicDistriPart(i)%DistriFunc,ElectronicDistriPart_New(i)%DistriFunc)
   END DO
@@ -1943,9 +1934,7 @@ END IF
 
 IF(ALLOCATED(VibQuantsPar)) THEN
   ALLOCATE(VibQuantsPar_New(NewSize),STAT=ALLOCSTAT)
-  IF (ALLOCSTAT.NE.0) CALL ABORT(&
-__STAMP__&
-,'Cannot allocate increased Array in IncreaseMaxParticleNumber')
+  IF (ALLOCSTAT.NE.0) CALL ABORT(__STAMP__,'Cannot allocate increased Array in IncreaseMaxParticleNumber')
   DO i=1,PDM%maxParticleNumber
     CALL MOVE_ALLOC(VibQuantsPar(i)%Quants,VibQuantsPar_New(i)%Quants)
   END DO
@@ -2044,9 +2033,7 @@ ELSE
         CALL UpdateNextFreePosition()
         PDM%CurrentNextFreePosition = PDM%CurrentNextFreePosition + 1
         ii = PDM%nextFreePosition(PDM%CurrentNextFreePosition)
-        IF(ii.EQ.0.OR.ii.GT.NewSize) CALL ABORT(&
-      __STAMP__&
-      ,'This should not happen')
+        IF(ii.EQ.0.OR.ii.GT.NewSize) CALL ABORT(__STAMP__,'Error in ReduceMaxParticleNumber: New particle index outside of possible range')
       END IF
       IF(PDM%ParticleVecLength.LT.ii) PDM%ParticleVecLength = ii
       CALL ChangePartID(i,ii)
@@ -2066,25 +2053,26 @@ IF(ALLOCATED(PDM%dtFracPush)) CALL ChangeSizeArray(PDM%dtFracPush,PDM%maxParticl
 IF(ALLOCATED(PDM%InRotRefFrame)) CALL ChangeSizeArray(PDM%InRotRefFrame,PDM%maxParticleNumber,NewSize,.FALSE.)
 
 IF(ALLOCATED(PartState)) CALL ChangeSizeArray(PartState,PDM%maxParticleNumber,NewSize,0.)
-IF(ALLOCATED(LastPartPos)) CALL ChangeSizeArray(LastPartPos,PDM%maxParticleNumber,NewSize)
+IF(ALLOCATED(LastPartPos)) CALL ChangeSizeArray(LastPartPos,PDM%maxParticleNumber,NewSize,0.)
 IF(ALLOCATED(PartPosRef)) CALL ChangeSizeArray(PartPosRef,PDM%maxParticleNumber,NewSize,-888.)
 IF(ALLOCATED(PartSpecies)) CALL ChangeSizeArray(PartSpecies,PDM%maxParticleNumber,NewSize,0)
-IF(ALLOCATED(PartTimeStep)) CALL ChangeSizeArray(PartTimeStep,PDM%maxParticleNumber,NewSize)
-IF(ALLOCATED(PartMPF)) CALL ChangeSizeArray(PartMPF,PDM%maxParticleNumber,NewSize)
+IF(ALLOCATED(PartTimeStep)) CALL ChangeSizeArray(PartTimeStep,PDM%maxParticleNumber,NewSize,1.)
+IF(ALLOCATED(PartMPF)) CALL ChangeSizeArray(PartMPF,PDM%maxParticleNumber,NewSize,1.)
 IF(ALLOCATED(PartVeloRotRef)) CALL ChangeSizeArray(PartVeloRotRef,PDM%maxParticleNumber,NewSize,0.)
-IF(ALLOCATED(PartStateIntEn)) CALL ChangeSizeArray(PartStateIntEn,PDM%maxParticleNumber,NewSize)
+IF(ALLOCATED(LastPartVeloRotRef)) CALL ChangeSizeArray(LastPartVeloRotRef,PDM%maxParticleNumber,NewSize,0.)
+IF(ALLOCATED(PartStateIntEn)) CALL ChangeSizeArray(PartStateIntEn,PDM%maxParticleNumber,NewSize,0.)
 
 IF(ALLOCATED(Pt_temp)) CALL ChangeSizeArray(Pt_temp,PDM%maxParticleNumber,NewSize,0.)
 IF(ALLOCATED(Pt)) CALL ChangeSizeArray(Pt,PDM%maxParticleNumber,NewSize,0.)
-IF(ALLOCATED(FieldAtParticle)) CALL ChangeSizeArray(FieldAtParticle,PDM%maxParticleNumber,NewSize)
+IF(ALLOCATED(FieldAtParticle)) CALL ChangeSizeArray(FieldAtParticle,PDM%maxParticleNumber,NewSize,0.)
 
-IF(ALLOCATED(InterPlanePartIndx)) CALL ChangeSizeArray(InterPlanePartIndx,PDM%maxParticleNumber,NewSize)
-IF(ALLOCATED(BGGas%PairingPartner)) CALL ChangeSizeArray(BGGas%PairingPartner,PDM%maxParticleNumber,NewSize)
-IF(ALLOCATED(CollInf%OldCollPartner)) CALL ChangeSizeArray(CollInf%OldCollPartner,PDM%maxParticleNumber,NewSize)
+IF(ALLOCATED(InterPlanePartIndx)) CALL ChangeSizeArray(InterPlanePartIndx,PDM%maxParticleNumber,NewSize,0)
+IF(ALLOCATED(BGGas%PairingPartner)) CALL ChangeSizeArray(BGGas%PairingPartner,PDM%maxParticleNumber,NewSize,0)
+IF(ALLOCATED(CollInf%OldCollPartner)) CALL ChangeSizeArray(CollInf%OldCollPartner,PDM%maxParticleNumber,NewSize,0)
 IF(ALLOCATED(ElecRelaxPart)) CALL ChangeSizeArray(ElecRelaxPart,PDM%maxParticleNumber,NewSize,.TRUE.)
 
 #if (PP_TimeDiscMethod==508) || (PP_TimeDiscMethod==509)
-IF(ALLOCATED(velocityAtTime)) CALL ChangeSizeArray(velocityAtTime,PDM%maxParticleNumber,NewSize)
+IF(ALLOCATED(velocityAtTime)) CALL ChangeSizeArray(velocityAtTime,PDM%maxParticleNumber,NewSize,0.)
 #endif
 
 #if USE_MPI
@@ -2124,9 +2112,7 @@ IF(ALLOCATED(PartIsImplicit)) CALL ChangeSizeArray(PartIsImplicit,PDM%maxParticl
 
 IF(ALLOCATED(AmbipolElecVelo)) THEN
   ALLOCATE(AmbipolElecVelo_New(NewSize),STAT=ALLOCSTAT)
-  IF (ALLOCSTAT.NE.0) CALL ABORT(&
-__STAMP__&
-,'Cannot allocate increased Array in ReduceMaxParticleNumber')
+  IF (ALLOCSTAT.NE.0) CALL ABORT(__STAMP__,'Cannot allocate increased Array in ReduceMaxParticleNumber')
   DO i=1,NewSize
     CALL MOVE_ALLOC(AmbipolElecVelo(i)%ElecVelo,AmbipolElecVelo_New(i)%ElecVelo)
   END DO
@@ -2139,9 +2125,7 @@ END IF
 
 IF(ALLOCATED(ElectronicDistriPart)) THEN
   ALLOCATE(ElectronicDistriPart_New(NewSize),STAT=ALLOCSTAT)
-  IF (ALLOCSTAT.NE.0) CALL ABORT(&
-__STAMP__&
-,'Cannot allocate increased Array in ReduceMaxParticleNumber')
+  IF (ALLOCSTAT.NE.0) CALL ABORT(__STAMP__,'Cannot allocate increased Array in ReduceMaxParticleNumber')
   DO i=1,NewSize
     CALL MOVE_ALLOC(ElectronicDistriPart(i)%DistriFunc,ElectronicDistriPart_New(i)%DistriFunc)
   END DO
@@ -2154,9 +2138,7 @@ END IF
 
 IF(ALLOCATED(VibQuantsPar)) THEN
   ALLOCATE(VibQuantsPar_New(NewSize),STAT=ALLOCSTAT)
-  IF (ALLOCSTAT.NE.0) CALL ABORT(&
-__STAMP__&
-,'Cannot allocate increased Array in ReduceMaxParticleNumber')
+  IF (ALLOCSTAT.NE.0) CALL ABORT(__STAMP__,'Cannot allocate increased Array in ReduceMaxParticleNumber')
   DO i=1,NewSize
     CALL MOVE_ALLOC(VibQuantsPar(i)%Quants,VibQuantsPar_New(i)%Quants)
   END DO
@@ -2264,6 +2246,10 @@ IF(ALLOCATED(PartMPF)) PartMPF(NewID)=PartMPF(OldID)
 IF(ALLOCATED(PartVeloRotRef)) THEN
   PartVeloRotRef(:,NewID)=PartVeloRotRef(:,OldID)
   PartVeloRotRef(:,OldID) = 0.0
+END IF
+IF(ALLOCATED(LastPartVeloRotRef)) THEN
+  LastPartVeloRotRef(:,NewID)=LastPartVeloRotRef(:,OldID)
+  LastPartVeloRotRef(:,OldID) = 0.0
 END IF
 IF(ALLOCATED(PartStateIntEn)) PartStateIntEn(:,NewID)=PartStateIntEn(:,OldID)
 
