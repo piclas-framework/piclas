@@ -1000,8 +1000,7 @@ END SUBROUTINE DepositionMethod_SF
 
 SUBROUTINE DepositionMethod_BVW(doParticle_In, stage_opt)
 !===================================================================================================================================
-! 'cell_volweight'
-! Linear charge density distribution within a cell (discontinuous across cell interfaces)
+!> TODO
 !===================================================================================================================================
 ! MODULES
 USE MOD_Preproc

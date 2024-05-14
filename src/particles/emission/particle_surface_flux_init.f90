@@ -405,7 +405,6 @@ USE MOD_DSMC_Vars              ,ONLY: useDSMC, BGGas, RadialWeighting
 USE MOD_Particle_Surfaces_Vars ,ONLY: BCdata_auxSF, BezierSampleN, TriaSurfaceFlux
 USE MOD_Particle_Tracking_Vars ,ONLY: TrackingMethod
 USE MOD_Mesh_Vars              ,ONLY: NGeo
-USE MOD_Symmetry_Vars          ,ONLY: Symmetry
 USE MOD_SurfaceModel_Vars
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Vars       ,ONLY: PerformLoadBalance
