@@ -297,6 +297,7 @@ USE MOD_Particle_Vars           ,ONLY: PDM, RotRefFrameOmega,RotRefSubTimeStep,n
 USE MOD_Particle_Tracking_Vars  ,ONLY: TrackInfo
 USE MOD_part_RHS                ,ONLY: CalcPartRHSRotRefFrame
 USE MOD_Globals_Vars            ,ONLY: TwoepsMach
+USE MOD_Part_Tools              ,ONLY: CalcPartSymmetryPos
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -424,7 +425,17 @@ LastPartPos(1:3,PartID) = POI_vec(1:3)
 ! recompute initial position and ignoring preceding reflections and trajectory between current position and recomputed position
 !TildPos       =PartState(1:3,PartID)-dt*RKdtFrac*PartState(4:6,PartID)
 TildTrajectory = OldVelo * dtVar
-POI_fak=1.- (TrackInfo%lengthPartTrajectory-TrackInfo%alpha)/SQRT(DOT_PRODUCT(TildTrajectory,TildTrajectory))
+! Nullify the components in 1D and 2D to calculate the correct magnitude (2D axisymmetric is not affected)
+IF(Symmetry%Order.EQ.3.OR.Symmetry%Axisymmetric) THEN
+  POI_fak = VECNORM(TildTrajectory)
+ELSE IF(Symmetry%Order.EQ.2.AND..NOT.Symmetry%Axisymmetric) THEN
+  POI_fak = VECNORM2D(TildTrajectory(1:2))
+ELSE IF(Symmetry%Order.EQ.1) THEN
+  POI_fak = ABS(TildTrajectory(1))
+ELSE
+  CALL Abort(__STAMP__,'Error in DiffuseReflection: Symmetry%Order is not properly defined!')
+END IF
+POI_fak = 1. - (TrackInfo%lengthPartTrajectory-TrackInfo%alpha)/POI_fak
 ! travel rest of particle vector
 !PartState(1:3,PartID)   = LastPartPos(1:3,PartID) + (1.0 - alpha/lengthPartTrajectory) * dt*RKdtFrac * NewVelo(1:3)
 IF (PartBound%Resample(locBCID)) CALL RANDOM_NUMBER(POI_fak) !Resample Equilibirum Distribution
