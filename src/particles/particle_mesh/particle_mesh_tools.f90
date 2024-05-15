@@ -55,6 +55,7 @@ CONTAINS
 !==================================================================================================================================!
 SUBROUTINE InitParticleInsideQuad()
 ! MODULES
+USE MOD_Globals
 USE MOD_Particle_Vars            ,ONLY: Symmetry
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -64,8 +65,10 @@ IF (Symmetry%Order.EQ.3) THEN
   ParticleInsideQuad => ParticleInsideQuad3D
 ELSE IF (Symmetry%Order.EQ.2) THEN
   ParticleInsideQuad => ParticleInsideQuad2D
-ELSE
+ELSE IF (Symmetry%Order.EQ.1) THEN
   ParticleInsideQuad => ParticleInsideQuad1D
+ELSE
+  CALL abort(__STAMP__,'ERROR in InitParticleInsideQuad: Function pointer could not be properly defined!')
 END IF
 
 END SUBROUTINE InitParticleInsideQuad

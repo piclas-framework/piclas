@@ -43,6 +43,7 @@ CONTAINS
 !==================================================================================================================================!
 SUBROUTINE InitSingleParticleTriaTracking()
 ! MODULES
+USE MOD_Globals
 USE MOD_Particle_Vars            ,ONLY: Symmetry
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -50,8 +51,10 @@ IMPLICIT NONE
 
 IF (Symmetry%Order.EQ.3) THEN
   SingleParticleTriaTracking => SingleParticleTriaTracking3D
-ELSE
+ELSE IF (Symmetry%Order.EQ.2.OR.Symmetry%Order.EQ.1) THEN
   SingleParticleTriaTracking => SingleParticleTriaTracking1D2D
+ELSE
+  CALL abort(__STAMP__,'ERROR in InitSingleParticleTriaTracking: Function pointer could not be properly defined!')
 END IF
   
 END SUBROUTINE InitSingleParticleTriaTracking
@@ -598,15 +601,9 @@ END SUBROUTINE SingleParticleTriaTracking3D
 SUBROUTINE SingleParticleTriaTracking1D2D(i,IsInterPlanePart)
 !===================================================================================================================================
 ! Routine for tracking of moving particles and boundary interaction using triangulated sides.
-!    2) Perform tracking until the particle is considered "done" (either localized or deleted)
-!       2a) Perform a check based on the determinant of (3x3) matrix of the vectors from the particle position to the nodes of each
-!           triangle (ParticleInsideQuad3D)
-!       2b) If particle is not within the given element in a), the side through which the particle went is determined by checking
-!           each side of the element (ParticleThroughSideCheck3DFast)
-!       2c) If no sides are found, the particle is deleted (very rare case). If multiple possible sides are found, additional
-!           treatment is required, where the particle path is reconstructed (which side was crossed first) by comparing the ratio
-!           the determinants
-!    3) In case of a boundary, determine the intersection and perform the appropriate boundary interaction (GetBoundaryInteraction)
+!    1) Perform tracking until the particle is considered "done" (either localized or deleted)
+!       1a) The side through which the particle went is determined by checking each side of the element (ParticleThroughSideCheck1D2D)
+!    2) In case of a boundary, determine the intersection and perform the appropriate boundary interaction (GetBoundaryInteraction)
 !===================================================================================================================================
 ! MODULES
 USE MOD_Preproc
@@ -618,7 +615,7 @@ USE MOD_Particle_Vars               ,ONLY: Symmetry
 USE MOD_Particle_Mesh_Vars
 USE MOD_Particle_Tracking_vars      ,ONLY: ntracks,MeasureTrackTime, TrackInfo
 USE MOD_Particle_Boundary_Vars      ,ONLY: PartBound
-USE MOD_Particle_Intersection       ,ONLY: ParticleThroughSideCheck2D, ParticleThroughSideCheck1D
+USE MOD_Particle_Intersection       ,ONLY: ParticleThroughSideCheck1D2D
 USE MOD_Particle_Boundary_Condition ,ONLY: GetBoundaryInteraction
 #if USE_LOADBALANCE
 USE MOD_Mesh_Vars                   ,ONLY: offsetElem
@@ -661,12 +658,10 @@ END IF
 TrackInfo%CurrElem=ElemID
 SideID = 0
 
-! 2) Loop tracking until particle is considered "done" (either localized or deleted)
+! 1) Loop tracking until particle is considered "done" (either localized or deleted)
 DO WHILE (.NOT.PartisDone)
-  ! 2a) Perform a check based on the determinant of (3x3) matrix of the vectors from the particle position to the nodes of each
   oldElemIsMortar = .FALSE.
-  ! 2b) If particle is not within the given element in a), the side through which the particle went is determined by checking
-  !     each side of the element (ParticleThroughSideCheck3DFast)
+  ! 1a) The side through which the particle went is determined by checking each side of the element (ParticleThroughSideCheck1D2D)
   NrOfThroughSides = 0
   TrackInfo%PartTrajectory(1:3)=PartState(1:3,i) - LastPartPos(1:3,i)
   TrackInfo%lengthPartTrajectory=VECNORM(TrackInfo%PartTrajectory(1:3))
@@ -694,11 +689,7 @@ DO WHILE (.NOT.PartisDone)
         nbSideID = SideInfo_Shared(SIDE_NBSIDEID,nbSideID)
         NblocSideID =  SideInfo_Shared(SIDE_LOCALID,nbSideID)
         ThroughSide = .FALSE.
-        IF(Symmetry%Order.EQ.2) THEN 
-          CALL ParticleThroughSideCheck2D(i,NblocSideID,NbElemID,ThroughSide)
-        ELSE
-          CALL ParticleThroughSideCheck1D(i,NblocSideID,NbElemID,ThroughSide)
-        END IF
+        CALL ParticleThroughSideCheck1D2D(i,NblocSideID,NbElemID,ThroughSide)
         IF (ThroughSide) THEN
           ! Store the information for this side for future checks, if this side was already treated
           oldElemIsMortar = .TRUE.
@@ -712,11 +703,7 @@ DO WHILE (.NOT.PartisDone)
     ELSE  ! Regular side
       IF (TempSideID.EQ.TrackInfo%LastSide) CYCLE
       ThroughSide = .FALSE.
-      IF(Symmetry%Order.EQ.2) THEN 
-        CALL ParticleThroughSideCheck2D(i,localSideID,ElemID,ThroughSide)
-      ELSE
-        CALL ParticleThroughSideCheck1D(i,localSideID,ElemID,ThroughSide)
-      END IF
+      CALL ParticleThroughSideCheck1D2D(i,localSideID,ElemID,ThroughSide)
       IF (ThroughSide) THEN
         NrOfThroughSides = NrOfThroughSides + 1
         SideID = TempSideID
@@ -734,7 +721,7 @@ DO WHILE (.NOT.PartisDone)
     PartisDone = .TRUE.
   ELSE
     ! ----------------------------------------------------------------------------
-    ! 3) In case of a boundary, perform the appropriate boundary interaction
+    ! 2) In case of a boundary, perform the appropriate boundary interaction
     crossedBC=.FALSE.
     flip = MERGE(0, MOD(SideInfo_Shared(SIDE_FLIP,SideID),10),SideInfo_Shared(SIDE_ID,SideID).GT.0)
     IF (SideInfo_Shared(SIDE_BCID,SideID).GT.0) THEN
@@ -764,9 +751,7 @@ DO WHILE (.NOT.PartisDone)
       IPWRITE(UNIT_StdOut,*) "           ElemID: ", ElemID
       IPWRITE(UNIT_StdOut,*) "         CNElemID: ", CNElemID
       IPWRITE(UNIT_stdout,*) 'Particle Velocity: ',SQRT(DOTPRODUCT(PartState(4:6,i)))
-      CALL abort(&
-       __STAMP__ &
-       ,'ERROR: Element not defined! Please increase the size of the halo region (HaloEpsVelo)!')
+      CALL abort(__STAMP__ ,'ERROR: Element not defined! Please increase the size of the halo region (HaloEpsVelo)!')
     END IF
     TrackInfo%CurrElem = ElemID
   END IF

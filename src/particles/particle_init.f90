@@ -1427,6 +1427,7 @@ USE MOD_HDG_Vars           ,ONLY: BRRegionBounds,RegionElectronRef,RegionElectro
 #endif /*USE_HDG*/
 USE MOD_Particle_Mesh_Tools ,ONLY: ParticleInsideQuad
 USE MOD_Particle_TriaTracking ,ONLY: SingleParticleTriaTracking
+USE MOD_Particle_InterSection ,ONLY: ParticleThroughSideCheck1D2D
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
 ! INPUT VARIABLES
@@ -1538,6 +1539,7 @@ SDEALLOCATE(ExcitationSampleData)
 
 SNULLIFY(SingleParticleTriaTracking)
 SNULLIFY(ParticleInsideQuad)
+SNULLIFY(ParticleThroughSideCheck1D2D)
 
 END SUBROUTINE FinalizeParticles
 
@@ -1871,6 +1873,7 @@ USE MOD_DSMC_Vars             ,ONLY: RadialWeighting
 USE MOD_ReadInTools           ,ONLY: GETLOGICAL,GETINT
 USE MOD_Particle_Mesh_Tools   ,ONLY: InitParticleInsideQuad
 USE MOD_Particle_TriaTracking ,ONLY: InitSingleParticleTriaTracking
+USE MOD_Particle_InterSection ,ONLY: InitParticleThroughSideCheck1D2D
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1886,9 +1889,10 @@ Symmetry%Order = GETINT('Particles-Symmetry-Order')
 IF((Symmetry%Order.LE.0).OR.(Symmetry%Order.GE.4)) CALL ABORT(__STAMP__&
   ,'Particles-Symmetry-Order (space dimension) has to be in the range of 1 to 3')
 
-! Initialize the function pointer for triatracking
+! Initialize the function pointers for triatracking
 CALL InitParticleInsideQuad()
 CALL InitSingleParticleTriaTracking()
+IF(Symmetry%Order.LE.2) CALL InitParticleThroughSideCheck1D2D()
 
 Symmetry%Axisymmetric = GETLOGICAL('Particles-Symmetry2DAxisymmetric')
 IF(Symmetry%Axisymmetric.AND.(Symmetry%Order.EQ.3)) CALL ABORT(__STAMP__&

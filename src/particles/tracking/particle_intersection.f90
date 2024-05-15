@@ -44,12 +44,26 @@ INTERFACE OutputTrajectory
 END INTERFACE
 #endif /*CODE_ANALYZE*/
 
+! Define an interface for the function pointer
+ABSTRACT INTERFACE
+  SUBROUTINE ParticleThroughSideCheck1D2DInterface(PartID,iLocSide,Element,ThroughSide)
+    INTEGER,INTENT(IN)               :: PartID
+    INTEGER,INTENT(IN)               :: iLocSide
+    INTEGER,INTENT(IN)               :: Element
+    LOGICAL,INTENT(OUT)              :: ThroughSide
+  END SUBROUTINE
+END INTERFACE
+
+!> Pointer defining the routine based on the symmetry order
+PROCEDURE(ParticleThroughSideCheck1D2DInterface),POINTER :: ParticleThroughSideCheck1D2D => NULL()
+
 PUBLIC :: IntersectionWithWall
 PUBLIC :: ComputePlanarRectInterSection
 PUBLIC :: ComputePlanarCurvedIntersection
 PUBLIC :: ComputeBilinearIntersection
 PUBLIC :: ComputeCurvedIntersection
-PUBLIC :: ParticleThroughSideCheck3DFast, ParticleThroughSideCheck2D, ParticleThroughSideCheck1D
+PUBLIC :: InitParticleThroughSideCheck1D2D
+PUBLIC :: ParticleThroughSideCheck3DFast, ParticleThroughSideCheck1D2D
 PUBLIC :: ParticleThroughSideLastPosCheck
 #ifdef CODE_ANALYZE
 PUBLIC :: OutputTrajectory
@@ -252,6 +266,28 @@ END IF
 RETURN
 
 END SUBROUTINE ParticleThroughSideCheck3DFast
+
+
+!==================================================================================================================================!
+!> Initialize ParticleThroughSideCheck depending on symmetry dimension using a function pointer (1D/2D only)
+!==================================================================================================================================!
+SUBROUTINE InitParticleThroughSideCheck1D2D()
+! MODULES
+USE MOD_Globals
+USE MOD_Particle_Vars            ,ONLY: Symmetry
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!==================================================================================================================================
+
+IF (Symmetry%Order.EQ.2) THEN
+  ParticleThroughSideCheck1D2D => ParticleThroughSideCheck2D
+ELSE IF(Symmetry%Order.EQ.1) THEN
+  ParticleThroughSideCheck1D2D => ParticleThroughSideCheck1D
+ELSE
+  CALL abort(__STAMP__,'ERROR in InitParticleThroughSideCheck1D2D: Function pointer could not be properly defined!')
+END IF
+
+END SUBROUTINE InitParticleThroughSideCheck1D2D
 
 
 SUBROUTINE ParticleThroughSideCheck2D(PartID,iLocSide,Element,ThroughSide)
