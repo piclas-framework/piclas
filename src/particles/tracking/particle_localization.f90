@@ -92,7 +92,7 @@ USE MOD_Particle_Mesh_Vars     ,ONLY: ElemRadius2NGeo
 USE MOD_Particle_Mesh_Vars     ,ONLY: GEO,ElemEpsOneCell
 USE MOD_Particle_Mesh_Vars     ,ONLY: FIBGM_nElems, FIBGM_offsetElem, FIBGM_Element
 USE MOD_Mesh_Tools             ,ONLY: GetCNElemID,GetGlobalElemID
-USE MOD_Particle_Mesh_Tools    ,ONLY: ParticleInsideQuad3D
+USE MOD_Particle_Mesh_Tools    ,ONLY: ParticleInsideQuad
 USE MOD_Particle_Tracking_Vars ,ONLY: Distance,ListDistance,TrackingMethod
 USE MOD_Utils                  ,ONLY: InsertionSort
 #if USE_MPI
@@ -169,7 +169,7 @@ DO iBGMElem = 1,nBGMElems
 
   SELECT CASE(TrackingMethod)
     CASE(TRIATRACKING)
-      CALL ParticleInsideQuad3D(Pos3D(1:3),ElemID,InElementCheck,Det)
+      CALL ParticleInsideQuad(Pos3D(1:3),ElemID,InElementCheck,Det)
 
     CASE(TRACING)
       CALL GetPositionInRefElem(Pos3D(1:3),RefPos,ElemID)

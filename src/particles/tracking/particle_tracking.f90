@@ -78,7 +78,7 @@ LOGICAL FUNCTION ParticleInsideCheck(Position,iPart,GlobalElemID)
 USE MOD_Globals
 USE MOD_Particle_Tracking_Vars  ,ONLY: TrackingMethod
 USE MOD_Particle_Localization   ,ONLY: PartInElemCheck
-USE MOD_Particle_Mesh_Tools     ,ONLY: ParticleInsideQuad3D
+USE MOD_Particle_Mesh_Tools     ,ONLY: ParticleInsideQuad
 USE MOD_Eval_xyz                ,ONLY: GetPositionInRefElem
 USE MOD_Mesh_Tools              ,ONLY: GetCNElemID
 USE MOD_Particle_Vars           ,ONLY: PartPosRef
@@ -104,7 +104,7 @@ CASE(REFMAPPING)
 CASE(TRACING)
   CALL PartInElemCheck(Position,iPart,GlobalElemID,ParticleInsideCheck)
 CASE(TRIATRACKING)
-  CALL ParticleInsideQuad3D(Position,GlobalElemID,ParticleInsideCheck)
+  CALL ParticleInsideQuad(Position,GlobalElemID,ParticleInsideCheck)
 CASE DEFAULT
   CALL abort(__STAMP__,'TrackingMethod not implemented! TrackingMethod =',IntInfoOpt=TrackingMethod)
 END SELECT
