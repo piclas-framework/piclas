@@ -710,7 +710,7 @@ use mod_globals
 USE MOD_Globals                ,ONLY: VECNORM
 USE MOD_Mesh_Vars              ,ONLY: nElems,SideToElem,nBCSides,Boundarytype,BC
 USE MOD_IO_HDF5                ,ONLY: AddToElemData,ElementOut
-USE MOD_Particle_Boundary_Vars ,ONLY: ElementThicknessVDL,PartBound,N_SurfVDL,StretchingFactorVDL
+USE MOD_Particle_Boundary_Vars ,ONLY: ElementThicknessVDL,PartBound,N_SurfVDL,StretchingFactorVDL,nVarSurfData
 USE MOD_Mesh_Tools             ,ONLY: GetGlobalElemID,GetCNElemID
 USE MOD_Particle_Mesh_Tools    ,ONLY: GetGlobalNonUniqueSideID
 USE MOD_Mesh_Vars              ,ONLY: ElemToSide,nSides,offSetElem,SideToNonUniqueGlobalSide
@@ -797,7 +797,7 @@ DO iSide = 1, nBCSides
   iElem = SideToElem(S2E_ELEM_ID,iSide)
   ! Allocate with polynomial degree of the element
   Nloc = N_DG_Mapping(2,iElem+offSetElem)
-  ALLOCATE(N_SurfVDL(iSide)%U(5,0:Nloc,0:Nloc))
+  ALLOCATE(N_SurfVDL(iSide)%U(nVarSurfData,0:Nloc,0:Nloc))
   N_SurfVDL(iSide)%U = 0.
 END DO ! iSide = 1, nBCSides
 

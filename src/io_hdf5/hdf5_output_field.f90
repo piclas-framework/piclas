@@ -230,7 +230,7 @@ SUBROUTINE WriteSurfVDLToHDF5(OutputTime)
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Globals
 USE MOD_IO_HDF5
-USE MOD_Particle_Boundary_Vars ,ONLY: nComputeNodeSurfOutputSides,nGlobalOutputSides, nSurfBC,N_SurfVDL
+USE MOD_Particle_Boundary_Vars ,ONLY: nComputeNodeSurfOutputSides,nGlobalOutputSides, nSurfBC,N_SurfVDL,nVarSurfData
 USE MOD_Particle_Boundary_Vars ,ONLY: offsetComputeNodeSurfOutputSide, SurfBCName, nComputeNodeSurfSides
 USE MOD_Particle_Boundary_Vars ,ONLY: SurfSide2GlobalSide, GlobalSide2SurfSide
 USE MOD_HDF5_Output            ,ONLY: WriteAttributeToHDF5,WriteArrayToHDF5,WriteHDF5Header
@@ -270,7 +270,6 @@ CHARACTER(LEN=255)                  :: H5_Name
 CHARACTER(LEN=255),ALLOCATABLE      :: Str2DVarNames(:)
 INTEGER                             :: GlobalSideID, iSurfSide, OutputCounter, SurfSideNb, p, q,Nloc,BCSideID,iLocSide,iElem,BCType
 INTEGER                             :: GlobalElemID,iPartBound,GlobalNonUniqueSideID
-INTEGER,PARAMETER                   :: nVarSurfData=5
 REAL                                :: tstart,tend
 REAL, ALLOCATABLE                   :: helpArray(:,:,:,:)
 
@@ -326,6 +325,9 @@ IF (mySurfRank.EQ.0) THEN
   Str2DVarNames(3) ='Ez'
   Str2DVarNames(4) ='PhiF_Max'
   Str2DVarNames(5) ='PhiF_From_E'
+  Str2DVarNames(6) ='E_From_PhiF_Maxx'
+  Str2DVarNames(7) ='E_From_PhiF_Maxy'
+  Str2DVarNames(8) ='E_From_PhiF_Maxz'
 
   CALL WriteAttributeToHDF5(File_ID,'VarNamesSurface',nVarSurfData,StrArray=Str2DVarNames)
 

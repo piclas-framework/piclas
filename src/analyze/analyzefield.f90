@@ -1768,7 +1768,7 @@ IMPLICIT NONE
 ! LOCAL VARIABLES
 INTEGER          :: ElemID,SideID,ilocSide,ilocSide2,Nloc,iPartBound,p,q
 REAL,ALLOCATABLE :: Uface(:,:,:),Eface(:,:,:)
-REAL             :: MinOfElem,MinOfFace,MaxOfElem,MaxOfFace
+REAL             :: MinOfElem,MinOfFace,MaxOfElem,MaxOfFace,Edir
 !===================================================================================================================================
 ! 1.) Loop over all processor-local BC sides and therein find the local side ID which corresponds to the reference element and
 !     interpolate the vector field E = (/Ex, Ey, Ez/) to the boundary face
@@ -1828,18 +1828,24 @@ DO SideID=1,nBCSides
     DO q=0,Nloc
       DO p=0,Nloc
         ASSOCIATE( E => N_SurfVDL(SideID)%U(1:3,p,q), normal => N_SurfMesh(SideID)%NormVec(1:3,p,q) )
-          ! Normal vector points outwards on BC sides
-          IF(DOT_PRODUCT(E,-normal).GT.0)THEN
-            ! Get minimum of Phi as Phi_F
+          ! Normal vector points outwards on BC sides, hence, invert it
+          Edir = DOT_PRODUCT(E,-normal)
+          ! Check in which direction the E-field points
+          IF(Edir.GT.0.0)THEN
+            ! Get minimum of Phi as Phi_F (Phi_Max)
             N_SurfVDL(SideID)%U(4:4,p,q) = MIN(MinOfElem,MinOfFace)
             ! Reconstruct Phi_F from E
             N_SurfVDL(SideID)%U(5:5,p,q) = -VECNORM(E)*PartBound%ThicknessVDL(iPartBound)
+            ! Reconstruct E from Phi_Max via E = Phi/d
+            N_SurfVDL(SideID)%U(6:8,p,q) = -N_SurfVDL(SideID)%U(4,p,q)/PartBound%ThicknessVDL(iPartBound)*normal
           ELSE
-            ! Get maximum of Phi as Phi_F
+            ! Get maximum of Phi as Phi_F (Phi_Max)
             N_SurfVDL(SideID)%U(4:4,p,q) = MAX(MaxOfElem,MaxOfFace)
             ! Reconstruct Phi_F from E
             N_SurfVDL(SideID)%U(5:5,p,q) =  VECNORM(E)*PartBound%ThicknessVDL(iPartBound)
-          END IF ! DOT_PRODUCT(E,-normal).GT.0
+            ! Reconstruct E from Phi_Max via E = Phi/d
+            N_SurfVDL(SideID)%U(6:8,p,q) =  N_SurfVDL(SideID)%U(4,p,q)/PartBound%ThicknessVDL(iPartBound)*normal
+          END IF ! Edir.GT.0
         END ASSOCIATE
       END DO ! p
     END DO ! q

@@ -310,9 +310,13 @@ REAL, ALLOCATABLE    :: ElementThicknessVDL(:)   ! Thickness of first element la
 REAL, ALLOCATABLE    :: StretchingFactorVDL(:)   ! Thickness of first element layer at a VDL boundary versus actual VDL layer thickness
 
 TYPE, PUBLIC :: VDLSurfMesh
-  REAL,ALLOCATABLE        :: U(:,:,:)   !< Ex,Ey,Ez,PhiF1,PhiF2 positions (first index 1:3) of the Boundary Face Gauss Point
+  REAL,ALLOCATABLE        :: U(:,:,:)   !< 1-3: Ex,Ey,Ez - E-field from post-processes gradient corrected with ElementThicknessVDL and ThicknessVDL
+                                        !<   4: PhiF1    - PhiF as Minimum/Maximum of Phi
+                                        !<   5: PhiF2    - PhiF calculated from E (1-3)
+                                        !< 6-8: Ex,Ey,Ez - E-field calculated from PhiF1 (Minimum/Maximum of Phi)
 END TYPE VDLSurfMesh
 
+INTEGER,PARAMETER              :: nVarSurfData=8
 TYPE(VDLSurfMesh),ALLOCATABLE  :: N_SurfVDL(:) !< Corrected electric field on VDL surfaces
 !===================================================================================================================================
 
