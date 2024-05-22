@@ -211,8 +211,8 @@ CALL extrae_eventandcounters(int(9000001), int8(0))
 #if USE_MPI
   CALL IRecvNbofParticles() ! open receive buffer for number of particles
 #endif
+  CALL ParticleInserting() ! Do inserting first as virtual particles are created, which need to be tracked and deleted afterwards
   CALL PerformTracking()
-  CALL ParticleInserting()
 #if USE_MPI
   CALL SendNbOfParticles() ! send number of particles
   CALL MPIParticleSend()  ! finish communication of number of particles and send particles

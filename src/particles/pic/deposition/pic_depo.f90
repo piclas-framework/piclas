@@ -946,14 +946,20 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER :: iPart
-REAL    :: charge
+REAL    :: charge,SignSwitch
 !===================================================================================================================================
 ! Loop over all particles
 DO iPart=1,PDM%ParticleVecLength
   ! Only consider un-deleted particles
   IF (PDM%ParticleInside(iPart)) THEN
     ! Check particle index for VDL particles
-    IF(PartSpecies(iPart).GT.SpeciesOffsetVDL)THEN
+    IF(ABS(PartSpecies(iPart)).GT.SpeciesOffsetVDL)THEN
+      IF(PartSpecies(iPart).LT.0)THEN
+        SignSwitch = -1
+        PartSpecies(iPart) = -PartSpecies(iPart)
+      ELSE
+        SignSwitch =  1
+      END IF ! PartSpecies(iPart).LT.0
       ! Reset to original species index
       PartSpecies(iPart) = PartSpecies(iPart) - SpeciesOffsetVDL
       IF(usevMPF)THEN
@@ -961,7 +967,7 @@ DO iPart=1,PDM%ParticleVecLength
       ELSE
         charge = Species(PartSpecies(iPart))%ChargeIC * Species(PartSpecies(iPart))%MacroParticleFactor
       END IF
-      CALL DepositParticleOnNodes(charge, PartState(1:3,iPart), PEM%GlobalElemID(iPart))
+      CALL DepositParticleOnNodes(SignSwitch*charge, PartState(1:3,iPart), PEM%GlobalElemID(iPart))
       CALL RemoveParticle(iPart)
     END IF ! PartSpecies(iPart).GT.SpeciesOffsetVDL
   END IF !PDM%ParticleInside(iPart)
