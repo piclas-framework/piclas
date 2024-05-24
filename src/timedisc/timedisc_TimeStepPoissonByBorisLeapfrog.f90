@@ -207,8 +207,15 @@ CALL extrae_eventandcounters(int(9000001), int8(0))
 #if USE_MPI
   CALL IRecvNbofParticles() ! open receive buffer for number of particles
 #endif
+#if USE_LOADBALANCE
+    CALL LBStartTime(tLBStart)
+#endif /*USE_LOADBALANCE*/
+  CALL ParticleInserting() ! Do inserting before tracking as virtual particles are created, which need to be tracked and deleted
+                           ! after MPI particle send/receive in DepositVirtualDielectricLayerParticles()
+#if USE_LOADBALANCE
+    CALL LBPauseTime(LB_EMISSION,tLBStart)
+#endif /*USE_LOADBALANCE*/
   CALL PerformTracking()
-  CALL ParticleInserting()
 #if USE_MPI
   CALL SendNbOfParticles() ! send number of particles
   CALL MPIParticleSend()  ! finish communication of number of particles and send particles

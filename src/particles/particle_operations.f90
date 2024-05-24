@@ -32,7 +32,8 @@ PUBLIC :: UpdateBPO
 
 CONTAINS
 
-SUBROUTINE CreateParticle(SpecID,Pos,GlobElemID,Velocity,RotEnergy,VibEnergy,ElecEnergy,OldPartID,NewPartID,NewMPF,NewTimestep)
+SUBROUTINE CreateParticle(SpecID,Pos,GlobElemID,LastGlobalElemID,Velocity,RotEnergy,VibEnergy,ElecEnergy,OldPartID,NewPartID,NewMPF,&
+                          NewTimestep)
 !===================================================================================================================================
 !> creates a single particle at correct array position and assign properties
 !> OldPartID can be supplied to get the MPF and Timestep, however, NewMPF and NewTimestep have priority
@@ -55,6 +56,7 @@ IMPLICIT NONE
 INTEGER, INTENT(IN)           :: SpecID           !< Species ID
 REAL, INTENT(IN)              :: Pos(1:3)         !< Position (x,y,z)
 INTEGER, INTENT(IN)           :: GlobElemID       !< global element ID
+INTEGER, INTENT(IN)           :: LastGlobalElemID !< last global element ID (used for tracking)
 REAL, INTENT(IN)              :: Velocity(1:3)    !< Velocity (vx,vy,vz)
 REAL, INTENT(IN)              :: RotEnergy        !< Rotational energy
 REAL, INTENT(IN)              :: VibEnergy        !< Vibrational energy
@@ -96,7 +98,7 @@ PDM%ParticleInside(newParticleID)   = .TRUE.
 PDM%dtFracPush(newParticleID)       = .FALSE.
 PDM%IsNewPart(newParticleID)        = .TRUE.
 PEM%GlobalElemID(newParticleID)     = GlobElemID
-PEM%LastGlobalElemID(newParticleID) = GlobElemID
+PEM%LastGlobalElemID(newParticleID) = LastGlobalElemID
 
 ! Set particle time step and weight (if required)
 IF (UseVarTimeStep) THEN

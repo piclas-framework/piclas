@@ -775,7 +775,7 @@ IF(.NOT.DoMacroscopicRestart) THEN
             ! in the .h5 container)
             PartState(1:6,CurrentPartNum)        = RecBuff(1:6,iPart)
             PartSpecies(CurrentPartNum)          = INT(RecBuff(7,iPart))
-            PEM%LastGlobalElemID(CurrentPartNum) = -1
+            PEM%LastGlobalElemID(CurrentPartNum) = -1 ! Initialize with invalid value
             PDM%ParticleInside(CurrentPartNum)   = .FALSE.
             IF(usevMPF) PartMPF(CurrentPartNum)  = RecBuff(8,iPart) ! only required when using vMPF
 

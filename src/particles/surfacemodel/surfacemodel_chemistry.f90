@@ -866,7 +866,7 @@ CASE('A')
     NewVelo(1:3) = tang1(1:3)*NewVelo(1) + tang2(1:3)*NewVelo(2) - n_loc(1:3)*NewVelo(3) + WallVelo(1:3)
     NewPos(1:3) = eps*BoundsOfElemCenter(1:3) + eps2*PartPosImpact(1:3)
 
-    CALL CreateParticle(iProd,NewPos(1:3),GlobalElemID,NewVelo(1:3),0.,0.,0.,NewPartID=NewPartID, NewMPF=partWeight)
+    CALL CreateParticle(iProd,NewPos(1:3),GlobalElemID,GlobalElemID,NewVelo(1:3),0.,0.,0.,NewPartID=NewPartID, NewMPF=partWeight)
 
     CALL DSMC_SetInternalEnr(iProd,locBCID,NewPartID,4)
 
@@ -916,7 +916,7 @@ CASE('ER')
       NewVelo(1:3) = tang1(1:3)*NewVelo(1) + tang2(1:3)*NewVelo(2) - n_loc(1:3)*NewVelo(3) + WallVelo(1:3)
       NewPos(1:3) = eps*BoundsOfElemCenter(1:3) + eps2*PartPosImpact(1:3)
 
-      CALL CreateParticle(iProd,NewPos(1:3),GlobalElemID,NewVelo(1:3),0.,0.,0.,NewPartID=NewPartID, NewMPF=partWeight)
+      CALL CreateParticle(iProd,NewPos(1:3),GlobalElemID,GlobalElemID,NewVelo(1:3),0.,0.,0.,NewPartID=NewPartID, NewMPF=partWeight)
 
       CALL DSMC_SetInternalEnr(iProd,locBCID,NewPartID,4)
 
@@ -1044,10 +1044,10 @@ IF(PathTodo.GT.0) THEN
         ! Get MPF of old particle
         OldMPF = PartMPF(PartID)
         ! New particle acquires the MPF of the impacting particle (not necessarily the MPF of the newly created particle species)
-        CALL CreateParticle(ProdSpecID,NewPos(1:3),GlobalElemID,NewVelo(1:3),0.,0.,0.,NewPartID=NewPartID, NewMPF=OldMPF)
+        CALL CreateParticle(ProdSpecID,NewPos(1:3),GlobalElemID,GlobalElemID,NewVelo(1:3),0.,0.,0.,NewPartID=NewPartID, NewMPF=OldMPF)
       ELSE
         ! New particle acquires the MPF of the new particle species
-        CALL CreateParticle(ProdSpecID,NewPos(1:3),GlobalElemID,NewVelo(1:3),0.,0.,0.,NewPartID=NewPartID)
+        CALL CreateParticle(ProdSpecID,NewPos(1:3),GlobalElemID,GlobalElemID,NewVelo(1:3),0.,0.,0.,NewPartID=NewPartID)
       END IF ! usevMPF
       ! Adding the energy that is transferred from the surface onto the internal energies of the particle
       CALL SurfaceModelEnergyAccommodation(NewPartID,locBCID,WallTemp)

@@ -28,7 +28,7 @@ PUBLIC::ParticleTriaTracking
 CONTAINS
 
 #ifdef IMPA
-SUBROUTINE ParticleTriaTracking(doParticle_In)
+SUBROUTINE ParticleTriaTracking(DoParticle_In)
 #else
 SUBROUTINE ParticleTriaTracking()
 #endif /*IMPA*/
@@ -57,7 +57,7 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
 #ifdef IMPA
-LOGICAL,INTENT(IN),OPTIONAL      :: doParticle_In(1:PDM%ParticleVecLength)
+LOGICAL,INTENT(IN),OPTIONAL      :: DoParticle_In(1:PDM%ParticleVecLength)
 #endif /*IMPA*/
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
@@ -73,7 +73,7 @@ REAL                             :: dtVar
 !===================================================================================================================================
 #ifdef IMPA
 doPartInExists=.FALSE.
-IF(PRESENT(DoParticle_IN)) doPartInExists=.TRUE.
+IF(PRESENT(DoParticle_In)) doPartInExists=.TRUE.
 #endif /*IMPA*/
 
 IF(RadialWeighting%PerformCloning) CALL DSMC_2D_SetInClones()
@@ -88,7 +88,11 @@ DO i = 1,PDM%ParticleVecLength
   END IF
   IF(DoParticle)THEN
 #else
-  IF (PDM%ParticleInside(i)) THEN
+  ! 1.) PDM%ParticleInside(i) indicates that the particle is active and not deleted
+  ! 2.) PEM%LastGlobalElemID(i) is not set in ParticleInserting(), which has been moved before PerformTracking(), hence, skip these
+  !     particles here as they have not yet been pushed. GlobalElemID is copied to LastGlobalElemID at the beginning of the time
+  !     stepping method
+  IF (PDM%ParticleInside(i).AND.PEM%LastGlobalElemID(i).GT.0) THEN
 #endif /*IMPA*/
     IF(UseRotSubCycling) THEN
 !--- Store Particle informations befor tracking for sub-cycling.

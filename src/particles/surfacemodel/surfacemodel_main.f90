@@ -188,40 +188,54 @@ CASE (SEE_MODELS_ID)
 !-----------------------------------------------------------------------------------------------------------------------------------
   ! Get electron emission probability
   CALL SecondaryElectronEmission(PartID,locBCID,ProductSpec,ProductSpecNbr,TempErgy)
+
   ! Decide the fate of the impacting particle
   IF (ProductSpec(1).LE.0) THEN
     CALL RemoveParticle(PartID,BCID=PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID)))
   ELSE
     CALL MaxwellScattering(PartID,SideID,n_Loc)
   END IF
+
   ! Emit the secondary electrons
   IF (ProductSpec(2).GT.0) THEN
     CALL SurfaceModelParticleEmission(n_loc, PartID, SideID, ProductSpec(2), ProductSpecNbr, TempErgy, GlobalElemID, &
                                       PartPosImpact(1:3),EnergyDistribution=SurfModEnergyDistribution(locBCID))
     ! Deposit opposite charge of SEE on node
-    IF(DoDeposition.AND.DoDielectricSurfaceCharge.AND.PartBound%Dielectric(locBCID)) THEN
-      ! Get MPF
-      IF (usevMPF) THEN
-        IF (RadialWeighting%DoRadialWeighting) THEN
-          MPF = CalcRadWeightMPF(PartPosImpact(2),ProductSpec(2))
+    IF(DoDeposition.AND.DoDielectricSurfaceCharge)THEN
+
+      ! Method 1: PartBound%Dielectric = T
+      IF(PartBound%Dielectric(locBCID))THEN
+        ! Get MPF
+        IF (usevMPF) THEN
+          IF (RadialWeighting%DoRadialWeighting) THEN
+            MPF = CalcRadWeightMPF(PartPosImpact(2),ProductSpec(2))
+          ELSE
+            MPF = Species(ProductSpec(2))%MacroParticleFactor
+          END IF
         ELSE
           MPF = Species(ProductSpec(2))%MacroParticleFactor
-        END IF
-      ELSE
-        MPF = Species(ProductSpec(2))%MacroParticleFactor
-      END IF
-      ! Calculate the opposite charge
-      ChargeHole = -Species(ProductSpec(2))%ChargeIC*MPF
-      ! Deposit the charge(s)
-      DO iProd = 1, ProductSpecNbr
-        CALL DepositParticleOnNodes(ChargeHole, PartPosImpact, GlobalElemID)
-      END DO ! iProd = 1, ProductSpecNbr
-    END IF
+        END IF ! usevMPF
+        ! Calculate the opposite charge
+        ChargeHole = -Species(ProductSpec(2))%ChargeIC*MPF
+        ! Deposit the charge(s)
+        DO iProd = 1, ProductSpecNbr
+          CALL DepositParticleOnNodes(ChargeHole, PartPosImpact, GlobalElemID)
+        END DO ! iProd = 1, ProductSpecNbr
+      END IF ! PartBound%Dielectric(locBCID)
+
+      ! Method 2: Virtual dielectric layer (VDL)
+      SELECT CASE(PartBound%SurfaceModel(locBCID))
+      CASE(SEE_VDL_MODEL_ID)
+        !
+      END SELECT ! PartBound%SurfaceModel(locBCID)
+
+    END IF ! DoDeposition.AND.DoDielectricSurfaceCharge
   END IF
 !-----------------------------------------------------------------------------------------------------------------------------------
-CASE (99)  ! Virtual dielectric layer
+CASE (VDL_MODEL_ID)  ! Virtual dielectric layer (VDL)
 !-----------------------------------------------------------------------------------------------------------------------------------
   ! Check if BPO boundary is encountered: Do this here because the BC info is lost during MPI communication of these particles
+  ! Normally, this happens in RemoveParticle()
   IF(CalcBoundaryParticleOutput) CALL UpdateBPO(PartID,SideID)
   ! This routines changes the species index and before the particle is deposited and removed, the species index cannot be used
   ! anymore

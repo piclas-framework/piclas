@@ -577,8 +577,8 @@ IF(DoCreateParticles) THEN
         ElecEnergy = 0.0
       END IF
       ! === Creating inter particles:
-      CALL CreateParticle(SpecID,NewPos(1:3),NewElemID,NewVelo(1:3),RotEnergy=RotEnergy,VibEnergy=VibEnergy,ElecEnergy=ElecEnergy, &
-                          OldPartID=PartID,NewPartID=NewPartID )
+      CALL CreateParticle(SpecID,NewPos(1:3),NewElemID,NewElemID,NewVelo(1:3),RotEnergy=RotEnergy,VibEnergy=VibEnergy,&
+                          ElecEnergy=ElecEnergy,OldPartID=PartID,NewPartID=NewPartID)
       ! LastPartPos(1:3,NewPartID) must be redefined as long as LastPartPos is set to PartState in CreateParticle routine
       IF(RotRefSubTimeStep) THEN
         LastPartPos(1:3,NewPartID)    = LastPartPosSubCycling(1:3)

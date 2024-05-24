@@ -561,8 +561,8 @@ DO iNewPart = 1, ProductSpecNbr
   NewVelo(1:3) = tang1(1:3)*NewVelo(1) + tang2(1:3)*NewVelo(2) - n_Loc(1:3)*NewVelo(3) + WallVelo(1:3)
   ! Create new position by using POI and moving the particle by eps in the direction of the element center
   NewPos(1:3) = eps*BoundsOfElemCenter(1:3) + eps2*POI_vec(1:3)
-  ! Create new particle: in case of vMPF oder VarTimeStep, new particle inherits the values of the old particle
-  CALL CreateParticle(ProductSpec,NewPos(1:3),GlobElemID,NewVelo(1:3),0.,0.,0.,OldPartID=PartID,NewPartID=NewPartID)
+  ! Create new particle: in case of vMPF or VarTimeStep, new particle inherits the values of the old particle
+  CALL CreateParticle(ProductSpec,NewPos(1:3),GlobElemID,GlobElemID,NewVelo(1:3),0.,0.,0.,OldPartID=PartID,NewPartID=NewPartID)
   ! Adding the energy that is transferred from the surface onto the internal energies of the particle
   CALL SurfaceModelEnergyAccommodation(NewPartID,locBCID,WallTemp)
   ! Sampling of newly created particles

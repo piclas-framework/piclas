@@ -920,6 +920,7 @@ DO i = 1, chunkSize
         CALL GetPositionInRefElem(PartState(1:3,ParticleIndexNbr),PartPosRef(1:3,ParticleIndexNbr),ElemID)
       END IF ! TrackingMethod.EQ.REFMAPPING
       PEM%GlobalElemID(ParticleIndexNbr)         = ElemID
+      PEM%LastGlobalElemID = -1 ! Initialize with invalid value
       mySumOfMatchedParticles = mySumOfMatchedParticles + 1
     END IF ! ElemID.EQ.-1
   END IF ! InsideMyBGM(i)
@@ -1071,6 +1072,7 @@ DO i = 1,TotalNbrOfRecvParts
     CALL GetPositionInRefElem(PartState(1:3,ParticleIndexNbr),PartPosRef(1:3,ParticleIndexNbr),ElemID)
   END IF ! TrackingMethod.EQ.REFMAPPING
   PEM%GlobalElemID(ParticleIndexNbr)    = ElemID
+  PEM%LastGlobalElemID = -1 ! Initialize with invalid value
   mySumOfMatchedParticles = mySumOfMatchedParticles + 1
 END DO
 
@@ -1110,6 +1112,7 @@ DO iProc=0,PartMPIInitGroup(InitGroup)%nProcs-1
       PartPosRef(1:3,ParticleIndexNbr) = EmissionRecvBuf(iProc)%content(PartCommSize*(i-1)+4:PartCommSize*(i-1)+6)
     END IF ! TrackingMethod.EQ.REFMAPPING
     PEM%GlobalElemID(ParticleIndexNbr)    = INT(EmissionRecvBuf(iProc)%content(PartCommSize*(i)),KIND=4)
+    PEM%LastGlobalElemID = -1 ! Initialize with invalid value
     PDM%ParticleInside( ParticleIndexNbr) = .TRUE.
     mySumOfMatchedParticles = mySumOfMatchedParticles + 1
   END DO

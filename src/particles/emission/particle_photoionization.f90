@@ -229,7 +229,8 @@ DO BCSideID=1,nBCSides
           vec(1:3) = ElemBaryNGeo(1:3,CNElemID) - Particle_pos(1:3)
           Particle_pos(1:3) = Particle_pos(1:3) + 1e-7 * vec(1:3)
           ! Create new particle
-          CALL CreateParticle(SpecID,Particle_pos(1:3),GlobElemID,Velo3D(1:3),0.,0.,0.,NewPartID=PartID,NewMPF=MPF)
+          ! Create with PEM%LastGlobalElemID = -1 to prevent tracking directly after creation
+          CALL CreateParticle(SpecID,Particle_pos(1:3),GlobElemID,-1,Velo3D(1:3),0.,0.,0.,NewPartID=PartID,NewMPF=MPF)
           ! 1. Store the particle information in PartStateBoundary.h5
           IF(DoBoundaryParticleOutputRay) CALL StoreBoundaryParticleProperties(PartID,SpecID,PartState(1:3,PartID),&
                                                    UNITVECTOR(PartState(4:6,PartID)),nVec,iPartBound=iPartBound,mode=2,MPF_optIN=MPF)
@@ -257,24 +258,29 @@ DO BCSideID=1,nBCSides
           END IF ! UseEPC
 
           ! 3. Check if SEE holes are to be deposited
-          IF(DoVirtualDielectricLayer.AND.(PartBound%SurfaceModel(iPartBound).EQ.99))THEN
+          IF(DoVirtualDielectricLayer)THEN
+            SELECT CASE(PartBound%SurfaceModel(iPartBound))
+            CASE(VDL_MODEL_ID,SEE_VDL_MODEL_ID)
 
-            ! Set velocity to zero as these virtual particles are deleted after the tracking/MPI communication step
-            Velo3D(1:3) = 0.
+              ! Set velocity to zero as these virtual particles are deleted after the tracking/MPI communication step
+              Velo3D(1:3) = 0.
 
-            ! Create particle (with opposite charge by setting a nagative species index)
-            CALL CreateParticle(SpecID,Particle_pos(1:3),GlobElemID,Velo3D(1:3),0.,0.,0.,NewPartID=PartID,NewMPF=MPF)
+              ! Create particle (with opposite charge by setting a nagative species index)
+              ! Create with PEM%LastGlobalElemID = GlobElemID to trigger tracking directly after creation to find a possible new host
+              ! element
+              CALL CreateParticle(SpecID,Particle_pos(1:3),GlobElemID,GlobElemID,Velo3D(1:3),0.,0.,0.,NewPartID=PartID,NewMPF=MPF)
 
-            ! Set new particle position: Shift away from face by ratio of real VDL thickness and permittivity.
-            ! Note the negative sign that is required as the normal vector points outwards has already been applied above
-            PartState(1:3,PartID) = LastPartPos(1:3,PartID) &
-                                  + (PartBound%ThicknessVDL(iPartBound)/PartBound%PermittivityVDL(iPartBound))*nVec
+              ! Set new particle position: Shift away from face by ratio of real VDL thickness and permittivity.
+              ! Note the negative sign that is required as the normal vector points outwards has already been applied above
+              PartState(1:3,PartID) = LastPartPos(1:3,PartID) &
+                                    + (PartBound%ThicknessVDL(iPartBound)/PartBound%PermittivityVDL(iPartBound))*nVec
 
-            ! Encode species index: Set a temporarily invalid number, which holds the information that the particle has interacted with a VDL.
-            ! The Particle is removed after MPI communication because the new position might be on a different process due to the displacement
-            PartSpecies(PartID) = PartSpecies(PartID) + SpeciesOffsetVDL
-            PartSpecies(PartID) = -PartSpecies(PartID)
-          END IF ! DoVirtualDielectricLayer.AND.(DoVirtualDielectricLayer)
+              ! Encode species index: Set a temporarily invalid number, which holds the information that the particle has interacted with a VDL.
+              ! The Particle is removed after MPI communication because the new position might be on a different process due to the displacement
+              PartSpecies(PartID) = PartSpecies(PartID) + SpeciesOffsetVDL
+              PartSpecies(PartID) = -PartSpecies(PartID)
+            END SELECT! PartBound%SurfaceModel(iPartBound)
+          END IF ! DoVirtualDielectricLayer
 #endif /*USE_HDG*/
         END DO ! iPart = 1, NbrOfSEE
       END IF ! NbrOfSEE.GT.0
@@ -472,7 +478,7 @@ DO iVar = 1, 2
               PDM%IsNewPart(PartID)       = .TRUE.
               PDM%dtFracPush(PartID)      = .FALSE.
               PEM%GlobalElemID(PartID)     = iGlobalElem
-              PEM%LastGlobalElemID(PartID) = iGlobalElem
+              PEM%LastGlobalElemID(PartID) = -1 ! Initialize with invalid value
               ! Create second particle (only the index and the flags/elements needs to be set)
               newPartID = GetNextFreePosition()
               IF(newPartID.GT.PDM%MaxParticleNumber)THEN
@@ -493,7 +499,7 @@ DO iVar = 1, 2
               PDM%IsNewPart(newPartID)       = .TRUE.
               PDM%dtFracPush(newPartID)      = .FALSE.
               PEM%GlobalElemID(newPartID)     = iGlobalElem
-              PEM%LastGlobalElemID(newPartID) = iGlobalElem
+              PEM%LastGlobalElemID(newPartID) = -1 ! Initialize with invalid value
               ! Pairing (first particle is the background gas species)
               Coll_pData(iPair)%iPart_p1 = PartID
               Coll_pData(iPair)%iPart_p2 = newPartID

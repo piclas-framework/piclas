@@ -102,7 +102,7 @@ CALL extrae_eventandcounters(int(9000001), int8(5))
 #if USE_LOADBALANCE
 CALL LBStartTime(tLBStart)
 #endif /*USE_LOADBALANCE*/
-! set last data already here, since surface flux moved before interpolation
+! Set last data already here, since surface flux moved before interpolation
 LastPartPos(1:3,1:PDM%ParticleVecLength) = PartState(1:3,1:PDM%ParticleVecLength)
 PEM%LastGlobalElemID(1:PDM%ParticleVecLength) = PEM%GlobalElemID(1:PDM%ParticleVecLength)
 #if USE_LOADBALANCE
@@ -211,7 +211,14 @@ CALL extrae_eventandcounters(int(9000001), int8(0))
 #if USE_MPI
   CALL IRecvNbofParticles() ! open receive buffer for number of particles
 #endif
-  CALL ParticleInserting() ! Do inserting first as virtual particles are created, which need to be tracked and deleted afterwards
+#if USE_LOADBALANCE
+    CALL LBStartTime(tLBStart)
+#endif /*USE_LOADBALANCE*/
+  CALL ParticleInserting() ! Do inserting before tracking as virtual particles are created, which need to be tracked and deleted
+                           ! after MPI particle send/receive in DepositVirtualDielectricLayerParticles()
+#if USE_LOADBALANCE
+    CALL LBPauseTime(LB_EMISSION,tLBStart)
+#endif /*USE_LOADBALANCE*/
   CALL PerformTracking()
 #if USE_MPI
   CALL SendNbOfParticles() ! send number of particles

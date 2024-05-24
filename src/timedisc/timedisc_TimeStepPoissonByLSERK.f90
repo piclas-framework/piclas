@@ -220,14 +220,15 @@ IF (time.GE.DelayTime) THEN
 #if USE_MPI
   CALL IRecvNbofParticles() ! open receive buffer for number of particles
 #endif
-  CALL PerformTracking()
 #if USE_LOADBALANCE
   CALL LBStartTime(tLBStart)
 #endif /*USE_LOADBALANCE*/
-  CALL ParticleInserting()
+  CALL ParticleInserting() ! Do inserting before tracking as virtual particles are created, which need to be tracked and deleted
+                           ! after MPI particle send/receive in DepositVirtualDielectricLayerParticles()
 #if USE_LOADBALANCE
   CALL LBPauseTime(LB_EMISSION,tLBStart)
 #endif /*USE_LOADBALANCE*/
+  CALL PerformTracking()
 #if USE_MPI
   CALL SendNbOfParticles() ! send number of particles
   CALL MPIParticleSend()   ! finish communication of number of particles and send particles
@@ -356,14 +357,15 @@ DO iStage=2,nRKStages
 #if USE_MPI
     CALL IRecvNbofParticles() ! open receive buffer for number of particles
 #endif
-    CALL PerformTracking()
 #if USE_LOADBALANCE
     CALL LBStartTime(tLBStart)
 #endif /*USE_LOADBALANCE*/
-    CALL ParticleInserting()
+  CALL ParticleInserting() ! Do inserting before tracking as virtual particles are created, which need to be tracked and deleted
+                           ! after MPI particle send/receive in DepositVirtualDielectricLayerParticles()
 #if USE_LOADBALANCE
     CALL LBPauseTime(LB_EMISSION,tLBStart)
 #endif /*USE_LOADBALANCE*/
+    CALL PerformTracking()
 #if USE_MPI
     CALL SendNbOfParticles() ! send number of particles
     CALL MPIParticleSend()   ! finish communication of number of particles and send particles

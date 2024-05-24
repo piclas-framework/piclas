@@ -405,6 +405,7 @@ ELSE
   AcceptedParts=-1
   AcceptedParts(0)=0
   DO i = 1,chunkSize
+    ! For TriaTracking, this routine calls ParticleInsideQuad3D() and for Tracing/RefMapping it calls GetPositionInRefElem()
     AcceptedParts(i) = SinglePointToElement(particle_positions(DimSend*(i-1)+1:DimSend*(i-1)+DimSend),doHALO=.FALSE.)
     IF(AcceptedParts(i).NE.-1) AcceptedParts(0) = AcceptedParts(0) + 1
   END DO
@@ -418,6 +419,7 @@ ELSE
       PartState(1:DimSend,ParticleIndexNbr) = particle_positions(DimSend*(i-1)+1:DimSend*(i-1)+DimSend)
       PDM%ParticleInside(ParticleIndexNbr)=.TRUE.
       PEM%GlobalElemID(ParticleIndexNbr) = AcceptedParts(i)
+      PEM%LastGlobalElemID(ParticleIndexNbr) = -1 ! Initialize with invalid value
       IF(TrackingMethod.EQ.REFMAPPING) CALL GetPositionInRefElem(PartState(1:DimSend,ParticleIndexNbr),PartPosRef(1:3,ParticleIndexNbr),AcceptedParts(i))
       PDM%IsNewPart(ParticleIndexNbr)  = .TRUE.
       PDM%dtFracPush(ParticleIndexNbr) = .FALSE.
