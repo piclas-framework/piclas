@@ -538,7 +538,7 @@ REAL,INTENT(INOUT)      :: DSMC_MacroVal(1:nVar+nVar_quality+nVar_HeatPress,nEle
 ! LOCAL VARIABLES
 INTEGER                 :: iElem, iSpec, nVarCount, nSpecTemp, nVarCountRelax, bgSpec
 REAL                    :: TVib_TempFac, iter_loc
-REAL                    :: MolecPartNum, HeavyPartNum!, q(3)
+REAL                    :: MolecPartNum, HeavyPartNum
 !===================================================================================================================================
 ! nullify
 DSMC_MacroVal = 0.0
@@ -980,7 +980,6 @@ ELSE
 END IF
 
 IF (SamplePressTensHeatflux) THEN
-  ! nVar_HeatPress=6*nSpecOut
   nVar_HeatPress=6
 ELSE
   nVar_HeatPress=0
