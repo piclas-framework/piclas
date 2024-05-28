@@ -59,15 +59,7 @@ fi
 
 # DOWNLOAD and INSTALL CMAKE (example cmake-3.4.3)
 # For current releases, see: https://github.com/Kitware/CMake/releases/
-#CMAKEVERSION='3.4.3'
-#CMAKEVERSION='3.13.3'
-#CMAKEVERSION='3.15.3'
-#CMAKEVERSION='3.17.0'
-#CMAKEVERSION='3.20.3'
-#CMAKEVERSION='3.21.3'
-#CMAKEVERSION='3.24.0'
-#CMAKEVERSION='3.24.2'
-CMAKEVERSION='3.26.4'
+CMAKEVERSION='3.28.2'
 
 CMAKEDIR=${INSTALLDIR}/cmake/${CMAKEVERSION}/standard
 MODULEFILE=${INSTALLDIR}/modules/modulefiles/utilities/cmake/${CMAKEVERSION}

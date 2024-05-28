@@ -66,7 +66,9 @@ USE MOD_Restart              ,ONLY: InitRestart
 USE MOD_Restart_Vars         ,ONLY: DoRestart
 USE MOD_Mesh                 ,ONLY: InitMesh
 USE MOD_Mesh_Vars            ,ONLY: GetMeshMinMaxBoundariesIsDone
+#if !(PP_TimeDiscMethod==4) && !(PP_TimeDiscMethod==300) && !(PP_TimeDiscMethod==400)
 USE MOD_Equation             ,ONLY: InitEquation
+#endif
 USE MOD_GetBoundaryFlux      ,ONLY: InitBC
 USE MOD_DG                   ,ONLY: InitDG
 USE MOD_Mortar               ,ONLY: InitMortar
@@ -85,13 +87,12 @@ USE MOD_MPI                  ,ONLY: InitMPIvars
 #endif /*USE_MPI*/
 #ifdef PARTICLES
 USE MOD_DSMC_Vars            ,ONLY: UseDSMC
-USE MOD_ParticleInit         ,ONLY: InitParticleGlobals,InitParticles
+USE MOD_ParticleInit         ,ONLY: InitParticleGlobals,InitParticles,InitSymmetry
 USE MOD_TTMInit              ,ONLY: InitTTM,InitIMD_TTM_Coupling
 USE MOD_TTM_Vars             ,ONLY: DoImportTTMFile
 USE MOD_Particle_Analyze     ,ONLY: InitParticleAnalyze
 USE MOD_SurfaceModel_Analyze ,ONLY: InitSurfModelAnalyze
 USE MOD_Particle_MPI         ,ONLY: InitParticleMPI
-USE MOD_DSMC_Symmetry        ,ONLY: Init_Symmetry
 #if USE_MPI
 USE mod_readIMD              ,ONLY: initReadIMDdata,read_IMD_results
 #endif /* USE_MPI */
@@ -135,7 +136,7 @@ WRITE(UNIT=TimeStampLenStr ,FMT='(I0)') TimeStampLength
 ! DSMC handling:
 useDSMC=GETLOGICAL('UseDSMC')
 
-CALL Init_Symmetry()
+CALL InitSymmetry()
 
 #endif /*PARTICLES*/
 
@@ -162,7 +163,9 @@ CALL InitMesh(2)
 #if USE_MPI
 CALL InitMPIvars()
 #endif /*USE_MPI*/
+#if !(PP_TimeDiscMethod==4) && !(PP_TimeDiscMethod==300) && !(PP_TimeDiscMethod==400)
 CALL InitEquation()
+#endif
 CALL InitBC()
 #if !(USE_HDG)
 CALL InitPML() ! Perfectly Matched Layer (PML): electromagnetic-wave-absorbing layer
@@ -464,6 +467,5 @@ IF(.NOT.IsLoadBalance) THEN
 END IF
 
 END SUBROUTINE FinalizeLoadBalance
-
 
 END MODULE MOD_Piclas_Init

@@ -56,6 +56,7 @@ INTEGER            :: nComputeNodeTotalNodes                !> Number of nodes o
 INTEGER,ALLOCATABLE:: displsElem(:),recvcountElem(:)
 INTEGER,ALLOCATABLE:: displsSide(:),recvcountSide(:)
 INTEGER,ALLOCATABLE:: displsNode(:),recvcountNode(:)
+INTEGER            :: MPI_STRUCT_ELEM,MPI_STRUCT_SIDE,MPI_STRUCT_NODE
 #endif /*USE_MPI*/
 
 ! Surface sampling

@@ -153,10 +153,6 @@ INTERFACE FinalizeParameters
   MODULE PROCEDURE FinalizeParameters
 END INTERFACE
 
-INTERFACE PrintOption
-  MODULE PROCEDURE PrintOption
-END INTERFACE
-
 PUBLIC :: IgnoredParameters
 PUBLIC :: PrintDefaultParameterFile
 PUBLIC :: CountOption
@@ -1786,7 +1782,6 @@ DO WHILE (associated(current))
                     ! remove trailing comma
                     tmpValue(len(TRIM(tmpValue)):len(TRIM(tmpValue))) = ' '
                     CALL prms%CreateOption(intopt, name, 'description', value=tmpValue, multiple=.FALSE., numberedmulti=.FALSE.,removed=.TRUE.,createfrommulti=.TRUE.)
-                    intopt%isSet=.TRUE.
                   END SELECT
                 CLASS IS (RealArrayOption)
                   IF (SIZE(multi%value).NE.no) CALL Abort(__STAMP__,"Array size of option '"//TRIM(name)//"' is not correct!")
@@ -1799,7 +1794,6 @@ DO WHILE (associated(current))
                     ! remove trailing comma
                     tmpValue(len(TRIM(tmpValue)):len(TRIM(tmpValue))) = ' '
                     CALL prms%CreateOption(realopt, name, 'description', value=tmpValue, multiple=.FALSE., numberedmulti=.FALSE.,removed=.TRUE.,createfrommulti=.TRUE.)
-                    realopt%isSet=.TRUE.
                   END SELECT
                 CLASS IS (LogicalArrayOption)
                   IF (SIZE(multi%value).NE.no) CALL Abort(__STAMP__,"Array size of option '"//TRIM(name)//"' is not correct!")
@@ -1812,7 +1806,6 @@ DO WHILE (associated(current))
                     tmpValue(len(TRIM(tmpValue)):len(TRIM(tmpValue))) = ' '
                     WRITE(tmpValue,'(*(L1))') (multi%value(j), ",",j=1,no)
                     CALL prms%CreateOption(logicalopt, name, 'description', value=tmpValue, multiple=.FALSE., numberedmulti=.FALSE.,removed=.TRUE.,createfrommulti=.TRUE.)
-                    logicalopt%isSet=.TRUE.
                   END SELECT
               END SELECT
               ! print option and value to stdout. Custom print, so do it here
@@ -2462,7 +2455,7 @@ IF(.NOT.MPIRoot)RETURN
 #if USE_LOADBALANCE
 IF (PerformLoadBalance) THEN
   SELECT CASE(TRIM(InfoOpt))
-    CASE("INFO","PARAM","CALCUL.","OUTPUT","HDF5")
+    CASE("INFO","PARAM","CALCUL.","OUTPUT","HDF5","DB")
       RETURN
   END SELECT
 END IF

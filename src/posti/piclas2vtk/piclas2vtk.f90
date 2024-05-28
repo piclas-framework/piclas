@@ -45,6 +45,7 @@ USE MOD_Mesh_Tools            ,ONLY: InitElemNodeIDs
 #ifdef PARTICLES
 USE MOD_Particle_Mesh_Tools   ,ONLY: InitParticleGeometry
 USE MOD_Particle_Mesh_Vars    ,ONLY: ConcaveElemSide_Shared,ElemSideNodeID_Shared,ElemMidPoint_Shared
+USE MOD_Particle_Vars         ,ONLY: Symmetry
 #endif /*PARTICLES*/
 USE MOD_Particle_Mesh_Vars    ,ONLY: NodeCoords_Shared, ElemNodeID_Shared, NodeInfo_Shared
 USE MOD_Mesh_Tools            ,ONLY: InitGetCNElemID, InitGetGlobalElemID
@@ -209,7 +210,9 @@ IF((TimeStampLength.LT.4).OR.(TimeStampLength.GT.30)) CALL abort(__STAMP__&
     ,'TimeStampLength cannot be smaller than 4 and not larger than 30')
 WRITE(UNIT=TimeStampLenStr ,FMT='(I0)') TimeStampLength
 WRITE(UNIT=TimeStampLenStr2,FMT='(I0)') TimeStampLength-4
-
+#ifdef PARTICLES
+Symmetry%Order=3
+#endif
 ! DMD Stuff
 dmdSingleModeOutput  = GETINT('dmdSingleModeOutput')
 dmdMaximumModeOutput = GETINT('dmdMaximumModeOutput')
@@ -1150,7 +1153,7 @@ REAL,ALLOCATABLE                :: NodeCoords_visu(:,:,:,:,:)          !< Coordi
 CALL OpenDataFile(InputStateFile,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_PICLAS)
 CALL ReadAttribute(File_ID,'Project_Name',1,StrScalar=ProjectName)
 CALL ReadAttribute(File_ID,'File_Type',1,StrScalar=File_Type)
-IF(TRIM(File_Type).NE.'RadiationSurfState') THEN  
+IF(TRIM(File_Type).NE.'RadiationSurfState') THEN
   CALL ReadAttribute(File_ID,'Time',1,RealScalar=OutputTime)
 ELSE
   nSurfSample = 1
@@ -1204,8 +1207,12 @@ ELSE
   NodeCoords_visu(1:3,0,0,0,1:SurfConnect%nSurfaceNode) = SurfConnect%NodeCoords(1:3,1:SurfConnect%nSurfaceNode)
 END IF
 
-IF(TRIM(File_Type).NE.'RadiationSurfState') THEN 
-  FileString=TRIM(TIMESTAMP(TRIM(ProjectName)//'_visuSurf',OutputTime))//'.vtu'
+IF(TRIM(File_Type).NE.'RadiationSurfState') THEN
+  IF(TRIM(File_Type).NE.'DSMCSurfChemState') THEN
+    FileString=TRIM(TIMESTAMP(TRIM(ProjectName)//'_visuSurf',OutputTime))//'.vtu'
+  ELSE
+    FileString=TRIM(TIMESTAMP(TRIM(ProjectName)//'_visuSurfChem',OutputTime))//'.vtu'
+  END IF
 ELSE
   FileString=TRIM(TRIM(ProjectName)//'_RadSurfVisu')//'.vtu'
 END IF

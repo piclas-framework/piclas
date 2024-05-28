@@ -20,7 +20,6 @@ IF(POSTI_BUILD_PICLAS2VTK)
   INCLUDE(${CMAKE_CURRENT_SOURCE_DIR}/src/posti/piclas2vtk/CMakeLists.txt)
 ENDIF()
 
-
 IF(POSTI_BUILD_DMD)
   INCLUDE(${CMAKE_CURRENT_SOURCE_DIR}/src/posti/dmd/CMakeLists.txt)
 ENDIF()

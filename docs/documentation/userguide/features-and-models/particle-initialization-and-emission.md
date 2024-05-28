@@ -446,22 +446,22 @@ The provided temperature for the surface flux of the species determines the ener
 
 ### Circular Inflow
 
-The emission of particles from a surface flux can be limited to the area within a circle or a ring. The respective boundary has to
+The emission of particles from a surface flux can be limited to the area within a circle, ring or circle cut-out. The respective boundary has to
 coincide or be parallel to the xy-, xz, or yz-planes. This allows to define inflow boundaries without specifically meshing the
 geometrical feature, e.g. small orifices. The feature can be enabled per species and surface flux
 
-    Part-Species1-Surfaceflux1-CircularInflow=TRUE
+    Part-Species1-Surfaceflux1-CircularInflow = TRUE
 
 The normal direction of the respective boundary has to be defined by
 
-    Part-Species1-Surfaceflux1-axialDir=1
+    Part-Species1-Surfaceflux1-axialDir = 1
 
 Finally, the origin of the circle/ring on the surface and the radius have to be given. In the case of a ring, a maximal and minimal
-radius is required (`-rmax` and `-rmin`, respectively), whereas for a circle only the input of maximal radius is sufficient.
+radius is required (`-rmax` and `-rmin`, respectively), whereas for a circle only the input of maximal radius and for the circle cut-out only the minimal radius is sufficient.
 
-    Part-Species1-Surfaceflux1-origin=(/5e-6,5e-6/)
-    Part-Species1-Surfaceflux1-rmax=2.5e-6
-    Part-Species1-Surfaceflux1-rmin=1e-6
+    Part-Species1-Surfaceflux1-origin   = (/5e-6,5e-6/)
+    Part-Species1-Surfaceflux1-rmax     = 2.5e-6
+    Part-Species1-Surfaceflux1-rmin     = 1e-6
 
 The absolute coordinates are defined as follows for the respective normal direction.
 
@@ -471,7 +471,7 @@ The absolute coordinates are defined as follows for the respective normal direct
 |      y (=2)      |    (z,x)    |
 |      z (=3)      |    (x,y)    |
 
-Multiple circular inflows can be defined on a single boundary through multiple surface fluxes, e.g. to enable the simulation of multiple inlets on a chamber wall. Circular inflows are also supported with axisymmetric simulations, under the assumptions that the chosen surface is in the yz-plane (and thus has a normal direction in x) and the minimal and maximum radii are in the positive y-direction.
+Multiple circular inflows can be defined on a single boundary through multiple surface fluxes, e.g. to enable the simulation of multiple inlets on a chamber wall. Circular inflows are also supported with axisymmetric simulations, under the assumptions that the chosen surface is in the yz-plane (and thus has a normal direction in x) and the minimal and maximum radii are in the positive y-direction. Examples are given as part of the regression tests in `regressioncheck/CHE_DSMC/SurfFlux_Tria_CircularInflow_Circle`, `SurfFlux_Tria_CircularInflow_CircleCutout` and `SurfFlux_Tria_CircularInflow_Ring`.
 
 (sec:particle-emission-adaptive)=
 ### Adaptive/Subsonic Boundaries
@@ -479,8 +479,8 @@ Multiple circular inflows can be defined on a single boundary through multiple s
 Different adaptive boundaries can be defined as a part of a surface flux to model subsonic in- and outflows, where the emission is
 adapted based on the prevalent conditions at the boundary. The modelling is based on the publications by Ref. {cite}`Farbar2014` and Ref. {cite}`Lei2017`.
 
-    Part-Species1-Surfaceflux1-Adaptive=TRUE
-    Part-Species1-Surfaceflux1-Adaptive-Type=1
+    Part-Species1-Surfaceflux1-Adaptive = TRUE
+    Part-Species1-Surfaceflux1-Adaptive-Type = 1
 
 An overview over the available types is given below.
 
@@ -494,8 +494,8 @@ An overview over the available types is given below.
 
 Depending of the type of the chosen boundary type either the mass flow [kg/s] or the static pressure [Pa] have to be given
 
-    Part-Species1-Surfaceflux1-Adaptive-Massflow=1.00E-14
-    Part-Species1-Surfaceflux1-Adaptive-Pressure=10
+    Part-Species1-Surfaceflux1-Adaptive-Massflow = 1.00E-14
+    Part-Species1-Surfaceflux1-Adaptive-Pressure = 10
 
 The adaptive boundaries require the sampling of macroscopic properties such as flow velocity at the boundary. To compensate for
 the statistical fluctuations, three possible sampling approaches are available. The first approach uses a relaxation factor
@@ -532,6 +532,7 @@ $$\dot{m} = \frac{QM}{1000RT},$$
 
 where $R=8.314$ J mol$^{-1}$K$^{-1}$ is the gas constant, $M$ the molar mass in [g mol$^{-1}$] and $T$ is the gas temperature [K].
 It should be noted that while multiple adaptive boundaries are possible, adjacent boundaries that share a mesh element should be avoided or treated carefully.
+Examples are given as part of the regression tests in `regressioncheck/CHE_DSMC/SurfFlux_Tria_Adaptive_ConstMassflow` and `SurfFlux_Tria_Adaptive_ConstPressure`.
 
 ### Verification
 

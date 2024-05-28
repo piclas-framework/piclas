@@ -12,18 +12,19 @@
 # You should have received a copy of the GNU General Public License along with FLEXI. If not, see <http://www.gnu.org/licenses/>.
 #=================================================================================================================================
 
-#add_unit_test(<target> <sources>...)
+# add_unit_test(<target> <sources>...)
 #
 # Adds test executable, <target>, built from <sources> and
 # adds the test so that CTest will run it.
 # Both the executable and the test will be named <target>.
-#
 function(add_unit_test target)
     # Add executable and libraries
     ADD_EXECUTABLE(${target} ${ARGN})
     TARGET_LINK_LIBRARIES(${target} libpiclasshared)
     # Set properties of target
     SET_TARGET_PROPERTIES(${target} PROPERTIES COMPILE_FLAGS ${PICLAS_COMPILE_FLAGS})
+    #                                            COMPILE_OPTIONS "-fPIC"
+    #                                            CMAKE_POSITION_INDEPENDENT_CODE ON)
     SET_TARGET_PROPERTIES(${target} PROPERTIES LINKER_LANGUAGE Fortran)
     SET_TARGET_PROPERTIES(${target}
                           PROPERTIES
@@ -37,6 +38,9 @@ function(add_unit_test target)
     WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/unitTests
     COMMAND  ${CMAKE_BINARY_DIR}/unitTests/bin/${target})
 endfunction()
+
+# CMake can always request position independent code
+# SET(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
 # Enable testing in general
 ENABLE_TESTING()
