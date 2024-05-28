@@ -362,9 +362,9 @@ TYPE(VARYING_STRING) :: comment,headNewline,headSpace
 INTEGER              :: length
 INTEGER              :: commentLen
 !==================================================================================================================================
-! #if USE_LOADBALANCE
-! IF(PerformLoadBalance) RETURN
-! #endif /*USE_LOADBALANCE*/
+#if USE_LOADBALANCE
+IF(PerformLoadBalance) RETURN
+#endif /*USE_LOADBALANCE*/
 IF(mode.EQ.1) commentLen=80 !--help
 IF(mode.EQ.2) commentLen=50 !--markdown
 WRITE(fmtName,*) maxNameLen

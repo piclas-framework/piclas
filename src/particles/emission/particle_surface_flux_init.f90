@@ -479,7 +479,6 @@ DO iSpec=1,nSpecies
         SF%origin   = GETREALARRAY('Part-Species'//TRIM(hilf2)//'-origin',2)
         WRITE(UNIT=hilf3,FMT='(E16.8)') HUGE(SF%rmax)
         SF%rmax     = GETREAL('Part-Species'//TRIM(hilf2)//'-rmax',TRIM(hilf3))
-        SWRITE(*,*) "!!!!!!!!!!!!!!!!!!!!!!!!! SF%rmax",SF%rmax
         SF%rmin     = GETREAL('Part-Species'//TRIM(hilf2)//'-rmin')
         ! Total area of surface flux
         SF%totalAreaSF = Pi*(SF%rmax*SF%rmax - SF%rmin*SF%rmin)
