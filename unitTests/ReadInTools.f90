@@ -112,8 +112,15 @@ CALL prms%CreateLogicalArrayOption('logArrayOpt_mult'  , "Description LogOpt mul
 !CALL prms%CreateStringArrayOption('strArrayOpt_def'    , "Description StrOpt with default value", 'dum1,dum2')
 !CALL prms%CreateStringArrayOption('strArrayOpt_mult'   , "Description StrOpt multiple", multiple=.TRUE.)
 
-CALL prms%CreateIntOption('Dollar[$]-IntOption'             , 'Single dollar variable.', '-1'   , numberedmulti=.TRUE.)
-CALL prms%CreateRealOption('Dollar[$]-Dollar[$]-RealOption' , 'Double dollar variable.', '-1.0' , numberedmulti=.TRUE.)
+CALL prms%CreateIntOption('Dollar[$]-IntOptionUndef'             , 'Single dollar variable undefined.', numberedmulti=.TRUE.)
+CALL prms%CreateRealOption('Dollar[$]-Dollar[$]-RealOptionUndef' , 'Double dollar variable undefined.', numberedmulti=.TRUE.)
+
+CALL prms%CreateIntOption('Dollar[$]-IntOption'             , 'Single dollar variable with regular default.', '-1'   , numberedmulti=.TRUE.)
+CALL prms%CreateRealOption('Dollar[$]-Dollar[$]-RealOption' , 'Double dollar variable with regular default.', '-1.0' , numberedmulti=.TRUE.)
+
+CALL prms%CreateIntOption('Dollar[$]-IntOptionDef'             , 'Single dollar variable with both defaults.', '-1'   , numberedmulti=.TRUE.)
+CALL prms%CreateRealOption('Dollar[$]-Dollar[$]-RealOptionDef' , 'Double dollar variable with both defaults.', '-1.0' , numberedmulti=.TRUE.)
+
 !CALL PrintDefaultParameterFile(.FALSE.)
 CALL prms%read_options(FileName)
 
@@ -203,28 +210,59 @@ END DO
 nDollar  = ABS(intOpt)
 nDollar2 = ABS(intOpt)
 ALLOCATE(Dollar(1:nDollar))
-ALLOCATE(RealOption(nDollar,nDollar2))
 Dollar=0
+ALLOCATE(RealOption(nDollar,nDollar2))
+RealOption = 0
 ALLOCATE(IntOption(nDollar))
 IntOption = 0
 ! Loop twice. The default value <= zero is not allowed to appear
 DO i = 1, 2
-  write(UNIT_StdOut,'(A,I0,A)') "--------------",i,"--------------"
+  WRITE(UNIT_StdOut,'(A,I0,A)') "--------------",i,"--------------"
+  ! Test parameters read-in without a default in CreateOption nor GETVAR (Option to force a user input)
   DO iDollar=1, nDollar
     WRITE(UNIT=hilf,FMT='(I0)') iDollar
-    IntOption(iDollar) = GETINT('Dollar'//TRIM(hilf)//'-IntOption','-1')
+    IntOption(iDollar) = GETINT('Dollar'//TRIM(hilf)//'-IntOptionUndef')
     DO iDollar2 = 1, nDollar2
       WRITE(UNIT=hilf2,FMT='(I0)') iDollar2
-      RealOption(iDollar,iDollar2) = GETREAL('Dollar'//TRIM(hilf)//'-Dollar'//TRIM(hilf2)//'-RealOption','-1.')
+      RealOption(iDollar,iDollar2) = GETREAL('Dollar'//TRIM(hilf)//'-Dollar'//TRIM(hilf2)//'-RealOptionUndef')
     END DO ! iDollar2 = 1, nDollar2
   END DO ! iDollar=1, nDollar
-  IF(ANY(IntOption.LE.0)) CALL abort(__STAMP__,'IntOption cannot must be grater than zero')
-  IF(ANY(RealOption.LE.0)) CALL abort(__STAMP__,'RealOption cannot must be grater than zero')
-
+  IF(ANY(IntOption.LE.0)) CALL abort(__STAMP__,'ERROR: IntOption cannot be greater than zero!')
+  IF(ANY(RealOption.LE.0)) CALL abort(__STAMP__,'ERROR: RealOption cannot be greater than zero!')
+  ! Test parameters read-in with a default in CreateOption and not in GETVAR (Preferred option)
+  RealOption = 0
+  IntOption = 0
+  DO iDollar=1, nDollar
+    WRITE(UNIT=hilf,FMT='(I0)') iDollar
+    IntOption(iDollar) = GETINT('Dollar'//TRIM(hilf)//'-IntOption')
+    DO iDollar2 = 1, nDollar2
+      WRITE(UNIT=hilf2,FMT='(I0)') iDollar2
+      RealOption(iDollar,iDollar2) = GETREAL('Dollar'//TRIM(hilf)//'-Dollar'//TRIM(hilf2)//'-RealOption')
+    END DO ! iDollar2 = 1, nDollar2
+  END DO ! iDollar=1, nDollar
+  IF(ANY(IntOption.LE.0)) CALL abort(__STAMP__,'ERROR: IntOption cannot be greater than zero!')
+  IF(ANY(RealOption.LE.0)) CALL abort(__STAMP__,'ERROR: RealOption cannot be greater than zero!')
+  ! Test parameters read-in with a default in CreateOption and in GETVAR (Rare cases, where e.g. HUGE is required)
+  RealOption = 0
+  IntOption = 0
+  DO iDollar=1, nDollar
+    WRITE(UNIT=hilf,FMT='(I0)') iDollar
+    IntOption(iDollar) = GETINT('Dollar'//TRIM(hilf)//'-IntOptionDef','-1')
+    DO iDollar2 = 1, nDollar2
+      WRITE(UNIT=hilf2,FMT='(I0)') iDollar2
+      RealOption(iDollar,iDollar2) = GETREAL('Dollar'//TRIM(hilf)//'-Dollar'//TRIM(hilf2)//'-RealOptionDef','-1.')
+    END DO ! iDollar2 = 1, nDollar2
+  END DO ! iDollar=1, nDollar
+  IF(ANY(IntOption.LE.0)) CALL abort(__STAMP__,'ERROR: IntOption cannot be greater than zero!')
+  IF(ANY(RealOption.LE.0)) CALL abort(__STAMP__,'ERROR: RealOption cannot be greater than zero!')
   WRITE (*,*) "IntOption =", IntOption
   DO iDollar=1, nDollar
     WRITE (*,*) "RealOption(iDollar,:) =", RealOption(iDollar,:)
   END DO
+  IF(i .EQ. 1) THEN
+    CALL prms%WriteUnused()
+    IF(prms%count_unread().GT.0) CALL abort(__STAMP__,'ERROR: Unused parameters were found but are not allowed!')
+  END IF
   CALL prms%finalize(.TRUE.) ! is the same as CALL FinalizeParameters(), but considers load balancing
 END DO ! i = 1, 2
 

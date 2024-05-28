@@ -31,7 +31,7 @@
 !> Now all the options are filled with the data from the parameter file and can be accessed via the functions GETINT(ARRAY),
 !> GETREAL(ARRAY), ...
 !> A call of these functions then removes the specific option from the linked list, such that
-!> every option can only be read once. This is necessary for options with the same name, that occure multiple times in the parameter
+!> every option can only be read once. This is necessary for options with the same name, that occur multiple times in the parameter
 !> file.
 !==================================================================================================================================
 MODULE MOD_ReadInTools
@@ -64,22 +64,22 @@ TYPE,PUBLIC :: Parameters
   CHARACTER(LEN=255)   :: actualSection = ""  !< actual section, to set section of an option, when inserted into list
   LOGICAL              :: removeAfterRead=.TRUE. !< specifies whether options shall be marked as removed after being read
 CONTAINS
-  PROCEDURE :: WriteUnused                !< routine that writes out parameters taht were set but not used
+  PROCEDURE :: WriteUnused                !< routine that writes out parameters that were set but not used
   PROCEDURE :: SetSection                 !< routine to set 'actualSection'
   PROCEDURE :: CreateOption               !< general routine to create a option and insert it into the linked list
                                           !< also checks if option is already created in the linked list
   PROCEDURE :: CreateIntOption            !< routine to generate an integer option
   PROCEDURE :: CreateIntFromStringOption  !< routine to generate an integer option with a optional string representation
-  PROCEDURE :: CreateLogicalOption        !< routine to generate an logical option
-  PROCEDURE :: CreateRealOption           !< routine to generate an real option
-  PROCEDURE :: CreateStringOption         !< routine to generate an string option
+  PROCEDURE :: CreateLogicalOption        !< routine to generate a logical option
+  PROCEDURE :: CreateRealOption           !< routine to generate a real option
+  PROCEDURE :: CreateStringOption         !< routine to generate a string option
   PROCEDURE :: CreateIntArrayOption       !< routine to generate an integer array option
-  PROCEDURE :: CreateLogicalArrayOption   !< routine to generate an logical array option
-  PROCEDURE :: CreateRealArrayOption      !< routine to generate an real array option
-  !PROCEDURE :: CreateStringArrayOption    !< routine to generate an string array option
+  PROCEDURE :: CreateLogicalArrayOption   !< routine to generate a logical array option
+  PROCEDURE :: CreateRealArrayOption      !< routine to generate a real array option
+  !PROCEDURE :: CreateStringArrayOption    !< routine to generate a string array option
   PROCEDURE :: CountOption_               !< function to count the number of options of a given name
   PROCEDURE :: read_options               !< routine that loops over the lines of a parameter files
-                                          !< and calls read_option for every option. Outputs all unknow options
+                                          !< and calls read_option for every option. Outputs all unknown options
   PROCEDURE :: read_option                !< routine that parses a single line from the parameter file.
   PROCEDURE :: check_options              !< routine that parses a given name and returns flag if found in linkes list.
   PROCEDURE :: finalize                   !< routine that resets the parameters either for loadbalance, restart or end
@@ -359,22 +359,21 @@ CHARACTER(LEN=*),INTENT(IN),OPTIONAL  :: value            !< option value
 LOGICAL,INTENT(IN),OPTIONAL           :: multiple         !< marker if multiple option
 LOGICAL,INTENT(IN),OPTIONAL           :: numberedmulti    !< marker if numbered multiple option
 LOGICAL,INTENT(IN),OPTIONAL           :: removed          !< marker if removed option
-LOGICAL,INTENT(IN),OPTIONAL           :: createfrommulti  !< marker if spacialize an generalized option
-
-
+LOGICAL,INTENT(IN),OPTIONAL           :: createfrommulti  !< marker if option is created from $ input variable
 ! LOCAL VARIABLES
 CLASS(link), POINTER :: newLink
 TYPE(Varying_String) :: aStr
-LOGICAL                               :: loc_Specialized
+LOGICAL                               :: loc_createfrommulti
 !==================================================================================================================================
 opt%hasDefault = PRESENT(value)
 IF (opt%hasDefault) THEN
   CALL opt%parse(value)
 END IF
+! Flag to identify options that are added due to Part-Int$ variables
 IF(PRESENT(createfrommulti)) THEN
-  loc_Specialized = createfrommulti
+  loc_createfrommulti = createfrommulti
 ELSE
-  loc_Specialized = .FALSE.
+  loc_createfrommulti = .FALSE.
 END IF
 
 opt%multiple   = .FALSE.
@@ -402,10 +401,12 @@ IF(opt%numberedmulti)THEN
 END IF ! opt%numberedmulti
 
 opt%name        = name
-IF(loc_Specialized .AND. opt%hasDefault) THEN
-  opt%isSet=.TRUE.
+! Flag has to be set here for variables created from a $ variable as these have not been read-in with read_option and otherwise will
+! be skipped during a load balance
+IF(loc_createfrommulti .AND. opt%hasDefault) THEN
+  opt%isSet     = .TRUE.
 ELSE
-  opt%isSet       = .FALSE.
+  opt%isSet     = .FALSE.
 END IF
 opt%description = description
 opt%section     = this%actualSection
@@ -645,7 +646,7 @@ IMPLICIT NONE
 ! INPUT/OUTPUT VARIABLES
 CLASS(Parameters),INTENT(INOUT) :: this  !< CLASS(Parameters)
 CHARACTER(LEN=*),INTENT(IN)     :: name  !< Search for this keyword in ini file
-INTEGER                         :: count !< number of found occurences of keyword
+INTEGER                         :: count !< number of found occurrences of keyword
 !----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 CLASS(link),POINTER :: current
@@ -670,7 +671,7 @@ IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT/OUTPUT VARIABLES
 CLASS(Parameters),INTENT(IN) :: this  !< CLASS(Parameters)
-INTEGER                      :: count !< number of found occurences of keyword
+INTEGER                      :: count !< number of found occurrences of keyword
 !----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 CLASS(link),POINTER :: current
@@ -693,7 +694,7 @@ IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT/OUTPUT VARIABLES
 CLASS(Parameters),INTENT(IN) :: this  !< CLASS(Parameters)
-INTEGER                      :: count !< number of found occurences of keyword
+INTEGER                      :: count !< number of found occurrences of keyword
 !----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 CLASS(link),POINTER :: current
@@ -716,7 +717,7 @@ IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT/OUTPUT VARIABLES
 CLASS(Parameters),INTENT(IN) :: this  !< CLASS(Parameters)
-INTEGER                      :: count !< number of found occurences of keyword
+INTEGER                      :: count !< number of found occurrences of keyword
 !----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 CLASS(link),POINTER :: current
@@ -1242,7 +1243,6 @@ CLASS(StringOption) ,ALLOCATABLE,TARGET :: stringopt
 current => prms%firstLink
 DO WHILE (associated(current))
   ! if name matches option
-  ! IF (name=="Part-Species2-Surfaceflux1-rmax" .AND. MPIRoot) WRITE(*,*) name,"     ",TRIM(current%opt%name),current%opt%isSet
   IF (.NOT.current%opt%isRemoved) THEN
     IF (current%opt%NAMEEQUALS(name)) THEN
       opt => current%opt
@@ -1295,7 +1295,7 @@ DO WHILE (associated(current))
             SWRITE(UNIT_stdOut,'(A7)', ADVANCE='NO')  "*SPLIT"
             CALL clear_formatting()
             SWRITE(UNIT_stdOut,"(A3)") ' | '
-            ! Set mode to indicate print already occured
+            ! Set mode to indicate print already occurred
             mode = 1
           END IF
           value%chars = opt%value
@@ -1322,10 +1322,9 @@ DO WHILE (associated(current))
       ! Check if we can find a general option, applying to all numberedmulti
       SDEALLOCATE(testname) ! safety check
       ALLOCATE(CHARACTER(LEN_TRIM(name)) :: testname)
-      ! Testname must not be trimmed! Otherwise, the INDEX test will fail as testname < name
-
       ! Check how many indexes are present
       numberOfIndexes = 0
+      ! Testname must not be trimmed! Otherwise, the INDEX test will fail as testname < name
       testname = name
       DO i = 1, LEN(name)
         ! Start replacing the index from the left
@@ -1376,7 +1375,6 @@ DO WHILE (associated(current))
                       ALLOCATE(intopt)
                       WRITE(tmpValue, *) multi%value
                       CALL prms%CreateOption(intopt, name, 'description', value=tmpValue, multiple=.FALSE., numberedmulti=.FALSE.,removed=.TRUE.,createfrommulti=.TRUE.)
-                      intopt%isSet=.TRUE.
                   END SELECT
                 CLASS IS (RealOption)
                   SELECT TYPE(value)
@@ -1386,7 +1384,6 @@ DO WHILE (associated(current))
                       ALLOCATE(realopt)
                       WRITE(tmpValue, *) multi%value
                       CALL prms%CreateOption(realopt, name, 'description', value=tmpValue, multiple=.FALSE., numberedmulti=.FALSE.,removed=.TRUE.,createfrommulti=.TRUE.)
-                      realopt%isSet=.TRUE.
                   END SELECT
                 CLASS IS (LogicalOption)
                   SELECT TYPE(value)
@@ -1396,7 +1393,6 @@ DO WHILE (associated(current))
                       ALLOCATE(logicalopt)
                       WRITE(tmpValue, *) multi%value
                       CALL prms%CreateOption(logicalopt, name, 'description', value=tmpValue, multiple=.FALSE., numberedmulti=.FALSE.,removed=.TRUE.,createfrommulti=.TRUE.)
-                      logicalopt%isSet=.TRUE.
                   END SELECT
                 CLASS IS (StringOption)
                   SELECT TYPE(value)
@@ -1406,7 +1402,6 @@ DO WHILE (associated(current))
                       ALLOCATE(stringopt)
                       WRITE(tmpValue,'(A)') multi%value
                       CALL prms%CreateOption(stringopt, name, 'description', value=tmpValue, multiple=.FALSE., numberedmulti=.FALSE.,removed=.TRUE.,createfrommulti=.TRUE.)
-                      stringopt%isSet=.TRUE.
                   END SELECT
               END SELECT
 
@@ -1423,7 +1418,8 @@ DO WHILE (associated(current))
               SWRITE(UNIT_stdOut,'(a7)', ADVANCE='NO')  "*MULTI"
               CALL clear_formatting()
               SWRITE(UNIT_stdOut,"(a3)") ' | '
-              ! Indicate that parameter was read at least once and therefore remove the warning that the parameter was not used
+              ! Indicate that parameter was read at least once and therefore remove the warning that the parameter with the $ was not used
+              ! This is different from the option set above
               multi%isUsedMulti = .TRUE.
               RETURN
             END IF
@@ -1471,7 +1467,6 @@ DO WHILE (associated(current))
                     ALLOCATE(intopt)
                     WRITE(tmpValue, *) multi%value
                     CALL prms%CreateOption(intopt, name, 'description', value=tmpValue, multiple=.FALSE., numberedmulti=.FALSE.,removed=.TRUE.,createfrommulti=.TRUE.)
-                    intopt%isSet=.TRUE.
                 END SELECT
               CLASS IS (RealOption)
                 SELECT TYPE(value)
@@ -1481,7 +1476,6 @@ DO WHILE (associated(current))
                     ALLOCATE(realopt)
                     WRITE(tmpValue, *) multi%value
                     CALL prms%CreateOption(realopt, name, 'description', value=tmpValue, multiple=.FALSE., numberedmulti=.FALSE.,removed=.TRUE.,createfrommulti=.TRUE.)
-                    realopt%isSet=.TRUE.
                 END SELECT
               CLASS IS (LogicalOption)
                 SELECT TYPE(value)
@@ -1491,7 +1485,6 @@ DO WHILE (associated(current))
                     ALLOCATE(logicalopt)
                     WRITE(tmpValue, *) multi%value
                     CALL prms%CreateOption(logicalopt, name, 'description', value=tmpValue, multiple=.FALSE., numberedmulti=.FALSE.,removed=.TRUE.,createfrommulti=.TRUE.)
-                    logicalopt%isSet=.TRUE.
                 END SELECT
               CLASS IS (StringOption)
                 SELECT TYPE(value)
@@ -1501,7 +1494,6 @@ DO WHILE (associated(current))
                     ALLOCATE(stringopt)
                     WRITE(tmpValue,'(A)') multi%value
                     CALL prms%CreateOption(stringopt, name, 'description', value=tmpValue, multiple=.FALSE., numberedmulti=.FALSE.,removed=.TRUE.,createfrommulti=.TRUE.)
-                    stringopt%isSet=.TRUE.
                 END SELECT
             END SELECT
 
@@ -1518,7 +1510,8 @@ DO WHILE (associated(current))
             SWRITE(UNIT_stdOut,'(a7)', ADVANCE='NO')  "*MULTI"
             CALL clear_formatting()
             SWRITE(UNIT_stdOut,"(a3)") ' | '
-            ! Indicate that parameter was read at least once and therefore remove the warning that the parameter was not used
+            ! Indicate that parameter was read at least once and therefore remove the warning that the parameter with the $ was not used
+            ! This is different from the option set above
             multi%isUsedMulti = .TRUE.
             RETURN
           END IF
@@ -1555,7 +1548,6 @@ DO WHILE (associated(current))
                   ALLOCATE(intopt)
                   WRITE(tmpValue, *) multi%value
                   CALL prms%CreateOption(intopt, name, 'description', value=tmpValue, multiple=.FALSE., numberedmulti=.FALSE.,removed=.TRUE.,createfrommulti=.TRUE.)
-                  intopt%isSet=.TRUE.
               END SELECT
             CLASS IS (RealOption)
               SELECT TYPE(value)
@@ -1565,7 +1557,6 @@ DO WHILE (associated(current))
                   ALLOCATE(realopt)
                   WRITE(tmpValue, *) multi%value
                   CALL prms%CreateOption(realopt, name, 'description', value=tmpValue, multiple=.FALSE., numberedmulti=.FALSE.,removed=.TRUE.,createfrommulti=.TRUE.)
-                  realopt%isSet=.TRUE.
               END SELECT
             CLASS IS (LogicalOption)
               SELECT TYPE(value)
@@ -1575,7 +1566,6 @@ DO WHILE (associated(current))
                   ALLOCATE(logicalopt)
                   WRITE(tmpValue, *) multi%value
                   CALL prms%CreateOption(logicalopt, name, 'description', value=tmpValue, multiple=.FALSE., numberedmulti=.FALSE.,removed=.TRUE.,createfrommulti=.TRUE.)
-                  logicalopt%isSet=.TRUE.
               END SELECT
             CLASS IS (StringOption)
               SELECT TYPE(value)
@@ -1585,7 +1575,6 @@ DO WHILE (associated(current))
                   ALLOCATE(stringopt)
                   WRITE(tmpValue,'(A)') multi%value
                   CALL prms%CreateOption(stringopt, name, 'description', value=tmpValue, multiple=.FALSE., numberedmulti=.FALSE.,removed=.TRUE.,createfrommulti=.TRUE.)
-                  stringopt%isSet=.TRUE.
               END SELECT
           END SELECT
 
@@ -1602,7 +1591,8 @@ DO WHILE (associated(current))
           SWRITE(UNIT_stdOut,'(a7)', ADVANCE='NO')  "*MULTI"
           CALL clear_formatting()
           SWRITE(UNIT_stdOut,"(a3)") ' | '
-          ! Indicate that parameter was read at least once and therefore remove the warning that the parameter was not used
+          ! Indicate that parameter was read at least once and therefore remove the warning that the parameter with the $ was not used
+          ! This is different from the option set above
           multi%isUsedMulti = .TRUE.
           RETURN
         END IF
@@ -1838,7 +1828,8 @@ DO WHILE (associated(current))
               SWRITE(UNIT_stdOut,'(a7)', ADVANCE='NO')  "*MULTI"
               CALL clear_formatting()
               SWRITE(UNIT_stdOut,"(a3)") ' | '
-              ! Indicate that parameter was read at least once and therefore remove the warning that the parameter was not used
+              ! Indicate that parameter was read at least once and therefore remove the warning that the parameter with the $ was not used
+              ! This is different from the option set above
               multi%isUsedMulti = .TRUE.
               RETURN
             END IF
@@ -2332,7 +2323,7 @@ IMPLICIT NONE
 ! INPUT/OUTPUT VARIABLES
 CHARACTER(LEN=255),INTENT(IN) :: filename !< name of file to be read
 CHARACTER(LEN=*),INTENT(IN)   :: prmfile  !< name of file to be written
-LOGICAL,INTENT(OUT)           :: userblockFound !< logical indicating sucessful extraction of parameter file
+LOGICAL,INTENT(OUT)           :: userblockFound !< logical indicating successful extraction of parameter file
 !----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER               :: stat,iniUnit,fileUnit
@@ -2364,7 +2355,7 @@ IF (MPIRoot) THEN
 
   iniFound = .FALSE.
   userblockFound = .FALSE.
-  ! infinte loop. Exit at EOF
+  ! infinite loop. Exit at EOF
   DO
     ! read a line into 'aStr'
     CALL Get(fileUnit,aStr,iostat=stat)
