@@ -34,10 +34,10 @@ END INTERFACE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
-PUBLIC :: InitDSMC, FinalizeDSMC
+
+PUBLIC :: DefineParametersDSMC, InitDSMC, FinalizeDSMC
 PUBLIC :: SetVarVibProb2Elems
 !===================================================================================================================================
-PUBLIC::DefineParametersDSMC
 CONTAINS
 
 !==================================================================================================================================
@@ -425,7 +425,8 @@ IF(DoFieldIonization.OR.CollisMode.NE.0) THEN
     CALL H5OPEN_F(err)
     CALL H5FOPEN_F (TRIM(SpeciesDatabase), H5F_ACC_RDONLY_F, file_id_specdb, err)
     DO iSpec = 1, nSpecies
-      WRITE(UNIT=hilf,FMT='(I0)') iSpec
+      ! Skip species that are not read-in from the database
+      IF(Species(iSpec)%DoOverwriteParameters) CYCLE
       ! averagedCollisionParameters set true: species-specific collision parameters get read in
       IF(CollInf%averagedCollisionParameters) THEN
         LBWRITE (UNIT_stdOut,'(68(". "))')
@@ -449,9 +450,10 @@ IF(DoFieldIonization.OR.CollisMode.NE.0) THEN
         END IF
         CALL PrintOption('alphaVSS','DB',RealOpt=SpecDSMC(iSpec)%alphaVSS)
         ! check for faulty parameters
+        WRITE(UNIT=hilf,FMT='(I0)') iSpec
         IF((Species(iSpec)%InterID * SpecDSMC(iSpec)%Tref * SpecDSMC(iSpec)%dref * SpecDSMC(iSpec)%alphaVSS) .EQ. 0) THEN
           CALL Abort(__STAMP__,'ERROR in species data: check collision parameters \n'//&
-            'Part-Species'//TRIM(hilf)//'-(InterID * Tref * dref * alphaVSS) .EQ. 0 - but must not be 0')
+          'Part-Species'//TRIM(hilf)//'-(InterID * Tref * dref * alphaVSS) .EQ. 0 - but must not be 0')
         END IF ! (Tref * dref * alphaVSS) .EQ. 0
         IF ((SpecDSMC(iSpec)%alphaVSS.LT.0.0) .OR. (SpecDSMC(iSpec)%alphaVSS.GT.2.0)) THEN
           CALL Abort(__STAMP__,'ERROR: Check set parameter Part-Species'//TRIM(hilf)//'-alphaVSS must not be lower 0 or greater 2')

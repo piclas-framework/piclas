@@ -96,7 +96,7 @@ collision cross-sections have to be supplied via read-in from a database
 
 Cross-section data can be retrieved from the [LXCat database](https://fr.lxcat.net/home/) {cite}`Pitchford2017` and converted with
 a Python script provided in the tools folder: `piclas/tools/crosssection_database`. Details on how to create an own database with
-custom cross-section data is given in Section {ref}`ssec:tools-xsec-collision`. Finally, the input which species should be treated with the MCC
+custom cross-section data is given in Section {ref}`sssec:tools-maintain-database-xsec-collision`. Finally, the input which species should be treated with the MCC
 model is required
 
     Part-Species2-SpeciesName = electron

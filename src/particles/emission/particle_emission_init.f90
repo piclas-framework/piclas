@@ -450,10 +450,9 @@ USE MOD_Globals_Vars            ,ONLY: BoltzmannConst, Pi
 USE MOD_TimeDisc_Vars           ,ONLY: ManualTimeStep, RKdtFrac
 USE MOD_Mesh_Vars               ,ONLY: SideToElem
 USE MOD_Dielectric_Vars         ,ONLY: DoDielectric,isDielectricElem,DielectricNoParticles
-USE MOD_DSMC_Vars               ,ONLY: useDSMC, DSMC, SpecDSMC, CollisMode
+USE MOD_DSMC_Vars               ,ONLY: useDSMC, DSMC, CollisMode
 USE MOD_Part_Emission_Tools     ,ONLY: SetParticleChargeAndMass,SetParticleMPF,SetParticleTimeStep
-USE MOD_part_emission_tools     ,ONLY: DSMC_SetInternalEnr_LauxVFD
-USE MOD_DSMC_PolyAtomicModel    ,ONLY: DSMC_SetInternalEnr_Poly
+USE MOD_DSMC_PolyAtomicModel    ,ONLY: DSMC_SetInternalEnr
 USE MOD_Part_Pos_and_Velo       ,ONLY: SetParticlePosition,SetParticleVelocity,ParticleEmissionFromDistribution
 USE MOD_Part_Pos_and_Velo       ,ONLY: ParticleEmissionCellLocal
 USE MOD_DSMC_AmbipolarDiffusion ,ONLY: AD_SetInitElectronVelo
@@ -528,11 +527,7 @@ DO iSpec = 1,nSpecies
         IF((CollisMode.EQ.2).OR.(CollisMode.EQ.3)) THEN
           DO iPart = 1, NbrOfParticle
             PositionNbr = GetNextFreePosition(iPart)
-            IF (SpecDSMC(iSpec)%PolyatomicMol) THEN
-              CALL DSMC_SetInternalEnr_Poly(iSpec,iInit,PositionNbr,1)
-            ELSE
-              CALL DSMC_SetInternalEnr_LauxVFD(iSpec,iInit,PositionNbr,1)
-            END IF
+            CALL DSMC_SetInternalEnr(iSpec,iInit,PositionNbr,1)
           END DO
         END IF
       END IF

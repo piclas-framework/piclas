@@ -818,7 +818,7 @@ USE MOD_Globals
 USE MOD_Particle_Vars     ,ONLY: SpeciesDatabase, Species, nSpecies
 USE MOD_DSMC_Vars         ,ONLY: ChemReac
 USE MOD_HDF5_Input        ,ONLY: DatasetExists,nDims,HSize,ReadAttribute,GetDataSize,AttributeExists
-USE MOD_StringTools       ,ONLY: STRICMP
+USE MOD_StringTools       ,ONLY: STRICMP, SPLIT_STRING
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -828,10 +828,10 @@ IMPLICIT NONE
 INTEGER,INTENT(OUT)               :: ReadInNumOfReact
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-CHARACTER(LEN=256)                :: dsetname, groupname, dsetname2
-CHARACTER(LEN=255),ALLOCATABLE    :: ModelNames(:), NonReactiveSpeciesName(:)
+CHARACTER(LEN=256)                :: dsetname, groupname, dsetname2, NonReactiveSpeciesString
+CHARACTER(LEN=255),ALLOCATABLE    :: ModelNames(:), NonReactiveSpeciesNames(:)
 INTEGER                           :: storage, max_corder, err
-INTEGER                           :: totalNumReac, ModelNamesSize, iModel, numReac, iSpec, jSpec
+INTEGER                           :: totalNumReac, ModelNamesSize, iModel, numReac, iSpec, jSpec, iNonReac, NumChemModels, NumOfCols, LenNonReacArray
 INTEGER(HID_T)                    :: file_id_specdb, group_id, dset_id             ! File/group/dataset identifiers
 INTEGER(SIZE_T)                   :: size                               ! Size of name
 INTEGER(HSIZE_T)                  :: iReac, ReacID
@@ -864,7 +864,14 @@ DO iReac = 0, totalNumReac-1
   CALL H5DOPEN_F(file_id_specdb, dsetname2, dset_id, err)
   ! Get the size of the attribute array
   CALL GetDataSize(dset_id,'ChemistryModel',nDims,HSize,attrib=.TRUE.)
-  ModelNamesSize = INT(HSize(1),4)
+  IF (nDims.EQ.1) THEN  ! Catch for old database where ChemistryModel was not an 2D array
+    NumChemModels = 1
+  ELSE                  ! NumChemModels of current reaction equals number of rows of attribute
+    NumChemModels=INT(HSize(2),4)
+  END IF
+  ! NumOfCols = 1 if Non Reactives dont exist, = 2 if Non Reactives exist
+  NumOfCols = INT(HSize(1),4)
+  ModelNamesSize = NumChemModels*NumOfCols
   IF(ALLOCATED(ModelNames)) THEN
     DEALLOCATE(ModelNames)
     ALLOCATE(ModelNames(ModelNamesSize))
@@ -873,8 +880,9 @@ DO iReac = 0, totalNumReac-1
   END IF
   ModelNames = ''
   CALL ReadAttribute(file_id_specdb,'ChemistryModel',ModelNamesSize,TRIM(dsetname2),StrArray=ModelNames)
-  DO iModel = 1,ModelNamesSize
-    IF(STRICMP(ChemReac%ChemistryModel,ModelNames(iModel))) THEN
+  DO iModel = 1,NumChemModels
+    ! ModelNames contains strings of alterning ChemistryModel and (if existent) corrensponding NonReactives, thus index of ModelNames to check if ChemistryModel matches
+    IF(STRICMP(ChemReac%ChemistryModel,ModelNames((iModel - 1) * NumOfCols + 1))) THEN
       numReac = numReac + 1
       ChemReac%totalReacToModel(numReac) = INT(iReac,4)
     END IF
@@ -896,33 +904,94 @@ DO iReac = 1, numReac
   dsetname2 = TRIM(groupname)//'/'//TRIM(dsetname)
   ! Open the reaction dataset
   CALL H5DOPEN_F(file_id_specdb, dsetname2, dset_id, err)
-  ! Check if the non-reactive species list exists
-  CALL AttributeExists(file_id_specdb,'NonReactiveSpecies',TRIM(dsetname2), AttrExists=AttrExists)
-  IF(AttrExists) THEN
-    ! Get the size of the attribute array
-    CALL GetDataSize(dset_id,'NonReactiveSpecies',nDims,HSize,attrib=.TRUE.)
-    ChemReac%ArbDiss(iReac)%NumOfNonReactives = INT(HSize(1),4)
-    IF(ChemReac%ArbDiss(iReac)%NumOfNonReactives.GT.0) THEN
-      ALLOCATE(ChemReac%ArbDiss(iReac)%NonReactiveSpecies(ChemReac%ArbDiss(iReac)%NumOfNonReactives))
-      ALLOCATE(NonReactiveSpeciesName(ChemReac%ArbDiss(iReac)%NumOfNonReactives))
-      ! Read-in the non-reactive species names array
-      CALL ReadAttribute(file_id_specdb,'NonReactiveSpecies',ChemReac%ArbDiss(iReac)%NumOfNonReactives,TRIM(dsetname2),StrArray=NonReactiveSpeciesName)
-      ! Find the index of the respective species
-      DO iSpec = 1, ChemReac%ArbDiss(iReac)%NumOfNonReactives
-        SpeciesFound = .FALSE.
-        DO jSpec = 1, nSpecies
-          IF(STRICMP(NonReactiveSpeciesName(iSpec),Species(jSpec)%Name)) THEN
-            ChemReac%ArbDiss(iReac)%NonReactiveSpecies(iSpec) = jSpec
-            SpeciesFound = .TRUE.
-            EXIT
-          END IF
-        END DO
-        IF(.NOT.SpeciesFound) CALL abort(__STAMP__,'ERROR in SpeciesDatabase: Species defined as non-reactive has not beend found!')
+  ! Get the size of the attribute array
+  CALL GetDataSize(dset_id,'ChemistryModel',nDims,HSize,attrib=.TRUE.)
+  IF (nDims.EQ.1) THEN  ! Catch for old database where ChemistryModel was not an 2D array
+    NumChemModels = 1
+    ! dummy -1 to handle old case
+    NumOfCols = -1
+  ELSE                  ! NumChemModels of current reaction equals number of rows of attribute
+    NumChemModels=INT(HSize(2),4)
+    NumOfCols = INT(HSize(1),4)
+  END IF
+  ! Check if NonReactives exist
+  IF(NumOfCols.EQ.2)THEN    ! new format of database
+    ModelNamesSize = NumChemModels*NumOfCols
+    IF(ALLOCATED(ModelNames)) THEN
+      DEALLOCATE(ModelNames)
+      ALLOCATE(ModelNames(ModelNamesSize))
+    ELSE
+      ALLOCATE(ModelNames(ModelNamesSize))
+    END IF
+    ModelNames = ''
+    CALL ReadAttribute(file_id_specdb,'ChemistryModel',ModelNamesSize,TRIM(dsetname2),StrArray=ModelNames)
+    NonReactiveSpeciesString = ''
+    DO iModel = 1,NumChemModels
+      ! ModelNames contains string of alterning ChemistryModel and (if existent) corrensponding NonReactives, thus index of ModelNames
+      IF(STRICMP(ChemReac%ChemistryModel,ModelNames((iModel - 1) * NumOfCols + 1))) THEN
+        ! saving NonReactives of selected ChemistryModel in comma separated string
+        NonReactiveSpeciesString = ADJUSTL(Trim(ModelNames((iModel - 1) * NumOfCols + 2)))
+      END IF
+    END DO
+    LenNonReacArray = 0
+    DO iNonReac = 1, LEN_TRIM(NonReactiveSpeciesString)
+      ! count elements (commas) for array allocation
+      IF(NonReactiveSpeciesString(iNonReac:iNonReac).EQ.',')THEN
+        LenNonReacArray = LenNonReacArray + 1
+      END IF
+    END DO
+    ! Allocate memory NonReactiveSpecies Array with count of commas +1 since string does not end with a comma
+    ALLOCATE(NonReactiveSpeciesNames(LenNonReacArray + 1))
+    ALLOCATE(ChemReac%ArbDiss(iReac)%NonReactiveSpecies(LenNonReacArray + 1))
+    CALL SPLIT_STRING(NonReactiveSpeciesString,',',NonReactiveSpeciesNames,ChemReac%ArbDiss(iReac)%NumOfNonReactives)
+    ! Find the index of the respective species
+    DO iSpec = 1, ChemReac%ArbDiss(iReac)%NumOfNonReactives
+      SpeciesFound = .FALSE.
+      DO jSpec = 1, nSpecies
+        IF(STRICMP(NonReactiveSpeciesNames(iSpec),Species(jSpec)%Name)) THEN
+          ChemReac%ArbDiss(iReac)%NonReactiveSpecies(iSpec) = jSpec
+          SpeciesFound = .TRUE.
+          EXIT
+        END IF
       END DO
-      DEALLOCATE(NonReactiveSpeciesName)
-      ! First reaction is saved within the dummy input reaction, thus "- 1"
-      ChemReac%NumOfReact = ChemReac%NumOfReact + ChemReac%ArbDiss(iReac)%NumOfNonReactives - 1
-      ChemReac%NumOfReactWOBackward = ChemReac%NumOfReactWOBackward + ChemReac%ArbDiss(iReac)%NumOfNonReactives - 1
+      IF(.NOT.SpeciesFound) CALL abort(__STAMP__,'ERROR in SpeciesDatabase: Species defined as non-reactive has not beend found!')
+    END DO
+    DEALLOCATE(NonReactiveSpeciesNames)
+    DEALLOCATE(ModelNames)
+    ! First reaction is saved within the dummy input reaction, thus "- 1"
+    ChemReac%NumOfReact = ChemReac%NumOfReact + ChemReac%ArbDiss(iReac)%NumOfNonReactives - 1
+    ChemReac%NumOfReactWOBackward = ChemReac%NumOfReactWOBackward + ChemReac%ArbDiss(iReac)%NumOfNonReactives - 1
+  ELSE IF(NumOfCols.EQ.-1)THEN      ! old format of database
+    ! Check if the non-reactive species list exists
+    CALL AttributeExists(file_id_specdb,'NonReactiveSpecies',TRIM(dsetname2), AttrExists=AttrExists)
+    IF(AttrExists) THEN
+      ! Get the size of the attribute array
+      CALL GetDataSize(dset_id,'NonReactiveSpecies',nDims,HSize,attrib=.TRUE.)
+      ChemReac%ArbDiss(iReac)%NumOfNonReactives = INT(HSize(1),4)
+      IF(ChemReac%ArbDiss(iReac)%NumOfNonReactives.GT.0) THEN
+        ALLOCATE(ChemReac%ArbDiss(iReac)%NonReactiveSpecies(ChemReac%ArbDiss(iReac)%NumOfNonReactives))
+        ALLOCATE(NonReactiveSpeciesNames(ChemReac%ArbDiss(iReac)%NumOfNonReactives))
+        ! Read-in the non-reactive species names array
+        CALL ReadAttribute(file_id_specdb,'NonReactiveSpecies',ChemReac%ArbDiss(iReac)%NumOfNonReactives,TRIM(dsetname2),StrArray=NonReactiveSpeciesNames)
+        ! Find the index of the respective species
+        DO iSpec = 1, ChemReac%ArbDiss(iReac)%NumOfNonReactives
+          SpeciesFound = .FALSE.
+          DO jSpec = 1, nSpecies
+            IF(STRICMP(NonReactiveSpeciesNames(iSpec),Species(jSpec)%Name)) THEN
+              ChemReac%ArbDiss(iReac)%NonReactiveSpecies(iSpec) = jSpec
+              SpeciesFound = .TRUE.
+              EXIT
+            END IF
+          END DO
+          IF(.NOT.SpeciesFound) CALL abort(__STAMP__,'ERROR in SpeciesDatabase: Species defined as non-reactive has not beend found!')
+        END DO
+        DEALLOCATE(NonReactiveSpeciesNames)
+        ! First reaction is saved within the dummy input reaction, thus "- 1"
+        ChemReac%NumOfReact = ChemReac%NumOfReact + ChemReac%ArbDiss(iReac)%NumOfNonReactives - 1
+        ChemReac%NumOfReactWOBackward = ChemReac%NumOfReactWOBackward + ChemReac%ArbDiss(iReac)%NumOfNonReactives - 1
+      END IF
+    ELSE
+      ChemReac%ArbDiss(iReac)%NumOfNonReactives = 0
     END IF
   ELSE
     ChemReac%ArbDiss(iReac)%NumOfNonReactives = 0
@@ -973,6 +1042,8 @@ INTEGER                           :: iReac, iVar, indexSubset, iSpec, iProd
 CHARACTER(LEN=32)                 :: hilf
 CHARACTER(LEN=255)                :: reacNameReactants, reacNameProducts
 CHARACTER(LEN=255)                :: ReactantNames(3), ProductNames(4)
+REAL                              :: SumProdMass, SumReactMass
+REAL,PARAMETER                    :: RelMassTol=1e-14 ! Relative tolerance applied to conservation of mass before/after reaction
 !===================================================================================================================================
 
 ! Initialize FORTRAN interface.
@@ -1125,7 +1196,21 @@ ELSE
     ELSE
       CALL abort(__STAMP__,'ERROR in reaction definition: No products found in the selected reaction in the database')
     END IF
-    ! Read-in of the reaction parameters, depending on the model
+    ! Get mass of products and reactants
+    SumProdMass = 0
+    DO iSpec = 1, 4
+      IF(ChemReac%Products(iReac,iSpec).NE.0) SumProdMass = SumProdMass + Species(ChemReac%Products(iReac,iSpec))%MassIC
+    END DO
+    SumReactMass = 0
+    DO iSpec = 1, 3
+      IF(ChemReac%Reactants(iReac,iSpec).NE.0) SumReactMass = SumReactMass + Species(ChemReac%Reactants(iReac,iSpec))%MassIC
+    END DO
+    ! Sanity mass check for reactions of selected chemistry model, real compare with RelMassTol
+    IF(.NOT.ALMOSTEQUALRELATIVE(SumProdMass,SumReactMass,RelMassTol)) THEN
+      CALL PrintOption('DSMC_Chemistry might not be mass conserving for chemical reaction:','WARNING',StrOpt=TRIM(ChemReac%ReactionName(iReac)))
+      CALL abort(__STAMP__,'DSMC_Chemistry might not be mass conserving for current chemical reaction!')
+    END IF
+      ! Read-in of the reaction parameters, depending on the model
     SELECT CASE (TRIM(ChemReac%ReactModel(iReac)))
       CASE('TCE')
         ! Total Collision Energy: Arrhenius-based chemistry model

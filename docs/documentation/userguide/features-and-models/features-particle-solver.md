@@ -92,13 +92,13 @@ are discussed in Section {ref}`sec:2D-axisymmetric`
 
 ### Species-specific time step
 
-This option is decoupled from the other two time step options as the time step is not applied on a per-particle basis but for each species. Currently, its main application is for PIC-MCC simulations (only Poisson field solver with Euler, Leapfrog and Boris-Leapfrog time discretization methods), where there are large differences in the time scales (e.g. electron movement requires a time step of several orders of magnitude smaller than for the ions). The species-specific time step is actvitated per species by setting a factor
+This option is decoupled from the other two time step options as the time step is not applied on a per-particle basis but for each species. Currently, its main application is for PIC-MCC simulations (only Poisson field solver with Euler, Leapfrog and Boris-Leapfrog time discretization methods), where there are large differences in the time scales (e.g. electron movement requires a time step of several orders of magnitude smaller than the ions). The species-specific time step is actvitated per species by setting a factor
 
     Part-Species1-TimeStepFactor = 0.01
 
-that is multiplied with the provided time step. If no time step factor is provided, the default time step will be utilized. In this example, the species will be effectively simulated with a time step 100 smaller than the given time step.
+that is multiplied with the provided time step. If no time step factor is provided, the default time step will be utilized. In this example, the species will be effectively simulated with a time step 100 smaller than the given time step. Since the number of iterations remains the same, the species will effectively progress slower in time and the defined `tend` is not applicable anymore. This model should not be confused with a sub-cycling method and only be used for steady-state cases.
 
-To accelerate the convergence to steady-state, the following flag can be used to perform collisions and reactions at the regular time step.
+To accelerate the convergence to steady-state, the following flag can be used to perform collisions and reactions at the regular time step:
 
     Part-VariableTimeStep-DisableForMCC = T
 
@@ -109,6 +109,7 @@ For species with a time step factor lower than 1, it is compared with a random n
 For one-dimensional (e.g. shock-tubes), two-dimensional (e.g. cylinder) and axisymmetric (e.g. re-entry capsules) cases, the
 computational effort can be greatly reduced.
 
+(sec:1D-sym)=
 ### 1D Simulations
 
 To enable one-dimensional simulations, the symmetry order has to be set
@@ -117,10 +118,12 @@ To enable one-dimensional simulations, the symmetry order has to be set
 
 The calculation is performed along the $x$-axis. The $y$ and $z$ dimension should be centered to the $xz$-plane (i.e.
 $|y_{\mathrm{min}}|=|y_{\mathrm{max}}|$). All sides of the hexahedrons must be parallel to the $xy$-, $xz$-, and $yz$-plane.
-Boundaries in $y$ and $z$ direction shall be defined as 'symmetric'.
+Boundaries in $y$ and $z$ direction shall be defined as `symmetric_dim`.
 
     Part-Boundary5-SourceName=SYM
-    Part-Boundary5-Condition=symmetric
+    Part-Boundary5-Condition=symmetric_dim
+
+The code assumes a length of $\Delta y = \Delta z = 1$, regardless of the actual dimension in $y$ and $z$. Therefore, the weighting factor should be adapted accordingly.
 
 (sec:2D-axisymmetric)=
 ### 2D/Axisymmetric Simulations
@@ -131,24 +134,31 @@ To enable two-dimensional simulations, the symmetry order has to be set
 
 Two-dimensional and axisymmetric simulations require a mesh in the $xy$-plane, where the $x$-axis is the rotational axis and $y$
 ranges from zero to a positive value. Additionally, the mesh shall be centered around zero in the $z$-direction with a single cell
-row, such as that $|z_{\mathrm{min}}|=|z_{\mathrm{max}}|$. The rotational symmetry axis shall be defined as a separate boundary
-with the `symmetric_axis` boundary condition
+row, such as that $|z_{\mathrm{min}}|=|z_{\mathrm{max}}|$. It should be noted that when converting or creating the mesh using `HOPR`,
+it is recommended to define the space filling curve by
+
+    sfc_type = mortonZ    ! alternative: hilbertZ
+
+in the `hopr.ini` parameter file. This utilizes a 2D space filling curve, which can reduce the simulation duration significantly as
+it improves the distribution of the cells per processor. This applies even to certain 3D cases, such as a channel flow.
+
+The rotational symmetry axis shall be defined as a separate boundary with the `symmetric_axis` boundary condition
 
     Part-Boundary4-SourceName=SYMAXIS
     Part-Boundary4-Condition=symmetric_axis
 
 The boundaries (or a single boundary definition for both boundary sides) in the $z$-direction should be defined as symmetry sides
-with the `symmetric` condition
+with the `symmetric_dim` condition
 
     Part-Boundary5-SourceName=SYM
-    Part-Boundary5-Condition=symmetric
+    Part-Boundary5-Condition=symmetric_dim
 
 It should be noted that the two-dimensional mesh assumes a length of $\Delta z = 1$, regardless of the actual dimension in $z$.
 Therefore, the weighting factor should be adapted accordingly.
 
 To enable axisymmetric simulations, the following flag is required
 
-    Particles-SymmetryAxisymmetric=T
+    Particles-Symmetry2DAxisymmetric=T
 
 To fully exploit rotational symmetry, a radial weighting can be enabled, which will linearly increase the weighting factor $w$
 towards $y_{\mathrm{max}}$ (i.e. the domain border in $y$-direction), depending on the current $y$-position of the particle.
@@ -222,7 +232,7 @@ only at the stagnation point, the time step defined during the initialization is
     Part-VariableTimeStep-ScaleFactor2DBack = 2.0
 
 (sec:variable-particle-weighting)=
-#### Variable Particle Weighting
+## Variable Particle Weighting
 
 Variable particle weighting is currently supported for PIC (with and without background gas) or a background gas (an additional trace species feature is described in Section {ref}`sec:background-gas`). The general functionality can be enabled with the following flag:
 
