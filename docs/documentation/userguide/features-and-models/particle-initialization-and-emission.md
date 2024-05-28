@@ -563,4 +563,7 @@ The program constructs a cartesian background mesh if needed to efficiently find
 
 
 The size of the cartesian background mesh `Part-FIBGMdeltas`, which can be accompanied by a division factor (i.e. number of background cells) in each direction given by `Part-factorFIBGM`. Here, the size and number of cells of the background mesh correspond to the actual mesh.
+PICLas will determine if the FIBGM is needed. The build can be forced by setting:
+
+    Part-ForceFIBGM = true
 
