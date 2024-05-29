@@ -1,31 +1,173 @@
 # Regression Testing
 
-The purpose of regression testing is summarized by the following quote:
+The purpose of regression testing is summarized by the following [Wikipedia quote](https://en.wikipedia.org/wiki/Regression_testing) {cite}`Basu2015`:
 
 > *Regression testing (rarely non-regression testing) is re-running functional and non-functional tests to ensure that previously developed and tested software still performs after a change.*
 
-Wikipedia: https://en.wikipedia.org/wiki/Regression_testing
-
-## Reggie2.0 Tool
+## reggie2.0 Tool
 
 PICLas is continuously tested by utilizing a Python based regression testing environment, which is
-run by gitlab-runners. Therefore, the tool *reggie2.0* is used, which is found under
-[https://github.com/piclas-framework/reggie2.0](https://github.com/piclas-framework/reggie2.0)
-
-Additionally, the different analysis methods that can be applied and the general structure of a 
-regression test is described there.
-
+run by a [Gitlab Runner](https://docs.gitlab.com/runner/). Therefore, the tool *reggie2.0* is used, which is found under
+[https://github.com/piclas-framework/reggie2.0](https://github.com/piclas-framework/reggie2.0).
+Additionally, the different [Analyze routines](https://github.com/piclas-framework/reggie2.0#analyze-routines-for-analyzeini)
+defined in the *analysis.ini* files that can be applied and the general structure of a regression test is described there.
 Different tests are executed on check-in, during nightly or weekly testing. These tests are defined
-in the file *.gitlab-ci.yml* that is located in the top level repository directory of PICLas. In
-this file, various tests are defined, which are found under *regressioncheck* and a summary
-of the different tests is given under https://github.com/piclas-framework/piclas/blob/master/REGGIE.md
+in the file *.gitlab-ci.yml* that is located in the top level repository directory of PICLas.
+In this file, various tests are defined, which are found under *regressioncheck* and a summary
+of the different tests for piclas are given under [here](https://github.com/piclas-framework/piclas/blob/master/REGGIE.md).
+The automatic execution by a [Gitlab Runner](https://docs.gitlab.com/runner/) can be performed on any machine that is connected to the
+internet and in the following sections, the setup of such a machine is described
 
-The automatic execution by *gitlab-runners* can be performed on any machine that is connected to the
-internet and in the following section, the setup of such a machine is described
+### Local execution of reggie2.0
+To quickly test regression checks locally, either to reproduce an error that has occurred during a GitLab pipeline or to test newly
+developed code, the [reggie2.0](https://github.com/piclas-framework/reggie2.0) tool can be executed without the need to install a
+[Gitlab Runner](https://docs.gitlab.com/runner/).
 
-## Local Testing of GitLab CI
+1. Download or update the [reggie2.0 repository](https://github.com/piclas-framework/reggie2.0) locally.
+   For convenience, an *alias* can be created, e.g.,
 
-To locally test the GitLab CI (including a YAML verification), [gitlab-ci-local](https://github.com/firecow/gitlab-ci-local) can be used. An installation guide can be found here: [Link](https://github.com/firecow/gitlab-ci-local#linux-based-on-debian). After a successful installation, you can view the available parameters through
+       alias reg='python3 /path/to/reggie2.0/reggie.py'
+
+   where the expression */path/to/reggie2.0/reggie.py* has to be correctly set for the current system, which must point to the local
+   [reggie.py](https://github.com/piclas-framework/reggie2.0/blob/master/reggie.py) file.
+   Add the alias definitions to the *~/.bashrc* file to have the functions available in the future.
+   An overview of the files and functions can be found [here](https://github.com/piclas-framework/reggie2.0?tab=readme-ov-file#overview).
+
+   Run the tool with `--help` to get an overview of the available options
+
+       reg --help
+
+1. Build the required executable, e.g., *piclas*, either automatically using the [reggie2.0](https://github.com/piclas-framework/reggie2.0)
+   tool or configure cmake and compile the executable by hand.
+
+   Building the executable automatically requires a directory under *regressioncheck* that contains a *builds.ini* file from which
+   all the compilation flags are read automatically and is described in the next step because automatic compilation is always
+   accompanied by also running the code and analysing the results.
+
+   There is also a *bash* script to extract a single *cmake* command line containing all the compiler settings from the *builds.ini* to
+   compile a single executable by hand.
+   Navigate to a *build* directory and run the script
+
+       cd ~/piclas/build
+       ./../tools/cmake-builds-ini.sh ../regressioncheck/NIG_convtest_poisson/builds.ini
+
+   The output of the script will look like this
+
+        CMAKE_BUILD_TYPE ........................ Debug,Release
+        LIBS_BUILD_HDF5 ......................... OFF
+        PICLAS_POLYNOMIAL_DEGREE ................ N
+        PICLAS_EQNSYSNAME ....................... poisson
+        PICLAS_TIMEDISCMETHOD ................... RK3
+        LIBS_USE_MPI ............................ ON,OFF
+        PICLAS_NODETYPE ......................... GAUSS
+        PICLAS_PARTICLES ........................ ON,OFF
+        PICLAS_CODE_ANALYZE ..................... ON,OFF
+        PICLAS_PETSC ............................ OFF,ON
+
+       Select the first set of options via
+
+       cmake ..  -DCMAKE_BUILD_TYPE=Debug -DLIBS_BUILD_HDF5=OFF -DPICLAS_POLYNOMIAL_DEGREE=N -DPICLAS_EQNSYSNAME=poisson -DPICLAS_TIMEDISCMETHOD=RK3 -DLIBS_USE_MPI=ON -DPICLAS_NODETYPE=GAUSS -DPICLAS_PARTICLES=ON -DPICLAS_CODE_ANALYZE=ON -DPICLAS_PETSC=OFF
+
+   The last line can directly be copied into the terminal within a build directory to generate the make files for compiling piclas with the
+   first set of parameter options given in the *builds.ini* file (ignoring the *nocrosscombination* statements).
+   Simply adjust the last line to have the correct flags set, execute *cmake* in the *build* directory and run *make* to compile
+
+       cmake ..  -DCMAKE_BUILD_TYPE=Debug -DLIBS_BUILD_HDF5=OFF -DPICLAS_POLYNOMIAL_DEGREE=N -DPICLAS_EQNSYSNAME=poisson -DPICLAS_TIMEDISCMETHOD=RK3 -DLIBS_USE_MPI=ON -DPICLAS_NODETYPE=GAUSS -DPICLAS_PARTICLES=ON -DPICLAS_CODE_ANALYZE=ON -DPICLAS_PETSC=ON
+       make -j
+
+   Note that `-DPICLAS_PETSC=ON` has been adjusted in the above command.
+   This will compile the piclas executable and it will be placed in the current directory under *bin*.
+   Important note: Some regression tests build the hopr meshes "on-the-fly", hence, the *hopr* executable is required and there are
+   different possibilities to supply the *hopr* executable that is required:
+
+   1. Set the compile flag `LIBS_DOWNLOAD_HOPR=ON`, which automatically downloads the *hopr* executable and places a link under
+      *./bin* in the current build directory. This can be used if the *piclas* executable is compiled by hand.
+   1. Set the environment variable via `export HOPR_PATH=/path/to/hopr` to point to the *hopr* executable on the current system
+
+1. Run the [reggie2.0](https://github.com/piclas-framework/reggie2.0) tool either a) automatic mode or b) pre-compiled mode:
+
+   This file is used to compile one or more piclas executables and the directories that accompany the *builds.ini* file will be used
+   for testing. Note that not all executables might be used for those directories, as they might be excluded via the
+   *excludebuild.ini* file.
+
+   To run the automatic compilation and testing procedure, simply navigate the terminal to a location outside of the
+   *regressioncheck* directory (which is found in the *piclas* repository).
+   Switch to the *home* directory and run the [reggie2.0](https://github.com/piclas-framework/reggie2.0) tool there via
+
+       cd ~
+       reg /path/to/piclas/regressioncheck/NIG_DSMC
+
+   to start compiling and executing the resulting code.
+   All output is placed under a new directory *output_dir* within the current directory.
+   Never run the [reggie2.0](https://github.com/piclas-framework/reggie2.0) tool from within the */path/to/piclas/regressioncheck/*
+   //as the directory tree structure is copied from there and the source path and target path cannot be the same!
+   This procedure will run all the example directories under *NIG_DSMC*
+
+       ls /path/to/piclas/regressioncheck/NIG_DSMC
+
+       2D_VTS_Distribution     builds.ini                  RotPeriodicBC                 SURF_PROB_DifferentProbs  VSS_VHS_SelfDiffusion
+       Ambipolar_Diffusion     Macroscopic_Restart         RotPeriodicBCMulti            SURF_PROB_MultiReac
+       Ambipolar_Diffusion_SF  MCC_BGG_Elec_XSec_Sampling  RotPeriodicBCMultiInterPlane  VirtualCellMerge
+
+   To run the pre-compiled executable, navigate to the corresponding *build* directory and run the
+   [reggie2.0](https://github.com/piclas-framework/reggie2.0) tool there
+
+       cd ~/piclas/build
+       reg -e ./bin/piclas ../regressioncheck/NIG_DSMC/Ambipolar_Diffusion
+
+   to run a specific test case, e.g., *Ambipolar_Diffusion*.
+
+1. The *analysis.ini* file within the *Ambipolar_Diffusion* directory lists the analysis that is performed after the successful
+   execution of *piclas*.
+   An overview of the available analysis functions can be found [here](https://github.com/piclas-framework/reggie2.0?tab=readme-ov-file#analyze-routines-for-analyzeini).
+   Also, look into the existing *regressioncheck* examples to get an idea how to construct a new *regressioncheck* setup or modify
+   an existing one.
+
+
+1. Reference files: They can be created automatically with the command line arguments
+
+       -z, --rc              Create/Replace reference files that are required for analysis. After running the program, the output files are stored in the check-/example-directory.
+       -i, --noMPI           Run program without "mpirun" (single thread execution).
+
+   for analysis files, which use a reference file with which the output of a run is compared.
+   here, the flag `-i` is used to created the reference file with a single-core run, which is suggested as a best practice as the
+   actual run might be performed with multiple cores and the output should ideally be the same.
+   An example is given under [regressioncheck/WEK_DSMC/ChannelFlow_SurfChem_AdsorpDesorp_CO_O2](https://github.com/piclas-framework/piclas/blob/master/regressioncheck/WEK_DSMC/ChannelFlow_SurfChem_AdsorpDesorp_CO_O2/analyze.ini)
+   where *.h5* files are compared.
+
+## Running GitLab *.gitlab-ci.yml* Tests
+
+The GitLab CI/CD tests can either be run *locally* or *remotely* and both methods are explained in the following.
+The tests are defined in the file *.gitlab-ci.yml* in the top-level directory of the piclas repository.
+
+### Remote Testing on Gitlab
+
+Open a browser and go to the [piclas gitlab pipelines website](https://piclas.boltzplatz.eu/piclas/piclas/-/pipelines), where the
+latest pipeline jobs are displayed. To start a new pipeline, click the button *Run pipeline* and select the required branch name or
+tag, which should be tested. Then, define the necessary *Variables*, which are summarized in {numref}`tab:pipeline_vars`.
+
+```{table} Gitlab pipeline variables
+---
+name: tab:pipeline_vars
+---
+| Property                      | Description                                                                                                                              |  Value  |
+| ----------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- | :-----: |
+| DO_CHECKIN                    | short tests that are also run, when new commits are pushed                                                                               |    T    |
+| DO_NIGHTLY                    | longer tests, executed every day                                                                                                         |    T    |
+| DO_WEEKLY                     | very long tests, executed once a week                                                                                                    |    T    |
+| DO_NODE_SPLIT                 | MPI: virtual CPU splitting for multi-node testing, where a specific number of cores/threads are grouped in separate nodes (default is 2) |    T    |
+| DO_CORE_SPLIT                 | MPI: virtual CPU splitting for multi-node testing, where each core/thread resembles a separate node                                      |    T    |
+| DO_MPICH                      | MPI: Force compilation using MPICH instead of OpenMPI                                                                                    |    T    |
+```
+
+Per default, `DO_CHECKIN`, `DO_NIGHTLY`, `DO_WEEKLY`, `DO_NODE_SPLIT` and `DO_CORE_SPLIT` are tested automatically for the branch
+*master.dev*. For details, see the [Pipeline schedules](https://piclas.boltzplatz.eu/piclas/piclas/-/pipeline_schedules) section in Gitlab.
+
+### Local Testing using *gitlab-ci-local*
+
+To locally test the GitLab CI (including a YAML verification), [gitlab-ci-local](https://github.com/firecow/gitlab-ci-local) can be used.
+An installation guide can be found here: [Link](https://github.com/firecow/gitlab-ci-local#linux-based-on-debian).
+After a successful installation, you can view the available parameters through
 ```
 gitlab-ci-local --help
 ```
@@ -37,18 +179,18 @@ To view all stages and tests:
 ```
 gitlab-ci-local --list-all
 ```
-To execute the check-in pipeline locally (ie. the jobs that were shown with the `--list` command), use
+To execute the check-in pipeline locally (i.e. the jobs that were shown with the `--list` command), use
 ```
 gitlab-ci-local --shell-isolation
 ```
 to avoid errors due to parallel writing of the ctags.txt file. An alternative is to limit the concurrent execution to one job, which
-is analogous to the current configuration on the Gitlab Runner (requires gitlab-ci-local in version 4.42.0)
+is analogous to the current configuration on the [Gitlab Runner](https://docs.gitlab.com/runner/) (requires gitlab-ci-local in version 4.42.0)
 ```
 gitlab-ci-local --concurrency=1
 ```
 It should be noted that currently the cache creation & utilization does not seem to represent the remote execution, meaning that some
 errors might only be recognized after a push to the remote. A specific job can be executed simply by reference its name, and to also
-consider the dependencies (ie. the `needs:`), the following command can be utilized to execute, for example the DSMC check-in job:
+consider the dependencies (i.e. the `needs:`), the following command can be utilized to execute, for example the DSMC check-in job:
 ```
 gitlab-ci-local --needs CHE_DSMC
 ```
@@ -58,13 +200,13 @@ gitlab-ci-local --preview preview.yml
 ```
 which gives the expanded version of utilized `extends:` and `<<:` templates.
 
-## Regression Server *Gitlab Runner* Setup
-In a first step, the required software packages for PICLas and Reggie2.0 are installed on a new
-system. In a second step, the *gitlab-runner* program is installed and the setup of runner is
-described.
+### Regression Test *Gitlab Runner* Setup for self-hosted Servers
+This section describes the necessary steps to install a [Gitlab Runner](https://docs.gitlab.com/runner/) on a Ubuntu system to run *Gitlab Build Pipelines*.
+In a first step, the required software packages for PICLas and [reggie2.0](https://github.com/piclas-framework/reggie2.0) are installed on a new system.
+In a second step, the *gitlab-runner* program is installed and the setup of runner is described.
 
-### Required Installation of Software on Clean Ubuntu Setup (18.04)
-Latest tests on 
+#### Prerequisites: Installation of Software on Clean Ubuntu Setup (18.04)
+Latest tests on
 
   * Ubuntu (18.04), 3 Jul 2019
   * Ubuntu server (18.04.3 LTS), 19 Nov 2019
@@ -81,7 +223,7 @@ The script contains the following packages
 sudo apt-get update
 
 # compiler
-sudo apt-get install make cmake cmake-curses-gui gfortran g++ gcc 
+sudo apt-get install make cmake cmake-curses-gui gfortran g++ gcc
 
 # python
 sudo apt-get install python python-numpy python3 python3-numpy python3-matplotlib python-matplotlib
@@ -112,7 +254,7 @@ sudo apt-get install texlive-base
 sudo apt-get install texlive-latex-extra
 
 # hdf5-file viewer
-sudo apt-get install hdfview 
+sudo apt-get install hdfview
 
 # Install libs for reggie
 sudo apt-get install python-h5py
@@ -191,8 +333,8 @@ or by loading the modules directly in the gilab script file, e.g.,
 NOTE: The stack size limit has been removed here by `ulimit -s unlimited`, which might be required
 by memory consuming programs
 
-### Installation Steps for Gitlab Runners 
-Latest tests on 
+#### Installation of Gitlab Runners
+Latest tests on
 
   * Ubuntu (18.04) with gitlab-runner 10.5.0 (10.5.0), 3 Jul 2019
   * Ubuntu server (18.04.3 LTS) with gitlab-runner 10.5.0 (10.5.0), 19 Nov 2019
@@ -209,8 +351,8 @@ Latest tests on
     ```
     sudo gitlab-runner start
     ```
-3. Register a runner using a shell executor (follow the information in the official guideline as it 
-   can vary slightly from version to version), on gitlab see `Settings` $\rightarrow$ `CI / CD Settings` 
+3. Register a runner using a shell executor (follow the information in the official guideline as it
+   can vary slightly from version to version), on gitlab see `Settings` $\rightarrow$ `CI / CD Settings`
    $\rightarrow$ `Runners` (registration token during setup)
     ```
     sudo gitlab-runner register
@@ -223,19 +365,19 @@ Latest tests on
     ```
     ssh-keygen -t ecdsa -b 521
     ```
-    Add key to `Enabled deploy keys`. If multiple codes are on gitlab, add the key to one 
+    Add key to `Enabled deploy keys`. If multiple codes are on gitlab, add the key to one
     repository and select the key on the other repositories via `Privately accessible deploy keys`.
 
     Clone a code from each platform to create known hosts then
     ```
     sudo cp .ssh/*  /var/lib/gitlab-runner/.ssh
     ```
-    Check rights in this folder. If necessary make gitlab-runner own the files with 
+    Check rights in this folder. If necessary make gitlab-runner own the files with
     ```
     sudo chown -R gitlab-runner:gitlab-runner /var/lib/gitlab-runner/.ssh/
     ```
     If the runner is used to push to remote repositories, add the public key under *deploy keys*
-    and execute, e.g., 
+    and execute, e.g.,
     ```
     sudo -u gitlab-runner git clone git@github.com:piclas-framework/piclas.git piclas_github
     ```
@@ -245,10 +387,7 @@ Latest tests on
 
 NOTE: Interesting information is found in `/etc/systemd/system/gitlab-runner.service`.
 
-
-
-
-### **Configuration files**
+#### Configuration Files
 
 The runner services can be adjusted by changing the settings in the file
 
@@ -310,7 +449,7 @@ check_interval = 0
   [runners.cache]
 ```
 
-### Automatic Deployment to other platforms
+#### Automatic Deployment to Other Platforms (GitHub)
 
 1. Add the required ssh key to the deploy keys on the respective platform (e.g. github)
 1. Clone a code from the platform to update the list of known hosts. Do not forget to copy the
