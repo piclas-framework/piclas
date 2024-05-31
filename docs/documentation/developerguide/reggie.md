@@ -14,9 +14,9 @@ defined in the *analysis.ini* files that can be applied and the general structur
 Different tests are executed on check-in, during nightly or weekly testing. These tests are defined
 in the file *.gitlab-ci.yml* that is located in the top level repository directory of PICLas.
 In this file, various tests are defined, which are found under *regressioncheck* and a summary
-of the different tests for piclas are given under [here](https://github.com/piclas-framework/piclas/blob/master/REGGIE.md).
+of the different tests for PICLas are given [here](https://github.com/piclas-framework/piclas/blob/master/REGGIE.md).
 The automatic execution by a [Gitlab Runner](https://docs.gitlab.com/runner/) can be performed on any machine that is connected to the
-internet and in the following sections, the setup of such a machine is described
+internet and in the following sections, the setup of such a machine is described.
 
 ### Local execution of reggie2.0
 To quickly test regression checks locally, either to reproduce an error that has occurred during a GitLab pipeline or to test newly
@@ -68,17 +68,17 @@ developed code, the [reggie2.0](https://github.com/piclas-framework/reggie2.0) t
 
        cmake ..  -DCMAKE_BUILD_TYPE=Debug -DLIBS_BUILD_HDF5=OFF -DPICLAS_POLYNOMIAL_DEGREE=N -DPICLAS_EQNSYSNAME=poisson -DPICLAS_TIMEDISCMETHOD=RK3 -DLIBS_USE_MPI=ON -DPICLAS_NODETYPE=GAUSS -DPICLAS_PARTICLES=ON -DPICLAS_CODE_ANALYZE=ON -DPICLAS_PETSC=OFF
 
-   The last line can directly be copied into the terminal within a build directory to generate the make files for compiling piclas with the
+   The last line can directly be copied into the terminal within a build directory to generate the make files for compiling PICLas with the
    first set of parameter options given in the *builds.ini* file (ignoring the *nocrosscombination* statements).
-   Simply adjust the last line to have the correct flags set, execute *cmake* in the *build* directory and run *make* to compile
+   Simply adjust the last line to have the correct flags set, execute *cmake* in the *build* directory and run *make* to compile:
 
        cmake ..  -DCMAKE_BUILD_TYPE=Debug -DLIBS_BUILD_HDF5=OFF -DPICLAS_POLYNOMIAL_DEGREE=N -DPICLAS_EQNSYSNAME=poisson -DPICLAS_TIMEDISCMETHOD=RK3 -DLIBS_USE_MPI=ON -DPICLAS_NODETYPE=GAUSS -DPICLAS_PARTICLES=ON -DPICLAS_CODE_ANALYZE=ON -DPICLAS_PETSC=ON
        make -j
 
    Note that `-DPICLAS_PETSC=ON` has been adjusted in the above command.
-   This will compile the piclas executable and it will be placed in the current directory under *bin*.
-   Important note: Some regression tests build the hopr meshes "on-the-fly", hence, the *hopr* executable is required and there are
-   different possibilities to supply the *hopr* executable that is required:
+   This will compile the *piclas* executable and it will be placed in the current directory under *bin*.
+   Important note: Some regression tests build the hopr meshes "on-the-fly", hence, the *hopr* executable is required additionally.
+   There are different possibilities to supply the *hopr* executable that is required:
 
    1. Set the compile flag `LIBS_DOWNLOAD_HOPR=ON`, which automatically downloads the *hopr* executable and places a link under
       *./bin* in the current build directory. This can be used if the *piclas* executable is compiled by hand.
@@ -86,7 +86,7 @@ developed code, the [reggie2.0](https://github.com/piclas-framework/reggie2.0) t
 
 1. Run the [reggie2.0](https://github.com/piclas-framework/reggie2.0) tool either a) automatic mode or b) pre-compiled mode:
 
-   This file is used to compile one or more piclas executables and the directories that accompany the *builds.ini* file will be used
+   This file is used to compile one or more *piclas* executables and the directories that accompany the *builds.ini* file will be used
    for testing. Note that not all executables might be used for those directories, as they might be excluded via the
    *excludebuild.ini* file.
 
@@ -101,7 +101,7 @@ developed code, the [reggie2.0](https://github.com/piclas-framework/reggie2.0) t
    All output is placed under a new directory *output_dir* within the current directory.
    Never run the [reggie2.0](https://github.com/piclas-framework/reggie2.0) tool from within the */path/to/piclas/regressioncheck/*
    //as the directory tree structure is copied from there and the source path and target path cannot be the same!
-   This procedure will run all the example directories under *NIG_DSMC*
+   This procedure will run all the example directories under *NIG_DSMC*.
 
        ls /path/to/piclas/regressioncheck/NIG_DSMC
 
@@ -130,7 +130,7 @@ developed code, the [reggie2.0](https://github.com/piclas-framework/reggie2.0) t
        -i, --noMPI           Run program without "mpirun" (single thread execution).
 
    for analysis files, which use a reference file with which the output of a run is compared.
-   here, the flag `-i` is used to created the reference file with a single-core run, which is suggested as a best practice as the
+   Here, the flag `-i` is used to create the reference file with a single-core run, which is suggested as a best practice as the
    actual run might be performed with multiple cores and the output should ideally be the same.
    An example is given under [regressioncheck/WEK_DSMC/ChannelFlow_SurfChem_AdsorpDesorp_CO_O2](https://github.com/piclas-framework/piclas/blob/master/regressioncheck/WEK_DSMC/ChannelFlow_SurfChem_AdsorpDesorp_CO_O2/analyze.ini)
    where *.h5* files are compared.
@@ -166,7 +166,7 @@ Per default, `DO_CHECKIN`, `DO_NIGHTLY`, `DO_WEEKLY`, `DO_NODE_SPLIT` and `DO_CO
 ### Local Testing using *gitlab-ci-local*
 
 To locally test the GitLab CI (including a YAML verification), [gitlab-ci-local](https://github.com/firecow/gitlab-ci-local) can be used.
-An installation guide can be found here: [Link](https://github.com/firecow/gitlab-ci-local#linux-based-on-debian).
+An installation guide can be found [here](https://github.com/firecow/gitlab-ci-local#linux-based-on-debian).
 After a successful installation, you can view the available parameters through
 ```
 gitlab-ci-local --help
