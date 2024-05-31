@@ -611,7 +611,6 @@ USE MOD_Globals
 USE MOD_Mesh_Tools                  ,ONLY: GetCNElemID
 USE MOD_Particle_Vars               ,ONLY: PEM,PDM
 USE MOD_Particle_Vars               ,ONLY: PartState,LastPartPos
-USE MOD_Particle_Vars               ,ONLY: Symmetry
 USE MOD_Particle_Mesh_Vars
 USE MOD_Particle_Tracking_vars      ,ONLY: ntracks,MeasureTrackTime, TrackInfo
 USE MOD_Particle_Boundary_Vars      ,ONLY: PartBound

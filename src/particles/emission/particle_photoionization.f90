@@ -54,13 +54,12 @@ USE MOD_Particle_Boundary_Vars  ,ONLY: GlobalSide2SurfSide
 #ifdef LSERK
 USE MOD_Timedisc_Vars           ,ONLY: iStage, RK_c, nRKStages
 #endif
-#if USE_MPI
-!USE MOD_Particle_Boundary_Vars  ,ONLY: nComputeNodeSurfTotalSides
-!USE MOD_MPI_Shared_Vars         ,ONLY: nComputeNodeProcessors,myComputeNodeRank
-#else
-USE MOD_Particle_Boundary_Vars  ,ONLY: nGlobalSurfSides
-#endif /*USE_MPI*/
-!USE MOD_Photon_TrackingVars     ,ONLY: PhotonSampWall
+! #if USE_MPI
+! USE MOD_Particle_Boundary_Vars  ,ONLY: nComputeNodeSurfTotalSides
+! USE MOD_MPI_Shared_Vars         ,ONLY: nComputeNodeProcessors,myComputeNodeRank
+! #else
+! USE MOD_Particle_Boundary_Vars  ,ONLY: nGlobalSurfSides
+! #endif /*USE_MPI*/
 USE MOD_Photon_TrackingVars     ,ONLY: PhotonSampWall_loc,PhotonSurfSideArea
 #if USE_HDG
 USE MOD_HDG_Vars                ,ONLY: UseFPC,FPC,UseEPC,EPC
