@@ -240,7 +240,7 @@ REAL                  :: omegaTemp, RotFreq
 CHARACTER(32)         :: hilf,hilf2
 CHARACTER(200)        :: tmpString
 CHARACTER(LEN=64)     :: dsetname
-LOGICAL               :: StickingCoefficientExists,FoundPartBoundSEE
+LOGICAL               :: StickingCoefficientExists,FoundPartBoundPhotonSEE,BoundaryUsesSEE
 INTEGER               :: iInit,iSpec
 !===================================================================================================================================
 ! Read in boundary parameters
@@ -480,6 +480,7 @@ DO iPartBound=1,nPartBound
 
     ! Surface Model (e.q. SEE, sticking, etc.)
     PartBound%SurfaceModel(iPartBound)    = GETINT('Part-Boundary'//TRIM(hilf)//'-SurfaceModel')
+    BoundaryUsesSEE = .FALSE.
     IF (PartBound%SurfaceModel(iPartBound).GT.0)THEN
       IF (.NOT.useDSMC) CALL abort(__STAMP__,'Cannot use surfacemodel>0 with useDSMC=F for particle boundary: ',iPartBound)
       SELECT CASE (PartBound%SurfaceModel(iPartBound))
@@ -494,6 +495,7 @@ DO iPartBound=1,nPartBound
       CASE (SEE_MODELS_ID) ! See ./src/piclas.h for numbers
         ! SEE models require reactive BC
         PartBound%Reactive(iPartBound)        = .TRUE.
+        BoundaryUsesSEE = .TRUE.
       CASE (VDL_MODEL_ID) ! VDL - cannot be actively selected! See ./src/piclas.h for numbers
         CALL abort(__STAMP__,'Part-Boundary'//TRIM(hilf)//'-SurfaceModel = VDL_MODEL_ID,SEE_VDL_MODEL_ID cannot be selected!')
       CASE DEFAULT
@@ -515,9 +517,7 @@ DO iPartBound=1,nPartBound
     PartBound%MaxTotalCoverage(iPartBound) = GETREAL('Part-Boundary'//TRIM(hilf)//'-MaxTotalCoverage', '1.')
     ! Check if the maximum of the coverage is reached
     IF (PartBound%TotalCoverage(iPartBound).GT.PartBound%MaxTotalCoverage(iPartBound)) THEN
-      CALL abort(&
-    __STAMP__&
-    ,'ERROR: Maximum surface coverage reached.', iPartBound)
+      CALL abort(__STAMP__,'ERROR: Maximum surface coverage reached.', iPartBound)
     END IF
 
     ! Species Swap
@@ -543,8 +543,8 @@ DO iPartBound=1,nPartBound
             ' for every species (except background gas species) or\n   '//&
             'b) surface model that is reactive (Part-BoundaryX-SurfaceModel)!')
       ELSE
-        DoDielectricSurfaceCharge = .TRUE.
-        DoHaloDepo                = .TRUE.
+        DoDielectricSurfaceCharge = .TRUE. ! Global setting indicating surface charging via VDL or PartBound%Dielectric
+        DoHaloDepo                = .TRUE. ! Activate deposition in the halo region (shape function)
         IF(TRIM(DepositionType).NE.'cell_volweight_mean') CALL CollectiveStop(__STAMP__,&
             'PartBound%Dielectric=T requires cell_volweight_mean (12) as deposition method')
       END IF ! PartBound%NbrOfSpeciesSwaps(iPartBound).NE.nSpecies
@@ -568,19 +568,12 @@ DO iPartBound=1,nPartBound
 #endif /*USE_HDG*/
       ! VDL settings
       PartBound%ThicknessVDL(iPartBound) = GETREAL('Part-Boundary'//TRIM(hilf)//'-ThicknessVDL')
-      DoVirtualDielectricLayer           = .TRUE.
+      DoVirtualDielectricLayer           = .TRUE. ! Global setting indicating that VDL is active
       PartBound%Reactive(iPartBound)     = .TRUE. ! VDL requires reactive BC for analysis
-      ! Check if pure VDL or SEE+VDL boundary
-      IF(PartBound%PhotonSEEYield(iPartBound).GT.0.)THEN
-        ! Combine "99" with the SEE index, e.g., [990,994,995,996,997,998,999,9910,9911]
-        ! 990: photon-SEE because PartBound%SurfaceModel = 0 if not regular SEE model is applied to the surface
-        WRITE(UNIT=hilf2,FMT='(I0)') PartBound%SurfaceModel(iPartBound)
-        CALL str2int('99'//TRIM(hilf2),PartBound%SurfaceModel(iPartBound),IERROR)
-      ELSE ! only VDL without SEE
-        PartBound%SurfaceModel(iPartBound) = 99 ! VDL
-      END IF ! PartBound%PhotonSEEYield(iPartBound).GT.0.
-      DoDielectricSurfaceCharge          = .TRUE.
-      DoHaloDepo                         = .TRUE.
+      DoDielectricSurfaceCharge          = .TRUE. ! Global setting indicating surface charging via VDL or PartBound%Dielectric
+      DoHaloDepo                         = .TRUE. ! Activate deposition in the halo region (shape function)
+      ! Check if pure VDL or SEE+VDL boundary. Only set SurfaceModel=99 when not other model is present
+      IF(.NOT.((PartBound%PhotonSEEYield(iPartBound).GT.0.).OR.BoundaryUsesSEE)) PartBound%SurfaceModel(iPartBound) = 99 ! VDL only
 #if !((PP_TimeDiscMethod==500) || (PP_TimeDiscMethod==501) || (PP_TimeDiscMethod==502) || (PP_TimeDiscMethod==506) || (PP_TimeDiscMethod==508) || (PP_TimeDiscMethod==509))
       CALL abort(__STAMP__,'VDL model not implemented for the given time discretisation!')
 #endif /*!((PP_TimeDiscMethod==500) || (PP_TimeDiscMethod==501) || (PP_TimeDiscMethod==502) || (PP_TimeDiscMethod==506) || (PP_TimeDiscMethod==508) || (PP_TimeDiscMethod==509))*/
@@ -629,18 +622,18 @@ DO iPartBound=1,nPartBound
 END DO
 
 ! Check if there is an particle init with photon SEE
-FoundPartBoundSEE=.FALSE.
+FoundPartBoundPhotonSEE=.FALSE.
 SpecLoop: DO iSpec=1,nSpecies
   DO iInit=1, Species(iSpec)%NumberOfInits
     IF(StringBeginsWith(Species(iSpec)%Init(iInit)%SpaceIC,'photon_SEE'))THEN
-      FoundPartBoundSEE = .TRUE.
+      FoundPartBoundPhotonSEE = .TRUE.
       EXIT SpecLoop
     END IF ! StringBeginsWith(Species(iSpec)%Init(iInit)%SpaceIC,'photon_SEE')
   END DO
 END DO SpecLoop
 
 ! Connect emission inits to particle boundaries for output
-IF(DoBoundaryParticleOutputHDF5.OR.FoundPartBoundSEE) CALL InitializeVariablesSpeciesBoundary()
+IF(DoBoundaryParticleOutputHDF5.OR.FoundPartBoundPhotonSEE) CALL InitializeVariablesSpeciesBoundary()
 
 PartBound%AdaptWallTemp = GETLOGICAL('Part-AdaptWallTemp')
 
@@ -755,8 +748,7 @@ DO BCSideID=1,nBCSides
 
   ! Exclude non-VDL boundaries
   iPartBound = PartBound%MapToPartBC(BC(BCSideID))
-  SELECT CASE(PartBound%SurfaceModel(iPartBound))
-  CASE(VDL_MODEL_ID,SEE_VDL_MODEL_ID)
+  IF(ABS(PartBound%PermittivityVDL(iPartBound)).GT.0.0)THEN
     ! Get local and global element index
     iElem        = SideToElem(S2E_ELEM_ID,BCSideID)
     GlobalElemID = GetGlobalElemID(iElem)
@@ -782,7 +774,7 @@ DO BCSideID=1,nBCSides
     ElementThicknessVDL(iElem) = MAXVAL(distances) - MINVAL(distances)
     ! Sanity check
     IF(ElementThicknessVDL(iElem).LT.0.) CALL abort(__STAMP__,'ElementThicknessVDL(iElem) is negative for iElem=',IntInfoOpt=iElem)
-  END SELECT ! PartBound%SurfaceModel(iPartBound)
+  END IF ! ABS(PartBound%PermittivityVDL(iPartBound)).GT.0.0
 
 END DO ! BCSideID=1,nBCSides
 
@@ -2446,6 +2438,7 @@ END IF ! PerformLoadBalance
 
 SDEALLOCATE(ElementThicknessVDL)
 SDEALLOCATE(StretchingFactorVDL)
+SDEALLOCATE(N_SurfVDL)
 
 END SUBROUTINE FinalizeParticleBoundary
 

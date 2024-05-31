@@ -259,9 +259,7 @@ DO BCSideID=1,nBCSides
 
           ! 3. Check if SEE holes are to be deposited
           IF(DoVirtualDielectricLayer)THEN
-            SELECT CASE(PartBound%SurfaceModel(iPartBound))
-            CASE(VDL_MODEL_ID,SEE_VDL_MODEL_ID)
-
+            IF(ABS(PartBound%PermittivityVDL(iPartBound)).GT.0.0)THEN
               ! Set velocity to zero as these virtual particles are deleted after the tracking/MPI communication step
               Velo3D(1:3) = 0.
 
@@ -279,7 +277,7 @@ DO BCSideID=1,nBCSides
               ! The Particle is removed after MPI communication because the new position might be on a different process due to the displacement
               PartSpecies(PartID) = PartSpecies(PartID) + SpeciesOffsetVDL
               PartSpecies(PartID) = -PartSpecies(PartID)
-            END SELECT! PartBound%SurfaceModel(iPartBound)
+            END IF ! ABS(PartBound%PermittivityVDL(iPartBound)).GT.0.0
           END IF ! DoVirtualDielectricLayer
 #endif /*USE_HDG*/
         END DO ! iPart = 1, NbrOfSEE

@@ -504,7 +504,7 @@ END SUBROUTINE DiffuseReflection
 !===================================================================================================================================
 !> Routine for the particle emission at a surface due to a single particle-wall interaction
 !===================================================================================================================================
-SUBROUTINE SurfaceModelParticleEmission(n_loc, PartID, SideID, ProductSpec, ProductSpecNbr, TempErgy, GlobElemID, POI_vec, EnergyDistribution)
+SUBROUTINE SurfaceModelParticleEmission(n_loc, PartID, SideID, ProductSpec, ProductSpecNbr, TempErgy, GlobalElemID, POI_vec, EnergyDistribution)
 ! MODULES
 USE MOD_Globals!                   ,ONLY: OrthoNormVec
 USE MOD_Part_Tools                ,ONLY: VeloFromDistribution
@@ -522,7 +522,7 @@ IMPLICIT NONE
 REAL,INTENT(IN)       :: n_loc(1:3)         !< normal vector of the surface
 REAL,INTENT(IN)       :: POI_vec(1:3)       !< Point Of Intersection
 INTEGER,INTENT(IN)    :: PartID, SideID     !< Particle index and side index
-INTEGER,INTENT(IN)    :: GlobElemID         !< global element ID of the impacting particle (used for creating a new particle)
+INTEGER,INTENT(IN)    :: GlobalElemID       !< global element ID of the impacting particle (used for creating a new particle)
 INTEGER,INTENT(IN)    :: ProductSpec        !< emitted species index
 INTEGER,INTENT(IN)    :: ProductSpecNbr     !< number of emitted particles
 REAL,INTENT(IN)       :: TempErgy           !< temperature, energy or velocity used for VeloFromDistribution
@@ -548,9 +548,9 @@ END IF
 CALL OrthoNormVec(n_loc,tang1,tang2)
 
 ! Get Elem Center
-BoundsOfElemCenter(1:3) = (/SUM(BoundsOfElem_Shared(1:2,1,GlobElemID)), &
-                            SUM(BoundsOfElem_Shared(1:2,2,GlobElemID)), &
-                            SUM(BoundsOfElem_Shared(1:2,3,GlobElemID)) /) / 2.
+BoundsOfElemCenter(1:3) = (/SUM(BoundsOfElem_Shared(1:2,1,GlobalElemID)), &
+                            SUM(BoundsOfElem_Shared(1:2,2,GlobalElemID)), &
+                            SUM(BoundsOfElem_Shared(1:2,3,GlobalElemID)) /) / 2.
 
 ! Create new particles
 DO iNewPart = 1, ProductSpecNbr
@@ -562,7 +562,7 @@ DO iNewPart = 1, ProductSpecNbr
   ! Create new position by using POI and moving the particle by eps in the direction of the element center
   NewPos(1:3) = eps*BoundsOfElemCenter(1:3) + eps2*POI_vec(1:3)
   ! Create new particle: in case of vMPF or VarTimeStep, new particle inherits the values of the old particle
-  CALL CreateParticle(ProductSpec,NewPos(1:3),GlobElemID,GlobElemID,NewVelo(1:3),0.,0.,0.,OldPartID=PartID,NewPartID=NewPartID)
+  CALL CreateParticle(ProductSpec,NewPos(1:3),GlobalElemID,GlobalElemID,NewVelo(1:3),0.,0.,0.,OldPartID=PartID,NewPartID=NewPartID)
   ! Adding the energy that is transferred from the surface onto the internal energies of the particle
   CALL SurfaceModelEnergyAccommodation(NewPartID,locBCID,WallTemp)
   ! Sampling of newly created particles

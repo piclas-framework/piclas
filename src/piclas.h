@@ -325,9 +325,6 @@
 ! Secondary electron emission: PartBound%SurfaceModel
 #define SEE_MODELS_ID 4,5,6,7,8,9,10,11
 
-! Virtual Dielectric Layer (VDL) + Secondary electron emission: PartBound%SurfaceModel
-#define SEE_VDL_MODEL_ID 990,994,995,996,997,998,999,9910,9911
-
 #if USE_HDG
 ! HDG Dirichlet BC Side IDs: BCType = BoundaryType(BC(SideID),BC_TYPE)
 #define HDGDIRICHLETBCSIDEIDS 2,4,5,6,7,8,50,51,52,60

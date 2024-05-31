@@ -95,7 +95,8 @@ REAL               :: ChargeImpact,PartPosImpact(1:3) !< Charge and position of 
 REAL               :: ChargeRefl                      !< Charge of reflected particle
 REAL               :: MPF                             !< macro-particle factor
 REAL               :: ChargeHole                      !< Charge of SEE electrons holes
-INTEGER            :: iProd
+INTEGER            :: iProd,iNewPart,NewPartID
+REAL               :: NewVelo(3), NewPos(1:3)
 !===================================================================================================================================
 !===================================================================================================================================
 ! 0.) Initial surface pre-treatment
@@ -177,7 +178,7 @@ CASE(20)  ! Catalytic gas-surface interaction: Adsorption or Eley-Rideal reactio
 !-----------------------------------------------------------------------------------------------------------------------------------
   CALL SurfaceModelChemistry(PartID,SideID,GlobalElemID,n_Loc,PartPosImpact(1:3))
 !-----------------------------------------------------------------------------------------------------------------------------------
-CASE (SEE_MODELS_ID)
+CASE (SEE_MODELS_ID)!,SEE_VDL_MODEL_ID)
   ! 5: SEE by Levko2015
   ! 6: SEE by Pagonakis2016 (originally from Harrower1956)
   ! 7: SEE-I (bombarding electrons are removed, Ar+ on different materials is considered for SEE)
@@ -224,11 +225,22 @@ CASE (SEE_MODELS_ID)
       END IF ! PartBound%Dielectric(locBCID)
 
       ! Method 2: Virtual dielectric layer (VDL)
-      SELECT CASE(PartBound%SurfaceModel(locBCID))
-      CASE(SEE_VDL_MODEL_ID)
-        !
-      END SELECT ! PartBound%SurfaceModel(locBCID)
-
+      IF(ABS(PartBound%PermittivityVDL(locBCID)).GT.0.0)THEN
+        ! Create new particles
+        DO iNewPart = 1, ProductSpecNbr
+          ! Set velocity to zero
+          NewVelo(1:3) = 0.0
+          ! Create new position by using POI
+          NewPos(1:3) = PartPosImpact(1:3)
+          ! Create new particle: in case of vMPF or VarTimeStep, new particle inherits the values of the old particle
+          CALL CreateParticle(ProductSpec(2),NewPos(1:3),GlobalElemID,GlobalElemID,NewVelo(1:3),0.,0.,0.,OldPartID=PartID,NewPartID=NewPartID)
+          ! This routines changes the species index and before the particle is deposited and removed, the species index cannot be
+          ! used anymore
+          CALL VirtualDielectricLayerDisplacement(NewPartID,SideID,n_Loc)
+          ! Invert species index to invert the charge later in the deposition step
+          PartSpecies(NewPartID) = -PartSpecies(NewPartID)
+        END DO ! iNewPart = 1, ProductSpecNbr
+      END IF ! ABS(PartBound%PermittivityVDL(locBCID)).GT.0.0
     END IF ! DoDeposition.AND.DoDielectricSurfaceCharge
   END IF
 !-----------------------------------------------------------------------------------------------------------------------------------

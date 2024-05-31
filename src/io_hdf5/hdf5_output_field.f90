@@ -390,16 +390,13 @@ ASSOCIATE (&
 
     ! Exclude non-VDL boundaries
     iPartBound = PartBound%MapToPartBC(BC(BCSideID))
-    SELECT CASE(PartBound%SurfaceModel(iPartBound))
-    CASE(VDL_MODEL_ID,SEE_VDL_MODEL_ID)
-
-      iElem        = SideToElem(S2E_ELEM_ID,BCSideID)
-      GlobalElemID = GetGlobalElemID(iElem)
-      Nloc         = N_DG_Mapping(2,iElem+offSetElem)
-      iLocSide     = SideToElem(S2E_LOC_SIDE_ID,BCSideID)
-
+    IF(ABS(PartBound%PermittivityVDL(iPartBound)).GT.0.0)THEN
+      iElem                 = SideToElem(S2E_ELEM_ID,BCSideID)
+      GlobalElemID          = GetGlobalElemID(iElem)
+      Nloc                  = N_DG_Mapping(2,iElem+offSetElem)
+      iLocSide              = SideToElem(S2E_LOC_SIDE_ID,BCSideID)
       GlobalNonUniqueSideID = GetGlobalNonUniqueSideID(GlobalElemID,iLocSide)
-      iSurfSide = GlobalSide2SurfSide(SURF_SIDEID,GlobalNonUniqueSideID)
+      iSurfSide             = GlobalSide2SurfSide(SURF_SIDEID,GlobalNonUniqueSideID)
 
       ! Map from Nloc to NMax
       IF(Nloc.EQ.NMax)THEN
@@ -415,8 +412,7 @@ ASSOCIATE (&
       CALL ChangeBasis2D(nVarSurfData, NMax, NMax, NtonSurfSample(NMax)%Vdm_N_EQ_SurfaceData ,&
                                         helpArray(1:nVarSurfData,1:nSurfSample,1:nSurfSample,iSurfSide) ,&
                                         helpArray(1:nVarSurfData,1:nSurfSample,1:nSurfSample,iSurfSide) )
-
-    END SELECT ! PartBound%SurfaceModel(iPartBound)
+    END IF ! ABS(PartBound%PermittivityVDL(iPartBound)).GT.0.0
   END DO ! BCSideID=1,nBCSides
 
   ! WARNING: Only the sampling leaders write the data to .h5

@@ -874,7 +874,7 @@ DO iBPO = 1, BPO%NPartBoundaries
         ! Event probability model
       CASE(SEE_MODELS_ID)
         ! all secondary electron models
-      CASE (VDL_MODEL_ID)
+      CASE (VDL_MODEL_ID)!,SEE_VDL_MODEL_ID)
         ! VDL - virtual dielectric layer
       CASE DEFAULT
         WRITE(UNIT=hilf,FMT='(I0)') iPartBound
