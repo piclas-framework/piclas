@@ -1560,7 +1560,7 @@ END FUNCTION InterpolateEmissionDistribution2D
 
 SUBROUTINE CalcPartSymmetryPos(Pos,Velo,ElectronVelo)
 !===================================================================================================================================
-! Calculates the symmetry possition (and velocity) of an particle from its 3D position
+! Calculates the symmetry position (and velocity) of a particle from its 3D position
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals

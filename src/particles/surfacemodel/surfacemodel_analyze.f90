@@ -759,6 +759,7 @@ USE MOD_Analyze_Vars              ,ONLY: DoSurfModelAnalyze
 USE MOD_Particle_Vars             ,ONLY: nSpecies,Species
 #if USE_MPI
 USE MOD_Globals                   ,ONLY: MPIRoot
+USE MOD_Mesh_Vars                 ,ONLY: BoundaryName
 #endif /*USE_MPI*/
 #if USE_HDG
 USE MOD_Globals                   ,ONLY: abort
@@ -768,7 +769,7 @@ USE MOD_Analyze_Vars              ,ONLY: CalcElectricTimeDerivative,FieldAnalyze
 USE MOD_LoadBalance_Vars          ,ONLY: PerformLoadBalance
 #endif /*USE_LOADBALANCE*/
 #endif /*USE_HDG*/
-USE MOD_Mesh_Vars                 ,ONLY: nBCs,BC,nBCSides,BoundaryName
+USE MOD_Mesh_Vars                 ,ONLY: nBCs,BC,nBCSides
 USE MOD_TimeDisc_Vars             ,ONLY: iter
 USE MOD_Mesh_Vars                 ,ONLY: N_SurfMesh
 USE MOD_Interpolation_Vars        ,ONLY: N_Inter

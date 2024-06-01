@@ -101,8 +101,7 @@ USE MOD_ReadInTools            ,ONLY: GETREAL,GETINT,GETLOGICAL,GETSTR,GETREALAR
 USE MOD_Mesh_Tools             ,ONLY: GetGlobalElemID, GetCNElemID
 #if USE_MPI
 USE MOD_Mesh_Vars              ,ONLY: offsetElem
-USE MOD_Particle_Mesh_Vars     ,ONLY: NodeInfo_Shared
-USE MOD_Particle_Mesh_Vars     ,ONLY: NodeToElemInfo,NodeToElemMapping,ElemNodeID_Shared
+USE MOD_Particle_Mesh_Vars     ,ONLY: NodeToElemInfo,NodeToElemMapping,ElemNodeID_Shared,NodeInfo_Shared
 USE MOD_MPI_Shared             ,ONLY: BARRIER_AND_SYNC
 USE MOD_MPI_Shared_Vars        ,ONLY: nComputeNodeTotalElems
 USE MOD_MPI_Shared_Vars        ,ONLY: nProcessors_Global

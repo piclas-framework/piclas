@@ -204,14 +204,15 @@ REAL,ALLOCATABLE                        :: PorousBCSampWall(:,:)  ! Processor-lo
 ! Particle Boundary
 !-----------------------------------------------------------------------------------------------------------------------------------
 TYPE tPartBoundary
-  INTEGER                                :: OpenBC                  = 1      ! = 1 (s.u.) Boundary Condition Integer Definition
-  INTEGER                                :: ReflectiveBC            = 2      ! = 2 (s.u.) Boundary Condition Integer Definition
-  INTEGER                                :: PeriodicBC              = 3      ! = 3 (s.u.) Boundary Condition Integer Definition
-  INTEGER                                :: RotPeriodicBC           = 6      ! = 6 (s.u.) Boundary Condition Integer Definition
-  INTEGER                                :: RotPeriodicInterPlaneBC = 7      ! = 7 (s.u.) Boundary Condition Integer Definition
-  INTEGER                                :: SymmetryBC              = 10     ! = 10 (s.u.) Boundary Condition Integer Definition
-  INTEGER                                :: SymmetryAxis            = 11     ! = 10 (s.u.) Boundary Condition Integer Definition
-  INTEGER                                :: VDL                     = 20     ! = 20 (s.u.) Boundary Condition Integer Definition
+  INTEGER                                :: OpenBC                  = 1  ! Particles are deleted at the boundary
+  INTEGER                                :: ReflectiveBC            = 2  ! Specular (default) and diffuse reflection, many other models
+  INTEGER                                :: PeriodicBC              = 3  ! Particles are transformed according to the periodic vectors
+  INTEGER                                :: RotPeriodicBC           = 6  ! Particles are rotated around an axis according to an angle
+  INTEGER                                :: RotPeriodicInterPlaneBC = 7  ! Particles are transferred between non-conform BCs (connecting slices/cutouts with different RotPeriodicBC)
+  INTEGER                                :: SymmetryBC              = 10 ! Same as the default ReflectiveBC but without analysis
+  INTEGER                                :: SymmetryAxis            = 11 ! Symmetry axis for axisymmetric simulations (x-axis)
+  INTEGER                                :: SymmetryDim             = 12 ! BC for 1D, 2D and axisymmetric simulations in the neglected dimension(s)
+  !INTEGER                                :: VDL                     = 20 ! Particles are shifted away from the wall, deposited and then deleted to form a surface charge model
   CHARACTER(LEN=200)   , ALLOCATABLE     :: SourceBoundName(:)           ! Link part 1 for mapping PICLas BCs to Particle BC
   INTEGER              , ALLOCATABLE     :: TargetBoundCond(:)           ! Link part 2 for mapping PICLas BCs to Particle BC
   INTEGER              , ALLOCATABLE     :: MapToPartBC(:)               ! Map from PICLas BCindex to Particle BC (NOT TO TYPE!)

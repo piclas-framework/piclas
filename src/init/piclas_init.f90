@@ -89,13 +89,12 @@ USE MOD_MPI                  ,ONLY: InitMPIvars
 #endif /*USE_MPI*/
 #ifdef PARTICLES
 USE MOD_DSMC_Vars            ,ONLY: UseDSMC
-USE MOD_ParticleInit         ,ONLY: InitParticleGlobals,InitParticles
+USE MOD_ParticleInit         ,ONLY: InitParticleGlobals,InitParticles,InitSymmetry
 USE MOD_TTMInit              ,ONLY: InitTTM,InitIMD_TTM_Coupling
 USE MOD_TTM_Vars             ,ONLY: DoImportTTMFile
 USE MOD_Particle_Analyze     ,ONLY: InitParticleAnalyze
 USE MOD_SurfaceModel_Analyze ,ONLY: InitSurfModelAnalyze
 USE MOD_Particle_MPI         ,ONLY: InitParticleMPI
-USE MOD_DSMC_Symmetry        ,ONLY: Init_Symmetry
 #if USE_MPI
 USE mod_readIMD              ,ONLY: initReadIMDdata,read_IMD_results
 #endif /* USE_MPI */
@@ -139,7 +138,7 @@ WRITE(UNIT=TimeStampLenStr ,FMT='(I0)') TimeStampLength
 ! DSMC handling:
 useDSMC=GETLOGICAL('UseDSMC')
 
-CALL Init_Symmetry()
+CALL InitSymmetry()
 
 #endif /*PARTICLES*/
 
@@ -481,6 +480,5 @@ IF(.NOT.IsLoadBalance) THEN
 END IF
 
 END SUBROUTINE FinalizeLoadBalance
-
 
 END MODULE MOD_Piclas_Init

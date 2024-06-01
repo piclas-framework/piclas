@@ -30,12 +30,48 @@ INTERFACE GetSideBoundingBoxTria
   MODULE PROCEDURE GetSideBoundingBoxTria
 END INTERFACE
 
+! Define an interface for the function pointer
+ABSTRACT INTERFACE
+  SUBROUTINE ParticleInsideQuadInterface(PartStateLoc,ElemID,InElementCheck,Det_Out)
+    INTEGER,INTENT(IN)            :: ElemID
+    REAL   ,INTENT(IN)            :: PartStateLoc(3)
+    LOGICAL,INTENT(OUT)           :: InElementCheck
+    REAL   ,INTENT(OUT),OPTIONAL  :: Det_Out(6,2)
+  END SUBROUTINE
+END INTERFACE
+
+!> Pointer defining the localization routine based on the symmetry order
+PROCEDURE(ParticleInsideQuadInterface),POINTER :: ParticleInsideQuad => NULL()
+
 PUBLIC :: ParticleInsideQuad3D, InitPEM_LocalElemID, InitPEM_CNElemID, GetGlobalNonUniqueSideID, GetSideBoundingBoxTria
 PUBLIC :: GetMeshMinMax, IdentifyElemAndSideType, WeirdElementCheck, CalcParticleMeshMetrics, CalcXCL_NGeo
-PUBLIC :: CalcBezierControlPoints, InitParticleGeometry, ComputePeriodicVec
+PUBLIC :: CalcBezierControlPoints, InitParticleGeometry, ComputePeriodicVec, ParticleInsideQuad2D, ParticleInsideQuad
+PUBLIC :: InitParticleInsideQuad
 !===================================================================================================================================
 CONTAINS
 
+!==================================================================================================================================!
+!> Initialize ParticleInsideQuad depending on symmetry dimension using a function pointer
+!==================================================================================================================================!
+SUBROUTINE InitParticleInsideQuad()
+! MODULES
+USE MOD_Globals
+USE MOD_Particle_Vars            ,ONLY: Symmetry
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!==================================================================================================================================
+
+IF (Symmetry%Order.EQ.3) THEN
+  ParticleInsideQuad => ParticleInsideQuad3D
+ELSE IF (Symmetry%Order.EQ.2) THEN
+  ParticleInsideQuad => ParticleInsideQuad2D
+ELSE IF (Symmetry%Order.EQ.1) THEN
+  ParticleInsideQuad => ParticleInsideQuad1D
+ELSE
+  CALL abort(__STAMP__,'ERROR in InitParticleInsideQuad: Function pointer could not be properly defined!')
+END IF
+
+END SUBROUTINE InitParticleInsideQuad
 
 !PPURE SUBROUTINE ParticleInsideQuad3D(PartStateLoc,ElemID,InElementCheck,Det)
 SUBROUTINE ParticleInsideQuad3D(PartStateLoc,ElemID,InElementCheck,Det_Out)
@@ -184,6 +220,101 @@ RETURN
 
 END SUBROUTINE ParticleInsideQuad3D
 
+SUBROUTINE ParticleInsideQuad2D(PartStateLoc,ElemID,InElementCheck,Det_Out)
+!===================================================================================================================================
+!> Checks if particle is inside of a linear 2D element with 4  faces, compatible with mortars. The "Ray Casting Algorithm" is used.
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals
+USE MOD_Mesh_Tools            ,ONLY: GetCNElemID
+USE MOD_Particle_Mesh_Vars    ,ONLY: ElemInfo_Shared,SideInfo_Shared,NodeCoords_Shared, SideIsSymSide
+USE MOD_Particle_Mesh_Vars    ,ONLY :ElemSideNodeID2D_Shared
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+! INPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT/OUTPUT VARIABLES
+INTEGER,INTENT(IN)            :: ElemID
+REAL   ,INTENT(IN)            :: PartStateLoc(3)
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+LOGICAL,INTENT(OUT)           :: InElementCheck
+REAL   ,INTENT(OUT),OPTIONAL  :: Det_Out(6,2)
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER                       :: ilocSide, TempSideID, nlocSides, localSideID
+INTEGER                       :: CNElemID
+REAL                          :: x_int, xNode1, xNode2, yNode1, yNode2
+!===================================================================================================================================
+CNElemID = GetCNElemID(ElemID)
+InElementCheck = .FALSE.
+nlocSides = ElemInfo_Shared(ELEM_LASTSIDEIND,ElemID) -  ElemInfo_Shared(ELEM_FIRSTSIDEIND,ElemID)
+
+DO iLocSide=1,nlocSides
+  TempSideID = ElemInfo_Shared(ELEM_FIRSTSIDEIND,ElemID) + iLocSide
+  localSideID = SideInfo_Shared(SIDE_LOCALID,TempSideID)
+  ! Side is not one of the 6 local sides
+  IF (localSideID.LE.0) CYCLE
+  IF (SideIsSymSide(TempSideID)) CYCLE
+  xNode1 = NodeCoords_Shared(1,ElemSideNodeID2D_Shared(1,localSideID, CNElemID))
+  yNode1 = NodeCoords_Shared(2,ElemSideNodeID2D_Shared(1,localSideID, CNElemID))
+  xNode2 = NodeCoords_Shared(1,ElemSideNodeID2D_Shared(2,localSideID, CNElemID))
+  yNode2 = NodeCoords_Shared(2,ElemSideNodeID2D_Shared(2,localSideID, CNElemID))
+  IF ( (yNode1 >= PartStateLoc(2) .AND. yNode2 < PartStateLoc(2)) .OR. &
+       (yNode1 < PartStateLoc(2) .AND. yNode2 >= PartStateLoc(2)) ) THEN
+    ! Compute x-coordinate of the intersection point
+    x_int = (PartStateLoc(2)- yNode1) * (xNode2 - xNode1) / (yNode2 - yNode1) + xNode1
+    ! Check if the ray crosses the edge to the right
+    IF (x_int > PartStateLoc(1)) THEN
+      InElementCheck = .NOT.InElementCheck
+    END IF
+  END IF
+END DO
+END SUBROUTINE ParticleInsideQuad2D
+
+SUBROUTINE ParticleInsideQuad1D(PartStateLoc,ElemID,InElementCheck,Det_Out)
+!===================================================================================================================================
+!> Checks if particle is inside of a 1D element. 
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals
+USE MOD_Mesh_Tools            ,ONLY: GetCNElemID
+USE MOD_Particle_Mesh_Vars    ,ONLY: ElemInfo_Shared,SideInfo_Shared,NodeCoords_Shared, SideIsSymSide
+USE MOD_Particle_Mesh_Vars    ,ONLY :ElemSideNodeID1D_Shared
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+! INPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT/OUTPUT VARIABLES
+INTEGER,INTENT(IN)            :: ElemID
+REAL   ,INTENT(IN)            :: PartStateLoc(3)
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+LOGICAL,INTENT(OUT)           :: InElementCheck
+REAL   ,INTENT(OUT),OPTIONAL  :: Det_Out(6,2)
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER                       :: ilocSide, TempSideID, nlocSides, localSideID, DiffSign(2), iSide
+INTEGER                       :: CNElemID
+REAL                          :: xNode
+!===================================================================================================================================
+CNElemID = GetCNElemID(ElemID)
+InElementCheck = .FALSE.
+nlocSides = ElemInfo_Shared(ELEM_LASTSIDEIND,ElemID) -  ElemInfo_Shared(ELEM_FIRSTSIDEIND,ElemID)
+iSide = 0
+DO iLocSide=1,nlocSides
+  TempSideID = ElemInfo_Shared(ELEM_FIRSTSIDEIND,ElemID) + iLocSide
+  localSideID = SideInfo_Shared(SIDE_LOCALID,TempSideID)
+  ! Side is not one of the 6 local sides
+  IF (localSideID.LE.0) CYCLE
+  IF (SideIsSymSide(TempSideID)) CYCLE
+  xNode = NodeCoords_Shared(1,ElemSideNodeID1D_Shared(localSideID, CNElemID))
+  iSide = iSide + 1
+  DiffSign(iSide) = NINT(SIGN(1.,PartStateLoc(1) - xNode))
+  IF (iSide.EQ.2) EXIT
+END DO
+IF (DiffSign(1).NE.DiffSign(2)) InElementCheck = .TRUE.
+END SUBROUTINE ParticleInsideQuad1D
 
 PPURE SUBROUTINE ParticleInsideNbMortar(PartStateLoc,ElemID,InElementCheck)
 !===================================================================================================================================

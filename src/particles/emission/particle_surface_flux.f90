@@ -235,7 +235,11 @@ DO iSpec=1,nSpecies
           PDM%dtFracPush(ParticleIndexNbr) = .TRUE.
           PDM%IsNewPart(ParticleIndexNbr) = .TRUE.
           PEM%GlobalElemID(ParticleIndexNbr) = globElemId
-          PEM%LastGlobalElemID(ParticleIndexNbr) = globElemId !needed when ParticlePush is not executed, e.g. "delay"
+          IF (Symmetry%Order.LE.2) THEN
+            PEM%LastGlobalElemID(ParticleIndexNbr) = -SideID
+          ELSE
+            PEM%LastGlobalElemID(ParticleIndexNbr) = globElemId !needed when ParticlePush is not executed, e.g. "delay"
+          END IF
           iPartTotal = iPartTotal + 1
           IF (UseVarTimeStep) THEN
             PartTimeStep(ParticleIndexNbr) = GetParticleTimeStep(PartState(1,ParticleIndexNbr),PartState(2,ParticleIndexNbr), &
