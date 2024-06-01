@@ -266,6 +266,10 @@ DO i = 1, 2
   CALL prms%finalize(.TRUE.) ! is the same as CALL FinalizeParameters(), but considers load balancing
 END DO ! i = 1, 2
 
+DEALLOCATE(Dollar)
+DEALLOCATE(RealOption)
+DEALLOCATE(IntOption)
+
 CALL prms%finalize(.FALSE.) ! is the same as CALL FinalizeParameters(), but considers load balancing
 
 #if USE_MPI
