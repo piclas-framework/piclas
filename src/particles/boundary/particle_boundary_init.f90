@@ -539,6 +539,9 @@ DO iPartBound=1,nPartBound
   CASE('symmetric_axis')
     PartBound%TargetBoundCond(iPartBound) = PartBound%SymmetryAxis
     PartBound%WallVelo(1:3,iPartBound)    = (/0.,0.,0./)
+  CASE('symmetric_dim')
+    PartBound%TargetBoundCond(iPartBound) = PartBound%SymmetryDim
+    PartBound%WallVelo(1:3,iPartBound)    = (/0.,0.,0./)
   CASE('rot_periodic')
     PartBound%UseRotPeriodicBC = .TRUE.
     nRotPeriodicBCs  = nRotPeriodicBCs + 1
@@ -1952,6 +1955,7 @@ LOGICAL                           :: HasInterPlaneOnProc(nPartBound)
 
 ALLOCATE(InterPlanePartIndx(1:PDM%maxParticleNumber), STAT=ALLOCSTAT)
 IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__,'ERROR in particle_boundary_init.f90: Cannot allocate InterPlanePartIndx array!')
+InterPlanePartIndx = 0
 
 HasInterPlaneOnProc = .FALSE.
 
