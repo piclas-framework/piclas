@@ -83,7 +83,7 @@ USE MOD_Particle_Boundary_Vars  ,ONLY: PartBound
 USE MOD_Particle_Mesh_Vars      ,ONLY: GEO,LocalVolume,MeshVolume
 USE MOD_DSMC_Vars               ,ONLY: SymmetrySide
 USE MOD_Particle_Mesh_Vars      ,ONLY: ElemVolume_Shared,ElemCharLength_Shared
-USE MOD_Particle_Mesh_Vars      ,ONLY: NodeCoords_Shared,ElemSideNodeID_Shared, SideInfo_Shared, SideIsSymSide_Shared, SideIsSymSide
+USE MOD_Particle_Mesh_Vars      ,ONLY: NodeCoords_Shared,ElemSideNodeID_Shared, SideInfo_Shared, SideIsSymSide
 USE MOD_Mesh_Tools              ,ONLY: GetCNElemID
 USE MOD_Particle_Mesh_Tools     ,ONLY: GetGlobalNonUniqueSideID
 USE MOD_Particle_Surfaces       ,ONLY: CalcNormAndTangTriangle
@@ -91,7 +91,7 @@ USE MOD_Particle_Surfaces       ,ONLY: CalcNormAndTangTriangle
 USE MOD_MPI_Shared
 USE MOD_MPI_Shared_Vars         ,ONLY: MPI_COMM_SHARED
 USE MOD_Particle_Mesh_Vars      ,ONLY: nNonUniqueGlobalSides, offsetComputeNodeElem, ElemInfo_Shared
-USE MOD_Particle_Mesh_Vars      ,ONLY: ElemVolume_Shared_Win,ElemCharLength_Shared_Win,SideIsSymSide_Shared_Win
+USE MOD_Particle_Mesh_Vars      ,ONLY: ElemVolume_Shared_Win,ElemCharLength_Shared_Win,SideIsSymSide_Shared,SideIsSymSide_Shared_Win
 USE MOD_MPI_Shared_Vars         ,ONLY: myComputeNodeRank,nComputeNodeProcessors,MPI_COMM_LEADERS_SHARED
 #else
 USE MOD_Particle_Mesh_Vars      ,ONLY: nComputeNodeSides
@@ -255,7 +255,7 @@ SUBROUTINE DSMC_1D_InitVolumes()
 USE MOD_Globals
 USE MOD_Mesh_Vars               ,ONLY: nElems, offsetElem
 USE MOD_Particle_Boundary_Vars  ,ONLY: PartBound
-USE MOD_Particle_Mesh_Vars      ,ONLY: GEO,LocalVolume,MeshVolume,SideIsSymSide_Shared, SideIsSymSide
+USE MOD_Particle_Mesh_Vars      ,ONLY: GEO,LocalVolume,MeshVolume, SideIsSymSide
 USE MOD_Particle_Mesh_Vars      ,ONLY: ElemVolume_Shared,ElemCharLength_Shared
 USE MOD_Particle_Mesh_Vars      ,ONLY: NodeCoords_Shared,ElemSideNodeID_Shared, SideInfo_Shared
 USE MOD_Mesh_Tools              ,ONLY: GetCNElemID
@@ -263,7 +263,7 @@ USE MOD_Particle_Mesh_Tools     ,ONLY: GetGlobalNonUniqueSideID
 #if USE_MPI
 USE MOD_MPI_Shared              
 USE MOD_MPI_Shared_Vars         ,ONLY: MPI_COMM_SHARED
-USE MOD_Particle_Mesh_Vars      ,ONLY: offsetComputeNodeElem,SideIsSymSide_Shared_Win, nNonUniqueGlobalSides
+USE MOD_Particle_Mesh_Vars      ,ONLY: offsetComputeNodeElem,SideIsSymSide_Shared,SideIsSymSide_Shared_Win, nNonUniqueGlobalSides
 USE MOD_Particle_Mesh_Vars      ,ONLY: ElemVolume_Shared_Win,ElemCharLength_Shared_Win, ElemInfo_Shared
 USE MOD_MPI_Shared_Vars         ,ONLY: myComputeNodeRank,nComputeNodeProcessors,MPI_COMM_LEADERS_SHARED
 #else
