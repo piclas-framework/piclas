@@ -27,21 +27,24 @@ Make sure that *latexmk* is installed on the system for compiling the PDF versio
     sudo apt-get install latexmk
 
 
-**HTML Version**
+### HTML Version
 
 Compile the html version of the user guide via
 
     python3 -m sphinx -T -E -b html -d _build/doctrees -D language=en . _build/html
 
-Check that no errors occur during compilation and then navigate to the created html files
+Check that no errors occur during compilation and then list the created html files
 
-    cd _build/html
+    ls -l _build/html
 
-Open index.html to see if everything has worked out correctly (e.g. with your favourite browser).
-Note that you can simply run the script *buildHTML.sh* in the *documentation* directory for this task.
+Open index.html to see if everything has worked out correctly (e.g. with your favourite browser) by running
+
+    firefox _build/html/index.html
+
+Note that you can simply run the script *buildHTML.sh* in the *documentation* directory for to compile the documentation.
 
 
-**PDF Version**
+### PDF Version
 
 Next, create the pdf output.
 
@@ -55,11 +58,20 @@ Finally, compile the pdf file
 
     latexmk -r latexmkrc -pdf -f -dvi- -ps- -jobname=piclas -interaction=nonstopmode
 
-and check if the pdf exists
+and make sure that now errors are encountered.
+Possibly missing latex libraries can be installed on an Ubuntu system via
+
+    sudo apt install texlive-latex-extra
+
+Check if the pdf exists
+
+    ls latex/piclas.pdf
+
+and open the file with any PDF viewer to read it.
+Note that you can simply run the script *buildPDF.sh* in the *documentation* directory for this task and open the resulting pdf file
+under
 
     ls _build/latex/piclas.pdf
-
-Note that you can simply run the script *buildPDF.sh* in the *documentation* directory for this task.
 
 ## Writing documentation
 
