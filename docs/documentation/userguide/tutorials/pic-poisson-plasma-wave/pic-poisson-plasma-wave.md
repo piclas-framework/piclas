@@ -8,10 +8,22 @@ chosen for this this tutorial. In this setup, electrons oscillate around the alm
 electric field.
 
 Before beginning with the tutorial, copy the `pic-poisson-plasma-wave` directory from the tutorial folder in the top level
-directory to a separate location
+directory of the piclas repository to a separate location
 
+    cd ~
+    mkdir -p workspace && cd workspace
     cp -r $PICLAS_PATH/tutorials/pic-poisson-plasma-wave .
     cd pic-poisson-plasma-wave
+
+where the variable `$PICLAS_PATH` contains the path to the location of the piclas repository.
+If the piclas repository is located in the home directory, simply run
+
+    cd ~
+    mkdir -p workspace && cd workspace
+    cp -r /home/$(whoami)/piclas/tutorials/pic-poisson-plasma-wave .
+    cd pic-poisson-plasma-wave
+
+Change the command to comply with your path if the piclas repository is somewhere else.
 
 ## Mesh Generation with HOPR (pre-processing)
 
@@ -92,12 +104,12 @@ Mesh with $60\times1\times1$ elements and a size of [$2\pi\times0.2\times0.2$] m
 Install **piclas** by compiling the source code as described in Chapter {ref}`userguide/installation:Installation`, specifically
 described under Section {ref}`userguide/installation:Compiling the code`.
 Always build the code in a separate directory located in the piclas top level directory.
-For this PIC tutorial, e.g., create a directory *build_poisson_RK3* by running
+For this PIC tutorial, e.g., create a directory *build_poisson_RK3* in the piclas repository by running
 
     cd $PICLAS_PATH
 
-where the variable `PICLAS_PATH` contains the path to the location of the piclas repository.
-If the piclas repository is located in the home directory, run
+where the variable `$PICLAS_PATH` contains the path to the location of the piclas repository.
+If the piclas repository is located in the home directory, simply run
 
     cd /home/$(whoami)/piclas
 
@@ -145,26 +157,28 @@ using the ccmake (gui for cmake) or simply run the following command from inside
 
 to configure the build process and run
 
-    make
+    make -j
 
 afterwards to compile the executable. For this setup, we have chosen the Poisson solver
 and selected the three-stage, third-order low-storage Runge-Kutta time discretization method. An overview over the available solver
 and discretization options is given in Section {ref}`sec:solver-settings`.
-To run the simulation and analyse the results, the *piclas* and *piclas2vtk* executables have to be run.
+
+To run the simulation and analyse the results, the *piclas* and *piclas2vtk* executables have to be executed.
 To avoid having to use the entire file path, you can either set aliases for both, copy them to your local tutorial directory or
 create a link to the files via
 
     ln -s $PICLAS_PATH/build_poisson_RK3/bin/piclas
     ln -s $PICLAS_PATH/build_poisson_RK3/bin/piclas2vtk
 
-where the variable `PICLAS_PATH` contains the path to the location of the piclas repository.
+where the variable `$PICLAS_PATH` contains the path to the location of the piclas repository.
 If the piclas repository is located in the home directory, the two commands
 
     ln -s /home/$(whoami)/piclas/build_poisson_RK3/bin/piclas
     ln -s /home/$(whoami)/piclas/build_poisson_RK3/bin/piclas2vtk
 
-can be executed.
+can be executed instead of using `$PICLAS_PATH`.
 Please check where piclas is located before running the commands.
+
 The simulation setup is defined in *parameter.ini*. For a specific electron number density, the plasma frequency of the system is
 given by
 
