@@ -43,6 +43,7 @@ Open index.html to see if everything has worked out correctly (e.g. with your fa
 
 Note that you can simply run the script *buildHTML.sh* in the *documentation* directory for to compile the documentation.
 
+    ./buildHTML.sh
 
 ### PDF Version
 
@@ -68,10 +69,13 @@ Check if the pdf exists
     ls latex/piclas.pdf
 
 and open the file with any PDF viewer to read it.
-Note that you can simply run the script *buildPDF.sh* in the *documentation* directory for this task and open the resulting pdf file
-under
+Note that you can simply run the script *buildPDF.sh* in the *documentation* directory for this task
 
-    ls _build/latex/piclas.pdf
+    ./buildPDF.sh
+
+and open the resulting pdf file
+
+    open _build/latex/piclas.pdf
 
 ## Writing documentation
 
