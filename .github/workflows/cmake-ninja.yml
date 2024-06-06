@@ -13,9 +13,9 @@ jobs:
     # See: https://docs.github.com/en/free-pro-team@latest/actions/learn-github-actions/managing-complex-workflows#using-a-build-matrix
     runs-on: ubuntu-latest
 
-    # Use centos7
+    # Use centos8
     container:
-      image: centos:7
+      image: centos:8
       options: --privileged
 
     steps:
@@ -23,7 +23,10 @@ jobs:
     - name: Install GIT
       shell: bash
       run: |
-        yum -y install https://packages.endpointdev.com/rhel/7/os/x86_64/endpoint-repo.x86_64.rpm
+        cd /etc/yum.repos.d/
+        sed -i 's/mirrorlist/#mirrorlist/g' /etc/yum.repos.d/CentOS-*
+        sed -i 's|#baseurl=http://mirror.centos.org|baseurl=http://vault.centos.org|g' /etc/yum.repos.d/CentOS-*
+        yum -y install https://packages.endpointdev.com/rhel/8/main/x86_64/endpoint-repo.noarch.rpm
         yum -y install git
         git --version
 
@@ -45,7 +48,9 @@ jobs:
         rpm -U --quiet p7zip-16.02-20.el7.x86_64.rpm
         rpm -U --quiet p7zip-plugins-16.02-20.el7.x86_64.rpm
         yum install -y epel-release
-        yum install -y make libasan gcc-gfortran gcc-c++ unzip openblas-devel lapack-devel zlib-devel tree fuse-sshfs fuse-libs file openmpi-devel wget python3
+        yum install -y 'dnf-command(config-manager)'
+        yum config-manager --set-enabled powertools
+        yum install -y make libasan gcc-gfortran gcc-c++ unzip openblas-devel lapack-devel zlib-devel tree fuse-sshfs fuse-libs file openmpi-devel wget python3 diffutils
         groupadd fuse
         user="$(whoami)"
         usermod -a -G fuse "$user"
@@ -58,13 +63,13 @@ jobs:
     - name: Install GNU GCC 8
       shell: bash
       run: |
-        yum install -y centos-release-scl
-        yum install -y devtoolset-8-gcc*
-        source /opt/rh/devtoolset-8/enable
-        scl enable devtoolset-8 bash
-        which gcc
-        echo 'source /opt/rh/devtoolset-8/enable' >> ~/.bashrc
-        echo 'scl enable devtoolset-8 bash' >> ~/.bashrc
+        #yum install -y centos-release-scl
+        #yum install -y devtoolset-8-gcc*
+        #source /opt/rh/devtoolset-8/enable
+        #scl enable devtoolset-8 bash
+        #which gcc
+        #echo 'source /opt/rh/devtoolset-8/enable' >> ~/.bashrc
+        #echo 'scl enable devtoolset-8 bash' >> ~/.bashrc
         #GCC_DIR='/opt/rh/devtoolset-8/root/usr'
         GCC_DIR=$(dirname $(dirname $(which gcc)))
         echo 'export PATH="'${GCC_DIR}'/bin:$PATH"' >> ~/.bashrc
