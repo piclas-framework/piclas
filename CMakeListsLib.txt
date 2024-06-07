@@ -125,9 +125,9 @@ IF (NOT HDF5_FOUND)
 ENDIF()
 # Hide all the HDF5 libs paths
 MARK_AS_ADVANCED(FORCE HDF5_DIR)
-# CMake version found
 IF (HDF5_FOUND)
-  IF(${CMAKE_VERSION} VERSION_LESS "3.10.0")
+# CMake version found
+  IF(LIBS_HDF5_CMAKE AND ${CMAKE_VERSION} VERSION_LESS "3.10.0")
     MESSAGE (WARNING "HDF5 built with CMake was found! This feature is only supported for CMake 3.10+ and HDF5 1.10.2+!")
   ENDIF()
   MESSAGE (STATUS "HDF5 C libs:${HDF5_FOUND} static:${HDF5_static_C_FOUND} and shared:${HDF5_shared_C_FOUND}")
@@ -633,58 +633,74 @@ ENDIF()
 #=========================================================================
 # PETSc
 #=========================================================================
-OPTION(PICLAS_PETSC "Use the PETSc library" OFF)
-IF(PICLAS_PETSC)
-  ADD_DEFINITIONS(-DUSE_PETSC=1)
-  IF(NOT DEFINED PETSC_DIR)
-    SET(PETSC_DIR $ENV{PETSC_DIR})
-  ENDIF()
-  IF(NOT DEFINED PETSC_ARCH)
-    SET(PETSC_ARCH $ENV{PETSC_ARCH})
+OPTION(LIBS_USE_PETSC "Use the PETSc library" OFF)
+IF(LIBS_USE_PETSC)
+  # pkg-config will look at /usr by default, add additional search paths here
+  IF(DEFINED PETSC_DIR)
+    # Add our PETSc to pkg-config search path
+    SET(PKG_CONFIG_PATH PETSC_DIR)
   ENDIF()
 
-  IF(EXISTS "${PETSC_DIR}/include" AND EXISTS "${PETSC_DIR}/${PETSC_ARCH}/include")
-    SET(PETSC_INCLUDE_DIR "${PETSC_DIR}/include")
-    SET(PETSC_INC "${PETSC_DIR}/include" "${PETSC_DIR}/${PETSC_ARCH}/include")
+  FIND_PACKAGE(PETSc QUIET)
+
+  IF (PETSc_FOUND)
+    MESSAGE (STATUS "[PETSc] found in system libraries")
+    SET(LIBS_BUILD_PETSC OFF CACHE BOOL "Compile and build preCICE library")
   ELSE()
-    MESSAGE(SEND_ERROR "PETSc includes not found")
+    MESSAGE (STATUS "[PETSc] not found in system libraries")
+    SET(LIBS_BUILD_PETSC ON  CACHE BOOL "Compile and build preCICE library")
   ENDIF()
 
-  IF(EXISTS "${PETSC_DIR}/${PETSC_ARCH}/lib/libpetsc.so")
-    SET(PETSC_LIB "${PETSC_DIR}/${PETSC_ARCH}/lib/libpetsc.so")
-  ELSEIf(EXISTS "${PETSC_DIR}/${PETSC_ARCH}/lib/libpetsc.a")
-    SET(PETSC_LIB "${PETSC_DIR}/${PETSC_ARCH}/lib/libpetsc.a")
+  IF (LIBS_BUILD_PETSC)
+    # Set PETSc build dir
+    SET(LIBS_PETSc_DIR      ${LIBS_EXTERNAL_LIB_DIR}/PETSc/build)
+    SET(PETSc_BUILD_DIR     ${LIBS_EXTERNAL_LIB_DIR}/PETSc/linux-gnu-c)
+    SET(PETSc_LIB_LIBRARIES ${LIBS_EXTERNAL_LIB_DIR}/PETSc/linux-gnu-c/lib)
+    SET(PETSc_INCLUDE_DIRS  ${LIBS_EXTERNAL_LIB_DIR}/PETSc/linux-gnu-c/include)
+    SET(PETSc_VERSION       3.21.2)
+
+    # Add PETSc project
+    EXTERNALPROJECT_ADD("PETSc"
+        GIT_REPOSITORY "https://gitlab.com/petsc/petsc.git"
+        GIT_TAG "v${PETSc_VERSION}"
+        GIT_PROGRESS TRUE
+        # USES_TERMINAL_DOWNLOAD true
+        # USES_TERMINAL_UPDATE true
+        # USES_TERMINAL_BUILD true
+        # USES_TERMINAL_INSTALL true
+        # USES_TERMINAL_TEST true
+        ${${GITSHALLOW}}
+        PREFIX ${LIBS_PETSc_DIR}
+        INSTALL_DIR ${LIBS_EXTERNAL_LIB_DIR}/PETSc
+        BUILD_IN_SOURCE TRUE
+        UPDATE_COMMAND ""
+        CONFIGURE_COMMAND PETSC_DIR=${LIBS_PETSc_DIR}/src/PETSc ${LIBS_PETSc_DIR}/src/PETSc/configure --prefix=${PETSc_BUILD_DIR} --with-shared-libraries=1 --with-mpi-f90module-visibility=0 --with-bison=0 --with-cmake=0 --with-hdf5=1 --with-hdf5-fortran-bindings=1
+        # BUILD_COMMAND ${CMAKE_MAKE_PROGRAM} -j4
+        BUILD_BYPRODUCTS ${PETSc_LIB_LIBRARIES}/libpetsc.so
+      )
+
+    # Actually add the preCICE lib paths to the linking paths
+    INCLUDE_DIRECTORIES(${PETSc_INCLUDE_DIRS})
+    INCLUDE_DIRECTORIES (${PETSc_LIB_LIBRARIES})
+    LIST(APPEND linkedlibs ${PETSc_LIB_LIBRARIES}/libpetsc.so)
+    LIST(APPEND SELFBUILTEXTERNALS PETSc)
+
+    ADD_DEFINITIONS(-DUSE_PETSC=1)
+    MESSAGE(STATUS "Compiling with self-built [PETSc] (v${PETSc_VERSION})")
   ELSE()
-    MESSAGE(SEND_ERROR "PETSc library not found")
-  ENDIF()
-
-  IF(EXISTS ${PETSC_DIR}/${PETSC_ARCH}/conf/petscvariables)
-    FILE(STRINGS ${PETSC_DIR}/${PETSC_ARCH}/conf/petscvariables
-      PETSC_VARIABLES NEWLINE_CONSUME)
-  ELSEIf(EXISTS ${PETSC_DIR}/${PETSC_ARCH}/lib/petsc/conf/petscvariables)
-    FILE(STRINGS ${PETSC_DIR}/${PETSC_ARCH}/lib/petsc/conf/petscvariables
-      PETSC_VARIABLES NEWLINE_CONSUME)
-  ELSE()
-    MESSAGE(SEND_ERROR "PETSc variables not found")
-  ENDIF()
-
-  # Find "^#define PETSC_VERSION_MAJOR" and get only the numbers and remove trailing line breaks
-  SET(PETSC_VERSION_FILE "${PETSC_INCLUDE_DIR}/petscversion.h")
-  IF(EXISTS "${PETSC_VERSION_FILE}")
-    EXECUTE_PROCESS(COMMAND cat "${PETSC_VERSION_FILE}" COMMAND grep "^#define PETSC_VERSION_MAJOR" COMMAND grep -o "[[:digit:]]*" COMMAND tr -d '\n' OUTPUT_VARIABLE PICLAS_PETSC_VERSION_MAJOR)
-    EXECUTE_PROCESS(COMMAND cat "${PETSC_VERSION_FILE}" COMMAND grep "^#define PETSC_VERSION_MINOR" COMMAND grep -o "[[:digit:]]*" COMMAND tr -d '\n' OUTPUT_VARIABLE PICLAS_PETSC_VERSION_MINOR)
-    MESSAGE(STATUS "Found PETSC version [${PICLAS_PETSC_VERSION_MAJOR}.${PICLAS_PETSC_VERSION_MINOR}] in ${PETSC_VERSION_FILE}")
-    IF(${PICLAS_PETSC_VERSION_MAJOR}.${PICLAS_PETSC_VERSION_MINOR} VERSION_LESS 3.18)
+    # Check if PETSc version needs FIX317
+    IF (${PETSc_VERSION} VERSION_LESS 3.18)
       ADD_DEFINITIONS(-DUSE_PETSC_FIX317=1)
     ELSE()
       ADD_DEFINITIONS(-DUSE_PETSC_FIX317=0)
     ENDIF()
-  ELSE()
-    ADD_DEFINITIONS(-DUSE_PETSC_FIX317=1)
-  ENDIF()
 
-  INCLUDE_DIRECTORIES(${PETSC_INC})
-  LIST(APPEND linkedlibs ${PETSC_LIB})
+    INCLUDE_DIRECTORIES(${PETSc_INCLUDE_DIRS})
+    LIST(APPEND linkedlibs ${PETSc_LINK_LIBRARIES})
+
+    ADD_DEFINITIONS(-DUSE_PETSC=1)
+    MESSAGE(STATUS "Compiling with system [PETSc] (v${PETSc_VERSION}) [${PETSc_LINK_LIBRARIES}]")
+  ENDIF()
 
   # Do not allow PETSc + INT8 as this is not implemented yet
   IF(PICLAS_INTKIND8)
@@ -692,4 +708,4 @@ IF(PICLAS_PETSC)
   ENDIF()
 ELSE()
   ADD_DEFINITIONS(-DUSE_PETSC=0)
-ENDIF(PICLAS_PETSC)
+ENDIF(LIBS_USE_PETSC)
