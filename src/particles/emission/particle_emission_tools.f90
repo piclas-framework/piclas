@@ -436,6 +436,7 @@ IF ((Species(iSpecies)%InterID.EQ.2).OR.(Species(iSpecies)%InterID.EQ.20)) THEN
     iQuant = INT(-LOG(iRan)*TVib/SpecDSMC(iSpecies)%CharaTVib)
   END DO
   PartStateIntEn( 1,iPart) = (iQuant + DSMC%GammaQuant)*SpecDSMC(iSpecies)%CharaTVib*BoltzmannConst
+  ! set rotational energy
   IF(DSMC%DoRotRelaxQuantized) THEN
     ! Quantized treatment of rotational energy
     jMax = 40

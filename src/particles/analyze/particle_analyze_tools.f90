@@ -1498,7 +1498,7 @@ SUBROUTINE CalcIntTempsAndEn(NumSpec,IntTemp,IntEn)
 USE MOD_Globals
 USE MOD_Globals_Vars          ,ONLY: BoltzmannConst
 USE MOD_Particle_Vars         ,ONLY: PartSpecies, Species, PDM, nSpecies, usevMPF
-USE MOD_DSMC_Vars             ,ONLY: PartStateIntEn, SpecDSMC, DSMC
+USE MOD_DSMC_Vars             ,ONLY: PartStateIntEn, SpecDSMC, DSMC, PolyatomMolDSMC
 USE MOD_Particle_Analyze_Vars ,ONLY: nSpecAnalyze
 USE MOD_part_tools            ,ONLY: GetParticleWeight
 USE MOD_DSMC_Vars             ,ONLY: RadialWeighting
@@ -1512,7 +1512,7 @@ REAL, INTENT(IN)               :: NumSpec(nSpecAnalyze)    ! number of real part
 REAL,INTENT(OUT)               :: IntTemp(nSpecies,3) , IntEn(nSpecAnalyze,3)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                        :: iPart, iSpec
+INTEGER                        :: iPart, iSpec, iPolyatMole
 REAL                           :: EVib(nSpecies), ERot(nSpecies), Eelec(nSpecies), tempVib, NumSpecTemp
 #if USE_MPI
 REAL                           :: RD(nSpecies)
@@ -1556,12 +1556,20 @@ IF(MPIRoot)THEN
   ! Calc TVib, TRot
   DO iSpec = 1, nSpecies
     NumSpecTemp = NumSpec(iSpec)
+    iPolyatMole = SpecDSMC(iSpec)%SpecToPolyArray
+    !//TODO: calc Trot quantized
     IF(((Species(iSpec)%InterID.EQ.2).OR.(Species(iSpec)%InterID.EQ.20)).AND.(NumSpecTemp.GT.0.0)) THEN
-      IF (SpecDSMC(iSpec)%PolyatomicMol.AND.(SpecDSMC(iSpec)%Xi_Rot.EQ.3)) THEN
-        IntTemp(iSpec,2) = 2.0*ERot(iSpec)/(3.0*BoltzmannConst*NumSpecTemp)  !Calc TRot
-      ELSE
-        IntTemp(iSpec,2) = ERot(iSpec)/(BoltzmannConst*NumSpecTemp)  !Calc TRot
+      IF(DSMC%DoRotRelaxQuantized)THEN  ! quantized treatment of rotational energies
+          ! IntTemp(iSpec,2) = 2.0*ERot(iSpec)/(SpecDSMC(iSpec)%Xi_Rot*BoltzmannConst*NumSpecTemp)  !Calc TRot
+          IntTemp(iSpec,2) = CalcTRotQuant(ERot(iSpec)/NumSpecTemp, iSpec)
+      ELSE  ! continous treatment of rotational energies
+        IF (SpecDSMC(iSpec)%PolyatomicMol)THEN    ! polyatomic (also linear)
+          IntTemp(iSpec,2) = 2.0*ERot(iSpec)/(SpecDSMC(iSpec)%Xi_Rot*BoltzmannConst*NumSpecTemp)  !Calc TRot
+        ELSE          ! diatomic
+          IntTemp(iSpec,2) = ERot(iSpec)/(BoltzmannConst*NumSpecTemp)  !Calc TRot
+        END IF
       END IF
+      PRINT *, "Temp",IntTemp(iSpec,2),"ERot",ERot
       IF (EVib(iSpec)/NumSpecTemp.GT.SpecDSMC(iSpec)%EZeroPoint) THEN
         IF (SpecDSMC(iSpec)%PolyatomicMol) THEN
           IntTemp(iSpec,1) = CalcTVibPoly(EVib(iSpec)/NumSpecTemp, iSpec)
@@ -1876,6 +1884,148 @@ END IF
 RETURN
 
 END FUNCTION CalcTVibPoly
+
+!//TODO next two routines
+
+SUBROUTINE CalcRotPartitionFunction(iSpec, Temp, Qrot)
+!===================================================================================================================================
+!//TODO also pointer?
+!//TODO not possible in DSMC chem reactions where other partition func is located due to cross ref -> leave here?
+!> Calculation of the rotational partition function for a species at the given temperature (also applicable at low temperatures)
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals
+USE MOD_Globals_Vars        ,ONLY: Pi, PlanckConst, BoltzmannConst
+USE MOD_DSMC_Vars           ,ONLY: SpecDSMC, PolyatomMolDSMC
+USE MOD_Particle_Vars       ,ONLY: Species
+
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+INTEGER, INTENT(IN)         :: iSpec
+REAL, INTENT(IN)            :: Temp
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+REAL, INTENT(OUT)           :: Qrot
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER                     :: iPolyatMole, J, K
+REAL                        :: LastVal, delta
+REAL,PARAMETER              :: eps_prec=5E-3                    !< relative precision for stopping summation
+!===================================================================================================================================
+iPolyatMole = SpecDSMC(iSpec)%SpecToPolyArray
+J = 1
+LastVal = 100
+Qrot = 0.
+DO WHILE(.NOT.ALMOSTEQUALRELATIVE(Qrot,LastVal,eps_prec))
+  LastVal = Qrot
+  IF(.NOT.SpecDSMC(iSpec)%PolyatomicMol)THEN ! diatomic
+    Qrot = Qrot + (2.*REAL(J)+1.)*exp(-REAL(J)*(REAL(J)+1)*SpecDSMC(iSpec)%CharaTRot/Temp)
+  ELSE IF(PolyatomMolDSMC(iPolyatMole)%LinearMolec)THEN ! linear molecule
+    Qrot = Qrot + (2.*REAL(J)+1.)*exp(-REAL(J)*(REAL(J)+1)*PolyatomMolDSMC(iPolyatMole)%CharaTRotDOF(1)/Temp)
+  ELSE IF(PolyatomMolDSMC(iPolyatMole)%RotationalGroup.EQ.1)THEN  ! spherical top molecule
+    Qrot = Qrot + (2.*REAL(J)+1.)**2.*exp(-REAL(J)*(REAL(J)+1)*PolyatomMolDSMC(iPolyatMole)%CharaTRotDOF(1)/Temp)
+  ELSE IF(PolyatomMolDSMC(iPolyatMole)%RotationalGroup.EQ.2)THEN  ! symmetric top molecule
+    K = 0
+    DO WHILE(K.LE.J)
+      IF(K.NE.0)THEN
+        delta =0.
+      ELSE
+        delta =1.
+      END IF
+      Qrot = Qrot + (2.-delta)*(2.*REAL(J)+1.)*exp(-PlanckConst**2. / (8.*PI**2.*BoltzmannConst*Temp) * (REAL(J)*(REAL(J)+1.) / PolyatomMolDSMC(iPolyatMole)%MomentOfInertia(1) + (1./PolyatomMolDSMC(iPolyatMole)%MomentOfInertia(3) - 1./PolyatomMolDSMC(iPolyatMole)%MomentOfInertia(1)) * REAL(K)**2.))
+      K = K + 1
+    END DO
+  ELSE IF(PolyatomMolDSMC(iPolyatMole)%RotationalGroup.EQ.3)THEN  ! asymmetric top molecule
+    CALL abort(&
+    __STAMP__&
+    ,'Calculation of partition function for asymmetric top molecules not possible yet!')
+  END IF
+  J = J + 1
+END DO
+
+END SUBROUTINE CalcRotPartitionFunction
+
+REAL FUNCTION CalcTRotQuant(MeanERot, iSpec)
+!===================================================================================================================================
+!> Calculation of the rotational temperature (zero-point search) for polyatomic molecules
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals_Vars  ,ONLY: BoltzmannConst, PlanckConst, PI, ElementaryCharge
+USE MOD_DSMC_Vars     ,ONLY: SpecDSMC, PolyatomMolDSMC
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+REAL, INTENT(IN)                :: MeanERot  ! Charak TVib, mean vibrational Energy of all molecules
+INTEGER, INTENT(IN)             :: iSpec      ! Number of Species
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+INTEGER                 :: iDOF, iPolyatMole, J, K
+REAL                    :: LowerTemp, UpperTemp, MiddleTemp !< Upper, lower and final value of modified zero point search
+REAL                    :: EGuess                           !< Energy value at the current MiddleTemp
+REAL                    :: Qrot, LastVal,delta
+REAL,PARAMETER          :: eps_prec=5E-3                    !< Relative precision of root-finding algorithm
+!===================================================================================================================================
+
+! lower limit: very small value or lowest temperature if ionized
+! upper limit: highest possible temperature
+iPolyatMole = SpecDSMC(iSpec)%SpecToPolyArray
+IF (MeanERot.GT.0) THEN !??
+  LowerTemp = 1.0
+  UpperTemp = 5.0*SpecDSMC(iSpec)%Ediss_eV*ElementaryCharge/BoltzmannConst
+  MiddleTemp = LowerTemp
+  DO WHILE (.NOT.ALMOSTEQUALRELATIVE(0.5*(LowerTemp + UpperTemp),MiddleTemp,eps_prec))
+    MiddleTemp = 0.5*(LowerTemp + UpperTemp)
+    EGuess = 0.
+    LastVal = 100.
+    J = 1
+    CALL CalcRotPartitionFunction(iSpec, MiddleTemp, Qrot)
+    !//TODO compare to partition func for high temps at low temps
+    DO WHILE(.NOT.ALMOSTEQUALRELATIVE(EGuess* 1/Qrot,LastVal* 1/Qrot,eps_prec))
+      LastVal = EGuess
+      IF(.NOT.SpecDSMC(iSpec)%PolyatomicMol)THEN ! diatomic
+        EGuess = EGuess + (2.*REAL(J)+1.)*exp(-REAL(J)*(REAL(J)+1)*SpecDSMC(iSpec)%CharaTRot/MiddleTemp)*REAL(J)*(REAL(J)+1)*SpecDSMC(iSpec)%CharaTRot*BoltzmannConst
+      ELSE IF(PolyatomMolDSMC(iPolyatMole)%LinearMolec)THEN ! linear molecule
+        EGuess = EGuess + (2.*REAL(J)+1.)*exp(-REAL(J)*(REAL(J)+1)*PolyatomMolDSMC(iPolyatMole)%CharaTRotDOF(1)/MiddleTemp)*REAL(J)*(REAL(J)+1)*PolyatomMolDSMC(iPolyatMole)%CharaTRotDOF(1)*BoltzmannConst
+      ELSE IF(PolyatomMolDSMC(iPolyatMole)%RotationalGroup.EQ.1)THEN  ! spherical top molecule
+        EGuess = EGuess + (2.*REAL(J)+1.)**2.*exp(-REAL(J)*(REAL(J)+1)*PolyatomMolDSMC(iPolyatMole)%CharaTRotDOF(1)/MiddleTemp)*REAL(J)*(REAL(J)+1)*PolyatomMolDSMC(iPolyatMole)%CharaTRotDOF(1)*BoltzmannConst
+      ELSE IF(PolyatomMolDSMC(iPolyatMole)%RotationalGroup.EQ.2)THEN  ! symmetric top molecule
+        K = 0
+        DO WHILE(K.LE.J)
+          IF(K.NE.0)THEN
+            delta =0.
+          ELSE
+            delta =1.
+          END IF
+          EGuess = EGuess + (2.-delta)*(2.*REAL(J)+1.)*exp(-PlanckConst**2. / (8.*PI**2.*BoltzmannConst*MiddleTemp) * (REAL(J)*(REAL(J)+1.) / PolyatomMolDSMC(iPolyatMole)%MomentOfInertia(1) + (1./PolyatomMolDSMC(iPolyatMole)%MomentOfInertia(3) - 1./PolyatomMolDSMC(iPolyatMole)%MomentOfInertia(1)) * REAL(K)**2.)) * (PlanckConst**2. / (8.*PI**2.) * (REAL(J)*(REAL(J)+1.) / PolyatomMolDSMC(iPolyatMole)%MomentOfInertia(1) + (1./PolyatomMolDSMC(iPolyatMole)%MomentOfInertia(3) - 1./PolyatomMolDSMC(iPolyatMole)%MomentOfInertia(1)) * REAL(K)**2.))
+          K = K + 1
+        END DO
+      ELSE IF(PolyatomMolDSMC(iPolyatMole)%RotationalGroup.EQ.3)THEN  ! asymmetric top molecule
+        ! CALL abort(&
+        ! __STAMP__&
+        ! ,'Calculation of partition function for asymmetric top molecules not possible yet!')
+      END IF
+      J = J + 1
+    END DO
+    EGuess = EGuess * 1/Qrot
+    IF (EGuess.GT.MeanERot) THEN
+      UpperTemp = MiddleTemp
+    ELSE
+      LowerTemp = MiddleTemp
+    END IF
+  END DO
+  CalcTRotQuant = MiddleTemp
+ELSE
+  CalcTRotQuant = 0. ! sup
+END IF
+RETURN
+
+END FUNCTION CalcTRotQuant
 
 
 #if (PP_TimeDiscMethod==2 || PP_TimeDiscMethod==4 || PP_TimeDiscMethod==300 || PP_TimeDiscMethod==400 || (PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=509) || PP_TimeDiscMethod==120)

@@ -62,18 +62,29 @@ iSpec = PartSpecies(iPart)
 
 J2 = INT((-1.+SQRT(1.+(4.*Coll_pData(iPair)%Ec)/(BoltzmannConst * SpecDSMC(iSpec)%CharaTRot)))/2.)
 
+!// TODO
+! my analytic solution
 J1 = NINT(0.5 * (-1. + SQRT((2. + 3. * SpecDSMC(iSpec)%omega + (8. * Coll_pData(iPair)%Ec) / &
      (BoltzmannConst * SpecDSMC(iSpec)%CharaTRot))/(6. - SpecDSMC(iSpec)%omega))))
+
+! paper solution
+! J1 = NINT(0.5 * (-1. + SQRT((1+ 4 * Coll_pData(iPair)%Ec / (BoltzmannConst * & 
+    ! SpecDSMC(iSpec)%CharaTRot))/(3. - 2. * SpecDSMC(iSpec)%omega))))
 
 JStar = MIN(J1,J2)
 
 ARM = .TRUE.
 
 CALL RANDOM_NUMBER(iRan)
+!//TODO used to be J2 here for quant num - not JStar?? why???
 iQuant = INT((1+J2)*iRan)
 DO WHILE (ARM)
   fNorm = (2.*REAL(iQuant) + 1.)*(Coll_pData(iPair)%Ec - REAL(iQuant)*(REAL(iQuant) + 1.)*BoltzmannConst*SpecDSMC(iSpec)%CharaTRot)**FakXi &
           / ((2.*REAL(JStar) + 1.)*(Coll_pData(iPair)%Ec - REAL(JStar)*(REAL(JStar) + 1.)*BoltzmannConst*SpecDSMC(iSpec)%CharaTRot)**FakXi)
+  PRINT *, fNorm
+  IF(fNorm.GT.1)THEN
+    PRINT *, "-------------------------------------------------------------------"
+  END IF
   CALL RANDOM_NUMBER(iRan)
   IF(fNorm .LT. iRan) THEN
     CALL RANDOM_NUMBER(iRan)

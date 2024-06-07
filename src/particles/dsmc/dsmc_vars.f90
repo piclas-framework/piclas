@@ -140,6 +140,7 @@ TYPE tSpeciesDSMC                                          ! DSMC Species Parame
                                                             ! second index: energy level
   INTEGER                           :: SymmetryFactor
   REAL                              :: CharaTRot
+  REAL                              :: MomentOfInertia      ! Moment of Inertia
   REAL, ALLOCATABLE                 :: PartitionFunction(:) ! Partition function for each species in given temperature range
   REAL                              :: EZeroPoint           ! Zero point energy for molecules
   REAL                              :: HeatOfFormation      ! Heat of formation of the respective species [Kelvin]
@@ -451,6 +452,7 @@ TYPE(tQKChemistry), ALLOCATABLE   :: QKChemistry(:)
 
 TYPE tPolyatomMolDSMC !DSMC Species Param
   LOGICAL                         :: LinearMolec            ! Is a linear Molec?
+  INTEGER                         :: RotationalGroup        ! Type of molecule - 1 sperical top, 2 symmetric top, 3 asym top
   INTEGER                         :: NumOfAtoms             ! Number of Atoms in Molec
   INTEGER                         :: VibDOF                 ! DOF in Vibration, equals number of independent SHO's
   REAL, ALLOCATABLE               :: CharaTVibDOF(:)        ! Chara TVib for each DOF
@@ -459,6 +461,7 @@ TYPE tPolyatomMolDSMC !DSMC Species Param
   REAL, ALLOCATABLE               :: GammaVib(:)            ! GammaVib: correction factor for Gimelshein Relaxation Procedure
   REAL, ALLOCATABLE               :: VibRelaxProb(:)
   REAL, ALLOCATABLE               :: CharaTRotDOF(:)        ! Chara TRot for each DOF
+  REAL, ALLOCATABLE               :: MomentOfInertia(:)     ! Moments of Inertia for each axis
 END TYPE
 
 TYPE (tPolyatomMolDSMC), ALLOCATABLE    :: PolyatomMolDSMC(:)        ! Infos for Polyatomic Molecule

@@ -282,7 +282,7 @@ USE MOD_Preproc
 USE MOD_ReadInTools
 USE MOD_DSMC_Vars
 USE MOD_Mesh_Vars              ,ONLY: nElems, NGEo
-USE MOD_Globals_Vars           ,ONLY: Pi, BoltzmannConst, ElementaryCharge
+USE MOD_Globals_Vars           ,ONLY: Pi, BoltzmannConst, ElementaryCharge, PlanckConst
 USE MOD_Particle_Vars          ,ONLY: nSpecies, Species, PDM, Symmetry, UseVarTimeStep, usevMPF
 USE MOD_Particle_Vars          ,ONLY: DoFieldIonization, SpeciesDatabase,  SampleElecExcitation
 USE MOD_DSMC_ParticlePairing   ,ONLY: DSMC_init_octree
@@ -723,12 +723,32 @@ ELSE !CollisMode.GT.0
               SpecDSMC(iSpec)%Xi_Rot     = 2
               CALL ReadAttribute(file_id_specdb,'CharaTempVib',1,DatasetName = dsetname,RealScalar=SpecDSMC(iSpec)%CharaTVib)
               CALL PrintOption('CharaTempVib','DB',RealOpt=SpecDSMC(iSpec)%CharaTVib)
-              CALL AttributeExists(file_id_specdb,'CharaTempRot',TRIM(dsetname), AttrExists=AttrExists)
+              CALL AttributeExists(file_id_specdb,'MomentOfInertia',TRIM(dsetname), AttrExists=AttrExists)
               IF (AttrExists) THEN
-                CALL ReadAttribute(file_id_specdb,'CharaTempRot',1,DatasetName = dsetname,RealScalar=SpecDSMC(iSpec)%CharaTRot)
+                CALL ReadAttribute(file_id_specdb,'MomentOfInertia',1,DatasetName = dsetname,RealScalar=SpecDSMC(iSpec)%MomentOfInertia)
+                CALL AttributeExists(file_id_specdb,'CharaTempRot',TRIM(dsetname), AttrExists=AttrExists)
+                IF(AttrExists)THEN  ! check if CharaTempRot is set or should be calculated with Moment of Inertia
+                  CALL ReadAttribute(file_id_specdb,'CharaTempRot',1,DatasetName = dsetname,RealScalar=SpecDSMC(iSpec)%CharaTRot)
+                ELSE
+                  SpecDSMC(iSpec)%CharaTRot = PlanckConst**2 / (8 * PI**2 * SpecDSMC(iSpec)%MomentOfInertia * BoltzmannConst)
+                END IF
               ELSE
-                SpecDSMC(iSpec)%CharaTRot = 0.0
+                CALL AttributeExists(file_id_specdb,'CharaTempRot',TRIM(dsetname), AttrExists=AttrExists)
+                IF(AttrExists)THEN  ! check if CharaTempRot is set without Moment of Inertia
+                  CALL ReadAttribute(file_id_specdb,'CharaTempRot',1,DatasetName = dsetname,RealScalar=SpecDSMC(iSpec)%CharaTRot)
+                ELSE
+                  SpecDSMC(iSpec)%CharaTRot = 0.0
+                END IF
+                IF(DSMC%DoRotRelaxQuantized)THEN
+                  CALL abort(&
+                  __STAMP__&
+                  ,'Moment of inertia necessary for quantized rotational energy and is not set for species', iSpec)
+                ELSE
+                  ! //TODO: do i need a value here or leave empty - set dummy value
+                  SpecDSMC(iSpec)%MomentOfInertia = 0
+                END IF
               END IF
+              CALL PrintOption('MomentOfInertia','DB',RealOpt=SpecDSMC(iSpec)%MomentOfInertia)
               CALL PrintOption('CharaTempRot','DB',RealOpt=SpecDSMC(iSpec)%CharaTRot)
               CALL ReadAttribute(file_id_specdb,'Ediss_eV',1,DatasetName = dsetname,RealScalar=SpecDSMC(iSpec)%Ediss_eV)
               CALL PrintOption('Ediss_eV','DB',RealOpt=SpecDSMC(iSpec)%Ediss_eV)
@@ -849,11 +869,15 @@ ELSE !CollisMode.GT.0
             DSMC%NumPolyatomMolecs = DSMC%NumPolyatomMolecs + 1
             SpecDSMC(iSpec)%SpecToPolyArray = DSMC%NumPolyatomMolecs
           ELSEIF ((Species(iSpec)%InterID.EQ.2).OR.(Species(iSpec)%InterID.EQ.20)) THEN
-            SpecDSMC(iSpec)%Xi_Rot     = 2
-            SpecDSMC(iSpec)%CharaTVib  = GETREAL('Part-Species'//TRIM(hilf)//'-CharaTempVib')
-            SpecDSMC(iSpec)%CharaTRot  = GETREAL('Part-Species'//TRIM(hilf)//'-CharaTempRot','0')
-            SpecDSMC(iSpec)%Ediss_eV   = GETREAL('Part-Species'//TRIM(hilf)//'-Ediss_eV')
-            SpecDSMC(iSpec)%MaxVibQuant = 200
+            SpecDSMC(iSpec)%Xi_Rot          = 2
+            SpecDSMC(iSpec)%CharaTVib       = GETREAL('Part-Species'//TRIM(hilf)//'-CharaTempVib')
+            SpecDSMC(iSpec)%MomentOfInertia = GETREAL('Part-Species'//TRIM(hilf)//'-MomentOfInertia')
+            SpecDSMC(iSpec)%CharaTRot       = GETREAL('Part-Species'//TRIM(hilf)//'-CharaTempRot','-1')
+            IF(SpecDSMC(iSpec)%CharaTRot.EQ.-1)THEN
+              SpecDSMC(iSpec)%CharaTRot       = PlanckConst**2 / (8 * PI**2 * SpecDSMC(iSpec)%MomentOfInertia * BoltzmannConst)
+            END IF
+            SpecDSMC(iSpec)%Ediss_eV        = GETREAL('Part-Species'//TRIM(hilf)//'-Ediss_eV')
+            SpecDSMC(iSpec)%MaxVibQuant     = 200
             ! Calculation of the zero-point energy
             SpecDSMC(iSpec)%EZeroPoint = DSMC%GammaQuant * BoltzmannConst * SpecDSMC(iSpec)%CharaTVib
             ! Calculation of the dissociation quantum number (used for QK chemistry)
@@ -1638,6 +1662,7 @@ IF(DSMC%NumPolyatomMolecs.GT.0) THEN
     SDEALLOCATE(PolyatomMolDSMC(iPoly)%GammaVib)
     SDEALLOCATE(PolyatomMolDSMC(iPoly)%VibRelaxProb)
     SDEALLOCATE(PolyatomMolDSMC(iPoly)%CharaTRotDOF)
+    SDEALLOCATE(PolyatomMolDSMC(iPoly)%MomentOfInertia)
   END DO
   SDEALLOCATE(PolyatomMolDSMC)
 END IF

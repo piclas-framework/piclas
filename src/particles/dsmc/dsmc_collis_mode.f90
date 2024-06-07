@@ -424,10 +424,12 @@ END IF
   END IF
 
 !--------------------------------------------------------------------------------------------------!
-! Rotational Relaxation
+! Rotational Relaxation//TODO: restructure blocks, put continous treatment of diatomic in subroutine
 !--------------------------------------------------------------------------------------------------!
   IF(DoRot1) THEN
-    IF(SpecDSMC(iSpec1)%PolyatomicMol.AND.(SpecDSMC(iSpec1)%Xi_Rot.EQ.3)) THEN
+    ! IF(SpecDSMC(iSpec1)%PolyatomicMol.AND.(SpecDSMC(iSpec1)%Xi_Rot.EQ.3)) THEN
+    IF(SpecDSMC(iSpec1)%PolyatomicMol) THEN
+      !//TODO:
       FakXi = FakXi - 0.5*SpecDSMC(iSpec1)%Xi_Rot
       CALL DSMC_RotRelaxPoly(iPair, iPart1, FakXi)
       Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec - PartStateIntEn(2,iPart1)
@@ -451,7 +453,8 @@ END IF
   END IF
 
   IF(DoRot2) THEN
-    IF(SpecDSMC(iSpec2)%PolyatomicMol.AND.(SpecDSMC(iSpec2)%Xi_Rot.EQ.3)) THEN
+    ! IF(SpecDSMC(iSpec2)%PolyatomicMol.AND.(SpecDSMC(iSpec2)%Xi_Rot.EQ.3)) THEN
+    IF(SpecDSMC(iSpec2)%PolyatomicMol) THEN
       FakXi = FakXi - 0.5*SpecDSMC(iSpec2)%Xi_Rot
       CALL DSMC_RotRelaxPoly(iPair, iPart2, FakXi)
       Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec - PartStateIntEn(2,iPart2)
@@ -798,7 +801,7 @@ IF (DSMC%ReservoirSimu.AND.DSMC%ReservoirSimuRate) RETURN
   END IF
 
 !--------------------------------------------------------------------------------------------------!
-! Rotational Relaxation
+! Rotational Relaxation//TODO
 !--------------------------------------------------------------------------------------------------!
   IF(DoRot1) THEN
     !check if correction term in distribution (depending on relaxation model) is needed
