@@ -50,10 +50,10 @@ REAL,INTENT(OUT)                                 :: F(PP_nVar_FV,0:0,0:0)
 REAL                                             :: driftVelo, mu_L, mu_R, D_L, D_R
 
 !===================================================================================================================================
-CALL CalcDriftDiffusionCoeff(VECNORM(E_L),U_L(1,0,0),mu_L,D_L)
-CALL CalcDriftDiffusionCoeff(VECNORM(E_R),U_R(1,0,0),mu_R,D_R)
+CALL CalcDriftDiffusionCoeff(VECNORM(E_L),1.E25,mu_L,D_L)
+CALL CalcDriftDiffusionCoeff(VECNORM(E_R),1.E25,mu_R,D_R)
 driftVelo=-DOT_PRODUCT(nv(:,0,0),(E_L+E_R)/2.)
-! print*, 'E', E
+
 ! print*, driftVelo
 ! print*, nv
 ! read*

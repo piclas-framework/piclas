@@ -286,6 +286,7 @@ CASE(5) !Taylor-Green vortex
   MacroVal(2) = MacroVal(2)*SIN(2*PI*x(1))*COS(2*PI*x(2))*COS(2*PI*x(3))
   MacroVal(3) = -MacroVal(3)*COS(2*PI*x(1))*SIN(2*PI*x(2))*COS(2*PI*x(3))
   MacroVal(4) = 0.
+  MacroVal(5) = MacroVal(5)+(RefState(2,1)**2)/(16.*DVMSpeciesData%R_S)*(COS(4.*PI*x(1))+COS(4.*PI*x(2)))*(COS(4.*PI*x(3))+2.)
   CALL MaxwellDistribution(MacroVal,Resu(:))
 
 CASE DEFAULT

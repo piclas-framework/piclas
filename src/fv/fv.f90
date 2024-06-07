@@ -181,7 +181,7 @@ USE MOD_Vector
 USE MOD_FV_Vars           ,ONLY: U_FV,Ut_FV,Flux_Master_FV,Flux_Slave_FV
 USE MOD_FV_Vars           ,ONLY: U_master_FV,U_slave_FV
 USE MOD_SurfInt           ,ONLY: SurfInt
-USE MOD_ProlongToFace     ,ONLY: ProlongToFace
+USE MOD_ProlongToFace     ,ONLY: ProlongToFace_FV
 USE MOD_Gradients         ,ONLY: GetGradients
 USE MOD_FillFlux          ,ONLY: FillFlux
 USE MOD_Equation_FV       ,ONLY: CalcSource_FV
@@ -205,6 +205,11 @@ USE MOD_Mesh_Tools        ,ONLY: GetCNElemID
 USE MOD_LoadBalance_Timers,ONLY: LBStartTime,LBPauseTime,LBSplitTime
 #endif /*USE_LOADBALANCE*/
 #endif /*USE_MPI*/
+#ifdef drift_diffusion
+USE MOD_Equation_Vars     ,ONLY: E, E_master, E_slave
+USE MOD_MPI               ,ONLY: StartReceiveMPIData,StartSendMPIData
+USE MOD_ProlongToFace     ,ONLY: ProlongToFace
+#endif
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -230,25 +235,39 @@ CALL GetGradients(U_FV(:,0,0,0,:))
 CALL LBStartTime(tLBStart)
 #endif /*USE_LOADBALANCE*/
 CALL StartReceiveMPIDataFV(PP_nVar_FV,U_slave_FV(:,0,0,:),1,nSides,RecRequest_U,SendID=2) ! Receive MINE
+#ifdef drift_diffusion
+CALL StartReceiveMPIData(3,E_slave,1,nSides,RecRequest_U2,SendID=2) ! Receive MINE
+#endif
 #if USE_LOADBALANCE
 CALL LBSplitTime(LB_DGCOMM,tLBStart)
 #endif /*USE_LOADBALANCE*/
 
-CALL ProlongToFace(U_FV,U_master_FV,U_slave_FV,doMPISides=.TRUE.)
+CALL ProlongToFace_FV(U_FV,U_master_FV,U_slave_FV,doMPISides=.TRUE.)
 CALL U_Mortar(U_master_FV,U_slave_FV,doMPISides=.TRUE.)
+#ifdef drift_diffusion
+CALL ProlongToFace(E, E_master, E_slave, doMPISides=.TRUE.)
+CALL U_Mortar(E_master,E_slave,doMPISides=.TRUE.)
+#endif
 
 #if USE_LOADBALANCE
 CALL LBSplitTime(LB_DG,tLBStart)
 #endif /*USE_LOADBALANCE*/
 CALL StartSendMPIDataFV(PP_nVar_FV,U_slave_FV(:,0,0,:),1,nSides,SendRequest_U,SendID=2) ! Send YOUR
+#ifdef drift_diffusion
+CALL StartSendMPIData(3,E_slave,1,nSides,SendRequest_U2,SendID=2) ! Send YOUR
+#endif
 #if USE_LOADBALANCE
 CALL LBSplitTime(LB_DGCOMM,tLBStart)
 #endif /*USE_LOADBALANCE*/
 #endif /*USE_MPI*/
 
 ! Prolong to face for BCSides, InnerSides and MPI sides - receive direction
-CALL ProlongToFace(U_FV,U_master_FV,U_slave_FV,doMPISides=.FALSE.)
+CALL ProlongToFace_FV(U_FV,U_master_FV,U_slave_FV,doMPISides=.FALSE.)
 CALL U_Mortar(U_master_FV,U_slave_FV,doMPISides=.FALSE.)
+#ifdef drift_diffusion
+CALL ProlongToFace(E, E_master, E_slave, doMPISides=.FALSE.)
+CALL U_Mortar(E_master,E_slave,doMPISides=.FALSE.)
+#endif
 
 #if USE_MPI
 #if defined(PARTICLES) && defined(LSERK)
@@ -275,6 +294,9 @@ CALL LBSplitTime(LB_DG,tLBStart)
 #endif /*USE_LOADBALANCE*/
 ! Complete send / receive of prolongtoface results
 CALL FinishExchangeMPIData(SendRequest_U,RecRequest_U,SendID=2)
+#ifdef drift_diffusion
+CALL FinishExchangeMPIData(SendRequest_U2,RecRequest_U2,SendID=2)
+#endif
 
 ! Initialization of the time derivative
 !Flux=0. !don't nullify the fluxes if not really needed (very expensive)

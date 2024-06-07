@@ -266,7 +266,12 @@ ShapeFuncPrefix = 1./(2. * beta(1.5, REAL(alpha_shape) + 1.) * REAL(alpha_shape)
 
 ALLOCATE(E(1:3,0:PP_N,0:PP_N,0:PP_N,PP_nElems))
 E=0.
-
+#ifdef drift_diffusion
+ALLOCATE(E_master(1:3,0:PP_N,0:PP_N,nSides))
+ALLOCATE(E_slave(1:3,0:PP_N,0:PP_N,nSides))
+E_master=0.
+E_slave=0.
+#endif
 
 EquationInitIsDone=.TRUE.
 LBWRITE(UNIT_stdOut,'(A)')' INIT POISSON DONE!'
@@ -1102,7 +1107,8 @@ END IF
 END ASSOCIATE
 
 #ifdef drift_diffusion
-resu(1) = - ((PartSource(4,i,j,k,iElem) - U_FV(1,0,0,0,iElem)) * ElementaryCharge)/eps0
+resu(1) = - ((PartSource(4,i,j,k,iElem) - U_FV(1,0,0,0,iElem)*ElementaryCharge))/eps0
+!resu(1) = 0.!- ((1e20 - U_FV(1,0,0,0,iElem)) * ElementaryCharge)/eps0
 #endif
 
 

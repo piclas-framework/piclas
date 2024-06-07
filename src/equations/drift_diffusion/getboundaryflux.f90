@@ -126,7 +126,7 @@ USE MOD_PreProc
 USE MOD_Globals         ,ONLY: Abort
 USE MOD_Mesh_Vars       ,ONLY: nBCSides,nBCs,BoundaryType_FV
 #if USE_HDG
-USE MOD_Equation_Vars   ,ONLY: nBCByType,BCSideID,E
+USE MOD_Equation_Vars   ,ONLY: nBCByType,BCSideID,E_master
 USE MOD_Mesh_Vars       ,ONLY: SideToElem
 #else
 USE MOD_Equation_Vars_FV,ONLY: nBCByType,BCSideID
@@ -152,7 +152,7 @@ REAL,INTENT(OUT)                     :: Flux( PP_nVar_FV,0:0,0:0,1:nBCSides)
 ! LOCAL VARIABLES
 INTEGER                              :: iBC,iSide,SideID,ElemID
 INTEGER                              :: BCType,BCState,nBCLoc
-REAL                                 :: UPrim_boundary(PP_nVar_FV,0:0,0:0), GradSide, E_master(3)
+REAL                                 :: UPrim_boundary(PP_nVar_FV,0:0,0:0), GradSide
 INTEGER                              :: p,q, i, j, k
 !==================================================================================================================================
 DO iBC=1,nBCs
@@ -167,7 +167,6 @@ DO iBC=1,nBCs
   CASE(2) !Exact function or RefState_FV
     DO iSide=1,nBCLoc
       SideID=BCSideID(iBC,iSide)
-      ElemID=SideToElem(S2E_ELEM_ID,SideID)
       IF(BCState.EQ.0) THEN
         CALL ExactFunc_FV(IniExactFunc_FV,t,0,Face_xGP(:,0,0,SideID),UPrim_boundary(:,0,0))
       ELSE
@@ -179,13 +178,13 @@ DO iBC=1,nBCs
                                        +(Grad_dx_master(3,SideID))**2))
 #endif
 
-      E_master = 0.
-      DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
-        E_master(:) = E_master(:) + wGP(i)*wGP(j)*wGP(k)*E(1:3,i,j,k,ElemID)/((PP_N+1.)**3)
-      END DO; END DO; END DO
+      ! E_master = 0.
+      ! DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
+      !   E_master(:) = E_master(:) + wGP(i)*wGP(j)*wGP(k)*E(1:3,i,j,k,ElemID)/((PP_N+1.)**3)
+      ! END DO; END DO; END DO
 
       CALL Riemann(Flux(:,:,:,SideID),UPrim_master(:,:,:,SideID),UPrim_boundary,NormVec(:,:,:,SideID),&
-                   GradSide,E_master(1:3),E_master(1:3))
+                   GradSide,E_master(1:3,0,0,SideID),E_master(1:3,0,0,SideID))
     END DO
 
   CASE(3) !von Neumann
@@ -193,7 +192,7 @@ DO iBC=1,nBCs
       SideID=BCSideID(iBC,iSide)
       UPrim_boundary=UPrim_master(:,:,:,SideID)
       CALL Riemann(Flux(:,:,:,SideID),UPrim_master(:,:,:,SideID),UPrim_boundary,NormVec(:,:,:,SideID), &
-                   GradSide=0.,E_L=E(1:3,0,0,0,ElemID),E_R=E(1:3,0,0,0,ElemID))
+                   GradSide=0.,E_L=E_master(1:3,0,0,SideID),E_R=E_master(1:3,0,0,SideID))
     END DO
 
   CASE DEFAULT ! unknown BCType

@@ -117,6 +117,7 @@ USE MOD_LoadBalance_Vars       ,ONLY: MPInElemSend,MPInElemRecv,MPIoffsetElemSen
 #endif /*USE_HDG*/
 #ifdef discrete_velocity /*DVM*/
 USE MOD_DistFunc               ,ONLY: GradDistribution
+USE MOD_Equation_Vars_FV       ,ONLY: DVMSpeciesData
 #endif
 USE MOD_Mesh_Vars              ,ONLY: OffsetElem
 
@@ -554,6 +555,7 @@ ELSE ! normal restart
     UTmp=0.
     CALL ReadArray('DVM_Solution',5,(/15,1_IK,1_IK,1_IK,PP_nElemsTmp/),OffsetElemTmp,5,RealArray=Utmp)
     DO iElem=1,nElems
+      Utmp(6:8,0,0,0,iElem)=Utmp(6:8,0,0,0,iElem)-SUM(Utmp(6:8,0,0,0,iElem))/3. ! traceless pressure tensor for Grad dist
       CALL GradDistribution(Utmp(1:14,0,0,0,iElem),U_FV(1:PP_nVar_FV,0,0,0,iElem))
     END DO
     DEALLOCATE(UTmp)

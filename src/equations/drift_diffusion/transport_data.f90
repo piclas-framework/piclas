@@ -220,7 +220,7 @@ muTable(2,:) =(/1.53625E+025, &
 
 IF (Density.GT.0.) THEN
     ReducedElectricField=1.e21*ElectricField/Density ! E/n in Townsend as defined in LXCAT database
-    mu = InterpolateCoefficient(muTable,ReducedElectricField)/Density ! table gives mu/n
+    mu = InterpolateCoefficient(muTable,ReducedElectricField)/Density ! table gives mu*n
     D = InterpolateCoefficient(EnergyTable,ReducedElectricField)*mu ! table gives energy=D/mu
 END IF
 

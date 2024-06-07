@@ -28,7 +28,7 @@ SUBROUTINE AnalyzeDVM()
 !===================================================================================================================================
 ! MODULES
 USE MOD_PreProc
-USE MOD_FV_Vars
+USE MOD_FV_Vars               !change this: only U_FV + DVM_ElemData
 USE MOD_TimeDisc_Vars         ,ONLY: time, dt, dt_Min
 USE MOD_DistFunc              ,ONLY: MacroValuesFromDistribution
 USE MOD_Mesh_Vars             ,ONLY: nElems

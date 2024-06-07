@@ -52,7 +52,7 @@ REAL, INTENT(OUT)               :: MacroVal(14), tau
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-REAL                            :: rho, rhoU(3), rhoE, PressTens(6), Heatflux(3), uVelo(3), cV, cVel(3),cMag, mu, weight, prefac
+REAL                            :: rho, rhoU(3), rhoE, PressTens(6), Heatflux(3), uVelo(3), cV, cVel(3),cMag2, mu, weight, prefac
 INTEGER                         :: iVel,jVel,kVel, upos
 !===================================================================================================================================
 rho = 0.
@@ -85,7 +85,7 @@ DO kVel=1, DVMnVelos(3);   DO jVel=1, DVMnVelos(2);   DO iVel=1, DVMnVelos(1)
   cVel(1) = DVMVelos(iVel,1) - uVelo(1)
   cVel(2) = DVMVelos(jVel,2) - uVelo(2)
   cVel(3) = DVMVelos(kVel,3) - uVelo(3)
-  cMag = DOT_PRODUCT(cVel,cVel)
+  cMag2 = DOT_PRODUCT(cVel,cVel)
   PressTens(1) = PressTens(1) + weight*cVel(1)*cVel(1)*U(upos)
   IF (DVMDim.LT.3) THEN
     IF (DVMDim.EQ.1) THEN
@@ -96,18 +96,16 @@ DO kVel=1, DVMnVelos(3);   DO jVel=1, DVMnVelos(2);   DO iVel=1, DVMnVelos(1)
       PressTens(2) = PressTens(2) + weight*cVel(2)*cVel(2)*U(upos)
       PressTens(3) = PressTens(3) + weight*U(PP_nVar_FV/2+upos)
     END IF
-    Heatflux(1) = Heatflux(1) + weight*0.5*cVel(1)*(U(upos)*cMag+U(PP_nVar_FV/2+upos))
-    Heatflux(2) = Heatflux(2) + weight*0.5*cVel(2)*(U(upos)*cMag+U(PP_nVar_FV/2+upos))
-    Heatflux(3) = Heatflux(3) + weight*0.5*cVel(3)*(U(upos)*cMag+U(PP_nVar_FV/2+upos))
+    Heatflux(1) = Heatflux(1) + weight*0.5*cVel(1)*(U(upos)*cMag2+U(PP_nVar_FV/2+upos))
+    Heatflux(2) = Heatflux(2) + weight*0.5*cVel(2)*(U(upos)*cMag2+U(PP_nVar_FV/2+upos))
+    Heatflux(3) = Heatflux(3) + weight*0.5*cVel(3)*(U(upos)*cMag2+U(PP_nVar_FV/2+upos))
   ELSE
     PressTens(2) = PressTens(2) + weight*cVel(2)*cVel(2)*U(upos)
     PressTens(3) = PressTens(3) + weight*cVel(3)*cVel(3)*U(upos)
     PressTens(4) = PressTens(4) + weight*cVel(1)*cVel(2)*U(upos)
     PressTens(5) = PressTens(5) + weight*cVel(1)*cVel(3)*U(upos)
     PressTens(6) = PressTens(6) + weight*cVel(2)*cVel(3)*U(upos)
-    Heatflux(1) = Heatflux(1) + weight*0.5*cVel(1)*(U(upos)*cMag)
-    Heatflux(2) = Heatflux(2) + weight*0.5*cVel(2)*(U(upos)*cMag)
-    Heatflux(3) = Heatflux(3) + weight*0.5*cVel(3)*(U(upos)*cMag)
+    Heatflux(1:3) = Heatflux(1:3) + weight*0.5*cVel(1:3)*(U(upos)*cMag2)
     ! IF (PRESENT(skewness)) THEN
     !   skewness(1) = skewness(1) + weight*cVel(1)*(U(upos)*cVel(1)*cVel(1))
     !   skewness(2) = skewness(2) + weight*cVel(2)*(U(upos)*cVel(2)*cVel(2))
@@ -286,7 +284,7 @@ REAL, INTENT(IN)                 :: MacroVal(14)
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-REAL                            :: rho, Temp, uVelo(3), cVel(3), cMag
+REAL                            :: rho, Temp, uVelo(3), cVel(3), cMag2
 INTEGER                         :: iVel,jVel,kVel, upos
 !===================================================================================================================================
 rho = MacroVal(1)
@@ -298,8 +296,8 @@ DO kVel=1, DVMnVelos(3);   DO jVel=1, DVMnVelos(2);   DO iVel=1, DVMnVelos(1)
   cVel(1) = DVMVelos(iVel,1) - uVelo(1)
   cVel(2) = DVMVelos(jVel,2) - uVelo(2)
   cVel(3) = DVMVelos(kVel,3) - uVelo(3)
-  cMag = cVel(1)*cVel(1) + cVel(2)*cVel(2)+ cVel(3)*cVel(3)
-  fMaxwell(upos) = rho/((2.*Pi*DVMSpeciesData%R_S*Temp)**(DVMDim/2.))*exp(-cMag/(2.*DVMSpeciesData%R_S*Temp))
+  cMag2 = cVel(1)*cVel(1) + cVel(2)*cVel(2)+ cVel(3)*cVel(3)
+  fMaxwell(upos) = rho/((2.*Pi*DVMSpeciesData%R_S*Temp)**(DVMDim/2.))*exp(-cMag2/(2.*DVMSpeciesData%R_S*Temp))
   IF (DVMDim.LT.3) THEN
     fMaxwell(PP_nVar_FV/2+upos) = fMaxwell(upos)*DVMSpeciesData%R_S*Temp*(DVMSpeciesData%Internal_DOF+3.-DVMDim)
   END IF
@@ -324,7 +322,7 @@ REAL, INTENT(IN)                 :: MacroVal(14)
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-REAL                            :: rho, Temp, uVelo(3), cVel(3), cMag, gM, q(3), ShakhFac1, ShakhFac2
+REAL                            :: rho, Temp, uVelo(3), cVel(3), cMag2, gM, q(3), ShakhFac1, ShakhFac2
 INTEGER                         :: iVel,jVel,kVel, upos
 !===================================================================================================================================
 rho = MacroVal(1)
@@ -337,10 +335,10 @@ DO kVel=1, DVMnVelos(3);   DO jVel=1, DVMnVelos(2);   DO iVel=1, DVMnVelos(1)
   cVel(1) = DVMVelos(iVel,1) - uVelo(1)
   cVel(2) = DVMVelos(jVel,2) - uVelo(2)
   cVel(3) = DVMVelos(kVel,3) - uVelo(3)
-  cMag = cVel(1)*cVel(1) + cVel(2)*cVel(2)+ cVel(3)*cVel(3)
-  gM = rho/((2.*Pi*DVMSpeciesData%R_S*Temp)**(DVMDim/2.))*exp(-cMag/(2.*DVMSpeciesData%R_S*Temp))
+  cMag2 = cVel(1)*cVel(1) + cVel(2)*cVel(2)+ cVel(3)*cVel(3)
+  gM = rho/((2.*Pi*DVMSpeciesData%R_S*Temp)**(DVMDim/2.))*exp(-cMag2/(2.*DVMSpeciesData%R_S*Temp))
   ShakhFac1 = DOT_PRODUCT(q,cVel)/(5.*rho*DVMSpeciesData%R_S*DVMSpeciesData%R_S*Temp*Temp)
-  ShakhFac2 = cMag/(DVMSpeciesData%R_S*Temp)
+  ShakhFac2 = cMag2/(DVMSpeciesData%R_S*Temp)
   fShakhov(upos) = gM*(1.+(1.-DVMSpeciesData%Prandtl)*ShakhFac1*(ShakhFac2-2.-DVMDim))
   IF (DVMDim.LT.3) THEN
     fShakhov(PP_nVar_FV/2+upos) = gM*DVMSpeciesData%R_S*Temp*(DVMSpeciesData%Internal_DOF+3.-DVMDim &
@@ -438,13 +436,10 @@ REAL, INTENT(IN)                 :: MacroVal(14)
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-REAL                            :: rho,Temp,uVelo(3),cVel(3),cMag,gM,q(3),pressTens(3,3),ShakhFac1,ShakhFac2,pressFac,pressProduct
+REAL                            :: rho,Temp,uVelo(3),cVel(3),cMag2,gM,q(3),pressTens(3,3),ShakhFac1,ShakhFac2,pressFac,pressProduct
 REAL                            :: pressProduct2
 INTEGER                         :: iVel,jVel,kVel,upos
 !===================================================================================================================================
-! here the traceless pressure tensor is used (init with MacroVal(6:8)=0 for Tx=Ty=Tz)
-IF (ABS(SUM(MacroVal(6:8))).GT.0.) CALL abort(__STAMP__,'Diagonal entries of the pressure tensor should add up to zero')
-
 rho              = MacroVal(1)
 uVelo(1:3)       = MacroVal(2:4)
 Temp             = MacroVal(5)
@@ -457,13 +452,17 @@ pressTens(2,3)   = MacroVal(11)
 pressTens(3,2)   = MacroVal(11)
 q(1:3)           = MacroVal(12:14)
 
+! here the traceless pressure tensor is used (init with MacroVal(6:8)=0 for Tx=Ty=Tz)
+IF (ABS(SUM(MacroVal(6:8))).GT.1.e-12*(rho*DVMSpeciesData%R_S*Temp)) CALL abort(__STAMP__, &
+                                  'Diagonal entries of the pressure tensor should add up to zero',0,SUM(MacroVal(6:8)))
+
 DO kVel=1, DVMnVelos(3);   DO jVel=1, DVMnVelos(2);   DO iVel=1, DVMnVelos(1)
   upos= iVel+(jVel-1)*DVMnVelos(1)+(kVel-1)*DVMnVelos(1)*DVMnVelos(2)
 
   cVel(1) = DVMVelos(iVel,1) - uVelo(1)
   cVel(2) = DVMVelos(jVel,2) - uVelo(2)
   cVel(3) = DVMVelos(kVel,3) - uVelo(3)
-  cMag = DOT_PRODUCT(cVel,cVel)
+  cMag2 = DOT_PRODUCT(cVel,cVel)
 
   pressProduct = cVel(1)*DOT_PRODUCT(pressTens(:,1),cVel) &
                + cVel(2)*DOT_PRODUCT(pressTens(:,2),cVel) &
@@ -476,9 +475,9 @@ DO kVel=1, DVMnVelos(3);   DO jVel=1, DVMnVelos(2);   DO iVel=1, DVMnVelos(1)
 
   pressFac = rho*DVMSpeciesData%R_S*DVMSpeciesData%R_S*Temp*Temp
   ShakhFac1 = DOT_PRODUCT(q,cVel)/(5.*pressFac)
-  ShakhFac2 = cMag/(DVMSpeciesData%R_S*Temp)
+  ShakhFac2 = cMag2/(DVMSpeciesData%R_S*Temp)
 
-  gM = rho/((2.*Pi*DVMSpeciesData%R_S*Temp)**(DVMDim/2.))*exp(-cMag/(2.*DVMSpeciesData%R_S*Temp))
+  gM = rho/((2.*Pi*DVMSpeciesData%R_S*Temp)**(DVMDim/2.))*exp(-cMag2/(2.*DVMSpeciesData%R_S*Temp))
   fGrad(upos) = gM*(1.+0.5*pressProduct/pressFac+ShakhFac1*(ShakhFac2-2.-DVMDim))
   IF (DVMDim.LT.3) THEN
     fGrad(PP_nVar_FV/2+upos) = gM*DVMSpeciesData%R_S*Temp*(DVMSpeciesData%Internal_DOF+3.-DVMDim) &
@@ -505,7 +504,7 @@ REAL, INTENT(IN)                 :: MacroVal(14)
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-REAL                            :: rho,Temp,uVelo(3),cVel(3),cMag,gM,q(3),pressTens(3,3),ShakhFac1,ShakhFac2,pressFac,pressProduct
+REAL                            :: rho,Temp,uVelo(3),cVel(3),cMag2,gM,q(3),pressTens(3,3),ShakhFac1,ShakhFac2,pressFac,pressProduct
 REAL                            :: pressProduct2
 INTEGER                         :: iVel,jVel,kVel,upos
 !===================================================================================================================================
@@ -533,7 +532,7 @@ DO kVel=1, DVMnVelos(3);   DO jVel=1, DVMnVelos(2);   DO iVel=1, DVMnVelos(1)
   cVel(1) = DVMVelos(iVel,1) - uVelo(1)
   cVel(2) = DVMVelos(jVel,2) - uVelo(2)
   cVel(3) = DVMVelos(kVel,3) - uVelo(3)
-  cMag = DOT_PRODUCT(cVel,cVel)
+  cMag2 = DOT_PRODUCT(cVel,cVel)
 
   pressProduct = cVel(1)*DOT_PRODUCT(pressTens(:,1),cVel) &
                + cVel(2)*DOT_PRODUCT(pressTens(:,2),cVel) &
@@ -546,9 +545,9 @@ DO kVel=1, DVMnVelos(3);   DO jVel=1, DVMnVelos(2);   DO iVel=1, DVMnVelos(1)
 
   pressFac = rho*DVMSpeciesData%R_S*DVMSpeciesData%R_S*Temp*Temp
   ShakhFac1 = DOT_PRODUCT(q,cVel)/(5.*pressFac)
-  ShakhFac2 = cMag/(DVMSpeciesData%R_S*Temp)
+  ShakhFac2 = cMag2/(DVMSpeciesData%R_S*Temp)
 
-  gM = rho/((2.*Pi*DVMSpeciesData%R_S*Temp)**(DVMDim/2.))*exp(-cMag/(2.*DVMSpeciesData%R_S*Temp))
+  gM = rho/((2.*Pi*DVMSpeciesData%R_S*Temp)**(DVMDim/2.))*exp(-cMag2/(2.*DVMSpeciesData%R_S*Temp))
   fGrad(upos) = gM*(1.+0.5*pressProduct/pressFac+ShakhFac1*(ShakhFac2-2.-DVMDim))
   IF (DVMDim.LT.3) THEN
     fGrad(PP_nVar_FV/2+upos) = gM*DVMSpeciesData%R_S*Temp*(DVMSpeciesData%Internal_DOF+3.-DVMDim) &
@@ -576,7 +575,7 @@ REAL, INTENT(IN)                 :: MacroVal(14)
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-REAL                            :: rho, Temp, uVelo(3), cVel(3), cMag, q(3)
+REAL                            :: rho, Temp, uVelo(3), cVel(3), cMag2, q(3)
 INTEGER                         :: iVel,jVel,kVel, upos
 REAL                            :: skew(1:3), delta(1:3), alpha(1:3), ksi(1:3), omega(1:3), Phi(1:3), max_skew
 !===================================================================================================================================
@@ -601,10 +600,10 @@ DO kVel=1, DVMnVelos(3);   DO jVel=1, DVMnVelos(2);   DO iVel=1, DVMnVelos(1)
   cVel(1) = (DVMVelos(iVel,1) - ksi(1))/omega(1)
   cVel(2) = (DVMVelos(jVel,2) - ksi(2))/omega(2)
   cVel(3) = (DVMVelos(kVel,3) - ksi(3))/omega(3)
-  cMag = DOT_PRODUCT(cVel,cVel)
+  cMag2 = DOT_PRODUCT(cVel,cVel)
   Phi = 1.+ERF(alpha*cVel/sqrt(2.))
 
-  fSkew(upos) = rho*Phi(1)*Phi(2)*Phi(3)*EXP(-cMag/2.)/PRODUCT(omega(1:DVMDim))/(2.*Pi)**(DVMDim/2.)
+  fSkew(upos) = rho*Phi(1)*Phi(2)*Phi(3)*EXP(-cMag2/2.)/PRODUCT(omega(1:DVMDim))/(2.*Pi)**(DVMDim/2.)
 
   IF (DVMDim.LT.3) THEN
     fSkew(PP_nVar_FV/2+upos) = fSkew(upos)*DVMSpeciesData%R_S*Temp*(DVMSpeciesData%Internal_DOF+3.-DVMDim)
@@ -667,7 +666,7 @@ END SUBROUTINE
 ! ! OUTPUT VARIABLES
 ! !-----------------------------------------------------------------------------------------------------------------------------------
 ! ! LOCAL VARIABLES
-! REAL                            :: rho, Temp, uVelo(3), cVel(3), cMag, q(3)
+! REAL                            :: rho, Temp, uVelo(3), cVel(3), cMag2, q(3)
 ! INTEGER                         :: iVel,jVel,kVel, upos, iLoop
 ! REAL                            :: skew(1:3), delta(1:3), alpha(1:3), ksi(1:3), omega(1:3), Phi, max_skew, omegaMat(3,3), omegaInv(3,3), omegaBar(3,3), omegaBarInv(3,3), detBar
 ! REAL                            :: obar_inv_delta(3), delta2(3), deltasq, pressTens(3,3), hfac, ldet, pressProduct
@@ -753,7 +752,7 @@ END SUBROUTINE
 !   cVel(1) = (DVMVelos(iVel,1) - ksi(1))
 !   cVel(2) = (DVMVelos(jVel,2) - ksi(2))
 !   cVel(3) = (DVMVelos(kVel,3) - ksi(3))
-!   cMag = DOT_PRODUCT(cVel,cVel)
+!   cMag2 = DOT_PRODUCT(cVel,cVel)
 
 !   ! Phi = 1.+ERF(SUM(cVel/omega*alpha)/sqrt(2.))
 !   Phi = PRODUCT(1.+ERF(cVel/omega*alpha/sqrt(2.)))
@@ -801,7 +800,7 @@ REAL, INTENT(IN)                 :: MacroVal(14)
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-REAL                            :: rho, Temp, uVelo(3), cVel(3), cMag, q(3), cCumu(3), cCumuMag, betalog(1:3), gamma1
+REAL                            :: rho, Temp, uVelo(3), cVel(3), cMag2, q(3), cCumu(3), cCumuMag, betalog(1:3), gamma1
 INTEGER                         :: iVel,jVel,kVel, upos, iLoop, ifault
 REAL                            :: skew(1:3), delta, alpha(1:3), ksi(1:3), omega(1:3), nu(1:3), max_skew, b1, Phi(1:3), stut(1:3)
 LOGICAL                         :: IsSN(1:3)
@@ -870,9 +869,9 @@ DO kVel=1, DVMnVelos(3);   DO jVel=1, DVMnVelos(2);   DO iVel=1, DVMnVelos(1)
     END DO
     fSkewt(upos) = 2**DVMDim*rho*PRODUCT(stut(1:DVMDim))/PRODUCT(omega(1:DVMDim))
   ELSE
-    cMag = DOT_PRODUCT(cVel,cVel)
+    cMag2 = DOT_PRODUCT(cVel,cVel)
     Phi = 1.+ERF(alpha*cVel/sqrt(2.))
-    fSkewt(upos) = rho*Phi(1)*Phi(2)*Phi(3)*EXP(-cMag/2.)/PRODUCT(omega(1:DVMDim))/(2.*Pi)**(DVMDim/2.)
+    fSkewt(upos) = rho*Phi(1)*Phi(2)*Phi(3)*EXP(-cMag2/2.)/PRODUCT(omega(1:DVMDim))/(2.*Pi)**(DVMDim/2.)
   END IF
 
   IF (DVMDim.LT.3) THEN
@@ -1073,6 +1072,7 @@ END SUBROUTINE
 SUBROUTINE RescaleInit(tDeriv)
 !===================================================================================================================================
 ! Initial rescale (f->ftilde) for initialization with non equilibrium flow
+! TODO: Should also be used for restart
 !===================================================================================================================================
 ! MODULES
 USE MOD_Equation_Vars_FV,  ONLY: DVMBGKModel, DVMMethod

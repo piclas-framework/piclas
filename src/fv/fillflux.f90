@@ -49,7 +49,7 @@ USE MOD_GetBoundaryFlux ,ONLY: GetBoundaryFlux
 USE MOD_Mesh_Vars       ,ONLY: firstMPISide_MINE,lastMPISide_MINE,firstInnerSide,firstBCSide,lastInnerSide
 #ifdef drift_diffusion
 USE MOD_Equation_Vars_FV,ONLY: EFluid_GradSide
-USE MOD_Equation_Vars   ,ONLY: E
+USE MOD_Equation_Vars   ,ONLY: E_slave, E_master
 USE MOD_Interpolation_Vars ,ONLY: wGP
 USE MOD_Mesh_Vars       ,ONLY: SideToElem
 #endif
@@ -68,10 +68,10 @@ REAL,INTENT(OUT)   :: Flux_Slave(1:PP_nVar_FV,0:0,0:0,nSides)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER            :: SideID,firstSideID_wo_BC,firstSideID,lastSideID
-#ifdef drift_diffusion
-INTEGER            :: ElemIDm,ElemIDs,i,j,k
-REAL               :: E_slave(3), E_master(3)
-#endif
+! #ifdef drift_diffusion
+! INTEGER            :: ElemIDm,ElemIDs,i,j,k
+! REAL               :: E_slave(3), E_master(3)
+! #endif
 !===================================================================================================================================
 
 ! fill flux for sides ranging between firstSideID and lastSideID using Riemann solver
@@ -100,16 +100,8 @@ END IF
 ! 1. compute flux for non-BC sides: Compute fluxes on 0, no additional interpolation required
 DO SideID=firstSideID_wo_BC,lastSideID
 #ifdef drift_diffusion
-  ElemIDm   = SideToElem(S2E_ELEM_ID,SideID)
-  ElemIDs   = SideToElem(S2E_NB_ELEM_ID,SideID)
-  E_slave=0.
-  E_master=0.
-  DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
-    E_slave(:) = E_slave(:) + wGP(i)*wGP(j)*wGP(k)*E(1:3,i,j,k,ElemIDs)/((PP_N+1.)**3)
-    E_master(:) = E_master(:) + wGP(i)*wGP(j)*wGP(k)*E(1:3,i,j,k,ElemIDm)/((PP_N+1.)**3)
-  END DO; END DO; END DO
   CALL Riemann(Flux_Master(:,:,:,SideID),U_Master(:,:,:,SideID),U_Slave(:,:,:,SideID),NormVec_FV(:,:,:,SideID), &
-               EFluid_GradSide(SideID),E_master,E_slave)
+               EFluid_GradSide(SideID),E_master(:,0,0,SideID),E_slave(:,0,0,SideID)) ! need to average E on side instead of 0,0
 #else
   CALL Riemann(Flux_Master(:,:,:,SideID),U_Master(:,:,:,SideID),U_Slave(:,:,:,SideID),NormVec_FV(:,:,:,SideID))
 #endif

@@ -25,16 +25,10 @@ PRIVATE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
-#if USE_FV
-INTERFACE ProlongToFace
-  MODULE PROCEDURE ProlongToFace_FV
-END INTERFACE
 
-#else
 INTERFACE ProlongToFace
   MODULE PROCEDURE ProlongToFace_sideBased
 END INTERFACE
-#endif
 
 INTERFACE ProlongToFace_BC
   MODULE PROCEDURE ProlongToFace_BC
@@ -161,7 +155,7 @@ DO SideID=firstSideID,lastSideID
 END DO !SideID
 
 END SUBROUTINE ProlongToFace_FV
-#else /*USE_FV*/
+#endif /*USE_FV*/
 
 SUBROUTINE ProlongToFace_SideBased(Uvol,Uface_master,Uface_slave,doMPISides)
 !===================================================================================================================================
@@ -436,7 +430,6 @@ DO SideID=firstSideID,lastSideID
 END DO !SideID
 
 END SUBROUTINE ProlongToFace_SideBased
-#endif /*USE_FV*/
 
 
 SUBROUTINE ProlongToFace_BC(Uvol,Uface_BC)

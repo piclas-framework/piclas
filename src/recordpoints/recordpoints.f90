@@ -386,9 +386,11 @@ DO iRP=1,nRP
       l_eta_zeta_RP=l_eta_RP(j,iRP)*l_zeta_RP(k,iRP)
       DO i=0,PP_N
 #if USE_HDG
+#ifndef drift_diffusion
 #if PP_nVar==1
         U_RP(:,iRP)=U_RP(:,iRP) + (/ U(:,i,j,k,RP_ElemID(iRP)), E(1:3,i,j,k,RP_ElemID(iRP)) /)*l_xi_RP(i,iRP)*l_eta_zeta_RP
-#endif /*PP_nVar==1*/
+#endif /*drift_diffusion*/
+        #endif /*PP_nVar==1*/
 #else
 #ifdef discrete_velocity
         U_RP(:,iRP)=U_FV(:,0,0,0,RP_ElemID(iRP))
