@@ -311,14 +311,22 @@ REAL, ALLOCATABLE    :: ElementThicknessVDL(:)   ! Thickness of first element la
 REAL, ALLOCATABLE    :: StretchingFactorVDL(:)   ! Thickness of first element layer at a VDL boundary versus actual VDL layer thickness
 
 TYPE, PUBLIC :: VDLSurfMesh
-  REAL,ALLOCATABLE        :: U(:,:,:)   !< 1-3: Ex,Ey,Ez - E-field from post-processes gradient corrected with ElementThicknessVDL and ThicknessVDL
-                                        !<   4: PhiF1    - PhiF as Minimum/Maximum of Phi
-                                        !<   5: PhiF2    - PhiF calculated from E (1-3)
-                                        !< 6-8: Ex,Ey,Ez - E-field calculated from PhiF1 (Minimum/Maximum of Phi)
+  REAL,ALLOCATABLE :: U(:,:,:) !<  1: PhiF_From_E      - PhiF calculated from E (2-4)
+                               !<  2: Ex               - E-field from post-processes gradient corrected with ElementThicknessVDL and ThicknessVDL
+                               !<  3: Ey
+                               !<  4: Ez
+                               !<  5: PhiF_Max         - PhiF as Minimum/Maximum of Phi
+                               !<  6: E_From_PhiF_Maxx - E-field from PhiF_Max (Minimum/Maximum of Phi) and ThicknessVDL (thickness of the dielectric layer)
+                               !<  7: E_From_PhiF_Maxy
+                               !<  8: E_From_PhiF_Maxz
+                               !<  9: PhiF_From_Currents - PhiF calculated from the current density and the (uncorrected) electric displacement fields in each element
+                               !< 10: E_From_PhiF_From_Currentsx - E-field from PhiF_From_Currents (current density+electric displacement field) and ThicknessVDL (thickness of the dielectric layer)
+                               !< 11: E_From_PhiF_From_Currentsy
+                               !< 12: E_From_PhiF_From_Currentsz
 END TYPE VDLSurfMesh
 
-INTEGER,PARAMETER              :: nVarSurfData=8
-TYPE(VDLSurfMesh),ALLOCATABLE  :: N_SurfVDL(:) !< Corrected electric field on VDL surfaces
+INTEGER,PARAMETER              :: nVarSurfData=12
+TYPE(VDLSurfMesh),ALLOCATABLE  :: N_SurfVDL(:) !< Electric potential and fields strength on VDL surfaces
 !===================================================================================================================================
 
 END MODULE MOD_Particle_Boundary_Vars

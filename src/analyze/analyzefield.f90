@@ -1745,7 +1745,7 @@ SUBROUTINE CalculateElectricPotentialAndFieldBoundaryVDL()
 !> missing ... ups
 !>
 !> 1.) Loop over all processor-local BC sides and therein find the local side ID which corresponds to the reference element and
-!      interpolate the vector field Et = (/Etx, Ety, Etz/) to the boundary face
+!      interpolate the vector field E = (/Ex, Ey, Ez/) to the boundary face
 !> 2.) Apply the normal vector: Uface(1,:,:)=DOT_PRODUCT(Uface(1:3,:,:),NormVec(1:3,:,:,SideID))*NormVec(1:3,:,:,SideID)
 !> 3.) Apply the E-field correction factor
 !===================================================================================================================================
@@ -1777,48 +1777,49 @@ DO SideID=1,nBCSides
   ElemID = SideToElem(S2E_ELEM_ID,SideID)
   ! Get local polynomial degree of the element
   Nloc   = N_DG_Mapping(2,ElemID+offSetElem)
-  ! Allocate Eface depending on the local polynomial degree
-  ALLOCATE(Uface(  1,0:Nloc,0:Nloc))
-  ALLOCATE(Eface(1:3,0:Nloc,0:Nloc))
-  ! Get local side index
-  ilocSide = SideToElem(S2E_LOC_SIDE_ID,SideID)
   ! Get particle boundary index
   iPartBound = PartBound%MapToPartBC(BC(SideID))
-  ! Prolong-to-face depending on orientation in reference element
-  CALL ProlongToFace_Side(3, Nloc, ilocSide, 0, U_N(ElemID)%E(:,:,:,:), Eface)
-  ! Get opposing face for U
-  SELECT CASE(ilocSide)
-  CASE(XI_MINUS)
-    ilocSide2 = XI_PLUS
-  CASE(XI_PLUS)
-    ilocSide2 = XI_MINUS
-  CASE(ETA_MINUS)
-    ilocSide2 = ETA_PLUS
-  CASE(ETA_PLUS)
-    ilocSide2 = ETA_MINUS
-  CASE(ZETA_MINUS)
-    ilocSide2 = ZETA_PLUS
-  CASE(ZETA_PLUS)
-    ilocSide2 = ZETA_MINUS
-  END SELECT
-  ! Defaulting to master sides with flip=0 in the following call. However, this only changes the sorting for Gauss-Lobatto
-  CALL ProlongToFace_Side(1, Nloc, ilocSide2, 0, U_N(ElemID)%U(1,:,:,:), Uface)
-
-  ! 2.) Apply the normal vector to get the normal electric field
-  DO q=0,Nloc
-    DO p=0,Nloc
-      ASSOCIATE( Ecorr => N_SurfVDL(SideID)%U(1:3,p,q), normal => N_SurfMesh(SideID)%NormVec(1:3,p,q), E => Eface(1:3,p,q))
-        ! E_normal =  <E,normal>*normal
-        Ecorr = DOT_PRODUCT(E,normal)*normal
-      END ASSOCIATE
-    END DO ! p
-  END DO ! q
 
   ! Skip sides that are not a VDL boundary (these sides are still in the list of sides)
   IF(PartBound%ThicknessVDL(iPartBound).GT.0.0)THEN
 
+    ! Allocate Uface and Eface depending on the local polynomial degree
+    ALLOCATE(Uface(  1,0:Nloc,0:Nloc))
+    ALLOCATE(Eface(1:3,0:Nloc,0:Nloc))
+    ! Get local side index
+    ilocSide = SideToElem(S2E_LOC_SIDE_ID,SideID)
+    ! Prolong-to-face depending on orientation in reference element
+    CALL ProlongToFace_Side(3, Nloc, ilocSide, 0, U_N(ElemID)%E(:,:,:,:), Eface)
+    ! Get opposing face for U because the Dirichlet value is present on the actual boundary face, which is already known
+    SELECT CASE(ilocSide)
+    CASE(XI_MINUS)
+      ilocSide2 = XI_PLUS
+    CASE(XI_PLUS)
+      ilocSide2 = XI_MINUS
+    CASE(ETA_MINUS)
+      ilocSide2 = ETA_PLUS
+    CASE(ETA_PLUS)
+      ilocSide2 = ETA_MINUS
+    CASE(ZETA_MINUS)
+      ilocSide2 = ZETA_PLUS
+    CASE(ZETA_PLUS)
+      ilocSide2 = ZETA_MINUS
+    END SELECT
+    ! Defaulting to master sides with flip=0 in the following call. However, this only changes the sorting for Gauss-Lobatto
+    CALL ProlongToFace_Side(1, Nloc, ilocSide2, 0, U_N(ElemID)%U(1,:,:,:), Uface)
+
+    ! 2.) Apply the normal vector to get the normal electric field
+    DO q=0,Nloc
+      DO p=0,Nloc
+        ASSOCIATE( Ecorr => N_SurfVDL(SideID)%U(2:4,p,q), normal => N_SurfMesh(SideID)%NormVec(1:3,p,q), E => Eface(1:3,p,q))
+          ! E_normal =  <E,normal>*normal
+          Ecorr = DOT_PRODUCT(E,normal)*normal
+        END ASSOCIATE
+      END DO ! p
+    END DO ! q
+
     ! Calculate the corrected E-field
-    N_SurfVDL(SideID)%U(1:3,:,:) = N_SurfVDL(SideID)%U(1:3,:,:) * (ElementThicknessVDL(ElemID)/PartBound%ThicknessVDL(iPartBound))
+    N_SurfVDL(SideID)%U(2:4,:,:) = N_SurfVDL(SideID)%U(2:4,:,:) * (ElementThicknessVDL(ElemID)/PartBound%ThicknessVDL(iPartBound))
 
     ! Get Phi_F
     MinOfElem = MINVAL(U_N(ElemID)%U(1,:,:,:))
@@ -1827,33 +1828,33 @@ DO SideID=1,nBCSides
     MaxOfFace = MAXVAL(Uface)
     DO q=0,Nloc
       DO p=0,Nloc
-        ASSOCIATE( E => N_SurfVDL(SideID)%U(1:3,p,q), normal => N_SurfMesh(SideID)%NormVec(1:3,p,q) )
+        ASSOCIATE( E => N_SurfVDL(SideID)%U(2:4,p,q), normal => N_SurfMesh(SideID)%NormVec(1:3,p,q) )
           ! Normal vector points outwards on BC sides, hence, invert it
           Edir = DOT_PRODUCT(E,-normal)
           ! Check in which direction the E-field points
           IF(Edir.GT.0.0)THEN
             ! Get minimum of Phi as Phi_F (Phi_Max)
-            N_SurfVDL(SideID)%U(4:4,p,q) = MIN(MinOfElem,MinOfFace)
+            N_SurfVDL(SideID)%U(5:5,p,q) = MIN(MinOfElem,MinOfFace)
             ! Reconstruct Phi_F from E
-            N_SurfVDL(SideID)%U(5:5,p,q) = -VECNORM(E)*PartBound%ThicknessVDL(iPartBound)
+            N_SurfVDL(SideID)%U(1:1,p,q) = -VECNORM(E)*PartBound%ThicknessVDL(iPartBound)
             ! Reconstruct E from Phi_Max via E = Phi/d
-            N_SurfVDL(SideID)%U(6:8,p,q) = -N_SurfVDL(SideID)%U(4,p,q)/PartBound%ThicknessVDL(iPartBound)*normal
+            N_SurfVDL(SideID)%U(6:8,p,q) = -N_SurfVDL(SideID)%U(5,p,q)/PartBound%ThicknessVDL(iPartBound)*normal
           ELSE
             ! Get maximum of Phi as Phi_F (Phi_Max)
-            N_SurfVDL(SideID)%U(4:4,p,q) = MAX(MaxOfElem,MaxOfFace)
+            N_SurfVDL(SideID)%U(5:5,p,q) = MAX(MaxOfElem,MaxOfFace)
             ! Reconstruct Phi_F from E
-            N_SurfVDL(SideID)%U(5:5,p,q) =  VECNORM(E)*PartBound%ThicknessVDL(iPartBound)
+            N_SurfVDL(SideID)%U(1:1,p,q) =  VECNORM(E)*PartBound%ThicknessVDL(iPartBound)
             ! Reconstruct E from Phi_Max via E = Phi/d
-            N_SurfVDL(SideID)%U(6:8,p,q) =  N_SurfVDL(SideID)%U(4,p,q)/PartBound%ThicknessVDL(iPartBound)*normal
+            N_SurfVDL(SideID)%U(6:8,p,q) =  N_SurfVDL(SideID)%U(5,p,q)/PartBound%ThicknessVDL(iPartBound)*normal
           END IF ! Edir.GT.0
         END ASSOCIATE
       END DO ! p
     END DO ! q
 
-  END IF ! PartBound%ThicknessVDL(iPartBound).GT.0.0
+    DEALLOCATE(Uface)
+    DEALLOCATE(Eface)
 
-  DEALLOCATE(Uface)
-  DEALLOCATE(Eface)
+  END IF ! PartBound%ThicknessVDL(iPartBound).GT.0.0
 END DO ! SideID=1,nBCSides
 
 END SUBROUTINE CalculateElectricPotentialAndFieldBoundaryVDL
@@ -1866,7 +1867,7 @@ SUBROUTINE CalculateElectricDisplacementCurrentSurface()
 !> missing ... ups
 !>
 !> 1.) Loop over all processor-local BC sides and therein find the local side ID which corresponds to the reference element and
-!      interpolate the vector field Et = (/Etx, Ety, Etz/) to the boundary face
+!      interpolate the vector field Dt = (/Dtx, Dty, Dtz/) to the boundary face
 !> 2.) Apply the normal vector: Uface(1,:,:)=DOT_PRODUCT(Uface(1:3,:,:),NormVec(1:3,:,:,SideID))
 !      Store result of dot product in first array index
 !> 3.) Get BC index and EDC index and the mapping of the SideID boundary to the EDC boundary ID and store the integrated current
@@ -1890,7 +1891,7 @@ IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER          :: ElemID,SideID,ilocSide,Nloc
-REAL,ALLOCATABLE :: Uface(:,:,:)
+REAL,ALLOCATABLE :: Eface(:,:,:)
 INTEGER          :: iBC,iEDCBC
 !REAL             :: SIP(0:PP_N,0:PP_N)
 !REAL             :: AverageElectricPotentialProc
@@ -1900,26 +1901,31 @@ INTEGER          :: iBC,iEDCBC
 EDC%Current = 0.
 
 ! 1.) Loop over all processor-local BC sides and therein find the local side ID which corresponds to the reference element and
-!     interpolate the vector field Et = (/Etx, Ety, Etz/) to the boundary face
+!     interpolate the vector field Dt = (/Dtx, Dty, Dtz/) to the boundary face
 DO SideID=1,nBCSides
+  ! Get the local element index
   ElemID   = SideToElem(S2E_ELEM_ID,SideID)
+  ! Get local polynomial degree of the element
   Nloc = N_DG_Mapping(2,ElemID+offSetElem)
-  ALLOCATE(Uface(1:3,0:Nloc,0:Nloc))
+  ! Allocate Eface depending on the local polynomial degree
+  ALLOCATE(Eface(1:3,0:Nloc,0:Nloc))
+  ! Get local side index
   ilocSide = SideToElem(S2E_LOC_SIDE_ID,SideID)
-  CALL ProlongToFace_Side(3, Nloc, ilocSide, 0, U_N(ElemID)%Et, Uface)
+  ! Prolong-to-face depending on orientation in reference element
+  CALL ProlongToFace_Side(3, Nloc, ilocSide, 0, U_N(ElemID)%Dt, Eface)
 
-  ! 2.) Apply the normal vector: Uface(1,:,:)=DOT_PRODUCT(Uface(1:3,:,:),NormVec(1:3,:,:,SideID))
+  ! 2.) Apply the normal vector: Eface(1,:,:)=DOT_PRODUCT(Eface(1:3,:,:),NormVec(1:3,:,:,SideID))
   !     Store result of dot product in first array index
-  Uface(1,:,:) =   Uface(1,:,:) * N_SurfMesh(SideID)%NormVec(1,:,:) &
-                 + Uface(2,:,:) * N_SurfMesh(SideID)%NormVec(2,:,:) &
-                 + Uface(3,:,:) * N_SurfMesh(SideID)%NormVec(3,:,:)
+  Eface(1,:,:) =   Eface(1,:,:) * N_SurfMesh(SideID)%NormVec(1,:,:) &
+                 + Eface(2,:,:) * N_SurfMesh(SideID)%NormVec(2,:,:) &
+                 + Eface(3,:,:) * N_SurfMesh(SideID)%NormVec(3,:,:)
 
   ! 3.) Get BC index and EDC index and the mapping of the SideID boundary to the EDC boundary ID and store the integrated current
   iBC    = BC(SideID)
   iEDCBC = EDC%BCIDToEDCBCID(iBC)
-  EDC%Current(iEDCBC) = EDC%Current(iEDCBC) + SUM(Uface(1,:,:) * N_SurfMesh(SideID)%SurfElem(:,:) * N_Inter(Nloc)%wGPSurf(:,:))
+  EDC%Current(iEDCBC) = EDC%Current(iEDCBC) + SUM(Eface(1,:,:) * N_SurfMesh(SideID)%SurfElem(:,:) * N_Inter(Nloc)%wGPSurf(:,:))
 
-  DEALLOCATE(Uface)
+  DEALLOCATE(Eface)
 END DO ! SideID=1,nBCSides
 
 #if USE_MPI

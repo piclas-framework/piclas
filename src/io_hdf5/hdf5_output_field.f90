@@ -320,18 +320,21 @@ IF (mySurfRank.EQ.0) THEN
 
   ALLOCATE(Str2DVarNames(1:nVarSurfData))
   ! fill varnames for total values
-  Str2DVarNames(1) ='Ex'
-  Str2DVarNames(2) ='Ey'
-  Str2DVarNames(3) ='Ez'
-  Str2DVarNames(4) ='PhiF_Max'
-  Str2DVarNames(5) ='PhiF_From_E'
+  Str2DVarNames(1) ='PhiF_From_E'
+  Str2DVarNames(2) ='Ex'
+  Str2DVarNames(3) ='Ey'
+  Str2DVarNames(4) ='Ez'
+  Str2DVarNames(5) ='PhiF_Max'
   Str2DVarNames(6) ='E_From_PhiF_Maxx'
   Str2DVarNames(7) ='E_From_PhiF_Maxy'
   Str2DVarNames(8) ='E_From_PhiF_Maxz'
-
+  Str2DVarNames(9) ='PhiF_From_Currents'
+  Str2DVarNames(10) ='E_From_PhiF_From_Currentsx'
+  Str2DVarNames(11) ='E_From_PhiF_From_Currentsy'
+  Str2DVarNames(12) ='E_From_PhiF_From_Currentsz'
   CALL WriteAttributeToHDF5(File_ID,'VarNamesSurface',nVarSurfData,StrArray=Str2DVarNames)
 
-   CALL CloseDataFile()
+  CALL CloseDataFile()
   DEALLOCATE(Str2DVarNames)
 #if USE_MPI
 END IF
