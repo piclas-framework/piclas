@@ -46,7 +46,7 @@ A multitude of different numerical methods to solve the resulting system of line
 library {cite}`petsc-web-page`, {cite}`petsc-user-ref`, {cite}`petsc-efficient`. For detailed installation steps of PETSc within PICLas, see Section {ref}`sec:petsc-installation`.
 To use PETSc, another flag must be set during the compilation of PICLas
 
-    PICLAS_PETSC = ON
+    LIBS_USE_PETSC = ON
 
 and the parameter input file for the simulation requires setting
 
