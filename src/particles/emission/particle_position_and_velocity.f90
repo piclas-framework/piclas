@@ -141,6 +141,7 @@ IF (DoExactPartNumInsert) THEN
 ELSE
   PartDens = Species(iSpec)%Init(iInit)%PartDensity / Species(iSpec)%MacroParticleFactor   ! numerical Partdensity is needed
   IF(RadialWeighting%DoRadialWeighting) PartDens = PartDens * 2. / (RadialWeighting%PartScaleFactor)
+  CHECKSAFEINT(PartDens * LocalVolume, 4)
   chunkSize_tmp = INT(PartDens * LocalVolume)
   IF(UseSplitAndMerge) THEN
     IF(vMPFSplitThreshold(iSpec).GT.0) chunkSize_tmp = nElems * vMPFSplitThreshold(iSpec)

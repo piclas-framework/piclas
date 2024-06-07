@@ -23,6 +23,8 @@ exchange (by default including the rotational and vibrational energy treatment).
 the parameters for the internal energy exchange (Section {ref}`sec:DSMC-relaxation`) and chemical reactions (Section
 {ref}`sec:DSMC-chemistry`).
 
+
+
 A fixed ("manual") simulation time step $\Delta t$ is defined by
 
     ManualTimeStep = 1.00E-7
@@ -31,14 +33,16 @@ A fixed ("manual") simulation time step $\Delta t$ is defined by
 ## Species Definition
 
 For the DSMC simulation, additional species-specific parameters (collision model parameters, characteristic vibrational
-temperature, etc.) are required. This file is also utilized for the definition of chemical reactions paths. To define a species,
-its name as well as an `InteractionID` have to be defined
+temperature, etc.) are required. This file is also utilized for the definition of chemical reactions paths. To avoid the manual input,
+species parameter can be read from a database instead. The procedure is described in Section {ref}`sec:unified-species-database`.
+
+To define a species, its name as well as an `InteractionID` have to be defined
 
     Part-Species1-SpeciesName = CH4
     Part-Species1-InteractionID = 2
 
-The name is at the moment only utilized to retrieve the electronic energy levels from an additional database. The interaction ID
-determines the type of a species as follows
+During the file-based parameter read-in, name is only utilized to retrieve the electronic energy levels from an additional database.
+The interaction ID determines the type of a species as follows
 
 |   ID | Type                               |
 | ---: | ---------------------------------- |
@@ -160,7 +164,7 @@ parameters can be obtained from e.g. {cite}`Swaminathan-Gopalan2016`.
 ### Cross-section based collision probabilities
 
 Cross-section data to model collisional and relaxation probabilities (e.g. in case of electron-neutral collisions), analogous to
-Monte Carlo Collisions, can be utilized and is described in Section {ref}`sec:tools-xsec-collision` and {ref}`sec:xsec-chemistry`.
+Monte Carlo Collisions, can be utilized and is described in Section {ref}`sssec:tools-maintain-database-xsec-collision` and {ref}`sec:xsec-chemistry`.
 
 (sec:DSMC-relaxation)=
 ## Inelastic Collisions \& Relaxation
@@ -252,15 +256,10 @@ using an instantaneous translational cell temperature.
 (sec:DSMC-electronic-relaxation)=
 ### Electronic Relaxation
 
-For the modelling of electronic relaxation, three models are available: the model by Liechty et al. {cite}`Liechty2011a` and a BGK Landau-Teller like model {cite}`Pfeiffer2018b`,{cite}``Pfeiffer2018b``', where each
+For the modelling of electronic relaxation, three models are available: the model by Liechty et al. {cite}`Liechty2011a` and a BGK Landau-Teller like model {cite}`Pfeiffer2018b`, where each
 particle has a specific electronic state and the model by Burt and Eswar {cite}`Burt2015b`, where each particle has an electronic
 distribution function attached. The three models utilize tabulated energy levels, which can be found in literature for a wide range of
-species (e.g. for monatomic {cite}`NISTASD`, diatomic {cite}`Huber1979`, polyatomic {cite}`Herzberg1966` molecules). An example
-database `DSMCSpecies_electronic_state_full_Data.h5` can be found in e.g.
-`piclas/regressioncheck/NIG_Reservoir/CHEM_EQUI_TCE_Air_5Spec`, where the energy levels are stored in containers and
-accessed via the species name, e.g. `Part-Species1-SpeciesName=N2`. Each level is described by its degeneracy in the first column
-and by the energy in [J] in the second column. To include electronic excitation in the simulation, the following parameters are
-required
+species (e.g. for monatomic {cite}`NISTASD`, diatomic {cite}`Huber1979`, polyatomic {cite}`Herzberg1966` molecules). PICLas utilizes a species database, which contains the electronic energy levels of the species and is located in the top folder `SpeciesDatabase.h5`. Details regarding the database and the addition of new species can be found in Section {ref}`sec:unified-species-database`. To include electronic excitation in the simulation, the following parameters are required
 
     Particles-DSMC-ElectronicModel  = 0     ! No electronic energy is considered (default)
                                     = 1     ! Model by Liechty
@@ -284,9 +283,6 @@ the following parameter needs to be defined
     Part-Species3-ElecRelaxProb = 1.0
     Part-Species4-ElecRelaxProb = 0.5
     Part-Species5-ElecRelaxProb = 0.1
-
-An electronic state database can be created using a Fortran tool in `piclas/tools/electronic_data`. An alternative is to use the
-Python-based script discussed in Section {ref}`sec:tools-xsec-collision` and to adapt it to electronic energy levels.
 
 (sec:DSMC-chemistry)=
 ## Chemistry & Ionization
@@ -341,6 +337,8 @@ have to be given by
 
 This allows to define a single reaction for an arbitrary number of collision partners. In the following, three possibilities to
 model the reaction rates are presented.
+
+(ssec:TCE)=
 ### Total Collision Energy (TCE)
 
 The Total Collision Energy (TCE) model {cite}`Bird1994` utilizes Arrhenius type reaction rates to reproduce the probabilities for
@@ -358,6 +356,7 @@ activation energy [K]. These parameters can be defined in PICLas as follows
 An example initialization file for a TCE-based chemistry model can be found in the regression tests (e.g.
 `regressioncheck/NIG_Reservoir/CHEM_EQUI_TCE_Air_5Spec`).
 
+(ssec:QK)=
 ### Quantum Kinetic Chemistry (QK)
 
 The Quantum Kinetic (QK) model {cite}`Bird2011` chooses a different approach and models chemical reactions on the microscopic level.
@@ -377,7 +376,7 @@ read-in of the electronic state database.
 ### Cross-section Chemistry (XSec)
 
 The cross-section based chemistry model utilizes experimentally measured or ab-initio calculated cross-sections (analogous to
-the collision probability procedure described in Section {ref}`sec:tools-xsec-collision`). It requires the same database, where the
+the collision probability procedure described in Section {ref}`sssec:tools-maintain-database-xsec-collision`). It requires the same database, where the
 reaction paths are stored per particle pair, e.g. the `N2-electron` container contains the `REACTION` folder, which includes the
 reactions named by their products, e.g. `N2Ion1-electron-electron`.
 
@@ -466,7 +465,11 @@ the mean collision separation distance to the mean free path is written out (`DS
 $$\frac{l_{\mathrm{mcs}}}{\lambda} < 1$$
 
 The mean collision separation distance is determined during every collision and compared to the mean free path, where its ratio
-should be less than unity. Values above unity indicate an insufficient particle discretization. In order to estimate the required
+should be less than unity. Values above unity indicate an insufficient particle discretization.
+
+Additionaly, the above flag writes out the percentage of cells with a resolved timestep (`ResolvedTimestep`), the maximum collision probability of the entire computational domain (`Pmax`), the maximum of the `MCSoverMFP` of the entire domain (`MaxMCSoverMFP`), and the percentage of cells with a resolved time step and resolved weighting factor $w$ (`ResolvedCellPercentage`) to the file `PartAnalyze.csv`. In case of a reservoir simulation, the mean collision probability (`Pmean`) is the output instead of the `ResolvedTimestep`.
+
+In order to estimate the required
 weighting factor $w$, the following equation can be utilized for a 3D simulation
 
 $$w < \frac{1}{\left(\sqrt{2}\pi d_{\mathrm{ref}}^2 n^{2/3}\right)^3},$$
@@ -474,4 +477,7 @@ $$w < \frac{1}{\left(\sqrt{2}\pi d_{\mathrm{ref}}^2 n^{2/3}\right)^3},$$
 where $d_{\mathrm{ref}}$ is the reference diameter and $n$ the number density. Here, the largest number density within the
 simulation domain should be used as the worst-case. For supersonic/hypersonic flows, the conditions behind a normal shock can be
 utilized as a first guess. For a thruster/nozzle expansion simulation, the chamber or throat conditions are the limiting factor.
+
+
+
 

@@ -1,6 +1,6 @@
 # List of Contributors
 
-This is a (possibly incomplete) list of the people who contributed to piclas.
+This is a (possibly incomplete) list of the people who contributed to PICLas.
 
 * Christoph Altmann
 * Muhammed Atak
@@ -15,10 +15,12 @@ This is a (possibly incomplete) list of the people who contributed to piclas.
 * David Flad
 * Fabian Föll
 * Hannes Frank
+* Félix Garmirian
 * Gregor Gassner
 * Florian Hindenlang
 * Andrea Hinkel
 * Konstantin Hinsberger
+* Franziska Hild
 * Timon Hitz
 * Malte Hoffmann
 * Serena Keller
@@ -26,7 +28,9 @@ This is a (possibly incomplete) list of the people who contributed to piclas.
 * Marius Koch
 * Patrick Kopper
 * Nico Krais
+* Simone Lauterbach
 * Robert Mansk
+* Claudia Marianowski
 * Claus-Dieter Munz
 * Asim Mirza
 * Jonathan Neudorfer
@@ -34,10 +38,13 @@ This is a (possibly incomplete) list of the people who contributed to piclas.
 * Jonatan Núñez-de la Rosa
 * Philipp Offenhaeuser
 * Philip Ortwein
+* Tobias Ott
 * Marcel Pfeiffer
 * Wladimir Reschke
 * Matthias Sonntag
 * Marcel "Mitch" Scherrmann
+* Valentin Schunck
+* Miklas Schütte
 * Anna Schwarz
 * Marc Staudenmaier
 * Torsten Stindl

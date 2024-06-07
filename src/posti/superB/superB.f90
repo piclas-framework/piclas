@@ -40,6 +40,9 @@ USE MOD_Equation              ,ONLY: InitEquation
 #endif
 USE MOD_Interpolation_Vars    ,ONLY: BGField,BGFieldAnalytic
 USE MOD_Mesh                  ,ONLY: InitMesh
+#ifdef PARTICLES
+USE MOD_Particle_Vars         ,ONLY: Symmetry
+#endif /*PARTICLES*/
 #if USE_MPI
 USE MOD_MPI_Shared
 #endif /*USE_MPI*/
@@ -129,6 +132,9 @@ CALL InitOutput()
 CALL InitIOHDF5()
 
 CALL InitGlobals()
+#ifdef PARTICLES
+Symmetry%Order = 3
+#endif
 #if USE_MPI
 CALL InitMPIShared()
 #endif /*USE_MPI*/

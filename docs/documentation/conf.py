@@ -96,3 +96,14 @@ autosectionlabel_prefix_document = True
 # -- Table and Figure labelling ----------------------------------------------
 # Activate using: {numref}`tab:some-name` -> Table 1
 numfig = True
+
+# -- MyST-Parser Syntax Extensions -------------------------------------------
+# https://myst-parser.readthedocs.io/en/latest/syntax/optional.html#math-shortcuts
+#
+#   "dollarmath" for parsing of dollar $ and $$ encapsulated math.
+#   "amsmath" for direct parsing of amsmath LaTeX environments.
+#
+myst_enable_extensions = [
+    "amsmath",
+    "dollarmath",
+]

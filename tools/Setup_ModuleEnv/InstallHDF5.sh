@@ -115,6 +115,7 @@ fi
 #HDF5VERSION=1.12.1
 #HDF5VERSION=1.12.2
 HDF5VERSION=1.14.0
+#HDF5VERSION=1.14.3    # Error during mesh read-in in piclas/src/io_hdf5/hdf5_input.f90
 
 COMPILERPREFIX=compilers/ # required for modules 5.0.0
 MPIPREFIX=MPI/ # required for modules 5.0.0

@@ -151,7 +151,7 @@ USE MOD_SurfaceModel_Analyze_Vars
 USE MOD_Restart_Vars              ,ONLY: DoRestart
 USE MOD_Particle_Boundary_Vars    ,ONLY: PartBound
 USE MOD_SurfaceModel_Vars         ,ONLY: nPorousBC, PorousBC
-USE MOD_Particle_Vars             ,ONLY: nSpecies,UseNeutralization,NeutralizationBalanceGlobal,Species
+USE MOD_Particle_Vars             ,ONLY: nSpecies,UseNeutralization,NeutralizationBalanceGlobal,Species,VarTimeStep
 #if USE_MPI
 USE MOD_Particle_Boundary_Vars    ,ONLY: SurfCOMM
 #endif /*USE_MPI*/
@@ -312,6 +312,9 @@ IF(MPIRoot)THEN
         IF(ABS(SurfModelAnalyzeSampleTime).LE.0.0)THEN
           CALL WriteDataInfo(unit_index,RealScalar=0.0)
         ELSE
+          ! Scaling the number of particles depending on the species-specific timestep factor
+          IF(VarTimeStep%UseSpeciesSpecific) BPO%RealPartOut(iBPO,iSpec) = BPO%RealPartOut(iBPO,iSpec) &
+                                                                            / Species(BPO%Species(iSpec))%TimeStepFactor
           CALL WriteDataInfo(unit_index,RealScalar=BPO%RealPartOut(iBPO,iSpec)/SurfModelAnalyzeSampleTime)
         END IF ! ABS(SurfModelAnalyzeSampleTime).LE.0.0
       END DO
@@ -756,6 +759,7 @@ USE MOD_Analyze_Vars              ,ONLY: DoSurfModelAnalyze
 USE MOD_Particle_Vars             ,ONLY: nSpecies,Species
 #if USE_MPI
 USE MOD_Globals                   ,ONLY: MPIRoot
+USE MOD_Mesh_Vars                 ,ONLY: BoundaryName
 #endif /*USE_MPI*/
 #if USE_HDG
 USE MOD_Globals                   ,ONLY: abort
@@ -765,7 +769,7 @@ USE MOD_Analyze_Vars              ,ONLY: CalcElectricTimeDerivative,FieldAnalyze
 USE MOD_LoadBalance_Vars          ,ONLY: PerformLoadBalance
 #endif /*USE_LOADBALANCE*/
 #endif /*USE_HDG*/
-USE MOD_Mesh_Vars                 ,ONLY: nBCs,BC,nBCSides,BoundaryName
+USE MOD_Mesh_Vars                 ,ONLY: nBCs,BC,nBCSides
 USE MOD_TimeDisc_Vars             ,ONLY: iter
 USE MOD_Mesh_Vars                 ,ONLY: SurfElem
 USE MOD_Interpolation_Vars        ,ONLY: wGPSurf
@@ -866,6 +870,8 @@ DO iBPO = 1, BPO%NPartBoundaries
     ELSE
       ! Check the surface model
       SELECT CASE(PartBound%SurfaceModel(iPartBound))
+      CASE(2)
+        ! Event probability model
       CASE(SEE_MODELS_ID)
         ! all secondary electron models
       CASE DEFAULT

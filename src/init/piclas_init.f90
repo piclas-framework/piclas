@@ -71,7 +71,9 @@ USE MOD_Equation_FV          ,ONLY: InitEquation_FV
 USE MOD_FV                   ,ONLY: InitFV
 #endif
 #if !(USE_FV) || (USE_HDG)
+#if !(PP_TimeDiscMethod==4) && !(PP_TimeDiscMethod==300) && !(PP_TimeDiscMethod==400)
 USE MOD_Equation             ,ONLY: InitEquation
+#endif
 USE MOD_DG                   ,ONLY: InitDG
 USE MOD_Dielectric           ,ONLY: InitDielectric
 #if ! (USE_HDG)
@@ -91,13 +93,12 @@ USE MOD_MPI                  ,ONLY: InitMPIvars
 #endif /*USE_MPI*/
 #ifdef PARTICLES
 USE MOD_DSMC_Vars            ,ONLY: UseDSMC
-USE MOD_ParticleInit         ,ONLY: InitParticleGlobals,InitParticles
+USE MOD_ParticleInit         ,ONLY: InitParticleGlobals,InitParticles,InitSymmetry
 USE MOD_TTMInit              ,ONLY: InitTTM,InitIMD_TTM_Coupling
 USE MOD_TTM_Vars             ,ONLY: DoImportTTMFile
 USE MOD_Particle_Analyze     ,ONLY: InitParticleAnalyze
 USE MOD_SurfaceModel_Analyze ,ONLY: InitSurfModelAnalyze
 USE MOD_Particle_MPI         ,ONLY: InitParticleMPI
-USE MOD_DSMC_Symmetry        ,ONLY: Init_Symmetry
 #if USE_MPI
 USE mod_readIMD              ,ONLY: initReadIMDdata,read_IMD_results
 #endif /* USE_MPI */
@@ -141,7 +142,7 @@ WRITE(UNIT=TimeStampLenStr ,FMT='(I0)') TimeStampLength
 ! DSMC handling:
 useDSMC=GETLOGICAL('UseDSMC')
 
-CALL Init_Symmetry()
+CALL InitSymmetry()
 
 #endif /*PARTICLES*/
 
@@ -169,7 +170,9 @@ CALL InitMesh(2)
 CALL InitMPIvars()
 #endif /*USE_MPI*/
 #if !(USE_FV) || (USE_HDG)
+#if !(PP_TimeDiscMethod==4) && !(PP_TimeDiscMethod==300) && !(PP_TimeDiscMethod==400)
 CALL InitEquation()
+#endif
 #endif /*!(USE_FV) || (USE_HDG)*/
 CALL InitBC()
 #if USE_FV
@@ -492,6 +495,5 @@ IF(.NOT.IsLoadBalance) THEN
 END IF
 
 END SUBROUTINE FinalizeLoadBalance
-
 
 END MODULE MOD_Piclas_Init

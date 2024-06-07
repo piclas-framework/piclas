@@ -650,9 +650,8 @@ DO iProc=1, myrank
 END DO
 #endif /*USE_HDG*/
 
-writePartitionInfo = GETLOGICAL('writePartitionInfo','.FALSE.')
+writePartitionInfo = GETLOGICAL('writePartitionInfo')
 IF(DoLoadBalance)THEN
-  writePartitionInfo=.TRUE.
   WRITE( hilf,'(I4.4)') nLoadBalanceSteps
   filename='partitionInfo-'//TRIM(hilf)//'.out'
 ELSE

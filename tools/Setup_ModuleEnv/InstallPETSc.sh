@@ -94,30 +94,13 @@ do
   if [ ${ARG} == "--modules" ] || [ ${ARG} == "-m" ]; then
     LOADMODULES=0
     # Set desired versions
-    #CMAKEVERSION=3.15.3-d
-    #CMAKEVERSION=3.17.0-d
-    #CMAKEVERSION=3.20.3
-    #CMAKEVERSION=3.21.3
-    #CMAKEVERSION=3.24.2
-    CMAKEVERSION=3.26.4
+    CMAKEVERSION=3.28.2
 
-    #GCCVERSION=9.2.0
-    #GCCVERSION=9.3.0
-    #GCCVERSION=10.1.0
-    #GCCVERSION=10.2.0
-    #GCCVERSION=11.2.0
-    #GCCVERSION=12.2.0
-    #GCCVERSION=13.1.0
     GCCVERSION=13.2.0
 
-    #OPENMPIVERSION=3.1.4
-    #OPENMPIVERSION=4.0.1
-    #OPENMPIVERSION=4.0.2
-    #OPENMPIVERSION=3.1.6
-    #OPENMPIVERSION=4.1.1
-    #OPENMPIVERSION=4.1.4
-    #OPENMPIVERSION=4.1.5
-
+    # OPENMPI
+    #OPENMPIVERSION=4.1.6
+    # MPICH
     MPICHVERSION=4.1.2
 
     # chose which mpi you want to have installed (openmpi or mpich), default is openmpi
@@ -150,7 +133,8 @@ done
 # DOWNLOAD and INSTALL PETSc (example PETSc-3.17.0)
 #PETSCVERSION=3.17.0
 #PETSCVERSION=3.18.4
-PETSCVERSION=3.19.3
+# PETSCVERSION=3.19.6
+PETSCVERSION=3.20.4
 
 # Activate DEBUGGING MODE with ON/OFF
 DEBUG=OFF
@@ -264,13 +248,13 @@ if [ ! -e "${MODULEFILE}" ]; then
 
   # Download tar.gz file
   if [ ! -f ${TARFILE} ]; then
-    wget --output-document=${TARFILE} "https://ftp.mcs.anl.gov/pub/petsc/release-snapshots/petsc-${PETSCVERSION}.tar.gz"
+    wget --output-document=${TARFILE} "https://web.cels.anl.gov/projects/petsc/download/release-snapshots/petsc-${PETSCVERSION}.tar.gz"
   fi
 
   # Check if tar.gz file was correctly downloaded
   if [ ! -f ${TARFILE} ]; then
     echo -e "$RED""no source-file downloaded for petsc-${PETSCVERSION}$NC"
-    echo -e "$RED""check https://ftp.mcs.anl.gov/pub/petsc/release-snapshots/petsc-${PETSCVERSION}.tar.gz$NC"
+    echo -e "$RED""check https://web.cels.anl.gov/projects/petsc/download/release-snapshots/petsc-${PETSCVERSION}.tar.gz$NC"
     exit
   fi
 

@@ -34,7 +34,7 @@ REAL,ALLOCPOINT,DIMENSION(:,:,:)        :: BoundaryWallTemp              !> Wall
 ! ====================================================================
 ! Mesh info
 INTEGER                                 :: nGlobalSurfSides
-INTEGER                                 :: nGlobalOutputSides
+INTEGER                                 :: nGlobalOutputSides            ! Simulation-wide number of surface output sides
 
 INTEGER                                 :: nComputeNodeSurfSides         !> Number of surface sampling sides on compute node
 INTEGER                                 :: nComputeNodeSurfOutputSides   !> Number of output surface sampling sides on compute node (inner BCs only counted once and rotationally periodic BCs excluded)
@@ -132,7 +132,7 @@ INTEGER,ALLOCPOINT,DIMENSION(:,:) :: RotPeriodicSideMapping    ! Mapping between
 INTEGER,ALLOCPOINT,DIMENSION(:)   :: SurfSide2RotPeriodicSide  ! Mapping between surf side and periodic sides.
 ! ====================================================================
 ! Intermediate plane for multi rotational periodic sides
-INTEGER,ALLOCPOINT,DIMENSION(:,:) :: InterPlaneSideMapping    ! Mapping between inter plane BC_ID and SideID.
+INTEGER,ALLOCATABLE               :: InterPlaneSideMapping(:,:)! Mapping between inter plane BC_ID and SideID.
 ! ====================================================================
 #if USE_MPI
 INTEGER,POINTER,DIMENSION(:)    :: SurfSide2RotPeriodicSide_Shared
@@ -204,13 +204,14 @@ REAL,ALLOCATABLE                        :: PorousBCSampWall(:,:)  ! Processor-lo
 ! Particle Boundary
 !-----------------------------------------------------------------------------------------------------------------------------------
 TYPE tPartBoundary
-  INTEGER                                :: OpenBC                  = 1      ! = 1 (s.u.) Boundary Condition Integer Definition
-  INTEGER                                :: ReflectiveBC            = 2      ! = 2 (s.u.) Boundary Condition Integer Definition
-  INTEGER                                :: PeriodicBC              = 3      ! = 3 (s.u.) Boundary Condition Integer Definition
-  INTEGER                                :: RotPeriodicBC           = 6      ! = 6 (s.u.) Boundary Condition Integer Definition
-  INTEGER                                :: RotPeriodicInterPlaneBC = 7      ! = 7 (s.u.) Boundary Condition Integer Definition
-  INTEGER                                :: SymmetryBC              = 10     ! = 10 (s.u.) Boundary Condition Integer Definition
-  INTEGER                                :: SymmetryAxis            = 11     ! = 10 (s.u.) Boundary Condition Integer Definition
+  INTEGER                                :: OpenBC                  = 1  ! Particles are deleted at the boundary
+  INTEGER                                :: ReflectiveBC            = 2  ! Specular (default) and diffuse reflection, many other models
+  INTEGER                                :: PeriodicBC              = 3  ! Particles are transformed according to the periodic vectors
+  INTEGER                                :: RotPeriodicBC           = 6  ! Particles are rotated around an axis according to an angle
+  INTEGER                                :: RotPeriodicInterPlaneBC = 7  ! Particles are transferred between non-conform BCs (connecting slices/cutouts with different RotPeriodicBC)
+  INTEGER                                :: SymmetryBC              = 10 ! Same as the default ReflectiveBC but without analysis
+  INTEGER                                :: SymmetryAxis            = 11 ! Symmetry axis for axisymmetric simulations (x-axis)
+  INTEGER                                :: SymmetryDim             = 12 ! BC for 1D, 2D and axisymmetric simulations in the neglected dimension(s)
   CHARACTER(LEN=200)   , ALLOCATABLE     :: SourceBoundName(:)           ! Link part 1 for mapping PICLas BCs to Particle BC
   INTEGER              , ALLOCATABLE     :: TargetBoundCond(:)           ! Link part 2 for mapping PICLas BCs to Particle BC
   INTEGER              , ALLOCATABLE     :: MapToPartBC(:)               ! Map from PICLas BCindex to Particle BC (NOT TO TYPE!)
@@ -244,6 +245,12 @@ TYPE tPartBoundary
   INTEGER , ALLOCATABLE                  :: SpeciesSwaps(:,:,:)           ! Species to be changed at wall (in, out), out=0: delete
   ! Surface models
   INTEGER , ALLOCATABLE                  :: SurfaceModel(:)               ! Model used for surface interaction (e.g. SEE models)
+  REAL    , ALLOCATABLE                  :: TotalCoverage(:)              ! Total surface coverage
+  REAL    , ALLOCATABLE                  :: MaxTotalCoverage(:)           ! Maximum total surface coverage
+  REAL    , ALLOCATABLE                  :: LatticeVec(:)                 ! Lattice constant for a fcc crystal
+  REAL    , ALLOCATABLE                  :: MolPerUnitCell(:)             ! Molecules per unit cell
+  REAL    , ALLOCATABLE                  :: CoverageIni(:,:)               ! Initial boundary coverage
+  REAL    , ALLOCATABLE                  :: MaxCoverage(:,:)
   LOGICAL , ALLOCATABLE                  :: Reactive(:)                   ! flag defining if surface is treated reactively
   LOGICAL , ALLOCATABLE                  :: Resample(:)                   ! Resample Equilibrium Distribution with reflection
   ! Radiative-equilibrium BC

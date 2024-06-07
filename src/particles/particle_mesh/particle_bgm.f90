@@ -87,7 +87,6 @@ SUBROUTINE BuildBGMAndIdentifyHaloRegion()
 ! MODULES                                                                                                                          !
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Globals
-USE MOD_Globals_Vars           ,ONLY: c
 USE MOD_Preproc
 USE MOD_Mesh_Vars              ,ONLY: nElems,offsetElem
 USE MOD_Particle_Mesh_Tools    ,ONLY: GetGlobalNonUniqueSideID
@@ -98,7 +97,6 @@ USE MOD_ReadInTools            ,ONLY: GETREAL,GetRealArray,PrintOption
 USE MOD_Particle_Mesh_Vars     ,ONLY: NodeCoords_Shared
 USE MOD_Particle_Mesh_Vars     ,ONLY: ElemInfo_Shared,FIBGM_nElems,ElemToBGM_Shared,FIBGM_offsetElem
 USE MOD_Particle_Mesh_Vars     ,ONLY: BoundsOfElem_Shared,GEO,FIBGM_Element
-USE MOD_Particle_Boundary_Vars ,ONLY: PartBound
 #if (PP_TimeDiscMethod==501) || (PP_TimeDiscMethod==502) || (PP_TimeDiscMethod==506)
 USE MOD_TimeDisc_Vars          ,ONLY: iStage,nRKStages,RK_c
 #endif
@@ -106,6 +104,7 @@ USE MOD_TimeDisc_Vars          ,ONLY: iStage,nRKStages,RK_c
 USE MOD_CalcTimeStep           ,ONLY: CalcTimeStep
 #endif /*USE_HDG*/
 #if USE_MPI
+USE MOD_Globals_Vars           ,ONLY: c
 USE MOD_MPI_Shared_Vars
 USE MOD_MPI_Shared
 USE MOD_PICDepo_Vars           ,ONLY: DepositionType,r_sf
@@ -133,6 +132,7 @@ USE MOD_Particle_Mesh_Vars     ,ONLY: GlobalSide2CNTotalSide
 USE MOD_Particle_Mesh_Vars     ,ONLY: CNTotalSide2GlobalSide
 USE MOD_Particle_Mesh_Vars     ,ONLY: GlobalElem2CNTotalElem
 USE MOD_Particle_Mesh_Vars     ,ONLY: CNTotalElem2GlobalElem
+USE MOD_Particle_Boundary_Vars ,ONLY: PartBound
 USE MOD_RayTracing_Vars        ,ONLY: PerformRayTracing
 #endif /*USE_MPI*/
 #if USE_LOADBALANCE
@@ -146,6 +146,7 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
+LOGICAL,PARAMETER              :: trueFlag=.TRUE.
 INTEGER                        :: iElem,iLocSide,SideID
 INTEGER                        :: FirstElem,LastElem
 INTEGER                        :: firstNodeID,lastNodeID
@@ -787,7 +788,7 @@ ElemLoop: DO iElem = offsetElemMPI(iProc-1)+1,offsetElemMPI(iProc)
   ! Mortar sides: Only multi-node
   DO iElem = firstElem, lastElem
     ASSOCIATE(posElem => (iElem-1)*ELEMINFOSIZE + (ELEM_HALOFLAG-1))
-    CALL MPI_FETCH_AND_OP(ElemDone,ElemDone,MPI_INTEGER,0,INT(posElem*SIZE_INT,MPI_ADDRESS_KIND),MPI_NO_OP,ElemInfo_Shared_Win,iError)
+    CALL MPI_FETCH_AND_OP(dummyInt,ElemDone,MPI_INTEGER,0,INT(posElem*SIZE_INT,MPI_ADDRESS_KIND),MPI_NO_OP,ElemInfo_Shared_Win,iError)
     CALL MPI_WIN_FLUSH(0,ElemInfo_Shared_Win,iError)
     END ASSOCIATE
     IF (ElemDone.LT.1) CYCLE
@@ -1256,7 +1257,7 @@ DO iElem = offsetElem+1,offsetElem+nElems
           ! Increment number of elements on FIBGM cell
           CALL MPI_FETCH_AND_OP(increment,dummyInt,MPI_INTEGER,0,INT(posElem*SIZE_INT,MPI_ADDRESS_KIND),MPI_SUM,FIBGM_nTotalElems_Shared_Win,IERROR)
           ! Perform logical OR and place data on CN root
-          CALL MPI_FETCH_AND_OP(.TRUE.   ,dummyLog,MPI_LOGICAL,0,INT(posRank*SIZE_INT,MPI_ADDRESS_KIND),MPI_LOR,FIBGMToProcFlag_Shared_Win  ,IERROR)
+          CALL MPI_FETCH_AND_OP(trueFlag ,dummyLog,MPI_LOGICAL,0,INT(posRank*SIZE_INT,MPI_ADDRESS_KIND),MPI_LOR,FIBGMToProcFlag_Shared_Win  ,IERROR)
           ! MPI_FETCH_AND_OP does guarantee completion before MPI_WIN_FLUSH, so ensure it before leaving the scope
           CALL MPI_WIN_FLUSH(0,FIBGM_nTotalElems_Shared_Win,iError)
           CALL MPI_WIN_FLUSH(0,FIBGMToProcFlag_Shared_Win  ,iError)
