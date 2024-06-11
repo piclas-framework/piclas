@@ -228,8 +228,8 @@ DO BCSideID=1,nBCSides
           vec(1:3) = ElemBaryNGeo(1:3,CNElemID) - Particle_pos(1:3)
           Particle_pos(1:3) = Particle_pos(1:3) + 1e-7 * vec(1:3)
           ! Create new particle
-          ! Create with PEM%LastGlobalElemID = -1 to prevent tracking directly after creation
-          CALL CreateParticle(SpecID,Particle_pos(1:3),GlobElemID,-1,Velo3D(1:3),0.,0.,0.,NewPartID=PartID,NewMPF=MPF)
+          ! Create with PEM%LastGlobalElemID = 0 to prevent tracking directly after creation
+          CALL CreateParticle(SpecID,Particle_pos(1:3),GlobElemID,0,Velo3D(1:3),0.,0.,0.,NewPartID=PartID,NewMPF=MPF)
           ! 1. Store the particle information in PartStateBoundary.h5
           IF(DoBoundaryParticleOutputRay) CALL StoreBoundaryParticleProperties(PartID,SpecID,PartState(1:3,PartID),&
                                                    UNITVECTOR(PartState(4:6,PartID)),nVec,iPartBound=iPartBound,mode=2,MPF_optIN=MPF)
@@ -475,7 +475,7 @@ DO iVar = 1, 2
               PDM%IsNewPart(PartID)       = .TRUE.
               PDM%dtFracPush(PartID)      = .FALSE.
               PEM%GlobalElemID(PartID)     = iGlobalElem
-              PEM%LastGlobalElemID(PartID) = -1 ! Initialize with invalid value
+              PEM%LastGlobalElemID(PartID) = 0 ! Initialize with invalid value
               ! Create second particle (only the index and the flags/elements needs to be set)
               newPartID = GetNextFreePosition()
               IF(newPartID.GT.PDM%MaxParticleNumber)THEN
@@ -496,7 +496,7 @@ DO iVar = 1, 2
               PDM%IsNewPart(newPartID)       = .TRUE.
               PDM%dtFracPush(newPartID)      = .FALSE.
               PEM%GlobalElemID(newPartID)     = iGlobalElem
-              PEM%LastGlobalElemID(newPartID) = -1 ! Initialize with invalid value
+              PEM%LastGlobalElemID(newPartID) = 0 ! Initialize with invalid value
               ! Pairing (first particle is the background gas species)
               Coll_pData(iPair)%iPart_p1 = PartID
               Coll_pData(iPair)%iPart_p2 = newPartID

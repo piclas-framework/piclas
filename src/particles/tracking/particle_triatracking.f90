@@ -121,10 +121,12 @@ DO i = 1,PDM%ParticleVecLength
   IF(DoParticle)THEN
 #else
   ! 1.) PDM%ParticleInside(i) indicates that the particle is active and not deleted
-  ! 2.) PEM%LastGlobalElemID(i) is not set in ParticleInserting(), which has been moved before PerformTracking(), hence, skip these
+  ! 2.) PEM%LastGlobalElemID(i) is not set in ParticleInserting() to the actual element index but initialized with zero.
+  !     ParticleInserting() has been moved in front of PerformTracking() for some time disc methods, hence, skip these
   !     particles here as they have not yet been pushed. GlobalElemID is copied to LastGlobalElemID at the beginning of the time
-  !     stepping method
-  IF (PDM%ParticleInside(i).AND.PEM%LastGlobalElemID(i).GT.0) THEN
+  !     stepping method. Note that PEM%LastGlobalElemID(i)<0 is used for Symmetry%Order.LE.2 where the information
+  !     PEM%LastGlobalElemID(i) = -SideID is stored (surface flux).
+  IF (PDM%ParticleInside(i).AND.PEM%LastGlobalElemID(i).NE.0) THEN
 #endif /*IMPA*/
     IF(UseRotSubCycling) THEN
 !--- Store Particle information before tracking for sub-cycling.
@@ -651,7 +653,7 @@ CALL LBStartTime(tLBStart)
 #endif /*USE_LOADBALANCE*/
 IF (MeasureTrackTime) nTracks=nTracks+1
 PartisDone = .FALSE.
-IF (PEM%LastGlobalElemID(i).LE.0) THEN
+IF (PEM%LastGlobalElemID(i).LT.0) THEN
   TrackInfo%LastSide = -PEM%LastGlobalElemID(i)
   ElemID = PEM%GlobalElemID(i)
 ELSE
