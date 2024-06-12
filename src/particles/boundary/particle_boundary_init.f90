@@ -237,10 +237,10 @@ USE MOD_LoadBalance_Vars       ,ONLY: PerformLoadBalance
 INTEGER               :: iPartBound, iBC, iPBC, iSwaps, MaxNbrOfSpeciesSwaps, RotAxis, nRotPeriodicBCs, TempGradDir
 INTEGER               :: dummy_int
 REAL                  :: omegaTemp, RotFreq
-CHARACTER(32)         :: hilf , hilf2
+CHARACTER(32)         :: hilf,hilf2
 CHARACTER(200)        :: tmpString
 CHARACTER(LEN=64)     :: dsetname
-LOGICAL               :: StickingCoefficientExists,FoundPartBoundSEE
+LOGICAL               :: StickingCoefficientExists,FoundPartBoundPhotonSEE,BoundaryUsesSEE
 INTEGER               :: iInit,iSpec
 !===================================================================================================================================
 ! Read in boundary parameters
@@ -480,6 +480,7 @@ DO iPartBound=1,nPartBound
 
     ! Surface Model (e.q. SEE, sticking, etc.)
     PartBound%SurfaceModel(iPartBound)    = GETINT('Part-Boundary'//TRIM(hilf)//'-SurfaceModel')
+    BoundaryUsesSEE = .FALSE.
     IF (PartBound%SurfaceModel(iPartBound).GT.0)THEN
       IF (.NOT.useDSMC) CALL abort(__STAMP__,'Cannot use surfacemodel>0 with useDSMC=F for particle boundary: ',iPartBound)
       SELECT CASE (PartBound%SurfaceModel(iPartBound))
@@ -491,11 +492,12 @@ DO iPartBound=1,nPartBound
           CALL abort(__STAMP__,'ERROR in InitializeVariablesPartBoundary: SpeciesDatabase is required for the boundary #', iPartBound)
       CASE (20)
         PartBound%Reactive(iPartBound)        = .TRUE.
-      CASE (SEE_MODELS_ID) ! see ./src/piclas.h for numbers
+      CASE (SEE_MODELS_ID) ! See ./src/piclas.h for numbers
         ! SEE models require reactive BC
         PartBound%Reactive(iPartBound)        = .TRUE.
-      CASE (99) ! VDL - cannot be actively selected!
-        CALL abort(__STAMP__,'Part-Boundary'//TRIM(hilf)//'-SurfaceModel = 2 cannot be selected!')
+        BoundaryUsesSEE = .TRUE.
+      CASE (VDL_MODEL_ID) ! VDL - cannot be actively selected! See ./src/piclas.h for numbers
+        CALL abort(__STAMP__,'Part-Boundary'//TRIM(hilf)//'-SurfaceModel = VDL_MODEL_ID,SEE_VDL_MODEL_ID cannot be selected!')
       CASE DEFAULT
         CALL abort(__STAMP__,'Error in particle init: only allowed SurfaceModels: 0,1,20,SEE_MODELS_ID! SurfaceModel=',&
                   IntInfoOpt=PartBound%SurfaceModel(iPartBound))
@@ -515,9 +517,7 @@ DO iPartBound=1,nPartBound
     PartBound%MaxTotalCoverage(iPartBound) = GETREAL('Part-Boundary'//TRIM(hilf)//'-MaxTotalCoverage', '1.')
     ! Check if the maximum of the coverage is reached
     IF (PartBound%TotalCoverage(iPartBound).GT.PartBound%MaxTotalCoverage(iPartBound)) THEN
-      CALL abort(&
-    __STAMP__&
-    ,'ERROR: Maximum surface coverage reached.', iPartBound)
+      CALL abort(__STAMP__,'ERROR: Maximum surface coverage reached.', iPartBound)
     END IF
 
     ! Species Swap
@@ -543,8 +543,8 @@ DO iPartBound=1,nPartBound
             ' for every species (except background gas species) or\n   '//&
             'b) surface model that is reactive (Part-BoundaryX-SurfaceModel)!')
       ELSE
-        DoDielectricSurfaceCharge = .TRUE.
-        DoHaloDepo                = .TRUE.
+        DoDielectricSurfaceCharge = .TRUE. ! Global setting indicating surface charging via VDL or PartBound%Dielectric
+        DoHaloDepo                = .TRUE. ! Activate deposition in the halo region (shape function)
         IF(TRIM(DepositionType).NE.'cell_volweight_mean') CALL CollectiveStop(__STAMP__,&
             'PartBound%Dielectric=T requires cell_volweight_mean (12) as deposition method')
       END IF ! PartBound%NbrOfSpeciesSwaps(iPartBound).NE.nSpecies
@@ -558,7 +558,9 @@ DO iPartBound=1,nPartBound
       IF(TRIM(DepositionType).NE.'cell_volweight_mean') CALL CollectiveStop(__STAMP__,&
         'Part-Boundary'//TRIM(hilf)//'-PermittivityVDL requires cell_volweight_mean (12) as deposition method')
       IF(PartBound%NbrOfSpeciesSwaps(iPartBound).GT.0) CALL CollectiveStop(__STAMP__,&
-        'Part-BoundaryX-PermittivityVDL cannot be combined with art-Boundary'//TRIM(hilf)//'-NbrOfSpeciesSwaps')
+        'Part-BoundaryX-PermittivityVDL cannot be combined with Part-Boundary'//TRIM(hilf)//'-NbrOfSpeciesSwaps')
+      IF(PartBound%Dielectric(iPartBound)) CALL CollectiveStop(__STAMP__,&
+        'Part-BoundaryX-PermittivityVDL cannot be combined with Part-Boundary'//TRIM(hilf)//'-Dielectric')
 #if USE_HDG
       IF(DoDirichletDeposition) CALL abort(__STAMP__,'Part-Boundary'//TRIM(hilf)//'-PermittivityVDL requires PIC-DoDirichletDeposition=F')
 #else
@@ -566,11 +568,12 @@ DO iPartBound=1,nPartBound
 #endif /*USE_HDG*/
       ! VDL settings
       PartBound%ThicknessVDL(iPartBound) = GETREAL('Part-Boundary'//TRIM(hilf)//'-ThicknessVDL')
-      DoVirtualDielectricLayer           = .TRUE.
+      DoVirtualDielectricLayer           = .TRUE. ! Global setting indicating that VDL is active
       PartBound%Reactive(iPartBound)     = .TRUE. ! VDL requires reactive BC for analysis
-      PartBound%SurfaceModel(iPartBound) = 99 ! VDL
-      DoDielectricSurfaceCharge          = .TRUE.
-      DoHaloDepo                         = .TRUE.
+      DoDielectricSurfaceCharge          = .TRUE. ! Global setting indicating surface charging via VDL or PartBound%Dielectric
+      DoHaloDepo                         = .TRUE. ! Activate deposition in the halo region (shape function)
+      ! Check if pure VDL or SEE+VDL boundary. Only set SurfaceModel=99 when not other model is present
+      IF(.NOT.((PartBound%PhotonSEEYield(iPartBound).GT.0.).OR.BoundaryUsesSEE)) PartBound%SurfaceModel(iPartBound) = 99 ! VDL only
 #if !((PP_TimeDiscMethod==500) || (PP_TimeDiscMethod==501) || (PP_TimeDiscMethod==502) || (PP_TimeDiscMethod==506) || (PP_TimeDiscMethod==508) || (PP_TimeDiscMethod==509))
       CALL abort(__STAMP__,'VDL model not implemented for the given time discretisation!')
 #endif /*!((PP_TimeDiscMethod==500) || (PP_TimeDiscMethod==501) || (PP_TimeDiscMethod==502) || (PP_TimeDiscMethod==506) || (PP_TimeDiscMethod==508) || (PP_TimeDiscMethod==509))*/
@@ -590,6 +593,9 @@ DO iPartBound=1,nPartBound
     PartBound%WallVelo(1:3,iPartBound)    = (/0.,0.,0./)
   CASE('symmetric_axis')
     PartBound%TargetBoundCond(iPartBound) = PartBound%SymmetryAxis
+    PartBound%WallVelo(1:3,iPartBound)    = (/0.,0.,0./)
+  CASE('symmetric_dim')
+    PartBound%TargetBoundCond(iPartBound) = PartBound%SymmetryDim
     PartBound%WallVelo(1:3,iPartBound)    = (/0.,0.,0./)
   CASE('rot_periodic')
     PartBound%UseRotPeriodicBC = .TRUE.
@@ -619,18 +625,18 @@ DO iPartBound=1,nPartBound
 END DO
 
 ! Check if there is an particle init with photon SEE
-FoundPartBoundSEE=.FALSE.
+FoundPartBoundPhotonSEE=.FALSE.
 SpecLoop: DO iSpec=1,nSpecies
   DO iInit=1, Species(iSpec)%NumberOfInits
     IF(StringBeginsWith(Species(iSpec)%Init(iInit)%SpaceIC,'photon_SEE'))THEN
-      FoundPartBoundSEE = .TRUE.
+      FoundPartBoundPhotonSEE = .TRUE.
       EXIT SpecLoop
     END IF ! StringBeginsWith(Species(iSpec)%Init(iInit)%SpaceIC,'photon_SEE')
   END DO
 END DO SpecLoop
 
 ! Connect emission inits to particle boundaries for output
-IF(DoBoundaryParticleOutputHDF5.OR.FoundPartBoundSEE) CALL InitializeVariablesSpeciesBoundary()
+IF(DoBoundaryParticleOutputHDF5.OR.FoundPartBoundPhotonSEE) CALL InitializeVariablesSpeciesBoundary()
 
 PartBound%AdaptWallTemp = GETLOGICAL('Part-AdaptWallTemp')
 
@@ -673,7 +679,7 @@ IF(PartBound%UseInterPlaneBC) CALL InitParticleBoundaryInterPlane()
 !-- Floating Potential
 ALLOCATE(BCdata_auxSF(1:nPartBound))
 DO iPartBound=1,nPartBound
-  BCdata_auxSF(iPartBound)%SideNumber=-1 !init value when not used
+  BCdata_auxSF(iPartBound)%SideNumber=-1 ! initial value deactivates the mapping of sides (when required for surface flux is set to 0)
   BCdata_auxSF(iPartBound)%GlobalArea=0.
   BCdata_auxSF(iPartBound)%LocalArea=0.
 END DO
@@ -710,7 +716,7 @@ use mod_globals
 USE MOD_Globals                ,ONLY: VECNORM
 USE MOD_Mesh_Vars              ,ONLY: nElems,SideToElem,nBCSides,Boundarytype,BC
 USE MOD_IO_HDF5                ,ONLY: AddToElemData,ElementOut
-USE MOD_Particle_Boundary_Vars ,ONLY: ElementThicknessVDL,PartBound,N_SurfVDL
+USE MOD_Particle_Boundary_Vars ,ONLY: ElementThicknessVDL,PartBound,N_SurfVDL,StretchingFactorVDL,nVarSurfData
 USE MOD_Mesh_Tools             ,ONLY: GetGlobalElemID,GetCNElemID
 USE MOD_Particle_Mesh_Tools    ,ONLY: GetGlobalNonUniqueSideID
 USE MOD_Mesh_Vars              ,ONLY: ElemToSide,nSides,offSetElem,SideToNonUniqueGlobalSide
@@ -725,14 +731,15 @@ IMPLICIT NONE
 ! INPUT / OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER           :: iElem,BCSideID,BCType,iPartBound,GlobalElemID,GlobalNonUniqueSideID,iLocSide,SideID,CNElemID
-INTEGER           :: iSide,Nloc,NonUniqueGlobalSideID,iSurfSide
-REAL,DIMENSION(3) :: NormVec,x
-REAL,DIMENSION(6) :: distances
+INTEGER             :: iElem,BCSideID,BCType,iPartBound,GlobalElemID,GlobalNonUniqueSideID,iLocSide,SideID,CNElemID
+INTEGER             :: iSide,Nloc,NonUniqueGlobalSideID,iSurfSide,iNode
+REAL,DIMENSION(3)   :: NormVec,x
+REAL,DIMENSION(4,6) :: distances
 !===================================================================================================================================
 
 ! 1) Determine volume container ElementThicknessVDL that holds the approximate thickness of the element with respect to the boundary
 ALLOCATE(ElementThicknessVDL(1:nElems))
+ElementThicknessVDL = 0.
 CALL AddToElemData(ElementOut,'ElementThicknessVDL',RealArray=ElementThicknessVDL(1:nElems))
 
 ! Loop over all local boundary sides
@@ -744,71 +751,61 @@ DO BCSideID=1,nBCSides
 
   ! Exclude non-VDL boundaries
   iPartBound = PartBound%MapToPartBC(BC(BCSideID))
-  IF(PartBound%SurfaceModel(iPartBound).NE.99)CYCLE ! Skip non-VDL boundary
+  IF(ABS(PartBound%PermittivityVDL(iPartBound)).GT.0.0)THEN
+    ! Get local and global element index
+    iElem        = SideToElem(S2E_ELEM_ID,BCSideID)
+    GlobalElemID = GetGlobalElemID(iElem)
 
-  ! Get local and global element index
-  iElem        = SideToElem(S2E_ELEM_ID,BCSideID)
-  GlobalElemID = GetGlobalElemID(iElem)
+    ! Get normal vector
+    DO iLocSide=1,6
+      GlobalNonUniqueSideID = GetGlobalNonUniqueSideID(GlobalElemID,iLocSide)
+      SideID                = ElemToSide(E2S_SIDE_ID,iLocSide,iElem)
+      ! Approximate normal vector by assuming planar boundary side
+      CALL CalcNormAndTangTriangle(TriNum=1, nVec=NormVec, SideID=GlobalNonUniqueSideID)
+      IF(SideID.EQ.BCSideID) EXIT ! Exit loop when correct side is found
+    END DO
 
-  ! Get normal vector
-  DO iLocSide=1,6
-    GlobalNonUniqueSideID = GetGlobalNonUniqueSideID(GlobalElemID,iLocSide)
-    SideID                = ElemToSide(E2S_SIDE_ID,iLocSide,iElem)
-    ! Approximate normal vector by assuming planar boundary side
-    CALL CalcNormAndTangTriangle(TriNum=1, nVec=NormVec, SideID=GlobalNonUniqueSideID)
-    IF(SideID.EQ.BCSideID) EXIT ! Exit loop when correct side is found
-  END DO
+    ! Calculate the projected distance for each of the 6 sides
+    CNElemID = GetCNElemID(SideInfo_Shared(SIDE_ELEMID,GlobalNonUniqueSideID))
+    DO iLocSide = 1 , 6
+      DO iNode = 1 , 4
+        x(1:3) = NodeCoords_Shared(1:3,ElemSideNodeID_Shared(iNode,iLocSide,CNElemID)+1)
+        distances(iNode,iLocSide) = DOT_PRODUCT(x,NormVec)
+      END DO ! iNode = 1, 4
+    END DO
 
-  ! Calculate the projected distance for each of the 6 sides
-  CNElemID = GetCNElemID(SideInfo_Shared(SIDE_ELEMID,SideID))
-  DO iLocSide=1,6
-    x(1:3) = NodeCoords_Shared(1:3,ElemSideNodeID_Shared(1,iLocSide,CNElemID)+1)
-    distances(iLocSide) = DOT_PRODUCT(x,NormVec)
-  END DO
-
-  ElementThicknessVDL(iElem) = MAXVAL(distances) - MINVAL(distances)
-  ! Sanity check
-  IF(ElementThicknessVDL(iElem).LT.0.) CALL abort(__STAMP__,'ElementThicknessVDL(iElem) is negative for iElem=',IntInfoOpt=iElem)
+    ElementThicknessVDL(iElem) = MAXVAL(distances) - MINVAL(distances)
+    ! Sanity check
+    IF(ElementThicknessVDL(iElem).LT.0.) CALL abort(__STAMP__,'ElementThicknessVDL(iElem) is negative for iElem=',IntInfoOpt=iElem)
+  END IF ! ABS(PartBound%PermittivityVDL(iPartBound)).GT.0.0
 
 END DO ! BCSideID=1,nBCSides
 
-! 2) Initialize surface container for the corrected electric field
+! 2) Calculate the stretching factor for each cell StretchingFactorVDL
+ALLOCATE(StretchingFactorVDL(1:nElems))
+StretchingFactorVDL = 0.
+CALL AddToElemData(ElementOut,'StretchingFactorVDL',RealArray=StretchingFactorVDL(1:nElems))
+DO SideID=1,nBCSides
+  ! Get the local element index
+  iElem = SideToElem(S2E_ELEM_ID,SideID)
+  ! Get particle boundary index
+  iPartBound = PartBound%MapToPartBC(BC(SideID))
+  ! Skip sides that are not a VDL boundary (these sides are still in the list of sides)
+  IF(PartBound%ThicknessVDL(iPartBound).GT.0.0)THEN
+    ! Calculate the ratio
+    StretchingFactorVDL(iElem) = ElementThicknessVDL(iElem) / PartBound%ThicknessVDL(iPartBound)
+  END IF
+END DO ! SideID=1,nBCSides
+
+! 3) Initialize surface container for the corrected electric field
 ALLOCATE(N_SurfVDL(1:nBCSides))
 DO iSide = 1, nBCSides
   iElem = SideToElem(S2E_ELEM_ID,iSide)
   ! Allocate with polynomial degree of the element
   Nloc = N_DG_Mapping(2,iElem+offSetElem)
-  ALLOCATE(N_SurfVDL(iSide)%E(3,0:Nloc,0:Nloc))
-  N_SurfVDL(iSide)%E = 0.
-
-  !ALLOCATE(PhotonSampWall(2,1:Ray%nSurfSample,1:Ray%nSurfSample,1:nComputeNodeSurfTotalSides))
-  !PhotonSampWall=0.0
-
+  ALLOCATE(N_SurfVDL(iSide)%U(nVarSurfData,0:Nloc,0:Nloc))
+  N_SurfVDL(iSide)%U = 0.
 END DO ! iSide = 1, nBCSides
-
-
-
-!  ! Loop over all local boundary sides
-!  DO BCSideID=1,nBCSides
-!
-!    ! Exclude periodic sides
-!    BCType = Boundarytype(BC(BCSideID),BC_TYPE)
-!    IF(BCType.EQ.1) CYCLE ! Skip periodic side
-!
-!    ! Exclude non-VDL boundaries
-!    iPartBound = PartBound%MapToPartBC(BC(BCSideID))
-!    IF(PartBound%SurfaceModel(iPartBound).NE.99)CYCLE ! Skip non-VDL boundary
-!
-!    iElem    = SideToElem(S2E_ELEM_ID,BCSideID)
-!    Nloc     = N_DG_Mapping(2,iElem+offSetElem)
-!    iLocSide = SideToElem(S2E_LOC_SIDE_ID,BCSideID)
-!
-!
-!    GlobalNonUniqueSideID = GetGlobalNonUniqueSideID(GlobalElemID,iLocSide)
-!    iSurfSide = GlobalSide2SurfSide(SURF_SIDEID,GlobalNonUniqueSideID)
-!    !WRITE (*,*) "iSurfSide =", iSurfSide
-!
-!  END DO ! BCSideID=1,nBCSides
 
 END SUBROUTINE InitVirtualDielectricLayer
 
@@ -2117,6 +2114,7 @@ LOGICAL                           :: HasInterPlaneOnProc(nPartBound)
 
 ALLOCATE(InterPlanePartIndx(1:PDM%maxParticleNumber), STAT=ALLOCSTAT)
 IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__,'ERROR in particle_boundary_init.f90: Cannot allocate InterPlanePartIndx array!')
+InterPlanePartIndx = 0
 
 HasInterPlaneOnProc = .FALSE.
 
@@ -2410,17 +2408,13 @@ IF(PartBound%UseRotPeriodicBC.AND.nComputeNodeSurfTotalSides.GT.0)THEN
   IF(nRotPeriodicSides     .GT.0) CALL UNLOCK_AND_FREE(NumRotPeriodicNeigh_Shared_Win)
   IF(MaxNumRotPeriodicNeigh.GT.0) CALL UNLOCK_AND_FREE(RotPeriodicSideMapping_Shared_Win)
   ADEALLOCATE(SurfSide2RotPeriodicSide_Shared)
-  ADEALLOCATE(SurfSide2RotPeriodicSide)
   ADEALLOCATE(NumRotPeriodicNeigh_Shared)
-  ADEALLOCATE(NumRotPeriodicNeigh)
   ADEALLOCATE(RotPeriodicSideMapping_Shared)
-  ADEALLOCATE(RotPeriodicSideMapping)
-  ADEALLOCATE(InterPlaneSideMapping)
-#else
-  SDEALLOCATE(SurfSide2RotPeriodicSide)
-  SDEALLOCATE(NumRotPeriodicNeigh)
-  SDEALLOCATE(RotPeriodicSideMapping)
 #endif
+  ADEALLOCATE(SurfSide2RotPeriodicSide)
+  ADEALLOCATE(NumRotPeriodicNeigh)
+  ADEALLOCATE(RotPeriodicSideMapping)
+  SDEALLOCATE(InterPlaneSideMapping)
 END IF ! PartBound%UseRotPeriodicBC
 
 ! Adaptive wall temperature (e.g. calculate from sampled heat flux)
@@ -2446,6 +2440,8 @@ END IF ! PerformLoadBalance
 #endif /*USE_LOADBALANCE*/
 
 SDEALLOCATE(ElementThicknessVDL)
+SDEALLOCATE(StretchingFactorVDL)
+SDEALLOCATE(N_SurfVDL)
 
 END SUBROUTINE FinalizeParticleBoundary
 

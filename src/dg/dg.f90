@@ -144,9 +144,9 @@ END IF
 DO iElem = 1, nElems
   Nloc = N_DG_Mapping(2,iElem+offSetElem)
   ALLOCATE(U_N(iElem)%E(1:3,0:Nloc,0:Nloc,0:Nloc))
-  ALLOCATE(U_N(iElem)%Et(1:3,0:Nloc,0:Nloc,0:Nloc))
+  ALLOCATE(U_N(iElem)%Dt(1:3,0:Nloc,0:Nloc,0:Nloc))
   U_N(iElem)%E = 0.
-  U_N(iElem)%Et = 0.
+  U_N(iElem)%Dt = 0.
 END DO ! iElem = 1, nElems
 #else
 #if (PP_TimeDiscMethod==1)||(PP_TimeDiscMethod==2)|| (PP_TimeDiscMethod==6)
@@ -373,8 +373,8 @@ CALL StartReceiveMPIDataType(RecRequest_U,SendID=2) ! Receive MINE
 #if USE_LOADBALANCE
 CALL LBSplitTime(LB_DGCOMM,tLBStart)
 #endif /*USE_LOADBALANCE*/
-CALL ProlongToFace_TypeBased(doMPISides=.TRUE.)
-CALL U_Mortar(doMPISides=.TRUE.)
+CALL ProlongToFace_TypeBased(doDielectricSides=.FALSE., doMPISides=.TRUE.)
+CALL U_Mortar(doDielectricSides=.FALSE., doMPISides=.TRUE.)
 #if USE_LOADBALANCE
 CALL LBSplitTime(LB_DG,tLBStart)
 #endif /*USE_LOADBALANCE*/
@@ -385,8 +385,8 @@ CALL LBSplitTime(LB_DGCOMM,tLBStart)
 #endif /*USE_MPI*/
 
 ! Prolong to face for BCSides, InnerSides and MPI sides - receive direction
-CALL ProlongToFace_TypeBased(doMPISides=.FALSE.)
-CALL U_Mortar(doMPISides=.FALSE.)
+CALL ProlongToFace_TypeBased(doDielectricSides=.FALSE., doMPISides=.FALSE.)
+CALL U_Mortar(doDielectricSides=.FALSE., doMPISides=.FALSE.)
 
 #if USE_MPI
 #if defined(PARTICLES) && defined(LSERK)

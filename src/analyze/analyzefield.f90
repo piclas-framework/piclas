@@ -1195,6 +1195,13 @@ DO iElem=1,nElems
   ASSOCIATE( Ex  => U_N(iElem)%E(1,i,j,k) ,&
              Ey  => U_N(iElem)%E(2,i,j,k) ,&
              Ez  => U_N(iElem)%E(3,i,j,k) )
+#else
+  ASSOCIATE( Ex  => U_N(iElem)%U(1,i,j,k) ,&
+             Ey  => U_N(iElem)%U(2,i,j,k) ,&
+             Ez  => U_N(iElem)%U(3,i,j,k) ,&
+             Bx  => U_N(iElem)%U(4,i,j,k) ,&
+             By  => U_N(iElem)%U(5,i,j,k) ,&
+             Bz  => U_N(iElem)%U(6,i,j,k) )
 #endif /*USE_HDG*/
       ! in electromagnetische felder by henke 2011 - springer
       ! WMag = 1/(2mu) * int_V B^2 dV
@@ -1208,11 +1215,11 @@ DO iElem=1,nElems
       B_abs = B(1,i,j,k,iElem)*B(1,i,j,k,iElem) + B(2,i,j,k,iElem)*B(2,i,j,k,iElem) + B(3,i,j,k,iElem)*B(3,i,j,k,iElem)
 #endif /*PP_nVar==1*/
 #else
-      E_abs = U_N(iElem)%U(1,i,j,k)**2 + U_N(iElem)%U(2,i,j,k)**2 * U_N(iElem)%U(3,i,j,k)**2
+      E_abs = Ex*Ex + Ey*Ey + Ez*Ez
 #endif /*USE_HDG*/
 
 #if (PP_nVar==8)
-      B_abs = U_N(iElem)%U(4,i,j,k)**2 + U_N(iElem)%U(5,i,j,k)**2 * U_N(iElem)%U(6,i,j,k)**2
+      B_abs = Bx*Bx + By*By + Bz*Bz
       Phi_abs = U_N(iElem)%U(7,i,j,k)*U_N(iElem)%U(7,i,j,k)
       Psi_abs = U_N(iElem)%U(8,i,j,k)*U_N(iElem)%U(8,i,j,k)
 #endif /*PP_nVar=8*/
@@ -1229,9 +1236,7 @@ DO iElem=1,nElems
       Wphi_tmp = Wphi_tmp + wGP(i)*wGP(j)*wGP(k) / N_VolMesh(iElem)%sJ(i,j,k) * Phi_abs * DielectricVol(ElemToDielectric(iElem))%DielectricEps(i,j,k)
       Wpsi_tmp = Wpsi_tmp + wGP(i)*wGP(j)*wGP(k) / N_VolMesh(iElem)%sJ(i,j,k) * Psi_abs / DielectricVol(ElemToDielectric(iElem))%DielectricMu(i,j,k)
 #endif /*PP_nVar=8*/
-#if USE_HDG
   END ASSOCIATE
-#endif /*USE_HDG*/
     END DO; END DO; END DO
   ELSE
     DO k=0,Nloc; DO j=0,Nloc; DO i=0,Nloc
@@ -1239,6 +1244,13 @@ DO iElem=1,nElems
   ASSOCIATE( Ex  => U_N(iElem)%E(1,i,j,k) ,&
              Ey  => U_N(iElem)%E(2,i,j,k) ,&
              Ez  => U_N(iElem)%E(3,i,j,k) )
+#else
+  ASSOCIATE( Ex  => U_N(iElem)%U(1,i,j,k) ,&
+             Ey  => U_N(iElem)%U(2,i,j,k) ,&
+             Ez  => U_N(iElem)%U(3,i,j,k) ,&
+             Bx  => U_N(iElem)%U(4,i,j,k) ,&
+             By  => U_N(iElem)%U(5,i,j,k) ,&
+             Bz  => U_N(iElem)%U(6,i,j,k) )
 #endif /*USE_HDG*/
       ! in electromagnetische felder by henke 2011 - springer
       ! WMag = 1/(2mu) * int_V B^2 dV
@@ -1252,11 +1264,11 @@ DO iElem=1,nElems
       B_abs = B(1,i,j,k,iElem)*B(1,i,j,k,iElem) + B(2,i,j,k,iElem)*B(2,i,j,k,iElem) + B(3,i,j,k,iElem)*B(3,i,j,k,iElem)
 #endif /*PP_nVar==1*/
 #else
-      E_abs = U_N(iElem)%U(1,i,j,k)**2 + U_N(iElem)%U(2,i,j,k)**2 * U_N(iElem)%U(3,i,j,k)**2
+      E_abs = Ex*Ex + Ey*Ey + Ez*Ez
 #endif /*USE_HDG*/
 
 #if (PP_nVar==8)
-      B_abs = U_N(iElem)%U(4,i,j,k)**2 + U_N(iElem)%U(5,i,j,k)**2 * U_N(iElem)%U(6,i,j,k)**2
+      B_abs = Bx*Bx + By*By + Bz*Bz
       Phi_abs = U_N(iElem)%U(7,i,j,k)*U_N(iElem)%U(7,i,j,k)
       Psi_abs = U_N(iElem)%U(8,i,j,k)*U_N(iElem)%U(8,i,j,k)
 #endif /*PP_nVar=8*/
@@ -1273,9 +1285,7 @@ DO iElem=1,nElems
       Wphi_tmp = Wphi_tmp + wGP(i)*wGP(j)*wGP(k) / N_VolMesh(iElem)%sJ(i,j,k) * Phi_abs
       Wpsi_tmp = Wpsi_tmp + wGP(i)*wGP(j)*wGP(k) / N_VolMesh(iElem)%sJ(i,j,k) * Psi_abs
 #endif /*PP_nVar=8*/
-#if USE_HDG
   END ASSOCIATE
-#endif /*USE_HDG*/
     END DO; END DO; END DO
   END IF
   END ASSOCIATE
@@ -1735,20 +1745,19 @@ SUBROUTINE CalculateElectricPotentialAndFieldBoundaryVDL()
 !> missing ... ups
 !>
 !> 1.) Loop over all processor-local BC sides and therein find the local side ID which corresponds to the reference element and
-!      interpolate the vector field Et = (/Etx, Ety, Etz/) to the boundary face
-!> 2.) Apply the normal vector: Uface(1,:,:)=DOT_PRODUCT(Uface(1:3,:,:),NormVec(1:3,:,:,SideID))
-!      Store result of dot product in first array index
-!> 3.) Get BC index and EDC index and the mapping of the SideID boundary to the EDC boundary ID and store the integrated current
-!> 4.) Communicate the integrated current values on each boundary to the MPI root process (the root outputs the values to .csv)
+!      interpolate the vector field E = (/Ex, Ey, Ez/) to the boundary face
+!> 2.) Apply the normal vector: Uface(1,:,:)=DOT_PRODUCT(Uface(1:3,:,:),NormVec(1:3,:,:,SideID))*NormVec(1:3,:,:,SideID)
+!> 3.) Apply the E-field correction factor
 !===================================================================================================================================
 ! MODULES
-USE MOD_Mesh_Vars          ,ONLY: N_SurfMesh,SideToElem,nBCSides,N_SurfMesh,offSetElem
-USE MOD_Interpolation_Vars ,ONLY: N_Inter
-USE MOD_DG_Vars            ,ONLY: U_N,N_DG_Mapping
 #if USE_MPI
 USE MOD_Globals
 #endif
-USE MOD_Particle_Boundary_Vars ,ONLY: N_SurfVDL
+USE MOD_Globals                ,ONLY: VECNORM
+USE MOD_Mesh_Vars              ,ONLY: N_SurfMesh,SideToElem,nBCSides,N_SurfMesh,offSetElem,BC
+USE MOD_DG_Vars                ,ONLY: U_N,N_DG_Mapping
+USE MOD_Particle_Boundary_Vars ,ONLY: N_SurfVDL,PartBound,ElementThicknessVDL
+USE MOD_ProlongToFace          ,ONLY: ProlongToFace_Side
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
@@ -1757,120 +1766,95 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER          :: ElemID,SideID,ilocSide,Nloc
-INTEGER          :: p,q,l
-REAL,ALLOCATABLE :: Uface(:,:,:)
+INTEGER          :: ElemID,SideID,ilocSide,ilocSide2,Nloc,iPartBound,p,q
+REAL,ALLOCATABLE :: Uface(:,:,:),Eface(:,:,:)
+REAL             :: MinOfElem,MinOfFace,MaxOfElem,MaxOfFace,Edir
 !===================================================================================================================================
 ! 1.) Loop over all processor-local BC sides and therein find the local side ID which corresponds to the reference element and
 !     interpolate the vector field E = (/Ex, Ey, Ez/) to the boundary face
 DO SideID=1,nBCSides
+  ! Get the local element index
   ElemID = SideToElem(S2E_ELEM_ID,SideID)
+  ! Get local polynomial degree of the element
   Nloc   = N_DG_Mapping(2,ElemID+offSetElem)
-  ALLOCATE(Uface(1:3,0:Nloc,0:Nloc))
-  ilocSide = SideToElem(S2E_LOC_SIDE_ID,SideID)
-#if (PP_NodeType==1) /* for Gauss-points*/
-  SELECT CASE(ilocSide)
-  CASE(XI_MINUS)
-    DO q=0,Nloc
-      DO p=0,Nloc
-        Uface(:,q,p)=U_N(ElemID)%E(:,0,p,q)*N_Inter(Nloc)%L_Minus(0)
-        DO l=1,Nloc
-          ! switch to right hand system
-          Uface(:,q,p)=Uface(:,q,p)+U_N(ElemID)%E(:,l,p,q)*N_Inter(Nloc)%L_Minus(l)
-        END DO ! l
-      END DO ! p
-    END DO ! q
-  CASE(ETA_MINUS)
-    DO q=0,Nloc
-      DO p=0,Nloc
-        Uface(:,p,q)=U_N(ElemID)%E(:,p,0,q)*N_Inter(Nloc)%L_Minus(0)
-        DO l=1,Nloc
-          Uface(:,p,q)=Uface(:,p,q)+U_N(ElemID)%E(:,p,l,q)*N_Inter(Nloc)%L_Minus(l)
-        END DO ! l
-      END DO ! p
-    END DO ! q
-  CASE(ZETA_MINUS)
-    DO q=0,Nloc
-      DO p=0,Nloc
-        Uface(:,q,p)=U_N(ElemID)%E(:,p,q,0)*N_Inter(Nloc)%L_Minus(0)
-        DO l=1,Nloc
-          ! switch to right hand system
-          Uface(:,q,p)=Uface(:,q,p)+U_N(ElemID)%E(:,p,q,l)*N_Inter(Nloc)%L_Minus(l)
-        END DO ! l
-      END DO ! p
-    END DO ! qfirst stuff
-  CASE(XI_PLUS)
-    DO q=0,Nloc
-      DO p=0,Nloc
-        Uface(:,p,q)=U_N(ElemID)%E(:,0,p,q)*N_Inter(Nloc)%L_Plus(0)
-        DO l=1,Nloc
-          Uface(:,p,q)=Uface(:,p,q)+U_N(ElemID)%E(:,l,p,q)*N_Inter(Nloc)%L_Plus(l)
-        END DO ! l
-      END DO ! p
-    END DO ! q
-  CASE(ETA_PLUS)
-    DO q=0,Nloc
-      DO p=0,Nloc
-        Uface(:,Nloc-p,q)=U_N(ElemID)%E(:,p,0,q)*N_Inter(Nloc)%L_Plus(0)
-        DO l=1,Nloc
-          ! switch to right hand system
-          Uface(:,Nloc-p,q)=Uface(:,Nloc-p,q)+U_N(ElemID)%E(:,p,l,q)*N_Inter(Nloc)%L_Plus(l)
-        END DO ! l
-      END DO ! p
-    END DO ! q
-  CASE(ZETA_PLUS)
-    DO q=0,Nloc
-      DO p=0,Nloc
-        Uface(:,p,q)=U_N(ElemID)%E(:,p,q,0)*N_Inter(Nloc)%L_Plus(0)
-        DO l=1,Nloc
-          Uface(:,p,q)=Uface(:,p,q)+U_N(ElemID)%E(:,p,q,l)*N_Inter(Nloc)%L_Plus(l)
-        END DO ! l
-      END DO ! p
-    END DO ! q
-  END SELECT
-#else /* for Gauss-Lobatto-points*/
-  SELECT CASE(ilocSide)
-  CASE(XI_MINUS)
-    DO q=0,Nloc
-      DO p=0,Nloc
-        Uface(:,q,p)=U_N(ElemID)%E(:,0,p,q)
-      END DO ! p
-    END DO ! q
-  CASE(ETA_MINUS)
-    Uface(:,:,:)=U_N(ElemID)%E(:,:,0,:)
-  CASE(ZETA_MINUS)
-    DO q=0,Nloc
-      DO p=0,Nloc
-        Uface(:,q,p)=U_N(ElemID)%E(:,p,q,0)
-      END DO ! p
-    END DO ! q
-  CASE(XI_PLUS)
-    Uface(:,:,:)=U_N(ElemID)%E(:,Nloc,:,:)
-  CASE(ETA_PLUS)
-    DO q=0,Nloc
-      DO p=0,Nloc
-        Uface(:,Nloc-p,q)=U_N(ElemID)%E(:,p,Nloc,q)
-      END DO ! p
-    END DO ! q
-  CASE(ZETA_PLUS)
-    DO q=0,Nloc
-      DO p=0,Nloc
-        Uface(:,p,q)=U_N(ElemID)%E(:,p,q,Nloc)
-      END DO ! p
-    END DO ! q
-  END SELECT
-#endif
-  ! 2.) Apply the normal vector: Uface(1,:,:)=DOT_PRODUCT(Uface(1:3,:,:),NormVec(1:3,:,:,SideID))
-  !     Store result of dot product in first array index
-  DO q=0,Nloc
-    DO p=0,Nloc
-      ASSOCIATE( E => N_SurfVDL(SideID)%E(1:3,p,q), normal => N_SurfMesh(SideID)%NormVec(1:3,p,q), U => Uface(1:3,p,q))
-        E = DOT_PRODUCT(U,normal)*normal
-      END ASSOCIATE
-    END DO ! p
-  END DO ! q
+  ! Get particle boundary index
+  iPartBound = PartBound%MapToPartBC(BC(SideID))
 
-  DEALLOCATE(Uface)
+  ! Skip sides that are not a VDL boundary (these sides are still in the list of sides)
+  IF(PartBound%ThicknessVDL(iPartBound).GT.0.0)THEN
+
+    ! Allocate Uface and Eface depending on the local polynomial degree
+    ALLOCATE(Uface(  1,0:Nloc,0:Nloc))
+    ALLOCATE(Eface(1:3,0:Nloc,0:Nloc))
+    ! Get local side index
+    ilocSide = SideToElem(S2E_LOC_SIDE_ID,SideID)
+    ! Prolong-to-face depending on orientation in reference element
+    CALL ProlongToFace_Side(3, Nloc, ilocSide, 0, U_N(ElemID)%E(:,:,:,:), Eface)
+    ! Get opposing face for U because the Dirichlet value is present on the actual boundary face, which is already known
+    SELECT CASE(ilocSide)
+    CASE(XI_MINUS)
+      ilocSide2 = XI_PLUS
+    CASE(XI_PLUS)
+      ilocSide2 = XI_MINUS
+    CASE(ETA_MINUS)
+      ilocSide2 = ETA_PLUS
+    CASE(ETA_PLUS)
+      ilocSide2 = ETA_MINUS
+    CASE(ZETA_MINUS)
+      ilocSide2 = ZETA_PLUS
+    CASE(ZETA_PLUS)
+      ilocSide2 = ZETA_MINUS
+    END SELECT
+    ! Defaulting to master sides with flip=0 in the following call. However, this only changes the sorting for Gauss-Lobatto
+    CALL ProlongToFace_Side(1, Nloc, ilocSide2, 0, U_N(ElemID)%U(1,:,:,:), Uface)
+
+    ! 2.) Apply the normal vector to get the normal electric field
+    DO q=0,Nloc
+      DO p=0,Nloc
+        ASSOCIATE( Ecorr => N_SurfVDL(SideID)%U(2:4,p,q), normal => N_SurfMesh(SideID)%NormVec(1:3,p,q), E => Eface(1:3,p,q))
+          ! E_normal =  <E,normal>*normal
+          Ecorr = DOT_PRODUCT(E,normal)*normal
+        END ASSOCIATE
+      END DO ! p
+    END DO ! q
+
+    ! Calculate the corrected E-field
+    N_SurfVDL(SideID)%U(2:4,:,:) = N_SurfVDL(SideID)%U(2:4,:,:) * (ElementThicknessVDL(ElemID)/PartBound%ThicknessVDL(iPartBound))
+
+    ! Get Phi_F
+    MinOfElem = MINVAL(U_N(ElemID)%U(1,:,:,:))
+    MinOfFace = MINVAL(Uface)
+    MaxOfElem = MAXVAL(U_N(ElemID)%U(1,:,:,:))
+    MaxOfFace = MAXVAL(Uface)
+    DO q=0,Nloc
+      DO p=0,Nloc
+        ASSOCIATE( E => N_SurfVDL(SideID)%U(2:4,p,q), normal => N_SurfMesh(SideID)%NormVec(1:3,p,q) )
+          ! Normal vector points outwards on BC sides, hence, invert it
+          Edir = DOT_PRODUCT(E,-normal)
+          ! Check in which direction the E-field points
+          IF(Edir.GT.0.0)THEN
+            ! Get minimum of Phi as Phi_F (Phi_Max)
+            N_SurfVDL(SideID)%U(5:5,p,q) = MIN(MinOfElem,MinOfFace)
+            ! Reconstruct Phi_F from E
+            N_SurfVDL(SideID)%U(1:1,p,q) = -VECNORM(E)*PartBound%ThicknessVDL(iPartBound)
+            ! Reconstruct E from Phi_Max via E = Phi/d
+            N_SurfVDL(SideID)%U(6:8,p,q) = -N_SurfVDL(SideID)%U(5,p,q)/PartBound%ThicknessVDL(iPartBound)*normal
+          ELSE
+            ! Get maximum of Phi as Phi_F (Phi_Max)
+            N_SurfVDL(SideID)%U(5:5,p,q) = MAX(MaxOfElem,MaxOfFace)
+            ! Reconstruct Phi_F from E
+            N_SurfVDL(SideID)%U(1:1,p,q) =  VECNORM(E)*PartBound%ThicknessVDL(iPartBound)
+            ! Reconstruct E from Phi_Max via E = Phi/d
+            N_SurfVDL(SideID)%U(6:8,p,q) =  N_SurfVDL(SideID)%U(5,p,q)/PartBound%ThicknessVDL(iPartBound)*normal
+          END IF ! Edir.GT.0
+        END ASSOCIATE
+      END DO ! p
+    END DO ! q
+
+    DEALLOCATE(Uface)
+    DEALLOCATE(Eface)
+
+  END IF ! PartBound%ThicknessVDL(iPartBound).GT.0.0
 END DO ! SideID=1,nBCSides
 
 END SUBROUTINE CalculateElectricPotentialAndFieldBoundaryVDL
@@ -1883,20 +1867,21 @@ SUBROUTINE CalculateElectricDisplacementCurrentSurface()
 !> missing ... ups
 !>
 !> 1.) Loop over all processor-local BC sides and therein find the local side ID which corresponds to the reference element and
-!      interpolate the vector field Et = (/Etx, Ety, Etz/) to the boundary face
+!      interpolate the vector field Dt = (/Dtx, Dty, Dtz/) to the boundary face
 !> 2.) Apply the normal vector: Uface(1,:,:)=DOT_PRODUCT(Uface(1:3,:,:),NormVec(1:3,:,:,SideID))
 !      Store result of dot product in first array index
 !> 3.) Get BC index and EDC index and the mapping of the SideID boundary to the EDC boundary ID and store the integrated current
 !> 4.) Communicate the integrated current values on each boundary to the MPI root process (the root outputs the values to .csv)
 !===================================================================================================================================
 ! MODULES
+#if USE_MPI
+USE MOD_Globals
+#endif
 USE MOD_Mesh_Vars          ,ONLY: N_SurfMesh,SideToElem,nBCSides,N_SurfMesh,BC, offSetElem
 USE MOD_Analyze_Vars       ,ONLY: EDC
 USE MOD_Interpolation_Vars ,ONLY: N_Inter
 USE MOD_DG_Vars            ,ONLY: U_N,N_DG_Mapping
-#if USE_MPI
-USE MOD_Globals
-#endif
+USE MOD_ProlongToFace      ,ONLY: ProlongToFace_Side
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
@@ -1906,8 +1891,7 @@ IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER          :: ElemID,SideID,ilocSide,Nloc
-INTEGER          :: p,q,l
-REAL,ALLOCATABLE :: Uface(:,:,:)
+REAL,ALLOCATABLE :: Eface(:,:,:)
 INTEGER          :: iBC,iEDCBC
 !REAL             :: SIP(0:PP_N,0:PP_N)
 !REAL             :: AverageElectricPotentialProc
@@ -1917,117 +1901,31 @@ INTEGER          :: iBC,iEDCBC
 EDC%Current = 0.
 
 ! 1.) Loop over all processor-local BC sides and therein find the local side ID which corresponds to the reference element and
-!     interpolate the vector field Et = (/Etx, Ety, Etz/) to the boundary face
+!     interpolate the vector field Dt = (/Dtx, Dty, Dtz/) to the boundary face
 DO SideID=1,nBCSides
+  ! Get the local element index
   ElemID   = SideToElem(S2E_ELEM_ID,SideID)
+  ! Get local polynomial degree of the element
   Nloc = N_DG_Mapping(2,ElemID+offSetElem)
-  ALLOCATE(Uface(1:3,0:Nloc,0:Nloc))
+  ! Allocate Eface depending on the local polynomial degree
+  ALLOCATE(Eface(1:3,0:Nloc,0:Nloc))
+  ! Get local side index
   ilocSide = SideToElem(S2E_LOC_SIDE_ID,SideID)
-#if (PP_NodeType==1) /* for Gauss-points*/
-  SELECT CASE(ilocSide)
-  CASE(XI_MINUS)
-    DO q=0,Nloc
-      DO p=0,Nloc
-        Uface(:,q,p)=U_N(ElemID)%Et(:,0,p,q)*N_Inter(Nloc)%L_Minus(0)
-        DO l=1,Nloc
-          ! switch to right hand system
-          Uface(:,q,p)=Uface(:,q,p)+U_N(ElemID)%Et(:,l,p,q)*N_Inter(Nloc)%L_Minus(l)
-        END DO ! l
-      END DO ! p
-    END DO ! q
-  CASE(ETA_MINUS)
-    DO q=0,Nloc
-      DO p=0,Nloc
-        Uface(:,p,q)=U_N(ElemID)%Et(:,p,0,q)*N_Inter(Nloc)%L_Minus(0)
-        DO l=1,Nloc
-          Uface(:,p,q)=Uface(:,p,q)+U_N(ElemID)%Et(:,p,l,q)*N_Inter(Nloc)%L_Minus(l)
-        END DO ! l
-      END DO ! p
-    END DO ! q
-  CASE(ZETA_MINUS)
-    DO q=0,Nloc
-      DO p=0,Nloc
-        Uface(:,q,p)=U_N(ElemID)%Et(:,p,q,0)*N_Inter(Nloc)%L_Minus(0)
-        DO l=1,Nloc
-          ! switch to right hand system
-          Uface(:,q,p)=Uface(:,q,p)+U_N(ElemID)%Et(:,p,q,l)*N_Inter(Nloc)%L_Minus(l)
-        END DO ! l
-      END DO ! p
-    END DO ! qfirst stuff
-  CASE(XI_PLUS)
-    DO q=0,Nloc
-      DO p=0,Nloc
-        Uface(:,p,q)=U_N(ElemID)%Et(:,0,p,q)*N_Inter(Nloc)%L_Plus(0)
-        DO l=1,Nloc
-          Uface(:,p,q)=Uface(:,p,q)+U_N(ElemID)%Et(:,l,p,q)*N_Inter(Nloc)%L_Plus(l)
-        END DO ! l
-      END DO ! p
-    END DO ! q
-  CASE(ETA_PLUS)
-    DO q=0,Nloc
-      DO p=0,Nloc
-        Uface(:,Nloc-p,q)=U_N(ElemID)%Et(:,p,0,q)*N_Inter(Nloc)%L_Plus(0)
-        DO l=1,Nloc
-          ! switch to right hand system
-          Uface(:,Nloc-p,q)=Uface(:,Nloc-p,q)+U_N(ElemID)%Et(:,p,l,q)*N_Inter(Nloc)%L_Plus(l)
-        END DO ! l
-      END DO ! p
-    END DO ! q
-  CASE(ZETA_PLUS)
-    DO q=0,Nloc
-      DO p=0,Nloc
-        Uface(:,p,q)=U_N(ElemID)%Et(:,p,q,0)*N_Inter(Nloc)%L_Plus(0)
-        DO l=1,Nloc
-          Uface(:,p,q)=Uface(:,p,q)+U_N(ElemID)%Et(:,p,q,l)*N_Inter(Nloc)%L_Plus(l)
-        END DO ! l
-      END DO ! p
-    END DO ! q
-  END SELECT
-#else /* for Gauss-Lobatto-points*/
-  SELECT CASE(ilocSide)
-  CASE(XI_MINUS)
-    DO q=0,Nloc
-      DO p=0,Nloc
-        Uface(:,q,p)=U_N(ElemID)%Et(:,0,p,q)
-      END DO ! p
-    END DO ! q
-  CASE(ETA_MINUS)
-    Uface(:,:,:)=U_N(ElemID)%Et(:,:,0,:)
-  CASE(ZETA_MINUS)
-    DO q=0,Nloc
-      DO p=0,Nloc
-        Uface(:,q,p)=U_N(ElemID)%Et(:,p,q,0)
-      END DO ! p
-    END DO ! q
-  CASE(XI_PLUS)
-    Uface(:,:,:)=U_N(ElemID)%Et(:,Nloc,:,:)
-  CASE(ETA_PLUS)
-    DO q=0,Nloc
-      DO p=0,Nloc
-        Uface(:,Nloc-p,q)=U_N(ElemID)%Et(:,p,Nloc,q)
-      END DO ! p
-    END DO ! q
-  CASE(ZETA_PLUS)
-    DO q=0,Nloc
-      DO p=0,Nloc
-        Uface(:,p,q)=U_N(ElemID)%Et(:,p,q,Nloc)
-      END DO ! p
-    END DO ! q
-  END SELECT
-#endif
+  ! Prolong-to-face depending on orientation in reference element
+  CALL ProlongToFace_Side(3, Nloc, ilocSide, 0, U_N(ElemID)%Dt, Eface)
 
-  ! 2.) Apply the normal vector: Uface(1,:,:)=DOT_PRODUCT(Uface(1:3,:,:),NormVec(1:3,:,:,SideID))
+  ! 2.) Apply the normal vector: Eface(1,:,:)=DOT_PRODUCT(Eface(1:3,:,:),NormVec(1:3,:,:,SideID))
   !     Store result of dot product in first array index
-  Uface(1,:,:) =   Uface(1,:,:) * N_SurfMesh(SideID)%NormVec(1,:,:) &
-                 + Uface(2,:,:) * N_SurfMesh(SideID)%NormVec(2,:,:) &
-                 + Uface(3,:,:) * N_SurfMesh(SideID)%NormVec(3,:,:)
+  Eface(1,:,:) =   Eface(1,:,:) * N_SurfMesh(SideID)%NormVec(1,:,:) &
+                 + Eface(2,:,:) * N_SurfMesh(SideID)%NormVec(2,:,:) &
+                 + Eface(3,:,:) * N_SurfMesh(SideID)%NormVec(3,:,:)
 
   ! 3.) Get BC index and EDC index and the mapping of the SideID boundary to the EDC boundary ID and store the integrated current
   iBC    = BC(SideID)
   iEDCBC = EDC%BCIDToEDCBCID(iBC)
-  EDC%Current(iEDCBC) = EDC%Current(iEDCBC) + SUM(Uface(1,:,:) * N_SurfMesh(SideID)%SurfElem(:,:) * N_Inter(Nloc)%wGPSurf(:,:))
+  EDC%Current(iEDCBC) = EDC%Current(iEDCBC) + SUM(Eface(1,:,:) * N_SurfMesh(SideID)%SurfElem(:,:) * N_Inter(Nloc)%wGPSurf(:,:))
 
-  DEALLOCATE(Uface)
+  DEALLOCATE(Eface)
 END DO ! SideID=1,nBCSides
 
 #if USE_MPI

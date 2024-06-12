@@ -132,7 +132,7 @@ INTEGER,ALLOCPOINT,DIMENSION(:,:) :: RotPeriodicSideMapping    ! Mapping between
 INTEGER,ALLOCPOINT,DIMENSION(:)   :: SurfSide2RotPeriodicSide  ! Mapping between surf side and periodic sides.
 ! ====================================================================
 ! Intermediate plane for multi rotational periodic sides
-INTEGER,ALLOCPOINT,DIMENSION(:,:) :: InterPlaneSideMapping    ! Mapping between inter plane BC_ID and SideID.
+INTEGER,ALLOCATABLE               :: InterPlaneSideMapping(:,:)! Mapping between inter plane BC_ID and SideID.
 ! ====================================================================
 #if USE_MPI
 INTEGER,POINTER,DIMENSION(:)    :: SurfSide2RotPeriodicSide_Shared
@@ -204,14 +204,15 @@ REAL,ALLOCATABLE                        :: PorousBCSampWall(:,:)  ! Processor-lo
 ! Particle Boundary
 !-----------------------------------------------------------------------------------------------------------------------------------
 TYPE tPartBoundary
-  INTEGER                                :: OpenBC                  = 1      ! = 1 (s.u.) Boundary Condition Integer Definition
-  INTEGER                                :: ReflectiveBC            = 2      ! = 2 (s.u.) Boundary Condition Integer Definition
-  INTEGER                                :: PeriodicBC              = 3      ! = 3 (s.u.) Boundary Condition Integer Definition
-  INTEGER                                :: RotPeriodicBC           = 6      ! = 6 (s.u.) Boundary Condition Integer Definition
-  INTEGER                                :: RotPeriodicInterPlaneBC = 7      ! = 7 (s.u.) Boundary Condition Integer Definition
-  INTEGER                                :: SymmetryBC              = 10     ! = 10 (s.u.) Boundary Condition Integer Definition
-  INTEGER                                :: SymmetryAxis            = 11     ! = 10 (s.u.) Boundary Condition Integer Definition
-  INTEGER                                :: VDL                     = 20     ! = 20 (s.u.) Boundary Condition Integer Definition
+  INTEGER                                :: OpenBC                  = 1  ! Particles are deleted at the boundary
+  INTEGER                                :: ReflectiveBC            = 2  ! Specular (default) and diffuse reflection, many other models
+  INTEGER                                :: PeriodicBC              = 3  ! Particles are transformed according to the periodic vectors
+  INTEGER                                :: RotPeriodicBC           = 6  ! Particles are rotated around an axis according to an angle
+  INTEGER                                :: RotPeriodicInterPlaneBC = 7  ! Particles are transferred between non-conform BCs (connecting slices/cutouts with different RotPeriodicBC)
+  INTEGER                                :: SymmetryBC              = 10 ! Same as the default ReflectiveBC but without analysis
+  INTEGER                                :: SymmetryAxis            = 11 ! Symmetry axis for axisymmetric simulations (x-axis)
+  INTEGER                                :: SymmetryDim             = 12 ! BC for 1D, 2D and axisymmetric simulations in the neglected dimension(s)
+  !INTEGER                                :: VDL                     = 20 ! Particles are shifted away from the wall, deposited and then deleted to form a surface charge model
   CHARACTER(LEN=200)   , ALLOCATABLE     :: SourceBoundName(:)           ! Link part 1 for mapping PICLas BCs to Particle BC
   INTEGER              , ALLOCATABLE     :: TargetBoundCond(:)           ! Link part 2 for mapping PICLas BCs to Particle BC
   INTEGER              , ALLOCATABLE     :: MapToPartBC(:)               ! Map from PICLas BCindex to Particle BC (NOT TO TYPE!)
@@ -307,12 +308,25 @@ INTEGER              :: PartStateBoundaryVecLength ! Number of boundary-crossed 
 ! Virtual dielectric layer (VDL)
 LOGICAL              :: DoVirtualDielectricLayer ! Flag set automatically if a VDL permittivity is set >= 0.0
 REAL, ALLOCATABLE    :: ElementThicknessVDL(:)   ! Thickness of first element layer at a VDL boundary
+REAL, ALLOCATABLE    :: StretchingFactorVDL(:)   ! Thickness of first element layer at a VDL boundary versus actual VDL layer thickness
 
 TYPE, PUBLIC :: VDLSurfMesh
-  REAL,ALLOCATABLE        :: E(:,:,:)   !< E-XYZ positions (first index 1:3) of the Boundary Face Gauss Point
+  REAL,ALLOCATABLE :: U(:,:,:) !<  1: PhiF_From_E      - PhiF calculated from E (2-4)
+                               !<  2: Ex               - E-field from post-processes gradient corrected with ElementThicknessVDL and ThicknessVDL
+                               !<  3: Ey
+                               !<  4: Ez
+                               !<  5: PhiF_Max         - PhiF as Minimum/Maximum of Phi
+                               !<  6: E_From_PhiF_Maxx - E-field from PhiF_Max (Minimum/Maximum of Phi) and ThicknessVDL (thickness of the dielectric layer)
+                               !<  7: E_From_PhiF_Maxy
+                               !<  8: E_From_PhiF_Maxz
+                               !<  9: PhiF_From_Currents - PhiF calculated from the current density and the (uncorrected) electric displacement fields in each element
+                               !< 10: E_From_PhiF_From_Currentsx - E-field from PhiF_From_Currents (current density+electric displacement field) and ThicknessVDL (thickness of the dielectric layer)
+                               !< 11: E_From_PhiF_From_Currentsy
+                               !< 12: E_From_PhiF_From_Currentsz
 END TYPE VDLSurfMesh
 
-TYPE(VDLSurfMesh),ALLOCATABLE  :: N_SurfVDL(:) !< Corrected electric field on VDL surfaces
+INTEGER,PARAMETER              :: nVarSurfData=12
+TYPE(VDLSurfMesh),ALLOCATABLE  :: N_SurfVDL(:) !< Electric potential and fields strength on VDL surfaces
 !===================================================================================================================================
 
 END MODULE MOD_Particle_Boundary_Vars

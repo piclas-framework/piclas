@@ -327,7 +327,7 @@ END SUBROUTINE ProlongToFace_SideBased
 
 
 
-SUBROUTINE ProlongToFace_TypeBased(doMPISides)
+SUBROUTINE ProlongToFace_TypeBased(doDielectricSides, doMPISides)
 !===================================================================================================================================
 ! Interpolates the interior volume data (stored at the Gauss or Gauss-Lobatto points) to the surface
 ! integration points, using fast 1D Interpolation and store in global side structure
@@ -340,11 +340,16 @@ USE MOD_DG_Vars            ,ONLY: U_N,DG_Elems_slave,DG_Elems_master,U_Surf_N, N
 USE MOD_Mesh_Vars          ,ONLY: SideToElem, offSetElem
 USE MOD_Mesh_Vars          ,ONLY: firstBCSide,firstInnerSide
 USE MOD_Mesh_Vars          ,ONLY: firstMPISide_YOUR,lastMPISide_YOUR,lastMPISide_MINE,nSides,firstMortarMPISide,lastMortarMPISide
+USE MOD_Dielectric_Vars    ,ONLY: DielectricSurf, DielectricVolDummy
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-LOGICAL,INTENT(IN) :: doMPISides  != .TRUE. only YOUR MPISides are filled, =.FALSE. BCSides +InnerSides +MPISides MINE
+LOGICAL,INTENT(IN) :: doDielectricSides  !  .TRUE.: use DielectricVolDummy()%U, DielectricSurf(:)%Dielectric_dummy_Master and 
+!                                        !                                      DielectricSurf(:)%Dielectric_dummy_Slave
+!                                        ! .FALSE.: use U_N(:)%U, U_Surf_N(:)%U_master and 
+!                                        !                        U_Surf_N(:)%U_slave
+LOGICAL,INTENT(IN) :: doMPISides         != .TRUE. only YOUR MPISides are filled, =.FALSE. BCSides +InnerSides +MPISides MINE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -370,7 +375,11 @@ DO SideID=firstSideID,lastSideID
   flip       = SideToElem(S2E_FLIP,SideID)
   Nloc = N_DG_Mapping(2,nbElemID+offSetElem)
   !CALL ProlongToFace_Side(PP_nVar, Nloc, locSideID, flip, nbElemID,  U_N(nbElemID)%U, U_Surf_N(SideID)%U_slave)
-  CALL ProlongToFace_Side(PP_nVar, Nloc, locSideID, flip, U_N(nbElemID)%U, U_Surf_N(SideID)%U_slave)
+  IF(doDielectricSides)THEN
+    CALL ProlongToFace_Side(      1, Nloc, locSideID, flip, DielectricVolDummy(nbElemID)%U, DielectricSurf(SideID)%Dielectric_dummy_Slave)
+  ELSE
+    CALL ProlongToFace_Side(PP_nVar, Nloc, locSideID, flip, U_N(nbElemID)%U, U_Surf_N(SideID)%U_slave)
+  END IF ! doDielectricSides
   
 END DO !SideID
 
@@ -392,7 +401,11 @@ DO SideID=firstSideID,lastSideID
   Nloc = N_DG_Mapping(2,ElemID+offSetElem)
 
   !CALL ProlongToFace_Side(PP_nVar, Nloc, locSideID, 0, ElemID,  U_N(ElemID)%U, U_Surf_N(SideID)%U_master)
-  CALL ProlongToFace_Side(PP_nVar, Nloc, locSideID, 0, U_N(ElemID)%U, U_Surf_N(SideID)%U_master)
+  IF(doDielectricSides)THEN
+    CALL ProlongToFace_Side(      1, Nloc, locSideID, 0, DielectricVolDummy(ElemID)%U, DielectricSurf(SideID)%Dielectric_dummy_Master)
+  ELSE
+    CALL ProlongToFace_Side(PP_nVar, Nloc, locSideID, 0, U_N(ElemID)%U, U_Surf_N(SideID)%U_master)
+  END IF ! doDielectricSides
 END DO !SideID
 
 END SUBROUTINE ProlongToFace_TypeBased

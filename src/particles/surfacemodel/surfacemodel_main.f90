@@ -59,6 +59,7 @@ USE MOD_Particle_Vars             ,ONLY: UseCircularInflow
 USE MOD_Dielectric_Vars           ,ONLY: DoDielectricSurfaceCharge
 USE MOD_DSMC_Vars                 ,ONLY: DSMC, SamplingActive, RadialWeighting
 USE MOD_SurfaceModel_Analyze_Vars ,ONLY: CalcSurfCollCounter, SurfAnalyzeCount, SurfAnalyzeNumOfAds, SurfAnalyzeNumOfDes
+USE MOD_SurfaceModel_Analyze_Vars ,ONLY: CalcBoundaryParticleOutput
 USE MOD_SurfaceModel_Tools        ,ONLY: MaxwellScattering, SurfaceModelParticleEmission
 USE MOD_SurfaceModel_Chemistry    ,ONLY: SurfaceModelChemistry, SurfaceModelEventProbability
 USE MOD_SEE                       ,ONLY: SecondaryElectronEmission
@@ -68,6 +69,7 @@ USE MOD_PICDepo_Tools             ,ONLY: DepositParticleOnNodes
 USE MOD_part_operations           ,ONLY: RemoveParticle, CreateParticle
 USE MOD_part_tools                ,ONLY: CalcRadWeightMPF, VeloFromDistribution, GetParticleWeight
 USE MOD_PICDepo_Vars              ,ONLY: DoDeposition
+USE MOD_Part_Operations           ,ONLY: UpdateBPO
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -93,7 +95,8 @@ REAL               :: ChargeImpact,PartPosImpact(1:3) !< Charge and position of 
 REAL               :: ChargeRefl                      !< Charge of reflected particle
 REAL               :: MPF                             !< macro-particle factor
 REAL               :: ChargeHole                      !< Charge of SEE electrons holes
-INTEGER            :: iProd
+INTEGER            :: iProd,iNewPart,NewPartID
+REAL               :: NewVelo(3), NewPos(1:3)
 !===================================================================================================================================
 !===================================================================================================================================
 ! 0.) Initial surface pre-treatment
@@ -175,7 +178,7 @@ CASE(20)  ! Catalytic gas-surface interaction: Adsorption or Eley-Rideal reactio
 !-----------------------------------------------------------------------------------------------------------------------------------
   CALL SurfaceModelChemistry(PartID,SideID,GlobalElemID,n_Loc,PartPosImpact(1:3))
 !-----------------------------------------------------------------------------------------------------------------------------------
-CASE (SEE_MODELS_ID)
+CASE (SEE_MODELS_ID)!,SEE_VDL_MODEL_ID)
   ! 5: SEE by Levko2015
   ! 6: SEE by Pagonakis2016 (originally from Harrower1956)
   ! 7: SEE-I (bombarding electrons are removed, Ar+ on different materials is considered for SEE)
@@ -186,40 +189,69 @@ CASE (SEE_MODELS_ID)
 !-----------------------------------------------------------------------------------------------------------------------------------
   ! Get electron emission probability
   CALL SecondaryElectronEmission(PartID,locBCID,ProductSpec,ProductSpecNbr,TempErgy)
+
   ! Decide the fate of the impacting particle
   IF (ProductSpec(1).LE.0) THEN
     CALL RemoveParticle(PartID,BCID=PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID)))
   ELSE
     CALL MaxwellScattering(PartID,SideID,n_Loc)
   END IF
+
   ! Emit the secondary electrons
   IF (ProductSpec(2).GT.0) THEN
     CALL SurfaceModelParticleEmission(n_loc, PartID, SideID, ProductSpec(2), ProductSpecNbr, TempErgy, GlobalElemID, &
                                       PartPosImpact(1:3),EnergyDistribution=SurfModEnergyDistribution(locBCID))
     ! Deposit opposite charge of SEE on node
-    IF(DoDeposition.AND.DoDielectricSurfaceCharge.AND.PartBound%Dielectric(locBCID)) THEN
-      ! Get MPF
-      IF (usevMPF) THEN
-        IF (RadialWeighting%DoRadialWeighting) THEN
-          MPF = CalcRadWeightMPF(PartPosImpact(2),ProductSpec(2))
+    IF(DoDeposition.AND.DoDielectricSurfaceCharge)THEN
+
+      ! Method 1: PartBound%Dielectric = T
+      IF(PartBound%Dielectric(locBCID))THEN
+        ! Get MPF
+        IF (usevMPF) THEN
+          IF (RadialWeighting%DoRadialWeighting) THEN
+            MPF = CalcRadWeightMPF(PartPosImpact(2),ProductSpec(2))
+          ELSE
+            MPF = Species(ProductSpec(2))%MacroParticleFactor
+          END IF
         ELSE
           MPF = Species(ProductSpec(2))%MacroParticleFactor
-        END IF
-      ELSE
-        MPF = Species(ProductSpec(2))%MacroParticleFactor
-      END IF
-      ! Calculate the opposite charge
-      ChargeHole = -Species(ProductSpec(2))%ChargeIC*MPF
-      ! Deposit the charge(s)
-      DO iProd = 1, ProductSpecNbr
-        CALL DepositParticleOnNodes(ChargeHole, PartPosImpact, GlobalElemID)
-      END DO ! iProd = 1, ProductSpecNbr
-    END IF
+        END IF ! usevMPF
+        ! Calculate the opposite charge
+        ChargeHole = -Species(ProductSpec(2))%ChargeIC*MPF
+        ! Deposit the charge(s)
+        DO iProd = 1, ProductSpecNbr
+          CALL DepositParticleOnNodes(ChargeHole, PartPosImpact, GlobalElemID)
+        END DO ! iProd = 1, ProductSpecNbr
+      END IF ! PartBound%Dielectric(locBCID)
+
+      ! Method 2: Virtual dielectric layer (VDL)
+      IF(ABS(PartBound%PermittivityVDL(locBCID)).GT.0.0)THEN
+        ! Create new particles
+        DO iNewPart = 1, ProductSpecNbr
+          ! Set velocity to zero
+          NewVelo(1:3) = 0.0
+          ! Create new position by using POI
+          NewPos(1:3) = PartPosImpact(1:3)
+          ! Create new particle: in case of vMPF or VarTimeStep, new particle inherits the values of the old particle
+          CALL CreateParticle(ProductSpec(2),NewPos(1:3),GlobalElemID,GlobalElemID,NewVelo(1:3),0.,0.,0.,OldPartID=PartID,NewPartID=NewPartID)
+          ! This routines changes the species index and before the particle is deposited and removed, the species index cannot be
+          ! used anymore
+          CALL VirtualDielectricLayerDisplacement(NewPartID,SideID,n_Loc)
+          ! Invert species index to invert the charge later in the deposition step
+          PartSpecies(NewPartID) = -PartSpecies(NewPartID)
+        END DO ! iNewPart = 1, ProductSpecNbr
+      END IF ! ABS(PartBound%PermittivityVDL(locBCID)).GT.0.0
+    END IF ! DoDeposition.AND.DoDielectricSurfaceCharge
   END IF
 !-----------------------------------------------------------------------------------------------------------------------------------
-CASE (99)  ! Virtual dielectric layer
+CASE (VDL_MODEL_ID)  ! Virtual dielectric layer (VDL)
 !-----------------------------------------------------------------------------------------------------------------------------------
-  CALL VirtualDielectricLayerDisplacement(PartID,SideID,n_Loc,GlobalElemID)
+  ! Check if BPO boundary is encountered: Do this here because the BC info is lost during MPI communication of these particles
+  ! Normally, this happens in RemoveParticle()
+  IF(CalcBoundaryParticleOutput) CALL UpdateBPO(PartID,SideID)
+  ! This routines changes the species index and before the particle is deposited and removed, the species index cannot be used
+  ! anymore
+  CALL VirtualDielectricLayerDisplacement(PartID,SideID,n_Loc)
 CASE DEFAULT
   CALL abort(__STAMP__,'Unknown surface model. PartBound%SurfaceModel(locBCID) = ',IntInfoOpt=PartBound%SurfaceModel(locBCID))
 END SELECT
@@ -273,7 +305,6 @@ IF(DoSample) THEN
 END IF
 
 END SUBROUTINE SurfaceModelling
-
 
 SUBROUTINE SpeciesSwap(PartID,SideID,targetSpecies_IN)
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -377,7 +408,7 @@ END SUBROUTINE SurfaceFluxBasedBoundaryTreatment
 !> flag such particles so that later, after MPI communication, they can be deleted and deposited at the target position to form a
 !> surface charge on a (virtual) dielectric layer.
 !===================================================================================================================================
-SUBROUTINE VirtualDielectricLayerDisplacement(PartID,SideID,n_Loc,GlobalElemID)
+SUBROUTINE VirtualDielectricLayerDisplacement(PartID,SideID,n_Loc)
 ! MODULES
 USE MOD_Globals                ,ONLY: VECNORM
 USE MOD_Particle_Vars          ,ONLY: SpeciesOffsetVDL
@@ -390,7 +421,7 @@ IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! INPUT / OUTPUT VARIABLES
 REAL,INTENT(IN)    :: n_loc(1:3)
-INTEGER,INTENT(IN) :: PartID, SideID, GlobalElemID
+INTEGER,INTENT(IN) :: PartID, SideID
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER :: iPartBound

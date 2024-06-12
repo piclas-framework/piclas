@@ -796,9 +796,7 @@ SUBROUTINE CountAndCreateMappings(TypeName,&
 USE MOD_PreProc
 USE MOD_Globals
 USE MOD_Mesh_Vars        ,ONLY: nSides,nGlobalElems
-#if USE_MPI
 USE MOD_Mesh_Vars        ,ONLY: ElemToSide
-#endif
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Vars ,ONLY: PerformLoadBalance
 #endif /*USE_LOADBALANCE*/
@@ -817,9 +815,7 @@ INTEGER,ALLOCATABLE,INTENT(INOUT) :: ElemToX(:),XToElem(:),FaceToX(:),XToFace(:)
 ! LOCAL VARIABLES
 INTEGER                           :: iElem,iSide,nGlobalSpecialElems,nGlobalFaces,nGlobalInterFaces
 INTEGER                           :: iXElem,iXFace,iXInterFace,sumGlobalFaces,sumGlobalInterFaces
-#if USE_MPI
 INTEGER                           :: SideID,nMasterfaces,nMasterInterFaces
-#endif
 !===================================================================================================================================
 ! Get number of Elems
 nFaces = 0
@@ -846,7 +842,6 @@ END DO ! iElem
 !===================================================================================================================================
 IF(PRESENT(DisplayInfo))THEN
   IF(DisplayInfo)THEN
-#if USE_MPI
     nMasterFaces      = 0
     nMasterInterFaces = 0
     DO iElem=1,nElems ! loop over all local elems
@@ -862,6 +857,7 @@ IF(PRESENT(DisplayInfo))THEN
         END IF
       END DO
     END DO
+#if USE_MPI
     sumGlobalFaces      = 0
     sumGlobalInterFaces = 0
     CALL MPI_REDUCE(nElems           ,nGlobalSpecialElems,1,MPI_INTEGER,MPI_SUM,0,MPI_COMM_PICLAS,iError)
@@ -871,6 +867,8 @@ IF(PRESENT(DisplayInfo))THEN
     nGlobalSpecialElems = nElems
     sumGlobalFaces      = nFaces
     sumGlobalInterFaces = nInterFaces
+    nGlobalFaces        = nMasterfaces
+    nGlobalInterfaces   = nMasterInterFaces
 #endif /*USE_MPI*/
     LBWRITE(UNIT_stdOut,'(A,I10,A,I10,A,F6.2,A)')&
     '  Found [',nGlobalSpecialElems,'] nGlobal'//TRIM(TypeName)//'-Elems      inside of '//TRIM(TypeName)//'-region of ['&

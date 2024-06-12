@@ -49,7 +49,7 @@ USE MOD_DSMC_Vars              ,ONLY: UseDSMC,CollisMode,PartStateIntEn,DSMC,Vib
 USE MOD_DSMC_Vars              ,ONLY: ElectronicDistriPart, AmbipolElecVelo
 ! Localization
 USE MOD_Particle_Localization  ,ONLY: LocateParticleInElement,SinglePointToElement
-USE MOD_Particle_Mesh_Tools    ,ONLY: ParticleInsideQuad3D
+USE MOD_Particle_Mesh_Tools    ,ONLY: ParticleInsideQuad
 USE MOD_Particle_Mesh_Vars     ,ONLY: ElemEpsOneCell
 USE MOD_Particle_Tracking_Vars ,ONLY: TrackingMethod,NbrOfLostParticles,CountNbrOfLostParts
 USE MOD_Particle_Tracking_Vars ,ONLY: NbrOfLostParticlesTotal,TotalNbrOfMissingParticlesSum,NbrOfLostParticlesTotal_old
@@ -307,7 +307,7 @@ IF(.NOT.DoMacroscopicRestart) THEN
       CASE(TRIATRACKING)
         DO iPart = 1,PDM%ParticleVecLength
           ! Check if particle is inside the correct element
-          CALL ParticleInsideQuad3D(PartState(1:3,iPart),PEM%GlobalElemID(iPart),InElementCheck,det)
+          CALL ParticleInsideQuad(PartState(1:3,iPart),PEM%GlobalElemID(iPart),InElementCheck,det)
 
           ! Particle not in correct element, try to find them within MyProc
           IF (.NOT.InElementCheck) THEN
@@ -775,7 +775,7 @@ IF(.NOT.DoMacroscopicRestart) THEN
             ! in the .h5 container)
             PartState(1:6,CurrentPartNum)        = RecBuff(1:6,iPart)
             PartSpecies(CurrentPartNum)          = INT(RecBuff(7,iPart))
-            PEM%LastGlobalElemID(CurrentPartNum) = -1
+            PEM%LastGlobalElemID(CurrentPartNum) = 0 ! Initialize with invalid value
             PDM%ParticleInside(CurrentPartNum)   = .FALSE.
             IF(usevMPF) PartMPF(CurrentPartNum)  = RecBuff(8,iPart) ! only required when using vMPF
 

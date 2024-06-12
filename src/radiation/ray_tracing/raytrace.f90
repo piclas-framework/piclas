@@ -278,6 +278,7 @@ USE MOD_ChangeBasis            ,ONLY: ChangeBasis3D
 USE MOD_RayTracing_Vars        ,ONLY: RaySecondaryVectorX,RaySecondaryVectorY,RaySecondaryVectorZ
 USE MOD_Mesh_Vars              ,ONLY: nBCSides,offsetElem,SideToElem
 USE MOD_Particle_Mesh_Tools    ,ONLY: GetGlobalNonUniqueSideID
+USE MOD_HDF5_input             ,ONLY:ReadAttribute
 #if USE_MPI
 USE MOD_MPI_Shared
 USE MOD_MPI_Shared_Vars        ,ONLY: MPI_COMM_SHARED,myComputeNodeRank
@@ -292,12 +293,11 @@ LOGICAL,INTENT(IN)   :: onlySurfData
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER              :: iElem,Nloc,iVar,k,l,m,iSurfSideHDF5,nSurfSidesHDF5,BCSideID,iLocSide,locElemID,GlobalSideID,SideID
-INTEGER              :: nSurfSampleHDF5
+INTEGER              :: nSurfSampleHDF5,N_HDF5
 LOGICAL              :: ContainerExists
 REAL                 :: N_DG_Ray_locREAL(1:nElems)
-REAL                 :: UNMax(nVarRay,0:Ray%NMax,0:Ray%NMax,0:Ray%NMax,PP_nElems)
-REAL                 :: UNMax_loc(nVarRay,0:Ray%NMax,0:Ray%NMax,0:Ray%NMax)
 INTEGER, ALLOCATABLE :: GlobalSideIndex(:)
+REAL, ALLOCATABLE    :: UNMax(:,:,:,:,:),UNMax_loc(:,:,:,:)
 !===================================================================================================================================
 
 ! 1.) Get surface sampled values
@@ -387,10 +387,10 @@ IF(onlySurfData) RETURN
 
 ! 2. Get local element polynomial
 CALL OpenDataFile(RadiationVolState,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_PICLAS)
-CALL DatasetExists(File_ID,'Nloc',ContainerExists)
-IF(.NOT.ContainerExists) CALL CollectiveStop(__STAMP__,'Nloc container does not exist in '//TRIM(RadiationVolState))
+CALL DatasetExists(File_ID,'NlocRay',ContainerExists)
+IF(.NOT.ContainerExists) CALL CollectiveStop(__STAMP__,'NlocRay container does not exist in '//TRIM(RadiationVolState))
 ! Array is stored as REAL value, hence, convert back to integer
-CALL ReadArray('Nloc',2,(/1_IK,INT(nElems,IK)/),INT(offsetElem,IK),2,RealArray=N_DG_Ray_locREAL)
+CALL ReadArray('NlocRay',2,(/1_IK,INT(nElems,IK)/),INT(offsetElem,IK),2,RealArray=N_DG_Ray_locREAL)
 N_DG_Ray_loc = INT(N_DG_Ray_locREAL)
 ! Sanity check
 IF(ANY(N_DG_Ray_loc.LE.0)) CALL abort(__STAMP__,'N_DG_Ray_loc cannot contain zeros!')
@@ -402,35 +402,41 @@ DO iElem = 1, nElems
   ALLOCATE(U_N_Ray_loc(iElem)%U(nVarRay,0:Nloc,0:Nloc,0:Nloc))
   U_N_Ray_loc(iElem)%U = 0.
 END DO ! iElem = 1, nElems
+
+! Read HDF5
+CALL DatasetExists(File_ID,'DG_Solution',ContainerExists)
+IF(.NOT.ContainerExists) CALL CollectiveStop(__STAMP__,'DG_Solution container does not exist in '//TRIM(RadiationVolState))
+CALL ReadAttribute(File_ID,'N',1,IntScalar=N_HDF5)
 ! Associate construct for integer KIND=8 possibility
 ASSOCIATE (&
       nVarRay8          => INT(nVarRay,IK)            ,&
-      NMax8             => INT(Ray%NMax,IK)           ,&
+      N_HDF58           => INT(N_HDF5,IK)             ,&
       nGlobalElems      => INT(nGlobalElems,IK)       ,&
       PP_nElems         => INT(PP_nElems,IK)          ,&
       offsetElem        => INT(offsetElem,IK)          &
       )
       !Nres              => INT(N_Restart,4)           ,&
       !Nres8             => INT(N_Restart,IK)          ,&
-  CALL DatasetExists(File_ID,'DG_Solution',ContainerExists)
-  IF(.NOT.ContainerExists) CALL CollectiveStop(__STAMP__,'DG_Solution container does not exist in '//TRIM(RadiationVolState))
-  CALL ReadArray('DG_Solution' ,5,(/nVarRay8,NMax8+1_IK,NMax8+1_IK,NMax8+1_IK,PP_nElems/),OffsetElem,5,RealArray=UNMax)
+  ALLOCATE(UNMax(    nVarRay,0:N_HDF5,0:N_HDF5,0:N_HDF5,PP_nElems))
+  ALLOCATE(UNMax_loc(nVarRay,0:N_HDF5,0:N_HDF5,0:N_HDF5))
+  CALL ReadArray('DG_Solution' ,5,(/nVarRay8,N_HDF58+1_IK,N_HDF58+1_IK,N_HDF58+1_IK,PP_nElems/),OffsetElem,5,RealArray=UNMax)
 
-  ! Map from NMax to local polynomial degree
+  ! Map from N_HDF5 to local polynomial degree
   DO iElem = 1, nElems
     Nloc = N_DG_Ray_loc(iElem)
-    ASSOCIATE( NMax => Ray%NMax)
-      IF(Nloc.EQ.NMax)THEN
-        U_N_Ray_loc(iElem)%U(1:nVarRay,0:NMax,0:NMax,0:NMax) = UNMax(1:nVarRay,0:NMax,0:NMax,0:NMax,iElem)
-      ELSEIF(Nloc.GT.NMax)THEN
-        CALL ChangeBasis3D(nVarRay, NMax, Nloc, PREF_VDM_Ray(NMax, Nloc)%Vdm, UNMax(1:nVarRay,0:NMax,0:NMax,0:NMax,iElem), U_N_Ray_loc(iElem)%U(1:nVarRay,0:Nloc,0:Nloc,0:Nloc))
-      ELSE
-        !transform the slave side to the same degree as the master: switch to Legendre basis
-        CALL ChangeBasis3D(nVarRay, NMax, NMax, N_Inter_Ray(NMax)%sVdm_Leg, UNMax(1:nVarRay,0:NMax,0:NMax,0:NMax,iElem), UNMax_loc(1:nVarRay,0:NMax,0:NMax,0:NMax))
-        ! switch back to nodal basis
-        CALL ChangeBasis3D(nVarRay, Nloc, Nloc, N_Inter_Ray(Nloc)%Vdm_Leg, UNMax_loc(1:nVarRay,0:Nloc,0:Nloc,0:Nloc), U_N_Ray_loc(iElem)%U(1:nVarRay,0:Nloc,0:Nloc,0:Nloc))
-      END IF ! Nloc.EQ.NMax
-    END ASSOCIATE
+    IF(Nloc.EQ.N_HDF5)THEN
+      ! N stays the same
+      U_N_Ray_loc(iElem)%U(1:nVarRay,0:N_HDF5,0:N_HDF5,0:N_HDF5) = UNMax(1:nVarRay,0:N_HDF5,0:N_HDF5,0:N_HDF5,iElem)
+    ELSEIF(Nloc.GT.N_HDF5)THEN
+      ! N increases
+      CALL ChangeBasis3D(nVarRay, N_HDF5, Nloc, PREF_VDM_Ray(N_HDF5, Nloc)%Vdm, UNMax(1:nVarRay,0:N_HDF5,0:N_HDF5,0:N_HDF5,iElem), U_N_Ray_loc(iElem)%U(1:nVarRay,0:Nloc,0:Nloc,0:Nloc))
+    ELSE
+      ! N is reduced
+      !transform the slave side to the same degree as the master: switch to Legendre basis
+      CALL ChangeBasis3D(nVarRay, N_HDF5, N_HDF5, N_Inter_Ray(N_HDF5)%sVdm_Leg, UNMax(1:nVarRay,0:N_HDF5,0:N_HDF5,0:N_HDF5,iElem), UNMax_loc(1:nVarRay,0:N_HDF5,0:N_HDF5,0:N_HDF5))
+      ! switch back to nodal basis
+      CALL ChangeBasis3D(nVarRay, Nloc, Nloc, N_Inter_Ray(Nloc)%Vdm_Leg, UNMax_loc(1:nVarRay,0:Nloc,0:Nloc,0:Nloc), U_N_Ray_loc(iElem)%U(1:nVarRay,0:Nloc,0:Nloc,0:Nloc))
+    END IF ! Nloc.EQ.N_HDF5
 
     ! Sanity check: Very small negative numbers might occur due to the interpolation
     DO iVar = 1, nVarRay

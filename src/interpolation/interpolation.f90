@@ -164,7 +164,7 @@ IF(Nmax.GT.0)THEN
                                        N_Inter(Nloc)%Vdm_Leg , N_Inter(Nloc)%sVdm_Leg)
   END DO
 
-  ! Allocate vandermonde matrices for p-refinement
+  ! Allocate Vandermonde matrices for p-refinement
   ALLOCATE(PREF_VDM(Nmin:Nmax,Nmin:Nmax))
 
   DO Nin=Nmin,Nmax
@@ -354,7 +354,7 @@ END IF !present wIP
 IF(PRESENT(wIPBary)) CALL BarycentricWeights(N_in,xIP,wIPBary)
 END SUBROUTINE GetNodesAndWeights
 
-SUBROUTINE GetVandermonde(N_in,NodeType_in,N_out,NodeType_out,Vdm_In_Out,Vdm_Out_In,modal)
+SUBROUTINE GetVandermonde(N_in, NodeType_in, N_out, NodeType_out, Vdm_In_Out, Vdm_Out_In, modal)
 !==================================================================================================================================
 !> Build a Vandermonde-Matrix from/to different node types and polynomial degrees.
 !==================================================================================================================================

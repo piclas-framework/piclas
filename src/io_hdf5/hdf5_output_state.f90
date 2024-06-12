@@ -167,7 +167,7 @@ REAL                           :: Utemp(PP_nVar,0:PP_N,0:PP_N,0:PP_N,PP_nElems)
 #if PP_nVar==1
 REAL                           :: Utemp(1:4,0:NMax,0:NMax,0:NMax,PP_nElems)
 INTEGER                        :: iElem,Nloc,NSideMin
-REAL,ALLOCATABLE               :: Et(:,:,:,:,:)
+REAL,ALLOCATABLE               :: Dt(:,:,:,:,:)
 #elif PP_nVar==3
 REAL                           :: Utemp(1:3,0:PP_N,0:PP_N,0:PP_N,PP_nElems)
 #else /*PP_nVar=4*/
@@ -592,16 +592,16 @@ ASSOCIATE (&
 #if USE_HDG
   ! Output temporal derivate of the electric field
   IF(CalcElectricTimeDerivative) THEN
-    ALLOCATE(Et(1:3,0:Nmax,0:Nmax,0:Nmax,nElems))
-    Et=0.0
+    ALLOCATE(Dt(1:3,0:Nmax,0:Nmax,0:Nmax,nElems))
+    Dt=0.0
     DO iElem=1,nElems
       Nloc  = N_DG_Mapping(2,iElem+offSetElem)
       IF(Nloc.EQ.Nmax)THEN
-        Et(:,:,:,:,iElem) = U_N(iElem)%Et(:,:,:,:)
+        Dt(:,:,:,:,iElem) = U_N(iElem)%Dt(:,:,:,:)
       ELSE
         CALL ChangeBasis3D(PP_nVar,Nloc,NMax,PREF_VDM(Nloc,NMax)%Vdm, &
-            U_N(iElem)%Et(1:3 , 0:Nloc , 0:Nloc , 0:Nloc) , &
-                       Et(1:3 , 0:Nmax , 0:Nmax , 0:Nmax  , iElem))
+            U_N(iElem)%Dt(1:3 , 0:Nloc , 0:Nloc , 0:Nloc) , &
+                       Dt(1:3 , 0:Nmax , 0:Nmax , 0:Nmax  , iElem))
       END IF ! Nloc.Eq.Nmax
     END DO ! iElem = 1, nElems
     nVar=3_IK
@@ -619,7 +619,7 @@ ASSOCIATE (&
         nValGlobal=(/nVar , N+1_IK , N+1_IK , N+1_IK , nGlobalElems/) , &
         nVal=      (/nVar , N+1_IK , N+1_IK , N+1_IK , PP_nElems/)    , &
         offset=    (/0_IK , 0_IK   , 0_IK   , 0_IK   , offsetElem/)   , &
-        collective=.TRUE.,RealArray=Et(1:3,:,:,:,:))
+        collective=.TRUE.,RealArray=Dt(1:3,:,:,:,:))
 
     DEALLOCATE(LocalStrVarNames)
   END IF
@@ -954,8 +954,8 @@ USE MOD_Mesh_Vars        ,ONLY: nElems
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Vars ,ONLY: ElemTime,ElemTime_tmp,NullifyElemTime
 USE MOD_Restart_Vars     ,ONLY: DoRestart
-USE MOD_Mesh_Vars        ,ONLY: nGlobalElems,offsetelem
 #endif /*USE_LOADBALANCE*/
+USE MOD_Mesh_Vars        ,ONLY: nGlobalElems,offsetelem
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1033,6 +1033,7 @@ IF((MAXVAL(ElemData).LE.0.0)          .AND.& ! Restart
   END ASSOCIATE
 
 ELSE
+#endif /*USE_LOADBALANCE*/
   ASSOCIATE (&
         nVar         => INT(nVar,IK)         ,&
         nGlobalElems => INT(nGlobalElems,IK) ,&
@@ -1045,6 +1046,7 @@ ELSE
                             offset          = (/0_IK,offsetElem  /),&
                             collective      = .TRUE.,RealArray        = ElemData)
   END ASSOCIATE
+#if USE_LOADBALANCE
 END IF ! (MAXVAL(ElemData).LE.0.0).AND.DoRestart.AND.(TRIM(ElemDataName).EQ.'ElemTime')
 #endif /*USE_LOADBALANCE*/
 

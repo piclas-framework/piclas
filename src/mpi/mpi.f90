@@ -63,6 +63,7 @@ END INTERFACE
 
 PUBLIC :: InitMPIvars,StartReceiveMPIData,StartSendMPIData,FinishExchangeMPIData,FinalizeMPI
 PUBLIC :: StartReceiveMPIDataType,StartSendMPIDataType,FinishExchangeMPIDataType
+PUBLIC :: StartSendMPIDataTypeDielectric,FinishExchangeMPIDataTypeDielectric
 PUBLIC :: StartReceiveMPISurfDataType
 #if USE_HDG
 PUBLIC :: StartSendMPISurfDataType,FinishExchangeMPISurfDataType
@@ -663,6 +664,71 @@ END DO !iProc=1,nNBProcs
 END SUBROUTINE StartSendMPIDataType
 
 
+!===================================================================================================================================
+!> See above, but for for send direction (type-based p-adaption).
+!===================================================================================================================================
+SUBROUTINE StartSendMPIDataTypeDielectric(MPIRequest,SendID)
+! MODULES
+USE MOD_Globals
+USE MOD_PreProc
+USE MOD_MPI_Vars
+USE MOD_DG_Vars         ,ONLY: DG_Elems_slave
+USE MOD_Dielectric_Vars ,ONLY: DielectricSurf
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+INTEGER, INTENT(IN)          :: SendID
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+INTEGER, INTENT(OUT)         :: MPIRequest(nNbProcs)
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER                      :: i,p,q,iSide,N_slave
+!===================================================================================================================================
+DO iNbProc=1,nNbProcs
+  IF(nMPISides_send(iNbProc,SendID).GT.0)THEN
+    nSendVal     = 1*DataSizeSideSend(iNbProc,SendID)
+    SideID_start = OffsetMPISides_send(iNbProc-1,SendID)+1
+    SideID_end   = OffsetMPISides_send(iNbProc,SendID)
+
+    ! Dummy zeros
+    DGExchange(iNbProc)%FaceDataSend(2:PP_nVar,:) = 0.
+
+    i = 1
+    IF(SendID.EQ.2)THEN
+      DO iSide = SideID_start, SideID_end
+        N_slave = DG_Elems_slave(iSide)
+        DO p = 0, N_slave
+          DO q = 0, N_slave
+            !DGExchange(iNbProc)%FaceDataSend(1:1,i) = U_Surf_N(iSide)%U_Slave(1:1,p,q)
+            DGExchange(iNbProc)%FaceDataSend(1:1,i) = DielectricSurf(iSide)%Dielectric_dummy_Slave2(1:1,p,q)
+            i = i + 1
+          END DO ! q = 0, N_slave
+        END DO ! p = 0, N_slave
+      END DO ! iSide = SideID_start, SideID_end
+    ELSE
+      DO iSide = SideID_start, SideID_end
+        N_slave = DG_Elems_slave(iSide)
+        DO p = 0, N_slave
+          DO q = 0, N_slave
+            !DGExchange(iNbProc)%FaceDataSend(1:1,i) = U_Surf_N(iSide)%Flux_Slave(1:1,p,q)
+            DGExchange(iNbProc)%FaceDataSend(1:1,i) = DielectricSurf(iSide)%Dielectric_dummy_Master2(1:1,p,q)
+            i = i + 1
+          END DO ! q = 0, N_slave
+        END DO ! p = 0, N_slave
+      END DO ! iSide = SideID_start, SideID_end
+    END IF ! SendID.EQ.2
+
+    CALL MPI_ISEND(DGExchange(iNbProc)%FaceDataSend(1:1,1:DataSizeSideSend(iNbProc,SendID)),nSendVal,MPI_DOUBLE_PRECISION,  &
+                    nbProc(iNbProc),0,MPI_COMM_WORLD,MPIRequest(iNbProc),iError)
+  ELSE
+    MPIRequest(iNbProc)=MPI_REQUEST_NULL
+  END IF
+END DO !iProc=1,nNBProcs
+END SUBROUTINE StartSendMPIDataTypeDielectric
+
+
 !==================================================================================================================================
 !> Subroutine that performs the send and receive operations for the DG_Elems_slave information at the face
 !> that has to be exchanged between processors.
@@ -1028,6 +1094,98 @@ DO iNbProc=1,nNbProcs
 END DO !iProc=1,nNBProcs
 
 END SUBROUTINE FinishExchangeMPIDataType
+
+
+!===================================================================================================================================
+!> We have to complete our non-blocking communication operations before we can (re)use the send / receive buffers
+!> SendRequest, RecRequest: communication handles
+!> SendID: defines the send / receive direction -> 1=send MINE / receive YOUR  2=send YOUR / receive MINE
+!===================================================================================================================================
+SUBROUTINE FinishExchangeMPIDataTypeDielectric(SendRequest,RecRequest,SendID)
+! MODULES
+USE MOD_Globals
+USE MOD_PreProc
+USE MOD_MPI_Vars
+USE MOD_DG_Vars         ,ONLY: DG_Elems_slave
+USE MOD_Dielectric_Vars ,ONLY: DielectricSurf
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+INTEGER, INTENT(IN)          :: SendID
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+INTEGER, INTENT(INOUT)       :: SendRequest(nNbProcs),RecRequest(nNbProcs)
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+#if defined(MEASURE_MPI_WAIT)
+INTEGER(KIND=8)               :: CounterStart,CounterEnd
+REAL(KIND=8)                  :: Rate
+#endif /*defined(MEASURE_MPI_WAIT)*/
+INTEGER                       :: i,p,q,iSide,N_slave
+!===================================================================================================================================
+#if defined(MEASURE_MPI_WAIT)
+  CALL SYSTEM_CLOCK(count=CounterStart)
+#endif /*defined(MEASURE_MPI_WAIT)*/
+
+! Check receive operations first
+DO iNbProc=1,nNbProcs
+  IF(nMPISides_rec(iNbProc,SendID).GT.0) CALL MPI_WAIT(RecRequest(iNbProc) ,MPIStatus,iError)
+END DO !iProc=1,nNBProcs
+
+#if defined(MEASURE_MPI_WAIT)
+  CALL SYSTEM_CLOCK(count=CounterEnd, count_rate=Rate)
+  ! Note: Send and Receive are switched to have the same ordering as for particles (1. Send, 2. Receive)
+  MPIW8TimeField(2) = MPIW8TimeField(2) + REAL(CounterEnd-CounterStart,8)/Rate
+  CALL SYSTEM_CLOCK(count=CounterStart)
+#endif /*defined(MEASURE_MPI_WAIT)*/
+
+! Check send operations
+DO iNbProc=1,nNbProcs
+  IF(nMPISides_send(iNbProc,SendID).GT.0) CALL MPI_WAIT(SendRequest(iNbProc),MPIStatus,iError)
+END DO !iProc=1,nNBProcs
+
+#if defined(MEASURE_MPI_WAIT)
+  CALL SYSTEM_CLOCK(count=CounterEnd, count_rate=Rate)
+  ! Note: Send and Receive are switched to have the same ordering as for particles (1. Send, 2. Receive)
+  MPIW8TimeField(1) = MPIW8TimeField(1) + REAL(CounterEnd-CounterStart,8)/Rate
+#endif /*defined(MEASURE_MPI_WAIT)*/
+
+! Unroll data
+DO iNbProc=1,nNbProcs
+  IF(nMPISides_rec(iNbProc,SendID).GT.0)THEN
+    SideID_start = OffsetMPISides_rec(iNbProc-1,SendID)+1
+    SideID_end   = OffsetMPISides_rec(iNbProc,SendID)
+
+    i = 1
+    IF(SendID.EQ.2)THEN
+      DO iSide = SideID_start, SideID_end
+        N_slave = DG_Elems_slave(iSide)
+        DO p = 0, N_slave
+          DO q = 0, N_slave
+            !U_Surf_N(iSide)%U_Slave(1:PP_nVar,p,q) = DGExchange(iNbProc)%FaceDataRecv(1:PP_nVar,i)
+            DielectricSurf(iSide)%Dielectric_dummy_Slave2(1:1,p,q) = DGExchange(iNbProc)%FaceDataRecv(1:1,i)
+            i = i + 1
+          END DO ! q = 0, N_slave
+        END DO ! p = 0, N_slave
+      END DO ! iSide = SideID_start, SideID_end
+    ELSE
+      DO iSide = SideID_start, SideID_end
+        N_slave = DG_Elems_slave(iSide)
+        DO p = 0, N_slave
+          DO q = 0, N_slave
+            !U_Surf_N(iSide)%Flux_Slave(1:PP_nVar,p,q) = DGExchange(iNbProc)%FaceDataRecv(1:PP_nVar,i)
+            DielectricSurf(iSide)%Dielectric_dummy_Master2(1:1,p,q) = DGExchange(iNbProc)%FaceDataRecv(1:1,i)
+            i = i + 1
+          END DO ! q = 0, N_slave
+        END DO ! p = 0, N_slave
+      END DO ! iSide = SideID_start, SideID_end
+    END IF ! SendID.EQ.2
+
+  END IF
+END DO !iProc=1,nNBProcs
+
+END SUBROUTINE FinishExchangeMPIDataTypeDielectric
 
 
 #if USE_HDG

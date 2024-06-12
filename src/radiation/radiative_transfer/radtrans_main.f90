@@ -260,7 +260,7 @@ FUNCTION SetPhotonPos(iElem, globPhotNum)
 ! MODULES
 USE MOD_Globals
 USE MOD_RadiationTrans_Vars,   ONLY : RadiationPhotonPosModel, RadObservationPointMethod, RadObservationPOI
-USE MOD_Particle_Mesh_Tools,   ONLY : ParticleInsideQuad3D
+USE MOD_Particle_Mesh_Tools,   ONLY : ParticleInsideQuad
 USE MOD_RadiationTrans_Init,   ONLY : HALTON
 !USE MOD_PARTICLE_Vars,         ONLY : Symmetry2DAxisymmetric
 USE MOD_Particle_Mesh_Vars,    ONLY : BoundsOfElem_Shared
@@ -285,7 +285,7 @@ INTEGER                   :: globElemID
   ASSOCIATE( Bounds => BoundsOfElem_Shared(1:2,1:3,globElemID) )
     IF (RadObservationPointMethod.EQ.2) THEN
       SetPhotonPos(1:3) = RadObservationPOI(1:3, iElem) + 0.5*(RadObservationPOI(4:6,iElem)-RadObservationPOI(1:3,iElem))
-      CALL ParticleInsideQuad3D(SetPhotonPos,globElemID,InsideFlag)
+      CALL ParticleInsideQuad(SetPhotonPos,globElemID,InsideFlag)
       IF (.NOT.InsideFlag) THEN
         IPWRITE(*,*) 'Photonpos not in Element! Pos:',SetPhotonPos
         CALL abort(&
@@ -307,7 +307,7 @@ INTEGER                   :: globElemID
         END SELECT !PartBound%MapToPartBC(BC(SideID)
         SetPhotonPos = Bounds(1,:) + SetPhotonPos*(Bounds(2,:)-Bounds(1,:))
     !    IF (Symmetry2DAxisymmetric) SetPhotonPos(3) = 0.0
-        CALL ParticleInsideQuad3D(SetPhotonPos,globElemID,InsideFlag)
+        CALL ParticleInsideQuad(SetPhotonPos,globElemID,InsideFlag)
         IF (RadObservationPointMethod.EQ.1) THEN
           IF (InsideFlag) THEN
             InsideFlag = PointInObsCone(SetPhotonPos)

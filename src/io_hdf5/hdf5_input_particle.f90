@@ -72,7 +72,8 @@ INTEGER(KIND=IK)                   :: OffsetElemTmp,PP_nElemsTmp,N_RestartTmp
 INTEGER                            :: iElem!,CNElemID
 INTEGER                            :: NodeID(1:8)!,firstNode,lastNode,firstGlobalElemID(1:8),iNode
 !===================================================================================================================================
-IF(.NOT.DoDielectric) RETURN
+! DoDielectric=F for VDL model
+!IF(.NOT.DoDielectric) RETURN
 
 ! This array is not allocated when DoDeposition=F, however, the previously calculated surface charge might still be required in the
 ! future, when DoDeposition is activated again. Therefore, read the old data and store in the new state file.

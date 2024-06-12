@@ -235,7 +235,11 @@ DO iSpec=1,nSpecies
           PDM%dtFracPush(ParticleIndexNbr) = .TRUE.
           PDM%IsNewPart(ParticleIndexNbr) = .TRUE.
           PEM%GlobalElemID(ParticleIndexNbr) = globElemId
-          PEM%LastGlobalElemID(ParticleIndexNbr) = globElemId !needed when ParticlePush is not executed, e.g. "delay"
+          IF (Symmetry%Order.LE.2) THEN
+            PEM%LastGlobalElemID(ParticleIndexNbr) = -SideID
+          ELSE
+            PEM%LastGlobalElemID(ParticleIndexNbr) = globElemId !needed when ParticlePush is not executed, e.g. "delay"
+          END IF
           iPartTotal = iPartTotal + 1
           IF (UseVarTimeStep) THEN
             PartTimeStep(ParticleIndexNbr) = GetParticleTimeStep(PartState(1,ParticleIndexNbr),PartState(2,ParticleIndexNbr), &
@@ -1213,7 +1217,6 @@ USE MOD_Part_Tools                ,ONLY: InRotRefFrameCheck, GetNextFreePosition
 USE MOD_Particle_SurfaceFlux_Vars ,ONLY: tSurfaceFlux
 USE MOD_Mesh_Vars                 ,ONLY: SideToElem
 USE MOD_DSMC_Vars                 ,ONLY: AmbiPolarSFMapping, AmbipolElecVelo, DSMC
-USE MOD_SurfaceModel_Vars         ,ONLY: SurfChem
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1246,9 +1249,7 @@ CASE(1)
   SF => Species(iSpec)%Surfaceflux(iSF)
   a = SF%SurfFluxSubSideData(iSample,jSample,iSide)%a_nIn
 CASE(2)
-  ! 2: Surface flux at a boundary
-  SF => SurfChem%Surfaceflux(iSF)
-  a = SurfChem%SFAux(iSF)%a_nIn(iSample,jSample,iSide,iSpec)
+  ! 2: Surface flux at a boundary (NOT USED ANYMORE, separate simplified routine SetChemFluxVelocities)
 CASE(3)
   ! 3: Ambipolar diffusion: setting velocity of electrons
   ! Only insert electron for positively charged species

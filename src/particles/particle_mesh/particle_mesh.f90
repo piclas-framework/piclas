@@ -184,8 +184,9 @@ USE MOD_MPI_Shared_Vars
 USE MOD_Particle_MPI_Vars      ,ONLY: DoParticleLatencyHiding
 #endif /* USE_MPI */
 USE MOD_Particle_Mesh_Build    ,ONLY: BuildElementRadiusTria,BuildElemTypeAndBasisTria,BuildEpsOneCell,BuildBCElemDistance
-USE MOD_Particle_Mesh_Build    ,ONLY: BuildNodeNeighbourhood,BuildElementOriginShared,BuildElementBasisAndRadius,BuildElemDofNodeMapping
+USE MOD_Particle_Mesh_Build    ,ONLY: BuildNodeNeighbourhood,BuildElementOriginShared,BuildElementBasisAndRadius
 USE MOD_Particle_Mesh_Build    ,ONLY: BuildSideOriginAndRadius,BuildLinearSideBaseVectors,BuildSideSlabAndBoundingBox
+USE MOD_Particle_Mesh_Build    ,ONLY: BuildElemDofNodeMapping,BuildMesh2DInfo,BuildMesh1DInfo
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Vars       ,ONLY: PerformLoadBalance
 #endif /*USE_LOADBALANCE*/
@@ -419,6 +420,11 @@ SELECT CASE(TrackingMethod)
       CALL BuildLinearSideBaseVectors() ! Required for BaseVectors0_Shared, BaseVectors1_Shared, BaseVectors2_Shared, BaseVectors3_Shared, BaseVectorsScale_Shared ! (requires NGeoElevated)
     END IF ! UsePhotonTriaTracking
 
+    IF(Symmetry%Order.EQ.2) THEN
+      CALL BuildMesh2DInfo()
+    ELSEIF (Symmetry%Order.EQ.1) THEN
+      CALL BuildMesh1DInfo()
+    END IF
   CASE(TRACING,REFMAPPING)
     ! Build stuff required for tracing algorithms
     CALL BuildSideSlabAndBoundingBox() ! Required for SideSlabNormals_Shared, SideSlabIntervals_Shared, BoundingBoxIsEmpty_Shared (requires NGeoElevated)
@@ -489,7 +495,7 @@ SUBROUTINE FinalizeParticleMesh()
 ! MODULES
 USE MOD_Globals
 USE MOD_Particle_Mesh_Vars
-!USE MOD_RayTracing_Vars        ,ONLY: UseRayTracing
+USE MOD_Particle_Vars          ,ONLY: Symmetry
 #if USE_MPI
 USE MOD_Particle_Surfaces_Vars ,ONLY: BezierElevation
 USE MOD_PICDepo_Vars           ,ONLY: DepositionType
@@ -714,6 +720,15 @@ SELECT CASE (TrackingMethod)
       CALL UNLOCK_AND_FREE(ElemRadiusNGeo_Shared_Win)
     END IF
 
+    IF(Symmetry%Order.EQ.2)THEN
+      CALL UNLOCK_AND_FREE(ElemSideNodeID2D_Shared_Win)
+      CALL UNLOCK_AND_FREE(SideNormalEdge2D_Shared_Win)
+    ELSE IF(Symmetry%Order.EQ.1)THEN
+      CALL UNLOCK_AND_FREE(ElemSideNodeID1D_Shared_Win)
+    END IF
+
+    !IF (DoInterpolation.OR.DSMC%UseOctree) THEN ! use this in future if possible
+    !IF (DoInterpolation.OR.DoDeposition.OR.UseRayTracing.OR.nSurfSampleAndTriaTracking) THEN
 #if USE_LOADBALANCE
       IF (.NOT.PerformLoadBalance) THEN
 #endif /*USE_LOADBALANCE*/
@@ -823,6 +838,13 @@ SELECT CASE (TrackingMethod)
     ADEALLOCATE(slenXiEtaZetaBasis_Shared)
     ADEALLOCATE(ElemCurved)
     ADEALLOCATE(ElemCurved_Shared)
+
+    IF(Symmetry%Order.EQ.2)THEN
+      ADEALLOCATE(ElemSideNodeID2D_Shared)
+      ADEALLOCATE(SideNormalEdge2D_Shared)
+    ELSE IF (Symmetry%Order.EQ.1) THEN
+      ADEALLOCATE(ElemSideNodeID1D_Shared)  
+    END IF
 
     ! BuildEpsOneCell
     ADEALLOCATE(ElemsJ)

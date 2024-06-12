@@ -141,6 +141,7 @@ IF (DoExactPartNumInsert) THEN
 ELSE
   PartDens = Species(iSpec)%Init(iInit)%PartDensity / Species(iSpec)%MacroParticleFactor   ! numerical Partdensity is needed
   IF(RadialWeighting%DoRadialWeighting) PartDens = PartDens * 2. / (RadialWeighting%PartScaleFactor)
+  CHECKSAFEINT(PartDens * LocalVolume, 4)
   chunkSize_tmp = INT(PartDens * LocalVolume)
   IF(UseSplitAndMerge) THEN
     IF(vMPFSplitThreshold(iSpec).GT.0) chunkSize_tmp = nElems * vMPFSplitThreshold(iSpec)
@@ -405,6 +406,7 @@ ELSE
   AcceptedParts=-1
   AcceptedParts(0)=0
   DO i = 1,chunkSize
+    ! For TriaTracking, this routine calls ParticleInsideQuad3D() and for Tracing/RefMapping it calls GetPositionInRefElem()
     AcceptedParts(i) = SinglePointToElement(particle_positions(DimSend*(i-1)+1:DimSend*(i-1)+DimSend),doHALO=.FALSE.)
     IF(AcceptedParts(i).NE.-1) AcceptedParts(0) = AcceptedParts(0) + 1
   END DO
@@ -418,6 +420,7 @@ ELSE
       PartState(1:DimSend,ParticleIndexNbr) = particle_positions(DimSend*(i-1)+1:DimSend*(i-1)+DimSend)
       PDM%ParticleInside(ParticleIndexNbr)=.TRUE.
       PEM%GlobalElemID(ParticleIndexNbr) = AcceptedParts(i)
+      PEM%LastGlobalElemID(ParticleIndexNbr) = 0 ! Initialize with invalid value
       IF(TrackingMethod.EQ.REFMAPPING) CALL GetPositionInRefElem(PartState(1:DimSend,ParticleIndexNbr),PartPosRef(1:3,ParticleIndexNbr),AcceptedParts(i))
       PDM%IsNewPart(ParticleIndexNbr)  = .TRUE.
       PDM%dtFracPush(ParticleIndexNbr) = .FALSE.
@@ -718,10 +721,11 @@ DO Nloc = PP_N, EmissionDistributionN
   ALLOCATE(NED(Nloc)%Coords_NAnalyze(3,0:Nloc,0:Nloc,0:Nloc))
   ALLOCATE(NED(Nloc)%xIP_VISU(0:Nloc))
   ALLOCATE(NED(Nloc)%wIP_VISU(0:Nloc))
-  ALLOCATE(NED(Nloc)%Vdm_N_EQ_emission(0:Nloc,0:Nloc))
+  ALLOCATE(NED(Nloc)%Vdm_N_EQ_emission(0:Nloc,0:PP_N))
 
   ! Allocate and determine Vandermonde mapping from NodeType to equidistant (visu) node set
   CALL GetVandermonde(PP_N, NodeType, Nloc, NodeTypeVISU, NED(Nloc)%Vdm_N_EQ_emission, modal=.FALSE.)
+  ! Required only for integration
   CALL GetNodesAndWeights(Nloc, NodeTypeVISU, NED(Nloc)%xIP_VISU, wIP=NED(Nloc)%wIP_VISU)
 END DO ! Nloc = 1, EmissionDistributionN
 

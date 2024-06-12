@@ -1750,19 +1750,13 @@ USE MOD_TimeDisc_Vars   ,ONLY: iStage
 #if (PP_TimeDiscMethod==501) || (PP_TimeDiscMethod==502) || (PP_TimeDiscMethod==506)
 USE MOD_TimeDisc_Vars   ,ONLY: iStage,nRKStages
 #endif
-USE MOD_TimeDisc_Vars   ,ONLY: dt,dt_Min
-!USE MOD_Equation_Vars   ,ONLY: E,Et
-USE MOD_Mesh_Vars       ,ONLY: nElems
-USE MOD_Globals_Vars    ,ONLY: eps0
+USE MOD_TimeDisc_Vars   ,ONLY: dt
 USE MOD_Analyze_Vars    ,ONLY: CalcElectricTimeDerivative
-USE MOD_Analyze_Vars    ,ONLY: FieldAnalyzeStep
-USE MOD_Dielectric_vars ,ONLY: DoDielectric,isDielectricElem,ElemToDielectric,DielectricVol
 #endif /*(USE_HDG && (PP_nVar==1))*/
 #if defined(PARTICLES)
 USE MOD_HDG_Vars        ,ONLY: UseEPC,EPC
 USE MOD_HDG_NonLinear   ,ONLY: HDGNewton
 #endif /*defined(PARTICLES)*/
-USE MOD_DG_Vars         ,ONLY: U_N
 USE MOD_HDG_Linear      ,ONLY: HDGLinear
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1780,33 +1774,14 @@ LOGICAL,INTENT(IN),OPTIONAL :: ForceCGSolverIteration_opt ! set converged=F in f
 LOGICAL :: ForceCGSolverIteration_loc
 INTEGER :: iUniqueEPCBC
 #endif /*defined(PARTICLES)*/
-#if (USE_HDG && (PP_nVar==1))
-INTEGER           :: iDir,iElem
-#endif /*(USE_HDG && (PP_nVar==1))*/
-!REAL              :: maxphi
 !===================================================================================================================================
 #ifdef EXTRAE
 CALL extrae_eventandcounters(int(9000001), int8(4))
 #endif /*EXTRAE*/
 
-! Calculate temporal derivate of D in last iteration before Analyze_dt is reached: Store E^n here
 #if (USE_HDG && (PP_nVar==1))
-#if (PP_TimeDiscMethod==501) || (PP_TimeDiscMethod==502) || (PP_TimeDiscMethod==506)
-  IF (iStage.EQ.1) THEN
-#endif
-  IF(CalcElectricTimeDerivative)THEN
-    ! iter is incremented after this function and then checked in analyze routine with iter+1
-    IF(ALMOSTEQUAL(dt,dt_Min(DT_ANALYZE)).OR.ALMOSTEQUAL(dt,dt_Min(DT_END)).OR.(MOD(iter+1,FieldAnalyzeStep).EQ.0))THEN
-      ! Store old E-field
-      !Et(:,:,:,:,:) = E(:,:,:,:,:)
-      DO iElem = 1, nElems
-        U_N(iElem)%Et(:,:,:,:) = U_N(iElem)%E(:,:,:,:)
-      END DO ! iElem = 1, nElems
-    END IF
-  END IF ! CalcElectricTimeDerivative
-#if (PP_TimeDiscMethod==501) || (PP_TimeDiscMethod==502) || (PP_TimeDiscMethod==506)
-END IF
-#endif
+! Calculate temporal derivate of D in last iteration before Analyze_dt is reached: Store E^n here
+IF(CalcElectricTimeDerivative) CALL CalculateElectricTimeDerivative(iter,1)
 #endif /*(USE_HDG && (PP_nVar==1))*/
 
 ! Check whether the solver should be skipped in this iteration
@@ -1817,9 +1792,7 @@ IF (iter.GT.0 .AND. HDGSkip.NE.0) THEN
     IF (MOD(iter,INT(HDGSkip,8)).NE.0) RETURN
   END IF
 #if (PP_TimeDiscMethod==501) || (PP_TimeDiscMethod==502) || (PP_TimeDiscMethod==506)
-  IF (iStage.GT.1) THEN
-    RETURN
-  END IF
+  IF (iStage.GT.1) RETURN
 #endif
 END IF
 
@@ -1890,48 +1863,181 @@ ELSE
 END IF
 #endif /*defined(PARTICLES)*/
 
-! Debugging
-!maxphi = maxval(lambda)
-!CALL MPI_ALLREDUCE(MPI_IN_PLACE,maxphi,1,MPI_DOUBLE_PRECISION,MPI_MAX,MPI_COMM_PICLAS,iError)
-!IF(myrank.eq.0)THEN
-!  IPWRITE(UNIT_StdOut,*) "iter,t,maxval(lambda) =", iter,t,maxphi
-!END IF ! myrank.eq.0
-
-! Calculate temporal derivate of D in last iteration before Analyze_dt is reached: Use E^n+1 here and calculate the derivative dD/dt
 #if (USE_HDG && (PP_nVar==1))
-#if (PP_TimeDiscMethod==501) || (PP_TimeDiscMethod==502) || (PP_TimeDiscMethod==506)
-IF (iStage.EQ.nRKStages) THEN
-#endif
-  IF(CalcElectricTimeDerivative)THEN
-    ! iter is incremented after this function and then checked in analyze routine with iter+1
-    IF(ALMOSTEQUAL(dt,dt_Min(DT_ANALYZE)).OR.ALMOSTEQUAL(dt,dt_Min(DT_END)).OR.(MOD(iter+1,FieldAnalyzeStep).EQ.0))THEN
-      IF(DoDielectric)THEN
-        DO iElem=1,PP_nElems
-          IF(isDielectricElem(iElem)) THEN
-            DO iDir = 1, 3
-              U_N(iElem)%Et(iDir,:,:,:) = DielectricVol(ElemToDielectric(iElem))%DielectricEps(:,:,:)&
-                  *eps0*(U_N(iElem)%E(iDir,:,:,:)-U_N(iElem)%Et(iDir,:,:,:)) / dt
-            END DO ! iDir = 1, 3
-          ELSE
-            U_N(iElem)%Et(:,:,:,:) = eps0*(U_N(iElem)%E(:,:,:,:)-U_N(iElem)%Et(:,:,:,:)) / dt
-          END IF ! isDielectricElem(iElem)
-        END DO ! iElem=1,PP_nElems
-      ELSE
-        DO iElem=1,PP_nElems
-          U_N(iElem)%Et(:,:,:,:) = eps0*(U_N(iElem)%E(:,:,:,:)-U_N(iElem)%Et(:,:,:,:)) / dt
-        END DO ! iElem=1,PP_nElems
-      END IF ! DoDielectric
-    END IF
-  END IF ! CalcElectricTimeDerivative
-#if (PP_TimeDiscMethod==501) || (PP_TimeDiscMethod==502) || (PP_TimeDiscMethod==506)
-END IF
-#endif
+! Calculate temporal derivate of D in last iteration before Analyze_dt is reached: Use E^n+1 here and calculate the derivative dD/dt
+IF(CalcElectricTimeDerivative) CALL CalculateElectricTimeDerivative(iter,2)
 #endif /*(USE_HDG && (PP_nVar==1))*/
 
 #ifdef EXTRAE
 CALL extrae_eventandcounters(int(9000001), int8(0))
 #endif /*EXTRAE*/
 END SUBROUTINE HDG
+
+
+#if (USE_HDG && (PP_nVar==1))
+!===================================================================================================================================
+!> Calculates the temporal derivate of the electric displacement field strength
+!===================================================================================================================================
+SUBROUTINE CalculateElectricTimeDerivative(iter,mode)
+! MODULES
+USE MOD_PreProc
+USE MOD_Mesh_Vars              ,ONLY: nElems
+USE MOD_Globals_Vars           ,ONLY: eps0
+USE MOD_TimeDisc_Vars          ,ONLY: dt,dt_Min
+USE MOD_Analyze_Vars           ,ONLY: FieldAnalyzeStep
+USE MOD_DG_Vars                ,ONLY: U_N
+USE MOD_Dielectric_vars        ,ONLY: DoDielectric,isDielectricElem,ElemToDielectric,DielectricVol
+#if (PP_TimeDiscMethod==501) || (PP_TimeDiscMethod==502) || (PP_TimeDiscMethod==506)
+USE MOD_TimeDisc_Vars          ,ONLY: iStage,nRKStages
+#endif /*(PP_TimeDiscMethod==501) || (PP_TimeDiscMethod==502) || (PP_TimeDiscMethod==506)*/
+USE MOD_Particle_Boundary_Vars ,ONLY: DoVirtualDielectricLayer
+IMPLICIT NONE
+!----------------------------------------------------------------------------------------------------------------------------------!
+! INPUT / OUTPUT VARIABLES
+INTEGER(KIND=8),INTENT(IN)  :: iter
+INTEGER,INTENT(IN) :: mode !< 1: store E^n at the beginning of the time step
+                           !< 2: store E^n+1 at the end of the time step and subtract E^n to calculate the difference
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+#if (USE_HDG && (PP_nVar==1))
+INTEGER           :: iDir,iElem
+#endif /*(USE_HDG && (PP_nVar==1))*/
+!===================================================================================================================================
+
+#if (PP_TimeDiscMethod==501) || (PP_TimeDiscMethod==502) || (PP_TimeDiscMethod==506)
+IF((iStage.NE.1).AND.(iStage.NE.nRKStages)) RETURN
+#endif
+
+! iter is incremented after this function and then checked in analyze routine with iter+1
+IF(ALMOSTEQUAL(dt,dt_Min(DT_ANALYZE)).OR.ALMOSTEQUAL(dt,dt_Min(DT_END)).OR.(MOD(iter+1,FieldAnalyzeStep).EQ.0))THEN
+  IF(mode.EQ.1)THEN
+    ! Store E^n at the beginning of the time step
+    DO iElem = 1, nElems
+      U_N(iElem)%Dt(:,:,:,:) = U_N(iElem)%E(:,:,:,:)
+    END DO ! iElem = 1, nElems
+  ELSE
+    ! Store E^n+1 at the end of the time step and subtract E^n to calculate the difference
+    IF(DoDielectric)THEN
+      DO iElem=1,PP_nElems
+        IF(isDielectricElem(iElem)) THEN
+          DO iDir = 1, 3
+            U_N(iElem)%Dt(iDir,:,:,:) = DielectricVol(ElemToDielectric(iElem))%DielectricEps(:,:,:)&
+                *eps0*(U_N(iElem)%E(iDir,:,:,:)-U_N(iElem)%Dt(iDir,:,:,:)) / dt
+          END DO ! iDir = 1, 3
+        ELSE
+          U_N(iElem)%Dt(:,:,:,:) = eps0*(U_N(iElem)%E(:,:,:,:)-U_N(iElem)%Dt(:,:,:,:)) / dt
+        END IF ! isDielectricElem(iElem)
+      END DO ! iElem=1,PP_nElems
+    ELSE
+      DO iElem=1,PP_nElems
+        U_N(iElem)%Dt(:,:,:,:) = eps0*(U_N(iElem)%E(:,:,:,:)-U_N(iElem)%Dt(:,:,:,:)) / dt
+      END DO ! iElem=1,PP_nElems
+    END IF ! DoDielectric
+
+    ! Calculate the electric VDL surface potential from the particle and electric displacement current
+    IF(DoVirtualDielectricLayer) CALL CalculatePhiAndEFieldFromCurrentsVDL()
+    WRITE (*,*) "iter =", iter, "yes"
+  END IF ! mode.EQ.1
+ELSE
+  WRITE (*,*) "iter =", iter, "no"
+END IF
+
+END SUBROUTINE CalculateElectricTimeDerivative
+
+
+!===================================================================================================================================
+!> description
+!===================================================================================================================================
+SUBROUTINE CalculatePhiAndEFieldFromCurrentsVDL()
+! MODULES
+USE MOD_Globals                ,ONLY: VECNORM
+USE MOD_Globals_Vars           ,ONLY: eps0
+USE MOD_TimeDisc_Vars          ,ONLY: dt
+USE MOD_Mesh_Vars              ,ONLY: N_SurfMesh,SideToElem,nBCSides,N_SurfMesh,offSetElem,BC
+USE MOD_DG_Vars                ,ONLY: U_N,N_DG_Mapping
+USE MOD_PICDepo_Vars           ,ONLY: PS_N
+USE MOD_Particle_Boundary_Vars ,ONLY: N_SurfVDL,PartBound,ElementThicknessVDL
+USE MOD_ProlongToFace          ,ONLY: ProlongToFace_Side
+IMPLICIT NONE
+!----------------------------------------------------------------------------------------------------------------------------------!
+! INPUT / OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER          :: ElemID,SideID,ilocSide,Nloc,iPartBound,p,q
+REAL,ALLOCATABLE :: jface(:,:,:),Dtface(:,:,:)
+REAL             :: coeff
+!===================================================================================================================================
+! 1.) Loop over all processor-local BC sides and therein find the local side ID which corresponds to the reference element and
+!     interpolate the vector field E = (/Ex, Ey, Ez/) to the boundary face
+DO SideID=1,nBCSides
+  ! Get the local element index
+  ElemID = SideToElem(S2E_ELEM_ID,SideID)
+  ! Get local polynomial degree of the element
+  Nloc   = N_DG_Mapping(2,ElemID+offSetElem)
+  ! Get particle boundary index
+  iPartBound = PartBound%MapToPartBC(BC(SideID))
+
+  ! Skip sides that are not a VDL boundary (these sides are still in the list of sides)
+  IF(PartBound%ThicknessVDL(iPartBound).GT.0.0)THEN
+
+    ! Allocate jface and Dtface depending on the local polynomial degree
+    ALLOCATE(jface( 1:3,0:Nloc,0:Nloc))
+    ALLOCATE(Dtface(1:3,0:Nloc,0:Nloc))
+    ! Get local side index
+    ilocSide = SideToElem(S2E_LOC_SIDE_ID,SideID)
+    ! Prolong-to-face depending on orientation in reference element
+    CALL ProlongToFace_Side(3, Nloc, ilocSide, 0, U_N(ElemID)%Dt(:,:,:,:), Dtface)
+    CALL ProlongToFace_Side(3, Nloc, ilocSide, 0, PS_N(ElemID)%PartSource(1:3,:,:,:), jface)
+
+    ! 2.) Apply the normal vector to get the normal electric field
+    DO q=0,Nloc
+      DO p=0,Nloc
+        ASSOCIATE( normal => -N_SurfMesh(SideID)%NormVec(1:3,p,q), D => Dtface(1:3,p,q), j => jface(1:3,p,q))
+          ! D_normal =  <D,normal>
+          Dtface(1,p,q) = DOT_PRODUCT(D,normal)
+          ! j_normal =  <j,normal>
+          jface(1,p,q)  = DOT_PRODUCT(j,normal)
+        END ASSOCIATE
+      END DO ! p
+    END DO ! q
+
+    ! Calculate coefficient
+    coeff = (PartBound%ThicknessVDL(iPartBound)*dt)/(eps0*PartBound%PermittivityVDL(iPartBound))
+
+    ! Calculate the corrected E-field
+    !N_SurfVDL(SideID)%U(2:4,:,:) = N_SurfVDL(SideID)%U(2:4,:,:) * (ElementThicknessVDL(ElemID)/PartBound%ThicknessVDL(iPartBound))
+
+    ! Get Phi_F
+    DO q=0,Nloc
+      DO p=0,Nloc
+        ASSOCIATE(      E => N_SurfVDL(SideID)%U(10:12,p,q)     ,&
+                   normal => N_SurfMesh(SideID)%NormVec(1:3,p,q),&
+                       jp => jface(1,p,q)                       ,&
+                       jD => Dtface(1,p,q)                      ,&
+                     PhiF => N_SurfVDL(SideID)%U(9,p,q)         )
+          ! Normal vector points outwards on BC sides, hence, invert it
+          !Edir = DOT_PRODUCT(E,-normal)
+
+          ! Reconstruct Phi_F from the current density and the (uncorrected) electric displacement fields in each element
+          ! PhiF_From_Currents: PhiF^n - PhiF^n-1 = -(d*dt)/(eps0*epsR)*(jp+jD)
+          PhiF = PhiF - coeff*(jp+jD)
+
+          ! Reconstruct E from Phi_Max via E = Phi/d
+          E =  PhiF/PartBound%ThicknessVDL(iPartBound)*normal
+
+        END ASSOCIATE
+      END DO ! p
+    END DO ! q
+    !WRITE (*,*) "N_SurfVDL(SideID)%U(9,:,:) =", N_SurfVDL(SideID)%U(9,:,:)
+
+    DEALLOCATE(jface)
+    DEALLOCATE(Dtface)
+
+  END IF ! PartBound%ThicknessVDL(iPartBound).GT.0.0
+END DO ! SideID=1,nBCSides
+
+END SUBROUTINE CalculatePhiAndEFieldFromCurrentsVDL
+#endif /*(USE_HDG && (PP_nVar==1))*/
 
 
 !===================================================================================================================================

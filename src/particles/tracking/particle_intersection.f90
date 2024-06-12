@@ -44,12 +44,26 @@ INTERFACE OutputTrajectory
 END INTERFACE
 #endif /*CODE_ANALYZE*/
 
+! Define an interface for the function pointer
+ABSTRACT INTERFACE
+  SUBROUTINE ParticleThroughSideCheck1D2DInterface(PartID,iLocSide,Element,ThroughSide)
+    INTEGER,INTENT(IN)               :: PartID
+    INTEGER,INTENT(IN)               :: iLocSide
+    INTEGER,INTENT(IN)               :: Element
+    LOGICAL,INTENT(OUT)              :: ThroughSide
+  END SUBROUTINE
+END INTERFACE
+
+!> Pointer defining the routine based on the symmetry order
+PROCEDURE(ParticleThroughSideCheck1D2DInterface),POINTER :: ParticleThroughSideCheck1D2D => NULL()
+
 PUBLIC :: IntersectionWithWall
 PUBLIC :: ComputePlanarRectInterSection
 PUBLIC :: ComputePlanarCurvedIntersection
 PUBLIC :: ComputeBilinearIntersection
 PUBLIC :: ComputeCurvedIntersection
-PUBLIC :: ParticleThroughSideCheck3DFast
+PUBLIC :: InitParticleThroughSideCheck1D2D
+PUBLIC :: ParticleThroughSideCheck3DFast, ParticleThroughSideCheck1D2D
 PUBLIC :: ParticleThroughSideLastPosCheck
 #ifdef CODE_ANALYZE
 PUBLIC :: OutputTrajectory
@@ -252,6 +266,153 @@ END IF
 RETURN
 
 END SUBROUTINE ParticleThroughSideCheck3DFast
+
+
+!==================================================================================================================================!
+!> Initialize ParticleThroughSideCheck depending on symmetry dimension using a function pointer (1D/2D only)
+!==================================================================================================================================!
+SUBROUTINE InitParticleThroughSideCheck1D2D()
+! MODULES
+USE MOD_Globals
+USE MOD_Particle_Vars            ,ONLY: Symmetry
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!==================================================================================================================================
+
+IF (Symmetry%Order.EQ.2) THEN
+  ParticleThroughSideCheck1D2D => ParticleThroughSideCheck2D
+ELSE IF(Symmetry%Order.EQ.1) THEN
+  ParticleThroughSideCheck1D2D => ParticleThroughSideCheck1D
+ELSE
+  CALL abort(__STAMP__,'ERROR in InitParticleThroughSideCheck1D2D: Function pointer could not be properly defined!')
+END IF
+
+END SUBROUTINE InitParticleThroughSideCheck1D2D
+
+
+SUBROUTINE ParticleThroughSideCheck2D(PartID,iLocSide,Element,ThroughSide)
+!===================================================================================================================================
+!> Routine to check whether a particle crossed the given 2D side. The intersection of the edge and the particle trajectory is 
+!> calculated and checked to see if it is within the side.
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals                   ,ONLY: VECNORM2D
+USE MOD_Globals_Vars              ,ONLY: EpsMach
+USE MOD_Particle_Vars             ,ONLY: lastPartPos,PartState
+USE MOD_Particle_Mesh_Vars        ,ONLY: NodeCoords_Shared, ElemSideNodeID2D_Shared
+USE MOD_Mesh_Tools                ,ONLY: GetCNElemID
+USE MOD_Particle_Tracking_Vars    ,ONLY: TrackInfo
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+INTEGER,INTENT(IN)               :: PartID
+INTEGER,INTENT(IN)               :: iLocSide
+INTEGER,INTENT(IN)               :: Element
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+LOGICAL,INTENT(OUT)              :: ThroughSide
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER                          :: CNElemID
+REAL                             :: xNode(2), yNode(2), POI(2) , locAlpha, VecPart(2), VecEdge(2)
+REAL                             :: t(2),tmpPoint, PartP1(2), PartP2(2),denominator
+!===================================================================================================================================
+
+CNElemID = GetCNElemID(Element)
+
+ThroughSide = .FALSE.
+
+! Get the coordinates of the edge and trajectory
+xNode(1) = NodeCoords_Shared(1,ElemSideNodeID2D_Shared(1,iLocSide, CNElemID))
+xNode(2) = NodeCoords_Shared(1,ElemSideNodeID2D_Shared(2,iLocSide, CNElemID))
+IF (xNode(1).GT.xNode(2)) THEN
+  tmpPoint = xNode(1)
+  xNode(1) = xNode(2)
+  xNode(2) = tmpPoint
+  yNode(2) = NodeCoords_Shared(2,ElemSideNodeID2D_Shared(1,iLocSide, CNElemID))
+  yNode(1) = NodeCoords_Shared(2,ElemSideNodeID2D_Shared(2,iLocSide, CNElemID))
+ELSE
+  yNode(1) = NodeCoords_Shared(2,ElemSideNodeID2D_Shared(1,iLocSide, CNElemID))
+  yNode(2) = NodeCoords_Shared(2,ElemSideNodeID2D_Shared(2,iLocSide, CNElemID))
+END IF
+
+IF (LastPartPos(1,PartID).LT.PartState(1,PartID)) THEN
+  PartP1(1:2)=LastPartPos(1:2,PartID)
+  PartP2(1:2)=PartState(1:2,PartID)
+ELSE
+  PartP2(1:2)=LastPartPos(1:2,PartID)
+  PartP1(1:2)=PartState(1:2,PartID)
+END IF
+VecPart = PartP2-PartP1
+VecEdge(1) = xNode(2)-xNode(1)
+VecEdge(2) = yNode(2)-yNode(1) 
+denominator = VecPart(1)*VecEdge(2) - VecPart(2)*VecEdge(1)
+
+! Check if the lines are parallel
+IF (ABS(denominator).LT.EpsMach) RETURN
+
+t(1) = ((xNode(1)-PartP1(1))*VecEdge(2)-(yNode(1)-PartP1(2))*VecEdge(1))/denominator
+t(2) = ((xNode(1)-PartP1(1))*VecPart(2)-(yNode(1)-PartP1(2))*VecPart(1))/denominator
+
+! Check if intersection point is within line segments
+IF (t(1) >= 0.0 .AND. t(1) <= 1.0 .AND. t(2) >= 0.0 .AND. t(2) <= 1.0) THEN
+  ! Calculate intersection point
+  POI(1:2) =  PartP1 + t(1)*VecPart
+  POI = POI - LastPartPos(1:2,PartID)
+
+  locAlpha = VECNORM2D(POI)
+  IF (locAlpha.LE.TrackInfo%lengthPartTrajectory) THEN
+    ThroughSide = .TRUE.
+    TrackInfo%alpha = locAlpha 
+  END IF
+END IF
+
+END SUBROUTINE ParticleThroughSideCheck2D
+
+SUBROUTINE ParticleThroughSideCheck1D(PartID,iLocSide,Element,ThroughSide)
+!===================================================================================================================================
+!> Routine to check whether a particle crossed the given 1D  side. It simply checks whether lastpartpos - xnode and partpos-xnode 
+!> have different signs. Then the side was crossed.
+!===================================================================================================================================
+! MODULES
+USE MOD_Particle_Vars             ,ONLY: lastPartPos,PartState
+USE MOD_Particle_Mesh_Vars        ,ONLY: NodeCoords_Shared, ElemSideNodeID1D_Shared
+USE MOD_Mesh_Tools                ,ONLY: GetCNElemID
+USE MOD_Particle_Tracking_Vars    ,ONLY: TrackInfo
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+INTEGER,INTENT(IN)               :: PartID
+INTEGER,INTENT(IN)               :: iLocSide
+INTEGER,INTENT(IN)               :: Element
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+LOGICAL,INTENT(OUT)              :: ThroughSide
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER                          :: CNElemID, DiffSign(2)
+REAL                             :: xNode
+!===================================================================================================================================
+
+CNElemID = GetCNElemID(Element)
+
+ThroughSide = .FALSE.
+! Get the coordinates of the first node 
+xNode = NodeCoords_Shared(1,ElemSideNodeID1D_Shared(iLocSide, CNElemID))
+
+DiffSign(1) = NINT(SIGN(1.,LastPartPos(1,PartID) - xNode))
+DiffSign(2) = NINT(SIGN(1.,PartState(1,PartID) - xNode))
+
+! Check if intersection point is within line segments
+IF (DiffSign(1).NE.DiffSign(2)) THEN
+  ! Calculate intersection point
+  TrackInfo%alpha = ABS(xNode - LastPartPos(1,PartID))
+  ThroughSide = .TRUE.
+END IF
+
+END SUBROUTINE ParticleThroughSideCheck1D
 
 
 SUBROUTINE ParticleThroughSideLastPosCheck(i,iLocSide,Element,InElementCheck,TriNum,det,isMortarSide,detPartPos)

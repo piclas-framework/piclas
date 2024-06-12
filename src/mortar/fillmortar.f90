@@ -42,7 +42,7 @@ PUBLIC::U_Mortar
 
 CONTAINS
 
-SUBROUTINE U_Mortar(doMPISides)
+SUBROUTINE U_Mortar(doDielectricSides, doMPISides)
 !===================================================================================================================================
 !> fills small non-conforming sides with data for master side with data from the corresponding large side, using 1D interpolation
 !> operators M_0_1,M_0_2
@@ -60,17 +60,22 @@ SUBROUTINE U_Mortar(doMPISides)
 !===================================================================================================================================
 ! MODULES
 USE MOD_Preproc
-USE MOD_Mortar_Vars, ONLY: N_Mortar
-USE MOD_Mesh_Vars,   ONLY: MortarType,MortarInfo, offSetElem, SideToElem
-USE MOD_Mesh_Vars,   ONLY: firstMortarInnerSide,lastMortarInnerSide
-USE MOD_Mesh_Vars,   ONLY: firstMortarMPISide,lastMortarMPISide
-USE MOD_Mesh_Vars,   ONLY: N_Mesh
-USE MOD_DG_Vars,     ONLY: N_DG_Mapping, U_Surf_N
+USE MOD_Mortar_Vars     ,ONLY: N_Mortar
+USE MOD_Mesh_Vars       ,ONLY: MortarType,MortarInfo, offSetElem, SideToElem
+USE MOD_Mesh_Vars       ,ONLY: firstMortarInnerSide,lastMortarInnerSide
+USE MOD_Mesh_Vars       ,ONLY: firstMortarMPISide,lastMortarMPISide
+USE MOD_Mesh_Vars       ,ONLY: N_Mesh
+USE MOD_DG_Vars         ,ONLY: N_DG_Mapping, U_Surf_N
+USE MOD_Dielectric_Vars ,ONLY: DielectricSurf
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-LOGICAL,INTENT(IN) :: doMPISides                                 !< flag whether MPI sides are processed
+LOGICAL,INTENT(IN) :: doDielectricSides  !  .TRUE.: use DielectricSurf(:)%Dielectric_dummy_Master and 
+!                                        !              DielectricSurf(:)%Dielectric_dummy_Slave
+!                                        ! .FALSE.: use U_Surf_N(:)%U_master and 
+!                                        !              U_Surf_N(:)%U_slave
+LOGICAL,INTENT(IN) :: doMPISides         !< flag whether MPI sides are processed
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -93,16 +98,31 @@ DO MortarSideID=firstMortarSideID,lastMortarSideID
    ! The following q- and l-loop are two MATMULs: (ATTENTION M1 and M2 are already transposed in mortar.f90)
    !    U_tmp2(iVar,p,:,1)  =  M1 * U_in_master(iVar,p,:,MortarSideID)
    !    U_tmp2(iVar,p,:,2)  =  M2 * U_in_master(iVar,p,:,MortarSideID)
-   DO q=0,Nloc
-     DO p=0,Nloc ! for every xi-layer perform Mortar operation in eta-direction
-       N_Mortar(Nloc)%U_tmp2(:,p,q,1)= N_Mortar(Nloc)%M_0_1(0,q)*U_Surf_N(MortarSideID)%U_master(:,p,0)
-       N_Mortar(Nloc)%U_tmp2(:,p,q,2)= N_Mortar(Nloc)%M_0_2(0,q)*U_Surf_N(MortarSideID)%U_master(:,p,0)
-       DO l=1,Nloc
-         N_Mortar(Nloc)%U_tmp2(:,p,q,1)=N_Mortar(Nloc)%U_tmp2(:,p,q,1)+N_Mortar(Nloc)%M_0_1(l,q)*U_Surf_N(MortarSideID)%U_master(:,p,l)
-         N_Mortar(Nloc)%U_tmp2(:,p,q,2)=N_Mortar(Nloc)%U_tmp2(:,p,q,2)+N_Mortar(Nloc)%M_0_2(l,q)*U_Surf_N(MortarSideID)%U_master(:,p,l)
+   IF(doDielectricSides)THEN
+     N_Mortar(Nloc)%U_tmp  = 0.
+     N_Mortar(Nloc)%U_tmp2 = 0.
+     DO q=0,Nloc
+       DO p=0,Nloc ! for every xi-layer perform Mortar operation in eta-direction
+         N_Mortar(Nloc)%U_tmp2(1,p,q,1)= N_Mortar(Nloc)%M_0_1(0,q)*DielectricSurf(MortarSideID)%Dielectric_dummy_Master(1,p,0)
+         N_Mortar(Nloc)%U_tmp2(1,p,q,2)= N_Mortar(Nloc)%M_0_2(0,q)*DielectricSurf(MortarSideID)%Dielectric_dummy_Master(1,p,0)
+         DO l=1,Nloc
+           N_Mortar(Nloc)%U_tmp2(1,p,q,1)=N_Mortar(Nloc)%U_tmp2(1,p,q,1)+N_Mortar(Nloc)%M_0_1(l,q)*DielectricSurf(MortarSideID)%Dielectric_dummy_Master(1,p,l)
+           N_Mortar(Nloc)%U_tmp2(1,p,q,2)=N_Mortar(Nloc)%U_tmp2(1,p,q,2)+N_Mortar(Nloc)%M_0_2(l,q)*DielectricSurf(MortarSideID)%Dielectric_dummy_Master(1,p,l)
+         END DO
        END DO
      END DO
-   END DO
+   ELSE
+     DO q=0,Nloc
+       DO p=0,Nloc ! for every xi-layer perform Mortar operation in eta-direction
+         N_Mortar(Nloc)%U_tmp2(:,p,q,1)= N_Mortar(Nloc)%M_0_1(0,q)*U_Surf_N(MortarSideID)%U_master(:,p,0)
+         N_Mortar(Nloc)%U_tmp2(:,p,q,2)= N_Mortar(Nloc)%M_0_2(0,q)*U_Surf_N(MortarSideID)%U_master(:,p,0)
+         DO l=1,Nloc
+           N_Mortar(Nloc)%U_tmp2(:,p,q,1)=N_Mortar(Nloc)%U_tmp2(:,p,q,1)+N_Mortar(Nloc)%M_0_1(l,q)*U_Surf_N(MortarSideID)%U_master(:,p,l)
+           N_Mortar(Nloc)%U_tmp2(:,p,q,2)=N_Mortar(Nloc)%U_tmp2(:,p,q,2)+N_Mortar(Nloc)%M_0_2(l,q)*U_Surf_N(MortarSideID)%U_master(:,p,l)
+         END DO
+       END DO
+     END DO
+   END IF ! doDielectricSides
    ! then in xi
    DO q=0,Nloc ! for every eta-layer perform Mortar operation in xi-direction
      ! The following p- and l-loop are four MATMULs: (ATTENTION M1 and M2 are already transposed in mortar.f90)
@@ -128,30 +148,54 @@ DO MortarSideID=firstMortarSideID,lastMortarSideID
    ! The following q- and l-loop are two MATMULs: (ATTENTION M1 and M2 are already transposed in mortar.f90)
    !    U_tmp(iVar,p,:,1)  =  M1 * U_in_master(iVar,p,:,MortarSideID)
    !    U_tmp(iVar,p,:,2)  =  M2 * U_in_master(iVar,p,:,MortarSideID)
-   DO q=0,Nloc
-     DO p=0,Nloc ! for every xi-layer perform Mortar operation in eta-direction
-       N_Mortar(Nloc)%U_tmp(:,p,q,1)= N_Mortar(Nloc)%M_0_1(0,q)*U_Surf_N(MortarSideID)%U_master(:,p,0)
-       N_Mortar(Nloc)%U_tmp(:,p,q,2)= N_Mortar(Nloc)%M_0_2(0,q)*U_Surf_N(MortarSideID)%U_master(:,p,0)
-       DO l=1,Nloc
-         N_Mortar(Nloc)%U_tmp(:,p,q,1)=N_Mortar(Nloc)%U_tmp(:,p,q,1)+N_Mortar(Nloc)%M_0_1(l,q)*U_Surf_N(MortarSideID)%U_master(:,p,l)
-         N_Mortar(Nloc)%U_tmp(:,p,q,2)=N_Mortar(Nloc)%U_tmp(:,p,q,2)+N_Mortar(Nloc)%M_0_2(l,q)*U_Surf_N(MortarSideID)%U_master(:,p,l)
+   IF(doDielectricSides)THEN
+     DO q=0,Nloc
+       DO p=0,Nloc ! for every xi-layer perform Mortar operation in eta-direction
+         N_Mortar(Nloc)%U_tmp(1,p,q,1)= N_Mortar(Nloc)%M_0_1(0,q)*DielectricSurf(MortarSideID)%Dielectric_dummy_Master(1,p,0)
+         N_Mortar(Nloc)%U_tmp(1,p,q,2)= N_Mortar(Nloc)%M_0_2(0,q)*DielectricSurf(MortarSideID)%Dielectric_dummy_Master(1,p,0)
+         DO l=1,Nloc
+           N_Mortar(Nloc)%U_tmp(1,p,q,1)=N_Mortar(Nloc)%U_tmp(1,p,q,1)+N_Mortar(Nloc)%M_0_1(l,q)*DielectricSurf(MortarSideID)%Dielectric_dummy_Master(1,p,l)
+           N_Mortar(Nloc)%U_tmp(1,p,q,2)=N_Mortar(Nloc)%U_tmp(1,p,q,2)+N_Mortar(Nloc)%M_0_2(l,q)*DielectricSurf(MortarSideID)%Dielectric_dummy_Master(1,p,l)
+         END DO
        END DO
      END DO
-   END DO
+   ELSE
+     DO q=0,Nloc
+       DO p=0,Nloc ! for every xi-layer perform Mortar operation in eta-direction
+         N_Mortar(Nloc)%U_tmp(:,p,q,1)= N_Mortar(Nloc)%M_0_1(0,q)*U_Surf_N(MortarSideID)%U_master(:,p,0)
+         N_Mortar(Nloc)%U_tmp(:,p,q,2)= N_Mortar(Nloc)%M_0_2(0,q)*U_Surf_N(MortarSideID)%U_master(:,p,0)
+         DO l=1,Nloc
+           N_Mortar(Nloc)%U_tmp(:,p,q,1)=N_Mortar(Nloc)%U_tmp(:,p,q,1)+N_Mortar(Nloc)%M_0_1(l,q)*U_Surf_N(MortarSideID)%U_master(:,p,l)
+           N_Mortar(Nloc)%U_tmp(:,p,q,2)=N_Mortar(Nloc)%U_tmp(:,p,q,2)+N_Mortar(Nloc)%M_0_2(l,q)*U_Surf_N(MortarSideID)%U_master(:,p,l)
+         END DO
+       END DO
+     END DO
+   END IF ! doDielectricSides
 
   CASE(3) !1->2 in xi
    DO q=0,Nloc ! for every eta-layer perform Mortar operation in xi-direction
      ! The following p- and l-loop are two MATMULs: (ATTENTION M1 and M2 are already transposed in mortar.f90)
      !    U_tmp(iVar,:,q,1)  =  M1 * U_in_master(iVar,:,q,MortarSideID)
      !    U_tmp(iVar,:,q,2)  =  M2 * U_in_master(iVar,:,q,MortarSideID)
-     DO p=0,Nloc
-       N_Mortar(Nloc)%U_tmp(:,p,q,1)= N_Mortar(Nloc)%M_0_1(0,p)*U_Surf_N(MortarSideID)%U_master(:,0,q)
-       N_Mortar(Nloc)%U_tmp(:,p,q,2)= N_Mortar(Nloc)%M_0_2(0,p)*U_Surf_N(MortarSideID)%U_master(:,0,q)
-       DO l=1,Nloc
-         N_Mortar(Nloc)%U_tmp(:,p,q,1)=N_Mortar(Nloc)%U_tmp(:,p,q,1)+N_Mortar(Nloc)%M_0_1(l,p)*U_Surf_N(MortarSideID)%U_master(:,l,q)
-         N_Mortar(Nloc)%U_tmp(:,p,q,2)=N_Mortar(Nloc)%U_tmp(:,p,q,2)+N_Mortar(Nloc)%M_0_2(l,p)*U_Surf_N(MortarSideID)%U_master(:,l,q)
+     IF(doDielectricSides)THEN
+       DO p=0,Nloc
+         N_Mortar(Nloc)%U_tmp(1,p,q,1)= N_Mortar(Nloc)%M_0_1(0,p)*DielectricSurf(MortarSideID)%Dielectric_dummy_Master(1,0,q)
+         N_Mortar(Nloc)%U_tmp(1,p,q,2)= N_Mortar(Nloc)%M_0_2(0,p)*DielectricSurf(MortarSideID)%Dielectric_dummy_Master(1,0,q)
+         DO l=1,Nloc
+           N_Mortar(Nloc)%U_tmp(1,p,q,1)=N_Mortar(Nloc)%U_tmp(1,p,q,1)+N_Mortar(Nloc)%M_0_1(l,p)*DielectricSurf(MortarSideID)%Dielectric_dummy_Master(1,l,q)
+           N_Mortar(Nloc)%U_tmp(1,p,q,2)=N_Mortar(Nloc)%U_tmp(1,p,q,2)+N_Mortar(Nloc)%M_0_2(l,p)*DielectricSurf(MortarSideID)%Dielectric_dummy_Master(1,l,q)
+         END DO
        END DO
-     END DO
+     ELSE
+       DO p=0,Nloc
+         N_Mortar(Nloc)%U_tmp(:,p,q,1)= N_Mortar(Nloc)%M_0_1(0,p)*U_Surf_N(MortarSideID)%U_master(:,0,q)
+         N_Mortar(Nloc)%U_tmp(:,p,q,2)= N_Mortar(Nloc)%M_0_2(0,p)*U_Surf_N(MortarSideID)%U_master(:,0,q)
+         DO l=1,Nloc
+           N_Mortar(Nloc)%U_tmp(:,p,q,1)=N_Mortar(Nloc)%U_tmp(:,p,q,1)+N_Mortar(Nloc)%M_0_1(l,p)*U_Surf_N(MortarSideID)%U_master(:,l,q)
+           N_Mortar(Nloc)%U_tmp(:,p,q,2)=N_Mortar(Nloc)%U_tmp(:,p,q,2)+N_Mortar(Nloc)%M_0_2(l,p)*U_Surf_N(MortarSideID)%U_master(:,l,q)
+         END DO
+       END DO
+     END IF ! doDielectricSides
    END DO
   END SELECT ! mortarType(SideID)
 
@@ -160,15 +204,27 @@ DO MortarSideID=firstMortarSideID,lastMortarSideID
   DO iMortar=1,nMortars
    SideID= MortarInfo(MI_SIDEID,iMortar,locSide)
    flip  = MortarInfo(MI_FLIP,iMortar,locSide)
-   SELECT CASE(flip)
-     CASE(0) ! master side
-       U_Surf_N(SideID)%U_master(:,:,:)=N_Mortar(Nloc)%U_tmp(:,:,:,iMortar)
-     CASE(1:4) ! slave side
-       DO q=0,PP_N; DO p=0,PP_N
-         U_Surf_N(SideID)%U_slave(:,p,q)=N_Mortar(Nloc)%U_tmp(:,N_Mesh(Nloc)%FS2M(1,p,q,flip), &
-                                          N_Mesh(Nloc)%FS2M(2,p,q,flip),iMortar)
-       END DO; END DO ! q, p
-   END SELECT !flip(iMortar)
+   IF(doDielectricSides)THEN
+     SELECT CASE(flip)
+       CASE(0) ! master side
+         DielectricSurf(SideID)%Dielectric_dummy_Master(1,:,:)=N_Mortar(Nloc)%U_tmp(1,:,:,iMortar)
+       CASE(1:4) ! slave side
+         DO q=0,PP_N; DO p=0,PP_N
+           DielectricSurf(SideID)%Dielectric_dummy_Slave(1,p,q)=N_Mortar(Nloc)%U_tmp(1,N_Mesh(Nloc)%FS2M(1,p,q,flip), &
+                                            N_Mesh(Nloc)%FS2M(2,p,q,flip),iMortar)
+         END DO; END DO ! q, p
+     END SELECT !flip(iMortar)
+   ELSE
+     SELECT CASE(flip)
+       CASE(0) ! master side
+         U_Surf_N(SideID)%U_master(:,:,:)=N_Mortar(Nloc)%U_tmp(:,:,:,iMortar)
+       CASE(1:4) ! slave side
+         DO q=0,PP_N; DO p=0,PP_N
+           U_Surf_N(SideID)%U_slave(:,p,q)=N_Mortar(Nloc)%U_tmp(:,N_Mesh(Nloc)%FS2M(1,p,q,flip), &
+                                            N_Mesh(Nloc)%FS2M(2,p,q,flip),iMortar)
+         END DO; END DO ! q, p
+     END SELECT !flip(iMortar)
+   END IF ! doDielectricSides
   END DO !iMortar
 END DO !MortarSideID
 END SUBROUTINE U_Mortar

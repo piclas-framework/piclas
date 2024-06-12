@@ -116,7 +116,6 @@ USE MOD_Particle_Boundary_Vars  ,ONLY: SampWallImpactNumber_Shared,SampWallImpac
 USE MOD_Particle_MPI_Boundary_Sampling,ONLY: InitSurfCommunication
 #else
 USE MOD_MPI_Shared_Vars         ,ONLY: mySurfRank
-USE MOD_Particle_Mesh_Vars      ,ONLY: nComputeNodeSides
 USE MOD_Particle_Boundary_Vars  ,ONLY: nGlobalOutputSides
 #endif /*USE_MPI*/
 #if USE_LOADBALANCE
@@ -606,12 +605,11 @@ DO iSurfSide = 1,nComputeNodeSurfSides
                                           - SampWallState(SAMPWALL_EVIBNEW  ,p,q,iSurfSide)  &
                                           - SampWallState(SAMPWALL_EELECNEW ,p,q,iSurfSide)) &
                                             / (SurfSideArea(p,q,iSurfSide) * TimeSampleTemp)
-      END IF
-
-      ! Add the heat flux due to catalytic reactions on the surface
-      IF(DoChemSurface) THEN
-        MacroSurfaceVal(4,p,q,OutputCounter) = MacroSurfaceVal(4,p,q,OutputCounter) + SUM(ChemWallProp(:,2,p, q, iSurfSide)) &
-                                              / (SurfSideArea(p,q,iSurfSide)*TimeSampleTemp)
+        ! Add the heat flux due to catalytic reactions on the surface
+        IF(DoChemSurface) THEN
+          MacroSurfaceVal(4,p,q,OutputCounter) = MacroSurfaceVal(4,p,q,OutputCounter) + SUM(ChemWallProp(:,2,p, q, iSurfSide)) &
+          / (SurfSideArea(p,q,iSurfSide)*TimeSampleTemp)
+        END IF
       END IF
 
       ! Number of simulation particle impacts per iteration
@@ -935,7 +933,7 @@ CHARACTER(LEN=255),ALLOCATABLE      :: Str2DVarNames(:)
 INTEGER                             :: nVar2D, nVar2D_Spec, nVar2D_Total, nVarCount, nVar2D_Heat
 INTEGER                             :: iSpec, iSurfSide, nReac
 INTEGER                             :: p,q,OutputCounter
-REAL                                :: tstart,tend, tout
+REAL                                :: tstart,tend
 REAL, ALLOCATABLE                   :: MacroSurfaceSpecChemVal(:,:,:,:,:)
 REAL, ALLOCATABLE                   :: MacroSurfaceHeatVal(:,:,:,:)
 !===================================================================================================================================
@@ -1020,8 +1018,7 @@ DO iSurfSide = 1,nComputeNodeSurfSides
     DO p = 1,nSurfSample
       ! --- Total output (catalytic heat flux)
       ! --- Species-specific output (surface coverage)
-      tout = OutputTime
-      MacroSurfaceHeatVal(1,p,q,OutputCounter) = SUM(ChemWallProp(:,2,p, q, iSurfSide))/ (SurfSideArea(p,q,iSurfSide)*tout)
+      MacroSurfaceHeatVal(1,p,q,OutputCounter) = SUM(ChemWallProp(:,2,p, q, iSurfSide))/ (SurfSideArea(p,q,iSurfSide)*OutputTime)
       DO iSpec=1,nSpecies
         MacroSurfaceSpecChemVal(1,p,q,OutputCounter,iSpec) = ChemWallProp(iSpec,1,p, q, iSurfSide)
       END DO ! iSpec=1,nSpecies
@@ -1105,8 +1102,8 @@ USE MOD_Globals
 !USE MOD_DSMC_Vars                      ,ONLY: DSMC
 USE MOD_Particle_Boundary_Vars
 !USE MOD_Particle_Vars                  ,ONLY: WriteMacroSurfaceValues
-USE MOD_SurfaceModel_Vars              ,ONLY: nPorousBC
 #if USE_MPI
+USE MOD_SurfaceModel_Vars              ,ONLY: nPorousBC
 USE MOD_MPI_Shared_Vars                ,ONLY: MPI_COMM_SHARED,MPI_COMM_LEADERS_SURF
 USE MOD_MPI_Shared
 USE MOD_Particle_MPI_Boundary_Sampling ,ONLY: FinalizeSurfCommunication
