@@ -437,7 +437,7 @@ DO iElem=1,PP_nElems
         END DO; END DO
       END DO; END DO
 
-      PetscCallA(MatSetValues(Smat_petsc,iNdof,iIndices(1:iNdof),jNdof,jIndices(1:jNdof),Smatloc(1:iNdof,1:jNdof),ADD_VALUES,ierr))
+      PetscCallA(MatSetValues(PETScSystemMatrix,iNdof,iIndices(1:iNdof),jNdof,jIndices(1:jNdof),Smatloc(1:iNdof,1:jNdof),ADD_VALUES,ierr))
     END DO
   END DO
 END DO
@@ -467,15 +467,15 @@ END DO
 !    ELSEIF(iPETScGlobal.EQ.-1) THEN
 !      CYCLE
 !    END IF
-!    PetscCallA(MatSetValuesBlocked(Smat_petsc,1,iPETScGlobal,1,jPETScGlobal,Smat(:,:,jLocSide,iLocSide,iElem),ADD_VALUES,ierr))
+!    PetscCallA(MatSetValuesBlocked(PETScSystemMatrix,1,iPETScGlobal,1,jPETScGlobal,Smat(:,:,jLocSide,iLocSide,iElem),ADD_VALUES,ierr))
 !  END DO
 !END DO
 
 ! TODO PETSC P-Adaption (Where to) set that smat is symmetric?
-!PetscCallA(MatSetOption(Smat_petsc, MAT_SYMMETRIC, PETSC_TRUE,ierr))
+!PetscCallA(MatSetOption(PETScSystemMatrix, MAT_SYMMETRIC, PETSC_TRUE,ierr))
 
-PetscCallA(MatAssemblyBegin(Smat_petsc,MAT_FINAL_ASSEMBLY,ierr))
-PetscCallA(MatAssemblyEnd(Smat_petsc,MAT_FINAL_ASSEMBLY,ierr))
+PetscCallA(MatAssemblyBegin(PETScSystemMatrix,MAT_FINAL_ASSEMBLY,ierr))
+PetscCallA(MatAssemblyEnd(PETScSystemMatrix,MAT_FINAL_ASSEMBLY,ierr))
 #endif
 
 
@@ -559,7 +559,7 @@ INTEGER          :: NSideMin
 !===================================================================================================================================
 
 #if USE_PETSC
-PetscCallA(KSPGetPC(ksp,pc,ierr))
+PetscCallA(KSPGetPC(PETScSolver,pc,ierr))
 SELECT CASE(PrecondType)
 CASE(0)
   PetscCallA(PCSetType(pc,PCNONE,ierr))
@@ -573,7 +573,7 @@ CASE(4)
   lens=nGP_Face
   PetscCallA(PCSetType(pc,PCBJACOBI,ierr))
   PetscCallA(PCBJacobiSetLocalBlocks(pc,nPETScUniqueSides,lens,ierr))
-  PetscCallA(KSPSetUp(ksp,ierr))
+  PetscCallA(KSPSetUp(PETScSolver,ierr))
 case(10)
   PetscCallA(PCSetType(pc,PCCHOLESKY,ierr))
 case(11)

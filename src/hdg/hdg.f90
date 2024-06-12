@@ -586,12 +586,12 @@ END DO !iElem
 
 
 #if USE_PETSC
-PetscCallA(MatCreate(PETSC_COMM_WORLD,Smat_petsc,ierr))
-PetscCallA(MatSetSizes(Smat_petsc,PETSC_DECIDE,PETSC_DECIDE,nGlobalPETScDOFs,nGlobalPETScDOFs,ierr))
-PetscCallA(MatSetType(Smat_petsc,MATAIJ,ierr)) ! Sparse (mpi) matrix, TODO P-Adaption Symmetricity is set later!
+PetscCallA(MatCreate(PETSC_COMM_WORLD,PETScSystemMatrix,ierr))
+PetscCallA(MatSetSizes(PETScSystemMatrix,PETSC_DECIDE,PETSC_DECIDE,nGlobalPETScDOFs,nGlobalPETScDOFs,ierr))
+PetscCallA(MatSetType(PETScSystemMatrix,MATAIJ,ierr)) ! Sparse (mpi) matrix, TODO P-Adaption Symmetricity is set later!
 
 ! TODO PETSC P-Adaption - FPC Preallocation (also with FPCs)
-PetscCallA(MatSetUp(Smat_petsc, ierr))
+PetscCallA(MatSetUp(PETScSystemMatrix, ierr))
 #endif
 
 !stabilization parameter
@@ -605,18 +605,18 @@ IF(.NOT.DoSwapMesh)THEN ! can take very long, not needed for swap mesh run as on
 END IF
 
 #if USE_PETSC
-PetscCallA(KSPCreate(PETSC_COMM_WORLD,ksp,ierr))
-PetscCallA(KSPSetOperators(ksp,Smat_petsc,Smat_petsc,ierr))
+PetscCallA(KSPCreate(PETSC_COMM_WORLD,PETScSolver,ierr))
+PetscCallA(KSPSetOperators(PETScSolver,PETScSystemMatrix,PETScSystemMatrix,ierr))
 
 IF(PrecondType.GE.10) THEN
-  PetscCallA(KSPSetType(ksp,KSPPREONLY,ierr)) ! Exact solver
+  PetscCallA(KSPSetType(PETScSolver,KSPPREONLY,ierr)) ! Exact solver
 ELSE
-  PetscCallA(KSPSetType(ksp,KSPCG,ierr)) ! CG solver for sparse symmetric positive definite matrix
+  PetscCallA(KSPSetType(PETScSolver,KSPCG,ierr)) ! CG solver for sparse symmetric positive definite matrix
 
-  PetscCallA(KSPSetInitialGuessNonzero(ksp,PETSC_TRUE, ierr))
+  PetscCallA(KSPSetInitialGuessNonzero(PETScSolver,PETSC_TRUE, ierr))
 
-  PetscCallA(KSPSetNormType(ksp, KSP_NORM_UNPRECONDITIONED, ierr))
-  PetscCallA(KSPSetTolerances(ksp,1.E-20,epsCG,PETSC_DEFAULT_REAL,MaxIterCG,ierr))
+  PetscCallA(KSPSetNormType(PETScSolver, KSP_NORM_UNPRECONDITIONED, ierr))
+  PetscCallA(KSPSetTolerances(PETScSolver,1.E-20,epsCG,PETSC_DEFAULT_REAL,MaxIterCG,ierr))
 END IF
 #endif
 
@@ -662,23 +662,23 @@ CALL BuildPrecond()
 
 #if USE_PETSC
 ! allocate RHS & lambda vectors
-PetscCallA(VecCreate(PETSC_COMM_WORLD,lambda_petsc,ierr))
-PetscCallA(VecSetSizes(lambda_petsc,PETSC_DECIDE,nGlobalPETScDOFs,ierr))
-PetscCallA(VecSetType(lambda_petsc,VECSTANDARD,ierr))
-PetscCallA(VecSetUp(lambda_petsc,ierr))
-PetscCallA(VecDuplicate(lambda_petsc,RHS_petsc,ierr))
+PetscCallA(VecCreate(PETSC_COMM_WORLD,PETScSolution,ierr))
+PetscCallA(VecSetSizes(PETScSolution,PETSC_DECIDE,nGlobalPETScDOFs,ierr))
+PetscCallA(VecSetType(PETScSolution,VECSTANDARD,ierr))
+PetscCallA(VecSetUp(PETScSolution,ierr))
+PetscCallA(VecDuplicate(PETScSolution,PETScRHS,ierr))
 
 
 ! Scatter Context
 ! Create scatter context to access local values from global petsc vector
 ! Create a local vector for all local DOFs
-PetscCallA(VecCreateSeq(PETSC_COMM_SELF,nLocalPETScDOFs,lambda_local_petsc,ierr))
+PetscCallA(VecCreateSeq(PETSC_COMM_SELF,nLocalPETScDOFs,PETScSolutionLocal,ierr))
 ! Create a PETSc Vector 0:(nLocalPETScDOFs-1)
 PetscCallA(ISCreateStride(PETSC_COMM_SELF,nLocalPETScDOFs,0,1,idx_local_petsc,ierr))
 ! Create a PETSc Vector of the Global DOF IDs
 PetscCallA(ISCreateGeneral(PETSC_COMM_WORLD,nLocalPETScDOFs,localToGlobalPETScDOF,PETSC_COPY_VALUES,idx_global_petsc,ierr))
 ! Create a scatter context to extract the local dofs
-PetscCallA(VecScatterCreate(lambda_petsc,idx_global_petsc,lambda_local_petsc,idx_local_petsc,scatter_petsc,ierr))
+PetscCallA(VecScatterCreate(PETScSolution,idx_global_petsc,PETScSolutionLocal,idx_local_petsc,PETScScatter,ierr))
 
 ! TODO PETSC P-Adaption - FPC
 !IF(UseFPC)THEN
@@ -690,7 +690,7 @@ PetscCallA(VecScatterCreate(lambda_petsc,idx_global_petsc,lambda_local_petsc,idx
 !  END DO
 !  PetscCallA(ISCreateBlock(PETSC_COMM_WORLD,nGP_face,FPC%nUniqueFPCBounds,indx,PETSC_COPY_VALUES,idx_global_conductors_petsc,ierr))
 !  DEALLOCATE(indx)
-!  PetscCallA(VecScatterCreate(lambda_petsc,idx_global_conductors_petsc,lambda_local_conductors_petsc,idx_local_conductors_petsc,scatter_conductors_petsc,ierr))
+!  PetscCallA(VecScatterCreate(PETScSolution,idx_global_conductors_petsc,lambda_local_conductors_petsc,idx_local_conductors_petsc,scatter_conductors_petsc,ierr))
 !END IF
 
 DEALLOCATE(localToGlobalPETScDOF)
@@ -2137,10 +2137,10 @@ INTEGER           :: Nloc
 !===================================================================================================================================
 HDGInitIsDone = .FALSE.
 #if USE_PETSC
-PetscCallA(KSPDestroy(ksp,ierr))
-PetscCallA(MatDestroy(Smat_petsc,ierr))
-PetscCallA(VecDestroy(lambda_petsc,ierr))
-PetscCallA(VecDestroy(RHS_petsc,ierr))
+PetscCallA(KSPDestroy(PETScSolver,ierr))
+PetscCallA(MatDestroy(PETScSystemMatrix,ierr))
+PetscCallA(VecDestroy(PETScSolution,ierr))
+PetscCallA(VecDestroy(PETScRHS,ierr))
 PetscCallA(PetscFinalize(ierr))
 SDEALLOCATE(PETScGlobal)
 SDEALLOCATE(PETScLocalToSideID)

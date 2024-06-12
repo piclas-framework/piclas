@@ -105,7 +105,7 @@ USE MOD_HDG                ,ONLY: SynchronizeChargeOnFPC
 USE MOD_HDG_Vars           ,ONLY: UseFPC
 #endif /*USE_LOADBALANCE*/
 USE PETSc
-USE MOD_HDG_Vars           ,ONLY: lambda_petsc,PETScGlobal,PETScLocalToSideID,nPETScUniqueSides
+USE MOD_HDG_Vars           ,ONLY: PETScSolution,PETScGlobal,PETScLocalToSideID,nPETScUniqueSides
 #endif
 USE MOD_Mesh_Vars          ,ONLY: N_SurfMesh
 #else /*USE_HDG*/
@@ -310,10 +310,10 @@ IF(PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance))THEN
   ! TODO PETSC P-Adaption - Restart
   !DO PETScLocalID=1,nPETScUniqueSides
   !  SideID=PETScLocalToSideID(PETScLocalID)
-  !  PetscCallA(VecSetValuesBlocked(lambda_petsc,1,PETScGlobal(SideID),lambda(1,:,SideID),INSERT_VALUES,ierr))
+  !  PetscCallA(VecSetValuesBlocked(PETScSolution,1,PETScGlobal(SideID),lambda(1,:,SideID),INSERT_VALUES,ierr))
   !END DO
-  !PetscCallA(VecAssemblyBegin(lambda_petsc,ierr))
-  !PetscCallA(VecAssemblyEnd(lambda_petsc,ierr))
+  !PetscCallA(VecAssemblyBegin(PETScSolution,ierr))
+  !PetscCallA(VecAssemblyEnd(PETScSolution,ierr))
 #endif
 
   CALL RestartHDG() ! calls PostProcessGradient for calculate the derivative, e.g., the electric field E
@@ -574,10 +574,10 @@ ELSE ! normal restart
         ! TODO PETSC P-Adaption - Restart
         !DO PETScLocalID=1,nPETScUniqueSides
         !  SideID=PETScLocalToSideID(PETScLocalID)
-        !  PetscCallA(VecSetValuesBlocked(lambda_petsc,1,PETScGlobal(SideID),lambda(1,:,SideID),INSERT_VALUES,ierr))
+        !  PetscCallA(VecSetValuesBlocked(PETScSolution,1,PETScGlobal(SideID),lambda(1,:,SideID),INSERT_VALUES,ierr))
         !END DO
-        !PetscCallA(VecAssemblyBegin(lambda_petsc,ierr))
-        !PetscCallA(VecAssemblyEnd(lambda_petsc,ierr))
+        !PetscCallA(VecAssemblyBegin(PETScSolution,ierr))
+        !PetscCallA(VecAssemblyEnd(PETScSolution,ierr))
 #endif
 
         CALL RestartHDG() ! calls PostProcessGradient for calculate the derivative, e.g., the electric field E

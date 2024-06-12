@@ -350,7 +350,7 @@ CALL LBPauseTime(LB_DG,tLBStart) ! Pause/Stop time measurement
 
 #if USE_PETSC
   ! Fill right hand side
-  PetscCallA(VecZeroEntries(RHS_petsc,ierr))
+  PetscCallA(VecZeroEntries(PETScRHS,ierr))
   TimeStartPiclas=PICLASTIME()
   DO PETScLocalID=1,nPETScUniqueSides
     SideID=PETScLocalToSideID(PETScLocalID)
@@ -360,7 +360,7 @@ CALL LBPauseTime(LB_DG,tLBStart) ! Pause/Stop time measurement
       DOFindices(i) = i + OffsetGlobalPETScDOF(SideID) - 1
     END DO
 
-    PetscCallA(VecSetValues(RHS_petsc,nGP_face(Nloc),DOFindices(1:nGP_face(Nloc)),HDG_Surf_N(SideID)%RHS_face(1,:),INSERT_VALUES,ierr))
+    PetscCallA(VecSetValues(PETScRHS,nGP_face(Nloc),DOFindices(1:nGP_face(Nloc)),HDG_Surf_N(SideID)%RHS_face(1,:),INSERT_VALUES,ierr))
   END DO
   ! The MPIRoot process has charge and voltage of all FPCs, there, this process sets all conductor RHS information
   ! TODO PETSC P-Adaption - FPC
@@ -368,24 +368,24 @@ CALL LBPauseTime(LB_DG,tLBStart) ! Pause/Stop time measurement
     DO iUniqueFPCBC = 1, FPC%nUniqueFPCBounds
       RHS_conductor(:)=0.
       RHS_conductor(1)=FPC%Charge(iUniqueFPCBC)/eps0
-      PetscCallA(VecSetValuesBlocked(RHS_petsc,1,nPETScUniqueSidesGlobal-1-FPC%nUniqueFPCBounds+iUniqueFPCBC,RHS_conductor,INSERT_VALUES,ierr))
+      PetscCallA(VecSetValuesBlocked(PETScRHS,1,nPETScUniqueSidesGlobal-1-FPC%nUniqueFPCBounds+iUniqueFPCBC,RHS_conductor,INSERT_VALUES,ierr))
     END DO !iUniqueFPCBC = 1, FPC%nUniqueFPCBounds
   END IF ! MPIRoot
 
   ! Reset the RHS of the first DOF if ZeroPotential must be set
   IF(MPIroot .AND. SetZeroPotentialDOF) THEN
-    PetscCallA(VecSetValue(RHS_petsc,0,0,INSERT_VALUES,ierr))
+    PetscCallA(VecSetValue(PETScRHS,0,0,INSERT_VALUES,ierr))
   END IF
 
-  PetscCallA(VecAssemblyBegin(RHS_petsc,ierr))
-  PetscCallA(VecAssemblyEnd(RHS_petsc,ierr))
+  PetscCallA(VecAssemblyBegin(PETScRHS,ierr))
+  PetscCallA(VecAssemblyEnd(PETScRHS,ierr))
 
   ! Calculate lambda
-  PetscCallA(KSPSolve(ksp,RHS_petsc,lambda_petsc,ierr))
+  PetscCallA(KSPSolve(PETScSolver,PETScRHS,PETScSolution,ierr))
   TimeEndPiclas=PICLASTIME()
-  PetscCallA(KSPGetIterationNumber(ksp,iterations,ierr))
-  PetscCallA(KSPGetConvergedReason(ksp,reason,ierr))
-  PetscCallA(KSPGetResidualNorm(ksp,petscnorm,ierr))
+  PetscCallA(KSPGetIterationNumber(PETScSolver,iterations,ierr))
+  PetscCallA(KSPGetConvergedReason(PETScSolver,reason,ierr))
+  PetscCallA(KSPGetResidualNorm(PETScSolver,petscnorm,ierr))
   ! reason - negative value indicates diverged, positive value converged, see KSPConvergedReason
   !  -2: KSP_DIVERGED_NULL
   !  -3: KSP_DIVERGED_ITS            -> Ran out of iterations before any convergence criteria was reached
@@ -406,9 +406,9 @@ CALL LBPauseTime(LB_DG,tLBStart) ! Pause/Stop time measurement
   ! Fill element local lambda for post processing
   ! TODO PETSC P-Adaption - SCATTER (Working?)
   ! Get the local DOF subarray
-  PetscCallA(VecScatterBegin(scatter_petsc, lambda_petsc, lambda_local_petsc, INSERT_VALUES, SCATTER_FORWARD,ierr))
-  PetscCallA(VecScatterEnd(scatter_petsc, lambda_petsc, lambda_local_petsc, INSERT_VALUES, SCATTER_FORWARD,ierr))
-  PetscCallA(VecGetArrayReadF90(lambda_local_petsc,lambda_pointer,ierr))
+  PetscCallA(VecScatterBegin(PETScScatter, PETScSolution, PETScSolutionLocal, INSERT_VALUES, SCATTER_FORWARD,ierr))
+  PetscCallA(VecScatterEnd(PETScScatter, PETScSolution, PETScSolutionLocal, INSERT_VALUES, SCATTER_FORWARD,ierr))
+  PetscCallA(VecGetArrayReadF90(PETScSolutionLocal,lambda_pointer,ierr))
   DOF_stop = 0
   DO SideID=1,nSides
     IF(PETScGlobal(SideID).EQ.-1) CYCLE
@@ -428,13 +428,13 @@ CALL LBPauseTime(LB_DG,tLBStart) ! Pause/Stop time measurement
 !
   !  HDG_Surf_N(SideID)%lambda(1,:) = lambda_pointer(DOF_start:DOF_stop)
   !END DO
-  PetscCallA(VecRestoreArrayReadF90(lambda_local_petsc,lambda_pointer,ierr))
+  PetscCallA(VecRestoreArrayReadF90(PETScSolutionLocal,lambda_pointer,ierr))
 
   ! TODO PETSC P-Adaption - FPC
   ! Fill Conductor lambda
 !  IF(UseFPC)THEN
-!    PetscCallA(VecScatterBegin(scatter_conductors_petsc, lambda_petsc, lambda_local_conductors_petsc, INSERT_VALUES, SCATTER_FORWARD,ierr))
-!    PetscCallA(VecScatterEnd(scatter_conductors_petsc, lambda_petsc, lambda_local_conductors_petsc, INSERT_VALUES, SCATTER_FORWARD,ierr))
+!    PetscCallA(VecScatterBegin(scatter_conductors_petsc, PETScSolution, lambda_local_conductors_petsc, INSERT_VALUES, SCATTER_FORWARD,ierr))
+!    PetscCallA(VecScatterEnd(scatter_conductors_petsc, PETScSolution, lambda_local_conductors_petsc, INSERT_VALUES, SCATTER_FORWARD,ierr))
 !    PetscCallA(VecGetArrayReadF90(lambda_local_conductors_petsc,lambda_pointer,ierr))
 !    FPC%VoltageProc = 0. ! nullify just to be safe
 !    ! TODO multiple conductors
