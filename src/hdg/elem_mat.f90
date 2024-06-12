@@ -415,10 +415,10 @@ DO iElem=1,PP_nElems
 
       ! Get Index list
       DO i=1,iNdof
-        iIndices(i) = HDG_Surf_N(iSideID)%OffsetDOF + i - 1
+        iIndices(i) = OffsetGlobalPETScDOF(iSideID) + i - 1
       END DO
       DO i=1,jNdof
-        jIndices(i) = HDG_Surf_N(jSideID)%OffsetDOF + i - 1
+        jIndices(i) = OffsetGlobalPETScDOF(jSideID) + i - 1
       END DO
 
       ! TODO PETSC P-Adaption - Improvement: Store V^T * S * V in Smat

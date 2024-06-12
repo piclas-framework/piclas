@@ -357,7 +357,7 @@ CALL LBPauseTime(LB_DG,tLBStart) ! Pause/Stop time measurement
 
     Nloc = N_SurfMesh(SideID)%NSideMin
     DO i=1,nGP_face(Nloc)
-      DOFindices(i) = i + HDG_Surf_N(SideID)%OffsetDOF - 1
+      DOFindices(i) = i + OffsetGlobalPETScDOF(SideID) - 1
     END DO
 
     PetscCallA(VecSetValues(RHS_petsc,nGP_face(Nloc),DOFindices(1:nGP_face(Nloc)),HDG_Surf_N(SideID)%RHS_face(1,:),INSERT_VALUES,ierr))
@@ -410,15 +410,24 @@ CALL LBPauseTime(LB_DG,tLBStart) ! Pause/Stop time measurement
   PetscCallA(VecScatterEnd(scatter_petsc, lambda_petsc, lambda_local_petsc, INSERT_VALUES, SCATTER_FORWARD,ierr))
   PetscCallA(VecGetArrayReadF90(lambda_local_petsc,lambda_pointer,ierr))
   DOF_stop = 0
-  DO PETScLocalID=1,nPETScUniqueSides
-    SideID=PETScLocalToSideID(PETScLocalID)
+  DO SideID=1,nSides
+    IF(PETScGlobal(SideID).EQ.-1) CYCLE
     Nloc = N_SurfMesh(SideID)%NSideMin
-
     DOF_start = 1 + DOF_stop
-    DOF_stop = DOF_stop + nGP_face(Nloc)
-
+    DOF_stop = DOF_start + nGP_face(Nloc) - 1
+    ! TODO we may need to ChangeBasis
     HDG_Surf_N(SideID)%lambda(1,:) = lambda_pointer(DOF_start:DOF_stop)
   END DO
+  !DOF_stop = 0
+  !DO PETScLocalID=1,nPETScUniqueSides
+  !  SideID=PETScLocalToSideID(PETScLocalID)
+  !  Nloc = N_SurfMesh(SideID)%NSideMin
+!
+  !  DOF_start = 1 + DOF_stop
+  !  DOF_stop = DOF_stop + nGP_face(Nloc)
+!
+  !  HDG_Surf_N(SideID)%lambda(1,:) = lambda_pointer(DOF_start:DOF_stop)
+  !END DO
   PetscCallA(VecRestoreArrayReadF90(lambda_local_petsc,lambda_pointer,ierr))
 
   ! TODO PETSC P-Adaption - FPC
@@ -476,11 +485,13 @@ CALL LBPauseTime(LB_DG,tLBStart) ! Pause/Stop time measurement
   ! TODO PETSC P-Adaption - MORTARS
   ! PETSc Calculate lambda at small mortars from big mortars
   CALL BigToSmallMortar_HDG(1,.FALSE.) ! lambda (DoVZ=F) or V (DoVZ=T)
-#if USE_MPI
-  CALL StartReceiveMPIData(1,lambda,1,nSides, RecRequest_U,SendID=1) ! Receive YOUR
-  CALL StartSendMPIData(   1,lambda,1,nSides,SendRequest_U,SendID=1) ! Send MINE
-  CALL FinishExchangeMPIData(SendRequest_U,RecRequest_U,SendID=1)
-#endif
+  ! TODO PETSC P-Adaption - MPI
+  ! We should not need this? Maybe for MPI mortars?
+!#if USE_MPI
+!  CALL StartReceiveMPIData(1,lambda,1,nSides, RecRequest_U,SendID=1) ! Receive YOUR
+!  CALL StartSendMPIData(   1,lambda,1,nSides,SendRequest_U,SendID=1) ! Send MINE
+!  CALL FinishExchangeMPIData(SendRequest_U,RecRequest_U,SendID=1)
+!#endif
 #else
   ! HDGLinear
   CALL CG_solver(iVar)
