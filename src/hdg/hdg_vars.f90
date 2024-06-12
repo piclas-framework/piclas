@@ -116,7 +116,6 @@ INTEGER             :: AdaptIterNewtonOld
 INTEGER             :: HDGNonLinSolver        !< 1 Newton, 2 Fixpoint
 !mappings
 INTEGER             :: sideDir(6),pm(6),dirPm2iSide(2,3)
-!REAL,ALLOCATABLE    :: delta(:,:)
 !CG parameters
 INTEGER             :: PrecondType=0          !< 0: none 1: block diagonal 2: only diagonal 3:Identity, debug
 INTEGER             :: MaxIterCG

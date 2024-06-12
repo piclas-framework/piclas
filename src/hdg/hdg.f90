@@ -180,14 +180,49 @@ END IF
 LBWRITE(UNIT_StdOut,'(132("-"))')
 LBWRITE(UNIT_stdOut,'(A)') ' INIT HDG...'
 
-HDGDisplayConvergence = GETLOGICAL('HDGDisplayConvergence')
+! TODO Move down
+#if USE_PETSC
+PetscCallA(PetscInitialize(PETSC_NULL_CHARACTER,ierr))
+#endif
 
-ALLOCATE(nGP_vol(1:NMax))
-ALLOCATE(nGP_face(1:NMax))
-DO Nloc = 1, NMax
-  nGP_vol(Nloc)  = (Nloc+1)**3
-  nGP_face(Nloc) = (Nloc+1)**2
-END DO ! Nloc = 1, NMax
+! ----------------------------------------------------------------------------------------------------------------------------------
+! MAIN STEPS
+! ----------------------------------------------------------------------------------------------------------------------------------
+! 1.  Calculate number of gauss points in sides and volumes for each PP_N
+! 2.  Allocate SurfExchange for communicating surface information with variable PP_N
+! 3.  Build SurfElemMin for all sides (including Mortar sides)
+! 4.
+
+! X. Initialize BR electron fluid model
+! NEEDS: HDG_VOL_N, nGP_Vol, N_DG_Mapping
+! X. Init mortar stuff
+! NEEDS: -
+! X. BCs, the first
+! X. Init floating potentials, electric potentials and bias voltage
+! NEEDS: Boundary Information ???
+! X. Initialize interpolation variables for each Polynomial degree (Also fill HDG_Vol_N further)
+! NEEDS: HDG_VOL_N, nGP_VOl/Face, N_DG_Mapping
+
+! X. Allocate and zero missing HDG_VOL_N and HDG_Surf_N
+! NEEDS: HDG_VOL_N
+! X. Build Preconditioner
+! NEEDS: HDG_Surf_N(SideID)%buf (from Allocate and zero missing....), ! Actually needs PETScInitialize!
+
+! X. Initialize PETSc
+! X. Initialize PETSc stuff
+! NEEDS: -
+! X. PETSc Nr. 2 - Create mappings (big one...)
+! NEEDS: MaskedSide, nDirichletSides, nFPCSides..., N_SurfMesh%NSideMin, HDG_Surf_N, mortar type
+! X. PETSc, the third... Create Matrix and set up
+! NEEDS: nGlobalPETScDOFs
+! PETSc the fourth, set up petsc solver (KSP)
+! NEEDS: EPSCG, maxiterCG
+! X. PETSc the fith, allocate vectors and scatter context
+! NEEDS: nGlobalPETScDOFs, nLocalPETScDOFs, localToGlobalPETScDOF
+! ----------------------------------------------------------------------------------------------------------------------------------
+
+! (0. Read generic HDG Settings)
+HDGDisplayConvergence = GETLOGICAL('HDGDisplayConvergence')
 
 HDGSkip = GETINT('HDGSkip')
 IF (HDGSkip.GT.0) THEN
@@ -197,8 +232,59 @@ ELSE
   HDGSkip=0
 END IF
 
-HDGNonLinSolver = -1 ! init
+! Read in CG parameters (also used for PETSc)
+#if USE_PETSC
+LBWRITE(UNIT_stdOut,'(A)') ' Method for HDG solver: PETSc '
+#else
+LBWRITE(UNIT_stdOut,'(A)') ' Method for HDG solver: CG '
+#endif /*USE_PETSC*/
+PrecondType          = GETINT('PrecondType')
+epsCG                = GETREAL('epsCG')
+OutIterCG            = GETINT('OutIterCG')
+useRelativeAbortCrit = GETLOGICAL('useRelativeAbortCrit')
+MaxIterCG            = GETINT('MaxIterCG')
+ExactLambda          = GETLOGICAL('ExactLambda')
 
+! Initialize element containers
+ALLOCATE(HDG_Vol_N(1:PP_nElems))
+ALLOCATE(HDG_Surf_N(1:nSides))
+
+ALLOCATE(MaskedSide(1:nSides))
+MaskedSide=0
+
+!mappings (Only used in ELEM_MAT!)
+sideDir(  XI_MINUS)=1
+sideDir(   XI_PLUS)=1
+sideDir( ETA_MINUS)=2
+sideDir(  ETA_PLUS)=2
+sideDir(ZETA_MINUS)=3
+sideDir( ZETA_PLUS)=3
+pm(  XI_MINUS)=1
+pm(   XI_PLUS)=2
+pm( ETA_MINUS)=1
+pm(  ETA_PLUS)=2
+pm(ZETA_MINUS)=1
+pm( ZETA_PLUS)=2
+
+dirPm2iSide(1,1) = XI_MINUS
+dirPm2iSide(2,1) = XI_PLUS
+dirPm2iSide(1,2) = ETA_MINUS
+dirPm2iSide(2,2) = ETA_PLUS
+dirPm2iSide(1,3) = ZETA_MINUS
+dirPm2iSide(2,3) = ZETA_PLUS
+
+
+! -------------------------------------------------------------------------------------------------
+! 1. Calculate number of gauss points in sides and volumes for each PP_N
+ALLOCATE(nGP_vol(1:NMax))
+ALLOCATE(nGP_face(1:NMax))
+DO Nloc = 1, NMax
+  nGP_vol(Nloc)  = (Nloc+1)**3
+  nGP_face(Nloc) = (Nloc+1)**2
+END DO ! Nloc = 1, NMax
+
+! -------------------------------------------------------------------------------------------------
+! 2. Allocate SurfExchange for communicating surface information with variable PP_N
 #if USE_MPI
 ALLOCATE(SurfExchange(nNbProcs))
 DO iNbProc=1,nNbProcs
@@ -218,7 +304,8 @@ DO iNbProc=1,nNbProcs
 END DO !iProc=1,nNBProcs
 #endif /*USE_MPI*/
 
-! Build SurfElemMin for all sides (including Mortar sides)
+! -------------------------------------------------------------------------------------------------
+! 3. Build SurfElemMin for all sides (including Mortar sides)
 DO iSide = 1, nSides
   ! Get SurfElemMin
   NSideMax = MAX(DG_Elems_master(iSide),DG_Elems_slave(iSide))
@@ -228,20 +315,17 @@ DO iSide = 1, nSides
   ELSE
     ! From high to low
     ! Transform the slave side to the same degree as the master: switch to Legendre basis
-    CALL ChangeBasis2D(1, NSideMax, NSideMax, N_Inter(NSideMax)%sVdm_Leg, N_SurfMesh(iSide)%SurfElem(0:NSideMax,0:NSideMax), tmp(1,0:NSideMax,0:NSideMax))
+    CALL ChangeBasis2D(1, NSideMax, NSideMax, N_Inter(NSideMax)%sVdm_Leg, N_SurfMesh(iSide)%SurfElem(0:NSideMax,0:NSideMax), &
+                                                                                                       tmp(1,0:NSideMax,0:NSideMax))
      !Switch back to nodal basis
-    CALL ChangeBasis2D(1, NSideMin, NSideMin, N_Inter(NSideMin)%Vdm_Leg , tmp(1,0:NSideMin,0:NSideMin)                     , N_SurfMesh(iSide)%SurfElemMin(0:NSideMin,0:NSideMin))
+    CALL ChangeBasis2D(1, NSideMin, NSideMin, N_Inter(NSideMin)%Vdm_Leg , tmp(1,0:NSideMin,0:NSideMin), &
+                                                                               N_SurfMesh(iSide)%SurfElemMin(0:NSideMin,0:NSideMin))
   END IF ! NSideMax.EQ.NSideMin
 END DO ! iSide = 1, nSides
 
-#if USE_PETSC
-! initialize PETSc stuff!
-PetscCallA(PetscInitialize(PETSC_NULL_CHARACTER,ierr))
-#endif
 
-! Initialize element containers
-ALLOCATE(HDG_Vol_N(1:PP_nElems))
-
+! X. Initialize BR electron fluid model
+HDGNonLinSolver = -1 ! init
 #if defined(PARTICLES)
 ! BR electron fluid model
 IF (BRNbrOfRegions .GT. 0) THEN !Regions only used for Boltzmann Electrons so far -> non-linear HDG-sources!
@@ -275,23 +359,7 @@ IF (BRNbrOfRegions .GT. 0) THEN !Regions only used for Boltzmann Electrons so fa
 END IF
 #endif /*defined(PARTICLES)*/
 
-!CG parameters
-#if USE_PETSC
-LBWRITE(UNIT_stdOut,'(A)') ' Method for HDG solver: PETSc '
-#else
-LBWRITE(UNIT_stdOut,'(A)') ' Method for HDG solver: CG '
-#endif /*USE_PETSC*/
-PrecondType          = GETINT('PrecondType')
-epsCG                = GETREAL('epsCG')
-OutIterCG            = GETINT('OutIterCG')
-useRelativeAbortCrit = GETLOGICAL('useRelativeAbortCrit')
-MaxIterCG            = GETINT('MaxIterCG')
-
-ExactLambda          = GETLOGICAL('ExactLambda')
-
-ALLOCATE(MaskedSide(1:nSides))
-MaskedSide=0
-
+! X. Init mortar stuff
 IF(nGlobalMortarSides.GT.0)THEN !mortar mesh
   IF(nMortarMPISides.GT.0) CALL abort(__STAMP__,&
   "nMortarMPISides >0: HDG mortar MPI implementation relies on big sides having always only master sides (=> nMortarMPISides=0 )")
@@ -299,6 +367,7 @@ IF(nGlobalMortarSides.GT.0)THEN !mortar mesh
   CALL InitMortar_HDG()
 END IF !mortarMesh
 
+! X. BCs, the first
 !boundary conditions
 nDirichletBCsides=0
 nNeumannBCsides  =0
@@ -318,6 +387,7 @@ DO SideID=1,nBCSides
   END SELECT ! BCType
 END DO
 
+! X. Init floating potentials, electric potentials and bias voltage
 ! Conductor: Initialize floating boundary condition
 CALL InitFPC()
 
@@ -332,6 +402,7 @@ CALL InitEPC()
 CALL InitBV()
 #endif /*defined(PARTICLES)*/
 
+! X. BCs the second...
 ! Get the global number of Dirichlet boundaries. If there are none, the potential of a single DOF must be set.
 #if USE_MPI
   CALL MPI_ALLREDUCE(nDirichletBCsides , nDirichletBCsidesGlobal , 1 , MPI_INTEGER , MPI_MAX , MPI_COMM_PICLAS , IERROR)
@@ -379,8 +450,6 @@ DO SideID=1,nBCSides
   END SELECT ! BCType
 END DO
 
-ALLOCATE(HDG_Surf_N(1:nSides))
-
 IF(nNeumannBCsides.GT.0)THEN
   DO iNeumannBCsides = 1, nNeumannBCsides
     SideID = NeumannBC(iNeumannBCsides)
@@ -389,24 +458,153 @@ IF(nNeumannBCsides.GT.0)THEN
   END DO ! iNeumannBCsides = 1, nNeumannBCsides
 END IF
 
+! X. Initialize interpolation variables for each Polynomial degree (Also fill HDG_Vol_N further)
+! Initialize interpolation variables
+DO Nloc = 1, NMax
+  ALLOCATE(N_Inter(Nloc)%LL_minus(0:Nloc,0:Nloc))
+  ALLOCATE(N_Inter(Nloc)%LL_plus( 0:Nloc,0:Nloc))
+  DO j=0,Nloc
+    DO i=0,Nloc
+      N_Inter(Nloc)%LL_minus(i,j) = N_Inter(Nloc)%L_minus(i)*N_Inter(Nloc)%L_minus(j)
+      N_Inter(Nloc)%LL_plus(i,j)  = N_Inter(Nloc)%L_plus(i)*N_Inter(Nloc)%L_plus(j)
+    END DO
+  END DO
+
+  ALLOCATE(N_Inter(Nloc)%Lomega_m(0:Nloc))
+  ALLOCATE(N_Inter(Nloc)%Lomega_p(0:Nloc))
+  ! Compute a lifting matrix scaled by the Gaussian weights
+  N_Inter(Nloc)%Lomega_m = - N_Inter(Nloc)%L_minus/N_Inter(Nloc)%wGP
+  N_Inter(Nloc)%Lomega_p = + N_Inter(Nloc)%L_plus/N_Inter(Nloc)%wGP
+  ALLOCATE(N_Inter(Nloc)%Domega(0:Nloc,0:Nloc))
+  ! Compute Differentiation matrix D for given Gausspoints (1D)
+  CALL PolynomialDerivativeMatrix(Nloc,N_Inter(Nloc)%xGP,D(0:Nloc,0:Nloc))
+  ! Compute a Differentiation matrix scaled by the Gaussian weights
+  DO j=0,Nloc
+    DO i=0,Nloc
+      N_Inter(Nloc)%Domega(i,j) = N_Inter(Nloc)%wGP(i)/N_Inter(Nloc)%wGP(j)*D(i,j)
+    END DO !r
+  END DO !s
+
+  ALLOCATE(N_Inter(Nloc)%wGP_vol(nGP_vol(Nloc)))
+  DO k=0,Nloc
+    DO j=0,Nloc
+      DO i=0,Nloc
+    r=k*(Nloc+1)**2+j*(Nloc+1) + i+1
+    N_Inter(Nloc)%wGP_vol(r)=N_Inter(Nloc)%wGP(i)*N_Inter(Nloc)%wGP(j)*N_Inter(Nloc)%wGP(k)
+      END DO
+    END DO
+  END DO !i,j,k
+END DO ! Nloc = 1, NMax
+
+DO iElem=1,PP_nElems
+  Nloc = N_DG_Mapping(2,iElem+offSetElem)
+  ALLOCATE(HDG_Vol_N(iElem)%InvDhat(nGP_vol(Nloc),nGP_vol(Nloc)))
+  ALLOCATE(HDG_Vol_N(iElem)%JwGP_vol(nGP_vol(Nloc)))
+  DO k=0,Nloc; DO j=0,Nloc; DO i=0,Nloc
+    r=k*(Nloc+1)**2+j*(Nloc+1) + i+1
+    HDG_Vol_N(iElem)%JwGP_vol(r)=N_Inter(Nloc)%wGP_vol(r)/N_VolMesh(iElem)%sJ(i,j,k) !omega*J
+  END DO; END DO; END DO !i,j,k
+
+  ALLOCATE(HDG_Vol_N(iElem)%Ehat(nGP_face(Nloc),nGP_vol(Nloc),6))
+  !side matrices
+  ALLOCATE(HDG_Vol_N(iElem)%Smat(nGP_face(Nloc),nGP_face(Nloc),6,6))
+END DO !iElem
+
+!stabilization parameter
+ALLOCATE(Tau(PP_nElems))
+DO iElem=1,PP_nElems
+  Tau(iElem)=2./((SUM(HDG_Vol_N(iElem)%JwGP_vol(:)))**(1./3.))  !1/h ~ 1/vol^(1/3) (volref=8)
+END DO !iElem
+
+IF(.NOT.DoSwapMesh)THEN ! can take very long, not needed for swap mesh run as only the state file is converted
+  CALL Elem_Mat(0_8) ! takes iter=0 (kind=8)
+END IF
+
+! X. Allocate and zero missing HDG_VOL_N and HDG_Surf_N stuff
+DO iElem = 1, PP_nElems
+  Nloc = N_DG_Mapping(2,iElem+offSetElem)
+  ALLOCATE(HDG_Vol_N(iElem)%RHS_vol(PP_nVar, nGP_vol(Nloc)))
+  HDG_Vol_N(iElem)%RHS_vol=0.
+END DO ! iElem = 1, PP_nElems
+
+DO SideID = 1, nSides
+  NSideMin = N_SurfMesh(SideID)%NSideMin
+  ALLOCATE(HDG_Surf_N(SideID)%lambda(PP_nVar,nGP_face(NSideMin)))
+  HDG_Surf_N(SideID)%lambda=0.
+  NSideMax = MAX(DG_Elems_master(SideID),DG_Elems_slave(SideID))
+  ALLOCATE(HDG_Surf_N(SideID)%lambdaMax(PP_nVar,nGP_face(NSideMax)))
+  HDG_Surf_N(SideID)%lambdaMax=0.
+  ALLOCATE(HDG_Surf_N(SideID)%RHS_face(PP_nVar,nGP_face(NSideMin)))
+  HDG_Surf_N(SideID)%RHS_face=0.
+  ALLOCATE(HDG_Surf_N(SideID)%mv(PP_nVar,nGP_face(NSideMin)))
+  HDG_Surf_N(SideID)%mv=0.
+  ALLOCATE(HDG_Surf_N(SideID)%R(PP_nVar,nGP_face(NSideMin)))
+  HDG_Surf_N(SideID)%R=0.
+  ALLOCATE(HDG_Surf_N(SideID)%V(PP_nVar,nGP_face(NSideMin)))
+  HDG_Surf_N(SideID)%V=0.
+  ALLOCATE(HDG_Surf_N(SideID)%Z(PP_nVar,nGP_face(NSideMin)))
+  HDG_Surf_N(SideID)%Z=0.
+#if USE_MPI
+  ALLOCATE(HDG_Surf_N(SideID)%buf(PP_nVar,nGP_face(NSideMin)))
+  HDG_Surf_N(SideID)%buf=0.
 #if USE_PETSC
-! Create PETSc Mappings
+! TODO PETSC P-Adaption - ?
+#else
+  IF(PrecondType.EQ.1)THEN
+    ALLOCATE(HDG_Surf_N(SideID)%buf2(nGP_face(NSideMin),nGP_face(NSideMin)))
+    HDG_Surf_N(SideID)%buf2=0.
+  END IF ! PrecondType.EQ.1
+#endif /*USE_PETSC*/
+#endif
+END DO ! SideID = 1, nSides
+
+! X. Build Preconditioner
+! Requires HDG_Surf_N(SideID)%buf
+CALL BuildPrecond()
+
+
+! -------------------------------------------------------------------------------------------------
+! 999. Initialize PETSc
+! -------------------------------------------------------------------------------------------------
+! Steps:
+! 3.1) Create PETSc mappings to build the global system
+! 3.2) Initialize PETSc objects
+
+#if USE_PETSC
+! -+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-
+! 3.1) Create PETSc mappings to build the global system
+! PETSc needs the following mappings
+!     a.) nPETScUniqueSides: Number of local MY-sides that contribute to the PETSc System
+!     b.) nPETScUniqueSidesGlobal: Number of global sides that contribute to the PETSc System
+!           TODO Delete since sides may have different nDOFs
+!     c.) PETScGlobal(SideID): Maps the local SideID to the global PETScSideDOF
+!           TODO Delete - We have "OffsetGlobalPETScDOF" for that
+!     d.)
+! Mappings / Variables:
+!   - nPETScUniqueSides (MY nPETScSides)
+!   - nPETScUniqueSidesGlobal (Not needed!)
+!   - PETScGlobal (Not needed!)
+!   - PETScLocalToSideID
+!   - nLocalPETScDOFs
+!   - nGlobalPETScDOFs
+!   - OffsetGlobalPETScDOF
+!   - LocalToGlobalPETScDOF
+
 OffsetPETScSide=0
 
 ! TODO PETSC P-Adaption - MORTARS
 ! Count all Mortar slave sides and remove them from PETSc vector
-! TODO How to compute those
 nMortarMasterSides = 0
 !DO SideID=1,nSides
 !  IF(SmallMortarInfo(SideID).EQ.1) THEN
 !    nMortarMasterSides = nMortarMasterSides + 1
 !  END IF
 !END DO
+
 nPETScUniqueSides = nSides-nDirichletBCSides-nMPISides_YOUR-nMortarMasterSides-nConductorBCsides
 
-! TODO PETSC P-Adaption - MPI (Should work?) We probably do not need nPETScUniqueSidesGlobal
+! TODO PETSC P-Adaption - Delete nPETScUniqueSidesGlobal
 #if USE_MPI
-
 CALL MPI_ALLGATHER(nPETScUniqueSides,1,MPI_INTEGER,OffsetPETScSideMPI,1,MPI_INTEGER,MPI_COMM_PICLAS,IERROR)
 DO iProc=1, myrank
   OffsetPETScSide = OffsetPETScSide + OffsetPETScSideMPI(iProc)
@@ -414,6 +612,8 @@ END DO
 nPETScUniqueSidesGlobal = SUM(OffsetPETScSideMPI) + FPC%nUniqueFPCBounds
 #endif
 
+! -+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-
+! XYZ: Fill PETScGlobal...
 ! TODO PETSC P-Adaption - Improvement: Delete PETScGlobal
 ! PETScGlobal stuff
 ALLOCATE(PETScGlobal(nSides))
@@ -443,8 +643,7 @@ CALL StartSendMPIDataInt(   1,PETScGlobal,1,nSides,SendRequest_U,SendID=1) ! Sen
 CALL FinishExchangeMPIData(SendRequest_U,RecRequest_U,SendID=1)
 #endif
 
-! PETSc P-Adaption Mappings (with MPI) -----------------------------------------------------
-
+! -+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-
 ! 1. Calculate nLocalPETScDOFs without nMPISides_YOUR
 nLocalPETScDOFs = 0
 DO SideID=1,nSides-nMPISides_YOUR
@@ -460,6 +659,7 @@ CALL MPI_ALLGATHER(nLocalPETScDOFs,1,MPI_INTEGER,PETScDOFOffsetsMPI,1,MPI_INTEGE
 DO iProc=1, myrank
   OffsetCounter = OffsetCounter + PETScDOFOffsetsMPI(iProc)
 END DO
+
 ! 3. Calculate nGlobalPETScDOFs from the offsets
 nGlobalPETScDOFs = SUM(PETScDOFOffsetsMPI)
 #else
@@ -502,177 +702,41 @@ DO SideID=1,nSides
   END DO
 END DO
 ! ------------------------------------------------------
-#endif
 
-!mappings
-sideDir(  XI_MINUS)=1
-sideDir(   XI_PLUS)=1
-sideDir( ETA_MINUS)=2
-sideDir(  ETA_PLUS)=2
-sideDir(ZETA_MINUS)=3
-sideDir( ZETA_PLUS)=3
-pm(  XI_MINUS)=1
-pm(   XI_PLUS)=2
-pm( ETA_MINUS)=1
-pm(  ETA_PLUS)=2
-pm(ZETA_MINUS)=1
-pm( ZETA_PLUS)=2
+! ------------------------------------------------------
+! 3.2) Initialize PETSc Objects
+!PetscCallA(PetscInitialize(PETSC_NULL_CHARACTER,ierr))
 
-dirPm2iSide(1,1) = XI_MINUS
-dirPm2iSide(2,1) = XI_PLUS
-dirPm2iSide(1,2) = ETA_MINUS
-dirPm2iSide(2,2) = ETA_PLUS
-dirPm2iSide(1,3) = ZETA_MINUS
-dirPm2iSide(2,3) = ZETA_PLUS
-
-!ALLOCATE(delta(0:PP_N,0:PP_N))
-!delta=0.
-!DO i=0,PP_N
-  !delta(i,i)=1.
-!END DO !i
-
-! Initialize interpolation variables
-DO Nloc = 1, NMax
-  ALLOCATE(N_Inter(Nloc)%LL_minus(0:Nloc,0:Nloc))
-  ALLOCATE(N_Inter(Nloc)%LL_plus( 0:Nloc,0:Nloc))
-  DO j=0,Nloc
-    DO i=0,Nloc
-      N_Inter(Nloc)%LL_minus(i,j) = N_Inter(Nloc)%L_minus(i)*N_Inter(Nloc)%L_minus(j)
-      N_Inter(Nloc)%LL_plus(i,j)  = N_Inter(Nloc)%L_plus(i)*N_Inter(Nloc)%L_plus(j)
-    END DO
-  END DO
-
-  ALLOCATE(N_Inter(Nloc)%Lomega_m(0:Nloc))
-  ALLOCATE(N_Inter(Nloc)%Lomega_p(0:Nloc))
-  ! Compute a lifting matrix scaled by the Gaussian weights
-  N_Inter(Nloc)%Lomega_m = - N_Inter(Nloc)%L_minus/N_Inter(Nloc)%wGP
-  N_Inter(Nloc)%Lomega_p = + N_Inter(Nloc)%L_plus/N_Inter(Nloc)%wGP
-  ALLOCATE(N_Inter(Nloc)%Domega(0:Nloc,0:Nloc))
-  ! Compute Differentiation matrix D for given Gausspoints (1D)
-  CALL PolynomialDerivativeMatrix(Nloc,N_Inter(Nloc)%xGP,D(0:Nloc,0:Nloc))
-  ! Compute a Differentiation matrix scaled by the Gaussian weights
-  DO j=0,Nloc
-    DO i=0,Nloc
-      N_Inter(Nloc)%Domega(i,j) = N_Inter(Nloc)%wGP(i)/N_Inter(Nloc)%wGP(j)*D(i,j)
-    END DO !r
-  END DO !s
-
-  ALLOCATE(N_Inter(Nloc)%wGP_vol(nGP_vol(Nloc)))
-  DO k=0,Nloc
-    DO j=0,Nloc
-      DO i=0,Nloc
-    r=k*(Nloc+1)**2+j*(Nloc+1) + i+1
-    N_Inter(Nloc)%wGP_vol(r)=N_Inter(Nloc)%wGP(i)*N_Inter(Nloc)%wGP(j)*N_Inter(Nloc)%wGP(k)
-      END DO
-    END DO
-  END DO !i,j,k
-
-END DO ! Nloc = 1, NMax
-
-DO iElem=1,PP_nElems
-  Nloc = N_DG_Mapping(2,iElem+offSetElem)
-  ALLOCATE(HDG_Vol_N(iElem)%InvDhat(nGP_vol(Nloc),nGP_vol(Nloc)))
-  ALLOCATE(HDG_Vol_N(iElem)%JwGP_vol(nGP_vol(Nloc)))
-  DO k=0,Nloc; DO j=0,Nloc; DO i=0,Nloc
-    r=k*(Nloc+1)**2+j*(Nloc+1) + i+1
-    HDG_Vol_N(iElem)%JwGP_vol(r)=N_Inter(Nloc)%wGP_vol(r)/N_VolMesh(iElem)%sJ(i,j,k) !omega*J
-  END DO; END DO; END DO !i,j,k
-
-  ALLOCATE(HDG_Vol_N(iElem)%Ehat(nGP_face(Nloc),nGP_vol(Nloc),6))
-  !side matrices
-  ALLOCATE(HDG_Vol_N(iElem)%Smat(nGP_face(Nloc),nGP_face(Nloc),6,6))
-END DO !iElem
-
-
-
-#if USE_PETSC
+! 3.2.1) Set up Matrix
 PetscCallA(MatCreate(PETSC_COMM_WORLD,PETScSystemMatrix,ierr))
 PetscCallA(MatSetSizes(PETScSystemMatrix,PETSC_DECIDE,PETSC_DECIDE,nGlobalPETScDOFs,nGlobalPETScDOFs,ierr))
-PetscCallA(MatSetType(PETScSystemMatrix,MATAIJ,ierr)) ! Sparse (mpi) matrix, TODO P-Adaption Symmetricity is set later!
+PetscCallA(MatSetType(PETScSystemMatrix,MATAIJ,ierr)) ! Sparse (mpi) matrix, TODO PETSC P-Adaption - Symmetricity is set later!
 
-! TODO PETSC P-Adaption - FPC Preallocation (also with FPCs)
+! TODO PETSC P-Adaption - Preallocate System matrix (also with FPCs)
 PetscCallA(MatSetUp(PETScSystemMatrix, ierr))
-#endif
 
-!stabilization parameter
-ALLOCATE(Tau(PP_nElems))
-DO iElem=1,PP_nElems
-  Tau(iElem)=2./((SUM(HDG_Vol_N(iElem)%JwGP_vol(:)))**(1./3.))  !1/h ~ 1/vol^(1/3) (volref=8)
-END DO !iElem
-
-IF(.NOT.DoSwapMesh)THEN ! can take very long, not needed for swap mesh run as only the state file is converted
-  CALL Elem_Mat(0_8) ! takes iter=0 (kind=8)
-END IF
-
-#if USE_PETSC
+! 3.2.2) Set up Solver
 PetscCallA(KSPCreate(PETSC_COMM_WORLD,PETScSolver,ierr))
 PetscCallA(KSPSetOperators(PETScSolver,PETScSystemMatrix,PETScSystemMatrix,ierr))
 
-IF(PrecondType.GE.10) THEN
+IF(PrecondType.GE.10) THEN ! Exact Solver
   PetscCallA(KSPSetType(PETScSolver,KSPPREONLY,ierr)) ! Exact solver
-ELSE
-  PetscCallA(KSPSetType(PETScSolver,KSPCG,ierr)) ! CG solver for sparse symmetric positive definite matrix
-
+ELSE ! Iterative Conjugate Gradient solver
+  PetscCallA(KSPSetType(PETScSolver,KSPCG,ierr))
   PetscCallA(KSPSetInitialGuessNonzero(PETScSolver,PETSC_TRUE, ierr))
-
   PetscCallA(KSPSetNormType(PETScSolver, KSP_NORM_UNPRECONDITIONED, ierr))
   PetscCallA(KSPSetTolerances(PETScSolver,1.E-20,epsCG,PETSC_DEFAULT_REAL,MaxIterCG,ierr))
 END IF
-#endif
 
-DO iElem = 1, PP_nElems
-  Nloc = N_DG_Mapping(2,iElem+offSetElem)
-  ALLOCATE(HDG_Vol_N(iElem)%RHS_vol(PP_nVar, nGP_vol(Nloc)))
-  HDG_Vol_N(iElem)%RHS_vol=0.
-END DO ! iElem = 1, PP_nElems
-
-DO SideID = 1, nSides
-  NSideMin = N_SurfMesh(SideID)%NSideMin
-  ALLOCATE(HDG_Surf_N(SideID)%lambda(PP_nVar,nGP_face(NSideMin)))
-  HDG_Surf_N(SideID)%lambda=0.
-  NSideMax = MAX(DG_Elems_master(SideID),DG_Elems_slave(SideID))
-  ALLOCATE(HDG_Surf_N(SideID)%lambdaMax(PP_nVar,nGP_face(NSideMax)))
-  HDG_Surf_N(SideID)%lambdaMax=0.
-  ALLOCATE(HDG_Surf_N(SideID)%RHS_face(PP_nVar,nGP_face(NSideMin)))
-  HDG_Surf_N(SideID)%RHS_face=0.
-  ALLOCATE(HDG_Surf_N(SideID)%mv(PP_nVar,nGP_face(NSideMin)))
-  HDG_Surf_N(SideID)%mv=0.
-  ALLOCATE(HDG_Surf_N(SideID)%R(PP_nVar,nGP_face(NSideMin)))
-  HDG_Surf_N(SideID)%R=0.
-  ALLOCATE(HDG_Surf_N(SideID)%V(PP_nVar,nGP_face(NSideMin)))
-  HDG_Surf_N(SideID)%V=0.
-  ALLOCATE(HDG_Surf_N(SideID)%Z(PP_nVar,nGP_face(NSideMin)))
-  HDG_Surf_N(SideID)%Z=0.
-#if USE_MPI
-  ALLOCATE(HDG_Surf_N(SideID)%buf(PP_nVar,nGP_face(NSideMin)))
-  HDG_Surf_N(SideID)%buf=0.
-#if USE_PETSC
-! TODO PETSC P-Adaption - ?
-#else
-  IF(PrecondType.EQ.1)THEN
-    ALLOCATE(HDG_Surf_N(SideID)%buf2(nGP_face(NSideMin),nGP_face(NSideMin)))
-    HDG_Surf_N(SideID)%buf2=0.
-  END IF ! PrecondType.EQ.1
-#endif /*USE_PETSC*/
-#endif
-END DO ! SideID = 1, nSides
-
-! Requires HDG_Surf_N(SideID)%buf
-CALL BuildPrecond()
-
-#if USE_PETSC
-! allocate RHS & lambda vectors
+! 3.2.3) Set up vectors
 PetscCallA(VecCreate(PETSC_COMM_WORLD,PETScSolution,ierr))
 PetscCallA(VecSetSizes(PETScSolution,PETSC_DECIDE,nGlobalPETScDOFs,ierr))
 PetscCallA(VecSetType(PETScSolution,VECSTANDARD,ierr))
 PetscCallA(VecSetUp(PETScSolution,ierr))
 PetscCallA(VecDuplicate(PETScSolution,PETScRHS,ierr))
-
-
-! Scatter Context
-! Create scatter context to access local values from global petsc vector
-! Create a local vector for all local DOFs
 PetscCallA(VecCreateSeq(PETSC_COMM_SELF,nLocalPETScDOFs,PETScSolutionLocal,ierr))
+
+! 3.2.4) Set up scatter context
 ! Create a PETSc Vector 0:(nLocalPETScDOFs-1)
 PetscCallA(ISCreateStride(PETSC_COMM_SELF,nLocalPETScDOFs,0,1,idx_local_petsc,ierr))
 ! Create a PETSc Vector of the Global DOF IDs
@@ -692,7 +756,10 @@ PetscCallA(VecScatterCreate(PETScSolution,idx_global_petsc,PETScSolutionLocal,id
 !  DEALLOCATE(indx)
 !  PetscCallA(VecScatterCreate(PETScSolution,idx_global_conductors_petsc,lambda_local_conductors_petsc,idx_local_conductors_petsc,scatter_conductors_petsc,ierr))
 !END IF
+#endif /* USE_PETSC */
 
+! (999. Delete local allocated vectors)
+#if USE_PETSC
 DEALLOCATE(localToGlobalPETScDOF)
 #endif
 
