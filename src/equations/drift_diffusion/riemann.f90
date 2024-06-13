@@ -29,9 +29,11 @@ SUBROUTINE Riemann(F,U_L,U_R,nv,GradSide,E_L,E_R)
 !===================================================================================================================================
 ! MODULES
 USE MOD_PreProc ! 0
-USE MOD_TimeDisc_Vars, ONLY : dt
-USE MOD_Globals,  ONLY :abort, vecnorm
-USE MOD_Transport_Data ,ONLY: CalcDriftDiffusionCoeff
+USE MOD_TimeDisc_Vars  ,ONLY : dt
+USE MOD_Globals        ,ONLY :abort, vecnorm
+USE MOD_Transport_Data ,ONLY: CalcDriftDiffusionCoeffAr,CalcDriftDiffusionCoeffH2
+USE MOD_DSMC_Vars      ,ONLY: BGGas
+USE MOD_Particle_Vars  ,ONLY: nSpecies, Species
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -48,21 +50,25 @@ REAL,INTENT(OUT)                                 :: F(PP_nVar_FV,0:0,0:0)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 REAL                                             :: driftVelo, mu_L, mu_R, D_L, D_R
-
+INTEGER                                          :: iSpec
 !===================================================================================================================================
-CALL CalcDriftDiffusionCoeff(VECNORM(E_L),1.E25,mu_L,D_L)
-CALL CalcDriftDiffusionCoeff(VECNORM(E_R),1.E25,mu_R,D_R)
+DO iSpec = 1, nSpecies
+  IF(BGGas%BackgroundSpecies(iSpec)) THEN
+    EXIT
+  END IF
+END DO
+
+IF (Species(iSpec)%Name.EQ.'H2') THEN
+  CALL CalcDriftDiffusionCoeffH2(VECNORM(E_L),BGGas%NumberDensity(iSpec),mu_L,D_L)
+  CALL CalcDriftDiffusionCoeffH2(VECNORM(E_R),BGGas%NumberDensity(iSpec),mu_R,D_R)
+ELSE IF (Species(iSpec)%Name.EQ.'Ar') THEN
+  CALL CalcDriftDiffusionCoeffAr(VECNORM(E_L),BGGas%NumberDensity(iSpec),mu_L,D_L)
+  CALL CalcDriftDiffusionCoeffAr(VECNORM(E_R),BGGas%NumberDensity(iSpec),mu_R,D_R)
+ELSE
+  CALL abort(__STAMP__,'bg gas species unknowned for electron fluid')
+END IF
 driftVelo=-DOT_PRODUCT(nv(:,0,0),(E_L+E_R)/2.)
 
-! print*, driftVelo
-! print*, nv
-! read*
-! IF (mu_L.GT.0.)print*, 'E', 1e21*E/U_L(1,0,0), 1e21*E/U_R(1,0,0)
-! IF (mu_L.GT.0.)print*, 'mu', mu_L*U_L(1,0,0), mu_R*U_R(1,0,0)
-! IF (mu_L.GT.0.) print*, 'D', D_L/mu_L, D_R/mu_R
-! IF (mu_L.GT.0.)read*
-! F(1,0,0)=0.5*((driftVelo+abs(driftVelo))*mu_L*U_L(1,0,0)+(driftVelo-abs(driftVelo))*mu_R*U_R(1,0,0)) &
-!                     +D_L*GradSide
 IF (driftVelo.GT.0.) THEN
   F(1,0,0)=driftVelo*mu_L*U_L(1,0,0) + D_L*GradSide
 ELSE
