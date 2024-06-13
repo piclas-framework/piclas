@@ -579,7 +579,10 @@ CALL BuildPrecond()
 !           TODO Delete since sides may have different nDOFs
 !     c.) PETScGlobal(SideID): Maps the local SideID to the global PETScSideDOF
 !           TODO Delete - We have "OffsetGlobalPETScDOF" for that
-!     d.)
+!     d.) PETScLocalToSideID: Maps the the localPETScSideID to the local SideID
+!     e.) nLocalPETScDOFs:
+!     f.) nGlobalPETScDOFs:
+
 ! Mappings / Variables:
 !   - nPETScUniqueSides (MY nPETScSides)
 !   - nPETScUniqueSidesGlobal (Not needed!)
@@ -602,15 +605,6 @@ nMortarMasterSides = 0
 !END DO
 
 nPETScUniqueSides = nSides-nDirichletBCSides-nMPISides_YOUR-nMortarMasterSides-nConductorBCsides
-
-! TODO PETSC P-Adaption - Delete nPETScUniqueSidesGlobal
-#if USE_MPI
-CALL MPI_ALLGATHER(nPETScUniqueSides,1,MPI_INTEGER,OffsetPETScSideMPI,1,MPI_INTEGER,MPI_COMM_PICLAS,IERROR)
-DO iProc=1, myrank
-  OffsetPETScSide = OffsetPETScSide + OffsetPETScSideMPI(iProc)
-END DO
-nPETScUniqueSidesGlobal = SUM(OffsetPETScSideMPI) + FPC%nUniqueFPCBounds
-#endif
 
 ! -+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-
 ! XYZ: Fill PETScGlobal...

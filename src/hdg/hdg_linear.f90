@@ -364,13 +364,13 @@ CALL LBPauseTime(LB_DG,tLBStart) ! Pause/Stop time measurement
   END DO
   ! The MPIRoot process has charge and voltage of all FPCs, there, this process sets all conductor RHS information
   ! TODO PETSC P-Adaption - FPC
-  IF(MPIRoot)THEN
-    DO iUniqueFPCBC = 1, FPC%nUniqueFPCBounds
-      RHS_conductor(:)=0.
-      RHS_conductor(1)=FPC%Charge(iUniqueFPCBC)/eps0
-      PetscCallA(VecSetValuesBlocked(PETScRHS,1,nPETScUniqueSidesGlobal-1-FPC%nUniqueFPCBounds+iUniqueFPCBC,RHS_conductor,INSERT_VALUES,ierr))
-    END DO !iUniqueFPCBC = 1, FPC%nUniqueFPCBounds
-  END IF ! MPIRoot
+  !IF(MPIRoot)THEN
+  !  DO iUniqueFPCBC = 1, FPC%nUniqueFPCBounds
+  !    RHS_conductor(:)=0.
+  !    RHS_conductor(1)=FPC%Charge(iUniqueFPCBC)/eps0
+  !    PetscCallA(VecSetValuesBlocked(PETScRHS,1,nPETScUniqueSidesGlobal-1-FPC%nUniqueFPCBounds+iUniqueFPCBC,RHS_conductor,INSERT_VALUES,ierr))
+  !  END DO !iUniqueFPCBC = 1, FPC%nUniqueFPCBounds
+  !END IF ! MPIRoot
 
   ! Reset the RHS of the first DOF if ZeroPotential must be set
   IF(MPIroot .AND. SetZeroPotentialDOF) THEN

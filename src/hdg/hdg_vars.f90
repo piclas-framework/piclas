@@ -56,7 +56,6 @@ INTEGER,ALLOCATABLE :: PETScLocalToSideID(:)    !< PETScLocalToSideID(PETScLocal
 REAL,ALLOCATABLE    :: Smat_BC(:,:,:,:)         !< side to side matrix for dirichlet (D) BCs, (ngpface,ngpface,6Sides,DSides)
 INTEGER             :: nPETScSides              !< nSides - nDirichletSides
 INTEGER             :: nPETScUniqueSides        !< nPETScSides - nMPISides_YOUR
-INTEGER             :: nPETScUniqueSidesGlobal  !<
 INTEGER             :: nGlobalPETScDOFs         !< Number of global PETSc DOFs (size of PETSc Vectors & Matrices)
 INTEGER,ALLOCATABLE :: OffsetGlobalPETScDOF(:)  !< offset of each SideID to the global position in the PETSc system
 #endif
