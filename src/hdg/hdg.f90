@@ -576,13 +576,11 @@ CALL BuildPrecond()
 ! 3.1) Create PETSc mappings to build the global system
 ! PETSc needs the following mappings
 !     a.) nPETScUniqueSides: Number of local MY-sides that contribute to the PETSc System
-!     d.) PETScLocalToSideID: Maps the the localPETScSideID to the local SideID
 !     e.) nLocalPETScDOFs:
 !     f.) nGlobalPETScDOFs:
 
 ! Mappings / Variables:
 !   - nPETScUniqueSides (MY nPETScSides)
-!   - PETScLocalToSideID
 !   - nLocalPETScDOFs
 !   - nGlobalPETScDOFs
 !   - OffsetGlobalPETScDOF
@@ -600,66 +598,54 @@ nMortarMasterSides = 0
 nPETScUniqueSides = nSides-nDirichletBCSides-nMPISides_YOUR-nMortarMasterSides-nConductorBCsides
 
 ! -+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-
-! XYZ: Fill PETScGlobal...
-! TODO PETSC P-Adaption - Improvement: Delete PETScGlobal
-ALLOCATE(PETScLocalToSideID(nPETScUniqueSides+nMPISides_YOUR))
-PETScLocalToSideID=-1
-PETScLocalID=0 ! = nSides-nDirichletBCSides
-DO SideID=1,nSides!-nMPISides_YOUR
-  IF(MaskedSide(SideID).GT.0) CYCLE
-  PETScLocalID=PETScLocalID+1
-  PETScLocalToSideID(PETScLocalID)=SideID
-END DO
-
-! -+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-
-! 1. Calculate nLocalPETScDOFs without nMPISides_YOUR
+! 3.1.6) Calculate nLocalPETScDOFs without nMPISides_YOUR to compute nGlobalPETScDOFs
 nLocalPETScDOFs = 0
 DO SideID=1,nSides-nMPISides_YOUR
   IF(MaskedSide(SideID).GT.0) CYCLE ! TODO is this MaskedSide?
   nLocalPETScDOFs = nLocalPETScDOFs + nGP_face(N_SurfMesh(SideID)%NSideMin)
 END DO
 
-! 2. Get Offsets
-OffsetCounter = 0
+! 3.1.7) Calculate nGlobalPETScDOFs
+! This is the total number of PETScDOFs
 #if USE_MPI
-! TODO Where to define OffsetCounter and PETScDOFOffsetsMPI
 CALL MPI_ALLGATHER(nLocalPETScDOFs,1,MPI_INTEGER,PETScDOFOffsetsMPI,1,MPI_INTEGER,MPI_COMM_PICLAS,IERROR)
-DO iProc=1, myrank
-  OffsetCounter = OffsetCounter + PETScDOFOffsetsMPI(iProc)
-END DO
-
-! 3. Calculate nGlobalPETScDOFs from the offsets
 nGlobalPETScDOFs = SUM(PETScDOFOffsetsMPI)
 #else
 nGlobalPETScDOFs = nLocalPETScDOFs
 #endif
 
+! 3.1.8) Calculate OffsetGlobalPETScDOF(SideID)
+! This is the GlobalPETScDOF of the first DOF of the side with given SideID
+OffsetCounter = 0
 #if USE_MPI
-! 4. Add the nMPISides_YOUR to nLocalPETScDOFs
-DO SideID=nSides-nMPISides_YOUR+1,nSides
-  IF(MaskedSide(SideID).GT.0)
-  nLocalPETScDOFs = nLocalPETScDOFs + nGP_face(N_SurfMesh(SideID)%NSideMin)
+DO iProc=1, myrank
+  OffsetCounter = OffsetCounter + PETScDOFOffsetsMPI(iProc)
 END DO
 #endif
-
-! 5. Calculate the global offset for each side
 ALLOCATE(OffsetGlobalPETScDOF(nSides))
 DO SideID=1,nSides-nMPISides_YOUR
-  IF(MaskedSide(SideID).GT.0)
+  IF(MaskedSide(SideID).GT.0) CYCLE
   OffsetGlobalPETScDOF(SideID) = OffsetCounter
   OffsetCounter = OffsetCounter + nGP_face(N_SurfMesh(SideID)%NSideMin)
 END DO
-
 #if USE_MPI
-! 6. Communicate OffsetGlobalPETScDOF to fill YOUR sides
 CALL StartReceiveMPIDataInt(1,OffsetGlobalPETScDOF,1,nSides, RecRequest_U,SendID=1) ! Receive YOUR
 CALL StartSendMPIDataInt(   1,OffsetGlobalPETScDOF,1,nSides,SendRequest_U,SendID=1) ! Send MINE
 CALL FinishExchangeMPIData(SendRequest_U,RecRequest_U,SendID=1)
 #endif
 
-! 7. Create LocalToGlobal mapping (we now know the mapping)
-! TODO Which mappings start at 0?
-! TODO where to introduce localToGlobalPETScDOF
+! 3.1.9) Sum up YOUR sides for nLocalPETScDOFs
+! The full nLocalPETScDOFs is used to compute the Scatter context
+#if USE_MPI
+! 4. Add the nMPISides_YOUR to nLocalPETScDOFs
+DO SideID=nSides-nMPISides_YOUR+1,nSides
+  IF(MaskedSide(SideID).GT.0) CYCLE
+  nLocalPETScDOFs = nLocalPETScDOFs + nGP_face(N_SurfMesh(SideID)%NSideMin)
+END DO
+#endif
+
+! 3.1.10) Create localToGlobalPETScDOF(iLocalPETScDOF) mapping
+! The mapping is used to create the PETSc Scatter context to extract the local solution from the global solution vector
 ALLOCATE(localToGlobalPETScDOF(nLocalPETScDOFs))
 iLocalPETScDOF = 0
 DO SideID=1,nSides
@@ -669,11 +655,10 @@ DO SideID=1,nSides
     LocalToGlobalPETScDOF(iLocalPETScDOF) = OffsetGlobalPETScDOF(SideID) + iDOF - 1
   END DO
 END DO
-! ------------------------------------------------------
 
 ! ------------------------------------------------------
 ! 3.2) Initialize PETSc Objects
-!PetscCallA(PetscInitialize(PETSC_NULL_CHARACTER,ierr))
+!PetscCallA(PetscInitialize(PETSC_NULL_CHARACTER,ierr)) TODO where to call?
 
 ! 3.2.1) Set up Matrix
 PetscCallA(MatCreate(PETSC_COMM_WORLD,PETScSystemMatrix,ierr))
@@ -2177,7 +2162,6 @@ PetscCallA(MatDestroy(PETScSystemMatrix,ierr))
 PetscCallA(VecDestroy(PETScSolution,ierr))
 PetscCallA(VecDestroy(PETScRHS,ierr))
 PetscCallA(PetscFinalize(ierr))
-SDEALLOCATE(PETScLocalToSideID)
 SDEALLOCATE(Smat_BC)
 SDEALLOCATE(SmallMortarType)
 SDEALLOCATE(OffsetGlobalPETScDOF)

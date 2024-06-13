@@ -352,8 +352,8 @@ CALL LBPauseTime(LB_DG,tLBStart) ! Pause/Stop time measurement
   ! Fill right hand side
   PetscCallA(VecZeroEntries(PETScRHS,ierr))
   TimeStartPiclas=PICLASTIME()
-  DO PETScLocalID=1,nPETScUniqueSides
-    SideID=PETScLocalToSideID(PETScLocalID)
+  DO SideID=1,nSides
+    IF(MaskedSide(SideID).GT.0) CYCLE
 
     Nloc = N_SurfMesh(SideID)%NSideMin
     DO i=1,nGP_face(Nloc)
