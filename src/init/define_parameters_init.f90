@@ -68,7 +68,6 @@ USE MOD_Particle_Sampling_Adapt    ,ONLY: DefineParametersParticleSamplingAdapti
 USE MOD_Particle_BGM               ,ONLY: DefineparametersParticleBGM
 USE MOD_Particle_Mesh              ,ONLY: DefineparametersParticleMesh
 USE MOD_Particle_Analyze           ,ONLY: DefineParametersParticleAnalyze
-USE MOD_TTMInit                    ,ONLY: DefineParametersTTM
 USE MOD_PICInit                    ,ONLY: DefineParametersPIC
 USE MOD_DSMC_Init                  ,ONLY: DefineParametersDSMC
 USE MOD_DSMC_BGGas                 ,ONLY: DefineParametersBGG
@@ -84,9 +83,6 @@ USE MOD_DSMC_Symmetry              ,ONLY: DefineParametersParticleSymmetry
 USE MOD_SuperB_Init                ,ONLY: DefineParametersSuperB
 USE MOD_SurfaceModel_Chemistry     ,ONLY: DefineParametersSurfaceChemistry
 USE MOD_RayTracing_Init            ,ONLY: DefineParametersRayTracing
-#if USE_MPI
-USE mod_readIMD                    ,ONLY: DefineParametersReadIMDdata
-#endif
 #endif
 #if (PP_TimeDiscMethod==600)
 USE MOD_RadiationTrans_Init        ,ONLY: DefineParametersRadiationTrans
@@ -148,7 +144,6 @@ CALL DefineParametersPorousBC()
 CALL DefineParametersParticleMesh()
 CALL DefineParametersParticleBGM()
 CALL DefineParametersParticleAnalyze()
-CALL DefineParametersTTM()
 CALL DefineParametersPIC()
 CALL DefineParametersDSMC()
 CALL DefineParametersBGG()
@@ -167,9 +162,6 @@ CALL DefineParametersRadiationTrans()
 CALL DefineParametersSurfModel()
 CALL DefineParametersSurfModelAnalyze()
 CALL DefineParametersSurfaceChemistry()
-#if USE_MPI && defined(PARTICLES)
-CALL DefineParametersReadIMDdata()
-#endif /* USE_MPI */
 #endif
 
 SWRITE(UNIT_stdOut,'(132("="))')

@@ -495,8 +495,6 @@ DO iSpec=1,nSpecies
        xCoords(1:3,7) = xCoords(1:3,5) + (/0.,ylen,0./)
        xCoords(1:3,8) = xCoords(1:3,5) + (/xlen,ylen,0./)
        RegionOnProc=BoxInProc(xCoords,8)
-    CASE ('IMD')
-       RegionOnProc=.TRUE.
     CASE ('background')
        RegionOnProc=.TRUE.
     CASE ('EmissionDistribution')

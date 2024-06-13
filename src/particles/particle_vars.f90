@@ -46,7 +46,6 @@ INTEGER               :: FieldIonizationModel                                !'F
 LOGICAL,ALLOCATABLE   :: SpecReset(:)                                        ! Flag for resetting species distribution with init
                                                                              ! during restart
 LOGICAL               :: printRandomSeeds                                    ! print random seeds or not
-! IMD: Molecular Dynamics Model - ion distribution info
 LOGICAL               :: DoInitialIonization                                 ! When restarting from a state, ionize the species to a
                                                                              ! specific degree
 INTEGER               :: InitialIonizationSpecies                            ! Supply the number of species that are considered for
@@ -54,20 +53,6 @@ INTEGER               :: InitialIonizationSpecies                            ! S
 INTEGER , ALLOCATABLE :: InitialIonizationSpeciesID(:)                       ! Supply a vector with the species IDs that are used
                                                                              ! for the initial ionization.
 REAL                  :: InitialIonizationChargeAverage                      ! Average charge for each atom/molecule in the cell
-LOGICAL               :: DoImportIMDFile                                     ! read IMD (MD-Simulation) data from *.chkpt file
-REAL                  :: IMDTimeScale                                        ! Time unit of input file
-REAL                  :: IMDLengthScale                                      ! global IMD length scale
-INTEGER               :: IMDNumber                                           ! Output number IMD Data file
-CHARACTER(255)        :: IMDInputFile                                        ! Laser data file name containing PartState(1:6)
-INTEGER               :: IMDnSpecies                                         ! number of IMD species
-INTEGER , ALLOCATABLE :: IMDSpeciesID(:)                                     ! species ID for distributing the IMD atoms/ions
-INTEGER , ALLOCATABLE :: IMDSpeciesCharge(:)                                 ! charge number of IMD atoms/ions
-CHARACTER(255)        :: IMDAtomFile                                         ! Laser data file name containing PartState(1:6)
-REAL                  :: IMDCutOffxValue                                     ! cut-off coordinate for IMDCutOff='coordiantes'
-CHARACTER(255)        :: IMDCutOff                                           ! cut-off type for IMD data reduction: 1.) no_cutoff
-                                                                             !                                      2.) Epot
-                                                                             !                                      3.) coordinates
-                                                                             !                                      4.) velocity
 REAL    , ALLOCATABLE :: PartState(:,:)                                      ! 1st index: x,y,z,vx,vy,vz
 !                                                                            ! 2nd index: 1:NParts
 REAL    , ALLOCATABLE :: PartPosRef(:,:)                                     ! (1:3,1:NParts) particles pos mapped to -1|1 space

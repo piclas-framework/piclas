@@ -90,14 +90,9 @@ USE MOD_MPI                  ,ONLY: InitMPIvars
 #ifdef PARTICLES
 USE MOD_DSMC_Vars            ,ONLY: UseDSMC
 USE MOD_ParticleInit         ,ONLY: InitParticleGlobals,InitParticles,InitSymmetry
-USE MOD_TTMInit              ,ONLY: InitTTM,InitIMD_TTM_Coupling
-USE MOD_TTM_Vars             ,ONLY: DoImportTTMFile
 USE MOD_Particle_Analyze     ,ONLY: InitParticleAnalyze
 USE MOD_SurfaceModel_Analyze ,ONLY: InitSurfModelAnalyze
 USE MOD_Particle_MPI         ,ONLY: InitParticleMPI
-#if USE_MPI
-USE mod_readIMD              ,ONLY: initReadIMDdata,read_IMD_results
-#endif /* USE_MPI */
 #if defined(IMPA) || defined(ROS)
 USE MOD_ParticleSolver       ,ONLY: InitPartSolver
 #endif
@@ -202,19 +197,6 @@ CALL InitRadiation()
 CALL InitRadiationTransport()
 #endif
 
-#ifdef PARTICLES
-! Old IMD format
-  CALL InitTTM() ! FD grid based data from a Two-Temperature Model (TTM) from Molecular Dynamics (MD) Code IMD
-IF(DoImportTTMFile)THEN
-  CALL InitIMD_TTM_Coupling() ! use MD and TTM data to distribute the cell averaged charge to the atoms/ions
-END IF
-#if USE_MPI
-! New IMD binary format (not TTM needed as this information is stored on the atoms)
-CALL initReadIMDdata()
-CALL read_IMD_results()
-#endif /* USE_MPI */
-#endif /*PARTICLES*/
-
 CALL InitInterfaces() ! set Riemann solver identifier for face connectivity (vacuum, dielectric, PML ...)
 
 ! !do this last
@@ -278,7 +260,6 @@ USE MOD_PICInterpolation           ,ONLY: FinalizePICInterpolation
 USE MOD_ParticleInit               ,ONLY: FinalizeParticles
 USE MOD_Particle_Sampling_Adapt    ,ONLY: FinalizeParticleSamplingAdaptive
 USE MOD_Particle_Boundary_Init     ,ONLY: FinalizeParticleBoundary
-USE MOD_TTMInit                    ,ONLY: FinalizeTTM
 USE MOD_DSMC_Init                  ,ONLY: FinalizeDSMC
 USE MOD_MCC_Init                   ,ONLY: FinalizeMCC
 USE MOD_SurfaceModel_Porous        ,ONLY: FinalizePorousBoundaryCondition
@@ -388,8 +369,6 @@ CALL FinalizeRadiation()
 CALL FinalizeRadiationTransport()
 CALL FinalizePhotonSurfSample()
 #endif
-
-CALL FinalizeTTM() ! FD grid based data from a Two-Temperature Model (TTM) from Molecular Dynamics (MD) Code IMD
 #endif /*PARTICLES*/
 
 CALL FinalizeInterfaces()

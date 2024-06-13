@@ -562,8 +562,6 @@ CASE('maxwell')
        PartState(4:6,PositionNbr) = VeloIC *VeloVecIC(1:3) + iRanPart(1:3,iPart)*maxwellfac
     END IF
   END DO
-CASE('IMD') ! read IMD particle velocity from *.chkpt file -> velocity space has already been read when particles position was done
-  ! do nothing
 CASE('photon_SEE_energy')
   DO iPart = 1,NbrOfParticle
     PositionNbr = GetNextFreePosition(iPart)

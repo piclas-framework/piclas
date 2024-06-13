@@ -150,25 +150,6 @@ CALL prms%CreateIntOption(      'Part-CellMergeSpread'        , 'Describes the a
                                                                 'aggressive merge.','0')
 CALL prms%CreateIntOption(      'Part-MaxNumbCellsMerge'       ,'Maximum number of cells to be merged.','4')
 
-CALL prms%SetSection("IMD")
-! IMD things
-CALL prms%CreateRealOption(     'IMDTimeScale'                , 'Time unit of input file.\n The default value is'//&
-                                                                ' ~10.18 fs which comes from the unit system in IMD', '10.18e-15')
-CALL prms%CreateRealOption(     'IMDLengthScale'              , 'Length unit scale used by IMD which is 1 angstrom'&
-                                                              , '1.0e-10')
-CALL prms%CreateStringOption(   'IMDAtomFile'                 , 'IMD data file containing the atomic states for PartState(1:6)'&
-                                                              , 'no file found')
-CALL prms%CreateStringOption(   'IMDCutOff'                   , 'Atom cut-off parameter for reducing the number of improrted '//&
-                                                                'IMD particles\n'//&
-                                                                '1.) no_cutoff\n'//&
-                                                                '2.) Epot\n'//&
-                                                                '3.) coordinates\n'//&
-                                                                '4.) velocity', 'no_cutoff')
-CALL prms%CreateRealOption(     'IMDCutOffxValue'              ,"Cut-off coordinate for IMDCutOff='coordiantes'", '-999.9')
-CALL prms%CreateIntOption(      'IMDnSpecies'                 , 'Count of IMD species', '1')
-CALL prms%CreateStringOption(   'IMDInputFile'                , 'Laser data file name containing '//&
-                                                                'PartState(1:6) ' &
-                                                              , 'no file found')
 ! Variable particle weighting factor
 CALL prms%SetSection("vMPF")
 CALL prms%CreateLogicalOption(  'Part-vMPF'                   , 'Flag to use variable Macro Particle Factor.'    , '.FALSE.')
@@ -608,7 +589,6 @@ CALL MPI_BARRIER(MPI_COMM_PICLAS,IERROR)
 #if defined(PARTICLES) && USE_HDG
 CALL InitializeVariablesElectronFluidRegions()
 #endif /*defined(PARTICLES) && USE_HDG*/
-CALL InitializeVariablesIMD()
 CALL InitializeVariablesWriteMacroValues()
 CALL InitializeVariablesvMPF()
 CALL InitializeVariablesIonization()
@@ -1042,56 +1022,6 @@ END IF
 END SUBROUTINE InitializeVariablesvMPF
 
 
-SUBROUTINE InitializeVariablesIMD()
-!===================================================================================================================================
-! Initialize the variables first
-!===================================================================================================================================
-! MODULES
-USE MOD_ReadInTools
-USE MOD_Particle_Vars
-USE MOD_Globals_Vars            ,ONLY: ElementaryCharge
-! IMPLICIT VARIABLE HANDLING
- IMPLICIT NONE
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-INTEGER               :: iIMDSpec, iSpec
-LOGICAL               :: IsIMDSpecies
-CHARACTER(32)         :: hilf
-!===================================================================================================================================
-! IMD data import from *.chkpt file
-DoImportIMDFile=.FALSE. ! default
-IMDLengthScale=0.0
-
-IMDTimeScale          = GETREAL('IMDTimeScale','10.18e-15')
-IMDLengthScale        = GETREAL('IMDLengthScale','1.0E-10')
-IMDAtomFile           = GETSTR( 'IMDAtomFile','no file found')
-IMDCutOff             = GETSTR( 'IMDCutOff','no_cutoff')
-IMDCutOffxValue       = GETREAL('IMDCutOffxValue','-999.9')
-
-IF(TRIM(IMDAtomFile).NE.'no file found')DoImportIMDFile=.TRUE.
-
-! get information for IMD atom/ion charge determination and distribution
-IMDnSpecies         = GETINT('IMDnSpecies','1')
-IMDInputFile        = GETSTR('IMDInputFile','no file found')
-ALLOCATE(IMDSpeciesID(IMDnSpecies))
-ALLOCATE(IMDSpeciesCharge(IMDnSpecies))
-iIMDSpec=1
-DO iSpec = 1, nSpecies
-  WRITE(UNIT=hilf,FMT='(I0)') iSpec
-  IsIMDSpecies = GETLOGICAL('Part-Species'//TRIM(hilf)//'-IsIMDSpecies','.FALSE.')
-  IF(IsIMDSpecies)THEN
-    IMDSpeciesID(iIMDSpec)=iSpec
-    IMDSpeciesCharge(iIMDSpec)=NINT(Species(iSpec)%ChargeIC/ElementaryCharge)
-    iIMDSpec=iIMDSpec+1
-  END IF
-END DO
-END SUBROUTINE InitializeVariablesIMD
-
-
 #if defined(IMPA) || defined(ROS)
 SUBROUTINE InitializeVariablesImplicit()
 !===================================================================================================================================
@@ -1515,8 +1445,6 @@ DO iSpec = 1, nSpecies
 END DO
 SDEALLOCATE(Species)
 SDEALLOCATE(SpecReset)
-SDEALLOCATE(IMDSpeciesID)
-SDEALLOCATE(IMDSpeciesCharge)
 SDEALLOCATE(PartTimeStep)
 SDEALLOCATE(VarTimeStep%ElemFac)
 SDEALLOCATE(VarTimeStep%ElemWeight)

@@ -355,7 +355,6 @@ END IF ! MaxPartDisplacement
 
 !--------------------------------------------------------------------------------------------------------------------
 ! get more derived particle properties
-! (Note that for IMD/TTM initialization these values are calculated from the TTM grid values)
 !--------------------------------------------------------------------------------------------------------------------
 ! PointsPerDebyeLength: PPD = (p+1)*lambda_D/L_cell
 ! p:        Polynomial degree

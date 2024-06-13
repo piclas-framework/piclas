@@ -32,7 +32,6 @@ END INTERFACE
 
 PUBLIC :: WriteStateToHDF5
 #if defined(PARTICLES)
-PUBLIC :: WriteIMDStateToHDF5
 PUBLIC :: WriteElemDataToSeparateContainer
 #endif /*PARTICLES*/
 !===================================================================================================================================
@@ -902,76 +901,6 @@ dummy=mode
 #endif /*!(PARTICLES)*/
 
 END SUBROUTINE ModifyElemData
-
-
-#if defined(PARTICLES)
-SUBROUTINE WriteIMDStateToHDF5()
-!===================================================================================================================================
-! Write the particles data aquired from an IMD *.chkpt file to disk and abort the program
-!===================================================================================================================================
-! MODULES
-USE MOD_Globals
-USE MOD_Particle_Vars ,ONLY: IMDInputFile,IMDTimeScale,IMDLengthScale,IMDNumber
-USE MOD_Mesh_Vars     ,ONLY: MeshFile
-USE MOD_Restart_Vars  ,ONLY: DoRestart
-#if USE_MPI
-USE MOD_MPI           ,ONLY: FinalizeMPI
-#endif /*USE_MPI*/
-USE MOD_ReadInTools   ,ONLY: PrintOption
-USE MOD_HDF5_Output_Particles,ONLY: FillParticleData
-! IMPLICIT VARIABLE HANDLING
-IMPLICIT NONE
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-CHARACTER(LEN=255) :: tempStr
-REAL               :: t,tFuture,IMDtimestep
-INTEGER            :: iSTATUS,IMDanalyzeIter
-!===================================================================================================================================
-IF(.NOT.DoRestart)THEN
-  IF(IMDTimeScale.GT.0.0)THEN
-    SWRITE(UNIT_StdOut,'(A)')'   IMD: calc physical time in seconds for which the IMD *.chkpt file is defined.'
-    ! calc physical time in seconds for which the IMD *.chkpt file is defined
-    ! t = IMDanalyzeIter * IMDtimestep * IMDTimeScale * IMDNumber
-    IMDtimestep=0.0
-    CALL GetParameterFromFile(IMDInputFile,'timestep'   , TempStr ,DelimiterSymbolIN=' ',CommentSymbolIN='#')
-    CALL str2real(TempStr,IMDtimestep,iSTATUS)
-    IF(iSTATUS.NE.0)THEN
-      CALL abort(&
-      __STAMP__&
-      ,'Could not find "timestep" in '//TRIM(IMDInputFile)//' for IMDtimestep!')
-    END IF
-
-    IMDanalyzeIter=0
-    CALL GetParameterFromFile(IMDInputFile,'checkpt_int', TempStr ,DelimiterSymbolIN=' ',CommentSymbolIN='#')
-    CALL str2int(TempStr,IMDanalyzeIter,iSTATUS)
-    IF(iSTATUS.NE.0)THEN
-      CALL abort(&
-      __STAMP__&
-      ,'Could not find "checkpt_int" in '//TRIM(IMDInputFile)//' for IMDanalyzeIter!')
-    END IF
-    CALL PrintOption('IMDtimestep'    , 'OUTPUT' , RealOpt=IMDtimestep)
-    CALL PrintOption('IMDanalyzeIter' , 'OUTPUT' , IntOpt=IMDanalyzeIter)
-    CALL PrintOption('IMDTimeScale'   , 'OUTPUT' , RealOpt=IMDTimeScale)
-    CALL PrintOption('IMDLengthScale' , 'OUTPUT' , RealOpt=IMDLengthScale)
-    CALL PrintOption('IMDNumber'      , 'OUTPUT' , IntOpt=IMDNumber)
-    t = REAL(IMDanalyzeIter) * IMDtimestep * IMDTimeScale * REAL(IMDNumber)
-    CALL PrintOption('t'              , 'OUTPUT' , RealOpt=t)
-    SWRITE(UNIT_StdOut,'(A,ES25.14E3,A,F15.3,A)')     '   Calculated time t :',t,' (',t*1e12,' ps)'
-
-    tFuture=t
-    CALL FillParticleData()
-    CALL WriteStateToHDF5(TRIM(MeshFile),t,tFuture)
-    SWRITE(UNIT_StdOut,'(A)')'   Particles: StateFile (IMD MD data) created. Terminating successfully!'
-  ELSE
-    CALL abort(__STAMP__, ' IMDLengthScale.LE.0.0 which is not allowed')
-  END IF
-END IF
-END SUBROUTINE WriteIMDStateToHDF5
-#endif /*PARTICLES*/
 
 
 #if USE_LOADBALANCE || defined(PARTICLES)

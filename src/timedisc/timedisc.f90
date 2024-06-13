@@ -92,14 +92,12 @@ USE MOD_LoadDistribution       ,ONLY: WriteElemTimeStatistics
 #ifdef PARTICLES
 USE MOD_Particle_Localization  ,ONLY: CountPartsPerElem
 USE MOD_HDF5_Output_Particles  ,ONLY: WriteElectroMagneticPICFieldToHDF5
-USE MOD_HDF5_Output_State      ,ONLY: WriteIMDStateToHDF5
 USE MOD_Particle_Analyze_Vars  ,ONLY: CalcEMFieldOutput
 USE MOD_HDF5_Output_Particles  ,ONLY: FillParticleData
 #endif /*PARTICLES*/
 #ifdef PARTICLES
 USE MOD_RayTracing             ,ONLY: RayTracing
 !USE MOD_PICDepo                ,ONLY: Deposition
-USE MOD_Particle_Vars          ,ONLY: DoImportIMDFile
 #if USE_MPI
 USE MOD_PICDepo_Vars           ,ONLY: DepositionType
 #endif /*USE_MPI*/
@@ -229,12 +227,6 @@ END IF ! CalcPointsPerDebyeLength.OR.CalcPICTimeStep
 #endif
 CALL PerformAnalyze(time,FirstOrLastIter=.TRUE.,OutPutHDF5=.FALSE.)
 
-#ifdef PARTICLES
-IF(DoImportIMDFile)THEN
-  CALL WriteIMDStateToHDF5() ! Write IMD particles to state file (and TTM if it exists)
-  IF(.NOT.DoRestart) RETURN
-END IF ! DoImportIMDFile
-#endif /*PARTICLES*/
 IF((.NOT.DoRestart).OR.FlushInitialState.OR.(.NOT.FILEEXISTS(TRIM(TIMESTAMP(TRIM(ProjectName)//'_State',time))//'.h5'))) THEN
 #if defined(PARTICLES)
   CALL FillParticleData() ! Fill the SFC-ordered particle arrays

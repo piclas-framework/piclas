@@ -69,7 +69,7 @@ INTEGER,ALLOCATABLE           :: nPartOut(:)                         !< Number o
 REAL,ALLOCATABLE              :: PartEkinIn(:)                       !< Energy and temperature of input particle
 REAL,ALLOCATABLE              :: PartEkinOut(:)                      !< Energy and temperature of input particle
 
-! get derived particle properties (for IMD/TTM initialization these values are calculated from the TTM grid values)
+! get derived particle properties
 LOGICAL                       :: CalcDebyeLength                     !< Compute the Debye length (min and max) in each cell
 LOGICAL                       :: CalcPICTimeStep                     !< Compute the PIC time step from plasma frequency (min and max) in each cell
 LOGICAL                       :: CalcPICTimeStepCyclotron            !< Compute the PIC time step from cyclotron motion (min and max) in each cell

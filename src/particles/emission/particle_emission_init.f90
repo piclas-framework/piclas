@@ -53,7 +53,6 @@ CALL prms%CreateRealOption(   'Part-Species[$]-TimeStepFactor' ,'Species-specifi
 #if defined(IMPA)
 CALL prms%CreateLogicalOption(  'Part-Species[$]-IsImplicit'  , 'Flag if specific particle species is implicit', '.FALSE.', numberedmulti=.TRUE.)
 #endif
-CALL prms%CreateLogicalOption(  'Part-Species[$]-IsIMDSpecies', 'Flag if particle species is used for IMD coupling', '.FALSE.', numberedmulti=.TRUE.)
 
 CALL prms%SetSection("Particle Initialization (Inits)")
 
