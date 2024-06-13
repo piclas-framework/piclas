@@ -154,8 +154,6 @@ INTEGER           :: nDirichletBCsidesGlobal
 #if USE_PETSC
 PetscErrorCode    :: ierr
 INTEGER           :: iProc
-INTEGER           :: OffsetPETScSideMPI(nProcessors)
-INTEGER           :: OffsetPETScSide
 INTEGER           :: PETScLocalID
 INTEGER           :: MortarSideID,iMortar
 INTEGER           :: locSide,nMortarMasterSides,nMortars
@@ -564,36 +562,31 @@ CALL BuildPrecond()
 
 
 ! -------------------------------------------------------------------------------------------------
-! 999. Initialize PETSc
+! 10. Initialize PETSc
 ! -------------------------------------------------------------------------------------------------
 ! Steps:
 ! 3.1) Create PETSc mappings to build the global system
+!   a) Count all
+!   b)
 ! 3.2) Initialize PETSc objects
+!   a)
 
 #if USE_PETSC
 ! -+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-
 ! 3.1) Create PETSc mappings to build the global system
 ! PETSc needs the following mappings
 !     a.) nPETScUniqueSides: Number of local MY-sides that contribute to the PETSc System
-!     b.) nPETScUniqueSidesGlobal: Number of global sides that contribute to the PETSc System
-!           TODO Delete since sides may have different nDOFs
-!     c.) PETScGlobal(SideID): Maps the local SideID to the global PETScSideDOF
-!           TODO Delete - We have "OffsetGlobalPETScDOF" for that
 !     d.) PETScLocalToSideID: Maps the the localPETScSideID to the local SideID
 !     e.) nLocalPETScDOFs:
 !     f.) nGlobalPETScDOFs:
 
 ! Mappings / Variables:
 !   - nPETScUniqueSides (MY nPETScSides)
-!   - nPETScUniqueSidesGlobal (Not needed!)
-!   - PETScGlobal (Not needed!)
 !   - PETScLocalToSideID
 !   - nLocalPETScDOFs
 !   - nGlobalPETScDOFs
 !   - OffsetGlobalPETScDOF
 !   - LocalToGlobalPETScDOF
-
-OffsetPETScSide=0
 
 ! TODO PETSC P-Adaption - MORTARS
 ! Count all Mortar slave sides and remove them from PETSc vector
@@ -609,39 +602,20 @@ nPETScUniqueSides = nSides-nDirichletBCSides-nMPISides_YOUR-nMortarMasterSides-n
 ! -+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-
 ! XYZ: Fill PETScGlobal...
 ! TODO PETSC P-Adaption - Improvement: Delete PETScGlobal
-! PETScGlobal stuff
-ALLOCATE(PETScGlobal(nSides))
 ALLOCATE(PETScLocalToSideID(nPETScUniqueSides+nMPISides_YOUR))
-PETScGlobal=-1
 PETScLocalToSideID=-1
 PETScLocalID=0 ! = nSides-nDirichletBCSides
 DO SideID=1,nSides!-nMPISides_YOUR
   IF(MaskedSide(SideID).GT.0) CYCLE
   PETScLocalID=PETScLocalID+1
   PETScLocalToSideID(PETScLocalID)=SideID
-  PETScGlobal(SideID)=PETScLocalID+OffsetPETScSide-1 ! PETSc arrays start at 0!
 END DO
-! TODO PETSC P-Adaption - MORTARS
-! Set the Global PETSc Sides of small mortar sides equal to the big mortar side
-DO MortarSideID=firstMortarInnerSide,lastMortarInnerSide
-  nMortars=MERGE(4,2,MortarType(1,MortarSideID).EQ.1)
-  locSide=MortarType(2,MortarSideID)
-  DO iMortar=1,nMortars
-    SideID= MortarInfo(MI_SIDEID,iMortar,locSide) !small SideID
-    PETScGlobal(SideID)=PETScGlobal(MortarSideID)
-  END DO !iMortar
-END DO
-#if USE_MPI
-CALL StartReceiveMPIDataInt(1,PETScGlobal,1,nSides, RecRequest_U,SendID=1) ! Receive YOUR
-CALL StartSendMPIDataInt(   1,PETScGlobal,1,nSides,SendRequest_U,SendID=1) ! Send MINE
-CALL FinishExchangeMPIData(SendRequest_U,RecRequest_U,SendID=1)
-#endif
 
 ! -+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-
 ! 1. Calculate nLocalPETScDOFs without nMPISides_YOUR
 nLocalPETScDOFs = 0
 DO SideID=1,nSides-nMPISides_YOUR
-  IF(PETScGlobal(SideID).LT.0) CYCLE ! TODO is this MaskedSide?
+  IF(MaskedSide(SideID).GT.0) CYCLE ! TODO is this MaskedSide?
   nLocalPETScDOFs = nLocalPETScDOFs + nGP_face(N_SurfMesh(SideID)%NSideMin)
 END DO
 
@@ -663,7 +637,7 @@ nGlobalPETScDOFs = nLocalPETScDOFs
 #if USE_MPI
 ! 4. Add the nMPISides_YOUR to nLocalPETScDOFs
 DO SideID=nSides-nMPISides_YOUR+1,nSides
-  IF(PETScGlobal(SideID).LT.0) CYCLE ! TODO is this MaskedSide?
+  IF(MaskedSide(SideID).GT.0)
   nLocalPETScDOFs = nLocalPETScDOFs + nGP_face(N_SurfMesh(SideID)%NSideMin)
 END DO
 #endif
@@ -671,7 +645,7 @@ END DO
 ! 5. Calculate the global offset for each side
 ALLOCATE(OffsetGlobalPETScDOF(nSides))
 DO SideID=1,nSides-nMPISides_YOUR
-  IF(PETScGlobal(SideID).LT.0) CYCLE ! TODO is this MaskedSide?
+  IF(MaskedSide(SideID).GT.0)
   OffsetGlobalPETScDOF(SideID) = OffsetCounter
   OffsetCounter = OffsetCounter + nGP_face(N_SurfMesh(SideID)%NSideMin)
 END DO
@@ -689,8 +663,8 @@ CALL FinishExchangeMPIData(SendRequest_U,RecRequest_U,SendID=1)
 ALLOCATE(localToGlobalPETScDOF(nLocalPETScDOFs))
 iLocalPETScDOF = 0
 DO SideID=1,nSides
-  IF(PETScGlobal(SideID).LT.0) CYCLE ! TODO is this MaskedSide?
-  DO iDOF=1,nGP_face(N_SurfMesh(SideID)%NSideMin)
+  IF(MaskedSide(SideID).GT.0)
+    DO iDOF=1,nGP_face(N_SurfMesh(SideID)%NSideMin)
     iLocalPETScDOF = iLocalPETScDOF + 1
     LocalToGlobalPETScDOF(iLocalPETScDOF) = OffsetGlobalPETScDOF(SideID) + iDOF - 1
   END DO
@@ -2203,7 +2177,6 @@ PetscCallA(MatDestroy(PETScSystemMatrix,ierr))
 PetscCallA(VecDestroy(PETScSolution,ierr))
 PetscCallA(VecDestroy(PETScRHS,ierr))
 PetscCallA(PetscFinalize(ierr))
-SDEALLOCATE(PETScGlobal)
 SDEALLOCATE(PETScLocalToSideID)
 SDEALLOCATE(Smat_BC)
 SDEALLOCATE(SmallMortarType)

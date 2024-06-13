@@ -395,7 +395,7 @@ DO iElem=1,PP_nElems
     ! TODO PETSC P-Adaption - Improvement: Delete PETScGlobal
     ! iPETScGlobal should be OffsetSide or STH?
     ! Or with the current, just stay as it is?
-    iPETScGlobal=PETScGlobal(iSideID)
+    iPETScGlobal=PETScGlobal(iSideID) ! TODO use OffsetGlobalPETScDOF...
     IF (iPETScGlobal.EQ.-1) CYCLE
     DO jLocSide=1,6
       jSideID=ElemToSide(E2S_SIDE_ID,jLocSide,iElem)

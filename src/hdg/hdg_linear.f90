@@ -294,7 +294,7 @@ DO iBCSide=1,nDirichletBCSides
   DO iLocSide=1,6
     SideID = ElemToSide(E2S_SIDE_ID,iLocSide,ElemID)
     iNloc     = N_SurfMesh(SideID)%NSideMin
-    IF(PETScGlobal(SideID).EQ.-1) CYCLE
+    IF(MaskedSide(SideID).GT.0)
 
     ! TODO PETSC P-Adaption - Improvement: Store V^T * S * V in Smat
     ! ... S_{(i1,i2),(j1,i2)} = V^T_{i1,I1} * V^T_{i2,I2} * S_{(I1,I2),(J1,J2)} * V_{J1,j1} * V_{J2,j2}
@@ -411,7 +411,7 @@ CALL LBPauseTime(LB_DG,tLBStart) ! Pause/Stop time measurement
   PetscCallA(VecGetArrayReadF90(PETScSolutionLocal,lambda_pointer,ierr))
   DOF_stop = 0
   DO SideID=1,nSides
-    IF(PETScGlobal(SideID).EQ.-1) CYCLE
+    IF(MaskedSide(SideID).GT.0)
     Nloc = N_SurfMesh(SideID)%NSideMin
     DOF_start = 1 + DOF_stop
     DOF_stop = DOF_start + nGP_face(Nloc) - 1
