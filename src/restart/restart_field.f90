@@ -351,7 +351,7 @@ IF(PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance))THEN
           counts_recv  => (INT(MPInElemRecv     )) ,&
           disp_recv    => (INT(MPIoffsetElemRecv)))
     ! Communicate PartInt over MPI
-    MPI_LENGTH       = 3*(NMax+1)*(NMax+1)*(NMax+1)
+    MPI_LENGTH       = (PP_nVar+nVarVDL)*(NMax+1)*(NMax+1)*(NMax+1)
     MPI_DISPLACEMENT = 0  ! 0*SIZEOF(MPI_SIZE)
     MPI_TYPE         = MPI_DOUBLE_PRECISION
     CALL MPI_TYPE_CREATE_STRUCT(1,MPI_LENGTH,MPI_DISPLACEMENT,MPI_TYPE,MPI_STRUCT,iError)

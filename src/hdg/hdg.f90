@@ -1870,7 +1870,6 @@ IF(UseBRElectronFluid) THEN
   END IF
 ELSE
 #endif /*defined(PARTICLES)*/
-  write(*,*) "CALL HDGLinear(t)"
   CALL HDGLinear(t)
 #if defined(PARTICLES)
 END IF
