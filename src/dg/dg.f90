@@ -72,9 +72,9 @@ USE MOD_Restart_Vars       ,ONLY: DoRestart,RestartInitIsDone
 USE MOD_Interpolation_Vars ,ONLY: N_Inter,InterpolationInitIsDone,Nmax,Nmin
 USE MOD_Mesh_Vars          ,ONLY: nSides,nElems, offSetElem
 USE MOD_Mesh_Vars          ,ONLY: MeshInitIsDone
-#if ! (USE_HDG)
+#if!(USE_HDG)
 USE MOD_PML_Vars           ,ONLY: PMLnVar ! Additional fluxes for the CFS-PML auxiliary variables
-#endif /*USE_HDG*/
+#endif /*!(USE_HDG)*/
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Vars   ,ONLY: PerformLoadBalance
 USE MOD_LoadBalance_Vars   ,ONLY: UseH5IOLoadBalance
@@ -112,10 +112,10 @@ DO Nloc=Nmin,Nmax
 END DO
 
 #if !((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))
-#if USE_LOADBALANCE && !(USE_HDG)
+#if USE_LOADBALANCE
 ! Not "LB via MPI" means during 1st initialisation
 IF (.NOT.(PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance))) THEN
-#endif /*USE_LOADBALANCE && !(USE_HDG)*/
+#endif /*USE_LOADBALANCE*/
   ! the local DG solution in physical and reference space
   ALLOCATE(U_N(1:nElems))
   DO iElem = 1, nElems
@@ -135,20 +135,20 @@ IF (.NOT.(PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance))) THEN
     END IF ! DoPML
 #endif /*#if (PP_TimeDiscMethod==1)||(PP_TimeDiscMethod==2)|| (PP_TimeDiscMethod==6)*/
   END DO ! iElem = 1, nElems
-#if USE_LOADBALANCE && !(USE_HDG)
-END IF
-#endif /*USE_LOADBALANCE && !(USE_HDG)*/
 
-! Allocate additional containers
-#if USE_HDG
-DO iElem = 1, nElems
-  Nloc = N_DG_Mapping(2,iElem+offSetElem)
-  ALLOCATE(U_N(iElem)%E(1:3,0:Nloc,0:Nloc,0:Nloc))
-  ALLOCATE(U_N(iElem)%Dt(1:3,0:Nloc,0:Nloc,0:Nloc))
-  U_N(iElem)%E = 0.
-  U_N(iElem)%Dt = 0.
-END DO ! iElem = 1, nElems
-#else
+  ! Allocate additional containers
+  DO iElem = 1, nElems
+    Nloc = N_DG_Mapping(2,iElem+offSetElem)
+    ALLOCATE(U_N(iElem)%E(1:3,0:Nloc,0:Nloc,0:Nloc))
+    ALLOCATE(U_N(iElem)%Dt(1:3,0:Nloc,0:Nloc,0:Nloc))
+    U_N(iElem)%E = 0.
+    U_N(iElem)%Dt = 0.
+  END DO ! iElem = 1, nElems
+#if USE_LOADBALANCE
+END IF
+#endif /*USE_LOADBALANCE*/
+
+#if !(USE_HDG)
 #if (PP_TimeDiscMethod==1)||(PP_TimeDiscMethod==2)|| (PP_TimeDiscMethod==6)
 ! the time derivative computed with the DG scheme
 ALLOCATE(Ut_N(nElems))
@@ -166,14 +166,14 @@ DO iElem = 1, nElems
       Ut_N(iElem)%Ut_temp = 0.
     END IF ! isPMLElem(iElem)
   END IF ! DoPML
-#endif
+#endif /*(PP_TimeDiscMethod==1)||(PP_TimeDiscMethod==2)|| (PP_TimeDiscMethod==6)*/
 END DO ! iElem = 1, nElems
-#endif /*USE_HDG*/
+#endif /*!(USE_HDG)*/
 
 #if IMPA || ROS
-ALLOCATE( Un(PP_nVar,0:PP_N,0:PP_N,0:PP_N,nElems))
+ALLOCATE(Un(PP_nVar,0:PP_N,0:PP_N,0:PP_N,nElems))
 Un=0.
-#endif
+#endif /*IMPA || ROS*/
 !nTotal_face = (PP_N+1)*(PP_N+1)
 !nTotal_vol  = nTotal_face*(PP_N+1)
 !nTotalU     = PP_nVar*nTotal_vol*nElems
@@ -696,9 +696,9 @@ SUBROUTINE FinalizeDG()
 ! MODULES
 USE MOD_globals          ,ONLY: abort
 USE MOD_DG_Vars
-#if USE_LOADBALANCE && ! (USE_HDG)
+#if USE_LOADBALANCE
 USE MOD_LoadBalance_Vars ,ONLY: PerformLoadBalance,UseH5IOLoadBalance
-#endif /*USE_LOADBALANCE && ! (USE_HDG)*/
+#endif /*USE_LOADBALANCE*/
 #if (PP_TimeDiscMethod==1)||(PP_TimeDiscMethod==2)|| (PP_TimeDiscMethod==6)
 USE MOD_TimeDisc_Vars    ,ONLY: Ut_N
 #endif
@@ -718,14 +718,14 @@ SDEALLOCATE(Un)
 SDEALLOCATE(U_Surf_N)
 
 ! Do not deallocate the solution vector during load balance here as it needs to be communicated between the processors
-#if USE_LOADBALANCE && !(USE_HDG)
+#if USE_LOADBALANCE
 IF(.NOT.(PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance)))THEN
-#endif /*USE_LOADBALANCE && !(USE_HDG)*/
+#endif /*USE_LOADBALANCE*/
   ! Keep for load balance and deallocate/reallocate after communication
   SDEALLOCATE(U_N)
-#if USE_LOADBALANCE && !(USE_HDG)
+#if USE_LOADBALANCE
 END IF
-#endif /*USE_LOADBALANCE && !(USE_HDG)*/
+#endif /*USE_LOADBALANCE*/
 
 #if (PP_TimeDiscMethod==1)||(PP_TimeDiscMethod==2)|| (PP_TimeDiscMethod==6)
 SDEALLOCATE(Ut_N)

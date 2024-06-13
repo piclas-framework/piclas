@@ -797,6 +797,7 @@ ASSOCIATE( tBR2Kin => BRConvertFluidToElectronsTime ,&
       SwitchToBR=.TRUE.! check if a switch happens now to update the variable reference electron temperature
       IF((.NOT.BRConvertModelRepeatedly).AND.(BRConvertMode.EQ.-1))tBR2Kin = -1.0 ! deactivate BR -> kin
       ! Recompute lambda: force iteration
+      ! RecomputeLambda() calls HDG(), which calls HDGLinear() that calculates U_N(iElem)%U, which requires HDG_Vol_N(iElem)%RHS_vol
       !CALL  RecomputeLambda(time)
       ! Deactivate Null-Collision
       XSec_NullCollision = .FALSE.

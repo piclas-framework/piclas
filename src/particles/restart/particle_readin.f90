@@ -481,7 +481,7 @@ ELSE
   ! PartSource
   ! ------------------------------------------------
   IF(.NOT.RestartNullifySolution)THEN ! Use the solution in the restart file
-    !-- read PartSource if relaxation is performed (might be needed for RestartHDG)
+    !-- read PartSource if relaxation is performed (might be needed for RecomputeEFieldHDG)
     IF (DoDeposition .AND. RelaxDeposition) THEN
       CALL OpenDataFile(RestartFile,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_PICLAS)
       CALL DatasetExists(File_ID,'DG_Source',DGSourceExists)

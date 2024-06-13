@@ -37,14 +37,15 @@ INTERFACE FinalizeHDG
 END INTERFACE
 
 PUBLIC :: InitHDG,FinalizeHDG
-PUBLIC :: HDG, RestartHDG
+PUBLIC :: HDG, RecomputeEFieldHDG
 PUBLIC :: DefineParametersHDG
 #if USE_MPI
 PUBLIC :: SynchronizeChargeOnFPC,SynchronizeVoltageOnEPC
 #if defined(PARTICLES)
- PUBLIC :: SynchronizeBV
+PUBLIC :: SynchronizeBV
 #endif /*defined(PARTICLES)*/
 #endif /*USE_MPI */
+PUBLIC :: CalculatePhiAndEFieldFromCurrentsVDL
 #endif /*USE_HDG*/
 !===================================================================================================================================
 
@@ -1740,9 +1741,9 @@ END SUBROUTINE SynchronizeVoltageOnEPC
 !> HDG solver for linear or non-linear systems
 !===================================================================================================================================
 #if defined(PARTICLES)
-SUBROUTINE HDG(t,iter,ForceCGSolverIteration_opt)
+SUBROUTINE HDG(t,iter,ForceCGSolverIteration_opt,RecomputeLambda_opt)
 #else
-SUBROUTINE HDG(t,iter)
+SUBROUTINE HDG(t,iter,RecomputeLambda_opt)
 #endif /*defined(PARTICLES)*/
 ! MODULES
 USE MOD_Globals
@@ -1771,6 +1772,7 @@ INTEGER(KIND=8),INTENT(IN)  :: iter
 #if defined(PARTICLES)
 LOGICAL,INTENT(IN),OPTIONAL :: ForceCGSolverIteration_opt ! set converged=F in first step (only required for BR electron fluid)
 #endif /*defined(PARTICLES)*/
+LOGICAL,INTENT(IN),OPTIONAL :: RecomputeLambda_opt        ! Is set true during restart and is used to skip the calculation of dD/dt
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1779,18 +1781,23 @@ LOGICAL,INTENT(IN),OPTIONAL :: ForceCGSolverIteration_opt ! set converged=F in f
 LOGICAL :: ForceCGSolverIteration_loc
 INTEGER :: iUniqueEPCBC
 #endif /*defined(PARTICLES)*/
+LOGICAL :: RecomputeLambda_loc
 !===================================================================================================================================
 #ifdef EXTRAE
 CALL extrae_eventandcounters(int(9000001), int8(4))
 #endif /*EXTRAE*/
 
+IF (PRESENT(RecomputeLambda_opt)) THEN; RecomputeLambda_loc = RecomputeLambda_opt
+ELSE;                                   RecomputeLambda_loc = .FALSE.
+END IF
+
 #if (USE_HDG && (PP_nVar==1))
 ! Calculate temporal derivate of D in last iteration before Analyze_dt is reached: Store E^n here
-IF(CalcElectricTimeDerivative) CALL CalculateElectricTimeDerivative(iter,1)
+IF(CalcElectricTimeDerivative.AND.(.NOT.RecomputeLambda_loc)) CALL CalculateElectricTimeDerivative(iter,1)
 #endif /*(USE_HDG && (PP_nVar==1))*/
 
 ! Check whether the solver should be skipped in this iteration
-IF (iter.GT.0 .AND. HDGSkip.NE.0) THEN
+IF ((iter.GT.0).AND.( HDGSkip.NE.0)) THEN
   IF (t.LT.HDGSkip_t0) THEN
     IF (MOD(iter,INT(HDGSkipInit,8)).NE.0) RETURN
   ELSE
@@ -1863,6 +1870,7 @@ IF(UseBRElectronFluid) THEN
   END IF
 ELSE
 #endif /*defined(PARTICLES)*/
+  write(*,*) "CALL HDGLinear(t)"
   CALL HDGLinear(t)
 #if defined(PARTICLES)
 END IF
@@ -1870,7 +1878,7 @@ END IF
 
 #if (USE_HDG && (PP_nVar==1))
 ! Calculate temporal derivate of D in last iteration before Analyze_dt is reached: Use E^n+1 here and calculate the derivative dD/dt
-IF(CalcElectricTimeDerivative) CALL CalculateElectricTimeDerivative(iter,2)
+IF(CalcElectricTimeDerivative.AND.(.NOT.RecomputeLambda_loc)) CALL CalculateElectricTimeDerivative(iter,2)
 #endif /*(USE_HDG && (PP_nVar==1))*/
 
 #ifdef EXTRAE
@@ -1908,13 +1916,15 @@ INTEGER,INTENT(IN) :: mode !< 1: store E^n at the beginning of the time step
 INTEGER           :: iDir,iElem
 #endif /*(USE_HDG && (PP_nVar==1))*/
 !===================================================================================================================================
-
 #if (PP_TimeDiscMethod==501) || (PP_TimeDiscMethod==502) || (PP_TimeDiscMethod==506)
 IF((iStage.NE.1).AND.(iStage.NE.nRKStages)) RETURN
 #endif
 
 ! iter is incremented after this function and then checked in analyze routine with iter+1
-IF(ALMOSTEQUAL(dt,dt_Min(DT_ANALYZE)).OR.ALMOSTEQUAL(dt,dt_Min(DT_END)).OR.(MOD(iter+1,FieldAnalyzeStep).EQ.0))THEN
+IF( ( ALMOSTEQUAL(dt,dt_Min(DT_ANALYZE)).OR. & ! Analysis dt
+      ALMOSTEQUAL(dt,dt_Min(DT_END)).OR.     & ! tEnd is reached
+      (MOD(iter+1,FieldAnalyzeStep).EQ.0)    & ! Field analysis is reached
+    ) .OR. DoVirtualDielectricLayer)THEN       ! Exception: VDL requires analysis in every time step (integration of ODE)
   IF(mode.EQ.1)THEN
     ! Store E^n at the beginning of the time step
     DO iElem = 1, nElems
@@ -1940,11 +1950,8 @@ IF(ALMOSTEQUAL(dt,dt_Min(DT_ANALYZE)).OR.ALMOSTEQUAL(dt,dt_Min(DT_END)).OR.(MOD(
     END IF ! DoDielectric
 
     ! Calculate the electric VDL surface potential from the particle and electric displacement current
-    IF(DoVirtualDielectricLayer) CALL CalculatePhiAndEFieldFromCurrentsVDL()
-    WRITE (*,*) "iter =", iter, "yes"
+    IF(DoVirtualDielectricLayer) CALL CalculatePhiAndEFieldFromCurrentsVDL(.TRUE.)
   END IF ! mode.EQ.1
-ELSE
-  WRITE (*,*) "iter =", iter, "no"
 END IF
 
 END SUBROUTINE CalculateElectricTimeDerivative
@@ -1953,7 +1960,7 @@ END SUBROUTINE CalculateElectricTimeDerivative
 !===================================================================================================================================
 !> description
 !===================================================================================================================================
-SUBROUTINE CalculatePhiAndEFieldFromCurrentsVDL()
+SUBROUTINE CalculatePhiAndEFieldFromCurrentsVDL(UpdatePhiF)
 ! MODULES
 USE MOD_Globals                ,ONLY: VECNORM
 USE MOD_Globals_Vars           ,ONLY: eps0
@@ -1963,14 +1970,16 @@ USE MOD_DG_Vars                ,ONLY: U_N,N_DG_Mapping
 USE MOD_PICDepo_Vars           ,ONLY: PS_N
 USE MOD_Particle_Boundary_Vars ,ONLY: N_SurfVDL,PartBound,ElementThicknessVDL
 USE MOD_ProlongToFace          ,ONLY: ProlongToFace_Side
+USE MOD_TimeDisc_Vars          ,ONLY: time
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! INPUT / OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER          :: ElemID,SideID,ilocSide,Nloc,iPartBound,p,q
-REAL,ALLOCATABLE :: jface(:,:,:),Dtface(:,:,:)
+REAL,ALLOCATABLE :: jface(:,:,:)
 REAL             :: coeff
+LOGICAL          :: UpdatePhiF
 !===================================================================================================================================
 ! 1.) Loop over all processor-local BC sides and therein find the local side ID which corresponds to the reference element and
 !     interpolate the vector field E = (/Ex, Ey, Ez/) to the boundary face
@@ -1985,47 +1994,47 @@ DO SideID=1,nBCSides
   ! Skip sides that are not a VDL boundary (these sides are still in the list of sides)
   IF(PartBound%ThicknessVDL(iPartBound).GT.0.0)THEN
 
-    ! Allocate jface and Dtface depending on the local polynomial degree
-    ALLOCATE(jface( 1:3,0:Nloc,0:Nloc))
-    ALLOCATE(Dtface(1:3,0:Nloc,0:Nloc))
+    ! Allocate jface depending on the local polynomial degree
+    ALLOCATE(jface(1:3,0:Nloc,0:Nloc))
     ! Get local side index
     ilocSide = SideToElem(S2E_LOC_SIDE_ID,SideID)
-    ! Prolong-to-face depending on orientation in reference element
-    CALL ProlongToFace_Side(3, Nloc, ilocSide, 0, U_N(ElemID)%Dt(:,:,:,:), Dtface)
-    CALL ProlongToFace_Side(3, Nloc, ilocSide, 0, PS_N(ElemID)%PartSource(1:3,:,:,:), jface)
 
-    ! 2.) Apply the normal vector to get the normal electric field
+    IF(UpdatePhiF)THEN
+      ! Calculate coefficient
+      coeff = (PartBound%ThicknessVDL(iPartBound)*dt)/(eps0*PartBound%PermittivityVDL(iPartBound))
+
+      ! Update PhiF:  PhiF_From_Currents: PhiF^n - PhiF^n-1 = -(d*dt)/(eps0*epsR)*(jp+jD)
+      U_N(ElemID)%PhiF(1:3,:,:,:) = U_N(ElemID)%PhiF(1:3,:,:,:) &
+                                  - coeff * ( PS_N(ElemID)%PartSource(1:3,:,:,:) + U_N(ElemID)%Dt(1:3,:,:,:) )
+    END IF ! UpdatePhiF
+    !WRITE (*,*) "XXXX: jp + jD =", MAXVAL(ABS(PS_N(ElemID)%PartSource(1:3,:,:,:))), MAXVAL(ABS(U_N(ElemID)%Dt(1:3,:,:,:)))
+
+    ! Prolong-to-face depending on orientation in reference element
+    CALL ProlongToFace_Side(3, Nloc, ilocSide, 0, U_N(ElemID)%PhiF(1:3,0:Nloc,0:Nloc,0:Nloc), jface(1:3,0:Nloc,0:Nloc))
+
+    !IF(UpdatePhiF) WRITE (*,*) "time   , N_SurfVDL(SideID)%U(9,0,0) =", time, N_SurfVDL(SideID)%U(9,0,0)
+
+    ! 2.) Apply the normal vector to get the flux over the boundary face
     DO q=0,Nloc
       DO p=0,Nloc
-        ASSOCIATE( normal => -N_SurfMesh(SideID)%NormVec(1:3,p,q), D => Dtface(1:3,p,q), j => jface(1:3,p,q))
-          ! D_normal =  <D,normal>
-          Dtface(1,p,q) = DOT_PRODUCT(D,normal)
-          ! j_normal =  <j,normal>
-          jface(1,p,q)  = DOT_PRODUCT(j,normal)
+        ASSOCIATE( normal => N_SurfMesh(SideID)%NormVec(1:3,p,q), j => jface(1:3,p,q), PhiF => N_SurfVDL(SideID)%U(9,p,q))
+          ! j_normal = <j,normal> with normal inverted
+          !jface(1,p,q) = DOT_PRODUCT(j,-normal)
+          PhiF = DOT_PRODUCT(j,-normal)
         END ASSOCIATE
       END DO ! p
     END DO ! q
 
-    ! Calculate coefficient
-    coeff = (PartBound%ThicknessVDL(iPartBound)*dt)/(eps0*PartBound%PermittivityVDL(iPartBound))
-
-    ! Calculate the corrected E-field
-    !N_SurfVDL(SideID)%U(2:4,:,:) = N_SurfVDL(SideID)%U(2:4,:,:) * (ElementThicknessVDL(ElemID)/PartBound%ThicknessVDL(iPartBound))
-
-    ! Get Phi_F
+    ! 3.) Get E from Phi_F
     DO q=0,Nloc
       DO p=0,Nloc
         ASSOCIATE(      E => N_SurfVDL(SideID)%U(10:12,p,q)     ,&
                    normal => N_SurfMesh(SideID)%NormVec(1:3,p,q),&
-                       jp => jface(1,p,q)                       ,&
-                       jD => Dtface(1,p,q)                      ,&
+                        j => jface(1,p,q)                       ,&
                      PhiF => N_SurfVDL(SideID)%U(9,p,q)         )
-          ! Normal vector points outwards on BC sides, hence, invert it
-          !Edir = DOT_PRODUCT(E,-normal)
-
           ! Reconstruct Phi_F from the current density and the (uncorrected) electric displacement fields in each element
           ! PhiF_From_Currents: PhiF^n - PhiF^n-1 = -(d*dt)/(eps0*epsR)*(jp+jD)
-          PhiF = PhiF - coeff*(jp+jD)
+          !PhiF = j
 
           ! Reconstruct E from Phi_Max via E = Phi/d
           E =  PhiF/PartBound%ThicknessVDL(iPartBound)*normal
@@ -2034,10 +2043,8 @@ DO SideID=1,nBCSides
       END DO ! p
     END DO ! q
     !WRITE (*,*) "N_SurfVDL(SideID)%U(9,:,:) =", N_SurfVDL(SideID)%U(9,:,:)
-
+    !IF(UpdatePhiF)THEN WRITE (*,*) "time+dt, N_SurfVDL(SideID)%U(9,0,0) =", time+dt, N_SurfVDL(SideID)%U(9,0,0)
     DEALLOCATE(jface)
-    DEALLOCATE(Dtface)
-
   END IF ! PartBound%ThicknessVDL(iPartBound).GT.0.0
 END DO ! SideID=1,nBCSides
 
@@ -2048,7 +2055,7 @@ END SUBROUTINE CalculatePhiAndEFieldFromCurrentsVDL
 !===================================================================================================================================
 !> During restart, recalculate the gradient of the HDG solution
 !===================================================================================================================================
-SUBROUTINE RestartHDG()
+SUBROUTINE RecomputeEFieldHDG()
 ! MODULES
 USE MOD_Globals
 USE MOD_PreProc
@@ -2065,6 +2072,7 @@ USE MOD_Equation_Vars ,ONLY: B
 #else
 USE MOD_Equation_Vars ,ONLY: B, E
 #endif
+USE MOD_DG_Vars  ,ONLY: U_N
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -2098,7 +2106,7 @@ REAL    :: BTemp(3,3,nGP_vol(PP_N),PP_nElems)
   END DO; END DO; END DO !i,j,k
   CALL PostProcessGradient(U_out(4,:,:),lambda(4,:,:),E)
 #endif
-END SUBROUTINE RestartHDG
+END SUBROUTINE RecomputeEFieldHDG
 #endif /*USE_HDG*/
 
 

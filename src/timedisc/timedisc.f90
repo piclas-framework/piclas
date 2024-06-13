@@ -472,7 +472,7 @@ DO !iter_t=0,MaxIter
                                        ! the state file
         RestartWallTime = PICLASTIME() ! Set restart wall time if a load balance step is performed
         dtWeight        = 1.           ! is initialized in InitTimeDisc which is not called in LoadBalance, but needed for restart
-                                       ! (RestartHDG)
+                                       ! (RecomputeEFieldHDG)
       END IF
       CALL LoadBalance()
     ELSE

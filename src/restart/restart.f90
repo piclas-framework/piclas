@@ -280,7 +280,6 @@ USE MOD_RayTracing             ,ONLY: RayTracing
 #endif /*defined(PARTICLES)*/
 #if USE_HDG
 USE MOD_Restart_Tools          ,ONLY: RecomputeLambda
-USE MOD_HDG                    ,ONLY: RestartHDG
 #endif /*USE_HDG*/
 #if !((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))
 USE MOD_Restart_Field          ,ONLY: FieldRestart
@@ -303,6 +302,7 @@ IF(DoRestart)THEN
 
   ! Restart field arrays
 #if !((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))
+  ! FieldRestart() -> RecomputeEFieldHDG() -> PostProcessGradientHDG(), which requires U_N(iElem)%U and HDG_Surf_N(iSide)%lambda
   CALL FieldRestart()
 #endif /*!((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))*/
 
@@ -319,7 +319,8 @@ IF(DoRestart)THEN
   ! 1) MPI-Communication for shape-function particles
   ! 2) Deposition
   ! 3) ONE HDG solve
-  CALL  RecomputeLambda(RestartTime)
+  ! RecomputeLambda() -> HDG(), which -> HDGLinear() that calculates U_N(iElem)%U, which requires HDG_Vol_N(iElem)%RHS_vol
+  !CALL  RecomputeLambda(RestartTime) ! Is this still required? E.g. for electron fluid simulations?
 #endif /*USE_HDG*/
 
   ! Delete all files that will be rewritten

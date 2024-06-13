@@ -723,9 +723,13 @@ USE MOD_Mesh_Vars              ,ONLY: ElemToSide,nSides,offSetElem,SideToNonUniq
 USE MOD_Mesh_Tools             ,ONLY: GetCNSideID
 USE MOD_Particle_Surfaces      ,ONLY: CalcNormAndTangTriangle
 USE MOD_Particle_Mesh_Vars     ,ONLY: NodeCoords_Shared,ElemSideNodeID_Shared, SideInfo_Shared
-USE MOD_DG_Vars                ,ONLY: N_DG_Mapping
+USE MOD_DG_Vars                ,ONLY: N_DG_Mapping,U_N
 USE MOD_Particle_Boundary_Vars ,ONLY: GlobalSide2SurfSide
 USE MOD_Particle_Boundary_Vars ,ONLY: nComputeNodeSurfSides
+#if USE_LOADBALANCE
+USE MOD_LoadBalance_Vars       ,ONLY: PerformLoadBalance
+USE MOD_LoadBalance_Vars       ,ONLY: UseH5IOLoadBalance
+#endif /*USE_LOADBALANCE*/
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! INPUT / OUTPUT VARIABLES
@@ -806,6 +810,19 @@ DO iSide = 1, nBCSides
   ALLOCATE(N_SurfVDL(iSide)%U(nVarSurfData,0:Nloc,0:Nloc))
   N_SurfVDL(iSide)%U = 0.
 END DO ! iSide = 1, nBCSides
+
+#if USE_LOADBALANCE
+! Not "LB via MPI" means during 1st initialisation
+IF (.NOT.(PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance))) THEN
+#endif /*USE_LOADBALANCE*/
+  DO iElem = 1, nElems
+    Nloc = N_DG_Mapping(2,iElem+offSetElem)
+    ALLOCATE(U_N(iElem)%PhiF(1:3,0:Nloc,0:Nloc,0:Nloc))
+    U_N(iElem)%PhiF = 0.
+  END DO ! iElem = 1, nElems
+#if USE_LOADBALANCE
+END IF
+#endif /*USE_LOADBALANCE*/
 
 END SUBROUTINE InitVirtualDielectricLayer
 
