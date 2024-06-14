@@ -15,7 +15,7 @@ MARK_AS_ADVANCED(FORCE LIBS_EXTERNAL_LIB_DIR)
 # Check where the code originates
 # =========================================================================
 IF(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/.git)
-  EXECUTE_PROCESS(COMMAND git ls-remote --get-url OUTPUT_VARIABLE GIT_ORIGIN)
+  EXECUTE_PROCESS(COMMAND git ls-remote --get-url OUTPUT_VARIABLE GIT_ORIGIN WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
 
   # Strip lead and trailing white space
   string(STRIP ${GIT_ORIGIN} GIT_ORIGIN)

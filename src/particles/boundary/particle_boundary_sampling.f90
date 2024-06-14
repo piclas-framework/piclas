@@ -116,7 +116,6 @@ USE MOD_Particle_Boundary_Vars  ,ONLY: SampWallImpactNumber_Shared,SampWallImpac
 USE MOD_Particle_MPI_Boundary_Sampling,ONLY: InitSurfCommunication
 #else
 USE MOD_MPI_Shared_Vars         ,ONLY: mySurfRank
-USE MOD_Particle_Mesh_Vars      ,ONLY: nComputeNodeSides
 USE MOD_Particle_Boundary_Vars  ,ONLY: nGlobalOutputSides
 #endif /*USE_MPI*/
 #if USE_LOADBALANCE
@@ -1103,8 +1102,8 @@ USE MOD_Globals
 !USE MOD_DSMC_Vars                      ,ONLY: DSMC
 USE MOD_Particle_Boundary_Vars
 !USE MOD_Particle_Vars                  ,ONLY: WriteMacroSurfaceValues
-USE MOD_SurfaceModel_Vars              ,ONLY: nPorousBC
 #if USE_MPI
+USE MOD_SurfaceModel_Vars              ,ONLY: nPorousBC
 USE MOD_MPI_Shared_Vars                ,ONLY: MPI_COMM_SHARED,MPI_COMM_LEADERS_SURF
 USE MOD_MPI_Shared
 USE MOD_Particle_MPI_Boundary_Sampling ,ONLY: FinalizeSurfCommunication

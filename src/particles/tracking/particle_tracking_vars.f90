@@ -55,6 +55,7 @@ INTEGER,ALLOCATABLE :: ListDistance(:)             ! the corresponding element i
 TYPE tTrackingInfo
   INTEGER           :: CurrElem
   INTEGER           :: LocSide
+  INTEGER           :: LastSide
   INTEGER           :: GlobSide
   INTEGER           :: flip
   INTEGER           :: TriNum
