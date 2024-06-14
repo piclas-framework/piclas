@@ -521,18 +521,18 @@ ELSE ! Normal restart
 
 #ifdef PP_POIS
 #if (PP_nVar==8)
-    CALL ReadArray('DG_SolutionE',5,(/PP_nVar,Nres8+1_IK,Nres8+1_IK,Nres8+1_IK,PP_nElemsTmp/),OffsetElemTmp,5,RealArray=U)
+    CALL ReadArray('DG_SolutionE',5,(/nVar,Nres8+1_IK,Nres8+1_IK,Nres8+1_IK,PP_nElemsTmp/),OffsetElemTmp,5,RealArray=U)
     CALL ReadArray('DG_SolutionPhi',5,(/4_IK,Nres8+1_IK,Nres8+1_IK,Nres8+1_IK,PP_nElemsTmp/),OffsetElemTmp,5,RealArray=Phi)
 #else
-    CALL ReadArray('DG_SolutionE',5,(/PP_nVar,Nres8+1_IK,Nres8+1_IK,Nres8+1_IK,PP_nElemsTmp/),OffsetElemTmp,5,RealArray=U)
-    CALL ReadArray('DG_SolutionPhi',5,(/PP_nVar,Nres8+1_IK,Nres8+1_IK,Nres8+1_IK,PP_nElemsTmp/),OffsetElemTmp,5,RealArray=Phi)
+    CALL ReadArray('DG_SolutionE',5,(/nVar,Nres8+1_IK,Nres8+1_IK,Nres8+1_IK,PP_nElemsTmp/),OffsetElemTmp,5,RealArray=U)
+    CALL ReadArray('DG_SolutionPhi',5,(/nVar,Nres8+1_IK,Nres8+1_IK,Nres8+1_IK,PP_nElemsTmp/),OffsetElemTmp,5,RealArray=Phi)
 #endif /*PP_nVar==8*/
 #elif USE_HDG
     ! TODO: Do we need this for the HDG solver? It seems so ....
     CALL DatasetExists(File_ID,'DG_Solution',DG_SolutionExists)
     IF(DG_SolutionExists)THEN
       ALLOCATE(U(PP_nVar,0:Nres,0:Nres,0:Nres,PP_nElemsTmp))
-      CALL ReadArray('DG_Solution' ,5,(/PP_nVar,Nres+1_IK,Nres+1_IK,Nres+1_IK,PP_nElemsTmp/),OffsetElemTmp,5,RealArray=U)
+      CALL ReadArray('DG_Solution' ,5,(/nVar,Nres+1_IK,Nres+1_IK,Nres+1_IK,PP_nElemsTmp/),OffsetElemTmp,5,RealArray=U)
     ELSE
       CALL abort(__STAMP__,'DG_Solution does not exist')
     END IF
@@ -696,7 +696,7 @@ ELSE ! Normal restart
         ASSOCIATE( nVarPhiF => 3 )
           ALLOCATE(U(1:nVarPhiF,0:Nres,0:Nres,0:Nres,PP_nElemsTmp))
           ALLOCATE(Uloc(1:nVarPhiF,0:Nres,0:Nres,0:Nres))
-          CALL ReadArray('DG_PhiF',5,(/nVarPhiF,Nres8+1_IK,Nres8+1_IK,Nres8+1_IK,PP_nElemsTmp/),OffsetElemTmp,5,RealArray=U)
+          CALL ReadArray('DG_PhiF',5,(/INT(nVarPhiF,IK),Nres8+1_IK,Nres8+1_IK,Nres8+1_IK,PP_nElemsTmp/),OffsetElemTmp,5,RealArray=U)
           DO iElem = 1, nElems
             Nloc = N_DG_Mapping(2,iElem+offSetElem)
             IF(Nloc.EQ.N_Restart)THEN ! N is equal
