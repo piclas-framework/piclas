@@ -42,6 +42,10 @@ END INTERFACE
 PUBLIC :: Elem_Mat
 PUBLIC :: BuildPrecond
 PUBLIC :: PostProcessGradientHDG
+#if USE_PETSC
+PUBLIC :: PETScFillSystemMatrix
+PUBLIC :: PETScSetPrecond
+#endif /*USE_PETSC*/
 #endif /*USE_HDG*/
 !===================================================================================================================================
 
@@ -75,12 +79,6 @@ USE MOD_Basis              ,ONLY: getSPDInverse
 #if defined(PARTICLES)
 USE MOD_HDG_Vars           ,ONLY: UseBRElectronFluid
 #endif /*defined(PARTICLES)*/
-#if USE_PETSC
-USE PETSc
-USE MOD_Mesh_Vars          ,ONLY: SideToElem, nSides
-USE MOD_Mesh_Vars          ,ONLY: BoundaryType,nSides,BC
-USE MOD_Interpolation_Vars ,ONLY: PREF_VDM
-#endif
 USE MOD_Mesh_Vars          ,ONLY: ElemToSide
 USE MOD_DG_Vars            ,ONLY: DG_Elems_slave,DG_Elems_master
 ! IMPLICIT VARIABLE HANDLING
@@ -103,20 +101,6 @@ REAL                 :: Ktilde(3,3)
 REAL                 :: Stmp1(nGP_vol(Nmax),nGP_face(Nmax)), Stmp2(nGP_face(Nmax),nGP_face(Nmax))
 INTEGER              :: idx(3),jdx(3),gdx(3)
 REAL                 :: time0, time
-#if USE_PETSC
-PetscErrorCode       :: ierr
-INTEGER              :: iSideID,jSideID
-INTEGER              :: ElemID, BCsideID
-INTEGER              :: iBCSide,locBCSideID
-INTEGER              :: iPETScGlobal, jPETScGlobal
-INTEGER              :: locSideID
-REAL                 :: intMat(nGP_face(Nmax), nGP_face(Nmax))
-INTEGER              :: BCState
-INTEGER              :: iIndices(nGP_face(Nmax)),jIndices(nGP_face(Nmax))
-INTEGER              :: NElem,iNloc,jNloc
-REAL                 :: Smatloc(nGP_face(Nmax),nGP_face(Nmax))
-INTEGER              :: iNdof, jNdof
-#endif
 !===================================================================================================================================
 
 #if defined(IMPA) || defined(ROS)
@@ -353,132 +337,6 @@ DO iElem=1,PP_nElems
 
 END DO !iElem
 
-#if USE_PETSC
-! TODO PETSC P-Adaption - Fill directly when SmatK is filled... (or sth like that)
-! Since there is a loop over all elements anyway, an element local smat could be filled that is
-! then used to fill SMat
-! Fill Smat Petsc, TODO do this without filling Smat
-
-! TODO PETSC P-Adaption - MORTARS
-! Change Smat for all small mortar sides to account for the interpolation from big to small side
-!DO iSide=1,nSides
-!  IF (SmallMortarInfo(iSide).NE.0) THEN
-!    locSideID = SideToElem(S2E_NB_LOC_SIDE_ID,iSide)
-!    iElem    = SideToElem(S2E_NB_ELEM_ID,iSide)
-!    IF (iElem.LT.0) CYCLE
-!  ELSE
-!    CYCLE
-!  END IF
-!  intMat = IntMatMortar(:,:,SmallMortarType(2,iSide),SmallMortarType(1,iSide))
-!  DO iLocSide=1,6
-!    Smat(:,:,iLocSide,locSideID,iElem) = MATMUL(Smat(:,:,iLocSide,locSideID,iElem),intMat)
-!    Smat(:,:,locSideID,iLocSide,iElem) = MATMUL(TRANSPOSE(intMat),Smat(:,:,locSideID,iLocSide,iElem))
-!  END DO
-!END DO
-
-! TODO PETSC P-Adaption - Smat_BC not needed!
-! Fill Dirichlet BC Smat
-! DO iBCSide=1,nDirichletBCSides
-!   BCSideID=DirichletBC(iBCSide)
-!   locBCSideID = SideToElem(S2E_LOC_SIDE_ID,BCSideID)
-!   ElemID    = SideToElem(S2E_ELEM_ID,BCSideID)
-!   DO iLocSide=1,6
-!     Smat_BC(:,:,iLocSide,iBCSide) = Smat(:,:,iLocSide,locBCSideID,ElemID)
-!   END DO
-! END DO
-! Fill Smat for PETSc with remaining DOFs
-DO iElem=1,PP_nElems
-  NElem=N_DG_Mapping(2,iElem)!+offsetElem)
-  DO iLocSide=1,6
-    iSideID=ElemToSide(E2S_SIDE_ID,iLocSide,iElem)
-    iNloc=N_SurfMesh(iSideID)%NSideMin
-    ! TODO PETSC P-Adaption - Improvement: Delete PETScGlobal
-    ! iPETScGlobal should be OffsetSide or STH?
-    ! Or with the current, just stay as it is?
-    iPETScGlobal=PETScGlobal(iSideID)
-    IF (iPETScGlobal.EQ.-1) CYCLE
-    DO jLocSide=1,6
-      jSideID=ElemToSide(E2S_SIDE_ID,jLocSide,iElem)
-      jNloc=N_SurfMesh(jSideID)%NSideMin
-      jPETScGlobal=PETScGlobal(jSideID)
-      IF (jPETScGlobal.EQ.-1) CYCLE ! TODO PETSC P-Adaption - Find out why we cant fill halve the matrix and then use MAT_SYMMETRIC
-      !IF (iPETScGlobal.GT.jPETScGlobal) CYCLE
-      IF(SetZeroPotentialDOF.AND.(iPETScGlobal.EQ.0)) THEN
-        ! The first DOF is set to constant 0 -> lambda_{1,1} = 0
-        HDG_Vol_N(iElem)%Smat(:,1,jLocSide,iLocSide) = 0 ! TODO PETSC P-Adaption: why ji and not ij?
-        IF(jPETScGlobal.EQ.iPETScGlobal) HDG_Vol_N(iElem)%Smat(1,1,jLocSide,iLocSide) = 1
-      END IF
-
-
-      iNdof=nGP_face(iNloc)
-      jNdof=nGP_face(jNloc)
-
-      ! Get Index list
-      DO i=1,iNdof
-        iIndices(i) = HDG_Surf_N(iSideID)%OffsetDOF + i - 1
-      END DO
-      DO i=1,jNdof
-        jIndices(i) = HDG_Surf_N(jSideID)%OffsetDOF + i - 1
-      END DO
-
-      ! TODO PETSC P-Adaption - Improvement: Store V^T * S * V in Smat
-      ! ... S_{(i1,i2),(j1,i2)} = V^T_{i1,I1} * V^T_{i2,I2} * S_{(I1,I2),(J1,J2)} * V_{J1,j1} * V_{J2,j2}
-      Smatloc = 0.
-      DO i_m=0,iNloc; DO i_p=0,iNloc
-        DO j_m=0,jNloc; DO j_p=0,jNloc
-          DO i=0,NElem; DO j=0,NElem
-            DO p=0,NElem; DO q=0,NElem
-              Smatloc(i_m*(iNloc+1)+i_p+1,j_m*(jNloc+1)+j_p+1) = Smatloc(i_m*(iNloc+1)+i_p+1,j_m*(jNloc+1)+j_p+1) + &
-                PREF_VDM(NElem,iNloc)%Vdm(i,i_m) * PREF_VDM(NElem,iNloc)%Vdm(j,i_p) * &
-                HDG_Vol_N(iElem)%Smat(i*(Nelem+1)+j+1,p*(Nelem+1)+q+1,jLocSide,iLocSide) * & ! TODO ij vs ji
-                PREF_VDM(NElem,iNloc)%Vdm(p,j_m) * PREF_VDM(NElem,iNloc)%Vdm(q,j_p)
-            END DO; END DO
-          END DO; END DO
-        END DO; END DO
-      END DO; END DO
-
-      PetscCallA(MatSetValues(Smat_petsc,iNdof,iIndices(1:iNdof),jNdof,jIndices(1:jNdof),Smatloc(1:iNdof,1:jNdof),ADD_VALUES,ierr))
-    END DO
-  END DO
-END DO
-! TODO PETSC P-Adaption - FPC Stuff
-! Set Conductor matrix
-!DO BCsideID=1,nConductorBCsides
-!  jSideID=ConductorBC(BCsideID)
-!  iElem=SideToElem(S2E_ELEM_ID,jSideID)
-!  jLocSide=SideToElem(S2E_LOC_SIDE_ID,jSideID)
-!
-!  BCState = BoundaryType(BC(jSideID),BC_STATE)
-!  jPETScGlobal=nPETScUniqueSidesGlobal-FPC%nUniqueFPCBounds+FPC%Group(BCState,2)-1
-!  DO iLocSide=1,6
-!    iSideID=ElemToSide(E2S_SIDE_ID,iLocSide,iElem)
-!    iPETScGlobal=PETScGlobal(iSideID)
-!    DO j=2,nGP_face; DO i=1,nGP_face ! Sum up all columns
-!      Smat(1,i,jLocSide,iLocSide,iElem) = Smat(1,i,jLocSide,iLocSide,iElem) + Smat(j,i,jLocSide,iLocSide,iElem)
-!      Smat(j,i,jLocSide,iLocSide,iElem) = 0.
-!    END DO; END DO
-!    IF(MaskedSide(iSideID).EQ.2) THEN
-!      DO i=2,nGP_face ! Sum up all rows
-!        Smat(1,1,jLocSide,iLocSide,iElem) = Smat(1,1,jLocSide,iLocSide,iElem) + Smat(1,i,jLocSide,iLocSide,iElem)
-!        Smat(1,i,jLocSide,iLocSide,iElem) = 0.
-!        Smat(i,i,jLocSide,iLocSide,iElem) = 1. ! Add diagonal entries for unused DOFs
-!      END DO
-!      iPETScGlobal=nPETScUniqueSidesGlobal-FPC%nUniqueFPCBounds+FPC%Group(BCState,2)-1
-!    ELSEIF(iPETScGlobal.EQ.-1) THEN
-!      CYCLE
-!    END IF
-!    PetscCallA(MatSetValuesBlocked(Smat_petsc,1,iPETScGlobal,1,jPETScGlobal,Smat(:,:,jLocSide,iLocSide,iElem),ADD_VALUES,ierr))
-!  END DO
-!END DO
-
-! TODO PETSC P-Adaption (Where to) set that smat is symmetric?
-!PetscCallA(MatSetOption(Smat_petsc, MAT_SYMMETRIC, PETSC_TRUE,ierr))
-
-PetscCallA(MatAssemblyBegin(Smat_petsc,MAT_FINAL_ASSEMBLY,ierr))
-PetscCallA(MatAssemblyEnd(Smat_petsc,MAT_FINAL_ASSEMBLY,ierr))
-#endif
-
-
 #if defined(IMPA) || defined(ROS)
 IF(DoPrintConvInfo)THEN
   time=PICLASTIME()
@@ -519,6 +377,164 @@ CONTAINS
 END SUBROUTINE Elem_Mat
 
 
+#if USE_PETSC
+SUBROUTINE PETScFillSystemMatrix()
+!===================================================================================================================================
+! Use Smat to fill the PETSc System matrix
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals
+USE MOD_PreProc
+USE MOD_HDG_Vars
+USE MOD_DG_Vars            ,ONLY: N_DG_Mapping
+USE PETSc
+USE MOD_Mesh_Vars          ,ONLY: SideToElem, nSides
+!USE MOD_Mesh_Vars          ,ONLY: BoundaryType,BC
+USE MOD_Interpolation_Vars ,ONLY: PREF_VDM,NMax
+USE MOD_Mesh_Vars          ,ONLY: ElemToSide
+
+USE MOD_Interpolation_Vars ,ONLY: N_Inter
+USE MOD_Mesh_Vars          ,ONLY: N_VolMesh,offSetElem
+USE MOD_Mesh_Vars          ,ONLY: N_SurfMesh
+USE MOD_Mesh_Vars          ,ONLY: N_Mesh
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+PetscErrorCode       :: ierr
+INTEGER              :: iElem,NElem
+INTEGER              :: iLocSide,iSideID,iNloc,iPETScGlobal, iNdof, iIndices(nGP_face(Nmax))
+INTEGER              :: jLocSide,jSideID,jNloc,jPETScGlobal, jNdof, jIndices(nGP_face(Nmax))
+REAL                 :: Smatloc(nGP_face(Nmax),nGP_face(Nmax))
+INTEGER              :: l,p,q,g1,g2,g3,Nloc,NSideMin
+INTEGER              :: i,j,i_m,i_p,j_m,j_p
+!INTEGER              :: BCsideID, BCState, iBCSide,locBCSideID
+!INTEGER              :: locSideID
+!REAL                 :: intMat(nGP_face(Nmax), nGP_face(Nmax))
+!===================================================================================================================================
+! TODO PETSC P-Adaption - Fill directly when SmatK is filled... (or sth like that)
+! Since there is a loop over all elements anyway, an element local smat could be filled that is
+! then used to fill SMat
+! Fill Smat Petsc, TODO do this without filling Smat
+
+! TODO PETSC P-Adaption - MORTARS
+! Change Smat for all small mortar sides to account for the interpolation from big to small side
+!DO iSide=1,nSides
+!  IF (SmallMortarInfo(iSide).NE.0) THEN
+!    locSideID = SideToElem(S2E_NB_LOC_SIDE_ID,iSide)
+!    iElem    = SideToElem(S2E_NB_ELEM_ID,iSide)
+!    IF (iElem.LT.0) CYCLE
+!  ELSE
+!    CYCLE
+!  END IF
+!  intMat = IntMatMortar(:,:,SmallMortarType(2,iSide),SmallMortarType(1,iSide))
+!  DO iLocSide=1,6
+!    Smat(:,:,iLocSide,locSideID,iElem) = MATMUL(Smat(:,:,iLocSide,locSideID,iElem),intMat)
+!    Smat(:,:,locSideID,iLocSide,iElem) = MATMUL(TRANSPOSE(intMat),Smat(:,:,locSideID,iLocSide,iElem))
+!  END DO
+!END DO
+
+! TODO PETSC P-Adaption - Smat_BC not needed!
+! Fill Dirichlet BC Smat
+! DO iBCSide=1,nDirichletBCSides
+!   BCSideID=DirichletBC(iBCSide)
+!   locBCSideID = SideToElem(S2E_LOC_SIDE_ID,BCSideID)
+!   ElemID    = SideToElem(S2E_ELEM_ID,BCSideID)
+!   DO iLocSide=1,6
+!     Smat_BC(:,:,iLocSide,iBCSide) = Smat(:,:,iLocSide,locBCSideID,ElemID)
+!   END DO
+! END DO
+! Fill Smat for PETSc with remaining DOFs
+DO iElem=1,PP_nElems
+  NElem=N_DG_Mapping(2,iElem)!+offsetElem)
+  DO iLocSide=1,6
+    iSideID=ElemToSide(E2S_SIDE_ID,iLocSide,iElem)
+    iNloc=N_SurfMesh(iSideID)%NSideMin
+    ! TODO PETSC P-Adaption - Improvement: Delete PETScGlobal
+    ! Or with the current, just stay as it is?
+    IF(MaskedSide(iSideID).GT.0) CYCLE
+    DO jLocSide=1,6
+      jSideID=ElemToSide(E2S_SIDE_ID,jLocSide,iElem)
+      jNloc=N_SurfMesh(jSideID)%NSideMin
+      IF(MaskedSide(jSideID).GT.0) CYCLE
+      !IF (iPETScGlobal.GT.jPETScGlobal) CYCLE ! TODO PETSC P-Adaption - Find out why we cant fill halve the matrix and then use MAT_SYMMETRIC
+      IF(SetZeroPotentialDOF.AND.(OffsetGlobalPETScDOF(iSideID).EQ.0)) THEN
+        ! The first DOF is set to constant 0 -> lambda_{1,1} = 0
+        HDG_Vol_N(iElem)%Smat(:,1,jLocSide,iLocSide) = 0 ! TODO PETSC P-Adaption: why ji and not ij?
+        IF(OffsetGlobalPETScDOF(jSideID).EQ.0) HDG_Vol_N(iElem)%Smat(1,1,jLocSide,iLocSide) = 1
+      END IF
+
+
+      iNdof=nGP_face(iNloc)
+      jNdof=nGP_face(jNloc)
+
+      ! Get Index list
+      DO i=1,iNdof
+        iIndices(i) = OffsetGlobalPETScDOF(iSideID) + i - 1
+      END DO
+      DO i=1,jNdof
+        jIndices(i) = OffsetGlobalPETScDOF(jSideID) + i - 1
+      END DO
+
+      ! TODO PETSC P-Adaption - Improvement: Store V^T * S * V in Smat
+      ! ... S_{(i1,i2),(j1,i2)} = V^T_{i1,I1} * V^T_{i2,I2} * S_{(I1,I2),(J1,J2)} * V_{J1,j1} * V_{J2,j2}
+      Smatloc = 0.
+      DO i_m=0,iNloc; DO i_p=0,iNloc
+        DO j_m=0,jNloc; DO j_p=0,jNloc
+          DO i=0,NElem; DO j=0,NElem
+            DO p=0,NElem; DO q=0,NElem
+              Smatloc(i_m*(iNloc+1)+i_p+1,j_m*(jNloc+1)+j_p+1) = Smatloc(i_m*(iNloc+1)+i_p+1,j_m*(jNloc+1)+j_p+1) + &
+                PREF_VDM(NElem,iNloc)%Vdm(i,i_m) * PREF_VDM(NElem,iNloc)%Vdm(j,i_p) * &
+                HDG_Vol_N(iElem)%Smat(i*(Nelem+1)+j+1,p*(Nelem+1)+q+1,jLocSide,iLocSide) * & ! TODO ij vs ji
+                PREF_VDM(NElem,iNloc)%Vdm(p,j_m) * PREF_VDM(NElem,iNloc)%Vdm(q,j_p)
+            END DO; END DO
+          END DO; END DO
+        END DO; END DO
+      END DO; END DO
+
+      PetscCallA(MatSetValues(PETScSystemMatrix,iNdof,iIndices(1:iNdof),jNdof,jIndices(1:jNdof),Smatloc(1:iNdof,1:jNdof),ADD_VALUES,ierr))
+    END DO
+  END DO
+END DO
+! TODO PETSC P-Adaption - FPC Stuff
+! Set Conductor matrix
+!DO BCsideID=1,nConductorBCsides
+!  jSideID=ConductorBC(BCsideID)
+!  iElem=SideToElem(S2E_ELEM_ID,jSideID)
+!  jLocSide=SideToElem(S2E_LOC_SIDE_ID,jSideID)
+!
+!  BCState = BoundaryType(BC(jSideID),BC_STATE)
+!  jPETScGlobal=nPETScUniqueSidesGlobal-FPC%nUniqueFPCBounds+FPC%Group(BCState,2)-1
+!  DO iLocSide=1,6
+!    iSideID=ElemToSide(E2S_SIDE_ID,iLocSide,iElem)
+!    iPETScGlobal=PETScGlobal(iSideID)
+!    DO j=2,nGP_face; DO i=1,nGP_face ! Sum up all columns
+!      Smat(1,i,jLocSide,iLocSide,iElem) = Smat(1,i,jLocSide,iLocSide,iElem) + Smat(j,i,jLocSide,iLocSide,iElem)
+!      Smat(j,i,jLocSide,iLocSide,iElem) = 0.
+!    END DO; END DO
+!    IF(MaskedSide(iSideID).EQ.2) THEN
+!      DO i=2,nGP_face ! Sum up all rows
+!        Smat(1,1,jLocSide,iLocSide,iElem) = Smat(1,1,jLocSide,iLocSide,iElem) + Smat(1,i,jLocSide,iLocSide,iElem)
+!        Smat(1,i,jLocSide,iLocSide,iElem) = 0.
+!        Smat(i,i,jLocSide,iLocSide,iElem) = 1. ! Add diagonal entries for unused DOFs
+!      END DO
+!      iPETScGlobal=nPETScUniqueSidesGlobal-FPC%nUniqueFPCBounds+FPC%Group(BCState,2)-1
+!    ELSEIF(iPETScGlobal.EQ.-1) THEN
+!      CYCLE
+!    END IF
+!    PetscCallA(MatSetValuesBlocked(PETScSystemMatrix,1,iPETScGlobal,1,jPETScGlobal,Smat(:,:,jLocSide,iLocSide,iElem),ADD_VALUES,ierr))
+!  END DO
+!END DO
+
+PetscCallA(MatAssemblyBegin(PETScSystemMatrix,MAT_FINAL_ASSEMBLY,ierr))
+PetscCallA(MatAssemblyEnd(PETScSystemMatrix,MAT_FINAL_ASSEMBLY,ierr))
+END SUBROUTINE PETScFillSystemMatrix
+#endif /* USE_PETSC */
+
 SUBROUTINE BuildPrecond()
 !===================================================================================================================================
 ! Build a block-diagonal preconditioner for the lambda system
@@ -531,13 +547,9 @@ USE MOD_HDG_Vars
 USE MOD_MPI_Vars
 USE MOD_MPI            ,ONLY: StartReceiveMPIData,StartSendMPIData,FinishExchangeMPIData,Mask_MPIsides
 #endif /*USE_MPI*/
-#if USE_PETSC
-USE PETSc
-#else
 USE MOD_Mesh_Vars      ,ONLY: nSides,SideToElem,nMPIsides_YOUR,N_SurfMesh, offSetElem
 USE MOD_FillMortar_HDG ,ONLY: SmallToBigMortarPrecond_HDG
 USE MOD_DG_Vars        ,ONLY: DG_Elems_master, DG_Elems_slave,N_DG_Mapping
-#endif
 USE MOD_Interpolation_Vars ,ONLY: Nmax
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -547,39 +559,10 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-#if USE_PETSC
-PetscErrorCode   :: ierr
-PC               :: pc
-PetscInt         :: lens(nPETScUniqueSides)
-#else
 INTEGER          :: ElemID, locSideID, SideID, igf
 INTEGER          :: lapack_info
-#endif
 INTEGER          :: NSideMin
 !===================================================================================================================================
-
-#if USE_PETSC
-PetscCallA(KSPGetPC(ksp,pc,ierr))
-SELECT CASE(PrecondType)
-CASE(0)
-  PetscCallA(PCSetType(pc,PCNONE,ierr))
-CASE(1)
-  PetscCallA(PCSetType(pc,PCJACOBI,ierr))
-CASE(2)
-  PetscCallA(PCHYPRESetType(pc,PCILU,ierr))
-CASE(3)
-  PetscCallA(PCHYPRESetType(pc,PCSPAI,ierr))
-CASE(4)
-  lens=nGP_Face
-  PetscCallA(PCSetType(pc,PCBJACOBI,ierr))
-  PetscCallA(PCBJacobiSetLocalBlocks(pc,nPETScUniqueSides,lens,ierr))
-  PetscCallA(KSPSetUp(ksp,ierr))
-case(10)
-  PetscCallA(PCSetType(pc,PCCHOLESKY,ierr))
-case(11)
-  PetscCallA(PCSetType(pc,PCLU,ierr))
-END SELECT
-#else
 SELECT CASE(PrecondType)
 CASE(0)
 ! do nothing
@@ -653,8 +636,46 @@ CASE(2)
     END IF
   END DO !1,nSides-nMPIsides_YOUR
 END SELECT
-#endif
 END SUBROUTINE BuildPrecond
+
+#if USE_PETSC
+SUBROUTINE PETScSetPrecond()
+!===================================================================================================================================
+! Set the Preconditioner in PETSc
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals
+USE MOD_Preproc
+USE MOD_HDG_Vars
+USE PETSc
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+PetscErrorCode   :: ierr
+PC               :: pc
+!===================================================================================================================================
+PetscCallA(KSPGetPC(PETScSolver,pc,ierr))
+SELECT CASE(PrecondType)
+CASE(0)
+  PetscCallA(PCSetType(pc,PCNONE,ierr))
+CASE(1)
+  PetscCallA(PCSetType(pc,PCJACOBI,ierr))
+CASE(2)
+  PetscCallA(PCHYPRESetType(pc,PCILU,ierr))
+CASE(3)
+  PetscCallA(PCHYPRESetType(pc,PCSPAI,ierr))
+case(10)
+  PetscCallA(PCSetType(pc,PCCHOLESKY,ierr))
+case(11)
+  PetscCallA(PCSetType(pc,PCLU,ierr))
+END SELECT
+END SUBROUTINE PETScSetPrecond
+#endif /*USE_PETSC*/
 
 
 SUBROUTINE PostProcessGradientHDG()

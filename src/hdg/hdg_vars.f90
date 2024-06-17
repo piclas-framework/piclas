@@ -33,29 +33,29 @@ SAVE
 ! GLOBAL VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 #if USE_HDG
-INTEGER,ALLOCATABLE :: nGP_vol(:)                !< =(PP_N+1)**3
-INTEGER,ALLOCATABLE :: nGP_face(:)               !< =(PP_N+1)**2
+INTEGER,ALLOCATABLE :: nGP_vol(:)  !< =(PP_N+1)**3
+INTEGER,ALLOCATABLE :: nGP_face(:) !< =(PP_N+1)**2
 
 #if USE_PETSC
-Mat                 :: Smat_petsc
-Vec                 :: RHS_petsc
-Vec                 :: lambda_petsc
-KSP                 :: ksp
-Vec                 :: lambda_local_petsc
-VecScatter          :: scatter_petsc
-IS                  :: idx_local_petsc
-IS                  :: idx_global_petsc
-Vec                 :: lambda_local_conductors_petsc
-VecScatter          :: scatter_conductors_petsc
-IS                  :: idx_local_conductors_petsc
-IS                  :: idx_global_conductors_petsc
-INTEGER,ALLOCATABLE :: PETScGlobal(:)         !< PETScGlobal(SideID) maps the local SideID to global PETScSideID
-INTEGER,ALLOCATABLE :: PETScLocalToSideID(:)  !< PETScLocalToSideID(PETScLocalSideID) maps the local PETSc side to SideID
-REAL,ALLOCATABLE    :: Smat_BC(:,:,:,:)       !< side to side matrix for dirichlet (D) BCs, (ngpface,ngpface,6Sides,DSides)
-INTEGER             :: nPETScSides            !< nSides - nDirichletSides
-INTEGER             :: nPETScUniqueSides      !< nPETScSides - nMPISides_YOUR
-INTEGER             :: nPETScUniqueSidesGlobal
-INTEGER             :: nPETScDOFs             !< Number of global PETSc DOFs (size of PETSc Vectors & Matrices)
+Mat                 :: PETScSystemMatrix        !< Global PETSc System matrix A (A * lambda = rhs)
+Vec                 :: PETScRHS                 !< Right hand side of the PETSc System rhs (Dirichlet BCs, Source terms)
+Vec                 :: PETScSolution            !< Solution vector of the PETSc System (lambda, potential on the sides)
+KSP                 :: PETScSolver              !< Krylov subspace method and preconditioner used in PETSc
+Vec                 :: PETScSolutionLocal       !< Local portion of the solution vector (including YOUR sides!)
+VecScatter          :: PETScScatter            !< Scatter object used to extract the local solution from the global vector
+! TODO PETSC P-Adaption - Move to HDG,f90, only needed there...
+IS                  :: idx_local_petsc          !< Indexing of the local vector (basically 1:nLocalPETSc, but with YOUR sides)
+IS                  :: idx_global_petsc         !< Basically localToGlobalDOF with YOUR Sides
+! TODO PETSC P-Adaption - FPC
+!Vec                 :: lambda_local_conductors_petsc
+!VecScatter          :: scatter_conductors_petsc
+!IS                  :: idx_local_conductors_petsc
+!IS                  :: idx_global_conductors_petsc
+REAL,ALLOCATABLE    :: Smat_BC(:,:,:,:)         !< side to side matrix for dirichlet (D) BCs, (ngpface,ngpface,6Sides,DSides)
+INTEGER             :: nPETScSides              !< nSides - nDirichletSides
+INTEGER             :: nPETScUniqueSides        !< nPETScSides - nMPISides_YOUR
+INTEGER             :: nGlobalPETScDOFs         !< Number of global PETSc DOFs (size of PETSc Vectors & Matrices)
+INTEGER,ALLOCATABLE :: OffsetGlobalPETScDOF(:)  !< offset of each SideID to the global position in the PETSc system
 #endif
 LOGICAL             :: useHDG=.FALSE.
 LOGICAL             :: ExactLambda =.FALSE.   !< Flag to initialize exact function for lambda
@@ -84,9 +84,6 @@ TYPE HDG_Surf_N_Type
   REAL,ALLOCATABLE    :: R(:,:)               !<
   REAL,ALLOCATABLE    :: V(:,:)               !<
   REAL,ALLOCATABLE    :: Z(:,:)               !<
-#if USE_PETSC
-  INTEGER             :: OffsetDOF
-#endif
 #if USE_MPI
   REAL,ALLOCATABLE    :: buf(:,:)
   REAL,ALLOCATABLE    :: buf2(:,:)
@@ -116,7 +113,6 @@ INTEGER             :: AdaptIterNewtonOld
 INTEGER             :: HDGNonLinSolver        !< 1 Newton, 2 Fixpoint
 !mappings
 INTEGER             :: sideDir(6),pm(6),dirPm2iSide(2,3)
-!REAL,ALLOCATABLE    :: delta(:,:)
 !CG parameters
 INTEGER             :: PrecondType=0          !< 0: none 1: block diagonal 2: only diagonal 3:Identity, debug
 INTEGER             :: MaxIterCG

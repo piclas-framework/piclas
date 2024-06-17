@@ -612,13 +612,13 @@ IMPLICIT NONE
 ! INPUT VARIABLES
 INTEGER,INTENT(IN)    :: SideID
 INTEGER,INTENT(IN)    :: Nloc
-REAL,INTENT(IN)       :: t           ! time
-INTEGER,INTENT(IN)    :: tDeriv      ! deriv
-REAL,INTENT(IN)       :: NormVec(1:3,0:Nloc,0:Nloc)
-REAL,INTENT(IN)       :: Face_xGP(1:3,0:Nloc,0:Nloc)
+REAL,INTENT(IN)       :: t
+INTEGER,INTENT(IN)    :: tDeriv
+REAL,INTENT(IN)       :: NormVec( 1:3      ,0:Nloc,0:Nloc)
+REAL,INTENT(IN)       :: Face_xGP(1:3      ,0:Nloc,0:Nloc)
 REAL,INTENT(IN)       :: U_master(1:PP_nVar,0:Nloc,0:Nloc)
 REAL,INTENT(IN)       :: U_slave (1:PP_nVar,0:Nloc,0:Nloc)
-REAL,INTENT(IN)       :: SurfElem (0:Nloc,0:Nloc)
+REAL,INTENT(IN)       :: SurfElem(          0:Nloc,0:Nloc)
 ! Allocate arrays to hold the face flux to reduce memory churn
 REAL                  :: U_Master_loc(1:PP_nVar        ,0:Nloc,0:Nloc)
 REAL                  :: U_Slave_loc (1:PP_nVar        ,0:Nloc,0:Nloc)
@@ -644,8 +644,8 @@ ELSE
   CALL abort(__STAMP__,'ExactFlux has encountered an error with the normal vector.')
 END IF
 
-U_Slave_loc =U_Slave
-U_Master_loc=U_Master
+U_Slave_loc  = U_Slave
+U_Master_loc = U_Master
 
 DO q=0,Nloc
   DO p=0,Nloc
@@ -653,9 +653,9 @@ DO q=0,Nloc
     ! caution, rotation
     CALL ExactFunc(IniExactFunc,t,tDeriv,Face_xGP(:,p,q),U_loc(:))
     IF(UseMaster)THEN
-      U_Slave_loc(:,p,q)=U_Slave_loc(:,p,q) + U_loc
+      U_Slave_loc(:,p,q)  = U_Slave_loc(:,p,q)  + U_loc
     ELSE
-      U_Master_loc(:,p,q)=U_Master_loc(:,p,q) + U_loc
+      U_Master_loc(:,p,q) = U_Master_loc(:,p,q) + U_loc
     END IF
   END DO ! p
 END DO ! q
@@ -681,16 +681,16 @@ CASE DEFAULT
   CALL abort(__STAMP__,'Unknown interface type for Riemann solver (vacuum, dielectric, PML ...)')
 END SELECT
 
-IF(Usemaster)THEN
+IF(UseMaster)THEN
   DO q=0,Nloc
     DO p=0,Nloc
-      Flux_Master(:,p,q)=Flux_loc(:,p,q)*SurfElem(p,q)
+      Flux_Master(:,p,q) = Flux_loc(:,p,q)*SurfElem(p,q)
     END DO ! p
   END DO ! q
 ELSE
   DO q=0,Nloc
     DO p=0,Nloc
-      Flux_Slave(:,p,q)=Flux_loc(:,p,q)*SurfElem(p,q)
+      Flux_Slave(:,p,q)  = Flux_loc(:,p,q)*SurfElem(p,q)
     END DO ! p
   END DO ! q
 END IF

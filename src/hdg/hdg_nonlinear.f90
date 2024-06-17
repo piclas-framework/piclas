@@ -460,7 +460,7 @@ ELSE
       CALL DSYMV('U',nGP_vol(Nloc),1., HDG_Vol_N(iElem)%InvDhat(:,:),nGP_vol(Nloc), &
                                  -HDG_Vol_N(iElem)%RHS_vol(PP_nVar,:),1,0., &
                                  U_N(iElem)%U(PP_nVar,:,:,:),1)
-    END DO ! iElem=1,PP_nElems 
+    END DO ! iElem=1,PP_nElems
   END DO ! iter=1,MaxIterNewto
 END IF ! converged
 

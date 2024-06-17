@@ -76,9 +76,7 @@ CALL prms%CreateIntOption(      'IniExactFunc'     , 'TODO-DEFINE-PARAMETER\n'//
                                                      'Define exact function necessary for '//&
                                                      'linear scalar advection', '-1')
 
-CALL prms%CreateLogicalOption(  'DoExactFlux'      , 'TODO-DEFINE-PARAMETER\n'//&
-                                                     'Switch emission to flux superposition at'//&
-                                                     ' certain positions' , '.FALSE.')
+CALL prms%CreateLogicalOption(  'DoExactFlux'      , 'Switch emission to flux superposition at certain positions' , '.FALSE.')
 CALL prms%CreateRealArrayOption('xDipole'          , 'TODO-DEFINE-PARAMETER\n'//&
                                                      'Base point of electromagnetic dipole', '0. , 0. , 0.')
 CALL prms%CreateRealOption(     'omega'            , 'TODO-DEFINE-PARAMETER\n'//&
@@ -235,7 +233,7 @@ DO iBC=1,nBCs
     END IF
   END IF
 END DO
-IF(nTmp.GT.0) DoExactFlux = GETLOGICAL('DoExactFlux','.FALSE.')
+IF(nTmp.GT.0) DoExactFlux = GETLOGICAL('DoExactFlux')
 IF(DoExactFlux) CALL InitExactFlux()
 DO iRefState=1,nTmp
   SELECT CASE(RefStates(iRefState))
