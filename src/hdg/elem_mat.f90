@@ -40,7 +40,9 @@ END INTERFACE
 !END INTERFACE
 
 PUBLIC :: Elem_Mat
+PUBLIC :: PETScFillSystemMatrix
 PUBLIC :: BuildPrecond
+PUBLIC :: PETScSetPrecond
 PUBLIC :: PostProcessGradientHDG
 #endif /*USE_HDG*/
 !===================================================================================================================================
@@ -75,12 +77,6 @@ USE MOD_Basis              ,ONLY: getSPDInverse
 #if defined(PARTICLES)
 USE MOD_HDG_Vars           ,ONLY: UseBRElectronFluid
 #endif /*defined(PARTICLES)*/
-#if USE_PETSC
-USE PETSc
-USE MOD_Mesh_Vars          ,ONLY: SideToElem, nSides
-USE MOD_Mesh_Vars          ,ONLY: BoundaryType,nSides,BC
-USE MOD_Interpolation_Vars ,ONLY: PREF_VDM
-#endif
 USE MOD_Mesh_Vars          ,ONLY: ElemToSide
 USE MOD_DG_Vars            ,ONLY: DG_Elems_slave,DG_Elems_master
 ! IMPLICIT VARIABLE HANDLING
@@ -103,20 +99,6 @@ REAL                 :: Ktilde(3,3)
 REAL                 :: Stmp1(nGP_vol(Nmax),nGP_face(Nmax)), Stmp2(nGP_face(Nmax),nGP_face(Nmax))
 INTEGER              :: idx(3),jdx(3),gdx(3)
 REAL                 :: time0, time
-#if USE_PETSC
-PetscErrorCode       :: ierr
-INTEGER              :: iSideID,jSideID
-INTEGER              :: ElemID, BCsideID
-INTEGER              :: iBCSide,locBCSideID
-INTEGER              :: iPETScGlobal, jPETScGlobal
-INTEGER              :: locSideID
-REAL                 :: intMat(nGP_face(Nmax), nGP_face(Nmax))
-INTEGER              :: BCState
-INTEGER              :: iIndices(nGP_face(Nmax)),jIndices(nGP_face(Nmax))
-INTEGER              :: NElem,iNloc,jNloc
-REAL                 :: Smatloc(nGP_face(Nmax),nGP_face(Nmax))
-INTEGER              :: iNdof, jNdof
-#endif
 !===================================================================================================================================
 
 #if defined(IMPA) || defined(ROS)
@@ -353,7 +335,79 @@ DO iElem=1,PP_nElems
 
 END DO !iElem
 
+#if defined(IMPA) || defined(ROS)
+IF(DoPrintConvInfo)THEN
+  time=PICLASTIME()
+  SWRITE(UNIT_stdOut,'(A,F14.2,A)') ' HDG ELEME_MAT DONE! [',Time-time0,' sec ]'
+  SWRITE(UNIT_stdOut,'(132("-"))')
+END IF
+#else
+IF(DoDisplayIter)THEN
+  IF(HDGDisplayConvergence.AND.(MOD(td_iter,IterDisplayStep).EQ.0)) THEN
+    time=PICLASTIME()
+    SWRITE(UNIT_stdOut,'(A,F14.2,A)') ' HDG ELEME_MAT DONE! [',Time-time0,' sec ]'
+    SWRITE(UNIT_stdOut,'(132("-"))')
+  END IF
+END IF
+#endif
+
+CONTAINS
+
+ PPURE FUNCTION index_3to1(i1,i2,i3,Nloc) RESULT(i)
+  INTEGER, INTENT(IN) :: i1, i2, i3, Nloc
+  INTEGER :: i
+   i = i3*(Nloc+1)**2 + i2*(Nloc+1) + i1 + 1
+ END FUNCTION index_3to1
+
+ PPURE FUNCTION sindex_3to1(i1,i2,i3,iLocSide,Nloc) RESULT(i)
+  INTEGER, INTENT(IN) :: i1, i2, i3, iLocSide, Nloc
+  INTEGER :: i
+  !local variables
+  INTEGER :: p, q
+
+   p = N_Mesh(Nloc)%VolToSideA(1,i1,i2,i3,Flip(iLocSide),iLocSide)
+   q = N_Mesh(Nloc)%VolToSideA(2,i1,i2,i3,Flip(iLocSide),iLocSide)
+
+   i = q*(Nloc+1) + p + 1
+
+ END FUNCTION sindex_3to1
+
+END SUBROUTINE Elem_Mat
+
+
 #if USE_PETSC
+SUBROUTINE PETScFillSystemMatrix()
+!===================================================================================================================================
+! Use Smat to fill the PETSc System matrix
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals
+USE MOD_PreProc
+USE MOD_HDG_Vars
+USE MOD_DG_Vars            ,ONLY: N_DG_Mapping
+USE PETSc
+USE MOD_Mesh_Vars          ,ONLY: SideToElem, nSides
+!USE MOD_Mesh_Vars          ,ONLY: BoundaryType,BC
+USE MOD_Interpolation_Vars ,ONLY: PREF_VDM
+USE MOD_Mesh_Vars          ,ONLY: ElemToSide
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+INTEGER(KIND=8),INTENT(IN)  :: td_iter
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+PetscErrorCode       :: ierr
+INTEGER              :: iElem,NElem
+INTEGER              :: iLocSide,iSideID,iNloc,iPETScGlobal, iNdof, iIndices(nGP_face(Nmax))
+INTEGER              :: jLocSide,jSideID,jNloc,jPETScGlobal, jNdof, jIndices(nGP_face(Nmax))
+REAL                 :: Smatloc(nGP_face(Nmax),nGP_face(Nmax))
+!INTEGER              :: BCsideID, BCState, iBCSide,locBCSideID
+!INTEGER              :: locSideID
+!REAL                 :: intMat(nGP_face(Nmax), nGP_face(Nmax))
+!===================================================================================================================================
 ! TODO PETSC P-Adaption - Fill directly when SmatK is filled... (or sth like that)
 ! Since there is a loop over all elements anyway, an element local smat could be filled that is
 ! then used to fill SMat
@@ -471,52 +525,10 @@ END DO
 !  END DO
 !END DO
 
-! TODO PETSC P-Adaption (Where to) set that smat is symmetric?
-!PetscCallA(MatSetOption(PETScSystemMatrix, MAT_SYMMETRIC, PETSC_TRUE,ierr))
-
 PetscCallA(MatAssemblyBegin(PETScSystemMatrix,MAT_FINAL_ASSEMBLY,ierr))
 PetscCallA(MatAssemblyEnd(PETScSystemMatrix,MAT_FINAL_ASSEMBLY,ierr))
-#endif
-
-
-#if defined(IMPA) || defined(ROS)
-IF(DoPrintConvInfo)THEN
-  time=PICLASTIME()
-  SWRITE(UNIT_stdOut,'(A,F14.2,A)') ' HDG ELEME_MAT DONE! [',Time-time0,' sec ]'
-  SWRITE(UNIT_stdOut,'(132("-"))')
-END IF
-#else
-IF(DoDisplayIter)THEN
-  IF(HDGDisplayConvergence.AND.(MOD(td_iter,IterDisplayStep).EQ.0)) THEN
-    time=PICLASTIME()
-    SWRITE(UNIT_stdOut,'(A,F14.2,A)') ' HDG ELEME_MAT DONE! [',Time-time0,' sec ]'
-    SWRITE(UNIT_stdOut,'(132("-"))')
-  END IF
-END IF
-#endif
-
-CONTAINS
-
- PPURE FUNCTION index_3to1(i1,i2,i3,Nloc) RESULT(i)
-  INTEGER, INTENT(IN) :: i1, i2, i3, Nloc
-  INTEGER :: i
-   i = i3*(Nloc+1)**2 + i2*(Nloc+1) + i1 + 1
- END FUNCTION index_3to1
-
- PPURE FUNCTION sindex_3to1(i1,i2,i3,iLocSide,Nloc) RESULT(i)
-  INTEGER, INTENT(IN) :: i1, i2, i3, iLocSide, Nloc
-  INTEGER :: i
-  !local variables
-  INTEGER :: p, q
-
-   p = N_Mesh(Nloc)%VolToSideA(1,i1,i2,i3,Flip(iLocSide),iLocSide)
-   q = N_Mesh(Nloc)%VolToSideA(2,i1,i2,i3,Flip(iLocSide),iLocSide)
-
-   i = q*(Nloc+1) + p + 1
-
- END FUNCTION sindex_3to1
-
-END SUBROUTINE Elem_Mat
+END SUBROUTINE PETScFillSystemMatrix
+#endif /* USE_PETSC */
 
 
 SUBROUTINE BuildPrecond()
@@ -655,6 +667,44 @@ CASE(2)
 END SELECT
 #endif
 END SUBROUTINE BuildPrecond
+
+
+SUBROUTINE PETScSetPrecond()
+!===================================================================================================================================
+! Set the Preconditioner in PETSc
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals
+USE MOD_Preproc
+USE MOD_HDG_Vars
+USE PETSc
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+PetscErrorCode   :: ierr
+PC               :: pc
+!===================================================================================================================================
+PetscCallA(KSPGetPC(PETScSolver,pc,ierr))
+SELECT CASE(PrecondType)
+CASE(0)
+  PetscCallA(PCSetType(pc,PCNONE,ierr))
+CASE(1)
+  PetscCallA(PCSetType(pc,PCJACOBI,ierr))
+CASE(2)
+  PetscCallA(PCHYPRESetType(pc,PCILU,ierr))
+CASE(3)
+  PetscCallA(PCHYPRESetType(pc,PCSPAI,ierr))
+case(10)
+  PetscCallA(PCSetType(pc,PCCHOLESKY,ierr))
+case(11)
+  PetscCallA(PCSetType(pc,PCLU,ierr))
+END SELECT
+END SUBROUTINE PETScSetPrecond
 
 
 SUBROUTINE PostProcessGradientHDG()

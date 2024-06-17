@@ -178,11 +178,6 @@ END IF
 LBWRITE(UNIT_StdOut,'(132("-"))')
 LBWRITE(UNIT_stdOut,'(A)') ' INIT HDG...'
 
-! TODO Move down
-#if USE_PETSC
-PetscCallA(PetscInitialize(PETSC_NULL_CHARACTER,ierr))
-#endif
-
 ! ----------------------------------------------------------------------------------------------------------------------------------
 ! MAIN STEPS
 ! ----------------------------------------------------------------------------------------------------------------------------------
@@ -322,7 +317,7 @@ DO iSide = 1, nSides
 END DO ! iSide = 1, nSides
 
 
-! X. Initialize BR electron fluid model
+! 4. Initialize BR electron fluid model
 HDGNonLinSolver = -1 ! init
 #if defined(PARTICLES)
 ! BR electron fluid model
@@ -357,7 +352,7 @@ IF (BRNbrOfRegions .GT. 0) THEN !Regions only used for Boltzmann Electrons so fa
 END IF
 #endif /*defined(PARTICLES)*/
 
-! X. Init mortar stuff
+! 5. Init mortar stuff
 IF(nGlobalMortarSides.GT.0)THEN !mortar mesh
   IF(nMortarMPISides.GT.0) CALL abort(__STAMP__,&
   "nMortarMPISides >0: HDG mortar MPI implementation relies on big sides having always only master sides (=> nMortarMPISides=0 )")
@@ -365,7 +360,7 @@ IF(nGlobalMortarSides.GT.0)THEN !mortar mesh
   CALL InitMortar_HDG()
 END IF !mortarMesh
 
-! X. BCs, the first
+! 6. BCs, the first
 !boundary conditions
 nDirichletBCsides=0
 nNeumannBCsides  =0
@@ -385,7 +380,7 @@ DO SideID=1,nBCSides
   END SELECT ! BCType
 END DO
 
-! X. Init floating potentials, electric potentials and bias voltage
+! 7. Init floating potentials, electric potentials and bias voltage
 ! Conductor: Initialize floating boundary condition
 CALL InitFPC()
 
@@ -400,7 +395,7 @@ CALL InitEPC()
 CALL InitBV()
 #endif /*defined(PARTICLES)*/
 
-! X. BCs the second...
+! 8. BCs the second...
 ! Get the global number of Dirichlet boundaries. If there are none, the potential of a single DOF must be set.
 #if USE_MPI
   CALL MPI_ALLREDUCE(nDirichletBCsides , nDirichletBCsidesGlobal , 1 , MPI_INTEGER , MPI_MAX , MPI_COMM_PICLAS , IERROR)
@@ -456,7 +451,7 @@ IF(nNeumannBCsides.GT.0)THEN
   END DO ! iNeumannBCsides = 1, nNeumannBCsides
 END IF
 
-! X. Initialize interpolation variables for each Polynomial degree (Also fill HDG_Vol_N further)
+! 9. Initialize interpolation variables for each Polynomial degree (Also fill HDG_Vol_N further)
 ! Initialize interpolation variables
 DO Nloc = 1, NMax
   ALLOCATE(N_Inter(Nloc)%LL_minus(0:Nloc,0:Nloc))
@@ -518,7 +513,7 @@ IF(.NOT.DoSwapMesh)THEN ! can take very long, not needed for swap mesh run as on
   CALL Elem_Mat(0_8) ! takes iter=0 (kind=8)
 END IF
 
-! X. Allocate and zero missing HDG_VOL_N and HDG_Surf_N stuff
+! 10. Allocate and zero missing HDG_VOL_N and HDG_Surf_N stuff
 DO iElem = 1, PP_nElems
   Nloc = N_DG_Mapping(2,iElem+offSetElem)
   ALLOCATE(HDG_Vol_N(iElem)%RHS_vol(PP_nVar, nGP_vol(Nloc)))
@@ -546,7 +541,6 @@ DO SideID = 1, nSides
   ALLOCATE(HDG_Surf_N(SideID)%buf(PP_nVar,nGP_face(NSideMin)))
   HDG_Surf_N(SideID)%buf=0.
 #if USE_PETSC
-! TODO PETSC P-Adaption - ?
 #else
   IF(PrecondType.EQ.1)THEN
     ALLOCATE(HDG_Surf_N(SideID)%buf2(nGP_face(NSideMin),nGP_face(NSideMin)))
@@ -556,36 +550,20 @@ DO SideID = 1, nSides
 #endif
 END DO ! SideID = 1, nSides
 
-! X. Build Preconditioner
+! 11. Build Preconditioner
 ! Requires HDG_Surf_N(SideID)%buf
 CALL BuildPrecond()
 
 
+#if USE_PETSC
 ! -------------------------------------------------------------------------------------------------
-! 10. Initialize PETSc
+! 12. Initialize PETSc
 ! -------------------------------------------------------------------------------------------------
 ! Steps:
 ! 3.1) Create PETSc mappings to build the global system
-!   a) Count all
-!   b)
 ! 3.2) Initialize PETSc objects
-!   a)
 
-#if USE_PETSC
-! -+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-
 ! 3.1) Create PETSc mappings to build the global system
-! PETSc needs the following mappings
-!     a.) nPETScUniqueSides: Number of local MY-sides that contribute to the PETSc System
-!     e.) nLocalPETScDOFs:
-!     f.) nGlobalPETScDOFs:
-
-! Mappings / Variables:
-!   - nPETScUniqueSides (MY nPETScSides)
-!   - nLocalPETScDOFs
-!   - nGlobalPETScDOFs
-!   - OffsetGlobalPETScDOF
-!   - LocalToGlobalPETScDOF
-
 ! TODO PETSC P-Adaption - MORTARS
 ! Count all Mortar slave sides and remove them from PETSc vector
 nMortarMasterSides = 0
@@ -597,15 +575,14 @@ nMortarMasterSides = 0
 
 nPETScUniqueSides = nSides-nDirichletBCSides-nMPISides_YOUR-nMortarMasterSides-nConductorBCsides
 
-! -+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-
-! 3.1.6) Calculate nLocalPETScDOFs without nMPISides_YOUR to compute nGlobalPETScDOFs
+! 3.1.1) Calculate nLocalPETScDOFs without nMPISides_YOUR to compute nGlobalPETScDOFs
 nLocalPETScDOFs = 0
 DO SideID=1,nSides-nMPISides_YOUR
   IF(MaskedSide(SideID).GT.0) CYCLE ! TODO is this MaskedSide?
   nLocalPETScDOFs = nLocalPETScDOFs + nGP_face(N_SurfMesh(SideID)%NSideMin)
 END DO
 
-! 3.1.7) Calculate nGlobalPETScDOFs
+! 3.1.2) Calculate nGlobalPETScDOFs
 ! This is the total number of PETScDOFs
 #if USE_MPI
 CALL MPI_ALLGATHER(nLocalPETScDOFs,1,MPI_INTEGER,PETScDOFOffsetsMPI,1,MPI_INTEGER,MPI_COMM_PICLAS,IERROR)
@@ -614,7 +591,7 @@ nGlobalPETScDOFs = SUM(PETScDOFOffsetsMPI)
 nGlobalPETScDOFs = nLocalPETScDOFs
 #endif
 
-! 3.1.8) Calculate OffsetGlobalPETScDOF(SideID)
+! 3.1.3) Calculate OffsetGlobalPETScDOF(SideID)
 ! This is the GlobalPETScDOF of the first DOF of the side with given SideID
 OffsetCounter = 0
 #if USE_MPI
@@ -634,7 +611,7 @@ CALL StartSendMPIDataInt(   1,OffsetGlobalPETScDOF,1,nSides,SendRequest_U,SendID
 CALL FinishExchangeMPIData(SendRequest_U,RecRequest_U,SendID=1)
 #endif
 
-! 3.1.9) Sum up YOUR sides for nLocalPETScDOFs
+! 3.1.4) Sum up YOUR sides for nLocalPETScDOFs
 ! The full nLocalPETScDOFs is used to compute the Scatter context
 #if USE_MPI
 ! 4. Add the nMPISides_YOUR to nLocalPETScDOFs
@@ -644,7 +621,7 @@ DO SideID=nSides-nMPISides_YOUR+1,nSides
 END DO
 #endif
 
-! 3.1.10) Create localToGlobalPETScDOF(iLocalPETScDOF) mapping
+! 3.1.5) Create localToGlobalPETScDOF(iLocalPETScDOF) mapping
 ! The mapping is used to create the PETSc Scatter context to extract the local solution from the global solution vector
 ALLOCATE(localToGlobalPETScDOF(nLocalPETScDOFs))
 iLocalPETScDOF = 0
@@ -658,20 +635,21 @@ END DO
 
 ! ------------------------------------------------------
 ! 3.2) Initialize PETSc Objects
-!PetscCallA(PetscInitialize(PETSC_NULL_CHARACTER,ierr)) TODO where to call?
+PetscCallA(PetscInitialize(PETSC_NULL_CHARACTER,ierr))
 
-! 3.2.1) Set up Matrix
+! 3.2.1) Set up and fill System matrix
 PetscCallA(MatCreate(PETSC_COMM_WORLD,PETScSystemMatrix,ierr))
 PetscCallA(MatSetSizes(PETScSystemMatrix,PETSC_DECIDE,PETSC_DECIDE,nGlobalPETScDOFs,nGlobalPETScDOFs,ierr))
-PetscCallA(MatSetType(PETScSystemMatrix,MATAIJ,ierr)) ! Sparse (mpi) matrix, TODO PETSC P-Adaption - Symmetricity is set later!
-
+PetscCallA(MatSetType(PETScSystemMatrix,MATAIJ,ierr)) ! Sparse (mpi) matrix
+PetscCallA(MatSetOption(PETScSystemMatrix, MAT_SYMMETRIC, PETSC_TRUE,ierr)) ! TODO does this work?
 ! TODO PETSC P-Adaption - Preallocate System matrix (also with FPCs)
 PetscCallA(MatSetUp(PETScSystemMatrix, ierr))
+
+CALL PETScFillSystemMatrix()
 
 ! 3.2.2) Set up Solver
 PetscCallA(KSPCreate(PETSC_COMM_WORLD,PETScSolver,ierr))
 PetscCallA(KSPSetOperators(PETScSolver,PETScSystemMatrix,PETScSystemMatrix,ierr))
-
 IF(PrecondType.GE.10) THEN ! Exact Solver
   PetscCallA(KSPSetType(PETScSolver,KSPPREONLY,ierr)) ! Exact solver
 ELSE ! Iterative Conjugate Gradient solver
@@ -681,15 +659,17 @@ ELSE ! Iterative Conjugate Gradient solver
   PetscCallA(KSPSetTolerances(PETScSolver,1.E-20,epsCG,PETSC_DEFAULT_REAL,MaxIterCG,ierr))
 END IF
 
-! 3.2.3) Set up vectors
+CALL PETScSetPrecond()
+
+! 3.2.3) Set up RHS and solution vectors
 PetscCallA(VecCreate(PETSC_COMM_WORLD,PETScSolution,ierr))
 PetscCallA(VecSetSizes(PETScSolution,PETSC_DECIDE,nGlobalPETScDOFs,ierr))
 PetscCallA(VecSetType(PETScSolution,VECSTANDARD,ierr))
 PetscCallA(VecSetUp(PETScSolution,ierr))
 PetscCallA(VecDuplicate(PETScSolution,PETScRHS,ierr))
-PetscCallA(VecCreateSeq(PETSC_COMM_SELF,nLocalPETScDOFs,PETScSolutionLocal,ierr))
 
-! 3.2.4) Set up scatter context
+! 3.2.4) Set up Scatter stuff
+PetscCallA(VecCreateSeq(PETSC_COMM_SELF,nLocalPETScDOFs,PETScSolutionLocal,ierr))
 ! Create a PETSc Vector 0:(nLocalPETScDOFs-1)
 PetscCallA(ISCreateStride(PETSC_COMM_SELF,nLocalPETScDOFs,0,1,idx_local_petsc,ierr))
 ! Create a PETSc Vector of the Global DOF IDs
