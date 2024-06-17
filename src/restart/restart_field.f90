@@ -105,7 +105,7 @@ USE MOD_HDG                ,ONLY: SynchronizeChargeOnFPC
 USE MOD_HDG_Vars           ,ONLY: UseFPC
 #endif /*USE_LOADBALANCE*/
 USE PETSc
-USE MOD_HDG_Vars           ,ONLY: PETScSolution,PETScLocalToSideID,nPETScUniqueSides
+USE MOD_HDG_Vars           ,ONLY: PETScSolution,nPETScUniqueSides
 #endif
 USE MOD_Mesh_Vars          ,ONLY: N_SurfMesh
 #else /*USE_HDG*/

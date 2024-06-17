@@ -123,6 +123,13 @@ USE MOD_DG_Vars               ,ONLY: N_DG_Mapping,DG_Elems_master,DG_Elems_slave
 USE MOD_Part_BR_Elecron_Fluid ,ONLY: UpdateNonlinVolumeFac
 USE MOD_Restart_Vars          ,ONLY: DoRestart
 #endif /*defined(PARTICLES)*/
+#if USE_MPI
+USE MOD_MPI                   ,ONLY: StartReceiveMPISurfDataType, StartSendMPISurfDataType, FinishExchangeMPISurfDataType
+USE MOD_MPI_Vars
+#endif
+#if USE_LOADBALANCE
+USE MOD_LoadBalance_Vars      ,ONLY: PerformLoadBalance
+#endif /*USE_LOADBALANCE*/
 #if USE_PETSC
 USE PETSc
 USE MOD_Mesh_Vars             ,ONLY: nMPISides_YOUR
@@ -133,13 +140,6 @@ USE MOD_Mesh_Vars             ,ONLY: MortarType,MortarInfo
 USE MOD_Mesh_Vars             ,ONLY: firstMortarInnerSide,lastMortarInnerSide
 USE MOD_Mesh_Vars             ,ONLY: ElemToSide
 #endif /*USE_PETSC*/
-#if USE_MPI
-USE MOD_MPI                   ,ONLY: StartReceiveMPISurfDataType, StartSendMPISurfDataType, FinishExchangeMPISurfDataType
-USE MOD_MPI_Vars
-#endif
-#if USE_LOADBALANCE
-USE MOD_LoadBalance_Vars      ,ONLY: PerformLoadBalance
-#endif /*USE_LOADBALANCE*/
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
@@ -402,6 +402,7 @@ CALL InitBV()
 #else
   nDirichletBCsidesGlobal = nDirichletBCsides
 #endif /*USE_MPI*/
+! TODO Do we really need to handle PETSc separately here?
 #if USE_PETSC
 IF(nDirichletBCsidesGlobal.EQ.0) THEN
 #else
@@ -689,10 +690,8 @@ PetscCallA(VecScatterCreate(PETScSolution,idx_global_petsc,PETScSolutionLocal,id
 !  DEALLOCATE(indx)
 !  PetscCallA(VecScatterCreate(PETScSolution,idx_global_conductors_petsc,lambda_local_conductors_petsc,idx_local_conductors_petsc,scatter_conductors_petsc,ierr))
 !END IF
-#endif /* USE_PETSC */
 
-! (999. Delete local allocated vectors)
-#if USE_PETSC
+! (Delete local allocated vectors)
 DEALLOCATE(localToGlobalPETScDOF)
 #endif
 

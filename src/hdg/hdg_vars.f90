@@ -51,7 +51,6 @@ IS                  :: idx_global_petsc         !< Basically localToGlobalDOF wi
 !VecScatter          :: scatter_conductors_petsc
 !IS                  :: idx_local_conductors_petsc
 !IS                  :: idx_global_conductors_petsc
-INTEGER,ALLOCATABLE :: PETScLocalToSideID(:)    !< PETScLocalToSideID(PETScLocalSideID) maps the local PETSc side to SideID
 REAL,ALLOCATABLE    :: Smat_BC(:,:,:,:)         !< side to side matrix for dirichlet (D) BCs, (ngpface,ngpface,6Sides,DSides)
 INTEGER             :: nPETScSides              !< nSides - nDirichletSides
 INTEGER             :: nPETScUniqueSides        !< nPETScSides - nMPISides_YOUR
