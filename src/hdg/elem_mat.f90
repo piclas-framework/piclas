@@ -40,10 +40,12 @@ END INTERFACE
 !END INTERFACE
 
 PUBLIC :: Elem_Mat
-PUBLIC :: PETScFillSystemMatrix
 PUBLIC :: BuildPrecond
-PUBLIC :: PETScSetPrecond
 PUBLIC :: PostProcessGradientHDG
+#if USE_PETSC
+PUBLIC :: PETScFillSystemMatrix
+PUBLIC :: PETScSetPrecond
+#endif /*USE_PETSC*/
 #endif /*USE_HDG*/
 !===================================================================================================================================
 
@@ -388,13 +390,17 @@ USE MOD_DG_Vars            ,ONLY: N_DG_Mapping
 USE PETSc
 USE MOD_Mesh_Vars          ,ONLY: SideToElem, nSides
 !USE MOD_Mesh_Vars          ,ONLY: BoundaryType,BC
-USE MOD_Interpolation_Vars ,ONLY: PREF_VDM
+USE MOD_Interpolation_Vars ,ONLY: PREF_VDM,NMax
 USE MOD_Mesh_Vars          ,ONLY: ElemToSide
+
+USE MOD_Interpolation_Vars ,ONLY: N_Inter
+USE MOD_Mesh_Vars          ,ONLY: N_VolMesh,offSetElem
+USE MOD_Mesh_Vars          ,ONLY: N_SurfMesh
+USE MOD_Mesh_Vars          ,ONLY: N_Mesh
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-INTEGER(KIND=8),INTENT(IN)  :: td_iter
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -404,6 +410,8 @@ INTEGER              :: iElem,NElem
 INTEGER              :: iLocSide,iSideID,iNloc,iPETScGlobal, iNdof, iIndices(nGP_face(Nmax))
 INTEGER              :: jLocSide,jSideID,jNloc,jPETScGlobal, jNdof, jIndices(nGP_face(Nmax))
 REAL                 :: Smatloc(nGP_face(Nmax),nGP_face(Nmax))
+INTEGER              :: l,p,q,g1,g2,g3,Nloc,NSideMin
+INTEGER              :: i,j,i_m,i_p,j_m,j_p
 !INTEGER              :: BCsideID, BCState, iBCSide,locBCSideID
 !INTEGER              :: locSideID
 !REAL                 :: intMat(nGP_face(Nmax), nGP_face(Nmax))
@@ -447,20 +455,17 @@ DO iElem=1,PP_nElems
     iSideID=ElemToSide(E2S_SIDE_ID,iLocSide,iElem)
     iNloc=N_SurfMesh(iSideID)%NSideMin
     ! TODO PETSC P-Adaption - Improvement: Delete PETScGlobal
-    ! iPETScGlobal should be OffsetSide or STH?
     ! Or with the current, just stay as it is?
-    iPETScGlobal=PETScGlobal(iSideID) ! TODO use OffsetGlobalPETScDOF...
-    IF (iPETScGlobal.EQ.-1) CYCLE
+    IF(MaskedSide(iSideID).GT.0) CYCLE
     DO jLocSide=1,6
       jSideID=ElemToSide(E2S_SIDE_ID,jLocSide,iElem)
       jNloc=N_SurfMesh(jSideID)%NSideMin
-      jPETScGlobal=PETScGlobal(jSideID)
-      IF (jPETScGlobal.EQ.-1) CYCLE ! TODO PETSC P-Adaption - Find out why we cant fill halve the matrix and then use MAT_SYMMETRIC
-      !IF (iPETScGlobal.GT.jPETScGlobal) CYCLE
-      IF(SetZeroPotentialDOF.AND.(iPETScGlobal.EQ.0)) THEN
+      IF(MaskedSide(jSideID).GT.0) CYCLE
+      !IF (iPETScGlobal.GT.jPETScGlobal) CYCLE ! TODO PETSC P-Adaption - Find out why we cant fill halve the matrix and then use MAT_SYMMETRIC
+      IF(SetZeroPotentialDOF.AND.(OffsetGlobalPETScDOF(iSideID).EQ.0)) THEN
         ! The first DOF is set to constant 0 -> lambda_{1,1} = 0
         HDG_Vol_N(iElem)%Smat(:,1,jLocSide,iLocSide) = 0 ! TODO PETSC P-Adaption: why ji and not ij?
-        IF(jPETScGlobal.EQ.iPETScGlobal) HDG_Vol_N(iElem)%Smat(1,1,jLocSide,iLocSide) = 1
+        IF(OffsetGlobalPETScDOF(jSideID).EQ.0) HDG_Vol_N(iElem)%Smat(1,1,jLocSide,iLocSide) = 1
       END IF
 
 
@@ -669,6 +674,7 @@ END SELECT
 END SUBROUTINE BuildPrecond
 
 
+#if USE_PETSC
 SUBROUTINE PETScSetPrecond()
 !===================================================================================================================================
 ! Set the Preconditioner in PETSc
@@ -705,6 +711,7 @@ case(11)
   PetscCallA(PCSetType(pc,PCLU,ierr))
 END SELECT
 END SUBROUTINE PETScSetPrecond
+#endif /*USE_PETSC*/
 
 
 SUBROUTINE PostProcessGradientHDG()

@@ -135,6 +135,7 @@ USE PETSc
 USE MOD_Mesh_Vars             ,ONLY: nMPISides_YOUR
 #if USE_MPI
 USE MOD_MPI                   ,ONLY: StartReceiveMPIDataInt,StartSendMPIDataInt,FinishExchangeMPIData
+USE MOD_Elem_Mat              ,ONLY: PETScFillSystemMatrix, PETScSetPrecond
 #endif /*USE_MPI*/
 USE MOD_Mesh_Vars             ,ONLY: MortarType,MortarInfo
 USE MOD_Mesh_Vars             ,ONLY: firstMortarInnerSide,lastMortarInnerSide
@@ -627,7 +628,7 @@ END DO
 ALLOCATE(localToGlobalPETScDOF(nLocalPETScDOFs))
 iLocalPETScDOF = 0
 DO SideID=1,nSides
-  IF(MaskedSide(SideID).GT.0)
+  IF(MaskedSide(SideID).GT.0) CYCLE
     DO iDOF=1,nGP_face(N_SurfMesh(SideID)%NSideMin)
     iLocalPETScDOF = iLocalPETScDOF + 1
     LocalToGlobalPETScDOF(iLocalPETScDOF) = OffsetGlobalPETScDOF(SideID) + iDOF - 1
