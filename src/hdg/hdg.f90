@@ -554,8 +554,9 @@ END DO ! SideID = 1, nSides
 
 ! 11. Build Preconditioner
 ! Requires HDG_Surf_N(SideID)%buf
+#if !USE_PETSC
 CALL BuildPrecond()
-
+#endif
 
 #if USE_PETSC
 ! -------------------------------------------------------------------------------------------------

@@ -535,7 +535,6 @@ PetscCallA(MatAssemblyEnd(PETScSystemMatrix,MAT_FINAL_ASSEMBLY,ierr))
 END SUBROUTINE PETScFillSystemMatrix
 #endif /* USE_PETSC */
 
-
 SUBROUTINE BuildPrecond()
 !===================================================================================================================================
 ! Build a block-diagonal preconditioner for the lambda system
@@ -548,13 +547,9 @@ USE MOD_HDG_Vars
 USE MOD_MPI_Vars
 USE MOD_MPI            ,ONLY: StartReceiveMPIData,StartSendMPIData,FinishExchangeMPIData,Mask_MPIsides
 #endif /*USE_MPI*/
-#if USE_PETSC
-USE PETSc
-#else
 USE MOD_Mesh_Vars      ,ONLY: nSides,SideToElem,nMPIsides_YOUR,N_SurfMesh, offSetElem
 USE MOD_FillMortar_HDG ,ONLY: SmallToBigMortarPrecond_HDG
 USE MOD_DG_Vars        ,ONLY: DG_Elems_master, DG_Elems_slave,N_DG_Mapping
-#endif
 USE MOD_Interpolation_Vars ,ONLY: Nmax
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -564,39 +559,10 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-#if USE_PETSC
-PetscErrorCode   :: ierr
-PC               :: pc
-PetscInt         :: lens(nPETScUniqueSides)
-#else
 INTEGER          :: ElemID, locSideID, SideID, igf
 INTEGER          :: lapack_info
-#endif
 INTEGER          :: NSideMin
 !===================================================================================================================================
-
-#if USE_PETSC
-PetscCallA(KSPGetPC(PETScSolver,pc,ierr))
-SELECT CASE(PrecondType)
-CASE(0)
-  PetscCallA(PCSetType(pc,PCNONE,ierr))
-CASE(1)
-  PetscCallA(PCSetType(pc,PCJACOBI,ierr))
-CASE(2)
-  PetscCallA(PCHYPRESetType(pc,PCILU,ierr))
-CASE(3)
-  PetscCallA(PCHYPRESetType(pc,PCSPAI,ierr))
-CASE(4)
-  lens=nGP_Face
-  PetscCallA(PCSetType(pc,PCBJACOBI,ierr))
-  PetscCallA(PCBJacobiSetLocalBlocks(pc,nPETScUniqueSides,lens,ierr))
-  PetscCallA(KSPSetUp(PETScSolver,ierr))
-case(10)
-  PetscCallA(PCSetType(pc,PCCHOLESKY,ierr))
-case(11)
-  PetscCallA(PCSetType(pc,PCLU,ierr))
-END SELECT
-#else
 SELECT CASE(PrecondType)
 CASE(0)
 ! do nothing
@@ -670,9 +636,7 @@ CASE(2)
     END IF
   END DO !1,nSides-nMPIsides_YOUR
 END SELECT
-#endif
 END SUBROUTINE BuildPrecond
-
 
 #if USE_PETSC
 SUBROUTINE PETScSetPrecond()
