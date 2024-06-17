@@ -94,9 +94,6 @@ USE MOD_Particle_Vars           ,ONLY: Pt_temp,PDM
 #elif (PP_TimeDiscMethod==508) || (PP_TimeDiscMethod==509)
 USE MOD_Particle_Vars           ,ONLY: PDM
 #endif
-#if defined(IMPA) || defined(ROS)
-USE MOD_Particle_Vars           ,ONLY: PEM
-#endif
 USE MOD_Particle_Mesh_Vars      ,ONLY: SideInfo_Shared
 USE MOD_Particle_Tracking_Vars  ,ONLY: TrackInfo
 USE MOD_Particle_Vars           ,ONLY: UseVarTimeStep, PartTimeStep, VarTimeStep
@@ -215,7 +212,6 @@ ELSE
   PartState(1:3,PartID) = LastPartPos(1:3,PartID) + TrackInfo%PartTrajectory(1:3)*(TrackInfo%lengthPartTrajectory - TrackInfo%alpha)
 END IF
 
-! #if !defined(IMPA) &&  !defined(ROS)
 ! compute moved particle || rest of movement
 TrackInfo%PartTrajectory=PartState(1:3,PartID) - LastPartPos(1:3,PartID)
 
@@ -251,21 +247,6 @@ ELSE
 #endif  /*LSERK*/
 END IF
 #endif  /*LSERK || (PP_TimeDiscMethod==508) || (PP_TimeDiscMethod==509)*/
-
-! rotation for IMEX and Rosenbrock Method (requires the rotation of the previous rk-stages... simplification of boundary condition)
-! results in an order reduction
-#ifdef IMPA
-!IF(SUM(ABS(PEM%NormVec(1:3,PartID))).GT.0)THEN
-!   IPWRITE(*,*) ' Caution: Field rotation for several reflection is not implemented!', iStage,PartIsImplicit(PartID), PartID
-! END IF
-PEM%NormVec(1:3,PartID)=n_loc
-#endif /*IMPA*/
-#ifdef ROS
-! IF(SUM(ABS(PEM%NormVec(1:3,PartID))).GT.0)THEN
-!   !IPWRITE(*,*) ' Caution: Field rotation for several reflection is not implemented!'
-! END IF
-PEM%NormVec(1:3,PartID)=n_loc
-#endif /*ROS*/
 
 END SUBROUTINE PerfectReflection
 

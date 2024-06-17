@@ -80,9 +80,6 @@ USE MOD_Dielectric           ,ONLY: InitDielectric
 #endif /*!((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))*/
 USE MOD_Analyze              ,ONLY: InitAnalyze
 USE MOD_RecordPoints         ,ONLY: InitRecordPoints
-#if defined(ROS) || defined(IMPA)
-USE MOD_LinearSolver         ,ONLY: InitLinearSolver
-#endif /*ROS or IMPA*/
 USE MOD_Restart_Vars         ,ONLY: N_Restart,RestartNullifySolution
 #if USE_MPI
 USE MOD_MPI                  ,ONLY: InitMPIvars
@@ -93,9 +90,6 @@ USE MOD_ParticleInit         ,ONLY: InitParticleGlobals,InitParticles,InitSymmet
 USE MOD_Particle_Analyze     ,ONLY: InitParticleAnalyze
 USE MOD_SurfaceModel_Analyze ,ONLY: InitSurfModelAnalyze
 USE MOD_Particle_MPI         ,ONLY: InitParticleMPI
-#if defined(IMPA) || defined(ROS)
-USE MOD_ParticleSolver       ,ONLY: InitPartSolver
-#endif
 #endif
 #if USE_HDG
 USE MOD_HDG                  ,ONLY: InitHDG
@@ -171,15 +165,9 @@ CALL InitPML() ! Perfectly Matched Layer (PML): electromagnetic-wave-absorbing l
 CALL InitDielectric() ! Dielectric media
 #endif /*!((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))*/
 CALL InitDG()
-#if defined(ROS) || defined(IMPA)
-CALL InitLinearSolver()
-#endif /*ROS /IMEX*/
 #ifdef PARTICLES
 CALL InitParticleMPI
 CALL InitParticles()
-#if defined(IMPA) || defined(ROS)
-CALL InitPartSolver()
-#endif
 #endif
 CALL InitAnalyze()
 CALL InitRecordPoints()
@@ -239,9 +227,6 @@ USE MOD_HDG                        ,ONLY: FinalizeHDG
 USE MOD_Analyze                    ,ONLY: FinalizeAnalyze
 USE MOD_RecordPoints               ,ONLY: FinalizeRecordPoints
 USE MOD_RecordPoints_Vars          ,ONLY: RP_Data
-#if defined(ROS) || defined(IMPA)
-USE MOD_LinearSolver               ,ONLY: FinalizeLinearSolver
-#endif /*IMEX*/
 #if USE_MPI
 USE MOD_MPI                        ,ONLY: FinalizeMPI
 USE MOD_MPI_Shared                 ,ONLY: FinalizeMPIShared
@@ -305,10 +290,6 @@ CALL FinalizeElemData(ElementOutRay)
 CALL FinalizeRecordPoints()
 CALL FinalizeAnalyze()
 CALL FinalizeDG()
-#if defined(IMPA) || defined(ROS)
-!CALL FinalizeCSR()
-CALL FinalizeLinearSolver()
-#endif /*IMEX*/
 #if !((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))
 CALL FinalizeDielectric()
 #if !(USE_HDG)

@@ -731,10 +731,10 @@ USE MOD_PICInterpolation_Vars     ,ONLY: DoInterpolationAnalytic
 #if (PP_nVar>=6)
 USE MOD_AnalyzeField              ,ONLY: CalcPoyntingIntegral
 #endif /*PP_nVar>=6*/
-#if defined(LSERK) || defined(IMPA) || defined(ROS) || USE_HDG
+#if defined(LSERK) || USE_HDG
 USE MOD_Analyze_Vars              ,ONLY: DoFieldAnalyze
 USE MOD_RecordPoints_Vars         ,ONLY: RP_onProc
-#endif /*defined(LSERK) ||  defined(IMPA) || defined(ROS) || USE_HDG*/
+#endif /*defined(LSERK) || USE_HDG*/
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Timers        ,ONLY: LBStartTime,LBPauseTime
 #endif /*USE_LOADBALANCE*/
@@ -769,11 +769,11 @@ REAL                          :: RECR
 LOGICAL                       :: LastIter
 REAL                          :: L_2_Error(PP_nVar)
 REAL                          :: L_Inf_Error(PP_nVar)
-#if defined(LSERK) || defined(IMPA) || defined(ROS) || USE_HDG
+#if defined(LSERK) || USE_HDG
 #if USE_LOADBALANCE
 REAL                          :: tLBStart ! load balance
 #endif /*USE_LOADBALANCE*/
-#endif /* LSERK && IMPA && ROS && USE_HDG*/
+#endif /* LSERK && USE_HDG*/
 REAL                          :: StartAnalyzeTime,EndAnalyzeTime
 CHARACTER(LEN=40)             :: formatStr
 LOGICAL                       :: DoPerformFieldAnalyze
@@ -918,7 +918,7 @@ IF(DoPerformErrorCalc) OutputErrorNormsPart = .TRUE.
 #endif /*defined(PARTICLES)*/
 
 ! the following analysis are restricted to Runge-Kutta based time-discs and temporal varying electrodynamic fields
-#if defined(LSERK) || defined(IMPA) || defined(ROS) || USE_HDG
+#if defined(LSERK) || USE_HDG
 
 !----------------------------------------------------------------------------------------------------------------------------------
 ! Maxwell's equation: Compute Poynting Vector and field energies
@@ -952,7 +952,7 @@ IF(RP_onProc) THEN
 END IF
 
 ! end the analyzes for all Runge-Kutta based time-discs
-#endif /* LSERK && IMPA && ROS && USE_HDG*/
+#endif /* LSERK && USE_HDG*/
 
 !----------------------------------------------------------------------------------------------------------------------------------
 ! PIC, DSMC and other Particle-based Solvers

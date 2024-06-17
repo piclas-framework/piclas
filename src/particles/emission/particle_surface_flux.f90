@@ -49,9 +49,6 @@ USE MOD_Particle_Surfaces_Vars  ,ONLY: SurfFluxSideSize, TriaSurfaceFlux, BCdata
 USE MOD_Particle_TimeStep       ,ONLY: GetParticleTimeStep
 USE MOD_Timedisc_Vars           ,ONLY: RKdtFrac, dt
 USE MOD_DSMC_PolyAtomicModel    ,ONLY: DSMC_SetInternalEnr
-#if defined(IMPA) || defined(ROS)
-USE MOD_Particle_Tracking_Vars  ,ONLY: TrackingMethod
-#endif /*IMPA*/
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Vars        ,ONLY: nSurfacefluxPerElem
 USE MOD_LoadBalance_Timers      ,ONLY: LBStartTime, LBElemSplitTime, LBPauseTime
@@ -228,9 +225,6 @@ DO iSpec=1,nSpecies
             PartState(4:5,ParticleIndexNbr) = particle_xis(2*(iPart-1)+1:2*(iPart-1)+2) !use velo as dummy-storage for xi!
           END IF
           LastPartPos(1:3,ParticleIndexNbr)=PartState(1:3,ParticleIndexNbr)
-#if defined(IMPA) || defined(ROS)
-          IF(TrackingMethod.EQ.REFMAPPING) CALL GetPositionInRefElem(PartState(1:3,ParticleIndexNbr),PartPosRef(1:3,ParticleIndexNbr),globElemId)
-#endif /*IMPA*/
           PDM%ParticleInside(ParticleIndexNbr) = .TRUE.
           PDM%dtFracPush(ParticleIndexNbr) = .TRUE.
           PDM%IsNewPart(ParticleIndexNbr) = .TRUE.
@@ -484,12 +478,6 @@ SUBROUTINE AnalyzePartPos(ParticleIndexNbr)
 USE MOD_Globals
 USE MOD_Particle_Vars      ,ONLY: LastPartPos, PDM
 USE MOD_Particle_Mesh_Vars ,ONLY: GEO
-#ifdef IMPA
-USE MOD_Particle_Vars      ,ONLY: PartDtFrac,PartIsImplicit
-#endif /*IMPA*/
-#if  defined(IMPA) || defined(ROS)
-USE MOD_Timedisc_Vars      ,ONLY: iStage
-#endif
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -507,10 +495,6 @@ IF(   (LastPartPos(1,ParticleIndexNbr).GT.GEO%xmaxglob).AND. .NOT.ALMOSTEQUAL(La
   .OR.(LastPartPos(3,ParticleIndexNbr).GT.GEO%zmaxglob).AND. .NOT.ALMOSTEQUAL(LastPartPos(3,ParticleIndexNbr),GEO%zmaxglob) &
   .OR.(LastPartPos(3,ParticleIndexNbr).LT.GEO%zminglob).AND. .NOT.ALMOSTEQUAL(LastPartPos(3,ParticleIndexNbr),GEO%zminglob) ) THEN
   IPWRITE(UNIt_stdOut,'(I0,A18,L1)')                            ' ParticleInside ',PDM%ParticleInside(ParticleIndexNbr)
-#ifdef IMPA
-  IPWRITE(UNIt_stdOut,'(I0,A18,L1)')                            ' PartIsImplicit ', PartIsImplicit(ParticleIndexNbr)
-  IPWRITE(UNIt_stdOut,'(I0,A18,ES25.14)')                       ' PartDtFrac ', PartDtFrac(ParticleIndexNbr)
-#endif /*IMPA*/
   IPWRITE(UNIt_stdOut,'(I0,A18,L1)')                            ' PDM%IsNewPart ', PDM%IsNewPart(ParticleIndexNbr)
   IPWRITE(UNIt_stdOut,'(I0,A18,1X,A18,1X,A18)')                  '    min ', ' value ', ' max '
   IPWRITE(UNIt_stdOut,'(I0,A2,1X,ES25.14,1X,ES25.14,1X,ES25.14)') ' x', GEO%xminglob, LastPartPos(1,ParticleIndexNbr) &
@@ -519,13 +503,7 @@ IF(   (LastPartPos(1,ParticleIndexNbr).GT.GEO%xmaxglob).AND. .NOT.ALMOSTEQUAL(La
                                                                 , GEO%ymaxglob
   IPWRITE(UNIt_stdOut,'(I0,A2,1X,ES25.14,1X,ES25.14,1X,ES25.14)') ' z', GEO%zminglob, LastPartPos(3,ParticleIndexNbr) &
                                                                 , GEO%zmaxglob
-  CALL abort(&
-     __STAMP__ &
-#if  defined(IMPA) || defined(ROS)
-     ,' LastPartPos outside of mesh. iPart=, iStage',ParticleIndexNbr,REAL(iStage))
-#else
-     ,' LastPartPos outside of mesh. iPart=',ParticleIndexNbr)
-#endif
+  CALL abort(__STAMP__,' LastPartPos outside of mesh. iPart=',ParticleIndexNbr)
 END IF
 END SUBROUTINE AnalyzePartPos
 #endif /*CODE_ANALYZE*/

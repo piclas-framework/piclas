@@ -170,10 +170,6 @@ DO iElem = 1, nElems
 END DO ! iElem = 1, nElems
 #endif /*!(USE_HDG)*/
 
-#if IMPA || ROS
-ALLOCATE(Un(PP_nVar,0:PP_N,0:PP_N,0:PP_N,nElems))
-Un=0.
-#endif /*IMPA || ROS*/
 !nTotal_face = (PP_N+1)*(PP_N+1)
 !nTotal_vol  = nTotal_face*(PP_N+1)
 !nTotalU     = PP_nVar*nTotal_vol*nElems
@@ -712,9 +708,6 @@ IMPLICIT NONE
 ! LOCAL VARIABLES
 !===================================================================================================================================
 SDEALLOCATE(DGB_N)
-#if IMPA || ROS
-SDEALLOCATE(Un)
-#endif
 SDEALLOCATE(U_Surf_N)
 
 ! Do not deallocate the solution vector during load balance here as it needs to be communicated between the processors

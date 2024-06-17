@@ -199,16 +199,7 @@ USE MOD_Mesh_Vars               ,ONLY: BoundaryType
 USE MOD_Particle_Mesh_Vars      ,ONLY: GEO
 USE MOD_Particle_Vars           ,ONLY: PartState,LastPartPos
 USE MOD_Particle_Tracking_Vars  ,ONLY: TrackInfo
-#if defined(ROS) || defined(IMPA)
-USE MOD_Particle_Vars          ,ONLY: PEM
-#endif
 USE MOD_Particle_Mesh_Vars     ,ONLY: SideInfo_Shared
-#if defined(IMPA)
-USE MOD_TimeDisc_Vars          ,ONLY: ESDIRK_a,ERK_a
-#endif /*IMPA */
-#if defined(ROS)
-USE MOD_TimeDisc_Vars          ,ONLY: RK_A
-#endif /*ROS */
 #ifdef CODE_ANALYZE
 USE MOD_Particle_Tracking_Vars ,ONLY: PartOut,MPIRankOut
 #endif /*CODE_ANALYZE*/
@@ -255,11 +246,6 @@ IF(PARTOUT.GT.0 .AND. MPIRANKOUT.EQ.MyRank)THEN
 END IF
 #endif /*CODE_ANALYZE*/
 
-#if defined(ROS) || defined(IMPA)
-PEM%PeriodicMoved(PartID)=.TRUE.
-#endif
-
-! refmapping and tracing
 ! move particle from old element to new element
 ElemID = SideInfo_Shared(SIDE_NBELEMID,SideID)
 

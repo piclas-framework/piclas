@@ -28,7 +28,7 @@ LOGICAL                         :: DoDeposition              ! flag to switch de
 LOGICAL                         :: DoDirichletDeposition     ! flag to switch deposition on Dirichlet sides on/off
 #endif /*USE_HDG*/
 LOGICAL                         :: RelaxDeposition           ! relaxation of current PartSource with RelaxFac into PartSourceOld
-LOGICAL                         :: DoHaloDepo                ! Flag for enlarging the deposition region (implicit and dielectric)
+LOGICAL                         :: DoHaloDepo                ! Flag for enlarging the deposition region (dielectric)
 REAL                            :: RelaxFac
 
 ! DG solution particle volume source terms

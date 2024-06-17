@@ -396,15 +396,6 @@ IF (ABS(meshMode).GT.1) THEN
   END DO !MortarSideID
 #endif /*USE_HDG*/
 
-#ifdef maxwell
-#if defined(ROS) || defined(IMPA)
-  ALLOCATE(nVecLoc(1:3,0:PP_N,0:PP_N,1:6,PP_nElems))
-  ALLOCATE(SurfLoc(0:PP_N,0:PP_N,1:6,PP_nElems))
-  nVecLoc=0.
-  SurfLoc=0.
-#endif /*ROS or IMPA*/
-#endif /*maxwell*/
-
 ! assign all metrics Metrics_fTilde,Metrics_gTilde,Metrics_hTilde
 ! assign 1/detJ (sJ)
 ! assign normal and tangential vectors and surfElems on faces
@@ -1436,12 +1427,6 @@ SDEALLOCATE(SideToElem)
 SDEALLOCATE(BC)
 SDEALLOCATE(GlobalUniqueSideID)
 ! elem-xgp and metrics
-#ifdef maxwell
-#if defined(ROS) || defined(IMPA)
-SDEALLOCATE(nVecLoc)
-SDEALLOCATE(SurfLoc)
-#endif /*ROS or IMPA*/
-#endif /*maxwell*/
 !#ifdef CODE_ANALYZE
 !#ifndef PARTICLES
 !SDEALLOCATE(SideBoundingBoxVolume)

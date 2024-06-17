@@ -317,9 +317,6 @@ USE MOD_Globals
 USE MOD_Globals_Vars
 USE MOD_Basis              ,ONLY: LagrangeInterpolationPolys
 USE MOD_Particle_Mesh_Vars ,ONLY: RefMappingEps
-#if defined(IMPA)
-USE MOD_Particle_Vars      ,ONLY: PartIsImplicit
-#endif
 USE MOD_Particle_Vars      ,ONLY: LastPartPos
 USE MOD_TimeDisc_Vars      ,ONLY: iter,time
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -468,10 +465,7 @@ DO WHILE((deltaXi2.GT.RefMappingEps).AND.(NewtonIter.LT.100))
       IPWRITE(UNIT_stdOut,*) ' GlobalElemID     ', ElemID
       IF(PRESENT(PartID)) IPWRITE(UNIT_stdOut,*) ' LastPartPos ', LastPartPos(1:3,PartID)
       IF(PRESENT(PartID)) IPWRITE(UNIT_stdOut,*) ' PartID      ', PartID
-#if defined(IMPA)
-      IF(PRESENT(PartID)) IPWRITE(UNIT_stdOut,*) ' implicit?', PartIsImplicit(PartID)
-#endif
-        CALL abort(__STAMP__,'Particle Not inSide of Element, GlobalElemID,',ElemID)
+      CALL abort(__STAMP__,'Particle Not inSide of Element, GlobalElemID,',ElemID)
     ELSE
       EXIT
     END IF

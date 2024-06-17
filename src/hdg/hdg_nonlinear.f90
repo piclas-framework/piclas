@@ -45,11 +45,7 @@ USE MOD_PreProc
 USE MOD_HDG_Vars
 USE MOD_Equation               ,ONLY: CalcSourceHDG,ExactFunc
 USE MOD_FillMortar_HDG         ,ONLY: SmallToBigMortar_HDG
-#if defined(IMPA) || defined(ROS)
-USE MOD_LinearSolver_Vars      ,ONLY: DoPrintConvInfo
-#else
 USE MOD_TimeDisc_Vars          ,ONLY: IterDisplayStep,DoDisplayIter
-#endif
 USE MOD_Globals_Vars           ,ONLY: eps0
 USE MOD_Mesh_Vars              ,ONLY: N_SurfMesh,BoundaryType,nSides,BC,offSetElem
 USE MOD_Mesh_Vars              ,ONLY: ElemToSide
@@ -241,13 +237,7 @@ IF(PRESENT(ForceCGSolverIteration_opt))THEN
   END IF ! ForceCGSolverIteration_opt
 END IF ! ForceCGSolverIteration_opt
 IF (converged) THEN
-#if defined(IMPA) || defined(ROS)
-  IF(DoPrintConvInfo)THEN
-    SWRITE(*,*) 'IMPA || ROS - HDGNewton: Newton Iteration has converged in 0 steps...'
-  END IF
-#else
   SWRITE(*,*) 'HDGNewton: Newton Iteration has converged in 0 steps...'
-#endif
 ELSE
   !CALL CG_solver(RHS_face(PP_nVar,:,:),lambda(PP_nVar,:,:))
   !post processing:
@@ -418,17 +408,11 @@ ELSE
     !CALL CheckNonLinRes(HDG_Surf_N(1)%RHS_face(1,:),lambda(1,:,:),converged,Norm_r2)
     CALL CheckNonLinRes(converged,Norm_r2)
     IF (converged) THEN
-#if defined(IMPA) || defined(ROS)
-      IF(DoPrintConvInfo)THEN
-        SWRITE(*,*) 'HDGNewton: Newton Iteration has converged in ',iter,' steps...'
-      END IF
-#else
       IF(DoDisplayIter)THEN
         IF(HDGDisplayConvergence.AND.(MOD(td_iter,IterDisplayStep).EQ.0)) THEN
           SWRITE(*,*) 'HDGNewton: Newton Iteration has converged in ',iter,' steps...'
         END IF
       END IF
-#endif
       EXIT
     ELSE IF (iter.EQ.MaxIterNewton) THEN
       IPWRITE(UNIT_StdOut,*) "Norm_r2       =", Norm_r2

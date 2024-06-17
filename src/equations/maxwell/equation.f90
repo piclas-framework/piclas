@@ -1027,12 +1027,9 @@ USE MOD_Equation_Vars     ,ONLY: c_corr,IniExactFunc, DipoleOmega,tPulse,xDipole
 #ifdef PARTICLES
 USE MOD_PICDepo_Vars      ,ONLY: PS_N,DoDeposition
 USE MOD_Dielectric_Vars   ,ONLY: DoDielectric,isDielectricElem,ElemToDielectric,DielectricVol,ElemToDielectric
-#if IMPA
-USE MOD_LinearSolver_Vars ,ONLY: ExplicitPartSource
-#endif
 #endif /*PARTICLES*/
 USE MOD_Mesh_Vars         ,ONLY: N_VolMesh, offSetElem
-#if defined(LSERK) || defined(IMPA) || defined(ROS)
+#if defined(LSERK)
 USE MOD_Equation_Vars     ,ONLY: DoParabolicDamping,fDamping
 USE MOD_TimeDisc_Vars     ,ONLY: sdtCFLOne
 #endif /*LSERK*/
@@ -1065,11 +1062,7 @@ IF(DoDeposition)THEN
       Nloc = N_DG_Mapping(2,iElem+offSetElem)
       IF(isDielectricElem(iElem)) THEN ! Element is in an dielectric region
         DO k=0,Nloc; DO j=0,Nloc; DO i=0,Nloc
-#if IMPA
-          PartSourceLoc=PS_N(iElem)%PartSource(:,i,j,k)+ExplicitPartSource(:,i,j,k)
-#else
           PartSourceLoc=PS_N(iElem)%PartSource(:,i,j,k)
-#endif
           !  Get PartSource from Particles
           !U_N(iElem)%Ut(1:3,i,j,k) = U_N(iElem)%Ut(1:3,i,j,k) - eps0inv *coeff* PartSource(1:3,i,j,k) * DielectricEpsR_inv
           !U_N(iElem)%Ut(  8,i,j,k) = U_N(iElem)%Ut(  8,i,j,k) + eps0inv *coeff* PartSource(  4,i,j,k) * c_corr * DielectricEpsR_inv
@@ -1080,11 +1073,7 @@ IF(DoDeposition)THEN
         END DO; END DO; END DO
       ELSE ! Normal element in vacuum
         DO k=0,Nloc; DO j=0,Nloc; DO i=0,Nloc
-#if IMPA
-          PartSourceLoc=PS_N(iElem)%PartSource(:,i,j,k)+ExplicitPartSource(:,i,j,k)
-#else
           PartSourceLoc=PS_N(iElem)%PartSource(:,i,j,k)
-#endif
           !  Get PartSource from Particles
           U_N(iElem)%Ut(1:3,i,j,k) = U_N(iElem)%Ut(1:3,i,j,k) - eps0inv *coeff* PartSourceloc(1:3)
           U_N(iElem)%Ut(  8,i,j,k) = U_N(iElem)%Ut(  8,i,j,k) + eps0inv *coeff* PartSourceloc( 4 ) * c_corr
@@ -1095,11 +1084,7 @@ IF(DoDeposition)THEN
     DO iElem=1,PP_nElems
       Nloc = N_DG_Mapping(2,iElem+offSetElem)
       DO k=0,Nloc; DO j=0,Nloc; DO i=0,Nloc
-#if IMPA
-        PartSourceLoc=PS_N(iElem)%PartSource(:,i,j,k)+ExplicitPartSource(:,i,j,k)
-#else
         PartSourceLoc=PS_N(iElem)%PartSource(:,i,j,k)
-#endif
         !  Get PartSource from Particles
         U_N(iElem)%Ut(1:3,i,j,k) = U_N(iElem)%Ut(1:3,i,j,k) - eps0inv *coeff* PartSourceloc(1:3)
         U_N(iElem)%Ut(  8,i,j,k) = U_N(iElem)%Ut(  8,i,j,k) + eps0inv *coeff* PartSourceloc( 4 ) * c_corr
@@ -1199,7 +1184,7 @@ CASE DEFAULT
   CALL abort(__STAMP__,'Exactfunction not specified! IniExactFunc = ',IntInfoOpt=IniExactFunc)
 END SELECT ! ExactFunction
 
-#if defined(LSERK) ||  defined(ROS) || defined(IMPA)
+#if defined(LSERK)
 IF(DoParabolicDamping)THEN
   DO iElem = 1, PP_nElems
     U_N(iElem)%Ut(7:8,:,:,:) = U_N(iElem)%Ut(7:8,:,:,:) - (1.0-fDamping)*sdtCFLOne*U_N(iElem)%U(7:8,:,:,:)

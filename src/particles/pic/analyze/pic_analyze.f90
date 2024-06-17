@@ -50,11 +50,7 @@ USE MOD_Interpolation_Vars    ,ONLY: NAnalyze,N_InterAnalyze,wAnalyze
 USE MOD_Particle_Vars         ,ONLY: PDM, Species, PartSpecies ,PartMPF,usevMPF
 USE MOD_Particle_Analyze_Vars ,ONLY: ChargeCalcDone
 USE MOD_PICDepo_Vars          ,ONLY: sfDepo3D,dimFactorSF,VerifyChargeStr,DepositionType
-#if defined(IMPA)
-USE MOD_LinearSolver_Vars     ,ONLY: ImplicitSource
-#else
 USE MOD_PICDepo_Vars          ,ONLY: PS_N
-#endif
 USE MOD_ChangeBasis           ,ONLY: ChangeBasis3D
 USE MOD_DG_Vars               ,ONLY: N_DG_Mapping
 ! IMPLICIT VARIABLE HANDLING
@@ -81,11 +77,7 @@ DO iElem=1,nElems
   ! Interpolate the Jacobian to the analyze grid: be careful we interpolate the inverse of the inverse of the Jacobian ;-)
   CALL ChangeBasis3D(1,Nloc,NAnalyze,N_InterAnalyze(Nloc)%Vdm_GaussN_NAnalyze,1./N_VolMesh(iElem)%sJ(:,:,:),J_NAnalyze(1:1,:,:,:))
   ! Interpolate the solution to the analyze grid
-#if defined(IMPA)
-  CALL ChangeBasis3D(1,PP_N,NAnalyze,N_InterAnalyze(PP_N)%Vdm_GaussN_NAnalyze,ImplicitSource(4,:,:,:,iElem),U_NAnalyze(1,:,:,:))
-#else
   CALL ChangeBasis3D(1,Nloc,NAnalyze,N_InterAnalyze(Nloc)%Vdm_GaussN_NAnalyze,PS_N(iElem)%PartSource(4,0:Nloc,0:Nloc,0:Nloc),U_NAnalyze(1,:,:,:))
-#endif
   ChargeLoc=0. ! Nullify
   DO m=0,NAnalyze
     DO l=0,NAnalyze
@@ -153,11 +145,7 @@ USE MOD_Particle_Vars         ,ONLY: PDM, Species, PartSpecies, usevmpf, PartMPF
 USE MOD_Interpolation_Vars    ,ONLY: N_Inter
 USE MOD_Particle_Analyze_Vars ,ONLY: PartCharge
 USE MOD_TimeDisc_Vars         ,ONLY: iter
-#if defined(IMPA)
-USE MOD_LinearSolver_Vars     ,ONLY: ImplicitSource
-#else
 USE MOD_PICDepo_Vars          ,ONLY: PS_N
-#endif
 USE MOD_DG_Vars               ,ONLY: N_DG_Mapping
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -183,15 +171,7 @@ DO iElem=1,PP_nElems
   DO k=0,Nloc; DO j=0,Nloc; DO i=0,Nloc
     ASSOCIATE( wGPijk => N_Inter(Nloc)%wGP(i)*N_Inter(Nloc)%wGP(j)*N_Inter(Nloc)%wGP(k) ,&
                J_Nloc => 1./N_VolMesh(iElem)%sJ(i,j,k) )
-#if defined(IMPA)
-#if USE_HDG
-      Charge(1) = Charge(1)+ wGPijk * ImplicitSource(1,i,j,k,iElem) * J_Nloc
-#else /* DG */
-      Charge(1) = Charge(1)+ wGPijk * ImplicitSource(4,i,j,k,iElem) * J_Nloc
-#endif
-#else
       Charge(1) = Charge(1)+ wGPijk * PS_N(iElem)%PartSource(4,i,j,k) * J_Nloc
-#endif
     END ASSOCIATE
   END DO; END DO; END DO
 END DO

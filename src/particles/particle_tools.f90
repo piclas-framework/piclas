@@ -1828,10 +1828,6 @@ USE MOD_DSMC_Vars
 USE MOD_Particle_MPI_Vars      ,ONLY: PartShiftVector, PartTargetProc
 #endif
 USE MOD_PICInterpolation_Vars  ,ONLY: FieldAtParticle
-#if defined(IMPA) || defined(ROS)
-USE MOD_LinearSolver_Vars      ,ONLY: PartXK, R_PartXK
-USE MOD_TimeDisc_Vars          ,ONLY: nRKStages
-#endif
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1895,29 +1891,6 @@ IF(ALLOCATED(velocityAtTime)) CALL ChangeSizeArray(velocityAtTime,PDM%maxParticl
 IF(ALLOCATED(PartTargetProc)) CALL ChangeSizeArray(PartTargetProc,PDM%maxParticleNumber,NewSize)
 IF(ALLOCATED(PartShiftVector)) CALL ChangeSizeArray(PartShiftVector,PDM%maxParticleNumber,NewSize)
 #endif
-
-#if defined(IMPA) || defined(ROS)
-IF(ALLOCATED(PartXK)) CALL ChangeSizeArray(PartXK,PDM%maxParticleNumber,NewSize)
-IF(ALLOCATED(R_PartXK)) CALL ChangeSizeArray(R_PartXK,PDM%maxParticleNumber,NewSize)
-IF(ALLOCATED(PartStage)) CALL ChangeSizeArray(PartStage,PDM%maxParticleNumber,NewSize)
-IF(ALLOCATED(PartStateN)) CALL ChangeSizeArray(PartStateN,PDM%maxParticleNumber,NewSize)
-IF(ALLOCATED(PartQ)) CALL ChangeSizeArray(PartQ,PDM%maxParticleNumber,NewSize)
-IF(ALLOCATED(PEM%NormVec)) CALL ChangeSizeArray(PEM%NormVec,PDM%maxParticleNumber,NewSize,0.)
-IF(ALLOCATED(PEM%PeriodicMoved)) CALL ChangeSizeArray(PEM%PeriodicMoved,PDM%maxParticleNumber,NewSize,.FALSE.)
-IF(ALLOCATED(PartDtFrac)) CALL ChangeSizeArray(PartDtFrac,PDM%maxParticleNumber,NewSize,1.)
-#endif
-
-#ifdef IMPA
-IF(ALLOCATED(F_PartX0)) CALL ChangeSizeArray(F_PartX0,PDM%maxParticleNumber,NewSize)
-IF(ALLOCATED(F_PartXk)) CALL ChangeSizeArray(F_PartXk,PDM%maxParticleNumber,NewSize)
-IF(ALLOCATED(Norm_F_PartX0)) CALL ChangeSizeArray(Norm_F_PartX0,PDM%maxParticleNumber,NewSize)
-IF(ALLOCATED(Norm_F_PartXk)) CALL ChangeSizeArray(Norm_F_PartXk,PDM%maxParticleNumber,NewSize)
-IF(ALLOCATED(Norm_F_PartXk_old)) CALL ChangeSizeArray(Norm_F_PartXk_old,PDM%maxParticleNumber,NewSize)
-IF(ALLOCATED(PartDeltaX)) CALL ChangeSizeArray(PartDeltaX,PDM%maxParticleNumber,NewSize)
-IF(ALLOCATED(PartLambdaAccept)) CALL ChangeSizeArray(PartLambdaAccept,PDM%maxParticleNumber,NewSize)
-IF(ALLOCATED(DoPartInNewton)) CALL ChangeSizeArray(DoPartInNewton,PDM%maxParticleNumber,NewSize)
-IF(ALLOCATED(PartIsImplicit)) CALL ChangeSizeArray(PartIsImplicit,PDM%maxParticleNumber,NewSize,.FALSE.)
-#endif /* IMPA */
 
 !    __  __          __      __          ________  ______  ___________    ___
 !   / / / /___  ____/ /___ _/ /____     /_  __/\ \/ / __ \/ ____/ ___/   /   |  ______________ ___  _______
@@ -1989,10 +1962,6 @@ USE MOD_DSMC_Vars
 USE MOD_Particle_MPI_Vars      ,ONLY: PartShiftVector, PartTargetProc
 #endif
 USE MOD_PICInterpolation_Vars  ,ONLY: FieldAtParticle
-#if defined(IMPA) || defined(ROS)
-USE MOD_LinearSolver_Vars      ,ONLY: PartXK, R_PartXK
-USE MOD_TimeDisc_Vars          ,ONLY: nRKStages
-#endif
 USE MOD_MCC_Vars               ,ONLY: UseMCC
 USE MOD_DSMC_Vars              ,ONLY: BGGas
 ! IMPLICIT VARIABLE HANDLING
@@ -2094,29 +2063,6 @@ IF(ALLOCATED(PartTargetProc)) CALL ChangeSizeArray(PartTargetProc,PDM%maxParticl
 IF(ALLOCATED(PartShiftVector)) CALL ChangeSizeArray(PartShiftVector,PDM%maxParticleNumber,NewSize)
 #endif
 
-#if defined(IMPA) || defined(ROS)
-IF(ALLOCATED(PartXK)) CALL ChangeSizeArray(PartXK,PDM%maxParticleNumber,NewSize)
-IF(ALLOCATED(R_PartXK)) CALL ChangeSizeArray(R_PartXK,PDM%maxParticleNumber,NewSize)
-IF(ALLOCATED(PartStage)) CALL ChangeSizeArray(PartStage,PDM%maxParticleNumber,NewSize)
-IF(ALLOCATED(PartStateN)) CALL ChangeSizeArray(PartStateN,PDM%maxParticleNumber,NewSize)
-IF(ALLOCATED(PartQ)) CALL ChangeSizeArray(PartQ,PDM%maxParticleNumber,NewSize)
-IF(ALLOCATED(PEM%NormVec)) CALL ChangeSizeArray(PEM%NormVec,PDM%maxParticleNumber,NewSize,0.)
-IF(ALLOCATED(PEM%PeriodicMoved)) CALL ChangeSizeArray(PEM%PeriodicMoved,PDM%maxParticleNumber,NewSize,.FALSE.)
-IF(ALLOCATED(PartDtFrac)) CALL ChangeSizeArray(PartDtFrac,PDM%maxParticleNumber,NewSize,1.)
-#endif
-
-#ifdef IMPA
-IF(ALLOCATED(F_PartX0)) CALL ChangeSizeArray(F_PartX0,PDM%maxParticleNumber,NewSize)
-IF(ALLOCATED(F_PartXk)) CALL ChangeSizeArray(F_PartXk,PDM%maxParticleNumber,NewSize)
-IF(ALLOCATED(Norm_F_PartX0)) CALL ChangeSizeArray(Norm_F_PartX0,PDM%maxParticleNumber,NewSize)
-IF(ALLOCATED(Norm_F_PartXk)) CALL ChangeSizeArray(Norm_F_PartXk,PDM%maxParticleNumber,NewSize)
-IF(ALLOCATED(Norm_F_PartXk_old)) CALL ChangeSizeArray(Norm_F_PartXk_old,PDM%maxParticleNumber,NewSize)
-IF(ALLOCATED(PartDeltaX)) CALL ChangeSizeArray(PartDeltaX,PDM%maxParticleNumber,NewSize)
-IF(ALLOCATED(PartLambdaAccept)) CALL ChangeSizeArray(PartLambdaAccept,PDM%maxParticleNumber,NewSize)
-IF(ALLOCATED(DoPartInNewton)) CALL ChangeSizeArray(DoPartInNewton,PDM%maxParticleNumber,NewSize)
-IF(ALLOCATED(PartIsImplicit)) CALL ChangeSizeArray(PartIsImplicit,PDM%maxParticleNumber,NewSize,.FALSE.)
-#endif /* IMPA */
-
 !    __  __          __      __          ________  ______  ___________    ___
 !   / / / /___  ____/ /___ _/ /____     /_  __/\ \/ / __ \/ ____/ ___/   /   |  ______________ ___  _______
 !  / / / / __ \/ __  / __ `/ __/ _ \     / /    \  / /_/ / __/  \__ \   / /| | / ___/ ___/ __ `/ / / / ___/
@@ -2192,9 +2138,6 @@ USE MOD_DSMC_Vars
 USE MOD_Particle_MPI_Vars      ,ONLY: PartShiftVector, PartTargetProc
 #endif
 USE MOD_PICInterpolation_Vars  ,ONLY: FieldAtParticle
-#if defined(IMPA) || defined(ROS)
-USE MOD_LinearSolver_Vars      ,ONLY: PartXK, R_PartXK
-#endif
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -2295,39 +2238,6 @@ IF(ALLOCATED(velocityAtTime)) velocityAtTime(:,NewID)=velocityAtTime(:,OldID)
 IF(ALLOCATED(PartTargetProc)) PartTargetProc(NewID)=PartTargetProc(OldID)
 IF(ALLOCATED(PartShiftVector)) PartShiftVector(:,NewID)=PartShiftVector(:,OldID)
 #endif
-
-#if defined(IMPA) || defined(ROS)
-IF(ALLOCATED(PartXK)) PartXK(:,NewID)=PartXK(:,OldID)
-IF(ALLOCATED(R_PartXK)) R_PartXK(:,NewID)=R_PartXK(:,OldID)
-IF(ALLOCATED(PartStage)) PartStage(:,:,NewID)=PartStage(:,:,OldID)
-IF(ALLOCATED(PartStateN)) PartStateN(:,NewID)=PartStateN(:,OldID)
-IF(ALLOCATED(PartQ)) PartQ(:,NewID)=PartQ(:,OldID)
-IF(ALLOCATED(PEM%NormVec)) THEN
-  PEM%NormVec(:,NewID)=PEM%NormVec(:,OldID)
-  PEM%NormVec(:,OldID) = 0.
-END IF
-IF(ALLOCATED(PEM%PeriodicMoved)) THEN
-  PEM%PeriodicMoved(NewID)=PEM%PeriodicMoved(OldID)
-  PEM%PeriodicMoved(OldID) = .FALSE.
-END IF
-IF(ALLOCATED(PartDtFrac)) THEN
-  PartDtFrac(NewID)=PartDtFrac(OldID)
-  PartDtFrac(OldID) = 1.
-END IF
-#endif
-
-#ifdef IMPA
-IF(ALLOCATED(F_PartX0)) F_PartX0(:,NewID)=F_PartX0(:,OldID)
-IF(ALLOCATED(F_PartXk)) F_PartXk(:,NewID)=F_PartXk(:,OldID)
-IF(ALLOCATED(Norm_F_PartX0)) Norm_F_PartX0(NewID)=Norm_F_PartX0(OldID)
-IF(ALLOCATED(Norm_F_PartXk)) Norm_F_PartXk(NewID)=Norm_F_PartXk(OldID)
-IF(ALLOCATED(Norm_F_PartXk_old)) Norm_F_PartXk_old(NewID)=Norm_F_PartXk_old(OldID)
-IF(ALLOCATED(PartDeltaX)) PartDeltaX(:,NewID)=PartDeltaX(:,OldID)
-IF(ALLOCATED(PartLambdaAccept)) PartLambdaAccept(NewID)=PartLambdaAccept(OldID)
-IF(ALLOCATED(DoPartInNewton)) DoPartInNewton(NewID)=DoPartInNewton(OldID)
-IF(ALLOCATED(PartIsImplicit)) PartIsImplicit(NewID)=PartIsImplicit(OldID)
-#endif /* IMPA */
-
 
 !    __  __          __      __          ________  ______  ___________    ___
 !   / / / /___  ____/ /___ _/ /____     /_  __/\ \/ / __ \/ ____/ ___/   /   |  ______________ ___  _______

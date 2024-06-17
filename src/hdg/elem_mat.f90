@@ -62,11 +62,7 @@ USE MOD_PreProc
 USE MOD_HDG_Vars
 USE MOD_DG_Vars            ,ONLY: N_DG_Mapping
 USE MOD_Equation_Vars      ,ONLY: chi
-#if defined(IMPA) || defined(ROS)
-USE MOD_LinearSolver_Vars  ,ONLY: DoPrintConvInfo
-#else
 USE MOD_TimeDisc_Vars      ,ONLY: IterDisplayStep,DoDisplayIter
-#endif
 USE MOD_Interpolation_Vars ,ONLY: N_Inter,NMax
 USE MOD_Mesh_Vars          ,ONLY: N_VolMesh,offSetElem
 USE MOD_Mesh_Vars          ,ONLY: N_SurfMesh
@@ -103,13 +99,6 @@ INTEGER              :: idx(3),jdx(3),gdx(3)
 REAL                 :: time0, time
 !===================================================================================================================================
 
-#if defined(IMPA) || defined(ROS)
-IF(DoPrintConvInfo)THEN
-  SWRITE(UNIT_stdOut,'(132("-"))')
-  SWRITE(*,*)'HDG ELEM_MAT: Pre-compute HDG local element matrices...'
-  time0=PICLASTIME()
-END IF
-#else
 IF(DoDisplayIter)THEN
   IF(HDGDisplayConvergence.AND.(MOD(td_iter,IterDisplayStep).EQ.0)) THEN
     time0=PICLASTIME()
@@ -117,8 +106,6 @@ IF(DoDisplayIter)THEN
     SWRITE(*,*)'HDG ELEM_MAT: Pre-compute HDG local element matrices...'
   END IF
 END IF
-#endif
-
 
 DO iElem=1,PP_nElems
   HDG_Vol_N(iElem)%Ehat = 0.0
@@ -337,13 +324,6 @@ DO iElem=1,PP_nElems
 
 END DO !iElem
 
-#if defined(IMPA) || defined(ROS)
-IF(DoPrintConvInfo)THEN
-  time=PICLASTIME()
-  SWRITE(UNIT_stdOut,'(A,F14.2,A)') ' HDG ELEME_MAT DONE! [',Time-time0,' sec ]'
-  SWRITE(UNIT_stdOut,'(132("-"))')
-END IF
-#else
 IF(DoDisplayIter)THEN
   IF(HDGDisplayConvergence.AND.(MOD(td_iter,IterDisplayStep).EQ.0)) THEN
     time=PICLASTIME()
@@ -351,7 +331,6 @@ IF(DoDisplayIter)THEN
     SWRITE(UNIT_stdOut,'(132("-"))')
   END IF
 END IF
-#endif
 
 CONTAINS
 

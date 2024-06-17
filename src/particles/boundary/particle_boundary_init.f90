@@ -220,9 +220,6 @@ USE MOD_PICDepo_Vars           ,ONLY: DoDirichletDeposition
 #endif /*USE_HDG*/
 USE MOD_HDF5_input             ,ONLY: OpenDataFile, ReadArray, DatasetExists, GetDataSize, nDims, HSize, CloseDataFile
 USE MOD_SurfaceModel_Vars      ,ONLY: StickingCoefficientData
-#if defined(IMPA) || defined(ROS)
-USE MOD_Particle_Vars          ,ONLY: PartMeshHasReflectiveBCs
-#endif
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Vars       ,ONLY: PerformLoadBalance
 #endif /*USE_LOADBALANCE*/
@@ -361,7 +358,7 @@ END IF
 ALLOCATE(PartBound%Dielectric(1:nPartBound))
 PartBound%Dielectric      = .FALSE.
 DoDielectricSurfaceCharge = .FALSE.
-DoHaloDepo                = .FALSE. ! dielectric surfaces or implicit particle deposition
+DoHaloDepo                = .FALSE. ! dielectric surfaces
 ! Dielectric Surfaces
 ALLOCATE(PartBound%PermittivityVDL(1:nPartBound))
 PartBound%PermittivityVDL = 0.0
@@ -381,9 +378,6 @@ PartBound%UseInterPlaneBC      = .FALSE.
 ! Read-in flag for output of boundary-related data in a csv for regression testing
 PartBound%OutputBCDataForTesting         = GETLOGICAL('PartBound-OutputBCDataForTesting')
 
-#if defined(IMPA) || defined(ROS)
-PartMeshHasReflectiveBCs=.FALSE.
-#endif
 DO iPartBound=1,nPartBound
   WRITE(UNIT=hilf,FMT='(I0)') iPartBound
   tmpString = TRIM(GETSTR('Part-Boundary'//TRIM(hilf)//'-Condition','open'))
@@ -392,9 +386,6 @@ DO iPartBound=1,nPartBound
   CASE('open')
     PartBound%TargetBoundCond(iPartBound) = PartBound%OpenBC          ! definitions see typesdef_pic
   CASE('reflective')
-#if defined(IMPA) || defined(ROS)
-    PartMeshHasReflectiveBCs=.TRUE.
-#endif
     PartBound%TargetBoundCond(iPartBound) = PartBound%ReflectiveBC
     PartBound%MomentumACC(iPartBound)     = GETREAL('Part-Boundary'//TRIM(hilf)//'-MomentumACC')
     IF(PartBound%MomentumACC(iPartBound).EQ.0.0) THEN
@@ -586,9 +577,6 @@ DO iPartBound=1,nPartBound
     PartBound%TargetBoundCond(iPartBound) = PartBound%PeriodicBC
     PartMeshHasPeriodicBCs = .TRUE.
   CASE('symmetric')
-#if defined(IMPA) || defined(ROS)
-    PartMeshHasReflectiveBCs=.TRUE.
-#endif
     PartBound%TargetBoundCond(iPartBound) = PartBound%SymmetryBC
     PartBound%WallVelo(1:3,iPartBound)    = (/0.,0.,0./)
   CASE('symmetric_axis')

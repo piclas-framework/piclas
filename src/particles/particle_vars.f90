@@ -64,7 +64,7 @@ REAL    , ALLOCATABLE :: Pt(:,:)                                             ! D
                                                                              ! PartState(4:6,:) as Pt(1:3)
                                                                              ! (1:NParts,1:6) with 2nd index: x,y,z,vx,vy,vz
 INTEGER               :: PartDataSize                                        ! Number of entries in each line of PartData
-CHARACTER(LEN=255),ALLOCATABLE :: PartDataVarNames(:)                        ! Corrensponding variable names of PartData for output/read-in
+CHARACTER(LEN=255),ALLOCATABLE :: PartDataVarNames(:)                        ! Corresponding variable names of PartData for output/read-in
 INTEGER,PARAMETER     :: PartIntSize=2                                       ! Number of entries in each line of PartInt
 REAL,ALLOCATABLE      :: PartData(:,:)                                       ! PartState ordered along SFC, particle number per
                                                                              ! element given in PartInt
@@ -80,27 +80,6 @@ INTEGER(KIND=IK)             :: locnPart,offsetnPart                         ! N
 LOGICAL               :: velocityOutputAtTime
 REAL    , ALLOCATABLE :: velocityAtTime(:,:)
 #endif /*(PP_TimeDiscMethod==508) || (PP_TimeDiscMethod==509)*/
-#if defined(ROS) || defined(IMPA)
-REAL    , ALLOCATABLE :: PartStage (:,:,:)                                   ! ERK4 additional function values
-REAL    , ALLOCATABLE :: PartStateN(:,:)                                     ! ParticleState at t^n
-REAL    , ALLOCATABLE :: PartdtFrac(:)                                       ! dual use variable:
-REAL    , ALLOCATABLE :: PartQ(:,:)                                          ! PartilceState at t^n or state at RK-level 0
-                                                                             ! 1) time fraction of domain entering (surface flux)
-                                                                             ! 2) fraction of time step for push (surface flux)
-#endif /*IMPA || ROS*/
-#if defined(IMPA)
-LOGICAL , ALLOCATABLE :: PartIsImplicit(:)                                   ! select, if specific particle is explicit or implicit
-REAL    , ALLOCATABLE :: PartDeltaX(:,:)                                     ! Change of particle during Newton step
-LOGICAL , ALLOCATABLE :: PartLambdaAccept(:)                                 ! Accept particle search direction
-! Newton iteration
-REAL    , ALLOCATABLE :: F_PartX0(:,:)                                       ! Particle function evaluated at t^0
-REAL    , ALLOCATABLE :: F_PartXK(:,:)                                       ! Particle function evaluated at iteration step k
-REAL    , ALLOCATABLE :: Norm_F_PartX0    (:)                               ! and the corresponding L2 norm
-REAL    , ALLOCATABLE :: Norm_F_PartXK    (:)                               ! and the corresponding L2 norm
-REAL    , ALLOCATABLE :: Norm_F_PartXK_Old(:)                               ! and the corresponding L2 norm
-LOGICAL , ALLOCATABLE :: DoPartInNewton(:)                                   ! particle is treated implicitly && Newtons method
-                                                                             ! is performed on it
-#endif
 REAL    , ALLOCATABLE :: Pt_temp(:,:)                                        ! LSERK4 additional derivative of PartState
 
                                                                              ! (1:NParts,1:6) with 2nd index: x,y,z,vx,vy,vz
@@ -136,9 +115,6 @@ TYPE tSpecies                                                                ! P
   TYPE(tSurfaceFlux),POINTER             :: Surfaceflux(:) => NULL()         ! Particle Data for each SurfaceFlux emission
   INTEGER                                :: nSurfacefluxBCs                  ! Number of SF emissions
   LOGICAL                                :: DoOverwriteParameters            ! Flag to read in parameters manually
-#if IMPA
-  LOGICAL                                :: IsImplicit
-#endif
 END TYPE
 
 INTEGER                                  :: nSpecies                         ! number of species
@@ -146,9 +122,6 @@ CHARACTER(LEN=256)                       :: SpeciesDatabase                  ! N
 TYPE(tSpecies), ALLOCATABLE              :: Species(:)  !           => NULL() ! Species Data Vector
 
 LOGICAL                                  :: PartMeshHasPeriodicBCs
-#if defined(IMPA) || defined(ROS)
-LOGICAL                                  :: PartMeshHasReflectiveBCs
-#endif
 TYPE tParticleElementMapping
   INTEGER                , ALLOCATABLE   :: GlobalElemID(:)     ! =>NULL() ! Current global element number assigned to each Particle
   INTEGER                , ALLOCATABLE   :: LastGlobalElemID(:) ! =>NULL() ! Global element number of the old particle position
@@ -158,12 +131,6 @@ TYPE tParticleElementMapping
 
   PROCEDURE(ElemID_INTERFACE),POINTER,NOPASS :: CNElemID    !< pointer defining the mapping : global element ID -> compute-node element ID
                                                             !< the function simply returns  : GlobalElem2CNTotalElem(PEM%GlobalElemID(iPart))
-#if defined(IMPA) || defined(ROS)
-  INTEGER                , ALLOCATABLE   :: ElementN(:)  !      =>NULL()  ! Element number allocated
-  REAL                   , ALLOCATABLE   :: NormVec(:,:)  !      =>NULL()  ! Element number allocated
-  LOGICAL                , ALLOCATABLE   :: PeriodicMoved(:)                 ! flag, if the particle moved over periodic bcs
-#endif
-                                                                             ! to each Particle at previous timestep
 !----------------------------------------------------------------------------!----------------------------------
                                                                              ! Following vectors are assigned in
                                                                              ! SUBROUTINE UpdateNextFreePosition

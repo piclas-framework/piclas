@@ -182,46 +182,6 @@ PartCommSize   = PartCommSize + 6
 PartCommSize   = PartCommSize + 1
 #endif
 
-! additional stuff for full RK schemes, e.g. implicit and imex RK
-#if defined(IMPA) || defined(ROS)
-! PartXK
-PartCommSize   = PartCommSize + 6
-! R_PartXK
-PartCommSize   = PartCommSize + 6
-! PartQ
-PartCommSize   = PartCommSize + 6
-! PartDtFrac
-PartCommSize   = PartCommSize + 1
-! IsNewPart
-PartCommSize   = PartCommSize + 1
-! FieldAtParticle
-PartCommSize   = PartCommSize + 6
-! NormVec
-PartCommSize   = PartCommSize + 3
-! ElementN
-PartCommSize   = PartCommSize + 1
-! PeriodicMoved
-PartCommSize   = PartCommSize + 1
-#endif /*IMPA or ROS*/
-#if defined(IMPA)
-! PartDeltaX
-PartCommSize   = PartCommSize + 6
-! PartLambdaAccept
-PartCommSize   = PartCommSize + 1
-! F_PartX0
-PartCommSize   = PartCommSize + 6
-! F_PartXk
-PartCommSize   = PartCommSize + 6
-! Norm_F_PartX0, Norm2_F_PartXK, Norm_F_PartXK_old
-PartCommSize   = PartCommSize + 3
-! DoPartInNewton
-PartCommSize   = PartCommSize + 1
-! and PartisImplicit
-PartCommSize   = PartCommSize + 1
-#endif
-! if iStage=0, then the PartStateN is not communicated
-PartCommSize0  = PartCommSize
-
 ALLOCATE( PartMPIExchange%nPartsSend(4,0:nExchangeProcessors-1)  &
         , PartMPIExchange%nPartsRecv(4,0:nExchangeProcessors-1)  &
         , PartRecvBuf(0:nExchangeProcessors-1)                   &
@@ -274,11 +234,7 @@ END DO ! iProc
 END SUBROUTINE IRecvNbOfParticles
 
 
-#if defined(IMPA)
-SUBROUTINE SendNbOfParticles(doParticle_In)
-#else
 SUBROUTINE SendNbOfParticles()
-#endif /*defined(IMPA)*/
 !===================================================================================================================================
 ! This routine sends the number of send particles, for which the following steps are performed:
 ! 1) Compute number of Send Particles
@@ -303,43 +259,20 @@ USE MOD_Particle_Vars          ,ONLY: PartState,PartSpecies,PEM,PDM,Species
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-#if defined(IMPA)
-LOGICAL,INTENT(IN),OPTIONAL   :: doParticle_In(1:PDM%ParticleVecLength)
-#endif /*defined(IMPA)*/
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-#if defined(IMPA)
-LOGICAL                       :: doPartInExists
-#endif /*defined(IMPA)*/
 INTEGER                       :: iPart,ElemID, iPolyatMole
 INTEGER                       :: iProc,ProcID
 !===================================================================================================================================
-#if defined(IMPA)
-doPartInExists=.FALSE.
-IF(PRESENT(DoParticle_IN)) doPartInExists=.TRUE.
-#endif /*defined(IMPA)*/
-
 ! 1) get number of send particles
 !--- Count number of particles in cells in the halo region and add them to the message
 PartMPIExchange%nPartsSend=0
 
 PartTargetProc=-1
 DO iPart=1,PDM%ParticleVecLength
-  !         ! Activate phantom/ghost particles
-  !         IF(PartSpecies(iPart).LT.0) PDM%ParticleInside(iPart) = .TRUE.
-
-#if defined(IMPA)
-  IF(doPartInExists)THEN
-    IF (.NOT.(PDM%ParticleInside(iPart).AND.DoParticle_In(iPart))) CYCLE
-  ELSE
-#endif /*defined(IMPA)*/
-    IF (.NOT.PDM%ParticleInside(iPart)) CYCLE
-#if defined(IMPA)
-  END IF
-#endif /*defined(IMPA)*/
-
+  IF (.NOT.PDM%ParticleInside(iPart)) CYCLE
   ! This is already the global ElemID
   ElemID = PEM%GlobalElemID(iPart)
   ProcID = ElemInfo_Shared(ELEM_RANK,ElemID)
@@ -436,18 +369,6 @@ USE MOD_Part_Tools              ,ONLY: UpdateNextFreePosition
 #if defined(LSERK)
 USE MOD_Particle_Vars,           ONLY:Pt_temp
 #endif
-#if defined(ROS) || defined(IMPA)
-USE MOD_LinearSolver_Vars,       ONLY:PartXK,R_PartXK
-USE MOD_Particle_MPI_Vars,       ONLY:PartCommSize0
-USE MOD_Particle_Vars,           ONLY:PartStateN,PartStage,PartDtFrac,PartQ
-USE MOD_PICInterpolation_Vars,   ONLY:FieldAtParticle
-USE MOD_Timedisc_Vars,           ONLY:iStage
-#endif /*ROS or IMPLICIT*/
-#if defined(IMPA)
-USE MOD_Particle_Vars,           ONLY:F_PartX0,F_PartXk,Norm_F_PartX0,Norm_F_PartXK,Norm_F_PartXK_old,DoPartInNewton
-USE MOD_Particle_Vars,           ONLY:PartDeltaX,PartLambdaAccept
-USE MOD_Particle_Vars,           ONLY:PartIsImplicit
-#endif /*IMPA*/
 #if defined(MEASURE_MPI_WAIT)
 USE MOD_Particle_MPI_Vars,       ONLY:MPIW8TimePart,MPIW8CountPart
 #endif /*defined(MEASURE_MPI_WAIT)*/
@@ -464,9 +385,6 @@ INTEGER                       :: iPart,iPos,iProc,jPos, nPartLength
 INTEGER                       :: recv_status_list(1:MPI_STATUS_SIZE,0:nExchangeProcessors-1)
 INTEGER                       :: MessageSize, nRecvParticles, nSendParticles
 INTEGER                       :: ALLOCSTAT
-#if defined(ROS) || defined(IMPA)
-INTEGER                       :: iCounter
-#endif /*ROS or IMPA*/
 ! Polyatomic Molecules
 INTEGER                       :: iPolyatMole, MsgRecvLengthPoly, MsgRecvLengthElec, MsgRecvLengthAmbi
 INTEGER                       :: MsgLengthPoly(0:nExchangeProcessors-1), pos_poly(0:nExchangeProcessors-1)
@@ -477,13 +395,6 @@ INTEGER(KIND=8)               :: CounterStart(2),CounterEnd(2)
 REAL(KIND=8)                  :: Rate(2)
 #endif /*defined(MEASURE_MPI_WAIT)*/
 !===================================================================================================================================
-
-#if defined(ROS)
-PartCommSize=PartCommSize0+iStage*6
-#endif /*ROS*/
-#if defined (IMPA)
-PartCommSize=PartCommSize0+iStage*6
-#endif /*IMPA*/
 
 !--- Determining the number of additional variables due to VibQuantsPar of polyatomic particles
 !--- (size varies depending on the species of particle)
@@ -575,91 +486,6 @@ DO iProc=0,nExchangeProcessors-1
       jPos=jPos+7
 #endif
 
-#if defined(ROS) || defined(IMPA)
-      ! send iStage - 1 messages
-      IF (iStage.GT.0) THEN
-        IF(iStage.EQ.1) CALL ABORT(__STAMP__,' You should never send particles now!')
-        !>>
-        PartSendBuf(iProc)%content(1+jpos:6+jpos)        = PartStateN(1:6,iPart)
-        DO iCounter=1,iStage-1
-          PartSendBuf(iProc)%content(jpos+7+(iCounter-1)*6:jpos+6+iCounter*6) = PartStage(1:6,iCounter,iPart)
-        END DO
-        jPos=jPos+iStage*6
-      ENDIF
-      !>>
-      PartSendBuf(iProc)%content(jPos+1:jPos+6) = PartXK(1:6,iPart)
-      jPos=jPos+6
-      !>>
-      PartSendBuf(iProc)%content(jPos+1:jPos+6) = R_PartXK(1:6,iPart)
-      jPos=jPos+6
-      !>>
-      PartSendBuf(iProc)%content(jPos+1:jPos+6) = PartQ(1:6,iPart)
-      jPos=jPos+6
-      !>>
-      PartSendBuf(iProc)%content(jPos+1) = PartDtFrac(iPart)
-      jPos=jPos+1
-      !>> flag isNewPart
-      IF (PDM%IsNewPart(iPart)) THEN
-        PartSendBuf(iProc)%content(jPos+1) = 1.
-      ELSE
-        PartSendBuf(iProc)%content(jPos+1) = 0.
-      END IF
-      jPos=jPos+1
-      !>> FieldAtParticle
-      PartSendBuf(iProc)%content(jPos+1:jPos+6) = FieldAtParticle(1:6,iPart)
-      jPos=jPos+6
-      !>> particle normVector
-      PartSendBuf(iProc)%content(jPos+1:jPos+3) = PEM%NormVec(1:3,iPart)
-      PEM%NormVec(1:3,iPart) = 0.
-      jPos=jPos+3
-      !>> particle elmentN
-      PartSendBuf(iProc)%content(jPos+1) = REAL(PEM%GlobalElemID(iPart))
-      jPos=jPos+1
-      !>> periodic movement
-      IF (PEM%PeriodicMoved(iPart)) THEN
-        PartSendBuf(iProc)%content(jPos+1) = 1.
-      ELSE
-        PartSendBuf(iProc)%content(jPos+1) = 0.
-      END IF
-      PEM%PeriodicMoved(iPart)=.FALSE.
-      jPos=jPos+1
-#endif /*ROS or IMEX */
-
-#if defined(IMPA)
-      ! required for particle newton && closed particle description
-      PartSendBuf(iProc)%content(jPos+1:jPos+6) = PartDeltaX(1:6,iPart)
-      IF (PartLambdaAccept(iPart)) THEN
-        PartSendBuf(iProc)%content(7+jPos) = 1.
-      ELSE
-        PartSendBuf(iProc)%content(7+jPos) = 0.
-      END IF
-      jPos=jPos+7
-      !>>
-      PartSendBuf(iProc)%content(jPos+1:jPos+6) = F_PartX0(1:6,iPart)
-      jPos=jPos+6
-      !>>
-      PartSendBuf(iProc)%content(jPos+1:jPos+6) = F_PartXk(1:6,iPart)
-      jPos=jPos+6
-      !>>
-      PartSendBuf(iProc)%content(jPos+1)  = Norm_F_PartX0    (iPart)
-      PartSendBuf(iProc)%content(jPos+2)  = Norm_F_PartXK    (iPart)
-      PartSendBuf(iProc)%content(jPos+3)  = Norm_F_PartXK_old(iPart)
-      !>>
-      IF(DoPartInNewton(iPart))THEN
-        PartSendBuf(iProc)%content(jPos+4) = 1.0
-      ELSE
-        PartSendBuf(iProc)%content(jPos+4) = 0.0
-      END IF
-      jPos=jPos+4
-      !>>
-      IF(PartIsImplicit(iPart))THEN
-        PartSendBuf(iProc)%content(jPos+1) = 1.0
-      ELSE
-        PartSendBuf(iProc)%content(jPos+1) = 0.0
-      END IF
-      jPos=jPos+1
-#endif /*IMPA*/
-
       !>> particle element
       PartSendBuf(iProc)%content(    1+jPos) = REAL(PEM%GlobalElemID(iPart),KIND=8)
       jPos=jPos+1
@@ -722,12 +548,7 @@ DO iProc=0,nExchangeProcessors-1
 
       ! sanity check the message length
       IF(MOD(jPos,PartCommSize).NE.0) THEN
-#if defined(ROS) || defined(IMPA)
-        IPWRITE(UNIT_stdOut,*)  'iStage',iStage
-        IPWRITE(UNIT_stdOut,*)  'PartCommSize0',PartCommSize0,PartCommSize
-#else
         IPWRITE(UNIT_stdOut,*)  'PartCommSize',PartCommSize
-#endif
         IPWRITE(UNIT_stdOut,*)  'jPos',jPos
         CALL ABORT( __STAMP__,' Particle-wrong sending message size!')
       END IF
@@ -895,19 +716,6 @@ USE MOD_Particle_Vars          ,ONLY: Pt_temp
 ! variables for parallel deposition
 !USE MOD_Mesh_Vars              ,ONLY: nGlobalMortarSides
 !USE MOD_Particle_Mesh_Vars     ,ONLY: PartElemIsMortar
-#if defined(ROS) || defined(IMPA)
-USE MOD_Mesh_Vars              ,ONLY: OffSetElem
-USE MOD_LinearSolver_Vars      ,ONLY: PartXK,R_PartXK
-USE MOD_Particle_Vars          ,ONLY: PartStateN,PartStage,PartDtFrac,PartQ
-USE MOD_Particle_MPI_Vars      ,ONLY: PartCommSize0
-USE MOD_PICInterpolation_Vars  ,ONLY: FieldAtParticle
-USE MOD_Timedisc_Vars          ,ONLY: iStage
-#endif /*ROS or IMPA*/
-#if defined(IMPA)
-USE MOD_Particle_Vars          ,ONLY: F_PartX0,F_PartXk,Norm_F_PartX0,Norm_F_PartXK,Norm_F_PartXK_old,DoPartInNewton
-USE MOD_Particle_Vars          ,ONLY: PartDeltaX,PartLambdaAccept
-USE MOD_Particle_Vars          ,ONLY: PartIsImplicit
-#endif /*IMPA*/
 USE MOD_DSMC_Vars              ,ONLY: RadialWeighting
 USE MOD_DSMC_Symmetry          ,ONLY: DSMC_2D_RadialWeighting
 USE MOD_part_tools             ,ONLY: ParticleOnProc, InRotRefFrameCheck
@@ -928,9 +736,6 @@ LOGICAL, OPTIONAL             :: DoMPIUpdateNextFreePos
 INTEGER                       :: iProc, iPos, nRecv, PartID,jPos, iPart, ElemID
 INTEGER                       :: recv_status_list(1:MPI_STATUS_SIZE,0:nExchangeProcessors-1)
 INTEGER                       :: MessageSize, nRecvParticles
-#if defined(ROS) || defined(IMPA)
-INTEGER                       :: iCounter, LocElemID!,iElem
-#endif /*ROS or IMPA*/
 ! Polyatomic Molecules
 INTEGER                       :: iPolyatMole, pos_poly, MsgLengthPoly, MsgLengthElec, pos_elec, pos_ambi, MsgLengthAmbi
 #if defined(MEASURE_MPI_WAIT)
@@ -938,13 +743,6 @@ INTEGER(KIND=8)               :: CounterStart(2),CounterEnd(2)
 REAL(KIND=8)                  :: Rate(2)
 #endif /*defined(MEASURE_MPI_WAIT)*/
 !===================================================================================================================================
-
-#if defined(ROS)
-PartCommSize=PartCommSize0+iStage*6
-#endif /*ROS*/
-#if defined (IMPA)
-PartCommSize=PartCommSize0+iStage*6
-#endif /*MPA*/
 
 ! wait for all send requests to be successful
 DO iProc=0,nExchangeProcessors-1
@@ -1057,111 +855,6 @@ DO iProc=0,nExchangeProcessors-1
     jPos=jPos+7
 #endif
 
-#if defined(ROS) || defined(IMPA)
-    IF(iStage.GT.0)THEN
-      IF(iStage.EQ.1) CALL ABORT(__STAMP__,' You should never receive particle now!')
-      !>>
-      PartStateN(1:6,PartID)     = PartRecvBuf(iProc)%content(jpos+1:jpos+6)
-      DO iCounter=1,iStage-1
-        PartStage(1:6,iCounter,PartID) = PartRecvBuf(iProc)%content(jpos+7+(iCounter-1)*6:jpos+6+iCounter*6)
-      END DO
-      jPos=jPos+iStage*6
-    END IF
-    !>>
-    PartXK(1:6,PartID)         = PartRecvBuf(iProc)%content(jPos+1:jPos+6)
-    jPos=jPos+6
-    !>>
-    R_PartXK(1:6,PartID)       = PartRecvBuf(iProc)%content(jPos+1:jPos+6)
-    jPos=jPos+6
-    !>>
-    PartQ(1:6,PartID)          = PartRecvBuf(iProc)%content(jPos+1:jPos+6)
-    jPos=jPos+6
-    !>>
-    PartDtFrac(PartID) = PartRecvBuf(iProc)%content(jPos+1)
-    jPos=jPos+1
-    !>> flag isNewPart
-    IF (     INT(PartRecvBuf(iProc)%content( 1+jPos)) .EQ. 1) THEN
-      PDM%IsNewPart(PartID)=.TRUE.
-    ELSE IF (INT(PartRecvBuf(iProc)%content( 1+jPos)) .EQ. 0) THEN
-      PDM%IsNewPart(PartID)=.FALSE.
-    ELSE
-      CALL ABORT(__STAMP__,'Error with IsNewPart in MPIParticleRecv!',1,PartRecvBuf(iProc)%content(1+jPos))
-    END IF
-    jPos=jPos+1
-    !>> FieldAtParticle
-    FieldAtParticle(1:6,PartID)  = PartRecvBuf(iProc)%content(jPos+1:jPos+6)
-    jPos=jPos+6
-    !>> particle normVector
-    PEM%NormVec    (1:3,PartID)  = PartRecvBuf(iProc)%content(jPos+1:jPos+3)
-    jPos=jPos+3
-    !>> particle elmentN
-    LocElemID = INT(PartRecvBuf(iProc)%content(jPos+1),KIND=4)
-    IF(ParticleOnProc(PartID))THEN
-      PEM%GlobalElemID(PartID) = LocElemID+OffSetElem
-    ELSE
-      ! TODO: This is still broken, halo elems are no longer behind PP_nElems
-      CALL ABORT(__STAMP__,'External particles not yet supported with new halo region')
-
-!       PEM%GlobalElemID(PartID)=0
-!       DO iElem=PP_nElems+1,nTotalElems
-!         IF(ElemToGlobalElemID(iElem).EQ.LocElemID)THEN
-!           PEM%GlobalElemID(PartID)=iElem
-!           EXIT
-!         END IF
-!       END DO ! iElem=1,nTotalElems
-!       IF(PEM%GlobalElemID(PartID).EQ.0)THEN
-!         CALL ABORT(&
-!           __STAMP__&
-!           ,'Error with IsNewPart in MPIParticleRecv: PEM%GlobalElemID(PartID) = 0!')
-!       END IF
-    END IF
-    ! END TODO
-    jPos=jPos+1
-    !>> periodic movement
-    IF ( INT(PartRecvBuf(iProc)%content( 1+jPos)) .EQ. 1) THEN
-      PEM%PeriodicMoved(PartID)=.TRUE.
-    ELSE IF ( INT(PartRecvBuf(iProc)%content( 1+jPos)) .EQ. 0) THEN
-      PEM%PeriodicMoved(PartID)=.FALSE.
-    ELSE
-      CALL ABORT(__STAMP__,'Error with IsNewPart in MPIParticleRecv!',1,PartRecvBuf(iProc)%content( 1+jPos))
-    END IF
-    jPos=jPos+1
-#endif /*ROS or IMPA*/
-
-#if defined(IMPA)
-    !>>
-    PartDeltaX(1:6,PartID)     = PartRecvBuf(iProc)%content(jPos+1:jPos+6)
-    IF (INT(PartRecvBuf(iProc)%content(7+jPos)).EQ.1) THEN
-      PartLambdaAccept(PartID)=.TRUE.
-    ELSE
-      PartLambdaAccept(PartID)=.FALSE.
-    END IF
-    jPos=jPos+7
-    !>>
-    F_PartX0(1:6,PartID)       = PartRecvBuf(iProc)%content(jPos+1:jPos+6)
-    jPos=jPos+6
-    !>>
-    F_PartXk(1:6,PartID)       = PartRecvBuf(iProc)%content(jPos+1:jPos+6)
-    jPos=jPos+6
-    !>>
-    Norm_F_PartX0    (PartID) = PartRecvBuf(iProc)%content(jPos+1)
-    Norm_F_PartXk    (PartID) = PartRecvBuf(iProc)%content(jPos+2)
-    Norm_F_PartXk_Old(PartID) = PartRecvBuf(iProc)%content(jPos+3)
-    IF(PartRecvBuf(iProc)%content(jPos+4).EQ.1.0)THEN
-      DoPartInNewton(PartID) = .TRUE.
-    ELSE
-      DoPartInNewton(PartID) = .FALSE.
-    END IF
-    jPos=jPos+4
-    !>>
-    IF(PartRecvBuf(iProc)%content(jPos+1).EQ.1.0)THEN
-        PartIsImplicit(PartID) = .TRUE.
-    ELSE
-        PartIsImplicit(PartID) = .FALSE.
-    END IF
-    jPos=jPos+1
-#endif /*IMPA*/
-
     !>> particle element
     PEM%GlobalElemID(PartID)     = INT(PartRecvBuf(iProc)%content(1+jPos),KIND=4)
 
@@ -1172,10 +865,6 @@ DO iProc=0,nExchangeProcessors-1
 !             CALL DepositParticleOnNodes(PartID,PartState(1:3,PartID),PEM%GlobalElemID(PartID))
 !             PartSpecies(PartID) = 0 ! For safety: nullify the speciesID
 !             PDM%ParticleInside(PartID) = .FALSE.
-!       #ifdef IMPA
-!             PartIsImplicit(PartID) = .FALSE.
-!             DoPartInNewton(PartID) = .FALSE.
-!       #endif /*IMPA*/
 !             CYCLE ! Continue the loop with the next particle
 !           END IF ! PartSpecies(PartID).LT.0
     jPos=jPos+1
@@ -1209,12 +898,7 @@ DO iProc=0,nExchangeProcessors-1
       END IF
     END IF
     IF(MOD(jPos,PartCommSize).NE.0)THEN
-#if defined(ROS) || defined(IMPA)
-      IPWRITE(UNIT_stdOut,*)  'iStage',iStage
-      IPWRITE(UNIT_stdOut,*)  'PartCommSize0',PartCommSize0,PartCommSize
-#else
       IPWRITE(UNIT_stdOut,*)  'jPos',jPos
-#endif
       CALL ABORT(__STAMP__,' Particle-wrong receiving message size!')
     END IF
 
@@ -1253,22 +937,8 @@ DO iProc=0,nExchangeProcessors-1
 
     ! Set Flag for received parts in order to localize them later
     PDM%ParticleInside(PartID) = .TRUE.
-#if defined(IMPA) || defined(ROS)
-    ! only for fully implicit
-    !IF(PartIsImplicit(PartID))THEN
-    !    ! get LastGlobalElemID in local system
-    !    ! element position is verified in armijo if it is needed. This prevents a
-    !    ! circular definition.
-    !    PEM%LastGlobalElemID(PartID)=-1
-    ! END IF
-!   ! PEM%StageElement(PartID)= PEM%GlobalElemID(PartID)
-!    StagePartPos(PartID,1)  = PartState(1,PartID)
-!    StagePartPos(PartID,2)  = PartState(2,PartID)
-!    StagePartPos(PartID,3)  = PartState(3,PartID)
-#else
     !>> LastGlobalElemID only know to previous proc
     PEM%LastGlobalElemID(PartID) = -888
-#endif
     IF (PRESENT(DoMPIUpdateNextFreePos)) THEN
       ElemID = PEM%LocalElemID(PartID)
       IF (ElemID.LT.1) THEN

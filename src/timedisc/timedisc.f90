@@ -63,13 +63,6 @@ USE MOD_Restart_Vars           ,ONLY: DoRestart,FlushInitialState
 USE MOD_PML_Vars               ,ONLY: DoPML,PMLTimeRamp
 USE MOD_PML                    ,ONLY: PMLTimeRamping
 #endif /*!((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))*/
-#if USE_LOADBALANCE
-#ifdef maxwell
-#if defined(ROS) || defined(IMPA)
-USE MOD_Precond_Vars           ,ONLY:UpdatePrecondLB
-#endif /*ROS or IMPA*/
-#endif /*maxwell*/
-#endif /*USE_LOADBALANCE*/
 #else
 USE MOD_HDG_Vars               ,ONLY: iterationTotal,RunTimeTotal
 #endif /*USE_HDG*/
@@ -283,36 +276,10 @@ DO !iter_t=0,MaxIter
   CALL PrintStatusLine(time,dt,tStart,tEnd,1)
 
 ! Perform Timestep using a global time stepping routine, attention: only RK3 has time dependent BC
-#if (PP_TimeDiscMethod==1)
+#if (PP_TimeDiscMethod==1) || (PP_TimeDiscMethod==2) || (PP_TimeDiscMethod==6)
   CALL TimeStepByLSERK()
-#elif (PP_TimeDiscMethod==2)
-  CALL TimeStepByLSERK()
-#elif (PP_TimeDiscMethod==3)
-  CALL TimeStepByTAYLOR()
 #elif (PP_TimeDiscMethod==4)
   CALL TimeStep_DSMC()
-#elif (PP_TimeDiscMethod==6)
-  CALL TimeStepByLSERK()
-#elif (PP_TimeDiscMethod==100)
-  CALL TimeStepByEulerImplicit() ! O1 Euler Implicit
-#elif (PP_TimeDiscMethod==120)
-  CALL TimeStepByImplicitRK() ! O3 ERK/ESDIRK Particles + ESDIRK Field
-#elif (PP_TimeDiscMethod==121)
-  CALL TimeStepByImplicitRK() ! O3 ERK/ESDIRK Particles + ESDIRK Field
-#elif (PP_TimeDiscMethod==122)
-  CALL TimeStepByImplicitRK() ! O4 ERK/ESDIRK Particles + ESDIRK Field
-#elif (PP_TimeDiscMethod==123)
-  CALL TimeStepByImplicitRK() ! O3 ERK/ESDIRK Particles + ESDIRK Field
-#elif (PP_TimeDiscMethod==130)
-  CALL TimeStepByRosenbrock() ! linear Rosenbrock implicit
-#elif (PP_TimeDiscMethod==131)
-  CALL TimeStepByRosenbrock() ! linear Rosenbrock implicit
-#elif (PP_TimeDiscMethod==132)
-  CALL TimeStepByRosenbrock() ! linear Rosenbrock implicit
-#elif (PP_TimeDiscMethod==133)
-  CALL TimeStepByRosenbrock() ! linear Rosenbrock implicit
-#elif (PP_TimeDiscMethod==134)
-  CALL TimeStepByRosenbrock() ! linear Rosenbrock implicit
 #elif (PP_TimeDiscMethod==300)
   CALL TimeStep_FPFlow()
 #elif (PP_TimeDiscMethod==400)
@@ -381,7 +348,7 @@ DO !iter_t=0,MaxIter
     MPIW8TimeSim = MPIW8TimeSim + (WallTimeEnd-WallTimeStart)
 #endif /*defined(MEASURE_MPI_WAIT)*/
 
-#if defined(PARTICLES) && !defined(LSERK) && !defined(IMPA) && !defined(ROS)
+#if defined(PARTICLES) && !defined(LSERK)
     CALL CountPartsPerElem(ResetNumberOfParticles=.TRUE.) !for scaling of tParts of LB
 #endif
 #if USE_MPI
@@ -399,9 +366,6 @@ DO !iter_t=0,MaxIter
     IF(ForceInitialLoadBalance) PerformLoadBalance=.TRUE.
     ! Do not perform a load balance restart when the last timestep is performed
     IF(finalIter) PerformLoadBalance=.FALSE.
-#if defined(maxwell) && (defined(ROS) || defined(IMPA))
-    UpdatePrecondLB=PerformLoadBalance
-#endif /*MAXWELL AND (ROS or IMPA)*/
 #endif /*USE_LOADBALANCE*/
 
 #else /*NOT USE_MPI*/
@@ -522,19 +486,9 @@ USE MOD_Globals
 USE MOD_Globals_Vars           ,ONLY: SimulationEfficiency,PID
 USE MOD_PreProc
 USE MOD_TimeDisc_Vars          ,ONLY: iter,dt_Min
-#if defined(IMPA) || defined(ROS)
-USE MOD_LinearSolver_Vars      ,ONLY: totalIterLinearSolver
-#endif /*IMPA || ROS*/
 #ifdef PARTICLES
 USE MOD_Particle_Tracking_vars ,ONLY: CountNbrOfLostParts,NbrOfLostParticles,NbrOfLostParticlesTotal,NbrOfLostParticlesTotal_old
 USE MOD_Particle_Tracking_vars ,ONLY: NbrOfNewLostParticlesTotal
-#ifdef IMPA
-USE MOD_LinearSolver_vars      ,ONLY: nPartNewton
-USE MOD_LinearSolver_Vars      ,ONLY: totalFullNewtonIter
-#endif /*IMPA*/
-#if defined(IMPA) || defined(ROS)
-USE MOD_LinearSolver_Vars      ,ONLY: TotalPartIterLinearSolver
-#endif /*IMPA || ROS*/
 #endif /*PARTICLES*/
 ! IMPLICIT VARIABLE HANDLINGDGInitIsDone
 IMPLICIT NONE
@@ -560,7 +514,7 @@ IF(CountNbrOfLostParts)THEN
   NbrOfNewLostParticlesTotal  = NbrOfLostParticlesTotal-NbrOfLostParticlesTotal_old
   NbrOfLostParticlesTotal_old = NbrOfLostParticlesTotal
 END IF
-#endif /*PARICLES*/
+#endif /*PARTICLES*/
 
 IF(MPIroot)THEN
   ! simulation time per CPUh efficiency in [s]/[CPUh]
@@ -581,38 +535,8 @@ IF(MPIroot)THEN
     WRITE(UNIT_stdOut,'(A,I0,A,I0,A1)')' Total number of lost particles : ',NbrOfLostParticlesTotal,' (difference to last output: +',&
         NbrOfNewLostParticlesTotal,')'
   END IF
-#endif /*PARICLES*/
+#endif /*PARTICLES*/
 END IF !MPIroot
-
-#if defined(IMPA) || defined(ROS)
-SWRITE(UNIT_stdOut,'(132("="))')
-SWRITE(UNIT_stdOut,'(A32,I12)') ' Total iteration Linear Solver    ',totalIterLinearSolver
-TotalIterLinearSolver=0
-#endif /*IMPA && ROS*/
-
-#if defined(IMPA) && defined(PARTICLES)
-SWRITE(UNIT_stdOut,'(A32,I12)')  ' IMPLICIT PARTICLE TREATMENT    '
-SWRITE(UNIT_stdOut,'(A32,I12)')  ' Total iteration Newton         ',nPartNewton
-SWRITE(UNIT_stdOut,'(A32,I12)')  ' Total iteration GMRES          ',TotalPartIterLinearSolver
-IF(nPartNewton.GT.0)THEN
-  SWRITE(UNIT_stdOut,'(A35,F12.2)')' Average GMRES steps per Newton    ',REAL(TotalPartIterLinearSolver)&
-                                                                        /REAL(nPartNewton)
-END IF
-nPartNewTon=0
-TotalPartIterLinearSolver=0
-#if IMPA
-SWRITE(UNIT_stdOut,'(A32,I12)')  ' Total iteration outer-Newton    ',TotalFullNewtonIter
-totalFullNewtonIter=0
-#endif
-SWRITE(UNIT_stdOut,'(132("="))')
-#endif /*IMPA && PARTICLE*/
-
-#if defined(ROS) && defined(PARTICLES)
-SWRITE(UNIT_stdOut,'(A32,I12)')  ' IMPLICIT PARTICLE TREATMENT    '
-SWRITE(UNIT_stdOut,'(A32,I12)')  ' Total iteration GMRES          ',TotalPartIterLinearSolver
-TotalPartIterLinearSolver=0
-SWRITE(UNIT_stdOut,'(132("="))')
-#endif /*IMPA && PARTICLE*/
 
 END SUBROUTINE WriteInfoStdOut
 

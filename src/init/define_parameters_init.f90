@@ -39,9 +39,6 @@ USE MOD_IO_HDF5                    ,ONLY: DefineParametersIO
 USE MOD_Interpolation              ,ONLY: DefineParametersInterpolation
 USE MOD_Output                     ,ONLY: DefineParametersOutput
 USE MOD_Restart                    ,ONLY: DefineParametersRestart
-#if defined(ROS) || defined(IMPA)
-USE MOD_LinearSolver               ,ONLY: DefineParametersLinearSolver
-#endif
 USE MOD_LoadBalance                ,ONLY: DefineParametersLoadBalance
 USE MOD_Analyze                    ,ONLY: DefineParametersAnalyze
 USE MOD_RecordPoints               ,ONLY: DefineParametersRecordPoints
@@ -110,9 +107,6 @@ CALL DefineParametersGlobals()
 CALL DefineParametersLoadBalance()
 CALL DefineParametersInterpolation()
 CALL DefineParametersRestart()
-#if defined(ROS) || defined(IMPA)
-CALL DefineParametersLinearSolver()
-#endif
 CALL DefineParametersOutput()
 CALL DefineParametersPiclas()
 CALL DefineParametersTimeDisc()

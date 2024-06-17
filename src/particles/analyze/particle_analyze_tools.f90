@@ -2287,9 +2287,9 @@ SUBROUTINE CalcPowerDensity()
 !===================================================================================================================================
 ! MODULES                                                                                                                          !
 USE MOD_Timeaverage_Vars ,ONLY: DoPowerDensity,PowerDensity
-USE MOD_Particle_Vars    ,ONLY: nSpecies,PartSpecies,PDM
+USE MOD_Particle_Vars    ,ONLY: nSpecies,PartSpecies,PDM,PartLorentzType
 USE MOD_PICDepo_Vars     ,ONLY: PS_N
-USE MOD_Part_RHS         ,ONLY: PartVeloToImp
+USE MOD_Part_RHS         ,ONLY: PartVeloToGammaVelo, GammaVeloToPartVelo
 USE MOD_Preproc
 USE MOD_PICDepo          ,ONLY: Deposition
 USE MOD_Mesh_Tools       ,ONLY: GetCNElemID
@@ -2316,7 +2316,6 @@ IMPLICIT NONE
 ! LOCAL VARIABLES
 INTEGER              :: iSpec,iSpec2,Nloc
 INTEGER              :: iElem,i,j,k,iPart
-LOGICAL              :: doParticle(1:PDM%MaxParticleNumber)
 !===================================================================================================================================
 
 iSpec2=0
@@ -2324,24 +2323,26 @@ PowerDensity=0.
 DO iSpec=1,nSpecies
   IF(.NOT.DoPowerDensity(iSpec)) CYCLE
   iSpec2=iSpec2+1
-  ! mark particle
-  DoParticle(:)=.FALSE.
-  DO iPart=1,PDM%ParticleVecLength
-    IF(PDM%ParticleInside(iPart))THEN
-      IF(PartSpecies(iPart).EQ.iSpec)THEN
-        DoParticle(iPart)=.TRUE.
-      END IF
-    END IF ! ParticleInside
-  END DO ! iPart
+  IF(PartLorentzType.EQ.5) THEN
+    ! map particle from gamma v to v
+    DO iPart=1,PDM%ParticleVecLength
+      IF(PDM%ParticleInside(iPart)) CYCLE
+      IF(PartSpecies(iPart).NE.iSpec) CYCLE
+      CALL GammaVeloToPartVelo(iPart)
+    END DO ! iPart
+  END IF
 
-
-  ! map particle from gamma v to v
-  CALL PartVeloToImp(VeloToImp=.FALSE.,doParticle_In=DoParticle(1:PDM%ParticleVecLength))
-  ! compute source terms
   ! compute particle source terms on field solver of considered species
-  CALL Deposition(doParticle_In=DoParticle(1:PDM%ParticleVecLength))
-  ! map particle from v to gamma v
-  CALL PartVeloToImp(VeloToImp=.TRUE.,doParticle_In=DoParticle(1:PDM%ParticleVecLength))
+  CALL Deposition()
+
+  IF(PartLorentzType.EQ.5) THEN
+    ! map particle from v to v gamma
+    DO iPart=1,PDM%ParticleVecLength
+      IF(PDM%ParticleInside(iPart)) CYCLE
+      IF(PartSpecies(iPart).NE.iSpec) CYCLE
+      CALL PartVeloToGammaVelo(iPart)
+    END DO ! iPart
+  END IF
 
   ! compute power density
   DO iElem=1,PP_nElems

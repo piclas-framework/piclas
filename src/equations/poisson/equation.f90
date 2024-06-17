@@ -889,9 +889,6 @@ USE MOD_Globals_Vars       ,ONLY: eps0
 #ifdef PARTICLES
 USE MOD_PICDepo_Vars       ,ONLY: PS_N,DoDeposition
 USE MOD_HDG_Vars           ,ONLY: ElemToBRRegion,UseBRElectronFluid,RegionElectronRef
-#if IMPA
-USE MOD_LinearSolver_Vars  ,ONLY: ExplicitPartSource
-#endif
 #if defined(CODE_ANALYZE)
 USE MOD_Mesh_Vars          ,ONLY: offSetElem
 USE MOD_Particle_Mesh_Vars ,ONLY: BoundsOfElem_Shared
@@ -1013,11 +1010,7 @@ IF(DoDeposition)THEN
       !* EXP( (Phi-RegionElectronRef(2,RegionID)) / RegionElectronRef(3,RegionID) )
     END IF
   END IF ! UseBRElectronFluid
-#if IMPA
-  resu(1)= - (PS_N(iElem)%PartSource(4,i,j,k)+ExplicitPartSource(4,i,j,k,iElem)-source_e)/eps0
-#else
   resu(1)= - (PS_N(iElem)%PartSource(4,i,j,k)-source_e)/eps0
-#endif
 END IF
 #endif /*defined(PARTICLES)*/
 END ASSOCIATE

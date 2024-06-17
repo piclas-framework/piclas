@@ -50,9 +50,6 @@ CALL prms%CreateRealOption(   'Part-Species[$]-ChargeIC', 'Particle charge of sp
 CALL prms%CreateRealOption(   'Part-Species[$]-MassIC'  , 'Atomic mass of species [$] [kg]', numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(   'Part-Species[$]-MacroParticleFactor' ,'Particle weighting factor: number of simulation particles per real particle for species [$]' , numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(   'Part-Species[$]-TimeStepFactor' ,'Species-specific time step factor, multiplied by the ManualTimeStep [$]' , '1.', numberedmulti=.TRUE.)
-#if defined(IMPA)
-CALL prms%CreateLogicalOption(  'Part-Species[$]-IsImplicit'  , 'Flag if specific particle species is implicit', '.FALSE.', numberedmulti=.TRUE.)
-#endif
 
 CALL prms%SetSection("Particle Initialization (Inits)")
 
@@ -220,9 +217,6 @@ DO iSpec = 1, nSpecies
     CALL CollectiveStop(__STAMP__,'ERROR: Species-specific time step is only implemented with HDG and/or DSMC')
 #endif /*!(USE_HDG) && !(PP_TimeDiscMethod==4)*/
   END IF
-#if defined(IMPA)
-  Species(iSpec)%IsImplicit            = GETLOGICAL('Part-Species'//TRIM(hilf)//'-IsImplicit')
-#endif
   ALLOCATE(Species(iSpec)%Init(1:Species(iSpec)%NumberOfInits))
   DO iInit = 1, Species(iSpec)%NumberOfInits
     WRITE(UNIT=hilf2,FMT='(I0)') iInit

@@ -28,17 +28,13 @@ INTERFACE CalcPartRHSSingleParticle
   MODULE PROCEDURE CalcPartRHSSingleParticle
 END INTERFACE
 
-INTERFACE PartVeloToImp
-  MODULE PROCEDURE PartVeloToImp
-END INTERFACE
-
 INTERFACE PartRHS
   PROCEDURE PartRHS
 END INTERFACE
 
 !----------------------------------------------------------------------------------------------------------------------------------
 PUBLIC :: CalcPartRHS
-PUBLIC :: PartVeloToImp
+PUBLIC :: PartVeloToGammaVelo, GammaVeloToPartVelo
 PUBLIC :: PartRHS
 PUBLIC :: CalcPartRHSSingleParticle
 PUBLIC :: CalcPartRHSRotRefFrame
@@ -740,60 +736,62 @@ END IF
 END FUNCTION CalcPartRHSRotRefFrame
 
 
-SUBROUTINE PartVeloToImp(VeloToImp,doParticle_In)
+SUBROUTINE GammaVeloToPartVelo(iPart)
 !===================================================================================================================================
-! map the particle velocity to gamma*velocity
-! or
-! gamma*velocity to velocity
+! map the gamma*velocity to velocity
 !===================================================================================================================================
 ! MODULES                                                                                                                          !
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Globals
-USE MOD_Particle_Vars ,ONLY: PDM, PartState, PartLorentzType
+USE MOD_Particle_Vars ,ONLY: PartState
 USE MOD_Globals_Vars  ,ONLY: c2_inv
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! INPUT VARIABLES
-LOGICAL,INTENT(IN)               :: VeloToImp
-LOGICAL,INTENT(IN),OPTIONAL      :: doParticle_In(1:PDM%ParticleVecLength)
+INTEGER,INTENT(IN)               :: iPart
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-LOGICAL                          :: doParticle(1:PDM%ParticleVecLength)
-INTEGER                          :: iPart
-REAL                             :: LorentzFac,LorentzFacInv
+REAL                             :: LorentzFacInv
 !===================================================================================================================================
 
-IF(PartLorentzType.NE.5) RETURN
+LorentzFacInv=1.0+DOTPRODUCT(PartState(4:6,iPart))*c2_inv
+LorentzFacInv=1.0/SQRT(LorentzFacInv)
+PartState(4:6,iPart) = LorentzFacInv*PartState(4:6,iPart)
 
-IF(PRESENT(DoParticle_IN))THEN
-  DoParticle=PDM%ParticleInside(1:PDM%ParticleVecLength).AND.DoParticle_In
-ELSE
-  DoParticle(1:PDM%ParticleVecLength)=PDM%ParticleInside(1:PDM%ParticleVecLength)
-END IF
+END SUBROUTINE GammaVeloToPartVelo
 
-IF(VeloToImp)THEN
-  DO iPart=1,PDM%ParticleVecLength
-    IF(DoParticle(iPart))THEN
-      LorentzFac=1.0-DOTPRODUCT(PartState(4:6,iPart))*c2_inv
-      LorentzFac=1.0/SQRT(LorentzFac)
-      PartState(4:6,iPart) = LorentzFac*PartState(4:6,iPart)
-    END IF ! DoParticle
-  END DO ! iPart
-ELSE
-  DO iPart=1,PDM%ParticleVecLength
-    IF(DoParticle(iPart))THEN
-      LorentzFacInv=1.0+DOTPRODUCT(PartState(4:6,iPart))*c2_inv
-      LorentzFacInv=1.0/SQRT(LorentzFacInv)
-      PartState(4:6,iPart) = LorentzFacInv*PartState(4:6,iPart)
-    END IF ! DoParticle
-  END DO ! iPart
-END IF
 
-END SUBROUTINE PartVeloToImp
+SUBROUTINE PartVeloToGammaVelo(iPart)
+!===================================================================================================================================
+! map the particle velocity to gamma*velocity
+!===================================================================================================================================
+! MODULES                                                                                                                          !
+!----------------------------------------------------------------------------------------------------------------------------------!
+USE MOD_Globals
+USE MOD_Particle_Vars ,ONLY: PartState
+USE MOD_Globals_Vars  ,ONLY: c2_inv
+!----------------------------------------------------------------------------------------------------------------------------------!
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!----------------------------------------------------------------------------------------------------------------------------------!
+! INPUT VARIABLES
+INTEGER,INTENT(IN)               :: iPart
+!----------------------------------------------------------------------------------------------------------------------------------!
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+REAL                             :: LorentzFac
+!===================================================================================================================================
+
+LorentzFac=1.0-DOTPRODUCT(PartState(4:6,iPart))*c2_inv
+LorentzFac=1.0/SQRT(LorentzFac)
+PartState(4:6,iPart) = LorentzFac*PartState(4:6,iPart)
+
+END SUBROUTINE PartVeloToGammaVelo
 
 
 SUBROUTINE CalcPartPosInRotRef(iPart, RotTimestep)

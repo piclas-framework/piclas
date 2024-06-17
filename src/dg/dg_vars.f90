@@ -28,10 +28,6 @@ SAVE
 !INTEGER                               :: nTotal_vol    !loop i,j,k
 !INTEGER                               :: nTotal_face   !loop i,j
 
-#if defined(IMPA) || defined(ROS)
-REAL,ALLOCATABLE                      :: Un(:,:,:,:,:) ! computed from JU
-#endif
-
 ! Element local polynomial degrees
 INTEGER                               :: pAdaptionType          !< Set initial polynomial degree distribution
 INTEGER,ALLOCATABLE                   :: N_DG(:)                !< polynomial degree inside DG element,         size(nElems)

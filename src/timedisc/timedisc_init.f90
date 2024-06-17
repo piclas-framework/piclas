@@ -101,12 +101,6 @@ USE MOD_TimeDisc_Vars ,ONLY: IterDisplayStepUser
 USE MOD_TimeDisc_Vars ,ONLY: CFLScale,dt,TimeDiscInitIsDone,RKdtFrac,RKdtFracTotal,dtWeight
 USE MOD_TimeDisc_Vars ,ONLY: IterDisplayStep,DoDisplayIter
 USE MOD_TimeDisc_Vars ,ONLY: ManualTimeStep,useManualTimestep
-#ifdef IMPA
-USE MOD_TimeDisc_Vars ,ONLY: RK_c, RK_inc,RK_inflow,nRKStages
-#endif
-#ifdef ROS
-USE MOD_TimeDisc_Vars ,ONLY: RK_c, RK_inflow,nRKStages
-#endif
 USE MOD_TimeDisc_Vars ,ONLY: TEnd
 #if (PP_TimeDiscMethod==1)||(PP_TimeDiscMethod==2)|| (PP_TimeDiscMethod==6)
 !USE MOD_TimeDisc_Vars          ,ONLY: U2t_temp
@@ -121,10 +115,6 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-#if defined(IMPA) || defined(ROS)
-INTEGER                   :: iCounter
-REAL                      :: rtmp
-#endif
 INTEGER           :: Nloc,iElem
 !===================================================================================================================================
 IF(TimeDiscInitIsDone)THEN
@@ -152,76 +142,16 @@ IterDisplayStepUser = GETINT('IterDisplayStep','1')
 IterDisplayStep = IterDisplayStepUser
 IF(IterDisplayStep.GE.1) DoDisplayIter=.TRUE.
 
-#ifdef ROS
-RK_inflow(2)=RK_C(2)
-rTmp=RK_c(2)
-DO iCounter=3,nRKStages
-  RK_inflow(iCounter)=MAX(RK_c(iCounter)-MAX(RK_c(iCounter-1),rTmp),0.)
-  rTmp=MAX(rTmp,RK_c(iCounter))
-  IF(RK_c(iCounter).GT.1.) RK_inflow(iCounter)=0.
-END DO ! iCounter=2,nRKStages-1
-#endif
-
-#ifdef IMPA
-! get time increment between current and next RK stage
-DO iCounter=2,nRKStages-1
-  RK_inc(iCounter)=RK_c(iCounter+1)-RK_c(iCounter)
-END DO ! iCounter=2,nRKStages-1
-RK_inc(nRKStages)=0.
-
-! compute ratio of dt for particle surface flux emission (example a). Additionally, the ratio of RK_inflow(iStage)/RK_c(iStage)
-! gives the ! maximum distance, the Surface Flux particles can during the initial implicit step (example b).
-! example a)
-!   particle number for stage 4: dt*RK_inflow(4)
-! or: generate all particles for dt, but only particles with random number R < RK_c(iStage) participate in current stage.
-! This results in dt*RK_inflow(iStage) particles in the current stage, hence, we can decide if we generate all particles or
-! only the particles per stage. Currently, all particles are generated prior to the RK stages.
-! example b)
-! ESDIRKO4 from kennedy and carpenter without an acting force. Assume again stage 4. The initial particles during stage 2 are
-! moved in stage 3 without tracking (because it could be dropped out of the domain and the negative increment of the time level.
-! The new particles in this  stage could travel a distance up to RK_c(4)=SUM(ESDIRK_a(4,:)). Now, the new particles are pushed
-! further into the domain than the particles of the second stage has moved. This would create a non-uniform particle distribution.
-! this is prevented by reducing their maximum emission/initial distance by RK_inflow(4)/RK_c(4).
-! Note: A small overlap is possible, but this is required. See the charts in the docu folder.
-RK_inflow(2)=RK_C(2)
-rTmp=RK_c(2)
-DO iCounter=3,nRKStages
-  RK_inflow(iCounter)=MAX(RK_c(iCounter)-MAX(RK_c(iCounter-1),rTmp),0.)
-  rTmp=MAX(rTmp,RK_c(iCounter))
-END DO ! iCounter=2,nRKStages-1
-#endif
-
 ! Set timestep to a large number
 dt=HUGE(1.)
 #if (PP_TimeDiscMethod==1)
   SWRITE(UNIT_stdOut,'(A)') ' Method of time integration: LSERK3-3 '
 #elif (PP_TimeDiscMethod==2)
   SWRITE(UNIT_stdOut,'(A)') ' Method of time integration: LSERK4-5 '
-#elif (PP_TimeDiscMethod==3)
-  SWRITE(UNIT_stdOut,'(A)') ' Method of time integration: TAYLOR'
 #elif (PP_TimeDiscMethod==4)
   SWRITE(UNIT_stdOut,'(A)') ' Method of time integration: Direct Simulation Monte Carlo (DSMC)'
 #elif (PP_TimeDiscMethod==6)
   SWRITE(UNIT_stdOut,'(A)') ' Method of time integration: LSERK4-14 '
-#elif (PP_TimeDiscMethod==120)
-  SWRITE(UNIT_stdOut,'(A)') ' Method of time integration: Heun/Crank-Nicolson1-2-2'
-#elif (PP_TimeDiscMethod==121)
-  SWRITE(UNIT_stdOut,'(A)') ' Method of time integration: ERK3/ESDIRK3-Particles and ESDIRK3-Field'
-#elif (PP_TimeDiscMethod==122)
-  SWRITE(UNIT_stdOut,'(A)') ' Method of time integration: ERK4/ESDIRK4-Particles and ESDIRK4-Field'
-#elif (PP_TimeDiscMethod==123)
-  SWRITE(UNIT_stdOut,'(A)') ' Method of time integration: ERK3/ESDIRK3-Particles and ESDIRK3-Field'
-  SWRITE(UNIT_stdOut,'(A)') '                             Ascher - 2 - 3 -3               '
-#elif (PP_TimeDiscMethod==130)
-  SWRITE(UNIT_stdOut,'(A)') ' Method of time integration: ROS-2-2 by Iannelli'
-#elif (PP_TimeDiscMethod==131)
-  SWRITE(UNIT_stdOut,'(A)') ' Method of time integration: ROS-3-3 by Langer-Verwer'
-#elif (PP_TimeDiscMethod==132)
-  SWRITE(UNIT_stdOut,'(A)') ' Method of time integration: ROS-4-4 by Shampine'
-#elif (PP_TimeDiscMethod==133)
-  SWRITE(UNIT_stdOut,'(A)') ' Method of time integration: ROS-4-6 by Steinebach'
-#elif (PP_TimeDiscMethod==134)
-  SWRITE(UNIT_stdOut,'(A)') ' Method of time integration: ROS-6-6 by Kaps'
 #elif (PP_TimeDiscMethod==300)
   SWRITE(UNIT_stdOut,'(A)') ' Method of time integration: Fokker-Planck (FP) Collision Operator'
 #elif (PP_TimeDiscMethod==400)
@@ -448,26 +378,9 @@ IMPLICIT NONE
 ! CFL in DG depends on the polynomial degree
 
 CFLToOne=1.0/CFLScale
-#if (PP_TimeDiscMethod==3)
-#  if (PP_NodeType==1)
-  !Gauss  Taylor DG Timeorder=SpaceOrder
-  CFLscale=CFLscale*0.55*(2*PP_N+1)/(PP_N+1)
-#  elif (PP_NodeType==2)
-  !Gauss-Lobatto  Taylor DG Timeorder=SpaceOrder, scales with N+1
-  CFLscale=CFLscale*(2*PP_N+1)/(PP_N+1)
-#  endif /*PP_NodeType*/
-#endif /*PP_TimeDiscMethod*/
 
-#if (PP_TimeDiscMethod==1) || (PP_TimeDiscMethod==2)
-IF(PP_N.GT.15) CALL abort(&
-  __STAMP__&
-  ,'Polynomial degree is to high!',PP_N,999.)
-CFLScale=CFLScale*CFLScaleAlpha(PP_N)
-#endif
-#if (PP_TimeDiscMethod==6)
-IF(PP_N.GT.15) CALL abort(&
-  __STAMP__&
-  ,'Polynomial degree is to high!',PP_N,999.)
+#if (PP_TimeDiscMethod==1) || (PP_TimeDiscMethod==2) || (PP_TimeDiscMethod==6)
+IF(PP_N.GT.15) CALL abort(__STAMP__,'Polynomial degree is to high!',PP_N,999.)
 CFLScale=CFLScale*CFLScaleAlpha(PP_N)
 #endif
 !scale with 2N+1

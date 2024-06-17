@@ -158,9 +158,6 @@ USE MOD_Particle_Boundary_Vars    ,ONLY: PartBound
 USE MOD_Particle_Analyze_Vars     ,ONLY: CalcPartBalance,nPartOut,PartEkinOut,CalcSurfFluxInfo
 USE MOD_SurfaceModel_Analyze_Vars ,ONLY: CalcBoundaryParticleOutput,BPO
 USE MOD_Particle_Tracking_Vars    ,ONLY: TrackingMethod
-#if defined(IMPA)
-USE MOD_Particle_Vars             ,ONLY: PartIsImplicit,DoPartInNewton, PEM, PartLambdaAccept
-#endif /*IMPA*/
 #if defined(LSERK)
 USE MOD_Particle_Vars             ,ONLY: Pt_temp
 #endif
@@ -224,13 +221,6 @@ END IF
 IF(ALLOCATED(VibQuantsPar)) THEN
   SDEALLOCATE(VibQuantsPar(PartID)%Quants)
 END IF
-
-#ifdef IMPA
-PartIsImplicit(PartID)   = .FALSE.
-DoPartInNewton(PartID)   = .FALSE.
-PartLambdaAccept(PartID) = .TRUE.
-PEM%PeriodicMoved(PartID)  = .FALSE.
-#endif /*IMPA*/
 
 #if defined(LSERK)
 Pt_temp(1:6,PartID)   = 0.
