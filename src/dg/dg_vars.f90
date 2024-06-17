@@ -73,7 +73,8 @@ TYPE N_U_Vol
   REAL,ALLOCATABLE  :: Ut(:,:,:,:)
   REAL,ALLOCATABLE  :: U2t(:,:,:,:)
   REAL,ALLOCATABLE  :: E(:,:,:,:)
-  REAL,ALLOCATABLE  :: Dt(:,:,:,:) ! Temporal derivative dD/dt of the electric displacement field D = epsR*eps0*E(x,y,z)
+  REAL,ALLOCATABLE  :: Dt(:,:,:,:)   ! Temporal derivative dD/dt of the electric displacement field D = epsR*eps0*E(x,y,z)
+  REAL,ALLOCATABLE  :: PhiF(:,:,:,:) ! VDL surface potential stored in volume container for restart/load balance purposes
 END TYPE N_U_Vol
 
 ! DG solution (JU or U) vectors)

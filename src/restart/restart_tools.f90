@@ -34,6 +34,8 @@ CONTAINS
 !===================================================================================================================================
 !> The lambda-solution is stored per side, however, the side-list is computed with the OLD domain-decomposition. To allow for
 !> a change in the load-distribution, number of used cores, etc,... lambda has to be recomputed ONCE
+!>
+!> Note: RecomputeLambda() calls HDG(), which calls HDGLinear() that calculates U_N(iElem)%U, which requires HDG_Vol_N(iElem)%RHS_vol
 !===================================================================================================================================
 SUBROUTINE RecomputeLambda(t)
 ! MODULES
@@ -62,15 +64,15 @@ REAL,INTENT(IN)       :: t
 CALL Deposition()
 #endif /*PARTICLES*/
 
-! recompute fields
+! Recompute field solution
 ! EM field
 #ifdef PARTICLES
 IF(UseBRElectronFluid.AND.BRElectronsRemoved)THEN
   ! When using BR electron fluid model, all electrons are removed from the restart file
-  CALL HDG(t,iter,ForceCGSolverIteration_opt=.TRUE.)
+  CALL HDG(t,iter,ForceCGSolverIteration_opt=.TRUE.,RecomputeLambda_opt=.TRUE.)
 ELSE
 #endif /*PARTICLES*/
-  CALL HDG(t,iter)
+  CALL HDG(t,iter,RecomputeLambda_opt=.TRUE.)
 #ifdef PARTICLES
 END IF ! UseBRElectronFluid
 #endif /*PARTICLES*/

@@ -64,17 +64,17 @@ USE MOD_Equation_Vars      ,ONLY: Phi
 #elif USE_HDG
 USE MOD_Interpolation_Vars ,ONLY: NMax
 #else /*not PP_POIS and not USE_HDG*/
+#endif /*PP_POIS*/
 USE MOD_DG_Vars            ,ONLY: U_N
 USE MOD_DG_Vars            ,ONLY: N_DG_Mapping
 USE MOD_ChangeBasis        ,ONLY: ChangeBasis3D
-#endif /*PP_POIS*/
 #if defined(PARTICLES)
 USE MOD_Particle_Restart   ,ONLY: ParticleRestart
 #endif /*defined(PARTICLES)*/
 #if USE_HDG
-USE MOD_Restart_Tools      ,ONLY: RecomputeLambda
+USE MOD_Particle_Boundary_Vars ,ONLY: DoVirtualDielectricLayer
 USE MOD_HDG_Vars           ,ONLY: HDG_Surf_N, nGP_face
-USE MOD_HDG                ,ONLY: RestartHDG
+USE MOD_HDG                ,ONLY: RecomputeEFieldHDG,CalculatePhiAndEFieldFromCurrentsVDL
 USE MOD_Mesh_Vars          ,ONLY: nSides,GlobalUniqueSideID,MortarType,SideToElem
 USE MOD_StringTools        ,ONLY: set_formatting,clear_formatting
 USE MOD_Mappings           ,ONLY: CGNS_SideToVol2
@@ -92,7 +92,7 @@ USE MOD_HDG_Vars           ,ONLY: UseEPC
 USE MOD_Equation_Tools     ,ONLY: SynchronizeCPP
 USE MOD_HDG                ,ONLY: SynchronizeBV
 USE MOD_HDG_Vars           ,ONLY: UseBiasVoltage,UseCoupledPowerPotential
-! TODO: make ElemInfo available with PARTICLES=OFF and remove this preprocessor if/else as soon as possible                                                                                                     ! TODO: make ElemInfo available with PARTICLES=OFF and remove this preprocessor if/else as soon as possible
+! TODO: make ElemInfo available with PARTICLES=OFF and remove this preprocessor if/else as soon as possible
 USE MOD_Mesh_Vars          ,ONLY: SideToNonUniqueGlobalSide,nElems
 USE MOD_LoadBalance_Vars   ,ONLY: MPInSideSend,MPInSideRecv,MPIoffsetSideSend,MPIoffsetSideRecv
 USE MOD_Particle_Mesh_Vars ,ONLY: ElemInfo_Shared
@@ -110,13 +110,13 @@ USE MOD_HDG_Vars           ,ONLY: PETScSolution,nPETScUniqueSides
 USE MOD_Mesh_Vars          ,ONLY: N_SurfMesh
 #else /*USE_HDG*/
 ! Non-HDG stuff
+USE MOD_PML_Vars           ,ONLY: DoPML,PMLToElem,nPMLElems,PMLnVar
+#endif /*USE_HDG*/
 USE MOD_Interpolation_Vars ,ONLY: Nmax
 USE MOD_LoadBalance_Vars   ,ONLY: nElemsOld,offsetElemOld
-USE MOD_PML_Vars           ,ONLY: DoPML,PMLToElem,nPMLElems,PMLnVar
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Vars   ,ONLY: MPInElemSend,MPInElemRecv,MPIoffsetElemSend,MPIoffsetElemRecv
 #endif /*USE_LOADBALANCE*/
-#endif /*USE_HDG*/
 USE MOD_Mesh_Vars          ,ONLY: nElems,OffsetElem
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
@@ -124,13 +124,16 @@ USE MOD_Mesh_Vars          ,ONLY: nElems,OffsetElem
 ! INPUT/OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                            :: Nres
+INTEGER                            :: Nres,iElem
 INTEGER(KIND=IK)                   :: Nres8,nVar
 INTEGER(KIND=IK)                   :: OffsetElemTmp,PP_nElemsTmp
+#if USE_LOADBALANCE
+REAL,ALLOCATABLE                   :: UTmp(:,:,:,:,:)
+#endif /*USE_LOADBALANCE*/
 #if USE_HDG
-LOGICAL                            :: DG_SolutionLambdaExists
-!LOGICAL                            :: DG_SolutionExists
-INTEGER                            :: SideID,iSide,MinGlobalSideID,MaxGlobalSideID,NSideMin,iVar
+LOGICAL                            :: DG_SolutionLambdaExists,DG_SolutionPhiFExists
+LOGICAL                            :: DG_SolutionExists
+INTEGER                            :: SideID,iSide,MinGlobalSideID,MaxGlobalSideID,NSideMin,iVar,nVarVDL
 REAL,ALLOCATABLE                   :: ExtendedLambda(:,:,:)
 INTEGER                            :: p,q,r,rr,pq(1:2)
 INTEGER                            :: iLocSide,iLocSide_NB,iLocSide_master
@@ -148,19 +151,15 @@ INTEGER                            :: NonUniqueGlobalSideID
 INTEGER                            :: PETScLocalID
 PetscErrorCode                     :: ierr
 #endif
-#else /*USE_HDG*/
-INTEGER                            :: iElem
-#if USE_LOADBALANCE
-REAL,ALLOCATABLE                   :: UTmp(:,:,:,:,:)
-#endif /*USE_LOADBALANCE*/
+#else /*! USE_HDG*/
 REAL,ALLOCATABLE                   :: U_local(:,:,:,:,:)
 !REAL,ALLOCATABLE                   :: U_local2(:,:,:,:,:)
 INTEGER                            :: iPML
 INTEGER(KIND=IK)                   :: PMLnVarTmp
 INTEGER                            :: iPMLElem
+#endif /*USE_HDG*/
 REAL,ALLOCATABLE                   :: U(:,:,:,:,:)
 INTEGER                            :: i,j,k
-#endif /*USE_HDG*/
 #if USE_LOADBALANCE
 !INTEGER,ALLOCATABLE                :: N_DG_Tmp(:)
 #if defined(PARTICLES) || !(USE_HDG)
@@ -170,12 +169,8 @@ INTEGER                            :: MPI_LENGTH(1),MPI_TYPE(1),MPI_STRUCT
 INTEGER(KIND=MPI_ADDRESS_KIND)     :: MPI_DISPLACEMENT(1)
 #endif /*USE_LOADBALANCE*/
 #endif /*defined(PARTICLES) || !(USE_HDG)*/
-#ifdef PP_POIS
-#elif USE_HDG
-#else /*not PP_POIS and not USE_HDG*/
 REAL,ALLOCATABLE                   :: Uloc(:,:,:,:)
 INTEGER                            :: Nloc
-#endif /*PP_POIS*/
 !===================================================================================================================================
 
 ! ===========================================================================
@@ -314,16 +309,107 @@ IF(PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance))THEN
   !END DO
   !PetscCallA(VecAssemblyBegin(PETScSolution,ierr))
   !PetscCallA(VecAssemblyEnd(PETScSolution,ierr))
-#endif
+#endif /*USE_PETSC*/
 
-  CALL RestartHDG() ! calls PostProcessGradient for calculate the derivative, e.g., the electric field E
+  ! VDL: Exchange PhiF during load balance to continue the time integration of the ODE
+  IF(DoVirtualDielectricLayer)THEN
+    nVarVDL = 3
+  ELSE
+    nVarVDL = 0
+  END IF ! DoVirtualDielectricLayer
 
-#else
+  ALLOCATE(U(PP_nVar+nVarVDL,0:NMax,0:NMax,0:NMax,nElemsOld))
+  DO iElem = 1, nElemsOld
+    Nloc = N_DG_Mapping(2,iElem+offSetElemOld)
+    IF(Nloc.EQ.Nmax)THEN
+                                   U(        1:PP_nVar        ,:,:,:,iElem) = U_N(iElem)%U(:,:,:,:)
+      IF(DoVirtualDielectricLayer) U(PP_nVar+1:PP_nVar+nVarVDL,:,:,:,iElem) = U_N(iElem)%PhiF(:,:,:,:)
+    ELSE
+      U(:,:,:,:,iElem) = 0.
+      DO k=0,Nloc
+        DO i=0,Nloc
+          DO j=0,Nloc
+            U(1:PP_nVar,i,j,k,iElem) = U_N(iElem)%U(:,i,j,k)
+          END DO
+        END DO
+      END DO
+      IF(DoVirtualDielectricLayer)THEN
+        DO k=0,Nloc
+          DO i=0,Nloc
+            DO j=0,Nloc
+              U(PP_nVar+1:PP_nVar+nVarVDL,i,j,k,iElem) = U_N(iElem)%PhiF(:,i,j,k)
+            END DO
+          END DO
+        END DO
+      END IF ! DoVirtualDielectricLayer
+    END IF ! Nloc.Eq.Nmax
+  END DO ! iElem = 1, nElems
+
+  ALLOCATE(UTmp(PP_nVar+nVarVDL,0:NMax,0:NMax,0:NMax,nElems))
+  ASSOCIATE (&
+          counts_send  => (INT(MPInElemSend     )) ,&
+          disp_send    => (INT(MPIoffsetElemSend)) ,&
+          counts_recv  => (INT(MPInElemRecv     )) ,&
+          disp_recv    => (INT(MPIoffsetElemRecv)))
+    ! Communicate PartInt over MPI
+    MPI_LENGTH       = (PP_nVar+nVarVDL)*(NMax+1)*(NMax+1)*(NMax+1)
+    MPI_DISPLACEMENT = 0  ! 0*SIZEOF(MPI_SIZE)
+    MPI_TYPE         = MPI_DOUBLE_PRECISION
+    CALL MPI_TYPE_CREATE_STRUCT(1,MPI_LENGTH,MPI_DISPLACEMENT,MPI_TYPE,MPI_STRUCT,iError)
+    CALL MPI_TYPE_COMMIT(MPI_STRUCT,iError)
+    CALL MPI_ALLTOALLV(U,counts_send,disp_send,MPI_STRUCT,UTmp,counts_recv,disp_recv,MPI_STRUCT,MPI_COMM_PICLAS,iError)
+    CALL MPI_TYPE_FREE(MPI_STRUCT,iError)
+  END ASSOCIATE
+  CALL MOVE_ALLOC(UTmp,U)
+
+  DEALLOCATE(U_N) ! U_N(1:nElemsOld)
+  ! the local DG solution in physical and reference space
+  ALLOCATE(U_N(1:nElems))
+
+
+  DO iElem = 1, nElems
+    Nloc = N_DG_Mapping(2,iElem+offSetElem)
+    ALLOCATE(U_N(iElem)%U(PP_nVar,0:Nloc,0:Nloc,0:Nloc))
+    ALLOCATE(U_N(iElem)%E(1:3,0:Nloc,0:Nloc,0:Nloc))
+    ALLOCATE(U_N(iElem)%Dt(1:3,0:Nloc,0:Nloc,0:Nloc))
+    U_N(iElem)%U = 0.
+    DO k=0,Nloc
+      DO j=0,Nloc
+        DO i=0,Nloc
+          U_N(iElem)%U(:,i,j,k) = U(1:PP_nVar,i,j,k,iElem)
+        END DO
+      END DO
+    END DO
+    U_N(iElem)%E = 0.
+    U_N(iElem)%Dt = 0.
+  END DO ! iElem = 1, PP_nElems
+
+  ! RecomputeEFieldHDG() -> PostProcessGradientHDG(), which requires U_N(iElem)%U and HDG_Surf_N(iSide)%lambda
+  CALL RecomputeEFieldHDG() ! calls PostProcessGradient for calculate the derivative, e.g., the electric field E
+
+  IF(DoVirtualDielectricLayer)THEN
+    DO iElem = 1, nElems
+      Nloc = N_DG_Mapping(2,iElem+offSetElem)
+      ALLOCATE(U_N(iElem)%PhiF(3,0:Nloc,0:Nloc,0:Nloc))
+      DO k=0,Nloc
+        DO j=0,Nloc
+          DO i=0,Nloc
+            U_N(iElem)%PhiF(:,i,j,k) = U(PP_nVar+1:PP_nVar+nVarVDL,i,j,k,iElem)
+          END DO
+        END DO
+      END DO
+    END DO ! iElem = 1, PP_nElems
+    DEALLOCATE(U)
+    ! Recompute initial value of PhiF on the surface from PhiF in the volume which has been exchanged via MPI here
+    CALL CalculatePhiAndEFieldFromCurrentsVDL(.FALSE.)
+  END IF ! DoVirtualDielectricLayer
+
+#else /*! defined(PARTICLES)*/
   ! TODO: make ElemInfo available with PARTICLES=OFF and remove this preprocessor if/else as soon as possible
    CALL abort(__STAMP__,'TODO: make ElemInfo available with PARTICLES=OFF and remove this preprocessor if/else')
 #endif /*defined(PARTICLES)*/
 
-#else /*USE_HDG*/
+#else /*! USE_HDG*/
   ! Only required for time discs where U is allocated
   ALLOCATE(U(PP_nVar,0:NMax,0:NMax,0:NMax,nElemsOld))
   DO iElem = 1, nElemsOld
@@ -333,8 +419,8 @@ IF(PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance))THEN
     ELSE
       U(:,:,:,:,iElem) = 0.
       DO k=0,Nloc
-          DO i=0,Nloc
-        DO j=0,Nloc
+        DO i=0,Nloc
+          DO j=0,Nloc
             U(:,i,j,k,iElem) = U_N(iElem)%U(:,i,j,k)
           END DO
         END DO
@@ -398,7 +484,7 @@ IF(PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance))THEN
   !END DO
   !DEALLOCATE(N_DG_Tmp)
 
-ELSE ! normal restart
+ELSE ! Normal restart
 #endif /*USE_LOADBALANCE*/
 
   IF(N_Restart.LT.1) CALL abort(__STAMP__,'N_Restart<1 is not allowed. Check correct initailisation of N_Restart!')
@@ -436,21 +522,37 @@ ELSE ! normal restart
 
 #ifdef PP_POIS
 #if (PP_nVar==8)
-    CALL ReadArray('DG_SolutionE',5,(/PP_nVar,Nres8+1_IK,Nres8+1_IK,Nres8+1_IK,PP_nElemsTmp/),OffsetElemTmp,5,RealArray=U)
+    CALL ReadArray('DG_SolutionE',5,(/nVar,Nres8+1_IK,Nres8+1_IK,Nres8+1_IK,PP_nElemsTmp/),OffsetElemTmp,5,RealArray=U)
     CALL ReadArray('DG_SolutionPhi',5,(/4_IK,Nres8+1_IK,Nres8+1_IK,Nres8+1_IK,PP_nElemsTmp/),OffsetElemTmp,5,RealArray=Phi)
 #else
-    CALL ReadArray('DG_SolutionE',5,(/PP_nVar,Nres8+1_IK,Nres8+1_IK,Nres8+1_IK,PP_nElemsTmp/),OffsetElemTmp,5,RealArray=U)
-    CALL ReadArray('DG_SolutionPhi',5,(/PP_nVar,Nres8+1_IK,Nres8+1_IK,Nres8+1_IK,PP_nElemsTmp/),OffsetElemTmp,5,RealArray=Phi)
+    CALL ReadArray('DG_SolutionE',5,(/nVar,Nres8+1_IK,Nres8+1_IK,Nres8+1_IK,PP_nElemsTmp/),OffsetElemTmp,5,RealArray=U)
+    CALL ReadArray('DG_SolutionPhi',5,(/nVar,Nres8+1_IK,Nres8+1_IK,Nres8+1_IK,PP_nElemsTmp/),OffsetElemTmp,5,RealArray=Phi)
 #endif /*PP_nVar==8*/
 #elif USE_HDG
-    ! TODO: Do we need this for the HDG solver?
-    !CALL DatasetExists(File_ID,'DG_Solution',DG_SolutionExists)
-    !IF(DG_SolutionExists)THEN
-    !  ALLOCATE(U(PP_nVar,0:Nres,0:Nres,0:Nres,PP_nElemsTmp))
-    !  CALL ReadArray('DG_Solution' ,5,(/PP_nVar,Nres+1_IK,Nres+1_IK,Nres+1_IK,PP_nElemsTmp/),OffsetElemTmp,5,RealArray=U)
-    !ELSE
-    !  CALL abort(__STAMP__,'DG_Solution does not exist')
-    !END IF
+    ! TODO: Do we need this for the HDG solver? It seems so ....
+    CALL DatasetExists(File_ID,'DG_Solution',DG_SolutionExists)
+    IF(DG_SolutionExists)THEN
+      ALLOCATE(U(PP_nVar,0:Nres,0:Nres,0:Nres,PP_nElemsTmp))
+      CALL ReadArray('DG_Solution' ,5,(/nVar,Nres+1_IK,Nres+1_IK,Nres+1_IK,PP_nElemsTmp/),OffsetElemTmp,5,RealArray=U)
+    ELSE
+      CALL abort(__STAMP__,'DG_Solution does not exist')
+    END IF
+
+    DO iElem = 1, nElems
+      Nloc = N_DG_Mapping(2,iElem+offSetElem)
+      IF(Nloc.EQ.N_Restart)THEN ! N is equal
+        U_N(iElem)%U(1:PP_nVar,0:Nres,0:Nres,0:Nres) = U(1:PP_nVar,0:Nres,0:Nres,0:Nres,iElem)
+      ELSEIF(Nloc.GT.N_Restart)THEN ! N increases
+        CALL ChangeBasis3D(PP_nVar, N_Restart, Nloc, PREF_VDM(N_Restart, Nloc)%Vdm, U(1:PP_nVar,0:Nres,0:Nres,0:Nres,iElem), U_N(iElem)%U(1:PP_nVar,0:Nloc,0:Nloc,0:Nloc))
+      ELSE ! N reduces
+        !transform the slave side to the same degree as the master: switch to Legendre basis
+        CALL ChangeBasis3D(PP_nVar, N_Restart, N_Restart, N_Inter(N_Restart)%sVdm_Leg, U(1:PP_nVar,0:Nres,0:Nres,0:Nres,iElem), Uloc(1:PP_nVar,0:Nres,0:Nres,0:Nres))
+        ! switch back to nodal basis
+        CALL ChangeBasis3D(PP_nVar, Nloc, Nloc, N_Inter(Nloc)%Vdm_Leg, Uloc(1:PP_nVar,0:Nloc,0:Nloc,0:Nloc), U_N(iElem)%U(1:PP_nVar,0:Nloc,0:Nloc,0:Nloc))
+      END IF ! Nloc.EQ.N_Restart
+    END DO ! iElem = 1, nElems
+    DEALLOCATE(U)
+
 
     ! Read HDG lambda solution (sorted in ascending global unique side ID ordering)
     CALL DatasetExists(File_ID,'DG_SolutionLambda',DG_SolutionLambdaExists)
@@ -580,13 +682,44 @@ ELSE ! normal restart
         !PetscCallA(VecAssemblyEnd(PETScSolution,ierr))
 #endif
 
-        CALL RestartHDG() ! calls PostProcessGradient for calculate the derivative, e.g., the electric field E
+      ! RecomputeEFieldHDG() -> PostProcessGradientHDG(), which requires U_N(iElem)%U and HDG_Surf_N(iSide)%lambda
+      CALL RecomputeEFieldHDG() ! Calls PostProcessGradient to calculate the derivative, i.e., the electric field E
 
-    ELSE
+    ELSE ! DG_SolutionLambdaExist=F
       DO SideID = 1, nSides
         HDG_Surf_N(SideID)%lambda=0.
       END DO ! SideID = 1, nSides
-    END IF
+    END IF ! DG_SolutionLambdaExists
+
+    IF(DoVirtualDielectricLayer)THEN
+      CALL DatasetExists(File_ID,'DG_PhiF',DG_SolutionPhiFExists)
+      IF(DG_SolutionPhiFExists)THEN
+        ASSOCIATE( nVarPhiF => 3 )
+          ALLOCATE(U(1:nVarPhiF,0:Nres,0:Nres,0:Nres,PP_nElemsTmp))
+          ALLOCATE(Uloc(1:nVarPhiF,0:Nres,0:Nres,0:Nres))
+          CALL ReadArray('DG_PhiF',5,(/INT(nVarPhiF,IK),Nres8+1_IK,Nres8+1_IK,Nres8+1_IK,PP_nElemsTmp/),OffsetElemTmp,5,RealArray=U)
+          DO iElem = 1, nElems
+            Nloc = N_DG_Mapping(2,iElem+offSetElem)
+            IF(Nloc.EQ.N_Restart)THEN ! N is equal
+              U_N(iElem)%PhiF(1:nVarPhiF,0:Nres,0:Nres,0:Nres) = U(1:nVarPhiF,0:Nres,0:Nres,0:Nres,iElem)
+            ELSEIF(Nloc.GT.N_Restart)THEN ! N increases
+              CALL ChangeBasis3D(nVarPhiF, N_Restart, Nloc, PREF_VDM(N_Restart, Nloc)%Vdm, U(1:nVarPhiF,0:Nres,0:Nres,0:Nres,iElem), U_N(iElem)%PhiF(1:nVarPhiF,0:Nloc,0:Nloc,0:Nloc))
+            ELSE ! N reduces
+              !transform the slave side to the same degree as the master: switch to Legendre basis
+              CALL ChangeBasis3D(nVarPhiF, N_Restart, N_Restart, N_Inter(N_Restart)%sVdm_Leg, U(1:nVarPhiF,0:Nres,0:Nres,0:Nres,iElem), Uloc(1:nVarPhiF,0:Nres,0:Nres,0:Nres))
+              ! switch back to nodal basis
+              CALL ChangeBasis3D(nVarPhiF, Nloc, Nloc, N_Inter(Nloc)%Vdm_Leg, Uloc(1:nVarPhiF,0:Nloc,0:Nloc,0:Nloc), U_N(iElem)%PhiF(1:nVarPhiF,0:Nloc,0:Nloc,0:Nloc))
+            END IF ! Nloc.EQ.N_Restart
+          END DO ! iElem = 1, nElems
+          DEALLOCATE(U)
+          DEALLOCATE(Uloc)
+        END ASSOCIATE
+        ! Recompute initial value of PhiF on the surface from PhiF in the volume which has been read from .h5 here
+        CALL CalculatePhiAndEFieldFromCurrentsVDL(.FALSE.)
+      ELSE ! DG_SolutionPhiFExists=F
+        CALL abort(__STAMP__,'DG_PhiF does not exist in the restart file, which is required for DoVirtualDielectricLayer=T')
+      END IF ! DG_SolutionPhiFExists
+    END IF ! DoVirtualDielectricLayer
 
 #else /*not PP_POIS and not USE_HDG*/
     ALLOCATE(U(1:nVar,0:Nres,0:Nres,0:Nres,PP_nElemsTmp))
@@ -605,6 +738,7 @@ ELSE ! normal restart
         CALL ChangeBasis3D(PP_nVar, Nloc, Nloc, N_Inter(Nloc)%Vdm_Leg, Uloc(1:nVar,0:Nloc,0:Nloc,0:Nloc), U_N(iElem)%U(1:nVar,0:Nloc,0:Nloc,0:Nloc))
       END IF ! Nloc.EQ.N_Restart
     END DO ! iElem = 1, nElems
+    DEALLOCATE(U)
     DEALLOCATE(Uloc)
     IF(DoPML)THEN
       ALLOCATE(U_local(PMLnVar,0:Nres,0:Nres,0:Nres,nElems))

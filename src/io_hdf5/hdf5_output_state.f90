@@ -167,7 +167,7 @@ REAL                           :: Utemp(PP_nVar,0:PP_N,0:PP_N,0:PP_N,PP_nElems)
 #if PP_nVar==1
 REAL                           :: Utemp(1:4,0:NMax,0:NMax,0:NMax,PP_nElems)
 INTEGER                        :: iElem,Nloc,NSideMin
-REAL,ALLOCATABLE               :: Dt(:,:,:,:,:)
+REAL,ALLOCATABLE               :: Dt(:,:,:,:,:),PhiF(:,:,:,:,:)
 #elif PP_nVar==3
 REAL                           :: Utemp(1:3,0:PP_N,0:PP_N,0:PP_N,PP_nElems)
 #else /*PP_nVar=4*/
@@ -252,10 +252,10 @@ RestartFile=Filename
 IF(MPIRoot) CALL GenerateFileSkeleton('State',4,StrVarNames,MeshFileName,OutputTime_loc)
 #elif PP_nVar==3
 IF(MPIRoot) CALL GenerateFileSkeleton('State',3,StrVarNames,MeshFileName,OutputTime_loc)
-#else
+#else /*(PP_nVar==4)*/
 IF(MPIRoot) CALL GenerateFileSkeleton('State',7,StrVarNames,MeshFileName,OutputTime_loc)
-#endif
-#else
+#endif  /*PP_nVar==1*/
+#else /*USE_HDG*/
 IF(MPIRoot) CALL GenerateFileSkeleton('State',PP_nVar,StrVarNames,MeshFileName,OutputTime_loc)
 #endif /*USE_HDG*/
 ! generate nextfile info in previous output file
@@ -520,7 +520,7 @@ ASSOCIATE (&
       offset=    (/0_IK , 0_IK   , 0_IK   , 0_IK   , offsetElem/)   , &
       collective=.TRUE., RealArray=Utemp)
 #endif /*(PP_nVar==1)*/
-#else
+#else /*!PP_POIS*/
 #if !((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))
   DO iElem = 1, INT(PP_nElems)
     Nloc = N_DG_Mapping(2,iElem+offSetElem)
@@ -532,7 +532,7 @@ ASSOCIATE (&
                      U(1:PP_nVar , 0:NMax , 0:NMax , 0:NMax  , iElem))
     END IF ! Nloc.Eq.Nmax
   END DO ! iElem = 1, nElems
-#else
+#else /*((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))*/
   U=0.
 #endif /*!((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))*/
   CALL GatheredWriteArray(FileName,create=.FALSE.,&
@@ -592,37 +592,79 @@ ASSOCIATE (&
 #if USE_HDG
   ! Output temporal derivate of the electric field
   IF(CalcElectricTimeDerivative) THEN
-    ALLOCATE(Dt(1:3,0:Nmax,0:Nmax,0:Nmax,nElems))
-    Dt=0.0
-    DO iElem=1,nElems
-      Nloc  = N_DG_Mapping(2,iElem+offSetElem)
-      IF(Nloc.EQ.Nmax)THEN
-        Dt(:,:,:,:,iElem) = U_N(iElem)%Dt(:,:,:,:)
-      ELSE
-        CALL ChangeBasis3D(PP_nVar,Nloc,NMax,PREF_VDM(Nloc,NMax)%Vdm, &
-            U_N(iElem)%Dt(1:3 , 0:Nloc , 0:Nloc , 0:Nloc) , &
-                       Dt(1:3 , 0:Nmax , 0:Nmax , 0:Nmax  , iElem))
-      END IF ! Nloc.Eq.Nmax
-    END DO ! iElem = 1, nElems
-    nVar=3_IK
-    ALLOCATE(LocalStrVarNames(1:nVar))
-    LocalStrVarNames(1)='TimeDerivativeElecDisplacementX'
-    LocalStrVarNames(2)='TimeDerivativeElecDisplacementY'
-    LocalStrVarNames(3)='TimeDerivativeElecDisplacementZ'
-    IF(MPIRoot)THEN
-      CALL OpenDataFile(FileName,create=.FALSE.,single=.TRUE.,readOnly=.FALSE.)
-      CALL WriteAttributeToHDF5(File_ID,'VarNamesTimeDerivative',INT(nVar,4),StrArray=LocalStrVarnames)
-      CALL CloseDataFile()
-    END IF
-    CALL GatheredWriteArray(FileName,create=.FALSE.,&
-        DataSetName='DG_TimeDerivative', rank=5,  &
-        nValGlobal=(/nVar , N+1_IK , N+1_IK , N+1_IK , nGlobalElems/) , &
-        nVal=      (/nVar , N+1_IK , N+1_IK , N+1_IK , PP_nElems/)    , &
-        offset=    (/0_IK , 0_IK   , 0_IK   , 0_IK   , offsetElem/)   , &
-        collective=.TRUE.,RealArray=Dt(1:3,:,:,:,:))
-
-    DEALLOCATE(LocalStrVarNames)
+    ASSOCIATE( nVar => 3 )
+      ASSOCIATE( nVar8 => INT(nVar,IK) )
+        ALLOCATE(Dt(1:nVar,0:Nmax,0:Nmax,0:Nmax,nElems))
+        Dt=0.0
+        DO iElem=1,nElems
+          Nloc  = N_DG_Mapping(2,iElem+offSetElem)
+          IF(Nloc.EQ.Nmax)THEN
+            Dt(:,:,:,:,iElem) = U_N(iElem)%Dt(:,:,:,:)
+          ELSE
+            CALL ChangeBasis3D(nVar,Nloc,NMax,PREF_VDM(Nloc,NMax)%Vdm, &
+                U_N(iElem)%Dt(1:nVar , 0:Nloc , 0:Nloc , 0:Nloc) , &
+                           Dt(1:nVar , 0:Nmax , 0:Nmax , 0:Nmax  , iElem))
+          END IF ! Nloc.Eq.Nmax
+        END DO ! iElem = 1, nElems
+        ALLOCATE(LocalStrVarNames(1:nVar8))
+        LocalStrVarNames(1)='TimeDerivativeElecDisplacementX'
+        LocalStrVarNames(2)='TimeDerivativeElecDisplacementY'
+        LocalStrVarNames(3)='TimeDerivativeElecDisplacementZ'
+        IF(MPIRoot)THEN
+          CALL OpenDataFile(FileName,create=.FALSE.,single=.TRUE.,readOnly=.FALSE.)
+          CALL WriteAttributeToHDF5(File_ID,'VarNamesTimeDerivative',nVar,StrArray=LocalStrVarnames)
+          CALL CloseDataFile()
+        END IF
+        CALL GatheredWriteArray(FileName,create=.FALSE.,&
+            DataSetName='DG_TimeDerivative', rank=5,  &
+            nValGlobal=(/nVar8 , N+1_IK , N+1_IK , N+1_IK , nGlobalElems/) , &
+            nVal=      (/nVar8 , N+1_IK , N+1_IK , N+1_IK , PP_nElems/)    , &
+            offset=    (/0_IK  , 0_IK   , 0_IK   , 0_IK   , offsetElem/)   , &
+            collective=.TRUE.,RealArray=Dt(:,:,:,:,:))
+        DEALLOCATE(Dt)
+        DEALLOCATE(LocalStrVarNames)
+      END ASSOCIATE
+    END ASSOCIATE
   END IF
+
+#if defined(PARTICLES)
+  ! Calculate the electric VDL surface potential from the particle and electric displacement current
+  IF(DoVirtualDielectricLayer)THEN
+    ASSOCIATE( nVar => 3 )
+      ASSOCIATE( nVar8 => INT(nVar,IK) )
+        ALLOCATE(PhiF(1:nVar,0:Nmax,0:Nmax,0:Nmax,nElems))
+        PhiF=0.0
+        DO iElem=1,nElems
+          Nloc  = N_DG_Mapping(2,iElem+offSetElem)
+          IF(Nloc.EQ.Nmax)THEN
+            PhiF(:,:,:,:,iElem) = U_N(iElem)%PhiF(:,:,:,:)
+          ELSE
+            CALL ChangeBasis3D(nVar,Nloc,NMax,PREF_VDM(Nloc,NMax)%Vdm, &
+                U_N(iElem)%PhiF(1:nVar , 0:Nloc , 0:Nloc , 0:Nloc) , &
+                           PhiF(1:nVar , 0:Nmax , 0:Nmax , 0:Nmax  , iElem))
+          END IF ! Nloc.Eq.Nmax
+        END DO ! iElem = 1, nElems
+        ALLOCATE(LocalStrVarNames(1:nVar8))
+        LocalStrVarNames(1)='PhiFx'
+        LocalStrVarNames(2)='PhiFy'
+        LocalStrVarNames(3)='PhiFz'
+        IF(MPIRoot)THEN
+          CALL OpenDataFile(FileName,create=.FALSE.,single=.TRUE.,readOnly=.FALSE.)
+          CALL WriteAttributeToHDF5(File_ID,'VarNamesPhiF',nVar,StrArray=LocalStrVarnames)
+          CALL CloseDataFile()
+        END IF
+        CALL GatheredWriteArray(FileName,create=.FALSE.,&
+            DataSetName='DG_PhiF', rank=5,  &
+            nValGlobal=(/nVar8 , N+1_IK , N+1_IK , N+1_IK , nGlobalElems/) , &
+            nVal=      (/nVar8 , N+1_IK , N+1_IK , N+1_IK , PP_nElems/)    , &
+            offset=    (/0_IK  , 0_IK   , 0_IK   , 0_IK   , offsetElem/)   , &
+            collective=.TRUE.,RealArray=PhiF(:,:,:,:,:))
+        DEALLOCATE(PhiF)
+        DEALLOCATE(LocalStrVarNames)
+      END ASSOCIATE
+    END ASSOCIATE
+  END IF ! DoVirtualDielectricLayer
+#endif /*defined(PARTICLES)*/
 #endif /*USE_HDG*/
 
 END ASSOCIATE
@@ -765,7 +807,7 @@ CALL ModifyElemData(mode=2)
 #if !((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))
 CALL WritePMLDataToHDF5(FileName)
 #endif /*!((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))*/
-#endif
+#endif /*(PP_nVar==8)*/
 
 #ifdef PARTICLES
 #if !((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))

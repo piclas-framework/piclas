@@ -70,19 +70,18 @@ INTEGER,INTENT(IN) :: tDeriv      ! deriv
 INTEGER            :: SideID,p,q,firstSideID_wo_BC,firstSideID ,lastSideID,N_master,N_slave,Nloc,N_max
 INTEGER           :: flip(6)
 !===================================================================================================================================
-
 ! fill flux for sides ranging between firstSideID and lastSideID using Riemann solver
 ! Set the side range according to MPI or no MPI
 IF(doMPISides)THEN
   ! fill only flux for MINE MPISides (where the local proc is master)
   firstSideID_wo_BC = firstMPISide_MINE
-  firstSideID = firstMPISide_MINE
-  lastSideID =  lastMPISide_MINE
+  firstSideID       = firstMPISide_MINE
+  lastSideID        = lastMPISide_MINE
 ELSE
   ! fill only InnerSides that do not need communication
   firstSideID_wo_BC = firstInnerSide ! for fluxes
-  firstSideID = firstBCSide    ! include BCs for master sides
-  lastSideID = lastInnerSide
+  firstSideID       = firstBCSide    ! include BCs for master sides
+  lastSideID        = lastInnerSide
 END IF
 
 ! =============================
@@ -107,26 +106,27 @@ DO SideID=firstSideID_wo_BC, lastSideID
   N_slave  = DG_Elems_slave (SideID)
   N_max    = MAX(N_master,N_slave)
 
-  CALL GetSurfaceFlux(SideID, N_master, N_slave, N_max    ,&
-                      U_Surf_N(SideID)%Flux_Master(1:PP_nVar+PMLnVar,0:N_master,0:N_master) ,&
-                      U_Surf_N(SideID)%Flux_Slave( 1:PP_nVar+PMLnVar,0:N_slave ,0:N_slave)  ,&
-                      U_Surf_N(SideID)%U_Master(   1:PP_nVar        ,0:N_master,0:N_master) ,&
-                      U_Surf_N(SideID)%U_Slave(    1:PP_nVar        ,0:N_slave ,0:N_slave)  ,&
-                      N_SurfMesh(SideID)%NormVec(  1:3              ,0:N_max   ,0:N_max)    ,&
-                      N_SurfMesh(SideID)%SurfElem(                   0:N_max   ,0:N_max)    )
+  CALL GetSurfaceFlux(SideID, N_master, N_slave, N_max&
+                    , U_Surf_N(SideID)%Flux_Master(1:PP_nVar+PMLnVar , 0:N_master , 0:N_master) &
+                    , U_Surf_N(SideID)%Flux_Slave( 1:PP_nVar+PMLnVar , 0:N_slave  , 0:N_slave ) &
+                    , U_Surf_N(SideID)%U_Master(   1:PP_nVar         , 0:N_master , 0:N_master) &
+                    , U_Surf_N(SideID)%U_Slave(    1:PP_nVar         , 0:N_slave  , 0:N_slave ) &
+                    , N_SurfMesh(SideID)%NormVec(  1:3               , 0:N_max    , 0:N_max   ) &
+                    , N_SurfMesh(SideID)%SurfElem(                     0:N_max    , 0:N_max   ) )
 END DO ! SideID
 
 ! 2. Compute the fluxes at the boundary conditions: 1..nBCSides
 IF(.NOT.doMPISides)THEN
   DO SideID=1,nBCSides
+    ! BC sides are always master sides
     Nloc = DG_Elems_master(SideID)
     CALL GetBoundaryFlux(SideID,t,tDeriv,Nloc&
-                                 ,U_Surf_N(SideID)%Flux_Master(1:PP_nVar+PMLnVar,0:Nloc,0:Nloc) &
-                                 ,U_Surf_N(SideID)%U_master   (1:PP_nVar        ,0:Nloc,0:Nloc) &
-                                 ,N_SurfMesh(SideID)%NormVec  (1:3              ,0:Nloc,0:Nloc) &
-                                 ,N_SurfMesh(SideID)%TangVec1 (1:3              ,0:Nloc,0:Nloc) &
-                                 ,N_SurfMesh(SideID)%TangVec2 (1:3              ,0:Nloc,0:Nloc) &
-                                 ,N_SurfMesh(SideID)%Face_XGP (1:3              ,0:Nloc,0:Nloc) )
+                                 ,U_Surf_N(SideID)%Flux_Master(1:PP_nVar+PMLnVar , 0:Nloc , 0:Nloc) &
+                                 ,U_Surf_N(SideID)%U_Master   (1:PP_nVar         , 0:Nloc , 0:Nloc) &
+                                 ,N_SurfMesh(SideID)%NormVec  (1:3               , 0:Nloc , 0:Nloc) &
+                                 ,N_SurfMesh(SideID)%TangVec1 (1:3               , 0:Nloc , 0:Nloc) &
+                                 ,N_SurfMesh(SideID)%TangVec2 (1:3               , 0:Nloc , 0:Nloc) &
+                                 ,N_SurfMesh(SideID)%Face_XGP (1:3               , 0:Nloc , 0:Nloc) )
     DO q=0,Nloc; DO p=0,Nloc
       U_Surf_N(SideID)%Flux_Master(:,p,q)=U_Surf_N(SideID)%Flux_Master(:,p,q)*N_SurfMesh(SideID)%SurfElem(p,q)
     END DO; END DO
@@ -141,14 +141,16 @@ IF(DoExactFlux) THEN
       N_master = DG_Elems_master(SideID) 
       N_slave  = DG_Elems_slave (SideID)
       IF(N_master.NE.N_slave) CALL abort(__STAMP__,'exact flux for different N not imeplemented')
-      CALL ExactFlux(SideID,t,tDeriv,Nloc                                      &
-                    , U_Surf_N(SideID)%Flux_Master(1:PP_nVar+PMLnVar,:,:)      &
-                    , U_Surf_N(SideID)%Flux_Slave(1:PP_nVar+PMLnVar,:,:)       &
-                    , U_Surf_N(SideID)%U_Master(:,:,:)                         &
-                    , U_Surf_N(SideID)%U_Slave(:,:,:)                          &
-                    , N_SurfMesh(SideID)%NormVec(:,:,:)                        &
-                    , N_SurfMesh(SideID)%Face_xGP(1:3,:,:)                     &
-                    , N_SurfMesh(SideID)%SurfElem(:,:)                         )
+      Nloc     = DG_Elems_master(SideID)
+      N_max    = MAX(N_master,N_slave)
+      CALL ExactFlux(SideID,t,tDeriv,Nloc&
+                    , U_Surf_N(SideID)%Flux_Master(1:PP_nVar+PMLnVar , 0:N_master , 0:N_master)&
+                    , U_Surf_N(SideID)%Flux_Slave( 1:PP_nVar+PMLnVar , 0:N_slave  , 0:N_slave )&
+                    , U_Surf_N(SideID)%U_Master(   1:PP_nVar         , 0:N_master , 0:N_master)&
+                    , U_Surf_N(SideID)%U_Slave(    1:PP_nVar         , 0:N_slave  , 0:N_slave )&
+                    , N_SurfMesh(SideID)%NormVec(  1:3               , 0:N_max    , 0:N_max   )&
+                    , N_SurfMesh(SideID)%Face_xGP( 1:3               , 0:N_max    , 0:N_max   )&
+                    , N_SurfMesh(SideID)%SurfElem(                     0:N_max    , 0:N_max   ))
     END IF ! isExactFluxFace(SideID)
   END DO ! SideID
 END IF

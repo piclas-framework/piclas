@@ -518,6 +518,22 @@ build_no_git:
   rules:
     - if: '$DO_WEEKLY'
 
+build_outside_repository:
+  tags: [withmodules-concurrent]
+  stage: build
+  cache:
+    <<: *reggie_cache
+  script:
+    - echo " Installing branch $CI_COMMIT_REF_NAME outside the piclas directory/repository"
+    - REPOPATH=$(echo `pwd`)
+    - cd .. ;
+    - mkdir -p build-piclas-outside ; cd build-piclas-outside ;
+    - cmake ${REPOPATH} -DLIBS_BUILD_HDF5=OFF
+    - $GENERATOR -j $NCORES all
+    - cd .. ; rm -r build-piclas-outside ;
+  rules:
+    - if: '$DO_WEEKLY'
+
 build_no_git_libs:
   tags: [withmodules-concurrent]
   stage: build
