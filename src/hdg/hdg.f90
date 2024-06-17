@@ -630,7 +630,7 @@ ALLOCATE(localToGlobalPETScDOF(nLocalPETScDOFs))
 iLocalPETScDOF = 0
 DO SideID=1,nSides
   IF(MaskedSide(SideID).GT.0) CYCLE
-    DO iDOF=1,nGP_face(N_SurfMesh(SideID)%NSideMin)
+  DO iDOF=1,nGP_face(N_SurfMesh(SideID)%NSideMin)
     iLocalPETScDOF = iLocalPETScDOF + 1
     LocalToGlobalPETScDOF(iLocalPETScDOF) = OffsetGlobalPETScDOF(SideID) + iDOF - 1
   END DO

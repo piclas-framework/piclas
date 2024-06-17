@@ -355,12 +355,13 @@ CALL LBPauseTime(LB_DG,tLBStart) ! Pause/Stop time measurement
   DO SideID=1,nSides
     IF(MaskedSide(SideID).GT.0) CYCLE
 
+    ! TODO Create a function to map localToGlobalDOFs
     Nloc = N_SurfMesh(SideID)%NSideMin
     DO i=1,nGP_face(Nloc)
       DOFindices(i) = i + OffsetGlobalPETScDOF(SideID) - 1
     END DO
 
-    PetscCallA(VecSetValues(PETScRHS,nGP_face(Nloc),DOFindices(1:nGP_face(Nloc)),HDG_Surf_N(SideID)%RHS_face(1,:),INSERT_VALUES,ierr))
+    PetscCallA(VecSetValues(PETScRHS,nGP_face(Nloc),DOFindices(1:nGP_face(Nloc)),HDG_Surf_N(SideID)%RHS_face(1,:),ADD_VALUES,ierr))
   END DO
   ! The MPIRoot process has charge and voltage of all FPCs, there, this process sets all conductor RHS information
   ! TODO PETSC P-Adaption - FPC
@@ -371,6 +372,10 @@ CALL LBPauseTime(LB_DG,tLBStart) ! Pause/Stop time measurement
   !    PetscCallA(VecSetValuesBlocked(PETScRHS,1,nPETScUniqueSidesGlobal-1-FPC%nUniqueFPCBounds+iUniqueFPCBC,RHS_conductor,INSERT_VALUES,ierr))
   !  END DO !iUniqueFPCBC = 1, FPC%nUniqueFPCBounds
   !END IF ! MPIRoot
+
+  ! TODO We had to use ADD_VALUES when filling the RHS. Maybe loop over sideID=1,nSides-nSides_YOUR?
+  PetscCallA(VecAssemblyBegin(PETScRHS,ierr))
+  PetscCallA(VecAssemblyEnd(PETScRHS,ierr))
 
   ! Reset the RHS of the first DOF if ZeroPotential must be set
   IF(MPIroot .AND. SetZeroPotentialDOF) THEN
