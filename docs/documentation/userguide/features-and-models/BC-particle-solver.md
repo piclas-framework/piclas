@@ -17,7 +17,7 @@ The `Part-Boundary1-SourceName=` corresponds to the name given during the prepro
 |           `open`           | Every particle crossing the boundary will be deleted                                                                                                                           |
 |        `symmetric`         | A perfect specular reflection, without sampling of particle impacts                                                                                                            |
 |      `symmetric_axis`      | Definition of the axis of rotation in axisymmetric 2D simulations: Section {ref}`sec:2D-axisymmetric`                                                                          |
-|       `symmetric_dim`      | Definition of symmetrical boundaries in 1D and 2D simulations: Section {ref}`sec:2Dxisymmetric`, Section {ref}`sec:1D-sym`                                                     |
+|       `symmetric_dim`      | Definition of symmetrical boundaries in 1D and 2D simulations: Section {ref}`sec:2D-axisymmetric`, Section {ref}`sec:1D-sym`                                                     |
 |        `reflective`        | Definition of different surface models: Section {ref}`sec:particle-boundary-conditions-reflective`, Section {ref}`sec:surface-chemistry`, Section {ref}`sec:catalytic-surface` |
 |       `rot_periodic`       | Definition of rotational periodicity: Section {ref}`sec:particle-boundary-conditions-rotBC`                                                                                    |
 | `rot_periodic_inter_plane` | Extension of rotational periodicity, allowing non-conformal interfaces and varying periodicity                                                                                 |

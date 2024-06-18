@@ -200,6 +200,8 @@ gitlab-ci-local --preview preview.yml
 ```
 which gives the expanded version of utilized `extends:` and `<<:` templates.
 
+Note that currently (as of 18.06.2024), for gitlab-ci-local to work properly the `module` calls at the end of `before_script` have to be commented out as the software stack of the reggie server is expected.
+
 ### Regression Test *Gitlab Runner* Setup for self-hosted Servers
 This section describes the necessary steps to install a [Gitlab Runner](https://docs.gitlab.com/runner/) on a Ubuntu system to run *Gitlab Build Pipelines*.
 In a first step, the required software packages for PICLas and [reggie2.0](https://github.com/piclas-framework/reggie2.0) are installed on a new system.
