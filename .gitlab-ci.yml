@@ -752,7 +752,7 @@ NIG_PIC_poisson_Boris-Leapfrog:
   script:
     - cd build ; python ../reggie/reggie.py ../regressioncheck/NIG_PIC_poisson_Boris-Leapfrog/
 
-NIG_PIC_poisson_Leapfrog:
+NIG_PIC_poisson_Leapfrog_Release:
   <<: *defaults_nightly
   stage: reggie_nightly
   script:
@@ -763,6 +763,15 @@ NIG_PIC_poisson_Leapfrog:
       #   stage: reggie_nightly
       #   script:
       #     - cd build ; python ../reggie/reggie.py ../regressioncheck/NIG_PIC_poisson_Leapfrog_not_working/
+
+# TODO: Make this reggie weekly when everything works
+NIG_PIC_poisson_Leapfrog_Debug: # Use the same reggie as NIG_PIC_poisson_Leapfrog_Release but compile everything with CMAKE_BUILD_TYPE = Debug
+#WEK_PIC_poisson_Leapfrog_Debug:
+  <<: *defaults_nightly
+  stage: reggie_nightly
+  #stage: reggie_weekly
+  script:
+    - cd build ; python ../reggie/reggie.py -t Debug ../regressioncheck/NIG_PIC_poisson_Leapfrog/
 
 NIG_poisson:
   <<: *defaults_nightly
