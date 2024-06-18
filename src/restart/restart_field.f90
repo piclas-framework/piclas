@@ -59,12 +59,9 @@ USE MOD_HDF5_Input         ,ONLY: OpenDataFile,CloseDataFile,ReadArray,ReadAttri
 USE MOD_HDF5_Input         ,ONLY: DatasetExists
 USE MOD_HDF5_Output        ,ONLY: FlushHDF5
 USE MOD_Interpolation_Vars ,ONLY: N_Inter,PREF_VDM
-#ifdef PP_POIS
-USE MOD_Equation_Vars      ,ONLY: Phi
-#elif USE_HDG
+#if USE_HDG
 USE MOD_Interpolation_Vars ,ONLY: NMax
-#else /*not PP_POIS and not USE_HDG*/
-#endif /*PP_POIS*/
+#endif /*USE_HDG*/
 USE MOD_DG_Vars            ,ONLY: U_N
 USE MOD_DG_Vars            ,ONLY: N_DG_Mapping
 USE MOD_ChangeBasis        ,ONLY: ChangeBasis3D
@@ -504,9 +501,6 @@ ELSE ! Normal restart
   PMLnVarTmp    = INT(PMLnVar,IK)
 #endif /*not USE_HDG*/
 
-
-
-
   ! ===========================================================================
   ! Read the field solution
   ! ===========================================================================
@@ -520,20 +514,9 @@ ELSE ! Normal restart
     !CALL ReadAttribute(File_ID,'Time',1,RealScalar=RestartTime)
     ! Read in state
 
-
     SWRITE(UNIT_stdOut,'(A,I0,A,I0)')'Interpolating solution from restart grid with N=',N_restart,' to computational grid with N=',PP_N
 
-
-
-#ifdef PP_POIS
-#if (PP_nVar==8)
-    CALL ReadArray('DG_SolutionE',5,(/nVar,Nres8+1_IK,Nres8+1_IK,Nres8+1_IK,PP_nElemsTmp/),OffsetElemTmp,5,RealArray=U)
-    CALL ReadArray('DG_SolutionPhi',5,(/4_IK,Nres8+1_IK,Nres8+1_IK,Nres8+1_IK,PP_nElemsTmp/),OffsetElemTmp,5,RealArray=Phi)
-#else
-    CALL ReadArray('DG_SolutionE',5,(/nVar,Nres8+1_IK,Nres8+1_IK,Nres8+1_IK,PP_nElemsTmp/),OffsetElemTmp,5,RealArray=U)
-    CALL ReadArray('DG_SolutionPhi',5,(/nVar,Nres8+1_IK,Nres8+1_IK,Nres8+1_IK,PP_nElemsTmp/),OffsetElemTmp,5,RealArray=Phi)
-#endif /*PP_nVar==8*/
-#elif USE_HDG
+#if USE_HDG
     ! TODO: Do we need this for the HDG solver? It seems so ....
     CALL DatasetExists(File_ID,'DG_Solution',DG_SolutionExists)
     IF(DG_SolutionExists)THEN
@@ -557,7 +540,6 @@ ELSE ! Normal restart
       END IF ! Nloc.EQ.N_Restart
     END DO ! iElem = 1, nElems
     DEALLOCATE(U)
-
 
     ! Read HDG lambda solution (sorted in ascending global unique side ID ordering)
     CALL DatasetExists(File_ID,'DG_SolutionLambda',DG_SolutionLambdaExists)
@@ -728,7 +710,7 @@ ELSE ! Normal restart
       END IF ! DG_SolutionPhiFExists
     END IF ! DoVirtualDielectricLayer
 
-#else /*not PP_POIS and not USE_HDG*/
+#else /*not USE_HDG*/
     ALLOCATE(U(1:nVar,0:Nres,0:Nres,0:Nres,PP_nElemsTmp))
     ALLOCATE(Uloc(1:nVar,0:Nres,0:Nres,0:Nres))
     CALL ReadArray('DG_Solution',5,(/nVar,Nres8+1_IK,Nres8+1_IK,Nres8+1_IK,PP_nElemsTmp/),OffsetElemTmp,5,RealArray=U)
@@ -769,7 +751,7 @@ ELSE ! Normal restart
       DEALLOCATE(U_local)
       DEALLOCATE(Uloc)
     END IF ! DoPML
-#endif /*PP_POIS*/
+#endif /*USE_HDG*/
     !CALL ReadState(RestartFile,nVar,PP_N,PP_nElems,U)
 
 

@@ -73,9 +73,6 @@ USE MOD_HDF5_Output_Particles  ,ONLY: WriteAdaptiveInfoToHDF5,WriteParticleToHDF
 USE MOD_HDF5_Output_Particles  ,ONLY: WriteLostParticlesToHDF5,WriteEmissionVariablesToHDF5
 USE MOD_Particle_Vars          ,ONLY: CalcBulkElectronTemp,BulkElectronTemp
 #endif /*PARTICLES*/
-#ifdef PP_POIS
-USE MOD_Equation_Vars          ,ONLY: E,Phi
-#endif /*PP_POIS*/
 #if USE_HDG
 USE MOD_Mesh_Vars              ,ONLY: N_SurfMesh
 USE MOD_HDG_Vars               ,ONLY: nGP_face,iLocSides,UseFPC,FPC,UseEPC,EPC
@@ -160,9 +157,7 @@ REAL,ALLOCATABLE               :: CPPDataHDF5(:,:)
 #endif /*PARTICLES*/
 REAL                           :: StartT,EndT
 
-#ifdef PP_POIS
-REAL                           :: Utemp(PP_nVar,0:PP_N,0:PP_N,0:PP_N,PP_nElems)
-#elif USE_HDG
+#if USE_HDG
 #if PP_nVar==1
 REAL                           :: Utemp(1:4,0:NMax,0:NMax,0:NMax,PP_nElems)
 INTEGER                        :: iElem,Nloc,NSideMin
@@ -179,7 +174,7 @@ REAL                           :: U(PP_nVar,0:Nmax,0:Nmax,0:Nmax,PP_nElems)
 #ifndef maxwell
 REAL,ALLOCATABLE               :: Utemp(:,:,:,:,:)
 #endif /*not maxwell*/
-#endif /*PP_POIS*/
+#endif /*USE_HDG*/
 REAL                           :: OutputTime_loc
 REAL                           :: PreviousTime_loc
 INTEGER(KIND=IK)               :: PP_nVarTmp
@@ -284,66 +279,7 @@ ASSOCIATE (&
   ! Write DG solution ----------------------------------------------------------------------------------------------------------------
   !nVal=nGlobalElems  ! For the MPI case this must be replaced by the global number of elements (sum over all procs)
   ! Store the Solution of the Maxwell-Poisson System
-#ifdef PP_POIS
-  ALLOCATE(Utemp(1:PP_nVar,0:N,0:N,0:N,PP_nElems))
-#if (PP_nVar==8)
-  Utemp(8,:,:,:,:)=Phi(1,:,:,:,:)
-  Utemp(1:3,:,:,:,:)=E(1:3,:,:,:,:)
-  Utemp(4:7,:,:,:,:)=U(4:7,:,:,:,:)
-
-  CALL GatheredWriteArray(FileName,create=.FALSE.,&
-      DataSetName='DG_Solution', rank=5,&
-      nValGlobal=(/PP_nVarTmp , N+1_IK , N+1_IK , N+1_IK , nGlobalElems/) , &
-      nVal=      (/PP_nVarTmp , N+1_IK , N+1_IK , N+1_IK , PP_nElems/)    , &
-      offset=    (/0_IK       , 0_IK   , 0_IK   , 0_IK   , offsetElem/)   , &
-      collective=.TRUE.,RealArray=Utemp)
-
-  CALL GatheredWriteArray(FileName,create=.FALSE.,&
-      DataSetName='DG_SolutionE', rank=5,&
-      nValGlobal=(/PP_nVarTmp , N+1_IK , N+1_IK , N+1_IK , nGlobalElems/) , &
-      nVal=      (/PP_nVarTmp , N+1_IK , N+1_IK , N+1_IK , PP_nElems/)    , &
-      offset=    (/0_IK       , 0_IK   , 0_IK   , 0_IK   , offsetElem/)   , &
-      collective=.TRUE.,RealArray=U)
-
-  !CALL WriteArrayToHDF5('DG_SolutionPhi',nVal,5,(/4_IK,N+1,N+1,N+1,PP_nElems/) &
-  !,offsetElem,5,existing=.FALSE.,RealArray=Phi)
-  ! missing addiontal attributes and data preparation
-  CALL GatheredWriteArray(FileName,create=.FALSE.,&
-      DataSetName='DG_SolutionPhi', rank=5,&
-      nValGlobal=(/4_IK , N+1_IK , N+1_IK , N+1_IK , nGlobalElems/) , &
-      nVal=      (/4_IK , N+1_IK , N+1_IK , N+1_IK , PP_nElems/)    , &
-      offset=    (/0_IK , 0_IK   , 0_IK   , 0_IK   , offsetElem/)   , &
-      collective=.TRUE.,RealArray=Phi)
-#endif /*(PP_nVar==8)*/
-  ! Store the solution of the electrostatic-poisson system
-#if (PP_nVar==4)
-  Utemp(1,:,:,:,:)=Phi(1,:,:,:,:)
-  Utemp(2:4,:,:,:,:)=E(1:3,:,:,:,:)
-
-  CALL GatheredWriteArray(FileName,create=.FALSE.,&
-      DataSetName='DG_Solution', rank=5,&
-      nValGlobal=(/PP_nVarTmp , N+1_IK , N+1_IK , N+1_IK , nGlobalElems/) , &
-      nVal=      (/PP_nVarTmp , N+1_IK , N+1_IK , N+1_IK , PP_nElems/)    , &
-      offset=    (/0_IK       , 0_IK   , 0_IK   , 0_IK   , offsetElem/)   , &
-      collective=.TRUE.,RealArray=Utemp)
-
-  CALL GatheredWriteArray(FileName,create=.FALSE.,&
-      DataSetName='DG_SolutionE', rank=5,&
-      nValGlobal=(/PP_nVarTmp , N+1_IK , N+1_IK , N+1_IK , nGlobalElems/) , &
-      nVal=      (/PP_nVarTmp , N+1_IK , N+1_IK , N+1_IK , PP_nElems/)    , &
-      offset=    (/0_IK       , 0_IK   , 0_IK   , 0_IK   , offsetElem/)   , &
-      collective=.TRUE.,RealArray=U)
-
-  CALL GatheredWriteArray(FileName,create=.FALSE.,&
-      DataSetName='DG_SolutionPhi', rank=5,&
-      nValGlobal=(/PP_nVarTmp , N+1_IK , N+1_IK , N+1_IK , nGlobalElems/) , &
-      nVal=      (/PP_nVarTmp , N+1_IK , N+1_IK , N+1_IK , PP_nElems/)    , &
-      offset=    (/0_IK       , 0_IK   , 0_IK   , 0_IK   , offsetElem/)   , &
-      collective=.TRUE.,RealArray=Phi)
-#endif /*(PP_nVar==4)*/
-  DEALLOCATE(Utemp)
-#elif USE_HDG
-
+#if USE_HDG
   ! Store lambda solution in sorted order by ascending global unique side ID
 #if USE_MPI
   IF(nProcessors.GT.1)THEN
@@ -519,7 +455,7 @@ ASSOCIATE (&
       offset=    (/0_IK , 0_IK   , 0_IK   , 0_IK   , offsetElem/)   , &
       collective=.TRUE., RealArray=Utemp)
 #endif /*(PP_nVar==1)*/
-#else /*!PP_POIS*/
+#else /*!USE_HDG*/
 #if !((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))
   DO iElem = 1, INT(PP_nElems)
     Nloc = N_DG_Mapping(2,iElem+offSetElem)
@@ -540,7 +476,7 @@ ASSOCIATE (&
       nVal=      (/PP_nVarTmp , N+1_IK , N+1_IK , N+1_IK , PP_nElems/)    , &
       offset=    (/0_IK       , 0_IK   , 0_IK   , 0_IK   , offsetElem/)   , &
       collective=.TRUE.,RealArray=U)
-#endif /*PP_POIS*/
+#endif /*USE_HDG*/
 
 
 #ifdef PARTICLES

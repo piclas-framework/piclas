@@ -148,23 +148,9 @@ IF (LEN_TRIM(RestartFile).GT.0) THEN
   DoRestart = .TRUE.
   CALL OpenDataFile(RestartFile,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_PICLAS)
   N_Restart=-1
-#ifdef PP_POIS
-#if (PP_nVar==8)
-  !The following arrays are read from the file
-  !CALL ReadArray('DG_SolutionE',5,(/PP_nVar,PP_N+1,PP_N+1,PP_N+1,PP_nElems/),OffsetElem,5,RealArray=U)
-  !CALL ReadArray('DG_SolutionPhi',5,(/4,PP_N+1,PP_N+1,PP_N+1,PP_nElems/),OffsetElem,5,RealArray=Phi)
-  CALL abort(__STAMP__,'InitRestart: This case is not implemented here. Fix this!')
-#else
-  !The following arrays are read from the file
-  !CALL ReadArray('DG_SolutionE',5,(/PP_nVar,PP_N+1,PP_N+1,PP_N+1,PP_nElems/),OffsetElem,5,RealArray=U)
-  !CALL ReadArray('DG_SolutionPhi',5,(/PP_nVar,PP_N+1,PP_N+1,PP_N+1,PP_nElems/),OffsetElem,5,RealArray=Phi)
-  CALL abort(__STAMP__,'InitRestart: This case is not implemented here. Fix this!')
-#endif
-#else
   CALL DatasetExists(File_ID,'DG_Solution',DG_SolutionExists)
   IF(.NOT.DG_SolutionExists) CALL abort(__STAMP__,'Restart files does not contain DG_Solution')
   CALL GetDataProps('DG_Solution',nVar_Restart,N_Restart,nElems_Restart,NodeType_Restart)
-#endif
   IF(N_Restart.LT.1) CALL abort(__STAMP__,'N_Restart<1 is not allowed. Check correct initailisation of N_Restart!')
   IF(RestartNullifySolution)THEN ! Open the restart file and neglect the DG solution (only read particles if present)
     SWRITE(UNIT_stdOut,*)' | Restarting from File: "',TRIM(RestartFile),'" (but without reading the DG solution)'
@@ -271,9 +257,6 @@ USE MOD_PreProc
 USE MOD_IO_HDF5
 USE MOD_Restart_Vars           ,ONLY: DoRestart,RestartTime
 USE MOD_HDF5_Output            ,ONLY: FlushHDF5
-#ifdef PP_POIS
-USE MOD_Equation_Vars          ,ONLY: Phi
-#endif /*PP_POIS*/
 #if defined(PARTICLES)
 USE MOD_Particle_Restart       ,ONLY: ParticleRestart
 USE MOD_RayTracing             ,ONLY: RayTracing

@@ -71,9 +71,6 @@ END TYPE N_Ut_Vol
 ! DG solution (JU or U) vectors)
 TYPE(N_Ut_Vol),ALLOCATABLE :: Ut_N(:)       !< Solution variable for each equation, node and element,
 
-#ifdef PP_POIS
-REAL,ALLOCATABLE :: Phit_temp( :,:,:,:,:)
-#endif /*PP_POIS*/
 #endif
 
 !-----------------------------------------------------------------------------------------------------------------------------------
