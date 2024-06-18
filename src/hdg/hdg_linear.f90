@@ -409,7 +409,6 @@ CALL LBPauseTime(LB_DG,tLBStart) ! Pause/Stop time measurement
   IF(MPIroot) CALL DisplayConvergence(TimeEndPiclas-TimeStartPiclas, iterations, petscnorm)
 
   ! Fill element local lambda for post processing
-  ! TODO PETSC P-Adaption - SCATTER (Working?)
   ! Get the local DOF subarray
   PetscCallA(VecScatterBegin(PETScScatter, PETScSolution, PETScSolutionLocal, INSERT_VALUES, SCATTER_FORWARD,ierr))
   PetscCallA(VecScatterEnd(PETScScatter, PETScSolution, PETScSolutionLocal, INSERT_VALUES, SCATTER_FORWARD,ierr))
@@ -420,19 +419,8 @@ CALL LBPauseTime(LB_DG,tLBStart) ! Pause/Stop time measurement
     Nloc = N_SurfMesh(SideID)%NSideMin
     DOF_start = 1 + DOF_stop
     DOF_stop = DOF_start + nGP_face(Nloc) - 1
-    ! TODO we may need to ChangeBasis
     HDG_Surf_N(SideID)%lambda(1,:) = lambda_pointer(DOF_start:DOF_stop)
   END DO
-  !DOF_stop = 0
-  !DO PETScLocalID=1,nPETScUniqueSides
-  !  SideID=PETScLocalToSideID(PETScLocalID)
-  !  Nloc = N_SurfMesh(SideID)%NSideMin
-!
-  !  DOF_start = 1 + DOF_stop
-  !  DOF_stop = DOF_stop + nGP_face(Nloc)
-!
-  !  HDG_Surf_N(SideID)%lambda(1,:) = lambda_pointer(DOF_start:DOF_stop)
-  !END DO
   PetscCallA(VecRestoreArrayReadF90(PETScSolutionLocal,lambda_pointer,ierr))
 
   ! TODO PETSC P-Adaption - FPC
@@ -490,8 +478,7 @@ CALL LBPauseTime(LB_DG,tLBStart) ! Pause/Stop time measurement
   ! TODO PETSC P-Adaption - MORTARS
   ! PETSc Calculate lambda at small mortars from big mortars
   CALL BigToSmallMortar_HDG(1,.FALSE.) ! lambda (DoVZ=F) or V (DoVZ=T)
-  ! TODO PETSC P-Adaption - MPI
-  ! We should not need this? Maybe for MPI mortars?
+  ! TODO PETSC P-Adaption - Mortars: Do we need to communicate?
 !#if USE_MPI
 !  CALL StartReceiveMPIData(1,lambda,1,nSides, RecRequest_U,SendID=1) ! Receive YOUR
 !  CALL StartSendMPIData(   1,lambda,1,nSides,SendRequest_U,SendID=1) ! Send MINE

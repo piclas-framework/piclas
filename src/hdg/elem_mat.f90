@@ -438,30 +438,18 @@ INTEGER              :: i,j,i_m,i_p,j_m,j_p
 !  END DO
 !END DO
 
-! TODO PETSC P-Adaption - Smat_BC not needed!
-! Fill Dirichlet BC Smat
-! DO iBCSide=1,nDirichletBCSides
-!   BCSideID=DirichletBC(iBCSide)
-!   locBCSideID = SideToElem(S2E_LOC_SIDE_ID,BCSideID)
-!   ElemID    = SideToElem(S2E_ELEM_ID,BCSideID)
-!   DO iLocSide=1,6
-!     Smat_BC(:,:,iLocSide,iBCSide) = Smat(:,:,iLocSide,locBCSideID,ElemID)
-!   END DO
-! END DO
 ! Fill Smat for PETSc with remaining DOFs
 DO iElem=1,PP_nElems
   NElem=N_DG_Mapping(2,iElem)!+offsetElem)
   DO iLocSide=1,6
     iSideID=ElemToSide(E2S_SIDE_ID,iLocSide,iElem)
     iNloc=N_SurfMesh(iSideID)%NSideMin
-    ! TODO PETSC P-Adaption - Improvement: Delete PETScGlobal
-    ! Or with the current, just stay as it is?
     IF(MaskedSide(iSideID).GT.0) CYCLE
     DO jLocSide=1,6
       jSideID=ElemToSide(E2S_SIDE_ID,jLocSide,iElem)
       jNloc=N_SurfMesh(jSideID)%NSideMin
       IF(MaskedSide(jSideID).GT.0) CYCLE
-      !IF (iPETScGlobal.GT.jPETScGlobal) CYCLE ! TODO PETSC P-Adaption - Find out why we cant fill halve the matrix and then use MAT_SYMMETRIC
+      ! TODO PETSC P-Adaption - Find out why we cant fill halve the matrix and then use MAT_SYMMETRIC
       IF(SetZeroPotentialDOF.AND.(OffsetGlobalPETScDOF(iSideID).EQ.0)) THEN
         ! The first DOF is set to constant 0 -> lambda_{1,1} = 0
         HDG_Vol_N(iElem)%Smat(:,1,jLocSide,iLocSide) = 0 ! TODO PETSC P-Adaption: why ji and not ij?
