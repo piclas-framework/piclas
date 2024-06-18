@@ -74,7 +74,10 @@ USE MOD_Particle_Restart   ,ONLY: ParticleRestart
 #if USE_HDG
 USE MOD_Particle_Boundary_Vars ,ONLY: DoVirtualDielectricLayer
 USE MOD_HDG_Vars           ,ONLY: HDG_Surf_N, nGP_face
-USE MOD_HDG                ,ONLY: RecomputeEFieldHDG,CalculatePhiAndEFieldFromCurrentsVDL
+USE MOD_HDG                ,ONLY: RecomputeEFieldHDG
+#if defined(PARTICLES)
+USE MOD_HDG                ,ONLY: CalculatePhiAndEFieldFromCurrentsVDL
+#endif /*defined(PARTICLES)*/
 USE MOD_Mesh_Vars          ,ONLY: nSides,GlobalUniqueSideID,MortarType,SideToElem
 USE MOD_StringTools        ,ONLY: set_formatting,clear_formatting
 USE MOD_Mappings           ,ONLY: CGNS_SideToVol2
@@ -387,6 +390,7 @@ IF(PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance))THEN
   ! RecomputeEFieldHDG() -> PostProcessGradientHDG(), which requires U_N(iElem)%U and HDG_Surf_N(iSide)%lambda
   CALL RecomputeEFieldHDG() ! calls PostProcessGradient for calculate the derivative, e.g., the electric field E
 
+#if defined(PARTICLES)
   IF(DoVirtualDielectricLayer)THEN
     DO iElem = 1, nElems
       Nloc = N_DG_Mapping(2,iElem+offSetElem)
@@ -403,6 +407,7 @@ IF(PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance))THEN
     ! Recompute initial value of PhiF on the surface from PhiF in the volume which has been exchanged via MPI here
     CALL CalculatePhiAndEFieldFromCurrentsVDL(.FALSE.)
   END IF ! DoVirtualDielectricLayer
+#endif /*defined(PARTICLES)*/
 
 #else /*! defined(PARTICLES)*/
   ! TODO: make ElemInfo available with PARTICLES=OFF and remove this preprocessor if/else as soon as possible
@@ -714,8 +719,10 @@ ELSE ! Normal restart
           DEALLOCATE(U)
           DEALLOCATE(Uloc)
         END ASSOCIATE
+#if defined(PARTICLES)
         ! Recompute initial value of PhiF on the surface from PhiF in the volume which has been read from .h5 here
         CALL CalculatePhiAndEFieldFromCurrentsVDL(.FALSE.)
+#endif /*defined(PARTICLES)*/
       ELSE ! DG_SolutionPhiFExists=F
         CALL abort(__STAMP__,'DG_PhiF does not exist in the restart file, which is required for DoVirtualDielectricLayer=T')
       END IF ! DG_SolutionPhiFExists

@@ -45,7 +45,9 @@ PUBLIC :: SynchronizeChargeOnFPC,SynchronizeVoltageOnEPC
 PUBLIC :: SynchronizeBV
 #endif /*defined(PARTICLES)*/
 #endif /*USE_MPI */
+#if defined(PARTICLES)
 PUBLIC :: CalculatePhiAndEFieldFromCurrentsVDL
+#endif /*defined(PARTICLES)*/
 #endif /*USE_HDG*/
 !===================================================================================================================================
 
@@ -136,8 +138,8 @@ USE PETSc
 USE MOD_Mesh_Vars             ,ONLY: nMPISides_YOUR
 #if USE_MPI
 USE MOD_MPI                   ,ONLY: StartReceiveMPIDataInt,StartSendMPIDataInt,FinishExchangeMPIData
-USE MOD_Elem_Mat              ,ONLY: PETScFillSystemMatrix, PETScSetPrecond
 #endif /*USE_MPI*/
+USE MOD_Elem_Mat              ,ONLY: PETScFillSystemMatrix, PETScSetPrecond
 USE MOD_Mesh_Vars             ,ONLY: MortarType,MortarInfo
 USE MOD_Mesh_Vars             ,ONLY: firstMortarInnerSide,lastMortarInnerSide
 USE MOD_Mesh_Vars             ,ONLY: ElemToSide
@@ -1925,14 +1927,17 @@ IF( ( ALMOSTEQUAL(dt,dt_Min(DT_ANALYZE)).OR. & ! Analysis dt
       END DO ! iElem=1,PP_nElems
     END IF ! DoDielectric
 
+#if defined(PARTICLES)
     ! Calculate the electric VDL surface potential from the particle and electric displacement current
     IF(DoVirtualDielectricLayer) CALL CalculatePhiAndEFieldFromCurrentsVDL(.TRUE.)
+#endif /*defined(PARTICLES)*/
   END IF ! mode.EQ.1
 END IF
 
 END SUBROUTINE CalculateElectricTimeDerivative
 
 
+#if defined(PARTICLES)
 !===================================================================================================================================
 !> description
 !===================================================================================================================================
@@ -2025,6 +2030,7 @@ DO SideID=1,nBCSides
 END DO ! SideID=1,nBCSides
 
 END SUBROUTINE CalculatePhiAndEFieldFromCurrentsVDL
+#endif /*defined(PARTICLES)*/
 #endif /*(USE_HDG && (PP_nVar==1))*/
 
 
