@@ -40,9 +40,8 @@ the CMake configuration file for HDF5 (optional).
 * ``PICLAS_BUILD_POSTI``: Enables the compilation of additional tools and activates the following options:
   * ``POSTI_BUILD_SUPERB``: Enables the compilation of **superB**, which is allows the computation of magnetic fields based on an
   input of coils and permanent magnets, see Section {ref}`sec:superB`
-  * ``POSTI_BUILD_VISU``: Enables the compilation of the post-processing tool **piclas2vtk**, which enables the conversion of
+  * ``POSTI_BUILD_PICLAS2VTK``: Enables the compilation of the post-processing tool **piclas2vtk**, which enables the conversion of
   output files into the VTK format
-  * ``POSTI_USE_PARAVIEW``: Enables the compilation of the ParaView plugin, which enables the direct read-in of output files within ParaView
 
 * ``PICLAS_SHARED_MEMORY``: Split type for creating new communicators based on colors and keys (requires MPI 3 or higher).
   Options with the prefix OMPI_ are specific to Open MPI.

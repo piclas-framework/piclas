@@ -178,14 +178,6 @@ RKdtFrac      = 1.
 RKdtFracTotal = 1.
 dtWeight      = 1.
 
-#if (PP_TimeDiscMethod==1)||(PP_TimeDiscMethod==2)|| (PP_TimeDiscMethod==6)
-! Attention: nPMLElems is always zero (here!)
-!ALLOCATE(U2t_temp(  1:PMLnVar,0:PP_N,0:PP_N,0:PP_N,1:nPMLElems)) ! temporal variable for U2t
-#ifdef PP_POIS
-ALLOCATE(Phit_temp( 1:4      ,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems))
-#endif /*PP_POIS*/
-#endif
-
 TimediscInitIsDone = .TRUE.
 
 SWRITE(UNIT_stdOut,'(A)')' INIT TIMEDISC DONE!'
@@ -397,7 +389,7 @@ SUBROUTINE FinalizeTimeDisc()
 USE MOD_Globals
 USE MOD_TimeDisc_Vars, ONLY:TimeDiscInitIsDone
 #if (PP_TimeDiscMethod==1)||(PP_TimeDiscMethod==2)|| (PP_TimeDiscMethod==6)
-USE MOD_TimeDisc_Vars          ,ONLY: Ut_N!,U2t_temp
+USE MOD_TimeDisc_Vars          ,ONLY: Ut_N
 #endif
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -411,10 +403,6 @@ IMPLICIT NONE
 
 #if (PP_TimeDiscMethod==1)||(PP_TimeDiscMethod==2)|| (PP_TimeDiscMethod==6)
 SDEALLOCATE(Ut_N)
-!SDEALLOCATE(U2t_temp)
-#ifdef PP_POIS
-SDEALLOCATE(Phit_temp)
-#endif /*PP_POIS*/
 #endif
 
 TimeDiscInitIsDone = .FALSE.

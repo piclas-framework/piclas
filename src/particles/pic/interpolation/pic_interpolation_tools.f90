@@ -270,27 +270,18 @@ REAL,INTENT(IN)    :: PartPosRef_loc(1:3)
 REAL :: GetEMField(1:6)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-#if defined PP_POIS || (USE_HDG && PP_nVar==4)
+#if (USE_HDG && PP_nVar==4)
 REAL, ALLOCATABLE :: HelperU(:,:,:,:)
-#endif /*(PP_POIS||USE_HDG)*/
+#endif /*(USE_HDG)*/
 INTEGER         :: Nloc
 !===================================================================================================================================
 GetEMField(1:6)=0.
 Nloc = N_DG_Mapping(2,ElemID+offSetElem)
 !--- evaluate at Particle position
 #if (PP_nVar==8)
-#ifdef PP_POIS
-ALLOCATE(HelperU(1:6,0:Nloc,0:Nloc,0:Nloc))
-HelperU(1:3,:,:,:) = U_N(ElemID)%E(1:3,:,:,:) 
-HelperU(4:6,:,:,:) = U_N(ElemID)%U(4:6,:,:,:)
-CALL EvaluateFieldAtRefPos(PartPosRef_loc(1:3),6,Nloc,HelperU,6,GetEMField(1:6),ElemID)
-#else
 CALL EvaluateFieldAtRefPos(PartPosRef_loc(1:3),6,Nloc,U_N(ElemID)%U(1:6,:,:,:),6,GetEMField(1:6),ElemID)
-#endif
 #else
-#ifdef PP_POIS
-CALL EvaluateFieldAtRefPos(PartPosRef_loc(1:3),3,Nloc,U_N(ElemID)%E(1:3,:,:,:),3,GetEMField(1:3),ElemID)
-#elif USE_HDG
+#if USE_HDG
 #if PP_nVar==1
 #if (PP_TimeDiscMethod==507) || (PP_TimeDiscMethod==508)
 ! Boris or HC: consider B-Field, e.g., from SuperB
@@ -347,9 +338,7 @@ REAL    :: norm, DistSum
 #if (PP_nVar==8)
 INTEGER,PARAMETER :: HelperUIndex = 6
 #else
-#ifdef PP_POIS
-INTEGER,PARAMETER :: HelperUIndex = 3
-#elif USE_HDG
+#if USE_HDG
 #if PP_nVar==1
 INTEGER,PARAMETER :: HelperUIndex = 3
 #else
@@ -368,16 +357,9 @@ PartDistDepo = 0.0
 HelperU = 0.0
 !--- evaluate at Particle position
 #if (PP_nVar==8)
-#ifdef PP_POIS
-HelperU(1:3,:,:,:) = U_N(ElemID)%E(1:3,:,:,:) 
-HelperU(4:6,:,:,:) = U_N(ElemID)%U(4:6,:,:,:)
-#else
 HelperU(1:6,:,:,:) = U_N(ElemID)%U(1:6,:,:,:)
-#endif
 #else
-#ifdef PP_POIS
-HelperU(1:3,:,:,:) = U_N(ElemID)%E(1:3,:,:,:) 
-#elif USE_HDG
+#if USE_HDG
 #if PP_nVar==1
 #if (PP_TimeDiscMethod==507) || (PP_TimeDiscMethod==508)
 ! Boris or HC: consider B-Field, e.g., from SuperB

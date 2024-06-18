@@ -66,9 +66,6 @@ USE MOD_PML                    ,ONLY: PMLTimeRamping
 #else
 USE MOD_HDG_Vars               ,ONLY: iterationTotal,RunTimeTotal
 #endif /*USE_HDG*/
-#ifdef PP_POIS
-USE MOD_Equation               ,ONLY: EvalGradient
-#endif /*PP_POIS*/
 #if USE_MPI
 #if USE_LOADBALANCE
 USE MOD_LoadBalance            ,ONLY: LoadBalance,ComputeElemLoad
@@ -159,10 +156,6 @@ SWRITE(UNIT_stdOut,'(A13,ES16.7)')'#DOFs      : ',REAL(nGlobalElems*(PP_N+1)**3)
 SWRITE(UNIT_stdOut,'(A13,ES16.7)')'#Procs     : ',REAL(nProcessors)
 SWRITE(UNIT_stdOut,'(A13,ES16.7)')'#DOFs/Proc : ',REAL(nGlobalElems*(PP_N+1)**3/nProcessors)
 
-!Evaluate Gradients to get Potential in case of Restart and Poisson Calc
-#ifdef PP_POIS
-IF(DoRestart) CALL EvalGradient()
-#endif /*PP_POIS*/
 ! Write the state at time=0, i.e. the initial condition
 
 #if defined(PARTICLES) && (USE_MPI)
@@ -178,18 +171,6 @@ IF(StringBeginsWith(DepositionType,'shape_function'))THEN
   CALL MPIParticleRecv()
 END IF
 #endif /*MPI PARTICLES*/
-
-!#if (PP_TimeDiscMethod==1)||(PP_TimeDiscMethod==2)||(PP_TimeDiscMethod==6)||(PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=506)
-!  CALL IRecvNbofParticles()
-!  CALL MPIParticleSend()
-!#endif /*USE_MPI*/
-!  CALL Deposition()
-!#if USE_MPI
-!  CALL MPIParticleRecv()
-!  ! second buffer
-!  CALL Deposition()
-!#endif /*USE_MPI*/
-!#endif
 
 tStart = time
 CALL InitTimeStep() ! Initial time step calculation for dt_Min

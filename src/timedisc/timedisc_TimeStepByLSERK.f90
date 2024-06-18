@@ -47,12 +47,6 @@ USE MOD_PML                    ,ONLY: PMLTimeDerivative,CalcPMLSource
 USE MOD_Equation               ,ONLY: DivCleaningDamping
 USE MOD_Equation               ,ONLY: CalcSource
 USE MOD_DG                     ,ONLY: DGTimeDerivative_weakForm
-#ifdef PP_POIS
-USE MOD_Equation               ,ONLY: DivCleaningDamping_Pois,EvalGradient
-USE MOD_DG                     ,ONLY: DGTimeDerivative_weakForm_Pois
-USE MOD_Equation_Vars          ,ONLY: Phi,Phit,nTotalPhi
-USE MOD_TimeDisc_Vars          ,ONLY: Phit_temp
-#endif /*PP_POIS*/
 #ifdef PARTICLES
 USE MOD_Particle_Analyze_Tools ,ONLY: CalcCoupledPowerPart
 USE MOD_Particle_Analyze_Vars  ,ONLY: CalcCoupledPower,PCoupl
@@ -245,12 +239,6 @@ DO iStage = 1,nRKStages
 #endif /*USE_LOADBALANCE*/
   CALL DivCleaningDamping()
 
-#ifdef PP_POIS
-  ! Potential
-  CALL DGTimeDerivative_weakForm_Pois(time,tStage,0)
-  CALL DivCleaningDamping_Pois()
-#endif /*PP_POIS*/
-
 #if USE_LOADBALANCE
   CALL LBStartTime(tLBStart)
 #endif /*USE_LOADBALANCE*/
@@ -267,16 +255,6 @@ DO iStage = 1,nRKStages
       U_N(iElem)%U        = U_N(iElem)%U  + Ut_N(iElem)%Ut_temp*b_dt(iStage)
     END DO ! iElem = 1, nElems
   END IF
-
-#ifdef PP_POIS
-  IF (iStage.EQ.1) THEN
-    Phit_temp = Phit
-  ELSE
-    Phit_temp = Phit - Phit_temp*RK_a(iStage)
-  END IF
-  Phi = Phi + Phit_temp*b_dt(iStage)
-  CALL EvalGradient()
-#endif /*PP_POIS*/
 
 #if USE_LOADBALANCE
   CALL LBSplitTime(LB_DG,tLBStart)

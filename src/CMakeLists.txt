@@ -122,10 +122,6 @@ IF(PICLAS_EQNSYSNAME STREQUAL "maxwell")
 ELSEIF(PICLAS_EQNSYSNAME STREQUAL "poisson")
   ADD_DEFINITIONS(-DPP_nVar=1 -Dpoisson)
   SET(PICLAS_HDG ON)
-ELSEIF(PICLAS_EQNSYSNAME STREQUAL "maxwell_pois")
-  ADD_DEFINITIONS(-DPP_nVar=8 -Dmaxwell_pois -DPOIS)
-  SET(PICLAS_HDG OFF)
-  MESSAGE(SEND_ERROR "Equation system is currently not supported.")
 ELSEIF(PICLAS_EQNSYSNAME STREQUAL "magnetostatic")
   ADD_DEFINITIONS(-DPP_nVar=3 -Dmagnetostatic)
   SET(PICLAS_HDG ON)
@@ -392,27 +388,15 @@ FILE(GLOB_RECURSE hdgF90 ./src/hdg/*.f90
                          ./src/equations/${PICLAS_EQNSYSNAME}/getboundaryflux.f90)
 
 
-IF(PICLAS_EQNSYSNAME STREQUAL "maxwell_pois")
-  FILE(GLOB_RECURSE precondF90 ./src/precond/precond.f90
-                               ./src/precond/precond_vars.f90
-                               ./src/precond/applypreconditioner.f90
-                               ./src/linearsolver/linearoperator/sparse_ilu.f90
-                               ./src/precond/csr/*.f90
-                               ./src/precond/ilu/*.f90
-                               ./src/precond/jacdg/*.f90
-                               ./src/precond/jac_fd/*.f90
-                               ./src/precond/jac_ex/${PICLAS_EQNSYSNAME}/*.f90)
-ELSE()
-  FILE(GLOB_RECURSE precondF90 ./src/precond/precond.f90
-                               ./src/precond/precond_vars.f90
-                               ./src/precond/applypreconditioner.f90
-                               ./src/linearsolver/linearoperator/sparse_ilu.f90
-                               ./src/precond/csr/*.f90
-                               ./src/precond/ilu/*.f90
-                               ./src/precond/jacdg/*.f90
-                               ./src/precond/jac_fd/*.f90
-                               ./src/precond/jac_ex/maxwell/*.f90)
-ENDIF()
+FILE(GLOB_RECURSE precondF90 ./src/precond/precond.f90
+                              ./src/precond/precond_vars.f90
+                              ./src/precond/applypreconditioner.f90
+                              ./src/linearsolver/linearoperator/sparse_ilu.f90
+                              ./src/precond/csr/*.f90
+                              ./src/precond/ilu/*.f90
+                              ./src/precond/jacdg/*.f90
+                              ./src/precond/jac_fd/*.f90
+                              ./src/precond/jac_ex/maxwell/*.f90)
 
 #FILE(GLOB mainF90 ./src/piclas.f90
                   #./src/piclaslib.f90)
