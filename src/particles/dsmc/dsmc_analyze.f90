@@ -427,18 +427,24 @@ DO iPart=1,PDM%ParticleVecLength
       IF (VirtMergedCells(iElem)%isMerged) iElem = VirtMergedCells(iElem)%MasterCell - offSetElem
     END IF
     partWeight = GetParticleWeight(iPart)
+    ! Velocity
     DSMC_Solution(1:3,iElem,iSpec) = DSMC_Solution(1:3,iElem,iSpec) + PartState(4:6,iPart)*partWeight
+    ! Velocity squared
     DSMC_Solution(4:6,iElem,iSpec) = DSMC_Solution(4:6,iElem,iSpec) + PartState(4:6,iPart)**2*partWeight
-    DSMC_Solution(7,iElem,iSpec) = DSMC_Solution(7,iElem, iSpec) + partWeight  !density number
-    ! Calculate bulk velocity, total mass and total weights
-    vBulk(1:3,iElem) = PartState(4:6,iPart)*Species(iSpec)%MassIC*partWeight
-    TotalMass(iElem) = TotalMass(iElem) + Species(iSpec)%MassIC*partWeight
-    totalWeight(iElem) = totalWeight(iElem) + partWeight
-    totalWeight2(iElem) = totalWeight(iElem) + partWeight*partWeight
-    totalWeight3(iElem) = totalWeight(iElem) + partWeight*partWeight*partWeight
+    ! Number density
+    DSMC_Solution(7,iElem,iSpec) = DSMC_Solution(7,iElem, iSpec) + partWeight
+    IF (SamplePressTensHeatflux) THEN
+      ! Calculate bulk velocity, total mass and total weights
+      vBulk(1:3,iElem) = PartState(4:6,iPart)*Species(iSpec)%MassIC*partWeight
+      TotalMass(iElem) = TotalMass(iElem) + Species(iSpec)%MassIC*partWeight
+      totalWeight(iElem) = totalWeight(iElem) + partWeight
+      totalWeight2(iElem) = totalWeight(iElem) + partWeight*partWeight
+      totalWeight3(iElem) = totalWeight(iElem) + partWeight*partWeight*partWeight
+    END IF
+    ! Internal energy: rotational, vibrational, electronic
     IF(useDSMC)THEN
       IF ((CollisMode.EQ.2).OR.(CollisMode.EQ.3)) THEN
-        IF ((Species(PartSpecies(iPart))%InterID.EQ.2).OR.(Species(PartSpecies(iPart))%InterID.EQ.20)) THEN
+        IF ((Species(iSpec)%InterID.EQ.2).OR.(Species(iSpec)%InterID.EQ.20)) THEN
           DSMC_Solution(8,iElem, iSpec) = DSMC_Solution(8,iElem, iSpec) &
             + (PartStateIntEn(1,iPart) - SpecDSMC(iSpec)%EZeroPoint)*partWeight
           DSMC_Solution(9,iElem, iSpec) = DSMC_Solution(9,iElem, iSpec)+PartStateIntEn(2,iPart)*partWeight
@@ -449,8 +455,9 @@ DO iPart=1,PDM%ParticleVecLength
           END IF
         END IF
       END IF
+      ! Ambipolar diffusion: adding the electron velocity and velocity squared stored with the ionized species to the electron species
       IF (DSMC%DoAmbipolarDiff) THEN
-        IF(Species(PartSpecies(iPart))%ChargeIC.GT.0.0) THEN
+        IF(Species(iSpec)%ChargeIC.GT.0.0) THEN
           DSMC_Solution(1:3,iElem,DSMC%AmbiDiffElecSpec) = DSMC_Solution(1:3,iElem,DSMC%AmbiDiffElecSpec) &
             + AmbipolElecVelo(iPart)%ElecVelo(1:3)*partWeight
           DSMC_Solution(4:6,iElem,DSMC%AmbiDiffElecSpec) = DSMC_Solution(4:6,iElem,DSMC%AmbiDiffElecSpec) &
@@ -460,7 +467,8 @@ DO iPart=1,PDM%ParticleVecLength
         END IF
       END IF
     END IF
-    DSMC_Solution(11,iElem, iSpec) = DSMC_Solution(11,iElem, iSpec) + 1.0 !simpartnum
+    ! Number of simulation particles
+    DSMC_Solution(11,iElem, iSpec) = DSMC_Solution(11,iElem, iSpec) + 1.0
   END IF
 END DO
 
