@@ -183,37 +183,18 @@ LBWRITE(UNIT_stdOut,'(A)') ' INIT HDG...'
 ! ----------------------------------------------------------------------------------------------------------------------------------
 ! MAIN STEPS
 ! ----------------------------------------------------------------------------------------------------------------------------------
-! 1.  Calculate number of gauss points in sides and volumes for each PP_N
-! 2.  Allocate SurfExchange for communicating surface information with variable PP_N
-! 3.  Build SurfElemMin for all sides (including Mortar sides)
-! 4.
-
-! X. Initialize BR electron fluid model
-! NEEDS: HDG_VOL_N, nGP_Vol, N_DG_Mapping
-! X. Init mortar stuff
-! NEEDS: -
-! X. BCs, the first
-! X. Init floating potentials, electric potentials and bias voltage
-! NEEDS: Boundary Information ???
-! X. Initialize interpolation variables for each Polynomial degree (Also fill HDG_Vol_N further)
-! NEEDS: HDG_VOL_N, nGP_VOl/Face, N_DG_Mapping
-
-! X. Allocate and zero missing HDG_VOL_N and HDG_Surf_N
-! NEEDS: HDG_VOL_N
-! X. Build Preconditioner
-! NEEDS: HDG_Surf_N(SideID)%buf (from Allocate and zero missing....), ! Actually needs PETScInitialize!
-
-! X. Initialize PETSc
-! X. Initialize PETSc stuff
-! NEEDS: -
-! X. PETSc Nr. 2 - Create mappings (big one...)
-! NEEDS: MaskedSide, nDirichletSides, nFPCSides..., N_SurfMesh%NSideMin, HDG_Surf_N, mortar type
-! X. PETSc, the third... Create Matrix and set up
-! NEEDS: nGlobalPETScDOFs
-! PETSc the fourth, set up petsc solver (KSP)
-! NEEDS: EPSCG, maxiterCG
-! X. PETSc the fith, allocate vectors and scatter context
-! NEEDS: nGlobalPETScDOFs, nLocalPETScDOFs, localToGlobalPETScDOF
+!  1. Calculate number of gauss points in sides and volumes for each PP_N
+!  2. Allocate SurfExchange for communicating surface information with variable PP_N
+!  3. Build SurfElemMin for all sides (including Mortar sides)
+!  4. Initialize BR electron fluid model
+!  5. Init mortar stuff
+!  6. BCs, the first
+!  7. Init floating potentials, electric potentials and bias voltage
+!  8. BCs the second...
+!  9. Initialize interpolation variables for each Polynomial degree (Also fill HDG_Vol_N further)
+! 10. Allocate and zero missing HDG_VOL_N and HDG_Surf_N stuff
+! 11. Build Preconditioner
+! 12. Initialize PETSc
 ! ----------------------------------------------------------------------------------------------------------------------------------
 
 ! (0. Read generic HDG Settings)
