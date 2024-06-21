@@ -704,7 +704,7 @@ CHARACTER(LEN=255)              :: NodeTypeVisuOut
 NVisu = 1 !finite volumes
 NodeTypeVisuOut = 'VISU' !Gauss points, meaningless here
 ! 1.) Open given file to get the number of elements, the order and the name of the mesh file
-CALL OpenDataFile(InputStateFile,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_WORLD)
+CALL OpenDataFile(InputStateFile,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_PICLAS)
 
 ! Read-in of dimensions of the field array (might have an additional dimension, i.e., rank is 6 instead of 5)
 CALL GetDataSize(File_ID,TRIM(DVMSolutionDataset),nDims,HSize)
@@ -758,7 +758,7 @@ DO iElem = 1,nElems
 END DO
 
 ! Read in solution
-CALL OpenDataFile(InputStateFile,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_WORLD)
+CALL OpenDataFile(InputStateFile,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_PICLAS)
 
 ! Associate construct for integer KIND=8 possibility
 ASSOCIATE (&

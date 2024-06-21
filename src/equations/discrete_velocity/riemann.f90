@@ -94,8 +94,8 @@ INTEGER                                          :: Count_1,Count_2, iVel, jVel,
           gamma_L = 2.*tau_L*(1.-EXP(-dt/2./tau_L))/dt
           gamma_R = 2.*tau_R*(1.-EXP(-dt/2./tau_R))/dt
         CASE(2)
-          gamma_L = 2.*tau_L/(2.*tau_L+dt)
-          gamma_R = 2.*tau_R/(2.*tau_R+dt)
+          gamma_L = 2.*tau_L/(2.*tau_L+dt/2.)
+          gamma_R = 2.*tau_R/(2.*tau_R+dt/2.)
         END SELECT
         UTemp_L = gamma_L*U_L(:,Count_1,Count_2) + (1.-gamma_L)*fTarget_L
         UTemp_R = gamma_R*U_R(:,Count_1,Count_2) + (1.-gamma_R)*fTarget_R

@@ -103,7 +103,7 @@ DO iElem=1,PP_nElems
   END IF
 END DO ! iElem
 #if USE_MPI
-CALL MPI_ALLREDUCE(locTimeStepConv,TimeStepConv,1,MPI_DOUBLE_PRECISION,MPI_MIN,MPI_COMM_WORLD,iError)
+CALL MPI_ALLREDUCE(locTimeStepConv,TimeStepConv,1,MPI_DOUBLE_PRECISION,MPI_MIN,MPI_COMM_PICLAS,iError)
 #else
 TimeStepConv=locTimeStepConv
 #endif /*USE_MPI*/

@@ -159,7 +159,11 @@ IF (tDeriv.GT.0.) THEN
     CASE(2) !DUGKS
       SELECT CASE(DVMBGKModel)
       CASE(1) !ESBGK
-        CALL abort(__STAMP__,'DUGKS with ESBGK not implemented!')
+        prefac = (2.*tau)/(2.*tau+tDeriv)
+        Macroval(6:8)   = (Macroval(6:8)*prefac+(1.-prefac)*MacroVal(5)*DVMSpeciesData%R_S*rho/DVMSpeciesData%Prandtl) &
+                          /(1./DVMSpeciesData%Prandtl+prefac*(1.-1./DVMSpeciesData%Prandtl))
+        MacroVal(9:11)  = Macroval(9:11)*prefac/(1./DVMSpeciesData%Prandtl+prefac*(1.-1./DVMSpeciesData%Prandtl))
+        MacroVal(12:14) = MacroVal(12:14)*prefac
       CASE(2,5,6) !Shakhov/SN
         Macroval(6:8)   = Macroval(6:8)*2.*tau/(2.*tau+tDeriv) + MacroVal(5)*DVMSpeciesData%R_S*rho*tDeriv/(2.*tau+tDeriv)
         Macroval(9:11)  = Macroval(9:11)*2.*tau/(2.*tau+tDeriv)
