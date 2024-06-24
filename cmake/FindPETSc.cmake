@@ -102,8 +102,10 @@ find_package_handle_standard_args (PETSc
   VERSION_VAR PETSc_VERSION
   )
 
-if(NOT TARGET PETSc::PETSc)
-  add_library(PETSc::PETSc ALIAS PkgConfig::PETSc)
+if(PETSc_FOUND)
+  if(NOT TARGET PETSc::PETSc)
+    add_library(PETSc::PETSc ALIAS PkgConfig::PETSc)
+  endif()
 endif()
 
 mark_as_advanced(PETSc_INCLUDE_DIRS PETSc_LIBRARIES PETSc_VERSION_MAJOR PETSc_VERSION_MINOR PETSc_VERSION_PATCH VERSION_VAR PETSc_VERSION)
