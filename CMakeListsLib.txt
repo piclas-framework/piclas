@@ -1,17 +1,4 @@
 # =========================================================================
-# Add the libraries
-# =========================================================================
-
-# Set directory to compile external libraries
-IF(LIBS_USE_MPI)
-  SET(LIBS_EXTERNAL_LIB_DIR ${CMAKE_CURRENT_SOURCE_DIR}/share/${CMAKE_Fortran_COMPILER_ID}-MPI)
-ELSE()
-  SET(LIBS_EXTERNAL_LIB_DIR ${CMAKE_CURRENT_SOURCE_DIR}/share/${CMAKE_Fortran_COMPILER_ID})
-ENDIF()
-MARK_AS_ADVANCED(FORCE LIBS_EXTERNAL_LIB_DIR)
-
-
-# =========================================================================
 # Check where the code originates
 # =========================================================================
 IF(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/.git)
@@ -113,15 +100,31 @@ ENDIF()
 
 
 # =========================================================================
+# Add the libraries
+# =========================================================================
+# Set directory to compile external libraries
+IF(LIBS_USE_MPI)
+  SET(LIBS_EXTERNAL_LIB_DIR ${CMAKE_CURRENT_SOURCE_DIR}/share/${CMAKE_Fortran_COMPILER_ID}-MPI)
+ELSE()
+  SET(LIBS_EXTERNAL_LIB_DIR ${CMAKE_CURRENT_SOURCE_DIR}/share/${CMAKE_Fortran_COMPILER_ID})
+ENDIF()
+MARK_AS_ADVANCED(FORCE LIBS_EXTERNAL_LIB_DIR)
+
+
+# =========================================================================
 # HDF5 library
 # =========================================================================
 # Try to find system HDF5 using CMake
 SET(LIBS_HDF5_CMAKE TRUE)
-FIND_PACKAGE(HDF5 NAMES hdf5 COMPONENTS C Fortran ${SEARCH_TYPE} QUIET PATH_SUFFIXES share/cmake)
-IF (NOT HDF5_FOUND)
-# Try to find the configure version
-  SET(LIBS_HDF5_CMAKE FALSE)
-  FIND_PACKAGE(HDF5 COMPONENTS C Fortran QUIET)
+
+IF (NOT LIBS_BUILD_HDF5)
+  FIND_PACKAGE(HDF5 NAMES hdf5 COMPONENTS C Fortran ${SEARCH_TYPE} QUIET PATH_SUFFIXES share/cmake)
+
+  IF (NOT HDF5_FOUND)
+  # Try to find the configure version
+    SET(LIBS_HDF5_CMAKE FALSE)
+    FIND_PACKAGE(HDF5 COMPONENTS C Fortran QUIET)
+  ENDIF()
 ENDIF()
 # Hide all the HDF5 libs paths
 MARK_AS_ADVANCED(FORCE HDF5_DIR)
@@ -292,13 +295,25 @@ ELSE()
 
     LIST(APPEND SELFBUILTEXTERNALS HDF5)
   ENDIF()
+  # Always set for self-build libraries
+  SET(LIBS_HDF5_CMAKE FALSE)
 
   # Set HDF5 paths
   SET(HDF5_C_INCLUDE_DIR                ${LIBS_HDF5_DIR}/include)
   SET(HDF5_DIFF_EXECUTABLE              ${LIBS_HDF5_DIR}/bin/h5diff)
   SET(HDF5_Fortran_INCLUDE_DIR          ${LIBS_HDF5_DIR}/include)
+  SET(HDF5_hdf5_LIBRARY_hdf5            ${LIBS_HDF5_DIR}/lib/libhdf5.so)
   SET(HDF5_hdf5_LIBRARY_RELEASE         ${LIBS_HDF5_DIR}/lib/libhdf5.a)
+  SET(HDF5_hdf5_fortran_LIBRARY_hdf5    ${LIBS_HDF5_DIR}/lib/libhdf5_fortran.so)
   SET(HDF5_hdf5_fortran_LIBRARY_RELEASE ${LIBS_HDF5_DIR}/lib/libhdf5_fortran.a)
+
+  MARK_AS_ADVANCED(FORCE HDF5_C_INCLUDE_DIR)
+  MARK_AS_ADVANCED(FORCE HDF5_DIFF_EXECUTABLE)
+  MARK_AS_ADVANCED(FORCE HDF5_Fortran_INCLUDE_DIR)
+  MARK_AS_ADVANCED(FORCE HDF5_hdf5_LIBRARY_hdf5)
+  MARK_AS_ADVANCED(FORCE HDF5_hdf5_LIBRARY_RELEASE)
+  MARK_AS_ADVANCED(FORCE HDF5_hdf5_fortran_LIBRARY_hdf5)
+  MARK_AS_ADVANCED(FORCE HDF5_hdf5_fortran_LIBRARY_RELEASE)
   # Unset leftover paths from old CMake runs
   UNSET(HDF5_LIBRARIES)
   UNSET(HDF5_INCLUDE_DIR_FORTRAN)
@@ -310,7 +325,7 @@ ELSE()
   MARK_AS_ADVANCED(FORCE HDF5_z_LIBRARY_RELEASE)
   # Add ZLIB to include paths for HDF5 data compression
   FIND_LIBRARY(HDF5_z_LIBRARY_RELEASE z)
-  LIST(APPEND HDF5_LIBRARIES ${HDF5_hdf5_fortran_LIBRARY_RELEASE} ${HDF5_hdf5_LIBRARY_RELEASE} ${HDF5_z_LIBRARY_RELEASE} -ldl)
+  LIST(APPEND HDF5_LIBRARIES ${HDF5_hdf5_LIBRARY_hdf5} ${HDF5_hdf5_fortran_LIBRARY_RELEASE} ${HDF5_hdf5_fortran_LIBRARY_hdf5} ${HDF5_hdf5_LIBRARY_RELEASE} ${HDF5_z_LIBRARY_RELEASE} -ldl)
 
   SET(HDF5_BUILD_STATUS "self-built")
 ENDIF()
@@ -342,7 +357,10 @@ ENDIF()
 # Math libary
 # =========================================================================
 # Try to find system LAPACK/OpenBLAS
-FIND_PACKAGE(LAPACK QUIET)
+IF (NOT LIBS_BUILD_MATH_LIB)
+  FIND_PACKAGE(LAPACK QUIET)
+ENDIF()
+
 IF (LAPACK_FOUND)
   MESSAGE (STATUS "[BLAS/Lapack] found in system libraries")
   SET(LIBS_BUILD_MATH_LIB OFF CACHE BOOL "Compile and build math library")
@@ -641,7 +659,9 @@ IF(LIBS_USE_PETSC)
     SET(PKG_CONFIG_PATH PETSC_DIR)
   ENDIF()
 
-  FIND_PACKAGE(PETSc QUIET)
+  IF (NOT LIBS_BUILD_PETSC)
+    FIND_PACKAGE(PETSc QUIET)
+  ENDIF()
 
   IF (PETSc_FOUND)
     MESSAGE (STATUS "[PETSc] found in system libraries")
@@ -659,6 +679,12 @@ IF(LIBS_USE_PETSC)
     SET(PETSc_INCLUDE_DIRS  ${LIBS_EXTERNAL_LIB_DIR}/PETSc/linux-gnu-c/include)
     SET(PETSc_VERSION       3.21.2)
 
+    IF (NOT "${LIBS_HDF5_DIR}" STREQUAL "")
+      SET(PETSc_HDF5_ROOT "--with-hdf5-dir=${LIBS_HDF5_DIR}")
+    ELSE()
+      UNSET(PETSc_HDF5_ROOT)
+    ENDIF()
+
     # Add PETSc project
     EXTERNALPROJECT_ADD("PETSc"
         GIT_REPOSITORY "https://gitlab.com/petsc/petsc.git"
@@ -674,7 +700,7 @@ IF(LIBS_USE_PETSC)
         INSTALL_DIR ${LIBS_EXTERNAL_LIB_DIR}/PETSc
         BUILD_IN_SOURCE TRUE
         UPDATE_COMMAND ""
-        CONFIGURE_COMMAND PETSC_DIR=${LIBS_PETSc_DIR}/src/PETSc ${LIBS_PETSc_DIR}/src/PETSc/configure --prefix=${PETSc_BUILD_DIR} --with-shared-libraries=1 --with-mpi-f90module-visibility=0 --with-bison=0 --with-cmake=0 --with-hdf5=1 --with-hdf5-fortran-bindings=1
+        CONFIGURE_COMMAND PETSC_DIR=${LIBS_PETSc_DIR}/src/PETSc ${LIBS_PETSc_DIR}/src/PETSc/configure --prefix=${PETSc_BUILD_DIR} --with-shared-libraries=1 --with-mpi-f90module-visibility=0 --with-bison=0 --with-cmake=0 --with-hdf5=1 --with-hdf5-fortran-bindings=1 ${PETSc_HDF5_ROOT}
         # BUILD_COMMAND ${CMAKE_MAKE_PROGRAM} -j4
         BUILD_BYPRODUCTS ${PETSc_LIB_LIBRARIES}/libpetsc.so
       )
@@ -684,6 +710,13 @@ IF(LIBS_USE_PETSC)
     INCLUDE_DIRECTORIES (${PETSc_LIB_LIBRARIES})
     LIST(APPEND linkedlibs ${PETSc_LIB_LIBRARIES}/libpetsc.so)
     LIST(APPEND SELFBUILTEXTERNALS PETSc)
+
+    # If HDF5 is built in PIClas, it must occur before the PETSc compilation
+    IF(LIBS_BUILD_HDF5)
+      IF (NOT EXISTS "${LIBS_HDF5_DIR}/lib/libhdf5.a")
+        ADD_DEPENDENCIES(PETSc HDF5)
+      ENDIF()
+    ENDIF()
 
     ADD_DEFINITIONS(-DUSE_PETSC=1)
     MESSAGE(STATUS "Compiling with self-built [PETSc] (v${PETSc_VERSION})")
