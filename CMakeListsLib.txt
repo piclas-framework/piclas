@@ -271,7 +271,7 @@ ELSE()
       GIT_REPOSITORY ${HDF5_DOWNLOAD}
       GIT_TAG ${HDF5_TAG}
       GIT_PROGRESS TRUE
-      ${${GITSHALLOW}}
+      ${GITSHALLOW}
       PREFIX ${LIBS_HDF5_DIR}
       UPDATE_COMMAND ""
       CONFIGURE_COMMAND FC=${LIBS_HDF5FC} CC=${LIBS_HDF5CC} ${LIBS_HDF5_DIR}/src/HDF5/configure --prefix=${LIBS_HDF5_DIR} --with-pic --enable-fortran ${LIBS_HDF5PARALLEL} --libdir=${LIBS_HDF5_DIR}/lib --enable-build-mode=production --enable-silent-rules --disable-dependency-tracking
@@ -460,7 +460,7 @@ ELSE()
         GIT_REPOSITORY ${MATH_LIB_DOWNLOAD}
         GIT_TAG ${MATH_LIB_TAG}
         GIT_PROGRESS TRUE
-        ${${GITSHALLOW}}
+        ${GITSHALLOW}
         PREFIX ${LIBS_MATH_DIR}
         UPDATE_COMMAND ""
         CMAKE_ARGS -DCMAKE_INSTALL_LIBDIR=lib -DCMAKE_INSTALL_PREFIX=${LIBS_MATH_DIR} -DBLAS++=OFF -DLAPACK++=OFF -DBUILD_SHARED_LIBS=ON -DCBLAS=OFF -DLAPACKE=OFF -DBUILD_TESTING=OFF
@@ -477,7 +477,7 @@ ELSE()
         GIT_REPOSITORY ${MATH_LIB_DOWNLOAD}
         GIT_TAG ${MATH_LIB_TAG}
         GIT_PROGRESS TRUE
-        ${${GITSHALLOW}}
+        ${GITSHALLOW}
         PREFIX ${LIBS_MATH_DIR}
         UPDATE_COMMAND ""
         CONFIGURE_COMMAND ""
@@ -551,7 +551,7 @@ IF(LIBS_BUILD_HOPR)
     GIT_REPOSITORY ${HOPR_DOWNLOAD}
     GIT_TAG ${HOPR_TAG}
     GIT_PROGRESS FALSE
-    ${${GITSHALLOW}}
+    ${GITSHALLOW}
     PREFIX ${LIBS_HOPR_DIR}
     # Avoids rebuilding during PICLas recompilation if HOPR has already been built in share folder
     UPDATE_DISCONNECTED true
@@ -677,16 +677,26 @@ IF(LIBS_USE_PETSC)
     SET(PETSc_BUILD_DIR     ${LIBS_EXTERNAL_LIB_DIR}/PETSc/linux-gnu-c)
     SET(PETSc_LIB_LIBRARIES ${LIBS_EXTERNAL_LIB_DIR}/PETSc/linux-gnu-c/lib)
     SET(PETSc_INCLUDE_DIRS  ${LIBS_EXTERNAL_LIB_DIR}/PETSc/linux-gnu-c/include)
-    SET(PETSc_VERSION       3.21.2)
+    SET(PETSc_VERSION      "3.21.2" CACHE STRING "PETSc version tag")
 
+    # Determine whether HDF5 is built in PICLas
     IF (NOT "${LIBS_HDF5_DIR}" STREQUAL "")
       SET(PETSc_HDF5_ROOT "--with-hdf5-dir=${LIBS_HDF5_DIR}")
     ELSE()
       UNSET(PETSc_HDF5_ROOT)
     ENDIF()
 
+    # Determe if PETSc should be built with debugging or optimization flags
+    IF(CMAKE_BUILD_TYPE MATCHES "Release")
+      MESSAGE (STATUS "Compiling [PETSc] with optimization flags!")
+      SET(PETSc_COMPILER_FLAGS --with-debugging=0 COPTFLAGS=-O3 -march=native -mtune=native CXXOPTFLAGS=-O3 -march=native -mtune=native FOPTFLAGS=-O3 -march=native -mtune=native)
+    ELSE()
+      MESSAGE (STATUS "Compiling [PETSc] with debugging flags!")
+      SET(PETSc_COMPILER_FLAGS --with-debugging=1)
+    ENDIF()
+
     # Add PETSc project
-    EXTERNALPROJECT_ADD("PETSc"
+    EXTERNALPROJECT_ADD(PETSc
         GIT_REPOSITORY "https://gitlab.com/petsc/petsc.git"
         GIT_TAG "v${PETSc_VERSION}"
         GIT_PROGRESS TRUE
@@ -695,15 +705,24 @@ IF(LIBS_USE_PETSC)
         # USES_TERMINAL_BUILD true
         # USES_TERMINAL_INSTALL true
         # USES_TERMINAL_TEST true
-        ${${GITSHALLOW}}
+        ${GITSHALLOW}
         PREFIX ${LIBS_PETSc_DIR}
         INSTALL_DIR ${LIBS_EXTERNAL_LIB_DIR}/PETSc
         BUILD_IN_SOURCE TRUE
         UPDATE_COMMAND ""
-        CONFIGURE_COMMAND PETSC_DIR=${LIBS_PETSc_DIR}/src/PETSc ${LIBS_PETSc_DIR}/src/PETSc/configure --prefix=${PETSc_BUILD_DIR} --with-shared-libraries=1 --with-mpi-f90module-visibility=0 --with-bison=0 --with-cmake=0 --with-hdf5=1 --with-hdf5-fortran-bindings=1 ${PETSc_HDF5_ROOT}
+        CONFIGURE_COMMAND
+          PETSC_DIR=${LIBS_PETSc_DIR}/src/PETSc
+          ${LIBS_PETSc_DIR}/src/PETSc/configure
+          --prefix=${PETSc_BUILD_DIR}
+          ${PETSc_COMPILER_FLAGS}
+          --with-shared-libraries=1
+          --with-mpi-f90module-visibility=0
+          --with-bison=0
+          --with-cmake=0
+          # --with-hdf5=1 --with-hdf5-fortran-bindings=1 ${PETSc_HDF5_ROOT}
         # BUILD_COMMAND ${CMAKE_MAKE_PROGRAM} -j4
         BUILD_BYPRODUCTS ${PETSc_LIB_LIBRARIES}/libpetsc.so
-      )
+    )
 
     # Actually add the preCICE lib paths to the linking paths
     INCLUDE_DIRECTORIES(${PETSc_INCLUDE_DIRS})
