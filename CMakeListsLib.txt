@@ -719,6 +719,9 @@ IF(LIBS_USE_PETSC)
           --with-mpi-f90module-visibility=0
           --with-bison=0
           --with-cmake=0
+          --download-hypre
+          --download-mumps
+          --download-scalapack
           # --with-hdf5=1 --with-hdf5-fortran-bindings=1 ${PETSc_HDF5_ROOT}
         # BUILD_COMMAND ${CMAKE_MAKE_PROGRAM} -j4
         BUILD_BYPRODUCTS ${PETSc_LIB_LIBRARIES}/libpetsc.so
