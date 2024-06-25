@@ -654,9 +654,10 @@ ENDIF()
 OPTION(LIBS_USE_PETSC "Use the PETSc library" OFF)
 IF(LIBS_USE_PETSC)
   # pkg-config will look at /usr by default, add additional search paths here
-  IF(DEFINED PETSC_DIR)
+  IF(DEFINED ENV{PETSC_DIR})
+    SET(PETSC_DIR "$ENV{PETSC_DIR}/lib/pkgconfig")
     # Add our PETSc to pkg-config search path
-    SET(PKG_CONFIG_PATH PETSC_DIR)
+    SET(ENV{PKG_CONFIG_PATH} ${PETSC_DIR})
   ENDIF()
 
   IF (NOT LIBS_BUILD_PETSC)
