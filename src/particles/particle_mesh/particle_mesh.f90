@@ -350,7 +350,7 @@ ELSE
 END IF
 WRITE(tmpStr,'(I2.2)') RefMappingGuessProposal
 RefMappingGuess = GETINT('RefMappingGuess',tmpStr)
-IF((RefMappingGuess.LT.1).AND.(UseCurveds)) THEN ! Linear intial guess on curved meshes might cause problems.
+IF((RefMappingGuess.LT.1).AND.(UseCurveds)) THEN ! Linear initial guess on curved meshes might cause problems.
   LBWRITE(UNIT_stdOut,'(A)')' WARNING: read-in [RefMappingGuess=1] when using [UseCurveds=T] may create problems!'
 END IF
 RefMappingEps   = GETREAL('RefMappingEps','1e-4')
@@ -829,7 +829,7 @@ SELECT CASE (TrackingMethod)
       ADEALLOCATE(ElemSideNodeID2D_Shared)
       ADEALLOCATE(SideNormalEdge2D_Shared)
     ELSE IF (Symmetry%Order.EQ.1) THEN
-      ADEALLOCATE(ElemSideNodeID1D_Shared)  
+      ADEALLOCATE(ElemSideNodeID1D_Shared)
     END IF
 
     ! BuildEpsOneCell
