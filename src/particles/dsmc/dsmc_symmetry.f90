@@ -26,8 +26,8 @@ PRIVATE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
-PUBLIC :: DSMC_2D_InitRadialWeighting, DSMC_2D_RadialWeighting, DSMC_2D_SetInClones
-PUBLIC :: DefineParametersParticleSymmetry, DSMC_2D_TreatIdenticalParticles
+PUBLIC :: DefineParametersParticleSymmetry
+PUBLIC :: DSMC_2D_InitRadialWeighting, DSMC_2D_RadialWeighting, DSMC_2D_SetInClones, DSMC_2D_TreatIdenticalParticles
 !===================================================================================================================================
 
 CONTAINS
@@ -40,13 +40,7 @@ SUBROUTINE DefineParametersParticleSymmetry()
 USE MOD_ReadInTools ,ONLY: prms,addStrListEntry
 IMPLICIT NONE
 
-CALL prms%SetSection("Particle Symmetry")
-CALL prms%CreateIntOption(    'Particles-Symmetry-Order',  &
-                              'Order of the Simulation 1, 2 or 3 D', '3')
-CALL prms%CreateLogicalOption('Particles-Symmetry2D', 'Activating a 2D simulation on a mesh with one cell in z-direction in the '//&
-                              'xy-plane (y ranging from 0 to the domain boundaries)', '.FALSE.')
-CALL prms%CreateLogicalOption('Particles-Symmetry2DAxisymmetric', 'Activating an axisymmetric simulation with the same mesh '//&
-                              'requirements as for the 2D case (y is then the radial direction)', '.FALSE.')
+CALL prms%SetSection("Particle Radial Weighting")
 CALL prms%CreateLogicalOption('Particles-RadialWeighting', 'Activates a radial weighting in y for the axisymmetric '//&
                               'simulation based on the particle position.', '.FALSE.')
 CALL prms%CreateRealOption(   'Particles-RadialWeighting-PartScaleFactor', 'Axisymmetric radial weighting factor, defining '//&
@@ -366,7 +360,7 @@ DO iPart = 1, RadialWeighting%ClonePartNum(DelayCounter)
   PEM%GlobalElemID(PositionNbr) = ClonedParticles(iPart,DelayCounter)%Element
   PEM%LastGlobalElemID(PositionNbr) = PEM%GlobalElemID(PositionNbr)
   locElemID = PEM%LocalElemID(PositionNbr)
-  LastPartPos(1:3,PositionNbr) = ClonedParticles(iPart,DelayCounter)%LastPartPos(1:3)
+  LastPartPos(1:3,PositionNbr) = PartState(1:3,PositionNbr)
   PartMPF(PositionNbr) =  ClonedParticles(iPart,DelayCounter)%WeightingFactor
   IF (UseVarTimeStep) THEN
     PartTimeStep(PositionNbr) = GetParticleTimeStep(PartState(1,PositionNbr),PartState(2,PositionNbr),locElemID)

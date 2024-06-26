@@ -45,6 +45,7 @@ USE MOD_Mesh_Tools            ,ONLY: InitElemNodeIDs
 #ifdef PARTICLES
 USE MOD_Particle_Mesh_Tools   ,ONLY: InitParticleGeometry
 USE MOD_Particle_Mesh_Vars    ,ONLY: ConcaveElemSide_Shared,ElemSideNodeID_Shared,ElemMidPoint_Shared
+USE MOD_Symmetry_Vars         ,ONLY: Symmetry
 #endif /*PARTICLES*/
 USE MOD_Particle_Mesh_Vars    ,ONLY: NodeCoords_Shared, ElemNodeID_Shared, NodeInfo_Shared
 USE MOD_Mesh_Tools            ,ONLY: InitGetCNElemID, InitGetGlobalElemID
@@ -209,7 +210,9 @@ IF((TimeStampLength.LT.4).OR.(TimeStampLength.GT.30)) CALL abort(__STAMP__&
     ,'TimeStampLength cannot be smaller than 4 and not larger than 30')
 WRITE(UNIT=TimeStampLenStr ,FMT='(I0)') TimeStampLength
 WRITE(UNIT=TimeStampLenStr2,FMT='(I0)') TimeStampLength-4
-
+#ifdef PARTICLES
+Symmetry%Order=3
+#endif
 ! DMD Stuff
 dmdSingleModeOutput  = GETINT('dmdSingleModeOutput')
 dmdMaximumModeOutput = GETINT('dmdMaximumModeOutput')
@@ -490,10 +493,11 @@ DO iVar=2,nVar
   ! Save the strings in temporary variables
   tmp = VarNameVisu(iVar)
   tmp2 = VarNameVisu(iVar-1)
-  ! Compare the strings, while omitting the last character to find identify VeloX/Y/Z as a vector
-  IF (TRIM(tmp(:iLen-1)) .EQ. TRIM(tmp2(:iLen-1))) THEN
-    ! Although the translational temperature is given in X/Y/Z its not a vector (VisIt/Paraview would produce a magnitude variable)
-    IF(INDEX(tmp(:iLen-1),'TempTrans').EQ.0) THEN
+  ! Compare the strings, while omitting the last two characters to find identify VeloX/Y/Z and so on as vectors
+  IF (TRIM(tmp(:iLen-2)) .EQ. TRIM(tmp2(:iLen-2))) THEN
+    ! Although the translational temperature and the pressure tensor are given in X/Y/Z or XY/XZ/YZ they are not vectors
+    ! (VisIt/Paraview would produce a magnitude variable)
+    IF(INDEX(tmp(:iLen-1),'TempTrans').EQ.0 .AND. INDEX(tmp(:iLen-2),'PressTens').EQ.0) THEN
       ! If it is the first occurrence, start counting
       IF (VarNameCombine(iVar-1) .EQ. 0) VarNameCombine(iVar-1) = 1
       VarNameCombine(iVar) = VarNameCombine(iVar-1) + 1

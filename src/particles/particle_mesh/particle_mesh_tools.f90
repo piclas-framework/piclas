@@ -30,13 +30,49 @@ INTERFACE GetSideBoundingBoxTria
   MODULE PROCEDURE GetSideBoundingBoxTria
 END INTERFACE
 
+! Define an interface for the function pointer
+ABSTRACT INTERFACE
+  SUBROUTINE ParticleInsideQuadInterface(PartStateLoc,ElemID,InElementCheck,Det_Out)
+    INTEGER,INTENT(IN)            :: ElemID
+    REAL   ,INTENT(IN)            :: PartStateLoc(3)
+    LOGICAL,INTENT(OUT)           :: InElementCheck
+    REAL   ,INTENT(OUT),OPTIONAL  :: Det_Out(6,2)
+  END SUBROUTINE
+END INTERFACE
+
+!> Pointer defining the localization routine based on the symmetry order
+PROCEDURE(ParticleInsideQuadInterface),POINTER :: ParticleInsideQuad => NULL()
+
 PUBLIC :: ParticleInsideQuad3D, InitPEM_LocalElemID, InitPEM_CNElemID, GetGlobalNonUniqueSideID, GetSideBoundingBoxTria
 PUBLIC :: GetMeshMinMax, IdentifyElemAndSideType, WeirdElementCheck, CalcParticleMeshMetrics, CalcXCL_NGeo
-PUBLIC :: CalcBezierControlPoints, InitParticleGeometry, ComputePeriodicVec, InitVolumes_2D, InitVolumes_1D
-PUBLIC :: DSMC_2D_CalcSymmetryArea, DSMC_1D_CalcSymmetryArea, DSMC_2D_CalcSymmetryAreaSubSides
+PUBLIC :: CalcBezierControlPoints, InitParticleGeometry, ComputePeriodicVec
+PUBLIC :: InitParticleInsideQuad, ParticleInsideQuad
+PUBLIC :: InitVolumes_2D, InitVolumes_1D, DSMC_2D_CalcSymmetryArea, DSMC_1D_CalcSymmetryArea, DSMC_2D_CalcSymmetryAreaSubSides
 !===================================================================================================================================
 CONTAINS
 
+!==================================================================================================================================!
+!> Initialize ParticleInsideQuad depending on symmetry dimension using a function pointer
+!==================================================================================================================================!
+SUBROUTINE InitParticleInsideQuad()
+! MODULES
+USE MOD_Globals
+USE MOD_Symmetry_Vars            ,ONLY: Symmetry
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!==================================================================================================================================
+
+IF (Symmetry%Order.EQ.3) THEN
+  ParticleInsideQuad => ParticleInsideQuad3D
+ELSE IF (Symmetry%Order.EQ.2) THEN
+  ParticleInsideQuad => ParticleInsideQuad2D
+ELSE IF (Symmetry%Order.EQ.1) THEN
+  ParticleInsideQuad => ParticleInsideQuad1D
+ELSE
+  CALL abort(__STAMP__,'ERROR in InitParticleInsideQuad: Function pointer could not be properly defined!')
+END IF
+
+END SUBROUTINE InitParticleInsideQuad
 
 !PPURE SUBROUTINE ParticleInsideQuad3D(PartStateLoc,ElemID,InElementCheck,Det)
 SUBROUTINE ParticleInsideQuad3D(PartStateLoc,ElemID,InElementCheck,Det_Out)
@@ -185,6 +221,101 @@ RETURN
 
 END SUBROUTINE ParticleInsideQuad3D
 
+SUBROUTINE ParticleInsideQuad2D(PartStateLoc,ElemID,InElementCheck,Det_Out)
+!===================================================================================================================================
+!> Checks if particle is inside of a linear 2D element with 4  faces, compatible with mortars. The "Ray Casting Algorithm" is used.
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals
+USE MOD_Mesh_Tools            ,ONLY: GetCNElemID
+USE MOD_Particle_Mesh_Vars    ,ONLY: ElemInfo_Shared,SideInfo_Shared,NodeCoords_Shared, SideIsSymSide
+USE MOD_Particle_Mesh_Vars    ,ONLY :ElemSideNodeID2D_Shared
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+! INPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT/OUTPUT VARIABLES
+INTEGER,INTENT(IN)            :: ElemID
+REAL   ,INTENT(IN)            :: PartStateLoc(3)
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+LOGICAL,INTENT(OUT)           :: InElementCheck
+REAL   ,INTENT(OUT),OPTIONAL  :: Det_Out(6,2)
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER                       :: ilocSide, TempSideID, nlocSides, localSideID
+INTEGER                       :: CNElemID
+REAL                          :: x_int, xNode1, xNode2, yNode1, yNode2
+!===================================================================================================================================
+CNElemID = GetCNElemID(ElemID)
+InElementCheck = .FALSE.
+nlocSides = ElemInfo_Shared(ELEM_LASTSIDEIND,ElemID) -  ElemInfo_Shared(ELEM_FIRSTSIDEIND,ElemID)
+
+DO iLocSide=1,nlocSides
+  TempSideID = ElemInfo_Shared(ELEM_FIRSTSIDEIND,ElemID) + iLocSide
+  localSideID = SideInfo_Shared(SIDE_LOCALID,TempSideID)
+  ! Side is not one of the 6 local sides
+  IF (localSideID.LE.0) CYCLE
+  IF (SideIsSymSide(TempSideID)) CYCLE
+  xNode1 = NodeCoords_Shared(1,ElemSideNodeID2D_Shared(1,localSideID, CNElemID))
+  yNode1 = NodeCoords_Shared(2,ElemSideNodeID2D_Shared(1,localSideID, CNElemID))
+  xNode2 = NodeCoords_Shared(1,ElemSideNodeID2D_Shared(2,localSideID, CNElemID))
+  yNode2 = NodeCoords_Shared(2,ElemSideNodeID2D_Shared(2,localSideID, CNElemID))
+  IF ( (yNode1 >= PartStateLoc(2) .AND. yNode2 < PartStateLoc(2)) .OR. &
+       (yNode1 < PartStateLoc(2) .AND. yNode2 >= PartStateLoc(2)) ) THEN
+    ! Compute x-coordinate of the intersection point
+    x_int = (PartStateLoc(2)- yNode1) * (xNode2 - xNode1) / (yNode2 - yNode1) + xNode1
+    ! Check if the ray crosses the edge to the right
+    IF (x_int > PartStateLoc(1)) THEN
+      InElementCheck = .NOT.InElementCheck
+    END IF
+  END IF
+END DO
+END SUBROUTINE ParticleInsideQuad2D
+
+SUBROUTINE ParticleInsideQuad1D(PartStateLoc,ElemID,InElementCheck,Det_Out)
+!===================================================================================================================================
+!> Checks if particle is inside of a 1D element. 
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals
+USE MOD_Mesh_Tools            ,ONLY: GetCNElemID
+USE MOD_Particle_Mesh_Vars    ,ONLY: ElemInfo_Shared,SideInfo_Shared,NodeCoords_Shared, SideIsSymSide
+USE MOD_Particle_Mesh_Vars    ,ONLY :ElemSideNodeID1D_Shared
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+! INPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT/OUTPUT VARIABLES
+INTEGER,INTENT(IN)            :: ElemID
+REAL   ,INTENT(IN)            :: PartStateLoc(3)
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+LOGICAL,INTENT(OUT)           :: InElementCheck
+REAL   ,INTENT(OUT),OPTIONAL  :: Det_Out(6,2)
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER                       :: ilocSide, TempSideID, nlocSides, localSideID, DiffSign(2), iSide
+INTEGER                       :: CNElemID
+REAL                          :: xNode
+!===================================================================================================================================
+CNElemID = GetCNElemID(ElemID)
+InElementCheck = .FALSE.
+nlocSides = ElemInfo_Shared(ELEM_LASTSIDEIND,ElemID) -  ElemInfo_Shared(ELEM_FIRSTSIDEIND,ElemID)
+iSide = 0
+DO iLocSide=1,nlocSides
+  TempSideID = ElemInfo_Shared(ELEM_FIRSTSIDEIND,ElemID) + iLocSide
+  localSideID = SideInfo_Shared(SIDE_LOCALID,TempSideID)
+  ! Side is not one of the 6 local sides
+  IF (localSideID.LE.0) CYCLE
+  IF (SideIsSymSide(TempSideID)) CYCLE
+  xNode = NodeCoords_Shared(1,ElemSideNodeID1D_Shared(localSideID, CNElemID))
+  iSide = iSide + 1
+  DiffSign(iSide) = NINT(SIGN(1.,PartStateLoc(1) - xNode))
+  IF (iSide.EQ.2) EXIT
+END DO
+IF (DiffSign(1).NE.DiffSign(2)) InElementCheck = .TRUE.
+END SUBROUTINE ParticleInsideQuad1D
 
 PPURE SUBROUTINE ParticleInsideNbMortar(PartStateLoc,ElemID,InElementCheck)
 !===================================================================================================================================
@@ -1936,15 +2067,16 @@ USE MOD_PreProc
 USE MOD_Mesh_Vars               ,ONLY: nElems,offsetElem,nBCSides,SideToElem
 USE MOD_Particle_Boundary_Vars  ,ONLY: PartBound
 USE MOD_Particle_Mesh_Vars      ,ONLY: GEO,LocalVolume,MeshVolume
-USE MOD_Particle_Mesh_Vars      ,ONLY: ElemVolume_Shared,ElemCharLength_Shared, SymmetrySide
-USE MOD_Particle_Mesh_Vars      ,ONLY: NodeCoords_Shared,ElemSideNodeID_Shared, SideInfo_Shared, SideIsSymSide_Shared
+USE MOD_Particle_Mesh_Vars      ,ONLY: SymmetrySide
+USE MOD_Particle_Mesh_Vars      ,ONLY: ElemVolume_Shared,ElemCharLength_Shared
+USE MOD_Particle_Mesh_Vars      ,ONLY: NodeCoords_Shared,ElemSideNodeID_Shared, SideInfo_Shared, SideIsSymSide
 USE MOD_Mesh_Tools              ,ONLY: GetCNElemID
 USE MOD_Particle_Surfaces       ,ONLY: CalcNormAndTangTriangle
 #if USE_MPI
 USE MOD_MPI_Shared
 USE MOD_MPI_Shared_Vars         ,ONLY: MPI_COMM_SHARED
 USE MOD_Particle_Mesh_Vars      ,ONLY: nNonUniqueGlobalSides, offsetComputeNodeElem, ElemInfo_Shared
-USE MOD_Particle_Mesh_Vars      ,ONLY: ElemVolume_Shared_Win,ElemCharLength_Shared_Win,SideIsSymSide_Shared_Win,SideIsSymSide
+USE MOD_Particle_Mesh_Vars      ,ONLY: ElemVolume_Shared_Win,ElemCharLength_Shared_Win,SideIsSymSide_Shared,SideIsSymSide_Shared_Win
 USE MOD_MPI_Shared_Vars         ,ONLY: myComputeNodeRank,nComputeNodeProcessors,MPI_COMM_LEADERS_SHARED
 #else
 USE MOD_Particle_Mesh_Vars      ,ONLY: nComputeNodeSides
@@ -1974,8 +2106,12 @@ CALL MPI_WIN_LOCK_ALL(0,SideIsSymSide_Shared_Win,IERROR)
 SideIsSymSide => SideIsSymSide_Shared
 ! only CN root nullifies
 IF(myComputeNodeRank.EQ.0) SideIsSymSide = .FALSE.
+! This sync/barrier is required as it cannot be guaranteed that the zeros have been written to memory by the time the MPI_REDUCE
+! is executed (see MPI specification). Until the Sync is complete, the status is undefined, i.e., old or new value or utter nonsense.
+CALL BARRIER_AND_SYNC(SideIsSymSide_Shared_Win,MPI_COMM_SHARED)
 #else
-ALLOCATE(SideIsSymSide_Shared(nComputeNodeSides))
+ALLOCATE(SideIsSymSide(nComputeNodeSides))
+SideIsSymSide = .FALSE.
 #endif  /*USE_MPI*/
 
 ! Flag of symmetry sides to be skipped during tracking
@@ -1988,15 +2124,15 @@ ALLOCATE(SideIsSymSide_Shared(nComputeNodeSides))
 #endif
 
 DO iSide = firstSide, lastSide
-  SideIsSymSide_Shared(iSide) = .FALSE.
+  SideIsSymSide(iSide) = .FALSE.
   ! ignore non-BC sides
   IF (SideInfo_Shared(SIDE_BCID,iSide).LE.0) CYCLE
 #if USE_MPI
   ! ignore sides outside of halo region
   IF (ElemInfo_Shared(ELEM_HALOFLAG,SideInfo_Shared(SIDE_ELEMID,iSide)).EQ.0) CYCLE
 #endif /*USE_MPI*/
-  IF (PartBound%TargetBoundCond(PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,iSide))).EQ.PartBound%SymmetryBC) &
-    SideIsSymSide_Shared(iSide) = .TRUE.
+  IF (PartBound%TargetBoundCond(PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,iSide))).EQ.PartBound%SymmetryDim) &
+    SideIsSymSide(iSide) = .TRUE.
 END DO
 
 SymmetryBCExists = .FALSE.
@@ -2016,7 +2152,7 @@ DO BCSideID=1,nBCSides
   locElemID = SideToElem(S2E_ELEM_ID,BCSideID)
   iLocSide = SideToElem(S2E_LOC_SIDE_ID,BCSideID)
   SideID=GetGlobalNonUniqueSideID(offsetElem+locElemID,iLocSide)
-  IF (PartBound%TargetBoundCond(PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID))).EQ.PartBound%SymmetryBC) THEN
+  IF (PartBound%TargetBoundCond(PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID))).EQ.PartBound%SymmetryDim) THEN
     CNElemID = GetCNElemID(SideInfo_Shared(SIDE_ELEMID,SideID))
     iLocSide = SideInfo_Shared(SIDE_LOCALID,SideID)
     ! Exclude the symmetry axis (y=0)
@@ -2101,15 +2237,18 @@ SUBROUTINE InitVolumes_1D()
 USE MOD_Globals
 USE MOD_Mesh_Vars               ,ONLY: nElems, offsetElem
 USE MOD_Particle_Boundary_Vars  ,ONLY: PartBound
-USE MOD_Particle_Mesh_Vars      ,ONLY: GEO,LocalVolume,MeshVolume
+USE MOD_Particle_Mesh_Vars      ,ONLY: GEO,LocalVolume,MeshVolume, SideIsSymSide
 USE MOD_Particle_Mesh_Vars      ,ONLY: ElemVolume_Shared,ElemCharLength_Shared
 USE MOD_Particle_Mesh_Vars      ,ONLY: NodeCoords_Shared,ElemSideNodeID_Shared, SideInfo_Shared
 USE MOD_Mesh_Tools              ,ONLY: GetCNElemID
 #if USE_MPI
-USE MOD_MPI_Shared              ,ONLY: BARRIER_AND_SYNC
+USE MOD_MPI_Shared              
 USE MOD_MPI_Shared_Vars         ,ONLY: MPI_COMM_SHARED
-USE MOD_Particle_Mesh_Vars      ,ONLY: offsetComputeNodeElem
-USE MOD_Particle_Mesh_Vars      ,ONLY: ElemVolume_Shared_Win,ElemCharLength_Shared_Win
+USE MOD_Particle_Mesh_Vars      ,ONLY: offsetComputeNodeElem,SideIsSymSide_Shared,SideIsSymSide_Shared_Win,nNonUniqueGlobalSides
+USE MOD_Particle_Mesh_Vars      ,ONLY: ElemVolume_Shared_Win,ElemCharLength_Shared_Win, ElemInfo_Shared
+USE MOD_MPI_Shared_Vars         ,ONLY: myComputeNodeRank,nComputeNodeProcessors,MPI_COMM_LEADERS_SHARED
+#else
+USE MOD_Particle_Mesh_Vars      ,ONLY: nComputeNodeSides
 #endif /*USE_MPI*/
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE
@@ -2119,10 +2258,14 @@ USE MOD_Particle_Mesh_Vars      ,ONLY: ElemVolume_Shared_Win,ElemCharLength_Shar
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                         :: iLocSide, iElem, SideID, iDim, CNElemID
+INTEGER                         :: iLocSide, iElem, SideID, iOrder, CNElemID, iSide
 REAL                            :: X(2), MaxCoord, MinCoord
 LOGICAL                         :: SideInPlane, X1Occupied
-INTEGER                         :: firstElem,lastElem
+INTEGER                         :: firstElem,lastElem, firstSide, lastSide
+#if USE_MPI
+REAL                            :: CNVolume
+INTEGER                         :: offsetElemCNProc
+#endif /*USE_MPI*/
 !===================================================================================================================================
 
 #if USE_MPI
@@ -2140,7 +2283,7 @@ IF(.NOT.ALMOSTEQUALRELATIVE(GEO%ymaxglob,ABS(GEO%yminglob),1e-5)) THEN
   SWRITE(*,*) 'Minimum dimension in y:', GEO%yminglob
   SWRITE(*,*) 'Deviation', (ABS(GEO%ymaxglob)-ABS(GEO%yminglob))/ABS(GEO%yminglob), ' > 1e-5'
   CALL abort(__STAMP__&
-    ,'ERROR: Please orient your mesh with one cell in y-direction around 0, |z_min| = z_max !')
+    ,'ERROR: Please orient your mesh with one cell in y-direction around 0, |y_min| = y_max !')
 END IF
 
 IF(.NOT.ALMOSTEQUALRELATIVE(GEO%zmaxglob,ABS(GEO%zminglob),1e-5)) THEN
@@ -2160,34 +2303,34 @@ DO iElem = 1,nElems
     SideInPlane=.FALSE.
     SideID = GetGlobalNonUniqueSideID(offsetElem+iElem,iLocSide)
     CNElemID = GetCNElemID(SideInfo_Shared(SIDE_ELEMID,SideID))
-    DO iDim=1,3
-      MaxCoord = MAXVAL(NodeCoords_Shared(iDim,ElemSideNodeID_Shared(:,iLocSide,CNElemID)+1))
-      MinCoord = MINVAL(NodeCoords_Shared(iDim,ElemSideNodeID_Shared(:,iLocSide,CNElemID)+1))
+    DO iOrder=1,3
+      MaxCoord = MAXVAL(NodeCoords_Shared(iOrder,ElemSideNodeID_Shared(:,iLocSide,CNElemID)+1))
+      MinCoord = MINVAL(NodeCoords_Shared(iOrder,ElemSideNodeID_Shared(:,iLocSide,CNElemID)+1))
       IF(ALMOSTALMOSTEQUAL(MaxCoord,MinCoord).OR.(ALMOSTZERO(MaxCoord).AND.ALMOSTZERO(MinCoord))) THEN
         IF(SideInPlane) CALL abort(__STAMP__&
           ,'ERROR: Please orient your mesh with all element sides parallel to xy-,xz-,or yz-plane')
         SideInPlane=.TRUE.
-        IF(iDim.GE.2)THEN
-          IF(PartBound%TargetBoundCond(PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID))).NE.PartBound%SymmetryBC) &
+        IF(iOrder.GE.2)THEN
+          IF(PartBound%TargetBoundCond(PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID))).NE.PartBound%SymmetryDim) &
             CALL abort(__STAMP__,&
               'ERROR: Sides parallel to xy-,and xz-plane has to be the symmetric boundary condition')
         END IF
-        IF(iDim.EQ.1) THEN
+        IF(iOrder.EQ.1) THEN
           IF(X1Occupied) THEN
             X(2) = NodeCoords_Shared(1,ElemSideNodeID_Shared(1,iLocSide,CNElemID)+1)
           ELSE
             X(1) = NodeCoords_Shared(1,ElemSideNodeID_Shared(1,iLocSide,CNElemID)+1)
             X1Occupied = .TRUE.
           END IF
-        END IF !iDim.EQ.1
+        END IF !iOrder.EQ.1
       END IF
-    END DO !iDim=1,3
+    END DO !iOrder=1,3
     IF(.NOT.SideInPlane) THEN
       IPWRITE(*,*) 'ElemID:',iElem,'SideID:',iLocSide
-      DO iDim=1,4
-        IPWRITE(*,*) 'Node',iDim,'x:',NodeCoords_Shared(1,ElemSideNodeID_Shared(iDim,iLocSide,CNElemID)+1), &
-                                  'y:',NodeCoords_Shared(2,ElemSideNodeID_Shared(iDim,iLocSide,CNElemID)+1), &
-                                  'z:',NodeCoords_Shared(3,ElemSideNodeID_Shared(iDim,iLocSide,CNElemID)+1)
+      DO iOrder=1,4
+        IPWRITE(*,*) 'Node',iOrder,'x:',NodeCoords_Shared(1,ElemSideNodeID_Shared(iOrder,iLocSide,CNElemID)+1), &
+                                  'y:',NodeCoords_Shared(2,ElemSideNodeID_Shared(iOrder,iLocSide,CNElemID)+1), &
+                                  'z:',NodeCoords_Shared(3,ElemSideNodeID_Shared(iOrder,iLocSide,CNElemID)+1)
       END DO
       CALL abort(__STAMP__&
     ,'ERROR: Please orient your mesh with all element sides parallel to xy-,xz-,or yz-plane')
@@ -2203,8 +2346,58 @@ LocalVolume = SUM(ElemVolume_Shared(firstElem:lastElem))
 #if USE_MPI
 CALL BARRIER_AND_SYNC(ElemVolume_Shared_Win    ,MPI_COMM_SHARED)
 CALL BARRIER_AND_SYNC(ElemCharLength_Shared_Win,MPI_COMM_SHARED)
-#endif /*USE_MPI*/
+! Compute-node mesh volume
+offsetElemCNProc = offsetElem - offsetComputeNodeElem
+CNVolume = SUM(ElemVolume_Shared(offsetElemCNProc+1:offsetElemCNProc+nElems))
+CALL MPI_ALLREDUCE(MPI_IN_PLACE,CNVolume,1,MPI_DOUBLE_PRECISION,MPI_SUM,MPI_COMM_SHARED,iError)
+IF (myComputeNodeRank.EQ.0) THEN
+  ! All-reduce between node leaders
+  CALL MPI_ALLREDUCE(CNVolume,MeshVolume,1,MPI_DOUBLE_PRECISION,MPI_SUM,MPI_COMM_LEADERS_SHARED,IERROR)
+END IF
+! Broadcast from node leaders to other processors on the same node
+CALL MPI_BCAST(MeshVolume,1, MPI_DOUBLE_PRECISION,0,MPI_COMM_SHARED,iERROR)
+#else
 MeshVolume = SUM(ElemVolume_Shared)
+#endif /*USE_MPI*/
+
+#if USE_MPI
+CALL Allocate_Shared((/nNonUniqueGlobalSides/),SideIsSymSide_Shared_Win,SideIsSymSide_Shared)
+CALL MPI_WIN_LOCK_ALL(0,SideIsSymSide_Shared_Win,IERROR)
+SideIsSymSide => SideIsSymSide_Shared
+! only CN root nullifies
+IF(myComputeNodeRank.EQ.0) SideIsSymSide = .FALSE.
+! This sync/barrier is required as it cannot be guaranteed that the zeros have been written to memory by the time the MPI_REDUCE
+! is executed (see MPI specification). Until the Sync is complete, the status is undefined, i.e., old or new value or utter nonsense.
+CALL BARRIER_AND_SYNC(SideIsSymSide_Shared_Win,MPI_COMM_SHARED)
+#else
+ALLOCATE(SideIsSymSide(nComputeNodeSides))
+SideIsSymSide = .FALSE.
+#endif  /*USE_MPI*/
+
+! Flag of symmetry sides to be skipped during tracking
+#if USE_MPI
+  firstSide = INT(REAL( myComputeNodeRank   *nNonUniqueGlobalSides)/REAL(nComputeNodeProcessors))+1
+  lastSide  = INT(REAL((myComputeNodeRank+1)*nNonUniqueGlobalSides)/REAL(nComputeNodeProcessors))
+#else
+  firstSide = 1
+  lastSide  = nComputeNodeSides
+#endif
+
+DO iSide = firstSide, lastSide
+  SideIsSymSide(iSide) = .FALSE.
+  ! ignore non-BC sides
+  IF (SideInfo_Shared(SIDE_BCID,iSide).LE.0) CYCLE
+#if USE_MPI
+  ! ignore sides outside of halo region
+  IF (ElemInfo_Shared(ELEM_HALOFLAG,SideInfo_Shared(SIDE_ELEMID,iSide)).EQ.0) CYCLE
+#endif /*USE_MPI*/
+  IF (PartBound%TargetBoundCond(PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,iSide))).EQ.PartBound%SymmetryDim) &
+    SideIsSymSide(iSide) = .TRUE.
+END DO
+
+#if USE_MPI
+CALL BARRIER_AND_SYNC(SideIsSymSide_Shared_Win ,MPI_COMM_SHARED)
+#endif
 
 END SUBROUTINE InitVolumes_1D
 

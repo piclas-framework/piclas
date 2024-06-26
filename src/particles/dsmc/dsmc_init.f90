@@ -1702,6 +1702,7 @@ CollInf%ProhibitDoubleColl=.FALSE.
 !SDEALLOCATE(VibQuantsPar)
 ! SDEALLOCATE(XiEq_Surf)
 SDEALLOCATE(DSMC_Solution)
+SDEALLOCATE(DSMC_SolutionPressTens)
 CALL DeleteElemNodeVol()
 
 SDEALLOCATE(BGGas%PairingPartner)
