@@ -475,7 +475,7 @@ DO iPartBound=1,nPartBound
     IF (PartBound%SurfaceModel(iPartBound).GT.0)THEN
       IF (.NOT.useDSMC) CALL abort(__STAMP__,'Cannot use surfacemodel>0 with useDSMC=F for particle boundary: ',iPartBound)
       SELECT CASE (PartBound%SurfaceModel(iPartBound))
-      CASE (0) ! Default: no surface model
+      CASE (0,2) ! Default: no surface model
         PartBound%Reactive(iPartBound)        = .FALSE.
       CASE (1) ! Sticking coefficient model using tabulated, empirical values
         PartBound%Reactive(iPartBound)        = .FALSE.
@@ -490,7 +490,7 @@ DO iPartBound=1,nPartBound
       CASE (VDL_MODEL_ID) ! VDL - cannot be actively selected! See ./src/piclas.h for numbers
         CALL abort(__STAMP__,'Part-Boundary'//TRIM(hilf)//'-SurfaceModel = VDL_MODEL_ID,SEE_VDL_MODEL_ID cannot be selected!')
       CASE DEFAULT
-        CALL abort(__STAMP__,'Error in particle init: only allowed SurfaceModels: 0,1,20,SEE_MODELS_ID! SurfaceModel=',&
+        CALL abort(__STAMP__,'Error in particle init: only allowed SurfaceModels: 0,1,2,20,SEE_MODELS_ID! SurfaceModel=',&
                   IntInfoOpt=PartBound%SurfaceModel(iPartBound))
       END SELECT
     END IF

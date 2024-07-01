@@ -383,6 +383,10 @@ we would sample for 100 iterations up to $T = 0.1$ and get the first output. Aft
 begins anew for the following output at $T=0.2$. This procedure is repeated until the simulation end, resulting in 10 outputs with
 independent samples.
 
+Additional to the number densities, bulk velocities, and temperatures, the shear stress and the heatflux can be sampled in the flow field by using
+
+    Particles-SamplePressTensHeatflux = T
+
 Parameters indicating the quality of the simulation (e.g. the maximal collision probability in case of DSMC) can be enabled by
 
     Particles-DSMC-CalcQualityFactors = T
