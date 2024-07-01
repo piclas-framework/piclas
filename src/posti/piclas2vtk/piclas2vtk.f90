@@ -493,10 +493,11 @@ DO iVar=2,nVar
   ! Save the strings in temporary variables
   tmp = VarNameVisu(iVar)
   tmp2 = VarNameVisu(iVar-1)
-  ! Compare the strings, while omitting the last character to find identify VeloX/Y/Z as a vector
-  IF (TRIM(tmp(:iLen-1)) .EQ. TRIM(tmp2(:iLen-1))) THEN
-    ! Although the translational temperature is given in X/Y/Z its not a vector (VisIt/Paraview would produce a magnitude variable)
-    IF(INDEX(tmp(:iLen-1),'TempTrans').EQ.0) THEN
+  ! Compare the strings, while omitting the last two characters to find identify VeloX/Y/Z and so on as vectors
+  IF (TRIM(tmp(:iLen-2)) .EQ. TRIM(tmp2(:iLen-2))) THEN
+    ! Although the translational temperature and the pressure tensor are given in X/Y/Z or XY/XZ/YZ they are not vectors
+    ! (VisIt/Paraview would produce a magnitude variable)
+    IF(INDEX(tmp(:iLen-1),'TempTrans').EQ.0 .AND. INDEX(tmp(:iLen-2),'PressTens').EQ.0) THEN
       ! If it is the first occurrence, start counting
       IF (VarNameCombine(iVar-1) .EQ. 0) VarNameCombine(iVar-1) = 1
       VarNameCombine(iVar) = VarNameCombine(iVar-1) + 1

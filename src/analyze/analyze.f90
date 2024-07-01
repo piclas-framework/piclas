@@ -913,7 +913,7 @@ USE MOD_AnalyzeField              ,ONLY: AnalyzeField
 #ifdef PARTICLES
 USE MOD_Mesh_Vars                 ,ONLY: MeshFile
 USE MOD_Particle_Vars             ,ONLY: WriteMacroVolumeValues,WriteMacroSurfaceValues,MacroValSamplIterNum,ExcitationSampleData
-USE MOD_Particle_Vars             ,ONLY: SampleElecExcitation
+USE MOD_Particle_Vars             ,ONLY: SampleElecExcitation,SamplePressTensHeatflux
 USE MOD_Particle_Analyze          ,ONLY: AnalyzeParticles
 USE MOD_Particle_Analyze_Tools    ,ONLY: CalculatePartElemData
 USE MOD_Particle_Analyze_Output   ,ONLY: WriteParticleTrackingData
@@ -921,7 +921,7 @@ USE MOD_Particle_Analyze_Vars     ,ONLY: PartAnalyzeStep,DoPartAnalyze,TrackPart
 USE MOD_SurfaceModel_Analyze_Vars ,ONLY: SurfaceAnalyzeStep
 USE MOD_SurfaceModel_Analyze      ,ONLY: AnalyzeSurface
 USE MOD_DSMC_Vars                 ,ONLY: DSMC, iter_macvalout,iter_macsurfvalout
-USE MOD_DSMC_Vars                 ,ONLY: DSMC_Solution
+USE MOD_DSMC_Vars                 ,ONLY: DSMC_Solution, DSMC_SolutionPressTens
 USE MOD_Particle_Tracking_vars    ,ONLY: ntracks,tTracking,tLocalization,MeasureTrackTime
 USE MOD_BGK_Vars                  ,ONLY: BGKInitDone, BGK_QualityFacSamp
 USE MOD_FPFlow_Vars               ,ONLY: FPInitDone, FP_QualityFacSamp
@@ -1203,6 +1203,7 @@ IF ((WriteMacroVolumeValues).AND.(.NOT.OutputHDF5))THEN
       IF(BGKInitDone) BGK_QualityFacSamp(:,:) = 0.
       IF(FPInitDone) FP_QualityFacSamp(:,:) = 0.
     END IF
+    IF (SamplePressTensHeatflux) DSMC_SolutionPressTens = 0.
   END IF
 END IF
 

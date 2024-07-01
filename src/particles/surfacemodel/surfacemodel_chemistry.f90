@@ -137,6 +137,7 @@ CHARACTER(LEN=32)     :: hilf
 INTEGER               :: iReac, iReac2, iBound, iVal, err
 INTEGER               :: ReadInNumOfReact
 INTEGER               :: iSpec, SpecID, ReactionPathPerSpecies(nSpecies), BCID
+REAL                  :: ReacProbTest(nPartBound)
 !===================================================================================================================================
 
 IF(SurfChem%NumOfReact.LE.0) RETURN
@@ -170,8 +171,11 @@ DO iReac = 1, ReadInNumOfReact
   IF (SurfChemReac(iReac)%NumOfBounds.EQ.0) THEN
     CALL abort(__STAMP__,'ERROR: At least one boundary must be defined for each surface reaction!',iReac)
   END IF
-
   SurfChemReac(iReac)%Boundaries = GETINTARRAY('Surface-Reaction'//TRIM(hilf)//'-Boundaries',SurfChemReac(iReac)%NumOfBounds)
+  ! Sanity check if the boundary index is within the range of nPartBound
+  IF(ANY(SurfChemReac(iReac)%Boundaries.LT.1).OR.ANY(SurfChemReac(iReac)%Boundaries.GT.nPartBound)) THEN
+    CALL abort(__STAMP__,'ERROR: Boundary index out of range for surface reaction: ', iReac)
+  END IF
   ! Define the surface model
   SELECT CASE (TRIM(SurfChemReac(iReac)%ReactType))
   CASE('P')
@@ -213,9 +217,9 @@ DO iBound = 1, nPartBound
   END IF
 END DO
 
+! Probability based surface chemistry model: Allocate the species specific type with the number of the possible reaction paths
 DO iSpec = 1, nSpecies
   IF(SurfChem%EventProbInfo(iSpec)%NumOfReactionPaths.GT.0) THEN
-    ! Allocate the species specific type with the number of the possible reaction paths
     ALLOCATE(SurfChem%EventProbInfo(iSpec)%ReactionIndex(SurfChem%EventProbInfo(iSpec)%NumOfReactionPaths))
     SurfChem%EventProbInfo(iSpec)%ReactionIndex = 0
     ALLOCATE(SurfChem%EventProbInfo(iSpec)%ReactionProb(SurfChem%EventProbInfo(iSpec)%NumOfReactionPaths))
@@ -415,8 +419,7 @@ IF(SpeciesDatabase.NE.'none') THEN
   CALL H5CLOSE_F(err)
 END IF !SpeciesDatabase
 
-
-IF (SurfChem%OverwriteCatParameters) THEN
+IF(SurfChem%OverwriteCatParameters) THEN
   ! Loop over the surface reactions
   DO iReac = 1, ReadInNumOfReact
     WRITE(UNIT=hilf,FMT='(I0)') iReac
@@ -489,13 +492,24 @@ IF (SurfChem%OverwriteCatParameters) THEN
   END DO
 END IF
 
-! Sanity check: Total reaction probability of a single species at the surface must not be above 1
+! Sanity check: Total reaction probability of a single species at a specific boundary must not be above 1
 DO iSpec = 1, nSpecies
-  IF(SurfChem%EventProbInfo(iSpec)%NumOfReactionPaths.GT.0) THEN
-    IF(SUM(SurfChem%EventProbInfo(iSpec)%ReactionProb(:)).GT.1.) THEN
-      CALL abort(__STAMP__,'ERROR: Total probability above unity for species: ', IntInfoOpt=iSpec)
-    END IF
-  END IF
+  IF(SurfChem%EventProbInfo(iSpec)%NumOfReactionPaths.EQ.0) CYCLE
+  ReacProbTest = 0.
+  ! Loop over the reaction paths
+  DO iVal = 1, SurfChem%EventProbInfo(iSpec)%NumOfReactionPaths
+    iReac = SurfChem%EventProbInfo(iSpec)%ReactionIndex(iVal)
+    ! Loop over the boundaries, where the reaction occurs
+    DO iBound = 1, SurfChemReac(iReac)%NumOfBounds
+      ! Get the boundary index
+      BCID = SurfChemReac(iReac)%Boundaries(iBound)
+      ! Sum up the reaction probabilities for each boundary
+      ReacProbTest(BCID) = ReacProbTest(BCID) + SurfChem%EventProbInfo(iSpec)%ReactionProb(iVal)
+      IF(ReacProbTest(BCID).GT.1.) THEN
+        CALL abort(__STAMP__,'ERROR: Total probability above unity for species: ', IntInfoOpt=iSpec)
+      END IF
+    END DO
+  END DO
 END DO
 
 END SUBROUTINE InitializeVariablesSurfaceChemistry
@@ -1009,7 +1023,11 @@ ELSE
 ! 1a.) Determine which reaction path to follow
   CALL RANDOM_NUMBER(RanNum)
   DO iPath = 1, SurfChem%EventProbInfo(SpecID)%NumOfReactionPaths
+    ! Check if the reaction is allowed at the boundary
+    IF(.NOT.ANY(SurfChemReac(SurfChem%EventProbInfo(SpecID)%ReactionIndex(iPath))%Boundaries(:).EQ.locBCID)) CYCLE
+    ! Sum up the probabilities of the reaction paths (sanity check during initialization to ensure that the sum is below 1.0)
     TotalProb = TotalProb + SurfChem%EventProbInfo(SpecID)%ReactionProb(iPath)
+    ! Decide which reaction path to follow
     IF(TotalProb.GT.RanNum) THEN
       PathTodo = iPath
       EXIT

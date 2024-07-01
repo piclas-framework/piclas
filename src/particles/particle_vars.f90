@@ -312,5 +312,9 @@ REAL                  :: LastVeloRotRefSubCycling(3)  ! Last Velocity in the rot
 INTEGER               :: GlobalElemIDSubCycling       ! Element ID before subcycling
 LOGICAL               :: RotRefSubTimeStep            ! Flag for loop that defines that the current time step is a subcycling step
 LOGICAL               :: InRotRefFrameSubCycling      ! Check for RotRefFrame before subcycling
+
+! Sampling of pressure tensor and heatflux
+LOGICAL               :: SamplePressTensHeatflux
+
 !===================================================================================================================================
 END MODULE MOD_Particle_Vars

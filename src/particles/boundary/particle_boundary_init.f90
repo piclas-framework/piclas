@@ -466,7 +466,7 @@ DO iPartBound=1,nPartBound
     IF (PartBound%SurfaceModel(iPartBound).GT.0)THEN
       IF (.NOT.useDSMC) CALL abort(__STAMP__,'Cannot use surfacemodel>0 with useDSMC=F for particle boundary: ',iPartBound)
       SELECT CASE (PartBound%SurfaceModel(iPartBound))
-      CASE (0)
+      CASE (0,2)
         PartBound%Reactive(iPartBound)        = .FALSE.
       CASE (1)
         PartBound%Reactive(iPartBound)        = .FALSE.
@@ -478,7 +478,7 @@ DO iPartBound=1,nPartBound
         ! SEE models require reactive BC
         PartBound%Reactive(iPartBound)        = .TRUE.
       CASE DEFAULT
-        CALL abort(__STAMP__,'Error in particle init: only allowed SurfaceModels: 0,1,20,SEE_MODELS_ID! SurfaceModel=',&
+        CALL abort(__STAMP__,'Error in particle init: only allowed SurfaceModels: 0,1,2,20,SEE_MODELS_ID! SurfaceModel=',&
                   IntInfoOpt=PartBound%SurfaceModel(iPartBound))
       END SELECT
     END IF
@@ -496,9 +496,7 @@ DO iPartBound=1,nPartBound
     PartBound%MaxTotalCoverage(iPartBound) = GETREAL('Part-Boundary'//TRIM(hilf)//'-MaxTotalCoverage', '1.')
     ! Check if the maximum of the coverage is reached
     IF (PartBound%TotalCoverage(iPartBound).GT.PartBound%MaxTotalCoverage(iPartBound)) THEN
-      CALL abort(&
-    __STAMP__&
-    ,'ERROR: Maximum surface coverage reached.', iPartBound)
+      CALL abort(__STAMP__,'ERROR: Maximum surface coverage reached.', iPartBound)
     END IF
     IF (PartBound%NbrOfSpeciesSwaps(iPartBound).GT.0) THEN
       !read Species to be changed at wall (in, out), out=0: delete
