@@ -86,8 +86,8 @@ USE MOD_Basis                  ,ONLY: BarycentricWeights,InitializeVandermonde
 USE MOD_Basis                  ,ONLY: LegendreGaussNodesAndWeights,LegGaussLobNodesAndWeights
 USE MOD_ChangeBasis            ,ONLY: ChangeBasis3D
 USE MOD_Dielectric_Vars        ,ONLY: DoDielectricSurfaceCharge
-USE MOD_Interpolation_Vars     ,ONLY: xGP,wGP
-USE MOD_Mesh_Vars              ,ONLY: nElems,sJ
+USE MOD_Interpolation_Vars     ,ONLY: xGP, wGP, NodeType
+USE MOD_Mesh_Vars              ,ONLY: nElems, sJ, NGeoRef, detJac_Ref
 USE MOD_Particle_Vars
 USE MOD_Particle_Mesh_Vars     ,ONLY: nUniqueGlobalNodes, GEO
 USE MOD_Particle_Mesh_Tools    ,ONLY: GetGlobalNonUniqueSideID
@@ -97,6 +97,7 @@ USE MOD_PICInterpolation_Vars  ,ONLY: InterpolationType
 USE MOD_Preproc
 USE MOD_ReadInTools            ,ONLY: GETREAL,GETINT,GETLOGICAL,GETSTR,GETREALARRAY,GETINTARRAY
 USE MOD_Mesh_Tools             ,ONLY: GetGlobalElemID, GetCNElemID
+USE MOD_Interpolation          ,ONLY: GetVandermonde
 #if USE_MPI
 USE MOD_Mesh_Vars              ,ONLY: offsetElem
 USE MOD_Particle_Mesh_Vars     ,ONLY: NodeToElemInfo,NodeToElemMapping,ElemNodeID_Shared,NodeInfo_Shared
@@ -119,7 +120,7 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-REAL,ALLOCATABLE          :: xGP_tmp(:),wGP_tmp(:)
+REAL,ALLOCATABLE          :: xGP_tmp(:),wGP_tmp(:),DetJac_NProj(:,:,:,:),Vdm_NgeoRef_NProj(:,:)
 INTEGER                   :: ALLOCSTAT, iElem, i, j, k, kk, ll, mm, iNode
 CHARACTER(255)            :: TimeAverageFile
 #if USE_MPI
@@ -204,7 +205,37 @@ END IF
 !--- init DepositionType-specific vars
 SELECT CASE(TRIM(DepositionType))
 CASE('projection')
-CASE('cell_volweight','better_volweight')
+  NProj=1
+  ALLOCATE(xGP_NProj(0:NProj), wGP_NProj(0:NProj), wBary_NProj(0:NProj))
+  ALLOCATE(sJ_NProj(0:NProj,0:NProj,0:NProj,nElems))
+  ALLOCATE(DetJac_NProj(1,0:NProj,0:NProj,0:NProj))
+  ALLOCATE(Vdm_NgeoRef_NProj(     0:NProj   ,0:NgeoRef))
+  ALLOCATE(Vdm_NProj_PPN(     0:PP_N   ,0:NProj))
+
+
+  CALL LegendreGaussNodesAndWeights(NProj,xGP_NProj,wGP_NProj)
+  CALL BarycentricWeights(NProj,xGP_NProj,wBary_NProj)
+
+  CALL GetVandermonde(    NgeoRef, NodeType    , NProj    , NodeType  , Vdm_NgeoRef_NProj     , modal=.TRUE.)
+  CALL GetVandermonde(    NProj, NodeType    , PP_N    , NodeType  , Vdm_NProj_PPN     , modal=.TRUE.)
+  DO iElem=1,nElems
+  ! project detJac_ref onto the solution basis
+    CALL ChangeBasis3D(1,NgeoRef,NProj,Vdm_NgeoRef_NProj,DetJac_Ref(:,:,:,:,iElem),DetJac_NProj)
+
+    ! assign to global Variable sJ
+    DO k=0,NProj; DO j=0,NProj; DO i=0,NProj
+      sJ_NProj(i,j,k,iElem)=1./DetJac_NProj(1,i,j,k)
+    END DO; END DO; END DO !i,j,k=0,PP_N
+  END DO !nElems
+
+  ! WRITE(*,*) NProj,NGeoRef,NodeType
+  ! WRITE(*,*) xGP_NProj
+  ! WRITE(*,*) wGP_NProj
+  ! WRITE(*,*) wBary_NProj
+  ! WRITE(*,*) sJ_NProj
+  ! WRITE(*,*) sJ
+  ! READ(*,*)
+CASE('cell_volweight')
   ALLOCATE(CellVolWeightFac(0:PP_N),wGP_tmp(0:PP_N) , xGP_tmp(0:PP_N))
   ALLOCATE(CellVolWeight_Volumes(0:1,0:1,0:1,nElems))
   CellVolWeightFac(0:PP_N) = xGP(0:PP_N)

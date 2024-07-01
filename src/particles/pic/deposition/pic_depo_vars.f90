@@ -135,6 +135,13 @@ INTEGER,ALLOCPOINT :: Periodic_nNodes(:)
 INTEGER,ALLOCPOINT :: Periodic_Nodes(:)
 INTEGER,ALLOCPOINT :: Periodic_offsetNode(:)
 
+INTEGER            :: NProj
+REAL,ALLOCATABLE   :: xGP_NProj(:)
+REAL,ALLOCATABLE   :: wGP_NProj(:)
+REAL,ALLOCATABLE   :: wBary_NProj(:)
+REAL,ALLOCATABLE   :: sJ_NProj(:,:,:,:)
+REAL,ALLOCATABLE   :: Vdm_NProj_PPN(:,:)
+
 #if USE_MPI
 INTEGER            :: Periodic_nNodes_Shared_Win
 INTEGER,ALLOCPOINT :: Periodic_nNodes_Shared(:)

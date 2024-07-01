@@ -227,11 +227,12 @@ SUBROUTINE DepositionMethod_PRJ(doParticle_In, stage_opt)
 USE MOD_Preproc
 USE MOD_Particle_Vars          ,ONLY: Species, PartSpecies,PDM,PEM,PartPosRef,usevMPF,PartMPF
 USE MOD_Particle_Vars          ,ONLY: PartState
-USE MOD_PICDepo_Vars           ,ONLY: PartSource
+USE MOD_PICDepo_Vars           ,ONLY: PartSource, nProj, xGP_NProj, wGP_NProj, wBary_NProj, sJ_NProj, Vdm_NProj_PPN
 USE MOD_Part_Tools             ,ONLY: isDepositParticle
 USE MOD_Interpolation_Vars     ,ONLY: wGP, xGP, wBary
 USE MOD_Basis                  ,ONLY: LagrangeInterpolationPolys
-USE MOD_Mesh_Vars              ,ONLY: sJ
+USE MOD_Mesh_Vars              ,ONLY: sJ, nElems
+USE MOD_ChangeBasis            ,ONLY: ChangeBasis3D
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Timers     ,ONLY: LBStartTime,LBPauseTime,LBElemSplitTime,LBElemPauseTime_avg
 USE MOD_LoadBalance_Timers     ,ONLY: LBElemSplitTime_avg
@@ -251,7 +252,7 @@ INTEGER,INTENT(IN),OPTIONAL :: stage_opt
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-REAL               :: L_xi(0:PP_N), L_eta(0:PP_N), L_zeta(0:PP_N)
+REAL               :: L_xi(0:NProj), L_eta(0:NProj), L_zeta(0:NProj),PartSource_NProj(1:4,0:NProj,0:NProj,0:NProj,nElems)
 REAL               :: Charge, TSource(1:4)
 REAL               :: TempPartPos(1:3)
 #if USE_LOADBALANCE
@@ -275,7 +276,7 @@ IF(ALMOSTEQUAL(dt,dt_Min(DT_ANALYZE)).OR.ALMOSTEQUAL(dt,dt_Min(DT_END)))THEN
 END IF
 #endif
 
-
+PartSource_NProj=0
 DO iPart = 1,PDM%ParticleVecLength
   ! TODO: Info why and under which conditions the following 'CYCLE' is called
   IF(PRESENT(doParticle_In))THEN
@@ -302,16 +303,16 @@ DO iPart = 1,PDM%ParticleVecLength
   END IF
 
   ! Evaluate the value of the ansatz function at the position of the particle for projection
-  CALL LagrangeInterpolationPolys(TempPartPos(1),PP_N,xGP,wBary,L_xi)
-  CALL LagrangeInterpolationPolys(TempPartPos(2),PP_N,xGP,wBary,L_eta)
-  CALL LagrangeInterpolationPolys(TempPartPos(3),PP_N,xGP,wBary,L_zeta)
+  CALL LagrangeInterpolationPolys(TempPartPos(1),NProj,xGP_NProj,wBary_NProj,L_xi)
+  CALL LagrangeInterpolationPolys(TempPartPos(2),NProj,xGP_NProj,wBary_NProj,L_eta)
+  CALL LagrangeInterpolationPolys(TempPartPos(3),NProj,xGP_NProj,wBary_NProj,L_zeta)
 
   iElem = PEM%LocalElemID(iPart)
-  DO kk = 0, PP_N
-    DO ll = 0, PP_N
-      DO mm = 0, PP_N
-        PartSource(SourceDim:4,kk,ll,mm,iElem) = PartSource(SourceDim:4,kk,ll,mm,iElem) + TSource(SourceDim:4) * &
-                      (L_xi(kk) * L_eta(ll) * L_zeta(mm)) / (wGP(kk) * wGP(ll) * wGP(mm)) * sJ(kk,ll,mm,iElem)
+  DO kk = 0, NProj
+    DO ll = 0, NProj
+      DO mm = 0, NProj
+        PartSource_NProj(SourceDim:4,kk,ll,mm,iElem) = PartSource_NProj(SourceDim:4,kk,ll,mm,iElem) + TSource(SourceDim:4) * &
+                      (L_xi(kk) * L_eta(ll) * L_zeta(mm)) / (wGP_NProj(kk) * wGP_NProj(ll) * wGP_NProj(mm)) * sJ_NProj(kk,ll,mm,iElem)
       END DO ! mm
     END DO ! ll
   END DO ! kk
@@ -323,6 +324,12 @@ END DO
 #if USE_LOADBALANCE
 CALL LBElemSplitTime_avg(tLBStart) ! Average over the number of elems (and Start again)
 #endif /*USE_LOADBALANCE*/
+
+DO iElem=1,nElems
+  ! WRITE(*,*)PartSource_NProj(4,:,:,:,iElem)
+  CALL ChangeBasis3D(4,NProj,PP_N,Vdm_NProj_PPN,PartSource_NProj(1:4,:,:,:,iElem),PartSource(1:4,:,:,:,iElem))
+  ! WRITE(*,*)PartSource(4,:,:,:,iElem)
+END DO
 
 ! Suppress compiler warnings
 RETURN
