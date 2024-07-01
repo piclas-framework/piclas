@@ -191,8 +191,6 @@ IF (time.GE.DelayTime) THEN
       !-- x(n) => x(n+1) by v(n+0.5):
       PartState(1:3,iPart) = PartState(1:3,iPart) + PartState(4:6,iPart) * dtFrac
       CALL CalcPartSymmetryPos(PartState(1:3,iPart),PartState(4:6,iPart))
-
-      CALL CalcPartSymmetryPos(PartState(1:3,iPart),PartState(4:6,iPart))
       ! If coupled power output is active and particle carries charge, calculate energy difference and add to output variable
       IF (CalcCoupledPower) CALL CalcCoupledPowerPart(iPart,'after')
     END IF
