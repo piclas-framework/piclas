@@ -166,6 +166,7 @@ TYPE tDSMC
   REAL                          :: EpsElecBin               ! percentage parameter of electronic energy level merging
   REAL                          :: GammaQuant               ! GammaQuant for zero point energy in Evib (perhaps also Erot),
                                                             ! should be 0.5 or 0
+  LOGICAL                       :: VibAHO                   ! Vibration with anharmonic oscillator model (Morse potential)
   REAL, ALLOCATABLE             :: NumColl(:)               ! Number of Collision for each case + entire Collision number
   REAL                          :: TimeFracSamp=0.          ! %-of simulation time for sampling
   INTEGER                       :: SampNum                  ! number of Samplingsteps
@@ -253,6 +254,15 @@ TYPE tDSMC
 END TYPE tDSMC
 
 TYPE(tDSMC)                     :: DSMC
+
+TYPE tAHO
+  REAL, ALLOCATABLE             :: VibEnergy(:,:)           ! Tabular vib energy for Morse potential [nSpecies,max(NumVibLevels)]
+  INTEGER, ALLOCATABLE          :: NumVibLevels(:)          ! Number of vib levels [nSpecies]
+  REAL, ALLOCATABLE             :: omegaE(:)                ! Spectroscopy constant omegaE [nSpecies]
+  REAL, ALLOCATABLE             :: xiE(:)                   ! Spectroscopy constant xiE [nSpecies]
+END TYPE
+
+TYPE(tAHO)                       :: AHO
 
 TYPE tRegion
   CHARACTER(40)                 :: Type             ! Geometric type of the region, e.g. cylinder

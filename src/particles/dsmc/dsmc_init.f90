@@ -72,6 +72,11 @@ CALL prms%CreateRealOption(     'Part-Species[$]-ElecRelaxProb'  &
 CALL prms%CreateRealOption(     'Particles-DSMC-GammaQuant'&
                                           , 'Set the GammaQuant for zero point energy in Evib (perhaps also Erot) should be'//&
                                           ' 0.5 or 0.', '0.5')
+CALL prms%CreateLogicalOption(  'Particles-DSMC-Vib-Anharmonic', &
+                                          'Use anharmonic oscillator model (Morse potential) for vibration' , '.FALSE.')
+CALL prms%CreateStringOption(   'Particles-DSMC-Vib-Anharmonic-Species[$]-Data'&
+                                          , 'If vibrational AHO model is used give (relative) path to .csv of database for each'//&
+                                          'species', 'none', numberedmulti=.TRUE.)
 CALL prms%CreateLogicalOption(  'Particles-DSMC-AmbipolarDiffusion', &
                                           'Enables the ambipolar diffusion modelling of electrons, which are attached to the '//&
                                           'ions, however, retain their own velocity vector to participate in collision events.',&
@@ -198,6 +203,12 @@ CALL prms%CreateRealOption(     'Part-Species[$]-CharaTempVib','Characteristic v
 CALL prms%CreateRealOption(     'Part-Species[$]-CharaTempRot'  &
                                            ,'Characteristic rotational temperature', '0.', numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'Part-Species[$]-Ediss_eV','Energy of Dissoziation in [eV].', numberedmulti=.TRUE.)
+CALL prms%CreateRealOption(     'Part-Species[$]-Vib-Anharmonic-omegaE' &
+                                           ,'Spectroscopy constant omegaE for anharmonic oscillator model, in 1/m'&
+                                           , numberedmulti=.TRUE.)
+CALL prms%CreateRealOption(     'Part-Species[$]-Vib-Anharmonic-xiE' &
+                                           ,'Spectroscopy constant xiE for anharmonic oscillator model'&
+                                           , numberedmulti=.TRUE.)
 ! ----------------------------------------------------------------------------------------------------------------------------------
 CALL prms%CreateLogicalOption(  'Particles-DSMC-useRelaxProbCorrFactor'&
                                            ,'Use the relaxation probability correction factor of Lumpkin', '.FALSE.')
@@ -268,6 +279,7 @@ CALL prms%CreateRealOption(     'Part-Species[$]-CharaTempRot[$]'  &
 
 END SUBROUTINE DefineParametersDSMC
 
+
 SUBROUTINE InitDSMC()
 !===================================================================================================================================
 ! Init of DSMC Vars
@@ -310,7 +322,7 @@ LOGICAL               :: AttrExists
 CHARACTER(LEN=64)     :: dsetname
 INTEGER(HID_T)        :: file_id_specdb                       ! File identifier
 INTEGER               :: IntToLog
-CHARACTER(LEN=255)    :: hilfname
+CHARACTER(LEN=255)    :: hilfname, FileNameAHO(nSpecies)
 !===================================================================================================================================
 LBWRITE(UNIT_StdOut,'(132("-"))')
 LBWRITE(UNIT_stdOut,'(A)') ' DSMC INIT ...'
@@ -332,12 +344,40 @@ SelectionProc = GETINT('Particles-DSMC-SelectionProcedure','1') ! 1: Laux, 2: Gi
 IF(CollisMode.GE.2) THEN
   DSMC%RotRelaxProb = GETREAL('Particles-DSMC-RotRelaxProb')
   DSMC%VibRelaxProb = GETREAL('Particles-DSMC-VibRelaxProb')
+  DSMC%VibAHO = GETLOGICAL('Particles-DSMC-Vib-Anharmonic')
+  ! Read-in of parameters for anharmonic oscillator model (vibration)
+  IF(DSMC%VibAHO) THEN
+    ALLOCATE(AHO%NumVibLevels(nSpecies))
+    ALLOCATE(AHO%omegaE(nSpecies))
+    ALLOCATE(AHO%xiE(nSpecies))
+    DO iSpec = 1, nSpecies
+      WRITE(UNIT=hilf,FMT='(I0)') iSpec
+      AHO%omegaE(iSpec) = GETREAL('Part-Species'//TRIM(hilf)//'-Vib-Anharmonic-omegaE')
+      AHO%xiE(iSpec) = GETREAL('Part-Species'//TRIM(hilf)//'-Vib-Anharmonic-xiE')
+      FileNameAHO(iSpec) = GETSTR('Particles-DSMC-Vib-Anharmonic-Species'//TRIM(hilf)//'-Data')
+      CALL ReadAHOLevelsFromCSV(FileNameAHO(iSpec),iSpec)
+    END DO
+    ALLOCATE(AHO%VibEnergy(nSpecies,MAXVAL(AHO%NumVibLevels)))
+    AHO%VibEnergy = 0.
+    DO iSpec = 1, nSpecies
+      CALL ReadAHOEnergiesFromCSV(FileNameAHO(iSpec),iSpec)
+    END DO
+  END IF
 ELSE
   DSMC%RotRelaxProb = 0.
   DSMC%VibRelaxProb = 0.
 END IF
-DSMC%GammaQuant   = GETREAL('Particles-DSMC-GammaQuant')
-DSMC%ElectronicModel         = GETINT('Particles-DSMC-ElectronicModel')
+
+print*, 'NumVibLevels', AHO%NumVibLevels
+DO iSpec=1, nSpecies
+  print*, 'Energy Levels', iSpec
+  print*, AHO%VibEnergy(iSpec,:)
+END DO
+print*, 'Omega', AHO%omegaE
+print*, 'Xi', AHO%xiE
+
+DSMC%GammaQuant = GETREAL('Particles-DSMC-GammaQuant')
+DSMC%ElectronicModel = GETINT('Particles-DSMC-ElectronicModel')
 IF(SampleElecExcitation.AND.(DSMC%ElectronicModel.NE.3)) CALL CollectiveStop(__STAMP__,&
     'Part-SampleElectronicExcitation = T requires Particles-DSMC-ElectronicModel = 3')
 IF (DSMC%ElectronicModel.GT.0) THEN
@@ -1280,6 +1320,80 @@ LBWRITE(UNIT_StdOut,'(132("-"))')
 END SUBROUTINE InitDSMC
 
 
+SUBROUTINE ReadAHOLevelsFromCSV(FileNameAHO,iSpec)
+!===================================================================================================================================
+! ATTENTION: needs to be defined on equidistant data-points as .csv
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals
+USE MOD_DSMC_Vars                 ,ONLY: AHO
+! IMPLICIT VARIABLE HANDLING
+ IMPLICIT NONE
+!----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+CHARACTER(LEN=255), INTENT(IN)    :: FileNameAHO
+INTEGER, INTENT(IN)               :: iSpec
+!----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER               :: ioUnit, err, ncounts
+REAL                  :: dummy
+!===================================================================================================================================
+! Read from csv file
+OPEN(NEWUNIT=ioUnit,FILE=FileNameAHO,STATUS='OLD')
+
+! Count number of columns
+err = 0
+ncounts = 0
+DO WHILE (err.EQ.0)
+  READ(ioUnit,*,IOSTAT = err) dummy
+  IF (err.EQ.-1) THEN
+    EXIT
+  END IF
+  err = 0
+  ncounts = ncounts + 1
+END DO
+
+! Set number of vib energy levels for this species
+AHO%NumVibLevels(iSpec) = ncounts
+
+CLOSE (ioUnit)
+
+END SUBROUTINE ReadAHOLevelsFromCSV
+
+
+SUBROUTINE ReadAHOEnergiesFromCSV(FileNameAHO,iSpec)
+!===================================================================================================================================
+! ATTENTION: needs to be defined on equidistant data-points as .csv
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals
+USE MOD_DSMC_Vars                 ,ONLY: AHO
+! IMPLICIT VARIABLE HANDLING
+ IMPLICIT NONE
+!----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+CHARACTER(LEN=255), INTENT(IN)    :: FileNameAHO
+INTEGER, INTENT(IN)               :: iSpec
+!----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER               :: ioUnit, columns
+!===================================================================================================================================
+! Read from csv file
+OPEN(NEWUNIT=ioUnit,FILE=FileNameAHO,STATUS='OLD')
+
+! Write to array
+DO columns = 1, AHO%NumVibLevels(iSpec)
+  read(ioUnit,*) AHO%VibEnergy(iSpec,columns)
+END DO
+CLOSE (ioUnit)
+
+END SUBROUTINE ReadAHOEnergiesFromCSV
+
+
 SUBROUTINE SetElectronicModel(iSpec)
 !===================================================================================================================================
 !
@@ -1613,6 +1727,12 @@ INTEGER       :: iPoly
 SDEALLOCATE(VarVibRelaxProb%ProbVibAv)
 SDEALLOCATE(VarVibRelaxProb%ProbVibAvNew)
 SDEALLOCATE(VarVibRelaxProb%nCollis)
+IF(DSMC%VibAHO) THEN
+  SDEALLOCATE(AHO%NumVibLevels)
+  SDEALLOCATE(AHO%VibEnergy)
+  SDEALLOCATE(AHO%omegaE)
+  SDEALLOCATE(AHO%xiE)
+END IF
 SDEALLOCATE(DSMC%QualityFacSampRot)
 SDEALLOCATE(DSMC%QualityFacSampVib)
 SDEALLOCATE(DSMC%QualityFacSampRotSamp)

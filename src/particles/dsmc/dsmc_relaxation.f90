@@ -56,13 +56,17 @@ INTEGER                         :: iQuant
 ! Nullify energy for atomic species
 PartStateIntEn(1:2,iPart) = 0
 ! Set vibrational energy
-CALL RANDOM_NUMBER(iRan)
-iQuant = INT(-LOG(iRan)*TVib/SpecDSMC(iSpec)%CharaTVib)
-DO WHILE (iQuant.GE.SpecDSMC(iSpec)%MaxVibQuant)
+IF(DSMC%VibAHO) THEN ! TODO-AHO: initiale Vibrationsenergie?
+
+ELSE ! SHO
   CALL RANDOM_NUMBER(iRan)
   iQuant = INT(-LOG(iRan)*TVib/SpecDSMC(iSpec)%CharaTVib)
-END DO
-PartStateIntEn( 1,iPart) = (iQuant + DSMC%GammaQuant)*SpecDSMC(iSpec)%CharaTVib*BoltzmannConst
+  DO WHILE (iQuant.GE.SpecDSMC(iSpec)%MaxVibQuant)
+    CALL RANDOM_NUMBER(iRan)
+    iQuant = INT(-LOG(iRan)*TVib/SpecDSMC(iSpec)%CharaTVib)
+  END DO
+  PartStateIntEn( 1,iPart) = (iQuant + DSMC%GammaQuant)*SpecDSMC(iSpec)%CharaTVib*BoltzmannConst
+END IF
 ! Set rotational energy
 CALL RANDOM_NUMBER(iRan)
 PartStateIntEn( 2,iPart) = -BoltzmannConst*TRot*LOG(iRan)
@@ -70,13 +74,36 @@ PartStateIntEn( 2,iPart) = -BoltzmannConst*TRot*LOG(iRan)
 END SUBROUTINE DSMC_SetInternalEnr_Diatomic
 
 
+SUBROUTINE DSMC_CalcTVibAHO(iSpec, iPart, TVib)
+!===================================================================================================================================
+!> Calculation of the vibrational temperature for anharmonic oscillator model
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals_Vars            ,ONLY: BoltzmannConst
+USE MOD_DSMC_Vars               ,ONLY: AHO
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+INTEGER, INTENT(IN)             :: iSpec, iPart
+REAL, INTENT(OUT)               :: TVib
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+REAL                            :: iRan, dTemp, tolerance
+!===================================================================================================================================
+
+END SUBROUTINE DSMC_CalcTVibAHO
+
+
 SUBROUTINE DSMC_VibRelaxDiatomic(iPair, iPart, FakXi)
 !===================================================================================================================================
 ! Performs the vibrational relaxation of diatomic molecules
 !===================================================================================================================================
 ! MODULES
-USE MOD_DSMC_Vars             ,ONLY: DSMC, SpecDSMC, PartStateIntEn, Coll_pData, RadialWeighting
-USE MOD_Globals_Vars          ,ONLY: BoltzmannConst
+USE MOD_DSMC_Vars             ,ONLY: DSMC, SpecDSMC, PartStateIntEn, Coll_pData, RadialWeighting, CollInf, AHO
+USE MOD_Globals_Vars          ,ONLY: BoltzmannConst, PlanckConst, c
 USE MOD_Particle_Vars         ,ONLY: PartSpecies, UseVarTimeStep, usevMPF
 USE MOD_part_tools            ,ONLY: GetParticleWeight
 ! IMPLICIT VARIABLE HANDLING
@@ -89,8 +116,8 @@ REAL, INTENT(IN)              :: FakXi
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-REAL                          :: MaxColQua, iRan, Ec
-INTEGER                       :: iQuaMax, iQua
+REAL                          :: MaxColQua, iRan, Ec, ProbAccept
+INTEGER                       :: iQuaMax, iQua, iSpec1, iSpec2
 !===================================================================================================================================
 IF (usevMPF.OR.RadialWeighting%DoRadialWeighting.OR.UseVarTimeStep) THEN
   Ec = Coll_pData(iPair)%Ec / GetParticleWeight(iPart)
@@ -98,19 +125,50 @@ ELSE
   Ec = Coll_pData(iPair)%Ec
 END IF
 
-MaxColQua = Ec/(BoltzmannConst*SpecDSMC(PartSpecies(iPart))%CharaTVib) - DSMC%GammaQuant
-iQuaMax = MIN(INT(MaxColQua) + 1, SpecDSMC(PartSpecies(iPart))%MaxVibQuant)
-CALL RANDOM_NUMBER(iRan)
-iQua = INT(iRan * iQuaMax)
-CALL RANDOM_NUMBER(iRan)
-DO WHILE (iRan.GT.(1 - REAL(iQua)/REAL(MaxColQua))**FakXi)
-  !laux diss page 31
+IF(DSMC%VibAHO) THEN ! AHO
+  ! maximum quantum number
+  iQuaMax = 0
+  DO WHILE (Ec.GE.AHO%VibEnergy(PartSpecies(iPart),iQuaMax))
+    ! collision energy is larger than vib energy for this quantum number --> increase quantum number and try again
+    iQuaMax = iQuaMax + 1
+    ! exit if this quantum number is larger as the table length (dissociation level is reached)
+    IF (iQuaMax.GT.AHO%NumVibLevels(PartSpecies(iPart))) EXIT
+  END DO
+  ! accept iQuaMax - 1 as quantum number
+  iQuaMax = iQuaMax - 1
+  ! vibrational energy
+  ! choose random quantum number
+  CALL RANDOM_NUMBER(iRan)
+  iQua = INT(iRan * iQuaMax)
+  ! species of pair
+  iSpec1 = PartSpecies(Coll_pData(iPair)%iPart_p1)
+  iSpec2 = PartSpecies(Coll_pData(iPair)%iPart_p2)
+  ! calculate probability of acceptance of the chosen quantum number
+  ProbAccept = (1 - (PlanckConst * c * AHO%omegaE(PartSpecies(iPart)) * iQua * (1 - AHO%xiE(PartSpecies(iPart)) * (iQua+1))) &
+    / Ec) **(3/2 - CollInf%omega(iSpec1,iSpec2))
+  ! compare to random number and repeat until accepted
+  DO WHILE (iRan.GT.ProbAccept)
+    CALL RANDOM_NUMBER(iRan)
+    iQua = INT(iRan * iQuaMax)
+    ProbAccept = (1 - (PlanckConst * c * AHO%omegaE(PartSpecies(iPart)) * iQua * (1 - AHO%xiE(PartSpecies(iPart)) * (iQua+1))) &
+      / Ec) **(3/2 - CollInf%omega(iSpec1,iSpec2))
+  END DO
+  ! vibrational energy is table value of the accepted quantum number
+  PartStateIntEn(1,iPart) = AHO%VibEnergy(PartSpecies(iPart),iQua)
+ELSE ! SHO
+  MaxColQua = Ec/(BoltzmannConst*SpecDSMC(PartSpecies(iPart))%CharaTVib) - DSMC%GammaQuant
+  iQuaMax = MIN(INT(MaxColQua) + 1, SpecDSMC(PartSpecies(iPart))%MaxVibQuant)
   CALL RANDOM_NUMBER(iRan)
   iQua = INT(iRan * iQuaMax)
   CALL RANDOM_NUMBER(iRan)
-END DO
-
-PartStateIntEn(1,iPart) = (iQua + DSMC%GammaQuant) * BoltzmannConst * SpecDSMC(PartSpecies(iPart))%CharaTVib
+  DO WHILE (iRan.GT.(1 - REAL(iQua)/REAL(MaxColQua))**FakXi)
+    !laux diss page 31
+    CALL RANDOM_NUMBER(iRan)
+    iQua = INT(iRan * iQuaMax)
+    CALL RANDOM_NUMBER(iRan)
+  END DO
+  PartStateIntEn(1,iPart) = (iQua + DSMC%GammaQuant) * BoltzmannConst * SpecDSMC(PartSpecies(iPart))%CharaTVib
+END IF
 
 END SUBROUTINE DSMC_VibRelaxDiatomic
 
@@ -311,7 +369,7 @@ SUBROUTINE InitCalcVibRelaxProb()
 ! Initialize the calculation of the variable vibrational relaxation probability in the cell for each iteration
 !===================================================================================================================================
 ! MODULES
-USE MOD_DSMC_Vars          ,ONLY: DSMC, VarVibRelaxProb 
+USE MOD_DSMC_Vars          ,ONLY: DSMC, VarVibRelaxProb
 USE MOD_Particle_Vars      ,ONLY: nSpecies
 
 ! IMPLICIT VARIABLE HANDLING
@@ -405,7 +463,7 @@ END SUBROUTINE DSMC_calc_P_rot
 
 SUBROUTINE DSMC_calc_P_elec(iSpec1, iSpec2, ProbElec)
 !===================================================================================================================================
-! Calculation of probability for electronic relaxation. 
+! Calculation of probability for electronic relaxation.
 !===================================================================================================================================
 ! MODULES
 USE MOD_DSMC_Vars          ,ONLY : SpecDSMC, useRelaxProbCorrFactor, DSMC
@@ -459,7 +517,7 @@ REAL                      :: CorrFact       ! CorrFact: To correct sample Bias
                                             ! (fewer DSMC particles than natural ones)
 INTEGER                   :: iPolyatMole, iDOF, iCase
 !===================================================================================================================================
-
+! TODO-AHO: check if we need to calculate vib relax probs instead of read-in (collision temperature, vib collision number)
 ProbVib = 0.
 
 ! calculate correction factor according to Gimelshein et al.
@@ -610,7 +668,7 @@ SUBROUTINE FinalizeCalcVibRelaxProb(iElem)
   ! Finalize the calculation of the variable vibrational relaxation probability in the cell for each iteration
 !===================================================================================================================================
 ! MODULES
-USE MOD_DSMC_Vars          ,ONLY: DSMC, VarVibRelaxProb 
+USE MOD_DSMC_Vars          ,ONLY: DSMC, VarVibRelaxProb
 USE MOD_Particle_Vars      ,ONLY: nSpecies
 
 ! IMPLICIT VARIABLE HANDLING
