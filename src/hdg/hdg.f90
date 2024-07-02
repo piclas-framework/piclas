@@ -2065,26 +2065,30 @@ REAL    :: BTemp(3,3,nGP_vol(PP_N),PP_nElems)
 #if (PP_nVar==1)
   CALL PostProcessGradientHDG()
 #elif (PP_nVar==3)
-  DO iVar=1, PP_nVar
-    CALL PostProcessGradient(U_out(iVar,:,:),lambda(iVar,:,:),BTemp(iVar,:,:,:))
-  END DO
-  DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
-    r=k*(PP_N+1)**2+j*(PP_N+1) + i+1
-    B(1,i,j,k,:) = BTemp(3,2,r,:) - BTemp(2,3,r,:)
-    B(2,i,j,k,:) = BTemp(1,3,r,:) - BTemp(3,1,r,:)
-    B(3,i,j,k,:) = BTemp(2,1,r,:) - BTemp(1,2,r,:)
-  END DO; END DO; END DO !i,j,k
+  ! NOT IMPLEMENTED
+  CALL abort(__STAMP__,"ERROR: Functionality not implemented!")
+  ! DO iVar=1, PP_nVar
+  !   CALL PostProcessGradient(U_out(iVar,:,:),lambda(iVar,:,:),BTemp(iVar,:,:,:))
+  ! END DO
+  ! DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
+  !   r=k*(PP_N+1)**2+j*(PP_N+1) + i+1
+  !   B(1,i,j,k,:) = BTemp(3,2,r,:) - BTemp(2,3,r,:)
+  !   B(2,i,j,k,:) = BTemp(1,3,r,:) - BTemp(3,1,r,:)
+  !   B(3,i,j,k,:) = BTemp(2,1,r,:) - BTemp(1,2,r,:)
+  ! END DO; END DO; END DO !i,j,k
 #else
-  DO iVar=1, 3
-    CALL PostProcessGradient(U_out(iVar,:,:),lambda(iVar,:,:),BTemp(iVar,:,:,:))
-  END DO
-  DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
-    r=k*(PP_N+1)**2+j*(PP_N+1) + i+1
-    B(1,i,j,k,:) = BTemp(3,2,r,:) - BTemp(2,3,r,:)
-    B(2,i,j,k,:) = BTemp(1,3,r,:) - BTemp(3,1,r,:)
-    B(3,i,j,k,:) = BTemp(2,1,r,:) - BTemp(1,2,r,:)
-  END DO; END DO; END DO !i,j,k
-  CALL PostProcessGradient(U_out(4,:,:),lambda(4,:,:),E)
+  ! NOT IMPLEMENTED
+  CALL abort(__STAMP__,"ERROR: Functionality not implemented!")
+  ! DO iVar=1, 3
+  !   CALL PostProcessGradient(U_out(iVar,:,:),lambda(iVar,:,:),BTemp(iVar,:,:,:))
+  ! END DO
+  ! DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
+  !   r=k*(PP_N+1)**2+j*(PP_N+1) + i+1
+  !   B(1,i,j,k,:) = BTemp(3,2,r,:) - BTemp(2,3,r,:)
+  !   B(2,i,j,k,:) = BTemp(1,3,r,:) - BTemp(3,1,r,:)
+  !   B(3,i,j,k,:) = BTemp(2,1,r,:) - BTemp(1,2,r,:)
+  ! END DO; END DO; END DO !i,j,k
+  ! CALL PostProcessGradient(U_out(4,:,:),lambda(4,:,:),E)
 #endif
 END SUBROUTINE RecomputeEFieldHDG
 #endif /*USE_HDG*/

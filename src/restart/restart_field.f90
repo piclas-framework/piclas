@@ -43,7 +43,7 @@ CONTAINS
 !#if USE_LOADBALANCE
 SUBROUTINE FieldRestart()
 !===================================================================================================================================
-! routine perfoming the field restart
+! routine performing the field restart
 !===================================================================================================================================
 ! USED MODULES
 USE MOD_Globals
