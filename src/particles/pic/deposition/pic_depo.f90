@@ -518,7 +518,7 @@ CASE('shape_function', 'shape_function_cc', 'shape_function_adaptive')
 #else
   ALLOCATE(ChargeSFDone(1:nElems))
 #endif /*USE_MPI*/
-
+CASE('cell_mean')
 CASE DEFAULT
   CALL abort(__STAMP__,'Unknown DepositionType in pic_depo.f90')
 END SELECT
