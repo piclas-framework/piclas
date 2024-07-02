@@ -26,30 +26,34 @@ PUBLIC::InsertNewIons
 !==================================================================================================================================
 CONTAINS
 
-SUBROUTINE InsertNewIons()
+SUBROUTINE InsertNewIons(init)
 !==================================================================================================================================
 !> Insert new ions due to background gas ionization
 !==================================================================================================================================
 ! MODULES
 USE MOD_Globals
 USE MOD_PreProc ! PP_N
-USE MOD_FV_Vars           ,ONLY: U_FV
-USE MOD_Equation_Vars     ,ONLY: E
-USE MOD_TimeDisc_Vars     ,ONLY: dt
-USE MOD_part_operations   ,ONLY: CreateParticle
-USE MOD_Particle_Tracking ,ONLY: ParticleInsideCheck
-USE MOD_DSMC_Vars         ,ONLY: BGGas
-USE MOD_Particle_Vars     ,ONLY: nSpecies, Species
-USE MOD_Transport_Data    ,ONLY: CalcDriftDiffusionCoeffAr,CalcDriftDiffusionCoeffH2,CalcIonizationRate
-USE MOD_Particle_Mesh_Vars,ONLY: BoundsOfElem_Shared, ElemVolume_Shared
-USE MOD_part_tools        ,ONLY: CalcVelocity_maxwell_particle
-USE MOD_Mesh_Vars         ,ONLY: offsetElem
-USE MOD_Mesh_Tools        ,ONLY: GetCNElemID
+USE MOD_FV_Vars            ,ONLY: U_FV
+USE MOD_Equation_Vars      ,ONLY: E
+USE MOD_TimeDisc_Vars      ,ONLY: dt
+USE MOD_part_operations    ,ONLY: CreateParticle
+USE MOD_Particle_Tracking  ,ONLY: ParticleInsideCheck
+USE MOD_DSMC_Vars          ,ONLY: BGGas
+USE MOD_Particle_Vars      ,ONLY: nSpecies, Species
+USE MOD_Transport_Data     ,ONLY: CalcDriftDiffusionCoeffAr,CalcDriftDiffusionCoeffH2,CalcIonizationRateAr,CalcDriftDiffusionCoeffNe,CalcIonizationRateNe,CalcDriftDiffusionCoeffHe,CalcIonizationRateHe
+USE MOD_Particle_Mesh_Vars ,ONLY: BoundsOfElem_Shared, ElemVolume_Shared
+USE MOD_part_tools         ,ONLY: CalcVelocity_maxwell_particle
+USE MOD_Mesh_Vars          ,ONLY: offsetElem
+USE MOD_Mesh_Tools         ,ONLY: GetCNElemID
 USE MOD_part_emission_tools,ONLY: CalcVelocity_maxwell_lpn
+USE MOD_Mesh_Vars          ,ONLY:Elem_xGP_FV
+USE MOD_Equation_Vars_FV   ,ONLY:IniExactFunc_FV
+USE MOD_Equation_FV        ,ONLY:ExactFunc_FV
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
+INTEGER,OPTIONAL                     :: init
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -58,7 +62,7 @@ IMPLICIT NONE
 ! LOCAL VARIABLES
 INTEGER                              :: nPart, iPart, iSpecBG, iSpecIon, iSpec, ElemID, GlobalElemID
 REAL                                 :: iRan , RandomPos(1:3), DeltaPartDens, realPartNumber, Velocity(1:3)
-REAL                                 :: RotEnergy, VibEnergy, ElecEnergy, ionRate, mu ,D
+REAL                                 :: RotEnergy, VibEnergy, ElecEnergy, ionRate, mu, D, resu(PP_nVar_FV)
 LOGICAL                              :: InsideFlag
 !===================================================================================================================================
 DO iSpec = 1, nSpecies
@@ -70,10 +74,29 @@ DO iSpec = 1, nSpecies
 END DO
 
 DO ElemID=1,PP_nElems
-  CALL CalcIonizationRate(VECNORM(E(1:3,0,0,0,ElemID)),BGGas%NumberDensity(iSpecBG),ionRate)
-  CALL CalcDriftDiffusionCoeffAr(VECNORM(E(1:3,0,0,0,ElemID)),BGGas%NumberDensity(iSpecBG),mu,D) ! do this outside and save coeff
+  IF (PRESENT(init)) THEN
+    !initial insertion according to electron density
+    CALL ExactFunc_FV(init,0.,0,Elem_xGP_FV(1:3,0,0,0,ElemID),resu)
+    DeltaPartDens = resu(1)
+  ELSE
+    IF (Species(iSpecBG)%Name.EQ.'H2') THEN
+      CALL CalcDriftDiffusionCoeffH2(VECNORM(E(1:3,0,0,0,ElemID)),BGGas%NumberDensity(iSpecBG),mu,D)
+    ELSE IF (Species(iSpecBG)%Name.EQ.'Ar') THEN
+      CALL CalcDriftDiffusionCoeffAr(VECNORM(E(1:3,0,0,0,ElemID)),BGGas%NumberDensity(iSpecBG),mu,D) ! do this outside and save coeff
+      CALL CalcIonizationRateAr(VECNORM(E(1:3,0,0,0,ElemID)),BGGas%NumberDensity(iSpecBG),ionRate)
+    ELSE IF (Species(iSpecBG)%Name.EQ.'Ne') THEN
+      CALL CalcDriftDiffusionCoeffNe(VECNORM(E(1:3,0,0,0,ElemID)),BGGas%NumberDensity(iSpecBG),mu,D)
+      CALL CalcIonizationRateNe(VECNORM(E(1:3,0,0,0,ElemID)),BGGas%NumberDensity(iSpecBG),ionRate)
+    ELSE IF (Species(iSpecBG)%Name.EQ.'He') THEN
+      CALL CalcDriftDiffusionCoeffHe(VECNORM(E(1:3,0,0,0,ElemID)),BGGas%NumberDensity(iSpecBG),mu,D)
+      CALL CalcIonizationRateHe(VECNORM(E(1:3,0,0,0,ElemID)),BGGas%NumberDensity(iSpecBG),ionRate)
+    ELSE
+      CALL abort(__STAMP__,'bg gas species unknowned for electron fluid')
+    END IF
 
-  DeltaPartDens = ionRate*mu*VECNORM(E(1:3,0,0,0,ElemID))*U_FV(1,0,0,0,ElemID)*dt !TODO: interpolate E
+    DeltaPartDens = ionRate*mu*VECNORM(E(1:3,0,0,0,ElemID))*U_FV(1,0,0,0,ElemID)*dt !TODO: interpolate E
+  END IF
+
   GlobalElemID = ElemID+offsetElem
 
   ASSOCIATE( Bounds => BoundsOfElem_Shared(1:2,1:3,GlobalElemID) ) ! 1-2: Min, Max value; 1-3: x,y,z
@@ -92,7 +115,7 @@ DO ElemID=1,PP_nElems
         Velocity = CalcVelocity_maxwell_particle(iSpecIon,BGGas%Distribution(iSpecBG,4:6,ElemID)) &
                                   + BGGas%Distribution(iSpecBG,1:3,ElemID)
       ELSE
-        CALL CalcVelocity_maxwell_lpn(FractNbr=iSpecIon, Vec3D=Velocity, iInit=1)
+        CALL CalcVelocity_maxwell_lpn(FractNbr=iSpecBG, Vec3D=Velocity, iInit=1)
       END IF
 
       RotEnergy = 0.

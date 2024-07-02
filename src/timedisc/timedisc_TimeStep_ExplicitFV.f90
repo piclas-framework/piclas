@@ -37,6 +37,7 @@ SUBROUTINE TimeStep_ExplicitFV()
 USE MOD_FV_Vars               ,ONLY: U_FV,Ut_FV
 USE MOD_TimeDisc_Vars         ,ONLY: dt,time,iter
 USE MOD_FV                    ,ONLY: FV_main
+USE MOD_Equation_Vars_FV      ,ONLY:IniExactFunc_FV
 #ifdef PARTICLES
 USE MOD_PICDepo                ,ONLY: Deposition
 USE MOD_PICInterpolation       ,ONLY: InterpolateFieldToParticle
@@ -87,6 +88,7 @@ REAL                       :: tLBStart ! load balance
 !===================================================================================================================================
 #ifdef PARTICLES
 IF ((time.GE.DelayTime).OR.(iter.EQ.0)) CALL Deposition()
+IF ((IniExactFunc_FV.EQ.3).AND.(iter.EQ.0)) CALL InsertNewIons(init=IniExactFunc_FV)
 #endif /*PARTICLES*/
 
 #if USE_HDG
