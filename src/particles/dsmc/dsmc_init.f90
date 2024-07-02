@@ -890,7 +890,11 @@ ELSE !CollisMode.GT.0
             SpecDSMC(iSpec)%Ediss_eV   = GETREAL('Part-Species'//TRIM(hilf)//'-Ediss_eV')
             SpecDSMC(iSpec)%MaxVibQuant = 200
             ! Calculation of the zero-point energy
-            SpecDSMC(iSpec)%EZeroPoint = DSMC%GammaQuant * BoltzmannConst * SpecDSMC(iSpec)%CharaTVib
+            IF (DSMC%VibAHO) TransformVectorFromSphericalCoordinates
+            SpecDSMC(iSpec)%EZeroPoint = AHO%VibEnergy(iSpec,1)
+            ELSE
+              SpecDSMC(iSpec)%EZeroPoint = DSMC%GammaQuant * BoltzmannConst * SpecDSMC(iSpec)%CharaTVib
+            END IF
             ! Calculation of the dissociation quantum number (used for QK chemistry)
             SpecDSMC(iSpec)%DissQuant = INT(SpecDSMC(iSpec)%Ediss_eV*ElementaryCharge/(BoltzmannConst*SpecDSMC(iSpec)%CharaTVib))
           END IF

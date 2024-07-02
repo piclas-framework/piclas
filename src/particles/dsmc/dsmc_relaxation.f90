@@ -173,7 +173,7 @@ END IF
 END SUBROUTINE DSMC_VibRelaxDiatomic
 
 
-SUBROUTINE CalcMeanVibQuaDiatomic()
+SUBROUTINE CalcMeanVibQuaDiatomic() ! TODO-AHO
 !===================================================================================================================================
 ! Computes the mean vibrational quantum number of diatomic species in a cell each iteration;
 ! ChemReac%MeanEVibQua_PerIter is required for the determination of the vibrational degree of freedom, only used for diatomic

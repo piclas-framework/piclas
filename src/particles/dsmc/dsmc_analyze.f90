@@ -34,7 +34,7 @@ PUBLIC :: SamplingRotVibRelaxProb, CalcInstantElecTempXi
 
 CONTAINS
 
-REAL FUNCTION CalcTVib(ChaTVib,MeanEVib,nMax)
+REAL FUNCTION CalcTVib(ChaTVib,MeanEVib,nMax) ! TODO-AHO
 !===================================================================================================================================
 !> Calculation of the vibrational temperature (zero-point search) for the TSHO (Truncated Simple Harmonic Oscillator)
 !===================================================================================================================================

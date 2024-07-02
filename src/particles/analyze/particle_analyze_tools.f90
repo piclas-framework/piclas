@@ -1394,7 +1394,7 @@ END IF
 END SUBROUTINE CalcSurfaceFluxInfo
 
 
-SUBROUTINE CalcMixtureTemp(NumSpec,Temp,IntTemp,IntEn,TempTotal,Xi_Vib,Xi_Elec)
+SUBROUTINE CalcMixtureTemp(NumSpec,Temp,IntTemp,IntEn,TempTotal,Xi_Vib,Xi_Elec) ! TODO-AHO
 !===================================================================================================================================
 !> Computes the species-specific and mixture temperature (MPI communication is in the respective subroutines)
 !===================================================================================================================================

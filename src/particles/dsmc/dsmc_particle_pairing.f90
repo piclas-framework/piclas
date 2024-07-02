@@ -513,7 +513,7 @@ IF (CollisMode.EQ.3) THEN
   ChemReac%RecombParticle = 0
   ChemReac%nPairForRec = 0
   ChemReac%LastPairForRec = 0
-! Determination of the mean vibrational energy for the cell
+! Determination of the mean vibrational energy for the cell ! TODO-AHO
   ChemReac%MeanEVib_PerIter(1:nSpecies) = 0.0
   DO iPart = 1, TotalPartNum
     ChemReac%MeanEVib_PerIter(PartSpecies(iPartIndx_NodeTotal(iPart)))=ChemReac%MeanEVib_PerIter(PartSpecies(iPartIndx_NodeTotal(iPart))) &
@@ -621,7 +621,7 @@ IF(DSMC%CalcQualityFactors) THEN
   IF(DSMC%MCSoverMFP .GE. DSMC%MaxMCSoverMFP) DSMC%MaxMCSoverMFP = DSMC%MCSoverMFP
   ! Calculate number of resolved Cells for this processor
   DSMC%ParticleCalcCollCounter = DSMC%ParticleCalcCollCounter + 1 ! Counts Particle Collision Calculation
-  IF( (DSMC%MCSoverMFP .LE. 1) .AND. (DSMC%CollProbMax .LE. 1) .AND. (DSMC%CollProbMean .LE. 1)) DSMC%ResolvedCellCounter = & 
+  IF( (DSMC%MCSoverMFP .LE. 1) .AND. (DSMC%CollProbMax .LE. 1) .AND. (DSMC%CollProbMean .LE. 1)) DSMC%ResolvedCellCounter = &
                                                     DSMC%ResolvedCellCounter + 1
   ! Calculation of ResolvedTimestep. Number of Cells with ResolvedTimestep
   IF ((.NOT.DSMC%ReservoirSimu) .AND. (DSMC%CollProbMean .LE. 1)) THEN
