@@ -87,7 +87,7 @@ USE MOD_Basis                  ,ONLY: LegendreGaussNodesAndWeights,LegGaussLobNo
 USE MOD_ChangeBasis            ,ONLY: ChangeBasis3D
 USE MOD_Dielectric_Vars        ,ONLY: DoDielectricSurfaceCharge
 USE MOD_Interpolation_Vars     ,ONLY: xGP, wGP, NodeType
-USE MOD_Mesh_Vars              ,ONLY: nElems, sJ, NGeoRef, detJac_Ref
+USE MOD_Mesh_Vars              ,ONLY: nElems, sJ
 USE MOD_Particle_Vars
 USE MOD_Particle_Mesh_Vars     ,ONLY: nUniqueGlobalNodes, GEO
 USE MOD_Particle_Mesh_Tools    ,ONLY: GetGlobalNonUniqueSideID
@@ -121,7 +121,7 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-REAL,ALLOCATABLE          :: xGP_tmp(:),wGP_tmp(:),DetJac_NProj(:,:,:,:),Vdm_NgeoRef_NProj(:,:)
+REAL,ALLOCATABLE          :: xGP_tmp(:),wGP_tmp(:)
 INTEGER                   :: ALLOCSTAT, iElem, i, j, k, kk, ll, mm, iNode
 CHARACTER(255)            :: TimeAverageFile
 #if USE_MPI
