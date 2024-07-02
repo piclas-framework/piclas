@@ -519,6 +519,7 @@ CASE('shape_function', 'shape_function_cc', 'shape_function_adaptive')
 #if USE_MPI
   ALLOCATE(RecvRequest(nShapeExchangeProcs),SendRequest(nShapeExchangeProcs))
 #endif
+  IF(Symmetry%Axisymmetric) CALL ABORT(__STAMP__,'Shapefunctions not possible with axisymmetric simulations', IERROR)
   ! --- Set shape function radius in each cell when using adaptive shape function
   IF(TRIM(DepositionType).EQ.'shape_function_adaptive') CALL InitShapeFunctionAdaptive()
 
