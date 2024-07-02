@@ -42,7 +42,6 @@ INTEGER,PARAMETER      :: PRM_DEPO_SF_CC= 1  ! shape_function_cc
 INTEGER,PARAMETER      :: PRM_DEPO_SF_ADAPTIVE= 2  ! shape_function_adaptive
 INTEGER,PARAMETER      :: PRM_DEPO_CVW  = 6  ! cell_volweight
 INTEGER,PARAMETER      :: PRM_DEPO_CVWM = 12 ! cell_volweight_mean
-INTEGER,PARAMETER      :: PRM_DEPO_PRJ  = 18 ! projection
 
 INTERFACE InitDepositionMethod
   MODULE PROCEDURE InitDepositionMethod
@@ -79,8 +78,7 @@ CALL prms%CreateIntFromStringOption('PIC-Deposition-Type', "Type/Method used in 
                                     '1.1)  shape_function ('//TRIM(int2strf(PRM_DEPO_SF))//')\n'                   //&
                                     '1.2)  shape_function_cc ('//TRIM(int2strf(PRM_DEPO_SF_CC))//')\n'             //&
                                     '1.3)  shape_function_adaptive ('//TRIM(int2strf(PRM_DEPO_SF_ADAPTIVE))//')\n' //&
-                                    '2.)   cell_volweight ('//TRIM(int2strf(PRM_DEPO_CVW))//')\n'                  //&
-                                    '4.)   projection ('//TRIM(int2strf(PRM_DEPO_PRJ))//')'                          &
+                                    '2.)   cell_volweight ('//TRIM(int2strf(PRM_DEPO_CVW))//')'                      &
                                     ,'cell_volweight')
 
 CALL addStrListEntry('PIC-Deposition-Type' , 'shape_function'             , PRM_DEPO_SF)
@@ -88,7 +86,6 @@ CALL addStrListEntry('PIC-Deposition-Type' , 'shape_function_cc'          , PRM_
 CALL addStrListEntry('PIC-Deposition-Type' , 'shape_function_adaptive'    , PRM_DEPO_SF_ADAPTIVE)
 CALL addStrListEntry('PIC-Deposition-Type' , 'cell_volweight'             , PRM_DEPO_CVW)
 CALL addStrListEntry('PIC-Deposition-Type' , 'cell_volweight_mean'        , PRM_DEPO_CVWM)
-CALL addStrListEntry('PIC-Deposition-Type' , 'projection'                 , PRM_DEPO_PRJ)
 END SUBROUTINE DefineParametersDepositionMethod
 
 
@@ -213,131 +210,8 @@ RETURN
 CALL DepositionMethod_SF()
 CALL DepositionMethod_CVW()
 CALL DepositionMethod_CVWM()
-CALL DepositionMethod_PRJ()
 
 END SUBROUTINE InitDepositionMethod
-
-
-SUBROUTINE DepositionMethod_PRJ(doParticle_In, stage_opt)
-!===================================================================================================================================
-! 'Projection'
-! Projects the delta distributions onto the ansatz functions within a cell (discontinuous across cell interfaces)
-!===================================================================================================================================
-! MODULES
-USE MOD_Preproc
-USE MOD_Particle_Vars          ,ONLY: Species, PartSpecies,PDM,PEM,PartPosRef,usevMPF,PartMPF
-USE MOD_Particle_Vars          ,ONLY: PartState
-USE MOD_PICDepo_Vars           ,ONLY: PartSource, nProj, xGP_NProj, wGP_NProj, wBary_NProj, sJ_NProj, Vdm_NProj_PPN
-USE MOD_Part_Tools             ,ONLY: isDepositParticle
-USE MOD_Basis                  ,ONLY: LagrangeInterpolationPolys
-USE MOD_Mesh_Vars              ,ONLY: nElems
-USE MOD_ChangeBasis            ,ONLY: ChangeBasis3D
-#if USE_LOADBALANCE
-USE MOD_LoadBalance_Timers     ,ONLY: LBStartTime,LBPauseTime,LBElemSplitTime,LBElemPauseTime_avg
-USE MOD_LoadBalance_Timers     ,ONLY: LBElemSplitTime_avg
-#endif /*USE_LOADBALANCE*/
-USE MOD_Particle_Tracking_Vars ,ONLY: TrackingMethod
-USE MOD_Eval_xyz               ,ONLY: GetPositionInRefElem
-#if ((USE_HDG) && (PP_nVar==1))
-USE MOD_TimeDisc_Vars          ,ONLY: dt,dt_Min
-#endif
-! IMPLICIT VARIABLE HANDLING
-IMPLICIT NONE
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
-LOGICAL,INTENT(IN),OPTIONAL :: doParticle_In(1:PDM%ParticleVecLength) ! TODO: definition of this variable
-INTEGER,INTENT(IN),OPTIONAL :: stage_opt
-!-----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-REAL               :: L_xi(0:NProj), L_eta(0:NProj), L_zeta(0:NProj),PartSource_NProj(1:4,0:NProj,0:NProj,0:NProj,nElems)
-REAL               :: Charge, TSource(1:4)
-REAL               :: TempPartPos(1:3)
-#if USE_LOADBALANCE
-REAL               :: tLBStart
-#endif /*USE_LOADBALANCE*/
-INTEGER            :: SourceDim
-INTEGER            :: kk, ll, mm
-INTEGER            :: iPart,iElem
-!===================================================================================================================================
-
-#if USE_LOADBALANCE
-  CALL LBStartTime(tLBStart) ! Start time measurement
-#endif /*USE_LOADBALANCE*/
-
-! Check whether charge and current density have to be computed or just the charge density
-SourceDim=4
-TSource(:) = 0.
-#if ((USE_HDG) && (PP_nVar==1))
-IF(ALMOSTEQUAL(dt,dt_Min(DT_ANALYZE)).OR.ALMOSTEQUAL(dt,dt_Min(DT_END)))THEN
-  SourceDim=1
-END IF
-#endif
-
-PartSource_NProj=0
-DO iPart = 1,PDM%ParticleVecLength
-  ! TODO: Info why and under which conditions the following 'CYCLE' is called
-  IF(PRESENT(doParticle_In))THEN
-    IF (.NOT.(PDM%ParticleInside(iPart).AND.doParticle_In(iPart))) CYCLE
-  ELSE
-    IF (.NOT.PDM%ParticleInside(iPart)) CYCLE
-  END IF
-  ! Don't deposit neutral particles!
-  IF(.NOT.isDepositParticle(iPart)) CYCLE
-
-  IF (usevMPF) THEN
-    Charge= Species(PartSpecies(iPart))%ChargeIC * PartMPF(iPart)
-  ELSE
-    Charge= Species(PartSpecies(iPart))%ChargeIC * Species(PartSpecies(iPart))%MacroParticleFactor
-  END IF ! usevMPF
-  TSource(4) = Charge
-  TSource(1:3) = PartState(4:6,iPart)*Charge
-
-  ! Get particle position inside the reference element
-  IF(TrackingMethod.EQ.REFMAPPING)THEN
-    TempPartPos(1:3)=PartPosRef(1:3,iPart)
-  ELSE
-    CALL GetPositionInRefElem(PartState(1:3,iPart),TempPartPos,PEM%GlobalElemID(iPart),ForceMode=.TRUE.)
-  END IF
-
-  ! Evaluate the value of the ansatz function at the position of the particle for projection
-  CALL LagrangeInterpolationPolys(TempPartPos(1),NProj,xGP_NProj,wBary_NProj,L_xi)
-  CALL LagrangeInterpolationPolys(TempPartPos(2),NProj,xGP_NProj,wBary_NProj,L_eta)
-  CALL LagrangeInterpolationPolys(TempPartPos(3),NProj,xGP_NProj,wBary_NProj,L_zeta)
-
-  iElem = PEM%LocalElemID(iPart)
-  DO kk = 0, NProj
-    DO ll = 0, NProj
-      DO mm = 0, NProj
-        PartSource_NProj(SourceDim:4,kk,ll,mm,iElem) = PartSource_NProj(SourceDim:4,kk,ll,mm,iElem) + TSource(SourceDim:4) * &
-                      (L_xi(kk) * L_eta(ll) * L_zeta(mm)) / (wGP_NProj(kk) * wGP_NProj(ll) * wGP_NProj(mm)) * sJ_NProj(kk,ll,mm,iElem)
-      END DO ! mm
-    END DO ! ll
-  END DO ! kk
-#if USE_LOADBALANCE
-  CALL LBElemSplitTime(iElem,tLBStart) ! Split time measurement (Pause/Stop and Start again) and add time to iElem
-#endif /*USE_LOADBALANCE*/
-END DO
-
-#if USE_LOADBALANCE
-CALL LBElemSplitTime_avg(tLBStart) ! Average over the number of elems (and Start again)
-#endif /*USE_LOADBALANCE*/
-
-DO iElem=1,nElems
-  ! WRITE(*,*)PartSource_NProj(4,:,:,:,iElem)
-#if (PP_nVar==1)
-  CALL ChangeBasis3D(1,NProj,PP_N,Vdm_NProj_PPN,PartSource_NProj(4,:,:,:,iElem),PartSource(4,:,:,:,iElem))
-#else
-  CALL ChangeBasis3D(4,NProj,PP_N,Vdm_NProj_PPN,PartSource_NProj(1:4,:,:,:,iElem),PartSource(1:4,:,:,:,iElem))
-#endif
-  ! WRITE(*,*)PartSource(4,:,:,:,iElem)
-END DO
-
-! Suppress compiler warnings
-RETURN
-iPart=stage_opt
-END SUBROUTINE DepositionMethod_PRJ
 
 
 SUBROUTINE DepositionMethod_CVW(doParticle_In, stage_opt)

@@ -72,7 +72,6 @@ CALL prms%CreateRealOption(     'PIC-shapefunction-adaptive-DOF'  ,'Average numb
    '3D: (4/3)*Pi*(N+1)^3\n')
 CALL prms%CreateLogicalOption(  'PIC-shapefunction-adaptive-smoothing', 'Enable smooth transition of element-dependent radius when'//&
                                                                       ' using shape_function_adaptive.', '.FALSE.')
-CALL prms%CreateIntOption(      'PIC-projection-NProj', 'Polynomial degree to which the deposition variables are projected', '1')
 
 END SUBROUTINE DefineParametersPICDeposition
 
@@ -206,38 +205,6 @@ END IF
 
 !--- init DepositionType-specific vars
 SELECT CASE(TRIM(DepositionType))
-CASE('projection')
-  NProj= GETINT('PIC-projection-NProj')
-  IF (NProj.LT.0) CALL ABORT(__STAMP__,'Polynomial degree for projection deposition too small!', NProj)
-  ALLOCATE(xGP_NProj(0:NProj), wGP_NProj(0:NProj), wBary_NProj(0:NProj))
-  ALLOCATE(sJ_NProj(0:NProj,0:NProj,0:NProj,nElems))
-  ALLOCATE(DetJac_NProj(1,0:NProj,0:NProj,0:NProj))
-  ALLOCATE(Vdm_NgeoRef_NProj(     0:NProj   ,0:NgeoRef))
-  ALLOCATE(Vdm_NProj_PPN(     0:PP_N   ,0:NProj))
-
-
-  CALL LegendreGaussNodesAndWeights(NProj,xGP_NProj,wGP_NProj)
-  CALL BarycentricWeights(NProj,xGP_NProj,wBary_NProj)
-
-  CALL GetVandermonde(    NgeoRef, NodeType    , NProj    , NodeType  , Vdm_NgeoRef_NProj     , modal=.TRUE.)
-  CALL GetVandermonde(    NProj, NodeType    , PP_N    , NodeType  , Vdm_NProj_PPN     , modal=.TRUE.)
-  DO iElem=1,nElems
-  ! project detJac_ref onto the solution basis
-    CALL ChangeBasis3D(1,NgeoRef,NProj,Vdm_NgeoRef_NProj,DetJac_Ref(:,:,:,:,iElem),DetJac_NProj)
-
-    ! assign to global Variable sJ
-    DO k=0,NProj; DO j=0,NProj; DO i=0,NProj
-      sJ_NProj(i,j,k,iElem)=1./DetJac_NProj(1,i,j,k)
-    END DO; END DO; END DO !i,j,k=0,PP_N
-  END DO !nElems
-
-  ! WRITE(*,*) NProj,NGeoRef,NodeType
-  ! WRITE(*,*) xGP_NProj
-  ! WRITE(*,*) wGP_NProj
-  ! WRITE(*,*) wBary_NProj
-  ! WRITE(*,*) sJ_NProj
-  ! WRITE(*,*) sJ
-  ! READ(*,*)
 CASE('cell_volweight')
   ALLOCATE(CellVolWeightFac(0:PP_N),wGP_tmp(0:PP_N) , xGP_tmp(0:PP_N))
   ALLOCATE(CellVolWeight_Volumes(0:1,0:1,0:1,nElems))
