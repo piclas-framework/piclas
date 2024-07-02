@@ -229,9 +229,8 @@ USE MOD_Particle_Vars          ,ONLY: Species, PartSpecies,PDM,PEM,PartPosRef,us
 USE MOD_Particle_Vars          ,ONLY: PartState
 USE MOD_PICDepo_Vars           ,ONLY: PartSource, nProj, xGP_NProj, wGP_NProj, wBary_NProj, sJ_NProj, Vdm_NProj_PPN
 USE MOD_Part_Tools             ,ONLY: isDepositParticle
-USE MOD_Interpolation_Vars     ,ONLY: wGP, xGP, wBary
 USE MOD_Basis                  ,ONLY: LagrangeInterpolationPolys
-USE MOD_Mesh_Vars              ,ONLY: sJ, nElems
+USE MOD_Mesh_Vars              ,ONLY: nElems
 USE MOD_ChangeBasis            ,ONLY: ChangeBasis3D
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Timers     ,ONLY: LBStartTime,LBPauseTime,LBElemSplitTime,LBElemPauseTime_avg
