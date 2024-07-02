@@ -327,7 +327,11 @@ CALL LBElemSplitTime_avg(tLBStart) ! Average over the number of elems (and Start
 
 DO iElem=1,nElems
   ! WRITE(*,*)PartSource_NProj(4,:,:,:,iElem)
+#if (PP_nVar==1)
+  CALL ChangeBasis3D(1,NProj,PP_N,Vdm_NProj_PPN,PartSource_NProj(4,:,:,:,iElem),PartSource(4,:,:,:,iElem))
+#else
   CALL ChangeBasis3D(4,NProj,PP_N,Vdm_NProj_PPN,PartSource_NProj(1:4,:,:,:,iElem),PartSource(1:4,:,:,:,iElem))
+#endif
   ! WRITE(*,*)PartSource(4,:,:,:,iElem)
 END DO
 

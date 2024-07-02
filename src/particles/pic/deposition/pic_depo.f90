@@ -70,8 +70,9 @@ CALL prms%CreateRealOption(     'PIC-shapefunction-adaptive-DOF'  ,'Average numb
    '1D: 2*(N+1)\n'//&
    '2D: Pi*(N+1)^2\n'//&
    '3D: (4/3)*Pi*(N+1)^3\n')
-CALL prms%CreateLogicalOption('PIC-shapefunction-adaptive-smoothing', 'Enable smooth transition of element-dependent radius when'//&
+CALL prms%CreateLogicalOption(  'PIC-shapefunction-adaptive-smoothing', 'Enable smooth transition of element-dependent radius when'//&
                                                                       ' using shape_function_adaptive.', '.FALSE.')
+CALL prms%CreateIntOption(      'PIC-projection-NProj', 'Polynomial degree to which the deposition variables are projected', '1')
 
 END SUBROUTINE DefineParametersPICDeposition
 
@@ -205,7 +206,8 @@ END IF
 !--- init DepositionType-specific vars
 SELECT CASE(TRIM(DepositionType))
 CASE('projection')
-  NProj=1
+  NProj= GETINT('PIC-projection-NProj')
+  IF (NProj.LT.0) CALL ABORT(__STAMP__,'Polynomial degree for projection deposition too small!', NProj)
   ALLOCATE(xGP_NProj(0:NProj), wGP_NProj(0:NProj), wBary_NProj(0:NProj))
   ALLOCATE(sJ_NProj(0:NProj,0:NProj,0:NProj,nElems))
   ALLOCATE(DetJac_NProj(1,0:NProj,0:NProj,0:NProj))
