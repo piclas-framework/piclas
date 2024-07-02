@@ -505,7 +505,7 @@ IF(DSMC%CalcQualityFactors) THEN
   IF(DSMC%MCSoverMFP .GE. DSMC%MaxMCSoverMFP) DSMC%MaxMCSoverMFP = DSMC%MCSoverMFP
   ! Calculate number of resolved Cells for this processor
   DSMC%ParticleCalcCollCounter = DSMC%ParticleCalcCollCounter + 1 ! Counts Particle Collision Calculation
-  IF( (DSMC%MCSoverMFP .LE. 1) .AND. (DSMC%CollProbMax .LE. 1) .AND. (DSMC%CollProbMean .LE. 1)) DSMC%ResolvedCellCounter = & 
+  IF( (DSMC%MCSoverMFP .LE. 1) .AND. (DSMC%CollProbMax .LE. 1) .AND. (DSMC%CollProbMean .LE. 1)) DSMC%ResolvedCellCounter = &
                                                     DSMC%ResolvedCellCounter + 1
   ! Calculation of ResolvedTimestep. Number of Cells with ResolvedTimestep
   IF ((.NOT.DSMC%ReservoirSimu) .AND. (DSMC%CollProbMean .LE. 1)) THEN
@@ -578,7 +578,7 @@ SUBROUTINE BGGas_PhotoIonization(iSpec,iInit,TotalNbrOfReactions)
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_DSMC_Analyze           ,ONLY: CalcGammaVib, CalcMeanFreePath
+USE MOD_DSMC_Analyze           ,ONLY: CalcMeanFreePath
 USE MOD_DSMC_Vars              ,ONLY: Coll_pData, CollisMode, ChemReac, PartStateIntEn, DSMC
 USE MOD_DSMC_Vars              ,ONLY: DSMCSumOfFormedParticles
 USE MOD_DSMC_Vars              ,ONLY: newAmbiParts, iPartIndx_NodeNewAmbi, BGGas

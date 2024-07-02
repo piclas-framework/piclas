@@ -368,14 +368,6 @@ ELSE
   DSMC%VibRelaxProb = 0.
 END IF
 
-print*, 'NumVibLevels', AHO%NumVibLevels
-DO iSpec=1, nSpecies
-  print*, 'Energy Levels', iSpec
-  print*, AHO%VibEnergy(iSpec,:)
-END DO
-print*, 'Omega', AHO%omegaE
-print*, 'Xi', AHO%xiE
-
 DSMC%GammaQuant = GETREAL('Particles-DSMC-GammaQuant')
 DSMC%ElectronicModel = GETINT('Particles-DSMC-ElectronicModel')
 IF(SampleElecExcitation.AND.(DSMC%ElectronicModel.NE.3)) CALL CollectiveStop(__STAMP__,&
@@ -890,8 +882,8 @@ ELSE !CollisMode.GT.0
             SpecDSMC(iSpec)%Ediss_eV   = GETREAL('Part-Species'//TRIM(hilf)//'-Ediss_eV')
             SpecDSMC(iSpec)%MaxVibQuant = 200
             ! Calculation of the zero-point energy
-            IF (DSMC%VibAHO) TransformVectorFromSphericalCoordinates
-            SpecDSMC(iSpec)%EZeroPoint = AHO%VibEnergy(iSpec,1)
+            IF (DSMC%VibAHO) THEN
+              SpecDSMC(iSpec)%EZeroPoint = AHO%VibEnergy(iSpec,1)
             ELSE
               SpecDSMC(iSpec)%EZeroPoint = DSMC%GammaQuant * BoltzmannConst * SpecDSMC(iSpec)%CharaTVib
             END IF

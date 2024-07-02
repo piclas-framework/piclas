@@ -27,7 +27,7 @@ PRIVATE
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
 PUBLIC :: InitCalcVibRelaxProb, SumVibRelaxProb, FinalizeCalcVibRelaxProb
-PUBLIC :: DSMC_SetInternalEnr_Diatomic, DSMC_VibRelaxDiatomic, CalcMeanVibQuaDiatomic, CalcXiVib, CalcXiTotalEqui
+PUBLIC :: DSMC_SetInternalEnr_Diatomic, DSMC_VibRelaxDiatomic, CalcMeanVibQuaDiatomic
 PUBLIC :: DSMC_calc_P_rot, DSMC_calc_var_P_vib, DSMC_calc_P_vib, DSMC_calc_P_elec
 !===================================================================================================================================
 
@@ -39,7 +39,7 @@ SUBROUTINE DSMC_SetInternalEnr_Diatomic(iSpec, iPart, TRot, TVib)
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals_Vars            ,ONLY: BoltzmannConst
-USE MOD_DSMC_Vars               ,ONLY: PartStateIntEn, SpecDSMC, DSMC
+USE MOD_DSMC_Vars               ,ONLY: PartStateIntEn, SpecDSMC, DSMC, AHO
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -50,13 +50,38 @@ REAL, INTENT(IN)                :: TRot, TVib
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-REAL                            :: iRan
+REAL                            :: iRan, GroundLevel, VibPartitionTemp
 INTEGER                         :: iQuant
 !===================================================================================================================================
 ! Nullify energy for atomic species
 PartStateIntEn(1:2,iPart) = 0
 ! Set vibrational energy
 IF(DSMC%VibAHO) THEN ! TODO-AHO: initiale Vibrationsenergie?
+
+  ! V1: calculate sum over all energy levels = complete partition function for vibration
+  ! VibPartition = 0.
+  ! DO iQuant = 1, AHO%NumVibLevels(iSpec)
+  !   VibPartition = VibPartition + EXP(- AHO%VibEnergy(iSpec,iQuant) / (BoltzmannConst * TVib))
+  ! END DO
+  ! then: calculate single levels (EXP(- AHO%VibEnergy(iSpec,iQuant) / (BoltzmannConst * TVib)))
+  ! Sum up until random number is reached
+
+  ! V2: calculate partition funtion for each level (sums up to 1) --> contribution of each level
+  ! Sum up contribution * energy of each level
+
+  ! select level
+  GroundLevel = EXP(- AHO%VibEnergy(iSpec,1) / (BoltzmannConst * TVib))
+  CALL RANDOM_NUMBER(iRan)
+  ! acceptance is higher for lower levels
+  DO WHILE (iRan .GE. (VibPartitionTemp / GroundLevel))
+    ! select random quantum number and calculate partition function
+    CALL RANDOM_NUMBER(iRan)
+    iQuant = INT(AHO%NumVibLevels(iSpec) * iRan)
+    VibPartitionTemp = EXP(- AHO%VibEnergy(iSpec,iQuant) / (BoltzmannConst * TVib))
+    CALL RANDOM_NUMBER(iRan)
+  END DO
+  ! vibrational energy is table value of the accepted quantum number
+  PartStateIntEn(1,iPart) = AHO%VibEnergy(iSpec,iQuant)
 
 ELSE ! SHO
   CALL RANDOM_NUMBER(iRan)
@@ -72,29 +97,6 @@ CALL RANDOM_NUMBER(iRan)
 PartStateIntEn( 2,iPart) = -BoltzmannConst*TRot*LOG(iRan)
 
 END SUBROUTINE DSMC_SetInternalEnr_Diatomic
-
-
-SUBROUTINE DSMC_CalcTVibAHO(iSpec, iPart, TVib)
-!===================================================================================================================================
-!> Calculation of the vibrational temperature for anharmonic oscillator model
-!===================================================================================================================================
-! MODULES
-USE MOD_Globals_Vars            ,ONLY: BoltzmannConst
-USE MOD_DSMC_Vars               ,ONLY: AHO
-! IMPLICIT VARIABLE HANDLING
-IMPLICIT NONE
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
-INTEGER, INTENT(IN)             :: iSpec, iPart
-REAL, INTENT(OUT)               :: TVib
-!-----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-REAL                            :: iRan, dTemp, tolerance
-!===================================================================================================================================
-
-END SUBROUTINE DSMC_CalcTVibAHO
 
 
 SUBROUTINE DSMC_VibRelaxDiatomic(iPair, iPart, FakXi)
@@ -183,9 +185,10 @@ SUBROUTINE CalcMeanVibQuaDiatomic() ! TODO-AHO
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_Globals_Vars,          ONLY : BoltzmannConst
-USE MOD_DSMC_Vars,             ONLY : DSMC, CollInf, SpecDSMC, ChemReac, BGGas
-USE MOD_Particle_Vars,         ONLY : nSpecies, Species
+USE MOD_Globals_Vars,           ONLY : BoltzmannConst
+USE MOD_DSMC_Vars,              ONLY : DSMC, CollInf, SpecDSMC, ChemReac, BGGas
+USE MOD_Particle_Vars,          ONLY : nSpecies, Species
+USE MOD_Particle_Analyze_Tools, ONLY : CalcTVibAHO, CalcXiVib
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -206,18 +209,27 @@ DO iSpec = 1, nSpecies
       ! Only treat species present in the cell
       IF(CollInf%Coll_SpecPartNum(iSpec).GT.0.) THEN
         ChemReac%MeanEVib_PerIter(iSpec) = ChemReac%MeanEVib_PerIter(iSpec) / CollInf%Coll_SpecPartNum(iSpec)
-        VibQuaTemp = ChemReac%MeanEVib_PerIter(iSpec) / (BoltzmannConst*SpecDSMC(iSpec)%CharaTVib) - DSMC%GammaQuant
-        CALL RANDOM_NUMBER(iRan)
-        IF((VibQuaTemp-INT(VibQuaTemp)).GT.iRan) THEN
-          ChemReac%MeanEVibQua_PerIter(iSpec) = MIN(INT(VibQuaTemp) + 1, SpecDSMC(iSpec)%MaxVibQuant-1)
-        ELSE
-          ChemReac%MeanEVibQua_PerIter(iSpec) = MIN(INT(VibQuaTemp), SpecDSMC(iSpec)%MaxVibQuant-1)
-        END IF
-        IF(ChemReac%MeanEVibQua_PerIter(iSpec).GT.0) THEN
-          ChemReac%MeanXiVib_PerIter(iSpec) = 2. * ChemReac%MeanEVibQua_PerIter(iSpec) &
-                                            * LOG(1.0/ChemReac%MeanEVibQua_PerIter(iSpec) + 1.0 )
-        ELSE
-          ChemReac%MeanXiVib_PerIter(iSpec) = 0.
+        IF(DSMC%VibAHO) THEN ! AHO
+          IF(ChemReac%MeanEVib_PerIter(iSpec).GT.0) THEN
+            CALL CalcTVibAHO(iSpec, ChemReac%MeanEVib_PerIter(iSpec), VibQuaTemp)
+            CALL CalcXiVib(VibQuaTemp, iSpec, XiVibTotal=ChemReac%MeanXiVib_PerIter(iSpec))
+          ELSE
+            ChemReac%MeanXiVib_PerIter(iSpec) = 0.
+          END IF
+        ELSE ! SHO
+          VibQuaTemp = ChemReac%MeanEVib_PerIter(iSpec) / (BoltzmannConst*SpecDSMC(iSpec)%CharaTVib) - DSMC%GammaQuant
+          CALL RANDOM_NUMBER(iRan)
+          IF((VibQuaTemp-INT(VibQuaTemp)).GT.iRan) THEN
+            ChemReac%MeanEVibQua_PerIter(iSpec) = MIN(INT(VibQuaTemp) + 1, SpecDSMC(iSpec)%MaxVibQuant-1)
+          ELSE
+            ChemReac%MeanEVibQua_PerIter(iSpec) = MIN(INT(VibQuaTemp), SpecDSMC(iSpec)%MaxVibQuant-1)
+          END IF
+          IF(ChemReac%MeanEVibQua_PerIter(iSpec).GT.0) THEN
+            ChemReac%MeanXiVib_PerIter(iSpec) = 2. * ChemReac%MeanEVibQua_PerIter(iSpec) &
+                                              * LOG(1.0/ChemReac%MeanEVibQua_PerIter(iSpec) + 1.0 )
+          ELSE
+            ChemReac%MeanXiVib_PerIter(iSpec) = 0.
+          END IF
         END IF
       ELSE
         ChemReac%MeanEVibQua_PerIter(iSpec) = 0
@@ -228,140 +240,6 @@ DO iSpec = 1, nSpecies
 END DO        ! iSpec = 1, nSpecies
 
 END SUBROUTINE CalcMeanVibQuaDiatomic
-
-
-SUBROUTINE CalcXiVib(TVib, iSpec, XiVibDOF, XiVibTotal)
-!===================================================================================================================================
-! Calculation of the vibrational degrees of freedom for each characteristic vibrational temperature, used for chemical reactions
-!===================================================================================================================================
-! MODULES
-USE MOD_DSMC_Vars               ,ONLY: SpecDSMC, PolyatomMolDSMC
-! IMPLICIT VARIABLE HANDLING
-IMPLICIT NONE
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
-REAL, INTENT(IN)                :: TVib  !
-INTEGER, INTENT(IN)             :: iSpec      ! Number of Species
-!-----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
-REAL, INTENT(OUT),OPTIONAL      :: XiVibDOF(:), XiVibTotal
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-INTEGER                         :: iDOF, iPolyatMole, VibDOF
-REAL                            :: TempRatio
-REAL,ALLOCATABLE                :: XiVibPart(:)
-!===================================================================================================================================
-
-IF(SpecDSMC(iSpec)%PolyatomicMol) THEN
-  iPolyatMole = SpecDSMC(iSpec)%SpecToPolyArray
-  VibDOF = PolyatomMolDSMC(iPolyatMole)%VibDOF
-  ALLOCATE(XiVibPart(PolyatomMolDSMC(iPolyatMole)%VibDOF))
-  XiVibPart = 0.0
-  DO iDOF = 1 , VibDOF
-    ! If the temperature is very small compared to the characteristic temperature, set the vibrational degree of freedom to zero
-    ! to avoid overflows in the exponential function
-    TempRatio = PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iDOF)/ TVib
-    IF(CHECKEXP(TempRatio)) THEN
-      XiVibPart(iDOF) = (2.0*TempRatio) / (EXP(TempRatio) - 1.0)
-    END IF
-  END DO
-ELSE
-  VibDOF = 1
-  ALLOCATE(XiVibPart(VibDOF))
-  XiVibPart = 0.0
-  TempRatio = SpecDSMC(iSpec)%CharaTVib / TVib
-  IF(CHECKEXP(TempRatio)) THEN
-    XiVibPart(1) = (2.0*TempRatio) / (EXP(TempRatio) - 1.0)
-  END IF
-END IF
-
-IF(PRESENT(XiVibDOF)) THEN
-  XiVibDOF = 0.
-  XiVibDOF(1:VibDOF) = XiVibPart(1:VibDOF)
-END IF
-
-IF(PRESENT(XiVibTotal)) THEN
-  XiVibTotal = SUM(XiVibPart)
-END IF
-
-RETURN
-
-END SUBROUTINE CalcXiVib
-
-
-SUBROUTINE CalcXiTotalEqui(iReac, iPair, nProd, Xi_Total, Weight, XiVibPart, XiElecPart)
-!===================================================================================================================================
-! Calculation of the vibrational degrees of freedom for each characteristic vibrational temperature as well as the electronic
-! degrees of freedom at a common temperature, used for chemical reactions
-!===================================================================================================================================
-! MODULES
-USE MOD_Globals_Vars              ,ONLY: BoltzmannConst
-USE MOD_DSMC_Vars                 ,ONLY: SpecDSMC, ChemReac, Coll_pData, DSMC
-USE MOD_part_tools                ,ONLY: CalcXiElec
-USE MOD_Particle_Vars             ,ONLY: Species
-! IMPLICIT VARIABLE HANDLING
-IMPLICIT NONE
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
-INTEGER, INTENT(IN)             :: iReac, iPair, nProd
-REAL, INTENT(IN)                :: Xi_Total, Weight(1:4)
-!-----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
-REAL, INTENT(OUT), OPTIONAL     :: XiVibPart(:,:), XiElecPart(1:4)
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-INTEGER                         :: iProd, iSpec
-REAL                            :: ETotal, EZeroPoint, EGuess, LowerTemp, UpperTemp, MiddleTemp, Xi_TotalTemp, XiVibTotal
-REAL,PARAMETER                  :: eps_prec=1E-3
-!===================================================================================================================================
-
-ASSOCIATE( ProductReac => ChemReac%Products(iReac,1:4) )
-
-  ! Weighted total collision energy
-  ETotal = Coll_pData(iPair)%Ec
-
-  EZeroPoint = 0.0
-  DO iProd = 1, nProd
-    EZeroPoint = EZeroPoint + SpecDSMC(ProductReac(iProd))%EZeroPoint * Weight(iProd)
-  END DO
-
-  LowerTemp = 1.0
-  UpperTemp = 2.*(ETotal - EZeroPoint) * nProd / SUM(Weight) / (Xi_Total * BoltzmannConst)
-  MiddleTemp = LowerTemp
-  DO WHILE (.NOT.ALMOSTEQUALRELATIVE(0.5*(LowerTemp + UpperTemp),MiddleTemp,eps_prec))
-    MiddleTemp = 0.5*( LowerTemp + UpperTemp)
-    Xi_TotalTemp = Xi_Total
-    DO iProd = 1, nProd
-      iSpec = ProductReac(iProd)
-      IF((Species(iSpec)%InterID.EQ.2).OR.(Species(iSpec)%InterID.EQ.20)) THEN
-        CALL CalcXiVib(MiddleTemp, iSpec, XiVibDOF=XiVibPart(iProd,:), XiVibTotal=XiVibTotal)
-        Xi_TotalTemp = Xi_TotalTemp + XiVibTotal
-      ELSE
-        IF(PRESENT(XiVibPart)) XiVibPart(iProd,:) = 0.0
-      END IF
-      IF((DSMC%ElectronicModel.EQ.1).OR.(DSMC%ElectronicModel.EQ.2).OR.(DSMC%ElectronicModel.EQ.4)) THEN
-        IF((Species(iSpec)%InterID.NE.4).AND.(.NOT.SpecDSMC(iSpec)%FullyIonized)) THEN
-          XiElecPart(iProd) = CalcXiElec(MiddleTemp, iSpec)
-          Xi_TotalTemp = Xi_TotalTemp + XiElecPart(iProd)
-        ELSE
-          IF(PRESENT(XiElecPart)) XiElecPart(iProd) = 0.0
-        END IF
-      END IF
-    END DO
-    EGuess = EZeroPoint + Xi_TotalTemp / 2. * BoltzmannConst * MiddleTemp * SUM(Weight) / nProd
-    IF (EGuess .GT. ETotal) THEN
-      UpperTemp = MiddleTemp
-    ELSE
-      LowerTemp = MiddleTemp
-    END IF
-  END DO
-END ASSOCIATE
-
-RETURN
-
-END SUBROUTINE CalcXiTotalEqui
 
 
 SUBROUTINE InitCalcVibRelaxProb()
@@ -487,7 +365,6 @@ END IF
 ProbElec = SpecDSMC(iSpec1)%ElecRelaxProb*CorrFact
 
 END SUBROUTINE DSMC_calc_P_elec
-
 
 
 SUBROUTINE DSMC_calc_P_vib(iPair, iSpec, jSpec, Xi_rel, iElem, ProbVib)

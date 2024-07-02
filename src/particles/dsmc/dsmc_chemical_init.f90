@@ -143,6 +143,7 @@ USE MOD_PARTICLE_Vars           ,ONLY: nSpecies, Species, SpeciesDatabase
 USE MOD_Particle_Analyze_Vars   ,ONLY: ChemEnergySum
 USE MOD_DSMC_ChemReact          ,ONLY: CalcPartitionFunction
 USE MOD_DSMC_QK_Chemistry       ,ONLY: QK_Init
+USE MOD_Particle_Analyze_Tools  ,ONLY: CalcXiVib
 USE MOD_MCC_Vars                ,ONLY: NbrOfPhotonXsecReactions
 USE MOD_io_hdf5
 USE MOD_HDF5_input              ,ONLY: ReadAttribute, DatasetExists, AttributeExists
@@ -293,12 +294,16 @@ IF (BGGas%NumberOfSpecies.GT.0) THEN
       ! Background gas: Calculation of the mean vibrational quantum number of diatomic molecules
       IF((Species(iSpec)%InterID.EQ.2).OR.(Species(iSpec)%InterID.EQ.20)) THEN
         IF(.NOT.SpecDSMC(iSpec)%PolyatomicMol) THEN
-          BGGasEVib = DSMC%GammaQuant * BoltzmannConst * SpecDSMC(iSpec)%CharaTVib &
-            + BoltzmannConst * SpecDSMC(iSpec)%CharaTVib / (EXP(SpecDSMC(iSpec)%CharaTVib / SpecDSMC(iSpec)%Init(1)%TVib) - 1)
-          BGGasEVib = BGGasEVib/(BoltzmannConst*SpecDSMC(iSpec)%CharaTVib) - DSMC%GammaQuant
-          ChemReac%MeanEVibQua_PerIter(iSpec) = MIN(INT(BGGasEVib) + 1, SpecDSMC(iSpec)%MaxVibQuant)
-          ChemReac%MeanXiVib_PerIter(iSpec) = 2. * ChemReac%MeanEVibQua_PerIter(iSpec) &
-                                            * LOG(1.0/ChemReac%MeanEVibQua_PerIter(iSpec) + 1.0 )
+          IF(DSMC%VibAHO) THEN ! AHO
+            CALL CalcXiVib(SpecDSMC(iSpec)%Init(1)%TVib, iSpec, XiVibTotal=ChemReac%MeanXiVib_PerIter(iSpec))
+          ELSE ! SHO
+            BGGasEVib = DSMC%GammaQuant * BoltzmannConst * SpecDSMC(iSpec)%CharaTVib &
+              + BoltzmannConst * SpecDSMC(iSpec)%CharaTVib / (EXP(SpecDSMC(iSpec)%CharaTVib / SpecDSMC(iSpec)%Init(1)%TVib) - 1)
+            BGGasEVib = BGGasEVib/(BoltzmannConst*SpecDSMC(iSpec)%CharaTVib) - DSMC%GammaQuant
+            ChemReac%MeanEVibQua_PerIter(iSpec) = MIN(INT(BGGasEVib) + 1, SpecDSMC(iSpec)%MaxVibQuant)
+            ChemReac%MeanXiVib_PerIter(iSpec) = 2. * ChemReac%MeanEVibQua_PerIter(iSpec) &
+                                              * LOG(1.0/ChemReac%MeanEVibQua_PerIter(iSpec) + 1.0 )
+          END IF
         END IF
       ELSE
         ChemReac%MeanEVibQua_PerIter(iSpec) = 0

@@ -355,10 +355,11 @@ USE MOD_Particle_Vars          ,ONLY: PartSpecies, PartState, PDM, PEM, PartPosR
 USE MOD_Particle_Vars          ,ONLY: UseVarTimeStep, PartTimeStep, VarTimeStep
 USE MOD_DSMC_ElectronicModel   ,ONLY: ElectronicEnergyExchange
 USE MOD_DSMC_PolyAtomicModel   ,ONLY: DSMC_RotRelaxPoly, DSMC_RelaxVibPolyProduct
-USE MOD_DSMC_Relaxation        ,ONLY: DSMC_VibRelaxDiatomic, CalcXiTotalEqui
+USE MOD_DSMC_Relaxation        ,ONLY: DSMC_VibRelaxDiatomic
 USE MOD_DSMC_CollisVec         ,ONLY: PostCollVec
 USE MOD_Particle_Tracking_Vars ,ONLY: TrackingMethod
 USE MOD_Particle_Analyze_Vars  ,ONLY: ChemEnergySum
+USE MOD_Particle_Analyze_Tools ,ONLY: CalcXiTotalEqui
 USE MOD_part_tools             ,ONLY: GetParticleWeight, GetNextFreePosition
 USE MOD_part_operations        ,ONLY: RemoveParticle
 #ifdef CODE_ANALYZE

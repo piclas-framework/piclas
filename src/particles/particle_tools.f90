@@ -951,14 +951,14 @@ IF(Temp(3).GT.0.0) CalcVelocity_maxwell_particle(3) = rnor()*SQRT(BoltzmannConst
 END FUNCTION CalcVelocity_maxwell_particle
 
 
-REAL FUNCTION CalcEVib_particle(iSpec,TempVib,iPart) ! TODO-AHO
+REAL FUNCTION CalcEVib_particle(iSpec,TempVib,iPart)
 !===================================================================================================================================
 !
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
 USE MOD_Globals_Vars      ,ONLY: BoltzmannConst
-USE MOD_DSMC_Vars         ,ONLY: SpecDSMC, PolyatomMolDSMC, VibQuantsPar, DSMC
+USE MOD_DSMC_Vars         ,ONLY: SpecDSMC, PolyatomMolDSMC, VibQuantsPar, DSMC, AHO
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -968,7 +968,7 @@ REAL, INTENT(IN)              :: TempVib
 INTEGER, INTENT(IN),OPTIONAL  :: iPart
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-REAL                      :: iRan
+REAL                      :: iRan, GroundLevel, VibPartitionTemp
 INTEGER                   :: iQuant, iDOF, iPolyatMole
 LOGICAL                   :: SetVibQuant
 !===================================================================================================================================
@@ -998,14 +998,44 @@ IF(SpecDSMC(iSpec)%PolyatomicMol) THEN
                                 + (iQuant + DSMC%GammaQuant)*PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iDOF)*BoltzmannConst
     IF(SetVibQuant) VibQuantsPar(iPart)%Quants(iDOF)=iQuant
   END DO
-ELSE
-  CALL RANDOM_NUMBER(iRan)
-  iQuant = INT(-LOG(iRan)*TempVib/SpecDSMC(iSpec)%CharaTVib)
-  DO WHILE (iQuant.GE.SpecDSMC(iSpec)%MaxVibQuant)
+
+ELSE ! diatomic
+  IF(DSMC%VibAHO) THEN ! TODO-AHO: initiale Vibrationsenergie?
+    ! V1: calculate sum over all energy levels = complete partition function for vibration
+    ! VibPartition = 0.
+    ! DO iQuant = 1, AHO%NumVibLevels(iSpec)
+    !   VibPartition = VibPartition + EXP(- AHO%VibEnergy(iSpec,iQuant) / (BoltzmannConst * TempVib))
+    ! END DO
+    ! then: calculate single levels (EXP(- AHO%VibEnergy(iSpec,iQuant) / (BoltzmannConst * TempVib)))
+    ! Sum up until random number is reached
+
+    ! V2: calculate partition funtion for each level (sums up to 1) --> contribution of each level
+    ! Sum up contribution * energy of each level
+
+    ! select level
+    GroundLevel = EXP(- AHO%VibEnergy(iSpec,1) / (BoltzmannConst * TempVib))
+    CALL RANDOM_NUMBER(iRan)
+    ! acceptance is higher for lower levels
+    DO WHILE (iRan .GE. (VibPartitionTemp / GroundLevel))
+      ! select random quantum number and calculate partition function
+      CALL RANDOM_NUMBER(iRan)
+      iQuant = INT(AHO%NumVibLevels(iSpec) * iRan)
+      VibPartitionTemp = EXP(- AHO%VibEnergy(iSpec,iQuant) / (BoltzmannConst * TempVib))
+      CALL RANDOM_NUMBER(iRan)
+    END DO
+    ! vibrational energy is table value of the accepted quantum number
+    CalcEVib_particle = AHO%VibEnergy(iSpec,iQuant)
+
+  ELSE ! SHO
     CALL RANDOM_NUMBER(iRan)
     iQuant = INT(-LOG(iRan)*TempVib/SpecDSMC(iSpec)%CharaTVib)
-  END DO
-  CalcEVib_particle = (iQuant + DSMC%GammaQuant)*SpecDSMC(iSpec)%CharaTVib*BoltzmannConst
+    DO WHILE (iQuant.GE.SpecDSMC(iSpec)%MaxVibQuant)
+      CALL RANDOM_NUMBER(iRan)
+      iQuant = INT(-LOG(iRan)*TempVib/SpecDSMC(iSpec)%CharaTVib)
+    END DO
+    CalcEVib_particle = (iQuant + DSMC%GammaQuant)*SpecDSMC(iSpec)%CharaTVib*BoltzmannConst
+
+  END IF
 END IF
 
 RETURN
