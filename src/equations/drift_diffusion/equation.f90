@@ -167,9 +167,13 @@ SUBROUTINE CalcSource(t,coeff,Ut)
 ! Specifies all the initial conditions. The state in conservative variables is returned.
 !===================================================================================================================================
 ! MODULES
-USE MOD_Globals           ,ONLY: abort
-USE MOD_Globals_Vars      ,ONLY: PI,eps0
+USE MOD_Globals           ,ONLY: abort, vecnorm
 USE MOD_PreProc
+USE MOD_FV_Vars           ,ONLY: U_FV
+USE MOD_Equation_Vars     ,ONLY: E
+USE MOD_Transport_Data    ,ONLY: CalcDriftDiffusionCoeffAr,CalcDriftDiffusionCoeffH2,CalcIonizationRate
+USE MOD_DSMC_Vars         ,ONLY: BGGas
+USE MOD_Particle_Vars     ,ONLY: nSpecies, Species
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -180,9 +184,21 @@ REAL,INTENT(IN)                 :: t,coeff
 REAL,INTENT(INOUT)              :: Ut(1:PP_nVar_FV,0:0,0:0,0:0,1:PP_nElems)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-
+INTEGER                         :: ElemID, iSpec
+REAL                            :: ionRate, mu, D
 !===================================================================================================================================
+DO iSpec = 1, nSpecies
+  IF(BGGas%BackgroundSpecies(iSpec)) THEN
+    EXIT
+  END IF
+END DO
 
+DO ElemID = 1, PP_nElems
+  CALL CalcIonizationRate(VECNORM(E(1:3,0,0,0,ElemID)),BGGas%NumberDensity(iSpec),ionRate)
+  CALL CalcDriftDiffusionCoeffAr(VECNORM(E(1:3,0,0,0,ElemID)),BGGas%NumberDensity(iSpec),mu,D)
+  Ut(1,:,:,:,ElemID) = Ut(1,:,:,:,ElemID) + ionRate*mu*VECNORM(E(1:3,0,0,0,ElemID))*U_FV(1,:,:,:,ElemID)
+  ! print*, 'ionrate', ionRate, ionRate*mu*VECNORM(E(1:3,0,0,0,ElemID))
+END DO
 
 END SUBROUTINE CalcSource
 

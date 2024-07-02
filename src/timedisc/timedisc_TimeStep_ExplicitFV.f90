@@ -48,6 +48,7 @@ USE MOD_DSMC                   ,ONLY: DSMC_main
 USE MOD_DSMC_Vars              ,ONLY: useDSMC
 USE MOD_PICModels              ,ONLY: FieldIonization
 USE MOD_part_RHS               ,ONLY: CalcPartRHS
+USE MOD_Ionization             ,ONLY: InsertNewIons
 #if USE_MPI
 USE MOD_Particle_MPI           ,ONLY: IRecvNbOfParticles, MPIParticleSend,MPIParticleRecv,SendNbOfparticles
 #endif
@@ -177,8 +178,7 @@ END IF
 
 #endif /*PARTICLES*/
 
-CALL FV_main(time,time,doSource=.FALSE.)
-U_FV = U_FV + Ut_FV*dt
+CALL FV_main(time,time,doSource=.TRUE.)
 
 #ifdef PARTICLES
 IF ((time.GE.DelayTime).OR.(iter.EQ.0)) CALL UpdateNextFreePosition()
@@ -188,10 +188,15 @@ IF (time.GE.DelayTime) THEN
   IF (useDSMC) THEN
     CALL DSMC_main()
   END IF
+
+  CALL InsertNewIons()
+
   ! Split & Merge: Variable particle weighting
   IF(UseSplitAndMerge) CALL SplitAndMerge()
 END IF
 #endif /*PARTICLES*/
+
+U_FV = U_FV + Ut_FV*dt
 
 END SUBROUTINE TimeStep_ExplicitFV
 
