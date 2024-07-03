@@ -197,7 +197,8 @@ END DO ! bgSpec = 1, BGGas%NumberOfSpecies
 
 ! 6.) Read-in/convert drift diffusion coefficients
 #ifdef drift_diffusion
-
+BGGas%DatabaseName = TRIM(GETSTR('BGGas-DriftDiff-Database-Species'))
+IF(STRICMP(TRIM(BGGas%DatabaseName),'None')) CALL Abort(__STAMP__,'BGGas-DriftDiff-Database-Species not set!')
 ! Loop through the array and create combination of species for database access
 DatabaseSpeciesName = ''
 SpecCount = 0
@@ -220,7 +221,6 @@ datasetsNamesList = (/ 'DIFFUSION ', 'IONIZATION', 'MOBILITY  ', 'ENERGY    ' /)
 ! Initialize FORTRAN interface.
 CALL H5OPEN_F(err)
 CALL H5FOPEN_F (TRIM(SpeciesDatabase), H5F_ACC_RDONLY_F, File_ID_FV, err)
-BGGas%DatabaseName = TRIM(GETSTR('BGGas-DriftDiff-Database-Species'))
 DO iDataset =1, 4
   datasetname = TRIM('/Diffusion-Coefficients/'//TRIM(DatabaseSpeciesName)//'/'//TRIM(BGGas%DatabaseName)//'/'//TRIM(datasetsNamesList(iDataset)))
   
@@ -259,7 +259,6 @@ SumNumberDensity = 0
 DO iSpec = 1, BGGas%NumberOfSpecies
   SumNumberDensity = SumNumberDensity + BGGas%NumberDensity(iSpec)
 END DO
-
 ArraysFound = .FALSE.
 IF(ALLOCATED(TempDiffusion).AND.ALLOCATED(TempEnergy))THEN
   ALLOCATE(BGGas%DriftDiffusionCoefficient(2,SIZE(TempDiffusion(1,:))), BGGas%ElectronMobility(2,SIZE(TempEnergy(1,:))))
@@ -267,60 +266,46 @@ IF(ALLOCATED(TempDiffusion).AND.ALLOCATED(TempEnergy))THEN
   BGGas%DriftDiffusionCoefficient(2,:) = TempDiffusion(2,:) / SumNumberDensity
   BGGas%ElectronMobility(1,:)          = TempEnergy(1,:)
   BGGas%ElectronMobility(2,:)          = 1 / TempEnergy(2,:) * TempDiffusion(2,:) / SumNumberDensity
-  IF(ALLOCATED(TempMobility))THEN ! sanity check if more datasets are given
-    ! interpolate at one point and check if equal
-    ! TestPoint = (BGGas%ElectronMobility(1,1) + BGGas%ElectronMobility(1,SIZE(BGGas%ElectronMobility(1,:))) + & 
-    !               TempMobility(1,1) + TempMobility(1,SIZE(TempMobility(1,:))))/ 4.
-    ! CalcValue = InterpolateCoefficient(BGGas%ElectronMobility,TestPoint)
-    ! CheckValue = InterpolateCoefficient(TempMobility,TestPoint)/SumNumberDensity
-    ! IF(.NOT.ALMOSTEQUALRELATIVE(CalcValue,CheckValue,eps_rel))THEN
-    !     CALL Abort(__STAMP__,'Combination of existing datasets did not result in same results !'//&
-    !                          'Please check species database!')
-    ! END IF
+  IF(ALLOCATED(TempMobility))THEN ! sanity check if more datasets are given - currently only for LXCat created datasets
+    IF(ANY(.NOT.ALMOSTEQUALRELATIVE(TempMobility(2,:) / SumNumberDensity,BGGas%ElectronMobility(2,:),eps_rel)))THEN
+        CALL Abort(__STAMP__,'Combination of existing datasets did not result in same results !'//&
+                             'Please check species database!')
+    END IF
   END IF
   ArraysFound = .TRUE.
-ELSE IF(ALLOCATED(TempMobility).AND.ALLOCATED(TempEnergy).AND.ArraysFound.EQV..FALSE.)THEN
+ELSE IF(ALLOCATED(TempMobility).AND.ALLOCATED(TempEnergy).AND..NOT.ArraysFound)THEN
   ALLOCATE(BGGas%DriftDiffusionCoefficient(2,SIZE(TempEnergy(1,:))), BGGas%ElectronMobility(2,SIZE(TempMobility(1,:))))
   BGGas%DriftDiffusionCoefficient(1,:) = TempEnergy(1,:)
   BGGas%DriftDiffusionCoefficient(2,:) = TempEnergy(2,:) * TempMobility(2,:) / SumNumberDensity
   BGGas%ElectronMobility(1,:)          = TempMobility(1,:)
   BGGas%ElectronMobility(2,:)          = TempMobility(2,:) / SumNumberDensity
   IF(ALLOCATED(TempDiffusion))THEN ! sanity check if more datasets are given
-    ! interpolate at one point and check if equal
-    ! TestPoint = (BGGas%ElectronMobility(1,1) + BGGas%ElectronMobility(1,SIZE(BGGas%ElectronMobility(1,:))) + & 
-    !             TempDiffusion(1,1) + TempDiffusion(1,SIZE(TempDiffusion(1,:))))/ 4.
-    ! CalcValue = InterpolateCoefficient(BGGas%DriftDiffusionCoefficient,TestPoint)
-    ! CheckValue = InterpolateCoefficient(TempDiffusion,TestPoint)/SumNumberDensity
-    ! IF(.NOT.ALMOSTEQUALRELATIVE(CalcValue,CheckValue,eps_rel))THEN
-    !     CALL Abort(__STAMP__,'Combination of existing datasets did not result in same results !'//&
-    !                          'Please check species database!')
-    ! END IF
+    IF(ANY(.NOT.ALMOSTEQUALRELATIVE(TempDiffusion(2,:) / SumNumberDensity,BGGas%DriftDiffusionCoefficient(2,:),eps_rel)))THEN
+      CALL Abort(__STAMP__,'Combination of existing datasets did not result in same results !'//&
+                           'Please check species database!')
+    END IF
   END IF
   ArraysFound = .TRUE.
-ELSE IF(ALLOCATED(TempDiffusion).AND.ALLOCATED(TempMobility).AND.ArraysFound.EQV..FALSE.)THEN
-
+ELSE IF(ALLOCATED(TempDiffusion).AND.ALLOCATED(TempMobility).AND..NOT.ArraysFound)THEN
   ALLOCATE(BGGas%DriftDiffusionCoefficient(2,SIZE(TempDiffusion(1,:))), BGGas%ElectronMobility(2,SIZE(TempMobility(1,:))))
   BGGas%DriftDiffusionCoefficient(1,:) = TempDiffusion(1,:)
   BGGas%DriftDiffusionCoefficient(2,:) = TempDiffusion(2,:) / SumNumberDensity
   BGGas%ElectronMobility(1,:)          = TempMobility(1,:)
   BGGas%ElectronMobility(2,:)          = TempMobility(2,:) / SumNumberDensity
   IF(ALLOCATED(TempEnergy))THEN ! sanity check if more datasets are given
-    ! interpolate at one point and check if equal
-    ! TestPoint = (BGGas%ElectronMobility(1,1) + BGGas%ElectronMobility(1,SIZE(BGGas%ElectronMobility(1,:))) + & 
-    !             TempEnergy(1,1) + TempEnergy(1,SIZE(TempEnergy(1,:))))/ 4.
-    ! CalcValue = InterpolateCoefficient(BGGas%DriftDiffusionCoefficient/BGGas%ElectronMobility,TestPoint)
-    ! CheckValue = InterpolateCoefficient(TempEnergy,TestPoint)
-    ! PRINT *, CheckValue, CalcValue
-    ! IF(.NOT.ALMOSTEQUALRELATIVE(CalcValue,CheckValue,eps_rel))THEN
-    !     CALL Abort(__STAMP__,'Combination of existing datasets did not result in same results !'//&
-    !                          'Please check species database!')
-    ! END IF
+    IF(ANY(.NOT.ALMOSTEQUALRELATIVE(TempEnergy(2,:),BGGas%DriftDiffusionCoefficient(2,:)/BGGas%ElectronMobility(2,:),eps_rel)))THEN
+      CALL Abort(__STAMP__,'Combination of existing datasets did not result in same results !'//&
+                           'Please check species database!')
+    END IF
   END IF
   ArraysFound = .TRUE.
 ELSE 
   CALL Abort(__STAMP__,'Combination of datasets not possible to calculate D and mu!'//&
   'Please check species database!')
 END IF
+IF(ALLOCATED(TempDiffusion)) DEALLOCATE(TempDiffusion)
+IF(ALLOCATED(TempEnergy)) DEALLOCATE(TempEnergy)
+IF(ALLOCATED(TempMobility)) DEALLOCATE(TempMobility)
 ! Close the file.
 CALL H5FCLOSE_F(file_id_specdb, err)
 ! Close FORTRAN interface.
