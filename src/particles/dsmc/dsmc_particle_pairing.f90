@@ -513,7 +513,7 @@ IF (CollisMode.EQ.3) THEN
   ChemReac%RecombParticle = 0
   ChemReac%nPairForRec = 0
   ChemReac%LastPairForRec = 0
-! Determination of the mean vibrational energy for the cell ! TODO-AHO
+! Determination of the mean vibrational energy for the cell
   ChemReac%MeanEVib_PerIter(1:nSpecies) = 0.0
   DO iPart = 1, TotalPartNum
     ChemReac%MeanEVib_PerIter(PartSpecies(iPartIndx_NodeTotal(iPart)))=ChemReac%MeanEVib_PerIter(PartSpecies(iPartIndx_NodeTotal(iPart))) &

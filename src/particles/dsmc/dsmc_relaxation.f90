@@ -72,11 +72,14 @@ IF(DSMC%VibAHO) THEN ! TODO-AHO: initiale Vibrationsenergie?
   ! select level
   GroundLevel = EXP(- AHO%VibEnergy(iSpec,1) / (BoltzmannConst * TVib))
   CALL RANDOM_NUMBER(iRan)
+  iQuant = INT(AHO%NumVibLevels(iSpec) * iRan + 1.)
+  VibPartitionTemp = EXP(- AHO%VibEnergy(iSpec,iQuant) / (BoltzmannConst * TVib))
+  CALL RANDOM_NUMBER(iRan)
   ! acceptance is higher for lower levels
   DO WHILE (iRan .GE. (VibPartitionTemp / GroundLevel))
     ! select random quantum number and calculate partition function
     CALL RANDOM_NUMBER(iRan)
-    iQuant = INT(AHO%NumVibLevels(iSpec) * iRan)
+    iQuant = INT(AHO%NumVibLevels(iSpec) * iRan + 1.)
     VibPartitionTemp = EXP(- AHO%VibEnergy(iSpec,iQuant) / (BoltzmannConst * TVib))
     CALL RANDOM_NUMBER(iRan)
   END DO
@@ -129,7 +132,7 @@ END IF
 
 IF(DSMC%VibAHO) THEN ! AHO
   ! maximum quantum number
-  iQuaMax = 0
+  iQuaMax = 1
   DO WHILE (Ec.GE.AHO%VibEnergy(PartSpecies(iPart),iQuaMax))
     ! collision energy is larger than vib energy for this quantum number --> increase quantum number and try again
     iQuaMax = iQuaMax + 1
@@ -149,11 +152,13 @@ IF(DSMC%VibAHO) THEN ! AHO
   ProbAccept = (1 - (PlanckConst * c * AHO%omegaE(PartSpecies(iPart)) * iQua * (1 - AHO%xiE(PartSpecies(iPart)) * (iQua+1))) &
     / Ec) **(3/2 - CollInf%omega(iSpec1,iSpec2))
   ! compare to random number and repeat until accepted
+  CALL RANDOM_NUMBER(iRan)
   DO WHILE (iRan.GT.ProbAccept)
     CALL RANDOM_NUMBER(iRan)
     iQua = INT(iRan * iQuaMax)
     ProbAccept = (1 - (PlanckConst * c * AHO%omegaE(PartSpecies(iPart)) * iQua * (1 - AHO%xiE(PartSpecies(iPart)) * (iQua+1))) &
       / Ec) **(3/2 - CollInf%omega(iSpec1,iSpec2))
+    CALL RANDOM_NUMBER(iRan)
   END DO
   ! vibrational energy is table value of the accepted quantum number
   PartStateIntEn(1,iPart) = AHO%VibEnergy(PartSpecies(iPart),iQua)
@@ -175,7 +180,7 @@ END IF
 END SUBROUTINE DSMC_VibRelaxDiatomic
 
 
-SUBROUTINE CalcMeanVibQuaDiatomic() ! TODO-AHO
+SUBROUTINE CalcMeanVibQuaDiatomic()
 !===================================================================================================================================
 ! Computes the mean vibrational quantum number of diatomic species in a cell each iteration;
 ! ChemReac%MeanEVibQua_PerIter is required for the determination of the vibrational degree of freedom, only used for diatomic

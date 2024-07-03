@@ -1015,11 +1015,14 @@ ELSE ! diatomic
     ! select level
     GroundLevel = EXP(- AHO%VibEnergy(iSpec,1) / (BoltzmannConst * TempVib))
     CALL RANDOM_NUMBER(iRan)
+    iQuant = INT(AHO%NumVibLevels(iSpec) * iRan + 1.)
+    VibPartitionTemp = EXP(- AHO%VibEnergy(iSpec,iQuant) / (BoltzmannConst * TempVib))
+    CALL RANDOM_NUMBER(iRan)
     ! acceptance is higher for lower levels
     DO WHILE (iRan .GE. (VibPartitionTemp / GroundLevel))
       ! select random quantum number and calculate partition function
       CALL RANDOM_NUMBER(iRan)
-      iQuant = INT(AHO%NumVibLevels(iSpec) * iRan)
+      iQuant = INT(AHO%NumVibLevels(iSpec) * iRan + 1.)
       VibPartitionTemp = EXP(- AHO%VibEnergy(iSpec,iQuant) / (BoltzmannConst * TempVib))
       CALL RANDOM_NUMBER(iRan)
     END DO

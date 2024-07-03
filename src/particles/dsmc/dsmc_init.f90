@@ -877,18 +877,20 @@ ELSE !CollisMode.GT.0
             SpecDSMC(iSpec)%SpecToPolyArray = DSMC%NumPolyatomMolecs
           ELSEIF ((Species(iSpec)%InterID.EQ.2).OR.(Species(iSpec)%InterID.EQ.20)) THEN
             SpecDSMC(iSpec)%Xi_Rot     = 2
-            SpecDSMC(iSpec)%CharaTVib  = GETREAL('Part-Species'//TRIM(hilf)//'-CharaTempVib')
+            IF(.NOT.DSMC%VibAHO) THEN
+              SpecDSMC(iSpec)%CharaTVib  = GETREAL('Part-Species'//TRIM(hilf)//'-CharaTempVib')
+              SpecDSMC(iSpec)%MaxVibQuant = 200
+              ! Calculation of the dissociation quantum number (used for QK chemistry)
+            SpecDSMC(iSpec)%DissQuant = INT(SpecDSMC(iSpec)%Ediss_eV*ElementaryCharge/(BoltzmannConst*SpecDSMC(iSpec)%CharaTVib))
+            END IF
             SpecDSMC(iSpec)%CharaTRot  = GETREAL('Part-Species'//TRIM(hilf)//'-CharaTempRot','0')
             SpecDSMC(iSpec)%Ediss_eV   = GETREAL('Part-Species'//TRIM(hilf)//'-Ediss_eV')
-            SpecDSMC(iSpec)%MaxVibQuant = 200
             ! Calculation of the zero-point energy
             IF (DSMC%VibAHO) THEN
               SpecDSMC(iSpec)%EZeroPoint = AHO%VibEnergy(iSpec,1)
             ELSE
               SpecDSMC(iSpec)%EZeroPoint = DSMC%GammaQuant * BoltzmannConst * SpecDSMC(iSpec)%CharaTVib
             END IF
-            ! Calculation of the dissociation quantum number (used for QK chemistry)
-            SpecDSMC(iSpec)%DissQuant = INT(SpecDSMC(iSpec)%Ediss_eV*ElementaryCharge/(BoltzmannConst*SpecDSMC(iSpec)%CharaTVib))
           END IF
           ! Read in species values for rotational relaxation models of Boyd/Zhang if necessary
           IF(DSMC%RotRelaxProb.GT.1.0.AND.((Species(iSpec)%InterID.EQ.2).OR.(Species(iSpec)%InterID.EQ.20))) THEN

@@ -585,7 +585,7 @@ DO iElem = 1, nElems ! element/cell main loop
                   END IF
                 ELSE
                   IF (DSMC%VibAHO) THEN ! AHO
-                    CALL CalcTVibAHO(iSpec, PartEvib, Macro_TempVib)
+                    CALL CalcTVibAHO(iSpec, PartEvib/PartNum, Macro_TempVib)
                   ELSE ! SHO
                     TVib_TempFac = PartEvib / (PartNum * BoltzmannConst * SpecDSMC(iSpec)%CharaTVib)
                     IF ((PartEvib /PartNum).LE.0.0) THEN

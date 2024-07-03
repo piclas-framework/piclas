@@ -1556,8 +1556,7 @@ IF(MPIRoot)THEN
           IntTemp(iSpec,1) = CalcTVibPoly(EVib(iSpec)/NumSpecTemp, iSpec)
         ELSE
           IF(DSMC%VibAHO) THEN !AHO
-            CALL CalcTVibAHO(iSpec, EVib(iSpec), tempVib)
-            IntTemp(iSpec,1) = tempVib
+            CALL CalcTVibAHO(iSpec, EVib(iSpec)/NumSpecTemp, IntTemp(iSpec,1))
           ELSE ! SHO
             tempVib = (EVib(iSpec)/(NumSpecTemp*BoltzmannConst*SpecDSMC(iSpec)%CharaTVib)-DSMC%GammaQuant)
             IF ((tempVib.GT.0.0) &
@@ -1661,7 +1660,7 @@ DO iQuant = 1, AHO%NumVibLevels(iSpec)
 END DO
 EVibAHO = Nom/Denom
 
-DO WHILE (EVibAHO.LT.EVib)
+DO WHILE (EVibAHO.LT.(EVib - AHO%VibEnergy(iSpec,1)))
   temp = temp + dTemp
   ! EVib()
   Nom = 0.
@@ -1694,7 +1693,7 @@ EVibAHO = Nom/Denom
 dEVibAHO = (dNom*Denom - Nom*dDenom) / Denom*Denom
 
 ! Difference to EVib = sum of all particle vibrational energies --> f(tempIni)
-Ediff = EVib - EVibAHO
+Ediff = (EVib - AHO%VibEnergy(iSpec,1)) - EVibAHO
 ! Derivative f'(tempIni)
 dEdiff = - dEVibAHO
 
@@ -1721,7 +1720,7 @@ DO WHILE (ABS(tempGuess - tempIni).GT.tolerance)
   dEVibAHO = (dNom*Denom - Nom*dDenom) / Denom*Denom
 
   ! Difference to EVib = sum of all particle vibrational energies --> f(tempIni)
-  Ediff = EVib - EVibAHO
+  Ediff = (EVib - AHO%VibEnergy(iSpec,1)) - EVibAHO
   ! Derivative f'(tempIni)
   dEdiff = - dEVibAHO
 
@@ -1776,7 +1775,7 @@ ELSE
   VibDOF = 1
   ALLOCATE(XiVibPart(VibDOF))
   IF(DSMC%VibAHO) THEN ! AHO
-    ! EvibAHO(tempVib)
+    ! EvibAHO(tempVib), without zero-point energy
     Nom = 0.
     Denom = 0.
     DO iQuant = 1, AHO%NumVibLevels(iSpec)
@@ -1785,6 +1784,7 @@ ELSE
       Denom = Denom + EXP(- (AHO%VibEnergy(iSpec,iQuant) - AHO%VibEnergy(iSpec,1)) / (BoltzmannConst * TVib))
     END DO
     EVibAHO = Nom/Denom
+    ! xi
     XiVibPart = 2./ (BoltzmannConst*TVib) * EVibAHO
   ELSE ! SHO
     XiVibPart = 0.0
