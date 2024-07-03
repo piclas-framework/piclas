@@ -154,6 +154,9 @@ CASE(2) !shock
     Resu = RefState_FV(:,2)
   END IF
 
+CASE(3) !1D streamer (Markosyan et al. - 2015 - Comparing plasma fluid models of different order for 1D streamer ionization fronts)
+  Resu(1) = RefState_FV(1,1)*EXP(-((x(1)-9.e-3)/2.94e-5)**2)
+
 CASE DEFAULT
   CALL abort(__STAMP__,&
              'Specified exact function not implemented!')
@@ -166,9 +169,13 @@ SUBROUTINE CalcSource(t,coeff,Ut)
 ! Specifies all the initial conditions. The state in conservative variables is returned.
 !===================================================================================================================================
 ! MODULES
-USE MOD_Globals           ,ONLY: abort
-USE MOD_Globals_Vars      ,ONLY: PI,eps0
+USE MOD_Globals           ,ONLY: abort, vecnorm
 USE MOD_PreProc
+USE MOD_FV_Vars           ,ONLY: U_FV
+USE MOD_Equation_Vars     ,ONLY: E
+USE MOD_Transport_Data    ,ONLY: CalcDriftDiffusionCoeffAr,CalcDriftDiffusionCoeffH2,CalcIonizationRateAr,CalcDriftDiffusionCoeffNe,CalcIonizationRateNe,CalcDriftDiffusionCoeffHe,CalcIonizationRateHe
+USE MOD_DSMC_Vars         ,ONLY: BGGas
+USE MOD_Particle_Vars     ,ONLY: nSpecies, Species
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -179,9 +186,34 @@ REAL,INTENT(IN)                 :: t,coeff
 REAL,INTENT(INOUT)              :: Ut(1:PP_nVar_FV,0:0,0:0,0:0,1:PP_nElems)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-
+INTEGER                         :: ElemID, iSpec
+REAL                            :: ionRate, mu, D
 !===================================================================================================================================
+DO iSpec = 1, nSpecies
+  IF(BGGas%BackgroundSpecies(iSpec)) THEN
+    EXIT
+  END IF
+END DO
 
+DO ElemID = 1, PP_nElems
+  IF (Species(iSpec)%Name.EQ.'H2') THEN
+    CALL CalcDriftDiffusionCoeffH2(VECNORM(E(1:3,0,0,0,ElemID)),BGGas%NumberDensity(iSpec),mu,D)
+  ELSE IF (Species(iSpec)%Name.EQ.'Ar') THEN
+    CALL CalcDriftDiffusionCoeffAr(VECNORM(E(1:3,0,0,0,ElemID)),BGGas%NumberDensity(iSpec),mu,D)
+    CALL CalcIonizationRateAr(VECNORM(E(1:3,0,0,0,ElemID)),BGGas%NumberDensity(iSpec),ionRate)
+  ELSE IF (Species(iSpec)%Name.EQ.'Ne') THEN
+    CALL CalcDriftDiffusionCoeffNe(VECNORM(E(1:3,0,0,0,ElemID)),BGGas%NumberDensity(iSpec),mu,D)
+    CALL CalcIonizationRateNe(VECNORM(E(1:3,0,0,0,ElemID)),BGGas%NumberDensity(iSpec),ionRate)
+  ELSE IF (Species(iSpec)%Name.EQ.'He') THEN
+    CALL CalcDriftDiffusionCoeffHe(VECNORM(E(1:3,0,0,0,ElemID)),BGGas%NumberDensity(iSpec),mu,D)
+    CALL CalcIonizationRateHe(VECNORM(E(1:3,0,0,0,ElemID)),BGGas%NumberDensity(iSpec),ionRate)
+  ELSE
+    CALL abort(__STAMP__,'bg gas species unknowned for electron fluid')
+  END IF
+
+  Ut(1,:,:,:,ElemID) = Ut(1,:,:,:,ElemID) + ionRate*mu*VECNORM(E(1:3,0,0,0,ElemID))*U_FV(1,:,:,:,ElemID)
+  ! print*, 'ionrate', ionRate, ionRate*mu*VECNORM(E(1:3,0,0,0,ElemID))
+END DO
 
 END SUBROUTINE CalcSource
 

@@ -31,7 +31,11 @@ SUBROUTINE Riemann(F,U_L,U_R,nv,GradSide,E_L,E_R)
 USE MOD_PreProc ! 0
 USE MOD_TimeDisc_Vars  ,ONLY : dt
 USE MOD_Globals        ,ONLY :abort, vecnorm
+<<<<<<< HEAD
 USE MOD_Transport_Data ,ONLY: CalcDriftDiffusionCoeffAr,CalcDriftDiffusionCoeffH2, CalcDriftDiffusionCoeff
+=======
+USE MOD_Transport_Data ,ONLY: CalcDriftDiffusionCoeffAr,CalcDriftDiffusionCoeffH2,CalcDriftDiffusionCoeffNe,CalcDriftDiffusionCoeffHe
+>>>>>>> 32309922dc42faeac5fadf1f030cbf1fef8a310e
 USE MOD_DSMC_Vars      ,ONLY: BGGas
 USE MOD_Particle_Vars  ,ONLY: nSpecies, Species
 ! IMPLICIT VARIABLE HANDLING
