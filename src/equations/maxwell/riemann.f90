@@ -113,13 +113,13 @@ CASE(RIEMANN_PML)
   CALL RiemannPML(Nloc,Flux_Master(1:32,:,:),U_Master(:,:,:),U_Slave(:,:,:),NormVec(:,:,:))
 CASE(RIEMANN_DIELECTRIC)
   ! dielectric region <-> dielectric region
-  ALLOCATE(DieLoc(1,0:Nloc,0:Nloc), DieTmp(1,0:NDie,0:NDie))  
+  ALLOCATE(DieLoc(1,0:Nloc,0:Nloc), DieTmp(1,0:NDie,0:NDie))
   IF (NDie.LT.Nloc) THEN
     DieTmp(1,0:NDie,0:NDie) = DielectricSurf(SideID)%Dielectric_Master(0:NDie,0:NDie)
     CALL ChangeBasis2D(1, NDie, Nloc, PREF_VDM(NDie,Nloc)%Vdm, DieTmp(1:1,0:NDie,0:NDie), DieLoc(1:1,0:Nloc,0:Nloc))
   ELSE
     DieLoc(1,0:Nloc,0:Nloc) = DielectricSurf(SideID)%Dielectric_Master(0:Nloc,0:Nloc)
-  END IF 
+  END IF
   CALL RiemannDielectric(Nloc,Flux_Master(1:8,:,:),U_Master(:,:,:),U_Slave(:,:,:),NormVec(:,:,:),DieLoc(1,0:Nloc,0:Nloc))
   SDEALLOCATE(DieLoc)
   SDEALLOCATE(DieTmp)
@@ -130,19 +130,19 @@ CASE(RIEMANN_DIELECTRIC2VAC)
     CALL ChangeBasis2D(1, NDie, Nloc, PREF_VDM(NDie,Nloc)%Vdm, DieTmp(1:1,0:NDie,0:NDie), DieLoc(1:1,0:Nloc,0:Nloc))
   ELSE
     DieLoc(1,0:Nloc,0:Nloc) = DielectricSurf(SideID)%Dielectric_Master(0:Nloc,0:Nloc)
-  END IF 
+  END IF
   ! master is DIELECTRIC and slave PHYSICAL: A+(Eps0,Mu0) and A-(EpsR,MuR)
   CALL RiemannDielectricInterFace2(Nloc,Flux_Master(1:8,:,:),U_Master(:,:,:),U_Slave(:,:,:),NormVec(:,:,:),DieLoc(1,0:Nloc,0:Nloc))
   SDEALLOCATE(DieLoc)
   SDEALLOCATE(DieTmp)
 CASE(RIEMANN_VAC2DIELECTRIC)
   ALLOCATE(DieLoc(1,0:Nloc,0:Nloc), DieTmp(1,0:NDie,0:NDie))
-  IF (NDie.LT.Nloc) THEN    
+  IF (NDie.LT.Nloc) THEN
     DieTmp(1,0:NDie,0:NDie) = DielectricSurf(SideID)%Dielectric_Master(0:NDie,0:NDie)
     CALL ChangeBasis2D(1, NDie, Nloc, PREF_VDM(NDie,Nloc)%Vdm, DieTmp(1:1,0:NDie,0:NDie), DieLoc(1:1,0:Nloc,0:Nloc))
   ELSE
     DieLoc(1,0:Nloc,0:Nloc) = DielectricSurf(SideID)%Dielectric_Master(0:Nloc,0:Nloc)
-  END IF 
+  END IF
   ! master is PHYSICAL and slave DIELECTRIC: A+(EpsR,MuR) and A-(Eps0,Mu0)
   CALL RiemannDielectricInterFace(Nloc,Flux_Master(1:8,:,:),U_Master(:,:,:),U_Slave(:,:,:),NormVec(:,:,:),DieLoc(1,0:Nloc,0:Nloc))
   SDEALLOCATE(DieLoc)
@@ -154,7 +154,7 @@ CASE(RIEMANN_DIELECTRIC2VAC_NC)  ! use non-conserving fluxes (two different flux
     CALL ChangeBasis2D(1, NDie, Nloc, PREF_VDM(NDie,Nloc)%Vdm, DieTmp(1:1,0:NDie,0:NDie), DieLoc(1:1,0:Nloc,0:Nloc))
   ELSE
     DieLoc(1,0:Nloc,0:Nloc) = DielectricSurf(SideID)%Dielectric_Master(0:Nloc,0:Nloc)
-  END IF 
+  END IF
   ! 1.) dielectric master side
   CALL RiemannDielectric(Nloc,Flux_Master(1:8,:,:),U_Master(:,:,:),U_Slave(:,:,:),NormVec(:,:,:),DieLoc(1,0:Nloc,0:Nloc))
   ! 2.) vacuum slave side
@@ -168,7 +168,7 @@ CASE(RIEMANN_VAC2DIELECTRIC_NC) ! use non-conserving fluxes (two different fluxe
     CALL ChangeBasis2D(1, NDie, Nloc, PREF_VDM(NDie,Nloc)%Vdm, DieTmp(1:1,0:NDie,0:NDie), DieLoc(1:1,0:Nloc,0:Nloc))
   ELSE
     DieLoc(1,0:Nloc,0:Nloc) = DielectricSurf(SideID)%Dielectric_Master(0:Nloc,0:Nloc)
-  END IF 
+  END IF
   ! 1.) dielectric slave side
   CALL RiemannDielectric(Nloc,Flux_Slave(1:8,:,:),U_Master(:,:,:),U_Slave(:,:,:),NormVec(:,:,:),DieLoc(1,0:Nloc,0:Nloc))
   ! 2.) vacuum master side

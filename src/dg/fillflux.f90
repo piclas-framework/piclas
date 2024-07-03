@@ -138,7 +138,7 @@ IF(DoExactFlux) THEN
   DO SideID=firstSideID,lastSideID
     IF (isExactFluxInterFace(SideID))THEN! CAUTION: Multiplication with SurfElem is done in ExactFlux
       ! Get polynomial degrees of master/slave sides
-      N_master = DG_Elems_master(SideID) 
+      N_master = DG_Elems_master(SideID)
       N_slave  = DG_Elems_slave (SideID)
       IF(N_master.NE.N_slave) CALL abort(__STAMP__,'exact flux for different N not imeplemented')
       Nloc     = DG_Elems_master(SideID)
@@ -159,7 +159,7 @@ END SUBROUTINE FillFlux
 
 
 !===================================================================================================================================
-!> 
+!>
 !===================================================================================================================================
 SUBROUTINE GetSurfaceFlux(SideID,N_master,N_slave,N_max,Flux_Master,Flux_Slave,U_Master,U_Slave,NormVec,SurfElem)
 ! MODULES

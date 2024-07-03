@@ -532,8 +532,10 @@ DO iSide = 1, nSides
   MinSlave  = MINVAL(DielectricSurf(iSide)%Dielectric_Slave(:,:))
   MinMaster = MINVAL(DielectricSurf(iSide)%Dielectric_Master(:,:))
   IF((MinMaster.LT.0.0).AND.(MinSlave.LT.0.0))THEN
+    ! Both are negative: vacuum-vacuum side
     DielectricSurf(iSide)%Dielectric_Master(:,:) = 1.0
   ELSEIF(MinMaster.LT.0.0)THEN
+    ! Master is negative: master side is in vacuum, slave side is in dielectric
     DielectricSurf(iSide)%Dielectric_Master(:,:) = DielectricSurf(iSide)%Dielectric_Slave(:,:)
   END IF ! (MinMaster.LT.0.0).AND.(MinSlave.LT.0.0)
 END DO ! iSide = 1, nSides

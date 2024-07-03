@@ -379,7 +379,7 @@ INTEGER,INTENT(OUT) :: MPIRequest(nNbProcs)                                   !<
 DO iNbProc=1,nNbProcs
   IF(nMPISides_rec(iNbProc,SendID).GT.0)THEN
     nRecVal = PP_nVar*DataSizeSideRec(iNbProc,SendID)
-    CALL MPI_IRECV(DGExchange(iNbProc)%FaceDataRecv(:,1:DataSizeSideRec(iNbProc,SendID)),nRecVal,MPI_DOUBLE_PRECISION,  &
+    CALL MPI_IRECV(DGExchange(iNbProc)%FaceDataRecv(1:PP_nVar,1:DataSizeSideRec(iNbProc,SendID)),nRecVal,MPI_DOUBLE_PRECISION,  &
                     nbProc(iNbProc),0,MPI_COMM_PICLAS,MPIRequest(iNbProc),iError)
   ELSE
     MPIRequest(iNbProc)=MPI_REQUEST_NULL

@@ -288,7 +288,7 @@ END IF
 ! 1.) use standard bounding box region
 ! ----------------------------------------------------------------------------------------------------------------------------------
 ! all DOF in an element must be inside the region, if one DOF is outside, the element is excluded
-DO iElem=1,PP_nElems 
+DO iElem=1,PP_nElems
   Nloc = N_DG_Mapping(2,iElem+offSetElem)
   DO k=0,Nloc; DO j=0,Nloc; DO i=0,Nloc
     DO m=1,3 ! m=x,y,z
