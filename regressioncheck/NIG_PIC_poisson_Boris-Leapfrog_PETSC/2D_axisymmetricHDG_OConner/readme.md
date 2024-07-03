@@ -7,4 +7,4 @@
   * cell_mean
   * cell_volweight
   * cell_volweight_mean
-* Comparing the kinetic and potential energy of the electrons
+* Comparing the kinetic (PartAnalyze.csv) and potential energy (FieldAnalyze.csv) of the electrons over time
