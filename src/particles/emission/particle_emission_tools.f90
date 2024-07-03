@@ -373,6 +373,7 @@ USE MOD_DSMC_Vars               ,ONLY: PartStateIntEn, SpecDSMC, DSMC, BGGas
 USE MOD_Particle_Vars           ,ONLY: Species, PEM
 USE MOD_Particle_Sampling_Vars  ,ONLY: AdaptBCMacroVal, AdaptBCMapElemToSample
 USE MOD_DSMC_ElectronicModel    ,ONLY: InitElectronShell
+USE MOD_part_tools              ,ONLY: CalcERotDataset_particle
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -390,7 +391,7 @@ INTEGER                         :: ElemID
 ! Quantized rotational energy
 INTEGER                         :: jMax
 LOGICAL                         :: ARM
-REAL                            :: fNorm, J
+REAL                            :: fNorm, J, eNorm
 !===================================================================================================================================
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Set internal energies (vibrational and rotational)
@@ -437,13 +438,16 @@ IF ((Species(iSpecies)%InterID.EQ.2).OR.(Species(iSpecies)%InterID.EQ.20)) THEN
   END DO
   PartStateIntEn( 1,iPart) = (iQuant + DSMC%GammaQuant)*SpecDSMC(iSpecies)%CharaTVib*BoltzmannConst
   ! set rotational energy
-  IF(DSMC%DoRotRelaxQuantized) THEN
+  IF(DSMC%RotRelaxModel.EQ.1) THEN
     ! Quantized treatment of rotational energy
-    jMax = 40
+    J = NINT(0.5 * (SQRT(2.*TRot/SpecDSMC(iSpecies)%CharaTRot) - 1.))
+    ! eNorm brings integral over fNorm(j) from 0 to infinity to 1
+    eNorm = TRot/SpecDSMC(iSpecies)%CharaTRot * exp(-SpecDSMC(iSpecies)%CharaTRot/TRot)/((2.*J + 1.)*EXP(-J*(J + 1.)*SpecDSMC(iSpecies)%CharaTRot/TRot))
+    ! set jMax to include 99.9% of energy in fNorm distribution
+    jMax = NINT(0.5 * (SQRT(1.-4.*TRot/SpecDSMC(iSpecies)%CharaTRot*log(1.-0.999*eNorm*((2.*J + 1.)*EXP(-J*(J + 1.)*SpecDSMC(iSpecies)%CharaTRot/TRot))*SpecDSMC(iSpecies)%CharaTRot/TRot))-1.))
     ARM = .TRUE.
     CALL RANDOM_NUMBER(iRan)
     iQuant = INT((1+jMax)*iRan)
-    J = NINT(0.5 * (SQRT(2.*TRot/SpecDSMC(iSpecies)%CharaTRot) - 1.))
     DO WHILE (ARM)
       fNorm = (2.*REAL(iQuant) + 1.)*EXP(-REAL(iQuant)*(REAL(iQuant) + 1.)*SpecDSMC(iSpecies)%CharaTRot/TRot) &
       / ((2.*J + 1.)*EXP(-J*(J + 1.)*SpecDSMC(iSpecies)%CharaTRot/TRot))
@@ -456,6 +460,8 @@ IF ((Species(iSpecies)%InterID.EQ.2).OR.(Species(iSpecies)%InterID.EQ.20)) THEN
       END IF
     END DO
     PartStateIntEn( 2,iPart) = REAL(iQuant) * (REAL(iQuant) + 1.) * BoltzmannConst * SpecDSMC(iSpecies)%CharaTRot
+  ELSE IF(DSMC%RotRelaxModel.EQ.2)THEN
+    PartStateIntEn( 2,iPart) = CalcERotDataset_particle(iSpecies, TRot)
   ELSE
     ! Continuous treatment of rotational energy
     CALL RANDOM_NUMBER(iRan)

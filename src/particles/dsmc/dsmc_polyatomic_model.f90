@@ -81,7 +81,7 @@ IF(SpeciesDatabase.NE.'none') THEN
   CALL H5FOPEN_F (TRIM(SpeciesDatabase), H5F_ACC_RDONLY_F, file_id_specdb, err)
   dsetname = TRIM('/Species/'//TRIM(Species(iSpec)%Name))
   ! Linear molecule
-  CALL ReadAttribute(file_id_specdb,'LinearMolec',1,DatasetName = dsetname,IntScalar=IntToLog)
+  CALL ReadAttribute(file_id_specdb,'LinearMolec',1,DatasetName = dsetname,IntScalar=IntToLog,ChangeToGroup='True')
   IF(IntToLog.EQ.1) THEN
     PolyatomMolDSMC(iPolyatMole)%LinearMolec = .TRUE.
   ELSE
@@ -89,11 +89,11 @@ IF(SpeciesDatabase.NE.'none') THEN
   END IF
   CALL PrintOption('LinearMolec, '//TRIM(Species(iSpec)%Name),'DB',LogOpt=PolyatomMolDSMC(iPolyatMole)%LinearMolec)
   ! Number of atoms
-  CALL ReadAttribute(file_id_specdb,'NumOfAtoms',1,DatasetName = dsetname,IntScalar=PolyatomMolDSMC(iPolyatMole)%NumOfAtoms)
+  CALL ReadAttribute(file_id_specdb,'NumOfAtoms',1,DatasetName = dsetname,IntScalar=PolyatomMolDSMC(iPolyatMole)%NumOfAtoms,ChangeToGroup='True')
   CALL PrintOption('NumOfAtoms, '//TRIM(Species(iSpec)%Name),'DB',IntOpt=PolyatomMolDSMC(iPolyatMole)%NumOfAtoms)
   ! Dissociation energy
   ! TSHO not implemented with polyatomic molecules, but Ediss_eV required for the calculation of polyatomic temp. (upper bound)
-  CALL ReadAttribute(file_id_specdb,'Ediss_eV',1,DatasetName = dsetname,RealScalar=SpecDSMC(iSpec)%Ediss_eV)
+  CALL ReadAttribute(file_id_specdb,'Ediss_eV',1,DatasetName = dsetname,RealScalar=SpecDSMC(iSpec)%Ediss_eV,ChangeToGroup='True')
   CALL PrintOption('Ediss_eV, '//TRIM(Species(iSpec)%Name),'DB',RealOpt=SpecDSMC(iSpec)%Ediss_eV)
   ! Close the file.
   CALL H5FCLOSE_F(file_id_specdb, err)
@@ -134,29 +134,31 @@ IF(SpeciesDatabase.NE.'none') THEN
   CALL H5FOPEN_F (TRIM(SpeciesDatabase), H5F_ACC_RDONLY_F, file_id_specdb, err)
   dsetname = TRIM('/Species/'//TRIM(Species(iSpec)%Name))
   IF(PolyatomMolDSMC(iPolyatMole)%LinearMolec) THEN
-    CALL AttributeExists(file_id_specdb,'MomentOfInertia',TRIM(dsetname), AttrExists=AttrExists)
+    CALL AttributeExists(file_id_specdb,'MomentOfInertia',TRIM(dsetname), AttrExists=AttrExists,ChangeToGroup='True')
     IF (AttrExists) THEN
       CALL ReadAttribute(file_id_specdb,'MomentOfInertia',3,DatasetName = dsetname,  &
-        RealArray=PolyatomMolDSMC(iPolyatMole)%MomentOfInertia)
-      CALL AttributeExists(file_id_specdb,'CharaTempRot',TRIM(dsetname), AttrExists=AttrExists)
+        RealArray=PolyatomMolDSMC(iPolyatMole)%MomentOfInertia,ChangeToGroup='True')
+      CALL AttributeExists(file_id_specdb,'CharaTempRot',TRIM(dsetname), AttrExists=AttrExists,ChangeToGroup='True')
       IF(AttrExists)THEN
-        CALL ReadAttribute(file_id_specdb,'CharaTempRot',1,DatasetName = dsetname,RealScalar=SpecDSMC(iSpec)%CharaTRot)
+        CALL ReadAttribute(file_id_specdb,'CharaTempRot',1,DatasetName = dsetname, &
+          RealScalar=PolyatomMolDSMC(iPolyatMole)%CharaTRotDOF(1),ChangeToGroup='True')
       ELSE
         PolyatomMolDSMC(iPolyatMole)%CharaTRotDOF(1) = PlanckConst**2 / & 
         (8 * PI**2 * PolyatomMolDSMC(iPolyatMole)%MomentOfInertia(1) * BoltzmannConst)
       END IF
     ELSE  ! moment of inertia not found
-      CALL AttributeExists(file_id_specdb,'CharaTempRot',TRIM(dsetname), AttrExists=AttrExists)
+      CALL AttributeExists(file_id_specdb,'CharaTempRot',TRIM(dsetname), AttrExists=AttrExists,ChangeToGroup='True')
       IF(AttrExists)THEN
-        CALL ReadAttribute(file_id_specdb,'CharaTempRot',1,DatasetName = dsetname,RealScalar=SpecDSMC(iSpec)%CharaTRot)
+        CALL ReadAttribute(file_id_specdb,'CharaTempRot',1,DatasetName = dsetname,  &
+          RealScalar=PolyatomMolDSMC(iPolyatMole)%CharaTRotDOF(1),ChangeToGroup='True')
       ELSE  ! CharaTempRot not found
         PolyatomMolDSMC(iPolyatMole)%CharaTRotDOF(1) = 0
       END IF
-      IF(DSMC%DoRotRelaxQuantized)THEN
+      IF(DSMC%RotRelaxModel.EQ.2)THEN
         CALL abort(&
         __STAMP__&
         ,'Moment of inertia necessary for quantized rotational energy and is not set for species', iSpec)
-      ELSE  ! not needed if DoRotRelaxQuantized false
+      ELSE  ! not needed if RotRelaxModel NE to 2
         PolyatomMolDSMC(iPolyatMole)%MomentOfInertia(1) = 0
       END IF
     END IF
@@ -166,15 +168,16 @@ IF(SpeciesDatabase.NE.'none') THEN
     PolyatomMolDSMC(iPolyatMole)%CharaTRotDOF(2:3) = 0
     PolyatomMolDSMC(iPolyatMole)%MomentOfInertia(2:3) = 0
   ELSE
-    CALL AttributeExists(file_id_specdb,'MomentOfInertia',TRIM(dsetname), AttrExists=AttrExists)
+    CALL AttributeExists(file_id_specdb,'MomentOfInertia',TRIM(dsetname), AttrExists=AttrExists,ChangeToGroup='True')
     IF (AttrExists) THEN
       CALL ReadAttribute(file_id_specdb,'MomentOfInertia',3,DatasetName = dsetname,  &
-        RealArray=PolyatomMolDSMC(iPolyatMole)%MomentOfInertia)
+        RealArray=PolyatomMolDSMC(iPolyatMole)%MomentOfInertia,ChangeToGroup='True')
       DO iVibDOF = 1,3
         WRITE(UNIT=hilf2,FMT='(I0)') iVibDOF
-        CALL AttributeExists(file_id_specdb,TRIM('CharaTempRot'//TRIM(hilf2)),TRIM(dsetname), AttrExists=AttrExists)
+        CALL AttributeExists(file_id_specdb,TRIM('CharaTempRot'//TRIM(hilf2)),TRIM(dsetname), AttrExists=AttrExists,ChangeToGroup='True')
         IF (AttrExists) THEN  !read in CharaTempRot
-          CALL ReadAttribute(file_id_specdb,TRIM('CharaTempRot'//TRIM(hilf2)),1,DatasetName = dsetname,RealScalar=PolyatomMolDSMC(iPolyatMole)%CharaTRotDOF(iVibDOF))
+          CALL ReadAttribute(file_id_specdb,TRIM('CharaTempRot'//TRIM(hilf2)),1,DatasetName = dsetname, &
+            RealScalar=PolyatomMolDSMC(iPolyatMole)%CharaTRotDOF(iVibDOF),ChangeToGroup='True')
         ELSE  !calculate CharaTempRot
           PolyatomMolDSMC(iPolyatMole)%CharaTRotDOF(iVibDOF) = PlanckConst**2 / &
             (8 * PI**2 * PolyatomMolDSMC(iPolyatMole)%MomentOfInertia(iVibDOF) * BoltzmannConst)
@@ -183,18 +186,19 @@ IF(SpeciesDatabase.NE.'none') THEN
     ELSE  ! moment of inertia not found
       DO iVibDOF = 1,3
         WRITE(UNIT=hilf2,FMT='(I0)') iVibDOF
-        CALL AttributeExists(file_id_specdb,TRIM('CharaTempRot'//TRIM(hilf2)),TRIM(dsetname), AttrExists=AttrExists)
+        CALL AttributeExists(file_id_specdb,TRIM('CharaTempRot'//TRIM(hilf2)),TRIM(dsetname), AttrExists=AttrExists,ChangeToGroup='True')
         IF (AttrExists) THEN  ! read in CharaTempRot
-          CALL ReadAttribute(file_id_specdb,TRIM('CharaTempRot'//TRIM(hilf2)),1,DatasetName = dsetname,RealScalar=PolyatomMolDSMC(iPolyatMole)%CharaTRotDOF(iVibDOF))
+          CALL ReadAttribute(file_id_specdb,TRIM('CharaTempRot'//TRIM(hilf2)),1,DatasetName = dsetname, &
+            RealScalar=PolyatomMolDSMC(iPolyatMole)%CharaTRotDOF(iVibDOF))
         ELSE  ! set dummy value to zero
           PolyatomMolDSMC(iPolyatMole)%CharaTRotDOF(iVibDOF) = 0
         END IF
       END DO
-      IF(DSMC%DoRotRelaxQuantized)THEN
+      IF(DSMC%RotRelaxModel.EQ.2)THEN
         CALL abort(&
         __STAMP__&
         ,'Moment of inertia necessary for quantized rotational energy and is not set for species', iSpec)
-      ELSE  ! not needed if DoRotRelaxQuantized false
+      ELSE  ! not needed if RotRelaxModel NE 2 
         DO iVibDOF = 1,3
           PolyatomMolDSMC(iPolyatMole)%MomentOfInertia(iVibDOF) = 0
         END DO
@@ -225,7 +229,7 @@ IF(SpeciesDatabase.NE.'none') THEN
   DO iVibDOF = 1, PolyatomMolDSMC(iPolyatMole)%VibDOF
     WRITE(UNIT=hilf2,FMT='(I0)') iVibDOF
     CALL ReadAttribute(file_id_specdb,TRIM('CharaTempVib'//TRIM(hilf2)),1,DatasetName = dsetname, &
-      RealScalar=PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iVibDOF))
+      RealScalar=PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iVibDOF),ChangeToGroup='True')
     CALL PrintOption('CharaTempVib'//TRIM(hilf2)//' '//TRIM(Species(iSpec)%Name),'DB',  &
       RealOpt=PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iVibDOF))
   END DO
@@ -359,214 +363,6 @@ DEALLOCATE(iRan, iQuant_old)
 
 END SUBROUTINE DSMC_FindFirstVibPick
 
-
-SUBROUTINE DSMC_SetInternalRotEnr_Poly(iSpec, iPart, TRot)
-!===================================================================================================================================
-! Initialization of internal rotatinal energy of polyatomic molecules
-!> Quantized treatment according to LIECHTY, Derek S. State-to-state internal energy relaxation following the quantum-kinetic 
-!> model in DSMC. In: 44th AIAA Thermophysics Conference. 2013. S. 2901.; doi: 10.2514/6.2013-2901
-!===================================================================================================================================
-! MODULES
-USE MOD_Globals               ,ONLY: Abort
-USE MOD_Globals_Vars          ,ONLY: BoltzmannConst, PlanckConst, PI
-USE MOD_DSMC_Vars             ,ONLY: PartStateIntEn, SpecDSMC, DSMC,PolyatomMolDSMC,VibQuantsPar,BGGas
-USE MOD_Particle_Vars         ,ONLY: PEM, Species
-USE MOD_Particle_Sampling_Vars,ONLY: AdaptBCMacroVal, AdaptBCMapElemToSample
-USE MOD_DSMC_ElectronicModel  ,ONLY: InitElectronShell
-! IMPLICIT VARIABLE HANDLING
-IMPLICIT NONE
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
-INTEGER, INTENT(IN)           :: iSpec,iPart
-REAL                          :: TRot
-!-----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-REAL                          :: iRan, iRan2, NormProb, delta, fNorm!, MomentA, MomentB, MomentC
-INTEGER                       :: iQuant, J, kQuant, jMax, iPolyatMole
-LOGICAL                       :: ARM
-
-INTEGER                       :: JJMAX,KMAX,delta_max,jIter,kIter
-REAL                          :: CurrentValue,MaxValue
-
-!===================================================================================================================================
-IF(DSMC%DoRotRelaxQuantized) THEN       ! quantized treatment of rotational energy
-  iPolyatMole = SpecDSMC(iSpec)%SpecToPolyArray
-  !//TODO make jmax dependent on energy -> quantum number where energy change is less than rel tol
-  ARM = .TRUE.
-  IF(PolyatomMolDSMC(iPolyatMole)%LinearMolec)THEN        ! check if molecule is linear
-    J = NINT(0.5 * (SQRT(2.*TRot/PolyatomMolDSMC(iPolyatMole)%CharaTRotDOF(1)) - 1.))
-    jMax = 4.0 * J    ! thumb rule
-    CALL RANDOM_NUMBER(iRan)
-    iQuant = INT((1+jMax)*iRan)
-    DO WHILE (ARM)
-      fNorm = (2.*REAL(iQuant) + 1.)*EXP(-REAL(iQuant)*(REAL(iQuant) + 1.)*PolyatomMolDSMC(iPolyatMole)%CharaTRotDOF(1)/TRot) &
-      / ((2.*J + 1.)*EXP(-J*(J + 1.)*PolyatomMolDSMC(iPolyatMole)%CharaTRotDOF(1)/TRot))
-      CALL RANDOM_NUMBER(iRan)
-      IF(fNorm .LT. iRan) THEN
-        CALL RANDOM_NUMBER(iRan)
-        iQuant = INT((1+jMax)*iRan)
-      ELSE
-        ARM = .FALSE.
-      END IF
-    END DO
-    PartStateIntEn( 2,iPart) = REAL(iQuant) * (REAL(iQuant) + 1.) * BoltzmannConst * PolyatomMolDSMC(iPolyatMole)%CharaTRotDOF(1)
-
-  ELSE IF(PolyatomMolDSMC(iPolyatMole)%RotationalGroup.EQ.1)THEN       ! molecule is non-linear -> spherical top molecule with all moments of inertia are the same
-    J = NINT(0.5 * (SQRT(4.*TRot/PolyatomMolDSMC(iPolyatMole)%CharaTRotDOF(1)) - 1.))
-    jMax = 3.0 * J    ! thumb rule
-    CALL RANDOM_NUMBER(iRan)
-    iQuant = INT((1+jMax)*iRan)
-    DO WHILE (ARM)
-      fNorm = (2.*REAL(iQuant) + 1.)**2 *EXP(-REAL(iQuant)*(REAL(iQuant) + 1.)*PolyatomMolDSMC(iPolyatMole)%CharaTRotDOF(1)/TRot) &
-      / ((2.*J + 1.)**2 *EXP(-J*(J + 1.)*PolyatomMolDSMC(iPolyatMole)%CharaTRotDOF(1)/TRot))
-      CALL RANDOM_NUMBER(iRan)
-      IF(fNorm .LT. iRan) THEN
-        CALL RANDOM_NUMBER(iRan)
-        iQuant = INT((1+jMax)*iRan)
-      ELSE
-        ARM = .FALSE.
-      END IF
-    END DO
-    PartStateIntEn( 2,iPart) = REAL(iQuant) * (REAL(iQuant) + 1.) * BoltzmannConst * PolyatomMolDSMC(iPolyatMole)%CharaTRotDOF(1)
-  
-  ELSE IF(PolyatomMolDSMC(iPolyatMole)%RotationalGroup.EQ.2)THEN      ! molecule is non-linear -> symmetric top molecule where two are equal and third is different
-    !//TODO MH algorithm
-    ! CALL DSMC_RotRelaxSymTopMH(iPart, iPolyatMole)
-
-    ! PRINT *,'sym top start',TRot
-    J = NINT(0.5 * (SQRT(16*BoltzmannConst*TRot*PI**2*PolyatomMolDSMC(iPolyatMole)%MomentOfInertia(1)/PlanckConst**2) - 1.)) ! for max is K = 0
-    ! jMax = 3.0 * J    ! thumb rule
-    jMax = 250
-
-    !=================================================================================================
-    ! Find max value numerically
-    ! jIter = 0
-    ! JJMAX = 0
-    ! KMAX = 0
-    ! MaxValue = 0.
-    ! DO WHILE (jIter .LE. jMax)
-    !     kIter = 0
-    !     DO WHILE (kIter .LE. jIter)
-    !         IF (kIter.EQ.0) THEN
-    !             delta = 1
-    !         ELSE
-    !             delta = 0
-    !         END IF
-
-    !         CurrentValue = (2. - REAL(delta)) * (2. * REAL(jIter) + 1.) * EXP(-PlanckConst**2 / (8 * PI**2 * BoltzmannConst * TRot) * (REAL(jIter) * (REAL(jIter) + 1) / PolyatomMolDSMC(iPolyatMole)%MomentOfInertia(1) + (1. / PolyatomMolDSMC(iPolyatMole)%MomentOfInertia(3) - 1. / PolyatomMolDSMC(iPolyatMole)%MomentOfInertia(1)) * REAL(kIter)**2.))
-
-    !         IF (CurrentValue .GT. MaxValue) THEN
-    !             MaxValue = CurrentValue
-    !             JJMAX = jIter
-    !             KMAX = kIter
-    !         END IF
-    !         kIter = kIter + 1
-    !     END DO
-    !     jIter = jIter + 1
-    ! END DO
-
-    ! print out values for Comparison
-    ! PRINT *, "JMAX","Kmax",JJMAX, KMAX
-    ! PRINT *, "analytic J", J
-    ! PRINT *, "JJ", (2.*(2.*J + 1.)*EXP(-PlanckConst**2 / (8*PI**2*BoltzmannConst*TRot) * (J*(J+1) / PolyatomMolDSMC(iPolyatMole)%MomentOfInertia(1) + (1/PolyatomMolDSMC(iPolyatMole)%MomentOfInertia(3) - 1./PolyatomMolDSMC(iPolyatMole)%MomentOfInertia(1)) * J**2)))
-    ! PRINT *, "num max", ((2.-REAL(delta_max))*(2.*REAL(JJMAX) + 1.)*EXP(-PlanckConst**2 / (8*PI**2*BoltzmannConst*TRot) * (REAL(JJMAX)*(REAL(JJMAX)+1.) / PolyatomMolDSMC(iPolyatMole)%MomentOfInertia(1) + (1./PolyatomMolDSMC(iPolyatMole)%MomentOfInertia(3) - 1./PolyatomMolDSMC(iPolyatMole)%MomentOfInertia(1)) * REAL(KMAX)**2.)))
-
-    !=================================================================================================
-    CALL RANDOM_NUMBER(iRan)
-    iQuant = INT((1+jMax)*iRan)
-    CALL RANDOM_NUMBER(iRan)
-    kQuant = INT((2. * jMax + 1.) * iRan) - jMax
-
-    DO WHILE(kQuant**2.GT.iQuant**2)
-      CALL RANDOM_NUMBER(iRan)
-      iQuant = INT((1+jMax)*iRan)
-      CALL RANDOM_NUMBER(iRan)
-      kQuant = INT((2. * jMax + 1.) * iRan) - jMax
-    END DO
-
-    !=================================================================================================
-    DO WHILE (ARM)
-      IF(kQuant.EQ.0)THEN   ! set delta for degeneracy in fNorm
-        delta=1.
-      ELSE
-        delta=0.
-      END IF
-
-      fNorm = ((2-delta)*(2.*REAL(iQuant) + 1.)*EXP(-PlanckConst**2 / (8*PI**2*BoltzmannConst*TRot) * (REAL(iQuant)*(REAL(iQuant)+1) / PolyatomMolDSMC(iPolyatMole)%MomentOfInertia(1) + (1/PolyatomMolDSMC(iPolyatMole)%MomentOfInertia(3) - 1/PolyatomMolDSMC(iPolyatMole)%MomentOfInertia(1)) * REAL(kQuant)**2))) &
-      / (2.*(2.*J + 1.)*EXP(-PlanckConst**2 / (8*PI**2*BoltzmannConst*TRot) * (J*(J+1) / PolyatomMolDSMC(iPolyatMole)%MomentOfInertia(1) + (1/PolyatomMolDSMC(iPolyatMole)%MomentOfInertia(3) - 1/PolyatomMolDSMC(iPolyatMole)%MomentOfInertia(1)) * J**2)))
-
-      ! fNorm = ((2.-REAL(delta))*(2.*REAL(iQuant) + 1.)*EXP(-PlanckConst**2 / (8*PI**2*BoltzmannConst*TRot) * (REAL(iQuant)*(REAL(iQuant)+1) / PolyatomMolDSMC(iPolyatMole)%MomentOfInertia(1) + (1./PolyatomMolDSMC(iPolyatMole)%MomentOfInertia(3) - 1./PolyatomMolDSMC(iPolyatMole)%MomentOfInertia(1)) * REAL(kQuant)**2.))) &
-      ! / ((2.*J + 1.)*EXP(-PlanckConst**2 / (8*PI**2*BoltzmannConst*TRot) * (J*(J+1.) / PolyatomMolDSMC(iPolyatMole)%MomentOfInertia(1))))
-
-      ! fNorm = ((2.-delta)*(2.*REAL(iQuant) + 1.)*EXP(-PlanckConst**2 / (8*PI**2*BoltzmannConst*TRot) * (REAL(iQuant)*(REAL(iQuant)+1.) / PolyatomMolDSMC(iPolyatMole)%MomentOfInertia(1) + (1./PolyatomMolDSMC(iPolyatMole)%MomentOfInertia(3) - 1./PolyatomMolDSMC(iPolyatMole)%MomentOfInertia(1)) * REAL(kQuant)**2.))) &
-      ! / MaxValue
-      ! PRINT *,'fNorm',fNorm
-
-      ! sanity checks
-      IF(fNorm.GT.1.)THEN
-        ! PRINT *, "--------------------------------------------------------------------------------------"
-      END IF
-      IF(kQuant.GT.iQuant)THEN
-        CALL abort(&
-          __STAMP__&
-          ,'Quantum number k (quantum number of the rotational angular momentum component along the unique axis)&
-          is bigger than j!', iSpec)
-      END IF
-
-      CALL RANDOM_NUMBER(iRan)
-      IF(fNorm .LT. iRan) THEN
-        CALL RANDOM_NUMBER(iRan)
-        iQuant = INT((1+jMax)*iRan)
-        CALL RANDOM_NUMBER(iRan)
-        kQuant = INT((2. * jMax + 1.) * iRan) - jMax
-        
-        DO WHILE(kQuant**2.GT.iQuant**2)
-          CALL RANDOM_NUMBER(iRan)
-          iQuant = INT((1+jMax)*iRan)
-          CALL RANDOM_NUMBER(iRan)
-          kQuant = INT((2. * jMax + 1.) * iRan) - jMax
-        END DO
-      ELSE
-        ARM = .FALSE.
-      END IF
-    END DO
-
-    PartStateIntEn( 2,iPart) = PlanckConst**2. / (8.*PI**2.) * (REAL(iQuant)*(REAL(iQuant)+1.) / PolyatomMolDSMC(iPolyatMole)%MomentOfInertia(1) + (1./PolyatomMolDSMC(iPolyatMole)%MomentOfInertia(3) - 1./PolyatomMolDSMC(iPolyatMole)%MomentOfInertia(1)) * REAL(kQuant)**2.)
-
-  ELSE IF(PolyatomMolDSMC(iPolyatMole)%RotationalGroup.EQ.3)THEN      ! -> asymmetric top molecule, no analytic formula for energy levels
-    CALL abort(&
-    __STAMP__&
-    ,'Quantized treatment of asymmetric top molecules not possible yet!')
-    ! //TODO:maybe special case for sightly asymmetrical molecules, e.g. H2O 
-  ELSE
-    CALL abort(&
-    __STAMP__&
-    ,'Unexpected dimensions of moments of inertia of species iSpec!')
-  END IF
-ELSE
-  ! continous treatment of rotational energy
-  IF (SpecDSMC(iSpec)%Xi_Rot.EQ.2) THEN
-    CALL RANDOM_NUMBER(iRan)
-    PartStateIntEn( 2,iPart) = -BoltzmannConst*TRot*LOG(iRan)
-  ELSE IF (SpecDSMC(iSpec)%Xi_Rot.EQ.3) THEN
-    CALL RANDOM_NUMBER(iRan)
-    PartStateIntEn( 2,iPart) = iRan*10 !the distribution function has only non-negligible  values betwenn 0 and 10
-    NormProb = SQRT(PartStateIntEn( 2,iPart))*EXP(-PartStateIntEn( 2,iPart))/(SQRT(0.5)*EXP(-0.5))
-    CALL RANDOM_NUMBER(iRan)
-    DO WHILE (iRan.GE.NormProb)
-      CALL RANDOM_NUMBER(iRan)
-      PartStateIntEn( 2,iPart) = iRan*10 !the distribution function has only non-negligible  values betwenn 0 and 10
-      NormProb = SQRT(PartStateIntEn( 2,iPart))*EXP(-PartStateIntEn( 2,iPart))/(SQRT(0.5)*EXP(-0.5))
-      CALL RANDOM_NUMBER(iRan)
-    END DO
-    PartStateIntEn( 2,iPart) = PartStateIntEn( 2,iPart)*BoltzmannConst*TRot
-  END IF
-END IF
-
-END SUBROUTINE DSMC_SetInternalRotEnr_Poly
-
 SUBROUTINE DSMC_SetInternalEnr_Poly_ARM_SingleMode(iSpecies, iInit, iPart, init_or_sf)
 !===================================================================================================================================
 ! Initialization of polyatomic molecules by treating every mode separately in a loop
@@ -578,6 +374,7 @@ USE MOD_DSMC_Vars             ,ONLY: PartStateIntEn, SpecDSMC, DSMC,PolyatomMolD
 USE MOD_Particle_Vars         ,ONLY: PEM, Species
 USE MOD_Particle_Sampling_Vars,ONLY: AdaptBCMacroVal, AdaptBCMapElemToSample
 USE MOD_DSMC_ElectronicModel  ,ONLY: InitElectronShell
+USE MOD_part_tools            ,ONLY: CalcERotQuant_particle, CalcERot_particle, CalcERotDataset_particle
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -652,7 +449,14 @@ DO iDOF = 1, PolyatomMolDSMC(iPolyatMole)%VibDOF
   VibQuantsPar(iPart)%Quants(iDOF)=iQuant
 END DO
 ! set initial rotational internal energy
-CALL DSMC_SetInternalRotEnr_Poly(iSpecies, iPart, TRot)
+!//TODO Func Pointer
+IF(DSMC%RotRelaxModel.EQ.1) THEN       ! quantized treatment of rotational energy
+  PartStateIntEn( 2,iPart) = CalcERotQuant_particle(iSpecies,TRot)
+ELSE IF(DSMC%RotRelaxModel.EQ.2)THEN
+  PartStateIntEn( 2,iPart) = CalcERotDataset_particle(iSpecies,TRot)
+ELSE  ! continous treatment of rotational energy
+  PartStateIntEn( 2,iPart) = CalcERot_particle(iSpecies,TRot)
+END IF
 
 END SUBROUTINE DSMC_SetInternalEnr_Poly_ARM_SingleMode
 
@@ -668,6 +472,7 @@ USE MOD_Globals_Vars          ,ONLY: BoltzmannConst
 USE MOD_DSMC_Vars             ,ONLY: PartStateIntEn, SpecDSMC, DSMC,PolyatomMolDSMC,VibQuantsPar
 USE MOD_Particle_Vars         ,ONLY: PEM
 USE MOD_DSMC_ElectronicModel  ,ONLY: InitElectronShell
+USE MOD_part_tools            ,ONLY: CalcERotQuant_particle, CalcERot_particle, CalcERotDataset_particle
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -736,7 +541,14 @@ IF (SpecDSMC(iSpec)%PolyatomicMol) THEN
       +(iQuant(iDOF) + DSMC%GammaQuant)*PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iDOF)*BoltzmannConst
   END DO
   ! set initial rotational internal energy
-  CALL DSMC_SetInternalRotEnr_Poly(iSpec, iPart, TRot)
+  !//TODO Func Pointer
+  IF(DSMC%RotRelaxModel.EQ.1) THEN       ! quantized treatment of rotational energy
+    PartStateIntEn( 2,iPart) = CalcERotQuant_particle(iSpec,TRot)
+  ELSE IF(DSMC%RotRelaxModel.EQ.2)THEN
+    PartStateIntEn( 2,iPart) = CalcERotDataset_particle(iSpec,TRot)
+  ELSE  ! continous treatment of rotational energy
+    PartStateIntEn( 2,iPart) = CalcERot_particle(iSpec,TRot)
+  END IF
   DEALLOCATE(iRan, tempEng, iQuant)
 ELSE
   PartStateIntEn( 1,iPart) = 0
@@ -757,6 +569,7 @@ USE MOD_Globals_Vars          ,ONLY: BoltzmannConst
 USE MOD_DSMC_Vars             ,ONLY: PartStateIntEn, SpecDSMC, DSMC,PolyatomMolDSMC,VibQuantsPar
 USE MOD_Particle_Vars         ,ONLY: PEM
 USE MOD_DSMC_ElectronicModel  ,ONLY: InitElectronShell
+USE MOD_part_tools            ,ONLY: CalcERotQuant_particle, CalcERot_particle, CalcERotDataset_particle
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -826,7 +639,14 @@ ElemID = PEM%LocalElemID(iPart)
     DEALLOCATE(iRan, iQuant,iQuant_old)
     
     ! set initial rotational internal energy
-    CALL DSMC_SetInternalRotEnr_Poly(iSpec, iPart, TRot)
+    !//TODO Func Pointer
+    IF(DSMC%RotRelaxModel.EQ.1) THEN       ! quantized treatment of rotational energy
+      PartStateIntEn( 2,iPart) = CalcERotQuant_particle(iSpec,TRot)
+    ELSE IF(DSMC%RotRelaxModel.EQ.2) THEN
+      PartStateIntEn( 2,iPart) = CalcERotDataset_particle(iSpec,TRot)
+    ELSE  ! continous treatment of rotational energy
+      PartStateIntEn( 2,iPart) = CalcERot_particle(iSpec,TRot)
+    END IF
   ELSE
     PartStateIntEn( 1,iPart) = 0
     PartStateIntEn( 2,iPart) = 0
@@ -846,6 +666,7 @@ USE MOD_Globals_Vars          ,ONLY: BoltzmannConst
 USE MOD_DSMC_Vars             ,ONLY: PartStateIntEn, SpecDSMC, DSMC,PolyatomMolDSMC,VibQuantsPar
 USE MOD_Particle_Vars         ,ONLY: Species, PEM
 USE MOD_DSMC_ElectronicModel  ,ONLY: InitElectronShell
+USE MOD_part_tools            ,ONLY: CalcERotQuant_particle, CalcERot_particle, CalcERotDataset_particle
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -916,7 +737,14 @@ IF (SpecDSMC(iSpec)%PolyatomicMol) THEN
   DEALLOCATE(iRan, iQuant_old)
 
   ! set initial rotational internal energy
-  CALL DSMC_SetInternalRotEnr_Poly(iSpec, iPart, TRot)
+  !//TODO Func Pointer
+  IF(DSMC%RotRelaxModel.EQ.1) THEN       ! quantized treatment of rotational energy
+    PartStateIntEn( 2,iPart) = CalcERotQuant_particle(iSpec,TRot)
+  ELSE IF(DSMC%RotRelaxModel.EQ.2) THEN
+    PartStateIntEn( 2,iPart) = CalcERotDataset_particle(iSpec,TRot)
+  ELSE  ! continous treatment of rotational energy
+    PartStateIntEn( 2,iPart) = CalcERot_particle(iSpec,TRot)
+  END IF
 ELSE
   PartStateIntEn( 1,iPart) = 0
   PartStateIntEn( 2,iPart) = 0
@@ -1142,7 +970,6 @@ INTEGER,ALLOCATABLE           :: iQuant(:), iMaxQuant(:)
 INTEGER                       :: iDOF, iDOF2, iPolyatMole, iSpec, iLoop
 !===================================================================================================================================
 iSpec = PartSpecies(iPart)
-!//TODO also add to other routine????
 IF (usevMPF.OR.RadialWeighting%DoRadialWeighting.OR.UseVarTimeStep) THEN
   Ec = Coll_pData(iPair)%Ec / GetParticleWeight(iPart)
 ELSE
@@ -1291,7 +1118,7 @@ END SUBROUTINE DSMC_VibRelaxPolySingle
 
 SUBROUTINE DSMC_RotRelaxPoly(iPair, iPart,FakXi)
 !===================================================================================================================================
-! Rotational relaxation routine
+! Continous rotational relaxation routine
 !===================================================================================================================================
 ! MODULES
   USE MOD_Globals               ,ONLY: Abort
@@ -1310,101 +1137,144 @@ SUBROUTINE DSMC_RotRelaxPoly(iPair, iPart,FakXi)
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-  REAL                          :: iRan, NormProb, fNorm, tempProb, fak1, fak2, Ec, delta, k!, MomentA, MomentB, MomentC
-  INTEGER                       :: iQuant, J1, J2, JStar, kQuant, iPolyatMole, iSpec
-  LOGICAL                       :: ARM
+  REAL                          :: iRan, NormProb, tempProb, fak1, fak2, Ec
 !===================================================================================================================================
-!//TODO: Function pointer for continous and quant energy 
-!//TODO: check for other collision routines -> e.g. prohibitted double relaxation 
-  IF(DSMC%DoRotRelaxQuantized) THEN       ! quantized treatment of rotational energy
-    iSpec = PartSpecies(iPart)
-    iPolyatMole = SpecDSMC(iSpec)%SpecToPolyArray
-    ARM = .TRUE.
-    IF(PolyatomMolDSMC(iPolyatMole)%LinearMolec)THEN        ! check if molecule is linear, same as diatomic
-      J2 = INT((-1.+SQRT(1.+(4.*Coll_pData(iPair)%Ec)/(BoltzmannConst * PolyatomMolDSMC(iPolyatMole)%CharaTRotDOF(1))))/2.)
-      !//TODO check J1 here and for diatomic again!!
-      ! my analytic solution
-      J1 = NINT(0.5 * (-1. + SQRT((1+ 4 * Coll_pData(iPair)%Ec / (BoltzmannConst * PolyatomMolDSMC(iPolyatMole)%CharaTRotDOF(1)))/(3. - 2. * SpecDSMC(iSpec)%omega))))
-      ! PRINT *,"analytic", J1
-      ! wolfram alpha solution (same as analytic)
-      ! J1 = NINT(0.5 * (-1. + ((4.*Coll_pData(iPair)%Ec + BoltzmannConst * PolyatomMolDSMC(iPolyatMole)%CharaTRotDOF(1)))/SQRT((3. - 2. * SpecDSMC(iSpec)%omega)*BoltzmannConst*PolyatomMolDSMC(iPolyatMole)%CharaTRotDOF(1)*(4.*Coll_pData(iPair)%Ec + BoltzmannConst * PolyatomMolDSMC(iPolyatMole)%CharaTRotDOF(1)))))
-      ! PRINT *,"wolfram", J1
-      ! paper solution
-      ! J1 = NINT(0.5 * (-1. + SQRT((2. + 3. * SpecDSMC(iSpec)%omega + (8. * Coll_pData(iPair)%Ec) / &
-          ! (BoltzmannConst * PolyatomMolDSMC(iPolyatMole)%CharaTRotDOF(1)))/(6. - SpecDSMC(iSpec)%omega))))
-      ! J2 much bigger than J1 often
-      ! PRINT *, "J1",J1
-      ! PRINT *, "J2",J2
-      JStar = MIN(J1,J2)
+Ec = Coll_pData(iPair)%Ec
+fak1 = (3.0/2.0+FakXi-1.0)/(3.0/2.0-1.0)
+fak2 = (3.0/2.0+FakXi-1.0)/(FakXi)
 
-      CALL RANDOM_NUMBER(iRan)
-      iQuant = INT((1+J2)*iRan)
-      DO WHILE (ARM)
-        fNorm = (2.*REAL(iQuant) + 1.)*(Coll_pData(iPair)%Ec - REAL(iQuant)*(REAL(iQuant) + 1.)*BoltzmannConst*PolyatomMolDSMC(iPolyatMole)%CharaTRotDOF(1))**FakXi &
-                / ((2.*REAL(JStar) + 1.)*(Coll_pData(iPair)%Ec - REAL(JStar)*(REAL(JStar) + 1.)*BoltzmannConst*PolyatomMolDSMC(iPolyatMole)%CharaTRotDOF(1))**FakXi)
-        CALL RANDOM_NUMBER(iRan)
-        IF(fNorm .LT. iRan) THEN
-          CALL RANDOM_NUMBER(iRan)
-          iQuant = INT((1+J2)*iRan)
-        ELSE
-          ARM = .FALSE.
-        END IF
-      END DO
-      PartStateIntEn( 2,iPart) = REAL(iQuant) * (REAL(iQuant) + 1.) * BoltzmannConst * PolyatomMolDSMC(iPolyatMole)%CharaTRotDOF(1)
-
-    ELSE IF(PolyatomMolDSMC(iPolyatMole)%RotationalGroup.EQ.1)THEN       ! molecule is non-linear -> spherical top molecule with all moments of inertia are the same
-      J2 = INT((-1.+SQRT(1.+(4.*Coll_pData(iPair)%Ec)/(BoltzmannConst * PolyatomMolDSMC(iPolyatMole)%CharaTRotDOF(1))))/2.) ! same as linear - only different degeneracy
-      J1 = NINT(0.5 * (-1. + SQRT((3.*SpecDSMC(iSpec)%omega-2.+(4.*Coll_pData(iPair)%Ec)/(BoltzmannConst*PolyatomMolDSMC(iPolyatMole)%CharaTRotDOF(1)))/(2. - SpecDSMC(iSpec)%omega))))
-      JStar = MIN(J1,J2)
-
-      CALL RANDOM_NUMBER(iRan)
-      iQuant = INT((1+J2)*iRan)
-      DO WHILE (ARM)
-        fNorm = (REAL(iQuant)**2. + REAL(iQuant) + 1.) *(Coll_pData(iPair)%Ec - REAL(iQuant)*(REAL(iQuant) + 1.)*BoltzmannConst*PolyatomMolDSMC(iPolyatMole)%CharaTRotDOF(1))**FakXi &
-          / ( (REAL(JStar)**2. + REAL(JStar) + 1.) *(Coll_pData(iPair)%Ec - REAL(JStar)*(REAL(JStar) + 1.)*BoltzmannConst*PolyatomMolDSMC(iPolyatMole)%CharaTRotDOF(1))**FakXi )
-        CALL RANDOM_NUMBER(iRan)
-        IF(fNorm .LT. iRan) THEN
-          CALL RANDOM_NUMBER(iRan)
-          iQuant = INT((1+J2)*iRan)
-        ELSE
-          ARM = .FALSE.
-        END IF
-      END DO
-      PartStateIntEn( 2,iPart) = REAL(iQuant) * (REAL(iQuant) + 1.) * BoltzmannConst * PolyatomMolDSMC(iPolyatMole)%CharaTRotDOF(1)
-      
-    ELSE IF(PolyatomMolDSMC(iPolyatMole)%RotationalGroup.EQ.2)THEN      ! molecule is non-linear -> symmetric top molecule where two are equal and third is different
-      CALL DSMC_RotRelaxSymTopARM(iPair, iPart,FakXi, iPolyatMole)
-      ! CALL DSMC_RotRelaxSymTopMH(iPair, iPart,FakXi, iPolyatMole)
-      !CALL DSMC_RotRelaxSymTopGibbsSampling(iPair, iPart,FakXi, iPolyatMole)
-
-    ELSE IF(PolyatomMolDSMC(iPolyatMole)%RotationalGroup.EQ.3)THEN      ! -> asymmetric top molecule, no analytic formula for energy levels
-      ! //TODO:maybe special case for sightly asymmetrical molecules, e.g. H2O 10.1139/p57-096
-    ELSE
-      CALL abort(&
-        __STAMP__&
-        ,'Unexpected relations of moments of inertia of species!', iSpec)
-    END IF
-  ELSE  ! continous treatment of rotational energy
-    Ec = Coll_pData(iPair)%Ec
-    fak1 = (3.0/2.0+FakXi-1.0)/(3.0/2.0-1.0)
-    fak2 = (3.0/2.0+FakXi-1.0)/(FakXi)
-    
-    CALL RANDOM_NUMBER(iRan)
-    tempProb = Ec*iRan
-    NormProb = ((fak1*tempProb/Ec)**(3.0/2.0-1.0))*((fak2*(1.0-tempProb/Ec))**(FakXi))
-    CALL RANDOM_NUMBER(iRan)
-    DO WHILE (iRan.GE.NormProb)
-      CALL RANDOM_NUMBER(iRan)
-      tempProb = Ec*iRan
-      NormProb = (fak1*tempProb/Ec)**(3.0/2.0-1.0)*(fak2*(1.0-tempProb/Ec))**(FakXi)
-      CALL RANDOM_NUMBER(iRan)
-    END DO
-    PartStateIntEn(2,iPart)=tempProb
-  END IF
+CALL RANDOM_NUMBER(iRan)
+tempProb = Ec*iRan
+NormProb = ((fak1*tempProb/Ec)**(3.0/2.0-1.0))*((fak2*(1.0-tempProb/Ec))**(FakXi))
+CALL RANDOM_NUMBER(iRan)
+DO WHILE (iRan.GE.NormProb)
+  CALL RANDOM_NUMBER(iRan)
+  tempProb = Ec*iRan
+  NormProb = (fak1*tempProb/Ec)**(3.0/2.0-1.0)*(fak2*(1.0-tempProb/Ec))**(FakXi)
+  CALL RANDOM_NUMBER(iRan)
+END DO
+PartStateIntEn(2,iPart)=tempProb
 
 END SUBROUTINE DSMC_RotRelaxPoly
 
-SUBROUTINE DSMC_RotRelaxSymTopARM(iPair, iPart,FakXi, iPolyatMole)
+SUBROUTINE DSMC_RotRelaxQuantPoly(iPair, iPart,FakXi)
+!===================================================================================================================================
+! Quantized rotational relaxation routine
+!===================================================================================================================================
+! MODULES
+  USE MOD_Globals               ,ONLY: Abort
+  USE MOD_Globals_Vars          ,ONLY: BoltzmannConst, PlanckConst, PI
+  USE MOD_DSMC_Vars             ,ONLY: PartStateIntEn, Coll_pData, SpecDSMC, DSMC,PolyatomMolDSMC, RadialWeighting
+  USE MOD_Particle_Vars         ,ONLY: PartSpecies, UseVarTimeStep, usevMPF
+  USE MOD_part_tools            ,ONLY: GetParticleWeight
+
+! IMPLICIT VARIABLE HANDLING
+  IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+  INTEGER, INTENT(IN)           :: iPart, iPair
+  REAL, INTENT(IN)              :: FakXi
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+  REAL                          :: iRan, NormProb, fNorm, tempProb, fak1, fak2, Ec, delta, k, MaxValue, CurrentValue
+  INTEGER                       :: iQuant, J1, J2, JStar, kQuant, iPolyatMole, iSpec, jIter
+  LOGICAL                       :: ARM
+!===================================================================================================================================
+  !//TODO: check for other collision routines -> e.g. prohibitted double relaxation
+  IF (usevMPF.OR.RadialWeighting%DoRadialWeighting.OR.UseVarTimeStep) THEN
+    Ec = Coll_pData(iPair)%Ec / GetParticleWeight(iPart)
+  ELSE
+    Ec = Coll_pData(iPair)%Ec
+  END IF
+  iSpec = PartSpecies(iPart)
+  iPolyatMole = SpecDSMC(iSpec)%SpecToPolyArray
+  ARM = .TRUE.
+  IF(PolyatomMolDSMC(iPolyatMole)%LinearMolec)THEN        ! check if molecule is linear, same as diatomic
+    J2 = INT((-1.+SQRT(1.+(4.*Ec)/(BoltzmannConst * PolyatomMolDSMC(iPolyatMole)%CharaTRotDOF(1))))/2.)
+    !===============================================================================================================================
+    ! Find max value numerically
+    MaxValue = 0.
+    DO jIter=0, J2
+      CurrentValue = (2.*REAL(jIter) + 1.)*(Ec - REAL(jIter)*(REAL(jIter) + 1.)*BoltzmannConst*SpecDSMC(iSpec)%CharaTRot)**FakXi
+      IF (CurrentValue .GT. MaxValue) THEN
+          MaxValue = CurrentValue
+      END IF
+    END DO
+    !===============================================================================================================================
+    ! J1 = NINT(0.5 * (-1. + SQRT((1+ 4 * Ec / (BoltzmannConst * PolyatomMolDSMC(iPolyatMole)%CharaTRotDOF(1))) &
+          ! /(3. - 2. * SpecDSMC(iSpec)%omega))))
+    ! JStar = MIN(J1,J2)
+
+    CALL RANDOM_NUMBER(iRan)
+    iQuant = INT((1+J2)*iRan)
+    DO WHILE (ARM)
+      fNorm = (2.*REAL(iQuant) + 1.)*(Ec - REAL(iQuant)*(REAL(iQuant) + 1.)*BoltzmannConst* & 
+              PolyatomMolDSMC(iPolyatMole)%CharaTRotDOF(1))**FakXi &
+        / MaxValue
+      CALL RANDOM_NUMBER(iRan)
+      IF(fNorm .LT. iRan) THEN
+        CALL RANDOM_NUMBER(iRan)
+        iQuant = INT((1+J2)*iRan)
+      ELSE
+        ARM = .FALSE.
+      END IF
+    END DO
+    PartStateIntEn( 2,iPart) = REAL(iQuant) * (REAL(iQuant) + 1.) * BoltzmannConst * PolyatomMolDSMC(iPolyatMole)%CharaTRotDOF(1)
+
+  ELSE IF(PolyatomMolDSMC(iPolyatMole)%RotationalGroup.EQ.1)THEN       
+    ! molecule is non-linear -> spherical top molecule with all moments of inertia are the same
+    J2 = INT((-1.+SQRT(1.+(4.*Ec)/(BoltzmannConst * PolyatomMolDSMC(iPolyatMole)%CharaTRotDOF(1))))/2.)
+    !===============================================================================================================================
+    ! Find max value numerically
+    MaxValue = 0.
+    DO jIter=0, J2
+      CurrentValue = (REAL(jIter)**2. + REAL(jIter) + 1.) *(Ec - REAL(jIter)*(REAL(jIter) + 1.)*BoltzmannConst* & 
+                      PolyatomMolDSMC(iPolyatMole)%CharaTRotDOF(1))**FakXi
+      IF (CurrentValue .GT. MaxValue) THEN
+          MaxValue = CurrentValue
+      END IF
+    END DO
+    !===============================================================================================================================
+    ! J1 = NINT(0.5 * (-1. + SQRT((3.*SpecDSMC(iSpec)%omega-2.+(4.*Ec) &
+          !/(BoltzmannConst*PolyatomMolDSMC(iPolyatMole)%CharaTRotDOF(1)))/(2. - SpecDSMC(iSpec)%omega))))
+    ! JStar = MIN(J1,J2)
+
+    CALL RANDOM_NUMBER(iRan)
+    iQuant = INT((1+J2)*iRan)
+    DO WHILE (ARM)
+      fNorm = (REAL(iQuant)**2. + REAL(iQuant) + 1.) *(Ec - REAL(iQuant)*(REAL(iQuant) + 1.)*BoltzmannConst* & 
+              PolyatomMolDSMC(iPolyatMole)%CharaTRotDOF(1))**FakXi &
+        / MaxValue
+      CALL RANDOM_NUMBER(iRan)
+      IF(fNorm .LT. iRan) THEN
+        CALL RANDOM_NUMBER(iRan)
+        iQuant = INT((1+J2)*iRan)
+      ELSE
+        ARM = .FALSE.
+      END IF
+    END DO
+    PartStateIntEn( 2,iPart) = REAL(iQuant) * (REAL(iQuant) + 1.) * BoltzmannConst * PolyatomMolDSMC(iPolyatMole)%CharaTRotDOF(1)
+    
+  ELSE IF(PolyatomMolDSMC(iPolyatMole)%RotationalGroup.EQ.2)THEN
+    ! molecule is non-linear -> symmetric top molecule where two are equal and third is different
+    CALL DSMC_RotRelaxSymTopARM(iPair, iPart,FakXi, iPolyatMole, Ec)
+    ! CALL DSMC_RotRelaxSymTopMH(iPair, iPart,FakXi, iPolyatMole)
+    !CALL DSMC_RotRelaxSymTopGibbsSampling(iPair, iPart,FakXi, iPolyatMole)
+
+  ELSE IF(PolyatomMolDSMC(iPolyatMole)%RotationalGroup.EQ.3)THEN
+    ! -> asymmetric top molecule, no analytic formula for energy levels -> always use rotational levels
+    CALL DSMC_RotRelaxDatabasePoly(iPair,iPart,FakXi)
+  ELSE
+    CALL abort(&
+      __STAMP__&
+      ,'Unexpected relations of moments of inertia of species!', iSpec)
+  END IF
+
+END SUBROUTINE DSMC_RotRelaxQuantPoly
+
+SUBROUTINE DSMC_RotRelaxSymTopARM(iPair, iPart,FakXi, iPolyatMole, Ec)
 !===================================================================================================================================
 ! Rotational relaxation routine for symmetric top molecules using the acceptance rejection sampling
 !===================================================================================================================================
@@ -1419,42 +1289,46 @@ SUBROUTINE DSMC_RotRelaxSymTopARM(iPair, iPart,FakXi, iPolyatMole)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
   INTEGER, INTENT(IN)           :: iPart, iPair, iPolyatMole
-  REAL, INTENT(IN)              :: FakXi
+  REAL, INTENT(IN)              :: FakXi, Ec
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-  REAL                          :: iRan, NormProb, fNorm, tempProb, fak1, fak2, Ec, delta, k
-  INTEGER                       :: iQuant, J1, J2, JStar, kQuant, iSpec
+  REAL                          :: iRan, NormProb, fNorm, tempProb, fak1, fak2, delta, k
+  INTEGER                       :: iQuant, J1, J2, JStar, kQuant, iSpec, Temp1, Temp2
   LOGICAL                       :: ARM
+  INTEGER                       :: JJMAX,KMAX,delta_max,jIter,kIter
+  REAL                          :: CurrentValue,MaxValue
 !===================================================================================================================================
-! PRINT *,'sym top routine start'
   ARM = .TRUE.
-  !//TODO 16.05 maybe arm for two quantum numbers 
-  ! k = 0
-  ! J2 = INT((-1.+SQRT(1.+(32.*Coll_pData(iPair)%Ec*PolyatomMolDSMC(iPolyatMole)%MomentOfInertia(1)*PI**2.)/(PlanckConst**2.)))/2.)
-  ! PRINT *,"k0", J2
-
-  ! PRINT *, PlanckConst**2. / (8.*PI**2.) * (REAL(J2)*(REAL(J2)+1.) / PolyatomMolDSMC(iPolyatMole)%MomentOfInertia(1) + (1./PolyatomMolDSMC(iPolyatMole)%MomentOfInertia(3) - 1./PolyatomMolDSMC(iPolyatMole)%MomentOfInertia(1)) * REAL(0.)**2)
-
   ! k = J
-  J2 = INT((-PolyatomMolDSMC(iPolyatMole)%MomentOfInertia(3)/PolyatomMolDSMC(iPolyatMole)%MomentOfInertia(1) +SQRT((PolyatomMolDSMC(iPolyatMole)%MomentOfInertia(3)/PolyatomMolDSMC(iPolyatMole)%MomentOfInertia(1))**2. +(32.*Coll_pData(iPair)%Ec*PolyatomMolDSMC(iPolyatMole)%MomentOfInertia(3)*PI**2.)/(PlanckConst**2.)))/2.)
+  J2 = INT((-PolyatomMolDSMC(iPolyatMole)%MomentOfInertia(3)/PolyatomMolDSMC(iPolyatMole)%MomentOfInertia(1) + & 
+      SQRT((PolyatomMolDSMC(iPolyatMole)%MomentOfInertia(3)/PolyatomMolDSMC(iPolyatMole)%MomentOfInertia(1))**2. + & 
+      (32.*Ec*PolyatomMolDSMC(iPolyatMole)%MomentOfInertia(3)*PI**2.)/(PlanckConst**2.)))/2.)
   ! PRINT *,"kJ", J2
 
-  ! PRINT *, PlanckConst**2. / (8.*PI**2.) * (REAL(J2)*(REAL(J2)+1.) / PolyatomMolDSMC(iPolyatMole)%MomentOfInertia(1) + (1./PolyatomMolDSMC(iPolyatMole)%MomentOfInertia(3) - 1./PolyatomMolDSMC(iPolyatMole)%MomentOfInertia(1)) * REAL(J2)**2)
-  ! PRINT *,"Ecoll", Coll_pData(iPair)%Ec
-
-  ! wolfram solution 
-  ! J1 = NINT((-1.+SQRT((FakXi-1)*(32.*PolyatomMolDSMC(iPolyatMole)%MomentOfInertia(1)*Coll_pData(iPair)%Ec*PI**2.+PlanckConst**2.))/(FakXi-1.)*PlanckConst)/2.)
-  ! PRINT *,"wolfram", J1
-
-  ! my analytic solution, k=0
-  J1 = NINT(0.5 * (-1. + SQRT((1.+ 32. * Coll_pData(iPair)%Ec * PI**2. * PolyatomMolDSMC(iPolyatMole)%MomentOfInertia(1) / (PlanckConst**2.))/(3. - 2. * SpecDSMC(iSpec)%omega))))
-  ! PRINT *,"analytic J",J1
-
-  JStar = MIN(J1,J2)
-  ! PRINT *,'J1,J2,JStar',J1,J2,JStar
-  
+  !=================================================================================================================================
+  ! Find max value numerically
+  MaxValue = 0.
+  DO jIter=0, J2
+    ! for k=0 not double degenerate
+    CurrentValue = (2.*REAL(jIter)+1.) * (Ec - (PlanckConst**2.)/(PI**2.*8.) * & 
+        (REAL(jIter)*(REAL(jIter)+1.))/(PolyatomMolDSMC(iPolyatMole)%MomentOfInertia(1)))**FakXi
+    IF (CurrentValue .GT. MaxValue) THEN
+      MaxValue = CurrentValue
+    END IF
+    DO kIter=1, jIter
+      CurrentValue = (2.) * (2.*REAL(jIter)+1.) * (Ec - (PlanckConst**2.)/(PI**2.*8.) * & 
+                    ((REAL(jIter)*(REAL(jIter)+1.))/(PolyatomMolDSMC(iPolyatMole)%MomentOfInertia(1)) + &
+                    (1./PolyatomMolDSMC(iPolyatMole)%MomentOfInertia(3) - 1./PolyatomMolDSMC(iPolyatMole)%MomentOfInertia(1)) * & 
+                    REAL(kIter)**2.))**FakXi
+      IF (CurrentValue .GT. MaxValue) THEN
+        MaxValue = CurrentValue
+      END IF
+    END DO
+  END DO
+  !=================================================================================================================================
+  ! roll quantum numbers
   CALL RANDOM_NUMBER(iRan)
   iQuant = INT((1+J2)*iRan)
   IF(iQuant.EQ.0)THEN
@@ -1478,20 +1352,25 @@ SUBROUTINE DSMC_RotRelaxSymTopARM(iPair, iPart,FakXi, iPolyatMole)
       delta = 0.
     END IF
   END DO
+  !=================================================================================================================================
+  ! acceptance rejection sampling
   DO WHILE (ARM)
-    IF((Coll_pData(iPair)%Ec - (PlanckConst**2.)/(PI**2.*8.) * & 
+    IF((Ec - (PlanckConst**2.)/(PI**2.*8.) * & 
       ((REAL(iQuant)*(REAL(iQuant)+1))/(PolyatomMolDSMC(iPolyatMole)%MomentOfInertia(1)) + &
-      (1/PolyatomMolDSMC(iPolyatMole)%MomentOfInertia(3) - 1./PolyatomMolDSMC(iPolyatMole)%MomentOfInertia(1)) * REAL(kQuant)**2.)).LT.0)THEN
+      (1/PolyatomMolDSMC(iPolyatMole)%MomentOfInertia(3) - 1./PolyatomMolDSMC(iPolyatMole)%MomentOfInertia(1)) * & 
+      REAL(kQuant)**2.)).LT.0)THEN
       fNorm = -1! set fNorm to less than than 1 to redo loop since the quantum numbers were not possible due to the collision energy
     ELSE
-      fNorm = ((2-delta) * (2.*REAL(iQuant)+1.) * (Coll_pData(iPair)%Ec - (PlanckConst**2.)/(PI**2.*8.) * & 
-      ((REAL(iQuant)*(REAL(iQuant)+1.))/(PolyatomMolDSMC(iPolyatMole)%MomentOfInertia(1)) + &
-      (1./PolyatomMolDSMC(iPolyatMole)%MomentOfInertia(3) - 1./PolyatomMolDSMC(iPolyatMole)%MomentOfInertia(1)) * REAL(kQuant)**2.))**FakXi / & 
-      (2. * (2.*REAL(JStar)+1.) * (Coll_pData(iPair)%Ec - (PlanckConst**2.)/(PI**2.*8.) * ((REAL(JStar)*(REAL(JStar)+1.))/(PolyatomMolDSMC(iPolyatMole)%MomentOfInertia(1)) + & 
-      (1./PolyatomMolDSMC(iPolyatMole)%MomentOfInertia(3) - 1./PolyatomMolDSMC(iPolyatMole)%MomentOfInertia(1)) * REAL(JStar)**2.))**FakXi))
-      ! PRINT *,'fNorm',fNorm
+      fNorm = ((2-delta) * (2.*REAL(iQuant)+1.) * (Ec - (PlanckConst**2.)/(PI**2.*8.) * & 
+              ((REAL(iQuant)*(REAL(iQuant)+1.))/(PolyatomMolDSMC(iPolyatMole)%MomentOfInertia(1)) + &
+              (1./PolyatomMolDSMC(iPolyatMole)%MomentOfInertia(3) - 1./PolyatomMolDSMC(iPolyatMole)%MomentOfInertia(1)) * & 
+              REAL(kQuant)**2.))**FakXi) &
+              / MaxValue
     END IF
-
+    ! IF(fNorm.GT.1..OR.fNorm.EQ.-1)THEN
+      ! PRINT *, "--------------------------------------------------------------------------------------"
+      ! PRINT *, fNorm
+    ! END IF
     CALL RANDOM_NUMBER(iRan)
     IF(fNorm .LT. iRan) THEN
       CALL RANDOM_NUMBER(iRan)
@@ -1522,19 +1401,9 @@ SUBROUTINE DSMC_RotRelaxSymTopARM(iPair, iPart,FakXi, iPolyatMole)
     END IF
   END DO
 
-  ! sanity checks -> //TODO: J2 vs JStar
-  IF(fNorm.GT.1.)THEN
-    ! PRINT *, "--------------------------------------------------------------------------------------"
-  END IF
-  ! sanity check
-  IF(kQuant.GT.iQuant)THEN
-    CALL abort(&
-      __STAMP__&
-      ,'Quantum number k (quantum number of the rotational angular momentum component along the unique axis)&
-      is bigger than j!', iSpec)
-  END IF
-
-  PartStateIntEn( 2,iPart) = PlanckConst**2. / (8.*PI**2.) * (REAL(iQuant)*(REAL(iQuant)+1.) / PolyatomMolDSMC(iPolyatMole)%MomentOfInertia(1) + (1./PolyatomMolDSMC(iPolyatMole)%MomentOfInertia(3) - 1./PolyatomMolDSMC(iPolyatMole)%MomentOfInertia(1)) * REAL(kQuant)**2)
+  PartStateIntEn( 2,iPart) = PlanckConst**2. / (8.*PI**2.) * (REAL(iQuant)*(REAL(iQuant)+1.) / & 
+        PolyatomMolDSMC(iPolyatMole)%MomentOfInertia(1) + (1./PolyatomMolDSMC(iPolyatMole)%MomentOfInertia(3) & 
+        - 1./PolyatomMolDSMC(iPolyatMole)%MomentOfInertia(1)) * REAL(kQuant)**2)
 
 END SUBROUTINE DSMC_RotRelaxSymTopARM
 
@@ -1582,17 +1451,111 @@ SUBROUTINE DSMC_RotRelaxSymTopMH(iPart, iPolyatMole)
       iQuant(:) = INT(iRan(:)*jMax)
     END DO
     
-    NormProb = NormProb + PlanckConst**2. / (8.*PI**2.) * (REAL((iQuant_old(1)-iQuant(1)))*(REAL((iQuant_old(1)-iQuant(1)))+1.) / PolyatomMolDSMC(iPolyatMole)%MomentOfInertia(1) + (1./PolyatomMolDSMC(iPolyatMole)%MomentOfInertia(3) - 1./PolyatomMolDSMC(iPolyatMole)%MomentOfInertia(1)) * REAL((iQuant_old(2)-iQuant(2)))**2)
-
+    NormProb = NormProb + PlanckConst**2. / (8.*PI**2.) * (REAL((iQuant_old(1)-iQuant(1)))*(REAL((iQuant_old(1)-iQuant(1)))+1.) / &
+              PolyatomMolDSMC(iPolyatMole)%MomentOfInertia(1) + (1./PolyatomMolDSMC(iPolyatMole)%MomentOfInertia(3) - & 
+              1./PolyatomMolDSMC(iPolyatMole)%MomentOfInertia(1)) * REAL((iQuant_old(2)-iQuant(2)))**2)
     NormProb = MIN(1.0,EXP(NormProb))
     
     CALL RANDOM_NUMBER(iRan2)
     IF (NormProb.LT.iRan2) iQuant(:)=iQuant_old(:)
   END DO
 
-  PartStateIntEn( 2,iPart) = PlanckConst**2. / (8.*PI**2.) * (REAL(iQuant(1))*(REAL(iQuant(1))+1.) / PolyatomMolDSMC(iPolyatMole)%MomentOfInertia(1) + (1./PolyatomMolDSMC(iPolyatMole)%MomentOfInertia(3) - 1./PolyatomMolDSMC(iPolyatMole)%MomentOfInertia(1)) * REAL(iQuant(2))**2)
+  PartStateIntEn( 2,iPart) = PlanckConst**2. / (8.*PI**2.) * (REAL(iQuant(1))*(REAL(iQuant(1))+1.) / &
+                            PolyatomMolDSMC(iPolyatMole)%MomentOfInertia(1) + (1./PolyatomMolDSMC(iPolyatMole)%MomentOfInertia(3) & 
+                            - 1./PolyatomMolDSMC(iPolyatMole)%MomentOfInertia(1)) * REAL(iQuant(2))**2)
   DEALLOCATE(iRan, iQuant,iQuant_old)
   
 END SUBROUTINE DSMC_RotRelaxSymTopMH
+
+SUBROUTINE DSMC_RotRelaxSymTopGibbsSampling(iPair, iPart,FakXi, iPolyatMole)
+!===================================================================================================================================
+! //TODO
+!===================================================================================================================================
+! MODULES
+  USE MOD_Globals               ,ONLY: Abort
+  USE MOD_Globals_Vars          ,ONLY: BoltzmannConst, PlanckConst, PI
+  USE MOD_DSMC_Vars             ,ONLY: PartStateIntEn, Coll_pData, SpecDSMC, DSMC,PolyatomMolDSMC
+  USE MOD_Particle_Vars         ,ONLY: PartSpecies
+
+! IMPLICIT VARIABLE HANDLING
+  IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+  INTEGER, INTENT(IN)           :: iPart, iPair, iPolyatMole
+  REAL, INTENT(IN)              :: FakXi
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+  REAL                          :: iRan, NormProb, fNorm, tempProb, fak1, fak2, Ec, delta, k!, MomentA, MomentB, MomentC
+  INTEGER                       :: iQuant, J1, J2, JStar, kQuant, iSpec
+  LOGICAL                       :: ARM
+!===================================================================================================================================
+
+END SUBROUTINE DSMC_RotRelaxSymTopGibbsSampling
+
+
+SUBROUTINE DSMC_RotRelaxDatabasePoly(iPair,iPart,FakXi)
+!===================================================================================================================================
+!> Rotational relaxation with database energy levels
+!===================================================================================================================================
+USE MOD_Globals
+USE MOD_Globals_Vars           ,ONLY: BoltzmannConst
+USE MOD_DSMC_Vars              ,ONLY: SpecDSMC, PartStateIntEn, RadialWeighting, Coll_pData
+USE MOD_Particle_Vars          ,ONLY: PartSpecies, UseVarTimeStep, usevMPF
+USE MOD_part_tools             ,ONLY: GetParticleWeight
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+INTEGER, INTENT(IN)           :: iPair, iPart
+REAL, INTENT(IN)              :: FakXi
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER                       :: iQuaMax, MaxRotQuant, iQua, iSpec
+REAL                          :: iRan, iRan2, gmax, gtemp, PartStateTemp, CollisionEnergy
+!===================================================================================================================================
+iSpec = PartSpecies(iPart)
+IF (usevMPF.OR.RadialWeighting%DoRadialWeighting.OR.UseVarTimeStep) THEN
+  CollisionEnergy = Coll_pData(iPair)%Ec / GetParticleWeight(iPart)
+ELSE
+  CollisionEnergy = Coll_pData(iPair)%Ec
+END IF
+
+iQuaMax  = 0
+! Determine max rotational quant
+MaxRotQuant = SpecDSMC(iSpec)%MaxRotQuant - 1
+gmax = 0.
+PartStateTemp = CollisionEnergy / BoltzmannConst
+DO iQua = 0, MaxRotQuant
+  IF (PartStateTemp - SpecDSMC(iSpec)%RotationalState(2,iQua).GT.0.) THEN
+    gtemp = SpecDSMC(iSpec)%RotationalState(1,iQua) * &
+            ( CollisionEnergy - BoltzmannConst * SpecDSMC(iSpec)%RotationalState(2,iQua))**FakXi
+    ! maximal possible Quant before term goes negative
+    iQuaMax = iQua
+    IF ( gtemp .GT. gmax ) THEN
+      gmax = gtemp
+    END IF
+  ELSE
+    EXIT
+  END IF
+END DO
+CALL RANDOM_NUMBER(iRan)
+iQua = int( ( iQuaMax +1 ) * iRan)
+gtemp = SpecDSMC(iSpec)%RotationalState(1,iQua) * &
+        ( CollisionEnergy - BoltzmannConst * SpecDSMC(iSpec)%RotationalState(2,iQua))**FakXi
+CALL RANDOM_NUMBER(iRan2)
+! acceptance-rejection for iQuaRot
+DO WHILE ( iRan2 .GE. gtemp / gmax )
+  CALL RANDOM_NUMBER(iRan)
+  iQua = int( ( iQuaMax +1 ) * iRan)
+  gtemp = SpecDSMC(iSpec)%RotationalState(1,iQua) * &
+          ( CollisionEnergy - BoltzmannConst * SpecDSMC(iSpec)%RotationalState(2,iQua))**FakXi
+  CALL RANDOM_NUMBER(iRan2)
+END DO
+PartStateIntEn(2,iPart) = BoltzmannConst * SpecDSMC(iSpec)%RotationalState(2,iQua)
+
+END SUBROUTINE DSMC_RotRelaxDatabasePoly
+
 
 END MODULE MOD_DSMC_PolyAtomicModel

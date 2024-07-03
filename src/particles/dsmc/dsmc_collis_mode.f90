@@ -158,7 +158,7 @@ SUBROUTINE DSMC_Relax_Col_LauxTSHO(iPair)
 USE MOD_DSMC_Vars             ,ONLY: Coll_pData, CollInf, DSMC, SpecDSMC, PartStateIntEn, RadialWeighting
 USE MOD_Particle_Vars         ,ONLY: PartSpecies, PartState, Species, UseVarTimeStep, PEM, usevMPF
 USE MOD_DSMC_ElectronicModel  ,ONLY: ElectronicEnergyExchange, TVEEnergyExchange
-USE MOD_DSMC_PolyAtomicModel  ,ONLY: DSMC_RotRelaxPoly, DSMC_VibRelaxPoly
+USE MOD_DSMC_PolyAtomicModel  ,ONLY: DSMC_RotRelaxPoly, DSMC_RotRelaxQuantPoly, DSMC_VibRelaxPoly, DSMC_RotRelaxDatabasePoly
 USE MOD_DSMC_Relaxation       ,ONLY: DSMC_RotRelaxDiaQuant, DSMC_VibRelaxDiatomic, DSMC_calc_P_rot, DSMC_calc_P_vib, DSMC_calc_P_elec
 USE MOD_DSMC_CollisVec        ,ONLY: PostCollVec
 USE MOD_part_tools            ,ONLY: GetParticleWeight
@@ -427,25 +427,40 @@ END IF
 ! Rotational Relaxation//TODO: restructure blocks, put continous treatment of diatomic in subroutine
 !--------------------------------------------------------------------------------------------------!
   IF(DoRot1) THEN
-    ! IF(SpecDSMC(iSpec1)%PolyatomicMol.AND.(SpecDSMC(iSpec1)%Xi_Rot.EQ.3)) THEN
     IF(SpecDSMC(iSpec1)%PolyatomicMol) THEN
-      !//TODO:
-      FakXi = FakXi - 0.5*SpecDSMC(iSpec1)%Xi_Rot
-      CALL DSMC_RotRelaxPoly(iPair, iPart1, FakXi)
+      !//TODO FUnc pointer
+      IF(DSMC%RotRelaxModel.EQ.1) THEN       ! quantized treatment of rotational energy
+        FakXi = FakXi - 0.5*SpecDSMC(iSpec1)%Xi_Rot
+        CALL DSMC_RotRelaxQuantPoly(iPair, iPart1, FakXi)
+      ELSE IF(DSMC%RotRelaxModel.EQ.2) THEN       ! using database energy levels
+        FakXi = FakXi - 0.5*SpecDSMC(iSpec1)%Xi_Rot
+        CALL DSMC_RotRelaxDatabasePoly(iPair, iPart1, FakXi)
+      ELSE  ! continous treatment of rotational energy
+        IF(SpecDSMC(iSpec1)%Xi_Rot.EQ.3) THEN
+          FakXi = FakXi - 0.5*SpecDSMC(iSpec1)%Xi_Rot
+          CALL DSMC_RotRelaxPoly(iPair, iPart1, FakXi)
+        ELSE
+          CALL RANDOM_NUMBER(iRan)
+          PartStateIntEn(2,iPart1) = Coll_pData(iPair)%Ec * (1.0 - iRan**(1.0/FakXi))
+          FakXi = FakXi - 0.5*SpecDSMC(iSpec1)%Xi_Rot
+        END IF
+      END IF
       Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec - PartStateIntEn(2,iPart1)
     ELSE
-      IF(DSMC%DoRotRelaxQuantized) THEN
+      !//TODO Func Pointer
+      IF(DSMC%RotRelaxModel.EQ.1) THEN
         FakXi = FakXi - 0.5*SpecDSMC(iSpec1)%Xi_Rot
         ! Quantized treatment of rotational energy
         CALL DSMC_RotRelaxDiaQuant(iPair,iPart1,FakXi)
-        Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec - PartStateIntEn(2,iPart1)
-      ELSE
-        ! Continuous treatment of rotational energy
+      ELSE IF(DSMC%RotRelaxModel.EQ.2) THEN       ! using database energy levels
+        FakXi = FakXi - 0.5*SpecDSMC(iSpec1)%Xi_Rot
+        CALL DSMC_RotRelaxDatabasePoly(iPair, iPart1, FakXi)
+      ELSE    ! Continuous treatment of rotational energy
         CALL RANDOM_NUMBER(iRan)
         PartStateIntEn(2,iPart1) = Coll_pData(iPair)%Ec * (1.0 - iRan**(1.0/FakXi))
-        Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec - PartStateIntEn(2,iPart1)
         FakXi = FakXi - 0.5*SpecDSMC(iSpec1)%Xi_Rot
       END IF
+      Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec - PartStateIntEn(2,iPart1)
     END IF
     IF(RadialWeighting%DoRadialWeighting.OR.UseVarTimeStep.OR.usevMPF) THEN
       PartStateIntEn(2,iPart1) = PartStateIntEn(2,iPart1)/GetParticleWeight(iPart1)
@@ -453,23 +468,38 @@ END IF
   END IF
 
   IF(DoRot2) THEN
-    ! IF(SpecDSMC(iSpec2)%PolyatomicMol.AND.(SpecDSMC(iSpec2)%Xi_Rot.EQ.3)) THEN
     IF(SpecDSMC(iSpec2)%PolyatomicMol) THEN
-      FakXi = FakXi - 0.5*SpecDSMC(iSpec2)%Xi_Rot
-      CALL DSMC_RotRelaxPoly(iPair, iPart2, FakXi)
+      IF(DSMC%RotRelaxModel.EQ.1) THEN       ! quantized treatment of rotational energy
+        FakXi = FakXi - 0.5*SpecDSMC(iSpec2)%Xi_Rot
+        CALL DSMC_RotRelaxQuantPoly(iPair, iPart2, FakXi)
+      ELSE IF(DSMC%RotRelaxModel.EQ.2) THEN       ! quantized treatment of rotational energy
+        FakXi = FakXi - 0.5*SpecDSMC(iSpec2)%Xi_Rot
+        CALL DSMC_RotRelaxDatabasePoly(iPair, iPart2, FakXi)
+      ELSE  ! continous treatment of rotational energy
+        IF(SpecDSMC(iSpec2)%Xi_Rot.EQ.3) THEN
+          FakXi = FakXi - 0.5*SpecDSMC(iSpec2)%Xi_Rot
+          CALL DSMC_RotRelaxPoly(iPair, iPart2, FakXi)
+        ELSE
+          CALL RANDOM_NUMBER(iRan)
+          PartStateIntEn(2,iPart2) = Coll_pData(iPair)%Ec * (1.0 - iRan**(1.0/FakXi))
+          FakXi = FakXi - 0.5*SpecDSMC(iSpec2)%Xi_Rot
+        END IF
+      END IF
       Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec - PartStateIntEn(2,iPart2)
     ELSE
-      IF(DSMC%DoRotRelaxQuantized) THEN
-        FakXi = FakXi - 0.5*SpecDSMC(iSpec2)%Xi_Rot
+      IF(DSMC%RotRelaxModel.EQ.1) THEN
         ! Quantized treatment of rotational energy
+        FakXi = FakXi - 0.5*SpecDSMC(iSpec2)%Xi_Rot
         CALL DSMC_RotRelaxDiaQuant(iPair,iPart2,FakXi)
-        Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec - PartStateIntEn(2,iPart2)
-      ELSE
-        ! Continuous treatment of rotational energy
+      ELSE IF(DSMC%RotRelaxModel.EQ.2) THEN
+        FakXi = FakXi - 0.5*SpecDSMC(iSpec2)%Xi_Rot
+        CALL DSMC_RotRelaxDatabasePoly(iPair, iPart2, FakXi)
+      ELSE    ! Continuous treatment of rotational energy
         CALL RANDOM_NUMBER(iRan)
         PartStateIntEn(2,iPart2) = Coll_pData(iPair)%Ec * (1.0 - iRan**(1.0/FakXi))
-        Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec - PartStateIntEn(2,iPart2)
+        FakXi = FakXi - 0.5*SpecDSMC(iSpec2)%Xi_Rot
       END IF
+      Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec - PartStateIntEn(2,iPart2)
     END IF
     IF(RadialWeighting%DoRadialWeighting.OR.UseVarTimeStep.OR.usevMPF) THEN
       PartStateIntEn(2,iPart2) = PartStateIntEn(2,iPart2)/GetParticleWeight(iPart2)

@@ -28,7 +28,7 @@ PRIVATE
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
 PUBLIC :: DSMC_VibRelaxDiatomic, CalcMeanVibQuaDiatomic, CalcXiVib, CalcXiTotalEqui, DSMC_calc_P_rot, DSMC_calc_var_P_vib
 PUBLIC :: InitCalcVibRelaxProb, DSMC_calc_P_vib, SumVibRelaxProb, FinalizeCalcVibRelaxProb, DSMC_calc_P_elec
-PUBLIC :: DSMC_RotRelaxDiaQuant
+PUBLIC :: DSMC_RotRelaxDiaQuant, ReadRotationalSpeciesLevel
 !===================================================================================================================================
 
 CONTAINS
@@ -40,8 +40,10 @@ SUBROUTINE DSMC_RotRelaxDiaQuant(iPair,iPart,FakXi)
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals_Vars          ,ONLY: BoltzmannConst
-USE MOD_DSMC_Vars             ,ONLY: PartStateIntEn, Coll_pData, SpecDSMC
-USE MOD_Particle_Vars         ,ONLY: PartSpecies
+USE MOD_DSMC_Vars             ,ONLY: PartStateIntEn, Coll_pData, SpecDSMC, RadialWeighting
+USE MOD_Particle_Vars         ,ONLY: PartSpecies, UseVarTimeStep, usevMPF
+USE MOD_part_tools            ,ONLY: GetParticleWeight
+
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -53,38 +55,36 @@ REAL, INTENT(IN)              :: FakXi
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER                       :: iSpec
-INTEGER                       :: iQuant, J1, J2, JStar
+INTEGER                       :: iQuant, J1, J2, JStar, jIter
 LOGICAL                       :: ARM
-REAL                          :: fNorm, iRan
+REAL                          :: fNorm, iRan, MaxValue, CurrentValue, Ec
 !===================================================================================================================================
-
+IF (usevMPF.OR.RadialWeighting%DoRadialWeighting.OR.UseVarTimeStep) THEN
+  Ec = Coll_pData(iPair)%Ec / GetParticleWeight(iPart)
+ELSE
+  Ec = Coll_pData(iPair)%Ec
+END IF
 iSpec = PartSpecies(iPart)
 
 J2 = INT((-1.+SQRT(1.+(4.*Coll_pData(iPair)%Ec)/(BoltzmannConst * SpecDSMC(iSpec)%CharaTRot)))/2.)
 
-!// TODO
-! my analytic solution
-J1 = NINT(0.5 * (-1. + SQRT((2. + 3. * SpecDSMC(iSpec)%omega + (8. * Coll_pData(iPair)%Ec) / &
-     (BoltzmannConst * SpecDSMC(iSpec)%CharaTRot))/(6. - SpecDSMC(iSpec)%omega))))
-
-! paper solution
-! J1 = NINT(0.5 * (-1. + SQRT((1+ 4 * Coll_pData(iPair)%Ec / (BoltzmannConst * & 
-    ! SpecDSMC(iSpec)%CharaTRot))/(3. - 2. * SpecDSMC(iSpec)%omega))))
-
-JStar = MIN(J1,J2)
-
+!===================================================================================================================================
+! Find max value numerically
+MaxValue = 0.
+DO jIter=0, J2
+  CurrentValue = (2.*REAL(jIter) + 1.)*(Coll_pData(iPair)%Ec - REAL(jIter)*(REAL(jIter) + 1.)* & 
+                BoltzmannConst*SpecDSMC(iSpec)%CharaTRot)**FakXi
+  IF (CurrentValue .GT. MaxValue) THEN
+      MaxValue = CurrentValue
+  END IF
+END DO
+!===================================================================================================================================
 ARM = .TRUE.
-
 CALL RANDOM_NUMBER(iRan)
-!//TODO used to be J2 here for quant num - not JStar?? why???
 iQuant = INT((1+J2)*iRan)
 DO WHILE (ARM)
   fNorm = (2.*REAL(iQuant) + 1.)*(Coll_pData(iPair)%Ec - REAL(iQuant)*(REAL(iQuant) + 1.)*BoltzmannConst*SpecDSMC(iSpec)%CharaTRot)**FakXi &
-          / ((2.*REAL(JStar) + 1.)*(Coll_pData(iPair)%Ec - REAL(JStar)*(REAL(JStar) + 1.)*BoltzmannConst*SpecDSMC(iSpec)%CharaTRot)**FakXi)
-  PRINT *, fNorm
-  IF(fNorm.GT.1)THEN
-    PRINT *, "-------------------------------------------------------------------"
-  END IF
+  / (MaxValue)
   CALL RANDOM_NUMBER(iRan)
   IF(fNorm .LT. iRan) THEN
     CALL RANDOM_NUMBER(iRan)
@@ -93,10 +93,109 @@ DO WHILE (ARM)
     ARM = .FALSE.
   END IF
 END DO
-
 PartStateIntEn( 2,iPart) = REAL(iQuant) * (REAL(iQuant) + 1.) * BoltzmannConst * SpecDSMC(iSpec)%CharaTRot
 
 END SUBROUTINE DSMC_RotRelaxDiaQuant
+
+!//TODO move to species database module
+SUBROUTINE ReadRotationalSpeciesLevel ( Dsetname, iSpec )
+!===================================================================================================================================
+! Subroutine to read the rotational levels from SpeciesDatabase.h5
+!===================================================================================================================================
+! use module
+USE MOD_io_hdf5
+USE MOD_Globals
+USE MOD_DSMC_Vars             ,ONLY: DSMC, SpecDSMC
+USE MOD_HDF5_Input            ,ONLY: DatasetExists
+USE MOD_Particle_Vars         ,ONLY: Species, SpeciesDatabase
+USE MOD_DSMC_ElectronicModel  ,ONLY: SortEnergies
+#if USE_LOADBALANCE
+USE MOD_LoadBalance_Vars      ,ONLY: PerformLoadBalance
+#endif /*USE_LOADBALANCE*/
+
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+INTEGER,INTENT(IN)                                    :: iSpec
+CHARACTER(LEN=64),INTENT(IN)                          :: dsetname
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER                                               :: err
+! HDF5 specifier taken from extractParticles
+CHARACTER(LEN=256)                                    :: ElLevelDatabase
+CHARACTER(LEN=64)                                     :: datasetname
+INTEGER(HSIZE_T), DIMENSION(2)                        :: dims,sizeMax
+INTEGER(HID_T)                                        :: file_id_dsmc                       ! File identifier
+INTEGER(HID_T)                                        :: dset_id_dsmc                       ! Dataset identifier
+INTEGER(HID_T)                                        :: filespace                          ! filespace identifier
+REAL,ALLOCATABLE                                      :: RotationalState(:,:)
+INTEGER, ALLOCATABLE                                  :: SortRotationalState(:)
+INTEGER                                               :: iQua, nQuants, iQuaTemp
+REAL                                                  :: tempEnergyDiff, tempEnergy
+LOGICAL                                               :: DataSetFound
+!===================================================================================================================================
+datasetname = TRIM('/Species/'//TRIM(Species(iSpec)%Name)//'/RotationalLevel')
+ElLevelDatabase = TRIM(SpeciesDatabase)
+LBWRITE(UNIT_StdOut,'(A)') ' | Read rotational level entries '//TRIM(datasetname)//' from '//TRIM(ElLevelDatabase)
+! Initialize FORTRAN interface.
+CALL H5OPEN_F(err)
+! Open the file.
+CALL H5FOPEN_F (TRIM(ElLevelDatabase), H5F_ACC_RDONLY_F, file_id_dsmc, err)
+CALL DatasetExists(File_ID_DSMC,TRIM(datasetname),DataSetFound)
+IF(.NOT.DataSetFound)THEN
+  CALL abort(__STAMP__,'DataSet not found: ['//TRIM(datasetname)//'] ['//TRIM(ElLevelDatabase)//']')
+END IF
+! Open the  dataset.
+CALL H5DOPEN_F(file_id_dsmc, datasetname, dset_id_dsmc, err)
+! Get the file space of the dataset.
+CALL H5DGET_SPACE_F(dset_id_dsmc, FileSpace, err)
+! get size
+CALL H5SGET_SIMPLE_EXTENT_DIMS_F(FileSpace, dims, SizeMax, err)
+! Allocate rotational_state
+ALLOCATE (RotationalState( 1:dims(1), 0:dims(2)-1 ) )
+! read data
+CALL H5dread_f(dset_id_dsmc, H5T_NATIVE_DOUBLE, RotationalState, dims, err)
+CALL SortEnergies(RotationalState, INT(dims(2)))
+
+ALLOCATE ( SpecDSMC(iSpec)%RotationalState( 1:dims(1), 0:dims(2)-1 ) )
+SpecDSMC(iSpec)%RotationalState = RotationalState
+SpecDSMC(iSpec)%MaxRotQuant  = SIZE( SpecDSMC(iSpec)%RotationalState,2)
+! Close the file.
+CALL H5FCLOSE_F(file_id_dsmc, err)
+! Close FORTRAN interface.
+CALL H5CLOSE_F(err)
+
+END SUBROUTINE ReadRotationalSpeciesLevel
+
+
+REAL FUNCTION DiffRotEnergy(En1, En2)
+!===================================================================================================================================
+!>
+!===================================================================================================================================
+! MODULES
+  USE MOD_Globals
+! IMPLICIT VARIABLE HANDLING
+  IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+  REAL, INTENT(IN)         :: En1, En2
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+!===================================================================================================================================
+  IF (ALMOSTEQUAL(En1,En2)) THEN
+    DiffRotEnergy = 0.0
+  ELSE
+    DiffRotEnergy = (En2-En1)/En1
+  END IF
+
+  RETURN
+
+END FUNCTION DiffRotEnergy
 
 
 SUBROUTINE DSMC_VibRelaxDiatomic(iPair, iPart, FakXi)

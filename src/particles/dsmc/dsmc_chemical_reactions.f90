@@ -42,7 +42,7 @@ END INTERFACE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
-PUBLIC :: DSMC_Chemistry, simpleCEX, simpleMEX, CalcReactionProb, CalcBackwardRate, CalcPartitionFunction
+PUBLIC :: DSMC_Chemistry, simpleCEX, simpleMEX, CalcReactionProb, CalcBackwardRate
 PUBLIC :: CalcPhotoIonizationNumber, PhotoIonization_InsertProducts
 !===================================================================================================================================
 
@@ -1255,126 +1255,6 @@ SUBROUTINE simpleMEX(iReac, iPair)
 END SUBROUTINE simpleMEX
 
 
-SUBROUTINE CalcPartitionFunction(iSpec, Temp, Qtra, Qrot, Qvib, Qelec)
-!===================================================================================================================================
-!> Calculation of the partition function for a species at the given temperature
-!===================================================================================================================================
-! MODULES
-USE MOD_Globals
-USE MOD_Globals_Vars        ,ONLY: Pi, PlanckConst, BoltzmannConst
-USE MOD_DSMC_Vars           ,ONLY: SpecDSMC, PolyatomMolDSMC
-USE MOD_Particle_Vars       ,ONLY: Species
-
-! IMPLICIT VARIABLE HANDLING
-IMPLICIT NONE
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
-INTEGER, INTENT(IN)         :: iSpec
-REAL, INTENT(IN)            :: Temp
-!-----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
-REAL, INTENT(OUT)           :: Qtra, Qrot, Qvib, Qelec
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-INTEGER                     :: iPolyatMole, iDOF
-REAL                        :: TempRatio
-!===================================================================================================================================
-
-Qtra = (2. * Pi * Species(iSpec)%MassIC * BoltzmannConst * Temp / (PlanckConst**2))**(1.5)
-Qvib = 1.
-Qrot = 1.
-IF((Species(iSpec)%InterID.EQ.2).OR.(Species(iSpec)%InterID.EQ.20)) THEN
-  IF(SpecDSMC(iSpec)%PolyatomicMol) THEN
-    iPolyatMole = SpecDSMC(iSpec)%SpecToPolyArray
-    IF(PolyatomMolDSMC(iPolyatMole)%LinearMolec) THEN
-      Qrot = Temp / (SpecDSMC(iSpec)%SymmetryFactor * PolyatomMolDSMC(iPolyatMole)%CharaTRotDOF(1))
-    ELSE
-      Qrot = SQRT(Pi) / SpecDSMC(iSpec)%SymmetryFactor * SQRT(Temp**3/( PolyatomMolDSMC(iPolyatMole)%CharaTRotDOF(1)    &
-                                                                      * PolyatomMolDSMC(iPolyatMole)%CharaTRotDOF(2)    &
-                                                                      * PolyatomMolDSMC(iPolyatMole)%CharaTRotDOF(3)))
-    END IF
-    DO iDOF = 1, PolyatomMolDSMC(iPolyatMole)%VibDOF
-      TempRatio = PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iDOF)/Temp
-      IF(CHECKEXP(TempRatio)) THEN
-        Qvib = Qvib / (1. - EXP(-TempRatio))
-      END IF
-    END DO
-  ELSE
-    Qrot = Temp / (SpecDSMC(iSpec)%SymmetryFactor * SpecDSMC(iSpec)%CharaTRot)
-    TempRatio = SpecDSMC(iSpec)%CharaTVib/Temp
-    IF(CHECKEXP(TempRatio)) THEN
-      Qvib = 1. / (1. - EXP(-TempRatio))
-    END IF
-  END IF
-END IF
-IF((Species(iSpec)%InterID.EQ.4).OR.SpecDSMC(iSpec)%FullyIonized) THEN
-  Qelec = 1.
-ELSE
-  Qelec = 0.
-  DO iDOF=0, SpecDSMC(iSpec)%MaxElecQuant - 1
-    TempRatio = SpecDSMC(iSpec)%ElectronicState(2,iDOF) / Temp
-    IF(CHECKEXP(TempRatio)) THEN
-      Qelec = Qelec + SpecDSMC(iSpec)%ElectronicState(1,iDOF) * EXP(-TempRatio)
-    END IF
-  END DO
-END IF
-
-IF(Qelec.EQ.0.) Qelec = 1.
-
-END SUBROUTINE CalcPartitionFunction
-
-
-! SUBROUTINE CalcRotPartitionFunction(iSpec, Temp, Qrot)
-! !===================================================================================================================================
-! !//TODO also pointer?
-! !> Calculation of the rotational partition function for a species at the given temperature (also applicable at low temperatures)
-! !===================================================================================================================================
-! ! MODULES
-! USE MOD_Globals
-! USE MOD_Globals_Vars        ,ONLY: Pi, PlanckConst, BoltzmannConst
-! USE MOD_DSMC_Vars           ,ONLY: SpecDSMC, PolyatomMolDSMC
-! USE MOD_Particle_Vars       ,ONLY: Species
-
-! ! IMPLICIT VARIABLE HANDLING
-! IMPLICIT NONE
-! !-----------------------------------------------------------------------------------------------------------------------------------
-! ! INPUT VARIABLES
-! INTEGER, INTENT(IN)         :: iSpec
-! REAL, INTENT(IN)            :: Temp
-! !-----------------------------------------------------------------------------------------------------------------------------------
-! ! OUTPUT VARIABLES
-! REAL, INTENT(OUT)           :: Qrot
-! !-----------------------------------------------------------------------------------------------------------------------------------
-! ! LOCAL VARIABLES
-! INTEGER                     :: iPolyatMole, J, K
-! REAL,PARAMETER              :: eps_prec=5E-3                    !< absolut precision for stopping summation
-! !===================================================================================================================================
-! iPolyatMole = SpecDSMC(iSpec)%SpecToPolyArray
-! J = 0
-! Qrot = 0.
-! DO WHILE(J.LT.300)   !//TODO adjust condition
-!   IF(.NOT.SpecDSMC(iSpec)%PolyatomicMol)THEN ! diatomic
-!     Qrot = Qrot + (2.*REAL(J)+1.)*exp(-REAL(J)*(REAL(J)+1)*SpecDSMC(iSpec)%CharaTRot/Temp)
-!   ELSE IF(PolyatomMolDSMC(iPolyatMole)%LinearMolec)THEN ! linear molecule
-!     Qrot = Qrot + (2.*REAL(J)+1.)*exp(-REAL(J)*(REAL(J)+1)*PolyatomMolDSMC(iPolyatMole)%CharaTRotDOF(1)/Temp)
-!   ELSE IF(PolyatomMolDSMC(iPolyatMole)%RotationalGroup.EQ.1)THEN  ! spherical top molecule
-!     Qrot = Qrot + (2.*REAL(J)+1.)**2.*exp(-REAL(J)*(REAL(J)+1)*PolyatomMolDSMC(iPolyatMole)%CharaTRotDOF(1)/Temp)
-!   ELSE IF(PolyatomMolDSMC(iPolyatMole)%RotationalGroup.EQ.2)THEN  ! symmetric top molecule
-!     K = 0
-!     DO WHILE(K.LT.J)
-!       Qrot = Qrot + PlanckConst**2. / (8.*PI**2.) * (REAL(J)*(REAL(J)+1.) / PolyatomMolDSMC(iPolyatMole)%MomentOfInertia(1) + (1./PolyatomMolDSMC(iPolyatMole)%MomentOfInertia(3) - 1./PolyatomMolDSMC(iPolyatMole)%MomentOfInertia(1)) * REAL(K)**2.)
-!       K = K + 1
-!     END DO
-!   ELSE IF(PolyatomMolDSMC(iPolyatMole)%RotationalGroup.EQ.3)THEN  ! asymmetric top molecule
-!     CALL abort(&
-!     __STAMP__&
-!     ,'Calculation of partition function for asymmetric top molecules not possible yet!')
-!   END IF
-!   J = J + 1
-! END DO
-
-! END SUBROUTINE CalcRotPartitionFunction
-
 SUBROUTINE CalcBackwardRate(iReacTmp,LocalTemp,BackwardRate)
 !===================================================================================================================================
 ! Calculation of the backward reaction rate with partition sums, interpolation within the given temperature interval
@@ -1385,6 +1265,7 @@ USE MOD_Globals_Vars          ,ONLY: maxEXP
 USE MOD_DSMC_Vars             ,ONLY: DSMC, SpecDSMC, ChemReac, QKChemistry
 USE MOD_Particle_Vars         ,ONLY: nSpecies
 USE MOD_DSMC_QK_Chemistry     ,ONLY: QK_CalcAnalyticRate
+USE MOD_Particle_Analyze_Tools,ONLY: CalcPartitionFunction
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1625,8 +1506,8 @@ USE MOD_Particle_Vars           ,ONLY: PartSpecies, PartState, PDM, PEM, PartPos
 USE MOD_Particle_Vars           ,ONLY: UseVarTimeStep, PartTimeStep
 USE MOD_Particle_Tracking_Vars  ,ONLY: TrackingMethod
 USE MOD_Particle_Analyze_Vars   ,ONLY: ChemEnergySum
-USE MOD_part_tools              ,ONLY: GetParticleWeight, DiceUnitVector, CalcERot_particle, CalcEVib_particle, CalcEElec_particle
-USE MOD_Part_Tools              ,ONLY: GetNextFreePosition
+USE MOD_part_tools              ,ONLY: GetParticleWeight, DiceUnitVector, CalcERot_particle, CalcERotQuant_particle,CalcEVib_particle
+USE MOD_Part_Tools              ,ONLY: GetNextFreePosition, CalcERotDataset_particle, CalcEElec_particle
 USE MOD_part_emission_tools     ,ONLY: CalcVelocity_maxwell_lpn
 USE MOD_Particle_Analyze_Vars   ,ONLY: CalcPartBalance,nPartIn,PartEkinIn
 USE MOD_Particle_Analyze_Tools  ,ONLY: CalcEkinPart
@@ -1812,7 +1693,14 @@ DO iProd = 1, NumProd
   ! Set the internal energies
   IF((Species(iSpec)%InterID.EQ.2).OR.(Species(iSpec)%InterID.EQ.20)) THEN
     PartStateIntEn(1,iPart) = CalcEVib_particle(iSpec,Temp_Vib,iPart)
-    PartStateIntEn(2,iPart) = CalcERot_particle(iSpec,Temp_Rot)
+    !//TODO Func Pointer
+    IF(DSMC%RotRelaxModel.EQ.0) THEN       ! continous treatment of rotational energy
+      PartStateIntEn( 2,iPart) = CalcERot_particle(iSpec,Temp_Rot)
+    ELSE IF(DSMC%RotRelaxModel.EQ.1)THEN ! quantized treatment of rotational energy
+      PartStateIntEn( 2,iPart) = CalcERotQuant_particle(iSpec,Temp_Rot)
+    ELSE IF(DSMC%RotRelaxModel.EQ.2)THEN ! quantized treatment of rotational energy
+      PartStateIntEn( 2,iPart) = CalcERotDataset_particle(iSpec,Temp_Rot)
+    END IF
   ELSE
     PartStateIntEn(1:2,iPart) = 0.0
   END IF

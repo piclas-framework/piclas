@@ -38,7 +38,7 @@ END INTERFACE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
-PUBLIC :: ElectronicEnergyExchange, InitElectronShell, TVEEnergyExchange, ReadSpeciesLevel, CalcProbCorrFactorElec
+PUBLIC :: ElectronicEnergyExchange, InitElectronShell, TVEEnergyExchange, ReadSpeciesLevel, CalcProbCorrFactorElec, SortEnergies
 PUBLIC :: RelaxElectronicShellWall, LT_ElectronicEnergyExchange, LT_ElectronicExc_ConstructPartList, LT_ElectronicEnergyExchangeChem
 !===================================================================================================================================
 CONTAINS
@@ -1152,7 +1152,7 @@ PartStateIntEn(1,iPart1) = (jQVib + DSMC%GammaQuant) * BoltzmannConst &
 
 END SUBROUTINE TVEEnergyExchange
 
-
+!//TODO move to new module species database
 SUBROUTINE ReadSpeciesLevel ( Dsetname, iSpec )
 !===================================================================================================================================
 ! Subroutine to read the electronic levels from DSMCSpeciesElectronicState.h5
@@ -1197,7 +1197,7 @@ IF (Species(iSpec)%DoOverwriteParameters) THEN
   datasetname = dsetname
   ElLevelDatabase = TRIM(DSMC%ElectronicModelDatabase)
 ELSE
-  datasetname = TRIM('/Species/'//TRIM(Species(iSpec)%Name))
+  datasetname = TRIM('/Species/'//TRIM(Species(iSpec)%Name))//'/ElectronicLevel'
   ElLevelDatabase = TRIM(SpeciesDatabase)
 END IF
 LBWRITE(UNIT_StdOut,'(A)') ' | Read electronic level entries '//TRIM(datasetname)//' from '//TRIM(ElLevelDatabase)

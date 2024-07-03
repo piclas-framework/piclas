@@ -319,7 +319,7 @@ END SUBROUTINE GetAttributeSize
 !> during this operation.
 !> auto error messages off
 !==================================================================================================================================
-SUBROUTINE DatasetExists(Loc_ID_in,DSetName,Exists,attrib,DSetName_attrib)
+SUBROUTINE DatasetExists(Loc_ID_in,DSetName,Exists,attrib,DSetName_attrib,ChangeToGroup)
 ! MODULES
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
@@ -328,6 +328,7 @@ CHARACTER(LEN=*)                     :: DSetName        !< name if dataset to be
 INTEGER(HID_T),INTENT(IN)            :: Loc_ID_in       !< ID of dataset
 LOGICAL,INTENT(IN),OPTIONAL          :: attrib          !< check dataset or attribute
 CHARACTER(LEN=*),OPTIONAL            :: DSetName_attrib !< name if dataset to be checked
+CHARACTER(LEN=*),OPTIONAL            :: ChangeToGroup   !< set to open Group and not Dataset
 ! OUTPUT VARIABLES
 LOGICAL,INTENT(OUT)                  :: Exists          !< result: dataset exists
 !----------------------------------------------------------------------------------------------------------------------------------
@@ -339,8 +340,13 @@ Loc_ID=Loc_ID_in
 IF (PRESENT(attrib)) THEN
   attrib_loc=attrib
   IF(PRESENT(DSetName_attrib))THEN
-    ! Open dataset
-    IF(TRIM(DSetName_attrib).NE.'') CALL H5DOPEN_F(File_ID, TRIM(DSetName_attrib),Loc_ID, iError)
+    IF(PRESENT(ChangeToGroup))THEN
+      ! Open group
+      IF(TRIM(DSetName_attrib).NE.'') CALL H5GOPEN_F(File_ID, TRIM(DSetName_attrib),Loc_ID, iError)
+    ELSE
+      ! Open dataset
+      IF(TRIM(DSetName_attrib).NE.'') CALL H5DOPEN_F(File_ID, TRIM(DSetName_attrib),Loc_ID, iError)
+    END IF
   END IF
 ELSE
   attrib_loc=.FALSE.
@@ -609,10 +615,10 @@ END SUBROUTINE ReadArray
 
 
 !==================================================================================================================================
-!> Subroutine to read attributes from HDF5 file.
+!> Subroutine to read attributes from HDF5 file dataset or group.
 !==================================================================================================================================
 SUBROUTINE ReadAttribute(File_ID_in,AttribName,nVal,DatasetName,RealScalar,IntScalar,&
-                                 StrScalar,LogicalScalar,RealArray,IntArray,StrArray)
+                                 StrScalar,LogicalScalar,RealArray,IntArray,StrArray,ChangeToGroup)
 ! MODULES
 USE MOD_Globals
 USE hdf5
@@ -631,6 +637,7 @@ INTEGER           ,INTENT(OUT),OPTIONAL,TARGET :: IntScalar         !< Scalar in
 CHARACTER(LEN=255),INTENT(OUT),OPTIONAL,TARGET :: StrScalar         !< Scalar string attribute
 CHARACTER(LEN=255),INTENT(OUT),OPTIONAL,TARGET :: StrArray(nVal)    !< Array for character array attributes
 LOGICAL           ,INTENT(OUT),OPTIONAL        :: LogicalScalar     !< Scalar logical attribute
+CHARACTER(LEN=*)  ,OPTIONAL                    :: ChangeToGroup     !< set to read attribute from Group and instead from Dataset
 !----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER(HID_T)                 :: Attr_ID,Type_ID,Loc_ID,memtype
@@ -646,8 +653,13 @@ LOGICAL                        :: vstatus
 LOGWRITE(*,*)' READ ATTRIBUTE "',TRIM(AttribName),'" FROM HDF5 FILE...'
 Dimsf(1)=nVal
 IF(PRESENT(DatasetName))THEN
-  ! Open dataset
-  IF(TRIM(DataSetName).NE.'') CALL H5DOPEN_F(File_ID_in, TRIM(DatasetName),Loc_ID, iError)
+  IF(PRESENT(ChangeToGroup))THEN
+    ! Open group
+    IF(TRIM(DataSetName).NE.'') CALL H5GOPEN_F(File_ID_in, TRIM(DatasetName),Loc_ID, iError)
+  ELSE
+    ! Open dataset
+    IF(TRIM(DataSetName).NE.'') CALL H5DOPEN_F(File_ID_in, TRIM(DatasetName),Loc_ID, iError)
+  END IF
 ELSE
   Loc_ID = File_ID_in
 END IF
@@ -720,9 +732,9 @@ LOGWRITE(*,*)'...DONE!'
 END SUBROUTINE ReadAttribute
 
 !==================================================================================================================================
-!> Subroutine to check if attributes exist in sub layer datasets.
+!> Subroutine to check if attributes exist in sub layer datasets or groups.
 !==================================================================================================================================
-SUBROUTINE AttributeExists(File_ID_in,AttribName,DatasetName,AttrExists)
+SUBROUTINE AttributeExists(File_ID_in,AttribName,DatasetName,AttrExists,ChangeToGroup)
 ! MODULES
 USE MOD_Globals
 USE,INTRINSIC :: ISO_C_BINDING
@@ -733,13 +745,19 @@ INTEGER(HID_T)    ,INTENT(IN)                  :: File_ID_in         !< HDF5 fil
 CHARACTER(LEN=*)  ,INTENT(IN)                  :: AttribName        !< name of attribute to be read
 CHARACTER(LEN=*)  ,INTENT(IN) ,OPTIONAL        :: DatasetName       !< dataset name 
 LOGICAL           ,INTENT(OUT)                 :: AttrExists
+CHARACTER(LEN=*)  ,OPTIONAL                    :: ChangeToGroup     !< check if attribute exists in Group instead of dataset
 !----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER(HID_T)                 :: Attr_ID,Loc_ID
 !==================================================================================================================================
 IF(PRESENT(DatasetName))THEN
-  ! Open dataset
-  IF(TRIM(DataSetName).NE.'') CALL H5DOPEN_F(File_ID_in, TRIM(DatasetName),Loc_ID, iError)
+  IF(PRESENT(ChangeToGroup))THEN
+    ! Open group
+    IF(TRIM(DataSetName).NE.'') CALL H5GOPEN_F(File_ID_in, TRIM(DatasetName),Loc_ID, iError)
+  ELSE
+    ! Open dataset
+    IF(TRIM(DataSetName).NE.'') CALL H5DOPEN_F(File_ID_in, TRIM(DatasetName),Loc_ID, iError)
+  END IF
 ELSE
   Loc_ID = File_ID_in
 END IF

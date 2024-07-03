@@ -119,6 +119,7 @@ TYPE tSpeciesDSMC                                          ! DSMC Species Parame
   REAL                        :: Ediss_eV                  ! Energy of dissociation in eV, ini_2
   INTEGER                     :: MaxVibQuant               ! Max vib quantum number + 1
   INTEGER                     :: MaxElecQuant              ! Max elec quantum number + 1
+  INTEGER                     :: MaxRotQuant               ! Max rot quantum number + 1 (from database)
   INTEGER                     :: DissQuant                 ! Vibrational quantum number corresponding to the dissociation energy
   REAL                        :: RotRelaxProb              ! rotational relaxation probability
   REAL                        :: VibRelaxProb              ! vibrational relaxation probability
@@ -135,9 +136,12 @@ TYPE tSpeciesDSMC                                          ! DSMC Species Parame
   REAL                        :: VibCrossSec               ! vibrational cross section, ini_2
   REAL, ALLOCATABLE           :: CharaVelo(:)              ! characteristic velocity according to Boyd & Abe, nec for vib
                                                            ! relaxation
-  REAL,ALLOCATABLE,DIMENSION(:,:)   :: ElectronicState      ! Array with electronic State for each species
-                                                            ! first  index: 1 - degeneracy & 2 - char. Temp,el
-                                                            ! second index: energy level
+  REAL,ALLOCATABLE,DIMENSION(:,:)   :: ElectronicState     ! Array with electronic State for each species
+                                                           ! first  index: 1 - degeneracy & 2 - char. Temp,el
+                                                           ! second index: energy level
+  REAL,ALLOCATABLE,DIMENSION(:,:)   :: RotationalState     ! Array with rotational State for each species
+                                                           ! first  index: 1 - degeneracy
+                                                           ! second index: energy level
   INTEGER                           :: SymmetryFactor
   REAL                              :: CharaTRot
   REAL                              :: MomentOfInertia      ! Moment of Inertia
@@ -232,7 +236,11 @@ TYPE tDSMC
                                                             !    0-1: constant probability  (0: no relaxation)
                                                             !    2: Boyd's model
                                                             !    3: Nonequilibrium Direction Dependent model (Zhang,Schwarzentruber)
-  LOGICAL                       :: DoRotRelaxQuantized      ! Flag to enable quantized rotational energy levels (Boyd)
+  INTEGER                       :: RotRelaxModel            ! Model for rotational relaxation
+                                                            !    0 Continous treatment 
+                                                            !    1 Analytic model + rotational energy levels from unified species database 
+                                                            !       only for asymmetric top molecules
+                                                            !    2 rotational energy levels for all species from unified species database
   REAL                          :: VibRelaxProb             ! Model for calculation of vibrational relaxation probability, ini_1
                                                             !    0-1: constant probability (0: no relaxation)
                                                             !    2: Boyd's model, with correction from Abe
