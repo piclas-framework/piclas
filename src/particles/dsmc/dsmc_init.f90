@@ -723,6 +723,9 @@ ELSE !CollisMode.GT.0
     useRelaxProbCorrFactor=GETLOGICAL('Particles-DSMC-useRelaxProbCorrFactor','.FALSE.')
 
     IF(SpeciesDatabase.NE.'none') THEN
+      IF(DSMC%VibAHO) THEN
+        CALL Abort(__STAMP__,'ERROR: The Read-In of anharmonic vibrational constants from the database is not implemented yet!')
+      END IF
       ! Initialize FORTRAN interface.
       CALL H5OPEN_F(err)
       CALL H5FOPEN_F (TRIM(SpeciesDatabase), H5F_ACC_RDONLY_F, file_id_specdb, err)
@@ -869,6 +872,9 @@ ELSE !CollisMode.GT.0
           LBWRITE (UNIT_stdOut,'(68(". "))')
           WRITE(UNIT=hilf,FMT='(I0)') iSpec
           SpecDSMC(iSpec)%PolyatomicMol=GETLOGICAL('Part-Species'//TRIM(hilf)//'-PolyatomicMol','.FALSE.')
+          IF(DSMC%VibAHO.AND.SpecDSMC(iSpec)%PolyatomicMol) THEN
+            CALL Abort(__STAMP__,'ERROR: The anharmonic oscillator model is only available for diatomic species!')
+          END IF
           IF(SpecDSMC(iSpec)%PolyatomicMol.AND.DSMC%DoTEVRRelaxation)  THEN
             CALL Abort(__STAMP__,'! Simulation of Polyatomic Molecules and T-E-V-R relaxation not possible yet!!!')
           END IF
@@ -930,6 +936,9 @@ ELSE !CollisMode.GT.0
           ALLOCATE(SpecDSMC(iSpec)%Init(0:Species(iSpec)%NumberOfInits))
           ! Skip the read-in of temperatures if a background gas distribution is used but not if background gas regions are used
           IF(BGGas%NumberOfSpecies.GT.0) THEN
+            IF(DSMC%VibAHO) THEN
+              CALL Abort(__STAMP__,'ERROR: The anharmonic oscillator model is not possible with a background gas!')
+            END IF
             IF(BGGas%BackgroundSpecies(iSpec).AND.BGGas%UseDistribution.AND.(.NOT.BGGas%UseRegions)) THEN
               SpecDSMC(iSpec)%Init(1)%TVib  = 0.
               SpecDSMC(iSpec)%Init(1)%TRot  = 0.
@@ -1017,6 +1026,9 @@ ELSE !CollisMode.GT.0
   ! Define chemical reactions (including ionization and backward reaction rate)
   !-----------------------------------------------------------------------------------------------------------------------------------
   IF (CollisMode.EQ.3) THEN ! perform chemical reactions
+    IF(DSMC%VibAHO) THEN
+      CALL Abort(__STAMP__,'ERROR: The anharmonic oscillator model is not implemented for chemical reactions yet!')
+    END IF
     IF(SpeciesDatabase.NE.'none') THEN
       ! Initialize FORTRAN interface.
       CALL H5OPEN_F(err)

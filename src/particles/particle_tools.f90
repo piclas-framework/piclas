@@ -1015,11 +1015,8 @@ ELSE ! diatomic
     temp = TempVib
     IF(TempVib.LE.0.) temp = 0.1
 
-    GroundLevel = EXP(- AHO%VibEnergy(iSpec,1) / (BoltzmannConst * temp))
-    IF(GroundLevel.LE.0.) THEN
-      CalcEVib_particle = AHO%VibEnergy(iSpec,1)
-
-    ELSE
+    IF (CHECKEXP(- AHO%VibEnergy(iSpec,1) / (BoltzmannConst * temp))) THEN
+      GroundLevel = EXP(- AHO%VibEnergy(iSpec,1) / (BoltzmannConst * temp))
       CALL RANDOM_NUMBER(iRan)
       iQuant = INT(AHO%NumVibLevels(iSpec) * iRan + 1.)
       VibPartitionTemp = EXP(- AHO%VibEnergy(iSpec,iQuant) / (BoltzmannConst * temp))
@@ -1034,6 +1031,8 @@ ELSE ! diatomic
       END DO
       ! vibrational energy is table value of the accepted quantum number
       CalcEVib_particle = AHO%VibEnergy(iSpec,iQuant)
+    ELSE
+      CalcEVib_particle = AHO%VibEnergy(iSpec,1)
     END IF
 
   ELSE ! SHO

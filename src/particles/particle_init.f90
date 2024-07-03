@@ -451,9 +451,15 @@ IF (useDSMC) THEN
   CALL InitMCC()
   CALL InitSurfaceModel()
 #if (PP_TimeDiscMethod==300)
+  IF(DSMC%VibAHO) THEN
+    CALL Abort(__STAMP__,'ERROR: The anharmonic oscillator model is only available for DSMC!')
+  END IF
   CALL InitFPFlow()
 #endif
 #if (PP_TimeDiscMethod==400)
+  IF(DSMC%VibAHO) THEN
+    CALL Abort(__STAMP__,'ERROR: The anharmonic oscillator model is only available for DSMC!')
+  END IF
   CALL InitBGK()
 #endif
 ELSE IF (WriteMacroVolumeValues.OR.WriteMacroSurfaceValues) THEN

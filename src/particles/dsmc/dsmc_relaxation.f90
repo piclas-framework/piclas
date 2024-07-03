@@ -71,12 +71,8 @@ IF(DSMC%VibAHO) THEN
   temp = TVib
   IF(TVib.LE.0.) temp = 0.1
 
-  GroundLevel = EXP(- AHO%VibEnergy(iSpec,1) / (BoltzmannConst * temp))
-
-  IF(GroundLevel.LE.0.) THEN ! TODO-AHO: CHECKEXP
-    PartStateIntEn(1,iPart) = AHO%VibEnergy(iSpec,1)
-
-  ELSE
+  IF (CHECKEXP(- AHO%VibEnergy(iSpec,1) / (BoltzmannConst * temp))) THEN
+    GroundLevel = EXP(- AHO%VibEnergy(iSpec,1) / (BoltzmannConst * temp))
     CALL RANDOM_NUMBER(iRan)
     iQuant = INT(AHO%NumVibLevels(iSpec) * iRan + 1.)
     VibPartitionTemp = EXP(- AHO%VibEnergy(iSpec,iQuant) / (BoltzmannConst * temp))
@@ -92,6 +88,8 @@ IF(DSMC%VibAHO) THEN
 
     ! vibrational energy is table value of the accepted quantum number
     PartStateIntEn(1,iPart) = AHO%VibEnergy(iSpec,iQuant)
+  ELSE
+    PartStateIntEn(1,iPart) = AHO%VibEnergy(iSpec,1)
   END IF
 
 ELSE ! SHO
