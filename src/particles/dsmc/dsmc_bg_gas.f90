@@ -54,7 +54,7 @@ CALL prms%CreateRealArrayOption('Particles-BGGas-Region[$]-BasePointIC'       , 
 CALL prms%CreateRealArrayOption('Particles-BGGas-Region[$]-BaseVector1IC'     , 'First base vector'  , numberedmulti=.TRUE., no=3)
 CALL prms%CreateRealArrayOption('Particles-BGGas-Region[$]-BaseVector2IC'     , 'Second base vector' , numberedmulti=.TRUE., no=3)
 CALL prms%CreateRealOption(     'Particles-BGGas-Region[$]-CylinderHeightIC'  ,'Third measure of cylinder', numberedmulti=.TRUE.)
-CALL prms%CreateStringOption(   'BGGas-DriftDiff-Database-Species'&
+CALL prms%CreateStringOption(   'BGGas-DriftDiff-Database'&
                                           , 'Select database from which the coefficients where calculated '//&
                                           'Database','none')
 END SUBROUTINE DefineParametersBGG
@@ -107,9 +107,7 @@ REAL,ALLOCATABLE                                      :: TempDiffusion(:,:)
 REAL,ALLOCATABLE                                      :: TempEnergy(:,:)
 REAL,ALLOCATABLE                                      :: TempMobility(:,:)
 INTEGER                                               :: iDataset
-REAL                                                  :: MeanTemp, MeanMax, MinTemp
 LOGICAL                                               :: DataSetFound
-LOGICAL                                               :: ArraysFound
 REAL                                                  :: SumNumberDensity
 REAL                                                  :: eps_rel=5e-5
 REAL                                                  :: TestPoint
@@ -197,8 +195,8 @@ END DO ! bgSpec = 1, BGGas%NumberOfSpecies
 
 ! 6.) Read-in/convert drift diffusion coefficients
 #ifdef drift_diffusion
-BGGas%DatabaseName = TRIM(GETSTR('BGGas-DriftDiff-Database-Species'))
-IF(STRICMP(TRIM(BGGas%DatabaseName),'None')) CALL Abort(__STAMP__,'BGGas-DriftDiff-Database-Species not set!')
+BGGas%DatabaseName = TRIM(GETSTR('BGGas-DriftDiff-Database'))
+IF(STRICMP(TRIM(BGGas%DatabaseName),'None')) CALL Abort(__STAMP__,'BGGas-DriftDiff-Database not set!')
 ! Loop through the array and create combination of species for database access
 DatabaseSpeciesName = ''
 SpecCount = 0
@@ -259,7 +257,6 @@ SumNumberDensity = 0
 DO iSpec = 1, BGGas%NumberOfSpecies
   SumNumberDensity = SumNumberDensity + BGGas%NumberDensity(iSpec)
 END DO
-ArraysFound = .FALSE.
 IF(ALLOCATED(TempDiffusion).AND.ALLOCATED(TempEnergy))THEN
   ALLOCATE(BGGas%DriftDiffusionCoefficient(2,SIZE(TempDiffusion(1,:))), BGGas%ElectronMobility(2,SIZE(TempEnergy(1,:))))
   BGGas%DriftDiffusionCoefficient(1,:) = TempDiffusion(1,:)
@@ -272,8 +269,7 @@ IF(ALLOCATED(TempDiffusion).AND.ALLOCATED(TempEnergy))THEN
                              'Please check species database!')
     END IF
   END IF
-  ArraysFound = .TRUE.
-ELSE IF(ALLOCATED(TempMobility).AND.ALLOCATED(TempEnergy).AND..NOT.ArraysFound)THEN
+ELSE IF(ALLOCATED(TempMobility).AND.ALLOCATED(TempEnergy))THEN
   ALLOCATE(BGGas%DriftDiffusionCoefficient(2,SIZE(TempEnergy(1,:))), BGGas%ElectronMobility(2,SIZE(TempMobility(1,:))))
   BGGas%DriftDiffusionCoefficient(1,:) = TempEnergy(1,:)
   BGGas%DriftDiffusionCoefficient(2,:) = TempEnergy(2,:) * TempMobility(2,:) / SumNumberDensity
@@ -285,8 +281,7 @@ ELSE IF(ALLOCATED(TempMobility).AND.ALLOCATED(TempEnergy).AND..NOT.ArraysFound)T
                            'Please check species database!')
     END IF
   END IF
-  ArraysFound = .TRUE.
-ELSE IF(ALLOCATED(TempDiffusion).AND.ALLOCATED(TempMobility).AND..NOT.ArraysFound)THEN
+ELSE IF(ALLOCATED(TempDiffusion).AND.ALLOCATED(TempMobility))THEN
   ALLOCATE(BGGas%DriftDiffusionCoefficient(2,SIZE(TempDiffusion(1,:))), BGGas%ElectronMobility(2,SIZE(TempMobility(1,:))))
   BGGas%DriftDiffusionCoefficient(1,:) = TempDiffusion(1,:)
   BGGas%DriftDiffusionCoefficient(2,:) = TempDiffusion(2,:) / SumNumberDensity
@@ -298,7 +293,6 @@ ELSE IF(ALLOCATED(TempDiffusion).AND.ALLOCATED(TempMobility).AND..NOT.ArraysFoun
                            'Please check species database!')
     END IF
   END IF
-  ArraysFound = .TRUE.
 ELSE 
   CALL Abort(__STAMP__,'Combination of datasets not possible to calculate D and mu!'//&
   'Please check species database!')

@@ -279,7 +279,7 @@ def append_to_database_bolsig(database_path, Input):
                 exit()
 
         DSetNameList = ['MOBILITY', 'DIFFUSION', 'IONIZATION']
-        DescriptionList = [' Characteristic energy (D/μ)', 'Mobility x gas density (mu*N)', ' Diffusion x gas density (DN)', 'Reduced Townsend coefficient (alpha/N) in m^2']
+        DescriptionList = ['Mobility x gas density (mu*N)', ' Diffusion x gas density (DN)', 'Reduced Townsend coefficient (alpha/N) in m^2']
 
         for i in range(3):
             data_array = np.vstack((data.diff_coef[:,0],data.diff_coef[:,i+1]))
