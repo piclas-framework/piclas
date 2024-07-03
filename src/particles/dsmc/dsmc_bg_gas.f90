@@ -73,12 +73,14 @@ USE MOD_HDF5_Input            ,ONLY: DatasetExists
 USE MOD_StringTools           ,ONLY: STRICMP
 USE MOD_DSMC_Vars             ,ONLY: BGGas
 USE MOD_Mesh_Vars             ,ONLY: nElems
-USE MOD_Transport_Data        ,ONLY: InterpolateCoefficient
 USE MOD_Particle_Vars         ,ONLY: PDM, Species, nSpecies, UseVarTimeStep, VarTimeStep, SpeciesDatabase
 USE MOD_Restart_Vars          ,ONLY: DoMacroscopicRestart, MacroRestartFileName
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Vars ,ONLY: PerformLoadBalance
 #endif /*USE_LOADBALANCE*/
+#ifdef drift_diffusion
+USE MOD_Transport_Data        ,ONLY: InterpolateCoefficient
+#endif /*drift_diffusion*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
