@@ -73,7 +73,7 @@ The Poisson solver is suitable for 2D/1D and axially symmetric 2D simulations. U
 
     ! 2D axisymmetrc
     Particles-Symmetry-Order = 2
-    Particles-axisymmetric = true
+    Particles-Symmetry2DAxisymmetric = true
 
     ! 1D
     Particles-Symmetry-Order = 1
