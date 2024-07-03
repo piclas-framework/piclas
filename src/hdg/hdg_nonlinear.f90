@@ -512,7 +512,7 @@ CALL SYSTEM_CLOCK(count=CounterStart)
 
 #if USE_MPI
 IF(MPIroot) converged=(Norm_R2.LT.EpsNonLinear**2)
-CALL MPI_BCAST(converged,1,MPI_LOGICAL,0,MPI_COMM_WORLD,iError)
+CALL MPI_BCAST(converged,1,MPI_LOGICAL,0,MPI_COMM_PICLAS,iError)
 #else
 converged=(Norm_R2.LT.EpsNonLinear**2)
 #endif /*USE_MPI*/

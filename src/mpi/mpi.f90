@@ -380,7 +380,7 @@ DO iNbProc=1,nNbProcs
   IF(nMPISides_rec(iNbProc,SendID).GT.0)THEN
     nRecVal = PP_nVar*DataSizeSideRec(iNbProc,SendID)
     CALL MPI_IRECV(DGExchange(iNbProc)%FaceDataRecv(:,1:DataSizeSideRec(iNbProc,SendID)),nRecVal,MPI_DOUBLE_PRECISION,  &
-                    nbProc(iNbProc),0,MPI_COMM_WORLD,MPIRequest(iNbProc),iError)
+                    nbProc(iNbProc),0,MPI_COMM_PICLAS,MPIRequest(iNbProc),iError)
   ELSE
     MPIRequest(iNbProc)=MPI_REQUEST_NULL
   END IF
@@ -414,15 +414,15 @@ DO iNbProc=1,nNbProcs
     IF (mode.EQ.1) THEN
       nRecVal = DataSizeSurfRecMax(iNbProc,SendID)
       CALL MPI_IRECV(SurfExchange(iNbProc)%SurfDataRecv(1:nRecVal),nRecVal,MPI_DOUBLE_PRECISION,  &
-                      nbProc(iNbProc),0,MPI_COMM_WORLD,MPIRequest(iNbProc),iError)
+                      nbProc(iNbProc),0,MPI_COMM_PICLAS,MPIRequest(iNbProc),iError)
     ELSEIF (mode.EQ.8) THEN
       nRecVal = DataSizeSurfRecMin(iNbProc,SendID)**2
       CALL MPI_IRECV(SurfExchange(iNbProc)%SurfDataRecv2(1:nRecVal),nRecVal,MPI_DOUBLE_PRECISION,  &
-                      nbProc(iNbProc),0,MPI_COMM_WORLD,MPIRequest(iNbProc),iError)
+                      nbProc(iNbProc),0,MPI_COMM_PICLAS,MPIRequest(iNbProc),iError)
     ELSE
       nRecVal = DataSizeSurfRecMin(iNbProc,SendID)
       CALL MPI_IRECV(SurfExchange(iNbProc)%SurfDataRecv(1:nRecVal),nRecVal,MPI_DOUBLE_PRECISION,  &
-                      nbProc(iNbProc),0,MPI_COMM_WORLD,MPIRequest(iNbProc),iError)
+                      nbProc(iNbProc),0,MPI_COMM_PICLAS,MPIRequest(iNbProc),iError)
     END IF
   ELSE
     MPIRequest(iNbProc)=MPI_REQUEST_NULL
@@ -548,7 +548,7 @@ DO iNbProc=1,nNbProcs
         END DO ! p = 0, N_slave
       END DO ! iSide = SideID_start, SideID_end
       CALL MPI_ISEND(SurfExchange(iNbProc)%SurfDataSend(1:nSendVal),nSendVal,MPI_DOUBLE_PRECISION,  &
-                      nbProc(iNbProc),0,MPI_COMM_WORLD,MPIRequest(iNbProc),iError)
+                      nbProc(iNbProc),0,MPI_COMM_PICLAS,MPIRequest(iNbProc),iError)
     ELSEIF(mode.EQ.8)THEN
       ! Exchange HDG solver variables on Nmin
       nSendVal     = DataSizeSurfSendMin(iNbProc,SendID)**2
@@ -565,7 +565,7 @@ DO iNbProc=1,nNbProcs
         END DO ! p = 0, N_slave
       END DO ! iSide = SideID_start, SideID_end
       CALL MPI_ISEND(SurfExchange(iNbProc)%SurfDataSend2(1:nSendVal),nSendVal,MPI_DOUBLE_PRECISION,  &
-                      nbProc(iNbProc),0,MPI_COMM_WORLD,MPIRequest(iNbProc),iError)
+                      nbProc(iNbProc),0,MPI_COMM_PICLAS,MPIRequest(iNbProc),iError)
     ELSE
       ! Exchange HDG solver variables on Nmin
       nSendVal     = DataSizeSurfSendMin(iNbProc,SendID)
@@ -595,7 +595,7 @@ DO iNbProc=1,nNbProcs
         END DO ! p = 0, N_slave
       END DO ! iSide = SideID_start, SideID_end
       CALL MPI_ISEND(SurfExchange(iNbProc)%SurfDataSend(1:nSendVal),nSendVal,MPI_DOUBLE_PRECISION,  &
-                      nbProc(iNbProc),0,MPI_COMM_WORLD,MPIRequest(iNbProc),iError)
+                      nbProc(iNbProc),0,MPI_COMM_PICLAS,MPIRequest(iNbProc),iError)
     END IF
   ELSE
     MPIRequest(iNbProc)=MPI_REQUEST_NULL
@@ -655,8 +655,8 @@ DO iNbProc=1,nNbProcs
       END DO ! iSide = SideID_start, SideID_end
     END IF ! SendID.EQ.2
 
-    CALL MPI_ISEND(DGExchange(iNbProc)%FaceDataSend(:,1:DataSizeSideSend(iNbProc,SendID)),nSendVal,MPI_DOUBLE_PRECISION,  &
-                    nbProc(iNbProc),0,MPI_COMM_WORLD,MPIRequest(iNbProc),iError)
+    CALL MPI_ISEND(DGExchange(iNbProc)%FaceDataSend(1:PP_nVar,1:DataSizeSideSend(iNbProc,SendID)),nSendVal,MPI_DOUBLE_PRECISION,  &
+                    nbProc(iNbProc),0,MPI_COMM_PICLAS,MPIRequest(iNbProc),iError)
   ELSE
     MPIRequest(iNbProc)=MPI_REQUEST_NULL
   END IF
@@ -688,7 +688,7 @@ INTEGER                      :: i,p,q,iSide,N_slave
 !===================================================================================================================================
 DO iNbProc=1,nNbProcs
   IF(nMPISides_send(iNbProc,SendID).GT.0)THEN
-    nSendVal     = 1*DataSizeSideSend(iNbProc,SendID)
+    nSendVal     = PP_nVar*DataSizeSideSend(iNbProc,SendID)
     SideID_start = OffsetMPISides_send(iNbProc-1,SendID)+1
     SideID_end   = OffsetMPISides_send(iNbProc,SendID)
 
@@ -720,8 +720,8 @@ DO iNbProc=1,nNbProcs
       END DO ! iSide = SideID_start, SideID_end
     END IF ! SendID.EQ.2
 
-    CALL MPI_ISEND(DGExchange(iNbProc)%FaceDataSend(1:1,1:DataSizeSideSend(iNbProc,SendID)),nSendVal,MPI_DOUBLE_PRECISION,  &
-                    nbProc(iNbProc),0,MPI_COMM_WORLD,MPIRequest(iNbProc),iError)
+    CALL MPI_ISEND(DGExchange(iNbProc)%FaceDataSend(1:PP_nVar,1:DataSizeSideSend(iNbProc,SendID)),nSendVal,MPI_DOUBLE_PRECISION,  &
+                    nbProc(iNbProc),0,MPI_COMM_PICLAS,MPIRequest(iNbProc),iError)
   ELSE
     MPIRequest(iNbProc)=MPI_REQUEST_NULL
   END IF
@@ -759,7 +759,7 @@ DO iNbProc=1,nNbProcs
     SideID_start = OffsetMPISides_send(iNbProc-1,SendID)+1
     SideID_end   = OffsetMPISides_send(iNbProc,SendID)
     CALL MPI_ISEND(DG_Elems(SideID_start:SideID_end),nSendVal,MPI_INTEGER,  &
-                    nbProc(iNbProc),0,MPI_COMM_WORLD,SendRequest(iNbProc),iError)
+                    nbProc(iNbProc),0,MPI_COMM_PICLAS,SendRequest(iNbProc),iError)
   ELSE
     SendRequest(iNbProc)=MPI_REQUEST_NULL
   END IF
@@ -769,7 +769,7 @@ DO iNbProc=1,nNbProcs
     SideID_start = OffsetMPISides_rec(iNbProc-1,SendID)+1
     SideID_end   = OffsetMPISides_rec(iNbProc,SendID)
     CALL MPI_IRECV(DG_Elems(SideID_start:SideID_end),nRecVal,MPI_INTEGER,  &
-                    nbProc(iNbProc),0,MPI_COMM_WORLD,RecRequest(iNbProc),iError)
+                    nbProc(iNbProc),0,MPI_COMM_PICLAS,RecRequest(iNbProc),iError)
   ELSE
     RecRequest(iNbProc)=MPI_REQUEST_NULL
   END IF

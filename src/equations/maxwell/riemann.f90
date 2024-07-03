@@ -102,9 +102,9 @@ SELECT CASE(InterfaceRiemann(SideID))
   !   - PML        <-> PML          : RIEMANN_PML               = 1
   !   - dielectric <-> dielectric   : RIEMANN_DIELECTRIC        = 2
   !   - dielectric  -> vacuum       : RIEMANN_DIELECTRIC2VAC    = 3 ! for conservative fluxes (one flux)
-  !   - vacuum      -> dielectri    : RIEMANN_VAC2DIELECTRIC    = 4 ! for conservative fluxes (one flux)
+  !   - vacuum      -> dielectric   : RIEMANN_VAC2DIELECTRIC    = 4 ! for conservative fluxes (one flux)
   !   - dielectric  -> vacuum       : RIEMANN_DIELECTRIC2VAC_NC = 5 ! for non-conservative fluxes (two fluxes)
-  !   - vacuum      -> dielectri    : RIEMANN_VAC2DIELECTRIC_NC = 6 ! for non-conservative fluxes (two fluxes)
+  !   - vacuum      -> dielectric   : RIEMANN_VAC2DIELECTRIC_NC = 6 ! for non-conservative fluxes (two fluxes)
 CASE(RIEMANN_VACUUM)
   ! standard flux
   CALL RiemannVacuum(Nloc,Flux_Master(1:8,:,:),U_Master( :,:,:),U_Slave(  :,:,:),NormVec(:,:,:))
@@ -673,7 +673,7 @@ CASE(RIEMANN_DIELECTRIC) ! dielectric region <-> dielectric region
                          NormVec(:,:,:),DielectricSurf(SideID)%Dielectric_Master(0:Nloc,0:Nloc))
 CASE(RIEMANN_DIELECTRIC2VAC) ! master is DIELECTRIC and slave PHYSICAL: A+(Eps0,Mu0) and A-(EpsR,MuR)
   CALL RiemannDielectricInterFace2(Nloc,Flux_loc(1:8,:,:),U_Master_loc(:,:,:),U_Slave_loc(:,:,:),&
-                                   NormVec(:,:,:),DielectricSurf(SideID)%Dielectric_Master(0:Nloc,0:Nloc))
+                                              NormVec(:,:,:),DielectricSurf(SideID)%Dielectric_Master(0:Nloc,0:Nloc))
 CASE(RIEMANN_VAC2DIELECTRIC) ! master is PHYSICAL and slave DIELECTRIC: A+(EpsR,MuR) and A-(Eps0,Mu0)
   CALL RiemannDielectricInterFace(Nloc,Flux_loc(1:8,:,:),U_Master_loc(:,:,:),U_Slave_loc(:,:,:),&
                                               NormVec(:,:,:),DielectricSurf(SideID)%Dielectric_Master(0:Nloc,0:Nloc))
