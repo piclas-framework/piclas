@@ -206,8 +206,8 @@ CALL prms%CreateRealOption(     'Part-Species[$]-Ediss_eV','Energy of Dissoziati
 CALL prms%CreateRealOption(     'Part-Species[$]-Vib-Anharmonic-omegaE' &
                                            ,'Spectroscopy constant omegaE for anharmonic oscillator model, in 1/m'&
                                            , numberedmulti=.TRUE.)
-CALL prms%CreateRealOption(     'Part-Species[$]-Vib-Anharmonic-xiE' &
-                                           ,'Spectroscopy constant xiE for anharmonic oscillator model'&
+CALL prms%CreateRealOption(     'Part-Species[$]-Vib-Anharmonic-chiE' &
+                                           ,'Spectroscopy constant chiE for anharmonic oscillator model'&
                                            , numberedmulti=.TRUE.)
 ! ----------------------------------------------------------------------------------------------------------------------------------
 CALL prms%CreateLogicalOption(  'Particles-DSMC-useRelaxProbCorrFactor'&
@@ -349,11 +349,11 @@ IF(CollisMode.GE.2) THEN
   IF(DSMC%VibAHO) THEN
     ALLOCATE(AHO%NumVibLevels(nSpecies))
     ALLOCATE(AHO%omegaE(nSpecies))
-    ALLOCATE(AHO%xiE(nSpecies))
+    ALLOCATE(AHO%chiE(nSpecies))
     DO iSpec = 1, nSpecies
       WRITE(UNIT=hilf,FMT='(I0)') iSpec
       AHO%omegaE(iSpec) = GETREAL('Part-Species'//TRIM(hilf)//'-Vib-Anharmonic-omegaE')
-      AHO%xiE(iSpec) = GETREAL('Part-Species'//TRIM(hilf)//'-Vib-Anharmonic-xiE')
+      AHO%chiE(iSpec) = GETREAL('Part-Species'//TRIM(hilf)//'-Vib-Anharmonic-chiE')
       FileNameAHO(iSpec) = GETSTR('Particles-DSMC-Vib-Anharmonic-Species'//TRIM(hilf)//'-Data')
       CALL ReadAHOLevelsFromCSV(FileNameAHO(iSpec),iSpec)
     END DO
@@ -1741,7 +1741,7 @@ IF(DSMC%VibAHO) THEN
   SDEALLOCATE(AHO%NumVibLevels)
   SDEALLOCATE(AHO%VibEnergy)
   SDEALLOCATE(AHO%omegaE)
-  SDEALLOCATE(AHO%xiE)
+  SDEALLOCATE(AHO%chiE)
 END IF
 SDEALLOCATE(DSMC%QualityFacSampRot)
 SDEALLOCATE(DSMC%QualityFacSampVib)

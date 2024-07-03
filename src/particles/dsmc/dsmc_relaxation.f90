@@ -159,14 +159,14 @@ IF(DSMC%VibAHO) THEN ! AHO
   ! Ec without zero-point energy for calc of ProbAccept
   Ec = Ec - AHO%VibEnergy(iSpec,1)
   ! calculate probability of acceptance of the chosen quantum number
-  ProbAccept = (1. - (PlanckConst * c * AHO%omegaE(iSpec) * (iQua-1) * (1. - AHO%xiE(iSpec) * iQua)) &
+  ProbAccept = (1. - (PlanckConst * c * AHO%omegaE(iSpec) * (iQua-1) * (1. - AHO%chiE(iSpec) * iQua)) &
     / Ec) **(1. - CollInf%omega(iSpec1,iSpec2))
   ! compare to random number and repeat until accepted
   CALL RANDOM_NUMBER(iRan)
   DO WHILE (iRan.GT.ProbAccept)
     CALL RANDOM_NUMBER(iRan)
     iQua = INT(iRan * iQuaMax + 1)
-    ProbAccept = (1. - (PlanckConst * c * AHO%omegaE(iSpec) * (iQua-1) * (1. - AHO%xiE(iSpec) * iQua)) &
+    ProbAccept = (1. - (PlanckConst * c * AHO%omegaE(iSpec) * (iQua-1) * (1. - AHO%chiE(iSpec) * iQua)) &
       / Ec) **(1. - CollInf%omega(iSpec1,iSpec2))
     CALL RANDOM_NUMBER(iRan)
   END DO

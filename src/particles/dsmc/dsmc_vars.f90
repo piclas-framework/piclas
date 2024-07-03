@@ -259,7 +259,7 @@ TYPE tAHO
   REAL, ALLOCATABLE             :: VibEnergy(:,:)           ! Tabular vib energy for Morse potential [nSpecies,max(NumVibLevels)]
   INTEGER, ALLOCATABLE          :: NumVibLevels(:)          ! Number of vib levels [nSpecies]
   REAL, ALLOCATABLE             :: omegaE(:)                ! Spectroscopy constant omegaE [nSpecies]
-  REAL, ALLOCATABLE             :: xiE(:)                   ! Spectroscopy constant xiE [nSpecies]
+  REAL, ALLOCATABLE             :: chiE(:)                  ! Spectroscopy constant chiE [nSpecies]
 END TYPE
 
 TYPE(tAHO)                       :: AHO

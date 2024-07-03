@@ -81,7 +81,9 @@ If the previous state of the ionized species is not part of the simulation (e.g.
 state of N$_2^+$ can be set to zero, however, in that case a heat/enthalpy of formation has to be provided, which includes the
 ionization energy (as given in ATcT).
 
-Diatomic molecular species require the definition of the characteristic temperature [K] and their dissociation energy [eV]
+For the vibrational energy, two different models are available, the Simple Harmonic Oscillator (SHO) and the Anharmonic Oscillator (AHO). The default model is SHO.
+
+Here, diatomic molecular species require the definition of the characteristic temperature [K] and their dissociation energy [eV]
 (which is at the moment utilized as a first guess for the upper bound of the temperature calculation as well as the threshold
 energy for the dissociation by the Quantum-Kinetic chemistry model)
 
@@ -108,6 +110,19 @@ degeneracy of two. These values are simply given the according amount of times
 
 These parameters allow the simulation of non-reactive gases. Additional parameters required for the consideration of chemical
 reaction are given in Section {ref}`sec:DSMC-chemistry`.
+
+The AHO model can be enabled using
+
+    Particles-DSMC-Vib-Anharmonic = TRUE
+
+It is only implemented for diatomic molecular species until now and cannot be combined with chemical reactions. PICLas utilizes a species database, which contains the AHO vibrational energy levels and spectroscopy constants $\omega_\mathrm{E}$ and $\chi_\mathrm{E}$ of the species and is located in the top folder `SpeciesDatabase.h5`. Details regarding the database can be found in Section {ref}`sec:unified-species-database`. To start the simulation without the species database, the following parameters are required
+
+    Part-Species1-Vib-Anharmonic-omegaE = 167174.0
+    Part-Species1-Vib-Anharmonic-chiE = 0.009825092
+
+A list of the anharmonic energy levels (in Joule), including the zero-point energy as first level, can be included via
+
+    Particles-DSMC-Vib-Anharmonic-Species1-Data = DSMCSpecies_AHO_vibrational_data.h5
 
 (sec:DSMC-collision)=
 ## Pairing & Collision Modelling
