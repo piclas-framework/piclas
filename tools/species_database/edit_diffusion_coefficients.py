@@ -77,7 +77,7 @@ class DiffusionCoefficientsSetLXCatBolsig:
                     if found_data:
                         plots_list = []
                         A2 = []
-                        A12 = []
+                        A5 = []
                         A18 = []
                         line = f.readline()
                         line = f.readline()
@@ -88,14 +88,14 @@ class DiffusionCoefficientsSetLXCatBolsig:
                             parts = re.sub(r'\s+',' ', line).split(' ')
                             plots_list.append(parts[2])
                             A2.append(parts[4])
-                            A12.append(parts[7])
+                            A5.append(parts[5])
                             A18.append(parts[11])
                             line = f.readline()
                         # columns:  E/N (Td) | Mean energy (eV) | Energy mobility *N (1/m/V/s) | Energy diffusion coef. D*N (1/m/s) | Townsend ioniz. coef. alpha/N (m2)
                         data_array = np.zeros((len(plots_list),4))
                         data_array[:,0] = plots_list
                         data_array[:,1] = A2
-                        data_array[:,2] = A12
+                        data_array[:,2] = A5
                         data_array[:,3] = A18
                         self.diff_coef = data_array
                         self.reference = reference #+ f'from {red_field.iloc[0]} to {red_field.iloc[-1]}'
