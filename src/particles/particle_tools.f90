@@ -968,7 +968,7 @@ REAL, INTENT(IN)              :: TempVib
 INTEGER, INTENT(IN),OPTIONAL  :: iPart
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-REAL                      :: iRan, GroundLevel, VibPartitionTemp
+REAL                      :: iRan, temp, GroundLevel, VibPartitionTemp
 INTEGER                   :: iQuant, iDOF, iPolyatMole
 LOGICAL                   :: SetVibQuant
 !===================================================================================================================================
@@ -1000,34 +1000,41 @@ IF(SpecDSMC(iSpec)%PolyatomicMol) THEN
   END DO
 
 ELSE ! diatomic
-  IF(DSMC%VibAHO) THEN ! TODO-AHO: initiale Vibrationsenergie?
+  IF(DSMC%VibAHO) THEN
+    ! Other possible variants (not tested):
     ! V1: calculate sum over all energy levels = complete partition function for vibration
-    ! VibPartition = 0.
-    ! DO iQuant = 1, AHO%NumVibLevels(iSpec)
-    !   VibPartition = VibPartition + EXP(- AHO%VibEnergy(iSpec,iQuant) / (BoltzmannConst * TempVib))
-    ! END DO
-    ! then: calculate single levels (EXP(- AHO%VibEnergy(iSpec,iQuant) / (BoltzmannConst * TempVib)))
-    ! Sum up until random number is reached
+    !   VibPartition = 0.
+    !   DO iQuant = 1, AHO%NumVibLevels(iSpec)
+    !     VibPartition = VibPartition + EXP(- AHO%VibEnergy(iSpec,iQuant) / (BoltzmannConst * TempVib))
+    !   END DO
+    !   then: calculate single levels (EXP(- AHO%VibEnergy(iSpec,iQuant) / (BoltzmannConst * TempVib)))
+    !   Sum up until random number is reached
+    ! V2: calculate partition function for each level (sums up to 1) --> contribution of each level
+    !   Sum up contribution * energy of each level
 
-    ! V2: calculate partition funtion for each level (sums up to 1) --> contribution of each level
-    ! Sum up contribution * energy of each level
+    temp = TempVib
+    IF(TempVib.LE.0.) temp = 0.1
 
-    ! select level
-    GroundLevel = EXP(- AHO%VibEnergy(iSpec,1) / (BoltzmannConst * TempVib))
-    CALL RANDOM_NUMBER(iRan)
-    iQuant = INT(AHO%NumVibLevels(iSpec) * iRan + 1.)
-    VibPartitionTemp = EXP(- AHO%VibEnergy(iSpec,iQuant) / (BoltzmannConst * TempVib))
-    CALL RANDOM_NUMBER(iRan)
-    ! acceptance is higher for lower levels
-    DO WHILE (iRan .GE. (VibPartitionTemp / GroundLevel))
-      ! select random quantum number and calculate partition function
+    GroundLevel = EXP(- AHO%VibEnergy(iSpec,1) / (BoltzmannConst * temp))
+    IF(GroundLevel.LE.0.) THEN
+      CalcEVib_particle = AHO%VibEnergy(iSpec,1)
+
+    ELSE
       CALL RANDOM_NUMBER(iRan)
       iQuant = INT(AHO%NumVibLevels(iSpec) * iRan + 1.)
-      VibPartitionTemp = EXP(- AHO%VibEnergy(iSpec,iQuant) / (BoltzmannConst * TempVib))
+      VibPartitionTemp = EXP(- AHO%VibEnergy(iSpec,iQuant) / (BoltzmannConst * temp))
       CALL RANDOM_NUMBER(iRan)
-    END DO
-    ! vibrational energy is table value of the accepted quantum number
-    CalcEVib_particle = AHO%VibEnergy(iSpec,iQuant)
+      ! acceptance is higher for lower levels
+      DO WHILE (iRan .GE. (VibPartitionTemp / GroundLevel))
+        ! select random quantum number and calculate partition function
+        CALL RANDOM_NUMBER(iRan)
+        iQuant = INT(AHO%NumVibLevels(iSpec) * iRan + 1.)
+        VibPartitionTemp = EXP(- AHO%VibEnergy(iSpec,iQuant) / (BoltzmannConst * temp))
+        CALL RANDOM_NUMBER(iRan)
+      END DO
+      ! vibrational energy is table value of the accepted quantum number
+      CalcEVib_particle = AHO%VibEnergy(iSpec,iQuant)
+    END IF
 
   ELSE ! SHO
     CALL RANDOM_NUMBER(iRan)

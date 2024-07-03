@@ -1642,9 +1642,9 @@ ELSE IF (Species(iSpec)%nSurfacefluxBCs.GT.0.) THEN
     temp = temp + SpecDSMC(iSpec)%Surfaceflux(iSF)%TVib
   END DO
   temp = temp / Species(iSpec)%nSurfacefluxBCs
-ELSE
-  temp = 0.
 END IF
+! temp = 0 --> NaN
+IF(temp.LE.0.) temp = 0.1
 
 DO iQuant = 1, AHO%NumVibLevels(iSpec)
   VibEnergy(iQuant) = AHO%VibEnergy(iSpec,iQuant) - AHO%VibEnergy(iSpec,1) ! subtract zero-point energy

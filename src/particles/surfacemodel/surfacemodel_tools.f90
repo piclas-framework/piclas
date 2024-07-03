@@ -211,7 +211,7 @@ IF(PDM%InRotRefFrame(PartID)) THEN
   ! Calc new particle position with NewVeloPush
   PartState(1:3,PartID)   = LastPartPos(1:3,PartID) + (1.0 - POI_fak) * dtVar * NewVeloPush(1:3)
 ELSE
-  ! Mirror the LastPartPos for new particle position  
+  ! Mirror the LastPartPos for new particle position
   PartState(1:3,PartID) = LastPartPos(1:3,PartID) + TrackInfo%PartTrajectory(1:3)*(TrackInfo%lengthPartTrajectory - TrackInfo%alpha)
 END IF
 
@@ -475,7 +475,7 @@ IF(Symmetry%Axisymmetric) THEN
   PartState(3,PartID) = 0.0
   NewVelo(2) = rotVelY
   NewVelo(3) = rotVelZ
-  
+
   IF (NINT(SIGN(1.,rotPosY-POI_vec(2))).NE.NINT(SIGN(1.,ny))) THEN
     LastPartPos(2, PartID) = LastPartPos(2, PartID) + SIGN(1.,ny)*TwoepsMach
     TrackInfo%LastSide = 0
@@ -682,20 +682,24 @@ IF ((Species(SpecID)%InterID.EQ.2).OR.(Species(SpecID)%InterID.EQ.20)) THEN
         END IF
       END DO
     ELSE
-      VibQuant     = NINT(PartStateIntEn(1,PartID)/(BoltzmannConst*SpecDSMC(SpecID)%CharaTVib) - DSMC%GammaQuant)
-      CALL RANDOM_NUMBER(RanNum)
-      VibQuantWall = INT(-LOG(RanNum) * WallTemp / SpecDSMC(SpecID)%CharaTVib)
-      DO WHILE (VibQuantWall.GE.SpecDSMC(SpecID)%MaxVibQuant)
+      IF(DSMC%VibAHO) THEN ! AHO
+        ! TODO-AHO
+      ELSE ! SHO
+        VibQuant = NINT(PartStateIntEn(1,PartID)/(BoltzmannConst*SpecDSMC(SpecID)%CharaTVib) - DSMC%GammaQuant)
         CALL RANDOM_NUMBER(RanNum)
         VibQuantWall = INT(-LOG(RanNum) * WallTemp / SpecDSMC(SpecID)%CharaTVib)
-      END DO
-      VibQuantNewR = VibQuant + VibACC*(VibQuantWall - VibQuant)
-      VibQuantNew = INT(VibQuantNewR)
-      CALL RANDOM_NUMBER(RanNum)
-      IF (RanNum.LT.(VibQuantNewR - VibQuantNew)) THEN
-        EvibNew = (VibQuantNew + DSMC%GammaQuant + 1.0d0)*BoltzmannConst*SpecDSMC(SpecID)%CharaTVib
-      ELSE
-        EvibNew = (VibQuantNew + DSMC%GammaQuant)*BoltzmannConst*SpecDSMC(SpecID)%CharaTVib
+        DO WHILE (VibQuantWall.GE.SpecDSMC(SpecID)%MaxVibQuant)
+          CALL RANDOM_NUMBER(RanNum)
+          VibQuantWall = INT(-LOG(RanNum) * WallTemp / SpecDSMC(SpecID)%CharaTVib)
+        END DO
+        VibQuantNewR = VibQuant + VibACC*(VibQuantWall - VibQuant)
+        VibQuantNew = INT(VibQuantNewR)
+        CALL RANDOM_NUMBER(RanNum)
+        IF (RanNum.LT.(VibQuantNewR - VibQuantNew)) THEN
+          EvibNew = (VibQuantNew + DSMC%GammaQuant + 1.0d0)*BoltzmannConst*SpecDSMC(SpecID)%CharaTVib
+        ELSE
+          EvibNew = (VibQuantNew + DSMC%GammaQuant)*BoltzmannConst*SpecDSMC(SpecID)%CharaTVib
+        END IF
       END IF
     END IF
 

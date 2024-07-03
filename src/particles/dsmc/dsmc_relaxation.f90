@@ -50,41 +50,49 @@ REAL, INTENT(IN)                :: TRot, TVib
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-REAL                            :: iRan, GroundLevel, VibPartitionTemp
+REAL                            :: iRan, temp, GroundLevel, VibPartitionTemp
 INTEGER                         :: iQuant
 !===================================================================================================================================
 ! Nullify energy for atomic species
 PartStateIntEn(1:2,iPart) = 0
 ! Set vibrational energy
-IF(DSMC%VibAHO) THEN ! TODO-AHO: initiale Vibrationsenergie?
-
+IF(DSMC%VibAHO) THEN
+  ! Other possible variants (not tested):
   ! V1: calculate sum over all energy levels = complete partition function for vibration
-  ! VibPartition = 0.
-  ! DO iQuant = 1, AHO%NumVibLevels(iSpec)
-  !   VibPartition = VibPartition + EXP(- AHO%VibEnergy(iSpec,iQuant) / (BoltzmannConst * TVib))
-  ! END DO
-  ! then: calculate single levels (EXP(- AHO%VibEnergy(iSpec,iQuant) / (BoltzmannConst * TVib)))
-  ! Sum up until random number is reached
+  !   VibPartition = 0.
+  !   DO iQuant = 1, AHO%NumVibLevels(iSpec)
+  !     VibPartition = VibPartition + EXP(- AHO%VibEnergy(iSpec,iQuant) / (BoltzmannConst * TempVib))
+  !   END DO
+  !   then: calculate single levels (EXP(- AHO%VibEnergy(iSpec,iQuant) / (BoltzmannConst * TempVib)))
+  !   Sum up until random number is reached
+  ! V2: calculate partition function for each level (sums up to 1) --> contribution of each level
+  !   Sum up contribution * energy of each level
 
-  ! V2: calculate partition funtion for each level (sums up to 1) --> contribution of each level
-  ! Sum up contribution * energy of each level
+  temp = TVib
+  IF(TVib.LE.0.) temp = 0.1
 
-  ! select level
-  GroundLevel = EXP(- AHO%VibEnergy(iSpec,1) / (BoltzmannConst * TVib))
-  CALL RANDOM_NUMBER(iRan)
-  iQuant = INT(AHO%NumVibLevels(iSpec) * iRan + 1.)
-  VibPartitionTemp = EXP(- AHO%VibEnergy(iSpec,iQuant) / (BoltzmannConst * TVib))
-  CALL RANDOM_NUMBER(iRan)
-  ! acceptance is higher for lower levels
-  DO WHILE (iRan .GE. (VibPartitionTemp / GroundLevel))
-    ! select random quantum number and calculate partition function
+  GroundLevel = EXP(- AHO%VibEnergy(iSpec,1) / (BoltzmannConst * temp))
+
+  IF(GroundLevel.LE.0.) THEN ! TODO-AHO: CHECKEXP
+    PartStateIntEn(1,iPart) = AHO%VibEnergy(iSpec,1)
+
+  ELSE
     CALL RANDOM_NUMBER(iRan)
     iQuant = INT(AHO%NumVibLevels(iSpec) * iRan + 1.)
-    VibPartitionTemp = EXP(- AHO%VibEnergy(iSpec,iQuant) / (BoltzmannConst * TVib))
+    VibPartitionTemp = EXP(- AHO%VibEnergy(iSpec,iQuant) / (BoltzmannConst * temp))
     CALL RANDOM_NUMBER(iRan)
-  END DO
-  ! vibrational energy is table value of the accepted quantum number
-  PartStateIntEn(1,iPart) = AHO%VibEnergy(iSpec,iQuant)
+    ! acceptance is higher for lower levels
+    DO WHILE (iRan .GE. (VibPartitionTemp / GroundLevel))
+      ! select random quantum number and calculate partition function
+      CALL RANDOM_NUMBER(iRan)
+      iQuant = INT(AHO%NumVibLevels(iSpec) * iRan + 1.)
+      VibPartitionTemp = EXP(- AHO%VibEnergy(iSpec,iQuant) / (BoltzmannConst * temp))
+      CALL RANDOM_NUMBER(iRan)
+    END DO
+
+    ! vibrational energy is table value of the accepted quantum number
+    PartStateIntEn(1,iPart) = AHO%VibEnergy(iSpec,iQuant)
+  END IF
 
 ELSE ! SHO
   CALL RANDOM_NUMBER(iRan)
@@ -122,7 +130,7 @@ REAL, INTENT(IN)              :: FakXi
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 REAL                          :: MaxColQua, iRan, Ec, ProbAccept
-INTEGER                       :: iQuaMax, iQua, iSpec1, iSpec2
+INTEGER                       :: iQuaMax, iQua, iSpec, iSpec1, iSpec2
 !===================================================================================================================================
 IF (usevMPF.OR.RadialWeighting%DoRadialWeighting.OR.UseVarTimeStep) THEN
   Ec = Coll_pData(iPair)%Ec / GetParticleWeight(iPart)
@@ -130,41 +138,46 @@ ELSE
   Ec = Coll_pData(iPair)%Ec
 END IF
 
+iSpec = PartSpecies(iPart)
+
 IF(DSMC%VibAHO) THEN ! AHO
   ! maximum quantum number
-  iQuaMax = 1
-  DO WHILE (Ec.GE.AHO%VibEnergy(PartSpecies(iPart),iQuaMax))
+  iQuaMax = 2
+  DO WHILE (Ec.GE.AHO%VibEnergy(iSpec,iQuaMax))
     ! collision energy is larger than vib energy for this quantum number --> increase quantum number and try again
     iQuaMax = iQuaMax + 1
     ! exit if this quantum number is larger as the table length (dissociation level is reached)
-    IF (iQuaMax.GT.AHO%NumVibLevels(PartSpecies(iPart))) EXIT
+    IF (iQuaMax.GT.AHO%NumVibLevels(iSpec)) EXIT
   END DO
   ! accept iQuaMax - 1 as quantum number
   iQuaMax = iQuaMax - 1
   ! vibrational energy
   ! choose random quantum number
   CALL RANDOM_NUMBER(iRan)
-  iQua = INT(iRan * iQuaMax)
+  iQua = INT(iRan * iQuaMax + 1)
   ! species of pair
   iSpec1 = PartSpecies(Coll_pData(iPair)%iPart_p1)
   iSpec2 = PartSpecies(Coll_pData(iPair)%iPart_p2)
+  ! Ec without zero-point energy for calc of ProbAccept
+  Ec = Ec - AHO%VibEnergy(iSpec,1)
   ! calculate probability of acceptance of the chosen quantum number
-  ProbAccept = (1 - (PlanckConst * c * AHO%omegaE(PartSpecies(iPart)) * iQua * (1 - AHO%xiE(PartSpecies(iPart)) * (iQua+1))) &
-    / Ec) **(3/2 - CollInf%omega(iSpec1,iSpec2))
+  ProbAccept = (1. - (PlanckConst * c * AHO%omegaE(iSpec) * (iQua-1) * (1. - AHO%xiE(iSpec) * iQua)) &
+    / Ec) **(1. - CollInf%omega(iSpec1,iSpec2))
   ! compare to random number and repeat until accepted
   CALL RANDOM_NUMBER(iRan)
   DO WHILE (iRan.GT.ProbAccept)
     CALL RANDOM_NUMBER(iRan)
-    iQua = INT(iRan * iQuaMax)
-    ProbAccept = (1 - (PlanckConst * c * AHO%omegaE(PartSpecies(iPart)) * iQua * (1 - AHO%xiE(PartSpecies(iPart)) * (iQua+1))) &
-      / Ec) **(3/2 - CollInf%omega(iSpec1,iSpec2))
+    iQua = INT(iRan * iQuaMax + 1)
+    ProbAccept = (1. - (PlanckConst * c * AHO%omegaE(iSpec) * (iQua-1) * (1. - AHO%xiE(iSpec) * iQua)) &
+      / Ec) **(1. - CollInf%omega(iSpec1,iSpec2))
     CALL RANDOM_NUMBER(iRan)
   END DO
   ! vibrational energy is table value of the accepted quantum number
-  PartStateIntEn(1,iPart) = AHO%VibEnergy(PartSpecies(iPart),iQua)
+  PartStateIntEn(1,iPart) = AHO%VibEnergy(iSpec,iQua)
+
 ELSE ! SHO
-  MaxColQua = Ec/(BoltzmannConst*SpecDSMC(PartSpecies(iPart))%CharaTVib) - DSMC%GammaQuant
-  iQuaMax = MIN(INT(MaxColQua) + 1, SpecDSMC(PartSpecies(iPart))%MaxVibQuant)
+  MaxColQua = Ec/(BoltzmannConst*SpecDSMC(iSpec)%CharaTVib) - DSMC%GammaQuant
+  iQuaMax = MIN(INT(MaxColQua) + 1, SpecDSMC(iSpec)%MaxVibQuant)
   CALL RANDOM_NUMBER(iRan)
   iQua = INT(iRan * iQuaMax)
   CALL RANDOM_NUMBER(iRan)
@@ -174,7 +187,7 @@ ELSE ! SHO
     iQua = INT(iRan * iQuaMax)
     CALL RANDOM_NUMBER(iRan)
   END DO
-  PartStateIntEn(1,iPart) = (iQua + DSMC%GammaQuant) * BoltzmannConst * SpecDSMC(PartSpecies(iPart))%CharaTVib
+  PartStateIntEn(1,iPart) = (iQua + DSMC%GammaQuant) * BoltzmannConst * SpecDSMC(iSpec)%CharaTVib
 END IF
 
 END SUBROUTINE DSMC_VibRelaxDiatomic
