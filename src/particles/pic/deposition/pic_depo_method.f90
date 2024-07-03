@@ -754,12 +754,13 @@ SUBROUTINE DepositionMethod_CM(doParticle_In, stage_opt)
 !===================================================================================================================================
 ! MODULES
 USE MOD_Preproc
-USE MOD_Particle_Vars          ,ONLY: Species, PartSpecies,PDM,PEM,PartPosRef,usevMPF,PartMPF
+USE MOD_Particle_Vars          ,ONLY: Species, PartSpecies,PDM,PEM,usevMPF,PartMPF
 USE MOD_Particle_Vars          ,ONLY: PartState
 USE MOD_PICDepo_Vars           ,ONLY: PartSource
 USE MOD_Part_Tools             ,ONLY: isDepositParticle
 USE MOD_Mesh_Tools             ,ONLY: GetCNElemID
 USE MOD_Particle_Mesh_Vars     ,ONLY: ElemVolume_Shared
+USE MOD_Mesh_Vars              ,ONLY: offSetElem
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Timers     ,ONLY: LBStartTime,LBPauseTime,LBElemSplitTime,LBElemPauseTime_avg
 USE MOD_LoadBalance_Timers     ,ONLY: LBElemSplitTime_avg
@@ -840,7 +841,7 @@ DO iPart = 1,PDM%ParticleVecLength
 END DO
 
 DO iElem=1, nElems
-  PartSource(SourceDim:4,:,:,:,iElem) = PartSource(SourceDim:4,:,:,:,iElem) / ElemVolume_Shared(iElem)
+  PartSource(SourceDim:4,:,:,:,iElem) = PartSource(SourceDim:4,:,:,:,iElem) / ElemVolume_Shared(GetCNElemID(iElem+offSetElem))
 END DO
 
 #if USE_LOADBALANCE
