@@ -28,7 +28,7 @@ PRIVATE
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
 PUBLIC :: DSMC_VibRelaxDiatomic, CalcMeanVibQuaDiatomic, CalcXiVib, CalcXiTotalEqui, DSMC_calc_P_rot, DSMC_calc_var_P_vib
 PUBLIC :: InitCalcVibRelaxProb, DSMC_calc_P_vib, SumVibRelaxProb, FinalizeCalcVibRelaxProb, DSMC_calc_P_elec
-PUBLIC :: DSMC_RotRelaxDiaQuant, ReadRotationalSpeciesLevel
+PUBLIC :: DSMC_RotRelaxDiaQuant
 !===================================================================================================================================
 
 CONTAINS
@@ -96,79 +96,6 @@ END DO
 PartStateIntEn( 2,iPart) = REAL(iQuant) * (REAL(iQuant) + 1.) * BoltzmannConst * SpecDSMC(iSpec)%CharaTRot
 
 END SUBROUTINE DSMC_RotRelaxDiaQuant
-
-!//TODO move to species database module
-SUBROUTINE ReadRotationalSpeciesLevel ( Dsetname, iSpec )
-!===================================================================================================================================
-! Subroutine to read the rotational levels from SpeciesDatabase.h5
-!===================================================================================================================================
-! use module
-USE MOD_io_hdf5
-USE MOD_Globals
-USE MOD_DSMC_Vars             ,ONLY: DSMC, SpecDSMC
-USE MOD_HDF5_Input            ,ONLY: DatasetExists
-USE MOD_Particle_Vars         ,ONLY: Species, SpeciesDatabase
-USE MOD_DSMC_ElectronicModel  ,ONLY: SortEnergies
-#if USE_LOADBALANCE
-USE MOD_LoadBalance_Vars      ,ONLY: PerformLoadBalance
-#endif /*USE_LOADBALANCE*/
-
-! IMPLICIT VARIABLE HANDLING
-IMPLICIT NONE
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
-INTEGER,INTENT(IN)                                    :: iSpec
-CHARACTER(LEN=64),INTENT(IN)                          :: dsetname
-!-----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-INTEGER                                               :: err
-! HDF5 specifier taken from extractParticles
-CHARACTER(LEN=256)                                    :: ElLevelDatabase
-CHARACTER(LEN=64)                                     :: datasetname
-INTEGER(HSIZE_T), DIMENSION(2)                        :: dims,sizeMax
-INTEGER(HID_T)                                        :: file_id_dsmc                       ! File identifier
-INTEGER(HID_T)                                        :: dset_id_dsmc                       ! Dataset identifier
-INTEGER(HID_T)                                        :: filespace                          ! filespace identifier
-REAL,ALLOCATABLE                                      :: RotationalState(:,:)
-INTEGER, ALLOCATABLE                                  :: SortRotationalState(:)
-INTEGER                                               :: iQua, nQuants, iQuaTemp
-REAL                                                  :: tempEnergyDiff, tempEnergy
-LOGICAL                                               :: DataSetFound
-!===================================================================================================================================
-datasetname = TRIM('/Species/'//TRIM(Species(iSpec)%Name)//'/RotationalLevel')
-ElLevelDatabase = TRIM(SpeciesDatabase)
-LBWRITE(UNIT_StdOut,'(A)') ' | Read rotational level entries '//TRIM(datasetname)//' from '//TRIM(ElLevelDatabase)
-! Initialize FORTRAN interface.
-CALL H5OPEN_F(err)
-! Open the file.
-CALL H5FOPEN_F (TRIM(ElLevelDatabase), H5F_ACC_RDONLY_F, file_id_dsmc, err)
-CALL DatasetExists(File_ID_DSMC,TRIM(datasetname),DataSetFound)
-IF(.NOT.DataSetFound)THEN
-  CALL abort(__STAMP__,'DataSet not found: ['//TRIM(datasetname)//'] ['//TRIM(ElLevelDatabase)//']')
-END IF
-! Open the  dataset.
-CALL H5DOPEN_F(file_id_dsmc, datasetname, dset_id_dsmc, err)
-! Get the file space of the dataset.
-CALL H5DGET_SPACE_F(dset_id_dsmc, FileSpace, err)
-! get size
-CALL H5SGET_SIMPLE_EXTENT_DIMS_F(FileSpace, dims, SizeMax, err)
-! Allocate rotational_state
-ALLOCATE (RotationalState( 1:dims(1), 0:dims(2)-1 ) )
-! read data
-CALL H5dread_f(dset_id_dsmc, H5T_NATIVE_DOUBLE, RotationalState, dims, err)
-CALL SortEnergies(RotationalState, INT(dims(2)))
-
-ALLOCATE ( SpecDSMC(iSpec)%RotationalState( 1:dims(1), 0:dims(2)-1 ) )
-SpecDSMC(iSpec)%RotationalState = RotationalState
-SpecDSMC(iSpec)%MaxRotQuant  = SIZE( SpecDSMC(iSpec)%RotationalState,2)
-! Close the file.
-CALL H5FCLOSE_F(file_id_dsmc, err)
-! Close FORTRAN interface.
-CALL H5CLOSE_F(err)
-
-END SUBROUTINE ReadRotationalSpeciesLevel
 
 
 REAL FUNCTION DiffRotEnergy(En1, En2)

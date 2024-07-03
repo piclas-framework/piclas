@@ -289,7 +289,7 @@ USE MOD_Particle_Vars          ,ONLY: nSpecies, Species, PDM, Symmetry, UseVarTi
 USE MOD_Particle_Vars          ,ONLY: DoFieldIonization, SpeciesDatabase,  SampleElecExcitation
 USE MOD_DSMC_ParticlePairing   ,ONLY: DSMC_init_octree
 USE MOD_DSMC_ChemInit          ,ONLY: DSMC_chemical_init
-USE MOD_DSMC_Relaxation        ,ONLY: ReadRotationalSpeciesLevel
+USE MOD_DSMC_ElectronicModel   ,ONLY: ReadRotationalSpeciesLevel
 USE MOD_DSMC_PolyAtomicModel   ,ONLY: InitPolyAtomicMolecs
 USE MOD_DSMC_CollisVec         ,ONLY: DiceDeflectedVelocityVector4Coll, DiceVelocityVector4Coll, PostCollVec
 USE MOD_DSMC_BGGas             ,ONLY: BGGas_RegionsSetInternalTemp
