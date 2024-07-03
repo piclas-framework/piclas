@@ -110,7 +110,6 @@ EFluid_GradSide=0.
 ! Always set docalcsource true, set false by calcsource itself on first run if not needed
 doCalcSource=.TRUE.
 
-
 EquationInitIsDone_FV=.TRUE.
 SWRITE(UNIT_stdOut,'(A)')' INIT Drift-Diffusion DONE!'
 SWRITE(UNIT_stdOut,'(132("-"))')

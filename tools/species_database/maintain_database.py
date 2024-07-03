@@ -1,11 +1,13 @@
 import h5py
 import re
 import argparse
+import os
 from general_functions import *
 from edit_species import *
 from edit_crosssections import *
 from edit_reactions import *
 from edit_surfchem import *
+from edit_diffusion_coefficients import *
 
 ###################################################################################################
 # - Program starts here
@@ -38,7 +40,7 @@ code_species = []
 
 # Prompt user to choose which dataset to keep
 print("\n\nThis script is meant to edit and maintain the " +yellow("unified species database") + " of PICLas")
-user_input = get_valid_input(create_prompt('to maintain/edit species', 'to maintain/edit chemical reactions', 'to maintain/edit cross section data', 'to maintain/edit surface chemistry'), lambda x: x == '1' or x == '2' or x =='3' or x =='4' or x =='5')
+user_input = get_valid_input(create_prompt('to maintain/edit species', 'to maintain/edit chemical reactions', 'to maintain/edit cross section data', 'to maintain/edit surface chemistry', 'to maintain/edit diffusion coefficients'), lambda x: x == '1' or x == '2' or x =='3' or x =='4' or x =='5' or x == '6')
 
 
 ###################################################################################################
@@ -144,9 +146,25 @@ elif user_input == "4":
     print("Not implemented yet")
 
 ###################################################################################################
+# Diffusion coefficients
+###################################################################################################
+
+elif user_input == "5":
+    # read in all arguments
+    username = os.getlogin()
+    InputFILES=[f'/home/{username}/Desktop/DiffCoefTests/Diffusionxgasdensity.txt', f'/home/{username}/Desktop/DiffCoefTests/EnergyTEST.txt', f'/home/{username}/Desktop/DiffCoefTests/Energy.txt', f'/home/{username}/Desktop/DiffCoefTests/MobilityxgasdensityTEST.txt', f'/home/{username}/Desktop/DiffCoefTests/ReducedTownsendcoefficient.txt', f'/home/{username}/Desktop/DiffCoefTests/swarm.txt']
+    database_PATH = '../../SpeciesDatabase.h5'
+    for file in InputFILES:
+        bolsig_bool = check_for_bolsig(file)
+        if bolsig_bool == True:
+            append_to_database_bolsig(database_PATH, file)
+        else:
+            append_to_database(database_PATH, file)
+    
+###################################################################################################
 # EXIT
 ###################################################################################################
-elif user_input == "5":
+elif user_input == "6":
     own_exit()
 
 print('Done.')

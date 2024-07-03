@@ -31,7 +31,7 @@ SUBROUTINE Riemann(F,U_L,U_R,nv,GradSide,E_L,E_R)
 USE MOD_PreProc ! 0
 USE MOD_TimeDisc_Vars  ,ONLY : dt
 USE MOD_Globals        ,ONLY :abort, vecnorm
-USE MOD_Transport_Data ,ONLY: CalcDriftDiffusionCoeffAr,CalcDriftDiffusionCoeffH2
+USE MOD_Transport_Data ,ONLY: CalcDriftDiffusionCoeffAr,CalcDriftDiffusionCoeffH2, CalcDriftDiffusionCoeff
 USE MOD_DSMC_Vars      ,ONLY: BGGas
 USE MOD_Particle_Vars  ,ONLY: nSpecies, Species
 ! IMPLICIT VARIABLE HANDLING
@@ -58,15 +58,9 @@ DO iSpec = 1, nSpecies
   END IF
 END DO
 
-IF (Species(iSpec)%Name.EQ.'H2') THEN
-  CALL CalcDriftDiffusionCoeffH2(VECNORM(E_L),BGGas%NumberDensity(iSpec),mu_L,D_L)
-  CALL CalcDriftDiffusionCoeffH2(VECNORM(E_R),BGGas%NumberDensity(iSpec),mu_R,D_R)
-ELSE IF (Species(iSpec)%Name.EQ.'Ar') THEN
-  CALL CalcDriftDiffusionCoeffAr(VECNORM(E_L),BGGas%NumberDensity(iSpec),mu_L,D_L)
-  CALL CalcDriftDiffusionCoeffAr(VECNORM(E_R),BGGas%NumberDensity(iSpec),mu_R,D_R)
-ELSE
-  CALL abort(__STAMP__,'bg gas species unknowned for electron fluid')
-END IF
+CALL CalcDriftDiffusionCoeff(VECNORM(E_L),BGGas%NumberDensity(iSpec),mu_L,D_L)
+CALL CalcDriftDiffusionCoeff(VECNORM(E_R),BGGas%NumberDensity(iSpec),mu_R,D_R)
+
 driftVelo=-DOT_PRODUCT(nv(:,0,0),(E_L+E_R)/2.)
 
 IF (driftVelo.GT.0.) THEN

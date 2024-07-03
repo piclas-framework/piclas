@@ -22,26 +22,17 @@ PRIVATE
 ! GLOBAL VARIABLES
 !----------------------------------------------------------------------------------------------------------------------------------
 
-PUBLIC::CalcDriftDiffusionCoeffH2,CalcDriftDiffusionCoeffAr
+PUBLIC::CalcDriftDiffusionCoeff, InterpolateCoefficient
 !==================================================================================================================================
 CONTAINS
 
-SUBROUTINE CalcDriftDiffusionCoeffAr(ElectricField,Density,mu,D)
+SUBROUTINE CalcDriftDiffusionCoeff(ElectricField,Density,mu,D)
 !==================================================================================================================================
 !> Calculate the transport (drift & diffusion) coefficients for the drift-diffusion electron fluid model
-!> SPECIES: e / Ar
-! PROCESS: Characteristic energy (D/mu)
-! COMMENT: Kucukarpaci et al 1981(DL/mu).
-! UPDATED: 2012-12-11 14:17:51
-! COLUMNS: Reduced electric field (Td) | Energy (eV)
-!> SPECIES: e / Ar
-! PROCESS: Mobility x gas density (muN)
-! COMMENT: Kucukarpaci et al 1981.
-! UPDATED: 2012-12-11 14:14:53
-! COLUMNS: Reduced electric field (Td) | Mobility x gas density ((m.V.s)-1)
 !==================================================================================================================================
 ! MODULES
 USE MOD_PreProc ! PP_N
+USE MOD_DSMC_Vars          ,ONLY: BGGas
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -54,276 +45,18 @@ REAL,INTENT(OUT)                                 :: mu, D
 ! INPUT / OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-REAL                                             :: EnergyTable(2,12), muTable(2,13), ReducedElectricField
+REAL                                             :: ReducedElectricField
 !===================================================================================================================================
-mu= 0.
-D = 0.
-
-EnergyTable(1,:) = (/4.1571,&
-5.3995,&
-6.7691,&
-8.4758,&
-13.801,&
-19.149,&
-27.73,&
-55.308,&
-138.3,&
-276.17,&
-411.83,&
-579.84/)
-
-EnergyTable(2,:) =(/1.3749,&
-2.0809,&
-3.3331,&
-4.0022,&
-4.0412,&
-4.2424,&
-4.2424,&
-4.5852,&
-5.2446,&
-6.2365,&
-6.8062,&
-7.1449/)
-
-
-
-muTable(1,:) =(/2.7322,&
-4.2337,&
-5.5209,&
-6.9518,&
-8.5551,&
-13.846,&
-19.957,&
-27.377,&
-54.591,&
-139.74,&
-274.65,&
-410.46,&
-559.02/)
-
-muTable(2,:) =(/1.4509E+024,&
-1.0737E+024,&
-1.1223E+024,&
-9.733E+023,&
-9.3242E+023,&
-1.0513E+024,&
-1.0338E+024,&
-1.0089E+024,&
-8.9659E+023,&
-7.8357E+023,&
-7.1341E+023,&
-7.1749E+023,&
-6.9164E+023/)
 
 IF (Density.GT.0.) THEN
     ReducedElectricField=1.e21*ElectricField/Density ! E/n in Townsend as defined in LXCAT database
-    mu = InterpolateCoefficient(muTable,ReducedElectricField)/Density ! table gives mu*n
-    D = InterpolateCoefficient(EnergyTable,ReducedElectricField)*mu ! table gives energy=D/mu
+    mu = InterpolateCoefficient(BGGas%ElectronMobility,ReducedElectricField)
+    D = InterpolateCoefficient(BGGas%DriftDiffusionCoefficient,ReducedElectricField)
     ! (actually not energy but kT/e so eV is already SI here)
 END IF
 
-END SUBROUTINE CalcDriftDiffusionCoeffAr
+END SUBROUTINE CalcDriftDiffusionCoeff
 
-SUBROUTINE CalcDriftDiffusionCoeffH2(ElectricField,Density,mu,D)
-!==================================================================================================================================
-!> Calculate the transport (drift & diffusion) coefficients for the drift-diffusion electron fluid model
-!> Now using data for electrons in H2 gas from LXCat database (Klaus Berkhan, PhD thesis, 1994, University Heidelberg)
-!==================================================================================================================================
-! MODULES
-USE MOD_PreProc ! PP_N
-! IMPLICIT VARIABLE HANDLING
-IMPLICIT NONE
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
-REAL,INTENT(IN)                                  :: ElectricField, Density
-!-----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
-REAL,INTENT(OUT)                                 :: mu, D
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT / OUTPUT VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-REAL                                             :: EnergyTable(2,26), muTable(2,56), ReducedElectricField
-!===================================================================================================================================
-mu= 0.
-D = 0.
-
-EnergyTable(1,:) = (/0.04, &
-0.05, &
-0.06, &
-0.07, &
-0.08, &
-0.1, &
-0.12, &
-0.14, &
-0.17, &
-0.2, &
-0.25, &
-0.3, &
-0.35, &
-0.4, &
-0.5, &
-0.6, &
-0.7, &
-0.8, &
-1., &
-1.2, &
-1.4, &
-1.7, &
-2., &
-2.5, &
-3., &
-3.5/)
-
-EnergyTable(2,:) =(/0.026, &
-0.0258, &
-0.0256, &
-0.0261, &
-0.026, &
-0.0263, &
-0.0268, &
-0.0272, &
-0.0278, &
-0.0287, &
-0.03, &
-0.0314, &
-0.0334, &
-0.0342, &
-0.0366, &
-0.0388, &
-0.0417, &
-0.045, &
-0.0488, &
-0.0546, &
-0.0596, &
-0.0678, &
-0.0763, &
-0.0923, &
-0.1071, &
-0.1208/)
-
-muTable(1,:) =(/0.008, &
-0.01, &
-0.012, &
-0.014, &
-0.017, &
-0.02, &
-0.025, &
-0.03, &
-0.035, &
-0.04, &
-0.05, &
-0.06, &
-0.07, &
-0.08, &
-0.1, &
-0.12, &
-0.14, &
-0.17, &
-0.2, &
-0.25, &
-0.3, &
-0.35, &
-0.4, &
-0.5, &
-0.6, &
-0.7, &
-0.8, &
-1., &
-1.2, &
-1.4, &
-1.7, &
-2., &
-2.5, &
-3., &
-3.5, &
-4., &
-5., &
-6., &
-7., &
-8., &
-10., &
-12., &
-14., &
-17., &
-20., &
-25., &
-30., &
-35., &
-40., &
-45., &
-50., &
-55., &
-60., &
-65., &
-70., &
-71./)
-
-muTable(2,:) =(/1.53625E+025, &
-1.536E+025, &
-1.5325E+025, &
-1.53E+025, &
-1.52412E+025, &
-1.5185E+025, &
-1.5096E+025, &
-1.49833E+025, &
-1.48886E+025, &
-1.473E+025, &
-1.4518E+025, &
-1.42517E+025, &
-1.40114E+025, &
-1.3775E+025, &
-1.332E+025, &
-1.29083E+025, &
-1.25357E+025, &
-1.20235E+025, &
-1.157E+025, &
-1.0908E+025, &
-1.03367E+025, &
-9.83714E+024, &
-9.39E+024, &
-8.626E+024, &
-7.985E+024, &
-7.44571E+024, &
-6.98E+024, &
-6.222E+024, &
-5.62917E+024, &
-5.15357E+024, &
-4.60118E+024, &
-4.1825E+024, &
-3.682E+024, &
-3.32933E+024, &
-3.07143E+024, &
-2.857E+024, &
-2.5678E+024, &
-2.33E+024, &
-2.18229E+024, &
-2.06025E+024, &
-1.8658E+024, &
-1.705E+024, &
-1.60179E+024, &
-1.47988E+024, &
-1.396E+024, &
-1.274E+024, &
-1.18923E+024, &
-1.1072E+024, &
-1.1146E+024, &
-1.0898E+024, &
-1.09736E+024, &
-1.09038E+024, &
-1.13938E+024, &
-1.16058E+024, &
-1.26347E+024, &
-1.26347E+024/)
-
-IF (Density.GT.0.) THEN
-    ReducedElectricField=1.e21*ElectricField/Density ! E/n in Townsend as defined in LXCAT database
-    mu = InterpolateCoefficient(muTable,ReducedElectricField)/Density ! table gives mu*n
-    D = InterpolateCoefficient(EnergyTable,ReducedElectricField)*mu! table gives energy=D/mu
-    ! (actually not energy but kT/e so eV is already SI here)
-END IF
-
-END SUBROUTINE CalcDriftDiffusionCoeffH2
 
 PPURE REAL FUNCTION InterpolateCoefficient(CoeffData,ReducedElectricField)
 !===================================================================================================================================

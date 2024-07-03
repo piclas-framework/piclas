@@ -54,6 +54,9 @@ CALL prms%CreateRealArrayOption('Particles-BGGas-Region[$]-BasePointIC'       , 
 CALL prms%CreateRealArrayOption('Particles-BGGas-Region[$]-BaseVector1IC'     , 'First base vector'  , numberedmulti=.TRUE., no=3)
 CALL prms%CreateRealArrayOption('Particles-BGGas-Region[$]-BaseVector2IC'     , 'Second base vector' , numberedmulti=.TRUE., no=3)
 CALL prms%CreateRealOption(     'Particles-BGGas-Region[$]-CylinderHeightIC'  ,'Third measure of cylinder', numberedmulti=.TRUE.)
+CALL prms%CreateStringOption(   'BGGas-DriftDiff-Database-Species'&
+                                          , 'Select database from which the coefficients where calculated '//&
+                                          'Database','none')
 END SUBROUTINE DefineParametersBGG
 
 
@@ -64,11 +67,18 @@ SUBROUTINE BGGas_Initialize()
 !===================================================================================================================================
 ! MODULES
 USE MOD_ReadInTools
-USE MOD_Globals               ,ONLY: abort
+USE MOD_Globals
+USE MOD_io_hdf5
+USE MOD_HDF5_Input            ,ONLY: DatasetExists
+USE MOD_StringTools           ,ONLY: STRICMP
 USE MOD_DSMC_Vars             ,ONLY: BGGas
 USE MOD_Mesh_Vars             ,ONLY: nElems
-USE MOD_Particle_Vars         ,ONLY: PDM, Species, nSpecies, UseVarTimeStep, VarTimeStep
+USE MOD_Transport_Data        ,ONLY: InterpolateCoefficient
+USE MOD_Particle_Vars         ,ONLY: PDM, Species, nSpecies, UseVarTimeStep, VarTimeStep, SpeciesDatabase
 USE MOD_Restart_Vars          ,ONLY: DoMacroscopicRestart, MacroRestartFileName
+#if USE_LOADBALANCE
+USE MOD_LoadBalance_Vars ,ONLY: PerformLoadBalance
+#endif /*USE_LOADBALANCE*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -79,6 +89,33 @@ IMPLICIT NONE
 ! LOCAL VARIABLES
 INTEGER           :: iSpec, bgSpec, iElem
 REAL              :: SpeciesDensTmp(1:nSpecies)
+
+#ifdef drift_diffusion
+CHARACTER(32)                                         :: hilf
+INTEGER                                               :: err
+INTEGER                                               :: SpecCount
+CHARACTER(LEN=255)                                    :: datasetname
+CHARACTER(LEN=255)                                    :: DatabaseSpeciesName
+CHARACTER(LEN=255), DIMENSION(:), ALLOCATABLE         :: datasetsNamesList
+INTEGER(HSIZE_T), DIMENSION(2)                        :: dims,sizeMax
+INTEGER(HID_T)                                        :: file_id_fv                       ! File identifier
+INTEGER(HID_T)                                        :: dset_id_fv                       ! Dataset identifier
+INTEGER(HID_T)                                        :: file_id_specdb                   ! database identifier
+INTEGER(HID_T)                                        :: filespace                        ! filespace identifier
+REAL,ALLOCATABLE                                      :: DriftDiffCoefs(:,:)
+REAL,ALLOCATABLE                                      :: TempDiffusion(:,:)
+REAL,ALLOCATABLE                                      :: TempEnergy(:,:)
+REAL,ALLOCATABLE                                      :: TempMobility(:,:)
+INTEGER                                               :: iDataset
+REAL                                                  :: MeanTemp, MeanMax, MinTemp
+LOGICAL                                               :: DataSetFound
+LOGICAL                                               :: ArraysFound
+REAL                                                  :: SumNumberDensity
+REAL                                                  :: eps_rel=5e-5
+REAL                                                  :: TestPoint
+REAL                                                  :: CalcValue
+REAL                                                  :: CheckValue
+#endif
 !===================================================================================================================================
 
 ! 0.) Variable read-in
@@ -157,6 +194,138 @@ DO bgSpec = 1, BGGas%NumberOfSpecies
     END IF ! SUM(SpeciesDensTmp).GT.0.
   END IF
 END DO ! bgSpec = 1, BGGas%NumberOfSpecies
+
+! 6.) Read-in/convert drift diffusion coefficients
+#ifdef drift_diffusion
+
+! Loop through the array and create combination of species for database access
+DatabaseSpeciesName = ''
+SpecCount = 0
+DO iSpec = 1, nSpecies
+  IF(BGGas%BackgroundSpecies(iSpec)) THEN
+    DatabaseSpeciesName = TRIM(DatabaseSpeciesName) // TRIM(Species(iSpec)%Name)
+    SpecCount = SpecCount + 1
+    IF (iSpec < nSpecies) then
+        DatabaseSpeciesName = TRIM(DatabaseSpeciesName) // '-'
+    END IF
+  END IF
+END DO
+
+IF(SpecCount.EQ.1)THEN
+  DatabaseSpeciesName = TRIM(DatabaseSpeciesName) // 'electron'
+END IF
+
+ALLOCATE(datasetsNamesList(4))
+datasetsNamesList = (/ 'DIFFUSION ', 'IONIZATION', 'MOBILITY  ', 'ENERGY    ' /)
+! Initialize FORTRAN interface.
+CALL H5OPEN_F(err)
+CALL H5FOPEN_F (TRIM(SpeciesDatabase), H5F_ACC_RDONLY_F, File_ID_FV, err)
+BGGas%DatabaseName = TRIM(GETSTR('BGGas-DriftDiff-Database-Species'))
+DO iDataset =1, 4
+  datasetname = TRIM('/Diffusion-Coefficients/'//TRIM(DatabaseSpeciesName)//'/'//TRIM(BGGas%DatabaseName)//'/'//TRIM(datasetsNamesList(iDataset)))
+  
+  CALL DatasetExists(File_ID_FV,TRIM(datasetname),DataSetFound)
+  IF(DataSetFound)THEN
+    LBWRITE(UNIT_StdOut,'(A)') ' | Read diffusion coefficient entries '//TRIM(datasetname)//' from '//TRIM(SpeciesDatabase)
+    ! Open the  dataset.
+    CALL H5DOPEN_F(file_id_fv, datasetname, dset_id_fv, err)
+    ! Get the file space of the dataset.
+    CALL H5DGET_SPACE_F(dset_id_fv, FileSpace, err)
+    ! get size
+    CALL H5SGET_SIMPLE_EXTENT_DIMS_F(FileSpace, dims, SizeMax, err)
+    ALLOCATE (DriftDiffCoefs(1:dims(1),1:dims(2)))
+    ! read data
+    CALL H5dread_f(dset_id_fv, H5T_NATIVE_DOUBLE, DriftDiffCoefs, dims, err)
+    IF(STRICMP(TRIM(datasetsNamesList(iDataset)),'DIFFUSION'))THEN
+      ALLOCATE(TempDiffusion(2,1:dims(2)))
+      TempDiffusion                        = DriftDiffCoefs
+    ELSE IF (STRICMP(TRIM(datasetsNamesList(iDataset)),'ENERGY'))THEN
+      ALLOCATE(TempEnergy(2,1:dims(2)))
+      TempEnergy                           = DriftDiffCoefs
+    ELSE IF (STRICMP(TRIM(datasetsNamesList(iDataset)),'IONIZATION'))THEN
+      ALLOCATE(BGGas%ReducedTownsendCoefficient( 1:dims(1), 1:dims(2)) )
+      BGGas%ReducedTownsendCoefficient     = DriftDiffCoefs
+    ELSE IF (STRICMP(TRIM(datasetsNamesList(iDataset)),'MOBILITY'))THEN
+      ALLOCATE(TempMobility(2,1:dims(2)))
+      TempMobility                         = DriftDiffCoefs
+    END IF
+  END IF
+  IF(ALLOCATED(DriftDiffCoefs))THEN
+    DEALLOCATE(DriftDiffCoefs)
+  END IF
+END DO
+
+SumNumberDensity = 0
+DO iSpec = 1, BGGas%NumberOfSpecies
+  SumNumberDensity = SumNumberDensity + BGGas%NumberDensity(iSpec)
+END DO
+
+ArraysFound = .FALSE.
+IF(ALLOCATED(TempDiffusion).AND.ALLOCATED(TempEnergy))THEN
+  ALLOCATE(BGGas%DriftDiffusionCoefficient(2,SIZE(TempDiffusion(1,:))), BGGas%ElectronMobility(2,SIZE(TempEnergy(1,:))))
+  BGGas%DriftDiffusionCoefficient(1,:) = TempDiffusion(1,:)
+  BGGas%DriftDiffusionCoefficient(2,:) = TempDiffusion(2,:) / SumNumberDensity
+  BGGas%ElectronMobility(1,:)          = TempEnergy(1,:)
+  BGGas%ElectronMobility(2,:)          = 1 / TempEnergy(2,:) * TempDiffusion(2,:) / SumNumberDensity
+  IF(ALLOCATED(TempMobility))THEN ! sanity check if more datasets are given
+    ! interpolate at one point and check if equal
+    ! TestPoint = (BGGas%ElectronMobility(1,1) + BGGas%ElectronMobility(1,SIZE(BGGas%ElectronMobility(1,:))) + & 
+    !               TempMobility(1,1) + TempMobility(1,SIZE(TempMobility(1,:))))/ 4.
+    ! CalcValue = InterpolateCoefficient(BGGas%ElectronMobility,TestPoint)
+    ! CheckValue = InterpolateCoefficient(TempMobility,TestPoint)/SumNumberDensity
+    ! IF(.NOT.ALMOSTEQUALRELATIVE(CalcValue,CheckValue,eps_rel))THEN
+    !     CALL Abort(__STAMP__,'Combination of existing datasets did not result in same results !'//&
+    !                          'Please check species database!')
+    ! END IF
+  END IF
+  ArraysFound = .TRUE.
+ELSE IF(ALLOCATED(TempMobility).AND.ALLOCATED(TempEnergy).AND.ArraysFound.EQV..FALSE.)THEN
+  ALLOCATE(BGGas%DriftDiffusionCoefficient(2,SIZE(TempEnergy(1,:))), BGGas%ElectronMobility(2,SIZE(TempMobility(1,:))))
+  BGGas%DriftDiffusionCoefficient(1,:) = TempEnergy(1,:)
+  BGGas%DriftDiffusionCoefficient(2,:) = TempEnergy(2,:) * TempMobility(2,:) / SumNumberDensity
+  BGGas%ElectronMobility(1,:)          = TempMobility(1,:)
+  BGGas%ElectronMobility(2,:)          = TempMobility(2,:) / SumNumberDensity
+  IF(ALLOCATED(TempDiffusion))THEN ! sanity check if more datasets are given
+    ! interpolate at one point and check if equal
+    ! TestPoint = (BGGas%ElectronMobility(1,1) + BGGas%ElectronMobility(1,SIZE(BGGas%ElectronMobility(1,:))) + & 
+    !             TempDiffusion(1,1) + TempDiffusion(1,SIZE(TempDiffusion(1,:))))/ 4.
+    ! CalcValue = InterpolateCoefficient(BGGas%DriftDiffusionCoefficient,TestPoint)
+    ! CheckValue = InterpolateCoefficient(TempDiffusion,TestPoint)/SumNumberDensity
+    ! IF(.NOT.ALMOSTEQUALRELATIVE(CalcValue,CheckValue,eps_rel))THEN
+    !     CALL Abort(__STAMP__,'Combination of existing datasets did not result in same results !'//&
+    !                          'Please check species database!')
+    ! END IF
+  END IF
+  ArraysFound = .TRUE.
+ELSE IF(ALLOCATED(TempDiffusion).AND.ALLOCATED(TempMobility).AND.ArraysFound.EQV..FALSE.)THEN
+
+  ALLOCATE(BGGas%DriftDiffusionCoefficient(2,SIZE(TempDiffusion(1,:))), BGGas%ElectronMobility(2,SIZE(TempMobility(1,:))))
+  BGGas%DriftDiffusionCoefficient(1,:) = TempDiffusion(1,:)
+  BGGas%DriftDiffusionCoefficient(2,:) = TempDiffusion(2,:) / SumNumberDensity
+  BGGas%ElectronMobility(1,:)          = TempMobility(1,:)
+  BGGas%ElectronMobility(2,:)          = TempMobility(2,:) / SumNumberDensity
+  IF(ALLOCATED(TempEnergy))THEN ! sanity check if more datasets are given
+    ! interpolate at one point and check if equal
+    ! TestPoint = (BGGas%ElectronMobility(1,1) + BGGas%ElectronMobility(1,SIZE(BGGas%ElectronMobility(1,:))) + & 
+    !             TempEnergy(1,1) + TempEnergy(1,SIZE(TempEnergy(1,:))))/ 4.
+    ! CalcValue = InterpolateCoefficient(BGGas%DriftDiffusionCoefficient/BGGas%ElectronMobility,TestPoint)
+    ! CheckValue = InterpolateCoefficient(TempEnergy,TestPoint)
+    ! PRINT *, CheckValue, CalcValue
+    ! IF(.NOT.ALMOSTEQUALRELATIVE(CalcValue,CheckValue,eps_rel))THEN
+    !     CALL Abort(__STAMP__,'Combination of existing datasets did not result in same results !'//&
+    !                          'Please check species database!')
+    ! END IF
+  END IF
+  ArraysFound = .TRUE.
+ELSE 
+  CALL Abort(__STAMP__,'Combination of datasets not possible to calculate D and mu!'//&
+  'Please check species database!')
+END IF
+! Close the file.
+CALL H5FCLOSE_F(file_id_specdb, err)
+! Close FORTRAN interface.
+CALL H5CLOSE_F(err)
+#endif
 
 END SUBROUTINE BGGas_Initialize
 
