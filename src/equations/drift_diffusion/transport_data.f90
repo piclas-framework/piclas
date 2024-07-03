@@ -26,7 +26,7 @@ PUBLIC::CalcDriftDiffusionCoeff, InterpolateCoefficient
 !==================================================================================================================================
 CONTAINS
 
-SUBROUTINE CalcDriftDiffusionCoeff(ElectricField,Density,mu,D)
+SUBROUTINE CalcDriftDiffusionCoeff(ElectricField,Density,mu,D,ionRate)
 !==================================================================================================================================
 !> Calculate the transport (drift & diffusion) coefficients for the drift-diffusion electron fluid model
 !==================================================================================================================================
@@ -41,6 +41,7 @@ REAL,INTENT(IN)                                  :: ElectricField, Density
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 REAL,INTENT(OUT)                                 :: mu, D
+REAL,INTENT(OUT),OPTIONAL                        :: ionRate
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT / OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -52,7 +53,7 @@ IF (Density.GT.0.) THEN
     ReducedElectricField=1.e21*ElectricField/Density ! E/n in Townsend as defined in LXCAT database
     mu = InterpolateCoefficient(BGGas%ElectronMobility,ReducedElectricField)
     D = InterpolateCoefficient(BGGas%DriftDiffusionCoefficient,ReducedElectricField)
-    ! (actually not energy but kT/e so eV is already SI here)
+    IF (PRESENT(ionRate)) ionRate = InterpolateCoefficient(BGGas%ReducedTownsendCoefficient,ReducedElectricField)*Density
 END IF
 
 END SUBROUTINE CalcDriftDiffusionCoeff

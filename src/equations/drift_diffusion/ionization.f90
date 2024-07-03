@@ -40,7 +40,7 @@ USE MOD_part_operations    ,ONLY: CreateParticle
 USE MOD_Particle_Tracking  ,ONLY: ParticleInsideCheck
 USE MOD_DSMC_Vars          ,ONLY: BGGas
 USE MOD_Particle_Vars      ,ONLY: nSpecies, Species
-USE MOD_Transport_Data     ,ONLY: CalcDriftDiffusionCoeffAr,CalcDriftDiffusionCoeffH2,CalcIonizationRateAr,CalcDriftDiffusionCoeffNe,CalcIonizationRateNe,CalcDriftDiffusionCoeffHe,CalcIonizationRateHe
+USE MOD_Transport_Data     ,ONLY: CalcDriftDiffusionCoeff
 USE MOD_Particle_Mesh_Vars ,ONLY: BoundsOfElem_Shared, ElemVolume_Shared
 USE MOD_part_tools         ,ONLY: CalcVelocity_maxwell_particle
 USE MOD_Mesh_Vars          ,ONLY: offsetElem
@@ -49,6 +49,7 @@ USE MOD_part_emission_tools,ONLY: CalcVelocity_maxwell_lpn
 USE MOD_Mesh_Vars          ,ONLY:Elem_xGP_FV
 USE MOD_Equation_Vars_FV   ,ONLY:IniExactFunc_FV
 USE MOD_Equation_FV        ,ONLY:ExactFunc_FV
+USE MOD_Interpolation_Vars ,ONLY: wGP
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -60,9 +61,9 @@ INTEGER,OPTIONAL                     :: init
 ! INPUT / OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                              :: nPart, iPart, iSpecBG, iSpecIon, iSpec, ElemID, GlobalElemID
+INTEGER                              :: nPart, iPart, iSpecBG, iSpecIon, iSpec, ElemID, GlobalElemID, i, j, k
 REAL                                 :: iRan , RandomPos(1:3), DeltaPartDens, realPartNumber, Velocity(1:3)
-REAL                                 :: RotEnergy, VibEnergy, ElecEnergy, ionRate, mu, D, resu(PP_nVar_FV)
+REAL                                 :: RotEnergy, VibEnergy, ElecEnergy, ionRate, mu, D, resu(PP_nVar_FV), E_avg(1:3)
 LOGICAL                              :: InsideFlag
 !===================================================================================================================================
 DO iSpec = 1, nSpecies
@@ -79,22 +80,15 @@ DO ElemID=1,PP_nElems
     CALL ExactFunc_FV(init,0.,0,Elem_xGP_FV(1:3,0,0,0,ElemID),resu)
     DeltaPartDens = resu(1)
   ELSE
-    IF (Species(iSpecBG)%Name.EQ.'H2') THEN
-      CALL CalcDriftDiffusionCoeffH2(VECNORM(E(1:3,0,0,0,ElemID)),BGGas%NumberDensity(iSpecBG),mu,D)
-    ELSE IF (Species(iSpecBG)%Name.EQ.'Ar') THEN
-      CALL CalcDriftDiffusionCoeffAr(VECNORM(E(1:3,0,0,0,ElemID)),BGGas%NumberDensity(iSpecBG),mu,D) ! do this outside and save coeff
-      CALL CalcIonizationRateAr(VECNORM(E(1:3,0,0,0,ElemID)),BGGas%NumberDensity(iSpecBG),ionRate)
-    ELSE IF (Species(iSpecBG)%Name.EQ.'Ne') THEN
-      CALL CalcDriftDiffusionCoeffNe(VECNORM(E(1:3,0,0,0,ElemID)),BGGas%NumberDensity(iSpecBG),mu,D)
-      CALL CalcIonizationRateNe(VECNORM(E(1:3,0,0,0,ElemID)),BGGas%NumberDensity(iSpecBG),ionRate)
-    ELSE IF (Species(iSpecBG)%Name.EQ.'He') THEN
-      CALL CalcDriftDiffusionCoeffHe(VECNORM(E(1:3,0,0,0,ElemID)),BGGas%NumberDensity(iSpecBG),mu,D)
-      CALL CalcIonizationRateHe(VECNORM(E(1:3,0,0,0,ElemID)),BGGas%NumberDensity(iSpecBG),ionRate)
-    ELSE
-      CALL abort(__STAMP__,'bg gas species unknowned for electron fluid')
-    END IF
 
-    DeltaPartDens = ionRate*mu*VECNORM(E(1:3,0,0,0,ElemID))*U_FV(1,0,0,0,ElemID)*dt !TODO: interpolate E
+    E_avg = 0.
+    DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
+      E_avg(:) = E_avg(:) + wGP(i)*wGP(j)*wGP(k)*E(1:3,i,j,k,ElemID)/((PP_N+1.)**3)
+    END DO; END DO; END DO
+
+    CALL CalcDriftDiffusionCoeff(VECNORM(E_avg),BGGas%NumberDensity(iSpecBG),mu,D,ionRate)
+
+    DeltaPartDens = ionRate*mu*VECNORM(E_avg)*U_FV(1,0,0,0,ElemID)*dt
   END IF
 
   GlobalElemID = ElemID+offsetElem
