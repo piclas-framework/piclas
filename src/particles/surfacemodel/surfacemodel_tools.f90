@@ -694,7 +694,7 @@ IF ((Species(SpecID)%InterID.EQ.2).OR.(Species(SpecID)%InterID.EQ.20)) THEN
         END DO
         ! accept VibQuant - 1 as quantum number
         VibQuant = VibQuant - 1
-        ! calculate vib qunat number of wall based on wall temperature
+        ! calculate vib quant number of wall based on wall temperature
         IF (CHECKEXP(- AHO%VibEnergy(SpecID,1) / (BoltzmannConst * WallTemp))) THEN
           GroundLevel = EXP(- AHO%VibEnergy(SpecID,1) / (BoltzmannConst * WallTemp))
           CALL RANDOM_NUMBER(RanNum)
@@ -709,12 +709,14 @@ IF ((Species(SpecID)%InterID.EQ.2).OR.(Species(SpecID)%InterID.EQ.20)) THEN
             VibPartitionTemp = EXP(- AHO%VibEnergy(SpecID,VibQuantWall) / (BoltzmannConst * WallTemp))
             CALL RANDOM_NUMBER(RanNum)
           END DO
+        ! use ground state quantum number
         ELSE
           VibQuantWall = 1
         END IF
         ! calculate new quantum number based on vibrational accommodation coefficient
         VibQuantNewR = VibQuant + VibACC*(VibQuantWall - VibQuant)
         VibQuantNew = INT(VibQuantNewR)
+        ! calculate new energy with this quantum number
         CALL RANDOM_NUMBER(RanNum)
         IF (RanNum.LT.(VibQuantNewR - VibQuantNew)) THEN
           EvibNew = AHO%VibEnergy(SpecID,VibQuantNew+1)

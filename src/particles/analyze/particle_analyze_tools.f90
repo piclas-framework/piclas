@@ -1627,6 +1627,7 @@ INTEGER                         :: iQuant, iInit, iSF
 REAL                            :: tempIni, dTemp, tolerance, temp, VibEnergy(AHO%NumVibLevels(iSpec))
 REAL                            :: Nom, Denom, dNom, dDenom, dEVibAHO, Ediff, dEdiff, tempGuess, EVibAHO
 !===================================================================================================================================
+! definition of tolerance factor for Newton loop and temperature step for pre-Newton loop
 tolerance = 0.1
 dTemp = 10.
 
@@ -1643,15 +1644,16 @@ ELSE IF (Species(iSpec)%nSurfacefluxBCs.GT.0.) THEN
   END DO
   temp = temp / Species(iSpec)%nSurfacefluxBCs
 END IF
-! temp = 0 --> NaN
+! set temp = 0.1 if no ini values or ini value = 0 --> otherwise NaN
 IF(temp.LE.0.) temp = 0.1
 
+! subtract zero-point energy from all quantum levels
 DO iQuant = 1, AHO%NumVibLevels(iSpec)
-  VibEnergy(iQuant) = AHO%VibEnergy(iSpec,iQuant) - AHO%VibEnergy(iSpec,1) ! subtract zero-point energy
+  VibEnergy(iQuant) = AHO%VibEnergy(iSpec,iQuant) - AHO%VibEnergy(iSpec,1)
 END DO
 
 ! Pre-Newton loop to guess tempIni
-! EVib(temp)
+! Calculate EVibAHO(temp), comes from Boltzmann distribution of population of the quantum levels
 Nom = 0.
 Denom = 0.
 DO iQuant = 1, AHO%NumVibLevels(iSpec)
@@ -1660,6 +1662,7 @@ DO iQuant = 1, AHO%NumVibLevels(iSpec)
 END DO
 EVibAHO = Nom/Denom
 
+! search for the energy level closest to Evib, therefore increase temp stepwise (+ dTemp)
 DO WHILE (EVibAHO.LT.(EVib - AHO%VibEnergy(iSpec,1)))
   temp = temp + dTemp
   ! EVib()
@@ -1672,11 +1675,11 @@ DO WHILE (EVibAHO.LT.(EVib - AHO%VibEnergy(iSpec,1)))
   EVibAHO = Nom/Denom
 END DO
 
-! first temperature guess for Newton loop
+! result is first temperature guess for Newton loop
 tempIni = temp
 
-! Newton loop
-! EVibAHO(tempIni) and derivative
+! Newton loop --> minimisation of energy difference between EVibAHO and EVib in order to find correct vib temperature
+! Calculate EVibAHO(tempIni) and derivative
 Nom = 0.
 Denom = 0.
 dNom = 0.
@@ -1690,9 +1693,10 @@ DO iQuant = 1, AHO%NumVibLevels(iSpec)
     * VibEnergy(iQuant) / (BoltzmannConst * tempIni**2.)
 END DO
 EVibAHO = Nom/Denom
+! quotient rule
 dEVibAHO = (dNom*Denom - Nom*dDenom) / Denom*Denom
 
-! Difference to EVib = sum of all particle vibrational energies --> f(tempIni)
+! Difference between EVib and EVibAHO --> f(tempIni)
 Ediff = (EVib - AHO%VibEnergy(iSpec,1)) - EVibAHO
 ! Derivative f'(tempIni)
 dEdiff = - dEVibAHO
@@ -1700,6 +1704,7 @@ dEdiff = - dEVibAHO
 ! temperature guess
 tempGuess = tempIni - Ediff / dEdiff
 
+! Repeat as long as temperature differnce exceeds tolerance
 DO WHILE (ABS(tempGuess - tempIni).GT.tolerance)
   tempIni = tempGuess
 
@@ -1719,12 +1724,12 @@ DO WHILE (ABS(tempGuess - tempIni).GT.tolerance)
   EVibAHO = Nom/Denom
   dEVibAHO = (dNom*Denom - Nom*dDenom) / Denom*Denom
 
-  ! Difference to EVib = sum of all particle vibrational energies --> f(tempIni)
+  ! Difference between EVib and EVibAHO --> f(tempIni)
   Ediff = (EVib - AHO%VibEnergy(iSpec,1)) - EVibAHO
   ! Derivative f'(tempIni)
   dEdiff = - dEVibAHO
 
-  ! temperature guess
+  ! new temperature guess
   tempGuess = tempIni - Ediff / dEdiff
 
 END DO
@@ -1775,7 +1780,7 @@ ELSE
   VibDOF = 1
   ALLOCATE(XiVibPart(VibDOF))
   IF(DSMC%VibAHO) THEN ! AHO
-    ! EvibAHO(tempVib), without zero-point energy
+    ! Calculate EvibAHO(tempVib) - without zero-point energy - comes from Boltzmann distribution of population of the quantum levels
     Nom = 0.
     Denom = 0.
     DO iQuant = 1, AHO%NumVibLevels(iSpec)
@@ -1784,7 +1789,7 @@ ELSE
       Denom = Denom + EXP(- (AHO%VibEnergy(iSpec,iQuant) - AHO%VibEnergy(iSpec,1)) / (BoltzmannConst * TVib))
     END DO
     EVibAHO = Nom/Denom
-    ! xi
+    ! Calculate xi
     XiVibPart = 2./ (BoltzmannConst*TVib) * EVibAHO
   ELSE ! SHO
     XiVibPart = 0.0

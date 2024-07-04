@@ -1015,14 +1015,18 @@ ELSE ! diatomic
     temp = TempVib
 
     IF (CHECKEXP(- AHO%VibEnergy(iSpec,1) / (BoltzmannConst * temp))) THEN
+      ! Calculation of ground state partition
       GroundLevel = EXP(- AHO%VibEnergy(iSpec,1) / (BoltzmannConst * temp))
+      ! Select a quantum number randomly (from 1 to AHO%NumVibLevels(iSpec))
       CALL RANDOM_NUMBER(iRan)
       iQuant = INT(AHO%NumVibLevels(iSpec) * iRan + 1.)
+      ! Calculate vibrational partition for this quantum number
       VibPartitionTemp = EXP(- AHO%VibEnergy(iSpec,iQuant) / (BoltzmannConst * temp))
-      CALL RANDOM_NUMBER(iRan)
+      ! decide if quantum number is accepted
       ! acceptance is higher for lower levels
+      CALL RANDOM_NUMBER(iRan)
       DO WHILE (iRan .GE. (VibPartitionTemp / GroundLevel))
-        ! select random quantum number and calculate partition function
+        ! select random quantum number and calculate partition function again
         CALL RANDOM_NUMBER(iRan)
         iQuant = INT(AHO%NumVibLevels(iSpec) * iRan + 1.)
         VibPartitionTemp = EXP(- AHO%VibEnergy(iSpec,iQuant) / (BoltzmannConst * temp))
@@ -1030,6 +1034,8 @@ ELSE ! diatomic
       END DO
       ! vibrational energy is table value of the accepted quantum number
       CalcEVib_particle = AHO%VibEnergy(iSpec,iQuant)
+
+    ! Utilization of ground state energy if CHECKEXP = F
     ELSE
       CalcEVib_particle = AHO%VibEnergy(iSpec,1)
     END IF

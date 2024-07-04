@@ -165,6 +165,8 @@ CASE('D')
   END IF
   IF(DSMC%VibAHO) THEN ! AHO
     Ec = Ec / ((Weight1 + Weight2)/2.)
+    ! dissociation occurs when collision energy exceeds the vibrational energy of the highest quantum level
+    ! AHO%VibEnergy contains zero-point energy, thus it is also not substracted from Ec
     IF (Ec.GE.AHO%VibEnergy(PartSpecies(React1Inx),AHO%NumVibLevels(PartSpecies(React1Inx)))) THEN
       PerformReaction = .TRUE.
     END IF
@@ -228,9 +230,10 @@ CASE('I')
   QK_CalcAnalyticRate = QK_CalcAnalyticRate*(Temp / Tref)**(0.5 - omega)*ChemReac%QKRColl(iCase) &
                         / (z * SQRT(CollInf%MassRed(iCase)))
 CASE('D')
+! see Bird, "The Q-K model for gas-phase chemical reaction rates", Phys. Fluids 23, 106101 (2011)
   IF(DSMC%VibAHO) THEN ! AHO
     MaxVibQuant = AHO%NumVibLevels(iSpec1)
-    DO iQua = 0, MaxVibQuant - 1
+    DO iQua = 1, MaxVibQuant
       Q = gammainc([2.-omega, (AHO%VibEnergy(iSpec1,AHO%NumVibLevels(iSpec1))-AHO%VibEnergy(iSpec1,iQua)) / (BoltzmannConst*Temp)])
       IF(CHECKEXP(iQua*TempRatio)) THEN
         QK_CalcAnalyticRate = QK_CalcAnalyticRate + Q * EXP(-AHO%VibEnergy(iSpec1,iQua) / (BoltzmannConst*Temp))
