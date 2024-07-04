@@ -203,6 +203,7 @@ CALL prms%CreateRealOption(     'Part-Species[$]-alphaVSS'&
 CALL prms%CreateRealOption(     'Part-Species[$]-CharaTempVib','Characteristic vibrational temperature.', numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'Part-Species[$]-CharaTempRot'  &
                                            ,'Characteristic rotational temperature', '0.', numberedmulti=.TRUE.)
+CALL prms%CreateRealOption(     'Part-Species[$]-MomentOfInertia','Moment of inertia in [kg*m²]', numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'Part-Species[$]-Ediss_eV','Energy of Dissoziation in [eV].', numberedmulti=.TRUE.)
 ! ----------------------------------------------------------------------------------------------------------------------------------
 CALL prms%CreateLogicalOption(  'Particles-DSMC-useRelaxProbCorrFactor'&
@@ -875,10 +876,16 @@ ELSE !CollisMode.GT.0
           ELSEIF ((Species(iSpec)%InterID.EQ.2).OR.(Species(iSpec)%InterID.EQ.20)) THEN
             SpecDSMC(iSpec)%Xi_Rot          = 2
             SpecDSMC(iSpec)%CharaTVib       = GETREAL('Part-Species'//TRIM(hilf)//'-CharaTempVib')
-            SpecDSMC(iSpec)%MomentOfInertia = GETREAL('Part-Species'//TRIM(hilf)//'-MomentOfInertia')
+            SpecDSMC(iSpec)%MomentOfInertia = GETREAL('Part-Species'//TRIM(hilf)//'-MomentOfInertia','-1')
             SpecDSMC(iSpec)%CharaTRot       = GETREAL('Part-Species'//TRIM(hilf)//'-CharaTempRot','-1')
-            IF(SpecDSMC(iSpec)%CharaTRot.EQ.-1)THEN
+            IF(SpecDSMC(iSpec)%CharaTRot.EQ.-1.AND.SpecDSMC(iSpec)%MomentOfInertia.NE.-1)THEN
+              !//TODO catch CharaTRot.EQ.-1??
               SpecDSMC(iSpec)%CharaTRot       = PlanckConst**2 / (8 * PI**2 * SpecDSMC(iSpec)%MomentOfInertia * BoltzmannConst)
+            END IF
+            IF(SpecDSMC(iSpec)%MomentOfInertia.EQ.-1.AND.(DSMC%RotRelaxModel.EQ.1.OR.DSMC%RotRelaxModel.EQ.2))THEN
+              CALL abort(&
+              __STAMP__&
+              ,'Moment of inertia necessary for quantized rotational energy and is not set for species', iSpec)
             END IF
             SpecDSMC(iSpec)%Ediss_eV        = GETREAL('Part-Species'//TRIM(hilf)//'-Ediss_eV')
             SpecDSMC(iSpec)%MaxVibQuant     = 200

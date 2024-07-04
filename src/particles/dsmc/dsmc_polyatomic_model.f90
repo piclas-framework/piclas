@@ -241,12 +241,19 @@ END IF
 
 IF(Species(iSpec)%DoOverwriteParameters) THEN
   IF(PolyatomMolDSMC(iPolyatMole)%LinearMolec) THEN
-    PolyatomMolDSMC(iPolyatMole)%MomentOfInertia(1)   = GETREAL('Part-Species'//TRIM(hilf)//'-MomentOfInertia')
+    PolyatomMolDSMC(iPolyatMole)%MomentOfInertia(1)   = GETREAL('Part-Species'//TRIM(hilf)//'-MomentOfInertia','-1')
     PolyatomMolDSMC(iPolyatMole)%MomentOfInertia(2:3) = 0
     PolyatomMolDSMC(iPolyatMole)%CharaTRotDOF(1)                   = GETREAL('Part-Species'//TRIM(hilf)//'-CharaTempRot','-1')
-    IF(PolyatomMolDSMC(iPolyatMole)%CharaTRotDOF(1).EQ.-1)THEN
+    !// TODO catch case for CharaTRot eq -1
+    PRINT *, PolyatomMolDSMC(iPolyatMole)%MomentOfInertia(1), PolyatomMolDSMC(iPolyatMole)%CharaTRotDOF(1)
+    IF(PolyatomMolDSMC(iPolyatMole)%CharaTRotDOF(1).EQ.-1.AND.PolyatomMolDSMC(iPolyatMole)%MomentOfInertia(1).NE.-1)THEN
       PolyatomMolDSMC(iPolyatMole)%CharaTRotDOF(1)                 = PlanckConst**2 / &
         (8 * PI**2 * PolyatomMolDSMC(iPolyatMole)%MomentOfInertia(1) * BoltzmannConst)
+    END IF
+    IF(PolyatomMolDSMC(iPolyatMole)%MomentOfInertia(1).EQ.-1.AND.(DSMC%RotRelaxModel.EQ.1.OR.DSMC%RotRelaxModel.EQ.2))THEN
+      CALL abort(&
+      __STAMP__&
+      ,'Moment of inertia necessary for quantized rotational energy and is not set for species', iSpec)
     END IF
     PolyatomMolDSMC(iPolyatMole)%CharaTRotDOF(2:3)    = 0
   ELSE
@@ -254,9 +261,15 @@ IF(Species(iSpec)%DoOverwriteParameters) THEN
       WRITE(UNIT=hilf2,FMT='(I0)') iVibDOF
       PolyatomMolDSMC(iPolyatMole)%MomentOfInertia(iVibDOF) = GETREAL('Part-Species'//TRIM(hilf)//'-MomentOfInertia'//TRIM(hilf2))
       PolyatomMolDSMC(iPolyatMole)%CharaTRotDOF(iVibDOF)                 = GETREAL('Part-Species'//TRIM(hilf)//'-CharaTempRot','-1')
-      IF(PolyatomMolDSMC(iPolyatMole)%CharaTRotDOF(iVibDOF).EQ.-1)THEN
+      !// TODO catch case for CharaTRot eq -1
+      IF(PolyatomMolDSMC(iPolyatMole)%CharaTRotDOF(iVibDOF).EQ.-1.AND.PolyatomMolDSMC(iPolyatMole)%MomentOfInertia(iVibDOF).NE.-1)THEN
         PolyatomMolDSMC(iPolyatMole)%CharaTRotDOF(iVibDOF)               = PlanckConst**2 / &
           (8 * PI**2 * PolyatomMolDSMC(iPolyatMole)%MomentOfInertia(iVibDOF) * BoltzmannConst)
+      END IF
+      IF(PolyatomMolDSMC(iPolyatMole)%MomentOfInertia(iVibDOF).EQ.-1.AND.(DSMC%RotRelaxModel.EQ.1.OR.DSMC%RotRelaxModel.EQ.2))THEN
+        CALL abort(&
+        __STAMP__&
+        ,'Moment of inertia necessary for quantized rotational energy and is not set for species', iSpec)
       END IF
     END DO
   END IF

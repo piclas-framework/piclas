@@ -1362,7 +1362,7 @@ CALL SortEnergies(RotationalState, INT(dims(2)))
 
 ALLOCATE ( SpecDSMC(iSpec)%RotationalState( 1:dims(1), 0:dims(2)-1 ) )
 SpecDSMC(iSpec)%RotationalState = RotationalState
-SpecDSMC(iSpec)%MaxRotQuant  = SIZE( SpecDSMC(iSpec)%RotationalState,2)
+SpecDSMC(iSpec)%MaxRotQuant  = SIZE(SpecDSMC(iSpec)%RotationalState,2)
 ! Close the file.
 CALL H5FCLOSE_F(file_id_dsmc, err)
 ! Close FORTRAN interface.
