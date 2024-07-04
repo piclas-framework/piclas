@@ -98,7 +98,6 @@ USE MOD_Preproc
 USE MOD_ReadInTools            ,ONLY: GETREAL,GETINT,GETLOGICAL,GETSTR,GETREALARRAY,GETINTARRAY
 USE MOD_Mesh_Tools             ,ONLY: GetGlobalElemID, GetCNElemID
 USE MOD_Interpolation          ,ONLY: GetVandermonde
-USE MOD_Symmetry_Vars          ,ONLY: Symmetry
 #if USE_MPI
 USE MOD_Mesh_Vars              ,ONLY: offsetElem
 USE MOD_Particle_Mesh_Vars     ,ONLY: NodeToElemInfo,NodeToElemMapping,ElemNodeID_Shared,NodeInfo_Shared
@@ -487,7 +486,6 @@ CASE('shape_function', 'shape_function_cc', 'shape_function_adaptive')
 #if USE_MPI
   ALLOCATE(RecvRequest(nShapeExchangeProcs),SendRequest(nShapeExchangeProcs))
 #endif
-  IF(Symmetry%Axisymmetric) CALL ABORT(__STAMP__,'Shapefunctions not possible with axisymmetric simulations', IERROR)
   ! --- Set shape function radius in each cell when using adaptive shape function
   IF(TRIM(DepositionType).EQ.'shape_function_adaptive') CALL InitShapeFunctionAdaptive()
 
@@ -498,6 +496,7 @@ CASE('shape_function', 'shape_function_cc', 'shape_function_adaptive')
   END SELECT
 
   ! --- Set periodic case matrix for shape function deposition (virtual displacement of particles in the periodic directions)
+  CALL InitAxisymmetrySF()
   CALL InitPeriodicSFCaseMatrix()
 
   ! --- Set element flag for cycling already completed elements
@@ -756,7 +755,7 @@ INTEGER           :: I,J
 IF (GEO%nPeriodicVectors.LE.0) THEN
 
   ! Set defaults and return in non-periodic case
-  NbrOfPeriodicSFCases = 1
+  NbrOfPeriodicSFCases = 0
   ALLOCATE(PeriodicSFCaseMatrix(1:1,1:3))
   PeriodicSFCaseMatrix(:,:) = 0
 
@@ -815,6 +814,38 @@ ELSE
 END IF
 
 END SUBROUTINE InitPeriodicSFCaseMatrix
+
+
+!===================================================================================================================================
+!> Fill PeriodicSFCaseMatrix when using shape function deposition in combination with periodic boundaries
+!===================================================================================================================================
+SUBROUTINE InitAxisymmetrySF()
+! MODULES
+USE MOD_Particle_Boundary_Vars ,ONLY: PartBound,nPartBound
+USE MOD_Symmetry_Vars          ,ONLY: Symmetry
+USE MOD_Particle_Mesh_Vars     ,ONLY: AxisymmetricSF
+USE MOD_ReadInTools            ,ONLY: PrintOption
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!----------------------------------------------------------------------------------------------------------------------------------!
+! INPUT / OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER           :: iPartBound
+!===================================================================================================================================
+AxisymmetricSF = .FALSE.
+IF (Symmetry%Axisymmetric) THEN
+  ! Check boundaries for symmetry axis
+  DO iPartBound=1,nPartBound
+    IF(PartBound%TargetBoundCond(iPartBound).EQ.PartBound%SymmetryAxis) THEN
+      AxisymmetricSF = .TRUE.
+      CALL PrintOption('Found symmetry axis for shape function deposition','INFO',LogOpt=AxisymmetricSF)
+      RETURN
+    END IF
+  END DO
+END IF
+
+END SUBROUTINE InitAxisymmetrySF
 
 
 SUBROUTINE Deposition(doParticle_In, stage_opt)

@@ -42,7 +42,7 @@ SUBROUTINE calcSfSource(SourceSize_in,ChargeMPF,PartPos,PartID,PartVelo)
 USE MOD_Globals
 USE MOD_PICDepo_Vars       ,ONLY: DepositionType,dimFactorSF,sfDepo3D,r_sf,r2_sf,r2_sf_inv,SFElemr2_Shared,w_sf
 USE MOD_PICDepo_Vars       ,ONLY: totalChargePeriodicSF,SFAdaptiveSmoothing
-USE MOD_Particle_Mesh_Vars ,ONLY: NbrOfPeriodicSFCases
+USE MOD_Particle_Mesh_Vars ,ONLY: NbrOfPeriodicSFCases,AxisymmetricSF
 USE MOD_Particle_Vars      ,ONLY: PEM
 USE MOD_Mesh_Tools         ,ONLY: GetCNElemID
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -86,9 +86,9 @@ ELSE
 END IF
 
 ! Check if periodic sides are present, otherwise simply use PartPos for deposition
-IF(NbrOfPeriodicSFCases.GT.1)THEN
+IF((NbrOfPeriodicSFCases.GT.1) .OR. AxisymmetricSF) THEN
 
-  IF(TRIM(DepositionType).EQ.'shape_function_adaptive')THEN
+  IF(TRIM(DepositionType).EQ.'shape_function_adaptive') THEN
     ! Get radius/radius squared/inverse radius squared for each CN element when using adaptive SF
     OrigElem     = PEM%GlobalElemID(PartID)
     OrigCNElemID = GetCNElemID(OrigElem)
@@ -101,7 +101,7 @@ IF(NbrOfPeriodicSFCases.GT.1)THEN
     r2_sf_inv_tmp= r2_sf_inv
   END IF ! TRIM(DepositionType).EQ.'shape_function_adaptive'
 
-  IF(TRIM(DepositionType).EQ.'shape_function')THEN
+  IF(TRIM(DepositionType).EQ.'shape_function') THEN
     ! Incorporate the coefficient that considers the volume integral of the kernel
     Fac = Fac*w_sf
   ELSE
@@ -113,7 +113,13 @@ IF(NbrOfPeriodicSFCases.GT.1)THEN
       PartPosShifted(1:3) = GetPartPosShifted(iCase,PartPos(1:3))
       CALL calcTotalChargePeriodic_cc(PartPosShifted , Fac(4) , totalChargePeriodicSF , r_sf_tmp , r2_sf_tmp , r2_sf_inv_tmp)
     END DO
-
+    IF(AxisymmetricSF) THEN
+      IF(NbrOfPeriodicSFCases.EQ.0) CALL calcTotalChargePeriodic_cc(PartPos , Fac(4) , totalChargePeriodicSF , r_sf_tmp , r2_sf_tmp , r2_sf_inv_tmp)
+      PartPosShifted(1) = PartPos(1)
+      PartPosShifted(2) = -PartPos(2)
+      PartPosShifted(3) = PartPos(3)
+      CALL calcTotalChargePeriodic_cc(PartPosShifted , Fac(4) , totalChargePeriodicSF , r_sf_tmp , r2_sf_tmp , r2_sf_inv_tmp)
+    END IF
     ! Check if the charge is to be distributed over a line (1D) or area (2D)
     IF(.NOT.sfDepo3D)THEN
       totalChargePeriodicSF = totalChargePeriodicSF / dimFactorSF
@@ -128,6 +134,13 @@ IF(NbrOfPeriodicSFCases.GT.1)THEN
     PartPosShifted(1:3) = GetPartPosShifted(iCase,PartPos(1:3))
     CALL depoChargeOnDOFsSF(PartPosShifted , SourceSize , Fac , r_sf_tmp , r2_sf_tmp , r2_sf_inv_tmp)
   END DO
+  IF(AxisymmetricSF) THEN
+    IF(NbrOfPeriodicSFCases.EQ.0) CALL depoChargeOnDOFsSF(PartPos , SourceSize , Fac , r_sf_tmp , r2_sf_tmp , r2_sf_inv_tmp)
+    PartPosShifted(1) = PartPos(1)
+    PartPosShifted(2) = -PartPos(2)
+    PartPosShifted(3) = PartPos(3)
+    CALL depoChargeOnDOFsSF(PartPosShifted , SourceSize , Fac , r_sf_tmp , r2_sf_tmp , r2_sf_inv_tmp)
+  END IF
 
 ELSE
   ! Select deposition type
@@ -839,7 +852,7 @@ IF (ElemOnMyProc(globElemID)) THEN
 !#endif
 #if USE_MPI
 ELSE
-!  IF (myComputeNodeRank.EQ.0) THEN  
+!  IF (myComputeNodeRank.EQ.0) THEN
 !    PartSourceGlob(dim1:4,k,l,m,CNElemID) = PartSourceGlob(dim1:4,k,l,m,CNElemID) + Source(dim1:4)
 !  ELSE
     ASSOCIATE( ShapeID => SendElemShapeID(CNElemID))
@@ -850,7 +863,7 @@ ELSE
       END IF
 !      IF (CNElemID.GT.nComputeNodeElems) THEN
 !        ExRankID = CNRankToSendRank(0)
-!      ELSE        
+!      ELSE
 !      ExRankID = CNRankToSendRank(ElemInfo_Shared(ELEM_RANK,globElemID)-ComputeNodeRootRank)
       ExRankID = CNRankToSendRank(ElemInfo_Shared(ELEM_RANK,globElemID))
 !      END IF
@@ -1111,7 +1124,7 @@ SELECT CASE (dim_sf)
       dimFactorSF = (GEO%ymaxglob-GEO%yminglob)
     ELSE IF (dim_sf_dir.EQ.3)THEN! Shape function deposits charge in x-y-direction (const. in z)
       IF(Symmetry%axisymmetric) THEN
-        dimFactorSF = 2*PI !(GEO%zmaxglob-GEO%zminglob) ! AXISYMMETRIC HDG
+        dimFactorSF = 2*PI*GEO%ymaxglob ! Radius of the sausage
       ELSE
         dimFactorSF = (GEO%zmaxglob-GEO%zminglob) ! AXISYMMETRIC HDG
       END IF

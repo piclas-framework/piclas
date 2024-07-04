@@ -293,6 +293,7 @@ INTEGER,ALLOCATABLE                      :: ElemHaloID(:)
 ! periodic case
 INTEGER,ALLOCATABLE                      :: PeriodicSFCaseMatrix(:,:)   ! matrix to compute periodic cases
 INTEGER                                  :: NbrOfPeriodicSFCases        ! Number of periodic cases
+LOGICAL                                  :: AxisymmetricSF
 ! ====================================================================
 INTEGER                                 :: RefMappingGuess    ! select guess for mapping into reference
                                                               ! element
