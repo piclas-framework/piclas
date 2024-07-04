@@ -85,6 +85,7 @@ CALL prms%CreateRealOption(     'printDiffTime'           , 'Time for starting t
 CALL prms%CreateRealArrayOption('printDiffVec'            , 'Vector (x,v) that is used to calcualte the L2 norm when using Part-TrackPosition=T','0. , 0. , 0. , 0. , 0. , 0.')
 CALL prms%CreateLogicalOption(  'CalcNumSpec'             , 'Calculate the number of simulation particles per species for the complete domain','.FALSE.')
 CALL prms%CreateLogicalOption(  'CalcNumDens'             , 'Calculate the number density [1/m3] per species for the complete domain','.FALSE.')
+CALL prms%CreateLogicalOption(  'CalcMeanSquaredDisplacement' , 'Calculate the mean square displacement of particles [m] per species for the complete domain','.FALSE.')
 CALL prms%CreateLogicalOption(  'CalcSurfFluxInfo'        , 'Calculate the massflow rate [kg/s], current [A], or pressure [Pa] per species and surface flux','.FALSE.')
 CALL prms%CreateLogicalOption(  'CalcCollRates'           , 'Calculate the collision rates per collision pair','.FALSE.')
 CALL prms%CreateLogicalOption(  'CalcReacRates'           , 'Calculate the reaction rate per reaction','.FALSE.')
@@ -626,6 +627,7 @@ IF(TrackParticlePosition)THEN
 END IF
 CalcSimNumSpec = GETLOGICAL('CalcNumSpec')
 CalcNumDens    = GETLOGICAL('CalcNumDens')
+CalcBulkVeloABS    = GETLOGICAL('CalcBulkVeloABS')
 CalcSurfFluxInfo = GETLOGICAL('CalcSurfFluxInfo')
 IF(CalcSurfFluxInfo) THEN
   ALLOCATE(FlowRateSurfFlux(1:nSpecAnalyze,1:MAXVAL(Species(:)%nSurfacefluxBCs)))
@@ -650,7 +652,8 @@ IF(CalcReacRates) THEN
       'ERROR: CalcReacRates is not supported with radial weighting or variable time step yet!')
 END IF
 
-IF(CalcSimNumSpec.OR.CalcNumDens.OR.CalcCollRates.OR.CalcReacRates.OR.CalcSurfFluxInfo.OR.CalcRelaxProb) DoPartAnalyze = .TRUE.
+IF(CalcSimNumSpec.OR.CalcNumDens.OR.CalcCollRates.OR.CalcReacRates.OR.CalcSurfFluxInfo.OR.CalcRelaxProb.OR. & 
+  CalcBulkVeloABS) DoPartAnalyze = .TRUE.
 
 !-- Compute transversal or thermal velocity of whole computational domain
 CalcVelos = GETLOGICAL('CalcVelos')
@@ -963,6 +966,13 @@ ParticleAnalyzeSampleTime = Time - ParticleAnalyzeSampleTime ! Set ParticleAnaly
           DO iSpec = 1, nSpecAnalyze
             WRITE(unit_index,'(A1)',ADVANCE='NO') ','
             WRITE(unit_index,'(I3.3,A14,I3.3)',ADVANCE='NO') OutputCounter,'-NumDens-Spec-', iSpec
+            OutputCounter = OutputCounter + 1
+          END DO
+        END IF
+        IF (CalcBulkVeloABS) THEN
+          DO iSpec = 1, nSpecAnalyze
+            WRITE(unit_index,'(A1)',ADVANCE='NO') ','
+            WRITE(unit_index,'(I3.3,A14,I3.3)',ADVANCE='NO') OutputCounter,'-BulkVeloABS-Spec-', iSpec
             OutputCounter = OutputCounter + 1
           END DO
         END IF
@@ -1330,6 +1340,9 @@ ParticleAnalyzeSampleTime = Time - ParticleAnalyzeSampleTime ! Set ParticleAnaly
   ! Computes the real and simulated number of particles
   CALL CalcNumPartsOfSpec(NumSpec,SimNumSpec,.TRUE.,CalcSimNumSpec)
   IF(CalcNumDens) CALL CalcNumberDensity(NumSpec,NumDens)
+  ! Computes the total bulk velocity 
+  CALL CalcNumPartsOfSpec(NumSpec,SimNumSpec,.TRUE.,CalcSimNumSpec)
+  IF(CalcBulkVeloABS) CALL CalcNumberDensity(NumSpec,NumDens)
   ! Determine the mass flux [kg/s], current [A] and/or pressure [Pa] per species and surface flux (includes MPI communication)
   IF(CalcSurfFluxInfo) CALL CalcSurfaceFluxInfo()
 !-----------------------------------------------------------------------------------------------------------------------------------
