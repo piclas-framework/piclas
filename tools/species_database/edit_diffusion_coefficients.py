@@ -71,7 +71,7 @@ class DiffusionCoefficientsSetLXCatBolsig:
                         names_values_arr[:,0] = names
                         names_values_arr[:,1] = values
                         self.config = names_values_arr
-                    if 'A29' in line:
+                    if 'R# ' in line:
                         found_data = True
                     # line = f.readline()
                     if found_data:
@@ -79,7 +79,6 @@ class DiffusionCoefficientsSetLXCatBolsig:
                         A2 = []
                         A5 = []
                         A18 = []
-                        line = f.readline()
                         line = f.readline()
                         while line.strip() != "":
                             if 'NaN' in line:
