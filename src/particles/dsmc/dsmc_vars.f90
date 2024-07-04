@@ -111,6 +111,8 @@ TYPE tSpeciesDSMC                                          ! DSMC Species Parame
   REAL                        :: dref                      ! collision model: reference diameter        , ini_2
   REAL                        :: omega                     ! collision model: temperature exponent      , ini_2
   REAL                        :: alphaVSS                  ! collision model: scattering exponent(VSS)  , ini_2
+  REAL                        :: C1                        ! constant for vibrational collision number according to Bird
+  REAL                        :: C2                        ! constant for vibrational collision number according to Bird
   INTEGER                     :: Xi_Rot                    ! Rotational DOF
   REAL                        :: GammaVib                  ! GammaVib = Xi_Vib(T_t)² * exp(CharaTVib/T_t) / 2 -> correction fact
                                                            ! for vib relaxation -> see 'Vibrational relaxation rates

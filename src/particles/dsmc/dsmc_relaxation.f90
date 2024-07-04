@@ -382,7 +382,7 @@ ProbElec = SpecDSMC(iSpec1)%ElecRelaxProb*CorrFact
 END SUBROUTINE DSMC_calc_P_elec
 
 
-SUBROUTINE DSMC_calc_P_vib(iPair, iSpec, jSpec, Xi_rel, iElem, ProbVib)
+SUBROUTINE DSMC_calc_P_vib(iPair, iPart, iSpec, jSpec, Xi_rel, iElem, ProbVib)
 !===================================================================================================================================
 ! Calculation of probability for vibrational relaxation. Different Models implemented:
 ! 0 - Constant Probability
@@ -391,25 +391,28 @@ SUBROUTINE DSMC_calc_P_vib(iPair, iSpec, jSpec, Xi_rel, iElem, ProbVib)
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals            ,ONLY: Abort
-USE MOD_DSMC_Vars          ,ONLY: SpecDSMC, DSMC, VarVibRelaxProb, useRelaxProbCorrFactor, PolyatomMolDSMC, CollInf, Coll_pData
+USE MOD_Globals_Vars       ,ONLY: BoltzmannConst, PlanckConst, c, eV2Joule
+USE MOD_DSMC_Vars          ,ONLY: SpecDSMC, DSMC, VarVibRelaxProb, useRelaxProbCorrFactor, PolyatomMolDSMC, CollInf, Coll_pData, AHO
+USE MOD_DSMC_Vars          ,ONLY: RadialWeighting, PartStateIntEn
 USE MOD_MCC_Vars           ,ONLY: XSec_Relaxation, SpecXSec
 USE MOD_MCC_XSec           ,ONLY: XSec_CalcVibRelaxProb
+USE MOD_Part_Tools         ,ONLY: GetParticleWeight
+USE MOD_Particle_Vars      ,ONLY: UseVarTimeStep, usevMPF
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-INTEGER, INTENT(IN)       :: iPair, iSpec, jSpec, iElem
+INTEGER, INTENT(IN)       :: iPair, iPart, iSpec, jSpec, iElem
 REAL, INTENT(IN)          :: Xi_rel
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 REAL, INTENT(OUT)         :: ProbVib
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-REAL                      :: CorrFact       ! CorrFact: To correct sample Bias
-                                            ! (fewer DSMC particles than natural ones)
-INTEGER                   :: iPolyatMole, iDOF, iCase
+REAL                      :: CorrFact       ! CorrFact: To correct sample Bias (fewer DSMC particles than natural ones)
+REAL                      :: Ec, DissTemp, MaxColQua, Tcoll, Tref, Zref, Zvib
+INTEGER                   :: iPolyatMole, iDOF, iCase, iQuantMax
 !===================================================================================================================================
-! TODO-AHO: check if we need to calculate vib relax probs instead of read-in (collision temperature, vib collision number)
 ProbVib = 0.
 
 ! calculate correction factor according to Gimelshein et al.
@@ -446,11 +449,58 @@ IF((DSMC%VibRelaxProb.GE.0.0).AND.(DSMC%VibRelaxProb.LE.1.0)) THEN
       END IF
     END IF
   END IF
+
 ELSE IF(DSMC%VibRelaxProb.EQ.2.0) THEN
   ! Calculation of Prob Vib in function DSMC_calc_var_P_vib.
   ! This has to average over all collisions according to Boyd (doi:10.1063/1.858495)
   ! The average value of the cell is only taken from the vector
   ProbVib = VarVibRelaxProb%ProbVibAv(iElem, iSpec) * CorrFact
+
+ELSE IF(DSMC%VibRelaxProb.EQ.3.0) THEN
+  ! Calculation of vibrational relaxation probability according to Bird, can be used with SHO and AHO
+  ! collision energy = relative translational energy of iPair + pre-collision vibrational energy of iPart
+  IF (usevMPF.OR.RadialWeighting%DoRadialWeighting.OR.UseVarTimeStep) THEN
+    Ec = (Coll_pData(iPair)%Ec + PartStateIntEn(1,iPart)*GetParticleWeight(iPart)) / GetParticleWeight(iPart)
+  ELSE
+    Ec = Coll_pData(iPair)%Ec + PartStateIntEn(1,iPart)*GetParticleWeight(iPart)
+  END IF
+  ! dissociation temperature
+  DissTemp = SpecDSMC(iSpec)%Ediss_eV * eV2Joule / BoltzmannConst
+
+  IF(DSMC%VibAHO) THEN
+    ! maximum quantum number
+    iQuantMax = 2
+    DO WHILE (Ec.GE.AHO%VibEnergy(iSpec,iQuantMax))
+      ! collision energy is larger than vib energy for this quantum number --> increase quantum number and try again
+      iQuantMax = iQuantMax + 1
+      ! exit if this quantum number is larger as the table length (dissociation level is reached)
+      IF (iQuantMax.GT.AHO%NumVibLevels(iSpec)) EXIT
+    END DO
+    ! accept iQuantMax - 1 as quantum number
+    iQuantMax = iQuantMax - 1
+    ! collision temperature
+    Tcoll = (PlanckConst * c * AHO%omegaE(iSpec) * (iQuantMax-1) * (1. - AHO%chiE(iSpec) * iQuantMax)) &
+      / (BoltzmannConst * (3.-SpecDSMC(iSpec)%omega))
+
+  ELSE
+    ! maximum quantum number
+    MaxColQua = Ec/(BoltzmannConst*SpecDSMC(iSpec)%CharaTVib) - DSMC%GammaQuant
+    iQuantMax = MIN(INT(MaxColQua) + 1, SpecDSMC(iSpec)%MaxVibQuant)
+    ! collision temperature
+    Tcoll = iQuantMax * SpecDSMC(iSpec)%CharaTVib / (3.-SpecDSMC(iSpec)%omega)
+  END IF
+
+  !Tref =
+  ! vibrational collision number at reference temperature
+  Zref = SpecDSMC(iSpec)%C1 * EXP(SpecDSMC(iSpec)%C2 * Tref**(-1./3.)) / (Tref**(SpecDSMC(iSpec)%omega+0.5))
+  ! vibrational collision number
+  Zvib = (DissTemp/Tcoll)**(SpecDSMC(iSpec)%omega+0.5) * (Zref * (DissTemp/Tcoll)**(-SpecDSMC(iSpec)%omega-0.5)) &
+    **(((DissTemp/Tcoll)**(1./3.) - 1.) / ((DissTemp/Tref)**(1./3.) - 1.))!??????????????????????????????
+  ! vibrational relaxation probability
+  ProbVib = 1. / Zvib
+  print*, ProbVib
+  read*
+
 ELSE
   CALL Abort(__STAMP__,'Error! Model for vibrational relaxation undefined:',RealInfoOpt=DSMC%VibRelaxProb)
 END IF

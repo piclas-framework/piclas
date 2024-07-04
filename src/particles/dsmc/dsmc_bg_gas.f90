@@ -423,7 +423,7 @@ DO iLoop = 1, nPart
   iPart = PEM%pNext(iPart)
 END DO
 
-IF(((CollisMode.GT.1).AND.(SelectionProc.EQ.2)).OR.DSMC%BackwardReacRate.OR.DSMC%CalcQualityFactors) THEN
+IF((((CollisMode.GT.1).AND.(SelectionProc.EQ.2)).OR.DSMC%BackwardReacRate.OR.DSMC%CalcQualityFactors)) THEN
   ! 1. Case: Inelastic collisions and chemical reactions with the Gimelshein relaxation procedure and variable vibrational
   !           relaxation probability (CalcGammaVib)
   ! 2. Case: Chemical reactions and backward rate require cell temperature for the partition function and equilibrium constant
@@ -443,7 +443,7 @@ IF(((CollisMode.GT.1).AND.(SelectionProc.EQ.2)).OR.DSMC%BackwardReacRate.OR.DSMC
       END IF
     END IF
   END DO
-  IF(SelectionProc.EQ.2) CALL CalcGammaVib()
+  IF(SelectionProc.EQ.2.AND..NOT.(DSMC%VibAHO)) CALL CalcGammaVib()
 END IF
 
 DO iSpec = 1, nSpecies

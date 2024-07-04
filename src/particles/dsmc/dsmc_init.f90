@@ -212,6 +212,12 @@ CALL prms%CreateRealOption(     'Part-Species[$]-Vib-Anharmonic-chiE' &
 ! ----------------------------------------------------------------------------------------------------------------------------------
 CALL prms%CreateLogicalOption(  'Particles-DSMC-useRelaxProbCorrFactor'&
                                            ,'Use the relaxation probability correction factor of Lumpkin', '.FALSE.')
+CALL prms%CreateRealOption(     'Part-Species[$]-VibConstant-C1'  &
+                                           ,'Constant for vibrational collision number according to Bird' &
+                                           , numberedmulti=.TRUE.)
+CALL prms%CreateRealOption(     'Part-Species[$]-VibConstant-C2'  &
+                                           ,'Constant for vibrational collision number according to Bird' &
+                                           , numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'Part-Species[$]-CollNumRotInf'  &
                                            ,'Collision number for rotational relaxation according to Parker or'//&
                                             'Zhang, ini_2 -> model dependent!', numberedmulti=.TRUE.)
@@ -362,6 +368,9 @@ IF(CollisMode.GE.2) THEN
     DO iSpec = 1, nSpecies
       CALL ReadAHOEnergiesFromCSV(FileNameAHO(iSpec),iSpec)
     END DO
+    IF (DSMC%VibRelaxProb.EQ.2.) THEN
+      CALL Abort(__STAMP__,'ERROR: Variable vibration relaxation probabilities according to Boyd not supported with AHO!')
+    END IF
   END IF
 ELSE
   DSMC%RotRelaxProb = 0.
@@ -721,6 +730,9 @@ ELSE !CollisMode.GT.0
     SpecDSMC(1:nSpecies)%PolyatomicMol = .FALSE.
     SpecDSMC(1:nSpecies)%SpecToPolyArray = 0
     useRelaxProbCorrFactor=GETLOGICAL('Particles-DSMC-useRelaxProbCorrFactor','.FALSE.')
+    IF(DSMC%VibAHO.AND.useRelaxProbCorrFactor) THEN
+      CALL Abort(__STAMP__,'ERROR: Utilization of vibrational relaxation probability correction factor not possible with AHO!')
+    END IF
 
     IF(SpeciesDatabase.NE.'none') THEN
       IF(DSMC%VibAHO) THEN
@@ -887,7 +899,7 @@ ELSE !CollisMode.GT.0
               SpecDSMC(iSpec)%CharaTVib  = GETREAL('Part-Species'//TRIM(hilf)//'-CharaTempVib')
               SpecDSMC(iSpec)%MaxVibQuant = 200
               ! Calculation of the dissociation quantum number (used for QK chemistry)
-            SpecDSMC(iSpec)%DissQuant = INT(SpecDSMC(iSpec)%Ediss_eV*ElementaryCharge/(BoltzmannConst*SpecDSMC(iSpec)%CharaTVib))
+              SpecDSMC(iSpec)%DissQuant = INT(SpecDSMC(iSpec)%Ediss_eV*ElementaryCharge/(BoltzmannConst*SpecDSMC(iSpec)%CharaTVib))
             END IF
             SpecDSMC(iSpec)%CharaTRot  = GETREAL('Part-Species'//TRIM(hilf)//'-CharaTempRot','0')
             SpecDSMC(iSpec)%Ediss_eV   = GETREAL('Part-Species'//TRIM(hilf)//'-Ediss_eV')
@@ -927,6 +939,12 @@ ELSE !CollisMode.GT.0
               SpecDSMC(iSpec)%VibCrossSec    = GETREAL('Part-Species'//TRIM(hilf)//'-VibCrossSection')
               IF(SpecDSMC(iSpec)%VibCrossSec.EQ.0) CALL Abort(__STAMP__,'Error! VibCrossSec is equal to zero for species:', iSpec)
             END IF
+          ELSE IF (DSMC%VibRelaxProb.EQ.3.0) THEN
+            ! Only molecules or charged molecules
+            IF(((Species(iSpec)%InterID.EQ.2).OR.(Species(iSpec)%InterID.EQ.20))) THEN
+              SpecDSMC(iSpec)%C1 = GETREAL('Part-Species'//TRIM(hilf)//'-VibConstant-C1')
+              SpecDSMC(iSpec)%C2 = GETREAL('Part-Species'//TRIM(hilf)//'-VibConstant-C2')
+            END IF
           END IF
           ! Setting the values of Rot-/Vib-RelaxProb to a fix value (electronic: species-specific values are possible)
           SpecDSMC(iSpec)%RotRelaxProb  = DSMC%RotRelaxProb
@@ -936,9 +954,6 @@ ELSE !CollisMode.GT.0
           ALLOCATE(SpecDSMC(iSpec)%Init(0:Species(iSpec)%NumberOfInits))
           ! Skip the read-in of temperatures if a background gas distribution is used but not if background gas regions are used
           IF(BGGas%NumberOfSpecies.GT.0) THEN
-            IF(DSMC%VibAHO) THEN
-              CALL Abort(__STAMP__,'ERROR: The anharmonic oscillator model is not possible with a background gas!')
-            END IF
             IF(BGGas%BackgroundSpecies(iSpec).AND.BGGas%UseDistribution.AND.(.NOT.BGGas%UseRegions)) THEN
               SpecDSMC(iSpec)%Init(1)%TVib  = 0.
               SpecDSMC(iSpec)%Init(1)%TRot  = 0.
@@ -1026,9 +1041,6 @@ ELSE !CollisMode.GT.0
   ! Define chemical reactions (including ionization and backward reaction rate)
   !-----------------------------------------------------------------------------------------------------------------------------------
   IF (CollisMode.EQ.3) THEN ! perform chemical reactions
-    IF(DSMC%VibAHO) THEN
-      CALL Abort(__STAMP__,'ERROR: The anharmonic oscillator model is not implemented for chemical reactions yet!')
-    END IF
     IF(SpeciesDatabase.NE.'none') THEN
       ! Initialize FORTRAN interface.
       CALL H5OPEN_F(err)
