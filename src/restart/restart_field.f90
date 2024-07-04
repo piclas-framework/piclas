@@ -105,7 +105,7 @@ USE MOD_HDG                ,ONLY: SynchronizeChargeOnFPC
 USE MOD_HDG_Vars           ,ONLY: UseFPC
 #endif /*USE_LOADBALANCE*/
 USE PETSc
-USE MOD_HDG_Vars           ,ONLY: PETScSolution,nPETScUniqueSides
+USE MOD_HDG_Vars           ,ONLY: PETScSolution,nPETScUniqueSides,OffsetGlobalPETScDOF,MaskedSide
 #endif
 USE MOD_Mesh_Vars          ,ONLY: N_SurfMesh
 #else /*USE_HDG*/
@@ -171,6 +171,8 @@ INTEGER(KIND=MPI_ADDRESS_KIND)     :: MPI_DISPLACEMENT(1)
 #endif /*defined(PARTICLES) || !(USE_HDG)*/
 REAL,ALLOCATABLE                   :: Uloc(:,:,:,:)
 INTEGER                            :: Nloc
+
+INTEGER :: DOFindices(nGP_face(NMax))
 !===================================================================================================================================
 
 ! ===========================================================================
@@ -660,13 +662,17 @@ ELSE ! Normal restart
 #endif /*USE_MPI*/
 
 #if USE_PETSC
-        ! TODO PETSC P-Adaption - Restart
-        !DO PETScLocalID=1,nPETScUniqueSides
-        !  SideID=PETScLocalToSideID(PETScLocalID)
-        !  PetscCallA(VecSetValuesBlocked(PETScSolution,1,PETScGlobal(SideID),lambda(1,:,SideID),INSERT_VALUES,ierr))
-        !END DO
-        !PetscCallA(VecAssemblyBegin(PETScSolution,ierr))
-        !PetscCallA(VecAssemblyEnd(PETScSolution,ierr))
+      DO iSide=1,nSides
+        IF(MaskedSide(iSide).GT.0) CYCLE
+        ! TODO: Create a function to map localToGlobalDOFs
+        Nloc = N_SurfMesh(iSide)%NSideMin
+        DO i=1,nGP_face(Nloc)
+          DOFindices(i) = i + OffsetGlobalPETScDOF(iSide) - 1
+        END DO
+        PetscCallA(VecSetValues(PETScSolution,nGP_face(Nloc),DOFindices(1:nGP_face(Nloc)),HDG_Surf_N(iSide)%lambda(1,:),INSERT_VALUES,ierr))
+      END DO
+      PetscCallA(VecAssemblyBegin(PETScSolution,ierr))
+      PetscCallA(VecAssemblyEnd(PETScSolution,ierr))
 #endif
 
       ! RecomputeEFieldHDG() -> PostProcessGradientHDG(), which requires U_N(iElem)%U and HDG_Surf_N(iSide)%lambda
@@ -753,14 +759,6 @@ ELSE ! Normal restart
     END IF ! DoPML
 #endif /*USE_HDG*/
     !CALL ReadState(RestartFile,nVar,PP_N,PP_nElems,U)
-
-
-
-
-
-
-
-
 
   END IF ! IF(.NOT. RestartNullifySolution)
   CALL CloseDataFile()
