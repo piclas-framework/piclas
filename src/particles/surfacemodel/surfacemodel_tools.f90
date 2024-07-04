@@ -593,7 +593,7 @@ USE MOD_Globals_Vars          ,ONLY: BoltzmannConst
 USE MOD_Particle_Vars         ,ONLY: PartSpecies, Species
 USE MOD_Particle_Boundary_Vars,ONLY: PartBound
 USE MOD_DSMC_Vars             ,ONLY: CollisMode, PolyatomMolDSMC, useDSMC
-USE MOD_DSMC_Vars             ,ONLY: PartStateIntEn, SpecDSMC, DSMC, VibQuantsPar
+USE MOD_DSMC_Vars             ,ONLY: PartStateIntEn, SpecDSMC, DSMC, VibQuantsPar, AHO
 USE MOD_DSMC_ElectronicModel  ,ONLY: RelaxElectronicShellWall
 #if (PP_TimeDiscMethod==400)
 USE MOD_BGK_Vars              ,ONLY: BGKDoVibRelaxation
@@ -614,6 +614,7 @@ INTEGER               :: SpecID, vibQuant, vibQuantNew, VibQuantWall
 REAL                  :: RanNum
 REAL                  :: VibACC, RotACC, ElecACC
 REAL                  :: ErotNew, ErotWall, EVibNew
+REAL                  :: GroundLevel, VibPartitionTemp
 ! Polyatomic Molecules
 REAL                  :: NormProb, VibQuantNewR
 REAL, ALLOCATABLE     :: RanNumPoly(:), VibQuantNewRPoly(:)
@@ -683,7 +684,44 @@ IF ((Species(SpecID)%InterID.EQ.2).OR.(Species(SpecID)%InterID.EQ.20)) THEN
       END DO
     ELSE
       IF(DSMC%VibAHO) THEN ! AHO
-        ! TODO-AHO
+        ! calculate vib quant number matching PartStateIntEn(1,PartID)
+        VibQuant = 2
+        DO WHILE (PartStateIntEn(1,PartID).GE.AHO%VibEnergy(SpecID,VibQuant))
+          ! energy is larger than vib energy for this quantum number --> increase quantum number and try again
+          VibQuant = VibQuant + 1
+          ! exit if this quantum number is larger as the table length (dissociation level is reached)
+          IF (VibQuant.GT.AHO%NumVibLevels(SpecID)) EXIT
+        END DO
+        ! accept VibQuant - 1 as quantum number
+        VibQuant = VibQuant - 1
+        ! calculate vib qunat number of wall based on wall temperature
+        IF (CHECKEXP(- AHO%VibEnergy(SpecID,1) / (BoltzmannConst * WallTemp))) THEN
+          GroundLevel = EXP(- AHO%VibEnergy(SpecID,1) / (BoltzmannConst * WallTemp))
+          CALL RANDOM_NUMBER(RanNum)
+          VibQuantWall = INT(AHO%NumVibLevels(SpecID) * RanNum + 1.)
+          VibPartitionTemp = EXP(- AHO%VibEnergy(SpecID,VibQuantWall) / (BoltzmannConst * WallTemp))
+          CALL RANDOM_NUMBER(RanNum)
+          ! acceptance is higher for lower levels
+          DO WHILE (RanNum .GE. (VibPartitionTemp / GroundLevel))
+            ! select random quantum number and calculate partition function
+            CALL RANDOM_NUMBER(RanNum)
+            VibQuantWall = INT(AHO%NumVibLevels(SpecID) * RanNum + 1.)
+            VibPartitionTemp = EXP(- AHO%VibEnergy(SpecID,VibQuantWall) / (BoltzmannConst * WallTemp))
+            CALL RANDOM_NUMBER(RanNum)
+          END DO
+        ELSE
+          VibQuantWall = 1
+        END IF
+        ! calculate new quantum number based on vibrational accommodation coefficient
+        VibQuantNewR = VibQuant + VibACC*(VibQuantWall - VibQuant)
+        VibQuantNew = INT(VibQuantNewR)
+        CALL RANDOM_NUMBER(RanNum)
+        IF (RanNum.LT.(VibQuantNewR - VibQuantNew)) THEN
+          EvibNew = AHO%VibEnergy(SpecID,VibQuantNew+1)
+        ELSE
+          EvibNew = AHO%VibEnergy(SpecID,VibQuantNew)
+        END IF
+
       ELSE ! SHO
         VibQuant = NINT(PartStateIntEn(1,PartID)/(BoltzmannConst*SpecDSMC(SpecID)%CharaTVib) - DSMC%GammaQuant)
         CALL RANDOM_NUMBER(RanNum)

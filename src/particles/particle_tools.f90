@@ -1013,7 +1013,6 @@ ELSE ! diatomic
     !   Sum up contribution * energy of each level
 
     temp = TempVib
-    IF(TempVib.LE.0.) temp = 0.1
 
     IF (CHECKEXP(- AHO%VibEnergy(iSpec,1) / (BoltzmannConst * temp))) THEN
       GroundLevel = EXP(- AHO%VibEnergy(iSpec,1) / (BoltzmannConst * temp))

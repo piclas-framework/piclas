@@ -69,7 +69,6 @@ IF(DSMC%VibAHO) THEN
   !   Sum up contribution * energy of each level
 
   temp = TVib
-  IF(TVib.LE.0.) temp = 0.1
 
   IF (CHECKEXP(- AHO%VibEnergy(iSpec,1) / (BoltzmannConst * temp))) THEN
     GroundLevel = EXP(- AHO%VibEnergy(iSpec,1) / (BoltzmannConst * temp))
