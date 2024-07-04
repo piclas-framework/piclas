@@ -49,7 +49,6 @@ USE MOD_GetBoundaryFlux ,ONLY: GetBoundaryFlux
 USE MOD_Mesh_Vars       ,ONLY: firstMPISide_MINE,lastMPISide_MINE,firstInnerSide,firstBCSide,lastInnerSide
 #ifdef drift_diffusion
 USE MOD_Equation_Vars_FV,ONLY: EFluid_GradSide
-USE MOD_Equation_Vars   ,ONLY: E_slave, E_master
 USE MOD_Interpolation_Vars ,ONLY: wGP
 USE MOD_Mesh_Vars       ,ONLY: SideToElem
 #endif
@@ -59,8 +58,13 @@ IMPLICIT NONE
 ! INPUT VARIABLES
 LOGICAL,INTENT(IN) :: doMPISides  != .TRUE. only MINE MPISides are filled, =.FALSE. InnerSides
 REAL,INTENT(IN)    :: t           ! time
+#ifdef drift_diffusion
+REAL,INTENT(IN)    :: U_master(PP_nVar_FV+3,0:0,0:0,1:nSides)
+REAL,INTENT(IN)    :: U_slave (PP_nVar_FV+3,0:0,0:0,1:nSides)
+#else
 REAL,INTENT(IN)    :: U_master(PP_nVar_FV,0:0,0:0,1:nSides)
 REAL,INTENT(IN)    :: U_slave (PP_nVar_FV,0:0,0:0,1:nSides)
+#endif
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 REAL,INTENT(OUT)   :: Flux_Master(1:PP_nVar_FV,0:0,0:0,nSides)
@@ -68,10 +72,6 @@ REAL,INTENT(OUT)   :: Flux_Slave(1:PP_nVar_FV,0:0,0:0,nSides)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER            :: SideID,firstSideID_wo_BC,firstSideID,lastSideID
-! #ifdef drift_diffusion
-! INTEGER            :: ElemIDm,ElemIDs,i,j,k
-! REAL               :: E_slave(3), E_master(3)
-! #endif
 !===================================================================================================================================
 
 ! fill flux for sides ranging between firstSideID and lastSideID using Riemann solver
@@ -101,7 +101,7 @@ END IF
 DO SideID=firstSideID_wo_BC,lastSideID
 #ifdef drift_diffusion
   CALL Riemann(Flux_Master(:,:,:,SideID),U_Master(:,:,:,SideID),U_Slave(:,:,:,SideID),NormVec_FV(:,:,:,SideID), &
-               EFluid_GradSide(SideID),E_master(:,0,0,SideID),E_slave(:,0,0,SideID)) ! need to average E on side instead of 0,0
+               EFluid_GradSide(SideID))
 #else
   CALL Riemann(Flux_Master(:,:,:,SideID),U_Master(:,:,:,SideID),U_Slave(:,:,:,SideID),NormVec_FV(:,:,:,SideID))
 #endif
@@ -110,7 +110,7 @@ END DO ! SideID
 ! 2. Compute the fluxes at the boundary conditions: 1..nBCSides
 IF(.NOT.doMPISides)THEN
   CALL GetBoundaryFlux(t,0,Flux_Master    (1:PP_nVar_FV,0:0,0:0,1:nBCSides) &
-                               ,U_master       (1:PP_nVar_FV     ,0:0,0:0,1:nBCSides) &
+                               ,U_master          (:,0:0,0:0,1:nBCSides) &
                                ,NormVec_FV        (1:3              ,0:0,0:0,1:nBCSides) &
                                ,TangVec1_FV       (1:3              ,0:0,0:0,1:nBCSides) &
                                ,TangVec2_FV       (1:3              ,0:0,0:0,1:nBCSides) &

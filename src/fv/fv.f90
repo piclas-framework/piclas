@@ -107,8 +107,16 @@ IF(.NOT.DoRestart) CALL FillIni()
 !U_Minus=0.
 !U_Plus=0.
 
+
+
+#ifdef drift_diffusion
+ALLOCATE(U_master_FV(PP_nVar_FV+3,0:0,0:0,1:nSides))
+ALLOCATE(U_slave_FV(PP_nVar_FV+3,0:0,0:0,1:nSides))
+#else
 ALLOCATE(U_master_FV(PP_nVar_FV,0:0,0:0,1:nSides))
 ALLOCATE(U_slave_FV(PP_nVar_FV,0:0,0:0,1:nSides))
+#endif
+
 U_master_FV=0.
 U_slave_FV=0.
 
@@ -188,6 +196,7 @@ USE MOD_Equation_FV       ,ONLY: CalcSource_FV
 USE MOD_Interpolation     ,ONLY: ApplyJacobian
 USE MOD_FillMortar        ,ONLY: U_Mortar,Flux_Mortar
 USE MOD_Particle_Mesh_Vars,ONLY: ElemVolume_Shared
+USE MOD_Interpolation_Vars,ONLY: wGP
 #if USE_MPI
 USE MOD_Mesh_Vars         ,ONLY: nSides
 USE MOD_MPI_Vars
@@ -206,21 +215,19 @@ USE MOD_LoadBalance_Timers,ONLY: LBStartTime,LBPauseTime,LBSplitTime
 #endif /*USE_LOADBALANCE*/
 #endif /*USE_MPI*/
 #ifdef drift_diffusion
-USE MOD_Equation_Vars     ,ONLY: E, E_master, E_slave
+USE MOD_Equation_Vars     ,ONLY: E
 USE MOD_MPI               ,ONLY: StartReceiveMPIData,StartSendMPIData
-USE MOD_ProlongToFace     ,ONLY: ProlongToFace
 #endif
-! IMPLICIT VARIABLE HANDLING
-IMPLICIT NONE
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
 REAL,INTENT(IN)                 :: t,tStage
 LOGICAL,INTENT(IN)              :: doSource
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                         :: CNElemID, iElem
+INTEGER                         :: CNElemID, iElem,i,j,k,ElemID,SideID
+#ifdef drift_diffusion
+REAL                            :: U_DD(1:PP_nVar_FV+3,0:0,0:0,0:0,PP_nElems) ! U_FV(1:PP_nVar_FV) + E(1:3)
+#endif
 #if USE_LOADBALANCE
 REAL                            :: tLBStart
 #endif /*USE_LOADBALANCE*/
@@ -228,46 +235,49 @@ REAL                            :: tLBStart
 
 CALL GetGradients(U_FV(:,0,0,0,:))
 
+#ifdef drift_diffusion
+U_DD(:,:,:,:,:) = 0.
+DO ElemID = 1, PP_nElems
+  DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
+    U_DD(PP_nVar_FV+1:PP_nVar_FV+3,0,0,0,ElemID) = U_DD(PP_nVar_FV+1:PP_nVar_FV+3,0,0,0,ElemID) &
+                                                 + wGP(i)*wGP(j)*wGP(k)*E(1:3,i,j,k,ElemID)/((PP_N+1.)**3)
+  END DO; END DO; END DO
+  U_DD(1:PP_nVar_FV,0,0,0,ElemID) = U_FV(1:PP_nVar_FV,0,0,0,ElemID)
+END DO
+
+ASSOCIATE(  PP_nVar_tmp => PP_nVar_FV+3 , &
+            U_tmp => U_DD)
+#else
+ASSOCIATE(  PP_nVar_tmp => PP_nVar_FV, &
+            U_tmp => U_FV)
+#endif
+
 ! prolong the solution to the faces by applying reconstruction gradients
 #if USE_MPI
 ! Prolong to face for MPI sides - send direction
 #if USE_LOADBALANCE
 CALL LBStartTime(tLBStart)
 #endif /*USE_LOADBALANCE*/
-CALL StartReceiveMPIDataFV(PP_nVar_FV,U_slave_FV(:,0,0,:),1,nSides,RecRequest_U,SendID=2) ! Receive MINE
-#ifdef drift_diffusion
-CALL StartReceiveMPIData(3,E_slave,1,nSides,RecRequest_U2,SendID=2) ! Receive MINE
-#endif
+CALL StartReceiveMPIDataFV(PP_nVar_tmp,U_slave_FV(:,0,0,:),1,nSides,RecRequest_U,SendID=2) ! Receive MINE
 #if USE_LOADBALANCE
 CALL LBSplitTime(LB_DGCOMM,tLBStart)
 #endif /*USE_LOADBALANCE*/
 
-CALL ProlongToFace_FV(U_FV,U_master_FV,U_slave_FV,doMPISides=.TRUE.)
-CALL U_Mortar(U_master_FV,U_slave_FV,doMPISides=.TRUE.)
-#ifdef drift_diffusion
-CALL ProlongToFace(E, E_master, E_slave, doMPISides=.TRUE.)
-CALL U_Mortar(E_master,E_slave,doMPISides=.TRUE.)
-#endif
+CALL ProlongToFace_FV(U_tmp,U_master_FV,U_slave_FV,doMPISides=.TRUE.)
+CALL U_Mortar(U_master_FV,U_slave_FV,doMPISides=.TRUE.) !not working
 
 #if USE_LOADBALANCE
 CALL LBSplitTime(LB_DG,tLBStart)
 #endif /*USE_LOADBALANCE*/
-CALL StartSendMPIDataFV(PP_nVar_FV,U_slave_FV(:,0,0,:),1,nSides,SendRequest_U,SendID=2) ! Send YOUR
-#ifdef drift_diffusion
-CALL StartSendMPIData(3,E_slave,1,nSides,SendRequest_U2,SendID=2) ! Send YOUR
-#endif
+CALL StartSendMPIDataFV(PP_nVar_tmp,U_slave_FV(:,0,0,:),1,nSides,SendRequest_U,SendID=2) ! Send YOUR
 #if USE_LOADBALANCE
 CALL LBSplitTime(LB_DGCOMM,tLBStart)
 #endif /*USE_LOADBALANCE*/
 #endif /*USE_MPI*/
 
 ! Prolong to face for BCSides, InnerSides and MPI sides - receive direction
-CALL ProlongToFace_FV(U_FV,U_master_FV,U_slave_FV,doMPISides=.FALSE.)
-CALL U_Mortar(U_master_FV,U_slave_FV,doMPISides=.FALSE.)
-#ifdef drift_diffusion
-CALL ProlongToFace(E, E_master, E_slave, doMPISides=.FALSE.)
-CALL U_Mortar(E_master,E_slave,doMPISides=.FALSE.)
-#endif
+CALL ProlongToFace_FV(U_tmp,U_master_FV,U_slave_FV,doMPISides=.FALSE.)
+CALL U_Mortar(U_master_FV,U_slave_FV,doMPISides=.FALSE.) !not working
 
 #if USE_MPI
 #if defined(PARTICLES) && defined(LSERK)
@@ -294,9 +304,8 @@ CALL LBSplitTime(LB_DG,tLBStart)
 #endif /*USE_LOADBALANCE*/
 ! Complete send / receive of prolongtoface results
 CALL FinishExchangeMPIData(SendRequest_U,RecRequest_U,SendID=2)
-#ifdef drift_diffusion
-CALL FinishExchangeMPIData(SendRequest_U2,RecRequest_U2,SendID=2)
-#endif
+
+END ASSOCIATE
 
 ! Initialization of the time derivative
 !Flux=0. !don't nullify the fluxes if not really needed (very expensive)

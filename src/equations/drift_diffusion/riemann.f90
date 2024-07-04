@@ -22,7 +22,7 @@ PUBLIC::Riemann
 
 CONTAINS
 
-SUBROUTINE Riemann(F,U_L,U_R,nv,GradSide,E_L,E_R)
+SUBROUTINE Riemann(F,U_L,U_R,nv,GradSide)
 !===================================================================================================================================
 ! Computes the numerical flux
 ! Conservative States are rotated into normal direction in this routine and are NOT backrotatet: don't use it after this routine!!
@@ -38,10 +38,9 @@ USE MOD_Particle_Vars  ,ONLY: nSpecies, Species
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-REAL,DIMENSION(PP_nVar_FV,0:0,0:0),INTENT(IN) :: U_L,U_R
+REAL,DIMENSION(PP_nVar_FV+3,0:0,0:0),INTENT(IN) :: U_L,U_R
 REAL,INTENT(IN)                                  :: nv(3,0:0,0:0)
 REAL,INTENT(IN)                                  :: GradSide
-REAL,INTENT(IN)                                  :: E_L(3),E_R(3)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 REAL,INTENT(OUT)                                 :: F(PP_nVar_FV,0:0,0:0)
@@ -49,7 +48,7 @@ REAL,INTENT(OUT)                                 :: F(PP_nVar_FV,0:0,0:0)
 ! INPUT / OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-REAL                                             :: driftVelo, mu_L, mu_R, D_L, D_R
+REAL                                             :: normalE, mu_L, mu_R, D_L, D_R, E_L(1:3), E_R(1:3)
 INTEGER                                          :: iSpec
 !===================================================================================================================================
 DO iSpec = 1, nSpecies
@@ -58,15 +57,19 @@ DO iSpec = 1, nSpecies
   END IF
 END DO
 
+E_L = U_L(PP_nVar_FV+1:PP_nVar_FV+3,0,0)
+E_R = U_R(PP_nVar_FV+1:PP_nVar_FV+3,0,0)
+
+
 CALL CalcDriftDiffusionCoeff(VECNORM(E_L),BGGas%NumberDensity(iSpec),mu_L,D_L)
 CALL CalcDriftDiffusionCoeff(VECNORM(E_R),BGGas%NumberDensity(iSpec),mu_R,D_R)
 
-driftVelo=-DOT_PRODUCT(nv(:,0,0),(E_L+E_R)/2.)
+normalE = -DOT_PRODUCT(nv(:,0,0),(E_L+E_R)/2.)
 
-IF (driftVelo.GT.0.) THEN
-  F(1,0,0)=driftVelo*mu_L*U_L(1,0,0) + D_L*GradSide
+IF (normalE.GT.0.) THEN
+  F(1,0,0)=normalE*mu_L*U_L(1,0,0) + D_L*GradSide
 ELSE
-  F(1,0,0)=driftVelo*mu_R*U_R(1,0,0) + D_R*GradSide
+  F(1,0,0)=normalE*mu_R*U_R(1,0,0) + D_R*GradSide
 END IF
 
 END SUBROUTINE Riemann

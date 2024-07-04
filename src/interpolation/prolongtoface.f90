@@ -70,11 +70,20 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
 LOGICAL,INTENT(IN)              :: doMPISides  != .TRUE. only YOUR MPISides are filled, =.FALSE. BCSides +InnerSides +MPISides MINE
+#ifdef drift_diffusion
+REAL,INTENT(IN)                 :: Uvol(PP_nVar_FV+3,0:0,0:0,0:0,1:PP_nElems)
+#else
 REAL,INTENT(IN)                 :: Uvol(PP_nVar_FV,0:0,0:0,0:0,1:PP_nElems)
+#endif
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
+#ifdef drift_diffusion
+REAL,INTENT(INOUT)              :: Uface_master(PP_nVar_FV+3,0:0,0:0,1:nSides)
+REAL,INTENT(INOUT)              :: Uface_slave(PP_nVar_FV+3,0:0,0:0,1:nSides)
+#else
 REAL,INTENT(INOUT)              :: Uface_master(PP_nVar_FV,0:0,0:0,1:nSides)
 REAL,INTENT(INOUT)              :: Uface_slave(PP_nVar_FV,0:0,0:0,1:nSides)
+#endif
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER                         :: ElemID,SideID,firstSideID,lastSideID,iVel,jVel,kVel,upos
@@ -109,10 +118,13 @@ DO SideID=firstSideID,lastSideID
     END IF
   END DO; END DO; END DO
 #else
-  Uface_slave(:,0,0,SideID) = Uvol(:,0,0,0,ElemID) &
-                            + Gradient_elem(1,:,ElemID)*Grad_dx_slave(1,SideID) &
-                            + Gradient_elem(2,:,ElemID)*Grad_dx_slave(2,SideID) &
-                            + Gradient_elem(3,:,ElemID)*Grad_dx_slave(3,SideID)
+  Uface_slave(1:PP_nVar_FV,0,0,SideID) = Uvol(1:PP_nVar_FV,0,0,0,ElemID) &
+                            + Gradient_elem(1,1:PP_nVar_FV,ElemID)*Grad_dx_slave(1,SideID) &
+                            + Gradient_elem(2,1:PP_nVar_FV,ElemID)*Grad_dx_slave(2,SideID) &
+                            + Gradient_elem(3,1:PP_nVar_FV,ElemID)*Grad_dx_slave(3,SideID)
+#endif
+#ifdef drift_diffusion
+  Uface_slave(PP_nVar_FV+1:PP_nVar_FV+3,0,0,SideID) = Uvol(PP_nVar_FV+1:PP_nVar_FV+3,0,0,0,ElemID)
 #endif
 END DO
 
@@ -147,10 +159,13 @@ DO SideID=firstSideID,lastSideID
     END IF
   END DO; END DO; END DO
 #else
-  Uface_master(:,0,0,SideID) = Uvol(:,0,0,0,ElemID) &
-                            + Gradient_elem(1,:,ElemID)*Grad_dx_master(1,SideID) &
-                            + Gradient_elem(2,:,ElemID)*Grad_dx_master(2,SideID) &
-                            + Gradient_elem(3,:,ElemID)*Grad_dx_master(3,SideID)
+  Uface_master(1:PP_nVar_FV,0,0,SideID) = Uvol(1:PP_nVar_FV,0,0,0,ElemID) &
+                            + Gradient_elem(1,1:PP_nVar_FV,ElemID)*Grad_dx_master(1,SideID) &
+                            + Gradient_elem(2,1:PP_nVar_FV,ElemID)*Grad_dx_master(2,SideID) &
+                            + Gradient_elem(3,1:PP_nVar_FV,ElemID)*Grad_dx_master(3,SideID)
+#endif
+#ifdef drift_diffusion
+  Uface_master(PP_nVar_FV+1:PP_nVar_FV+3,0,0,SideID) = Uvol(PP_nVar_FV+1:PP_nVar_FV+3,0,0,0,ElemID)
 #endif
 END DO !SideID
 

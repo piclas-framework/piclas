@@ -46,9 +46,6 @@ INTEGER           :: alpha_shape
 REAL              :: shapeFuncPrefix
 REAL              :: rCutoff
 REAL,ALLOCATABLE  :: E(:,:,:,:,:)
-#ifdef drift_diffusion
-REAL,ALLOCATABLE  :: E_slave(:,:,:,:), E_master(:,:,:,:)
-#endif
 REAL,ALLOCATABLE  :: Et(:,:,:,:,:) ! temporal derivative dD/dt of the electric displacement field D = epsR*eps0*E(x,y,z)
 ! Boundary condition arrays
 REAL,ALLOCATABLE     :: BCData(:,:,:,:)

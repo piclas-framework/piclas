@@ -38,11 +38,11 @@ USE MOD_Equation_Vars      ,ONLY: E
 USE MOD_TimeDisc_Vars      ,ONLY: dt
 USE MOD_part_operations    ,ONLY: CreateParticle
 USE MOD_Particle_Tracking  ,ONLY: ParticleInsideCheck
-USE MOD_DSMC_Vars          ,ONLY: BGGas
+USE MOD_DSMC_Vars          ,ONLY: BGGas, CollisMode, SpecDSMC, DSMC
 USE MOD_Particle_Vars      ,ONLY: nSpecies, Species
 USE MOD_Transport_Data     ,ONLY: CalcDriftDiffusionCoeff
 USE MOD_Particle_Mesh_Vars ,ONLY: BoundsOfElem_Shared, ElemVolume_Shared
-USE MOD_part_tools         ,ONLY: CalcVelocity_maxwell_particle
+USE MOD_part_tools         ,ONLY: CalcVelocity_maxwell_particle, CalcERot_particle, CalcEVib_particle, CalcEElec_particle
 USE MOD_Mesh_Vars          ,ONLY: offsetElem
 USE MOD_Mesh_Tools         ,ONLY: GetCNElemID
 USE MOD_part_emission_tools,ONLY: CalcVelocity_maxwell_lpn
@@ -115,6 +115,14 @@ DO ElemID=1,PP_nElems
       RotEnergy = 0.
       VibEnergy = 0.
       ElecEnergy = 0.
+
+      IF (CollisMode.GT.1) THEN
+        RotEnergy = CalcERot_particle(iSpecBG,SpecDSMC(iSpecBG)%Init(1)%TRot)
+        VibEnergy = CalcEVib_particle(iSpecBG,SpecDSMC(iSpecBG)%Init(1)%TVib)
+        IF (DSMC%ElectronicModel.GT.0) THEN
+          ElecEnergy = CalcEElec_particle(iSpecBG,SpecDSMC(iSpecBG)%Init(1)%TElec)
+        END IF
+      END IF
 
       CALL CreateParticle(iSpecIon,RandomPos,GlobalElemID,Velocity,RotEnergy,VibEnergy,ElecEnergy)
 

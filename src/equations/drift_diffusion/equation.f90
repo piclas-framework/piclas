@@ -154,8 +154,8 @@ CASE(2) !shock
     Resu = RefState_FV(:,2)
   END IF
 
-CASE(3) !1D streamer (Markosyan et al. - 2015 - Comparing plasma fluid models of different order for 1D streamer ionization fronts)
-  Resu(1) = RefState_FV(1,1)*EXP(-((x(1)-9.e-3)/2.94e-5)**2)
+CASE(3) !1D streamer (Markosyan et al. - 2013)
+  Resu(1) = RefState_FV(1,1)*EXP(-((x(1)-0.8e-3)/2.9e-5)**2)
 
 CASE DEFAULT
   CALL abort(__STAMP__,&
@@ -176,6 +176,7 @@ USE MOD_Equation_Vars     ,ONLY: E
 USE MOD_Transport_Data    ,ONLY: CalcDriftDiffusionCoeff
 USE MOD_DSMC_Vars         ,ONLY: BGGas
 USE MOD_Particle_Vars     ,ONLY: nSpecies, Species
+USE MOD_Interpolation_Vars,ONLY: wGP
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -186,8 +187,8 @@ REAL,INTENT(IN)                 :: t,coeff
 REAL,INTENT(INOUT)              :: Ut(1:PP_nVar_FV,0:0,0:0,0:0,1:PP_nElems)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                         :: ElemID, iSpec
-REAL                            :: ionRate, mu, D
+INTEGER                         :: ElemID, iSpec, i, j, k
+REAL                            :: ionRate, mu, D, E_avg(1:3)
 !===================================================================================================================================
 DO iSpec = 1, nSpecies
   IF(BGGas%BackgroundSpecies(iSpec)) THEN
@@ -196,8 +197,13 @@ DO iSpec = 1, nSpecies
 END DO
 
 DO ElemID = 1, PP_nElems
-  CALL CalcDriftDiffusionCoeff(VECNORM(E(1:3,0,0,0,ElemID)),BGGas%NumberDensity(iSpec),mu,D,ionRate)
-  Ut(1,:,:,:,ElemID) = Ut(1,:,:,:,ElemID) + ionRate*mu*VECNORM(E(1:3,0,0,0,ElemID))*U_FV(1,:,:,:,ElemID)
+  E_avg = 0.
+  DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
+    E_avg(:) = E_avg(:) + wGP(i)*wGP(j)*wGP(k)*E(1:3,i,j,k,ElemID)/((PP_N+1.)**3)
+  END DO; END DO; END DO
+
+  CALL CalcDriftDiffusionCoeff(VECNORM(E_avg),BGGas%NumberDensity(iSpec),mu,D,ionRate)
+  Ut(1,:,:,:,ElemID) = Ut(1,:,:,:,ElemID) + ionRate*mu*VECNORM(E_avg)*U_FV(1,:,:,:,ElemID)
 END DO
 
 END SUBROUTINE CalcSource
