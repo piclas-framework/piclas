@@ -627,7 +627,6 @@ IF(TrackParticlePosition)THEN
 END IF
 CalcSimNumSpec = GETLOGICAL('CalcNumSpec')
 CalcNumDens    = GETLOGICAL('CalcNumDens')
-CalcBulkVeloABS    = GETLOGICAL('CalcBulkVeloABS')
 CalcSurfFluxInfo = GETLOGICAL('CalcSurfFluxInfo')
 IF(CalcSurfFluxInfo) THEN
   ALLOCATE(FlowRateSurfFlux(1:nSpecAnalyze,1:MAXVAL(Species(:)%nSurfacefluxBCs)))
@@ -652,8 +651,7 @@ IF(CalcReacRates) THEN
       'ERROR: CalcReacRates is not supported with radial weighting or variable time step yet!')
 END IF
 
-IF(CalcSimNumSpec.OR.CalcNumDens.OR.CalcCollRates.OR.CalcReacRates.OR.CalcSurfFluxInfo.OR.CalcRelaxProb.OR. & 
-  CalcBulkVeloABS) DoPartAnalyze = .TRUE.
+IF(CalcSimNumSpec.OR.CalcNumDens.OR.CalcCollRates.OR.CalcReacRates.OR.CalcSurfFluxInfo.OR.CalcRelaxProb) DoPartAnalyze = .TRUE.
 
 !-- Compute transversal or thermal velocity of whole computational domain
 CalcVelos = GETLOGICAL('CalcVelos')
@@ -966,13 +964,6 @@ ParticleAnalyzeSampleTime = Time - ParticleAnalyzeSampleTime ! Set ParticleAnaly
           DO iSpec = 1, nSpecAnalyze
             WRITE(unit_index,'(A1)',ADVANCE='NO') ','
             WRITE(unit_index,'(I3.3,A14,I3.3)',ADVANCE='NO') OutputCounter,'-NumDens-Spec-', iSpec
-            OutputCounter = OutputCounter + 1
-          END DO
-        END IF
-        IF (CalcBulkVeloABS) THEN
-          DO iSpec = 1, nSpecAnalyze
-            WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-            WRITE(unit_index,'(I3.3,A14,I3.3)',ADVANCE='NO') OutputCounter,'-BulkVeloABS-Spec-', iSpec
             OutputCounter = OutputCounter + 1
           END DO
         END IF
@@ -1340,9 +1331,6 @@ ParticleAnalyzeSampleTime = Time - ParticleAnalyzeSampleTime ! Set ParticleAnaly
   ! Computes the real and simulated number of particles
   CALL CalcNumPartsOfSpec(NumSpec,SimNumSpec,.TRUE.,CalcSimNumSpec)
   IF(CalcNumDens) CALL CalcNumberDensity(NumSpec,NumDens)
-  ! Computes the total bulk velocity 
-  CALL CalcNumPartsOfSpec(NumSpec,SimNumSpec,.TRUE.,CalcSimNumSpec)
-  IF(CalcBulkVeloABS) CALL CalcNumberDensity(NumSpec,NumDens)
   ! Determine the mass flux [kg/s], current [A] and/or pressure [Pa] per species and surface flux (includes MPI communication)
   IF(CalcSurfFluxInfo) CALL CalcSurfaceFluxInfo()
 !-----------------------------------------------------------------------------------------------------------------------------------
