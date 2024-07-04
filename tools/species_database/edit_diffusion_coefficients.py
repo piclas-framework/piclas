@@ -54,7 +54,6 @@ class DiffusionCoefficientsSetLXCatBolsig:
                                 self.database = line.split(' ')[1]
                             reference = reference + line.split('-')[1].strip()
                             line = f.readline()
-                    # find the name of the database (optional)
                     if "CONFIG" in line.upper():
                         line = f.readline()
                         names = []
@@ -71,30 +70,40 @@ class DiffusionCoefficientsSetLXCatBolsig:
                         names_values_arr[:,0] = names
                         names_values_arr[:,1] = values
                         self.config = names_values_arr
+                    # check if data starts
                     if 'R# ' in line:
                         found_data = True
-                    # line = f.readline()
                     if found_data:
                         plots_list = []
                         A2 = []
-                        A5 = []
+                        A6 = []
                         A18 = []
+                        parts_header = re.sub(r'\s+',' ', re.sub(r'\(.*?\)', '', line)).split(' ')
+                        for i in range(len(parts_header)):
+                            if "E/N" in parts_header[i].strip():
+                                plot_index = i
+                            elif "A2" == parts_header[i].strip():
+                                A2_index = i
+                            elif "A6" == parts_header[i].strip():
+                                A6_index = i
+                            elif "A18" == parts_header[i].strip():
+                                A18_index = i
                         line = f.readline()
                         while line.strip() != "":
                             if 'NaN' in line:
                                 print("NaN in calculated values!")
                                 exit()
                             parts = re.sub(r'\s+',' ', line).split(' ')
-                            plots_list.append(parts[2])
-                            A2.append(parts[4])
-                            A5.append(parts[5])
-                            A18.append(parts[11])
+                            plots_list.append(parts[plot_index])
+                            A2.append(parts[A2_index])
+                            A6.append(parts[A6_index])
+                            A18.append(parts[A18_index])
                             line = f.readline()
-                        # columns:  E/N (Td) | Mean energy (eV) | Energy mobility *N (1/m/V/s) | Energy diffusion coef. D*N (1/m/s) | Townsend ioniz. coef. alpha/N (m2)
+                        # columns:  E/N (Td) | Mobility *N (1/m/V/s) | Diffusion coefficient *N (1/m/s) | Townsend ioniz. coef. alpha/N (m2)
                         data_array = np.zeros((len(plots_list),4))
                         data_array[:,0] = plots_list
                         data_array[:,1] = A2
-                        data_array[:,2] = A5
+                        data_array[:,2] = A6
                         data_array[:,3] = A18
                         self.diff_coef = data_array
                         self.reference = reference #+ f'from {red_field.iloc[0]} to {red_field.iloc[-1]}'
@@ -109,15 +118,16 @@ class DiffusionCoefficientsSetLXCatBolsig:
                             if spec not in specList:
                                 specList.append(spec)
                     line = f.readline()
+                # sanity remove last entry if not wanted
                 if "/" in str(specList[-1]):
                     specList = specList[:-1]
-                if len(specList) == 1:
-                    self.species = specList[0] + '-electron'
-                    return
                 self.species = specList[0]
-                for i in range(len(specList)-1):
-                    print(specList[i+1])
-                    self.species = self.species + '-' + specList[i+1]
+                print(specList)
+                # build name for PICLas Read-in
+                if len(specList) != 1:
+                    for i in range(len(specList)-1):
+                        self.species = self.species + '-' + specList[i+1]
+                self.species = self.species + '-electron'
         else:
             logging.info(f"Initialized {self}")
 

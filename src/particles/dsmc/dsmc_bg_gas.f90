@@ -95,7 +95,6 @@ REAL              :: SpeciesDensTmp(1:nSpecies)
 #ifdef drift_diffusion
 CHARACTER(32)                                         :: hilf
 INTEGER                                               :: err
-INTEGER                                               :: SpecCount
 CHARACTER(LEN=255)                                    :: datasetname
 CHARACTER(LEN=255)                                    :: DatabaseSpeciesName
 CHARACTER(LEN=255), DIMENSION(:), ALLOCATABLE         :: datasetsNamesList
@@ -201,21 +200,16 @@ BGGas%DatabaseName = TRIM(GETSTR('BGGas-DriftDiff-Database'))
 IF(STRICMP(TRIM(BGGas%DatabaseName),'None')) CALL Abort(__STAMP__,'BGGas-DriftDiff-Database not set!')
 ! Loop through the array and create combination of species for database access
 DatabaseSpeciesName = ''
-SpecCount = 0
 DO iSpec = 1, nSpecies
   IF(BGGas%BackgroundSpecies(iSpec)) THEN
     DatabaseSpeciesName = TRIM(DatabaseSpeciesName) // TRIM(Species(iSpec)%Name)
-    SpecCount = SpecCount + 1
     IF (iSpec < nSpecies) then
         DatabaseSpeciesName = TRIM(DatabaseSpeciesName) // '-'
     END IF
   END IF
 END DO
-
-IF(SpecCount.EQ.1)THEN
-  DatabaseSpeciesName = TRIM(DatabaseSpeciesName) // 'electron'
-END IF
-
+DatabaseSpeciesName = TRIM(DatabaseSpeciesName) // 'electron'
+! walk through all available datasets and save existing ones
 ALLOCATE(datasetsNamesList(4))
 datasetsNamesList = (/ 'DIFFUSION ', 'IONIZATION', 'MOBILITY  ', 'ENERGY    ' /)
 ! Initialize FORTRAN interface.
@@ -223,7 +217,6 @@ CALL H5OPEN_F(err)
 CALL H5FOPEN_F (TRIM(SpeciesDatabase), H5F_ACC_RDONLY_F, File_ID_FV, err)
 DO iDataset =1, 4
   datasetname = TRIM('/Diffusion-Coefficients/'//TRIM(DatabaseSpeciesName)//'/'//TRIM(BGGas%DatabaseName)//'/'//TRIM(datasetsNamesList(iDataset)))
-  
   CALL DatasetExists(File_ID_FV,TRIM(datasetname),DataSetFound)
   IF(DataSetFound)THEN
     LBWRITE(UNIT_StdOut,'(A)') ' | Read diffusion coefficient entries '//TRIM(datasetname)//' from '//TRIM(SpeciesDatabase)
@@ -236,6 +229,7 @@ DO iDataset =1, 4
     ALLOCATE (DriftDiffCoefs(1:dims(1),1:dims(2)))
     ! read data
     CALL H5dread_f(dset_id_fv, H5T_NATIVE_DOUBLE, DriftDiffCoefs, dims, err)
+    ! save found dataset in temporary array
     IF(STRICMP(TRIM(datasetsNamesList(iDataset)),'DIFFUSION'))THEN
       ALLOCATE(TempDiffusion(2,1:dims(2)))
       TempDiffusion                        = DriftDiffCoefs
@@ -254,11 +248,11 @@ DO iDataset =1, 4
     DEALLOCATE(DriftDiffCoefs)
   END IF
 END DO
-
 SumNumberDensity = 0
 DO iSpec = 1, BGGas%NumberOfSpecies
   SumNumberDensity = SumNumberDensity + BGGas%NumberDensity(iSpec)
 END DO
+! find given combination of arrays and store in BGGas container
 IF(ALLOCATED(TempDiffusion).AND.ALLOCATED(TempEnergy))THEN
   ALLOCATE(BGGas%DriftDiffusionCoefficient(2,SIZE(TempDiffusion(1,:))), BGGas%ElectronMobility(2,SIZE(TempEnergy(1,:))))
   BGGas%DriftDiffusionCoefficient(1,:) = TempDiffusion(1,:)
