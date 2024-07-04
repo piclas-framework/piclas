@@ -150,16 +150,20 @@ elif user_input == "4":
 ###################################################################################################
 
 elif user_input == "5":
-    # read in all arguments
-    username = os.getlogin()
-    InputFILES=[f'/home/{username}/Desktop/DiffCoefTests/Diffusionxgasdensity.txt', f'/home/{username}/Desktop/DiffCoefTests/EnergyTEST.txt', f'/home/{username}/Desktop/DiffCoefTests/Energy.txt', f'/home/{username}/Desktop/DiffCoefTests/MobilityxgasdensityTEST.txt', f'/home/{username}/Desktop/DiffCoefTests/ReducedTownsendcoefficient.txt', f'/home/{username}/Desktop/DiffCoefTests/swarm.txt']
-    database_PATH = '../../SpeciesDatabase.h5'
-    for file in InputFILES:
-        bolsig_bool = check_for_bolsig(file)
+    txt_files = [f for f in os.listdir('.') if f.endswith('.txt')]
+    print('\n------------------------------------------------------------------------')
+    # Display the .txt files with numbers
+    for i, file in enumerate(txt_files):
+        print(f" [{i + 1}] - {file}")
+    print('------------------------------------------------------------------------')
+    InputFILES = []
+    InputFILES.append(read_file_by_numbers(txt_files))
+    for i,file in enumerate(InputFILES):
+        bolsig_bool = check_for_bolsig(file[i])
         if bolsig_bool == True:
-            append_to_database_bolsig(database_PATH, file)
+            append_to_database_bolsig(relative_path, file[i])
         else:
-            append_to_database(database_PATH, file)
+            append_to_database(relative_path, file[i])
     
 ###################################################################################################
 # EXIT

@@ -80,3 +80,29 @@ def remove_from_list(List, *args_to_remove):
         elif element not in args_to_remove:
             NewList.append(element)
     return NewList
+
+def parse_selection(selection, total_files):
+    selected_indices = set()
+    parts = selection.split(',')
+    for part in parts:
+        if '-' in part:
+            start, end = part.split('-')
+            start, end = int(start.strip()), int(end.strip())
+            selected_indices.update(range(start, end + 1))
+        else:
+            selected_indices.add(int(part.strip()))
+    return [idx - 1 for idx in selected_indices if 0 <= idx - 1 < total_files]
+
+def read_file_by_numbers(txt_files):
+    while True:
+        try:
+            file_numbers = input("Enter the numbers corresponding to the files you want to read (comma separated, ranges allowed): ")
+            selected_indices = parse_selection(file_numbers, len(txt_files))
+            if selected_indices:
+                selected_files = [txt_files[i] for i in selected_indices]
+                break
+            else:
+                print("Invalid numbers. Please try again.")
+        except ValueError:
+            print("Invalid input. Please enter numbers separated by commas or ranges.")
+    return selected_files
