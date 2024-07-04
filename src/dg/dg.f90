@@ -79,6 +79,7 @@ USE MOD_LoadBalance_Vars   ,ONLY: UseH5IOLoadBalance
 #if USE_MPI
 USE MOD_MPI                ,ONLY: StartExchange_DG_Elems,FinishExchangeMPIData
 !USE MOD_MPI_Vars           ,ONLY: SendRequest_U,RecRequest_U,SendRequest_U2,RecRequest_U2
+USE MOD_MPI_Vars         ,ONLY: DataSizeSideSend,DataSizeSideRec,nNbProcs,DGExchange
 #endif /*USE_MPI*/
 #if (PP_TimeDiscMethod==1)||(PP_TimeDiscMethod==2)|| (PP_TimeDiscMethod==6)
 USE MOD_TimeDisc_Vars      ,ONLY: Ut_N
@@ -93,6 +94,9 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER           :: Nloc,iElem,iSide
+#if USE_MPI
+INTEGER           :: iNbProc
+#endif /*USE_MPI*/
 !===================================================================================================================================
 IF((.NOT.InterpolationInitIsDone).OR.(.NOT.MeshInitIsDone).OR.(.NOT.RestartInitIsDone).OR.DGInitIsDone) CALL abort(__STAMP__,&
     'InitDG not ready to be called or already called.')
@@ -203,7 +207,20 @@ DO iSide = 1, nSides
   U_Surf_N(iSide)%Flux_Master = 0.
   U_Surf_N(iSide)%Flux_Slave  = 0.
 END DO ! iSide = 1, nSides
-#endif /*USE_HDG*/
+
+#if USE_MPI
+! Create unrolled arrays
+ALLOCATE(DGExchange(nNbProcs))
+DO iNbProc=1,nNbProcs
+  ALLOCATE(DGExchange(iNbProc)%FaceDataRecvU(      PP_nVar        , MAXVAL(DataSizeSideRec(iNbProc,:))  ))
+  ALLOCATE(DGExchange(iNbProc)%FaceDataSendU(      PP_nVar        , MAXVAL(DataSizeSideSend(iNbProc,:)) ))
+  IF(DoPML)THEN
+    ALLOCATE(DGExchange(iNbProc)%FaceDataRecvFlux( PP_nVar+PMLnVar, MAXVAL(DataSizeSideRec(iNbProc,:))  ))
+    ALLOCATE(DGExchange(iNbProc)%FaceDataSendFlux( PP_nVar+PMLnVar, MAXVAL(DataSizeSideSend(iNbProc,:)) ))
+  END IF ! DoPML
+END DO !iProc=1,nNBProcs
+#endif /*USE_MPI*/
+#endif /*!(USE_HDG)*/
 
 #endif /*!((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))*/
 DGInitIsDone=.TRUE.
@@ -553,6 +570,9 @@ USE MOD_LoadBalance_Vars ,ONLY: PerformLoadBalance,UseH5IOLoadBalance
 #if (PP_TimeDiscMethod==1)||(PP_TimeDiscMethod==2)|| (PP_TimeDiscMethod==6)
 USE MOD_TimeDisc_Vars    ,ONLY: Ut_N
 #endif
+#if USE_MPI
+USE MOD_MPI_Vars         ,ONLY: DGExchange
+#endif /*USE_MPI*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -564,6 +584,10 @@ IMPLICIT NONE
 !===================================================================================================================================
 SDEALLOCATE(DGB_N)
 SDEALLOCATE(U_Surf_N)
+
+#if USE_MPI
+SDEALLOCATE(DGExchange)
+#endif /*USE_MPI*/
 
 ! Do not deallocate the solution vector during load balance here as it needs to be communicated between the processors
 #if USE_LOADBALANCE

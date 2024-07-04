@@ -48,8 +48,10 @@ INTEGER,ALLOCATABLE   :: DataSizeSurfSendMax(:,:),DataSizeSurfRecMax(:,:)
 INTEGER,ALLOCATABLE   :: DataSizeSurfSendMin(:,:),DataSizeSurfRecMin(:,:)
 
 TYPE tExchangeData
-  REAL,ALLOCATABLE      :: FaceDataSend(:,:)
-  REAL,ALLOCATABLE      :: FaceDataRecv(:,:)
+  REAL,ALLOCATABLE      :: FaceDataSendU(:,:)
+  REAL,ALLOCATABLE      :: FaceDataRecvU(:,:)
+  REAL,ALLOCATABLE      :: FaceDataSendFlux(:,:)
+  REAL,ALLOCATABLE      :: FaceDataRecvFlux(:,:)
 END TYPE tExchangeData
 
 TYPE(tExchangeData), ALLOCATABLE :: DGExchange(:)

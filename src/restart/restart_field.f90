@@ -171,8 +171,9 @@ INTEGER(KIND=MPI_ADDRESS_KIND)     :: MPI_DISPLACEMENT(1)
 #endif /*defined(PARTICLES) || !(USE_HDG)*/
 REAL,ALLOCATABLE                   :: Uloc(:,:,:,:)
 INTEGER                            :: Nloc
-
+#if USE_PETSC
 INTEGER :: DOFindices(nGP_face(NMax))
+#endif /*USE_PETSC*/
 !===================================================================================================================================
 
 ! ===========================================================================

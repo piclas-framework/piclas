@@ -364,6 +364,9 @@ SUBROUTINE StartReceiveMPIDataType(MPIRequest, SendID)
 USE MOD_Globals
 USE MOD_PreProc
 USE MOD_MPI_Vars
+#if !(USE_HDG)
+USE MOD_PML_Vars ,ONLY: PMLnVar,DoPML
+#endif /*!(USE_HDG)*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -378,9 +381,18 @@ INTEGER,INTENT(OUT) :: MPIRequest(nNbProcs)                                   !<
 !===================================================================================================================================
 DO iNbProc=1,nNbProcs
   IF(nMPISides_rec(iNbProc,SendID).GT.0)THEN
-    nRecVal = PP_nVar*DataSizeSideRec(iNbProc,SendID)
-    CALL MPI_IRECV(DGExchange(iNbProc)%FaceDataRecv(1:PP_nVar,1:DataSizeSideRec(iNbProc,SendID)),nRecVal,MPI_DOUBLE_PRECISION,  &
-                    nbProc(iNbProc),0,MPI_COMM_PICLAS,MPIRequest(iNbProc),iError)
+    ! Send slave U or Flux when no PML is active
+    IF(SendID.EQ.2.OR.(.NOT.DoPML))THEN
+      nRecVal = PP_nVar*DataSizeSideRec(iNbProc,SendID)
+      ! FaceDataRecvU(1:PP_nVar,1:DataSizeSideRec(iNbProc,SendID))
+      CALL MPI_IRECV(DGExchange(iNbProc)%FaceDataRecvU,nRecVal,MPI_DOUBLE_PRECISION,  &
+                      nbProc(iNbProc),0,MPI_COMM_PICLAS,MPIRequest(iNbProc),iError)
+    ELSE
+      nRecVal = (PP_nVar+PMLnVar)*DataSizeSideRec(iNbProc,SendID)
+      ! FaceDataRecvFlux(1:PP_nVar+PMLnVar,1:DataSizeSideRec(iNbProc,SendID))
+      CALL MPI_IRECV(DGExchange(iNbProc)%FaceDataRecvFlux,nRecVal,MPI_DOUBLE_PRECISION,  &
+                      nbProc(iNbProc),0,MPI_COMM_PICLAS,MPIRequest(iNbProc),iError)
+    END IF ! SendID.EQ.2
   ELSE
     MPIRequest(iNbProc)=MPI_REQUEST_NULL
   END IF
@@ -613,7 +625,10 @@ SUBROUTINE StartSendMPIDataType(MPIRequest,SendID)
 USE MOD_Globals
 USE MOD_PreProc
 USE MOD_MPI_Vars
-USE MOD_DG_Vars, ONLY: U_Surf_N,DG_Elems_slave
+USE MOD_DG_Vars  ,ONLY: U_Surf_N,DG_Elems_slave
+#if !(USE_HDG)
+USE MOD_PML_Vars ,ONLY: PMLnVar,DoPML
+#endif /*!(USE_HDG)*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -628,7 +643,6 @@ INTEGER                      :: i,p,q,iSide,N_slave
 !===================================================================================================================================
 DO iNbProc=1,nNbProcs
   IF(nMPISides_send(iNbProc,SendID).GT.0)THEN
-    nSendVal     = PP_nVar*DataSizeSideSend(iNbProc,SendID)
     SideID_start = OffsetMPISides_send(iNbProc-1,SendID)+1
     SideID_end   = OffsetMPISides_send(iNbProc,SendID)
 
@@ -638,25 +652,48 @@ DO iNbProc=1,nNbProcs
         N_slave = DG_Elems_slave(iSide)
         DO p = 0, N_slave
           DO q = 0, N_slave
-            DGExchange(iNbProc)%FaceDataSend(1:PP_nVar,i) = U_Surf_N(iSide)%U_Slave(1:PP_nVar,p,q)
+            DGExchange(iNbProc)%FaceDataSendU(1:PP_nVar,i) = U_Surf_N(iSide)%U_Slave(1:PP_nVar,p,q)
             i = i + 1
           END DO ! q = 0, N_slave
         END DO ! p = 0, N_slave
       END DO ! iSide = SideID_start, SideID_end
+      nSendVal = PP_nVar*DataSizeSideSend(iNbProc,SendID)
+      ! FaceDataSendU(1:PP_nVar,1:DataSizeSideSend(iNbProc,SendID))
+      CALL MPI_ISEND(DGExchange(iNbProc)%FaceDataSendU,nSendVal,MPI_DOUBLE_PRECISION,  &
+                      nbProc(iNbProc),0,MPI_COMM_PICLAS,MPIRequest(iNbProc),iError)
     ELSE
-      DO iSide = SideID_start, SideID_end
-        N_slave = DG_Elems_slave(iSide)
-        DO p = 0, N_slave
-          DO q = 0, N_slave
-            DGExchange(iNbProc)%FaceDataSend(1:PP_nVar,i) = U_Surf_N(iSide)%Flux_Slave(1:PP_nVar,p,q)
-            i = i + 1
-          END DO ! q = 0, N_slave
-        END DO ! p = 0, N_slave
-      END DO ! iSide = SideID_start, SideID_end
+      IF(DoPML)THEN
+        DO iSide = SideID_start, SideID_end
+          N_slave = DG_Elems_slave(iSide)
+          DO p = 0, N_slave
+            DO q = 0, N_slave
+              DGExchange(iNbProc)%FaceDataSendFlux(1:PP_nVar+PMLnVar,i) = U_Surf_N(iSide)%Flux_Slave(1:PP_nVar+PMLnVar,p,q)
+              i = i + 1
+            END DO ! q = 0, N_slave
+          END DO ! p = 0, N_slave
+        END DO ! iSide = SideID_start, SideID_end
+        nSendVal = (PP_nVar+PMLnVar)*DataSizeSideSend(iNbProc,SendID)
+        ! FaceDataSendFlux(1:PP_nVar+PMLnVar,1:DataSizeSideSend(iNbProc,SendID))
+        CALL MPI_ISEND(DGExchange(iNbProc)%FaceDataSendFlux,nSendVal,MPI_DOUBLE_PRECISION,  &
+                        nbProc(iNbProc),0,MPI_COMM_PICLAS,MPIRequest(iNbProc),iError)
+      ELSE
+        ! not PML
+        DO iSide = SideID_start, SideID_end
+          N_slave = DG_Elems_slave(iSide)
+          DO p = 0, N_slave
+            DO q = 0, N_slave
+              DGExchange(iNbProc)%FaceDataSendU(1:PP_nVar,i) = U_Surf_N(iSide)%Flux_Slave(1:PP_nVar,p,q)
+              i = i + 1
+            END DO ! q = 0, N_slave
+          END DO ! p = 0, N_slave
+        END DO ! iSide = SideID_start, SideID_end
+        nSendVal = PP_nVar*DataSizeSideSend(iNbProc,SendID)
+        ! FaceDataSendFlux(1:PP_nVar+PMLnVar,1:DataSizeSideSend(iNbProc,SendID))
+        CALL MPI_ISEND(DGExchange(iNbProc)%FaceDataSendU,nSendVal,MPI_DOUBLE_PRECISION,  &
+                        nbProc(iNbProc),0,MPI_COMM_PICLAS,MPIRequest(iNbProc),iError)
+      END IF ! DoPML
     END IF ! SendID.EQ.2
 
-    CALL MPI_ISEND(DGExchange(iNbProc)%FaceDataSend(1:PP_nVar,1:DataSizeSideSend(iNbProc,SendID)),nSendVal,MPI_DOUBLE_PRECISION,  &
-                    nbProc(iNbProc),0,MPI_COMM_PICLAS,MPIRequest(iNbProc),iError)
   ELSE
     MPIRequest(iNbProc)=MPI_REQUEST_NULL
   END IF
@@ -693,7 +730,7 @@ DO iNbProc=1,nNbProcs
     SideID_end   = OffsetMPISides_send(iNbProc,SendID)
 
     ! Dummy zeros
-    DGExchange(iNbProc)%FaceDataSend(2:PP_nVar,:) = 0.
+    !DGExchange(iNbProc)%FaceDataSend(2:PP_nVar,:) = 0.
 
     i = 1
     IF(SendID.EQ.2)THEN
@@ -702,7 +739,7 @@ DO iNbProc=1,nNbProcs
         DO p = 0, N_slave
           DO q = 0, N_slave
             !DGExchange(iNbProc)%FaceDataSend(1:1,i) = U_Surf_N(iSide)%U_Slave(1:1,p,q)
-            DGExchange(iNbProc)%FaceDataSend(1:1,i) = DielectricSurf(iSide)%Dielectric_dummy_Slave2(1:1,p,q)
+            DGExchange(iNbProc)%FaceDataSendU(1:1,i) = DielectricSurf(iSide)%Dielectric_dummy_Slave2(1:1,p,q)
             i = i + 1
           END DO ! q = 0, N_slave
         END DO ! p = 0, N_slave
@@ -713,14 +750,15 @@ DO iNbProc=1,nNbProcs
         DO p = 0, N_slave
           DO q = 0, N_slave
             !DGExchange(iNbProc)%FaceDataSend(1:1,i) = U_Surf_N(iSide)%Flux_Slave(1:1,p,q)
-            DGExchange(iNbProc)%FaceDataSend(1:1,i) = DielectricSurf(iSide)%Dielectric_dummy_Master2(1:1,p,q)
+            DGExchange(iNbProc)%FaceDataSendU(1:1,i) = DielectricSurf(iSide)%Dielectric_dummy_Master2(1:1,p,q)
             i = i + 1
           END DO ! q = 0, N_slave
         END DO ! p = 0, N_slave
       END DO ! iSide = SideID_start, SideID_end
     END IF ! SendID.EQ.2
 
-    CALL MPI_ISEND(DGExchange(iNbProc)%FaceDataSend(1:PP_nVar,1:DataSizeSideSend(iNbProc,SendID)),nSendVal,MPI_DOUBLE_PRECISION,  &
+    ! FaceDataSendU(1:PP_nVar,1:DataSizeSideSend(iNbProc,SendID))
+    CALL MPI_ISEND(DGExchange(iNbProc)%FaceDataSendU,nSendVal,MPI_DOUBLE_PRECISION,  &
                     nbProc(iNbProc),0,MPI_COMM_PICLAS,MPIRequest(iNbProc),iError)
   ELSE
     MPIRequest(iNbProc)=MPI_REQUEST_NULL
@@ -1018,6 +1056,9 @@ USE MOD_Globals
 USE MOD_PreProc
 USE MOD_MPI_Vars
 USE MOD_DG_Vars  ,ONLY: U_Surf_N,DG_Elems_slave
+#if !(USE_HDG)
+USE MOD_PML_Vars ,ONLY: PMLnVar,DoPML
+#endif /*!(USE_HDG)*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1073,21 +1114,34 @@ DO iNbProc=1,nNbProcs
         N_slave = DG_Elems_slave(iSide)
         DO p = 0, N_slave
           DO q = 0, N_slave
-            U_Surf_N(iSide)%U_Slave(1:PP_nVar,p,q) = DGExchange(iNbProc)%FaceDataRecv(1:PP_nVar,i)
+            U_Surf_N(iSide)%U_Slave(1:PP_nVar,p,q) = DGExchange(iNbProc)%FaceDataRecvU(1:PP_nVar,i)
             i = i + 1
           END DO ! q = 0, N_slave
         END DO ! p = 0, N_slave
       END DO ! iSide = SideID_start, SideID_end
     ELSE
-      DO iSide = SideID_start, SideID_end
-        N_slave = DG_Elems_slave(iSide)
-        DO p = 0, N_slave
-          DO q = 0, N_slave
-            U_Surf_N(iSide)%Flux_Slave(1:PP_nVar,p,q) = DGExchange(iNbProc)%FaceDataRecv(1:PP_nVar,i)
-            i = i + 1
-          END DO ! q = 0, N_slave
-        END DO ! p = 0, N_slave
-      END DO ! iSide = SideID_start, SideID_end
+      IF(DoPML)THEN
+        DO iSide = SideID_start, SideID_end
+          N_slave = DG_Elems_slave(iSide)
+          DO p = 0, N_slave
+            DO q = 0, N_slave
+              U_Surf_N(iSide)%Flux_Slave(1:PP_nVar+PMLnVar,p,q) = DGExchange(iNbProc)%FaceDataRecvFlux(1:PP_nVar+PMLnVar,i)
+              i = i + 1
+            END DO ! q = 0, N_slave
+          END DO ! p = 0, N_slave
+        END DO ! iSide = SideID_start, SideID_end
+      ELSE
+        ! no PML
+        DO iSide = SideID_start, SideID_end
+          N_slave = DG_Elems_slave(iSide)
+          DO p = 0, N_slave
+            DO q = 0, N_slave
+              U_Surf_N(iSide)%Flux_Slave(1:PP_nVar,p,q) = DGExchange(iNbProc)%FaceDataRecvU(1:PP_nVar,i)
+              i = i + 1
+            END DO ! q = 0, N_slave
+          END DO ! p = 0, N_slave
+        END DO ! iSide = SideID_start, SideID_end
+      END IF ! DoPML
     END IF ! SendID.EQ.2
 
   END IF
@@ -1164,7 +1218,7 @@ DO iNbProc=1,nNbProcs
         DO p = 0, N_slave
           DO q = 0, N_slave
             !U_Surf_N(iSide)%U_Slave(1:PP_nVar,p,q) = DGExchange(iNbProc)%FaceDataRecv(1:PP_nVar,i)
-            DielectricSurf(iSide)%Dielectric_dummy_Slave2(1:1,p,q) = DGExchange(iNbProc)%FaceDataRecv(1:1,i)
+            DielectricSurf(iSide)%Dielectric_dummy_Slave2(1:1,p,q) = DGExchange(iNbProc)%FaceDataRecvU(1:1,i)
             i = i + 1
           END DO ! q = 0, N_slave
         END DO ! p = 0, N_slave
@@ -1175,7 +1229,7 @@ DO iNbProc=1,nNbProcs
         DO p = 0, N_slave
           DO q = 0, N_slave
             !U_Surf_N(iSide)%Flux_Slave(1:PP_nVar,p,q) = DGExchange(iNbProc)%FaceDataRecv(1:PP_nVar,i)
-            DielectricSurf(iSide)%Dielectric_dummy_Master2(1:1,p,q) = DGExchange(iNbProc)%FaceDataRecv(1:1,i)
+            DielectricSurf(iSide)%Dielectric_dummy_Master2(1:1,p,q) = DGExchange(iNbProc)%FaceDataRecvU(1:1,i)
             i = i + 1
           END DO ! q = 0, N_slave
         END DO ! p = 0, N_slave

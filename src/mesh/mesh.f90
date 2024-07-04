@@ -680,7 +680,7 @@ USE MOD_Mesh_Vars,   ONLY: firstMortarMPISide,lastMortarMPISide
 #if USE_MPI
 USE MOD_MPI       ,ONLY: StartExchange_DG_Elems,FinishExchangeMPIData
 USE MOD_MPI_Vars  ,ONLY: DataSizeSideSend,DataSizeSideRec,nNbProcs,nMPISides_rec,nMPISides_send,OffsetMPISides_rec
-USE MOD_MPI_Vars  ,ONLY: OffsetMPISides_send,DGExchange
+USE MOD_MPI_Vars  ,ONLY: OffsetMPISides_send
 USE MOD_MPI_Vars  ,ONLY: DataSizeSurfSendMax,DataSizeSurfRecMax, DataSizeSurfSendMin,DataSizeSurfRecMin
 #endif /*USE_MPI*/
 ! IMPLICIT VARIABLE HANDLING
@@ -802,17 +802,6 @@ DO iNbProc = 1, nNbProcs
   DataSizeSurfRecMin( iNbProc,2) = DataSizeSurfSendMin(iNbProc,1)
 END DO ! iNbProc = 1, nNbProcs
 
-! Create unrolled arrays
-ALLOCATE(DGExchange(nNbProcs))
-DO iNbProc=1,nNbProcs
-  ALLOCATE(DGExchange(iNbProc)%FaceDataRecv(PP_nVar, MAXVAL(DataSizeSideRec(iNbProc,:))))
-  ALLOCATE(DGExchange(iNbProc)%FaceDataSend(PP_nVar, MAXVAL(DataSizeSideSend(iNbProc,:))))
-  !IPWRITE(*,*)'send1',DataSizeSideSend(:,1)
-  !IPWRITE(*,*)'send2',DataSizeSideSend(:,2)
-
-  !IPWRITE(*,*)'recv1',DataSizeSideRec(:,1)
-  !IPWRITE(*,*)'recv2',DataSizeSideRec(:,2)
-END DO !iProc=1,nNBProcs
 #endif /*USE_MPI*/
 END SUBROUTINE DG_ProlongDGElemsToFace
 
@@ -1145,7 +1134,6 @@ USE MOD_LoadBalance_Vars ,ONLY: PerformLoadBalance
 USE MOD_DG_Vars          ,ONLY: DG_Elems_master,DG_Elems_slave, N_DG_Mapping_Shared, N_DG
 #if USE_MPI
 USE MOD_DG_Vars          ,ONLY: N_DG_Mapping_Shared_Win
-USE MOD_MPI_Vars         ,ONLY: DGExchange
 USE MOD_MPI_Shared_Vars  ,ONLY: MPI_COMM_SHARED
 USE MOD_MPI_Shared
 USE MOD_MPI_Vars         ,ONLY: DataSizeSideSend,DataSizeSurfSendMax,DataSizeSurfSendMin
@@ -1216,7 +1204,6 @@ SDEALLOCATE(DG_Elems_slave)
 SDEALLOCATE(n_surfmesh)
 
 #if USE_MPI
-SDEALLOCATE(DGExchange)
 
 SDEALLOCATE(DataSizeSideSend)
 SDEALLOCATE(DataSizeSideRec)
