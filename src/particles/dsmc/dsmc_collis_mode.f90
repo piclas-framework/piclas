@@ -621,7 +621,6 @@ IF (DSMC%ReservoirSimu.AND.DSMC%ReservoirSimuRate) RETURN
 
   ! calculate probability for rotational/vibrational relaxation for both particles
   IF ((Species(iSpec1)%InterID.EQ.2).OR.(Species(iSpec1)%InterID.EQ.20)) THEN
-    print*, '1'
     CALL DSMC_calc_P_vib(iPair, iPart1, iSpec1, iSpec2, Xi_rel, iElem, ProbVib1)
     CALL DSMC_calc_P_rot(iSpec1, iSpec2, iPair, iPart1, Xi_rel, ProbRot1, ProbRotMax1)
   ELSE
@@ -629,7 +628,6 @@ IF (DSMC%ReservoirSimu.AND.DSMC%ReservoirSimuRate) RETURN
     ProbRot1 = 0.
   END IF
   IF ((Species(iSpec2)%InterID.EQ.2).OR.(Species(iSpec2)%InterID.EQ.20)) THEN
-    print*, '2'
     CALL DSMC_calc_P_vib(iPair, iPart2, iSpec2, iSpec1, Xi_rel, iElem, ProbVib2)
     CALL DSMC_calc_P_rot(iSpec2, iSpec1, iPair, iPart2, Xi_rel, ProbRot2, ProbRotMax2)
   ELSE

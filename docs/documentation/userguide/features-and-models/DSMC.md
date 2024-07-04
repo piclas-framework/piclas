@@ -231,6 +231,7 @@ changed, if the vibrational relaxation probability should be adjusted:
 
     Particles-DSMC-VibRelaxProb = 0.004 ! Value between 0 and 1 as a constant probability
                                       2 ! Model by Boyd
+                                      3 ! Model by Bird
 
 If `VibRelaxProb` is between 0 and 1, it is used as a constant vibrational relaxation probability (default = 0.004). The variable
 vibrational relaxation model of Boyd {cite}`Boyd1990b` can be activated with `VibRelaxProb = 2`. For each molecular species pair,
@@ -267,6 +268,15 @@ $$P^{n+1}_{\mathrm{v}}= P^{n}_{\mathrm{v}}  \cdot  \alpha^{2  \cdot  n_{\mathrm{
 This model is extended to more species by calculating a separate probability for each species. An initial vibrational relaxation
 probability is set by calculating $\mathrm{INT}(1/(1-\alpha))$ vibrational relaxation probabilities for each species and cell by
 using an instantaneous translational cell temperature.
+
+The relaxation model of Bird {cite}`Bird1994` can be activated with `VibRelaxProb = 3`. With this, the relaxation probabilities are calculated from a collision temperature and the dissociation temperature, which also sets a limit for the quantum number. For each species pair containing a diatomic molecule, the following parameters are required for each diatomic species, which can also be found in {cite}`Carlson1994`. The parameters for N$_2$-N are shown as an example:
+
+    Part-Species1-1-VibConstant-C1 = 9.1
+    Part-Species1-2-VibConstant-C1 = 1800.0
+
+    Part-Species1-1-VibConstant-C2 = 220.0
+    Part-Species1-2-VibConstant-C2 = 73.5
+
 
 (sec:DSMC-electronic-relaxation)=
 ### Electronic Relaxation

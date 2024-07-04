@@ -485,21 +485,24 @@ ELSE IF(DSMC%VibRelaxProb.EQ.3.0) THEN
   ELSE
     ! maximum quantum number
     MaxColQua = Ec/(BoltzmannConst*SpecDSMC(iSpec)%CharaTVib) - DSMC%GammaQuant
-    iQuantMax = MIN(INT(MaxColQua) + 1, SpecDSMC(iSpec)%MaxVibQuant)
+    iQuantMax = MIN(INT(MaxColQua) + 1, SpecDSMC(iSpec)%DissQuant)
     ! collision temperature
     Tcoll = iQuantMax * SpecDSMC(iSpec)%CharaTVib / (3.-SpecDSMC(iSpec)%omega)
   END IF
 
-  !Tref =
+  ! Programmer-defined value for the reference temperature. Rule of thumb: characteristic vibrational temperature (SHO).
+  ! Can be adapted in future to
+  ! Tref = (SpecDSMC(iSpec)%CharaTVib + SpecDSMC(jSpec)%CharaTVib) / 2.
+  ! but requires read-in of characteristic vibrational temperature also for AHO model
+  Tref = 2500.
   ! vibrational collision number at reference temperature
-  Zref = SpecDSMC(iSpec)%C1 * EXP(SpecDSMC(iSpec)%C2 * Tref**(-1./3.)) / (Tref**(SpecDSMC(iSpec)%omega+0.5))
+  Zref = SpecDSMC(iSpec)%C1(jSpec) * EXP(SpecDSMC(iSpec)%C2(jSpec) * Tref**(-1./3.)) / (Tref**(SpecDSMC(iSpec)%omega+0.5))
   ! vibrational collision number
-  Zvib = (DissTemp/Tcoll)**(SpecDSMC(iSpec)%omega+0.5) * (Zref * (DissTemp/Tcoll)**(-SpecDSMC(iSpec)%omega-0.5)) &
-    **(((DissTemp/Tcoll)**(1./3.) - 1.) / ((DissTemp/Tref)**(1./3.) - 1.))!??????????????????????????????
+  Zvib = (DissTemp/Tcoll)**(SpecDSMC(iSpec)%omega+0.5) * (Zref * (DissTemp/Tref)**(-SpecDSMC(iSpec)%omega-0.5)) &
+    **(((DissTemp/Tcoll)**(1./3.) - 1.) / ((DissTemp/Tref)**(1./3.) - 1.))
+  IF (Zvib.LT.1.) Zvib = 1.
   ! vibrational relaxation probability
   ProbVib = 1. / Zvib
-  print*, ProbVib
-  read*
 
 ELSE
   CALL Abort(__STAMP__,'Error! Model for vibrational relaxation undefined:',RealInfoOpt=DSMC%VibRelaxProb)

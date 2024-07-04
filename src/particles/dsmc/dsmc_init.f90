@@ -212,10 +212,10 @@ CALL prms%CreateRealOption(     'Part-Species[$]-Vib-Anharmonic-chiE' &
 ! ----------------------------------------------------------------------------------------------------------------------------------
 CALL prms%CreateLogicalOption(  'Particles-DSMC-useRelaxProbCorrFactor'&
                                            ,'Use the relaxation probability correction factor of Lumpkin', '.FALSE.')
-CALL prms%CreateRealOption(     'Part-Species[$]-VibConstant-C1'  &
+CALL prms%CreateRealOption(     'Part-Species[$]-[$]-VibConstant-C1'  &
                                            ,'Constant for vibrational collision number according to Bird' &
                                            , numberedmulti=.TRUE.)
-CALL prms%CreateRealOption(     'Part-Species[$]-VibConstant-C2'  &
+CALL prms%CreateRealOption(     'Part-Species[$]-[$]-VibConstant-C2'  &
                                            ,'Constant for vibrational collision number according to Bird' &
                                            , numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'Part-Species[$]-CollNumRotInf'  &
@@ -357,11 +357,13 @@ IF(CollisMode.GE.2) THEN
     ALLOCATE(AHO%omegaE(nSpecies))
     ALLOCATE(AHO%chiE(nSpecies))
     DO iSpec = 1, nSpecies
-      WRITE(UNIT=hilf,FMT='(I0)') iSpec
-      AHO%omegaE(iSpec) = GETREAL('Part-Species'//TRIM(hilf)//'-Vib-Anharmonic-omegaE')
-      AHO%chiE(iSpec) = GETREAL('Part-Species'//TRIM(hilf)//'-Vib-Anharmonic-chiE')
-      FileNameAHO(iSpec) = GETSTR('Particles-DSMC-Vib-Anharmonic-Species'//TRIM(hilf)//'-Data')
-      CALL ReadAHOLevelsFromCSV(FileNameAHO(iSpec),iSpec)
+      IF(((Species(iSpec)%InterID.EQ.2).OR.(Species(iSpec)%InterID.EQ.20))) THEN
+        WRITE(UNIT=hilf,FMT='(I0)') iSpec
+        AHO%omegaE(iSpec) = GETREAL('Part-Species'//TRIM(hilf)//'-Vib-Anharmonic-omegaE')
+        AHO%chiE(iSpec) = GETREAL('Part-Species'//TRIM(hilf)//'-Vib-Anharmonic-chiE')
+        FileNameAHO(iSpec) = GETSTR('Particles-DSMC-Vib-Anharmonic-Species'//TRIM(hilf)//'-Data')
+        CALL ReadAHOLevelsFromCSV(FileNameAHO(iSpec),iSpec)
+      END IF
     END DO
     ALLOCATE(AHO%VibEnergy(nSpecies,MAXVAL(AHO%NumVibLevels)))
     AHO%VibEnergy = 0.
@@ -733,6 +735,10 @@ ELSE !CollisMode.GT.0
     IF(DSMC%VibAHO.AND.useRelaxProbCorrFactor) THEN
       CALL Abort(__STAMP__,'ERROR: Utilization of vibrational relaxation probability correction factor not possible with AHO!')
     END IF
+    IF (DSMC%VibRelaxProb.EQ.3.0) THEN
+      ALLOCATE(SpecDSMC(nSpecies)%C1(nSpecies))
+      ALLOCATE(SpecDSMC(nSpecies)%C2(nSpecies))
+    END IF
 
     IF(SpeciesDatabase.NE.'none') THEN
       IF(DSMC%VibAHO) THEN
@@ -895,14 +901,14 @@ ELSE !CollisMode.GT.0
             SpecDSMC(iSpec)%SpecToPolyArray = DSMC%NumPolyatomMolecs
           ELSEIF ((Species(iSpec)%InterID.EQ.2).OR.(Species(iSpec)%InterID.EQ.20)) THEN
             SpecDSMC(iSpec)%Xi_Rot     = 2
+            SpecDSMC(iSpec)%CharaTRot  = GETREAL('Part-Species'//TRIM(hilf)//'-CharaTempRot','0')
+            SpecDSMC(iSpec)%Ediss_eV   = GETREAL('Part-Species'//TRIM(hilf)//'-Ediss_eV')
             IF(.NOT.DSMC%VibAHO) THEN
               SpecDSMC(iSpec)%CharaTVib  = GETREAL('Part-Species'//TRIM(hilf)//'-CharaTempVib')
               SpecDSMC(iSpec)%MaxVibQuant = 200
               ! Calculation of the dissociation quantum number (used for QK chemistry)
               SpecDSMC(iSpec)%DissQuant = INT(SpecDSMC(iSpec)%Ediss_eV*ElementaryCharge/(BoltzmannConst*SpecDSMC(iSpec)%CharaTVib))
             END IF
-            SpecDSMC(iSpec)%CharaTRot  = GETREAL('Part-Species'//TRIM(hilf)//'-CharaTempRot','0')
-            SpecDSMC(iSpec)%Ediss_eV   = GETREAL('Part-Species'//TRIM(hilf)//'-Ediss_eV')
             ! Calculation of the zero-point energy
             IF (DSMC%VibAHO) THEN
               SpecDSMC(iSpec)%EZeroPoint = AHO%VibEnergy(iSpec,1)
@@ -940,11 +946,11 @@ ELSE !CollisMode.GT.0
               IF(SpecDSMC(iSpec)%VibCrossSec.EQ.0) CALL Abort(__STAMP__,'Error! VibCrossSec is equal to zero for species:', iSpec)
             END IF
           ELSE IF (DSMC%VibRelaxProb.EQ.3.0) THEN
-            ! Only molecules or charged molecules
-            IF(((Species(iSpec)%InterID.EQ.2).OR.(Species(iSpec)%InterID.EQ.20))) THEN
-              SpecDSMC(iSpec)%C1 = GETREAL('Part-Species'//TRIM(hilf)//'-VibConstant-C1')
-              SpecDSMC(iSpec)%C2 = GETREAL('Part-Species'//TRIM(hilf)//'-VibConstant-C2')
-            END IF
+            DO jSpec = 1, nSpecies
+              WRITE(UNIT=hilf2,FMT='(I0)') jSpec
+              SpecDSMC(iSpec)%C1(jSpec)     = GETREAL('Part-Species'//TRIM(hilf)//'-'//TRIM(hilf2)//'-VibConstant-C1')
+              SpecDSMC(iSpec)%C2(jSpec)     = GETREAL('Part-Species'//TRIM(hilf)//'-'//TRIM(hilf2)//'-VibConstant-C2')
+            END DO
           END IF
           ! Setting the values of Rot-/Vib-RelaxProb to a fix value (electronic: species-specific values are possible)
           SpecDSMC(iSpec)%RotRelaxProb  = DSMC%RotRelaxProb
