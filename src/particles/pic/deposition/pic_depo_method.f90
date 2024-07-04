@@ -79,7 +79,10 @@ CALL prms%CreateIntFromStringOption('PIC-Deposition-Type', "Type/Method used in 
                                     '1.1)  shape_function ('//TRIM(int2strf(PRM_DEPO_SF))//')\n'                   //&
                                     '1.2)  shape_function_cc ('//TRIM(int2strf(PRM_DEPO_SF_CC))//')\n'             //&
                                     '1.3)  shape_function_adaptive ('//TRIM(int2strf(PRM_DEPO_SF_ADAPTIVE))//')\n' //&
-                                    '2.)   cell_volweight ('//TRIM(int2strf(PRM_DEPO_CVW))//')'                      &
+                                    '2.)   cell_volweight ('//TRIM(int2strf(PRM_DEPO_CVW))//')\n'                  //&
+                                    '3.)   cell_volweight_mean ('//TRIM(int2strf(PRM_DEPO_CVWM))//')\n'            //&
+                                    '4.)   cell_mean ('//TRIM(int2strf(PRM_DEPO_CM))//')'                            &
+
                                     ,'cell_volweight')
 
 CALL addStrListEntry('PIC-Deposition-Type' , 'shape_function'             , PRM_DEPO_SF)
