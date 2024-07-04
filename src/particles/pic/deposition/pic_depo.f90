@@ -98,6 +98,7 @@ USE MOD_Preproc
 USE MOD_ReadInTools            ,ONLY: GETREAL,GETINT,GETLOGICAL,GETSTR,GETREALARRAY,GETINTARRAY
 USE MOD_Mesh_Tools             ,ONLY: GetGlobalElemID, GetCNElemID
 USE MOD_Interpolation          ,ONLY: GetVandermonde
+USE MOD_Symmetry_Vars          ,ONLY: Symmetry
 #if USE_MPI
 USE MOD_Mesh_Vars              ,ONLY: offsetElem
 USE MOD_Particle_Mesh_Vars     ,ONLY: NodeToElemInfo,NodeToElemMapping,ElemNodeID_Shared,NodeInfo_Shared
@@ -493,6 +494,8 @@ CASE('shape_function', 'shape_function_cc', 'shape_function_adaptive')
   SELECT CASE(TRIM(DepositionType))
   CASE('shape_function_cc', 'shape_function_adaptive')
     w_sf  = 1.0 ! set dummy value
+  CASE('shape_function')
+    IF(Symmetry%axisymmetric) CALL abort(__STAMP__,'Axisymmetric simulations only with shape_function_cc or shape_function_adaptive!')
   END SELECT
 
   ! --- Set periodic case matrix for shape function deposition (virtual displacement of particles in the periodic directions)

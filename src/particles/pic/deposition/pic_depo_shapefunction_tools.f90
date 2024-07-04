@@ -266,8 +266,6 @@ DO kk = kmin,kmax
             DO expo = 3, alpha_sf
               S1 = S*S1
             END DO
-            ! AXISYMMETRIC HDG
-            IF(Symmetry%Axisymmetric) S1=S1/Elem_xGP_Shared(2,k,l,m,globElemID)
             PartSourceLoc(I:4,k,l,m) = PartSourceLoc(I:4,k,l,m) + Fac(I:4) * S1
 !#if !((USE_HDG) && (PP_nVar==1))
 !#endif
@@ -313,7 +311,6 @@ USE MOD_Mesh_Tools         ,ONLY: GetCNElemID
 USE MOD_Mesh_Vars          ,ONLY: nElems,offSetElem
 USE MOD_LoadBalance_Vars   ,ONLY: nDeposPerElem
 #endif  /*USE_LOADBALANCE*/
-USE MOD_Symmetry_Vars      ,ONLY: Symmetry
 !-----------------------------------------------------------------------------------------------------------------------------------
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -383,8 +380,6 @@ DO kk = kmin,kmax
             DO expo = 3, alpha_sf
               S1 = S*S1
             END DO
-            ! AXISYMMETRIC HDG
-            IF(Symmetry%Axisymmetric) S1=S1/Elem_xGP_Shared(2,k,l,m,globElemID)
             CALL UpdatePartSource(I,k,l,m,globElemID,S1*Fac(I:4))
           END IF
         END DO; END DO; END DO
@@ -415,7 +410,6 @@ USE MOD_Interpolation_Vars ,ONLY: wGP
 USE MOD_Mesh_Vars          ,ONLY: nElems
 USE MOD_LoadBalance_Vars   ,ONLY: nDeposPerElem
 #endif  /*USE_LOADBALANCE*/
-USE MOD_Symmetry_Vars      ,ONLY: Symmetry
 !-----------------------------------------------------------------------------------------------------------------------------------
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -478,8 +472,6 @@ DO kk = kmin,kmax
             DO expo = 3, alpha_sf
               S1 = S*S1
             END DO
-            ! AXISYMMETRIC HDG
-            IF(Symmetry%Axisymmetric) S1=S1/Elem_xGP_Shared(2,k,l,m,globElemID)
             totalCharge = totalCharge  + wGP(k)*wGP(l)*wGP(m)*Fac*S1/ElemsJ(k,l,m,CNElemID)
           END IF
         END DO; END DO; END DO
@@ -511,7 +503,6 @@ USE MOD_Interpolation_Vars ,ONLY: wGP
 USE MOD_Mesh_Vars          ,ONLY: nElems
 USE MOD_LoadBalance_Vars   ,ONLY: nDeposPerElem
 #endif  /*USE_LOADBALANCE*/
-USE MOD_Symmetry_Vars      ,ONLY: Symmetry
 !-----------------------------------------------------------------------------------------------------------------------------------
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -602,8 +593,6 @@ DO kk = kmin,kmax
             DO expo = 3, alpha_sf
               S1 = S*S1
             END DO
-            ! AXISYMMETRIC HDG
-            IF(Symmetry%Axisymmetric) S1=S1/Elem_xGP_Shared(2,k,l,m,globElemID)
             IF (SourceSize.EQ.1) THEN
               PartSourceTmp(4,k,l,m) = Fac(4) * S1
             ELSE
@@ -676,7 +665,6 @@ USE MOD_Particle_Vars      ,ONLY: PEM
 USE MOD_Mesh_Vars          ,ONLY: nElems
 USE MOD_LoadBalance_Vars   ,ONLY: nDeposPerElem
 #endif  /*USE_LOADBALANCE*/
-USE MOD_Symmetry_Vars      ,ONLY: Symmetry
 !-----------------------------------------------------------------------------------------------------------------------------------
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -751,8 +739,6 @@ DO ppp = 0,ElemToElemMapping(2,OrigCNElemID)
       DO expo = 3, alpha_sf
         S1 = S*S1
       END DO
-      ! AXISYMMETRIC HDG
-      IF(Symmetry%Axisymmetric) S1=S1/Elem_xGP_Shared(2,k,l,m,globElemID)
       IF (SourceSize.EQ.1) THEN
         PartSourceTmp(4,k,l,m) = Fac(4) * S1
       ELSE
@@ -1124,7 +1110,7 @@ SELECT CASE (dim_sf)
       dimFactorSF = (GEO%ymaxglob-GEO%yminglob)
     ELSE IF (dim_sf_dir.EQ.3)THEN! Shape function deposits charge in x-y-direction (const. in z)
       IF(Symmetry%axisymmetric) THEN
-        dimFactorSF = 2*PI*GEO%ymaxglob ! Radius of the sausage
+        dimFactorSF = 1
       ELSE
         dimFactorSF = (GEO%zmaxglob-GEO%zminglob) ! AXISYMMETRIC HDG
       END IF
@@ -1146,6 +1132,9 @@ SELECT CASE (dim_sf)
 
     ! Set shape function length (3D volume)
     VolumeShapeFunction=PI*(r_sf_loc**2)*dimFactorSF
+    IF(Symmetry%axisymmetric) THEN
+      VolumeShapeFunction=VolumeShapeFunction*2*PI*GEO%ymaxglob
+    END IF
     ! Calculate number of 2D DOF (assume third direction with 1 cell layer and width dimFactorSF)
     nTotalDOF=nGlobalElems*(PP_N+1)**2
 
