@@ -75,6 +75,9 @@ USE MOD_Mortar               ,ONLY: InitMortar
 #if !((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))
 #if ! (USE_HDG)
 USE MOD_PML                  ,ONLY: InitPML
+#if USE_MPI
+USE MOD_DG                   ,ONLY: InitDGExchange
+#endif /*USE_MPI*/
 #endif /*USE_HDG*/
 USE MOD_Dielectric           ,ONLY: InitDielectric
 #endif /*!((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))*/
@@ -161,12 +164,13 @@ CALL InitBC()
 #if !((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))
 #if !(USE_HDG)
 CALL InitPML() ! Perfectly Matched Layer (PML): electromagnetic-wave-absorbing layer
-#endif /*USE_HDG*/
-#endif /*!((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))*/
-CALL InitDG()
-#if !((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))
+#if USE_MPI
+CALL InitDGExchange()
+#endif /*USE_MPI*/
+#endif /*!USE_HDG*/
 CALL InitDielectric() ! Dielectric media
 #endif /*!((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))*/
+CALL InitDG()
 #ifdef PARTICLES
 CALL InitParticleMPI
 CALL InitParticles()

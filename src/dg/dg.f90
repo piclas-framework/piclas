@@ -50,6 +50,9 @@ END INTERFACE
 PUBLIC::InitDG,FinalizeDG
 #if !(USE_HDG)
 #if !((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))
+#if USE_MPI
+PUBLIC::InitDGExchange
+#endif /*USE_MPI*/
 PUBLIC::DGTimeDerivative_weakForm
 #endif /*!((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))*/
 #endif /*USE_HDG*/
@@ -197,8 +200,6 @@ END DO ! iSide = 1, nSides
 #if !(USE_HDG)
 ! unique flux per side
 ! additional fluxes for the CFS-PML auxiliary variables (no PML: PMLnVar=0)
-! additional fluxes for the CFS-PML auxiliary variables (no PML: PMLnVar=0)
-
 DO iSide = 1, nSides
   Nloc = DG_Elems_master(iSide)
   ALLOCATE(U_Surf_N(iSide)%Flux_Master(1:PP_nVar+PMLnVar,0:Nloc,0:Nloc))
@@ -207,19 +208,6 @@ DO iSide = 1, nSides
   U_Surf_N(iSide)%Flux_Master = 0.
   U_Surf_N(iSide)%Flux_Slave  = 0.
 END DO ! iSide = 1, nSides
-
-#if USE_MPI
-! Create unrolled arrays
-ALLOCATE(DGExchange(nNbProcs))
-DO iNbProc=1,nNbProcs
-  ALLOCATE(DGExchange(iNbProc)%FaceDataRecvU(      PP_nVar        , MAXVAL(DataSizeSideRec(iNbProc,:))  ))
-  ALLOCATE(DGExchange(iNbProc)%FaceDataSendU(      PP_nVar        , MAXVAL(DataSizeSideSend(iNbProc,:)) ))
-  IF(DoPML)THEN
-    ALLOCATE(DGExchange(iNbProc)%FaceDataRecvFlux( PP_nVar+PMLnVar, MAXVAL(DataSizeSideRec(iNbProc,:))  ))
-    ALLOCATE(DGExchange(iNbProc)%FaceDataSendFlux( PP_nVar+PMLnVar, MAXVAL(DataSizeSideSend(iNbProc,:)) ))
-  END IF ! DoPML
-END DO !iProc=1,nNBProcs
-#endif /*USE_MPI*/
 #endif /*!(USE_HDG)*/
 
 #endif /*!((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))*/
@@ -242,7 +230,7 @@ USE MOD_Interpolation_Vars ,ONLY: Nmax
 
 #if USE_MPI
 USE MOD_PreProc
-USE MOD_MPI_Vars           ,ONLY: SurfExchange, nNbProcs, DataSizeSurfRecMax, DataSizeSurfSendMax, DataSizeSurfRecMin, DataSizeSurfSendMin
+USE MOD_MPI_Vars           ,ONLY: nNbProcs, DataSizeSurfRecMax, DataSizeSurfSendMax, DataSizeSurfRecMin, DataSizeSurfSendMin
 USE MOD_DG_Vars            ,ONLY: N_DG_Mapping,DG_Elems_master,DG_Elems_slave
 USE MOD_MPI                ,ONLY: StartReceiveMPISurfDataType,StartSendMPISurfDataType,FinishExchangeMPISurfDataType
 USE MOD_Mesh_Vars          ,ONLY: N_SurfMesh,nSides, offSetElem
@@ -320,6 +308,41 @@ END SUBROUTINE InitDGBasis
 
 #if !(USE_HDG)
 #if !((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))
+#if USE_MPI
+!==================================================================================================================================
+!> Initialize DGExchange before initialization of dielectric
+!==================================================================================================================================
+SUBROUTINE InitDGExchange()
+! MODULES
+USE MOD_Globals
+USE MOD_PreProc
+USE MOD_MPI_Vars       ,ONLY: nNbProcs, DataSizeSideRec, DataSizeSideSend, DGExchange
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER                 :: iNbProc
+!===================================================================================================================================
+
+! Create unrolled arrays
+ALLOCATE(DGExchange(nNbProcs))
+DO iNbProc=1,nNbProcs
+  ALLOCATE(DGExchange(iNbProc)%FaceDataRecvU(      PP_nVar        , MAXVAL(DataSizeSideRec(iNbProc,:))  ))
+  ALLOCATE(DGExchange(iNbProc)%FaceDataSendU(      PP_nVar        , MAXVAL(DataSizeSideSend(iNbProc,:)) ))
+  IF(DoPML)THEN
+    ALLOCATE(DGExchange(iNbProc)%FaceDataRecvFlux( PP_nVar+PMLnVar, MAXVAL(DataSizeSideRec(iNbProc,:))  ))
+    ALLOCATE(DGExchange(iNbProc)%FaceDataSendFlux( PP_nVar+PMLnVar, MAXVAL(DataSizeSideSend(iNbProc,:)) ))
+  END IF ! DoPML
+END DO !iProc=1,nNBProcs
+
+END SUBROUTINE InitDGExchange
+#endif /*USE_MPI*/
+
+
 SUBROUTINE DGTimeDerivative_weakForm(t,tStage,tDeriv,doSource)
 !===================================================================================================================================
 ! Computes the DG time derivative consisting of Volume Integral and Surface integral for the whole field
