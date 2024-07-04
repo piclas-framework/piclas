@@ -151,7 +151,7 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER           :: i,j,k,r,iElem,SideID,Nloc,iNeumannBCsides,NSideMin,NSideMax, iSide
+INTEGER           :: i,j,k,r,iElem,SideID,Nloc,iNeumannBCsides,NSideMin,NSideMax, iSide, iUniqueFPCBC
 INTEGER           :: BCType,BCState
 REAL              :: D(0:Nmax,0:Nmax)
 INTEGER           :: nDirichletBCsidesGlobal
@@ -164,8 +164,6 @@ INTEGER           :: locSide,nMortarMasterSides,nMortars
 !INTEGER           :: nAffectedBlockSides
 INTEGER,ALLOCATABLE :: indx(:)
 INTEGER             :: iLocSide
-
-INTEGER             :: nLocalPETScDOFs
 INTEGER             :: iLocalPETScDOF,iDOF
 INTEGER             :: OffsetCounter
 INTEGER             :: PETScDOFOffsetsMPI(nProcessors)
@@ -608,7 +606,7 @@ END DO
 
 ! 3.1.5) Create localToGlobalPETScDOF(iLocalPETScDOF) mapping
 ! The mapping is used to create the PETSc Scatter context to extract the local solution from the global solution vector
-ALLOCATE(localToGlobalPETScDOF(nLocalPETScDOFs))
+ALLOCATE(localToGlobalPETScDOF(nLocalPETScDOFs+FPC%nUniqueFPCBounds))
 iLocalPETScDOF = 0
 DO SideID=1,nSides
   IF(MaskedSide(SideID).GT.0) CYCLE
@@ -617,6 +615,15 @@ DO SideID=1,nSides
     LocalToGlobalPETScDOF(iLocalPETScDOF) = OffsetGlobalPETScDOF(SideID) + iDOF - 1
   END DO
 END DO
+
+! 3.1.6) Add each FPC to the DOFs
+IF(UseFPC) THEN
+  DO iUniqueFPCBC = 1, FPC%nUniqueFPCBounds
+    LocalToGlobalPETScDOF(nLocalPETScDOFs+iUniqueFPCBC) = nGlobalPETScDOFs+iUniqueFPCBC - 1
+  END DO
+  nLocalPETScDOFs = nLocalPETScDOFs + FPC%nUniqueFPCBounds
+  nGlobalPETScDOFs = nGlobalPETScDOFs + FPC%nUniqueFPCBounds
+END IF
 
 ! ------------------------------------------------------
 ! 3.2) Initialize PETSc Objects
@@ -661,19 +668,6 @@ PetscCallA(ISCreateStride(PETSC_COMM_SELF,nLocalPETScDOFs,0,1,idx_local_petsc,ie
 PetscCallA(ISCreateGeneral(PETSC_COMM_WORLD,nLocalPETScDOFs,localToGlobalPETScDOF,PETSC_COPY_VALUES,idx_global_petsc,ierr))
 ! Create a scatter context to extract the local dofs
 PetscCallA(VecScatterCreate(PETScSolution,idx_global_petsc,PETScSolutionLocal,idx_local_petsc,PETScScatter,ierr))
-
-! TODO PETSC P-Adaption - FPC
-!IF(UseFPC)THEN
-!  PetscCallA(VecCreateSeq(PETSC_COMM_SELF,nGP_face*FPC%nUniqueFPCBounds,lambda_local_conductors_petsc,ierr))
-!  PetscCallA(ISCreateStride(PETSC_COMM_SELF,nGP_face*FPC%nUniqueFPCBounds,0,1,idx_local_conductors_petsc,ierr))
-!  ALLOCATE(indx(FPC%nUniqueFPCBounds))
-!  DO i=1,FPC%nUniqueFPCBounds
-!    indx(i) = nPETScUniqueSidesGlobal-FPC%nUniqueFPCBounds+i-1
-!  END DO
-!  PetscCallA(ISCreateBlock(PETSC_COMM_WORLD,nGP_face,FPC%nUniqueFPCBounds,indx,PETSC_COPY_VALUES,idx_global_conductors_petsc,ierr))
-!  DEALLOCATE(indx)
-!  PetscCallA(VecScatterCreate(PETScSolution,idx_global_conductors_petsc,lambda_local_conductors_petsc,idx_local_conductors_petsc,scatter_conductors_petsc,ierr))
-!END IF
 
 ! (Delete local allocated vectors)
 DEALLOCATE(localToGlobalPETScDOF)

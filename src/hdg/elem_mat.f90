@@ -368,7 +368,7 @@ USE MOD_HDG_Vars
 USE MOD_DG_Vars            ,ONLY: N_DG_Mapping
 USE PETSc
 USE MOD_Mesh_Vars          ,ONLY: SideToElem, nSides
-!USE MOD_Mesh_Vars          ,ONLY: BoundaryType,BC
+USE MOD_Mesh_Vars          ,ONLY: BoundaryType,BC
 USE MOD_Interpolation_Vars ,ONLY: PREF_VDM,NMax
 USE MOD_Mesh_Vars          ,ONLY: ElemToSide
 
@@ -391,7 +391,7 @@ INTEGER              :: jLocSide,jSideID,jNloc,jPETScGlobal, jNdof, jIndices(nGP
 REAL                 :: Smatloc(nGP_face(Nmax),nGP_face(Nmax))
 INTEGER              :: l,p,q,g1,g2,g3,Nloc,NSideMin
 INTEGER              :: i,j,i_m,i_p,j_m,j_p
-!INTEGER              :: BCsideID, BCState, iBCSide,locBCSideID
+INTEGER              :: BCsideID, BCState
 !INTEGER              :: locSideID
 !REAL                 :: intMat(nGP_face(Nmax), nGP_face(Nmax))
 !===================================================================================================================================
@@ -419,7 +419,7 @@ INTEGER              :: i,j,i_m,i_p,j_m,j_p
 
 ! Fill Smat for PETSc with remaining DOFs
 DO iElem=1,PP_nElems
-  NElem=N_DG_Mapping(2,iElem)!+offsetElem)
+  NElem=N_DG_Mapping(2,iElem+offsetElem)
   DO iLocSide=1,6
     iSideID=ElemToSide(E2S_SIDE_ID,iLocSide,iElem)
     iNloc=N_SurfMesh(iSideID)%NSideMin
@@ -467,35 +467,68 @@ DO iElem=1,PP_nElems
     END DO
   END DO
 END DO
-! TODO PETSC P-Adaption - FPC Stuff
 ! Set Conductor matrix
-!DO BCsideID=1,nConductorBCsides
-!  jSideID=ConductorBC(BCsideID)
-!  iElem=SideToElem(S2E_ELEM_ID,jSideID)
-!  jLocSide=SideToElem(S2E_LOC_SIDE_ID,jSideID)
-!
-!  BCState = BoundaryType(BC(jSideID),BC_STATE)
-!  jPETScGlobal=nPETScUniqueSidesGlobal-FPC%nUniqueFPCBounds+FPC%Group(BCState,2)-1
-!  DO iLocSide=1,6
-!    iSideID=ElemToSide(E2S_SIDE_ID,iLocSide,iElem)
-!    iPETScGlobal=PETScGlobal(iSideID)
-!    DO j=2,nGP_face; DO i=1,nGP_face ! Sum up all columns
-!      Smat(1,i,jLocSide,iLocSide,iElem) = Smat(1,i,jLocSide,iLocSide,iElem) + Smat(j,i,jLocSide,iLocSide,iElem)
-!      Smat(j,i,jLocSide,iLocSide,iElem) = 0.
-!    END DO; END DO
-!    IF(MaskedSide(iSideID).EQ.2) THEN
-!      DO i=2,nGP_face ! Sum up all rows
-!        Smat(1,1,jLocSide,iLocSide,iElem) = Smat(1,1,jLocSide,iLocSide,iElem) + Smat(1,i,jLocSide,iLocSide,iElem)
-!        Smat(1,i,jLocSide,iLocSide,iElem) = 0.
-!        Smat(i,i,jLocSide,iLocSide,iElem) = 1. ! Add diagonal entries for unused DOFs
-!      END DO
-!      iPETScGlobal=nPETScUniqueSidesGlobal-FPC%nUniqueFPCBounds+FPC%Group(BCState,2)-1
-!    ELSEIF(iPETScGlobal.EQ.-1) THEN
-!      CYCLE
-!    END IF
-!    PetscCallA(MatSetValuesBlocked(PETScSystemMatrix,1,iPETScGlobal,1,jPETScGlobal,Smat(:,:,jLocSide,iLocSide,iElem),ADD_VALUES,ierr))
-!  END DO
-!END DO
+DO BCsideID=1,nConductorBCsides
+  jSideID=ConductorBC(BCsideID)
+  iElem=SideToElem(S2E_ELEM_ID,jSideID)
+  jLocSide=SideToElem(S2E_LOC_SIDE_ID,jSideID)
+
+  BCState = BoundaryType(BC(jSideID),BC_STATE)
+  jPETScGlobal=nGlobalPETScDOFs-FPC%nUniqueFPCBounds+FPC%Group(BCState,2)-1
+  jNloc=N_SurfMesh(jSideID)%NSideMin
+  DO iLocSide=1,6
+    iSideID=ElemToSide(E2S_SIDE_ID,iLocSide,iElem)
+
+    ! The matrix goes from left to right and its not symmetrical and we have sum up this part to there
+    ! From Side to Conductor: 1xnGPside matrix
+    ! 1. Bring Smat to nGP of the Side (S * V)
+    Smatloc = 0.
+    NElem=N_DG_Mapping(2,iElem+offsetElem)
+    iNdof=nGP_face(NElem)
+    iNloc=N_SurfMesh(iSideID)%NSideMin
+
+    DO i_m=0,iNloc; DO i_p=0,iNloc
+      DO i=0,NElem; DO j=0,NElem
+        Smatloc(i_m*(iNloc+1)+i_p+1,:) = Smatloc(i_m*(iNloc+1)+i_p+1,:) + &
+          PREF_VDM(NElem,iNloc)%Vdm(i,i_m) * PREF_VDM(NElem,iNloc)%Vdm(j,i_p) * &
+          HDG_Vol_N(iElem)%Smat(i*(Nelem+1)+j+1,:,iLocSide,jLocSide)
+      END DO; END DO
+    END DO; END DO
+    !Smatloc(:,:) = HDG_Vol_N(iElem)%Smat(:,:,iLocSide,jLocSide)
+
+    ! Summing up rows to actually have a 1! x nGP matrix
+    iNdof=nGP_face(iNloc)
+    DO i=1,iNdof
+      DO j=2,jNdof
+        Smatloc(i,1) = Smatloc(i,1) + Smatloc(i,j)
+      END DO
+    END DO
+
+    jIndices(1:1) = jPETScGlobal
+
+    IF(MaskedSide(iSideID).EQ.2) THEN
+      ! From Conductor to Conductor: 1x1 matrix
+      ! Sum up columns
+      DO i=2,iNdof
+        Smatloc(1,1) = Smatloc(1,1) + Smatloc(i,1)
+      END DO
+
+      BCState = BoundaryType(BC(iSideID),BC_STATE)
+      iIndices(1:1) = nGlobalPETScDOFs-FPC%nUniqueFPCBounds+FPC%Group(BCState,2)-1
+      PetscCallA(MatSetValues(PETScSystemMatrix,1,iIndices(1:1),1,jIndices(1:1),Smatloc(1:1,1:1),ADD_VALUES,ierr))
+    ELSEIF(MaskedSide(iSideID).GT.0) THEN
+      CYCLE
+    ELSE
+      iPETScGlobal=OffsetGlobalPETScDOF(iSideID)
+      DO i=1,iNdof
+        iIndices(i) = iPETScGlobal + i - 1
+      END DO
+      PetscCallA(MatSetValues(PETScSystemMatrix,iNdof,iIndices(1:iNdof),1,jIndices(1:1),Smatloc(1:iNdof,1:1),ADD_VALUES,ierr))
+      PetscCallA(MatSetValues(PETScSystemMatrix,1,jIndices(1:1),iNdof,iIndices(1:iNdof),TRANSPOSE(Smatloc(1:iNdof,1:1)),ADD_VALUES,ierr))
+    END IF
+
+  END DO
+END DO
 
 PetscCallA(MatAssemblyBegin(PETScSystemMatrix,MAT_FINAL_ASSEMBLY,ierr))
 PetscCallA(MatAssemblyEnd(PETScSystemMatrix,MAT_FINAL_ASSEMBLY,ierr))

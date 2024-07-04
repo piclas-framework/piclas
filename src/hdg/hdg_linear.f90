@@ -198,8 +198,7 @@ DO iVar = 1, PP_nVar
 
   ! Floating boundary BCs
 #if USE_PETSC
-! TODO PETSC P-Adaption - FPC
-  IF(UseFPC)THEN
+  IF(UseFPC) THEN
 #if USE_MPI
     ! Communicate the accumulated charged on each BC to all processors on the communicator
     DO iUniqueFPCBC = 1, FPC%nUniqueFPCBounds
@@ -215,7 +214,6 @@ DO iVar = 1, PP_nVar
 #endif /*USE_MPI*/
     FPC%ChargeProc = 0.
     ! Apply charge to RHS, which this is done below: RHS_conductor(1)=FPC%Charge(iUniqueFPCBC)/eps0
-
   END IF ! UseFPC
 #endif /*USE_PETSC*/
 
@@ -349,131 +347,125 @@ CALL LBPauseTime(LB_DG,tLBStart) ! Pause/Stop time measurement
 ! SOLVE
 
 #if USE_PETSC
-  ! Fill right hand side
-  PetscCallA(VecZeroEntries(PETScRHS,ierr))
-  TimeStartPiclas=PICLASTIME()
-  DO SideID=1,nSides
-    IF(MaskedSide(SideID).GT.0) CYCLE
+! Fill right hand side
+PetscCallA(VecZeroEntries(PETScRHS,ierr))
+TimeStartPiclas=PICLASTIME()
+DO SideID=1,nSides
+  IF(MaskedSide(SideID).GT.0) CYCLE
 
-    ! TODO Create a function to map localToGlobalDOFs
-    Nloc = N_SurfMesh(SideID)%NSideMin
-    DO i=1,nGP_face(Nloc)
-      DOFindices(i) = i + OffsetGlobalPETScDOF(SideID) - 1
+  ! TODO Create a function to map localToGlobalDOFs
+  Nloc = N_SurfMesh(SideID)%NSideMin
+  DO i=1,nGP_face(Nloc)
+    DOFindices(i) = i + OffsetGlobalPETScDOF(SideID) - 1
+  END DO
+
+  PetscCallA(VecSetValues(PETScRHS,nGP_face(Nloc),DOFindices(1:nGP_face(Nloc)),HDG_Surf_N(SideID)%RHS_face(1,:),ADD_VALUES,ierr))
+END DO
+! The MPIRoot process has charge and voltage of all FPCs, there, this process sets all conductor RHS information
+IF(UseFPC) THEN
+  IF(MPIRoot)THEN
+    DO iUniqueFPCBC = 1, FPC%nUniqueFPCBounds
+      PetscCallA(VecSetValues(PETScRHS,1,nGlobalPETScDOFs-1-FPC%nUniqueFPCBounds+iUniqueFPCBC,FPC%Charge(iUniqueFPCBC)/eps0,INSERT_VALUES,ierr))
     END DO
-
-    PetscCallA(VecSetValues(PETScRHS,nGP_face(Nloc),DOFindices(1:nGP_face(Nloc)),HDG_Surf_N(SideID)%RHS_face(1,:),ADD_VALUES,ierr))
-  END DO
-  ! The MPIRoot process has charge and voltage of all FPCs, there, this process sets all conductor RHS information
-  ! TODO PETSC P-Adaption - FPC
-  !IF(MPIRoot)THEN
-  !  DO iUniqueFPCBC = 1, FPC%nUniqueFPCBounds
-  !    RHS_conductor(:)=0.
-  !    RHS_conductor(1)=FPC%Charge(iUniqueFPCBC)/eps0
-  !    PetscCallA(VecSetValuesBlocked(PETScRHS,1,nPETScUniqueSidesGlobal-1-FPC%nUniqueFPCBounds+iUniqueFPCBC,RHS_conductor,INSERT_VALUES,ierr))
-  !  END DO !iUniqueFPCBC = 1, FPC%nUniqueFPCBounds
-  !END IF ! MPIRoot
-
-  ! TODO We had to use ADD_VALUES when filling the RHS. Maybe loop over sideID=1,nSides-nSides_YOUR?
-  PetscCallA(VecAssemblyBegin(PETScRHS,ierr))
-  PetscCallA(VecAssemblyEnd(PETScRHS,ierr))
-
-  ! Reset the RHS of the first DOF if ZeroPotential must be set
-  IF(MPIroot .AND. SetZeroPotentialDOF) THEN
-    PetscCallA(VecSetValue(PETScRHS,0,0,INSERT_VALUES,ierr))
   END IF
+END IF
 
-  PetscCallA(VecAssemblyBegin(PETScRHS,ierr))
-  PetscCallA(VecAssemblyEnd(PETScRHS,ierr))
+! TODO We had to use ADD_VALUES when filling the RHS. Maybe loop over sideID=1,nSides-nSides_YOUR?
+PetscCallA(VecAssemblyBegin(PETScRHS,ierr))
+PetscCallA(VecAssemblyEnd(PETScRHS,ierr))
 
-  ! Calculate lambda
-  PetscCallA(KSPSolve(PETScSolver,PETScRHS,PETScSolution,ierr))
-  TimeEndPiclas=PICLASTIME()
-  PetscCallA(KSPGetIterationNumber(PETScSolver,iterations,ierr))
-  PetscCallA(KSPGetConvergedReason(PETScSolver,reason,ierr))
-  PetscCallA(KSPGetResidualNorm(PETScSolver,petscnorm,ierr))
-  ! reason - negative value indicates diverged, positive value converged, see KSPConvergedReason
-  !  -2: KSP_DIVERGED_NULL
-  !  -3: KSP_DIVERGED_ITS            -> Ran out of iterations before any convergence criteria was reached
-  !  -4: KSP_DIVERGED_DTOL           -> norm(r) >= dtol*norm(b)
-  !  -5: KSP_DIVERGED_BREAKDOWN      -> Breakdown in the Krylov method: the method could not continue to enlarge the Krylov space
-  !  -6: KSP_DIVERGED_BREAKDOWN_BICG -> Breakdown in the Krylov method: the method could not continue to enlarge the Krylov space
-  !  -7: KSP_DIVERGED_NONSYMMETRIC   -> It appears the operator or preconditioner is not symmetric and this Krylov method
-  !  -8: KSP_DIVERGED_INDEFINITE_PC  -> It appears the preconditioner is indefinite
-  !  -9: KSP_DIVERGED_NANORINF
-  ! -10: KSP_DIVERGED_INDEFINITE_MAT
-  ! -11: KSP_DIVERGED_PC_FAILED      -> It was not possible to build or use the requested preconditioner
-  ! -11: KSP_DIVERGED_PCSETUP_FAILED_DEPRECATED
-  IF(reason.LT.0)THEN
-    SWRITE(*,*) 'Attention: PETSc not converged! Reason: ', reason
-  END IF
-  IF(MPIroot) CALL DisplayConvergence(TimeEndPiclas-TimeStartPiclas, iterations, petscnorm)
+! Reset the RHS of the first DOF if ZeroPotential must be set
+IF(MPIroot .AND. SetZeroPotentialDOF) THEN
+  PetscCallA(VecSetValue(PETScRHS,0,0,INSERT_VALUES,ierr))
+END IF
 
-  ! Fill element local lambda for post processing
-  ! Get the local DOF subarray
-  PetscCallA(VecScatterBegin(PETScScatter, PETScSolution, PETScSolutionLocal, INSERT_VALUES, SCATTER_FORWARD,ierr))
-  PetscCallA(VecScatterEnd(PETScScatter, PETScSolution, PETScSolutionLocal, INSERT_VALUES, SCATTER_FORWARD,ierr))
-  PetscCallA(VecGetArrayReadF90(PETScSolutionLocal,lambda_pointer,ierr))
-  DOF_stop = 0
-  DO SideID=1,nSides
-    IF(MaskedSide(SideID).GT.0) CYCLE
-    Nloc = N_SurfMesh(SideID)%NSideMin
-    DOF_start = 1 + DOF_stop
-    DOF_stop = DOF_start + nGP_face(Nloc) - 1
-    HDG_Surf_N(SideID)%lambda(1,:) = lambda_pointer(DOF_start:DOF_stop)
-  END DO
-  PetscCallA(VecRestoreArrayReadF90(PETScSolutionLocal,lambda_pointer,ierr))
+PetscCallA(VecAssemblyBegin(PETScRHS,ierr))
+PetscCallA(VecAssemblyEnd(PETScRHS,ierr))
 
-  ! TODO PETSC P-Adaption - FPC
+! Calculate lambda
+PetscCallA(KSPSolve(PETScSolver,PETScRHS,PETScSolution,ierr))
+TimeEndPiclas=PICLASTIME()
+PetscCallA(KSPGetIterationNumber(PETScSolver,iterations,ierr))
+PetscCallA(KSPGetConvergedReason(PETScSolver,reason,ierr))
+PetscCallA(KSPGetResidualNorm(PETScSolver,petscnorm,ierr))
+! reason - negative value indicates diverged, positive value converged, see KSPConvergedReason
+!  -2: KSP_DIVERGED_NULL
+!  -3: KSP_DIVERGED_ITS            -> Ran out of iterations before any convergence criteria was reached
+!  -4: KSP_DIVERGED_DTOL           -> norm(r) >= dtol*norm(b)
+!  -5: KSP_DIVERGED_BREAKDOWN      -> Breakdown in the Krylov method: the method could not continue to enlarge the Krylov space
+!  -6: KSP_DIVERGED_BREAKDOWN_BICG -> Breakdown in the Krylov method: the method could not continue to enlarge the Krylov space
+!  -7: KSP_DIVERGED_NONSYMMETRIC   -> It appears the operator or preconditioner is not symmetric and this Krylov method
+!  -8: KSP_DIVERGED_INDEFINITE_PC  -> It appears the preconditioner is indefinite
+!  -9: KSP_DIVERGED_NANORINF
+! -10: KSP_DIVERGED_INDEFINITE_MAT
+! -11: KSP_DIVERGED_PC_FAILED      -> It was not possible to build or use the requested preconditioner
+! -11: KSP_DIVERGED_PCSETUP_FAILED_DEPRECATED
+IF(reason.LT.0)THEN
+  SWRITE(*,*) 'Attention: PETSc not converged! Reason: ', reason
+END IF
+IF(MPIroot) CALL DisplayConvergence(TimeEndPiclas-TimeStartPiclas, iterations, petscnorm)
+
+! Fill element local lambda for post processing
+! Get the local DOF subarray
+PetscCallA(VecScatterBegin(PETScScatter, PETScSolution, PETScSolutionLocal, INSERT_VALUES, SCATTER_FORWARD,ierr))
+PetscCallA(VecScatterEnd(PETScScatter, PETScSolution, PETScSolutionLocal, INSERT_VALUES, SCATTER_FORWARD,ierr))
+PetscCallA(VecGetArrayReadF90(PETScSolutionLocal,lambda_pointer,ierr))
+DOF_stop = 0
+DO SideID=1,nSides
+  IF(MaskedSide(SideID).GT.0) CYCLE
+  Nloc = N_SurfMesh(SideID)%NSideMin
+  DOF_start = 1 + DOF_stop
+  DOF_stop = DOF_start + nGP_face(Nloc) - 1
+  HDG_Surf_N(SideID)%lambda(1,:) = lambda_pointer(DOF_start:DOF_stop)
+END DO
+
   ! Fill Conductor lambda
-!  IF(UseFPC)THEN
-!    PetscCallA(VecScatterBegin(scatter_conductors_petsc, PETScSolution, lambda_local_conductors_petsc, INSERT_VALUES, SCATTER_FORWARD,ierr))
-!    PetscCallA(VecScatterEnd(scatter_conductors_petsc, PETScSolution, lambda_local_conductors_petsc, INSERT_VALUES, SCATTER_FORWARD,ierr))
-!    PetscCallA(VecGetArrayReadF90(lambda_local_conductors_petsc,lambda_pointer,ierr))
-!    FPC%VoltageProc = 0. ! nullify just to be safe
-!    ! TODO multiple conductors
-!    DO BCsideID=1,nConductorBCsides
-!      SideID=ConductorBC(BCSideID)
-!      BCState=BoundaryType(BC(SideID),BC_STATE)
-!      DO i=1,nGP_face
-!        lambda(1,:,SideID) = lambda_pointer(1 + (FPC%Group(BCState,2) - 1) * nGP_face)
-!      END DO
-!      ! Copy the value to the FPC container for output to .csv (only mpi root does this)
-!      FPC%VoltageProc(FPC%Group(BCState,2)) = lambda(1,1,SideID)
-!    END DO
-!#if USE_MPI
-!    ! Sum the voltages across each sub-group and divide by the size of the group to get the voltage. This is required if the MPI
-!    ! root is not connected to every FPC (which is usually the case)
-!    !
-!    ! 1. Communicate the accumulated voltage (should be the same on each proc that has such a BC) on each BC to all processors on the
-!    ! communicator
-!    FPC%Voltage = 0.
-!    DO iUniqueFPCBC = 1, FPC%nUniqueFPCBounds
-!      ASSOCIATE( COMM => FPC%COMM(iUniqueFPCBC)%UNICATOR )
-!        IF(FPC%COMM(iUniqueFPCBC)%UNICATOR.NE.MPI_COMM_NULL)THEN
-!          ASSOCIATE( VoltageProc => FPC%VoltageProc(iUniqueFPCBC), Voltage => FPC%Voltage(iUniqueFPCBC) )
-!            IF(MPIroot)THEN
-!              CALL MPI_REDUCE(VoltageProc, Voltage, 1 ,MPI_DOUBLE_PRECISION, MPI_SUM, 0, COMM, iError)
-!            ELSE
-!              CALL MPI_REDUCE(VoltageProc, 0      , 1 ,MPI_DOUBLE_PRECISION, MPI_SUM, 0, COMM, IError)
-!            END IF ! MPIroot
-!          END ASSOCIATE
-!        END IF ! FPC%COMM(iUniqueFPCBC)%UNICATOR.NE.MPI_COMM_NULL
-!      END ASSOCIATE
-!    END DO ! iUniqueFPCBC = 1, FPC%nUniqueFPCBounds
-!
-!    ! 2. Divide by group size (procs that have an actual FPC BC side -> FPC%COMM(iUniqueFPCBC)%nProcsWithSides).
-!    !    The MPI root process definitely has the size of each group, which is at least 1.
-!    IF(MPIRoot)THEN
-!      DO iUniqueFPCBC = 1, FPC%nUniqueFPCBounds
-!        FPC%Voltage(iUniqueFPCBC) = FPC%Voltage(iUniqueFPCBC) / REAL(FPC%COMM(iUniqueFPCBC)%nProcsWithSides)
-!      END DO ! iUniqueFPCBC = 1, FPC%nUniqueFPCBounds
-!    END IF ! MPIRoot
-!#else
-!    FPC%Voltage = FPC%VoltageProc
-!#endif /*USE_MPI*/
-!    ! TODO PETSC P-Adaption - FPC
-!    PetscCallA(VecRestoreArrayReadF90(lambda_local_conductors_petsc,lambda_pointer,ierr))
-!  END IF ! UseFPC
+IF(UseFPC) THEN
+  FPC%VoltageProc = 0. ! nullify just to be safe
+  DO BCsideID=1,nConductorBCsides
+    SideID=ConductorBC(BCSideID)
+    Nloc = N_SurfMesh(SideID)%NSideMin
+    BCState=BoundaryType(BC(SideID),BC_STATE)
+    DO i=1,nGP_face(Nloc)
+      HDG_Surf_N(SideID)%lambda(1,i) = lambda_pointer(nLocalPETScDOFs - FPC%nUniqueFPCBounds + FPC%Group(BCState,2))
+    END DO
+    ! Copy the value to the FPC container for output to .csv (only mpi root does this)
+    FPC%VoltageProc(FPC%Group(BCState,2)) = HDG_Surf_N(SideID)%lambda(1,1)
+  END DO
+#if USE_MPI
+  ! Sum the voltages across each sub-group and divide by the size of the group to get the voltage. This is required if the MPI
+  ! root is not connected to every FPC (which is usually the case)
+  !
+  ! 1. Communicate the accumulated voltage (should be the same on each proc that has such a BC) on each BC to all processors on the
+  ! communicator
+  FPC%Voltage = 0.
+  DO iUniqueFPCBC = 1, FPC%nUniqueFPCBounds
+    ASSOCIATE( COMM => FPC%COMM(iUniqueFPCBC)%UNICATOR )
+      IF(FPC%COMM(iUniqueFPCBC)%UNICATOR.NE.MPI_COMM_NULL)THEN
+        ASSOCIATE( VoltageProc => FPC%VoltageProc(iUniqueFPCBC), Voltage => FPC%Voltage(iUniqueFPCBC) )
+          IF(MPIroot)THEN
+            CALL MPI_REDUCE(VoltageProc, Voltage, 1 ,MPI_DOUBLE_PRECISION, MPI_SUM, 0, COMM, iError)
+          ELSE
+            CALL MPI_REDUCE(VoltageProc, 0      , 1 ,MPI_DOUBLE_PRECISION, MPI_SUM, 0, COMM, IError)
+          END IF ! MPIroot
+        END ASSOCIATE
+      END IF ! FPC%COMM(iUniqueFPCBC)%UNICATOR.NE.MPI_COMM_NULL
+    END ASSOCIATE
+  END DO ! iUniqueFPCBC = 1, FPC%nUniqueFPCBounds
+
+  ! 2. Divide by group size (procs that have an actual FPC BC side -> FPC%COMM(iUniqueFPCBC)%nProcsWithSides).
+  !    The MPI root process definitely has the size of each group, which is at least 1.
+  IF(MPIRoot)THEN
+    DO iUniqueFPCBC = 1, FPC%nUniqueFPCBounds
+      FPC%Voltage(iUniqueFPCBC) = FPC%Voltage(iUniqueFPCBC) / REAL(FPC%COMM(iUniqueFPCBC)%nProcsWithSides)
+    END DO ! iUniqueFPCBC = 1, FPC%nUniqueFPCBounds
+  END IF ! MPIRoot
+#else
+  FPC%Voltage = FPC%VoltageProc
+#endif /*USE_MPI*/
+END IF ! UseFPC
+
+PetscCallA(VecRestoreArrayReadF90(PETScSolutionLocal,lambda_pointer,ierr))
 
   ! TODO PETSC P-Adaption - MORTARS
   ! PETSc Calculate lambda at small mortars from big mortars

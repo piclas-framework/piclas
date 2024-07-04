@@ -46,14 +46,10 @@ VecScatter          :: PETScScatter            !< Scatter object used to extract
 ! TODO PETSC P-Adaption - Move to HDG,f90, only needed there...
 IS                  :: idx_local_petsc          !< Indexing of the local vector (basically 1:nLocalPETSc, but with YOUR sides)
 IS                  :: idx_global_petsc         !< Basically localToGlobalDOF with YOUR Sides
-! TODO PETSC P-Adaption - FPC
-!Vec                 :: lambda_local_conductors_petsc
-!VecScatter          :: scatter_conductors_petsc
-!IS                  :: idx_local_conductors_petsc
-!IS                  :: idx_global_conductors_petsc
 REAL,ALLOCATABLE    :: Smat_BC(:,:,:,:)         !< side to side matrix for dirichlet (D) BCs, (ngpface,ngpface,6Sides,DSides)
 INTEGER             :: nPETScSides              !< nSides - nDirichletSides
 INTEGER             :: nPETScUniqueSides        !< nPETScSides - nMPISides_YOUR
+INTEGER             :: nLocalPETScDOFs          !< Number of local PETSc DOFs (size of PETSc Vectors & Matrices)
 INTEGER             :: nGlobalPETScDOFs         !< Number of global PETSc DOFs (size of PETSc Vectors & Matrices)
 INTEGER,ALLOCATABLE :: OffsetGlobalPETScDOF(:)  !< offset of each SideID to the global position in the PETSc system
 #endif

@@ -663,6 +663,7 @@ ELSE ! Normal restart
 #endif /*USE_MPI*/
 
 #if USE_PETSC
+      ! Write the lambda to the solution vector
       DO iSide=1,nSides
         IF(MaskedSide(iSide).GT.0) CYCLE
         ! TODO: Create a function to map localToGlobalDOFs
