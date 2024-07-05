@@ -316,7 +316,8 @@ SUBROUTINE InitDGExchange()
 ! MODULES
 USE MOD_Globals
 USE MOD_PreProc
-USE MOD_MPI_Vars       ,ONLY: nNbProcs, DataSizeSideRec, DataSizeSideSend, DGExchange
+USE MOD_MPI_Vars ,ONLY: nNbProcs, DataSizeSideRec, DataSizeSideSend, DGExchange
+USE MOD_PML_Vars ,ONLY: DoPML,PMLnVar
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
