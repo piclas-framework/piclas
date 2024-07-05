@@ -272,7 +272,9 @@ CALL prms%CreateRealOption(     'Part-Species[$]-CharaTempVib[$]'  &
 CALL prms%CreateRealOption(     'Part-Species[$]-CharaTempRot[$]'  &
                                            ,'Characteristic rotational temperature [K]. Linear molecules require only a single '//&
                                             'input, while non-linear molecules require three.', '0.', numberedmulti=.TRUE.)
-
+CALL prms%CreateRealOption(     'Part-Species[$]-MomentOfInertia[$]'  &
+                                            ,'MomentOfInertia [kg*m^2], linear molecules require only a single input'//&
+                                            'while non-linear molecules require three''0.', numberedmulti=.TRUE.)
 END SUBROUTINE DefineParametersDSMC
 
 SUBROUTINE InitDSMC()
@@ -726,14 +728,16 @@ ELSE !CollisMode.GT.0
               SpecDSMC(iSpec)%Xi_Rot     = 2
               CALL ReadAttribute(file_id_specdb,'CharaTempVib',1,DatasetName = dsetname,RealScalar=SpecDSMC(iSpec)%CharaTVib,ChangeToGroup='True')
               CALL PrintOption('CharaTempVib','DB',RealOpt=SpecDSMC(iSpec)%CharaTVib)
-              CALL AttributeExists(file_id_specdb,'MomentOfInertia',TRIM(dsetname), AttrExists=AttrExists,ChangeToGroup='True')
-              IF (AttrExists) THEN
-                CALL ReadAttribute(file_id_specdb,'MomentOfInertia',1,DatasetName = dsetname,RealScalar=SpecDSMC(iSpec)%MomentOfInertia,ChangeToGroup='True')
-                CALL AttributeExists(file_id_specdb,'CharaTempRot',TRIM(dsetname), AttrExists=AttrExists,ChangeToGroup='True')
-                IF(AttrExists)THEN  ! check if CharaTempRot is set or should be calculated with Moment of Inertia
-                  CALL ReadAttribute(file_id_specdb,'CharaTempRot',1,DatasetName = dsetname,RealScalar=SpecDSMC(iSpec)%CharaTRot,ChangeToGroup='True')
-                ELSE
+              IF(DSMC%RotRelaxModel.EQ.1)THEN
+                CALL AttributeExists(file_id_specdb,'MomentOfInertia',TRIM(dsetname), AttrExists=AttrExists,ChangeToGroup='True')
+                IF (AttrExists) THEN
+                  CALL ReadAttribute(file_id_specdb,'MomentOfInertia',1,DatasetName = dsetname,RealScalar=SpecDSMC(iSpec)%MomentOfInertia,ChangeToGroup='True')
                   SpecDSMC(iSpec)%CharaTRot = PlanckConst**2 / (8 * PI**2 * SpecDSMC(iSpec)%MomentOfInertia * BoltzmannConst)
+                  CALL PrintOption('MomentOfInertia','DB',RealOpt=SpecDSMC(iSpec)%MomentOfInertia)
+                ELSE
+                  CALL abort(&
+                  __STAMP__&
+                  ,'Moment of inertia necessary for quantized rotational energy and is not set for species', iSpec)
                 END IF
               ELSE
                 CALL AttributeExists(file_id_specdb,'CharaTempRot',TRIM(dsetname), AttrExists=AttrExists,ChangeToGroup='True')
@@ -742,15 +746,7 @@ ELSE !CollisMode.GT.0
                 ELSE
                   SpecDSMC(iSpec)%CharaTRot = 0.0
                 END IF
-                IF(DSMC%RotRelaxModel.EQ.1)THEN
-                  CALL abort(&
-                  __STAMP__&
-                  ,'Moment of inertia necessary for quantized rotational energy and is not set for species', iSpec)
-                ELSE
-                  SpecDSMC(iSpec)%MomentOfInertia = 0
-                END IF
               END IF
-              CALL PrintOption('MomentOfInertia','DB',RealOpt=SpecDSMC(iSpec)%MomentOfInertia)
               CALL PrintOption('CharaTempRot','DB',RealOpt=SpecDSMC(iSpec)%CharaTRot)
               CALL ReadAttribute(file_id_specdb,'Ediss_eV',1,DatasetName = dsetname,RealScalar=SpecDSMC(iSpec)%Ediss_eV,ChangeToGroup='True')
               CALL PrintOption('Ediss_eV','DB',RealOpt=SpecDSMC(iSpec)%Ediss_eV)
@@ -876,16 +872,11 @@ ELSE !CollisMode.GT.0
           ELSEIF ((Species(iSpec)%InterID.EQ.2).OR.(Species(iSpec)%InterID.EQ.20)) THEN
             SpecDSMC(iSpec)%Xi_Rot          = 2
             SpecDSMC(iSpec)%CharaTVib       = GETREAL('Part-Species'//TRIM(hilf)//'-CharaTempVib')
-            SpecDSMC(iSpec)%MomentOfInertia = GETREAL('Part-Species'//TRIM(hilf)//'-MomentOfInertia','-1')
-            SpecDSMC(iSpec)%CharaTRot       = GETREAL('Part-Species'//TRIM(hilf)//'-CharaTempRot','-1')
-            IF(SpecDSMC(iSpec)%CharaTRot.EQ.-1.AND.SpecDSMC(iSpec)%MomentOfInertia.NE.-1)THEN
-              !//TODO catch CharaTRot.EQ.-1??
+            IF(DSMC%RotRelaxModel.EQ.1)THEN  ! If MomentOfInertia needed calc CharaTempRot with Moment
+              SpecDSMC(iSpec)%MomentOfInertia = GETREAL('Part-Species'//TRIM(hilf)//'-MomentOfInertia')
               SpecDSMC(iSpec)%CharaTRot       = PlanckConst**2 / (8 * PI**2 * SpecDSMC(iSpec)%MomentOfInertia * BoltzmannConst)
-            END IF
-            IF(SpecDSMC(iSpec)%MomentOfInertia.EQ.-1.AND.(DSMC%RotRelaxModel.EQ.1.OR.DSMC%RotRelaxModel.EQ.2))THEN
-              CALL abort(&
-              __STAMP__&
-              ,'Moment of inertia necessary for quantized rotational energy and is not set for species', iSpec)
+            ELSE  ! read in CharaTRot 
+              SpecDSMC(iSpec)%CharaTRot       = GETREAL('Part-Species'//TRIM(hilf)//'-CharaTempRot')
             END IF
             SpecDSMC(iSpec)%Ediss_eV        = GETREAL('Part-Species'//TRIM(hilf)//'-Ediss_eV')
             SpecDSMC(iSpec)%MaxVibQuant     = 200
