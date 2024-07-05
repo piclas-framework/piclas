@@ -337,8 +337,13 @@ IMPLICIT NONE
 ! INPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
+#if (USE_FV)
+REAL,INTENT(INOUT) :: U_in_master(1:PP_nVar_FV,0:PP_N,0:PP_N,1:nSides) !< (INOUT) can be U or Grad_Ux/y/z_master
+REAL,INTENT(INOUT) :: U_in_slave( 1:PP_nVar_FV,0:PP_N,0:PP_N,1:nSides) !< (INOUT) can be U or Grad_Ux/y/z_master
+#else
 REAL,INTENT(INOUT) :: U_in_master(1:PP_nVar,0:PP_N,0:PP_N,1:nSides) !< (INOUT) can be U or Grad_Ux/y/z_master
 REAL,INTENT(INOUT) :: U_in_slave( 1:PP_nVar,0:PP_N,0:PP_N,1:nSides) !< (INOUT) can be U or Grad_Ux/y/z_master
+#endif
 LOGICAL,INTENT(IN) :: doMPISides                                 !< flag whether MPI sides are processed
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
@@ -346,8 +351,13 @@ INTEGER      :: p,q,l
 INTEGER      :: iMortar,nMortars
 INTEGER      :: firstMortarSideID,lastMortarSideID
 INTEGER      :: MortarSideID,SideID,locSide,flip
+#if (USE_FV)
+REAL     :: U_tmp( PP_nVar_FV,0:PP_N,0:PP_N,1:4)
+REAL     :: U_tmp2(PP_nVar_FV,0:PP_N,0:PP_N,1:2)
+#else
 REAL     :: U_tmp( PP_nVar,0:PP_N,0:PP_N,1:4)
 REAL     :: U_tmp2(PP_nVar,0:PP_N,0:PP_N,1:2)
+#endif
 REAL,POINTER :: M1(:,:),M2(:,:)
 !===================================================================================================================================
 
@@ -477,8 +487,8 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
 #if (USE_FV)
-REAL,INTENT(INOUT) :: Flux_Master(1:PP_nVar,0:PP_N,0:PP_N,1:nSides)
-REAL,INTENT(INOUT) :: Flux_Slave(1:PP_nVar,0:PP_N,0:PP_N,1:nSides)
+REAL,INTENT(INOUT) :: Flux_Master(1:PP_nVar_FV,0:PP_N,0:PP_N,1:nSides)
+REAL,INTENT(INOUT) :: Flux_Slave(1:PP_nVar_FV,0:PP_N,0:PP_N,1:nSides)
 #else
 REAL,INTENT(INOUT) :: Flux_Master(1:PP_nVar+PMLnVar,0:PP_N,0:PP_N,1:nSides)
 REAL,INTENT(INOUT) :: Flux_Slave(1:PP_nVar+PMLnVar,0:PP_N,0:PP_N,1:nSides)
@@ -493,8 +503,8 @@ INTEGER  :: iMortar,nMortars
 INTEGER  :: firstMortarSideID,lastMortarSideID
 INTEGER  :: MortarSideID,SideID,iSide,flip
 #if (USE_FV)
-REAL         :: Flux_tmp( PP_nVar,0:PP_N,0:PP_N,1:4)
-REAL         :: Flux_tmp2(PP_nVar,0:PP_N,0:PP_N,1:2)
+REAL         :: Flux_tmp( PP_nVar_FV,0:PP_N,0:PP_N,1:4)
+REAL         :: Flux_tmp2(PP_nVar_FV,0:PP_N,0:PP_N,1:2)
 #else
 REAL         :: Flux_tmp( PP_nVar+PMLnVar,0:PP_N,0:PP_N,1:4)
 REAL         :: Flux_tmp2(PP_nVar+PMLnVar,0:PP_N,0:PP_N,1:2)

@@ -34,6 +34,7 @@ SUBROUTINE TimeStep_ExplicitFV()
 ! Second-order explicit timestep with finite volumes
 !===================================================================================================================================
 ! MODULES
+USE MOD_PreProc
 USE MOD_FV_Vars               ,ONLY: U_FV,Ut_FV
 USE MOD_TimeDisc_Vars         ,ONLY: dt,time,iter
 USE MOD_FV                    ,ONLY: FV_main
@@ -80,7 +81,7 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                    :: iPart
+INTEGER                    :: iPart, iElem
 REAL                       :: RandVal, dtFrac, dtVar
 #if USE_LOADBALANCE
 REAL                       :: tLBStart ! load balance
@@ -199,6 +200,10 @@ END IF
 #endif /*PARTICLES*/
 
 U_FV = U_FV + Ut_FV*dt
+
+DO iElem=1,PP_nElems
+  U_FV(1,0,0,0,iElem) = MAX(U_FV(1,0,0,0,iElem),0.)
+END DO
 
 END SUBROUTINE TimeStep_ExplicitFV
 
