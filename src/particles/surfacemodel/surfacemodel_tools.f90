@@ -477,8 +477,10 @@ IF(Symmetry%Axisymmetric) THEN
   NewVelo(3) = rotVelZ
   
   IF (NINT(SIGN(1.,rotPosY-POI_vec(2))).NE.NINT(SIGN(1.,ny))) THEN
-    LastPartPos(2, PartID) = LastPartPos(2, PartID) + SIGN(1.,ny)*TwoepsMach
-    TrackInfo%LastSide = 0
+    IF (ABS(nx).LT.0.999) THEN
+      LastPartPos(2, PartID) = LastPartPos(2, PartID) + SIGN(1.,ny)*TwoepsMach
+      TrackInfo%LastSide = 0
+    END IF
   END IF
 END IF ! Symmetry%Axisymmetric
 
