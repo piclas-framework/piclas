@@ -85,7 +85,6 @@ INTEGER :: i,j,k,r,p,q,iElem, iVar,NSideMin,Nloc, jNloc, iNloc
 INTEGER :: BCsideID,BCType,BCState,SideID,iLocSide
 REAL    :: RHS_facetmp(nGP_face(NMax))
 REAL    :: rtmp(nGP_vol(NMax))
-REAL    :: VT(nGP_face(NMax))
 INTEGER :: DOFindices(nGP_face(NMax))
 
 !LOGICAL :: converged
@@ -361,6 +360,11 @@ DO SideID=1,nSides
 
   PetscCallA(VecSetValues(PETScRHS,nGP_face(Nloc),DOFindices(1:nGP_face(Nloc)),HDG_Surf_N(SideID)%RHS_face(1,:),ADD_VALUES,ierr))
 END DO
+
+! TODO We had to use ADD_VALUES when filling the RHS. Maybe loop over sideID=1,nSides-nSides_YOUR?
+PetscCallA(VecAssemblyBegin(PETScRHS,ierr))
+PetscCallA(VecAssemblyEnd(PETScRHS,ierr))
+
 ! The MPIRoot process has charge and voltage of all FPCs, there, this process sets all conductor RHS information
 IF(UseFPC) THEN
   IF(MPIRoot)THEN
@@ -369,10 +373,6 @@ IF(UseFPC) THEN
     END DO
   END IF
 END IF
-
-! TODO We had to use ADD_VALUES when filling the RHS. Maybe loop over sideID=1,nSides-nSides_YOUR?
-PetscCallA(VecAssemblyBegin(PETScRHS,ierr))
-PetscCallA(VecAssemblyEnd(PETScRHS,ierr))
 
 ! Reset the RHS of the first DOF if ZeroPotential must be set
 IF(MPIroot .AND. SetZeroPotentialDOF) THEN
@@ -408,7 +408,7 @@ IF(MPIroot) CALL DisplayConvergence(TimeEndPiclas-TimeStartPiclas, iterations, p
 ! Fill element local lambda for post processing
 ! Get the local DOF subarray
 PetscCallA(VecScatterBegin(PETScScatter, PETScSolution, PETScSolutionLocal, INSERT_VALUES, SCATTER_FORWARD,ierr))
-PetscCallA(VecScatterEnd(PETScScatter, PETScSolution, PETScSolutionLocal, INSERT_VALUES, SCATTER_FORWARD,ierr))
+PetscCallA(VecScatterEnd(  PETScScatter, PETScSolution, PETScSolutionLocal, INSERT_VALUES, SCATTER_FORWARD,ierr))
 PetscCallA(VecGetArrayReadF90(PETScSolutionLocal,lambda_pointer,ierr))
 DOF_stop = 0
 DO SideID=1,nSides
@@ -423,14 +423,15 @@ END DO
 IF(UseFPC) THEN
   FPC%VoltageProc = 0. ! nullify just to be safe
   DO BCsideID=1,nConductorBCsides
-    SideID=ConductorBC(BCSideID)
-    Nloc = N_SurfMesh(SideID)%NSideMin
-    BCState=BoundaryType(BC(SideID),BC_STATE)
+    SideID       = ConductorBC(BCSideID)
+    Nloc         = N_SurfMesh(SideID)%NSideMin
+    BCState      = BoundaryType(BC(SideID),BC_STATE)
+    iUniqueFPCBC = FPC%Group(BCState,2)
     DO i=1,nGP_face(Nloc)
-      HDG_Surf_N(SideID)%lambda(1,i) = lambda_pointer(nLocalPETScDOFs - FPC%nUniqueFPCBounds + FPC%Group(BCState,2))
+      HDG_Surf_N(SideID)%lambda(1,i) = lambda_pointer(nLocalPETScDOFs - FPC%nUniqueFPCBounds + iUniqueFPCBC)
     END DO
     ! Copy the value to the FPC container for output to .csv (only mpi root does this)
-    FPC%VoltageProc(FPC%Group(BCState,2)) = HDG_Surf_N(SideID)%lambda(1,1)
+    FPC%VoltageProc(iUniqueFPCBC) = HDG_Surf_N(SideID)%lambda(1,1)
   END DO
 #if USE_MPI
   ! Sum the voltages across each sub-group and divide by the size of the group to get the voltage. This is required if the MPI
