@@ -54,7 +54,7 @@ USE MOD_Mesh_Tools          ,ONLY: GetGlobalElemID
 USE MOD_Output              ,ONLY: PrintStatusLineRadiation
 USE MOD_MPI_Shared_Vars
 USE MOD_MPI_Shared
-USE MOD_Particle_Vars       ,ONLY: Symmetry
+USE MOD_Symmetry_Vars       ,ONLY: Symmetry
 #if USE_MPI
 USE MOD_RadiationTrans_Vars ,ONLY: RadTransPhotPerCell_Shared_Win
 #else

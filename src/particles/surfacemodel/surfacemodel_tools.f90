@@ -285,19 +285,18 @@ SUBROUTINE DiffuseReflection(PartID,SideID,n_loc)
 ! MODULES                                                                                                                          !
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Globals
+USE MOD_Globals_Vars            ,ONLY: TwoepsMach
 USE MOD_Particle_Mesh_Vars
-USE MOD_Globals                 ,ONLY: ABORT, OrthoNormVec, VECNORM, DOTPRODUCT
 USE MOD_DSMC_Vars               ,ONLY: DSMC, AmbipolElecVelo
 USE MOD_Particle_Boundary_Vars  ,ONLY: PartBound
-USE MOD_Particle_Vars           ,ONLY: PartState,LastPartPos,Species,PartSpecies,Symmetry,PartVeloRotRef
+USE MOD_Particle_Vars           ,ONLY: PartState,LastPartPos,Species,PartSpecies,PartVeloRotRef
 USE MOD_Particle_Vars           ,ONLY: UseVarTimeStep, PartTimeStep, VarTimeStep
 USE MOD_TimeDisc_Vars           ,ONLY: dt,RKdtFrac
 USE MOD_Mesh_Tools              ,ONLY: GetCNElemID
 USE MOD_Particle_Vars           ,ONLY: PDM, RotRefFrameOmega,RotRefSubTimeStep,nSubCyclingSteps
 USE MOD_Particle_Tracking_Vars  ,ONLY: TrackInfo
 USE MOD_part_RHS                ,ONLY: CalcPartRHSRotRefFrame
-USE MOD_Globals_Vars            ,ONLY: TwoepsMach
-USE MOD_Part_Tools              ,ONLY: CalcPartSymmetryPos
+USE MOD_Symmetry_Vars           ,ONLY: Symmetry
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------!

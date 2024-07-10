@@ -105,6 +105,7 @@ USE MOD_Metrics                ,ONLY: BuildCoords,CalcMetrics,CalcSurfMetrics
 USE MOD_Prepare_Mesh           ,ONLY: setLocalSideIDs,fillMeshInfo
 USE MOD_ReadInTools            ,ONLY: PrintOption
 USE MOD_ReadInTools            ,ONLY: GETLOGICAL,GETSTR,GETREAL,GETINT,GETREALARRAY
+USE MOD_Symmetry_Vars          ,ONLY: Symmetry
 #if USE_MPI
 USE MOD_Prepare_Mesh           ,ONLY: exchangeFlip
 #endif
@@ -391,42 +392,47 @@ IF (ABS(meshMode).GT.1) THEN
 #endif /*ROS or IMPA*/
 #endif /*maxwell*/
 
-    ! assign all metrics Metrics_fTilde,Metrics_gTilde,Metrics_hTilde
-    ! assign 1/detJ (sJ)
-    ! assign normal and tangential vectors and surfElems on faces
-    crossProductMetrics=GETLOGICAL('crossProductMetrics','.FALSE.')
-    LBWRITE(UNIT_stdOut,'(A)') "NOW CALLING calcMetrics..."
-    CALL InitMeshBasis(NGeo,PP_N,xGP)
-
-    ! get XCL_NGeo
-    ALLOCATE(XCL_NGeo(1:3,0:NGeo,0:NGeo,0:NGeo,1:nElems))
-    XCL_NGeo = 0.
-#ifdef PARTICLES
-    ALLOCATE(dXCL_NGeo(1:3,1:3,0:NGeo,0:NGeo,0:NGeo,1:nElems))
-    dXCL_NGeo = 0.
-    CALL CalcMetrics(XCL_NGeo_Out=XCL_NGeo,dXCL_NGeo_Out=dXCL_NGeo)
-#else
-    CALL CalcMetrics(XCL_NGeo_Out=XCL_NGeo)
-#endif /*PARTICLES*/
-#if USE_LOADBALANCE
-  END IF
-#endif /*USE_LOADBALANCE*/
-
-  ! surface data
-  ALLOCATE(Face_xGP      (3,0:PP_N,0:PP_N,1:nSides))
-  ALLOCATE(NormVec       (3,0:PP_N,0:PP_N,1:nSides))
-  ALLOCATE(TangVec1      (3,0:PP_N,0:PP_N,1:nSides))
-  ALLOCATE(TangVec2      (3,0:PP_N,0:PP_N,1:nSides))
-  ALLOCATE(SurfElem      (  0:PP_N,0:PP_N,1:nSides))
-  ALLOCATE(     Ja_Face(3,3,0:PP_N,0:PP_N,1:nSides)) ! temp
-  Face_xGP = 0.
-  NormVec  = 0.
-  TangVec1 = 0.
-  TangVec2 = 0.
-  SurfElem = 0.
-
-  DO iElem=1,nElems
-    CALL CalcSurfMetrics(JaCL_N(:,:,:,:,:,iElem),iElem)
+    ! assign all metrics Metrics_fTilde,Metrics_gTilde,Metrics_hTilde                                                                
+    ! assign 1/detJ (sJ)                                                                                                             
+    ! assign normal and tangential vectors and surfElems on faces                                                                    
+                                                                                                                                     
+    crossProductMetrics=GETLOGICAL('crossProductMetrics','.FALSE.')                                                                  
+    IF(Symmetry%axisymmetric.AND..NOT.crossProductMetrics) THEN                                                                        
+      crossProductMetrics = .TRUE.                                                                                                    
+      LBWRITE(UNIT_stdOut,'(A)') 'WARNING: setting ""crossProductMetrics" to true for axisymmetric simulations!'                      
+    END IF                                                                                                                           
+    LBWRITE(UNIT_stdOut,'(A)') "NOW CALLING calcMetrics..."                                                                          
+    CALL InitMeshBasis(NGeo,PP_N,xGP)                                                                                                
+                                                                                                                                     
+    ! get XCL_NGeo                                                                                                                   
+    ALLOCATE(XCL_NGeo(1:3,0:NGeo,0:NGeo,0:NGeo,1:nElems))                                                                            
+    XCL_NGeo = 0.                                                                                                                    
+#ifdef PARTICLES                                                                                                                     
+    ALLOCATE(dXCL_NGeo(1:3,1:3,0:NGeo,0:NGeo,0:NGeo,1:nElems))                                                                       
+    dXCL_NGeo = 0.                                                                                                                   
+    CALL CalcMetrics(XCL_NGeo_Out=XCL_NGeo,dXCL_NGeo_Out=dXCL_NGeo)                                                                  
+#else                                                                                                                                
+    CALL CalcMetrics(XCL_NGeo_Out=XCL_NGeo)                                                                                          
+#endif /*PARTICLES*/                                                                                                                 
+#if USE_LOADBALANCE                                                                                                                  
+  END IF                                                                                                                             
+#endif /*USE_LOADBALANCE*/                                                                                                           
+                                                                                                                                     
+  ! surface data                                                                                                                     
+  ALLOCATE(Face_xGP      (3,0:PP_N,0:PP_N,1:nSides))                                                                                 
+  ALLOCATE(NormVec       (3,0:PP_N,0:PP_N,1:nSides))                                                                                 
+  ALLOCATE(TangVec1      (3,0:PP_N,0:PP_N,1:nSides))                                                                                 
+  ALLOCATE(TangVec2      (3,0:PP_N,0:PP_N,1:nSides))                                                                                 
+  ALLOCATE(SurfElem      (  0:PP_N,0:PP_N,1:nSides))                                                                                 
+  ALLOCATE(     Ja_Face(3,3,0:PP_N,0:PP_N,1:nSides)) ! temp                                                                          
+  Face_xGP = 0.                                                                                                                      
+  NormVec  = 0.                                                                                                                      
+  TangVec1 = 0.                                                                                                                      
+  TangVec2 = 0.                                                                                                                      
+  SurfElem = 0.                                                                                                                      
+                                                                                                                                     
+  DO iElem=1,nElems                                                                                                                  
+    CALL CalcSurfMetrics(JaCL_N(:,:,:,:,:,iElem),iElem)                                                                              
   END DO
 
   ! Compute element bary and element radius for processor-local elements (without halo region)

@@ -143,6 +143,8 @@ USE MOD_ReadInTools        ,ONLY: GETLOGICAL
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Vars   ,ONLY: PerformLoadBalance
 #endif /*USE_LOADBALANCE*/
+USE MOD_Symmetry_Vars      ,ONLY: Symmetry
+USE MOD_Globals_Vars       ,ONLY: PI
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -252,6 +254,8 @@ DO iElem=1,nElems
       dXCL_Ngeo(2,:,i,j,k)=dXCL_Ngeo(2,:,i,j,k) + DCL_Ngeo(j,ll)*XCL_Ngeo(:,i,ll,k)
       dXCL_Ngeo(3,:,i,j,k)=dXCL_Ngeo(3,:,i,j,k) + DCL_Ngeo(k,ll)*XCL_Ngeo(:,i,j,ll)
     END DO !l=0,N
+    ! AXISYMMETRIC HDG
+    IF(Symmetry%Axisymmetric) dXCL_Ngeo(3,3,i,j,k)=PI*XCL_Ngeo(2,i,j,k)
   END DO; END DO; END DO !i,j,k=0,Ngeo
 
   ! 1.c)Jacobians! grad(X_1) (grad(X_2) x grad(X_3))
@@ -321,6 +325,8 @@ DO iElem=1,nElems
         dXCL(2,:)=dXCL(2,:) + DCL_N(j,ll)*XCL_N(:,i,ll,k,iElem)
         dXCL(3,:)=dXCL(3,:) + DCL_N(k,ll)*XCL_N(:,i,j,ll,iElem)
       END DO !l=0,N
+      ! AXISYMMETRIC HDG
+      IF(Symmetry%Axisymmetric) dXCL(:,3)=PI * XCL_N(2,i,j,k,iElem)
       END ASSOCIATE
     END DO; END DO; END DO !i,j,k=0,N
   END IF !N>=Ngeo
@@ -345,6 +351,7 @@ DO iElem=1,nElems
       END ASSOCIATE
     END DO; END DO; END DO !i,j,k=0,N
   ELSE ! curl metrics
+    ! AXISYMMETRIC HDG: Does not work without some work :(
     ! invariant curl form, as cross product: R^dd = 1/2( XCL_N(:) x (d/dxi_dd XCL_N(:)))
     !
     !R_CL_N(dd,nn)=1/2*( XCL_N(nn+2)* d/dxi_dd XCL_N(nn+1) - XCL_N(nn+1)* d/dxi_dd XCL_N(nn+2))
@@ -546,7 +553,8 @@ END SUBROUTINE CalcSurfMetrics
 !==================================================================================================================================
 SUBROUTINE SurfMetricsFromJa(Nloc,NormalDir,TangDir,NormalSign,Ja_Face,NormVec,TangVec1,TangVec2,SurfElem)
 ! MODULES
-USE MOD_Globals,     ONLY: CROSS
+USE MOD_Globals,       ONLY: CROSS
+USE MOD_Symmetry_Vars ,ONLY: Symmetry
 !----------------------------------------------------------------------------------------------------------------------------------
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
@@ -566,11 +574,19 @@ INTEGER            :: p,q
 !==================================================================================================================================
 DO q=0,Nloc; DO p=0,Nloc
   SurfElem(  p,q) = SQRT(SUM(Ja_Face(NormalDir,:,p,q)**2))
-  NormVec( :,p,q) = NormalSign*Ja_Face(NormalDir,:,p,q)/SurfElem(p,q)
-  TangVec1(:,p,q) = Ja_Face(TangDir,:,p,q) - SUM(Ja_Face(TangDir,:,p,q)*NormVec(:,p,q)) &
-                    *NormVec(:,p,q)
-  TangVec1(:,p,q) = TangVec1(:,p,q)/SQRT(SUM(TangVec1(:,p,q)**2))
-  TangVec2(:,p,q) = CROSS(NormVec(:,p,q),TangVec1(:,p,q))
+  ! AXISYMMETRIC HDG: Fixed SurfElem=0 at r=0...
+  IF(Symmetry%Axisymmetric .AND. SurfElem(p,q).EQ.0.) THEN
+    NormVec(:,p,q) = (/0., -1., 0./)
+    TangVec1(:,p,q) = (/1., 0., 0./)
+    TangVec2(:,p,q) = (/0., 0., 1./)
+  ELSE
+    NormVec( :,p,q) = NormalSign*Ja_Face(NormalDir,:,p,q)/SurfElem(p,q)
+    TangVec1(:,p,q) = Ja_Face(TangDir,:,p,q) - SUM(Ja_Face(TangDir,:,p,q)*NormVec(:,p,q)) &
+                      *NormVec(:,p,q)
+    TangVec1(:,p,q) = TangVec1(:,p,q)/SQRT(SUM(TangVec1(:,p,q)**2))
+    TangVec2(:,p,q) = CROSS(NormVec(:,p,q),TangVec1(:,p,q))
+  END IF
+
 END DO; END DO ! p,q
 END SUBROUTINE SurfMetricsFromJa
 

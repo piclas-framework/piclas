@@ -39,7 +39,7 @@ USE MOD_Equation              ,ONLY: DefineParametersEquation
 USE MOD_Interpolation_Vars    ,ONLY: BGField,BGFieldAnalytic
 USE MOD_Mesh                  ,ONLY: InitMesh
 #ifdef PARTICLES
-USE MOD_Particle_Vars         ,ONLY: Symmetry
+USE MOD_Symmetry_Vars         ,ONLY: Symmetry
 #endif /*PARTICLES*/
 #if USE_MPI
 USE MOD_MPI_Shared

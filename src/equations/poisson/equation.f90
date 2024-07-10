@@ -995,12 +995,13 @@ REAL,INTENT(IN),OPTIONAL        :: Phi
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 REAL                            :: xvec(3)
-REAL                            :: r1,r2,dx
+REAL                            :: r1,r2
 REAL,DIMENSION(3)               :: dx1,dx2,dr1dx,dr2dx,dr1dx2,dr2dx2
 #ifdef PARTICLES
 REAL                            :: source_e ! Electron charge density for Boltzmann relation (electrons as isothermal fluid!)
 INTEGER                         :: RegionID
 #if defined(CODE_ANALYZE)
+REAL                            :: dx
 REAL                            :: ElemCharLengthX
 #endif /*defined(CODE_ANALYZE)*/
 #endif /*PARTICLES*/
