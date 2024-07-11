@@ -142,7 +142,11 @@ INTEGER,ALLOCPOINT :: GlobalSide2CNTotalSide_Shared(:)         !> Reverse Mappin
 REAL,ALLOCPOINT    :: BoundsOfElem_Shared(:,:,:)           !> Cartesian bounding box around element
 
 REAL,ALLOCPOINT    :: XCL_NGeo_Array(:)                          !> 1D array, pointer changes to proper array bounds
-REAL,ALLOCPOINT    :: Elem_xGP_Array(:)                          !> 1D array, pointer changes to proper array bounds
+#if USE_MPI
+REAL,POINTER       :: Elem_xGP_Array(:)                          !> 1D array, pointer changes to proper array bounds
+#else
+REAL,ALLOCATABLE,TARGET :: Elem_xGP_Array(:)                     !> 1D array, pointer changes to proper array bounds
+#endif /*USE_MPI*/
 REAL,ALLOCPOINT    :: dXCL_NGeo_Array(:)                         !> 1D array, pointer changes to proper array bounds
 REAL,ALLOCPOINT    :: BezierControlPoints3D_Shared(:)            !> BezierControlPoints in 1D array. Pointer changes to proper array bounds
 REAL,ALLOCPOINT    :: BezierControlPoints3DElevated_Shared(:)    !> BezierControlPoints in 1D array. Pointer changes to proper array bounds

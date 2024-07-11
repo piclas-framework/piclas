@@ -717,6 +717,7 @@ END IF ! .NOT.DGSolutionDatasetExists
 CALL GetDataSize(File_ID,TRIM(DGSolutionDataset),nDims,HSize)
 ! Check the number of fields in the file, if more than 5 dimensions, the 6th dimensions carries the number of fields
 nFields     = MERGE(1 , INT(HSize(nDims)) , nDims.EQ.5)
+DEALLOCATE(HSize)
 nDimsOffset = MERGE(0 , 1                 , nDims.EQ.5)
 
 ! Default: DGSolutionDataset = 'DG_Solution'

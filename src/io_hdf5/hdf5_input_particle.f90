@@ -47,7 +47,7 @@ USE MOD_HDF5_Input             ,ONLY: ReadArray
 USE MOD_HDF5_Input             ,ONLY: File_ID,DatasetExists
 USE MOD_Interpolation_Vars     ,ONLY: NodeTypeVISU,NodeType
 USE MOD_Interpolation          ,ONLY: GetVandermonde
-USE MOD_Mesh_Vars              ,ONLY: Vdm_N_EQ,offsetElem
+USE MOD_Mesh_Vars              ,ONLY: offsetElem
 USE MOD_Mesh_Tools             ,ONLY: GetCNElemID,GetGlobalElemID
 USE MOD_Particle_Mesh_Vars     ,ONLY: ElemNodeID_Shared,NodeInfo_Shared,nUniqueGlobalNodes!,NodeToElemMapping,NodeToElemInfo
 USE MOD_PICDepo_Vars           ,ONLY: NodeSourceExt,NodeVolume,DoDeposition
@@ -71,6 +71,7 @@ REAL                               :: NodeSourceExtEqui(1,0:1,0:1,0:1),NodeVol(1
 INTEGER(KIND=IK)                   :: OffsetElemTmp,PP_nElemsTmp,N_RestartTmp
 INTEGER                            :: iElem!,CNElemID
 INTEGER                            :: NodeID(1:8)!,firstNode,lastNode,firstGlobalElemID(1:8),iNode
+REAL,ALLOCATABLE                   :: Vdm_N_EQ(:,:) !< Vandermonde mapping from NodeType to equidistant (visu) node set
 !===================================================================================================================================
 ! DoDielectric=F for VDL model
 !IF(.NOT.DoDielectric) RETURN

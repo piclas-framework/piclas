@@ -880,6 +880,16 @@ IF (nSpecAnalyze.GT.1) THEN
         END IF != usevMPF
       ELSE ! partV2 > RelativisticLimit
         GammaFac = partV2*c2_inv
+#if USE_DEBUG
+        IF(GammaFac.GE.1.0) THEN
+          IPWRITE(*,*) "Particle is faster than the speed of light"
+          IPWRITE(*,*) "i,PDM%ParticleVecLength = ", i,PDM%ParticleVecLength
+          IPWRITE(*,*) "localElemID             = ", ElemID
+          IPWRITE(*,*) "v=PartState(4:6,i)      = ", PartState(4:6,i)
+          IPWRITE(*,*) "v/c                     = ", SQRT(GammaFac)
+          CALL abort(__STAMP__,'Error in CalcKineticEnergy(): GammaFac =',RealInfoOpt=GammaFac)
+        END IF
+#endif /*USE_DEBUG*/
         GammaFac = 1./SQRT(1.-GammaFac)
         Ekin_loc = (GammaFac-1.) * Species(PartSpecies(i))%MassIC * c2
         IF(usevMPF.OR.RadialWeighting%DoRadialWeighting) THEN
@@ -918,6 +928,16 @@ ELSE ! nSpecAnalyze = 1 : only 1 species
         END IF ! usevMPF
       ELSE ! partV2 > RelativisticLimit
         GammaFac = partV2*c2_inv
+#if USE_DEBUG
+        IF(GammaFac.GE.1.0) THEN
+          IPWRITE(*,*) "Particle is faster than the speed of light"
+          IPWRITE(*,*) "i,PDM%ParticleVecLength = ", i,PDM%ParticleVecLength
+          IPWRITE(*,*) "localElemID             = ", ElemID
+          IPWRITE(*,*) "v=PartState(4:6,i)      = ", PartState(4:6,i)
+          IPWRITE(*,*) "v/c                     = ", SQRT(GammaFac)
+          CALL abort(__STAMP__,'Error in CalcKineticEnergy(): GammaFac =',RealInfoOpt=GammaFac)
+        END IF
+#endif /*USE_DEBUG*/
         GammaFac = 1./SQRT(1.-GammaFac)
         Ekin_loc = (GammaFac-1.) * Species(PartSpecies(i))%MassIC * c2
         IF(usevMPF.OR.RadialWeighting%DoRadialWeighting)THEN

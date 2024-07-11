@@ -578,8 +578,8 @@ IMPLICIT NONE
 ! INPUT VARIABLES
 INTEGER,INTENT(IN)              :: nVar
 INTEGER,INTENT(IN)              :: locSideID
+INTEGER,INTENT(IN)              :: Nloc
 REAL,INTENT(IN)                 :: Uvol(1:nVar,0:Nloc,0:Nloc,0:Nloc)
-INTEGER,INTENT(IN)               :: Nloc
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 REAL,INTENT(OUT)                :: Uface(1:nVar,0:Nloc,0:Nloc)

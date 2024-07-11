@@ -28,15 +28,15 @@ INTEGER          :: NGeo                        !< polynomial degree of geometri
 INTEGER          :: NGeoRef                     !< polynomial degree of geometric transformation
 INTEGER          :: NGeoElevated                !< polynomial degree of elevated geometric transformation
 REAL,ALLOCATABLE :: Xi_NGeo(:)                  !< 1D equidistant point positions for curved elements (during readin)
-REAL,ALLOCATABLE :: Vdm_EQ_N(:,:)               !< Vandermonde mapping from equidistant (visu) to NodeType node set
-REAL,ALLOCATABLE :: Vdm_N_EQ(:,:)               !< Vandermonde mapping from NodeType to equidistant (visu) node set
-REAL,ALLOCATABLE :: Vdm_N_GL(:,:)               !< Vandermonde mapping from NodeType to Gauss-Lobatto (analyze) node set
+!REAL,ALLOCATABLE :: Vdm_EQ_N(:,:)               !< Vandermonde mapping from equidistant (visu) to NodeType node set
+!REAL,ALLOCATABLE :: Vdm_N_EQ(:,:)               !< Vandermonde mapping from NodeType to equidistant (visu) node set
+!REAL,ALLOCATABLE :: Vdm_N_GL(:,:)               !< Vandermonde mapping from NodeType to Gauss-Lobatto (analyze) node set
 ! check if these arrays are still used
-REAL,ALLOCATABLE :: Vdm_CLN_GaussN(:,:)
-REAL,ALLOCATABLE :: Vdm_CLNGeo_CLN(:,:)
-REAL,ALLOCATABLE :: Vdm_NGeo_CLNGeo(:,:)
-REAL,ALLOCATABLE :: DCL_NGeo(:,:)
-REAL,ALLOCATABLE :: DCL_N(:,:)
+!REAL,ALLOCATABLE :: Vdm_CLN_GaussN(:,:)
+!REAL,ALLOCATABLE :: Vdm_CLNGeo_CLN(:,:)
+!REAL,ALLOCATABLE :: Vdm_NGeo_CLNGeo(:,:)
+!REAL,ALLOCATABLE :: DCL_NGeo(:,:)
+!REAL,ALLOCATABLE :: DCL_N(:,:)
 
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! GLOBAL VARIABLES
@@ -72,19 +72,30 @@ TYPE, PUBLIC :: VolMesh
   !-----------------------------------------------------------------------------------------------------------------------------------
   ! Metrics on GaussPoints
   !-----------------------------------------------------------------------------------------------------------------------------------
-  REAL,ALLOCATABLE :: dXCL_N(:,:,:,:,:)    !< Jacobi matrix of the mapping P\in NGeo
+  REAL,ALLOCATABLE :: XCL_N(:,:,:,:)          !< mapping X(xi) P\in N
   REAL,ALLOCATABLE :: Metrics_fTilde(:,:,:,:) !< Metric Terms (first indices 3) on each GaussPoint
   REAL,ALLOCATABLE :: Metrics_gTilde(:,:,:,:)
   REAL,ALLOCATABLE :: Metrics_hTilde(:,:,:,:)
   REAL,ALLOCATABLE :: chitens(:,:,:,:,:)
-  REAL,ALLOCATABLE :: sJ(:,:,:)     !< 1/DetJac for each Gauss Point
+  REAL,ALLOCATABLE :: sJ(:,:,:)               !< 1/DetJac for each Gauss Point
 
 END TYPE VolMesh
 
 TYPE(VolMesh),ALLOCATABLE,TARGET  :: N_VolMesh(:) !< Array to store Mesh metrics object "VolMesh"
 
 
-TYPE(VolMesh),POINTER  :: N_VolMesh_Shared(:) !< Array to store Mesh metrics object "VolMesh"
+TYPE, PUBLIC :: VolMesh2
+  !-----------------------------------------------------------------------------------------------------------------------------------
+  ! Metrics on GaussPoints
+  !-----------------------------------------------------------------------------------------------------------------------------------
+  REAL,ALLOCATABLE :: dXCL_N(:,:,:,:,:)       !< Jacobi matrix of the mapping P\in NGeo
+  REAL,ALLOCATABLE :: JaCL_N(:,:,:,:,:)       !< metric terms P\in N
+END TYPE VolMesh2
+
+TYPE(VolMesh2),ALLOCATABLE,TARGET  :: N_VolMesh2(:) !< Array to store Mesh metrics object "VolMesh"
+
+
+!TYPE(VolMesh),POINTER  :: N_VolMesh_Shared(:) !< Array to store Mesh metrics object "VolMesh"
 
 TYPE, PUBLIC :: SurfMesh
   !-----------------------------------------------------------------------------------------------------------------------------------
@@ -99,7 +110,7 @@ TYPE, PUBLIC :: SurfMesh
   REAL,ALLOCATABLE :: TangVec1(:,:,:)  !< tangential vector 1 for each side (1:3,0:N,0:N,nSides)
   REAL,ALLOCATABLE :: TangVec2(:,:,:)  !< tangential vector 3 for each side (1:3,0:N,0:N,nSides)
   REAL,ALLOCATABLE :: SurfElem(:,:)    !< surface area for each side        (    0:N,0:N,nSides)
-  REAL,ALLOCATABLE :: SurfElemMin(:,:)    !< surface area for each side        (    0:N,0:N,nSides)
+  REAL,ALLOCATABLE :: SurfElemMin(:,:) !< surface area for each side        (    0:N,0:N,nSides)
 
   INTEGER          :: NSideMin
 
@@ -107,11 +118,7 @@ END TYPE SurfMesh
 
 TYPE(SurfMesh),ALLOCATABLE  :: N_SurfMesh(:)        !< Array to store Mesh metrics object "SurfMesh"
 
-
-
-
 REAL,ALLOCATABLE :: detJac_Ref(:,:,:,:,:)  !< determinant of the mesh Jacobian for each Gauss point at degree 3*NGeo
-
 
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! PIC - for Newton localisation of particles in curved Elements

@@ -60,16 +60,16 @@ USE MOD_ReadInTools ,ONLY: prms,addStrListEntry
 IMPLICIT NONE
 !==================================================================================================================================
 CALL prms%SetSection("Mesh")
-CALL prms%CreateStringOption(       'MeshFile'            , "(relative) path to meshfile (mandatory)\n(HALOWIKI:) usually located in directory of project.ini")
-CALL prms%CreateLogicalOption(      'useCurveds'          , "Controls usage of high-order information in mesh. Turn off to discard high-order data and treat curved meshes as linear meshes."    , '.FALSE.')
-CALL prms%CreateRealOption(         'meshScale'           , "Scale the mesh by this factor (shrink/enlarge)."                                                                                    , '1.0')
-CALL prms%CreateLogicalOption(      'meshdeform'          , "Apply simple sine-shaped deformation on cartesion mesh (for testing)."                                                              , '.FALSE.')
-CALL prms%CreateLogicalOption(      'meshCheckRef'        , "Flag if the mesh Jacobians should be checked in the reference system in addition to the computational system."                      , '.TRUE.')
-CALL prms%CreateLogicalOption(      'CalcMeshInfo'        , 'Calculate and output elem data for myrank, ElemID and tracking info to ElemData'                                                    , '.FALSE.')
-CALL prms%CreateLogicalOption(      'crossProductMetrics' , "Compute mesh metrics using cross product form. Caution: in this case free-stream preservation is only guaranteed for N=3*NGeo."     , '.FALSE.')
-CALL prms%CreateStringOption(       'BoundaryName'        , "Names of boundary conditions to be set (must be present in the mesh!). For each BoundaryName a BoundaryType needs to be specified." , multiple=.TRUE.)
-CALL prms%CreateIntArrayOption(     'BoundaryType'        , "Type of boundary conditions to be set. Format: (BC_TYPE, BC_STATE)"                                                                 , multiple=.TRUE. , no=2)
-CALL prms%CreateLogicalOption(      'writePartitionInfo'  , "Write information about MPI partitions into a file."                                                                                , '.FALSE.')
+CALL prms%CreateStringOption(  'MeshFile'            , "(relative) path to meshfile (mandatory)\n(HALOWIKI:) usually located in directory of project.ini")
+CALL prms%CreateLogicalOption( 'useCurveds'          , "Controls usage of high-order information in mesh. Turn off to discard high-order data and treat curved meshes as linear meshes."    , '.FALSE.')
+CALL prms%CreateRealOption(    'meshScale'           , "Scale the mesh by this factor (shrink/enlarge)."                                                                                    , '1.0')
+CALL prms%CreateLogicalOption( 'meshdeform'          , "Apply simple sine-shaped deformation on cartesion mesh (for testing)."                                                              , '.FALSE.')
+CALL prms%CreateLogicalOption( 'meshCheckRef'        , "Flag if the mesh Jacobians should be checked in the reference system in addition to the computational system."                      , '.TRUE.')
+CALL prms%CreateLogicalOption( 'CalcMeshInfo'        , 'Calculate and output elem data for myrank, ElemID and tracking info to ElemData'                                                    , '.FALSE.')
+CALL prms%CreateLogicalOption( 'crossProductMetrics' , "Compute mesh metrics using cross product form. Caution: in this case free-stream preservation is only guaranteed for N=3*NGeo."     , '.FALSE.')
+CALL prms%CreateStringOption(  'BoundaryName'        , "Names of boundary conditions to be set (must be present in the mesh!). For each BoundaryName a BoundaryType needs to be specified." , multiple=.TRUE.)
+CALL prms%CreateIntArrayOption('BoundaryType'        , "Type of boundary conditions to be set. Format: (BC_TYPE, BC_STATE)"                                                                 , multiple=.TRUE. , no=2)
+CALL prms%CreateLogicalOption( 'writePartitionInfo'  , "Write information about MPI partitions into a file."                                                                                , '.FALSE.')
 
 ! p-adaption
 CALL prms%CreateIntFromStringOption('pAdaptionType', "Type/Method for initial polynomial degree distribution among the elements: \n"//&
@@ -101,13 +101,14 @@ USE MOD_Globals
 USE MOD_Globals_Vars           ,ONLY: PI
 USE MOD_PreProc
 USE MOD_Analyze_Vars           ,ONLY: CalcMeshInfo
+USE MOD_ChangeBasis            ,ONLY: ChangeBasis3D
 USE MOD_HDF5_Input
 USE MOD_Interpolation_Vars     ,ONLY: InterpolationInitIsDone,Nmin,Nmax
 USE MOD_IO_HDF5                ,ONLY: AddToElemData,ElementOut
 USE MOD_Mappings               ,ONLY: InitMappings
 USE MOD_Mesh_Vars
 USE MOD_Mesh_ReadIn            ,ONLY: ReadMesh
-USE MOD_Metrics                ,ONLY: BuildElem_xGP,CalcMetrics
+USE MOD_Metrics                ,ONLY: BuildElem_xGP,CalcMetrics,CalcSurfMetrics
 USE MOD_Prepare_Mesh           ,ONLY: setLocalSideIDs,fillMeshInfo
 USE MOD_ReadInTools            ,ONLY: PrintOption
 USE MOD_ReadInTools            ,ONLY: GETLOGICAL,GETSTR,GETREAL,GETINT,GETREALARRAY
@@ -120,6 +121,7 @@ USE MOD_Prepare_Mesh           ,ONLY: exchangeFlip
 USE MOD_MPI_Shared
 #endif
 #if USE_LOADBALANCE
+USE MOD_LoadBalance_Metrics    ,ONLY: ExchangeVolMesh,ExchangeMetrics
 USE MOD_LoadBalance_Vars       ,ONLY: DoLoadBalance,PerformLoadBalance,UseH5IOLoadBalance
 USE MOD_Output_Vars            ,ONLY: DoWriteStateToHDF5
 USE MOD_Restart_Vars           ,ONLY: DoInitialAutoRestart
@@ -135,6 +137,7 @@ USE MOD_DG_Vars                ,ONLY: N_DG_Mapping,DG_Elems_master,DG_Elems_slav
 USE MOD_Particle_Mesh_Vars     ,ONLY: meshScale
 USE MOD_Mesh_Vars              ,ONLY: firstMortarInnerSide,lastMortarInnerSide
 ! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
 ! INPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT/OUTPUT VARIABLES
@@ -182,9 +185,15 @@ IF (PRESENT(MeshFile_IN)) THEN
 ELSE
   MeshFile = GETSTR('MeshFile')
 END IF
-validMesh = ISVALIDMESHFILE(MeshFile)
-IF(.NOT.validMesh) &
-    CALL CollectiveStop(__STAMP__,'ERROR - Mesh file ['//TRIM(MeshFile)//'] is not a valid HDF5 mesh.')
+
+#if USE_LOADBALANCE
+IF (.NOT.PerformLoadBalance) THEN
+#endif /*USE_LOADBALANCE*/
+  validMesh = ISVALIDMESHFILE(MeshFile)
+  IF(.NOT.validMesh) CALL CollectiveStop(__STAMP__,'ERROR - Mesh file not a valid HDF5 mesh.')
+#if USE_LOADBALANCE
+END IF
+#endif /*USE_LOADBALANCE*/
 
 
 useCurveds=GETLOGICAL('useCurveds')
@@ -210,7 +219,7 @@ IF(useCurveds)THEN
   END IF
 ELSE
   IF(NGeo.GT.1) THEN
-    LBWRITE(*,*) ' WARNING: Using linear elements although NGeo>1! NGeo will be set to 1 after coordinates read-in!'
+    LBWRITE(UNIT_stdOut,'(A)') ' WARNING: Using linear elements although NGeo>1! NGeo will be set to 1 after coordinates read-in!'
   END IF
 END IF
 
@@ -270,7 +279,7 @@ IF (ABS(meshMode).GT.0) THEN
   BC          = 0
   AnalyzeSide = 0
 
-! fill output definition for InnerBCs
+  ! fill output definition for InnerBCs
 #if defined(PARTICLES) || USE_HDG
   ALLOCATE(GlobalUniqueSideID(1:nSides))
   GlobalUniqueSideID(:)=-1
@@ -301,28 +310,77 @@ END IF ! meshMode.GT.0
 
 CALL InitpAdaption() ! Calls Build_N_DG_Mapping() which builds N_DG_Mapping()
 
-! Build Elem_xGP
-ALLOCATE(N_VolMesh(1:nElems))
-CALL BuildElem_xGP(NodeCoords) ! Builds N_VolMesh(iElem)%Elem_xGP, requires N_DG_Mapping() for Nloc
+#if USE_LOADBALANCE
+IF (PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance)) THEN
+!IF (PerformLoadBalance) THEN
+  CALL ExchangeVolMesh() !  Allocates N_VolMesh(1:nElems) after communication of Elem_xGP
+ELSE
+  ! Build the coordinates of the solution gauss points in the volume
+#endif /*USE_LOADBALANCE*/
+  ! Build Elem_xGP
+  ALLOCATE(N_VolMesh(1:nElems))
+  ALLOCATE(N_VolMesh2(1:nElems))
+  CALL BuildElem_xGP(NodeCoords) ! Builds N_VolMesh(iElem)%Elem_xGP, requires N_DG_Mapping() for Nloc
+#if USE_LOADBALANCE
+END IF
+#endif /*USE_LOADBALANCE*/
 
 CALL DG_ProlongDGElemsToFace() ! Builds DG_Elems_master and ,DG_Elems_slave, requires SideToElem()
 
+! ----- CONNECTIVITY IS NOW COMPLETE AT THIS POINT -----
+
 IF (ABS(meshMode).GT.1) THEN
+#if USE_LOADBALANCE
+  IF (PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance)) THEN
+  !IF (PerformLoadBalance) THEN
+    ! Shift metric arrays during load balance
+    CALL ExchangeMetrics()
+  ELSE
+#endif /*USE_LOADBALANCE*/
 
-  ! ----- CONNECTIVITY IS NOW COMPLETE AT THIS POINT -----
+    NGeoRef=3*NGeo ! build jacobian at higher degree
+    ALLOCATE(    DetJac_Ref(1,0:NgeoRef,0:NgeoRef,0:NgeoRef,nElems))
 
-  NGeoRef=3*NGeo ! build jacobian at higher degree
-  ALLOCATE(    DetJac_Ref(1,0:NgeoRef,0:NgeoRef,0:NgeoRef,nElems))
+    ! volume data
+    DO iElem = 1, nElems
+      Nloc = N_DG_Mapping(2,iElem+offSetElem)
+      ALLOCATE(N_VolMesh(iElem)%XCL_N(       3,  0:Nloc,0:Nloc,0:Nloc))
+      ALLOCATE(N_VolMesh(iElem)%Metrics_fTilde(3,0:Nloc,0:Nloc,0:Nloc))
+      ALLOCATE(N_VolMesh(iElem)%Metrics_gTilde(3,0:Nloc,0:Nloc,0:Nloc))
+      ALLOCATE(N_VolMesh(iElem)%Metrics_hTilde(3,0:Nloc,0:Nloc,0:Nloc))
+      ALLOCATE(N_VolMesh(iElem)%sJ            (  0:Nloc,0:Nloc,0:Nloc))
+    END DO ! iElem = 1, nElems
 
-  ! volume data
-  DO iElem = 1, nElems
-    Nloc = N_DG_Mapping(2,iElem+offSetElem)
-    ALLOCATE(N_VolMesh(iElem)%dXCL_N(      3,3,0:Nloc,0:Nloc,0:Nloc))
-    ALLOCATE(N_VolMesh(iElem)%Metrics_fTilde(3,0:Nloc,0:Nloc,0:Nloc))
-    ALLOCATE(N_VolMesh(iElem)%Metrics_gTilde(3,0:Nloc,0:Nloc,0:Nloc))
-    ALLOCATE(N_VolMesh(iElem)%Metrics_hTilde(3,0:Nloc,0:Nloc,0:Nloc))
-    ALLOCATE(N_VolMesh(iElem)%sJ            (  0:Nloc,0:Nloc,0:Nloc))
-  END DO ! iElem = 1, nElems
+    ! volume data
+    DO iElem = 1, nElems
+      Nloc = N_DG_Mapping(2,iElem+offSetElem)
+      ALLOCATE(N_VolMesh2(iElem)%dXCL_N(     3,3,0:Nloc,0:Nloc,0:Nloc))
+      ALLOCATE(N_VolMesh2(iElem)%JaCL_N(     3,3,0:Nloc,0:Nloc,0:Nloc))
+    END DO ! iElem = 1, nElems
+
+    ! assign all metrics Metrics_fTilde,Metrics_gTilde,Metrics_hTilde
+    ! assign 1/detJ (sJ)
+    ! assign normal and tangential vectors and surfElems on faces
+
+    crossProductMetrics=GETLOGICAL('crossProductMetrics','.FALSE.')
+    LBWRITE(UNIT_stdOut,'(A)') "NOW CALLING calcMetrics..."
+
+    ! get XCL_NGeo
+    ALLOCATE(XCL_NGeo(1:3,0:NGeo,0:NGeo,0:NGeo,1:nElems))
+    XCL_NGeo = 0.
+#if defined(PARTICLES)
+    ALLOCATE(dXCL_NGeo(1:3,1:3,0:NGeo,0:NGeo,0:NGeo,1:nElems))
+    dXCL_NGeo = 0.
+#endif /*defined(PARTICLES)*/
+
+#ifdef PARTICLES
+    CALL CalcMetrics(XCL_NGeo_Out=XCL_NGeo,dXCL_NGeo_Out=dXCL_NGeo)
+#else
+    CALL CalcMetrics(XCL_NGeo_Out=XCL_NGeo)
+#endif
+#if USE_LOADBALANCE
+  END IF
+#endif /*USE_LOADBALANCE*/
 
   ! surface data
   ALLOCATE(N_SurfMesh(1:nSides))
@@ -365,26 +423,10 @@ IF (ABS(meshMode).GT.1) THEN
   END DO !MortarSideID
 #endif /*USE_HDG*/
 
-! assign all metrics Metrics_fTilde,Metrics_gTilde,Metrics_hTilde
-! assign 1/detJ (sJ)
-! assign normal and tangential vectors and surfElems on faces
-
-  crossProductMetrics=GETLOGICAL('crossProductMetrics','.FALSE.')
-  LBWRITE(UNIT_stdOut,'(A)') "NOW CALLING calcMetrics..."
-
-  ! get XCL_NGeo
-  ALLOCATE(XCL_NGeo(1:3,0:NGeo,0:NGeo,0:NGeo,1:nElems))
-  XCL_NGeo = 0.
-#if defined(PARTICLES)
-  ALLOCATE(dXCL_NGeo(1:3,1:3,0:NGeo,0:NGeo,0:NGeo,1:nElems))
-  dXCL_NGeo = 0.
-#endif /*defined(PARTICLES)*/
-
-#ifdef PARTICLES
-  CALL CalcMetrics(XCL_NGeo_Out=XCL_NGeo, dXCL_NGeo_Out=dXCL_NGeo)
-#else
-  CALL CalcMetrics(XCL_NGeo_Out=XCL_NGeo)
-#endif
+  ! Due to possible load balance, this is done outside of CalcMetrics() now
+  DO iElem = 1, nElems
+    CALL CalcSurfMetrics(iElem)
+  END DO ! iElem = 1, nElems
 
 #if defined(PARTICLES) || USE_HDG
   ! Compute element bary and element radius for processor-local elements (without halo region)
@@ -916,7 +958,7 @@ SUBROUTINE InitElemVolumes()
 !===================================================================================================================================
 ! MODULES
 USE MOD_PreProc
-USE MOD_Globals            ,ONLY: UNIT_StdOut
+USE MOD_Globals            ,ONLY: UNIT_StdOut,abort
 USE MOD_Interpolation_Vars ,ONLY: N_Inter
 USE MOD_DG_Vars            ,ONLY: N_DG_Mapping
 USE MOD_Mesh_Vars          ,ONLY: nElems,N_VolMesh, offSetElem
@@ -958,6 +1000,8 @@ REAL                            :: CNVolume                       ! Total CN vol
 !===================================================================================================================================
 LBWRITE(UNIT_StdOut,'(132("-"))')
 LBWRITE(UNIT_stdOut,'(A)') ' INIT ELEMENT GEOMETRY INFORMATION ...'
+! Sanity check
+IF(.NOT.ALLOCATED(N_Inter)) CALL abort(__STAMP__,'Error in InitElemVolumes(): N_Inter is not allocated')
 
 #if USE_MPI && defined(PARTICLES)
 ! J_N is only built for local DG elements. Therefore, array is only filled for elements on the same compute node
@@ -1129,7 +1173,7 @@ SUBROUTINE FinalizeMesh()
 USE MOD_Globals
 USE MOD_Mesh_Vars
 #if defined(PARTICLES) && USE_LOADBALANCE
-USE MOD_LoadBalance_Vars ,ONLY: PerformLoadBalance
+USE MOD_LoadBalance_Vars     ,ONLY: PerformLoadBalance,UseH5IOLoadBalance
 #endif /*defined(PARTICLES) && USE_LOADBALANCE*/
 USE MOD_DG_Vars          ,ONLY: DG_Elems_master,DG_Elems_slave, N_DG_Mapping_Shared, N_DG
 #if USE_MPI
@@ -1153,16 +1197,6 @@ IMPLICIT NONE
 !============================================================================================================================
 ! Deallocate global variables, needs to go somewhere else later
 SDEALLOCATE(ElemInfo)
-! geometry information and VDMS
-SDEALLOCATE(Xi_NGeo)
-SDEALLOCATE(DCL_N)
-SDEALLOCATE(DCL_NGeo)
-SDEALLOCATE(VdM_CLN_GaussN)
-SDEALLOCATE(Vdm_CLNGeo_CLN)
-SDEALLOCATE(Vdm_NGeo_CLNgeo)
-SDEALLOCATE(Vdm_EQ_N)
-SDEALLOCATE(Vdm_N_EQ)
-SDEALLOCATE(Vdm_N_GL)
 ! mapping from elems to sides and vice-versa
 SDEALLOCATE(ElemToSide)
 SDEALLOCATE(AnalyzeSide)
@@ -1176,10 +1210,6 @@ SDEALLOCATE(GlobalUniqueSideID)
 !#endif
 !#endif
 SDEALLOCATE(ElemToElemGlob)
-SDEALLOCATE(XCL_NGeo)
-SDEALLOCATE(dXCL_NGeo)
-SDEALLOCATE(wbaryCL_NGeo)
-SDEALLOCATE(XiCL_NGeo)
 ! mortars
 SDEALLOCATE(MortarType)
 SDEALLOCATE(MortarInfo)
@@ -1198,7 +1228,6 @@ SDEALLOCATE(LostRotPeriodicSides)
 SDEALLOCATE(SideToNonUniqueGlobalSide)
 
 ! p-adaption
-SDEALLOCATE(N_VolMesh)
 SDEALLOCATE(DG_Elems_master)
 SDEALLOCATE(DG_Elems_slave)
 SDEALLOCATE(n_surfmesh)
@@ -1229,13 +1258,37 @@ END IF
 #endif /*USE_MPI*/
 
 SDEALLOCATE(N_DG)
+SDEALLOCATE(Xi_NGeo)
 
+! Arrays are being shifted along load balancing, so they need to be kept allocated
 #if defined(PARTICLES) && USE_LOADBALANCE
-IF (PerformLoadBalance) RETURN
+IF (PerformLoadBalance .AND. .NOT.UseH5IOLoadBalance) RETURN
+!IF (PerformLoadBalance) RETURN
 #endif /*defined(PARTICLES) && USE_LOADBALANCE*/
+
+! geometry information and VDMS
+!SDEALLOCATE(DCL_N)
+!SDEALLOCATE(DCL_NGeo)
+!SDEALLOCATE(Vdm_CLN_GaussN)
+
+!SDEALLOCATE(Vdm_CLNGeo_CLN)
+!SDEALLOCATE(Vdm_NGeo_CLNGeo)
+
+SDEALLOCATE(XiCL_NGeo)
+SDEALLOCATE(wBaryCL_NGeo)
+! particle input/output
+!SDEALLOCATE(Vdm_EQ_N)
+!SDEALLOCATE(Vdm_N_EQ)
+!SDEALLOCATE(Vdm_N_GL)
 ! BCS
 SDEALLOCATE(BoundaryName)
 SDEALLOCATE(BoundaryType)
+! elem-xgp and metrics
+SDEALLOCATE(XCL_NGeo)  ! MPI communication during LB in ExchangeMetrics()
+SDEALLOCATE(dXCL_NGeo) ! MPI communication during LB in ExchangeMetrics()
+! VolMesh
+SDEALLOCATE(N_VolMesh)  ! MPI communication during LB in ExchangeVolMesh()
+SDEALLOCATE(N_VolMesh2) ! MPI communication during LB in ExchangeMetrics()
 
 END SUBROUTINE FinalizeMesh
 

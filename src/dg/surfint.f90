@@ -134,10 +134,10 @@ USE MOD_PreProc
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
+INTEGER,INTENT(IN) :: Nloc
 REAL,INTENT(INOUT) :: Ut(1:PP_nVar,0:Nloc,0:Nloc,0:Nloc)
 REAL,INTENT(IN)    :: L_hatMinus(0:Nloc)
 REAL,INTENT(IN)    :: L_hatPlus(0:Nloc)
-INTEGER,INTENT(IN) :: Nloc
 REAL,INTENT(IN)    :: Flux(1:PP_nVar,0:Nloc,0:Nloc)
 INTEGER,INTENT(IN) :: flip,ElemID,locSideID!,SideID
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -486,11 +486,11 @@ USE MOD_DG_Vars  ,ONLY: U_N
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
+INTEGER,INTENT(IN) :: Nloc
 REAL,INTENT(INOUT) :: Ut(1:PP_nVar,0:Nloc,0:Nloc,0:Nloc)
 REAL,INTENT(INOUT) :: U2t(1:PMLnVar,0:Nloc,0:Nloc,0:Nloc)
 REAL,INTENT(IN)    :: L_hatMinus(0:Nloc)
 REAL,INTENT(IN)    :: L_hatPlus(0:Nloc)
-INTEGER,INTENT(IN) :: Nloc
 REAL,INTENT(IN)    :: Flux(1:PP_nVar+PMLnVar,0:Nloc,0:Nloc)
 INTEGER,INTENT(IN) :: flip,ElemID,locSideID
 !-----------------------------------------------------------------------------------------------------------------------------------

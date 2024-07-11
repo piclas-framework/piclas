@@ -543,6 +543,9 @@ SUBROUTINE FinalizeInterpolation(IsLoadBalance)
 ! MODULES
 USE MOD_Globals
 USE MOD_Interpolation_Vars
+#if USE_LOADBALANCE
+USE MOD_LoadBalance_Vars ,ONLY: PerformLoadBalance,UseH5IOLoadBalance
+#endif /*USE_LOADBALANCE*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------
@@ -553,6 +556,16 @@ LOGICAL,INTENT(IN),OPTIONAL :: IsLoadBalance
 !----------------------------------------------------------------------------------------------------------------------------
 !local variables
 !============================================================================================================================
+
+IF(PRESENT(IsLoadBalance)&
+#if USE_LOADBALANCE
+    .AND.(.NOT.UseH5IOLoadBalance)&
+#endif /*USE_LOADBALANCE*/
+        )THEN
+!IF(PRESENT(IsLoadBalance))THEN
+  IF(IsLoadBalance) RETURN
+END IF ! PRESENT(IsLoadBalance)
+
 SDEALLOCATE(NInfo)
 
 IF(PRESENT(IsLoadBalance))THEN

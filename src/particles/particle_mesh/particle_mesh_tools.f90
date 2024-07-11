@@ -1492,10 +1492,10 @@ IF (PerformLoadBalance) RETURN
 ! This is a trick. Allocate as 1D array and then set a pointer with the proper array bounds
 CALL Allocate_Shared((/3*  (NGeo+1)*(NGeo+1)*(NGeo+1)*nGlobalElems/), XCL_NGeo_Shared_Win,XCL_NGeo_Array)
 CALL MPI_WIN_LOCK_ALL(0,XCL_NGeo_Shared_Win,IERROR)
-XCL_NGeo_Shared (1:3    ,0:NGeo,0:NGeo,0:NGeo,1:nGlobalElems) => XCL_NGeo_Array
+XCL_NGeo_Shared(1:3,0:NGeo,0:NGeo,0:NGeo,1:nGlobalElems) => XCL_NGeo_Array
 
 DO iElem = 1,nElems
-  XCL_NGeo_Shared (:  ,:,:,:,offsetElem+iElem) = XCL_NGeo (:  ,:,:,:,iElem)
+  XCL_NGeo_Shared(:,:,:,:,offsetElem+iElem) = XCL_NGeo(:,:,:,:,iElem)
 END DO ! iElem = 1, nElems
 
 ! Communicate XCL and dXCL between compute node roots instead of calculating globally
@@ -1532,13 +1532,14 @@ USE MOD_PreProc
 USE MOD_Mesh_Vars              ,ONLY: N_VolMesh
 USE MOD_Mesh_Vars              ,ONLY: dXCL_NGeo
 USE MOD_Particle_Mesh_Vars
-#if USE_MPI
+USE MOD_DG_Vars                ,ONLY: nDofsMapping, N_DG_Mapping
 USE MOD_Mesh_Vars              ,ONLY: NGeo,nGlobalElems,offsetElem,nElems
+#if USE_MPI
 USE MOD_MPI_Shared
 USE MOD_MPI_Shared_Vars
 USE MOD_DG_Vars                ,ONLY: nDofsMapping, N_DG_Mapping, recvcountDofs, displsDofs
-#else
-USE MOD_Mesh_Vars              ,ONLY: N_VolMesh_Shared
+!#else
+!USE MOD_Mesh_Vars              ,ONLY: N_VolMesh_Shared
 #endif
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Vars       ,ONLY: PerformLoadBalance
@@ -1548,9 +1549,9 @@ IMPLICIT NONE
 ! INPUT / OUTPUT VARIABLES
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! LOCAL VARIABLES
-#if USE_MPI
+!#if USE_MPI
 INTEGER                        :: iElem, Nloc, i,j,k,r, offSetDof
-#endif /*USE_MPI*/
+!#endif /*USE_MPI*/
 !===================================================================================================================================
 
 #if USE_LOADBALANCE
@@ -1574,7 +1575,7 @@ DO iElem = 1,nElems
     DO j=0,Nloc
       DO i=0,Nloc
         r=k*(Nloc+1)**2+j*(Nloc+1) + i+1
-        Elem_xGP_Shared (:  ,r+offSetDof) = N_VolMesh(iElem)%Elem_xGP (:  ,i,j,k)
+        Elem_xGP_Shared (:,r+offSetDof) = N_VolMesh(iElem)%Elem_xGP (:,i,j,k)
       END DO
     END DO
   END DO  
@@ -1611,7 +1612,20 @@ END IF
 CALL BARRIER_AND_SYNC(Elem_xGP_Shared_Win ,MPI_COMM_SHARED)
 CALL BARRIER_AND_SYNC(dXCL_NGeo_Shared_Win,MPI_COMM_SHARED)
 #else
-N_VolMesh_Shared => N_VolMesh
+ALLOCATE(Elem_xGP_Array(3*nDofsMapping))
+Elem_xGP_Shared(1:3,1:nDofsMapping) => Elem_xGP_Array
+DO iElem = 1,nElems
+  Nloc = N_DG_Mapping(2,iElem+offSetElem)
+  offSetDof = N_DG_Mapping(1,iElem+offSetElem)
+  DO k=0,Nloc
+    DO j=0,Nloc
+      DO i=0,Nloc
+        r=k*(Nloc+1)**2+j*(Nloc+1) + i+1
+        Elem_xGP_Shared(:,r+offSetDof) = N_VolMesh(iElem)%Elem_xGP(:,i,j,k)
+      END DO
+    END DO
+  END DO
+END DO ! iElem = 1, nElems
 dXCL_NGeo_Shared => dXCL_NGeo
 #endif /*USE_MPI*/
 

@@ -387,17 +387,6 @@ FILE(GLOB_RECURSE hdgF90 ./src/hdg/*.f90
                          ./src/equations/${PICLAS_EQNSYSNAME}/timeavg_vars.f90
                          ./src/equations/${PICLAS_EQNSYSNAME}/getboundaryflux.f90)
 
-
-FILE(GLOB_RECURSE precondF90 ./src/precond/precond.f90
-                              ./src/precond/precond_vars.f90
-                              ./src/precond/applypreconditioner.f90
-                              ./src/linearsolver/linearoperator/sparse_ilu.f90
-                              ./src/precond/csr/*.f90
-                              ./src/precond/ilu/*.f90
-                              ./src/precond/jacdg/*.f90
-                              ./src/precond/jac_fd/*.f90
-                              ./src/precond/jac_ex/maxwell/*.f90)
-
 #FILE(GLOB mainF90 ./src/piclas.f90
                   #./src/piclaslib.f90)
 FILE(GLOB_RECURSE particlesF90 ./src/particles/*.f90

@@ -795,6 +795,8 @@ SELECT CASE (TrackingMethod)
 #if USE_LOADBALANCE
     END IF !PerformLoadBalance
 #endif /*USE_LOADBALANCE*/
+#else
+    ADEALLOCATE(Elem_xGP_Array)
 #endif /*USE_MPI*/
 
     ! Then, free the pointers or arrays

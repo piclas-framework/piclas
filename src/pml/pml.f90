@@ -220,7 +220,6 @@ LBWRITE(UNIT_StdOut,'(132("-"))')
 END SUBROUTINE InitPML
 
 
-
 PPURE SUBROUTINE PMLTimeRamping(t,RampingFactor)
 !===================================================================================================================================
 ! set the scaling factor which ramps the damping factor over time
@@ -294,10 +293,10 @@ SUBROUTINE PMLTimeDerivative()
 USE MOD_Globals
 USE MOD_PreProc
 USE MOD_DG_Vars       ,ONLY: U_N
-USE MOD_PML_Vars      ,ONLY: nPMLElems,PMLToElem,PMLnVar
+USE MOD_PML_Vars,      ONLY: nPMLElems,PMLToElem,PMLnVar
 USE MOD_PML_Vars      ,ONLY: PML,PMLTimeRamp
 USE MOD_Mesh_Vars     ,ONLY: N_VolMesh
-USE MOD_Equation_Vars ,ONLY: fDamping
+USE MOD_Equation_Vars, ONLY: fDamping
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -356,11 +355,11 @@ SUBROUTINE SetPMLdampingProfile()
 ! MODULES
 USE MOD_Globals
 USE MOD_PreProc
-USE MOD_Mesh      ,ONLY: GetMeshMinMaxBoundaries
+USE MOD_Mesh,          ONLY: GetMeshMinMaxBoundaries
 USE MOD_Mesh_Vars ,ONLY: N_VolMesh,xyzMinMax,offSetElem
 USE MOD_PML_Vars  ,ONLY: PML,usePMLMinMax,xyzPMLzetaShapeOrigin,xyzPMLMinMax
-USE MOD_PML_Vars  ,ONLY: nPMLElems,PMLToElem
-USE MOD_PML_Vars  ,ONLY: PMLzeta0,PMLalpha0,xyzPhysicalMinMax,PMLzetaShape
+USE MOD_PML_Vars,      ONLY: nPMLElems,PMLToElem
+USE MOD_PML_Vars,      ONLY: PMLzeta0,PMLalpha0,xyzPhysicalMinMax,PMLzetaShape
 USE MOD_DG_Vars   ,ONLY: N_DG_Mapping
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -449,19 +448,18 @@ ELSE ! use xyzPhysicalMinMax -> define the physical region
     iElem = PMLToElem(iPMLElem)
     Nloc  = N_DG_Mapping(2,iElem+offSetElem)
     DO k=0,Nloc; DO j=0,Nloc; DO i=0,Nloc
-      DO iDir=1,3 !1=x, 2=y, 3=z
+    DO iDir=1,3 !1=x, 2=y, 3=z
         IF          (N_VolMesh(iElem)%Elem_xGP(iDir,i,j,k) .LT.   xyzPhysicalMinMax(2*iDir-1)) THEN ! region is in lower part
           XiN = (ABS(N_VolMesh(iElem)%Elem_xGP(iDir,i,j,k)) - ABS(xyzPhysicalMinMax(2*iDir-1)))/&   ! of the domain
-                (ABS(xyzMinMax(2*iDir-1))                   - ABS(xyzPhysicalMinMax(2*iDir-1)))
+              (ABS(xyzMinMax(2*iDir-1))                      - ABS(xyzPhysicalMinMax(2*iDir-1)))
           PML(iPMLElem)%zeta(iDir,i,j,k) = PMLzeta0*fFuncType(XiN,PMLzetaShape)
         ELSEIF      (N_VolMesh(iElem)%Elem_xGP(iDir,i,j,k) .GT.   xyzPhysicalMinMax(2*iDir)) THEN ! region is in upper part
           XiN = (ABS(N_VolMesh(iElem)%Elem_xGP(iDir,i,j,k)) - ABS(xyzPhysicalMinMax(2*iDir)))/&   ! of the domain
-                (ABS(xyzMinMax(2*iDir))                     - ABS(xyzPhysicalMinMax(2*iDir)))
+              (ABS(xyzMinMax(2*iDir))                        - ABS(xyzPhysicalMinMax(2*iDir)))
           PML(iPMLElem)%zeta(iDir,i,j,k) = PMLzeta0*fFuncType(XiN,PMLzetaShape)
-        END IF
-      END DO
+      END IF
+    END DO
   END DO; END DO; END DO; END DO !iElem,k,j,i
-
 END IF ! usePMLMinMax
 ! ----------------------------------------------------------------------------------------------------------------------------------
 ! CFS-PML formulation: calculate zeta eff using the complex frequency shift PMLalpha

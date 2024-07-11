@@ -60,7 +60,7 @@ TYPE(pVDM),ALLOCATABLE             :: PREF_VDM(:,:)       !< Vandermonde matrice
 
 TYPE N_Type
   ! interpolation points and derivatives on CL N
-  REAL,ALLOCATABLE    :: XCL_N(:,  :,:,:)     ! mapping X(xi) P\in N
+  REAL,ALLOCATABLE    :: XCL_N(:,:,:,:)       ! mapping X(xi) P\in N
   REAL,ALLOCATABLE    :: R_CL_N(:,:,:,:,:)    ! buffer for metric terms, uses XCL_N,dXCL_N
   REAL,ALLOCATABLE    :: JaCL_N(:,:,:,:,:)    ! metric terms P\in N
   ! Jacobian on CL N and NGeoRef
