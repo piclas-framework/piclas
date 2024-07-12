@@ -750,6 +750,12 @@ NIG_PIC_poisson_Boris-Leapfrog:
   stage: reggie_nightly
   script:
     - cd build ; python ../reggie/reggie.py ../regressioncheck/NIG_PIC_poisson_Boris-Leapfrog/
+    
+NIG_PIC_poisson_Boris-Leapfrog_PETSC:
+  <<: *defaults_nightly
+  stage: reggie_nightly
+  script:
+    - cd build ; python ../reggie/reggie.py ../regressioncheck/NIG_PIC_poisson_Boris-Leapfrog_PETSC/
 
 NIG_PIC_poisson_Leapfrog_Release:
   <<: *defaults_nightly

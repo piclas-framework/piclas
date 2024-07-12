@@ -36,9 +36,7 @@ CONTAINS
 
 SUBROUTINE BuildMesh2DInfo()
 !===================================================================================================================================
-!> Routine determines a symmetry side and calculates the 2D (area faces in symmetry plane) and axisymmetric volumes (cells are
-!> revolved around the symmetry axis). The symmetry side will be used later on to determine in which two directions the quadtree
-!> shall refine the mesh, skipping the z-dimension to avoid an unnecessary refinement.
+!> Build the ElemSideNodeID and SideNormalEdge array for 2D mesh
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
@@ -50,7 +48,7 @@ USE MOD_Particle_Mesh_Vars      ,ONLY: NodeCoords_Shared,ElemSideNodeID_Shared, 
 USE MOD_Mesh_Tools              ,ONLY: GetGlobalElemID
 USE MOD_Particle_Mesh_Tools     ,ONLY: GetGlobalNonUniqueSideID
 #if USE_MPI
-USE MOD_MPI_Shared             
+USE MOD_MPI_Shared
 USE MOD_MPI_Shared_Vars         ,ONLY: MPI_COMM_SHARED, nComputeNodeTotalElems
 USE MOD_Particle_Mesh_Vars      ,ONLY: ElemSideNodeID2D_Shared_Win, SideNormalEdge2D_Shared_Win
 USE MOD_MPI_Shared_Vars         ,ONLY: myComputeNodeRank, nComputeNodeProcessors
@@ -88,9 +86,10 @@ lastElem  = nElems
 
 DO iElem = firstElem, lastElem
   GlobalElemID = GetGlobalElemID(iElem)
-  DO iLocSide = 1, 6   
+  DO iLocSide = 1, 6
     DefineSide = .TRUE.
     SideID=GetGlobalNonUniqueSideID(GlobalElemID,iLocSide)
+    ! Check if side is a symmetry_dim boundary
     IF (SideInfo_Shared(SIDE_BCID,SideID).GT.0) THEN
       IF (PartBound%TargetBoundCond(PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID))).EQ.PartBound%SymmetryDim) THEN
         ElemSideNodeID2D_Shared(:,iLocSide, iElem) = -1
@@ -98,18 +97,18 @@ DO iElem = firstElem, lastElem
         DefineSide = .FALSE.
       END IF
     END IF
-    
+
     IF (DefineSide) THEN
-      tmpNode = 0 
+      tmpNode = 0
       DO iNode = 1, 4
         IF(NodeCoords_Shared(3,ElemSideNodeID_Shared(iNode,iLocSide,iElem)+1).GT.(GEO%zmaxglob+GEO%zminglob)/2.) THEN
           tmpNode = tmpNode + 1
           ElemSideNodeID2D_Shared(tmpNode,iLocSide, iElem) = ElemSideNodeID_Shared(iNode,iLocSide,iElem)+1
         END IF
-      END DO      
-      EdgeVec(1:2) = NodeCoords_Shared(1:2,ElemSideNodeID2D_Shared(2,ilocSide,iElem))-NodeCoords_Shared(1:2,ElemSideNodeID2D_Shared(1,ilocSide,iElem))
+      END DO
+      EdgeVec(1:2) = NodeCoords_Shared(1:2,ElemSideNodeID2D_Shared(2,iLocSide,iElem))-NodeCoords_Shared(1:2,ElemSideNodeID2D_Shared(1,iLocSide,iElem))
       NormVec(1) = -EdgeVec(2)
-      NormVec(2) = EdgeVec(1) 
+      NormVec(2) = EdgeVec(1)
       FaceMidPoint(1:2) = (NodeCoords_Shared(1:2,ElemSideNodeID_Shared(1,iLocSide,iElem)+1) &
                         + NodeCoords_Shared(1:2,ElemSideNodeID_Shared(2,iLocSide,iElem)+1)&
                         + NodeCoords_Shared(1:2,ElemSideNodeID_Shared(3,iLocSide,iElem)+1) &
@@ -140,9 +139,7 @@ END SUBROUTINE BuildMesh2DInfo
 
 SUBROUTINE BuildMesh1DInfo()
 !===================================================================================================================================
-!> Routine determines a symmetry side and calculates the 1D (area faces in symmetry plane)
-!> The symmetry sides will be used later on to determine in which direction the quadtree
-!> shall refine the mesh, skipping the z- and y-dimension to avoid an unnecessary refinement.
+!> Build the ElemSideNodeID array for 1D mesh
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
@@ -153,7 +150,7 @@ USE MOD_Particle_Mesh_Vars      ,ONLY: NodeCoords_Shared,ElemSideNodeID_Shared, 
 USE MOD_Mesh_Tools              ,ONLY: GetGlobalElemID
 USE MOD_Particle_Mesh_Tools     ,ONLY: GetGlobalNonUniqueSideID
 #if USE_MPI
-USE MOD_MPI_Shared             
+USE MOD_MPI_Shared
 USE MOD_MPI_Shared_Vars         ,ONLY: MPI_COMM_SHARED, nComputeNodeTotalElems
 USE MOD_Particle_Mesh_Vars      ,ONLY: ElemSideNodeID1D_Shared_Win
 USE MOD_MPI_Shared_Vars         ,ONLY: myComputeNodeRank, nComputeNodeProcessors
@@ -187,7 +184,7 @@ lastElem  = nElems
 
 DO iElem = firstElem, lastElem
   GlobalElemID = GetGlobalElemID(iElem)
-  DO iLocSide = 1, 6   
+  DO iLocSide = 1, 6
     DefineSide = .TRUE.
     SideID=GetGlobalNonUniqueSideID(GlobalElemID,iLocSide)
     IF (SideInfo_Shared(SIDE_BCID,SideID).GT.0) THEN
@@ -196,14 +193,14 @@ DO iElem = firstElem, lastElem
         DefineSide = .FALSE.
       END IF
     END IF
-    
+
     IF (DefineSide) THEN
       DO iNode = 1, 4
         IF((NodeCoords_Shared(3,ElemSideNodeID_Shared(iNode,iLocSide,iElem)+1).GT.(GEO%zmaxglob+GEO%zminglob)/2.).AND.&
           (NodeCoords_Shared(2,ElemSideNodeID_Shared(iNode,iLocSide,iElem)+1).GT.(GEO%ymaxglob+GEO%yminglob)/2.)) THEN
           ElemSideNodeID1D_Shared(iLocSide, iElem) = ElemSideNodeID_Shared(iNode,iLocSide,iElem)+1
         END IF
-      END DO      
+      END DO
     END IF
   END DO
 END DO

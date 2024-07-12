@@ -318,7 +318,7 @@ USE MOD_Globals_Vars
 USE MOD_Basis              ,ONLY: LagrangeInterpolationPolys
 USE MOD_Particle_Mesh_Vars ,ONLY: RefMappingEps
 USE MOD_Particle_Vars      ,ONLY: LastPartPos
-USE MOD_TimeDisc_Vars      ,ONLY: iter,time
+USE MOD_TimeDisc_Vars      ,ONLY: iter
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
 ! INPUT VARIABLES
@@ -392,25 +392,7 @@ DO WHILE((deltaXi2.GT.RefMappingEps).AND.(NewtonIter.LT.100))
   ! Compute inverse of Jacobian
   sdetJac=getDet(Jac)
   IF(sdetJac.GT.0.) THEN
-   sdetJac=1./sdetJac
-  ELSE
-    ! Newton has not converged !?!?
-    IF(Mode.EQ.1)THEN
-      IPWRITE(UNIT_stdOut,*) ' Particle not inside of element!'
-      IPWRITE(UNIT_stdOut,*) ' time         ', time
-      IPWRITE(UNIT_stdOut,*) ' Timestep-Iter', iter
-      IPWRITE(UNIT_stdOut,*) ' sdetJac      ', sdetJac
-      IPWRITE(UNIT_stdOut,*) ' Newton-Iter  ', NewtonIter
-      IPWRITE(UNIT_stdOut,*) ' xi           ', xi(1:3)
-      IPWRITE(UNIT_stdOut,*) ' PartPos      ', X_in
-      IPWRITE(UNIT_stdOut,*) ' GlobalElemID ', ElemID
-      CALL abort(__STAMP__,'Newton in FindXiForPartPos singular. iter,sdetJac',NewtonIter,sdetJac)
-    ELSE
-      Xi(1)=HUGE(1.0)
-      Xi(2)=Xi(1)
-      Xi(3)=Xi(1)
-      RETURN
-    END IF
+    sdetJac=1./sdetJac
   ENDIF
   sJac=getInv(Jac,sdetJac)
 
@@ -546,6 +528,7 @@ USE MOD_Particle_Mesh_Vars,      ONLY:ElemBaryNGeo_Shared
 #else
 USE MOD_Mesh_Vars,               ONLY:ElemBaryNGeo
 #endif
+USE MOD_Symmetry_Vars           ,ONLY: Symmetry
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -570,6 +553,9 @@ ASSOCIATE(ElemBaryNGeo => ElemBaryNGeo_Shared)
 
 epsOne = 1.0 + RefMappingEps
 RefMappingGuessLoc = RefMappingGuess
+
+! AXISYMMETRIC HDG
+IF (Symmetry%Axisymmetric) RefMappingGuessLoc = 4
 
 SELECT CASE(RefMappingGuessLoc)
 

@@ -524,7 +524,7 @@ USE MOD_DSMC_Vars              ,ONLY: DSMC_Solution, DSMC_SolutionPressTens
 USE MOD_DSMC_Vars              ,ONLY: CollisMode, SpecDSMC, DSMC, useDSMC, RadialWeighting, BGGas
 USE MOD_FPFlow_Vars            ,ONLY: FPInitDone, FP_QualityFacSamp
 USE MOD_Mesh_Vars              ,ONLY: nElems
-USE MOD_Particle_Vars          ,ONLY: Species, nSpecies, WriteMacroVolumeValues, usevMPF, Symmetry
+USE MOD_Particle_Vars          ,ONLY: Species, nSpecies, WriteMacroVolumeValues, usevMPF
 USE MOD_Particle_Vars          ,ONLY: UseVarTimeStep, VarTimeStep
 USE MOD_Particle_Vars          ,ONLY: DoVirtualCellMerge, VirtMergedCells, SamplePressTensHeatflux
 USE MOD_Particle_TimeStep      ,ONLY: GetParticleTimeStep
@@ -534,6 +534,7 @@ USE MOD_Particle_Mesh_Vars     ,ONLY: ElemMidPoint_Shared, ElemVolume_Shared
 USE MOD_Mesh_Vars              ,ONLY: offSetElem
 USE MOD_Mesh_Tools             ,ONLY: GetCNElemID
 USE MOD_Particle_Analyze_Tools ,ONLY: CalcTelec,CalcTVibPoly
+USE MOD_Symmetry_Vars          ,ONLY: Symmetry
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------

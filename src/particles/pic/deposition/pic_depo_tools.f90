@@ -228,8 +228,6 @@ SUBROUTINE CalcCellLocNodeVolumes()
 ! MODULES
 USE MOD_Globals
 USE MOD_PreProc
-USE MOD_Basis              ,ONLY: InitializeVandermonde
-USE MOD_ChangeBasis        ,ONLY: ChangeBasis3D
 USE MOD_Interpolation_Vars ,ONLY: N_Inter, NMin, NMax
 #if USE_MPI
 USE MOD_MPI_Shared
@@ -250,8 +248,8 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-REAL                             :: xGP_loc(0:1),DetJac(1,0:1,0:1,0:1)
-REAL                             :: DetLocal(1,0:NMax,0:NMax,0:NMax)
+!REAL                             :: xGP_loc(0:1),DetJac(1,0:1,0:1,0:1)
+!REAL                             :: DetLocal(1,0:NMax,0:NMax,0:NMax)
 INTEGER                          :: i,j,k,firstElem, lastElem, iNode, jNode, iCNElem, iGlobalElem, offSetDofNode, r
 REAL                             :: NodeVolumeLoc(1:nUniqueGlobalNodes)
 #if USE_MPI
@@ -282,48 +280,29 @@ NodeVolume = 0.0
 firstElem = 1
 lastElem  = nElems
 #endif /*USE_MPI*/
-
-IF ((Nmin.NE.1).OR.(Nmin.NE.NMax)) THEN
-  xGP_loc(0) = -0.5
-  xGP_loc(1) = 0.5
-  ALLOCATE(Vdm_loc(Nmin:Nmax))
-  DO Nloc = Nmin, Nmax
-    ALLOCATE(Vdm_loc(Nloc)%Vdm(0:Nloc,0:Nloc))
-    CALL InitializeVandermonde(Nloc,1,N_Inter(Nloc)%wBary,N_Inter(Nloc)%xGP,xGP_loc,Vdm_loc(Nloc)%Vdm)
-  END DO
-END IF
-
 ! ElemNodeID and ElemsJ use compute node elems
 DO iCNElem = firstElem, lastElem
-  iGlobalElem   = GetGlobalElemID(iCNElem)
-  !iCNElem       = GetCNElemID(iGlobalElem)
-  Nloc          = N_DG_Mapping(2,iGlobalElem)
-  offSetDofNode = N_DG_Mapping(3,iGlobalElem)
-  IF (Nloc.EQ.1) THEN
-    DO k=0, Nloc; DO j=0, Nloc; DO i=0, Nloc
-      r=k*(Nloc+1)**2+j*(Nloc+1) + i+1
-      DetJac(1,i,j,k) = 1./ElemsJ(r+offSetDofNode)
-    END DO; END DO; END DO
-  ELSE
-    DO k=0, Nloc; DO j=0, Nloc; DO i=0, Nloc
-      r=k*(Nloc+1)**2+j*(Nloc+1) + i+1
-      DetLocal(1,i,j,k) = 1./ElemsJ(r+offSetDofNode)
-    END DO; END DO; END DO
-    CALL ChangeBasis3D(1,Nloc, 1, Vdm_loc(Nloc)%Vdm, DetLocal(:,0:Nloc,0:Nloc,0:Nloc), DetJac(1:1,0:1,0:1,0:1))
-  END IF
 #if USE_MPI
   ASSOCIATE( NodeVolume => NodeVolumeLoc )
 #endif /*USE_MPI*/
-    ! Get UniqueNodeIDs
-    NodeID = NodeInfo_Shared(ElemNodeID_Shared(1:8,iCNElem))
-    NodeVolume(NodeID(1)) = NodeVolume(NodeID(1)) + DetJac(1,0,0,0)
-    NodeVolume(NodeID(2)) = NodeVolume(NodeID(2)) + DetJac(1,1,0,0)
-    NodeVolume(NodeID(3)) = NodeVolume(NodeID(3)) + DetJac(1,1,1,0)
-    NodeVolume(NodeID(4)) = NodeVolume(NodeID(4)) + DetJac(1,0,1,0)
-    NodeVolume(NodeID(5)) = NodeVolume(NodeID(5)) + DetJac(1,0,0,1)
-    NodeVolume(NodeID(6)) = NodeVolume(NodeID(6)) + DetJac(1,1,0,1)
-    NodeVolume(NodeID(7)) = NodeVolume(NodeID(7)) + DetJac(1,1,1,1)
-    NodeVolume(NodeID(8)) = NodeVolume(NodeID(8)) + DetJac(1,0,1,1)
+  iGlobalElem   = GetGlobalElemID(iCNElem)
+  Nloc          = N_DG_Mapping(2,iGlobalElem)
+  offSetDofNode = N_DG_Mapping(3,iGlobalElem)
+  ! Get UniqueNodeIDs
+  NodeID = NodeInfo_Shared(ElemNodeID_Shared(1:8,iCNElem))
+  DO i=0,Nloc;DO j=0,Nloc;DO k=0,Nloc
+    r=k*(Nloc+1)**2+j*(Nloc+1) + i+1
+    ASSOCIATE( sJ => ElemsJ(r+offSetDofNode) , xGP => N_Inter(Nloc)%xGP , wGP => N_Inter(Nloc)%wGP , NV => NodeVolume(:) )
+      NV(NodeID(1)) = NV(NodeID(1)) + 1./sJ*((1.-xGP(i))*(1.-xGP(j))*(1.-xGP(k))*wGP(i)*wGP(j)*wGP(k)/8.)
+      NV(NodeID(2)) = NV(NodeID(2)) + 1./sJ*((1.+xGP(i))*(1.-xGP(j))*(1.-xGP(k))*wGP(i)*wGP(j)*wGP(k)/8.)
+      NV(NodeID(3)) = NV(NodeID(3)) + 1./sJ*((1.+xGP(i))*(1.+xGP(j))*(1.-xGP(k))*wGP(i)*wGP(j)*wGP(k)/8.)
+      NV(NodeID(4)) = NV(NodeID(4)) + 1./sJ*((1.-xGP(i))*(1.+xGP(j))*(1.-xGP(k))*wGP(i)*wGP(j)*wGP(k)/8.)
+      NV(NodeID(5)) = NV(NodeID(5)) + 1./sJ*((1.-xGP(i))*(1.-xGP(j))*(1.+xGP(k))*wGP(i)*wGP(j)*wGP(k)/8.)
+      NV(NodeID(6)) = NV(NodeID(6)) + 1./sJ*((1.+xGP(i))*(1.-xGP(j))*(1.+xGP(k))*wGP(i)*wGP(j)*wGP(k)/8.)
+      NV(NodeID(7)) = NV(NodeID(7)) + 1./sJ*((1.+xGP(i))*(1.+xGP(j))*(1.+xGP(k))*wGP(i)*wGP(j)*wGP(k)/8.)
+      NV(NodeID(8)) = NV(NodeID(8)) + 1./sJ*((1.-xGP(i))*(1.+xGP(j))*(1.+xGP(k))*wGP(i)*wGP(j)*wGP(k)/8.)
+    END ASSOCIATE
+  END DO; END DO; END DO
 #if USE_MPI
   END ASSOCIATE
 #endif /*USE_MPI*/

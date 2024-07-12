@@ -47,7 +47,7 @@ USE MOD_part_tools              ,ONLY: GetParticleWeight
 #ifdef CODE_ANALYZE
 USE MOD_Globals                 ,ONLY: Abort
 USE MOD_Globals                 ,ONLY: unit_stdout,myrank
-USE MOD_Particle_Vars           ,ONLY: Symmetry
+USE MOD_Symmetry_Vars           ,ONLY: Symmetry
 #endif /* CODE_ANALYZE */
 USE MOD_DSMC_Vars               ,ONLY: DSMC
 ! IMPLICIT VARIABLE HANDLING
@@ -922,8 +922,9 @@ SUBROUTINE DSMC_perform_collision(iPair, iElem, NodeVolume, NodePartNum)
 USE MOD_Globals               ,ONLY: Abort, CROSS
 USE MOD_DSMC_Vars             ,ONLY: CollisMode, Coll_pData, SelectionProc
 USE MOD_DSMC_Vars             ,ONLY: DSMC
-USE MOD_Particle_Vars         ,ONLY: PartState, Symmetry
+USE MOD_Particle_Vars         ,ONLY: PartState
 USE MOD_Particle_Vars         ,ONLY: UseRotRefFrame, PDM, PartVeloRotRef, RotRefFrameOmega
+USE MOD_Symmetry_Vars         ,ONLY: Symmetry
 USE MOD_DSMC_Vars             ,ONLY: RadialWeighting
 USE MOD_Particle_Vars         ,ONLY: usevMPF, Species, PartSpecies
 USE MOD_Particle_Analyze_Vars ,ONLY: CalcCollRates

@@ -112,6 +112,7 @@ USE MOD_Metrics                ,ONLY: BuildElem_xGP,CalcMetrics,CalcSurfMetrics
 USE MOD_Prepare_Mesh           ,ONLY: setLocalSideIDs,fillMeshInfo
 USE MOD_ReadInTools            ,ONLY: PrintOption
 USE MOD_ReadInTools            ,ONLY: GETLOGICAL,GETSTR,GETREAL,GETINT,GETREALARRAY
+USE MOD_Symmetry_Vars          ,ONLY: Symmetry
 #if USE_MPI
 USE MOD_Prepare_Mesh           ,ONLY: exchangeFlip
 !USE MOD_DG_Vars                ,ONLY: N_DG_Mapping_Shared_Win
@@ -362,7 +363,13 @@ IF (ABS(meshMode).GT.1) THEN
     ! assign 1/detJ (sJ)
     ! assign normal and tangential vectors and surfElems on faces
 
-    crossProductMetrics=GETLOGICAL('crossProductMetrics','.FALSE.')
+    crossProductMetrics=GETLOGICAL('crossProductMetrics')
+#if USE_HDG
+    IF(Symmetry%Axisymmetric.AND..NOT.crossProductMetrics) THEN
+      crossProductMetrics = .TRUE.
+      LBWRITE(UNIT_stdOut,'(A)') 'WARNING: setting ""crossProductMetrics" to true for axisymmetric HDG simulations!'
+    END IF
+#endif /*USE_HDG*/
     LBWRITE(UNIT_stdOut,'(A)') "NOW CALLING calcMetrics..."
 
     ! get XCL_NGeo
@@ -774,9 +781,9 @@ DO iSide = firstMortarInnerSide,lastMortarInnerSide
     SELECT CASE(flip)
      CASE(0) ! master side
        DG_Elems_master(SideID) = N_DG_Mapping(2,ElemID+offSetElem)
-     CASE(1:4) ! slave side      
+     CASE(1:4) ! slave side
        DG_Elems_slave(SideID) = N_DG_Mapping(2,ElemID+offSetElem)
-    END SELECT !f    
+    END SELECT !f
   END DO
 END DO
 
@@ -791,9 +798,9 @@ DO iSide = firstMortarMPISide,lastMortarMPISide
     SELECT CASE(flip)
      CASE(0) ! master side
        DG_Elems_master(SideID) = N_DG_Mapping(2,ElemID+offSetElem)
-     CASE(1:4) ! slave side      
+     CASE(1:4) ! slave side
        DG_Elems_slave(SideID) = N_DG_Mapping(2,ElemID+offSetElem)
-    END SELECT !f    
+    END SELECT !f
   END DO
 END DO
 ! Exchange element local polynomial degree (N_LOC)

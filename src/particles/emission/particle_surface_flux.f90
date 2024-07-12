@@ -48,6 +48,7 @@ USE MOD_Particle_Sampling_Vars  ,ONLY: AdaptBCPartNumOut
 USE MOD_Particle_Surfaces_Vars  ,ONLY: SurfFluxSideSize, TriaSurfaceFlux, BCdata_auxSF
 USE MOD_Particle_TimeStep       ,ONLY: GetParticleTimeStep
 USE MOD_Timedisc_Vars           ,ONLY: RKdtFrac, dt
+USE MOD_Symmetry_Vars           ,ONLY: Symmetry
 USE MOD_DSMC_PolyAtomicModel    ,ONLY: DSMC_SetInternalEnr
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Vars        ,ONLY: nSurfacefluxPerElem
