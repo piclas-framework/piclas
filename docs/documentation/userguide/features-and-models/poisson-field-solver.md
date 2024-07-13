@@ -28,19 +28,6 @@ To see the available parameter input file options, simply run
 
     ./bin/piclas --help HDG
 
-## CG Solver
-The default numerical method for solving the resulting system of linear equations, is the Conjugate Gradient Method. The following
-input parameter can be set to control the simulation
-
-    epsCG     = 1e-6 ! default value for the abort residual
-    MaxIterCG = 500  ! default value for the number of CG solver iterations
-
-where `epsCG` is the residual of the CG solver and `MaxIterCG` are the maximum number of iteration performed in one time step to
-solve the system.
-Furthermore, the residual can be either set absolute (default) or relative via
-
-    useRelativeAbortCrit = F ! default
-
 ## PETSc Solver
 A multitude of different numerical methods to solve the resulting system of linear equations is given by the implemented PETSc
 library {cite}`petsc-web-page`, {cite}`petsc-user-ref`, {cite}`petsc-efficient`. For detailed installation steps of PETSc within PICLas, see Section {ref}`sec:petsc-installation`.
@@ -61,7 +48,33 @@ where the following options are possible
 |       `3`       |      iterative      |  Krylov subspace |
 |       `10`      |        direct       |                  |
 
-Note that the same parameter setting for `epsCG` will result in a smaller residual with PETSc as compared with the default CG solver
-without using the PETSc library.
 
+## CG Solver
+The formerly used numerical method for solving the resulting system of linear equations, is the Conjugate Gradient Method. The following
+input parameter can be set to control the simulation
+
+    epsCG     = 1e-6 ! default value for the abort residual
+    MaxIterCG = 500  ! default value for the number of CG solver iterations
+
+where `epsCG` is the residual of the CG solver and `MaxIterCG` are the maximum number of iteration performed in one time step to
+solve the system.
+Furthermore, the residual can be either set absolute (default) or relative via
+
+    useRelativeAbortCrit = F ! default
+
+Note that the same parameter setting for `epsCG` will result in a higher residual without the PETSC library as compared with PETSC solver.
+
+## Symmetric Simulations
+
+The Poisson solver is suitable for 2D/1D and axially symmetric 2D simulations. Use the following parameter for these types of simulations:
+
+    ! 2D
+    Particles-Symmetry-Order = 2
+
+    ! 2D axisymmetrc
+    Particles-Symmetry-Order = 2
+    Particles-Symmetry2DAxisymmetric = true
+
+    ! 1D
+    Particles-Symmetry-Order = 1
 

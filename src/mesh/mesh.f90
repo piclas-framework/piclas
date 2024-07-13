@@ -72,9 +72,9 @@ CALL prms%CreateIntArrayOption('BoundaryType'        , "Type of boundary conditi
 CALL prms%CreateLogicalOption( 'writePartitionInfo'  , "Write information about MPI partitions into a file."                                                                                , '.FALSE.')
 
 ! p-adaption
-CALL prms%CreateIntFromStringOption('pAdaptionType', "Type/Method for initial polynomial degree distribution among the elements: \n"//&
-                                    '  none ('//TRIM(int2strf(PRM_P_ADAPTION_ZERO))//'): default for setting all elements to N\n'//&
-                                    'random ('//TRIM(int2strf(PRM_P_ADAPTION_RDN))//'): each element receives a random polynomial degree between NMin and NMax\n'&
+CALL prms%CreateIntFromStringOption('pAdaptionType', "Method for initial polynomial degree distribution among the elements: \n"//&
+                                    '           none ('//TRIM(int2strf(PRM_P_ADAPTION_ZERO))//'): default for setting all elements to N\n'//&
+                                    '         random ('//TRIM(int2strf(PRM_P_ADAPTION_RDN))//'): elements get random polynomial degree between NMin and NMax\n'//&
                                     'non-periodic-BC ('//TRIM(int2strf(PRM_P_ADAPTION_NPB))//'): elements with non-periodic boundary conditions receive NMax\n'&
                                    ,'none')
 
@@ -112,6 +112,7 @@ USE MOD_Metrics                ,ONLY: BuildElem_xGP,CalcMetrics,CalcSurfMetrics
 USE MOD_Prepare_Mesh           ,ONLY: setLocalSideIDs,fillMeshInfo
 USE MOD_ReadInTools            ,ONLY: PrintOption
 USE MOD_ReadInTools            ,ONLY: GETLOGICAL,GETSTR,GETREAL,GETINT,GETREALARRAY
+USE MOD_Symmetry_Vars          ,ONLY: Symmetry
 #if USE_MPI
 USE MOD_Prepare_Mesh           ,ONLY: exchangeFlip
 !USE MOD_DG_Vars                ,ONLY: N_DG_Mapping_Shared_Win
@@ -154,11 +155,8 @@ CHARACTER(LEN=255),INTENT(IN),OPTIONAL :: MeshFile_IN !< file name of mesh to be
 REAL                :: x(3)
 REAL,POINTER        :: Coords(:,:,:,:,:)
 INTEGER             :: iElem,i,j,k,nElemsLoc
-!CHARACTER(32)       :: hilf2
-CHARACTER(LEN=255)  :: FileName
 INTEGER             :: Nloc,iSide,NSideMin
-!REAL                :: x1,r
-LOGICAL             :: validMesh,ExistFile,ReadNodes
+LOGICAL             :: validMesh,ReadNodes
 #if USE_HDG
 INTEGER             :: iMortar,nMortars,MortarSideID
 INTEGER             :: SideID,locSide
@@ -362,7 +360,13 @@ IF (ABS(meshMode).GT.1) THEN
     ! assign 1/detJ (sJ)
     ! assign normal and tangential vectors and surfElems on faces
 
-    crossProductMetrics=GETLOGICAL('crossProductMetrics','.FALSE.')
+    crossProductMetrics=GETLOGICAL('crossProductMetrics')
+#if USE_HDG
+    IF(Symmetry%Axisymmetric.AND..NOT.crossProductMetrics) THEN
+      crossProductMetrics = .TRUE.
+      CALL PrintOption('WARNING: axisymmetric HDG simulations require crossProductMetrics','INFO',LogOpt=crossProductMetrics)
+    END IF
+#endif /*USE_HDG*/
     LBWRITE(UNIT_stdOut,'(A)') "NOW CALLING calcMetrics..."
 
     ! get XCL_NGeo
@@ -491,7 +495,7 @@ USE MOD_PreProc
 !USE MOD_DG_Vars            ,ONLY: DG_Elems_master,DG_Elems_slave
 USE MOD_DG_Vars            ,ONLY: N_DG,pAdaptionType
 USE MOD_IO_HDF5            ,ONLY: AddToElemData,ElementOut
-USE MOD_Mesh_Vars          ,ONLY: nSides,nElems,SideToElem,nBCSides,Boundarytype,BC
+USE MOD_Mesh_Vars          ,ONLY: nElems,SideToElem,nBCSides,Boundarytype,BC
 USE MOD_ReadInTools        ,ONLY: GETINTFROMSTR
 USE MOD_Interpolation_Vars ,ONLY: NMax,NMin
 !USE MOD_DG        ,ONLY: DG_ProlongDGElemsToFace
@@ -504,14 +508,13 @@ INTEGER :: iElem,BCSideID,BCType
 REAL    :: RandVal
 !===================================================================================================================================
 ! Read p-adaption specific input data
-!pAdaption    = GETLOGICAL('pAdaption','.FALSE.')
 pAdaptionType = GETINTFROMSTR('pAdaptionType')
 
 ! Allocate arrays and initialize local polynomial degree
 ! This happens here because nElems is determined here and N_DG is required below for the mesh initialisation
 ALLOCATE(N_DG(1:nElems))
 N_DG = -1
-!CALL AddToElemData(ElementOut,'Nloc',IntArray=N_DG_Mapping(2,1+offSetElem:nElems+offSetElem)) ! Why does this not work?
+!CALL AddToElemData(ElementOut,'Nloc',IntArray=N_DG_Mapping(2,1+offSetElem:nElems+offSetElem)) ! TODO: Why does this not work?
 ! Add array containing the local polynomial degree to the hdf5 output
 CALL AddToElemData(ElementOut,'Nloc',IntArray=N_DG)
 
@@ -535,53 +538,21 @@ CASE(PRM_P_ADAPTION_NPB) ! Non-periodic BCs are set to NMax
 CASE DEFAULT
   CALL CollectiveStop(__STAMP__,'Unknown pAdaptionType!' ,IntInfo=pAdaptionType)
 END SELECT
-!WRITE (*,*) "N_DG =", N_DG
-!read*
 
 ! Sanity check
 DO iElem=1,nElems
-  CALL RANDOM_NUMBER(RandVal)
+  IF((N_DG(iElem).LT.NMin).OR.(N_DG(iElem).GT.NMax))THEN
+    IPWRITE(*,*) "iElem       = ", iElem
+    IPWRITE(*,*) "N_DG(iElem) = ", N_DG(iElem)
+    IPWRITE(*,*) "NMin        = ", NMin
+    IPWRITE(*,*) "NMax        = ", NMax
+  END IF
   IF(N_DG(iElem).LT.NMin) CALL abort(__STAMP__,'N_DG(iElem)<NMin')
   IF(N_DG(iElem).GT.NMax) CALL abort(__STAMP__,'N_DG(iElem)>NMax')
 END DO
 
-               !N_DG (iElem) = 3+NINT(RandVal)
-!               !N_DG (iElem) = MAX(N_DG (iElem),4)
-!                 kLoop: DO k=0,NGeo; DO j=0,NGeo; DO i=0,NGeo
-!                   x1 = coords(1,i,j,k,iElem)
-!                   r = SQRT(coords(1,i,j,k,iElem)**2+&
-!                            coords(2,i,j,k,iElem)**2+&
-!                            coords(3,i,j,k,iElem)**2  )
-!
-!               IF(r.lt.1.0 .and. x1.lt.0)THEN
-!                 N_DG(iElem) = PP_N
-!                 EXIT kLoop
-!               ELSE
-!                 N_DG(iElem) = PP_N-6-1
-!                 !EXIT kLoop
-!               END IF ! r.le.1.0 .and. x.le.0
-!                 END DO ; END DO; END DO kLoop;
-
-! Element containers
+! Initialize element containers
 CALL Build_N_DG_Mapping()
-
-! Side containers
-!ALLOCATE(DG_Elems_master(1:nSides))
-!ALLOCATE(DG_Elems_slave (1:nSides))
-
-! Cannot set this here, because SideToElem() is still not set if "CALL fillMeshInfo()" has not yet been called
-!! Set polynomial degree at the element sides
-!IF(pAdaptionType.EQ.0)THEN
-!  DG_Elems_master = PP_N
-!  DG_Elems_slave  = PP_N
-!ELSE
-!  DO iSide = 1, nSides
-!    iElem = SideToElem(S2E_ELEM_ID,iSide)
-!    DG_Elems_master(iSide) = N_DG(iElem)
-!    DG_Elems_slave(iSide)  = N_DG(iElem)
-!  END DO ! iSide = 1, nSides
-!END IF ! pAdaptionType.EQ.0
-
 
 END SUBROUTINE InitpAdaption
 
@@ -774,9 +745,9 @@ DO iSide = firstMortarInnerSide,lastMortarInnerSide
     SELECT CASE(flip)
      CASE(0) ! master side
        DG_Elems_master(SideID) = N_DG_Mapping(2,ElemID+offSetElem)
-     CASE(1:4) ! slave side      
+     CASE(1:4) ! slave side
        DG_Elems_slave(SideID) = N_DG_Mapping(2,ElemID+offSetElem)
-    END SELECT !f    
+    END SELECT !f
   END DO
 END DO
 
@@ -791,9 +762,9 @@ DO iSide = firstMortarMPISide,lastMortarMPISide
     SELECT CASE(flip)
      CASE(0) ! master side
        DG_Elems_master(SideID) = N_DG_Mapping(2,ElemID+offSetElem)
-     CASE(1:4) ! slave side      
+     CASE(1:4) ! slave side
        DG_Elems_slave(SideID) = N_DG_Mapping(2,ElemID+offSetElem)
-    END SELECT !f    
+    END SELECT !f
   END DO
 END DO
 ! Exchange element local polynomial degree (N_LOC)

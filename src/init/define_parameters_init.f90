@@ -32,6 +32,7 @@ USE MOD_Globals                    ,ONLY: UNIT_stdOut
 USE MOD_Globals                    ,ONLY: MPIRoot
 USE MOD_MPI_Shared                 ,ONLY: DefineParametersMPIShared
 #endif /*USE_MPI*/
+USE MOD_Symmetry                   ,ONLY: DefineParametersSymmetry
 USE MOD_Globals_Init               ,ONLY: DefineParametersGlobals
 USE MOD_ReadInTools                ,ONLY: prms
 USE MOD_MPI                        ,ONLY: DefineParametersMPI
@@ -104,6 +105,7 @@ CALL DefineParametersMPIShared()
 #endif /*USE_MPI*/
 CALL DefineParametersIO()
 CALL DefineParametersGlobals()
+CALL DefineParametersSymmetry()
 CALL DefineParametersLoadBalance()
 CALL DefineParametersInterpolation()
 CALL DefineParametersRestart()

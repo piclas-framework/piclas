@@ -32,12 +32,6 @@ INTEGER, PARAMETER :: IK = SELECTED_INT_KIND(8)
 #endif
 
 !-----------------------------------------------------------------------------------------------------------------------------------
-TYPE tSymmetry
-  INTEGER             :: Order                                               ! 1-3 D
-  LOGICAL             :: Axisymmetric
-END TYPE tSymmetry
-
-TYPE(tSymmetry)       :: Symmetry
 
 LOGICAL               :: DoFieldIonization                                   ! Do Field Ionization by quantum tunneling
 INTEGER               :: FieldIonizationModel                                !'Field Ionization models. Implemented models are:

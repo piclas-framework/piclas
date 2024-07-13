@@ -1074,7 +1074,8 @@ SUBROUTINE SetParticlePositionCuboidCylinder(FractNbr,iInit,chunkSize,particle_p
 !===================================================================================================================================
 ! modules
 USE MOD_Globals
-USE MOD_Particle_Vars          ,ONLY: Species, Symmetry
+USE MOD_Symmetry_Vars          ,ONLY: Symmetry
+USE MOD_Particle_Vars          ,ONLY: Species
 USE MOD_Part_Tools             ,ONLY: CalcPartSymmetryPos, CalcRadWeightMPF
 USE MOD_DSMC_Vars              ,ONLY: RadialWeighting
 !USE MOD_Particle_Mesh_Vars     ,ONLY: GEO
@@ -1166,9 +1167,10 @@ SUBROUTINE SetParticlePositionSphere(FractNbr,iInit,chunkSize,particle_positions
 !===================================================================================================================================
 ! modules
 USE MOD_Globals
-USE MOD_Particle_Vars          ,ONLY: Species, Symmetry
-USE MOD_Part_tools             ,ONLY: DICEUNITVECTOR, CalcPartSymmetryPos, CalcRadWeightMPF
-USE MOD_DSMC_Vars              ,ONLY: RadialWeighting
+USE MOD_Particle_Vars ,ONLY: Species
+USE MOD_Part_tools    ,ONLY: DICEUNITVECTOR, CalcPartSymmetryPos, CalcRadWeightMPF
+USE MOD_DSMC_Vars     ,ONLY: RadialWeighting
+USE MOD_Symmetry_Vars ,ONLY: Symmetry
 !----------------------------------------------------------------------------------------------------------------------------------
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
