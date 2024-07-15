@@ -152,6 +152,10 @@ IF(PRESENT(Nmax_opt))THEN
 ELSE
   WRITE(UNIT=hilf,FMT='(I3)') PP_N
   Nmax = GETINT('Nmax',hilf)
+  IF(PP_N.GT.Nmax)THEN
+    Nmax  = PP_N
+    CALL PrintOption('N > Nmax, increasing Nmax', 'INFO.', IntOpt=Nmax)
+  END IF ! PP_N.GT.Nmax
 END IF ! PRESENT(Nmax_opt)
 
 ! Check if p-adaption is activated and only build the constructs if Nmax>0
@@ -544,7 +548,7 @@ SUBROUTINE FinalizeInterpolation(IsLoadBalance)
 USE MOD_Globals
 USE MOD_Interpolation_Vars
 #if USE_LOADBALANCE
-USE MOD_LoadBalance_Vars ,ONLY: PerformLoadBalance,UseH5IOLoadBalance
+USE MOD_LoadBalance_Vars ,ONLY: UseH5IOLoadBalance
 #endif /*USE_LOADBALANCE*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE

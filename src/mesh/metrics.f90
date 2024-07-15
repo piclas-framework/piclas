@@ -713,25 +713,25 @@ REAL,INTENT(OUT)   ::  SurfElem(  0:Nloc,0:Nloc) !< element face surface area
 INTEGER            :: p,q
 !==================================================================================================================================
 DO q=0,Nloc; DO p=0,Nloc
-  SurfElem(  p,q) = SUM(Ja_Face(NormalDir,:,p,q)**2)
-  IF(ABS(SurfElem(p,q)).LE.0.0) CALL abort(__STAMP__,'SUM(Ja_Face(NormalDir,:,p,q)**2) <= 0',RealInfoOpt=SurfElem(p,q))
-  SurfElem(  p,q) = SQRT(SurfElem(p,q))
+  SurfElem(p,q) = SUM(Ja_Face(NormalDir,:,p,q)**2)
+  IF(SurfElem(p,q).LT.0.)THEN
+    CALL abort(__STAMP__,'SurfElem(p,q).LT.0.',RealInfoOpt=SurfElem(p,q))
 #if USE_HDG
-  IF(Symmetry%Axisymmetric.AND.(SurfElem(p,q).EQ.0.))THEN
+  ELSEIF(Symmetry%Axisymmetric.AND.(SurfElem(p,q).EQ.0.))THEN
     NormVec( :,p,q) = (/0.,-1., 0./)
     TangVec1(:,p,q) = (/1., 0., 0./)
     TangVec2(:,p,q) = (/0., 0., 1./)
-  ELSE
 #endif /*USE_HDG*/
+  ELSE
+    IF(ABS(SurfElem(p,q)).LE.0.0) CALL abort(__STAMP__,'SUM(Ja_Face(NormalDir,:,p,q)**2) <= 0',RealInfoOpt=SurfElem(p,q))
+    SurfElem(  p,q) = SQRT(SurfElem(p,q))
     NormVec( :,p,q) = NormalSign*Ja_Face(NormalDir,:,p,q)/SurfElem(p,q)
     TangVec1(:,p,q) = Ja_Face(TangDir,:,p,q) - SUM(Ja_Face(TangDir,:,p,q)*NormVec(:,p,q)) * NormVec(:,p,q)
     TangVec1(:,p,q) = SUM(TangVec1(:,p,q)**2)
     IF(ANY(ABS(TangVec1(:,p,q)).LE.0.0)) CALL abort(__STAMP__,'SUM(TangVec1(:,p,q)**2) <= 0')
     TangVec1(:,p,q) = TangVec1(:,p,q)/SQRT(TangVec1(:,p,q))
     TangVec2(:,p,q) = CROSS(NormVec(:,p,q),TangVec1(:,p,q))
-#if USE_HDG
-  END IF ! Symmetry%Axisymmetric.AND.(SurfElem(p,q).EQ.0.)
-#endif /*USE_HDG*/
+  END IF ! SurfElem(p,q).LT.0.
 END DO; END DO ! p,q
 END SUBROUTINE SurfMetricsFromJa
 
