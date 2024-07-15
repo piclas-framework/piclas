@@ -51,7 +51,7 @@ SUBROUTINE BGK_CollisionOperator(iPartIndx_Node, nPart, NodeVolume, AveragingVal
 ! MODULES
 USE MOD_Globals               ,ONLY: DOTPRODUCT, CROSS
 USE MOD_Particle_Vars         ,ONLY: PartState, Species, PartSpecies, nSpecies, usevMPF, UseVarTimeStep
-USE MOD_Particle_Vars         ,ONLY: UseRotRefFrame, RotRefFrameOmega, PartVeloRotRef, PDM
+USE MOD_Particle_Vars         ,ONLY: UseRotRefFrame, InRotRefFrame, RotRefFrameOmega, PartVeloRotRef
 USE MOD_DSMC_Vars             ,ONLY: DSMC, PartStateIntEn, PolyatomMolDSMC, RadialWeighting, CollInf
 USE MOD_TimeDisc_Vars         ,ONLY: dt
 USE MOD_BGK_Vars              ,ONLY: SpecBGK, BGKDoVibRelaxation, BGKMovingAverage
@@ -181,7 +181,7 @@ IF(ANY(Species(:)%InterID.EQ.2).OR.ANY(Species(:)%InterID.EQ.20)) THEN
   ! relaxfreqSpec = collisionfreqSpec / collision number Z with RelaxProb = 1/Z
   rotrelaxfreqSpec(:) = collisionfreqSpec(:) * DSMC%RotRelaxProb
   vibrelaxfreqSpec(:) = collisionfreqSpec(:) * DSMC%VibRelaxProb
-  
+
   IF(DSMC%CalcQualityFactors) THEN
     BGK_MaxRotRelaxFactor          = MAX(BGK_MaxRotRelaxFactor,MAXVAL(rotrelaxfreqSpec(:))*dtCell)
   END IF
@@ -289,7 +289,7 @@ IF(UseRotRefFrame) THEN
   ! Resetting the velocity in the rotational frame of reference for particles that underwent a relaxation
   DO iLoop = 1, nRelax
     iPart = iPartIndx_NodeRelax(iLoop)
-    IF(PDM%InRotRefFrame(iPart)) THEN
+    IF(InRotRefFrame(iPart)) THEN
       PartVeloRotRef(1:3,iPart) = PartState(4:6,iPart) - CROSS(RotRefFrameOmega(1:3),PartState(1:3,iPart))
     END IF
   END DO
@@ -552,7 +552,7 @@ IF (BGKCollModel.EQ.1) THEN
     AverageValues(7) = BGKMovingAverageFac*u0ij(1,3) + (1.-BGKMovingAverageFac)*AverageValues(7)
     AverageValues(8) = BGKMovingAverageFac*u0ij(2,3) + (1.-BGKMovingAverageFac)*AverageValues(8)
   END IF
-  dens = AverageValues(1)  
+  dens = AverageValues(1)
   u2 = AverageValues(2)
   u0ij(1,1)=AverageValues(3); u0ij(2,2)=AverageValues(4); u0ij(3,3)=AverageValues(5);
   u0ij(1,2)=AverageValues(6); u0ij(1,3)=AverageValues(7); u0ij(2,3)=AverageValues(8);
@@ -682,7 +682,7 @@ IF (nSpecies.GT.1) THEN ! gas mixture
     ! particle-based ellipsoidal statistical Bhatnagar-Gross-Krook method including internal degrees of freedom", submitted to Phys.
     ! Fluids, August 2023
     PrandtlCorrection = PrandtlCorrection + DOFFraction(iSpec)*MassIC_Mixture/Species(iSpec)%MassIC/TotalDOFWeight
-    C_P = C_P + ((5. + (Xi_VibSpec(iSpec)+Xi_RotSpec(iSpec)))/2.) * BoltzmannConst / Species(iSpec)%MassIC * MassFraction(iSpec) 
+    C_P = C_P + ((5. + (Xi_VibSpec(iSpec)+Xi_RotSpec(iSpec)))/2.) * BoltzmannConst / Species(iSpec)%MassIC * MassFraction(iSpec)
   END DO
 
   SELECT CASE(BGKMixtureModel)
@@ -735,7 +735,7 @@ IF (nSpecies.GT.1) THEN ! gas mixture
       dynamicvis = dynamicvis + REAL(totalWeightSpec(iSpec)) * dynamicvisSpec(iSpec) / Phi(iSpec)
       thermalcond = thermalcond + REAL(totalWeightSpec(iSpec)) * thermalcondspec(iSpec) / Phi(iSpec)
     END DO
-  
+
   CASE(2) ! Collision integrals (VHS)
     DO iSpec = 1, nSpecies
       IF ((nSpec(iSpec).LT.2).OR.ALMOSTZERO(u2Spec(iSpec))) THEN
@@ -1291,7 +1291,7 @@ IF (nRelax.GT.0) THEN
     ! Generate random normals for the sampling of new velocities of all relaxing particles
     CALL BGK_BuildTransGaussNums(nRelax, iRanPart)
   END SELECT
-  
+
   ! Loop over all particles undergoing a relaxation towards the target distribution function
   DO iLoop = 1, nRelax
     iPart = iPartIndx_NodeRelax(iLoop)

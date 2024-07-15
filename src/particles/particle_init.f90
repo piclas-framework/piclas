@@ -659,7 +659,6 @@ ALLOCATE(PartState(1:6,1:PDM%maxParticleNumber)       , &
          Pt(1:3,1:PDM%maxParticleNumber)              , &
          PartSpecies(1:PDM%maxParticleNumber)         , &
          PDM%ParticleInside(1:PDM%maxParticleNumber)  , &
-         PDM%InRotRefFrame(1:PDM%maxParticleNumber)   , &
          PDM%nextFreePosition(1:PDM%maxParticleNumber), &
          PDM%dtFracPush(1:PDM%maxParticleNumber)      , &
          PDM%IsNewPart(1:PDM%maxParticleNumber), STAT=ALLOCSTAT)
@@ -669,7 +668,6 @@ __STAMP__&
   ,'ERROR in particle_init.f90: Cannot allocate Particle arrays!')
 END IF
 PDM%ParticleInside(1:PDM%maxParticleNumber) = .FALSE.
-PDM%InRotRefFrame(1:PDM%maxParticleNumber)  = .FALSE.
 PDM%dtFracPush(1:PDM%maxParticleNumber)     = .FALSE.
 PDM%IsNewPart(1:PDM%maxParticleNumber)      = .FALSE.
 LastPartPos(1:3,1:PDM%maxParticleNumber)    = 0.
@@ -1237,7 +1235,7 @@ SDEALLOCATE(LastPartVeloRotRef)
 SDEALLOCATE(PartSpecies)
 SDEALLOCATE(Pt)
 SDEALLOCATE(PDM%ParticleInside)
-SDEALLOCATE(PDM%InRotRefFrame)
+SDEALLOCATE(InRotRefFrame)
 SDEALLOCATE(PDM%nextFreePosition)
 SDEALLOCATE(PDM%dtFracPush)
 SDEALLOCATE(PDM%IsNewPart)
@@ -1506,20 +1504,24 @@ CHARACTER(LEN=5)   :: hilf
 !===================================================================================================================================
 
 UseRotRefFrame = GETLOGICAL('Part-UseRotationalReferenceFrame')
-UseRotSubCycling = GETLOGICAL('Part-RotRefFrame-UseSubCycling')
-nSubCyclingSteps = GETINT('Part-RotRefFrame-SubCyclingSteps')
+UseRotRefSubCycling = GETLOGICAL('Part-RotRefFrame-UseSubCycling')
 
 IF(UseRotRefFrame) THEN
   ! Abort for other timedisc except DSMC/BGK
 #if (PP_TimeDiscMethod!=4) && (PP_TimeDiscMethod!=400)
   CALL abort(__STAMP__,'ERROR Rotational Reference Frame not implemented for the selected simulation method (only for DSMC/BGK)!')
 #endif
+  ! Allocate required values
+  ALLOCATE(InRotRefFrame(1:PDM%maxParticleNumber))
+  InRotRefFrame(1:PDM%maxParticleNumber)  = .FALSE.
   ALLOCATE(PartVeloRotRef(1:3,1:PDM%maxParticleNumber))
   PartVeloRotRef = 0.0
   ALLOCATE(LastPartVeloRotRef(1:3,1:PDM%maxParticleNumber))
   LastPartVeloRotRef = 0.0
+  ! Read of the rotational axis and frequency
   RotRefFrameAxis = GETINT('Part-RotRefFrame-Axis')
   RotRefFrameFreq = GETREAL('Part-RotRefFrame-Frequency')
+  ! Calculate the angular velocity
   omegaTemp = 2.*PI*RotRefFrameFreq
   SELECT CASE(RotRefFrameAxis)
     CASE(1)
@@ -1531,6 +1533,7 @@ IF(UseRotRefFrame) THEN
     CASE DEFAULT
       CALL abort(__STAMP__,'ERROR Rotational Reference Frame: Axis must be between 1 and 3. Selected axis: ',IntInfoOpt=RotRefFrameAxis)
   END SELECT
+  ! Definition of different regions along the rotational reference frame axis
   nRefFrameRegions = GETINT('Part-nRefFrameRegions')
   ALLOCATE(RotRefFrameRegion(1:2,1:nRefFrameRegions))
   IF(nRefFrameRegions.GT.0)THEN
@@ -1543,6 +1546,8 @@ IF(UseRotRefFrame) THEN
       END IF
     END DO
   END IF
+  ! Subcycling for the particle movement
+  nSubCyclingSteps = GETINT('Part-RotRefFrame-SubCyclingSteps')
 END IF
 
 END SUBROUTINE InitializeVariablesRotationalRefFrame

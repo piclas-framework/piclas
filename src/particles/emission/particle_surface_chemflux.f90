@@ -723,9 +723,9 @@ PartState(4:6,PartID) = Vec3D(1:3)
 
 IF(UseRotRefFrame) THEN
   ! Detect if particle is within a RotRefDomain
-  PDM%InRotRefFrame(PartID) = InRotRefFrameCheck(PartID)
+  InRotRefFrame(PartID) = InRotRefFrameCheck(PartID)
   ! Initialize velocity in the rotational frame of reference
-  IF(PDM%InRotRefFrame(PartID)) THEN
+  IF(InRotRefFrame(PartID)) THEN
     PartVeloRotRef(1:3,PartID) = PartState(4:6,PartID) - CROSS(RotRefFrameOmega(1:3),PartState(1:3,PartID))
   END IF
 END IF

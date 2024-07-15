@@ -709,7 +709,7 @@ END SUBROUTINE PartRHS_CEM
 
 PPURE FUNCTION CalcPartRHSRotRefFrame(PosRotRef,VeloRotRef)
 !===================================================================================================================================
-!> 
+!>
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals       ,ONLY: CROSS
@@ -799,7 +799,7 @@ SUBROUTINE CalcPartPosInRotRef(iPart, RotTimestep)
 !> Particle push in rotational frame of reference using the midpoint method
 !===================================================================================================================================
 ! MODULES
-USE MOD_Particle_Vars         ,ONLY: PartState, PDM, PartVeloRotRef
+USE MOD_Particle_Vars         ,ONLY: PartState, InRotRefFrame, PartVeloRotRef
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -812,7 +812,7 @@ REAL, INTENT(IN)              :: RotTimestep
 ! LOCAL VARIABLES
 REAL                          :: Pt_local(1:3), Pt_local_old(1:3), VeloRotRef_half(1:3), PartState_half(1:3)
 !===================================================================================================================================
-IF(PDM%InRotRefFrame(iPart)) THEN
+IF(InRotRefFrame(iPart)) THEN
   ! Midpoint method
   ! calculate the acceleration (force / mass) at the current time step
   Pt_local_old(1:3) = CalcPartRHSRotRefFrame(PartState(1:3,iPart), PartVeloRotRef(1:3,iPart))

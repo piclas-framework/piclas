@@ -704,7 +704,7 @@ USE MOD_Particle_MPI_Vars      ,ONLY: nExchangeProcessors
 USE MOD_Particle_Tracking_Vars ,ONLY: TrackingMethod
 USE MOD_Particle_Vars          ,ONLY: PartState,PartSpecies,usevMPF,PartMPF,PEM,PDM, PartPosRef, Species, LastPartPos
 USE MOD_Particle_Vars          ,ONLY: UseVarTimeStep, PartTimeStep
-USE MOD_Particle_Vars          ,ONLY: UseRotRefFrame, PartVeloRotRef
+USE MOD_Particle_Vars          ,ONLY: UseRotRefFrame, InRotRefFrame, PartVeloRotRef
 USE MOD_Particle_TimeStep      ,ONLY: GetParticleTimeStep
 USE MOD_Particle_Mesh_Vars     ,ONLY: IsExchangeElem
 USE MOD_Particle_MPI_Vars      ,ONLY: ExchangeProcToGlobalProc,DoParticleLatencyHiding
@@ -829,8 +829,8 @@ DO iProc=0,nExchangeProcessors-1
     END IF
     !>> particle velocity in rotational reference frame
     IF(UseRotRefFrame) THEN
-      PDM%InRotRefFrame(PartID) = InRotRefFrameCheck(PartID)
-      IF(PDM%InRotRefFrame(PartID)) THEN
+      InRotRefFrame(PartID) = InRotRefFrameCheck(PartID)
+      IF(InRotRefFrame(PartID)) THEN
         PartVeloRotRef(1:3,PartID) = PartRecvBuf(iProc)%content(1+jPos: 3+jPos)
       ELSE
         PartVeloRotRef(1:3,PartID) = 0.

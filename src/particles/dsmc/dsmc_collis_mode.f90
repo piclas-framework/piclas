@@ -923,7 +923,7 @@ USE MOD_Globals               ,ONLY: Abort, CROSS
 USE MOD_DSMC_Vars             ,ONLY: CollisMode, Coll_pData, SelectionProc
 USE MOD_DSMC_Vars             ,ONLY: DSMC
 USE MOD_Particle_Vars         ,ONLY: PartState
-USE MOD_Particle_Vars         ,ONLY: UseRotRefFrame, PDM, PartVeloRotRef, RotRefFrameOmega
+USE MOD_Particle_Vars         ,ONLY: UseRotRefFrame, InRotRefFrame, PartVeloRotRef, RotRefFrameOmega
 USE MOD_Symmetry_Vars         ,ONLY: Symmetry
 USE MOD_DSMC_Vars             ,ONLY: RadialWeighting
 USE MOD_Particle_Vars         ,ONLY: usevMPF, Species, PartSpecies
@@ -1012,7 +1012,7 @@ END SELECT
 ! Rotational frame of reference
 IF(UseRotRefFrame) THEN
   ! Transform the new velocity in the inertial frame and reset the velocity in the rotational frame
-  IF(PDM%InRotRefFrame(iPart1)) THEN
+  IF(InRotRefFrame(iPart1)) THEN
     PartVeloRotRef(1:3,iPart1) = PartState(4:6,iPart1) - CROSS(RotRefFrameOmega(1:3),PartState(1:3,iPart1))
     PartVeloRotRef(1:3,iPart2) = PartState(4:6,iPart2) - CROSS(RotRefFrameOmega(1:3),PartState(1:3,iPart2))
   END IF

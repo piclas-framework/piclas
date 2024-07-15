@@ -42,7 +42,7 @@ SUBROUTINE CreateParticle(SpecID,Pos,GlobElemID,LastGlobalElemID,Velocity,RotEne
 USE MOD_Globals
 USE MOD_Particle_Vars           ,ONLY: PDM, PEM, PartState, LastPartPos, PartSpecies,PartPosRef, Species, usevMPF, PartMPF
 USE MOD_Particle_Vars           ,ONLY: UseVarTimeStep, PartTimeStep
-USE MOD_Particle_Vars           ,ONLY: UseRotRefFrame, RotRefFrameOmega, PartVeloRotRef
+USE MOD_Particle_Vars           ,ONLY: UseRotRefFrame, InRotRefFrame, RotRefFrameOmega, PartVeloRotRef
 USE MOD_DSMC_Vars               ,ONLY: useDSMC, CollisMode, DSMC, PartStateIntEn, RadialWeighting
 USE MOD_DSMC_Vars               ,ONLY: newAmbiParts, iPartIndx_NodeNewAmbi
 USE MOD_Particle_Tracking_Vars  ,ONLY: TrackingMethod
@@ -130,8 +130,8 @@ IF (usevMPF) THEN
 END IF ! usevMPF
 
 IF(UseRotRefFrame) THEN
-  PDM%InRotRefFrame(newParticleID) = InRotRefFrameCheck(newParticleID)
-  IF(PDM%InRotRefFrame(newParticleID)) THEN
+  InRotRefFrame(newParticleID) = InRotRefFrameCheck(newParticleID)
+  IF(InRotRefFrame(newParticleID)) THEN
     ! Initialize the velocity in the RotRefFrame by transforming the regular velocity
     PartVeloRotRef(1:3,newParticleID) = PartState(4:6,newParticleID) - CROSS(RotRefFrameOmega(1:3),PartState(1:3,newParticleID))
   ELSE
@@ -152,6 +152,7 @@ SUBROUTINE RemoveParticle(PartID,BCID,alpha,crossedBC)
 ! MODULES
 USE MOD_Globals_Vars              ,ONLY: ElementaryCharge
 USE MOD_Particle_Vars             ,ONLY: PDM, PartSpecies, Species, usevMPF, PartState, PartPosRef, Pt
+USE MOD_Particle_Vars             ,ONLY: UseRotRefFrame, InRotRefFrame
 USE MOD_Particle_Sampling_Vars    ,ONLY: UseAdaptiveBC, AdaptBCPartNumOut
 USE MOD_Particle_Vars             ,ONLY: UseNeutralization, NeutralizationSource, NeutralizationBalance,nNeutralizationElems
 USE MOD_Particle_Boundary_Vars    ,ONLY: PartBound
@@ -206,7 +207,7 @@ END IF ! CalcPartBalance
 PDM%ParticleInside(PartID) = .FALSE.
 PDM%IsNewPart(PartID)      = .FALSE.
 PDM%dtFracPush(PartID)     = .FALSE.
-PDM%InRotRefFrame(PartID)  = .FALSE.
+IF(UseRotRefFrame) InRotRefFrame(PartID)  = .FALSE.
 PartState(1:6,PartID)      = 0.
 IF(TrackingMethod.EQ.REFMAPPING) PartPosRef(1:3,PartID) = -888.
 PartSpecies(PartID)        = 0

@@ -472,7 +472,6 @@ USE MOD_part_emission_tools     ,ONLY: CalcVelocity_gyrotroncircle
 USE MOD_Particle_Boundary_Vars  ,ONLY: DoBoundaryParticleOutputHDF5
 USE MOD_Particle_Boundary_Tools ,ONLY: StoreBoundaryParticleProperties
 USE MOD_part_tools              ,ONLY: BuildTransGaussNums, InRotRefFrameCheck, GetNextFreePosition
-USE MOD_Particle_Vars           ,ONLY: CalcBulkElectronTemp,BulkElectronTemp
 #if USE_HDG
 USE MOD_HDG_Vars                ,ONLY: UseFPC,FPC,UseEPC,EPC
 USE MOD_Mesh_Vars               ,ONLY: BoundaryType
@@ -631,9 +630,9 @@ IF(UseRotRefFrame) THEN
   DO iPart = 1,NbrOfParticle
     PositionNbr = GetNextFreePosition(iPart)
     IF (PositionNbr.GT.0) THEN
-      PDM%InRotRefFrame(PositionNbr) = InRotRefFrameCheck(PositionNbr)
+      InRotRefFrame(PositionNbr) = InRotRefFrameCheck(PositionNbr)
       ! Initialize velocity in the rotational frame of reference
-      IF(PDM%InRotRefFrame(PositionNbr)) THEN
+      IF(InRotRefFrame(PositionNbr)) THEN
         PartVeloRotRef(1:3,PositionNbr) = PartState(4:6,PositionNbr) - CROSS(RotRefFrameOmega(1:3),PartState(1:3,PositionNbr))
       END IF
     END IF

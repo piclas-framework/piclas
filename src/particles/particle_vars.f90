@@ -161,7 +161,6 @@ TYPE tParticleDataManagement
   INTEGER ,ALLOCATABLE                   :: nextFreePosition(:)  !  =>NULL()  ! next_free_Position(1:maxParticleNumber)
                                                                               ! List of free Position
   LOGICAL ,ALLOCATABLE                   :: ParticleInside(:)                 ! Particle_inside (1:maxParticleNumber)
-  LOGICAL ,ALLOCATABLE                   :: InRotRefFrame(:)                  ! Check for RotRefFrame (1:maxParticleNumber)
   LOGICAL ,ALLOCATABLE                   :: dtFracPush(:)                     ! Push random fraction only
   LOGICAL ,ALLOCATABLE                   :: IsNewPart(:)                      ! Reconstruct RK-scheme in next stage
 END TYPE
@@ -242,6 +241,7 @@ TYPE (tVirtualCellMerge),ALLOCATABLE   :: VirtMergedCells(:)
 
 ! Rotational frame of reference
 LOGICAL               :: UseRotRefFrame           ! flag for rotational frame of reference
+LOGICAL ,ALLOCATABLE  :: InRotRefFrame(:)         ! Check for RotRefFrame (1:maxParticleNumber)
 INTEGER               :: RotRefFrameAxis          ! axis of rotational frame of reference (x=1, y=2, z=3)
 REAL                  :: RotRefFrameFreq          ! frequency of rotational frame of reference
 REAL                  :: RotRefFrameOmega(3)      ! angular velocity of rotational frame of reference
@@ -252,14 +252,13 @@ REAL, ALLOCATABLE     :: RotRefFrameRegion(:,:)   ! MIN/MAX defintion for multip
 INTEGER,PARAMETER     :: SpeciesOffsetVDL=10000    ! Set specific VDL species ID for identification of particles after MPI communication
 
 ! Rotational frame of reference: Subcycling
-LOGICAL               :: UseRotSubCycling             ! Flag if subcycling is active
+LOGICAL               :: UseRotRefSubCycling             ! Flag if subcycling is active
 INTEGER               :: nSubCyclingSteps             ! Number of subcycling steps
 REAL                  :: LastPartPosSubCycling(3)     ! Last position before subcycling
 REAL                  :: NewPosSubCycling(3)          ! New particle position before subcycling
 REAL                  :: PartVeloRotRefSubCycling(3)  ! Velocity in the rotational reference frame before subcycling
 REAL                  :: LastVeloRotRefSubCycling(3)  ! Last Velocity in the rotational reference frame before subcycling
 INTEGER               :: GlobalElemIDSubCycling       ! Element ID before subcycling
-LOGICAL               :: RotRefSubTimeStep            ! Flag for loop that defines that the current time step is a subcycling step
 LOGICAL               :: InRotRefFrameSubCycling      ! Check for RotRefFrame before subcycling
 
 ! Sampling of pressure tensor and heatflux

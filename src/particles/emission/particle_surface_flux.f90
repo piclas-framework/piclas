@@ -1496,9 +1496,9 @@ IF(UseRotRefFrame) THEN
   DO i = NbrOfParticle-PartIns+1,NbrOfParticle
     PositionNbr = GetNextFreePosition(i)
     ! Detect if particle is within a RotRefDomain
-    PDM%InRotRefFrame(PositionNbr) = InRotRefFrameCheck(PositionNbr)
+    InRotRefFrame(PositionNbr) = InRotRefFrameCheck(PositionNbr)
     ! Initialize velocity in the rotational frame of reference
-    IF(PDM%InRotRefFrame(PositionNbr)) THEN
+    IF(InRotRefFrame(PositionNbr)) THEN
       PartVeloRotRef(1:3,PositionNbr) = PartState(4:6,PositionNbr) - CROSS(RotRefFrameOmega(1:3),PartState(1:3,PositionNbr))
     END IF
   END DO

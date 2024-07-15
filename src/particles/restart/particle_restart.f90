@@ -83,7 +83,7 @@ USE MOD_Particle_Vars          ,ONLY: VibQuantData,ElecDistriData,AD_Data
 USE MOD_LoadBalance_Vars       ,ONLY: PerformLoadBalance
 #endif /*USE_LOADBALANCE*/
 ! Rotational frame of reference
-USE MOD_Particle_Vars          ,ONLY: UseRotRefFrame, PartVeloRotRef, RotRefFrameOmega
+USE MOD_Particle_Vars          ,ONLY: UseRotRefFrame, InRotRefFrame, PartVeloRotRef, RotRefFrameOmega
 USE MOD_Part_Tools             ,ONLY: InRotRefFrameCheck, IncreaseMaxParticleNumber
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -162,8 +162,8 @@ IF(.NOT.DoMacroscopicRestart) THEN
         iPos = 7
         ! Rotational frame of reference: initialize logical and velocity
         IF(UseRotRefFrame) THEN
-          PDM%InRotRefFrame(iPart) = InRotRefFrameCheck(iPart)
-          IF(PDM%InRotRefFrame(iPart)) THEN
+          InRotRefFrame(iPart) = InRotRefFrameCheck(iPart)
+          IF(InRotRefFrame(iPart)) THEN
             IF(readVarFromState(1+iPos).AND.readVarFromState(2+iPos).AND.readVarFromState(3+iPos)) THEN
               PartVeloRotRef(1:3,iPart) = PartData(MapPartDataToReadin(1+iPos):MapPartDataToReadin(3+iPos),offsetnPart+iLoop)
             ELSE
@@ -659,8 +659,8 @@ IF(.NOT.DoMacroscopicRestart) THEN
           iPos = 7
           ! Rotational frame of reference
           IF(UseRotRefFrame) THEN
-            PDM%InRotRefFrame(CurrentPartNum) = InRotRefFrameCheck(CurrentPartNum)
-            IF(PDM%InRotRefFrame(CurrentPartNum)) THEN
+            InRotRefFrame(CurrentPartNum) = InRotRefFrameCheck(CurrentPartNum)
+            IF(InRotRefFrame(CurrentPartNum)) THEN
               PartVeloRotRef(1:3,CurrentPartNum) = RecBuff(1+iPos:3+iPos,iPart)
             ELSE
               PartVeloRotRef(1:3,CurrentPartNum) = 0.

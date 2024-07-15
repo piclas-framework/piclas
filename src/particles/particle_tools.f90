@@ -1857,7 +1857,7 @@ IF(ALLOCATED(PEM%LastGlobalElemID)) CALL ChangeSizeArray(PEM%LastGlobalElemID,PD
 IF(ALLOCATED(PDM%ParticleInside)) CALL ChangeSizeArray(PDM%ParticleInside,PDM%maxParticleNumber,NewSize,.FALSE.)
 IF(ALLOCATED(PDM%IsNewPart)) CALL ChangeSizeArray(PDM%IsNewPart,PDM%maxParticleNumber,NewSize,.FALSE.)
 IF(ALLOCATED(PDM%dtFracPush)) CALL ChangeSizeArray(PDM%dtFracPush,PDM%maxParticleNumber,NewSize,.FALSE.)
-IF(ALLOCATED(PDM%InRotRefFrame)) CALL ChangeSizeArray(PDM%InRotRefFrame,PDM%maxParticleNumber,NewSize,.FALSE.)
+IF(ALLOCATED(InRotRefFrame)) CALL ChangeSizeArray(InRotRefFrame,PDM%maxParticleNumber,NewSize,.FALSE.)
 
 IF(ALLOCATED(PartState)) CALL ChangeSizeArray(PartState,PDM%maxParticleNumber,NewSize,0.)
 IF(ALLOCATED(LastPartPos)) CALL ChangeSizeArray(LastPartPos,PDM%maxParticleNumber,NewSize,0.)
@@ -2028,7 +2028,7 @@ IF(ALLOCATED(PEM%LastGlobalElemID)) CALL ChangeSizeArray(PEM%LastGlobalElemID,PD
 IF(ALLOCATED(PDM%ParticleInside)) CALL ChangeSizeArray(PDM%ParticleInside,PDM%maxParticleNumber,NewSize,.FALSE.)
 IF(ALLOCATED(PDM%IsNewPart)) CALL ChangeSizeArray(PDM%IsNewPart,PDM%maxParticleNumber,NewSize,.FALSE.)
 IF(ALLOCATED(PDM%dtFracPush)) CALL ChangeSizeArray(PDM%dtFracPush,PDM%maxParticleNumber,NewSize,.FALSE.)
-IF(ALLOCATED(PDM%InRotRefFrame)) CALL ChangeSizeArray(PDM%InRotRefFrame,PDM%maxParticleNumber,NewSize,.FALSE.)
+IF(ALLOCATED(InRotRefFrame)) CALL ChangeSizeArray(InRotRefFrame,PDM%maxParticleNumber,NewSize,.FALSE.)
 
 IF(ALLOCATED(PartState)) CALL ChangeSizeArray(PartState,PDM%maxParticleNumber,NewSize,0.)
 IF(ALLOCATED(LastPartPos)) CALL ChangeSizeArray(LastPartPos,PDM%maxParticleNumber,NewSize,0.)
@@ -2175,9 +2175,9 @@ IF(ALLOCATED(PDM%dtFracPush)) THEN
   PDM%dtFracPush(NewID)=PDM%dtFracPush(OldID)
   PDM%dtFracPush(OldID)=.FALSE.
 END IF
-IF(ALLOCATED(PDM%InRotRefFrame)) THEN
-  PDM%InRotRefFrame(NewID)=PDM%InRotRefFrame(OldID)
-  PDM%InRotRefFrame(OldID)=.FALSE.
+IF(ALLOCATED(InRotRefFrame)) THEN
+  InRotRefFrame(NewID)=InRotRefFrame(OldID)
+  InRotRefFrame(OldID)=.FALSE.
 END IF
 
 IF(ALLOCATED(PartState)) THEN

@@ -56,7 +56,7 @@ ELSE IF (Symmetry%Order.EQ.2.OR.Symmetry%Order.EQ.1) THEN
 ELSE
   CALL abort(__STAMP__,'ERROR in InitSingleParticleTriaTracking: Function pointer could not be properly defined!')
 END IF
-  
+
 END SUBROUTINE InitSingleParticleTriaTracking
 
 
@@ -69,9 +69,9 @@ SUBROUTINE ParticleTriaTracking()
 ! MODULES
 USE MOD_Preproc
 USE MOD_Globals
-USE MOD_Particle_Vars               ,ONLY: PEM,PDM,InterPlanePartNumber, InterPlanePartIndx, UseRotSubCycling,nSubCyclingSteps
-USE MOD_Particle_Vars               ,ONLY: RotRefSubTimeStep, NewPosSubCycling, GlobalElemIDSubCycling, LastPartPosSubCycling
-USE MOD_Particle_Vars               ,ONLY: InRotRefFrameSubCycling, PartVeloRotRefSubCycling, LastVeloRotRefSubCycling
+USE MOD_Particle_Vars               ,ONLY: PEM,PDM,InterPlanePartNumber, InterPlanePartIndx, UseRotRefSubCycling,nSubCyclingSteps
+USE MOD_Particle_Vars               ,ONLY: NewPosSubCycling, GlobalElemIDSubCycling, LastPartPosSubCycling
+USE MOD_Particle_Vars               ,ONLY: InRotRefFrame,InRotRefFrameSubCycling, PartVeloRotRefSubCycling, LastVeloRotRefSubCycling
 USE MOD_DSMC_Vars                   ,ONLY: RadialWeighting
 USE MOD_DSMC_Symmetry               ,ONLY: DSMC_2D_RadialWeighting, DSMC_2D_SetInClones
 USE MOD_part_tools                  ,ONLY: ParticleOnProc
@@ -105,57 +105,8 @@ DO i = 1,PDM%ParticleVecLength
   !     stepping method. Note that PEM%LastGlobalElemID(i)<0 is used for Symmetry%Order.LE.2 where the information
   !     PEM%LastGlobalElemID(i) = -SideID is stored (surface flux).
   IF (PDM%ParticleInside(i).AND.PEM%LastGlobalElemID(i).NE.0) THEN
-    IF(UseRotSubCycling) THEN
-      !--- Store Particle information before tracking for sub-cycling.
-      !--- it must be stored before first call of "SingleParticleTriaTracking"
-      !--- because particle information like LastPartPos & PartState can be changed within "SingleParticleTriaTracking"
-      !--- e.g. in RotPeriodicInterPlaneBoundary
-      RotRefSubTimeStep=.TRUE.
-      LastPartPosSubCycling(1:3)    = LastPartPos(1:3,i)
-      NewPosSubCycling(1:3)         = PartState(1:3,i)
-      PartVeloRotRefSubCycling(1:3) = PartVeloRotRef(1:3,i)
-      LastVeloRotRefSubCycling(1:3) = LastPartVeloRotRef(1:3,i)
-      GlobalElemIDSubCycling        = PEM%LastGlobalElemID(i)
-      InRotRefFrameSubCycling       = PDM%InRotRefFrame(i)
-      IF(RotRefSubTimeStep) THEN
-        !--- split time step in 10 sub-steps
-        IF (UseVarTimeStep) THEN
-          dtVar = dt * PartTimeStep(i)
-        ELSE
-          dtVar = dt
-        END IF
-        IF(VarTimeStep%UseSpeciesSpecific) dtVar = dtVar * Species(PartSpecies(i))%TimeStepFactor
-        dtVar = dtVar / REAL(nSubCyclingSteps)
-        !--- Reset Particle Push from timedisc
-        PartState(1:3,i) = LastPartPosSubCycling(1:3)
-        LastPartPos(1:3,i) = LastPartPosSubCycling(1:3)
-        PartVeloRotRef(1:3,i)=LastVeloRotRefSubCycling(1:3)
-        PEM%GlobalElemID(i) = GlobalElemIDSubCycling
-        PEM%LastGlobalElemID(i)= GlobalElemIDSubCycling
-        LastPartVeloRotRef(1:3,i) = LastVeloRotRefSubCycling(1:3)
-        PDM%ParticleInside(i) = .TRUE.
-        PDM%InRotRefFrame(i) = InRotRefFrameSubCycling
-        !--- Loop over sub time steps
-        DO iStep = 1, nSubCyclingSteps
-          IF (PDM%ParticleInside(i)) THEN
-            IF(iStep.GT.1) THEN
-              LastPartPos(1:3,i)=PartState(1:3,i)
-              PEM%LastGlobalElemID(i)=PEM%GlobalElemID(i)
-              LastPartVeloRotRef(1:3,i)=PartVeloRotRef(1:3,i)
-            END IF
-            CALL CalcPartPosInRotRef(i, dtVar)
-            CALL SingleParticleTriaTracking(i=i)
-          END IF
-        END DO
-      END IF
-      !--- Reset stored particle information
-      RotRefSubTimeStep = .FALSE.
-      LastPartPosSubCycling    = 0.0
-      NewPosSubCycling         = 0.0
-      PartVeloRotRefSubCycling = 0.0
-      LastVeloRotRefSubCycling = 0.0
-      GlobalElemIDSubCycling   = 0
-      InRotRefFrameSubCycling  = .FALSE.
+    IF(UseRotRefSubCycling) THEN
+      CALL SingleParticleTriaTrackingSubcycling(iPart=i)
     ELSE
       CALL SingleParticleTriaTracking(i=i)
     END IF
@@ -172,50 +123,8 @@ IF(InterPlanePartNumber.GT.0) THEN
   DO i = 1,InterPlanePartNumber
     InterPartID = InterPlanePartIndx(i)
     PDM%ParticleInside(InterPartID) = .TRUE.
-    IF(UseRotSubCycling) THEN
-      RotRefSubTimeStep=.TRUE.
-      LastPartPosSubCycling(1:3)    = LastPartPos(1:3,InterPartID)
-      NewPosSubCycling(1:3)         = PartState(1:3,InterPartID)
-      PartVeloRotRefSubCycling(1:3) = PartVeloRotRef(1:3,InterPartID)
-      LastVeloRotRefSubCycling(1:3) = LastPartVeloRotRef(1:3,InterPartID)
-      GlobalElemIDSubCycling        = PEM%LastGlobalElemID(InterPartID)
-      InRotRefFrameSubCycling       = PDM%InRotRefFrame(InterPartID)
-      !--- split time step in 10 sub-steps
-      IF (UseVarTimeStep) THEN
-        dtVar = dt * PartTimeStep(InterPartID)
-      ELSE
-        dtVar = dt
-      END IF
-      IF(VarTimeStep%UseSpeciesSpecific) dtVar = dtVar * Species(PartSpecies(InterPartID))%TimeStepFactor
-      dtVar = dtVar / REAL(nSubCyclingSteps)
-      !--- reset Particle Push
-      PartState(1:3,InterPartID) = LastPartPosSubCycling(1:3)
-      LastPartPos(1:3,InterPartID) = LastPartPosSubCycling(1:3)
-      PartVeloRotRef(1:3,InterPartID)=LastVeloRotRefSubCycling(1:3)
-      PEM%GlobalElemID(InterPartID) = GlobalElemIDSubCycling
-      PEM%LastGlobalElemID(InterPartID)= GlobalElemIDSubCycling
-      LastPartVeloRotRef(1:3,InterPartID) = LastVeloRotRefSubCycling(1:3)
-      PDM%InRotRefFrame(InterPartID) = InRotRefFrameSubCycling
-      !--- Loop over sub time steps
-      DO iStep = 1, nSubCyclingSteps
-        IF (PDM%ParticleInside(InterPartID)) THEN
-          IF(iStep.GT.1) THEN
-            LastPartPos(1:3,InterPartID)=PartState(1:3,InterPartID)
-            PEM%LastGlobalElemID(InterPartID)=PEM%GlobalElemID(InterPartID)
-            LastPartVeloRotRef(1:3,InterPartID)=PartVeloRotRef(1:3,InterPartID)
-          END IF
-          CALL CalcPartPosInRotRef(InterPartID, dtVar)
-          CALL SingleParticleTriaTracking(i=InterPartID,IsInterPlanePart=.TRUE.)
-        END IF
-      END DO
-      !--- Reset stored particle information
-      RotRefSubTimeStep = .FALSE.
-      LastPartPosSubCycling    = 0.0
-      NewPosSubCycling         = 0.0
-      PartVeloRotRefSubCycling = 0.0
-      LastVeloRotRefSubCycling = 0.0
-      GlobalElemIDSubCycling   = 0
-      InRotRefFrameSubCycling  = .FALSE.
+    IF(UseRotRefSubCycling) THEN
+      CALL SingleParticleTriaTrackingSubcycling(iPart=InterPartID,IsInterPlanePart=.TRUE.)
     ELSE
       CALL SingleParticleTriaTracking(i=InterPartID,IsInterPlanePart=.TRUE.)
     END IF
@@ -251,7 +160,7 @@ USE MOD_Mesh_Tools                  ,ONLY: GetCNElemID
 USE MOD_Particle_Vars               ,ONLY: PEM,PDM,PartSpecies
 USE MOD_Particle_Vars               ,ONLY: PartState,LastPartPos
 USE MOD_Symmetry_Vars               ,ONLY: Symmetry
-USE MOD_Particle_Vars               ,ONLY: UseRotRefFrame, RotRefFrameOmega, PartVeloRotRef
+USE MOD_Particle_Vars               ,ONLY: UseRotRefFrame, InRotRefFrame, RotRefFrameOmega, PartVeloRotRef
 USE MOD_Particle_Mesh_Tools         ,ONLY: ParticleInsideQuad3D
 USE MOD_Particle_Mesh_Vars
 USE MOD_Particle_Tracking_vars      ,ONLY: ntracks,MeasureTrackTime,CountNbrOfLostParts, NbrOfLostParticles, TrackInfo
@@ -561,14 +470,14 @@ DO WHILE (.NOT.PartisDone)
       IF(PDM%ParticleInside(i)) THEN
         IF(InRotRefFrameCheck(i)) THEN
           ! Particle moved into the rotational frame of reference, initialize velocity
-          IF(.NOT.PDM%InRotRefFrame(i)) THEN
+          IF(.NOT.InRotRefFrame(i)) THEN
             PartVeloRotRef(1:3,i) = PartState(4:6,i) - CROSS(RotRefFrameOmega(1:3),PartState(1:3,i))
           END IF
         ELSE
           ! Particle left (or never was in) the rotational frame of reference
           PartVeloRotRef(1:3,i) = 0.
         END IF
-        PDM%InRotRefFrame(i) = InRotRefFrameCheck(i)
+        InRotRefFrame(i) = InRotRefFrameCheck(i)
       END IF
     END IF
     TrackInfo%CurrElem = ElemID
@@ -743,5 +652,89 @@ IF(ParticleOnProc(i)) CALL LBElemPauseTime(PEM%LocalElemID(i),tLBStart)
 #endif /*USE_LOADBALANCE*/
 
 END SUBROUTINE SingleParticleTriaTracking1D2D
+
+
+SUBROUTINE SingleParticleTriaTrackingSubcycling(iPart,IsInterPlanePart)
+!===================================================================================================================================
+!> Store Particle information before tracking for sub-cycling.
+!> it must be stored before first call of "SingleParticleTriaTracking" because particle information like LastPartPos & PartState
+!> can be changed within "SingleParticleTriaTracking" e.g. in RotPeriodicInterPlaneBoundary
+!> Loop over nSubCyclingSteps and perform SingleParticleTriaTracking
+!===================================================================================================================================
+! MODULES
+USE MOD_Preproc
+USE MOD_Globals
+USE MOD_Particle_Vars       ,ONLY: PEM,PDM,nSubCyclingSteps
+USE MOD_Particle_Vars       ,ONLY: NewPosSubCycling, GlobalElemIDSubCycling, LastPartPosSubCycling
+USE MOD_Particle_Vars       ,ONLY: InRotRefFrame,InRotRefFrameSubCycling, PartVeloRotRefSubCycling, LastVeloRotRefSubCycling
+USE MOD_part_RHS            ,ONLY: CalcPartPosInRotRef
+USE MOD_TimeDisc_Vars       ,ONLY: dt
+USE MOD_Particle_Vars       ,ONLY: UseVarTimeStep, PartTimeStep, VarTimeStep, Species, PartState, LastPartPos, PartSpecies
+USE MOD_Particle_Vars       ,ONLY: PartVeloRotRef, LastPartVeloRotRef
+!-----
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+INTEGER,INTENT(IN)          :: iPart
+LOGICAL,INTENT(IN),OPTIONAL :: IsInterPlanePart
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER                     :: iStep
+REAL                        :: dtVar
+LOGICAL                     :: IsInterPlanePart_loc
+!===================================================================================================================================
+
+IF(PRESENT(IsInterPlanePart)) THEN
+  IsInterPlanePart_loc = IsInterPlanePart
+ELSE
+  IsInterPlanePart_loc = .FALSE.
+END IF
+
+LastPartPosSubCycling(1:3)    = LastPartPos(1:3,iPart)
+NewPosSubCycling(1:3)         = PartState(1:3,iPart)
+PartVeloRotRefSubCycling(1:3) = PartVeloRotRef(1:3,iPart)
+LastVeloRotRefSubCycling(1:3) = LastPartVeloRotRef(1:3,iPart)
+GlobalElemIDSubCycling        = PEM%LastGlobalElemID(iPart)
+InRotRefFrameSubCycling       = InRotRefFrame(iPart)
+!--- split time step in 10 sub-steps
+IF (UseVarTimeStep) THEN
+  dtVar = dt * PartTimeStep(iPart)
+ELSE
+  dtVar = dt
+END IF
+IF(VarTimeStep%UseSpeciesSpecific) dtVar = dtVar * Species(PartSpecies(iPart))%TimeStepFactor
+dtVar = dtVar / REAL(nSubCyclingSteps)
+!--- Reset Particle Push from timedisc
+PartState(1:3,iPart) = LastPartPosSubCycling(1:3)
+LastPartPos(1:3,iPart) = LastPartPosSubCycling(1:3)
+PartVeloRotRef(1:3,iPart)=LastVeloRotRefSubCycling(1:3)
+PEM%GlobalElemID(iPart) = GlobalElemIDSubCycling
+PEM%LastGlobalElemID(iPart)= GlobalElemIDSubCycling
+LastPartVeloRotRef(1:3,iPart) = LastVeloRotRefSubCycling(1:3)
+InRotRefFrame(iPart) = InRotRefFrameSubCycling
+!--- Loop over sub time steps
+DO iStep = 1, nSubCyclingSteps
+  IF (PDM%ParticleInside(iPart)) THEN
+    IF(iStep.GT.1) THEN
+      LastPartPos(1:3,iPart)=PartState(1:3,iPart)
+      PEM%LastGlobalElemID(iPart)=PEM%GlobalElemID(iPart)
+      LastPartVeloRotRef(1:3,iPart)=PartVeloRotRef(1:3,iPart)
+    END IF
+    CALL CalcPartPosInRotRef(iPart, dtVar)
+    CALL SingleParticleTriaTracking(i=iPart,IsInterPlanePart=IsInterPlanePart_loc)
+  END IF
+END DO
+!--- Reset stored particle information
+LastPartPosSubCycling    = 0.0
+NewPosSubCycling         = 0.0
+PartVeloRotRefSubCycling = 0.0
+LastVeloRotRefSubCycling = 0.0
+GlobalElemIDSubCycling   = 0
+InRotRefFrameSubCycling  = .FALSE.
+
+END SUBROUTINE SingleParticleTriaTrackingSubcycling
 
 END MODULE MOD_Particle_TriaTracking
