@@ -380,8 +380,17 @@ helpArray2 = 0.
 OutputCounter = 0
 
 DO iSurfSide = 1,nComputeNodeSurfSides
+  !================== INNER BC CHECK
   GlobalSideID = SurfSide2GlobalSide(SURF_SIDEID,iSurfSide)
-  ! TODO: INNER BC requires special treatment for the calculation of the VDL potential and corresponding electric field
+  IF(SideInfo_Shared(SIDE_NBSIDEID,GlobalSideID).GT.0) THEN
+    IF(GlobalSideID.LT.SideInfo_Shared(SIDE_NBSIDEID,GlobalSideID)) THEN
+    ! TODO: INNER BC requires special treatment for the calculation of the VDL potential and corresponding electric field
+!      SurfSideNb = GlobalSide2SurfSide(SURF_SIDEID,SideInfo_Shared(SIDE_NBSIDEID,GlobalSideID))
+      CYCLE
+    ELSE
+      CYCLE
+    END IF
+  END IF
   !================== ROTATIONALLY PERIODIC BC CHECK
   IF(PartBound%TargetBoundCond(PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,GlobalSideID))).EQ.PartBound%RotPeriodicBC) CYCLE
   !================== INTER PLANE BC CHECK

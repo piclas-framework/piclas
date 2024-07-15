@@ -564,7 +564,7 @@ DO iPartBound=1,nPartBound
       DoDielectricSurfaceCharge          = .TRUE. ! Global setting indicating surface charging via VDL or PartBound%Dielectric
       DoHaloDepo                         = .TRUE. ! Activate deposition in the halo region (shape function)
       ! Check if pure VDL or SEE+VDL boundary. Only set SurfaceModel=99 when not other model is present
-      IF(.NOT.((PartBound%PhotonSEEYield(iPartBound).GT.0.).OR.BoundaryUsesSEE)) PartBound%SurfaceModel(iPartBound) = 99 ! VDL only
+      IF(.NOT.BoundaryUsesSEE) PartBound%SurfaceModel(iPartBound) = 99 ! VDL only
 #if !((PP_TimeDiscMethod==500) || (PP_TimeDiscMethod==501) || (PP_TimeDiscMethod==502) || (PP_TimeDiscMethod==506) || (PP_TimeDiscMethod==508) || (PP_TimeDiscMethod==509))
       CALL abort(__STAMP__,'VDL model not implemented for the given time discretisation!')
 #endif /*!((PP_TimeDiscMethod==500) || (PP_TimeDiscMethod==501) || (PP_TimeDiscMethod==502) || (PP_TimeDiscMethod==506) || (PP_TimeDiscMethod==508) || (PP_TimeDiscMethod==509))*/
