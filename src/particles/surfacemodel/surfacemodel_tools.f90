@@ -211,7 +211,7 @@ IF(PDM%InRotRefFrame(PartID)) THEN
   ! Calc new particle position with NewVeloPush
   PartState(1:3,PartID)   = LastPartPos(1:3,PartID) + (1.0 - POI_fak) * dtVar * NewVeloPush(1:3)
 ELSE
-  ! Mirror the LastPartPos for new particle position  
+  ! Mirror the LastPartPos for new particle position
   PartState(1:3,PartID) = LastPartPos(1:3,PartID) + TrackInfo%PartTrajectory(1:3)*(TrackInfo%lengthPartTrajectory - TrackInfo%alpha)
 END IF
 
@@ -475,9 +475,12 @@ IF(Symmetry%Axisymmetric) THEN
   PartState(3,PartID) = 0.0
   NewVelo(2) = rotVelY
   NewVelo(3) = rotVelZ
-  
-  IF (NINT(SIGN(1.,rotPosY-POI_vec(2))).NE.NINT(SIGN(1.,ny))) THEN
-    IF (ABS(nx).LT.0.999) THEN
+
+  ! First check ensures that the normal vector of the side is not almost entirely in the x-direction (thus avoiding ny = 0)
+  IF (ABS(nx).LT.0.999) THEN
+    ! If particle has been rotated in the opposite direction of the normal vector, shift last particle position slightly
+    ! away from the wall and reset LastSide to check side again.
+    IF (NINT(SIGN(1.,rotPosY-POI_vec(2))).NE.NINT(SIGN(1.,ny))) THEN
       LastPartPos(2, PartID) = LastPartPos(2, PartID) + SIGN(1.,ny)*TwoepsMach
       TrackInfo%LastSide = 0
     END IF
