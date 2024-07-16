@@ -2336,6 +2336,12 @@ DO BCsideID=1,nNeumannBCSides
       qn_face(PP_nVar,r,BCSideID)=SUM((/1.,1.,1./)  &
                           *MATMUL(chitens_face(:,:,p,q,SideID),NormVec(:,p,q,SideID)))*SurfElem(p,q,SideID)*wGP(p)*wGP(q)
     END DO; END DO !p,q
+  CASE(12) !neumann q*n=1 !test
+    DO q=0,PP_N; DO p=0,PP_N
+      r=q*(PP_N+1) + p+1
+      qn_face(PP_nVar,r,BCSideID)=SUM((/-1.45e7,1.,1./)  &
+                          *MATMUL(chitens_face(:,:,p,q,SideID),NormVec(:,p,q,SideID)))*SurfElem(p,q,SideID)*wGP(p)*wGP(q)
+    END DO; END DO !p,q
   END SELECT ! BCType
 END DO !BCsideID=1,nNeumannBCSides
 
