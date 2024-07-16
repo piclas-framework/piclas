@@ -282,8 +282,10 @@ SmallestscaledJacRef=HUGE(1.)
       dXCL_NGeo(2,:,i,j,k)=dXCL_NGeo(2,:,i,j,k) + DCL_NGeo(j,ll)*XCL_Ngeo(:,i,ll,k)
       dXCL_NGeo(3,:,i,j,k)=dXCL_NGeo(3,:,i,j,k) + DCL_NGeo(k,ll)*XCL_Ngeo(:,i,j,ll)
     END DO !l=0,N
+#if USE_HDG
     ! AXISYMMETRIC HDG
     IF(Symmetry%Axisymmetric) dXCL_Ngeo(3,3,i,j,k)=PI*XCL_Ngeo(2,i,j,k)
+#endif /*USE_HDG*/
   END DO; END DO; END DO !i,j,k=0,Ngeo
 
   ! 1.c)Jacobians! grad(X_1) (grad(X_2) x grad(X_3))
