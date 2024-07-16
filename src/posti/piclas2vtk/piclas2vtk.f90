@@ -1147,7 +1147,7 @@ CHARACTER(LEN=255),INTENT(IN)   :: InputStateFile
 ! LOCAL VARIABLES
 CHARACTER(LEN=255)              :: FileString, File_Type
 CHARACTER(LEN=255),ALLOCATABLE  :: VarNamesSurf_HDF5(:)
-INTEGER                         :: nDims, nVarSurf, nSurfaceSidesReadin, iSurfCinnectSide
+INTEGER                         :: nDims, nVarSurf, nSurfaceSidesReadin, iSurfConnectSide
 REAL                            :: OutputTime
 REAL, ALLOCATABLE               :: tempSurfData(:,:,:,:,:)
 INTEGER                         :: iSide
@@ -1205,9 +1205,9 @@ IF(nSurfSample.GT.1) THEN
   NodeCoords_visu = 0.
   ! Interpolate mesh onto visu grid
   DO iSide=1,SurfConnect%nSurfaceBCSides
-    iSurfCinnectSide = SurfConnect%SurfSideToSide(iSide)
+    iSurfConnectSide = SurfConnect%SurfSideToSide(iSide)
     CALL ChangeBasis2D(3, PP_N, nSurfSample, Vdm_N_NVisu, &
-        N_SurfMesh(iSurfCinnectSide)%Face_xGP(1:3 , 0:PP_N        , 0:PP_N)       , &
+        N_SurfMesh(iSurfConnectSide)%Face_xGP(1:3 , 0:PP_N        , 0:PP_N)       , &
                               NodeCoords_visu(1:3 , 0:nSurfSample , 0:nSurfSample , 0 , iSide))
   END DO
 ELSE
@@ -1254,7 +1254,7 @@ USE MOD_Globals
 USE MOD_IO_HDF5            ,ONLY: HSize
 USE MOD_HDF5_Input         ,ONLY: OpenDataFile,CloseDataFile,ReadAttribute,GetDataSize,File_ID,ReadArray,GetDataSize
 USE MOD_Mesh_Tools         ,ONLY: GetCNElemID
-USE MOD_Mesh_Vars          ,ONLY: BoundaryName
+USE MOD_Mesh_Vars          ,ONLY: BoundaryName, nSides
 USE MOD_piclas2vtk_Vars    ,ONLY: SurfConnect
 USE MOD_Particle_Mesh_Vars ,ONLY: ElemSideNodeID_Shared,SideInfo_Shared,NodeCoords_Shared,NodeInfo_Shared,nNonUniqueGlobalSides
 ! IMPLICIT VARIABLE HANDLING
@@ -1297,7 +1297,7 @@ nSurfSides = 0
 nUniqueSurfSide = 0
 DO iSide = 1,nNonUniqueGlobalSides
   ! Cycle non-BC sides
-  IF(SideInfo_Shared(SIDE_BCID,iSide).EQ.0) CYCLE
+  IF(SideInfo_Shared(SIDE_BCID,iSide).LE.0) CYCLE
   ! Loop over all read-in surface BCs
   DO iBC=1,nSurfBC_HDF5
     IF((TRIM(BoundaryName(SideInfo_Shared(SIDE_BCID,iSide))) .EQ. TRIM(SurfBCName_HDF5(iBC)))) THEN
@@ -1305,7 +1305,7 @@ DO iSide = 1,nNonUniqueGlobalSides
       nSurfSides = nSurfSides + 1
       SideToSurfSide(iSide) = nSurfSides
       IF(SideInfo_Shared(SIDE_NBSIDEID,iSide).GT.0) THEN
-        ! Cycling over non-unique sides
+        ! Cycling over non-unique surface sides (only showing the side with smaller index)
         IF(iSide.GT.SideInfo_Shared(SIDE_NBSIDEID,iSide)) CYCLE
       END IF
       ! Count the number of unique surface sides with a BC and create mapping
@@ -1330,12 +1330,12 @@ SurfConnect%SurfSideToSide = 0
 DO iSide=1, nNonUniqueGlobalSides
   ! Cycling over non-reflective sides
   IF (SideToSurfSide(iSide).EQ.-1) CYCLE
-  ! Cycling over non-unique sides
+  ! Cycling over non-unique surf sides (inner BCs)
   IF (NonUnique2UniqueSide(SideToSurfSide(iSide)).EQ.-1) CYCLE
   CNElemID = GetCNElemID(SideInfo_Shared(SIDE_ELEMID,iSide))
   iLocSide = SideInfo_Shared(SIDE_LOCALID,iSide)
   SurfConnect%nSurfaceBCSides = SurfConnect%nSurfaceBCSides + 1
-  SurfConnect%SurfSideToSide(SurfConnect%nSurfaceBCSides) = iSide
+  SurfConnect%SurfSideToSide(SurfConnect%nSurfaceBCSides) = SideToSurfSide(iSide)
   DO iNode2 = 1, 4
     IsSortedSurfNode = .FALSE.
     DO iNode = 1, SurfConnect%nSurfaceNode
