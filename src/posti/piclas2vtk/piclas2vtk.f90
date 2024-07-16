@@ -1174,7 +1174,7 @@ nSurfaceSidesReadin = INT(HSize(4),4)
 ALLOCATE(VarNamesSurf_HDF5(nVarSurf))
 CALL ReadAttribute(File_ID,'VarNamesSurface',nVarSurf,StrArray=VarNamesSurf_HDF5(1:nVarSurf))
 
-IF((nVarSurf.GT.0).AND.(SurfConnect%nSurfaceBCSides.GT.0))THEN
+IF((nVarSurf.GT.0).AND.(SurfConnect%nSurfaceOutputSides.GT.0))THEN
   ALLOCATE(tempSurfData(1:nVarSurf,nSurfSample,nSurfSample,0:0,1:nSurfaceSidesReadin))
   tempSurfData = 0.
   ASSOCIATE(nVarSurf            => INT(nVarSurf,IK),    &
@@ -1185,11 +1185,11 @@ IF((nVarSurf.GT.0).AND.(SurfConnect%nSurfaceBCSides.GT.0))THEN
   END ASSOCIATE
 
   ! Sanity check
-  IF(SurfConnect%nSurfaceBCSides.NE.nSurfaceSidesReadin)THEN
-    WRITE (UNIT_stdOut,*) "SurfConnect%nSurfaceBCSides =", SurfConnect%nSurfaceBCSides
+  IF(SurfConnect%nSurfaceOutputSides.NE.nSurfaceSidesReadin)THEN
+    WRITE (UNIT_stdOut,*) "SurfConnect%nSurfaceOutputSides =", SurfConnect%nSurfaceOutputSides
     WRITE (UNIT_stdOut,*) "nSurfaceSidesReadin         =", nSurfaceSidesReadin
-    CALL abort(__STAMP__,'Error: SurfConnect%nSurfaceBCSides.NE.nSurfaceSidesReadin')
-  END IF ! SurfConnect%nSurfaceBCSides.NE.nSurfaceSidesReadin
+    CALL abort(__STAMP__,'Error: SurfConnect%nSurfaceOutputSides.NE.nSurfaceSidesReadin')
+  END IF ! SurfConnect%nSurfaceOutputSides.NE.nSurfaceSidesReadin
 END IF
 
 IF(nSurfSample.GT.1) THEN
@@ -1218,15 +1218,15 @@ ELSE
   FileString=TRIM(TRIM(ProjectName)//'_RadSurfVisu')//'.vtu'
 END IF
 !CALL WriteDataToVTK_PICLas(4,FileString,nVarSurf,VarNamesSurf_HDF5,SurfConnect%nSurfaceNode,SurfConnect%NodeCoords(1:3,1:SurfConnect%nSurfaceNode),&
-    !SurfConnect%nSurfaceBCSides,SurfData,SurfConnect%SideSurfNodeMap(1:4,1:SurfConnect%nSurfaceBCSides))
+    !SurfConnect%nSurfaceOutputSides,SurfData,SurfConnect%SideSurfNodeMap(1:4,1:SurfConnect%nSurfaceOutputSides))
 
 IF(nSurfSample.GT.1) THEN
-  ! Number of nodes is calculated inside the routine in case of super-sampling: nSurfaceBCSides = nSurfaceNode
-  CALL WriteDataToVTK_PICLas(2,4,FileString,nVarSurf,VarNamesSurf_HDF5,SurfConnect%nSurfaceBCSides,NodeCoords_visu,&
-      SurfConnect%nSurfaceBCSides,tempSurfData,SurfConnect%SideSurfNodeMap)
+  ! Number of nodes is calculated inside the routine in case of super-sampling: nSurfaceOutputSides = nSurfaceNode
+  CALL WriteDataToVTK_PICLas(2,4,FileString,nVarSurf,VarNamesSurf_HDF5,SurfConnect%nSurfaceOutputSides,NodeCoords_visu,&
+      SurfConnect%nSurfaceOutputSides,tempSurfData,SurfConnect%SideSurfNodeMap)
 ELSE
   CALL WriteDataToVTK_PICLas(2,4,FileString,nVarSurf,VarNamesSurf_HDF5,SurfConnect%nSurfaceNode,NodeCoords_visu,&
-      SurfConnect%nSurfaceBCSides,tempSurfData,SurfConnect%SideSurfNodeMap)
+      SurfConnect%nSurfaceOutputSides,tempSurfData,SurfConnect%SideSurfNodeMap)
 END IF
 
 SDEALLOCATE(VarNamesSurf_HDF5)
@@ -1246,7 +1246,7 @@ USE MOD_Globals
 USE MOD_IO_HDF5            ,ONLY: HSize
 USE MOD_HDF5_Input         ,ONLY: OpenDataFile,CloseDataFile,ReadAttribute,GetDataSize,File_ID,ReadArray,GetDataSize
 USE MOD_Mesh_Tools         ,ONLY: GetCNElemID
-USE MOD_Mesh_Vars          ,ONLY: BoundaryName, nSides
+USE MOD_Mesh_Vars          ,ONLY: BoundaryName
 USE MOD_piclas2vtk_Vars    ,ONLY: SurfConnect
 USE MOD_Particle_Mesh_Vars ,ONLY: ElemSideNodeID_Shared,SideInfo_Shared,NodeCoords_Shared,NodeInfo_Shared,nNonUniqueGlobalSides
 ! IMPLICIT VARIABLE HANDLING
@@ -1260,8 +1260,8 @@ CHARACTER(LEN=255),INTENT(IN)   :: InputStateFile
 ! LOCAL VARIABLES
 CHARACTER(LEN=255),ALLOCATABLE  :: SurfBCName_HDF5(:)
 INTEGER                         :: nDims, iNode, nSurfBC_HDF5, iName
-INTEGER                         :: CNElemID, iLocSide, iSide, iNode2, iBC, nSurfSides, nUniqueSurfSide
-INTEGER, ALLOCATABLE            :: TempBCSurfNodes(:), TempSideSurfNodeMap(:,:), SideToSurfSide(:), NonUnique2UniqueSide(:)
+INTEGER                         :: CNElemID, iLocSide, iSide, iNode2, iBC, nSurfSides, iSurfBCSide
+INTEGER, ALLOCATABLE            :: NonUniqueGlobalSideToSurfSide(:), NonUniqueGlobalSideToUniqueSurfSide(:), TempBCSurfNodes(:)
 REAL, ALLOCATABLE               :: TempNodeCoords(:,:)
 LOGICAL                         :: IsSortedSurfNode
 !===================================================================================================================================
@@ -1279,60 +1279,61 @@ DO iName = 1,nSurfBC_HDF5
 END DO
 
 ! create sideid to surfaceid map for all surface-sides contained in statefile
-ALLOCATE(SideToSurfSide(1:nNonUniqueGlobalSides))
-SideToSurfSide(1:nNonUniqueGlobalSides) = -1
-ALLOCATE(NonUnique2UniqueSide(1:nNonUniqueGlobalSides))
-NonUnique2UniqueSide(1:nNonUniqueGlobalSides) = -1
+ALLOCATE(NonUniqueGlobalSideToSurfSide(1:nNonUniqueGlobalSides))
+NonUniqueGlobalSideToSurfSide(1:nNonUniqueGlobalSides) = -1
+ALLOCATE(NonUniqueGlobalSideToUniqueSurfSide(1:nNonUniqueGlobalSides))
+NonUniqueGlobalSideToUniqueSurfSide(1:nNonUniqueGlobalSides) = -1
 
-! if side is surface (BC_reflective defined in State file) then map respective surface side number
+! Loop over all non-unique sides
 nSurfSides = 0
-nUniqueSurfSide = 0
+SurfConnect%nSurfaceOutputSides=0
 DO iSide = 1,nNonUniqueGlobalSides
   ! Cycle non-BC sides
   IF(SideInfo_Shared(SIDE_BCID,iSide).LE.0) CYCLE
   ! Loop over all read-in surface BCs
   DO iBC=1,nSurfBC_HDF5
     IF((TRIM(BoundaryName(SideInfo_Shared(SIDE_BCID,iSide))) .EQ. TRIM(SurfBCName_HDF5(iBC)))) THEN
-      ! Count the number of surface sides with a BC
+      ! Count the number of surface sides with a BC (including the double inner BCs)
       nSurfSides = nSurfSides + 1
-      SideToSurfSide(iSide) = nSurfSides
+      NonUniqueGlobalSideToSurfSide(iSide) = nSurfSides
       IF(SideInfo_Shared(SIDE_NBSIDEID,iSide).GT.0) THEN
-        ! Cycling over non-unique surface sides (only showing the side with smaller index)
+        ! Cycling over non-unique surface sides with a neighbor side (in the output only showing the side with smaller index)
         IF(iSide.GT.SideInfo_Shared(SIDE_NBSIDEID,iSide)) CYCLE
       END IF
       ! Count the number of unique surface sides with a BC and create mapping
-      nUniqueSurfSide = nUniqueSurfSide + 1
-      NonUnique2UniqueSide(nSurfSides) = nUniqueSurfSide
+      SurfConnect%nSurfaceOutputSides = SurfConnect%nSurfaceOutputSides + 1
+      NonUniqueGlobalSideToUniqueSurfSide(iSide) = SurfConnect%nSurfaceOutputSides
     END IF
   END DO
 END DO
 
 ! Build connectivity for the surface mesh
-ALLOCATE(TempBCSurfNodes(4*nNonUniqueGlobalSides))
+ALLOCATE(TempBCSurfNodes(4*SurfConnect%nSurfaceOutputSides))
 TempBCSurfNodes = 0
-ALLOCATE(TempNodeCoords(1:3,4*nNonUniqueGlobalSides))
+ALLOCATE(TempNodeCoords(1:3,4*SurfConnect%nSurfaceOutputSides))
 TempNodeCoords = 0.0
-ALLOCATE(TempSideSurfNodeMap(1:4,1:nNonUniqueGlobalSides))
-TempSideSurfNodeMap = 0
+SDEALLOCATE(SurfConnect%SideSurfNodeMap)
+ALLOCATE(SurfConnect%SideSurfNodeMap(1:4,1:SurfConnect%nSurfaceOutputSides))
+SurfConnect%SideSurfNodeMap = 0
 SurfConnect%nSurfaceNode=0
-SurfConnect%nSurfaceBCSides=0
-ALLOCATE(SurfConnect%SurfSideToSide(nNonUniqueGlobalSides))
+ALLOCATE(SurfConnect%SurfSideToSide(SurfConnect%nSurfaceOutputSides))
 SurfConnect%SurfSideToSide = 0
 
 DO iSide=1, nNonUniqueGlobalSides
-  ! Cycling over non-reflective sides
-  IF (SideToSurfSide(iSide).EQ.-1) CYCLE
-  ! Cycling over non-unique surf sides (inner BCs)
-  IF (NonUnique2UniqueSide(SideToSurfSide(iSide)).EQ.-1) CYCLE
+  ! Cycling over non-reflective sides and non-unique surf sides (in the output only showing the side with smaller index)
+  IF (NonUniqueGlobalSideToUniqueSurfSide(iSide).EQ.-1) CYCLE
+  ! Create mapping from unique surface output side to regular BC side
+  iSurfBCSide = NonUniqueGlobalSideToUniqueSurfSide(iSide)
+  SurfConnect%SurfSideToSide(iSurfBCSide) = NonUniqueGlobalSideToSurfSide(iSide)
+  ! Create connectivity between surface and nodes
   CNElemID = GetCNElemID(SideInfo_Shared(SIDE_ELEMID,iSide))
   iLocSide = SideInfo_Shared(SIDE_LOCALID,iSide)
-  SurfConnect%nSurfaceBCSides = SurfConnect%nSurfaceBCSides + 1
-  SurfConnect%SurfSideToSide(SurfConnect%nSurfaceBCSides) = SideToSurfSide(iSide)
+  ! Loop over the nodes of the surface side
   DO iNode2 = 1, 4
     IsSortedSurfNode = .FALSE.
     DO iNode = 1, SurfConnect%nSurfaceNode
       IF (ABS(NodeInfo_Shared(ElemSideNodeID_Shared(iNode2, iLocSide, CNElemID)+1)).EQ.TempBCSurfNodes(iNode)) THEN
-        TempSideSurfNodeMap(iNode2,SurfConnect%nSurfaceBCSides) = iNode
+        SurfConnect%SideSurfNodeMap(iNode2,iSurfBCSide) = iNode
         IsSortedSurfNode = .TRUE.
         EXIT
       END IF
@@ -1340,24 +1341,20 @@ DO iSide=1, nNonUniqueGlobalSides
     IF(.NOT.IsSortedSurfNode) THEN
       SurfConnect%nSurfaceNode = SurfConnect%nSurfaceNode + 1
       TempBCSurfNodes(SurfConnect%nSurfaceNode) = ABS(NodeInfo_Shared(ElemSideNodeID_Shared(iNode2, iLocSide, CNElemID)+1))
-      TempSideSurfNodeMap(iNode2,SurfConnect%nSurfaceBCSides) = SurfConnect%nSurfaceNode
+      SurfConnect%SideSurfNodeMap(iNode2,iSurfBCSide) = SurfConnect%nSurfaceNode
       TempNodeCoords(1:3,SurfConnect%nSurfaceNode) = NodeCoords_Shared(1:3,ElemSideNodeID_Shared(iNode2, iLocSide, CNElemID)+1)
     END IF
   END DO
 END DO
 
-SDEALLOCATE(SurfConnect%SideSurfNodeMap)
-ALLOCATE(SurfConnect%SideSurfNodeMap(1:4,1:SurfConnect%nSurfaceBCSides))
-SurfConnect%SideSurfNodeMap(1:4,1:SurfConnect%nSurfaceBCSides) = TempSideSurfNodeMap(1:4,1:SurfConnect%nSurfaceBCSides)
 SDEALLOCATE(SurfConnect%NodeCoords)
 ALLOCATE(SurfConnect%NodeCoords(1:3,1:SurfConnect%nSurfaceNode))
 SurfConnect%NodeCoords(1:3,1:SurfConnect%nSurfaceNode) = TempNodeCoords(1:3,1:SurfConnect%nSurfaceNode)
 SDEALLOCATE(TempBCSurfNodes)
-SDEALLOCATE(TempSideSurfNodeMap)
 SDEALLOCATE(TempNodeCoords)
-SDEALLOCATE(NonUnique2UniqueSide)
+SDEALLOCATE(NonUniqueGlobalSideToSurfSide)
+SDEALLOCATE(NonUniqueGlobalSideToUniqueSurfSide)
 SDEALLOCATE(SurfBCName_HDF5)
-SDEALLOCATE(SideToSurfSide)
 CALL CloseDataFile()
 
 END SUBROUTINE BuildSurfMeshConnectivity

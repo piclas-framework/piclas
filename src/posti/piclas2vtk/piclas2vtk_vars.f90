@@ -37,9 +37,9 @@ INTEGER                     :: nUniqueNodes
 !----------------------------------------------------------------------------------------------------------------------------------
 TYPE tSurfaceConnect
   INTEGER                         :: nSurfaceNode                 !< Number of Nodes on Surface (reflective)
-  INTEGER                         :: nSurfaceBCSides              !< Number of Sides on Surface (reflective)
+  INTEGER                         :: nSurfaceOutputSides              !< Number of Sides on Surface (reflective)
   REAL, ALLOCATABLE               :: NodeCoords(:,:)
-  INTEGER, ALLOCATABLE            :: SideSurfNodeMap(:,:)         !< Mapping from glob Side to SurfaceNodeNum (1:4, nSurfaceBCSides)
+  INTEGER, ALLOCATABLE            :: SideSurfNodeMap(:,:)         !< Mapping from glob Side to SurfaceNodeNum (1:4, nSurfaceOutputSides)
   INTEGER, ALLOCATABLE            :: SurfSideToSide(:)
 END TYPE
 
