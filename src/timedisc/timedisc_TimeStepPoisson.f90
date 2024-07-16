@@ -62,7 +62,7 @@ USE MOD_Part_Tools             ,ONLY: CalcPartSymmetryPos
 #if USE_MPI
 USE MOD_Particle_MPI           ,ONLY: IRecvNbOfParticles, MPIParticleSend,MPIParticleRecv,SendNbOfparticles
 #endif
-USE MOD_Part_Tools             ,ONLY: UpdateNextFreePosition,isPushParticle
+USE MOD_Part_Tools             ,ONLY: UpdateNextFreePosition,isPushParticle,CalcPartSymmetryPos
 USE MOD_Particle_Tracking      ,ONLY: PerformTracking
 USE MOD_vMPF                   ,ONLY: SplitAndMerge
 USE MOD_Particle_Vars          ,ONLY: UseSplitAndMerge

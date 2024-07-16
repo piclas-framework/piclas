@@ -531,7 +531,7 @@ USE MOD_Globals
 USE MOD_Mesh_Tools                ,ONLY: GetGlobalElemID
 USE MOD_Particle_Mesh_Vars        ,ONLY: NodeCoords_Shared,ElemInfo_Shared, BoundsOfElem_Shared, SideIsSymSide, SideInfo_Shared
 USE MOD_RadiationTrans_Vars       ,ONLY: RadObservationPoint, RadTransObsVolumeFrac
-USE MOD_Particle_Vars             ,ONLY: Symmetry
+USE MOD_Symmetry_Vars             ,ONLY: Symmetry
 USE MOD_Particle_Mesh_Tools       ,ONLY: ParticleInsideQuad
 USE MOD_Photon_TrackingTools      ,ONLY: PhotonIntersectionWithSide2DDir, PhotonThroughSideCheck3DDir
 ! IMPLICIT VARIABLE HANDLING
@@ -655,7 +655,7 @@ USE MOD_Globals
 USE MOD_Mesh_Tools                ,ONLY: GetGlobalElemID
 USE MOD_Particle_Mesh_Vars        ,ONLY: ElemInfo_Shared, SideInfo_Shared, SideIsSymSide
 USE MOD_RadiationTrans_Vars       ,ONLY: RadObservationPoint, RadObservationPOI
-USE MOD_Particle_Vars             ,ONLY: Symmetry
+USE MOD_Symmetry_Vars             ,ONLY: Symmetry
 USE MOD_Photon_TrackingTools      ,ONLY: PhotonIntersectionWithSide2DDir, PhotonThroughSideCheck3DDir
 USE MOD_Particle_Boundary_Vars    ,ONLY: PartBound
 ! IMPLICIT VARIABLE HANDLING
@@ -795,10 +795,7 @@ USE MOD_RadiationTrans_Vars
 #if USE_MPI
 USE MOD_MPI_Shared_Vars    ,ONLY: MPI_COMM_SHARED
 USE MOD_MPI_Shared
-USE MOD_Particle_Mesh_Vars ,ONLY: ElemSideNodeID2D_Shared_Win,SideNormalEdge2D_Shared_Win
 #endif
-USE MOD_Particle_Vars      ,ONLY: Symmetry
-USE MOD_Particle_Mesh_Vars ,ONLY: ElemSideNodeID2D_Shared,SideNormalEdge2D_Shared
 !-----------------------------------------------------------------------------------------------------------------------------------
 IMPLICIT NONE
 ! INPUT VARIABLES
@@ -825,8 +822,6 @@ ADEALLOCATE(RadTransPhotPerCell_Shared)
 ADEALLOCATE(Radiation_Emission_Spec_Total_Shared)
 ADEALLOCATE(RadTransObsVolumeFrac_Shared)
 ADEALLOCATE(Radiation_Emission_Spec_Max_Shared)
-ADEALLOCATE(ElemSideNodeID2D_Shared)
-ADEALLOCATE(SideNormalEdge2D_Shared)
 
 END SUBROUTINE FinalizeRadiationTransport
 

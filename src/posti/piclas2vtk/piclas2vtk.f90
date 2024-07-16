@@ -45,7 +45,7 @@ USE MOD_Mesh_Tools            ,ONLY: InitElemNodeIDs
 #ifdef PARTICLES
 USE MOD_Particle_Mesh_Tools   ,ONLY: InitParticleGeometry
 USE MOD_Particle_Mesh_Vars    ,ONLY: ConcaveElemSide_Shared,ElemSideNodeID_Shared,ElemMidPoint_Shared
-USE MOD_Particle_Vars         ,ONLY: Symmetry
+USE MOD_Symmetry_Vars         ,ONLY: Symmetry
 #endif /*PARTICLES*/
 USE MOD_Particle_Mesh_Vars    ,ONLY: NodeCoords_Shared, ElemNodeID_Shared, NodeInfo_Shared
 USE MOD_Mesh_Tools            ,ONLY: InitGetCNElemID, InitGetGlobalElemID
