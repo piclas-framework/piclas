@@ -80,6 +80,7 @@ USE MOD_DG_Vars                ,ONLY: N_DG_Mapping
 USE MOD_Interpolation_Vars     ,ONLY: PREF_VDM
 USE MOD_Interpolation_Vars     ,ONLY: N_Inter
 USE MOD_ChangeBasis            ,ONLY: ChangeBasis3D
+USE MOD_Mesh_Vars              ,ONLY: ELEM_RANK
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------

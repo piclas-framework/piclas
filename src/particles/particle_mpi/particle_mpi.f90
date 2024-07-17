@@ -254,6 +254,7 @@ USE MOD_Particle_Mesh_Vars     ,ONLY: ElemInfo_Shared
 USE MOD_Particle_MPI_Vars      ,ONLY: PartMPIExchange,PartTargetProc
 USE MOD_Particle_MPI_Vars,      ONLY: nExchangeProcessors,ExchangeProcToGlobalProc,GlobalProcToExchangeProc, halo_eps_velo
 USE MOD_Particle_Vars          ,ONLY: PartState,PartSpecies,PEM,PDM,Species
+USE MOD_Mesh_Vars              ,ONLY: ELEM_RANK
 ! variables for parallel deposition
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE

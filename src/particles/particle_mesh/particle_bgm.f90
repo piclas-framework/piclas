@@ -88,7 +88,7 @@ SUBROUTINE BuildBGMAndIdentifyHaloRegion()
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Globals
 USE MOD_Preproc
-USE MOD_Mesh_Vars              ,ONLY: nElems,offsetElem
+USE MOD_Mesh_Vars              ,ONLY: nElems,offsetElem,ELEM_RANK,ELEM_HALOFLAG,readFEMconnectivity
 USE MOD_Particle_Mesh_Tools    ,ONLY: GetGlobalNonUniqueSideID
 USE MOD_Particle_Periodic_BC   ,ONLY: InitPeriodicBC
 USE MOD_Particle_Surfaces_Vars ,ONLY: BezierControlPoints3D
@@ -204,6 +204,7 @@ REAL                           :: halo_eps
 INTEGER,ALLOCATABLE            :: NumberOfElements(:)
 #endif /*CODE_ANALYZE*/
 REAL                           :: StartT,EndT ! Timer
+INTEGER                        :: ElemInfoSizeLoc
 !===================================================================================================================================
 
 ! Read parameter for FastInitBackgroundMesh (FIBGM)
@@ -785,9 +786,15 @@ ElemLoop: DO iElem = offsetElemMPI(iProc-1)+1,offsetElemMPI(iProc)
     END DO ! iProc = 1,nProcessors
   END IF
 
+  IF(readFEMconnectivity)THEN
+    ElemInfoSizeLoc = ALLELEMINFOSIZE
+  ELSE
+    ElemInfoSizeLoc = ELEMINFOSIZE
+  END IF ! readFEMconnectivity
+
   ! Mortar sides: Only multi-node
   DO iElem = firstElem, lastElem
-    ASSOCIATE(posElem => (iElem-1)*ELEMINFOSIZE + (ELEM_HALOFLAG-1))
+    ASSOCIATE(posElem => (iElem-1)*ElemInfoSizeLoc + (ELEM_HALOFLAG-1))
     CALL MPI_FETCH_AND_OP(dummyInt,ElemDone,MPI_INTEGER,0,INT(posElem*SIZE_INT,MPI_ADDRESS_KIND),MPI_NO_OP,ElemInfo_Shared_Win,iError)
     CALL MPI_WIN_FLUSH(0,ElemInfo_Shared_Win,iError)
     END ASSOCIATE
@@ -806,7 +813,7 @@ ElemLoop: DO iElem = offsetElemMPI(iProc-1)+1,offsetElemMPI(iProc)
 
           ! Element not previously flagged
           IF (ElemInfo_Shared(ELEM_HALOFLAG,ElemID).LT.1) THEN
-            ASSOCIATE(posElem => (ElemID-1)*ELEMINFOSIZE + (ELEM_HALOFLAG-1))
+            ASSOCIATE(posElem => (ElemID-1)*ElemInfoSizeLoc + (ELEM_HALOFLAG-1))
               ! Attention: This can produce ElemInfo_Shared(ELEM_HALOFLAG,ElemID) = 4 when Mortar interfaces are present
               CALL MPI_FETCH_AND_OP(haloChange,dummyInt,MPI_INTEGER,0,INT(posElem*SIZE_INT,MPI_ADDRESS_KIND),MPI_REPLACE,ElemInfo_Shared_Win,iError)
               CALL MPI_WIN_FLUSH(0,ElemInfo_Shared_Win,iError)
@@ -1601,7 +1608,7 @@ SUBROUTINE WriteHaloInfo()
 USE MOD_Globals
 USE MOD_Preproc
 USE MOD_IO_HDF5                ,ONLY: AddToElemData,ElementOut
-USE MOD_Mesh_Vars              ,ONLY: nGlobalElems,offsetElem
+USE MOD_Mesh_Vars              ,ONLY: nGlobalElems,offsetElem,ELEM_HALOFLAG
 USE MOD_MPI_Shared
 USE MOD_MPI_Shared_Vars        ,ONLY: myComputeNodeRank,myLeaderGroupRank,nLeaderGroupProcs
 USE MOD_MPI_Shared_Vars        ,ONLY: MPI_COMM_SHARED,MPI_COMM_LEADERS_SHARED
@@ -1702,7 +1709,7 @@ SUBROUTINE CheckPeriodicSides(EnlargeBGM)
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Globals
 USE MOD_Preproc
-USE MOD_Mesh_Vars              ,ONLY: nGlobalElems
+USE MOD_Mesh_Vars              ,ONLY: nGlobalElems,ELEM_HALOFLAG
 USE MOD_MPI_Shared_Vars
 USE MOD_Particle_Mesh_Vars     ,ONLY: GEO
 USE MOD_Particle_Mesh_Vars     ,ONLY: ElemInfo_Shared,BoundsOfElem_Shared,nComputeNodeElems
@@ -1894,7 +1901,7 @@ SUBROUTINE CheckRotPeriodicSides(EnlargeBGM)
 USE MOD_Globals
 USE MOD_Preproc
 USE MOD_MPI_Shared_Vars
-USE MOD_Mesh_Vars               ,ONLY: nGlobalElems
+USE MOD_Mesh_Vars               ,ONLY: nGlobalElems,ELEM_HALOFLAG
 USE MOD_Particle_Mesh_Vars      ,ONLY: ElemInfo_Shared,BoundsOfElem_Shared,nComputeNodeElems
 USE MOD_Particle_MPI_Vars       ,ONLY: halo_eps
 USE MOD_MPI_Vars                ,ONLY: offsetElemMPI
@@ -2004,7 +2011,7 @@ SUBROUTINE CheckInterPlaneSides(EnlargeBGM)
 USE MOD_Globals
 USE MOD_Preproc
 USE MOD_MPI_Shared_Vars
-USE MOD_Mesh_Vars              ,ONLY: nGlobalElems
+USE MOD_Mesh_Vars              ,ONLY: nGlobalElems,ELEM_HALOFLAG
 USE MOD_Particle_Mesh_Vars     ,ONLY: ElemInfo_Shared,BoundsOfElem_Shared,nComputeNodeElems
 USE MOD_Particle_MPI_Vars      ,ONLY: halo_eps
 USE MOD_MPI_Vars               ,ONLY: offsetElemMPI

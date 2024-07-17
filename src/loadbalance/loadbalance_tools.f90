@@ -45,7 +45,7 @@ SUBROUTINE DomainDecomposition()
 USE MOD_Globals
 USE MOD_Globals_Vars         ,ONLY: DomainDecompositionWallTime
 USE MOD_Restart_Vars         ,ONLY: DoRestart
-USE MOD_Mesh_Vars            ,ONLY: offsetElem,nElems,nGlobalElems
+USE MOD_Mesh_Vars            ,ONLY: offsetElem,nElems,nGlobalElems,ELEM_RANK
 USE MOD_LoadBalance_Vars     ,ONLY: ElemTimeField
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Vars     ,ONLY: ElemTime,PerformLoadBalance

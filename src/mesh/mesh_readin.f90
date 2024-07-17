@@ -210,6 +210,7 @@ USE MOD_Mesh_Vars            ,ONLY: NGeo
 USE MOD_Mesh_Vars            ,ONLY: NodeCoords
 USE MOD_Mesh_Vars            ,ONLY: offsetElem,nElems,nGlobalElems,nNodes
 USE MOD_Mesh_Vars            ,ONLY: nSides,nInnerSides,nBCSides,nMPISides,nAnalyzeSides,nGlobalMortarSides
+USE MOD_Mesh_Vars            ,ONLY: nFEMEdges, nFEMVertices, readFEMconnectivity
 USE MOD_Mesh_Vars            ,ONLY: nMortarSides
 USE MOD_Mesh_Vars            ,ONLY: nGlobalUniqueSidesFromMesh
 USE MOD_Mesh_Vars            ,ONLY: useCurveds
@@ -217,7 +218,7 @@ USE MOD_Mesh_Vars            ,ONLY: BoundaryType
 USE MOD_Mesh_Vars            ,ONLY: MeshInitIsDone
 USE MOD_Mesh_Vars            ,ONLY: Elems!,Nodes
 USE MOD_Mesh_Vars            ,ONLY: GETNEWELEM,GETNEWSIDE
-USE MOD_Mesh_Vars            ,ONLY: ElemInfo,SideInfo
+USE MOD_Mesh_Vars            ,ONLY: ElemInfo,SideInfo,EdgeInfo,EdgeConnectInfo,VertexInfo,VertexConnectInfo
 USE MOD_Particle_Mesh_Vars   ,ONLY: nComputeNodeElems,nNonUniqueGlobalSides,nNonUniqueGlobalNodes
 #if USE_MPI
 USE MOD_MPI_Vars             ,ONLY: nMPISides_Proc,nNbProcs,NbProc,offsetElemMPI
@@ -263,9 +264,13 @@ INTEGER                        :: iNode
 INTEGER                        :: iLocSide,nbLocSide
 INTEGER                        :: iSide
 INTEGER                        :: FirstSideInd,LastSideInd,FirstElemInd,LastElemInd
+INTEGER                        :: FirstEdgeInd,LastEdgeInd,FirstEdgeConnectInd,LastEdgeConnectInd
+INTEGER                        :: FirstVertexInd,LastVertexInd,FirstVertexConnectInd,LastVertexConnectInd
 INTEGER                        :: nPeriodicSides,nMPIPeriodics
 INTEGER                        :: ReduceData(11)
 INTEGER                        :: nSideIDs,offsetSideID
+INTEGER                        :: nEdgeIDs,offsetEdgeID,nEdgeConnectIDs,offsetEdgeConnectID
+INTEGER                        :: nVertexIDs,offsetVertexID,nVertexConnectIDs,offsetVertexConnectID
 INTEGER                        :: iMortar,jMortar,nMortars
 #if USE_MPI
 INTEGER                        :: iNbProc
@@ -279,6 +284,8 @@ REAL, ALLOCATABLE              :: GlobVarTimeStep(:)
 #endif
 REAL                           :: StartT,EndT
 INTEGER                        :: NGeoOld
+LOGICAL                        :: nFEMEdgesExists
+INTEGER                        :: ElemInfoSizeH5Loc
 !===================================================================================================================================
 IF(MESHInitIsDone) RETURN
 
@@ -298,6 +305,15 @@ IF (.NOT.PerformLoadBalance) THEN
   CALL ReadAttribute(File_ID,'nUniqueSides',1,IntScalar=nGlobalUniqueSidesFromMesh)
   CALL ReadAttribute(File_ID,'nSides',1,IntScalar=nNonUniqueGlobalSides)
   CALL ReadAttribute(File_ID,'nNodes',1,IntScalar=nNonUniqueGlobalNodes)
+  IF(readFEMconnectivity)THEN
+    CALL DatasetExists(File_ID,'nFEMEdges',nFEMEdgesExists,attrib=.TRUE.)
+    IF(.NOT.nFEMEdgesExists)THEN
+      CALL abort(__STAMP__,'nFEMEdges not found in the mesh file, which is required when using readFEMconnectivity=T.'//&
+          'The mesh must be created with hopr using the flag generateFEMconnectivity=T (hopr Release 1.3.0 or higher)')
+    END IF ! .NOT.nFEMEdgesExists
+    CALL ReadAttribute(File_ID,'nFEMEdges',1,IntScalar=nFEMEdges)
+    CALL ReadAttribute(File_ID,'nFEMVertices',1,IntScalar=nFEMVertices)
+  END IF ! readFEMconnectivity
   CALL CloseDataFile()
   ! INTEGER KIND=4 check for number of elements
   CHECKSAFEINT(HSize(2),4)
@@ -406,7 +422,12 @@ END IF
 FirstElemInd = offsetElem+1
 LastElemInd  = offsetElem+nElems
 ALLOCATE(Elems(                   FirstElemInd:LastElemInd))
-ALLOCATE(ElemInfo(ELEMINFOSIZE_H5,FirstElemInd:LastElemInd))
+IF(readFEMconnectivity)THEN
+  ElemInfoSizeH5Loc = ALLELEMINFOSIZE_H5
+ELSE
+  ElemInfoSizeH5Loc = ELEMINFOSIZE_H5
+END IF ! readFEMconnectivity
+ALLOCATE(ElemInfo(ElemInfoSizeH5Loc,FirstElemInd:LastElemInd))
 
 ! Associate construct for integer KIND=8 possibility
 ASSOCIATE (&
@@ -423,6 +444,27 @@ ASSOCIATE (&
   END IF
 #endif /*defined(PARTICLES) && USE_LOADBALANCE*/
 END ASSOCIATE
+
+! Read FEMElemInfo directly into ElemInfo
+IF(readFEMconnectivity)THEN
+  ! Associate construct for integer KIND=8 possibility
+  ASSOCIATE (&
+    ElemInfoSize => INT(ELEMINFOSIZE_H5,IK) ,&
+    FEMElemInfoSize => INT(FEMELEMINFOSIZE_H5,IK) ,&
+    AllElemInfoSize => INT(ALLELEMINFOSIZE_H5,IK) ,&
+    nElems       => INT(nElems,IK)          ,&
+    offsetElem   => INT(offsetElem,IK) )
+#if defined(PARTICLES) && USE_LOADBALANCE
+    IF (PerformLoadBalance) THEN
+      ElemInfo((ElemInfoSize+1):AllElemInfoSize,:) = ElemInfo_Shared((ElemInfoSize+1):AllElemInfoSize,offsetElem+1:offsetElem+nElems)
+    ELSE
+#endif /*defined(PARTICLES) && USE_LOADBALANCE*/
+      CALL ReadArray('FEMElemInfo',2,(/FEMElemInfoSize,nElems/),offsetElem,2,IntegerArray_i4=ElemInfo((ElemInfoSize+1):AllElemInfoSize,:))
+#if defined(PARTICLES) && USE_LOADBALANCE
+    END IF
+#endif /*defined(PARTICLES) && USE_LOADBALANCE*/
+  END ASSOCIATE
+END IF ! readFEMconnectivity
 
 DO iElem=FirstElemInd,LastElemInd
   iSide=ElemInfo(ELEM_FIRSTSIDEIND,iElem) !first index -1 in Sideinfo
@@ -485,7 +527,7 @@ ASSOCIATE (&
   ELSE
 #endif /*defined(PARTICLES) && USE_LOADBALANCE*/
     CALL ReadArray('SideInfo',2,(/SideInfoSize,nSideIDs/),offsetSideID,2,IntegerArray_i4=SideInfo(1:SideInfoSize,:))
-    CALL CloseDataFile()
+    IF(.NOT.readFEMconnectivity) CALL CloseDataFile()
 #if defined(PARTICLES) && USE_LOADBALANCE
   END IF
 #endif /*defined(PARTICLES) && USE_LOADBALANCE*/
@@ -651,6 +693,98 @@ DO iElem=FirstElemInd,LastElemInd
     END DO !iMortar
   END DO !iLocSide
 END DO !iElem
+
+!----------------------------------------------------------------------------------------------------------------------------
+!                              EDGES
+!----------------------------------------------------------------------------------------------------------------------------
+IF(readFEMconnectivity)THEN
+  ! get offset of local side indices in the global sides
+  offsetEdgeID = ElemInfo(ELEM_FIRSTEDGEIND,FirstElemInd) ! hdf5 array starts at 0-> -1
+  nEdgeIDs     = ElemInfo(ELEM_LASTEDGEIND,LastElemInd)-ElemInfo(ELEM_FIRSTEDGEIND,FirstElemInd)
+  !read local EdgeInfo from data file
+  FirstEdgeInd = offsetEdgeID+1
+  LastEdgeInd  = offsetEdgeID+nEdgeIDs
+  ALLOCATE(EdgeInfo(EDGEINFOSIZE_H5,FirstEdgeInd:LastEdgeInd))
+
+  ! Associate construct for integer KIND=8 possibility
+  ASSOCIATE (&
+        EdgeInfoSize   => INT(EDGEINFOSIZE_H5,IK)   ,&
+        nEdgeIDs       => INT(nEdgeIDs,IK)       ,&
+        offsetEdgeID   => INT(offsetEdgeID,IK)  )
+#if defined(PARTICLES) && USE_LOADBALANCE
+    IF (PerformLoadBalance) THEN
+      !EdgeInfo(1:EdgeInfoSize,:) = EdgeInfo_Shared(1:EdgeInfoSize,offsetEdgeID+1:offsetSideID+nSideIDs)
+    ELSE
+#endif /*defined(PARTICLES) && USE_LOADBALANCE*/
+      CALL ReadArray('EdgeInfo',2,(/EdgeInfoSize,nEdgeIDs/),offsetEdgeID,2,IntegerArray_i4=EdgeInfo(1:EdgeInfoSize,:))
+#if defined(PARTICLES) && USE_LOADBALANCE
+    END IF
+#endif /*defined(PARTICLES) && USE_LOADBALANCE*/
+  END ASSOCIATE
+
+  offsetEdgeConnectID = EdgeInfo(EDGE_FIRSTCONNECTIND,FirstEdgeInd) ! hdf5 array starts at 0-> -1
+  nEdgeConnectIDs     = EdgeInfo(EDGE_LASTCONNECTIND,LastEdgeInd)-offsetEdgeConnectID
+  ! Read in edge connectivity
+  FirstEdgeConnectInd = offsetEdgeConnectID+1
+  LastEdgeConnectInd = offsetEdgeConnectID+nEdgeConnectIDs
+  ALLOCATE(EdgeConnectInfo(EDGECONNECTINFOSIZE_H5,FirstEdgeConnectInd:LastEdgeConnectInd))
+
+  ! Associate construct for integer KIND=8 possibility
+  ASSOCIATE (&
+    EdgeConnectInfoSize   => INT(EDGECONNECTINFOSIZE_H5,IK)   ,&
+    nEdgeConnectIDs       => INT(nEdgeConnectIDs,IK)       ,&
+    offsetEdgeConnectID   => INT(offsetEdgeConnectID,IK)  )
+
+    CALL ReadArray('EdgeConnectInfo',2,(/EdgeConnectInfoSize,nEdgeConnectIDs/),offsetEdgeConnectID,2,IntegerArray_i4=EdgeConnectInfo(1:EdgeConnectInfoSize,:))
+  END ASSOCIATE
+END IF ! readFEMconnectivity
+
+
+!----------------------------------------------------------------------------------------------------------------------------
+!                              VERTICES
+!----------------------------------------------------------------------------------------------------------------------------
+IF(readFEMconnectivity)THEN
+  ! get offset of local side indices in the global sides
+  offsetVertexID = ElemInfo(ELEM_FIRSTVERTEXIND,FirstElemInd) ! hdf5 array starts at 0-> -1
+  nVertexIDs     = ElemInfo(ELEM_LASTVERTEXIND,LastElemInd)-ElemInfo(ELEM_FIRSTVERTEXIND,FirstElemInd)
+  !read local VertexInfo from data file
+  FirstVertexInd = offsetVertexID+1
+  LastVertexInd  = offsetVertexID+nVertexIDs
+  ALLOCATE(VertexInfo(VERTEXINFOSIZE_H5,FirstVertexInd:LastVertexInd))
+
+  ! Associate construct for integer KIND=8 possibility
+  ASSOCIATE (&
+        VertexInfoSize   => INT(VERTEXINFOSIZE_H5,IK)   ,&
+        nVertexIDs       => INT(nVertexIDs,IK)       ,&
+        offsetVertexID   => INT(offsetVertexID,IK)  )
+#if defined(PARTICLES) && USE_LOADBALANCE
+    IF (PerformLoadBalance) THEN
+      !EdgeInfo(1:EdgeInfoSize,:) = EdgeInfo_Shared(1:EdgeInfoSize,offsetEdgeID+1:offsetSideID+nSideIDs)
+    ELSE
+#endif /*defined(PARTICLES) && USE_LOADBALANCE*/
+      CALL ReadArray('VertexInfo',2,(/VertexInfoSize,nVertexIDs/),offsetVertexID,2,IntegerArray_i4=VertexInfo(1:VertexInfoSize,:))
+#if defined(PARTICLES) && USE_LOADBALANCE
+    END IF
+#endif /*defined(PARTICLES) && USE_LOADBALANCE*/
+  END ASSOCIATE
+
+  offsetVertexConnectID = VertexInfo(VERTEX_FIRSTCONNECTIND,FirstVertexInd) ! hdf5 array starts at 0-> -1
+  nVertexConnectIDs     = VertexInfo(VERTEX_LASTCONNECTIND,LastVertexInd)-offsetVertexConnectID
+  ! Read in edge connectivity
+  FirstVertexConnectInd = offsetVertexConnectID+1
+  LastVertexConnectInd = offsetVertexConnectID+nVertexConnectIDs
+  ALLOCATE(VertexConnectInfo(VERTEXCONNECTINFOSIZE_H5,FirstVertexConnectInd:LastVertexConnectInd))
+
+  ! Associate construct for integer KIND=8 possibility
+  ASSOCIATE (&
+    VertexConnectInfoSize   => INT(VERTEXCONNECTINFOSIZE_H5,IK)   ,&
+    nVertexConnectIDs       => INT(nVertexConnectIDs,IK)       ,&
+    offsetVertexConnectID   => INT(offsetVertexConnectID,IK)  )
+
+    CALL ReadArray('VertexConnectInfo',2,(/VertexConnectInfoSize,nVertexConnectIDs/),offsetVertexConnectID,2,IntegerArray_i4=VertexConnectInfo(1:VertexConnectInfoSize,:))
+    CALL CloseDataFile()
+  END ASSOCIATE
+END IF ! readFEMconnectivity
 
 
 !----------------------------------------------------------------------------------------------------------------------------
@@ -890,17 +1024,25 @@ IMPLICIT NONE
 ! INPUT/OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
+INTEGER           :: ElemInfoSizeLoc,ElemInfoSizeLocH5
 !===================================================================================================================================
+IF(readFEMconnectivity)THEN
+  ElemInfoSizeLoc   = ALLELEMINFOSIZE
+  ElemInfoSizeLocH5 = ALLELEMINFOSIZE_H5
+ELSE
+  ElemInfoSizeLoc   = ELEMINFOSIZE
+  ElemInfoSizeLocH5 = ELEMINFOSIZE_H5
+END IF ! readFEMconnectivity
 
 #if USE_MPI
 #if USE_LOADBALANCE
 IF (.NOT.PerformLoadBalance) THEN
 #endif /*USE_LOADBALANCE*/
   ! allocate shared array for ElemInfo
-  CALL Allocate_Shared((/ELEMINFOSIZE,nGlobalElems/),ElemInfo_Shared_Win,ElemInfo_Shared)
+  CALL Allocate_Shared((/ElemInfoSizeLoc,nGlobalElems/),ElemInfo_Shared_Win,ElemInfo_Shared)
   CALL MPI_WIN_LOCK_ALL(0,ElemInfo_Shared_Win,IERROR)
 
-  ElemInfo_Shared(1:ELEMINFOSIZE_H5,offsetElem+1:offsetElem+nElems) = ElemInfo(:,:)
+  ElemInfo_Shared(1:ElemInfoSizeLocH5,offsetElem+1:offsetElem+nElems) = ElemInfo(:,:)
   ElemInfo_Shared(ELEM_RANK        ,offsetElem+1:offsetElem+nElems) = myRank
   CALL BARRIER_AND_SYNC(ElemInfo_Shared_Win,MPI_COMM_SHARED)
 #if USE_LOADBALANCE
@@ -917,8 +1059,8 @@ offsetComputeNodeElem=offsetElem
 CALL MPI_BCAST(offsetComputeNodeElem,1, MPI_INTEGER,0,MPI_COMM_SHARED,iERROR)
 #else
 ! allocate local array for ElemInfo
-ALLOCATE(ElemInfo_Shared(1:ELEMINFOSIZE,1:nElems))
-ElemInfo_Shared(1:ELEMINFOSIZE_H5,1:nElems) = ElemInfo(:,:)
+ALLOCATE(ElemInfo_Shared(1:ElemInfoSizeLoc,1:nElems))
+ElemInfo_Shared(1:ElemInfoSizeLocH5,1:nElems) = ElemInfo(:,:)
 #endif  /*USE_MPI*/
 
 END SUBROUTINE ReadMeshElems

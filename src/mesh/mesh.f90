@@ -66,6 +66,7 @@ CALL prms%CreateRealOption(    'meshScale'           , "Scale the mesh by this f
 CALL prms%CreateLogicalOption( 'meshdeform'          , "Apply simple sine-shaped deformation on cartesion mesh (for testing)."                                                              , '.FALSE.')
 CALL prms%CreateLogicalOption( 'meshCheckRef'        , "Flag if the mesh Jacobians should be checked in the reference system in addition to the computational system."                      , '.TRUE.')
 CALL prms%CreateLogicalOption( 'CalcMeshInfo'        , 'Calculate and output elem data for myrank, ElemID and tracking info to ElemData'                                                    , '.FALSE.')
+CALL prms%CreateLogicalOption( 'readFEMconnectivity' , 'Activate reading the FEM connectivity arrays EdgeInfo, EdgeConnectInfo, VertexInfo and VertexConnectInfo from the mesh file'        , '.FALSE.')
 CALL prms%CreateLogicalOption( 'crossProductMetrics' , "Compute mesh metrics using cross product form. Caution: in this case free-stream preservation is only guaranteed for N=3*NGeo."     , '.FALSE.')
 CALL prms%CreateStringOption(  'BoundaryName'        , "Names of boundary conditions to be set (must be present in the mesh!). For each BoundaryName a BoundaryType needs to be specified." , multiple=.TRUE.)
 CALL prms%CreateIntArrayOption('BoundaryType'        , "Type of boundary conditions to be set. Format: (BC_TYPE, BC_STATE)"                                                                 , multiple=.TRUE. , no=2)
@@ -224,6 +225,19 @@ END IF
 meshScale = GETREAL('meshScale') ! default is 1.0
 ! Sanity check
 IF(ABS(meshScale).LE.0.) CALL abort(__STAMP__,'meshScale is zero')
+
+! Activate reading the FEM connectivity arrays EdgeInfo, EdgeConnectInfo, VertexInfo and VertexConnectInfo from the mesh file
+readFEMconnectivity = GETLOGICAL('readFEMconnectivity') ! This flag is required in ReadMesh() to load the FEM info from the .h5 mesh file
+#if USE_MPI
+IF(readFEMconnectivity)THEN
+  ELEM_RANK     = 11
+  ELEM_HALOFLAG = 12
+ELSE
+  ELEM_RANK     = 7
+  ELEM_HALOFLAG = 8
+END IF ! readFEMconnectivity
+#endif  /*USE_MPI*/
+
 CALL ReadMesh(MeshFile,ReadNodes) !set nElems
 
 !schmutz fink

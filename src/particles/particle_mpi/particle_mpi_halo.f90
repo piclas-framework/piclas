@@ -50,7 +50,7 @@ USE MOD_Globals_Vars            ,ONLY: c,ProjectName
 USE MOD_Preproc
 USE MOD_HDF5_Output_ElemData    ,ONLY: WriteMyInvisibleRankToHDF5
 USE MOD_IO_HDF5                 ,ONLY: AddToElemData,ElementOut
-USE MOD_Mesh_Vars               ,ONLY: nElems,offsetElem,myInvisibleRank
+USE MOD_Mesh_Vars               ,ONLY: nElems,offsetElem,myInvisibleRank,ELEM_HALOFLAG,ELEM_RANK
 USE MOD_Mesh_Tools              ,ONLY: GetGlobalElemID,GetCNElemID
 USE MOD_MPI_Shared
 USE MOD_MPI_Shared_Vars

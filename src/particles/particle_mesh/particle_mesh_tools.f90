@@ -2113,6 +2113,7 @@ USE MOD_Particle_Mesh_Vars      ,ONLY: NodeCoords_Shared,ElemSideNodeID_Shared, 
 USE MOD_Mesh_Tools              ,ONLY: GetCNElemID
 USE MOD_Particle_Surfaces       ,ONLY: CalcNormAndTangTriangle
 #if USE_MPI
+USE MOD_Mesh_Vars               ,ONLY: ELEM_HALOFLAG
 USE MOD_MPI_Shared
 USE MOD_MPI_Shared_Vars         ,ONLY: MPI_COMM_SHARED
 USE MOD_Particle_Mesh_Vars      ,ONLY: nNonUniqueGlobalSides, offsetComputeNodeElem, ElemInfo_Shared
@@ -2275,7 +2276,7 @@ SUBROUTINE InitVolumes_1D()
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_Mesh_Vars               ,ONLY: nElems, offsetElem
+USE MOD_Mesh_Vars               ,ONLY: nElems, offsetElem, ELEM_HALOFLAG
 USE MOD_Particle_Boundary_Vars  ,ONLY: PartBound
 USE MOD_Particle_Mesh_Vars      ,ONLY: GEO,LocalVolume,MeshVolume, SideIsSymSide
 USE MOD_Particle_Mesh_Vars      ,ONLY: ElemVolume_Shared,ElemCharLength_Shared

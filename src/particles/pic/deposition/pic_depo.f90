@@ -89,7 +89,7 @@ USE MOD_Basis                  ,ONLY: LegendreGaussNodesAndWeights,LegGaussLobNo
 USE MOD_ChangeBasis            ,ONLY: ChangeBasis3D
 USE MOD_Dielectric_Vars        ,ONLY: DoDielectricSurfaceCharge
 USE MOD_Interpolation_Vars     ,ONLY: N_Inter
-USE MOD_Mesh_Vars              ,ONLY: nElems,N_VolMesh, offSetElem
+USE MOD_Mesh_Vars              ,ONLY: nElems,N_VolMesh, offSetElem,ELEM_RANK
 USE MOD_Particle_Vars
 USE MOD_Particle_Mesh_Vars     ,ONLY: nUniqueGlobalNodes, GEO
 USE MOD_Particle_Mesh_Tools    ,ONLY: GetGlobalNonUniqueSideID
@@ -1156,6 +1156,7 @@ USE MOD_Mesh_Vars              ,ONLY: offsetElem
 USE MOD_Mesh_Tools             ,ONLY: GetGlobalElemID, GetCNElemID
 USE MOD_Particle_Mesh_Vars     ,ONLY: NodeInfo_Shared
 #if USE_MPI
+USE MOD_Mesh_Vars              ,ONLY: ELEM_RANK
 USE MOD_Particle_Mesh_Vars     ,ONLY: NodeToElemInfo,NodeToElemMapping
 USE MOD_MPI_Shared             ,ONLY: BARRIER_AND_SYNC
 USE MOD_MPI_Shared_Vars        ,ONLY: myComputeNodeRank

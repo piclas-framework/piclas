@@ -830,6 +830,7 @@ USE MOD_Particle_Boundary_Vars  ,ONLY: PartBound
 USE MOD_Particle_Boundary_Vars  ,ONLY: nComputeNodeSurfSides,nComputeNodeSurfTotalSides,nComputeNodeSurfOutputSides
 USE MOD_Particle_Boundary_Vars  ,ONLY: GlobalSide2SurfSide,SurfSide2GlobalSide
 #if USE_MPI
+USE MOD_Mesh_Vars               ,ONLY: ELEM_HALOFLAG,ELEM_RANK
 USE MOD_Particle_Mesh_Vars      ,ONLY: ElemInfo_Shared
 USE MOD_MPI_Shared
 USE MOD_MPI_Shared_Vars         ,ONLY: MPI_COMM_SHARED
@@ -1629,6 +1630,7 @@ USE MOD_Analyze_Vars            ,ONLY: CalcMeshInfo
 USE MOD_IO_HDF5                 ,ONLY: AddToElemData,ElementOut
 USE MOD_HDF5_Output_ElemData    ,ONLY: WriteLostRotPeriodicSidesToHDF5
 #if USE_MPI
+USE MOD_Mesh_Vars               ,ONLY: ELEM_HALOFLAG
 USE MOD_Particle_Boundary_Vars  ,ONLY: SurfSide2RotPeriodicSide_Shared,SurfSide2RotPeriodicSide_Shared_Win
 USE MOD_Particle_Boundary_Vars  ,ONLY: Rot2Glob_temp_Shared,Rot2Glob_temp_Shared_Win
 USE MOD_Particle_Boundary_Vars  ,ONLY: RotPeriodicSideMapping_temp_Shared,RotPeriodicSideMapping_temp_Shared_Win

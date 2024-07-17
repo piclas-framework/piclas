@@ -41,6 +41,9 @@ REAL,ALLOCATABLE :: Xi_NGeo(:)                  !< 1D equidistant point position
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! GLOBAL VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
+LOGICAL                         :: readFEMconnectivity           !< Activate reading the FEM connectivity arrays EdgeInfo, EdgeConnectInfo, VertexInfo and VertexConnectInfo from the mesh file
+INTEGER                         :: ELEM_RANK                     !< moved here from piclas.h because it is variable now
+INTEGER                         :: ELEM_HALOFLAG                 !< moved here from piclas.h because it is variable now
 REAL,ALLOCATABLE,TARGET         :: NodeCoords(:,:,:,:,:)         !< XYZ positions (equidistant,NGeo) of element interpolation points from meshfile
 REAL,DIMENSION(6)               :: xyzMinMax                     !< from Face_xGP points determined maximum domain extension (min/max of domain)
 LOGICAL                         :: GetMeshMinMaxBoundariesIsDone !< don't call twice the calculation of xyzMinMax
@@ -137,6 +140,14 @@ INTEGER,ALLOCATABLE :: ElemInfo(:,:)           !< array containing the node and 
                                                !< mesh file
 INTEGER,ALLOCATABLE :: SideInfo(:,:)           !< array containing the connectivity, flip,... of the sides as stored in the
                                                !< mesh file
+INTEGER,ALLOCATABLE :: EdgeInfo(:,:)           !< array containing the FEMID and connectivity of the edges as stored in the
+                                               !< mesh file
+INTEGER,ALLOCATABLE :: EdgeConnectInfo(:,:)    !< array containing the nbElemID and locEdgeID of the sides as stored in the
+                                               !< mesh file
+INTEGER,ALLOCATABLE :: VertexInfo(:,:)         !< array containing the FEMID and connectivity of the vertices as stored in the
+                                               !< mesh file
+INTEGER,ALLOCATABLE :: VertexConnectInfo(:,:)  !< array containing the nbElemID and locNodeID of the vertices as stored in the
+                                               !< mesh file
 INTEGER,ALLOCATABLE :: SideToNonUniqueGlobalSide(:,:)     !< maps the local SideIDs to global SideIDs (for parallel HDG load balance currently)
 INTEGER,ALLOCATABLE :: ElemToSide(:,:,:) !< SideID    = ElemToSide(E2S_SIDE_ID,ZETA_PLUS,iElem)
                                          !< flip      = ElemToSide(E2S_FLIP,ZETA_PLUS,iElem)
@@ -175,6 +186,8 @@ INTEGER          :: nNodes=0                !< SIZE of Nodes pointer array, numb
 INTEGER          :: nBCs=0                  !< number of BCs in mesh
 INTEGER          :: nUserBCs=0              !< number of BC in inifile
 LOGICAL          :: ChangedPeriodicBC       !< is set true if BCs are changed from periodic to non-periodic (default is false)
+INTEGER          :: nFEMEdges
+INTEGER          :: nFEMVertices
 !----------------------------------------------------------------------------------------------------------------------------------
 ! Define index ranges for all sides in consecutive order for easier access
 INTEGER             :: firstBCSide             !< First SideID of BCs (in general 1)

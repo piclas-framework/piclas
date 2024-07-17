@@ -588,6 +588,7 @@ USE MOD_Part_Tools             ,ONLY: GetNextFreePosition
 #if defined(MEASURE_MPI_WAIT)
 USE MOD_Particle_MPI_Vars      ,ONLY: MPIW8TimePart,MPIW8CountPart
 #endif /*defined(MEASURE_MPI_WAIT)*/
+USE MOD_Mesh_Vars                  ,ONLY: ELEM_RANK
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
 ! INPUT VARIABLES
