@@ -38,7 +38,7 @@ USE MOD_ReadInTools           ,ONLY: prms,PrintDefaultParameterFile
 USE MOD_ReadInTools           ,ONLY: GETINT,GETSTR,GETLOGICAL
 USE MOD_HDF5_Input            ,ONLY: OpenDataFile,CloseDataFile,ReadAttribute,File_ID,DatasetExists
 USE MOD_HDF5_Input            ,ONLY: ISVALIDHDF5FILE
-USE MOD_Mesh_Vars             ,ONLY: nGlobalElems
+USE MOD_Mesh_Vars             ,ONLY: nGlobalElems,NGeo
 USE MOD_Interpolation         ,ONLY: DefineParametersInterpolation,InitInterpolation
 USE MOD_Mesh                  ,ONLY: DefineParametersMesh,InitMesh
 USE MOD_Mesh_Tools            ,ONLY: InitElemNodeIDs
@@ -311,6 +311,9 @@ DO iArgs = iArgsStart,nArgs
         NodeCoords_Connect(1:3,ElemUniqueNodeID(iNode,iElem)) = NodeCoords_Shared(1:3,ElemNodeID_Shared(iNode,iElem))
       END DO
     END DO
+    IF(Ngeo.GT.NVisu) THEN
+      CALL abort(__STAMP__,'ERROR: Ngeo as read-in from mesh is greater than the chosen NVisu! Ngeo: ',Ngeo)
+    END IF
     ElemMeshInit = .TRUE.
   END IF
   ! Build connectivity for surface output
@@ -670,6 +673,7 @@ USE MOD_Interpolation         ,ONLY: GetVandermonde
 USE MOD_ChangeBasis           ,ONLY: ChangeBasis3D
 USE MOD_VTK                   ,ONLY: WriteDataToVTK
 USE MOD_IO_HDF5               ,ONLY: HSize
+USE MOD_piclas2vtk_Vars       ,ONLY: NVisuLocal, ElemLocal, Nloc_HDF5
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -684,6 +688,7 @@ INTEGER,INTENT(OUT)           :: iErrorReturn
 ! LOCAL VARIABLES
 INTEGER                         :: iElem, iDG, nVar_State, N_State, nElems_State, nVar_Solution, nDims, iField, nFields, Suffix
 INTEGER                         :: nDimsOffset, nVar_Source,nVar_TD
+INTEGER                         :: iVar, nVarAdd, Nloc, NlocMax, NlocMin
 CHARACTER(LEN=255)              :: MeshFile, NodeType_State, FileString_DG, StrVarNamesTemp(4),StrVarNamesTemp3(3),StrVarNamesTemp4
 CHARACTER(LEN=255),ALLOCATABLE  :: StrVarNames(:), StrVarNamesTemp2(:)
 REAL                            :: OutputTime
@@ -696,9 +701,12 @@ REAL,ALLOCATABLE,TARGET         :: Coords_DG(:,:,:,:,:)
 REAL,POINTER                    :: Coords_DG_p(:,:,:,:,:)
 REAL,ALLOCATABLE                :: Vdm_EQNgeo_NVisu(:,:)             !< Vandermonde from equidistant mesh to visualization nodes
 REAL,ALLOCATABLE                :: Vdm_N_NVisu(:,:)                  !< Vandermonde from state to visualization nodes
+REAL,ALLOCATABLE                :: ElemData(:,:)                     !< Array for temporary read-in of ElemData container
 LOGICAL                         :: DGSourceExists,DGTimeDerivativeExists,TimeExists,DGSourceExtExists,DMDMode,DGSolutionDatasetExists
+LOGICAL                         :: ElemDataExists, NlocFound
 CHARACTER(LEN=16)               :: hilf
 CHARACTER(LEN=255)              :: DMDFields(1:16), Dataset
+CHARACTER(LEN=255),ALLOCATABLE  :: VarNamesAdd(:)
 !===================================================================================================================================
 ! 1.) Open given file to get the number of elements, the order and the name of the mesh file
 CALL OpenDataFile(InputStateFile,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_PICLAS)
@@ -712,6 +720,46 @@ IF(.NOT.DGSolutionDatasetExists)THEN
 ELSE
   iErrorReturn=0
 END IF ! .NOT.DGSolutionDatasetExists
+
+! Retrieve the element-local N from the ElemData array
+NlocFound = .FALSE.
+CALL DatasetExists(File_ID,'ElemData',ElemDataExists)
+IF(ElemDataExists) THEN
+  ! Get size of the ElemData array
+  CALL GetDataSize(File_ID,'ElemData',nDims,HSize)
+  nVarAdd=INT(HSize(1),4)
+  ! Read-in the variable names
+  ALLOCATE(VarNamesAdd(1:nVarAdd))
+  CALL ReadAttribute(File_ID,'VarNamesAdd',nVarAdd,StrArray=VarNamesAdd(1:nVarAdd))
+  ! Loop over the number of variables and find Nloc, exit the loop and use the last iVar
+  DO iVar=1,nVarAdd
+    IF(TRIM(VarNamesAdd(iVar)).EQ.'Nloc') THEN
+      NlocFound = .TRUE.
+      EXIT
+    END IF
+  END DO
+  DEALLOCATE(VarNamesAdd)
+  IF(NlocFound) THEN
+    SDEALLOCATE(Nloc_HDF5)
+    ALLOCATE(Nloc_HDF5(1:nElems))
+    ALLOCATE(ElemData(1:nVarAdd,1:nElems))
+    ! Associate construct for integer KIND=8 possibility
+    ASSOCIATE (&
+        nVarAdd     => INT(nVarAdd,IK)    ,&
+        offsetElem  => INT(offsetElem,IK) ,&
+        nElems      => INT(nElems,IK)     )
+      CALL ReadArray('ElemData',2,(/nVarAdd, nElems/),offsetElem,2,RealArray=ElemData(1:nVarAdd,1:nElems))
+    END ASSOCIATE
+    Nloc_HDF5(1:nElems) = NINT(ElemData(iVar,1:nElems))
+    NlocMax = MAXVAL(Nloc_HDF5)
+    NlocMin = MINVAL(Nloc_HDF5)
+    IF(Ngeo.GT.NlocMin) THEN
+      CALL abort(__STAMP__,'ERROR: Ngeo as read-in from mesh is greater than the smallest local polynomial degree! Ngeo: ',Ngeo)
+    END IF
+    DEALLOCATE(ElemData)
+    SWRITE(*,*) 'Found element-local polynomial degree, considering it for the output each element instead of NVisu.'
+  END IF
+END IF
 
 ! Read-in of dimensions of the field array (might have an additional dimension, i.e., rank is 6 instead of 5)
 CALL GetDataSize(File_ID,TRIM(DGSolutionDataset),nDims,HSize)
@@ -775,18 +823,35 @@ CALL DatasetExists(File_ID,'Time',TimeExists,attrib=.TRUE.)
 IF(TimeExists) CALL ReadAttribute(File_ID,'Time',1,RealScalar=OutputTime)
 CALL CloseDataFile()
 
-SDEALLOCATE(Vdm_EQNgeo_NVisu)
-ALLOCATE(Vdm_EQNgeo_NVisu(0:Ngeo,0:NVisu))
-CALL GetVandermonde(Ngeo,NodeTypeVisu,NVisu,NodeTypeVisuOut,Vdm_EQNgeo_NVisu,modal=.FALSE.)
-SDEALLOCATE(Coords_NVisu)
-ALLOCATE(Coords_NVisu(3,0:NVisu,0:NVisu,0:NVisu,nElems))
-SDEALLOCATE(Coords_DG)
-ALLOCATE(Coords_DG(3,0:NVisu,0:NVisu,0:NVisu,nElems))
-
-! Convert coordinates to visu grid
-DO iElem = 1,nElems
-  CALL ChangeBasis3D(3, NGeo, NVisu, Vdm_EQNgeo_NVisu, NodeCoords(1:3,0:NGeo,0:NGeo,0:NGeo,iElem), Coords_NVisu(1:3,0:NVisu,0:NVisu,0:NVisu,iElem))
-END DO
+IF(NlocFound) THEN
+  SDEALLOCATE(NVisuLocal)
+  ALLOCATE(NVisuLocal(1:NlocMax))
+  DO Nloc = 1, NlocMax
+    ALLOCATE(NVisuLocal(Nloc)%Vdm_EQNgeo_NVisu(0:Ngeo,0:Nloc))
+    CALL GetVandermonde(Ngeo,NodeTypeVisu,Nloc,NodeTypeVisuOut,NVisuLocal(Nloc)%Vdm_EQNgeo_NVisu,modal=.FALSE.)
+  END DO
+  ALLOCATE(ElemLocal(1:nElems))
+  ! Convert coordinates to visu grid
+  DO iElem = 1 , nElems
+    Nloc = Nloc_HDF5(iElem)
+    ALLOCATE(ElemLocal(iElem)%Coords_NVisu(1:3,0:Nloc,0:Nloc,0:Nloc))
+    ! ALLOCATE(tempArray(3,0:Nloc,0:Nloc,0:Nloc))
+    CALL ChangeBasis3D(3, NGeo, Nloc, NVisuLocal(Nloc)%Vdm_EQNgeo_NVisu, NodeCoords(1:3,0:NGeo,0:NGeo,0:NGeo,iElem), &
+                        ElemLocal(iElem)%Coords_NVisu)
+  END DO
+ELSE
+  SDEALLOCATE(Vdm_EQNgeo_NVisu)
+  ALLOCATE(Vdm_EQNgeo_NVisu(0:Ngeo,0:NVisu))
+  CALL GetVandermonde(Ngeo,NodeTypeVisu,NVisu,NodeTypeVisuOut,Vdm_EQNgeo_NVisu,modal=.FALSE.)
+  SDEALLOCATE(Coords_NVisu)
+  ALLOCATE(Coords_NVisu(3,0:NVisu,0:NVisu,0:NVisu,nElems))
+  SDEALLOCATE(Coords_DG)
+  ALLOCATE(Coords_DG(3,0:NVisu,0:NVisu,0:NVisu,nElems))
+  ! Convert coordinates to visu grid
+  DO iElem = 1,nElems
+    CALL ChangeBasis3D(3, NGeo, NVisu, Vdm_EQNgeo_NVisu, NodeCoords(1:3,0:NGeo,0:NGeo,0:NGeo,iElem), Coords_NVisu(1:3,0:NVisu,0:NVisu,0:NVisu,iElem))
+  END DO
+END IF
 
 ! Read in solution
 CALL OpenDataFile(InputStateFile,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_PICLAS)
@@ -862,21 +927,32 @@ END ASSOCIATE
 
 CALL CloseDataFile()
 
-SDEALLOCATE(Vdm_N_NVisu)
-ALLOCATE(Vdm_N_NVisu(0:N_State,0:NVisu))
-CALL GetVandermonde(N_State,NodeType_State,NVisu,NodeTypeVisuOut,Vdm_N_NVisu,modal=.FALSE.)
+IF(NlocFound) THEN
+  DO Nloc = 1, NlocMax
+    ALLOCATE(NVisuLocal(Nloc)%Vdm_N_NVisu(0:N_State,0:Nloc))
+    CALL GetVandermonde(N_State,NodeType_State,Nloc,NodeTypeVisuOut,NVisuLocal(Nloc)%Vdm_N_NVisu,modal=.FALSE.)
+  END DO
+  DO iElem = 1,nElems
+    Nloc = Nloc_HDF5(iElem)
+    ALLOCATE(ElemLocal(iElem)%U_Visu(nVar_State,0:Nloc,0:Nloc,0:Nloc))
+  END DO
+ELSE
+  SDEALLOCATE(Vdm_N_NVisu)
+  ALLOCATE(Vdm_N_NVisu(0:N_State,0:NVisu))
+  CALL GetVandermonde(N_State,NodeType_State,NVisu,NodeTypeVisuOut,Vdm_N_NVisu,modal=.FALSE.)
 
-SDEALLOCATE(U_Visu)
-ALLOCATE(U_Visu(nVar_State,0:NVisu,0:NVisu,0:NVisu,nElems))
+  SDEALLOCATE(U_Visu)
+  ALLOCATE(U_Visu(nVar_State,0:NVisu,0:NVisu,0:NVisu,nElems))
 
-! Set DG coords
-iDG = 0
-DO iElem = 1,nElems
-  iDG = iDG + 1
-  Coords_DG(:,:,:,:,iDG) = Coords_NVisu(:,:,:,:,iElem)
-END DO
-Coords_DG_p => Coords_DG(:,:,:,:,1:iDG)
-U_Visu_p    => U_Visu(:,:,:,:,1:iDG)
+  ! Set DG coords
+  iDG = 0
+  DO iElem = 1,nElems
+    iDG = iDG + 1
+    Coords_DG(:,:,:,:,iDG) = Coords_NVisu(:,:,:,:,iElem)
+  END DO
+  Coords_DG_p => Coords_DG(:,:,:,:,1:iDG)
+  U_Visu_p    => U_Visu(:,:,:,:,1:iDG)
+END IF
 
 ! Output multiples files, if the DGSolution file contains more than one field (e.g. multiple different times for the same field)
 DO iField = 1, nFields
@@ -903,19 +979,36 @@ DO iField = 1, nFields
   END IF ! nFields.GT.1
 
   ! Interpolate solution to visu grid
-  iDG = 0
-  DO iElem = 1,nElems
-    iDG = iDG + 1
-    IF(nFields.EQ.1)THEN
-      CALL ChangeBasis3D(nVar_State, N_State, NVisu, Vdm_N_NVisu, U( 1:nVar_State,0:N_State,0:N_State,0:N_State,iElem)       , U_Visu(1:nVar_State,0:NVisu,0:NVisu,0:NVisu,iDG))
-    ELSE ! more than one field
-      ! TODO: is nVar_State correct here?
-      CALL ChangeBasis3D(nVar_State, N_State, NVisu, Vdm_N_NVisu, U2(1:nVar_State,0:N_State,0:N_State,0:N_State,iElem,iField), U_Visu(1:nVar_State,0:NVisu,0:NVisu,0:NVisu,iDG))
-    END IF ! nFields.GT.1
-  END DO
-
+  IF(NlocFound) THEN
+    DO iElem = 1,nElems
+      Nloc = Nloc_HDF5(iElem)
+      IF(nFields.EQ.1)THEN
+        CALL ChangeBasis3D(nVar_State, N_State, Nloc, NVisuLocal(Nloc)%Vdm_N_NVisu, U( 1:nVar_State,0:N_State,0:N_State,0:N_State,iElem)       , &
+                            ElemLocal(iElem)%U_Visu(1:nVar_State,0:Nloc,0:Nloc,0:Nloc))
+      ELSE ! more than one field
+        ! TODO: is nVar_State correct here?
+        CALL ChangeBasis3D(nVar_State, N_State, Nloc, NVisuLocal(Nloc)%Vdm_N_NVisu, U2(1:nVar_State,0:N_State,0:N_State,0:N_State,iElem,iField), &
+                            ElemLocal(iElem)%U_Visu(1:nVar_State,0:Nloc,0:Nloc,0:Nloc))
+      END IF ! nFields.GT.1
+    END DO
+  ELSE
+    iDG = 0
+    DO iElem = 1,nElems
+      iDG = iDG + 1
+      IF(nFields.EQ.1)THEN
+        CALL ChangeBasis3D(nVar_State, N_State, NVisu, Vdm_N_NVisu, U( 1:nVar_State,0:N_State,0:N_State,0:N_State,iElem)       , U_Visu(1:nVar_State,0:NVisu,0:NVisu,0:NVisu,iDG))
+      ELSE ! more than one field
+        ! TODO: is nVar_State correct here?
+        CALL ChangeBasis3D(nVar_State, N_State, NVisu, Vdm_N_NVisu, U2(1:nVar_State,0:N_State,0:N_State,0:N_State,iElem,iField), U_Visu(1:nVar_State,0:NVisu,0:NVisu,0:NVisu,iDG))
+      END IF ! nFields.GT.1
+    END DO
+  END IF
   ! Output to VTK
-  CALL WriteDataToVTK(nVar_State,NVisu,iDG,StrVarNames,Coords_DG_p,U_Visu_p,TRIM(FileString_DG),dim=3,DGFV=0)
+  IF(NlocFound) THEN
+    CALL WriteDataToVTKpAdaption(nVar_State,StrVarNames,TRIM(FileString_DG))
+  ELSE
+    CALL WriteDataToVTK(nVar_State,NVisu,iDG,StrVarNames,Coords_DG_p,U_Visu_p,TRIM(FileString_DG),dim=3,DGFV=0)
+  END IF
 
 END DO ! iField = 1, nFields
 
@@ -928,6 +1021,17 @@ SDEALLOCATE(U)
 SDEALLOCATE(U2)
 SDEALLOCATE(Vdm_N_NVisu)
 SDEALLOCATE(U_Visu)
+IF(NlocFound) THEN
+  DO Nloc = 1, NlocMax
+    SDEALLOCATE(NVisuLocal(Nloc)%Vdm_N_NVisu)
+    SDEALLOCATE(NVisuLocal(Nloc)%Vdm_EQNgeo_NVisu)
+  END DO
+  DO iElem = 1,nElems
+    SDEALLOCATE(ElemLocal(iElem)%Coords_NVisu)
+    SDEALLOCATE(ElemLocal(iElem)%U_Visu)
+  END DO
+  SDEALLOCATE(Nloc_HDF5)
+END IF
 
 END SUBROUTINE ConvertDGSolution
 
@@ -1367,4 +1471,214 @@ CALL CloseDataFile()
 
 END SUBROUTINE BuildSurfMeshConnectivity
 
+!===================================================================================================================================
+!> Subroutine to write 3D point data to VTK format using element-local polynomial degree
+!===================================================================================================================================
+SUBROUTINE WriteDataToVTKpAdaption(nVar,VarNames,FileString)
+! MODULES
+USE MOD_Globals
+USE MOD_Mesh_Vars           ,ONLY: nElems
+USE MOD_piclas2vtk_Vars     ,ONLY: ElemLocal, Nloc_HDF5
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT/OUTPUT VARIABLES
+INTEGER,INTENT(IN)          :: nVar                 !< Number of nodal output variables
+CHARACTER(LEN=*),INTENT(IN) :: VarNames(nVar)       !< Names of all variables that will be written out
+CHARACTER(LEN=*),INTENT(IN) :: FileString           !< Output file name
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER                     :: iVar,ivtk
+INTEGER                     :: nVTKPoints,nVTKCells
+INTEGER                     :: nBytes,Offset
+INTEGER                     :: INTdummy
+INTEGER,PARAMETER           :: SizeINTdummy=STORAGE_SIZE(INTdummy)/8
+REAL(KIND=4)                :: FLOATdummy
+CHARACTER(LEN=35)           :: StrOffset,TempStr1,TempStr2
+CHARACTER(LEN=200)          :: Buffer
+CHARACTER(LEN=1)            :: lf
+INTEGER                     :: ElemType,iElem
+INTEGER,ALLOCATABLE         :: nodeids(:)
+INTEGER                     :: Nloc,PointsPerVTKCell
+REAL                        :: StartT,EndT ! Timer
+!===================================================================================================================================
+GETTIME(StartT)
 
+PointsPerVTKCell = 8
+
+SWRITE(UNIT_stdOut,'(A,I1,A)',ADVANCE='NO')"   WRITE 3D DATA TO VTX XML BINARY (VTU) FILE "
+SWRITE(UNIT_stdOut,'(A)',ADVANCE='NO') '['//TRIM(FileString)//'] ...'
+
+nVTKPoints = 0
+nVTKCells = 0
+
+DO iElem = 1, nElems
+  Nloc = Nloc_HDF5(iElem)
+  nVTKPoints = nVTKPoints + (Nloc+1)**3
+  nVTKCells  = nVTKCells  +  Nloc**3
+END DO
+
+! Line feed character
+lf = char(10)
+
+! Write file
+OPEN(NEWUNIT=ivtk,FILE=TRIM(FileString),ACCESS='STREAM')
+! Write header
+Buffer='<?xml version="1.0"?>'//lf;WRITE(ivtk) TRIM(Buffer)
+Buffer='<VTKFile type="UnstructuredGrid" version="0.1" byte_order="LittleEndian">'//lf;WRITE(ivtk) TRIM(Buffer)
+! Specify file type
+Buffer='  <UnstructuredGrid>'//lf;WRITE(ivtk) TRIM(Buffer)
+WRITE(TempStr1,'(I16)')nVTKPoints
+WRITE(TempStr2,'(I16)')nVTKCells
+Buffer='    <Piece NumberOfPoints="'//TRIM(ADJUSTL(TempStr1))//'" &
+        &NumberOfCells="'//TRIM(ADJUSTL(TempStr2))//'">'//lf;WRITE(ivtk) TRIM(Buffer)
+! Specify point data
+Buffer='      <PointData>'//lf;WRITE(ivtk) TRIM(Buffer)
+Offset=0
+WRITE(StrOffset,'(I16)')Offset
+DO iVar=1,nVar
+  Buffer='        <DataArray type="Float32" Name="'//TRIM(VarNames(iVar))//'" '// &
+                    'format="appended" offset="'//TRIM(ADJUSTL(StrOffset))//'"/>'//lf;WRITE(ivtk) TRIM(Buffer)
+  ! INTEGER KIND=4 check
+  CHECKSAFEINT(INT(Offset,8)+INT(SizeINTdummy,8)+INT(nVTKPoints,8)*INT(SIZEOF_F(FLOATdummy),8),4)
+  Offset=          Offset   +    SizeINTdummy   +    nVTKPoints   *    SIZEOF_F(FLOATdummy)
+  WRITE(StrOffset,'(I16)')Offset
+END DO
+Buffer='      </PointData>'//lf;WRITE(ivtk) TRIM(Buffer)
+! Specify cell data
+Buffer='      <CellData> </CellData>'//lf;WRITE(ivtk) TRIM(Buffer)
+! Specify coordinate data
+Buffer='      <Points>'//lf;WRITE(ivtk) TRIM(Buffer)
+Buffer='        <DataArray type="Float32" Name="Coordinates" NumberOfComponents="3" format="appended" '// &
+                  'offset="'//TRIM(ADJUSTL(StrOffset))//'"/>'//lf;WRITE(ivtk) TRIM(Buffer)
+! INTEGER KIND=4 check
+CHECKSAFEINT(INT(Offset,8)+INT(SizeINTdummy,8)+3_8*INT(nVTKPoints,8)*INT(SIZEOF_F(FLOATdummy),8),4)
+Offset=          Offset   +    SizeINTdummy   +3  *    nVTKPoints   *    SIZEOF_F(FLOATdummy)
+WRITE(StrOffset,'(I16)')Offset
+Buffer='      </Points>'//lf;WRITE(ivtk) TRIM(Buffer)
+! Specify necessary cell data
+Buffer='      <Cells>'//lf;WRITE(ivtk) TRIM(Buffer)
+! Connectivity
+Buffer='        <DataArray type="Int32" Name="connectivity" format="appended" '// &
+                  'offset="'//TRIM(ADJUSTL(StrOffset))//'"/>'//lf;WRITE(ivtk) TRIM(Buffer)
+! INTEGER KIND=4 check
+CHECKSAFEINT(INT(Offset,8)+INT(SizeINTdummy,8)+INT(PointsPerVTKCell,8)*INT(nVTKCells,8)*INT(SIZEOF_F(FLOATdummy),8),4)
+Offset=          Offset   +    SizeINTdummy   +    PointsPerVTKCell   *    nVTKCells   *    SIZEOF_F(FLOATdummy)
+WRITE(StrOffset,'(I16)')Offset
+! Offsets
+Buffer='        <DataArray type="Int32" Name="offsets" format="appended" ' // &
+                  'offset="'//TRIM(ADJUSTL(StrOffset))//'"/>'//lf;WRITE(ivtk) TRIM(Buffer)
+! INTEGER KIND=4 check
+CHECKSAFEINT(INT(Offset,8)+INT(SizeINTdummy,8)+INT(nVTKCells,8)*INT(SIZEOF_F(FLOATdummy),8),4)
+Offset=          Offset   +    SizeINTdummy   +    nVTKCells   *    SIZEOF_F(FLOATdummy)
+WRITE(StrOffset,'(I16)')Offset
+! Elem types
+Buffer='        <DataArray type="Int32" Name="types" format="appended" '// &
+                  'offset="'//TRIM(ADJUSTL(StrOffset))//'"/>'//lf;WRITE(ivtk) TRIM(Buffer)
+Buffer='      </Cells>'//lf;WRITE(ivtk) TRIM(Buffer)
+Buffer='    </Piece>'//lf;WRITE(ivtk) TRIM(Buffer)
+Buffer='  </UnstructuredGrid>'//lf;WRITE(ivtk) TRIM(Buffer)
+! Prepare append section
+Buffer='  <AppendedData encoding="raw">'//lf;WRITE(ivtk) TRIM(Buffer)
+! Write leading data underscore
+Buffer='_';WRITE(ivtk) TRIM(Buffer)
+
+
+! Write binary raw data into append section
+! Solution data: write size per variable, and follow-up with complete data set per variable
+DO iVar=1,nVar
+  nBytes = nVTKPoints*SIZEOF_F(FLOATdummy)
+  WRITE(ivtk) nBytes
+  DO iElem = 1, nElems
+    Nloc = Nloc_HDF5(iElem)
+    WRITE(ivtk) REAL(ElemLocal(iElem)%U_Visu(iVar,0:Nloc,0:Nloc,0:Nloc),4)
+  END DO
+END DO       ! iVar
+
+! Coordinates
+nBytes = nVTKPoints*SIZEOF_F(FLOATdummy)*3
+WRITE(ivtk) nBytes
+DO iElem = 1, nElems
+  Nloc = Nloc_HDF5(iElem)
+  WRITE(ivtk) REAL(ElemLocal(iElem)%Coords_NVisu(1:3,0:Nloc,0:Nloc,0:Nloc),4)
+END DO
+
+! Connectivity and footer
+SDEALLOCATE(nodeids)
+ALLOCATE(nodeids(PointsPerVTKCell*nVTKCells))
+CALL CreateConnectivitypAdaption(PointsPerVTKCell*nVTKCells,nodeids)
+
+nBytes = PointsPerVTKCell*nVTKCells*SizeINTdummy
+WRITE(ivtk) nBytes
+WRITE(ivtk) nodeids
+! Offset
+nBytes = nVTKCells*SizeINTdummy
+WRITE(ivtk) nBytes
+WRITE(ivtk) (Offset,Offset=PointsPerVTKCell,PointsPerVTKCell*nVTKCells,PointsPerVTKCell)
+! Elem type
+ElemType = 12 ! VTK_HEXAHEDRON
+WRITE(ivtk) nBytes
+WRITE(ivtk) (ElemType,iElem=1,nVTKCells)
+
+DEALLOCATE(nodeids)
+
+! Footer
+lf = char(10)
+Buffer=lf//'  </AppendedData>'//lf;WRITE(ivtk) TRIM(Buffer)
+Buffer='</VTKFile>'//lf;WRITE(ivtk) TRIM(Buffer)
+CLOSE(ivtk)
+GETTIME(EndT)
+CALL DisplayMessageAndTime(EndT-StartT, ' DONE!', DisplayDespiteLB=.TRUE., DisplayLine=.FALSE.)
+END SUBROUTINE WriteDataToVTKpAdaption
+
+
+!===================================================================================================================================
+!> Create connectivity for output of element local polynomial degrees (p-Adaption)
+!===================================================================================================================================
+SUBROUTINE CreateConnectivitypAdaption(nNodes,nodeids)
+USE ISO_C_BINDING
+USE MOD_Globals
+USE MOD_Mesh_Vars           ,ONLY: nElems
+USE MOD_piclas2vtk_Vars     ,ONLY: Nloc_HDF5
+IMPLICIT NONE
+! INPUT / OUTPUT VARIABLES
+INTEGER,INTENT(IN)  :: nNodes             !< number of nodes
+INTEGER,INTENT(OUT) :: nodeids(1:nNodes)  !< stores the connectivity
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER           :: i,j,k,iElem
+INTEGER           :: NodeID,NodeIDElem
+INTEGER           :: Nloc, Nloc_elem, Nloc_p1_2
+!===================================================================================================================================
+
+! create connectivity
+NodeID = 0
+NodeIDElem = 0
+DO iElem=1,nElems
+  Nloc = Nloc_HDF5(iElem)
+  Nloc_elem = (Nloc+1)**3
+  Nloc_p1_2 = (Nloc+1)**2
+  DO k=1,Nloc
+    DO j=1,Nloc
+      DO i=1,Nloc
+        NodeID=NodeID+1
+        nodeids(NodeID) = NodeIDElem+i+   j   *(Nloc+1)+(k-1)*Nloc_p1_2-1 !P4(CGNS=tecVisu standard)
+        NodeID=NodeID+1
+        nodeids(NodeID) = NodeIDElem+i+  (j-1)*(Nloc+1)+(k-1)*Nloc_p1_2-1 !P1
+        NodeID=NodeID+1
+        nodeids(NodeID) = NodeIDElem+i+1+(j-1)*(Nloc+1)+(k-1)*Nloc_p1_2-1 !P2
+        NodeID=NodeID+1
+        nodeids(NodeID) = NodeIDElem+i+1+ j   *(Nloc+1)+(k-1)*Nloc_p1_2-1 !P3
+        NodeID=NodeID+1
+        nodeids(NodeID) = NodeIDElem+i+   j   *(Nloc+1)+ k   *Nloc_p1_2-1 !P8
+        NodeID=NodeID+1
+        nodeids(NodeID) = NodeIDElem+i+  (j-1)*(Nloc+1)+ k   *Nloc_p1_2-1 !P5
+        NodeID=NodeID+1
+        nodeids(NodeID) = NodeIDElem+i+1+(j-1)*(Nloc+1)+ k   *Nloc_p1_2-1 !P6
+        NodeID=NodeID+1
+        nodeids(NodeID) = NodeIDElem+i+1+ j   *(Nloc+1)+ k   *Nloc_p1_2-1 !P7
+      END DO
+    END DO
+  END DO
+  NodeIDElem=NodeIDElem+Nloc_elem
+END DO
+END SUBROUTINE CreateConnectivitypAdaption
