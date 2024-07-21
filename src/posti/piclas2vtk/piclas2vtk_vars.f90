@@ -35,14 +35,13 @@ INTEGER                     :: nUniqueNodes
 !----------------------------------------------------------------------------------------------------------------------------------
 ! Mapping of nodes and surface sides, required for connectivity of elements
 !----------------------------------------------------------------------------------------------------------------------------------
+INTEGER, ALLOCATABLE        :: SurfOutputSideToUniqueSide(:)
 TYPE tSurfaceConnect
   INTEGER                         :: nSurfaceNode                 !< Number of Nodes on Surface (reflective)
   INTEGER                         :: nSurfaceOutputSides          !< Number of Sides on Surface (reflective)
   REAL, ALLOCATABLE               :: NodeCoords(:,:)
   INTEGER, ALLOCATABLE            :: SideSurfNodeMap(:,:)         !< Mapping from glob Side to SurfaceNodeNum (1:4, nSurfaceOutputSides)
-  INTEGER, ALLOCATABLE            :: SurfSideToSide(:)
 END TYPE
-
 TYPE (tSurfaceConnect)            :: SurfConnect
 
 ! p-Adaption
@@ -62,5 +61,6 @@ END TYPE tNVisu
 TYPE(tNVisu),ALLOCATABLE          :: NVisuLocal(:)                !< Container for polynomial degree specific variables [1:NlocMax]
 
 INTEGER, ALLOCATABLE              :: Nloc_HDF5(:)                 !< Element-local polynomial degree from read-in [1:nElems]
+
 
 END MODULE MOD_piclas2vtk_Vars

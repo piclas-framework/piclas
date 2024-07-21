@@ -384,9 +384,8 @@ DO iSurfSide = 1,nComputeNodeSurfSides
   GlobalSideID = SurfSide2GlobalSide(SURF_SIDEID,iSurfSide)
   IF(SideInfo_Shared(SIDE_NBSIDEID,GlobalSideID).GT.0) THEN
     IF(GlobalSideID.LT.SideInfo_Shared(SIDE_NBSIDEID,GlobalSideID)) THEN
-    ! TODO: INNER BC requires special treatment for the calculation of the VDL potential and corresponding electric field
-!      SurfSideNb = GlobalSide2SurfSide(SURF_SIDEID,SideInfo_Shared(SIDE_NBSIDEID,GlobalSideID))
-      CYCLE
+      ! TODO: INNER BC requires special treatment for the calculation of the VDL potential and corresponding electric field
+      ! SurfSideNb = GlobalSide2SurfSide(SURF_SIDEID,SideInfo_Shared(SIDE_NBSIDEID,GlobalSideID))
     ELSE
       CYCLE
     END IF

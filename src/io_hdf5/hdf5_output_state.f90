@@ -61,7 +61,6 @@ USE MOD_Particle_Sampling_Vars ,ONLY: UseAdaptiveBC
 USE MOD_SurfaceModel_Vars      ,ONLY: nPorousBC
 USE MOD_Particle_Boundary_Vars ,ONLY: DoBoundaryParticleOutputHDF5, PartBound
 USE MOD_Particle_Tracking_Vars ,ONLY: CountNbrOfLostParts,TotalNbrOfMissingParticlesSum,NbrOfNewLostParticlesTotal
-USE MOD_Mesh_Tools             ,ONLY: GetCNElemID
 USE MOD_Particle_Analyze_Vars  ,ONLY: nSpecAnalyze
 USE MOD_Particle_Analyze_Tools ,ONLY: CalcNumPartsOfSpec
 #if !((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))
