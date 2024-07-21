@@ -104,7 +104,7 @@ INTEGER,ALLOCATABLE :: FS2M(:,:,:,:)     !< flip slave side to master and revers
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! mapping from element to sides and sides to element
 !-----------------------------------------------------------------------------------------------------------------------------------
-INTEGER,ALLOCATABLE :: ElemInfo(:,:)           !< array containing the node and side connectivity of the elments as stored in the
+INTEGER,ALLOCATABLE :: ElemInfo(:,:)           !< array containing the node and side connectivity of the elements as stored in the
                                                !< mesh file
 INTEGER,ALLOCATABLE :: SideInfo(:,:)           !< array containing the connectivity, flip,... of the sides as stored in the
                                                !< mesh file
@@ -118,7 +118,7 @@ INTEGER,ALLOCATABLE :: BC(:)             !< BCIndex   = BC(SideID), 1:nBCSides
 INTEGER,ALLOCATABLE :: GlobalUniqueSideID(:) !< SideInfo(SIDE_ID,iSide) = GlobalUniqueSideIDC(SideID), 1:nSides
 INTEGER,ALLOCATABLE :: BoundaryType(:,:) !< BCType    = BoundaryType(BC(SideID),BC_TYPE)
                                          !< BCState   = BoundaryType(BC(SideID),BC_STATE)
-INTEGER,ALLOCATABLE :: AnalyzeSide(:)    !< Marks, wheter a side belongs to a group of analyze sides (e.g. to a BC group)
+INTEGER,ALLOCATABLE :: AnalyzeSide(:)    !< Marks, whether a side belongs to a group of analyze sides (e.g. to a BC group)
                                          !< SurfIndex = AnalyzeSide(SideID), 1:nSides
 
 INTEGER,PARAMETER :: NormalDirs(6) = (/ 3 , 2 , 1 , 2 , 1 , 3 /) !< normal vector direction for element local side
@@ -220,7 +220,7 @@ TYPE tSide
   INTEGER                      :: flip=-999
 #ifdef PARTICLES
   LOGICAL                      :: InnerBCOutput   !< Logical if proc writes InnerBC information
-  INTEGER                      :: BC_Alpha        !< inital value for periodic displacement before mapping in pos. bc-index range
+  INTEGER                      :: BC_Alpha        !< initial value for periodic displacement before mapping in pos. bc-index range
 #endif /*PARTICLES*/
   INTEGER                      :: nMortars        !< number of slave mortar sides associated with master mortar
   INTEGER                      :: MortarType      !< type of mortar from mesh file: =0: conforming side or small side of bigside
