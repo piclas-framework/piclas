@@ -732,6 +732,9 @@ INTEGER             :: iGlobElem,BCIndex,iSide
 #endif /*USE_MPI*/
 CHARACTER(5)        :: hilf,hilf2
 !===================================================================================================================================
+#if !(USE_PETSC)
+CALL abort(__STAMP__,'FPC model requires compilation with LIBS_USE_PETSC=ON')
+#endif /*!(USE_PETSC)*/
 
 ! Get global number of FPC boundaries in [1:nBCs], they might belong to the same group (will be reduced to "nUniqueFPCBounds" below)
 ! FPC boundaries with the same BCState will be in the same group (electrically connected)
