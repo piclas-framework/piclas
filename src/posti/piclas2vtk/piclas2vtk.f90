@@ -824,6 +824,7 @@ IF(NlocFound) THEN
     ALLOCATE(NVisuLocal(Nloc)%Vdm_EQNgeo_NVisu(0:Ngeo,0:Nloc))
     CALL GetVandermonde(Ngeo,NodeTypeVisu,Nloc,NodeTypeVisuOut,NVisuLocal(Nloc)%Vdm_EQNgeo_NVisu,modal=.FALSE.)
   END DO
+  SDEALLOCATE(ElemLocal)
   ALLOCATE(ElemLocal(1:nElems))
   ! Convert coordinates to visu grid
   DO iElem = 1 , nElems
@@ -1020,10 +1021,12 @@ IF(NlocFound) THEN
     SDEALLOCATE(NVisuLocal(Nloc)%Vdm_N_NVisu)
     SDEALLOCATE(NVisuLocal(Nloc)%Vdm_EQNgeo_NVisu)
   END DO
+  SDEALLOCATE(NVisuLocal)
   DO iElem = 1,nElems
     SDEALLOCATE(ElemLocal(iElem)%Coords_NVisu)
     SDEALLOCATE(ElemLocal(iElem)%U_Visu)
   END DO
+  SDEALLOCATE(ElemLocal)
   SDEALLOCATE(Nloc_HDF5)
 END IF
 
