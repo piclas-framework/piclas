@@ -58,7 +58,7 @@ USE MOD_Globals_Vars            ,ONLY: BoltzmannConst, maxEXP
 USE MOD_DSMC_Vars               ,ONLY: Coll_pData, DSMC, SpecDSMC, PartStateIntEn, ChemReac, CollInf, ReactionProbGTUnityCounter
 USE MOD_DSMC_Vars               ,ONLY: RadialWeighting
 USE MOD_Particle_Vars           ,ONLY: PartState, Species, PartSpecies, nSpecies, UseVarTimeStep, usevMPF
-USE MOD_Particle_Analyze_Tools  ,ONLY: CalcTVibPoly, CalcTelec
+USE MOD_Particle_Analyze_Tools  ,ONLY: CalcTVibPoly, CalcTDataset
 USE MOD_part_tools              ,ONLY: GetParticleWeight
 USE MOD_DSMC_QK_Chemistry       ,ONLY: QK_GetAnalyticRate
 ! IMPLICIT VARIABLE HANDLING
@@ -211,7 +211,7 @@ IF(((Coll_pData(iPair)%Ec-EZeroPoint_Educt).GE.(SumWeightEduct/NumWeightEduct*Ch
     IF (DSMC%ElectronicModel.GT.0) THEN
       IF((Species(EductReac(iPart))%InterID.NE.4).AND.(.NOT.SpecDSMC(EductReac(iPart))%FullyIonized)) THEN
         IF(PartStateIntEn(3,ReactInx(iPart)).GT.0.0)THEN
-          Telec=CalcTelec( PartStateIntEn(3,ReactInx(iPart)) , EductReac(iPart))
+          Telec=CalcTDataset( PartStateIntEn(3,ReactInx(iPart)) , EductReac(iPart), 'ELECTRONIC')
           Xi_elec(iPart)=2.*PartStateIntEn(3,ReactInx(iPart))/(BoltzmannConst*Telec)
         END IF
       END IF
@@ -1506,8 +1506,8 @@ USE MOD_Particle_Vars           ,ONLY: PartSpecies, PartState, PDM, PEM, PartPos
 USE MOD_Particle_Vars           ,ONLY: UseVarTimeStep, PartTimeStep
 USE MOD_Particle_Tracking_Vars  ,ONLY: TrackingMethod
 USE MOD_Particle_Analyze_Vars   ,ONLY: ChemEnergySum
-USE MOD_part_tools              ,ONLY: GetParticleWeight, DiceUnitVector, CalcERot_particle, CalcERotQuant_particle,CalcEVib_particle
-USE MOD_Part_Tools              ,ONLY: GetNextFreePosition, CalcERotDataset_particle, CalcEElec_particle
+USE MOD_part_tools              ,ONLY: GetParticleWeight, DiceUnitVector,CalcEVib_particle, RotInitPolyRoutineFuncPTR
+USE MOD_Part_Tools              ,ONLY: GetNextFreePosition, CalcEElec_particle
 USE MOD_part_emission_tools     ,ONLY: CalcVelocity_maxwell_lpn
 USE MOD_Particle_Analyze_Vars   ,ONLY: CalcPartBalance,nPartIn,PartEkinIn
 USE MOD_Particle_Analyze_Tools  ,ONLY: CalcEkinPart
@@ -1693,14 +1693,7 @@ DO iProd = 1, NumProd
   ! Set the internal energies
   IF((Species(iSpec)%InterID.EQ.2).OR.(Species(iSpec)%InterID.EQ.20)) THEN
     PartStateIntEn(1,iPart) = CalcEVib_particle(iSpec,Temp_Vib,iPart)
-    !//TODO Func Pointer
-    IF(DSMC%RotRelaxModel.EQ.0) THEN       ! continous treatment of rotational energy
-      PartStateIntEn( 2,iPart) = CalcERot_particle(iSpec,Temp_Rot)
-    ELSE IF(DSMC%RotRelaxModel.EQ.1)THEN ! quantized treatment of rotational energy
-      PartStateIntEn( 2,iPart) = CalcERotQuant_particle(iSpec,Temp_Rot)
-    ELSE IF(DSMC%RotRelaxModel.EQ.2)THEN ! quantized treatment of rotational energy
-      PartStateIntEn( 2,iPart) = CalcERotDataset_particle(iSpec,Temp_Rot)
-    END IF
+    PartStateIntEn( 2,iPart) = RotInitPolyRoutineFuncPTR(iSpec,Temp_Rot,iPart)
   ELSE
     PartStateIntEn(1:2,iPart) = 0.0
   END IF

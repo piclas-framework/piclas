@@ -49,7 +49,7 @@ PUBLIC :: CalcNumberDensity
 PUBLIC :: CalcSurfaceFluxInfo
 PUBLIC :: CalcTransTemp
 PUBLIC :: CalcMixtureTemp
-PUBLIC :: CalcTelec,CalcTVibPoly
+PUBLIC :: CalcTDataset,CalcTVibPoly
 PUBLIC :: CalcPartitionFunction
 #if (PP_TimeDiscMethod==2 || PP_TimeDiscMethod==4 || PP_TimeDiscMethod==300 || PP_TimeDiscMethod==400 || (PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=509) || PP_TimeDiscMethod==120)
 PUBLIC :: CalcRelaxProbRotVib
@@ -1499,7 +1499,7 @@ SUBROUTINE CalcIntTempsAndEn(NumSpec,IntTemp,IntEn)
 USE MOD_Globals
 USE MOD_Globals_Vars          ,ONLY: BoltzmannConst
 USE MOD_Particle_Vars         ,ONLY: PartSpecies, Species, PDM, nSpecies, usevMPF
-USE MOD_DSMC_Vars             ,ONLY: PartStateIntEn, SpecDSMC, DSMC, PolyatomMolDSMC
+USE MOD_DSMC_Vars             ,ONLY: PartStateIntEn, SpecDSMC, DSMC
 USE MOD_Particle_Analyze_Vars ,ONLY: nSpecAnalyze
 USE MOD_part_tools            ,ONLY: GetParticleWeight
 USE MOD_DSMC_Vars             ,ONLY: RadialWeighting
@@ -1569,9 +1569,7 @@ IF(MPIRoot)THEN
       ELSE IF(DSMC%RotRelaxModel.EQ.1)THEN  ! quantized treatment of rotational energies
         IntTemp(iSpec,2) = CalcTRotQuant(ERot(iSpec)/NumSpecTemp, iSpec)
       ELSE IF(DSMC%RotRelaxModel.EQ.2)THEN  ! quantized treatment of rotational energies
-        !//TODO adjust CalcTelec for other temperatures aswell, here rotational
-        IntTemp(iSpec,2) = CalcTRotDataset(ERot(iSpec)/NumSpecTemp, iSpec)
-        ! IntTemp(iSpec,2) = CalcTelec(ERot(iSpec)/NumSpecTemp, iSpec)
+        IntTemp(iSpec,2) = CalcTDataset(ERot(iSpec)/NumSpecTemp, iSpec, 'ROTATIONAL')
       END IF
       PRINT *, "Temp",IntTemp(iSpec,2),"ERot",ERot
       IF (EVib(iSpec)/NumSpecTemp.GT.SpecDSMC(iSpec)%EZeroPoint) THEN
@@ -1595,7 +1593,7 @@ IF(MPIRoot)THEN
     IF(DSMC%ElectronicModel.GT.0) THEN
       IF(NumSpecTemp.GT.0) THEN
         IF((Species(iSpec)%InterID.NE.4).AND.(.NOT.SpecDSMC(iSpec)%FullyIonized)) THEN
-          IntTemp(iSpec,3) = CalcTelec(Eelec(iSpec)/NumSpecTemp,iSpec)
+          IntTemp(iSpec,3) = CalcTDataset(Eelec(iSpec)/NumSpecTemp,iSpec,'ELECTRONIC')
         END IF
       ELSE
         IntEn(iSpec,3) = 0.0
@@ -1724,135 +1722,88 @@ IF(SurfModSEEelectronTempAutoamtic) BulkElectronTempSEE = BulkElectronTemp
 END SUBROUTINE CalcTransTemp
 
 
-REAL FUNCTION CalcTelec(MeanEelec, iSpec)
+REAL FUNCTION CalcTDataset(MeanE, iSpec, LevelType)
 !===================================================================================================================================
 !> Calculation of the electronic temperature (zero-point search)
+!> Used for all temperature calculations using datasets -> use LevelType to specify which internal energy
 !===================================================================================================================================
 ! MODULES
+USE MOD_Globals       ,ONLY: Abort
 USE MOD_Globals_Vars  ,ONLY: BoltzmannConst
 USE MOD_DSMC_Vars     ,ONLY: SpecDSMC, DSMC
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-REAL, INTENT(IN)      :: MeanEelec  !< Mean electronic energy
-INTEGER, INTENT(IN)   :: iSpec      !< Species index
+REAL, INTENT(IN)         :: MeanE      !< Mean (rot,elec or vib) energy
+INTEGER, INTENT(IN)      :: iSpec      !< Species index
+CHARACTER(*), INTENT(IN) :: LevelType  !< Level type: 'ELECTRONIC', 'ROTATIONAL', 'VIBRATIONAL'
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
-INTEGER               :: ii
-REAL                  :: LowerTemp, UpperTemp, MiddleTemp !< Upper, lower and final value of modified zero point search
-REAL,PARAMETER        :: eps_prec=1E-3           !< Relative precision of root-finding algorithm
-REAL                  :: TempRatio, SumOne, SumTwo        !< Sums of the electronic partition function
+INTEGER                       :: ii, MaxQuant
+REAL                          :: LowerTemp, UpperTemp, MiddleTemp !< Upper, lower and final value of modified zero point search
+REAL,PARAMETER                :: eps_prec=1E-3                    !< Relative precision of root-finding algorithm
+REAL                          :: TempRatio, SumOne, SumTwo        !< Sums of the electronic partition function
+REAL, DIMENSION(:,:), POINTER :: StateData                !< Pointer to store dataset levels 
 !===================================================================================================================================
-
-CalcTelec = 0.
-
-SELECT CASE(DSMC%ElectronicModel)
-CASE(1,2,4)
-  IF (MeanEelec.GT.0) THEN
-    ! Lower limit: very small value or lowest temperature if ionized
-    IF (SpecDSMC(iSpec)%ElectronicState(2,0).EQ.0.0) THEN
-      LowerTemp = 1.0
-    ELSE
-      LowerTemp = SpecDSMC(iSpec)%ElectronicState(2,0)
-    END IF
-    ! Upper limit: Last excitation level (ionization limit)
-    UpperTemp = SpecDSMC(iSpec)%ElectronicState(2,SpecDSMC(iSpec)%MaxElecQuant-1)
-    MiddleTemp = LowerTemp
-    DO WHILE (.NOT.ALMOSTEQUALRELATIVE(0.5*(LowerTemp + UpperTemp),MiddleTemp,eps_prec))
-      MiddleTemp = 0.5*( LowerTemp + UpperTemp)
-      SumOne = 0.0
-      SumTwo = 0.0
-      DO ii = 0, SpecDSMC(iSpec)%MaxElecQuant-1
-        TempRatio = SpecDSMC(iSpec)%ElectronicState(2,ii) / MiddleTemp
-        IF(CHECKEXP(TempRatio)) THEN
-          SumOne = SumOne + SpecDSMC(iSpec)%ElectronicState(1,ii) * EXP(-TempRatio)
-          SumTwo = SumTwo + SpecDSMC(iSpec)%ElectronicState(1,ii) * SpecDSMC(iSpec)%ElectronicState(2,ii) * EXP(-TempRatio)
-        END IF
-      END DO
-      IF ( SumTwo / SumOne .GT. MeanEelec / BoltzmannConst ) THEN
-        UpperTemp = MiddleTemp
-      ELSE
-        LowerTemp = MiddleTemp
-      END IF
-    END DO
-    CalcTelec = MiddleTemp
-  ELSE
-    CalcTelec = 0. ! sup
+CalcTDataset = 0.
+! case select for type of energy levels
+SELECT CASE(LevelType)
+CASE('ELECTRONIC')
+  MaxQuant = SpecDSMC(iSpec)%MaxElecQuant
+  StateData => SpecDSMC(iSpec)%ElectronicState
+  IF(DSMC%ElectronicModel.EQ.3)THEN
+    ! catch different case right here
+    CalcTDataset = MeanE / BoltzmannConst
+    RETURN
   END IF
-CASE(3)
-  CalcTelec = MeanEelec / BoltzmannConst
+CASE('ROTATIONAL')
+  MaxQuant = SpecDSMC(iSpec)%MaxRotQuant
+  StateData => SpecDSMC(iSpec)%RotationalState
+CASE('VIBRATIONAL')
+  CALL abort(__STAMP__ ,'Vibrational temperature calculation with dataset not possible yet!')
+CASE DEFAULT
+  CALL abort(__STAMP__,'Unkown LevelType for temperature calculation')
 END SELECT
 
-RETURN
-
-END FUNCTION CalcTelec
-
-!//TODO same as function above -> like database read in with optional flag
-REAL FUNCTION CalcTRotDataset(MeanERot, iSpec)
-!===================================================================================================================================
-!> Calculation of the rotational temperature (zero-point search)
-!===================================================================================================================================
-! MODULES
-USE MOD_Globals_Vars  ,ONLY: BoltzmannConst
-USE MOD_DSMC_Vars     ,ONLY: SpecDSMC, DSMC
-! IMPLICIT VARIABLE HANDLING
-IMPLICIT NONE
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
-REAL, INTENT(IN)      :: MeanERot   !< Mean rotational energy
-INTEGER, INTENT(IN)   :: iSpec      !< Species index
-!-----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-INTEGER               :: ii
-REAL                  :: LowerTemp, UpperTemp, MiddleTemp !< Upper, lower and final value of modified zero point search
-REAL,PARAMETER        :: eps_prec=1E-3           !< Relative precision of root-finding algorithm
-REAL                  :: TempRatio, SumOne, SumTwo        !< Sums of the rotational partition function
-!===================================================================================================================================
-
-CalcTRotDataset = 0.
-
-IF (MeanERot.GT.0) THEN
+IF (MeanE.GT.0) THEN
   ! Lower limit: very small value or lowest temperature if ionized
-  IF (SpecDSMC(iSpec)%RotationalState(2,0).EQ.0.0) THEN
+  IF (StateData(2,0).EQ.0.0) THEN
     LowerTemp = 1.0
   ELSE
-    LowerTemp = SpecDSMC(iSpec)%RotationalState(2,0)
+    LowerTemp = StateData(2,0)
   END IF
   ! Upper limit: Last excitation level (ionization limit)
-  UpperTemp = SpecDSMC(iSpec)%RotationalState(2,SpecDSMC(iSpec)%MaxRotQuant-1)
+  UpperTemp = StateData(2,MaxQuant-1)
   MiddleTemp = LowerTemp
   DO WHILE (.NOT.ALMOSTEQUALRELATIVE(0.5*(LowerTemp + UpperTemp),MiddleTemp,eps_prec))
     MiddleTemp = 0.5*( LowerTemp + UpperTemp)
     SumOne = 0.0
     SumTwo = 0.0
-    DO ii = 0, SpecDSMC(iSpec)%MaxRotQuant-1
-      TempRatio = SpecDSMC(iSpec)%RotationalState(2,ii) / MiddleTemp
+    DO ii = 0, MaxQuant-1
+      TempRatio = StateData(2,ii) / MiddleTemp
       IF(CHECKEXP(TempRatio)) THEN
-        SumOne = SumOne + SpecDSMC(iSpec)%RotationalState(1,ii) * EXP(-TempRatio)
-        SumTwo = SumTwo + SpecDSMC(iSpec)%RotationalState(1,ii) * SpecDSMC(iSpec)%RotationalState(2,ii) * EXP(-TempRatio)
+        SumOne = SumOne + StateData(1,ii) * EXP(-TempRatio)
+        SumTwo = SumTwo + StateData(1,ii) * StateData(2,ii) * EXP(-TempRatio)
       END IF
     END DO
-    IF ( SumTwo / SumOne .GT. MeanERot / BoltzmannConst ) THEN
+    IF ( SumTwo / SumOne .GT. MeanE / BoltzmannConst ) THEN
       UpperTemp = MiddleTemp
     ELSE
       LowerTemp = MiddleTemp
     END IF
   END DO
-  CalcTRotDataset = MiddleTemp
+  CalcTDataset = MiddleTemp
 ELSE
-  CalcTRotDataset = 0. ! sup
+  CalcTDataset = 0. ! sup
 END IF
 
 RETURN
 
-END FUNCTION CalcTRotDataset
+END FUNCTION CalcTDataset
 
 
 REAL FUNCTION CalcEelec(TElec, iSpec)
@@ -2022,44 +1973,43 @@ IF(Qelec.EQ.0.) Qelec = 1.
 END SUBROUTINE CalcPartitionFunction
 
 
-!//TODO next two routines
-SUBROUTINE CalcRotPartitionFunction(iSpec, Temp, Qrot)
+SUBROUTINE CalcRotPartitionFunction(iSpec, Temp, Qrot, CutOffPartition)
 !===================================================================================================================================
 !> Calculation of the rotational partition function for a species at the given temperature (also applicable at low temperatures)
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
 USE MOD_Globals_Vars        ,ONLY: Pi, PlanckConst, BoltzmannConst
-USE MOD_DSMC_Vars           ,ONLY: SpecDSMC, DSMC, PolyatomMolDSMC
-USE MOD_Particle_Vars       ,ONLY: Species
+USE MOD_DSMC_Vars           ,ONLY: SpecDSMC, PolyatomMolDSMC, DSMC
 
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-INTEGER, INTENT(IN)         :: iSpec
-REAL, INTENT(IN)            :: Temp
+INTEGER, INTENT(IN)           :: iSpec
+INTEGER, INTENT(IN), OPTIONAL :: CutOffPartition
+REAL, INTENT(IN)              :: Temp
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
-REAL, INTENT(OUT)           :: Qrot
+REAL, INTENT(OUT)             :: Qrot
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                     :: iPolyatMole, iLoop, kLoop, iQuant, jMax, iDof
-REAL                        :: iRan
+INTEGER                       :: iPolyatMole, iLoop, kLoop
+REAL                          :: EVib
 !===================================================================================================================================
 iPolyatMole = SpecDSMC(iSpec)%SpecToPolyArray
 IF(.NOT.SpecDSMC(iSpec)%PolyatomicMol)THEN ! diatomic
-  Qrot = Temp/SpecDSMC(iSpec)%CharaTRot * exp(-SpecDSMC(iSpec)%CharaTRot/Temp)
+  Qrot = Temp/SpecDSMC(iSpec)%CharaTRot
 ELSE IF(PolyatomMolDSMC(iPolyatMole)%LinearMolec)THEN ! linear molecule
-  Qrot = Temp/PolyatomMolDSMC(iPolyatMole)%CharaTRotDOF(1) * exp(-PolyatomMolDSMC(iPolyatMole)%CharaTRotDOF(1)/Temp)
+  Qrot = Temp/PolyatomMolDSMC(iPolyatMole)%CharaTRotDOF(1)
 ELSE IF(PolyatomMolDSMC(iPolyatMole)%RotationalGroup.EQ.1)THEN  ! spherical top molecule
   Qrot = 0.
-  DO iLoop=1, 500   !//TODO Check 500
+  DO iLoop=1, CutOffPartition 
     Qrot = Qrot + (2.*REAL(iLoop)+1.)**2.*exp(-REAL(iLoop)*(REAL(iLoop)+1)*PolyatomMolDSMC(iPolyatMole)%CharaTRotDOF(1)/Temp)
   END DO
 ELSE IF(PolyatomMolDSMC(iPolyatMole)%RotationalGroup.EQ.2)THEN  ! symmetric top molecule
   Qrot = 0.
-  DO iLoop=1, 500   !//TODO Check 500
+  DO iLoop=1, CutOffPartition
     ! first term not double degenerate for k = 0
     Qrot = Qrot + (2.*REAL(iLoop)+1.)*exp(-PlanckConst**2. / (8.*PI**2.*BoltzmannConst*Temp) * (REAL(iLoop)*(REAL(iLoop)+1.) & 
             / PolyatomMolDSMC(iPolyatMole)%MomentOfInertia(1)))
@@ -2070,9 +2020,7 @@ ELSE IF(PolyatomMolDSMC(iPolyatMole)%RotationalGroup.EQ.2)THEN  ! symmetric top 
     END DO
   END DO
 ELSE IF(PolyatomMolDSMC(iPolyatMole)%RotationalGroup.EQ.3)THEN  ! asymmetric top molecule
-  CALL abort(&
-  __STAMP__&
-  ,'Calculation of partition function for asymmetric top molecules not possible yet!')
+  CALL abort(__STAMP__,'Calculation of partition function for asymmetric top molecules not possible yet!')
 END IF
 
 END SUBROUTINE CalcRotPartitionFunction
@@ -2082,8 +2030,9 @@ REAL FUNCTION CalcTRotQuant(MeanERot, iSpec)
 !> Calculation of the rotational temperature (zero-point search) for polyatomic molecules
 !===================================================================================================================================
 ! MODULES
+USE MOD_Globals       ,ONLY: Abort
 USE MOD_Globals_Vars  ,ONLY: BoltzmannConst, PlanckConst, PI, ElementaryCharge
-USE MOD_DSMC_Vars     ,ONLY: SpecDSMC, PolyatomMolDSMC
+USE MOD_DSMC_Vars     ,ONLY: SpecDSMC, PolyatomMolDSMC, DSMC
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -2095,13 +2044,12 @@ INTEGER, INTENT(IN)             :: iSpec      ! Number of Species
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
-INTEGER                 :: iDOF, iPolyatMole, iLoop, kLoop
+INTEGER                 :: iPolyatMole, iLoop, kLoop, iDOF, iQuant, CutOffPartition
 REAL                    :: LowerTemp, UpperTemp, MiddleTemp !< Upper, lower and final value of modified zero point search
 REAL                    :: EGuess                           !< Energy value at the current MiddleTemp
-REAL                    :: Qrot
+REAL                    :: Qrot, EVib
 REAL,PARAMETER          :: eps_prec=1E-6                    !< Relative precision of root-finding algorithm
 !===================================================================================================================================
-
 ! lower limit: very small value or lowest temperature if ionized
 ! upper limit: highest possible temperature
 iPolyatMole = SpecDSMC(iSpec)%SpecToPolyArray
@@ -2112,19 +2060,36 @@ IF (MeanERot.GT.0) THEN !??
   DO WHILE (.NOT.ALMOSTEQUALRELATIVE(0.5*(LowerTemp + UpperTemp),MiddleTemp,eps_prec))
     MiddleTemp = 0.5*(LowerTemp + UpperTemp)
     EGuess = 0.
-    CALL CalcRotPartitionFunction(iSpec, MiddleTemp, Qrot)
     IF(.NOT.SpecDSMC(iSpec)%PolyatomicMol)THEN ! diatomic
+      CALL CalcRotPartitionFunction(iSpec, MiddleTemp, Qrot)
       EGuess = BoltzmannConst*MiddleTemp**2/(Qrot*SpecDSMC(iSpec)%CharaTRot)
     ELSE IF(PolyatomMolDSMC(iPolyatMole)%LinearMolec)THEN ! linear molecule
+      CALL CalcRotPartitionFunction(iSpec, MiddleTemp, Qrot)
       EGuess = BoltzmannConst*MiddleTemp**2/(Qrot*PolyatomMolDSMC(iPolyatMole)%CharaTRotDOF(1))
     ELSE IF(PolyatomMolDSMC(iPolyatMole)%RotationalGroup.EQ.1)THEN  ! spherical top molecule
-      DO iLoop=1, 500 !//TODO Check 500
+      ! calculate vibrational energy at current temperature for cut off values in partition function 
+      EVib = 0.
+      DO iDOF = 1, PolyatomMolDSMC(iPolyatMole)%VibDOF
+        iQuant = INT(-LOG(0.01)*MiddleTemp/PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iDOF))
+        EVib = EVib + (iQuant + DSMC%GammaQuant)*PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iDOF)*BoltzmannConst
+      END DO
+      CutOffPartition = INT(1.*(0.5*(SQRT(1.+32.*PI**2./PlanckConst**2.*EVib*PolyatomMolDSMC(iPolyatMole)%MomentOfInertia(1))-1.)))
+      CALL CalcRotPartitionFunction(iSpec, MiddleTemp, Qrot, CutOffPartition)
+      DO iLoop=1, CutOffPartition !//TODO check value
         EGuess = EGuess + (2.*REAL(iLoop)+1.)**2.*exp(-REAL(iLoop)*(REAL(iLoop)+1)*PolyatomMolDSMC(iPolyatMole)%CharaTRotDOF(1) &
                 /MiddleTemp)*REAL(iLoop)*(REAL(iLoop)+1)*PolyatomMolDSMC(iPolyatMole)%CharaTRotDOF(1)*BoltzmannConst
       END DO
       EGuess = EGuess * 1/Qrot
     ELSE IF(PolyatomMolDSMC(iPolyatMole)%RotationalGroup.EQ.2)THEN  ! symmetric top molecule
-      DO iLoop=1, 500 !//TODO Check 500
+      ! calculate vibrational energy at current temperature for cut off values in partition function 
+      EVib = 0.
+      DO iDOF = 1, PolyatomMolDSMC(iPolyatMole)%VibDOF
+        iQuant = INT(-LOG(0.01)*MiddleTemp/PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iDOF))
+        EVib = EVib + (iQuant + DSMC%GammaQuant)*PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iDOF)*BoltzmannConst
+      END DO
+      CutOffPartition = INT(1.*(0.5*(SQRT(1.+32.*PI**2./PlanckConst**2.*EVib*PolyatomMolDSMC(iPolyatMole)%MomentOfInertia(1))-1.)))
+      CALL CalcRotPartitionFunction(iSpec, MiddleTemp, Qrot, CutOffPartition)
+      DO iLoop=1, CutOffPartition !//TODO check value
         ! first term not double degenerate for k = 0
         EGuess = EGuess + (2.*REAL(iLoop)+1.)*exp(-PlanckConst**2. / (8.*PI**2.*BoltzmannConst*MiddleTemp) * & 
                 (REAL(iLoop)*(REAL(iLoop)+1.) / PolyatomMolDSMC(iPolyatMole)%MomentOfInertia(1))) * (PlanckConst**2. / & 
@@ -2140,13 +2105,13 @@ IF (MeanERot.GT.0) THEN !??
       END DO
       EGuess = EGuess * 1/Qrot
     ELSE IF(PolyatomMolDSMC(iPolyatMole)%RotationalGroup.EQ.3)THEN  ! asymmetric top molecule
-      ! equipartition theorem
-      CalcTRotQuant = 2.0*MeanERot/(3.*BoltzmannConst)
+      MiddleTemp = CalcTDataset(MeanERot, iSpec, 'ROTATIONAL')
       ! set temperatures to exit loop after one iteration
+      EGuess = MeanERot + 1.
       UpperTemp = MiddleTemp
       LowerTemp = MiddleTemp
     ELSE
-      CALL abort()
+      CALL abort(__STAMP__,'Unexpected dimensions of moments of inertia!')
     END IF
     IF (EGuess.GT.MeanERot) THEN
       UpperTemp = MiddleTemp

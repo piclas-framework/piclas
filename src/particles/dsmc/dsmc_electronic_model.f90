@@ -246,7 +246,7 @@ USE MOD_Globals_Vars           ,ONLY: BoltzmannConst, ElementaryCharge
 USE MOD_DSMC_Vars              ,ONLY: SpecDSMC, PartStateIntEn, RadialWeighting, Coll_pData, DSMC, ElectronicDistriPart, CollInf
 USE MOD_Particle_Vars          ,ONLY: PartSpecies, UseVarTimeStep, usevMPF, nSpecies
 USE MOD_part_tools             ,ONLY: GetParticleWeight
-USE MOD_Particle_Analyze_Tools ,ONLY: CalcTelec
+USE MOD_Particle_Analyze_Tools ,ONLY: CalcTDataset
 USE MOD_MCC_Vars                ,ONLY: SpecXSec
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -347,7 +347,7 @@ CASE(2)
   END DO
   IF ((Coll_pData(iPair)%Ec-PartStateIntEn(3,iPart1)*GetParticleWeight(iPart1)).LT.0.0) then
     Etmp = (Coll_pData(iPair)%Ec - (1.-LocRelaxProb)*Eold*GetParticleWeight(iPart1))/(GetParticleWeight(iPart1)*LocRelaxProb)
-    TransElec = CalcTelec(Etmp, iSpec)*0.98
+    TransElec = CalcTDataset(Etmp, iSpec, 'ELECTRONIC')*0.98
     ElectronicPartition = 0.0
     DO iQua = 0, SpecDSMC(iSpec)%MaxElecQuant - 1
       tmpExp = SpecDSMC(iSpec)%ElectronicState(2,iQua) / TransElec
@@ -409,7 +409,7 @@ USE MOD_DSMC_Vars               ,ONLY: SpecDSMC, PartStateIntEn, RadialWeighting
 USE MOD_TimeDisc_Vars           ,ONLY: dt
 USE MOD_part_tools              ,ONLY: GetParticleWeight, CalcXiElec
 USE MOD_Globals_Vars            ,ONLY: BoltzmannConst
-USE MOD_Particle_Analyze_Tools  ,ONLY: CalcTelec
+USE MOD_Particle_Analyze_Tools  ,ONLY: CalcTDataset
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -456,7 +456,7 @@ Xi_ElecSpec=0.; Xi_Elec_oldSpec=0.; TElecSpec=0.
 DO iSpec = 1, nSpecies
   IF (nSpec(iSpec).EQ.0) CYCLE
   IF((Species(iSpec)%InterID.NE.4).AND.(.NOT.SpecDSMC(iSpec)%FullyIonized)) THEN
-    TElecSpec(iSpec)=CalcTelec( EElecSpec(iSpec)/totalWeightSpec(iSpec), iSpec)
+    TElecSpec(iSpec)=CalcTDataset( EElecSpec(iSpec)/totalWeightSpec(iSpec), iSpec, 'ELECTRONIC')
     Xi_ElecSpec(iSpec)=CalcXiElec(TElecSpec(iSpec),iSpec)
     Xi_Elec_oldSpec(iSpec) = Xi_ElecSpec(iSpec)
   END IF
@@ -1299,14 +1299,14 @@ END IF
 END SUBROUTINE ReadSpeciesLevel
 
 
-SUBROUTINE ReadRotationalSpeciesLevel ( Dsetname, iSpec )
+SUBROUTINE ReadRotationalSpeciesLevel (iSpec)
 !===================================================================================================================================
 ! Subroutine to read the rotational levels from SpeciesDatabase.h5
 !===================================================================================================================================
 ! use module
 USE MOD_io_hdf5
 USE MOD_Globals
-USE MOD_DSMC_Vars             ,ONLY: DSMC, SpecDSMC
+USE MOD_DSMC_Vars             ,ONLY: SpecDSMC
 USE MOD_HDF5_Input            ,ONLY: DatasetExists
 USE MOD_Particle_Vars         ,ONLY: Species, SpeciesDatabase
 #if USE_LOADBALANCE
@@ -1318,7 +1318,6 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
 INTEGER,INTENT(IN)                                    :: iSpec
-CHARACTER(LEN=64),INTENT(IN)                          :: dsetname
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1332,9 +1331,6 @@ INTEGER(HID_T)                                        :: file_id_dsmc           
 INTEGER(HID_T)                                        :: dset_id_dsmc                       ! Dataset identifier
 INTEGER(HID_T)                                        :: filespace                          ! filespace identifier
 REAL,ALLOCATABLE                                      :: RotationalState(:,:)
-INTEGER, ALLOCATABLE                                  :: SortRotationalState(:)
-INTEGER                                               :: iQua, nQuants, iQuaTemp
-REAL                                                  :: tempEnergyDiff, tempEnergy
 LOGICAL                                               :: DataSetFound
 !===================================================================================================================================
 datasetname = TRIM('/Species/'//TRIM(Species(iSpec)%Name)//'/RotationalLevel')

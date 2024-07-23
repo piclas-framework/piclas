@@ -21,6 +21,16 @@ MODULE MOD_DSMC_Relaxation
 IMPLICIT NONE
 PRIVATE
 
+ABSTRACT INTERFACE
+  SUBROUTINE RotRelaxDiaRoutine(iPair,iPart,FakXi)
+    INTEGER,INTENT(IN)          :: iPair, iPart               ! index of collision pair
+    REAL,INTENT(IN)             :: FakXi
+  END SUBROUTINE
+END INTERFACE
+
+PROCEDURE(RotRelaxDiaRoutine),POINTER :: RotRelaxDiaRoutineFuncPTR !< pointer defining the function called for rotational relaxation 
+                                                                   !  depending on the RotRelaxModel (continous or quantized)
+                                                                   !  for diatomic molecules
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! GLOBAL VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -28,7 +38,7 @@ PRIVATE
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
 PUBLIC :: DSMC_VibRelaxDiatomic, CalcMeanVibQuaDiatomic, CalcXiVib, CalcXiTotalEqui, DSMC_calc_P_rot, DSMC_calc_var_P_vib
 PUBLIC :: InitCalcVibRelaxProb, DSMC_calc_P_vib, SumVibRelaxProb, FinalizeCalcVibRelaxProb, DSMC_calc_P_elec
-PUBLIC :: DSMC_RotRelaxDiaQuant
+PUBLIC :: DSMC_RotRelaxDiaQuant, DSMC_RotRelaxDiaContinous, RotRelaxDiaRoutineFuncPTR
 !===================================================================================================================================
 
 CONTAINS
@@ -55,7 +65,7 @@ REAL, INTENT(IN)              :: FakXi
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER                       :: iSpec
-INTEGER                       :: iQuant, J1, J2, JStar, jIter
+INTEGER                       :: iQuant, J2, jIter
 LOGICAL                       :: ARM
 REAL                          :: fNorm, iRan, MaxValue, CurrentValue, Ec
 !===================================================================================================================================
@@ -65,11 +75,9 @@ ELSE
   Ec = Coll_pData(iPair)%Ec
 END IF
 iSpec = PartSpecies(iPart)
-
+! calculate maximum allowed quantum number if all of the collision energy would be transfered to rotational energy
 J2 = INT((-1.+SQRT(1.+(4.*Coll_pData(iPair)%Ec)/(BoltzmannConst * SpecDSMC(iSpec)%CharaTRot)))/2.)
-
-!===================================================================================================================================
-! Find max value numerically
+! Find max value of distribution numerically
 MaxValue = 0.
 DO jIter=0, J2
   CurrentValue = (2.*REAL(jIter) + 1.)*(Coll_pData(iPair)%Ec - REAL(jIter)*(REAL(jIter) + 1.)* & 
@@ -78,7 +86,6 @@ DO jIter=0, J2
       MaxValue = CurrentValue
   END IF
 END DO
-!===================================================================================================================================
 ARM = .TRUE.
 CALL RANDOM_NUMBER(iRan)
 iQuant = INT((1+J2)*iRan)
@@ -96,6 +103,37 @@ END DO
 PartStateIntEn( 2,iPart) = REAL(iQuant) * (REAL(iQuant) + 1.) * BoltzmannConst * SpecDSMC(iSpec)%CharaTRot
 
 END SUBROUTINE DSMC_RotRelaxDiaQuant
+
+
+SUBROUTINE DSMC_RotRelaxDiaContinous(iPair,iPart,FakXi)
+!===================================================================================================================================
+!> Rotational relaxation of diatomic molecules using continous energy levels after Pfeiffer/Nizenkov
+!> Physics of Fluids 28, 027103 (2016); doi: 10.1063/1.4940989
+!> Only seperate routine for function pointer with RotRelaxModel
+!===================================================================================================================================
+! MODULES
+USE MOD_DSMC_Vars             ,ONLY: PartStateIntEn, Coll_pData, SpecDSMC
+USE MOD_Particle_Vars         ,ONLY: PartSpecies
+
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+INTEGER, INTENT(IN)           :: iPart, iPair
+REAL, INTENT(IN)              :: FakXi
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+REAL                          :: LocalFakXi, iRan
+INTEGER                       :: iSpec
+!===================================================================================================================================
+iSpec = PartSpecies(iPart)
+! fix for changed FakXi for polyatomic
+LocalFakXi = FakXi + 0.5*SpecDSMC(iSpec)%Xi_Rot
+CALL RANDOM_NUMBER(iRan)
+PartStateIntEn(2, iPart) = Coll_pData(iPair)%Ec * (1.0 - iRan**(1.0/LocalFakXi))
+END SUBROUTINE DSMC_RotRelaxDiaContinous
 
 
 REAL FUNCTION DiffRotEnergy(En1, En2)

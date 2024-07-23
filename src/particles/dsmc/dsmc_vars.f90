@@ -164,7 +164,7 @@ TYPE tSpeciesDSMC                                          ! DSMC Species Parame
   REAL                              :: MaxMeanXiElec(2)     ! 1: max mean XiElec 2: Temperature corresponding to max mean XiElec
 END TYPE tSpeciesDSMC
 
-TYPE(tSpeciesDSMC), ALLOCATABLE     :: SpecDSMC(:)          ! Species DSMC params (nSpec)
+TYPE(tSpeciesDSMC), ALLOCATABLE,TARGET     :: SpecDSMC(:)          ! Species DSMC params (nSpec)
 
 TYPE tDSMC
   INTEGER                       :: ElectronSpecies          ! Species of the electron
@@ -479,6 +479,11 @@ TYPE tPolyatomMolVibQuant !DSMC Species Param
 END TYPE
 
 TYPE (tPolyatomMolVibQuant), ALLOCATABLE    :: VibQuantsPar(:)
+
+INTEGER, ALLOCATABLE                        :: RotQuantsPar(:,:)  ! Rot quants for each particle
+                                                                  ! Dimensions: 2 | MaxParticleNumber, where first row is first
+                                                                  ! first quantum number (iQuant) and second row second quantum
+                                                                  ! number (kQuant) only for symmetric Tops
 
 TYPE tAmbipolElecVelo !DSMC Species Param
   REAL, ALLOCATABLE            :: ElecVelo(:)            ! Vib quants of each DOF for each particle

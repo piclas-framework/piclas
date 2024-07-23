@@ -621,8 +621,7 @@ USE MOD_DSMC_Vars             ,ONLY: SpecDSMC, BGGas, ChemReac, DSMC, PartStateI
 USE MOD_MCC_Vars              ,ONLY: SpecXSec
 USE MOD_Particle_Vars         ,ONLY: Species
 USE MOD_TimeDisc_Vars         ,ONLY: dt
-USE MOD_part_tools            ,ONLY: CalcERot_particle, CalcERotQuant_particle, CalcEVib_particle, CalcEElec_particle, &
-                                     CalcERotDataset_particle
+USE MOD_part_tools            ,ONLY: CalcEVib_particle, CalcEElec_particle, RotInitPolyRoutineFuncPTR
 USE MOD_MCC_XSec              ,ONLY: InterpolateCrossSection
 IMPLICIT NONE
 ! INPUT VARIABLES
@@ -686,14 +685,7 @@ DO iPath = 1, ChemReac%CollCaseInfo(iCase)%NumOfReactionPaths
         Temp_Rot   = SpecDSMC(jSpec)%Init(1)%TRot
       END IF
       PartStateIntEn(1,bggPartIndex) = CalcEVib_particle(jSpec,Temp_Vib,bggPartIndex)
-      !//TODO Func Pointer
-      IF(DSMC%RotRelaxModel.EQ.1) THEN       ! quantized treatment of rotational energy
-        PartStateIntEn( 2,bggPartIndex) = CalcERotQuant_particle(jSpec,Temp_Rot)
-      ELSE IF(DSMC%RotRelaxModel.EQ.2) THEN       ! quantized treatment of rotational energy
-        PartStateIntEn( 2,bggPartIndex) = CalcERotDataset_particle(jSpec,Temp_Rot)
-      ELSE  ! continous treatment of rotational energy
-        PartStateIntEn( 2,bggPartIndex) = CalcERot_particle(jSpec,Temp_Rot)
-      END IF
+      PartStateIntEn( 2,bggPartIndex) = RotInitPolyRoutineFuncPTR(jSpec,Temp_Rot,bggPartIndex)
       CollEnergy = CollEnergy + PartStateIntEn(1,bggPartIndex) + PartStateIntEn(2,bggPartIndex)
     END IF
     IF ((DSMC%ElectronicModel.GT.0).AND.(.NOT.SpecDSMC(jSpec)%FullyIonized)) THEN

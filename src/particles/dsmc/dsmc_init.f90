@@ -290,10 +290,13 @@ USE MOD_Mesh_Vars              ,ONLY: nElems, NGEo
 USE MOD_Globals_Vars           ,ONLY: Pi, BoltzmannConst, ElementaryCharge, PlanckConst
 USE MOD_Particle_Vars          ,ONLY: nSpecies, Species, PDM, Symmetry, UseVarTimeStep, usevMPF
 USE MOD_Particle_Vars          ,ONLY: DoFieldIonization, SpeciesDatabase,  SampleElecExcitation
+USE MOD_part_tools             ,ONLY: RotInitPolyRoutineFuncPTR, CalcERotQuant_particle, CalcERot_particle, CalcERotDataset_particle
 USE MOD_DSMC_ParticlePairing   ,ONLY: DSMC_init_octree
 USE MOD_DSMC_ChemInit          ,ONLY: DSMC_chemical_init
 USE MOD_DSMC_ElectronicModel   ,ONLY: ReadRotationalSpeciesLevel
-USE MOD_DSMC_PolyAtomicModel   ,ONLY: InitPolyAtomicMolecs
+USE MOD_DSMC_PolyAtomicModel   ,ONLY: InitPolyAtomicMolecs, DSMC_RotRelaxDatabasePoly, DSMC_RotRelaxQuantPoly, DSMC_RotRelaxPoly
+USE MOD_DSMC_PolyAtomicModel   ,ONLY: RotRelaxPolyRoutineFuncPTR
+USE MOD_DSMC_Relaxation        ,ONLY: RotRelaxDiaRoutineFuncPTR, DSMC_RotRelaxDiaContinous, DSMC_RotRelaxDiaQuant
 USE MOD_DSMC_CollisVec         ,ONLY: DiceDeflectedVelocityVector4Coll, DiceVelocityVector4Coll, PostCollVec
 USE MOD_DSMC_BGGas             ,ONLY: BGGas_RegionsSetInternalTemp
 USE MOD_io_hdf5
@@ -343,6 +346,20 @@ IF(CollisMode.GE.2) THEN
   DSMC%RotRelaxProb = GETREAL('Particles-DSMC-RotRelaxProb')
   DSMC%VibRelaxProb = GETREAL('Particles-DSMC-VibRelaxProb')
   DSMC%RotRelaxModel = GETINT('Particles-DSMC-RotationalRelaxModel')
+  ! set function pointer for rotational internal energy calculation
+  IF(DSMC%RotRelaxModel.EQ.1)THEN
+    RotRelaxPolyRoutineFuncPTR => DSMC_RotRelaxQuantPoly
+    RotRelaxDiaRoutineFuncPTR => DSMC_RotRelaxDiaQuant
+    RotInitPolyRoutineFuncPTR => CalcERotQuant_particle
+  ELSE IF(DSMC%RotRelaxModel.EQ.2)THEN
+    RotRelaxPolyRoutineFuncPTR => DSMC_RotRelaxDatabasePoly
+    RotRelaxDiaRoutineFuncPTR => DSMC_RotRelaxDatabasePoly
+    RotInitPolyRoutineFuncPTR => CalcERotDataset_particle
+  ELSE
+    RotRelaxPolyRoutineFuncPTR => DSMC_RotRelaxPoly
+    RotRelaxDiaRoutineFuncPTR => DSMC_RotRelaxDiaContinous
+    RotInitPolyRoutineFuncPTR => CalcERot_particle
+  END IF
 ELSE
   DSMC%RotRelaxProb = 0.
   DSMC%VibRelaxProb = 0.
@@ -735,16 +752,20 @@ ELSE !CollisMode.GT.0
                   SpecDSMC(iSpec)%CharaTRot = PlanckConst**2 / (8 * PI**2 * SpecDSMC(iSpec)%MomentOfInertia * BoltzmannConst)
                   CALL PrintOption('MomentOfInertia','DB',RealOpt=SpecDSMC(iSpec)%MomentOfInertia)
                 ELSE
-                  CALL abort(&
-                  __STAMP__&
-                  ,'Moment of inertia necessary for quantized rotational energy and is not set for species', iSpec)
+                  CALL abort(__STAMP__,'Moment of inertia necessary for quantized rotational energy and is not set for species',iSpec)
                 END IF
               ELSE
                 CALL AttributeExists(file_id_specdb,'CharaTempRot',TRIM(dsetname), AttrExists=AttrExists,ChangeToGroup='True')
                 IF(AttrExists)THEN  ! check if CharaTempRot is set without Moment of Inertia
                   CALL ReadAttribute(file_id_specdb,'CharaTempRot',1,DatasetName = dsetname,RealScalar=SpecDSMC(iSpec)%CharaTRot,ChangeToGroup='True')
                 ELSE
-                  SpecDSMC(iSpec)%CharaTRot = 0.0
+                  CALL AttributeExists(file_id_specdb,'MomentOfInertia',TRIM(dsetname), AttrExists=AttrExists,ChangeToGroup='True')
+                  IF (AttrExists) THEN
+                    CALL ReadAttribute(file_id_specdb,'MomentOfInertia',1,DatasetName = dsetname,RealScalar=SpecDSMC(iSpec)%MomentOfInertia,ChangeToGroup='True')
+                    SpecDSMC(iSpec)%CharaTRot = PlanckConst**2 / (8 * PI**2 * SpecDSMC(iSpec)%MomentOfInertia * BoltzmannConst)
+                  ELSE
+                    SpecDSMC(iSpec)%CharaTRot = 0.0
+                  END IF
                 END IF
               END IF
               CALL PrintOption('CharaTempRot','DB',RealOpt=SpecDSMC(iSpec)%CharaTRot)
@@ -844,7 +865,7 @@ ELSE !CollisMode.GT.0
               END IF
             END DO !SurfaceFluxBCs
             IF(DSMC%RotRelaxModel.EQ.2)THEN ! read rotational levels from database
-              CALL ReadRotationalSpeciesLevel (dsetname,iSpec)
+              CALL ReadRotationalSpeciesLevel (iSpec)
             END IF
           END IF ! not electron
         END IF
@@ -979,6 +1000,7 @@ ELSE !CollisMode.GT.0
         CALL Abort(__STAMP__,'ERROR: No single-mode polyatomic relaxation possible with chosen selection procedure! SelectionProc:', SelectionProc)
       END IF
       IF(.NOT.ALLOCATED(VibQuantsPar)) ALLOCATE(VibQuantsPar(PDM%maxParticleNumber))
+      IF(.NOT.ALLOCATED(RotQuantsPar)) ALLOCATE(RotQuantsPar(2,PDM%maxParticleNumber))
       ALLOCATE(PolyatomMolDSMC(DSMC%NumPolyatomMolecs))
       DO iSpec = 1, nSpecies
         IF (SpecDSMC(iSpec)%PolyatomicMol) THEN
