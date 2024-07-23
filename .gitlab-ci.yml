@@ -553,6 +553,21 @@ build_no_git_libs:
   rules:
     - if: '$DO_WEEKLY'
 
+build_petsc_in_piclas:
+  tags: [withmodules-concurrent]
+  needs: [reggie_download]
+  cache:
+    <<: *reggie_cache
+  stage: build
+  script:
+    - mkdir -p build_petsc_lib ; cd build_petsc_lib
+    - cmake -DPICLAS_EQNSYSNAME=poisson -DPICLAS_TIMEDISCMETHOD=RK3 -DPICLAS_CODE_ANALYZE=ON -DLIBS_BUILD_HDF5=OFF -DLIBS_USE_PETSC=ON -DLIBS_BUILD_PETSC=ON ..
+    - echo " Compiling with Poisson, RK3 and self-built PETSc ..."
+    - $GENERATOR -j $NCORES all
+    - python ../reggie/reggie.py -e ./bin/piclas ../regressioncheck/NIG_poisson_PETSC
+  # rules:
+    # - if: '$DO_WEEKLY'
+
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 # Stage "reggie_checkin": Run most simple reggie with previous builds on check-in
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
@@ -752,7 +767,7 @@ NIG_PIC_poisson_Boris-Leapfrog:
   stage: reggie_nightly
   script:
     - cd build ; python ../reggie/reggie.py ../regressioncheck/NIG_PIC_poisson_Boris-Leapfrog/
-    
+
 NIG_PIC_poisson_Boris-Leapfrog_PETSC:
   <<: *defaults_nightly
   stage: reggie_nightly
