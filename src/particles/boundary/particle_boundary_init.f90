@@ -1937,6 +1937,7 @@ IF(nComputeNodeSurfTotalSides.GT.0)THEN
       END DO jSideLoop ! jSide = 1, nRotPeriodicSides
 
       ! Check if iSide could not be mapped to any other side
+#if USE_MPI
       IF(NumRotPeriodicNeigh(iSide).EQ.0) THEN
         IF(ElemInfo_Shared(ELEM_HALOFLAG,SideInfo_Shared(SIDE_ELEMID,SideID)).EQ.3) THEN
           ! Found side on element that is a neighbor element in rot halo region (they have halo flag 3)
@@ -1945,6 +1946,7 @@ IF(nComputeNodeSurfTotalSides.GT.0)THEN
           RotPeriodicSideMapping_temp(iSide,NumRotPeriodicNeigh(iSide)) = 0
         END IF
       END IF ! NumRotPeriodicNeigh(iSide).EQ.0
+#endif /*USE_MPI*/
 
     END DO iSideLoop ! iSide = firstSide, lastSide
 
@@ -1986,6 +1988,7 @@ IF(nComputeNodeSurfTotalSides.GT.0)THEN
         END DO kNodeLoop
       END DO
       NumRotPeriodicNeigh(iSide) = NewNeighNumber
+#if USE_MPI
       ! Check if iSide still could not be mapped to any other side.
       IF(NumRotPeriodicNeigh(iSide).EQ.0) THEN
         SideID = Rot2Glob_temp(iSide)
@@ -1996,6 +1999,7 @@ IF(nComputeNodeSurfTotalSides.GT.0)THEN
           IF(ElemInfo_Shared(ELEM_HALOFLAG,SideInfo_Shared(SIDE_ELEMID,SideID)).EQ.1) abortAfterWriteOut = .TRUE.
         END IF
       END IF
+#endif /*USE_MPI*/
     END DO
 
     ! (4) reallocate array due to number of potential rotational periodic sides
