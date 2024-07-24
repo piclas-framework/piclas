@@ -207,10 +207,11 @@ For convenience, you can add these lines to your `.bashrc`.
 
 The following list contains the **recommended/working library versions** for PETSc and PICLas
 
-| PICLas Version | 3.18  | 3.17  |
-| :------------: | :---: | :---: |
-|     3.0.0      |  yes  |  yes  |
-|     2.9.0      |  no   |  yes  |
+| PICLas Version | 3.17  | 3.18  | 3.19.3 |
+| :------------: | :---: | :---: | :----: |
+|     3.3.0      |   -   |   -   |  yes   |
+|     3.0.0      |  yes  |  yes  |   -    |
+|     2.9.0      |  yes  |  no   |   -    |
 
 #### Local machine
 Download PETSc from the git repository
