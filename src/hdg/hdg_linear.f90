@@ -419,7 +419,7 @@ DO SideID=1,nSides
   HDG_Surf_N(SideID)%lambda(1,:) = lambda_pointer(DOF_start:DOF_stop)
 END DO
 
-  ! Fill Conductor lambda
+! Fill Conductor lambda
 IF(UseFPC) THEN
   FPC%VoltageProc = 0. ! nullify just to be safe
   DO BCsideID=1,nConductorBCsides
@@ -433,37 +433,11 @@ IF(UseFPC) THEN
     ! Copy the value to the FPC container for output to .csv (only mpi root does this)
     FPC%VoltageProc(iUniqueFPCBC) = HDG_Surf_N(SideID)%lambda(1,1)
   END DO
-#if USE_MPI
-  ! Sum the voltages across each sub-group and divide by the size of the group to get the voltage. This is required if the MPI
-  ! root is not connected to every FPC (which is usually the case)
-  !
-  ! 1. Communicate the accumulated voltage (should be the same on each proc that has such a BC) on each BC to all processors on the
-  ! communicator
-  FPC%Voltage = 0.
-  DO iUniqueFPCBC = 1, FPC%nUniqueFPCBounds
-    ASSOCIATE( COMM => FPC%COMM(iUniqueFPCBC)%UNICATOR )
-      IF(FPC%COMM(iUniqueFPCBC)%UNICATOR.NE.MPI_COMM_NULL)THEN
-        ASSOCIATE( VoltageProc => FPC%VoltageProc(iUniqueFPCBC), Voltage => FPC%Voltage(iUniqueFPCBC) )
-          IF(MPIroot)THEN
-            CALL MPI_REDUCE(VoltageProc, Voltage, 1 ,MPI_DOUBLE_PRECISION, MPI_SUM, 0, COMM, iError)
-          ELSE
-            CALL MPI_REDUCE(VoltageProc, 0      , 1 ,MPI_DOUBLE_PRECISION, MPI_SUM, 0, COMM, IError)
-          END IF ! MPIroot
-        END ASSOCIATE
-      END IF ! FPC%COMM(iUniqueFPCBC)%UNICATOR.NE.MPI_COMM_NULL
-    END ASSOCIATE
-  END DO ! iUniqueFPCBC = 1, FPC%nUniqueFPCBounds
-
-  ! 2. Divide by group size (procs that have an actual FPC BC side -> FPC%COMM(iUniqueFPCBC)%nProcsWithSides).
-  !    The MPI root process definitely has the size of each group, which is at least 1.
   IF(MPIRoot)THEN
     DO iUniqueFPCBC = 1, FPC%nUniqueFPCBounds
-      FPC%Voltage(iUniqueFPCBC) = FPC%Voltage(iUniqueFPCBC) / REAL(FPC%COMM(iUniqueFPCBC)%nProcsWithSides)
+      FPC%Voltage(iUniqueFPCBC) = lambda_pointer(nLocalPETScDOFs - FPC%nUniqueFPCBounds + iUniqueFPCBC)
     END DO ! iUniqueFPCBC = 1, FPC%nUniqueFPCBounds
   END IF ! MPIRoot
-#else
-  FPC%Voltage = FPC%VoltageProc
-#endif /*USE_MPI*/
 END IF ! UseFPC
 
 PetscCallA(VecRestoreArrayReadF90(PETScSolutionLocal,lambda_pointer,ierr))

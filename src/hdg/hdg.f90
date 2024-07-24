@@ -619,7 +619,7 @@ END DO
 ! 3.1.6) Add each FPC to the DOFs
 IF(UseFPC) THEN
   DO iUniqueFPCBC = 1, FPC%nUniqueFPCBounds
-    LocalToGlobalPETScDOF(nLocalPETScDOFs+iUniqueFPCBC) = nGlobalPETScDOFs+iUniqueFPCBC - 1
+    LocalToGlobalPETScDOF(nLocalPETScDOFs+iUniqueFPCBC) = nGlobalPETScDOFs + iUniqueFPCBC - 1
   END DO
   nLocalPETScDOFs = nLocalPETScDOFs + FPC%nUniqueFPCBounds
   nGlobalPETScDOFs = nGlobalPETScDOFs + FPC%nUniqueFPCBounds
