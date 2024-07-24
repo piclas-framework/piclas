@@ -562,11 +562,11 @@ build_petsc_in_piclas:
   script:
     - mkdir -p build_petsc_lib ; cd build_petsc_lib
     - cmake -DPICLAS_EQNSYSNAME=poisson -DPICLAS_TIMEDISCMETHOD=RK3 -DPICLAS_CODE_ANALYZE=ON -DLIBS_BUILD_HDF5=OFF -DLIBS_USE_PETSC=ON -DLIBS_BUILD_PETSC=ON ..
-    - echo " Compiling with Poisson, RK3 and self-built PETSc ..."
+    - echo " Compiling with Poisson, RK3 and self-built PETSc (-DPICLAS_EQNSYSNAME=poisson -DPICLAS_TIMEDISCMETHOD=RK3 -DLIBS_USE_PETSC=ON -DLIBS_BUILD_PETSC=ON) ..."
     - $GENERATOR -j $NCORES all
     - python ../reggie/reggie.py -e ./bin/piclas ../regressioncheck/NIG_poisson_PETSC
-  # rules:
-    # - if: '$DO_WEEKLY'
+  rules:
+    - if: '$DO_WEEKLY'
 
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 # Stage "reggie_checkin": Run most simple reggie with previous builds on check-in
