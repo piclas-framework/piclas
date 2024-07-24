@@ -134,9 +134,9 @@ jobs:
         cat ~/.bashrc
         echo "======================================================================="
 
-    - name: Install PETSc 3.18.4
+    - name: Install PETSc 3.19.3
       run: |
-        PETSCVERSION='3.18.4'
+        PETSCVERSION='3.19.3'
         source ~/.bashrc
         wget --no-check-certificate https://ftp.mcs.anl.gov/pub/petsc/release-snapshots/petsc-${PETSCVERSION}.tar.gz
         tar -xvf petsc-${PETSCVERSION}.tar.gz
