@@ -113,7 +113,9 @@ USE MOD_Metrics                ,ONLY: BuildElem_xGP,CalcMetrics,CalcSurfMetrics
 USE MOD_Prepare_Mesh           ,ONLY: setLocalSideIDs,fillMeshInfo
 USE MOD_ReadInTools            ,ONLY: PrintOption
 USE MOD_ReadInTools            ,ONLY: GETLOGICAL,GETSTR,GETREAL,GETINT,GETREALARRAY
+#if USE_HDG
 USE MOD_Symmetry_Vars          ,ONLY: Symmetry
+#endif
 #if USE_MPI
 USE MOD_Prepare_Mesh           ,ONLY: exchangeFlip
 !USE MOD_DG_Vars                ,ONLY: N_DG_Mapping_Shared_Win
