@@ -237,7 +237,7 @@ export PETSC_ARCH=arch-linux
 Set the PETSc flag to ON in during cmake configuration of PICLas
 
 ````
-PICLAS_PETSC   ON
+LIBS_USE_PETSC   ON
 ````
 
 #### Cluster (HLRS) with restricted internet access
@@ -321,13 +321,12 @@ Set the environment variables
 
 ````
 export PETSC_DIR=/home/user/petsc
-export PETSC_ARCH=arch-linux
 ````
 
 Set the PETSc flag to ON in during cmake configuration of PICLas
 
 ````
-PICLAS_PETSC   ON
+LIBS_USE_PETSC   ON
 ````
 
 Load the paths and modules in the submit.sh script on hawk by adding the following lines to the submit.sh script
@@ -335,7 +334,6 @@ Load the paths and modules in the submit.sh script on hawk by adding the followi
 ````
 module load cmake/3.16.4  gcc/9.2.0  hdf5/1.10.5  libflame/2.1  openmpi/4.0.4  aocl/2.1.0  blis/2.1
 export PETSC_DIR=/zhome/academic/HLRS/irs/iagcopp/petsc-3.17.0
-export PETSC_ARCH=arch-linux
 ````
 
 (sec:obtaining-the-source)=

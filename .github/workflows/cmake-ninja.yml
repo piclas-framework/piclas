@@ -134,9 +134,9 @@ jobs:
         cat ~/.bashrc
         echo "======================================================================="
 
-    - name: Install PETSc 3.18.4
+    - name: Install PETSc 3.19.3
       run: |
-        PETSCVERSION='3.18.4'
+        PETSCVERSION='3.19.3'
         source ~/.bashrc
         wget --no-check-certificate https://ftp.mcs.anl.gov/pub/petsc/release-snapshots/petsc-${PETSCVERSION}.tar.gz
         tar -xvf petsc-${PETSCVERSION}.tar.gz
@@ -230,8 +230,8 @@ jobs:
       # See https://cmake.org/cmake/help/latest/variable/CMAKE_BUILD_TYPE.html?highlight=cmake_build_type
       run: |
         source ~/.bashrc
-        cmake -G Ninja -B build_poisson_leapfrog -DPICLAS_INSTRUCTION=-mtune=generic -DPOSTI_BUILD_PICLAS2VTK=OFF -DPOSTI_BUILD_SUPERB=OFF -DPICLAS_TIMEDISCMETHOD=Leapfrog -DPICLAS_EQNSYSNAME=poisson -DPICLAS_PETSC=ON -DCMAKE_BUILD_TYPE=Release -DLIBS_USE_MPI=ON -DLIBS_BUILD_HDF5=OFF -DPICLAS_READIN_CONSTANTS=ON -DCMAKE_INSTALL_PREFIX=/usr
-        #cmake -G Ninja -B build_poisson_leapfrog -DPICLAS_INSTRUCTION=-mtune=generic -DPOSTI_BUILD_PICLAS2VTK=OFF -DPOSTI_BUILD_SUPERB=OFF -DPICLAS_TIMEDISCMETHOD=Leapfrog -DPICLAS_EQNSYSNAME=poisson -DPICLAS_PETSC=OFF -DCMAKE_BUILD_TYPE=Release -DLIBS_USE_MPI=ON -DLIBS_BUILD_HDF5=OFF -DPICLAS_READIN_CONSTANTS=ON -DCMAKE_INSTALL_PREFIX=/usr
+        cmake -G Ninja -B build_poisson_leapfrog -DPICLAS_INSTRUCTION=-mtune=generic -DPOSTI_BUILD_PICLAS2VTK=OFF -DPOSTI_BUILD_SUPERB=OFF -DPICLAS_TIMEDISCMETHOD=Leapfrog -DPICLAS_EQNSYSNAME=poisson -DLIBS_USE_PETSC=ON -DCMAKE_BUILD_TYPE=Release -DLIBS_USE_MPI=ON -DLIBS_BUILD_HDF5=OFF -DPICLAS_READIN_CONSTANTS=ON -DCMAKE_INSTALL_PREFIX=/usr
+        #cmake -G Ninja -B build_poisson_leapfrog -DPICLAS_INSTRUCTION=-mtune=generic -DPOSTI_BUILD_PICLAS2VTK=OFF -DPOSTI_BUILD_SUPERB=OFF -DPICLAS_TIMEDISCMETHOD=Leapfrog -DPICLAS_EQNSYSNAME=poisson -DLIBS_USE_PETSC=OFF -DCMAKE_BUILD_TYPE=Release -DLIBS_USE_MPI=ON -DLIBS_BUILD_HDF5=OFF -DPICLAS_READIN_CONSTANTS=ON -DCMAKE_INSTALL_PREFIX=/usr
 
     - name: Build Piclas Poisson Leapfrog
       shell: bash
