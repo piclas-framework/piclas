@@ -1116,6 +1116,7 @@ END SUBROUTINE ConvertElemData
 !===================================================================================================================================
 SUBROUTINE ConvertSurfaceData(InputStateFile)
 ! MODULES
+USE MOD_Preproc
 USE MOD_Globals
 USE MOD_Globals_Vars            ,ONLY: ProjectName
 USE MOD_IO_HDF5                 ,ONLY: HSize
@@ -1140,7 +1141,7 @@ CHARACTER(LEN=255),ALLOCATABLE  :: VarNamesSurf_HDF5(:)
 INTEGER                         :: nDims, nVarSurf, nSurfaceSidesReadin, SideID, iSurfOutputSide
 REAL                            :: OutputTime
 REAL, ALLOCATABLE               :: tempSurfData(:,:,:,:,:)
-REAL,ALLOCATABLE                :: Vdm_EQNgeo_NVisu(:,:)               !< Vandermonde from equidistant mesh to visualization nodes
+REAL,ALLOCATABLE                :: Vdm_N_NVisu(:,:)                    !< Vandermonde from equidistant mesh to visualization nodes
 REAL,ALLOCATABLE                :: NodeCoords_visu(:,:,:,:,:)          !< Coordinates of visualization nodes
 !===================================================================================================================================
 
@@ -1187,16 +1188,16 @@ IF((nVarSurf.GT.0).AND.(SurfConnect%nSurfaceOutputSides.GT.0))THEN
 END IF
 
 IF(nSurfSample.GT.1) THEN
-  ALLOCATE(Vdm_EQNgeo_NVisu(0:nSurfSample,0:NGeo))
+  ALLOCATE(Vdm_N_NVisu(0:nSurfSample,0:PP_N))
   ! Use NodeTypeVISU, which is hard-coded to NodeTypeVISU='VISU'
-  CALL GetVandermonde(NGeo,'GAUSS',nSurfSample,NodeTypeVISU,Vdm_EQNgeo_NVisu,modal=.FALSE.)
+  CALL GetVandermonde(PP_N,'GAUSS',nSurfSample,NodeTypeVISU,Vdm_N_NVisu,modal=.FALSE.)
   ALLOCATE(NodeCoords_visu(1:3,0:nSurfSample,0:nSurfSample,0:0,SurfConnect%nSurfaceOutputSides))
   NodeCoords_visu = 0.
   ! Interpolate mesh onto visu grid
   DO iSurfOutputSide = 1, SurfConnect%nSurfaceOutputSides
     ! Mapping from nSurfaceOutputSides to nSides
     SideID = SurfOutputSideToUniqueSide(iSurfOutputSide)
-    CALL ChangeBasis2D(3,NGeo,nSurfSample,Vdm_EQNgeo_NVisu,Face_xGP(1:3,:,:,SideID),NodeCoords_visu(1:3,:,:,0,iSurfOutputSide))
+    CALL ChangeBasis2D(3,PP_N,nSurfSample,Vdm_N_NVisu,Face_xGP(1:3,:,:,SideID),NodeCoords_visu(1:3,:,:,0,iSurfOutputSide))
   END DO
 ELSE
   ALLOCATE(NodeCoords_visu(1:3,0:0,0:0,0:0,1:SurfConnect%nSurfaceNode))
