@@ -633,9 +633,12 @@ PetscCallA(PetscInitialize(PETSC_NULL_CHARACTER,ierr))
 PetscCallA(MatCreate(PETSC_COMM_WORLD,PETScSystemMatrix,ierr))
 PetscCallA(MatSetSizes(PETScSystemMatrix,PETSC_DECIDE,PETSC_DECIDE,nGlobalPETScDOFs,nGlobalPETScDOFs,ierr))
 PetscCallA(MatSetType(PETScSystemMatrix,MATAIJ,ierr)) ! Sparse (mpi) matrix
-PetscCallA(MatSetOption(PETScSystemMatrix, MAT_SYMMETRIC, PETSC_TRUE,ierr)) ! TODO does this work?
-! TODO PETSC P-Adaption - Preallocate System matrix (also with FPCs)
-PetscCallA(MatSetUp(PETScSystemMatrix, ierr))
+PetscCallA(MatSetOption(PETScSystemMatrix, MAT_SYMMETRY_ETERNAL, PETSC_TRUE,ierr))
+! Conservative guess for the number of nonzeros: With 1to4 mortars at most 22 sides with Nmax.
+PetscCallA(MatSEQAIJSetPreallocation(PETScSystemMatrix,22 * nGP_face(NMax),PETSC_NULL_INTEGER,ierr))
+PetscCallA(MatMPIAIJSetPreallocation(PETScSystemMatrix,22 * nGP_face(NMax),PETSC_NULL_INTEGER,21 * nGP_face(NMax),PETSC_NULL_INTEGER,ierr))
+PetscCallA(MatZeroEntries(PETScSystemMatrix,ierr))
+! TODO When filling the system matrix, we may only need to fill the upper/lower diagonal
 
 CALL PETScFillSystemMatrix()
 
