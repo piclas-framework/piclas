@@ -157,6 +157,7 @@ REAL              :: D(0:Nmax,0:Nmax)
 INTEGER           :: nDirichletBCsidesGlobal
 #if USE_PETSC
 PetscErrorCode    :: ierr
+IS                :: PETScISLocal, PETScISGlobal
 INTEGER           :: iProc
 INTEGER           :: PETScLocalID
 INTEGER           :: MortarSideID,iMortar
@@ -664,11 +665,11 @@ PetscCallA(VecDuplicate(PETScSolution,PETScRHS,ierr))
 ! 3.2.4) Set up Scatter stuff
 PetscCallA(VecCreateSeq(PETSC_COMM_SELF,nLocalPETScDOFs,PETScSolutionLocal,ierr))
 ! Create a PETSc Vector 0:(nLocalPETScDOFs-1)
-PetscCallA(ISCreateStride(PETSC_COMM_SELF,nLocalPETScDOFs,0,1,idx_local_petsc,ierr))
+PetscCallA(ISCreateStride(PETSC_COMM_SELF,nLocalPETScDOFs,0,1,PETScISLocal,ierr))
 ! Create a PETSc Vector of the Global DOF IDs
-PetscCallA(ISCreateGeneral(PETSC_COMM_WORLD,nLocalPETScDOFs,localToGlobalPETScDOF,PETSC_COPY_VALUES,idx_global_petsc,ierr))
+PetscCallA(ISCreateGeneral(PETSC_COMM_WORLD,nLocalPETScDOFs,localToGlobalPETScDOF,PETSC_COPY_VALUES,PETScISGlobal,ierr))
 ! Create a scatter context to extract the local dofs
-PetscCallA(VecScatterCreate(PETScSolution,idx_global_petsc,PETScSolutionLocal,idx_local_petsc,PETScScatter,ierr))
+PetscCallA(VecScatterCreate(PETScSolution,PETScISGlobal,PETScSolutionLocal,PETScISLocal,PETScScatter,ierr))
 
 ! (Delete local allocated vectors)
 DEALLOCATE(localToGlobalPETScDOF)
@@ -2138,7 +2139,6 @@ PetscCallA(MatDestroy(PETScSystemMatrix,ierr))
 PetscCallA(VecDestroy(PETScSolution,ierr))
 PetscCallA(VecDestroy(PETScRHS,ierr))
 PetscCallA(PetscFinalize(ierr))
-SDEALLOCATE(Smat_BC)
 SDEALLOCATE(SmallMortarType)
 SDEALLOCATE(OffsetGlobalPETScDOF)
 #endif

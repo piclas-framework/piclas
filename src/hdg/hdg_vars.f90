@@ -43,10 +43,6 @@ Vec                 :: PETScSolution            !< Solution vector of the PETSc 
 KSP                 :: PETScSolver              !< Krylov subspace method and preconditioner used in PETSc
 Vec                 :: PETScSolutionLocal       !< Local portion of the solution vector (including YOUR sides!)
 VecScatter          :: PETScScatter            !< Scatter object used to extract the local solution from the global vector
-! TODO PETSC P-Adaption - Move to HDG,f90, only needed there...
-IS                  :: idx_local_petsc          !< Indexing of the local vector (basically 1:nLocalPETSc, but with YOUR sides)
-IS                  :: idx_global_petsc         !< Basically localToGlobalDOF with YOUR Sides
-REAL,ALLOCATABLE    :: Smat_BC(:,:,:,:)         !< side to side matrix for dirichlet (D) BCs, (ngpface,ngpface,6Sides,DSides)
 INTEGER             :: nPETScSides              !< nSides - nDirichletSides
 INTEGER             :: nPETScUniqueSides        !< nPETScSides - nMPISides_YOUR
 INTEGER             :: nLocalPETScDOFs          !< Number of local PETSc DOFs (size of PETSc Vectors & Matrices)
