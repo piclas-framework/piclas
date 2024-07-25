@@ -6,8 +6,9 @@ MESSAGE(STATUS "Generating with [cmake] (${CMAKE_VERSION})")
 CMAKE_MINIMUM_REQUIRED(VERSION 3.6.3)
 # Policies (see https://cmake.org/cmake/help/v3.13/manual/cmake-policies.7.html)
 # VERSION_GREATER_EQUAL is incompatible with CMAKE versions < 3.7
-IF(NOT(${CMAKE_VERSION} VERSION_LESS "3.6.0"))
-  SET(GITSHALLOW "GIT_SHALLOW ON")
+IF(NOT CMAKE_VERSION VERSION_LESS "3.6.0")
+  # Utilizing GIT_SHALLOW for faster cloning, using LIST(APPEND ...) to ensure correct expansion in ExternalProject_Add
+  LIST(APPEND GITSHALLOW "GIT_SHALLOW" "TRUE")
 ENDIF()
 IF(NOT(${CMAKE_VERSION} VERSION_LESS "3.12.0"))
   CMAKE_POLICY(SET CMP0074 NEW)

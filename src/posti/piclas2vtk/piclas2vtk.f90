@@ -1299,9 +1299,10 @@ IF((nVarSurf.GT.0).AND.(SurfConnect%nSurfaceOutputSides.GT.0))THEN
 END IF
 
 IF(nSurfSample.GT.1) THEN
+  ! Use PP_N here because Face_xGP is built in mesh.f90 using N when piclas2vtk loads the mesh on a constant N, even for p-adaption
   ALLOCATE(Vdm_N_NVisu(0:nSurfSample,0:PP_N))
-  ! Use NodeTypeVISU, which is hard-coded to NodeTypeVISU='VISU'
-  CALL GetVandermonde(PP_N,'GAUSS',nSurfSample,NodeTypeVISU,Vdm_N_NVisu,modal=.FALSE.)
+  ! Note that this uses NodeTypeVISU, which is hard-coded to NodeTypeVISU='VISU'
+  CALL GetVandermonde(PP_N , 'GAUSS' , nSurfSample , NodeTypeVISU , Vdm_N_NVisu      , modal=.FALSE.)
   ALLOCATE(NodeCoords_visu(1:3,0:nSurfSample,0:nSurfSample,0:0,SurfConnect%nSurfaceOutputSides))
   NodeCoords_visu = 0.
   ! Interpolate mesh onto visu grid

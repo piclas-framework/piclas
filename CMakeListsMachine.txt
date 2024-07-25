@@ -20,6 +20,7 @@ IF("${CMAKE_GENERATOR}" MATCHES "Ninja")
     SET(NINJA_COLOR_DIAGNOSTICS "-fdiagnostics-color=always" CACHE INTERNAL "Flag if Ninja should attempt to color output")
   ENDIF()
 ENDIF()
+MESSAGE(STATUS "Generating for [${CMAKE_GENERATOR}] build system")
 
 # =========================================================================
 # Some clusters requires setting the compilers by hand and invoking
