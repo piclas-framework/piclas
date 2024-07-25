@@ -45,6 +45,7 @@ PUBLIC :: PostProcessGradientHDG
 #if USE_PETSC
 PUBLIC :: PETScFillSystemMatrix
 PUBLIC :: PETScSetPrecond
+PUBLIC :: ChangeBasisSmat
 #endif /*USE_PETSC*/
 #endif /*USE_HDG*/
 !===================================================================================================================================
@@ -446,21 +447,7 @@ DO iElem=1,PP_nElems
         jIndices(i) = OffsetGlobalPETScDOF(jSideID) + i - 1
       END DO
 
-      ! TODO PETSC P-Adaption - Improvement: Store V^T * S * V in Smat
-      ! ... S_{(i1,i2),(j1,i2)} = V^T_{i1,I1} * V^T_{i2,I2} * S_{(I1,I2),(J1,J2)} * V_{J1,j1} * V_{J2,j2}
-      Smatloc = 0.
-      DO i_m=0,iNloc; DO i_p=0,iNloc
-        DO j_m=0,jNloc; DO j_p=0,jNloc
-          DO i=0,NElem; DO j=0,NElem
-            DO p=0,NElem; DO q=0,NElem
-              Smatloc(i_m*(iNloc+1)+i_p+1,j_m*(jNloc+1)+j_p+1) = Smatloc(i_m*(iNloc+1)+i_p+1,j_m*(jNloc+1)+j_p+1) + &
-                PREF_VDM(NElem,iNloc)%Vdm(i,i_m) * PREF_VDM(NElem,iNloc)%Vdm(j,i_p) * &
-                HDG_Vol_N(iElem)%Smat(i*(Nelem+1)+j+1,p*(Nelem+1)+q+1,jLocSide,iLocSide) * & ! TODO ij vs ji
-                PREF_VDM(NElem,iNloc)%Vdm(p,j_m) * PREF_VDM(NElem,iNloc)%Vdm(q,j_p)
-            END DO; END DO
-          END DO; END DO
-        END DO; END DO
-      END DO; END DO
+      CALL ChangeBasisSmat(Smatloc, HDG_Vol_N(iElem)%Smat(:,:,jLocSide,iLocSide), NElem, iNloc, jNloc)
 
       PetscCallA(MatSetValues(PETScSystemMatrix,iNdof,iIndices(1:iNdof),jNdof,jIndices(1:jNdof),Smatloc(1:iNdof,1:jNdof),ADD_VALUES,ierr))
     END DO
@@ -532,7 +519,54 @@ END DO
 PetscCallA(MatAssemblyBegin(PETScSystemMatrix,MAT_FINAL_ASSEMBLY,ierr))
 PetscCallA(MatAssemblyEnd(PETScSystemMatrix,MAT_FINAL_ASSEMBLY,ierr))
 END SUBROUTINE PETScFillSystemMatrix
+
+
+SUBROUTINE ChangeBasisSmat(S_out, S_in, NElem, iNSide, jNSide)
+!===================================================================================================================================
+! Change the basis of Smat from NElem to iNSide x jNSide
+!===================================================================================================================================
+! MODULES
+USE MOD_HDG_Vars
+USE MOD_Interpolation_Vars ,ONLY: PREF_VDM
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+INTEGER, INTENT(IN) :: NElem, iNSide, jNSide
+REAL, INTENT(IN)    :: S_in(nGP_face(NElem),nGP_face(NElem))
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+REAL, INTENT(OUT)   :: S_out(nGP_face(iNSide),nGP_face(jNSide))
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER             :: i_out_p, i_out_q, i_out_GP, j_out_p, j_out_q, j_out_GP
+INTEGER             :: i_in_p, i_in_q, i_in_GP, j_in_p, j_in_q, j_in_GP
+REAL                :: VT,V
+!===================================================================================================================================
+
+S_out = 0.
+
+! We can loop over all S_in indices and add the contributions
+DO i_out_p=0,iNSide; DO i_out_q=0,iNSide
+  DO j_out_p=0,jNSide; DO j_out_q=0,jNSide
+    i_out_GP = i_out_p*(iNSide+1)+i_out_q+1
+    j_out_GP = j_out_p*(jNSide+1)+j_out_q+1
+    DO i_in_p=0,NElem; DO i_in_q=0,NElem
+      DO j_in_p=0,NElem; DO j_in_q=0,NElem
+        i_in_GP = i_in_p*(NElem+1)+i_in_q+1
+        j_in_GP = j_in_p*(NElem+1)+j_in_q+1
+
+        VT = PREF_VDM(NElem,iNSide)%Vdm(i_in_p,i_out_p) * PREF_VDM(NElem,iNSide)%Vdm(i_in_q,i_out_q)
+        V = PREF_VDM(NElem,jNSide)%Vdm(j_in_p,j_out_p) * PREF_VDM(NElem,jNSide)%Vdm(j_in_q,j_out_q)
+
+        S_out(i_out_GP,j_out_GP) = S_out(i_out_GP,j_out_GP) + VT * S_in(i_in_GP,j_in_GP) * V
+      END DO; END DO
+    END DO; END DO
+  END DO; END DO
+END DO; END DO
+END SUBROUTINE ChangeBasisSmat
 #endif /* USE_PETSC */
+
 
 SUBROUTINE BuildPrecond()
 !===================================================================================================================================

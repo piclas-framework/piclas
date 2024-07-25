@@ -45,7 +45,7 @@ USE MOD_Equation_Vars      ,ONLY: IniExactFunc
 USE MOD_Mesh_Vars          ,ONLY: BoundaryType,nSides,BC,N_SurfMesh
 USE MOD_Mesh_Vars          ,ONLY: ElemToSide, offSetElem
 USE MOD_Interpolation_Vars ,ONLY: NMax,PREF_VDM
-USE MOD_Elem_Mat           ,ONLY: PostProcessGradientHDG
+USE MOD_Elem_Mat           ,ONLY: PostProcessGradientHDG, ChangeBasisSmat
 USE MOD_FillMortar_HDG     ,ONLY: SmallToBigMortar_HDG
 #if (PP_nVar==1)
 !USE MOD_Equation_Vars      ,ONLY: E
@@ -294,17 +294,7 @@ DO iBCSide=1,nDirichletBCSides
     IF(MaskedSide(SideID).GT.0) CYCLE
 
     ! TODO PETSC P-Adaption - Improvement: Store V^T * S * V in Smat
-    ! ... S_{(i1,i2),(j1,i2)} = V^T_{i1,I1} * V^T_{i2,I2} * S_{(I1,I2),(J1,J2)} * V_{J1,j1} * V_{J2,j2}
-    Smatloc = 0.
-    DO p=0,iNloc; DO q=0,iNloc
-      DO i=0,jNloc; DO j=0,jNloc
-        DO r=1,nGP_face(jNloc)
-          Smatloc(p*(iNloc+1)+q+1,r) = Smatloc(p*(iNloc+1)+q+1,r) + &
-          PREF_VDM(jNloc,iNloc)%Vdm(i,p) * PREF_VDM(jNloc,iNloc)%Vdm(j,q) * &
-          HDG_Vol_N(ElemID)%Smat(i*(jNloc+1)+j+1,r,iLocSide,jLocSide) ! TODO ij vs ji
-        END DO
-      END DO; END DO
-    END DO; END DO
+    CALL ChangeBasisSmat(Smatloc, HDG_Vol_N(ElemID)%Smat(:,:,iLocSide,jLocSide), jNloc, iNloc, jNloc)
 
     CALL DGEMV('N',nGP_face(iNloc),nGP_face(jNloc),-1., &
                           Smatloc(1:nGP_face(iNloc),1:nGP_face(jNloc)), nGP_face(iNloc), &
