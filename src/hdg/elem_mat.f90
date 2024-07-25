@@ -428,13 +428,12 @@ DO iElem=1,PP_nElems
       jSideID=ElemToSide(E2S_SIDE_ID,jLocSide,iElem)
       jNloc=N_SurfMesh(jSideID)%NSideMin
       IF(MaskedSide(jSideID).GT.0) CYCLE
-      ! TODO PETSC P-Adaption - Find out why we cant fill halve the matrix and then use MAT_SYMMETRIC
+      IF(OffsetGlobalPETScDOF(iSideID).GT.OffsetGlobalPETScDOF(jSideID)) CYCLE ! Only fill upper triangle
       IF(SetZeroPotentialDOF.AND.(OffsetGlobalPETScDOF(iSideID).EQ.0)) THEN
         ! The first DOF is set to constant 0 -> lambda_{1,1} = 0
         HDG_Vol_N(iElem)%Smat(:,1,jLocSide,iLocSide) = 0 ! TODO PETSC P-Adaption: why ji and not ij?
         IF(OffsetGlobalPETScDOF(jSideID).EQ.0) HDG_Vol_N(iElem)%Smat(1,1,jLocSide,iLocSide) = 1
       END IF
-
 
       iNdof=nGP_face(iNloc)
       jNdof=nGP_face(jNloc)

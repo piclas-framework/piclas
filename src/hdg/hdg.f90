@@ -632,11 +632,10 @@ PetscCallA(PetscInitialize(PETSC_NULL_CHARACTER,ierr))
 ! 3.2.1) Set up and fill System matrix
 PetscCallA(MatCreate(PETSC_COMM_WORLD,PETScSystemMatrix,ierr))
 PetscCallA(MatSetSizes(PETScSystemMatrix,PETSC_DECIDE,PETSC_DECIDE,nGlobalPETScDOFs,nGlobalPETScDOFs,ierr))
-PetscCallA(MatSetType(PETScSystemMatrix,MATAIJ,ierr)) ! Sparse (mpi) matrix
-PetscCallA(MatSetOption(PETScSystemMatrix, MAT_SYMMETRY_ETERNAL, PETSC_TRUE,ierr))
+PetscCallA(MatSetType(PETScSystemMatrix,MATSBAIJ,ierr)) ! Symmetric sparse matrix
 ! Conservative guess for the number of nonzeros: With 1to4 mortars at most 22 sides with Nmax.
-PetscCallA(MatSEQAIJSetPreallocation(PETScSystemMatrix,22 * nGP_face(NMax),PETSC_NULL_INTEGER,ierr))
-PetscCallA(MatMPIAIJSetPreallocation(PETScSystemMatrix,22 * nGP_face(NMax),PETSC_NULL_INTEGER,21 * nGP_face(NMax),PETSC_NULL_INTEGER,ierr))
+PetscCallA(MatSEQSBAIJSetPreallocation(PETScSystemMatrix,1,22 * nGP_face(NMax),PETSC_NULL_INTEGER,ierr))
+PetscCallA(MatMPISBAIJSetPreallocation(PETScSystemMatrix,1,22 * nGP_face(NMax),PETSC_NULL_INTEGER,21 * nGP_face(NMax),PETSC_NULL_INTEGER,ierr))
 PetscCallA(MatZeroEntries(PETScSystemMatrix,ierr))
 ! TODO When filling the system matrix, we may only need to fill the upper/lower diagonal
 
