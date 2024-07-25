@@ -548,9 +548,6 @@ CALL BuildPrecond()
 ! 3.2) Initialize PETSc objects
 
 ! 3.1) Create PETSc mappings to build the global system
-! TODO PETSC P-Adaption - MORTARS DONE?
-! Count all Mortar slave sides and remove them from PETSc vector
-
 ! 3.1.1) Calculate nLocalPETScDOFs without nMPISides_YOUR to compute nGlobalPETScDOFs
 ! MORTARS: Small mortar sides are added as PETScDOFs to the global system!
 nLocalPETScDOFs = 0
@@ -627,9 +624,9 @@ PetscCallA(PetscInitialize(PETSC_NULL_CHARACTER,ierr))
 PetscCallA(MatCreate(PETSC_COMM_WORLD,PETScSystemMatrix,ierr))
 PetscCallA(MatSetSizes(PETScSystemMatrix,PETSC_DECIDE,PETSC_DECIDE,nGlobalPETScDOFs,nGlobalPETScDOFs,ierr))
 PetscCallA(MatSetType(PETScSystemMatrix,MATSBAIJ,ierr)) ! Symmetric sparse matrix
-! Conservative guess for the number of nonzeros: With 1to4 mortars at most 22 sides with Nmax.
-PetscCallA(MatSEQSBAIJSetPreallocation(PETScSystemMatrix,1,22 * nGP_face(NMax),PETSC_NULL_INTEGER,ierr))
-PetscCallA(MatMPISBAIJSetPreallocation(PETScSystemMatrix,1,22 * nGP_face(NMax),PETSC_NULL_INTEGER,21 * nGP_face(NMax),PETSC_NULL_INTEGER,ierr))
+! Conservative guess for the number of nonzeros: With mortars at most 12 sides with Nmax.
+PetscCallA(MatSEQSBAIJSetPreallocation(PETScSystemMatrix,1,12 * nGP_face(NMax),PETSC_NULL_INTEGER,ierr))
+PetscCallA(MatMPISBAIJSetPreallocation(PETScSystemMatrix,1,12 * nGP_face(NMax),PETSC_NULL_INTEGER,11 * nGP_face(NMax),PETSC_NULL_INTEGER,ierr))
 PetscCallA(MatZeroEntries(PETScSystemMatrix,ierr))
 
 CALL PETScFillSystemMatrix()

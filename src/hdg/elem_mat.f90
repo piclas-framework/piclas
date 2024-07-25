@@ -412,7 +412,7 @@ INTEGER              :: iGP, jGP, ip, iq, jp, jq
 ! TODO ugly...
 ! TODO With this, we can shrink preallocation to 12!
 DO jSideID=firstMortarInnerSide,lastMortarInnerSide
-  iLocSide=MortarType(2,jSideID)
+  jLocSide=MortarType(2,jSideID)
   NSideMin = N_SurfMesh(jSideID)%NSideMin
   nGP = nGP_face(NSideMin)
   jIndices = OffsetGlobalPETScDOF(jSideID) + (/ (i-1, i=1,nGP) /)
@@ -423,7 +423,7 @@ DO jSideID=firstMortarInnerSide,lastMortarInnerSide
     M_0_2 => N_Mortar(NSideMin)%M_0_2 )
 
   DO iMortar=1,nMortars
-    iSideID = MortarInfo(MI_SIDEID,iMortar,iLocSide) !small sideID
+    iSideID = MortarInfo(MI_SIDEID,iMortar,jLocSide) !small sideID
     iIndices(1:nGP) = OffsetGlobalPETScDOF(iSideID) + (/ (i-1, i=1,nGP) /)
 
     DO ip=0,NSideMin; DO iq=0,NSideMin
