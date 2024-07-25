@@ -75,7 +75,7 @@ END IF
 
 IF(SpeciesDatabase.EQ.'none') THEN
   XSecDatabaseName = TRIM(XSec_Database)
-ELSE 
+ELSE
   XSecDatabaseName = TRIM(SpeciesDatabase)
   spec_pair = TRIM('/Cross-Sections/'//Species(jSpec)%Name)//'-'//TRIM(Species(iSpec)%Name)
 END IF
@@ -89,7 +89,7 @@ IF(.NOT.DatasetFound) THEN
   ! Try to swap the species names
   IF (SpeciesDatabase.EQ.'none') THEN
     spec_pair = TRIM(Species(iSpec)%Name)//'-'//TRIM(Species(jSpec)%Name)
-  ELSE 
+  ELSE
     spec_pair = TRIM('Cross-Sections/'//Species(iSpec)%Name)//'-'//TRIM(Species(jSpec)%Name)
   END IF
   CALL H5LEXISTS_F(file_id_dsmc, TRIM(spec_pair), DatasetFound, err)
@@ -101,7 +101,7 @@ END IF
 
 IF (SpeciesDatabase.EQ.'none') THEN
   dsetname = TRIM('/'//TRIM(spec_pair)//'/EFFECTIVE')
-ELSE 
+ELSE
   dsetname = TRIM(TRIM(spec_pair)//'/EFFECTIVE')
 END IF
 CALL DatasetExists(File_ID_DSMC,TRIM(dsetname),DatasetFound)
@@ -111,7 +111,7 @@ IF(DatasetFound) THEN
   SpecXSec(iCase)%CollXSec_Effective = .TRUE.
   IF (SpeciesDatabase.EQ.'none') THEN
     CALL DatasetExists(File_ID_DSMC,TRIM('/'//TRIM(spec_pair)//'/ELASTIC'),DatasetFound)
-  ELSE 
+  ELSE
     CALL DatasetExists(File_ID_DSMC,TRIM(TRIM(spec_pair)//'/ELASTIC'),DatasetFound)
   END IF
   IF(DatasetFound) CALL abort(__STAMP__,'ERROR: Please provide either elastic or effective collision cross-section data '//&
@@ -200,7 +200,7 @@ SpecXSec(iCase)%UseVibXSec = .FALSE.
 
 IF(SpeciesDatabase.EQ.'none') THEN
   XSecDatabaseName = TRIM(XSec_Database)
-ELSE 
+ELSE
   XSecDatabaseName = TRIM(SpeciesDatabase)
   spec_pair = TRIM('/Cross-Sections/'//Species(jSpec)%Name)//'-'//TRIM(Species(iSpec)%Name)
 END IF
@@ -222,7 +222,7 @@ IF(.NOT.GroupFound) THEN
   ! Try to swap the species names
   IF (SpeciesDatabase.EQ.'none') THEN
     spec_pair = TRIM(Species(iSpec)%Name)//'-'//TRIM(Species(jSpec)%Name)
-  ELSE 
+  ELSE
     spec_pair = TRIM('/Cross-Sections/'//Species(iSpec)%Name)//'-'//TRIM(Species(jSpec)%Name)
   END IF
   CALL H5LEXISTS_F(file_id_dsmc, TRIM(spec_pair), GroupFound, err)
@@ -327,7 +327,7 @@ SpecXSec(iCase)%NumElecLevel = 0
 IF(SpeciesDatabase.EQ.'none') THEN
   XSecDatabaseName = TRIM(XSec_Database)
   spec_pair = TRIM(Species(jSpec)%Name)//'-'//TRIM(Species(iSpec)%Name)
-ELSE 
+ELSE
   XSecDatabaseName = TRIM(SpeciesDatabase)
   spec_pair = TRIM('/Cross-Sections/'//Species(jSpec)%Name)//'-'//TRIM(Species(iSpec)%Name)
 END IF
@@ -349,7 +349,7 @@ IF(.NOT.GroupFound) THEN
   ! Try to swap the species names
   IF (SpeciesDatabase.EQ.'none') THEN
     spec_pair = TRIM(Species(iSpec)%Name)//'-'//TRIM(Species(jSpec)%Name)
-  ELSE 
+  ELSE
     spec_pair = TRIM('/Cross-Sections/'//Species(iSpec)%Name)//'-'//TRIM(Species(jSpec)%Name)
   END IF
   CALL H5LEXISTS_F(file_id_dsmc, TRIM(spec_pair), GroupFound, err)
@@ -846,17 +846,15 @@ ProductReac(1:4) = ChemReac%Products(iReac,1:4)
 
 DatasetFound = .FALSE.; GroupFound = .FALSE.
 
-
 IF (SpeciesDatabase.EQ.'none') THEN
   EductPair = TRIM(Species(EductReac(1))%Name)//'-'//TRIM(Species(EductReac(2))%Name)
 ELSE
   EductPair = TRIM('/Cross-Sections/'//TRIM(Species(EductReac(1))%Name)//'-'//TRIM(Species(EductReac(2))%Name))
 END IF
-CALL H5LEXISTS_F(file_id_dsmc, TRIM(EductPair), GroupFound, err)
 
 IF(SpeciesDatabase.EQ.'none') THEN
   XSecDatabaseName = TRIM(XSec_Database)
-ELSE 
+ELSE
   XSecDatabaseName = TRIM(SpeciesDatabase)
 END IF
 
@@ -1024,7 +1022,7 @@ GroupFound = .FALSE.
 
 IF(SpeciesDatabase.EQ.'none') THEN
   XSecDatabaseName = TRIM(XSec_Database)
-ELSE 
+ELSE
   XSecDatabaseName = TRIM(SpeciesDatabase)
   EductPair = TRIM('Cross-Sections/'//Species(ChemReac%Reactants(iReac,1))%Name)//'-photon'
 END IF
@@ -1040,7 +1038,7 @@ IF(.NOT.GroupFound) THEN
   ! Try to swap the species names
   IF (SpeciesDatabase.EQ.'none') THEN
     EductPair = 'photon-'//TRIM(Species(ChemReac%Reactants(iReac,1))%Name)
-  ELSE 
+  ELSE
   EductPair = '/Cross-Sections/photon-'//TRIM(Species(ChemReac%Reactants(iReac,1))%Name)
   END IF
   CALL H5LEXISTS_F(file_id_dsmc, TRIM(EductPair), GroupFound, err)
@@ -1049,7 +1047,7 @@ END IF
 
 IF (SpeciesDatabase.EQ.'none') THEN
   groupname = TRIM('/'//TRIM(EductPair)//'/REACTION/')
-ELSE 
+ELSE
   groupname = TRIM(TRIM(EductPair)//'/REACTION/')
 END IF
 CALL H5LEXISTS_F(file_id_dsmc, groupname, GroupFound, err)
@@ -1165,7 +1163,7 @@ GroupFound = .FALSE.
 
 IF(SpeciesDatabase.EQ.'none') THEN
   XSecDatabaseName = TRIM(XSec_Database)
-ELSE 
+ELSE
   XSecDatabaseName = TRIM(SpeciesDatabase)
   EductPair   = TRIM('/Cross-Sections/'//Species(ChemReac%Reactants(iReac,1))%Name)//'-photon'
 ProductPair = EductPair
