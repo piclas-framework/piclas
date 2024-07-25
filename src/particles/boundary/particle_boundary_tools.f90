@@ -68,6 +68,15 @@ SubP = TrackInfo%p
 SubQ = TrackInfo%q
 
 SpecID = PartSpecies(PartID)
+#if USE_HDG
+! Check particle index for VDL particles
+IF(ABS(PartSpecies(PartID)).GT.SpeciesOffsetVDL)THEN
+  ! Reset to original species index
+  SpecID = ABS(PartSpecies(PartID)) - SpeciesOffsetVDL
+END IF
+#endif/*USE_HDG*/
+
+
 
 IF(usevMPF.OR.RadialWeighting%DoRadialWeighting) THEN
   MPF = GetParticleWeight(PartID)
