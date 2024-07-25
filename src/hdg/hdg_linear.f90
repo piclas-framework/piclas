@@ -45,7 +45,10 @@ USE MOD_Equation_Vars      ,ONLY: IniExactFunc
 USE MOD_Mesh_Vars          ,ONLY: BoundaryType,nSides,BC,N_SurfMesh
 USE MOD_Mesh_Vars          ,ONLY: ElemToSide, offSetElem
 USE MOD_Interpolation_Vars ,ONLY: NMax,PREF_VDM
-USE MOD_Elem_Mat           ,ONLY: PostProcessGradientHDG, ChangeBasisSmat
+USE MOD_Elem_Mat           ,ONLY: PostProcessGradientHDG
+#if USE_PETSC
+USE MOD_Elem_Mat           ,ONLY: ChangeBasisSmat
+#endif /*USE_PETSC*/
 USE MOD_FillMortar_HDG     ,ONLY: SmallToBigMortar_HDG
 #if (PP_nVar==1)
 !USE MOD_Equation_Vars      ,ONLY: E

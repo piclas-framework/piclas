@@ -78,11 +78,16 @@ load_module () {
 # --------------------------------------------------------------------------------------------------
 # Check command line arguments
 RERUNMODE=0
+UPDATEMODE=0
 LOADMODULES=1
 # default to openmpi
 WHICHMPI='openmpi'
 for ARG in "$@"
 do
+
+  if [ ${ARG} == "--update" ] || [ ${ARG} == "-u" ]; then
+    UPDATEMODE=1
+  fi
 
   if [ ${ARG} == "--help" ] || [ ${ARG} == "-h" ]; then
     echo "Input arguments:"
@@ -206,7 +211,15 @@ HOPRMODULEFILEDIR=${MODULESDIR}/utilities/hopr/${HOPRVERSION}/gcc/${GCCVERSION}/
 MODULEFILE=${HOPRMODULEFILEDIR}/${HDF5VERSION}
 
 # if no HOPR module for this compiler found, install HOPR and create module
-if [ ! -e "${MODULEFILE}" ]; then
+if [[ ! -e "${MODULEFILE}" || ${UPDATEMODE} -eq 1 ]]; then
+  # Check if module already exists and update mode is enabled (this will remove the existing module)
+  if [[ -e "${MODULEFILE}" && ${UPDATEMODE} -eq 1 ]]; then
+    echo " "
+    echo -e "${YELLOW}Update mode detected (--update or -u): This will overwrite the installed version with the latest one${NC}"
+    echo -e "${YELLOW}HOPR-${HOPRVERSION}: module file exists under ${MODULEFILE}${NC}"
+    read -p "Press [Enter] to continue or [Crtl+c] to abort!"
+    rm -rf ${MODULEFILE}
+  fi
   echo -e "$GREEN""creating HOPR-${HOPRVERSION} for GCC-${GCCVERSION} under$NC"
   echo -e "$GREEN""$MODULEFILE$NC"
   echo " "
