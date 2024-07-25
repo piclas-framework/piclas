@@ -367,11 +367,15 @@ USE MOD_Globals
 USE MOD_PreProc
 USE MOD_HDG_Vars
 USE MOD_DG_Vars            ,ONLY: N_DG_Mapping
+
 USE PETSc
 USE MOD_Mesh_Vars          ,ONLY: SideToElem, nSides
 USE MOD_Mesh_Vars          ,ONLY: BoundaryType,BC
 USE MOD_Interpolation_Vars ,ONLY: PREF_VDM,NMax
 USE MOD_Mesh_Vars          ,ONLY: ElemToSide
+
+USE MOD_Mortar_Vars        ,ONLY: N_Mortar
+USE MOD_Mesh_Vars          ,ONLY: MortarType,MortarInfo,firstMortarInnerSide,lastMortarInnerSide
 
 USE MOD_Interpolation_Vars ,ONLY: N_Inter
 USE MOD_Mesh_Vars          ,ONLY: N_VolMesh,offSetElem
@@ -393,15 +397,73 @@ REAL                 :: Smatloc(nGP_face(Nmax),nGP_face(Nmax))
 INTEGER              :: l,p,q,g1,g2,g3,Nloc,NSideMin
 INTEGER              :: i,j,i_m,i_p,j_m,j_p
 INTEGER              :: BCsideID, BCState
-!INTEGER              :: locSideID
-!REAL                 :: intMat(nGP_face(Nmax), nGP_face(Nmax))
+INTEGER              :: locSideID,nGP
+REAL                 :: intMat(nGP_face(Nmax), nGP_face(Nmax))
+INTEGER              :: iMortar, nMortars
+INTEGER              :: iGP, jGP, ip, iq, jp, jq
 !===================================================================================================================================
 ! TODO PETSC P-Adaption - Fill directly when SmatK is filled... (or sth like that)
 ! Since there is a loop over all elements anyway, an element local smat could be filled that is
 ! then used to fill SMat
 ! Fill Smat Petsc, TODO do this without filling Smat
 
-! TODO PETSC P-Adaption - MORTARS
+! TODO PETSC P-Adaption - MORTARS ....
+! Since mortar sides are just a subset of the sides, we can fill the Smat for the mortar sides
+! TODO ugly...
+! TODO With this, we can shrink preallocation to 12!
+DO jSideID=firstMortarInnerSide,lastMortarInnerSide
+  iLocSide=MortarType(2,jSideID)
+  NSideMin = N_SurfMesh(jSideID)%NSideMin
+  nGP = nGP_face(NSideMin)
+  jIndices = OffsetGlobalPETScDOF(jSideID) + (/ (i-1, i=1,nGP) /)
+  nMortars=MERGE(4,2,MortarType(1,jSideID).EQ.1)
+
+  ASSOCIATE(&
+    M_0_1 => N_Mortar(NSideMin)%M_0_1 ,&
+    M_0_2 => N_Mortar(NSideMin)%M_0_2 )
+
+  DO iMortar=1,nMortars
+    iSideID = MortarInfo(MI_SIDEID,iMortar,iLocSide) !small sideID
+    iIndices(1:nGP) = OffsetGlobalPETScDOF(iSideID) + (/ (i-1, i=1,nGP) /)
+
+    DO ip=0,NSideMin; DO iq=0,NSideMin
+      iGP = (NSideMin + 1) * iq + ip + 1
+      DO jp=0,NSideMin; DO jq=0,NSideMin
+        jGP = (NSideMin + 1) * jq + jp + 1
+
+        SELECT CASE(MortarType(1,jSideID))
+        CASE(1) ! 1 -> 4
+          SELECT CASE(iMortar)
+          CASE(1)
+            Smatloc(iGP,jGP) = -M_0_1(ip,jp) * M_0_1(iq,jq)
+          CASE(2)
+            Smatloc(iGP,jGP) = -M_0_2(ip,jp) * M_0_1(iq,jq)
+          CASE(3)
+            Smatloc(iGP,jGP) = -M_0_1(ip,jp) * M_0_2(iq,jq)
+          CASE(4)
+            Smatloc(iGP,jGP) = -M_0_2(ip,jp) * M_0_2(iq,jq)
+          END SELECT
+        CASE(2) ! 1 -> 2 in p
+          IF (iMortar.EQ.1) THEN
+            Smatloc(iGP,jGP) = -M_0_1(ip,jp)
+          ELSE
+            Smatloc(iGP,jGP) = -M_0_2(ip,jp)
+          END IF
+        CASE(3) ! 1 -> 2 in q
+          IF (iMortar.EQ.1) THEN
+            Smatloc(iGP,jGP) = -M_0_1(iq,jq)
+          ELSE
+            Smatloc(iGP,jGP) = -M_0_2(iq,jq)
+          END IF
+        END SELECT
+      END DO; END DO
+    END DO; END DO
+
+    PetscCallA(MatSetValues(PETScSystemMatrix,nGP,iIndices(1:nGP),nGP,jIndices(1:nGP),Smatloc(1:nGP,1:nGP),ADD_VALUES,ierr))
+  END DO
+
+  END ASSOCIATE
+END DO
 ! Change Smat for all small mortar sides to account for the interpolation from big to small side
 !DO iSide=1,nSides
 !  IF (SmallMortarInfo(iSide).NE.0) THEN
@@ -411,10 +473,12 @@ INTEGER              :: BCsideID, BCState
 !  ELSE
 !    CYCLE
 !  END IF
-!  intMat = IntMatMortar(:,:,SmallMortarType(2,iSide),SmallMortarType(1,iSide))
+!  iNloc = N_DG_Mapping(2,iElem+offSetElem)
+!  nGP = nGP_face(iNloc)
+!  intMat(1:nGP,1:nGP) = N_Inter(iNloc)%IntMatMortar(:,:,SmallMortarType(2,iSide),SmallMortarType(1,iSide))
 !  DO iLocSide=1,6
-!    Smat(:,:,iLocSide,locSideID,iElem) = MATMUL(Smat(:,:,iLocSide,locSideID,iElem),intMat)
-!    Smat(:,:,locSideID,iLocSide,iElem) = MATMUL(TRANSPOSE(intMat),Smat(:,:,locSideID,iLocSide,iElem))
+!    HDG_Vol_N(iElem)%Smat(1:nGP,1:nGP,iLocSide,locSideID) = MATMUL(HDG_Vol_N(iElem)%Smat(1:nGP,1:nGP,iLocSide,locSideID),intMat(1:nGP,1:nGP))
+!    HDG_Vol_N(iElem)%Smat(1:nGP,1:nGP,locSideID,iLocSide) = MATMUL(TRANSPOSE(intMat(1:nGP,1:nGP)),HDG_Vol_N(iElem)%Smat(1:nGP,1:nGP,locSideID,iLocSide))
 !  END DO
 !END DO
 

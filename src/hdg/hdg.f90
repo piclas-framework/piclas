@@ -548,18 +548,11 @@ CALL BuildPrecond()
 ! 3.2) Initialize PETSc objects
 
 ! 3.1) Create PETSc mappings to build the global system
-! TODO PETSC P-Adaption - MORTARS
+! TODO PETSC P-Adaption - MORTARS DONE?
 ! Count all Mortar slave sides and remove them from PETSc vector
-nMortarMasterSides = 0
-!DO SideID=1,nSides
-!  IF(SmallMortarInfo(SideID).EQ.1) THEN
-!    nMortarMasterSides = nMortarMasterSides + 1
-!  END IF
-!END DO
-
-nPETScUniqueSides = nSides-nDirichletBCSides-nMPISides_YOUR-nMortarMasterSides-nConductorBCsides
 
 ! 3.1.1) Calculate nLocalPETScDOFs without nMPISides_YOUR to compute nGlobalPETScDOFs
+! MORTARS: Small mortar sides are added as PETScDOFs to the global system!
 nLocalPETScDOFs = 0
 DO SideID=1,nSides-nMPISides_YOUR
   IF(MaskedSide(SideID).GT.0) CYCLE ! TODO is this MaskedSide?

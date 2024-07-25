@@ -327,7 +327,9 @@ CALL Mask_MPIsides('RHS_face',iVar)
 #if USE_LOADBALANCE
 CALL LBStartTime(tLBStart)
 #endif /*USE_LOADBALANCE*/
+#if !USE_PETSC
 CALL SmallToBigMortar_HDG(iVar,0) ! RHS_face(1:PP_nVar,1:nGP_Face,1:nSides))
+#endif /*USE_PETSC*/
 
 #if USE_LOADBALANCE
 CALL LBPauseTime(LB_DG,tLBStart) ! Pause/Stop time measurement
@@ -406,6 +408,7 @@ DO SideID=1,nSides
   Nloc = N_SurfMesh(SideID)%NSideMin
   DOF_start = 1 + DOF_stop
   DOF_stop = DOF_start + nGP_face(Nloc) - 1
+  ! MORTARS: All Mortar stuff (BigToSmall, ...) is done when solving the system!
   HDG_Surf_N(SideID)%lambda(1,:) = lambda_pointer(DOF_start:DOF_stop)
 END DO
 
@@ -431,16 +434,6 @@ IF(UseFPC) THEN
 END IF ! UseFPC
 
 PetscCallA(VecRestoreArrayReadF90(PETScSolutionLocal,lambda_pointer,ierr))
-
-  ! TODO PETSC P-Adaption - MORTARS
-  ! PETSc Calculate lambda at small mortars from big mortars
-  CALL BigToSmallMortar_HDG(1,.FALSE.) ! lambda (DoVZ=F) or V (DoVZ=T)
-  ! TODO PETSC P-Adaption - Mortars: Do we need to communicate?
-!#if USE_MPI
-!  CALL StartReceiveMPIData(1,lambda,1,nSides, RecRequest_U,SendID=1) ! Receive YOUR
-!  CALL StartSendMPIData(   1,lambda,1,nSides,SendRequest_U,SendID=1) ! Send MINE
-!  CALL FinishExchangeMPIData(SendRequest_U,RecRequest_U,SendID=1)
-!#endif
 #else
   ! HDGLinear
   CALL CG_solver(iVar)
