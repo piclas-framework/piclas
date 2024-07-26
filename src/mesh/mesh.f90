@@ -45,6 +45,9 @@ PUBLIC::DefineParametersMesh
 INTEGER,PARAMETER :: PRM_P_ADAPTION_ZERO = 0  ! deactivate
 INTEGER,PARAMETER :: PRM_P_ADAPTION_RDN  = 1  ! random
 INTEGER,PARAMETER :: PRM_P_ADAPTION_NPB  = 2  ! Elements with non-periodic boundary sides get NMax
+
+INTEGER,PARAMETER :: PRM_P_ADAPTION_LVL_DEFAULT = 1 ! Directly connected elements are set to NMax
+INTEGER,PARAMETER :: PRM_P_ADAPTION_LVL_TWO     = 2 ! Directly connected elements and elements connected with these are set to NMax
 !===================================================================================================================================
 
 CONTAINS
@@ -82,6 +85,14 @@ CALL prms%CreateIntFromStringOption('pAdaptionType', "Method for initial polynom
 CALL addStrListEntry('pAdaptionType' , 'none'            , PRM_P_ADAPTION_ZERO)
 CALL addStrListEntry('pAdaptionType' , 'random'          , PRM_P_ADAPTION_RDN)
 CALL addStrListEntry('pAdaptionType' , 'non-periodic-BC' , PRM_P_ADAPTION_NPB)
+
+CALL prms%CreateIntFromStringOption('pAdaptionBCLevel', "Only for pAdaptionType=non-periodic-BC: Number/Depth of elements connected to a boundary that are set to NMax.\n"//&
+                                    '    directly-connected ('//TRIM(int2strf(PRM_P_ADAPTION_LVL_DEFAULT))//'): elements with non-periodic boundary conditions receive NMax\n'//&
+                                    'first-and-second-layer ('//TRIM(int2strf(PRM_P_ADAPTION_LVL_TWO))//'): first two elements with non-periodic boundary conditions receive NMax\n'&
+                                   ,'directly-connected')
+
+CALL addStrListEntry('pAdaptionBCLevel' , 'directly-connected'     , PRM_P_ADAPTION_LVL_DEFAULT)
+CALL addStrListEntry('pAdaptionBCLevel' , 'first-and-second-layer' , PRM_P_ADAPTION_LVL_TWO)
 
 END SUBROUTINE DefineParametersMesh
 
@@ -509,9 +520,9 @@ SUBROUTINE InitpAdaption()
 USE MOD_Globals
 USE MOD_PreProc
 !USE MOD_DG_Vars            ,ONLY: DG_Elems_master,DG_Elems_slave
-USE MOD_DG_Vars            ,ONLY: N_DG,pAdaptionType
+USE MOD_DG_Vars            ,ONLY: N_DG,pAdaptionType,pAdaptionBCLevel
 USE MOD_IO_HDF5            ,ONLY: AddToElemData,ElementOut
-USE MOD_Mesh_Vars          ,ONLY: nElems,SideToElem,nBCSides,Boundarytype,BC
+USE MOD_Mesh_Vars          ,ONLY: nElems,SideToElem,nBCSides,Boundarytype,BC,readFEMconnectivity
 USE MOD_ReadInTools        ,ONLY: GETINTFROMSTR
 USE MOD_Interpolation_Vars ,ONLY: NMax,NMin
 !USE MOD_DG        ,ONLY: DG_ProlongDGElemsToFace
@@ -522,7 +533,12 @@ IMPLICIT NONE
 ! LOCAL VARIABLES
 INTEGER :: iElem,BCSideID,BCType
 REAL    :: RandVal
+LOGICAL :: SetBCElemsToNMax
 !===================================================================================================================================
+! Set defaults
+SetBCElemsToNMax = .FALSE. ! Initialize
+pAdaptionBCLevel = -1
+
 ! Read p-adaption specific input data
 pAdaptionType = GETINTFROMSTR('pAdaptionType')
 
@@ -543,17 +559,29 @@ CASE(PRM_P_ADAPTION_RDN) ! Random between NMin and NMax
     N_DG(iElem) = NMin + INT(RandVal*(NMax-NMin+1))
   END DO
 CASE(PRM_P_ADAPTION_NPB) ! Non-periodic BCs are set to NMax
+  ! Get depth of increased polynomial degree
+  pAdaptionBCLevel = GETINTFROMSTR('pAdaptionBCLevel')
   N_DG = Nmin ! By default, the initial degree is set to Nmin
-  !N_DG(2) = Nmin+1
-  DO BCSideID=1,nBCSides
-    BCType=Boundarytype(BC(BCSideID),BC_TYPE)
-    IF(BCType.EQ.1) CYCLE ! Skip periodic sides
-    iElem       = SideToElem(S2E_ELEM_ID,BCSideID)
-    N_DG(iElem) = NMax
-  END DO ! BCSideID=1,nBCSides
+  SetBCElemsToNMax = .TRUE.
 CASE DEFAULT
   CALL CollectiveStop(__STAMP__,'Unknown pAdaptionType!' ,IntInfo=pAdaptionType)
 END SELECT
+
+! Check if BC elements are to be set to a higher polynomial degree
+IF(pAdaptionBCLevel.GT.1.OR.&
+  (pAdaptionBCLevel.GT.0.AND.readFEMconnectivity))THEN
+  CALL SetpAdaptionBCLevel()
+ELSE
+  ! Check if all BC elements are set to Nmax
+  IF(SetBCElemsToNMax)THEN
+    DO BCSideID=1,nBCSides
+      BCType=Boundarytype(BC(BCSideID),BC_TYPE)
+      IF(BCType.EQ.1) CYCLE ! Skip periodic sides
+      iElem       = SideToElem(S2E_ELEM_ID,BCSideID)
+      N_DG(iElem) = NMax
+    END DO ! BCSideID=1,nBCSides
+  END IF ! SetBCElemsToNMax
+END IF
 
 ! Sanity check
 DO iElem=1,nElems
@@ -571,6 +599,121 @@ END DO
 CALL Build_N_DG_Mapping()
 
 END SUBROUTINE InitpAdaption
+
+
+!===================================================================================================================================
+!> Set Nloc of BC elements to a higher polynomial degree than in the volume
+!===================================================================================================================================
+SUBROUTINE SetpAdaptionBCLevel()
+! MODULES
+USE MOD_Globals
+USE MOD_Mesh_Vars          ,ONLY: nFEMEdges, nFEMVertices, readFEMconnectivity, offsetElem, nElems
+USE MOD_Mesh_Vars          ,ONLY: ElemInfo,SideInfo,EdgeInfo,EdgeConnectInfo,VertexInfo,VertexConnectInfo
+USE MOD_Mesh_Vars          ,ONLY: SideToElem,BoundaryType,BC
+USE MOD_Particle_Mesh_Vars ,ONLY: ElemInfo_Shared,SideInfo_Shared
+USE MOD_DG_Vars            ,ONLY: N_DG,pAdaptionType,pAdaptionBCLevel
+USE MOD_Interpolation_Vars ,ONLY: NMax,NMin
+IMPLICIT NONE
+!----------------------------------------------------------------------------------------------------------------------------------!
+! INPUT / OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER :: iElem,BCSideID,BCType,NonUniqueGlobalSideID,iGlobalElemID,BCIndex
+INTEGER :: iVertex,iVertexConnect,GlobalNbElemID,GlobalNbLocVertexID,LocSideList(3),iLocSideList,SideID,iLocSide,localSideID
+INTEGER :: FirstSideInd,LastSideInd,FirstElemInd,LastElemInd
+INTEGER :: FirstEdgeInd,LastEdgeInd,FirstEdgeConnectInd,LastEdgeConnectInd
+INTEGER :: nVertexIDs,offsetVertexID,nVertexConnectIDs,offsetVertexConnectID
+INTEGER :: FirstVertexInd,LastVertexInd,FirstVertexConnectInd,LastVertexConnectInd
+!===================================================================================================================================
+! Sanity check: This routine requires FEM connectivity
+IF(.NOT.readFEMconnectivity) CALL abort(__STAMP__,'Error in p-adaption init: readFEMconnectivity=T is required!')
+
+! Element index
+FirstElemInd = offsetElem+1
+LastElemInd  = offsetElem+nElems
+
+! Loop over the processor-local elements
+GlobalElemIDLoop: DO iGlobalElemID = FirstElemInd, LastElemInd
+  iElem = iGlobalElemID - offsetElem
+  ! Get local VertexInfo of current element
+  FirstVertexInd = ElemInfo(ELEM_FIRSTVERTEXIND,iGlobalElemID)+1
+  LastVertexInd  = ElemInfo(ELEM_LASTVERTEXIND,iGlobalElemID)
+  ! Get local vertex connectivity
+  FirstVertexConnectInd = VertexInfo(VERTEX_FIRSTCONNECTIND,FirstVertexInd)+1
+  LastVertexConnectInd  = VertexInfo(VERTEX_LASTCONNECTIND,LastVertexInd)
+  VertexConnectLoop: DO iVertexConnect = FirstVertexConnectInd, LastVertexConnectInd
+    ! Check if current element has already been flagged
+    IF(N_DG(iElem).EQ.NMax) EXIT VertexConnectLoop
+    ! Get neighbour infos
+    GlobalNbElemID      = ABS(VertexConnectInfo(VERTEXCONNECT_NBELEMID   ,iVertexConnect))
+    GlobalNbLocVertexID = VertexConnectInfo(VERTEXCONNECT_NBLOCNODEID,iVertexConnect)
+    SELECT CASE(GlobalNbLocVertexID)
+    CASE(1)
+      LocSideList=(/1,2,5/)
+    CASE(2)
+      LocSideList=(/1,2,3/)
+    CASE(3)
+      LocSideList=(/1,3,4/)
+    CASE(4)
+      LocSideList=(/1,4,5/)
+    CASE(5)
+      LocSideList=(/2,5,6/)
+    CASE(6)
+      LocSideList=(/2,3,6/)
+    CASE(7)
+      LocSideList=(/3,4,6/)
+    CASE(8)
+      LocSideList=(/4,5,6/)
+    CASE DEFAULT
+      CALL abort(__STAMP__,'Wrong iLocNode',IntInfoOpt=GlobalNbLocVertexID)
+    END SELECT
+    LocSideListLoop: DO iLocSideList = 1, 3
+      ! Check if current element has already been flagged
+      IF(N_DG(iElem).EQ.NMax) EXIT VertexConnectLoop
+      iLocSide = LocSideList(iLocSideList)
+      NonUniqueGlobalSideID = ElemInfo_Shared(ELEM_FIRSTSIDEIND,GlobalNbElemID) + iLocSide
+      BCIndex = SideInfo_Shared(SIDE_BCID,NonUniqueGlobalSideID)
+      IF(BCIndex.LE.0) CYCLE LocSideListLoop ! Skip inner sides
+      BCType = BoundaryType(BCIndex,BC_TYPE)
+      IF(BCType.LE.1) CYCLE LocSideListLoop ! Skip periodic sides
+      N_DG(iElem) = NMax
+    END DO LocSideListLoop ! iLocSideList = 1, 3
+  END DO VertexConnectLoop ! iVertexConnect = FirstVertexConnectInd, LastVertexConnectInd
+END DO GlobalElemIDLoop ! iGlobalElemID = FirstElemInd, LastElemInd
+
+END SUBROUTINE SetpAdaptionBCLevel
+
+
+!===================================================================================================================================
+!> Allocate the shared memory container N_DG_Mapping_Shared
+!===================================================================================================================================
+SUBROUTINE Allocate_N_DG_Mapping()
+! MODULES
+USE MOD_Globals
+USE MOD_DG_Vars         ,ONLY: N_DG_Mapping,N_DG_Mapping_Shared,N_DG
+USE MOD_Mesh_Vars       ,ONLY: nElems,offSetElem,nGlobalElems
+#if USE_MPI
+USE MOD_DG_Vars         ,ONLY: N_DG_Mapping_Shared_Win
+USE MOD_MPI_Shared_Vars ,ONLY: MPI_COMM_SHARED, myComputeNodeRank
+USE MOD_MPI_Shared
+#endif /*USE_MPI*/
+IMPLICIT NONE
+!----------------------------------------------------------------------------------------------------------------------------------!
+! INPUT / OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+!===================================================================================================================================
+#if USE_MPI
+CALL Allocate_Shared((/3,nGlobalElems/),N_DG_Mapping_Shared_Win,N_DG_Mapping_Shared)
+CALL MPI_WIN_LOCK_ALL(0,N_DG_Mapping_Shared_Win,IERROR)
+N_DG_Mapping => N_DG_Mapping_Shared
+IF (myComputeNodeRank.EQ.0) N_DG_Mapping = 0
+CALL BARRIER_AND_SYNC(N_DG_Mapping_Shared_Win,MPI_COMM_SHARED)
+#else
+ALLOCATE(N_DG_Mapping(3,nElems))
+N_DG_Mapping = 0
+#endif /*USE_MPI*/
+END SUBROUTINE Allocate_N_DG_Mapping
 
 
 !===================================================================================================================================
@@ -615,18 +758,8 @@ IF(PerformLoadBalance)THEN
 #if USE_LOADBALANCE
 ELSE
 #endif /*USE_LOADBALANCE*/
-
-#if USE_MPI
-  ! ElemToElemMapping
-  CALL Allocate_Shared((/3,nGlobalElems/),N_DG_Mapping_Shared_Win,N_DG_Mapping_Shared)
-  CALL MPI_WIN_LOCK_ALL(0,N_DG_Mapping_Shared_Win,IERROR)
-  N_DG_Mapping => N_DG_Mapping_Shared
-  IF (myComputeNodeRank.EQ.0) N_DG_Mapping = 0
-  CALL BARRIER_AND_SYNC(N_DG_Mapping_Shared_Win,MPI_COMM_SHARED)
-#else
-  ALLOCATE(N_DG_Mapping(3,nElems))
-  N_DG_Mapping = 0
-#endif /*USE_MPI*/
+  ! Allocate the shared memory container and associate pointer: N_DG_Mapping
+  CALL Allocate_N_DG_Mapping()
 
   OffsetCounter = 0
   ! Loop all CN elements (iElem is CNElemID)

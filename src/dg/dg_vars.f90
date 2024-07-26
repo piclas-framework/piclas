@@ -30,6 +30,7 @@ SAVE
 
 ! Element local polynomial degrees
 INTEGER                               :: pAdaptionType          !< Set initial polynomial degree distribution
+INTEGER                               :: pAdaptionBCLevel       !< Only for pAdaptionType=non-periodic-BC: Number/Depth of elements connected to a boundary that are set to NMax
 INTEGER,ALLOCATABLE                   :: N_DG(:)                !< polynomial degree inside DG element,         size(nElems)
 INTEGER,ALLOCPOINT,DIMENSION(:,:)     :: N_DG_Mapping, N_DG_Mapping_Shared
 INTEGER                               :: nDofsMapping

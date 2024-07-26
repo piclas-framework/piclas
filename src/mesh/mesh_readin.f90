@@ -770,7 +770,7 @@ IF(readFEMconnectivity)THEN
 
   offsetVertexConnectID = VertexInfo(VERTEX_FIRSTCONNECTIND,FirstVertexInd) ! hdf5 array starts at 0-> -1
   nVertexConnectIDs     = VertexInfo(VERTEX_LASTCONNECTIND,LastVertexInd)-offsetVertexConnectID
-  ! Read in edge connectivity
+  ! Read in vertex connectivity
   FirstVertexConnectInd = offsetVertexConnectID+1
   LastVertexConnectInd = offsetVertexConnectID+nVertexConnectIDs
   ALLOCATE(VertexConnectInfo(VERTEXCONNECTINFOSIZE_H5,FirstVertexConnectInd:LastVertexConnectInd))
