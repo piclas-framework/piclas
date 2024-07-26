@@ -53,7 +53,7 @@ section for possible fixes.
 
 The following packages are optional:
 
-    sudo apt-get install exuberant-ctags ninja
+    sudo apt-get install exuberant-ctags ninja pkg-config
 
 Additionally, the most recent versions of the GCC compiler (>13) require the following packages:
 
