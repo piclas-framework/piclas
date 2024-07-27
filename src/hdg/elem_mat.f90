@@ -585,7 +585,7 @@ PetscCallA(MatAssemblyEnd(PETScSystemMatrix,MAT_FINAL_ASSEMBLY,ierr))
 END SUBROUTINE PETScFillSystemMatrix
 
 
-SUBROUTINE ChangeBasisSmat(S_out, S_in, NElem, iNSide, jNSide)
+PPURE SUBROUTINE ChangeBasisSmat(S_out, S_in, NElem, iNSide, jNSide)
 !===================================================================================================================================
 ! Change the basis of Smat from NElem to iNSide x jNSide
 !===================================================================================================================================
