@@ -81,13 +81,13 @@ Before setting up a simulation, the code must be compiled with the desired param
     * Higuera-Cary: 2nd order for electric and magnetic fields (poisson solver)
     * RK3: Runge-Kutta 3rd order in time
     * RK4: Runge-Kutta 4th order in time
-    * RK14: Low storage Runge-Kutta 4, 14 stages version - Niegemann et al 2012
+    * RK14: Low storage Runge-Kutta 14 stages version - Niegemann et al 2012
     * DSMC: Direct Simulation Monte Carlo, Section {ref}`sec:DSMC`
     * FP-Flow: Fokker-Planck-based collision operator, Section {ref}`sec:FP-Flow`
     * BGK-Flow: Bhatnagar-Gross-Krook collision operator, Section {ref}`sec:BGK-Flow`
 * ``PICLAS_EQNSYSNAME``: Equation system to be solved
-    * maxwell:
-    * poisson:
+    * maxwell: Solution of the full Maxwell's equations for an electromagnetic simulation
+    * poisson: Solution of the Poisson's equation for an electrostatic simulation
 * ``PICLAS_POLYNOMIAL_DEGREE``: Defines the polynomial degree of the solution. The order of convergence follows as $N+1$. Each grid
 cell contains $(N+1)^3$ collocation points to represent the solution.
 * ``PICLAS_NODETYPE``: The nodal collocation points used during the simulation
