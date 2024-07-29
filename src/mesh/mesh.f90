@@ -520,7 +520,7 @@ SUBROUTINE InitpAdaption()
 USE MOD_Globals
 USE MOD_PreProc
 !USE MOD_DG_Vars            ,ONLY: DG_Elems_master,DG_Elems_slave
-USE MOD_DG_Vars            ,ONLY: N_DG,pAdaptionType,pAdaptionBCLevel
+USE MOD_DG_Vars            ,ONLY: N_DG,pAdaptionType,pAdaptionBCLevel,NDGAllocationIsDone
 USE MOD_IO_HDF5            ,ONLY: AddToElemData,ElementOut
 USE MOD_Mesh_Vars          ,ONLY: nElems,SideToElem,nBCSides,Boundarytype,BC,readFEMconnectivity
 USE MOD_ReadInTools        ,ONLY: GETINTFROMSTR
@@ -538,6 +538,7 @@ LOGICAL :: SetBCElemsToNMax
 ! Set defaults
 SetBCElemsToNMax = .FALSE. ! Initialize
 pAdaptionBCLevel = -1
+NDGAllocationIsDone = .FALSE.
 
 ! Read p-adaption specific input data
 pAdaptionType = GETINTFROMSTR('pAdaptionType')
@@ -603,6 +604,12 @@ END SUBROUTINE InitpAdaption
 
 !===================================================================================================================================
 !> Set Nloc of BC elements to a higher polynomial degree than in the volume
+!>
+!> 1. Loop over the processor-local elements
+!> 2. Loop over the corner vertices of the element
+!> 3. Use VertexConnectInfo to get the neighbour element index and vertex for all possible connection (also periodic)
+!> 4. Check the sides of connected to the neighbour node and find out if the side is a BC side
+!> 5. For further layers, loop over the elements again and check for already marked elements instead of the sides
 !===================================================================================================================================
 SUBROUTINE SetpAdaptionBCLevel()
 ! MODULES
@@ -611,20 +618,33 @@ USE MOD_Mesh_Vars          ,ONLY: nFEMEdges, nFEMVertices, readFEMconnectivity, 
 USE MOD_Mesh_Vars          ,ONLY: ElemInfo,SideInfo,EdgeInfo,EdgeConnectInfo,VertexInfo,VertexConnectInfo
 USE MOD_Mesh_Vars          ,ONLY: SideToElem,BoundaryType,BC
 USE MOD_Particle_Mesh_Vars ,ONLY: ElemInfo_Shared,SideInfo_Shared
-USE MOD_DG_Vars            ,ONLY: N_DG,pAdaptionType,pAdaptionBCLevel
+USE MOD_DG_Vars            ,ONLY: N_DG,pAdaptionType,pAdaptionBCLevel,N_DG_Mapping
 USE MOD_Interpolation_Vars ,ONLY: NMax,NMin
+#if USE_LOADBALANCE
+USE MOD_LoadBalance_Vars   ,ONLY: PerformLoadBalance
+#endif /*USE_LOADBALANCE*/
+#if USE_MPI
+USE MOD_DG_Vars         ,ONLY: N_DG_Mapping_Shared_Win
+USE MOD_MPI_Shared_Vars ,ONLY: MPI_COMM_SHARED
+USE MOD_MPI_Shared
+#endif /*USE_MPI*/
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! INPUT / OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER :: iElem,BCSideID,BCType,NonUniqueGlobalSideID,iGlobalElemID,BCIndex,ElemType
+INTEGER :: iElem,BCSideID,BCType,NonUniqueGlobalSideID,iGlobalElemID,BCIndex,ElemType,OffsetCounter
 INTEGER :: iVertex,iVertexConnect,GlobalNbElemID,GlobalNbLocVertexID,LocSideList(3),iLocSideList,SideID,iLocSide,localSideID
 INTEGER :: FirstSideInd,LastSideInd,FirstElemInd,LastElemInd
 INTEGER :: FirstEdgeInd,LastEdgeInd,FirstEdgeConnectInd,LastEdgeConnectInd
 INTEGER :: nVertexIDs,offsetVertexID,nVertexConnectIDs,offsetVertexConnectID
 INTEGER :: FirstVertexInd,LastVertexInd,FirstVertexConnectInd,LastVertexConnectInd
 !===================================================================================================================================
+! Do not re-allocate during load balance here as it is communicated between the processors
+#if USE_LOADBALANCE
+IF(PerformLoadBalance) RETURN
+#endif /*USE_LOADBALANCE*/
+
 ! Sanity check: This routine requires FEM connectivity
 IF(.NOT.readFEMconnectivity) CALL abort(__STAMP__,'Error in p-adaption init: readFEMconnectivity=T is required!')
 
@@ -632,10 +652,11 @@ IF(.NOT.readFEMconnectivity) CALL abort(__STAMP__,'Error in p-adaption init: rea
 FirstElemInd = offsetElem+1
 LastElemInd  = offsetElem+nElems
 
-! Loop over the processor-local elements
+! Loop over the process-local global elements indices
 GlobalElemIDLoop: DO iGlobalElemID = FirstElemInd, LastElemInd
   iElem = iGlobalElemID - offsetElem
   ElemType = ElemInfo(ELEM_TYPE,iGlobalElemID)
+  ! Sanity check: currently only hexahedral elements are implemented
   SELECT CASE(ElemType)
   CASE(108,118,208)
     ! Hexahedral elements
@@ -670,6 +691,42 @@ GlobalElemIDLoop: DO iGlobalElemID = FirstElemInd, LastElemInd
     END DO LocSideListLoop ! iLocSideList = 1, 3
   END DO VertexConnectLoop ! iVertexConnect = FirstVertexConnectInd, LastVertexConnectInd
 END DO GlobalElemIDLoop ! iGlobalElemID = FirstElemInd, LastElemInd
+
+
+! For further layers, loop over the elements again and check for already marked elements instead of the sides
+IF(pAdaptionBCLevel.GT.1)THEN
+  ! Allocate the shared memory container and associate pointer: N_DG_Mapping
+  CALL Allocate_N_DG_Mapping()
+
+  ! Set Nloc in N_DG_Mapping
+  CALL Set_N_DG_Mapping(OffsetCounter)
+
+  ! Loop over the process-local global elements indices
+  iGlobalElemID_loop: DO iGlobalElemID = FirstElemInd, LastElemInd
+    iElem = iGlobalElemID - offsetElem
+    IF(N_DG(iElem).GT.NMin) CYCLE iGlobalElemID_loop
+    ! Get local VertexInfo of current element
+    FirstVertexInd = ElemInfo(ELEM_FIRSTVERTEXIND,iGlobalElemID)+1
+    LastVertexInd  = ElemInfo(ELEM_LASTVERTEXIND,iGlobalElemID)
+    ! Get local vertex connectivity
+    FirstVertexConnectInd = VertexInfo(VERTEX_FIRSTCONNECTIND,FirstVertexInd)+1
+    LastVertexConnectInd  = VertexInfo(VERTEX_LASTCONNECTIND,LastVertexInd)
+    iVertexConnect_loop: DO iVertexConnect = FirstVertexConnectInd, LastVertexConnectInd
+      ! Check if current element has already been flagged
+      IF(N_DG(iElem).GT.NMin) EXIT iVertexConnect_loop
+      ! Get neighbour infos
+      GlobalNbElemID = ABS(VertexConnectInfo(VERTEXCONNECT_NBELEMID   ,iVertexConnect))
+      IF(N_DG_Mapping(2,GlobalNbElemID).EQ.NMax)THEN
+        N_DG(iElem) = NMin+1
+      END IF ! N_DG_Mapping(2,GlobalNbElemID).EQ.NMax
+    END DO iVertexConnect_loop ! iVertexConnect = FirstVertexConnectInd, LastVertexConnectInd
+  END DO iGlobalElemID_loop ! iGlobalElemID = FirstElemInd, LastElemInd
+
+#if USE_MPI
+  CALL BARRIER_AND_SYNC(N_DG_Mapping_Shared_Win,MPI_COMM_SHARED)
+#endif /*USE_MPI*/
+END IF ! pAdaptionBCLevel.GT.1
+
 
 END SUBROUTINE SetpAdaptionBCLevel
 
@@ -724,7 +781,7 @@ END SUBROUTINE GetLocSideList
 SUBROUTINE Allocate_N_DG_Mapping()
 ! MODULES
 USE MOD_Globals
-USE MOD_DG_Vars         ,ONLY: N_DG_Mapping,N_DG_Mapping_Shared,N_DG
+USE MOD_DG_Vars         ,ONLY: N_DG_Mapping,N_DG_Mapping_Shared,N_DG,NDGAllocationIsDone
 USE MOD_Mesh_Vars       ,ONLY: nElems,offSetElem,nGlobalElems
 #if USE_MPI
 USE MOD_DG_Vars         ,ONLY: N_DG_Mapping_Shared_Win
@@ -747,7 +804,37 @@ CALL BARRIER_AND_SYNC(N_DG_Mapping_Shared_Win,MPI_COMM_SHARED)
 ALLOCATE(N_DG_Mapping(3,nElems))
 N_DG_Mapping = 0
 #endif /*USE_MPI*/
+NDGAllocationIsDone = .TRUE.
 END SUBROUTINE Allocate_N_DG_Mapping
+
+!===================================================================================================================================
+!> Loop over all CN elements and set N_DG_Mapping(1:2,iElem+offSetElem). N_DG_Mapping(2,:) is only correct for single-process
+!> execution as the communication between the processes is done later.
+!===================================================================================================================================
+SUBROUTINE Set_N_DG_Mapping(OffsetCounter)
+! MODULES
+USE MOD_Globals
+USE MOD_Mesh_Vars ,ONLY: nElems,offSetElem
+USE MOD_DG_Vars   ,ONLY: N_DG_Mapping,N_DG
+IMPLICIT NONE
+!----------------------------------------------------------------------------------------------------------------------------------!
+! INPUT / OUTPUT VARIABLES
+INTEGER,INTENT(OUT) :: OffsetCounter
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER :: locDofs,iElem,iCNElem,Nloc
+!===================================================================================================================================
+OffsetCounter = 0
+! Loop all CN elements
+DO iCNElem = 1+offSetElem,nElems+offSetElem
+  iElem = iCNElem-offSetElem
+  Nloc = N_DG(iElem)
+  locDofs = (Nloc+1)**3
+  N_DG_Mapping(2,iCNElem) = Nloc
+  N_DG_Mapping(1,iCNElem) = OffsetCounter
+  OffsetCounter = OffsetCounter + locDofs
+END DO ! iCNElem
+END SUBROUTINE Set_N_DG_Mapping
 
 
 !===================================================================================================================================
@@ -759,6 +846,7 @@ SUBROUTINE Build_N_DG_Mapping()
 ! MODULES
 USE MOD_Globals
 USE MOD_DG_Vars            ,ONLY: N_DG_Mapping,displsDofs, recvcountDofs, N_DG_Mapping_Shared, nDofsMapping, N_DG
+USE MOD_DG_Vars            ,ONLY: NDGAllocationIsDone
 USE MOD_Mesh_Vars          ,ONLY: nElems,offSetElem,nGlobalElems
 #if USE_MPI
 USE MOD_DG_Vars            ,ONLY: N_DG_Mapping_Shared_Win
@@ -775,7 +863,7 @@ IMPLICIT NONE
 ! INPUT / OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER             :: OffsetCounter,OffsetN_DG_Mapping,locDofs,locN,iElem
+INTEGER             :: OffsetCounter,OffsetN_DG_Mapping
 #if USE_MPI
 INTEGER             :: iProc
 INTEGER             :: sendbuf,recvbuf
@@ -792,25 +880,21 @@ IF(PerformLoadBalance)THEN
 #if USE_LOADBALANCE
 ELSE
 #endif /*USE_LOADBALANCE*/
-  ! Allocate the shared memory container and associate pointer: N_DG_Mapping
-  CALL Allocate_N_DG_Mapping()
+  IF(.NOT.NDGAllocationIsDone)THEN
+    ! Allocate the shared memory container and associate pointer: N_DG_Mapping
+    CALL Allocate_N_DG_Mapping()
+  END IF ! .NOT.NDGAllocationIsDone
 
-  OffsetCounter = 0
-  ! Loop all CN elements (iElem is CNElemID)
-  DO iElem = 1,nElems
-    locN = N_DG(iElem) ! PP_N
-    locDofs = (locN+1)**3
-    N_DG_Mapping(2,iElem+offSetElem) = locN
-    N_DG_Mapping(1,iElem+offSetElem) = OffsetCounter
-    OffsetCounter = OffsetCounter + locDofs
-  END DO ! iElem = firstElem, lastElem
+  ! Set Nloc in N_DG_Mapping
+  CALL Set_N_DG_Mapping(OffsetCounter)
 
 #if USE_MPI
+  ! Set the correct offsets in N_DG_Mapping(1,:) for parallel simulation
   sendbuf = OffsetCounter
   recvbuf = 0
   CALL MPI_EXSCAN(sendbuf,recvbuf,1,MPI_INTEGER,MPI_SUM,MPI_COMM_PICLAS,iError)
   OffsetN_DG_Mapping   = recvbuf
-  ! last proc knows CN total number of connected CN elements
+  ! The last process knows CN total number of connected CN elements
   sendbuf = OffsetN_DG_Mapping + OffsetCounter
   CALL MPI_BCAST(sendbuf,1,MPI_INTEGER,nProcessors-1,MPI_COMM_PICLAS,iError)
   nDofsMapping = sendbuf

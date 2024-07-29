@@ -33,6 +33,7 @@ INTEGER                               :: pAdaptionType          !< Set initial p
 INTEGER                               :: pAdaptionBCLevel       !< Only for pAdaptionType=non-periodic-BC: Number/Depth of elements connected to a boundary that are set to NMax
 INTEGER,ALLOCATABLE                   :: N_DG(:)                !< polynomial degree inside DG element,         size(nElems)
 INTEGER,ALLOCPOINT,DIMENSION(:,:)     :: N_DG_Mapping, N_DG_Mapping_Shared
+LOGICAL                               :: NDGAllocationIsDone=.FALSE.
 INTEGER                               :: nDofsMapping
 INTEGER                               :: nDofsMappingNode
 INTEGER,ALLOCATABLE                   :: displsDofs(:), recvcountDofs(:)
