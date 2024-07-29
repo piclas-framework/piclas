@@ -618,7 +618,7 @@ IMPLICIT NONE
 ! INPUT / OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER :: iElem,BCSideID,BCType,NonUniqueGlobalSideID,iGlobalElemID,BCIndex
+INTEGER :: iElem,BCSideID,BCType,NonUniqueGlobalSideID,iGlobalElemID,BCIndex,ElemType
 INTEGER :: iVertex,iVertexConnect,GlobalNbElemID,GlobalNbLocVertexID,LocSideList(3),iLocSideList,SideID,iLocSide,localSideID
 INTEGER :: FirstSideInd,LastSideInd,FirstElemInd,LastElemInd
 INTEGER :: FirstEdgeInd,LastEdgeInd,FirstEdgeConnectInd,LastEdgeConnectInd
@@ -635,6 +635,13 @@ LastElemInd  = offsetElem+nElems
 ! Loop over the processor-local elements
 GlobalElemIDLoop: DO iGlobalElemID = FirstElemInd, LastElemInd
   iElem = iGlobalElemID - offsetElem
+  ElemType = ElemInfo(ELEM_TYPE,iGlobalElemID)
+  SELECT CASE(ElemType)
+  CASE(108,118,208)
+    ! Hexahedral elements
+  CASE DEFAULT
+    CALL abort(__STAMP__,'Element type not implemented: ElemType =',IntInfoOpt=ElemType)
+  END SELECT
   ! Get local VertexInfo of current element
   FirstVertexInd = ElemInfo(ELEM_FIRSTVERTEXIND,iGlobalElemID)+1
   LastVertexInd  = ElemInfo(ELEM_LASTVERTEXIND,iGlobalElemID)
@@ -647,26 +654,8 @@ GlobalElemIDLoop: DO iGlobalElemID = FirstElemInd, LastElemInd
     ! Get neighbour infos
     GlobalNbElemID      = ABS(VertexConnectInfo(VERTEXCONNECT_NBELEMID   ,iVertexConnect))
     GlobalNbLocVertexID = VertexConnectInfo(VERTEXCONNECT_NBLOCNODEID,iVertexConnect)
-    SELECT CASE(GlobalNbLocVertexID)
-    CASE(1)
-      LocSideList=(/1,2,5/)
-    CASE(2)
-      LocSideList=(/1,2,3/)
-    CASE(3)
-      LocSideList=(/1,3,4/)
-    CASE(4)
-      LocSideList=(/1,4,5/)
-    CASE(5)
-      LocSideList=(/2,5,6/)
-    CASE(6)
-      LocSideList=(/2,3,6/)
-    CASE(7)
-      LocSideList=(/3,4,6/)
-    CASE(8)
-      LocSideList=(/4,5,6/)
-    CASE DEFAULT
-      CALL abort(__STAMP__,'Wrong iLocNode',IntInfoOpt=GlobalNbLocVertexID)
-    END SELECT
+    ! Set sides depending on the element type: Only implemented for Hexahedral elements
+    CALL GetLocSideList(ElemType,GlobalNbLocVertexID,LocSideList)
     LocSideListLoop: DO iLocSideList = 1, 3
       ! Check if current element has already been flagged
       IF(N_DG(iElem).EQ.NMax) EXIT VertexConnectLoop
@@ -676,12 +665,57 @@ GlobalElemIDLoop: DO iGlobalElemID = FirstElemInd, LastElemInd
       IF(BCIndex.LE.0) CYCLE LocSideListLoop ! Skip inner sides
       BCType = BoundaryType(BCIndex,BC_TYPE)
       IF(BCType.LE.1) CYCLE LocSideListLoop ! Skip periodic sides
+      IF(BCType.EQ.10) CYCLE LocSideListLoop ! Skip Neumann sides
       N_DG(iElem) = NMax
     END DO LocSideListLoop ! iLocSideList = 1, 3
   END DO VertexConnectLoop ! iVertexConnect = FirstVertexConnectInd, LastVertexConnectInd
 END DO GlobalElemIDLoop ! iGlobalElemID = FirstElemInd, LastElemInd
 
 END SUBROUTINE SetpAdaptionBCLevel
+
+!===================================================================================================================================
+!> Returns a list of sides (depending on the CGNS ordering) for a given local corner node index
+!===================================================================================================================================
+SUBROUTINE GetLocSideList(ElemType,iLocNode,LocSideList)
+! MODULES
+USE MOD_Globals
+IMPLICIT NONE
+!----------------------------------------------------------------------------------------------------------------------------------!
+! INPUT / OUTPUT VARIABLES
+INTEGER, INTENT(IN)  :: ElemType
+INTEGER, INTENT(IN)  :: iLocNode
+INTEGER, INTENT(OUT) :: LocSideList(3)
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+!===================================================================================================================================
+! Set sides depending on the element type: Only implemented for Hexahedral elements
+SELECT CASE(ElemType)
+CASE(108,118,208)
+  ! Hexahedral elements
+  SELECT CASE(iLocNode)
+  CASE(1)
+    LocSideList=(/1,2,5/)
+  CASE(2)
+    LocSideList=(/1,2,3/)
+  CASE(3)
+    LocSideList=(/1,3,4/)
+  CASE(4)
+    LocSideList=(/1,4,5/)
+  CASE(5)
+    LocSideList=(/2,5,6/)
+  CASE(6)
+    LocSideList=(/2,3,6/)
+  CASE(7)
+    LocSideList=(/3,4,6/)
+  CASE(8)
+    LocSideList=(/4,5,6/)
+  CASE DEFAULT
+    CALL abort(__STAMP__,'Wrong iLocNode',IntInfoOpt=iLocNode)
+  END SELECT
+CASE DEFAULT
+  CALL abort(__STAMP__,'Element type not implemented: ElemType =',IntInfoOpt=ElemType)
+END SELECT
+END SUBROUTINE GetLocSideList
 
 
 !===================================================================================================================================
