@@ -75,7 +75,7 @@ INTEGER(HSIZE_T), DIMENSION(2)  :: dims,sizeMax
 INTEGER(HID_T)                  :: file_id_loc                       ! File identifier
 INTEGER(HID_T)                  :: dset_id_loc                       ! Dataset identifier
 INTEGER(HID_T)                  :: filespace                         ! filespace identifier
-LOGICAL                         :: DatasetFound,AttribtueFound,NaNDetected
+LOGICAL                         :: DatasetFound,AttributeFound,NaNDetected
 REAL                            :: delta,deltaOld
 INTEGER                         :: iDirMax
 !===================================================================================================================================
@@ -116,8 +116,8 @@ END IF
 ExternalFieldRadInd  = -1
 ExternalFieldAxisSym = .FALSE.
 AttributeName = 'r'
-CALL H5AEXISTS_F(file_id_loc, TRIM(AttributeName), AttribtueFound, iError)
-IF(AttribtueFound) CALL ReadAttribute(file_id_loc,AttributeName,1,IntScalar=ExternalFieldRadInd)
+CALL H5AEXISTS_F(file_id_loc, TRIM(AttributeName), AttributeFound, iError)
+IF(AttributeFound) CALL ReadAttribute(file_id_loc,AttributeName,1,IntScalar=ExternalFieldRadInd)
 IF(ExternalFieldRadInd.GT.0) ExternalFieldAxisSym=.TRUE.
 
 ! Set spatial dimension
@@ -129,7 +129,7 @@ END IF ! ExternalFieldAxisSym
 
 ! Check if axial symmetric and 2D
 IF(ExternalFieldDim.EQ.2)THEN
-  IF(.NOT.ExternalFieldAxisSym) CALL abort(__STAMP__,'Only 2D axis symmetric external field imeplemented.')
+  IF(.NOT.ExternalFieldAxisSym) CALL abort(__STAMP__,'Only 2D axis symmetric external field implemented.')
 ELSE
   ! 3D and symmetric is not possible
   ExternalFieldAxisSym = .FALSE.
@@ -140,11 +140,11 @@ IF(ExternalFieldAxisSym)THEN
   ExternalFieldAxisDir=-1
   ! Check z-dir
   AttributeName = 'z'
-  CALL H5AEXISTS_F(file_id_loc, TRIM(AttributeName), AttribtueFound, iError)
-  IF(AttribtueFound) CALL ReadAttribute(file_id_loc,AttributeName,1,IntScalar=ExternalFieldAxisDir)
+  CALL H5AEXISTS_F(file_id_loc, TRIM(AttributeName), AttributeFound, iError)
+  IF(AttributeFound) CALL ReadAttribute(file_id_loc,AttributeName,1,IntScalar=ExternalFieldAxisDir)
   IF(ExternalFieldAxisDir.GT.0) ExternalFieldAxisDir=3
   ! Check if not axial symmetric with z-direction
-  IF(ExternalFieldAxisDir.NE.3) CALL abort(__STAMP__,'Only z-axis symmetric external field imeplemented currently.')
+  IF(ExternalFieldAxisDir.NE.3) CALL abort(__STAMP__,'Only z-axis symmetric external field implemented currently.')
 END IF ! ExternalFieldAxisSym
 
 ! Calculate the deltas and make sure that they are equidistant
