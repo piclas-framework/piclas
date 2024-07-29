@@ -652,12 +652,6 @@ ENDIF()
 # PETSc
 #=========================================================================
 OPTION(LIBS_USE_PETSC "Use the PETSc library" OFF)
-# pkg-config will look at /usr by default, add additional search paths here
-IF(DEFINED ENV{PETSC_DIR})
-  SET(PETSC_DIR "$ENV{PETSC_DIR}/lib/pkgconfig")
-  # Add our PETSc to pkg-config search path
-  SET(ENV{PKG_CONFIG_PATH} ${PETSC_DIR})
-ENDIF()
 
 # Look quietly for PETSc
 FIND_PACKAGE(PETSc QUIET)
@@ -684,7 +678,7 @@ IF(LIBS_USE_PETSC)
     SET(PETSC_LIB_LIBRARIES ${LIBS_EXTERNAL_LIB_DIR}/PETSc/linux-gnu-c/lib)
     SET(PETSC_INCLUDE_DIRS  ${LIBS_EXTERNAL_LIB_DIR}/PETSc/linux-gnu-c/include)
 
-    # Determe if PETSc should be built with debugging or optimization flags
+    # Determine if PETSc should be built with debugging or optimization flags
     IF(CMAKE_BUILD_TYPE MATCHES "Release")
       MESSAGE (STATUS "Compiling [PETSc] with optimization flags!")
       SET(PETSC_COMPILER_FLAGS --with-debugging=0 COPTFLAGS=-O3 -march=native -mtune=native CXXOPTFLAGS=-O3 -march=native -mtune=native FOPTFLAGS=-O3 -march=native -mtune=native)
@@ -698,11 +692,6 @@ IF(LIBS_USE_PETSC)
         GIT_REPOSITORY "https://gitlab.com/petsc/petsc.git"
         GIT_TAG "v${LIBS_BUILD_PETSC_VERSION}"
         GIT_PROGRESS TRUE
-        # USES_TERMINAL_DOWNLOAD true
-        # USES_TERMINAL_UPDATE true
-        # USES_TERMINAL_BUILD true
-        # USES_TERMINAL_INSTALL true
-        # USES_TERMINAL_TEST true
         ${GITSHALLOW}
         PREFIX ${LIBS_PETSC_DIR}
         INSTALL_DIR ${LIBS_EXTERNAL_LIB_DIR}/PETSc
@@ -723,7 +712,7 @@ IF(LIBS_USE_PETSC)
         BUILD_BYPRODUCTS ${PETSC_LIB_LIBRARIES}/libpetsc.so
     )
 
-    # Actually add the preCICE lib paths to the linking paths
+    # Actually add the PETSc lib paths to the linking paths
     INCLUDE_DIRECTORIES(${PETSC_INCLUDE_DIRS})
     INCLUDE_DIRECTORIES (${PETSC_LIB_LIBRARIES})
     LIST(APPEND linkedlibs ${PETSC_LIB_LIBRARIES}/libpetsc.so)
