@@ -110,7 +110,6 @@ else()
   # Set PETSC_FOUND to true if the path is defined
   if(DEFINED PETSC_DIR AND NOT PETSC_DIR STREQUAL "")
     SET(PETSC_FOUND TRUE)
-    MESSAGE(STATUS "Petsc found in ${PETSC_DIR}")
   endif()
 
   # Check the include folder, the libraries and variables, get the version
