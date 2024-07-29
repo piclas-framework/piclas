@@ -284,6 +284,7 @@ SELECT CASE(TrackingMethod)
       BoundsOfElem_Shared(2,2,iElem) = ymax
       BoundsOfElem_Shared(1,3,iElem) = zmin
       BoundsOfElem_Shared(2,3,iElem) = zmax
+
     END DO ! iElem = firstElem, lastElem
 END SELECT
 
@@ -418,12 +419,13 @@ IF(GEO%InitFIBGM) THEN
   DO iElem = firstElem, lastElem
 
     ! BGM indices must be >0 --> move by 1
-    ElemToBGM_Shared(1,iElem) = MAX(FLOOR((BoundsOfElem_Shared(1,1,iElem)-GEO%xminglob)/GEO%FIBGMdeltas(1)),0) + moveBGMindex
-    ElemToBGM_Shared(2,iElem) = MIN(FLOOR((BoundsOfElem_Shared(2,1,iElem)-GEO%xminglob)/GEO%FIBGMdeltas(1))    + moveBGMindex,GEO%FIBGMimaxglob)
-    ElemToBGM_Shared(3,iElem) = MAX(FLOOR((BoundsOfElem_Shared(1,2,iElem)-GEO%yminglob)/GEO%FIBGMdeltas(2)),0) + moveBGMindex
-    ElemToBGM_Shared(4,iElem) = MIN(FLOOR((BoundsOfElem_Shared(2,2,iElem)-GEO%yminglob)/GEO%FIBGMdeltas(2))    + moveBGMindex,GEO%FIBGMjmaxglob)
-    ElemToBGM_Shared(5,iElem) = MAX(FLOOR((BoundsOfElem_Shared(1,3,iElem)-GEO%zminglob)/GEO%FIBGMdeltas(3)),0) + moveBGMindex
-    ElemToBGM_Shared(6,iElem) = MIN(FLOOR((BoundsOfElem_Shared(2,3,iElem)-GEO%zminglob)/GEO%FIBGMdeltas(3))    + moveBGMindex,GEO%FIBGMkmaxglob)
+    ! >> - Halo region extended by one in each direction to catch elements directly on the edge of a FIGBM cell
+    ElemToBGM_Shared(1,iElem) = MAX(FLOOR((xmin-GEO%xminglob)/GEO%FIBGMdeltas(1))-1,0) + moveBGMindex
+    ElemToBGM_Shared(2,iElem) = MIN(FLOOR((xmax-GEO%xminglob)/GEO%FIBGMdeltas(1))+1    + moveBGMindex,GEO%FIBGMimaxglob)
+    ElemToBGM_Shared(3,iElem) = MAX(FLOOR((ymin-GEO%yminglob)/GEO%FIBGMdeltas(2))-1,0) + moveBGMindex
+    ElemToBGM_Shared(4,iElem) = MIN(FLOOR((ymax-GEO%yminglob)/GEO%FIBGMdeltas(2))+1    + moveBGMindex,GEO%FIBGMjmaxglob)
+    ElemToBGM_Shared(5,iElem) = MAX(FLOOR((zmin-GEO%zminglob)/GEO%FIBGMdeltas(3))-1,0) + moveBGMindex
+    ElemToBGM_Shared(6,iElem) = MIN(FLOOR((zmax-GEO%zminglob)/GEO%FIBGMdeltas(3))+1    + moveBGMindex,GEO%FIBGMkmaxglob)
   END DO ! iElem = firstElem, lastElem
 
 #if USE_MPI
@@ -580,20 +582,22 @@ IF(GEO%InitFIBGM) THEN
     END DO
 
     ! >> Take global maxima of cell radius into account and increase the considered range accordingly
-    BGMimin = MERGE(GEO%FIBGMiminglob,MAX(FLOOR((GEO%CNxmin-(halo_eps+maxCellRadius)-GEO%xminglob)/GEO%FIBGMdeltas(1)),0) + moveBGMindex                   ,PeriodicComponent(1))
-    BGMimax = MERGE(GEO%FIBGMimaxglob,MIN(FLOOR((GEO%CNxmax+(halo_eps+maxCellRadius)-GEO%xminglob)/GEO%FIBGMdeltas(1))    + moveBGMindex,GEO%FIBGMimaxglob),PeriodicComponent(1))
-    BGMjmin = MERGE(GEO%FIBGMjminglob,MAX(FLOOR((GEO%CNymin-(halo_eps+maxCellRadius)-GEO%yminglob)/GEO%FIBGMdeltas(2)),0) + moveBGMindex                   ,PeriodicComponent(2))
-    BGMjmax = MERGE(GEO%FIBGMjmaxglob,MIN(FLOOR((GEO%CNymax+(halo_eps+maxCellRadius)-GEO%yminglob)/GEO%FIBGMdeltas(2))    + moveBGMindex,GEO%FIBGMjmaxglob),PeriodicComponent(2))
-    BGMkmin = MERGE(GEO%FIBGMkminglob,MAX(FLOOR((GEO%CNzmin-(halo_eps+maxCellRadius)-GEO%zminglob)/GEO%FIBGMdeltas(3)),0) + moveBGMindex                   ,PeriodicComponent(3))
-    BGMkmax = MERGE(GEO%FIBGMkmaxglob,MIN(FLOOR((GEO%CNzmax+(halo_eps+maxCellRadius)-GEO%zminglob)/GEO%FIBGMdeltas(3))    + moveBGMindex,GEO%FIBGMkmaxglob),PeriodicComponent(3))
+    ! >> - Halo region extended by one in each direction to catch elements directly on the edge of a FIGBM cell
+    BGMimin = MERGE(GEO%FIBGMiminglob,MAX(FLOOR((GEO%CNxmin-(halo_eps+maxCellRadius)-GEO%xminglob)/GEO%FIBGMdeltas(1))-1,0) + moveBGMindex                   ,PeriodicComponent(1))
+    BGMimax = MERGE(GEO%FIBGMimaxglob,MIN(FLOOR((GEO%CNxmax+(halo_eps+maxCellRadius)-GEO%xminglob)/GEO%FIBGMdeltas(1))+1    + moveBGMindex,GEO%FIBGMimaxglob),PeriodicComponent(1))
+    BGMjmin = MERGE(GEO%FIBGMjminglob,MAX(FLOOR((GEO%CNymin-(halo_eps+maxCellRadius)-GEO%yminglob)/GEO%FIBGMdeltas(2))-1,0) + moveBGMindex                   ,PeriodicComponent(2))
+    BGMjmax = MERGE(GEO%FIBGMjmaxglob,MIN(FLOOR((GEO%CNymax+(halo_eps+maxCellRadius)-GEO%yminglob)/GEO%FIBGMdeltas(2))+1    + moveBGMindex,GEO%FIBGMjmaxglob),PeriodicComponent(2))
+    BGMkmin = MERGE(GEO%FIBGMkminglob,MAX(FLOOR((GEO%CNzmin-(halo_eps+maxCellRadius)-GEO%zminglob)/GEO%FIBGMdeltas(3))-1,0) + moveBGMindex                   ,PeriodicComponent(3))
+    BGMkmax = MERGE(GEO%FIBGMkmaxglob,MIN(FLOOR((GEO%CNzmax+(halo_eps+maxCellRadius)-GEO%zminglob)/GEO%FIBGMdeltas(3))+1    + moveBGMindex,GEO%FIBGMkmaxglob),PeriodicComponent(3))
   ELSE
     ! >> Take global maxima of cell radius into account and increase the considered range accordingly
-    BGMimin = MAX(FLOOR((GEO%CNxmin-(halo_eps+maxCellRadius)-GEO%xminglob)/GEO%FIBGMdeltas(1)),0) + moveBGMindex
-    BGMimax = MIN(FLOOR((GEO%CNxmax+(halo_eps+maxCellRadius)-GEO%xminglob)/GEO%FIBGMdeltas(1))    + moveBGMindex,GEO%FIBGMimaxglob)
-    BGMjmin = MAX(FLOOR((GEO%CNymin-(halo_eps+maxCellRadius)-GEO%yminglob)/GEO%FIBGMdeltas(2)),0) + moveBGMindex
-    BGMjmax = MIN(FLOOR((GEO%CNymax+(halo_eps+maxCellRadius)-GEO%yminglob)/GEO%FIBGMdeltas(2))    + moveBGMindex,GEO%FIBGMjmaxglob)
-    BGMkmin = MAX(FLOOR((GEO%CNzmin-(halo_eps+maxCellRadius)-GEO%zminglob)/GEO%FIBGMdeltas(3)),0) + moveBGMindex
-    BGMkmax = MIN(FLOOR((GEO%CNzmax+(halo_eps+maxCellRadius)-GEO%zminglob)/GEO%FIBGMdeltas(3))    + moveBGMindex,GEO%FIBGMkmaxglob)
+    ! >> - Halo region extended by one in each direction to catch elements directly on the edge of a FIGBM cell
+    BGMimin = MAX(FLOOR((GEO%CNxmin-(halo_eps+maxCellRadius)-GEO%xminglob)/GEO%FIBGMdeltas(1))-1,0) + moveBGMindex
+    BGMimax = MIN(FLOOR((GEO%CNxmax+(halo_eps+maxCellRadius)-GEO%xminglob)/GEO%FIBGMdeltas(1))+1    + moveBGMindex,GEO%FIBGMimaxglob)
+    BGMjmin = MAX(FLOOR((GEO%CNymin-(halo_eps+maxCellRadius)-GEO%yminglob)/GEO%FIBGMdeltas(2))-1,0) + moveBGMindex
+    BGMjmax = MIN(FLOOR((GEO%CNymax+(halo_eps+maxCellRadius)-GEO%yminglob)/GEO%FIBGMdeltas(2))+1    + moveBGMindex,GEO%FIBGMjmaxglob)
+    BGMkmin = MAX(FLOOR((GEO%CNzmin-(halo_eps+maxCellRadius)-GEO%zminglob)/GEO%FIBGMdeltas(3))-1,0) + moveBGMindex
+    BGMkmax = MIN(FLOOR((GEO%CNzmax+(halo_eps+maxCellRadius)-GEO%zminglob)/GEO%FIBGMdeltas(3))+1    + moveBGMindex,GEO%FIBGMkmaxglob)
   END IF
 
   ! write function-local BGM indices into global variables
