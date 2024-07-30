@@ -540,7 +540,7 @@ DO BCsideID=1,nConductorBCsides
     DO i_m=0,iNloc; DO i_p=0,iNloc
       DO i=0,NElem; DO j=0,NElem
         Smatloc(i_m*(iNloc+1)+i_p+1,:) = Smatloc(i_m*(iNloc+1)+i_p+1,:) + &
-          PREF_VDM(NElem,iNloc)%Vdm(i,i_m) * PREF_VDM(NElem,iNloc)%Vdm(j,i_p) * &
+          PREF_VDM(iNloc,NElem)%Vdm(i,i_m) * PREF_VDM(iNloc,NElem)%Vdm(j,i_p) * &
           HDG_Vol_N(iElem)%Smat(i*(Nelem+1)+j+1,:,iLocSide,jLocSide)
       END DO; END DO
     END DO; END DO
@@ -620,8 +620,8 @@ DO i_out_p=0,iNSide; DO i_out_q=0,iNSide
         i_in_GP = i_in_p*(NElem+1)+i_in_q+1
         j_in_GP = j_in_p*(NElem+1)+j_in_q+1
 
-        VT = PREF_VDM(NElem,iNSide)%Vdm(i_in_p,i_out_p) * PREF_VDM(NElem,iNSide)%Vdm(i_in_q,i_out_q)
-        V = PREF_VDM(NElem,jNSide)%Vdm(j_in_p,j_out_p) * PREF_VDM(NElem,jNSide)%Vdm(j_in_q,j_out_q)
+        VT = PREF_VDM(iNSide,NElem)%Vdm(i_in_p,i_out_p) * PREF_VDM(iNSide,NElem)%Vdm(i_in_q,i_out_q)
+        V = PREF_VDM(jNSide,NElem)%Vdm(j_in_p,j_out_p) * PREF_VDM(jNSide,NElem)%Vdm(j_in_q,j_out_q)
 
         S_out(i_out_GP,j_out_GP) = S_out(i_out_GP,j_out_GP) + VT * S_in(i_in_GP,j_in_GP) * V
       END DO; END DO
