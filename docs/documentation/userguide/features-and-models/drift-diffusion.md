@@ -19,7 +19,7 @@ The third type of models are the plasma fluid models,which describe the electron
 
 Hybrid models combine the strengths of the fluidand particle approaches, by combining the fast speed of fluidsimulations with the accurate particle kinetics of particlemodels [1].
 
-The focus of this section is on hybrid modelling approach. The main difference between the hybrid model and the 1st order fluid model is that, in the hybrid model, ions are represented by particles, not constant.
+The focus of this section is on hybrid modelling approach. The main difference between the hybrid model and the 1st order fluid model is that, in the hybrid model, ions are represented by particles, not by constants.
 
 
 The drift-diffusion scheme can be used to model the electrons species in the plasma as a continuum instead of kinetic particles.
