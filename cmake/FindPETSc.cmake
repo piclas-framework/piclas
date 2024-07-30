@@ -39,10 +39,12 @@
 #  PETSC_VERSION_PATCH  - the PATCH part of PETSC_VERSION
 #
 # Author: Frédéric Simonis @fsimonis
+# Modifications for PICLas: Paul Nizenkov
 
 cmake_policy(VERSION 3.10)
 
 # Generate a argument for cmake pkg-config call (Note: variable uses PETSc spelling due to FIND_PACKAGE call in CMakelistsLib.txt)
+# Fall-back option is available if PkgConfig is not available
 if(PETSc_FIND_QUIETLY)
   find_package(PkgConfig QUIET)
 else()
@@ -50,6 +52,12 @@ else()
 endif()
 
 if(PKG_CONFIG_FOUND)
+  # pkg-config will look at /usr by default, add additional search paths here
+  IF(DEFINED ENV{PETSC_DIR})
+    SET(PETSC_DIR "$ENV{PETSC_DIR}/lib/pkgconfig")
+    # Add our PETSc to pkg-config search path
+    SET(ENV{PKG_CONFIG_PATH} ${PETSC_DIR})
+  ENDIF()
   # Build the pkg-config version spec
   set(_pkg_version_spec "")
   if(DEFINED PETSC_FIND_VERSION)
@@ -93,6 +101,58 @@ if(PKG_CONFIG_FOUND)
     unset(_petsc_version_minor)
     unset(_petsc_version_patch)
   endif()
+else()
+  # Fall-back if pkg-config is not available
+  IF(NOT DEFINED PETSC_DIR)
+    SET(PETSC_DIR $ENV{PETSC_DIR})
+  ENDIF()
+
+  # Set PETSC_FOUND to true if the path is defined
+  if(DEFINED PETSC_DIR AND NOT PETSC_DIR STREQUAL "")
+    SET(PETSC_FOUND TRUE)
+  endif()
+
+  # Check the include folder, the libraries and variables, get the version
+  IF(PETSC_FOUND)
+    IF(EXISTS "${PETSC_DIR}/include")
+      SET(PETSC_INCLUDE_DIRS "${PETSC_DIR}/include")
+    ELSE()
+      SET(PETSC_FOUND FALSE)
+      MESSAGE(SEND_ERROR "Error: PETSc include not found in ${PETSC_DIR}")
+    ENDIF()
+
+    IF(EXISTS "${PETSC_DIR}/lib/libpetsc.so")
+      SET(PETSC_LIBRARIES "${PETSC_DIR}/lib/libpetsc.so")
+      SET(PETSC_LINK_LIBRARIES "${PETSC_DIR}/lib/libpetsc.so")
+    ELSEIf(EXISTS "${PETSC_DIR}/lib/libpetsc.a")
+      SET(PETSC_LIBRARIES "${PETSC_DIR}/lib/libpetsc.a")
+      SET(PETSC_LINK_LIBRARIES "${PETSC_DIR}/lib/libpetsc.a")
+    ELSE()
+      SET(PETSC_FOUND FALSE)
+      MESSAGE(SEND_ERROR "Error: PETSc library not found in ${PETSC_DIR}")
+    ENDIF()
+
+    IF(EXISTS ${PETSC_DIR}/conf/petscvariables)
+      FILE(STRINGS ${PETSC_DIR}/conf/petscvariables PETSC_VARIABLES NEWLINE_CONSUME)
+    ELSEIf(EXISTS ${PETSC_DIR}/lib/petsc/conf/petscvariables)
+      FILE(STRINGS ${PETSC_DIR}/lib/petsc/conf/petscvariables PETSC_VARIABLES NEWLINE_CONSUME)
+    ELSE()
+      SET(PETSC_FOUND FALSE)
+      MESSAGE(SEND_ERROR "Error: PETSc variables not found in ${PETSC_DIR}")
+    ENDIF()
+
+    # Find "^#define PETSC_VERSION_MAJOR" and get only the numbers and remove trailing line breaks
+    SET(PETSC_VERSION_FILE "${PETSC_INCLUDE_DIRS}/petscversion.h")
+    IF(EXISTS "${PETSC_VERSION_FILE}")
+      EXECUTE_PROCESS(COMMAND cat "${PETSC_VERSION_FILE}" COMMAND grep "^#define PETSC_VERSION_MAJOR" COMMAND grep -o "[[:digit:]]*" COMMAND tr -d '\n' OUTPUT_VARIABLE PETSC_VERSION_MAJOR)
+      EXECUTE_PROCESS(COMMAND cat "${PETSC_VERSION_FILE}" COMMAND grep "^#define PETSC_VERSION_MINOR" COMMAND grep -o "[[:digit:]]*" COMMAND tr -d '\n' OUTPUT_VARIABLE PETSC_VERSION_MINOR)
+      EXECUTE_PROCESS(COMMAND cat "${PETSC_VERSION_FILE}" COMMAND grep "^#define PETSC_VERSION_SUBMINOR" COMMAND grep -o "[[:digit:]]*" COMMAND tr -d '\n' OUTPUT_VARIABLE PETSC_VERSION_PATCH)
+      set(PETSC_VERSION "${PETSC_VERSION_MAJOR}.${PETSC_VERSION_MINOR}.${PETSC_VERSION_PATCH}" CACHE STRING "Full version of PETSc")
+    ELSE()
+      SET(PETSC_FOUND FALSE)
+      MESSAGE(SEND_ERROR "Error: PETSc version file not found in ${PETSC_DIR}")
+    ENDIF()
+  ENDIF()
 endif()
 unset(_petsc_quiet_arg)
 
@@ -101,11 +161,5 @@ find_package_handle_standard_args (PETSc
   REQUIRED_VARS PETSC_FOUND PETSC_INCLUDE_DIRS PETSC_LIBRARIES PETSC_LINK_LIBRARIES
   VERSION_VAR PETSC_VERSION
   )
-
-if(PETSC_FOUND)
-  if(NOT TARGET PETSc::PETSc)
-    add_library(PETSc::PETSc ALIAS PkgConfig::PETSC)
-  endif()
-endif()
 
 mark_as_advanced(PETSC_INCLUDE_DIRS PETSC_LIBRARIES PETSC_VERSION_MAJOR PETSC_VERSION_MINOR PETSC_VERSION_PATCH VERSION_VAR PETSC_VERSION)
