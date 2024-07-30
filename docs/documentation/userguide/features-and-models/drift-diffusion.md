@@ -1,5 +1,20 @@
 # Drift-diffusion model
 
+Streamers occur in nature (light-ning and sprites,  and technology (plasma-assisted combustion, plasma medicine, disinfection etc). 
+
+Streamer models can be categorized into four types: 
+
+**- particle models**
+These models are typically of the particle-in-cell (PIC)type. With these models, a large number of particles is followed as they move through the simulation domain, so thatone has direct information about the particle distributionin phase space.
+**- kinetic models**
+The second type of models are the so-called kinetic models, that couple the full Boltzmann equation with the Poisson equation. Such models are computationally very costly, because they require a numerical grid that covers the full phase space. However, advances in computing power and algorithms have made some of these fully kinetic simulations possible.
+**- fluid models **
+The third type of models are the plasma fluid models,which describe the electron dynamics in plasma based on macroscopic quantities like electron density, average elec-tron velocity, average electron energy etc.
+**- hybrid models**
+Hybrid models combine the strengths of the fluidand particle approaches, by combining the fast speed of fluidsimulations with the accurate particle kinetics of particlemodels [1].
+
+
+
 The drift-diffusion scheme can be used to model the electrons species in the plasma as a continuum instead of kinetic particles.
 The piclas executable to use the model in created by
 
