@@ -849,6 +849,7 @@ IF (DSMC%ReservoirSimu.AND.DSMC%ReservoirSimuRate) RETURN
     ELSE
       BLCorrFact = 1.
     END IF
+    !//TODO extend functions of func pointers for an additional argument (BLCorrFact)
     Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec + PartStateIntEn(2,iPart1)*GetParticleWeight(iPart1)
     IF(SpecDSMC(iSpec1)%PolyatomicMol.AND.(SpecDSMC(iSpec1)%Xi_Rot.EQ.3)) THEN
       CALL DSMC_RotRelaxPoly(iPair, iPart1, FakXi)

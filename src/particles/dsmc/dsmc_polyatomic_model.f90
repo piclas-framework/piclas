@@ -1414,8 +1414,8 @@ END IF
 iPolyatMole = SpecDSMC(iSpec)%SpecToPolyArray
 
 IF(PolyatomMolDSMC(iPolyatMole)%LinearMolec)THEN        ! check if molecule is linear, same as diatomic
-  jMax = 330
-  DO iWalk=1,750
+  jMax = 440
+  DO iWalk=1,1000
     NormProb = Ec - PartStateIntEn(2,iPart)
     ! Proper modelling of energy transfer between old and new state in chemistry
     NormProb = NormProb**FakXi

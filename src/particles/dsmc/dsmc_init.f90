@@ -291,11 +291,12 @@ USE MOD_Globals_Vars           ,ONLY: Pi, BoltzmannConst, ElementaryCharge, Plan
 USE MOD_Particle_Vars          ,ONLY: nSpecies, Species, PDM, Symmetry, UseVarTimeStep, usevMPF
 USE MOD_Particle_Vars          ,ONLY: DoFieldIonization, SpeciesDatabase,  SampleElecExcitation
 USE MOD_part_tools             ,ONLY: RotInitPolyRoutineFuncPTR, CalcERotQuant_particle, CalcERot_particle, CalcERotDataset_particle
+USE MOD_part_tools             ,ONLY: CalcERotQuant_particle_MH
 USE MOD_DSMC_ParticlePairing   ,ONLY: DSMC_init_octree
 USE MOD_DSMC_ChemInit          ,ONLY: DSMC_chemical_init
 USE MOD_DSMC_ElectronicModel   ,ONLY: ReadRotationalSpeciesLevel
 USE MOD_DSMC_PolyAtomicModel   ,ONLY: InitPolyAtomicMolecs, DSMC_RotRelaxDatabasePoly, DSMC_RotRelaxQuantPoly, DSMC_RotRelaxPoly
-USE MOD_DSMC_PolyAtomicModel   ,ONLY: RotRelaxPolyRoutineFuncPTR
+USE MOD_DSMC_PolyAtomicModel   ,ONLY: RotRelaxPolyRoutineFuncPTR, DSMC_RotRelaxQuantPolyMH
 USE MOD_DSMC_Relaxation        ,ONLY: RotRelaxDiaRoutineFuncPTR, DSMC_RotRelaxDiaContinous, DSMC_RotRelaxDiaQuant
 USE MOD_DSMC_CollisVec         ,ONLY: DiceDeflectedVelocityVector4Coll, DiceVelocityVector4Coll, PostCollVec
 USE MOD_DSMC_BGGas             ,ONLY: BGGas_RegionsSetInternalTemp
@@ -346,19 +347,21 @@ IF(CollisMode.GE.2) THEN
   DSMC%RotRelaxProb = GETREAL('Particles-DSMC-RotRelaxProb')
   DSMC%VibRelaxProb = GETREAL('Particles-DSMC-VibRelaxProb')
   DSMC%RotRelaxModel = GETINT('Particles-DSMC-RotationalRelaxModel')
-  ! set function pointer for rotational internal energy calculation
+  ! set function pointer for rotational internal energy calculation (no pointer for initial diatomic particle insertion)
   IF(DSMC%RotRelaxModel.EQ.1)THEN
     RotRelaxPolyRoutineFuncPTR => DSMC_RotRelaxQuantPoly
-    RotRelaxDiaRoutineFuncPTR => DSMC_RotRelaxDiaQuant
-    RotInitPolyRoutineFuncPTR => CalcERotQuant_particle
+    RotInitPolyRoutineFuncPTR  => CalcERotQuant_particle
+    ! RotRelaxPolyRoutineFuncPTR => DSMC_RotRelaxQuantPolyMH
+    ! RotInitPolyRoutineFuncPTR  => CalcERotQuant_particle_MH
+    RotRelaxDiaRoutineFuncPTR  => DSMC_RotRelaxDiaQuant
   ELSE IF(DSMC%RotRelaxModel.EQ.2)THEN
     RotRelaxPolyRoutineFuncPTR => DSMC_RotRelaxDatabasePoly
-    RotRelaxDiaRoutineFuncPTR => DSMC_RotRelaxDatabasePoly
-    RotInitPolyRoutineFuncPTR => CalcERotDataset_particle
+    RotInitPolyRoutineFuncPTR  => CalcERotDataset_particle
+    RotRelaxDiaRoutineFuncPTR  => DSMC_RotRelaxDatabasePoly
   ELSE
     RotRelaxPolyRoutineFuncPTR => DSMC_RotRelaxPoly
-    RotRelaxDiaRoutineFuncPTR => DSMC_RotRelaxDiaContinous
-    RotInitPolyRoutineFuncPTR => CalcERot_particle
+    RotInitPolyRoutineFuncPTR  => CalcERot_particle
+    RotRelaxDiaRoutineFuncPTR  => DSMC_RotRelaxDiaContinous
   END IF
 ELSE
   DSMC%RotRelaxProb = 0.

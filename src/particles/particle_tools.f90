@@ -1102,8 +1102,6 @@ CalcERotQuant_particle = 0.
 iPolyatMole = SpecDSMC(iSpec)%SpecToPolyArray
 ARM = .TRUE.
 IF(PolyatomMolDSMC(iPolyatMole)%LinearMolec)THEN        ! check if molecule is linear
-  PRINT *,"CO2quant"
-
   ! calculate quantum number where f has maximum
   J = NINT(0.5 * (SQRT(2.*TRot/PolyatomMolDSMC(iPolyatMole)%CharaTRotDOF(1)) - 1.))
   ! fIntegralNorm brings integral over fNorm(j) from 0 to infinity to 1
@@ -1199,7 +1197,7 @@ IMPLICIT NONE
 ! INPUT VARIABLES
 INTEGER, INTENT(IN)           :: iSpec
 REAL, INTENT(IN)              :: TRot
-INTEGER, INTENT(IN), OPTIONAL :: iPart    ! not necessary for BGGas internal energy in MCC
+INTEGER, INTENT(IN)           :: iPart    ! not necessary for BGGas internal energy in MCC
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 REAL                          :: iRan, NormProb, fIntegralNorm
@@ -1232,7 +1230,7 @@ IF(PolyatomMolDSMC(iPolyatMole)%LinearMolec)THEN        ! check if molecule is l
     IF (NormProb.LT.iRan) iQuant=iQuant_old
   END DO
   ! save latest accepted sample to start MH markov chain at this point in post coll sampling (not used for mcc with bg gas)
-  IF(PRESENT(iPart))RotQuantsPar(1,iPart) = iQuant
+  RotQuantsPar(1,iPart) = iQuant
   CalcERotQuant_particle_MH = REAL(iQuant) * (REAL(iQuant) + 1.) * BoltzmannConst * PolyatomMolDSMC(iPolyatMole)%CharaTRotDOF(1)
 
 ELSE IF(PolyatomMolDSMC(iPolyatMole)%RotationalGroup.EQ.1)THEN
@@ -1261,7 +1259,7 @@ ELSE IF(PolyatomMolDSMC(iPolyatMole)%RotationalGroup.EQ.1)THEN
     IF (NormProb.LT.iRan) iQuant=iQuant_old
   END DO
   ! save latest accepted sample to start MH markov chain at this point in post coll sampling (not used for mcc with bg gas)
-  IF(PRESENT(iPart))RotQuantsPar(1,iPart) = iQuant
+  RotQuantsPar(1,iPart) = iQuant
   CalcERotQuant_particle_MH = REAL(iQuant) * (REAL(iQuant) + 1.) * BoltzmannConst * PolyatomMolDSMC(iPolyatMole)%CharaTRotDOF(1)
 
 ELSE IF(PolyatomMolDSMC(iPolyatMole)%RotationalGroup.EQ.2)THEN
@@ -1392,7 +1390,7 @@ IMPLICIT NONE
 ! INPUT VARIABLES
 REAL, INTENT(IN)              :: TRot
 INTEGER, INTENT(IN)           :: iPolyatMole, jMax
-INTEGER, INTENT(IN), OPTIONAL :: iPart    ! not necessary for BGGas internal energy in MCC
+INTEGER, INTENT(IN)           :: iPart    ! not necessary for BGGas internal energy in MCC
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 REAL                          :: iRan, NormProb
@@ -1437,10 +1435,8 @@ DO iWalk=1, 5000
   END IF
 END DO
 ! save latest accepted sample to start MH markov chain at this point in post coll sampling (not used for mcc with bg gas)
-IF(PRESENT(iPart))THEN
-  RotQuantsPar(1,iPart) = iQuant
-  RotQuantsPar(2,iPart) = kQuant
-END IF
+RotQuantsPar(1,iPart) = iQuant
+RotQuantsPar(2,iPart) = kQuant
 CalcERotQuant_SymTopMH = PlanckConst**2. / (8.*PI**2.) * (REAL(iQuant)*(REAL(iQuant)+1.) / & 
   PolyatomMolDSMC(iPolyatMole)%MomentOfInertia(1) + (1./PolyatomMolDSMC(iPolyatMole)%MomentOfInertia(3) - & 
   1./PolyatomMolDSMC(iPolyatMole)%MomentOfInertia(1)) * REAL(kQuant)**2.)
