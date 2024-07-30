@@ -14,7 +14,7 @@
 
 MODULE MOD_DSMC_Relaxation
 !===================================================================================================================================
-! Module including collisions, relaxation and reaction decision
+! Module with routines for relaxation
 !===================================================================================================================================
 ! MODULES
 ! IMPLICIT VARIABLE HANDLING
@@ -31,14 +31,27 @@ END INTERFACE
 PROCEDURE(RotRelaxDiaRoutine),POINTER :: RotRelaxDiaRoutineFuncPTR !< pointer defining the function called for rotational relaxation 
                                                                    !  depending on the RotRelaxModel (continous or quantized)
                                                                    !  for diatomic molecules
+
+ABSTRACT INTERFACE
+  REAL FUNCTION RotInitDiaRoutine(iSpec,TRot,iPart)
+    INTEGER,INTENT(IN)          :: iSpec, iPart
+    REAL,INTENT(IN)             :: TRot
+  END FUNCTION
+END INTERFACE
+
+PROCEDURE(RotInitDiaRoutine),POINTER :: RotInitDiaRoutineFuncPTR   !< pointer defining the function called for rotational enrgies 
+                                                                   !  in intial particle insertion depending on the RotRelaxModel 
+                                                                   !  (continous or quantized) for diatomic molecules
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! GLOBAL VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
 PUBLIC :: DSMC_VibRelaxDiatomic, CalcMeanVibQuaDiatomic, CalcXiVib, CalcXiTotalEqui, DSMC_calc_P_rot, DSMC_calc_var_P_vib
-PUBLIC :: InitCalcVibRelaxProb, DSMC_calc_P_vib, SumVibRelaxProb, FinalizeCalcVibRelaxProb, DSMC_calc_P_elec
-PUBLIC :: DSMC_RotRelaxDiaQuant, DSMC_RotRelaxDiaContinous, RotRelaxDiaRoutineFuncPTR
+PUBLIC :: InitCalcVibRelaxProb, DSMC_calc_P_vib, SumVibRelaxProb, FinalizeCalcVibRelaxProb, DSMC_calc_P_elec, DSMC_RotInitDiaQuant
+PUBLIC :: DSMC_RotRelaxDiaQuant, DSMC_RotRelaxDiaContinous, DSMC_RotInitDiaContinous, DSMC_SetInternalEnr_Diatomic
+PUBLIC :: RotRelaxDiaRoutineFuncPTR, RotInitDiaRoutineFuncPTR
+
 !===================================================================================================================================
 
 CONTAINS
@@ -136,31 +149,126 @@ PartStateIntEn(2, iPart) = Coll_pData(iPair)%Ec * (1.0 - iRan**(1.0/LocalFakXi))
 END SUBROUTINE DSMC_RotRelaxDiaContinous
 
 
-REAL FUNCTION DiffRotEnergy(En1, En2)
+REAL FUNCTION DSMC_RotInitDiaContinous(iSpec,TRot,iPart)
 !===================================================================================================================================
-!>
+!> Energy distribution according to dissertation of Laux (diatomic) for continous treatment of initial particle insertion
+!> Only seperate routine for function pointer with RotRelaxModel
 !===================================================================================================================================
 ! MODULES
-  USE MOD_Globals
+USE MOD_Globals_Vars          ,ONLY: BoltzmannConst
 ! IMPLICIT VARIABLE HANDLING
-  IMPLICIT NONE
+IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-  REAL, INTENT(IN)         :: En1, En2
+INTEGER, INTENT(IN)           :: iSpec, iPart   ! iPart only dummy argument for function pointer
+REAL, INTENT(IN)              :: TRot
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
+REAL                          :: iRan
+INTEGER                       :: dummy
 !===================================================================================================================================
-  IF (ALMOSTEQUAL(En1,En2)) THEN
-    DiffRotEnergy = 0.0
+! Set rotational energy
+CALL RANDOM_NUMBER(iRan)
+DSMC_RotInitDiaContinous = -BoltzmannConst*TRot*LOG(iRan)
+
+RETURN
+! Suppress compiler warning
+dummy = iPart
+dummy = iSpec
+END FUNCTION DSMC_RotInitDiaContinous
+
+
+REAL FUNCTION DSMC_RotInitDiaQuant(iSpec,TRot,iPart)
+!===================================================================================================================================
+!> Energy distribution for quantized treatment of initial particle insertion after Boyd
+!> Physics of Fluids A: Fluid Dynamics (1989-1993) 5, 2278 (1993); doi: 10.1063/1.858531
+!> Only seperate routine for function pointer with RotRelaxModel
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals_Vars            ,ONLY: BoltzmannConst
+USE MOD_DSMC_Vars               ,ONLY: SpecDSMC
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+INTEGER, INTENT(IN)             :: iSpec, iPart   ! iPart only dummy argument for function pointer
+REAL, INTENT(IN)                :: TRot
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER                         :: iQuant, jMax, dummy
+LOGICAL                         :: ARM
+REAL                            :: iRan, fNorm, J, fIntegralNorm
+!===================================================================================================================================
+! Quantized treatment of rotational energy
+J = NINT(0.5 * (SQRT(2.*TRot/SpecDSMC(iSpec)%CharaTRot) - 1.))
+! fIntegralNorm brings integral over fNorm(j) from 0 to infinity to 1
+fIntegralNorm = TRot/SpecDSMC(iSpec)%CharaTRot * &
+                exp(-SpecDSMC(iSpec)%CharaTRot/TRot)/((2.*J + 1.)*EXP(-J*(J + 1.)*SpecDSMC(iSpec)%CharaTRot/TRot))
+! set jMax to include 99.9% of energy in fNorm distribution
+jMax = NINT(0.5 * (SQRT(1.-4.*TRot/SpecDSMC(iSpec)%CharaTRot*log(1.-0.999*fIntegralNorm*((2.*J + 1.)* &
+        EXP(-J*(J + 1.)*SpecDSMC(iSpec)%CharaTRot/TRot))*SpecDSMC(iSpec)%CharaTRot/TRot))-1.))
+ARM = .TRUE.
+CALL RANDOM_NUMBER(iRan)
+iQuant = INT((1+jMax)*iRan)
+DO WHILE (ARM)
+  fNorm = (2.*REAL(iQuant) + 1.)*EXP(-REAL(iQuant)*(REAL(iQuant) + 1.)*SpecDSMC(iSpec)%CharaTRot/TRot) &
+  / ((2.*J + 1.)*EXP(-J*(J + 1.)*SpecDSMC(iSpec)%CharaTRot/TRot))
+  CALL RANDOM_NUMBER(iRan)
+  IF(fNorm .LT. iRan) THEN
+    CALL RANDOM_NUMBER(iRan)
+    iQuant = INT((1+jMax)*iRan)
   ELSE
-    DiffRotEnergy = (En2-En1)/En1
+    ARM = .FALSE.
   END IF
+END DO
+DSMC_RotInitDiaQuant = REAL(iQuant) * (REAL(iQuant) + 1.) * BoltzmannConst * SpecDSMC(iSpec)%CharaTRot
 
-  RETURN
+RETURN
+! Suppress compiler warning
+dummy = iPart
+END FUNCTION DSMC_RotInitDiaQuant
 
-END FUNCTION DiffRotEnergy
+
+SUBROUTINE DSMC_SetInternalEnr_Diatomic(iSpec, iPart, TRot, TVib)
+!===================================================================================================================================
+!> Energy distribution according to dissertation of Laux (diatomic)
+!> or according to Boyd (see DSMC_RotInitDiaQuant) for quantized rotational energies
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals_Vars            ,ONLY: BoltzmannConst
+USE MOD_DSMC_Vars               ,ONLY: PartStateIntEn, SpecDSMC, DSMC
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+INTEGER, INTENT(IN)             :: iSpec, iPart
+REAL, INTENT(IN)                :: TRot, TVib
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+REAL                            :: iRan
+INTEGER                         :: iQuant
+!===================================================================================================================================
+! Nullify energy for atomic species
+PartStateIntEn(1:2,iPart) = 0
+! Set vibrational energy
+CALL RANDOM_NUMBER(iRan)
+iQuant = INT(-LOG(iRan)*TVib/SpecDSMC(iSpec)%CharaTVib)
+DO WHILE (iQuant.GE.SpecDSMC(iSpec)%MaxVibQuant)
+  CALL RANDOM_NUMBER(iRan)
+  iQuant = INT(-LOG(iRan)*TVib/SpecDSMC(iSpec)%CharaTVib)
+END DO
+PartStateIntEn( 1,iPart) = (iQuant + DSMC%GammaQuant)*SpecDSMC(iSpec)%CharaTVib*BoltzmannConst
+! Set rotational energy
+PartStateIntEn( 2,iPart) = RotInitDiaRoutineFuncPTR(iSpec,TRot,iPart)
+
+END SUBROUTINE DSMC_SetInternalEnr_Diatomic
+
 
 
 SUBROUTINE DSMC_VibRelaxDiatomic(iPair, iPart, FakXi)

@@ -24,52 +24,10 @@ PRIVATE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
-
-INTERFACE ISVALIDHDF5FILE
-  MODULE PROCEDURE ISVALIDHDF5FILE
-END INTERFACE
-
-INTERFACE ISVALIDMESHFILE
-  MODULE PROCEDURE ISVALIDMESHFILE
-END INTERFACE
-
-INTERFACE GetHDF5NextFileName
-  MODULE PROCEDURE GetHDF5NextFileName
-END INTERFACE
-
-INTERFACE DatasetExists
-  MODULE PROCEDURE DatasetExists
-END INTERFACE
-
-INTERFACE GetDataSize
-  MODULE PROCEDURE GetDataSize
-END INTERFACE
-
-INTERFACE GetAttributeSize
-  MODULE PROCEDURE GetAttributeSize
-END INTERFACE
-
-INTERFACE GetDataProps
-  MODULE PROCEDURE GetDataProps
-END INTERFACE
-
-! no interface because one argument is size of another argument-array -> nVal, Array(nVal)
-!INTERFACE ReadArray
-!  MODULE PROCEDURE ReadArray
-!END INTERFACE
-
-INTERFACE ReadAttribute
-  MODULE PROCEDURE ReadAttribute
-END INTERFACE
-
-INTERFACE GetVarnames
-  MODULE PROCEDURE GetVarnames
-END INTERFACE
-
+PUBLIC :: File_ID,HSize,nDims        ! Variables that need to be public
 PUBLIC :: ISVALIDHDF5FILE,ISVALIDMESHFILE,GetDataProps,GetAttributeSize,GetHDF5NextFileName
 PUBLIC :: ReadArray,ReadAttribute
-PUBLIC :: File_ID,HSize,nDims        ! Variables that need to be public
-PUBLIC :: OpenDataFile,CloseDataFile ! Subroutines that need to be public
+PUBLIC :: OpenDataFile,CloseDataFile
 PUBLIC :: DatasetExists
 PUBLIC :: GetDataSize
 PUBLIC :: GetVarnames
@@ -179,9 +137,6 @@ LOGICAL                        :: isValidMeshFile !< result: file is valid mesh 
 LOGICAL                        :: NGeoExists
 INTEGER(HID_T)                 :: Plist_ID
 !==================================================================================================================================
-! Disable error messages
-CALL H5ESET_AUTO_F(0, iError)
-
 ! Initialize FORTRAN predefined datatypes
 CALL H5OPEN_F(iError)
 ! Create property list
@@ -741,14 +696,14 @@ USE,INTRINSIC :: ISO_C_BINDING
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT/OUTPUT VARIABLES
-INTEGER(HID_T)    ,INTENT(IN)                  :: File_ID_in         !< HDF5 file id of opened file
+INTEGER(HID_T)    ,INTENT(IN)                  :: File_ID_in        !< HDF5 file id of opened file
 CHARACTER(LEN=*)  ,INTENT(IN)                  :: AttribName        !< name of attribute to be read
-CHARACTER(LEN=*)  ,INTENT(IN) ,OPTIONAL        :: DatasetName       !< dataset name 
+CHARACTER(LEN=*)  ,INTENT(IN) ,OPTIONAL        :: DatasetName       !< dataset name
 LOGICAL           ,INTENT(OUT)                 :: AttrExists
 CHARACTER(LEN=*)  ,OPTIONAL                    :: ChangeToGroup     !< check if attribute exists in Group instead of dataset
 !----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER(HID_T)                 :: Attr_ID,Loc_ID
+INTEGER(HID_T)                 :: Loc_ID
 !==================================================================================================================================
 IF(PRESENT(DatasetName))THEN
   IF(PRESENT(ChangeToGroup))THEN
@@ -762,19 +717,15 @@ ELSE
   Loc_ID = File_ID_in
 END IF
 
-! Create the attribute for group Loc_ID.
-CALL H5AOPEN_F(Loc_ID, TRIM(AttribName), Attr_ID, iError)
+! Check if the attribute for group Loc_ID exists
+CALL H5AEXISTS_F(Loc_ID, TRIM(AttribName), AttrExists, iError)
 
 IF(iError.NE.0) THEN
-  AttrExists = .FALSE.
-ELSE 
-  AttrExists = .TRUE.
+  CALL Abort(__STAMP__,'ERROR in AttributeExists during H5AEXISTS_F call!')
 END IF
 
-! Close the attribute.
-CALL H5ACLOSE_F(Attr_ID, iError)
 ! Close the dataset and property list.
-CALL H5DCLOSE_F(Loc_ID, iError)
+IF(Loc_ID.NE.File_ID_in) CALL H5DCLOSE_F(Loc_ID, iError)
 
 END SUBROUTINE AttributeExists
 

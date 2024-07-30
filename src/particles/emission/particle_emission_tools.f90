@@ -70,10 +70,6 @@ INTERFACE CalcIntensity_Gaussian
   MODULE PROCEDURE CalcIntensity_Gaussian
 END INTERFACE
 
-INTERFACE DSMC_SetInternalEnr_LauxVFD
-  MODULE PROCEDURE DSMC_SetInternalEnr_LauxVFD
-END INTERFACE
-
 #ifdef CODE_ANALYZE
 INTERFACE CalcVectorAdditionCoeffs
   MODULE PROCEDURE CalcVectorAdditionCoeffs
@@ -93,7 +89,7 @@ PUBLIC :: SetParticlePositionCircle, SetParticlePositionGyrotronCircle, SetParti
 PUBLIC :: SetParticlePositionSphere, SetParticlePositionSinDeviation, SetParticleTimeStep
 PUBLIC :: CalcNbrOfPhotons, CalcPhotonEnergy
 PUBLIC :: CalcIntensity_Gaussian
-PUBLIC :: CalcVelocity_FromWorkFuncSEE, DSMC_SetInternalEnr_LauxVFD
+PUBLIC :: CalcVelocity_FromWorkFuncSEE
 PUBLIC :: SetParticlePositionPhotonSEEDisc, SetParticlePositionPhotonCylinder
 PUBLIC :: SetParticlePositionPhotonSEERectangle, SetParticlePositionPhotonRectangle
 PUBLIC :: SetParticlePositionPhotonHoneycomb, SetParticlePositionPhotonSEEHoneycomb
@@ -361,129 +357,6 @@ Vec3D(1:3) = Vec3D(1:3) + v_drift
 
 END SUBROUTINE CalcVelocity_maxwell_lpn
 
-
-SUBROUTINE DSMC_SetInternalEnr_LauxVFD(iSpecies, iInit, iPart, init_or_sf)
-!===================================================================================================================================
-!> Energy distribution according to dissertation of Laux (diatomic)
-!===================================================================================================================================
-! MODULES
-USE MOD_Globals                 ,ONLY: abort
-USE MOD_Globals_Vars            ,ONLY: BoltzmannConst
-USE MOD_DSMC_Vars               ,ONLY: PartStateIntEn, SpecDSMC, DSMC, BGGas
-USE MOD_Particle_Vars           ,ONLY: Species, PEM
-USE MOD_Particle_Sampling_Vars  ,ONLY: AdaptBCMacroVal, AdaptBCMapElemToSample
-USE MOD_DSMC_ElectronicModel    ,ONLY: InitElectronShell
-USE MOD_part_tools              ,ONLY: CalcERotDataset_particle
-! IMPLICIT VARIABLE HANDLING
-IMPLICIT NONE
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
-INTEGER, INTENT(IN)             :: iSpecies, iInit, iPart, init_or_sf
-!-----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-REAL                            :: iRan
-INTEGER                         :: iQuant
-REAL                            :: TVib                       ! vibrational temperature
-REAL                            :: TRot                       ! rotational temperature
-INTEGER                         :: ElemID
-! Quantized rotational energy
-INTEGER                         :: jMax
-LOGICAL                         :: ARM
-REAL                            :: fNorm, J, fIntegralNorm
-!===================================================================================================================================
-!-----------------------------------------------------------------------------------------------------------------------------------
-! Set internal energies (vibrational and rotational)
-!-----------------------------------------------------------------------------------------------------------------------------------
-ElemID = PEM%LocalElemID(iPart)
-IF ((Species(iSpecies)%InterID.EQ.2).OR.(Species(iSpecies)%InterID.EQ.20)) THEN
-  SELECT CASE (init_or_sf)
-  CASE(1) !iInit
-    TVib=SpecDSMC(iSpecies)%Init(iInit)%TVib
-    TRot=SpecDSMC(iSpecies)%Init(iInit)%TRot
-  CASE(2) !SurfaceFlux
-    IF(Species(iSpecies)%Surfaceflux(iInit)%Adaptive) THEN
-      SELECT CASE(Species(iSpecies)%Surfaceflux(iInit)%AdaptiveType)
-        CASE(1,3,4) ! Pressure and massflow inlet (pressure/massflow, temperature const)
-          TVib=SpecDSMC(iSpecies)%Surfaceflux(iInit)%TVib
-          TRot=SpecDSMC(iSpecies)%Surfaceflux(iInit)%TRot
-        CASE(2) ! adaptive Outlet/freestream
-          TVib = Species(iSpecies)%Surfaceflux(iInit)%AdaptivePressure &
-                  / (BoltzmannConst * AdaptBCMacroVal(4,AdaptBCMapElemToSample(ElemID),iSpecies))
-          TRot = TVib
-        CASE DEFAULT
-          CALL abort(__STAMP__,'Wrong adaptive type for Surfaceflux in int_energy -> lauxVDF!')
-      END SELECT
-    ELSE
-      TVib=SpecDSMC(iSpecies)%Surfaceflux(iInit)%TVib
-      TRot=SpecDSMC(iSpecies)%Surfaceflux(iInit)%TRot
-    END IF
-  CASE DEFAULT
-    CALL abort(__STAMP__,'neither iInit nor Surfaceflux defined as reference!')
-  END SELECT
-  ! Background gas distribution
-  IF(BGGas%NumberOfSpecies.GT.0) THEN
-    IF(BGGas%BackgroundSpecies(iSpecies).AND.BGGas%UseDistribution) THEN
-      TVib = BGGas%Distribution(BGGas%MapSpecToBGSpec(iSpecies),DSMC_TVIB,ElemID)
-      TRot = BGGas%Distribution(BGGas%MapSpecToBGSpec(iSpecies),DSMC_TROT,ElemID)
-    END IF
-  END IF
-  ! Set vibrational energy
-  CALL RANDOM_NUMBER(iRan)
-  iQuant = INT(-LOG(iRan)*TVib/SpecDSMC(iSpecies)%CharaTVib)
-  DO WHILE (iQuant.GE.SpecDSMC(iSpecies)%MaxVibQuant)
-    CALL RANDOM_NUMBER(iRan)
-    iQuant = INT(-LOG(iRan)*TVib/SpecDSMC(iSpecies)%CharaTVib)
-  END DO
-  PartStateIntEn( 1,iPart) = (iQuant + DSMC%GammaQuant)*SpecDSMC(iSpecies)%CharaTVib*BoltzmannConst
-  ! set rotational energy
-  IF(DSMC%RotRelaxModel.EQ.1) THEN
-    ! Quantized treatment of rotational energy
-    J = NINT(0.5 * (SQRT(2.*TRot/SpecDSMC(iSpecies)%CharaTRot) - 1.))
-    ! fIntegralNorm brings integral over fNorm(j) from 0 to infinity to 1
-    fIntegralNorm = TRot/SpecDSMC(iSpecies)%CharaTRot * exp(-SpecDSMC(iSpecies)%CharaTRot/TRot)/((2.*J + 1.)*EXP(-J*(J + 1.)*SpecDSMC(iSpecies)%CharaTRot/TRot))
-    ! set jMax to include 99.9% of energy in fNorm distribution
-    jMax = NINT(0.5 * (SQRT(1.-4.*TRot/SpecDSMC(iSpecies)%CharaTRot*log(1.-0.999*fIntegralNorm*((2.*J + 1.)*EXP(-J*(J + 1.)*SpecDSMC(iSpecies)%CharaTRot/TRot))*SpecDSMC(iSpecies)%CharaTRot/TRot))-1.))
-    ARM = .TRUE.
-    CALL RANDOM_NUMBER(iRan)
-    iQuant = INT((1+jMax)*iRan)
-    DO WHILE (ARM)
-      fNorm = (2.*REAL(iQuant) + 1.)*EXP(-REAL(iQuant)*(REAL(iQuant) + 1.)*SpecDSMC(iSpecies)%CharaTRot/TRot) &
-      / ((2.*J + 1.)*EXP(-J*(J + 1.)*SpecDSMC(iSpecies)%CharaTRot/TRot))
-      CALL RANDOM_NUMBER(iRan)
-      IF(fNorm .LT. iRan) THEN
-        CALL RANDOM_NUMBER(iRan)
-        iQuant = INT((1+jMax)*iRan)
-      ELSE
-        ARM = .FALSE.
-      END IF
-    END DO
-    PartStateIntEn( 2,iPart) = REAL(iQuant) * (REAL(iQuant) + 1.) * BoltzmannConst * SpecDSMC(iSpecies)%CharaTRot
-  ELSE IF(DSMC%RotRelaxModel.EQ.2)THEN
-    PartStateIntEn( 2,iPart) = CalcERotDataset_particle(iSpecies, TRot, iPart)
-  ELSE
-    ! Continuous treatment of rotational energy
-    CALL RANDOM_NUMBER(iRan)
-    PartStateIntEn( 2,iPart) = -BoltzmannConst*TRot*LOG(iRan)
-  END IF
-ELSE
-  ! Nullify energy for atomic species
-  PartStateIntEn( 1,iPart) = 0
-  PartStateIntEn( 2,iPart) = 0
-END IF
-!-----------------------------------------------------------------------------------------------------------------------------------
-! Set electronic energy
-!-----------------------------------------------------------------------------------------------------------------------------------
-IF (DSMC%ElectronicModel.GT.0) THEN
-  IF((Species(iSpecies)%InterID.NE.4).AND.(.NOT.SpecDSMC(iSpecies)%FullyIonized)) THEN
-    CALL InitElectronShell(iSpecies,iPart,iInit,init_or_sf)
-  ELSE
-    PartStateIntEn( 3,iPart) = 0.
-  END IF
-ENDIF
-
-END SUBROUTINE DSMC_SetInternalEnr_LauxVFD
 
 SUBROUTINE CalcVelocity_taylorgreenvortex(FractNbr, Vec3D, iInit, Element)
 !===================================================================================================================================
@@ -1201,7 +1074,8 @@ SUBROUTINE SetParticlePositionCuboidCylinder(FractNbr,iInit,chunkSize,particle_p
 !===================================================================================================================================
 ! modules
 USE MOD_Globals
-USE MOD_Particle_Vars          ,ONLY: Species, Symmetry
+USE MOD_Symmetry_Vars          ,ONLY: Symmetry
+USE MOD_Particle_Vars          ,ONLY: Species
 USE MOD_Part_Tools             ,ONLY: CalcPartSymmetryPos, CalcRadWeightMPF
 USE MOD_DSMC_Vars              ,ONLY: RadialWeighting
 !USE MOD_Particle_Mesh_Vars     ,ONLY: GEO
@@ -1293,9 +1167,10 @@ SUBROUTINE SetParticlePositionSphere(FractNbr,iInit,chunkSize,particle_positions
 !===================================================================================================================================
 ! modules
 USE MOD_Globals
-USE MOD_Particle_Vars          ,ONLY: Species, Symmetry
-USE MOD_Part_tools             ,ONLY: DICEUNITVECTOR, CalcPartSymmetryPos, CalcRadWeightMPF
-USE MOD_DSMC_Vars              ,ONLY: RadialWeighting
+USE MOD_Particle_Vars ,ONLY: Species
+USE MOD_Part_tools    ,ONLY: DICEUNITVECTOR, CalcPartSymmetryPos, CalcRadWeightMPF
+USE MOD_DSMC_Vars     ,ONLY: RadialWeighting
+USE MOD_Symmetry_Vars ,ONLY: Symmetry
 !----------------------------------------------------------------------------------------------------------------------------------
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -2090,7 +1965,7 @@ END DO
 ! P(1:2,2) = (/1,0/)
 ! P(1:2,3) = (/1,1/)
 ! P(1:2,4) = (/0,1/)
-! 
+!
 ! ! not sorted
 ! P(1:2,1) = (/0,0/)
 ! P(1:2,2) = (/1,1/)
@@ -2252,7 +2127,7 @@ USE MOD_Mesh_Vars              ,ONLY: nElems,offsetElem
 USE MOD_Particle_Tracking_Vars ,ONLY: TrackingMethod
 USE MOD_Particle_Mesh_Vars     ,ONLY: BoundsOfElem_Shared
 USE MOD_Particle_Vars          ,ONLY: isNeutralizationElem,NeutralizationBalanceElem
-USE MOD_Particle_Mesh_Tools    ,ONLY: ParticleInsideQuad3D
+USE MOD_Particle_Mesh_Tools    ,ONLY: ParticleInsideQuad
 !----------------------------------------------------------------------------------------------------------------------------------
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -2291,7 +2166,7 @@ DO iElem = 1, nElems
           CALL RANDOM_NUMBER(RandomPos)
           RandomPos = Bounds(1,:) + RandomPos*(Bounds(2,:)-Bounds(1,:))
           ! Use TRIATRACKING inside-element check as the elements must be cuboids for this test case
-          CALL ParticleInsideQuad3D(RandomPos,GlobalElemID,InsideFlag)
+          CALL ParticleInsideQuad(RandomPos,GlobalElemID,InsideFlag)
         END DO
       END ASSOCIATE
       ! Accept position

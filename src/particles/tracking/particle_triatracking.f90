@@ -20,12 +20,44 @@ MODULE MOD_Particle_TriaTracking
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 PRIVATE
+
+! Define an interface for the function pointer
+ABSTRACT INTERFACE
+  SUBROUTINE SingleParticleTriaTrackingInterface(i,IsInterPlanePart)
+    INTEGER,INTENT(IN)                :: i
+    LOGICAL,INTENT(IN),OPTIONAL       :: IsInterPlanePart
+  END SUBROUTINE
+END INTERFACE
+
+!> Pointer defining the particle tracking routine based on the symmetry order
+PROCEDURE(SingleParticleTriaTrackingInterface),POINTER :: SingleParticleTriaTracking => NULL()
 !----------------------------------------------------------------------------------------------------------------------------------
-PUBLIC::ParticleTriaTracking
+PUBLIC::InitSingleParticleTriaTracking,ParticleTriaTracking,SingleParticleTriaTracking
 !-----------------------------------------------------------------------------------------------------------------------------------
 !===================================================================================================================================
 
 CONTAINS
+
+!==================================================================================================================================!
+!> Initialize SingleParticleTriaTracking depending on symmetry dimension using a function pointer
+!==================================================================================================================================!
+SUBROUTINE InitSingleParticleTriaTracking()
+! MODULES
+USE MOD_Globals
+USE MOD_Symmetry_Vars            ,ONLY: Symmetry
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!==================================================================================================================================
+
+IF (Symmetry%Order.EQ.3) THEN
+  SingleParticleTriaTracking => SingleParticleTriaTracking3D
+ELSE IF (Symmetry%Order.EQ.2.OR.Symmetry%Order.EQ.1) THEN
+  SingleParticleTriaTracking => SingleParticleTriaTracking1D2D
+ELSE
+  CALL abort(__STAMP__,'ERROR in InitSingleParticleTriaTracking: Function pointer could not be properly defined!')
+END IF
+  
+END SUBROUTINE InitSingleParticleTriaTracking
 
 #ifdef IMPA
 SUBROUTINE ParticleTriaTracking(doParticle_In)
@@ -40,10 +72,18 @@ SUBROUTINE ParticleTriaTracking()
 ! MODULES
 USE MOD_Preproc
 USE MOD_Globals
-USE MOD_Particle_Vars               ,ONLY: PEM,PDM,InterPlanePartNumber, InterPlanePartIndx
+USE MOD_Particle_Vars               ,ONLY: PEM,PDM,InterPlanePartNumber, InterPlanePartIndx, UseRotSubCycling,nSubCyclingSteps
+USE MOD_Particle_Vars               ,ONLY: RotRefSubTimeStep, NewPosSubCycling, GlobalElemIDSubCycling, LastPartPosSubCycling
+USE MOD_Particle_Vars               ,ONLY: InRotRefFrameSubCycling, PartVeloRotRefSubCycling, LastVeloRotRefSubCycling
 USE MOD_DSMC_Vars                   ,ONLY: RadialWeighting
 USE MOD_DSMC_Symmetry               ,ONLY: DSMC_2D_RadialWeighting, DSMC_2D_SetInClones
 USE MOD_part_tools                  ,ONLY: ParticleOnProc
+!----- Used for RotRef Subcycling
+USE MOD_part_RHS                    ,ONLY: CalcPartPosInRotRef
+USE MOD_TimeDisc_Vars               ,ONLY: dt
+USE MOD_Particle_Vars               ,ONLY: UseVarTimeStep, PartTimeStep, VarTimeStep, Species, PartState, LastPartPos, PartSpecies
+USE MOD_Particle_Vars               ,ONLY: PartVeloRotRef, LastPartVeloRotRef
+!-----
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -59,7 +99,8 @@ LOGICAL,INTENT(IN),OPTIONAL      :: doParticle_In(1:PDM%ParticleVecLength)
 LOGICAL                          :: doParticle
 LOGICAL                          :: doPartInExists
 #endif
-INTEGER                          :: i, InterPartID
+INTEGER                          :: i, InterPartID, iStep
+REAL                             :: dtVar
 !-----------------------------------------------------------------------------------------------------------------------------------
 !===================================================================================================================================
 #ifdef IMPA
@@ -81,7 +122,60 @@ DO i = 1,PDM%ParticleVecLength
 #else
   IF (PDM%ParticleInside(i)) THEN
 #endif /*IMPA*/
-    CALL SingleParticleTriaTracking(i=i)
+    IF(UseRotSubCycling) THEN
+!--- Store Particle information before tracking for sub-cycling.
+!--- it must be stored before first call of "SingleParticleTriaTracking"
+!--- because particle information like LastPartPos & PartState can be changed within "SingleParticleTriaTracking"
+!--- e.g. in RotPeriodicInterPlaneBoundary
+      RotRefSubTimeStep=.TRUE.
+      LastPartPosSubCycling(1:3)    = LastPartPos(1:3,i)
+      NewPosSubCycling(1:3)         = PartState(1:3,i)
+      PartVeloRotRefSubCycling(1:3) = PartVeloRotRef(1:3,i)
+      LastVeloRotRefSubCycling(1:3) = LastPartVeloRotRef(1:3,i)
+      GlobalElemIDSubCycling        = PEM%LastGlobalElemID(i)
+      InRotRefFrameSubCycling       = PDM%InRotRefFrame(i)
+      IF(RotRefSubTimeStep) THEN
+!--- split time step in 10 sub-steps
+        IF (UseVarTimeStep) THEN
+          dtVar = dt * PartTimeStep(i)
+        ELSE
+          dtVar = dt
+        END IF
+        IF(VarTimeStep%UseSpeciesSpecific) dtVar = dtVar * Species(PartSpecies(i))%TimeStepFactor
+        dtVar = dtVar / REAL(nSubCyclingSteps)
+!--- Reset Particle Push from timedisc
+        PartState(1:3,i) = LastPartPosSubCycling(1:3)
+        LastPartPos(1:3,i) = LastPartPosSubCycling(1:3)
+        PartVeloRotRef(1:3,i)=LastVeloRotRefSubCycling(1:3)
+        PEM%GlobalElemID(i) = GlobalElemIDSubCycling
+        PEM%LastGlobalElemID(i)= GlobalElemIDSubCycling
+        LastPartVeloRotRef(1:3,i) = LastVeloRotRefSubCycling(1:3)
+        PDM%ParticleInside(i) = .TRUE.
+        PDM%InRotRefFrame(i) = InRotRefFrameSubCycling
+!--- Loop over sub time steps
+        DO iStep = 1, nSubCyclingSteps
+          IF (PDM%ParticleInside(i)) THEN
+            IF(iStep.GT.1) THEN
+              LastPartPos(1:3,i)=PartState(1:3,i)
+              PEM%LastGlobalElemID(i)=PEM%GlobalElemID(i)
+              LastPartVeloRotRef(1:3,i)=PartVeloRotRef(1:3,i)
+            END IF
+            CALL CalcPartPosInRotRef(i, dtVar)
+            CALL SingleParticleTriaTracking(i=i)
+          END IF
+        END DO
+      END IF
+!--- Reset stored particle information
+      RotRefSubTimeStep = .FALSE.
+      LastPartPosSubCycling    = 0.0
+      NewPosSubCycling         = 0.0
+      PartVeloRotRefSubCycling = 0.0
+      LastVeloRotRefSubCycling = 0.0
+      GlobalElemIDSubCycling   = 0
+      InRotRefFrameSubCycling  = .FALSE.
+    ELSE
+      CALL SingleParticleTriaTracking(i=i)
+    END IF
   END IF
   ! Particle treatment for an axisymmetric simulation (cloning/deleting particles)
   IF(RadialWeighting%PerformCloning) THEN
@@ -95,7 +189,53 @@ IF(InterPlanePartNumber.GT.0) THEN
   DO i = 1,InterPlanePartNumber
     InterPartID = InterPlanePartIndx(i)
     PDM%ParticleInside(InterPartID) = .TRUE.
-    CALL SingleParticleTriaTracking(i=InterPartID,IsInterPlanePart=.TRUE.)
+    IF(UseRotSubCycling) THEN
+      RotRefSubTimeStep=.TRUE.
+      LastPartPosSubCycling(1:3)    = LastPartPos(1:3,InterPartID)
+      NewPosSubCycling(1:3)         = PartState(1:3,InterPartID)
+      PartVeloRotRefSubCycling(1:3) = PartVeloRotRef(1:3,InterPartID)
+      LastVeloRotRefSubCycling(1:3) = LastPartVeloRotRef(1:3,InterPartID)
+      GlobalElemIDSubCycling        = PEM%LastGlobalElemID(InterPartID)
+      InRotRefFrameSubCycling       = PDM%InRotRefFrame(InterPartID)
+  !--- split time step in 10 sub-steps
+      IF (UseVarTimeStep) THEN
+        dtVar = dt * PartTimeStep(InterPartID)
+      ELSE
+        dtVar = dt
+      END IF
+      IF(VarTimeStep%UseSpeciesSpecific) dtVar = dtVar * Species(PartSpecies(InterPartID))%TimeStepFactor
+      dtVar = dtVar / REAL(nSubCyclingSteps)
+  !--- reset Particle Push
+      PartState(1:3,InterPartID) = LastPartPosSubCycling(1:3)
+      LastPartPos(1:3,InterPartID) = LastPartPosSubCycling(1:3)
+      PartVeloRotRef(1:3,InterPartID)=LastVeloRotRefSubCycling(1:3)
+      PEM%GlobalElemID(InterPartID) = GlobalElemIDSubCycling
+      PEM%LastGlobalElemID(InterPartID)= GlobalElemIDSubCycling
+      LastPartVeloRotRef(1:3,InterPartID) = LastVeloRotRefSubCycling(1:3)
+      PDM%InRotRefFrame(InterPartID) = InRotRefFrameSubCycling
+  !--- Loop over sub time steps
+      DO iStep = 1, nSubCyclingSteps
+        IF (PDM%ParticleInside(InterPartID)) THEN
+          IF(iStep.GT.1) THEN
+            LastPartPos(1:3,InterPartID)=PartState(1:3,InterPartID)
+            PEM%LastGlobalElemID(InterPartID)=PEM%GlobalElemID(InterPartID)
+            LastPartVeloRotRef(1:3,InterPartID)=PartVeloRotRef(1:3,InterPartID)
+          END IF
+          CALL CalcPartPosInRotRef(InterPartID, dtVar)
+          CALL SingleParticleTriaTracking(i=InterPartID,IsInterPlanePart=.TRUE.)
+        END IF
+      END DO
+!--- Reset stored particle information
+      RotRefSubTimeStep = .FALSE.
+      LastPartPosSubCycling    = 0.0
+      NewPosSubCycling         = 0.0
+      PartVeloRotRefSubCycling = 0.0
+      LastVeloRotRefSubCycling = 0.0
+      GlobalElemIDSubCycling   = 0
+      InRotRefFrameSubCycling  = .FALSE.
+    ELSE
+      CALL SingleParticleTriaTracking(i=InterPartID,IsInterPlanePart=.TRUE.)
+    END IF
     ! Particle treatment for an axisymmetric simulation (cloning/deleting particles)
     IF(RadialWeighting%PerformCloning) THEN
       IF(PDM%ParticleInside(InterPartID).AND.(ParticleOnProc(InterPartID))) THEN
@@ -108,7 +248,7 @@ END IF
 END SUBROUTINE ParticleTriaTracking
 
 
-SUBROUTINE SingleParticleTriaTracking(i,IsInterPlanePart)
+SUBROUTINE SingleParticleTriaTracking3D(i,IsInterPlanePart)
 !===================================================================================================================================
 ! Routine for tracking of moving particles and boundary interaction using triangulated sides.
 !    2) Perform tracking until the particle is considered "done" (either localized or deleted)
@@ -127,7 +267,7 @@ USE MOD_Globals
 USE MOD_Mesh_Tools                  ,ONLY: GetCNElemID
 USE MOD_Particle_Vars               ,ONLY: PEM,PDM,PartSpecies
 USE MOD_Particle_Vars               ,ONLY: PartState,LastPartPos
-USE MOD_Particle_Vars               ,ONLY: Symmetry
+USE MOD_Symmetry_Vars               ,ONLY: Symmetry
 USE MOD_Particle_Vars               ,ONLY: UseRotRefFrame, RotRefFrameOmega, PartVeloRotRef
 USE MOD_Particle_Mesh_Tools         ,ONLY: ParticleInsideQuad3D
 USE MOD_Particle_Mesh_Vars
@@ -148,9 +288,9 @@ IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! INPUT VARIABLES
 INTEGER,INTENT(IN)                :: i
+LOGICAL,INTENT(IN),OPTIONAL       :: IsInterPlanePart
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! OUTPUT VARIABLES
-LOGICAL,INTENT(IN),OPTIONAL       :: IsInterPlanePart
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER                          :: NblocSideID, NbElemID, CNElemID, ind, nbSideID, nMortarElems,BCType
@@ -392,7 +532,6 @@ DO WHILE (.NOT.PartisDone)
       ELSE
         CALL GetBoundaryInteraction(i,SideID,flip,ElemID,crossedBC,TriNum=TriNum)
       END IF
-
       IF(.NOT.PDM%ParticleInside(i)) PartisDone = .TRUE.
 #if USE_LOADBALANCE
       IF (OldElemID.GE.offsetElem+1.AND.OldElemID.LE.offsetElem+PP_nElems) CALL LBElemSplitTime(OldElemID-offsetElem,tLBStart)
@@ -423,7 +562,6 @@ DO WHILE (.NOT.PartisDone)
       END IF
     END IF  ! SideInfo_Shared(SIDE_BCID,SideID).GT./.LE. 0
     CNElemID = GetCNElemID(ElemID)
-
     IF (CNElemID.LT.1) THEN
       IPWRITE(UNIT_StdOut,*) "VECNORM(PartState(1:3,i)-LastPartPos(1:3,i)): ", VECNORM(PartState(1:3,i)-LastPartPos(1:3,i))
       IPWRITE(UNIT_StdOut,*) " PartState(1:3,i)  : ", PartState(1:3,i)
@@ -457,6 +595,170 @@ END DO  ! .NOT.PartisDone
 IF(ParticleOnProc(i)) CALL LBElemPauseTime(PEM%LocalElemID(i),tLBStart)
 #endif /*USE_LOADBALANCE*/
 
-END SUBROUTINE SingleParticleTriaTracking
+END SUBROUTINE SingleParticleTriaTracking3D
+
+
+SUBROUTINE SingleParticleTriaTracking1D2D(i,IsInterPlanePart)
+!===================================================================================================================================
+! Routine for tracking of moving particles and boundary interaction using triangulated sides.
+!    1) Perform tracking until the particle is considered "done" (either localized or deleted)
+!       1a) The side through which the particle went is determined by checking each side of the element (ParticleThroughSideCheck1D2D)
+!    2) In case of a boundary, determine the intersection and perform the appropriate boundary interaction (GetBoundaryInteraction)
+!===================================================================================================================================
+! MODULES
+USE MOD_Preproc
+USE MOD_Globals
+USE MOD_Mesh_Tools                  ,ONLY: GetCNElemID
+USE MOD_Particle_Vars               ,ONLY: PEM,PDM
+USE MOD_Particle_Vars               ,ONLY: PartState,LastPartPos
+USE MOD_Particle_Mesh_Vars
+USE MOD_Particle_Tracking_vars      ,ONLY: ntracks,MeasureTrackTime, TrackInfo
+USE MOD_Particle_Boundary_Vars      ,ONLY: PartBound
+USE MOD_Particle_Intersection       ,ONLY: ParticleThroughSideCheck1D2D
+USE MOD_Particle_Boundary_Condition ,ONLY: GetBoundaryInteraction
+#if USE_LOADBALANCE
+USE MOD_Mesh_Vars                   ,ONLY: offsetElem
+USE MOD_LoadBalance_Timers          ,ONLY: LBStartTime, LBElemSplitTime, LBElemPauseTime
+USE MOD_part_tools                  ,ONLY: ParticleOnProc
+#endif /*USE_LOADBALANCE*/
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!----------------------------------------------------------------------------------------------------------------------------------!
+! INPUT VARIABLES
+INTEGER,INTENT(IN)                :: i
+LOGICAL,INTENT(IN),OPTIONAL       :: IsInterPlanePart
+!----------------------------------------------------------------------------------------------------------------------------------!
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER                          :: NblocSideID, NbElemID, CNElemID, ind, nbSideID, nMortarElems,BCType
+INTEGER                          :: ElemID,flip,OldElemID,nlocSides
+INTEGER                          :: LocalSide, NrOfThroughSides
+INTEGER                          :: SideID,TempSideID,iLocSide, localSideID
+LOGICAL                          :: ThroughSide, PartisDone
+LOGICAL                          :: crossedBC, oldElemIsMortar
+!-----------------------------------------------------------------------------------------------------------------------------------
+#if USE_LOADBALANCE
+REAL                             :: tLBStart
+#endif /*USE_LOADBALANCE*/
+!===================================================================================================================================
+#if USE_LOADBALANCE
+CALL LBStartTime(tLBStart)
+#endif /*USE_LOADBALANCE*/
+IF (MeasureTrackTime) nTracks=nTracks+1
+PartisDone = .FALSE.
+IF (PEM%LastGlobalElemID(i).LE.0) THEN
+  TrackInfo%LastSide = -PEM%LastGlobalElemID(i)
+  ElemID = PEM%GlobalElemID(i)
+ELSE
+  ElemID = PEM%LastGlobalElemID(i)
+  TrackInfo%LastSide = 0
+END IF
+TrackInfo%CurrElem=ElemID
+SideID = 0
+
+! 1) Loop tracking until particle is considered "done" (either localized or deleted)
+DO WHILE (.NOT.PartisDone)
+  oldElemIsMortar = .FALSE.
+  ! 1a) The side through which the particle went is determined by checking each side of the element (ParticleThroughSideCheck1D2D)
+  NrOfThroughSides = 0
+  TrackInfo%PartTrajectory(1:3)=PartState(1:3,i) - LastPartPos(1:3,i)
+  TrackInfo%lengthPartTrajectory=VECNORM(TrackInfo%PartTrajectory(1:3))
+  IF(ABS(TrackInfo%lengthPartTrajectory).GT.0.) TrackInfo%PartTrajectory = TrackInfo%PartTrajectory &
+                                                                            / TrackInfo%lengthPartTrajectory
+  nlocSides = ElemInfo_Shared(ELEM_LASTSIDEIND,ElemID) -  ElemInfo_Shared(ELEM_FIRSTSIDEIND,ElemID)
+  SideLoop: DO iLocSide=1,nlocSides
+    TempSideID = ElemInfo_Shared(ELEM_FIRSTSIDEIND,ElemID) + iLocSide
+    ! Skip symmetry side
+    IF(SideIsSymSide(TempSideID)) CYCLE
+    localSideID = SideInfo_Shared(SIDE_LOCALID,TempSideID)
+    ! Side is not one of the 6 local sides
+    IF (localSideID.LE.0) CYCLE
+    NbElemID = SideInfo_Shared(SIDE_NBELEMID,TempSideID)
+    IF (NbElemID.LT.0) THEN ! Mortar side
+      nMortarElems = MERGE(4,2,SideInfo_Shared(SIDE_NBELEMID,TempSideID).EQ.-1)
+      DO ind = 1, nMortarElems
+        nbSideID = ElemInfo_Shared(ELEM_FIRSTSIDEIND,ElemID) + iLocSide + ind
+        IF (nbSideID.EQ.TrackInfo%LastSide) CYCLE
+        NbElemID = SideInfo_Shared(SIDE_NBELEMID,nbSideID)
+        ! If small mortar element not defined, abort. Every available information on the compute-node is kept in shared memory, so
+        ! no way to recover it during runtime
+        IF (NbElemID.LT.1) CALL ABORT(__STAMP__,'Small mortar element not defined!',ElemID)
+        ! For small mortar sides, SIDE_NBSIDEID contains the SideID of the corresponding big mortar side
+        nbSideID = SideInfo_Shared(SIDE_NBSIDEID,nbSideID)
+        NblocSideID =  SideInfo_Shared(SIDE_LOCALID,nbSideID)
+        ThroughSide = .FALSE.
+        CALL ParticleThroughSideCheck1D2D(i,NblocSideID,NbElemID,ThroughSide)
+        IF (ThroughSide) THEN
+          ! Store the information for this side for future checks, if this side was already treated
+          oldElemIsMortar = .TRUE.
+          NrOfThroughSides = NrOfThroughSides + 1
+          SideID = nbSideID
+          TrackInfo%LastSide = nbSideID
+          LocalSide = NblocSideID
+          EXIT SideLoop
+        END IF
+      END DO
+    ELSE  ! Regular side
+      IF (TempSideID.EQ.TrackInfo%LastSide) CYCLE
+      ThroughSide = .FALSE.
+      CALL ParticleThroughSideCheck1D2D(i,localSideID,ElemID,ThroughSide)
+      IF (ThroughSide) THEN
+        NrOfThroughSides = NrOfThroughSides + 1
+        SideID = TempSideID
+        LocalSide = localSideID
+        TrackInfo%LastSide = SideInfo_Shared(SIDE_NBSIDEID,TempSideID)
+        EXIT SideLoop
+      END IF
+    END IF  ! Mortar or regular side
+  END DO  SideLoop
+
+  ! ----------------------------------------------------------------------------
+  ! Addition treatment if particle did not cross any sides or it crossed multiple sides
+  IF (NrOfThroughSides.EQ.0) THEN
+    PEM%GlobalElemID(i) = ElemID
+    PartisDone = .TRUE.
+  ELSE
+    ! ----------------------------------------------------------------------------
+    ! 2) In case of a boundary, perform the appropriate boundary interaction
+    crossedBC=.FALSE.
+    flip = MERGE(0, MOD(SideInfo_Shared(SIDE_FLIP,SideID),10),SideInfo_Shared(SIDE_ID,SideID).GT.0)
+    IF (SideInfo_Shared(SIDE_BCID,SideID).GT.0) THEN
+      TrackInfo%LastSide=SideID
+      OldElemID=ElemID
+      BCType = PartBound%TargetBoundCond(PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID)))
+      ! Calculate the intersection with the wall and determine alpha (= fraction of trajectory to the intersection)
+      CALL GetBoundaryInteraction(i,SideID,flip,ElemID,crossedBC,TriNum=1)
+      IF(.NOT.PDM%ParticleInside(i)) PartisDone = .TRUE.
+#if USE_LOADBALANCE
+      IF (OldElemID.GE.offsetElem+1.AND.OldElemID.LE.offsetElem+PP_nElems) CALL LBElemSplitTime(OldElemID-offsetElem,tLBStart)
+#endif /*USE_LOADBALANCE*/
+    ELSE  ! SideInfo_Shared(SIDE_BCID,SideID).LE.0
+      IF (oldElemIsMortar) THEN
+        ElemID = SideInfo_Shared(SIDE_ELEMID,SideID)
+      ELSE
+        ElemID = SideInfo_Shared(SIDE_NBELEMID,SideID)
+      END IF
+    END IF  ! SideInfo_Shared(SIDE_BCID,SideID).GT./.LE. 0
+    CNElemID = GetCNElemID(ElemID)
+
+    IF (CNElemID.LT.1) THEN
+      IPWRITE(UNIT_StdOut,*) "VECNORM(PartState(1:3,i)-LastPartPos(1:3,i)): ", VECNORM(PartState(1:3,i)-LastPartPos(1:3,i))
+      IPWRITE(UNIT_StdOut,*) " PartState(1:3,i)  : ", PartState(1:3,i)
+      IPWRITE(UNIT_StdOut,*) " LastPartPos(1:3,i): ", LastPartPos(1:3,i)
+      IPWRITE(UNIT_StdOut,*) " PartState(4:6,i)  : ", PartState(4:6,i)
+      IPWRITE(UNIT_StdOut,*) "           ElemID: ", ElemID
+      IPWRITE(UNIT_StdOut,*) "         CNElemID: ", CNElemID
+      IPWRITE(UNIT_stdout,*) 'Particle Velocity: ',SQRT(DOTPRODUCT(PartState(4:6,i)))
+      CALL abort(__STAMP__ ,'ERROR: Element not defined! Please increase the size of the halo region (HaloEpsVelo)!')
+    END IF
+    TrackInfo%CurrElem = ElemID
+  END IF
+END DO  ! .NOT.PartisDone
+#if USE_LOADBALANCE
+IF(ParticleOnProc(i)) CALL LBElemPauseTime(PEM%LocalElemID(i),tLBStart)
+#endif /*USE_LOADBALANCE*/
+
+END SUBROUTINE SingleParticleTriaTracking1D2D
 
 END MODULE MOD_Particle_TriaTracking

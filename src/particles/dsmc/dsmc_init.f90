@@ -34,10 +34,10 @@ END INTERFACE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
-PUBLIC :: InitDSMC, FinalizeDSMC
+
+PUBLIC :: DefineParametersDSMC, InitDSMC, FinalizeDSMC
 PUBLIC :: SetVarVibProb2Elems
 !===================================================================================================================================
-PUBLIC::DefineParametersDSMC
 CONTAINS
 
 !==================================================================================================================================
@@ -288,16 +288,18 @@ USE MOD_ReadInTools
 USE MOD_DSMC_Vars
 USE MOD_Mesh_Vars              ,ONLY: nElems, NGEo
 USE MOD_Globals_Vars           ,ONLY: Pi, BoltzmannConst, ElementaryCharge, PlanckConst
-USE MOD_Particle_Vars          ,ONLY: nSpecies, Species, PDM, Symmetry, UseVarTimeStep, usevMPF
+USE MOD_Particle_Vars          ,ONLY: nSpecies, Species, PDM, UseVarTimeStep, usevMPF
 USE MOD_Particle_Vars          ,ONLY: DoFieldIonization, SpeciesDatabase,  SampleElecExcitation
 USE MOD_part_tools             ,ONLY: RotInitPolyRoutineFuncPTR, CalcERotQuant_particle, CalcERot_particle, CalcERotDataset_particle
 USE MOD_part_tools             ,ONLY: CalcERotQuant_particle_MH
+USE MOD_Symmetry_Vars          ,ONLY: Symmetry
 USE MOD_DSMC_ParticlePairing   ,ONLY: DSMC_init_octree
 USE MOD_DSMC_ChemInit          ,ONLY: DSMC_chemical_init
 USE MOD_DSMC_ElectronicModel   ,ONLY: ReadRotationalSpeciesLevel
 USE MOD_DSMC_PolyAtomicModel   ,ONLY: InitPolyAtomicMolecs, DSMC_RotRelaxDatabasePoly, DSMC_RotRelaxQuantPoly, DSMC_RotRelaxPoly
 USE MOD_DSMC_PolyAtomicModel   ,ONLY: RotRelaxPolyRoutineFuncPTR, DSMC_RotRelaxQuantPolyMH
-USE MOD_DSMC_Relaxation        ,ONLY: RotRelaxDiaRoutineFuncPTR, DSMC_RotRelaxDiaContinous, DSMC_RotRelaxDiaQuant
+USE MOD_DSMC_Relaxation        ,ONLY: DSMC_RotRelaxDiaContinous,DSMC_RotRelaxDiaQuant,DSMC_RotInitDiaContinous,DSMC_RotInitDiaQuant
+USE MOD_DSMC_Relaxation        ,ONLY: RotRelaxDiaRoutineFuncPTR, RotInitDiaRoutineFuncPTR
 USE MOD_DSMC_CollisVec         ,ONLY: DiceDeflectedVelocityVector4Coll, DiceVelocityVector4Coll, PostCollVec
 USE MOD_DSMC_BGGas             ,ONLY: BGGas_RegionsSetInternalTemp
 USE MOD_io_hdf5
@@ -354,14 +356,17 @@ IF(CollisMode.GE.2) THEN
     ! RotRelaxPolyRoutineFuncPTR => DSMC_RotRelaxQuantPolyMH
     ! RotInitPolyRoutineFuncPTR  => CalcERotQuant_particle_MH
     RotRelaxDiaRoutineFuncPTR  => DSMC_RotRelaxDiaQuant
+    RotInitDiaRoutineFuncPTR   => DSMC_RotInitDiaQuant
   ELSE IF(DSMC%RotRelaxModel.EQ.2)THEN
     RotRelaxPolyRoutineFuncPTR => DSMC_RotRelaxDatabasePoly
     RotInitPolyRoutineFuncPTR  => CalcERotDataset_particle
     RotRelaxDiaRoutineFuncPTR  => DSMC_RotRelaxDatabasePoly
+    RotInitDiaRoutineFuncPTR   => CalcERotDataset_particle
   ELSE
     RotRelaxPolyRoutineFuncPTR => DSMC_RotRelaxPoly
     RotInitPolyRoutineFuncPTR  => CalcERot_particle
     RotRelaxDiaRoutineFuncPTR  => DSMC_RotRelaxDiaContinous
+    RotInitDiaRoutineFuncPTR   => DSMC_RotInitDiaContinous
   END IF
 ELSE
   DSMC%RotRelaxProb = 0.
@@ -456,7 +461,8 @@ IF(DoFieldIonization.OR.CollisMode.NE.0) THEN
     CALL H5OPEN_F(err)
     CALL H5FOPEN_F (TRIM(SpeciesDatabase), H5F_ACC_RDONLY_F, file_id_specdb, err)
     DO iSpec = 1, nSpecies
-      WRITE(UNIT=hilf,FMT='(I0)') iSpec
+      ! Skip species that are not read-in from the database
+      IF(Species(iSpec)%DoOverwriteParameters) CYCLE
       ! averagedCollisionParameters set true: species-specific collision parameters get read in
       IF(CollInf%averagedCollisionParameters) THEN
         LBWRITE (UNIT_stdOut,'(68(". "))')
@@ -480,9 +486,10 @@ IF(DoFieldIonization.OR.CollisMode.NE.0) THEN
         END IF
         CALL PrintOption('alphaVSS','DB',RealOpt=SpecDSMC(iSpec)%alphaVSS)
         ! check for faulty parameters
+        WRITE(UNIT=hilf,FMT='(I0)') iSpec
         IF((Species(iSpec)%InterID * SpecDSMC(iSpec)%Tref * SpecDSMC(iSpec)%dref * SpecDSMC(iSpec)%alphaVSS) .EQ. 0) THEN
           CALL Abort(__STAMP__,'ERROR in species data: check collision parameters \n'//&
-            'Part-Species'//TRIM(hilf)//'-(InterID * Tref * dref * alphaVSS) .EQ. 0 - but must not be 0')
+          'Part-Species'//TRIM(hilf)//'-(InterID * Tref * dref * alphaVSS) .EQ. 0 - but must not be 0')
         END IF ! (Tref * dref * alphaVSS) .EQ. 0
         IF ((SpecDSMC(iSpec)%alphaVSS.LT.0.0) .OR. (SpecDSMC(iSpec)%alphaVSS.GT.2.0)) THEN
           CALL Abort(__STAMP__,'ERROR: Check set parameter Part-Species'//TRIM(hilf)//'-alphaVSS must not be lower 0 or greater 2')
@@ -1759,6 +1766,7 @@ CollInf%ProhibitDoubleColl=.FALSE.
 !SDEALLOCATE(VibQuantsPar)
 ! SDEALLOCATE(XiEq_Surf)
 SDEALLOCATE(DSMC_Solution)
+SDEALLOCATE(DSMC_SolutionPressTens)
 CALL DeleteElemNodeVol()
 
 SDEALLOCATE(BGGas%PairingPartner)
@@ -1777,7 +1785,6 @@ SDEALLOCATE(BGGas%RegionElemType)
 
 SDEALLOCATE(RadialWeighting%ClonePartNum)
 SDEALLOCATE(ClonedParticles)
-SDEALLOCATE(SymmetrySide)
 SDEALLOCATE(AmbiPolarSFMapping)
 END SUBROUTINE FinalizeDSMC
 
@@ -1817,7 +1824,7 @@ RECURSIVE SUBROUTINE DeleteNodeVolume(Node)
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Globals
 USE MOD_DSMC_Vars
-USE MOD_Particle_Vars         ,ONLY: Symmetry
+USE MOD_Symmetry_Vars         ,ONLY: Symmetry
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
 ! INPUT VARIABLES

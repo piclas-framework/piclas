@@ -141,7 +141,7 @@ USE MOD_Globals_Vars          ,ONLY: BoltzmannConst
 USE MOD_Globals               ,ONLY: LOG_RAN
 #ifdef CODE_ANALYZE
 USE MOD_Globals               ,ONLY: unit_stdout,myrank,abort
-USE MOD_Particle_Vars         ,ONLY: Symmetry
+USE MOD_Symmetry_Vars         ,ONLY: Symmetry
 #endif /* CODE_ANALYZE */
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -573,7 +573,7 @@ USE MOD_Particle_Tracking_Vars,ONLY: TrackingMethod
 USE MOD_Part_Tools            ,ONLY: GetNextFreePosition
 !#ifdef CODE_ANALYZE
 !USE MOD_Globals               ,ONLY: unit_stdout,myrank,abort
-!USE MOD_Particle_Vars         ,ONLY: Symmetry
+!USE MOD_Symmetry_Vars         ,ONLY: Symmetry
 !#endif /* CODE_ANALYZE */
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE

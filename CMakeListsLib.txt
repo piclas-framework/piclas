@@ -1,21 +1,8 @@
 # =========================================================================
-# Add the libraries
-# =========================================================================
-
-# Set directory to compile external libraries
-IF(LIBS_USE_MPI)
-  SET(LIBS_EXTERNAL_LIB_DIR ${CMAKE_CURRENT_SOURCE_DIR}/share/${CMAKE_Fortran_COMPILER_ID}-MPI)
-ELSE()
-  SET(LIBS_EXTERNAL_LIB_DIR ${CMAKE_CURRENT_SOURCE_DIR}/share/${CMAKE_Fortran_COMPILER_ID})
-ENDIF()
-MARK_AS_ADVANCED(FORCE LIBS_EXTERNAL_LIB_DIR)
-
-
-# =========================================================================
 # Check where the code originates
 # =========================================================================
 IF(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/.git)
-  EXECUTE_PROCESS(COMMAND git ls-remote --get-url OUTPUT_VARIABLE GIT_ORIGIN)
+  EXECUTE_PROCESS(COMMAND git ls-remote --get-url OUTPUT_VARIABLE GIT_ORIGIN WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
 
   # Strip lead and trailing white space
   string(STRIP ${GIT_ORIGIN} GIT_ORIGIN)
@@ -44,8 +31,19 @@ ENDIF()
 # =========================================================================
 # MPI
 # =========================================================================
-OPTION(LIBS_USE_MPI "Compile SINGLE or MPI version" ON)
+# Try to find system MPI
+SET(MPI_DETERMINE_LIBRARY_VERSION TRUE)
+FIND_PACKAGE(MPI QUIET)
+IF (MPI_FOUND)
+  MESSAGE (STATUS "[MPI] found in system libraries")
+  OPTION(LIBS_USE_MPI "Compile SINGLE or MPI version" ON)
+ELSE()
+  MESSAGE (STATUS "[MPI] not found in system libraries")
+  OPTION(LIBS_USE_MPI "Compile SINGLE or MPI version" OFF)
+ENDIF()
+
 IF(LIBS_USE_MPI)
+  # If library is specifically requested, it is required
   SET(MPI_DETERMINE_LIBRARY_VERSION TRUE)
   FIND_PACKAGE(MPI REQUIRED)
 
@@ -89,15 +87,61 @@ IF(LIBS_USE_MPI)
 
   MESSAGE(STATUS "Compiling with [${LIBS_MPI_NAME}] (v${MPI_C_LIBRARY_VERSION})")
   ADD_DEFINITIONS(-DUSE_MPI=1)
+
+  # LUMI needs even more help here
+  IF("${CMAKE_FQDN_HOST}" MATCHES ".can")
+    SET(MPI_C_COMPILER       cc)
+    SET(MPI_CXX_COMPILER     CC)
+    SET(MPI_Fortran_COMPILER ftn)
+  ENDIF()
 ELSE()
   ADD_DEFINITIONS(-DUSE_MPI=0)
 ENDIF()
 
 
 # =========================================================================
+# Add the libraries
+# =========================================================================
+# Set directory to compile external libraries
+IF(LIBS_USE_MPI)
+  SET(LIBS_EXTERNAL_LIB_DIR ${CMAKE_CURRENT_SOURCE_DIR}/share/${CMAKE_Fortran_COMPILER_ID}-MPI)
+ELSE()
+  SET(LIBS_EXTERNAL_LIB_DIR ${CMAKE_CURRENT_SOURCE_DIR}/share/${CMAKE_Fortran_COMPILER_ID})
+ENDIF()
+MARK_AS_ADVANCED(FORCE LIBS_EXTERNAL_LIB_DIR)
+
+
+# =========================================================================
 # HDF5 library
 # =========================================================================
-SET(LIBS_BUILD_HDF5 OFF CACHE BOOL "Compile and build HDF5 library")
+# Try to find system HDF5 using CMake
+SET(LIBS_HDF5_CMAKE TRUE)
+
+IF (NOT LIBS_BUILD_HDF5)
+  FIND_PACKAGE(HDF5 NAMES hdf5 COMPONENTS C Fortran ${SEARCH_TYPE} QUIET PATH_SUFFIXES share/cmake)
+
+  IF (NOT HDF5_FOUND)
+  # Try to find the configure version
+    SET(LIBS_HDF5_CMAKE FALSE)
+    FIND_PACKAGE(HDF5 COMPONENTS C Fortran QUIET)
+  ENDIF()
+ENDIF()
+# Hide all the HDF5 libs paths
+MARK_AS_ADVANCED(FORCE HDF5_DIR)
+IF (HDF5_FOUND)
+# CMake version found
+  IF(LIBS_HDF5_CMAKE AND ${CMAKE_VERSION} VERSION_LESS "3.10.0")
+    MESSAGE (WARNING "HDF5 built with CMake was found! This feature is only supported for CMake 3.10+ and HDF5 1.10.2+!")
+  ENDIF()
+  MESSAGE (STATUS "HDF5 C libs:${HDF5_FOUND} static:${HDF5_static_C_FOUND} and shared:${HDF5_shared_C_FOUND}")
+  MESSAGE (STATUS "HDF5 Fortran libs: static:${HDF5_static_Fortran_FOUND} and shared:${HDF5_shared_Fortran_FOUND}")
+  MESSAGE (STATUS "h5diff found:${HDF5_DIFF_EXECUTABLE}")
+  MESSAGE (STATUS "[HDF5] found in system libraries")
+  SET(LIBS_BUILD_HDF5 OFF CACHE BOOL "Compile and build HDF5 library")
+ELSE()
+  MESSAGE (STATUS "[HDF5] not found in system libraries")
+  SET(LIBS_BUILD_HDF5 ON  CACHE BOOL "Compile and build HDF5 library")
+ENDIF()
 
 # Set type of library to look up, STATIC/SHARED
 SET(LIB_TYPE STATIC)
@@ -134,7 +178,7 @@ IF(NOT LIBS_BUILD_HDF5)
     # In case CMake did not find HDF5 here, it will generate an error by itself
   ENDIF()
   # Hide all the HDF5 libs paths
-  MARK_AS_ADVANCED(FORCE HDF5_DIR)
+  # MARK_AS_ADVANCED(FORCE HDF5_DIR)
   MARK_AS_ADVANCED(FORCE HDF5_C_LIBRARY_dl)
   MARK_AS_ADVANCED(FORCE HDF5_C_LIBRARY_hdf5)
   MARK_AS_ADVANCED(FORCE HDF5_C_LIBRARY_m)
@@ -147,6 +191,7 @@ IF(NOT LIBS_BUILD_HDF5)
   MARK_AS_ADVANCED(FORCE HDF5_Fortran_LIBRARY_sz)
   MARK_AS_ADVANCED(FORCE HDF5_Fortran_LIBRARY_z)
 
+  SET(HDF5_BUILD_STATUS "system")
   # Build HDF5 in PICLas
 ELSE()
   # Origin pointing to Github
@@ -179,11 +224,11 @@ ELSE()
         SET (HDF5_TAG "hdf5-1_10_6" CACHE STRING   "HDF5 version tag")
         SET (HDF5_VERSION "1.10"    CACHE INTERNAL "HDF5 version number")
       ENDIF()
-    MESSAGE (STATUS "Setting HDF5 to tag ${HDF5_TAG} to be compatible with detected [${LIBS_MPI_NAME}] (v${MPI_C_LIBRARY_VERSION})")
+    MESSAGE (STATUS "Setting [HDF5] to tag ${HDF5_TAG} to be compatible with detected [${LIBS_MPI_NAME}] (v${MPI_C_LIBRARY_VERSION})")
   ELSE()
     SET (HDF5_TAG "hdf5-1_12_0" CACHE STRING   "HDF5 version tag")
     SET (HDF5_VERSION "1.12"    CACHE INTERNAL "HDF5 version number")
-    MESSAGE (STATUS "Setting HDF5 to tag ${HDF5_TAG} as no MPI support was requested")
+    MESSAGE (STATUS "Setting [HDF5] to tag ${HDF5_TAG} as no MPI support was requested")
   ENDIF()
   MARK_AS_ADVANCED(FORCE HDF5_TAG)
 
@@ -226,7 +271,7 @@ ELSE()
       GIT_REPOSITORY ${HDF5_DOWNLOAD}
       GIT_TAG ${HDF5_TAG}
       GIT_PROGRESS TRUE
-      ${${GITSHALLOW}}
+      ${GITSHALLOW}
       PREFIX ${LIBS_HDF5_DIR}
       UPDATE_COMMAND ""
       CONFIGURE_COMMAND FC=${LIBS_HDF5FC} CC=${LIBS_HDF5CC} ${LIBS_HDF5_DIR}/src/HDF5/configure --prefix=${LIBS_HDF5_DIR} --with-pic --enable-fortran ${LIBS_HDF5PARALLEL} --libdir=${LIBS_HDF5_DIR}/lib --enable-build-mode=production --enable-silent-rules --disable-dependency-tracking
@@ -250,13 +295,25 @@ ELSE()
 
     LIST(APPEND SELFBUILTEXTERNALS HDF5)
   ENDIF()
+  # Always set for self-build libraries
+  SET(LIBS_HDF5_CMAKE FALSE)
 
   # Set HDF5 paths
   SET(HDF5_C_INCLUDE_DIR                ${LIBS_HDF5_DIR}/include)
   SET(HDF5_DIFF_EXECUTABLE              ${LIBS_HDF5_DIR}/bin/h5diff)
   SET(HDF5_Fortran_INCLUDE_DIR          ${LIBS_HDF5_DIR}/include)
+  SET(HDF5_hdf5_LIBRARY_hdf5            ${LIBS_HDF5_DIR}/lib/libhdf5.so)
   SET(HDF5_hdf5_LIBRARY_RELEASE         ${LIBS_HDF5_DIR}/lib/libhdf5.a)
+  SET(HDF5_hdf5_fortran_LIBRARY_hdf5    ${LIBS_HDF5_DIR}/lib/libhdf5_fortran.so)
   SET(HDF5_hdf5_fortran_LIBRARY_RELEASE ${LIBS_HDF5_DIR}/lib/libhdf5_fortran.a)
+
+  MARK_AS_ADVANCED(FORCE HDF5_C_INCLUDE_DIR)
+  MARK_AS_ADVANCED(FORCE HDF5_DIFF_EXECUTABLE)
+  MARK_AS_ADVANCED(FORCE HDF5_Fortran_INCLUDE_DIR)
+  MARK_AS_ADVANCED(FORCE HDF5_hdf5_LIBRARY_hdf5)
+  MARK_AS_ADVANCED(FORCE HDF5_hdf5_LIBRARY_RELEASE)
+  MARK_AS_ADVANCED(FORCE HDF5_hdf5_fortran_LIBRARY_hdf5)
+  MARK_AS_ADVANCED(FORCE HDF5_hdf5_fortran_LIBRARY_RELEASE)
   # Unset leftover paths from old CMake runs
   UNSET(HDF5_LIBRARIES)
   UNSET(HDF5_INCLUDE_DIR_FORTRAN)
@@ -268,7 +325,9 @@ ELSE()
   MARK_AS_ADVANCED(FORCE HDF5_z_LIBRARY_RELEASE)
   # Add ZLIB to include paths for HDF5 data compression
   FIND_LIBRARY(HDF5_z_LIBRARY_RELEASE z)
-  LIST(APPEND HDF5_LIBRARIES ${HDF5_hdf5_fortran_LIBRARY_RELEASE} ${HDF5_hdf5_LIBRARY_RELEASE} ${HDF5_z_LIBRARY_RELEASE} -ldl)
+  LIST(APPEND HDF5_LIBRARIES ${HDF5_hdf5_LIBRARY_hdf5} ${HDF5_hdf5_fortran_LIBRARY_RELEASE} ${HDF5_hdf5_fortran_LIBRARY_hdf5} ${HDF5_hdf5_LIBRARY_RELEASE} ${HDF5_z_LIBRARY_RELEASE} -ldl)
+
+  SET(HDF5_BUILD_STATUS "self-built")
 ENDIF()
 
 # HDF5 1.14 references build directory
@@ -286,9 +345,9 @@ IF(LIBS_HDF5_CMAKE)
 ELSE()
   INCLUDE_DIRECTORIES (${HDF5_INCLUDE_DIR_FORTRAN} ${HDF5_INCLUDE_DIR})
   IF(${HDF5_IS_PARALLEL})
-    MESSAGE(STATUS "Compiling with [HDF5] (v${HDF5_VERSION}) with parallel support")
+    MESSAGE(STATUS "Compiling with ${HDF5_BUILD_STATUS} [HDF5] (v${HDF5_VERSION}) with parallel support")
   ELSE()
-    MESSAGE(STATUS "Compiling with [HDF5] (v${HDF5_VERSION}) without parallel support")
+    MESSAGE(STATUS "Compiling with ${HDF5_BUILD_STATUS} [HDF5] (v${HDF5_VERSION}) without parallel support")
   ENDIF()
   LIST(APPEND linkedlibs ${HDF5_LIBRARIES} )
 ENDIF()
@@ -297,19 +356,31 @@ ENDIF()
 # =========================================================================
 # Math libary
 # =========================================================================
-SET(LIBS_BUILD_MATH_LIB OFF CACHE BOOL "Compile and build math library")
+# Try to find system LAPACK/OpenBLAS
+IF (NOT LIBS_BUILD_MATH_LIB)
+  FIND_PACKAGE(LAPACK QUIET)
+ENDIF()
+
+IF (LAPACK_FOUND)
+  MESSAGE (STATUS "[BLAS/Lapack] found in system libraries")
+  SET(LIBS_BUILD_MATH_LIB OFF CACHE BOOL "Compile and build math library")
+ELSE()
+  MESSAGE (STATUS "[BLAS/Lapack] not found in system libraries")
+  SET(LIBS_BUILD_MATH_LIB ON  CACHE BOOL "Compile and build math library")
+ENDIF()
 
 # Check if Intel MKL is requested instead of BLAS/LAPACK
-CMAKE_DEPENDENT_OPTION(LIBS_USE_MKL "Use system MKL libraries instead of system BLAS/LAPACK" OFF
-                                    "NOT LIBS_BUILD_MATH_LIB" OFF)
+# CMAKE_DEPENDENT_OPTION(LIBS_USE_MKL "Use system MKL libraries instead of system BLAS/LAPACK" OFF
+#                                     "NOT LIBS_BUILD_MATH_LIB" OFF)
 
 # Use system LAPACK/MKL
 IF(NOT LIBS_BUILD_MATH_LIB)
-  IF (LIBS_USE_MKL)
-    SET(BLA_VENDOR "Intel10_64lp") #search only for Intel BLAS (=MKL)
-  ENDIF()
+  # IF (LIBS_USE_MKL)
+  #   SET(BLA_VENDOR "Intel10_64lp") #search only for Intel BLAS (=MKL)
+  # ENDIF()
 
   # Use Lapack/Blas for GNU
+  # If library is specifically requested, it is required
   FIND_PACKAGE(LAPACK REQUIRED)
   IF (LAPACK_FOUND)
     LIST(APPEND linkedlibs ${LAPACK_LIBRARIES})
@@ -317,16 +388,9 @@ IF(NOT LIBS_BUILD_MATH_LIB)
   ENDIF()
 
   # VDM inverse, replace lapack with analytical solution
-  # HLRS HAWK / SuperMUC + DEBUG
-  IF (CMAKE_BUILD_TYPE MATCHES "Debug" AND "${CMAKE_HOSTNAME}" MATCHES "login")
-    # HAWK and SuperMUC name their login nodes identically, so use the Fully Qualified Domain Name (FQDN) to identify
-    CMAKE_HOST_SYSTEM_INFORMATION(RESULT FQDN QUERY FQDN)
-    MARK_AS_ADVANCED(FORCE FQDN)
-    # HLRS HAWK
-    IF ("${FQDN}" MATCHES "hawk.hww.hlrs.de")
-      MESSAGE(STATUS "Compiling PICLas in debug mode on Hawk with system math lib. Setting VDM inverse to analytical solution")
-      ADD_DEFINITIONS(-DVDM_ANALYTICAL)
-    ENDIF()
+  IF (CMAKE_BUILD_TYPE MATCHES "Debug" AND CMAKE_FQDN_HOST MATCHES "hawk\.hww\.hlrs\.de$")
+    MESSAGE(STATUS "Compiling PICLas in debug mode on Hawk with system math lib. Setting VDM inverse to analytical solution")
+    ADD_DEFINITIONS(-DVDM_ANALYTICAL)
   ENDIF()
 
 # Build LAPACK/OpenBLAS in FLEXI
@@ -362,10 +426,10 @@ ELSE()
   ELSEIF (LIBS_BUILD_MATH_LIB_VENDOR MATCHES "OpenBLAS")
     IF("${GIT_ORIGIN}" STREQUAL "")
       # Use https://github.com/xianyi/OpenBLAS when using piclas without git
-      SET (MATHLIB_DOWNLOAD "https://github.com/xianyi/OpenBLAS.git")
+      SET (MATHLIB_DOWNLOAD "https://github.com/OpenMathLib/OpenBLAS.git")
     ELSEIF("${GIT_ORIGIN}" MATCHES ".github.com")
       # Use https://github.com/xianyi/OpenBLAS when using piclas from github.com
-      SET (MATHLIB_DOWNLOAD "https://github.com/xianyi/OpenBLAS.git")
+      SET (MATHLIB_DOWNLOAD "https://github.com/OpenMathLib/OpenBLAS.git")
     ELSE()
       IF("${GIT_ORIGIN}" MATCHES "https://gitlab-ci-token")
         # Use https://piclas.boltzplatz.eu/piclas/OpenBLAS.git when gitlab runner needs to download libs
@@ -396,7 +460,7 @@ ELSE()
         GIT_REPOSITORY ${MATH_LIB_DOWNLOAD}
         GIT_TAG ${MATH_LIB_TAG}
         GIT_PROGRESS TRUE
-        ${${GITSHALLOW}}
+        ${GITSHALLOW}
         PREFIX ${LIBS_MATH_DIR}
         UPDATE_COMMAND ""
         CMAKE_ARGS -DCMAKE_INSTALL_LIBDIR=lib -DCMAKE_INSTALL_PREFIX=${LIBS_MATH_DIR} -DBLAS++=OFF -DLAPACK++=OFF -DBUILD_SHARED_LIBS=ON -DCBLAS=OFF -DLAPACKE=OFF -DBUILD_TESTING=OFF
@@ -413,7 +477,7 @@ ELSE()
         GIT_REPOSITORY ${MATH_LIB_DOWNLOAD}
         GIT_TAG ${MATH_LIB_TAG}
         GIT_PROGRESS TRUE
-        ${${GITSHALLOW}}
+        ${GITSHALLOW}
         PREFIX ${LIBS_MATH_DIR}
         UPDATE_COMMAND ""
         CONFIGURE_COMMAND ""
@@ -487,7 +551,7 @@ IF(LIBS_BUILD_HOPR)
     GIT_REPOSITORY ${HOPR_DOWNLOAD}
     GIT_TAG ${HOPR_TAG}
     GIT_PROGRESS FALSE
-    ${${GITSHALLOW}}
+    ${GITSHALLOW}
     PREFIX ${LIBS_HOPR_DIR}
     # Avoids rebuilding during PICLas recompilation if HOPR has already been built in share folder
     UPDATE_DISCONNECTED true
@@ -554,85 +618,138 @@ ENDIF()
 #  ENDIF()
 
 
-#  # =========================================================================
-#  # OPENMP library
-#  # =========================================================================
-#  OPTION(LIBS_USE_OPENMP "Enable OpenMP" OFF)
-#  IF(LIBS_USE_OPENMP)
-#    IF ("${CMAKE_VERSION}" VERSION_LESS 3.1.0)
-#      MESSAGE(WARNING "For finding OpenMP Fortran flags at least CMake version 3.1.0 is required. Please specify flags manually or use newer CMake version.")
-#    ENDIF()
-#    FIND_PACKAGE(OpenMP REQUIRED)
-#    SET (CMAKE_Fortran_FLAGS_DEBUG   "${CMAKE_Fortran_FLAGS_DEBUG}   ${OpenMP_Fortran_FLAGS}")
-#    SET (CMAKE_Fortran_FLAGS_RELEASE "${CMAKE_Fortran_FLAGS_RELEASE} ${OpenMP_Fortran_FLAGS}")
-#    SET (CMAKE_CXX_FLAGS_DEBUG       "${CMAKE_CXX_FLAGS_DEBUG}       ${OpenMP_CXX_FLAGS}")
-#    SET (CMAKE_CXX_FLAGS_RELEASE     "${CMAKE_CXX_FLAGS_RELEASE}     ${OpenMP_CXX_FLAGS}")
-#    SET (CMAKE_EXE_LINKER_FLAGS      "${CMAKE_EXE_LINKER_FLAGS}      ${OpenMP_EXE_LINKER_FLAGS}")
-#    ADD_DEFINITIONS(-DUSE_OPENMP=1)
-#  ELSE()
-#    ADD_DEFINITIONS(-DUSE_OPENMP=0)
-#  ENDIF()
+# # =========================================================================
+# # OPENMP library
+# # =========================================================================
+# # Try to find system OpenMP
+# FIND_PACKAGE(OpenMP QUIET)
+# IF (OpenMP_FOUND)
+#   MESSAGE (STATUS "[OpenMP] found in system libraries")
+#   OPTION(LIBS_USE_OPENMP "Enable OpenMP" ON)
+# ELSE()
+#   MESSAGE (STATUS "[OpenMP] not found in system libraries")
+#   OPTION(LIBS_USE_OPENMP "Enable OpenMP" OFF)
+# ENDIF()
+#
+# IF(LIBS_USE_OPENMP)
+#   IF ("${CMAKE_VERSION}" VERSION_LESS 3.1.0)
+#     MESSAGE(WARNING "For finding OpenMP Fortran flags at least CMake version 3.1.0 is required. Please specify flags manually or use newer CMake version.")
+#   ENDIF()
+#   # If library is specifically requested, it is required
+#   FIND_PACKAGE(OpenMP REQUIRED)
+#   SET (CMAKE_Fortran_FLAGS_DEBUG   "${CMAKE_Fortran_FLAGS_DEBUG}   ${OpenMP_Fortran_FLAGS}")
+#   SET (CMAKE_Fortran_FLAGS_RELEASE "${CMAKE_Fortran_FLAGS_RELEASE} ${OpenMP_Fortran_FLAGS}")
+#   SET (CMAKE_CXX_FLAGS_DEBUG       "${CMAKE_CXX_FLAGS_DEBUG}       ${OpenMP_CXX_FLAGS}")
+#   SET (CMAKE_CXX_FLAGS_RELEASE     "${CMAKE_CXX_FLAGS_RELEASE}     ${OpenMP_CXX_FLAGS}")
+#   SET (CMAKE_EXE_LINKER_FLAGS      "${CMAKE_EXE_LINKER_FLAGS}      ${OpenMP_EXE_LINKER_FLAGS}")
+#   ADD_DEFINITIONS(-DUSE_OPENMP=1)
+#   MESSAGE(STATUS "Compiling with [OpenMP] (v${OpenMP_Fortran_VERSION})")
+# ELSE()
+#   ADD_DEFINITIONS(-DUSE_OPENMP=0)
+# #  ENDIF()
 
 #=========================================================================
 # PETSc
 #=========================================================================
-OPTION(PICLAS_PETSC "Use the PETSc library" OFF)
-IF(PICLAS_PETSC)
-  ADD_DEFINITIONS(-DUSE_PETSC=1)
-  IF(NOT DEFINED PETSC_DIR)
-    SET(PETSC_DIR $ENV{PETSC_DIR})
-  ENDIF()
-  IF(NOT DEFINED PETSC_ARCH)
-    SET(PETSC_ARCH $ENV{PETSC_ARCH})
-  ENDIF()
+OPTION(LIBS_USE_PETSC "Use the PETSc library" OFF)
 
-  IF(EXISTS "${PETSC_DIR}/include" AND EXISTS "${PETSC_DIR}/${PETSC_ARCH}/include")
-    SET(PETSC_INCLUDE_DIR "${PETSC_DIR}/include")
-    SET(PETSC_INC "${PETSC_DIR}/include" "${PETSC_DIR}/${PETSC_ARCH}/include")
+# Look quietly for PETSc
+FIND_PACKAGE(PETSc QUIET)
+# Set the default value whether to build PETSc or use the system library
+IF(PETSC_FOUND)
+  CMAKE_DEPENDENT_OPTION(LIBS_BUILD_PETSC "Compile and build the PETSc library" OFF LIBS_USE_PETSC OFF)
+ELSE()
+  CMAKE_DEPENDENT_OPTION(LIBS_BUILD_PETSC "Compile and build the PETSc library" ON LIBS_USE_PETSC OFF)
+ENDIF()
+
+IF(LIBS_USE_PETSC)
+  IF (LIBS_BUILD_PETSC)
+    SET(LIBS_BUILD_PETSC_VERSION "3.19.3" CACHE STRING "PETSc self-built version tag")
+    MARK_AS_ADVANCED(CLEAR LIBS_BUILD_PETSC_VERSION)
   ELSE()
-    MESSAGE(SEND_ERROR "PETSc includes not found")
+    UNSET(LIBS_BUILD_PETSC_VERSION CACHE)
+    MARK_AS_ADVANCED(FORCE LIBS_BUILD_PETSC_VERSION)
   ENDIF()
 
-  IF(EXISTS "${PETSC_DIR}/${PETSC_ARCH}/lib/libpetsc.so")
-    SET(PETSC_LIB "${PETSC_DIR}/${PETSC_ARCH}/lib/libpetsc.so")
-  ELSEIf(EXISTS "${PETSC_DIR}/${PETSC_ARCH}/lib/libpetsc.a")
-    SET(PETSC_LIB "${PETSC_DIR}/${PETSC_ARCH}/lib/libpetsc.a")
-  ELSE()
-    MESSAGE(SEND_ERROR "PETSc library not found")
-  ENDIF()
+  IF (LIBS_BUILD_PETSC)
+    # Set PETSc build dir
+    SET(LIBS_PETSC_DIR      ${LIBS_EXTERNAL_LIB_DIR}/PETSc/build)
+    SET(PETSC_BUILD_DIR     ${LIBS_EXTERNAL_LIB_DIR}/PETSc/linux-gnu-c)
+    SET(PETSC_LIB_LIBRARIES ${LIBS_EXTERNAL_LIB_DIR}/PETSc/linux-gnu-c/lib)
+    SET(PETSC_INCLUDE_DIRS  ${LIBS_EXTERNAL_LIB_DIR}/PETSc/linux-gnu-c/include)
 
-  IF(EXISTS ${PETSC_DIR}/${PETSC_ARCH}/conf/petscvariables)
-    FILE(STRINGS ${PETSC_DIR}/${PETSC_ARCH}/conf/petscvariables
-      PETSC_VARIABLES NEWLINE_CONSUME)
-  ELSEIf(EXISTS ${PETSC_DIR}/${PETSC_ARCH}/lib/petsc/conf/petscvariables)
-    FILE(STRINGS ${PETSC_DIR}/${PETSC_ARCH}/lib/petsc/conf/petscvariables
-      PETSC_VARIABLES NEWLINE_CONSUME)
-  ELSE()
-    MESSAGE(SEND_ERROR "PETSc variables not found")
-  ENDIF()
-
-  # Find "^#define PETSC_VERSION_MAJOR" and get only the numbers and remove trailing line breaks
-  SET(PETSC_VERSION_FILE "${PETSC_INCLUDE_DIR}/petscversion.h")
-  IF(EXISTS "${PETSC_VERSION_FILE}")
-    EXECUTE_PROCESS(COMMAND cat "${PETSC_VERSION_FILE}" COMMAND grep "^#define PETSC_VERSION_MAJOR" COMMAND grep -o "[[:digit:]]*" COMMAND tr -d '\n' OUTPUT_VARIABLE PICLAS_PETSC_VERSION_MAJOR)
-    EXECUTE_PROCESS(COMMAND cat "${PETSC_VERSION_FILE}" COMMAND grep "^#define PETSC_VERSION_MINOR" COMMAND grep -o "[[:digit:]]*" COMMAND tr -d '\n' OUTPUT_VARIABLE PICLAS_PETSC_VERSION_MINOR)
-    MESSAGE(STATUS "Found PETSC version [${PICLAS_PETSC_VERSION_MAJOR}.${PICLAS_PETSC_VERSION_MINOR}] in ${PETSC_VERSION_FILE}")
-    IF(${PICLAS_PETSC_VERSION_MAJOR}.${PICLAS_PETSC_VERSION_MINOR} VERSION_LESS 3.18)
-      ADD_DEFINITIONS(-DUSE_PETSC_FIX317=1)
+    # Determine if PETSc should be built with debugging or optimization flags
+    IF(CMAKE_BUILD_TYPE MATCHES "Release")
+      MESSAGE (STATUS "Compiling [PETSc] with optimization flags!")
+      SET(PETSC_COMPILER_FLAGS --with-debugging=0 COPTFLAGS=-O3 -march=native -mtune=native CXXOPTFLAGS=-O3 -march=native -mtune=native FOPTFLAGS=-O3 -march=native -mtune=native)
     ELSE()
-      ADD_DEFINITIONS(-DUSE_PETSC_FIX317=0)
+      MESSAGE (STATUS "Compiling [PETSc] with debugging flags!")
+      SET(PETSC_COMPILER_FLAGS --with-debugging=1)
     ENDIF()
-  ELSE()
-    ADD_DEFINITIONS(-DUSE_PETSC_FIX317=1)
-  ENDIF()
 
-  INCLUDE_DIRECTORIES(${PETSC_INC})
-  LIST(APPEND linkedlibs ${PETSC_LIB})
+    # Add PETSc project
+    EXTERNALPROJECT_ADD(PETSc
+        GIT_REPOSITORY "https://gitlab.com/petsc/petsc.git"
+        GIT_TAG "v${LIBS_BUILD_PETSC_VERSION}"
+        GIT_PROGRESS TRUE
+        ${GITSHALLOW}
+        PREFIX ${LIBS_PETSC_DIR}
+        INSTALL_DIR ${LIBS_EXTERNAL_LIB_DIR}/PETSc
+        BUILD_IN_SOURCE TRUE
+        UPDATE_COMMAND ""
+        CONFIGURE_COMMAND
+          PETSC_DIR=${LIBS_PETSC_DIR}/src/PETSc
+          ${LIBS_PETSC_DIR}/src/PETSc/configure
+          --prefix=${PETSC_BUILD_DIR}
+          ${PETSC_COMPILER_FLAGS}
+          --with-shared-libraries=1
+          --with-mpi-f90module-visibility=0           # "With 0, mpi.mod will not be visible in use code (via petscsys.mod) - so mpi_f08 can now be used" (https://petsc.org/main/changes/315/)
+          --with-bison=0
+          --download-hypre
+          --download-mumps
+          --download-scalapack
+        # BUILD_COMMAND ${CMAKE_MAKE_PROGRAM} -j4
+        BUILD_BYPRODUCTS ${PETSC_LIB_LIBRARIES}/libpetsc.so
+    )
+
+    # Actually add the PETSc lib paths to the linking paths
+    INCLUDE_DIRECTORIES(${PETSC_INCLUDE_DIRS})
+    INCLUDE_DIRECTORIES (${PETSC_LIB_LIBRARIES})
+    LIST(APPEND linkedlibs ${PETSC_LIB_LIBRARIES}/libpetsc.so)
+    LIST(APPEND SELFBUILTEXTERNALS PETSc)
+
+    # If HDF5 is built in PIClas, it must occur before the PETSc compilation
+    IF(LIBS_BUILD_HDF5)
+      IF (NOT EXISTS "${LIBS_HDF5_DIR}/lib/libhdf5.a")
+        ADD_DEPENDENCIES(PETSc HDF5)
+      ENDIF()
+    ENDIF()
+
+    ADD_DEFINITIONS(-DUSE_PETSC=1)
+    MESSAGE(STATUS "Compiling with self-built [PETSc] (v${LIBS_BUILD_PETSC_VERSION})")
+  ELSE()
+    IF(PETSC_FOUND)
+      # Check if PETSc version needs FIX317
+      IF (${PETSC_VERSION} VERSION_LESS 3.18)
+        ADD_DEFINITIONS(-DUSE_PETSC_FIX317=1)
+      ELSE()
+        ADD_DEFINITIONS(-DUSE_PETSC_FIX317=0)
+      ENDIF()
+
+      INCLUDE_DIRECTORIES(${PETSC_INCLUDE_DIRS})
+      LIST(APPEND linkedlibs ${PETSC_LINK_LIBRARIES})
+
+      ADD_DEFINITIONS(-DUSE_PETSC=1)
+      MESSAGE(STATUS "Compiling with system [PETSc] (v${PETSC_VERSION}) [${PETSC_LINK_LIBRARIES}]")
+    ELSE()
+      MESSAGE(FATAL_ERROR "PETSc not found! Consider building PETSc with LIBS_BUILD_PETSC = ON.")
+    ENDIF()
+  ENDIF()
 
   # Do not allow PETSc + INT8 as this is not implemented yet
   IF(PICLAS_INTKIND8)
-    MESSAGE(FATAL_ERROR "PETSc + INT8 is not implemented yet!.")
+    MESSAGE(FATAL_ERROR "PETSc + INT8 is not implemented yet!")
   ENDIF()
 ELSE()
   ADD_DEFINITIONS(-DUSE_PETSC=0)
-ENDIF(PICLAS_PETSC)
+ENDIF(LIBS_USE_PETSC)

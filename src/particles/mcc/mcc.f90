@@ -612,12 +612,16 @@ END SUBROUTINE MonteCarloCollision
 
 
 !===================================================================================================================================
-!> Calculate the reaction probability if collision cross-section data is used (only with a background gas from the MCC routine)
+!> Calculate the reaction probability if cross-section data is used to be added to the DSMC-style collision probability
+!> (only with a background gas from the MCC routine)
+!> NOTE: Relativistic collision energy is only utilized to determine the cross-section, everything else is done using the classical
+!>       approach
 !===================================================================================================================================
 SUBROUTINE MCC_CalcReactionProb(iCase,bgSpec,CRela2,CollEnergy_in,PartIndex,bggPartIndex,iElem)
 ! MODULES
+USE MOD_Globals_Vars          ,ONLY: RelativisticLimit
 USE MOD_Particle_Vars         ,ONLY: Species, PartSpecies, VarTimeStep
-USE MOD_DSMC_Vars             ,ONLY: SpecDSMC, BGGas, ChemReac, DSMC, PartStateIntEn
+USE MOD_DSMC_Vars             ,ONLY: SpecDSMC, BGGas, ChemReac, DSMC, PartStateIntEn, CollInf
 USE MOD_MCC_Vars              ,ONLY: SpecXSec
 USE MOD_Particle_Vars         ,ONLY: Species
 USE MOD_TimeDisc_Vars         ,ONLY: dt
@@ -632,7 +636,7 @@ REAL,INTENT(IN)               :: CRela2, CollEnergy_in
 ! LOCAL VARIABLES
 INTEGER                       :: jSpec, iPath, ReacTest, EductReac(1:3), ProductReac(1:4), iProd
 INTEGER                       :: NumWeightProd
-REAL                          :: EZeroPoint_Educt, EZeroPoint_Prod, CollEnergy
+REAL                          :: EZeroPoint_Educt, EZeroPoint_Prod, CollEnergy, CollEnergyNonRela
 REAL                          :: CrossSection, dtVar
 REAL                          :: Temp_Rot, Temp_Vib, Temp_Elec, BGGasNumDens, BGGasFraction
 !===================================================================================================================================
@@ -673,8 +677,8 @@ DO iPath = 1, ChemReac%CollCaseInfo(iCase)%NumOfReactionPaths
         EZeroPoint_Prod = EZeroPoint_Prod + SpecDSMC(ProductReac(iProd))%EZeroPoint
       END IF
     END DO
-    ! Adding the internal energy of particle species
-    CollEnergy = CollEnergy_in + PartStateIntEn(1,PartIndex) + PartStateIntEn(2,PartIndex)
+    ! Adding the internal energy of particle species (relative translational energy is added at the end)
+    CollEnergy = PartStateIntEn(1,PartIndex) + PartStateIntEn(2,PartIndex)
     ! Internal energy of background species
     IF((Species(jSpec)%InterID.EQ.2).OR.(Species(jSpec)%InterID.EQ.20)) THEN
       IF(BGGas%UseDistribution) THEN
@@ -697,8 +701,19 @@ DO iPath = 1, ChemReac%CollCaseInfo(iCase)%NumOfReactionPaths
       PartStateIntEn(3,bggPartIndex) = CalcEElec_particle(jSpec,Temp_Elec,bggPartIndex)
       CollEnergy = CollEnergy + PartStateIntEn(3,PartIndex) + PartStateIntEn(3,bggPartIndex)
     END IF
+    ! Work-around for relativistic energies: since the energy distribution after the reaction is not done relativistically yet,
+    ! we have to check whether sufficient collision energy is available in the classical manner
+    IF(CRela2 .LT. RelativisticLimit) THEN
+      ! Classical
+      CollEnergyNonRela = CollEnergy_in + CollEnergy
+      CollEnergy = CollEnergyNonRela
+    ELSE
+      ! Relativistic
+      CollEnergyNonRela = 0.5 * CollInf%MassRed(iCase) * CRela2 + CollEnergy
+      CollEnergy = CollEnergy_in + CollEnergy
+    END IF
     ! Check first if sufficient energy is available for the products after the reaction
-    IF(((CollEnergy-EZeroPoint_Prod).GE.-ChemReac%EForm(ReacTest))) THEN
+    IF(((CollEnergyNonRela-EZeroPoint_Prod).GE.-ChemReac%EForm(ReacTest))) THEN
       CollEnergy = CollEnergy - EZeroPoint_Educt
       CrossSection = InterpolateCrossSection(SpecXSec(iCase)%ReactionPath(iPath)%XSecData,CollEnergy)
       ASSOCIATE( ReactionProb => ChemReac%CollCaseInfo(iCase)%ReactionProb(iPath) )

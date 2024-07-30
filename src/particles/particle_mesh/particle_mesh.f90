@@ -171,7 +171,8 @@ USE MOD_Particle_Tracking_Vars ,ONLY: TrackingMethod, DisplayLostParticles
 USE MOD_PICInterpolation_Vars  ,ONLY: DoInterpolation
 USE MOD_PICDepo_Vars           ,ONLY: DoDeposition,DepositionType
 USE MOD_ReadInTools            ,ONLY: GETREAL,GETINT,GETLOGICAL,GetRealArray, GETINTFROMSTR
-USE MOD_Particle_Vars          ,ONLY: Symmetry, DoVirtualCellMerge
+USE MOD_Symmetry_Vars          ,ONLY: Symmetry
+USE MOD_Particle_Vars          ,ONLY: DoVirtualCellMerge
 USE MOD_Particle_Boundary_Vars ,ONLY: PartBound
 #ifdef CODE_ANALYZE
 !USE MOD_Particle_Surfaces_Vars ,ONLY: SideBoundingBoxVolume
@@ -188,8 +189,8 @@ USE MOD_MPI_Shared_Vars
 USE MOD_Particle_MPI_Vars      ,ONLY: DoParticleLatencyHiding
 #endif /* USE_MPI */
 USE MOD_Particle_Mesh_Build    ,ONLY: BuildElementRadiusTria,BuildElemTypeAndBasisTria,BuildEpsOneCell,BuildBCElemDistance
-USE MOD_Particle_Mesh_Build    ,ONLY: BuildNodeNeighbourhood,BuildElementOriginShared,BuildElementBasisAndRadius
-USE MOD_Particle_Mesh_Build    ,ONLY: BuildSideOriginAndRadius,BuildLinearSideBaseVectors,BuildSideSlabAndBoundingBox
+USE MOD_Particle_Mesh_Build    ,ONLY: BuildNodeNeighbourhood,BuildElementOriginShared,BuildElementBasisAndRadius,BuildMesh2DInfo
+USE MOD_Particle_Mesh_Build    ,ONLY: BuildSideOriginAndRadius,BuildLinearSideBaseVectors,BuildSideSlabAndBoundingBox,BuildMesh1DInfo
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Vars       ,ONLY: PerformLoadBalance
 #endif /*USE_LOADBALANCE*/
@@ -199,6 +200,7 @@ USE MOD_Particle_Boundary_Vars ,ONLY: DoBoundaryParticleOutputHDF5,nSurfSample,D
 USE MOD_Photon_TrackingVars    ,ONLY: PhotonModeBPO,UsePhotonTriaTracking
 USE MOD_RayTracing_Vars        ,ONLY: UseRayTracing
 USE MOD_RayTracing_Vars        ,ONLY: PerformRayTracing
+USE MOD_Particle_Mesh_Tools    ,ONLY: InitVolumes_1D,InitVolumes_2D
 !USE MOD_DSMC_Vars              ,ONLY: DSMC
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -211,9 +213,6 @@ IMPLICIT NONE
 INTEGER          :: RefMappingGuessProposal
 INTEGER          :: iSample
 CHARACTER(LEN=2) :: tmpStr
-#if !USE_MPI
-INTEGER          :: ALLOCSTAT
-#endif
 #ifdef CODE_ANALYZE
 ! TODO
 ! REAL             :: dx,dy,dz
@@ -351,7 +350,7 @@ ELSE
 END IF
 WRITE(tmpStr,'(I2.2)') RefMappingGuessProposal
 RefMappingGuess = GETINT('RefMappingGuess',tmpStr)
-IF((RefMappingGuess.LT.1).AND.(UseCurveds)) THEN ! Linear intial guess on curved meshes might cause problems.
+IF((RefMappingGuess.LT.1).AND.(UseCurveds)) THEN ! Linear initial guess on curved meshes might cause problems.
   LBWRITE(UNIT_stdOut,'(A)')' WARNING: read-in [RefMappingGuess=1] when using [UseCurveds=T] may create problems!'
 END IF
 RefMappingEps   = GETREAL('RefMappingEps','1e-4')
@@ -417,6 +416,11 @@ SELECT CASE(TrackingMethod)
       CALL BuildLinearSideBaseVectors() ! Required for BaseVectors0_Shared, BaseVectors1_Shared, BaseVectors2_Shared, BaseVectors3_Shared, BaseVectorsScale_Shared
     END IF ! UsePhotonTriaTracking
 
+    IF(Symmetry%Order.EQ.2) THEN
+      CALL BuildMesh2DInfo()
+    ELSEIF (Symmetry%Order.EQ.1) THEN
+      CALL BuildMesh1DInfo()
+    END IF
   CASE(TRACING,REFMAPPING)
     ! Build stuff required for tracing algorithms
     CALL BuildSideSlabAndBoundingBox() ! Required for SideSlabNormals_Shared, SideSlabIntervals_Shared, BoundingBoxIsEmpty_Shared
@@ -454,6 +458,10 @@ END SELECT
 ! Build mappings UniqueNodeID->CN Element IDs and CN Element ID -> CN Element IDs
 IF(FindNeighbourElems) CALL BuildNodeNeighbourhood()
 
+! Calculate the volumes for 2D/1D simulation (requires the GEO%zminglob/GEO%zmaxglob from InitFIBGM)
+IF(Symmetry%Order.EQ.2) CALL InitVolumes_2D()
+IF(Symmetry%Order.EQ.1) CALL InitVolumes_1D()
+
 ! BezierAreaSample stuff:
 IF (TriaSurfaceFlux) THEN
   BezierSampleN = 1
@@ -487,8 +495,9 @@ SUBROUTINE FinalizeParticleMesh()
 ! MODULES
 USE MOD_Globals
 USE MOD_Particle_Mesh_Vars
-USE MOD_RayTracing_Vars        ,ONLY: UseRayTracing
+USE MOD_Symmetry_Vars          ,ONLY: Symmetry
 #if USE_MPI
+USE MOD_RayTracing_Vars        ,ONLY: UseRayTracing
 USE MOD_Particle_Surfaces_Vars ,ONLY: BezierElevation
 USE MOD_PICDepo_Vars           ,ONLY: DepositionType
 USE MOD_PICInterpolation_Vars  ,ONLY: DoInterpolation
@@ -712,6 +721,13 @@ SELECT CASE (TrackingMethod)
       CALL UNLOCK_AND_FREE(ElemRadiusNGeo_Shared_Win)
     END IF
 
+    IF(Symmetry%Order.EQ.2)THEN
+      CALL UNLOCK_AND_FREE(ElemSideNodeID2D_Shared_Win)
+      CALL UNLOCK_AND_FREE(SideNormalEdge2D_Shared_Win)
+    ELSE IF(Symmetry%Order.EQ.1)THEN
+      CALL UNLOCK_AND_FREE(ElemSideNodeID1D_Shared_Win)
+    END IF
+
     !IF (DoInterpolation.OR.DSMC%UseOctree) THEN ! use this in future if possible
     IF (DoInterpolation.OR.DoDeposition.OR.UseRayTracing.OR.nSurfSampleAndTriaTracking) THEN
 #if USE_LOADBALANCE
@@ -809,6 +825,13 @@ SELECT CASE (TrackingMethod)
     ADEALLOCATE(ElemCurved)
     ADEALLOCATE(ElemCurved_Shared)
 
+    IF(Symmetry%Order.EQ.2)THEN
+      ADEALLOCATE(ElemSideNodeID2D_Shared)
+      ADEALLOCATE(SideNormalEdge2D_Shared)
+    ELSE IF (Symmetry%Order.EQ.1) THEN
+      ADEALLOCATE(ElemSideNodeID1D_Shared)
+    END IF
+
     ! BuildEpsOneCell
     SNULLIFY(ElemsJ)
     ADEALLOCATE(ElemsJ_Shared)
@@ -882,6 +905,7 @@ SDEALLOCATE(ElemToGlobalElemID)
 ADEALLOCATE(ConcaveElemSide_Shared)
 ADEALLOCATE(ElemSideNodeID_Shared)
 ADEALLOCATE(ElemMidPoint_Shared)
+SDEALLOCATE(SymmetrySide)
 
 ! Load Balance
 !#if !USE_LOADBALANCE

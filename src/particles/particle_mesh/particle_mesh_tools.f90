@@ -30,12 +30,49 @@ INTERFACE GetSideBoundingBoxTria
   MODULE PROCEDURE GetSideBoundingBoxTria
 END INTERFACE
 
+! Define an interface for the function pointer
+ABSTRACT INTERFACE
+  SUBROUTINE ParticleInsideQuadInterface(PartStateLoc,ElemID,InElementCheck,Det_Out)
+    INTEGER,INTENT(IN)            :: ElemID
+    REAL   ,INTENT(IN)            :: PartStateLoc(3)
+    LOGICAL,INTENT(OUT)           :: InElementCheck
+    REAL   ,INTENT(OUT),OPTIONAL  :: Det_Out(6,2)
+  END SUBROUTINE
+END INTERFACE
+
+!> Pointer defining the localization routine based on the symmetry order
+PROCEDURE(ParticleInsideQuadInterface),POINTER :: ParticleInsideQuad => NULL()
+
 PUBLIC :: ParticleInsideQuad3D, InitPEM_LocalElemID, InitPEM_CNElemID, GetGlobalNonUniqueSideID, GetSideBoundingBoxTria
 PUBLIC :: GetMeshMinMax, IdentifyElemAndSideType, WeirdElementCheck, CalcParticleMeshMetrics, CalcXCL_NGeo
 PUBLIC :: CalcBezierControlPoints, InitParticleGeometry, ComputePeriodicVec
+PUBLIC :: InitParticleInsideQuad, ParticleInsideQuad
+PUBLIC :: InitVolumes_2D, InitVolumes_1D, DSMC_2D_CalcSymmetryArea, DSMC_1D_CalcSymmetryArea, DSMC_2D_CalcSymmetryAreaSubSides
 !===================================================================================================================================
 CONTAINS
 
+!==================================================================================================================================!
+!> Initialize ParticleInsideQuad depending on symmetry dimension using a function pointer
+!==================================================================================================================================!
+SUBROUTINE InitParticleInsideQuad()
+! MODULES
+USE MOD_Globals
+USE MOD_Symmetry_Vars            ,ONLY: Symmetry
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!==================================================================================================================================
+
+IF (Symmetry%Order.EQ.3) THEN
+  ParticleInsideQuad => ParticleInsideQuad3D
+ELSE IF (Symmetry%Order.EQ.2) THEN
+  ParticleInsideQuad => ParticleInsideQuad2D
+ELSE IF (Symmetry%Order.EQ.1) THEN
+  ParticleInsideQuad => ParticleInsideQuad1D
+ELSE
+  CALL abort(__STAMP__,'ERROR in InitParticleInsideQuad: Function pointer could not be properly defined!')
+END IF
+
+END SUBROUTINE InitParticleInsideQuad
 
 !PPURE SUBROUTINE ParticleInsideQuad3D(PartStateLoc,ElemID,InElementCheck,Det)
 SUBROUTINE ParticleInsideQuad3D(PartStateLoc,ElemID,InElementCheck,Det_Out)
@@ -184,6 +221,101 @@ RETURN
 
 END SUBROUTINE ParticleInsideQuad3D
 
+SUBROUTINE ParticleInsideQuad2D(PartStateLoc,ElemID,InElementCheck,Det_Out)
+!===================================================================================================================================
+!> Checks if particle is inside of a linear 2D element with 4  faces, compatible with mortars. The "Ray Casting Algorithm" is used.
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals
+USE MOD_Mesh_Tools            ,ONLY: GetCNElemID
+USE MOD_Particle_Mesh_Vars    ,ONLY: ElemInfo_Shared,SideInfo_Shared,NodeCoords_Shared, SideIsSymSide
+USE MOD_Particle_Mesh_Vars    ,ONLY :ElemSideNodeID2D_Shared
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+! INPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT/OUTPUT VARIABLES
+INTEGER,INTENT(IN)            :: ElemID
+REAL   ,INTENT(IN)            :: PartStateLoc(3)
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+LOGICAL,INTENT(OUT)           :: InElementCheck
+REAL   ,INTENT(OUT),OPTIONAL  :: Det_Out(6,2)
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER                       :: ilocSide, TempSideID, nlocSides, localSideID
+INTEGER                       :: CNElemID
+REAL                          :: x_int, xNode1, xNode2, yNode1, yNode2
+!===================================================================================================================================
+CNElemID = GetCNElemID(ElemID)
+InElementCheck = .FALSE.
+nlocSides = ElemInfo_Shared(ELEM_LASTSIDEIND,ElemID) -  ElemInfo_Shared(ELEM_FIRSTSIDEIND,ElemID)
+
+DO iLocSide=1,nlocSides
+  TempSideID = ElemInfo_Shared(ELEM_FIRSTSIDEIND,ElemID) + iLocSide
+  localSideID = SideInfo_Shared(SIDE_LOCALID,TempSideID)
+  ! Side is not one of the 6 local sides
+  IF (localSideID.LE.0) CYCLE
+  IF (SideIsSymSide(TempSideID)) CYCLE
+  xNode1 = NodeCoords_Shared(1,ElemSideNodeID2D_Shared(1,localSideID, CNElemID))
+  yNode1 = NodeCoords_Shared(2,ElemSideNodeID2D_Shared(1,localSideID, CNElemID))
+  xNode2 = NodeCoords_Shared(1,ElemSideNodeID2D_Shared(2,localSideID, CNElemID))
+  yNode2 = NodeCoords_Shared(2,ElemSideNodeID2D_Shared(2,localSideID, CNElemID))
+  IF ( (yNode1 >= PartStateLoc(2) .AND. yNode2 < PartStateLoc(2)) .OR. &
+       (yNode1 < PartStateLoc(2) .AND. yNode2 >= PartStateLoc(2)) ) THEN
+    ! Compute x-coordinate of the intersection point
+    x_int = (PartStateLoc(2)- yNode1) * (xNode2 - xNode1) / (yNode2 - yNode1) + xNode1
+    ! Check if the ray crosses the edge to the right
+    IF (x_int > PartStateLoc(1)) THEN
+      InElementCheck = .NOT.InElementCheck
+    END IF
+  END IF
+END DO
+END SUBROUTINE ParticleInsideQuad2D
+
+SUBROUTINE ParticleInsideQuad1D(PartStateLoc,ElemID,InElementCheck,Det_Out)
+!===================================================================================================================================
+!> Checks if particle is inside of a 1D element. 
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals
+USE MOD_Mesh_Tools            ,ONLY: GetCNElemID
+USE MOD_Particle_Mesh_Vars    ,ONLY: ElemInfo_Shared,SideInfo_Shared,NodeCoords_Shared, SideIsSymSide
+USE MOD_Particle_Mesh_Vars    ,ONLY :ElemSideNodeID1D_Shared
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+! INPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT/OUTPUT VARIABLES
+INTEGER,INTENT(IN)            :: ElemID
+REAL   ,INTENT(IN)            :: PartStateLoc(3)
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+LOGICAL,INTENT(OUT)           :: InElementCheck
+REAL   ,INTENT(OUT),OPTIONAL  :: Det_Out(6,2)
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER                       :: ilocSide, TempSideID, nlocSides, localSideID, DiffSign(2), iSide
+INTEGER                       :: CNElemID
+REAL                          :: xNode
+!===================================================================================================================================
+CNElemID = GetCNElemID(ElemID)
+InElementCheck = .FALSE.
+nlocSides = ElemInfo_Shared(ELEM_LASTSIDEIND,ElemID) -  ElemInfo_Shared(ELEM_FIRSTSIDEIND,ElemID)
+iSide = 0
+DO iLocSide=1,nlocSides
+  TempSideID = ElemInfo_Shared(ELEM_FIRSTSIDEIND,ElemID) + iLocSide
+  localSideID = SideInfo_Shared(SIDE_LOCALID,TempSideID)
+  ! Side is not one of the 6 local sides
+  IF (localSideID.LE.0) CYCLE
+  IF (SideIsSymSide(TempSideID)) CYCLE
+  xNode = NodeCoords_Shared(1,ElemSideNodeID1D_Shared(localSideID, CNElemID))
+  iSide = iSide + 1
+  DiffSign(iSide) = NINT(SIGN(1.,PartStateLoc(1) - xNode))
+  IF (iSide.EQ.2) EXIT
+END DO
+IF (DiffSign(1).NE.DiffSign(2)) InElementCheck = .TRUE.
+END SUBROUTINE ParticleInsideQuad1D
 
 PPURE SUBROUTINE ParticleInsideNbMortar(PartStateLoc,ElemID,InElementCheck)
 !===================================================================================================================================
@@ -574,7 +706,6 @@ USE MOD_Particle_Surfaces_Vars  ,ONLY: BezierControlPoints3D
 USE MOD_Particle_Tracking_Vars  ,ONLY: TrackingMethod
 #if USE_MPI
 USE MOD_MPI_Shared_Vars         ,ONLY: MPI_COMM_SHARED,MPI_COMM_LEADERS_SHARED,myComputeNodeRank
-USE MOD_Particle_Mesh_Vars      ,ONLY: offsetComputeNodeNode,nComputeNodeNodes
 #endif /*USE_MPI*/
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Vars        ,ONLY: PerformLoadBalance
@@ -1920,6 +2051,496 @@ END IF
 #endif /*USE_MPI*/
 
 END SUBROUTINE ComputePeriodicVec
+
+
+SUBROUTINE InitVolumes_2D()
+!===================================================================================================================================
+!> Routine determines the symmetry sides and calculates the 2D (area faces in symmetry plane) and axisymmetric volumes (cells are
+!> revolved around the symmetry axis). The symmetry side (SymmetrySide array) will be used later on to determine in which two
+!> directions the quadtree shall refine the mesh, skipping the z-dimension to avoid an unnecessary refinement. Additionally,
+!> symmetry sides will be skipped during tracking (SideIsSymSide_Shared array).
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals
+USE MOD_Globals_Vars            ,ONLY: Pi
+USE MOD_PreProc
+USE MOD_Mesh_Vars               ,ONLY: nElems,offsetElem,nBCSides,SideToElem
+USE MOD_Particle_Boundary_Vars  ,ONLY: PartBound
+USE MOD_Particle_Mesh_Vars      ,ONLY: GEO,LocalVolume,MeshVolume
+USE MOD_Particle_Mesh_Vars      ,ONLY: SymmetrySide
+USE MOD_Particle_Mesh_Vars      ,ONLY: ElemVolume_Shared,ElemCharLength_Shared
+USE MOD_Particle_Mesh_Vars      ,ONLY: NodeCoords_Shared,ElemSideNodeID_Shared, SideInfo_Shared, SideIsSymSide
+USE MOD_Mesh_Tools              ,ONLY: GetCNElemID
+USE MOD_Particle_Surfaces       ,ONLY: CalcNormAndTangTriangle
+#if USE_MPI
+USE MOD_MPI_Shared
+USE MOD_MPI_Shared_Vars         ,ONLY: MPI_COMM_SHARED
+USE MOD_Particle_Mesh_Vars      ,ONLY: nNonUniqueGlobalSides, offsetComputeNodeElem, ElemInfo_Shared
+USE MOD_Particle_Mesh_Vars      ,ONLY: ElemVolume_Shared_Win,ElemCharLength_Shared_Win,SideIsSymSide_Shared,SideIsSymSide_Shared_Win
+USE MOD_MPI_Shared_Vars         ,ONLY: myComputeNodeRank,nComputeNodeProcessors,MPI_COMM_LEADERS_SHARED
+#else
+USE MOD_Particle_Mesh_Vars      ,ONLY: nComputeNodeSides
+#endif /*USE_MPI*/
+USE MOD_Symmetry_Vars           ,ONLY: Symmetry
+! IMPLICIT VARIABLE HANDLING
+  IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER                         :: SideID, iLocSide, iNode, BCSideID, locElemID, CNElemID, iSide
+REAL                            :: radius, triarea(2)
+#if USE_MPI
+REAL                            :: CNVolume
+INTEGER                         :: offsetElemCNProc
+#endif /*USE_MPI*/
+LOGICAL                         :: SymmetryBCExists
+INTEGER                         :: firstElem, lastElem, firstSide, lastSide
+!===================================================================================================================================
+
+#if USE_MPI
+CALL Allocate_Shared((/nNonUniqueGlobalSides/),SideIsSymSide_Shared_Win,SideIsSymSide_Shared)
+CALL MPI_WIN_LOCK_ALL(0,SideIsSymSide_Shared_Win,IERROR)
+SideIsSymSide => SideIsSymSide_Shared
+! only CN root nullifies
+IF(myComputeNodeRank.EQ.0) SideIsSymSide = .FALSE.
+! This sync/barrier is required as it cannot be guaranteed that the zeros have been written to memory by the time the MPI_REDUCE
+! is executed (see MPI specification). Until the Sync is complete, the status is undefined, i.e., old or new value or utter nonsense.
+CALL BARRIER_AND_SYNC(SideIsSymSide_Shared_Win,MPI_COMM_SHARED)
+#else
+ALLOCATE(SideIsSymSide(nComputeNodeSides))
+SideIsSymSide = .FALSE.
+#endif  /*USE_MPI*/
+
+! Flag of symmetry sides to be skipped during tracking
+#if USE_MPI
+  firstSide = INT(REAL( myComputeNodeRank   *nNonUniqueGlobalSides)/REAL(nComputeNodeProcessors))+1
+  lastSide  = INT(REAL((myComputeNodeRank+1)*nNonUniqueGlobalSides)/REAL(nComputeNodeProcessors))
+#else
+  firstSide = 1
+  lastSide  = nComputeNodeSides
+#endif
+
+DO iSide = firstSide, lastSide
+  SideIsSymSide(iSide) = .FALSE.
+  ! ignore non-BC sides
+  IF (SideInfo_Shared(SIDE_BCID,iSide).LE.0) CYCLE
+#if USE_MPI
+  ! ignore sides outside of halo region
+  IF (ElemInfo_Shared(ELEM_HALOFLAG,SideInfo_Shared(SIDE_ELEMID,iSide)).EQ.0) CYCLE
+#endif /*USE_MPI*/
+  IF (PartBound%TargetBoundCond(PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,iSide))).EQ.PartBound%SymmetryDim) &
+    SideIsSymSide(iSide) = .TRUE.
+END DO
+
+SymmetryBCExists = .FALSE.
+ALLOCATE(SymmetrySide(1:nElems,1:2))                ! 1: GlobalSide, 2: LocalSide
+SymmetrySide = -1
+
+! Sanity check: mesh has to be centered at z = 0
+IF(.NOT.ALMOSTEQUALRELATIVE(GEO%zmaxglob,ABS(GEO%zminglob),1e-5)) THEN
+  SWRITE(*,*) 'Maximum dimension in z:', GEO%zmaxglob
+  SWRITE(*,*) 'Minimum dimension in z:', GEO%zminglob
+  SWRITE(*,*) 'Deviation', (ABS(GEO%zmaxglob)-ABS(GEO%zminglob))/ABS(GEO%zminglob), ' > 1e-5'
+  CALL abort(__STAMP__,'ERROR: Please orient your mesh with one cell in z-direction around 0, |z_min| = z_max !')
+END IF
+
+! Calculation of the correct volume and characteristic length
+DO BCSideID=1,nBCSides
+  locElemID = SideToElem(S2E_ELEM_ID,BCSideID)
+  iLocSide = SideToElem(S2E_LOC_SIDE_ID,BCSideID)
+  SideID=GetGlobalNonUniqueSideID(offsetElem+locElemID,iLocSide)
+  IF (PartBound%TargetBoundCond(PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID))).EQ.PartBound%SymmetryDim) THEN
+    CNElemID = GetCNElemID(SideInfo_Shared(SIDE_ELEMID,SideID))
+    iLocSide = SideInfo_Shared(SIDE_LOCALID,SideID)
+    ! Exclude the symmetry axis (y=0)
+    IF(Symmetry%Axisymmetric) THEN
+      IF(MAXVAL(NodeCoords_Shared(2,ElemSideNodeID_Shared(:,iLocSide,CNElemID)+1)).LE.0.0) CYCLE
+    END IF
+    ! The z-plane with the positive z component is chosen
+    IF(MINVAL(NodeCoords_Shared(3,ElemSideNodeID_Shared(:,iLocSide,CNElemID)+1)).GT.(GEO%zmaxglob+GEO%zminglob)/2.) THEN
+      IF(SymmetrySide(locElemID,1).GT.0) THEN
+        CALL abort(__STAMP__&
+          ,'ERROR: PICLas could not determine a unique symmetry surface for 2D/axisymmetric calculation!'//&
+          ' Please orient your mesh with x as the symmetry axis and positive y as the second/radial direction!')
+      END IF
+      SymmetrySide(locElemID,1) = BCSideID
+      SymmetrySide(locElemID,2) = iLocSide
+      ! The volume calculated at this point (final volume for the 2D case) corresponds to the cell face area (z-dimension=1) in
+      ! the xy-plane.
+      ElemVolume_Shared(CNElemID) = 0.0
+      CALL CalcNormAndTangTriangle(area=triarea(1),TriNum=1, SideID=SideID)
+      CALL CalcNormAndTangTriangle(area=triarea(2),TriNum=2, SideID=SideID)
+      ElemVolume_Shared(CNElemID) = triarea(1) + triarea(2)
+      ! Characteristic length is compared to the mean free path as the condition to refine the mesh. For the 2D/axisymmetric case
+      ! the third dimension is not considered as particle interaction occurs in the xy-plane, effectively reducing the refinement
+      ! requirement.
+      ElemCharLength_Shared(CNElemID) = SQRT(ElemVolume_Shared(CNElemID))
+      ! Axisymmetric case: The volume is multiplied by the circumference to get the volume of the ring. The cell face in the
+      ! xy-plane is rotated around the x-axis. The radius is the middle point of the cell face.
+      IF (Symmetry%Axisymmetric) THEN
+        radius = 0.
+        DO iNode = 1, 4
+          radius = radius + NodeCoords_Shared(2,ElemSideNodeID_Shared(iNode,iLocSide,CNElemID)+1)
+        END DO
+        radius = radius / 4.
+        ElemVolume_Shared(CNElemID) = ElemVolume_Shared(CNElemID) * 2. * Pi * radius
+      END IF
+      SymmetryBCExists = .TRUE.
+    END IF      ! Greater z-coord
+  END IF
+END DO
+
+IF(.NOT.SymmetryBCExists) CALL abort(__STAMP__,'At least one symmetric BC (in the xy-plane) has to be defined for 2D simulations')
+
+! LocalVolume & MeshVolume: Recalculate the volume of the mesh of a single process and the total mesh volume
+#if USE_MPI
+FirstElem = offsetElem - offsetComputeNodeElem + 1
+LastElem  = offsetElem - offsetComputeNodeElem + nElems
+#else
+firstElem = 1
+lastElem  = nElems
+#endif  /*USE_MPI*/
+
+LocalVolume = SUM(ElemVolume_Shared(FirstElem:LastElem))
+
+#if USE_MPI
+CALL BARRIER_AND_SYNC(SideIsSymSide_Shared_Win ,MPI_COMM_SHARED)
+CALL BARRIER_AND_SYNC(ElemVolume_Shared_Win    ,MPI_COMM_SHARED)
+CALL BARRIER_AND_SYNC(ElemCharLength_Shared_Win,MPI_COMM_SHARED)
+! Compute-node mesh volume
+offsetElemCNProc = offsetElem - offsetComputeNodeElem
+CNVolume = SUM(ElemVolume_Shared(offsetElemCNProc+1:offsetElemCNProc+nElems))
+CALL MPI_ALLREDUCE(MPI_IN_PLACE,CNVolume,1,MPI_DOUBLE_PRECISION,MPI_SUM,MPI_COMM_SHARED,iError)
+IF (myComputeNodeRank.EQ.0) THEN
+  ! All-reduce between node leaders
+  CALL MPI_ALLREDUCE(CNVolume,MeshVolume,1,MPI_DOUBLE_PRECISION,MPI_SUM,MPI_COMM_LEADERS_SHARED,IERROR)
+END IF
+! Broadcast from node leaders to other processors on the same node
+CALL MPI_BCAST(MeshVolume,1, MPI_DOUBLE_PRECISION,0,MPI_COMM_SHARED,iERROR)
+#else
+MeshVolume = LocalVolume
+#endif /*USE_MPI*/
+
+END SUBROUTINE InitVolumes_2D
+
+
+SUBROUTINE InitVolumes_1D()
+!===================================================================================================================================
+!> Routine determines a symmetry side and calculates the 1D (area faces at x axis) and axisymmetric volumes (cells are
+!> revolved around the symmetry axis). The symmetry side will be used later on to determine in which two directions the quadtree
+!> shall refine the mesh, skipping the z-dimension to avoid an unnecessary refinement.
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals
+USE MOD_Mesh_Vars               ,ONLY: nElems, offsetElem
+USE MOD_Particle_Boundary_Vars  ,ONLY: PartBound
+USE MOD_Particle_Mesh_Vars      ,ONLY: GEO,LocalVolume,MeshVolume, SideIsSymSide
+USE MOD_Particle_Mesh_Vars      ,ONLY: ElemVolume_Shared,ElemCharLength_Shared
+USE MOD_Particle_Mesh_Vars      ,ONLY: NodeCoords_Shared,ElemSideNodeID_Shared, SideInfo_Shared
+USE MOD_Mesh_Tools              ,ONLY: GetCNElemID
+#if USE_MPI
+USE MOD_MPI_Shared              
+USE MOD_MPI_Shared_Vars         ,ONLY: MPI_COMM_SHARED
+USE MOD_Particle_Mesh_Vars      ,ONLY: offsetComputeNodeElem,SideIsSymSide_Shared,SideIsSymSide_Shared_Win,nNonUniqueGlobalSides
+USE MOD_Particle_Mesh_Vars      ,ONLY: ElemVolume_Shared_Win,ElemCharLength_Shared_Win, ElemInfo_Shared
+USE MOD_MPI_Shared_Vars         ,ONLY: myComputeNodeRank,nComputeNodeProcessors,MPI_COMM_LEADERS_SHARED
+#else
+USE MOD_Particle_Mesh_Vars      ,ONLY: nComputeNodeSides
+#endif /*USE_MPI*/
+! IMPLICIT VARIABLE HANDLING
+  IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER                         :: iLocSide, iElem, SideID, iOrder, CNElemID, iSide
+REAL                            :: X(2), MaxCoord, MinCoord
+LOGICAL                         :: SideInPlane, X1Occupied
+INTEGER                         :: firstElem,lastElem, firstSide, lastSide
+#if USE_MPI
+REAL                            :: CNVolume
+INTEGER                         :: offsetElemCNProc
+#endif /*USE_MPI*/
+!===================================================================================================================================
+
+#if USE_MPI
+firstElem = offsetElem - offsetComputeNodeElem + 1
+lastElem  = offsetElem - offsetComputeNodeElem + nElems
+#else
+firstElem = 1
+lastElem  = nElems
+#endif  /*USE_MPI*/
+
+ALLOCATE(GEO%XMinMax(2,nElems))
+
+IF(.NOT.ALMOSTEQUALRELATIVE(GEO%ymaxglob,ABS(GEO%yminglob),1e-5)) THEN
+  SWRITE(*,*) 'Maximum dimension in y:', GEO%ymaxglob
+  SWRITE(*,*) 'Minimum dimension in y:', GEO%yminglob
+  SWRITE(*,*) 'Deviation', (ABS(GEO%ymaxglob)-ABS(GEO%yminglob))/ABS(GEO%yminglob), ' > 1e-5'
+  CALL abort(__STAMP__&
+    ,'ERROR: Please orient your mesh with one cell in y-direction around 0, |y_min| = y_max !')
+END IF
+
+IF(.NOT.ALMOSTEQUALRELATIVE(GEO%zmaxglob,ABS(GEO%zminglob),1e-5)) THEN
+  SWRITE(*,*) 'Maximum dimension in z:', GEO%zmaxglob
+  SWRITE(*,*) 'Minimum dimension in z:', GEO%zminglob
+  SWRITE(*,*) 'Deviation', (ABS(GEO%zmaxglob)-ABS(GEO%zminglob))/ABS(GEO%zminglob), ' > 1e-5'
+  CALL abort(__STAMP__&
+    ,'ERROR: Please orient your mesh with one cell in z-direction around 0, |z_min| = z_max !')
+END IF
+
+DO iElem = 1,nElems
+  ! Check if all sides of the element are parallel to xy-, xz-, or yz-plane and Sides parallel to xy-,and xz-plane are symmetric
+  ! And determine xmin and xmax of the element
+  X = 0
+  X1Occupied = .FALSE.
+  DO iLocSide = 1,6
+    SideInPlane=.FALSE.
+    SideID = GetGlobalNonUniqueSideID(offsetElem+iElem,iLocSide)
+    CNElemID = GetCNElemID(SideInfo_Shared(SIDE_ELEMID,SideID))
+    DO iOrder=1,3
+      MaxCoord = MAXVAL(NodeCoords_Shared(iOrder,ElemSideNodeID_Shared(:,iLocSide,CNElemID)+1))
+      MinCoord = MINVAL(NodeCoords_Shared(iOrder,ElemSideNodeID_Shared(:,iLocSide,CNElemID)+1))
+      IF(ALMOSTALMOSTEQUAL(MaxCoord,MinCoord).OR.(ALMOSTZERO(MaxCoord).AND.ALMOSTZERO(MinCoord))) THEN
+        IF(SideInPlane) CALL abort(__STAMP__&
+          ,'ERROR: Please orient your mesh with all element sides parallel to xy-,xz-,or yz-plane')
+        SideInPlane=.TRUE.
+        IF(iOrder.GE.2)THEN
+          IF(PartBound%TargetBoundCond(PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID))).NE.PartBound%SymmetryDim) &
+            CALL abort(__STAMP__,&
+              'ERROR: Sides parallel to xy-,and xz-plane has to be the symmetric boundary condition')
+        END IF
+        IF(iOrder.EQ.1) THEN
+          IF(X1Occupied) THEN
+            X(2) = NodeCoords_Shared(1,ElemSideNodeID_Shared(1,iLocSide,CNElemID)+1)
+          ELSE
+            X(1) = NodeCoords_Shared(1,ElemSideNodeID_Shared(1,iLocSide,CNElemID)+1)
+            X1Occupied = .TRUE.
+          END IF
+        END IF !iOrder.EQ.1
+      END IF
+    END DO !iOrder=1,3
+    IF(.NOT.SideInPlane) THEN
+      IPWRITE(*,*) 'ElemID:',iElem,'SideID:',iLocSide
+      DO iOrder=1,4
+        IPWRITE(*,*) 'Node',iOrder,'x:',NodeCoords_Shared(1,ElemSideNodeID_Shared(iOrder,iLocSide,CNElemID)+1), &
+                                  'y:',NodeCoords_Shared(2,ElemSideNodeID_Shared(iOrder,iLocSide,CNElemID)+1), &
+                                  'z:',NodeCoords_Shared(3,ElemSideNodeID_Shared(iOrder,iLocSide,CNElemID)+1)
+      END DO
+      CALL abort(__STAMP__&
+    ,'ERROR: Please orient your mesh with all element sides parallel to xy-,xz-,or yz-plane')
+    END IF
+  END DO ! iLocSide = 1,6
+  GEO%XMinMax(1,iElem) = MINVAL(X)
+  GEO%XMinMax(2,iElem) = MAXVAL(X)
+  ElemVolume_Shared(CNElemID) = ABS(X(1)-X(2))
+  ElemCharLength_Shared(CNElemID) = ElemVolume_Shared(CNElemID)
+END DO
+! LocalVolume & MeshVolume: Recalculate the volume of the mesh of a single process and the total mesh volume
+LocalVolume = SUM(ElemVolume_Shared(firstElem:lastElem))
+#if USE_MPI
+CALL BARRIER_AND_SYNC(ElemVolume_Shared_Win    ,MPI_COMM_SHARED)
+CALL BARRIER_AND_SYNC(ElemCharLength_Shared_Win,MPI_COMM_SHARED)
+! Compute-node mesh volume
+offsetElemCNProc = offsetElem - offsetComputeNodeElem
+CNVolume = SUM(ElemVolume_Shared(offsetElemCNProc+1:offsetElemCNProc+nElems))
+CALL MPI_ALLREDUCE(MPI_IN_PLACE,CNVolume,1,MPI_DOUBLE_PRECISION,MPI_SUM,MPI_COMM_SHARED,iError)
+IF (myComputeNodeRank.EQ.0) THEN
+  ! All-reduce between node leaders
+  CALL MPI_ALLREDUCE(CNVolume,MeshVolume,1,MPI_DOUBLE_PRECISION,MPI_SUM,MPI_COMM_LEADERS_SHARED,IERROR)
+END IF
+! Broadcast from node leaders to other processors on the same node
+CALL MPI_BCAST(MeshVolume,1, MPI_DOUBLE_PRECISION,0,MPI_COMM_SHARED,iERROR)
+#else
+MeshVolume = SUM(ElemVolume_Shared)
+#endif /*USE_MPI*/
+
+#if USE_MPI
+CALL Allocate_Shared((/nNonUniqueGlobalSides/),SideIsSymSide_Shared_Win,SideIsSymSide_Shared)
+CALL MPI_WIN_LOCK_ALL(0,SideIsSymSide_Shared_Win,IERROR)
+SideIsSymSide => SideIsSymSide_Shared
+! only CN root nullifies
+IF(myComputeNodeRank.EQ.0) SideIsSymSide = .FALSE.
+! This sync/barrier is required as it cannot be guaranteed that the zeros have been written to memory by the time the MPI_REDUCE
+! is executed (see MPI specification). Until the Sync is complete, the status is undefined, i.e., old or new value or utter nonsense.
+CALL BARRIER_AND_SYNC(SideIsSymSide_Shared_Win,MPI_COMM_SHARED)
+#else
+ALLOCATE(SideIsSymSide(nComputeNodeSides))
+SideIsSymSide = .FALSE.
+#endif  /*USE_MPI*/
+
+! Flag of symmetry sides to be skipped during tracking
+#if USE_MPI
+  firstSide = INT(REAL( myComputeNodeRank   *nNonUniqueGlobalSides)/REAL(nComputeNodeProcessors))+1
+  lastSide  = INT(REAL((myComputeNodeRank+1)*nNonUniqueGlobalSides)/REAL(nComputeNodeProcessors))
+#else
+  firstSide = 1
+  lastSide  = nComputeNodeSides
+#endif
+
+DO iSide = firstSide, lastSide
+  SideIsSymSide(iSide) = .FALSE.
+  ! ignore non-BC sides
+  IF (SideInfo_Shared(SIDE_BCID,iSide).LE.0) CYCLE
+#if USE_MPI
+  ! ignore sides outside of halo region
+  IF (ElemInfo_Shared(ELEM_HALOFLAG,SideInfo_Shared(SIDE_ELEMID,iSide)).EQ.0) CYCLE
+#endif /*USE_MPI*/
+  IF (PartBound%TargetBoundCond(PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,iSide))).EQ.PartBound%SymmetryDim) &
+    SideIsSymSide(iSide) = .TRUE.
+END DO
+
+#if USE_MPI
+CALL BARRIER_AND_SYNC(SideIsSymSide_Shared_Win ,MPI_COMM_SHARED)
+#endif
+
+END SUBROUTINE InitVolumes_1D
+
+
+REAL FUNCTION DSMC_2D_CalcSymmetryArea(iLocSide,iElem, ymin, ymax)
+!===================================================================================================================================
+!> Calculates the actual area of an element for 2D simulations (plane/axisymmetric) regardless of the mesh dimension in z
+!> Utilized in the particle emission (surface flux) and boundary sampling
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals
+USE MOD_Globals_Vars          ,ONLY: Pi
+USE MOD_Particle_Mesh_Vars    ,ONLY: NodeCoords_Shared, ElemSideNodeID_Shared
+USE MOD_Symmetry_Vars         ,ONLY: Symmetry
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+INTEGER,INTENT(IN)            :: iElem,iLocSide           !> iElem is the compute-node element ID
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+REAL, OPTIONAL, INTENT(OUT)   :: ymax,ymin
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER                       :: iNode
+REAL                          :: P(1:2,1:4), Pmin(2), Pmax(2), Length, MidPoint
+!===================================================================================================================================
+
+Pmin = HUGE(Pmin)
+Pmax = -HUGE(Pmax)
+
+DO iNode = 1,4
+  P(1:2,iNode) = NodeCoords_Shared(1:2,ElemSideNodeID_Shared(iNode,iLocSide,iElem)+1)
+END DO
+
+Pmax(1) = MAXVAL(P(1,:))
+Pmax(2) = MAXVAL(P(2,:))
+Pmin(1) = MINVAL(P(1,:))
+Pmin(2) = MINVAL(P(2,:))
+
+IF (PRESENT(ymax).AND.PRESENT(ymin)) THEN
+  ymin = Pmin(2)
+  ymax = Pmax(2)
+END IF
+
+Length = SQRT((Pmax(1)-Pmin(1))**2 + (Pmax(2)-Pmin(2))**2)
+
+MidPoint = (Pmax(2)+Pmin(2)) / 2.
+IF(Symmetry%Axisymmetric) THEN
+  DSMC_2D_CalcSymmetryArea = Length * MidPoint * Pi * 2.
+  ! Area of the cells on the rotational symmetry axis is set to one
+  IF(.NOT.(DSMC_2D_CalcSymmetryArea.GT.0.0)) DSMC_2D_CalcSymmetryArea = 1.
+ELSE
+  DSMC_2D_CalcSymmetryArea = Length
+END IF
+RETURN
+
+END FUNCTION DSMC_2D_CalcSymmetryArea
+
+
+REAL FUNCTION DSMC_1D_CalcSymmetryArea(iLocSide,iElem)
+!===================================================================================================================================
+!> Calculates the actual area of an element for 1D simulations regardless of the mesh dimension in z and y
+!> Utilized in the particle emission (surface flux) and boundary sampling
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals
+USE MOD_Particle_Mesh_Vars    ,ONLY: NodeCoords_Shared, ElemSideNodeID_Shared
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+INTEGER,INTENT(IN)            :: iElem,iLocSide
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+REAL                          :: Pmin, Pmax, Length
+!===================================================================================================================================
+
+Pmax = MAXVAL(NodeCoords_Shared(1,ElemSideNodeID_Shared(:,iLocSide,iElem)+1))
+Pmin = MINVAL(NodeCoords_Shared(1,ElemSideNodeID_Shared(:,iLocSide,iElem)+1))
+
+Length = ABS(Pmax-Pmin)
+
+! IF(Symmetry%Axisymmetric) THEN
+!   MidPoint = (Pmax(2)+Pmin(2)) / 2.
+!   DSMC_1D_CalcSymmetryArea = Length * MidPoint * Pi * 2.
+!   ! Area of the cells on the rotational symmetry axis is set to one
+!   IF(.NOT.(DSMC_1D_CalcSymmetryArea.GT.0.0)) DSMC_1D_CalcSymmetryArea = 1.
+! ELSE
+  DSMC_1D_CalcSymmetryArea = Length
+  IF (DSMC_1D_CalcSymmetryArea.EQ.0.) DSMC_1D_CalcSymmetryArea = 1.
+! END IF
+RETURN
+
+END FUNCTION DSMC_1D_CalcSymmetryArea
+
+
+FUNCTION DSMC_2D_CalcSymmetryAreaSubSides(iLocSide,iElem)
+!===================================================================================================================================
+!> Calculates the area of the subsides for the insertion with the surface flux
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals
+USE MOD_Globals_Vars              ,ONLY: Pi
+USE MOD_DSMC_Vars                 ,ONLY: RadialWeighting
+USE MOD_Particle_Mesh_Vars        ,ONLY: NodeCoords_Shared,ElemSideNodeID_Shared
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+INTEGER,INTENT(IN)                :: iLocSide,iElem           !> iElem is the compute-node element ID
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+REAL                              :: DSMC_2D_CalcSymmetryAreaSubSides(RadialWeighting%nSubSides)
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER                           :: iNode
+REAL                              :: P(1:2,1:4), Pmin(2), Pmax(2), MidPoint, PminTemp, PmaxTemp, Length
+!===================================================================================================================================
+
+Pmin = HUGE(Pmin)
+Pmax = -HUGE(Pmax)
+
+DO iNode = 1,4
+  P(1:2,iNode) = NodeCoords_Shared(1:2,ElemSideNodeID_Shared(iNode,iLocSide,iElem)+1)
+END DO
+
+Pmax(1) = MAXVAL(P(1,:))
+Pmax(2) = MAXVAL(P(2,:))
+Pmin(1) = MINVAL(P(1,:))
+Pmin(2) = MINVAL(P(2,:))
+Length = SQRT((Pmax(1)-Pmin(1))**2 + (Pmax(2)-Pmin(2))**2)
+
+DO iNode = 1, RadialWeighting%nSubSides
+  PminTemp = Pmin(2) + (Pmax(2) - Pmin(2))/RadialWeighting%nSubSides*(iNode-1.)
+  PmaxTemp = Pmin(2) + (Pmax(2) - Pmin(2))/RadialWeighting%nSubSides*iNode
+  MidPoint = (PmaxTemp+PminTemp) / 2.
+  DSMC_2D_CalcSymmetryAreaSubSides(iNode) = Length/RadialWeighting%nSubSides * MidPoint * Pi * 2.
+END DO
+
+RETURN
+
+END FUNCTION DSMC_2D_CalcSymmetryAreaSubSides
 
 
 END MODULE MOD_Particle_Mesh_Tools

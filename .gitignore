@@ -70,6 +70,7 @@ commit.h
 CMakeCache.txt
 ctags.txt
 CMakeFiles/
+tags
 .tags
 
 # comma separated files
@@ -84,3 +85,6 @@ unitTests/bin/
 # gitlab-ci-local temp files and folders
 .gitlab-ci-local/
 reggie/
+
+# pyenv project settings
+.python-version

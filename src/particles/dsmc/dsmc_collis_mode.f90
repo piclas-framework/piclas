@@ -47,7 +47,7 @@ USE MOD_part_tools              ,ONLY: GetParticleWeight
 #ifdef CODE_ANALYZE
 USE MOD_Globals                 ,ONLY: Abort
 USE MOD_Globals                 ,ONLY: unit_stdout,myrank
-USE MOD_Particle_Vars           ,ONLY: Symmetry
+USE MOD_Symmetry_Vars           ,ONLY: Symmetry
 #endif /* CODE_ANALYZE */
 USE MOD_DSMC_Vars               ,ONLY: DSMC
 ! IMPLICIT VARIABLE HANDLING
@@ -980,8 +980,9 @@ SUBROUTINE DSMC_perform_collision(iPair, iElem, NodeVolume, NodePartNum)
 USE MOD_Globals               ,ONLY: Abort, CROSS
 USE MOD_DSMC_Vars             ,ONLY: CollisMode, Coll_pData, SelectionProc
 USE MOD_DSMC_Vars             ,ONLY: DSMC
-USE MOD_Particle_Vars         ,ONLY: PartState, Symmetry
+USE MOD_Particle_Vars         ,ONLY: PartState
 USE MOD_Particle_Vars         ,ONLY: UseRotRefFrame, PDM, PartVeloRotRef, RotRefFrameOmega
+USE MOD_Symmetry_Vars         ,ONLY: Symmetry
 USE MOD_DSMC_Vars             ,ONLY: RadialWeighting
 USE MOD_Particle_Vars         ,ONLY: usevMPF, Species, PartSpecies
 USE MOD_Particle_Analyze_Vars ,ONLY: CalcCollRates
@@ -1264,7 +1265,7 @@ SUBROUTINE ProcessRotRelax(iPair, iPart, iSpec, FakXi, CorrFactor)
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals                 ,ONLY: Abort
-USE MOD_DSMC_Vars               ,ONLY: SpecDSMC, DSMC, Coll_pData, RadialWeighting, PartStateIntEn
+USE MOD_DSMC_Vars               ,ONLY: SpecDSMC, Coll_pData, RadialWeighting, PartStateIntEn
 USE MOD_Particle_Vars           ,ONLY: UseVarTimeStep, usevMPF
 USE MOD_part_tools              ,ONLY: GetParticleWeight
 USE MOD_DSMC_PolyAtomicModel    ,ONLY: DSMC_RotRelaxPoly, DSMC_RotRelaxQuantPoly, DSMC_VibRelaxPoly, DSMC_RotRelaxDatabasePoly
@@ -1282,42 +1283,8 @@ REAL, INTENT(IN),OPTIONAL     :: CorrFactor
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-REAL                          :: iRan, LocalFakXi
+REAL                          :: LocalFakXi
 !===================================================================================================================================
-! IF(SpecDSMC(iSpec)%PolyatomicMol) THEN
-!   IF(DSMC%RotRelaxModel.EQ.1) THEN       ! Quantized treatment of rotational energy
-!     LocalFakXi = FakXi - 0.5*SpecDSMC(iSpec)%Xi_Rot
-!     CALL DSMC_RotRelaxQuantPoly(iPair, iPart, LocalFakXi)
-!     ! CALL DSMC_RotRelaxQuantPolyMH(iPair, iPart, LocalFakXi)
-!   ELSE IF(DSMC%RotRelaxModel.EQ.2) THEN       ! Using database energy levels
-!     LocalFakXi = FakXi - 0.5*SpecDSMC(iSpec)%Xi_Rot
-!     CALL DSMC_RotRelaxDatabasePoly(iPair, iPart, LocalFakXi)
-!   ELSE    ! Continuous treatment of rotational energy
-!     IF(SpecDSMC(iSpec)%Xi_Rot.EQ.3) THEN
-!       LocalFakXi = FakXi - 0.5*SpecDSMC(iSpec)%Xi_Rot
-!       CALL DSMC_RotRelaxPoly(iPair, iPart, LocalFakXi)
-!     ELSE
-!       CALL RANDOM_NUMBER(iRan)
-!       PartStateIntEn(2, iPart) = Coll_pData(iPair)%Ec * (1.0 - iRan**(1.0/FakXi))
-!     END IF
-!   END IF
-! ELSE
-!   IF(DSMC%RotRelaxModel.EQ.1) THEN       ! Quantized treatment of rotational energy
-!     LocalFakXi = FakXi - 0.5*SpecDSMC(iSpec)%Xi_Rot
-!     CALL DSMC_RotRelaxDiaQuant(iPair, iPart, LocalFakXi)
-!   ELSE IF(DSMC%RotRelaxModel.EQ.2) THEN       ! Using database energy levels
-!     LocalFakXi = FakXi - 0.5*SpecDSMC(iSpec)%Xi_Rot
-!     CALL DSMC_RotRelaxDatabasePoly(iPair, iPart, LocalFakXi)
-!   ELSE    ! Continuous treatment of rotational energy
-!     CALL RANDOM_NUMBER(iRan)
-!     PartStateIntEn(2, iPart) = Coll_pData(iPair)%Ec * (1.0 - iRan**(1.0/FakXi))
-!   END IF
-! END IF
-! Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec - PartStateIntEn(2, iPart)
-! IF(RadialWeighting%DoRadialWeighting.OR.UseVarTimeStep.OR.usevMPF) THEN
-!   PartStateIntEn(2, iPart) = PartStateIntEn(2, iPart) / GetParticleWeight(iPart)
-! END IF
-
 IF(SpecDSMC(iSpec)%PolyatomicMol) THEN
   LocalFakXi = FakXi - 0.5*SpecDSMC(iSpec)%Xi_Rot
   CALL RotRelaxPolyRoutineFuncPTR(iPair, iPart, LocalFakXi)

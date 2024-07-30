@@ -73,6 +73,7 @@ USE MOD_ReadInTools
 USE MOD_DSMC_Vars             ,ONLY: DSMC, CollInf
 USE MOD_DSMC_ParticlePairing  ,ONLY: DSMC_init_octree
 USE MOD_PARTICLE_Vars         ,ONLY: nSpecies, Species, DoVirtualCellMerge
+USE MOD_Symmetry_Vars         ,ONLY: Symmetry
 USE MOD_FPFlow_Vars
 USE MOD_BGK_Vars              ,ONLY: DoBGKCellAdaptation, BGKMinPartPerCell
 #if USE_LOADBALANCE
@@ -105,12 +106,11 @@ FPCollModel = GETINT('Particles-FP-CollModel')
 ESFPModel = GETINT('Particles-ESFP-Model')
 DoBGKCellAdaptation = GETLOGICAL('Particles-FP-DoCellAdaptation')
 IF(DoBGKCellAdaptation) THEN
+  IF (Symmetry%Order.EQ.1) CALL abort(__STAMP__,'ERROR: 1D Fokker-Planck flow with CellAdaptation is not implemented yet')
   BGKMinPartPerCell = GETINT('Particles-FP-MinPartsPerCell')
   IF(.NOT.DSMC%UseOctree) THEN
     DSMC%UseOctree = .TRUE.
-    IF(NGeo.GT.PP_N) CALL abort(&
-__STAMP__&
-,' Set PP_N to NGeo, otherwise the volume is not computed correctly.')
+    IF(NGeo.GT.PP_N) CALL abort(__STAMP__,' Set PP_N to NGeo, otherwise the volume is not computed correctly.')
     CALL DSMC_init_octree()
   END IF
 END IF
