@@ -273,6 +273,7 @@ END SUBROUTINE GetAttributeSize
 !> this produces HDF5 error messages even if everything is okay, so we turn the error msgs off
 !> during this operation.
 !> auto error messages off
+!> also used for opening groups in SpeciesDatabase
 !==================================================================================================================================
 SUBROUTINE DatasetExists(Loc_ID_in,DSetName,Exists,attrib,DSetName_attrib,ChangeToGroup)
 ! MODULES
@@ -681,8 +682,13 @@ IF(PRESENT(StrScalar).OR.PRESENT(StrArray)) CALL H5TCLOSE_F(Type_ID, iError)
 
 ! Close the attribute.
 CALL H5ACLOSE_F(Attr_ID, iError)
+
 ! Close the dataset and property list (in case it was opened).
-IF(Loc_ID.NE.File_ID_in) CALL H5DCLOSE_F(Loc_ID, iError)
+IF(PRESENT(ChangeToGroup))THEN
+  IF(Loc_ID.NE.File_ID_in) CALL H5GCLOSE_F(Loc_ID, iError)
+ELSE
+  IF(Loc_ID.NE.File_ID_in) CALL H5DCLOSE_F(Loc_ID, iError)
+END IF
 LOGWRITE(*,*)'...DONE!'
 END SUBROUTINE ReadAttribute
 
@@ -725,7 +731,11 @@ IF(iError.NE.0) THEN
 END IF
 
 ! Close the dataset and property list.
-IF(Loc_ID.NE.File_ID_in) CALL H5DCLOSE_F(Loc_ID, iError)
+IF(PRESENT(ChangeToGroup))THEN
+  IF(Loc_ID.NE.File_ID_in) CALL H5GCLOSE_F(Loc_ID, iError)
+ELSE
+  IF(Loc_ID.NE.File_ID_in) CALL H5DCLOSE_F(Loc_ID, iError)
+END IF
 
 END SUBROUTINE AttributeExists
 
