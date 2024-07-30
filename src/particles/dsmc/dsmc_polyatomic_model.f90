@@ -277,7 +277,7 @@ IF(Species(iSpec)%DoOverwriteParameters) THEN
     ELSE
       DO iVibDOF = 1,3
         WRITE(UNIT=hilf2,FMT='(I0)') iVibDOF
-        PolyatomMolDSMC(iPolyatMole)%CharaTRotDOF(iVibDOF) = GETREAL('Part-Species'//TRIM(hilf)//'-CharaTempRot')
+        PolyatomMolDSMC(iPolyatMole)%CharaTRotDOF(iVibDOF) = GETREAL('Part-Species'//TRIM(hilf)//'-CharaTempRot'//TRIM(hilf2))
       END DO
     END IF
   END IF
