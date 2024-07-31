@@ -215,8 +215,8 @@ if [[ ! -e "${MODULEFILE}" || ${UPDATEMODE} -eq 1 ]]; then
   # Check if module already exists and update mode is enabled (this will remove the existing module)
   if [[ -e "${MODULEFILE}" && ${UPDATEMODE} -eq 1 ]]; then
     echo " "
-    echo -e "${YELLOW}Update mode detected (--update or -u): This will overwrite the installed version with the latest one${NC}"
-    echo -e "${YELLOW}HOPR-${HOPRVERSION}: module file exists under ${MODULEFILE}${NC}"
+    echo -e "${YELLOW}Update mode detected (--update or -u): This will overwrite the installed module version with the latest one.${NC}"
+    echo -e "${YELLOW}The 'HOPR-${HOPRVERSION}' module file already exists under [${MODULEFILE}] and will be deleted now.${NC}"
     read -p "Press [Enter] to continue or [Crtl+c] to abort!"
     rm -rf ${MODULEFILE}
   fi
@@ -246,15 +246,26 @@ if [[ ! -e "${MODULEFILE}" || ${UPDATEMODE} -eq 1 ]]; then
 
   # Check if repo is already downloaded
   CLONEDIR=${HOPRINSTALLDIR}/hopr
+
+  # If repo already exists and update is performed, remove the directory first.
+  if [[ -d ${CLONEDIR} && ${UPDATEMODE} -eq 1 ]]; then
+    echo " "
+    echo -e "${YELLOW}Update mode detected (--update or -u): This will remove the existing git repository and clone a new one.${NC}"
+    echo -e "${YELLOW}The cloned directory already exists under [${CLONEDIR}] and will be deleted now.${NC}"
+    read -p "Press [Enter] to continue or [Crtl+c] to abort!"
+    rm -rf ${CLONEDIR}
+  fi
+
+  # Check if directory exists
   if [[ -d ${CLONEDIR} ]]; then
     # Inquiry: Continue the installation with the existing files OR remove them all and start fresh
     while true; do
       echo " "
       echo "${YELLOW}${CLONEDIR} already exists.${NC}"
-      echo "${YELLOW}Do you want to continue the installation (y/n)?${NC}"
+      echo "${YELLOW}Do you want to continue the installation? Otherwise the directory will be removed and a fresh installation will be performed.${NC}"
       # Inquiry
       if [[ ${RERUNMODE} -eq 0 ]]; then
-        read -p "${YELLOW}Otherwise the directory will be removed and a fresh installation will be performed. [Y/n]${NC}" yn
+        read -p "${YELLOW}Continue the installation without removing? [Y/n]${NC}" yn
       else
         yn=y
       fi
