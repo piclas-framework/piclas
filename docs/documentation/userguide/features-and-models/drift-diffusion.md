@@ -2,10 +2,10 @@
 Streamers are growing ionized fingers that appear when ionizable matter is suddenly exposed to high voltages [1]. Streamers occur in lightning and sprites as well as in industrial applications such as lighting, treatment of polluted gases and water, disinfection plasma jets and bullets and plasma-assisted combustion. Further optimization and understanding of such applications depend on an accurate knowledge of the electron dynamics during streamer development [2].
 
 Streamer discharge simulations are basically modeled in three ways. These are the Particle Model, Fluid Model, and Hybrid Model.
-In this section, the Hybrid Model approach is explained. In the Hybrid Model Simulations, ions are represented by particles.
+In this section, the Hybrid Model which combines the 1st order fluid model with particle model approach is explained. In the Hybrid Model Simulations, ions are represented by particles.
 
+The first-order fluid model is the multiply used reaction–drift-diffusion model[1]. The drift-diffusion scheme can be used to model the electrons species in the plasma as a continuum instead of kinetic particles.
 
-The drift-diffusion scheme can be used to model the electrons species in the plasma as a continuum instead of kinetic particles.
 The piclas executable to use the model in created by
 
     mkdir build_electron_fluid && cd build_electron_fluid
@@ -13,6 +13,14 @@ The piclas executable to use the model in created by
 
 TODO: add different time integration possibilities for field (FV solver for electrons) and charged heavy species (particle push +
 HDG solver for electric fields)
+
+**The First-Order Fluid Model** 
+The 1st order fluid model is derived from the Boltzmann equation. Continuity and the balance of momentum equations are used and the set is truncated at the momentum balance equation.
+
+$$
+\frac{\partial n}{\partial t} + \nabla \cdot (nv) = C1
+$$
+
 
 ## Boundary conditions
 
