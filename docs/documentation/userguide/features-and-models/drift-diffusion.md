@@ -28,7 +28,6 @@ $$
 
 After some implementation and the simplfications are applied to the these constitutive equations, the first-order-fluid model is given by the equations : 
 
-# Denklemler
 
 $$
 \frac{\partial n}{\partial t} = \nabla \cdot (D \cdot \nabla n) + \nabla \cdot (\mu n E) + n(\nu_I - \nu_A) \tag{25}
@@ -44,14 +43,12 @@ $$
 
 coupled to the Poisson equation for the electric field, 
 
-# Denklemler
-
 $$
 \nabla^2 \phi = \frac{e}{\epsilon_0} (n - n_p + n_n), \quad E = -\nabla \phi
 $$
 
 
-
+Here, \( n_p \) and \( n_n \) are positive and negative ion densities, while \( \nu_I \) and \( \nu_A \) are the ionization and attachment collision frequencies due to electron–molecule collisions, and \( \phi \) is the electric potential.
 
 ## Boundary conditions
 
