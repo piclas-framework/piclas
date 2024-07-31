@@ -17,7 +17,7 @@ HDG solver for electric fields)
 **The First-Order Fluid Model** 
 
 The first-order-fluid model is derived from the Boltzmann equation. 
-Continuity and the balance of momentum equations are used and the set is truncated at the momentum balance equation.
+Continuity and the balance of momentum equations are used and the set is truncated at the momentum balance equation [3].
 
  
 $$
@@ -81,3 +81,8 @@ Furthermore, the electron number density $n_{e}$ is written to *ElemData.vtu* an
 
 TODO: combine *Electron\_Density* from the drift-diffusion output with the *ElectronDensityCell* output that is used for PIC and
 PIC-BR. See CalcSourceHDG() on how the drift-diffusion is added to the source terms.
+
+### References 
+[1] Dujko, S., Markosyan, A. H., White, R. D., & Ebert, U. (2020). High-order fluid model for streamer discharges: II. Numerical solution and investigation of planar fronts. Journal of Physics D: Applied Physics, 53(33), 335202. https://doi.org/10.1088/1361-6463/ab8b93
+[2] 
+[3] Dujko, S., Markosyan, A. H., White, R. D., & Ebert, U. (2020). High-order fluid model for streamer discharges: I. Derivation of model and transport data. Journal of Physics D: Applied Physics, 53(33), 335201. https://doi.org/10.1088/1361-6463/ab8b92
