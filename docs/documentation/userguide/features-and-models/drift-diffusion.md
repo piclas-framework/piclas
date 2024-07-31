@@ -17,9 +17,40 @@ HDG solver for electric fields)
 **The First-Order Fluid Model** 
 The 1st order fluid model is derived from the Boltzmann equation. Continuity and the balance of momentum equations are used and the set is truncated at the momentum balance equation.
 
+ 
 $$
-\frac{\partial n}{\partial t} + \nabla \cdot (nv) = C1
+\frac{\partial n}{\partial t} + \nabla \cdot (nv) = C1 \tag{7}
 $$
+
+$$
+\frac{\partial (nmv)}{\partial t} + \nabla \cdot (nm\langle cc \rangle) - neE = C_{mc} \tag{8}
+$$
+
+After some implementation and the simplfications are applied to the these constitutive equations, the first-order-fluid model is given by the equations : 
+
+# Denklemler
+
+$$
+\frac{\partial n}{\partial t} = \nabla \cdot (D \cdot \nabla n) + \nabla \cdot (\mu n E) + n(\nu_I - \nu_A) \tag{25}
+$$
+
+$$
+\frac{\partial n_p}{\partial t} = n \nu_I \tag{26}
+$$
+
+$$
+\frac{\partial n_n}{\partial t} = n \nu_A \tag{27}
+$$
+
+coupled to the Poisson equation for the electric field, 
+
+# Denklemler
+
+$$
+\nabla^2 \phi = \frac{e}{\epsilon_0} (n - n_p + n_n), \quad E = -\nabla \phi
+$$
+
+
 
 
 ## Boundary conditions
