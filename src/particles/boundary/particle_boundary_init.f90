@@ -43,12 +43,6 @@ IMPLICIT NONE
 !==================================================================================================================================
 CALL prms%SetSection("Particle Boundaries")
 
-CALL prms%CreateIntOption(      'Part-RotPeriodicAxi' , 'Axis of rotational periodicity: x = 1, y = 2, z = 3')
-CALL prms%CreateRealOption(     'PartBound-RotPeriodicTol' , 'Tolerance for rotationally periodic BCs: symmetry angle is '//&
-                                'multiplied by 1-x to slightly move the particle / cell center into the domain','1E-4')
-CALL prms%CreateLogicalOption(  'PartBound-OutputBCDataForTesting' , 'Flag to enable output of information which was automatically '//&
-                                'determined for regression testing purposes, currently: Min/Max of multiple rot periodic BCs, '//&
-                                'interplane positions along RotPeriodicAxi', '.FALSE.')
 CALL prms%CreateIntOption(      'Part-nBounds', 'Number of particle boundaries.', '1')
 CALL prms%CreateStringOption(   'Part-Boundary[$]-SourceName', &
                                   'No Default. Source Name of Boundary[i]. Has to be selected for all'//&
@@ -63,6 +57,21 @@ CALL prms%CreateStringOption(   'Part-Boundary[$]-Condition', &
                                   '- rot_periodic.\n'//&
                                   'If condition=reflective (Part-Boundary[$]-=PB): PB-MomentumACC,PB-WallTemp,PB-TransACC,PB-VibACC,PB-RotACC,'//&
                                   'PB-WallVelo,SpeciesSwaps.\nIf condition=periodic:Part-nPeriodicVectors', 'open', numberedmulti=.TRUE.)
+
+! Rotationally periodic BCs
+CALL prms%CreateIntOption(      'Part-RotPeriodicAxi' , 'Axis of rotational periodicity: x = 1, y = 2, z = 3')
+CALL prms%CreateRealOption(     'PartBound-RotPeriodicTol' , 'Tolerance for rotationally periodic BCs: symmetry angle is '//&
+                                'multiplied by 1-x to slightly move the particle / cell center into the domain','1E-4')
+CALL prms%CreateLogicalOption(  'PartBound-OutputBCDataForTesting' , 'Flag to enable output of information which was automatically '//&
+                                'determined for regression testing purposes, currently: Min/Max of multiple rot periodic BCs, '//&
+                                'interplane positions along RotPeriodicAxi', '.FALSE.')
+CALL prms%CreateRealOption(      'Part-Boundary[$]-RotPeriodicAngle' , 'Angle and Direction of rotation periodicity, either + or - '//&
+                                'Note: Rotation direction based on right-hand rule!', numberedmulti=.TRUE.)
+CALL prms%CreateIntOption(      'Part-Boundary[$]-AssociatedPlane'  &
+                                , 'Corresponding intermediate planes in case of multiple rotationally periodic BCs' , numberedmulti=.TRUE.)
+!CALL prms%CreateLogicalOption(  'Part-RotPeriodicReBuild', 'Force re-creation of rotational periodic mapping (which might already exist in the mesh file).', '.FALSE.')
+
+! Dielectric surface modelling
 CALL prms%CreateLogicalOption('Part-Boundary[$]-Dielectric' , 'Define if particle boundary [$] is a '//&
                               'dielectric interface, i.e. an interface between a dielectric and a non-dielectric or a between two'//&
                               ' different dielectrics [.TRUE.] or not [.FALSE.] (requires reflective BC and species swap for nSpecies)'&
@@ -73,6 +82,9 @@ CALL prms%CreateLogicalOption('Part-Boundary[$]-BoundaryParticleOutput' , 'Defin
                               'boundary [$] are to be stored in an additional .h5 file for post-processing analysis [.TRUE.] '//&
                               'or not [.FALSE.].'&
                               , '.FALSE.', numberedmulti=.TRUE.)
+
+! Radiative equilibrium temperature
+CALL prms%CreateLogicalOption(  'Part-AdaptWallTemp','Perform wall temperature adaptation at every macroscopic output.', '.FALSE.')
 CALL prms%CreateLogicalOption(  'Part-Boundary[$]-UseAdaptedWallTemp', &
                                 'Use an adapted wall temperature, calculated if Part-AdaptWallTemp = T, otherwise read-in '//&
                                 'from the restart file','.FALSE.', numberedmulti=.TRUE.)
@@ -80,6 +92,8 @@ CALL prms%CreateRealOption(     'Part-Boundary[$]-RadiativeEmissivity',  &
                                 'Radiative emissivity of the boundary used to determine the wall temperature assuming a '//&
                                 'radiative equilibrium at the wall, Part-Boundary1-UseAdaptedWallTemp = T and ' //&
                                 'Part-AdaptWallTemp = T must be set', '1.', numberedmulti=.TRUE.)
+
+! Fixed wall temperature and accommodation coefficients
 CALL prms%CreateRealOption(     'Part-Boundary[$]-WallTemp'  &
                                 , 'Wall temperature (in [K]) of reflective particle boundary [$].' &
                                 , '0.', numberedmulti=.TRUE.)
@@ -98,6 +112,7 @@ CALL prms%CreateRealOption(     'Part-Boundary[$]-RotACC'  &
 CALL prms%CreateRealOption(     'Part-Boundary[$]-ElecACC '  &
                                 , 'Electronic accommodation coefficient of reflective particle boundary [$].' &
                                 , '0.', numberedmulti=.TRUE.)
+! Photo-ionization SEE
 CALL prms%CreateLogicalOption(  'Part-Boundary[$]-PhotonSpecularReflection'  &
                                 , 'Enables a perfect specular reflection for photons (FALSE: diffuse with PhotonEnACC) [$].' &
                                 , '.FALSE.', numberedmulti=.TRUE.)
@@ -116,9 +131,12 @@ CALL prms%CreateRealOption(     'Part-Boundary[$]-PhotonSEE-MacroParticleFactor'
 CALL prms%CreateIntOption(      'Part-Boundary[$]-PhotonSEE-ElectronSpecies'  &
                                 , 'Secondary photo-electron species index [$].' &
                                 , numberedmulti=.TRUE.)
+!
 CALL prms%CreateLogicalOption(  'Part-Boundary[$]-Resample', &
                                   'Sample particle properties from equilibrium distribution after reflection', '.FALSE.'&
                                 , numberedmulti=.TRUE.)
+
+! Rotational and linear wall velocity
 CALL prms%CreateRealArrayOption('Part-Boundary[$]-WallVelo'  &
                                 , 'Velocity (global x,y,z in [m/s]) of reflective particle boundary [$].' &
                                 , '0. , 0. , 0.', numberedmulti=.TRUE.)
@@ -133,11 +151,8 @@ CALL prms%CreateRealOption(     'Part-Boundary[$]-RotFreq'  &
                                 , numberedmulti=.TRUE.)
 CALL prms%CreateIntOption(      'Part-Boundary[$]-RotAxis'  &
                                 , 'Definition of rotation axis, only major axis: x=1,y=2,z=3.' , numberedmulti=.TRUE.)
-CALL prms%CreateRealOption(      'Part-Boundary[$]-RotPeriodicAngle' , 'Angle and Direction of rotation periodicity, either + or - '//&
-                                'Note: Rotation direction based on right-hand rule!', numberedmulti=.TRUE.)
-CALL prms%CreateIntOption(      'Part-Boundary[$]-AssociatedPlane'  &
-                                , 'Corresponding intermediate planes in case of multiple rotationally periodic BCs' , numberedmulti=.TRUE.)
-!CALL prms%CreateLogicalOption(  'Part-RotPeriodicReBuild', 'Force re-creation of rotational periodic mapping (which might already exist in the mesh file).', '.FALSE.')
+
+! Temperature gradient
 CALL prms%CreateRealOption(     'Part-Boundary[$]-WallTemp2'  &
                                 , 'Second wall temperature (in [K]) of reflective particle boundary for a temperature gradient.' &
                                 , '0.', numberedmulti=.TRUE.)
@@ -150,6 +165,8 @@ CALL prms%CreateRealArrayOption('Part-Boundary[$]-TempGradEnd'  &
 CALL prms%CreateIntOption(      'Part-Boundary[$]-TempGradDir', 'Optional definition of the temperature '//&
                                 'gradient direction along a major axis: x = 1, y = 2, z = 3. Default = 0: Gradient is along '//&
                                 'the vector defined by the start and end values', '0', numberedmulti=.TRUE.)
+
+! Reaction surface modelling (including SEE)
 CALL prms%CreateIntOption(      'Part-Boundary[$]-SurfaceModel'  &
                                 , 'Defining surface to be treated reactively by defining Model used for particle surface interaction. If any >0 then look in section SurfaceModel.\n'//&
                                 '0: Maxwell scattering\n'//&
@@ -164,33 +181,22 @@ CALL prms%CreateIntOption(      'Part-Boundary[$]-SurfaceModel'  &
                                 '10: SEE-I when Ar+ bombards copper by J.G. Theis "Computing the Paschen curve for argon with speed-limited particle-in-cell simulation", 2021 (originates from Phelps1999)\n'// &
                                 '11: SEE-E when e- bombard quartz (SiO2) by A. Dunaevsky, "Secondary electron emission from dielectric materials of a Hall thruster with segmented electrodes", 2003\n'//&
                                 '20: Catalytic reaction model', '0', numberedmulti=.TRUE.)
-CALL prms%CreateRealOption(     'Part-Boundary[$]-LatticeVector'  &
-                                , 'Lattice vector for the respective crystal structure [m]'&
-                                , numberedmulti=.TRUE.)
-CALL prms%CreateRealOption(     'Part-Boundary[$]-NbrOfMol-UnitCell'  &
-                                , 'Number of molecules in the unit area (defined by the lattice vector)'&
-                                , numberedmulti=.TRUE.)
-CALL prms%CreateRealOption(     'Part-Boundary[$]-Species[$]-Coverage'  &
-                                , 'Initial coverage of the surface by an adsorbed species'&
-                                , numberedmulti=.TRUE.)
-CALL prms%CreateRealOption(     'Part-Boundary[$]-Species[$]-MaxCoverage'  &
-                                , 'Initial coverage of the surface by an adsorbed species'&
-                                , numberedmulti=.TRUE.)
-CALL prms%CreateRealOption(     'Part-Boundary[$]-MaxTotalCoverage'  &
-                                , 'Maximal coverage valure for the surface (default = 1.)'&
-                                , numberedmulti=.TRUE.)
+
+! Catalytic reaction model
+CALL prms%CreateRealOption(     'Part-Boundary[$]-LatticeVector', 'Lattice vector for the respective crystal structure [m]', '0.', numberedmulti=.TRUE.)
+CALL prms%CreateRealOption(     'Part-Boundary[$]-NbrOfMol-UnitCell', 'Number of molecules in the unit area (defined by the lattice vector)', '1.', numberedmulti=.TRUE.)
+CALL prms%CreateRealOption(     'Part-Boundary[$]-Species[$]-Coverage', 'Initial coverage of the surface by an adsorbed species', '0.', numberedmulti=.TRUE.)
+CALL prms%CreateRealOption(     'Part-Boundary[$]-Species[$]-MaxCoverage', 'Initial coverage of the surface by an adsorbed species', '1.', numberedmulti=.TRUE.)
+CALL prms%CreateRealOption(     'Part-Boundary[$]-MaxTotalCoverage', 'Maximal coverage value for the surface', '1.', numberedmulti=.TRUE.)
+
+! Species swap
 CALL prms%SetSection('Particle Boundaries: Species Swap')
 CALL prms%CreateIntOption(      'Part-Boundary[$]-NbrOfSpeciesSwaps'  &
-                                , 'TODO-DEFINE-PARAMETER\n'//&
-                                  'Number of Species to be changed at wall.', '0', numberedmulti=.TRUE.)
+                                , 'Number of species to be changed at wall.', '0', numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'Part-Boundary[$]-ProbOfSpeciesSwaps'  &
-                                , 'TODO-DEFINE-PARAMETER'//&
-                                  'Probability of SpeciesSwaps at wall', '1.', numberedmulti=.TRUE.)
-CALL prms%CreateIntArrayOption( 'Part-Boundary[$]-SpeciesSwaps[$]'  &
-                                , 'TODO-DEFINE-PARAMETER'//&
-                                  'Species to be changed at wall (out=: delete)', '0 , 0'&
+                                , 'Probability of SpeciesSwaps at wall', '1.', numberedmulti=.TRUE.)
+CALL prms%CreateIntArrayOption( 'Part-Boundary[$]-SpeciesSwaps[$]','Species to be changed at wall (out=: delete)', '0 , 0'&
                                 , numberedmulti=.TRUE.)
-CALL prms%CreateLogicalOption(  'Part-AdaptWallTemp','Perform wall temperature adaptation at every macroscopic output.', '.FALSE.')
 
 END SUBROUTINE DefineParametersParticleBoundary
 
@@ -483,6 +489,22 @@ DO iPartBound=1,nPartBound
           CALL abort(__STAMP__,'ERROR in InitializeVariablesPartBoundary: SpeciesDatabase is required for the boundary #', iPartBound)
       CASE (20)
         PartBound%Reactive(iPartBound)        = .TRUE.
+        PartBound%LatticeVec(iPartBound) = GETREAL('Part-Boundary'//TRIM(hilf)//'-LatticeVector')
+        PartBound%MolPerUnitCell(iPartBound) = GETREAL('Part-Boundary'//TRIM(hilf)//'-NbrOfMol-UnitCell')
+        DO iSpec=1, nSpecies
+          WRITE(UNIT=hilf2,FMT='(I0)') iSpec
+          PartBound%CoverageIni(iPartBound, iSpec) = GETREAL('Part-Boundary'//TRIM(hilf)//'-Species'//TRIM(hilf2)//'-Coverage')
+          PartBound%MaxCoverage(iPartBound, iSpec) = GETREAL('Part-Boundary'//TRIM(hilf)//'-Species'//TRIM(hilf2)//'-MaxCoverage')
+          IF (PartBound%CoverageIni(iPartBound, iSpec).GT.PartBound%MaxCoverage(iPartBound, iSpec)) THEN
+            CALL abort(__STAMP__,'ERROR: Surface coverage can not be larger than the maximum value', iPartBound)
+          END IF
+        END DO
+        PartBound%TotalCoverage(iPartBound) = SUM(PartBound%CoverageIni(iPartBound,:))
+        PartBound%MaxTotalCoverage(iPartBound) = GETREAL('Part-Boundary'//TRIM(hilf)//'-MaxTotalCoverage')
+        ! Check if the maximum of the coverage is reached
+        IF (PartBound%TotalCoverage(iPartBound).GT.PartBound%MaxTotalCoverage(iPartBound)) THEN
+          CALL abort(__STAMP__,'ERROR: Maximum surface coverage reached.', iPartBound)
+        END IF
       CASE (SEE_MODELS_ID) ! See ./src/piclas.h for numbers
         ! SEE models require reactive BC
         PartBound%Reactive(iPartBound)        = .TRUE.
@@ -493,22 +515,6 @@ DO iPartBound=1,nPartBound
         CALL abort(__STAMP__,'Error in particle init: only allowed SurfaceModels: 0,1,2,20,SEE_MODELS_ID! SurfaceModel=',&
                   IntInfoOpt=PartBound%SurfaceModel(iPartBound))
       END SELECT
-    END IF
-    PartBound%LatticeVec(iPartBound) = GETREAL('Part-Boundary'//TRIM(hilf)//'-LatticeVector', '0.')
-    PartBound%MolPerUnitCell(iPartBound) = GETREAL('Part-Boundary'//TRIM(hilf)//'-NbrOfMol-UnitCell', '1.')
-    DO iSpec=1, nSpecies
-      WRITE(UNIT=hilf2,FMT='(I0)') iSpec
-      PartBound%CoverageIni(iPartBound, iSpec) = GETREAL('Part-Boundary'//TRIM(hilf)//'-Species'//TRIM(hilf2)//'-Coverage', '0.')
-      PartBound%MaxCoverage(iPartBound, iSpec) = GETREAL('Part-Boundary'//TRIM(hilf)//'-Species'//TRIM(hilf2)//'-MaxCoverage', '1.')
-      IF (PartBound%CoverageIni(iPartBound, iSpec).GT.PartBound%MaxCoverage(iPartBound, iSpec)) THEN
-        CALL abort(__STAMP__,'ERROR: Surface coverage can not be larger than the maximum value', iPartBound)
-      END IF
-    END DO
-    PartBound%TotalCoverage(iPartBound) = SUM(PartBound%CoverageIni(iPartBound,:))
-    PartBound%MaxTotalCoverage(iPartBound) = GETREAL('Part-Boundary'//TRIM(hilf)//'-MaxTotalCoverage', '1.')
-    ! Check if the maximum of the coverage is reached
-    IF (PartBound%TotalCoverage(iPartBound).GT.PartBound%MaxTotalCoverage(iPartBound)) THEN
-      CALL abort(__STAMP__,'ERROR: Maximum surface coverage reached.', iPartBound)
     END IF
 
     ! Species Swap
