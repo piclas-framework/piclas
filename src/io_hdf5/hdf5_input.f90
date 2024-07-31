@@ -283,20 +283,25 @@ IMPLICIT NONE
 CHARACTER(LEN=*)                     :: DSetName        !< name if dataset to be checked
 INTEGER(HID_T),INTENT(IN)            :: Loc_ID_in       !< ID of dataset
 LOGICAL,INTENT(IN),OPTIONAL          :: attrib          !< check dataset or attribute
+LOGICAL,INTENT(IN),OPTIONAL          :: ChangeToGroup   !< set to open Group and not Dataset
 CHARACTER(LEN=*),OPTIONAL            :: DSetName_attrib !< name if dataset to be checked
-CHARACTER(LEN=*),OPTIONAL            :: ChangeToGroup   !< set to open Group and not Dataset
 ! OUTPUT VARIABLES
 LOGICAL,INTENT(OUT)                  :: Exists          !< result: dataset exists
 !----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER(HID_T)                       :: Loc_ID
-LOGICAL                              :: attrib_loc
+LOGICAL                              :: attrib_loc, group_loc
 !==================================================================================================================================
 Loc_ID=Loc_ID_in
+IF(PRESENT(ChangeToGroup))THEN
+  group_loc = ChangeToGroup
+ELSE
+  group_loc = .FALSE.
+END IF
 IF (PRESENT(attrib)) THEN
   attrib_loc=attrib
   IF(PRESENT(DSetName_attrib))THEN
-    IF(PRESENT(ChangeToGroup))THEN
+    IF(group_loc)THEN
       ! Open group
       IF(TRIM(DSetName_attrib).NE.'') CALL H5GOPEN_F(File_ID, TRIM(DSetName_attrib),Loc_ID, iError)
     ELSE
@@ -308,13 +313,15 @@ ELSE
   attrib_loc=.FALSE.
 END IF
 
-! Check attribute or data set. Data sets can be checked by determining the existence of the corresponding link
+! Check attribute or data set/group. Data sets or grouops can be checked by determining the existence of the corresponding link
 IF(attrib_loc)THEN
   CALL H5AEXISTS_F(Loc_ID, TRIM(DSetName), Exists, iError)
+  ! Close the only group and property list (in case it was opened) for species database read in
+  ! Dataset should not be closed here for multiple parameters in writeattributetoHDF5
+  IF(group_loc) CALL H5GCLOSE_F(Loc_ID, iError)
 ELSE
   CALL H5LEXISTS_F(Loc_ID, TRIM(DSetName), Exists, iError)
 END IF
-
 END SUBROUTINE DatasetExists
 
 
@@ -586,6 +593,7 @@ INTEGER(HID_T)    ,INTENT(IN)                  :: File_ID_in         !< HDF5 fil
 INTEGER           ,INTENT(IN)                  :: nVal              !< number of attributes in case an array is expected
 CHARACTER(LEN=*)  ,INTENT(IN)                  :: AttribName        !< name of attribute to be read
 CHARACTER(LEN=*)  ,INTENT(IN) ,OPTIONAL        :: DatasetName       !< dataset name in case attribute is located in a dataset
+LOGICAL           ,INTENT(IN) ,OPTIONAL        :: ChangeToGroup     !< set to read attribute from Group and instead from Dataset
 REAL              ,INTENT(OUT),OPTIONAL,TARGET :: RealArray(nVal)   !< Array of real array attributes
 INTEGER           ,INTENT(OUT),OPTIONAL,TARGET :: IntArray(nVal)    !< Array for integer array for attributes
 REAL              ,INTENT(OUT),OPTIONAL,TARGET :: RealScalar        !< Scalar real attribute
@@ -593,7 +601,6 @@ INTEGER           ,INTENT(OUT),OPTIONAL,TARGET :: IntScalar         !< Scalar in
 CHARACTER(LEN=255),INTENT(OUT),OPTIONAL,TARGET :: StrScalar         !< Scalar string attribute
 CHARACTER(LEN=255),INTENT(OUT),OPTIONAL,TARGET :: StrArray(nVal)    !< Array for character array attributes
 LOGICAL           ,INTENT(OUT),OPTIONAL        :: LogicalScalar     !< Scalar logical attribute
-CHARACTER(LEN=*)  ,OPTIONAL                    :: ChangeToGroup     !< set to read attribute from Group and instead from Dataset
 !----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER(HID_T)                 :: Attr_ID,Type_ID,Loc_ID,memtype
@@ -604,12 +611,18 @@ TYPE(C_PTR)                    :: buf
 INTEGER                        :: pad_type
 INTEGER(SIZE_T) , PARAMETER    :: sdim = 255
 LOGICAL                        :: vstatus
+LOGICAL                        :: group_loc
 !==================================================================================================================================
 
 LOGWRITE(*,*)' READ ATTRIBUTE "',TRIM(AttribName),'" FROM HDF5 FILE...'
 Dimsf(1)=nVal
+IF(PRESENT(ChangeToGroup))THEN
+  group_loc = ChangeToGroup
+ELSE
+  group_loc = .FALSE.
+END IF
 IF(PRESENT(DatasetName))THEN
-  IF(PRESENT(ChangeToGroup))THEN
+  IF(group_loc)THEN
     ! Open group
     IF(TRIM(DataSetName).NE.'') CALL H5GOPEN_F(File_ID_in, TRIM(DatasetName),Loc_ID, iError)
   ELSE
@@ -684,7 +697,7 @@ IF(PRESENT(StrScalar).OR.PRESENT(StrArray)) CALL H5TCLOSE_F(Type_ID, iError)
 CALL H5ACLOSE_F(Attr_ID, iError)
 
 ! Close the dataset and property list (in case it was opened).
-IF(PRESENT(ChangeToGroup))THEN
+IF(group_loc)THEN
   IF(Loc_ID.NE.File_ID_in) CALL H5GCLOSE_F(Loc_ID, iError)
 ELSE
   IF(Loc_ID.NE.File_ID_in) CALL H5DCLOSE_F(Loc_ID, iError)
@@ -705,14 +718,20 @@ IMPLICIT NONE
 INTEGER(HID_T)    ,INTENT(IN)                  :: File_ID_in        !< HDF5 file id of opened file
 CHARACTER(LEN=*)  ,INTENT(IN)                  :: AttribName        !< name of attribute to be read
 CHARACTER(LEN=*)  ,INTENT(IN) ,OPTIONAL        :: DatasetName       !< dataset name
+LOGICAL           ,INTENT(IN) ,OPTIONAL        :: ChangeToGroup     !< check if attribute exists in Group instead of dataset
 LOGICAL           ,INTENT(OUT)                 :: AttrExists
-CHARACTER(LEN=*)  ,OPTIONAL                    :: ChangeToGroup     !< check if attribute exists in Group instead of dataset
 !----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER(HID_T)                 :: Loc_ID
+LOGICAL                        :: group_loc
 !==================================================================================================================================
+IF(PRESENT(ChangeToGroup))THEN
+  group_loc = ChangeToGroup
+ELSE
+  group_loc = .FALSE.
+END IF
 IF(PRESENT(DatasetName))THEN
-  IF(PRESENT(ChangeToGroup))THEN
+  IF(group_loc)THEN
     ! Open group
     IF(TRIM(DataSetName).NE.'') CALL H5GOPEN_F(File_ID_in, TRIM(DatasetName),Loc_ID, iError)
   ELSE
@@ -731,7 +750,7 @@ IF(iError.NE.0) THEN
 END IF
 
 ! Close the dataset and property list.
-IF(PRESENT(ChangeToGroup))THEN
+IF(group_loc)THEN
   IF(Loc_ID.NE.File_ID_in) CALL H5GCLOSE_F(Loc_ID, iError)
 ELSE
   IF(Loc_ID.NE.File_ID_in) CALL H5DCLOSE_F(Loc_ID, iError)

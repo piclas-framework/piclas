@@ -92,7 +92,7 @@ IF(SpeciesDatabase.NE.'none') THEN
   CALL H5FOPEN_F (TRIM(SpeciesDatabase), H5F_ACC_RDONLY_F, file_id_specdb, err)
   dsetname = TRIM('/Species/'//TRIM(Species(iSpec)%Name))
   ! Linear molecule
-  CALL ReadAttribute(file_id_specdb,'LinearMolec',1,DatasetName = dsetname,IntScalar=IntToLog,ChangeToGroup='True')
+  CALL ReadAttribute(file_id_specdb,'LinearMolec',1,DatasetName = dsetname,IntScalar=IntToLog,ChangeToGroup=.True.)
   IF(IntToLog.EQ.1) THEN
     PolyatomMolDSMC(iPolyatMole)%LinearMolec = .TRUE.
   ELSE
@@ -101,11 +101,11 @@ IF(SpeciesDatabase.NE.'none') THEN
   CALL PrintOption('LinearMolec, '//TRIM(Species(iSpec)%Name),'DB',LogOpt=PolyatomMolDSMC(iPolyatMole)%LinearMolec)
   ! Number of atoms
   CALL ReadAttribute(file_id_specdb,'NumOfAtoms',1,DatasetName = dsetname,  &
-    IntScalar=PolyatomMolDSMC(iPolyatMole)%NumOfAtoms,ChangeToGroup='True')
+    IntScalar=PolyatomMolDSMC(iPolyatMole)%NumOfAtoms,ChangeToGroup=.True.)
   CALL PrintOption('NumOfAtoms, '//TRIM(Species(iSpec)%Name),'DB',IntOpt=PolyatomMolDSMC(iPolyatMole)%NumOfAtoms)
   ! Dissociation energy
   ! TSHO not implemented with polyatomic molecules, but Ediss_eV required for the calculation of polyatomic temp. (upper bound)
-  CALL ReadAttribute(file_id_specdb,'Ediss_eV',1,DatasetName = dsetname,RealScalar=SpecDSMC(iSpec)%Ediss_eV,ChangeToGroup='True')
+  CALL ReadAttribute(file_id_specdb,'Ediss_eV',1,DatasetName = dsetname,RealScalar=SpecDSMC(iSpec)%Ediss_eV,ChangeToGroup=.True.)
   CALL PrintOption('Ediss_eV, '//TRIM(Species(iSpec)%Name),'DB',RealOpt=SpecDSMC(iSpec)%Ediss_eV)
   ! Close the file.
   CALL H5FCLOSE_F(file_id_specdb, err)
@@ -147,25 +147,25 @@ IF(SpeciesDatabase.NE.'none') THEN
   dsetname = TRIM('/Species/'//TRIM(Species(iSpec)%Name))
   IF(PolyatomMolDSMC(iPolyatMole)%LinearMolec) THEN
     IF(DSMC%RotRelaxModel.EQ.1)THEN
-      CALL AttributeExists(file_id_specdb,'MomentOfInertia',TRIM(dsetname), AttrExists=AttrExists,ChangeToGroup='True')
+      CALL AttributeExists(file_id_specdb,'MomentOfInertia',TRIM(dsetname), AttrExists=AttrExists,ChangeToGroup=.True.)
       IF (AttrExists) THEN
         CALL ReadAttribute(file_id_specdb,'MomentOfInertia',1,DatasetName = dsetname, &
-          RealScalar=PolyatomMolDSMC(iPolyatMole)%MomentOfInertia(1),ChangeToGroup='True')
+          RealScalar=PolyatomMolDSMC(iPolyatMole)%MomentOfInertia(1),ChangeToGroup=.True.)
         PolyatomMolDSMC(iPolyatMole)%CharaTRotDOF(1) = PlanckConst**2 / & 
           (8 * PI**2 * PolyatomMolDSMC(iPolyatMole)%MomentOfInertia(1) * BoltzmannConst)
         CALL PrintOption('MomentOfInertia, '//TRIM(Species(iSpec)%Name),'DB', &
           RealOpt=PolyatomMolDSMC(iPolyatMole)%MomentOfInertia(1))
       END IF
     ELSE  ! DSMC RotRelaxModel NE 1
-      CALL AttributeExists(file_id_specdb,'CharaTempRot',TRIM(dsetname), AttrExists=AttrExists,ChangeToGroup='True')
+      CALL AttributeExists(file_id_specdb,'CharaTempRot',TRIM(dsetname), AttrExists=AttrExists,ChangeToGroup=.True.)
       IF(AttrExists)THEN
         CALL ReadAttribute(file_id_specdb,'CharaTempRot',1,DatasetName = dsetname,  &
-          RealScalar=PolyatomMolDSMC(iPolyatMole)%CharaTRotDOF(1),ChangeToGroup='True')
+          RealScalar=PolyatomMolDSMC(iPolyatMole)%CharaTRotDOF(1),ChangeToGroup=.True.)
       ELSE  ! CharaTempRot not found
-        CALL AttributeExists(file_id_specdb,'MomentOfInertia',TRIM(dsetname), AttrExists=AttrExists,ChangeToGroup='True')
+        CALL AttributeExists(file_id_specdb,'MomentOfInertia',TRIM(dsetname), AttrExists=AttrExists,ChangeToGroup=.True.)
         IF (AttrExists) THEN
           CALL ReadAttribute(file_id_specdb,'MomentOfInertia',1,DatasetName = dsetname, &
-            RealScalar=PolyatomMolDSMC(iPolyatMole)%MomentOfInertia(1),ChangeToGroup='True')
+            RealScalar=PolyatomMolDSMC(iPolyatMole)%MomentOfInertia(1),ChangeToGroup=.True.)
           PolyatomMolDSMC(iPolyatMole)%CharaTRotDOF(1) = PlanckConst**2 / & 
             (8 * PI**2 * PolyatomMolDSMC(iPolyatMole)%MomentOfInertia(1) * BoltzmannConst)
         ELSE
@@ -179,10 +179,10 @@ IF(SpeciesDatabase.NE.'none') THEN
     PolyatomMolDSMC(iPolyatMole)%MomentOfInertia(2:3) = 0
   ELSE
     IF(DSMC%RotRelaxModel.EQ.1)THEN
-      CALL AttributeExists(file_id_specdb,'MomentOfInertia',TRIM(dsetname), AttrExists=AttrExists,ChangeToGroup='True')
+      CALL AttributeExists(file_id_specdb,'MomentOfInertia',TRIM(dsetname), AttrExists=AttrExists,ChangeToGroup=.True.)
       IF (AttrExists) THEN
         CALL ReadAttribute(file_id_specdb,'MomentOfInertia',3,DatasetName = dsetname,  &
-          RealArray=PolyatomMolDSMC(iPolyatMole)%MomentOfInertia,ChangeToGroup='True')
+          RealArray=PolyatomMolDSMC(iPolyatMole)%MomentOfInertia,ChangeToGroup=.True.)
         DO iVibDOF = 1,3
           WRITE(UNIT=hilf2,FMT='(I0)') iVibDOF
           CALL PrintOption('MomentOfInertia'//TRIM(hilf2)//' '//TRIM(Species(iSpec)%Name),'DB', &
@@ -207,17 +207,17 @@ IF(SpeciesDatabase.NE.'none') THEN
       DO iVibDOF = 1,3
         WRITE(UNIT=hilf2,FMT='(I0)') iVibDOF
         CALL AttributeExists(file_id_specdb,TRIM('CharaTempRot'//TRIM(hilf2)),TRIM(dsetname), &
-          AttrExists=AttrExists,ChangeToGroup='True')
+          AttrExists=AttrExists,ChangeToGroup=.True.)
         IF (AttrExists) THEN  ! read in CharaTempRot
           CALL ReadAttribute(file_id_specdb,TRIM('CharaTempRot'//TRIM(hilf2)),1,DatasetName = dsetname, &
-            RealScalar=PolyatomMolDSMC(iPolyatMole)%CharaTRotDOF(iVibDOF),ChangeToGroup='True')
+            RealScalar=PolyatomMolDSMC(iPolyatMole)%CharaTRotDOF(iVibDOF),ChangeToGroup=.True.)
           CALL PrintOption('CharaTempRot'//TRIM(hilf2)//' '//TRIM(Species(iSpec)%Name),'DB', &
             RealOpt=PolyatomMolDSMC(iPolyatMole)%CharaTRotDOF(iVibDOF))
         ELSE  ! check for MomentOfInertia
-          CALL AttributeExists(file_id_specdb,'MomentOfInertia',TRIM(dsetname), AttrExists=AttrExists,ChangeToGroup='True')
+          CALL AttributeExists(file_id_specdb,'MomentOfInertia',TRIM(dsetname), AttrExists=AttrExists,ChangeToGroup=.True.)
           IF (AttrExists) THEN
             CALL ReadAttribute(file_id_specdb,'MomentOfInertia',3,DatasetName = dsetname,  &
-              RealArray=PolyatomMolDSMC(iPolyatMole)%MomentOfInertia,ChangeToGroup='True')
+              RealArray=PolyatomMolDSMC(iPolyatMole)%MomentOfInertia,ChangeToGroup=.True.)
             WRITE(UNIT=hilf2,FMT='(I0)') iVibDOF
             PolyatomMolDSMC(iPolyatMole)%CharaTRotDOF(iVibDOF) = PlanckConst**2 / &
               (8 * PI**2 * PolyatomMolDSMC(iPolyatMole)%MomentOfInertia(iVibDOF) * BoltzmannConst)
@@ -237,7 +237,7 @@ IF(SpeciesDatabase.NE.'none') THEN
   DO iVibDOF = 1, PolyatomMolDSMC(iPolyatMole)%VibDOF
     WRITE(UNIT=hilf2,FMT='(I0)') iVibDOF
     CALL ReadAttribute(file_id_specdb,TRIM('CharaTempVib'//TRIM(hilf2)),1,DatasetName = dsetname, &
-      RealScalar=PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iVibDOF),ChangeToGroup='True')
+      RealScalar=PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iVibDOF),ChangeToGroup=.True.)
     CALL PrintOption('CharaTempVib'//TRIM(hilf2)//' '//TRIM(Species(iSpec)%Name),'DB',  &
       RealOpt=PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iVibDOF))
   END DO
@@ -1302,6 +1302,8 @@ ARM = .TRUE.
 IF(PolyatomMolDSMC(iPolyatMole)%LinearMolec)THEN        ! check if molecule is linear, same routine as diatomic
   ! calculate maximum allowed energy (all of collision energy in rotatinal energy)
   J2 = INT((-1.+SQRT(1.+(4.*Ec)/(BoltzmannConst * PolyatomMolDSMC(iPolyatMole)%CharaTRotDOF(1))))/2.)
+  ! reduce J2 if too big which would correspond to unphysical quantum numbers -> //TODO which cut off - vib energy??
+  IF(J2.GT.500) J2 = 500
   !===============================================================================================================================
   ! Find max value of distribution for ARM numerically
   MaxValue = 0.
@@ -1331,6 +1333,8 @@ ELSE IF(PolyatomMolDSMC(iPolyatMole)%RotationalGroup.EQ.1)THEN
   ! molecule is non-linear -> spherical top molecule with all moments of inertia are the same
   ! calculate maximum allowed energy (all of collision energy in rotatinal energy)
   J2 = INT((-1.+SQRT(1.+(4.*Ec)/(BoltzmannConst * PolyatomMolDSMC(iPolyatMole)%CharaTRotDOF(1))))/2.)
+  ! reduce J2 if too big which would correspond to unphysical quantum numbers -> //TODO which cut off - vib energy??
+  IF(J2.GT.500) J2 = 500
   !===============================================================================================================================
   ! Find max value of distribution for ARM numerically
   MaxValue = 0.
@@ -1403,6 +1407,8 @@ J2 = INT((-PolyatomMolDSMC(iPolyatMole)%MomentOfInertia(3)/PolyatomMolDSMC(iPoly
     SQRT((PolyatomMolDSMC(iPolyatMole)%MomentOfInertia(3)/PolyatomMolDSMC(iPolyatMole)%MomentOfInertia(1))**2. + & 
     (32.*Ec*PolyatomMolDSMC(iPolyatMole)%MomentOfInertia(3)*PI**2.)/(PlanckConst**2.)))/2.)
 !=================================================================================================================================
+! reduce J2 if too big which would correspond to unphysical quantum numbers -> //TODO which cut off - vib energy??
+IF(J2.GT.500) J2 = 500
 ! Find max value of distribution for ARM numerically
 MaxValue = 0.
 DO jIter=0, J2
