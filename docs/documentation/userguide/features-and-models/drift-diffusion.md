@@ -15,7 +15,9 @@ TODO: add different time integration possibilities for field (FV solver for elec
 HDG solver for electric fields)
 
 **The First-Order Fluid Model** 
-The 1st order fluid model is derived from the Boltzmann equation. Continuity and the balance of momentum equations are used and the set is truncated at the momentum balance equation.
+
+The first-order-fluid model is derived from the Boltzmann equation. 
+Continuity and the balance of momentum equations are used and the set is truncated at the momentum balance equation.
 
  
 $$
@@ -48,7 +50,7 @@ $$
 $$
 
 
-Here, \( n_p \) and \( n_n \) are positive and negative ion densities, while \( \nu_I \) and \( \nu_A \) are the ionization and attachment collision frequencies due to electron–molecule collisions, and \( \phi \) is the electric potential.
+Here, n_p  and n_n are positive and negative ion densities, while nu_I and nu_A are the ionization and attachment collision frequencies due to electron–molecule collisions, and phi is the electric potential.
 
 ## Boundary conditions
 
