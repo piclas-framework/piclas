@@ -21,26 +21,25 @@ Continuity and the balance of momentum equations are used and the set is truncat
 
  
 $$
-\frac{\partial n}{\partial t} + \nabla \cdot (nv) = C1 \tag
+\frac{\partial n}{\partial t} + \nabla \cdot (nv) = C1  
 $$
 
 $$
-\frac{\partial (nmv)}{\partial t} + \nabla \cdot (nm\langle cc \rangle) - neE = C_{mc} \tag
+\frac{\partial (nmv)}{\partial t} + \nabla \cdot (nm\langle cc \rangle) - neE = C_{mc}  
 $$
 
 After some implementation and the simplfications are applied to the these constitutive equations, the first-order-fluid model is given by the equations : 
 
 
 $$
-\frac{\partial n}{\partial t} = \nabla \cdot (D \cdot \nabla n) + \nabla \cdot (\mu n E) + n(\nu_I - \nu_A) \tag
+\frac{\partial n}{\partial t} = \nabla \cdot (D \cdot \nabla n) + \nabla \cdot (\mu n E) + n(\nu_I - \nu_A)  
+
+$$
+\frac{\partial n_p}{\partial t} = n \nu_I  
 $$
 
 $$
-\frac{\partial n_p}{\partial t} = n \nu_I \tag
-$$
-
-$$
-\frac{\partial n_n}{\partial t} = n \nu_A \tag
+\frac{\partial n_n}{\partial t} = n \nu_A  
 $$
 
 coupled to the Poisson equation for the electric field, 
