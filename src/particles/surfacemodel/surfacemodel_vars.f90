@@ -136,7 +136,7 @@ REAL                             :: BulkElectronTempSEE             ! Bulk elect
                                                                     ! converted to eV for usage in the code
 LOGICAL                          :: SurfModSEEelectronTempAutoamtic ! BulkElectronTempSEE = BulkElectronTemp, which is calculated
                                                                     ! automatically for the first species ID for electrons
-REAL, ALLOCATABLE                :: SurfModSEEPowerFit(:,:)         ! Power-fit coefficients (1=a, 2=b) of the form: a*T(ev)^b
+REAL, ALLOCATABLE                :: SurfModSEEPowerFit(:,:)         ! Power-fit coefficients (1=a, 2=b, 3=c, 4=W; 1:nPartBound) of the form: (a*T(ev)^b + c)*H(T-W)
 
 ! === Sticking coefficient from simple models/interpolation
 REAL, ALLOCATABLE                :: StickingCoefficientData(:,:)    ! Data for the model using non-bounce and condensation probability

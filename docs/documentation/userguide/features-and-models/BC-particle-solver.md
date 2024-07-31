@@ -17,7 +17,7 @@ The `Part-Boundary1-SourceName=` corresponds to the name given during the prepro
 |           `open`           | Every particle crossing the boundary will be deleted                                                                                                                           |
 |        `symmetric`         | A perfect specular reflection, without sampling of particle impacts                                                                                                            |
 |      `symmetric_axis`      | Definition of the axis of rotation in axisymmetric 2D simulations: Section {ref}`sec:2D-axisymmetric`                                                                          |
-|       `symmetric_dim`      | Definition of symmetrical boundaries in 1D and 2D simulations: Section {ref}`sec:2D-axisymmetric`, Section {ref}`sec:1D-sym`                                                     |
+|      `symmetric_dim`       | Definition of symmetrical boundaries in 1D and 2D simulations: Section {ref}`sec:2D-axisymmetric`, Section {ref}`sec:1D-sym`                                                   |
 |        `reflective`        | Definition of different surface models: Section {ref}`sec:particle-boundary-conditions-reflective`, Section {ref}`sec:surface-chemistry`, Section {ref}`sec:catalytic-surface` |
 |       `rot_periodic`       | Definition of rotational periodicity: Section {ref}`sec:particle-boundary-conditions-rotBC`                                                                                    |
 | `rot_periodic_inter_plane` | Extension of rotational periodicity, allowing non-conformal interfaces and varying periodicity                                                                                 |
@@ -122,7 +122,7 @@ can be defined.
     Part-Boundary2-Condition        = rot_periodic
     Part-Boundary2-RotPeriodicAngle = -90.
 
-CAUTION! The correct sign for the rotating angle must be determined. The position of particles that cross one rotational 
+CAUTION! The correct sign for the rotating angle must be determined. The position of particles that cross one rotational
 periodic boundary is tranformed according to this angle, which is defined by the right-hand rule and the rotation axis:
 
     Part-RotPeriodicAxi = 1    ! (x = 1, y = 2, z = 3)
@@ -132,8 +132,8 @@ Cartesian coordinate axis (x, y, z) with its origin at (0, 0, 0).
 
 ### Intermediate Plane Definition
 If several segments with different rotation angles are defined, exactly two corresponding BCs must be defined for each segment.
-Since the plane between these segments with different rotational symmetry angles represents a non-conforming connection, additional 
-two BCs must be defined as `rot_periodic_inter_plane` at this intermediate plane. Both BCs must refer to each other in the 
+Since the plane between these segments with different rotational symmetry angles represents a non-conforming connection, additional
+two BCs must be defined as `rot_periodic_inter_plane` at this intermediate plane. Both BCs must refer to each other in the
 definition in order to ensure the connection.
 
     Part-Boundary40-SourceName       = BC_INT_R1_BOT
@@ -144,7 +144,7 @@ definition in order to ensure the connection.
     Part-Boundary41-Condition        = rot_periodic_inter_plane
     Part-Boundary41-AssociatedPlane  = 40
 
-Note that using the intermediate plane definition with two corresponding BCs allows the user to mesh the segments independently, 
+Note that using the intermediate plane definition with two corresponding BCs allows the user to mesh the segments independently,
 creating a non-conforming interface at the intermediate plane. However, use of these non-conformal grids is so far only possible in standalone DSMC simulations.
 
 ## Porous Wall / Pump
@@ -225,6 +225,7 @@ The available conditions (`Part-BoundaryX-SurfaceModel=`) are described in the t
 | 0 (default) | Standard extended Maxwellian scattering                                                                                                                                                      |
 |      1      | Empirical modelling of sticking coefficient/probability                                                                                                                                      |
 |      2      | Fixed probability surface chemistry                                                                                                                                                          |
+|      4      | Secondary electron emission as a power-fit ($a E^b + c$) above the work function W                                                                                                           |
 |      5      | Secondary electron emission as given by Ref. {cite}`Levko2015`.                                                                                                                              |
 |      7      | Secondary electron emission due to ion impact (SEE-I with $Ar^{+}$ on different metals) as used in Ref. {cite}`Pflug2014` and given by Ref. {cite}`Depla2009` with a default yield of 13 \%. |
 |      8      | Secondary electron emission due to ion impact (SEE-E with $e^{-}$ on dielectric surfaces) as used in Ref. {cite}`Liu2010` and given by Ref. {cite}`Morozov2004`.                             |
@@ -307,6 +308,24 @@ the surface material. All models require the specification of the electron speci
 
 where electrons of species `C` are emitted from boundary `B` on the impact of species `A`.
 
+#### Model 4
+
+The model is based on {cite}`Goebel2008` and uses a power-fit and an additional threshold to model the secondary electron emission yield.
+It is assumed that the impacting particle is absorbed.
+
+$$\gamma = (a E^b + c)H(E-W),$$
+
+where $a$, $b$, $c$ are the fitting coefficients and $W$ is the material-dependent work function above which the yield is calculated.
+The parameters are read-in through:
+
+    Part-BoundaryB-SurfModSEEPowerFit   = (/0.1,0.5,0.25,9/)      ! (/a,b,c,W/)
+
+Additionally, the energy distribution can be selected with
+
+    Part-BoundaryB-SurfModEnergyDistribution = cosine2
+
+An example of the model usage is given in the regression test: `piclas/regressioncheck/NIG_DSMC/BC_SEE_PowerFit/`.
+
 #### Model 5
 
 The model by Levko {cite}`Levko2015` can be applied for copper electrodes for electron and ion bombardment and is activated via
@@ -368,7 +387,7 @@ activated via `Part-BoundaryX-SurfaceModel=11`. For more details, see the origin
 Catalytic reactions can be modeled in PICLas using a finite-rate reaction model with an implicit treatment of the reactive surface. For a better resolution of the parameters, the catalytic boundaries are discretized into a certain number of subsides. A definition of the boundary temperature in the parameter input file is required in all cases. Different types of surfaces can be defined by the lattice constant of the unit cell `Part-BoundaryX-LatticeVec` and the number of particles in the unit cell `Part-BoundaryX-NbrOfMol-UnitCell`. These parameters are used in the calculation of the number of active sites.
 
 By default, the simulation is started with a clean surface, but an initial species-specific coverage can be specified by `Part-BoundaryX-SpeciesX-Coverage`, which represents the relative number of active sites that are occupied by adsorbate particles. Maximum values for the coverage values can be specified by:
- 
+
     Part-Boundary1-Species1-MaxCoverage
     Part-Boundary1-MaxTotalCoverage
 
@@ -386,7 +405,7 @@ A catalytic reaction and the boundary on which it takes place is then defined by
     Surface-Reaction1-Products           = (/2,1,0/)
     Surface-Reaction1-NumOfBoundaries    = 2
     Surface-Reaction1-Boundaries         = (/1,3/)
-    
+
 All reactants and products are defined by their respective species index. In the case of multiple reacting, the order does not influence the input. The following options are available for the catalytic reaction type:
 
 | Model | Description                                                 |
@@ -415,7 +434,7 @@ Here, $S_0$ is the binding coefficient for a clean surface, $\alpha$ is the diss
     Surface-Reaction1-StickingCoefficient  = 0.2
     Surface-Reaction1-DissOrder            = 1
     Surface-Reaction1-EqConstant           = 0.6
-   
+
 A special case of adsorption is the dissociative adsorption (`Surface-ReactionX-DissociativeAdsorption = true`), where only half of the molecule binds to the surface, while the other half remains in the gas phase. The adsorbate half `Surface-ReactionX-AdsorptionProduct` and the gas phase product `Surface-ReactionX-GasPhaseProduct` are specified by their respective species indices. The adsorption probability is calculated analogously to the general case.
 
 Lateral interactions between multiple adsorbate species, which can disfavor further adsorption can be taken into account by the command `Surface-ReactionX-Inhibition` and the species index of the inhibiting species.
@@ -436,14 +455,14 @@ activation energy [K]. These parameters can be defined in PICLas as follows:
 
 The Eley-Rideal and the Langmuir-Hinshelwood reaction use Arrhenius-type reaction rates along with the coverage of all surface-bound reactants $\theta_{AB}$, to reproduce of the catalytic reaction.
 
-$$k(T) = A T^b \theta_{AB} e^{-E_\mathrm{a}/T}$$ 
+$$k(T) = A T^b \theta_{AB} e^{-E_\mathrm{a}/T}$$
 
-The Arrhenius prefactor ([m$^3$/s] for the Eley-Rideal reaction and [m$^2$/s]  for the Langmuir-Hinshelwood case) and the activation energy are read in analogously to the desorption case. For the reactions, an energy accommodation coefficient `Surface-ReactionX-EnergyAccommodation` with values between 0 and 1 can be specified, which defines the amount of the reaction energy that is transferred to the surface. 
+The Arrhenius prefactor ([m$^3$/s] for the Eley-Rideal reaction and [m$^2$/s]  for the Langmuir-Hinshelwood case) and the activation energy are read in analogously to the desorption case. For the reactions, an energy accommodation coefficient `Surface-ReactionX-EnergyAccommodation` with values between 0 and 1 can be specified, which defines the amount of the reaction energy that is transferred to the surface.
 
 In the general Langmuir-Hinshelwood case with the reaction type `LH`, the product species stays adsorbed on the surface, until a desorption takes place in a later step. For reactions in combination with very high desorption rates, the reaction type `LHD` is more fitting. The product species are inserted directly into the gas phase without an intermediate desorption step.
 
 Example inputs for both catalytic reactions can be found in the regression tests: `regressioncheck/NIG_Reservoir/CAT_RATES_ER` and `regressioncheck/NIG_Reservoir/CAT_RATES_LH`.
-   
+
 ### Diffusion
 
 With `Surface-Diffusion = true` an instantaneous diffusion over all catalytic boundaries is enabled. This is equivalent to an averaging of the coverage values for all surface subsides.

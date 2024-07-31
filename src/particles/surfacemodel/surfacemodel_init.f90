@@ -43,13 +43,14 @@ IMPLICIT NONE
 CALL prms%SetSection("SurfaceModel")
 
 CALL prms%CreateIntOption(     'Part-Species[$]-PartBound[$]-ResultSpec'    , 'Resulting recombination species (one of nSpecies)' , '-1' , numberedmulti=.TRUE.)
-CALL prms%CreateStringOption(  'Part-Boundary[$]-SurfModEnergyDistribution' , 'Energy distribution function for surface emission model (only changable for SurfaceModel=7)' , numberedmulti=.TRUE.)
+CALL prms%CreateStringOption(  'Part-Boundary[$]-SurfModEnergyDistribution' , 'Energy distribution function for surface emission model (only changeable for SurfaceModel=4/7)' , numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(    'Part-Boundary[$]-SurfModEmissionEnergy'     , 'Energy of emitted particle for surface emission model (only available for SurfaceModel=7)' , numberedmulti=.TRUE.)
-CALL prms%CreateRealOption(    'Part-Boundary[$]-SurfModEmissionYield'      , 'Emission yield factor for surface emission model (only changable for SurfaceModel=7)' , numberedmulti=.TRUE.)
+CALL prms%CreateRealOption(    'Part-Boundary[$]-SurfModEmissionYield'      , 'Emission yield factor for surface emission model (only changeable for SurfaceModel=7)' , numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(    'Part-SurfaceModel-SEE-Te'                   , 'Bulk electron temperature for SEE model by Morozov2004 in Kelvin (default corresponds to 50 eV)' , '5.80226250308285e5')
 CALL prms%CreateLogicalOption( 'Part-SurfaceModel-SEE-Te-automatic'         , 'Automatically set the bulk electron temperature by using the global electron temperature for SEE model by Morozov2004' , '.FALSE.')
 
-CALL prms%CreateRealArrayOption('Part-Boundary[$]-SurfModSEEPowerFit'       , 'SEE Power-fit model (SurfaceModel = 4): coefficients of the form a*E(eV)^b, input as (a,b)', numberedmulti=.TRUE.,no=2)
+CALL prms%CreateRealArrayOption('Part-Boundary[$]-SurfModSEEPowerFit'       , 'SEE power-fit model (SurfaceModel = 4): coefficients of the form a*E(eV)^b + c, input as (a,b,c,W),'//&
+                                                                              'where W is the material work function below which the yield is zero.', numberedmulti=.TRUE.,no=2)
 END SUBROUTINE DefineParametersSurfModel
 
 
@@ -99,7 +100,7 @@ SurfModEmissionYield = 0.
 ALLOCATE(SumOfResultSpec(nPartBound))
 SumOfResultSpec = 0
 
-ALLOCATE(SurfModSEEPowerFit(1:2, 1:nPartBound))
+ALLOCATE(SurfModSEEPowerFit(1:4, 1:nPartBound))
 SurfModSEEPowerFit = 0
 
 ! Loop particle boundaries
@@ -141,10 +142,18 @@ DO iPartBound=1,nPartBound
   !---------------------------------------------------------------------------------------------------------------------------------
   ! Read-in and set SEE model specific parameters
   SELECT CASE(PartBound%SurfaceModel(iPartBound))
-  ! 4: SEE Power-fit model by Goebel & Katz „Fundamentals of Electric Propulsion - Ion and Hall Thrusters“
+  ! 4: SEE Power-fit model based on Goebel & Katz „Fundamentals of Electric Propulsion - Ion and Hall Thrusters“
   CASE(4)
-    CALL abort(__STAMP__,'SEE model power fit: Implementation not yet finished, regression test and documentation is missing!')
-    SurfModSEEPowerFit(1:2,iPartBound) = GETREALARRAY('Part-Boundary'//TRIM(hilf2)//'-SurfModSEEPowerFit',2)
+    SurfModSEEPowerFit(1:4,iPartBound) = GETREALARRAY('Part-Boundary'//TRIM(hilf2)//'-SurfModSEEPowerFit',4)
+    SurfModEnergyDistribution(iPartBound) = TRIM(GETSTR('Part-Boundary'//TRIM(hilf2)//'-SurfModEnergyDistribution','cosine2'))
+    ! Loop all species
+    DO iSpec = 1,nSpecies
+      IF(SPECIESISELECTRON(iSpec)) THEN
+        IF(SurfModResultSpec(iPartBound,iSpec).EQ.-1) CALL abort(__STAMP__,&
+          'SEE Power-fit model (4): Electron species has no resulting secondary electron species (can be the same) defined through Part-Species'//TRIM(int2strf(iSpec))// &
+          '-PartBound'//TRIM(int2strf(iPartBound))//'-ResultSpec!')
+      END IF
+    END DO
   ! 5: SEE by Levko2015
   ! 6: SEE by Pagonakis2016 (originally from Harrower1956)
   ! 7: SEE-I (bombarding electrons are removed, Ar+ on different materials is considered for SEE)

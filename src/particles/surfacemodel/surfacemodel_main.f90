@@ -49,9 +49,9 @@ USE MOD_Globals                   ,ONLY: abort,UNITVECTOR,OrthoNormVec
 USE MOD_Globals                   ,ONLY: myrank
 #endif /*USE_MPI*/
 USE MOD_Globals_Vars              ,ONLY: PI, BoltzmannConst
-USE MOD_Particle_Vars             ,ONLY: PartSpecies,WriteMacroSurfaceValues,Species,usevMPF,PartMPF
+USE MOD_Particle_Vars             ,ONLY: PartState,PartSpecies,WriteMacroSurfaceValues,Species,usevMPF,PartMPF
 USE MOD_Particle_Tracking_Vars    ,ONLY: TrackingMethod, TrackInfo
-USE MOD_Particle_Boundary_Vars    ,ONLY: PartBound, GlobalSide2SurfSide, dXiEQ_SurfSample
+USE MOD_Particle_Boundary_Vars    ,ONLY: PartBound, GlobalSide2SurfSide, dXiEQ_SurfSample, DoBoundaryParticleOutputHDF5
 USE MOD_SurfaceModel_Vars         ,ONLY: nPorousBC, SurfModEnergyDistribution
 USE MOD_Particle_Mesh_Vars        ,ONLY: SideInfo_Shared
 USE MOD_Particle_Vars             ,ONLY: PDM, LastPartPos

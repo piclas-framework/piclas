@@ -507,9 +507,9 @@ SUBROUTINE SurfaceModelParticleEmission(n_loc, PartID, SideID, ProductSpec, Prod
 USE MOD_Globals!                   ,ONLY: OrthoNormVec
 USE MOD_Part_Tools                ,ONLY: VeloFromDistribution
 USE MOD_part_operations           ,ONLY: CreateParticle
-USE MOD_Particle_Vars             ,ONLY: WriteMacroSurfaceValues
-USE MOD_Particle_Boundary_Tools   ,ONLY: CalcWallSample
-USE MOD_Particle_Boundary_Vars    ,ONLY: Partbound, GlobalSide2SurfSide
+USE MOD_Particle_Vars             ,ONLY: WriteMacroSurfaceValues,Species,usevMPF,PartMPF,PartState
+USE MOD_Particle_Boundary_Tools   ,ONLY: CalcWallSample, StoreBoundaryParticleProperties
+USE MOD_Particle_Boundary_Vars    ,ONLY: Partbound, GlobalSide2SurfSide, DoBoundaryParticleOutputHDF5
 USE MOD_Particle_Mesh_Vars        ,ONLY: SideInfo_Shared
 USE MOD_DSMC_Vars                 ,ONLY: DSMC, SamplingActive
 USE MOD_Particle_Mesh_Vars        ,ONLY: BoundsOfElem_Shared
@@ -530,7 +530,7 @@ CHARACTER(LEN=*),INTENT(IN)  :: EnergyDistribution !< energy distribution model 
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER            :: iNewPart, NewPartID, locBCID, SurfSideID
-REAL               :: tang1(1:3), tang2(1:3), WallVelo(1:3), WallTemp, NewVelo(3), BoundsOfElemCenter(1:3),NewPos(1:3)
+REAL               :: tang1(1:3), tang2(1:3), WallVelo(1:3), WallTemp, NewVelo(3), BoundsOfElemCenter(1:3),NewPos(1:3),MPF
 REAL,PARAMETER     :: eps=1e-6
 REAL,PARAMETER     :: eps2=1.0-eps
 !===================================================================================================================================
@@ -566,6 +566,16 @@ DO iNewPart = 1, ProductSpecNbr
   ! Sampling of newly created particles
   IF((DSMC%CalcSurfaceVal.AND.SamplingActive).OR.(DSMC%CalcSurfaceVal.AND.WriteMacroSurfaceValues)) &
     CALL CalcWallSample(NewPartID,SurfSideID,'new',SurfaceNormal_opt=n_loc)
+  ! Store the particle information in PartStateBoundary.h5
+  IF(DoBoundaryParticleOutputHDF5) THEN
+    IF(usevMPF)THEN
+      MPF = PartMPF(NewPartID)
+    ELSE
+      MPF = Species(ProductSpec)%MacroParticleFactor
+    END IF ! usevMPF
+    CALL StoreBoundaryParticleProperties(NewPartID,ProductSpec,PartState(1:3,NewPartID),&
+          UNITVECTOR(PartState(4:6,NewPartID)),n_loc,iPartBound=locBCID,mode=2,MPF_optIN=MPF)
+  END IF ! DoBoundaryParticleOutputHDF5
 END DO ! iNewPart = 1, ProductSpecNbr
 
 END SUBROUTINE SurfaceModelParticleEmission

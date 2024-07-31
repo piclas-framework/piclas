@@ -473,7 +473,7 @@ END FUNCTION DiceUnitVector
 FUNCTION VeloFromDistribution(distribution,Tempergy,iNewPart,ProductSpecNbr)
 ! MODULES
 USE MOD_Globals           ,ONLY: Abort,UNIT_stdOut,VECNORM
-USE MOD_Globals_Vars      ,ONLY: eV2Joule,ElectronMass,c
+USE MOD_Globals_Vars      ,ONLY: eV2Joule,ElectronMass,c,ElementaryCharge,PI
 USE MOD_SurfaceModel_Vars ,ONLY: BackupVeloABS
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -483,15 +483,16 @@ REAL,INTENT(IN)             :: Tempergy       !< Input temperature in [K] or ene
 INTEGER,INTENT(IN)          :: iNewPart       !< The i-th particle that is inserted (only required for some distributions)
 INTEGER,INTENT(IN)          :: ProductSpecNbr !< Total number of particles that are inserted (only required for some distributions)
 !-----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
+! LOCAL VARIABLES
 REAL            :: VeloFromDistribution(1:3) !< Velocity vector created from specific velocity distribution function
 REAL            :: VeloABS                   !< Absolute velocity of the velocity vector
 REAL            :: RandVal                   !< Pseudo random number
 LOGICAL         :: ARM                       !< Acceptance rejection method
-REAL            :: PDF                       !< Probability density function
+REAL            :: PDF,PDF_max               !< Probability density function
+REAL, PARAMETER :: PDF_max2=4./PI            !< Maximum of PDF for cosine2 distribution
 REAL            :: eps,eps2                  !< kinetic electron energy [eV]
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
+REAL            :: E_temp, E_max, W          !< Energy values [eV]
+REAL            :: Theta, Chi, Theta_temp    !< Angles between surface normal/tangent to velocity
 !===================================================================================================================================
 !-- set velocities
 SELECT CASE(TRIM(distribution))
@@ -574,9 +575,45 @@ CASE('Morozov2004') ! Secondary electron emission (SEE) due to electron bombardm
   ! Set magnitude
   VeloFromDistribution = VeloABS*VeloFromDistribution ! VeloABS is [m/s]
 
+CASE('cosine2')
+
+  W = TempErgy
+  ! ARM for energy distribution
+  E_max = 25.0*W ! in eV (this yields an integral of 0.9956759, i.e., 99.57% of electrons have this or a lower energy)
+  PDF_max = 81.0 / (128.0 * W)  ! PDF_max at E = W/3 (derivation of 6W^2E/(E+W)^4 == 0)
+  ARM=.TRUE.
+  DO WHILE(ARM)
+    CALL RANDOM_NUMBER(RandVal)
+    E_temp = RandVal * E_max
+    PDF = 6 * W**2 * E_temp / (E_temp + W)**4
+    CALL RANDOM_NUMBER(RandVal)
+    IF ((PDF/PDF_max).GT.RandVal) ARM = .FALSE.
+  END DO
+  ! Non-relativistic electron energy (conversion from eV to Joule)
+  VeloABS = SQRT(2.0 * E_temp * ElementaryCharge / ElectronMass)
+
+  ! ARM for angular distribution
+  CALL RANDOM_NUMBER(RandVal)
+  Chi = RandVal * 2.0 * PI
+  ARM=.TRUE.
+  DO WHILE(ARM)
+    CALL RANDOM_NUMBER(RandVal)
+    Theta_temp = RandVal * 0.5 * PI
+    PDF = 4.0 / PI * COS(Theta_temp)**2
+    CALL RANDOM_NUMBER(RandVal)
+    IF ((PDF/PDF_max2).GT.RandVal) ARM = .FALSE.
+  END DO
+  Theta = Theta_temp
+
+  VeloFromDistribution(1) = COS(Theta) * COS(Chi)
+  VeloFromDistribution(2) = COS(Theta) * SIN(Chi)
+  VeloFromDistribution(3) = SIN(Theta)
+
+  VeloFromDistribution = VeloFromDistribution * VeloABS
+
 CASE DEFAULT
 
-  CALL abort(__STAMP__,'Unknown velocity dsitribution: ['//TRIM(distribution)//']')
+  CALL abort(__STAMP__,'Unknown velocity distribution: ['//TRIM(distribution)//']')
 
 END SELECT
 

@@ -37,7 +37,7 @@ SUBROUTINE SecondaryElectronEmission(PartID_IN,locBCID,ProductSpec,ProductSpecNb
 ! MODULES                                                                                                                          !
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Globals                   ,ONLY: abort,PARTISELECTRON,DOTPRODUCT
-USE MOD_Globals_Vars              ,ONLY: c,c2,Joule2eV
+USE MOD_Globals_Vars              ,ONLY: c,c2,Joule2eV,eV2Joule
 USE MOD_Particle_Vars             ,ONLY: PartState,Species,PartSpecies,PartMPF,nSpecies
 USE MOD_Globals_Vars              ,ONLY: ElementaryCharge,ElectronMass
 USE MOD_SurfaceModel_Vars         ,ONLY: BulkElectronTempSEE
@@ -82,31 +82,42 @@ ProductSpecNbr = 0
 TempErgy       = 0.0
 ! Select particle surface modeling
 SELECT CASE(PartBound%SurfaceModel(locBCID))
-CASE(4) ! 4: SEE-E by power-law: a*T(eV)^b
+CASE(4) ! 4: SEE-E by power-law: (a*T[eV]^b + c)*H(T[eV]-W)
   ProductSpecNbr = 0 ! do not create new particle (default value)
   ! Bombarding electron
   IF(PARTISELECTRON(PartID_IN))THEN
     ! Electron energy in [eV]
     eps_e = 0.5*Species(SpecID)%MassIC*velo2*Joule2eV ! Incident electron energy [eV]
-    ! Power Fit
-    SEE_Prob = SurfModSEEPowerFit(1,locBCID)*eps_e**SurfModSEEPowerFit(2,locBCID)
-    ! If the yield is greater than 1.0 (or 2.0 or even higher), set the number of products with the integer and roll the dice for the remainder
-    ProductSpecNbr = INT(SEE_Prob)
-    SEE_Prob = SEE_Prob - REAL(ProductSpecNbr)
+    ! Check probability only above certain threshold
+    IF((eps_e-SurfModSEEPowerFit(4,locBCID)).GT.0.0) THEN
+      ! Power Fit
+      SEE_Prob = SurfModSEEPowerFit(1,locBCID)*eps_e**SurfModSEEPowerFit(2,locBCID) + SurfModSEEPowerFit(3,locBCID)
+      ! If the yield is greater than 1.0 (or 2.0 or even higher), set the number of products with the integer and roll the dice for the remainder
+      ProductSpecNbr = INT(SEE_Prob)
+      SEE_Prob = SEE_Prob - REAL(ProductSpecNbr)
 
-    ! Roll the dice and if the yield is greater than the random number, add an additional electron
-    CALL RANDOM_NUMBER(iRan)
-    IF(iRan.LT.SEE_Prob) ProductSpecNbr = ProductSpecNbr + 1
+      ! Roll the dice and if the yield is greater than the random number, add an additional electron
+      CALL RANDOM_NUMBER(iRan)
+      IF(SEE_Prob.GT.iRan) ProductSpecNbr = ProductSpecNbr + 1
 
-    ! If the electron is reflected (ProductSpecNbr=1) or multiple electrons are created (ProductSpecNbr>1)
-    IF(ProductSpecNbr.GT.0) ProductSpec(2) = SurfModResultSpec(locBCID,SpecID)
+      ! If the electron is reflected (ProductSpecNbr=1) or multiple electrons are created (ProductSpecNbr>1)
+      IF(ProductSpecNbr.GT.0) ProductSpec(2) = SurfModResultSpec(locBCID,SpecID)
 
-    ! When more than 1 electron is created, give them all part of the impacting energy
-    IF(ProductSpecNbr.GT.1) eps_e = eps_e/REAL(ProductSpecNbr) ! [eV]
+      ! When more than 1 electron is created, give them all part of the remaining energy
+      IF(ProductSpecNbr.GT.1) eps_e = eps_e/REAL(ProductSpecNbr) ! [eV]
 
-    ! Velocity of reflected primary or secondary electrons in [m/s]
-    TempErgy = SQRT(2.*eps_e*ElementaryCharge/ElectronMass)
-
+      ! Store the velocity [m/s] or energy [eV] depending on the energy distribution
+      SELECT CASE(SurfModEnergyDistribution(locBCID))
+      CASE('deltadistribution')
+        ! Energy in [m/s]
+        TempErgy = SQRT(2.*eps_e*eV2Joule/ElectronMass)
+      CASE('cosine2','uniform-energy','Morozov2004')
+        ! Energy in [eV]
+        TempErgy = eps_e
+      CASE DEFAULT
+        CALL abort(__STAMP__,'Unknown velocity distribution for power-fit SEE model: ['//TRIM(SurfModEnergyDistribution(locBCID))//']')
+      END SELECT
+    END IF
   ELSE ! Neutral bombarding particle
     RETURN ! nothing to do
   END IF
@@ -147,11 +158,6 @@ CASE(5) ! 5: SEE by Levko2015 for copper electrodes
             ProductSpecNbr = 1
             TempErgy        = SQRT(2.*(eps_e*ElementaryCharge-ElementaryCharge*phi)/ElectronMass) ! Velocity of emitted secondary electron
             eps_e           = 0.5*mass*(TempErgy**2)/ElementaryCharge               ! Energy of the injected electron
-!WRITE (*,*) CHAR(27) // "[0;34mPartID_IN                  =", PartID_IN,CHAR(27),"[m"
-!WRITE (*,*) CHAR(27) // "[0;34mPartState(1:3,PartID_IN)   =", PartState(1:3,PartID_IN),CHAR(27),"[m"
-!WRITE (*,*) CHAR(27) // "[0;34mPartState(4:6,PartID_IN)   =", PartState(4:6,PartID_IN),CHAR(27),"[m"
-!WRITE (*,*) CHAR(27) // "[0;34mBombarding electron: TempErgy =", TempErgy,CHAR(27),"[m"
-!WRITE (*,*) CHAR(27) // "[0;34m                     eps_e =", eps_e,CHAR(27),"[m"
           ELSE ! Only perfect elastic scattering of the bombarding electron
             ProductSpecNbr = 0 ! do not create new particle
           END IF
@@ -185,11 +191,6 @@ CASE(5) ! 5: SEE by Levko2015 for copper electrodes
         ProductSpecNbr = 1
         eps_e          = I-2.*phi ! Energy of the injected electron
         TempErgy       = SQRT(2.*(eps_e*ElementaryCharge-ElementaryCharge*phi)/ElectronMass) ! Velocity of emitted secondary electron
-!WRITE (*,*) CHAR(27) // "[0;34mPartID_IN                  =", PartID_IN,CHAR(27),"[m"
-!WRITE (*,*) CHAR(27) // "[0;31mPartState(1:3,PartID_IN) =", PartState(1:3,PartID_IN),CHAR(27),"[m"
-!WRITE (*,*) CHAR(27) // "[0;31mPartState(4:6,PartID_IN) =", PartState(4:6,PartID_IN),CHAR(27),"[m"
-!WRITE (*,*) CHAR(27) // "[0;31mPositive bombarding ion: TempErgy =", TempErgy,CHAR(27),"[m"
-!WRITE (*,*) CHAR(27) // "[0;31m                         eps_e =", eps_e,CHAR(27),"[m"
       ELSE ! Removal of the bombarding ion
         !ReflectionIndex = -1 ! Only perfect elastic scattering of the bombarding electron
         ProductSpec(1)  = -SpecID ! Negative value: Remove bombarding particle and sample

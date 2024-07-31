@@ -609,7 +609,7 @@ SUBROUTINE SurfaceModelChemistry(PartID,SideID,GlobalElemID,n_Loc,PartPosImpact)
 USE MOD_Globals                   ,ONLY: abort,UNITVECTOR,OrthoNormVec
 USE MOD_DSMC_PolyAtomicModel      ,ONLY: DSMC_SetInternalEnr
 USE MOD_part_operations           ,ONLY: RemoveParticle, CreateParticle
-USE MOD_part_tools                ,ONLY: VeloFromDistribution, GetParticleWeight
+USE MOD_part_tools                ,ONLY: GetParticleWeight
 USE MOD_SurfaceModel_Tools        ,ONLY: MaxwellScattering, CalcPostWallCollVelo
 USE MOD_Particle_Boundary_Tools   ,ONLY: CalcWallSample
 ! VARIABLES
